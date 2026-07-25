@@ -274,12 +274,14 @@ BODY = """    <div class="night-header-row">
           <button id="breakthrough-import-btn" type="button" data-i18n="breakthrough_import_button"></button>
         </div>
         <div class="wb-row">
-          <label data-i18n="breakthrough_target_label"></label>
-          <input id="breakthrough-target-input" type="number" class="stat-input" min="0" />
-          <label class="field-row">
-            <input id="breakthrough-perpc-checkbox" type="checkbox" />
-            <span data-i18n="breakthrough_perpc_label"></span>
-          </label>
+          <span id="breakthrough-target-hideable" class="wb-row">
+            <label data-i18n="breakthrough_target_label"></label>
+            <input id="breakthrough-target-input" type="number" class="stat-input" min="0" />
+            <label class="field-row">
+              <input id="breakthrough-perpc-checkbox" type="checkbox" />
+              <span data-i18n="breakthrough_perpc_label"></span>
+            </label>
+          </span>
           <select id="breakthrough-stat-select">
             <option value="any" data-i18n="check_stat_any"></option>
             <option value="luck" data-i18n="check_stat_luck"></option>

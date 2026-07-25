@@ -5,6 +5,9 @@
   var SUIT_CLASSES = ["suit-black", "suit-red", "suit-orange", "suit-green"];
   var RANKS = ["A", "2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K"];
   var SLOT_COUNT = 9;
+  // 新規ゲーム開始時、現在地（focusedIndex）の初期位置とする左列中段のマス
+  // （盤面レイアウトはstyle.cssの.slot-wrap-3が左列・中段に対応）。
+  var BOARD_LEFT_SLOT = 3;
   var SLOT_LONG_PRESS_MS = 250;
   var MAX_EQUIPPED_WEAPONS = 2;
   // 固定配置副本（安寧者たち／瓦礫の王）の原書図解ポジション（1-9、上7-8-9／中4-S-5-E-6／下1-2-3）
@@ -3859,6 +3862,10 @@
     breakthroughState = { slotIndex: index, mode: "floor", moveTarget: null, characters: {}, revealed: false };
     document.getElementById("breakthrough-modal-title").textContent = window.I18N.t("breakthrough_modal_title");
     document.getElementById("breakthrough-import-row").hidden = false;
+    // 目標點數・PC人數倍のチェックは揭曉するまで非表示（GMも含め、揭曉ボタンを押すまでは
+    // 誰の目にも触れないようにする）。判定属性（stat-select）は骰子を振るために必要な情報
+    // なので、こちらは常に表示する。
+    document.getElementById("breakthrough-target-hideable").hidden = true;
     document.getElementById("breakthrough-target-input").value = "10";
     document.getElementById("breakthrough-target-input").disabled = false;
     document.getElementById("breakthrough-perpc-checkbox").checked = false;
@@ -3878,6 +3885,7 @@
     breakthroughState = { slotIndex: null, mode: "climb", moveTarget: toIndex, characters: {}, revealed: true };
     document.getElementById("breakthrough-modal-title").textContent = window.I18N.t("climb_check_modal_title");
     document.getElementById("breakthrough-import-row").hidden = true;
+    document.getElementById("breakthrough-target-hideable").hidden = false;
     document.getElementById("breakthrough-target-input").value = String(9 + suitDiff);
     document.getElementById("breakthrough-target-input").disabled = true;
     document.getElementById("breakthrough-perpc-checkbox").checked = true;
@@ -3903,6 +3911,7 @@
       return;
     }
     breakthroughState.revealed = true;
+    document.getElementById("breakthrough-target-hideable").hidden = false;
     document.getElementById("breakthrough-target-input").disabled = true;
     document.getElementById("breakthrough-perpc-checkbox").disabled = true;
     document.getElementById("breakthrough-stat-select").disabled = true;
@@ -3915,6 +3924,7 @@
     document.getElementById("btn-breakthrough-fail").hidden = true;
     document.getElementById("btn-breakthrough-pass").hidden = true;
     document.getElementById("breakthrough-import-row").hidden = false;
+    document.getElementById("breakthrough-target-hideable").hidden = false;
     breakthroughState = null;
   }
 
@@ -4262,6 +4272,7 @@
     state.eventChips = rollEventChips();
 
     var logKey = wasContinue ? "log_continue_submit" : "log_select_submit";
+    if (!wasContinue) state.focusedIndex = BOARD_LEFT_SLOT;
     state.boardStarted = true;
     if (wasContinue) advanceToNextNight();
     closeSelectDrawer();
@@ -4306,6 +4317,7 @@
       });
     }
     state.eventChips = rollEventChips();
+    state.focusedIndex = BOARD_LEFT_SLOT;
     state.boardStarted = true;
     renderBoard();
     addLog("log_select_submit", {
@@ -4564,10 +4576,8 @@
 
     // 既存の「めくる／山札に戻す」フロー（focusedIndexの更新も含めて元の挙動のまま）。
     function proceedRevealOrReturn() {
-      state.focusedIndex = index;
-      renderBoard();
-      saveState();
-
+      // めくる／放回牌庫は現在地（focusedIndex）を更新しない。現在地は「移動」操作でのみ
+      // 変わる（黄色枠のハイライトは実際の移動があった場所を示すため）。
       var card = CARD_BY_CODE[slot.code];
       if (!slot.revealed) {
         openConfirm(
