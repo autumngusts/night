@@ -3856,18 +3856,44 @@
   }
 
   function openBreakthroughModal(index) {
-    breakthroughState = { slotIndex: index, characters: {} };
+    breakthroughState = { slotIndex: index, characters: {}, revealed: false };
     document.getElementById("breakthrough-target-input").value = "10";
+    document.getElementById("breakthrough-target-input").disabled = false;
     document.getElementById("breakthrough-perpc-checkbox").checked = false;
+    document.getElementById("breakthrough-perpc-checkbox").disabled = false;
     document.getElementById("breakthrough-stat-select").value = "any";
+    document.getElementById("breakthrough-stat-select").disabled = false;
     document.getElementById("breakthrough-error").hidden = true;
     populateBreakthroughFieldSelectors(index);
     renderBreakthroughCharacters();
     document.getElementById("breakthrough-modal").hidden = false;
   }
 
+  // 規則書の通常セッション認証とは別に、揭曉のたびに必ずパスワードを再要求する
+  // （既にセッション認証済みでも、目標値の閲覧は毎回明示的な確認を必要とするため）。
+  function checkBreakthroughRevealPassword() {
+    var input = window.prompt(window.I18N.t("rulebook_password_prompt"));
+    return input === RULEBOOK_PASSWORD;
+  }
+
+  function revealBreakthroughTarget() {
+    if (!breakthroughState) return;
+    if (!checkBreakthroughRevealPassword()) {
+      window.alert(window.I18N.t("rulebook_password_wrong"));
+      return;
+    }
+    breakthroughState.revealed = true;
+    document.getElementById("breakthrough-target-input").disabled = true;
+    document.getElementById("breakthrough-perpc-checkbox").disabled = true;
+    document.getElementById("breakthrough-stat-select").disabled = true;
+    renderBreakthroughCharacters();
+  }
+
   function closeBreakthroughModal() {
     document.getElementById("breakthrough-modal").hidden = true;
+    document.getElementById("btn-breakthrough-reveal").hidden = false;
+    document.getElementById("btn-breakthrough-fail").hidden = true;
+    document.getElementById("btn-breakthrough-pass").hidden = true;
     breakthroughState = null;
   }
 
@@ -4010,21 +4036,35 @@
     var perPC = document.getElementById("breakthrough-perpc-checkbox").checked;
     var actualTarget = perPC ? target * entered.length : target;
     var sumLabel = document.getElementById("breakthrough-sum-label");
-    sumLabel.textContent = window.I18N.t("breakthrough_sum_label", { sum: breakthroughDiceSum(), target: actualTarget });
+    sumLabel.textContent = breakthroughState.revealed
+      ? window.I18N.t("breakthrough_sum_label", { sum: breakthroughDiceSum(), target: actualTarget })
+      : window.I18N.t("breakthrough_sum_label_hidden", { sum: breakthroughDiceSum() });
+
+    document.getElementById("btn-breakthrough-reveal").hidden = breakthroughState.revealed;
+    document.getElementById("btn-breakthrough-fail").hidden = !breakthroughState.revealed;
+    document.getElementById("btn-breakthrough-pass").hidden = !breakthroughState.revealed;
   }
 
-  function confirmBreakthroughCheck() {
-    if (!breakthroughState) return;
-    var index = breakthroughState.slotIndex;
+  function computeBreakthroughActualTarget() {
     var target = Number(document.getElementById("breakthrough-target-input").value) || 0;
     var perPC = document.getElementById("breakthrough-perpc-checkbox").checked;
     var entered = rosterCharacters.filter(function (c) {
       return c.entered;
     });
-    var actualTarget = perPC ? target * entered.length : target;
+    return perPC ? target * entered.length : target;
+  }
+
+  function resolveBreakthroughCheck(passed) {
+    if (!breakthroughState) return;
+    var index = breakthroughState.slotIndex;
     var sum = breakthroughDiceSum();
-    stepCardLevel(index, 1);
-    addLog("log_breakthrough_check", { slot: index + 1, sum: sum, target: actualTarget });
+    var actualTarget = computeBreakthroughActualTarget();
+    if (passed) stepCardLevel(index, 1);
+    addLog(passed ? "log_breakthrough_check_pass" : "log_breakthrough_check_fail", {
+      slot: index + 1,
+      sum: sum,
+      target: actualTarget,
+    });
     closeBreakthroughModal();
   }
 
@@ -4761,7 +4801,13 @@
     });
     document.getElementById("btn-combat-modal-close").addEventListener("click", closeCombatModal);
     document.getElementById("btn-breakthrough-cancel").addEventListener("click", closeBreakthroughModal);
-    document.getElementById("btn-breakthrough-confirm").addEventListener("click", confirmBreakthroughCheck);
+    document.getElementById("btn-breakthrough-reveal").addEventListener("click", revealBreakthroughTarget);
+    document.getElementById("btn-breakthrough-pass").addEventListener("click", function () {
+      resolveBreakthroughCheck(true);
+    });
+    document.getElementById("btn-breakthrough-fail").addEventListener("click", function () {
+      resolveBreakthroughCheck(false);
+    });
     document.getElementById("breakthrough-target-input").addEventListener("input", renderBreakthroughCharacters);
     document.getElementById("breakthrough-perpc-checkbox").addEventListener("change", renderBreakthroughCharacters);
     document.getElementById("breakthrough-stat-select").addEventListener("change", renderBreakthroughCharacters);

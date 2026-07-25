@@ -292,7 +292,9 @@ BODY = """    <div class="night-header-row">
         <p id="breakthrough-error" class="error-banner" hidden></p>
         <div class="actions">
           <button id="btn-breakthrough-cancel" type="button" data-i18n="cancel_button"></button>
-          <button id="btn-breakthrough-confirm" type="button" class="primary-btn" data-i18n="breakthrough_confirm_button"></button>
+          <button id="btn-breakthrough-reveal" type="button" class="primary-btn" data-i18n="breakthrough_reveal_button"></button>
+          <button id="btn-breakthrough-fail" type="button" class="danger-btn" data-i18n="breakthrough_fail_button" hidden></button>
+          <button id="btn-breakthrough-pass" type="button" class="primary-btn" data-i18n="breakthrough_pass_button" hidden></button>
         </div>
       </div>
     </div>
