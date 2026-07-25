@@ -232,12 +232,26 @@
 
       var diceCol = document.createElement("div");
       diceCol.className = "roster-detail-col";
+      var diceTitleRow = document.createElement("div");
+      diceTitleRow.className = "roster-dice-title-row";
       var diceTitle = document.createElement("h5");
       diceTitle.textContent = window.I18N.t("character_dice_pool_label");
+      diceTitleRow.appendChild(diceTitle);
+      // 「一般行動」以外のフェイズでは、各角色が自分の面板から個別に骰子を振れるアイコンを出す。
+      if (state.actionPhase !== "normal") {
+        var diceRollBtn = document.createElement("button");
+        diceRollBtn.type = "button";
+        diceRollBtn.className = "dice-add-btn roster-dice-add-btn";
+        diceRollBtn.textContent = "\u{1F3B2}";
+        diceRollBtn.addEventListener("click", function () {
+          rollDiceForCharacterActionPhase(c);
+        });
+        diceTitleRow.appendChild(diceRollBtn);
+      }
       var diceWrap = document.createElement("div");
       diceWrap.className = "dice-pool-list";
       renderRosterDiceDisplay(c, diceWrap);
-      diceCol.appendChild(diceTitle);
+      diceCol.appendChild(diceTitleRow);
       diceCol.appendChild(diceWrap);
       var diceStatus = document.createElement("p");
       diceStatus.className = "dice-status-label";
@@ -3331,48 +3345,35 @@
     );
   }
 
+  // 共用骰子池は行動階段に関わらず常に同じ動作（1回押すごとに1個ずつ、複選可）。
   function handleAddDice() {
-    // 「一般行動」フェイズ中は既存通り、共用骰子池（誰にも属さないスクラッチ用の骰子）に
-    // 1個ずつ追加する（何度でも押せる）。
-    if (state.actionPhase === "normal") {
-      if (state.dicePool.length >= CharacterDrawer.MAX_DICE_POOL) return;
-      state.dicePool.push(CharacterDrawer.rollD6());
-      saveState();
-      renderDicePool();
-      return;
-    }
-    rollDiceForActionPhase();
+    if (state.dicePool.length >= CharacterDrawer.MAX_DICE_POOL) return;
+    state.dicePool.push(CharacterDrawer.rollD6());
+    saveState();
+    renderDicePool();
   }
 
-  // 戦闘／額外／防禦行動フェイズ中は、🎲ボタンが「在場の各角色へ一括で骰子を配る」ボタンに
-  // 切り替わる。戦闘・防禦は骰子池が空の角色にだけ（体力骰action／defenseの数だけ）配り、
-  // 額外行動は各角色1回限り2個配る（フェイズを切り替えるたびにリセットされる）。
-  function rollDiceForActionPhase() {
-    var entered = rosterCharacters.filter(function (c) {
-      return c.entered;
-    });
-    if (!entered.length) return;
-    var changed = false;
-    entered.forEach(function (c) {
-      var type = c.typeId ? CharacterTypes.get(c.typeId) : null;
-      if (!type) return;
-      if (!c.dicePool) c.dicePool = [];
-      if (state.actionPhase === "extra") {
-        if (c._extraActionUsed) return;
-        for (var i = 0; i < 2; i++) c.dicePool.push(CharacterDrawer.rollD6());
-        c._extraActionUsed = true;
-        changed = true;
-      } else if (state.actionPhase === "combat" || state.actionPhase === "defense") {
-        if (c.dicePool.length > 0) return;
-        var count = state.actionPhase === "combat" ? type.staminaDice.action : type.staminaDice.defense;
-        for (var j = 0; j < count; j++) c.dicePool.push(CharacterDrawer.rollD6());
-        changed = true;
-      }
-    });
-    if (changed) {
-      saveRosterCharacters();
-      renderCharacterRoster();
+  // 戦闘／額外／防禦行動フェイズ中、各角色の面板にある🎲アイコンから、その角色1人分だけ骰子を振る。
+  // 戦闘・防禦は骰子池が空の時だけ（体力骰action／defenseの数だけ）、額外行動は1回限り2個
+  // （フェイズを切り替えるたびに使用済みフラグがリセットされる）。一般行動では何もしない。
+  function rollDiceForCharacterActionPhase(c) {
+    if (state.actionPhase === "normal") return;
+    var type = c.typeId ? CharacterTypes.get(c.typeId) : null;
+    if (!type) return;
+    if (!c.dicePool) c.dicePool = [];
+    if (state.actionPhase === "extra") {
+      if (c._extraActionUsed) return;
+      for (var i = 0; i < 2; i++) c.dicePool.push(CharacterDrawer.rollD6());
+      c._extraActionUsed = true;
+    } else if (state.actionPhase === "combat" || state.actionPhase === "defense") {
+      if (c.dicePool.length > 0) return;
+      var count = state.actionPhase === "combat" ? type.staminaDice.action : type.staminaDice.defense;
+      for (var j = 0; j < count; j++) c.dicePool.push(CharacterDrawer.rollD6());
+    } else {
+      return;
     }
+    saveRosterCharacters();
+    renderCharacterRoster();
   }
 
   function renderActionPhaseButton() {
