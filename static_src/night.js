@@ -3009,6 +3009,24 @@
     return n;
   }
 
+  // 指定した段のチェック数を、増減ではなく指定した個数ちょうどに設定する（左詰め）。
+  // エネミー追加時のHP自動設定で使う。
+  function setEnemyHpRowCount(rowIdx, count) {
+    var start = rowIdx * ENEMY_HP_COLS;
+    var clamped = Math.max(0, Math.min(ENEMY_HP_COLS, count));
+    for (var i = 0; i < ENEMY_HP_COLS; i++) {
+      state.battle.enemyHp[start + i] = i < clamped;
+    }
+  }
+
+  // エネミーのHP枠表記（例："×7/×7"）から、第1段・第2段それぞれの個数を取り出す。
+  // 解析できない場合はnullを返す。
+  function parseEnemyHpNotation(text) {
+    var m = /[×xX]\s*(\d+)\s*\/\s*[×xX]\s*(\d+)/.exec(String(text || ""));
+    if (!m) return null;
+    return { row1: parseInt(m[1], 10), row2: parseInt(m[2], 10) };
+  }
+
   function adjustEnemyHpRow(rowIdx, delta) {
     var start = rowIdx * ENEMY_HP_COLS;
     var current = countRowChecked(state.battle.enemyHp, start, ENEMY_HP_COLS);
@@ -3365,7 +3383,21 @@
       if (state.battle.selectedEnemyIds.indexOf(key) === -1) {
         var isFreshEncounter = state.battle.selectedEnemyIds.length === 0;
         state.battle.selectedEnemyIds.push(key);
-        if (isFreshEncounter) applyInitialPassiveAggro();
+        if (isFreshEncounter) {
+          applyInitialPassiveAggro();
+          // 新規遭遇の最初の1体に限り、そのレベルのHP枠表記（例："×7/×7"）から
+          // 第1段・第2段のHPチェックを自動設定する（既存の戦闘中に追加する2体目以降は、
+          // 既にチェック済みのHPを壊さないよう対象にしない）。
+          var lvRow = (row.familyBase || []).filter(function (lv) {
+            return lv.level === level;
+          })[0];
+          var hpNotation = lvRow && lvRow.hp ? parseEnemyHpNotation(lvRow.hp) : null;
+          if (hpNotation) {
+            setEnemyHpRowCount(0, hpNotation.row1);
+            setEnemyHpRowCount(1, hpNotation.row2);
+            renderEnemyHpGrid();
+          }
+        }
         renderSelectedEnemies();
         addLog("log_battle_enemy_add", { enemy: T(row.enemy.name), level: level });
       }
@@ -4076,10 +4108,21 @@
       return fc.cardLabel === card.rank;
     });
     if (!matches.length) return;
+    // Aのみ、同じ「A」ランクに「出発地点」（開始花色と同じスートのA）と「黄金樹の帳」
+    // （それ以外のスートのA）の2枚が存在するため、実際のカードのスートで正しい方を選ぶ
+    // （それ以外のランクは1ランクにつき1枚のみなのでmatches[0]で確定）。
+    var chosen = matches[0];
+    if (card.rank === "A" && matches.length > 1) {
+      var wantId = card.suit === state.startSuit ? "a_start" : "a_golden";
+      chosen =
+        matches.filter(function (fc) {
+          return fc.id === wantId;
+        })[0] || matches[0];
+    }
     document.getElementById("rulebook-modal").hidden = false;
     switchRulebookTab("board");
     setTimeout(function () {
-      var target = document.getElementById("field-card-" + matches[0].id);
+      var target = document.getElementById("field-card-" + chosen.id);
       if (target) target.scrollIntoView({ behavior: "smooth", block: "start" });
     }, 50);
   }
