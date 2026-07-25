@@ -271,14 +271,17 @@
         });
         diceCol.appendChild(diceResetBtn);
       }
-      var combatBtn = document.createElement("button");
-      combatBtn.type = "button";
-      combatBtn.className = "primary-btn roster-combat-btn";
-      combatBtn.textContent = window.I18N.t("combat_button_label");
-      combatBtn.addEventListener("click", function () {
-        openCombatModal(c.id);
-      });
-      diceCol.appendChild(combatBtn);
+      // 「一般行動」フェイズ中は戦闘actionを行わない前提のため、戦闘ボタン自体を出さない。
+      if (state.actionPhase !== "normal") {
+        var combatBtn = document.createElement("button");
+        combatBtn.type = "button";
+        combatBtn.className = "primary-btn roster-combat-btn";
+        combatBtn.textContent = window.I18N.t("combat_button_label");
+        combatBtn.addEventListener("click", function () {
+          openCombatModal(c.id);
+        });
+        diceCol.appendChild(combatBtn);
+      }
 
       var actionCol = document.createElement("div");
       actionCol.className = "roster-detail-col";
@@ -476,6 +479,7 @@
     grace: "",
     battle: defaultBattleState(),
     dicePool: [],
+    actionPhase: "normal", // "normal"|"combat"|"extra"|"defense"
   };
 
   function shuffle(arr) {
@@ -528,6 +532,7 @@
       grace: state.grace,
       battle: state.battle,
       dicePool: state.dicePool,
+      actionPhase: state.actionPhase,
     };
   }
 
@@ -581,6 +586,7 @@
     state.grace = snap.grace;
     state.battle = snap.battle;
     state.dicePool = snap.dicePool;
+    state.actionPhase = snap.actionPhase || "normal";
   }
 
   function handleUndoNight() {
@@ -717,6 +723,7 @@
       state.grace = typeof data.grace === "string" ? data.grace : "";
       state.battle = loadBattleState(data.battle);
       state.dicePool = loadDicePool(data.dicePool);
+      state.actionPhase = ["normal", "combat", "extra", "defense"].indexOf(data.actionPhase) !== -1 ? data.actionPhase : "normal";
     } catch (e) {
       // 壊れた状態は無視して初期状態のまま続行する
     }
@@ -754,6 +761,7 @@
     state.grace = "";
     state.battle = defaultBattleState();
     state.dicePool = [];
+    state.actionPhase = "normal";
     localStorage.removeItem(STORAGE_KEY);
     clearUndoSnapshot();
   }
@@ -2349,6 +2357,9 @@
   // キー文字列で比較すると、6を含んだまま骰子を追加するたびに毎回+1されてしまうため）。
   // このフラグは骰子池が空になった（＝重置骰子が押された）ときにのみ解除する。
   function syncDiceStatusToBattle() {
+    // 「一般行動」フェイズ中は、骰子池がどんな内容であっても前後衛・敵視の自動判定を行わない
+    // （一般行動の骰子は戦闘外の用途であり、勝手に戦場の陣形を変えてしまわないようにするため）。
+    if (state.actionPhase === "normal") return;
     var entered = rosterCharacters.filter(function (c) {
       return c.entered;
     });
@@ -3321,10 +3332,80 @@
   }
 
   function handleAddDice() {
-    if (state.dicePool.length >= CharacterDrawer.MAX_DICE_POOL) return;
-    state.dicePool.push(CharacterDrawer.rollD6());
+    // 「一般行動」フェイズ中は既存通り、共用骰子池（誰にも属さないスクラッチ用の骰子）に
+    // 1個ずつ追加する（何度でも押せる）。
+    if (state.actionPhase === "normal") {
+      if (state.dicePool.length >= CharacterDrawer.MAX_DICE_POOL) return;
+      state.dicePool.push(CharacterDrawer.rollD6());
+      saveState();
+      renderDicePool();
+      return;
+    }
+    rollDiceForActionPhase();
+  }
+
+  // 戦闘／額外／防禦行動フェイズ中は、🎲ボタンが「在場の各角色へ一括で骰子を配る」ボタンに
+  // 切り替わる。戦闘・防禦は骰子池が空の角色にだけ（体力骰action／defenseの数だけ）配り、
+  // 額外行動は各角色1回限り2個配る（フェイズを切り替えるたびにリセットされる）。
+  function rollDiceForActionPhase() {
+    var entered = rosterCharacters.filter(function (c) {
+      return c.entered;
+    });
+    if (!entered.length) return;
+    var changed = false;
+    entered.forEach(function (c) {
+      var type = c.typeId ? CharacterTypes.get(c.typeId) : null;
+      if (!type) return;
+      if (!c.dicePool) c.dicePool = [];
+      if (state.actionPhase === "extra") {
+        if (c._extraActionUsed) return;
+        for (var i = 0; i < 2; i++) c.dicePool.push(CharacterDrawer.rollD6());
+        c._extraActionUsed = true;
+        changed = true;
+      } else if (state.actionPhase === "combat" || state.actionPhase === "defense") {
+        if (c.dicePool.length > 0) return;
+        var count = state.actionPhase === "combat" ? type.staminaDice.action : type.staminaDice.defense;
+        for (var j = 0; j < count; j++) c.dicePool.push(CharacterDrawer.rollD6());
+        changed = true;
+      }
+    });
+    if (changed) {
+      saveRosterCharacters();
+      renderCharacterRoster();
+    }
+  }
+
+  function renderActionPhaseButton() {
+    var btn = document.getElementById("btn-action-phase");
+    if (!btn) return;
+    btn.textContent = window.I18N.t("action_phase_" + state.actionPhase);
+  }
+
+  function openActionPhaseModal() {
+    document.getElementById("action-phase-modal").hidden = false;
+  }
+
+  function closeActionPhaseModal() {
+    document.getElementById("action-phase-modal").hidden = true;
+  }
+
+  function setActionPhase(phase) {
+    if (state.actionPhase === phase) {
+      closeActionPhaseModal();
+      return;
+    }
+    state.actionPhase = phase;
+    // フェイズを切り替えるたびに「額外行動を使用済み」フラグをリセットする（次にまた
+    // 額外行動フェイズへ入ったとき、全員が改めて1回分振れるようにするため）。
+    rosterCharacters.forEach(function (c) {
+      c._extraActionUsed = false;
+    });
+    saveRosterCharacters();
     saveState();
-    renderDicePool();
+    closeActionPhaseModal();
+    renderActionPhaseButton();
+    renderCharacterRoster();
+    addLog("log_action_phase_change", { phase: window.I18N.t("action_phase_" + phase) });
   }
 
   function openBattleDrawer() {
@@ -4705,6 +4786,7 @@
     renderBoard();
     renderLog();
     renderDicePool();
+    renderActionPhaseButton();
     if (hadBoard) addLog("log_new_game");
   }
 
@@ -4834,6 +4916,7 @@
     renderSelectedEnemies();
     renderBattleRefTexts();
     renderDicePool();
+    renderActionPhaseButton();
     renderBoard();
     renderLog();
     renderLogToggleLabel();
@@ -4866,6 +4949,7 @@
         renderMobHpList();
         renderSelectedEnemies();
         renderDicePool();
+        renderActionPhaseButton();
         renderBoard();
         renderLog();
         renderLogToggleLabel();
@@ -4942,6 +5026,13 @@
     document.getElementById("btn-battle-add-mob-row").addEventListener("click", handleAddMobRow);
     document.getElementById("btn-battle-clear").addEventListener("click", handleBattleClear);
     document.getElementById("btn-dice-pool-add").addEventListener("click", handleAddDice);
+    document.getElementById("btn-action-phase").addEventListener("click", openActionPhaseModal);
+    document.getElementById("btn-action-phase-cancel").addEventListener("click", closeActionPhaseModal);
+    document.querySelectorAll(".action-phase-grid button").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        setActionPhase(btn.dataset.phase);
+      });
+    });
     document.getElementById("input-smithing-stone").addEventListener("input", function (e) {
       state.smithingStone = e.target.value;
       saveState();

@@ -1866,6 +1866,18 @@ button {
   background: #eee;
 }
 
+.action-phase-btn {
+  margin-top: 0.5rem;
+  width: 100%;
+}
+
+.action-phase-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 0.5rem;
+  margin: 0.75rem 0;
+}
+
 .tag-field {
   margin: 1rem 0;
 }

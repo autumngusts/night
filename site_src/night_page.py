@@ -107,6 +107,22 @@ BODY = """    <div class="night-header-row">
           <button type="button" class="dice-add-btn" id="btn-dice-pool-add">&#127922;</button>
         </div>
         <div class="dice-pool-list" id="dice-pool-list"></div>
+        <button type="button" class="primary-btn action-phase-btn" id="btn-action-phase"></button>
+      </div>
+
+      <div id="action-phase-modal" class="modal" hidden>
+        <div class="modal-box">
+          <p id="action-phase-modal-title" data-i18n="action_phase_select_title"></p>
+          <div class="actions action-phase-grid">
+            <button type="button" data-phase="normal" data-i18n="action_phase_normal"></button>
+            <button type="button" data-phase="combat" data-i18n="action_phase_combat"></button>
+            <button type="button" data-phase="extra" data-i18n="action_phase_extra"></button>
+            <button type="button" data-phase="defense" data-i18n="action_phase_defense"></button>
+          </div>
+          <div class="actions">
+            <button id="btn-action-phase-cancel" type="button" data-i18n="cancel_button"></button>
+          </div>
+        </div>
       </div>
       <div class="character-roster" id="character-roster">
         <h3 data-i18n="character_roster_title"></h3>
@@ -230,8 +246,8 @@ BODY = """    <div class="night-header-row">
         <p id="modal-message"></p>
         <div class="actions">
           <button id="modal-no" type="button" data-i18n="no_button"></button>
-          <button id="modal-extra" type="button" class="danger-btn" hidden></button>
           <button id="modal-yes" type="button" class="primary-btn" data-i18n="yes_button"></button>
+          <button id="modal-extra" type="button" class="danger-btn" hidden></button>
         </div>
       </div>
     </div>
