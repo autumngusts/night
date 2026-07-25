@@ -267,8 +267,8 @@ BODY = """    <div class="night-header-row">
 
     <div id="breakthrough-modal" class="modal" hidden>
       <div class="modal-box combat-modal-box">
-        <h2 data-i18n="breakthrough_modal_title"></h2>
-        <div class="wb-row">
+        <h2 id="breakthrough-modal-title" data-i18n="breakthrough_modal_title"></h2>
+        <div id="breakthrough-import-row" class="wb-row">
           <select id="breakthrough-branch-select"></select>
           <select id="breakthrough-floor-select"></select>
           <button id="breakthrough-import-btn" type="button" data-i18n="breakthrough_import_button"></button>

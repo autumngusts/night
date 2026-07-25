@@ -3856,7 +3856,9 @@
   }
 
   function openBreakthroughModal(index) {
-    breakthroughState = { slotIndex: index, characters: {}, revealed: false };
+    breakthroughState = { slotIndex: index, mode: "floor", moveTarget: null, characters: {}, revealed: false };
+    document.getElementById("breakthrough-modal-title").textContent = window.I18N.t("breakthrough_modal_title");
+    document.getElementById("breakthrough-import-row").hidden = false;
     document.getElementById("breakthrough-target-input").value = "10";
     document.getElementById("breakthrough-target-input").disabled = false;
     document.getElementById("breakthrough-perpc-checkbox").checked = false;
@@ -3865,6 +3867,24 @@
     document.getElementById("breakthrough-stat-select").disabled = false;
     document.getElementById("breakthrough-error").hidden = true;
     populateBreakthroughFieldSelectors(index);
+    renderBreakthroughCharacters();
+    document.getElementById("breakthrough-modal").hidden = false;
+  }
+
+  // 攀登判定：花色が「高い」板塊への移動時に開く。目標値は9+花色差の固定計算式であり
+  // GMだけの秘密ではない（樓層突破判定のような揭曉演出は不要）ため、最初から公開状態で開く。
+  // 判定属性も固定で體能のみ（任意選択にしない）。
+  function openClimbingCheckModal(toIndex, suitDiff) {
+    breakthroughState = { slotIndex: null, mode: "climb", moveTarget: toIndex, characters: {}, revealed: true };
+    document.getElementById("breakthrough-modal-title").textContent = window.I18N.t("climb_check_modal_title");
+    document.getElementById("breakthrough-import-row").hidden = true;
+    document.getElementById("breakthrough-target-input").value = String(9 + suitDiff);
+    document.getElementById("breakthrough-target-input").disabled = true;
+    document.getElementById("breakthrough-perpc-checkbox").checked = true;
+    document.getElementById("breakthrough-perpc-checkbox").disabled = true;
+    document.getElementById("breakthrough-stat-select").value = "physical";
+    document.getElementById("breakthrough-stat-select").disabled = true;
+    document.getElementById("breakthrough-error").hidden = true;
     renderBreakthroughCharacters();
     document.getElementById("breakthrough-modal").hidden = false;
   }
@@ -3894,6 +3914,7 @@
     document.getElementById("btn-breakthrough-reveal").hidden = false;
     document.getElementById("btn-breakthrough-fail").hidden = true;
     document.getElementById("btn-breakthrough-pass").hidden = true;
+    document.getElementById("breakthrough-import-row").hidden = false;
     breakthroughState = null;
   }
 
@@ -4056,9 +4077,16 @@
 
   function resolveBreakthroughCheck(passed) {
     if (!breakthroughState) return;
-    var index = breakthroughState.slotIndex;
     var sum = breakthroughDiceSum();
     var actualTarget = computeBreakthroughActualTarget();
+    if (breakthroughState.mode === "climb") {
+      var moveTarget = breakthroughState.moveTarget;
+      closeBreakthroughModal();
+      if (passed) finalizeSlotMove(moveTarget);
+      addLog(passed ? "log_climb_check_pass" : "log_climb_check_fail", { slot: moveTarget + 1, sum: sum, target: actualTarget });
+      return;
+    }
+    var index = breakthroughState.slotIndex;
     if (passed) stepCardLevel(index, 1);
     addLog(passed ? "log_breakthrough_check_pass" : "log_breakthrough_check_fail", {
       slot: index + 1,
@@ -4533,38 +4561,95 @@
   function onSlotClick(index) {
     var slot = state.slots[index];
     if (!slot) return;
-    state.focusedIndex = index;
-    renderBoard();
-    saveState();
 
-    var card = CARD_BY_CODE[slot.code];
-    if (!slot.revealed) {
+    // 既存の「めくる／山札に戻す」フロー（focusedIndexの更新も含めて元の挙動のまま）。
+    function proceedRevealOrReturn() {
+      state.focusedIndex = index;
+      renderBoard();
+      saveState();
+
+      var card = CARD_BY_CODE[slot.code];
+      if (!slot.revealed) {
+        openConfirm(
+          "confirm_reveal_msg",
+          function () {
+            slot.revealed = true;
+            renderBoard();
+            addLog("log_reveal", { slot: index + 1, card: card.label });
+          },
+          function () {
+            addLog("log_cancel_reveal", { slot: index + 1 });
+          }
+        );
+      } else {
+        openConfirm(
+          "confirm_draw_msg",
+          function () {
+            state.slots[index] = null;
+            state.cardLevels[index] = null;
+            if (state.focusedIndex === index) state.focusedIndex = null;
+            renderBoard();
+            addLog("log_draw_out", { slot: index + 1, card: card.label });
+          },
+          function () {
+            addLog("log_cancel_draw", { slot: index + 1, card: card.label });
+          }
+        );
+      }
+    }
+
+    // 既に別の公開済み板塊にフォーカス（＝現在地）がある場合のみ、「移動」の選択肢を先に出す。
+    // 移動が成立するかどうかは攀登判定の結果次第なので、成立前にfocusedIndexは書き換えない。
+    var previousFocusedIndex = state.focusedIndex;
+    var canOfferMove =
+      slot.revealed &&
+      previousFocusedIndex !== null &&
+      previousFocusedIndex !== index &&
+      state.slots[previousFocusedIndex] &&
+      state.slots[previousFocusedIndex].revealed;
+
+    if (canOfferMove) {
       openConfirm(
-        "confirm_reveal_msg",
+        "confirm_move_here_msg",
         function () {
-          slot.revealed = true;
-          renderBoard();
-          addLog("log_reveal", { slot: index + 1, card: card.label });
+          attemptSlotMove(previousFocusedIndex, index);
         },
-        function () {
-          addLog("log_cancel_reveal", { slot: index + 1 });
-        }
+        proceedRevealOrReturn
       );
     } else {
-      openConfirm(
-        "confirm_draw_msg",
-        function () {
-          state.slots[index] = null;
-          state.cardLevels[index] = null;
-          if (state.focusedIndex === index) state.focusedIndex = null;
-          renderBoard();
-          addLog("log_draw_out", { slot: index + 1, card: card.label });
-        },
-        function () {
-          addLog("log_cancel_draw", { slot: index + 1, card: card.label });
-        }
-      );
+      proceedRevealOrReturn();
     }
+  }
+
+  // 花色の「高さ」（攀登判定の花色差の基準）。ユーザー確認済み：黑桃＞愛心＞方塊＞梅花。
+  var SUIT_ELEVATION = { C: 0, D: 1, H: 2, S: 3 };
+
+  function attemptSlotMove(fromIndex, toIndex) {
+    var fromRow = Math.floor(fromIndex / 3),
+      fromCol = fromIndex % 3;
+    var toRow = Math.floor(toIndex / 3),
+      toCol = toIndex % 3;
+    var dist = Math.max(Math.abs(fromRow - toRow), Math.abs(fromCol - toCol));
+    if (dist !== 1) {
+      window.alert(window.I18N.t("move_not_adjacent_msg"));
+      return;
+    }
+    var fromCard = CARD_BY_CODE[state.slots[fromIndex].code];
+    var toCard = CARD_BY_CODE[state.slots[toIndex].code];
+    var fromElev = SUIT_ELEVATION[fromCard.suit];
+    var toElev = SUIT_ELEVATION[toCard.suit];
+    if (toElev > fromElev) {
+      openClimbingCheckModal(toIndex, toElev - fromElev);
+    } else {
+      finalizeSlotMove(toIndex);
+    }
+  }
+
+  function finalizeSlotMove(toIndex) {
+    state.focusedIndex = toIndex;
+    renderBoard();
+    saveState();
+    addLog("log_slot_move", { slot: toIndex + 1 });
   }
 
   function checkNewGamePassword() {
