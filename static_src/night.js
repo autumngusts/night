@@ -59,6 +59,72 @@
 
   var rosterDetailCollapsed = {};
 
+  // 骰子池の重骰待ち状態（キャラクターIDごと）。加護ボタンをONにすると、次にクリックした
+  // 骰子1個が加護消費で重骰される（樓層突破判定の重骰UIと同じ操作方式）。
+  var dicePoolRerollPending = {};
+
+  // ロスターの骰子池表示。通常時は非活性ボタン（見た目はdice-item表示のみ）、重骰待ち中は
+  // クリック可能にして、押した骰子だけを重骰対象にする。
+  function renderRosterDiceDisplay(c, container) {
+    container.innerHTML = "";
+    var pending = !!dicePoolRerollPending[c.id];
+    (c.dicePool || []).forEach(function (v, i) {
+      var die = document.createElement("button");
+      die.type = "button";
+      die.className = "dice-item";
+      if (pending) die.classList.add("active");
+      die.disabled = !pending;
+      die.textContent = v;
+      die.addEventListener("click", function () {
+        rerollDicePoolDie(c, i);
+      });
+      container.appendChild(die);
+    });
+  }
+
+  function toggleDicePoolBlessing(c) {
+    if (dicePoolRerollPending[c.id]) {
+      dicePoolRerollPending[c.id] = false;
+      renderCharacterRoster();
+      return;
+    }
+    if (!(c.dicePool || []).length || !c.blessingSlots || c.blessingSlots.current <= 0) return;
+    if (!window.confirm(window.I18N.t("breakthrough_blessing_confirm", { name: c.name }))) return;
+    c.blessingSlots.current -= 1;
+    dicePoolRerollPending[c.id] = true;
+    saveRosterCharacters();
+    renderCharacterRoster();
+  }
+
+  // 重骰は「骰子1個の出目を変える」操作であり、その結果として前後衛や敵視の自動判定
+  // （syncDiceStatusToBattle、骰子池の最大値・6の有無で決まる）が連動して変わってしまう
+  // のは意図しない副作用のため、重骰前の前後衛・敵視状態を保存し、再描画後に元へ戻す。
+  function rerollDicePoolDie(c, dieIndex) {
+    if (!dicePoolRerollPending[c.id]) return;
+    var names = battlePositionNames();
+    var idx = names.indexOf(c.name);
+    var preFront = idx !== -1 ? state.battle.front[idx] : null;
+    var preBack = idx !== -1 ? state.battle.back[idx] : null;
+    var preAggro = idx !== -1 ? state.battle.aggro[idx] : null;
+    var preAggroApplied = c._diceAggroApplied;
+
+    var oldValue = c.dicePool[dieIndex];
+    c.dicePool[dieIndex] = 1 + Math.floor(Math.random() * 6);
+    dicePoolRerollPending[c.id] = false;
+    saveRosterCharacters();
+    addLog("log_dice_pool_blessing_reroll", { character: c.name, from: oldValue, to: c.dicePool[dieIndex] });
+    renderCharacterRoster();
+
+    if (idx !== -1) {
+      state.battle.front[idx] = preFront;
+      state.battle.back[idx] = preBack;
+      state.battle.aggro[idx] = preAggro;
+      c._diceAggroApplied = preAggroApplied;
+      saveState();
+      renderBattlePositionAreas();
+    }
+  }
+
   function renderCharacterRoster() {
     var tbody = document.getElementById("character-roster-tbody");
     var skillsWrap = document.getElementById("character-roster-skills");
@@ -167,13 +233,26 @@
       diceTitle.textContent = window.I18N.t("character_dice_pool_label");
       var diceWrap = document.createElement("div");
       diceWrap.className = "dice-pool-list";
-      CharacterDrawer.renderDiceDisplay(diceWrap, c.dicePool || []);
+      renderRosterDiceDisplay(c, diceWrap);
       diceCol.appendChild(diceTitle);
       diceCol.appendChild(diceWrap);
       var diceStatus = document.createElement("p");
       diceStatus.className = "dice-status-label";
       CharacterDrawer.renderDiceStatusLabel(diceStatus, c.dicePool || []);
       diceCol.appendChild(diceStatus);
+      var blessingToggleBtn = document.createElement("button");
+      blessingToggleBtn.type = "button";
+      blessingToggleBtn.className = "breakthrough-blessing-btn";
+      if (dicePoolRerollPending[c.id]) blessingToggleBtn.classList.add("active");
+      blessingToggleBtn.textContent = window.I18N.t("breakthrough_blessing_button", {
+        current: c.blessingSlots ? c.blessingSlots.current : 0,
+      });
+      blessingToggleBtn.disabled =
+        !dicePoolRerollPending[c.id] && (!(c.dicePool || []).length || !c.blessingSlots || c.blessingSlots.current <= 0);
+      blessingToggleBtn.addEventListener("click", function () {
+        toggleDicePoolBlessing(c);
+      });
+      diceCol.appendChild(blessingToggleBtn);
       if ((c.dicePool || []).length) {
         var diceResetBtn = document.createElement("button");
         diceResetBtn.type = "button";

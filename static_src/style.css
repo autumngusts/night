@@ -1397,6 +1397,10 @@ button {
   cursor: not-allowed;
 }
 
+.breakthrough-blessing-btn.active {
+  background: #2d6cdf;
+}
+
 .action-log-box {
   position: relative;
   border: 1px dashed #999;
