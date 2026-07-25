@@ -3878,14 +3878,15 @@
     document.getElementById("breakthrough-modal").hidden = false;
   }
 
-  // 攀登判定：花色が「高い」板塊への移動時に開く。目標値は9+花色差の固定計算式であり
-  // GMだけの秘密ではない（樓層突破判定のような揭曉演出は不要）ため、最初から公開状態で開く。
-  // 判定属性も固定で體能のみ（任意選択にしない）。
+  // 攀登判定：花色が「高い」板塊への移動時に開く。目標値は9+花色差の固定計算式だが、
+  // 各角色が最終的な骰子点数を確定するまでは非公開にする（樓層突破判定と同じ隠す演出だが、
+  // GMの秘密ではないため揭曉に規則書パスワードは要求しない）。判定属性も固定で體能のみ
+  // （任意選択にしない）。
   function openClimbingCheckModal(toIndex, suitDiff) {
-    breakthroughState = { slotIndex: null, mode: "climb", moveTarget: toIndex, characters: {}, revealed: true };
+    breakthroughState = { slotIndex: null, mode: "climb", moveTarget: toIndex, characters: {}, revealed: false };
     document.getElementById("breakthrough-modal-title").textContent = window.I18N.t("climb_check_modal_title");
     document.getElementById("breakthrough-import-row").hidden = true;
-    document.getElementById("breakthrough-target-hideable").hidden = false;
+    document.getElementById("breakthrough-target-hideable").hidden = true;
     document.getElementById("breakthrough-target-input").value = String(9 + suitDiff);
     document.getElementById("breakthrough-target-input").disabled = true;
     document.getElementById("breakthrough-perpc-checkbox").checked = true;
@@ -3899,6 +3900,8 @@
 
   // 規則書の通常セッション認証とは別に、揭曉のたびに必ずパスワードを再要求する
   // （既にセッション認証済みでも、目標値の閲覧は毎回明示的な確認を必要とするため）。
+  // 攀登判定（mode:"climb"）はGMの秘密ではないため、このパスワード確認は樓層突破判定
+  // （mode:"floor"）のときだけ行う。
   function checkBreakthroughRevealPassword() {
     var input = window.prompt(window.I18N.t("rulebook_password_prompt"));
     return input === RULEBOOK_PASSWORD;
@@ -3906,7 +3909,7 @@
 
   function revealBreakthroughTarget() {
     if (!breakthroughState) return;
-    if (!checkBreakthroughRevealPassword()) {
+    if (breakthroughState.mode === "floor" && !checkBreakthroughRevealPassword()) {
       window.alert(window.I18N.t("rulebook_password_wrong"));
       return;
     }
@@ -4511,17 +4514,27 @@
   }
 
   // --- modal ---
-  function openConfirm(messageKey, onYes, onNo) {
+  // extra（任意）：{ labelKey, onClick } を渡すと、否／是に加えて赤色の3つ目のボタンを表示する
+  // （例：板塊長押し時の「否／是（移動）／放回牌庫」統合ダイアログ）。
+  function openConfirm(messageKey, onYes, onNo, extra) {
     var modal = document.getElementById("modal");
     document.getElementById("modal-message").textContent = window.I18N.t(messageKey);
     modal.hidden = false;
     var yesBtn = document.getElementById("modal-yes");
     var noBtn = document.getElementById("modal-no");
+    var extraBtn = document.getElementById("modal-extra");
+    if (extra) {
+      extraBtn.hidden = false;
+      extraBtn.textContent = window.I18N.t(extra.labelKey);
+    } else {
+      extraBtn.hidden = true;
+    }
 
     function cleanup() {
       modal.hidden = true;
       yesBtn.removeEventListener("click", onYesClick);
       noBtn.removeEventListener("click", onNoClick);
+      extraBtn.removeEventListener("click", onExtraClick);
     }
     function onYesClick() {
       cleanup();
@@ -4531,8 +4544,13 @@
       cleanup();
       if (onNo) onNo();
     }
+    function onExtraClick() {
+      cleanup();
+      if (extra && extra.onClick) extra.onClick();
+    }
     yesBtn.addEventListener("click", onYesClick);
     noBtn.addEventListener("click", onNoClick);
+    extraBtn.addEventListener("click", onExtraClick);
   }
 
   // 短押し（タップ）＝規則書の該当ページを開く（規則書パスワード認証済みが前提。未認証時は何もしない）。
@@ -4619,12 +4637,25 @@
       state.slots[previousFocusedIndex].revealed;
 
     if (canOfferMove) {
+      // 否／是（移動）／放回牌庫（赤）を1つのダイアログに統合する。
       openConfirm(
         "confirm_move_here_msg",
         function () {
           attemptSlotMove(previousFocusedIndex, index);
         },
-        proceedRevealOrReturn
+        null,
+        {
+          labelKey: "return_to_deck_button",
+          onClick: function () {
+            var card = CARD_BY_CODE[slot.code];
+            state.slots[index] = null;
+            state.cardLevels[index] = null;
+            if (state.focusedIndex === index) state.focusedIndex = null;
+            renderBoard();
+            saveState();
+            addLog("log_draw_out", { slot: index + 1, card: card.label });
+          },
+        }
       );
     } else {
       proceedRevealOrReturn();

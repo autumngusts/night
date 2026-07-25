@@ -230,6 +230,7 @@ BODY = """    <div class="night-header-row">
         <p id="modal-message"></p>
         <div class="actions">
           <button id="modal-no" type="button" data-i18n="no_button"></button>
+          <button id="modal-extra" type="button" class="danger-btn" hidden></button>
           <button id="modal-yes" type="button" class="primary-btn" data-i18n="yes_button"></button>
         </div>
       </div>
