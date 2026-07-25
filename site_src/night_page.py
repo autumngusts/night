@@ -265,6 +265,38 @@ BODY = """    <div class="night-header-row">
       </div>
     </div>
 
+    <div id="breakthrough-modal" class="modal" hidden>
+      <div class="modal-box combat-modal-box">
+        <h2 data-i18n="breakthrough_modal_title"></h2>
+        <div class="wb-row">
+          <select id="breakthrough-branch-select"></select>
+          <select id="breakthrough-floor-select"></select>
+          <button id="breakthrough-import-btn" type="button" data-i18n="breakthrough_import_button"></button>
+        </div>
+        <div class="wb-row">
+          <label data-i18n="breakthrough_target_label"></label>
+          <input id="breakthrough-target-input" type="number" class="stat-input" min="0" />
+          <label class="field-row">
+            <input id="breakthrough-perpc-checkbox" type="checkbox" />
+            <span data-i18n="breakthrough_perpc_label"></span>
+          </label>
+          <select id="breakthrough-stat-select">
+            <option value="any" data-i18n="check_stat_any"></option>
+            <option value="luck" data-i18n="check_stat_luck"></option>
+            <option value="physical" data-i18n="check_stat_physical"></option>
+            <option value="mental" data-i18n="check_stat_mental"></option>
+          </select>
+        </div>
+        <p id="breakthrough-sum-label" class="threat-ref-body"></p>
+        <div id="breakthrough-characters"></div>
+        <p id="breakthrough-error" class="error-banner" hidden></p>
+        <div class="actions">
+          <button id="btn-breakthrough-cancel" type="button" data-i18n="cancel_button"></button>
+          <button id="btn-breakthrough-confirm" type="button" class="primary-btn" data-i18n="breakthrough_confirm_button"></button>
+        </div>
+      </div>
+    </div>
+
     <div id="threat-drawer" class="drawer">
       <div class="drawer-backdrop" id="threat-drawer-backdrop"></div>
       <div class="drawer-panel">

@@ -1354,6 +1354,49 @@ button {
   cursor: not-allowed;
 }
 
+.breakthrough-char-row {
+  flex-wrap: wrap;
+  border-bottom: 1px solid #eee;
+  padding: 0.35rem 0;
+}
+
+.breakthrough-char-name {
+  font-weight: 600;
+  min-width: 5rem;
+  flex: 1 1 auto;
+}
+
+.breakthrough-dice-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  flex-wrap: wrap;
+}
+
+.breakthrough-dice-wrap .dice-item.active {
+  background: #2d6cdf;
+  border-color: #2d6cdf;
+  color: #fff;
+  cursor: pointer;
+}
+
+.breakthrough-blessing-btn {
+  border: none;
+  border-radius: 6px;
+  background: #9a9a9a;
+  color: #fff;
+  padding: 0.25rem 0.7rem;
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+
+.breakthrough-blessing-btn:disabled {
+  background: #d4d4d4;
+  color: #888;
+  opacity: 1;
+  cursor: not-allowed;
+}
+
 .action-log-box {
   position: relative;
   border: 1px dashed #999;

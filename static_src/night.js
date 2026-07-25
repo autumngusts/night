@@ -3666,6 +3666,289 @@
     saveState();
   }
 
+  // ============================================================
+  // 樓層突破判定（板塊の「+」ボタンから起動）。
+  // 場地カードの該当分岐・フロアの「突破判定」欄（例：「〈協力10×PC人数｜フィジカル〉」
+  // 「(10 | 任意の判定値)」「不可」「自動成功」）は書式が多様で、かつ現在どの分岐が
+  // 実際に選ばれているかはアプリ側で追跡していないため、GMが分岐／フロアを選んで
+  // 「取り込む」ボタンで自動反映するか、目標点・PC人数倍・判定属性を直接手入力するかの
+  // どちらも選べるようにする（自動判定はあくまで下書き、最終的な数値は常に編集可能）。
+  // ============================================================
+  var breakthroughState = null; // { slotIndex, characters: { [charId]: { stat, dice } } }
+
+  function parseBreakthroughCheckText(text) {
+    var t = String(text || "");
+    if (t.indexOf("自動成功") !== -1) return { special: "auto" };
+    if (t.indexOf("不可") !== -1) return { special: "cannot" };
+    var numMatch = /(\d+)/.exec(t);
+    if (!numMatch) return null;
+    var stat = null;
+    if (t.indexOf("フィジカル") !== -1 || t.indexOf("體能") !== -1) stat = "physical";
+    else if (t.indexOf("メンタル") !== -1 || t.indexOf("精神") !== -1) stat = "mental";
+    else if (t.indexOf("運試し") !== -1 || t.indexOf("運氣") !== -1 || t.indexOf("運気") !== -1) stat = "luck";
+    else if (t.indexOf("任意") !== -1) stat = "any";
+    return { target: parseInt(numMatch[1], 10), perPC: t.indexOf("PC人") !== -1, stat: stat };
+  }
+
+  // 板塊のカード（rank・suit）から、該当する場地カードエントリーを解決する。
+  // onSlotShortClickと同じ「Aのみスートで出発地点／黄金樹の帳を判別」ロジックを再利用する。
+  function resolveFieldEntryForSlot(index) {
+    var slot = state.slots[index];
+    if (!slot) return null;
+    var card = CARD_BY_CODE[slot.code];
+    var Fields = window.PriTestFields;
+    if (!card || !Fields) return null;
+    var matches = Fields.list().filter(function (fc) {
+      return fc.cardLabel === card.rank;
+    });
+    if (!matches.length) return null;
+    if (card.rank === "A" && matches.length > 1) {
+      var wantId = card.suit === state.startSuit ? "a_start" : "a_golden";
+      return (
+        matches.filter(function (fc) {
+          return fc.id === wantId;
+        })[0] || matches[0]
+      );
+    }
+    return matches[0];
+  }
+
+  function populateBreakthroughFieldSelectors(index) {
+    var Fields = window.PriTestFields;
+    var branchSelect = document.getElementById("breakthrough-branch-select");
+    var floorSelect = document.getElementById("breakthrough-floor-select");
+    var importBtn = document.getElementById("breakthrough-import-btn");
+    branchSelect.innerHTML = "";
+    floorSelect.innerHTML = "";
+    var entry = resolveFieldEntryForSlot(index);
+    var hasData = !!(entry && entry.branches && entry.branches.length);
+    branchSelect.hidden = !hasData;
+    floorSelect.hidden = !hasData;
+    importBtn.hidden = !hasData;
+    if (!hasData) return;
+    entry.branches.forEach(function (branch, bi) {
+      var opt = document.createElement("option");
+      opt.value = String(bi);
+      opt.textContent = Fields.localizedText(branch.name);
+      branchSelect.appendChild(opt);
+    });
+    function populateFloors() {
+      floorSelect.innerHTML = "";
+      var branch = entry.branches[Number(branchSelect.value) || 0];
+      (branch.floors || []).forEach(function (floor, fi) {
+        var opt = document.createElement("option");
+        opt.value = String(fi);
+        opt.textContent = Fields.localizedText(floor.label);
+        floorSelect.appendChild(opt);
+      });
+    }
+    branchSelect.onchange = populateFloors;
+    populateFloors();
+    importBtn.onclick = function () {
+      var branch = entry.branches[Number(branchSelect.value) || 0];
+      var floor = (branch.floors || [])[Number(floorSelect.value) || 0];
+      if (!floor) return;
+      // 「突破判定」ラベルはja/zhどちらも同一表記なので、直接比較する。
+      var line = (floor.lines || []).filter(function (l) {
+        return l.label && (l.label.ja === "突破判定" || l.label.zh === "突破判定");
+      })[0];
+      var parsed = line ? parseBreakthroughCheckText(Fields.localizedText(line.text)) : null;
+      applyBreakthroughParsed(parsed);
+    };
+  }
+
+  function applyBreakthroughParsed(parsed) {
+    var errEl = document.getElementById("breakthrough-error");
+    errEl.hidden = true;
+    if (!parsed) {
+      errEl.hidden = false;
+      errEl.textContent = window.I18N.t("breakthrough_import_not_found");
+      return;
+    }
+    if (parsed.special === "auto" || parsed.special === "cannot") {
+      errEl.hidden = false;
+      errEl.textContent = window.I18N.t(parsed.special === "auto" ? "breakthrough_special_auto" : "breakthrough_special_cannot");
+      return;
+    }
+    document.getElementById("breakthrough-target-input").value = parsed.target;
+    document.getElementById("breakthrough-perpc-checkbox").checked = !!parsed.perPC;
+    document.getElementById("breakthrough-stat-select").value = parsed.stat || "any";
+    renderBreakthroughCharacters();
+  }
+
+  function openBreakthroughModal(index) {
+    breakthroughState = { slotIndex: index, characters: {} };
+    document.getElementById("breakthrough-target-input").value = "10";
+    document.getElementById("breakthrough-perpc-checkbox").checked = false;
+    document.getElementById("breakthrough-stat-select").value = "any";
+    document.getElementById("breakthrough-error").hidden = true;
+    populateBreakthroughFieldSelectors(index);
+    renderBreakthroughCharacters();
+    document.getElementById("breakthrough-modal").hidden = false;
+  }
+
+  function closeBreakthroughModal() {
+    document.getElementById("breakthrough-modal").hidden = true;
+    breakthroughState = null;
+  }
+
+  var CHECK_STAT_KEYS = { luck: "luck", physical: "physical", mental: "mental" };
+
+  function rollBreakthroughDice(charId, statKey) {
+    var c = rosterCharacters.filter(function (rc) {
+      return rc.id === charId;
+    })[0];
+    var type = c && c.typeId ? CharacterTypes.get(c.typeId) : null;
+    if (!type || !statKey || !CHECK_STAT_KEYS[statKey]) return;
+    var count = Math.max(0, type.checkValues[statKey] || 0);
+    var dice = [];
+    for (var i = 0; i < count; i++) dice.push(1 + Math.floor(Math.random() * 6));
+    breakthroughState.characters[charId] = { stat: statKey, dice: dice, rerollPending: false };
+    renderBreakthroughCharacters();
+  }
+
+  function useBreakthroughBlessing(charId) {
+    var c = rosterCharacters.filter(function (rc) {
+      return rc.id === charId;
+    })[0];
+    if (!c || !c.blessingSlots || c.blessingSlots.current <= 0) {
+      var errEl = document.getElementById("breakthrough-error");
+      errEl.hidden = false;
+      errEl.textContent = window.I18N.t("breakthrough_error_no_blessing");
+      return;
+    }
+    var entry = breakthroughState.characters[charId];
+    if (!entry || !entry.dice.length) return;
+    if (!window.confirm(window.I18N.t("breakthrough_blessing_confirm", { name: c.name }))) return;
+    c.blessingSlots.current -= 1;
+    saveRosterCharacters();
+    entry.rerollPending = true;
+    renderBreakthroughCharacters();
+  }
+
+  function rerollBreakthroughDie(charId, dieIndex) {
+    var entry = breakthroughState.characters[charId];
+    if (!entry || !entry.rerollPending) return;
+    entry.dice[dieIndex] = 1 + Math.floor(Math.random() * 6);
+    entry.rerollPending = false;
+    renderBreakthroughCharacters();
+  }
+
+  function breakthroughDiceSum() {
+    var total = 0;
+    Object.keys(breakthroughState.characters).forEach(function (id) {
+      breakthroughState.characters[id].dice.forEach(function (v) {
+        total += v;
+      });
+    });
+    return total;
+  }
+
+  function renderBreakthroughCharacters() {
+    if (!breakthroughState) return;
+    var container = document.getElementById("breakthrough-characters");
+    container.innerHTML = "";
+    var globalStat = document.getElementById("breakthrough-stat-select").value;
+    var entered = rosterCharacters.filter(function (c) {
+      return c.entered;
+    });
+    entered.forEach(function (c) {
+      var type = c.typeId ? CharacterTypes.get(c.typeId) : null;
+      var row = document.createElement("div");
+      row.className = "wb-row breakthrough-char-row";
+
+      var name = document.createElement("span");
+      name.className = "breakthrough-char-name";
+      name.textContent = c.name;
+      row.appendChild(name);
+
+      var statSelect = null;
+      if (globalStat === "any") {
+        statSelect = document.createElement("select");
+        ["luck", "physical", "mental"].forEach(function (key) {
+          var opt = document.createElement("option");
+          opt.value = key;
+          opt.textContent = window.I18N.t("check_stat_" + key);
+          statSelect.appendChild(opt);
+        });
+        var existing = breakthroughState.characters[c.id];
+        statSelect.value = (existing && existing.stat) || "luck";
+        row.appendChild(statSelect);
+      }
+
+      var rollBtn = document.createElement("button");
+      rollBtn.type = "button";
+      rollBtn.className = "combat-attack-hit-btn";
+      rollBtn.textContent = window.I18N.t("breakthrough_roll_button");
+      rollBtn.addEventListener("click", function () {
+        var statKey = globalStat === "any" ? statSelect.value : globalStat;
+        rollBreakthroughDice(c.id, statKey);
+      });
+      row.appendChild(rollBtn);
+
+      var diceWrap = document.createElement("span");
+      diceWrap.className = "breakthrough-dice-wrap";
+      var entry = breakthroughState.characters[c.id];
+      if (entry) {
+        var statLabel = document.createElement("span");
+        statLabel.className = "ability-uses-label";
+        statLabel.textContent = window.I18N.t("breakthrough_dice_count_label", {
+          stat: window.I18N.t("check_stat_" + entry.stat),
+          count: (type && type.checkValues[entry.stat]) || 0,
+        });
+        diceWrap.appendChild(statLabel);
+        entry.dice.forEach(function (v, i) {
+          var dieBtn = document.createElement("button");
+          dieBtn.type = "button";
+          dieBtn.className = "dice-item";
+          if (entry.rerollPending) dieBtn.classList.add("active");
+          dieBtn.textContent = String(v);
+          dieBtn.disabled = !entry.rerollPending;
+          dieBtn.addEventListener("click", function () {
+            rerollBreakthroughDie(c.id, i);
+          });
+          diceWrap.appendChild(dieBtn);
+        });
+      }
+      row.appendChild(diceWrap);
+
+      var blessingBtn = document.createElement("button");
+      blessingBtn.type = "button";
+      blessingBtn.className = "breakthrough-blessing-btn";
+      blessingBtn.textContent = window.I18N.t("breakthrough_blessing_button", {
+        current: c.blessingSlots ? c.blessingSlots.current : 0,
+      });
+      blessingBtn.disabled = !entry || !entry.dice.length || !c.blessingSlots || c.blessingSlots.current <= 0;
+      blessingBtn.addEventListener("click", function () {
+        useBreakthroughBlessing(c.id);
+      });
+      row.appendChild(blessingBtn);
+
+      container.appendChild(row);
+    });
+
+    var target = Number(document.getElementById("breakthrough-target-input").value) || 0;
+    var perPC = document.getElementById("breakthrough-perpc-checkbox").checked;
+    var actualTarget = perPC ? target * entered.length : target;
+    var sumLabel = document.getElementById("breakthrough-sum-label");
+    sumLabel.textContent = window.I18N.t("breakthrough_sum_label", { sum: breakthroughDiceSum(), target: actualTarget });
+  }
+
+  function confirmBreakthroughCheck() {
+    if (!breakthroughState) return;
+    var index = breakthroughState.slotIndex;
+    var target = Number(document.getElementById("breakthrough-target-input").value) || 0;
+    var perPC = document.getElementById("breakthrough-perpc-checkbox").checked;
+    var entered = rosterCharacters.filter(function (c) {
+      return c.entered;
+    });
+    var actualTarget = perPC ? target * entered.length : target;
+    var sum = breakthroughDiceSum();
+    stepCardLevel(index, 1);
+    addLog("log_breakthrough_check", { slot: index + 1, sum: sum, target: actualTarget });
+    closeBreakthroughModal();
+  }
+
   function renderPrimaryButton() {
     var btn = document.getElementById("btn-primary-action");
     var emptyCount = state.slots.filter(function (s) {
@@ -4238,7 +4521,15 @@
         plus.className = "level-btn";
         plus.textContent = "+";
         plus.addEventListener("click", function () {
-          stepCardLevel(index, 1);
+          openConfirm(
+            "confirm_breakthrough_check_msg",
+            function () {
+              openBreakthroughModal(index);
+            },
+            function () {
+              stepCardLevel(index, 1);
+            }
+          );
         });
 
         levelControl.appendChild(minus);
@@ -4390,6 +4681,11 @@
       });
     });
     document.getElementById("btn-combat-modal-close").addEventListener("click", closeCombatModal);
+    document.getElementById("btn-breakthrough-cancel").addEventListener("click", closeBreakthroughModal);
+    document.getElementById("btn-breakthrough-confirm").addEventListener("click", confirmBreakthroughCheck);
+    document.getElementById("breakthrough-target-input").addEventListener("input", renderBreakthroughCharacters);
+    document.getElementById("breakthrough-perpc-checkbox").addEventListener("change", renderBreakthroughCharacters);
+    document.getElementById("breakthrough-stat-select").addEventListener("change", renderBreakthroughCharacters);
     document.getElementById("battle-drawer-backdrop").addEventListener("click", closeBattleDrawer);
     document.getElementById("battle-enemy-search-input").addEventListener("input", renderBattleEnemySearchResults);
     document.getElementById("btn-battle-add-mob-row").addEventListener("click", handleAddMobRow);
