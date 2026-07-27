@@ -144,6 +144,10 @@ BODY = """    <div class="night-header-row">
           </table>
         </div>
         <hr class="roster-skills-divider">
+        <div class="roster-skills-header">
+          <h3 data-i18n="roster_skills_section_title"></h3>
+          <button id="btn-roster-skills-toggle" type="button" class="icon-btn" aria-label="toggle roster skills">👁</button>
+        </div>
         <div id="character-roster-skills"></div>
       </div>
       <div class="log-panel">

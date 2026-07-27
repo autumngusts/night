@@ -61,6 +61,8 @@
   }
 
   var rosterDetailCollapsed = {};
+  // 各角色の🎲アイコンで直近に実際に振った骰子の数（0も含む）。フェイズ切替でクリアする。
+  var rosterDiceRollFeedback = {};
 
   // 骰子池の重骰待ち状態（キャラクターIDごと）。加護ボタンをONにすると、次にクリックした
   // 骰子1個が加護消費で重骰される（樓層突破判定の重骰UIと同じ操作方式）。
@@ -155,7 +157,11 @@
 
       var tr = document.createElement("tr");
 
+      var isCollapsed = !!rosterDetailCollapsed[c.id];
+
       var thumbTd = document.createElement("td");
+      var thumbWrap = document.createElement("div");
+      thumbWrap.className = "roster-thumb-wrap";
       var thumbSrc = type ? CharacterTypes.imagePath(type) : null;
       if (thumbSrc) {
         var thumb = document.createElement("img");
@@ -165,16 +171,33 @@
         thumb.addEventListener("click", function () {
           CharacterDrawer.openSkills(c.id);
         });
-        thumbTd.appendChild(thumb);
+        thumbWrap.appendChild(thumb);
       }
+      // 展開/收合ボタンは画像のすぐ下に、矢印記号だけの簡潔な表示にする。
+      var toggleBtn = document.createElement("button");
+      toggleBtn.type = "button";
+      toggleBtn.className = "roster-detail-toggle-btn";
+      toggleBtn.textContent = isCollapsed ? "▸" : "▾";
+      toggleBtn.title = window.I18N.t(isCollapsed ? "roster_detail_expand_button" : "roster_detail_collapse_button");
+      toggleBtn.addEventListener("click", function () {
+        rosterDetailCollapsed[c.id] = !rosterDetailCollapsed[c.id];
+        renderCharacterRoster();
+      });
+      thumbWrap.appendChild(toggleBtn);
+      thumbTd.appendChild(thumbWrap);
       tr.appendChild(thumbTd);
 
       var nameTd = document.createElement("td");
+      var nameRow = document.createElement("div");
+      nameRow.className = "roster-name-row";
       var nameLabel = document.createElement("span");
       nameLabel.className = "character-name-label";
       nameLabel.textContent = c.name;
-      nameTd.appendChild(nameLabel);
+      nameRow.appendChild(nameLabel);
+      nameTd.appendChild(nameRow);
 
+      var nameBtnRow = document.createElement("div");
+      nameBtnRow.className = "roster-name-btn-row";
       var detailBtn = document.createElement("button");
       detailBtn.type = "button";
       detailBtn.className = "roster-char-action-btn";
@@ -182,7 +205,7 @@
       detailBtn.addEventListener("click", function () {
         CharacterDrawer.open(c.id);
       });
-      nameTd.appendChild(detailBtn);
+      nameBtnRow.appendChild(detailBtn);
 
       var abilityBtn = document.createElement("button");
       abilityBtn.type = "button";
@@ -191,18 +214,8 @@
       abilityBtn.addEventListener("click", function () {
         CharacterDrawer.openSkills(c.id);
       });
-      nameTd.appendChild(abilityBtn);
-
-      var toggleBtn = document.createElement("button");
-      toggleBtn.type = "button";
-      toggleBtn.className = "roster-detail-toggle-btn";
-      var isCollapsed = !!rosterDetailCollapsed[c.id];
-      toggleBtn.textContent = window.I18N.t(isCollapsed ? "roster_detail_expand_button" : "roster_detail_collapse_button");
-      toggleBtn.addEventListener("click", function () {
-        rosterDetailCollapsed[c.id] = !rosterDetailCollapsed[c.id];
-        renderCharacterRoster();
-      });
-      nameTd.appendChild(toggleBtn);
+      nameBtnRow.appendChild(abilityBtn);
+      nameTd.appendChild(nameBtnRow);
       tr.appendChild(nameTd);
 
       var flaskText = c.flaskBase.current + "/" + c.flaskBase.max + (c.flaskExtra && c.flaskExtra.max > 0 ? "（+" + c.flaskExtra.current + "/" + c.flaskExtra.max + "）" : "");
@@ -247,6 +260,12 @@
           rollDiceForCharacterActionPhase(c);
         });
         diceTitleRow.appendChild(diceRollBtn);
+        if (rosterDiceRollFeedback[c.id] !== undefined) {
+          var diceRollFeedback = document.createElement("span");
+          diceRollFeedback.className = "roster-dice-roll-feedback";
+          diceRollFeedback.textContent = window.I18N.t("roster_dice_roll_feedback", { count: rosterDiceRollFeedback[c.id] });
+          diceTitleRow.appendChild(diceRollFeedback);
+        }
       }
       var diceWrap = document.createElement("div");
       diceWrap.className = "dice-pool-list";
@@ -3512,20 +3531,30 @@
     var type = c.typeId ? CharacterTypes.get(c.typeId) : null;
     if (!type) return;
     if (!c.dicePool) c.dicePool = [];
+    var rolled = 0;
     if (state.actionPhase === "extra") {
-      if (c._extraActionUsed) return;
-      for (var i = 0; i < 2; i++) c.dicePool.push(CharacterDrawer.rollD6());
-      c._extraActionUsed = true;
+      if (!c._extraActionUsed) {
+        rolled = 2;
+        for (var i = 0; i < rolled; i++) c.dicePool.push(CharacterDrawer.rollD6());
+        c._extraActionUsed = true;
+      }
     } else if (state.actionPhase === "combat") {
-      if (c.dicePool.length > 0) return;
-      for (var j = 0; j < type.staminaDice.action; j++) c.dicePool.push(CharacterDrawer.rollD6());
+      if (c.dicePool.length === 0) {
+        rolled = type.staminaDice.action;
+        for (var j = 0; j < rolled; j++) c.dicePool.push(CharacterDrawer.rollD6());
+      }
     } else if (state.actionPhase === "defense") {
-      if (c._defenseActionUsed) return;
-      for (var k = 0; k < type.staminaDice.defense; k++) c.dicePool.push(CharacterDrawer.rollD6());
-      c._defenseActionUsed = true;
+      if (!c._defenseActionUsed) {
+        rolled = type.staminaDice.defense;
+        for (var k = 0; k < rolled; k++) c.dicePool.push(CharacterDrawer.rollD6());
+        c._defenseActionUsed = true;
+      }
     } else {
       return;
     }
+    // 防禦骰が0個のキャラクターなど、「押したのに何も起きない」ように見えるケースがあるため、
+    // 実際に振った数（0も含む）をアイコン脇に表示して知らせる。
+    rosterDiceRollFeedback[c.id] = rolled;
     saveRosterCharacters();
     renderCharacterRoster();
   }
@@ -3571,6 +3600,7 @@
     rosterCharacters.forEach(function (c) {
       c._extraActionUsed = false;
       c._defenseActionUsed = false;
+      delete rosterDiceRollFeedback[c.id];
     });
     // 額外・防禦行動へ入るときは、各角色の確定行動（点線枠）を一旦全てクリアする。
     if (phase === "extra" || phase === "defense") {
@@ -4425,6 +4455,15 @@
     btn.title = window.I18N.t(collapsed ? "log_toggle_show" : "log_toggle_hide");
   }
 
+  // 全角色分の可発動能力／被動技能セクション（character-roster-skills）をまとめて折りたたむトグル。
+  function renderRosterSkillsToggleLabel() {
+    var btn = document.getElementById("btn-roster-skills-toggle");
+    if (!btn) return;
+    var collapsed = document.getElementById("character-roster-skills").classList.contains("collapsed");
+    btn.textContent = collapsed ? "🙈" : "👁";
+    btn.title = window.I18N.t(collapsed ? "roster_skills_toggle_show" : "roster_skills_toggle_hide");
+  }
+
   // --- select drawer ---
   function renderSelectScreen() {
     var grid = document.getElementById("select-grid");
@@ -5104,6 +5143,7 @@
     renderBoard();
     renderLog();
     renderLogToggleLabel();
+    renderRosterSkillsToggleLabel();
     renderBossRulebook();
     renderWeaponRulebookAll();
     renderTalismanAcquisitionTable();
@@ -5138,6 +5178,7 @@
         renderBoard();
         renderLog();
         renderLogToggleLabel();
+        renderRosterSkillsToggleLabel();
         renderUndoButton();
       });
       GameStorage.subscribeCharacters(gameId, game.storageMode, function (list) {
@@ -5170,6 +5211,10 @@
     document.getElementById("btn-log-toggle").addEventListener("click", function () {
       document.getElementById("log-list").classList.toggle("collapsed");
       renderLogToggleLabel();
+    });
+    document.getElementById("btn-roster-skills-toggle").addEventListener("click", function () {
+      document.getElementById("character-roster-skills").classList.toggle("collapsed");
+      renderRosterSkillsToggleLabel();
     });
     document.getElementById("btn-setup-info").addEventListener("click", function (e) {
       e.stopPropagation();
@@ -5259,6 +5304,7 @@
       renderBoard();
       renderLog();
       renderLogToggleLabel();
+      renderRosterSkillsToggleLabel();
       renderSelectScreen();
       renderBattleRefTexts();
       renderBossRulebook();
