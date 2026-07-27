@@ -108,7 +108,13 @@ BODY = """    <div class="night-header-row">
         </div>
         <div class="dice-pool-list" id="dice-pool-list"></div>
         <button type="button" class="primary-btn action-phase-btn" id="btn-action-phase"></button>
-        <button type="button" class="primary-btn" id="btn-generic-check" data-i18n="generic_check_button"></button>
+      </div>
+
+      <div class="function-menu-block" id="function-menu-block">
+        <button type="button" class="function-menu-toggle-btn" id="btn-function-menu-toggle" aria-label="toggle function menu">&#9654;</button>
+        <div class="function-menu-list" id="function-menu-list">
+          <button type="button" class="primary-btn function-menu-item" id="btn-generic-check" data-i18n="generic_check_button"></button>
+        </div>
       </div>
 
       <div id="action-phase-modal" class="modal" hidden>

@@ -1279,6 +1279,44 @@ button {
   margin-top: 1rem;
 }
 
+.function-menu-block {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+
+.function-menu-toggle-btn {
+  border: none;
+  background: none;
+  cursor: pointer;
+  font-size: 0.85rem;
+  line-height: 1;
+  padding: 0.2rem 0.3rem;
+  color: #888;
+}
+
+.function-menu-list {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  overflow: hidden;
+  max-width: 0;
+  opacity: 0;
+  transition: max-width 0.25s ease, opacity 0.2s ease;
+}
+
+.function-menu-list.open {
+  max-width: 600px;
+  opacity: 1;
+}
+
+.function-menu-item {
+  font-size: 0.85rem;
+  padding: 0.4rem 0.8rem;
+  white-space: nowrap;
+}
+
 .dice-pool-header {
   display: flex;
   align-items: center;

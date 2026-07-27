@@ -5314,6 +5314,11 @@
     document.getElementById("btn-action-phase").addEventListener("click", openActionPhaseModal);
     document.getElementById("btn-action-phase-cancel").addEventListener("click", closeActionPhaseModal);
     document.getElementById("btn-generic-check").addEventListener("click", openGenericCheckModal);
+    document.getElementById("btn-function-menu-toggle").addEventListener("click", function () {
+      var list = document.getElementById("function-menu-list");
+      var open = list.classList.toggle("open");
+      this.textContent = open ? "◀" : "▶";
+    });
     document.querySelectorAll(".action-phase-grid button").forEach(function (btn) {
       btn.addEventListener("click", function () {
         setActionPhase(btn.dataset.phase);
