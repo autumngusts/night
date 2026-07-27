@@ -2773,6 +2773,19 @@
     };
   }
 
+  // 盾のguardCost欄（例："①"）を、renderDiceCostActionが期待するcost形状（FP/HPコスト無し）に変換する。
+  function parseGuardCost(text) {
+    var dice = classifyDiceCostToken(String(text || "").trim());
+    return {
+      diceKind: dice ? dice.diceKind : null,
+      diceCountMin: dice ? dice.diceCountMin : 0,
+      diceCountMax: dice ? dice.diceCountMax : null,
+      sumTotal: dice ? dice.sumTotal : null,
+      fpCost: 0,
+      hpCost: 0,
+    };
+  }
+
   // 選択した骰子の出目配列（values）が、costの条件を満たすかどうかを判定する。
   function validateDiceSelection(cost, values) {
     if (!cost || !cost.diceKind) return values.length === 0;
@@ -4640,6 +4653,7 @@
     weaponDamageTagText: weaponDamageTagText,
     parseActionCost: parseActionCost,
     parseAttackCost: parseAttackCost,
+    parseGuardCost: parseGuardCost,
     validateDiceSelection: validateDiceSelection,
     describeDiceCost: describeDiceCost,
     parsePositionRestriction: parsePositionRestriction,

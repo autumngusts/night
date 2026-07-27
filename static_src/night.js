@@ -2458,6 +2458,21 @@
     renderCharacterRoster();
   }
 
+  // 額外／防禦行動フェイズへ入るたび、各角色の確定行動（点線枠）を一括で消去する。
+  // 消去前の内容は記録として全体ログへ残す。
+  function clearAllPendingActionBoxes() {
+    rosterCharacters.forEach(function (c) {
+      if (!c.pendingActionBoxes || !c.pendingActionBoxes.length) return;
+      var summary = c.pendingActionBoxes
+        .map(function (b) {
+          return b.total ? b.title + "(" + b.total + ")" : b.title;
+        })
+        .join("、");
+      c.pendingActionBoxes = [];
+      addLog("log_action_box_clear", { character: c.name, actions: summary });
+    });
+  }
+
   function renderActionBoxes(c, container) {
     (c.pendingActionBoxes || []).forEach(function (box) {
       var el = document.createElement("div");
@@ -3076,12 +3091,114 @@
     content.appendChild(confirmBtn);
   }
 
+  // 防禦action中「迴避／格擋のどちらを選ぼうとしているか」の一時状態。
+  var combatDefenseState = null; // "dodge" | "block" | null
+
+  // 迴避は任意枚数（1枚以上）の骰子を消費し、出目合計を確定時に集計する（骰子種の制約は無い）。
+  var DODGE_COST = { diceKind: "sum", diceCountMin: 1, diceCountMax: null, sumTotal: 1, fpCost: 0, hpCost: 0 };
+  // 盾を装備していない単騎武器での格擋（暫定値。將來変更予定）も同様に任意枚数の骰子を消費する。
+  var SOLO_BLOCK_COST = { diceKind: "sum", diceCountMin: 1, diceCountMax: null, sumTotal: 1, fpCost: 0, hpCost: 0 };
+
+  // 装備中武器の中から盾（isShieldカテゴリ）を1つ探す。無ければnull。
+  function getEquippedShield(c) {
+    var Weapons = window.PriTestWeapons;
+    var ids = c.equippedWeaponIds || [];
+    for (var i = 0; i < ids.length; i++) {
+      var baseId = ids[i].indexOf("::") !== -1 ? ids[i].slice(0, ids[i].indexOf("::")) : ids[i];
+      var weapon = Weapons.get(baseId);
+      if (!weapon) continue;
+      var category = Weapons.getCategory(weapon.category);
+      if (category && category.isShield) return { weaponId: ids[i], weapon: weapon, category: category };
+    }
+    return null;
+  }
+
+  // 格擋は、盾を装備しているか、あるいは武器を1つしか装備していない（＝二刀流ではない）場合に発動可能。
+  function canBlockGuard(c) {
+    var ids = c.equippedWeaponIds || [];
+    if (!ids.length) return false;
+    if (ids.length === 1) return true;
+    return !!getEquippedShield(c);
+  }
+
+  function renderCombatDefenseAction(c, content) {
+    var Weapons = window.PriTestWeapons;
+    var shieldInfo = getEquippedShield(c);
+    var blockAvailable = canBlockGuard(c);
+
+    var choiceRow = document.createElement("div");
+    choiceRow.className = "combat-defense-choice-row";
+    [
+      { key: "dodge", label: window.I18N.t("combat_defense_dodge_button") },
+      { key: "block", label: window.I18N.t("combat_defense_block_button") },
+    ].forEach(function (opt) {
+      var btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "combat-attack-hit-btn";
+      btn.textContent = opt.label;
+      if (combatDefenseState === opt.key) btn.classList.add("active");
+      if (opt.key === "block" && !blockAvailable) btn.disabled = true;
+      btn.addEventListener("click", function () {
+        combatDefenseState = combatDefenseState === opt.key ? null : opt.key;
+        combatDiceSelection = [];
+        renderCombatModal();
+      });
+      choiceRow.appendChild(btn);
+    });
+    content.appendChild(choiceRow);
+
+    if (!blockAvailable) {
+      var note = document.createElement("p");
+      note.className = "threat-ref-body";
+      note.textContent = window.I18N.t("combat_defense_block_unavailable_note");
+      content.appendChild(note);
+    }
+
+    if (combatDefenseState === "dodge") {
+      renderDiceCostAction(c, content, DODGE_COST, function (dice) {
+        var value = dice.reduce(function (a, b) { return a + b; }, 0) + 30;
+        addActionBox(
+          c,
+          window.I18N.t("combat_defense_dodge_button"),
+          window.I18N.t("action_log_defense_value_total", { value: value }),
+          [window.I18N.t("action_log_dice_used", { dice: dice.join("、") })]
+        );
+        addLog("log_combat_defense_dodge", { character: c.name, value: value, dice: dice.join("、") });
+        combatDefenseState = null;
+      });
+    } else if (combatDefenseState === "block" && blockAvailable) {
+      var cost = shieldInfo ? CharacterDrawer.parseGuardCost(Weapons.localizedText(shieldInfo.category.basicStats.guardCost)) : SOLO_BLOCK_COST;
+      var value = shieldInfo
+        ? shieldInfo.weapon.rarity === "R" || shieldInfo.weapon.rarity === "L"
+          ? shieldInfo.category.basicStats.guardHpRL
+          : shieldInfo.category.basicStats.guardHpCU
+        : 30;
+      renderDiceCostAction(c, content, cost, function (dice) {
+        addActionBox(
+          c,
+          window.I18N.t("combat_defense_block_button"),
+          window.I18N.t("action_log_defense_value_total", { value: value }),
+          [window.I18N.t("action_log_dice_used", { dice: dice.join("、") })]
+        );
+        addLog("log_combat_defense_block", { character: c.name, value: value, dice: dice.join("、") });
+        combatDefenseState = null;
+      });
+    }
+  }
+
   function renderCombatModal() {
     var c = combatCharacter();
     var errEl = document.getElementById("combat-modal-error");
     errEl.hidden = true;
     errEl.textContent = "";
     document.getElementById("combat-modal-title").textContent = c ? c.name : "";
+    var isDefensePhase = state.actionPhase === "defense";
+    document.querySelectorAll(".combat-action-normal-btn").forEach(function (btn) {
+      btn.hidden = isDefensePhase;
+    });
+    document.querySelectorAll(".combat-action-defense-btn").forEach(function (btn) {
+      btn.hidden = !isDefensePhase;
+    });
     document.querySelectorAll(".combat-action-btn").forEach(function (btn) {
       btn.classList.toggle("active", btn.dataset.action === combatModalAction);
     });
@@ -3094,6 +3211,7 @@
     else if (combatModalAction === "consumable") renderCombatConsumableAction(c, content);
     else if (combatModalAction === "move") renderCombatMoveAction(c, content);
     else if (combatModalAction === "equip") renderCombatEquipAction(c, content);
+    else if (combatModalAction === "defense") renderCombatDefenseAction(c, content);
   }
 
   // エネミーHPチェックグリッドは、戦場面板（battle-drawer）内のフル表示、
@@ -3114,6 +3232,36 @@
     var n = 0;
     for (var i = 0; i < len; i++) if (arr[start + i]) n++;
     return n;
+  }
+
+  // 非雑兵エネミー（state.battle.enemyHp）の指定段がHP0（全マス被弾済み）かどうか。
+  function isEnemyHpRowFull(rowIdx) {
+    return countRowChecked(state.battle.enemyHp, rowIdx * ENEMY_HP_COLS, ENEMY_HP_COLS) === ENEMY_HP_COLS;
+  }
+
+  // 額外行動フェイズは、非雑兵エネミーの4段のうちいずれか1段でもHP0になって初めて選択可能になる。
+  function anyEnemyHpRowDepleted() {
+    for (var i = 0; i < ENEMY_HP_ROWS; i++) {
+      if (isEnemyHpRowFull(i)) return true;
+    }
+    return false;
+  }
+
+  // 4段全てがHP0＝戦闘終了（一般行動へ自動的に戻す）。
+  function allEnemyHpRowsDepleted() {
+    for (var i = 0; i < ENEMY_HP_ROWS; i++) {
+      if (!isEnemyHpRowFull(i)) return false;
+    }
+    return true;
+  }
+
+  // エネミーHPが変化するたびに呼び、額外行動ボタンの活性状態を更新しつつ、
+  // 4段全滅であれば自動的に一般行動へ切り替えて戦闘終了を記録する。
+  function handleEnemyHpChanged() {
+    renderActionPhaseGrid();
+    if (state.actionPhase !== "normal" && allEnemyHpRowsDepleted()) {
+      setActionPhase("normal", { combatEnd: true });
+    }
   }
 
   // 指定した段のチェック数を、増減ではなく指定した個数ちょうどに設定する（左詰め）。
@@ -3158,6 +3306,7 @@
     }
     renderEnemyHpGrid();
     saveState();
+    handleEnemyHpChanged();
   }
 
   function renderEnemyHpGrid() {
@@ -3329,6 +3478,7 @@
     renderEnemyHpGrid();
     renderMobHpList();
     renderSelectedEnemies();
+    renderActionPhaseGrid();
   }
 
   function renderDicePool() {
@@ -3354,8 +3504,9 @@
   }
 
   // 戦闘／額外／防禦行動フェイズ中、各角色の面板にある🎲アイコンから、その角色1人分だけ骰子を振る。
-  // 戦闘・防禦は骰子池が空の時だけ（体力骰action／defenseの数だけ）、額外行動は1回限り2個
-  // （フェイズを切り替えるたびに使用済みフラグがリセットされる）。一般行動では何もしない。
+  // 戦闘は骰子池が空の時だけ（体力骰actionの数だけ）。額外・防禦は前フェイズの骰子を保持したまま
+  // 追加で振れるが、いずれも1回限り（フェイズを切り替えるたびに使用済みフラグがリセットされる）。
+  // 一般行動では何もしない。
   function rollDiceForCharacterActionPhase(c) {
     if (state.actionPhase === "normal") return;
     var type = c.typeId ? CharacterTypes.get(c.typeId) : null;
@@ -3365,10 +3516,13 @@
       if (c._extraActionUsed) return;
       for (var i = 0; i < 2; i++) c.dicePool.push(CharacterDrawer.rollD6());
       c._extraActionUsed = true;
-    } else if (state.actionPhase === "combat" || state.actionPhase === "defense") {
+    } else if (state.actionPhase === "combat") {
       if (c.dicePool.length > 0) return;
-      var count = state.actionPhase === "combat" ? type.staminaDice.action : type.staminaDice.defense;
-      for (var j = 0; j < count; j++) c.dicePool.push(CharacterDrawer.rollD6());
+      for (var j = 0; j < type.staminaDice.action; j++) c.dicePool.push(CharacterDrawer.rollD6());
+    } else if (state.actionPhase === "defense") {
+      if (c._defenseActionUsed) return;
+      for (var k = 0; k < type.staminaDice.defense; k++) c.dicePool.push(CharacterDrawer.rollD6());
+      c._defenseActionUsed = true;
     } else {
       return;
     }
@@ -3382,6 +3536,15 @@
     btn.textContent = window.I18N.t("action_phase_" + state.actionPhase);
   }
 
+  // 額外行動は、非雑兵エネミーの4段のうちいずれか1段でもHP0にならない限り選択できない。
+  function renderActionPhaseGrid() {
+    document.querySelectorAll(".action-phase-grid button[data-phase]").forEach(function (btn) {
+      if (btn.dataset.phase === "extra") {
+        btn.disabled = !anyEnemyHpRowDepleted();
+      }
+    });
+  }
+
   function openActionPhaseModal() {
     document.getElementById("action-phase-modal").hidden = false;
   }
@@ -3390,23 +3553,40 @@
     document.getElementById("action-phase-modal").hidden = true;
   }
 
-  function setActionPhase(phase) {
+  function setActionPhase(phase, opts) {
+    opts = opts || {};
     if (state.actionPhase === phase) {
       closeActionPhaseModal();
       return;
     }
+    // 額外行動は、非雑兵エネミーのいずれかの段がHP0になっていない限り選択不可
+    // （UI側でもボタンを無効化しているが、念のためここでも防御する）。
+    if (phase === "extra" && !anyEnemyHpRowDepleted()) {
+      closeActionPhaseModal();
+      return;
+    }
     state.actionPhase = phase;
-    // フェイズを切り替えるたびに「額外行動を使用済み」フラグをリセットする（次にまた
-    // 額外行動フェイズへ入ったとき、全員が改めて1回分振れるようにするため）。
+    // フェイズを切り替えるたびに「額外／防禦行動を使用済み」フラグをリセットする（次にまた
+    // 同じフェイズへ入ったとき、全員が改めて1回分振れるようにするため）。
     rosterCharacters.forEach(function (c) {
       c._extraActionUsed = false;
+      c._defenseActionUsed = false;
     });
+    // 額外・防禦行動へ入るときは、各角色の確定行動（点線枠）を一旦全てクリアする。
+    if (phase === "extra" || phase === "defense") {
+      clearAllPendingActionBoxes();
+    }
     saveRosterCharacters();
     saveState();
     closeActionPhaseModal();
     renderActionPhaseButton();
+    renderActionPhaseGrid();
     renderCharacterRoster();
-    addLog("log_action_phase_change", { phase: window.I18N.t("action_phase_" + phase) });
+    if (opts.combatEnd) {
+      addLog("log_battle_combat_end");
+    } else {
+      addLog("log_action_phase_change", { phase: window.I18N.t("action_phase_" + phase) });
+    }
   }
 
   function openBattleDrawer() {
@@ -3560,6 +3740,7 @@
             setEnemyHpRowCount(0, hpNotation.row1);
             setEnemyHpRowCount(1, hpNotation.row2);
             renderEnemyHpGrid();
+            handleEnemyHpChanged();
           }
         }
         renderSelectedEnemies();
@@ -4788,6 +4969,7 @@
     renderLog();
     renderDicePool();
     renderActionPhaseButton();
+    renderActionPhaseGrid();
     if (hadBoard) addLog("log_new_game");
   }
 
@@ -4918,6 +5100,7 @@
     renderBattleRefTexts();
     renderDicePool();
     renderActionPhaseButton();
+    renderActionPhaseGrid();
     renderBoard();
     renderLog();
     renderLogToggleLabel();
@@ -4951,6 +5134,7 @@
         renderSelectedEnemies();
         renderDicePool();
         renderActionPhaseButton();
+        renderActionPhaseGrid();
         renderBoard();
         renderLog();
         renderLogToggleLabel();

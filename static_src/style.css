@@ -1297,7 +1297,8 @@ button {
 }
 
 .combat-attack-weapon-row,
-.combat-skill-row {
+.combat-skill-row,
+.combat-defense-choice-row {
   display: flex;
   align-items: center;
   flex-wrap: wrap;

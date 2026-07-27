@@ -268,12 +268,13 @@ BODY = """    <div class="night-header-row">
         <h2 id="combat-modal-title"></h2>
         <p id="combat-modal-error" class="error-banner" hidden></p>
         <div class="combat-action-grid">
-          <button type="button" class="combat-action-btn" data-action="attack" data-i18n="combat_action_attack"></button>
-          <button type="button" class="combat-action-btn" data-action="skill" data-i18n="combat_action_skill"></button>
-          <button type="button" class="combat-action-btn" data-action="flask" data-i18n="combat_action_flask"></button>
-          <button type="button" class="combat-action-btn" data-action="consumable" data-i18n="combat_action_consumable"></button>
-          <button type="button" class="combat-action-btn" data-action="move" data-i18n="combat_action_move"></button>
-          <button type="button" class="combat-action-btn" data-action="equip" data-i18n="combat_action_equip"></button>
+          <button type="button" class="combat-action-btn combat-action-normal-btn" data-action="attack" data-i18n="combat_action_attack"></button>
+          <button type="button" class="combat-action-btn combat-action-normal-btn" data-action="skill" data-i18n="combat_action_skill"></button>
+          <button type="button" class="combat-action-btn combat-action-normal-btn" data-action="flask" data-i18n="combat_action_flask"></button>
+          <button type="button" class="combat-action-btn combat-action-normal-btn" data-action="consumable" data-i18n="combat_action_consumable"></button>
+          <button type="button" class="combat-action-btn combat-action-normal-btn" data-action="move" data-i18n="combat_action_move"></button>
+          <button type="button" class="combat-action-btn combat-action-normal-btn" data-action="equip" data-i18n="combat_action_equip"></button>
+          <button type="button" class="combat-action-btn combat-action-defense-btn" data-action="defense" data-i18n="combat_action_defense" hidden></button>
         </div>
         <div id="combat-modal-content"></div>
         <div class="actions">
