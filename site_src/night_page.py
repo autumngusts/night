@@ -108,6 +108,7 @@ BODY = """    <div class="night-header-row">
         </div>
         <div class="dice-pool-list" id="dice-pool-list"></div>
         <button type="button" class="primary-btn action-phase-btn" id="btn-action-phase"></button>
+        <button type="button" class="primary-btn" id="btn-generic-check" data-i18n="generic_check_button"></button>
       </div>
 
       <div id="action-phase-modal" class="modal" hidden>
@@ -252,17 +253,6 @@ BODY = """    <div class="night-header-row">
           <button id="modal-no" type="button" data-i18n="no_button"></button>
           <button id="modal-yes" type="button" class="primary-btn" data-i18n="yes_button"></button>
           <button id="modal-extra" type="button" class="danger-btn" hidden></button>
-        </div>
-      </div>
-    </div>
-
-    <div id="suit-modal" class="modal" hidden>
-      <div class="modal-box">
-        <p id="suit-modal-title"></p>
-        <div id="suit-modal-grid" class="suit-modal-grid"></div>
-        <div class="actions">
-          <button id="suit-modal-clear" type="button" data-i18n="clear_suit_button"></button>
-          <button id="suit-modal-close" type="button" data-i18n="cancel_button"></button>
         </div>
       </div>
     </div>

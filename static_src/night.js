@@ -737,7 +737,10 @@
       }
       state.boardStarted = !!data.boardStarted;
       state.log = Array.isArray(data.log) ? data.log : [];
-      state.focusedIndex = typeof data.focusedIndex === "number" ? data.focusedIndex : null;
+      state.focusedIndex =
+        typeof data.focusedIndex === "number" || data.focusedIndex === "start" || data.focusedIndex === "end"
+          ? data.focusedIndex
+          : null;
       state.dayNumber = typeof data.dayNumber === "number" ? data.dayNumber : 1;
       state.startSuit = SUITS.indexOf(data.startSuit) !== -1 ? data.startSuit : null;
       state.endSuit = SUITS.indexOf(data.endSuit) !== -1 ? data.endSuit : null;
@@ -1111,22 +1114,62 @@
   }
 
   // 系統共通の「レベル／HP枠／乱戦ダメージ」基礎データ表（fam.baseがある系統のみ表示）。
-  function buildEnemyBaseTable(fam) {
-    var Enemies = window.PriTestEnemies;
-    var T = Enemies.localizedText;
-    var columns = [
-      { ja: "レベル", zh: "等級" },
-      { ja: "HP枠", zh: "HP枠" },
-      { ja: "乱戦ダメージ", zh: "亂戰傷害" },
-    ];
-    var rows = fam.base.map(function (lv) {
-      var hpText = lv.hp || "—";
-      return [lv.level, { ja: hpText, zh: hpText }, lv.dmg];
+  // 各等級のHP枠／亂戰傷害を表示するテーブル（<details>で折りたたみ可能）。
+  // 戦場面板の敵検索結果（renderBattleEnemyLookupResult）と規則書（buildEnemyBaseTable）の
+  // 両方でこの同じ関数を使うことで、見出し文言・列見出し・表の見た目を完全に統一する。
+  function buildEnemyLevelTable(familyBase) {
+    var levelDetails = document.createElement("details");
+    levelDetails.className = "ability-entry";
+    var levelSummary = document.createElement("summary");
+    levelSummary.textContent = window.I18N.t("enemy_level_table_toggle_label");
+    levelDetails.appendChild(levelSummary);
+
+    var table = document.createElement("table");
+    table.className = "boss-action-table";
+    var thead = document.createElement("thead");
+    var headRow = document.createElement("tr");
+    [window.I18N.t("enemy_level_label"), window.I18N.t("enemy_hp_label"), window.I18N.t("enemy_melee_damage_label")].forEach(function (
+      label
+    ) {
+      var th = document.createElement("th");
+      th.textContent = label;
+      headRow.appendChild(th);
     });
+    thead.appendChild(headRow);
+    table.appendChild(thead);
+    var tbody = document.createElement("tbody");
+    var hasHp = false;
+    (familyBase || []).forEach(function (lv) {
+      if (lv.hp) hasHp = true;
+      var tr = document.createElement("tr");
+      var tdLevel = document.createElement("td");
+      tdLevel.textContent = lv.level;
+      tr.appendChild(tdLevel);
+      var tdHp = document.createElement("td");
+      tdHp.textContent = lv.hp || "—";
+      tr.appendChild(tdHp);
+      var tdDmg = document.createElement("td");
+      tdDmg.textContent = lv.dmg != null ? lv.dmg : "—";
+      tr.appendChild(tdDmg);
+      tbody.appendChild(tr);
+    });
+    table.appendChild(tbody);
     var wrap = document.createElement("div");
-    wrap.className = "field-variance-wrap";
-    wrap.appendChild(buildBossTable(columns, rows, T));
-    return wrap;
+    wrap.className = "boss-table-scroll";
+    wrap.appendChild(table);
+    levelDetails.appendChild(wrap);
+
+    if (!hasHp) {
+      var note = document.createElement("p");
+      note.className = "threat-ref-body";
+      note.textContent = window.I18N.t("enemy_hp_unavailable_note");
+      levelDetails.appendChild(note);
+    }
+    return levelDetails;
+  }
+
+  function buildEnemyBaseTable(fam) {
+    return buildEnemyLevelTable(fam.base);
   }
 
   // 系統共通の「ガード回数／HP価値」参考表（データがある系統のみ表示）。
@@ -3684,54 +3727,7 @@
       container.appendChild(weaknessLine);
     }
 
-    var levelDetails = document.createElement("details");
-    levelDetails.className = "ability-entry";
-    var levelSummary = document.createElement("summary");
-    levelSummary.textContent = window.I18N.t("enemy_level_table_toggle_label");
-    levelDetails.appendChild(levelSummary);
-
-    var table = document.createElement("table");
-    table.className = "boss-action-table";
-    var thead = document.createElement("thead");
-    var headRow = document.createElement("tr");
-    [window.I18N.t("enemy_level_label"), window.I18N.t("enemy_hp_label"), window.I18N.t("enemy_melee_damage_label")].forEach(function (
-      label
-    ) {
-      var th = document.createElement("th");
-      th.textContent = label;
-      headRow.appendChild(th);
-    });
-    thead.appendChild(headRow);
-    table.appendChild(thead);
-    var tbody = document.createElement("tbody");
-    var hasHp = false;
-    (row.familyBase || []).forEach(function (lv) {
-      if (lv.hp) hasHp = true;
-      var tr = document.createElement("tr");
-      var tdLevel = document.createElement("td");
-      tdLevel.textContent = lv.level;
-      tr.appendChild(tdLevel);
-      var tdHp = document.createElement("td");
-      tdHp.textContent = lv.hp || "—";
-      tr.appendChild(tdHp);
-      var tdDmg = document.createElement("td");
-      tdDmg.textContent = lv.dmg != null ? lv.dmg : "—";
-      tr.appendChild(tdDmg);
-      tbody.appendChild(tr);
-    });
-    table.appendChild(tbody);
-    var wrap = document.createElement("div");
-    wrap.className = "boss-table-scroll";
-    wrap.appendChild(table);
-    levelDetails.appendChild(wrap);
-
-    if (!hasHp) {
-      var note = document.createElement("p");
-      note.className = "threat-ref-body";
-      note.textContent = window.I18N.t("enemy_hp_unavailable_note");
-      levelDetails.appendChild(note);
-    }
-    container.appendChild(levelDetails);
+    container.appendChild(buildEnemyLevelTable(row.familyBase));
 
     var addRow = document.createElement("div");
     addRow.className = "wb-row";
@@ -3941,6 +3937,7 @@
     document.getElementById("board-grid").classList.toggle("swapped", isSwappedDay());
     renderStartPile();
     renderPileButton("pile-end", "end_point_label", state.endSuit);
+    document.getElementById("pile-end").classList.toggle("latest", state.focusedIndex === "end");
     renderPileChecks("end", state.endChecks, false);
   }
 
@@ -3975,6 +3972,7 @@
       el.classList.toggle("active", state.boardStarted);
       el.disabled = false;
     }
+    el.classList.toggle("latest", state.focusedIndex === "start");
     renderPileChecks("start", state.startChecks, state.startDefeated);
   }
 
@@ -4191,6 +4189,34 @@
     document.getElementById("breakthrough-modal").hidden = false;
   }
 
+  // 判定發生：地圖版から任意のタイミングで開ける汎用判定。攀登判定と同様、目標値は揭曉するまで
+  // 非公開（GMが事前に入力し、骰子確定後に揭曉ボタンで開示する）で、全員が個別に骰子を振り
+  // その合計で通過／不通過を判定する（perpcは常にON固定）。攀登判定と違い盤面の移動という
+  // 前提が無いため目標値に計算式が使えず、開く際にGMへ直接プロンプトで入力させる。判定に
+  // 使う数値（幸運／體能／精神）は固定せずGMが選べる。
+  function openGenericCheckModal() {
+    var input = window.prompt(window.I18N.t("generic_check_target_prompt"));
+    if (input === null) return;
+    var target = Number(input);
+    if (!input.trim() || isNaN(target)) {
+      window.alert(window.I18N.t("generic_check_target_invalid"));
+      return;
+    }
+    breakthroughState = { slotIndex: null, mode: "generic", moveTarget: null, characters: {}, revealed: false };
+    document.getElementById("breakthrough-modal-title").textContent = window.I18N.t("generic_check_modal_title");
+    document.getElementById("breakthrough-import-row").hidden = true;
+    document.getElementById("breakthrough-target-hideable").hidden = true;
+    document.getElementById("breakthrough-target-input").value = String(target);
+    document.getElementById("breakthrough-target-input").disabled = true;
+    document.getElementById("breakthrough-perpc-checkbox").checked = true;
+    document.getElementById("breakthrough-perpc-checkbox").disabled = true;
+    document.getElementById("breakthrough-stat-select").value = "any";
+    document.getElementById("breakthrough-stat-select").disabled = false;
+    document.getElementById("breakthrough-error").hidden = true;
+    renderBreakthroughCharacters();
+    document.getElementById("breakthrough-modal").hidden = false;
+  }
+
   // 規則書の通常セッション認証とは別に、揭曉のたびに必ずパスワードを再要求する
   // （既にセッション認証済みでも、目標値の閲覧は毎回明示的な確認を必要とするため）。
   // 攀登判定（mode:"climb"）はGMの秘密ではないため、このパスワード確認は樓層突破判定
@@ -4389,7 +4415,20 @@
       var moveTarget = breakthroughState.moveTarget;
       closeBreakthroughModal();
       if (passed) finalizeSlotMove(moveTarget);
-      addLog(passed ? "log_climb_check_pass" : "log_climb_check_fail", { slot: moveTarget + 1, sum: sum, target: actualTarget });
+      if (typeof moveTarget === "number") {
+        addLog(passed ? "log_climb_check_pass" : "log_climb_check_fail", { slot: moveTarget + 1, sum: sum, target: actualTarget });
+      } else {
+        addLog(passed ? "log_climb_check_pass_pile" : "log_climb_check_fail_pile", {
+          place: window.I18N.t(moveTarget === "start" ? "start_point_label" : "end_point_label"),
+          sum: sum,
+          target: actualTarget,
+        });
+      }
+      return;
+    }
+    if (breakthroughState.mode === "generic") {
+      closeBreakthroughModal();
+      addLog(passed ? "log_generic_check_pass" : "log_generic_check_fail", { sum: sum, target: actualTarget });
       return;
     }
     var index = breakthroughState.slotIndex;
@@ -4771,48 +4810,31 @@
     addLog("log_next_night", { day: state.dayNumber });
   }
 
-  // --- suit picker ---
-  function openSuitPicker(which) {
-    if (!state.boardStarted) return;
-    if (which === "start" && state.startDefeated) return;
-    var modal = document.getElementById("suit-modal");
-    document.getElementById("suit-modal-title").textContent = window.I18N.t(
-      which === "start" ? "select_suit_start_title" : "select_suit_end_title"
-    );
-    var grid = document.getElementById("suit-modal-grid");
-    grid.innerHTML = "";
-    var current = which === "start" ? state.startSuit : state.endSuit;
-    SUITS.forEach(function (suit) {
-      var btn = document.createElement("button");
-      btn.type = "button";
-      btn.className = "mini-card " + SUIT_CLASS[suit] + (current === suit ? " selected" : "");
-      btn.textContent = SUIT_SYMBOL[suit];
-      btn.addEventListener("click", function () {
-        if (which === "start") state.startSuit = suit;
-        else state.endSuit = suit;
-        closeSuitPicker();
-        renderPiles();
-        saveState();
-        addLog(which === "start" ? "log_set_start_suit" : "log_set_end_suit", {
-          suit: SUIT_SYMBOL[suit],
-        });
-      });
-      grid.appendChild(btn);
-    });
-    document.getElementById("suit-modal-clear").onclick = function () {
-      if (which === "start") state.startSuit = null;
-      else state.endSuit = null;
-      closeSuitPicker();
-      renderPiles();
-      saveState();
-      addLog(which === "start" ? "log_clear_start_suit" : "log_clear_end_suit");
-    };
-    document.getElementById("suit-modal-close").onclick = closeSuitPicker;
-    modal.hidden = false;
+  // --- 起點／終點：花色は自動的に決まる値（副本データ・日をまたぐ引き継ぎ）を表示するのみで、
+  // クリックによる手動変更はできない。通常の板塊と同様、短押しで規則書の該当ページ
+  // （起點＝出発地点／終點＝黄金樹の帳）を開き、長押しで「ここへ移動」を框選できる。
+  function onPileShortClick(which) {
+    if (!isRulebookAuthenticated()) return;
+    var chosenId = which === "start" ? "a_start" : "a_golden";
+    document.getElementById("rulebook-modal").hidden = false;
+    switchRulebookTab("board");
+    setTimeout(function () {
+      var target = document.getElementById("field-card-" + chosenId);
+      if (target) target.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 50);
   }
 
-  function closeSuitPicker() {
-    document.getElementById("suit-modal").hidden = true;
+  function onPileClick(pos) {
+    var previousFocusedIndex = state.focusedIndex;
+    if (previousFocusedIndex === null || previousFocusedIndex === pos) return;
+    var canOfferMove =
+      typeof previousFocusedIndex === "number"
+        ? !!(state.slots[previousFocusedIndex] && state.slots[previousFocusedIndex].revealed)
+        : true;
+    if (!canOfferMove) return;
+    openConfirm("confirm_move_here_msg", function () {
+      attemptMoveToPosition(previousFocusedIndex, pos);
+    });
   }
 
   // --- modal ---
@@ -4928,22 +4950,24 @@
       }
     }
 
-    // 既に別の公開済み板塊にフォーカス（＝現在地）がある場合のみ、「移動」の選択肢を先に出す。
-    // 移動が成立するかどうかは攀登判定の結果次第なので、成立前にfocusedIndexは書き換えない。
+    // 既に別の公開済み地点（板塊または起點／終點）にフォーカス（＝現在地）がある場合のみ、
+    // 「移動」の選択肢を先に出す。移動が成立するかどうかは攀登判定の結果次第なので、
+    // 成立前にfocusedIndexは書き換えない。
     var previousFocusedIndex = state.focusedIndex;
     var canOfferMove =
       slot.revealed &&
       previousFocusedIndex !== null &&
       previousFocusedIndex !== index &&
-      state.slots[previousFocusedIndex] &&
-      state.slots[previousFocusedIndex].revealed;
+      (typeof previousFocusedIndex === "number"
+        ? state.slots[previousFocusedIndex] && state.slots[previousFocusedIndex].revealed
+        : true);
 
     if (canOfferMove) {
       // 否／是（移動）／放回牌庫（赤）を1つのダイアログに統合する。
       openConfirm(
         "confirm_move_here_msg",
         function () {
-          attemptSlotMove(previousFocusedIndex, index);
+          attemptMoveToPosition(previousFocusedIndex, index);
         },
         null,
         {
@@ -4967,32 +4991,63 @@
   // 花色の「高さ」（攀登判定の花色差の基準）。ユーザー確認済み：黑桃＞愛心＞方塊＞梅花。
   var SUIT_ELEVATION = { C: 0, D: 1, H: 2, S: 3 };
 
-  function attemptSlotMove(fromIndex, toIndex) {
-    var fromRow = Math.floor(fromIndex / 3),
-      fromCol = fromIndex % 3;
-    var toRow = Math.floor(toIndex / 3),
-      toCol = toIndex % 3;
-    var dist = Math.max(Math.abs(fromRow - toRow), Math.abs(fromCol - toCol));
-    if (dist !== 1) {
+  // 起點／終點は日をまたぐたびに盤面の左右が入れ替わる（isSwappedDay）ため、
+  // 隣接する板塊のindexもそれに応じて変わる（style.cssの.pile-wrap-start/endの
+  // grid-column配置と対応）。
+  function pileAdjacentSlotIndex(which) {
+    if (which === "start") return isSwappedDay() ? 5 : 3;
+    return isSwappedDay() ? 3 : 5;
+  }
+
+  // fromPos／toPosは板塊index(0-8)、または"start"/"end"のいずれか。
+  function isAdjacentPosition(fromPos, toPos) {
+    if (typeof fromPos === "number" && typeof toPos === "number") {
+      var fromRow = Math.floor(fromPos / 3),
+        fromCol = fromPos % 3;
+      var toRow = Math.floor(toPos / 3),
+        toCol = toPos % 3;
+      return Math.max(Math.abs(fromRow - toRow), Math.abs(fromCol - toCol)) === 1;
+    }
+    if (typeof fromPos === "number") return fromPos === pileAdjacentSlotIndex(toPos);
+    if (typeof toPos === "number") return toPos === pileAdjacentSlotIndex(fromPos);
+    return false; // 起點⇔終點は隣接しない
+  }
+
+  // 花色の「高さ」（攀登判定の要否の基準）。板塊なら実際のカードの花色、起點／終點なら
+  // その位置に設定されている花色（未設定ならnull＝高さ比較をスキップする）。
+  function elevationOfPosition(pos) {
+    if (typeof pos === "number") {
+      var slot = state.slots[pos];
+      var card = slot ? CARD_BY_CODE[slot.code] : null;
+      return card ? SUIT_ELEVATION[card.suit] : null;
+    }
+    var suit = pos === "start" ? state.startSuit : state.endSuit;
+    return suit ? SUIT_ELEVATION[suit] : null;
+  }
+
+  function attemptMoveToPosition(fromPos, toPos) {
+    if (!isAdjacentPosition(fromPos, toPos)) {
       window.alert(window.I18N.t("move_not_adjacent_msg"));
       return;
     }
-    var fromCard = CARD_BY_CODE[state.slots[fromIndex].code];
-    var toCard = CARD_BY_CODE[state.slots[toIndex].code];
-    var fromElev = SUIT_ELEVATION[fromCard.suit];
-    var toElev = SUIT_ELEVATION[toCard.suit];
-    if (toElev > fromElev) {
-      openClimbingCheckModal(toIndex, toElev - fromElev);
+    var fromElev = elevationOfPosition(fromPos);
+    var toElev = elevationOfPosition(toPos);
+    if (fromElev != null && toElev != null && toElev > fromElev) {
+      openClimbingCheckModal(toPos, toElev - fromElev);
     } else {
-      finalizeSlotMove(toIndex);
+      finalizeSlotMove(toPos);
     }
   }
 
-  function finalizeSlotMove(toIndex) {
-    state.focusedIndex = toIndex;
+  function finalizeSlotMove(toPos) {
+    state.focusedIndex = toPos;
     renderBoard();
     saveState();
-    addLog("log_slot_move", { slot: toIndex + 1 });
+    if (typeof toPos === "number") {
+      addLog("log_slot_move", { slot: toPos + 1 });
+    } else {
+      addLog("log_slot_move_to_pile", { place: window.I18N.t(toPos === "start" ? "start_point_label" : "end_point_label") });
+    }
   }
 
   function checkNewGamePassword() {
@@ -5258,6 +5313,7 @@
     document.getElementById("btn-dice-pool-add").addEventListener("click", handleAddDice);
     document.getElementById("btn-action-phase").addEventListener("click", openActionPhaseModal);
     document.getElementById("btn-action-phase-cancel").addEventListener("click", closeActionPhaseModal);
+    document.getElementById("btn-generic-check").addEventListener("click", openGenericCheckModal);
     document.querySelectorAll(".action-phase-grid button").forEach(function (btn) {
       btn.addEventListener("click", function () {
         setActionPhase(btn.dataset.phase);
@@ -5275,11 +5331,27 @@
       state.grace = e.target.value;
       saveState();
     });
-    document.getElementById("pile-start").addEventListener("click", function () {
-      openSuitPicker("start");
-    });
-    document.getElementById("pile-end").addEventListener("click", function () {
-      openSuitPicker("end");
+    ["start", "end"].forEach(function (pos) {
+      var pileBtn = document.getElementById("pile-" + pos);
+      var pilePressTimer = null;
+      var pileLongPressFired = false;
+      pileBtn.addEventListener("pointerdown", function () {
+        pileLongPressFired = false;
+        pilePressTimer = setTimeout(function () {
+          pileLongPressFired = true;
+          onPileClick(pos);
+        }, SLOT_LONG_PRESS_MS);
+      });
+      pileBtn.addEventListener("pointerup", function () {
+        clearTimeout(pilePressTimer);
+        if (!pileLongPressFired) onPileShortClick(pos);
+      });
+      pileBtn.addEventListener("pointerleave", function () {
+        clearTimeout(pilePressTimer);
+      });
+      pileBtn.addEventListener("pointercancel", function () {
+        clearTimeout(pilePressTimer);
+      });
     });
     ["start", "end"].forEach(function (which) {
       ["one", "all"].forEach(function (field) {
