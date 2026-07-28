@@ -4679,19 +4679,22 @@
       }
       row.appendChild(diceWrap);
 
-      var blessingBtn = document.createElement("button");
-      blessingBtn.type = "button";
-      blessingBtn.className = "breakthrough-blessing-btn";
-      blessingBtn.textContent = window.I18N.t("breakthrough_blessing_button", {
-        current: c.blessingSlots ? c.blessingSlots.current : 0,
-      });
-      // 判定發生では加護重骰は使用不可（常に無効化）。
-      blessingBtn.disabled =
-        breakthroughState.mode === "generic" || !entry || !entry.dice.length || !c.blessingSlots || c.blessingSlots.current <= 0;
-      blessingBtn.addEventListener("click", function () {
-        useBreakthroughBlessing(c.id);
-      });
-      row.appendChild(blessingBtn);
+      // 判定發生は、目標を揭曉する前までは加護重骰を使用可能。揭曉後は使用不可のため
+      // ボタンごと表示しない（樓層突破判定・攀登判定は従来通り常に表示する）。
+      var hideBlessingBtn = breakthroughState.mode === "generic" && breakthroughState.revealed;
+      if (!hideBlessingBtn) {
+        var blessingBtn = document.createElement("button");
+        blessingBtn.type = "button";
+        blessingBtn.className = "breakthrough-blessing-btn";
+        blessingBtn.textContent = window.I18N.t("breakthrough_blessing_button", {
+          current: c.blessingSlots ? c.blessingSlots.current : 0,
+        });
+        blessingBtn.disabled = !entry || !entry.dice.length || !c.blessingSlots || c.blessingSlots.current <= 0;
+        blessingBtn.addEventListener("click", function () {
+          useBreakthroughBlessing(c.id);
+        });
+        row.appendChild(blessingBtn);
+      }
 
       container.appendChild(row);
     });
