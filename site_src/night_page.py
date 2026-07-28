@@ -5,7 +5,6 @@
                     localStorage に保存された状態があればそのまま復元される。
   select-drawer ... 開始/次の夜で右からスライドインするカード選択ドロワー。
   modal         ... 翻開/放回牌庫の確認ダイアログ。
-  suit-modal    ... 起點/終點の花色を選ぶダイアログ。
 
 実際のゲームロジックと永続化（localStorage への JSON 保存）は
 static/night.js（クライアントサイド）が担当する。
@@ -17,7 +16,16 @@ from site_src.layout import page_shell
 
 BODY = """    <div class="night-header-row">
       <div class="night-header-left">
-        <a id="link-characters" class="back-link" href="../index.html" data-i18n="back_characters"></a>
+        <div class="main-menu-block" id="main-menu-block">
+          <button type="button" class="main-menu-toggle-btn" id="btn-main-menu-toggle" aria-label="toggle main menu">&#9776;</button>
+          <div class="main-menu-list" id="main-menu-list">
+            <a id="link-characters" class="back-link main-menu-item" href="../index.html" data-i18n="back_characters"></a>
+            <button id="btn-undo-night" type="button" class="main-menu-item" data-i18n="undo_night_button"></button>
+            <button id="btn-primary-action" type="button" class="main-menu-item primary-btn"></button>
+            <button id="btn-new-game" type="button" class="main-menu-item danger-btn" data-i18n="new_game_button"></button>
+            <button id="btn-battle-info" type="button" class="main-menu-item" data-i18n="battle_sheet_label"></button>
+          </div>
+        </div>
         <h1 data-i18n="project_night_name"></h1>
         <p id="day-status" class="day-status"></p>
         <button type="button" class="info-btn" id="btn-setup-info">i</button>
@@ -26,11 +34,6 @@ BODY = """    <div class="night-header-row">
           <h3 id="setup-info-title"></h3>
           <div id="setup-info-body"></div>
         </div>
-      </div>
-      <div class="night-header-actions">
-        <button id="btn-undo-night" type="button" data-i18n="undo_night_button"></button>
-        <button id="btn-primary-action" type="button" class="primary-btn"></button>
-        <button id="btn-new-game" type="button" class="danger-btn" data-i18n="new_game_button"></button>
       </div>
     </div>
 
@@ -41,6 +44,25 @@ BODY = """    <div class="night-header-row">
 
     <section id="screen-board" class="screen">
       <div class="board-area" id="board-area">
+        <div class="board-grid" id="board-grid">
+          <div class="field-level field-level-0" id="field-level-0"></div>
+          <div class="field-level field-level-1" id="field-level-1"></div>
+          <div class="field-level field-level-2" id="field-level-2"></div>
+          <div class="pile-wrap pile-wrap-start" id="pile-wrap-start">
+            <button type="button" class="pile pile-start" id="pile-start"></button>
+            <div class="pile-checks">
+              <label class="pile-check"><input type="checkbox" id="pile-check-start-one">1</label>
+              <label class="pile-check"><input type="checkbox" id="pile-check-start-all"><span data-i18n="check_all_label"></span></label>
+            </div>
+          </div>
+          <div class="pile-wrap pile-wrap-end" id="pile-wrap-end">
+            <button type="button" class="pile pile-end" id="pile-end"></button>
+            <div class="pile-checks">
+              <label class="pile-check"><input type="checkbox" id="pile-check-end-one">1</label>
+              <label class="pile-check"><input type="checkbox" id="pile-check-end-all"><span data-i18n="check_all_label"></span></label>
+            </div>
+          </div>
+        </div>
         <div class="board-side-wrap">
           <div id="board-side-enemies" class="selected-enemy-list board-side-enemies" hidden></div>
           <div id="board-side-mob-hp" class="board-side-enemy-hp" hidden>
@@ -65,25 +87,6 @@ BODY = """    <div class="night-header-row">
             </div>
           </div>
         </div>
-        <div class="board-grid" id="board-grid">
-          <div class="field-level field-level-0" id="field-level-0"></div>
-          <div class="field-level field-level-1" id="field-level-1"></div>
-          <div class="field-level field-level-2" id="field-level-2"></div>
-          <div class="pile-wrap pile-wrap-start" id="pile-wrap-start">
-            <button type="button" class="pile pile-start" id="pile-start"></button>
-            <div class="pile-checks">
-              <label class="pile-check"><input type="checkbox" id="pile-check-start-one">1</label>
-              <label class="pile-check"><input type="checkbox" id="pile-check-start-all"><span data-i18n="check_all_label"></span></label>
-            </div>
-          </div>
-          <div class="pile-wrap pile-wrap-end" id="pile-wrap-end">
-            <button type="button" class="pile pile-end" id="pile-end"></button>
-            <div class="pile-checks">
-              <label class="pile-check"><input type="checkbox" id="pile-check-end-one">1</label>
-              <label class="pile-check"><input type="checkbox" id="pile-check-end-all"><span data-i18n="check_all_label"></span></label>
-            </div>
-          </div>
-        </div>
         <div class="night3-boss-wrap">
           <img id="night3-boss-image" class="night3-boss-image" hidden>
           <div id="night3-boss-hp" class="board-side-enemy-hp night3-boss-hp" hidden>
@@ -96,10 +99,6 @@ BODY = """    <div class="night-header-row">
         <span data-i18n="time_loss_summary_label"></span>
         <span id="time-loss-summary"></span>
         <button type="button" class="info-btn" id="btn-time-loss-info">i</button>
-      </div>
-      <div class="time-loss-bar" id="battle-bar">
-        <span data-i18n="battle_sheet_label"></span>
-        <button type="button" class="info-btn" id="btn-battle-info">i</button>
       </div>
       <div class="dice-pool-block" id="dice-pool-bar">
         <div class="dice-pool-header">

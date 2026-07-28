@@ -299,10 +299,51 @@ button {
   font-size: 1.4rem;
 }
 
-.night-header-actions {
+.main-menu-block {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+.main-menu-toggle-btn {
+  border: none;
+  background: none;
+  cursor: pointer;
+  font-size: 1.3rem;
+  line-height: 1;
+  padding: 0.2rem 0.4rem;
+  color: #333;
+}
+
+.main-menu-list {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  z-index: 20;
   display: flex;
-  gap: 0.5rem;
-  flex: 0 0 auto;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.4rem;
+  background: #fff;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  padding: 0.6rem;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  min-width: 160px;
+  max-height: 0;
+  overflow: hidden;
+  opacity: 0;
+  transition: max-height 0.25s ease, opacity 0.2s ease;
+}
+
+.main-menu-list.open {
+  max-height: 400px;
+  opacity: 1;
+}
+
+.main-menu-item {
+  text-align: left;
+  white-space: nowrap;
 }
 
 .danger-btn {
@@ -2496,6 +2537,14 @@ button {
   }
   .weapon-damage-tag {
     color: #e0c34a;
+  }
+  .main-menu-list {
+    background: #1c1c1c;
+    border-color: #444;
+    color: #eee;
+  }
+  .main-menu-toggle-btn {
+    color: #ccc;
   }
   .drawer-panel {
     background: #1c1c1c;

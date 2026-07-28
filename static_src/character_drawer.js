@@ -1208,8 +1208,9 @@
     return resolveWeaponSkillDisplay(resolvedValue);
   }
 
-  function renderRandomSkillPicker(container, weaponId, c) {
-    var resolvedValue = c.weaponRandomSkills && c.weaponRandomSkills[weaponId];
+  function renderRandomSkillPicker(container, weaponId, c, storageKey) {
+    var key = storageKey || weaponId;
+    var resolvedValue = c.weaponRandomSkills && c.weaponRandomSkills[key];
     if (resolvedValue) {
       var display = resolveRandomSkillDisplay(resolvedValue);
       var details = document.createElement("details");
@@ -1231,7 +1232,7 @@
       clearBtn.addEventListener("click", function () {
         var clearedName = display.name;
         if (!window.confirm(window.I18N.t("weapon_random_skill_clear_confirm", { name: clearedName }))) return;
-        delete c.weaponRandomSkills[weaponId];
+        delete c.weaponRandomSkills[key];
         if (!c.weaponNotes) c.weaponNotes = {};
         var appended = window.I18N.t("weapon_cleared_skill_note", { name: clearedName });
         c.weaponNotes[weaponId] = c.weaponNotes[weaponId] ? c.weaponNotes[weaponId] + "\n" + appended : appended;
@@ -1281,7 +1282,7 @@
         item.textContent = Weapons.localizedText(entry.name);
         item.addEventListener("click", function () {
           if (!c.weaponRandomSkills) c.weaponRandomSkills = {};
-          c.weaponRandomSkills[weaponId] = entry.id;
+          c.weaponRandomSkills[key] = entry.id;
           saveFn();
           renderWeaponList();
         });
@@ -1300,12 +1301,44 @@
 
     renderCommonSkillPicker(wrap, function (ref) {
       if (!c.weaponRandomSkills) c.weaponRandomSkills = {};
-      c.weaponRandomSkills[weaponId] = ref;
+      c.weaponRandomSkills[key] = ref;
       saveFn();
       renderWeaponList();
     });
 
     container.appendChild(wrap);
+  }
+
+  // 盾は「戦技」(attachedEffect)と「反手戦技」(reverseArt)の2つの独立したスキル欄を持つため、
+  // ランダム枠（kind:"random"）の保存キーもスロットごとに分ける必要がある（通常武器のskillsは
+  // 常に1枠のみなのでweaponIdそのままで良い）。
+  function weaponSkillSlotKey(weaponId, slot) {
+    return slot ? weaponId + "__" + slot : weaponId;
+  }
+
+  // ある武器idが取りうる全てのランダム戦技保存スロット（通常武器はnullのみ、盾はattached／reverse）。
+  // 武器の削除・転交など、weaponId単位でweaponRandomSkillsを一括操作する箇所で使う。
+  var WEAPON_SKILL_SLOTS = [null, "attached", "reverse"];
+
+  // weapon.skills（通常武器）／weapon.attachedEffect＋reverseArt（盾）から、各refに対応する
+  // ランダム枠の保存スロット名（slotKey、盾のみ"attached"／"reverse"、通常武器はnull）を
+  // 付与したペア配列を返す。呼び出し側はweaponSkillSlotKey(weaponId, pair.slotKey)で
+  // 実際の保存キーを得る。
+  function collectWeaponSkillRefs(category, weapon) {
+    if (category && category.isShield) {
+      return (weapon.attachedEffect || [])
+        .map(function (ref) {
+          return { ref: ref, slotKey: "attached" };
+        })
+        .concat(
+          (weapon.reverseArt || []).map(function (ref) {
+            return { ref: ref, slotKey: "reverse" };
+          })
+        );
+    }
+    return (weapon.skills || []).map(function (ref) {
+      return { ref: ref, slotKey: null };
+    });
   }
 
   // skill ref（weapon.skills／attachedEffect／reverseArt／共通戦技いずれも同じ形）から
@@ -1359,9 +1392,9 @@
     return { name: name, body: body, kind: kind };
   }
 
-  function renderWeaponSkillEntry(container, ref, weaponId, c) {
+  function renderWeaponSkillEntry(container, ref, weaponId, c, storageKey) {
     if (ref.kind === "random") {
-      renderRandomSkillPicker(container, weaponId, c);
+      renderRandomSkillPicker(container, weaponId, c, storageKey);
       return;
     }
     var display = resolveWeaponSkillDisplay(ref);
@@ -1528,7 +1561,7 @@
         attachedTitle.textContent = window.I18N.t("weapon_attached_effect_label");
         card.appendChild(attachedTitle);
         weapon.attachedEffect.forEach(function (ref) {
-          renderWeaponSkillEntry(card, ref, weaponId, c);
+          renderWeaponSkillEntry(card, ref, weaponId, c, weaponSkillSlotKey(weaponId, "attached"));
         });
       }
       if (weapon.reverseArt && weapon.reverseArt.length) {
@@ -1537,7 +1570,7 @@
         reverseTitle.textContent = window.I18N.t("weapon_reverse_art_label");
         card.appendChild(reverseTitle);
         weapon.reverseArt.forEach(function (ref) {
-          renderWeaponSkillEntry(card, ref, weaponId, c);
+          renderWeaponSkillEntry(card, ref, weaponId, c, weaponSkillSlotKey(weaponId, "reverse"));
         });
       }
     } else {
@@ -1631,7 +1664,11 @@
     removeBtn.addEventListener("click", function () {
       if (!window.confirm(window.I18N.t("weapon_remove_confirm", { name: Weapons.localizedText(weapon.name) }))) return;
       c.weaponIds.splice(c.weaponIds.indexOf(weaponId), 1);
-      if (c.weaponRandomSkills) delete c.weaponRandomSkills[weaponId];
+      if (c.weaponRandomSkills) {
+        WEAPON_SKILL_SLOTS.forEach(function (slot) {
+          delete c.weaponRandomSkills[weaponSkillSlotKey(weaponId, slot)];
+        });
+      }
       if (c.weaponNotes) delete c.weaponNotes[weaponId];
       if (c.weaponExtraSkills) delete c.weaponExtraSkills[weaponId];
       if (c.equippedWeaponIds) {
@@ -1660,9 +1697,9 @@
   // 盤面ロスター用：戦技名だけを簡潔に取り出す（本文・ランダム決定表UIは含めない）。
   // ランダム戦技は、既に抽出済み（c.weaponRandomSkills[weaponId]が設定済み）ならその
   // 戦技名だけを表示し、未決定の間は何も表示しない（冗長な案内文を出さない）。
-  function weaponSkillRefName(ref, c, weaponId) {
+  function weaponSkillRefName(ref, c, weaponId, storageKey) {
     if (ref.kind === "random") {
-      var resolvedValue = c && c.weaponRandomSkills && c.weaponRandomSkills[weaponId];
+      var resolvedValue = c && c.weaponRandomSkills && c.weaponRandomSkills[storageKey || weaponId];
       if (!resolvedValue) return null;
       var display = resolveRandomSkillDisplay(resolvedValue);
       return display ? display.name : null;
@@ -1735,12 +1772,14 @@
 
       var attackCost =
         category && !category.isShield ? Weapons.localizedText(category.basicStats.attackCost) : category ? Weapons.localizedText(category.basicStats.guardCost) : "";
-      var skillRefs = (
-        category && category.isShield ? (weapon.attachedEffect || []).concat(weapon.reverseArt || []) : weapon.skills || []
-      ).concat((c.weaponExtraSkills && c.weaponExtraSkills[weaponId]) || []);
-      var skillNames = skillRefs
-        .map(function (ref) {
-          return weaponSkillRefName(ref, c, weaponId);
+      var skillRefPairs = collectWeaponSkillRefs(category, weapon).concat(
+        ((c.weaponExtraSkills && c.weaponExtraSkills[weaponId]) || []).map(function (ref) {
+          return { ref: ref, slotKey: null };
+        })
+      );
+      var skillNames = skillRefPairs
+        .map(function (pair) {
+          return weaponSkillRefName(pair.ref, c, weaponId, weaponSkillSlotKey(weaponId, pair.slotKey));
         })
         .filter(function (n) {
           return n;
@@ -1811,10 +1850,14 @@
         var newWeaponId =
           target.weaponIds.indexOf(weaponId) === -1 ? weaponId : makeWeaponInstanceId(baseWeaponId(weaponId), target);
         target.weaponIds.push(newWeaponId);
-        if (c.weaponRandomSkills && c.weaponRandomSkills[weaponId] !== undefined) {
-          if (!target.weaponRandomSkills) target.weaponRandomSkills = {};
-          target.weaponRandomSkills[newWeaponId] = c.weaponRandomSkills[weaponId];
-          delete c.weaponRandomSkills[weaponId];
+        if (c.weaponRandomSkills) {
+          WEAPON_SKILL_SLOTS.forEach(function (slot) {
+            var key = weaponSkillSlotKey(weaponId, slot);
+            if (c.weaponRandomSkills[key] === undefined) return;
+            if (!target.weaponRandomSkills) target.weaponRandomSkills = {};
+            target.weaponRandomSkills[weaponSkillSlotKey(newWeaponId, slot)] = c.weaponRandomSkills[key];
+            delete c.weaponRandomSkills[key];
+          });
         }
         if (c.weaponNotes && c.weaponNotes[weaponId] !== undefined) {
           if (!target.weaponNotes) target.weaponNotes = {};
@@ -2301,14 +2344,17 @@
     var weapon = Weapons.get(baseWeaponId(weaponId));
     if (!weapon) return [];
     var category = Weapons.getCategory(weapon.category);
-    var skillRefs = (
-      category && category.isShield ? (weapon.attachedEffect || []).concat(weapon.reverseArt || []) : weapon.skills || []
-    ).concat((c.weaponExtraSkills && c.weaponExtraSkills[weaponId]) || []);
+    var skillRefPairs = collectWeaponSkillRefs(category, weapon).concat(
+      ((c.weaponExtraSkills && c.weaponExtraSkills[weaponId]) || []).map(function (ref) {
+        return { ref: ref, slotKey: null };
+      })
+    );
     var results = [];
-    skillRefs.forEach(function (ref) {
+    skillRefPairs.forEach(function (pair) {
+      var ref = pair.ref;
       var actualRef = ref;
       if (ref.kind === "random") {
-        var resolvedValue = c.weaponRandomSkills && c.weaponRandomSkills[weaponId];
+        var resolvedValue = c.weaponRandomSkills && c.weaponRandomSkills[weaponSkillSlotKey(weaponId, pair.slotKey)];
         if (!resolvedValue || typeof resolvedValue === "string") return;
         actualRef = resolvedValue;
       }
@@ -3398,7 +3444,19 @@
           c.weaponIds.push(newInstanceId);
           if (st.skillId) {
             if (!c.weaponRandomSkills) c.weaponRandomSkills = {};
-            c.weaponRandomSkills[newInstanceId] = st.skillId;
+            // 盾はattachedEffect／reverseArtの双方が{kind:"random"}のことがあるが、決定表による
+            // 抽選はここでは1回のみ。両方に該当する場合は同じ結果を両スロットへ割り当てる
+            // （GMがその後の武器欄で片方だけ個別に振り直す／上書きすることも可能）。
+            var rolledSlots = [];
+            if (category && category.isShield) {
+              if ((st.item.attachedEffect || []).some(function (r) { return r.kind === "random"; })) rolledSlots.push("attached");
+              if ((st.item.reverseArt || []).some(function (r) { return r.kind === "random"; })) rolledSlots.push("reverse");
+            } else {
+              rolledSlots.push(null);
+            }
+            rolledSlots.forEach(function (slot) {
+              c.weaponRandomSkills[weaponSkillSlotKey(newInstanceId, slot)] = st.skillId;
+            });
           }
           saveFn();
           resetWeaponRollState();
@@ -3995,6 +4053,29 @@
     }
   }
 
+  // 旧バージョンでは盾のattachedEffect／reverseArtのランダム枠が同じキー（weaponIdそのまま）を
+  // 共有していたため、既存セーブに残るその値を、現行のスロット別キー（__attached／__reverse）へ
+  // 複製し、元のキーは削除する（一度だけ実行すれば十分な移行処理）。
+  function migrateShieldRandomSkillKeys(c) {
+    if (!c.weaponRandomSkills || !c.weaponIds) return;
+    c.weaponIds.forEach(function (weaponId) {
+      var legacyValue = c.weaponRandomSkills[weaponId];
+      if (legacyValue === undefined) return;
+      var weapon = Weapons.get(baseWeaponId(weaponId));
+      if (!weapon) return;
+      var category = Weapons.getCategory(weapon.category);
+      if (!category || !category.isShield) return;
+      var slots = [];
+      if ((weapon.attachedEffect || []).some(function (r) { return r.kind === "random"; })) slots.push("attached");
+      if ((weapon.reverseArt || []).some(function (r) { return r.kind === "random"; })) slots.push("reverse");
+      slots.forEach(function (slot) {
+        var key = weaponSkillSlotKey(weaponId, slot);
+        if (c.weaponRandomSkills[key] === undefined) c.weaponRandomSkills[key] = legacyValue;
+      });
+      if (slots.length) delete c.weaponRandomSkills[weaponId];
+    });
+  }
+
   function ensureDefaults(c) {
     var fallback = newCharacter(c.name, c.typeId);
     Object.keys(fallback).forEach(function (key) {
@@ -4002,6 +4083,7 @@
     });
     migrateFlaskField(c.flaskBase);
     migrateFlaskField(c.flaskExtra);
+    migrateShieldRandomSkillKeys(c);
     return c;
   }
 
@@ -4150,13 +4232,16 @@
       var weapon = Weapons.get(baseWeaponId(weaponId));
       if (!weapon) return;
       var category = Weapons.getCategory(weapon.category);
-      var skillRefs = (
-        category && category.isShield ? (weapon.attachedEffect || []).concat(weapon.reverseArt || []) : weapon.skills || []
-      ).concat((c.weaponExtraSkills && c.weaponExtraSkills[weaponId]) || []);
-      skillRefs.forEach(function (ref) {
+      var skillRefPairs = collectWeaponSkillRefs(category, weapon).concat(
+        ((c.weaponExtraSkills && c.weaponExtraSkills[weaponId]) || []).map(function (ref) {
+          return { ref: ref, slotKey: null };
+        })
+      );
+      skillRefPairs.forEach(function (pair) {
+        var ref = pair.ref;
         var actualRef = ref;
         if (ref.kind === "random") {
-          var resolvedValue = c.weaponRandomSkills && c.weaponRandomSkills[weaponId];
+          var resolvedValue = c.weaponRandomSkills && c.weaponRandomSkills[weaponSkillSlotKey(weaponId, pair.slotKey)];
           if (!resolvedValue) return;
           actualRef = typeof resolvedValue === "string" ? { kind: "art", id: resolvedValue } : resolvedValue;
         }

@@ -5383,6 +5383,13 @@
       var open = list.classList.toggle("open");
       this.textContent = open ? "◀" : "▶";
     });
+    // 主選單（返回角色列表／回到上一晚／下一晚／新遊戲／戰場面板）：項目を押したら自動的に閉じる。
+    document.getElementById("btn-main-menu-toggle").addEventListener("click", function () {
+      document.getElementById("main-menu-list").classList.toggle("open");
+    });
+    document.getElementById("main-menu-list").addEventListener("click", function () {
+      this.classList.remove("open");
+    });
     document.querySelectorAll(".action-phase-grid button").forEach(function (btn) {
       btn.addEventListener("click", function () {
         setActionPhase(btn.dataset.phase);
