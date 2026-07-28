@@ -162,13 +162,25 @@
       var thumbTd = document.createElement("td");
       var thumbWrap = document.createElement("div");
       thumbWrap.className = "roster-thumb-wrap";
+      if (c._nearDeath) {
+        thumbWrap.classList.add("near-death");
+        thumbWrap.title = window.I18N.t("attribute_status_near_death_clear_hint");
+        thumbWrap.addEventListener("click", function () {
+          if (!window.confirm(window.I18N.t("attribute_status_near_death_clear_confirm", { name: c.name }))) return;
+          c._nearDeath = false;
+          saveRosterCharacters();
+          renderCharacterRoster();
+        });
+      }
       var thumbSrc = type ? CharacterTypes.imagePath(type) : null;
       if (thumbSrc) {
         var thumb = document.createElement("img");
         thumb.className = "character-thumb";
         thumb.src = thumbSrc;
         thumb.alt = c.name;
-        thumb.addEventListener("click", function () {
+        thumb.addEventListener("click", function (e) {
+          if (c._nearDeath) return;
+          e.stopPropagation();
           CharacterDrawer.openSkills(c.id);
         });
         thumbWrap.appendChild(thumb);
@@ -179,7 +191,8 @@
       toggleBtn.className = "roster-detail-toggle-btn";
       toggleBtn.textContent = isCollapsed ? "▸" : "▾";
       toggleBtn.title = window.I18N.t(isCollapsed ? "roster_detail_expand_button" : "roster_detail_collapse_button");
-      toggleBtn.addEventListener("click", function () {
+      toggleBtn.addEventListener("click", function (e) {
+        e.stopPropagation();
         rosterDetailCollapsed[c.id] = !rosterDetailCollapsed[c.id];
         renderCharacterRoster();
       });
@@ -466,10 +479,26 @@
       enemyHp: new Array(ENEMY_HP_ROWS * ENEMY_HP_COLS).fill(false),
       mobHpRows: [],
       selectedEnemyIds: [],
-      // 屬性/異常面板：dealtは「角色が選択中の敵人へ与えた蓄積」（攻撃action確定時に自動加算、
-      // キーは"角色id|敵人key|屬性又は異常名" → 累積値）、receivedは「角色が受けている屬性/異常」
-      // （角色idごとの手動タグ配列。自動計算する元データが無いためGMが手動で管理する）。
-      attributeStatus: { dealt: {}, received: {} },
+      // 屬性/異常面板のデータ:
+      // dealt: 「角色が選択中の敵人へ与えた蓄積」の内訳表示用（攻撃action確定時に自動加算、
+      //   キーは"角色id|敵人key|屬性又は異常名" → 累積値。角色ごとの内訳表示にのみ使う）。
+      // enemyAccum: 敵人ごとの実際のトリガー判定用蓄積（全角色分を合算、キーは"敵人key|label"）。
+      //   屬性は閾値到達後も蓄積を継続保持（同一回合内で複数回發動）、異常は發動時に0へ戻す。
+      // enemyTriggerCount: 屬性側の「これまで發動した回数」（floor(蓄積/閾値)）。
+      // enemyRoundLocked: 異常側の「今回合すでに發動した」ロック（回合境界でクリアする）。
+      // received: 「角色が受けている屬性/異常」の集計値（角色idごとに { label: 現在値 }）。
+      // charTriggerCount / charRoundLocked: 角色側の屬性/異常トリガー管理（enemy側と同じ役割）。
+      attributeStatus: {
+        dealt: {},
+        enemyAccum: {},
+        enemyTriggerCount: {},
+        enemyRoundLocked: {},
+        received: {},
+        charTriggerCount: {},
+        charRoundLocked: {},
+      },
+      // 睡眠トリガーで敵人へ累加する「亂戰傷害」修正値（負数、キーは敵人key）。
+      enemyDmgOverride: {},
     };
   }
 
@@ -672,27 +701,49 @@
         })
       : fallback.selectedEnemyIds.slice();
     var rawAttrStatus = raw.attributeStatus && typeof raw.attributeStatus === "object" ? raw.attributeStatus : {};
-    var dealt = {};
-    if (rawAttrStatus.dealt && typeof rawAttrStatus.dealt === "object") {
-      Object.keys(rawAttrStatus.dealt).forEach(function (key) {
-        var v = Number(rawAttrStatus.dealt[key]);
-        if (v) dealt[key] = v;
-      });
+    function loadNumberMap(raw) {
+      var out = {};
+      if (raw && typeof raw === "object") {
+        Object.keys(raw).forEach(function (key) {
+          var v = Number(raw[key]);
+          if (v) out[key] = v;
+        });
+      }
+      return out;
     }
+    function loadBoolMap(raw) {
+      var out = {};
+      if (raw && typeof raw === "object") {
+        Object.keys(raw).forEach(function (key) {
+          if (raw[key]) out[key] = true;
+        });
+      }
+      return out;
+    }
+    var dealt = loadNumberMap(rawAttrStatus.dealt);
+    var enemyAccum = loadNumberMap(rawAttrStatus.enemyAccum);
+    var enemyTriggerCount = loadNumberMap(rawAttrStatus.enemyTriggerCount);
+    var enemyRoundLocked = loadBoolMap(rawAttrStatus.enemyRoundLocked);
+    var charTriggerCount = loadNumberMap(rawAttrStatus.charTriggerCount);
+    var charRoundLocked = loadBoolMap(rawAttrStatus.charRoundLocked);
     var received = {};
     if (rawAttrStatus.received && typeof rawAttrStatus.received === "object") {
       Object.keys(rawAttrStatus.received).forEach(function (charId) {
-        var list = rawAttrStatus.received[charId];
-        if (!Array.isArray(list)) return;
-        received[charId] = list
-          .filter(function (entry) {
-            return entry && typeof entry.label === "string";
-          })
-          .map(function (entry) {
-            return { id: entry.id || "as" + Date.now() + Math.floor(Math.random() * 1000), label: entry.label, value: Number(entry.value) || 0 };
+        var raw2 = rawAttrStatus.received[charId];
+        if (Array.isArray(raw2)) {
+          // 旧形式（追加ごとに独立したタグの配列）からの移行：同じlabelの値を合算する。
+          var migrated = {};
+          raw2.forEach(function (entry) {
+            if (!entry || typeof entry.label !== "string") return;
+            migrated[entry.label] = (migrated[entry.label] || 0) + (Number(entry.value) || 0);
           });
+          received[charId] = migrated;
+        } else if (raw2 && typeof raw2 === "object") {
+          received[charId] = loadNumberMap(raw2);
+        }
       });
     }
+    var enemyDmgOverride = loadNumberMap(raw.enemyDmgOverride);
     return {
       front: front,
       back: back,
@@ -700,7 +751,16 @@
       enemyHp: enemyHp,
       mobHpRows: mobHpRows,
       selectedEnemyIds: selectedEnemyIds,
-      attributeStatus: { dealt: dealt, received: received },
+      attributeStatus: {
+        dealt: dealt,
+        enemyAccum: enemyAccum,
+        enemyTriggerCount: enemyTriggerCount,
+        enemyRoundLocked: enemyRoundLocked,
+        received: received,
+        charTriggerCount: charTriggerCount,
+        charRoundLocked: charRoundLocked,
+      },
+      enemyDmgOverride: enemyDmgOverride,
     };
   }
 
@@ -737,29 +797,233 @@
       .filter(Boolean);
   }
 
-  // 攻撃actionの確定時、選択中の敵人1体へその角色が与えた屬性/異常の蓄積を積み上げる。
+  // ============================================================
+  // 屬性/異常トリガー機構（規則書:屬性4種[魔/炎/雷/聖]・異常7種[猛毒/腐敗/出血/凍傷/發狂/睡眠/呪死]）
+  // 基本閾値8点（敵人が対応する弱點を持つ場合は6点）に蓄積が達すると自動發動する。
+  // 屬性：發動しても蓄積は0に戻らず持ち越し、同一回合内で複数回發動しうる。
+  // 異常：發動すると超過分を含め蓄積を0に戻し、回合につき1回のみ發動する。
+  // 「回合」はこのアプリでは戰鬥→額外→防禦の1サイクル＝combatフェイズへ入るたびに新しい回合が
+  // 始まるものとして扱い、異常側のロック（今回合すでに發動したか）はそのタイミングで一括解除する。
+  // ============================================================
+  var ATTRIBUTE_STATUS_BASE_THRESHOLD = 8;
+  var ATTRIBUTE_STATUS_WEAKNESS_THRESHOLD = 6;
+  var ATTRIBUTE_STATUS_SLEEP_LABEL = "睡眠";
+  var ATTRIBUTE_STATUS_DEATH_CURSE_LABEL = "呪死";
+
+  function isAttributeStatusElementLabel(label) {
+    return ATTRIBUTE_STATUS_ELEMENT_OPTIONS.some(function (opt) {
+      return opt.ja === label || opt.zh === label;
+    });
+  }
+  function isAttributeStatusAilmentLabel(label) {
+    return ATTRIBUTE_STATUS_AILMENT_OPTIONS.some(function (opt) {
+      return opt.ja === label || opt.zh === label;
+    });
+  }
+
+  // 敵人の「special」欄からextractWeaknessで取り出した弱點文字列（例:"炎＆猛毒"）を
+  // 屬性/異常名の配列へ分割する。
+  function enemyWeaknessLabels(enemyKey) {
+    var Enemies = window.PriTestEnemies;
+    if (!Enemies || !enemyKey) return [];
+    var parts = enemyKey.split("|");
+    var info = Enemies.get(parts[0], parts[1]);
+    if (!info) return [];
+    var weakness = extractWeakness(info.enemy.special, Enemies.localizedText);
+    if (!weakness) return [];
+    return weakness.split(/[＆、,]/).map(function (s) {
+      return s.trim();
+    }).filter(Boolean);
+  }
+
+  function attributeStatusThresholdForEnemy(enemyKey, label) {
+    var weaknesses = enemyWeaknessLabels(enemyKey);
+    var isWeak = weaknesses.indexOf(label) !== -1;
+    return isWeak ? ATTRIBUTE_STATUS_WEAKNESS_THRESHOLD : ATTRIBUTE_STATUS_BASE_THRESHOLD;
+  }
+
+  // enemyKeyに紐付くHP行番号を返す（選択順=行、ENEMY_HP_ROWS段を超える分は紐付け不可）。
+  function enemyHpRowIndexForKey(enemyKey) {
+    var ids = (state.battle && state.battle.selectedEnemyIds) || [];
+    var idx = ids.indexOf(enemyKey);
+    if (idx === -1 || idx >= ENEMY_HP_ROWS) return -1;
+    return idx;
+  }
+
+  function enemyDisplayNameForKey(enemyKey) {
+    var Enemies = window.PriTestEnemies;
+    if (!Enemies) return enemyKey;
+    var parts = enemyKey.split("|");
+    var info = Enemies.get(parts[0], parts[1]);
+    return info ? Enemies.localizedText(info.enemy.name) + "（Lv." + parts[2] + "）" : enemyKey;
+  }
+
+  function enemyIsAttackerFamily(enemyKey) {
+    var Enemies = window.PriTestEnemies;
+    if (!Enemies || !enemyKey) return false;
+    var parts = enemyKey.split("|");
+    var info = Enemies.get(parts[0], parts[1]);
+    if (!info || !info.familyName) return false;
+    var ja = info.familyName.ja || "";
+    var zh = info.familyName.zh || "";
+    return ja.indexOf("襲撃者") !== -1 || zh.indexOf("襲擊者") !== -1;
+  }
+
+  // 敵人のHP行をcount個（0扣分）扣除する。紐付け行が無ければ何もしない（GMへログのみ残る）。
+  function damageEnemyHpForKey(enemyKey, count) {
+    var rowIdx = enemyHpRowIndexForKey(enemyKey);
+    if (rowIdx === -1) return false;
+    adjustEnemyHpRow(rowIdx, count);
+    return true;
+  }
+
+  // 敵人のHP行を丸ごと扣光する（體崩／擊破で使う）。
+  function depleteEnemyHpRowForKey(enemyKey) {
+    return damageEnemyHpForKey(enemyKey, ENEMY_HP_COLS);
+  }
+
+  function applyAttributeStatusElementTriggerOnEnemy(enemyKey, label) {
+    damageEnemyHpForKey(enemyKey, 1);
+    addLog("log_attribute_status_element_trigger_enemy", { enemy: enemyDisplayNameForKey(enemyKey), label: label });
+    renderEnemyHpGrid();
+  }
+
+  function applyAttributeStatusAilmentTriggerOnEnemy(enemyKey, label) {
+    if (label === ATTRIBUTE_STATUS_SLEEP_LABEL) {
+      depleteEnemyHpRowForKey(enemyKey);
+      if (!state.battle.enemyDmgOverride) state.battle.enemyDmgOverride = {};
+      state.battle.enemyDmgOverride[enemyKey] = (state.battle.enemyDmgOverride[enemyKey] || 0) - 300;
+      addLog("log_attribute_status_sleep_trigger_enemy", { enemy: enemyDisplayNameForKey(enemyKey) });
+    } else if (label === ATTRIBUTE_STATUS_DEATH_CURSE_LABEL) {
+      if (enemyIsAttackerFamily(enemyKey)) {
+        depleteEnemyHpRowForKey(enemyKey);
+        addLog("log_attribute_status_death_curse_trigger_enemy", { enemy: enemyDisplayNameForKey(enemyKey) });
+      }
+      // 「襲擊者」以外の敵人は無效果（何もしない）。
+    } else {
+      damageEnemyHpForKey(enemyKey, 2);
+      addLog("log_attribute_status_ailment_trigger_enemy", { enemy: enemyDisplayNameForKey(enemyKey), label: label });
+    }
+    renderEnemyHpGrid();
+    renderSelectedEnemies();
+  }
+
+  // dealt(記録用の内訳)とは別に、敵人ごとの実蓄積(enemyAccum)を更新し、閾値到達を判定する。
+  function processAttributeStatusEnemyTrigger(enemyKey, label) {
+    var as = state.battle.attributeStatus;
+    var accumKey = enemyKey + "|" + label;
+    var threshold = attributeStatusThresholdForEnemy(enemyKey, label);
+    if (isAttributeStatusElementLabel(label)) {
+      var value = as.enemyAccum[accumKey] || 0;
+      var prevCount = as.enemyTriggerCount[accumKey] || 0;
+      var newCount = Math.floor(value / threshold);
+      if (newCount > prevCount) {
+        for (var i = prevCount; i < newCount; i++) {
+          applyAttributeStatusElementTriggerOnEnemy(enemyKey, label);
+        }
+        as.enemyTriggerCount[accumKey] = newCount;
+      }
+    } else if (isAttributeStatusAilmentLabel(label)) {
+      var value2 = as.enemyAccum[accumKey] || 0;
+      if (value2 >= threshold && !as.enemyRoundLocked[accumKey]) {
+        as.enemyRoundLocked[accumKey] = true;
+        as.enemyAccum[accumKey] = 0;
+        applyAttributeStatusAilmentTriggerOnEnemy(enemyKey, label);
+      }
+    }
+  }
+
+  function applyAttributeStatusElementTriggerOnChar(characterId, label) {
+    var c = rosterCharacters.filter(function (rc) {
+      return rc.id === characterId;
+    })[0];
+    if (!c) return;
+    c.hp.current = Math.max(0, (c.hp.current || 0) - 1);
+    saveRosterCharacters();
+    renderCharacterRoster();
+    addLog("log_attribute_status_element_trigger_char", { name: c.name, label: label });
+  }
+
+  function applyAttributeStatusAilmentTriggerOnChar(characterId, label) {
+    var c = rosterCharacters.filter(function (rc) {
+      return rc.id === characterId;
+    })[0];
+    if (!c) return;
+    if (label === ATTRIBUTE_STATUS_SLEEP_LABEL) {
+      c._nextActionDicePenalty = (c._nextActionDicePenalty || 0) + 3;
+      addLog("log_attribute_status_sleep_trigger_char", { name: c.name });
+    } else if (label === ATTRIBUTE_STATUS_DEATH_CURSE_LABEL) {
+      c.hp.current = 0;
+      c._nearDeath = true;
+      addLog("log_attribute_status_death_curse_trigger_char", { name: c.name });
+    } else {
+      c.hp.current = Math.max(0, (c.hp.current || 0) - 2);
+      addLog("log_attribute_status_ailment_trigger_char", { name: c.name, label: label });
+    }
+    saveRosterCharacters();
+    renderCharacterRoster();
+  }
+
+  function processAttributeStatusCharTrigger(characterId, label) {
+    var as = state.battle.attributeStatus;
+    var key = characterId + "|" + label;
+    var threshold = ATTRIBUTE_STATUS_BASE_THRESHOLD;
+    if (isAttributeStatusElementLabel(label)) {
+      var value = (as.received[characterId] && as.received[characterId][label]) || 0;
+      var prevCount = as.charTriggerCount[key] || 0;
+      var newCount = Math.floor(value / threshold);
+      if (newCount > prevCount) {
+        for (var i = prevCount; i < newCount; i++) {
+          applyAttributeStatusElementTriggerOnChar(characterId, label);
+        }
+        as.charTriggerCount[key] = newCount;
+      }
+    } else if (isAttributeStatusAilmentLabel(label)) {
+      var value2 = (as.received[characterId] && as.received[characterId][label]) || 0;
+      if (value2 >= threshold && !as.charRoundLocked[key]) {
+        as.charRoundLocked[key] = true;
+        as.received[characterId][label] = 0;
+        applyAttributeStatusAilmentTriggerOnChar(characterId, label);
+      }
+    }
+  }
+
+  // 回合境界（combatフェイズへ新規突入するたび）で、異常側の「今回合すでに發動した」ロックを
+  // 一括解除する（屬性側の蓄積・發動回数は回合をまたいで持ち越すため、ここでは触らない）。
+  function resetAttributeStatusRoundLocks() {
+    if (!state.battle.attributeStatus) return;
+    state.battle.attributeStatus.enemyRoundLocked = {};
+    state.battle.attributeStatus.charRoundLocked = {};
+  }
+
+  // 攻撃actionの確定時、選択中の敵人1体へその角色が与えた屬性/異常の蓄積を積み上げ、
+  // 敵人側の実蓄積(enemyAccum)を更新した上で閾値トリガーを判定する。
   function recordAttributeStatusDealt(characterId, enemyKey, label, value) {
     if (!enemyKey || !value) return;
-    if (!state.battle.attributeStatus) state.battle.attributeStatus = { dealt: {}, received: {} };
+    if (!state.battle.attributeStatus) state.battle.attributeStatus = defaultBattleState().attributeStatus;
     var key = characterId + "|" + enemyKey + "|" + label;
-    var dealt = state.battle.attributeStatus.dealt;
-    dealt[key] = (dealt[key] || 0) + value;
+    var as = state.battle.attributeStatus;
+    as.dealt[key] = (as.dealt[key] || 0) + value;
+    var accumKey = enemyKey + "|" + label;
+    as.enemyAccum[accumKey] = (as.enemyAccum[accumKey] || 0) + value;
+    processAttributeStatusEnemyTrigger(enemyKey, label);
   }
 
   function addReceivedAttributeStatus(characterId, label, value) {
-    if (!state.battle.attributeStatus) state.battle.attributeStatus = { dealt: {}, received: {} };
+    if (!value) return;
+    if (!state.battle.attributeStatus) state.battle.attributeStatus = defaultBattleState().attributeStatus;
     var received = state.battle.attributeStatus.received;
-    if (!received[characterId]) received[characterId] = [];
-    received[characterId].push({ id: "as" + Date.now() + Math.floor(Math.random() * 1000), label: label, value: value });
+    if (!received[characterId]) received[characterId] = {};
+    received[characterId][label] = (received[characterId][label] || 0) + value;
+    processAttributeStatusCharTrigger(characterId, label);
     saveState();
+    saveRosterCharacters();
     renderAttributeStatusList();
   }
 
-  function removeReceivedAttributeStatus(characterId, entryId) {
+  function removeReceivedAttributeStatus(characterId, label) {
     if (!state.battle.attributeStatus || !state.battle.attributeStatus.received[characterId]) return;
-    state.battle.attributeStatus.received[characterId] = state.battle.attributeStatus.received[characterId].filter(function (entry) {
-      return entry.id !== entryId;
-    });
+    delete state.battle.attributeStatus.received[characterId][label];
     saveState();
     renderAttributeStatusList();
   }
@@ -3746,7 +4010,9 @@
       }
     } else if (state.actionPhase === "combat") {
       if (c.dicePool.length === 0) {
-        rolled = type.staminaDice.action;
+        // 睡眠トリガーで課された「次回合のスタミナ骰-3」を、この回合の擲骰時に1回だけ消費する。
+        rolled = Math.max(0, type.staminaDice.action - (c._nextActionDicePenalty || 0));
+        c._nextActionDicePenalty = 0;
         for (var j = 0; j < rolled; j++) c.dicePool.push(CharacterDrawer.rollD6());
       }
     } else if (state.actionPhase === "defense") {
@@ -3799,6 +4065,11 @@
     if (phase === "extra" && !anyEnemyHpRowDepleted()) {
       closeActionPhaseModal();
       return;
+    }
+    // 「戰鬥→額外→防禦」が1回合。combatフェイズへ新規突入するたびに新しい回合が始まったとみなし、
+    // 異常側の「今回合すでに發動した」ロックを解除する（屬性側は回合をまたいで蓄積を持ち越す）。
+    if (phase === "combat" && state.actionPhase !== "combat") {
+      resetAttributeStatusRoundLocks();
     }
     state.actionPhase = phase;
     // フェイズを切り替えるたびに「額外／防禦行動を使用済み」フラグをリセットする（次にまた
@@ -3861,9 +4132,38 @@
       container.appendChild(empty);
       return;
     }
-    if (!state.battle.attributeStatus) state.battle.attributeStatus = { dealt: {}, received: {} };
+    if (!state.battle.attributeStatus) state.battle.attributeStatus = defaultBattleState().attributeStatus;
     var dealt = state.battle.attributeStatus.dealt || {};
     var received = state.battle.attributeStatus.received || {};
+    var enemyAccum = state.battle.attributeStatus.enemyAccum || {};
+
+    // --- 選択中の敵人ごとの現在蓄積（全角色合算・閾値到達で自動發動）を先頭に一覧表示する ---
+    var summaryTitle = document.createElement("h4");
+    summaryTitle.textContent = window.I18N.t("attribute_status_enemy_summary_title");
+    container.appendChild(summaryTitle);
+    var enemyOptions = resolveSelectedEnemyOptions();
+    if (!enemyOptions.length) {
+      var noEnemy = document.createElement("p");
+      noEnemy.className = "threat-ref-body";
+      noEnemy.textContent = window.I18N.t("attribute_status_enemy_summary_empty_note");
+      container.appendChild(noEnemy);
+    } else {
+      enemyOptions.forEach(function (opt) {
+        var parts = Object.keys(enemyAccum)
+          .filter(function (key) {
+            return key.indexOf(opt.key + "|") === 0;
+          })
+          .map(function (key) {
+            var label = key.slice(opt.key.length + 1);
+            var threshold = attributeStatusThresholdForEnemy(opt.key, label);
+            return label + "：" + enemyAccum[key] + "／" + threshold;
+          });
+        var p = document.createElement("p");
+        p.className = "threat-ref-body";
+        p.textContent = opt.name + "　" + (parts.length ? parts.join("、") : window.I18N.t("attribute_status_dealt_empty_note"));
+        container.appendChild(p);
+      });
+    }
 
     entered.forEach(function (c) {
       var block = document.createElement("div");
@@ -3878,16 +4178,20 @@
       block.appendChild(receivedTitle);
       var receivedList = document.createElement("div");
       receivedList.className = "tag-list";
-      (received[c.id] || []).forEach(function (entry) {
+      var receivedMap = received[c.id] || {};
+      Object.keys(receivedMap).forEach(function (label) {
+        var value = receivedMap[label];
+        if (!value) return;
+        var threshold = ATTRIBUTE_STATUS_BASE_THRESHOLD;
         var chip = document.createElement("span");
         chip.className = "tag-chip";
-        chip.textContent = entry.value ? entry.label + "（" + entry.value + "）" : entry.label;
+        chip.textContent = label + "（" + value + "／" + threshold + "）";
         var removeBtn = document.createElement("button");
         removeBtn.type = "button";
         removeBtn.className = "tag-remove";
         removeBtn.textContent = "×";
         removeBtn.addEventListener("click", function () {
-          removeReceivedAttributeStatus(c.id, entry.id);
+          removeReceivedAttributeStatus(c.id, label);
         });
         chip.appendChild(removeBtn);
         receivedList.appendChild(chip);
@@ -4137,7 +4441,11 @@
           statParts.push(window.I18N.t("enemy_hp_label") + window.I18N.t("colon_separator") + lvRow.hp);
         }
         if (target.withRemove && lvRow && lvRow.dmg != null) {
-          statParts.push(window.I18N.t("enemy_melee_damage_label") + window.I18N.t("colon_separator") + lvRow.dmg);
+          var dmgOverride = (state.battle.enemyDmgOverride && state.battle.enemyDmgOverride[item.key]) || 0;
+          var dmgText = dmgOverride
+            ? window.I18N.t("attribute_status_dmg_override_note", { value: lvRow.dmg + dmgOverride, base: lvRow.dmg, delta: dmgOverride })
+            : String(lvRow.dmg);
+          statParts.push(window.I18N.t("enemy_melee_damage_label") + window.I18N.t("colon_separator") + dmgText);
         }
         var weakness = extractWeakness(item.info.enemy.special, T);
         if (weakness) {
