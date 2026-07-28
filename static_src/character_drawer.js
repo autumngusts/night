@@ -590,6 +590,25 @@
     return count;
   }
 
+  // countLearnedRelicEffectsByNameと同じ探索だが、個数ではなく該当した遺物効果そのもの
+  // （本文を含む）を返す。本文中の具体的な数値（骰子消耗／HP価値など）を参照したい場合に使う。
+  function findLearnedRelicEffectByName(c, names) {
+    var type = c && c.typeId ? CharacterTypes.get(c.typeId) : null;
+    if (!type) return null;
+    var learned = c.learnedRelicEffects || [];
+    var found = null;
+    (type.relicEffectGroups || []).forEach(function (g, gi) {
+      g.effects.forEach(function (e, ei) {
+        if (found || e.kind !== "Passive") return;
+        if (learned.indexOf(relicEffectKey(type.id, gi, ei)) === -1) return;
+        var nameZh = e.name && e.name.zh;
+        var nameJa = e.name && e.name.ja;
+        if (names.indexOf(nameZh) !== -1 || names.indexOf(nameJa) !== -1) found = e;
+      });
+    });
+    return found;
+  }
+
   function getFlaskHealBonus(c) {
     return countLearnedRelicEffectsByName(c, ["聖杯瓶回復量提升", "聖杯瓶回復量アップ"]);
   }
@@ -2812,6 +2831,8 @@
       }
       return true;
     }
+    // "count"：出目を問わず、個数の範囲さえ満たせば良い（格擋の「骰子消耗：N」など）。
+    if (cost.diceKind === "count") return true;
     return false;
   }
 
@@ -2822,6 +2843,7 @@
     if (cost.diceKind === "same") return window.I18N.t("dice_cost_same_label", { count: countLabel });
     if (cost.diceKind === "straight") return window.I18N.t("dice_cost_straight_label", { count: countLabel });
     if (cost.diceKind === "sum") return window.I18N.t("dice_cost_sum_label", { total: cost.sumTotal });
+    if (cost.diceKind === "count") return window.I18N.t("dice_cost_count_label", { count: countLabel });
     return null;
   }
 
@@ -4642,6 +4664,7 @@
     renderDiceStatusLabel: renderDiceStatusLabel,
     getPassiveAggroBonus: getPassiveAggroBonus,
     getFlaskHealBonus: getFlaskHealBonus,
+    findLearnedRelicEffectByName: findLearnedRelicEffectByName,
     getSkillUsesBonus: getSkillUsesBonus,
     getCombatSkillEntries: getCombatSkillEntries,
     getEquippedWeaponSkillEntries: getEquippedWeaponSkillEntries,

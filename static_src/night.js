@@ -3156,10 +3156,10 @@
   // 防禦action中「迴避／格擋のどちらを選ぼうとしているか」の一時状態。
   var combatDefenseState = null; // "dodge" | "block" | null
 
-  // 迴避は任意枚数（1枚以上）の骰子を消費し、出目合計を確定時に集計する（骰子種の制約は無い）。
-  var DODGE_COST = { diceKind: "sum", diceCountMin: 1, diceCountMax: null, sumTotal: 1, fpCost: 0, hpCost: 0 };
-  // 盾を装備していない単騎武器での格擋（暫定値。將來変更予定）も同様に任意枚数の骰子を消費する。
-  var SOLO_BLOCK_COST = { diceKind: "sum", diceCountMin: 1, diceCountMax: null, sumTotal: 1, fpCost: 0, hpCost: 0 };
+  // 迴避は骰子を1個だけ選び、その出目×10＋30をHP価値とする。
+  var DODGE_COST = { diceKind: "count", diceCountMin: 1, diceCountMax: 1, sumTotal: null, fpCost: 0, hpCost: 0 };
+
+  var SOLO_WEAPON_GUARD_RELIC_NAMES = ["雙手持握的達人", "両手持ちの達人"];
 
   // 装備中武器の中から盾（isShieldカテゴリ）を1つ探す。無ければnull。
   function getEquippedShield(c) {
@@ -3175,17 +3175,47 @@
     return null;
   }
 
-  // 格擋は、盾を装備しているか、あるいは武器を1つしか装備していない（＝二刀流ではない）場合に発動可能。
+  // 単騎武器（盾なし）での格擋は「雙手持握的達人」を習得している場合のみ可能。
+  function getSoloWeaponGuardRelic(c) {
+    return CharacterDrawer.findLearnedRelicEffectByName(c, SOLO_WEAPON_GUARD_RELIC_NAMES);
+  }
+
+  // 遺物効果の本文中「骰子消耗：N」「HP價值：M」（ja:「ダイスコスト：N」「HP価値：M」）から
+  // 数値を取り出す。角色タイプごとに本文の数値が異なりうるため、固定値にせず都度パースする。
+  function parseGuardTextValues(text) {
+    var diceMatch = /(?:骰子消耗|ダイスコスト)[：:]\s*(\d+)/.exec(text || "");
+    var hpMatch = /HP(?:價值|価値)[：:]\s*(\d+)/.exec(text || "");
+    return {
+      diceCost: diceMatch ? parseInt(diceMatch[1], 10) : null,
+      hpValue: hpMatch ? parseInt(hpMatch[1], 10) : null,
+    };
+  }
+
+  // 格擋は、盾を装備しているか、あるいは単騎武器（二刀流ではない）＋「雙手持握的達人」習得時に発動可能。
   function canBlockGuard(c) {
     var ids = c.equippedWeaponIds || [];
     if (!ids.length) return false;
-    if (ids.length === 1) return true;
-    return !!getEquippedShield(c);
+    var shieldInfo = getEquippedShield(c);
+    if (ids.length === 1) return !!shieldInfo || !!getSoloWeaponGuardRelic(c);
+    return !!shieldInfo;
+  }
+
+  // 隱性連續防禦規則：同じ防禦行動フェイズ内で格擋を使うたび、次回のHP価値に+10（この関数呼び出し
+  // 時点で既に使った回数×10）を上乗せする（盾牌／単騎武器どちらの格擋でも共通）。ただし1回分の
+  // HP価値は必ず100が上限。フェイズ切替のたびc._consecutiveGuardCountはリセットされる。
+  function applyConsecutiveGuardBonus(c, baseValue) {
+    var bonus = (c._consecutiveGuardCount || 0) * 10;
+    return Math.min(baseValue + bonus, 100);
+  }
+
+  function registerGuardUsed(c) {
+    c._consecutiveGuardCount = (c._consecutiveGuardCount || 0) + 1;
   }
 
   function renderCombatDefenseAction(c, content) {
     var Weapons = window.PriTestWeapons;
     var shieldInfo = getEquippedShield(c);
+    var soloGuardRelic = shieldInfo ? null : getSoloWeaponGuardRelic(c);
     var blockAvailable = canBlockGuard(c);
 
     var choiceRow = document.createElement("div");
@@ -3210,15 +3240,18 @@
     content.appendChild(choiceRow);
 
     if (!blockAvailable) {
+      var ids = c.equippedWeaponIds || [];
+      var noteKey =
+        ids.length === 1 && !shieldInfo ? "combat_defense_block_unavailable_no_relic_note" : "combat_defense_block_unavailable_note";
       var note = document.createElement("p");
       note.className = "threat-ref-body";
-      note.textContent = window.I18N.t("combat_defense_block_unavailable_note");
+      note.textContent = window.I18N.t(noteKey);
       content.appendChild(note);
     }
 
     if (combatDefenseState === "dodge") {
       renderDiceCostAction(c, content, DODGE_COST, function (dice) {
-        var value = dice.reduce(function (a, b) { return a + b; }, 0) + 30;
+        var value = dice[0] * 10 + 30;
         addActionBox(
           c,
           window.I18N.t("combat_defense_dodge_button"),
@@ -3229,12 +3262,19 @@
         combatDefenseState = null;
       });
     } else if (combatDefenseState === "block" && blockAvailable) {
-      var cost = shieldInfo ? CharacterDrawer.parseGuardCost(Weapons.localizedText(shieldInfo.category.basicStats.guardCost)) : SOLO_BLOCK_COST;
-      var value = shieldInfo
-        ? shieldInfo.weapon.rarity === "R" || shieldInfo.weapon.rarity === "L"
-          ? shieldInfo.category.basicStats.guardHpRL
-          : shieldInfo.category.basicStats.guardHpCU
-        : 30;
+      var cost, baseValue;
+      if (shieldInfo) {
+        cost = CharacterDrawer.parseGuardCost(Weapons.localizedText(shieldInfo.category.basicStats.guardCost));
+        baseValue =
+          shieldInfo.weapon.rarity === "R" || shieldInfo.weapon.rarity === "L"
+            ? shieldInfo.category.basicStats.guardHpRL
+            : shieldInfo.category.basicStats.guardHpCU;
+      } else {
+        var parsed = parseGuardTextValues((soloGuardRelic.body && soloGuardRelic.body.zh) || "");
+        cost = { diceKind: "count", diceCountMin: parsed.diceCost || 1, diceCountMax: null, sumTotal: null, fpCost: 0, hpCost: 0 };
+        baseValue = parsed.hpValue || 0;
+      }
+      var value = applyConsecutiveGuardBonus(c, baseValue);
       renderDiceCostAction(c, content, cost, function (dice) {
         addActionBox(
           c,
@@ -3243,6 +3283,7 @@
           [window.I18N.t("action_log_dice_used", { dice: dice.join("、") })]
         );
         addLog("log_combat_defense_block", { character: c.name, value: value, dice: dice.join("、") });
+        registerGuardUsed(c);
         combatDefenseState = null;
       });
     }
@@ -3643,6 +3684,7 @@
     rosterCharacters.forEach(function (c) {
       c._extraActionUsed = false;
       c._defenseActionUsed = false;
+      c._consecutiveGuardCount = 0;
       delete rosterDiceRollFeedback[c.id];
     });
     // 額外・防禦行動へ入るときは、各角色の確定行動（点線枠）を一旦全てクリアする。
