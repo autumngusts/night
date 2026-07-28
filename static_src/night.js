@@ -4275,7 +4275,11 @@
       return;
     }
     breakthroughState.revealed = true;
-    document.getElementById("breakthrough-target-hideable").hidden = false;
+    // 判定發生は目標値をGMが開く前から直接入力済みで、目標點數／每PC加乘のチェック欄自体が
+    // 意味を持たないため、揭曉してもこの最上段の行だけは表示しない（結果は下のsum-labelに出る）。
+    if (breakthroughState.mode !== "generic") {
+      document.getElementById("breakthrough-target-hideable").hidden = false;
+    }
     document.getElementById("breakthrough-target-input").disabled = true;
     document.getElementById("breakthrough-perpc-checkbox").disabled = true;
     document.getElementById("breakthrough-stat-select").disabled = true;
@@ -4379,7 +4383,15 @@
       var rollBtn = document.createElement("button");
       rollBtn.type = "button";
       rollBtn.className = "combat-attack-hit-btn";
-      rollBtn.textContent = window.I18N.t("breakthrough_roll_button");
+      // 「任意」・固定属性のどちらでも、現在選ばれている判定属性で実際に振る骰子の数を
+      // ボタン自体に即時表示する（例：擲骰（3顆））。「任意」時は個別選択を変えるたび更新する。
+      function updateRollBtnLabel() {
+        var statKey = globalStat === "any" ? statSelect.value : globalStat;
+        var count = type && CHECK_STAT_KEYS[statKey] ? Math.max(0, type.checkValues[statKey] || 0) : 0;
+        rollBtn.textContent = window.I18N.t("breakthrough_roll_button_with_count", { count: count });
+      }
+      updateRollBtnLabel();
+      if (statSelect) statSelect.addEventListener("change", updateRollBtnLabel);
       rollBtn.addEventListener("click", function () {
         var statKey = globalStat === "any" ? statSelect.value : globalStat;
         rollBreakthroughDice(c.id, statKey);
@@ -4409,6 +4421,14 @@
           });
           diceWrap.appendChild(dieBtn);
         });
+        // 各角色ごとの小計も自分の行内に表示する（全体合計は上のsum-labelに別途出る）。
+        var subtotal = entry.dice.reduce(function (a, b) {
+          return a + b;
+        }, 0);
+        var subtotalLabel = document.createElement("span");
+        subtotalLabel.className = "ability-uses-label";
+        subtotalLabel.textContent = window.I18N.t("breakthrough_char_subtotal_label", { sum: subtotal });
+        diceWrap.appendChild(subtotalLabel);
       }
       row.appendChild(diceWrap);
 
@@ -4418,7 +4438,9 @@
       blessingBtn.textContent = window.I18N.t("breakthrough_blessing_button", {
         current: c.blessingSlots ? c.blessingSlots.current : 0,
       });
-      blessingBtn.disabled = !entry || !entry.dice.length || !c.blessingSlots || c.blessingSlots.current <= 0;
+      // 判定發生では加護重骰は使用不可（常に無効化）。
+      blessingBtn.disabled =
+        breakthroughState.mode === "generic" || !entry || !entry.dice.length || !c.blessingSlots || c.blessingSlots.current <= 0;
       blessingBtn.addEventListener("click", function () {
         useBreakthroughBlessing(c.id);
       });
