@@ -466,6 +466,10 @@
       enemyHp: new Array(ENEMY_HP_ROWS * ENEMY_HP_COLS).fill(false),
       mobHpRows: [],
       selectedEnemyIds: [],
+      // 屬性/異常面板：dealtは「角色が選択中の敵人へ与えた蓄積」（攻撃action確定時に自動加算、
+      // キーは"角色id|敵人key|屬性又は異常名" → 累積値）、receivedは「角色が受けている屬性/異常」
+      // （角色idごとの手動タグ配列。自動計算する元データが無いためGMが手動で管理する）。
+      attributeStatus: { dealt: {}, received: {} },
     };
   }
 
@@ -667,6 +671,28 @@
           return typeof v === "string" && v.indexOf("|") !== -1;
         })
       : fallback.selectedEnemyIds.slice();
+    var rawAttrStatus = raw.attributeStatus && typeof raw.attributeStatus === "object" ? raw.attributeStatus : {};
+    var dealt = {};
+    if (rawAttrStatus.dealt && typeof rawAttrStatus.dealt === "object") {
+      Object.keys(rawAttrStatus.dealt).forEach(function (key) {
+        var v = Number(rawAttrStatus.dealt[key]);
+        if (v) dealt[key] = v;
+      });
+    }
+    var received = {};
+    if (rawAttrStatus.received && typeof rawAttrStatus.received === "object") {
+      Object.keys(rawAttrStatus.received).forEach(function (charId) {
+        var list = rawAttrStatus.received[charId];
+        if (!Array.isArray(list)) return;
+        received[charId] = list
+          .filter(function (entry) {
+            return entry && typeof entry.label === "string";
+          })
+          .map(function (entry) {
+            return { id: entry.id || "as" + Date.now() + Math.floor(Math.random() * 1000), label: entry.label, value: Number(entry.value) || 0 };
+          });
+      });
+    }
     return {
       front: front,
       back: back,
@@ -674,7 +700,68 @@
       enemyHp: enemyHp,
       mobHpRows: mobHpRows,
       selectedEnemyIds: selectedEnemyIds,
+      attributeStatus: { dealt: dealt, received: received },
     };
+  }
+
+  // 屬性/異常面板の「受け取った」欄で選べる、屬性／異常の名称一覧。武器の共通戦技
+  // （COMMON_SKILL_ELEMENT_OPTIONS／COMMON_SKILL_STATUS_OPTIONS）と同じ規則書154-155頁の一覧。
+  var ATTRIBUTE_STATUS_ELEMENT_OPTIONS = [
+    { ja: "炎", zh: "火" },
+    { ja: "雷", zh: "雷" },
+    { ja: "聖", zh: "聖" },
+    { ja: "魔", zh: "魔" },
+  ];
+  var ATTRIBUTE_STATUS_AILMENT_OPTIONS = [
+    { ja: "猛毒", zh: "猛毒" },
+    { ja: "腐敗", zh: "腐敗" },
+    { ja: "出血", zh: "出血" },
+    { ja: "凍傷", zh: "凍傷" },
+    { ja: "発狂", zh: "發狂" },
+    { ja: "睡眠", zh: "睡眠" },
+    { ja: "呪死", zh: "呪死" },
+  ];
+
+  // state.battle.selectedEnemyIds（"familyId|enemyId|level"）を、目標選択UIやパネル表示に使う
+  // {key, name}の配列へ解決する。
+  function resolveSelectedEnemyOptions() {
+    var Enemies = window.PriTestEnemies;
+    if (!Enemies) return [];
+    var T = Enemies.localizedText;
+    return ((state.battle && state.battle.selectedEnemyIds) || [])
+      .map(function (key) {
+        var parts = key.split("|");
+        var info = Enemies.get(parts[0], parts[1]);
+        return info ? { key: key, name: T(info.enemy.name) + "（Lv." + parts[2] + "）" } : null;
+      })
+      .filter(Boolean);
+  }
+
+  // 攻撃actionの確定時、選択中の敵人1体へその角色が与えた屬性/異常の蓄積を積み上げる。
+  function recordAttributeStatusDealt(characterId, enemyKey, label, value) {
+    if (!enemyKey || !value) return;
+    if (!state.battle.attributeStatus) state.battle.attributeStatus = { dealt: {}, received: {} };
+    var key = characterId + "|" + enemyKey + "|" + label;
+    var dealt = state.battle.attributeStatus.dealt;
+    dealt[key] = (dealt[key] || 0) + value;
+  }
+
+  function addReceivedAttributeStatus(characterId, label, value) {
+    if (!state.battle.attributeStatus) state.battle.attributeStatus = { dealt: {}, received: {} };
+    var received = state.battle.attributeStatus.received;
+    if (!received[characterId]) received[characterId] = [];
+    received[characterId].push({ id: "as" + Date.now() + Math.floor(Math.random() * 1000), label: label, value: value });
+    saveState();
+    renderAttributeStatusList();
+  }
+
+  function removeReceivedAttributeStatus(characterId, entryId) {
+    if (!state.battle.attributeStatus || !state.battle.attributeStatus.received[characterId]) return;
+    state.battle.attributeStatus.received[characterId] = state.battle.attributeStatus.received[characterId].filter(function (entry) {
+      return entry.id !== entryId;
+    });
+    saveState();
+    renderAttributeStatusList();
   }
 
   function loadTimeLossDay(raw) {
@@ -2605,6 +2692,9 @@
   // 攻撃action中「どの武器のどちらのHitを実行しようとしているか」の一時状態。
   // アクションを閉じる／別のアクションに切り替えるたびにnullへ戻す。
   var combatAttackState = null; // { weaponId, hitType: "hit1"|"hit2" } | null
+  // 攻撃actionで属性/異常蓄積の記録先とする、選択中の敵人のキー。選択肢が変わるたびに
+  // 有効な値へ補正する（既定は先頭の敵人）。
+  var combatAttackTargetEnemyKey = null;
 
   function renderCombatAttackAction(c, content) {
     var Weapons = window.PriTestWeapons;
@@ -2679,6 +2769,34 @@
       if (combatAttackState && combatAttackState.weaponId === weaponId) {
         var hitType = combatAttackState.hitType;
         var cost = attackCost ? attackCost[hitType] : null;
+        // 属性/異常蓄積を「選択中のどの敵人へ」記録するか。複数選択されている場合のみ選ばせる
+        // （1体だけならそれへ、0体なら記録しようがないのでUIごと出さない）。
+        var enemyOptions = resolveSelectedEnemyOptions();
+        if (enemyOptions.length) {
+          if (!enemyOptions.some(function (opt) { return opt.key === combatAttackTargetEnemyKey; })) {
+            combatAttackTargetEnemyKey = enemyOptions[0].key;
+          }
+          if (enemyOptions.length > 1) {
+            var targetRow = document.createElement("div");
+            targetRow.className = "combat-attack-target-row";
+            var targetLabel = document.createElement("label");
+            targetLabel.textContent = window.I18N.t("combat_attack_target_enemy_label");
+            var targetSelect = document.createElement("select");
+            enemyOptions.forEach(function (opt) {
+              var o = document.createElement("option");
+              o.value = opt.key;
+              o.textContent = opt.name;
+              if (opt.key === combatAttackTargetEnemyKey) o.selected = true;
+              targetSelect.appendChild(o);
+            });
+            targetSelect.addEventListener("change", function () {
+              combatAttackTargetEnemyKey = targetSelect.value;
+            });
+            targetLabel.appendChild(targetSelect);
+            targetRow.appendChild(targetLabel);
+            content.appendChild(targetRow);
+          }
+        }
         renderDiceCostAction(c, content, cost, function (dice, costLines) {
           var dmgValue = hitType === "hit1" ? damage.hit1Damage : damage.hit2Damage;
           var dmgSymbol = hitType === "hit1" ? damage.hit1Symbol : damage.hit2Symbol;
@@ -2694,16 +2812,19 @@
             }
           }
           // 武器が持つ属性／状態異常スキルによる蓄積値（1Hit：+1／2Hit：+2、毒蠍系タリスマンで
-          // さらに+1）を実行ログに明記する。
+          // さらに+1）を実行ログに明記し、選択中の敵人1体へ屬性/異常面板の「与えた」欄として
+          // 積み上げる（敵人が選択されていない場合は記録しようがないのでログのみ）。
           var accumEffects = CharacterDrawer.weaponAccumulationEffects(c, weaponId);
           var baseAccum = hitType === "hit1" ? 1 : 2;
           accumEffects.forEach(function (eff) {
+            var value = baseAccum + eff.scorpionBonus;
             lines.push(
               window.I18N.t(eff.isElement ? "action_log_element_accum" : "action_log_status_accum", {
                 label: eff.label,
-                value: baseAccum + eff.scorpionBonus,
+                value: value,
               })
             );
+            recordAttributeStatusDealt(c.id, combatAttackTargetEnemyKey, eff.label, value);
           });
           // 特効（kind:"special"）は対象エネミーの種別に依存するため自動加算はせず、
           // 参考情報として本文を注記するのみに留める（過大なダメージ捏造を避けるため）。
@@ -2723,6 +2844,7 @@
             damage: CharacterDrawer.formatValueWithSymbol(dmgValue, dmgSymbol),
             dice: dice.join("、"),
           });
+          renderAttributeStatusList();
           combatAttackState = null;
         });
       }
@@ -3710,6 +3832,131 @@
 
   function closeBattleDrawer() {
     document.getElementById("battle-drawer").classList.remove("open");
+  }
+
+  function openAttributeStatusDrawer() {
+    document.getElementById("attribute-status-drawer").classList.add("open");
+    renderAttributeStatusList();
+  }
+
+  function closeAttributeStatusDrawer() {
+    document.getElementById("attribute-status-drawer").classList.remove("open");
+  }
+
+  // 屬性/異常面板：入場中の各角色ごとに、「受け取った」（手動タグ管理）と「与えた」
+  // （攻撃action確定時にrecordAttributeStatusDealtで自動集計、敵人ごとに読み取り専用表示）を描画する。
+  function renderAttributeStatusList() {
+    var container = document.getElementById("attribute-status-list");
+    if (!container) return;
+    container.innerHTML = "";
+    var Enemies = window.PriTestEnemies;
+    var Weapons = window.PriTestWeapons;
+    var entered = rosterCharacters.filter(function (c) {
+      return c.entered;
+    });
+    if (!entered.length) {
+      var empty = document.createElement("p");
+      empty.className = "threat-ref-body";
+      empty.textContent = window.I18N.t("attribute_status_no_characters_note");
+      container.appendChild(empty);
+      return;
+    }
+    if (!state.battle.attributeStatus) state.battle.attributeStatus = { dealt: {}, received: {} };
+    var dealt = state.battle.attributeStatus.dealt || {};
+    var received = state.battle.attributeStatus.received || {};
+
+    entered.forEach(function (c) {
+      var block = document.createElement("div");
+      block.className = "roster-character-block attribute-status-char-block";
+      var h4 = document.createElement("h4");
+      h4.textContent = c.name;
+      block.appendChild(h4);
+
+      // --- 受け取った屬性/異常（GMが手動管理。自動計算する元データが無いため） ---
+      var receivedTitle = document.createElement("h5");
+      receivedTitle.textContent = window.I18N.t("attribute_status_received_title");
+      block.appendChild(receivedTitle);
+      var receivedList = document.createElement("div");
+      receivedList.className = "tag-list";
+      (received[c.id] || []).forEach(function (entry) {
+        var chip = document.createElement("span");
+        chip.className = "tag-chip";
+        chip.textContent = entry.value ? entry.label + "（" + entry.value + "）" : entry.label;
+        var removeBtn = document.createElement("button");
+        removeBtn.type = "button";
+        removeBtn.className = "tag-remove";
+        removeBtn.textContent = "×";
+        removeBtn.addEventListener("click", function () {
+          removeReceivedAttributeStatus(c.id, entry.id);
+        });
+        chip.appendChild(removeBtn);
+        receivedList.appendChild(chip);
+      });
+      block.appendChild(receivedList);
+
+      var addRow = document.createElement("div");
+      addRow.className = "wb-row";
+      var typeSelect = document.createElement("select");
+      ATTRIBUTE_STATUS_ELEMENT_OPTIONS.concat(ATTRIBUTE_STATUS_AILMENT_OPTIONS).forEach(function (opt) {
+        var o = document.createElement("option");
+        o.value = Weapons ? Weapons.localizedText(opt) : opt.zh;
+        o.textContent = o.value;
+        typeSelect.appendChild(o);
+      });
+      addRow.appendChild(typeSelect);
+      var valueInput = document.createElement("input");
+      valueInput.type = "number";
+      valueInput.className = "stat-input";
+      valueInput.placeholder = window.I18N.t("attribute_status_value_placeholder");
+      addRow.appendChild(valueInput);
+      var addBtn = document.createElement("button");
+      addBtn.type = "button";
+      addBtn.textContent = window.I18N.t("attribute_status_add_button");
+      addBtn.addEventListener("click", function () {
+        var value = Number(valueInput.value) || 0;
+        addReceivedAttributeStatus(c.id, typeSelect.value, value);
+      });
+      addRow.appendChild(addBtn);
+      block.appendChild(addRow);
+
+      // --- 与えた屬性/異常（攻撃action確定時に自動集計、敵人ごとの読み取り専用） ---
+      var dealtTitle = document.createElement("h5");
+      dealtTitle.textContent = window.I18N.t("attribute_status_dealt_title");
+      block.appendChild(dealtTitle);
+      var byEnemy = {};
+      Object.keys(dealt).forEach(function (key) {
+        var parts = key.split("|");
+        if (parts[0] !== c.id) return;
+        var label = parts[parts.length - 1];
+        var enemyKey = parts.slice(1, parts.length - 1).join("|");
+        if (!byEnemy[enemyKey]) byEnemy[enemyKey] = {};
+        byEnemy[enemyKey][label] = dealt[key];
+      });
+      var enemyKeys = Object.keys(byEnemy);
+      if (!enemyKeys.length) {
+        var noDealt = document.createElement("p");
+        noDealt.className = "threat-ref-body";
+        noDealt.textContent = window.I18N.t("attribute_status_dealt_empty_note");
+        block.appendChild(noDealt);
+      } else {
+        enemyKeys.forEach(function (enemyKey) {
+          var parts = enemyKey.split("|");
+          var info = Enemies ? Enemies.get(parts[0], parts[1]) : null;
+          var enemyName = info ? Enemies.localizedText(info.enemy.name) + "（Lv." + parts[2] + "）" : enemyKey;
+          var totalsText = Object.keys(byEnemy[enemyKey])
+            .map(function (label) {
+              return label + "：" + byEnemy[enemyKey][label];
+            })
+            .join("、");
+          var enemyP = document.createElement("p");
+          enemyP.className = "threat-ref-body";
+          enemyP.textContent = enemyName + "　" + totalsText;
+          block.appendChild(enemyP);
+        });
+      }
+
+      container.appendChild(block);
+    });
   }
 
   // 戦闘盤の簡易エネミー検索。規則書タブと異なり、等級・HP量・系別のみを表示する（耐性・アクション・特殊能力は非表示）。
@@ -5351,6 +5598,9 @@
     document.getElementById("threat-drawer-backdrop").addEventListener("click", closeThreatDrawer);
     document.getElementById("btn-battle-info").addEventListener("click", openBattleDrawer);
     document.getElementById("btn-battle-drawer-close").addEventListener("click", closeBattleDrawer);
+    document.getElementById("btn-attribute-status-info").addEventListener("click", openAttributeStatusDrawer);
+    document.getElementById("btn-attribute-status-drawer-close").addEventListener("click", closeAttributeStatusDrawer);
+    document.getElementById("attribute-status-drawer-backdrop").addEventListener("click", closeAttributeStatusDrawer);
     document.querySelectorAll(".combat-action-btn").forEach(function (btn) {
       btn.addEventListener("click", function () {
         combatModalAction = btn.dataset.action;

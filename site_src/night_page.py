@@ -100,6 +100,10 @@ BODY = """    <div class="night-header-row">
         <span id="time-loss-summary"></span>
         <button type="button" class="info-btn" id="btn-time-loss-info">i</button>
       </div>
+      <div class="time-loss-bar" id="attribute-status-bar">
+        <span data-i18n="attribute_status_bar_label"></span>
+        <button type="button" class="info-btn" id="btn-attribute-status-info">i</button>
+      </div>
       <div class="dice-pool-block" id="dice-pool-bar">
         <div class="dice-pool-header">
           <span data-i18n="dice_pool_label"></span>
@@ -753,6 +757,21 @@ BODY = """    <div class="night-header-row">
         <div class="actions">
           <button id="btn-battle-clear" type="button" class="danger-btn" data-i18n="battle_clear_button"></button>
           <button id="btn-battle-drawer-close" type="button" class="primary-btn" data-i18n="close_button"></button>
+        </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="attribute-status-drawer" class="drawer">
+      <div class="drawer-backdrop" id="attribute-status-drawer-backdrop"></div>
+      <div class="drawer-panel">
+        <button type="button" class="drawer-close-tab" data-close-btn="btn-attribute-status-drawer-close">&rsaquo;</button>
+        <div class="drawer-panel-scroll">
+        <h2 data-i18n="attribute_status_panel_title"></h2>
+        <p class="threat-ref-body" data-i18n="attribute_status_panel_note"></p>
+        <div id="attribute-status-list"></div>
+        <div class="actions">
+          <button id="btn-attribute-status-drawer-close" type="button" class="primary-btn" data-i18n="close_button"></button>
         </div>
         </div>
       </div>
