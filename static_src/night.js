@@ -3616,6 +3616,8 @@
       btn.textContent = opt.label;
       if (combatDefenseState === opt.key) btn.classList.add("active");
       if (opt.key === "block" && !blockAvailable) btn.disabled = true;
+      // 迴避は防禦フェイズにつき1回のみ使用可能（格擋は複数回使用可能なまま）。
+      if (opt.key === "dodge" && c._dodgeActionUsed) btn.disabled = true;
       btn.addEventListener("click", function () {
         combatDefenseState = combatDefenseState === opt.key ? null : opt.key;
         combatDiceSelection = [];
@@ -3645,6 +3647,7 @@
           [window.I18N.t("action_log_dice_used", { dice: dice.join("、") })]
         );
         addLog("log_combat_defense_dodge", { character: c.name, value: value, dice: dice.join("、") });
+        c._dodgeActionUsed = true;
         combatDefenseState = null;
       });
     } else if (combatDefenseState === "block" && blockAvailable) {
@@ -4078,6 +4081,7 @@
       c._extraActionUsed = false;
       c._defenseActionUsed = false;
       c._consecutiveGuardCount = 0;
+      c._dodgeActionUsed = false;
       delete rosterDiceRollFeedback[c.id];
     });
     // 額外・防禦行動へ入るときは、各角色の確定行動（点線枠）を一旦全てクリアする。
