@@ -4249,6 +4249,203 @@
     content.appendChild(consumableRow);
   }
 
+  // ============================================================
+  // 潛在之力（潜在する力）：地圖板塊で敵人を擊破、または全踏破した際などにPCが獲得できる
+  // 機会。GMが★の数（レア度決定値）を指定して抽選すると「得意武器」と「付帯効果」の両方の
+  // 結果が確定し、PCはそのどちらか一方だけを選んで獲得する（規則書093/149頁）。
+  // ============================================================
+  var potentialPowerSelectedCharacterId = null;
+  var potentialPowerStarCount = 1;
+  var potentialPowerWeaponResult = null; // CharacterDrawer.potentialPowerDrawWeaponの戻り値 | null
+  var potentialPowerEffectResult = null; // CharacterDrawer.rollPotentialPowerAttachedEffectの戻り値 | null
+  var potentialPowerResolved = null; // "weapon" | "effect" | null
+
+  function openPotentialPowerModal() {
+    var entered = rosterCharacters.filter(function (c) {
+      return c.entered;
+    });
+    if (!entered.length) return;
+    if (
+      !entered.some(function (c) {
+        return c.id === potentialPowerSelectedCharacterId;
+      })
+    ) {
+      potentialPowerSelectedCharacterId = entered[0].id;
+    }
+    potentialPowerStarCount = 1;
+    potentialPowerWeaponResult = null;
+    potentialPowerEffectResult = null;
+    potentialPowerResolved = null;
+    document.getElementById("potential-power-modal").hidden = false;
+    renderPotentialPowerModal();
+  }
+
+  function closePotentialPowerModal() {
+    document.getElementById("potential-power-modal").hidden = true;
+  }
+
+  function resetPotentialPowerRoll() {
+    potentialPowerWeaponResult = null;
+    potentialPowerEffectResult = null;
+    potentialPowerResolved = null;
+  }
+
+  function renderPotentialPowerModal() {
+    var entered = rosterCharacters.filter(function (c) {
+      return c.entered;
+    });
+    var select = document.getElementById("potential-power-character-select");
+    select.innerHTML = "";
+    entered.forEach(function (c) {
+      var o = document.createElement("option");
+      o.value = c.id;
+      o.textContent = c.name;
+      if (c.id === potentialPowerSelectedCharacterId) o.selected = true;
+      select.appendChild(o);
+    });
+    select.onchange = function () {
+      potentialPowerSelectedCharacterId = select.value;
+      resetPotentialPowerRoll();
+      renderPotentialPowerModal();
+    };
+
+    var starSelect = document.getElementById("potential-power-star-select");
+    starSelect.value = String(potentialPowerStarCount);
+    starSelect.disabled = !!(potentialPowerWeaponResult || potentialPowerEffectResult);
+    starSelect.onchange = function () {
+      potentialPowerStarCount = parseInt(starSelect.value, 10) || 1;
+    };
+
+    var c = entered.filter(function (rc) {
+      return rc.id === potentialPowerSelectedCharacterId;
+    })[0];
+    var content = document.getElementById("potential-power-modal-content");
+    content.innerHTML = "";
+    if (!c) return;
+
+    if (potentialPowerResolved) {
+      var doneP = document.createElement("p");
+      doneP.className = "threat-ref-body weapon-roll-result";
+      doneP.textContent = window.I18N.t("potential_power_resolved_note");
+      content.appendChild(doneP);
+      return;
+    }
+
+    if (!potentialPowerWeaponResult && !potentialPowerEffectResult) {
+      var rollBtn = document.createElement("button");
+      rollBtn.type = "button";
+      rollBtn.className = "primary-btn";
+      rollBtn.textContent = window.I18N.t("potential_power_roll_button");
+      rollBtn.addEventListener("click", function () {
+        potentialPowerWeaponResult = CharacterDrawer.potentialPowerDrawWeapon(c, potentialPowerStarCount);
+        potentialPowerEffectResult = CharacterDrawer.rollPotentialPowerAttachedEffect(c);
+        renderPotentialPowerModal();
+      });
+      content.appendChild(rollBtn);
+      return;
+    }
+
+    // --- 得意武器の結果 ---
+    var weaponTitle = document.createElement("h5");
+    weaponTitle.textContent = window.I18N.t("potential_power_weapon_title");
+    content.appendChild(weaponTitle);
+    var Weapons = window.PriTestWeapons;
+    if (potentialPowerWeaponResult && potentialPowerWeaponResult.item) {
+      var wr = potentialPowerWeaponResult;
+      var weaponCard = document.createElement("div");
+      weaponCard.className = "relic-candidate-card";
+      var weaponBody = document.createElement("p");
+      weaponBody.className = "threat-ref-body weapon-roll-result";
+      weaponBody.textContent = window.I18N.t("potential_power_weapon_result", {
+        favored: wr.favoredName || "-",
+        category: Weapons.localizedText(Weapons.getCategory(wr.categoryId).name),
+        rarity: wr.rarity,
+        weapon: Weapons.localizedText(wr.item.name),
+      });
+      weaponCard.appendChild(weaponBody);
+      var weaponChooseBtn = document.createElement("button");
+      weaponChooseBtn.type = "button";
+      weaponChooseBtn.className = "primary-btn";
+      weaponChooseBtn.textContent = window.I18N.t("potential_power_weapon_choose_button");
+      weaponChooseBtn.addEventListener("click", function () {
+        CharacterDrawer.commitPotentialPowerWeapon(c, wr);
+        saveRosterCharacters();
+        renderCharacterRoster();
+        addLog("log_potential_power_weapon_choice", { character: c.name, weapon: Weapons.localizedText(wr.item.name) });
+        potentialPowerResolved = "weapon";
+        renderPotentialPowerModal();
+      });
+      weaponCard.appendChild(weaponChooseBtn);
+      content.appendChild(weaponCard);
+    } else {
+      var weaponFail = document.createElement("p");
+      weaponFail.className = "threat-ref-body";
+      weaponFail.textContent = window.I18N.t("potential_power_weapon_draw_failed");
+      content.appendChild(weaponFail);
+    }
+
+    // --- 付帯効果の結果 ---
+    var effectTitle = document.createElement("h5");
+    effectTitle.textContent = window.I18N.t("potential_power_effect_title");
+    content.appendChild(effectTitle);
+    var er = potentialPowerEffectResult;
+
+    function appendEffectChooseCard(effect) {
+      var card = document.createElement("div");
+      card.className = "relic-candidate-card";
+      var name = document.createElement("div");
+      name.className = "relic-candidate-name";
+      name.textContent = Weapons.localizedText(effect.name) + "［Passive］";
+      card.appendChild(name);
+      var body = document.createElement("p");
+      body.className = "threat-ref-body";
+      body.textContent = Weapons.localizedText(effect.body);
+      card.appendChild(body);
+      var chooseBtn = document.createElement("button");
+      chooseBtn.type = "button";
+      chooseBtn.className = "primary-btn";
+      chooseBtn.textContent = window.I18N.t("potential_power_effect_choose_button");
+      chooseBtn.addEventListener("click", function () {
+        var result = CharacterDrawer.commitAttachedEffectChoice(c, effect);
+        saveRosterCharacters();
+        var effectName = Weapons.localizedText(effect.name);
+        if (result.replacedId) {
+          var oldEffect = CharacterDrawer.attachedEffectById(result.replacedId);
+          addLog("log_potential_power_effect_replace", {
+            character: c.name,
+            effect: effectName,
+            old: oldEffect ? Weapons.localizedText(oldEffect.name) : result.replacedId,
+          });
+        } else {
+          addLog("log_potential_power_effect_choice", { character: c.name, effect: effectName });
+        }
+        potentialPowerResolved = "effect";
+        renderPotentialPowerModal();
+      });
+      card.appendChild(chooseBtn);
+      content.appendChild(card);
+    }
+
+    if (er && er.effect) {
+      var effectRollNote = document.createElement("p");
+      effectRollNote.className = "threat-ref-body weapon-roll-result";
+      effectRollNote.textContent = window.I18N.t("potential_power_effect_dice_note", { dice: er.dice.join("、") });
+      content.appendChild(effectRollNote);
+      appendEffectChooseCard(er.effect);
+    } else if (er && er.candidates && er.candidates.length) {
+      var fallbackNote = document.createElement("p");
+      fallbackNote.className = "threat-ref-body";
+      fallbackNote.textContent = window.I18N.t("potential_power_effect_fallback_note", { dice: er.dice.join("、") });
+      content.appendChild(fallbackNote);
+      er.candidates.forEach(appendEffectChooseCard);
+    } else {
+      var effectFail = document.createElement("p");
+      effectFail.className = "threat-ref-body";
+      effectFail.textContent = window.I18N.t("potential_power_effect_all_learned_note");
+      content.appendChild(effectFail);
+    }
+  }
+
   function openAttributeStatusDrawer() {
     document.getElementById("attribute-status-drawer").classList.add("open");
     renderAttributeStatusList();
@@ -6061,6 +6258,8 @@
     document.getElementById("btn-attribute-status-drawer-close").addEventListener("click", closeAttributeStatusDrawer);
     document.getElementById("attribute-status-drawer-backdrop").addEventListener("click", closeAttributeStatusDrawer);
     document.getElementById("btn-merchant-modal-close").addEventListener("click", closeMerchantModal);
+    document.getElementById("btn-potential-power-info").addEventListener("click", openPotentialPowerModal);
+    document.getElementById("btn-potential-power-modal-close").addEventListener("click", closePotentialPowerModal);
     document.querySelectorAll(".combat-action-btn").forEach(function (btn) {
       btn.addEventListener("click", function () {
         combatModalAction = btn.dataset.action;

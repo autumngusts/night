@@ -2220,6 +2220,112 @@
     };
   }
 
+  // 「潜在する力」で「得意武器」を選んだ場合の武器抽選（規則書093/149-151頁）。GMが指定した
+  // ★の数だけレア度決定ダイスを振り、キャラクタータイプの「得意武器」表（favoredWeapons、
+  // 1D6で3択のいずれかを決定）からカテゴリを絞り込む（「武器」が出た場合のみ全カテゴリから
+  // 完全ランダム＝レベルアップ時の武器抽選と同じ規則）。merchantDrawWeaponと異なり、この
+  // 関数はまだ確定させず（weaponIdsへ追加しない）、結果だけを返す。「潜在する力」は「得意
+  // 武器」と「付帯効果」を両方抽選してから、PCがどちらを獲得するか選ぶ規則のため。
+  function potentialPowerDrawWeapon(c, starCount) {
+    var type = c.typeId ? CharacterTypes.get(c.typeId) : null;
+    if (!type) return null;
+    var favoredNames = CharacterTypes.localizedText(type.favoredWeapons)
+      .split("・")
+      .map(function (s) {
+        return s.trim();
+      })
+      .filter(Boolean);
+    var favoredDie = rollD6();
+    var favoredIndex = favoredDie <= 3 ? 0 : favoredDie <= 5 ? 1 : 2;
+    var favoredName = favoredNames[favoredIndex] || null;
+
+    var categories = Weapons.categories();
+    var categoryId = favoredName && favoredName !== "武器" ? findCategoryIdByMinorLabel(favoredName) : null;
+    if (!categoryId && categories.length) {
+      categoryId = categories[Math.floor(Math.random() * categories.length)].id;
+    }
+    if (!categoryId) return null;
+
+    var stars = Math.max(1, Math.min(4, starCount || 1));
+    var rarityDice = [];
+    for (var i = 0; i < stars; i++) rarityDice.push(rollD6());
+    var raritySum = rarityDice.reduce(function (a, b) {
+      return a + b;
+    }, 0);
+    var rarity = lookupRarityBySum(raritySum);
+
+    var item = null,
+      itemDie = null;
+    for (var attempt = 0; attempt < 20; attempt++) {
+      itemDie = rollD6();
+      item = pickWeaponByRoll(categoryId, rarity, itemDie);
+      if (item && !isNotePlaceholderWeapon(item)) break;
+      item = null;
+    }
+    if (!item) return null;
+
+    return {
+      favoredDie: favoredDie,
+      favoredName: favoredName,
+      categoryId: categoryId,
+      starCount: stars,
+      rarityDice: rarityDice,
+      raritySum: raritySum,
+      rarity: rarity,
+      itemDie: itemDie,
+      item: item,
+    };
+  }
+
+  function commitPotentialPowerWeapon(c, result) {
+    if (!result || !result.item) return null;
+    if (!c.weaponIds) c.weaponIds = [];
+    var newInstanceId = makeWeaponInstanceId(result.item.id, c);
+    c.weaponIds.push(newInstanceId);
+    return newInstanceId;
+  }
+
+  // 「潜在する力」で「付帯効果」を選んだ場合の抽選。handleAttachedRoll2Dと全く同じ規則
+  // （1D×2、1個目の出目でブロック決定、2個目の出目でブロック内の位置決定）で判定するが、
+  // まだ確定させない（learnedAttachedEffectsへ追加しない）。ロール結果が既に習得済みの場合は
+  // 既存UIと同じくフォールバック候補（同ブロック内の未習得、無ければ全24種の未習得）を返し、
+  // 呼び出し側で1つ選ばせる。
+  function rollPotentialPowerAttachedEffect(c) {
+    var x = rollD6();
+    var y = rollD6();
+    var block = attachedBlockForValue(x);
+    var rolled = ATTACHED_EFFECT_BLOCKS[block][y - 1];
+    var learned = c.learnedAttachedEffects || [];
+    if (learned.indexOf(rolled.id) === -1) {
+      return { dice: [x, y], block: block, effect: rolled, candidates: null };
+    }
+    var candidates = ATTACHED_EFFECT_BLOCKS[block].filter(function (e) {
+      return learned.indexOf(e.id) === -1;
+    });
+    if (!candidates.length) {
+      candidates = [].concat.apply([], ATTACHED_EFFECT_BLOCKS).filter(function (e) {
+        return learned.indexOf(e.id) === -1;
+      });
+    }
+    return { dice: [x, y], block: block, effect: null, candidates: candidates };
+  }
+
+  // 3枠に空きがあればそのまま追加、埋まっていれば1Dを振って対応する枠（1-2→1枠目/3-4→2枠目/
+  // 5-6→3枠目）の付帯効果を上書きする（規則書どおり）。戻り値のreplacedIdは上書きされた
+  // 付帯効果のid（新規追加ならnull）。
+  function commitAttachedEffectChoice(c, effect) {
+    if (!c.learnedAttachedEffects) c.learnedAttachedEffects = [];
+    if (c.learnedAttachedEffects.length < MAX_ATTACHED_EFFECTS) {
+      c.learnedAttachedEffects.push(effect.id);
+      return { slotIndex: c.learnedAttachedEffects.length - 1, replacedId: null, die: null };
+    }
+    var die = rollD6();
+    var slotIndex = die <= 2 ? 0 : die <= 4 ? 1 : 2;
+    var replacedId = c.learnedAttachedEffects[slotIndex];
+    c.learnedAttachedEffects.splice(slotIndex, 1, effect.id);
+    return { slotIndex: slotIndex, replacedId: replacedId, die: die };
+  }
+
   function resolveSimpleTableRoll(category, d1) {
     var row = (category.randomSkillTable || []).filter(function (r) {
       return String(r.roll) === String(d1);
@@ -4788,6 +4894,12 @@
     categoryTwoHitDiceBonus: categoryTwoHitDiceBonus,
     weaponAccumulationEffects: weaponAccumulationEffects,
     merchantDrawWeapon: merchantDrawWeapon,
+    potentialPowerDrawWeapon: potentialPowerDrawWeapon,
+    commitPotentialPowerWeapon: commitPotentialPowerWeapon,
+    rollPotentialPowerAttachedEffect: rollPotentialPowerAttachedEffect,
+    commitAttachedEffectChoice: commitAttachedEffectChoice,
+    attachedEffectById: attachedEffectById,
+    MAX_ATTACHED_EFFECTS: MAX_ATTACHED_EFFECTS,
     weaponSpecialEffectNotes: weaponSpecialEffectNotes,
     talismanFlatSkillBonus: talismanFlatSkillBonus,
     computeWeaponDamage: computeWeaponDamage,

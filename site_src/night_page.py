@@ -24,6 +24,7 @@ BODY = """    <div class="night-header-row">
             <button id="btn-primary-action" type="button" class="main-menu-item primary-btn"></button>
             <button id="btn-new-game" type="button" class="main-menu-item danger-btn" data-i18n="new_game_button"></button>
             <button id="btn-battle-info" type="button" class="main-menu-item" data-i18n="battle_sheet_label"></button>
+            <button id="btn-potential-power-info" type="button" class="main-menu-item" data-i18n="potential_power_menu_label"></button>
           </div>
         </div>
         <h1 data-i18n="project_night_name"></h1>
@@ -297,6 +298,29 @@ BODY = """    <div class="night-header-row">
         <div id="merchant-modal-content"></div>
         <div class="actions">
           <button id="btn-merchant-modal-close" type="button" class="primary-btn" data-i18n="close_button"></button>
+        </div>
+      </div>
+    </div>
+
+    <div id="potential-power-modal" class="modal" hidden>
+      <div class="modal-box combat-modal-box">
+        <h2 data-i18n="potential_power_modal_title"></h2>
+        <div class="wb-row">
+          <label data-i18n="potential_power_character_label"></label>
+          <select id="potential-power-character-select"></select>
+        </div>
+        <div class="wb-row">
+          <label data-i18n="potential_power_star_label"></label>
+          <select id="potential-power-star-select">
+            <option value="1">★</option>
+            <option value="2">★★</option>
+            <option value="3">★★★</option>
+            <option value="4">★★★★</option>
+          </select>
+        </div>
+        <div id="potential-power-modal-content"></div>
+        <div class="actions">
+          <button id="btn-potential-power-modal-close" type="button" class="primary-btn" data-i18n="close_button"></button>
         </div>
       </div>
     </div>
