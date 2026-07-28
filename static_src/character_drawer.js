@@ -2188,6 +2188,38 @@
     return null;
   }
 
+  // 商人イベント「装備品の購入」：ルーン1消費でカテゴリ・稀有度・アイテムを全てランダムに
+  // 決定する簡易抽選（★1固定＝稀有度決定に振る骰子は1個のみ）。レベルアップ時の武器抽選
+  // （potentialPower選択→カテゴリ選択→稀有度→アイテム→ランダム戦技）とは異なり、GMが介入
+  // する選択ステップを持たない一発抽選。ランダム戦技枠が付く武器の場合、既存の武器カード
+  // （renderRandomSkillPicker）から入手後に個別で決定すればよいため、ここでは戦技抽選は行わない。
+  function merchantDrawWeapon(c) {
+    var categories = Weapons.categories();
+    if (!categories.length) return null;
+    var attempt, item, rarity, categoryId, rarityDie, itemDie;
+    for (attempt = 0; attempt < 20; attempt++) {
+      categoryId = categories[Math.floor(Math.random() * categories.length)].id;
+      rarityDie = rollD6();
+      rarity = lookupRarityBySum(rarityDie);
+      itemDie = rollD6();
+      item = pickWeaponByRoll(categoryId, rarity, itemDie);
+      if (item && !isNotePlaceholderWeapon(item)) break;
+      item = null;
+    }
+    if (!item) return null;
+    if (!c.weaponIds) c.weaponIds = [];
+    var newInstanceId = makeWeaponInstanceId(item.id, c);
+    c.weaponIds.push(newInstanceId);
+    return {
+      categoryId: categoryId,
+      rarity: rarity,
+      rarityDie: rarityDie,
+      itemDie: itemDie,
+      item: item,
+      weaponId: newInstanceId,
+    };
+  }
+
   function resolveSimpleTableRoll(category, d1) {
     var row = (category.randomSkillTable || []).filter(function (r) {
       return String(r.roll) === String(d1);
@@ -4755,6 +4787,7 @@
     getEquippedWeaponSkillEntries: getEquippedWeaponSkillEntries,
     categoryTwoHitDiceBonus: categoryTwoHitDiceBonus,
     weaponAccumulationEffects: weaponAccumulationEffects,
+    merchantDrawWeapon: merchantDrawWeapon,
     weaponSpecialEffectNotes: weaponSpecialEffectNotes,
     talismanFlatSkillBonus: talismanFlatSkillBonus,
     computeWeaponDamage: computeWeaponDamage,

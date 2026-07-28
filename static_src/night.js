@@ -4109,6 +4109,146 @@
     document.getElementById("battle-drawer").classList.remove("open");
   }
 
+  // ============================================================
+  // 商人イベントチット：ルーン1消費で「装備品の購入（武器：★、全カテゴリ完全ランダム）」
+  // または「消耗品の購入（下記5種から任意で1個）」のいずれかを行える。
+  // ============================================================
+  var MERCHANT_CONSUMABLE_IDS = [
+    "item_warming_stone",
+    "item_turtle_neck_pickle",
+    "item_throwing_pot",
+    "item_shard_of_starlight",
+    "item_throwing_dagger",
+  ];
+  var merchantSelectedCharacterId = null;
+  var merchantLastWeaponResult = null; // { categoryId, rarity, item, weaponId } | null
+
+  function openMerchantModal() {
+    var entered = rosterCharacters.filter(function (c) {
+      return c.entered;
+    });
+    if (!entered.length) return;
+    if (
+      !entered.some(function (c) {
+        return c.id === merchantSelectedCharacterId;
+      })
+    ) {
+      merchantSelectedCharacterId = entered[0].id;
+    }
+    merchantLastWeaponResult = null;
+    document.getElementById("merchant-modal").hidden = false;
+    renderMerchantModal();
+  }
+
+  function closeMerchantModal() {
+    document.getElementById("merchant-modal").hidden = true;
+  }
+
+  function renderMerchantModal() {
+    var entered = rosterCharacters.filter(function (c) {
+      return c.entered;
+    });
+    var select = document.getElementById("merchant-character-select");
+    select.innerHTML = "";
+    entered.forEach(function (c) {
+      var o = document.createElement("option");
+      o.value = c.id;
+      o.textContent = c.name;
+      if (c.id === merchantSelectedCharacterId) o.selected = true;
+      select.appendChild(o);
+    });
+    select.onchange = function () {
+      merchantSelectedCharacterId = select.value;
+      merchantLastWeaponResult = null;
+      renderMerchantModal();
+    };
+
+    var c = entered.filter(function (rc) {
+      return rc.id === merchantSelectedCharacterId;
+    })[0];
+    var runeLabel = document.getElementById("merchant-rune-label");
+    var content = document.getElementById("merchant-modal-content");
+    content.innerHTML = "";
+    if (!c) {
+      runeLabel.textContent = "";
+      return;
+    }
+    runeLabel.textContent = window.I18N.t("merchant_rune_label", { value: c.runes || 0 });
+    var canAfford = (c.runes || 0) >= 1;
+
+    var weaponTitle = document.createElement("h5");
+    weaponTitle.textContent = window.I18N.t("merchant_weapon_purchase_title");
+    content.appendChild(weaponTitle);
+    var weaponNote = document.createElement("p");
+    weaponNote.className = "threat-ref-body";
+    weaponNote.textContent = window.I18N.t("merchant_weapon_purchase_note");
+    content.appendChild(weaponNote);
+    var weaponBtn = document.createElement("button");
+    weaponBtn.type = "button";
+    weaponBtn.className = "primary-btn";
+    weaponBtn.textContent = window.I18N.t("merchant_weapon_purchase_button");
+    weaponBtn.disabled = !canAfford;
+    weaponBtn.addEventListener("click", function () {
+      if ((c.runes || 0) < 1) return;
+      var result = CharacterDrawer.merchantDrawWeapon(c);
+      if (!result) {
+        window.alert(window.I18N.t("merchant_weapon_draw_failed"));
+        return;
+      }
+      c.runes -= 1;
+      saveRosterCharacters();
+      renderCharacterRoster();
+      var Weapons = window.PriTestWeapons;
+      addLog("log_merchant_weapon_purchase", {
+        character: c.name,
+        weapon: Weapons.localizedText(result.item.name),
+      });
+      merchantLastWeaponResult = result;
+      renderMerchantModal();
+    });
+    content.appendChild(weaponBtn);
+    if (merchantLastWeaponResult) {
+      var Weapons2 = window.PriTestWeapons;
+      var resultP = document.createElement("p");
+      resultP.className = "threat-ref-body weapon-roll-result";
+      resultP.textContent = window.I18N.t("merchant_weapon_result", {
+        weapon: Weapons2.localizedText(merchantLastWeaponResult.item.name),
+        rarity: merchantLastWeaponResult.rarity,
+      });
+      content.appendChild(resultP);
+    }
+
+    var consumableTitle = document.createElement("h5");
+    consumableTitle.textContent = window.I18N.t("merchant_consumable_purchase_title");
+    content.appendChild(consumableTitle);
+    var Consumables = window.PriTestConsumables;
+    var consumableRow = document.createElement("div");
+    consumableRow.className = "wb-row";
+    MERCHANT_CONSUMABLE_IDS.forEach(function (id) {
+      var item = Consumables.get(id);
+      if (!item) return;
+      var btn = document.createElement("button");
+      btn.type = "button";
+      btn.textContent = Consumables.localizedText ? Consumables.localizedText(item.name) : item.name.zh;
+      btn.disabled = !canAfford;
+      btn.addEventListener("click", function () {
+        if ((c.runes || 0) < 1) return;
+        c.runes -= 1;
+        if (!c.consumableCounts) c.consumableCounts = {};
+        c.consumableCounts[id] = (c.consumableCounts[id] || 0) + 1;
+        saveRosterCharacters();
+        renderCharacterRoster();
+        addLog("log_merchant_consumable_purchase", {
+          character: c.name,
+          item: Consumables.localizedText ? Consumables.localizedText(item.name) : item.name.zh,
+        });
+        renderMerchantModal();
+      });
+      consumableRow.appendChild(btn);
+    });
+    content.appendChild(consumableRow);
+  }
+
   function openAttributeStatusDrawer() {
     document.getElementById("attribute-status-drawer").classList.add("open");
     renderAttributeStatusList();
@@ -4626,6 +4766,10 @@
       label.textContent = window.I18N.t("event_chip_" + chipId);
       chipRow.appendChild(img);
       chipRow.appendChild(label);
+      if (chipId === "merchant") {
+        chipRow.style.cursor = "pointer";
+        chipRow.addEventListener("click", openMerchantModal);
+      }
       el.appendChild(chipRow);
     }
   }
@@ -5916,6 +6060,7 @@
     document.getElementById("btn-attribute-status-info").addEventListener("click", openAttributeStatusDrawer);
     document.getElementById("btn-attribute-status-drawer-close").addEventListener("click", closeAttributeStatusDrawer);
     document.getElementById("attribute-status-drawer-backdrop").addEventListener("click", closeAttributeStatusDrawer);
+    document.getElementById("btn-merchant-modal-close").addEventListener("click", closeMerchantModal);
     document.querySelectorAll(".combat-action-btn").forEach(function (btn) {
       btn.addEventListener("click", function () {
         combatModalAction = btn.dataset.action;

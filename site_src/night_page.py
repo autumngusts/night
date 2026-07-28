@@ -286,6 +286,21 @@ BODY = """    <div class="night-header-row">
       </div>
     </div>
 
+    <div id="merchant-modal" class="modal" hidden>
+      <div class="modal-box combat-modal-box">
+        <h2 data-i18n="merchant_modal_title"></h2>
+        <div class="wb-row">
+          <label data-i18n="merchant_character_label"></label>
+          <select id="merchant-character-select"></select>
+        </div>
+        <p id="merchant-rune-label" class="threat-ref-body"></p>
+        <div id="merchant-modal-content"></div>
+        <div class="actions">
+          <button id="btn-merchant-modal-close" type="button" class="primary-btn" data-i18n="close_button"></button>
+        </div>
+      </div>
+    </div>
+
     <div id="breakthrough-modal" class="modal" hidden>
       <div class="modal-box combat-modal-box">
         <h2 id="breakthrough-modal-title" data-i18n="breakthrough_modal_title"></h2>
