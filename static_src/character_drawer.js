@@ -2221,11 +2221,41 @@
   }
 
   // 「潜在する力」で「得意武器」を選んだ場合の武器抽選（規則書093/149-151頁）。GMが指定した
+  // レベルアップ時の武器抽選（weaponRollState）のstep3ボタンと全く同じ規則で、ランダム
+  // 戦技枠（kind:"random"）を解決する（カテゴリにnamedSkillTablesがあれば2D6、無ければ1D6）。
+  // 該当する枠が無ければnullを返す。純粋関数（キャラクター状態には一切触れない）。
+  function resolveRandomSkillForItem(category, item) {
+    var refs = getItemSkillRefs(category, item);
+    var randomRef = refs.filter(function (r) {
+      return r.kind === "random";
+    })[0];
+    if (!randomRef) return null;
+    var hasNamedTables = category && category.namedSkillTables && category.namedSkillTables.length;
+    if (hasNamedTables) {
+      var d1 = rollD6();
+      var d2 = rollD6();
+      var tableIndexByLetter = {};
+      category.namedSkillTables.forEach(function (t, idx) {
+        var letter = (Weapons.localizedText(t.title).match(/[（(]([A-Z])[）)]/) || [])[1];
+        if (letter) tableIndexByLetter[letter] = idx;
+      });
+      var idx = randomRef.table !== undefined ? tableIndexByLetter[randomRef.table] : undefined;
+      var table = idx !== undefined ? category.namedSkillTables[idx] : null;
+      var row = table ? resolveNamedTableRoll(table, d1, d2) : null;
+      return { skillId: row ? row.id : null, dice: [d1, d2] };
+    }
+    var d = rollD6();
+    var row2 = resolveSimpleTableRoll(category, d);
+    return { skillId: row2 ? row2.id : null, dice: [d] };
+  }
+
   // ★の数だけレア度決定ダイスを振り、キャラクタータイプの「得意武器」表（favoredWeapons、
   // 1D6で3択のいずれかを決定）からカテゴリを絞り込む（「武器」が出た場合のみ全カテゴリから
-  // 完全ランダム＝レベルアップ時の武器抽選と同じ規則）。merchantDrawWeaponと異なり、この
-  // 関数はまだ確定させず（weaponIdsへ追加しない）、結果だけを返す。「潜在する力」は「得意
-  // 武器」と「付帯効果」を両方抽選してから、PCがどちらを獲得するか選ぶ規則のため。
+  // 完全ランダム＝レベルアップ時の武器抽選と同じ規則）。ランダム戦技枠を持つ武器の場合は
+  // その場で戦技も併せて解決する（規則書どおり、得意武器の抽選は一括で完結する）。
+  // merchantDrawWeaponと異なり、この関数はまだ確定させず（weaponIdsへ追加しない）、
+  // 結果だけを返す。「潜在する力」は「得意武器」と「付帯効果」を両方抽選してから、
+  // PCがどちらを獲得するか選ぶ規則のため。
   function potentialPowerDrawWeapon(c, starCount) {
     var type = c.typeId ? CharacterTypes.get(c.typeId) : null;
     if (!type) return null;
@@ -2264,6 +2294,9 @@
     }
     if (!item) return null;
 
+    var category = Weapons.getCategory(categoryId);
+    var skillResolution = resolveRandomSkillForItem(category, item);
+
     return {
       favoredDie: favoredDie,
       favoredName: favoredName,
@@ -2274,18 +2307,26 @@
       rarity: rarity,
       itemDie: itemDie,
       item: item,
+      skillId: skillResolution ? skillResolution.skillId : null,
+      skillDice: skillResolution ? skillResolution.dice : null,
     };
   }
 
   // まだ入手していない（インスタンスID未発行の）武器カタログデータから、戦技名の一覧を
-  // 組み立てる（潜在する力・商人などのプレビュー表示用）。ランダム戦技枠（kind:"random"）は
-  // まだ解決されていないため「未決定」として示す（既存の武器カードで後から個別に決定する）。
-  function weaponPreviewSkillNames(item, categoryId) {
+  // 組み立てる（潜在する力・商人などのプレビュー表示用）。resolvedSkillIdを渡した場合、
+  // ランダム戦技枠（kind:"random"）はその戦技名で表示する（未解決ならプレースホルダー表示）。
+  function weaponPreviewSkillNames(item, categoryId, resolvedSkillId) {
     var category = Weapons.getCategory(categoryId);
     var refs = getItemSkillRefs(category, item);
     return refs
       .map(function (ref) {
-        if (ref.kind === "random") return window.I18N.t("weapon_random_skill_pending_label");
+        if (ref.kind === "random") {
+          if (resolvedSkillId) {
+            var skill = Weapons.getSkill(resolvedSkillId);
+            return skill ? Weapons.localizedText(skill.name) : window.I18N.t("weapon_random_skill_pending_label");
+          }
+          return window.I18N.t("weapon_random_skill_pending_label");
+        }
         if (ref.kind === "note") return null;
         return weaponSkillRefName(ref, null, item.id, null);
       })
@@ -2297,6 +2338,23 @@
     if (!c.weaponIds) c.weaponIds = [];
     var newInstanceId = makeWeaponInstanceId(result.item.id, c);
     c.weaponIds.push(newInstanceId);
+    if (result.skillId) {
+      if (!c.weaponRandomSkills) c.weaponRandomSkills = {};
+      var category = Weapons.getCategory(result.categoryId);
+      // 盾はattachedEffect／reverseArtの双方がkind:"random"のことがあるが、抽選はここでは
+      // 1回のみなので、両方に該当する場合は同じ結果を両スロットへ割り当てる（既存の武器抽選の
+      // 確定処理と同じ規則。GMがその後の武器欄で片方だけ個別に振り直すことも可能）。
+      var rolledSlots = [];
+      if (category && category.isShield) {
+        if ((result.item.attachedEffect || []).some(function (r) { return r.kind === "random"; })) rolledSlots.push("attached");
+        if ((result.item.reverseArt || []).some(function (r) { return r.kind === "random"; })) rolledSlots.push("reverse");
+      } else {
+        rolledSlots.push(null);
+      }
+      rolledSlots.forEach(function (slot) {
+        c.weaponRandomSkills[weaponSkillSlotKey(newInstanceId, slot)] = result.skillId;
+      });
+    }
     return newInstanceId;
   }
 

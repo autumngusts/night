@@ -1839,10 +1839,14 @@
         });
 
         if (floor.reward) {
-          var rewardContainer = document.createElement("div");
-          rewardContainer.className = "field-floor-reward";
-          renderFloorRewardSection(rewardContainer, floor);
-          floorDiv.appendChild(rewardContainer);
+          var rewardBtn = document.createElement("button");
+          rewardBtn.type = "button";
+          rewardBtn.className = "field-floor-reward-btn";
+          rewardBtn.textContent = window.I18N.t("floor_reward_open_button");
+          rewardBtn.addEventListener("click", function () {
+            openFloorRewardModal(floor);
+          });
+          floorDiv.appendChild(rewardBtn);
         }
 
         branchDiv.appendChild(floorDiv);
@@ -4413,7 +4417,7 @@
       var weaponSummary = document.createElement("summary");
       weaponSummary.textContent = window.I18N.t("potential_power_weapon_detail_toggle");
       weaponDetails.appendChild(weaponSummary);
-      var skillNames = CharacterDrawer.weaponPreviewSkillNames(wr.item, wr.categoryId);
+      var skillNames = CharacterDrawer.weaponPreviewSkillNames(wr.item, wr.categoryId, wr.skillId);
       var skillP = document.createElement("p");
       skillP.className = "threat-ref-body";
       skillP.textContent = skillNames.length ? skillNames.join("、") : window.I18N.t("potential_power_weapon_no_skill_note");
@@ -4458,14 +4462,29 @@
       body.textContent = Weapons.localizedText(effect.body);
       card.appendChild(body);
       if (potentialPowerEffectSlotPreview) {
+        var replacedEffect = CharacterDrawer.attachedEffectById(potentialPowerEffectSlotPreview.replacedId);
         var replaceNote = document.createElement("p");
         replaceNote.className = "threat-ref-body";
         replaceNote.style.color = "#b3441e";
-        var replacedEffect = CharacterDrawer.attachedEffectById(potentialPowerEffectSlotPreview.replacedId);
         replaceNote.textContent = window.I18N.t("potential_power_effect_will_replace_note", {
           old: replacedEffect ? Weapons.localizedText(replacedEffect.name) : potentialPowerEffectSlotPreview.replacedId,
         });
         card.appendChild(replaceNote);
+        if (replacedEffect) {
+          // 失う予定の効果の全文も同じ画面で確認できるようにする（名前だけでは判断しづらいため）。
+          var replacedBox = document.createElement("div");
+          replacedBox.className = "relic-candidate-card";
+          replacedBox.style.background = "#fff2ec";
+          var replacedName = document.createElement("div");
+          replacedName.className = "relic-candidate-name";
+          replacedName.textContent = Weapons.localizedText(replacedEffect.name) + "［Passive］";
+          replacedBox.appendChild(replacedName);
+          var replacedBody = document.createElement("p");
+          replacedBody.className = "threat-ref-body";
+          replacedBody.textContent = Weapons.localizedText(replacedEffect.body);
+          replacedBox.appendChild(replacedBody);
+          card.appendChild(replacedBox);
+        }
       }
       var chooseBtn = document.createElement("button");
       chooseBtn.type = "button";
@@ -5096,6 +5115,36 @@
 
   // 樓層突破判定モーダルの分岐/フロア選択に連動して、そのフロアの「獲得」ボタン群を描画する。
   // floor.reward（fields.jsに手作業で追加した構造化データ）が無いフロアは何も表示しない。
+  // 樓層の「獲得」ボタン（規則書の該当フロア見出し直下）は1つだけ配置し、押すと規則書を
+  // 閉じてこの小さな専用モーダルを開く。抽選と違って各ボタンは即時に効果を適用するだけ
+  // （やり直しが効く一覧選択なので）、保持すべき状態は「どのフロアを開いているか」だけ。
+  var floorRewardModalFloor = null;
+
+  function openFloorRewardModal(floor) {
+    floorRewardModalFloor = floor;
+    document.getElementById("rulebook-modal").hidden = true;
+    document.getElementById("floor-reward-modal").hidden = false;
+    document.getElementById("btn-floor-reward-restore").hidden = true;
+    renderFloorRewardSection(document.getElementById("floor-reward-modal-content"), floor);
+  }
+
+  function closeFloorRewardModal() {
+    document.getElementById("floor-reward-modal").hidden = true;
+    document.getElementById("btn-floor-reward-restore").hidden = true;
+    floorRewardModalFloor = null;
+  }
+
+  function minimizeFloorRewardModal() {
+    document.getElementById("floor-reward-modal").hidden = true;
+    document.getElementById("btn-floor-reward-restore").hidden = false;
+  }
+
+  function restoreFloorRewardModal() {
+    document.getElementById("btn-floor-reward-restore").hidden = true;
+    document.getElementById("floor-reward-modal").hidden = false;
+    if (floorRewardModalFloor) renderFloorRewardSection(document.getElementById("floor-reward-modal-content"), floorRewardModalFloor);
+  }
+
   function renderFloorRewardSection(container, floor) {
     container.innerHTML = "";
     var reward = floor && floor.reward;
@@ -6465,6 +6514,9 @@
     document.getElementById("btn-potential-power-modal-close").addEventListener("click", closePotentialPowerModal);
     document.getElementById("btn-potential-power-minimize").addEventListener("click", minimizePotentialPowerModal);
     document.getElementById("btn-potential-power-restore").addEventListener("click", restorePotentialPowerModal);
+    document.getElementById("btn-floor-reward-modal-close").addEventListener("click", closeFloorRewardModal);
+    document.getElementById("btn-floor-reward-minimize").addEventListener("click", minimizeFloorRewardModal);
+    document.getElementById("btn-floor-reward-restore").addEventListener("click", restoreFloorRewardModal);
     document.querySelectorAll(".combat-action-btn").forEach(function (btn) {
       btn.addEventListener("click", function () {
         combatModalAction = btn.dataset.action;

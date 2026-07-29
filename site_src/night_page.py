@@ -327,6 +327,18 @@ BODY = """    <div class="night-header-row">
     </div>
     <button id="btn-potential-power-restore" type="button" class="potential-power-restore-btn" data-i18n="potential_power_restore_button" hidden></button>
 
+    <div id="floor-reward-modal" class="modal" hidden>
+      <div class="modal-box combat-modal-box">
+        <h2 data-i18n="floor_reward_title"></h2>
+        <div id="floor-reward-modal-content"></div>
+        <div class="actions">
+          <button id="btn-floor-reward-minimize" type="button" data-i18n="potential_power_minimize_button"></button>
+          <button id="btn-floor-reward-modal-close" type="button" class="primary-btn" data-i18n="close_button"></button>
+        </div>
+      </div>
+    </div>
+    <button id="btn-floor-reward-restore" type="button" class="potential-power-restore-btn floor-reward-restore-btn" data-i18n="floor_reward_restore_button" hidden></button>
+
     <div id="breakthrough-modal" class="modal" hidden>
       <div class="modal-box combat-modal-box">
         <h2 id="breakthrough-modal-title" data-i18n="breakthrough_modal_title"></h2>

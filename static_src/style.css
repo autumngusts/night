@@ -2322,6 +2322,21 @@ button {
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
 }
 
+.floor-reward-restore-btn {
+  bottom: 4rem;
+  background: #2f8f5b;
+}
+
+.field-floor-reward-btn {
+  margin: 0.4rem 0 0.3rem;
+  padding: 0.35rem 0.8rem;
+  border-radius: 6px;
+  background: #2f8f5b;
+  color: #fff;
+  border: none;
+  font-size: 0.82rem;
+}
+
 .field-floor-reward {
   margin: 0.5rem 0 0.3rem;
   padding: 0.5rem 0.6rem;
