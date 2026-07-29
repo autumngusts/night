@@ -1750,6 +1750,12 @@
                 L(2, null, ["「君主軍たち(Lv.2 + L補)」", "「君主軍們（Lv.2+L補）」"], true),
                 L(2, null, ["「武器：★」（フロア踏破）", "獲得「武器：★」1個（樓層踏破）"], true),
               ],
+              reward: [
+                { kind: "weaponStar", value: 2, note: C("（こっそりチェスト・行為判定成功時）", "（偷偷拿寶箱・行為判定成功時）") },
+                { kind: "weaponStar", value: 2, note: C("（こっそりチェスト・行為判定失敗時）", "（偷偷拿寶箱・行為判定失敗時）") },
+                { kind: "consumable", value: 1, note: C("（こっそりチェスト・行為判定失敗時）", "（偷偷拿寶箱・行為判定失敗時）") },
+                { kind: "weaponStar", value: 1, note: C("（ザコ戦闘撃破）", "（雜兵戰鬥擊破）") },
+              ],
             },
             {
               label: C("フロア2", "樓層2"),
@@ -1801,6 +1807,15 @@
                   true
                 ),
               ],
+              reward: [
+                { kind: "stoneswordKey", value: 1, note: C("（すり抜けて宝箱）", "（鑽過取寶箱）") },
+                { kind: "weaponStar", value: 1, note: C("（すり抜けて宝箱）", "（鑽過取寶箱）") },
+                { kind: "consumable", value: 1, note: C("（すり抜けて宝箱）", "（鑽過取寶箱）") },
+                { kind: "potentialPower", perPerson: true, value: 1, note: C("（ボス戦闘撃破）", "（王戰擊破）") },
+                { kind: "stoneswordKey", value: 1, note: C("（ボス戦闘撃破）", "（王戰擊破）") },
+                { kind: "weaponStar", value: 1, note: C("（ボス戦闘撃破）", "（王戰擊破）") },
+                { kind: "consumable", value: 1, note: C("（ボス戦闘撃破）", "（王戰擊破）") },
+              ],
             },
           ],
         },
@@ -1844,6 +1859,7 @@
                   true
                 ),
               ],
+              reward: [{ kind: "potentialPower", perPerson: true, value: 1, note: C("（ボス戦闘撃破）", "（王戰擊破）") }],
             },
             {
               label: C("フロア2", "樓層2"),
@@ -1894,6 +1910,16 @@
                   ],
                   true
                 ),
+              ],
+              reward: [
+                { kind: "stoneswordKey", value: 1, note: C("（塔へ潜入・行為判定成功時）", "（潛入塔內・行為判定成功時）") },
+                { kind: "consumable", value: 1, note: C("（塔へ潜入・行為判定成功時）", "（潛入塔內・行為判定成功時）") },
+                { kind: "stoneswordKey", value: 1, note: C("（ザコ戦闘撃破）", "（雜兵戰鬥擊破）") },
+                { kind: "consumable", value: 1, note: C("（ザコ戦闘撃破）", "（雜兵戰鬥擊破）") },
+                {
+                  kind: "note",
+                  note: C("（ザコ戦闘撃破。地図のクローズエリアを1つオープン可能。GM判断で処理）", "（雜兵戰鬥擊破。可開啟地圖上1個未開啟區域，由GM判斷處理）"),
+                },
               ],
             },
           ],
@@ -1969,6 +1995,10 @@
                   true
                 ),
               ],
+              reward: [
+                { kind: "weaponStar", value: 1, note: C("（ザコ戦闘撃破）", "（雜兵戰鬥擊破）") },
+                { kind: "stoneswordKey", value: 1, note: C("（ザコ戦闘撃破）", "（雜兵戰鬥擊破）") },
+              ],
             },
             {
               label: C("フロア2", "樓層2"),
@@ -1992,6 +2022,7 @@
                   true
                 ),
               ],
+              reward: [{ kind: "potentialPower", perPerson: true, value: 1, note: C("（ボス戦闘撃破）", "（王戰擊破）") }],
             },
           ],
         },
@@ -2060,6 +2091,18 @@
                   true
                 ),
               ],
+              reward: [
+                { kind: "stoneswordKey", value: 1, note: C("（宝物庫に入る）", "（進入寶物庫）") },
+                {
+                  kind: "weaponStar",
+                  value: 1,
+                  note: C("（宝物庫に入る。武器に「魔/-5」付与は手動記録）", "（進入寶物庫。武器追加「魔／-5」需手動記錄）"),
+                },
+                {
+                  kind: "note",
+                  note: C("（ザコ戦闘撃破。「杖：★」獲得。武器抽選画面で杖カテゴリを手動抽選）", "（雜兵戰鬥擊破。獲得「杖：★」。請於武器抽選畫面手動抽選杖類別）"),
+                },
+              ],
             },
             {
               label: C("フロア2", "樓層2"),
@@ -2113,6 +2156,23 @@
                   ],
                   true
                 ),
+              ],
+              reward: [
+                { kind: "stoneswordKey", value: 1, note: C("（ボス戦闘撃破）", "（王戰擊破）") },
+                {
+                  kind: "potentialPower",
+                  perPerson: true,
+                  value: 1,
+                  note: C("（ボス戦闘撃破。武器に「魔/-5」付与は手動記録）", "（王戰擊破。武器追加「魔／-5」需手動記錄）"),
+                },
+                {
+                  kind: "note",
+                  note: C("（ボス戦闘撃破。「杖：★」獲得。武器抽選画面で杖カテゴリを手動抽選）", "（王戰擊破。獲得「杖：★」。請於武器抽選畫面手動抽選杖類別）"),
+                },
+                {
+                  kind: "note",
+                  note: C("（ボス戦闘撃破。地図のクローズエリアを1つオープン可能。GM判断で処理）", "（王戰擊破。可開啟地圖上1個未開啟區域，由GM判斷處理）"),
+                },
               ],
             },
           ],
