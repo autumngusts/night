@@ -2188,19 +2188,27 @@
     return null;
   }
 
-  // 商人イベント「装備品の購入」：ルーン1消費でカテゴリ・稀有度・アイテムを全てランダムに
-  // 決定する簡易抽選（★1固定＝稀有度決定に振る骰子は1個のみ）。レベルアップ時の武器抽選
-  // （potentialPower選択→カテゴリ選択→稀有度→アイテム→ランダム戦技）とは異なり、GMが介入
-  // する選択ステップを持たない一発抽選。ランダム戦技枠が付く武器の場合、既存の武器カード
-  // （renderRandomSkillPicker）から入手後に個別で決定すればよいため、ここでは戦技抽選は行わない。
-  function merchantDrawWeapon(c) {
+  // 商人イベント「装備品の購入」や樓層獲得の「武器：★N」報酬：カテゴリ・稀有度・アイテムを
+  // 全てランダムに決定する簡易抽選（starCount省略時は★1固定＝稀有度決定に振る骰子は1個の
+  // み。樓層獲得の「武器：★★」等、より高いレア度決定値を指定したい場合はstarCountを渡す）。
+  // レベルアップ時の武器抽選（potentialPower選択→カテゴリ選択→稀有度→アイテム→ランダム
+  // 戦技）とは異なり、GMが介入する選択ステップを持たない一発抽選。ランダム戦技枠が付く
+  // 武器の場合、既存の武器カード（renderRandomSkillPicker）から入手後に個別で決定すればよい
+  // ため、ここでは戦技抽選は行わない。
+  function merchantDrawWeapon(c, starCount) {
     var categories = Weapons.categories();
     if (!categories.length) return null;
-    var attempt, item, rarity, categoryId, rarityDie, itemDie;
+    var stars = Math.max(1, Math.min(4, starCount || 1));
+    var attempt, item, rarity, categoryId, rarityDice, itemDie;
     for (attempt = 0; attempt < 20; attempt++) {
       categoryId = categories[Math.floor(Math.random() * categories.length)].id;
-      rarityDie = rollD6();
-      rarity = lookupRarityBySum(rarityDie);
+      rarityDice = [];
+      for (var i = 0; i < stars; i++) rarityDice.push(rollD6());
+      rarity = lookupRarityBySum(
+        rarityDice.reduce(function (a, b) {
+          return a + b;
+        }, 0)
+      );
       itemDie = rollD6();
       item = pickWeaponByRoll(categoryId, rarity, itemDie);
       if (item && !isNotePlaceholderWeapon(item)) break;
@@ -2213,7 +2221,7 @@
     return {
       categoryId: categoryId,
       rarity: rarity,
-      rarityDie: rarityDie,
+      rarityDice: rarityDice,
       itemDie: itemDie,
       item: item,
       weaponId: newInstanceId,

@@ -419,6 +419,7 @@ BODY = """    <div class="night-header-row">
           <div class="field-row-block">
             <label data-i18n="smithing_stone_label"></label>
             <input type="text" id="input-smithing-stone">
+            <span id="smithing-stone-count-label" class="ability-uses-label"></span>
           </div>
           <div class="field-row-block">
             <label data-i18n="stonesword_key_label"></label>

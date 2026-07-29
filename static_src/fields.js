@@ -2585,16 +2585,15 @@
                 L(2, null, ["前項の行為判定にPC全員が成功していた場合、追加で「石剣の鍵」を1つ獲得。", "若前項行為判定PC全員成功，額外獲得「石劍鑰匙」1個。"], true),
               ],
               // 獲得ボタン用の構造化データ（規則書の自由文からGMが手動で拾える範囲のみ）。
-              // failureHpDamage: 行為判定に失敗したPCへのHP損害（■=1点、他の■表記と同じ規則）。
-              // clearRunePerPerson: ザコ戦闘撃破時、入場中の各PCへ加算するルーン数。
-              // clearConsumable: フロア踏破時に獲得する消耗品の個数（誰が獲得するかはGMが選ぶ、人数分ではない）。
-              // allSuccessBonus: 行為判定にPC全員が成功していた場合のみ追加で発生するボーナス。
-              reward: {
-                failureHpDamage: 1,
-                clearRunePerPerson: 1,
-                clearConsumable: 1,
-                allSuccessBonus: { stoneswordKey: 1 },
-              },
+              // 各エントリは「起こりうる結果の1つ」を表し、実際に起きた結果に応じてGMが
+              // 該当するボタンだけを押す（例：全員成功ボーナスは行為判定に全員成功した
+              // 場合のみ押す）。
+              reward: [
+                { kind: "hpDamage", value: 1, note: C("（行為判定失敗時）", "（行為判定失敗時）") },
+                { kind: "rune", perPerson: true, value: 1, note: C("（ザコ戦闘撃破）", "（雜兵戰鬥擊破）") },
+                { kind: "consumable", value: 1 },
+                { kind: "stoneswordKey", value: 1, note: C("（行為判定に全員成功時のみ）", "（行為判定全員成功時才可）") },
+              ],
             },
             {
               label: C("フロア2", "樓層2"),
@@ -2613,13 +2612,10 @@
                 L(2, null, ["「還樹の番犬（227頁）／Lv.6+L補」", "「還樹的看門犬（227頁）／Lv.6+L補」"], true),
                 L(2, null, ["撃破できたら、PCはそれぞれ「潜在する力:★」を獲得（フロア踏破）。", "擊破成功後，PC各自獲得「潛力：★」（樓層踏破）。"], true),
               ],
-              // clearRunePerPerson: ボス撃破時、入場中の各PCへ加算するルーン数。
-              // clearPotentialPowerPerPerson: フロア踏破時、各PCが得る「潜在する力:★」の機会の数
-              // （実際の抽選は既存の「潜在する力」モーダルから個別に行うため、ここでは記録のみ）。
-              reward: {
-                clearRunePerPerson: 3,
-                clearPotentialPowerPerPerson: 1,
-              },
+              reward: [
+                { kind: "rune", perPerson: true, value: 3, note: C("（ボス戦闘撃破）", "（王戰擊破）") },
+                { kind: "potentialPower", perPerson: true, value: 1 },
+              ],
             },
           ],
         },
@@ -2664,6 +2660,9 @@
                 L(2, null, ["「人形兵たち（223頁）／Lv.3 + L補」", "「人偶兵們（223頁）／Lv.3+L補」"], true),
                 L(2, null, ["撃破に成功しても、何も得られない（フロア踏破）。", "即使擊破成功，也沒有可獲得的東西（樓層踏破）。"], true),
               ],
+              reward: [
+                { kind: "stoneswordKey", value: 1, note: C("（隠れ進む行為判定成功時のみ）", "（潛行前進行為判定成功時才可）") },
+              ],
             },
             {
               label: C("フロア2", "樓層2"),
@@ -2686,6 +2685,10 @@
                   ["撃破できたら、PCはそれぞれ「潜在する力:★（武器は「魔/-5」を追加）」を獲得（フロア踏破）。", "擊破成功後，PC各自獲得「潛力：★（武器追加「魔／-5」）」（樓層踏破）。"],
                   true
                 ),
+              ],
+              reward: [
+                { kind: "rune", perPerson: true, value: 3, note: C("（ボス戦闘撃破）", "（王戰擊破）") },
+                { kind: "potentialPower", perPerson: true, value: 1, note: C("（武器は「魔／-5」を追加、GMが個別に付記）", "（武器追加「魔／-5」，需GM另行記錄）") },
               ],
             },
           ],
@@ -2746,6 +2749,11 @@
                 L(2, null, ["「混種たち（220頁）／Lv.3＋L補」", "「混種們（220頁）／Lv.3+L補」"], true),
                 L(2, null, ["撃破に成功しても、何も得られない（フロア踏破）。", "即使擊破成功，也沒有可獲得的東西（樓層踏破）。"], true),
               ],
+              reward: [
+                { kind: "talisman", value: 1, note: C("（遺体の調査に1人でも成功時のみ）", "（調查遺體只要1人成功即可）") },
+                { kind: "stoneswordKey", value: 1, note: C("（遺体の調査に1人でも成功時のみ）", "（調查遺體只要1人成功即可）") },
+                { kind: "consumable", value: 1, note: C("（遺体の調査成功時、または投擲壺(魔)を選ぶ）", "（調查遺體成功時，或選擇投擲壺(魔)）") },
+              ],
             },
             {
               label: C("フロア2", "樓層2"),
@@ -2768,6 +2776,10 @@
                   ["撃破できたら、PCはそれぞれ「潜在する力:★（武器は「雷/-5 (154頁)」を追加）」を獲得（フロア踏破）。", "擊破成功後，PC各自獲得「潛力：★（武器追加「雷／-5（154頁）」）」（樓層踏破）。"],
                   true
                 ),
+              ],
+              reward: [
+                { kind: "rune", perPerson: true, value: 4, note: C("（ボス戦闘撃破）", "（王戰擊破）") },
+                { kind: "potentialPower", perPerson: true, value: 1, note: C("（武器は「雷／-5」を追加、GMが個別に付記）", "（武器追加「雷／-5」，需GM另行記錄）") },
               ],
             },
           ],
@@ -2815,6 +2827,9 @@
                 L(2, null, ["「しろがね人たち（220頁）／Lv.3 + L補」", "「白銀人們（220頁）／Lv.3+L補」"], true),
                 L(2, null, ["撃破に成功しても、得るものは何もない（フロア踏破）。", "即使擊破成功，也沒有可獲得的東西（樓層踏破）。"], true),
               ],
+              reward: [
+                { kind: "stoneswordKey", value: 1, note: C("（遠回りで進む行為判定成功時のみ）", "（繞路前進行為判定成功時才可）") },
+              ],
             },
             {
               label: C("フロア2", "樓層2"),
@@ -2840,6 +2855,11 @@
                   ],
                   true
                 ),
+              ],
+              reward: [
+                { kind: "rune", perPerson: true, value: 4, note: C("（ボス戦闘撃破）", "（王戰擊破）") },
+                { kind: "potentialPower", perPerson: true, value: 1, note: C("（武器は「聖／-5」を追加、GMが個別に付記）", "（武器追加「聖／-5」，需GM另行記錄）") },
+                { kind: "consumable", value: 1, note: C("（木箱、投擲壺(聖)を選ぶ）", "（木箱，選擇投擲壺(聖)）") },
               ],
             },
           ],
@@ -2888,6 +2908,11 @@
                 L(2, null, ["「人蝙蝠たち（238頁）／Lv.3 + L補」", "「人蝙蝠們（238頁）／Lv.3+L補」"], true),
                 L(2, null, ["撃破に成功しても、得るものは何もない（フロア踏破）。", "即使擊破成功，也沒有可獲得的東西（樓層踏破）。"], true),
               ],
+              reward: [
+                { kind: "hpDamage", value: 1, note: C("（半数以上のPCが行為判定失敗時、失敗したPCへ）", "（半數以上PC行為判定失敗時，對失敗的PC）") },
+                { kind: "consumable", value: 1, note: C("（行為判定に全員成功時のみ）", "（行為判定全員成功時才可）") },
+                { kind: "consumable", value: 1, note: C("（行為判定に全員成功時のみ、骨の毒投げ矢を選ぶ）", "（行為判定全員成功時才可，選擇骨毒投擲箭）") },
+              ],
             },
             {
               label: C("フロア2", "樓層2"),
@@ -2915,6 +2940,12 @@
                   ],
                   true
                 ),
+              ],
+              reward: [
+                { kind: "hpDamage", value: 2, note: C("（戦闘開始時、敵視最高のPCへ）", "（戰鬥開始時，對敵視最高的PC）") },
+                { kind: "rune", perPerson: true, value: 3, note: C("（ボス戦闘撃破）", "（王戰擊破）") },
+                { kind: "potentialPower", perPerson: true, value: 1, note: C("（武器は「猛毒／-5」を追加、GMが個別に付記）", "（武器追加「猛毒／-5」，需GM另行記錄）") },
+                { kind: "stoneswordKey", value: 1 },
               ],
             },
           ],
@@ -2947,6 +2978,7 @@
                 L(2, null, ["「腐った亡者たち（222頁）／Lv.2 + L補」", "「腐爛的亡者們（222頁）／Lv.2+L補」"], true),
                 L(2, null, ["撃破できたら、周囲の木箱から「武器：★」を1つ獲得（フロア踏破）。", "擊破成功後，從周圍的木箱獲得「武器：★」1個（樓層踏破）。"], true),
               ],
+              reward: [{ kind: "weaponStar", value: 1, note: C("（ザコ戦闘撃破時のみ）", "（雜兵戰鬥擊破時才可）") }],
             },
             {
               label: C("フロア2", "樓層2"),
@@ -2969,6 +3001,10 @@
                   ["撃破できたら、PCはそれぞれ「潜在する力：★（武器は「血／－5 (154頁)」を追加）」を得る（フロア踏破）。", "擊破成功後，PC各自獲得「潛力：★（武器追加「血／－5（154頁）」）」（樓層踏破）。"],
                   true
                 ),
+              ],
+              reward: [
+                { kind: "rune", perPerson: true, value: 4, note: C("（ボス戦闘撃破）", "（王戰擊破）") },
+                { kind: "potentialPower", perPerson: true, value: 1, note: C("（武器は「血／-5」を追加、GMが個別に付記）", "（武器追加「血／-5」，需GM另行記錄）") },
               ],
             },
           ],
