@@ -542,6 +542,7 @@
     rollEffects: defaultRollEffects(),
     smithingStone: "",
     stoneswordKey: "",
+    stoneswordKeyCount: 0,
     grace: "",
     battle: defaultBattleState(),
     dicePool: [],
@@ -595,6 +596,7 @@
       rollEffects: state.rollEffects,
       smithingStone: state.smithingStone,
       stoneswordKey: state.stoneswordKey,
+      stoneswordKeyCount: state.stoneswordKeyCount,
       grace: state.grace,
       battle: state.battle,
       dicePool: state.dicePool,
@@ -649,6 +651,7 @@
     state.rollEffects = snap.rollEffects;
     state.smithingStone = snap.smithingStone;
     state.stoneswordKey = snap.stoneswordKey;
+    state.stoneswordKeyCount = snap.stoneswordKeyCount || 0;
     state.grace = snap.grace;
     state.battle = snap.battle;
     state.dicePool = snap.dicePool;
@@ -1107,6 +1110,7 @@
       state.rollEffects = loadRollEffects(data.rollEffects);
       state.smithingStone = typeof data.smithingStone === "string" ? data.smithingStone : "";
       state.stoneswordKey = typeof data.stoneswordKey === "string" ? data.stoneswordKey : "";
+      state.stoneswordKeyCount = Number(data.stoneswordKeyCount) || 0;
       state.grace = typeof data.grace === "string" ? data.grace : "";
       state.battle = loadBattleState(data.battle);
       state.dicePool = loadDicePool(data.dicePool);
@@ -1145,6 +1149,7 @@
     state.rollEffects = defaultRollEffects();
     state.smithingStone = "";
     state.stoneswordKey = "";
+    state.stoneswordKeyCount = 0;
     state.grace = "";
     state.battle = defaultBattleState();
     state.dicePool = [];
@@ -2591,6 +2596,13 @@
     document.getElementById("input-smithing-stone").value = state.smithingStone || "";
     document.getElementById("input-stonesword-key").value = state.stoneswordKey || "";
     document.getElementById("input-grace").value = state.grace || "";
+    renderStoneswordKeyCount();
+  }
+
+  function renderStoneswordKeyCount() {
+    var el = document.getElementById("stonesword-key-count-label");
+    if (!el) return;
+    el.textContent = window.I18N.t("stonesword_key_count_label", { value: state.stoneswordKeyCount || 0 });
   }
 
   function renderThreatRefTexts() {
@@ -5028,6 +5040,144 @@
     return matches[0];
   }
 
+  // 樓層突破判定モーダルの分岐/フロア選択に連動して、そのフロアの「獲得」ボタン群を描画する。
+  // floor.reward（fields.jsに手作業で追加した構造化データ）が無いフロアは何も表示しない。
+  function renderFloorRewardSection(floor) {
+    var container = document.getElementById("floor-reward-section");
+    container.innerHTML = "";
+    var reward = floor && floor.reward;
+    if (!reward) return;
+    var entered = rosterCharacters.filter(function (c) {
+      return c.entered;
+    });
+    if (!entered.length) return;
+
+    var title = document.createElement("h5");
+    title.textContent = window.I18N.t("floor_reward_title");
+    container.appendChild(title);
+
+    if (reward.failureHpDamage) {
+      var hpRow = document.createElement("div");
+      hpRow.className = "wb-row";
+      var hpLabel = document.createElement("span");
+      hpLabel.className = "threat-ref-body";
+      hpLabel.textContent = window.I18N.t("floor_reward_failure_hp_label", { value: reward.failureHpDamage });
+      hpRow.appendChild(hpLabel);
+      var hpSelect = document.createElement("select");
+      entered.forEach(function (c) {
+        var o = document.createElement("option");
+        o.value = c.id;
+        o.textContent = c.name;
+        hpSelect.appendChild(o);
+      });
+      hpRow.appendChild(hpSelect);
+      var hpBtn = document.createElement("button");
+      hpBtn.type = "button";
+      hpBtn.textContent = window.I18N.t("floor_reward_apply_hp_button");
+      hpBtn.addEventListener("click", function () {
+        var target = entered.filter(function (c) {
+          return c.id === hpSelect.value;
+        })[0];
+        if (!target) return;
+        target.hp.current = Math.max(0, (target.hp.current || 0) - reward.failureHpDamage);
+        saveRosterCharacters();
+        renderCharacterRoster();
+        addLog("log_floor_reward_hp_damage", { character: target.name, value: reward.failureHpDamage });
+      });
+      hpRow.appendChild(hpBtn);
+      container.appendChild(hpRow);
+    }
+
+    if (reward.clearRunePerPerson) {
+      var runeBtn = document.createElement("button");
+      runeBtn.type = "button";
+      runeBtn.className = "primary-btn";
+      runeBtn.textContent = window.I18N.t("floor_reward_rune_button", { value: reward.clearRunePerPerson });
+      runeBtn.addEventListener("click", function () {
+        entered.forEach(function (c) {
+          c.runes = (c.runes || 0) + reward.clearRunePerPerson;
+        });
+        saveRosterCharacters();
+        renderCharacterRoster();
+        addLog("log_floor_reward_rune", { value: reward.clearRunePerPerson, count: entered.length });
+        runeBtn.disabled = true;
+      });
+      container.appendChild(runeBtn);
+    }
+
+    if (reward.clearConsumable) {
+      var Consumables = window.PriTestConsumables;
+      var consumableRow = document.createElement("div");
+      consumableRow.className = "wb-row";
+      var consumableCharSelect = document.createElement("select");
+      entered.forEach(function (c) {
+        var o = document.createElement("option");
+        o.value = c.id;
+        o.textContent = c.name;
+        consumableCharSelect.appendChild(o);
+      });
+      consumableRow.appendChild(consumableCharSelect);
+      var consumableItemSelect = document.createElement("select");
+      Consumables.list().forEach(function (item) {
+        var o = document.createElement("option");
+        o.value = item.id;
+        o.textContent = Consumables.localizedText(item.name);
+        consumableItemSelect.appendChild(o);
+      });
+      consumableRow.appendChild(consumableItemSelect);
+      var consumableBtn = document.createElement("button");
+      consumableBtn.type = "button";
+      consumableBtn.textContent = window.I18N.t("floor_reward_consumable_button", { value: reward.clearConsumable });
+      consumableBtn.addEventListener("click", function () {
+        var target = entered.filter(function (c) {
+          return c.id === consumableCharSelect.value;
+        })[0];
+        if (!target) return;
+        if (!target.consumableCounts) target.consumableCounts = {};
+        target.consumableCounts[consumableItemSelect.value] = (target.consumableCounts[consumableItemSelect.value] || 0) + reward.clearConsumable;
+        saveRosterCharacters();
+        renderCharacterRoster();
+        addLog("log_floor_reward_consumable", {
+          character: target.name,
+          item: Consumables.localizedText(Consumables.get(consumableItemSelect.value).name),
+        });
+      });
+      consumableRow.appendChild(consumableBtn);
+      container.appendChild(consumableRow);
+    }
+
+    if (reward.allSuccessBonus && reward.allSuccessBonus.stoneswordKey) {
+      var keyBtn = document.createElement("button");
+      keyBtn.type = "button";
+      keyBtn.textContent = window.I18N.t("floor_reward_stonesword_key_button", { value: reward.allSuccessBonus.stoneswordKey });
+      keyBtn.addEventListener("click", function () {
+        state.stoneswordKeyCount = (state.stoneswordKeyCount || 0) + reward.allSuccessBonus.stoneswordKey;
+        saveState();
+        renderStoneswordKeyCount();
+        addLog("log_floor_reward_stonesword_key", { value: reward.allSuccessBonus.stoneswordKey });
+        keyBtn.disabled = true;
+      });
+      container.appendChild(keyBtn);
+    }
+
+    if (reward.clearPotentialPowerPerPerson) {
+      var ppBtn = document.createElement("button");
+      ppBtn.type = "button";
+      ppBtn.textContent = window.I18N.t("floor_reward_potential_power_button", { value: reward.clearPotentialPowerPerPerson });
+      ppBtn.addEventListener("click", function () {
+        addLog("log_floor_reward_potential_power_note", {
+          names: entered
+            .map(function (c) {
+              return c.name;
+            })
+            .join("、"),
+        });
+        ppBtn.disabled = true;
+      });
+      container.appendChild(ppBtn);
+    }
+  }
+
   function populateBreakthroughFieldSelectors(index) {
     var Fields = window.PriTestFields;
     var branchSelect = document.getElementById("breakthrough-branch-select");
@@ -5035,6 +5185,7 @@
     var importBtn = document.getElementById("breakthrough-import-btn");
     branchSelect.innerHTML = "";
     floorSelect.innerHTML = "";
+    document.getElementById("floor-reward-section").innerHTML = "";
     var entry = resolveFieldEntryForSlot(index);
     var hasData = !!(entry && entry.branches && entry.branches.length);
     branchSelect.hidden = !hasData;
@@ -5047,6 +5198,10 @@
       opt.textContent = Fields.localizedText(branch.name);
       branchSelect.appendChild(opt);
     });
+    function currentFloor() {
+      var branch = entry.branches[Number(branchSelect.value) || 0];
+      return (branch.floors || [])[Number(floorSelect.value) || 0] || null;
+    }
     function populateFloors() {
       floorSelect.innerHTML = "";
       var branch = entry.branches[Number(branchSelect.value) || 0];
@@ -5056,8 +5211,12 @@
         opt.textContent = Fields.localizedText(floor.label);
         floorSelect.appendChild(opt);
       });
+      renderFloorRewardSection(currentFloor());
     }
     branchSelect.onchange = populateFloors;
+    floorSelect.onchange = function () {
+      renderFloorRewardSection(currentFloor());
+    };
     populateFloors();
     importBtn.onclick = function () {
       var branch = entry.branches[Number(branchSelect.value) || 0];

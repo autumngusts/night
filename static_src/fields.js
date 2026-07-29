@@ -2584,6 +2584,17 @@
                 L(2, null, ["撃破できたら、「消耗品」を1つ獲得（フロア踏破）。", "擊破成功後，獲得「消耗品」1個（樓層踏破）。"], true),
                 L(2, null, ["前項の行為判定にPC全員が成功していた場合、追加で「石剣の鍵」を1つ獲得。", "若前項行為判定PC全員成功，額外獲得「石劍鑰匙」1個。"], true),
               ],
+              // 獲得ボタン用の構造化データ（規則書の自由文からGMが手動で拾える範囲のみ）。
+              // failureHpDamage: 行為判定に失敗したPCへのHP損害（■=1点、他の■表記と同じ規則）。
+              // clearRunePerPerson: ザコ戦闘撃破時、入場中の各PCへ加算するルーン数。
+              // clearConsumable: フロア踏破時に獲得する消耗品の個数（誰が獲得するかはGMが選ぶ、人数分ではない）。
+              // allSuccessBonus: 行為判定にPC全員が成功していた場合のみ追加で発生するボーナス。
+              reward: {
+                failureHpDamage: 1,
+                clearRunePerPerson: 1,
+                clearConsumable: 1,
+                allSuccessBonus: { stoneswordKey: 1 },
+              },
             },
             {
               label: C("フロア2", "樓層2"),
@@ -2602,6 +2613,13 @@
                 L(2, null, ["「還樹の番犬（227頁）／Lv.6+L補」", "「還樹的看門犬（227頁）／Lv.6+L補」"], true),
                 L(2, null, ["撃破できたら、PCはそれぞれ「潜在する力:★」を獲得（フロア踏破）。", "擊破成功後，PC各自獲得「潛力：★」（樓層踏破）。"], true),
               ],
+              // clearRunePerPerson: ボス撃破時、入場中の各PCへ加算するルーン数。
+              // clearPotentialPowerPerPerson: フロア踏破時、各PCが得る「潜在する力:★」の機会の数
+              // （実際の抽選は既存の「潜在する力」モーダルから個別に行うため、ここでは記録のみ）。
+              reward: {
+                clearRunePerPerson: 3,
+                clearPotentialPowerPerPerson: 1,
+              },
             },
           ],
         },

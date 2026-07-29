@@ -333,6 +333,7 @@ BODY = """    <div class="night-header-row">
           <select id="breakthrough-floor-select"></select>
           <button id="breakthrough-import-btn" type="button" data-i18n="breakthrough_import_button"></button>
         </div>
+        <div id="floor-reward-section"></div>
         <div class="wb-row">
           <span id="breakthrough-target-hideable" class="wb-row">
             <label data-i18n="breakthrough_target_label"></label>
@@ -409,6 +410,7 @@ BODY = """    <div class="night-header-row">
           <div class="field-row-block">
             <label data-i18n="stonesword_key_label"></label>
             <input type="text" id="input-stonesword-key">
+            <span id="stonesword-key-count-label" class="ability-uses-label"></span>
           </div>
           <div class="field-row-block">
             <label data-i18n="grace_label"></label>
