@@ -2274,6 +2274,11 @@
                   true
                 ),
               ],
+              reward: [
+                { kind: "consumable", value: 1, note: C("（防壁を乗り越える・行為判定成功時）", "（翻越防壁・行為判定成功時）") },
+                { kind: "stoneswordKey", value: 1, note: C("（ザコ戦闘撃破）", "（雜兵戰鬥擊破）") },
+                { kind: "consumable", value: 1, note: C("（ザコ戦闘撃破）", "（雜兵戰鬥擊破）") },
+              ],
             },
             {
               label: C("フロア2", "樓層2"),
@@ -2299,6 +2304,10 @@
                   ],
                   true
                 ),
+              ],
+              reward: [
+                { kind: "potentialPower", perPerson: true, value: 1, note: C("（ボス戦闘撃破）", "（王戰擊破）") },
+                { kind: "weaponStar", value: 1, note: C("（ボス戦闘撃破）", "（王戰擊破）") },
               ],
             },
           ],
@@ -2336,6 +2345,7 @@
                 ),
                 L(2, null, ["撃破に成功すると「消耗品」を1つ獲得（フロア踏破）。", "擊破成功則獲得「消耗品」1個（樓層踏破）。"], true),
               ],
+              reward: [{ kind: "consumable", value: 1, note: C("（ザコ戦闘撃破）", "（雜兵戰鬥擊破）") }],
             },
             {
               label: C("フロア2", "樓層2"),
@@ -2361,6 +2371,10 @@
                   ],
                   true
                 ),
+              ],
+              reward: [
+                { kind: "potentialPower", perPerson: true, value: 1, note: C("（ボス戦闘撃破）", "（王戰擊破）") },
+                { kind: "stoneswordKey", value: 1, note: C("（ボス戦闘撃破・2ターン以内）", "（王戰擊破・2回合內）") },
               ],
             },
           ],
@@ -2413,6 +2427,7 @@
                 L(2, null, ["「君主軍たち（210頁）／Lv.2+L補」", "「君主軍們（210頁）／Lv.2+L補」"], true),
                 L(2, null, ["撃破に成功すると「消耗品」を1つ獲得（フロア踏破）。", "擊破成功則獲得「消耗品」1個（樓層踏破）。"], true),
               ],
+              reward: [{ kind: "consumable", value: 1, note: C("（ザコ戦闘撃破）", "（雜兵戰鬥擊破）") }],
             },
             {
               label: C("フロア2", "樓層2"),
@@ -2438,6 +2453,15 @@
                   ],
                   true
                 ),
+              ],
+              reward: [
+                {
+                  kind: "potentialPower",
+                  perPerson: true,
+                  value: 1,
+                  note: C("（ボス戦闘撃破。武器に「炎/-5」付与は手動記録）", "（王戰擊破。武器追加「炎／-5」需手動記錄）"),
+                },
+                { kind: "stoneswordKey", value: 1, note: C("（ボス戦闘撃破・2ターン以内）", "（王戰擊破・2回合內）") },
               ],
             },
           ],
@@ -2504,6 +2528,15 @@
                   ],
                   true
                 ),
+              ],
+              reward: [
+                { kind: "stoneswordKey", value: 1, note: C("（野営地の物色・行為判定成功時）", "（搜刮野營地・行為判定成功時）") },
+                { kind: "stoneswordKey", value: 1, note: C("（ザコ戦闘撃破）", "（雜兵戰鬥擊破）") },
+                {
+                  kind: "consumable",
+                  value: 1,
+                  note: C("（ザコ戦闘撃破。「投擲壺（炎）」は別途手動追加）", "（雜兵戰鬥擊破。「投擲壺（炎）」需另行手動追加）"),
+                },
               ],
             },
             {
@@ -2589,6 +2622,15 @@
                   true
                 ),
               ],
+              reward: [
+                { kind: "rune", value: 1, note: C("（火の戦車・弱点を突く成功ごと）", "（火之戰車・每次擊破弱點成功）") },
+                {
+                  kind: "potentialPower",
+                  perPerson: true,
+                  value: 1,
+                  note: C("（火の戦車3輛破壊時。武器に「炎/-5」付与は手動記録）", "（破壞3輛火之戰車時。武器追加「炎／-5」需手動記錄）"),
+                },
+              ],
             },
           ],
         },
@@ -2645,6 +2687,13 @@
                   true
                 ),
               ],
+              reward: [
+                {
+                  kind: "consumable",
+                  value: 1,
+                  note: C("（ザコ戦闘撃破。「投擲壺（雷）」は別途手動追加）", "（雜兵戰鬥擊破。「投擲壺（雷）」需另行手動追加）"),
+                },
+              ],
             },
             {
               label: C("フロア2", "樓層2"),
@@ -2670,6 +2719,15 @@
                   ],
                   true
                 ),
+              ],
+              reward: [
+                {
+                  kind: "potentialPower",
+                  perPerson: true,
+                  value: 1,
+                  note: C("（ボス戦闘撃破。武器に「雷/-5」付与は手動記録）", "（王戰擊破。武器追加「雷／-5」需手動記錄）"),
+                },
+                { kind: "stoneswordKey", value: 1, note: C("（ボス戦闘撃破・2ターン以内）", "（王戰擊破・2回合內）") },
               ],
             },
           ],
@@ -2726,6 +2784,14 @@
                   true
                 ),
               ],
+              reward: [
+                { kind: "stoneswordKey", value: 1, note: C("（亡骸の物色・行為判定成功時）", "（搜刮屍骸・行為判定成功時）") },
+                {
+                  kind: "consumable",
+                  value: 1,
+                  note: C("（ザコ戦闘撃破。「投擲壺（発狂）」は別途手動追加）", "（雜兵戰鬥擊破。「投擲壺（發狂）」需另行手動追加）"),
+                },
+              ],
             },
             {
               label: C("フロア2", "樓層2"),
@@ -2760,6 +2826,15 @@
                   ],
                   true
                 ),
+              ],
+              reward: [
+                { kind: "stoneswordKey", value: 1, note: C("（ボス戦闘撃破）", "（王戰擊破）") },
+                {
+                  kind: "potentialPower",
+                  perPerson: true,
+                  value: 1,
+                  note: C("（ボス戦闘撃破。武器に「発狂/-5」付与は手動記録）", "（王戰擊破。武器追加「發狂／-5」需手動記錄）"),
+                },
               ],
             },
           ],
