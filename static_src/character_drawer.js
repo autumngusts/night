@@ -2277,6 +2277,21 @@
     };
   }
 
+  // まだ入手していない（インスタンスID未発行の）武器カタログデータから、戦技名の一覧を
+  // 組み立てる（潜在する力・商人などのプレビュー表示用）。ランダム戦技枠（kind:"random"）は
+  // まだ解決されていないため「未決定」として示す（既存の武器カードで後から個別に決定する）。
+  function weaponPreviewSkillNames(item, categoryId) {
+    var category = Weapons.getCategory(categoryId);
+    var refs = getItemSkillRefs(category, item);
+    return refs
+      .map(function (ref) {
+        if (ref.kind === "random") return window.I18N.t("weapon_random_skill_pending_label");
+        if (ref.kind === "note") return null;
+        return weaponSkillRefName(ref, null, item.id, null);
+      })
+      .filter(Boolean);
+  }
+
   function commitPotentialPowerWeapon(c, result) {
     if (!result || !result.item) return null;
     if (!c.weaponIds) c.weaponIds = [];
@@ -2310,20 +2325,30 @@
     return { dice: [x, y], block: block, effect: null, candidates: candidates };
   }
 
-  // 3枠に空きがあればそのまま追加、埋まっていれば1Dを振って対応する枠（1-2→1枠目/3-4→2枠目/
-  // 5-6→3枠目）の付帯効果を上書きする（規則書どおり）。戻り値のreplacedIdは上書きされた
-  // 付帯効果のid（新規追加ならnull）。
-  function commitAttachedEffectChoice(c, effect) {
+  // 3枠が既に埋まっている場合に「どの枠が上書きされるか」を先に判定する（1Dを振って
+  // 1-2→1枠目/3-4→2枠目/5-6→3枠目）。プレイヤーが実際に選択する前に、どの付帯効果が
+  // 失われるかを提示できるようにするための、確定前のプレビュー専用関数。空きがある場合は
+  // nullを返す（上書きは発生しない）。
+  function previewAttachedEffectSlot(c) {
+    var learned = c.learnedAttachedEffects || [];
+    if (learned.length < MAX_ATTACHED_EFFECTS) return null;
+    var die = rollD6();
+    var slotIndex = die <= 2 ? 0 : die <= 4 ? 1 : 2;
+    return { slotIndex: slotIndex, replacedId: learned[slotIndex], die: die };
+  }
+
+  // 3枠に空きがあればそのまま追加、埋まっていればpreviewで先に確定させた枠（無ければ
+  // その場で1Dを振って決定）を上書きする（規則書どおり：1-2→1枠目/3-4→2枠目/5-6→3枠目）。
+  // 戻り値のreplacedIdは上書きされた付帯効果のid（新規追加ならnull）。
+  function commitAttachedEffectChoice(c, effect, preview) {
     if (!c.learnedAttachedEffects) c.learnedAttachedEffects = [];
     if (c.learnedAttachedEffects.length < MAX_ATTACHED_EFFECTS) {
       c.learnedAttachedEffects.push(effect.id);
       return { slotIndex: c.learnedAttachedEffects.length - 1, replacedId: null, die: null };
     }
-    var die = rollD6();
-    var slotIndex = die <= 2 ? 0 : die <= 4 ? 1 : 2;
-    var replacedId = c.learnedAttachedEffects[slotIndex];
-    c.learnedAttachedEffects.splice(slotIndex, 1, effect.id);
-    return { slotIndex: slotIndex, replacedId: replacedId, die: die };
+    var resolved = preview || previewAttachedEffectSlot(c);
+    c.learnedAttachedEffects.splice(resolved.slotIndex, 1, effect.id);
+    return resolved;
   }
 
   function resolveSimpleTableRoll(category, d1) {
@@ -4894,9 +4919,11 @@
     categoryTwoHitDiceBonus: categoryTwoHitDiceBonus,
     weaponAccumulationEffects: weaponAccumulationEffects,
     merchantDrawWeapon: merchantDrawWeapon,
+    weaponPreviewSkillNames: weaponPreviewSkillNames,
     potentialPowerDrawWeapon: potentialPowerDrawWeapon,
     commitPotentialPowerWeapon: commitPotentialPowerWeapon,
     rollPotentialPowerAttachedEffect: rollPotentialPowerAttachedEffect,
+    previewAttachedEffectSlot: previewAttachedEffectSlot,
     commitAttachedEffectChoice: commitAttachedEffectChoice,
     attachedEffectById: attachedEffectById,
     MAX_ATTACHED_EFFECTS: MAX_ATTACHED_EFFECTS,

@@ -320,10 +320,12 @@ BODY = """    <div class="night-header-row">
         </div>
         <div id="potential-power-modal-content"></div>
         <div class="actions">
+          <button id="btn-potential-power-minimize" type="button" data-i18n="potential_power_minimize_button" hidden></button>
           <button id="btn-potential-power-modal-close" type="button" class="primary-btn" data-i18n="close_button"></button>
         </div>
       </div>
     </div>
+    <button id="btn-potential-power-restore" type="button" class="potential-power-restore-btn" data-i18n="potential_power_restore_button" hidden></button>
 
     <div id="breakthrough-modal" class="modal" hidden>
       <div class="modal-box combat-modal-box">
@@ -333,7 +335,6 @@ BODY = """    <div class="night-header-row">
           <select id="breakthrough-floor-select"></select>
           <button id="breakthrough-import-btn" type="button" data-i18n="breakthrough_import_button"></button>
         </div>
-        <div id="floor-reward-section"></div>
         <div class="wb-row">
           <span id="breakthrough-target-hideable" class="wb-row">
             <label data-i18n="breakthrough_target_label"></label>

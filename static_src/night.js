@@ -1838,6 +1838,13 @@
           renderFieldLine(floorDiv, line, T);
         });
 
+        if (floor.reward) {
+          var rewardContainer = document.createElement("div");
+          rewardContainer.className = "field-floor-reward";
+          renderFloorRewardSection(rewardContainer, floor);
+          floorDiv.appendChild(rewardContainer);
+        }
+
         branchDiv.appendChild(floorDiv);
       });
 
@@ -4270,7 +4277,9 @@
   var potentialPowerStarCount = 1;
   var potentialPowerWeaponResult = null; // CharacterDrawer.potentialPowerDrawWeaponの戻り値 | null
   var potentialPowerEffectResult = null; // CharacterDrawer.rollPotentialPowerAttachedEffectの戻り値 | null
+  var potentialPowerEffectSlotPreview = null; // CharacterDrawer.previewAttachedEffectSlotの戻り値 | null（3枠埋まっている場合のみ）
   var potentialPowerResolved = null; // "weapon" | "effect" | null
+  var potentialPowerMinimized = false; // 一時的に内容を畳んで、他の面板（角色詳細等）を確認できるようにする
 
   function openPotentialPowerModal() {
     var entered = rosterCharacters.filter(function (c) {
@@ -4287,18 +4296,35 @@
     potentialPowerStarCount = 1;
     potentialPowerWeaponResult = null;
     potentialPowerEffectResult = null;
+    potentialPowerEffectSlotPreview = null;
     potentialPowerResolved = null;
+    potentialPowerMinimized = false;
     document.getElementById("potential-power-modal").hidden = false;
     renderPotentialPowerModal();
   }
 
   function closePotentialPowerModal() {
     document.getElementById("potential-power-modal").hidden = true;
+    document.getElementById("btn-potential-power-restore").hidden = true;
+  }
+
+  // 抽選結果を保持したままモーダルだけを一時的に隠す（状態はリセットしない）。プレイヤーが
+  // 自分の他の装備・能力の状況を角色詳細等で確認してから、抽選結果の選択に戻れるようにする。
+  function minimizePotentialPowerModal() {
+    document.getElementById("potential-power-modal").hidden = true;
+    document.getElementById("btn-potential-power-restore").hidden = false;
+  }
+
+  function restorePotentialPowerModal() {
+    document.getElementById("btn-potential-power-restore").hidden = true;
+    document.getElementById("potential-power-modal").hidden = false;
+    renderPotentialPowerModal();
   }
 
   function resetPotentialPowerRoll() {
     potentialPowerWeaponResult = null;
     potentialPowerEffectResult = null;
+    potentialPowerEffectSlotPreview = null;
     potentialPowerResolved = null;
   }
 
@@ -4333,6 +4359,9 @@
     })[0];
     var content = document.getElementById("potential-power-modal-content");
     content.innerHTML = "";
+    var minimizeBtn = document.getElementById("btn-potential-power-minimize");
+    var hasActiveRoll = !!(potentialPowerWeaponResult || potentialPowerEffectResult) && !potentialPowerResolved;
+    minimizeBtn.hidden = !hasActiveRoll;
     if (!c) return;
 
     if (potentialPowerResolved) {
@@ -4351,6 +4380,10 @@
       rollBtn.addEventListener("click", function () {
         potentialPowerWeaponResult = CharacterDrawer.potentialPowerDrawWeapon(c, potentialPowerStarCount);
         potentialPowerEffectResult = CharacterDrawer.rollPotentialPowerAttachedEffect(c);
+        // 3枠が既に埋まっている場合、どの枠が上書きされるかを先に判定しておき、選択前に
+        // プレイヤーへ提示できるようにする（実際の上書きはcommitAttachedEffectChoiceで
+        // このプレビュー結果をそのまま使う）。
+        potentialPowerEffectSlotPreview = CharacterDrawer.previewAttachedEffectSlot(c);
         renderPotentialPowerModal();
       });
       content.appendChild(rollBtn);
@@ -4375,6 +4408,17 @@
         weapon: Weapons.localizedText(wr.item.name),
       });
       weaponCard.appendChild(weaponBody);
+      var weaponDetails = document.createElement("details");
+      weaponDetails.className = "ability-entry";
+      var weaponSummary = document.createElement("summary");
+      weaponSummary.textContent = window.I18N.t("potential_power_weapon_detail_toggle");
+      weaponDetails.appendChild(weaponSummary);
+      var skillNames = CharacterDrawer.weaponPreviewSkillNames(wr.item, wr.categoryId);
+      var skillP = document.createElement("p");
+      skillP.className = "threat-ref-body";
+      skillP.textContent = skillNames.length ? skillNames.join("、") : window.I18N.t("potential_power_weapon_no_skill_note");
+      weaponDetails.appendChild(skillP);
+      weaponCard.appendChild(weaponDetails);
       var weaponChooseBtn = document.createElement("button");
       weaponChooseBtn.type = "button";
       weaponChooseBtn.className = "primary-btn";
@@ -4413,12 +4457,22 @@
       body.className = "threat-ref-body";
       body.textContent = Weapons.localizedText(effect.body);
       card.appendChild(body);
+      if (potentialPowerEffectSlotPreview) {
+        var replaceNote = document.createElement("p");
+        replaceNote.className = "threat-ref-body";
+        replaceNote.style.color = "#b3441e";
+        var replacedEffect = CharacterDrawer.attachedEffectById(potentialPowerEffectSlotPreview.replacedId);
+        replaceNote.textContent = window.I18N.t("potential_power_effect_will_replace_note", {
+          old: replacedEffect ? Weapons.localizedText(replacedEffect.name) : potentialPowerEffectSlotPreview.replacedId,
+        });
+        card.appendChild(replaceNote);
+      }
       var chooseBtn = document.createElement("button");
       chooseBtn.type = "button";
       chooseBtn.className = "primary-btn";
       chooseBtn.textContent = window.I18N.t("potential_power_effect_choose_button");
       chooseBtn.addEventListener("click", function () {
-        var result = CharacterDrawer.commitAttachedEffectChoice(c, effect);
+        var result = CharacterDrawer.commitAttachedEffectChoice(c, effect, potentialPowerEffectSlotPreview);
         saveRosterCharacters();
         var effectName = Weapons.localizedText(effect.name);
         if (result.replacedId) {
@@ -5042,8 +5096,7 @@
 
   // 樓層突破判定モーダルの分岐/フロア選択に連動して、そのフロアの「獲得」ボタン群を描画する。
   // floor.reward（fields.jsに手作業で追加した構造化データ）が無いフロアは何も表示しない。
-  function renderFloorRewardSection(floor) {
-    var container = document.getElementById("floor-reward-section");
+  function renderFloorRewardSection(container, floor) {
     container.innerHTML = "";
     var reward = floor && floor.reward;
     if (!reward) return;
@@ -5185,7 +5238,6 @@
     var importBtn = document.getElementById("breakthrough-import-btn");
     branchSelect.innerHTML = "";
     floorSelect.innerHTML = "";
-    document.getElementById("floor-reward-section").innerHTML = "";
     var entry = resolveFieldEntryForSlot(index);
     var hasData = !!(entry && entry.branches && entry.branches.length);
     branchSelect.hidden = !hasData;
@@ -5198,10 +5250,6 @@
       opt.textContent = Fields.localizedText(branch.name);
       branchSelect.appendChild(opt);
     });
-    function currentFloor() {
-      var branch = entry.branches[Number(branchSelect.value) || 0];
-      return (branch.floors || [])[Number(floorSelect.value) || 0] || null;
-    }
     function populateFloors() {
       floorSelect.innerHTML = "";
       var branch = entry.branches[Number(branchSelect.value) || 0];
@@ -5211,12 +5259,8 @@
         opt.textContent = Fields.localizedText(floor.label);
         floorSelect.appendChild(opt);
       });
-      renderFloorRewardSection(currentFloor());
     }
     branchSelect.onchange = populateFloors;
-    floorSelect.onchange = function () {
-      renderFloorRewardSection(currentFloor());
-    };
     populateFloors();
     importBtn.onclick = function () {
       var branch = entry.branches[Number(branchSelect.value) || 0];
@@ -6419,6 +6463,8 @@
     document.getElementById("btn-merchant-modal-close").addEventListener("click", closeMerchantModal);
     document.getElementById("btn-potential-power-info").addEventListener("click", openPotentialPowerModal);
     document.getElementById("btn-potential-power-modal-close").addEventListener("click", closePotentialPowerModal);
+    document.getElementById("btn-potential-power-minimize").addEventListener("click", minimizePotentialPowerModal);
+    document.getElementById("btn-potential-power-restore").addEventListener("click", restorePotentialPowerModal);
     document.querySelectorAll(".combat-action-btn").forEach(function (btn) {
       btn.addEventListener("click", function () {
         combatModalAction = btn.dataset.action;

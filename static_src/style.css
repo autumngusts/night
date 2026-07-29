@@ -2309,6 +2309,36 @@ button {
   color: #444;
 }
 
+.potential-power-restore-btn {
+  position: fixed;
+  right: 1rem;
+  bottom: 1rem;
+  z-index: 500;
+  padding: 0.6rem 1rem;
+  border-radius: 999px;
+  background: #2b6cb0;
+  color: #fff;
+  border: none;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+.field-floor-reward {
+  margin: 0.5rem 0 0.3rem;
+  padding: 0.5rem 0.6rem;
+  border: 1px dashed #b9c8de;
+  border-radius: 6px;
+  background: #f4f8ff;
+}
+
+.field-floor-reward h5 {
+  margin: 0 0 0.35rem;
+  font-size: 0.82rem;
+}
+
+.field-floor-reward .wb-row {
+  margin-bottom: 0.35rem;
+}
+
 .field-line {
   font-size: 0.82rem;
   line-height: 1.65;
