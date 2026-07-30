@@ -5206,7 +5206,8 @@
   // 条件付きのものが大半のため、1つに決め打ちせず、実際に起きた結果に応じてGMが該当する
   // ボタンだけを押す設計にしている）。各エントリの形：
   //   { kind: "rune"|"consumable"|"weaponStar"|"stoneswordKey"|"smithingStone"|
-  //           "potentialPower"|"hpDamage"|"chaliceBonus"|"tieredChoice"|"diceHandChoice"|"note",
+  //           "potentialPower"|"hpDamage"|"chaliceBonus"|"tieredChoice"|"diceHandChoice"|
+  //           "bargainReveal"|"note",
   //     perPerson: bool（true=入場中の全PCへ一括適用、false=GMが対象を1人選ぶ）,
   //     value: number（個数・点数）,
   //     note: {ja,zh}（任意、ボタンの補足テキストや"note"種別の本文） }
@@ -5599,6 +5600,64 @@
             renderFloorRewardOption(diceResultContainer, sub, entered);
           });
         }
+      });
+      return;
+    }
+
+    if (entry.kind === "bargainReveal") {
+      // 秤の商人等、対象PCが選んだ内容の「良い効果」だけを先に見せ、取引に応じる確定操作を
+      // した後で初めて「悪い効果」もあわせて開示する二段階UI。効果自体はステータス修正など
+      // 既存の型に落とし込めないものが多いため、確定後は個人紀錄への反映をGMに促す形にする。
+      var Fields3 = window.PriTestFields;
+      var bargainRow = document.createElement("div");
+      bargainRow.className = "wb-row";
+      var bargainCharSelect = makeTargetSelect();
+      bargainRow.appendChild(bargainCharSelect);
+      var bargainDealSelect = document.createElement("select");
+      (entry.deals || []).forEach(function (deal, idx) {
+        var opt = document.createElement("option");
+        opt.value = String(idx);
+        opt.textContent = Fields3.localizedText(deal.label);
+        bargainDealSelect.appendChild(opt);
+      });
+      bargainRow.appendChild(bargainDealSelect);
+      var revealBtn = document.createElement("button");
+      revealBtn.type = "button";
+      revealBtn.className = "primary-btn";
+      revealBtn.textContent = window.I18N.t("floor_reward_bargain_reveal_button");
+      bargainRow.appendChild(revealBtn);
+      container.appendChild(bargainRow);
+      var goodP = document.createElement("p");
+      goodP.className = "threat-ref-body";
+      container.appendChild(goodP);
+      var confirmBtn = document.createElement("button");
+      confirmBtn.type = "button";
+      confirmBtn.className = "primary-btn";
+      confirmBtn.hidden = true;
+      confirmBtn.textContent = window.I18N.t("floor_reward_bargain_confirm_button");
+      container.appendChild(confirmBtn);
+      var bothP = document.createElement("p");
+      bothP.className = "threat-ref-body";
+      container.appendChild(bothP);
+      revealBtn.addEventListener("click", function () {
+        var deal = (entry.deals || [])[parseInt(bargainDealSelect.value, 10)];
+        if (!deal) return;
+        bargainCharSelect.disabled = true;
+        bargainDealSelect.disabled = true;
+        revealBtn.disabled = true;
+        goodP.textContent = window.I18N.t("floor_reward_bargain_good_label") + Fields3.localizedText(deal.good);
+        confirmBtn.hidden = false;
+      });
+      confirmBtn.addEventListener("click", function () {
+        var deal = (entry.deals || [])[parseInt(bargainDealSelect.value, 10)];
+        if (!deal) return;
+        var target = entered.filter(function (c) {
+          return c.id === bargainCharSelect.value;
+        })[0];
+        bothP.textContent = window.I18N.t("floor_reward_bargain_bad_label") + Fields3.localizedText(deal.bad);
+        var dealLabelText = Fields3.localizedText(deal.label);
+        addLog("log_floor_reward_bargain", { character: target ? target.name : "", deal: dealLabelText });
+        markFloorRewardObtained(confirmBtn, window.I18N.t("log_floor_reward_bargain", { character: target ? target.name : "", deal: dealLabelText }));
       });
       return;
     }
