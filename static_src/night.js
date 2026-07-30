@@ -5206,7 +5206,7 @@
   // 条件付きのものが大半のため、1つに決め打ちせず、実際に起きた結果に応じてGMが該当する
   // ボタンだけを押す設計にしている）。各エントリの形：
   //   { kind: "rune"|"consumable"|"weaponStar"|"stoneswordKey"|"smithingStone"|
-  //           "potentialPower"|"hpDamage"|"chaliceBonus"|"tieredChoice"|"note",
+  //           "potentialPower"|"hpDamage"|"chaliceBonus"|"tieredChoice"|"diceHandChoice"|"note",
   //     perPerson: bool（true=入場中の全PCへ一括適用、false=GMが対象を1人選ぶ）,
   //     value: number（個数・点数）,
   //     note: {ja,zh}（任意、ボタンの補足テキストや"note"種別の本文） }
@@ -5525,6 +5525,81 @@
       tieredRow.appendChild(tierConfirmBtn);
       container.appendChild(tieredRow);
       container.appendChild(tierResultContainer);
+      return;
+    }
+
+    if (entry.kind === "diceHandChoice") {
+      // 魔術師塔の解封等、実際にPCが振った複数個のダイス目から役を自動判定するケース向け。
+      // GMが出目をプルダウンで入力→判定ボタンで役を確定すると、該当する役の報酬だけを表示する。
+      var Fields2 = window.PriTestFields;
+      var diceCount = entry.diceCount || 12;
+      var diceWrap = document.createElement("div");
+      diceWrap.className = "wb-row dice-hand-row";
+      var diceLabel = document.createElement("span");
+      diceLabel.className = "threat-ref-body";
+      diceLabel.textContent = window.I18N.t("floor_reward_dice_hand_label", { count: diceCount });
+      diceWrap.appendChild(diceLabel);
+      var diceSelectGroup = document.createElement("div");
+      diceSelectGroup.className = "dice-hand-select-group";
+      var diceSelects = [];
+      for (var di = 0; di < diceCount; di++) {
+        var dieSelect = document.createElement("select");
+        dieSelect.className = "dice-hand-die-select";
+        [1, 2, 3, 4, 5, 6].forEach(function (v) {
+          var opt = document.createElement("option");
+          opt.value = String(v);
+          opt.textContent = String(v);
+          dieSelect.appendChild(opt);
+        });
+        diceSelects.push(dieSelect);
+        diceSelectGroup.appendChild(dieSelect);
+      }
+      diceWrap.appendChild(diceSelectGroup);
+      var judgeBtn = document.createElement("button");
+      judgeBtn.type = "button";
+      judgeBtn.className = "primary-btn";
+      judgeBtn.textContent = window.I18N.t("floor_reward_dice_hand_judge_button");
+      diceWrap.appendChild(judgeBtn);
+      container.appendChild(diceWrap);
+      var diceResultP = document.createElement("p");
+      diceResultP.className = "threat-ref-body";
+      container.appendChild(diceResultP);
+      var diceResultContainer = document.createElement("div");
+      diceResultContainer.className = "tiered-choice-result";
+      container.appendChild(diceResultContainer);
+      judgeBtn.addEventListener("click", function () {
+        var values = diceSelects.map(function (s) {
+          return parseInt(s.value, 10);
+        });
+        var counts = [0, 0, 0, 0, 0, 0, 0];
+        values.forEach(function (v) {
+          counts[v]++;
+        });
+        var maxCount = Math.max(counts[1], counts[2], counts[3], counts[4], counts[5], counts[6]);
+        var lowCount = counts[1] + counts[2] + counts[3];
+        var highCount = counts[4] + counts[5] + counts[6];
+        var isStraight = counts[1] > 0 && counts[2] > 0 && counts[3] > 0 && counts[4] > 0 && counts[5] > 0 && counts[6] > 0;
+        var matchedId = null;
+        if (maxCount >= 7) matchedId = "sevenDice";
+        else if (lowCount === 0) matchedId = "large";
+        else if (highCount === 0) matchedId = "small";
+        else if (isStraight) matchedId = "straight";
+        var matchedHand = (entry.hands || []).filter(function (h) {
+          return h.id === matchedId;
+        })[0];
+        diceSelects.forEach(function (s) {
+          s.disabled = true;
+        });
+        judgeBtn.disabled = true;
+        var handLabelText = matchedHand ? Fields2.localizedText(matchedHand.label) : window.I18N.t("floor_reward_dice_hand_result_none");
+        diceResultP.textContent = window.I18N.t("floor_reward_dice_hand_result", { dice: values.join("、"), hand: handLabelText });
+        addLog("log_floor_reward_dice_hand", { dice: values.join("、"), hand: handLabelText });
+        if (matchedHand) {
+          (matchedHand.rewards || []).forEach(function (sub) {
+            renderFloorRewardOption(diceResultContainer, sub, entered);
+          });
+        }
+      });
       return;
     }
 

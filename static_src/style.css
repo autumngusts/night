@@ -2432,6 +2432,20 @@ button {
   border-left: 2px solid #ccc;
 }
 
+.dice-hand-row {
+  flex-wrap: wrap;
+}
+
+.dice-hand-select-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+}
+
+.dice-hand-die-select {
+  width: 2.6rem;
+}
+
 .field-line {
   font-size: 0.82rem;
   line-height: 1.65;

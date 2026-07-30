@@ -6671,67 +6671,58 @@
               ],
               reward: [
                 {
-                  kind: "note",
-                  note: C(
-                    "（7ダイス達成時）「杖：★★」1つ獲得。武器抽選画面で杖カテゴリを手動抽選",
-                    "（湊成7骰同值時）獲得「杖：★★」1個。請於武器抽選畫面手動抽選杖類別"
-                  ),
-                },
-                { kind: "weaponStar", value: 3, note: C("（7ダイス達成時。4回クリックしてください）", "（湊成7骰同值時。請點擊4次）") },
-                { kind: "talisman", value: 4, note: C("（7ダイス達成時。★等級の護符から選択）", "（湊成7骰同值時。請從★等級護符中選擇）") },
-                {
-                  kind: "note",
-                  note: C(
-                    "（7ダイス達成時）「星光の欠片」4つ獲得（現状未対応のため手動記録）",
-                    "（湊成7骰同值時）獲得「星光的碎片」4個（目前系統未支援，需手動記錄）"
-                  ),
-                },
-                {
-                  kind: "note",
-                  note: C(
-                    "（ラージダイス達成時）「杖：★★」1つ獲得。武器抽選画面で杖カテゴリを手動抽選",
-                    "（湊成大骰時）獲得「杖：★★」1個。請於武器抽選畫面手動抽選杖類別"
-                  ),
-                },
-                { kind: "weaponStar", value: 2, note: C("（ラージダイス達成時。4回クリックしてください）", "（湊成大骰時。請點擊4次）") },
-                { kind: "talisman", value: 2, note: C("（ラージダイス達成時。★等級の護符から選択）", "（湊成大骰時。請從★等級護符中選擇）") },
-                {
-                  kind: "note",
-                  note: C(
-                    "（ラージダイス達成時）「星光の欠片」2つ獲得（現状未対応のため手動記録）",
-                    "（湊成大骰時）獲得「星光的碎片」2個（目前系統未支援，需手動記錄）"
-                  ),
-                },
-                {
-                  kind: "note",
-                  note: C(
-                    "（スモールダイス達成時）「杖：★★」1つ獲得。武器抽選画面で杖カテゴリを手動抽選",
-                    "（湊成小骰時）獲得「杖：★★」1個。請於武器抽選畫面手動抽選杖類別"
-                  ),
-                },
-                { kind: "weaponStar", value: 2, note: C("（スモールダイス達成時。4回クリックしてください）", "（湊成小骰時。請點擊4次）") },
-                {
-                  kind: "note",
-                  note: C(
-                    "（スモールダイス達成時）「星光の欠片」2つ獲得（現状未対応のため手動記録）",
-                    "（湊成小骰時）獲得「星光的碎片」2個（目前系統未支援，需手動記錄）"
-                  ),
-                },
-                {
-                  kind: "note",
-                  note: C(
-                    "（ストレート達成時）「杖：★★」1つ獲得。武器抽選画面で杖カテゴリを手動抽選",
-                    "（湊成順子時）獲得「杖：★★」1個。請於武器抽選畫面手動抽選杖類別"
-                  ),
-                },
-                { kind: "weaponStar", value: 2, note: C("（ストレート達成時）", "（湊成順子時）") },
-                { kind: "weaponStar", value: 1, note: C("（ストレート達成時）", "（湊成順子時）") },
-                {
-                  kind: "note",
-                  note: C(
-                    "（ストレート達成時）「星光の欠片」2つ獲得（現状未対応のため手動記録）",
-                    "（湊成順子時）獲得「星光的碎片」2個（目前系統未支援，需手動記錄）"
-                  ),
+                  kind: "diceHandChoice",
+                  diceCount: 12,
+                  hands: [
+                    {
+                      id: "sevenDice",
+                      label: C("7ダイス", "7骰同值"),
+                      rewards: [
+                        { kind: "weaponStar", value: 2, categoryId: "staff" },
+                        { kind: "weaponStar", value: 3, note: C("（1/4）", "（1/4）") },
+                        { kind: "weaponStar", value: 3, note: C("（2/4）", "（2/4）") },
+                        { kind: "weaponStar", value: 3, note: C("（3/4）", "（3/4）") },
+                        { kind: "weaponStar", value: 3, note: C("（4/4）", "（4/4）") },
+                        { kind: "talisman", value: 4 },
+                        { kind: "consumable", value: 4, note: C("（選択肢から「星光の欠片」を選ぶこと）", "（請於選項中選擇「星光的碎片」）") },
+                      ],
+                    },
+                    {
+                      id: "large",
+                      label: C("ラージダイス", "大骰"),
+                      rewards: [
+                        { kind: "weaponStar", value: 2, categoryId: "staff" },
+                        { kind: "weaponStar", value: 2, note: C("（1/4）", "（1/4）") },
+                        { kind: "weaponStar", value: 2, note: C("（2/4）", "（2/4）") },
+                        { kind: "weaponStar", value: 2, note: C("（3/4）", "（3/4）") },
+                        { kind: "weaponStar", value: 2, note: C("（4/4）", "（4/4）") },
+                        { kind: "talisman", value: 2 },
+                        { kind: "consumable", value: 2, note: C("（選択肢から「星光の欠片」を選ぶこと）", "（請於選項中選擇「星光的碎片」）") },
+                      ],
+                    },
+                    {
+                      id: "small",
+                      label: C("スモールダイス", "小骰"),
+                      rewards: [
+                        { kind: "weaponStar", value: 2, categoryId: "staff" },
+                        { kind: "weaponStar", value: 2, note: C("（1/4）", "（1/4）") },
+                        { kind: "weaponStar", value: 2, note: C("（2/4）", "（2/4）") },
+                        { kind: "weaponStar", value: 2, note: C("（3/4）", "（3/4）") },
+                        { kind: "weaponStar", value: 2, note: C("（4/4）", "（4/4）") },
+                        { kind: "consumable", value: 2, note: C("（選択肢から「星光の欠片」を選ぶこと）", "（請於選項中選擇「星光的碎片」）") },
+                      ],
+                    },
+                    {
+                      id: "straight",
+                      label: C("ストレート", "順子"),
+                      rewards: [
+                        { kind: "weaponStar", value: 2, categoryId: "staff" },
+                        { kind: "weaponStar", value: 2 },
+                        { kind: "weaponStar", value: 1 },
+                        { kind: "consumable", value: 2, note: C("（選択肢から「星光の欠片」を選ぶこと）", "（請於選項中選擇「星光的碎片」）") },
+                      ],
+                    },
+                  ],
                 },
               ],
             },
