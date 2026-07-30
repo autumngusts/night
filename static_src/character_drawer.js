@@ -2371,11 +2371,15 @@
       .filter(Boolean);
   }
 
-  function commitPotentialPowerWeapon(c, result) {
+  function commitPotentialPowerWeapon(c, result, attributeTag) {
     if (!result || !result.item) return null;
     if (!c.weaponIds) c.weaponIds = [];
     var newInstanceId = makeWeaponInstanceId(result.item.id, c);
     c.weaponIds.push(newInstanceId);
+    if (attributeTag) {
+      if (!c.weaponAttributeTags) c.weaponAttributeTags = {};
+      c.weaponAttributeTags[newInstanceId] = attributeTag;
+    }
     if (result.skillId) {
       if (!c.weaponRandomSkills) c.weaponRandomSkills = {};
       var category = Weapons.getCategory(result.categoryId);

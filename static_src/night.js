@@ -4326,8 +4326,9 @@
   var potentialPowerEffectSlotPreview = null; // CharacterDrawer.previewAttachedEffectSlotの戻り値 | null（3枠埋まっている場合のみ）
   var potentialPowerResolved = null; // "weapon" | "effect" | null
   var potentialPowerMinimized = false; // 一時的に内容を畳んで、他の面板（角色詳細等）を確認できるようにする
+  var potentialPowerPendingAttributeTag = null; // 場地報酬で指定された共通戦技タグ（例:「炎/-5」）。武器確定時に自動付与する
 
-  function openPotentialPowerModal(presetCharacterId, presetStarCount) {
+  function openPotentialPowerModal(presetCharacterId, presetStarCount, presetAttributeTag) {
     var entered = rosterCharacters.filter(function (c) {
       return c.entered;
     });
@@ -4352,6 +4353,7 @@
     potentialPowerEffectSlotPreview = null;
     potentialPowerResolved = null;
     potentialPowerMinimized = false;
+    potentialPowerPendingAttributeTag = presetAttributeTag || null;
     document.getElementById("potential-power-modal").hidden = false;
     renderPotentialPowerModal();
   }
@@ -4472,12 +4474,18 @@
       skillP.textContent = skillNames.length ? skillNames.join("、") : window.I18N.t("potential_power_weapon_no_skill_note");
       weaponDetails.appendChild(skillP);
       weaponCard.appendChild(weaponDetails);
+      if (potentialPowerPendingAttributeTag) {
+        var attributeTagNote = document.createElement("p");
+        attributeTagNote.className = "threat-ref-body weapon-roll-note";
+        attributeTagNote.textContent = window.I18N.t("potential_power_pending_attribute_tag_note", { tag: potentialPowerPendingAttributeTag });
+        weaponCard.appendChild(attributeTagNote);
+      }
       var weaponChooseBtn = document.createElement("button");
       weaponChooseBtn.type = "button";
       weaponChooseBtn.className = "primary-btn";
       weaponChooseBtn.textContent = window.I18N.t("potential_power_weapon_choose_button");
       weaponChooseBtn.addEventListener("click", function () {
-        CharacterDrawer.commitPotentialPowerWeapon(c, wr);
+        CharacterDrawer.commitPotentialPowerWeapon(c, wr, potentialPowerPendingAttributeTag);
         saveRosterCharacters();
         renderCharacterRoster();
         addLog("log_potential_power_weapon_choice", { character: c.name, weapon: Weapons.localizedText(wr.item.name) });
@@ -5205,6 +5213,9 @@
   function renderFloorRewardOption(container, entry, entered) {
     var Consumables = window.PriTestConsumables;
     var noteText = entry.note ? window.PriTestFields.localizedText(entry.note) : "";
+    // 武器・潜在する力の共通戦技タグ（例:「炎/-5」）。fields.js側は{ja,zh}で持つため、
+    // ここで表示言語へ解決してから武器抽選ウィザード／潜在する力モーダルへ渡す。
+    var resolvedAttributeTag = entry.attributeTag ? window.PriTestFields.localizedText(entry.attributeTag) : null;
 
     function makeTargetSelect() {
       var select = document.createElement("select");
@@ -5356,7 +5367,7 @@
           if (!target) return;
           minimizeFloorRewardModal();
           CharacterDrawer.open(target.id);
-          CharacterDrawer.presetWeaponRollForReward(target.id, entry.value, entry.categoryId || null, entry.attributeTag || null);
+          CharacterDrawer.presetWeaponRollForReward(target.id, entry.value, entry.categoryId || null, resolvedAttributeTag);
           var rollField = document.getElementById("weapon-roll-field");
           if (rollField && rollField.scrollIntoView) rollField.scrollIntoView({ behavior: "smooth", block: "center" });
           addLog("log_floor_reward_weapon_wizard_nav", { character: target.name, value: "★".repeat(entry.value) });
@@ -5436,7 +5447,7 @@
           addLog("log_floor_reward_potential_power_note", { names: c.name });
           markFloorRewardObtained(ppBtn, window.I18N.t("log_floor_reward_potential_power_note", { names: c.name }));
           minimizeFloorRewardModal();
-          openPotentialPowerModal(c.id, entry.value);
+          openPotentialPowerModal(c.id, entry.value, resolvedAttributeTag);
         });
         container.appendChild(ppBtn);
       });

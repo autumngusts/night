@@ -629,11 +629,10 @@
               ],
               reward: [
                 {
-                  kind: "note",
-                  note: C(
-                    "（忍んで切り抜ける・行為判定成功時。「聖印：★」獲得。武器抽選画面で聖印カテゴリを手動抽選）",
-                    "（潛行通過・行為判定成功時。獲得「聖印：★」。請於武器抽選畫面手動抽選聖印類別）"
-                  ),
+                  kind: "weaponStar",
+                  value: 1,
+                  categoryId: "sacred_seal",
+                  note: C("（忍んで切り抜ける・行為判定成功時）", "（潛行通過・行為判定成功時）"),
                 },
               ],
             },
@@ -758,14 +757,8 @@
                 ),
               ],
               reward: [
-                {
-                  kind: "note",
-                  note: C("（行為判定成功時。「聖印：★」獲得。武器抽選画面で聖印カテゴリを手動抽選）", "（行為判定成功時。獲得「聖印：★」。請於武器抽選畫面手動抽選聖印類別）"),
-                },
-                {
-                  kind: "note",
-                  note: C("（ザコ戦闘撃破。「聖印：★」獲得。武器抽選画面で聖印カテゴリを手動抽選）", "（雜兵戰鬥擊破。獲得「聖印：★」。請於武器抽選畫面手動抽選聖印類別）"),
-                },
+                { kind: "weaponStar", value: 1, categoryId: "sacred_seal", note: C("（行為判定成功時）", "（行為判定成功時）") },
+                { kind: "weaponStar", value: 1, categoryId: "sacred_seal", note: C("（ザコ戦闘撃破）", "（雜兵戰鬥擊破）") },
               ],
             },
             {
@@ -904,12 +897,10 @@
                   kind: "potentialPower",
                   perPerson: true,
                   value: 1,
-                  note: C("（ボス戦闘撃破。武器に「炎/-5」付与は手動記録）", "（王戰擊破。武器追加「炎／-5」需手動記錄）"),
+                  attributeTag: C("炎／-5（154頁）", "炎／-5（154頁）"),
+                  note: C("（ボス戦闘撃破）", "（王戰擊破）"),
                 },
-                {
-                  kind: "note",
-                  note: C("（ボス戦闘撃破。「聖印：★」獲得。武器抽選画面で聖印カテゴリを手動抽選）", "（王戰擊破。獲得「聖印：★」。請於武器抽選畫面手動抽選聖印類別）"),
-                },
+                { kind: "weaponStar", value: 1, categoryId: "sacred_seal", note: C("（ボス戦闘撃破・聖印）", "（王戰擊破・聖印）") },
                 { kind: "consumable", value: 1, note: C("（ボス戦闘撃破）", "（王戰擊破）") },
               ],
             },
@@ -954,10 +945,7 @@
                 ),
               ],
               reward: [
-                {
-                  kind: "note",
-                  note: C("（行為判定成功時。「聖印：★」獲得。武器抽選画面で聖印カテゴリを手動抽選）", "（行為判定成功時。獲得「聖印：★」。請於武器抽選畫面手動抽選聖印類別）"),
-                },
+                { kind: "weaponStar", value: 1, categoryId: "sacred_seal", note: C("（行為判定成功時）", "（行為判定成功時）") },
                 { kind: "hpDamage", value: 1, note: C("（行為判定失敗時・ランダム2回）", "（行為判定失敗時・隨機2次）") },
                 { kind: "rune", value: 1, note: C("（行為判定失敗時）", "（行為判定失敗時）") },
               ],
@@ -992,13 +980,11 @@
                   kind: "potentialPower",
                   perPerson: true,
                   value: 1,
-                  note: C("（ボス戦闘撃破。武器に「聖/-5」付与は手動記録）", "（王戰擊破。武器追加「聖／-5」需手動記錄）"),
+                  attributeTag: C("聖／-5（154頁）", "聖／-5（154頁）"),
+                  note: C("（ボス戦闘撃破）", "（王戰擊破）"),
                 },
                 { kind: "stoneswordKey", value: 1, note: C("（ボス戦闘撃破）", "（王戰擊破）") },
-                {
-                  kind: "note",
-                  note: C("（ボス戦闘撃破。「聖印：★」獲得。武器抽選画面で聖印カテゴリを手動抽選）", "（王戰擊破。獲得「聖印：★」。請於武器抽選畫面手動抽選聖印類別）"),
-                },
+                { kind: "weaponStar", value: 1, categoryId: "sacred_seal", note: C("（ボス戦闘撃破・聖印）", "（王戰擊破・聖印）") },
                 { kind: "consumable", value: 1, note: C("（ボス戦闘撃破）", "（王戰擊破）") },
               ],
             },
@@ -1214,52 +1200,86 @@
               ],
               reward: [
                 {
-                  kind: "weaponStar",
-                  value: 1,
-                  note: C(
-                    "（周囲の探索・行為判定成功時。2回クリックしてください。武器は♠なら凍傷/-5、♥なら聖/-5になる旨手動記録）",
-                    "（周圍的探索・行為判定成功時。請點擊2次。武器依花色附加凍傷／-5（♠）或聖／-5（♥），需手動記錄）"
-                  ),
+                  kind: "tieredChoice",
+                  tierLabel: C("周囲の探索・武器のスート", "周圍的探索・武器花色"),
+                  tiers: [
+                    {
+                      label: C("♠", "♠"),
+                      rewards: [
+                        { kind: "weaponStar", value: 1, attributeTag: C("凍傷／-5（154頁）", "凍傷／-5（154頁）"), note: C("（1/2）", "（1/2）") },
+                        { kind: "weaponStar", value: 1, attributeTag: C("凍傷／-5（154頁）", "凍傷／-5（154頁）"), note: C("（2/2）", "（2/2）") },
+                      ],
+                    },
+                    {
+                      label: C("♥", "♥"),
+                      rewards: [
+                        { kind: "weaponStar", value: 1, attributeTag: C("聖／-5", "聖／-5"), note: C("（1/2）", "（1/2）") },
+                        { kind: "weaponStar", value: 1, attributeTag: C("聖／-5", "聖／-5"), note: C("（2/2）", "（2/2）") },
+                      ],
+                    },
+                  ],
                 },
-                { kind: "note", note: C("（周囲の探索・行為判定成功時。「聖印：★」1つ獲得）", "（周圍的探索・行為判定成功時。獲得「聖印：★」1個）") },
+                { kind: "weaponStar", value: 1, categoryId: "sacred_seal", note: C("（周囲の探索・行為判定成功時）", "（周圍的探索・行為判定成功時）") },
                 { kind: "consumable", value: 2, note: C("（周囲の探索・行為判定成功時）", "（周圍的探索・行為判定成功時）") },
                 {
-                  kind: "weaponStar",
-                  value: 1,
-                  note: C(
-                    "（人影があるところ・行為判定成功時。2回クリックしてください。武器は♠なら凍傷/-5、♥なら聖/-5になる旨手動記録）",
-                    "（有人影的地方・行為判定成功時。請點擊2次。武器依花色附加凍傷／-5（♠）或聖／-5（♥），需手動記錄）"
-                  ),
+                  kind: "tieredChoice",
+                  tierLabel: C("人影があるところ・武器のスート", "有人影的地方・武器花色"),
+                  tiers: [
+                    {
+                      label: C("♠", "♠"),
+                      rewards: [
+                        { kind: "weaponStar", value: 1, attributeTag: C("凍傷／-5（154頁）", "凍傷／-5（154頁）"), note: C("（1/2）", "（1/2）") },
+                        { kind: "weaponStar", value: 1, attributeTag: C("凍傷／-5（154頁）", "凍傷／-5（154頁）"), note: C("（2/2）", "（2/2）") },
+                      ],
+                    },
+                    {
+                      label: C("♥", "♥"),
+                      rewards: [
+                        { kind: "weaponStar", value: 1, attributeTag: C("聖／-5", "聖／-5"), note: C("（1/2）", "（1/2）") },
+                        { kind: "weaponStar", value: 1, attributeTag: C("聖／-5", "聖／-5"), note: C("（2/2）", "（2/2）") },
+                      ],
+                    },
+                  ],
                 },
                 { kind: "consumable", value: 2, note: C("（人影があるところ・行為判定成功時）", "（有人影的地方・行為判定成功時）") },
                 { kind: "consumable", value: 2, note: C("（ボス戦闘1撃破）", "（王戰1擊破）") },
                 {
-                  kind: "potentialPower",
-                  perPerson: true,
-                  value: 1,
-                  note: C(
-                    "（ボス戦闘1撃破。武器は♠なら凍傷/-5、♥なら聖/-5になる旨手動記録）",
-                    "（王戰1擊破。武器依花色附加凍傷／-5（♠）或聖／-5（♥），需手動記錄）"
-                  ),
+                  kind: "tieredChoice",
+                  tierLabel: C("ボス戦闘1撃破・潜在する力の武器スート", "王戰1擊破・潛力武器花色"),
+                  tiers: [
+                    { label: C("♠", "♠"), rewards: [{ kind: "potentialPower", perPerson: true, value: 1, attributeTag: C("凍傷／-5（154頁）", "凍傷／-5（154頁）") }] },
+                    { label: C("♥", "♥"), rewards: [{ kind: "potentialPower", perPerson: true, value: 1, attributeTag: C("聖／-5", "聖／-5") }] },
+                  ],
                 },
                 { kind: "note", note: C("（ボス戦闘1撃破。「共鳴する結晶：+1」は別途手動記録）", "（王戰1擊破。「共鳴結晶：+1」需另行手動記錄）") },
                 {
-                  kind: "weaponStar",
-                  value: 1,
-                  note: C(
-                    "（ザコ戦闘撃破。2回クリックしてください。武器は♠なら凍傷/-5、♥なら聖/-5になる旨手動記録）",
-                    "（雜兵戰鬥擊破。請點擊2次。武器依花色附加凍傷／-5（♠）或聖／-5（♥），需手動記錄）"
-                  ),
+                  kind: "tieredChoice",
+                  tierLabel: C("ザコ戦闘撃破・武器のスート", "雜兵戰鬥擊破・武器花色"),
+                  tiers: [
+                    {
+                      label: C("♠", "♠"),
+                      rewards: [
+                        { kind: "weaponStar", value: 1, attributeTag: C("凍傷／-5（154頁）", "凍傷／-5（154頁）"), note: C("（1/2）", "（1/2）") },
+                        { kind: "weaponStar", value: 1, attributeTag: C("凍傷／-5（154頁）", "凍傷／-5（154頁）"), note: C("（2/2）", "（2/2）") },
+                      ],
+                    },
+                    {
+                      label: C("♥", "♥"),
+                      rewards: [
+                        { kind: "weaponStar", value: 1, attributeTag: C("聖／-5", "聖／-5"), note: C("（1/2）", "（1/2）") },
+                        { kind: "weaponStar", value: 1, attributeTag: C("聖／-5", "聖／-5"), note: C("（2/2）", "（2/2）") },
+                      ],
+                    },
+                  ],
                 },
                 { kind: "consumable", value: 2, note: C("（ザコ戦闘撃破）", "（雜兵戰鬥擊破）") },
                 {
-                  kind: "potentialPower",
-                  perPerson: true,
-                  value: 1,
-                  note: C(
-                    "（ボス戦闘2撃破。武器は♠なら凍傷/-5、♥なら聖/-5になる旨手動記録）",
-                    "（王戰2擊破。武器依花色附加凍傷／-5（♠）或聖／-5（♥），需手動記錄）"
-                  ),
+                  kind: "tieredChoice",
+                  tierLabel: C("ボス戦闘2撃破・潜在する力の武器スート", "王戰2擊破・潛力武器花色"),
+                  tiers: [
+                    { label: C("♠", "♠"), rewards: [{ kind: "potentialPower", perPerson: true, value: 1, attributeTag: C("凍傷／-5（154頁）", "凍傷／-5（154頁）") }] },
+                    { label: C("♥", "♥"), rewards: [{ kind: "potentialPower", perPerson: true, value: 1, attributeTag: C("聖／-5", "聖／-5") }] },
+                  ],
                 },
               ],
             },
@@ -1360,18 +1380,18 @@
               reward: [
                 { kind: "rune", value: 1, note: C("（霊呼びつむり・成功1回/2回時）", "（喚靈蝸牛・成功1次／2次時）") },
                 {
-                  kind: "potentialPower",
-                  perPerson: true,
-                  value: 1,
-                  note: C(
-                    "（霊呼びつむり・成功1回/2回時。武器は♠なら凍傷/-5、♥なら聖/-5になる旨手動記録）",
-                    "（喚靈蝸牛・成功1次／2次時。武器依花色附加凍傷／-5（♠）或聖／-5（♥），需手動記錄）"
-                  ),
+                  kind: "tieredChoice",
+                  tierLabel: C("霊呼びつむり・潜在する力の武器スート", "喚靈蝸牛・潛力武器花色"),
+                  tiers: [
+                    { label: C("♠", "♠"), rewards: [{ kind: "potentialPower", perPerson: true, value: 1, attributeTag: C("凍傷／-5（154頁）", "凍傷／-5（154頁）") }] },
+                    { label: C("♥", "♥"), rewards: [{ kind: "potentialPower", perPerson: true, value: 1, attributeTag: C("聖／-5", "聖／-5") }] },
+                  ],
                 },
                 {
                   kind: "note",
-                  note: C("（祭壇。所持武器1つを複製、または「鍛石」1つ獲得。個人紀錄へ手動反映）", "（祭壇。可複製1個持有武器，或改為獲得「鍛石」1個，需手動反映於個人紀錄）"),
+                  note: C("（祭壇。所持武器1つを複製する場合は個人紀錄へ手動反映）", "（祭壇。複製持有武器需手動反映於個人紀錄）"),
                 },
+                { kind: "smithingStone", value: 1, note: C("（祭壇。複製の代わりに「鍛石」を選択時）", "（祭壇。以「鍛石」代替複製時）") },
                 { kind: "note", note: C("（祭壇。「共鳴する結晶：+1」は別途手動記録）", "（祭壇。「共鳴結晶：+1」需另行手動記錄）") },
               ],
             },
@@ -1477,16 +1497,45 @@
                 ),
               ],
               reward: [
-                { kind: "rune", value: 3, note: C("（成功0回時）", "（成功0次時）") },
-                { kind: "weaponStar", value: 1, note: C("（成功0回時。2回クリックしてください）", "（成功0次時。請點擊2次）") },
-                { kind: "rune", value: 3, note: C("（成功1回時）", "（成功1次時）") },
-                { kind: "consumable", value: 2, note: C("（成功1回時）", "（成功1次時）") },
-                { kind: "rune", value: 3, note: C("（成功2回時）", "（成功2次時）") },
-                { kind: "consumable", value: 2, note: C("（成功2回時）", "（成功2次時）") },
-                { kind: "weaponStar", value: 1, note: C("（成功2回時。2回クリックしてください）", "（成功2次時。請點擊2次）") },
-                { kind: "rune", value: 3, note: C("（成功3回時）", "（成功3次時）") },
-                { kind: "consumable", value: 2, note: C("（成功3回時）", "（成功3次時）") },
-                { kind: "weaponStar", value: 2, note: C("（成功3回時。2回クリックしてください）", "（成功3次時。請點擊2次）") },
+                {
+                  kind: "tieredChoice",
+                  tierLabel: C("成功回数", "成功次數"),
+                  tiers: [
+                    {
+                      label: C("0回", "0次"),
+                      rewards: [
+                        { kind: "rune", value: 3 },
+                        { kind: "weaponStar", value: 1, note: C("（1/2）", "（1/2）") },
+                        { kind: "weaponStar", value: 1, note: C("（2/2）", "（2/2）") },
+                      ],
+                    },
+                    {
+                      label: C("1回", "1次"),
+                      rewards: [
+                        { kind: "rune", value: 3 },
+                        { kind: "consumable", value: 2 },
+                      ],
+                    },
+                    {
+                      label: C("2回", "2次"),
+                      rewards: [
+                        { kind: "rune", value: 3 },
+                        { kind: "consumable", value: 2 },
+                        { kind: "weaponStar", value: 1, note: C("（1/2）", "（1/2）") },
+                        { kind: "weaponStar", value: 1, note: C("（2/2）", "（2/2）") },
+                      ],
+                    },
+                    {
+                      label: C("3回", "3次"),
+                      rewards: [
+                        { kind: "rune", value: 3 },
+                        { kind: "consumable", value: 2 },
+                        { kind: "weaponStar", value: 2, note: C("（1/2・★★）", "（1/2・★★）") },
+                        { kind: "weaponStar", value: 2, note: C("（2/2・★★）", "（2/2・★★）") },
+                      ],
+                    },
+                  ],
+                },
               ],
             },
             {
