@@ -4298,7 +4298,7 @@
               ],
               reward: [
                 { kind: "potentialPower", perPerson: true, value: 1, note: C("（ボス戦闘撃破）", "（王戰擊破）") },
-                { kind: "smithingStone", value: 2, note: C("（ボス戦闘撃破・PC1人につき2個。人数分クリックしてください）", "（王戰擊破・每位PC 2個。請依人數點擊）") },
+                { kind: "smithingStone", value: 2, perParty: true, note: C("（ボス戦闘撃破・PC1人につき2個）", "（王戰擊破・每位PC 2個）") },
               ],
             },
           ],
@@ -4347,7 +4347,7 @@
               reward: [
                 { kind: "stoneswordKey", value: 1, note: C("（ボス戦闘撃破）", "（王戰擊破）") },
                 { kind: "potentialPower", perPerson: true, value: 1, note: C("（ボス戦闘撃破）", "（王戰擊破）") },
-                { kind: "smithingStone", value: 2, note: C("（ボス戦闘撃破・PC1人につき2個。人数分クリックしてください）", "（王戰擊破・每位PC 2個。請依人數點擊）") },
+                { kind: "smithingStone", value: 2, perParty: true, note: C("（ボス戦闘撃破・PC1人につき2個）", "（王戰擊破・每位PC 2個）") },
               ],
             },
             {
@@ -4423,7 +4423,7 @@
                 ),
               ],
               reward: [
-                { kind: "smithingStone", value: 1, note: C("（成功・失敗共通。人数分クリックしてください）", "（成功／失敗皆同。請依人數點擊）") },
+                { kind: "smithingStone", value: 1, perParty: true, note: C("（成功・失敗共通）", "（成功／失敗皆同）") },
                 { kind: "note", note: C("（行為判定失敗時は「夜の脅威シート」のタイムロスを1つチェック）", "（行為判定失敗時，於「夜間威脅表」勾選1格時間損耗）") },
               ],
             },
@@ -4459,7 +4459,7 @@
               ],
               reward: [
                 { kind: "potentialPower", perPerson: true, value: 1, note: C("（ボス戦闘撃破）", "（王戰擊破）") },
-                { kind: "smithingStone", value: 1, note: C("（ボス戦闘撃破。人数分クリックしてください）", "（王戰擊破。請依人數點擊）") },
+                { kind: "smithingStone", value: 1, perParty: true, note: C("（ボス戦闘撃破）", "（王戰擊破）") },
               ],
             },
           ],
@@ -4535,15 +4535,29 @@
               ],
               reward: [
                 { kind: "talisman", value: 2, note: C("（スカラベ・分岐ポイント2以上）", "（聖甲蟲・分歧點數2以上）") },
-                { kind: "hpDamage", value: 2, note: C("（嫌な予感・成功1回。ランダム1人）", "（不祥的預感・成功1次。隨機1人）") },
-                { kind: "hpDamage", value: 3, note: C("（嫌な予感・失敗2回。行為判定失敗者全員）", "（不祥的預感・失敗2次。行為判定失敗者全員）") },
                 {
-                  kind: "note",
-                  note: C("（嫌な予感・失敗2回時は「夜の脅威シート」のタイムロスを1つチェック）", "（不祥的預感・失敗2次時，於「夜間威脅表」勾選1格時間損耗）"),
-                },
-                {
-                  kind: "note",
-                  note: C("（嫌な予感・成功1回/2回時は「共鳴する結晶：+1」を手動記録）", "（不祥的預感・成功1次／2次時，手動記錄「共鳴結晶：+1」）"),
+                  kind: "tieredChoice",
+                  tierLabel: C("嫌な予感・結果", "不祥的預感・結果"),
+                  tiers: [
+                    {
+                      label: C("成功2回", "成功2次"),
+                      rewards: [{ kind: "note", note: C("（「共鳴する結晶：+1」を手動記録）", "（手動記錄「共鳴結晶：+1」）") }],
+                    },
+                    {
+                      label: C("成功1回", "成功1次"),
+                      rewards: [
+                        { kind: "hpDamage", value: 2, note: C("（ランダム1人）", "（隨機1人）") },
+                        { kind: "note", note: C("（「共鳴する結晶：+1」を手動記録）", "（手動記錄「共鳴結晶：+1」）") },
+                      ],
+                    },
+                    {
+                      label: C("失敗2回", "失敗2次"),
+                      rewards: [
+                        { kind: "hpDamage", value: 3, note: C("（行為判定失敗者全員）", "（行為判定失敗者全員）") },
+                        { kind: "note", note: C("（「夜の脅威シート」のタイムロスを1つチェック）", "（於「夜間威脅表」勾選1格時間損耗）") },
+                      ],
+                    },
+                  ],
                 },
               ],
             },
@@ -7377,7 +7391,7 @@
               ],
               reward: [
                 { kind: "potentialPower", perPerson: true, value: 2, note: C("（ボス戦闘撃破）", "（王戰擊破）") },
-                { kind: "smithingStone", value: 1, note: C("（ボス戦闘撃破。人数分クリックしてください）", "（王戰擊破。請依人數點擊）") },
+                { kind: "smithingStone", value: 1, perParty: true, note: C("（ボス戦闘撃破）", "（王戰擊破）") },
               ],
             },
           ],

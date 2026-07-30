@@ -5407,30 +5407,40 @@
     }
 
     if (entry.kind === "stoneswordKey") {
+      // perParty: true の場合、パーティ人数ぶんを1クリックで自動計算して加算する
+      // （元々は「人数分クリックしてください」という手動運用だった箇所の自動化）。
+      var keyTotal = entry.perParty ? entry.value * entered.length : entry.value;
       var keyBtn = document.createElement("button");
       keyBtn.type = "button";
-      keyBtn.textContent = window.I18N.t("floor_reward_stonesword_key_button", { value: entry.value }) + noteText;
+      keyBtn.textContent =
+        window.I18N.t("floor_reward_stonesword_key_button", { value: keyTotal }) +
+        (entry.perParty ? window.I18N.t("floor_reward_per_party_suffix", { count: entered.length }) : "") +
+        noteText;
       keyBtn.addEventListener("click", function () {
-        state.stoneswordKeyCount = (state.stoneswordKeyCount || 0) + entry.value;
+        state.stoneswordKeyCount = (state.stoneswordKeyCount || 0) + keyTotal;
         saveState();
         renderStoneswordKeyCount();
-        addLog("log_floor_reward_stonesword_key", { value: entry.value });
-        markFloorRewardObtained(keyBtn, window.I18N.t("log_floor_reward_stonesword_key", { value: entry.value }));
+        addLog("log_floor_reward_stonesword_key", { value: keyTotal });
+        markFloorRewardObtained(keyBtn, window.I18N.t("log_floor_reward_stonesword_key", { value: keyTotal }));
       });
       container.appendChild(keyBtn);
       return;
     }
 
     if (entry.kind === "smithingStone") {
+      var stoneTotal = entry.perParty ? entry.value * entered.length : entry.value;
       var stoneBtn = document.createElement("button");
       stoneBtn.type = "button";
-      stoneBtn.textContent = window.I18N.t("floor_reward_smithing_stone_button", { value: entry.value }) + noteText;
+      stoneBtn.textContent =
+        window.I18N.t("floor_reward_smithing_stone_button", { value: stoneTotal }) +
+        (entry.perParty ? window.I18N.t("floor_reward_per_party_suffix", { count: entered.length }) : "") +
+        noteText;
       stoneBtn.addEventListener("click", function () {
-        state.smithingStoneCount = (state.smithingStoneCount || 0) + entry.value;
+        state.smithingStoneCount = (state.smithingStoneCount || 0) + stoneTotal;
         saveState();
         renderSmithingStoneCount();
-        addLog("log_floor_reward_smithing_stone", { value: entry.value });
-        markFloorRewardObtained(stoneBtn, window.I18N.t("log_floor_reward_smithing_stone", { value: entry.value }));
+        addLog("log_floor_reward_smithing_stone", { value: stoneTotal });
+        markFloorRewardObtained(stoneBtn, window.I18N.t("log_floor_reward_smithing_stone", { value: stoneTotal }));
       });
       container.appendChild(stoneBtn);
       return;
