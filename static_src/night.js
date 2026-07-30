@@ -5206,7 +5206,7 @@
   // 条件付きのものが大半のため、1つに決め打ちせず、実際に起きた結果に応じてGMが該当する
   // ボタンだけを押す設計にしている）。各エントリの形：
   //   { kind: "rune"|"consumable"|"weaponStar"|"stoneswordKey"|"smithingStone"|
-  //           "potentialPower"|"hpDamage"|"note",
+  //           "potentialPower"|"hpDamage"|"chaliceBonus"|"tieredChoice"|"note",
   //     perPerson: bool（true=入場中の全PCへ一括適用、false=GMが対象を1人選ぶ）,
   //     value: number（個数・点数）,
   //     note: {ja,zh}（任意、ボタンの補足テキストや"note"種別の本文） }
@@ -5272,6 +5272,27 @@
         markFloorRewardObtained(runeBtn, window.I18N.t("log_floor_reward_rune", { value: entry.value, count: entered.length }));
       });
       container.appendChild(runeBtn);
+      return;
+    }
+
+    if (entry.kind === "chaliceBonus") {
+      // 全体PCの聖杯瓶「使用回数：+N」。基本欄ではなく追加欄（flaskExtra）へ加算する。
+      var chaliceBtn = document.createElement("button");
+      chaliceBtn.type = "button";
+      chaliceBtn.className = "primary-btn";
+      chaliceBtn.textContent = window.I18N.t("floor_reward_chalice_bonus_button", { value: entry.value }) + noteText;
+      chaliceBtn.addEventListener("click", function () {
+        entered.forEach(function (c) {
+          if (!c.flaskExtra) c.flaskExtra = { current: 0, max: 0 };
+          c.flaskExtra.max = (c.flaskExtra.max || 0) + entry.value;
+          c.flaskExtra.current = (c.flaskExtra.current || 0) + entry.value;
+        });
+        saveRosterCharacters();
+        renderCharacterRoster();
+        addLog("log_floor_reward_chalice_bonus", { value: entry.value, count: entered.length });
+        markFloorRewardObtained(chaliceBtn, window.I18N.t("log_floor_reward_chalice_bonus", { value: entry.value, count: entered.length }));
+      });
+      container.appendChild(chaliceBtn);
       return;
     }
 
