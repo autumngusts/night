@@ -6,6 +6,12 @@
     return { ja: ja, zh: zh };
   }
 
+  // 武器抽選ウィザードの「射撃武器」「盾」グループショートカット。character_drawer.jsが
+  // 先に読み込まれる前提で実値を引き継ぐ（未読込時は既知のリテラルへフォールバック）。
+  var CD_REF = window.PriTestCharacterDrawer || {};
+  var RANGED_GROUP_CATEGORY = CD_REF.RANGED_GROUP_CATEGORY || "__ranged_group__";
+  var SHIELD_GROUP_CATEGORY = CD_REF.SHIELD_GROUP_CATEGORY || "__shield_group__";
+
   function lang() {
     return window.I18N ? window.I18N.getLang() : "zh";
   }
@@ -93,13 +99,12 @@
                 ),
               ],
               reward: [
-                { kind: "weaponStar", value: 1, note: C("（ザコ戦闘撃破）", "（雜兵戰鬥擊破）") },
+                { kind: "weaponStar", value: 1, note: C("（ザコ戦闘撃破・武器）", "（雜兵戰鬥擊破・武器）") },
                 {
-                  kind: "note",
-                  note: C(
-                    "（ザコ戦闘撃破。「射撃武器：★」1つ獲得。武器抽選画面で射撃武器カテゴリを手動抽選）",
-                    "（雜兵戰鬥擊破。獲得「射擊武器：★」1個。請於武器抽選畫面手動抽選射擊武器類別）"
-                  ),
+                  kind: "weaponStar",
+                  value: 1,
+                  categoryId: RANGED_GROUP_CATEGORY,
+                  note: C("（ザコ戦闘撃破・射撃武器）", "（雜兵戰鬥擊破・射擊武器）"),
                 },
               ],
             },
@@ -125,13 +130,8 @@
                 L(2, null, ["撃破に成功すると「聖印:★」を2つ獲得 (フロア踏破)。", "擊破成功可獲得「聖印：★」2個（樓層踏破）。"], true),
               ],
               reward: [
-                {
-                  kind: "note",
-                  note: C(
-                    "（ザコ戦闘撃破。「聖印：★」2つ獲得。武器抽選画面で聖印カテゴリを手動抽選×2）",
-                    "（雜兵戰鬥擊破。獲得「聖印：★」2個。請於武器抽選畫面手動抽選聖印類別×2）"
-                  ),
-                },
+                { kind: "weaponStar", value: 1, categoryId: "sacred_seal", note: C("（ザコ戦闘撃破・聖印1）", "（雜兵戰鬥擊破・聖印1）") },
+                { kind: "weaponStar", value: 1, categoryId: "sacred_seal", note: C("（ザコ戦闘撃破・聖印2）", "（雜兵戰鬥擊破・聖印2）") },
               ],
             },
           ],
@@ -247,8 +247,15 @@
               reward: [
                 { kind: "consumable", value: 1, note: C("（ザコ戦闘撃破）", "（雜兵戰鬥擊破）") },
                 { kind: "weaponStar", value: 1, note: C("（ザコ戦闘撃破）", "（雜兵戰鬥擊破）") },
-                { kind: "talisman", value: 1, note: C("（スカラベ1体追跡時）", "（追逐1隻聖甲蟲時）") },
-                { kind: "talisman", value: 2, note: C("（スカラベ2体追跡時）", "（追逐2隻聖甲蟲時）") },
+                {
+                  kind: "tieredChoice",
+                  tierLabel: C("スカラベ追跡数", "追逐聖甲蟲數量"),
+                  tiers: [
+                    { label: C("0体", "0隻"), rewards: [] },
+                    { label: C("1体", "1隻"), rewards: [{ kind: "talisman", value: 1, note: C("（スカラベ1体追跡）", "（追逐1隻聖甲蟲）") }] },
+                    { label: C("2体", "2隻"), rewards: [{ kind: "talisman", value: 2, note: C("（スカラベ2体追跡）", "（追逐2隻聖甲蟲）") }] },
+                  ],
+                },
               ],
             },
           ],

@@ -5448,7 +5448,7 @@
       // 先にセレクタで段階を選び、確定ボタンを押すまでは他の段階の報酬を見せない。
       var Fields = window.PriTestFields;
       var tieredRow = document.createElement("div");
-      tieredRow.className = "wb-row";
+      tieredRow.className = "wb-row tiered-choice-row";
       var tieredLabel = document.createElement("span");
       tieredLabel.className = "threat-ref-body";
       tieredLabel.textContent =
