@@ -3097,7 +3097,13 @@
               ],
               reward: [
                 { kind: "rune", perPerson: true, value: 3, note: C("（ボス戦闘撃破）", "（王戰擊破）") },
-                { kind: "potentialPower", perPerson: true, value: 1, note: C("（武器は「魔／-5」を追加、GMが個別に付記）", "（武器追加「魔／-5」，需GM另行記錄）") },
+                {
+                  kind: "potentialPower",
+                  perPerson: true,
+                  value: 1,
+                  attributeTag: C("魔／-5（154頁）", "魔／-5（154頁）"),
+                  note: C("（ボス戦闘撃破）", "（王戰擊破）"),
+                },
               ],
             },
           ],
@@ -3161,7 +3167,15 @@
               reward: [
                 { kind: "talisman", value: 1, note: C("（遺体の調査に1人でも成功時のみ）", "（調查遺體只要1人成功即可）") },
                 { kind: "stoneswordKey", value: 1, note: C("（遺体の調査に1人でも成功時のみ）", "（調查遺體只要1人成功即可）") },
-                { kind: "consumable", value: 1, note: C("（遺体の調査成功時、または投擲壺(魔)を選ぶ）", "（調查遺體成功時，或選擇投擲壺(魔)）") },
+                { kind: "consumable", value: 1, note: C("（遺体の調査に1人でも成功時のみ）", "（調查遺體只要1人成功即可）") },
+                {
+                  kind: "consumable",
+                  value: 1,
+                  note: C(
+                    "（遺体の調査に1人でも成功時のみ。選択肢から「投擲壺」を選び、属性は（魔）に手動記録）",
+                    "（調查遺體只要1人成功即可。請於選項中選擇「投擲壺」，屬性（魔）需手動記錄）"
+                  ),
+                },
               ],
             },
             {
@@ -3188,7 +3202,13 @@
               ],
               reward: [
                 { kind: "rune", perPerson: true, value: 4, note: C("（ボス戦闘撃破）", "（王戰擊破）") },
-                { kind: "potentialPower", perPerson: true, value: 1, note: C("（武器は「雷／-5」を追加、GMが個別に付記）", "（武器追加「雷／-5」，需GM另行記錄）") },
+                {
+                  kind: "potentialPower",
+                  perPerson: true,
+                  value: 1,
+                  attributeTag: C("雷／-5（154頁）", "雷／-5（154頁）"),
+                  note: C("（ボス戦闘撃破）", "（王戰擊破）"),
+                },
               ],
             },
           ],
@@ -3267,8 +3287,22 @@
               ],
               reward: [
                 { kind: "rune", perPerson: true, value: 4, note: C("（ボス戦闘撃破）", "（王戰擊破）") },
-                { kind: "potentialPower", perPerson: true, value: 1, note: C("（武器は「聖／-5」を追加、GMが個別に付記）", "（武器追加「聖／-5」，需GM另行記錄）") },
-                { kind: "consumable", value: 1, note: C("（木箱、投擲壺(聖)を選ぶ）", "（木箱，選擇投擲壺(聖)）") },
+                {
+                  kind: "potentialPower",
+                  perPerson: true,
+                  value: 1,
+                  attributeTag: C("聖／-5（154頁）", "聖／-5（154頁）"),
+                  note: C("（ボス戦闘撃破）", "（王戰擊破）"),
+                },
+                { kind: "consumable", value: 1, note: C("（ボス戦闘撃破・木箱）", "（王戰擊破・木箱）") },
+                {
+                  kind: "consumable",
+                  value: 1,
+                  note: C(
+                    "（ボス戦闘撃破・木箱。選択肢から「投擲壺」を選び、属性は（聖）に手動記録）",
+                    "（王戰擊破・木箱。請於選項中選擇「投擲壺」，屬性（聖）需手動記錄）"
+                  ),
+                },
               ],
             },
           ],
@@ -3353,7 +3387,13 @@
               reward: [
                 { kind: "hpDamage", value: 2, note: C("（戦闘開始時、敵視最高のPCへ）", "（戰鬥開始時，對敵視最高的PC）") },
                 { kind: "rune", perPerson: true, value: 3, note: C("（ボス戦闘撃破）", "（王戰擊破）") },
-                { kind: "potentialPower", perPerson: true, value: 1, note: C("（武器は「猛毒／-5」を追加、GMが個別に付記）", "（武器追加「猛毒／-5」，需GM另行記錄）") },
+                {
+                  kind: "potentialPower",
+                  perPerson: true,
+                  value: 1,
+                  attributeTag: C("猛毒／-5（154頁）", "猛毒／-5（154頁）"),
+                  note: C("（ボス戦闘撃破）", "（王戰擊破）"),
+                },
                 { kind: "stoneswordKey", value: 1 },
               ],
             },
@@ -3413,7 +3453,13 @@
               ],
               reward: [
                 { kind: "rune", perPerson: true, value: 4, note: C("（ボス戦闘撃破）", "（王戰擊破）") },
-                { kind: "potentialPower", perPerson: true, value: 1, note: C("（武器は「血／-5」を追加、GMが個別に付記）", "（武器追加「血／-5」，需GM另行記錄）") },
+                {
+                  kind: "potentialPower",
+                  perPerson: true,
+                  value: 1,
+                  attributeTag: C("血／-5（154頁）", "血／-5（154頁）"),
+                  note: C("（ボス戦闘撃破）", "（王戰擊破）"),
+                },
               ],
             },
           ],
@@ -3471,9 +3517,24 @@
               ],
               reward: [
                 { kind: "hpDamage", value: 2, note: C("（霊クラゲ刺激・行為判定失敗時）", "（刺激靈水母・行為判定失敗時）") },
-                { kind: "consumable", value: 1, note: C("（下層探索・成功回数1回時。「ククリ」は別途手動追加）", "（下層探索・成功次數1次時。「廓爾喀彎刀」需另行手動追加）") },
-                { kind: "stoneswordKey", value: 1, note: C("（下層探索・成功回数2回時）", "（下層探索・成功次數2次時）") },
-                { kind: "talisman", value: 1, note: C("（下層探索・成功回数3回以上時）", "（下層探索・成功次數3次以上時）") },
+                {
+                  kind: "tieredChoice",
+                  tierLabel: C("下層探索・成功回数", "下層探索・成功次數"),
+                  tiers: [
+                    {
+                      label: C("1回", "1次"),
+                      rewards: [
+                        {
+                          kind: "consumable",
+                          value: 1,
+                          note: C("（「ククリ」は別途手動追加）", "（「廓爾喀彎刀」需另行手動追加）"),
+                        },
+                      ],
+                    },
+                    { label: C("2回", "2次"), rewards: [{ kind: "stoneswordKey", value: 1 }] },
+                    { label: C("3回以上", "3次以上"), rewards: [{ kind: "talisman", value: 1 }] },
+                  ],
+                },
                 { kind: "hpDamage", value: 2, note: C("（下層探索・行為判定失敗時）", "（下層探索・行為判定失敗時）") },
               ],
             },
@@ -3504,7 +3565,8 @@
                   kind: "potentialPower",
                   perPerson: true,
                   value: 1,
-                  note: C("（ボス戦闘撃破。武器に「凍傷/-5」付与は手動記録）", "（王戰擊破。武器追加「凍傷／-5」需手動記錄）"),
+                  attributeTag: C("凍傷／-5（154頁）", "凍傷／-5（154頁）"),
+                  note: C("（ボス戦闘撃破）", "（王戰擊破）"),
                 },
               ],
             },
@@ -3611,7 +3673,8 @@
                   kind: "potentialPower",
                   perPerson: true,
                   value: 1,
-                  note: C("（ボス戦闘撃破。武器に「睡眠/-5」付与は手動記録）", "（王戰擊破。武器追加「睡眠／-5」需手動記錄）"),
+                  attributeTag: C("睡眠／-5（154頁）", "睡眠／-5（154頁）"),
+                  note: C("（ボス戦闘撃破）", "（王戰擊破）"),
                 },
                 { kind: "potentialPower", perPerson: true, value: 1, note: C("（つがい撃破時のみ追加）", "（擊破成對盧恩熊時才額外追加）") },
                 { kind: "rune", value: 2, note: C("（つがい撃破時のみ追加）", "（擊破成對盧恩熊時才額外追加）") },
@@ -3670,7 +3733,7 @@
                   ],
                   true
                 ),
-                L(2, ["獲得", "獲得"], ["「石剣の鍵」を1つと「錬石」を1つと「消耗品」を1つ獲得（フロア踏破）。", "獲得「石劍鑰匙」1個、「鍊石」1個、「消耗品」1個（樓層踏破）。"], true),
+                L(2, ["獲得", "獲得"], ["「石剣の鍵」を1つと「鍛石」を1つと「消耗品」を1つ獲得（フロア踏破）。", "獲得「石劍鑰匙」1個、「鍛石」1個、「消耗品」1個（樓層踏破）。"], true),
                 L(1, null, ["ザコ戦闘（撃破ルーン：1）", "雜兵戰鬥（擊破盧恩：1）"]),
                 L(2, null, ["「ミミズ顔たち（229頁）／Lv.3 + L補」", "「蟲顏怪們（229頁）／Lv.3+L補」"], true),
                 L(2, null, ["このエネミーの持つ〔死ネズミの群れ〕〔死の苔玉〕の特殊能力は発揮されない。", "此敵人所持有的〔死鼠之群〕〔死之苔玉〕特殊能力不會發揮效果。"], true),
@@ -3678,7 +3741,8 @@
               ],
               reward: [
                 { kind: "stoneswordKey", value: 1, note: C("（地下への隠し通路・獲得）", "（通往地下的隱藏通道・獲得）") },
-                { kind: "consumable", value: 1, note: C("（地下への隠し通路・獲得。「錬石」は別途手動追加）", "（通往地下的隱藏通道・獲得。「鍊石」需另行手動追加）") },
+                { kind: "smithingStone", value: 1, note: C("（地下への隠し通路・獲得）", "（通往地下的隱藏通道・獲得）") },
+                { kind: "consumable", value: 1, note: C("（地下への隠し通路・獲得）", "（通往地下的隱藏通道・獲得）") },
                 { kind: "hpDamage", value: 1, note: C("（隠れて調査・行為判定失敗時）", "（躲藏調查・行為判定失敗時）") },
               ],
             },
@@ -3768,16 +3832,20 @@
               ],
               reward: [
                 { kind: "talisman", value: 2, note: C("（やり過ごす・成功時）", "（放過對方・成功時）") },
-                { kind: "consumable", value: 2, note: C("（やり過ごす・成功時。「投擲壺（猛毒）」は別途手動追加）", "（放過對方・成功時。「投擲壺（猛毒）」需另行手動追加）") },
+                { kind: "consumable", value: 2, note: C("（やり過ごす・成功時）", "（放過對方・成功時）") },
+                {
+                  kind: "consumable",
+                  value: 1,
+                  note: C(
+                    "（やり過ごす・成功時。選択肢から「投擲壺」を選び、属性は（猛毒）に手動記録）",
+                    "（放過對方・成功時。請於選項中選擇「投擲壺」，屬性（猛毒）需手動記錄）"
+                  ),
+                },
                 { kind: "talisman", value: 2, note: C("（やり過ごす・失敗時）", "（放過對方・失敗時）") },
                 { kind: "consumable", value: 2, note: C("（やり過ごす・失敗時）", "（放過對方・失敗時）") },
                 { kind: "hpDamage", value: 2, note: C("（やり過ごす・失敗時。ランダムPC1人）", "（放過對方・失敗時。隨機1名PC）") },
-                {
-                  kind: "potentialPower",
-                  perPerson: true,
-                  value: 1,
-                  note: C("（ボス戦闘撃破。「共鳴する結晶：+1」は別途手動記録）", "（王戰擊破。「共鳴結晶：+1」需另行手動記錄）"),
-                },
+                { kind: "potentialPower", perPerson: true, value: 1, note: C("（ボス戦闘撃破）", "（王戰擊破）") },
+                { kind: "note", note: C("（ボス戦闘撃破。「共鳴する結晶：+1」は別途手動記録）", "（王戰擊破。「共鳴結晶：+1」需另行手動記錄）") },
               ],
             },
             {
@@ -3882,12 +3950,8 @@
                 { kind: "talisman", value: 2, note: C("（やり過ごす・失敗時）", "（放過對方・失敗時）") },
                 { kind: "consumable", value: 2, note: C("（やり過ごす・失敗時）", "（放過對方・失敗時）") },
                 { kind: "hpDamage", value: 1, note: C("（やり過ごす・失敗時。ランダムPC2人）", "（放過對方・失敗時。隨機2名PC）") },
-                {
-                  kind: "potentialPower",
-                  perPerson: true,
-                  value: 1,
-                  note: C("（ザコ戦闘撃破。「共鳴する結晶：+1」は別途手動記録）", "（雜兵戰鬥擊破。「共鳴結晶：+1」需另行手動記錄）"),
-                },
+                { kind: "potentialPower", perPerson: true, value: 1, note: C("（ザコ戦闘撃破）", "（雜兵戰鬥擊破）") },
+                { kind: "note", note: C("（ザコ戦闘撃破。「共鳴する結晶：+1」は別途手動記録）", "（雜兵戰鬥擊破。「共鳴結晶：+1」需另行手動記錄）") },
               ],
             },
             {
@@ -4091,17 +4155,36 @@
                 { kind: "rune", value: 2, note: C("（強敵との遭遇前・運試し成功時）", "（與強敵遭遇前・運氣判定成功時）") },
                 { kind: "hpDamage", value: 1, note: C("（強敵との遭遇前・運試し失敗時。PC全員へ適用）", "（與強敵遭遇前・運氣判定失敗時。PC全員適用）") },
                 {
-                  kind: "potentialPower",
-                  value: 1,
-                  note: C("（ボス戦闘1◇/♣ 撃破。武器に「魔/-5」または「睡眠/-5」付与は手動記録）", "（王戰1◇／♣ 擊破。武器追加「魔／-5」或「睡眠／-5」需手動記錄）"),
+                  kind: "tieredChoice",
+                  tierLabel: C("ボス戦闘1・スート", "王戰1・花色"),
+                  tiers: [
+                    {
+                      label: C("◇", "◇"),
+                      rewards: [{ kind: "potentialPower", perPerson: true, value: 1, attributeTag: C("魔／-5（154頁）", "魔／-5（154頁）") }],
+                    },
+                    {
+                      label: C("♣", "♣"),
+                      rewards: [{ kind: "potentialPower", perPerson: true, value: 1, attributeTag: C("睡眠／-5（154頁）", "睡眠／-5（154頁）") }],
+                    },
+                  ],
                 },
-                { kind: "potentialPower", value: 2, note: C("（ボス戦闘2◇/♣ 撃破）", "（王戰2◇／♣ 擊破）") },
                 {
-                  kind: "talisman",
-                  value: 1,
-                  note: C("（ボス戦闘2◇/♣ 撃破。「共鳴する結晶：+1」は別途手動記録）", "（王戰2◇／♣ 擊破。「共鳴結晶：+1」需另行手動記錄）"),
+                  kind: "tieredChoice",
+                  tierLabel: C("ボス戦闘2・スート", "王戰2・花色"),
+                  tiers: [
+                    {
+                      label: C("◇", "◇"),
+                      rewards: [{ kind: "potentialPower", perPerson: true, value: 2, attributeTag: C("魔／-5（154頁）", "魔／-5（154頁）") }],
+                    },
+                    {
+                      label: C("♣", "♣"),
+                      rewards: [{ kind: "potentialPower", perPerson: true, value: 2, attributeTag: C("睡眠／-5（154頁）", "睡眠／-5（154頁）") }],
+                    },
+                  ],
                 },
+                { kind: "talisman", value: 1, note: C("（ボス戦闘2◇/♣ 撃破）", "（王戰2◇／♣ 擊破）") },
                 { kind: "consumable", value: 2, note: C("（ボス戦闘2◇/♣ 撃破）", "（王戰2◇／♣ 擊破）") },
+                { kind: "note", note: C("（ボス戦闘2◇/♣ 撃破。「共鳴する結晶：+1」は別途手動記録）", "（王戰2◇／♣ 擊破。「共鳴結晶：+1」需另行手動記錄）") },
               ],
             },
           ],
