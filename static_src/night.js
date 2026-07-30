@@ -1169,6 +1169,36 @@
     saveState();
   }
 
+  // 獲得ボタンを押した瞬間に、画面上部へ短時間だけ「何を獲得したか」を表示する小さな通知。
+  // 3秒後に自動で消える。DOM要素は初回呼び出し時に遅延生成する（HTMLテンプレート側の変更不要）。
+  var rewardToastHideTimer = null;
+  function showRewardToast(text) {
+    var toast = document.getElementById("reward-toast");
+    if (!toast) {
+      toast = document.createElement("div");
+      toast.id = "reward-toast";
+      toast.className = "reward-toast";
+      document.body.appendChild(toast);
+    }
+    toast.textContent = text;
+    // reflowを挟んでからvisibleを付与し、連続発火時も毎回フェードインし直す
+    toast.classList.remove("visible");
+    void toast.offsetWidth;
+    toast.classList.add("visible");
+    if (rewardToastHideTimer) clearTimeout(rewardToastHideTimer);
+    rewardToastHideTimer = setTimeout(function () {
+      toast.classList.remove("visible");
+    }, 3000);
+  }
+
+  // 樓層獲得ボタンを1回押した後は再度押せないようにし、見た目もはっきり「獲得済み」と
+  // わかるようにする（従来は一部の種別のみdisabledにしていたが、全種別で統一する）。
+  function markFloorRewardObtained(el, toastText) {
+    el.disabled = true;
+    el.classList.add("field-reward-obtained");
+    if (toastText) showRewardToast(toastText);
+  }
+
   // --- board ---
   function renderBoard() {
     for (var i = 0; i < SLOT_COUNT; i++) {
@@ -4297,19 +4327,26 @@
   var potentialPowerResolved = null; // "weapon" | "effect" | null
   var potentialPowerMinimized = false; // 一時的に内容を畳んで、他の面板（角色詳細等）を確認できるようにする
 
-  function openPotentialPowerModal() {
+  function openPotentialPowerModal(presetCharacterId, presetStarCount) {
     var entered = rosterCharacters.filter(function (c) {
       return c.entered;
     });
     if (!entered.length) return;
     if (
+      presetCharacterId &&
+      entered.some(function (c) {
+        return c.id === presetCharacterId;
+      })
+    ) {
+      potentialPowerSelectedCharacterId = presetCharacterId;
+    } else if (
       !entered.some(function (c) {
         return c.id === potentialPowerSelectedCharacterId;
       })
     ) {
       potentialPowerSelectedCharacterId = entered[0].id;
     }
-    potentialPowerStarCount = 1;
+    potentialPowerStarCount = presetStarCount || 1;
     potentialPowerWeaponResult = null;
     potentialPowerEffectResult = null;
     potentialPowerEffectSlotPreview = null;
@@ -5201,6 +5238,8 @@
         saveRosterCharacters();
         renderCharacterRoster();
         addLog("log_floor_reward_hp_damage", { character: target.name, value: entry.value });
+        hpSelect.disabled = true;
+        markFloorRewardObtained(hpBtn, window.I18N.t("log_floor_reward_hp_damage", { character: target.name, value: entry.value }));
       });
       hpRow.appendChild(hpBtn);
       container.appendChild(hpRow);
@@ -5219,7 +5258,7 @@
         saveRosterCharacters();
         renderCharacterRoster();
         addLog("log_floor_reward_rune", { value: entry.value, count: entered.length });
-        runeBtn.disabled = true;
+        markFloorRewardObtained(runeBtn, window.I18N.t("log_floor_reward_rune", { value: entry.value, count: entered.length }));
       });
       container.appendChild(runeBtn);
       return;
@@ -5250,10 +5289,11 @@
         target.consumableCounts[consumableItemSelect.value] = (target.consumableCounts[consumableItemSelect.value] || 0) + entry.value;
         saveRosterCharacters();
         renderCharacterRoster();
-        addLog("log_floor_reward_consumable", {
-          character: target.name,
-          item: Consumables.localizedText(Consumables.get(consumableItemSelect.value).name),
-        });
+        var itemLabel = Consumables.localizedText(Consumables.get(consumableItemSelect.value).name);
+        addLog("log_floor_reward_consumable", { character: target.name, item: itemLabel });
+        consumableCharSelect.disabled = true;
+        consumableItemSelect.disabled = true;
+        markFloorRewardObtained(consumableBtn, window.I18N.t("log_floor_reward_consumable", { character: target.name, item: itemLabel }));
       });
       consumableRow.appendChild(consumableBtn);
       container.appendChild(consumableRow);
@@ -5286,10 +5326,11 @@
         for (var i = 0; i < entry.value; i++) target.talismanIds.push(talismanItemSelect.value);
         saveRosterCharacters();
         renderCharacterRoster();
-        addLog("log_floor_reward_talisman", {
-          character: target.name,
-          item: Talismans.localizedText(Talismans.get(talismanItemSelect.value).name),
-        });
+        var talismanLabel = Talismans.localizedText(Talismans.get(talismanItemSelect.value).name);
+        addLog("log_floor_reward_talisman", { character: target.name, item: talismanLabel });
+        talismanCharSelect.disabled = true;
+        talismanItemSelect.disabled = true;
+        markFloorRewardObtained(talismanBtn, window.I18N.t("log_floor_reward_talisman", { character: target.name, item: talismanLabel }));
       });
       talismanRow.appendChild(talismanBtn);
       container.appendChild(talismanRow);
@@ -5317,7 +5358,10 @@
         saveRosterCharacters();
         renderCharacterRoster();
         var Weapons = window.PriTestWeapons;
-        addLog("log_floor_reward_weapon", { character: target.name, weapon: Weapons.localizedText(result.item.name) });
+        var weaponLabel = Weapons.localizedText(result.item.name);
+        addLog("log_floor_reward_weapon", { character: target.name, weapon: weaponLabel });
+        weaponCharSelect.disabled = true;
+        markFloorRewardObtained(weaponBtn, window.I18N.t("log_floor_reward_weapon", { character: target.name, weapon: weaponLabel }));
       });
       weaponRow.appendChild(weaponBtn);
       container.appendChild(weaponRow);
@@ -5333,7 +5377,7 @@
         saveState();
         renderStoneswordKeyCount();
         addLog("log_floor_reward_stonesword_key", { value: entry.value });
-        keyBtn.disabled = true;
+        markFloorRewardObtained(keyBtn, window.I18N.t("log_floor_reward_stonesword_key", { value: entry.value }));
       });
       container.appendChild(keyBtn);
       return;
@@ -5348,27 +5392,27 @@
         saveState();
         renderSmithingStoneCount();
         addLog("log_floor_reward_smithing_stone", { value: entry.value });
-        stoneBtn.disabled = true;
+        markFloorRewardObtained(stoneBtn, window.I18N.t("log_floor_reward_smithing_stone", { value: entry.value }));
       });
       container.appendChild(stoneBtn);
       return;
     }
 
     if (entry.kind === "potentialPower") {
-      var ppBtn = document.createElement("button");
-      ppBtn.type = "button";
-      ppBtn.textContent = window.I18N.t("floor_reward_potential_power_button", { value: entry.value }) + noteText;
-      ppBtn.addEventListener("click", function () {
-        addLog("log_floor_reward_potential_power_note", {
-          names: entered
-            .map(function (c) {
-              return c.name;
-            })
-            .join("、"),
+      // 1人ずつ独立したボタンにする：押した瞬間にそのキャラクター専用の「潜在する力」
+      // モーダルを開き（★数を引き継ぐ）、実際の抽選・確定はそちらのモーダルで行う。
+      entered.forEach(function (c) {
+        var ppBtn = document.createElement("button");
+        ppBtn.type = "button";
+        ppBtn.textContent = window.I18N.t("floor_reward_potential_power_button", { value: entry.value }) + "（" + c.name + "）" + noteText;
+        ppBtn.addEventListener("click", function () {
+          addLog("log_floor_reward_potential_power_note", { names: c.name });
+          markFloorRewardObtained(ppBtn, window.I18N.t("log_floor_reward_potential_power_note", { names: c.name }));
+          minimizeFloorRewardModal();
+          openPotentialPowerModal(c.id, entry.value);
         });
-        ppBtn.disabled = true;
+        container.appendChild(ppBtn);
       });
-      container.appendChild(ppBtn);
       return;
     }
 

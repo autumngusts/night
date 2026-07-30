@@ -2337,6 +2337,67 @@ button {
   font-size: 0.82rem;
 }
 
+/* 樓層獲得モーダル内の各報酬ボタン：獲得済み（disabled）は単なる灰色ではなく、
+   緑のチェック付きで明確に区別する。未獲得のボタンは通常の主要ボタン色のまま。 */
+#floor-reward-modal-content button:not(.field-reward-obtained):not(:disabled) {
+  background: #2f8f5b;
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  padding: 0.35rem 0.7rem;
+  font-size: 0.85rem;
+}
+
+.field-reward-obtained {
+  background: #e4f3e9 !important;
+  color: #2f8f5b !important;
+  border: 1px solid #9bcbae !important;
+  cursor: default;
+  opacity: 1 !important;
+}
+
+.field-reward-obtained::before {
+  content: "✓ ";
+  font-weight: 700;
+}
+
+/* 獲得ボタンを押した瞬間に、画面上部へ「何を獲得したか」を数秒だけ表示する通知 */
+.reward-toast {
+  position: fixed;
+  top: 0.75rem;
+  left: 50%;
+  transform: translateX(-50%) translateY(-12px);
+  max-width: min(90vw, 28rem);
+  background: rgba(24, 28, 20, 0.92);
+  color: #ffe9a8;
+  padding: 0.55rem 1.1rem;
+  border-radius: 999px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
+  z-index: 4000;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.25s ease, transform 0.25s ease;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.reward-toast.visible {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+
+@media (prefers-color-scheme: dark) {
+  .field-reward-obtained {
+    background: #16321f !important;
+    color: #7fe3a6 !important;
+    border-color: #2f8f5b !important;
+  }
+}
+
 .field-floor-reward {
   margin: 0.5rem 0 0.3rem;
   padding: 0.5rem 0.6rem;
