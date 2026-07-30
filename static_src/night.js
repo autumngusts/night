@@ -5344,6 +5344,33 @@
       weaponRow.appendChild(weaponCharSelect);
       var weaponBtn = document.createElement("button");
       weaponBtn.type = "button";
+
+      // カテゴリ指定（聖印／杖／射撃武器グループ等）や共通戦技タグ（例:「炎／-5」）が
+      // 付いている場合は、簡易抽選ではなく本格の武器抽選ウィザードへ連携する。
+      if (entry.categoryId || entry.attributeTag) {
+        weaponBtn.textContent = window.I18N.t("floor_reward_weapon_star_wizard_button", { value: "★".repeat(entry.value) }) + noteText;
+        weaponBtn.addEventListener("click", function () {
+          var target = entered.filter(function (c) {
+            return c.id === weaponCharSelect.value;
+          })[0];
+          if (!target) return;
+          minimizeFloorRewardModal();
+          CharacterDrawer.open(target.id);
+          CharacterDrawer.presetWeaponRollForReward(target.id, entry.value, entry.categoryId || null, entry.attributeTag || null);
+          var rollField = document.getElementById("weapon-roll-field");
+          if (rollField && rollField.scrollIntoView) rollField.scrollIntoView({ behavior: "smooth", block: "center" });
+          addLog("log_floor_reward_weapon_wizard_nav", { character: target.name, value: "★".repeat(entry.value) });
+          weaponCharSelect.disabled = true;
+          markFloorRewardObtained(
+            weaponBtn,
+            window.I18N.t("log_floor_reward_weapon_wizard_nav", { character: target.name, value: "★".repeat(entry.value) })
+          );
+        });
+        weaponRow.appendChild(weaponBtn);
+        container.appendChild(weaponRow);
+        return;
+      }
+
       weaponBtn.textContent = window.I18N.t("floor_reward_weapon_star_button", { value: "★".repeat(entry.value) }) + noteText;
       weaponBtn.addEventListener("click", function () {
         var target = entered.filter(function (c) {
@@ -5413,6 +5440,49 @@
         });
         container.appendChild(ppBtn);
       });
+      return;
+    }
+
+    if (entry.kind === "tieredChoice") {
+      // 成功回数・聖甲蟲追跡回数など、段階に応じて報酬が変わるケース向け。
+      // 先にセレクタで段階を選び、確定ボタンを押すまでは他の段階の報酬を見せない。
+      var Fields = window.PriTestFields;
+      var tieredRow = document.createElement("div");
+      tieredRow.className = "wb-row";
+      var tieredLabel = document.createElement("span");
+      tieredLabel.className = "threat-ref-body";
+      tieredLabel.textContent =
+        (entry.tierLabel ? Fields.localizedText(entry.tierLabel) : window.I18N.t("floor_reward_tiered_choice_label")) +
+        window.I18N.t("colon_separator");
+      tieredRow.appendChild(tieredLabel);
+      var tierSelect = document.createElement("select");
+      (entry.tiers || []).forEach(function (tier, idx) {
+        var o = document.createElement("option");
+        o.value = String(idx);
+        o.textContent = Fields.localizedText(tier.label);
+        tierSelect.appendChild(o);
+      });
+      tieredRow.appendChild(tierSelect);
+      var tierConfirmBtn = document.createElement("button");
+      tierConfirmBtn.type = "button";
+      tierConfirmBtn.className = "primary-btn";
+      tierConfirmBtn.textContent = window.I18N.t("floor_reward_tiered_choice_confirm_button");
+      var tierResultContainer = document.createElement("div");
+      tierResultContainer.className = "tiered-choice-result";
+      tierConfirmBtn.addEventListener("click", function () {
+        var tier = (entry.tiers || [])[parseInt(tierSelect.value, 10)];
+        if (!tier) return;
+        tierSelect.disabled = true;
+        var tierLabelText = Fields.localizedText(tier.label);
+        addLog("log_floor_reward_tiered_choice", { tier: tierLabelText });
+        markFloorRewardObtained(tierConfirmBtn, window.I18N.t("log_floor_reward_tiered_choice", { tier: tierLabelText }));
+        (tier.rewards || []).forEach(function (sub) {
+          renderFloorRewardOption(tierResultContainer, sub, entered);
+        });
+      });
+      tieredRow.appendChild(tierConfirmBtn);
+      container.appendChild(tieredRow);
+      container.appendChild(tierResultContainer);
       return;
     }
 

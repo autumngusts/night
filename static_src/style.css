@@ -1587,6 +1587,17 @@ button {
   font-weight: 600;
 }
 
+.weapon-attribute-tag {
+  display: inline-block;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: #a0331f;
+  background: #fbe4de;
+  border: 1px solid #e0a89a;
+  border-radius: 999px;
+  padding: 1px 8px;
+}
+
 .weapon-damage-details summary {
   font-size: 0.85rem;
 }
@@ -2415,6 +2426,12 @@ button {
   margin-bottom: 0.35rem;
 }
 
+.tiered-choice-result {
+  margin: 0.2rem 0 0.5rem 0.8rem;
+  padding-left: 0.6rem;
+  border-left: 2px solid #ccc;
+}
+
 .field-line {
   font-size: 0.82rem;
   line-height: 1.65;
@@ -2670,6 +2687,14 @@ button {
   }
   .weapon-damage-tag {
     color: #e0c34a;
+  }
+  .weapon-attribute-tag {
+    color: #ff9c85;
+    background: #3a1f1a;
+    border-color: #6b3226;
+  }
+  .tiered-choice-result {
+    border-left-color: #555;
   }
   .main-menu-list {
     background: #1c1c1c;

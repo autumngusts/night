@@ -1500,6 +1500,7 @@
       )
     );
     if (damage) appendWeaponDamageTag(title, damage);
+    if (c.weaponAttributeTags && c.weaponAttributeTags[weaponId]) appendWeaponAttributeTag(title, c.weaponAttributeTags[weaponId]);
     card.appendChild(title);
 
     if (category && category.isShield) {
@@ -2128,7 +2129,36 @@
       skillDice: null,
       skillId: null,
       skillMissMessage: false,
+
+      // 場地の獲得ボタンから起動した場合のみ非null。確定時にweaponAttributeTagsへ自動記録する
+      // （例:「炎／-5（154頁）」等、共通戦技の追加効果タグ）。
+      pendingAttributeTag: null,
     };
+  }
+
+  // 場地カードの獲得ボタンから、本格の武器抽選ウィザードへ直接連携するための起動関数。
+  // カテゴリ・★数を事前セットして手順を省略し、attributeTagが渡された場合は
+  // 確定時に自動でweaponAttributeTagsへ記録する（GMの手動記録を不要にする）。
+  function presetWeaponRollForReward(characterId, starCount, categoryId, attributeTag) {
+    activeCharacterId = characterId;
+    resetWeaponRollState();
+    weaponRollState.potentialPower = false;
+    if (categoryId === RANGED_GROUP_CATEGORY || categoryId === SHIELD_GROUP_CATEGORY) {
+      // 「射撃武器」「盾」は単一カテゴリに絞れないグループのため、大分類ショートカットの
+      // 状態だけ事前セットし、小分類（弓／大弓／弩／バリスタ等）の選択はGMに委ねる。
+      weaponRollState.categoryId = null;
+      weaponRollState.categoryResolved = false;
+      weaponRollState.majorGroupShortcut = categoryId;
+      weaponRollState.majorIndex = categoryId === RANGED_GROUP_CATEGORY ? RANGED_GROUP_MAJOR_INDEX : SHIELD_GROUP_MAJOR_INDEX;
+    } else if (categoryId) {
+      weaponRollState.categoryId = categoryId;
+      weaponRollState.categoryResolved = true;
+    }
+    if (starCount) weaponRollState.starCount = starCount;
+    if (attributeTag) weaponRollState.pendingAttributeTag = attributeTag;
+    var field = document.getElementById("weapon-roll-field");
+    if (field) field.dataset.open = "1";
+    renderWeaponRollField();
   }
 
   function parseRollRange(roll) {
@@ -2920,6 +2950,15 @@
     parentEl.appendChild(tag);
   }
 
+  // 場地の獲得ボタン経由で自動記録された付帯属性タグ（例:「炎／-5（154頁）」）を武器カードに表示する。
+  function appendWeaponAttributeTag(parentEl, tagText) {
+    var tag = document.createElement("span");
+    tag.className = "weapon-attribute-tag";
+    tag.textContent = tagText;
+    parentEl.appendChild(document.createTextNode(" "));
+    parentEl.appendChild(tag);
+  }
+
   function weaponDamageBreakdownText(d) {
     if (!d) return "";
     return window.I18N.t("weapon_damage_breakdown", {
@@ -3671,6 +3710,10 @@
           if (!c.weaponIds) c.weaponIds = [];
           var newInstanceId = makeWeaponInstanceId(st.item.id, c);
           c.weaponIds.push(newInstanceId);
+          if (st.pendingAttributeTag) {
+            if (!c.weaponAttributeTags) c.weaponAttributeTags = {};
+            c.weaponAttributeTags[newInstanceId] = st.pendingAttributeTag;
+          }
           if (st.skillId) {
             if (!c.weaponRandomSkills) c.weaponRandomSkills = {};
             // 盾はattachedEffect／reverseArtの双方が{kind:"random"}のことがあるが、決定表による
@@ -4985,6 +5028,9 @@
     categoryTwoHitDiceBonus: categoryTwoHitDiceBonus,
     weaponAccumulationEffects: weaponAccumulationEffects,
     merchantDrawWeapon: merchantDrawWeapon,
+    presetWeaponRollForReward: presetWeaponRollForReward,
+    RANGED_GROUP_CATEGORY: RANGED_GROUP_CATEGORY,
+    SHIELD_GROUP_CATEGORY: SHIELD_GROUP_CATEGORY,
     weaponPreviewSkillNames: weaponPreviewSkillNames,
     potentialPowerDrawWeapon: potentialPowerDrawWeapon,
     commitPotentialPowerWeapon: commitPotentialPowerWeapon,
