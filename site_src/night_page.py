@@ -335,8 +335,24 @@ BODY = """    <div class="night-header-row">
         <h2 id="main-menu-draw-modal-title"></h2>
         <p class="threat-ref-body" data-i18n="main_menu_draw_select_character_note"></p>
         <div id="main-menu-draw-char-list" class="main-menu-draw-char-list"></div>
+        <div id="main-menu-draw-roll-area" hidden>
+          <button id="btn-main-menu-draw-back" type="button" data-i18n="main_menu_draw_back_button"></button>
+          <div id="main-menu-draw-roll-field"></div>
+        </div>
         <div class="actions">
           <button id="btn-main-menu-draw-close" type="button" class="primary-btn" data-i18n="close_button"></button>
+        </div>
+      </div>
+    </div>
+
+    <div id="inventory-overflow-modal" class="modal" hidden>
+      <div class="modal-box combat-modal-box">
+        <h2 data-i18n="inventory_overflow_title"></h2>
+        <p id="inventory-overflow-body" class="threat-ref-body"></p>
+        <select id="inventory-overflow-target-select"></select>
+        <div class="actions">
+          <button id="btn-inventory-overflow-transfer" type="button" class="primary-btn" data-i18n="inventory_overflow_transfer_button"></button>
+          <button id="btn-inventory-overflow-discard" type="button" class="danger-btn" data-i18n="inventory_overflow_discard_button"></button>
         </div>
       </div>
     </div>
@@ -596,7 +612,6 @@ BODY = """    <div class="night-header-row">
             <input type="text" id="weapon-search-input">
             <div class="weapon-search-results" id="weapon-search-results" hidden></div>
           </div>
-          <div class="weapon-roll-field" id="weapon-roll-field"></div>
           <div id="weapon-list"></div>
         </div>
 
@@ -606,7 +621,6 @@ BODY = """    <div class="night-header-row">
             <input type="text" id="talisman-search-input">
             <div class="weapon-search-results" id="talisman-search-results" hidden></div>
           </div>
-          <div class="weapon-roll-field" id="talisman-roll-field"></div>
           <div id="talisman-list"></div>
         </div>
 
@@ -616,7 +630,6 @@ BODY = """    <div class="night-header-row">
             <input type="text" id="consumable-search-input">
             <div class="weapon-search-results" id="consumable-search-results" hidden></div>
           </div>
-          <div class="weapon-roll-field" id="consumable-roll-field"></div>
           <div id="consumable-list"></div>
         </div>
 

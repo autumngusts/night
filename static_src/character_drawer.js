@@ -1948,26 +1948,31 @@
     });
   }
 
-  // 盤面ロスターに出す消耗品要約1行：[名前(所持數)][転交数量][対象][確定]
+  // 盤面ロスターに出す消耗品要約1行（種類ごとにグループ表示）：[名前(所持數)][転交数量][対象][確定]。
+  // 転交は該当種類のインスタンスをqty個、先頭から順に移す（残り使用回数はそのまま引き継ぐ）。
   function renderRosterConsumableList(c, container) {
     container.innerHTML = "";
     if (!c) return;
-    var ids = Object.keys(c.consumableCounts || {}).filter(function (id) {
-      return (c.consumableCounts[id] || 0) > 0;
+    var byItemId = {};
+    (c.consumables || []).forEach(function (inst) {
+      if (!byItemId[inst.itemId]) byItemId[inst.itemId] = [];
+      byItemId[inst.itemId].push(inst);
     });
-    if (!ids.length) return;
-    ids.forEach(function (consumableId) {
-      var consumable = Consumables.get(consumableId);
+    var itemIds = Object.keys(byItemId);
+    if (!itemIds.length) return;
+    itemIds.forEach(function (itemId) {
+      var consumable = Consumables.get(itemId);
       if (!consumable) return;
+      var instances = byItemId[itemId];
       var row = document.createElement("div");
       row.className = "roster-weapon-row";
 
       var nameBtn = document.createElement("button");
       nameBtn.type = "button";
       nameBtn.className = "roster-weapon-name-btn";
-      nameBtn.textContent = Consumables.localizedText(consumable.name) + "（" + c.consumableCounts[consumableId] + "）";
+      nameBtn.textContent = Consumables.localizedText(consumable.name) + "（" + instances.length + "）";
       nameBtn.addEventListener("click", function () {
-        openConsumableDetailDrawer(c.id, consumableId);
+        openConsumableDetailDrawer(c.id, instances[0].id);
       });
       row.appendChild(nameBtn);
 
@@ -2014,7 +2019,7 @@
             opt.textContent = other.name;
             transferSelect.appendChild(opt);
           });
-        qtyInput.max = String(c.consumableCounts[consumableId] || 1);
+        qtyInput.max = String(instances.length || 1);
         qtyInput.value = "1";
         transferWrap.hidden = false;
       });
@@ -2024,15 +2029,18 @@
         if (!targetId) return;
         var target = findCharacter(targetId);
         if (!target) return;
-        var have = c.consumableCounts[consumableId] || 0;
+        var have = instances.length;
         var qty = parseInt(qtyInput.value, 10);
         if (isNaN(qty) || qty < 1) qty = 1;
         if (qty > have) qty = have;
         if (qty <= 0) return;
-        c.consumableCounts[consumableId] = have - qty;
-        if (c.consumableCounts[consumableId] <= 0) delete c.consumableCounts[consumableId];
-        if (!target.consumableCounts) target.consumableCounts = {};
-        target.consumableCounts[consumableId] = (target.consumableCounts[consumableId] || 0) + qty;
+        if (!target.consumables) target.consumables = [];
+        for (var i = 0; i < qty; i++) {
+          var moved = instances[i];
+          var idx = c.consumables.indexOf(moved);
+          if (idx !== -1) c.consumables.splice(idx, 1);
+          target.consumables.push(moved);
+        }
         saveFn();
         renderRosterFn();
         if (activeCharacterId === c.id || activeCharacterId === target.id) renderConsumableList();
@@ -2096,6 +2104,9 @@
   var RANGED_GROUP_MAJOR_INDEX = 4;
   var SHIELD_GROUP_MAJOR_INDEX = 5;
   var weaponRollState = null;
+  // 擲骰入手UIの描画先コンテナ（主選單の抽選モーダル、あるいは場地報酬モーダル内に動的生成した
+  // 要素）。詳細画面固定のDOM idには依存せず、呼び出し側が渡した要素へ直接描画する。
+  var weaponRollFieldEl = null;
 
   function resetWeaponRollState() {
     var firstCat = Weapons.categories()[0];
@@ -2139,8 +2150,9 @@
   // 場地カードの獲得ボタンから、本格の武器抽選ウィザードへ直接連携するための起動関数。
   // カテゴリ・★数を事前セットして手順を省略し、attributeTagが渡された場合は
   // 確定時に自動でweaponAttributeTagsへ記録する（GMの手動記録を不要にする）。
-  function presetWeaponRollForReward(characterId, starCount, categoryId, attributeTag) {
+  function presetWeaponRollForReward(characterId, starCount, categoryId, attributeTag, containerEl) {
     activeCharacterId = characterId;
+    weaponRollFieldEl = containerEl;
     resetWeaponRollState();
     weaponRollState.potentialPower = false;
     if (categoryId === RANGED_GROUP_CATEGORY || categoryId === SHIELD_GROUP_CATEGORY) {
@@ -2156,35 +2168,38 @@
     }
     if (starCount) weaponRollState.starCount = starCount;
     if (attributeTag) weaponRollState.pendingAttributeTag = attributeTag;
-    var field = document.getElementById("weapon-roll-field");
-    if (field) field.dataset.open = "1";
+    if (containerEl) containerEl.dataset.open = "1";
     renderWeaponRollField();
   }
 
-  // 主選單（キャラクター詳細を開かずに）から、指定キャラクターの武器/護符/消耗品の
-  // 擲骰入手パネルを直接展開する起動関数群。プリセットは行わず、手順はGMがすべて
-  // 手動で進める（詳細画面を直接開いた場合と同じ挙動）。
-  function openWeaponRollPanelForCharacter(characterId) {
+  // 主選單の抽選モーダル、あるいは場地報酬モーダル内から、指定キャラクターの武器/護符/消耗品の
+  // 擲骰入手パネルを任意のコンテナ要素へ直接描画する起動関数群（プリセットは行わず、手順は
+  // GMがすべて手動で進める）。
+  function openWeaponRollInline(containerEl, characterId) {
     activeCharacterId = characterId;
+    weaponRollFieldEl = containerEl;
     resetWeaponRollState();
-    var field = document.getElementById("weapon-roll-field");
-    if (field) field.dataset.open = "1";
+    if (containerEl) containerEl.dataset.open = "1";
     renderWeaponRollField();
   }
 
-  function openTalismanRollPanelForCharacter(characterId) {
+  // grantCount：場地報酬で「1回の抽選結果を複数個まとめて付与する」場合に使う（既定1）。
+  var consumableRollGrantCount = 1;
+
+  function openTalismanRollInline(containerEl, characterId) {
     activeCharacterId = characterId;
+    talismanRollFieldEl = containerEl;
     resetTalismanRollState();
-    var field = document.getElementById("talisman-roll-field");
-    if (field) field.dataset.open = "1";
+    if (containerEl) containerEl.dataset.open = "1";
     renderTalismanRollField();
   }
 
-  function openConsumableRollPanelForCharacter(characterId) {
+  function openConsumableRollInline(containerEl, characterId, grantCount) {
     activeCharacterId = characterId;
+    consumableRollFieldEl = containerEl;
+    consumableRollGrantCount = grantCount || 1;
     resetConsumableRollState();
-    var field = document.getElementById("consumable-roll-field");
-    if (field) field.dataset.open = "1";
+    if (containerEl) containerEl.dataset.open = "1";
     renderConsumableRollField();
   }
 
@@ -2535,6 +2550,182 @@
       return id === catalogId || id.indexOf(catalogId + "::") === 0;
     });
     return existing.length === 0 ? catalogId : catalogId + "::" + (existing.length + 1);
+  }
+
+  // 消耗品も同一種類を複数枠（インスタンス）持てるため、武器と同じ枝番方式でインスタンスidを作る。
+  function makeConsumableInstanceId(catalogId, target) {
+    var existing = (target.consumables || []).filter(function (inst) {
+      return inst.itemId === catalogId;
+    });
+    return existing.length === 0 ? catalogId : catalogId + "::" + (existing.length + 1);
+  }
+
+  function findConsumableInstance(c, instanceId) {
+    return (
+      (c.consumables || []).filter(function (inst) {
+        return inst.id === instanceId;
+      })[0] || null
+    );
+  }
+
+  // 所持上限（種類を問わず合計）。主選單抽選のキャラクター選択表示にも同じ値を使う。
+  var INVENTORY_MAX = { weapon: 6, talisman: 2, consumable: 4 };
+
+  function inventoryCount(c, kind) {
+    if (kind === "weapon") return (c.weaponIds || []).length;
+    if (kind === "talisman") return (c.talismanIds || []).length;
+    if (kind === "consumable") return (c.consumables || []).length;
+    return 0;
+  }
+
+  function transferWeaponInstance(c, target, weaponId) {
+    var idx = (c.weaponIds || []).indexOf(weaponId);
+    if (idx === -1) return null;
+    c.weaponIds.splice(idx, 1);
+    var eqIdx = (c.equippedWeaponIds || []).indexOf(weaponId);
+    if (eqIdx !== -1) c.equippedWeaponIds.splice(eqIdx, 1);
+    if (!target.weaponIds) target.weaponIds = [];
+    var newWeaponId = target.weaponIds.indexOf(weaponId) === -1 ? weaponId : makeWeaponInstanceId(baseWeaponId(weaponId), target);
+    target.weaponIds.push(newWeaponId);
+    if (c.weaponRandomSkills) {
+      WEAPON_SKILL_SLOTS.forEach(function (slot) {
+        var key = weaponSkillSlotKey(weaponId, slot);
+        if (c.weaponRandomSkills[key] === undefined) return;
+        if (!target.weaponRandomSkills) target.weaponRandomSkills = {};
+        target.weaponRandomSkills[weaponSkillSlotKey(newWeaponId, slot)] = c.weaponRandomSkills[key];
+        delete c.weaponRandomSkills[key];
+      });
+    }
+    if (c.weaponNotes && c.weaponNotes[weaponId] !== undefined) {
+      if (!target.weaponNotes) target.weaponNotes = {};
+      target.weaponNotes[newWeaponId] = c.weaponNotes[weaponId];
+      delete c.weaponNotes[weaponId];
+    }
+    if (c.weaponExtraSkills && c.weaponExtraSkills[weaponId] !== undefined) {
+      if (!target.weaponExtraSkills) target.weaponExtraSkills = {};
+      target.weaponExtraSkills[newWeaponId] = c.weaponExtraSkills[weaponId];
+      delete c.weaponExtraSkills[weaponId];
+    }
+    if (c.weaponAttributeTags && c.weaponAttributeTags[weaponId] !== undefined) {
+      if (!target.weaponAttributeTags) target.weaponAttributeTags = {};
+      target.weaponAttributeTags[newWeaponId] = c.weaponAttributeTags[weaponId];
+      delete c.weaponAttributeTags[weaponId];
+    }
+    return newWeaponId;
+  }
+
+  function discardWeaponInstance(c, weaponId) {
+    var idx = (c.weaponIds || []).indexOf(weaponId);
+    if (idx !== -1) c.weaponIds.splice(idx, 1);
+    var eqIdx = (c.equippedWeaponIds || []).indexOf(weaponId);
+    if (eqIdx !== -1) c.equippedWeaponIds.splice(eqIdx, 1);
+    if (c.weaponRandomSkills) {
+      WEAPON_SKILL_SLOTS.forEach(function (slot) {
+        delete c.weaponRandomSkills[weaponSkillSlotKey(weaponId, slot)];
+      });
+    }
+    if (c.weaponNotes) delete c.weaponNotes[weaponId];
+    if (c.weaponExtraSkills) delete c.weaponExtraSkills[weaponId];
+    if (c.weaponAttributeTags) delete c.weaponAttributeTags[weaponId];
+  }
+
+  function transferTalismanInstance(c, target, talismanId) {
+    var idx = (c.talismanIds || []).indexOf(talismanId);
+    if (idx === -1) return false;
+    c.talismanIds.splice(idx, 1);
+    if (!target.talismanIds) target.talismanIds = [];
+    if (target.talismanIds.indexOf(talismanId) === -1) target.talismanIds.push(talismanId);
+    return true;
+  }
+
+  function discardTalismanInstance(c, talismanId) {
+    var idx = (c.talismanIds || []).indexOf(talismanId);
+    if (idx !== -1) c.talismanIds.splice(idx, 1);
+  }
+
+  function transferConsumableInstance(c, target, instanceId) {
+    var inst = findConsumableInstance(c, instanceId);
+    if (!inst) return false;
+    var idx = c.consumables.indexOf(inst);
+    if (idx !== -1) c.consumables.splice(idx, 1);
+    if (!target.consumables) target.consumables = [];
+    target.consumables.push(inst);
+    return true;
+  }
+
+  function discardConsumableInstance(c, instanceId) {
+    var inst = findConsumableInstance(c, instanceId);
+    if (!inst) return;
+    var idx = c.consumables.indexOf(inst);
+    if (idx !== -1) c.consumables.splice(idx, 1);
+  }
+
+  // 所持上限（護符2／消耗品4／武器6）を超えて取得した場合、その新規獲得分について
+  // 「他のキャラクターへ転交」か「丟棄」のどちらかをGMに選ばせる。取得自体は既に完了して
+  // いる前提（この関数を呼ぶ時点でアイテムは既にpush済み）。上限内であれば何もせず即
+  // onDoneを呼ぶ。モーダルにはキャンセル／閉じるボタンを置かず、必ずどちらかの操作で
+  // 終わらせる設計にしている（「選ばなければ新規獲得分を無条件で丟棄する」という要件を、
+  // 「丟棄」以外の逃げ道を作らないことで担保する）。
+  function resolveInventoryOverflow(character, kind, itemRef, onDone) {
+    var max = INVENTORY_MAX[kind];
+    if (!itemRef || inventoryCount(character, kind) <= max) {
+      onDone();
+      return;
+    }
+    var modal = document.getElementById("inventory-overflow-modal");
+    if (!modal) {
+      onDone();
+      return;
+    }
+    var body = document.getElementById("inventory-overflow-body");
+    var select = document.getElementById("inventory-overflow-target-select");
+    var transferBtn = document.getElementById("btn-inventory-overflow-transfer");
+    var discardBtn = document.getElementById("btn-inventory-overflow-discard");
+
+    var kindLabelKey =
+      kind === "weapon" ? "inventory_kind_weapon" : kind === "talisman" ? "inventory_kind_talisman" : "inventory_kind_consumable";
+    body.textContent = window.I18N.t("inventory_overflow_body", {
+      name: character.name,
+      kind: window.I18N.t(kindLabelKey),
+      max: max,
+    });
+
+    select.innerHTML = "";
+    var candidates = characters.filter(function (other) {
+      return other.entered && other.id !== character.id;
+    });
+    candidates.forEach(function (other) {
+      var opt = document.createElement("option");
+      opt.value = other.id;
+      opt.textContent = other.name;
+      select.appendChild(opt);
+    });
+    transferBtn.hidden = candidates.length === 0;
+
+    function finish() {
+      modal.hidden = true;
+      transferBtn.onclick = null;
+      discardBtn.onclick = null;
+      saveFn();
+      onDone();
+    }
+
+    transferBtn.onclick = function () {
+      var target = findCharacter(select.value);
+      if (!target) return;
+      if (kind === "weapon") transferWeaponInstance(character, target, itemRef);
+      else if (kind === "talisman") transferTalismanInstance(character, target, itemRef);
+      else if (kind === "consumable") transferConsumableInstance(character, target, itemRef);
+      finish();
+    };
+    discardBtn.onclick = function () {
+      if (kind === "weapon") discardWeaponInstance(character, itemRef);
+      else if (kind === "talisman") discardTalismanInstance(character, itemRef);
+      else if (kind === "consumable") discardConsumableInstance(character, itemRef);
+      finish();
+    };
+
+    modal.hidden = false;
   }
 
   // ノート専用（kind:"note"のみ）のプレースホルダー武器（例:「該当武器なし」）かどうか。
@@ -3211,7 +3402,7 @@
   }
 
   function renderWeaponRollField() {
-    var field = document.getElementById("weapon-roll-field");
+    var field = weaponRollFieldEl;
     if (!field) return;
     if (!weaponRollState) resetWeaponRollState();
     var st = weaponRollState;
@@ -3766,6 +3957,10 @@
           field.dataset.open = "0";
           renderWeaponRollField();
           renderWeaponList();
+          resolveInventoryOverflow(c, "weapon", newInstanceId, function () {
+            renderWeaponList();
+            renderRosterFn();
+          });
         });
         panel.appendChild(confirmBtn);
       }
@@ -3860,10 +4055,12 @@
     });
   }
 
-  // 消耗品：タリスマンと似た単純な構造だが、持有數（所持数）を持つ点が異なる。
-  function renderConsumableCard(container, consumableId, c, onRemoved) {
-    var consumable = Consumables.get(consumableId);
+  // 消耗品：1インスタンス＝1個。個数ではなく、そのインスタンス固有の残り使用回数（特技の
+  // 残り回数管理と同じ考え方）を持つ。同じ種類を複数インスタンス持てる（所持枠は合計4）。
+  function renderConsumableCard(container, instance, c, onRemoved) {
+    var consumable = Consumables.get(instance.itemId);
     if (!consumable) return;
+    var maxUses = consumable.uses || 1;
 
     var card = document.createElement("div");
     card.className = "relic-candidate-card";
@@ -3878,29 +4075,47 @@
     body.textContent = Consumables.localizedText(consumable.body);
     card.appendChild(body);
 
-    var countRow = document.createElement("div");
-    countRow.className = "consumable-count-row";
-    var countLabel = document.createElement("span");
-    countLabel.textContent = window.I18N.t("consumable_count_label");
-    countRow.appendChild(countLabel);
-    var countInput = document.createElement("input");
-    countInput.type = "number";
-    countInput.min = "0";
-    countInput.value = String(c.consumableCounts[consumableId] || 0);
-    countInput.addEventListener("change", function () {
-      var n = parseInt(countInput.value, 10);
-      if (isNaN(n) || n < 0) n = 0;
-      c.consumableCounts[consumableId] = n;
+    var usesRow = document.createElement("div");
+    usesRow.className = "level-control ability-uses";
+    var usesLabel = document.createElement("span");
+    usesLabel.className = "ability-uses-label";
+    usesLabel.textContent = window.I18N.t("ability_uses_label");
+    var minus = document.createElement("button");
+    minus.type = "button";
+    minus.className = "level-btn";
+    minus.textContent = "-";
+    var value = document.createElement("span");
+    value.className = "level-value";
+    var plus = document.createElement("button");
+    plus.type = "button";
+    plus.className = "level-btn";
+    plus.textContent = "+";
+    function renderVal() {
+      value.textContent = instance.usesRemaining + "/" + maxUses;
+    }
+    renderVal();
+    minus.addEventListener("click", function () {
+      instance.usesRemaining = Math.max(0, instance.usesRemaining - 1);
+      renderVal();
       saveFn();
     });
-    countRow.appendChild(countInput);
-    card.appendChild(countRow);
+    plus.addEventListener("click", function () {
+      instance.usesRemaining = Math.min(maxUses, instance.usesRemaining + 1);
+      renderVal();
+      saveFn();
+    });
+    usesRow.appendChild(usesLabel);
+    usesRow.appendChild(minus);
+    usesRow.appendChild(value);
+    usesRow.appendChild(plus);
+    card.appendChild(usesRow);
 
     var removeBtn = document.createElement("button");
     removeBtn.type = "button";
     removeBtn.textContent = window.I18N.t("weapon_remove_button");
     removeBtn.addEventListener("click", function () {
-      delete c.consumableCounts[consumableId];
+      var idx = (c.consumables || []).indexOf(instance);
+      if (idx !== -1) c.consumables.splice(idx, 1);
       saveFn();
       (onRemoved || renderConsumableList)();
     });
@@ -3915,8 +4130,8 @@
     if (!container) return;
     container.innerHTML = "";
     if (!c) return;
-    Object.keys(c.consumableCounts || {}).forEach(function (id) {
-      renderConsumableCard(container, id, c);
+    (c.consumables || []).forEach(function (instance) {
+      renderConsumableCard(container, instance, c);
     });
   }
 
@@ -3938,8 +4153,12 @@
       item.addEventListener("click", function () {
         var c = findCharacter(activeCharacterId);
         if (!c) return;
-        if (!c.consumableCounts) c.consumableCounts = {};
-        if (!c.consumableCounts[i.id]) c.consumableCounts[i.id] = 1;
+        if (!c.consumables) c.consumables = [];
+        c.consumables.push({
+          id: makeConsumableInstanceId(i.id, c),
+          itemId: i.id,
+          usesRemaining: i.uses || 1,
+        });
         saveFn();
         renderConsumableList();
         var input = document.getElementById("consumable-search-input");
@@ -3965,6 +4184,7 @@
   // ②表内の6グループから1D6でグループを直接選び（groupIndex=die-1）、③グループ内の
   // アイテムをさらに1D6で決定する（各アイテムのroll欄の範囲表記に出目が収まる行を採用）。
   var talismanRollState = null;
+  var talismanRollFieldEl = null;
 
   function resetTalismanRollState() {
     talismanRollState = {
@@ -3979,7 +4199,7 @@
   }
 
   function renderTalismanRollField() {
-    var field = document.getElementById("talisman-roll-field");
+    var field = talismanRollFieldEl;
     if (!field) return;
     if (!talismanRollState) resetTalismanRollState();
     var st = talismanRollState;
@@ -4104,6 +4324,10 @@
         field.dataset.open = "0";
         renderTalismanRollField();
         renderTalismanList();
+        resolveInventoryOverflow(c, "talisman", st.item.id, function () {
+          renderTalismanList();
+          renderRosterFn();
+        });
       });
       panel.appendChild(confirmBtn);
     }
@@ -4124,6 +4348,7 @@
   // ②1D6で分類内の具体的なアイテムを決定する。調香瓶系×出目6は表の注記通り「同じ分類内で
   // 再抽選」が必要なため、②のボタンを無効化せずそのまま振り直せるようにする。
   var consumableRollState = null;
+  var consumableRollFieldEl = null;
 
   function resetConsumableRollState() {
     consumableRollState = {
@@ -4150,7 +4375,7 @@
   }
 
   function renderConsumableRollField() {
-    var field = document.getElementById("consumable-roll-field");
+    var field = consumableRollFieldEl;
     if (!field) return;
     if (!consumableRollState) resetConsumableRollState();
     var st = consumableRollState;
@@ -4263,13 +4488,27 @@
       consumableConfirmBtn.addEventListener("click", function () {
         var c = findCharacter(activeCharacterId);
         if (!c) return;
-        if (!c.consumableCounts) c.consumableCounts = {};
-        c.consumableCounts[st.item.id] = (c.consumableCounts[st.item.id] || 0) + 1;
+        if (!c.consumables) c.consumables = [];
+        var grantCount = consumableRollGrantCount || 1;
+        var lastNewInstanceId = null;
+        for (var gi = 0; gi < grantCount; gi++) {
+          lastNewInstanceId = makeConsumableInstanceId(st.item.id, c);
+          c.consumables.push({
+            id: lastNewInstanceId,
+            itemId: st.item.id,
+            usesRemaining: st.item.uses || 1,
+          });
+        }
+        consumableRollGrantCount = 1;
         saveFn();
         resetConsumableRollState();
         field.dataset.open = "0";
         renderConsumableRollField();
         renderConsumableList();
+        resolveInventoryOverflow(c, "consumable", lastNewInstanceId, function () {
+          renderConsumableList();
+          renderRosterFn();
+        });
       });
       panel.appendChild(consumableConfirmBtn);
     }
@@ -4340,7 +4579,7 @@
       weaponExtraSkills: {},
       equippedWeaponIds: [],
       talismanIds: [],
-      consumableCounts: {},
+      consumables: [],
       pendingActionBoxes: [],
     };
   }
@@ -4379,6 +4618,28 @@
     });
   }
 
+  // 旧バージョンでは消耗品を「カタログid別の所持数」（consumableCounts）で管理していたが、
+  // 実際のルールは1個ごとに使用回数（uses）を消費する仕様のため、インスタンス配列（consumables）
+  // へ移行した。旧データが残っている場合、所持数分のインスタンスを生成し（各々満タン充填）、
+  // 旧フィールドは削除する（一度だけ実行すれば十分な移行処理）。
+  function migrateConsumableCounts(c) {
+    if (!c.consumableCounts) return;
+    if (!c.consumables) c.consumables = [];
+    Object.keys(c.consumableCounts).forEach(function (itemId) {
+      var qty = c.consumableCounts[itemId] || 0;
+      var catalogItem = Consumables.get(itemId);
+      var maxUses = catalogItem && catalogItem.uses ? catalogItem.uses : 1;
+      for (var i = 0; i < qty; i++) {
+        c.consumables.push({
+          id: makeConsumableInstanceId(itemId, c),
+          itemId: itemId,
+          usesRemaining: maxUses,
+        });
+      }
+    });
+    delete c.consumableCounts;
+  }
+
   function ensureDefaults(c) {
     var fallback = newCharacter(c.name, c.typeId);
     Object.keys(fallback).forEach(function (key) {
@@ -4387,6 +4648,7 @@
     migrateFlaskField(c.flaskBase);
     migrateFlaskField(c.flaskExtra);
     migrateShieldRandomSkillKeys(c);
+    migrateConsumableCounts(c);
     return c;
   }
 
@@ -4708,10 +4970,6 @@
     renderRevivalBonusMarkers(c);
     renderAttachedSection();
     renderWeaponList();
-    resetWeaponRollState();
-    var weaponRollField = document.getElementById("weapon-roll-field");
-    if (weaponRollField) weaponRollField.dataset.open = "0";
-    renderWeaponRollField();
     var weaponSearchInput = document.getElementById("weapon-search-input");
     if (weaponSearchInput) {
       weaponSearchInput.value = "";
@@ -4728,10 +4986,6 @@
     }
     var talismanSearchResults = document.getElementById("talisman-search-results");
     if (talismanSearchResults) talismanSearchResults.hidden = true;
-    resetTalismanRollState();
-    var talismanRollField = document.getElementById("talisman-roll-field");
-    if (talismanRollField) talismanRollField.dataset.open = "0";
-    renderTalismanRollField();
 
     renderConsumableList();
     var consumableSearchInput = document.getElementById("consumable-search-input");
@@ -4741,10 +4995,6 @@
     }
     var consumableSearchResults = document.getElementById("consumable-search-results");
     if (consumableSearchResults) consumableSearchResults.hidden = true;
-    resetConsumableRollState();
-    var consumableRollField = document.getElementById("consumable-roll-field");
-    if (consumableRollField) consumableRollField.dataset.open = "0";
-    renderConsumableRollField();
 
     document.getElementById("character-drawer").classList.add("open");
   }
@@ -4846,11 +5096,11 @@
   }
 
   // 盤面ロスターの消耗品要約をクリックすると左からスライドインする、単一消耗品の詳細閲覧パネル
-  function openConsumableDetailDrawer(characterId, consumableId) {
+  function openConsumableDetailDrawer(characterId, instanceId) {
     var c = findCharacter(characterId);
     if (!c) return;
     activeConsumableDetailCharacterId = characterId;
-    activeConsumableDetailConsumableId = consumableId;
+    activeConsumableDetailConsumableId = instanceId;
     renderConsumableDetailDrawer();
     document.getElementById("consumable-detail-drawer").classList.add("open");
   }
@@ -4861,7 +5111,9 @@
     if (!container) return;
     container.innerHTML = "";
     if (!c || !activeConsumableDetailConsumableId) return;
-    renderConsumableCard(container, activeConsumableDetailConsumableId, c, function () {
+    var instance = findConsumableInstance(c, activeConsumableDetailConsumableId);
+    if (!instance) return;
+    renderConsumableCard(container, instance, c, function () {
       closeConsumableDetailDrawer();
       renderConsumableList();
       if (renderRosterFn) renderRosterFn();
@@ -5060,9 +5312,13 @@
     weaponAccumulationEffects: weaponAccumulationEffects,
     merchantDrawWeapon: merchantDrawWeapon,
     presetWeaponRollForReward: presetWeaponRollForReward,
-    openWeaponRollPanelForCharacter: openWeaponRollPanelForCharacter,
-    openTalismanRollPanelForCharacter: openTalismanRollPanelForCharacter,
-    openConsumableRollPanelForCharacter: openConsumableRollPanelForCharacter,
+    makeConsumableInstanceId: makeConsumableInstanceId,
+    INVENTORY_MAX: INVENTORY_MAX,
+    inventoryCount: inventoryCount,
+    resolveInventoryOverflow: resolveInventoryOverflow,
+    openWeaponRollInline: openWeaponRollInline,
+    openTalismanRollInline: openTalismanRollInline,
+    openConsumableRollInline: openConsumableRollInline,
     RANGED_GROUP_CATEGORY: RANGED_GROUP_CATEGORY,
     SHIELD_GROUP_CATEGORY: SHIELD_GROUP_CATEGORY,
     weaponPreviewSkillNames: weaponPreviewSkillNames,

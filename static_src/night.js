@@ -548,6 +548,7 @@
     battle: defaultBattleState(),
     dicePool: [],
     actionPhase: "normal", // "normal"|"combat"|"extra"|"defense"
+    floorRewardObtained: {}, // key: floorKey+"_"+entryIndex(+"_"+targetCharacterId) -> true
   };
 
   function shuffle(arr) {
@@ -603,6 +604,7 @@
       battle: state.battle,
       dicePool: state.dicePool,
       actionPhase: state.actionPhase,
+      floorRewardObtained: state.floorRewardObtained,
     };
   }
 
@@ -1119,6 +1121,8 @@
       state.battle = loadBattleState(data.battle);
       state.dicePool = loadDicePool(data.dicePool);
       state.actionPhase = ["normal", "combat", "extra", "defense"].indexOf(data.actionPhase) !== -1 ? data.actionPhase : "normal";
+      state.floorRewardObtained =
+        data.floorRewardObtained && typeof data.floorRewardObtained === "object" ? data.floorRewardObtained : {};
     } catch (e) {
       // 壊れた状態は無視して初期状態のまま続行する
     }
@@ -1159,6 +1163,7 @@
     state.battle = defaultBattleState();
     state.dicePool = [];
     state.actionPhase = "normal";
+    state.floorRewardObtained = {};
     localStorage.removeItem(STORAGE_KEY);
     clearUndoSnapshot();
   }
@@ -1193,10 +1198,15 @@
 
   // 樓層獲得ボタンを1回押した後は再度押せないようにし、見た目もはっきり「獲得済み」と
   // わかるようにする（従来は一部の種別のみdisabledにしていたが、全種別で統一する）。
-  function markFloorRewardObtained(el, toastText) {
+  function markFloorRewardObtained(el, toastText, stateKey) {
     el.disabled = true;
     el.classList.add("field-reward-obtained");
     if (toastText) showRewardToast(toastText);
+    if (stateKey) {
+      if (!state.floorRewardObtained) state.floorRewardObtained = {};
+      state.floorRewardObtained[stateKey] = true;
+      saveState();
+    }
   }
 
   // --- board ---
@@ -1854,7 +1864,9 @@
         branchDiv.appendChild(pv);
       });
 
-      (branch.floors || []).forEach(function (floor) {
+      (branch.floors || []).forEach(function (floor, floorIndex) {
+        // 場地報酬「獲得済み」の永続化キー：カード/分岐/フロアを一意に識別する。
+        floor.__rewardKey = card.id + "_" + branchIndex + "_" + floorIndex;
         var floorDiv = document.createElement("div");
         floorDiv.className = "field-floor";
 
@@ -3446,9 +3458,12 @@
 
   function renderCombatConsumableAction(c, content) {
     var Consumables = window.PriTestConsumables;
-    var ownedIds = Object.keys(c.consumableCounts || {}).filter(function (id) {
-      return (c.consumableCounts[id] || 0) > 0;
+    var byItemId = {};
+    (c.consumables || []).forEach(function (inst) {
+      if (!byItemId[inst.itemId]) byItemId[inst.itemId] = [];
+      byItemId[inst.itemId].push(inst);
     });
+    var ownedIds = Object.keys(byItemId);
     if (!ownedIds.length) {
       showCombatError("combat_error_no_consumable");
       return;
@@ -3462,7 +3477,7 @@
       if (!item) return;
       var opt = document.createElement("option");
       opt.value = id;
-      opt.textContent = Consumables.localizedText(item.name) + "（" + c.consumableCounts[id] + "）";
+      opt.textContent = Consumables.localizedText(item.name) + "（" + byItemId[id].length + "）";
       sel.appendChild(opt);
     });
     selLabel.appendChild(sel);
@@ -3478,7 +3493,21 @@
       var id = sel.value;
       var item = Consumables.get(id);
       var dice = consumeCombatDice(c);
-      c.consumableCounts[id] = Math.max(0, (c.consumableCounts[id] || 0) - 1);
+      // 同じ種類の中で、既に使いかけ（残り回数が最も少ない）のインスタンスから優先的に消費する。
+      var instances = (c.consumables || []).filter(function (inst) {
+        return inst.itemId === id;
+      });
+      instances.sort(function (a, b) {
+        return a.usesRemaining - b.usesRemaining;
+      });
+      var target = instances[0];
+      if (target) {
+        target.usesRemaining -= 1;
+        if (target.usesRemaining <= 0) {
+          var idx = c.consumables.indexOf(target);
+          if (idx !== -1) c.consumables.splice(idx, 1);
+        }
+      }
       combatDiceSelection = [];
       saveRosterCharacters();
       addLog("log_combat_consumable_use", {
@@ -4270,6 +4299,10 @@
       });
       merchantLastWeaponResult = result;
       renderMerchantModal();
+      CharacterDrawer.resolveInventoryOverflow(c, "weapon", result.weaponId, function () {
+        renderCharacterRoster();
+        renderMerchantModal();
+      });
     });
     content.appendChild(weaponBtn);
     if (merchantLastWeaponResult) {
@@ -4299,15 +4332,23 @@
       btn.addEventListener("click", function () {
         if ((c.runes || 0) < 1) return;
         c.runes -= 1;
-        if (!c.consumableCounts) c.consumableCounts = {};
-        c.consumableCounts[id] = (c.consumableCounts[id] || 0) + 1;
+        if (!c.consumables) c.consumables = [];
+        var newInstanceId = window.PriTestCharacterDrawer.makeConsumableInstanceId(id, c);
+        c.consumables.push({
+          id: newInstanceId,
+          itemId: id,
+          usesRemaining: item.uses || 1,
+        });
         saveRosterCharacters();
         renderCharacterRoster();
         addLog("log_merchant_consumable_purchase", {
           character: c.name,
           item: Consumables.localizedText ? Consumables.localizedText(item.name) : item.name.zh,
         });
-        renderMerchantModal();
+        window.PriTestCharacterDrawer.resolveInventoryOverflow(c, "consumable", newInstanceId, function () {
+          renderCharacterRoster();
+          renderMerchantModal();
+        });
       });
       consumableRow.appendChild(btn);
     });
@@ -4316,31 +4357,22 @@
 
   // ============================================================
   // 主選單からの擲骰入手（武器／護符／消耗品）：キャラクター詳細を開かなくても、主選單から
-  // 直接「どのキャラクターが受け取るか」を選び、そのキャラクターの擲骰入手パネルへ移動できる
-  // ようにする。既定の所持上限（武器6／護符2／消耗品4）に達しているキャラクターは選択不可。
+  // 直接「どのキャラクターが受け取るか」を選び、そのキャラクターの擲骰入手UIをこのモーダル内に
+  // 直接展開できるようにする。所持上限（武器6／護符2／消耗品4、CharacterDrawer.INVENTORY_MAX）に
+  // 達しているキャラクターでも選択自体は可能（取得はできる）。上限を超えた場合は、擲骰確定後に
+  // resolveInventoryOverflowが転交／丟棄の選択を求める。
   // ============================================================
-  var MAIN_MENU_DRAW_MAX = { weapon: 6, talisman: 2, consumable: 4 };
   var mainMenuDrawKind = null; // "weapon" | "talisman" | "consumable" | null
 
   function mainMenuDrawCount(c, kind) {
-    if (kind === "weapon") return (c.weaponIds || []).length;
-    if (kind === "talisman") return (c.talismanIds || []).length;
-    if (kind === "consumable") {
-      var counts = c.consumableCounts || {};
-      var total = 0;
-      Object.keys(counts).forEach(function (key) {
-        total += counts[key] || 0;
-      });
-      return total;
-    }
-    return 0;
+    return CharacterDrawer.inventoryCount(c, kind);
   }
 
   function renderMainMenuDrawCharList() {
     var container = document.getElementById("main-menu-draw-char-list");
     container.innerHTML = "";
     var kind = mainMenuDrawKind;
-    var max = MAIN_MENU_DRAW_MAX[kind];
+    var max = CharacterDrawer.INVENTORY_MAX[kind];
     var entered = rosterCharacters.filter(function (c) {
       return c.entered;
     });
@@ -4362,24 +4394,37 @@
         count: count,
         max: max,
       });
-      btn.disabled = full;
       btn.addEventListener("click", function () {
-        closeMainMenuDrawModal();
-        CharacterDrawer.open(c.id);
-        if (kind === "weapon") CharacterDrawer.openWeaponRollPanelForCharacter(c.id);
-        else if (kind === "talisman") CharacterDrawer.openTalismanRollPanelForCharacter(c.id);
-        else if (kind === "consumable") CharacterDrawer.openConsumableRollPanelForCharacter(c.id);
-        var fieldId = kind === "weapon" ? "weapon-roll-field" : kind === "talisman" ? "talisman-roll-field" : "consumable-roll-field";
-        var field = document.getElementById(fieldId);
-        if (field && field.scrollIntoView) field.scrollIntoView({ behavior: "smooth", block: "center" });
+        openMainMenuDrawRoll(c.id);
       });
       container.appendChild(btn);
     });
   }
 
+  // 主選單の抽選モーダル内へ、擲骰入手UIをその場で（キャラ詳細へ遷移せず）展開する。
+  function openMainMenuDrawRoll(characterId) {
+    var kind = mainMenuDrawKind;
+    document.getElementById("main-menu-draw-char-list").hidden = true;
+    document.getElementById("main-menu-draw-roll-area").hidden = false;
+    var field = document.getElementById("main-menu-draw-roll-field");
+    if (kind === "weapon") CharacterDrawer.openWeaponRollInline(field, characterId);
+    else if (kind === "talisman") CharacterDrawer.openTalismanRollInline(field, characterId);
+    else if (kind === "consumable") CharacterDrawer.openConsumableRollInline(field, characterId);
+  }
+
+  function backMainMenuDrawRoll() {
+    document.getElementById("main-menu-draw-roll-area").hidden = true;
+    document.getElementById("main-menu-draw-roll-field").innerHTML = "";
+    document.getElementById("main-menu-draw-char-list").hidden = false;
+    renderMainMenuDrawCharList();
+  }
+
   function openMainMenuDrawModal(kind) {
     mainMenuDrawKind = kind;
     document.getElementById("main-menu-draw-modal-title").textContent = window.I18N.t("main_menu_draw_title_" + kind);
+    document.getElementById("main-menu-draw-roll-area").hidden = true;
+    document.getElementById("main-menu-draw-roll-field").innerHTML = "";
+    document.getElementById("main-menu-draw-char-list").hidden = false;
     renderMainMenuDrawCharList();
     document.getElementById("main-menu-draw-modal").hidden = false;
   }
@@ -4559,12 +4604,15 @@
       weaponChooseBtn.className = "primary-btn";
       weaponChooseBtn.textContent = window.I18N.t("potential_power_weapon_choose_button");
       weaponChooseBtn.addEventListener("click", function () {
-        CharacterDrawer.commitPotentialPowerWeapon(c, wr, potentialPowerPendingAttributeTag);
+        var newWeaponId = CharacterDrawer.commitPotentialPowerWeapon(c, wr, potentialPowerPendingAttributeTag);
         saveRosterCharacters();
         renderCharacterRoster();
         addLog("log_potential_power_weapon_choice", { character: c.name, weapon: Weapons.localizedText(wr.item.name) });
         potentialPowerResolved = "weapon";
         renderPotentialPowerModal();
+        CharacterDrawer.resolveInventoryOverflow(c, "weapon", newWeaponId, function () {
+          renderCharacterRoster();
+        });
       });
       weaponCard.appendChild(weaponChooseBtn);
       content.appendChild(weaponCard);
@@ -5285,8 +5333,18 @@
   //     perPerson: bool（true=入場中の全PCへ一括適用、false=GMが対象を1人選ぶ）,
   //     value: number（個数・点数）,
   //     note: {ja,zh}（任意、ボタンの補足テキストや"note"種別の本文） }
-  function renderFloorRewardOption(container, entry, entered) {
+  function renderFloorRewardOption(container, entry, entered, floorKey, entryIndex) {
     var Consumables = window.PriTestConsumables;
+    // 武器／潜在する力の報酬は「獲得済み」を対象キャラID込みでstate.floorRewardObtainedへ
+    // 永続化する（floorKeyが無い呼び出し元＝旧経路や単体テストでは永続化をスキップする）。
+    function obtainedStateKey(targetCharacterId) {
+      if (!floorKey || entryIndex === undefined) return null;
+      return floorKey + "_" + entryIndex + "_" + targetCharacterId;
+    }
+    function isAlreadyObtained(targetCharacterId) {
+      var key = obtainedStateKey(targetCharacterId);
+      return !!(key && state.floorRewardObtained && state.floorRewardObtained[key]);
+    }
     var noteText = entry.note ? window.PriTestFields.localizedText(entry.note) : "";
     // 武器・潜在する力の共通戦技タグ（例:「炎/-5」）。fields.js側は{ja,zh}で持つため、
     // ここで表示言語へ解決してから武器抽選ウィザード／潜在する力モーダルへ渡す。
@@ -5371,75 +5429,56 @@
       return;
     }
 
+    // 消耗品／護符の場地報酬は、GMの手動アイテム選択ではなく、主選單と同じ擲骰抽選UIを
+    // このカード内にそのまま展開して決める（詳細画面へは遷移しない）。
     if (entry.kind === "consumable") {
       var consumableRow = document.createElement("div");
       consumableRow.className = "wb-row";
       var consumableCharSelect = makeTargetSelect();
       consumableRow.appendChild(consumableCharSelect);
-      var consumableItemSelect = document.createElement("select");
-      Consumables.list().forEach(function (item) {
-        var o = document.createElement("option");
-        o.value = item.id;
-        o.textContent = Consumables.localizedText(item.name);
-        consumableItemSelect.appendChild(o);
-      });
-      consumableRow.appendChild(consumableItemSelect);
       var consumableBtn = document.createElement("button");
       consumableBtn.type = "button";
       consumableBtn.textContent = window.I18N.t("floor_reward_consumable_button", { value: entry.value }) + noteText;
+      var consumableRollArea = document.createElement("div");
+      consumableRollArea.className = "field-reward-inline-roll-area";
       consumableBtn.addEventListener("click", function () {
         var target = entered.filter(function (c) {
           return c.id === consumableCharSelect.value;
         })[0];
         if (!target) return;
-        if (!target.consumableCounts) target.consumableCounts = {};
-        target.consumableCounts[consumableItemSelect.value] = (target.consumableCounts[consumableItemSelect.value] || 0) + entry.value;
-        saveRosterCharacters();
-        renderCharacterRoster();
-        var itemLabel = Consumables.localizedText(Consumables.get(consumableItemSelect.value).name);
-        addLog("log_floor_reward_consumable", { character: target.name, item: itemLabel });
+        CharacterDrawer.openConsumableRollInline(consumableRollArea, target.id, entry.value);
+        addLog("log_floor_reward_consumable_roll_nav", { character: target.name });
         consumableCharSelect.disabled = true;
-        consumableItemSelect.disabled = true;
-        markFloorRewardObtained(consumableBtn, window.I18N.t("log_floor_reward_consumable", { character: target.name, item: itemLabel }));
+        markFloorRewardObtained(consumableBtn, window.I18N.t("log_floor_reward_consumable_roll_nav", { character: target.name }));
       });
       consumableRow.appendChild(consumableBtn);
+      consumableRow.appendChild(consumableRollArea);
       container.appendChild(consumableRow);
       return;
     }
 
     if (entry.kind === "talisman") {
-      var Talismans = window.PriTestTalismans;
       var talismanRow = document.createElement("div");
       talismanRow.className = "wb-row";
       var talismanCharSelect = makeTargetSelect();
       talismanRow.appendChild(talismanCharSelect);
-      var talismanItemSelect = document.createElement("select");
-      Talismans.list().forEach(function (item) {
-        var o = document.createElement("option");
-        o.value = item.id;
-        o.textContent = Talismans.localizedText(item.name);
-        talismanItemSelect.appendChild(o);
-      });
-      talismanRow.appendChild(talismanItemSelect);
       var talismanBtn = document.createElement("button");
       talismanBtn.type = "button";
       talismanBtn.textContent = window.I18N.t("floor_reward_talisman_button", { value: entry.value }) + noteText;
+      var talismanRollArea = document.createElement("div");
+      talismanRollArea.className = "field-reward-inline-roll-area";
       talismanBtn.addEventListener("click", function () {
         var target = entered.filter(function (c) {
           return c.id === talismanCharSelect.value;
         })[0];
         if (!target) return;
-        if (!target.talismanIds) target.talismanIds = [];
-        for (var i = 0; i < entry.value; i++) target.talismanIds.push(talismanItemSelect.value);
-        saveRosterCharacters();
-        renderCharacterRoster();
-        var talismanLabel = Talismans.localizedText(Talismans.get(talismanItemSelect.value).name);
-        addLog("log_floor_reward_talisman", { character: target.name, item: talismanLabel });
+        CharacterDrawer.openTalismanRollInline(talismanRollArea, target.id);
+        addLog("log_floor_reward_talisman_roll_nav", { character: target.name });
         talismanCharSelect.disabled = true;
-        talismanItemSelect.disabled = true;
-        markFloorRewardObtained(talismanBtn, window.I18N.t("log_floor_reward_talisman", { character: target.name, item: talismanLabel }));
+        markFloorRewardObtained(talismanBtn, window.I18N.t("log_floor_reward_talisman_roll_nav", { character: target.name }));
       });
       talismanRow.appendChild(talismanBtn);
+      talismanRow.appendChild(talismanRollArea);
       container.appendChild(talismanRow);
       return;
     }
@@ -5453,32 +5492,43 @@
       weaponBtn.type = "button";
 
       // カテゴリ指定（聖印／杖／射撃武器グループ等）や共通戦技タグ（例:「炎／-5」）が
-      // 付いている場合は、簡易抽選ではなく本格の武器抽選ウィザードへ連携する。
+      // 付いている場合は、簡易抽選ではなく本格の武器抽選ウィザードへ連携する（詳細画面へは
+      // 遷移せず、このカード内に直接ウィザードを展開する）。
       if (entry.categoryId || entry.attributeTag) {
         weaponBtn.textContent = window.I18N.t("floor_reward_weapon_star_wizard_button", { value: "★".repeat(entry.value) }) + noteText;
+        var weaponWizardArea = document.createElement("div");
+        weaponWizardArea.className = "field-reward-inline-roll-area";
+        if (isAlreadyObtained()) {
+          weaponBtn.disabled = true;
+          weaponBtn.classList.add("field-reward-obtained");
+          weaponCharSelect.disabled = true;
+        }
         weaponBtn.addEventListener("click", function () {
           var target = entered.filter(function (c) {
             return c.id === weaponCharSelect.value;
           })[0];
           if (!target) return;
-          minimizeFloorRewardModal();
-          CharacterDrawer.open(target.id);
-          CharacterDrawer.presetWeaponRollForReward(target.id, entry.value, entry.categoryId || null, resolvedAttributeTag);
-          var rollField = document.getElementById("weapon-roll-field");
-          if (rollField && rollField.scrollIntoView) rollField.scrollIntoView({ behavior: "smooth", block: "center" });
+          CharacterDrawer.presetWeaponRollForReward(target.id, entry.value, entry.categoryId || null, resolvedAttributeTag, weaponWizardArea);
           addLog("log_floor_reward_weapon_wizard_nav", { character: target.name, value: "★".repeat(entry.value) });
           weaponCharSelect.disabled = true;
           markFloorRewardObtained(
             weaponBtn,
-            window.I18N.t("log_floor_reward_weapon_wizard_nav", { character: target.name, value: "★".repeat(entry.value) })
+            window.I18N.t("log_floor_reward_weapon_wizard_nav", { character: target.name, value: "★".repeat(entry.value) }),
+            obtainedStateKey()
           );
         });
         weaponRow.appendChild(weaponBtn);
+        weaponRow.appendChild(weaponWizardArea);
         container.appendChild(weaponRow);
         return;
       }
 
       weaponBtn.textContent = window.I18N.t("floor_reward_weapon_star_button", { value: "★".repeat(entry.value) }) + noteText;
+      if (isAlreadyObtained()) {
+        weaponBtn.disabled = true;
+        weaponBtn.classList.add("field-reward-obtained");
+        weaponCharSelect.disabled = true;
+      }
       weaponBtn.addEventListener("click", function () {
         var target = entered.filter(function (c) {
           return c.id === weaponCharSelect.value;
@@ -5495,7 +5545,14 @@
         var weaponLabel = Weapons.localizedText(result.item.name);
         addLog("log_floor_reward_weapon", { character: target.name, weapon: weaponLabel });
         weaponCharSelect.disabled = true;
-        markFloorRewardObtained(weaponBtn, window.I18N.t("log_floor_reward_weapon", { character: target.name, weapon: weaponLabel }));
+        markFloorRewardObtained(
+          weaponBtn,
+          window.I18N.t("log_floor_reward_weapon", { character: target.name, weapon: weaponLabel }),
+          obtainedStateKey()
+        );
+        CharacterDrawer.resolveInventoryOverflow(target, "weapon", result.weaponId, function () {
+          renderCharacterRoster();
+        });
       });
       weaponRow.appendChild(weaponBtn);
       container.appendChild(weaponRow);
@@ -5549,9 +5606,17 @@
         var ppBtn = document.createElement("button");
         ppBtn.type = "button";
         ppBtn.textContent = window.I18N.t("floor_reward_potential_power_button", { value: entry.value }) + "（" + c.name + "）" + noteText;
+        if (isAlreadyObtained(c.id)) {
+          ppBtn.disabled = true;
+          ppBtn.classList.add("field-reward-obtained");
+        }
         ppBtn.addEventListener("click", function () {
           addLog("log_floor_reward_potential_power_note", { names: c.name });
-          markFloorRewardObtained(ppBtn, window.I18N.t("log_floor_reward_potential_power_note", { names: c.name }));
+          markFloorRewardObtained(
+            ppBtn,
+            window.I18N.t("log_floor_reward_potential_power_note", { names: c.name }),
+            obtainedStateKey(c.id)
+          );
           minimizeFloorRewardModal();
           openPotentialPowerModal(c.id, entry.value, resolvedAttributeTag);
         });
@@ -5757,8 +5822,8 @@
     title.textContent = window.I18N.t("floor_reward_title");
     container.appendChild(title);
 
-    reward.forEach(function (entry) {
-      renderFloorRewardOption(container, entry, entered);
+    reward.forEach(function (entry, entryIndex) {
+      renderFloorRewardOption(container, entry, entered, floor.__rewardKey, entryIndex);
     });
   }
 
@@ -7004,6 +7069,7 @@
       openMainMenuDrawModal("consumable");
     });
     document.getElementById("btn-main-menu-draw-close").addEventListener("click", closeMainMenuDrawModal);
+    document.getElementById("btn-main-menu-draw-back").addEventListener("click", backMainMenuDrawRoll);
     document.getElementById("btn-potential-power-minimize").addEventListener("click", minimizePotentialPowerModal);
     document.getElementById("btn-potential-power-restore").addEventListener("click", restorePotentialPowerModal);
     document.getElementById("btn-floor-reward-modal-close").addEventListener("click", closeFloorRewardModal);
