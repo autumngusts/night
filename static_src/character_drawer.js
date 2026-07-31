@@ -2161,6 +2161,33 @@
     renderWeaponRollField();
   }
 
+  // 主選單（キャラクター詳細を開かずに）から、指定キャラクターの武器/護符/消耗品の
+  // 擲骰入手パネルを直接展開する起動関数群。プリセットは行わず、手順はGMがすべて
+  // 手動で進める（詳細画面を直接開いた場合と同じ挙動）。
+  function openWeaponRollPanelForCharacter(characterId) {
+    activeCharacterId = characterId;
+    resetWeaponRollState();
+    var field = document.getElementById("weapon-roll-field");
+    if (field) field.dataset.open = "1";
+    renderWeaponRollField();
+  }
+
+  function openTalismanRollPanelForCharacter(characterId) {
+    activeCharacterId = characterId;
+    resetTalismanRollState();
+    var field = document.getElementById("talisman-roll-field");
+    if (field) field.dataset.open = "1";
+    renderTalismanRollField();
+  }
+
+  function openConsumableRollPanelForCharacter(characterId) {
+    activeCharacterId = characterId;
+    resetConsumableRollState();
+    var field = document.getElementById("consumable-roll-field");
+    if (field) field.dataset.open = "1";
+    renderConsumableRollField();
+  }
+
   function parseRollRange(roll) {
     var m = String(roll || "").match(/^(\d+)(?:\s*[〜~]\s*(\d+))?/);
     if (!m) return null;
@@ -5033,6 +5060,9 @@
     weaponAccumulationEffects: weaponAccumulationEffects,
     merchantDrawWeapon: merchantDrawWeapon,
     presetWeaponRollForReward: presetWeaponRollForReward,
+    openWeaponRollPanelForCharacter: openWeaponRollPanelForCharacter,
+    openTalismanRollPanelForCharacter: openTalismanRollPanelForCharacter,
+    openConsumableRollPanelForCharacter: openConsumableRollPanelForCharacter,
     RANGED_GROUP_CATEGORY: RANGED_GROUP_CATEGORY,
     SHIELD_GROUP_CATEGORY: SHIELD_GROUP_CATEGORY,
     weaponPreviewSkillNames: weaponPreviewSkillNames,

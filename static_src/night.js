@@ -4315,6 +4315,80 @@
   }
 
   // ============================================================
+  // 主選單からの擲骰入手（武器／護符／消耗品）：キャラクター詳細を開かなくても、主選單から
+  // 直接「どのキャラクターが受け取るか」を選び、そのキャラクターの擲骰入手パネルへ移動できる
+  // ようにする。既定の所持上限（武器6／護符2／消耗品4）に達しているキャラクターは選択不可。
+  // ============================================================
+  var MAIN_MENU_DRAW_MAX = { weapon: 6, talisman: 2, consumable: 4 };
+  var mainMenuDrawKind = null; // "weapon" | "talisman" | "consumable" | null
+
+  function mainMenuDrawCount(c, kind) {
+    if (kind === "weapon") return (c.weaponIds || []).length;
+    if (kind === "talisman") return (c.talismanIds || []).length;
+    if (kind === "consumable") {
+      var counts = c.consumableCounts || {};
+      var total = 0;
+      Object.keys(counts).forEach(function (key) {
+        total += counts[key] || 0;
+      });
+      return total;
+    }
+    return 0;
+  }
+
+  function renderMainMenuDrawCharList() {
+    var container = document.getElementById("main-menu-draw-char-list");
+    container.innerHTML = "";
+    var kind = mainMenuDrawKind;
+    var max = MAIN_MENU_DRAW_MAX[kind];
+    var entered = rosterCharacters.filter(function (c) {
+      return c.entered;
+    });
+    if (!entered.length) {
+      var emptyP = document.createElement("p");
+      emptyP.className = "threat-ref-body";
+      emptyP.textContent = window.I18N.t("main_menu_draw_empty_note");
+      container.appendChild(emptyP);
+      return;
+    }
+    entered.forEach(function (c) {
+      var count = mainMenuDrawCount(c, kind);
+      var full = count >= max;
+      var btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "roster-char-action-btn main-menu-draw-char-btn";
+      btn.textContent = window.I18N.t(full ? "main_menu_draw_full_label" : "main_menu_draw_count_label", {
+        name: c.name,
+        count: count,
+        max: max,
+      });
+      btn.disabled = full;
+      btn.addEventListener("click", function () {
+        closeMainMenuDrawModal();
+        CharacterDrawer.open(c.id);
+        if (kind === "weapon") CharacterDrawer.openWeaponRollPanelForCharacter(c.id);
+        else if (kind === "talisman") CharacterDrawer.openTalismanRollPanelForCharacter(c.id);
+        else if (kind === "consumable") CharacterDrawer.openConsumableRollPanelForCharacter(c.id);
+        var fieldId = kind === "weapon" ? "weapon-roll-field" : kind === "talisman" ? "talisman-roll-field" : "consumable-roll-field";
+        var field = document.getElementById(fieldId);
+        if (field && field.scrollIntoView) field.scrollIntoView({ behavior: "smooth", block: "center" });
+      });
+      container.appendChild(btn);
+    });
+  }
+
+  function openMainMenuDrawModal(kind) {
+    mainMenuDrawKind = kind;
+    document.getElementById("main-menu-draw-modal-title").textContent = window.I18N.t("main_menu_draw_title_" + kind);
+    renderMainMenuDrawCharList();
+    document.getElementById("main-menu-draw-modal").hidden = false;
+  }
+
+  function closeMainMenuDrawModal() {
+    document.getElementById("main-menu-draw-modal").hidden = true;
+  }
+
+  // ============================================================
   // 潛在之力（潜在する力）：地圖板塊で敵人を擊破、または全踏破した際などにPCが獲得できる
   // 機会。GMが★の数（レア度決定値）を指定して抽選すると「得意武器」と「付帯効果」の両方の
   // 結果が確定し、PCはそのどちらか一方だけを選んで獲得する（規則書093/149頁）。
@@ -6920,6 +6994,16 @@
     document.getElementById("btn-merchant-modal-close").addEventListener("click", closeMerchantModal);
     document.getElementById("btn-potential-power-info").addEventListener("click", openPotentialPowerModal);
     document.getElementById("btn-potential-power-modal-close").addEventListener("click", closePotentialPowerModal);
+    document.getElementById("btn-main-menu-draw-weapon").addEventListener("click", function () {
+      openMainMenuDrawModal("weapon");
+    });
+    document.getElementById("btn-main-menu-draw-talisman").addEventListener("click", function () {
+      openMainMenuDrawModal("talisman");
+    });
+    document.getElementById("btn-main-menu-draw-consumable").addEventListener("click", function () {
+      openMainMenuDrawModal("consumable");
+    });
+    document.getElementById("btn-main-menu-draw-close").addEventListener("click", closeMainMenuDrawModal);
     document.getElementById("btn-potential-power-minimize").addEventListener("click", minimizePotentialPowerModal);
     document.getElementById("btn-potential-power-restore").addEventListener("click", restorePotentialPowerModal);
     document.getElementById("btn-floor-reward-modal-close").addEventListener("click", closeFloorRewardModal);

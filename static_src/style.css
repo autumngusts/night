@@ -1907,6 +1907,25 @@ button {
   padding: 0.2rem 0.5rem;
 }
 
+.main-menu-draw-char-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  margin: 0.5rem 0;
+}
+
+.main-menu-draw-char-btn {
+  width: 100%;
+  text-align: left;
+  padding: 0.5rem 0.7rem;
+  font-size: 0.9rem;
+}
+
+.main-menu-draw-char-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 .character-badge {
   font-size: 0.8rem;
   color: #888;

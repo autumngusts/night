@@ -25,6 +25,9 @@ BODY = """    <div class="night-header-row">
             <button id="btn-new-game" type="button" class="main-menu-item danger-btn" data-i18n="new_game_button"></button>
             <button id="btn-battle-info" type="button" class="main-menu-item" data-i18n="battle_sheet_label"></button>
             <button id="btn-potential-power-info" type="button" class="main-menu-item" data-i18n="potential_power_menu_label"></button>
+            <button id="btn-main-menu-draw-weapon" type="button" class="main-menu-item" data-i18n="main_menu_draw_weapon_label"></button>
+            <button id="btn-main-menu-draw-talisman" type="button" class="main-menu-item" data-i18n="main_menu_draw_talisman_label"></button>
+            <button id="btn-main-menu-draw-consumable" type="button" class="main-menu-item" data-i18n="main_menu_draw_consumable_label"></button>
           </div>
         </div>
         <h1 data-i18n="project_night_name"></h1>
@@ -326,6 +329,17 @@ BODY = """    <div class="night-header-row">
       </div>
     </div>
     <button id="btn-potential-power-restore" type="button" class="potential-power-restore-btn" data-i18n="potential_power_restore_button" hidden></button>
+
+    <div id="main-menu-draw-modal" class="modal" hidden>
+      <div class="modal-box combat-modal-box">
+        <h2 id="main-menu-draw-modal-title"></h2>
+        <p class="threat-ref-body" data-i18n="main_menu_draw_select_character_note"></p>
+        <div id="main-menu-draw-char-list" class="main-menu-draw-char-list"></div>
+        <div class="actions">
+          <button id="btn-main-menu-draw-close" type="button" class="primary-btn" data-i18n="close_button"></button>
+        </div>
+      </div>
+    </div>
 
     <div id="floor-reward-modal" class="modal" hidden>
       <div class="modal-box combat-modal-box">
