@@ -3076,6 +3076,22 @@
     return bonus;
   }
 
+  // 無賴漢「鬥爭心」：現在HPが最大HPと異なる場合（1点以上減っている場合）、自身が発生する
+  // 総合ダメージの最終合計値に「+20」する。タリスマン起因の固定加算（talismanFlatHitBonus／
+  // talismanFlatSkillBonus）と全く同じ「HP条件付き固定加算」の形のため、同じ注入点に載せる
+  // （アタックごとに倍加させないため、hit1/hit2どちらにも同じ固定値を1回だけ加える）。
+  function fightingSpiritFlatBonus(c) {
+    var type = c.typeId ? CharacterTypes.get(c.typeId) : null;
+    var hasAbility =
+      type &&
+      (type.abilities || []).some(function (entry) {
+        return entry.id === "fighting_spirit";
+      });
+    if (!hasAbility) return 0;
+    if (!c.hp || c.hp.current === c.hp.max) return 0;
+    return 20;
+  }
+
   // 武器が持つ特効スキル（kind:"special"、例：「エネミーが『死に生きる者』の場合、
   // 1Hit：+5／2Hit：+10」）は対象エネミーの種別を戦闘UI側で把握していないため、
   // ダメージへの自動加算はしない（誤って過大な数値を出さないため）。該当する場合のみ
@@ -3288,9 +3304,10 @@
 
     var innateHitBonus = weaponInnateHitBonus(c, weaponId, weapon);
     var talismanFlatBonus = talismanFlatHitBonus(c, weaponId, category);
+    var fightingSpiritBonus = fightingSpiritFlatBonus(c);
 
-    var hit1Damage = hit1Base + relic1 + attached1 + innateHitBonus.hit1 + talismanFlatBonus.hit1;
-    var hit2Damage = hit1Base * 2 + relic2 + attached2 + bonus2hit + innateHitBonus.hit2 + talismanFlatBonus.hit2;
+    var hit1Damage = hit1Base + relic1 + attached1 + innateHitBonus.hit1 + talismanFlatBonus.hit1 + fightingSpiritBonus;
+    var hit2Damage = hit1Base * 2 + relic2 + attached2 + bonus2hit + innateHitBonus.hit2 + talismanFlatBonus.hit2 + fightingSpiritBonus;
 
     return {
       rarityCorrection: rarityCorrection,
@@ -5542,6 +5559,7 @@
     MAX_ATTACHED_EFFECTS: MAX_ATTACHED_EFFECTS,
     weaponSpecialEffectNotes: weaponSpecialEffectNotes,
     talismanFlatSkillBonus: talismanFlatSkillBonus,
+    fightingSpiritFlatBonus: fightingSpiritFlatBonus,
     computeWeaponDamage: computeWeaponDamage,
     weaponDamageTagText: weaponDamageTagText,
     parseActionCost: parseActionCost,

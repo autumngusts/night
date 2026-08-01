@@ -3283,10 +3283,13 @@
         : CharacterDrawer.artSkillPowerValue(body, artInfo.artPower);
     }
     if (!dmg) return null;
-    // 基礎威力が実際に計算できた場合のみ、タリスマン起因の固定加算（戦技・魔術・祈祷向け）を
-    // 上乗せする（計算不能な場合にまで数値を捏造しないため）。
+    // 基礎威力が実際に計算できた場合のみ、タリスマン起因の固定加算（戦技・魔術・祈祷向け）と
+    // 無賴漢「鬥爭心」（現在HPが最大HPと異なる場合＋20）を上乗せする（計算不能な場合にまで
+    // 数値を捏造しないため）。
     var talismanBonus = CharacterDrawer.talismanFlatSkillBonus(c);
-    return talismanBonus ? { value: dmg.value + talismanBonus, symbol: dmg.symbol } : dmg;
+    var fightingSpiritBonus = CharacterDrawer.fightingSpiritFlatBonus(c);
+    var flatBonus = talismanBonus + fightingSpiritBonus;
+    return flatBonus ? { value: dmg.value + flatBonus, symbol: dmg.symbol } : dmg;
   }
 
   function renderCombatSkillAction(c, content) {
@@ -3466,6 +3469,29 @@
             restageConfirmedThisUse = null;
           });
         }
+      } else if (isActive && entry.id === "totem_stella") {
+        // 無賴漢「圖騰・史黛拉」：ダメージが「前衛にいるPCの数×35」という動的な値のため、
+        // fixedSkillPowerValueの固定値パターンにはマッチしない。既存のgetCharacterBattlePosition
+        // （淑女「終曲」等でも使う battle.front/back 判定）で前衛人数を数えて算出する。
+        var frontCount = rosterCharacters.filter(function (rc) {
+          return getCharacterBattlePosition(rc) === "front";
+        }).length;
+        var totemValue = frontCount * 35;
+        var totemCost = CharacterDrawer.parseActionCost(body);
+        renderDiceCostAction(c, content, totemCost, function (dice, costLines) {
+          if (entry.uses && entry.id) {
+            if (!c.abilityUses) c.abilityUses = {};
+            c.abilityUses[entry.id] = Math.max(0, (remaining !== null ? remaining : effectiveMax) - 1);
+          }
+          // 淑女「終曲」と同じく、次の防禦フェイズを跨いで持続するbattle全体のフラグを立てる
+          // （防禦フェイズを抜けたタイミングでリセットされる。setActionPhase参照）。
+          state.battle._totemStellaActive = true;
+          saveState();
+          var total = window.I18N.t("action_log_damage_total", { value: CharacterDrawer.formatValueWithSymbol(totemValue, "▲") });
+          addActionBox(c, name, total, [window.I18N.t("action_log_dice_used", { dice: dice.join("、") })].concat(costLines));
+          addLog("log_combat_skill_use", { character: c.name, skill: name, dice: dice.join("、") });
+          combatSkillState = null;
+        });
       } else if (isActive) {
         var cost = CharacterDrawer.parseActionCost(body);
         renderDiceCostAction(c, content, cost, function (dice, costLines) {
@@ -4207,6 +4233,15 @@
       content.appendChild(finaleNote);
     }
 
+    // 無賴漢「圖騰・史黛拉」：終曲と同じくbattle全体のフラグで、次の防禦フェイズ1回だけ
+    // リマインドバナーを表示する。
+    if (state.battle._totemStellaActive) {
+      var totemStellaNote = document.createElement("p");
+      totemStellaNote.className = "threat-ref-body";
+      totemStellaNote.textContent = window.I18N.t("totem_stella_defense_note");
+      content.appendChild(totemStellaNote);
+    }
+
     var choiceRow = document.createElement("div");
     choiceRow.className = "combat-defense-choice-row";
     [
@@ -4218,7 +4253,8 @@
       btn.className = "combat-attack-hit-btn";
       btn.textContent = opt.label;
       if (combatDefenseState === opt.key) btn.classList.add("active");
-      if (opt.key === "block" && !blockAvailable) btn.disabled = true;
+      // 無賴漢「逆襲」をDefenseとして使用した場合、その後は他の格擋を使用できなくなる。
+      if (opt.key === "block" && (!blockAvailable || c._counterattackDefenseUsed)) btn.disabled = true;
       // 迴避は防禦フェイズにつき1回のみ使用可能（格擋は複数回使用可能なまま）。
       if (opt.key === "dodge" && c._dodgeActionUsed) btn.disabled = true;
       btn.addEventListener("click", function () {
@@ -4268,12 +4304,22 @@
         }
         // 鐵眼「標記」をDefenseとして使用した場合は「迴避」の代わりに使用でき、固定で
         // HP價值:100の迴避を行ったものとして扱う（第六感のような完全無効化とは異なる）。
+        // 無賴漢「逆襲」をDefenseとして使用した場合は「格擋」の代わりに使用でき、固定で
+        // HP價值:80のガードを行ったものとして扱う（以後このフェイズ中は他の格擋を使用不可、
+        // かつこのディフェンス後に現在HP：0になるはずの損害を受けた場合は現在HP：1になる）。
         var defenseNote =
           activeDefenseSkill.id === "marking"
             ? window.I18N.t("marking_defense_note")
+            : activeDefenseSkill.id === "counterattack"
+            ? window.I18N.t("counterattack_defense_note")
             : window.I18N.t("combat_defense_skill_negate_note");
+        if (activeDefenseSkill.id === "counterattack") c._counterattackDefenseUsed = true;
         addActionBox(c, skillName, defenseNote, [window.I18N.t("action_log_dice_used", { dice: dice.join("、") })].concat(costLines));
-        addLog("log_combat_defense_skill_use", { character: c.name, skill: skillName, dice: dice.join("、") });
+        addLog(activeDefenseSkill.id === "counterattack" ? "log_counterattack_defense_use" : "log_combat_defense_skill_use", {
+          character: c.name,
+          skill: skillName,
+          dice: dice.join("、"),
+        });
         combatDefenseState = null;
       });
     }
@@ -4765,6 +4811,7 @@
     // 持続バフとはライフサイクルが異なる。
     if (state.actionPhase === "defense" && phase !== "defense") {
       state.battle._finaleActive = false;
+      state.battle._totemStellaActive = false;
     }
     state.actionPhase = phase;
     // フェイズを切り替えるたびに「額外／防禦行動を使用済み」フラグをリセットする（次にまた
@@ -4775,9 +4822,11 @@
       c._consecutiveGuardCount = 0;
       c._dodgeActionUsed = false;
       // 守護者「高防禦」（本フェイズが終わるまで持続）と「旋風」（本フェイズにつき1回まで）は
-      // どちらもフェイズ切替の都度リセットする。
+      // どちらもフェイズ切替の都度リセットする。無賴漢「逆襲」をDefenseとして使用した後の
+      // 「他の格擋を使用できない」ロックも同様に、フェイズ切替の都度リセットする。
       c._highGuardActive = false;
       c._whirlwindUsedThisPhase = false;
+      c._counterattackDefenseUsed = false;
       delete rosterDiceRollFeedback[c.id];
     });
     // 額外・防禦行動へ入るときは、各角色の確定行動（点線枠）を一旦全てクリアする。
