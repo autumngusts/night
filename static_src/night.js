@@ -4365,7 +4365,7 @@
       });
       merchantLastWeaponResult = result;
       renderMerchantModal();
-      CharacterDrawer.resolveInventoryOverflow(c, "weapon", result.weaponId, function () {
+      CharacterDrawer.resolveInventoryOverflow(c, "weapon", function () {
         renderCharacterRoster();
         renderMerchantModal();
       });
@@ -4411,7 +4411,7 @@
           character: c.name,
           item: Consumables.localizedText ? Consumables.localizedText(item.name) : item.name.zh,
         });
-        window.PriTestCharacterDrawer.resolveInventoryOverflow(c, "consumable", newInstanceId, function () {
+        window.PriTestCharacterDrawer.resolveInventoryOverflow(c, "consumable", function () {
           renderCharacterRoster();
           renderMerchantModal();
         });
@@ -4494,19 +4494,20 @@
     var field = document.getElementById("item-draw-modal-content");
     field.innerHTML = "";
     var opts = options || {};
+    var onGranted = opts.onGranted || null;
     if (kind === "weapon") {
       // 場地報酬の武器ウィザード（★数／カテゴリ指定あり）はプリセット付きで起動、
       // 主選單からの武器抽選（指定なし）は「潛在之力か否か」からGMに選ばせる通常の
       // ウィザードとして起動する。
       if (opts.starCount || opts.categoryId || opts.attributeTag) {
-        CharacterDrawer.presetWeaponRollForReward(characterId, opts.starCount || 1, opts.categoryId || null, opts.attributeTag || null, field);
+        CharacterDrawer.presetWeaponRollForReward(characterId, opts.starCount || 1, opts.categoryId || null, opts.attributeTag || null, field, onGranted);
       } else {
-        CharacterDrawer.openWeaponRollInline(field, characterId);
+        CharacterDrawer.openWeaponRollInline(field, characterId, onGranted);
       }
     } else if (kind === "talisman") {
-      CharacterDrawer.openTalismanRollInline(field, characterId);
+      CharacterDrawer.openTalismanRollInline(field, characterId, onGranted);
     } else if (kind === "consumable") {
-      CharacterDrawer.openConsumableRollInline(field, characterId, opts.grantCount || 1);
+      CharacterDrawer.openConsumableRollInline(field, characterId, opts.grantCount || 1, onGranted);
     }
     document.getElementById("item-draw-modal").hidden = false;
   }
@@ -4521,9 +4522,11 @@
   // minimizeされている間に開く。
   // ============================================================
   var weaponSkillRerollCharacterId = null;
+  var weaponSkillRerollOnResolvedFn = null;
 
-  function openWeaponSkillRerollModal(characterId) {
+  function openWeaponSkillRerollModal(characterId, onResolved) {
     weaponSkillRerollCharacterId = characterId;
+    weaponSkillRerollOnResolvedFn = onResolved || null;
     renderWeaponSkillRerollModal();
     document.getElementById("weapon-skill-reroll-modal").hidden = false;
   }
@@ -4606,6 +4609,7 @@
         saveRosterCharacters();
         renderCharacterRoster();
         addLog("log_weapon_skill_reroll", { character: c.name, weapon: s.weaponName, old: oldName, new: newName });
+        if (typeof weaponSkillRerollOnResolvedFn === "function") weaponSkillRerollOnResolvedFn();
         closeWeaponSkillRerollModal();
       });
       resultArea.appendChild(confirmNewBtn);
@@ -4614,6 +4618,7 @@
       keepOldBtn.type = "button";
       keepOldBtn.textContent = window.I18N.t("weapon_skill_reroll_keep_old_button");
       keepOldBtn.addEventListener("click", function () {
+        if (typeof weaponSkillRerollOnResolvedFn === "function") weaponSkillRerollOnResolvedFn();
         closeWeaponSkillRerollModal();
       });
       resultArea.appendChild(keepOldBtn);
@@ -4636,8 +4641,9 @@
   var potentialPowerResolved = null; // "weapon" | "effect" | null
   var potentialPowerMinimized = false; // 一時的に内容を畳んで、他の面板（角色詳細等）を確認できるようにする
   var potentialPowerPendingAttributeTag = null; // 場地報酬で指定された共通戦技タグ（例:「炎/-5」）。武器確定時に自動付与する
+  var potentialPowerOnResolvedFn = null; // 場地報酬から起動した場合のみ、実際に武器/付帯効果を確定した時点でmarkFloorRewardObtainedを呼ぶコールバック
 
-  function openPotentialPowerModal(presetCharacterId, presetStarCount, presetAttributeTag) {
+  function openPotentialPowerModal(presetCharacterId, presetStarCount, presetAttributeTag, onResolved) {
     var entered = rosterCharacters.filter(function (c) {
       return c.entered;
     });
@@ -4663,6 +4669,7 @@
     potentialPowerResolved = null;
     potentialPowerMinimized = false;
     potentialPowerPendingAttributeTag = presetAttributeTag || null;
+    potentialPowerOnResolvedFn = onResolved || null;
     document.getElementById("potential-power-modal").hidden = false;
     renderPotentialPowerModal();
   }
@@ -4800,7 +4807,8 @@
         addLog("log_potential_power_weapon_choice", { character: c.name, weapon: Weapons.localizedText(wr.item.name) });
         potentialPowerResolved = "weapon";
         renderPotentialPowerModal();
-        CharacterDrawer.resolveInventoryOverflow(c, "weapon", newWeaponId, function () {
+        if (typeof potentialPowerOnResolvedFn === "function") potentialPowerOnResolvedFn();
+        CharacterDrawer.resolveInventoryOverflow(c, "weapon", function () {
           renderCharacterRoster();
         });
       });
@@ -4875,6 +4883,7 @@
         }
         potentialPowerResolved = "effect";
         renderPotentialPowerModal();
+        if (typeof potentialPowerOnResolvedFn === "function") potentialPowerOnResolvedFn();
       });
       card.appendChild(chooseBtn);
       content.appendChild(card);
@@ -5635,10 +5644,14 @@
         })[0];
         if (!target) return;
         minimizeFloorRewardModal();
-        openItemDrawModal("consumable", target.id, { grantCount: entry.value });
         addLog("log_floor_reward_consumable_roll_nav", { character: target.name });
-        consumableCharSelect.disabled = true;
-        markFloorRewardObtained(consumableBtn, window.I18N.t("log_floor_reward_consumable_roll_nav", { character: target.name }));
+        openItemDrawModal("consumable", target.id, {
+          grantCount: entry.value,
+          onGranted: function () {
+            consumableCharSelect.disabled = true;
+            markFloorRewardObtained(consumableBtn, window.I18N.t("log_floor_reward_consumable_roll_nav", { character: target.name }));
+          },
+        });
       });
       consumableRow.appendChild(consumableBtn);
       container.appendChild(consumableRow);
@@ -5659,10 +5672,13 @@
         })[0];
         if (!target) return;
         minimizeFloorRewardModal();
-        openItemDrawModal("talisman", target.id);
         addLog("log_floor_reward_talisman_roll_nav", { character: target.name });
-        talismanCharSelect.disabled = true;
-        markFloorRewardObtained(talismanBtn, window.I18N.t("log_floor_reward_talisman_roll_nav", { character: target.name }));
+        openItemDrawModal("talisman", target.id, {
+          onGranted: function () {
+            talismanCharSelect.disabled = true;
+            markFloorRewardObtained(talismanBtn, window.I18N.t("log_floor_reward_talisman_roll_nav", { character: target.name }));
+          },
+        });
       });
       talismanRow.appendChild(talismanBtn);
       container.appendChild(talismanRow);
@@ -5693,14 +5709,20 @@
           })[0];
           if (!target) return;
           minimizeFloorRewardModal();
-          openItemDrawModal("weapon", target.id, { starCount: entry.value, categoryId: entry.categoryId, attributeTag: resolvedAttributeTag });
           addLog("log_floor_reward_weapon_wizard_nav", { character: target.name, value: "★".repeat(entry.value) });
-          weaponCharSelect.disabled = true;
-          markFloorRewardObtained(
-            weaponBtn,
-            window.I18N.t("log_floor_reward_weapon_wizard_nav", { character: target.name, value: "★".repeat(entry.value) }),
-            obtainedStateKey()
-          );
+          openItemDrawModal("weapon", target.id, {
+            starCount: entry.value,
+            categoryId: entry.categoryId,
+            attributeTag: resolvedAttributeTag,
+            onGranted: function () {
+              weaponCharSelect.disabled = true;
+              markFloorRewardObtained(
+                weaponBtn,
+                window.I18N.t("log_floor_reward_weapon_wizard_nav", { character: target.name, value: "★".repeat(entry.value) }),
+                obtainedStateKey()
+              );
+            },
+          });
         });
         weaponRow.appendChild(weaponBtn);
         container.appendChild(weaponRow);
@@ -5734,7 +5756,7 @@
           window.I18N.t("log_floor_reward_weapon", { character: target.name, weapon: weaponLabel }),
           obtainedStateKey()
         );
-        CharacterDrawer.resolveInventoryOverflow(target, "weapon", result.weaponId, function () {
+        CharacterDrawer.resolveInventoryOverflow(target, "weapon", function () {
           renderCharacterRoster();
         });
       });
@@ -5796,13 +5818,14 @@
         }
         ppBtn.addEventListener("click", function () {
           addLog("log_floor_reward_potential_power_note", { names: c.name });
-          markFloorRewardObtained(
-            ppBtn,
-            window.I18N.t("log_floor_reward_potential_power_note", { names: c.name }),
-            obtainedStateKey(c.id)
-          );
           minimizeFloorRewardModal();
-          openPotentialPowerModal(c.id, entry.value, resolvedAttributeTag);
+          openPotentialPowerModal(c.id, entry.value, resolvedAttributeTag, function () {
+            markFloorRewardObtained(
+              ppBtn,
+              window.I18N.t("log_floor_reward_potential_power_note", { names: c.name }),
+              obtainedStateKey(c.id)
+            );
+          });
         });
         container.appendChild(ppBtn);
       });
@@ -5821,13 +5844,14 @@
           rerollBtn.classList.add("field-reward-obtained");
         }
         rerollBtn.addEventListener("click", function () {
-          markFloorRewardObtained(
-            rerollBtn,
-            window.I18N.t("log_floor_reward_weapon_skill_reroll_nav", { character: c.name }),
-            obtainedStateKey(c.id)
-          );
           minimizeFloorRewardModal();
-          openWeaponSkillRerollModal(c.id);
+          openWeaponSkillRerollModal(c.id, function () {
+            markFloorRewardObtained(
+              rerollBtn,
+              window.I18N.t("log_floor_reward_weapon_skill_reroll_nav", { character: c.name }),
+              obtainedStateKey(c.id)
+            );
+          });
         });
         container.appendChild(rerollBtn);
       });

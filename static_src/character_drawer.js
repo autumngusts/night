@@ -2156,10 +2156,11 @@
   // 場地カードの獲得ボタンから、本格の武器抽選ウィザードへ直接連携するための起動関数。
   // カテゴリ・★数を事前セットして手順を省略し、attributeTagが渡された場合は
   // 確定時に自動でweaponAttributeTagsへ記録する（GMの手動記録を不要にする）。
-  function presetWeaponRollForReward(characterId, starCount, categoryId, attributeTag, containerEl) {
+  function presetWeaponRollForReward(characterId, starCount, categoryId, attributeTag, containerEl, onConfirm) {
     activeCharacterId = characterId;
     weaponRollFieldEl = containerEl;
     resetWeaponRollState();
+    weaponRollState.onConfirm = onConfirm || null;
     weaponRollState.potentialPower = false;
     if (categoryId === RANGED_GROUP_CATEGORY || categoryId === SHIELD_GROUP_CATEGORY) {
       // 「射撃武器」「盾」は単一カテゴリに絞れないグループのため、大分類ショートカットの
@@ -2181,10 +2182,11 @@
   // 主選單の抽選モーダル、あるいは場地報酬モーダル内から、指定キャラクターの武器/護符/消耗品の
   // 擲骰入手パネルを任意のコンテナ要素へ直接描画する起動関数群（プリセットは行わず、手順は
   // GMがすべて手動で進める）。
-  function openWeaponRollInline(containerEl, characterId) {
+  function openWeaponRollInline(containerEl, characterId, onConfirm) {
     activeCharacterId = characterId;
     weaponRollFieldEl = containerEl;
     resetWeaponRollState();
+    weaponRollState.onConfirm = onConfirm || null;
     if (containerEl) containerEl.dataset.open = "1";
     renderWeaponRollField();
   }
@@ -2192,19 +2194,21 @@
   // grantCount：場地報酬で「1回の抽選結果を複数個まとめて付与する」場合に使う（既定1）。
   var consumableRollGrantCount = 1;
 
-  function openTalismanRollInline(containerEl, characterId) {
+  function openTalismanRollInline(containerEl, characterId, onConfirm) {
     activeCharacterId = characterId;
     talismanRollFieldEl = containerEl;
     resetTalismanRollState();
+    talismanRollState.onConfirm = onConfirm || null;
     if (containerEl) containerEl.dataset.open = "1";
     renderTalismanRollField();
   }
 
-  function openConsumableRollInline(containerEl, characterId, grantCount) {
+  function openConsumableRollInline(containerEl, characterId, grantCount, onConfirm) {
     activeCharacterId = characterId;
     consumableRollFieldEl = containerEl;
     consumableRollGrantCount = grantCount || 1;
     resetConsumableRollState();
+    consumableRollState.onConfirm = onConfirm || null;
     if (containerEl) containerEl.dataset.open = "1";
     renderConsumableRollField();
   }
@@ -2702,27 +2706,81 @@
     if (idx !== -1) c.consumables.splice(idx, 1);
   }
 
-  // 所持上限（護符2／消耗品4／武器6）を超えて取得した場合、その新規獲得分について
-  // 「他のキャラクターへ転交」か「丟棄」のどちらかをGMに選ばせる。取得自体は既に完了して
-  // いる前提（この関数を呼ぶ時点でアイテムは既にpush済み）。上限内であれば何もせず即
-  // onDoneを呼ぶ。モーダルにはキャンセル／閉じるボタンを置かず、必ずどちらかの操作で
-  // 終わらせる設計にしている（「選ばなければ新規獲得分を無条件で丟棄する」という要件を、
-  // 「丟棄」以外の逃げ道を作らないことで担保する）。
-  function resolveInventoryOverflow(character, kind, itemRef, onDone) {
+  // 所持中の武器/護符/消耗品を、種類ごとに{ref, label}の配列として返す（オーバーフロー
+  // 一覧表示・転交/丟棄の対象選択に使う）。配列の並びは所持順（末尾＝直近に増えた分）。
+  function listInventoryItems(c, kind) {
+    if (kind === "weapon") {
+      return (c.weaponIds || []).map(function (id) {
+        var w = Weapons.get(baseWeaponId(id));
+        return { ref: id, label: w ? Weapons.localizedText(w.name) : id };
+      });
+    }
+    if (kind === "talisman") {
+      return (c.talismanIds || []).map(function (id) {
+        var t = Talismans.get(id);
+        return { ref: id, label: t ? Talismans.localizedText(t.name) : id };
+      });
+    }
+    if (kind === "consumable") {
+      return (c.consumables || []).map(function (inst) {
+        var item = Consumables.get(inst.itemId);
+        var name = item ? Consumables.localizedText(item.name) : inst.itemId;
+        return { ref: inst.id, label: name + "（" + inst.usesRemaining + "）" };
+      });
+    }
+    return [];
+  }
+
+  function transferItemByRef(kind, c, target, ref) {
+    if (kind === "weapon") return transferWeaponInstance(c, target, ref);
+    if (kind === "talisman") return transferTalismanInstance(c, target, ref);
+    if (kind === "consumable") return transferConsumableInstance(c, target, ref);
+    return false;
+  }
+
+  function discardItemByRef(kind, c, ref) {
+    if (kind === "weapon") discardWeaponInstance(c, ref);
+    else if (kind === "talisman") discardTalismanInstance(c, ref);
+    else if (kind === "consumable") discardConsumableInstance(c, ref);
+  }
+
+  // 所持上限（護符2／消耗品4／武器6）を超えている間、GMに「一覧から1つ選んで転交/丟棄」を
+  // 繰り返させ、上限内に収まるまで解消する。取得自体は既に完了している前提（この関数を
+  // 呼ぶ時点でアイテムは既にpush済み）。モーダルには「縮小」（一時的に他の画面を見る）と
+  // 「閉じる」（未選択のまま閉じた場合は一覧末尾＝直近取得分を自動的に丟棄する）を用意し、
+  // 「何も解決せずに放置される」状態を作らない。転交先も上限を超える場合は、先に転交先の
+  // 超過を解決してから、元のキャラクターの残り超過分の処理へ戻る（再帰）。
+  function resolveInventoryOverflow(character, kind, onDone) {
+    openOverflowRound(character, kind, onDone);
+  }
+
+  function openOverflowRound(character, kind, onAllResolved) {
     var max = INVENTORY_MAX[kind];
-    if (!itemRef || inventoryCount(character, kind) <= max) {
-      onDone();
+    if (inventoryCount(character, kind) <= max) {
+      onAllResolved();
       return;
     }
     var modal = document.getElementById("inventory-overflow-modal");
     if (!modal) {
-      onDone();
+      onAllResolved();
       return;
     }
+    var items = listInventoryItems(character, kind);
+    if (!items.length) {
+      onAllResolved();
+      return;
+    }
+    var selectedRef = items[items.length - 1].ref;
+
     var body = document.getElementById("inventory-overflow-body");
-    var select = document.getElementById("inventory-overflow-target-select");
+    var warning = document.getElementById("inventory-overflow-close-warning");
+    var listEl = document.getElementById("inventory-overflow-item-list");
+    var targetSelect = document.getElementById("inventory-overflow-target-select");
+    var minimizeBtn = document.getElementById("btn-inventory-overflow-minimize");
+    var restoreBtn = document.getElementById("btn-inventory-overflow-restore");
     var transferBtn = document.getElementById("btn-inventory-overflow-transfer");
     var discardBtn = document.getElementById("btn-inventory-overflow-discard");
+    var closeBtn = document.getElementById("btn-inventory-overflow-close");
 
     var kindLabelKey =
       kind === "weapon" ? "inventory_kind_weapon" : kind === "talisman" ? "inventory_kind_talisman" : "inventory_kind_consumable";
@@ -2732,7 +2790,38 @@
       max: max,
     });
 
-    select.innerHTML = "";
+    function itemLabel(ref) {
+      var found = items.filter(function (i) {
+        return i.ref === ref;
+      })[0];
+      return found ? found.label : "";
+    }
+    function renderWarning() {
+      warning.textContent = window.I18N.t("inventory_overflow_close_warning", { name: itemLabel(selectedRef) });
+    }
+
+    listEl.innerHTML = "";
+    items.forEach(function (item) {
+      var row = document.createElement("label");
+      row.className = "wb-row";
+      var radio = document.createElement("input");
+      radio.type = "radio";
+      radio.name = "inventory-overflow-item-radio";
+      radio.value = item.ref;
+      radio.checked = item.ref === selectedRef;
+      radio.addEventListener("change", function () {
+        selectedRef = item.ref;
+        renderWarning();
+      });
+      row.appendChild(radio);
+      var span = document.createElement("span");
+      span.textContent = item.label;
+      row.appendChild(span);
+      listEl.appendChild(row);
+    });
+    renderWarning();
+
+    targetSelect.innerHTML = "";
     var candidates = characters.filter(function (other) {
       return other.entered && other.id !== character.id;
     });
@@ -2740,31 +2829,55 @@
       var opt = document.createElement("option");
       opt.value = other.id;
       opt.textContent = other.name;
-      select.appendChild(opt);
+      targetSelect.appendChild(opt);
     });
     transferBtn.hidden = candidates.length === 0;
 
-    function finish() {
+    function cleanup() {
       modal.hidden = true;
+      restoreBtn.hidden = true;
+      minimizeBtn.onclick = null;
+      restoreBtn.onclick = null;
       transferBtn.onclick = null;
       discardBtn.onclick = null;
-      saveFn();
-      onDone();
+      closeBtn.onclick = null;
     }
 
+    minimizeBtn.onclick = function () {
+      modal.hidden = true;
+      restoreBtn.hidden = false;
+    };
+    restoreBtn.onclick = function () {
+      modal.hidden = false;
+      restoreBtn.hidden = true;
+    };
     transferBtn.onclick = function () {
-      var target = findCharacter(select.value);
+      var target = findCharacter(targetSelect.value);
       if (!target) return;
-      if (kind === "weapon") transferWeaponInstance(character, target, itemRef);
-      else if (kind === "talisman") transferTalismanInstance(character, target, itemRef);
-      else if (kind === "consumable") transferConsumableInstance(character, target, itemRef);
-      finish();
+      transferItemByRef(kind, character, target, selectedRef);
+      cleanup();
+      saveFn();
+      renderRosterFn();
+      // 転交先も上限超過なら、先にそちらを解決してから元のキャラクターの残りへ戻る。
+      openOverflowRound(target, kind, function () {
+        openOverflowRound(character, kind, onAllResolved);
+      });
     };
     discardBtn.onclick = function () {
-      if (kind === "weapon") discardWeaponInstance(character, itemRef);
-      else if (kind === "talisman") discardTalismanInstance(character, itemRef);
-      else if (kind === "consumable") discardConsumableInstance(character, itemRef);
-      finish();
+      discardItemByRef(kind, character, selectedRef);
+      cleanup();
+      saveFn();
+      renderRosterFn();
+      openOverflowRound(character, kind, onAllResolved);
+    };
+    closeBtn.onclick = function () {
+      // 選ばずに閉じた場合は、一覧の最後の項目（＝直近取得分）を自動的に丟棄する。
+      var lastRef = items[items.length - 1].ref;
+      discardItemByRef(kind, character, lastRef);
+      cleanup();
+      saveFn();
+      renderRosterFn();
+      openOverflowRound(character, kind, onAllResolved);
     };
 
     modal.hidden = false;
@@ -4007,12 +4120,13 @@
           saveFn();
           renderWeaponList();
           var grantedWeaponName = Weapons.localizedText(st.item.name);
-          resolveInventoryOverflow(c, "weapon", newInstanceId, function () {
+          resolveInventoryOverflow(c, "weapon", function () {
             renderWeaponList();
             renderRosterFn();
             st.resolved = true;
             st.resolvedMessage = window.I18N.t("weapon_roll_resolved_note", { name: grantedWeaponName });
             renderWeaponRollField();
+            if (typeof st.onConfirm === "function") st.onConfirm();
           });
         });
         panel.appendChild(confirmBtn);
@@ -4385,12 +4499,13 @@
         saveFn();
         renderTalismanList();
         var grantedTalismanName = Talismans.localizedText(st.item.name);
-        resolveInventoryOverflow(c, "talisman", st.item.id, function () {
+        resolveInventoryOverflow(c, "talisman", function () {
           renderTalismanList();
           renderRosterFn();
           st.resolved = true;
           st.resolvedMessage = window.I18N.t("weapon_roll_resolved_note", { name: grantedTalismanName });
           renderTalismanRollField();
+          if (typeof st.onConfirm === "function") st.onConfirm();
         });
       });
       panel.appendChild(confirmBtn);
@@ -4577,12 +4692,13 @@
         saveFn();
         renderConsumableList();
         var grantedConsumableName = Consumables.localizedText(st.item.name);
-        resolveInventoryOverflow(c, "consumable", lastNewInstanceId, function () {
+        resolveInventoryOverflow(c, "consumable", function () {
           renderConsumableList();
           renderRosterFn();
           st.resolved = true;
           st.resolvedMessage = window.I18N.t("weapon_roll_resolved_note", { name: grantedConsumableName });
           renderConsumableRollField();
+          if (typeof st.onConfirm === "function") st.onConfirm();
         });
       });
       panel.appendChild(consumableConfirmBtn);

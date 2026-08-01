@@ -337,7 +337,8 @@ button {
 }
 
 .main-menu-list.open {
-  max-height: 400px;
+  max-height: 80vh;
+  overflow-y: auto;
   opacity: 1;
 }
 

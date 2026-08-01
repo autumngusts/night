@@ -366,13 +366,18 @@ BODY = """    <div class="night-header-row">
       <div class="modal-box combat-modal-box">
         <h2 data-i18n="inventory_overflow_title"></h2>
         <p id="inventory-overflow-body" class="threat-ref-body"></p>
+        <div id="inventory-overflow-item-list"></div>
+        <p id="inventory-overflow-close-warning" class="threat-ref-body"></p>
         <select id="inventory-overflow-target-select"></select>
         <div class="actions">
+          <button id="btn-inventory-overflow-minimize" type="button" data-i18n="inventory_overflow_minimize_button"></button>
           <button id="btn-inventory-overflow-transfer" type="button" class="primary-btn" data-i18n="inventory_overflow_transfer_button"></button>
           <button id="btn-inventory-overflow-discard" type="button" class="danger-btn" data-i18n="inventory_overflow_discard_button"></button>
+          <button id="btn-inventory-overflow-close" type="button" data-i18n="inventory_overflow_close_button"></button>
         </div>
       </div>
     </div>
+    <button id="btn-inventory-overflow-restore" type="button" class="potential-power-restore-btn" data-i18n="inventory_overflow_restore_button" hidden></button>
 
     <div id="floor-reward-modal" class="modal" hidden>
       <div class="modal-box combat-modal-box">
