@@ -3440,6 +3440,7 @@
         hybridMagicElementChoice = null;
         elementalControlTargetKey = null;
         crucibleRoarChoice = null;
+        inquiryChoice = null;
         renderCombatModal();
       });
       row.appendChild(useBtn);
@@ -3700,6 +3701,53 @@
             });
           }
         }
+      } else if (isActive && entry.id === "inquiry") {
+        // 學者「探求」：後衛時は骰子消耗を3に変更（parseActionCostの結果を上書き）。
+        // 效果1（體力骰+1）／效果2（敵人ダメージ減少、回合跨ぎ持続）の二択。
+        var inquiryChoiceRow = document.createElement("div");
+        inquiryChoiceRow.className = "wb-row";
+        [
+          { key: "bonus_dice", label: window.I18N.t("inquiry_choice_bonus_dice_label") },
+          { key: "damage_reduction", label: window.I18N.t("inquiry_choice_damage_reduction_label") },
+        ].forEach(function (opt) {
+          var inquiryBtn = document.createElement("button");
+          inquiryBtn.type = "button";
+          inquiryBtn.textContent = opt.label;
+          if (inquiryChoice === opt.key) inquiryBtn.classList.add("active");
+          inquiryBtn.addEventListener("click", function () {
+            inquiryChoice = inquiryChoice === opt.key ? null : opt.key;
+            renderCombatModal();
+          });
+          inquiryChoiceRow.appendChild(inquiryBtn);
+        });
+        content.appendChild(inquiryChoiceRow);
+        if (inquiryChoice) {
+          var inquiryCost = CharacterDrawer.parseActionCost(body);
+          if (getCharacterBattlePosition(c) === "back") {
+            inquiryCost = { diceKind: "count", diceCountMin: 3, diceCountMax: 3, sumTotal: null, fpCost: inquiryCost.fpCost, hpCost: inquiryCost.hpCost };
+          }
+          renderDiceCostAction(c, content, inquiryCost, function (dice, costLines) {
+            if (entry.uses && entry.id) {
+              if (!c.abilityUses) c.abilityUses = {};
+              c.abilityUses[entry.id] = Math.max(0, (remaining !== null ? remaining : effectiveMax) - 1);
+            }
+            var inquiryNote;
+            if (inquiryChoice === "bonus_dice") {
+              if (!c.dicePool) c.dicePool = [];
+              c.dicePool.push(1 + Math.floor(Math.random() * 6));
+              inquiryNote = window.I18N.t("inquiry_bonus_dice_note");
+            } else {
+              rosterCharacters.forEach(function (rc) {
+                rc._inquiryDamageReductionActive = true;
+              });
+              inquiryNote = window.I18N.t("inquiry_damage_reduction_defense_note");
+            }
+            addActionBox(c, name, inquiryNote, [window.I18N.t("action_log_dice_used", { dice: dice.join("、") })].concat(costLines));
+            addLog("log_inquiry_use", { character: c.name, choice: window.I18N.t(inquiryChoice === "bonus_dice" ? "inquiry_choice_bonus_dice_label" : "inquiry_choice_damage_reduction_label") });
+            combatSkillState = null;
+            inquiryChoice = null;
+          });
+        }
       } else if (isActive && entry.id === "crucible_roar") {
         // 執行者「咆哮」：對敵人傷害／對PC復歸傷害の二択（襲擊と異なりこちらは「或」＝排他）。
         var roarChoiceRow = document.createElement("div");
@@ -3802,6 +3850,14 @@
             c.hp.current = c.hp.max;
             c._crucibleBeastActive = true;
           }
+          // 學者「共感術」：救世之翼と全く同じ回合跨ぎの持続バフ（直到結束階段為止）。
+          // 「HP回復が他PCにも適用される」効果はrenderCombatDefenseActionのバナーで
+          // リマインドするのみ（GM手動反映）。
+          if (entry.id === "empathy") {
+            rosterCharacters.forEach(function (rc) {
+              rc._empathyActive = true;
+            });
+          }
           // 鐵眼「標記」をActionとして戦闘フェイズで使用した場合：自身の前衛/後衛を強制的に
           // 反転する。骰子池の内容から前後衛を自動判定する既存の同期処理と直後に競合するため、
           // 追跡者「爪擊」の移動処理と同じくsetTimeoutで1ティック遅らせて最終結果として適用する。
@@ -3890,6 +3946,10 @@
   ];
   // 執行者「咆哮」：對敵人傷害／對PC復歸傷害のどちらを選ぼうとしているかの中間状態。
   var crucibleRoarChoice = null; // "damage" | "revival" | null
+
+  // 學者「探求」：效果1（體力骰+1）／效果2（敵人ダメージ減少）のどちらを選ぼうとしているかの
+  // 中間状態。
+  var inquiryChoice = null; // "bonus_dice" | "damage_reduction" | null
   var HYBRID_MAGIC_ELEMENT_LABELS = {
     fire: { zh: "火", ja: "炎" },
     lightning: { zh: "雷", ja: "雷" },
@@ -4258,6 +4318,10 @@
     content.appendChild(confirmBtn);
   }
 
+  // 學者「博聞強識」：消耗品使用時、指定出目で骰子消耗を支払ったかどうかのYes/No確認（範囲が
+  // 不明のためGM/プレイヤーの手動判定に委ねる、淑女「重演」等と同型のゲート）。
+  var carriedKnowledgeNoConsume = null; // true | false | null（null=未確認）
+
   function renderCombatConsumableAction(c, content) {
     var Consumables = window.PriTestConsumables;
     var byItemId = {};
@@ -4285,6 +4349,44 @@
     selLabel.appendChild(sel);
     content.appendChild(selLabel);
 
+    // 學者「博聞強識」：自身が使う消耗品は常に等級2效果が發揮される（具体的な数値適用は
+    // GM手動反映）。また、指定出目で骰子消耗を支払ったかどうかをYes/Noで確認し、「是」なら
+    // 使用回数を消費しない。
+    var type = c.typeId ? CharacterTypes.get(c.typeId) : null;
+    var hasCarriedKnowledge =
+      type &&
+      (type.abilities || []).some(function (entry) {
+        return entry.id === "carried_knowledge";
+      });
+    if (hasCarriedKnowledge) {
+      var level2Note = document.createElement("p");
+      level2Note.className = "threat-ref-body";
+      level2Note.textContent = window.I18N.t("carried_knowledge_level2_note");
+      content.appendChild(level2Note);
+
+      var ckQuestion = document.createElement("p");
+      ckQuestion.className = "threat-ref-body";
+      ckQuestion.textContent = window.I18N.t("carried_knowledge_confirm_question");
+      content.appendChild(ckQuestion);
+      var ckRow = document.createElement("div");
+      ckRow.className = "wb-row";
+      [
+        { key: true, label: window.I18N.t("carried_knowledge_confirm_yes_button") },
+        { key: false, label: window.I18N.t("carried_knowledge_confirm_no_button") },
+      ].forEach(function (opt) {
+        var btn = document.createElement("button");
+        btn.type = "button";
+        btn.textContent = opt.label;
+        if (carriedKnowledgeNoConsume === opt.key) btn.classList.add("active");
+        btn.addEventListener("click", function () {
+          carriedKnowledgeNoConsume = carriedKnowledgeNoConsume === opt.key ? null : opt.key;
+          renderCombatModal();
+        });
+        ckRow.appendChild(btn);
+      });
+      content.appendChild(ckRow);
+    }
+
     renderCombatDicePicker(c, content);
     var confirmBtn = document.createElement("button");
     confirmBtn.type = "button";
@@ -4303,7 +4405,7 @@
         return a.usesRemaining - b.usesRemaining;
       });
       var target = instances[0];
-      if (target) {
+      if (target && !(hasCarriedKnowledge && carriedKnowledgeNoConsume)) {
         target.usesRemaining -= 1;
         if (target.usesRemaining <= 0) {
           var idx = c.consumables.indexOf(target);
@@ -4311,6 +4413,7 @@
         }
       }
       combatDiceSelection = [];
+      carriedKnowledgeNoConsume = null;
       saveRosterCharacters();
       addLog("log_combat_consumable_use", {
         character: c.name,
@@ -4573,6 +4676,20 @@
       marchNote.className = "threat-ref-body";
       marchNote.textContent = window.I18N.t("march_of_the_undying_defense_note");
       content.appendChild(marchNote);
+    }
+
+    // 學者「探求」效果2／「共感術」：どちらも救世之翼と同じ回合跨ぎの持続バナー。
+    if (c._inquiryDamageReductionActive) {
+      var inquiryNote = document.createElement("p");
+      inquiryNote.className = "threat-ref-body";
+      inquiryNote.textContent = window.I18N.t("inquiry_damage_reduction_defense_note");
+      content.appendChild(inquiryNote);
+    }
+    if (c._empathyActive) {
+      var empathyNote = document.createElement("p");
+      empathyNote.className = "threat-ref-body";
+      empathyNote.textContent = window.I18N.t("empathy_defense_note");
+      content.appendChild(empathyNote);
     }
 
     // 淑女「終曲」：battle全体に紐付くフラグのため、発動した本人に限らず全員の防禦タブに
@@ -5487,6 +5604,8 @@
       rosterCharacters.forEach(function (c) {
         c._wingsOfSalvationActive = false;
         c._marchOfTheUndyingActive = false;
+        c._inquiryDamageReductionActive = false;
+        c._empathyActive = false;
         // 執行者「妖刀」：防禦フェイズで使用した際に予約された「次の行動階段開始時に體力骰+1」を
         // ここで消化する（新しい回合＝combatフェイズへの新規突入のタイミング）。
         if (c._yotoPendingBonusDice) {
