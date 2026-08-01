@@ -587,6 +587,7 @@
     actionPhase: "normal", // "normal"|"combat"|"extra"|"defense"
     floorRewardObtained: {}, // key: floorKey+"_"+entryIndex(+"_"+targetCharacterId) -> true
     turnHolder: "gm", // "gm"|"players"（GM/玩家が同時にプレイしなくても各自の番で行動できるようにする受け渡しフラグ）
+    turnHolderNote: "", // 受け渡し時に添える自由記述メモ（直近1件のみ保持）
   };
 
   function shuffle(arr) {
@@ -644,6 +645,7 @@
       actionPhase: state.actionPhase,
       floorRewardObtained: state.floorRewardObtained,
       turnHolder: state.turnHolder,
+      turnHolderNote: state.turnHolderNote,
     };
   }
 
@@ -1229,6 +1231,7 @@
       state.floorRewardObtained =
         data.floorRewardObtained && typeof data.floorRewardObtained === "object" ? data.floorRewardObtained : {};
       state.turnHolder = ["gm", "players"].indexOf(data.turnHolder) !== -1 ? data.turnHolder : "gm";
+      state.turnHolderNote = typeof data.turnHolderNote === "string" ? data.turnHolderNote : "";
     } catch (e) {
       // 壊れた状態は無視して初期状態のまま続行する
     }
@@ -1271,6 +1274,7 @@
     state.actionPhase = "normal";
     state.floorRewardObtained = {};
     state.turnHolder = "gm";
+    state.turnHolderNote = "";
     localStorage.removeItem(STORAGE_KEY);
     clearUndoSnapshot();
   }
@@ -3186,8 +3190,30 @@
     combatModalCharacterId = characterId;
     combatModalAction = null;
     combatDiceSelection = [];
-    document.getElementById("combat-modal").hidden = false;
+    var modal = document.getElementById("combat-modal");
+    modal.hidden = false;
+    // 開くたびに毎回フル表示から始める（縮小状態は一時的なUI設定のため保存しない）。
+    modal.classList.remove("minimized");
+    renderCombatModalMinimizeButton();
     renderCombatModal();
+  }
+
+  // 戦闘弾窗を隅の小さいウィンドウへ縮小/復元する。縮小中は背景が透過・クリック透過になり、
+  // 後ろの戦場面板（キャラロースター等）を他の人が見たり操作したりできる。
+  function renderCombatModalMinimizeButton() {
+    var modal = document.getElementById("combat-modal");
+    var btn = document.getElementById("btn-combat-modal-minimize");
+    if (!modal || !btn) return;
+    var isMinimized = modal.classList.contains("minimized");
+    btn.textContent = isMinimized ? "\u{1F5D6}" : "\u{1F5D5}";
+    btn.title = window.I18N.t(isMinimized ? "combat_modal_restore_button" : "combat_modal_minimize_button");
+  }
+
+  function handleCombatModalMinimizeToggle() {
+    var modal = document.getElementById("combat-modal");
+    if (!modal) return;
+    modal.classList.toggle("minimized");
+    renderCombatModalMinimizeButton();
   }
 
   function closeCombatModal() {
@@ -5459,19 +5485,32 @@
   function renderTurnHolderBar() {
     var statusEl = document.getElementById("turn-holder-status");
     var toggleBtn = document.getElementById("btn-turn-holder-toggle");
+    var noteInput = document.getElementById("turn-holder-note-input");
+    var noteDisplay = document.getElementById("turn-holder-note-display");
     if (!statusEl || !toggleBtn) return;
     var isGmTurn = state.turnHolder !== "players";
     statusEl.textContent = window.I18N.t(isGmTurn ? "turn_holder_gm_status" : "turn_holder_players_status");
     toggleBtn.textContent = window.I18N.t(isGmTurn ? "turn_holder_handoff_to_players_button" : "turn_holder_handoff_to_gm_button");
+    if (noteInput) noteInput.placeholder = window.I18N.t("turn_holder_note_placeholder");
+    if (noteDisplay) {
+      noteDisplay.textContent = state.turnHolderNote ? window.I18N.t("turn_holder_note_display_label", { note: state.turnHolderNote }) : "";
+    }
   }
 
   function handleTurnHolderToggle() {
     var wasGmTurn = state.turnHolder !== "players";
     state.turnHolder = wasGmTurn ? "players" : "gm";
+    var noteInput = document.getElementById("turn-holder-note-input");
+    var note = noteInput ? noteInput.value.trim() : "";
+    state.turnHolderNote = note;
+    if (noteInput) noteInput.value = "";
     saveState();
-    addLog("log_turn_holder_handoff", {
-      to: window.I18N.t(wasGmTurn ? "turn_holder_players_status" : "turn_holder_gm_status"),
-    });
+    var toLabel = window.I18N.t(wasGmTurn ? "turn_holder_players_status" : "turn_holder_gm_status");
+    if (note) {
+      addLog("log_turn_holder_handoff_with_note", { to: toLabel, note: note });
+    } else {
+      addLog("log_turn_holder_handoff", { to: toLabel });
+    }
     renderTurnHolderBar();
   }
 
@@ -8041,6 +8080,26 @@
   }
 
   function renderLog() {
+    // 完全な記録一覧（#log-list）とは別に、常駐で見える精簡摘要（#log-summary）も更新する。
+    // 摘要はcollapsedトグルの対象外＝他の人が完全な記録を展開しなくても最新状況を見られる。
+    var summary = document.getElementById("log-summary");
+    if (summary) {
+      summary.innerHTML = "";
+      if (state.log.length === 0) {
+        summary.textContent = window.I18N.t("log_summary_empty");
+      } else {
+        state.log
+          .slice(-3)
+          .reverse()
+          .forEach(function (entry) {
+            var line = document.createElement("p");
+            var time = new Date(entry.time).toLocaleTimeString();
+            line.textContent = "[" + time + "] " + window.I18N.t(entry.key, entry.params);
+            summary.appendChild(line);
+          });
+      }
+    }
+
     var list = document.getElementById("log-list");
     list.innerHTML = "";
     if (state.log.length === 0) {
@@ -8894,6 +8953,7 @@
       });
     });
     document.getElementById("btn-combat-modal-close").addEventListener("click", closeCombatModal);
+    document.getElementById("btn-combat-modal-minimize").addEventListener("click", handleCombatModalMinimizeToggle);
     document.getElementById("btn-breakthrough-cancel").addEventListener("click", closeBreakthroughModal);
     document.getElementById("btn-breakthrough-reveal").addEventListener("click", revealBreakthroughTarget);
     document.getElementById("btn-breakthrough-pass").addEventListener("click", function () {

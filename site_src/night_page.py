@@ -121,7 +121,9 @@ BODY = """    <div class="night-header-row">
       <div class="dice-pool-block" id="turn-holder-bar">
         <span data-i18n="turn_holder_label"></span>
         <span id="turn-holder-status"></span>
+        <input type="text" id="turn-holder-note-input">
         <button type="button" class="primary-btn" id="btn-turn-holder-toggle"></button>
+        <p id="turn-holder-note-display" class="threat-ref-body"></p>
       </div>
 
       <div class="function-menu-block" id="function-menu-block">
@@ -195,6 +197,7 @@ BODY = """    <div class="night-header-row">
           <h2 data-i18n="log_title"></h2>
           <button id="btn-log-toggle" type="button" class="icon-btn" aria-label="toggle log">👁</button>
         </div>
+        <div id="log-summary" class="threat-ref-body"></div>
         <ul id="log-list"></ul>
       </div>
 
@@ -298,6 +301,7 @@ BODY = """    <div class="night-header-row">
 
     <div id="combat-modal" class="modal" hidden>
       <div class="modal-box combat-modal-box">
+        <button type="button" class="modal-floating-close" id="btn-combat-modal-minimize">&#128469;</button>
         <h2 id="combat-modal-title"></h2>
         <p id="combat-modal-error" class="error-banner" hidden></p>
         <div class="combat-action-grid">

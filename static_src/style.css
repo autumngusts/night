@@ -1755,6 +1755,24 @@ button {
   display: none;
 }
 
+/* 戦闘弾窗を隅の小さいウィンドウへ縮小する（背景を透過・クリック不可にして、後ろの戦場面板を
+   操作できるようにする。弾窗自体（.modal-box）だけはpointer-eventsを戻して操作を維持する）。 */
+.modal.minimized {
+  background: transparent;
+  align-items: flex-end;
+  justify-content: flex-end;
+  pointer-events: none;
+}
+
+.modal.minimized .modal-box {
+  pointer-events: auto;
+  max-width: 260px;
+  max-height: 220px;
+  overflow: auto;
+  margin: 0.75rem;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
+}
+
 .modal-box {
   background: #fff;
   color: #111;
