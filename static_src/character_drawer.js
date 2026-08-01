@@ -3469,13 +3469,13 @@
       return { diceKind: "sum", diceCountMin: 1, diceCountMax: null, sumTotal: sum };
     }
     // ゾロ／連番／circled digit合計のいずれでもない、裸の整数トークン（例：復仇者「召喚靈體」の
-    // 「消耗：3」）は「出目を問わずN個」の骰子コストとして扱う（DODGE_COST等で既に使われている
-    // "count"種別と同じ形。ここまで到達したときのみのフォールバックのため、既存の他パターンの
-    // 優先順位・解析結果には一切影響しない）。
+    // 「消耗：3」）は、circled digit1個分（例：「③」）を書き下したものと同じ「出目合計N」の
+    // 骰子コストとして扱う（ユーザー確認済み：個数ではなく合計。ここまで到達したときのみの
+    // フォールバックのため、既存の他パターンの優先順位・解析結果には一切影響しない）。
     var plainNumberMatch = /^(\d+)$/.exec(token);
     if (plainNumberMatch) {
       var n = parseInt(plainNumberMatch[1], 10);
-      return { diceKind: "count", diceCountMin: n, diceCountMax: n, sumTotal: null };
+      return { diceKind: "sum", diceCountMin: 1, diceCountMax: null, sumTotal: n };
     }
     return null;
   }

@@ -113,8 +113,6 @@ BODY = """    <div class="night-header-row">
         <div class="dice-pool-header">
           <span data-i18n="dice_pool_label"></span>
           <button type="button" class="dice-add-btn" id="btn-dice-pool-add">&#127922;</button>
-          <button type="button" class="dice-add-btn" id="btn-spirit-panel">&#128123;</button>
-          <button type="button" class="dice-add-btn" id="btn-element-mark-panel">&#128293;</button>
         </div>
         <div class="dice-pool-list" id="dice-pool-list"></div>
         <button type="button" class="primary-btn action-phase-btn" id="btn-action-phase"></button>

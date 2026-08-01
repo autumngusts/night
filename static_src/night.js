@@ -263,6 +263,43 @@
       var diceTitle = document.createElement("h5");
       diceTitle.textContent = window.I18N.t("character_dice_pool_label");
       diceTitleRow.appendChild(diceTitle);
+      // 靈體（復仇者）・屬性痕（隱者）はキャラ個人の状態のため、管理パネルを開くアイコンは
+      // グローバルな骰子池バーではなく、このキャラ個人の骰子池の横に表示する（該当キャラのみ）。
+      var hasNecromancyOrSpiritSummon =
+        type &&
+        ((type.abilities || []).some(function (entry) {
+          return entry.id === "necromancy";
+        }) ||
+          (type.skills || []).some(function (entry) {
+            return entry.id === "spirit_summon";
+          }));
+      if (hasNecromancyOrSpiritSummon) {
+        var spiritPanelBtn = document.createElement("button");
+        spiritPanelBtn.type = "button";
+        spiritPanelBtn.className = "dice-add-btn roster-dice-add-btn";
+        spiritPanelBtn.textContent = "\u{1F47B}";
+        spiritPanelBtn.title = window.I18N.t("spirit_panel_title");
+        spiritPanelBtn.addEventListener("click", function () {
+          openSpiritPanel();
+        });
+        diceTitleRow.appendChild(spiritPanelBtn);
+      }
+      var hasElementalControl =
+        type &&
+        (type.abilities || []).some(function (entry) {
+          return entry.id === "elemental_control";
+        });
+      if (hasElementalControl) {
+        var elementMarkPanelBtn = document.createElement("button");
+        elementMarkPanelBtn.type = "button";
+        elementMarkPanelBtn.className = "dice-add-btn roster-dice-add-btn";
+        elementMarkPanelBtn.textContent = "\u{1F525}";
+        elementMarkPanelBtn.title = window.I18N.t("element_mark_panel_title");
+        elementMarkPanelBtn.addEventListener("click", function () {
+          openElementMarkPanel();
+        });
+        diceTitleRow.appendChild(elementMarkPanelBtn);
+      }
       // 「一般行動」以外のフェイズでは、各角色が自分の面板から個別に骰子を振れるアイコンを出す。
       if (state.actionPhase !== "normal") {
         var diceRollBtn = document.createElement("button");
@@ -3783,7 +3820,8 @@
         if (inquiryChoice) {
           var inquiryCost = CharacterDrawer.parseActionCost(body);
           if (getCharacterBattlePosition(c) === "back") {
-            inquiryCost = { diceKind: "count", diceCountMin: 3, diceCountMax: 3, sumTotal: null, fpCost: inquiryCost.fpCost, hpCost: inquiryCost.hpCost };
+            // 本文「必須將骰子消耗變更為『3』」＝出目合計3（個数ではない）。
+            inquiryCost = { diceKind: "sum", diceCountMin: 1, diceCountMax: null, sumTotal: 3, fpCost: inquiryCost.fpCost, hpCost: inquiryCost.hpCost };
           }
           renderDiceCostAction(c, content, inquiryCost, function (dice, costLines) {
             if (entry.uses && entry.id) {
@@ -4225,7 +4263,8 @@
     content.appendChild(pursueChoiceRow);
 
     if (st.pursueEffectChoice) {
-      var pursueCost = { diceKind: "count", diceCountMin: 3, diceCountMax: null, sumTotal: null, fpCost: 0, hpCost: 0 };
+      // 本文「額外支付『骰子消耗：3』」＝出目合計3（個数ではない、ユーザー確認済み）。
+      var pursueCost = { diceKind: "sum", diceCountMin: 1, diceCountMax: null, sumTotal: 3, fpCost: 0, hpCost: 0 };
       renderDiceCostAction(c, content, pursueCost, function (dice, costLines) {
         var pursueNote;
         if (st.pursueEffectChoice === "damage") {
@@ -4624,8 +4663,9 @@
   // 迴避は骰子を1個だけ選び、その出目×10＋30をHP価値とする。
   var DODGE_COST = { diceKind: "count", diceCountMin: 1, diceCountMax: 1, sumTotal: null, fpCost: 0, hpCost: 0 };
 
-  // 淑女「華麗身法」：迴避のコストを骰子8個に変更する代わりに、ダメージ・追加効果を完全無効化する。
-  var ELEGANT_FOOTWORK_COST = { diceKind: "count", diceCountMin: 8, diceCountMax: 8, sumTotal: null, fpCost: 0, hpCost: 0 };
+  // 淑女「華麗身法」：迴避のコストを「骰子消耗：8」（出目合計8）に変更する代わりに、
+  // ダメージ・追加効果を完全無効化する（個数ではなく合計、ユーザー確認済み）。
+  var ELEGANT_FOOTWORK_COST = { diceKind: "sum", diceCountMin: 1, diceCountMax: null, sumTotal: 8, fpCost: 0, hpCost: 0 };
 
   var SOLO_WEAPON_GUARD_RELIC_NAMES = ["雙手持握的達人", "両手持ちの達人"];
 
@@ -4725,7 +4765,8 @@
         });
         content.appendChild(highGuardBtn);
         if (combatDefenseState === "high_guard") {
-          var highGuardCost = { diceKind: "count", diceCountMin: 1, diceCountMax: 1, sumTotal: null, fpCost: 0, hpCost: 0 };
+          // 本文「支付『骰子消耗：1』」＝出目合計1（個数ではない、ユーザー確認済みのsumルールと統一）。
+          var highGuardCost = { diceKind: "sum", diceCountMin: 1, diceCountMax: null, sumTotal: 1, fpCost: 0, hpCost: 0 };
           renderDiceCostAction(c, content, highGuardCost, function (dice, costLines) {
             c._highGuardActive = true;
             addActionBox(c, highGuardName, window.I18N.t("high_guard_active_note", { name: highGuardName }), [window.I18N.t("action_log_dice_used", { dice: dice.join("、") })].concat(costLines));
@@ -5681,7 +5722,19 @@
       // 守護者「救世之翼」の全体バフ（戦闘→額外→防禦の1回合を跨いで持続）も、新しい回合が
       // 始まったタイミングでのみクリアする（フェイズ切替の都度リセットする他のフラグとは
       // ライフサイクルが異なる）。
+      // 骰子池クリアは「防禦フェイズから戰鬥フェイズへ戻る＝次の回合へ進む」場合のみ発火させる。
+      // 「一般行動」から初めて戰鬥フェイズへ入る（戦闘開始）は「次の回合」ではないため対象外
+      // （このifブロック自体はresetAttributeStatusRoundLocks等のため combat以外全般で発火する）。
+      var isNewRoundFromDefense = state.actionPhase === "defense";
       rosterCharacters.forEach(function (c) {
+        // 新しい回合（防禦フェイズから戰鬥フェイズへ再突入）に入るとき、原則として全員の
+        // 個人骰子池を空にする（技能・遺物効果で次回合へ持ち越せる場合は、そのキャラだけ
+        // ここをスキップする条件を将来追加できる）。消えた骰子はログに記録する。
+        if (isNewRoundFromDefense && (c.dicePool || []).length) {
+          var clearedDice = c.dicePool.join("、");
+          c.dicePool = [];
+          addLog("log_dice_pool_cleared_new_round", { character: c.name, dice: clearedDice });
+        }
         c._wingsOfSalvationActive = false;
         c._marchOfTheUndyingActive = false;
         c._inquiryDamageReductionActive = false;
@@ -8826,9 +8879,9 @@
     document.getElementById("btn-battle-add-mob-row").addEventListener("click", handleAddMobRow);
     document.getElementById("btn-battle-clear").addEventListener("click", handleBattleClear);
     document.getElementById("btn-dice-pool-add").addEventListener("click", handleAddDice);
-    document.getElementById("btn-spirit-panel").addEventListener("click", openSpiritPanel);
+    // 靈體管理／屬性痕管理を開くボタンは、キャラ個人の骰子池横（renderCharacterRoster内）に
+    // キャラごとに動的生成されるため、ここではモーダルの閉じるボタンのみ配線する。
     document.getElementById("btn-spirit-panel-close").addEventListener("click", closeSpiritPanel);
-    document.getElementById("btn-element-mark-panel").addEventListener("click", openElementMarkPanel);
     document.getElementById("btn-element-mark-panel-close").addEventListener("click", closeElementMarkPanel);
     document.getElementById("btn-action-phase").addEventListener("click", openActionPhaseModal);
     document.getElementById("btn-action-phase-cancel").addEventListener("click", closeActionPhaseModal);
