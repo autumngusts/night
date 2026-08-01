@@ -3292,6 +3292,16 @@
   function renderCombatSkillAction(c, content) {
     var type = c.typeId ? CharacterTypes.get(c.typeId) : null;
     var entries = (type ? CharacterDrawer.getCombatSkillEntries(c, type) : []).concat(CharacterDrawer.getEquippedWeaponSkillEntries(c));
+    // 淑女「重演」：kind:"Passive"のため通常はgetCombatSkillEntriesのPassive除外に引っかかるが、
+    // 実際は行動階段／特殊階段終了時に任意発動できる夜渡技能のため、IDで直接拾って戦闘スキル
+    // 一覧に加える（鑑定眼と同じくskillタブは戦闘・額外どちらのフェイズでも共通表示のため、
+    // 両フェイズで使用可能という要件をそのまま満たす）。
+    var restageEntry = type
+      ? (type.skills || []).filter(function (entry) {
+          return entry.id === "restage";
+        })[0]
+      : null;
+    if (restageEntry) entries = entries.concat([restageEntry]);
     if (!entries.length) {
       var empty = document.createElement("p");
       empty.className = "threat-ref-body";
@@ -3355,6 +3365,7 @@
         combatDiceSelection = [];
         resetClawShotState();
         eyeForValueResult = null;
+        restageConfirmedThisUse = null;
         renderCombatModal();
       });
       row.appendChild(useBtn);
@@ -3411,6 +3422,50 @@
             });
           }
         }
+      } else if (isActive && entry.id === "restage") {
+        // 淑女「重演」：GMが最終的にHP損害量を算出するため、本アプリでは実際のダメージ量を
+        // 追跡していない。代わりに「本階段で総合ダメージによりHP損害：■■■以上を与えたか」を
+        // Yes/Noで確認するゲートを先に挟み、Yesの場合のみ通常の確定（使用回数のみ消費・
+        // 骰子コストなし）へ進める。
+        if (restageConfirmedThisUse === null) {
+          var restageConfirmNote = document.createElement("p");
+          restageConfirmNote.className = "threat-ref-body";
+          restageConfirmNote.textContent = window.I18N.t("restage_confirm_question");
+          content.appendChild(restageConfirmNote);
+          var restageConfirmRow = document.createElement("div");
+          restageConfirmRow.className = "wb-row";
+          [
+            { key: true, label: window.I18N.t("restage_confirm_yes_button") },
+            { key: false, label: window.I18N.t("restage_confirm_no_button") },
+          ].forEach(function (opt) {
+            var btn = document.createElement("button");
+            btn.type = "button";
+            btn.textContent = opt.label;
+            btn.addEventListener("click", function () {
+              restageConfirmedThisUse = opt.key;
+              renderCombatModal();
+            });
+            restageConfirmRow.appendChild(btn);
+          });
+          content.appendChild(restageConfirmRow);
+        } else if (restageConfirmedThisUse === false) {
+          var restageNoNote = document.createElement("p");
+          restageNoNote.className = "threat-ref-body";
+          restageNoNote.textContent = window.I18N.t("restage_confirm_no_note");
+          content.appendChild(restageNoNote);
+        } else {
+          var restageCost = CharacterDrawer.parseActionCost(body);
+          renderDiceCostAction(c, content, restageCost, function (dice, costLines) {
+            if (entry.uses && entry.id) {
+              if (!c.abilityUses) c.abilityUses = {};
+              c.abilityUses[entry.id] = Math.max(0, (remaining !== null ? remaining : effectiveMax) - 1);
+            }
+            addActionBox(c, name, window.I18N.t("restage_applied_note"), [window.I18N.t("action_log_dice_used", { dice: dice.join("、") })].concat(costLines));
+            addLog("log_restage_use", { character: c.name, dice: dice.join("、") });
+            combatSkillState = null;
+            restageConfirmedThisUse = null;
+          });
+        }
       } else if (isActive) {
         var cost = CharacterDrawer.parseActionCost(body);
         renderDiceCostAction(c, content, cost, function (dice, costLines) {
@@ -3426,6 +3481,13 @@
             rosterCharacters.forEach(function (rc) {
               rc._wingsOfSalvationActive = true;
             });
+          }
+          // 淑女「終曲」：次の防禦フェイズの間、敵人は行動しない（GM手動反映）。battle全体に
+          // 紐付くフラグとして持たせ、防禦フェイズを抜けたタイミングでリセットする
+          // （setActionPhase参照。救世之翼と異なり「次の防禦フェイズ1回限り」の効果のため）。
+          if (entry.id === "finale") {
+            state.battle._finaleActive = true;
+            saveState();
           }
           // 鐵眼「標記」をActionとして戦闘フェイズで使用した場合：自身の前衛/後衛を強制的に
           // 反転する。骰子池の内容から前後衛を自動判定する既存の同期処理と直後に競合するため、
@@ -3469,6 +3531,10 @@
   // 鐵眼「鑑定眼」の確定結果（開示した敵人の系統データ）。renderDiceCostAction確定後の
   // 全体再描画をまたいで表示を維持するために使う。
   var eyeForValueResult = null;
+
+  // 淑女「重演」：「本階段で総合ダメージによりHP損害：■■■以上を与えたか」のYes/No確認結果。
+  // renderDiceCostAction確定前の中間状態のため、再描画をまたいで保持する必要がある。
+  var restageConfirmedThisUse = null; // true | false | null（null=未確認）
 
   function resetClawShotState() {
     clawShotState = {
@@ -4004,8 +4070,15 @@
   // 防禦action中「迴避／格擋のどちらを選ぼうとしているか」の一時状態。
   var combatDefenseState = null; // "dodge" | "block" | null
 
+  // 淑女「華麗身法」：迴避選択中のみ表示するトグル。ONの間は骰子8個消費で1回分のダメージ・
+  // 追加効果を完全に無効化する（通常の迴避コスト・数値計算とは別ルートに切り替える）。
+  var elegantFootworkActive = false;
+
   // 迴避は骰子を1個だけ選び、その出目×10＋30をHP価値とする。
   var DODGE_COST = { diceKind: "count", diceCountMin: 1, diceCountMax: 1, sumTotal: null, fpCost: 0, hpCost: 0 };
+
+  // 淑女「華麗身法」：迴避のコストを骰子8個に変更する代わりに、ダメージ・追加効果を完全無効化する。
+  var ELEGANT_FOOTWORK_COST = { diceKind: "count", diceCountMin: 8, diceCountMax: 8, sumTotal: null, fpCost: 0, hpCost: 0 };
 
   var SOLO_WEAPON_GUARD_RELIC_NAMES = ["雙手持握的達人", "両手持ちの達人"];
 
@@ -4066,6 +4139,13 @@
     var soloGuardRelic = shieldInfo ? null : getSoloWeaponGuardRelic(c);
     var blockAvailable = canBlockGuard(c);
     var type = c.typeId ? CharacterTypes.get(c.typeId) : null;
+    // 淑女「華麗身法」：kind:"Passive"のため通常の防禦選択肢一覧には乗らず、高防禦と同じく
+    // IDで直接検索する（迴避が選択されているときのみ子要素として出す）。
+    var elegantFootworkAbility = type
+      ? (type.abilities || []).filter(function (entry) {
+          return entry.id === "elegant_footwork";
+        })[0]
+      : null;
     var defenseSkillEntries = type ? CharacterDrawer.getCombatDefenseSkillEntries(c, type) : [];
     var usesBonus = CharacterDrawer.getSkillUsesBonus(c);
 
@@ -4116,6 +4196,15 @@
       wingsNote.className = "threat-ref-body";
       wingsNote.textContent = window.I18N.t("wings_of_salvation_active_note");
       content.appendChild(wingsNote);
+    }
+
+    // 淑女「終曲」：battle全体に紐付くフラグのため、発動した本人に限らず全員の防禦タブに
+    // リマインドバナーを表示する（次の防禦フェイズを抜けるタイミングでフラグはリセットされる）。
+    if (state.battle._finaleActive) {
+      var finaleNote = document.createElement("p");
+      finaleNote.className = "threat-ref-body";
+      finaleNote.textContent = window.I18N.t("finale_defense_note");
+      content.appendChild(finaleNote);
     }
 
     var choiceRow = document.createElement("div");
@@ -4200,18 +4289,47 @@
     }
 
     if (combatDefenseState === "dodge") {
-      renderDiceCostAction(c, content, DODGE_COST, function (dice) {
-        var value = dice[0] * 10 + 30;
-        addActionBox(
-          c,
-          window.I18N.t("combat_defense_dodge_button"),
-          window.I18N.t("action_log_defense_value_total", { value: value }),
-          [window.I18N.t("action_log_dice_used", { dice: dice.join("、") })]
-        );
-        addLog("log_combat_defense_dodge", { character: c.name, value: value, dice: dice.join("、") });
-        c._dodgeActionUsed = true;
-        combatDefenseState = null;
-      });
+      if (elegantFootworkAbility) {
+        var elegantFootworkName = CharacterTypes.localizedText(elegantFootworkAbility.name);
+        var efToggleBtn = document.createElement("button");
+        efToggleBtn.type = "button";
+        efToggleBtn.className = "combat-attack-hit-btn";
+        efToggleBtn.textContent = window.I18N.t("elegant_footwork_toggle_button", { name: elegantFootworkName });
+        if (elegantFootworkActive) efToggleBtn.classList.add("active");
+        efToggleBtn.addEventListener("click", function () {
+          elegantFootworkActive = !elegantFootworkActive;
+          combatDiceSelection = [];
+          renderCombatModal();
+        });
+        content.appendChild(efToggleBtn);
+      }
+      if (elegantFootworkAbility && elegantFootworkActive) {
+        renderDiceCostAction(c, content, ELEGANT_FOOTWORK_COST, function (dice) {
+          addActionBox(
+            c,
+            elegantFootworkName,
+            window.I18N.t("elegant_footwork_negate_note"),
+            [window.I18N.t("action_log_dice_used", { dice: dice.join("、") })]
+          );
+          addLog("log_elegant_footwork_use", { character: c.name, dice: dice.join("、") });
+          c._dodgeActionUsed = true;
+          combatDefenseState = null;
+          elegantFootworkActive = false;
+        });
+      } else {
+        renderDiceCostAction(c, content, DODGE_COST, function (dice) {
+          var value = dice[0] * 10 + 30;
+          addActionBox(
+            c,
+            window.I18N.t("combat_defense_dodge_button"),
+            window.I18N.t("action_log_defense_value_total", { value: value }),
+            [window.I18N.t("action_log_dice_used", { dice: dice.join("、") })]
+          );
+          addLog("log_combat_defense_dodge", { character: c.name, value: value, dice: dice.join("、") });
+          c._dodgeActionUsed = true;
+          combatDefenseState = null;
+        });
+      }
     } else if (combatDefenseState === "block" && blockAvailable) {
       var cost, baseValue;
       if (shieldInfo) {
@@ -4641,6 +4759,12 @@
       rosterCharacters.forEach(function (c) {
         c._wingsOfSalvationActive = false;
       });
+    }
+    // 淑女「終曲」：「次の防禦フェイズ」1回限りの効果のため、防禦フェイズを抜けるタイミング
+    // （＝その1回の防禦フェイズが終わった時点）でリセットする。救世之翼のような回合単位の
+    // 持続バフとはライフサイクルが異なる。
+    if (state.actionPhase === "defense" && phase !== "defense") {
+      state.battle._finaleActive = false;
     }
     state.actionPhase = phase;
     // フェイズを切り替えるたびに「額外／防禦行動を使用済み」フラグをリセットする（次にまた
