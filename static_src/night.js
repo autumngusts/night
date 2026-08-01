@@ -3354,6 +3354,7 @@
         combatSkillState = isActive ? null : key;
         combatDiceSelection = [];
         resetClawShotState();
+        eyeForValueResult = null;
         renderCombatModal();
       });
       row.appendChild(useBtn);
@@ -3366,6 +3367,50 @@
             c.abilityUses[entry.id] = Math.max(0, (remaining !== null ? remaining : effectiveMax) - 1);
           }
         });
+      } else if (isActive && entry.id === "eye_for_value") {
+        // 鐵眼「鑑定眼」：対象の敵人を選び、確定時にその系統のガード回数／HP価値の参考表を
+        // 展開表示する（GM専用情報をPC全員に公開する効果の再現）。renderDiceCostActionの
+        // 確定ハンドラは処理後に必ずrenderCombatModal()で全体を再描画するため、確定結果
+        // （どの敵人の表を開いたか）をモジュール変数に保持し、再描画後も表示を維持する。
+        if (eyeForValueResult) {
+          var resolvedFamily = eyeForValueResult.family;
+          if (resolvedFamily && resolvedFamily.guardValueTable) {
+            content.appendChild(buildEnemyGuardValueTable(resolvedFamily));
+          }
+        } else {
+          var enemyOptions = resolveSelectedEnemyOptions();
+          if (!enemyOptions.length) {
+            var noEnemyNote = document.createElement("p");
+            noEnemyNote.className = "threat-ref-body";
+            noEnemyNote.textContent = window.I18N.t("eye_for_value_no_enemy_note");
+            content.appendChild(noEnemyNote);
+          } else {
+            var enemySelect = document.createElement("select");
+            enemyOptions.forEach(function (opt) {
+              var o = document.createElement("option");
+              o.value = opt.key;
+              o.textContent = opt.name;
+              enemySelect.appendChild(o);
+            });
+            content.appendChild(enemySelect);
+            var eyeCost = CharacterDrawer.parseActionCost(body);
+            renderDiceCostAction(c, content, eyeCost, function (dice, costLines) {
+              if (entry.uses && entry.id) {
+                if (!c.abilityUses) c.abilityUses = {};
+                c.abilityUses[entry.id] = Math.max(0, (remaining !== null ? remaining : effectiveMax) - 1);
+              }
+              var familyId = enemySelect.value.split("|")[0];
+              var Enemies = window.PriTestEnemies;
+              var family = Enemies.listFamilies().filter(function (f) {
+                return f.id === familyId;
+              })[0];
+              eyeForValueResult = { family: family };
+              addActionBox(c, name, window.I18N.t("eye_for_value_revealed_note"), [window.I18N.t("action_log_dice_used", { dice: dice.join("、") })].concat(costLines));
+              addLog("log_combat_skill_use", { character: c.name, skill: name, dice: dice.join("、") });
+              renderCombatModal();
+            });
+          }
+        }
       } else if (isActive) {
         var cost = CharacterDrawer.parseActionCost(body);
         renderDiceCostAction(c, content, cost, function (dice, costLines) {
@@ -3382,8 +3427,28 @@
               rc._wingsOfSalvationActive = true;
             });
           }
+          // 鐵眼「標記」をActionとして戦闘フェイズで使用した場合：自身の前衛/後衛を強制的に
+          // 反転する。骰子池の内容から前後衛を自動判定する既存の同期処理と直後に競合するため、
+          // 追跡者「爪擊」の移動処理と同じくsetTimeoutで1ティック遅らせて最終結果として適用する。
+          if (entry.id === "marking") {
+            setTimeout(function () {
+              var idx = battlePositionNames().indexOf(c.name);
+              if (idx !== -1 && idx < BATTLE_SLOT_COUNT) {
+                state.battle.front[idx] = !state.battle.front[idx];
+                state.battle.back[idx] = !state.battle.front[idx];
+                saveState();
+                renderBattlePositionAreas();
+                renderCombatModal();
+              }
+            }, 0);
+          }
           var dmg = computeSkillDamage(c, entry, body);
-          var total = dmg ? window.I18N.t("action_log_damage_total", { value: CharacterDrawer.formatValueWithSymbol(dmg.value, dmg.symbol) }) : null;
+          var total =
+            entry.id === "marking"
+              ? window.I18N.t("marking_action_note")
+              : dmg
+              ? window.I18N.t("action_log_damage_total", { value: CharacterDrawer.formatValueWithSymbol(dmg.value, dmg.symbol) })
+              : null;
           addActionBox(c, name, total, [window.I18N.t("action_log_dice_used", { dice: dice.join("、") })].concat(costLines));
           addLog("log_combat_skill_use", { character: c.name, skill: name, dice: dice.join("、") });
           combatSkillState = null;
@@ -3401,6 +3466,9 @@
   // できないため、この技能専用に分岐する。
   // ============================================================
   var clawShotState = null;
+  // 鐵眼「鑑定眼」の確定結果（開示した敵人の系統データ）。renderDiceCostAction確定後の
+  // 全体再描画をまたいで表示を維持するために使う。
+  var eyeForValueResult = null;
 
   function resetClawShotState() {
     clawShotState = {
@@ -4109,7 +4177,13 @@
           var remaining = typeof c.abilityUses[activeDefenseSkill.id] === "number" ? c.abilityUses[activeDefenseSkill.id] : effectiveMax;
           c.abilityUses[activeDefenseSkill.id] = Math.max(0, remaining - 1);
         }
-        addActionBox(c, skillName, window.I18N.t("combat_defense_skill_negate_note"), [window.I18N.t("action_log_dice_used", { dice: dice.join("、") })].concat(costLines));
+        // 鐵眼「標記」をDefenseとして使用した場合は「迴避」の代わりに使用でき、固定で
+        // HP價值:100の迴避を行ったものとして扱う（第六感のような完全無効化とは異なる）。
+        var defenseNote =
+          activeDefenseSkill.id === "marking"
+            ? window.I18N.t("marking_defense_note")
+            : window.I18N.t("combat_defense_skill_negate_note");
+        addActionBox(c, skillName, defenseNote, [window.I18N.t("action_log_dice_used", { dice: dice.join("、") })].concat(costLines));
         addLog("log_combat_defense_skill_use", { character: c.name, skill: skillName, dice: dice.join("、") });
         combatDefenseState = null;
       });

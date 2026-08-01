@@ -4985,7 +4985,9 @@
     if (!type) return [];
     var entries = [].concat(type.abilities || []).concat(type.skills || []).concat(type.arts || []);
     return entries.filter(function (entry) {
-      if (entry.kind !== "Defense") return false;
+      // 単純な"Defense"だけでなく、鐵眼「標記」のような"Action／Defense"（Defenseとしても
+      // 使用できる複合kind）も対象に含めるため、完全一致ではなく部分一致で判定する。
+      if (String(entry.kind || "").indexOf("Defense") === -1) return false;
       if (entry.level && c.level < entry.level) return false;
       return true;
     });
