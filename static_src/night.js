@@ -955,6 +955,45 @@
     c._unyieldingStacks = (c._unyieldingStacks || 0) + 1;
   }
 
+  // 葬儀屋「力量感應」：他PCが[Action]で技藝（type.artsに含まれるentry）を使用するたびに発火し、
+  // power_resonance能力を持つ他の入場済みキャラへ「不祥一擊」の無消耗使用権を1つ積む。
+  // 力量感應由来の無消耗「不祥一擊」自体はこの連鎖対象外（呼び出し元でスキップする）。
+  function triggerPowerResonance(actingCharacter, usedEntry) {
+    var actingType = actingCharacter.typeId ? CharacterTypes.get(actingCharacter.typeId) : null;
+    var isArt =
+      actingType &&
+      (actingType.arts || []).some(function (a) {
+        return a.id === usedEntry.id;
+      });
+    if (!isArt) return;
+    rosterCharacters.forEach(function (rc) {
+      if (!rc.entered || rc.id === actingCharacter.id) return;
+      var rcType = rc.typeId ? CharacterTypes.get(rc.typeId) : null;
+      var hasAbility =
+        rcType &&
+        (rcType.abilities || []).some(function (entry) {
+          return entry.id === "power_resonance";
+        });
+      if (!hasAbility) return;
+      rc._powerResonanceCredits = (rc._powerResonanceCredits || 0) + 1;
+    });
+  }
+
+  // 葬儀屋「不祥一擊」：對象への總合ダメージ算出後、自身を前衛へ無条件で移動する
+  // （追跡者「爪擊」と同じsetTimeout遅延パターン、反転ではなく固定でfront=trueにする点が異なる）。
+  function moveOminousStrikeToFront(c) {
+    setTimeout(function () {
+      var idx = battlePositionNames().indexOf(c.name);
+      if (idx !== -1 && idx < BATTLE_SLOT_COUNT) {
+        state.battle.front[idx] = true;
+        state.battle.back[idx] = false;
+        saveState();
+        renderBattlePositionAreas();
+        renderCombatModal();
+      }
+    }, 0);
+  }
+
   function applyAttributeStatusElementTriggerOnChar(characterId, label) {
     var c = rosterCharacters.filter(function (rc) {
       return rc.id === characterId;
@@ -3444,6 +3483,26 @@
         renderCombatModal();
       });
       row.appendChild(useBtn);
+      // 葬儀屋「力量感應」：他PCの技藝使用で貯まった無消耗使用権がある間、「不祥一擊」の行に
+      // 専用ボタンを追加表示する。骰子コスト・使用回数どちらも消費しない即時確定（力量感應由来
+      // の使用はtriggerPowerResonanceを呼ばない＝連鎖しない）。
+      if (entry.id === "ominous_strike" && (c._powerResonanceCredits || 0) > 0) {
+        var freeUseBtn = document.createElement("button");
+        freeUseBtn.type = "button";
+        freeUseBtn.className = "combat-attack-hit-btn";
+        freeUseBtn.textContent = window.I18N.t("power_resonance_free_use_button", { credits: c._powerResonanceCredits });
+        freeUseBtn.addEventListener("click", function () {
+          c._powerResonanceCredits = Math.max(0, (c._powerResonanceCredits || 0) - 1);
+          var dmg = computeSkillDamage(c, entry, body);
+          var total = dmg ? window.I18N.t("action_log_damage_total", { value: CharacterDrawer.formatValueWithSymbol(dmg.value, dmg.symbol) }) : null;
+          moveOminousStrikeToFront(c);
+          addActionBox(c, name, total, [window.I18N.t("log_ominous_strike_move_note")]);
+          addLog("log_ominous_strike_free_use", { character: c.name });
+          combatSkillState = null;
+          renderCombatModal();
+        });
+        row.appendChild(freeUseBtn);
+      }
       content.appendChild(row);
 
       if (isActive && entry.id === "claw_shot") {
@@ -3811,7 +3870,22 @@
             if (!c.abilityUses) c.abilityUses = {};
             c.abilityUses[entry.id] = Math.max(0, (remaining !== null ? remaining : effectiveMax) - 1);
           }
+          // 葬儀屋「力量感應」：この汎用パスを通るあらゆる技藝の使用（他キャラのarts含む）が
+          // 発火対象になりうる。判定自体はtriggerPowerResonance内でisArtをチェックする。
+          triggerPowerResonance(c, entry);
           if (entry.id === "whirlwind") c._whirlwindUsedThisPhase = true;
+          // 葬儀屋「恍惚」をActionとして使用した場合：即時に體力骰+1（妖刀と異なり次フェイズ
+          // 待ちではない）。
+          if (entry.id === "trance") {
+            if (!c.dicePool) c.dicePool = [];
+            c.dicePool.push(1 + Math.floor(Math.random() * 6));
+          }
+          // 葬儀屋「不祥一擊」：ダメージ計算は下の汎用ロジックにそのまま乗るため、ここでは
+          // 前衛への無条件移動のみ追加する（通常の骰子消費・使用回数消費を伴う使用のみ、
+          // 力量感應の無消耗使用は専用ボタンの別ハンドラで同じ関数を呼ぶ）。
+          if (entry.id === "ominous_strike") {
+            moveOminousStrikeToFront(c);
+          }
           // 守護者「救世之翼」：戦闘フェイズでの発動後、額外・防禦フェイズを跨いで持続する
           // 全体バフ（HP損害無効化）。次に戦闘フェイズへ新規突入した時にのみクリアされる
           // （setActionPhaseの「新しい回合開始」判定箇所を参照）。
@@ -3884,7 +3958,9 @@
               : dmg
               ? window.I18N.t("action_log_damage_total", { value: CharacterDrawer.formatValueWithSymbol(dmg.value, dmg.symbol) })
               : null;
-          addActionBox(c, name, total, [window.I18N.t("action_log_dice_used", { dice: dice.join("、") })].concat(costLines));
+          var extraLines = [window.I18N.t("action_log_dice_used", { dice: dice.join("、") })].concat(costLines);
+          if (entry.id === "ominous_strike") extraLines = extraLines.concat([window.I18N.t("log_ominous_strike_move_note")]);
+          addActionBox(c, name, total, extraLines);
           addLog("log_combat_skill_use", { character: c.name, skill: name, dice: dice.join("、") });
           combatSkillState = null;
         });
@@ -4780,6 +4856,8 @@
             ? window.I18N.t("marking_defense_note")
             : activeDefenseSkill.id === "counterattack"
             ? window.I18N.t("counterattack_defense_note")
+            : activeDefenseSkill.id === "trance"
+            ? window.I18N.t("trance_defense_note")
             : window.I18N.t("combat_defense_skill_negate_note");
         if (activeDefenseSkill.id === "counterattack") c._counterattackDefenseUsed = true;
         // 執行者「妖刀」：完全無效化ノート自体は汎用（combat_defense_skill_negate_note）のまま。
@@ -4796,6 +4874,8 @@
             ? "log_counterattack_defense_use"
             : activeDefenseSkill.id === "yoto"
             ? "log_yoto_defense_use"
+            : activeDefenseSkill.id === "trance"
+            ? "log_trance_defense_use"
             : "log_combat_defense_skill_use",
           {
             character: c.name,
