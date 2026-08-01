@@ -118,6 +118,12 @@ BODY = """    <div class="night-header-row">
         <button type="button" class="primary-btn action-phase-btn" id="btn-action-phase"></button>
       </div>
 
+      <div class="dice-pool-block" id="turn-holder-bar">
+        <span data-i18n="turn_holder_label"></span>
+        <span id="turn-holder-status"></span>
+        <button type="button" class="primary-btn" id="btn-turn-holder-toggle"></button>
+      </div>
+
       <div class="function-menu-block" id="function-menu-block">
         <button type="button" class="function-menu-toggle-btn" id="btn-function-menu-toggle" aria-label="toggle function menu">&#9654;</button>
         <div class="function-menu-list" id="function-menu-list">

@@ -586,6 +586,7 @@
     dicePool: [],
     actionPhase: "normal", // "normal"|"combat"|"extra"|"defense"
     floorRewardObtained: {}, // key: floorKey+"_"+entryIndex(+"_"+targetCharacterId) -> true
+    turnHolder: "gm", // "gm"|"players"（GM/玩家が同時にプレイしなくても各自の番で行動できるようにする受け渡しフラグ）
   };
 
   function shuffle(arr) {
@@ -642,6 +643,7 @@
       dicePool: state.dicePool,
       actionPhase: state.actionPhase,
       floorRewardObtained: state.floorRewardObtained,
+      turnHolder: state.turnHolder,
     };
   }
 
@@ -1226,6 +1228,7 @@
       state.actionPhase = ["normal", "combat", "extra", "defense"].indexOf(data.actionPhase) !== -1 ? data.actionPhase : "normal";
       state.floorRewardObtained =
         data.floorRewardObtained && typeof data.floorRewardObtained === "object" ? data.floorRewardObtained : {};
+      state.turnHolder = ["gm", "players"].indexOf(data.turnHolder) !== -1 ? data.turnHolder : "gm";
     } catch (e) {
       // 壊れた状態は無視して初期状態のまま続行する
     }
@@ -1267,6 +1270,7 @@
     state.dicePool = [];
     state.actionPhase = "normal";
     state.floorRewardObtained = {};
+    state.turnHolder = "gm";
     localStorage.removeItem(STORAGE_KEY);
     clearUndoSnapshot();
   }
@@ -5450,6 +5454,27 @@
     btn.textContent = window.I18N.t("action_phase_" + state.actionPhase);
   }
 
+  // GM／玩家が同時にプレイしなくてもよいよう、「今は誰の番か」を示すバー。権限分離は行わず
+  // （ユーザー方針：全員同じ権限）、あくまで受け渡しの目印として使う。
+  function renderTurnHolderBar() {
+    var statusEl = document.getElementById("turn-holder-status");
+    var toggleBtn = document.getElementById("btn-turn-holder-toggle");
+    if (!statusEl || !toggleBtn) return;
+    var isGmTurn = state.turnHolder !== "players";
+    statusEl.textContent = window.I18N.t(isGmTurn ? "turn_holder_gm_status" : "turn_holder_players_status");
+    toggleBtn.textContent = window.I18N.t(isGmTurn ? "turn_holder_handoff_to_players_button" : "turn_holder_handoff_to_gm_button");
+  }
+
+  function handleTurnHolderToggle() {
+    var wasGmTurn = state.turnHolder !== "players";
+    state.turnHolder = wasGmTurn ? "players" : "gm";
+    saveState();
+    addLog("log_turn_holder_handoff", {
+      to: window.I18N.t(wasGmTurn ? "turn_holder_players_status" : "turn_holder_gm_status"),
+    });
+    renderTurnHolderBar();
+  }
+
   // 額外行動は、非雑兵エネミーの4段のうちいずれか1段でもHP0にならない限り選択できない。
   function renderActionPhaseGrid() {
     document.querySelectorAll(".action-phase-grid button[data-phase]").forEach(function (btn) {
@@ -5760,6 +5785,9 @@
     // 異なる。battle全体のフラグのため、下のrosterCharacters.forEachとは別に1回だけ行う）。
     state.battle._songOfBloodSpiritActive = false;
     state.actionPhase = phase;
+    // GM／玩家が同時にプレイしなくてもよいよう、行動階段が切り替わるたびに「今の番」を
+    // 必ずGM側へ戻す（GMが状況を確認・反応してから、改めて玩家へ番を渡す運用を想定）。
+    state.turnHolder = "gm";
     // フェイズを切り替えるたびに「額外／防禦行動を使用済み」フラグをリセットする（次にまた
     // 同じフェイズへ入ったとき、全員が改めて1回分振れるようにするため）。
     rosterCharacters.forEach(function (c) {
@@ -5786,6 +5814,7 @@
     saveState();
     closeActionPhaseModal();
     renderActionPhaseButton();
+    renderTurnHolderBar();
     renderActionPhaseGrid();
     renderCharacterRoster();
     if (opts.combatEnd) {
@@ -8604,6 +8633,7 @@
     renderLog();
     renderDicePool();
     renderActionPhaseButton();
+    renderTurnHolderBar();
     renderActionPhaseGrid();
     if (hadBoard) addLog("log_new_game");
   }
@@ -8735,6 +8765,7 @@
     renderBattleRefTexts();
     renderDicePool();
     renderActionPhaseButton();
+    renderTurnHolderBar();
     renderActionPhaseGrid();
     renderBoard();
     renderLog();
@@ -8884,6 +8915,7 @@
     document.getElementById("btn-spirit-panel-close").addEventListener("click", closeSpiritPanel);
     document.getElementById("btn-element-mark-panel-close").addEventListener("click", closeElementMarkPanel);
     document.getElementById("btn-action-phase").addEventListener("click", openActionPhaseModal);
+    document.getElementById("btn-turn-holder-toggle").addEventListener("click", handleTurnHolderToggle);
     document.getElementById("btn-action-phase-cancel").addEventListener("click", closeActionPhaseModal);
     document.getElementById("btn-generic-check").addEventListener("click", openGenericCheckModal);
     document.getElementById("btn-function-menu-toggle").addEventListener("click", function () {
