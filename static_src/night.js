@@ -3346,7 +3346,8 @@
       useBtn.type = "button";
       useBtn.className = "combat-attack-hit-btn";
       useBtn.textContent = window.I18N.t("combat_skill_use_button");
-      if ((effectiveMax !== null && remaining <= 0) || !posOk) useBtn.disabled = true;
+      // 守護者「旋風」は、使用回数（1日単位）とは別に「本フェイズにつき1回まで」の制限がある。
+      if ((effectiveMax !== null && remaining <= 0) || !posOk || (entry.id === "whirlwind" && c._whirlwindUsedThisPhase)) useBtn.disabled = true;
       var isActive = combatSkillState === key;
       if (isActive) useBtn.classList.add("active");
       useBtn.addEventListener("click", function () {
@@ -3371,6 +3372,15 @@
           if (entry.uses && entry.id) {
             if (!c.abilityUses) c.abilityUses = {};
             c.abilityUses[entry.id] = Math.max(0, (remaining !== null ? remaining : effectiveMax) - 1);
+          }
+          if (entry.id === "whirlwind") c._whirlwindUsedThisPhase = true;
+          // 守護者「救世之翼」：戦闘フェイズでの発動後、額外・防禦フェイズを跨いで持続する
+          // 全体バフ（HP損害無効化）。次に戦闘フェイズへ新規突入した時にのみクリアされる
+          // （setActionPhaseの「新しい回合開始」判定箇所を参照）。
+          if (entry.id === "wings_of_salvation") {
+            rosterCharacters.forEach(function (rc) {
+              rc._wingsOfSalvationActive = true;
+            });
           }
           var dmg = computeSkillDamage(c, entry, body);
           var total = dmg ? window.I18N.t("action_log_damage_total", { value: CharacterDrawer.formatValueWithSymbol(dmg.value, dmg.symbol) }) : null;
@@ -3991,6 +4001,55 @@
     var defenseSkillEntries = type ? CharacterDrawer.getCombatDefenseSkillEntries(c, type) : [];
     var usesBonus = CharacterDrawer.getSkillUsesBonus(c);
 
+    // 守護者「高防禦」：kind:"Passive"だが、防禦フェイズの体力骰を得たタイミングで骰子1個を
+    // 支払って任意発動できる（発動後は本フェイズが終わるまで持続＝フェイズ切替の都度リセット
+    // される_highGuardActiveフラグで管理）。データ上はPassiveのままなので
+    // getCombatDefenseSkillEntries（Defense種別専用）には乗らず、IDで直接判定する。
+    var highGuardAbility = type
+      ? (type.abilities || []).filter(function (entry) {
+          return entry.id === "high_guard";
+        })[0]
+      : null;
+    if (highGuardAbility) {
+      var highGuardName = CharacterTypes.localizedText(highGuardAbility.name);
+      if (c._highGuardActive) {
+        var activeNote = document.createElement("p");
+        activeNote.className = "threat-ref-body";
+        activeNote.textContent = window.I18N.t("high_guard_active_note", { name: highGuardName });
+        content.appendChild(activeNote);
+      } else {
+        var highGuardBtn = document.createElement("button");
+        highGuardBtn.type = "button";
+        highGuardBtn.className = "combat-attack-hit-btn";
+        highGuardBtn.textContent = window.I18N.t("high_guard_activate_button", { name: highGuardName });
+        if (combatDefenseState === "high_guard") highGuardBtn.classList.add("active");
+        highGuardBtn.addEventListener("click", function () {
+          combatDefenseState = combatDefenseState === "high_guard" ? null : "high_guard";
+          combatDiceSelection = [];
+          renderCombatModal();
+        });
+        content.appendChild(highGuardBtn);
+        if (combatDefenseState === "high_guard") {
+          var highGuardCost = { diceKind: "count", diceCountMin: 1, diceCountMax: 1, sumTotal: null, fpCost: 0, hpCost: 0 };
+          renderDiceCostAction(c, content, highGuardCost, function (dice, costLines) {
+            c._highGuardActive = true;
+            addActionBox(c, highGuardName, window.I18N.t("high_guard_active_note", { name: highGuardName }), [window.I18N.t("action_log_dice_used", { dice: dice.join("、") })].concat(costLines));
+            addLog("log_high_guard_activate", { character: c.name });
+            combatDefenseState = null;
+          });
+        }
+      }
+    }
+
+    // 守護者「救世之翼」：戦闘フェイズで発動していれば、防禦フェイズでも効果が持続している
+    // ことを常時リマインドする（実際のHP損害無効化はGMが手動で反映する前提）。
+    if (c._wingsOfSalvationActive) {
+      var wingsNote = document.createElement("p");
+      wingsNote.className = "threat-ref-body";
+      wingsNote.textContent = window.I18N.t("wings_of_salvation_active_note");
+      content.appendChild(wingsNote);
+    }
+
     var choiceRow = document.createElement("div");
     choiceRow.className = "combat-defense-choice-row";
     [
@@ -4502,6 +4561,12 @@
     // 異常側の「今回合すでに發動した」ロックを解除する（屬性側は回合をまたいで蓄積を持ち越す）。
     if (phase === "combat" && state.actionPhase !== "combat") {
       resetAttributeStatusRoundLocks();
+      // 守護者「救世之翼」の全体バフ（戦闘→額外→防禦の1回合を跨いで持続）も、新しい回合が
+      // 始まったタイミングでのみクリアする（フェイズ切替の都度リセットする他のフラグとは
+      // ライフサイクルが異なる）。
+      rosterCharacters.forEach(function (c) {
+        c._wingsOfSalvationActive = false;
+      });
     }
     state.actionPhase = phase;
     // フェイズを切り替えるたびに「額外／防禦行動を使用済み」フラグをリセットする（次にまた
@@ -4511,6 +4576,10 @@
       c._defenseActionUsed = false;
       c._consecutiveGuardCount = 0;
       c._dodgeActionUsed = false;
+      // 守護者「高防禦」（本フェイズが終わるまで持続）と「旋風」（本フェイズにつき1回まで）は
+      // どちらもフェイズ切替の都度リセットする。
+      c._highGuardActive = false;
+      c._whirlwindUsedThisPhase = false;
       delete rosterDiceRollFeedback[c.id];
     });
     // 額外・防禦行動へ入るときは、各角色の確定行動（点線枠）を一旦全てクリアする。
