@@ -28,6 +28,7 @@ BODY = """    <div class="night-header-row">
             <button id="btn-main-menu-draw-weapon" type="button" class="main-menu-item" data-i18n="main_menu_draw_weapon_label"></button>
             <button id="btn-main-menu-draw-talisman" type="button" class="main-menu-item" data-i18n="main_menu_draw_talisman_label"></button>
             <button id="btn-main-menu-draw-consumable" type="button" class="main-menu-item" data-i18n="main_menu_draw_consumable_label"></button>
+            <button id="btn-tts-toggle" type="button" class="main-menu-item"></button>
           </div>
         </div>
         <h1 data-i18n="project_night_name"></h1>
@@ -335,12 +336,28 @@ BODY = """    <div class="night-header-row">
         <h2 id="main-menu-draw-modal-title"></h2>
         <p class="threat-ref-body" data-i18n="main_menu_draw_select_character_note"></p>
         <div id="main-menu-draw-char-list" class="main-menu-draw-char-list"></div>
-        <div id="main-menu-draw-roll-area" hidden>
-          <button id="btn-main-menu-draw-back" type="button" data-i18n="main_menu_draw_back_button"></button>
-          <div id="main-menu-draw-roll-field"></div>
-        </div>
         <div class="actions">
           <button id="btn-main-menu-draw-close" type="button" class="primary-btn" data-i18n="close_button"></button>
+        </div>
+      </div>
+    </div>
+
+    <div id="item-draw-modal" class="modal" hidden>
+      <div class="modal-box combat-modal-box">
+        <h2 id="item-draw-modal-title"></h2>
+        <div id="item-draw-modal-content"></div>
+        <div class="actions">
+          <button id="btn-item-draw-modal-close" type="button" class="primary-btn" data-i18n="close_button"></button>
+        </div>
+      </div>
+    </div>
+
+    <div id="weapon-skill-reroll-modal" class="modal" hidden>
+      <div class="modal-box combat-modal-box">
+        <h2 id="weapon-skill-reroll-modal-title"></h2>
+        <div id="weapon-skill-reroll-modal-content"></div>
+        <div class="actions">
+          <button id="btn-weapon-skill-reroll-modal-close" type="button" class="primary-btn" data-i18n="close_button"></button>
         </div>
       </div>
     </div>

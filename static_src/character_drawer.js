@@ -2144,6 +2144,12 @@
       // 場地の獲得ボタンから起動した場合のみ非null。確定時にweaponAttributeTagsへ自動記録する
       // （例:「炎／-5（154頁）」等、共通戦技の追加効果タグ）。
       pendingAttributeTag: null,
+
+      // 確定後はtrueにし、以後renderWeaponRollFieldは静的な「解決済み」表示のみ返す
+      // （potentialPowerと同じパターン。トグルボタンを再表示しないことで、確定後の
+      // 再クリックによる重複取得を防ぐ）。
+      resolved: false,
+      resolvedMessage: null,
     };
   }
 
@@ -2327,6 +2333,42 @@
     var d = rollD6();
     var row2 = resolveSimpleTableRoll(category, d);
     return { skillId: row2 ? row2.id : null, dice: [d] };
+  }
+
+  // 鍛冶村「戦技の鍛冶台」用：c.weaponIds内から、ランダム戦技枠を持つ武器/枠
+  // （通常武器はslot=null、盾はattached／reverse）の一覧を返す。現在の戦技idも
+  // 一緒に返すので、呼び出し側はweaponRandomSkillsのキー組み立てを意識しなくてよい。
+  function listRerollableWeaponSkillSlots(c) {
+    var result = [];
+    (c.weaponIds || []).forEach(function (weaponId) {
+      var weapon = Weapons.get(baseWeaponId(weaponId));
+      if (!weapon) return;
+      var category = Weapons.getCategory(weapon.category);
+      collectWeaponSkillRefs(category, weapon).forEach(function (pair) {
+        if (pair.ref.kind !== "random") return;
+        var currentSkillId = (c.weaponRandomSkills && c.weaponRandomSkills[weaponSkillSlotKey(weaponId, pair.slotKey)]) || null;
+        result.push({ weaponId: weaponId, slot: pair.slotKey, weaponName: Weapons.localizedText(weapon.name), currentSkillId: currentSkillId });
+      });
+    });
+    return result;
+  }
+
+  // 指定した武器/枠のランダム戦技を1回だけ再抽選する（resolveRandomSkillForItemをそのまま
+  // 再利用）。まだ書き込まない。現在の戦技idも一緒に返し、呼び出し側で新旧を比較表示できる
+  // ようにする。
+  function rerollWeaponSkill(c, weaponId, slot) {
+    var weapon = Weapons.get(baseWeaponId(weaponId));
+    if (!weapon) return null;
+    var category = Weapons.getCategory(weapon.category);
+    var oldSkillId = (c.weaponRandomSkills && c.weaponRandomSkills[weaponSkillSlotKey(weaponId, slot)]) || null;
+    var resolution = resolveRandomSkillForItem(category, weapon);
+    if (!resolution) return null;
+    return { oldSkillId: oldSkillId, newSkillId: resolution.skillId, dice: resolution.dice };
+  }
+
+  function commitWeaponSkillReroll(c, weaponId, slot, skillId) {
+    if (!c.weaponRandomSkills) c.weaponRandomSkills = {};
+    c.weaponRandomSkills[weaponSkillSlotKey(weaponId, slot)] = skillId;
   }
 
   // ★の数だけレア度決定ダイスを振り、キャラクタータイプの「得意武器」表（favoredWeapons、
@@ -3409,6 +3451,16 @@
 
     field.innerHTML = "";
 
+    // 確定済みなら、以後は静的な結果表示のみ返す（トグルボタン等は一切出さない）。
+    // これにより、確定後に再度クリックして重複取得することができなくなる。
+    if (st.resolved) {
+      var resolvedP = document.createElement("p");
+      resolvedP.className = "threat-ref-body weapon-roll-result";
+      resolvedP.textContent = st.resolvedMessage || window.I18N.t("weapon_roll_resolved_note");
+      field.appendChild(resolvedP);
+      return;
+    }
+
     var toggleBtn = document.createElement("button");
     toggleBtn.type = "button";
     toggleBtn.className = "weapon-roll-toggle-btn";
@@ -3953,13 +4005,14 @@
             });
           }
           saveFn();
-          resetWeaponRollState();
-          field.dataset.open = "0";
-          renderWeaponRollField();
           renderWeaponList();
+          var grantedWeaponName = Weapons.localizedText(st.item.name);
           resolveInventoryOverflow(c, "weapon", newInstanceId, function () {
             renderWeaponList();
             renderRosterFn();
+            st.resolved = true;
+            st.resolvedMessage = window.I18N.t("weapon_roll_resolved_note", { name: grantedWeaponName });
+            renderWeaponRollField();
           });
         });
         panel.appendChild(confirmBtn);
@@ -4195,6 +4248,8 @@
       itemDie: null,
       item: null,
       itemMissMessage: false,
+      resolved: false,
+      resolvedMessage: null,
     };
   }
 
@@ -4205,6 +4260,14 @@
     var st = talismanRollState;
 
     field.innerHTML = "";
+
+    if (st.resolved) {
+      var resolvedP = document.createElement("p");
+      resolvedP.className = "threat-ref-body weapon-roll-result";
+      resolvedP.textContent = st.resolvedMessage || window.I18N.t("weapon_roll_resolved_note");
+      field.appendChild(resolvedP);
+      return;
+    }
 
     var toggleBtn = document.createElement("button");
     toggleBtn.type = "button";
@@ -4320,13 +4383,14 @@
         if (!c.talismanIds) c.talismanIds = [];
         if (c.talismanIds.indexOf(st.item.id) === -1) c.talismanIds.push(st.item.id);
         saveFn();
-        resetTalismanRollState();
-        field.dataset.open = "0";
-        renderTalismanRollField();
         renderTalismanList();
+        var grantedTalismanName = Talismans.localizedText(st.item.name);
         resolveInventoryOverflow(c, "talisman", st.item.id, function () {
           renderTalismanList();
           renderRosterFn();
+          st.resolved = true;
+          st.resolvedMessage = window.I18N.t("weapon_roll_resolved_note", { name: grantedTalismanName });
+          renderTalismanRollField();
         });
       });
       panel.appendChild(confirmBtn);
@@ -4358,6 +4422,8 @@
       item: null,
       itemMissMessage: false,
       needsReroll: false,
+      resolved: false,
+      resolvedMessage: null,
     };
   }
 
@@ -4381,6 +4447,14 @@
     var st = consumableRollState;
 
     field.innerHTML = "";
+
+    if (st.resolved) {
+      var resolvedP = document.createElement("p");
+      resolvedP.className = "threat-ref-body weapon-roll-result";
+      resolvedP.textContent = st.resolvedMessage || window.I18N.t("weapon_roll_resolved_note");
+      field.appendChild(resolvedP);
+      return;
+    }
 
     var toggleBtn = document.createElement("button");
     toggleBtn.type = "button";
@@ -4501,13 +4575,14 @@
         }
         consumableRollGrantCount = 1;
         saveFn();
-        resetConsumableRollState();
-        field.dataset.open = "0";
-        renderConsumableRollField();
         renderConsumableList();
+        var grantedConsumableName = Consumables.localizedText(st.item.name);
         resolveInventoryOverflow(c, "consumable", lastNewInstanceId, function () {
           renderConsumableList();
           renderRosterFn();
+          st.resolved = true;
+          st.resolvedMessage = window.I18N.t("weapon_roll_resolved_note", { name: grantedConsumableName });
+          renderConsumableRollField();
         });
       });
       panel.appendChild(consumableConfirmBtn);
@@ -5316,6 +5391,10 @@
     INVENTORY_MAX: INVENTORY_MAX,
     inventoryCount: inventoryCount,
     resolveInventoryOverflow: resolveInventoryOverflow,
+    listRerollableWeaponSkillSlots: listRerollableWeaponSkillSlots,
+    rerollWeaponSkill: rerollWeaponSkill,
+    commitWeaponSkillReroll: commitWeaponSkillReroll,
+    resolveRandomSkillDisplay: resolveRandomSkillDisplay,
     openWeaponRollInline: openWeaponRollInline,
     openTalismanRollInline: openTalismanRollInline,
     openConsumableRollInline: openConsumableRollInline,

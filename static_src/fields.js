@@ -5586,7 +5586,8 @@
               reward: [
                 { kind: "potentialPower", perPerson: true, value: 1, note: C("（ボス戦闘撃破）", "（王戰擊破）") },
                 {
-                  kind: "note",
+                  kind: "weaponSkillReroll",
+                  perPerson: true,
                   note: C("（撃破後、PC全員1回まで「戦技の鍛冶台」で武器の戦技を再決定可能）", "（擊破後，PC全員各限1次可用「戰技鍛造台」重新決定武器戰技）"),
                 },
               ],
@@ -5679,7 +5680,8 @@
                 { kind: "hpDamage", value: 1, note: C("（潜む者たち・行為判定失敗時）", "（潛伏者們・行為判定失敗時）") },
                 { kind: "potentialPower", perPerson: true, value: 1, note: C("（ボス戦闘撃破）", "（王戰擊破）") },
                 {
-                  kind: "note",
+                  kind: "weaponSkillReroll",
+                  perPerson: true,
                   note: C("（撃破後、PC全員1回まで「戦技の鍛冶台」で武器の戦技を再決定可能）", "（擊破後，PC全員各限1次可用「戰技鍛造台」重新決定武器戰技）"),
                 },
               ],
@@ -5774,7 +5776,8 @@
                   note: C("（ボス戦闘撃破）", "（王戰擊破）"),
                 },
                 {
-                  kind: "note",
+                  kind: "weaponSkillReroll",
+                  perPerson: true,
                   note: C("（撃破後、PC全員1回まで「戦技の鍛冶台」で武器の戦技を再決定可能）", "（擊破後，PC全員各限1次可用「戰技鍛造台」重新決定武器戰技）"),
                 },
               ],
@@ -5862,7 +5865,8 @@
                   note: C("（ボス戦闘撃破）", "（王戰擊破）"),
                 },
                 {
-                  kind: "note",
+                  kind: "weaponSkillReroll",
+                  perPerson: true,
                   note: C("（撃破後、PC全員1回まで「戦技の鍛冶台」で武器の戦技を再決定可能）", "（擊破後，PC全員各限1次可用「戰技鍛造台」重新決定武器戰技）"),
                 },
               ],
@@ -5935,7 +5939,8 @@
                   note: C("（ボス戦闘撃破）", "（王戰擊破）"),
                 },
                 {
-                  kind: "note",
+                  kind: "weaponSkillReroll",
+                  perPerson: true,
                   note: C("（撃破後、PC全員1回まで「戦技の鍛冶台」で武器の戦技を再決定可能）", "（擊破後，PC全員各限1次可用「戰技鍛造台」重新決定武器戰技）"),
                 },
               ],
@@ -6024,7 +6029,8 @@
                   note: C("（ボス戦闘撃破）", "（王戰擊破）"),
                 },
                 {
-                  kind: "note",
+                  kind: "weaponSkillReroll",
+                  perPerson: true,
                   note: C("（撃破後、PC全員1回まで「戦技の鍛冶台」で武器の戦技を再決定可能）", "（擊破後，PC全員各限1次可用「戰技鍛造台」重新決定武器戰技）"),
                 },
               ],
@@ -6118,7 +6124,8 @@
                   note: C("（ボス戦闘撃破）", "（王戰擊破）"),
                 },
                 {
-                  kind: "note",
+                  kind: "weaponSkillReroll",
+                  perPerson: true,
                   note: C("（撃破後、PC全員1回まで「戦技の鍛冶台」で武器の戦技を再決定可能）", "（擊破後，PC全員各限1次可用「戰技鍛造台」重新決定武器戰技）"),
                 },
               ],
@@ -6208,7 +6215,8 @@
                   note: C("（ボス戦闘撃破）", "（王戰擊破）"),
                 },
                 {
-                  kind: "note",
+                  kind: "weaponSkillReroll",
+                  perPerson: true,
                   note: C("（撃破後、PC全員1回まで「戦技の鍛冶台」で武器の戦技を再決定可能）", "（擊破後，PC全員各限1次可用「戰技鍛造台」重新決定武器戰技）"),
                 },
               ],

@@ -1168,10 +1168,76 @@
     clearUndoSnapshot();
   }
 
+  // ============================================================
+  // ログ読み上げ（TTS、Web Speech API）：新しいログが追加されるたびに、その場で自動読み上げる。
+  // ブラウザ内蔵の音声合成のみを使う（外部サービス無し）。既定はON、デバイス単位で
+  // localStorageに保存（言語設定pritest-langと同じ永続化パターン）。読み上げは常に最新の
+  // 発話で前の発話を中断する（連続ログでの遅延蓄積を避けるため）。
+  // ============================================================
+  var TTS_STORAGE_KEY = "pritest-tts-enabled";
+  var ttsEnabled = localStorage.getItem(TTS_STORAGE_KEY) !== "0";
+  var TTS_LANG_MAP = { zh: "zh-TW", ja: "ja-JP", en: "en-US" };
+
+  function pickTtsVoice() {
+    if (!window.speechSynthesis) return null;
+    var voices = speechSynthesis.getVoices() || [];
+    if (!voices.length) return null;
+    var targetLang = TTS_LANG_MAP[window.I18N.getLang()] || TTS_LANG_MAP.zh;
+    var exact = voices.filter(function (v) {
+      return v.lang === targetLang;
+    })[0];
+    if (exact) return exact;
+    var prefix = targetLang.slice(0, 2);
+    var partial = voices.filter(function (v) {
+      return v.lang && v.lang.slice(0, 2) === prefix;
+    })[0];
+    return partial || null;
+  }
+
+  function speakText(text) {
+    if (!ttsEnabled || !window.speechSynthesis || !text) return;
+    speechSynthesis.cancel();
+    var utterance = new SpeechSynthesisUtterance(text);
+    var voice = pickTtsVoice();
+    if (voice) {
+      utterance.voice = voice;
+      utterance.lang = voice.lang;
+    } else {
+      utterance.lang = TTS_LANG_MAP[window.I18N.getLang()] || TTS_LANG_MAP.zh;
+    }
+    speechSynthesis.speak(utterance);
+  }
+
+  function speakLog(key, params) {
+    speakText(window.I18N.t(key, params));
+  }
+
+  function setTtsEnabled(enabled) {
+    ttsEnabled = enabled;
+    localStorage.setItem(TTS_STORAGE_KEY, enabled ? "1" : "0");
+    renderTtsToggleButton();
+    if (enabled) speakText(window.I18N.t("tts_enabled_announcement"));
+    else if (window.speechSynthesis) speechSynthesis.cancel();
+  }
+
+  function renderTtsToggleButton() {
+    var btn = document.getElementById("btn-tts-toggle");
+    if (!btn) return;
+    btn.textContent = window.I18N.t(ttsEnabled ? "tts_toggle_on_label" : "tts_toggle_off_label");
+  }
+
+  // 音声リストは非同期に読み込まれるブラウザがあるため、読み込み完了時に備えておく
+  // （pickTtsVoiceは呼ばれるたびに再取得するので、ここでは特別な処理は不要だが、
+  // Chromium系はイベント無しでは空配列のままになることがあるため念のため触れておく）。
+  if (window.speechSynthesis) {
+    speechSynthesis.onvoiceschanged = function () {};
+  }
+
   function addLog(key, params) {
     state.log.push({ key: key, params: params || {}, time: Date.now() });
     renderLog();
     saveState();
+    speakLog(key, params);
   }
 
   // 獲得ボタンを押した瞬間に、画面上部へ短時間だけ「何を獲得したか」を表示する小さな通知。
@@ -4395,42 +4461,166 @@
         max: max,
       });
       btn.addEventListener("click", function () {
-        openMainMenuDrawRoll(c.id);
+        closeMainMenuDrawModal();
+        openItemDrawModal(kind, c.id);
       });
       container.appendChild(btn);
     });
   }
 
-  // 主選單の抽選モーダル内へ、擲骰入手UIをその場で（キャラ詳細へ遷移せず）展開する。
-  function openMainMenuDrawRoll(characterId) {
-    var kind = mainMenuDrawKind;
-    document.getElementById("main-menu-draw-char-list").hidden = true;
-    document.getElementById("main-menu-draw-roll-area").hidden = false;
-    var field = document.getElementById("main-menu-draw-roll-field");
-    if (kind === "weapon") CharacterDrawer.openWeaponRollInline(field, characterId);
-    else if (kind === "talisman") CharacterDrawer.openTalismanRollInline(field, characterId);
-    else if (kind === "consumable") CharacterDrawer.openConsumableRollInline(field, characterId);
-  }
-
-  function backMainMenuDrawRoll() {
-    document.getElementById("main-menu-draw-roll-area").hidden = true;
-    document.getElementById("main-menu-draw-roll-field").innerHTML = "";
-    document.getElementById("main-menu-draw-char-list").hidden = false;
-    renderMainMenuDrawCharList();
-  }
-
   function openMainMenuDrawModal(kind) {
     mainMenuDrawKind = kind;
     document.getElementById("main-menu-draw-modal-title").textContent = window.I18N.t("main_menu_draw_title_" + kind);
-    document.getElementById("main-menu-draw-roll-area").hidden = true;
-    document.getElementById("main-menu-draw-roll-field").innerHTML = "";
-    document.getElementById("main-menu-draw-char-list").hidden = false;
     renderMainMenuDrawCharList();
     document.getElementById("main-menu-draw-modal").hidden = false;
   }
 
   function closeMainMenuDrawModal() {
     document.getElementById("main-menu-draw-modal").hidden = true;
+  }
+
+  // ============================================================
+  // 抽選専用モーダル（武器／護符／消耗品共通）：主選單からの抽選、および場地報酬の
+  // 武器ウィザード／消耗品／護符ボタンから共通で使う。潛在之力（openPotentialPowerModal）と
+  // 同じ規約：確定後もこのモーダル自体は自動で閉じない（GMが手動で閉じる）。呼び出し元が
+  // 場地報酬モーダルの場合は先にminimizeFloorRewardModal()され、GMはこのモーダルを閉じた後、
+  // 場地報酬側の「復元」ボタンで手動で戻る。確定後はCharacterDrawer側のresolvedフラグにより
+  // 抽選UIが静的な結果表示に固定されるため、このモーダルを再度開いても重複取得はできない。
+  // ============================================================
+  function openItemDrawModal(kind, characterId, options) {
+    var c = rosterCharacters.filter(function (rc) { return rc.id === characterId; })[0];
+    var titleKey = kind === "weapon" ? "item_draw_modal_title_weapon" : kind === "talisman" ? "item_draw_modal_title_talisman" : "item_draw_modal_title_consumable";
+    document.getElementById("item-draw-modal-title").textContent = window.I18N.t(titleKey, { name: c ? c.name : "" });
+    var field = document.getElementById("item-draw-modal-content");
+    field.innerHTML = "";
+    var opts = options || {};
+    if (kind === "weapon") {
+      // 場地報酬の武器ウィザード（★数／カテゴリ指定あり）はプリセット付きで起動、
+      // 主選單からの武器抽選（指定なし）は「潛在之力か否か」からGMに選ばせる通常の
+      // ウィザードとして起動する。
+      if (opts.starCount || opts.categoryId || opts.attributeTag) {
+        CharacterDrawer.presetWeaponRollForReward(characterId, opts.starCount || 1, opts.categoryId || null, opts.attributeTag || null, field);
+      } else {
+        CharacterDrawer.openWeaponRollInline(field, characterId);
+      }
+    } else if (kind === "talisman") {
+      CharacterDrawer.openTalismanRollInline(field, characterId);
+    } else if (kind === "consumable") {
+      CharacterDrawer.openConsumableRollInline(field, characterId, opts.grantCount || 1);
+    }
+    document.getElementById("item-draw-modal").hidden = false;
+  }
+
+  function closeItemDrawModal() {
+    document.getElementById("item-draw-modal").hidden = true;
+  }
+
+  // ============================================================
+  // 鍛冶村「戦技の鍛冶台」：所持武器1つのランダム戦技1つを選んで再抽選し、新しい戦技を
+  // 使うか元の戦技のままにするかを選ぶ。潛在之力と同じ規約でfloor-reward-modalが
+  // minimizeされている間に開く。
+  // ============================================================
+  var weaponSkillRerollCharacterId = null;
+
+  function openWeaponSkillRerollModal(characterId) {
+    weaponSkillRerollCharacterId = characterId;
+    renderWeaponSkillRerollModal();
+    document.getElementById("weapon-skill-reroll-modal").hidden = false;
+  }
+
+  function closeWeaponSkillRerollModal() {
+    document.getElementById("weapon-skill-reroll-modal").hidden = true;
+    weaponSkillRerollCharacterId = null;
+  }
+
+  function weaponSkillSlotLabel(slot) {
+    if (slot === "attached") return window.I18N.t("weapon_skill_reroll_slot_attached");
+    if (slot === "reverse") return window.I18N.t("weapon_skill_reroll_slot_reverse");
+    return "";
+  }
+
+  function renderWeaponSkillRerollModal() {
+    var c = rosterCharacters.filter(function (rc) {
+      return rc.id === weaponSkillRerollCharacterId;
+    })[0];
+    document.getElementById("weapon-skill-reroll-modal-title").textContent = window.I18N.t("weapon_skill_reroll_modal_title", {
+      name: c ? c.name : "",
+    });
+    var content = document.getElementById("weapon-skill-reroll-modal-content");
+    content.innerHTML = "";
+    if (!c) return;
+
+    var slots = CharacterDrawer.listRerollableWeaponSkillSlots(c);
+    if (!slots.length) {
+      var emptyP = document.createElement("p");
+      emptyP.className = "threat-ref-body";
+      emptyP.textContent = window.I18N.t("weapon_skill_reroll_empty_note");
+      content.appendChild(emptyP);
+      return;
+    }
+
+    var select = document.createElement("select");
+    slots.forEach(function (s, idx) {
+      var currentDisplay = CharacterDrawer.resolveRandomSkillDisplay(s.currentSkillId);
+      var opt = document.createElement("option");
+      opt.value = String(idx);
+      opt.textContent =
+        s.weaponName +
+        (s.slot ? "（" + weaponSkillSlotLabel(s.slot) + "）" : "") +
+        window.I18N.t("colon_separator") +
+        (currentDisplay ? currentDisplay.name : window.I18N.t("weapon_skill_reroll_unset_note"));
+      select.appendChild(opt);
+    });
+    content.appendChild(select);
+
+    var rerollBtn = document.createElement("button");
+    rerollBtn.type = "button";
+    rerollBtn.className = "primary-btn";
+    rerollBtn.textContent = window.I18N.t("weapon_skill_reroll_button");
+    content.appendChild(rerollBtn);
+
+    var resultArea = document.createElement("div");
+    content.appendChild(resultArea);
+
+    rerollBtn.addEventListener("click", function () {
+      var s = slots[parseInt(select.value, 10)];
+      var result = CharacterDrawer.rerollWeaponSkill(c, s.weaponId, s.slot);
+      if (!result) return;
+      var oldDisplay = CharacterDrawer.resolveRandomSkillDisplay(result.oldSkillId);
+      var newDisplay = CharacterDrawer.resolveRandomSkillDisplay(result.newSkillId);
+      var oldName = oldDisplay ? oldDisplay.name : window.I18N.t("weapon_skill_reroll_unset_note");
+      var newName = newDisplay ? newDisplay.name : window.I18N.t("weapon_skill_reroll_unset_note");
+
+      resultArea.innerHTML = "";
+      var resultP = document.createElement("p");
+      resultP.className = "threat-ref-body weapon-roll-result";
+      resultP.textContent = window.I18N.t("weapon_skill_reroll_result", { old: oldName, new: newName });
+      resultArea.appendChild(resultP);
+
+      var confirmNewBtn = document.createElement("button");
+      confirmNewBtn.type = "button";
+      confirmNewBtn.className = "primary-btn";
+      confirmNewBtn.textContent = window.I18N.t("weapon_skill_reroll_confirm_new_button");
+      confirmNewBtn.addEventListener("click", function () {
+        CharacterDrawer.commitWeaponSkillReroll(c, s.weaponId, s.slot, result.newSkillId);
+        saveRosterCharacters();
+        renderCharacterRoster();
+        addLog("log_weapon_skill_reroll", { character: c.name, weapon: s.weaponName, old: oldName, new: newName });
+        closeWeaponSkillRerollModal();
+      });
+      resultArea.appendChild(confirmNewBtn);
+
+      var keepOldBtn = document.createElement("button");
+      keepOldBtn.type = "button";
+      keepOldBtn.textContent = window.I18N.t("weapon_skill_reroll_keep_old_button");
+      keepOldBtn.addEventListener("click", function () {
+        closeWeaponSkillRerollModal();
+      });
+      resultArea.appendChild(keepOldBtn);
+
+      rerollBtn.disabled = true;
+      select.disabled = true;
+    });
   }
 
   // ============================================================
@@ -5439,20 +5629,18 @@
       var consumableBtn = document.createElement("button");
       consumableBtn.type = "button";
       consumableBtn.textContent = window.I18N.t("floor_reward_consumable_button", { value: entry.value }) + noteText;
-      var consumableRollArea = document.createElement("div");
-      consumableRollArea.className = "field-reward-inline-roll-area";
       consumableBtn.addEventListener("click", function () {
         var target = entered.filter(function (c) {
           return c.id === consumableCharSelect.value;
         })[0];
         if (!target) return;
-        CharacterDrawer.openConsumableRollInline(consumableRollArea, target.id, entry.value);
+        minimizeFloorRewardModal();
+        openItemDrawModal("consumable", target.id, { grantCount: entry.value });
         addLog("log_floor_reward_consumable_roll_nav", { character: target.name });
         consumableCharSelect.disabled = true;
         markFloorRewardObtained(consumableBtn, window.I18N.t("log_floor_reward_consumable_roll_nav", { character: target.name }));
       });
       consumableRow.appendChild(consumableBtn);
-      consumableRow.appendChild(consumableRollArea);
       container.appendChild(consumableRow);
       return;
     }
@@ -5465,20 +5653,18 @@
       var talismanBtn = document.createElement("button");
       talismanBtn.type = "button";
       talismanBtn.textContent = window.I18N.t("floor_reward_talisman_button", { value: entry.value }) + noteText;
-      var talismanRollArea = document.createElement("div");
-      talismanRollArea.className = "field-reward-inline-roll-area";
       talismanBtn.addEventListener("click", function () {
         var target = entered.filter(function (c) {
           return c.id === talismanCharSelect.value;
         })[0];
         if (!target) return;
-        CharacterDrawer.openTalismanRollInline(talismanRollArea, target.id);
+        minimizeFloorRewardModal();
+        openItemDrawModal("talisman", target.id);
         addLog("log_floor_reward_talisman_roll_nav", { character: target.name });
         talismanCharSelect.disabled = true;
         markFloorRewardObtained(talismanBtn, window.I18N.t("log_floor_reward_talisman_roll_nav", { character: target.name }));
       });
       talismanRow.appendChild(talismanBtn);
-      talismanRow.appendChild(talismanRollArea);
       container.appendChild(talismanRow);
       return;
     }
@@ -5496,8 +5682,6 @@
       // 遷移せず、このカード内に直接ウィザードを展開する）。
       if (entry.categoryId || entry.attributeTag) {
         weaponBtn.textContent = window.I18N.t("floor_reward_weapon_star_wizard_button", { value: "★".repeat(entry.value) }) + noteText;
-        var weaponWizardArea = document.createElement("div");
-        weaponWizardArea.className = "field-reward-inline-roll-area";
         if (isAlreadyObtained()) {
           weaponBtn.disabled = true;
           weaponBtn.classList.add("field-reward-obtained");
@@ -5508,7 +5692,8 @@
             return c.id === weaponCharSelect.value;
           })[0];
           if (!target) return;
-          CharacterDrawer.presetWeaponRollForReward(target.id, entry.value, entry.categoryId || null, resolvedAttributeTag, weaponWizardArea);
+          minimizeFloorRewardModal();
+          openItemDrawModal("weapon", target.id, { starCount: entry.value, categoryId: entry.categoryId, attributeTag: resolvedAttributeTag });
           addLog("log_floor_reward_weapon_wizard_nav", { character: target.name, value: "★".repeat(entry.value) });
           weaponCharSelect.disabled = true;
           markFloorRewardObtained(
@@ -5518,7 +5703,6 @@
           );
         });
         weaponRow.appendChild(weaponBtn);
-        weaponRow.appendChild(weaponWizardArea);
         container.appendChild(weaponRow);
         return;
       }
@@ -5621,6 +5805,31 @@
           openPotentialPowerModal(c.id, entry.value, resolvedAttributeTag);
         });
         container.appendChild(ppBtn);
+      });
+      return;
+    }
+
+    // 鍛冶村「戦技の鍛冶台」：PC全員が1回まで、所持武器1つの戦技1つをランダム戦技決定表で
+    // 再抽選できる。潛在之力と同じく1人1ボタン方式で、確定はキャラごとの専用モーダルで行う。
+    if (entry.kind === "weaponSkillReroll") {
+      entered.forEach(function (c) {
+        var rerollBtn = document.createElement("button");
+        rerollBtn.type = "button";
+        rerollBtn.textContent = window.I18N.t("floor_reward_weapon_skill_reroll_button", { name: c.name }) + noteText;
+        if (isAlreadyObtained(c.id)) {
+          rerollBtn.disabled = true;
+          rerollBtn.classList.add("field-reward-obtained");
+        }
+        rerollBtn.addEventListener("click", function () {
+          markFloorRewardObtained(
+            rerollBtn,
+            window.I18N.t("log_floor_reward_weapon_skill_reroll_nav", { character: c.name }),
+            obtainedStateKey(c.id)
+          );
+          minimizeFloorRewardModal();
+          openWeaponSkillRerollModal(c.id);
+        });
+        container.appendChild(rerollBtn);
       });
       return;
     }
@@ -7068,8 +7277,13 @@
     document.getElementById("btn-main-menu-draw-consumable").addEventListener("click", function () {
       openMainMenuDrawModal("consumable");
     });
+    document.getElementById("btn-tts-toggle").addEventListener("click", function () {
+      setTtsEnabled(!ttsEnabled);
+    });
+    renderTtsToggleButton();
     document.getElementById("btn-main-menu-draw-close").addEventListener("click", closeMainMenuDrawModal);
-    document.getElementById("btn-main-menu-draw-back").addEventListener("click", backMainMenuDrawRoll);
+    document.getElementById("btn-item-draw-modal-close").addEventListener("click", closeItemDrawModal);
+    document.getElementById("btn-weapon-skill-reroll-modal-close").addEventListener("click", closeWeaponSkillRerollModal);
     document.getElementById("btn-potential-power-minimize").addEventListener("click", minimizePotentialPowerModal);
     document.getElementById("btn-potential-power-restore").addEventListener("click", restorePotentialPowerModal);
     document.getElementById("btn-floor-reward-modal-close").addEventListener("click", closeFloorRewardModal);

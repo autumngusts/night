@@ -1926,18 +1926,8 @@ button {
   cursor: not-allowed;
 }
 
-#main-menu-draw-roll-area {
+#item-draw-modal-content {
   margin: 0.5rem 0;
-}
-
-#btn-main-menu-draw-back {
-  margin-bottom: 0.5rem;
-}
-
-.field-reward-inline-roll-area:not(:empty) {
-  margin-top: 0.5rem;
-  padding-top: 0.5rem;
-  border-top: 1px dashed #999;
 }
 
 .character-badge {
