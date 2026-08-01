@@ -1017,6 +1017,17 @@
     processAttributeStatusEnemyTrigger(enemyKey, label);
   }
 
+  // 隱者「元素操控」：対象の敵人が屬性傷害（火/雷/聖/魔のいずれか）を受けているかどうかを、
+  // 実際に蓄積されているenemyAccumから判定する（範囲が不明で手動確認に頼るしかない他の
+  // ゲート付き技能とは異なり、ここは既存データで正確に判定できる）。
+  function enemyHasElementDamage(enemyKey) {
+    if (!enemyKey || !state.battle.attributeStatus) return false;
+    var accum = state.battle.attributeStatus.enemyAccum || {};
+    return ATTRIBUTE_STATUS_ELEMENT_OPTIONS.some(function (opt) {
+      return (accum[enemyKey + "|" + opt.zh] || 0) > 0 || (accum[enemyKey + "|" + opt.ja] || 0) > 0;
+    });
+  }
+
   function addReceivedAttributeStatus(characterId, label, value) {
     if (!value) return;
     if (!state.battle.attributeStatus) state.battle.attributeStatus = defaultBattleState().attributeStatus;
@@ -3205,7 +3216,8 @@
           }
         }
         renderDiceCostAction(c, content, cost, function (dice, costLines) {
-          var dmgValue = hitType === "hit1" ? damage.hit1Damage : damage.hit2Damage;
+          var songHitBonus = songOfBloodSpiritHitBonus();
+          var dmgValue = (hitType === "hit1" ? damage.hit1Damage : damage.hit2Damage) + (hitType === "hit1" ? songHitBonus.hit1 : songHitBonus.hit2);
           var dmgSymbol = hitType === "hit1" ? damage.hit1Symbol : damage.hit2Symbol;
           var lines = [window.I18N.t("action_log_dice_used", { dice: dice.join("、") })].concat(costLines);
           // 一部の武器カテゴリ（槍・刺剣＝1、大槍・重刺剣＝2、斧槍＝3）は、2Hitアタック後に
@@ -3265,6 +3277,18 @@
   // artSkillPowerValue／spellSkillPowerValue（杖・聖印カテゴリのみ）で、タイプレベルの技能・
   // 遺物効果はfixedSkillPowerValue（本文に固定数値の総合ダメージが書かれている場合のみ）で
   // 求める。武器依存の記述など計算不能な場合はnullを返す（数値を捏造しない）。
+  // 隱者「血魂之歌」：發動したフェイズの間だけ有効な全体バフ（1Hit:+5/2Hit:+10、戦技等+10）。
+  // state.battle側のフラグのためcharacter_drawer.js側では判定できず、night.js内で武器アタック・
+  // 技能ダメージそれぞれの算出直後に加算する（talismanFlatHitBonus等と同じ「HP/フラグ条件付き
+  // 固定加算」の考え方だが、参照する状態がbattle側にあるため注入点をnight.js側に置く）。
+  function songOfBloodSpiritHitBonus() {
+    if (!state.battle._songOfBloodSpiritActive) return { hit1: 0, hit2: 0 };
+    return { hit1: 5, hit2: 10 };
+  }
+  function songOfBloodSpiritSkillBonus() {
+    return state.battle._songOfBloodSpiritActive ? 10 : 0;
+  }
+
   function computeSkillDamage(c, entry, body) {
     var dmg;
     if (!entry.weaponId) {
@@ -3288,7 +3312,8 @@
     // 数値を捏造しないため）。
     var talismanBonus = CharacterDrawer.talismanFlatSkillBonus(c);
     var fightingSpiritBonus = CharacterDrawer.fightingSpiritFlatBonus(c);
-    var flatBonus = talismanBonus + fightingSpiritBonus;
+    var songBonus = songOfBloodSpiritSkillBonus();
+    var flatBonus = talismanBonus + fightingSpiritBonus + songBonus;
     return flatBonus ? { value: dmg.value + flatBonus, symbol: dmg.symbol } : dmg;
   }
 
@@ -3370,6 +3395,8 @@
         eyeForValueResult = null;
         restageConfirmedThisUse = null;
         spiritSummonChoice = null;
+        hybridMagicElementChoice = null;
+        elementalControlTargetKey = null;
         renderCombatModal();
       });
       row.appendChild(useBtn);
@@ -3528,6 +3555,108 @@
             spiritSummonChoice = null;
           });
         }
+      } else if (isActive && entry.id === "elemental_control") {
+        // 隱者「元素操控」：対象の敵人を選び、その敵人が実際に屬性傷害を受けているか
+        // （enemyAccum）を自動判定する。範囲不明のため手動確認に頼る他の技能とは異なり、
+        // ここは既存の屬性蓄積データで正確に判定できる。
+        var elementalEnemyOptions = resolveSelectedEnemyOptions();
+        var elementalMarks = c.elementalMarks || 0;
+        if (!elementalEnemyOptions.length) {
+          var elementalNoEnemyNote = document.createElement("p");
+          elementalNoEnemyNote.className = "threat-ref-body";
+          elementalNoEnemyNote.textContent = window.I18N.t("eye_for_value_no_enemy_note");
+          content.appendChild(elementalNoEnemyNote);
+        } else if (elementalMarks >= 3) {
+          var elementalMaxNote = document.createElement("p");
+          elementalMaxNote.className = "threat-ref-body";
+          elementalMaxNote.textContent = window.I18N.t("elemental_control_max_note");
+          content.appendChild(elementalMaxNote);
+        } else {
+          if (!elementalControlTargetKey || !elementalEnemyOptions.some(function (opt) { return opt.key === elementalControlTargetKey; })) {
+            elementalControlTargetKey = elementalEnemyOptions[0].key;
+          }
+          var elementalEnemySelect = document.createElement("select");
+          elementalEnemyOptions.forEach(function (opt) {
+            var o = document.createElement("option");
+            o.value = opt.key;
+            o.textContent = opt.name;
+            if (opt.key === elementalControlTargetKey) o.selected = true;
+            elementalEnemySelect.appendChild(o);
+          });
+          elementalEnemySelect.addEventListener("change", function () {
+            elementalControlTargetKey = elementalEnemySelect.value;
+            renderCombatModal();
+          });
+          content.appendChild(elementalEnemySelect);
+          if (!enemyHasElementDamage(elementalControlTargetKey)) {
+            var elementalNoDamageNote = document.createElement("p");
+            elementalNoDamageNote.className = "threat-ref-body";
+            elementalNoDamageNote.textContent = window.I18N.t("elemental_control_no_element_note");
+            content.appendChild(elementalNoDamageNote);
+          } else {
+            var elementalCost = CharacterDrawer.parseActionCost(body);
+            renderDiceCostAction(c, content, elementalCost, function (dice, costLines) {
+              c.elementalMarks = Math.min(3, (c.elementalMarks || 0) + 1);
+              addActionBox(c, name, window.I18N.t("elemental_control_note", { marks: c.elementalMarks }), [window.I18N.t("action_log_dice_used", { dice: dice.join("、") })].concat(costLines));
+              addLog("log_elemental_control_use", { character: c.name, dice: dice.join("、") });
+              combatSkillState = null;
+            });
+          }
+        }
+      } else if (isActive && entry.id === "hybrid_magic") {
+        // 隱者「混成魔法」：屬性痕を3個消費し、火/雷/聖/魔から1種を選んで発動する。
+        var hybridMarks = c.elementalMarks || 0;
+        if (hybridMarks < 3) {
+          var hybridInsufficientNote = document.createElement("p");
+          hybridInsufficientNote.className = "threat-ref-body";
+          hybridInsufficientNote.textContent = window.I18N.t("hybrid_magic_insufficient_marks_note", { marks: hybridMarks });
+          content.appendChild(hybridInsufficientNote);
+        } else {
+          var hybridChoiceRow = document.createElement("div");
+          hybridChoiceRow.className = "wb-row";
+          ["fire", "lightning", "holy", "arcane"].forEach(function (kind) {
+            var hybridBtn = document.createElement("button");
+            hybridBtn.type = "button";
+            hybridBtn.textContent = window.I18N.t("hybrid_magic_choice_" + kind + "_label");
+            if (hybridMagicElementChoice === kind) hybridBtn.classList.add("active");
+            hybridBtn.addEventListener("click", function () {
+              hybridMagicElementChoice = hybridMagicElementChoice === kind ? null : kind;
+              renderCombatModal();
+            });
+            hybridChoiceRow.appendChild(hybridBtn);
+          });
+          content.appendChild(hybridChoiceRow);
+          var hybridEnemyOptions = resolveSelectedEnemyOptions();
+          var hybridEnemySelect = null;
+          if (hybridMagicElementChoice && hybridEnemyOptions.length) {
+            hybridEnemySelect = document.createElement("select");
+            hybridEnemyOptions.forEach(function (opt) {
+              var o = document.createElement("option");
+              o.value = opt.key;
+              o.textContent = opt.name;
+              hybridEnemySelect.appendChild(o);
+            });
+            content.appendChild(hybridEnemySelect);
+          }
+          if (hybridMagicElementChoice) {
+            var hybridCost = CharacterDrawer.parseActionCost(body);
+            renderDiceCostAction(c, content, hybridCost, function (dice, costLines) {
+              c.elementalMarks = Math.max(0, (c.elementalMarks || 0) - 3);
+              var elementLabel = window.I18N.t("hybrid_magic_choice_" + hybridMagicElementChoice + "_label");
+              if (hybridEnemySelect) {
+                var enemyLabels = HYBRID_MAGIC_ELEMENT_LABELS[hybridMagicElementChoice];
+                recordAttributeStatusDealt(c.id, hybridEnemySelect.value, enemyLabels.zh, 2);
+              }
+              var dmg = computeSkillDamage(c, entry, body);
+              var total = dmg ? window.I18N.t("action_log_damage_total", { value: CharacterDrawer.formatValueWithSymbol(dmg.value, dmg.symbol) }) : null;
+              var hybridNote = [total, window.I18N.t("hybrid_magic_note", { element: elementLabel })].filter(Boolean).join(" / ");
+              addActionBox(c, name, hybridNote, [window.I18N.t("action_log_dice_used", { dice: dice.join("、") })].concat(costLines));
+              addLog("log_hybrid_magic_use", { character: c.name, element: elementLabel });
+              combatSkillState = null;
+              hybridMagicElementChoice = null;
+            });
+          }
+        }
       } else if (isActive) {
         var cost = CharacterDrawer.parseActionCost(body);
         renderDiceCostAction(c, content, cost, function (dice, costLines) {
@@ -3551,6 +3680,13 @@
             rosterCharacters.forEach(function (rc) {
               rc._marchOfTheUndyingActive = true;
             });
+          }
+          // 隱者「血魂之歌」：他キャラの回合跨ぎバフと異なり「階段結束まで」＝発動したフェイズ
+          // 限定のため、battle全体のフラグとしてフェイズ切替の都度リセットする
+          // （setActionPhaseの通常のフェイズ切替リセットループを参照）。
+          if (entry.id === "song_of_blood_spirit") {
+            state.battle._songOfBloodSpiritActive = true;
+            saveState();
           }
           // 淑女「終曲」：次の防禦フェイズの間、敵人は行動しない（GM手動反映）。battle全体に
           // 紐付くフラグとして持たせ、防禦フェイズを抜けたタイミングでリセットする
@@ -3578,6 +3714,8 @@
           var total =
             entry.id === "marking"
               ? window.I18N.t("marking_action_note")
+              : entry.id === "song_of_blood_spirit"
+              ? window.I18N.t("song_of_blood_spirit_note")
               : dmg
               ? window.I18N.t("action_log_damage_total", { value: CharacterDrawer.formatValueWithSymbol(dmg.value, dmg.symbol) })
               : null;
@@ -3608,6 +3746,19 @@
 
   // 復仇者「召喚靈體」：海倫／弗雷德里克／賽巴斯汀のどれを召喚しようとしているかの中間状態。
   var spiritSummonChoice = null; // "helen" | "frederick" | "sebastian" | null
+
+  // 隱者「元素操控」：対象に選んでいる敵人キーの中間状態（選択が変わるたびenemyHasElementDamage
+  // の判定結果を再描画に反映させる必要があるため、鑑定眼等と違いchangeイベントで再描画する）。
+  var elementalControlTargetKey = null;
+
+  // 隱者「混成魔法」：付帯する屬性（火/雷/聖/魔）のどれを選ぼうとしているかの中間状態。
+  var hybridMagicElementChoice = null; // "fire" | "lightning" | "holy" | "arcane" | null
+  var HYBRID_MAGIC_ELEMENT_LABELS = {
+    fire: { zh: "火", ja: "炎" },
+    lightning: { zh: "雷", ja: "雷" },
+    holy: { zh: "聖", ja: "聖" },
+    arcane: { zh: "魔", ja: "魔" },
+  };
 
   // 靈體の種類ごとの最大HP・傷害計算式・HP價值（character_types.jsの本文記載値、ユーザー確認済み）。
   var SPIRIT_SUMMON_KINDS = {
@@ -5084,6 +5235,84 @@
     });
   }
 
+  function openElementMarkPanel() {
+    renderElementMarkPanel();
+    document.getElementById("element-mark-panel-modal").hidden = false;
+  }
+
+  function closeElementMarkPanel() {
+    document.getElementById("element-mark-panel-modal").hidden = true;
+  }
+
+  // 隱者「元素操控」の屬性痕（0〜3、祝福休息でもリセットされない）を管理表示する専用パネル。
+  // 復仇者の死靈パネルとは別立て（ユーザー選択済み）。骰子アイコン横のボタンから開く、
+  // キャラ非依存のグローバルなパネル。
+  function renderElementMarkPanel() {
+    var content = document.getElementById("element-mark-panel-content");
+    if (!content) return;
+    content.innerHTML = "";
+
+    var hermits = rosterCharacters.filter(function (c) {
+      if (!c.entered) return false;
+      var type = c.typeId ? CharacterTypes.get(c.typeId) : null;
+      if (!type) return false;
+      return (type.abilities || []).some(function (entry) {
+        return entry.id === "elemental_control";
+      });
+    });
+
+    if (!hermits.length) {
+      var emptyNote = document.createElement("p");
+      emptyNote.className = "threat-ref-body";
+      emptyNote.textContent = window.I18N.t("spirit_panel_no_spirit_note");
+      content.appendChild(emptyNote);
+      return;
+    }
+
+    hermits.forEach(function (c) {
+      var section = document.createElement("div");
+      section.className = "combat-skill-row";
+      var heading = document.createElement("p");
+      heading.className = "combat-skill-name";
+      heading.textContent = c.name;
+      section.appendChild(heading);
+
+      var row = document.createElement("div");
+      row.className = "battle-hp-stepper-row";
+      var label = document.createElement("span");
+      label.className = "level-value";
+      label.textContent = window.I18N.t("element_mark_label");
+      row.appendChild(label);
+      var minus = document.createElement("button");
+      minus.type = "button";
+      minus.className = "level-btn";
+      minus.textContent = "−";
+      minus.addEventListener("click", function () {
+        c.elementalMarks = Math.max(0, (c.elementalMarks || 0) - 1);
+        saveRosterCharacters();
+        renderElementMarkPanel();
+      });
+      row.appendChild(minus);
+      var value = document.createElement("span");
+      value.className = "level-value battle-hp-stepper-value";
+      value.textContent = (c.elementalMarks || 0) + "/3";
+      row.appendChild(value);
+      var plus = document.createElement("button");
+      plus.type = "button";
+      plus.className = "level-btn";
+      plus.textContent = "＋";
+      plus.addEventListener("click", function () {
+        c.elementalMarks = Math.min(3, (c.elementalMarks || 0) + 1);
+        saveRosterCharacters();
+        renderElementMarkPanel();
+      });
+      row.appendChild(plus);
+      section.appendChild(row);
+
+      content.appendChild(section);
+    });
+  }
+
   function setActionPhase(phase, opts) {
     opts = opts || {};
     if (state.actionPhase === phase) {
@@ -5115,6 +5344,10 @@
       state.battle._finaleActive = false;
       state.battle._totemStellaActive = false;
     }
+    // 隱者「血魂之歌」：「階段結束まで」＝発動したフェイズ限定のバフのため、フェイズが
+    // 変わるたびに必ずクリアする（回合単位で持続する救世之翼／終曲等とはライフサイクルが
+    // 異なる。battle全体のフラグのため、下のrosterCharacters.forEachとは別に1回だけ行う）。
+    state.battle._songOfBloodSpiritActive = false;
     state.actionPhase = phase;
     // フェイズを切り替えるたびに「額外／防禦行動を使用済み」フラグをリセットする（次にまた
     // 同じフェイズへ入ったとき、全員が改めて1回分振れるようにするため）。
@@ -8232,6 +8465,8 @@
     document.getElementById("btn-dice-pool-add").addEventListener("click", handleAddDice);
     document.getElementById("btn-spirit-panel").addEventListener("click", openSpiritPanel);
     document.getElementById("btn-spirit-panel-close").addEventListener("click", closeSpiritPanel);
+    document.getElementById("btn-element-mark-panel").addEventListener("click", openElementMarkPanel);
+    document.getElementById("btn-element-mark-panel-close").addEventListener("click", closeElementMarkPanel);
     document.getElementById("btn-action-phase").addEventListener("click", openActionPhaseModal);
     document.getElementById("btn-action-phase-cancel").addEventListener("click", closeActionPhaseModal);
     document.getElementById("btn-generic-check").addEventListener("click", openGenericCheckModal);
