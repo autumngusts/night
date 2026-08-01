@@ -4978,6 +4978,19 @@
     });
   }
 
+  // 戦闘モーダルの防禦フェイズ用：kind:"Defense"（防禦フェイズ専用に発動できる能力、例：
+  // 追跡者の「第六感」）だけを、レベル到達済みのものに絞って返す。getCombatSkillEntriesの
+  // 対になる関数（Action系はそちら、Defense系はこちら）。
+  function getCombatDefenseSkillEntries(c, type) {
+    if (!type) return [];
+    var entries = [].concat(type.abilities || []).concat(type.skills || []).concat(type.arts || []);
+    return entries.filter(function (entry) {
+      if (entry.kind !== "Defense") return false;
+      if (entry.level && c.level < entry.level) return false;
+      return true;
+    });
+  }
+
   // 戦闘モーダルの「技能」action用：装備中の武器・盾が持つ戦技（kind:"art"／"innate"のうち
   // Action種別のもの）を、type側のentryと同じ{id, name, body, kind}形式で返す。ランダム戦技枠は
   // 決定済み（c.weaponRandomSkills[weaponId]が設定済み）のものだけを対象にする。
@@ -5498,6 +5511,7 @@
     findLearnedRelicEffectByName: findLearnedRelicEffectByName,
     getSkillUsesBonus: getSkillUsesBonus,
     getCombatSkillEntries: getCombatSkillEntries,
+    getCombatDefenseSkillEntries: getCombatDefenseSkillEntries,
     getEquippedWeaponSkillEntries: getEquippedWeaponSkillEntries,
     categoryTwoHitDiceBonus: categoryTwoHitDiceBonus,
     weaponAccumulationEffects: weaponAccumulationEffects,

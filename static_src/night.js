@@ -3352,12 +3352,20 @@
       useBtn.addEventListener("click", function () {
         combatSkillState = isActive ? null : key;
         combatDiceSelection = [];
+        resetClawShotState();
         renderCombatModal();
       });
       row.appendChild(useBtn);
       content.appendChild(row);
 
-      if (isActive) {
+      if (isActive && entry.id === "claw_shot") {
+        renderClawShotAction(c, content, entry, name, body, function () {
+          if (entry.uses && entry.id) {
+            if (!c.abilityUses) c.abilityUses = {};
+            c.abilityUses[entry.id] = Math.max(0, (remaining !== null ? remaining : effectiveMax) - 1);
+          }
+        });
+      } else if (isActive) {
         var cost = CharacterDrawer.parseActionCost(body);
         renderDiceCostAction(c, content, cost, function (dice, costLines) {
           if (entry.uses && entry.id) {
@@ -3372,6 +3380,222 @@
         });
       }
     });
+  }
+
+  // ============================================================
+  // 追跡者「爪擊」専用UI：①主効果の二択（＋▲總傷害／復歸傷害:40＋対象） →
+  // ②任意で後衛から前衛へ移動 → ③確定（骰子コスト無し、使用回数のみ消費） →
+  // ④任意の追撃（近接武器1つ選択＋骰子3消費＋同じ二択、總傷害選択時は選んだ武器の
+  // 戦技威力で実際にダメージを計算する）。本文がテキストの自由記述であり、既存の
+  // 汎用renderDiceCostAction一発確定パスでは二択・移動・追撃の追加ステップを表現
+  // できないため、この技能専用に分岐する。
+  // ============================================================
+  var clawShotState = null;
+
+  function resetClawShotState() {
+    clawShotState = {
+      primaryChoice: null, // "damage" | "revival" | null
+      revivalTargetId: null,
+      moveToFront: false,
+      confirmed: false,
+      pursueChoice: null, // "yes" | "no" | null（確定後にのみ意味を持つ）
+      pursueEffectChoice: null, // "damage" | "revival" | null
+      pursueWeaponId: null,
+    };
+  }
+
+  function renderClawShotAction(c, content, entry, name, body, onConfirmUse) {
+    if (!clawShotState) resetClawShotState();
+    var st = clawShotState;
+    var entered = rosterCharacters.filter(function (rc) {
+      return rc.entered;
+    });
+
+    if (!st.confirmed) {
+      var choiceRow = document.createElement("div");
+      choiceRow.className = "wb-row";
+      [
+        { key: "damage", label: window.I18N.t("claw_shot_choice_damage_label") },
+        { key: "revival", label: window.I18N.t("claw_shot_choice_revival_label") },
+      ].forEach(function (opt) {
+        var btn = document.createElement("button");
+        btn.type = "button";
+        btn.textContent = opt.label;
+        if (st.primaryChoice === opt.key) btn.classList.add("active");
+        btn.addEventListener("click", function () {
+          st.primaryChoice = opt.key;
+          renderCombatModal();
+        });
+        choiceRow.appendChild(btn);
+      });
+      content.appendChild(choiceRow);
+
+      if (st.primaryChoice === "revival") {
+        var targetSelect = document.createElement("select");
+        entered.forEach(function (rc) {
+          var opt = document.createElement("option");
+          opt.value = rc.id;
+          opt.textContent = rc.name;
+          targetSelect.appendChild(opt);
+        });
+        targetSelect.value = st.revivalTargetId || (entered[0] && entered[0].id) || "";
+        targetSelect.addEventListener("change", function () {
+          st.revivalTargetId = targetSelect.value;
+        });
+        st.revivalTargetId = targetSelect.value;
+        content.appendChild(targetSelect);
+      }
+
+      var idx = battlePositionNames().indexOf(c.name);
+      var isBack = idx !== -1 && idx < BATTLE_SLOT_COUNT && !state.battle.front[idx];
+      if (isBack) {
+        var moveLabel = document.createElement("label");
+        moveLabel.className = "field-row";
+        var moveCheckbox = document.createElement("input");
+        moveCheckbox.type = "checkbox";
+        moveCheckbox.checked = st.moveToFront;
+        moveCheckbox.addEventListener("change", function () {
+          st.moveToFront = moveCheckbox.checked;
+        });
+        moveLabel.appendChild(moveCheckbox);
+        moveLabel.appendChild(document.createTextNode(window.I18N.t("claw_shot_move_to_front_label")));
+        content.appendChild(moveLabel);
+      }
+
+      if (st.primaryChoice) {
+        var cost = CharacterDrawer.parseActionCost(body);
+        renderDiceCostAction(c, content, cost, function (dice, costLines) {
+          onConfirmUse();
+          // renderDiceCostAction確定時の共通処理は、このコールバックの直後にrenderCharacterRoster()
+          // （＝syncDiceStatusToBattle()で骰子池の内容から前後衛を再判定）を呼ぶため、ここで直接
+          // state.battle.frontを書き換えても即座に上書きされてしまう（renderCombatMoveActionの
+          // 既存コメントで説明されている競合と同じ）。1ティック遅らせて、その自動同期の後に
+          // 手動の移動を最終結果として適用する。
+          if (st.moveToFront) {
+            setTimeout(function () {
+              var idx2 = battlePositionNames().indexOf(c.name);
+              if (idx2 !== -1 && idx2 < BATTLE_SLOT_COUNT) {
+                state.battle.front[idx2] = true;
+                state.battle.back[idx2] = false;
+                saveState();
+                renderBattlePositionAreas();
+                renderCombatModal();
+              }
+            }, 0);
+          }
+          var targetChar = st.revivalTargetId ? entered.filter(function (rc) { return rc.id === st.revivalTargetId; })[0] : null;
+          var effectNote =
+            st.primaryChoice === "damage"
+              ? window.I18N.t("claw_shot_choice_damage_label")
+              : window.I18N.t("claw_shot_choice_revival_applied_note", { name: targetChar ? targetChar.name : "" });
+          addActionBox(c, name, effectNote, [window.I18N.t("action_log_dice_used", { dice: dice.join("、") })].concat(costLines));
+          addLog("log_claw_shot_use", { character: c.name, effect: effectNote });
+          st.confirmed = true;
+          renderCombatModal();
+        });
+      }
+      return;
+    }
+
+    // --- 確定後：追撃を行うかどうかの任意サブアクション ---
+    if (st.pursueChoice === null) {
+      var pursuePromptRow = document.createElement("div");
+      pursuePromptRow.className = "wb-row";
+      var pursueYesBtn = document.createElement("button");
+      pursueYesBtn.type = "button";
+      pursueYesBtn.textContent = window.I18N.t("claw_shot_pursue_yes_button");
+      pursueYesBtn.addEventListener("click", function () {
+        st.pursueChoice = "yes";
+        renderCombatModal();
+      });
+      var pursueNoBtn = document.createElement("button");
+      pursueNoBtn.type = "button";
+      pursueNoBtn.textContent = window.I18N.t("claw_shot_pursue_no_button");
+      pursueNoBtn.addEventListener("click", function () {
+        st.pursueChoice = "no";
+        combatSkillState = null;
+        resetClawShotState();
+        renderCombatModal();
+      });
+      pursuePromptRow.appendChild(pursueYesBtn);
+      pursuePromptRow.appendChild(pursueNoBtn);
+      content.appendChild(pursuePromptRow);
+      return;
+    }
+
+    if (st.pursueChoice === "no") return;
+
+    // --- 追撃：近接武器選択＋二択＋骰子3消費 ---
+    var Weapons2 = window.PriTestWeapons;
+    var meleeWeaponIds = (c.equippedWeaponIds || []).filter(function (weaponId) {
+      var baseId = weaponId.indexOf("::") !== -1 ? weaponId.slice(0, weaponId.indexOf("::")) : weaponId;
+      var weapon = Weapons2.get(baseId);
+      if (!weapon) return false;
+      var category = Weapons2.getCategory(weapon.category);
+      return category && !category.isShield && category.id !== "staff" && category.id !== "sacred_seal";
+    });
+    if (!meleeWeaponIds.length) {
+      var noWeaponNote = document.createElement("p");
+      noWeaponNote.className = "threat-ref-body";
+      noWeaponNote.textContent = window.I18N.t("claw_shot_pursue_no_weapon_note");
+      content.appendChild(noWeaponNote);
+      return;
+    }
+
+    var weaponSelect = document.createElement("select");
+    meleeWeaponIds.forEach(function (weaponId) {
+      var baseId = weaponId.indexOf("::") !== -1 ? weaponId.slice(0, weaponId.indexOf("::")) : weaponId;
+      var weapon = Weapons2.get(baseId);
+      var opt = document.createElement("option");
+      opt.value = weaponId;
+      opt.textContent = Weapons2.localizedText(weapon.name);
+      weaponSelect.appendChild(opt);
+    });
+    weaponSelect.value = st.pursueWeaponId || meleeWeaponIds[0];
+    weaponSelect.addEventListener("change", function () {
+      st.pursueWeaponId = weaponSelect.value;
+    });
+    st.pursueWeaponId = weaponSelect.value;
+    content.appendChild(weaponSelect);
+
+    var pursueChoiceRow = document.createElement("div");
+    pursueChoiceRow.className = "wb-row";
+    [
+      { key: "damage", label: window.I18N.t("claw_shot_choice_damage_label") },
+      { key: "revival", label: window.I18N.t("claw_shot_choice_revival_label") },
+    ].forEach(function (opt) {
+      var btn = document.createElement("button");
+      btn.type = "button";
+      btn.textContent = opt.label;
+      if (st.pursueEffectChoice === opt.key) btn.classList.add("active");
+      btn.addEventListener("click", function () {
+        st.pursueEffectChoice = opt.key;
+        renderCombatModal();
+      });
+      pursueChoiceRow.appendChild(btn);
+    });
+    content.appendChild(pursueChoiceRow);
+
+    if (st.pursueEffectChoice) {
+      var pursueCost = { diceKind: "count", diceCountMin: 3, diceCountMax: null, sumTotal: null, fpCost: 0, hpCost: 0 };
+      renderDiceCostAction(c, content, pursueCost, function (dice, costLines) {
+        var pursueNote;
+        if (st.pursueEffectChoice === "damage") {
+          var artInfo = CharacterDrawer.computeArtPower(c, st.pursueWeaponId);
+          var dmg = artInfo ? CharacterDrawer.artSkillPowerValue(body, artInfo.artPower) : null;
+          pursueNote = dmg
+            ? window.I18N.t("action_log_damage_total", { value: CharacterDrawer.formatValueWithSymbol(dmg.value, dmg.symbol) })
+            : window.I18N.t("claw_shot_choice_damage_label");
+        } else {
+          pursueNote = window.I18N.t("claw_shot_choice_revival_label");
+        }
+        addActionBox(c, window.I18N.t("claw_shot_pursue_label"), pursueNote, [window.I18N.t("action_log_dice_used", { dice: dice.join("、") })].concat(costLines));
+        addLog("log_claw_shot_pursue", { character: c.name, effect: pursueNote });
+        combatSkillState = null;
+        resetClawShotState();
+        renderCombatModal();
+      });
+    }
   }
 
   // 骰子消費を伴う4アクション（聖杯瓶使用／消耗品使用／移動区域／装備変更）共通の骰子選択UI。
@@ -3763,6 +3987,9 @@
     var shieldInfo = getEquippedShield(c);
     var soloGuardRelic = shieldInfo ? null : getSoloWeaponGuardRelic(c);
     var blockAvailable = canBlockGuard(c);
+    var type = c.typeId ? CharacterTypes.get(c.typeId) : null;
+    var defenseSkillEntries = type ? CharacterDrawer.getCombatDefenseSkillEntries(c, type) : [];
+    var usesBonus = CharacterDrawer.getSkillUsesBonus(c);
 
     var choiceRow = document.createElement("div");
     choiceRow.className = "combat-defense-choice-row";
@@ -3785,7 +4012,49 @@
       });
       choiceRow.appendChild(btn);
     });
+    // kind:"Defense"の角色能力（例：追跡者の「第六感」）も、迴避／格擋と並ぶ第三の選択肢として
+    // ここに表示する（getCombatSkillEntriesはAction系のみを返すため、こちらはgetCombatDefenseSkillEntries
+    // を使う）。
+    defenseSkillEntries.forEach(function (entry) {
+      var entryName = CharacterTypes.localizedText(entry.name);
+      var entryBody = CharacterTypes.localizedText(entry.body);
+      var effectiveMax = entry.uses ? entry.uses + usesBonus : null;
+      var remaining =
+        effectiveMax !== null ? (typeof (c.abilityUses && c.abilityUses[entry.id]) === "number" ? c.abilityUses[entry.id] : effectiveMax) : null;
+      var btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "combat-attack-hit-btn";
+      btn.textContent = entryName + (effectiveMax !== null ? window.I18N.t("action_log_uses_remaining", { current: remaining, max: effectiveMax }) : "");
+      if (combatDefenseState === entry.id) btn.classList.add("active");
+      if (effectiveMax !== null && remaining <= 0) btn.disabled = true;
+      btn.addEventListener("click", function () {
+        combatDefenseState = combatDefenseState === entry.id ? null : entry.id;
+        combatDiceSelection = [];
+        renderCombatModal();
+      });
+      choiceRow.appendChild(btn);
+    });
     content.appendChild(choiceRow);
+
+    var activeDefenseSkill = defenseSkillEntries.filter(function (entry) {
+      return entry.id === combatDefenseState;
+    })[0];
+    if (activeDefenseSkill) {
+      var skillBody = CharacterTypes.localizedText(activeDefenseSkill.body);
+      var skillName = CharacterTypes.localizedText(activeDefenseSkill.name);
+      var skillCost = CharacterDrawer.parseActionCost(skillBody);
+      renderDiceCostAction(c, content, skillCost, function (dice, costLines) {
+        var effectiveMax = activeDefenseSkill.uses ? activeDefenseSkill.uses + usesBonus : null;
+        if (effectiveMax !== null) {
+          if (!c.abilityUses) c.abilityUses = {};
+          var remaining = typeof c.abilityUses[activeDefenseSkill.id] === "number" ? c.abilityUses[activeDefenseSkill.id] : effectiveMax;
+          c.abilityUses[activeDefenseSkill.id] = Math.max(0, remaining - 1);
+        }
+        addActionBox(c, skillName, window.I18N.t("combat_defense_skill_negate_note"), [window.I18N.t("action_log_dice_used", { dice: dice.join("、") })].concat(costLines));
+        addLog("log_combat_defense_skill_use", { character: c.name, skill: skillName, dice: dice.join("、") });
+        combatDefenseState = null;
+      });
+    }
 
     if (!blockAvailable) {
       var ids = c.equippedWeaponIds || [];
