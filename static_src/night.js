@@ -3369,6 +3369,7 @@
         resetClawShotState();
         eyeForValueResult = null;
         restageConfirmedThisUse = null;
+        spiritSummonChoice = null;
         renderCombatModal();
       });
       row.appendChild(useBtn);
@@ -3492,6 +3493,41 @@
           addLog("log_combat_skill_use", { character: c.name, skill: name, dice: dice.join("、") });
           combatSkillState = null;
         });
+      } else if (isActive && entry.id === "spirit_summon") {
+        // 復仇者「召喚靈體」：海倫／弗雷德里克／賽巴斯汀の3択→骰子3個で確定。同時に1体のみ
+        // 保持でき、種類ごとのHPはc.spiritSummonHpに保存され、再召喚時も維持される
+        // （「先前召喚的靈體會消失並從戰鬥中移除，目前HP維持不變」を反映）。
+        var spiritChoiceRow = document.createElement("div");
+        spiritChoiceRow.className = "wb-row";
+        ["helen", "frederick", "sebastian"].forEach(function (kind) {
+          var choiceBtn = document.createElement("button");
+          choiceBtn.type = "button";
+          choiceBtn.textContent = window.I18N.t("spirit_summon_choice_" + kind + "_label");
+          if (spiritSummonChoice === kind) choiceBtn.classList.add("active");
+          choiceBtn.addEventListener("click", function () {
+            spiritSummonChoice = spiritSummonChoice === kind ? null : kind;
+            renderCombatModal();
+          });
+          spiritChoiceRow.appendChild(choiceBtn);
+        });
+        content.appendChild(spiritChoiceRow);
+        if (spiritSummonChoice) {
+          var spiritCost = CharacterDrawer.parseActionCost(body);
+          renderDiceCostAction(c, content, spiritCost, function (dice, costLines) {
+            var kind = spiritSummonChoice;
+            c.spiritSummon = kind;
+            if (!c.spiritSummonHp) c.spiritSummonHp = {};
+            if (!c.spiritSummonHp[kind]) {
+              var maxHp = SPIRIT_SUMMON_KINDS[kind].hpMax;
+              c.spiritSummonHp[kind] = { current: maxHp, max: maxHp };
+            }
+            var kindLabel = window.I18N.t("spirit_summon_choice_" + kind + "_label");
+            addActionBox(c, name, window.I18N.t("spirit_summon_note", { spirit: kindLabel }), [window.I18N.t("action_log_dice_used", { dice: dice.join("、") })].concat(costLines));
+            addLog("log_spirit_summon_use", { character: c.name, spirit: kindLabel, dice: dice.join("、") });
+            combatSkillState = null;
+            spiritSummonChoice = null;
+          });
+        }
       } else if (isActive) {
         var cost = CharacterDrawer.parseActionCost(body);
         renderDiceCostAction(c, content, cost, function (dice, costLines) {
@@ -3506,6 +3542,14 @@
           if (entry.id === "wings_of_salvation") {
             rosterCharacters.forEach(function (rc) {
               rc._wingsOfSalvationActive = true;
+            });
+          }
+          // 復仇者「不死行軍」：救世之翼と全く同じライフサイクル（戦闘→額外→防禦の1回合を
+          // 跨いで持続し、次に戦闘フェイズへ新規突入した時にのみクリア）の全体バフ。
+          // 「復歸傷害：120」自体はGM手動反映（■/▲と同様の未確定数値は捏造しない方針）。
+          if (entry.id === "march_of_the_undying") {
+            rosterCharacters.forEach(function (rc) {
+              rc._marchOfTheUndyingActive = true;
             });
           }
           // 淑女「終曲」：次の防禦フェイズの間、敵人は行動しない（GM手動反映）。battle全体に
@@ -3561,6 +3605,16 @@
   // 淑女「重演」：「本階段で総合ダメージによりHP損害：■■■以上を与えたか」のYes/No確認結果。
   // renderDiceCostAction確定前の中間状態のため、再描画をまたいで保持する必要がある。
   var restageConfirmedThisUse = null; // true | false | null（null=未確認）
+
+  // 復仇者「召喚靈體」：海倫／弗雷德里克／賽巴斯汀のどれを召喚しようとしているかの中間状態。
+  var spiritSummonChoice = null; // "helen" | "frederick" | "sebastian" | null
+
+  // 靈體の種類ごとの最大HP・傷害計算式・HP價值（character_types.jsの本文記載値、ユーザー確認済み）。
+  var SPIRIT_SUMMON_KINDS = {
+    helen: { hpMax: 2 },
+    frederick: { hpMax: 5 },
+    sebastian: { hpMax: 6 },
+  };
 
   function resetClawShotState() {
     clawShotState = {
@@ -4224,6 +4278,15 @@
       content.appendChild(wingsNote);
     }
 
+    // 復仇者「不死行軍」：救世之翼と同じく発動者本人に限らず全員に持続するリマインドバナー
+    // （「復歸傷害：120」＋「目前HP：□は瀕死状態にならず保持され続ける」効果、GM手動反映）。
+    if (c._marchOfTheUndyingActive) {
+      var marchNote = document.createElement("p");
+      marchNote.className = "threat-ref-body";
+      marchNote.textContent = window.I18N.t("march_of_the_undying_defense_note");
+      content.appendChild(marchNote);
+    }
+
     // 淑女「終曲」：battle全体に紐付くフラグのため、発動した本人に限らず全員の防禦タブに
     // リマインドバナーを表示する（次の防禦フェイズを抜けるタイミングでフラグはリセットされる）。
     if (state.battle._finaleActive) {
@@ -4606,8 +4669,88 @@
         }
       }
     }
+    // 復仇者「死靈術」：雑兵の段が「未到達→ちょうど今回HP0に到達」した瞬間だけ発火させる
+    // （既にHP0の段をさらに操作しても再発火しない）。非雑兵エネミー側のhandleEnemyHpChangedに
+    // 相当する検知が雑兵側には無かったため、ここに追加する。
+    if (current !== MOB_HP_COLS && target === MOB_HP_COLS) {
+      handleMobRowDepleted();
+    }
     renderMobHpList();
     saveState();
+  }
+
+  // 死靈術（necromancy）能力を持つ入場済みキャラ全員に「擲骰待ち」を1件積む。
+  // 実際の擲骰・成否判定はSpirit Panel側（renderSpiritPanel）で行う。
+  function handleMobRowDepleted() {
+    rosterCharacters.forEach(function (c) {
+      if (!c.entered) return;
+      var type = c.typeId ? CharacterTypes.get(c.typeId) : null;
+      var hasNecromancy =
+        type &&
+        (type.abilities || []).some(function (entry) {
+          return entry.id === "necromancy";
+        });
+      if (!hasNecromancy) return;
+      c._necromancyPendingCount = (c._necromancyPendingCount || 0) + 1;
+    });
+    saveRosterCharacters();
+    renderCharacterRoster();
+  }
+
+  // 死靈術の擲骰待ちが1件以上あるキャラのみ、擲骰UI（またはロール後のYes/No確認）を描画する。
+  // 出目が「指定範囲內」かどうかの実際の判定基準は本文に数値が無いため、淑女「重演」の3格確認
+  // ゲートと同型でGM/プレイヤーの手動判定に委ねる（本アプリ全体の「■/▲等の数値未確定値は
+  // 捏造しない」方針を踏襲）。
+  var necromancyRollState = null; // { characterId, rollValue } | null
+
+  function renderNecromancyPendingSection(c, container) {
+    if (!(c._necromancyPendingCount > 0)) return;
+    var note = document.createElement("p");
+    note.className = "threat-ref-body";
+    note.textContent = window.I18N.t("necromancy_pending_note", { count: c._necromancyPendingCount });
+    container.appendChild(note);
+
+    if (necromancyRollState && necromancyRollState.characterId === c.id) {
+      var resultNote = document.createElement("p");
+      resultNote.className = "threat-ref-body";
+      resultNote.textContent = window.I18N.t("necromancy_roll_result_note", { value: necromancyRollState.rollValue });
+      container.appendChild(resultNote);
+      var confirmRow = document.createElement("div");
+      confirmRow.className = "wb-row";
+      [
+        { key: true, label: window.I18N.t("necromancy_confirm_yes_button") },
+        { key: false, label: window.I18N.t("necromancy_confirm_no_button") },
+      ].forEach(function (opt) {
+        var btn = document.createElement("button");
+        btn.type = "button";
+        btn.textContent = opt.label;
+        btn.addEventListener("click", function () {
+          c._necromancyPendingCount = Math.max(0, (c._necromancyPendingCount || 0) - 1);
+          if (opt.key) {
+            if (!c.deathSpirits) c.deathSpirits = [];
+            c.deathSpirits.push({ id: "ds" + Date.now() + Math.floor(Math.random() * 1000), hpCurrent: 3, hpMax: 3 });
+            addLog("log_necromancy_summon", { character: c.name });
+          } else {
+            addLog("log_necromancy_fail", { character: c.name });
+          }
+          necromancyRollState = null;
+          saveRosterCharacters();
+          renderSpiritPanel();
+        });
+        confirmRow.appendChild(btn);
+      });
+      container.appendChild(confirmRow);
+    } else {
+      var rollBtn = document.createElement("button");
+      rollBtn.type = "button";
+      rollBtn.className = "combat-attack-hit-btn";
+      rollBtn.textContent = window.I18N.t("necromancy_roll_button");
+      rollBtn.addEventListener("click", function () {
+        necromancyRollState = { characterId: c.id, rollValue: 1 + Math.floor(Math.random() * 6) };
+        renderSpiritPanel();
+      });
+      container.appendChild(rollBtn);
+    }
   }
 
   function renderMobHpList() {
@@ -4783,6 +4926,164 @@
     document.getElementById("action-phase-modal").hidden = true;
   }
 
+  function openSpiritPanel() {
+    renderSpiritPanel();
+    document.getElementById("spirit-panel-modal").hidden = false;
+  }
+
+  function closeSpiritPanel() {
+    document.getElementById("spirit-panel-modal").hidden = true;
+  }
+
+  // 死靈/靈體を持つ復仇者（typeにnecromancy能力またはspirit_summon技能を持つ角色）ごとに、
+  // 死靈術の擲骰待ち・死靈リスト・召喚中の靈體を管理表示する。サイコロアイコン横のボタンから
+  // 開く、キャラ非依存のグローバルなパネル（state.dicePoolと同じくゲーム全体で1つ）。
+  function renderSpiritPanel() {
+    var content = document.getElementById("spirit-panel-content");
+    if (!content) return;
+    content.innerHTML = "";
+
+    var avengers = rosterCharacters.filter(function (c) {
+      if (!c.entered) return false;
+      var type = c.typeId ? CharacterTypes.get(c.typeId) : null;
+      if (!type) return false;
+      var hasNecromancy = (type.abilities || []).some(function (entry) {
+        return entry.id === "necromancy";
+      });
+      var hasSpiritSummon = (type.skills || []).some(function (entry) {
+        return entry.id === "spirit_summon";
+      });
+      return hasNecromancy || hasSpiritSummon;
+    });
+
+    if (!avengers.length) {
+      var emptyNote = document.createElement("p");
+      emptyNote.className = "threat-ref-body";
+      emptyNote.textContent = window.I18N.t("spirit_panel_no_spirit_note");
+      content.appendChild(emptyNote);
+      return;
+    }
+
+    avengers.forEach(function (c) {
+      var type = CharacterTypes.get(c.typeId);
+      var section = document.createElement("div");
+      section.className = "combat-skill-row";
+      var heading = document.createElement("p");
+      heading.className = "combat-skill-name";
+      heading.textContent = c.name;
+      section.appendChild(heading);
+
+      renderNecromancyPendingSection(c, section);
+
+      // 死靈リスト（無制限・戦闘終了時に全消去。HPステッパーはadjustMobHpRowと同じ+/-方式）。
+      (c.deathSpirits || []).forEach(function (spirit, idx) {
+        var row = document.createElement("div");
+        row.className = "battle-hp-stepper-row";
+        var label = document.createElement("span");
+        label.className = "level-value";
+        label.textContent = window.I18N.t("death_spirit_label", { index: idx + 1 });
+        row.appendChild(label);
+        var minus = document.createElement("button");
+        minus.type = "button";
+        minus.className = "level-btn";
+        minus.textContent = "−";
+        minus.addEventListener("click", function () {
+          spirit.hpCurrent = Math.max(0, spirit.hpCurrent - 1);
+          saveRosterCharacters();
+          renderSpiritPanel();
+        });
+        row.appendChild(minus);
+        var value = document.createElement("span");
+        value.className = "level-value battle-hp-stepper-value";
+        value.textContent = spirit.hpCurrent + "/" + spirit.hpMax;
+        row.appendChild(value);
+        var plus = document.createElement("button");
+        plus.type = "button";
+        plus.className = "level-btn";
+        plus.textContent = "＋";
+        plus.addEventListener("click", function () {
+          spirit.hpCurrent = Math.min(spirit.hpMax, spirit.hpCurrent + 1);
+          saveRosterCharacters();
+          renderSpiritPanel();
+        });
+        row.appendChild(plus);
+        var removeBtn = document.createElement("button");
+        removeBtn.type = "button";
+        removeBtn.className = "tag-remove battle-row-remove";
+        removeBtn.textContent = "×";
+        removeBtn.addEventListener("click", function () {
+          c.deathSpirits.splice(idx, 1);
+          saveRosterCharacters();
+          renderSpiritPanel();
+        });
+        row.appendChild(removeBtn);
+        section.appendChild(row);
+      });
+
+      // 召喚靈體（level 2で解放）。同時に1体のみ、種類ごとのHPはspiritSummonHpに保存。
+      var spiritSummonSkill = (type.skills || []).filter(function (entry) {
+        return entry.id === "spirit_summon";
+      })[0];
+      if (spiritSummonSkill && spiritSummonSkill.level && c.level < spiritSummonSkill.level) {
+        var lockedNote = document.createElement("p");
+        lockedNote.className = "threat-ref-body";
+        lockedNote.textContent = window.I18N.t("spirit_panel_level_locked_note", { level: spiritSummonSkill.level });
+        section.appendChild(lockedNote);
+      } else if (c.spiritSummon && c.spiritSummonHp && c.spiritSummonHp[c.spiritSummon]) {
+        var kind = c.spiritSummon;
+        var hp = c.spiritSummonHp[kind];
+        var spiritRow = document.createElement("div");
+        spiritRow.className = "battle-hp-stepper-row";
+        var spiritLabel = document.createElement("span");
+        spiritLabel.className = "level-value";
+        spiritLabel.textContent = window.I18N.t("spirit_summon_choice_" + kind + "_label");
+        spiritRow.appendChild(spiritLabel);
+        var spiritMinus = document.createElement("button");
+        spiritMinus.type = "button";
+        spiritMinus.className = "level-btn";
+        spiritMinus.textContent = "−";
+        spiritMinus.addEventListener("click", function () {
+          hp.current = Math.max(0, hp.current - 1);
+          saveRosterCharacters();
+          renderSpiritPanel();
+        });
+        spiritRow.appendChild(spiritMinus);
+        var spiritValue = document.createElement("span");
+        spiritValue.className = "level-value battle-hp-stepper-value";
+        spiritValue.textContent = hp.current + "/" + hp.max;
+        spiritRow.appendChild(spiritValue);
+        var spiritPlus = document.createElement("button");
+        spiritPlus.type = "button";
+        spiritPlus.className = "level-btn";
+        spiritPlus.textContent = "＋";
+        spiritPlus.addEventListener("click", function () {
+          hp.current = Math.min(hp.max, hp.current + 1);
+          saveRosterCharacters();
+          renderSpiritPanel();
+        });
+        spiritRow.appendChild(spiritPlus);
+        section.appendChild(spiritRow);
+        var dismissBtn = document.createElement("button");
+        dismissBtn.type = "button";
+        dismissBtn.className = "combat-attack-hit-btn";
+        dismissBtn.textContent = window.I18N.t("spirit_summon_dismiss_button");
+        dismissBtn.addEventListener("click", function () {
+          c.spiritSummon = null;
+          saveRosterCharacters();
+          renderSpiritPanel();
+        });
+        section.appendChild(dismissBtn);
+      } else {
+        var noSpiritNote = document.createElement("p");
+        noSpiritNote.className = "threat-ref-body";
+        noSpiritNote.textContent = window.I18N.t("spirit_panel_no_spirit_note");
+        section.appendChild(noSpiritNote);
+      }
+
+      content.appendChild(section);
+    });
+  }
+
   function setActionPhase(phase, opts) {
     opts = opts || {};
     if (state.actionPhase === phase) {
@@ -4804,6 +5105,7 @@
       // ライフサイクルが異なる）。
       rosterCharacters.forEach(function (c) {
         c._wingsOfSalvationActive = false;
+        c._marchOfTheUndyingActive = false;
       });
     }
     // 淑女「終曲」：「次の防禦フェイズ」1回限りの効果のため、防禦フェイズを抜けるタイミング
@@ -4840,6 +5142,12 @@
     renderActionPhaseGrid();
     renderCharacterRoster();
     if (opts.combatEnd) {
+      // 復仇者「死靈術」で召喚した死靈は、靈體と異なりHPを維持せず戦闘終了時に全て消滅する
+      // （「戰鬥結束時自動從劇本中移除」）。靈體（c.spiritSummon／spiritSummonHp）はここでは
+      // クリアしない（目前HP維持のまま自動的に姿を消すのみで、再召喚時にHPを引き継ぐため）。
+      rosterCharacters.forEach(function (c) {
+        c.deathSpirits = [];
+      });
       addLog("log_battle_combat_end");
     } else {
       addLog("log_action_phase_change", { phase: window.I18N.t("action_phase_" + phase) });
@@ -7922,6 +8230,8 @@
     document.getElementById("btn-battle-add-mob-row").addEventListener("click", handleAddMobRow);
     document.getElementById("btn-battle-clear").addEventListener("click", handleBattleClear);
     document.getElementById("btn-dice-pool-add").addEventListener("click", handleAddDice);
+    document.getElementById("btn-spirit-panel").addEventListener("click", openSpiritPanel);
+    document.getElementById("btn-spirit-panel-close").addEventListener("click", closeSpiritPanel);
     document.getElementById("btn-action-phase").addEventListener("click", openActionPhaseModal);
     document.getElementById("btn-action-phase-cancel").addEventListener("click", closeActionPhaseModal);
     document.getElementById("btn-generic-check").addEventListener("click", openGenericCheckModal);

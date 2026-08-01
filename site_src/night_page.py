@@ -113,6 +113,7 @@ BODY = """    <div class="night-header-row">
         <div class="dice-pool-header">
           <span data-i18n="dice_pool_label"></span>
           <button type="button" class="dice-add-btn" id="btn-dice-pool-add">&#127922;</button>
+          <button type="button" class="dice-add-btn" id="btn-spirit-panel">&#128123;</button>
         </div>
         <div class="dice-pool-list" id="dice-pool-list"></div>
         <button type="button" class="primary-btn action-phase-btn" id="btn-action-phase"></button>
@@ -136,6 +137,16 @@ BODY = """    <div class="night-header-row">
           </div>
           <div class="actions">
             <button id="btn-action-phase-cancel" type="button" data-i18n="cancel_button"></button>
+          </div>
+        </div>
+      </div>
+
+      <div id="spirit-panel-modal" class="modal" hidden>
+        <div class="modal-box combat-modal-box">
+          <h2 data-i18n="spirit_panel_title"></h2>
+          <div id="spirit-panel-content"></div>
+          <div class="actions">
+            <button id="btn-spirit-panel-close" type="button" class="primary-btn" data-i18n="close_button"></button>
           </div>
         </div>
       </div>
