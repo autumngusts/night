@@ -941,11 +941,26 @@
     }
   }
 
+  // 執行者「不撓」：自身が屬性/異常のどちらのトリガーを受けても（蓄積値が閾値に達し歸零する
+  // たびに）戦闘終了まで持続するスタックを+1する。トリガーの実処理関数（下記2つ）の冒頭で
+  // 呼ぶことで、新規の検知ロジックを追加せずに済む。
+  function applyUnyieldingStack(c) {
+    var type = c.typeId ? CharacterTypes.get(c.typeId) : null;
+    var hasAbility =
+      type &&
+      (type.abilities || []).some(function (entry) {
+        return entry.id === "unyielding";
+      });
+    if (!hasAbility) return;
+    c._unyieldingStacks = (c._unyieldingStacks || 0) + 1;
+  }
+
   function applyAttributeStatusElementTriggerOnChar(characterId, label) {
     var c = rosterCharacters.filter(function (rc) {
       return rc.id === characterId;
     })[0];
     if (!c) return;
+    applyUnyieldingStack(c);
     c.hp.current = Math.max(0, (c.hp.current || 0) - 1);
     saveRosterCharacters();
     renderCharacterRoster();
@@ -957,6 +972,7 @@
       return rc.id === characterId;
     })[0];
     if (!c) return;
+    applyUnyieldingStack(c);
     if (label === ATTRIBUTE_STATUS_SLEEP_LABEL) {
       c._nextActionDicePenalty = (c._nextActionDicePenalty || 0) + 3;
       addLog("log_attribute_status_sleep_trigger_char", { name: c.name });
@@ -3115,6 +3131,15 @@
   var combatAttackTargetEnemyKey = null;
 
   function renderCombatAttackAction(c, content) {
+    // 執行者「坩堝諸相・獸」：發動中は武器・盾・杖・聖印が使用不可になり、固定の襲擊／咆哮
+    // アクション（renderCombatSkillActionのentriesに合成entryとして注入）に置き換わる。
+    if (c._crucibleBeastActive) {
+      var beastNote = document.createElement("p");
+      beastNote.className = "threat-ref-body";
+      beastNote.textContent = window.I18N.t("crucible_beast_no_weapon_note");
+      content.appendChild(beastNote);
+      return;
+    }
     var Weapons = window.PriTestWeapons;
     var equippedIds = (c.equippedWeaponIds || []).filter(function (id) {
       // 盾は元々除外していたが、杖・聖印（1Hit/2Hitの概念を持たない武器種）はcomputeWeaponDamage
@@ -3217,7 +3242,11 @@
         }
         renderDiceCostAction(c, content, cost, function (dice, costLines) {
           var songHitBonus = songOfBloodSpiritHitBonus();
-          var dmgValue = (hitType === "hit1" ? damage.hit1Damage : damage.hit2Damage) + (hitType === "hit1" ? songHitBonus.hit1 : songHitBonus.hit2);
+          var unyieldingBonus = unyieldingHitBonus(c);
+          var dmgValue =
+            (hitType === "hit1" ? damage.hit1Damage : damage.hit2Damage) +
+            (hitType === "hit1" ? songHitBonus.hit1 : songHitBonus.hit2) +
+            (hitType === "hit1" ? unyieldingBonus.hit1 : unyieldingBonus.hit2);
           var dmgSymbol = hitType === "hit1" ? damage.hit1Symbol : damage.hit2Symbol;
           var lines = [window.I18N.t("action_log_dice_used", { dice: dice.join("、") })].concat(costLines);
           // 一部の武器カテゴリ（槍・刺剣＝1、大槍・重刺剣＝2、斧槍＝3）は、2Hitアタック後に
@@ -3289,6 +3318,16 @@
     return state.battle._songOfBloodSpiritActive ? 10 : 0;
   }
 
+  // 執行者「不撓」：c._unyieldingStacks（自身が屬性/異常トリガーを受けるたびに戦闘終了まで
+  // 積み上がる）に応じた実ダメージ加算。血魂之歌と同じ注入点にスタック数×固定値で加算する。
+  function unyieldingHitBonus(c) {
+    var stacks = c._unyieldingStacks || 0;
+    return { hit1: stacks * 5, hit2: stacks * 10 };
+  }
+  function unyieldingSkillBonus(c) {
+    return (c._unyieldingStacks || 0) * 10;
+  }
+
   function computeSkillDamage(c, entry, body) {
     var dmg;
     if (!entry.weaponId) {
@@ -3313,7 +3352,8 @@
     var talismanBonus = CharacterDrawer.talismanFlatSkillBonus(c);
     var fightingSpiritBonus = CharacterDrawer.fightingSpiritFlatBonus(c);
     var songBonus = songOfBloodSpiritSkillBonus();
-    var flatBonus = talismanBonus + fightingSpiritBonus + songBonus;
+    var unyieldingBonus = unyieldingSkillBonus(c);
+    var flatBonus = talismanBonus + fightingSpiritBonus + songBonus + unyieldingBonus;
     return flatBonus ? { value: dmg.value + flatBonus, symbol: dmg.symbol } : dmg;
   }
 
@@ -3330,6 +3370,8 @@
         })[0]
       : null;
     if (restageEntry) entries = entries.concat([restageEntry]);
+    // 執行者「坩堝諸相・獸」發動中は、武器攻撃の代わりに固定の襲擊／咆哮アクションが使える。
+    if (c._crucibleBeastActive) entries = entries.concat(CRUCIBLE_BEAST_ACTIONS);
     if (!entries.length) {
       var empty = document.createElement("p");
       empty.className = "threat-ref-body";
@@ -3397,6 +3439,7 @@
         spiritSummonChoice = null;
         hybridMagicElementChoice = null;
         elementalControlTargetKey = null;
+        crucibleRoarChoice = null;
         renderCombatModal();
       });
       row.appendChild(useBtn);
@@ -3657,6 +3700,62 @@
             });
           }
         }
+      } else if (isActive && entry.id === "crucible_roar") {
+        // 執行者「咆哮」：對敵人傷害／對PC復歸傷害の二択（襲擊と異なりこちらは「或」＝排他）。
+        var roarChoiceRow = document.createElement("div");
+        roarChoiceRow.className = "wb-row";
+        [
+          { key: "damage", label: window.I18N.t("crucible_roar_choice_damage_label") },
+          { key: "revival", label: window.I18N.t("crucible_roar_choice_revival_label") },
+        ].forEach(function (opt) {
+          var roarBtn = document.createElement("button");
+          roarBtn.type = "button";
+          roarBtn.textContent = opt.label;
+          if (crucibleRoarChoice === opt.key) roarBtn.classList.add("active");
+          roarBtn.addEventListener("click", function () {
+            crucibleRoarChoice = crucibleRoarChoice === opt.key ? null : opt.key;
+            renderCombatModal();
+          });
+          roarChoiceRow.appendChild(roarBtn);
+        });
+        content.appendChild(roarChoiceRow);
+        var roarTargetSelect = null;
+        if (crucibleRoarChoice === "revival") {
+          var enteredChars = rosterCharacters.filter(function (rc) {
+            return rc.entered;
+          });
+          roarTargetSelect = document.createElement("select");
+          enteredChars.forEach(function (rc) {
+            var o = document.createElement("option");
+            o.value = rc.id;
+            o.textContent = rc.name;
+            roarTargetSelect.appendChild(o);
+          });
+          content.appendChild(roarTargetSelect);
+        }
+        if (crucibleRoarChoice) {
+          var roarCost = CharacterDrawer.parseActionCost(body);
+          renderDiceCostAction(c, content, roarCost, function (dice, costLines) {
+            var roarTotal;
+            if (crucibleRoarChoice === "damage") {
+              roarTotal = window.I18N.t("action_log_damage_total", { value: CharacterDrawer.formatValueWithSymbol(30, null) });
+            } else {
+              var targetChar = roarTargetSelect
+                ? rosterCharacters.filter(function (rc) {
+                    return rc.id === roarTargetSelect.value;
+                  })[0]
+                : null;
+              roarTotal = window.I18N.t("crucible_roar_target_label", { target: targetChar ? targetChar.name : "" });
+            }
+            addActionBox(c, name, roarTotal, [window.I18N.t("action_log_dice_used", { dice: dice.join("、") })].concat(costLines));
+            addLog("log_crucible_roar_use", {
+              character: c.name,
+              choice: window.I18N.t(crucibleRoarChoice === "damage" ? "crucible_roar_choice_damage_label" : "crucible_roar_choice_revival_label"),
+            });
+            combatSkillState = null;
+            crucibleRoarChoice = null;
+          });
+        }
       } else if (isActive) {
         var cost = CharacterDrawer.parseActionCost(body);
         renderDiceCostAction(c, content, cost, function (dice, costLines) {
@@ -3695,6 +3794,14 @@
             state.battle._finaleActive = true;
             saveState();
           }
+          // 執行者「坩堝諸相・獸」：自身をHP全回復し、「階段結束まで」＝発動したフェイズ限定で
+          // 坩堝之獸狀態にする（武器攻撃不可＋襲擊／咆哮アクション追加、renderCombatAttackAction
+          // とentries注入箇所を参照）。フェイズ切替の都度リセットする他のフラグと同じ箇所で
+          // c._crucibleBeastActive = false; を行う（setActionPhase参照）。
+          if (entry.id === "crucible_aspect_beast") {
+            c.hp.current = c.hp.max;
+            c._crucibleBeastActive = true;
+          }
           // 鐵眼「標記」をActionとして戦闘フェイズで使用した場合：自身の前衛/後衛を強制的に
           // 反転する。骰子池の内容から前後衛を自動判定する既存の同期処理と直後に競合するため、
           // 追跡者「爪擊」の移動処理と同じくsetTimeoutで1ティック遅らせて最終結果として適用する。
@@ -3716,6 +3823,8 @@
               ? window.I18N.t("marking_action_note")
               : entry.id === "song_of_blood_spirit"
               ? window.I18N.t("song_of_blood_spirit_note")
+              : entry.id === "crucible_aspect_beast"
+              ? window.I18N.t("crucible_beast_active_note")
               : dmg
               ? window.I18N.t("action_log_damage_total", { value: CharacterDrawer.formatValueWithSymbol(dmg.value, dmg.symbol) })
               : null;
@@ -3753,6 +3862,34 @@
 
   // 隱者「混成魔法」：付帯する屬性（火/雷/聖/魔）のどれを選ぼうとしているかの中間状態。
   var hybridMagicElementChoice = null; // "fire" | "lightning" | "holy" | "arcane" | null
+
+  // 執行者「坩堝諸相・獸」發動中に追加される2つの固定アクション。character_types.jsのentryと
+  // 同じ形（{id, kind, name:{zh,ja,en}, body:{zh,ja,en}}）で合成し、renderCombatSkillActionの
+  // entries配列へ注入する。襲擊は固定値のみのため汎用パスでそのまま動く（コード変更不要）。
+  var CRUCIBLE_BEAST_ACTIONS = [
+    {
+      id: "crucible_assault",
+      kind: "Action",
+      name: { zh: "襲擊", ja: "襲撃", en: "Assault" },
+      body: {
+        zh: "消耗：3\n對象：敵人、1名PC\n編隊：前衛時可使用\n\n效果\n・以巨爪攻擊。對敵人造成【總合傷害：60】，對任意1名PC施加「復歸傷害：60」。",
+        ja: "コスト：3\n対象：エネミー、PC1人\n隊列：前衛のとき使用可能\n\n効果\n・大きな爪で攻撃。エネミーに【総合ダメージ：60】、任意のPC1人に「復帰ダメージ：60」を与える。",
+        en: "Cost: 3\nTarget: Enemy, 1 PC\nFormation: Usable in front row\n\nEffect: Attacks with massive claws. Deals [Total Damage: 60] to the enemy and [Return Damage: 60] to any 1 PC.",
+      },
+    },
+    {
+      id: "crucible_roar",
+      kind: "Action",
+      name: { zh: "咆哮", ja: "咆哮", en: "Roar" },
+      body: {
+        zh: "消耗：1\n對象：敵人或1名PC\n編隊：前衛・後衛皆可使用\n\n效果\n・發出震耳咆哮。對敵人造成【總合傷害：30】，或對任意1名PC施加「復歸傷害：30」。",
+        ja: "コスト：1\n対象：エネミーまたはPC1人\n隊列：前衛・後衛どちらでも使用可能\n\n効果\n・つんざく咆哮をあげる。エネミーに【総合ダメージ：30】を与える、または任意のPC1人に「復帰ダメージ：30」を与える。",
+        en: "Cost: 1\nTarget: Enemy or 1 PC\nFormation: Usable in front or back row\n\nEffect: Lets out a piercing roar. Deals [Total Damage: 30] to the enemy, or [Return Damage: 30] to any 1 PC.",
+      },
+    },
+  ];
+  // 執行者「咆哮」：對敵人傷害／對PC復歸傷害のどちらを選ぼうとしているかの中間状態。
+  var crucibleRoarChoice = null; // "damage" | "revival" | null
   var HYBRID_MAGIC_ELEMENT_LABELS = {
     fire: { zh: "火", ja: "炎" },
     lightning: { zh: "雷", ja: "雷" },
@@ -4528,12 +4665,27 @@
             ? window.I18N.t("counterattack_defense_note")
             : window.I18N.t("combat_defense_skill_negate_note");
         if (activeDefenseSkill.id === "counterattack") c._counterattackDefenseUsed = true;
+        // 執行者「妖刀」：完全無效化ノート自体は汎用（combat_defense_skill_negate_note）のまま。
+        // このディフェンス後、妖刀蓄積に✓1個（上限2、既に2でも使用自体は妨げない）を記入し、
+        // 次の戦闘フェイズ開始時に體力骰+1を予約する（setActionPhaseの「新しい回合開始」判定
+        // 箇所で消化する）。
+        if (activeDefenseSkill.id === "yoto") {
+          c._yotoMarks = Math.min(2, (c._yotoMarks || 0) + 1);
+          c._yotoPendingBonusDice = true;
+        }
         addActionBox(c, skillName, defenseNote, [window.I18N.t("action_log_dice_used", { dice: dice.join("、") })].concat(costLines));
-        addLog(activeDefenseSkill.id === "counterattack" ? "log_counterattack_defense_use" : "log_combat_defense_skill_use", {
-          character: c.name,
-          skill: skillName,
-          dice: dice.join("、"),
-        });
+        addLog(
+          activeDefenseSkill.id === "counterattack"
+            ? "log_counterattack_defense_use"
+            : activeDefenseSkill.id === "yoto"
+            ? "log_yoto_defense_use"
+            : "log_combat_defense_skill_use",
+          {
+            character: c.name,
+            skill: skillName,
+            dice: dice.join("、"),
+          }
+        );
         combatDefenseState = null;
       });
     }
@@ -5335,6 +5487,13 @@
       rosterCharacters.forEach(function (c) {
         c._wingsOfSalvationActive = false;
         c._marchOfTheUndyingActive = false;
+        // 執行者「妖刀」：防禦フェイズで使用した際に予約された「次の行動階段開始時に體力骰+1」を
+        // ここで消化する（新しい回合＝combatフェイズへの新規突入のタイミング）。
+        if (c._yotoPendingBonusDice) {
+          if (!c.dicePool) c.dicePool = [];
+          c.dicePool.push(1 + Math.floor(Math.random() * 6));
+          c._yotoPendingBonusDice = false;
+        }
       });
     }
     // 淑女「終曲」：「次の防禦フェイズ」1回限りの効果のため、防禦フェイズを抜けるタイミング
@@ -5362,6 +5521,9 @@
       c._highGuardActive = false;
       c._whirlwindUsedThisPhase = false;
       c._counterattackDefenseUsed = false;
+      // 執行者「坩堝諸相・獸」：「階段結束まで」＝発動したフェイズ限定のため、フェイズ切替の
+      // 都度リセットする（血魂之歌のbattle全体フラグとは異なりキャラごとのフラグ）。
+      c._crucibleBeastActive = false;
       delete rosterDiceRollFeedback[c.id];
     });
     // 額外・防禦行動へ入るときは、各角色の確定行動（点線枠）を一旦全てクリアする。
@@ -5380,6 +5542,8 @@
       // クリアしない（目前HP維持のまま自動的に姿を消すのみで、再召喚時にHPを引き継ぐため）。
       rosterCharacters.forEach(function (c) {
         c.deathSpirits = [];
+        // 執行者「不撓」：戦闘終了までの持続スタックのため、戦闘終了のタイミングでクリアする。
+        c._unyieldingStacks = 0;
       });
       addLog("log_battle_combat_end");
     } else {
