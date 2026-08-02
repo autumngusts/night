@@ -2395,6 +2395,12 @@ button {
   background: #c9822b;
 }
 
+/* 上限超過（要解決）は他の縮小ボタンより優先度が高いため、スタッキングの最上位に置く。 */
+.inventory-overflow-restore-btn {
+  bottom: 13rem;
+  background: #c0392b;
+}
+
 .field-floor-reward-btn {
   margin: 0.4rem 0 0.3rem;
   padding: 0.35rem 0.8rem;

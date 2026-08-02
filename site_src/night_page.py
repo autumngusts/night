@@ -435,7 +435,7 @@ BODY = """    <div class="night-header-row">
         </div>
       </div>
     </div>
-    <button id="btn-inventory-overflow-restore" type="button" class="potential-power-restore-btn" data-i18n="inventory_overflow_restore_button" hidden></button>
+    <button id="btn-inventory-overflow-restore" type="button" class="potential-power-restore-btn inventory-overflow-restore-btn" data-i18n="inventory_overflow_restore_button" hidden></button>
 
     <div id="floor-reward-modal" class="modal" hidden>
       <div class="modal-box combat-modal-box">
