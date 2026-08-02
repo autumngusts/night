@@ -65,7 +65,6 @@ BODY = """    <div class="night-header-row">
 
       <div id="turn-reward-modal" class="modal" hidden>
         <div class="modal-box combat-modal-box">
-          <button type="button" class="modal-floating-close" id="btn-turn-reward-modal-minimize">&#128469;</button>
           <h2 data-i18n="turn_reward_modal_title"></h2>
           <div id="turn-reward-list"></div>
           <div class="dice-pool-header">
@@ -75,10 +74,12 @@ BODY = """    <div class="night-header-row">
             <button type="button" id="btn-turn-reward-add" data-i18n="turn_reward_add_button"></button>
           </div>
           <div class="actions">
+            <button id="btn-turn-reward-modal-minimize" type="button" data-i18n="potential_power_minimize_button"></button>
             <button id="btn-turn-reward-modal-close" type="button" class="primary-btn" data-i18n="close_button"></button>
           </div>
         </div>
       </div>
+      <button id="btn-turn-reward-restore" type="button" class="potential-power-restore-btn turn-reward-restore-btn" data-i18n="turn_reward_restore_button" hidden></button>
 
       <div class="board-area" id="board-area">
         <div class="board-grid" id="board-grid">
@@ -363,7 +364,6 @@ BODY = """    <div class="night-header-row">
 
     <div id="potential-power-modal" class="modal" hidden>
       <div class="modal-box combat-modal-box">
-        <button type="button" class="modal-floating-close" id="btn-potential-power-minimize">&#128469;</button>
         <h2 data-i18n="potential_power_modal_title"></h2>
         <div class="wb-row">
           <label data-i18n="potential_power_character_label"></label>
@@ -380,10 +380,12 @@ BODY = """    <div class="night-header-row">
         </div>
         <div id="potential-power-modal-content"></div>
         <div class="actions">
+          <button id="btn-potential-power-minimize" type="button" data-i18n="potential_power_minimize_button"></button>
           <button id="btn-potential-power-modal-close" type="button" class="primary-btn" data-i18n="close_button"></button>
         </div>
       </div>
     </div>
+    <button id="btn-potential-power-restore" type="button" class="potential-power-restore-btn" data-i18n="potential_power_restore_button" hidden></button>
 
     <div id="main-menu-draw-modal" class="modal" hidden>
       <div class="modal-box combat-modal-box">
@@ -398,14 +400,15 @@ BODY = """    <div class="night-header-row">
 
     <div id="item-draw-modal" class="modal" hidden>
       <div class="modal-box combat-modal-box">
-        <button type="button" class="modal-floating-close" id="btn-item-draw-modal-minimize">&#128469;</button>
         <h2 id="item-draw-modal-title"></h2>
         <div id="item-draw-modal-content"></div>
         <div class="actions">
+          <button id="btn-item-draw-modal-minimize" type="button" data-i18n="potential_power_minimize_button"></button>
           <button id="btn-item-draw-modal-close" type="button" class="primary-btn" data-i18n="close_button"></button>
         </div>
       </div>
     </div>
+    <button id="btn-item-draw-modal-restore" type="button" class="potential-power-restore-btn item-draw-restore-btn" data-i18n="item_draw_restore_button" hidden></button>
 
     <div id="weapon-skill-reroll-modal" class="modal" hidden>
       <div class="modal-box combat-modal-box">

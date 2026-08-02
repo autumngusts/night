@@ -5645,9 +5645,9 @@
 
   // 獨立獎勵勾選清單：地板獎勵システムとは無関係に、GMが「種類・對象角色・數量」を指定して
   // 項目を追加できる一覧（state.turnRewards、各項目は{id,kind,targetCharacterId,value,claimed}）。
-  // ターン交代では消えず、GMが手動で削除するまで保持される。戦闘弾窗と同じ.modal.minimized
-  // パターンで縮小/復元できる。各項目は実際に地板獎勵と同じ抽選/加算処理を起動できる
-  // 「獲得」ボタンを持ち、獲得済みかどうか(claimed)を保持する。
+  // ターン交代では消えず、GMが手動で削除するまで保持される。樓層獲得と同じ「モーダルを隠す＋
+  // 別のスタッキング型固定ボタンを表示」パターンで縮小/復元できる。各項目は実際に地板獎勵と
+  // 同じ抽選/加算処理を起動できる「獲得」ボタンを持ち、獲得済みかどうか(claimed)を保持する。
   var TURN_REWARD_KINDS = ["weapon", "consumable", "talisman", "potentialPower", "stoneswordKey", "smithingStone", "chaliceBonus", "rune"];
   var TURN_REWARD_SHARED_KINDS = ["stoneswordKey", "smithingStone", "chaliceBonus", "rune"];
 
@@ -5659,8 +5659,7 @@
     var modal = document.getElementById("turn-reward-modal");
     if (!modal) return;
     modal.hidden = false;
-    modal.classList.remove("minimized");
-    renderTurnRewardModalMinimizeButton();
+    document.getElementById("btn-turn-reward-restore").hidden = true;
     renderTurnRewardModal();
   }
 
@@ -5680,22 +5679,19 @@
       saveState();
     }
     modal.hidden = true;
+    document.getElementById("btn-turn-reward-restore").hidden = true;
   }
 
-  function renderTurnRewardModalMinimizeButton() {
-    var modal = document.getElementById("turn-reward-modal");
-    var btn = document.getElementById("btn-turn-reward-modal-minimize");
-    if (!modal || !btn) return;
-    var isMinimized = modal.classList.contains("minimized");
-    btn.textContent = isMinimized ? "\u{1F5D6}" : "\u{1F5D5}";
-    btn.title = window.I18N.t(isMinimized ? "combat_modal_restore_button" : "combat_modal_minimize_button");
+  // 縮小/復元は樓層獲得と同じ「モーダルを隠す＋別のスタッキング型固定ボタンを表示」方式。
+  function minimizeTurnRewardModal() {
+    document.getElementById("turn-reward-modal").hidden = true;
+    document.getElementById("btn-turn-reward-restore").hidden = false;
   }
 
-  function handleTurnRewardModalMinimizeToggle() {
-    var modal = document.getElementById("turn-reward-modal");
-    if (!modal) return;
-    modal.classList.toggle("minimized");
-    renderTurnRewardModalMinimizeButton();
+  function restoreTurnRewardModal() {
+    document.getElementById("btn-turn-reward-restore").hidden = true;
+    document.getElementById("turn-reward-modal").hidden = false;
+    renderTurnRewardModal();
   }
 
   // 種類selectは初回のみ構築する（選んだ種類が再描画のたびにリセットされないようにするため）。
@@ -5736,6 +5732,14 @@
     ) {
       targetSelect.value = prevTarget;
     }
+    // 新增（種類/對象/數量/追加ボタン）はGM回合中のみ操作可能。既存項目の獲得/削除は対象外。
+    var isGmTurn = state.turnHolder === "gm";
+    var valueInput = document.getElementById("turn-reward-value-input");
+    var addBtn = document.getElementById("btn-turn-reward-add");
+    kindSelect.disabled = !isGmTurn;
+    targetSelect.disabled = !isGmTurn;
+    if (valueInput) valueInput.disabled = !isGmTurn;
+    if (addBtn) addBtn.disabled = !isGmTurn;
   }
 
   function turnRewardLabel(reward) {
@@ -5760,13 +5764,13 @@
       reward.claimed = true;
       saveState();
       addLog(logKey, logParams);
-      document.getElementById("turn-reward-modal").classList.remove("minimized");
-      renderTurnRewardModalMinimizeButton();
+      document.getElementById("btn-turn-reward-restore").hidden = true;
+      document.getElementById("turn-reward-modal").hidden = false;
       renderTurnRewardModal();
     }
     function minimizeSelf() {
-      document.getElementById("turn-reward-modal").classList.add("minimized");
-      renderTurnRewardModalMinimizeButton();
+      document.getElementById("turn-reward-modal").hidden = true;
+      document.getElementById("btn-turn-reward-restore").hidden = false;
     }
     if (reward.kind === "stoneswordKey") {
       state.stoneswordKeyCount = (state.stoneswordKeyCount || 0) + reward.value;
@@ -6536,30 +6540,25 @@
     } else if (kind === "consumable") {
       CharacterDrawer.openConsumableRollInline(field, characterId, opts.grantCount || 1, onGranted);
     }
-    document.getElementById("item-draw-modal").classList.remove("minimized");
     document.getElementById("item-draw-modal").hidden = false;
-    renderItemDrawModalMinimizeButton();
+    document.getElementById("btn-item-draw-modal-restore").hidden = true;
   }
 
   function closeItemDrawModal() {
     document.getElementById("item-draw-modal").hidden = true;
+    document.getElementById("btn-item-draw-modal-restore").hidden = true;
   }
 
-  // 縮小/復元は戦闘弾窗・獎勵勾選清單・潛在之力と同じ.modal.minimizedパターンに統一する。
-  function renderItemDrawModalMinimizeButton() {
-    var modal = document.getElementById("item-draw-modal");
-    var btn = document.getElementById("btn-item-draw-modal-minimize");
-    if (!modal || !btn) return;
-    var isMinimized = modal.classList.contains("minimized");
-    btn.textContent = isMinimized ? "\u{1F5D6}" : "\u{1F5D5}";
-    btn.title = window.I18N.t(isMinimized ? "combat_modal_restore_button" : "combat_modal_minimize_button");
+  // 縮小/復元は樓層獲得と同じ「モーダルを隠す＋別のスタッキング型固定ボタンを表示」方式。
+  function minimizeItemDrawModal() {
+    document.getElementById("item-draw-modal").hidden = true;
+    document.getElementById("btn-item-draw-modal-restore").hidden = false;
   }
 
-  function handleItemDrawModalMinimizeToggle() {
-    var modal = document.getElementById("item-draw-modal");
-    if (!modal) return;
-    modal.classList.toggle("minimized");
-    renderItemDrawModalMinimizeButton();
+  function restoreItemDrawModal() {
+    document.getElementById("btn-item-draw-modal-restore").hidden = true;
+    document.getElementById("item-draw-modal").hidden = false;
+    CharacterDrawer.refreshActiveRollField();
   }
 
   // ============================================================
@@ -6733,31 +6732,30 @@
     potentialPowerOnResolvedFn = onResolved || null;
     ppSave();
     document.getElementById("potential-power-modal").hidden = false;
-    document.getElementById("potential-power-modal").classList.remove("minimized");
+    document.getElementById("btn-potential-power-restore").hidden = true;
     renderPotentialPowerModal();
   }
 
   function closePotentialPowerModal() {
     document.getElementById("potential-power-modal").hidden = true;
+    document.getElementById("btn-potential-power-restore").hidden = true;
   }
 
-  // 縮小/復元は戦闘弾窗・獎勵勾選清單と同じ.modal.minimizedパターンに統一する。
-  function renderPotentialPowerMinimizeButton() {
-    var modal = document.getElementById("potential-power-modal");
-    var btn = document.getElementById("btn-potential-power-minimize");
-    if (!modal || !btn) return;
-    var isMinimized = modal.classList.contains("minimized");
-    btn.textContent = isMinimized ? "\u{1F5D6}" : "\u{1F5D5}";
-    btn.title = window.I18N.t(isMinimized ? "combat_modal_restore_button" : "combat_modal_minimize_button");
-  }
-
-  function handlePotentialPowerMinimizeToggle() {
-    var modal = document.getElementById("potential-power-modal");
-    if (!modal) return;
-    modal.classList.toggle("minimized");
-    ppState().minimized = modal.classList.contains("minimized");
+  // 縮小/復元は樓層獲得と同じ「モーダルを隠す＋別のスタッキング型固定ボタンを表示」方式。
+  // 抽選結果を保持したままモーダルだけを一時的に隠す（状態はリセットしない）。
+  function minimizePotentialPowerModal() {
+    document.getElementById("potential-power-modal").hidden = true;
+    document.getElementById("btn-potential-power-restore").hidden = false;
+    ppState().minimized = true;
     ppSave();
-    renderPotentialPowerMinimizeButton();
+  }
+
+  function restorePotentialPowerModal() {
+    document.getElementById("btn-potential-power-restore").hidden = true;
+    document.getElementById("potential-power-modal").hidden = false;
+    ppState().minimized = false;
+    ppSave();
+    renderPotentialPowerModal();
   }
 
   function resetPotentialPowerRoll() {
@@ -6770,7 +6768,6 @@
   }
 
   function renderPotentialPowerModal() {
-    renderPotentialPowerMinimizeButton();
     var pp = ppState();
     var entered = rosterCharacters.filter(function (c) {
       return c.entered;
@@ -9335,30 +9332,36 @@
         renderRosterSkillsToggleLabel();
         renderUndoButton();
         renderTurnHolderBar();
-        if (state.activeDraws.potentialPower && document.getElementById("potential-power-modal").hidden) {
-          document.getElementById("potential-power-modal").hidden = false;
-          document.getElementById("potential-power-modal").classList.toggle("minimized", !!state.activeDraws.potentialPower.minimized);
-          renderPotentialPowerModal();
+        if (state.activeDraws.potentialPower) {
+          var ppRemote = state.activeDraws.potentialPower;
+          var ppModal = document.getElementById("potential-power-modal");
+          var ppRestoreBtn = document.getElementById("btn-potential-power-restore");
+          if (ppRemote.minimized) {
+            ppModal.hidden = true;
+            ppRestoreBtn.hidden = false;
+          } else if (ppModal.hidden) {
+            ppModal.hidden = false;
+            ppRestoreBtn.hidden = true;
+            renderPotentialPowerModal();
+          }
         }
-        // weapon/talisman/consumableのいずれか1つでも進行中なら#item-draw-modalを
-        // 縮小状態で自動表示する。既に開いている場合は上書きしない（ローカルでの
-        // 縮小/復元操作を尊重する）。まだこのクライアントでopenItemDrawModal等を
-        // 呼んでいない場合は、描画先コンテナ・タイトルをここで用意してから
-        // applyRemoteDrawStateへ渡す。
+        // weapon/talisman/consumableのいずれか1つでも進行中で、かつこのクライアントで
+        // まだ見ていない場合は、樓層獲得と同じ縮小ボタンとして表示する（フルモーダルでは
+        // 画面を占有しない）。既に開いている/縮小済みの場合はローカルの表示状態を尊重し、
+        // データだけを反映する。
         ["weapon", "talisman", "consumable"].forEach(function (kind) {
           var drawData = state.activeDraws[kind];
           if (!drawData) return;
           var modal = document.getElementById("item-draw-modal");
+          var restoreBtn = document.getElementById("btn-item-draw-modal-restore");
           var titleKey = kind === "weapon" ? "item_draw_modal_title_weapon" : kind === "talisman" ? "item_draw_modal_title_talisman" : "item_draw_modal_title_consumable";
           var drawChar = rosterCharacters.filter(function (rc) {
             return rc.id === drawData.characterId;
           })[0];
           document.getElementById("item-draw-modal-title").textContent = window.I18N.t(titleKey, { name: drawChar ? drawChar.name : "" });
-          if (modal.hidden) {
+          if (modal.hidden && restoreBtn.hidden) {
             CharacterDrawer.mountRemoteDrawField(kind, document.getElementById("item-draw-modal-content"));
-            modal.hidden = false;
-            modal.classList.add("minimized");
-            renderItemDrawModalMinimizeButton();
+            restoreBtn.hidden = false;
           }
           CharacterDrawer.applyRemoteDrawState(kind, drawData);
         });
@@ -9440,9 +9443,11 @@
     });
     document.getElementById("btn-main-menu-draw-close").addEventListener("click", closeMainMenuDrawModal);
     document.getElementById("btn-item-draw-modal-close").addEventListener("click", closeItemDrawModal);
-    document.getElementById("btn-item-draw-modal-minimize").addEventListener("click", handleItemDrawModalMinimizeToggle);
+    document.getElementById("btn-item-draw-modal-minimize").addEventListener("click", minimizeItemDrawModal);
+    document.getElementById("btn-item-draw-modal-restore").addEventListener("click", restoreItemDrawModal);
     document.getElementById("btn-weapon-skill-reroll-modal-close").addEventListener("click", closeWeaponSkillRerollModal);
-    document.getElementById("btn-potential-power-minimize").addEventListener("click", handlePotentialPowerMinimizeToggle);
+    document.getElementById("btn-potential-power-minimize").addEventListener("click", minimizePotentialPowerModal);
+    document.getElementById("btn-potential-power-restore").addEventListener("click", restorePotentialPowerModal);
     document.getElementById("btn-floor-reward-modal-close").addEventListener("click", closeFloorRewardModal);
     document.getElementById("btn-floor-reward-minimize").addEventListener("click", minimizeFloorRewardModal);
     document.getElementById("btn-floor-reward-restore").addEventListener("click", restoreFloorRewardModal);
@@ -9481,7 +9486,8 @@
     document.getElementById("btn-turn-message-send").addEventListener("click", handleTurnMessageSend);
     document.getElementById("btn-turn-reward-open").addEventListener("click", openTurnRewardModal);
     document.getElementById("btn-turn-reward-modal-close").addEventListener("click", closeTurnRewardModal);
-    document.getElementById("btn-turn-reward-modal-minimize").addEventListener("click", handleTurnRewardModalMinimizeToggle);
+    document.getElementById("btn-turn-reward-modal-minimize").addEventListener("click", minimizeTurnRewardModal);
+    document.getElementById("btn-turn-reward-restore").addEventListener("click", restoreTurnRewardModal);
     document.getElementById("btn-turn-reward-add").addEventListener("click", handleTurnRewardAdd);
     document.getElementById("btn-action-phase-cancel").addEventListener("click", closeActionPhaseModal);
     document.getElementById("btn-generic-check").addEventListener("click", openGenericCheckModal);

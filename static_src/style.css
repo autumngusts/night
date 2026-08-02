@@ -2385,6 +2385,16 @@ button {
   background: #2f8f5b;
 }
 
+.item-draw-restore-btn {
+  bottom: 7rem;
+  background: #8a5cb8;
+}
+
+.turn-reward-restore-btn {
+  bottom: 10rem;
+  background: #c9822b;
+}
+
 .field-floor-reward-btn {
   margin: 0.4rem 0 0.3rem;
   padding: 0.35rem 0.8rem;
