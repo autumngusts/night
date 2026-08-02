@@ -1393,6 +1393,11 @@ button {
   color: #888;
 }
 
+#turn-message-input {
+  flex: 1;
+  min-width: 0;
+}
+
 .dice-pool-header h3 {
   margin: 0;
   font-size: 0.95rem;

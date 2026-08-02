@@ -588,7 +588,7 @@
     actionPhase: "normal", // "normal"|"combat"|"extra"|"defense"
     floorRewardObtained: {}, // key: floorKey+"_"+entryIndex(+"_"+targetCharacterId) -> true
     turnHolder: "gm", // "gm"|"players"（GM/玩家が同時にプレイしなくても各自の番で行動できるようにする受け渡しフラグ）
-    turnMessages: [], // {text, time}の配列。現在の番の間だけ積み重なり、番の終了確認時にクリアされる
+    turnMessages: [], // {text, time, side("gm"|"players")}の配列。自分の番が再び始まる瞬間に自分側の分だけクリアされる
     turnRewards: [], // {id, text, checked}の配列。地板獎勵とは無関係の獨立勾選清單、手動削除まで保持
     turnBoardEnabled: true, // 主選單から行動留言板機能全体を開閉するフラグ
     // GMが開いて縮小した抽選ウィンドウを全端末で共有するための領域。null=未使用。
@@ -5592,8 +5592,13 @@
   function handleTurnHolderToggle() {
     if (!window.confirm(window.I18N.t("turn_board_end_turn_confirm"))) return;
     var wasGmTurn = state.turnHolder !== "players";
-    state.turnHolder = wasGmTurn ? "players" : "gm";
-    state.turnMessages = [];
+    var newTurnHolder = wasGmTurn ? "players" : "gm";
+    state.turnHolder = newTurnHolder;
+    // 交代する側自身が前回残した留言だけを消す（相手側が今しがた残した留言は、次の自分の番が
+    // 来るまで見えたままにする）。例：GMの留言はGM回合が再び始まる瞬間に消える。
+    state.turnMessages = state.turnMessages.filter(function (m) {
+      return m.side !== newTurnHolder;
+    });
     saveState();
     var toLabel = window.I18N.t(wasGmTurn ? "turn_holder_players_status" : "turn_holder_gm_status");
     addLog("log_turn_holder_handoff", { to: toLabel });
@@ -5610,7 +5615,7 @@
     if (!input) return;
     var text = input.value.trim();
     if (!text) return;
-    state.turnMessages.push({ text: text, time: Date.now() });
+    state.turnMessages.push({ text: text, time: Date.now(), side: state.turnHolder });
     input.value = "";
     saveState();
     renderTurnHolderBar();
