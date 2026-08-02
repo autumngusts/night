@@ -6545,6 +6545,10 @@
   }
 
   function closeItemDrawModal() {
+    // 確定せずに閉じた場合でもstate.activeDraws側に古い情報が残らないよう、明示的にクリアする
+    // （通常は確定時点で自動クリアされるが、GMが確定前にキャンセルするケースの保険）。
+    var kind = CharacterDrawer.getLastOpenedRollKind && CharacterDrawer.getLastOpenedRollKind();
+    if (kind && window.PriTestDrawStateSync) window.PriTestDrawStateSync.set(kind, null);
     document.getElementById("item-draw-modal").hidden = true;
     document.getElementById("btn-item-draw-modal-restore").hidden = true;
   }
@@ -9345,26 +9349,37 @@
             renderPotentialPowerModal();
           }
         }
-        // weapon/talisman/consumableのいずれか1つでも進行中で、かつこのクライアントで
-        // まだ見ていない場合は、樓層獲得と同じ縮小ボタンとして表示する（フルモーダルでは
-        // 画面を占有しない）。既に開いている/縮小済みの場合はローカルの表示状態を尊重し、
-        // データだけを反映する。
-        ["weapon", "talisman", "consumable"].forEach(function (kind) {
-          var drawData = state.activeDraws[kind];
-          if (!drawData) return;
-          var modal = document.getElementById("item-draw-modal");
-          var restoreBtn = document.getElementById("btn-item-draw-modal-restore");
-          var titleKey = kind === "weapon" ? "item_draw_modal_title_weapon" : kind === "talisman" ? "item_draw_modal_title_talisman" : "item_draw_modal_title_consumable";
+        // weapon/talisman/consumableは、確定(resolved)時・閉じた時に自動でnullへ戻るため、
+        // 通常は同時に高々1つしか非nullにならない。念のため複数該当してもタイトルと内容が
+        // 食い違わないよう、最初に見つかった1つだけを処理する。まだこのクライアントで
+        // 見ていない場合は樓層獲得と同じ縮小ボタンとして表示する（フルモーダルでは画面を
+        // 占有しない）。該当が無くなった場合、縮小ボタンとして表示されたままなら隠す
+        // （遠隔で確定/クローズされた抽選のゴースト表示を防ぐ）。
+        var activeDrawKind = ["weapon", "talisman", "consumable"].filter(function (kind) {
+          return !!state.activeDraws[kind];
+        })[0];
+        var itemDrawModalEl = document.getElementById("item-draw-modal");
+        var itemDrawRestoreBtnEl = document.getElementById("btn-item-draw-modal-restore");
+        if (activeDrawKind) {
+          var drawData = state.activeDraws[activeDrawKind];
+          var titleKey =
+            activeDrawKind === "weapon"
+              ? "item_draw_modal_title_weapon"
+              : activeDrawKind === "talisman"
+              ? "item_draw_modal_title_talisman"
+              : "item_draw_modal_title_consumable";
           var drawChar = rosterCharacters.filter(function (rc) {
             return rc.id === drawData.characterId;
           })[0];
           document.getElementById("item-draw-modal-title").textContent = window.I18N.t(titleKey, { name: drawChar ? drawChar.name : "" });
-          if (modal.hidden && restoreBtn.hidden) {
-            CharacterDrawer.mountRemoteDrawField(kind, document.getElementById("item-draw-modal-content"));
-            restoreBtn.hidden = false;
+          if (itemDrawModalEl.hidden && itemDrawRestoreBtnEl.hidden) {
+            CharacterDrawer.mountRemoteDrawField(activeDrawKind, document.getElementById("item-draw-modal-content"));
+            itemDrawRestoreBtnEl.hidden = false;
           }
-          CharacterDrawer.applyRemoteDrawState(kind, drawData);
-        });
+          CharacterDrawer.applyRemoteDrawState(activeDrawKind, drawData);
+        } else if (itemDrawModalEl.hidden && !itemDrawRestoreBtnEl.hidden) {
+          itemDrawRestoreBtnEl.hidden = true;
+        }
       });
       GameStorage.subscribeCharacters(gameId, game.storageMode, function (list) {
         rosterCharacters.length = 0;

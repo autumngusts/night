@@ -30,6 +30,13 @@
 
   function syncDrawStateIfAvailable(kind, stateVar) {
     if (suppressDrawSync || !window.PriTestDrawStateSync) return;
+    // 確定済み(resolved)になった時点でnullを送信し、state.activeDraws[kind]に古い情報が
+    // 残り続けないようにする。残り続けると回合交代のたびに縮小ボタンが復活したり、
+    // 既に確定済みの内容へ古いechoが上書きして再確定（重複付与）を許してしまう不具合になる。
+    if (stateVar && stateVar.resolved) {
+      window.PriTestDrawStateSync.set(kind, null);
+      return;
+    }
     var safe = null;
     if (stateVar) {
       safe = {};
@@ -2185,6 +2192,10 @@
     if (lastOpenedRollKind === "weapon") renderWeaponRollField();
     else if (lastOpenedRollKind === "talisman") renderTalismanRollField();
     else if (lastOpenedRollKind === "consumable") renderConsumableRollField();
+  }
+
+  function getLastOpenedRollKind() {
+    return lastOpenedRollKind;
   }
 
   var ANY_WEAPON_CATEGORY = "__any_weapon__";
@@ -5690,6 +5701,7 @@
     applyRemoteDrawState: applyRemoteDrawState,
     mountRemoteDrawField: mountRemoteDrawField,
     refreshActiveRollField: refreshActiveRollField,
+    getLastOpenedRollKind: getLastOpenedRollKind,
     RANGED_GROUP_CATEGORY: RANGED_GROUP_CATEGORY,
     SHIELD_GROUP_CATEGORY: SHIELD_GROUP_CATEGORY,
     weaponPreviewSkillNames: weaponPreviewSkillNames,
