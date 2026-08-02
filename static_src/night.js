@@ -6319,11 +6319,30 @@
     } else if (kind === "consumable") {
       CharacterDrawer.openConsumableRollInline(field, characterId, opts.grantCount || 1, onGranted);
     }
+    document.getElementById("item-draw-modal").classList.remove("minimized");
     document.getElementById("item-draw-modal").hidden = false;
+    renderItemDrawModalMinimizeButton();
   }
 
   function closeItemDrawModal() {
     document.getElementById("item-draw-modal").hidden = true;
+  }
+
+  // 縮小/復元は戦闘弾窗・獎勵勾選清單・潛在之力と同じ.modal.minimizedパターンに統一する。
+  function renderItemDrawModalMinimizeButton() {
+    var modal = document.getElementById("item-draw-modal");
+    var btn = document.getElementById("btn-item-draw-modal-minimize");
+    if (!modal || !btn) return;
+    var isMinimized = modal.classList.contains("minimized");
+    btn.textContent = isMinimized ? "\u{1F5D6}" : "\u{1F5D5}";
+    btn.title = window.I18N.t(isMinimized ? "combat_modal_restore_button" : "combat_modal_minimize_button");
+  }
+
+  function handleItemDrawModalMinimizeToggle() {
+    var modal = document.getElementById("item-draw-modal");
+    if (!modal) return;
+    modal.classList.toggle("minimized");
+    renderItemDrawModalMinimizeButton();
   }
 
   // ============================================================
@@ -9104,8 +9123,27 @@
           document.getElementById("potential-power-modal").classList.toggle("minimized", !!state.activeDraws.potentialPower.minimized);
           renderPotentialPowerModal();
         }
+        // weapon/talisman/consumableのいずれか1つでも進行中なら#item-draw-modalを
+        // 縮小状態で自動表示する。既に開いている場合は上書きしない（ローカルでの
+        // 縮小/復元操作を尊重する）。まだこのクライアントでopenItemDrawModal等を
+        // 呼んでいない場合は、描画先コンテナ・タイトルをここで用意してから
+        // applyRemoteDrawStateへ渡す。
         ["weapon", "talisman", "consumable"].forEach(function (kind) {
-          if (state.activeDraws[kind]) CharacterDrawer.applyRemoteDrawState(kind, state.activeDraws[kind]);
+          var drawData = state.activeDraws[kind];
+          if (!drawData) return;
+          var modal = document.getElementById("item-draw-modal");
+          var titleKey = kind === "weapon" ? "item_draw_modal_title_weapon" : kind === "talisman" ? "item_draw_modal_title_talisman" : "item_draw_modal_title_consumable";
+          var drawChar = rosterCharacters.filter(function (rc) {
+            return rc.id === drawData.characterId;
+          })[0];
+          document.getElementById("item-draw-modal-title").textContent = window.I18N.t(titleKey, { name: drawChar ? drawChar.name : "" });
+          if (modal.hidden) {
+            CharacterDrawer.mountRemoteDrawField(kind, document.getElementById("item-draw-modal-content"));
+            modal.hidden = false;
+            modal.classList.add("minimized");
+            renderItemDrawModalMinimizeButton();
+          }
+          CharacterDrawer.applyRemoteDrawState(kind, drawData);
         });
       });
       GameStorage.subscribeCharacters(gameId, game.storageMode, function (list) {
@@ -9185,6 +9223,7 @@
     });
     document.getElementById("btn-main-menu-draw-close").addEventListener("click", closeMainMenuDrawModal);
     document.getElementById("btn-item-draw-modal-close").addEventListener("click", closeItemDrawModal);
+    document.getElementById("btn-item-draw-modal-minimize").addEventListener("click", handleItemDrawModalMinimizeToggle);
     document.getElementById("btn-weapon-skill-reroll-modal-close").addEventListener("click", closeWeaponSkillRerollModal);
     document.getElementById("btn-potential-power-minimize").addEventListener("click", handlePotentialPowerMinimizeToggle);
     document.getElementById("btn-floor-reward-modal-close").addEventListener("click", closeFloorRewardModal);

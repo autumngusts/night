@@ -396,6 +396,7 @@ BODY = """    <div class="night-header-row">
 
     <div id="item-draw-modal" class="modal" hidden>
       <div class="modal-box combat-modal-box">
+        <button type="button" class="modal-floating-close" id="btn-item-draw-modal-minimize">&#128469;</button>
         <h2 id="item-draw-modal-title"></h2>
         <div id="item-draw-modal-content"></div>
         <div class="actions">

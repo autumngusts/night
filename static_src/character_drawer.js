@@ -47,6 +47,16 @@
   // 反映され続けるようにするため（参照を丸ごと差し替えると、進行中の操作が
   // 見えなくなったオブジェクトへ書き込まれて消えてしまう）。同じ理由でonConfirm
   // （関数、同期対象外）もローカルの値をそのまま保持する。
+  // 他端末で開始された抽選を、このクライアント側でまだ一度もopenXxxRollInline等を
+  // 呼んでいない状態から表示するための配線。dataset.openを立てておくことで、
+  // applyRemoteDrawStateの再描画ガード（"dataset.open === 1"）を満たすようにする。
+  function mountRemoteDrawField(kind, containerEl) {
+    if (kind === "weapon") weaponRollFieldEl = containerEl;
+    else if (kind === "talisman") talismanRollFieldEl = containerEl;
+    else if (kind === "consumable") consumableRollFieldEl = containerEl;
+    if (containerEl) containerEl.dataset.open = "1";
+  }
+
   function applyRemoteDrawState(kind, data) {
     if (!data) return;
     var current = kind === "weapon" ? weaponRollState : kind === "talisman" ? talismanRollState : consumableRollState;
@@ -59,6 +69,10 @@
     Object.keys(data).forEach(function (k) {
       current[k] = data[k];
     });
+    // 描画内部はfindCharacter(activeCharacterId)を参照するため、この抽選が対象とする
+    // キャラクターへ合わせておく（別のキャラクター詳細を見ていた場合はそちらが切り替わるが、
+    // 抽選の小窓が新規に表示される場面では実害が無い）。
+    if (current.characterId) activeCharacterId = current.characterId;
     suppressDrawSync = true;
     try {
       if (kind === "weapon" && weaponRollFieldEl && weaponRollFieldEl.dataset.open === "1") renderWeaponRollField();
@@ -2176,6 +2190,7 @@
   function resetWeaponRollState() {
     var firstCat = Weapons.categories()[0];
     weaponRollState = {
+      characterId: null, // 跨裝置同期でどのキャラクター向けの抽選かを判別するために持たせる
       potentialPower: null, // null=未選択／true=潜在する力／false=それ以外の装備品獲得
       favoredDie: null,
       favoredIndex: null,
@@ -2225,6 +2240,7 @@
     activeCharacterId = characterId;
     weaponRollFieldEl = containerEl;
     resetWeaponRollState();
+    weaponRollState.characterId = characterId;
     weaponRollState.onConfirm = onConfirm || null;
     weaponRollState.potentialPower = false;
     if (categoryId === RANGED_GROUP_CATEGORY || categoryId === SHIELD_GROUP_CATEGORY) {
@@ -2251,6 +2267,7 @@
     activeCharacterId = characterId;
     weaponRollFieldEl = containerEl;
     resetWeaponRollState();
+    weaponRollState.characterId = characterId;
     weaponRollState.onConfirm = onConfirm || null;
     if (containerEl) containerEl.dataset.open = "1";
     renderWeaponRollField();
@@ -2263,6 +2280,7 @@
     activeCharacterId = characterId;
     talismanRollFieldEl = containerEl;
     resetTalismanRollState();
+    talismanRollState.characterId = characterId;
     talismanRollState.onConfirm = onConfirm || null;
     if (containerEl) containerEl.dataset.open = "1";
     renderTalismanRollField();
@@ -2273,6 +2291,7 @@
     consumableRollFieldEl = containerEl;
     consumableRollGrantCount = grantCount || 1;
     resetConsumableRollState();
+    consumableRollState.characterId = characterId;
     consumableRollState.onConfirm = onConfirm || null;
     if (containerEl) containerEl.dataset.open = "1";
     renderConsumableRollField();
@@ -4466,6 +4485,7 @@
 
   function resetTalismanRollState() {
     talismanRollState = {
+      characterId: null,
       tableDie: null,
       tableLetter: null,
       groupDie: null,
@@ -4643,6 +4663,7 @@
 
   function resetConsumableRollState() {
     consumableRollState = {
+      characterId: null,
       groupDie: null,
       groupLabel: null,
       itemDie: null,
@@ -5644,6 +5665,7 @@
     openTalismanRollInline: openTalismanRollInline,
     openConsumableRollInline: openConsumableRollInline,
     applyRemoteDrawState: applyRemoteDrawState,
+    mountRemoteDrawField: mountRemoteDrawField,
     RANGED_GROUP_CATEGORY: RANGED_GROUP_CATEGORY,
     SHIELD_GROUP_CATEGORY: SHIELD_GROUP_CATEGORY,
     weaponPreviewSkillNames: weaponPreviewSkillNames,
