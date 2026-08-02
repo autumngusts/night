@@ -5598,6 +5598,9 @@
     var toLabel = window.I18N.t(wasGmTurn ? "turn_holder_players_status" : "turn_holder_gm_status");
     addLog("log_turn_holder_handoff", { to: toLabel });
     renderTurnHolderBar();
+    renderSelectedEnemies();
+    if (!document.getElementById("potential-power-modal").hidden) renderPotentialPowerModal();
+    if (!document.getElementById("item-draw-modal").hidden) CharacterDrawer.refreshActiveRollField();
   }
 
   // 送出ボタン：入力中のメッセージを現在のメッセージ板（state.turnMessages）へ1行追加する。

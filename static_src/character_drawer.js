@@ -54,6 +54,7 @@
     if (kind === "weapon") weaponRollFieldEl = containerEl;
     else if (kind === "talisman") talismanRollFieldEl = containerEl;
     else if (kind === "consumable") consumableRollFieldEl = containerEl;
+    lastOpenedRollKind = kind;
     if (containerEl) containerEl.dataset.open = "1";
   }
 
@@ -2175,6 +2176,17 @@
   // 個々の武器項目が持つ skills の {kind:"random", table:"A"} で使用する決定表が指定されている）に
   // それぞれ準拠する。各段階は「ロール結果を表示した上で手動でも上書きできる」形にし、
   // 既存の手動検索（renderWeaponSearchResults）とは独立して共存する。
+  // 現在#item-draw-modal-content等の共有コンテナに描画されているのがweapon/talisman/
+  // consumableのどれかを覚えておく（3つとも同じコンテナ要素を使い回すため、GM回合⇔玩家回合の
+  // 切り替え時にnight.js側からどのrenderXxxRollFieldを呼び直せばよいか判別できない）。
+  var lastOpenedRollKind = null;
+
+  function refreshActiveRollField() {
+    if (lastOpenedRollKind === "weapon") renderWeaponRollField();
+    else if (lastOpenedRollKind === "talisman") renderTalismanRollField();
+    else if (lastOpenedRollKind === "consumable") renderConsumableRollField();
+  }
+
   var ANY_WEAPON_CATEGORY = "__any_weapon__";
   // 個別カテゴリ（弓／大弓／弩／弩砲、小盾／中盾／大盾）をそのまま選ぶ以外に、大分類決定表の
   // 「射撃武器」「盾」をそのまま指定して、その小分類決定表だけを1D抽選するショートカットを設ける。
@@ -2239,6 +2251,7 @@
   function presetWeaponRollForReward(characterId, starCount, categoryId, attributeTag, containerEl, onConfirm) {
     activeCharacterId = characterId;
     weaponRollFieldEl = containerEl;
+    lastOpenedRollKind = "weapon";
     resetWeaponRollState();
     weaponRollState.characterId = characterId;
     weaponRollState.onConfirm = onConfirm || null;
@@ -2266,6 +2279,7 @@
   function openWeaponRollInline(containerEl, characterId, onConfirm) {
     activeCharacterId = characterId;
     weaponRollFieldEl = containerEl;
+    lastOpenedRollKind = "weapon";
     resetWeaponRollState();
     weaponRollState.characterId = characterId;
     weaponRollState.onConfirm = onConfirm || null;
@@ -2279,6 +2293,7 @@
   function openTalismanRollInline(containerEl, characterId, onConfirm) {
     activeCharacterId = characterId;
     talismanRollFieldEl = containerEl;
+    lastOpenedRollKind = "talisman";
     resetTalismanRollState();
     talismanRollState.characterId = characterId;
     talismanRollState.onConfirm = onConfirm || null;
@@ -2289,6 +2304,7 @@
   function openConsumableRollInline(containerEl, characterId, grantCount, onConfirm) {
     activeCharacterId = characterId;
     consumableRollFieldEl = containerEl;
+    lastOpenedRollKind = "consumable";
     consumableRollGrantCount = grantCount || 1;
     resetConsumableRollState();
     consumableRollState.characterId = characterId;
@@ -3744,6 +3760,7 @@
       }
       potentialSelect.appendChild(opt);
     });
+    potentialSelect.disabled = !!(window.PriTestTurnHolder && window.PriTestTurnHolder() === "players");
     potentialSelect.addEventListener("change", function () {
       var newValue = potentialSelect.value === "yes" ? true : potentialSelect.value === "no" ? false : null;
       resetWeaponRollState();
@@ -3856,6 +3873,7 @@
         catSelect.appendChild(opt);
       });
       catSelect.value = st.categoryId !== null ? st.categoryId : st.majorGroupShortcut || ANY_WEAPON_CATEGORY;
+      catSelect.disabled = !!(window.PriTestTurnHolder && window.PriTestTurnHolder() === "players");
       catSelect.addEventListener("change", function () {
         var newValue = catSelect.value;
         var prevPotentialPower = st.potentialPower;
@@ -3971,9 +3989,10 @@
       if (n === st.starCount) opt.selected = true;
       starSelect.appendChild(opt);
     });
-    starSelect.disabled = st.rarityConfirmed;
+    starSelect.disabled = st.rarityConfirmed || !!(window.PriTestTurnHolder && window.PriTestTurnHolder() === "players");
     starSelect.addEventListener("change", function () {
       st.starCount = parseInt(starSelect.value, 10);
+      syncDrawStateIfAvailable("weapon", st);
     });
     starLabel.appendChild(starSelect);
     starRow.appendChild(starLabel);
@@ -4037,8 +4056,10 @@
         if (r === st.rarity) opt.selected = true;
         raritySelect.appendChild(opt);
       });
+      raritySelect.disabled = !!(window.PriTestTurnHolder && window.PriTestTurnHolder() === "players");
       raritySelect.addEventListener("change", function () {
         st.rarity = raritySelect.value;
+        syncDrawStateIfAvailable("weapon", st);
       });
       rarityOverrideLabel.appendChild(raritySelect);
       rarityOverrideRow.appendChild(rarityOverrideLabel);
@@ -4157,8 +4178,10 @@
               if (opt.value === st.skillTableLetter) opt.selected = true;
               tblSelect.appendChild(opt);
             });
+            tblSelect.disabled = !!(window.PriTestTurnHolder && window.PriTestTurnHolder() === "players");
             tblSelect.addEventListener("change", function () {
               st.skillTableLetter = tblSelect.value;
+              syncDrawStateIfAvailable("weapon", st);
             });
             tblLabel.appendChild(tblSelect);
             tableSelectRow.appendChild(tblLabel);
@@ -5666,6 +5689,7 @@
     openConsumableRollInline: openConsumableRollInline,
     applyRemoteDrawState: applyRemoteDrawState,
     mountRemoteDrawField: mountRemoteDrawField,
+    refreshActiveRollField: refreshActiveRollField,
     RANGED_GROUP_CATEGORY: RANGED_GROUP_CATEGORY,
     SHIELD_GROUP_CATEGORY: SHIELD_GROUP_CATEGORY,
     weaponPreviewSkillNames: weaponPreviewSkillNames,
