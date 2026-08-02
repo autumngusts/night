@@ -591,6 +591,10 @@
     turnMessages: [], // {text, time}の配列。現在の番の間だけ積み重なり、番の終了確認時にクリアされる
     turnRewards: [], // {id, text, checked}の配列。地板獎勵とは無関係の獨立勾選清單、手動削除まで保持
     turnBoardEnabled: true, // 主選單から行動留言板機能全体を開閉するフラグ
+    // GMが開いて縮小した抽選ウィンドウを全端末で共有するための領域。null=未使用。
+    // 中身はcharacter_drawer.jsのweaponRollState/talismanRollState/consumableRollState、
+    // またはnight.js内のpotentialPower関連状態と同じ形をした素のJSONオブジェクト。
+    activeDraws: { potentialPower: null, weapon: null, talisman: null, consumable: null },
   };
 
   function shuffle(arr) {
@@ -651,6 +655,7 @@
       turnMessages: state.turnMessages,
       turnRewards: state.turnRewards,
       turnBoardEnabled: state.turnBoardEnabled,
+      activeDraws: state.activeDraws,
     };
   }
 
@@ -1239,6 +1244,13 @@
       state.turnMessages = Array.isArray(data.turnMessages) ? data.turnMessages : [];
       state.turnRewards = Array.isArray(data.turnRewards) ? data.turnRewards : [];
       state.turnBoardEnabled = typeof data.turnBoardEnabled === "boolean" ? data.turnBoardEnabled : true;
+      var loadedDraws = data.activeDraws && typeof data.activeDraws === "object" ? data.activeDraws : {};
+      state.activeDraws = {
+        potentialPower: loadedDraws.potentialPower || null,
+        weapon: loadedDraws.weapon || null,
+        talisman: loadedDraws.talisman || null,
+        consumable: loadedDraws.consumable || null,
+      };
     } catch (e) {
       // 壊れた状態は無視して初期状態のまま続行する
     }
@@ -1284,6 +1296,7 @@
     state.turnMessages = [];
     state.turnRewards = [];
     state.turnBoardEnabled = true;
+    state.activeDraws = { potentialPower: null, weapon: null, talisman: null, consumable: null };
     localStorage.removeItem(STORAGE_KEY);
     clearUndoSnapshot();
   }
@@ -5510,6 +5523,22 @@
     renderTurnBoardToggleButton();
     renderTurnHolderBar();
   }
+
+  // character_drawer.js（別クロージャ）が抽選の進行中状態をstate.activeDrawsへ書き戻すための
+  // ブリッジ。window.PriTestNightLogと同じ「存在確認つきグローバルフック」方式。
+  window.PriTestDrawStateSync = {
+    get: function (kind) {
+      return state.activeDraws[kind] || null;
+    },
+    set: function (kind, obj) {
+      state.activeDraws[kind] = obj || null;
+      saveState();
+    },
+  };
+
+  window.PriTestTurnHolder = function () {
+    return state.turnHolder;
+  };
 
   // 獎勵勾選清單／潛在之力／抽選武器・消耗品・飾品の「新規に開く」メインメニュー項目は
   // state.turnHolder==="gm"の間だけ表示する。既に開いて縮小済みのウィンドウ自体は
