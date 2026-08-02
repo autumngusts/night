@@ -587,7 +587,9 @@
     actionPhase: "normal", // "normal"|"combat"|"extra"|"defense"
     floorRewardObtained: {}, // key: floorKey+"_"+entryIndex(+"_"+targetCharacterId) -> true
     turnHolder: "gm", // "gm"|"players"（GM/玩家が同時にプレイしなくても各自の番で行動できるようにする受け渡しフラグ）
-    turnHolderNote: "", // 受け渡し時に添える自由記述メモ（直近1件のみ保持）
+    turnMessages: [], // {text, time}の配列。現在の番の間だけ積み重なり、番の終了確認時にクリアされる
+    turnRewards: [], // {id, text, checked}の配列。地板獎勵とは無関係の獨立勾選清單、手動削除まで保持
+    turnBoardEnabled: true, // 主選單から行動留言板機能全体を開閉するフラグ
   };
 
   function shuffle(arr) {
@@ -645,7 +647,9 @@
       actionPhase: state.actionPhase,
       floorRewardObtained: state.floorRewardObtained,
       turnHolder: state.turnHolder,
-      turnHolderNote: state.turnHolderNote,
+      turnMessages: state.turnMessages,
+      turnRewards: state.turnRewards,
+      turnBoardEnabled: state.turnBoardEnabled,
     };
   }
 
@@ -1231,7 +1235,9 @@
       state.floorRewardObtained =
         data.floorRewardObtained && typeof data.floorRewardObtained === "object" ? data.floorRewardObtained : {};
       state.turnHolder = ["gm", "players"].indexOf(data.turnHolder) !== -1 ? data.turnHolder : "gm";
-      state.turnHolderNote = typeof data.turnHolderNote === "string" ? data.turnHolderNote : "";
+      state.turnMessages = Array.isArray(data.turnMessages) ? data.turnMessages : [];
+      state.turnRewards = Array.isArray(data.turnRewards) ? data.turnRewards : [];
+      state.turnBoardEnabled = typeof data.turnBoardEnabled === "boolean" ? data.turnBoardEnabled : true;
     } catch (e) {
       // 壊れた状態は無視して初期状態のまま続行する
     }
@@ -1274,7 +1280,9 @@
     state.actionPhase = "normal";
     state.floorRewardObtained = {};
     state.turnHolder = "gm";
-    state.turnHolderNote = "";
+    state.turnMessages = [];
+    state.turnRewards = [];
+    state.turnBoardEnabled = true;
     localStorage.removeItem(STORAGE_KEY);
     clearUndoSnapshot();
   }
@@ -5482,36 +5490,164 @@
 
   // GM／玩家が同時にプレイしなくてもよいよう、「今は誰の番か」を示すバー。権限分離は行わず
   // （ユーザー方針：全員同じ権限）、あくまで受け渡しの目印として使う。
+  // 主選單から行動留言板機能全体（受け渡しバー・獎勵勾選清單）を開閉するトグル。
+  // TTSトグル（ttsEnabled、localStorage直書き）と異なり、複数人で同じゲームを見る前提のため
+  // state（クラウド同期対象）に持たせる。
+  function renderTurnBoardToggleButton() {
+    var btn = document.getElementById("btn-turn-board-toggle");
+    if (!btn) return;
+    btn.textContent = window.I18N.t(state.turnBoardEnabled ? "turn_board_toggle_on_label" : "turn_board_toggle_off_label");
+  }
+
+  function setTurnBoardEnabled(enabled) {
+    state.turnBoardEnabled = enabled;
+    saveState();
+    renderTurnBoardToggleButton();
+    renderTurnHolderBar();
+  }
+
+  // GM／玩家が同時にプレイしなくてもよいよう、「今は誰の番か」を示すバー。権限分離は行わず
+  // （ユーザー方針：全員同じ権限）、あくまで受け渡しの目印・卓上進行に沿った複数行メッセージ板
+  // として使う。主選單の「turnBoardEnabled」トグルで機能全体を非表示にできる。
   function renderTurnHolderBar() {
+    var bar = document.getElementById("turn-holder-bar");
+    if (!bar) return;
+    if (!state.turnBoardEnabled) {
+      bar.hidden = true;
+      return;
+    }
+    bar.hidden = false;
     var statusEl = document.getElementById("turn-holder-status");
     var toggleBtn = document.getElementById("btn-turn-holder-toggle");
-    var noteInput = document.getElementById("turn-holder-note-input");
-    var noteDisplay = document.getElementById("turn-holder-note-display");
+    var messageInput = document.getElementById("turn-message-input");
+    var messageList = document.getElementById("turn-message-list");
     if (!statusEl || !toggleBtn) return;
     var isGmTurn = state.turnHolder !== "players";
     statusEl.textContent = window.I18N.t(isGmTurn ? "turn_holder_gm_status" : "turn_holder_players_status");
-    toggleBtn.textContent = window.I18N.t(isGmTurn ? "turn_holder_handoff_to_players_button" : "turn_holder_handoff_to_gm_button");
-    if (noteInput) noteInput.placeholder = window.I18N.t("turn_holder_note_placeholder");
-    if (noteDisplay) {
-      noteDisplay.textContent = state.turnHolderNote ? window.I18N.t("turn_holder_note_display_label", { note: state.turnHolderNote }) : "";
+    toggleBtn.textContent = window.I18N.t(isGmTurn ? "turn_holder_end_gm_button" : "turn_holder_end_players_button");
+    if (messageInput) messageInput.placeholder = window.I18N.t("turn_message_placeholder");
+    if (messageList) {
+      messageList.innerHTML = "";
+      state.turnMessages.forEach(function (msg) {
+        var line = document.createElement("p");
+        line.className = "threat-ref-body";
+        var time = new Date(msg.time).toLocaleTimeString();
+        line.textContent = "[" + time + "] " + msg.text;
+        messageList.appendChild(line);
+      });
     }
   }
 
+  // Gm回合／玩家回合を交代する（ボタン文言は「Gm結束」「玩家結束」）。押すと確認ダイアログが出て、
+  // 確定した場合のみメッセージ板（state.turnMessages）をクリアしてから交代する。
   function handleTurnHolderToggle() {
+    if (!window.confirm(window.I18N.t("turn_board_end_turn_confirm"))) return;
     var wasGmTurn = state.turnHolder !== "players";
     state.turnHolder = wasGmTurn ? "players" : "gm";
-    var noteInput = document.getElementById("turn-holder-note-input");
-    var note = noteInput ? noteInput.value.trim() : "";
-    state.turnHolderNote = note;
-    if (noteInput) noteInput.value = "";
+    state.turnMessages = [];
     saveState();
     var toLabel = window.I18N.t(wasGmTurn ? "turn_holder_players_status" : "turn_holder_gm_status");
-    if (note) {
-      addLog("log_turn_holder_handoff_with_note", { to: toLabel, note: note });
-    } else {
-      addLog("log_turn_holder_handoff", { to: toLabel });
-    }
+    addLog("log_turn_holder_handoff", { to: toLabel });
     renderTurnHolderBar();
+  }
+
+  // 送出ボタン：入力中のメッセージを現在のメッセージ板（state.turnMessages）へ1行追加する。
+  // ログへの二重記録はしない（メッセージ板自体が記録の場のため）。
+  function handleTurnMessageSend() {
+    var input = document.getElementById("turn-message-input");
+    if (!input) return;
+    var text = input.value.trim();
+    if (!text) return;
+    state.turnMessages.push({ text: text, time: Date.now() });
+    input.value = "";
+    saveState();
+    renderTurnHolderBar();
+  }
+
+  // 獨立獎勵勾選清單：地板獎勵システムとは無関係の、GMが自由記述で項目を追加・チェックできる
+  // 一覧（state.turnRewards）。ターン交代では消えず、GMが手動で削除するまで保持される。
+  // 戦闘弾窗と同じ.modal.minimizedパターンで縮小/復元できる。
+  function openTurnRewardModal() {
+    var modal = document.getElementById("turn-reward-modal");
+    if (!modal) return;
+    modal.hidden = false;
+    modal.classList.remove("minimized");
+    renderTurnRewardModalMinimizeButton();
+    renderTurnRewardModal();
+  }
+
+  function closeTurnRewardModal() {
+    var modal = document.getElementById("turn-reward-modal");
+    if (modal) modal.hidden = true;
+  }
+
+  function renderTurnRewardModalMinimizeButton() {
+    var modal = document.getElementById("turn-reward-modal");
+    var btn = document.getElementById("btn-turn-reward-modal-minimize");
+    if (!modal || !btn) return;
+    var isMinimized = modal.classList.contains("minimized");
+    btn.textContent = isMinimized ? "\u{1F5D6}" : "\u{1F5D5}";
+    btn.title = window.I18N.t(isMinimized ? "combat_modal_restore_button" : "combat_modal_minimize_button");
+  }
+
+  function handleTurnRewardModalMinimizeToggle() {
+    var modal = document.getElementById("turn-reward-modal");
+    if (!modal) return;
+    modal.classList.toggle("minimized");
+    renderTurnRewardModalMinimizeButton();
+  }
+
+  function renderTurnRewardModal() {
+    var list = document.getElementById("turn-reward-list");
+    if (!list) return;
+    list.innerHTML = "";
+    if (!state.turnRewards.length) {
+      var empty = document.createElement("p");
+      empty.className = "threat-ref-body";
+      empty.textContent = window.I18N.t("turn_reward_empty_note");
+      list.appendChild(empty);
+      return;
+    }
+    state.turnRewards.forEach(function (reward) {
+      var row = document.createElement("div");
+      row.className = "wb-row";
+      var label = document.createElement("label");
+      var checkbox = document.createElement("input");
+      checkbox.type = "checkbox";
+      checkbox.checked = !!reward.checked;
+      checkbox.addEventListener("change", function () {
+        reward.checked = checkbox.checked;
+        saveState();
+      });
+      label.appendChild(checkbox);
+      var text = document.createElement("span");
+      text.textContent = reward.text;
+      label.appendChild(text);
+      row.appendChild(label);
+      var removeBtn = document.createElement("button");
+      removeBtn.type = "button";
+      removeBtn.className = "tag-remove";
+      removeBtn.textContent = "×";
+      removeBtn.addEventListener("click", function () {
+        var idx = state.turnRewards.indexOf(reward);
+        if (idx !== -1) state.turnRewards.splice(idx, 1);
+        saveState();
+        renderTurnRewardModal();
+      });
+      row.appendChild(removeBtn);
+      list.appendChild(row);
+    });
+  }
+
+  function handleTurnRewardAdd() {
+    var input = document.getElementById("turn-reward-add-input");
+    if (!input) return;
+    var text = input.value.trim();
+    if (!text) return;
+    state.turnRewards.push({ id: "tr" + Date.now() + Math.floor(Math.random() * 1000), text: text, checked: false });
+    input.value = "";
+    saveState();
+    renderTurnRewardModal();
   }
 
   // 額外行動は、非雑兵エネミーの4段のうちいずれか1段でもHP0にならない限り選択できない。
@@ -5854,6 +5990,7 @@
     closeActionPhaseModal();
     renderActionPhaseButton();
     renderTurnHolderBar();
+    renderTurnBoardToggleButton();
     renderActionPhaseGrid();
     renderCharacterRoster();
     if (opts.combatEnd) {
@@ -8693,6 +8830,7 @@
     renderDicePool();
     renderActionPhaseButton();
     renderTurnHolderBar();
+    renderTurnBoardToggleButton();
     renderActionPhaseGrid();
     if (hadBoard) addLog("log_new_game");
   }
@@ -8825,6 +8963,7 @@
     renderDicePool();
     renderActionPhaseButton();
     renderTurnHolderBar();
+    renderTurnBoardToggleButton();
     renderActionPhaseGrid();
     renderBoard();
     renderLog();
@@ -8937,6 +9076,9 @@
       setTtsEnabled(!ttsEnabled);
     });
     renderTtsToggleButton();
+    document.getElementById("btn-turn-board-toggle").addEventListener("click", function () {
+      setTurnBoardEnabled(!state.turnBoardEnabled);
+    });
     document.getElementById("btn-main-menu-draw-close").addEventListener("click", closeMainMenuDrawModal);
     document.getElementById("btn-item-draw-modal-close").addEventListener("click", closeItemDrawModal);
     document.getElementById("btn-weapon-skill-reroll-modal-close").addEventListener("click", closeWeaponSkillRerollModal);
@@ -8976,6 +9118,11 @@
     document.getElementById("btn-element-mark-panel-close").addEventListener("click", closeElementMarkPanel);
     document.getElementById("btn-action-phase").addEventListener("click", openActionPhaseModal);
     document.getElementById("btn-turn-holder-toggle").addEventListener("click", handleTurnHolderToggle);
+    document.getElementById("btn-turn-message-send").addEventListener("click", handleTurnMessageSend);
+    document.getElementById("btn-turn-reward-open").addEventListener("click", openTurnRewardModal);
+    document.getElementById("btn-turn-reward-modal-close").addEventListener("click", closeTurnRewardModal);
+    document.getElementById("btn-turn-reward-modal-minimize").addEventListener("click", handleTurnRewardModalMinimizeToggle);
+    document.getElementById("btn-turn-reward-add").addEventListener("click", handleTurnRewardAdd);
     document.getElementById("btn-action-phase-cancel").addEventListener("click", closeActionPhaseModal);
     document.getElementById("btn-generic-check").addEventListener("click", openGenericCheckModal);
     document.getElementById("btn-function-menu-toggle").addEventListener("click", function () {

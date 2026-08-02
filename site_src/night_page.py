@@ -29,6 +29,7 @@ BODY = """    <div class="night-header-row">
             <button id="btn-main-menu-draw-talisman" type="button" class="main-menu-item" data-i18n="main_menu_draw_talisman_label"></button>
             <button id="btn-main-menu-draw-consumable" type="button" class="main-menu-item" data-i18n="main_menu_draw_consumable_label"></button>
             <button id="btn-tts-toggle" type="button" class="main-menu-item"></button>
+            <button id="btn-turn-board-toggle" type="button" class="main-menu-item"></button>
           </div>
         </div>
         <h1 data-i18n="project_night_name"></h1>
@@ -48,6 +49,35 @@ BODY = """    <div class="night-header-row">
     </div>
 
     <section id="screen-board" class="screen">
+      <div class="dice-pool-block" id="turn-holder-bar">
+        <div class="dice-pool-header">
+          <span data-i18n="turn_holder_label"></span>
+          <span id="turn-holder-status"></span>
+          <button type="button" class="primary-btn" id="btn-turn-holder-toggle"></button>
+          <button type="button" id="btn-turn-reward-open" data-i18n="turn_reward_open_button"></button>
+        </div>
+        <div id="turn-message-list"></div>
+        <div class="dice-pool-header">
+          <textarea id="turn-message-input" rows="2"></textarea>
+          <button type="button" id="btn-turn-message-send" data-i18n="turn_message_send_button"></button>
+        </div>
+      </div>
+
+      <div id="turn-reward-modal" class="modal" hidden>
+        <div class="modal-box combat-modal-box">
+          <button type="button" class="modal-floating-close" id="btn-turn-reward-modal-minimize">&#128469;</button>
+          <h2 data-i18n="turn_reward_modal_title"></h2>
+          <div id="turn-reward-list"></div>
+          <div class="dice-pool-header">
+            <input type="text" id="turn-reward-add-input">
+            <button type="button" id="btn-turn-reward-add" data-i18n="turn_reward_add_button"></button>
+          </div>
+          <div class="actions">
+            <button id="btn-turn-reward-modal-close" type="button" class="primary-btn" data-i18n="close_button"></button>
+          </div>
+        </div>
+      </div>
+
       <div class="board-area" id="board-area">
         <div class="board-grid" id="board-grid">
           <div class="field-level field-level-0" id="field-level-0"></div>
@@ -118,13 +148,6 @@ BODY = """    <div class="night-header-row">
         <button type="button" class="primary-btn action-phase-btn" id="btn-action-phase"></button>
       </div>
 
-      <div class="dice-pool-block" id="turn-holder-bar">
-        <span data-i18n="turn_holder_label"></span>
-        <span id="turn-holder-status"></span>
-        <input type="text" id="turn-holder-note-input">
-        <button type="button" class="primary-btn" id="btn-turn-holder-toggle"></button>
-        <p id="turn-holder-note-display" class="threat-ref-body"></p>
-      </div>
 
       <div class="function-menu-block" id="function-menu-block">
         <button type="button" class="function-menu-toggle-btn" id="btn-function-menu-toggle" aria-label="toggle function menu">&#9654;</button>
