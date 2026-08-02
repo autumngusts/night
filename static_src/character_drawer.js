@@ -2969,36 +2969,49 @@
       return found ? found.label : ref;
     }
 
+    // 上限超過の解決は複数回のGM操作にまたがることがあり（縮小して他画面を見てから戻る等）、
+    // その間にクラウド同期でrosterCharactersの中身が丸ごと差し替わると、ここで捕まえている
+    // characterがロースター配列から外れた「浮いた」古いオブジェクトになってしまう
+    // ことがある。浮いたオブジェクトへ丟棄/転交してもcharacters配列側には反映されず、
+    // 「一覧では減るが実際のキャラクターの武器欄等からは消えない」不具合になるため、
+    // 実際にstateを書き換える直前に必ずid経由で現在のライブなオブジェクトへ差し替える。
+    function liveCharacter() {
+      return findCharacter(character.id) || character;
+    }
+
     transferBtn.onclick = function () {
       var target = findCharacter(targetSelect.value);
       if (!target) return;
-      transferItemByRef(kind, character, target, selectedRef);
-      logIfAvailable("log_item_transfer", { from: character.name, to: target.name, item: itemLabelForRef(selectedRef) });
+      var live = liveCharacter();
+      transferItemByRef(kind, live, target, selectedRef);
+      logIfAvailable("log_item_transfer", { from: live.name, to: target.name, item: itemLabelForRef(selectedRef) });
       cleanup();
       saveFn();
       renderRosterFn();
       // 転交先も上限超過なら、先にそちらを解決してから元のキャラクターの残りへ戻る。
       openOverflowRound(target, kind, function () {
-        openOverflowRound(character, kind, onAllResolved);
+        openOverflowRound(live, kind, onAllResolved);
       });
     };
     discardBtn.onclick = function () {
-      discardItemByRef(kind, character, selectedRef);
-      logIfAvailable("log_item_discard", { character: character.name, item: itemLabelForRef(selectedRef) });
+      var live = liveCharacter();
+      discardItemByRef(kind, live, selectedRef);
+      logIfAvailable("log_item_discard", { character: live.name, item: itemLabelForRef(selectedRef) });
       cleanup();
       saveFn();
       renderRosterFn();
-      openOverflowRound(character, kind, onAllResolved);
+      openOverflowRound(live, kind, onAllResolved);
     };
     closeBtn.onclick = function () {
       // 選ばずに閉じた場合は、一覧の最後の項目（＝直近取得分）を自動的に丟棄する。
+      var live = liveCharacter();
       var lastRef = items[items.length - 1].ref;
-      discardItemByRef(kind, character, lastRef);
-      logIfAvailable("log_item_discard", { character: character.name, item: itemLabelForRef(lastRef) });
+      discardItemByRef(kind, live, lastRef);
+      logIfAvailable("log_item_discard", { character: live.name, item: itemLabelForRef(lastRef) });
       cleanup();
       saveFn();
       renderRosterFn();
-      openOverflowRound(character, kind, onAllResolved);
+      openOverflowRound(live, kind, onAllResolved);
     };
 
     modal.hidden = false;
