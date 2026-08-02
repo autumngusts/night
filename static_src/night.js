@@ -7106,7 +7106,7 @@
         if (lvRow && lvRow.hp) {
           statParts.push(window.I18N.t("enemy_hp_label") + window.I18N.t("colon_separator") + lvRow.hp);
         }
-        if (target.withRemove && lvRow && lvRow.dmg != null) {
+        if (target.withRemove && lvRow && lvRow.dmg != null && state.turnHolder !== "players") {
           var dmgOverride = (state.battle.enemyDmgOverride && state.battle.enemyDmgOverride[item.key]) || 0;
           var dmgText = dmgOverride
             ? window.I18N.t("attribute_status_dmg_override_note", { value: lvRow.dmg + dmgOverride, base: lvRow.dmg, delta: dmgOverride })
