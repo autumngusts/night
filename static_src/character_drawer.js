@@ -4073,6 +4073,7 @@
         var rarityRerollBtn = document.createElement("button");
         rarityRerollBtn.type = "button";
         rarityRerollBtn.textContent = window.I18N.t("weapon_roll_star_reroll_button");
+        rarityRerollBtn.disabled = !!(window.PriTestTurnHolder && window.PriTestTurnHolder() !== "gm");
         rarityRerollBtn.addEventListener("click", function () {
           st.rarityDice = null;
           st.raritySum = null;
@@ -4334,6 +4335,10 @@
     var resetBtn = document.createElement("button");
     resetBtn.type = "button";
     resetBtn.textContent = window.I18N.t("weapon_roll_reset_button");
+    // 玩家自身が抽選する場面で、既に振った結果を「無かったことにして」有利な出目まで
+    // やり直せてしまわないよう、稀有度の再擲騎/やり直しはGM回合限定にする
+    // （骰子を振る・確定するなどの実行系操作自体は玩家回合中も可能）。
+    resetBtn.disabled = !!(window.PriTestTurnHolder && window.PriTestTurnHolder() !== "gm");
     resetBtn.addEventListener("click", function () {
       var keepCategoryId = st.categoryId;
       var keepStarCount = st.starCount;
@@ -4723,8 +4728,16 @@
     var resetBtn = document.createElement("button");
     resetBtn.type = "button";
     resetBtn.textContent = window.I18N.t("weapon_roll_reset_button");
+    resetBtn.disabled = !!(window.PriTestTurnHolder && window.PriTestTurnHolder() !== "gm");
     resetBtn.addEventListener("click", function () {
+      // resetTalismanRollState()は新規に丸ごと作り直すため、呼び出し元が設定した
+      // characterId/onConfirmを引き継がないと確定時のコールバックが消えてしまう
+      // （武器の同様の修正と同じ理由）。
+      var keepCharacterId = st.characterId;
+      var keepOnConfirm = st.onConfirm;
       resetTalismanRollState();
+      talismanRollState.characterId = keepCharacterId;
+      talismanRollState.onConfirm = keepOnConfirm;
       renderTalismanRollField();
     });
     panel.appendChild(resetBtn);
@@ -4921,8 +4934,14 @@
     var consumableResetBtn = document.createElement("button");
     consumableResetBtn.type = "button";
     consumableResetBtn.textContent = window.I18N.t("weapon_roll_reset_button");
+    consumableResetBtn.disabled = !!(window.PriTestTurnHolder && window.PriTestTurnHolder() !== "gm");
     consumableResetBtn.addEventListener("click", function () {
+      // 同上：呼び出し元が設定したcharacterId/onConfirmを引き継ぐ。
+      var keepCharacterId = st.characterId;
+      var keepOnConfirm = st.onConfirm;
       resetConsumableRollState();
+      consumableRollState.characterId = keepCharacterId;
+      consumableRollState.onConfirm = keepOnConfirm;
       renderConsumableRollField();
     });
     panel.appendChild(consumableResetBtn);
