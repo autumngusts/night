@@ -4274,6 +4274,11 @@
         confirmBtn.addEventListener("click", function () {
           var c = findCharacter(activeCharacterId);
           if (!c) return;
+          // 上限超過モーダルの解決待ち（resolveInventoryOverflowの完了はGMの操作待ちで非同期）
+          // の間にこのボタンがまだ有効なままだと、上限超過モーダルを縮小して裏の抽選欄に
+          // 戻り、もう一度クリックして武器が二重付与されてしまう不具合があったため、
+          // クリック直後に即座に無効化する。
+          confirmBtn.disabled = true;
           if (!c.weaponIds) c.weaponIds = [];
           var newInstanceId = makeWeaponInstanceId(st.item.id, c);
           c.weaponIds.push(newInstanceId);
@@ -4682,6 +4687,9 @@
       confirmBtn.addEventListener("click", function () {
         var c = findCharacter(activeCharacterId);
         if (!c) return;
+        // 上限超過モーダル解決待ちの間にこのボタンが有効なままだと二重付与されうるため、
+        // クリック直後に即座に無効化する（武器の同様の修正と同じ理由）。
+        confirmBtn.disabled = true;
         if (!c.talismanIds) c.talismanIds = [];
         if (c.talismanIds.indexOf(st.item.id) === -1) c.talismanIds.push(st.item.id);
         saveFn();
@@ -4867,6 +4875,9 @@
       consumableConfirmBtn.addEventListener("click", function () {
         var c = findCharacter(activeCharacterId);
         if (!c) return;
+        // 上限超過モーダル解決待ちの間にこのボタンが有効なままだと二重付与されうるため、
+        // クリック直後に即座に無効化する（武器の同様の修正と同じ理由）。
+        consumableConfirmBtn.disabled = true;
         if (!c.consumables) c.consumables = [];
         var grantCount = consumableRollGrantCount || 1;
         var lastNewInstanceId = null;
