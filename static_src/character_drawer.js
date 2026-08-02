@@ -14,6 +14,12 @@
   var TAG_FIELDS = ["notes", "buildup"];
   var MAX_DICE_POOL = 20;
 
+  // night.jsがwindow.PriTestNightLogとして公開しているaddLogへの任意フック。night以外の
+  // ページ（例：角色一覧ページ）ではこのフックが存在しないため、存在確認つきで呼ぶ。
+  function logIfAvailable(key, params) {
+    if (window.PriTestNightLog) window.PriTestNightLog(key, params);
+  }
+
   // 共通武器スキル（規則書154-155頁、カテゴリを問わず武器に付与され得る汎用テンプレート）。
   // 抽選のランダム戦技枠でも、武器カード上の追加戦技欄でも、同じ候補一覧から選べるようにする。
   var COMMON_SKILL_ELEMENT_OPTIONS = [
@@ -1499,7 +1505,7 @@
         Weapons.localizedText(weapon.name) + "（" + (category ? Weapons.localizedText(category.name) : weapon.category) + "・" + weapon.rarity + "）"
       )
     );
-    if (damage) appendWeaponDamageTag(title, damage);
+    if (damage) appendWeaponDamageTag(title, damage, weaponAccumulationEffects(c, weaponId));
     if (c.weaponAttributeTags && c.weaponAttributeTags[weaponId]) appendWeaponAttributeTag(title, c.weaponAttributeTags[weaponId]);
     card.appendChild(title);
 
@@ -1767,6 +1773,11 @@
           }
           if (!checkbox.checked && idx !== -1) c.equippedWeaponIds.splice(idx, 1);
           saveFn();
+          logIfAvailable("log_weapon_equip_change", {
+            character: c.name,
+            weapon: Weapons.localizedText(weapon.name),
+            state: window.I18N.t(checkbox.checked ? "weapon_equip_change_on" : "weapon_equip_change_off"),
+          });
         });
         row.appendChild(checkbox);
       }
@@ -1797,7 +1808,7 @@
             (skillNames.length ? " ｜ " + skillNames.join("・") : "")
         )
       );
-      if (damage) appendWeaponDamageTag(nameBtn, damage);
+      if (damage) appendWeaponDamageTag(nameBtn, damage, weaponAccumulationEffects(c, weaponId));
       nameBtn.addEventListener("click", function () {
         openWeaponDetailDrawer(c.id, weaponId);
       });
@@ -1940,6 +1951,11 @@
         saveFn();
         renderRosterFn();
         if (activeCharacterId === c.id || activeCharacterId === target.id) renderTalismanList();
+        logIfAvailable("log_talisman_transfer", {
+          from: c.name,
+          to: target.name,
+          talisman: Talismans.localizedText(talisman.name),
+        });
       });
       row.appendChild(transferBtn);
       row.appendChild(transferSelect);
@@ -2851,10 +2867,18 @@
       modal.hidden = false;
       restoreBtn.hidden = true;
     };
+    function itemLabelForRef(ref) {
+      var found = items.filter(function (i) {
+        return i.ref === ref;
+      })[0];
+      return found ? found.label : ref;
+    }
+
     transferBtn.onclick = function () {
       var target = findCharacter(targetSelect.value);
       if (!target) return;
       transferItemByRef(kind, character, target, selectedRef);
+      logIfAvailable("log_item_transfer", { from: character.name, to: target.name, item: itemLabelForRef(selectedRef) });
       cleanup();
       saveFn();
       renderRosterFn();
@@ -2865,6 +2889,7 @@
     };
     discardBtn.onclick = function () {
       discardItemByRef(kind, character, selectedRef);
+      logIfAvailable("log_item_discard", { character: character.name, item: itemLabelForRef(selectedRef) });
       cleanup();
       saveFn();
       renderRosterFn();
@@ -2874,6 +2899,7 @@
       // 選ばずに閉じた場合は、一覧の最後の項目（＝直近取得分）を自動的に丟棄する。
       var lastRef = items[items.length - 1].ref;
       discardItemByRef(kind, character, lastRef);
+      logIfAvailable("log_item_discard", { character: character.name, item: itemLabelForRef(lastRef) });
       cleanup();
       saveFn();
       renderRosterFn();
@@ -3327,19 +3353,28 @@
     };
   }
 
-  function weaponDamageTagText(d) {
+  // accumEffects（weaponAccumulationEffectsの戻り値）を渡すと、随攻撃自動累積する屬性/異常を
+  // 「| 炎: +1/+2」の形式で末尾に付記する（1Hit分=1+scorpionBonus、2Hit分=2+scorpionBonus、
+  // night.jsのrenderCombatAttackActionが実際に加算している式と同じ）。省略時は従来通り。
+  function weaponDamageTagText(d, accumEffects) {
     if (!d) return "";
-    return window.I18N.t("weapon_damage_hit_tag", {
+    var text = window.I18N.t("weapon_damage_hit_tag", {
       hit1: formatValueWithSymbol(d.hit1Damage, d.hit1Symbol),
       hit2: formatValueWithSymbol(d.hit2Damage, d.hit2Symbol),
     });
+    (accumEffects || []).forEach(function (eff) {
+      var hit1Val = 1 + eff.scorpionBonus;
+      var hit2Val = 2 + eff.scorpionBonus;
+      text += " | " + eff.label + ": +" + hit1Val + "/+" + hit2Val;
+    });
+    return text;
   }
 
   // 黄色・小さめのタグとして(1hit/2hit)を親要素へ追加する（他要素の色に影響しないようspanで囲む）。
-  function appendWeaponDamageTag(parentEl, damage) {
+  function appendWeaponDamageTag(parentEl, damage, accumEffects) {
     var tag = document.createElement("span");
     tag.className = "weapon-damage-tag";
-    tag.textContent = weaponDamageTagText(damage);
+    tag.textContent = weaponDamageTagText(damage, accumEffects);
     parentEl.appendChild(document.createTextNode(" "));
     parentEl.appendChild(tag);
   }

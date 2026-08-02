@@ -263,8 +263,26 @@
       var diceTitle = document.createElement("h5");
       diceTitle.textContent = window.I18N.t("character_dice_pool_label");
       diceTitleRow.appendChild(diceTitle);
+      // 「一般行動」以外のフェイズでは、各角色が自分の面板から個別に骰子を振れるアイコンを出す。
+      if (state.actionPhase !== "normal") {
+        var diceRollBtn = document.createElement("button");
+        diceRollBtn.type = "button";
+        diceRollBtn.className = "dice-add-btn roster-dice-add-btn";
+        diceRollBtn.textContent = "\u{1F3B2}";
+        diceRollBtn.addEventListener("click", function () {
+          rollDiceForCharacterActionPhase(c);
+        });
+        diceTitleRow.appendChild(diceRollBtn);
+        if (rosterDiceRollFeedback[c.id] !== undefined) {
+          var diceRollFeedback = document.createElement("span");
+          diceRollFeedback.className = "roster-dice-roll-feedback";
+          diceRollFeedback.textContent = window.I18N.t("roster_dice_roll_feedback", { count: rosterDiceRollFeedback[c.id] });
+          diceTitleRow.appendChild(diceRollFeedback);
+        }
+      }
       // 靈體（復仇者）・屬性痕（隱者）はキャラ個人の状態のため、管理パネルを開くアイコンは
-      // グローバルな骰子池バーではなく、このキャラ個人の骰子池の横に表示する（該当キャラのみ）。
+      // グローバルな骰子池バーではなく、このキャラ個人の骰子アイコンの右側に表示する
+      // （該当キャラのみ、🎲振り直しアイコンより後ろに並べる）。
       var hasNecromancyOrSpiritSummon =
         type &&
         ((type.abilities || []).some(function (entry) {
@@ -299,23 +317,6 @@
           openElementMarkPanel();
         });
         diceTitleRow.appendChild(elementMarkPanelBtn);
-      }
-      // 「一般行動」以外のフェイズでは、各角色が自分の面板から個別に骰子を振れるアイコンを出す。
-      if (state.actionPhase !== "normal") {
-        var diceRollBtn = document.createElement("button");
-        diceRollBtn.type = "button";
-        diceRollBtn.className = "dice-add-btn roster-dice-add-btn";
-        diceRollBtn.textContent = "\u{1F3B2}";
-        diceRollBtn.addEventListener("click", function () {
-          rollDiceForCharacterActionPhase(c);
-        });
-        diceTitleRow.appendChild(diceRollBtn);
-        if (rosterDiceRollFeedback[c.id] !== undefined) {
-          var diceRollFeedback = document.createElement("span");
-          diceRollFeedback.className = "roster-dice-roll-feedback";
-          diceRollFeedback.textContent = window.I18N.t("roster_dice_roll_feedback", { count: rosterDiceRollFeedback[c.id] });
-          diceTitleRow.appendChild(diceRollFeedback);
-        }
       }
       var diceWrap = document.createElement("div");
       diceWrap.className = "dice-pool-list";
@@ -1358,6 +1359,10 @@
     saveState();
     speakLog(key, params);
   }
+
+  // character_drawer.js（night.jsとは別クロージャ、night以外のページでも単独利用される）から
+  // 任意でログへ記録できるようにするフック。存在確認つきで呼ばれるため、他ページでは無害。
+  window.PriTestNightLog = addLog;
 
   // 獲得ボタンを押した瞬間に、画面上部へ短時間だけ「何を獲得したか」を表示する小さな通知。
   // 3秒後に自動で消える。DOM要素は初回呼び出し時に遅延生成する（HTMLテンプレート側の変更不要）。
@@ -5731,6 +5736,7 @@
         minus.addEventListener("click", function () {
           spirit.hpCurrent = Math.max(0, spirit.hpCurrent - 1);
           saveRosterCharacters();
+          addLog("log_spirit_hp_change", { character: c.name, label: window.I18N.t("death_spirit_label", { index: idx + 1 }), current: spirit.hpCurrent, max: spirit.hpMax });
           renderSpiritPanel();
         });
         row.appendChild(minus);
@@ -5745,6 +5751,7 @@
         plus.addEventListener("click", function () {
           spirit.hpCurrent = Math.min(spirit.hpMax, spirit.hpCurrent + 1);
           saveRosterCharacters();
+          addLog("log_spirit_hp_change", { character: c.name, label: window.I18N.t("death_spirit_label", { index: idx + 1 }), current: spirit.hpCurrent, max: spirit.hpMax });
           renderSpiritPanel();
         });
         row.appendChild(plus);
@@ -5786,6 +5793,7 @@
         spiritMinus.addEventListener("click", function () {
           hp.current = Math.max(0, hp.current - 1);
           saveRosterCharacters();
+          addLog("log_spirit_hp_change", { character: c.name, label: window.I18N.t("spirit_summon_choice_" + kind + "_label"), current: hp.current, max: hp.max });
           renderSpiritPanel();
         });
         spiritRow.appendChild(spiritMinus);
@@ -5800,6 +5808,7 @@
         spiritPlus.addEventListener("click", function () {
           hp.current = Math.min(hp.max, hp.current + 1);
           saveRosterCharacters();
+          addLog("log_spirit_hp_change", { character: c.name, label: window.I18N.t("spirit_summon_choice_" + kind + "_label"), current: hp.current, max: hp.max });
           renderSpiritPanel();
         });
         spiritRow.appendChild(spiritPlus);
@@ -6014,6 +6023,16 @@
 
   function closeBattleDrawer() {
     document.getElementById("battle-drawer").classList.remove("open");
+  }
+
+  // 流浪祝福・鍛造石・石劍鑰匙・恩寵を、時間消耗表（#threat-drawer）から切り離した専用ドロワー。
+  // 中身のrender関数（renderWanderingBlessing等）はidベースでDOMのどこにあっても動くため変更不要。
+  function openBagDrawer() {
+    document.getElementById("bag-drawer").classList.add("open");
+  }
+
+  function closeBagDrawer() {
+    document.getElementById("bag-drawer").classList.remove("open");
   }
 
   // ============================================================
@@ -9057,6 +9076,8 @@
     document.getElementById("threat-drawer-backdrop").addEventListener("click", closeThreatDrawer);
     document.getElementById("btn-battle-info").addEventListener("click", openBattleDrawer);
     document.getElementById("btn-battle-drawer-close").addEventListener("click", closeBattleDrawer);
+    document.getElementById("btn-bag-drawer-open").addEventListener("click", openBagDrawer);
+    document.getElementById("btn-bag-drawer-close").addEventListener("click", closeBagDrawer);
     document.getElementById("btn-attribute-status-info").addEventListener("click", openAttributeStatusDrawer);
     document.getElementById("btn-attribute-status-drawer-close").addEventListener("click", closeAttributeStatusDrawer);
     document.getElementById("attribute-status-drawer-backdrop").addEventListener("click", closeAttributeStatusDrawer);
@@ -9108,6 +9129,7 @@
     document.getElementById("breakthrough-perpc-checkbox").addEventListener("change", renderBreakthroughCharacters);
     document.getElementById("breakthrough-stat-select").addEventListener("change", renderBreakthroughCharacters);
     document.getElementById("battle-drawer-backdrop").addEventListener("click", closeBattleDrawer);
+    document.getElementById("bag-drawer-backdrop").addEventListener("click", closeBagDrawer);
     document.getElementById("battle-enemy-search-input").addEventListener("input", renderBattleEnemySearchResults);
     document.getElementById("btn-battle-add-mob-row").addEventListener("click", handleAddMobRow);
     document.getElementById("btn-battle-clear").addEventListener("click", handleBattleClear);

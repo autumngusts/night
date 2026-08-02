@@ -143,6 +143,7 @@ BODY = """    <div class="night-header-row">
         <div class="dice-pool-header">
           <span data-i18n="dice_pool_label"></span>
           <button type="button" class="dice-add-btn" id="btn-dice-pool-add">&#127922;</button>
+          <button type="button" class="dice-add-btn" id="btn-bag-drawer-open">&#127890;</button>
         </div>
         <div class="dice-pool-list" id="dice-pool-list"></div>
         <button type="button" class="primary-btn action-phase-btn" id="btn-action-phase"></button>
@@ -507,6 +508,20 @@ BODY = """    <div class="night-header-row">
           <div id="roll-effects-list" class="tl-list"></div>
         </div>
 
+        <div class="actions">
+          <button id="btn-threat-drawer-close" type="button" class="primary-btn" data-i18n="close_button"></button>
+        </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="bag-drawer" class="drawer">
+      <div class="drawer-backdrop" id="bag-drawer-backdrop"></div>
+      <div class="drawer-panel">
+        <button type="button" class="drawer-close-tab" data-close-btn="btn-bag-drawer-close">&rsaquo;</button>
+        <div class="drawer-panel-scroll">
+        <h2 data-i18n="bag_drawer_title"></h2>
+
         <div class="threat-ref-block">
           <h3 data-i18n="wandering_blessing_title"></h3>
           <div class="wb-row">
@@ -537,7 +552,7 @@ BODY = """    <div class="night-header-row">
         </div>
 
         <div class="actions">
-          <button id="btn-threat-drawer-close" type="button" class="primary-btn" data-i18n="close_button"></button>
+          <button id="btn-bag-drawer-close" type="button" class="primary-btn" data-i18n="close_button"></button>
         </div>
         </div>
       </div>
