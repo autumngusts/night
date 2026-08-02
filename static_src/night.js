@@ -5766,6 +5766,11 @@
   // 消耗品/護符/潛在之力は別モーダルを開くため、獎勵勾選清單自体は縮小して道を譲り、
   // 獲得完了時に復元する。武器・共有種類はモーダルを介さず即時処理される。
   function claimTurnReward(reward) {
+    // クリックした瞬間に即座にロックし、清單を閉じて開き直しても同じ項目を二重に
+    // クリックできないようにする（claimedは実際の獲得完了まで立たないため、それだけでは
+    // 進行中に再度クリックできてしまう）。
+    reward.claiming = true;
+    saveState();
     var entered = rosterCharacters.filter(function (c) {
       return c.entered;
     });
@@ -5877,7 +5882,7 @@
       text.textContent = turnRewardLabel(reward);
       if (reward.claimed) text.style.textDecoration = "line-through";
       row.appendChild(text);
-      if (!reward.claimed) {
+      if (!reward.claimed && !reward.claiming) {
         var claimBtn = document.createElement("button");
         claimBtn.type = "button";
         claimBtn.className = "primary-btn";
@@ -5886,6 +5891,11 @@
           claimTurnReward(reward);
         });
         row.appendChild(claimBtn);
+      } else if (reward.claiming) {
+        var claimingNote = document.createElement("span");
+        claimingNote.className = "threat-ref-body";
+        claimingNote.textContent = window.I18N.t("turn_reward_claiming_note");
+        row.appendChild(claimingNote);
       }
       var removeBtn = document.createElement("button");
       removeBtn.type = "button";
