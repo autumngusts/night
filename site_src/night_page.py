@@ -70,7 +70,7 @@ BODY = """    <div class="night-header-row">
           <div class="dice-pool-header">
             <select id="turn-reward-kind-select"></select>
             <select id="turn-reward-target-select"></select>
-            <input type="number" id="turn-reward-value-input" min="1" value="1">
+            <input type="number" id="turn-reward-value-input" min="1" value="1" maxlength="5">
             <button type="button" id="btn-turn-reward-add" data-i18n="turn_reward_add_button"></button>
           </div>
           <div class="actions">
