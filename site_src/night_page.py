@@ -69,7 +69,9 @@ BODY = """    <div class="night-header-row">
           <h2 data-i18n="turn_reward_modal_title"></h2>
           <div id="turn-reward-list"></div>
           <div class="dice-pool-header">
-            <input type="text" id="turn-reward-add-input">
+            <select id="turn-reward-kind-select"></select>
+            <select id="turn-reward-target-select"></select>
+            <input type="number" id="turn-reward-value-input" min="1" value="1">
             <button type="button" id="btn-turn-reward-add" data-i18n="turn_reward_add_button"></button>
           </div>
           <div class="actions">

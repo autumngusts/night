@@ -5621,9 +5621,18 @@
     renderTurnHolderBar();
   }
 
-  // 獨立獎勵勾選清單：地板獎勵システムとは無関係の、GMが自由記述で項目を追加・チェックできる
-  // 一覧（state.turnRewards）。ターン交代では消えず、GMが手動で削除するまで保持される。
-  // 戦闘弾窗と同じ.modal.minimizedパターンで縮小/復元できる。
+  // 獨立獎勵勾選清單：地板獎勵システムとは無関係に、GMが「種類・對象角色・數量」を指定して
+  // 項目を追加できる一覧（state.turnRewards、各項目は{id,kind,targetCharacterId,value,claimed}）。
+  // ターン交代では消えず、GMが手動で削除するまで保持される。戦闘弾窗と同じ.modal.minimized
+  // パターンで縮小/復元できる。各項目は実際に地板獎勵と同じ抽選/加算処理を起動できる
+  // 「獲得」ボタンを持ち、獲得済みかどうか(claimed)を保持する。
+  var TURN_REWARD_KINDS = ["weapon", "consumable", "talisman", "potentialPower", "stoneswordKey", "smithingStone", "chaliceBonus", "rune"];
+  var TURN_REWARD_SHARED_KINDS = ["stoneswordKey", "smithingStone", "chaliceBonus", "rune"];
+
+  function isTurnRewardSharedKind(kind) {
+    return TURN_REWARD_SHARED_KINDS.indexOf(kind) !== -1;
+  }
+
   function openTurnRewardModal() {
     var modal = document.getElementById("turn-reward-modal");
     if (!modal) return;
@@ -5633,9 +5642,22 @@
     renderTurnRewardModal();
   }
 
+  // 未獲得（claimed=false）の項目が残っている場合は、閉じると残りの機会を完全に放棄する旨を
+  // 確認してから、未獲得項目だけを削除して閉じる（獲得済みの項目は記録として残す）。
   function closeTurnRewardModal() {
     var modal = document.getElementById("turn-reward-modal");
-    if (modal) modal.hidden = true;
+    if (!modal) return;
+    var hasUnclaimed = state.turnRewards.some(function (r) {
+      return !r.claimed;
+    });
+    if (hasUnclaimed) {
+      if (!window.confirm(window.I18N.t("turn_reward_close_confirm"))) return;
+      state.turnRewards = state.turnRewards.filter(function (r) {
+        return r.claimed;
+      });
+      saveState();
+    }
+    modal.hidden = true;
   }
 
   function renderTurnRewardModalMinimizeButton() {
@@ -5654,7 +5676,161 @@
     renderTurnRewardModalMinimizeButton();
   }
 
+  // 種類selectは初回のみ構築する（選んだ種類が再描画のたびにリセットされないようにするため）。
+  // 對象角色selectはロースター変更に追随できるよう、描画のたびに作り直す。
+  function renderTurnRewardAddForm() {
+    var kindSelect = document.getElementById("turn-reward-kind-select");
+    var targetSelect = document.getElementById("turn-reward-target-select");
+    if (!kindSelect || !targetSelect) return;
+    if (!kindSelect.dataset.built) {
+      TURN_REWARD_KINDS.forEach(function (kind) {
+        var opt = document.createElement("option");
+        opt.value = kind;
+        opt.textContent = window.I18N.t("turn_reward_kind_" + kind);
+        kindSelect.appendChild(opt);
+      });
+      kindSelect.dataset.built = "1";
+      kindSelect.addEventListener("change", function () {
+        targetSelect.hidden = isTurnRewardSharedKind(kindSelect.value);
+      });
+    }
+    targetSelect.hidden = isTurnRewardSharedKind(kindSelect.value);
+    var entered = rosterCharacters.filter(function (c) {
+      return c.entered;
+    });
+    var prevTarget = targetSelect.value;
+    targetSelect.innerHTML = "";
+    entered.forEach(function (c) {
+      var opt = document.createElement("option");
+      opt.value = c.id;
+      opt.textContent = c.name;
+      targetSelect.appendChild(opt);
+    });
+    if (
+      prevTarget &&
+      entered.some(function (c) {
+        return c.id === prevTarget;
+      })
+    ) {
+      targetSelect.value = prevTarget;
+    }
+  }
+
+  function turnRewardLabel(reward) {
+    var kindLabel = window.I18N.t("turn_reward_kind_" + reward.kind);
+    if (isTurnRewardSharedKind(reward.kind)) {
+      return window.I18N.t("turn_reward_item_shared_label", { kind: kindLabel, value: reward.value });
+    }
+    var target = rosterCharacters.filter(function (c) {
+      return c.id === reward.targetCharacterId;
+    })[0];
+    return window.I18N.t("turn_reward_item_specific_label", { kind: kindLabel, value: reward.value, target: target ? target.name : "?" });
+  }
+
+  // 項目の「獲得」ボタン：種類ごとに地板獎勵システムと同じ抽選/加算処理を起動する。
+  // 消耗品/護符/潛在之力は別モーダルを開くため、獎勵勾選清單自体は縮小して道を譲り、
+  // 獲得完了時に復元する。武器・共有種類はモーダルを介さず即時処理される。
+  function claimTurnReward(reward) {
+    var entered = rosterCharacters.filter(function (c) {
+      return c.entered;
+    });
+    function finish(logKey, logParams) {
+      reward.claimed = true;
+      saveState();
+      addLog(logKey, logParams);
+      document.getElementById("turn-reward-modal").classList.remove("minimized");
+      renderTurnRewardModalMinimizeButton();
+      renderTurnRewardModal();
+    }
+    function minimizeSelf() {
+      document.getElementById("turn-reward-modal").classList.add("minimized");
+      renderTurnRewardModalMinimizeButton();
+    }
+    if (reward.kind === "stoneswordKey") {
+      state.stoneswordKeyCount = (state.stoneswordKeyCount || 0) + reward.value;
+      renderStoneswordKeyCount();
+      finish("log_turn_reward_claim_shared", { kind: window.I18N.t("turn_reward_kind_stoneswordKey"), value: reward.value });
+      return;
+    }
+    if (reward.kind === "smithingStone") {
+      state.smithingStoneCount = (state.smithingStoneCount || 0) + reward.value;
+      renderSmithingStoneCount();
+      finish("log_turn_reward_claim_shared", { kind: window.I18N.t("turn_reward_kind_smithingStone"), value: reward.value });
+      return;
+    }
+    if (reward.kind === "chaliceBonus") {
+      entered.forEach(function (c) {
+        if (!c.flaskExtra) c.flaskExtra = { current: 0, max: 0 };
+        c.flaskExtra.max = (c.flaskExtra.max || 0) + reward.value;
+        c.flaskExtra.current = (c.flaskExtra.current || 0) + reward.value;
+      });
+      saveRosterCharacters();
+      renderCharacterRoster();
+      finish("log_turn_reward_claim_shared", { kind: window.I18N.t("turn_reward_kind_chaliceBonus"), value: reward.value });
+      return;
+    }
+    if (reward.kind === "rune") {
+      entered.forEach(function (c) {
+        c.runes = (c.runes || 0) + reward.value;
+      });
+      saveRosterCharacters();
+      renderCharacterRoster();
+      finish("log_turn_reward_claim_shared", { kind: window.I18N.t("turn_reward_kind_rune"), value: reward.value });
+      return;
+    }
+    var target = rosterCharacters.filter(function (c) {
+      return c.id === reward.targetCharacterId;
+    })[0];
+    if (!target) {
+      window.alert(window.I18N.t("turn_reward_target_missing_note"));
+      return;
+    }
+    if (reward.kind === "weapon") {
+      var result = CharacterDrawer.merchantDrawWeapon(target, reward.value);
+      if (!result) {
+        window.alert(window.I18N.t("potential_power_weapon_draw_failed"));
+        return;
+      }
+      saveRosterCharacters();
+      renderCharacterRoster();
+      var Weapons = window.PriTestWeapons;
+      var weaponLabel = Weapons.localizedText(result.item.name);
+      finish("log_turn_reward_claim_weapon", { character: target.name, weapon: weaponLabel });
+      CharacterDrawer.resolveInventoryOverflow(target, "weapon", function () {
+        renderCharacterRoster();
+      });
+      return;
+    }
+    if (reward.kind === "consumable") {
+      minimizeSelf();
+      openItemDrawModal("consumable", target.id, {
+        grantCount: reward.value,
+        onGranted: function () {
+          finish("log_turn_reward_claim_generic", { kind: window.I18N.t("turn_reward_kind_consumable"), character: target.name });
+        },
+      });
+      return;
+    }
+    if (reward.kind === "talisman") {
+      minimizeSelf();
+      openItemDrawModal("talisman", target.id, {
+        onGranted: function () {
+          finish("log_turn_reward_claim_generic", { kind: window.I18N.t("turn_reward_kind_talisman"), character: target.name });
+        },
+      });
+      return;
+    }
+    if (reward.kind === "potentialPower") {
+      minimizeSelf();
+      openPotentialPowerModal(target.id, reward.value, null, function () {
+        finish("log_turn_reward_claim_generic", { kind: window.I18N.t("turn_reward_kind_potentialPower"), character: target.name });
+      });
+      return;
+    }
+  }
+
   function renderTurnRewardModal() {
+    renderTurnRewardAddForm();
     var list = document.getElementById("turn-reward-list");
     if (!list) return;
     list.innerHTML = "";
@@ -5668,19 +5844,20 @@
     state.turnRewards.forEach(function (reward) {
       var row = document.createElement("div");
       row.className = "wb-row";
-      var label = document.createElement("label");
-      var checkbox = document.createElement("input");
-      checkbox.type = "checkbox";
-      checkbox.checked = !!reward.checked;
-      checkbox.addEventListener("change", function () {
-        reward.checked = checkbox.checked;
-        saveState();
-      });
-      label.appendChild(checkbox);
       var text = document.createElement("span");
-      text.textContent = reward.text;
-      label.appendChild(text);
-      row.appendChild(label);
+      text.textContent = turnRewardLabel(reward);
+      if (reward.claimed) text.style.textDecoration = "line-through";
+      row.appendChild(text);
+      if (!reward.claimed) {
+        var claimBtn = document.createElement("button");
+        claimBtn.type = "button";
+        claimBtn.className = "primary-btn";
+        claimBtn.textContent = window.I18N.t("turn_reward_claim_button");
+        claimBtn.addEventListener("click", function () {
+          claimTurnReward(reward);
+        });
+        row.appendChild(claimBtn);
+      }
       var removeBtn = document.createElement("button");
       removeBtn.type = "button";
       removeBtn.className = "tag-remove";
@@ -5697,12 +5874,22 @@
   }
 
   function handleTurnRewardAdd() {
-    var input = document.getElementById("turn-reward-add-input");
-    if (!input) return;
-    var text = input.value.trim();
-    if (!text) return;
-    state.turnRewards.push({ id: "tr" + Date.now() + Math.floor(Math.random() * 1000), text: text, checked: false });
-    input.value = "";
+    var kindSelect = document.getElementById("turn-reward-kind-select");
+    var targetSelect = document.getElementById("turn-reward-target-select");
+    var valueInput = document.getElementById("turn-reward-value-input");
+    if (!kindSelect || !targetSelect || !valueInput) return;
+    var kind = kindSelect.value;
+    var shared = isTurnRewardSharedKind(kind);
+    var targetCharacterId = shared ? null : targetSelect.value || null;
+    if (!shared && !targetCharacterId) return;
+    var value = Math.max(1, parseInt(valueInput.value, 10) || 1);
+    state.turnRewards.push({
+      id: "tr" + Date.now() + Math.floor(Math.random() * 1000),
+      kind: kind,
+      targetCharacterId: targetCharacterId,
+      value: value,
+      claimed: false,
+    });
     saveState();
     renderTurnRewardModal();
   }
