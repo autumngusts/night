@@ -5563,6 +5563,13 @@
     return TURN_HOLDER_CYCLE[(idx === -1 ? 0 : idx + 1) % TURN_HOLDER_CYCLE.length];
   }
 
+  // "gm"/"gmEnding"はGM側、"players"/"playersEnding"は玩家側として1つのチームに正規化する。
+  // 留言のside記録・クリア判定を「厳密にどの4状態で書いたか」ではなく「どちら側の留言か」で
+  // 揃えるために使う（例："Gm結束"中に書いた留言も、次にGm回合が始まれば消えるべきGM側の留言）。
+  function turnHolderTeam(value) {
+    return value === "players" || value === "playersEnding" ? "players" : "gm";
+  }
+
   // 獎勵勾選清單／潛在之力／抽選武器・消耗品・飾品の「新規に開く」メインメニュー項目は
   // state.turnHolder==="gm"の間だけ表示する。既に開いて縮小済みのウィンドウ自体は
   // state.activeDrawsの非null判定で別途表示されるため、ここで隠れるのはあくまで
@@ -5602,8 +5609,10 @@
       state.turnMessages.forEach(function (msg) {
         var line = document.createElement("p");
         line.className = "threat-ref-body";
+        if (msg.side === "gm") line.classList.add("turn-message-gm");
         var time = new Date(msg.time).toLocaleTimeString();
-        line.textContent = "[" + time + "] " + msg.text;
+        var prefix = msg.side === "gm" ? "GM: " : "";
+        line.textContent = "[" + time + "] " + prefix + msg.text;
         messageList.appendChild(line);
       });
     }
@@ -5637,7 +5646,7 @@
     if (!input) return;
     var text = input.value.trim();
     if (!text) return;
-    state.turnMessages.push({ text: text, time: Date.now(), side: state.turnHolder });
+    state.turnMessages.push({ text: text, time: Date.now(), side: turnHolderTeam(state.turnHolder) });
     input.value = "";
     saveState();
     renderTurnHolderBar();
@@ -6230,7 +6239,12 @@
     state.actionPhase = phase;
     // GM／玩家が同時にプレイしなくてもよいよう、行動階段が切り替わるたびに「今の番」を
     // 必ずGM側へ戻す（GMが状況を確認・反応してから、改めて玩家へ番を渡す運用を想定）。
+    // handleTurnHolderToggleと同じく、GM側の留言はここでも「次のGm回合開始」に該当するため
+    // クリアする（このショートカット経由の遷移だけクリアが漏れるバグを防ぐ）。
     state.turnHolder = "gm";
+    state.turnMessages = state.turnMessages.filter(function (m) {
+      return m.side !== "gm";
+    });
     // フェイズを切り替えるたびに「額外／防禦行動を使用済み」フラグをリセットする（次にまた
     // 同じフェイズへ入ったとき、全員が改めて1回分振れるようにするため）。
     rosterCharacters.forEach(function (c) {

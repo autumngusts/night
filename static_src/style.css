@@ -1398,6 +1398,12 @@ button {
   min-width: 0;
 }
 
+/* GM側の留言は黄字＋「GM:」接頭辞で玩家側の留言と視覚的に区別する。 */
+.turn-message-gm {
+  color: #b8860b;
+  font-weight: bold;
+}
+
 .dice-pool-header h3 {
   margin: 0;
   font-size: 0.95rem;
