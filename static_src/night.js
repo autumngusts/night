@@ -5511,10 +5511,25 @@
     renderTurnHolderBar();
   }
 
+  // 獎勵勾選清單／潛在之力／抽選武器・消耗品・飾品の「新規に開く」メインメニュー項目は
+  // state.turnHolder==="gm"の間だけ表示する。既に開いて縮小済みのウィンドウ自体は
+  // state.activeDrawsの非null判定で別途表示されるため、ここで隠れるのはあくまで
+  // 「新規オープン」の入口ボタンのみ。
+  function renderTurnGatedMenuItems() {
+    var isGmTurn = state.turnHolder !== "players";
+    ["btn-turn-reward-open", "btn-potential-power-info", "btn-main-menu-draw-weapon", "btn-main-menu-draw-talisman", "btn-main-menu-draw-consumable"].forEach(
+      function (id) {
+        var btn = document.getElementById(id);
+        if (btn) btn.hidden = !isGmTurn;
+      }
+    );
+  }
+
   // GM／玩家が同時にプレイしなくてもよいよう、「今は誰の番か」を示すバー。権限分離は行わず
   // （ユーザー方針：全員同じ権限）、あくまで受け渡しの目印・卓上進行に沿った複数行メッセージ板
   // として使う。主選單の「turnBoardEnabled」トグルで機能全体を非表示にできる。
   function renderTurnHolderBar() {
+    renderTurnGatedMenuItems();
     var bar = document.getElementById("turn-holder-bar");
     if (!bar) return;
     if (!state.turnBoardEnabled) {
@@ -9024,6 +9039,7 @@
         renderLogToggleLabel();
         renderRosterSkillsToggleLabel();
         renderUndoButton();
+        renderTurnHolderBar();
       });
       GameStorage.subscribeCharacters(gameId, game.storageMode, function (list) {
         rosterCharacters.length = 0;

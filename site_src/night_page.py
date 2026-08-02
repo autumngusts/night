@@ -28,6 +28,7 @@ BODY = """    <div class="night-header-row">
             <button id="btn-main-menu-draw-weapon" type="button" class="main-menu-item" data-i18n="main_menu_draw_weapon_label"></button>
             <button id="btn-main-menu-draw-talisman" type="button" class="main-menu-item" data-i18n="main_menu_draw_talisman_label"></button>
             <button id="btn-main-menu-draw-consumable" type="button" class="main-menu-item" data-i18n="main_menu_draw_consumable_label"></button>
+            <button id="btn-turn-reward-open" type="button" class="main-menu-item" data-i18n="turn_reward_open_button"></button>
             <button id="btn-tts-toggle" type="button" class="main-menu-item"></button>
             <button id="btn-turn-board-toggle" type="button" class="main-menu-item"></button>
           </div>
@@ -54,7 +55,6 @@ BODY = """    <div class="night-header-row">
           <span data-i18n="turn_holder_label"></span>
           <span id="turn-holder-status"></span>
           <button type="button" class="primary-btn" id="btn-turn-holder-toggle"></button>
-          <button type="button" id="btn-turn-reward-open" data-i18n="turn_reward_open_button"></button>
         </div>
         <div id="turn-message-list"></div>
         <div class="dice-pool-header">
