@@ -9104,6 +9104,9 @@
           document.getElementById("potential-power-modal").classList.toggle("minimized", !!state.activeDraws.potentialPower.minimized);
           renderPotentialPowerModal();
         }
+        ["weapon", "talisman", "consumable"].forEach(function (kind) {
+          if (state.activeDraws[kind]) CharacterDrawer.applyRemoteDrawState(kind, state.activeDraws[kind]);
+        });
       });
       GameStorage.subscribeCharacters(gameId, game.storageMode, function (list) {
         rosterCharacters.length = 0;

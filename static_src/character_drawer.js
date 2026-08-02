@@ -20,6 +20,55 @@
     if (window.PriTestNightLog) window.PriTestNightLog(key, params);
   }
 
+  // night.jsがwindow.PriTestDrawStateSyncとして公開している跨裝置同期ブリッジへの任意フック。
+  // weaponRollState/talismanRollState/consumableRollStateの中身をrenderXxxRollField()の
+  // 冒頭で毎回呼び出し、state.activeDraws経由でクラウド同期する。onConfirmは関数のため
+  // JSONにできず、そのままFirebaseへ渡すと書き込みが失敗するので同期対象から除外する。
+  // applyRemoteDrawStateからの再描画中はsuppressDrawSyncを立てて呼び出しを無視し、
+  // 「受信→再描画→送信→受信……」のechoループを防ぐ。
+  var suppressDrawSync = false;
+
+  function syncDrawStateIfAvailable(kind, stateVar) {
+    if (suppressDrawSync || !window.PriTestDrawStateSync) return;
+    var safe = null;
+    if (stateVar) {
+      safe = {};
+      Object.keys(stateVar).forEach(function (k) {
+        if (typeof stateVar[k] !== "function") safe[k] = stateVar[k];
+      });
+    }
+    window.PriTestDrawStateSync.set(kind, safe);
+  }
+
+  // リモート側（他端末）で更新されたstate.activeDraws[kind]をローカルのXxxRollStateへ
+  // 反映する。既にオブジェクトが存在する場合はプロパティを上書きするだけにとどめ、
+  // オブジェクト参照そのものは差し替えない——renderXxxRollField内の`var st = xxxRollState;`
+  // で捕まえた古い参照が、後から発火するイベントハンドラの中で書き込みを行っても
+  // 反映され続けるようにするため（参照を丸ごと差し替えると、進行中の操作が
+  // 見えなくなったオブジェクトへ書き込まれて消えてしまう）。同じ理由でonConfirm
+  // （関数、同期対象外）もローカルの値をそのまま保持する。
+  function applyRemoteDrawState(kind, data) {
+    if (!data) return;
+    var current = kind === "weapon" ? weaponRollState : kind === "talisman" ? talismanRollState : consumableRollState;
+    if (!current) {
+      current = {};
+      if (kind === "weapon") weaponRollState = current;
+      else if (kind === "talisman") talismanRollState = current;
+      else if (kind === "consumable") consumableRollState = current;
+    }
+    Object.keys(data).forEach(function (k) {
+      current[k] = data[k];
+    });
+    suppressDrawSync = true;
+    try {
+      if (kind === "weapon" && weaponRollFieldEl && weaponRollFieldEl.dataset.open === "1") renderWeaponRollField();
+      else if (kind === "talisman" && talismanRollFieldEl && talismanRollFieldEl.dataset.open === "1") renderTalismanRollField();
+      else if (kind === "consumable" && consumableRollFieldEl && consumableRollFieldEl.dataset.open === "1") renderConsumableRollField();
+    } finally {
+      suppressDrawSync = false;
+    }
+  }
+
   // 共通武器スキル（規則書154-155頁、カテゴリを問わず武器に付与され得る汎用テンプレート）。
   // 抽選のランダム戦技枠でも、武器カード上の追加戦技欄でも、同じ候補一覧から選べるようにする。
   var COMMON_SKILL_ELEMENT_OPTIONS = [
@@ -3622,6 +3671,7 @@
     if (!field) return;
     if (!weaponRollState) resetWeaponRollState();
     var st = weaponRollState;
+    syncDrawStateIfAvailable("weapon", st);
 
     field.innerHTML = "";
 
@@ -4433,6 +4483,7 @@
     if (!field) return;
     if (!talismanRollState) resetTalismanRollState();
     var st = talismanRollState;
+    syncDrawStateIfAvailable("talisman", st);
 
     field.innerHTML = "";
 
@@ -4621,6 +4672,7 @@
     if (!field) return;
     if (!consumableRollState) resetConsumableRollState();
     var st = consumableRollState;
+    syncDrawStateIfAvailable("consumable", st);
 
     field.innerHTML = "";
 
@@ -5591,6 +5643,7 @@
     openWeaponRollInline: openWeaponRollInline,
     openTalismanRollInline: openTalismanRollInline,
     openConsumableRollInline: openConsumableRollInline,
+    applyRemoteDrawState: applyRemoteDrawState,
     RANGED_GROUP_CATEGORY: RANGED_GROUP_CATEGORY,
     SHIELD_GROUP_CATEGORY: SHIELD_GROUP_CATEGORY,
     weaponPreviewSkillNames: weaponPreviewSkillNames,
