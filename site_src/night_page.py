@@ -361,6 +361,7 @@ BODY = """    <div class="night-header-row">
 
     <div id="potential-power-modal" class="modal" hidden>
       <div class="modal-box combat-modal-box">
+        <button type="button" class="modal-floating-close" id="btn-potential-power-minimize">&#128469;</button>
         <h2 data-i18n="potential_power_modal_title"></h2>
         <div class="wb-row">
           <label data-i18n="potential_power_character_label"></label>
@@ -377,12 +378,10 @@ BODY = """    <div class="night-header-row">
         </div>
         <div id="potential-power-modal-content"></div>
         <div class="actions">
-          <button id="btn-potential-power-minimize" type="button" data-i18n="potential_power_minimize_button" hidden></button>
           <button id="btn-potential-power-modal-close" type="button" class="primary-btn" data-i18n="close_button"></button>
         </div>
       </div>
     </div>
-    <button id="btn-potential-power-restore" type="button" class="potential-power-restore-btn" data-i18n="potential_power_restore_button" hidden></button>
 
     <div id="main-menu-draw-modal" class="modal" hidden>
       <div class="modal-box combat-modal-box">

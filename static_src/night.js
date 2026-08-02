@@ -6443,73 +6443,99 @@
   // 機会。GMが★の数（レア度決定値）を指定して抽選すると「得意武器」と「付帯効果」の両方の
   // 結果が確定し、PCはそのどちらか一方だけを選んで獲得する（規則書093/149頁）。
   // ============================================================
-  var potentialPowerSelectedCharacterId = null;
-  var potentialPowerStarCount = 1;
-  var potentialPowerWeaponResult = null; // CharacterDrawer.potentialPowerDrawWeaponの戻り値 | null
-  var potentialPowerEffectResult = null; // CharacterDrawer.rollPotentialPowerAttachedEffectの戻り値 | null
-  var potentialPowerEffectSlotPreview = null; // CharacterDrawer.previewAttachedEffectSlotの戻り値 | null（3枠埋まっている場合のみ）
-  var potentialPowerResolved = null; // "weapon" | "effect" | null
-  var potentialPowerMinimized = false; // 一時的に内容を畳んで、他の面板（角色詳細等）を確認できるようにする
-  var potentialPowerPendingAttributeTag = null; // 場地報酬で指定された共通戦技タグ（例:「炎/-5」）。武器確定時に自動付与する
-  var potentialPowerOnResolvedFn = null; // 場地報酬から起動した場合のみ、実際に武器/付帯効果を確定した時点でmarkFloorRewardObtainedを呼ぶコールバック
+  var potentialPowerOnResolvedFn = null; // 場地報酬から起動した場合のみ、実際に武器/付帯効果を確定した時点でmarkFloorRewardObtainedを呼ぶコールバック。関数はJSONにできないため同期対象外・常にローカルのみ
+
+  // state.activeDraws.potentialPowerを進行中状態の実体として使う（跨裝置同期対象）。
+  // 未使用時はnullなので、参照前に必ずppState()経由でデフォルト値を用意してから使う。
+  function ppState() {
+    if (!state.activeDraws.potentialPower) {
+      state.activeDraws.potentialPower = {
+        selectedCharacterId: null,
+        starCount: 1,
+        weaponResult: null, // CharacterDrawer.potentialPowerDrawWeaponの戻り値 | null
+        effectResult: null, // CharacterDrawer.rollPotentialPowerAttachedEffectの戻り値 | null
+        effectSlotPreview: null, // CharacterDrawer.previewAttachedEffectSlotの戻り値 | null（3枠埋まっている場合のみ）
+        resolved: null, // "weapon" | "effect" | null
+        minimized: false,
+        pendingAttributeTag: null, // 場地報酬で指定された共通戦技タグ（例:「炎/-5」）。武器確定時に自動付与する
+      };
+    }
+    return state.activeDraws.potentialPower;
+  }
+
+  function ppSave() {
+    window.PriTestDrawStateSync.set("potentialPower", state.activeDraws.potentialPower);
+  }
 
   function openPotentialPowerModal(presetCharacterId, presetStarCount, presetAttributeTag, onResolved) {
     var entered = rosterCharacters.filter(function (c) {
       return c.entered;
     });
     if (!entered.length) return;
+    var pp = ppState();
     if (
       presetCharacterId &&
       entered.some(function (c) {
         return c.id === presetCharacterId;
       })
     ) {
-      potentialPowerSelectedCharacterId = presetCharacterId;
+      pp.selectedCharacterId = presetCharacterId;
     } else if (
       !entered.some(function (c) {
-        return c.id === potentialPowerSelectedCharacterId;
+        return c.id === pp.selectedCharacterId;
       })
     ) {
-      potentialPowerSelectedCharacterId = entered[0].id;
+      pp.selectedCharacterId = entered[0].id;
     }
-    potentialPowerStarCount = presetStarCount || 1;
-    potentialPowerWeaponResult = null;
-    potentialPowerEffectResult = null;
-    potentialPowerEffectSlotPreview = null;
-    potentialPowerResolved = null;
-    potentialPowerMinimized = false;
-    potentialPowerPendingAttributeTag = presetAttributeTag || null;
+    pp.starCount = presetStarCount || 1;
+    pp.weaponResult = null;
+    pp.effectResult = null;
+    pp.effectSlotPreview = null;
+    pp.resolved = null;
+    pp.minimized = false;
+    pp.pendingAttributeTag = presetAttributeTag || null;
     potentialPowerOnResolvedFn = onResolved || null;
+    ppSave();
     document.getElementById("potential-power-modal").hidden = false;
+    document.getElementById("potential-power-modal").classList.remove("minimized");
     renderPotentialPowerModal();
   }
 
   function closePotentialPowerModal() {
     document.getElementById("potential-power-modal").hidden = true;
-    document.getElementById("btn-potential-power-restore").hidden = true;
   }
 
-  // 抽選結果を保持したままモーダルだけを一時的に隠す（状態はリセットしない）。プレイヤーが
-  // 自分の他の装備・能力の状況を角色詳細等で確認してから、抽選結果の選択に戻れるようにする。
-  function minimizePotentialPowerModal() {
-    document.getElementById("potential-power-modal").hidden = true;
-    document.getElementById("btn-potential-power-restore").hidden = false;
+  // 縮小/復元は戦闘弾窗・獎勵勾選清單と同じ.modal.minimizedパターンに統一する。
+  function renderPotentialPowerMinimizeButton() {
+    var modal = document.getElementById("potential-power-modal");
+    var btn = document.getElementById("btn-potential-power-minimize");
+    if (!modal || !btn) return;
+    var isMinimized = modal.classList.contains("minimized");
+    btn.textContent = isMinimized ? "\u{1F5D6}" : "\u{1F5D5}";
+    btn.title = window.I18N.t(isMinimized ? "combat_modal_restore_button" : "combat_modal_minimize_button");
   }
 
-  function restorePotentialPowerModal() {
-    document.getElementById("btn-potential-power-restore").hidden = true;
-    document.getElementById("potential-power-modal").hidden = false;
-    renderPotentialPowerModal();
+  function handlePotentialPowerMinimizeToggle() {
+    var modal = document.getElementById("potential-power-modal");
+    if (!modal) return;
+    modal.classList.toggle("minimized");
+    ppState().minimized = modal.classList.contains("minimized");
+    ppSave();
+    renderPotentialPowerMinimizeButton();
   }
 
   function resetPotentialPowerRoll() {
-    potentialPowerWeaponResult = null;
-    potentialPowerEffectResult = null;
-    potentialPowerEffectSlotPreview = null;
-    potentialPowerResolved = null;
+    var pp = ppState();
+    pp.weaponResult = null;
+    pp.effectResult = null;
+    pp.effectSlotPreview = null;
+    pp.resolved = null;
+    ppSave();
   }
 
   function renderPotentialPowerModal() {
+    renderPotentialPowerMinimizeButton();
+    var pp = ppState();
     var entered = rosterCharacters.filter(function (c) {
       return c.entered;
     });
@@ -6519,33 +6545,31 @@
       var o = document.createElement("option");
       o.value = c.id;
       o.textContent = c.name;
-      if (c.id === potentialPowerSelectedCharacterId) o.selected = true;
+      if (c.id === pp.selectedCharacterId) o.selected = true;
       select.appendChild(o);
     });
     select.onchange = function () {
-      potentialPowerSelectedCharacterId = select.value;
+      ppState().selectedCharacterId = select.value;
       resetPotentialPowerRoll();
       renderPotentialPowerModal();
     };
 
     var starSelect = document.getElementById("potential-power-star-select");
-    starSelect.value = String(potentialPowerStarCount);
-    starSelect.disabled = !!(potentialPowerWeaponResult || potentialPowerEffectResult);
+    starSelect.value = String(pp.starCount);
+    starSelect.disabled = !!(pp.weaponResult || pp.effectResult) || state.turnHolder === "players";
     starSelect.onchange = function () {
-      potentialPowerStarCount = parseInt(starSelect.value, 10) || 1;
+      ppState().starCount = parseInt(starSelect.value, 10) || 1;
+      ppSave();
     };
 
     var c = entered.filter(function (rc) {
-      return rc.id === potentialPowerSelectedCharacterId;
+      return rc.id === pp.selectedCharacterId;
     })[0];
     var content = document.getElementById("potential-power-modal-content");
     content.innerHTML = "";
-    var minimizeBtn = document.getElementById("btn-potential-power-minimize");
-    var hasActiveRoll = !!(potentialPowerWeaponResult || potentialPowerEffectResult) && !potentialPowerResolved;
-    minimizeBtn.hidden = !hasActiveRoll;
     if (!c) return;
 
-    if (potentialPowerResolved) {
+    if (pp.resolved) {
       var doneP = document.createElement("p");
       doneP.className = "threat-ref-body weapon-roll-result";
       doneP.textContent = window.I18N.t("potential_power_resolved_note");
@@ -6553,18 +6577,20 @@
       return;
     }
 
-    if (!potentialPowerWeaponResult && !potentialPowerEffectResult) {
+    if (!pp.weaponResult && !pp.effectResult) {
       var rollBtn = document.createElement("button");
       rollBtn.type = "button";
       rollBtn.className = "primary-btn";
       rollBtn.textContent = window.I18N.t("potential_power_roll_button");
       rollBtn.addEventListener("click", function () {
-        potentialPowerWeaponResult = CharacterDrawer.potentialPowerDrawWeapon(c, potentialPowerStarCount);
-        potentialPowerEffectResult = CharacterDrawer.rollPotentialPowerAttachedEffect(c);
+        var freshPp = ppState();
+        freshPp.weaponResult = CharacterDrawer.potentialPowerDrawWeapon(c, freshPp.starCount);
+        freshPp.effectResult = CharacterDrawer.rollPotentialPowerAttachedEffect(c);
         // 3枠が既に埋まっている場合、どの枠が上書きされるかを先に判定しておき、選択前に
         // プレイヤーへ提示できるようにする（実際の上書きはcommitAttachedEffectChoiceで
         // このプレビュー結果をそのまま使う）。
-        potentialPowerEffectSlotPreview = CharacterDrawer.previewAttachedEffectSlot(c);
+        freshPp.effectSlotPreview = CharacterDrawer.previewAttachedEffectSlot(c);
+        ppSave();
         renderPotentialPowerModal();
       });
       content.appendChild(rollBtn);
@@ -6576,8 +6602,8 @@
     weaponTitle.textContent = window.I18N.t("potential_power_weapon_title");
     content.appendChild(weaponTitle);
     var Weapons = window.PriTestWeapons;
-    if (potentialPowerWeaponResult && potentialPowerWeaponResult.item) {
-      var wr = potentialPowerWeaponResult;
+    if (pp.weaponResult && pp.weaponResult.item) {
+      var wr = pp.weaponResult;
       var weaponCard = document.createElement("div");
       weaponCard.className = "relic-candidate-card";
       var weaponBody = document.createElement("p");
@@ -6600,10 +6626,10 @@
       skillP.textContent = skillNames.length ? skillNames.join("、") : window.I18N.t("potential_power_weapon_no_skill_note");
       weaponDetails.appendChild(skillP);
       weaponCard.appendChild(weaponDetails);
-      if (potentialPowerPendingAttributeTag) {
+      if (pp.pendingAttributeTag) {
         var attributeTagNote = document.createElement("p");
         attributeTagNote.className = "threat-ref-body weapon-roll-note";
-        attributeTagNote.textContent = window.I18N.t("potential_power_pending_attribute_tag_note", { tag: potentialPowerPendingAttributeTag });
+        attributeTagNote.textContent = window.I18N.t("potential_power_pending_attribute_tag_note", { tag: pp.pendingAttributeTag });
         weaponCard.appendChild(attributeTagNote);
       }
       var weaponChooseBtn = document.createElement("button");
@@ -6611,11 +6637,13 @@
       weaponChooseBtn.className = "primary-btn";
       weaponChooseBtn.textContent = window.I18N.t("potential_power_weapon_choose_button");
       weaponChooseBtn.addEventListener("click", function () {
-        var newWeaponId = CharacterDrawer.commitPotentialPowerWeapon(c, wr, potentialPowerPendingAttributeTag);
+        var freshPp = ppState();
+        var newWeaponId = CharacterDrawer.commitPotentialPowerWeapon(c, wr, freshPp.pendingAttributeTag);
         saveRosterCharacters();
         renderCharacterRoster();
         addLog("log_potential_power_weapon_choice", { character: c.name, weapon: Weapons.localizedText(wr.item.name) });
-        potentialPowerResolved = "weapon";
+        freshPp.resolved = "weapon";
+        ppSave();
         renderPotentialPowerModal();
         if (typeof potentialPowerOnResolvedFn === "function") potentialPowerOnResolvedFn();
         CharacterDrawer.resolveInventoryOverflow(c, "weapon", function () {
@@ -6635,7 +6663,7 @@
     var effectTitle = document.createElement("h5");
     effectTitle.textContent = window.I18N.t("potential_power_effect_title");
     content.appendChild(effectTitle);
-    var er = potentialPowerEffectResult;
+    var er = pp.effectResult;
 
     function appendEffectChooseCard(effect) {
       var card = document.createElement("div");
@@ -6648,13 +6676,13 @@
       body.className = "threat-ref-body";
       body.textContent = Weapons.localizedText(effect.body);
       card.appendChild(body);
-      if (potentialPowerEffectSlotPreview) {
-        var replacedEffect = CharacterDrawer.attachedEffectById(potentialPowerEffectSlotPreview.replacedId);
+      if (pp.effectSlotPreview) {
+        var replacedEffect = CharacterDrawer.attachedEffectById(pp.effectSlotPreview.replacedId);
         var replaceNote = document.createElement("p");
         replaceNote.className = "threat-ref-body";
         replaceNote.style.color = "#b3441e";
         replaceNote.textContent = window.I18N.t("potential_power_effect_will_replace_note", {
-          old: replacedEffect ? Weapons.localizedText(replacedEffect.name) : potentialPowerEffectSlotPreview.replacedId,
+          old: replacedEffect ? Weapons.localizedText(replacedEffect.name) : pp.effectSlotPreview.replacedId,
         });
         card.appendChild(replaceNote);
         if (replacedEffect) {
@@ -6678,7 +6706,8 @@
       chooseBtn.className = "primary-btn";
       chooseBtn.textContent = window.I18N.t("potential_power_effect_choose_button");
       chooseBtn.addEventListener("click", function () {
-        var result = CharacterDrawer.commitAttachedEffectChoice(c, effect, potentialPowerEffectSlotPreview);
+        var freshPp = ppState();
+        var result = CharacterDrawer.commitAttachedEffectChoice(c, effect, freshPp.effectSlotPreview);
         saveRosterCharacters();
         var effectName = Weapons.localizedText(effect.name);
         if (result.replacedId) {
@@ -6691,7 +6720,8 @@
         } else {
           addLog("log_potential_power_effect_choice", { character: c.name, effect: effectName });
         }
-        potentialPowerResolved = "effect";
+        freshPp.resolved = "effect";
+        ppSave();
         renderPotentialPowerModal();
         if (typeof potentialPowerOnResolvedFn === "function") potentialPowerOnResolvedFn();
       });
@@ -9069,6 +9099,11 @@
         renderRosterSkillsToggleLabel();
         renderUndoButton();
         renderTurnHolderBar();
+        if (state.activeDraws.potentialPower && document.getElementById("potential-power-modal").hidden) {
+          document.getElementById("potential-power-modal").hidden = false;
+          document.getElementById("potential-power-modal").classList.toggle("minimized", !!state.activeDraws.potentialPower.minimized);
+          renderPotentialPowerModal();
+        }
       });
       GameStorage.subscribeCharacters(gameId, game.storageMode, function (list) {
         rosterCharacters.length = 0;
@@ -9148,8 +9183,7 @@
     document.getElementById("btn-main-menu-draw-close").addEventListener("click", closeMainMenuDrawModal);
     document.getElementById("btn-item-draw-modal-close").addEventListener("click", closeItemDrawModal);
     document.getElementById("btn-weapon-skill-reroll-modal-close").addEventListener("click", closeWeaponSkillRerollModal);
-    document.getElementById("btn-potential-power-minimize").addEventListener("click", minimizePotentialPowerModal);
-    document.getElementById("btn-potential-power-restore").addEventListener("click", restorePotentialPowerModal);
+    document.getElementById("btn-potential-power-minimize").addEventListener("click", handlePotentialPowerMinimizeToggle);
     document.getElementById("btn-floor-reward-modal-close").addEventListener("click", closeFloorRewardModal);
     document.getElementById("btn-floor-reward-minimize").addEventListener("click", minimizeFloorRewardModal);
     document.getElementById("btn-floor-reward-restore").addEventListener("click", restoreFloorRewardModal);
