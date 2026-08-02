@@ -5812,18 +5812,12 @@
       return;
     }
     if (reward.kind === "weapon") {
-      var result = CharacterDrawer.merchantDrawWeapon(target, reward.value);
-      if (!result) {
-        window.alert(window.I18N.t("potential_power_weapon_draw_failed"));
-        return;
-      }
-      saveRosterCharacters();
-      renderCharacterRoster();
-      var Weapons = window.PriTestWeapons;
-      var weaponLabel = Weapons.localizedText(result.item.name);
-      finish("log_turn_reward_claim_weapon", { character: target.name, weapon: weaponLabel });
-      CharacterDrawer.resolveInventoryOverflow(target, "weapon", function () {
-        renderCharacterRoster();
+      minimizeSelf();
+      openItemDrawModal("weapon", target.id, {
+        starCount: reward.value,
+        onGranted: function () {
+          finish("log_turn_reward_claim_generic", { kind: window.I18N.t("turn_reward_kind_weapon"), character: target.name });
+        },
       });
       return;
     }

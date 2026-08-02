@@ -3774,8 +3774,17 @@
     potentialSelect.disabled = !!(window.PriTestTurnHolder && window.PriTestTurnHolder() !== "gm");
     potentialSelect.addEventListener("change", function () {
       var newValue = potentialSelect.value === "yes" ? true : potentialSelect.value === "no" ? false : null;
+      // resetWeaponRollState()は新規に丸ごと作り直すため、呼び出し元（openWeaponRollInline等）が
+      // 設定したcharacterId/onConfirm/pendingAttributeTagを引き継がないと、確定時のコールバックが
+      // 消えてしまう（獎勵勾選清單からの起動時に「獲得」後の状態更新が呼ばれなくなる不具合）。
+      var prevCharacterId = st.characterId;
+      var prevOnConfirm = st.onConfirm;
+      var prevPendingAttributeTag = st.pendingAttributeTag;
       resetWeaponRollState();
       weaponRollState.potentialPower = newValue;
+      weaponRollState.characterId = prevCharacterId;
+      weaponRollState.onConfirm = prevOnConfirm;
+      weaponRollState.pendingAttributeTag = prevPendingAttributeTag;
       if (newValue === true) {
         weaponRollState.categoryId = null;
         weaponRollState.categoryResolved = false;
@@ -3888,8 +3897,15 @@
       catSelect.addEventListener("change", function () {
         var newValue = catSelect.value;
         var prevPotentialPower = st.potentialPower;
+        // 同上：呼び出し元が設定したcharacterId/onConfirm/pendingAttributeTagを保持する。
+        var prevCharacterId = st.characterId;
+        var prevOnConfirm = st.onConfirm;
+        var prevPendingAttributeTag = st.pendingAttributeTag;
         resetWeaponRollState();
         weaponRollState.potentialPower = prevPotentialPower;
+        weaponRollState.characterId = prevCharacterId;
+        weaponRollState.onConfirm = prevOnConfirm;
+        weaponRollState.pendingAttributeTag = prevPendingAttributeTag;
         if (newValue === ANY_WEAPON_CATEGORY) {
           weaponRollState.categoryId = null;
           weaponRollState.categoryResolved = false;
@@ -4303,9 +4319,15 @@
     resetBtn.addEventListener("click", function () {
       var keepCategoryId = st.categoryId;
       var keepStarCount = st.starCount;
+      var keepCharacterId = st.characterId;
+      var keepOnConfirm = st.onConfirm;
+      var keepPendingAttributeTag = st.pendingAttributeTag;
       resetWeaponRollState();
       weaponRollState.categoryId = keepCategoryId;
       weaponRollState.starCount = keepStarCount;
+      weaponRollState.characterId = keepCharacterId;
+      weaponRollState.onConfirm = keepOnConfirm;
+      weaponRollState.pendingAttributeTag = keepPendingAttributeTag;
       renderWeaponRollField();
     });
     panel.appendChild(resetBtn);
