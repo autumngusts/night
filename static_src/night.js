@@ -5703,6 +5703,14 @@
     renderTurnRewardModal();
   }
 
+  // 潛在之力／抽選武器消耗品飾品の子モーダルを閉じた際、獎勵清單がそれを開くために
+  // 縮小されたままだと「押した瞬間に消えた」ように感じられるため、閉じた時点で
+  // 縮小中なら自動的に元へ戻す。
+  function restoreTurnRewardModalIfMinimized() {
+    var restoreBtn = document.getElementById("btn-turn-reward-restore");
+    if (restoreBtn && !restoreBtn.hidden) restoreTurnRewardModal();
+  }
+
   // 種類selectは初回のみ構築する（選んだ種類が再描画のたびにリセットされないようにするため）。
   // 對象角色selectはロースター変更に追随できるよう、描画のたびに作り直す。
   function renderTurnRewardAddForm() {
@@ -6569,6 +6577,7 @@
     if (kind && window.PriTestDrawStateSync) window.PriTestDrawStateSync.set(kind, null);
     document.getElementById("item-draw-modal").hidden = true;
     document.getElementById("btn-item-draw-modal-restore").hidden = true;
+    restoreTurnRewardModalIfMinimized();
   }
 
   // 縮小/復元は樓層獲得と同じ「モーダルを隠す＋別のスタッキング型固定ボタンを表示」方式。
@@ -6761,6 +6770,7 @@
   function closePotentialPowerModal() {
     document.getElementById("potential-power-modal").hidden = true;
     document.getElementById("btn-potential-power-restore").hidden = true;
+    restoreTurnRewardModalIfMinimized();
   }
 
   // 縮小/復元は樓層獲得と同じ「モーダルを隠す＋別のスタッキング型固定ボタンを表示」方式。
