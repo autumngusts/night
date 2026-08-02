@@ -3760,7 +3760,7 @@
       }
       potentialSelect.appendChild(opt);
     });
-    potentialSelect.disabled = !!(window.PriTestTurnHolder && window.PriTestTurnHolder() === "players");
+    potentialSelect.disabled = !!(window.PriTestTurnHolder && window.PriTestTurnHolder() !== "gm");
     potentialSelect.addEventListener("change", function () {
       var newValue = potentialSelect.value === "yes" ? true : potentialSelect.value === "no" ? false : null;
       resetWeaponRollState();
@@ -3873,7 +3873,7 @@
         catSelect.appendChild(opt);
       });
       catSelect.value = st.categoryId !== null ? st.categoryId : st.majorGroupShortcut || ANY_WEAPON_CATEGORY;
-      catSelect.disabled = !!(window.PriTestTurnHolder && window.PriTestTurnHolder() === "players");
+      catSelect.disabled = !!(window.PriTestTurnHolder && window.PriTestTurnHolder() !== "gm");
       catSelect.addEventListener("change", function () {
         var newValue = catSelect.value;
         var prevPotentialPower = st.potentialPower;
@@ -3989,7 +3989,7 @@
       if (n === st.starCount) opt.selected = true;
       starSelect.appendChild(opt);
     });
-    starSelect.disabled = st.rarityConfirmed || !!(window.PriTestTurnHolder && window.PriTestTurnHolder() === "players");
+    starSelect.disabled = st.rarityConfirmed || !!(window.PriTestTurnHolder && window.PriTestTurnHolder() !== "gm");
     starSelect.addEventListener("change", function () {
       st.starCount = parseInt(starSelect.value, 10);
       syncDrawStateIfAvailable("weapon", st);
@@ -4056,7 +4056,7 @@
         if (r === st.rarity) opt.selected = true;
         raritySelect.appendChild(opt);
       });
-      raritySelect.disabled = !!(window.PriTestTurnHolder && window.PriTestTurnHolder() === "players");
+      raritySelect.disabled = !!(window.PriTestTurnHolder && window.PriTestTurnHolder() !== "gm");
       raritySelect.addEventListener("change", function () {
         st.rarity = raritySelect.value;
         syncDrawStateIfAvailable("weapon", st);
@@ -4178,7 +4178,7 @@
               if (opt.value === st.skillTableLetter) opt.selected = true;
               tblSelect.appendChild(opt);
             });
-            tblSelect.disabled = !!(window.PriTestTurnHolder && window.PriTestTurnHolder() === "players");
+            tblSelect.disabled = !!(window.PriTestTurnHolder && window.PriTestTurnHolder() !== "gm");
             tblSelect.addEventListener("change", function () {
               st.skillTableLetter = tblSelect.value;
               syncDrawStateIfAvailable("weapon", st);

@@ -587,7 +587,7 @@
     dicePool: [],
     actionPhase: "normal", // "normal"|"combat"|"extra"|"defense"
     floorRewardObtained: {}, // key: floorKey+"_"+entryIndex(+"_"+targetCharacterId) -> true
-    turnHolder: "gm", // "gm"|"players"（GM/玩家が同時にプレイしなくても各自の番で行動できるようにする受け渡しフラグ）
+    turnHolder: "gm", // "gm"|"gmEnding"|"players"|"playersEnding"（GM/玩家が同時にプレイしなくても各自の番で行動できるようにする受け渡しフラグ。GM限定の操作はstate.turnHolder==="gm"の完全一致でのみ許可し、"gmEnding"/"playersEnding"は中立状態として扱う）
     turnMessages: [], // {text, time, side("gm"|"players")}の配列。自分の番が再び始まる瞬間に自分側の分だけクリアされる
     turnRewards: [], // {id, text, checked}の配列。地板獎勵とは無関係の獨立勾選清單、手動削除まで保持
     turnBoardEnabled: true, // 主選單から行動留言板機能全体を開閉するフラグ
@@ -1240,7 +1240,7 @@
       state.actionPhase = ["normal", "combat", "extra", "defense"].indexOf(data.actionPhase) !== -1 ? data.actionPhase : "normal";
       state.floorRewardObtained =
         data.floorRewardObtained && typeof data.floorRewardObtained === "object" ? data.floorRewardObtained : {};
-      state.turnHolder = ["gm", "players"].indexOf(data.turnHolder) !== -1 ? data.turnHolder : "gm";
+      state.turnHolder = ["gm", "gmEnding", "players", "playersEnding"].indexOf(data.turnHolder) !== -1 ? data.turnHolder : "gm";
       state.turnMessages = Array.isArray(data.turnMessages) ? data.turnMessages : [];
       state.turnRewards = Array.isArray(data.turnRewards) ? data.turnRewards : [];
       state.turnBoardEnabled = typeof data.turnBoardEnabled === "boolean" ? data.turnBoardEnabled : true;
@@ -5540,12 +5540,35 @@
     return state.turnHolder;
   };
 
+  // 4状態を順送りに循環させる（Gm回合→Gm結束→玩家回合→玩家結束→Gm回合…）。
+  // 「結束」状態は中立（GM限定操作は誰も調整できない）で、対応するステータス/ボタン文言を
+  // 個別に持つ。GM限定のゲート判定は全てstate.turnHolder==="gm"の完全一致で行う
+  // （"gmEnding"は既にGM権限を失った中立状態として扱う）。
+  var TURN_HOLDER_CYCLE = ["gm", "gmEnding", "players", "playersEnding"];
+  var TURN_HOLDER_STATUS_KEYS = {
+    gm: "turn_holder_gm_status",
+    gmEnding: "turn_holder_gm_ending_status",
+    players: "turn_holder_players_status",
+    playersEnding: "turn_holder_players_ending_status",
+  };
+  var TURN_HOLDER_BUTTON_KEYS = {
+    gm: "turn_holder_end_gm_button",
+    gmEnding: "turn_holder_start_players_button",
+    players: "turn_holder_end_players_button",
+    playersEnding: "turn_holder_start_gm_button",
+  };
+
+  function nextTurnHolder(current) {
+    var idx = TURN_HOLDER_CYCLE.indexOf(current);
+    return TURN_HOLDER_CYCLE[(idx === -1 ? 0 : idx + 1) % TURN_HOLDER_CYCLE.length];
+  }
+
   // 獎勵勾選清單／潛在之力／抽選武器・消耗品・飾品の「新規に開く」メインメニュー項目は
   // state.turnHolder==="gm"の間だけ表示する。既に開いて縮小済みのウィンドウ自体は
   // state.activeDrawsの非null判定で別途表示されるため、ここで隠れるのはあくまで
   // 「新規オープン」の入口ボタンのみ。
   function renderTurnGatedMenuItems() {
-    var isGmTurn = state.turnHolder !== "players";
+    var isGmTurn = state.turnHolder === "gm";
     ["btn-turn-reward-open", "btn-potential-power-info", "btn-main-menu-draw-weapon", "btn-main-menu-draw-talisman", "btn-main-menu-draw-consumable"].forEach(
       function (id) {
         var btn = document.getElementById(id);
@@ -5571,9 +5594,8 @@
     var messageInput = document.getElementById("turn-message-input");
     var messageList = document.getElementById("turn-message-list");
     if (!statusEl || !toggleBtn) return;
-    var isGmTurn = state.turnHolder !== "players";
-    statusEl.textContent = window.I18N.t(isGmTurn ? "turn_holder_gm_status" : "turn_holder_players_status");
-    toggleBtn.textContent = window.I18N.t(isGmTurn ? "turn_holder_end_gm_button" : "turn_holder_end_players_button");
+    statusEl.textContent = window.I18N.t(TURN_HOLDER_STATUS_KEYS[state.turnHolder] || TURN_HOLDER_STATUS_KEYS.gm);
+    toggleBtn.textContent = window.I18N.t(TURN_HOLDER_BUTTON_KEYS[state.turnHolder] || TURN_HOLDER_BUTTON_KEYS.gm);
     if (messageInput) messageInput.placeholder = window.I18N.t("turn_message_placeholder");
     if (messageList) {
       messageList.innerHTML = "";
@@ -5587,25 +5609,25 @@
     }
   }
 
-  // Gm回合／玩家回合を交代する（ボタン文言は「Gm結束」「玩家結束」）。押すと確認ダイアログが出て、
-  // 確定した場合のみメッセージ板（state.turnMessages）をクリアしてから交代する。
+  // 4状態を1段ずつ進める。押すと確認ダイアログが出て、確定した場合のみ進める。
+  // 留言のクリアは「能動的な番（gm/players）が実際に始まる」遷移でのみ、その側自身の
+  // 留言だけを消す（「結束」という中立状態への遷移では留言はそのまま残す）。
   function handleTurnHolderToggle() {
     if (!window.confirm(window.I18N.t("turn_board_end_turn_confirm"))) return;
-    var wasGmTurn = state.turnHolder !== "players";
-    var newTurnHolder = wasGmTurn ? "players" : "gm";
+    var newTurnHolder = nextTurnHolder(state.turnHolder);
     state.turnHolder = newTurnHolder;
-    // 交代する側自身が前回残した留言だけを消す（相手側が今しがた残した留言は、次の自分の番が
-    // 来るまで見えたままにする）。例：GMの留言はGM回合が再び始まる瞬間に消える。
-    state.turnMessages = state.turnMessages.filter(function (m) {
-      return m.side !== newTurnHolder;
-    });
+    if (newTurnHolder === "gm" || newTurnHolder === "players") {
+      state.turnMessages = state.turnMessages.filter(function (m) {
+        return m.side !== newTurnHolder;
+      });
+    }
     saveState();
-    var toLabel = window.I18N.t(wasGmTurn ? "turn_holder_players_status" : "turn_holder_gm_status");
-    addLog("log_turn_holder_handoff", { to: toLabel });
+    addLog("log_turn_holder_handoff", { to: window.I18N.t(TURN_HOLDER_STATUS_KEYS[newTurnHolder]) });
     renderTurnHolderBar();
     renderSelectedEnemies();
     if (!document.getElementById("potential-power-modal").hidden) renderPotentialPowerModal();
     if (!document.getElementById("item-draw-modal").hidden) CharacterDrawer.refreshActiveRollField();
+    if (!document.getElementById("turn-reward-modal").hidden) renderTurnRewardModal();
   }
 
   // 送出ボタン：入力中のメッセージを現在のメッセージ板（state.turnMessages）へ1行追加する。
@@ -6770,7 +6792,7 @@
 
     var starSelect = document.getElementById("potential-power-star-select");
     starSelect.value = String(pp.starCount);
-    starSelect.disabled = !!(pp.weaponResult || pp.effectResult) || state.turnHolder === "players";
+    starSelect.disabled = !!(pp.weaponResult || pp.effectResult) || state.turnHolder !== "gm";
     starSelect.onchange = function () {
       ppState().starCount = parseInt(starSelect.value, 10) || 1;
       ppSave();
@@ -7298,7 +7320,7 @@
         if (lvRow && lvRow.hp) {
           statParts.push(window.I18N.t("enemy_hp_label") + window.I18N.t("colon_separator") + lvRow.hp);
         }
-        if (target.withRemove && lvRow && lvRow.dmg != null && state.turnHolder !== "players") {
+        if (target.withRemove && lvRow && lvRow.dmg != null && state.turnHolder === "gm") {
           var dmgOverride = (state.battle.enemyDmgOverride && state.battle.enemyDmgOverride[item.key]) || 0;
           var dmgText = dmgOverride
             ? window.I18N.t("attribute_status_dmg_override_note", { value: lvRow.dmg + dmgOverride, base: lvRow.dmg, delta: dmgOverride })
