@@ -149,7 +149,7 @@
       return;
     }
 
-    entered.forEach(function (c) {
+    entered.forEach(function (c, rosterIdx) {
       var type = c.typeId && CharacterTypes ? CharacterTypes.get(c.typeId) : null;
 
       var tr = document.createElement("tr");
@@ -346,7 +346,13 @@
           var diceValues = c.dicePool.join("、");
           if (!window.confirm(window.I18N.t("roster_dice_reset_confirm", { name: c.name, dice: diceValues }))) return;
           c.dicePool = [];
+          // GMが手動で骰子をリセットした場合も、次のロールで前後衛・敵視を改めて確定できるよう
+          // 該当スロットのロックを解除する。
+          if (rosterIdx < BATTLE_SLOT_COUNT && state.battle.positionLocked) {
+            state.battle.positionLocked[rosterIdx] = false;
+          }
           saveRosterCharacters();
+          saveState();
           addLog("log_dice_pool_reset", { character: c.name, dice: diceValues });
           renderCharacterRoster();
         });
@@ -511,7 +517,12 @@
       back: new Array(BATTLE_SLOT_COUNT).fill(false),
       // PC1〜4の「敵視」。番号は前衛／後衛どちらのマスにいても同じPCを指すため、両エリアで共有する。
       aggro: new Array(BATTLE_SLOT_COUNT).fill(0),
+      // 最初の全骰子ロールで前後衛・敵視を確定させた後、syncDiceStatusToBattleによる
+      // 自動再計算を止めるためのロック（PC1〜4スロット単位、front/back/aggro共通）。
+      positionLocked: new Array(BATTLE_SLOT_COUNT).fill(false),
       enemyHp: new Array(ENEMY_HP_ROWS * ENEMY_HP_COLS).fill(false),
+      // 各段（行）の敵の実際の最大HP（カード記載値）。未設定（敵未追加）はnull＝ENEMY_HP_COLS基準にフォールバック。
+      enemyHpMax: new Array(ENEMY_HP_ROWS).fill(null),
       mobHpRows: [],
       selectedEnemyIds: [],
       // 屬性/異常面板のデータ:
@@ -740,9 +751,20 @@
         })
       : fallback.aggro.slice();
     while (aggro.length < BATTLE_SLOT_COUNT) aggro.push(0);
+    var positionLocked = Array.isArray(raw.positionLocked)
+      ? raw.positionLocked.slice(0, BATTLE_SLOT_COUNT).map(Boolean)
+      : fallback.positionLocked.slice();
+    while (positionLocked.length < BATTLE_SLOT_COUNT) positionLocked.push(false);
     var hpTotal = ENEMY_HP_ROWS * ENEMY_HP_COLS;
     var enemyHp = Array.isArray(raw.enemyHp) ? raw.enemyHp.slice(0, hpTotal).map(Boolean) : fallback.enemyHp.slice();
     while (enemyHp.length < hpTotal) enemyHp.push(false);
+    var enemyHpMax = Array.isArray(raw.enemyHpMax)
+      ? raw.enemyHpMax.slice(0, ENEMY_HP_ROWS).map(function (v) {
+          var n = Number(v);
+          return n > 0 ? n : null;
+        })
+      : fallback.enemyHpMax.slice();
+    while (enemyHpMax.length < ENEMY_HP_ROWS) enemyHpMax.push(null);
     var mobHpRows = Array.isArray(raw.mobHpRows)
       ? raw.mobHpRows.map(function (row) {
           var r = Array.isArray(row) ? row.slice(0, 10).map(Boolean) : [];
@@ -804,7 +826,9 @@
       front: front,
       back: back,
       aggro: aggro,
+      positionLocked: positionLocked,
       enemyHp: enemyHp,
+      enemyHpMax: enemyHpMax,
       mobHpRows: mobHpRows,
       selectedEnemyIds: selectedEnemyIds,
       attributeStatus: {
@@ -3056,10 +3080,11 @@
   }
 
   // 骰子池の判定結果（前衛/後衛、6の目による敵視+1）を、戦場シートの対応するPCスロットへ
-  // 自動反映する。前衛/後衛の点灯は常に最新の骰子池内容で上書き（べき等）するが、敵視+1は
-  // 「6が出た」という1回のロールセッションにつき一度だけ加算するフラグ方式にする（骰子池の
-  // キー文字列で比較すると、6を含んだまま骰子を追加するたびに毎回+1されてしまうため）。
-  // このフラグは骰子池が空になった（＝重置骰子が押された）ときにのみ解除する。
+  // 自動反映する。ただし各スロットにつき「最初の全骰子ロール」で1度だけ計算・確定させ
+  // （state.battle.positionLocked）、以後は額外/防禦フェイズでの骰子追加や加護重骰があっても
+  // 自動上書きしない（前後衛・敵視の移動は、戦闘中の移動処理や特定スキルの効果、または
+  // 戦場面板からの手動調整でのみ行われる）。ロックは新しい回合の開始、またはGMによる
+  // 骰子リセットで解除される。
   function syncDiceStatusToBattle() {
     // 「一般行動」フェイズ中は、骰子池がどんな内容であっても前後衛・敵視の自動判定を行わない
     // （一般行動の骰子は戦闘外の用途であり、勝手に戦場の陣形を変えてしまわないようにするため）。
@@ -3069,9 +3094,18 @@
     });
     var stateChanged = false;
     var flagsChanged = false;
+    if (!state.battle.positionLocked) state.battle.positionLocked = new Array(BATTLE_SLOT_COUNT).fill(false);
     entered.forEach(function (c, idx) {
       if (idx >= BATTLE_SLOT_COUNT) return;
       var pool = c.dicePool || [];
+      if (!pool.length) {
+        if (c._diceAggroApplied) {
+          c._diceAggroApplied = false;
+          flagsChanged = true;
+        }
+        return;
+      }
+      if (state.battle.positionLocked[idx]) return; // 既に最初のロールで確定済み：自動同期しない
       var status = CharacterDrawer.computeDiceStatus(pool);
       if (status) {
         var wantFront = status.position === "front";
@@ -3083,19 +3117,13 @@
           state.battle.back[idx] = !wantFront;
           stateChanged = true;
         }
-      }
-      if (!pool.length) {
-        if (c._diceAggroApplied) {
-          c._diceAggroApplied = false;
+        if (status.aggroIncrease && !c._diceAggroApplied) {
+          state.battle.aggro[idx] = (state.battle.aggro[idx] || 0) + 1;
+          c._diceAggroApplied = true;
           flagsChanged = true;
         }
-        return;
-      }
-      if (status && status.aggroIncrease && !c._diceAggroApplied) {
-        state.battle.aggro[idx] = (state.battle.aggro[idx] || 0) + 1;
-        c._diceAggroApplied = true;
+        state.battle.positionLocked[idx] = true;
         stateChanged = true;
-        flagsChanged = true;
       }
     });
     if (stateChanged) saveState();
@@ -3108,6 +3136,7 @@
       state.battle.front[i] = false;
       state.battle.back[i] = false;
       state.battle.aggro[i] = 0;
+      state.battle.positionLocked[i] = false;
     }
     saveState();
     renderBattlePositionAreas();
@@ -5109,9 +5138,16 @@
     return n;
   }
 
-  // 非雑兵エネミー（state.battle.enemyHp）の指定段がHP0（全マス被弾済み）かどうか。
+  // 指定段の実際の最大HP（カード記載値）。未設定（enemyHpMax無し）の場合はENEMY_HP_COLS
+  // （盤面上のマス数の上限）にフォールバックする。
+  function enemyHpRowMax(rowIdx) {
+    var max = state.battle.enemyHpMax && state.battle.enemyHpMax[rowIdx];
+    return typeof max === "number" && max > 0 ? Math.min(max, ENEMY_HP_COLS) : ENEMY_HP_COLS;
+  }
+
+  // 非雑兵エネミー（state.battle.enemyHp）の指定段がHP0（実際の最大HP分すべて被弾済み）かどうか。
   function isEnemyHpRowFull(rowIdx) {
-    return countRowChecked(state.battle.enemyHp, rowIdx * ENEMY_HP_COLS, ENEMY_HP_COLS) === ENEMY_HP_COLS;
+    return countRowChecked(state.battle.enemyHp, rowIdx * ENEMY_HP_COLS, ENEMY_HP_COLS) >= enemyHpRowMax(rowIdx);
   }
 
   // 額外行動フェイズは、非雑兵エネミーの4段のうちいずれか1段でもHP0になって初めて選択可能になる。
@@ -5136,16 +5172,6 @@
     renderActionPhaseGrid();
     if (state.actionPhase !== "normal" && allEnemyHpRowsDepleted()) {
       setActionPhase("normal", { combatEnd: true });
-    }
-  }
-
-  // 指定した段のチェック数を、増減ではなく指定した個数ちょうどに設定する（左詰め）。
-  // エネミー追加時のHP自動設定で使う。
-  function setEnemyHpRowCount(rowIdx, count) {
-    var start = rowIdx * ENEMY_HP_COLS;
-    var clamped = Math.max(0, Math.min(ENEMY_HP_COLS, count));
-    for (var i = 0; i < ENEMY_HP_COLS; i++) {
-      state.battle.enemyHp[start + i] = i < clamped;
     }
   }
 
@@ -5211,7 +5237,7 @@
 
           var value = document.createElement("span");
           value.className = "level-value battle-hp-stepper-value";
-          value.textContent = count + "/" + ENEMY_HP_COLS;
+          value.textContent = count + "/" + enemyHpRowMax(rowIdx);
           rowDiv.appendChild(value);
 
           var plus = document.createElement("button");
@@ -6218,6 +6244,11 @@
       // 「一般行動」から初めて戰鬥フェイズへ入る（戦闘開始）は「次の回合」ではないため対象外
       // （このifブロック自体はresetAttributeStatusRoundLocks等のため combat以外全般で発火する）。
       var isNewRoundFromDefense = state.actionPhase === "defense";
+      // 新しい回合に入るときは、前回合の最初の全骰子ロールで確定した前後衛・敵視の
+      // 自動計算ロックも解除し、次の回合の最初のロールで改めて確定できるようにする。
+      if (isNewRoundFromDefense) {
+        state.battle.positionLocked = new Array(BATTLE_SLOT_COUNT).fill(false);
+      }
       rosterCharacters.forEach(function (c) {
         // 新しい回合（防禦フェイズから戰鬥フェイズへ再突入）に入るとき、原則として全員の
         // 個人骰子池を空にする（技能・遺物効果で次回合へ持ち越せる場合は、そのキャラだけ
@@ -7255,15 +7286,16 @@
         if (isFreshEncounter) {
           applyInitialPassiveAggro();
           // 新規遭遇の最初の1体に限り、そのレベルのHP枠表記（例："×7/×7"）から
-          // 第1段・第2段のHPチェックを自動設定する（既存の戦闘中に追加する2体目以降は、
-          // 既にチェック済みのHPを壊さないよう対象にしない）。
+          // 第1段・第2段の実際の最大HPを記録する（既存の戦闘中に追加する2体目以降は、
+          // 既に設定済みの最大値／チェック済みのHPを壊さないよう対象にしない）。
+          // チェック数自体は0のまま（＝満タン・未被弾）で初期化する。
           var lvRow = (row.familyBase || []).filter(function (lv) {
             return lv.level === level;
           })[0];
           var hpNotation = lvRow && lvRow.hp ? parseEnemyHpNotation(lvRow.hp) : null;
           if (hpNotation) {
-            setEnemyHpRowCount(0, hpNotation.row1);
-            setEnemyHpRowCount(1, hpNotation.row2);
+            state.battle.enemyHpMax[0] = hpNotation.row1;
+            state.battle.enemyHpMax[1] = hpNotation.row2;
             renderEnemyHpGrid();
             handleEnemyHpChanged();
           }
