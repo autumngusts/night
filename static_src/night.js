@@ -7863,7 +7863,9 @@
         return;
       }
 
-      weaponBtn.textContent = window.I18N.t("floor_reward_weapon_star_button", { value: "★".repeat(entry.value) }) + noteText;
+      // カテゴリ/属性タグ指定のない単純な★数のみの場地報酬も、上のブロックと同じく
+      // 直接確定ではなく抽選ウィザード（開始→抽選→終了）を経由させる。
+      weaponBtn.textContent = window.I18N.t("floor_reward_weapon_star_wizard_button", { value: "★".repeat(entry.value) }) + noteText;
       if (isAlreadyObtained()) {
         weaponBtn.disabled = true;
         weaponBtn.classList.add("field-reward-obtained");
@@ -7874,24 +7876,18 @@
           return c.id === weaponCharSelect.value;
         })[0];
         if (!target) return;
-        var result = CharacterDrawer.merchantDrawWeapon(target, entry.value);
-        if (!result) {
-          window.alert(window.I18N.t("potential_power_weapon_draw_failed"));
-          return;
-        }
-        saveRosterCharacters();
-        renderCharacterRoster();
-        var Weapons = window.PriTestWeapons;
-        var weaponLabel = Weapons.localizedText(result.item.name);
-        addLog("log_floor_reward_weapon", { character: target.name, weapon: weaponLabel });
-        weaponCharSelect.disabled = true;
-        markFloorRewardObtained(
-          weaponBtn,
-          window.I18N.t("log_floor_reward_weapon", { character: target.name, weapon: weaponLabel }),
-          obtainedStateKey()
-        );
-        CharacterDrawer.resolveInventoryOverflow(target, "weapon", function () {
-          renderCharacterRoster();
+        minimizeFloorRewardModal();
+        addLog("log_floor_reward_weapon_wizard_nav", { character: target.name, value: "★".repeat(entry.value) });
+        openItemDrawModal("weapon", target.id, {
+          starCount: entry.value,
+          onGranted: function () {
+            weaponCharSelect.disabled = true;
+            markFloorRewardObtained(
+              weaponBtn,
+              window.I18N.t("log_floor_reward_weapon_wizard_nav", { character: target.name, value: "★".repeat(entry.value) }),
+              obtainedStateKey()
+            );
+          },
         });
       });
       weaponRow.appendChild(weaponBtn);
