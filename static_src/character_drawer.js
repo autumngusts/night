@@ -5124,8 +5124,10 @@
 
   // 1つのアビリティ/スキル/アーツ/遺物効果を折りたたみ表示（クリックで詳細展開）で描画する。
   // レベル未到達なら表示しない。使用回数がある場合は残り回数の増減ボタンも付ける。
-  function renderAbilityEntry(container, entry, c) {
-    if (entry.level && c.level < entry.level) return;
+  // readOnly=true（図鑑など、実在キャラクターに紐付かない参照表示用）の場合、レベル未到達での
+  // 非表示と、実体のないcへ書き込むことになる使用回数±ステッパーの両方を省略する。
+  function renderAbilityEntry(container, entry, c, readOnly) {
+    if (!readOnly && entry.level && c.level < entry.level) return;
     var details = document.createElement("details");
     details.className = "ability-entry";
     var summary = document.createElement("summary");
@@ -5135,7 +5137,7 @@
       (entry.level ? "　" + window.I18N.t("ability_level_label", { level: entry.level }) : "");
     details.appendChild(summary);
 
-    if (entry.uses && entry.id) {
+    if (!readOnly && entry.uses && entry.id) {
       var usesRow = document.createElement("div");
       usesRow.className = "level-control ability-uses";
 
@@ -5277,20 +5279,23 @@
   // 「可発動技能（Action/Defense）」「被動能力（Passive）」の2コンテナに振り分けて描画する。
   // excludeDefense=trueの場合、［Defense］（防禦フェイズでの反応使用専用）は可発動技能に含めない
   // （戦闘モーダルの「技能」アクションは攻撃ターンでの発動を想定しているため）。
-  function renderAbilitySections(c, type, activeContainer, passiveContainer, excludeDefense) {
+  function renderAbilitySections(c, type, activeContainer, passiveContainer, excludeDefense, readOnly) {
     activeContainer.innerHTML = "";
     passiveContainer.innerHTML = "";
     if (!type) return;
     var entries = [].concat(type.abilities || []).concat(type.skills || []).concat(type.arts || []);
-    var learned = c.learnedRelicEffects || [];
-    (type.relicEffectGroups || []).forEach(function (g, gi) {
-      g.effects.forEach(function (e, ei) {
-        if (learned.indexOf(relicEffectKey(type.id, gi, ei)) !== -1) entries.push(e);
+    // readOnly時（図鑑等、実キャラクター無し）は遺物効果群（習得選択制）を持たないため対象外。
+    var learned = (!readOnly && c && c.learnedRelicEffects) || [];
+    if (!readOnly) {
+      (type.relicEffectGroups || []).forEach(function (g, gi) {
+        g.effects.forEach(function (e, ei) {
+          if (learned.indexOf(relicEffectKey(type.id, gi, ei)) !== -1) entries.push(e);
+        });
       });
-    });
+    }
     entries.forEach(function (entry) {
       if (excludeDefense && entry.kind === "Defense") return;
-      renderAbilityEntry(entry.kind === "Passive" ? passiveContainer : activeContainer, entry, c);
+      renderAbilityEntry(entry.kind === "Passive" ? passiveContainer : activeContainer, entry, c, readOnly);
     });
   }
 
@@ -5731,6 +5736,7 @@
     newCharacter: newCharacter,
     ensureDefaults: ensureDefaults,
     renderAbilitySections: renderAbilitySections,
+    buildTypeStatLines: buildTypeStatLines,
     rollD6: rollD6,
     renderDicePool: renderDicePool,
     renderDiceDisplay: renderDiceDisplay,

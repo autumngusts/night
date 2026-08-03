@@ -835,12 +835,15 @@ button {
   pointer-events: none;
 }
 
-.gallery-modal-box {
+/* 後方の.modal-box基底ルール（max-width:320px）と同じ詳細度(単一クラス)だと
+   ソース順で.modal-boxが勝ってしまうため、.modal-box.gallery-modal-boxで
+   詳細度を上げて確実に上書きする。 */
+.modal-box.gallery-modal-box {
   position: relative;
-  max-width: 640px;
-  width: 92vw;
+  max-width: 960px;
+  width: 96vw;
   min-width: 320px;
-  max-height: 85vh;
+  max-height: 92vh;
   overflow: auto;
   resize: horizontal;
 }
@@ -1002,27 +1005,37 @@ button {
   font-size: 0.8rem;
 }
 
-.gallery-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
-  gap: 0.75rem;
+.gallery-carousel {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
   margin: 1rem 0;
 }
 
-.gallery-card {
+.gallery-carousel-arrow {
+  flex: 0 0 auto;
+  font-size: 1.1rem;
+  padding: 0.6rem 0.8rem;
+}
+
+.gallery-carousel-card {
+  flex: 1 1 auto;
+  min-width: 0;
   text-align: center;
 }
 
-.gallery-card img {
+.gallery-carousel-image {
   width: 100%;
-  aspect-ratio: 1 / 1;
-  object-fit: cover;
+  max-height: 60vh;
+  object-fit: contain;
   border-radius: 8px;
+  background: rgba(127, 127, 127, 0.08);
 }
 
-.gallery-card p {
-  margin: 0.3rem 0 0;
-  font-size: 0.8rem;
+.gallery-carousel-name {
+  margin: 0.5rem 0;
+  font-size: 1.1rem;
+  font-weight: bold;
 }
 
 .ability-entry {

@@ -84,28 +84,66 @@
     if (current) select.value = current;
   }
 
-  function renderGallery() {
-    var grid = document.getElementById("gallery-grid");
-    grid.innerHTML = "";
-    CharacterTypes.list().forEach(function (t) {
-      var card = document.createElement("div");
-      card.className = "gallery-card";
-      var src = CharacterTypes.imagePath(t);
-      if (src) {
-        var img = document.createElement("img");
-        img.src = src;
-        img.alt = CharacterTypes.localizedName(t.name);
-        card.appendChild(img);
-      }
-      var name = document.createElement("p");
-      name.textContent = CharacterTypes.localizedName(t.name);
-      card.appendChild(name);
-      grid.appendChild(card);
+  // カルーセルで表示する対象は基本10タイプのみ（_dark/_dawnの外見バリアントは同じ内容の
+  // 重複表示になるため対象外）。
+  function galleryTypes() {
+    return CharacterTypes.list().filter(function (t) {
+      return !/_dark$|_dawn$/.test(t.id);
     });
   }
 
+  var galleryIndex = 0;
+  var galleryDetailOpen = false;
+
+  function renderGalleryDetail(type) {
+    var stats = document.getElementById("gallery-carousel-stats");
+    stats.textContent = CharacterDrawer.buildTypeStatLines(type, true).join("\n");
+    CharacterDrawer.renderAbilitySections(
+      null,
+      type,
+      document.getElementById("gallery-carousel-active"),
+      document.getElementById("gallery-carousel-passive"),
+      false,
+      true
+    );
+  }
+
+  function renderGalleryCarousel() {
+    var types = galleryTypes();
+    if (!types.length) return;
+    if (galleryIndex >= types.length) galleryIndex = 0;
+    if (galleryIndex < 0) galleryIndex = types.length - 1;
+    var type = types[galleryIndex];
+
+    var img = document.getElementById("gallery-carousel-image");
+    var src = CharacterTypes.imagePath(type);
+    if (src) {
+      img.src = src;
+      img.alt = CharacterTypes.localizedName(type.name);
+      img.hidden = false;
+    } else {
+      img.hidden = true;
+    }
+    document.getElementById("gallery-carousel-name").textContent = CharacterTypes.localizedName(type.name);
+
+    document.getElementById("gallery-carousel-detail").hidden = !galleryDetailOpen;
+    if (galleryDetailOpen) renderGalleryDetail(type);
+  }
+
+  function shiftGallery(delta) {
+    galleryIndex += delta;
+    renderGalleryCarousel();
+  }
+
+  function toggleGalleryDetail() {
+    galleryDetailOpen = !galleryDetailOpen;
+    renderGalleryCarousel();
+  }
+
   function openGallery() {
-    renderGallery();
+    galleryIndex = 0;
+    galleryDetailOpen = false;
+    renderGalleryCarousel();
     document.getElementById("gallery-modal").hidden = false;
   }
 
@@ -162,6 +200,13 @@
     document.getElementById("btn-add-character").addEventListener("click", handleAddCharacter);
     document.getElementById("btn-view-gallery").addEventListener("click", openGallery);
     document.getElementById("btn-gallery-close").addEventListener("click", closeGallery);
+    document.getElementById("btn-gallery-prev").addEventListener("click", function () {
+      shiftGallery(-1);
+    });
+    document.getElementById("btn-gallery-next").addEventListener("click", function () {
+      shiftGallery(1);
+    });
+    document.getElementById("btn-gallery-detail-toggle").addEventListener("click", toggleGalleryDetail);
 
     var openId = new URLSearchParams(window.location.search).get("open");
     if (openId && findCharacter(openId)) CharacterDrawer.open(openId);
@@ -190,6 +235,7 @@
     window.addEventListener("i18n:change", function () {
       renderTypeSelect();
       renderList();
+      if (!document.getElementById("gallery-modal").hidden) renderGalleryCarousel();
     });
   }
 

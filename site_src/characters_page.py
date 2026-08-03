@@ -38,7 +38,22 @@ BODY = """    <a class="back-link" href="../admin/index.html" data-i18n="back_ad
     <div id="gallery-modal" class="modal" hidden>
       <div class="modal-box gallery-modal-box">
         <h2 data-i18n="character_gallery_title"></h2>
-        <div id="gallery-grid" class="gallery-grid"></div>
+        <div id="gallery-carousel" class="gallery-carousel">
+          <button id="btn-gallery-prev" type="button" class="gallery-carousel-arrow" data-i18n="gallery_prev_button"></button>
+          <div class="gallery-carousel-card">
+            <img id="gallery-carousel-image" class="gallery-carousel-image" alt="" hidden />
+            <p id="gallery-carousel-name" class="gallery-carousel-name"></p>
+            <button id="btn-gallery-detail-toggle" type="button" data-i18n="gallery_detail_toggle_button"></button>
+            <div id="gallery-carousel-detail" class="threat-ref-block" hidden>
+              <p id="gallery-carousel-stats" class="threat-ref-body"></p>
+              <h3 data-i18n="cv_active_skills_title"></h3>
+              <div id="gallery-carousel-active"></div>
+              <h3 data-i18n="cv_passives_title"></h3>
+              <div id="gallery-carousel-passive"></div>
+            </div>
+          </div>
+          <button id="btn-gallery-next" type="button" class="gallery-carousel-arrow" data-i18n="gallery_next_button"></button>
+        </div>
         <div class="actions">
           <button id="btn-gallery-close" type="button" class="primary-btn" data-i18n="close_button"></button>
         </div>
