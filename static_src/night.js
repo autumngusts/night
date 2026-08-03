@@ -951,11 +951,12 @@
     return ja.indexOf("襲撃者") !== -1 || zh.indexOf("襲擊者") !== -1;
   }
 
-  // 敵人のHP行をcount個（0扣分）扣除する。紐付け行が無ければ何もしない（GMへログのみ残る）。
+  // 敵人のHP行の残りHPをcount個減らす。紐付け行が無ければ何もしない（GMへログのみ残る）。
+  // チェック数＝残りHPのため、ダメージはマイナス方向（adjustEnemyHpRowへは負のdeltaで渡す）。
   function damageEnemyHpForKey(enemyKey, count) {
     var rowIdx = enemyHpRowIndexForKey(enemyKey);
     if (rowIdx === -1) return false;
-    adjustEnemyHpRow(rowIdx, count);
+    adjustEnemyHpRow(rowIdx, -count);
     return true;
   }
 
@@ -5150,25 +5151,37 @@
     return typeof max === "number" && max > 0 ? Math.min(max, ENEMY_HP_COLS) : ENEMY_HP_COLS;
   }
 
-  // 非雑兵エネミー（state.battle.enemyHp）の指定段がHP0（実際の最大HP分すべて被弾済み）かどうか。
-  function isEnemyHpRowFull(rowIdx) {
-    return countRowChecked(state.battle.enemyHp, rowIdx * ENEMY_HP_COLS, ENEMY_HP_COLS) >= enemyHpRowMax(rowIdx);
+  // その段に実際に敵が割り当てられている（enemyHpMaxが設定済み）かどうか。
+  // 敵が割り当てられていない段は、チェック数が0のままでも「撃破」とはみなさない
+  // （「原本就0/20則不計」）。
+  function enemyHasRow(rowIdx) {
+    var max = state.battle.enemyHpMax && state.battle.enemyHpMax[rowIdx];
+    return typeof max === "number" && max > 0;
   }
 
-  // 額外行動フェイズは、非雑兵エネミーの4段のうちいずれか1段でもHP0になって初めて選択可能になる。
+  // 段のチェック数（＝残りHP）は敵追加時に実際の最大値で満タン初期化され、GMが「－」を
+  // 押して減らしていく。敵が割り当て済みの段でチェック数が0になった時点で「撃破」とみなす。
+  function isEnemyHpRowDepleted(rowIdx) {
+    return enemyHasRow(rowIdx) && countRowChecked(state.battle.enemyHp, rowIdx * ENEMY_HP_COLS, ENEMY_HP_COLS) === 0;
+  }
+
+  // 額外行動フェイズは、敵が割り当て済みの段のうちいずれか1段でも撃破済みになって初めて選択可能になる。
   function anyEnemyHpRowDepleted() {
     for (var i = 0; i < ENEMY_HP_ROWS; i++) {
-      if (isEnemyHpRowFull(i)) return true;
+      if (isEnemyHpRowDepleted(i)) return true;
     }
     return false;
   }
 
-  // 4段全てがHP0＝戦闘終了（一般行動へ自動的に戻す）。
+  // 敵が割り当て済みの段が1つ以上あり、そのすべてが撃破済み＝戦闘終了（一般行動へ自動的に戻す）。
   function allEnemyHpRowsDepleted() {
+    var any = false;
     for (var i = 0; i < ENEMY_HP_ROWS; i++) {
-      if (!isEnemyHpRowFull(i)) return false;
+      if (!enemyHasRow(i)) continue;
+      any = true;
+      if (!isEnemyHpRowDepleted(i)) return false;
     }
-    return true;
+    return any;
   }
 
   // エネミーHPが変化するたびに呼び、額外行動ボタンの活性状態を更新しつつ、
@@ -5188,10 +5201,21 @@
     return { row1: parseInt(m[1], 10), row2: parseInt(m[2], 10) };
   }
 
+  // 段のチェック数を、増減ではなく指定した個数ちょうどに設定する（左詰め）。
+  // エネミー追加時、残りHPを実際の最大値で満タン初期化するために使う。
+  function setEnemyHpRowCount(rowIdx, count) {
+    var start = rowIdx * ENEMY_HP_COLS;
+    var clamped = Math.max(0, Math.min(ENEMY_HP_COLS, count));
+    for (var i = 0; i < ENEMY_HP_COLS; i++) {
+      state.battle.enemyHp[start + i] = i < clamped;
+    }
+  }
+
   function adjustEnemyHpRow(rowIdx, delta) {
     var start = rowIdx * ENEMY_HP_COLS;
     var current = countRowChecked(state.battle.enemyHp, start, ENEMY_HP_COLS);
-    var target = Math.max(0, Math.min(ENEMY_HP_COLS, current + delta));
+    // 「＋」（回復）は敵の実際の最大値までしか回復できない（固定20マスまでではない）。
+    var target = Math.max(0, Math.min(enemyHpRowMax(rowIdx), current + delta));
     if (target === current) return;
     if (target > current) {
       var need = target - current;
@@ -5242,7 +5266,9 @@
 
           var value = document.createElement("span");
           value.className = "level-value battle-hp-stepper-value";
-          value.textContent = count + "/" + enemyHpRowMax(rowIdx);
+          // 分母は敵ごとの実際の最大値ではなく、常に固定20マスで統一表示する
+          // （撃破判定など内部ロジックでは実際の最大値enemyHpRowMaxを使う）。
+          value.textContent = count + "/" + ENEMY_HP_COLS;
           rowDiv.appendChild(value);
 
           var plus = document.createElement("button");
@@ -7295,9 +7321,9 @@
         if (isFreshEncounter) {
           applyInitialPassiveAggro();
           // 新規遭遇の最初の1体に限り、そのレベルのHP枠表記（例："×7/×7"）から
-          // 第1段・第2段の実際の最大HPを記録する（既存の戦闘中に追加する2体目以降は、
-          // 既に設定済みの最大値／チェック済みのHPを壊さないよう対象にしない）。
-          // チェック数自体は0のまま（＝満タン・未被弾）で初期化する。
+          // 第1段・第2段の実際の最大HPを記録し、残りHP（チェック数）を満タン初期化する
+          // （既存の戦闘中に追加する2体目以降は、既に設定済みの最大値／チェック数を
+          // 壊さないよう対象にしない）。
           var lvRow = (row.familyBase || []).filter(function (lv) {
             return lv.level === level;
           })[0];
@@ -7305,6 +7331,8 @@
           if (hpNotation) {
             state.battle.enemyHpMax[0] = hpNotation.row1;
             state.battle.enemyHpMax[1] = hpNotation.row2;
+            setEnemyHpRowCount(0, hpNotation.row1);
+            setEnemyHpRowCount(1, hpNotation.row2);
             renderEnemyHpGrid();
             handleEnemyHpChanged();
           }
@@ -9723,6 +9751,17 @@
     });
     document.querySelectorAll(".action-phase-grid button").forEach(function (btn) {
       btn.addEventListener("click", function () {
+        // 戰鬥フェイズから額外行動を経由せず直接防禦フェイズへ進もうとした場合、額外行動の
+        // 条件（いずれかの敵HP段が撃破済み）を満たしているのにまだ額外行動を使っていなければ、
+        // 本当にスキップしてよいかGMに確認する（額外→防禦の通常進行時は確認しない）。
+        if (
+          btn.dataset.phase === "defense" &&
+          state.actionPhase === "combat" &&
+          anyEnemyHpRowDepleted() &&
+          !window.confirm(window.I18N.t("action_phase_skip_extra_confirm"))
+        ) {
+          return;
+        }
         setActionPhase(btn.dataset.phase);
       });
     });
