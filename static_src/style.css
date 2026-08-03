@@ -1814,6 +1814,7 @@ button {
 
 .game-row {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: 1rem;
@@ -1825,6 +1826,8 @@ button {
   display: flex;
   flex-direction: column;
   gap: 0.15rem;
+  flex: 1 1 auto;
+  min-width: 0;
 }
 
 .game-date {
@@ -1878,6 +1881,8 @@ button {
 .game-boss-row select {
   font-size: 0.8rem;
   padding: 0.15rem 0.3rem;
+  max-width: 100%;
+  min-width: 0;
 }
 
 .game-actions {

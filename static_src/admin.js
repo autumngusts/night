@@ -82,10 +82,13 @@
       NightBosses.list().forEach(function (b) {
         var opt = document.createElement("option");
         opt.value = b.id;
-        var label = b.title + " - " + b.subtitle;
+        // 選択肢が長すぎて管理画面のレイアウトを崩さないよう、英題(b.title)＋現在の表示言語の
+        // 名称のみに短縮する（b.titleは9体全て一意であることを確認済み）。
+        var label = b.title;
         var localized = BossRulebook ? BossRulebook.get(b.id) : null;
         if (localized && localized.name) {
-          label += "（" + localized.name.zh + " / " + localized.name.ja + "）";
+          var lang = window.I18N ? window.I18N.getLang() : "zh";
+          label += "（" + (lang === "ja" ? localized.name.ja : localized.name.zh) + "）";
         }
         opt.textContent = label;
         bossSelect.appendChild(opt);
