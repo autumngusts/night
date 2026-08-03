@@ -7036,7 +7036,12 @@
               reward: [
                 { kind: "potentialPower", perPerson: true, value: 2, note: C("（ボス戦闘撃破）", "（王戰擊破）") },
                 { kind: "consumable", value: 1, note: C("（ボス戦闘撃破）", "（王戰擊破）") },
-                { kind: "smithingStone", value: 1, note: C("（商人・ルーン1消費ごとに1個。人数分クリックしてください）", "（商人・每消費盧恩1即得1個。請依人數點擊）") },
+                {
+                  kind: "smithingStone",
+                  value: 1,
+                  perPerson: true,
+                  note: C("（商人・PC1人につき最大1回、ルーン1消費で鍛石1個）", "（商人・每位PC最多1次，消費盧恩1即得鍛石1個）"),
+                },
               ],
             },
             {
@@ -7076,7 +7081,12 @@
               reward: [
                 { kind: "potentialPower", perPerson: true, value: 2, note: C("（ボス戦闘撃破）", "（王戰擊破）") },
                 { kind: "consumable", value: 1, note: C("（ボス戦闘撃破）", "（王戰擊破）") },
-                { kind: "smithingStone", value: 1, note: C("（商人・ルーン1消費ごとに1個。人数分クリックしてください）", "（商人・每消費盧恩1即得1個。請依人數點擊）") },
+                {
+                  kind: "smithingStone",
+                  value: 1,
+                  perPerson: true,
+                  note: C("（商人・PC1人につき最大1回、ルーン1消費で鍛石1個）", "（商人・每位PC最多1次，消費盧恩1即得鍛石1個）"),
+                },
               ],
             },
             {
@@ -7116,7 +7126,12 @@
               reward: [
                 { kind: "potentialPower", perPerson: true, value: 2, note: C("（ボス戦闘撃破）", "（王戰擊破）") },
                 { kind: "consumable", value: 1, note: C("（ボス戦闘撃破）", "（王戰擊破）") },
-                { kind: "smithingStone", value: 1, note: C("（商人・ルーン1消費ごとに1個。人数分クリックしてください）", "（商人・每消費盧恩1即得1個。請依人數點擊）") },
+                {
+                  kind: "smithingStone",
+                  value: 1,
+                  perPerson: true,
+                  note: C("（商人・PC1人につき最大1回、ルーン1消費で鍛石1個）", "（商人・每位PC最多1次，消費盧恩1即得鍛石1個）"),
+                },
               ],
             },
             {
@@ -8096,7 +8111,12 @@
                 ),
               ],
               reward: [
-                { kind: "smithingStone", value: 1, note: C("（商人・ルーン1消費ごとに1個。人数分クリックしてください）", "（商人・每消費盧恩1即得1個。請依人數點擊）") },
+                {
+                  kind: "smithingStone",
+                  value: 1,
+                  perPerson: true,
+                  note: C("（商人・PC1人につき最大1回、ルーン1消費で鍛石1個）", "（商人・每位PC最多1次，消費盧恩1即得鍛石1個）"),
+                },
                 { kind: "note", note: C("（「共鳴する結晶：+1」は別途手動記録）", "（「共鳴結晶：+1」需另行手動記錄）") },
               ],
             },

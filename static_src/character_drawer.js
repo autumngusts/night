@@ -944,9 +944,18 @@
   function applyLevelUpResourceBonus(c, level, sign) {
     if (level < 2) return;
     var slot = (level - 2) % 3;
-    if (slot === 0) c.hp.max = Math.max(0, (c.hp.max || 0) + sign);
-    else if (slot === 1) c.fp.max = Math.max(0, (c.fp.max || 0) + sign);
-    else c.blessingSlots.max = Math.max(0, (c.blessingSlots.max || 0) + sign);
+    // 上限だけでなく現在値も同じ分だけ増減する（例：3/4で等級が上がったら4/5になる。
+    // 等級を戻す場合も同じ分だけ現在値を減らす。上限・現在値とも0未満にはならない）。
+    if (slot === 0) {
+      c.hp.max = Math.max(0, (c.hp.max || 0) + sign);
+      c.hp.current = Math.max(0, (c.hp.current || 0) + sign);
+    } else if (slot === 1) {
+      c.fp.max = Math.max(0, (c.fp.max || 0) + sign);
+      c.fp.current = Math.max(0, (c.fp.current || 0) + sign);
+    } else {
+      c.blessingSlots.max = Math.max(0, (c.blessingSlots.max || 0) + sign);
+      c.blessingSlots.current = Math.max(0, (c.blessingSlots.current || 0) + sign);
+    }
   }
 
   function renderLevelBonusMarkers(c) {
@@ -960,6 +969,15 @@
     [hpEl, fpEl, blessingEl].forEach(function (el, i) {
       el.textContent = counts[i] > 0 ? window.I18N.t("level_bonus_marker", { count: counts[i] }) : "";
     });
+  }
+
+  // 「PC「聖杯瓶使用次數」減少」の現在の段階を、聖杯瓶「基本欄」上限の横に(-N)として表示する
+  // （night.js側で実際にflaskBase.maxへ反映済み。ここは値が食い違わないための参照表示のみ）。
+  function renderFlaskUsesPenaltyMarker() {
+    var el = document.getElementById("char-flask-uses-penalty-marker");
+    if (!el) return;
+    var penalty = window.PriTestFlaskUsesPenalty ? window.PriTestFlaskUsesPenalty() : 0;
+    el.textContent = penalty > 0 ? window.I18N.t("flask_uses_penalty_marker", { count: penalty }) : "";
   }
 
   // 次の等級に上げるために必要な盧恩を、等級欄の横に「(-N)」として表示する。
@@ -5411,6 +5429,7 @@
     renderRelicSection();
     renderLevelBonusMarkers(c);
     renderLevelNextCostMarker(c);
+    renderFlaskUsesPenaltyMarker();
     renderRevivalBonusMarkers(c);
     renderAttachedSection();
     renderWeaponList();

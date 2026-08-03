@@ -2905,6 +2905,26 @@
     document.getElementById("night-rain-timing-body").textContent = window.I18N.t("night_rain_timing_body");
   }
 
+  // 「⑥PC「聖杯瓶使用次數」減少」は、以前はチェック欄が記録として存在するだけで実際のゲーム
+  // 効果を持たなかった（GMが手動でキャラクター詳細の聖杯瓶上限を調整する必要があった）。
+  // ここで段階（tier）の変化分だけ、入場中の全PCの聖杯瓶「基本欄」の上限を実際に増減させる。
+  // 現在値が新しい上限を超える場合はクランプする（上限が減っても、既に使用済みの分が
+  // 復活するわけではない）。
+  function applyFlaskUsesRollEffect(tierDelta) {
+    if (!tierDelta) return;
+    var maxDelta = -tierDelta;
+    var entered = rosterCharacters.filter(function (c) {
+      return c.entered;
+    });
+    entered.forEach(function (c) {
+      if (!c.flaskBase) c.flaskBase = { current: 3, max: 3 };
+      c.flaskBase.max = Math.max(0, (c.flaskBase.max || 0) + maxDelta);
+      c.flaskBase.current = Math.min(c.flaskBase.current || 0, c.flaskBase.max);
+    });
+    saveRosterCharacters();
+    renderCharacterRoster();
+  }
+
   function renderRollEffects() {
     var container = document.getElementById("roll-effects-list");
     container.innerHTML = "";
@@ -2938,13 +2958,17 @@
       plus.className = "level-btn";
       plus.textContent = "+";
       minus.addEventListener("click", function () {
-        state.rollEffects[effect.id] = Math.max(0, count - 1);
+        var newCount = Math.max(0, count - 1);
+        state.rollEffects[effect.id] = newCount;
+        if (effect.id === "flask_uses") applyFlaskUsesRollEffect(newCount - count);
         saveState();
         renderRollEffects();
         renderTimeLossSummary();
       });
       plus.addEventListener("click", function () {
-        state.rollEffects[effect.id] = Math.min(effect.tiers, count + 1);
+        var newCount = Math.min(effect.tiers, count + 1);
+        state.rollEffects[effect.id] = newCount;
+        if (effect.id === "flask_uses") applyFlaskUsesRollEffect(newCount - count);
         saveState();
         renderRollEffects();
         renderTimeLossSummary();
@@ -5594,6 +5618,12 @@
     return state.turnHolder;
   };
 
+  // 「PC「聖杯瓶使用次數」減少」の現在の段階（0=無し、1=-1、2=-2）。キャラクター詳細ドロワー側
+  // (character_drawer.js、別クロージャ)が聖杯瓶欄の近くに現在の減少幅を表示するために参照する。
+  window.PriTestFlaskUsesPenalty = function () {
+    return (state.rollEffects && state.rollEffects.flask_uses) || 0;
+  };
+
   // 4状態を順送りに循環させる（Gm回合→Gm結束→玩家回合→玩家結束→Gm回合…）。
   // 「結束」状態は中立（GM限定操作は誰も調整できない）で、対応するステータス/ボタン文言を
   // 個別に持つ。GM限定のゲート判定は全てstate.turnHolder==="gm"の完全一致で行う
@@ -5988,13 +6018,28 @@
     var targetCharacterId = shared ? null : targetSelect.value || null;
     if (!shared && !targetCharacterId) return;
     var value = Math.max(1, parseInt(valueInput.value, 10) || 1);
-    state.turnRewards.push({
-      id: "tr" + Date.now() + Math.floor(Math.random() * 1000),
-      kind: kind,
-      targetCharacterId: targetCharacterId,
-      value: value,
-      claimed: false,
-    });
+    // 消耗品は「value個の消耗品」を1回の抽選でまとめて同じ結果を複数個付与する仕様（grantCount）
+    // だと、本来別々に抽選されるべき消耗品が全て同一のものになってしまう。そのため個数分を
+    // それぞれ独立した項目（value:1）へ分割し、1件ずつ個別に抽選できるようにする。
+    if (kind === "consumable" && value > 1) {
+      for (var i = 0; i < value; i++) {
+        state.turnRewards.push({
+          id: "tr" + Date.now() + Math.floor(Math.random() * 1000) + "_" + i,
+          kind: kind,
+          targetCharacterId: targetCharacterId,
+          value: 1,
+          claimed: false,
+        });
+      }
+    } else {
+      state.turnRewards.push({
+        id: "tr" + Date.now() + Math.floor(Math.random() * 1000),
+        kind: kind,
+        targetCharacterId: targetCharacterId,
+        value: value,
+        claimed: false,
+      });
+    }
     saveState();
     renderTurnRewardModal();
   }
@@ -6831,6 +6876,11 @@
   }
 
   function closePotentialPowerModal() {
+    // 確定・縮小せずに閉じた場合、state.activeDraws.potentialPowerを明示的にクリアしないと、
+    // 他の操作によるstate同期のたびに「非null かつ 非縮小 かつ モーダル非表示」の条件を
+    // 満たしてしまい、この画面が勝手に何度も再表示されるバグになる（closeItemDrawModalと同じ対策）。
+    state.activeDraws.potentialPower = null;
+    ppSave();
     document.getElementById("potential-power-modal").hidden = true;
     document.getElementById("btn-potential-power-restore").hidden = true;
     restoreTurnRewardModalIfMinimized();
@@ -8034,6 +8084,48 @@
         markFloorRewardObtained(keyBtn, window.I18N.t("log_floor_reward_stonesword_key", { value: keyTotal }), obtainedStateKey());
       });
       container.appendChild(keyBtn);
+      return;
+    }
+
+    if (entry.kind === "smithingStone" && entry.perPerson) {
+      // 教會の商人：PC各自が任意で「ルーン：1」を消費し「鍛石」を1個獲得できる（1人につき最大1回）。
+      // 従来は共有の1ボタンをGMが人数分クリックする運用だったが、各PCが自分のルーンを使う操作
+      // なので、キャラクターごとに独立したボタンにする。
+      var stoneCost = 1;
+      entered.forEach(function (c) {
+        var personStoneBtn = document.createElement("button");
+        personStoneBtn.type = "button";
+        personStoneBtn.textContent = window.I18N.t("floor_reward_smithing_stone_merchant_button", { name: c.name, cost: stoneCost });
+        var canAfford = (c.runes || 0) >= stoneCost;
+        if (isAlreadyObtained(c.id)) {
+          personStoneBtn.disabled = true;
+          personStoneBtn.classList.add("field-reward-obtained");
+        } else if (!canAfford) {
+          personStoneBtn.disabled = true;
+          personStoneBtn.title = window.I18N.t("floor_reward_smithing_stone_merchant_no_runes");
+        }
+        personStoneBtn.addEventListener("click", function () {
+          if ((c.runes || 0) < stoneCost || isAlreadyObtained(c.id)) return;
+          c.runes -= stoneCost;
+          state.smithingStoneCount = (state.smithingStoneCount || 0) + 1;
+          saveRosterCharacters();
+          renderCharacterRoster();
+          renderSmithingStoneCount();
+          addLog("log_floor_reward_smithing_stone_merchant", { character: c.name, cost: stoneCost });
+          markFloorRewardObtained(
+            personStoneBtn,
+            window.I18N.t("log_floor_reward_smithing_stone_merchant", { character: c.name, cost: stoneCost }),
+            obtainedStateKey(c.id)
+          );
+        });
+        container.appendChild(personStoneBtn);
+      });
+      if (noteText) {
+        var stoneNoteP = document.createElement("p");
+        stoneNoteP.className = "threat-ref-body";
+        stoneNoteP.textContent = noteText;
+        container.appendChild(stoneNoteP);
+      }
       return;
     }
 

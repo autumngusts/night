@@ -147,6 +147,7 @@ BODY = """    <a class="back-link" href="../admin/index.html" data-i18n="back_ad
               <span class="stat-stepper">
                 <span class="level-value" id="char-flask-base-max-value" data-longpress-edit="1"></span>
               </span>
+              <span id="char-flask-uses-penalty-marker" class="level-bonus-marker"></span>
               <span class="flask-extra-inline">
                 <span data-i18n="record_flask_extra_label"></span>
                 <span class="stat-stepper">
