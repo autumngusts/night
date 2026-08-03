@@ -2291,6 +2291,30 @@ button {
   padding: 0;
 }
 
+.floor-reward-entry-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  padding: 0.3rem 0;
+  border-bottom: 1px solid rgba(127, 127, 127, 0.25);
+}
+
+.floor-reward-dismiss-btn {
+  flex: 0 0 auto;
+  font-size: 1.1rem;
+  color: #c0392b;
+}
+
+.floor-reward-dismiss-btn:disabled {
+  color: #999;
+  cursor: not-allowed;
+}
+
+.floor-reward-entry-content {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
 .tag-add-row {
   display: flex;
   gap: 0.4rem;

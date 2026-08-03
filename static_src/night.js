@@ -595,6 +595,7 @@
     dicePool: [],
     actionPhase: "normal", // "normal"|"combat"|"extra"|"defense"
     floorRewardObtained: {}, // key: floorKey+"_"+entryIndex(+"_"+targetCharacterId) -> true
+    floorRewardDismissed: {}, // key: floorKey+"_dismiss_"+entryIndex -> true（GMが個別に取消した項目）
     turnHolder: "gm", // "gm"|"gmEnding"|"players"|"playersEnding"（GM/玩家が同時にプレイしなくても各自の番で行動できるようにする受け渡しフラグ。GM限定の操作はstate.turnHolder==="gm"の完全一致でのみ許可し、"gmEnding"/"playersEnding"は中立状態として扱う）
     turnMessages: [], // {text, time, side("gm"|"players")}の配列。自分の番が再び始まる瞬間に自分側の分だけクリアされる
     turnRewards: [], // {id, text, checked}の配列。地板獎勵とは無関係の獨立勾選清單、手動削除まで保持
@@ -659,6 +660,7 @@
       dicePool: state.dicePool,
       actionPhase: state.actionPhase,
       floorRewardObtained: state.floorRewardObtained,
+      floorRewardDismissed: state.floorRewardDismissed,
       turnHolder: state.turnHolder,
       turnMessages: state.turnMessages,
       turnRewards: state.turnRewards,
@@ -1261,6 +1263,8 @@
       state.actionPhase = ["normal", "combat", "extra", "defense"].indexOf(data.actionPhase) !== -1 ? data.actionPhase : "normal";
       state.floorRewardObtained =
         data.floorRewardObtained && typeof data.floorRewardObtained === "object" ? data.floorRewardObtained : {};
+      state.floorRewardDismissed =
+        data.floorRewardDismissed && typeof data.floorRewardDismissed === "object" ? data.floorRewardDismissed : {};
       state.turnHolder = ["gm", "gmEnding", "players", "playersEnding"].indexOf(data.turnHolder) !== -1 ? data.turnHolder : "gm";
       state.turnMessages = Array.isArray(data.turnMessages) ? data.turnMessages : [];
       state.turnRewards = Array.isArray(data.turnRewards) ? data.turnRewards : [];
@@ -1313,6 +1317,7 @@
     state.dicePool = [];
     state.actionPhase = "normal";
     state.floorRewardObtained = {};
+    state.floorRewardDismissed = {};
     state.turnHolder = "gm";
     state.turnMessages = [];
     state.turnRewards = [];
@@ -5661,6 +5666,9 @@
     if (!document.getElementById("item-draw-modal").hidden) CharacterDrawer.refreshActiveRollField();
     if (!document.getElementById("turn-reward-modal").hidden) renderTurnRewardModal();
     if (!document.getElementById("breakthrough-modal").hidden) renderBreakthroughCharacters();
+    if (!document.getElementById("floor-reward-modal").hidden && floorRewardModalFloor) {
+      renderFloorRewardSection(document.getElementById("floor-reward-modal-content"), floorRewardModalFloor);
+    }
   }
 
   // 送出ボタン：入力中のメッセージを現在のメッセージ板（state.turnMessages）へ1行追加する。
@@ -7679,6 +7687,43 @@
       var key = obtainedStateKey(targetCharacterId);
       return !!(key && state.floorRewardObtained && state.floorRewardObtained[key]);
     }
+    // GMが個別に「この項目は誤り／不要」として取消した状態（項目単位、対象角色は問わない）。
+    var dismissKey = floorKey && entryIndex !== undefined ? floorKey + "_dismiss_" + entryIndex : null;
+    function isDismissed() {
+      return !!(dismissKey && state.floorRewardDismissed && state.floorRewardDismissed[dismissKey]);
+    }
+    var outerRow = document.createElement("div");
+    outerRow.className = "floor-reward-entry-row";
+    container.appendChild(outerRow);
+    if (isDismissed()) {
+      var dismissedNote = document.createElement("p");
+      dismissedNote.className = "threat-ref-body";
+      dismissedNote.style.textDecoration = "line-through";
+      dismissedNote.textContent = window.I18N.t("floor_reward_dismissed_note");
+      outerRow.appendChild(dismissedNote);
+      return;
+    }
+    if (dismissKey) {
+      var dismissBtn = document.createElement("button");
+      dismissBtn.type = "button";
+      dismissBtn.className = "tag-remove floor-reward-dismiss-btn";
+      dismissBtn.textContent = "×";
+      dismissBtn.title = window.I18N.t("floor_reward_dismiss_button");
+      // GM回合限定操作：完全に「gm」と一致する場合のみ押せる（他の項目の既存GM限定操作と同じ判定）。
+      dismissBtn.disabled = !(window.PriTestTurnHolder && window.PriTestTurnHolder() === "gm");
+      dismissBtn.addEventListener("click", function () {
+        if (!window.confirm(window.I18N.t("floor_reward_dismiss_confirm"))) return;
+        if (!state.floorRewardDismissed) state.floorRewardDismissed = {};
+        state.floorRewardDismissed[dismissKey] = true;
+        saveState();
+        if (floorRewardModalFloor) renderFloorRewardSection(document.getElementById("floor-reward-modal-content"), floorRewardModalFloor);
+      });
+      outerRow.appendChild(dismissBtn);
+    }
+    var contentEl = document.createElement("div");
+    contentEl.className = "floor-reward-entry-content";
+    outerRow.appendChild(contentEl);
+    container = contentEl; // 以降の既存ロジックはcontainer.appendChildをそのまま使うため、以後はこのラッパー内に描画される。
     var noteText = entry.note ? window.PriTestFields.localizedText(entry.note) : "";
     // 武器・潜在する力の共通戦技タグ（例:「炎/-5」）。fields.js側は{ja,zh}で持つため、
     // ここで表示言語へ解決してから武器抽選ウィザード／潜在する力モーダルへ渡す。
@@ -7707,6 +7752,11 @@
       var hpBtn = document.createElement("button");
       hpBtn.type = "button";
       hpBtn.textContent = window.I18N.t("floor_reward_apply_hp_button");
+      if (isAlreadyObtained()) {
+        hpBtn.disabled = true;
+        hpBtn.classList.add("field-reward-obtained");
+        hpSelect.disabled = true;
+      }
       hpBtn.addEventListener("click", function () {
         var target = entered.filter(function (c) {
           return c.id === hpSelect.value;
@@ -7717,7 +7767,11 @@
         renderCharacterRoster();
         addLog("log_floor_reward_hp_damage", { character: target.name, value: entry.value });
         hpSelect.disabled = true;
-        markFloorRewardObtained(hpBtn, window.I18N.t("log_floor_reward_hp_damage", { character: target.name, value: entry.value }));
+        markFloorRewardObtained(
+          hpBtn,
+          window.I18N.t("log_floor_reward_hp_damage", { character: target.name, value: entry.value }),
+          obtainedStateKey()
+        );
       });
       hpRow.appendChild(hpBtn);
       container.appendChild(hpRow);
@@ -7729,6 +7783,10 @@
       runeBtn.type = "button";
       runeBtn.className = "primary-btn";
       runeBtn.textContent = window.I18N.t("floor_reward_rune_button", { value: entry.value }) + noteText;
+      if (isAlreadyObtained()) {
+        runeBtn.disabled = true;
+        runeBtn.classList.add("field-reward-obtained");
+      }
       runeBtn.addEventListener("click", function () {
         entered.forEach(function (c) {
           c.runes = (c.runes || 0) + entry.value;
@@ -7736,7 +7794,11 @@
         saveRosterCharacters();
         renderCharacterRoster();
         addLog("log_floor_reward_rune", { value: entry.value, count: entered.length });
-        markFloorRewardObtained(runeBtn, window.I18N.t("log_floor_reward_rune", { value: entry.value, count: entered.length }));
+        markFloorRewardObtained(
+          runeBtn,
+          window.I18N.t("log_floor_reward_rune", { value: entry.value, count: entered.length }),
+          obtainedStateKey()
+        );
       });
       container.appendChild(runeBtn);
       return;
@@ -7748,6 +7810,10 @@
       chaliceBtn.type = "button";
       chaliceBtn.className = "primary-btn";
       chaliceBtn.textContent = window.I18N.t("floor_reward_chalice_bonus_button", { value: entry.value }) + noteText;
+      if (isAlreadyObtained()) {
+        chaliceBtn.disabled = true;
+        chaliceBtn.classList.add("field-reward-obtained");
+      }
       chaliceBtn.addEventListener("click", function () {
         entered.forEach(function (c) {
           if (!c.flaskExtra) c.flaskExtra = { current: 0, max: 0 };
@@ -7757,7 +7823,11 @@
         saveRosterCharacters();
         renderCharacterRoster();
         addLog("log_floor_reward_chalice_bonus", { value: entry.value, count: entered.length });
-        markFloorRewardObtained(chaliceBtn, window.I18N.t("log_floor_reward_chalice_bonus", { value: entry.value, count: entered.length }));
+        markFloorRewardObtained(
+          chaliceBtn,
+          window.I18N.t("log_floor_reward_chalice_bonus", { value: entry.value, count: entered.length }),
+          obtainedStateKey()
+        );
       });
       container.appendChild(chaliceBtn);
       return;
@@ -7773,6 +7843,11 @@
       var consumableBtn = document.createElement("button");
       consumableBtn.type = "button";
       consumableBtn.textContent = window.I18N.t("floor_reward_consumable_button", { value: entry.value }) + noteText;
+      if (isAlreadyObtained()) {
+        consumableBtn.disabled = true;
+        consumableBtn.classList.add("field-reward-obtained");
+        consumableCharSelect.disabled = true;
+      }
       consumableBtn.addEventListener("click", function () {
         var target = entered.filter(function (c) {
           return c.id === consumableCharSelect.value;
@@ -7784,7 +7859,11 @@
           grantCount: entry.value,
           onGranted: function () {
             consumableCharSelect.disabled = true;
-            markFloorRewardObtained(consumableBtn, window.I18N.t("log_floor_reward_consumable_roll_nav", { character: target.name }));
+            markFloorRewardObtained(
+              consumableBtn,
+              window.I18N.t("log_floor_reward_consumable_roll_nav", { character: target.name }),
+              obtainedStateKey()
+            );
           },
         });
       });
@@ -7801,6 +7880,11 @@
       var talismanBtn = document.createElement("button");
       talismanBtn.type = "button";
       talismanBtn.textContent = window.I18N.t("floor_reward_talisman_button", { value: entry.value }) + noteText;
+      if (isAlreadyObtained()) {
+        talismanBtn.disabled = true;
+        talismanBtn.classList.add("field-reward-obtained");
+        talismanCharSelect.disabled = true;
+      }
       talismanBtn.addEventListener("click", function () {
         var target = entered.filter(function (c) {
           return c.id === talismanCharSelect.value;
@@ -7811,7 +7895,11 @@
         openItemDrawModal("talisman", target.id, {
           onGranted: function () {
             talismanCharSelect.disabled = true;
-            markFloorRewardObtained(talismanBtn, window.I18N.t("log_floor_reward_talisman_roll_nav", { character: target.name }));
+            markFloorRewardObtained(
+              talismanBtn,
+              window.I18N.t("log_floor_reward_talisman_roll_nav", { character: target.name }),
+              obtainedStateKey()
+            );
           },
         });
       });
@@ -7906,12 +7994,16 @@
         window.I18N.t("floor_reward_stonesword_key_button", { value: keyTotal }) +
         (entry.perParty ? window.I18N.t("floor_reward_per_party_suffix", { count: entered.length }) : "") +
         noteText;
+      if (isAlreadyObtained()) {
+        keyBtn.disabled = true;
+        keyBtn.classList.add("field-reward-obtained");
+      }
       keyBtn.addEventListener("click", function () {
         state.stoneswordKeyCount = (state.stoneswordKeyCount || 0) + keyTotal;
         saveState();
         renderStoneswordKeyCount();
         addLog("log_floor_reward_stonesword_key", { value: keyTotal });
-        markFloorRewardObtained(keyBtn, window.I18N.t("log_floor_reward_stonesword_key", { value: keyTotal }));
+        markFloorRewardObtained(keyBtn, window.I18N.t("log_floor_reward_stonesword_key", { value: keyTotal }), obtainedStateKey());
       });
       container.appendChild(keyBtn);
       return;
@@ -7925,12 +8017,16 @@
         window.I18N.t("floor_reward_smithing_stone_button", { value: stoneTotal }) +
         (entry.perParty ? window.I18N.t("floor_reward_per_party_suffix", { count: entered.length }) : "") +
         noteText;
+      if (isAlreadyObtained()) {
+        stoneBtn.disabled = true;
+        stoneBtn.classList.add("field-reward-obtained");
+      }
       stoneBtn.addEventListener("click", function () {
         state.smithingStoneCount = (state.smithingStoneCount || 0) + stoneTotal;
         saveState();
         renderSmithingStoneCount();
         addLog("log_floor_reward_smithing_stone", { value: stoneTotal });
-        markFloorRewardObtained(stoneBtn, window.I18N.t("log_floor_reward_smithing_stone", { value: stoneTotal }));
+        markFloorRewardObtained(stoneBtn, window.I18N.t("log_floor_reward_smithing_stone", { value: stoneTotal }), obtainedStateKey());
       });
       container.appendChild(stoneBtn);
       return;
