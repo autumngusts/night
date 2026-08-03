@@ -5,9 +5,6 @@
   var SUIT_CLASSES = ["suit-black", "suit-red", "suit-orange", "suit-green"];
   var RANKS = ["A", "2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K"];
   var SLOT_COUNT = 9;
-  // 新規ゲーム開始時、現在地（focusedIndex）の初期位置とする左列中段のマス
-  // （盤面レイアウトはstyle.cssの.slot-wrap-3が左列・中段に対応）。
-  var BOARD_LEFT_SLOT = 3;
   var SLOT_LONG_PRESS_MS = 250;
   var MAX_EQUIPPED_WEAPONS = 2;
   // 固定配置副本（安寧者たち／瓦礫の王）の原書図解ポジション（1-9、上7-8-9／中4-S-5-E-6／下1-2-3）
@@ -8740,7 +8737,7 @@
     state.eventChips = rollEventChips();
 
     var logKey = wasContinue ? "log_continue_submit" : "log_select_submit";
-    if (!wasContinue) state.focusedIndex = BOARD_LEFT_SLOT;
+    if (!wasContinue) state.focusedIndex = "start";
     state.boardStarted = true;
     if (wasContinue) advanceToNextNight();
     closeSelectDrawer();
@@ -8785,7 +8782,7 @@
       });
     }
     state.eventChips = rollEventChips();
-    state.focusedIndex = BOARD_LEFT_SLOT;
+    state.focusedIndex = "start";
     state.boardStarted = true;
     renderBoard();
     addLog("log_select_submit", {
@@ -9117,10 +9114,14 @@
 
   // 起點／終點は日をまたぐたびに盤面の左右が入れ替わる（isSwappedDay）ため、
   // 隣接する板塊のindexもそれに応じて変わる（style.cssの.pile-wrap-start/endの
-  // grid-column配置と対応）。
-  function pileAdjacentSlotIndex(which) {
-    if (which === "start") return isSwappedDay() ? 5 : 3;
-    return isSwappedDay() ? 3 : 5;
+  // grid-column配置と対応）。起點／終點は盤外（左右いずれかの辺）にあり、その辺の
+  // 列（3マス、斜め方向の板塊も含む）すべてに隣接するとみなす。
+  function pileAdjacentSlotIndices(which) {
+    var leftCol = [0, 3, 6];
+    var rightCol = [2, 5, 8];
+    var startOnRight = isSwappedDay();
+    if (which === "start") return startOnRight ? rightCol : leftCol;
+    return startOnRight ? leftCol : rightCol; // "end"
   }
 
   // fromPos／toPosは板塊index(0-8)、または"start"/"end"のいずれか。
@@ -9130,10 +9131,12 @@
         fromCol = fromPos % 3;
       var toRow = Math.floor(toPos / 3),
         toCol = toPos % 3;
-      return Math.max(Math.abs(fromRow - toRow), Math.abs(fromCol - toCol)) === 1;
+      var dRow = Math.abs(fromRow - toRow);
+      var dCol = Math.abs(fromCol - toCol);
+      return (dRow === 1 && dCol === 0) || (dRow === 0 && dCol === 1); // 通常マス同士は上下左右のみ
     }
-    if (typeof fromPos === "number") return fromPos === pileAdjacentSlotIndex(toPos);
-    if (typeof toPos === "number") return toPos === pileAdjacentSlotIndex(fromPos);
+    if (typeof fromPos === "number") return pileAdjacentSlotIndices(toPos).indexOf(fromPos) !== -1;
+    if (typeof toPos === "number") return pileAdjacentSlotIndices(fromPos).indexOf(toPos) !== -1;
     return false; // 起點⇔終點は隣接しない
   }
 

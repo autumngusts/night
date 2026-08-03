@@ -16,6 +16,7 @@
         zh: "追蹤者的大劍（161頁）　追蹤者的小盾（182頁）",
         ja: "追跡者の大剣（161頁）　追跡者の小盾（182頁）",
       },
+      startingWeaponId: "greatsword_pursuer",
       abilities: [
         {
           id: "sixth_sense",
@@ -215,6 +216,7 @@
         zh: "守護者的斧槍（176頁）　守護者的大盾（182頁）",
         ja: "守護者の斧槍（176頁）　守護者の大盾（182頁）",
       },
+      startingWeaponId: "halberd_guardian",
       abilities: [
         {
           id: "high_guard",
@@ -410,6 +412,7 @@
       powerMod: { strength: 0, dex: 10, balance: 5, intelligence: 0, faith: 0, arcane: 5 },
       favoredWeapons: { zh: "弓・短劍・武器", ja: "弓・短剣・武器" },
       startingEquipment: { zh: "鐵眼的弓（180頁）", ja: "鉄の目の弓（180頁）" },
+      startingWeaponId: "bow_iron_eye",
       abilities: [
         {
           id: "eye_for_value",
@@ -605,6 +608,7 @@
       powerMod: { strength: 0, dex: 5, balance: 5, intelligence: 5, faith: 0, arcane: 0 },
       favoredWeapons: { zh: "短劍・杖・武器", ja: "短剣・杖・武器" },
       startingEquipment: { zh: "淑女的短劍（158頁）", ja: "レディの短剣（158頁）" },
+      startingWeaponId: "dagger_lady_starter",
       abilities: [
         {
           id: "elegant_footwork",
@@ -806,6 +810,7 @@
       powerMod: { strength: 10, dex: 0, balance: 5, intelligence: 0, faith: 0, arcane: 0 },
       favoredWeapons: { zh: "特大武器・大斧・武器", ja: "特大武器・大斧・武器" },
       startingEquipment: { zh: "無賴漢的大斧（172頁）", ja: "無頼漢の大斧（172頁）" },
+      startingWeaponId: "great_weapon_ruffian",
       abilities: [
         {
           id: "fighting_spirit",
@@ -1004,6 +1009,7 @@
       powerMod: { strength: 0, dex: 0, balance: 0, intelligence: 0, faith: 10, arcane: 0 },
       favoredWeapons: { zh: "聖印・消耗品・武器", ja: "聖印・消耗品・武器" },
       startingEquipment: { zh: "復仇者的咒爪（179頁）　指之聖印（191頁）", ja: "復讐者の呪爪（179頁）　指の聖印（191頁）" },
+      startingWeaponId: "fist_vengeful",
       abilities: [
         {
           id: "necromancy",
@@ -1195,6 +1201,7 @@
       powerMod: { strength: 0, dex: 0, balance: 0, intelligence: 10, faith: 10, arcane: 0 },
       favoredWeapons: { zh: "杖・聖印・武器", ja: "杖・聖印・武器" },
       startingEquipment: { zh: "隱者的杖（184頁）", ja: "隠者の杖（184頁）" },
+      startingWeaponId: "staff_hermit",
       abilities: [
         {
           id: "elemental_control",
@@ -1401,6 +1408,7 @@
       powerMod: { strength: 0, dex: 10, balance: 5, intelligence: 0, faith: 0, arcane: 10 },
       favoredWeapons: { zh: "刀・槍・武器", ja: "刀・槍・武器" },
       startingEquipment: { zh: "執行者的刀（167頁）", ja: "執行者の刀（167頁）" },
+      startingWeaponId: "katana_executioner",
       abilities: [
         {
           id: "unyielding",
@@ -1595,6 +1603,7 @@
       powerMod: { strength: 0, dex: 0, balance: 0, intelligence: 0, faith: 0, arcane: 10 },
       favoredWeapons: { zh: "消耗品・刺劍・武器", ja: "消耗品・刺剣・武器" },
       startingEquipment: { zh: "學者的刺劍（164頁）", ja: "学者の刺剣（164頁）" },
+      startingWeaponId: "rapier_scholar",
       abilities: [
         {
           id: "carried_knowledge",
@@ -1790,6 +1799,7 @@
       powerMod: { strength: 10, dex: 0, balance: 5, intelligence: 0, faith: 5, arcane: 0 },
       favoredWeapons: { zh: "槌・拳・武器", ja: "槌・拳・武器" },
       startingEquipment: { zh: "送葬人的槌（169頁）", ja: "葬儀屋の槌（169頁）" },
+      startingWeaponId: "mace_funeral",
       abilities: [
         {
           id: "power_resonance",
@@ -1996,6 +2006,7 @@
         zh: "追蹤者的大劍（161頁）　追蹤者的小盾（182頁）",
         ja: "追跡者の大剣（161頁）　追跡者の小盾（182頁）",
       },
+      startingWeaponId: "greatsword_pursuer",
       abilities: [
         {
           id: "sixth_sense",
@@ -2192,6 +2203,7 @@
         zh: "守護者的斧槍（176頁）　守護者的大盾（182頁）",
         ja: "守護者の斧槍（176頁）　守護者の大盾（182頁）",
       },
+      startingWeaponId: "halberd_guardian",
       abilities: [
         {
           id: "high_guard",
@@ -2387,6 +2399,7 @@
       powerMod: { strength: 5, dex: 5, balance: 5, intelligence: 0, faith: 0, arcane: 5 },
       favoredWeapons: { zh: "弓・刀・武器", ja: "弓・刀・武器" },
       startingEquipment: { zh: "鐵眼的弓（180頁）", ja: "鉄の目の弓（180頁）" },
+      startingWeaponId: "bow_iron_eye",
       abilities: [
         {
           id: "eye_for_value",
@@ -2574,6 +2587,7 @@
       powerMod: { strength: 5, dex: 5, balance: 0, intelligence: 0, faith: 5, arcane: 0 },
       favoredWeapons: { zh: "短劍・聖印・武器", ja: "短剣・聖印・武器" },
       startingEquipment: { zh: "淑女的短劍（158頁）", ja: "レディの短剣（158頁）" },
+      startingWeaponId: "dagger_lady_starter",
       abilities: [
         {
           id: "elegant_footwork",
@@ -2764,6 +2778,7 @@
       powerMod: { strength: 10, dex: 0, balance: 0, intelligence: 5, faith: 0, arcane: 0 },
       favoredWeapons: { zh: "大槌・杖・武器", ja: "大槌・杖・武器" },
       startingEquipment: { zh: "無賴漢的大斧（172頁）", ja: "無頼漢の大斧（172頁）" },
+      startingWeaponId: "great_weapon_ruffian",
       abilities: [
         {
           id: "fighting_spirit",
@@ -2943,6 +2958,7 @@
       powerMod: { strength: 5, dex: 0, balance: 5, intelligence: 0, faith: 5, arcane: 0 },
       favoredWeapons: { zh: "斧・聖印・武器", ja: "斧・聖印・武器" },
       startingEquipment: { zh: "復仇者的咒爪（179頁）　指之聖印（191頁）", ja: "復讐者の呪爪（179頁）　指の聖印（191頁）" },
+      startingWeaponId: "fist_vengeful",
       abilities: [
         {
           id: "necromancy",
@@ -3140,6 +3156,7 @@
       powerMod: { strength: 0, dex: 5, balance: 5, intelligence: 0, faith: 5, arcane: 5 },
       favoredWeapons: { zh: "杖・鎌・武器", ja: "杖・鎌・武器" },
       startingEquipment: { zh: "隱者的杖（184頁）", ja: "隠者の杖（184頁）" },
+      startingWeaponId: "staff_hermit",
       abilities: [
         {
           id: "elemental_control",
@@ -3343,6 +3360,7 @@
       powerMod: { strength: 0, dex: 10, balance: 5, intelligence: 5, faith: 0, arcane: 5 },
       favoredWeapons: { zh: "刀・兩刃劍・武器", ja: "刀・両刃剣・武器" },
       startingEquipment: { zh: "執行者的刀（167頁）", ja: "執行者の刀（167頁）" },
+      startingWeaponId: "katana_executioner",
       abilities: [
         {
           id: "unyielding",
@@ -3527,6 +3545,7 @@
       powerMod: { strength: 0, dex: 10, balance: 5, intelligence: 0, faith: 0, arcane: 5 },
       favoredWeapons: { zh: "刺劍・消耗品・武器", ja: "刺剣・消耗品・武器" },
       startingEquipment: { zh: "學者的刺劍（164頁）", ja: "学者の刺剣（164頁）" },
+      startingWeaponId: "rapier_scholar",
       abilities: [
         {
           id: "carried_knowledge",
@@ -3717,6 +3736,7 @@
       powerMod: { strength: 5, dex: 0, balance: 5, intelligence: 0, faith: 10, arcane: 0 },
       favoredWeapons: { zh: "大槍・聖印・武器", ja: "大槍・聖印・武器" },
       startingEquipment: { zh: "送葬人的槌（169頁）", ja: "葬儀屋の槌（169頁）" },
+      startingWeaponId: "mace_funeral",
       abilities: [
         {
           id: "power_resonance",
