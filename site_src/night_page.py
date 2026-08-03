@@ -477,6 +477,7 @@ BODY = """    <div class="night-header-row">
         <div id="breakthrough-characters"></div>
         <p id="breakthrough-error" class="error-banner" hidden></p>
         <div class="actions">
+          <button id="btn-breakthrough-minimize" type="button" data-i18n="potential_power_minimize_button"></button>
           <button id="btn-breakthrough-cancel" type="button" data-i18n="cancel_button"></button>
           <button id="btn-breakthrough-reveal" type="button" class="primary-btn" data-i18n="breakthrough_reveal_button"></button>
           <button id="btn-breakthrough-fail" type="button" class="danger-btn" data-i18n="breakthrough_fail_button" hidden></button>
@@ -484,6 +485,7 @@ BODY = """    <div class="night-header-row">
         </div>
       </div>
     </div>
+    <button id="btn-breakthrough-restore" type="button" class="potential-power-restore-btn breakthrough-restore-btn" data-i18n="breakthrough_restore_button" hidden></button>
 
     <div id="threat-drawer" class="drawer">
       <div class="drawer-backdrop" id="threat-drawer-backdrop"></div>

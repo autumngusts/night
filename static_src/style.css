@@ -2412,6 +2412,11 @@ button {
   background: #c9822b;
 }
 
+.breakthrough-restore-btn {
+  bottom: 11rem;
+  background: #2b6ac9;
+}
+
 /* 上限超過（要解決）は他の縮小ボタンより優先度が高いため、スタッキングの最上位に置く。 */
 .inventory-overflow-restore-btn {
   bottom: 13rem;

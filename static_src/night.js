@@ -5660,6 +5660,7 @@
     if (!document.getElementById("potential-power-modal").hidden) renderPotentialPowerModal();
     if (!document.getElementById("item-draw-modal").hidden) CharacterDrawer.refreshActiveRollField();
     if (!document.getElementById("turn-reward-modal").hidden) renderTurnRewardModal();
+    if (!document.getElementById("breakthrough-modal").hidden) renderBreakthroughCharacters();
   }
 
   // 送出ボタン：入力中のメッセージを現在のメッセージ板（state.turnMessages）へ1行追加する。
@@ -8271,6 +8272,7 @@
     populateBreakthroughFieldSelectors(index);
     renderBreakthroughCharacters();
     document.getElementById("breakthrough-modal").hidden = false;
+    document.getElementById("btn-breakthrough-restore").hidden = true;
   }
 
   // 攀登判定：花色が「高い」板塊への移動時に開く。目標値は9+花色差の固定計算式だが、
@@ -8291,6 +8293,7 @@
     document.getElementById("breakthrough-error").hidden = true;
     renderBreakthroughCharacters();
     document.getElementById("breakthrough-modal").hidden = false;
+    document.getElementById("btn-breakthrough-restore").hidden = true;
   }
 
   // 判定發生：地圖版から任意のタイミングで開ける汎用判定。攀登判定と同様、目標値は揭曉するまで
@@ -8319,6 +8322,7 @@
     document.getElementById("breakthrough-error").hidden = true;
     renderBreakthroughCharacters();
     document.getElementById("breakthrough-modal").hidden = false;
+    document.getElementById("btn-breakthrough-restore").hidden = true;
   }
 
   // 規則書の通常セッション認証とは別に、揭曉のたびに必ずパスワードを再要求する
@@ -8355,7 +8359,22 @@
     document.getElementById("btn-breakthrough-pass").hidden = true;
     document.getElementById("breakthrough-import-row").hidden = false;
     document.getElementById("breakthrough-target-hideable").hidden = false;
+    document.getElementById("btn-breakthrough-restore").hidden = true;
     breakthroughState = null;
+  }
+
+  // 縮小/復元は他のモーダル(獎勵清單・抽選等)と同じ「モーダルを隠す＋別のスタッキング型
+  // 固定ボタンを表示」方式。判定發生は目標揭曉前・揭曉後（結果発表）のどちらの状態でも
+  // 同じモーダルを縮小するだけなので、専用の分岐は不要。
+  function minimizeBreakthroughModal() {
+    document.getElementById("breakthrough-modal").hidden = true;
+    document.getElementById("btn-breakthrough-restore").hidden = false;
+  }
+
+  function restoreBreakthroughModal() {
+    document.getElementById("btn-breakthrough-restore").hidden = true;
+    document.getElementById("breakthrough-modal").hidden = false;
+    renderBreakthroughCharacters();
   }
 
   var CHECK_STAT_KEYS = { luck: "luck", physical: "physical", mental: "mental" };
@@ -8414,7 +8433,14 @@
     if (!breakthroughState) return;
     var container = document.getElementById("breakthrough-characters");
     container.innerHTML = "";
-    var globalStat = document.getElementById("breakthrough-stat-select").value;
+    // 判定属性（全体選択）はGM限定操作：玩家回合中は変更不可にする（GM回合中に戻れば再び
+    // 変更可能）。ただし攀登判定（固定：體能）や揭曉後は、それぞれ元から常時disabledのため
+    // ここでは触らない（誤って再有効化しないよう対象外にする）。
+    var globalStatSelectEl = document.getElementById("breakthrough-stat-select");
+    if (breakthroughState.mode !== "climb" && !breakthroughState.revealed) {
+      globalStatSelectEl.disabled = !!(window.PriTestTurnHolder && window.PriTestTurnHolder() !== "gm");
+    }
+    var globalStat = globalStatSelectEl.value;
     var entered = rosterCharacters.filter(function (c) {
       return c.entered;
     });
@@ -8454,6 +8480,8 @@
       }
       updateRollBtnLabel();
       if (statSelect) statSelect.addEventListener("change", updateRollBtnLabel);
+      // 1度振ったら再ロック（振り直し不可）。以後は加護重骰（1個だけ振り直し可能）のみで対応する。
+      rollBtn.disabled = !!breakthroughState.characters[c.id];
       rollBtn.addEventListener("click", function () {
         var statKey = globalStat === "any" ? statSelect.value : globalStat;
         rollBreakthroughDice(c.id, statKey);
@@ -8536,6 +8564,16 @@
     return perPC ? target * entered.length : target;
   }
 
+  // 判定發生／攀登判定／樓層突破判定いずれも、結果をログ(state.log)に残すだけでなく、
+  // 同じ文言をGM留言板(state.turnMessages)にも自動投稿する（GM留言と同じ表示形式で
+  // 「GM:」接頭辞・黄字になる）。addLogに渡すのと全く同じi18nキー・paramsを使うことで、
+  // ログと留言板の文言が食い違わないようにする。
+  function pushBreakthroughSummaryMessage(key, params) {
+    state.turnMessages.push({ text: window.I18N.t(key, params), time: Date.now(), side: "gm" });
+    saveState();
+    renderTurnHolderBar();
+  }
+
   function resolveBreakthroughCheck(passed) {
     if (!breakthroughState) return;
     var sum = breakthroughDiceSum();
@@ -8545,28 +8583,36 @@
       closeBreakthroughModal();
       if (passed) finalizeSlotMove(moveTarget);
       if (typeof moveTarget === "number") {
-        addLog(passed ? "log_climb_check_pass" : "log_climb_check_fail", { slot: moveTarget + 1, sum: sum, target: actualTarget });
+        var climbKey = passed ? "log_climb_check_pass" : "log_climb_check_fail";
+        var climbParams = { slot: moveTarget + 1, sum: sum, target: actualTarget };
+        addLog(climbKey, climbParams);
+        pushBreakthroughSummaryMessage(climbKey, climbParams);
       } else {
-        addLog(passed ? "log_climb_check_pass_pile" : "log_climb_check_fail_pile", {
+        var climbPileKey = passed ? "log_climb_check_pass_pile" : "log_climb_check_fail_pile";
+        var climbPileParams = {
           place: window.I18N.t(moveTarget === "start" ? "start_point_label" : "end_point_label"),
           sum: sum,
           target: actualTarget,
-        });
+        };
+        addLog(climbPileKey, climbPileParams);
+        pushBreakthroughSummaryMessage(climbPileKey, climbPileParams);
       }
       return;
     }
     if (breakthroughState.mode === "generic") {
       closeBreakthroughModal();
-      addLog(passed ? "log_generic_check_pass" : "log_generic_check_fail", { sum: sum, target: actualTarget });
+      var genericKey = passed ? "log_generic_check_pass" : "log_generic_check_fail";
+      var genericParams = { sum: sum, target: actualTarget };
+      addLog(genericKey, genericParams);
+      pushBreakthroughSummaryMessage(genericKey, genericParams);
       return;
     }
     var index = breakthroughState.slotIndex;
     if (passed) stepCardLevel(index, 1);
-    addLog(passed ? "log_breakthrough_check_pass" : "log_breakthrough_check_fail", {
-      slot: index + 1,
-      sum: sum,
-      target: actualTarget,
-    });
+    var floorKey = passed ? "log_breakthrough_check_pass" : "log_breakthrough_check_fail";
+    var floorParams = { slot: index + 1, sum: sum, target: actualTarget };
+    addLog(floorKey, floorParams);
+    pushBreakthroughSummaryMessage(floorKey, floorParams);
     closeBreakthroughModal();
   }
 
@@ -9534,6 +9580,8 @@
     });
     document.getElementById("btn-combat-modal-close").addEventListener("click", closeCombatModal);
     document.getElementById("btn-combat-modal-minimize").addEventListener("click", handleCombatModalMinimizeToggle);
+    document.getElementById("btn-breakthrough-minimize").addEventListener("click", minimizeBreakthroughModal);
+    document.getElementById("btn-breakthrough-restore").addEventListener("click", restoreBreakthroughModal);
     document.getElementById("btn-breakthrough-cancel").addEventListener("click", closeBreakthroughModal);
     document.getElementById("btn-breakthrough-reveal").addEventListener("click", revealBreakthroughTarget);
     document.getElementById("btn-breakthrough-pass").addEventListener("click", function () {
