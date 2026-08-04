@@ -494,6 +494,15 @@ BODY = """    <div class="night-header-row">
         <div class="drawer-panel-scroll">
         <h2 data-i18n="threat_sheet_title"></h2>
 
+        <div class="threat-ref-block">
+          <h3 data-i18n="active_threat_effects_title"></h3>
+          <div id="active-threat-effects-list"></div>
+          <div class="dice-pool-header">
+            <input type="text" id="active-threat-effect-input" maxlength="80">
+            <button type="button" id="btn-active-threat-effect-add" data-i18n="active_threat_effect_add_button"></button>
+          </div>
+        </div>
+
         <h3 id="tl-day1-title"></h3>
         <div id="tl-day1-list" class="tl-list"></div>
 

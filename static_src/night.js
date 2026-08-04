@@ -604,6 +604,7 @@
     // 中身はcharacter_drawer.jsのweaponRollState/talismanRollState/consumableRollState、
     // またはnight.js内のpotentialPower関連状態と同じ形をした素のJSONオブジェクト。
     activeDraws: { potentialPower: null, weapon: null, talisman: null, consumable: null },
+    activeThreatEffects: [], // {id, text}の配列。「階段結束為止」等の非純傷害スキル効果をGM/玩家が自由記述で追加・Xで削除する手動リスト
   };
 
   function shuffle(arr) {
@@ -666,6 +667,7 @@
       turnRewards: state.turnRewards,
       turnBoardEnabled: state.turnBoardEnabled,
       activeDraws: state.activeDraws,
+      activeThreatEffects: state.activeThreatEffects,
     };
   }
 
@@ -1277,6 +1279,7 @@
         talisman: loadedDraws.talisman || null,
         consumable: loadedDraws.consumable || null,
       };
+      state.activeThreatEffects = Array.isArray(data.activeThreatEffects) ? data.activeThreatEffects : [];
     } catch (e) {
       // 壊れた状態は無視して初期状態のまま続行する
     }
@@ -1324,6 +1327,7 @@
     state.turnRewards = [];
     state.turnBoardEnabled = true;
     state.activeDraws = { potentialPower: null, weapon: null, talisman: null, consumable: null };
+    state.activeThreatEffects = [];
     localStorage.removeItem(STORAGE_KEY);
     clearUndoSnapshot();
   }
@@ -2993,6 +2997,54 @@
     renderThreatTextFields();
     renderThreatRefTexts();
     renderRollEffects();
+    renderActiveThreatEffects();
+  }
+
+  // 「階段結束為止，將敵人設為『HP價值：－10』」等、純粋なダメージ以外のスキル効果をGM/玩家が
+  // 自由記述で追加し、有効な間は一覧表示、無効化されたら各自Xで削除する手動リスト。
+  // 実際にどのスキル効果が現在有効かはGM/玩家が判断してテキストを入力する運用（自動検出はしない）。
+  function renderActiveThreatEffects() {
+    var container = document.getElementById("active-threat-effects-list");
+    if (!container) return;
+    container.innerHTML = "";
+    (state.activeThreatEffects || []).forEach(function (entry) {
+      var box = document.createElement("div");
+      box.className = "action-log-box";
+      var closeBtn = document.createElement("button");
+      closeBtn.type = "button";
+      closeBtn.className = "action-log-close";
+      closeBtn.textContent = "×";
+      closeBtn.title = window.I18N.t("action_log_clear_button");
+      closeBtn.addEventListener("click", function () {
+        removeActiveThreatEffect(entry.id);
+      });
+      box.appendChild(closeBtn);
+      var textEl = document.createElement("p");
+      textEl.className = "action-log-title";
+      textEl.textContent = entry.text;
+      box.appendChild(textEl);
+      container.appendChild(box);
+    });
+  }
+
+  function handleActiveThreatEffectAdd() {
+    var input = document.getElementById("active-threat-effect-input");
+    if (!input) return;
+    var text = input.value.trim();
+    if (!text) return;
+    if (!state.activeThreatEffects) state.activeThreatEffects = [];
+    state.activeThreatEffects.push({ id: "ate" + Date.now() + Math.floor(Math.random() * 1000), text: text });
+    input.value = "";
+    saveState();
+    renderActiveThreatEffects();
+  }
+
+  function removeActiveThreatEffect(id) {
+    state.activeThreatEffects = (state.activeThreatEffects || []).filter(function (entry) {
+      return entry.id !== id;
+    });
+    saveState();
+    renderActiveThreatEffects();
   }
 
   function openThreatDrawer() {
@@ -6328,6 +6380,9 @@
       // 自動計算ロックも解除し、次の回合の最初のロールで改めて確定できるようにする。
       if (isNewRoundFromDefense) {
         state.battle.positionLocked = new Array(BATTLE_SLOT_COUNT).fill(false);
+        // 新しい回合の開始（防禦→戰鬥）でも、額外／防禦フェイズ突入時と同様に前回合の
+        // 確定行動（点線枠）を一括で消去する（ユーザー確認済みの行動階段フロー仕様）。
+        clearAllPendingActionBoxes();
       }
       rosterCharacters.forEach(function (c) {
         // 新しい回合（防禦フェイズから戰鬥フェイズへ再突入）に入るとき、原則として全員の
@@ -9751,6 +9806,13 @@
     document.getElementById("btn-time-loss-info").addEventListener("click", openThreatDrawer);
     document.getElementById("btn-threat-drawer-close").addEventListener("click", closeThreatDrawer);
     document.getElementById("threat-drawer-backdrop").addEventListener("click", closeThreatDrawer);
+    document.getElementById("btn-active-threat-effect-add").addEventListener("click", handleActiveThreatEffectAdd);
+    document.getElementById("active-threat-effect-input").addEventListener("keydown", function (e) {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        handleActiveThreatEffectAdd();
+      }
+    });
     document.getElementById("btn-battle-info").addEventListener("click", openBattleDrawer);
     document.getElementById("btn-battle-drawer-close").addEventListener("click", closeBattleDrawer);
     document.getElementById("btn-bag-drawer-open").addEventListener("click", openBagDrawer);
