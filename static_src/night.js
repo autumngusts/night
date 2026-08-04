@@ -598,6 +598,7 @@
     floorRewardDismissed: {}, // key: floorKey+"_dismiss_"+entryIndex -> true（GMが個別に取消した項目）
     turnHolder: "gm", // "gm"|"gmEnding"|"players"|"playersEnding"（GM/玩家が同時にプレイしなくても各自の番で行動できるようにする受け渡しフラグ。GM限定の操作はstate.turnHolder==="gm"の完全一致でのみ許可し、"gmEnding"/"playersEnding"は中立状態として扱う）
     turnMessages: [], // {text, time, side("gm"|"players")}の配列。自分の番が再び始まる瞬間に自分側の分だけクリアされる
+    turnMessageHistory: [], // 上記でクリアされた留言を全て保持する読み取り専用の履歴（最新300件まで）
     turnRewards: [], // {id, text, checked}の配列。地板獎勵とは無関係の獨立勾選清單、手動削除まで保持
     turnBoardEnabled: true, // 主選單から行動留言板機能全体を開閉するフラグ
     // GMが開いて縮小した抽選ウィンドウを全端末で共有するための領域。null=未使用。
@@ -664,6 +665,7 @@
       floorRewardDismissed: state.floorRewardDismissed,
       turnHolder: state.turnHolder,
       turnMessages: state.turnMessages,
+      turnMessageHistory: state.turnMessageHistory,
       turnRewards: state.turnRewards,
       turnBoardEnabled: state.turnBoardEnabled,
       activeDraws: state.activeDraws,
@@ -1270,6 +1272,7 @@
         data.floorRewardDismissed && typeof data.floorRewardDismissed === "object" ? data.floorRewardDismissed : {};
       state.turnHolder = ["gm", "gmEnding", "players", "playersEnding"].indexOf(data.turnHolder) !== -1 ? data.turnHolder : "gm";
       state.turnMessages = Array.isArray(data.turnMessages) ? data.turnMessages : [];
+      state.turnMessageHistory = Array.isArray(data.turnMessageHistory) ? data.turnMessageHistory : [];
       state.turnRewards = Array.isArray(data.turnRewards) ? data.turnRewards : [];
       state.turnBoardEnabled = typeof data.turnBoardEnabled === "boolean" ? data.turnBoardEnabled : true;
       var loadedDraws = data.activeDraws && typeof data.activeDraws === "object" ? data.activeDraws : {};
@@ -1324,6 +1327,7 @@
     state.floorRewardDismissed = {};
     state.turnHolder = "gm";
     state.turnMessages = [];
+    state.turnMessageHistory = [];
     state.turnRewards = [];
     state.turnBoardEnabled = true;
     state.activeDraws = { potentialPower: null, weapon: null, talisman: null, consumable: null };
@@ -3210,6 +3214,24 @@
     });
     if (stateChanged) saveState();
     if (flagsChanged) saveRosterCharacters();
+  }
+
+  // 敵人を除去、または戦闘終了したときに残ってしまう「その敵人への屬性/異常蓄積」データを
+  // 消去する（enemyAccum/enemyTriggerCount/enemyRoundLockedは"敵人key|label"、dealtは
+  // "角色id|敵人key|label"がキー）。残したままだと再利用されたスロットに前の敵人の蓄積が
+  // 引き継がれてしまうバグの原因になる。
+  function purgeAttributeStatusForEnemyKey(enemyKey) {
+    var as = state.battle.attributeStatus;
+    if (!as) return;
+    ["enemyAccum", "enemyTriggerCount", "enemyRoundLocked"].forEach(function (bucket) {
+      Object.keys(as[bucket] || {}).forEach(function (k) {
+        if (k.indexOf(enemyKey + "|") === 0) delete as[bucket][k];
+      });
+    });
+    Object.keys(as.dealt || {}).forEach(function (k) {
+      if (k.split("|")[1] === enemyKey) delete as.dealt[k];
+    });
+    if (state.battle.enemyDmgOverride) delete state.battle.enemyDmgOverride[enemyKey];
   }
 
   // 敵人を除去した、または戦場を初期化したときは、前衛/後衛の点灯と敵視を全て解除する。
@@ -5310,6 +5332,11 @@
         }
       }
     }
+    // 復仇者「死靈術」：雑兵の段と同様、非雑兵エネミー側の段も「未撃破→ちょうど今回0に到達」
+    // した瞬間だけ発火させる（既に0の段をさらに操作しても再発火しない）。
+    if (current !== 0 && target === 0) {
+      handleMobRowDepleted();
+    }
     renderEnemyHpGrid();
     saveState();
     handleEnemyHpChanged();
@@ -5408,6 +5435,7 @@
 
   // 死靈術（necromancy）能力を持つ入場済みキャラ全員に「擲骰待ち」を1件積む。
   // 実際の擲骰・成否判定はSpirit Panel側（renderSpiritPanel）で行う。
+  // 雑兵の段（adjustMobHpRow）・非雑兵エネミーの段（adjustEnemyHpRow）どちらの撃破からも呼ばれる。
   function handleMobRowDepleted() {
     rosterCharacters.forEach(function (c) {
       if (!c.entered) return;
@@ -5743,14 +5771,25 @@
     if (messageList) {
       messageList.innerHTML = "";
       state.turnMessages.forEach(function (msg) {
-        var line = document.createElement("p");
-        line.className = "threat-ref-body";
-        if (msg.side === "gm") line.classList.add("turn-message-gm");
-        var time = new Date(msg.time).toLocaleTimeString();
-        var prefix = msg.side === "gm" ? "GM: " : "";
-        line.textContent = "[" + time + "] " + prefix + msg.text;
-        messageList.appendChild(line);
+        messageList.appendChild(renderTurnMessageLine(msg));
       });
+    }
+  }
+
+  // state.turnMessagesから指定side分をクリアする際、消さずにstate.turnMessageHistoryへ
+  // 移して残す（「歷史」ボタンから後で見返せるようにするため）。直近300件までに切り詰める。
+  function archiveTurnMessages(sideToClear) {
+    var kept = [];
+    state.turnMessages.forEach(function (m) {
+      if (m.side === sideToClear) {
+        state.turnMessageHistory.push(m);
+      } else {
+        kept.push(m);
+      }
+    });
+    state.turnMessages = kept;
+    if (state.turnMessageHistory.length > 300) {
+      state.turnMessageHistory = state.turnMessageHistory.slice(state.turnMessageHistory.length - 300);
     }
   }
 
@@ -5762,9 +5801,7 @@
     var newTurnHolder = nextTurnHolder(state.turnHolder);
     state.turnHolder = newTurnHolder;
     if (newTurnHolder === "gm" || newTurnHolder === "players") {
-      state.turnMessages = state.turnMessages.filter(function (m) {
-        return m.side !== newTurnHolder;
-      });
+      archiveTurnMessages(newTurnHolder);
     }
     saveState();
     addLog("log_turn_holder_handoff", { to: window.I18N.t(TURN_HOLDER_STATUS_KEYS[newTurnHolder]) });
@@ -5777,6 +5814,41 @@
     if (!document.getElementById("floor-reward-modal").hidden && floorRewardModalFloor) {
       renderFloorRewardSection(document.getElementById("floor-reward-modal-content"), floorRewardModalFloor);
     }
+  }
+
+  function renderTurnMessageLine(msg) {
+    var line = document.createElement("p");
+    line.className = "threat-ref-body";
+    if (msg.side === "gm") line.classList.add("turn-message-gm");
+    var time = new Date(msg.time).toLocaleTimeString();
+    var prefix = msg.side === "gm" ? "GM: " : "";
+    line.textContent = "[" + time + "] " + prefix + msg.text;
+    return line;
+  }
+
+  function renderTurnMessageHistoryModal() {
+    var list = document.getElementById("turn-message-history-list");
+    if (!list) return;
+    list.innerHTML = "";
+    if (!state.turnMessageHistory.length) {
+      var empty = document.createElement("p");
+      empty.className = "threat-ref-body";
+      empty.textContent = window.I18N.t("turn_message_history_empty");
+      list.appendChild(empty);
+      return;
+    }
+    state.turnMessageHistory.forEach(function (msg) {
+      list.appendChild(renderTurnMessageLine(msg));
+    });
+  }
+
+  function openTurnMessageHistoryModal() {
+    renderTurnMessageHistoryModal();
+    document.getElementById("turn-message-history-modal").hidden = false;
+  }
+
+  function closeTurnMessageHistoryModal() {
+    document.getElementById("turn-message-history-modal").hidden = true;
   }
 
   // 送出ボタン：入力中のメッセージを現在のメッセージ板（state.turnMessages）へ1行追加する。
@@ -6423,9 +6495,7 @@
     // handleTurnHolderToggleと同じく、GM側の留言はここでも「次のGm回合開始」に該当するため
     // クリアする（このショートカット経由の遷移だけクリアが漏れるバグを防ぐ）。
     state.turnHolder = "gm";
-    state.turnMessages = state.turnMessages.filter(function (m) {
-      return m.side !== "gm";
-    });
+    archiveTurnMessages("gm");
     // フェイズを切り替えるたびに「額外／防禦行動を使用済み」フラグをリセットする（次にまた
     // 同じフェイズへ入ったとき、全員が改めて1回分振れるようにするため）。
     rosterCharacters.forEach(function (c) {
@@ -6465,6 +6535,10 @@
         // 執行者「不撓」：戦闘終了までの持続スタックのため、戦闘終了のタイミングでクリアする。
         c._unyieldingStacks = 0;
       });
+      // 戦闘終了時、敵人への屬性/異常蓄積・亂戰傷害修正値も残留させず全消去する
+      // （次の戦闘で選ばれる敵人と無関係の古いデータが残り続けるのを防ぐ）。
+      state.battle.attributeStatus = defaultBattleState().attributeStatus;
+      state.battle.enemyDmgOverride = {};
       addLog("log_battle_combat_end");
     } else {
       addLog("log_action_phase_change", { phase: window.I18N.t("action_phase_" + phase) });
@@ -7544,6 +7618,7 @@
             var idx = state.battle.selectedEnemyIds.indexOf(item.key);
             if (idx !== -1) {
               state.battle.selectedEnemyIds.splice(idx, 1);
+              purgeAttributeStatusForEnemyKey(item.key);
               resetBattlePositionsAndAggro();
               renderSelectedEnemies();
               addLog("log_battle_enemy_remove", { enemy: T(item.info.enemy.name), level: item.level });
@@ -9884,6 +9959,8 @@
     document.getElementById("btn-action-phase").addEventListener("click", openActionPhaseModal);
     document.getElementById("btn-turn-holder-toggle").addEventListener("click", handleTurnHolderToggle);
     document.getElementById("btn-turn-message-send").addEventListener("click", handleTurnMessageSend);
+    document.getElementById("btn-turn-message-history").addEventListener("click", openTurnMessageHistoryModal);
+    document.getElementById("btn-turn-message-history-close").addEventListener("click", closeTurnMessageHistoryModal);
     document.getElementById("btn-turn-reward-open").addEventListener("click", openTurnRewardModal);
     document.getElementById("btn-turn-reward-modal-close").addEventListener("click", closeTurnRewardModal);
     document.getElementById("btn-turn-reward-modal-minimize").addEventListener("click", minimizeTurnRewardModal);

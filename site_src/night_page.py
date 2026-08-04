@@ -59,7 +59,18 @@ BODY = """    <div class="night-header-row">
         <div id="turn-message-list"></div>
         <div class="dice-pool-header">
           <textarea id="turn-message-input" rows="2"></textarea>
+          <button type="button" id="btn-turn-message-history" data-i18n="turn_message_history_button"></button>
           <button type="button" id="btn-turn-message-send" data-i18n="turn_message_send_button"></button>
+        </div>
+      </div>
+
+      <div id="turn-message-history-modal" class="modal" hidden>
+        <div class="modal-box combat-modal-box">
+          <h2 data-i18n="turn_message_history_title"></h2>
+          <div id="turn-message-history-list"></div>
+          <div class="actions">
+            <button id="btn-turn-message-history-close" type="button" class="primary-btn" data-i18n="close_button"></button>
+          </div>
         </div>
       </div>
 
@@ -193,6 +204,15 @@ BODY = """    <div class="night-header-row">
           </div>
         </div>
       </div>
+      <div class="threat-ref-block" id="active-threat-effects-block">
+        <h3 data-i18n="active_threat_effects_title"></h3>
+        <div id="active-threat-effects-list"></div>
+        <div class="dice-pool-header">
+          <input type="text" id="active-threat-effect-input" maxlength="80">
+          <button type="button" id="btn-active-threat-effect-add" data-i18n="active_threat_effect_add_button"></button>
+        </div>
+      </div>
+
       <div class="character-roster" id="character-roster">
         <h3 data-i18n="character_roster_title"></h3>
         <div class="character-roster-table-wrap">
@@ -493,15 +513,6 @@ BODY = """    <div class="night-header-row">
         <button type="button" class="drawer-close-tab" data-close-btn="btn-threat-drawer-close">&rsaquo;</button>
         <div class="drawer-panel-scroll">
         <h2 data-i18n="threat_sheet_title"></h2>
-
-        <div class="threat-ref-block">
-          <h3 data-i18n="active_threat_effects_title"></h3>
-          <div id="active-threat-effects-list"></div>
-          <div class="dice-pool-header">
-            <input type="text" id="active-threat-effect-input" maxlength="80">
-            <button type="button" id="btn-active-threat-effect-add" data-i18n="active_threat_effect_add_button"></button>
-          </div>
-        </div>
 
         <h3 id="tl-day1-title"></h3>
         <div id="tl-day1-list" class="tl-list"></div>
