@@ -1544,6 +1544,7 @@
     },
     {
       id: "bow",
+      isRanged: true,
       name: C("弓", "弓"),
       randomSkillTable: [
         { roll: "1", id: "art_strong_shot" },
@@ -1571,6 +1572,7 @@
     },
     {
       id: "greatbow",
+      isRanged: true,
       name: C("大弓", "大弓"),
       basicStats: {
         attackCost: C("1Hit：⑤／2Hit：⑤⑤", "1Hit：⑤／2Hit：⑤⑤"),
@@ -1609,6 +1611,7 @@
     },
     {
       id: "crossbow",
+      isRanged: true,
       name: C("クロスボウ", "弩"),
       basicStats: {
         attackCost: C("1Hit：⑤", "1Hit：⑤"),
@@ -1630,6 +1633,7 @@
     },
     {
       id: "ballista",
+      isRanged: true,
       name: C("バリスタ", "弩砲"),
       basicStats: {
         attackCost: C("1Hit：⑦", "1Hit：⑦"),

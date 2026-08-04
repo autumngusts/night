@@ -3422,10 +3422,11 @@
       var category = Weapons.getCategory(weapon.category);
       var damage = CharacterDrawer.computeWeaponDamage(c, weaponId);
       var attackCost = CharacterDrawer.parseAttackCost(Weapons.localizedText(category.basicStats.attackCost));
-      // 基本1Hit/2Hit攻撃のコスト表記（"1Hit：.../2Hit：..."）自体には現状、隊列限定の記述は
-      // 含まれない（隊列限定は個別技能の本文にのみ現れる）が、将来データが追加された場合に
-      // 備え、同じ判定ロジックを明示的に通しておく（現状は常にnull＝制限なし）。
-      var posRestriction = CharacterDrawer.parsePositionRestriction(Weapons.localizedText(category.basicStats.attackCost));
+      // 通常攻撃（1Hit/2Hit）の隊列制限は、個別技能のようなテキスト記述を持たないため、
+      // 武器カテゴリの近距離／遠距離区分から判定する。遠距離武器（弓・大弓・クロスボウ・
+      // バリスタ、category.isRanged）は前衛・後衛どちらでも使用可能、それ以外の近距離武器は
+      // 前衛でのみ使用可能（ユーザー確認済みのルール）。
+      var posRestriction = category.isRanged ? null : "front";
       var charPos = getCharacterBattlePosition(c);
       var posOk = !posRestriction || posRestriction === charPos;
 
@@ -3442,7 +3443,9 @@
       if (damage) {
         var dmgTag = document.createElement("span");
         dmgTag.className = "weapon-damage-tag";
-        dmgTag.textContent = " " + CharacterDrawer.weaponDamageTagText(damage);
+        // 角色詳細の武器欄と同じく、武器が持つ屬性/狀態異常蓄積スキルも黃字タグに併記する
+        // （戦闘中の攻撃選択プレビューにだけ表示が抜けていたのを、既存の武器欄と揃える）。
+        dmgTag.textContent = " " + CharacterDrawer.weaponDamageTagText(damage, CharacterDrawer.weaponAccumulationEffects(c, weaponId));
         row.appendChild(dmgTag);
       }
       if (posRestriction) {
@@ -3662,6 +3665,16 @@
       bodyEl.textContent = body;
       nameDetails.appendChild(bodyEl);
       row.appendChild(nameDetails);
+
+      // 技能發動後は虛線框に紅字で最終傷害が記録されるが、選擇前のこの一覧にも同じ黃字タグで
+      // 事前に威力を示す（武器の1Hit/2Hitと同じ視覚言語に揃える。計算不能な技能はタグ無し）。
+      var skillDamagePreview = computeSkillDamage(c, entry, body);
+      if (skillDamagePreview) {
+        var skillDmgTag = document.createElement("span");
+        skillDmgTag.className = "weapon-damage-tag";
+        skillDmgTag.textContent = " " + CharacterDrawer.formatValueWithSymbol(skillDamagePreview.value, skillDamagePreview.symbol);
+        row.appendChild(skillDmgTag);
+      }
 
       var effectiveMax = entry.uses ? entry.uses + usesBonus : null;
       var remaining = effectiveMax !== null ? (typeof (c.abilityUses && c.abilityUses[entry.id]) === "number" ? c.abilityUses[entry.id] : effectiveMax) : null;
@@ -4784,10 +4797,11 @@
   function renderCombatEquipAction(c, content) {
     var Weapons = window.PriTestWeapons;
     if (!c.equippedWeaponIds) c.equippedWeaponIds = [];
-    var swappable = (c.weaponIds || []).filter(function (id) {
-      return c.equippedWeaponIds.indexOf(id) === -1;
-    });
-    if (!swappable.length) {
+    // 裝備變更は「持っている武器のうちどれを装備するか」を自由に選び直せる行動であり、
+    // 既に全て装備済みで交換先が無い場合でも卸下（未装備へ戻す）は常に行えるべきなので、
+    // 「交換可能な武器が無い」ことを理由にUI自体を表示しないのは誤りだった（以前は
+    // ここでエラー表示して終了しており、唯一の武器を外すことすらできなかった）。
+    if (!(c.weaponIds || []).length) {
       showCombatError("combat_error_no_equip_swap");
       return;
     }
