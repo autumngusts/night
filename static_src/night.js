@@ -3391,6 +3391,21 @@
   // 攻撃actionで属性/異常蓄積の記録先とする、選択中の敵人のキー。選択肢が変わるたびに
   // 有効な値へ補正する（既定は先頭の敵人）。
   var combatAttackTargetEnemyKey = null;
+  // 復仇者「靈體傷害」：總合傷害（敵人）／復歸傷害（PC）のどちらを選ぼうとしているかの中間状態
+  // （執行者「咆哮」と同じ二択パターン）。骰子を消費しない専用行動のため、攻擊清單の武器欄と
+  // 同じ場所に追加し、行動階段が切り替わるたびに1回だけ使用可能にする。
+  var spiritDamageChoice = null; // "enemy" | "pc" | null
+
+  // 靈體資料（character_types.jsの召喚靈體スキル本文記載値、ユーザー確認済み）:
+  // 海倫：發生傷害 15+（PC等級×5）／弗雷德里克：5+▲+（PC等級×5）／賽巴斯汀：10+（PC等級×5）。
+  function computeSpiritSummonDamage(c) {
+    if (!c.spiritSummon) return null;
+    var level = c.level || 1;
+    if (c.spiritSummon === "helen") return { value: 15 + level * 5, symbol: null };
+    if (c.spiritSummon === "frederick") return { value: 5 + level * 5, symbol: "▲" };
+    if (c.spiritSummon === "sebastian") return { value: 10 + level * 5, symbol: null };
+    return null;
+  }
 
   function renderCombatAttackAction(c, content) {
     // 執行者「坩堝諸相・獸」：發動中は武器・盾・杖・聖印が使用不可になり、固定の襲擊／咆哮
@@ -3413,7 +3428,6 @@
       empty.className = "threat-ref-body";
       empty.textContent = window.I18N.t("combat_no_weapons_note");
       content.appendChild(empty);
-      return;
     }
 
     equippedIds.forEach(function (weaponId) {
@@ -3562,6 +3576,100 @@
         });
       }
     });
+
+    // 復仇者「召喚靈體」：靈體傷害は規則書上、行動階段・特殊階段ごとに自動で1回発生するもの
+    // なので、骰子を消費しない専用行動として攻擊清單に追加する（ユーザー確認済み）。
+    var spiritDamage = computeSpiritSummonDamage(c);
+    if (spiritDamage) {
+      var spiritRow = document.createElement("div");
+      spiritRow.className = "combat-attack-weapon-row";
+      var spiritNameEl = document.createElement("span");
+      spiritNameEl.className = "combat-attack-weapon-name";
+      spiritNameEl.textContent = window.I18N.t("spirit_summon_choice_" + c.spiritSummon + "_label");
+      spiritRow.appendChild(spiritNameEl);
+      var spiritDmgTag = document.createElement("span");
+      spiritDmgTag.className = "weapon-damage-tag";
+      spiritDmgTag.textContent = " " + CharacterDrawer.formatValueWithSymbol(spiritDamage.value, spiritDamage.symbol);
+      spiritRow.appendChild(spiritDmgTag);
+      content.appendChild(spiritRow);
+
+      if (c._spiritDamageUsedThisPhase) {
+        var spiritUsedNote = document.createElement("p");
+        spiritUsedNote.className = "threat-ref-body";
+        spiritUsedNote.textContent = window.I18N.t("spirit_damage_used_this_phase_note");
+        content.appendChild(spiritUsedNote);
+      } else {
+        var spiritChoiceRow = document.createElement("div");
+        spiritChoiceRow.className = "wb-row";
+        [
+          { key: "enemy", label: window.I18N.t("spirit_damage_choice_enemy_label") },
+          { key: "pc", label: window.I18N.t("spirit_damage_choice_pc_label") },
+        ].forEach(function (opt) {
+          var spiritChoiceBtn = document.createElement("button");
+          spiritChoiceBtn.type = "button";
+          spiritChoiceBtn.textContent = opt.label;
+          if (spiritDamageChoice === opt.key) spiritChoiceBtn.classList.add("active");
+          spiritChoiceBtn.addEventListener("click", function () {
+            spiritDamageChoice = spiritDamageChoice === opt.key ? null : opt.key;
+            renderCombatModal();
+          });
+          spiritChoiceRow.appendChild(spiritChoiceBtn);
+        });
+        content.appendChild(spiritChoiceRow);
+
+        var spiritTargetSelect = null;
+        if (spiritDamageChoice === "pc") {
+          var enteredForSpirit = rosterCharacters.filter(function (rc) {
+            return rc.entered;
+          });
+          spiritTargetSelect = document.createElement("select");
+          enteredForSpirit.forEach(function (rc) {
+            var o = document.createElement("option");
+            o.value = rc.id;
+            o.textContent = rc.name;
+            spiritTargetSelect.appendChild(o);
+          });
+          content.appendChild(spiritTargetSelect);
+        }
+
+        if (spiritDamageChoice) {
+          var spiritConfirmBtn = document.createElement("button");
+          spiritConfirmBtn.type = "button";
+          spiritConfirmBtn.className = "primary-btn";
+          spiritConfirmBtn.textContent = window.I18N.t("combat_confirm_button");
+          spiritConfirmBtn.addEventListener("click", function () {
+            var spiritName = window.I18N.t("spirit_summon_choice_" + c.spiritSummon + "_label");
+            var valueText = CharacterDrawer.formatValueWithSymbol(spiritDamage.value, spiritDamage.symbol);
+            var targetChar =
+              spiritDamageChoice === "pc" && spiritTargetSelect
+                ? rosterCharacters.filter(function (rc) {
+                    return rc.id === spiritTargetSelect.value;
+                  })[0]
+                : null;
+            c._spiritDamageUsedThisPhase = true;
+            saveRosterCharacters();
+            addActionBox(
+              c,
+              window.I18N.t("spirit_damage_action_title", { name: spiritName }),
+              spiritDamageChoice === "pc"
+                ? window.I18N.t("spirit_damage_pc_target_total", { value: valueText, target: targetChar ? targetChar.name : "" })
+                : window.I18N.t("action_log_damage_total", { value: valueText }),
+              []
+            );
+            addLog("log_spirit_damage_use", {
+              character: c.name,
+              spirit: spiritName,
+              choice: window.I18N.t(spiritDamageChoice === "pc" ? "spirit_damage_choice_pc_label" : "spirit_damage_choice_enemy_label"),
+              target: targetChar ? "（" + targetChar.name + "）" : "",
+            });
+            spiritDamageChoice = null;
+            renderCharacterRoster();
+            renderCombatModal();
+          });
+          content.appendChild(spiritConfirmBtn);
+        }
+      }
+    }
   }
 
   // 技能action中「どの技能を使おうとしているか」の一時状態（entry.idまたは配列index）。
@@ -5884,7 +5992,15 @@
   // 別のスタッキング型固定ボタンを表示」パターンで縮小/復元できる。各項目は実際に地板獎勵と
   // 同じ抽選/加算処理を起動できる「獲得」ボタンを持ち、獲得済みかどうか(claimed)を保持する。
   var TURN_REWARD_KINDS = ["weapon", "consumable", "talisman", "potentialPower", "stoneswordKey", "smithingStone", "chaliceBonus", "rune"];
-  var TURN_REWARD_SHARED_KINDS = ["stoneswordKey", "smithingStone", "chaliceBonus", "rune"];
+  // stoneswordKey/smithingStoneは純粋な共有カウンター（角色の概念自体が無い）なので對象selectを
+  // 常時非表示にする。chaliceBonus/runeは「全體」（従来通り全員へ一律付与）と「任意」（領取時に
+  // 1名選ぶ）を選べるようにしたため、ここには含めない（對象selectを表示する側）。
+  var TURN_REWARD_SHARED_KINDS = ["stoneswordKey", "smithingStone"];
+  // 「全體」（一律全員へ付与）の選択肢を出す種類。角色ごとの領取という概念に馴染む
+  // weapon/consumable/talisman/potentialPowerには出さない。
+  var TURN_REWARD_ALL_TARGET_KINDS = ["chaliceBonus", "rune"];
+  var TURN_REWARD_ANY_TARGET_VALUE = "__any__"; // 領取時に1名選ぶ
+  var TURN_REWARD_SHARED_TARGET_VALUE = "__shared__"; // 全員へ一律付与
 
   function isTurnRewardSharedKind(kind) {
     return TURN_REWARD_SHARED_KINDS.indexOf(kind) !== -1;
@@ -5952,7 +6068,7 @@
       });
       kindSelect.dataset.built = "1";
       kindSelect.addEventListener("change", function () {
-        targetSelect.hidden = isTurnRewardSharedKind(kindSelect.value);
+        renderTurnRewardAddForm();
       });
     }
     targetSelect.hidden = isTurnRewardSharedKind(kindSelect.value);
@@ -5967,6 +6083,16 @@
       opt.textContent = c.name;
       targetSelect.appendChild(opt);
     });
+    var anyOpt = document.createElement("option");
+    anyOpt.value = TURN_REWARD_ANY_TARGET_VALUE;
+    anyOpt.textContent = window.I18N.t("turn_reward_target_any_label");
+    targetSelect.appendChild(anyOpt);
+    if (TURN_REWARD_ALL_TARGET_KINDS.indexOf(kindSelect.value) !== -1) {
+      var allOpt = document.createElement("option");
+      allOpt.value = TURN_REWARD_SHARED_TARGET_VALUE;
+      allOpt.textContent = window.I18N.t("turn_reward_target_all_label");
+      targetSelect.appendChild(allOpt);
+    }
     if (
       prevTarget &&
       entered.some(function (c) {
@@ -5987,8 +6113,11 @@
 
   function turnRewardLabel(reward) {
     var kindLabel = window.I18N.t("turn_reward_kind_" + reward.kind);
-    if (isTurnRewardSharedKind(reward.kind)) {
+    if (isTurnRewardSharedKind(reward.kind) || reward.targetCharacterId === TURN_REWARD_SHARED_TARGET_VALUE) {
       return window.I18N.t("turn_reward_item_shared_label", { kind: kindLabel, value: reward.value });
+    }
+    if (reward.targetCharacterId === TURN_REWARD_ANY_TARGET_VALUE) {
+      return window.I18N.t("turn_reward_item_any_label", { kind: kindLabel, value: reward.value });
     }
     var target = rosterCharacters.filter(function (c) {
       return c.id === reward.targetCharacterId;
@@ -6032,24 +6161,42 @@
       finish("log_turn_reward_claim_shared", { kind: window.I18N.t("turn_reward_kind_smithingStone"), value: reward.value });
       return;
     }
+    // chaliceBonus/runeは「全體」（従来通り全員へ一律付与）と「任意」（獲得時に選んだ1名のみへ
+    // 付与、renderTurnRewardModal側でボタン押下前にtargetCharacterIdへ実体化済み）の両方に対応する。
+    var applyToOne =
+      reward.targetCharacterId &&
+      reward.targetCharacterId !== TURN_REWARD_SHARED_TARGET_VALUE &&
+      reward.targetCharacterId !== TURN_REWARD_ANY_TARGET_VALUE
+        ? rosterCharacters.filter(function (c) {
+            return c.id === reward.targetCharacterId;
+          })[0]
+        : null;
     if (reward.kind === "chaliceBonus") {
-      entered.forEach(function (c) {
+      (applyToOne ? [applyToOne] : entered).forEach(function (c) {
         if (!c.flaskExtra) c.flaskExtra = { current: 0, max: 0 };
         c.flaskExtra.max = (c.flaskExtra.max || 0) + reward.value;
         c.flaskExtra.current = (c.flaskExtra.current || 0) + reward.value;
       });
       saveRosterCharacters();
       renderCharacterRoster();
-      finish("log_turn_reward_claim_shared", { kind: window.I18N.t("turn_reward_kind_chaliceBonus"), value: reward.value });
+      if (applyToOne) {
+        finish("log_turn_reward_claim_shared_one", { character: applyToOne.name, kind: window.I18N.t("turn_reward_kind_chaliceBonus"), value: reward.value });
+      } else {
+        finish("log_turn_reward_claim_shared", { kind: window.I18N.t("turn_reward_kind_chaliceBonus"), value: reward.value });
+      }
       return;
     }
     if (reward.kind === "rune") {
-      entered.forEach(function (c) {
+      (applyToOne ? [applyToOne] : entered).forEach(function (c) {
         c.runes = (c.runes || 0) + reward.value;
       });
       saveRosterCharacters();
       renderCharacterRoster();
-      finish("log_turn_reward_claim_shared", { kind: window.I18N.t("turn_reward_kind_rune"), value: reward.value });
+      if (applyToOne) {
+        finish("log_turn_reward_claim_shared_one", { character: applyToOne.name, kind: window.I18N.t("turn_reward_kind_rune"), value: reward.value });
+      } else {
+        finish("log_turn_reward_claim_shared", { kind: window.I18N.t("turn_reward_kind_rune"), value: reward.value });
+      }
       return;
     }
     var target = rosterCharacters.filter(function (c) {
@@ -6117,11 +6264,30 @@
       if (reward.claimed) text.style.textDecoration = "line-through";
       row.appendChild(text);
       if (!reward.claimed && !reward.claiming) {
+        // 「任意」は追加時点では對象未確定のため、獲得ボタンを押す直前にここで1名選ばせ、
+        // 選んだ角色IDをtargetCharacterIdへ実体化してからclaimTurnRewardへ渡す（以降の処理は
+        // 固定角色指定の場合と完全に同じ経路を通る）。
+        var anyPickerSelect = null;
+        if (reward.targetCharacterId === TURN_REWARD_ANY_TARGET_VALUE) {
+          var enteredForPicker = rosterCharacters.filter(function (c) {
+            return c.entered;
+          });
+          anyPickerSelect = document.createElement("select");
+          enteredForPicker.forEach(function (c) {
+            var o = document.createElement("option");
+            o.value = c.id;
+            o.textContent = c.name;
+            anyPickerSelect.appendChild(o);
+          });
+          row.appendChild(anyPickerSelect);
+        }
         var claimBtn = document.createElement("button");
         claimBtn.type = "button";
         claimBtn.className = "primary-btn";
         claimBtn.textContent = window.I18N.t("turn_reward_claim_button");
+        if (anyPickerSelect && !anyPickerSelect.options.length) claimBtn.disabled = true;
         claimBtn.addEventListener("click", function () {
+          if (anyPickerSelect) reward.targetCharacterId = anyPickerSelect.value;
           claimTurnReward(reward);
         });
         row.appendChild(claimBtn);
@@ -6517,6 +6683,8 @@
       c._defenseActionUsed = false;
       c._consecutiveGuardCount = 0;
       c._dodgeActionUsed = false;
+      // 復仇者「靈體傷害」：行動階段・特殊階段ごとに1回だけ（規則書の「各自動發生1次」に対応）。
+      c._spiritDamageUsedThisPhase = false;
       // 守護者「高防禦」（本フェイズが終わるまで持続）と「旋風」（本フェイズにつき1回まで）は
       // どちらもフェイズ切替の都度リセットする。無賴漢「逆襲」をDefenseとして使用した後の
       // 「他の格擋を使用できない」ロックも同様に、フェイズ切替の都度リセットする。
