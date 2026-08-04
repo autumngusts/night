@@ -5991,7 +5991,7 @@
   // ターン交代では消えず、GMが手動で削除するまで保持される。樓層獲得と同じ「モーダルを隠す＋
   // 別のスタッキング型固定ボタンを表示」パターンで縮小/復元できる。各項目は実際に地板獎勵と
   // 同じ抽選/加算処理を起動できる「獲得」ボタンを持ち、獲得済みかどうか(claimed)を保持する。
-  var TURN_REWARD_KINDS = ["weapon", "consumable", "talisman", "potentialPower", "stoneswordKey", "smithingStone", "chaliceBonus", "rune"];
+  var TURN_REWARD_KINDS = ["weapon", "consumable", "talisman", "potentialPower", "stoneswordKey", "smithingStone", "chaliceBonus", "rune", "buriedTreasure"];
   // stoneswordKey/smithingStoneは純粋な共有カウンター（角色の概念自体が無い）なので對象selectを
   // 常時非表示にする。chaliceBonus/runeは「全體」（従来通り全員へ一律付与）と「任意」（領取時に
   // 1名選ぶ）を選べるようにしたため、ここには含めない（對象selectを表示する側）。
@@ -6071,7 +6071,7 @@
         renderTurnRewardAddForm();
       });
     }
-    targetSelect.hidden = isTurnRewardSharedKind(kindSelect.value);
+    targetSelect.hidden = isTurnRewardSharedKind(kindSelect.value) || kindSelect.value === "buriedTreasure";
     var entered = rosterCharacters.filter(function (c) {
       return c.entered;
     });
@@ -6107,8 +6107,14 @@
     var addBtn = document.getElementById("btn-turn-reward-add");
     kindSelect.disabled = !isGmTurn;
     targetSelect.disabled = !isGmTurn;
-    if (valueInput) valueInput.disabled = !isGmTurn;
-    if (addBtn) addBtn.disabled = !isGmTurn;
+    if (valueInput) {
+      valueInput.hidden = kindSelect.value === "buriedTreasure";
+      valueInput.disabled = !isGmTurn;
+    }
+    if (addBtn) {
+      addBtn.textContent = window.I18N.t(kindSelect.value === "buriedTreasure" ? "turn_reward_roll_buried_treasure_button" : "turn_reward_add_button");
+      addBtn.disabled = !isGmTurn;
+    }
   }
 
   function turnRewardLabel(reward) {
@@ -6312,12 +6318,47 @@
     });
   }
 
+  // ランダムイベント「埋もれ宝」の「チェスト内容決定表」（1D）。
+  // 1｜鍛石　2｜石剣の鍵　3｜消耗品：★　4-5｜武器：★★　6｜武器：★★★
+  function buriedTreasureRollToReward(roll) {
+    if (roll === 1) return { kind: "smithingStone", value: 1, needsTarget: false };
+    if (roll === 2) return { kind: "stoneswordKey", value: 1, needsTarget: false };
+    if (roll === 3) return { kind: "consumable", value: 1, needsTarget: true };
+    if (roll === 4 || roll === 5) return { kind: "weapon", value: 2, needsTarget: true };
+    return { kind: "weapon", value: 3, needsTarget: true };
+  }
+
+  // ランダムイベント「埋もれ宝」：1Dを3回振り、「チェスト内容決定表」に沿ったアイテムを
+  // それぞれ獎勵清單へ積む（消耗品/武器は「任意」＝獲得時にGMが對象角色を選ぶ）。
+  function handleBuriedTreasureAdd() {
+    for (var i = 0; i < 3; i++) {
+      var roll = 1 + Math.floor(Math.random() * 6);
+      var resolved = buriedTreasureRollToReward(roll);
+      state.turnRewards.push({
+        id: "tr" + Date.now() + Math.floor(Math.random() * 1000) + "_bt" + i,
+        kind: resolved.kind,
+        targetCharacterId: resolved.needsTarget ? TURN_REWARD_ANY_TARGET_VALUE : null,
+        value: resolved.value,
+        claimed: false,
+      });
+      addLog("log_buried_treasure_roll", { roll: roll, kind: window.I18N.t("turn_reward_kind_" + resolved.kind), value: resolved.value });
+    }
+    saveState();
+    renderTurnRewardModal();
+  }
+
   function handleTurnRewardAdd() {
     var kindSelect = document.getElementById("turn-reward-kind-select");
     var targetSelect = document.getElementById("turn-reward-target-select");
     var valueInput = document.getElementById("turn-reward-value-input");
     if (!kindSelect || !targetSelect || !valueInput) return;
     var kind = kindSelect.value;
+    // 「埋もれ宝」は對象/數量の入力欄自体を持たず、押した瞬間に1Dを3回振って結果をまとめて
+    // 積む専用の挙動のため、他の種類と分岐させる。
+    if (kind === "buriedTreasure") {
+      handleBuriedTreasureAdd();
+      return;
+    }
     var shared = isTurnRewardSharedKind(kind);
     var targetCharacterId = shared ? null : targetSelect.value || null;
     if (!shared && !targetCharacterId) return;
