@@ -3545,11 +3545,17 @@
   }
 
   // 戦技（art）の「威力：N＋戦技威力」から、指定した武器のartPowerを使ってm（=戦技の実際の威力）を
-  // 計算する。パターンに合致しない場合はnullを返す（無理に数字を出さない）。
+  // 計算する。半角「+」表記の資料（一部のみ）も許容するよう[+＋]で両対応する。
+  // 「威力：N」の直後に「戦技威力」以外の未対応の修飾語（例：＋神秘補正）が続く場合は、
+  // その分を計算できないため数字を捏造せずnullを返す。何も修飾語が続かない場合（弓カテゴリの
+  // 戦技など）は、Nをそのまま固定威力として扱う。
   function artSkillPowerValue(bodyText, artPower) {
-    var m = /威力[：:]\s*(-?\d+)＋(?:戦技威力|戰技威力)/.exec(String(bodyText || ""));
-    if (!m) return null;
-    return { value: parseInt(m[1], 10) + artPower, symbol: extractDamageSymbol(bodyText) };
+    var t = String(bodyText || "");
+    var m = /威力[：:]\s*(-?\d+)[+＋](?:戦技威力|戰技威力)/.exec(t);
+    if (m) return { value: parseInt(m[1], 10) + artPower, symbol: extractDamageSymbol(t) };
+    var flat = /威力[：:]\s*(-?\d+)(?!\d)(?!\s*[+＋])/.exec(t);
+    if (flat) return { value: parseInt(flat[1], 10), symbol: extractDamageSymbol(t) };
+    return null;
   }
 
   // 杖・聖印の魔術／祈祷は、原文に「＋戦技威力」の明記が無くても「威力：N」の印字値に対して
