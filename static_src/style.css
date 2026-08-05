@@ -835,6 +835,21 @@ button {
   pointer-events: none;
 }
 
+/* 升級後、遺物効果の習得枠が余っている（例：3/4）ことを示す常時点滅の外枠。 */
+@keyframes relic-learn-pending-flash {
+  0%,
+  100% {
+    box-shadow: 0 0 0 2px #ffd21a;
+  }
+  50% {
+    box-shadow: 0 0 0 2px #ff8c00;
+  }
+}
+
+.roster-thumb-wrap.relic-learn-pending .character-thumb {
+  animation: relic-learn-pending-flash 1s ease-in-out infinite;
+}
+
 /* 後方の.modal-box基底ルール（max-width:320px）と同じ詳細度(単一クラス)だと
    ソース順で.modal-boxが勝ってしまうため、.modal-box.gallery-modal-boxで
    詳細度を上げて確実に上書きする。 */

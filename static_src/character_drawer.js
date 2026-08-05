@@ -5775,6 +5775,7 @@
     getEquippedWeaponSkillEntries: getEquippedWeaponSkillEntries,
     categoryTwoHitDiceBonus: categoryTwoHitDiceBonus,
     weaponAccumulationEffects: weaponAccumulationEffects,
+    relicMaxLearnable: relicMaxLearnable,
     merchantDrawWeapon: merchantDrawWeapon,
     presetWeaponRollForReward: presetWeaponRollForReward,
     makeConsumableInstanceId: makeConsumableInstanceId,

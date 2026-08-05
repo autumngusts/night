@@ -169,6 +169,18 @@
           renderCharacterRoster();
         });
       }
+      // 升級して遺物効果の習得枠数が増えたのに、まだ習得しきっていない（例：3/4）場合、
+      // 共有面板の角色圖像に常時点滅の外枠を付けて気づきやすくする。
+      var relicMaxForThumb = type && type.relicEffectGroups ? CharacterDrawer.relicMaxLearnable(c.level) : 0;
+      if (relicMaxForThumb > 0 && (c.learnedRelicEffects || []).length < relicMaxForThumb) {
+        thumbWrap.classList.add("relic-learn-pending");
+        if (!c._nearDeath) {
+          thumbWrap.title = window.I18N.t("relic_learn_pending_hint", {
+            learned: (c.learnedRelicEffects || []).length,
+            max: relicMaxForThumb,
+          });
+        }
+      }
       var thumbSrc = type ? CharacterTypes.imagePath(type) : null;
       if (thumbSrc) {
         var thumb = document.createElement("img");
