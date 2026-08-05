@@ -171,6 +171,7 @@ BODY = """    <div class="night-header-row">
         <button type="button" class="function-menu-toggle-btn" id="btn-function-menu-toggle" aria-label="toggle function menu">&#9654;</button>
         <div class="function-menu-list" id="function-menu-list">
           <button type="button" class="primary-btn function-menu-item" id="btn-generic-check" data-i18n="generic_check_button"></button>
+          <button type="button" class="primary-btn function-menu-item" id="btn-event-chip-trigger" data-i18n="event_chip_trigger_button"></button>
         </div>
       </div>
 
@@ -384,6 +385,19 @@ BODY = """    <div class="night-header-row">
         </div>
       </div>
     </div>
+
+    <div id="event-chip-modal" class="modal" hidden>
+      <div class="modal-box combat-modal-box">
+        <h2 id="event-chip-modal-title"></h2>
+        <p class="error-banner" data-i18n="event_chip_used_warning"></p>
+        <div id="event-chip-modal-content"></div>
+        <div class="actions">
+          <button id="btn-event-chip-minimize" type="button" data-i18n="potential_power_minimize_button"></button>
+          <button id="btn-event-chip-modal-close" type="button" class="danger-btn" data-i18n="leave_button"></button>
+        </div>
+      </div>
+    </div>
+    <button id="btn-event-chip-restore" type="button" class="potential-power-restore-btn event-chip-restore-btn" data-i18n="event_chip_restore_button" hidden></button>
 
     <div id="potential-power-modal" class="modal" hidden>
       <div class="modal-box combat-modal-box">

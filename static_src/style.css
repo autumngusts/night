@@ -668,6 +668,16 @@ button {
   border-radius: 3px;
 }
 
+/* 「籌碼事件」で行動を使用済みのチット：取り消し線＋半透明で「もう発動できない」ことを示す。 */
+.slot-chip-row.used {
+  opacity: 0.5;
+  text-decoration: line-through;
+}
+
+.slot-chip-row.used .slot-chip-icon {
+  filter: grayscale(1);
+}
+
 .level-control {
   display: flex;
   align-items: center;
@@ -2526,6 +2536,11 @@ button {
 .inventory-overflow-restore-btn {
   bottom: 13rem;
   background: #c0392b;
+}
+
+.event-chip-restore-btn {
+  bottom: 14rem;
+  background: #6b4c9a;
 }
 
 .field-floor-reward-btn {

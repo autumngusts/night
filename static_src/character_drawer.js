@@ -3388,13 +3388,33 @@
   // 含む）常に使う共通部分で、各アーツ／魔術／祈祷の「威力：N＋戦技威力」の解決に使う。
   var NON_HIT_CATEGORY_IDS = ["staff", "sacred_seal"];
 
+  // 商人チットイベント「鍛造台」で個別に強化された武器の稀有度（カタログ上の稀有度を
+  // 上書きする）。角色・武器インスタンスID単位で保持し、カタログ自体（他の全角色に
+  // 共通のweapons.jsデータ）は変更しない。
+  var RARITY_UPGRADE_NEXT = { C: "U", U: "R" };
+
+  function getEffectiveWeaponRarity(c, weaponId) {
+    var weapon = Weapons.get(baseWeaponId(weaponId));
+    if (!weapon) return null;
+    return (c.weaponRarityOverride && c.weaponRarityOverride[weaponId]) || weapon.rarity;
+  }
+
+  function upgradeWeaponRarity(c, weaponId) {
+    var current = getEffectiveWeaponRarity(c, weaponId);
+    var next = RARITY_UPGRADE_NEXT[current];
+    if (!next) return false;
+    if (!c.weaponRarityOverride) c.weaponRarityOverride = {};
+    c.weaponRarityOverride[weaponId] = next;
+    return true;
+  }
+
   function computeArtPower(c, weaponId) {
     var weapon = Weapons.get(baseWeaponId(weaponId));
     if (!weapon) return null;
     var category = Weapons.getCategory(weapon.category);
     if (!category) return null;
 
-    var rarityCorrection = RARITY_CORRECTION[weapon.rarity] || 0;
+    var rarityCorrection = RARITY_CORRECTION[getEffectiveWeaponRarity(c, weaponId)] || 0;
     var powerModText = weapon.powerModOverride ? Weapons.localizedText(weapon.powerModOverride) : Weapons.localizedText(category.basicStats.powerMod);
     var statKey = resolvePowerModStatKey(powerModText);
     var type = c.typeId ? CharacterTypes.get(c.typeId) : null;
@@ -5783,6 +5803,8 @@
     categoryTwoHitDiceBonus: categoryTwoHitDiceBonus,
     weaponAccumulationEffects: weaponAccumulationEffects,
     relicMaxLearnable: relicMaxLearnable,
+    getEffectiveWeaponRarity: getEffectiveWeaponRarity,
+    upgradeWeaponRarity: upgradeWeaponRarity,
     merchantDrawWeapon: merchantDrawWeapon,
     presetWeaponRollForReward: presetWeaponRollForReward,
     makeConsumableInstanceId: makeConsumableInstanceId,
