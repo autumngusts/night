@@ -1285,6 +1285,7 @@
       renderLevelNextCostMarker(c);
     }
     if (def.id === "char-revival-count") renderRevivalBonusMarkers(c);
+    if (def.id === "char-hp-current" && window.PriTestNightNearDeathCheck) window.PriTestNightNearDeathCheck(c);
   }
 
   // --- 武器データベース検索＆選択（武器欄に既存の自由記述タグとは別枠で追加する） ---

@@ -823,25 +823,66 @@ button {
   cursor: pointer;
 }
 
+@keyframes near-death-flash {
+  0%,
+  100% {
+    filter: grayscale(1) brightness(1);
+  }
+  50% {
+    filter: grayscale(0.15) brightness(1.7);
+  }
+}
+
 .roster-thumb-wrap.near-death .character-thumb {
-  filter: grayscale(1);
+  animation: near-death-flash 1s ease-in-out infinite;
+}
+
+@keyframes near-death-exclaim-flash {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.1;
+  }
 }
 
 .roster-thumb-wrap.near-death::after {
   content: "!";
   position: absolute;
-  top: -4px;
-  right: -4px;
-  width: 16px;
-  height: 16px;
-  line-height: 16px;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 20px;
+  height: 20px;
+  line-height: 20px;
   text-align: center;
   border-radius: 50%;
   background: #d64545;
   color: #fff;
   font-weight: bold;
-  font-size: 12px;
+  font-size: 15px;
   pointer-events: none;
+  animation: near-death-exclaim-flash 0.8s ease-in-out infinite;
+}
+
+.near-death-revival-circle {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: 2px solid #d64545;
+  background: #fff5f5;
+  color: #d64545;
+  font-weight: bold;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.near-death-revival-circle.clicked {
+  background: #d64545;
+  color: #fff;
+  opacity: 0.6;
+  cursor: default;
 }
 
 /* 升級後、遺物効果の習得枠が余っている（例：3/4）ことを示す常時点滅の外枠。 */

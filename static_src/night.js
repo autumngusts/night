@@ -67,8 +67,36 @@
 
   // ロスターの骰子池表示。通常時は非活性ボタン（見た目はdice-item表示のみ）、重骰待ち中は
   // クリック可能にして、押した骰子だけを重骰対象にする。
+  // 瀕死中は骰子池の代わりに、復歸次數（0回:+20 / 1回:+30 / 2回以上:+40、常に3個固定）の
+  // 円形ボタンを表示する。3個すべて押し終えると自動で復歸処理が起動する（ユーザー確認済み）。
+  function nearDeathRevivalValue(c) {
+    var count = c.revivalCount || 0;
+    return count >= 2 ? 40 : count === 1 ? 30 : 20;
+  }
+
   function renderRosterDiceDisplay(c, container) {
     container.innerHTML = "";
+    if (c._nearDeath) {
+      var value = nearDeathRevivalValue(c);
+      var clicked = c._nearDeathRevivalClicked || [false, false, false];
+      for (var i = 0; i < 3; i++) {
+        (function (idx) {
+          var revivalBtn = document.createElement("button");
+          revivalBtn.type = "button";
+          revivalBtn.className = "near-death-revival-circle";
+          if (clicked[idx]) {
+            revivalBtn.classList.add("clicked");
+            revivalBtn.disabled = true;
+          }
+          revivalBtn.textContent = "+" + value;
+          revivalBtn.addEventListener("click", function () {
+            handleNearDeathRevivalClick(c, idx);
+          });
+          container.appendChild(revivalBtn);
+        })(i);
+      }
+      return;
+    }
     var pending = !!dicePoolRerollPending[c.id];
     (c.dicePool || []).forEach(function (v, i) {
       var die = document.createElement("button");
@@ -83,6 +111,67 @@
       container.appendChild(die);
     });
   }
+
+  // HPが0に到達した瞬間に発火する瀕死状態：骰子池・確定行動（点線枠）をその角色分だけ
+  // クリアし、共有面板の圖像に閃灰白のアニメーションを表示する。
+  function triggerNearDeath(c) {
+    if (c._nearDeath) return;
+    c._nearDeath = true;
+    c._nearDeathRevivalClicked = [false, false, false];
+    c.dicePool = [];
+    c.pendingActionBoxes = [];
+    saveRosterCharacters();
+    addLog("log_near_death_trigger", { character: c.name });
+  }
+
+  function handleNearDeathRevivalClick(c, idx) {
+    if (!c._nearDeath) return;
+    if (!c._nearDeathRevivalClicked) c._nearDeathRevivalClicked = [false, false, false];
+    if (c._nearDeathRevivalClicked[idx]) return;
+    c._nearDeathRevivalClicked[idx] = true;
+    var allClicked = c._nearDeathRevivalClicked.every(function (v) {
+      return v;
+    });
+    if (allClicked) {
+      completeNearDeathRevival(c);
+    } else {
+      saveRosterCharacters();
+      renderCharacterRoster();
+    }
+  }
+
+  // 復歸完了：復歸次數+1、瀕死解除、骰子自動2顆、區域移動を後衛へ、HPを最大值の半分
+  // （小數點以下切り捨て）まで回復する。
+  function completeNearDeathRevival(c) {
+    c.revivalCount = (c.revivalCount || 0) + 1;
+    c._nearDeath = false;
+    c._nearDeathRevivalClicked = null;
+    if (!c.dicePool) c.dicePool = [];
+    c.dicePool.push(1 + Math.floor(Math.random() * 6));
+    c.dicePool.push(1 + Math.floor(Math.random() * 6));
+    c.hp.current = Math.floor((c.hp.max || 0) / 2);
+    saveRosterCharacters();
+    var names = battlePositionNames();
+    var idx = names.indexOf(c.name);
+    if (idx !== -1 && idx < BATTLE_SLOT_COUNT) {
+      state.battle.front[idx] = false;
+      state.battle.back[idx] = true;
+      saveState();
+      renderBattlePositionAreas();
+    }
+    addLog("log_near_death_revival", { character: c.name, hp: c.hp.current });
+    renderCharacterRoster();
+  }
+
+  // HPを減らす全ての経路（角色詳細のHPステッパー、屬性/異常のトリガー等）から呼ぶ共通チェック。
+  // 0に到達した瞬間だけ発火し、既に瀕死中なら何もしない。
+  function checkNearDeathTrigger(c) {
+    if ((c.hp && c.hp.current) <= 0 && !c._nearDeath) {
+      triggerNearDeath(c);
+      renderCharacterRoster();
+    }
+  }
+  window.PriTestNightNearDeathCheck = checkNearDeathTrigger;
 
   function toggleDicePoolBlessing(c) {
     if (dicePoolRerollPending[c.id]) {
@@ -165,6 +254,7 @@
         thumbWrap.addEventListener("click", function () {
           if (!window.confirm(window.I18N.t("attribute_status_near_death_clear_confirm", { name: c.name }))) return;
           c._nearDeath = false;
+          c._nearDeathRevivalClicked = null;
           saveRosterCharacters();
           renderCharacterRoster();
         });
@@ -1095,6 +1185,7 @@
     saveRosterCharacters();
     renderCharacterRoster();
     addLog("log_attribute_status_element_trigger_char", { name: c.name, label: label });
+    checkNearDeathTrigger(c);
   }
 
   function applyAttributeStatusAilmentTriggerOnChar(characterId, label) {
@@ -1108,7 +1199,6 @@
       addLog("log_attribute_status_sleep_trigger_char", { name: c.name });
     } else if (label === ATTRIBUTE_STATUS_DEATH_CURSE_LABEL) {
       c.hp.current = 0;
-      c._nearDeath = true;
       addLog("log_attribute_status_death_curse_trigger_char", { name: c.name });
     } else {
       c.hp.current = Math.max(0, (c.hp.current || 0) - 2);
@@ -1116,6 +1206,7 @@
     }
     saveRosterCharacters();
     renderCharacterRoster();
+    checkNearDeathTrigger(c);
   }
 
   function processAttributeStatusCharTrigger(characterId, label) {
@@ -4704,6 +4795,7 @@
       onConfirm(dice, costLines);
       renderCharacterRoster();
       renderCombatModal();
+      if (cost && cost.hpCost) checkNearDeathTrigger(c);
     });
     content.appendChild(confirmBtn);
   }
