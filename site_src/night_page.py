@@ -31,6 +31,7 @@ BODY = """    <div class="night-header-row">
               <button id="btn-undo-night" type="button" class="main-menu-item" data-i18n="undo_night_button"></button>
               <button id="btn-primary-action" type="button" class="main-menu-item primary-btn"></button>
               <button id="btn-tts-toggle" type="button" class="main-menu-item"></button>
+              <button id="btn-dice-animation-toggle" type="button" class="main-menu-item"></button>
               <button id="btn-turn-board-toggle" type="button" class="main-menu-item"></button>
               <button id="btn-new-game" type="button" class="main-menu-item danger-btn" data-i18n="new_game_button"></button>
             </div>
@@ -50,6 +51,10 @@ BODY = """    <div class="night-header-row">
     <div id="screen-missing-game" hidden>
       <p data-i18n="game_not_found"></p>
       <a class="back-link" href="../admin/index.html" data-i18n="back_admin"></a>
+    </div>
+
+    <div id="dice-roll-overlay" hidden>
+      <div id="dice-roll-overlay-stage"></div>
     </div>
 
     <section id="screen-board" class="screen">

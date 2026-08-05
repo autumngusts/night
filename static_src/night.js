@@ -1517,6 +1517,66 @@
     speechSynthesis.onvoiceschanged = function () {};
   }
 
+  // ============================================================
+  // 骰子擲骰の全畫面演出：🎲アイコンで実際に振った出目（既に確定済みの値）を、
+  // 全畫面のオーバーレイでランダムに面を切り替えながら見せ、最後に本当の出目へ着地させる
+  // （演出はあくまで確定済みの結果を派手に見せるだけで、出目そのものを別途決め直すことはない）。
+  // TTSと同じくデバイス単位のON/OFF（既定はON）で、設定から切り替えられる。
+  // ============================================================
+  var DICE_ANIMATION_STORAGE_KEY = "pritest-dice-animation-enabled";
+  var diceAnimationEnabled = localStorage.getItem(DICE_ANIMATION_STORAGE_KEY) !== "0";
+  var DICE_FACE_CHARS = ["⚀", "⚁", "⚂", "⚃", "⚄", "⚅"];
+  var diceAnimationTimer = null;
+
+  function setDiceAnimationEnabled(enabled) {
+    diceAnimationEnabled = enabled;
+    localStorage.setItem(DICE_ANIMATION_STORAGE_KEY, enabled ? "1" : "0");
+    renderDiceAnimationToggleButton();
+  }
+
+  function renderDiceAnimationToggleButton() {
+    var btn = document.getElementById("btn-dice-animation-toggle");
+    if (!btn) return;
+    btn.textContent = window.I18N.t(diceAnimationEnabled ? "dice_animation_toggle_on_label" : "dice_animation_toggle_off_label");
+  }
+
+  function playDiceRollAnimation(values) {
+    var overlay = document.getElementById("dice-roll-overlay");
+    if (!diceAnimationEnabled || !overlay || !values || !values.length) return;
+    var stage = document.getElementById("dice-roll-overlay-stage");
+    if (!stage) return;
+    if (diceAnimationTimer) {
+      clearInterval(diceAnimationTimer.interval);
+      clearTimeout(diceAnimationTimer.settleTimeout);
+      clearTimeout(diceAnimationTimer.hideTimeout);
+    }
+    stage.innerHTML = "";
+    var dieEls = values.map(function () {
+      var el = document.createElement("div");
+      el.className = "dice-roll-overlay-die";
+      el.textContent = DICE_FACE_CHARS[Math.floor(Math.random() * 6)];
+      stage.appendChild(el);
+      return el;
+    });
+    overlay.hidden = false;
+    var spinInterval = setInterval(function () {
+      dieEls.forEach(function (el) {
+        el.textContent = DICE_FACE_CHARS[Math.floor(Math.random() * 6)];
+      });
+    }, 70);
+    var settleTimeout = setTimeout(function () {
+      clearInterval(spinInterval);
+      dieEls.forEach(function (el, i) {
+        el.textContent = DICE_FACE_CHARS[Math.max(0, Math.min(5, values[i] - 1))];
+        el.classList.add("settled");
+      });
+    }, 1100);
+    var hideTimeout = setTimeout(function () {
+      overlay.hidden = true;
+    }, 1700);
+    diceAnimationTimer = { interval: spinInterval, settleTimeout: settleTimeout, hideTimeout: hideTimeout };
+  }
+
   function addLog(key, params) {
     state.log.push({ key: key, params: params || {}, time: Date.now() });
     renderLog();
@@ -5907,6 +5967,9 @@
     rosterDiceRollFeedback[c.id] = rolled;
     saveRosterCharacters();
     renderCharacterRoster();
+    if (rolled > 0) {
+      playDiceRollAnimation(c.dicePool.slice(c.dicePool.length - rolled));
+    }
   }
 
   function renderActionPhaseButton() {
@@ -10722,6 +10785,10 @@
       setTtsEnabled(!ttsEnabled);
     });
     renderTtsToggleButton();
+    document.getElementById("btn-dice-animation-toggle").addEventListener("click", function () {
+      setDiceAnimationEnabled(!diceAnimationEnabled);
+    });
+    renderDiceAnimationToggleButton();
     document.getElementById("btn-turn-board-toggle").addEventListener("click", function () {
       setTurnBoardEnabled(!state.turnBoardEnabled);
     });

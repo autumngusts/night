@@ -2543,6 +2543,45 @@ button {
   background: #6b4c9a;
 }
 
+/* 🎲アイコンで擲骰した瞬間に全畫面へ被さる演出。既に確定済みの出目を、面をランダムに
+   切り替えながら見せた後、本当の出目へ着地させる（設定でON/OFF可能）。 */
+#dice-roll-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 900;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.55);
+  pointer-events: none;
+}
+
+#dice-roll-overlay-stage {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  justify-content: center;
+  max-width: 90vw;
+}
+
+.dice-roll-overlay-die {
+  width: min(18vw, 100px);
+  height: min(18vw, 100px);
+  line-height: min(18vw, 100px);
+  text-align: center;
+  font-size: min(14vw, 80px);
+  background: #fff;
+  border-radius: 16px;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.5);
+  transform: scale(0.9) rotate(0deg);
+  transition: transform 0.15s ease;
+}
+
+.dice-roll-overlay-die.settled {
+  transform: scale(1.15) rotate(0deg);
+  box-shadow: 0 0 0 4px #ffd21a, 0 6px 24px rgba(0, 0, 0, 0.5);
+}
+
 .field-floor-reward-btn {
   margin: 0.4rem 0 0.3rem;
   padding: 0.35rem 0.8rem;
