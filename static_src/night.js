@@ -1547,34 +1547,45 @@
     if (!stage) return;
     if (diceAnimationTimer) {
       clearInterval(diceAnimationTimer.interval);
+      clearTimeout(diceAnimationTimer.tumbleStartTimeout);
       clearTimeout(diceAnimationTimer.settleTimeout);
       clearTimeout(diceAnimationTimer.hideTimeout);
     }
     stage.innerHTML = "";
-    var dieEls = values.map(function () {
+    // 骰子ごとに投げ入れの開始を少しずつずらし、一斉に同じ動きをする不自然さを避ける。
+    var dieEls = values.map(function (v, i) {
       var el = document.createElement("div");
-      el.className = "dice-roll-overlay-die";
+      el.className = "dice-roll-overlay-die thrown-in";
+      el.style.animationDelay = i * 0.05 + "s";
       el.textContent = DICE_FACE_CHARS[Math.floor(Math.random() * 6)];
       stage.appendChild(el);
       return el;
     });
     overlay.hidden = false;
+    // 投げ入れアニメーションが終わる頃に、回転しながら出目を切り替える「転がる」フェイズへ移行する。
+    var tumbleStartTimeout = setTimeout(function () {
+      dieEls.forEach(function (el) {
+        el.classList.remove("thrown-in");
+        el.classList.add("tumbling");
+      });
+    }, 350);
     var spinInterval = setInterval(function () {
       dieEls.forEach(function (el) {
         el.textContent = DICE_FACE_CHARS[Math.floor(Math.random() * 6)];
       });
-    }, 70);
+    }, 90);
     var settleTimeout = setTimeout(function () {
       clearInterval(spinInterval);
       dieEls.forEach(function (el, i) {
+        el.classList.remove("tumbling");
         el.textContent = DICE_FACE_CHARS[Math.max(0, Math.min(5, values[i] - 1))];
         el.classList.add("settled");
       });
-    }, 1100);
+    }, 1300);
     var hideTimeout = setTimeout(function () {
       overlay.hidden = true;
-    }, 1700);
-    diceAnimationTimer = { interval: spinInterval, settleTimeout: settleTimeout, hideTimeout: hideTimeout };
+    }, 1900);
+    diceAnimationTimer = { interval: spinInterval, tumbleStartTimeout: tumbleStartTimeout, settleTimeout: settleTimeout, hideTimeout: hideTimeout };
   }
 
   function addLog(key, params) {
