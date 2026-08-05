@@ -2901,23 +2901,35 @@
   }
 
   function renderThreatTextFields() {
-    document.getElementById("input-smithing-stone").value = state.smithingStone || "";
-    document.getElementById("input-stonesword-key").value = state.stoneswordKey || "";
     document.getElementById("input-grace").value = state.grace || "";
     renderStoneswordKeyCount();
+    renderSmithingStoneCount();
+  }
+
+  // 鍛石／石劍鑰匙は自由記述の入力欄を廃止し、＋－ボタンのみでカウントを直接編集する
+  // （0未満にはならない）。
+  function adjustStoneswordKeyCount(delta) {
+    state.stoneswordKeyCount = Math.max(0, (state.stoneswordKeyCount || 0) + delta);
+    saveState();
+    renderStoneswordKeyCount();
+  }
+
+  function adjustSmithingStoneCount(delta) {
+    state.smithingStoneCount = Math.max(0, (state.smithingStoneCount || 0) + delta);
+    saveState();
     renderSmithingStoneCount();
   }
 
   function renderStoneswordKeyCount() {
     var el = document.getElementById("stonesword-key-count-label");
     if (!el) return;
-    el.textContent = window.I18N.t("stonesword_key_count_label", { value: state.stoneswordKeyCount || 0 });
+    el.textContent = String(state.stoneswordKeyCount || 0);
   }
 
   function renderSmithingStoneCount() {
     var el = document.getElementById("smithing-stone-count-label");
     if (!el) return;
-    el.textContent = window.I18N.t("smithing_stone_count_label", { value: state.smithingStoneCount || 0 });
+    el.textContent = String(state.smithingStoneCount || 0);
   }
 
   function renderThreatRefTexts() {
@@ -10215,6 +10227,13 @@
     document.getElementById("main-menu-list").addEventListener("click", function () {
       this.classList.remove("open");
     });
+    // 「設定」はサブメニューを開閉するだけのトグルなので、押しても主選單自体は閉じない
+    // （e.stopPropagationでmain-menu-listの全体クローズ処理をブロックする）。
+    document.getElementById("btn-settings-menu-toggle").addEventListener("click", function (e) {
+      e.stopPropagation();
+      var submenu = document.getElementById("settings-submenu");
+      submenu.hidden = !submenu.hidden;
+    });
     document.querySelectorAll(".action-phase-grid button").forEach(function (btn) {
       btn.addEventListener("click", function () {
         // 戰鬥フェイズから額外行動を経由せず直接防禦フェイズへ進もうとした場合、額外行動の
@@ -10231,13 +10250,17 @@
         setActionPhase(btn.dataset.phase);
       });
     });
-    document.getElementById("input-smithing-stone").addEventListener("input", function (e) {
-      state.smithingStone = e.target.value;
-      saveState();
+    document.getElementById("btn-smithing-stone-minus").addEventListener("click", function () {
+      adjustSmithingStoneCount(-1);
     });
-    document.getElementById("input-stonesword-key").addEventListener("input", function (e) {
-      state.stoneswordKey = e.target.value;
-      saveState();
+    document.getElementById("btn-smithing-stone-plus").addEventListener("click", function () {
+      adjustSmithingStoneCount(1);
+    });
+    document.getElementById("btn-stonesword-key-minus").addEventListener("click", function () {
+      adjustStoneswordKeyCount(-1);
+    });
+    document.getElementById("btn-stonesword-key-plus").addEventListener("click", function () {
+      adjustStoneswordKeyCount(1);
     });
     document.getElementById("input-grace").addEventListener("input", function (e) {
       state.grace = e.target.value;

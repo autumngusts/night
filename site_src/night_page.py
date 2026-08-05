@@ -20,17 +20,20 @@ BODY = """    <div class="night-header-row">
           <button type="button" class="main-menu-toggle-btn" id="btn-main-menu-toggle" aria-label="toggle main menu">&#9776;</button>
           <div class="main-menu-list" id="main-menu-list">
             <a id="link-characters" class="back-link main-menu-item" href="../index.html" data-i18n="back_characters"></a>
-            <button id="btn-undo-night" type="button" class="main-menu-item" data-i18n="undo_night_button"></button>
-            <button id="btn-primary-action" type="button" class="main-menu-item primary-btn"></button>
-            <button id="btn-new-game" type="button" class="main-menu-item danger-btn" data-i18n="new_game_button"></button>
             <button id="btn-battle-info" type="button" class="main-menu-item" data-i18n="battle_sheet_label"></button>
             <button id="btn-potential-power-info" type="button" class="main-menu-item" data-i18n="potential_power_menu_label"></button>
             <button id="btn-main-menu-draw-weapon" type="button" class="main-menu-item" data-i18n="main_menu_draw_weapon_label"></button>
             <button id="btn-main-menu-draw-talisman" type="button" class="main-menu-item" data-i18n="main_menu_draw_talisman_label"></button>
             <button id="btn-main-menu-draw-consumable" type="button" class="main-menu-item" data-i18n="main_menu_draw_consumable_label"></button>
             <button id="btn-turn-reward-open" type="button" class="main-menu-item" data-i18n="turn_reward_open_button"></button>
-            <button id="btn-tts-toggle" type="button" class="main-menu-item"></button>
-            <button id="btn-turn-board-toggle" type="button" class="main-menu-item"></button>
+            <button id="btn-settings-menu-toggle" type="button" class="main-menu-item" data-i18n="settings_menu_label"></button>
+            <div class="main-menu-submenu" id="settings-submenu" hidden>
+              <button id="btn-undo-night" type="button" class="main-menu-item" data-i18n="undo_night_button"></button>
+              <button id="btn-primary-action" type="button" class="main-menu-item primary-btn"></button>
+              <button id="btn-tts-toggle" type="button" class="main-menu-item"></button>
+              <button id="btn-turn-board-toggle" type="button" class="main-menu-item"></button>
+              <button id="btn-new-game" type="button" class="main-menu-item danger-btn" data-i18n="new_game_button"></button>
+            </div>
           </div>
         </div>
         <h1 data-i18n="project_night_name"></h1>
@@ -69,7 +72,7 @@ BODY = """    <div class="night-header-row">
           <h2 data-i18n="turn_message_history_title"></h2>
           <div id="turn-message-history-list"></div>
           <div class="actions">
-            <button id="btn-turn-message-history-close" type="button" class="primary-btn" data-i18n="close_button"></button>
+            <button id="btn-turn-message-history-close" type="button" class="danger-btn" data-i18n="leave_button"></button>
           </div>
         </div>
       </div>
@@ -86,7 +89,7 @@ BODY = """    <div class="night-header-row">
           </div>
           <div class="actions">
             <button id="btn-turn-reward-modal-minimize" type="button" data-i18n="potential_power_minimize_button"></button>
-            <button id="btn-turn-reward-modal-close" type="button" class="primary-btn" data-i18n="close_button"></button>
+            <button id="btn-turn-reward-modal-close" type="button" class="danger-btn" data-i18n="leave_button"></button>
           </div>
         </div>
       </div>
@@ -191,7 +194,7 @@ BODY = """    <div class="night-header-row">
           <h2 data-i18n="spirit_panel_title"></h2>
           <div id="spirit-panel-content"></div>
           <div class="actions">
-            <button id="btn-spirit-panel-close" type="button" class="primary-btn" data-i18n="close_button"></button>
+            <button id="btn-spirit-panel-close" type="button" class="danger-btn" data-i18n="leave_button"></button>
           </div>
         </div>
       </div>
@@ -200,7 +203,7 @@ BODY = """    <div class="night-header-row">
           <h2 data-i18n="element_mark_panel_title"></h2>
           <div id="element-mark-panel-content"></div>
           <div class="actions">
-            <button id="btn-element-mark-panel-close" type="button" class="primary-btn" data-i18n="close_button"></button>
+            <button id="btn-element-mark-panel-close" type="button" class="danger-btn" data-i18n="leave_button"></button>
           </div>
         </div>
       </div>
@@ -362,7 +365,7 @@ BODY = """    <div class="night-header-row">
         </div>
         <div id="combat-modal-content"></div>
         <div class="actions">
-          <button id="btn-combat-modal-close" type="button" class="primary-btn" data-i18n="close_button"></button>
+          <button id="btn-combat-modal-close" type="button" class="danger-btn" data-i18n="leave_button"></button>
         </div>
       </div>
     </div>
@@ -377,7 +380,7 @@ BODY = """    <div class="night-header-row">
         <p id="merchant-rune-label" class="threat-ref-body"></p>
         <div id="merchant-modal-content"></div>
         <div class="actions">
-          <button id="btn-merchant-modal-close" type="button" class="primary-btn" data-i18n="close_button"></button>
+          <button id="btn-merchant-modal-close" type="button" class="danger-btn" data-i18n="leave_button"></button>
         </div>
       </div>
     </div>
@@ -401,7 +404,7 @@ BODY = """    <div class="night-header-row">
         <div id="potential-power-modal-content"></div>
         <div class="actions">
           <button id="btn-potential-power-minimize" type="button" data-i18n="potential_power_minimize_button"></button>
-          <button id="btn-potential-power-modal-close" type="button" class="primary-btn" data-i18n="close_button"></button>
+          <button id="btn-potential-power-modal-close" type="button" class="danger-btn" data-i18n="leave_button"></button>
         </div>
       </div>
     </div>
@@ -413,7 +416,7 @@ BODY = """    <div class="night-header-row">
         <p class="threat-ref-body" data-i18n="main_menu_draw_select_character_note"></p>
         <div id="main-menu-draw-char-list" class="main-menu-draw-char-list"></div>
         <div class="actions">
-          <button id="btn-main-menu-draw-close" type="button" class="primary-btn" data-i18n="close_button"></button>
+          <button id="btn-main-menu-draw-close" type="button" class="danger-btn" data-i18n="leave_button"></button>
         </div>
       </div>
     </div>
@@ -424,7 +427,7 @@ BODY = """    <div class="night-header-row">
         <div id="item-draw-modal-content"></div>
         <div class="actions">
           <button id="btn-item-draw-modal-minimize" type="button" data-i18n="potential_power_minimize_button"></button>
-          <button id="btn-item-draw-modal-close" type="button" class="primary-btn" data-i18n="close_button"></button>
+          <button id="btn-item-draw-modal-close" type="button" class="danger-btn" data-i18n="leave_button"></button>
         </div>
       </div>
     </div>
@@ -435,7 +438,7 @@ BODY = """    <div class="night-header-row">
         <h2 id="weapon-skill-reroll-modal-title"></h2>
         <div id="weapon-skill-reroll-modal-content"></div>
         <div class="actions">
-          <button id="btn-weapon-skill-reroll-modal-close" type="button" class="primary-btn" data-i18n="close_button"></button>
+          <button id="btn-weapon-skill-reroll-modal-close" type="button" class="danger-btn" data-i18n="leave_button"></button>
         </div>
       </div>
     </div>
@@ -463,7 +466,7 @@ BODY = """    <div class="night-header-row">
         <div id="floor-reward-modal-content"></div>
         <div class="actions">
           <button id="btn-floor-reward-minimize" type="button" data-i18n="potential_power_minimize_button"></button>
-          <button id="btn-floor-reward-modal-close" type="button" class="primary-btn" data-i18n="close_button"></button>
+          <button id="btn-floor-reward-modal-close" type="button" class="danger-btn" data-i18n="leave_button"></button>
         </div>
       </div>
     </div>
@@ -564,13 +567,15 @@ BODY = """    <div class="night-header-row">
         <div class="threat-ref-block">
           <div class="field-row-block">
             <label data-i18n="smithing_stone_label"></label>
-            <input type="text" id="input-smithing-stone">
-            <span id="smithing-stone-count-label" class="ability-uses-label"></span>
+            <button type="button" class="level-btn" id="btn-smithing-stone-minus">&minus;</button>
+            <span id="smithing-stone-count-label" class="level-value"></span>
+            <button type="button" class="level-btn" id="btn-smithing-stone-plus">&plus;</button>
           </div>
           <div class="field-row-block">
             <label data-i18n="stonesword_key_label"></label>
-            <input type="text" id="input-stonesword-key">
-            <span id="stonesword-key-count-label" class="ability-uses-label"></span>
+            <button type="button" class="level-btn" id="btn-stonesword-key-minus">&minus;</button>
+            <span id="stonesword-key-count-label" class="level-value"></span>
+            <button type="button" class="level-btn" id="btn-stonesword-key-plus">&plus;</button>
           </div>
           <div class="field-row-block">
             <label data-i18n="grace_label"></label>

@@ -347,6 +347,15 @@ button {
   white-space: nowrap;
 }
 
+.main-menu-submenu {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  margin-left: 0.6rem;
+  padding-left: 0.6rem;
+  border-left: 2px solid #ddd;
+}
+
 .danger-btn {
   background: #d64545;
   color: #fff;
