@@ -6343,11 +6343,18 @@
   // 消耗品/護符/潛在之力は別モーダルを開くため、獎勵勾選清單自体は縮小して道を譲り、
   // 獲得完了時に復元する。武器・共有種類はモーダルを介さず即時処理される。
   function claimTurnReward(reward) {
+    // 既に処理中／完了済みの項目に対する再入（連続クリックや、Promise.all的に近接した
+    // 複数クリックが競合した場合など）を防ぐ。これが無いと、片方が「進行中…」のまま
+    // claimedへ辿り着かず固まってしまうことがあった。
+    if (reward.claiming || reward.claimed) return;
     // クリックした瞬間に即座にロックし、清單を閉じて開き直しても同じ項目を二重に
     // クリックできないようにする（claimedは実際の獲得完了まで立たないため、それだけでは
     // 進行中に再度クリックできてしまう）。
     reward.claiming = true;
     saveState();
+    // 「進行中…」を即座に描画へ反映する。次のクリックが同じ項目のボタンへ当たっても
+    // （上のガードにより）何もしないが、そもそも描画上もボタンが消えるため誤クリックしにくくなる。
+    renderTurnRewardModal();
     var entered = rosterCharacters.filter(function (c) {
       return c.entered;
     });
