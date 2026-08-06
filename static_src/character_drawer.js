@@ -1048,7 +1048,7 @@
       },
       min: 0,
       maxFn: function (c) {
-        return c.blessingSlots.max;
+        return Math.max(0, c.blessingSlots.max + talismanFlatMaxStatBonus(c, "blessing"));
       },
     },
     {
@@ -1129,7 +1129,7 @@
       },
       min: 0,
       maxFn: function (c) {
-        return c.hp.max;
+        return Math.max(0, c.hp.max + talismanFlatMaxStatBonus(c, "hp"));
       },
     },
     {
@@ -1152,7 +1152,7 @@
       },
       min: 0,
       maxFn: function (c) {
-        return c.fp.max;
+        return Math.max(0, c.fp.max + talismanFlatMaxStatBonus(c, "fp"));
       },
     },
     {
@@ -3116,6 +3116,39 @@
     return total;
   }
 
+  // タリスマンの「自身の「最大HP」を「＋□」する」等から、指定したステータス（hp/fp/blessing）の
+  // 上限修正値を合計する。表記は「＋□」（空心正方形＝1個で+1、複数個なら加算した個数分）と、
+  // 「-2」のような具体的な符号付き数値の2パターンがあり（ユーザー確認済み）、どちらも対応する。
+  // 「現在HP＝最大HP」のような条件参照（符号が続かない）は対象外。
+  var TALISMAN_MAX_STAT_LABELS = { hp: "HP", fp: "FP", blessing: "加護" };
+
+  function talismanFlatMaxStatBonus(c, statKey) {
+    var label = TALISMAN_MAX_STAT_LABELS[statKey];
+    if (!label) return 0;
+    // 表記ゆれに対応：「最大HP＋□」のような直接付記と、「最大HP」を「＋□」するのような
+    // 日本語の「」を「」区切りの両方を許容する。それ以外の文字が挟まる場合（「最大HP」のとき
+    // 等の条件参照）は符号が続かず不一致になるため、誤って別の記述を拾わない。
+    var re = new RegExp("最大" + label + "(?:」を「)?([＋+－\\-])(\\d+|□+)", "g");
+    var total = 0;
+    (c.talismanIds || []).forEach(function (id) {
+      var t = Talismans.get(id);
+      if (!t) return;
+      var text = (t.body && t.body.ja) || (t.body && t.body.zh);
+      if (!text) return;
+      var m;
+      re.lastIndex = 0;
+      while ((m = re.exec(text))) {
+        if (/^□+$/.test(m[2])) {
+          total += m[2].length;
+        } else {
+          var sign = m[1] === "－" || m[1] === "-" ? -1 : 1;
+          total += sign * parseInt(m[2], 10);
+        }
+      }
+    });
+    return total;
+  }
+
   // 属性を強化する「毒蠍」系タリスマン（Hit数を問わず蓄積値+1）を、属性名（ja表記固定）から
   // 逆引きするための対応表。
   var SCORPION_TALISMAN_BY_ELEMENT_JA = {
@@ -4442,6 +4475,24 @@
     if (!c) return;
     (c.talismanIds || []).forEach(function (id) {
       renderTalismanCard(container, id, c);
+    });
+    renderTalismanMaxStatMarkers(c);
+  }
+
+  // タリスマンの最大HP/FP/加護修正値を、各ステータスの上限欄の横に「（+N）」として表示する。
+  // 値そのものはc.hp.max等に焼き込まず毎回動的に計算するため、装備解除や転交で自動的に外れる。
+  function renderTalismanMaxStatMarkers(c) {
+    var hpEl = document.getElementById("char-hp-talisman-bonus");
+    var fpEl = document.getElementById("char-fp-talisman-bonus");
+    var blessingEl = document.getElementById("char-blessing-talisman-bonus");
+    if (!hpEl || !fpEl || !blessingEl) return;
+    [
+      { el: hpEl, key: "hp" },
+      { el: fpEl, key: "fp" },
+      { el: blessingEl, key: "blessing" },
+    ].forEach(function (entry) {
+      var bonus = c ? talismanFlatMaxStatBonus(c, entry.key) : 0;
+      entry.el.textContent = bonus !== 0 ? window.I18N.t("talisman_max_bonus_marker", { value: (bonus > 0 ? "+" : "") + bonus }) : "";
     });
   }
 
@@ -5834,6 +5885,7 @@
     MAX_ATTACHED_EFFECTS: MAX_ATTACHED_EFFECTS,
     weaponSpecialEffectNotes: weaponSpecialEffectNotes,
     talismanFlatSkillBonus: talismanFlatSkillBonus,
+    talismanFlatMaxStatBonus: talismanFlatMaxStatBonus,
     fightingSpiritFlatBonus: fightingSpiritFlatBonus,
     computeWeaponDamage: computeWeaponDamage,
     weaponDamageTagText: weaponDamageTagText,

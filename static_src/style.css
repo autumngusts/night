@@ -1536,6 +1536,11 @@ button {
   font-weight: 600;
 }
 
+/* 遺物・升級由来の.level-bonus-marker（橙）と区別しやすいよう、タリスマン由来は紫系にする。 */
+.talisman-bonus-marker {
+  color: #8a5cb8;
+}
+
 .combat-attack-weapon-row,
 .combat-skill-row,
 .combat-defense-choice-row,

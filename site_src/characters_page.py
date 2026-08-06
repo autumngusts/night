@@ -105,6 +105,7 @@ BODY = """    <a class="back-link" href="../admin/index.html" data-i18n="back_ad
                 <span class="level-value" id="char-hp-max-value" data-longpress-edit="1"></span>
               </span>
               <span id="char-hp-level-bonus" class="level-bonus-marker"></span>
+              <span id="char-hp-talisman-bonus" class="level-bonus-marker talisman-bonus-marker"></span>
             </div>
             <div class="field-row">
               <span data-i18n="character_fp_label"></span>
@@ -118,6 +119,7 @@ BODY = """    <a class="back-link" href="../admin/index.html" data-i18n="back_ad
                 <span class="level-value" id="char-fp-max-value" data-longpress-edit="1"></span>
               </span>
               <span id="char-fp-level-bonus" class="level-bonus-marker"></span>
+              <span id="char-fp-talisman-bonus" class="level-bonus-marker talisman-bonus-marker"></span>
             </div>
           </div>
           <div class="field-grid">
@@ -133,6 +135,7 @@ BODY = """    <a class="back-link" href="../admin/index.html" data-i18n="back_ad
                 <span class="level-value" id="char-blessing-max-value" data-longpress-edit="1"></span>
               </span>
               <span id="char-blessing-level-bonus" class="level-bonus-marker"></span>
+              <span id="char-blessing-talisman-bonus" class="level-bonus-marker talisman-bonus-marker"></span>
             </div>
           </div>
           <div class="field-grid">
