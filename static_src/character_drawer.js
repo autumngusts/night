@@ -416,6 +416,7 @@
       }
       c.learnedAttachedEffects.push(effect.id);
       assignAttachedResistChoiceIfNeeded(c, effect.id);
+      applyAttachedEffectGainSideEffect(c, effect.id);
       saveFn();
       attachedRollResult = null;
       renderAttachedSection();
@@ -519,6 +520,8 @@
         replaceBtn.addEventListener("click", function () {
           var idx = c.learnedAttachedEffects.indexOf(id);
           if (idx !== -1) c.learnedAttachedEffects.splice(idx, 1, attachedPendingCandidate.id);
+          assignAttachedResistChoiceIfNeeded(c, attachedPendingCandidate.id);
+          applyAttachedEffectGainSideEffect(c, attachedPendingCandidate.id);
           saveFn();
           attachedPendingCandidate = null;
           attachedRollResult = null;
@@ -669,6 +672,34 @@
       if (!delta) delta = parseAggroDelta(effect.body && effect.body.ja);
       total += delta;
     });
+    return total;
+  }
+
+  // 遺物効果「學習能力（精神／運氣／體能）」：本文「將自身「精神：+1」。」等から+Nを取り出し、
+  // 樓層突破判定（night.js side）で使う判定骰數（type.checkValues[statKey]）への加算値として返す。
+  var CHECK_STAT_LABELS = {
+    physical: { zh: "體能", ja: "フィジカル" },
+    mental: { zh: "精神", ja: "メンタル" },
+    luck: { zh: "運氣", ja: "運試し" },
+  };
+  function getCheckStatBonus(c, statKey) {
+    var labels = CHECK_STAT_LABELS[statKey];
+    if (!labels) return 0;
+    var total = 0;
+    var type = c && c.typeId ? CharacterTypes.get(c.typeId) : null;
+    if (type) {
+      var learned = c.learnedRelicEffects || [];
+      var reZh = new RegExp("將自身「" + labels.zh + "[：:]\\s*([+＋]\\d+)」");
+      var reJa = new RegExp("自身を?「" + labels.ja + "[：:]\\s*([+＋]\\d+)」");
+      (type.relicEffectGroups || []).forEach(function (g, gi) {
+        g.effects.forEach(function (e, ei) {
+          if (learned.indexOf(relicEffectKey(type.id, gi, ei)) === -1) return;
+          if (e.kind !== "Passive") return;
+          var m = reZh.exec((e.body && e.body.zh) || "") || reJa.exec((e.body && e.body.ja) || "");
+          if (m) total += parseInt(m[1].replace("＋", "+"), 10) || 0;
+        });
+      });
+    }
     return total;
   }
 
@@ -825,6 +856,21 @@
       details.className = "ability-entry";
       var summary = document.createElement("summary");
       summary.textContent = CharacterTypes.localizedText(effect.name) + "［" + effect.kind + "］";
+      var effectName = (effect.name && (effect.name.zh || effect.name.ja)) || "";
+      var choiceTagOpt =
+        effectName === "屬性蓄積值＋1" || effectName === "属性蓄積値＋1"
+          ? c.relicAccumElementChoice
+          : effectName === "屬性達成的歡喜" || effectName === "属性達成の歓喜"
+          ? c.relicJoyElementChoice
+          : effectName === "異常狀態達成的歡喜" || effectName === "状態異常達成の歓喜"
+          ? c.relicJoyAilmentChoice
+          : null;
+      if (choiceTagOpt) {
+        var choiceTag = document.createElement("span");
+        choiceTag.className = "weapon-damage-tag";
+        choiceTag.textContent = " " + CharacterTypes.localizedText(choiceTagOpt);
+        summary.appendChild(choiceTag);
+      }
       details.appendChild(summary);
       var body = document.createElement("p");
       body.className = "threat-ref-body";
@@ -870,6 +916,7 @@
     learnBtn.addEventListener("click", function () {
       if (!c.learnedRelicEffects) c.learnedRelicEffects = [];
       c.learnedRelicEffects.push(candidate.key);
+      assignRelicChoiceIfNeeded(c, candidate.effect);
       saveFn();
       relicRolledDice = null;
       renderRelicSection();
@@ -2752,6 +2799,7 @@
   function commitAttachedEffectChoice(c, effect, preview) {
     if (!c.learnedAttachedEffects) c.learnedAttachedEffects = [];
     assignAttachedResistChoiceIfNeeded(c, effect.id);
+    applyAttachedEffectGainSideEffect(c, effect.id);
     if (c.learnedAttachedEffects.length < MAX_ATTACHED_EFFECTS) {
       c.learnedAttachedEffects.push(effect.id);
       return { slotIndex: c.learnedAttachedEffects.length - 1, replacedId: null, die: null };
@@ -2759,6 +2807,23 @@
     var resolved = preview || previewAttachedEffectSlot(c);
     c.learnedAttachedEffects.splice(resolved.slotIndex, 1, effect.id);
     return resolved;
+  }
+
+  // 遺物効果「屬性蓄積值＋1」「屬性達成的歡喜」「異常狀態達成的歡喜」：習得時に対象を1つ選ぶ規則だが、
+  // 附帶効果の狀態異常耐性／屬性耐性と同じ理由（選択UIが無い）でベストエフォートのランダム決定にする。
+  // COMMON_SKILL_ELEMENT_OPTIONS／COMMON_SKILL_STATUS_OPTIONSは屬性4種・異常7種のどちらも
+  // night.js側のATTRIBUTE_STATUS_ELEMENT_OPTIONS／AILMENT_OPTIONSと同一の候補一覧のため共用できる。
+  function assignRelicChoiceIfNeeded(c, effect) {
+    var name = (effect && effect.name && (effect.name.zh || effect.name.ja)) || "";
+    if ((name === "屬性蓄積值＋1" || name === "属性蓄積値＋1") && !c.relicAccumElementChoice) {
+      c.relicAccumElementChoice = COMMON_SKILL_ELEMENT_OPTIONS[Math.floor(Math.random() * COMMON_SKILL_ELEMENT_OPTIONS.length)];
+    }
+    if ((name === "屬性達成的歡喜" || name === "属性達成の歓喜") && !c.relicJoyElementChoice) {
+      c.relicJoyElementChoice = COMMON_SKILL_ELEMENT_OPTIONS[Math.floor(Math.random() * COMMON_SKILL_ELEMENT_OPTIONS.length)];
+    }
+    if ((name === "異常狀態達成的歡喜" || name === "状態異常達成の歓喜") && !c.relicJoyAilmentChoice) {
+      c.relicJoyAilmentChoice = COMMON_SKILL_STATUS_OPTIONS[Math.floor(Math.random() * COMMON_SKILL_STATUS_OPTIONS.length)];
+    }
   }
 
   // 附帶効果「狀態異常耐性」「屬性耐性」：習得時に対象を1つ選ぶ規則だが、本UIには選択ダイアログが
@@ -2772,6 +2837,18 @@
     if (effectId === "element_resist" && !c.elementResistChoice) {
       var elementOpt = COMMON_SKILL_ELEMENT_OPTIONS[Math.floor(Math.random() * COMMON_SKILL_ELEMENT_OPTIONS.length)];
       c.elementResistChoice = elementOpt;
+    }
+  }
+
+  // 附帶効果「最大HP上升」「最大FP上升」：上限は totalFlatMaxStatBonus 経由で常に自動反映される
+  // （derived値、状態を持たない）が、規則書上は習得した瞬間に現在値も+1される一次効果を持つため
+  // （失った時は上限のみ-1、現在値は減らさない）、習得時のみここで現在値を+1する。
+  function applyAttachedEffectGainSideEffect(c, effectId) {
+    if (effectId === "max_hp_up" && c.hp) {
+      c.hp.current = (c.hp.current || 0) + 1;
+    }
+    if (effectId === "max_fp_up" && c.fp) {
+      c.fp.current = (c.fp.current || 0) + 1;
     }
   }
 
@@ -3269,6 +3346,16 @@
     return total;
   }
 
+  // 「對自身施加「HP回復：□」與「FP回復：□」」（ja:「自身に「HP回復：□」と「FP回復：□」を
+  // 適用する」）のような、瞬間回復量を表す□の個数を数える（最大値ではなく単発の回復量表記のため
+  // sumMaxStatDeltaFromTextとは別に用意する。□□のように複数個の場合もある）。
+  function countHealSquares(text, label) {
+    if (!text) return 0;
+    var re = new RegExp(label + "回復[：:]\\s*(□+)");
+    var m = re.exec(text);
+    return m ? m[1].length : 0;
+  }
+
   function talismanFlatMaxStatBonus(c, statKey) {
     var label = MAX_STAT_LABELS[statKey];
     if (!label) return 0;
@@ -3729,8 +3816,29 @@
     var talismanFlatBonus = talismanFlatHitBonus(c, weaponId, category);
     var fightingSpiritBonus = fightingSpiritFlatBonus(c);
 
+    // 遺物効果「雙手持握的削韌強化」：自身が「威力補正：力量／平衡」の武器を1つだけ装備している
+    // ときだけ、その武器の2Hit攻擊傷害へ「+▲」（=artPower、跳躍攻擊等の▲解決と同じ考え方）を追加する。
+    // extractHitBonusは「1Hit：+n／2Hit：+n」の定型句しか拾えず、この効果の「+▲」本文には
+    // マッチしないため、他の遺物効果と同じループに乗せずここで直接判定する。
+    var guardBreakBonus = 0;
+    if ((c.equippedWeaponIds || []).length === 1 && c.equippedWeaponIds[0] === weaponId && charType) {
+      var soloPowerModText = weapon.powerModOverride
+        ? Weapons.localizedText(weapon.powerModOverride)
+        : Weapons.localizedText(category.basicStats.powerMod);
+      var soloStatKey = resolvePowerModStatKey(soloPowerModText);
+      if (soloStatKey === "strength" || soloStatKey === "balance") {
+        var hasGuardBreakRelic = (c.learnedRelicEffects || []).some(function (key) {
+          var effect = relicEffectForKey(charType, key);
+          var n = effect && effect.name && (effect.name.zh || effect.name.ja);
+          return n === "雙手持握的削韌強化" || n === "両手持ちのガード削り強化";
+        });
+        if (hasGuardBreakRelic) guardBreakBonus = artPower;
+      }
+    }
+
     var hit1Damage = hit1Base + relic1 + attached1 + innateHitBonus.hit1 + talismanFlatBonus.hit1 + fightingSpiritBonus;
-    var hit2Damage = hit1Base * 2 + relic2 + attached2 + bonus2hit + innateHitBonus.hit2 + talismanFlatBonus.hit2 + fightingSpiritBonus;
+    var hit2Damage =
+      hit1Base * 2 + relic2 + attached2 + bonus2hit + innateHitBonus.hit2 + talismanFlatBonus.hit2 + fightingSpiritBonus + guardBreakBonus;
 
     return {
       rarityCorrection: rarityCorrection,
@@ -6071,11 +6179,15 @@
     computeDiceStatus: computeDiceStatus,
     renderDiceStatusLabel: renderDiceStatusLabel,
     getPassiveAggroBonus: getPassiveAggroBonus,
+    getCheckStatBonus: getCheckStatBonus,
+    resolvePowerModStatKey: resolvePowerModStatKey,
     getFlaskHealBonus: getFlaskHealBonus,
     findLearnedRelicEffectByName: findLearnedRelicEffectByName,
     findLearnedActionRelicByName: findLearnedActionRelicByName,
     findTwoHitMasteryOverride: findTwoHitMasteryOverride,
     countLearnedRelicEffectsByName: countLearnedRelicEffectsByName,
+    countHealSquares: countHealSquares,
+    relicEffectForKey: relicEffectForKey,
     getSkillUsesBonus: getSkillUsesBonus,
     getCombatSkillEntries: getCombatSkillEntries,
     getCombatDefenseSkillEntries: getCombatDefenseSkillEntries,

@@ -205,9 +205,13 @@ BODY = """    <div class="night-header-row">
         <div class="modal-box combat-modal-box">
           <h2 data-i18n="enemy_damage_modal_title"></h2>
           <div class="wb-row">
-            <label data-i18n="enemy_damage_group_label"></label>
-            <input type="number" id="enemy-damage-group-value" class="stat-input" min="0" value="0">
+            <label data-i18n="enemy_damage_tag_label"></label>
             <input type="text" id="enemy-damage-group-tag">
+          </div>
+          <div class="enemy-damage-pc-list-header">
+            <span data-i18n="enemy_damage_col_name"></span>
+            <span data-i18n="enemy_damage_col_group"></span>
+            <span data-i18n="enemy_damage_col_individual"></span>
           </div>
           <div id="enemy-damage-pc-list"></div>
           <div class="actions">

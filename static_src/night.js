@@ -1119,9 +1119,33 @@
     return damageEnemyHpForKey(enemyKey, ENEMY_HP_COLS);
   }
 
+  // 遺物効果「屬性達成的歡喜」「異常狀態達成的歡喜」：習得時に選んだ屬性/異常（choiceField）が
+  // 今回のトリガーlabelと一致する入場中キャラ全員に、その遺物効果本文の□個数分HP/FP回復を適用する
+  // （「不論由哪位PC累積」＝誰が蓄積したトリガーでも、選んだ本人全員に発揮）。
+  function applyRelicJoyHealForLabel(label, choiceField, relicNames) {
+    rosterCharacters.forEach(function (c) {
+      if (!c.entered) return;
+      var choice = c[choiceField];
+      if (!choice || !(choice.zh === label || choice.ja === label)) return;
+      var effect = CharacterDrawer.findLearnedRelicEffectByName(c, relicNames);
+      if (!effect) return;
+      var text = (effect.body && effect.body.ja) || (effect.body && effect.body.zh);
+      var hpAmount = CharacterDrawer.countHealSquares(text, "HP");
+      var fpAmount = CharacterDrawer.countHealSquares(text, "FP");
+      if (hpAmount) c.hp.current = Math.min(c.hp.max, c.hp.current + hpAmount);
+      if (fpAmount) c.fp.current = Math.min(c.fp.max, c.fp.current + fpAmount);
+      if (hpAmount || fpAmount) {
+        addLog("log_relic_joy_heal", { character: c.name, label: label, hp: hpAmount, fp: fpAmount });
+      }
+    });
+    saveRosterCharacters();
+    renderCharacterRoster();
+  }
+
   function applyAttributeStatusElementTriggerOnEnemy(enemyKey, label) {
     damageEnemyHpForKey(enemyKey, 1);
     addLog("log_attribute_status_element_trigger_enemy", { enemy: enemyDisplayNameForKey(enemyKey), label: label });
+    applyRelicJoyHealForLabel(label, "relicJoyElementChoice", ["屬性達成的歡喜", "属性達成の歓喜"]);
     renderEnemyHpGrid();
   }
 
@@ -1141,6 +1165,7 @@
       damageEnemyHpForKey(enemyKey, 2);
       addLog("log_attribute_status_ailment_trigger_enemy", { enemy: enemyDisplayNameForKey(enemyKey), label: label });
     }
+    applyRelicJoyHealForLabel(label, "relicJoyAilmentChoice", ["異常狀態達成的歡喜", "状態異常達成の歓喜"]);
     renderEnemyHpGrid();
     renderSelectedEnemies();
   }
@@ -1294,6 +1319,21 @@
   function recordAttributeStatusDealt(characterId, enemyKey, label, value) {
     if (!enemyKey || !value) return;
     if (!state.battle.attributeStatus) state.battle.attributeStatus = defaultBattleState().attributeStatus;
+    // 遺物効果「屬性蓄積值＋1」：習得時に選んだ属性（c.relicAccumElementChoice）と一致する場合のみ、
+    // このキャラクターが与えた蓄積値へ+1する（異常側は対象外、isAttributeStatusElementLabelで判定）。
+    if (isAttributeStatusElementLabel(label)) {
+      var c = rosterCharacters.filter(function (rc) {
+        return rc.id === characterId;
+      })[0];
+      var choice = c && c.relicAccumElementChoice;
+      if (
+        choice &&
+        (choice.zh === label || choice.ja === label) &&
+        CharacterDrawer.findLearnedRelicEffectByName(c, ["屬性蓄積值＋1", "属性蓄積値＋1"])
+      ) {
+        value += 1;
+      }
+    }
     var key = characterId + "|" + enemyKey + "|" + label;
     var as = state.battle.attributeStatus;
     as.dealt[key] = (as.dealt[key] || 0) + value;
@@ -3614,6 +3654,9 @@
       if (idx >= BATTLE_SLOT_COUNT) return;
       state.battle.aggro[idx] = CharacterDrawer.getPassiveAggroBonus ? CharacterDrawer.getPassiveAggroBonus(c) : 0;
     });
+    // 淑女「致命一擊獲得盧恩」：新しい戦闘（敵が0体から追加）の開始ごとに「1次戰鬥中僅發揮1次」の
+    // ロックを解除する。
+    state.battle._fatalStrikeRuneGranted = false;
     saveState();
     renderBattlePositionAreas();
   }
@@ -3680,8 +3723,8 @@
       var isEnemyDamage = box.kind === "enemyDamage";
       el.className = isEnemyDamage ? "action-log-box action-log-box-enemy-damage" : "action-log-box";
       if (isEnemyDamage) {
-        attachLongPressRemove(el, function () {
-          if (window.confirm(window.I18N.t("enemy_damage_remove_confirm"))) removeActionBox(c, box.id);
+        attachClickToRevealClose(el, function () {
+          removeActionBox(c, box.id);
         });
       } else {
         var closeBtn = document.createElement("button");
@@ -3715,7 +3758,8 @@
   }
 
   // 板塊起點/終點の長押し判定（SLOT_LONG_PRESS_MS）と同型の汎用ヘルパー。短押しでは何もしない
-  // （「敵人傷害」ボックスは短押しで反応せず、長押し確認でのみ削除できる仕様のため）。
+  // （旧仕様：「敵人傷害」ボックスは長押し確認でのみ削除できた。現在はattachClickToRevealCloseに
+  // 置き換え済みだが、他箇所からの再利用に備えて関数自体は残す）。
   function attachLongPressRemove(el, onLongPress) {
     var pressTimer = null;
     el.addEventListener("pointerdown", function () {
@@ -3726,6 +3770,32 @@
         clearTimeout(pressTimer);
       });
     });
+  }
+
+  // 「敵人傷害」ボックスの削除UI：1回クリックすると右上に×ボタンが3秒間だけ現れ、その間に
+  // ×を押せば削除、押さなければ自動的に隠れる（長押し＋確認ダイアログの旧仕様から変更）。
+  var ENEMY_DAMAGE_CLOSE_REVEAL_MS = 3000;
+  function attachClickToRevealClose(el, onRemove) {
+    var closeBtn = document.createElement("button");
+    closeBtn.type = "button";
+    closeBtn.className = "action-log-close action-log-close-enemy-damage";
+    closeBtn.textContent = "×";
+    closeBtn.hidden = true;
+    var hideTimer = null;
+    el.addEventListener("click", function (e) {
+      if (e.target === closeBtn) return;
+      closeBtn.hidden = false;
+      if (hideTimer) clearTimeout(hideTimer);
+      hideTimer = setTimeout(function () {
+        closeBtn.hidden = true;
+      }, ENEMY_DAMAGE_CLOSE_REVEAL_MS);
+    });
+    closeBtn.addEventListener("click", function (e) {
+      e.stopPropagation();
+      if (hideTimer) clearTimeout(hideTimer);
+      onRemove();
+    });
+    el.appendChild(closeBtn);
   }
 
   // --- 戦闘モーダル：骰子池の隣の「戦闘」ボタンから開く、6つの行動（攻撃／技能／聖杯瓶使用／
@@ -3809,10 +3879,16 @@
   function computeSpiritSummonDamage(c) {
     if (!c.spiritSummon) return null;
     var level = c.level || 1;
-    if (c.spiritSummon === "helen") return { value: 15 + level * 5, symbol: null };
-    if (c.spiritSummon === "frederick") return { value: 5 + level * 5, symbol: "▲" };
-    if (c.spiritSummon === "sebastian") return { value: 10 + level * 5, symbol: null };
-    return null;
+    var result;
+    if (c.spiritSummon === "helen") result = { value: 15 + level * 5, symbol: null };
+    else if (c.spiritSummon === "frederick") result = { value: 5 + level * 5, symbol: "▲" };
+    else if (c.spiritSummon === "sebastian") result = { value: 10 + level * 5, symbol: null };
+    else return null;
+    // 遺物効果「家族強化」：自身召喚の「靈體」產生的傷害+10。
+    if (CharacterDrawer.findLearnedRelicEffectByName(c, ["家族強化", "ファミリー強化"])) {
+      result.value += 10;
+    }
+    return result;
   }
 
   function renderCombatAttackAction(c, content) {
@@ -3954,16 +4030,40 @@
           }
         }
         renderDiceCostAction(c, content, cost, function (dice, costLines) {
+          // R1続き：連續攻擊系の遺物効果（体力骰消費数を条件にするもの）は、ダメージ計算前に
+          // 先に消費数を積み上げてから判定する（この攻擊自体が閾値に新規到達した場合、その分の
+          // ボーナスもこの攻擊のdmgValueへ載せるため）。
+          recordAttackDiceConsumed(c, dice.length);
+          maybeApplyFpRecoveryOnAttack(c);
+          maybeOfferStaminaRecoveryOnAttack(c);
           var songHitBonus = songOfBloodSpiritHitBonus();
           var unyieldingBonus = unyieldingHitBonus(c);
           var finaleHitBonus = finaleAttackBuffBonus(c);
+          var ominousHitBonus = ominousStrikeHitBonus(c);
+          var masteryBonus = hitAttackMasteryBonus(c, hitType, weapon, category);
+          var consecutiveBonus = consecutiveAttackDamageBonus(c);
           var dmgValue =
             (hitType === "hit1" ? damage.hit1Damage : damage.hit2Damage) +
             (hitType === "hit1" ? songHitBonus.hit1 : songHitBonus.hit2) +
             (hitType === "hit1" ? unyieldingBonus.hit1 : unyieldingBonus.hit2) +
-            (hitType === "hit1" ? finaleHitBonus.hit1 : finaleHitBonus.hit2);
+            (hitType === "hit1" ? finaleHitBonus.hit1 : finaleHitBonus.hit2) +
+            (hitType === "hit1" ? ominousHitBonus.hit1 : ominousHitBonus.hit2) +
+            masteryBonus +
+            consecutiveBonus;
           var dmgSymbol = hitType === "hit1" ? damage.hit1Symbol : damage.hit2Symbol;
+          recordPhaseDamageDealt(c, dmgValue);
           var lines = [window.I18N.t("action_log_dice_used", { dice: dice.join("、") })].concat(costLines);
+          // 淑女「短劍重演」：短劍で1つのフェイズ中に2Hitアタックを2回行った瞬間（■は数値未確定の
+          // ためGM手動反映、注記のみ残す）。
+          if (hitType === "hit2" && category.id === "dagger") {
+            c._daggerTwoHitCountThisPhase = (c._daggerTwoHitCountThisPhase || 0) + 1;
+            if (c._daggerTwoHitCountThisPhase === 2) {
+              var shortswordRestage = CharacterDrawer.findLearnedRelicEffectByName(c, ["短劍重演", "短剣リステージ"]);
+              if (shortswordRestage) {
+                lines.push(CharacterTypes.localizedText(shortswordRestage.body));
+              }
+            }
+          }
           if (useMastery) {
             c._twoHitMasteryUsedThisPhase = true;
             lines.push(window.I18N.t("action_log_two_hit_mastery_used", { value: masteryOverride.value }));
@@ -4090,6 +4190,7 @@
                   })[0]
                 : null;
             c._spiritDamageUsedThisPhase = true;
+            if (spiritDamageChoice === "enemy") recordPhaseDamageDealt(c, spiritDamage.value);
             saveRosterCharacters();
             addActionBox(
               c,
@@ -4261,6 +4362,7 @@
           lines.push(window.I18N.t("combat_special_attack_move_to_front_note"));
         }
         var valueText = CharacterDrawer.formatValueWithSymbol(result.value, result.symbol);
+        recordPhaseDamageDealt(c, result.value);
         addActionBox(c, Weapons.localizedText(weapon.name) + "（" + window.I18N.t(labelKey) + "）", window.I18N.t("action_log_damage_total", { value: valueText }), lines);
         addLog("log_combat_special_attack", {
           character: c.name,
@@ -4330,6 +4432,12 @@
         var valueText = CharacterDrawer.formatValueWithSymbol(fixed.value, fixed.symbol);
         addActionBox(c, window.I18N.t("combat_special_attack_fatal_label"), window.I18N.t("action_log_damage_total", { value: valueText }), lines);
         addLog("log_combat_fatal_strike", { character: c.name, damage: valueText, dice: dice.join("、") });
+        recordPhaseDamageDealt(c, fixed.value);
+        // 淑女「致命一擊獲得盧恩」：發動遺物効果「致命一擊」時、1次戰鬥中僅發揮1次、全體PC獲得盧恩1。
+        if (!state.battle._fatalStrikeRuneGranted && CharacterDrawer.findLearnedRelicEffectByName(c, ["致命一擊獲得盧恩", "致命の一撃でルーン獲得"])) {
+          state.battle._fatalStrikeRuneGranted = true;
+          addLog("log_fatal_strike_rune_granted", { character: c.name });
+        }
         state.battle.fatalStrikeUsedThisRound = true;
         saveState();
         combatSpecialAttackState = null;
@@ -4376,10 +4484,98 @@
     return c._finaleAttackBuffActive ? 10 : 0;
   }
 
+  // R1 遺物効果「技藝強化（攻擊力強化）」：送葬人「不祥一擊」使用時に発動する自身限定バフ
+  // （finaleAttackBuffBonusと全く同じ数値・ライフサイクル）。
+  function ominousStrikeHitBonus(c) {
+    return c._ominousStrikeBuffActive ? { hit1: 5, hit2: 10 } : { hit1: 0, hit2: 0 };
+  }
+  function ominousStrikeSkillBonus(c) {
+    return c._ominousStrikeBuffActive ? 10 : 0;
+  }
+
   // R1 遺物効果「能力強化（魔術之地）」：隱者「元素操控」で屬性痕へ✓が入った直後から
   // 「直到階段結束為止」自身の魔術ダメージ+5（重複しない＝フラグはbooleanのみ）。
   function elementalControlMagicBonus(c, skillDamageKind) {
     return skillDamageKind === "sorcery" && c._elementalControlMagicBonusActive ? 5 : 0;
+  }
+
+  // 遺物効果「1Hit攻擊強化」「2Hit攻擊強化」：習得していれば毎回のHit種別に応じて固定加算する。
+  // 1Hitは装備武器の威力補正が「力量」のときさらに+5（合計+10）。
+  function hitAttackMasteryBonus(c, hitType, weapon, category) {
+    if (hitType === "hit1") {
+      if (!CharacterDrawer.findLearnedRelicEffectByName(c, ["1Hit攻擊強化", "1Hitアタック強化"])) return 0;
+      var bonus = 5;
+      var powerModText = weapon.powerModOverride
+        ? window.PriTestWeapons.localizedText(weapon.powerModOverride)
+        : window.PriTestWeapons.localizedText(category.basicStats.powerMod);
+      if (CharacterDrawer.resolvePowerModStatKey(powerModText) === "strength") bonus += 5;
+      return bonus;
+    }
+    if (hitType === "hit2") {
+      return CharacterDrawer.findLearnedRelicEffectByName(c, ["2Hit攻擊強化", "2Hitアタック強化"]) ? 5 : 0;
+    }
+    return 0;
+  }
+
+  // 遺物効果「連續攻擊時體力回復」「連續攻擊時FP回復」「連續攻擊時，產生總合傷害」は、いずれも
+  // 「1次行動階段中に因攻擊而消耗した體力骰の合計数」が条件になる。合計数のカウント自体は
+  // ここで共通化し（攻擊action確定のたびrecordAttackDiceConsumedを呼ぶ）、各遺物効果の判定・
+  // 適用はこのすぐ下の3関数で行う。フェイズ切替の都度リセットされる（setActionPhase参照）。
+  function recordAttackDiceConsumed(c, count) {
+    c._attackDiceConsumedThisPhase = (c._attackDiceConsumedThisPhase || 0) + count;
+  }
+
+  // 遺物効果「130傷害回復HP」「130傷害回復FP」：1つのフェイズ中に自身が単独で与えた總合傷害の
+  // 累計が判定対象（他PCの分は含めない）。攻擊・特殊攻擊・技能などダメージが確定するたびに
+  // ここで積み上げ、フェイズ終了時（setActionPhase）にまとめて判定する。
+  function recordPhaseDamageDealt(c, value) {
+    if (!value) return;
+    c._phaseDamageDealt = (c._phaseDamageDealt || 0) + value;
+  }
+
+  // 送葬人「連續攻擊時，產生總合傷害」：4/5/6/7個消費でそれぞれ+10/+20/+30/+40（段階的、
+  // 加算し直しではなく到達した最高段階の値を使う）。新たに到達した段階の差分だけをその場の
+  // 攻擊のダメージへ加算する。
+  var CONSECUTIVE_ATTACK_DAMAGE_TIERS = [
+    { count: 4, bonus: 10 },
+    { count: 5, bonus: 20 },
+    { count: 6, bonus: 30 },
+    { count: 7, bonus: 40 },
+  ];
+  function consecutiveAttackDamageBonus(c) {
+    if (!CharacterDrawer.findLearnedRelicEffectByName(c, ["連續攻擊時，產生總合傷害", "攻撃連続時、総合ダメージ発生"])) return 0;
+    var count = c._attackDiceConsumedThisPhase || 0;
+    var applicable = 0;
+    CONSECUTIVE_ATTACK_DAMAGE_TIERS.forEach(function (t) {
+      if (count >= t.count) applicable = t.bonus;
+    });
+    var delta = applicable - (c._consecutiveDamageBonusGranted || 0);
+    if (delta > 0) c._consecutiveDamageBonusGranted = applicable;
+    return delta > 0 ? delta : 0;
+  }
+
+  // 鐵眼／送葬人「連續攻擊時體力回復」：合計5個消費に達した瞬間（1フェイズ1回）、習得者に
+  // 加護1個を支払うか確認し、支払えば體力骰+1（規則書の「加護消耗：■」はこのアプリの他の
+  // 重骰コストと同じ「加護1個」に統一する）。
+  function maybeOfferStaminaRecoveryOnAttack(c) {
+    if ((c._attackDiceConsumedThisPhase || 0) < 5 || c._staminaRecoveryOfferedThisPhase) return;
+    c._staminaRecoveryOfferedThisPhase = true;
+    if (!CharacterDrawer.findLearnedRelicEffectByName(c, ["連續攻擊時體力回復", "攻撃連続時、スタミナ回復"])) return;
+    if (!c.blessingSlots || c.blessingSlots.current <= 0) return;
+    if (!window.confirm(window.I18N.t("consecutive_attack_stamina_confirm", { name: c.name }))) return;
+    c.blessingSlots.current -= 1;
+    if (!c.dicePool) c.dicePool = [];
+    c.dicePool.push(1 + Math.floor(Math.random() * 6));
+    addLog("log_consecutive_attack_stamina_recovery", { character: c.name });
+  }
+
+  // 淑女「連續攻擊時FP回復」：合計4個消費に達した瞬間（1フェイズ1回）、自動でFP回復+1。
+  function maybeApplyFpRecoveryOnAttack(c) {
+    if ((c._attackDiceConsumedThisPhase || 0) < 4 || c._fpRecoveryAppliedThisPhase) return;
+    if (!CharacterDrawer.findLearnedRelicEffectByName(c, ["連續攻擊時FP回復", "攻撃連続時、FP回復"])) return;
+    c._fpRecoveryAppliedThisPhase = true;
+    c.fp.current = Math.min(c.fp.max, c.fp.current + 1);
+    addLog("log_consecutive_attack_fp_recovery", { character: c.name });
   }
 
   function computeSkillDamage(c, entry, body) {
@@ -4409,6 +4605,7 @@
     var songBonus = songOfBloodSpiritSkillBonus();
     var unyieldingBonus = unyieldingSkillBonus(c);
     var finaleBonus = finaleSkillBuffBonus(c);
+    var ominousBonus = ominousStrikeSkillBonus(c);
     var elementalControlBonus = elementalControlMagicBonus(c, skillDamageKind);
     var attachedSkillBonus = skillDamageKind ? CharacterDrawer.attachedSkillDamageBonus(c, skillDamageKind) : 0;
     // 執行者「妖刀（妖刀解放・攻）」：この遺物効果を2つ以上習得している場合、Action使用時の
@@ -4429,6 +4626,7 @@
       songBonus +
       unyieldingBonus +
       finaleBonus +
+      ominousBonus +
       elementalControlBonus +
       attachedSkillBonus +
       yotoReleaseBonus +
@@ -4566,6 +4764,7 @@
         freeUseBtn.addEventListener("click", function () {
           c._powerResonanceCredits = Math.max(0, (c._powerResonanceCredits || 0) - 1);
           var dmg = computeSkillDamage(c, entry, body);
+          if (dmg) recordPhaseDamageDealt(c, dmg.value);
           var total = dmg ? window.I18N.t("action_log_damage_total", { value: CharacterDrawer.formatValueWithSymbol(dmg.value, dmg.symbol) }) : null;
           moveOminousStrikeToFront(c);
           addActionBox(c, name, total, [window.I18N.t("log_ominous_strike_move_note")]);
@@ -4840,6 +5039,7 @@
                 recordAttributeStatusDealt(c.id, hybridEnemySelect.value, enemyLabels.zh, 2);
               }
               var dmg = computeSkillDamage(c, entry, body);
+              if (dmg) recordPhaseDamageDealt(c, dmg.value);
               var total = dmg ? window.I18N.t("action_log_damage_total", { value: CharacterDrawer.formatValueWithSymbol(dmg.value, dmg.symbol) }) : null;
               var hybridNote = [total, window.I18N.t("hybrid_magic_note", { element: elementLabel })].filter(Boolean).join(" / ");
               addActionBox(c, name, hybridNote, [window.I18N.t("action_log_dice_used", { dice: dice.join("、") })].concat(costLines));
@@ -5044,6 +5244,11 @@
           // 力量感應の無消耗使用は専用ボタンの別ハンドラで同じ関数を呼ぶ）。
           if (entry.id === "ominous_strike") {
             moveOminousStrikeToFront(c);
+            // R1「技藝強化（攻擊力強化）」：發動時、直到階段結束為止，自身の攻擊/戰技・魔術・
+            // 祈禱ダメージを強化する（finale/song_of_blood_spiritと同じ考え方）。
+            if (CharacterDrawer.findLearnedRelicEffectByName(c, ["技藝強化（攻擊力強化）", "アーツ強化（攻撃力強化）"])) {
+              c._ominousStrikeBuffActive = true;
+            }
           }
           // 守護者「救世之翼」：戦闘フェイズでの発動後、額外・防禦フェイズを跨いで持続する
           // 全体バフ（HP損害無効化）。次に戦闘フェイズへ新規突入した時にのみクリアされる
@@ -5128,6 +5333,7 @@
             }, 0);
           }
           var dmg = computeSkillDamage(c, entry, body);
+          if (dmg) recordPhaseDamageDealt(c, dmg.value);
           var total =
             entry.id === "marking"
               ? window.I18N.t("marking_action_note")
@@ -5727,16 +5933,49 @@
       flaskFpChoice = null;
       saveRosterCharacters();
       addLog(useFp ? "log_combat_flask_use_fp" : "log_combat_flask_use", { character: c.name, dice: dice.join("、"), amount: healAmount });
+      var flaskLines = [window.I18N.t("action_log_dice_used", { dice: dice.join("、") })];
+      // 遺物効果「道具效果擴大」：自身以外任意1名PCにも同様の効果を発揮できる（対象選択UIが
+      // 無いため、GM/玩家が手動で対象を決めて適用する旨を注記のみ残す）。
+      var itemBoostEffect = CharacterDrawer.findLearnedRelicEffectByName(c, ["道具效果擴大", "アイテム効果拡大"]);
+      if (itemBoostEffect) flaskLines = flaskLines.concat([CharacterTypes.localizedText(itemBoostEffect.body)]);
       addActionBox(
         c,
         window.I18N.t("combat_action_flask"),
         window.I18N.t(useFp ? "action_log_fp_heal_total" : "action_log_heal_total", { value: healAmount }),
-        [window.I18N.t("action_log_dice_used", { dice: dice.join("、") })]
+        flaskLines
       );
       renderCharacterRoster();
       renderCombatModal();
     });
     content.appendChild(confirmBtn);
+
+    // 遺物効果「一口氣飲盡」：聖杯瓶「使用次數：2」を消費すれば、骰子を使わず目前HPを最大値まで
+    // 全回復できる（守護者専用、通常のHP回復量ボタンとは別枠の選択肢として並べる）。
+    var totalFlaskUses = (c.flaskBase ? c.flaskBase.current : 0) + (c.flaskExtra ? c.flaskExtra.current : 0);
+    if (totalFlaskUses >= 2 && CharacterDrawer.findLearnedRelicEffectByName(c, ["一口氣飲盡", "一気飲み"])) {
+      var chugBtn = document.createElement("button");
+      chugBtn.type = "button";
+      chugBtn.className = "combat-attack-hit-btn";
+      chugBtn.textContent = window.I18N.t("combat_flask_chug_button");
+      chugBtn.addEventListener("click", function () {
+        var remaining = 2;
+        if (c.flaskBase.current > 0) {
+          var fromBase = Math.min(c.flaskBase.current, remaining);
+          c.flaskBase.current -= fromBase;
+          remaining -= fromBase;
+        }
+        if (remaining > 0 && c.flaskExtra) c.flaskExtra.current = Math.max(0, c.flaskExtra.current - remaining);
+        c.hp.current = c.hp.max;
+        combatDiceSelection = [];
+        flaskFpChoice = null;
+        saveRosterCharacters();
+        addLog("log_combat_flask_chug", { character: c.name });
+        addActionBox(c, window.I18N.t("combat_flask_chug_button"), window.I18N.t("action_log_heal_full_note"), []);
+        renderCharacterRoster();
+        renderCombatModal();
+      });
+      content.appendChild(chugBtn);
+    }
   }
 
   // 學者「博聞強識」：消耗品使用時、指定出目で骰子消耗を支払ったかどうかのYes/No確認（範囲が
@@ -6380,12 +6619,14 @@
       } else {
         renderDiceCostAction(c, content, DODGE_COST, function (dice) {
           var value = dice[0] * 10 + 30;
-          addActionBox(
-            c,
-            window.I18N.t("combat_defense_dodge_button"),
-            window.I18N.t("action_log_defense_value_total", { value: value }),
-            [window.I18N.t("action_log_dice_used", { dice: dice.join("、") })]
-          );
+          var dodgeLines = [window.I18N.t("action_log_dice_used", { dice: dice.join("、") })];
+          // 遺物効果「轉身之步」：迴避で「骰子消耗：6」（出目6の骰子）を支払った場合、傷害處理後
+          // 所受的HP損害減輕■（■は数値未確定のためGM手動反映、注記のみ残す）。
+          if (dice[0] === 6) {
+            var stepEffect = CharacterDrawer.findLearnedRelicEffectByName(c, ["轉身之步", "転身のステップ"]);
+            if (stepEffect) dodgeLines = dodgeLines.concat([CharacterTypes.localizedText(stepEffect.body)]);
+          }
+          addActionBox(c, window.I18N.t("combat_defense_dodge_button"), window.I18N.t("action_log_defense_value_total", { value: value }), dodgeLines);
           addLog("log_combat_defense_dodge", { character: c.name, value: value, dice: dice.join("、") });
           c._dodgeActionUsed = true;
           combatDefenseState = null;
@@ -6933,41 +7174,64 @@
     });
     entered.forEach(function (c) {
       var row = document.createElement("div");
-      row.className = "wb-row";
+      row.className = "wb-row enemy-damage-pc-row";
       var label = document.createElement("label");
       label.textContent = c.name;
-      var input = document.createElement("input");
-      input.type = "number";
-      input.className = "stat-input";
-      input.min = "0";
-      input.value = "0";
-      input.id = "enemy-damage-individual-" + c.id;
       row.appendChild(label);
-      row.appendChild(input);
+      var groupInput = document.createElement("input");
+      groupInput.type = "number";
+      groupInput.className = "stat-input";
+      groupInput.min = "0";
+      groupInput.value = "0";
+      groupInput.id = "enemy-damage-group-" + c.id;
+      row.appendChild(groupInput);
+      var individualInput = document.createElement("input");
+      individualInput.type = "number";
+      individualInput.className = "stat-input";
+      individualInput.min = "0";
+      individualInput.value = "0";
+      individualInput.id = "enemy-damage-individual-" + c.id;
+      row.appendChild(individualInput);
       list.appendChild(row);
     });
   }
 
   function handleEnemyDamageConfirm() {
-    var groupValue = parseInt(document.getElementById("enemy-damage-group-value").value, 10) || 0;
     var groupTag = document.getElementById("enemy-damage-group-tag").value.trim();
     var entered = rosterCharacters.filter(function (c) {
       return c.entered;
     });
-    var header =
-      window.I18N.t("enemy_damage_log_prefix") + window.I18N.t("colon_separator") + groupValue + (groupTag ? " | " + groupTag : "");
     var individualParts = [];
     entered.forEach(function (c) {
-      var input = document.getElementById("enemy-damage-individual-" + c.id);
-      var individual = input ? parseInt(input.value, 10) || 0 : 0;
-      var line = header + ", " + window.I18N.t("enemy_damage_individual_label") + window.I18N.t("colon_separator") + individual;
+      var groupInputEl = document.getElementById("enemy-damage-group-" + c.id);
+      var groupValue = groupInputEl ? parseInt(groupInputEl.value, 10) || 0 : 0;
+      var individualInputEl = document.getElementById("enemy-damage-individual-" + c.id);
+      var individual = individualInputEl ? parseInt(individualInputEl.value, 10) || 0 : 0;
+      var line =
+        window.I18N.t("enemy_damage_log_prefix") +
+        window.I18N.t("colon_separator") +
+        groupValue +
+        (groupTag ? " | " + groupTag : "") +
+        ", " +
+        window.I18N.t("enemy_damage_individual_label") +
+        window.I18N.t("colon_separator") +
+        individual;
       addEnemyDamageBox(c, line);
-      individualParts.push(c.name + window.I18N.t("colon_separator") + individual);
+      individualParts.push(
+        c.name +
+          window.I18N.t("colon_separator") +
+          window.I18N.t("enemy_damage_group_short_label") +
+          groupValue +
+          "／" +
+          window.I18N.t("enemy_damage_individual_short_label") +
+          individual
+      );
     });
     saveRosterCharacters();
     if (individualParts.length) {
-      var announceHeader = header;
-      var announceIndividual = window.I18N.t("enemy_damage_individual_label") + window.I18N.t("colon_separator") + individualParts.join("、");
+      var announceHeader =
+        window.I18N.t("enemy_damage_log_prefix") + (groupTag ? window.I18N.t("colon_separator") + groupTag : "");
+      var announceIndividual = individualParts.join("、");
       postSystemTurnMessage(announceHeader + "　" + announceIndividual);
       showThreatBroadcast([announceHeader, announceIndividual]);
     }
@@ -7959,6 +8223,20 @@
         }
       });
     }
+    // 遺物効果「130傷害回復HP」「130傷害回復FP」：フェイズが切り替わる（＝そのフェイズが結束）
+    // 直前に、これまで積み上げたc._phaseDamageDealtが130以上かどうかを判定する。判定後、
+    // 下のリセットループでc._phaseDamageDealtを0に戻す（次のフェイズへ持ち越さない）。
+    rosterCharacters.forEach(function (c) {
+      if (!c.entered || (c._phaseDamageDealt || 0) < 130) return;
+      if (CharacterDrawer.findLearnedRelicEffectByName(c, ["130傷害回復HP", "130ダメージでHP回復"])) {
+        c.hp.current = Math.min(c.hp.max, c.hp.current + 1);
+        addLog("log_130_damage_heal_hp", { character: c.name });
+      }
+      if (CharacterDrawer.findLearnedRelicEffectByName(c, ["130傷害回復FP", "130ダメージでFP回復"])) {
+        c.fp.current = Math.min(c.fp.max, c.fp.current + 1);
+        addLog("log_130_damage_heal_fp", { character: c.name });
+      }
+    });
     state.actionPhase = phase;
     // GM／玩家が同時にプレイしなくてもよいよう、行動階段が切り替わるたびに「今の番」を
     // 必ずGM側へ戻す（GMが状況を確認・反応してから、改めて玩家へ番を渡す運用を想定）。
@@ -8002,6 +8280,16 @@
       c._crucibleBeastActive = false;
       // 隱者「聖幕」（混成魔法の遺物効果）：「フェイズ終了まで」限定のFP消耗無効バフ。
       c._sacredCurtainActive = false;
+      // R1続き：「連續攻擊時□□」系（體力回復／FP回復／總合傷害）と「130傷害回復」系は、いずれも
+      // 「1次行動階段中」限定の集計のため、フェイズ切替の都度リセットする。送葬人「技藝強化
+      // （攻擊力強化）」の自身限定バフも「階段結束まで」限定で同様にリセットする。
+      c._attackDiceConsumedThisPhase = 0;
+      c._consecutiveDamageBonusGranted = 0;
+      c._staminaRecoveryOfferedThisPhase = false;
+      c._fpRecoveryAppliedThisPhase = false;
+      c._daggerTwoHitCountThisPhase = 0;
+      c._phaseDamageDealt = 0;
+      c._ominousStrikeBuffActive = false;
       delete rosterDiceRollFeedback[c.id];
     });
     // 額外・防禦行動へ入るときは、各角色の確定行動（点線枠）を一旦全てクリアする。
@@ -10674,13 +10962,22 @@
 
   var CHECK_STAT_KEYS = { luck: "luck", physical: "physical", mental: "mental" };
 
+  // 遺物効果「學習能力（精神／運氣／體能）」：type.checkValues[statKey]（判定骰數の基本値）に
+  // 個別キャラの習得済み+1補正を上乗せする。3箇所（実際に振る・ボタン表示・振った後の内訳表示）で
+  // 同じ計算を使うため共通化する。
+  function effectiveCheckValue(c, type, statKey) {
+    var base = type && statKey ? type.checkValues[statKey] || 0 : 0;
+    var bonus = c && CharacterDrawer.getCheckStatBonus ? CharacterDrawer.getCheckStatBonus(c, statKey) : 0;
+    return Math.max(0, base + bonus);
+  }
+
   function rollBreakthroughDice(charId, statKey) {
     var c = rosterCharacters.filter(function (rc) {
       return rc.id === charId;
     })[0];
     var type = c && c.typeId ? CharacterTypes.get(c.typeId) : null;
     if (!type || !statKey || !CHECK_STAT_KEYS[statKey]) return;
-    var count = Math.max(0, type.checkValues[statKey] || 0);
+    var count = effectiveCheckValue(c, type, statKey);
     var dice = [];
     for (var i = 0; i < count; i++) dice.push(1 + Math.floor(Math.random() * 6));
     breakthroughState.characters[charId] = { stat: statKey, dice: dice, rerollPending: false };
@@ -10770,7 +11067,7 @@
       // ボタン自体に即時表示する（例：擲骰（3顆））。「任意」時は個別選択を変えるたび更新する。
       function updateRollBtnLabel() {
         var statKey = globalStat === "any" ? statSelect.value : globalStat;
-        var count = type && CHECK_STAT_KEYS[statKey] ? Math.max(0, type.checkValues[statKey] || 0) : 0;
+        var count = type && CHECK_STAT_KEYS[statKey] ? effectiveCheckValue(c, type, statKey) : 0;
         rollBtn.textContent = window.I18N.t("breakthrough_roll_button_with_count", { count: count });
       }
       updateRollBtnLabel();
@@ -10791,7 +11088,7 @@
         statLabel.className = "ability-uses-label";
         statLabel.textContent = window.I18N.t("breakthrough_dice_count_label", {
           stat: window.I18N.t("check_stat_" + entry.stat),
-          count: (type && type.checkValues[entry.stat]) || 0,
+          count: effectiveCheckValue(c, type, entry.stat),
         });
         diceWrap.appendChild(statLabel);
         entry.dice.forEach(function (v, i) {

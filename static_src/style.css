@@ -1781,7 +1781,7 @@ button {
   color: #666;
 }
 
-/* GM設定「敵人傷害」：長押しでのみ削除できる置頂記録。常時点滅の赤枠で視認性を上げる。 */
+/* GM設定「敵人傷害」：クリックで右上に×が3秒間だけ現れる置頂記録。常時点滅の赤枠で視認性を上げる。 */
 @keyframes enemy-damage-box-flash {
   0%,
   100% {
@@ -1798,12 +1798,35 @@ button {
   border: 2px solid #d64545;
   animation: enemy-damage-box-flash 1.2s ease-in-out infinite;
   cursor: pointer;
-  padding-right: 0.5rem;
+  padding-right: 1.4rem;
 }
 
 .action-log-box-enemy-damage .action-log-title {
   color: #d64545;
   font-weight: 700;
+}
+
+.action-log-close-enemy-damage {
+  background: #fff;
+  border-color: #d64545;
+  color: #d64545;
+  font-weight: 700;
+}
+
+.enemy-damage-pc-list-header {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  gap: 0.5rem;
+  font-size: 0.78rem;
+  color: #666;
+  margin: 0.3rem 0 0.1rem;
+}
+
+.enemy-damage-pc-row {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  gap: 0.5rem;
+  align-items: center;
 }
 
 .dice-status-label {
