@@ -197,6 +197,23 @@ BODY = """    <div class="night-header-row">
         <div class="function-menu-list" id="function-menu-list">
           <button type="button" class="primary-btn function-menu-item" id="btn-generic-check" data-i18n="generic_check_button"></button>
           <button type="button" class="primary-btn function-menu-item" id="btn-event-chip-trigger" data-i18n="event_chip_trigger_button"></button>
+          <button type="button" class="primary-btn function-menu-item" id="btn-enemy-damage-open" data-i18n="enemy_damage_button" hidden></button>
+        </div>
+      </div>
+
+      <div id="enemy-damage-modal" class="modal" hidden>
+        <div class="modal-box combat-modal-box">
+          <h2 data-i18n="enemy_damage_modal_title"></h2>
+          <div class="wb-row">
+            <label data-i18n="enemy_damage_group_label"></label>
+            <input type="number" id="enemy-damage-group-value" class="stat-input" min="0" value="0">
+            <input type="text" id="enemy-damage-group-tag">
+          </div>
+          <div id="enemy-damage-pc-list"></div>
+          <div class="actions">
+            <button id="btn-enemy-damage-cancel" type="button" data-i18n="cancel_button"></button>
+            <button id="btn-enemy-damage-confirm" type="button" class="primary-btn" data-i18n="enemy_damage_confirm_button"></button>
+          </div>
         </div>
       </div>
 

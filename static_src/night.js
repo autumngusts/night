@@ -3624,33 +3624,60 @@
   }
 
   // 額外／防禦行動フェイズへ入るたび、各角色の確定行動（点線枠）を一括で消去する。
-  // 消去前の内容は記録として全体ログへ残す。
+  // 消去前の内容は記録として全体ログへ残す。「敵人傷害」ボックス（kind:"enemyDamage"）は
+  // GMが長押しで明示的に消すまで残す想定のため、この一括消去の対象からは除外する。
   function clearAllPendingActionBoxes() {
     rosterCharacters.forEach(function (c) {
       if (!c.pendingActionBoxes || !c.pendingActionBoxes.length) return;
-      var summary = c.pendingActionBoxes
+      var cleared = c.pendingActionBoxes.filter(function (b) {
+        return b.kind !== "enemyDamage";
+      });
+      if (!cleared.length) return;
+      var summary = cleared
         .map(function (b) {
           return b.total ? b.title + "(" + b.total + ")" : b.title;
         })
         .join("、");
-      c.pendingActionBoxes = [];
+      c.pendingActionBoxes = c.pendingActionBoxes.filter(function (b) {
+        return b.kind === "enemyDamage";
+      });
       addLog("log_action_box_clear", { character: c.name, actions: summary });
+    });
+  }
+
+  // 「敵人傷害」ボックスは、既存の実行ログと違いGMが長押し確認でのみ消せる置頂記録のため、
+  // 通常のaddActionBoxとは別枠でunshift（先頭固定）し、専用の見た目・削除UIを付ける。
+  function addEnemyDamageBox(c, line) {
+    if (!c.pendingActionBoxes) c.pendingActionBoxes = [];
+    c.pendingActionBoxes.unshift({
+      id: "ed" + Date.now() + Math.floor(Math.random() * 1000),
+      kind: "enemyDamage",
+      title: line,
+      total: null,
+      lines: [],
     });
   }
 
   function renderActionBoxes(c, container) {
     (c.pendingActionBoxes || []).forEach(function (box) {
       var el = document.createElement("div");
-      el.className = "action-log-box";
-      var closeBtn = document.createElement("button");
-      closeBtn.type = "button";
-      closeBtn.className = "action-log-close";
-      closeBtn.textContent = "×";
-      closeBtn.title = window.I18N.t("action_log_clear_button");
-      closeBtn.addEventListener("click", function () {
-        removeActionBox(c, box.id);
-      });
-      el.appendChild(closeBtn);
+      var isEnemyDamage = box.kind === "enemyDamage";
+      el.className = isEnemyDamage ? "action-log-box action-log-box-enemy-damage" : "action-log-box";
+      if (isEnemyDamage) {
+        attachLongPressRemove(el, function () {
+          if (window.confirm(window.I18N.t("enemy_damage_remove_confirm"))) removeActionBox(c, box.id);
+        });
+      } else {
+        var closeBtn = document.createElement("button");
+        closeBtn.type = "button";
+        closeBtn.className = "action-log-close";
+        closeBtn.textContent = "×";
+        closeBtn.title = window.I18N.t("action_log_clear_button");
+        closeBtn.addEventListener("click", function () {
+          removeActionBox(c, box.id);
+        });
+        el.appendChild(closeBtn);
+      }
       if (box.total) {
         var totalEl = document.createElement("p");
         totalEl.className = "action-log-total";
@@ -3668,6 +3695,20 @@
         el.appendChild(lineEl);
       });
       container.appendChild(el);
+    });
+  }
+
+  // 板塊起點/終點の長押し判定（SLOT_LONG_PRESS_MS）と同型の汎用ヘルパー。短押しでは何もしない
+  // （「敵人傷害」ボックスは短押しで反応せず、長押し確認でのみ削除できる仕様のため）。
+  function attachLongPressRemove(el, onLongPress) {
+    var pressTimer = null;
+    el.addEventListener("pointerdown", function () {
+      pressTimer = setTimeout(onLongPress, SLOT_LONG_PRESS_MS);
+    });
+    ["pointerup", "pointerleave", "pointercancel"].forEach(function (evt) {
+      el.addEventListener(evt, function () {
+        clearTimeout(pressTimer);
+      });
     });
   }
 
@@ -6272,6 +6313,73 @@
     var btn = document.getElementById("btn-action-phase");
     if (!btn) return;
     btn.textContent = window.I18N.t("action_phase_" + state.actionPhase);
+    renderEnemyDamageButtonVisibility();
+  }
+
+  // 「敵人傷害」判定ボタン（判定發生／籌碼事件と同じ判定メニュー行）は防禦フェイズ限定。
+  function renderEnemyDamageButtonVisibility() {
+    var btn = document.getElementById("btn-enemy-damage-open");
+    if (btn) btn.hidden = state.actionPhase !== "defense";
+  }
+
+  function openEnemyDamageModal() {
+    renderEnemyDamageModal();
+    document.getElementById("enemy-damage-modal").hidden = false;
+  }
+
+  function closeEnemyDamageModal() {
+    document.getElementById("enemy-damage-modal").hidden = true;
+  }
+
+  function renderEnemyDamageModal() {
+    document.getElementById("enemy-damage-group-tag").placeholder = window.I18N.t("enemy_damage_group_tag_placeholder");
+    var list = document.getElementById("enemy-damage-pc-list");
+    list.innerHTML = "";
+    var entered = rosterCharacters.filter(function (c) {
+      return c.entered;
+    });
+    entered.forEach(function (c) {
+      var row = document.createElement("div");
+      row.className = "wb-row";
+      var label = document.createElement("label");
+      label.textContent = c.name;
+      var input = document.createElement("input");
+      input.type = "number";
+      input.className = "stat-input";
+      input.min = "0";
+      input.value = "0";
+      input.id = "enemy-damage-individual-" + c.id;
+      row.appendChild(label);
+      row.appendChild(input);
+      list.appendChild(row);
+    });
+  }
+
+  function handleEnemyDamageConfirm() {
+    var groupValue = parseInt(document.getElementById("enemy-damage-group-value").value, 10) || 0;
+    var groupTag = document.getElementById("enemy-damage-group-tag").value.trim();
+    var entered = rosterCharacters.filter(function (c) {
+      return c.entered;
+    });
+    var header =
+      window.I18N.t("enemy_damage_log_prefix") + window.I18N.t("colon_separator") + groupValue + (groupTag ? " | " + groupTag : "");
+    var individualParts = [];
+    entered.forEach(function (c) {
+      var input = document.getElementById("enemy-damage-individual-" + c.id);
+      var individual = input ? parseInt(input.value, 10) || 0 : 0;
+      var line = header + ", " + window.I18N.t("enemy_damage_individual_label") + window.I18N.t("colon_separator") + individual;
+      addEnemyDamageBox(c, line);
+      individualParts.push(c.name + window.I18N.t("colon_separator") + individual);
+    });
+    saveRosterCharacters();
+    if (individualParts.length) {
+      var announceHeader = header;
+      var announceIndividual = window.I18N.t("enemy_damage_individual_label") + window.I18N.t("colon_separator") + individualParts.join("、");
+      postSystemTurnMessage(announceHeader + "　" + announceIndividual);
+      showThreatBroadcast([announceHeader, announceIndividual]);
+    }
+    closeEnemyDamageModal();
+    renderCharacterRoster();
   }
 
   // GM／玩家が同時にプレイしなくてもよいよう、「今は誰の番か」を示すバー。権限分離は行わず
@@ -10089,6 +10197,14 @@
     renderTurnHolderBar();
   }
 
+  // pushBreakthroughSummaryMessageと同じ形だが、既に組み立て済みの文字列（i18nキーに
+  // 落とし込みにくい動的な組み合わせ文言）をそのままGM留言板へ投稿する汎用版。
+  function postSystemTurnMessage(text) {
+    state.turnMessages.push({ text: text, time: Date.now(), side: "gm" });
+    saveState();
+    renderTurnHolderBar();
+  }
+
   function resolveBreakthroughCheck(passed) {
     if (!breakthroughState) return;
     var sum = breakthroughDiceSum();
@@ -11198,6 +11314,9 @@
     document.getElementById("btn-turn-reward-add").addEventListener("click", handleTurnRewardAdd);
     document.getElementById("btn-action-phase-cancel").addEventListener("click", closeActionPhaseModal);
     document.getElementById("btn-generic-check").addEventListener("click", openGenericCheckModal);
+    document.getElementById("btn-enemy-damage-open").addEventListener("click", openEnemyDamageModal);
+    document.getElementById("btn-enemy-damage-cancel").addEventListener("click", closeEnemyDamageModal);
+    document.getElementById("btn-enemy-damage-confirm").addEventListener("click", handleEnemyDamageConfirm);
     document.getElementById("btn-function-menu-toggle").addEventListener("click", function () {
       var list = document.getElementById("function-menu-list");
       var open = list.classList.toggle("open");
