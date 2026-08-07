@@ -1,0 +1,28 @@
+{
+  "rules": {
+    "games": {
+      ".read": false,
+      ".write": false,
+
+      "$gameId": {
+        ".read": "auth != null",
+        ".write": "auth != null",
+        ".validate": "$gameId.matches(/^g[0-9a-f]{32}$/)",
+
+        "nightState": {
+          ".validate": "newData.exists()"
+        },
+        "characters": {
+          ".validate": "newData.exists()"
+        },
+        "meta": {
+          ".validate": "newData.exists()"
+        },
+
+        "$other": {
+          ".validate": false
+        }
+      }
+    }
+  }
+}
