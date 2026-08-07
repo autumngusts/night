@@ -3937,7 +3937,11 @@
     var songBonus = songOfBloodSpiritSkillBonus();
     var unyieldingBonus = unyieldingSkillBonus(c);
     var attachedSkillBonus = skillDamageKind ? CharacterDrawer.attachedSkillDamageBonus(c, skillDamageKind) : 0;
-    var flatBonus = talismanBonus + fightingSpiritBonus + songBonus + unyieldingBonus + attachedSkillBonus;
+    // 執行者「妖刀（妖刀解放・攻）」：この遺物効果を2つ以上習得している場合、Action使用時の
+    // ダメージに固定+25。
+    var yotoReleaseBonus =
+      entry.id === "yoto_release_action" && CharacterDrawer.countLearnedRelicEffectsByName(c, ["妖刀解放・攻"]) >= 2 ? 25 : 0;
+    var flatBonus = talismanBonus + fightingSpiritBonus + songBonus + unyieldingBonus + attachedSkillBonus + yotoReleaseBonus;
     return flatBonus ? { value: dmg.value + flatBonus, symbol: dmg.symbol } : dmg;
   }
 
@@ -3956,6 +3960,19 @@
     if (restageEntry) entries = entries.concat([restageEntry]);
     // 執行者「坩堝諸相・獸」發動中は、武器攻撃の代わりに固定の襲擊／咆哮アクションが使える。
     if (c._crucibleBeastActive) entries = entries.concat(CRUCIBLE_BEAST_ACTIONS);
+    // 隱者「混成魔法」の遺物効果（漩渦烈焰／聖幕／冷氣風暴／聖光燈火）：習得済みのものだけ、
+    // 元の混成魔法とは別の選択肢として一覧に追加する（各々「屬性痕」消費なしの代替効果）。
+    var baseTypeId = type ? type.id.replace(/_dark$|_dawn$/, "") : null;
+    if (baseTypeId === "hermit") {
+      HERMIT_HYBRID_MAGIC_ACTION_VARIANTS.forEach(function (v) {
+        if (CharacterDrawer.findLearnedRelicEffectByName(c, v.relicNames)) entries = entries.concat([v.entry]);
+      });
+    }
+    // 執行者「妖刀解放・攻」：習得していれば「妖刀」をActionとしても使用できるようになる
+    // （妖刀蓄積を1個消費、對敵人造成【總合傷害：50+▲】）。
+    if (baseTypeId === "executor" && CharacterDrawer.findLearnedRelicEffectByName(c, ["妖刀解放・攻"])) {
+      entries = entries.concat([EXECUTOR_YOTO_RELEASE_ACTION_ENTRY]);
+    }
     if (!entries.length) {
       var empty = document.createElement("p");
       empty.className = "threat-ref-body";
@@ -4021,7 +4038,15 @@
       useBtn.className = "combat-attack-hit-btn";
       useBtn.textContent = window.I18N.t("combat_skill_use_button");
       // 守護者「旋風」は、使用回数（1日単位）とは別に「本フェイズにつき1回まで」の制限がある。
-      if ((effectiveMax !== null && remaining <= 0) || !posOk || (entry.id === "whirlwind" && c._whirlwindUsedThisPhase)) useBtn.disabled = true;
+      // 執行者「妖刀（妖刀解放・攻）」のActionは、妖刀蓄積（c._yotoMarks）を1個消費するため、
+      // 蓄積が無ければ使用不可。
+      if (
+        (effectiveMax !== null && remaining <= 0) ||
+        !posOk ||
+        (entry.id === "whirlwind" && c._whirlwindUsedThisPhase) ||
+        (entry.id === "yoto_release_action" && (c._yotoMarks || 0) <= 0)
+      )
+        useBtn.disabled = true;
       var isActive = combatSkillState === key;
       if (isActive) useBtn.classList.add("active");
       useBtn.addEventListener("click", function () {
@@ -4421,11 +4446,20 @@
         }
       } else if (isActive) {
         var cost = CharacterDrawer.parseActionCost(body);
+        // 隱者「聖幕」（混成魔法の遺物効果）：發動中は自身が武器の戰技・魔術・祈禱（＝weaponId
+        // を持つentry）を使用する際の「FP消耗」を0にする。
+        if (c._sacredCurtainActive && entry.weaponId) cost.fpCost = 0;
         renderDiceCostAction(c, content, cost, function (dice, costLines) {
           if (entry.uses && entry.id) {
             if (!c.abilityUses) c.abilityUses = {};
             c.abilityUses[entry.id] = Math.max(0, (remaining !== null ? remaining : effectiveMax) - 1);
           }
+          // 隱者「混成魔法」の遺物効果：聖幕はフェイズ終了までのFP消耗無効バフを発動し、
+          // 聖光燈火は自身のHPを固定+3回復する（他PC1人への+3はGM手動反映）。
+          if (entry.id === "hybrid_magic_sacred_curtain") c._sacredCurtainActive = true;
+          if (entry.id === "hybrid_magic_holy_light") c.hp.current = Math.min(c.hp.max, c.hp.current + 3);
+          // 執行者「妖刀（妖刀解放・攻）」のAction使用：妖刀蓄積を1個消費する。
+          if (entry.id === "yoto_release_action") c._yotoMarks = Math.max(0, (c._yotoMarks || 0) - 1);
           // 葬儀屋「力量感應」：この汎用パスを通るあらゆる技藝の使用（他キャラのarts含む）が
           // 発火対象になりうる。判定自体はtriggerPowerResonance内でisArtをチェックする。
           triggerPowerResonance(c, entry);
@@ -4587,6 +4621,97 @@
     lightning: { zh: "雷", ja: "雷" },
     holy: { zh: "聖", ja: "聖" },
     arcane: { zh: "魔", ja: "魔" },
+  };
+
+  // 隱者「混成魔法」の遺物効果による変更後の効果（漩渦烈焰／聖幕／冷氣風暴／聖光燈火）。
+  // いずれも「屬性痕」消費なしの代替効果のため、汎用のisActiveフォールバック（computeSkillDamage
+  // による固定値解析）にそのまま乗る合成entryとして注入する（CRUCIBLE_BEAST_ACTIONSと同じ手法）。
+  var HERMIT_HYBRID_MAGIC_ACTION_VARIANTS = [
+    {
+      relicNames: ["漩渦烈焰", "渦巻く炎"],
+      entry: {
+        id: "hybrid_magic_vortex_flame",
+        kind: "Action",
+        name: { zh: "漩渦烈焰", ja: "渦巻く炎", en: "Vortex Flame" },
+        body: {
+          zh: "消耗：1\n對象：敵人\n編隊：前衛・後衛皆可使用\n\n效果\n・對雜兵造成「HP損害：■」，對敵人造成【總合傷害：30】與「火：1D」。",
+          ja: "コスト：1\n対象：エネミー\n隊列：前衛・後衛どちらでも使用可能\n\n効果\n・モブに「HP損害：■」、エネミーに【総合ダメージ：30】と「炎：1D」を与える。",
+          en: "Cost: 1\nTarget: Enemy\nFormation: Usable in front or back row\n\nEffect: Deals [HP Damage: 1] to a mob, and [Total Damage: 30] plus [Fire: 1D] to the enemy.",
+        },
+      },
+    },
+    {
+      relicNames: ["聖幕", "聖なる帳"],
+      entry: {
+        id: "hybrid_magic_sacred_curtain",
+        kind: "Action",
+        name: { zh: "聖幕", ja: "聖なる帳", en: "Sacred Curtain" },
+        body: {
+          zh: "消耗：1\n對象：自身\n編隊：前衛・後衛皆可使用\n\n效果\n・直到階段結束為止，自身使用戰技・魔術・祈禱時不需要「FP消耗」。",
+          ja: "コスト：1\n対象：自身\n隊列：前衛・後衛どちらでも使用可能\n\n効果\n・フェイズ終了まで、自身が戦技・魔術・祈祷を使用するとき、「FPコスト」が不要になる。",
+          en: "Cost: 1\nTarget: Self\nFormation: Usable in front or back row\n\nEffect: Until the end of the phase, self no longer needs to pay FP cost when using arts, sorceries, or incantations.",
+        },
+      },
+    },
+    {
+      relicNames: ["冷氣風暴", "冷気の嵐"],
+      entry: {
+        id: "hybrid_magic_frost_storm",
+        kind: "Action",
+        name: { zh: "冷氣風暴", ja: "冷気の嵐", en: "Frost Storm" },
+        body: {
+          zh: "消耗：1\n對象：敵人\n編隊：前衛時可使用\n\n效果\n・對雜兵造成「HP損害：■■」，對敵人造成【總合傷害：25】與「凍傷：2」。",
+          ja: "コスト：1\n対象：エネミー\n隊列：前衛のとき使用可能\n\n効果\n・モブに「HP損害：■■」、エネミーに【総合ダメージ：25】と「凍傷：2」を与える。",
+          en: "Cost: 1\nTarget: Enemy\nFormation: Usable in front row\n\nEffect: Deals [HP Damage: 2] to a mob, and [Total Damage: 25] plus [Frostbite: 2] to the enemy.",
+        },
+      },
+    },
+    {
+      relicNames: ["聖光燈火", "聖なる灯火"],
+      entry: {
+        id: "hybrid_magic_holy_light",
+        kind: "Action",
+        name: { zh: "聖光燈火", ja: "聖なる灯火", en: "Holy Light" },
+        body: {
+          zh: "消耗：1\n對象：自身、1名PC\n編隊：前衛・後衛皆可使用\n\n效果\n・對自身與其他任意1名PC施加「HP回復：3」。",
+          ja: "コスト：1\n対象：自身、PC1人\n隊列：前衛・後衛どちらでも使用可能\n\n効果\n・自身と他の任意のPC1人に「HP回復：3」を適用する。",
+          en: "Cost: 1\nTarget: Self, 1 PC\nFormation: Usable in front or back row\n\nEffect: Applies [HP Recovery: 3] to self and to any other 1 PC.",
+        },
+      },
+    },
+  ];
+  var HERMIT_ICE_COFFIN_DEFENSE_ENTRY = {
+    id: "ice_coffin",
+    kind: "Defense",
+    name: { zh: "冰塊之棺", ja: "氷塊の棺", en: "Ice Coffin" },
+    body: {
+      zh: "消耗：1\n對象：自身\n編隊：前衛・後衛皆可使用\n\n效果\n・視為自身進行了「HP價值：100」的「防禦」。",
+      ja: "コスト：1\n対象：自身\n隊列：前衛・後衛どちらでも使用可能\n\n効果\n・自身は「HP価値：100」の「ガード」を行ったとして扱う。",
+      en: "Cost: 1\nTarget: Self\nFormation: Usable in front or back row\n\nEffect: Self is treated as having performed a guard with HP value: 100.",
+    },
+  };
+
+  // 執行者「妖刀解放・攻」：夜渡技能「妖刀」の代替Defense（消耗：2／HP價值：60）と、
+  // 新規Action（妖刀蓄積を1個消費、總合傷害：50+▲）を追加する遺物効果。
+  var EXECUTOR_YOTO_RELEASE_DEFENSE_ENTRY = {
+    id: "yoto_release_defense",
+    kind: "Defense",
+    name: { zh: "妖刀（妖刀解放・攻）", ja: "妖刀（妖刀解放・攻）", en: "Yoto (Yoto Release: Attack)" },
+    body: {
+      zh: "消耗：2\n對象：自身\n編隊：前衛・後衛皆可使用\n\n效果\n・視為自身進行了「HP價值：60」的「防禦」。",
+      ja: "コスト：2\n対象：自身\n隊列：前衛・後衛どちらでも使用可能\n\n効果\n・自身は「HP価値：60」の「ガード」を行ったとして扱う。",
+      en: "Cost: 2\nTarget: Self\nFormation: Usable in front or back row\n\nEffect: Self is treated as having performed a guard with HP value: 60.",
+    },
+  };
+  var EXECUTOR_YOTO_RELEASE_ACTION_ENTRY = {
+    id: "yoto_release_action",
+    kind: "Action",
+    name: { zh: "妖刀（妖刀解放・攻）", ja: "妖刀（妖刀解放・攻）", en: "Yoto (Yoto Release: Attack)" },
+    body: {
+      zh: "消耗：1／消去「妖刀蓄積」的「1個」\n對象：敵人\n編隊：前衛・後衛皆可使用\n\n效果\n・對敵人造成【總合傷害：50+▲】。",
+      ja: "コスト：1／「妖刀蓄積」の「1つ」を消す\n対象：エネミー\n隊列：前衛・後衛どちらでも使用可能\n\n効果\n・エネミーに【総合ダメージ：50＋▲】を与える。",
+      en: "Cost: 1 / Removes 1 Yoto Mark\nTarget: Enemy\nFormation: Usable in front or back row\n\nEffect: Deals [Total Damage: 50+▲] to the enemy.",
+    },
   };
 
   // 靈體の種類ごとの最大HP・傷害計算式・HP價值（character_types.jsの本文記載値、ユーザー確認済み）。
@@ -5254,6 +5379,15 @@
         })[0]
       : null;
     var defenseSkillEntries = type ? CharacterDrawer.getCombatDefenseSkillEntries(c, type) : [];
+    // 隱者「冰塊之棺」（混成魔法の遺物効果）／執行者「妖刀解放・攻」（妖刀の代替Defense）：
+    // 習得済みなら、通常の防禦選択肢に並ぶ追加のDefenseエントリとして注入する。
+    var defenseBaseTypeId = type ? type.id.replace(/_dark$|_dawn$/, "") : null;
+    if (defenseBaseTypeId === "hermit" && CharacterDrawer.findLearnedRelicEffectByName(c, ["冰塊之棺", "氷塊の棺"])) {
+      defenseSkillEntries = defenseSkillEntries.concat([HERMIT_ICE_COFFIN_DEFENSE_ENTRY]);
+    }
+    if (defenseBaseTypeId === "executor" && CharacterDrawer.findLearnedRelicEffectByName(c, ["妖刀解放・攻"])) {
+      defenseSkillEntries = defenseSkillEntries.concat([EXECUTOR_YOTO_RELEASE_DEFENSE_ENTRY]);
+    }
     var usesBonus = CharacterDrawer.getSkillUsesBonus(c);
 
     // 守護者「高防禦」：kind:"Passive"だが、防禦フェイズの体力骰を得たタイミングで骰子1個を
@@ -5417,15 +5551,18 @@
             ? window.I18N.t("marking_defense_note")
             : activeDefenseSkill.id === "counterattack"
             ? window.I18N.t("counterattack_defense_note")
-            : activeDefenseSkill.id === "trance"
+            : activeDefenseSkill.id === "trance" || activeDefenseSkill.id === "ice_coffin"
             ? window.I18N.t("trance_defense_note")
+            : activeDefenseSkill.id === "yoto_release_defense"
+            ? window.I18N.t("yoto_release_defense_note")
             : window.I18N.t("combat_defense_skill_negate_note");
         if (activeDefenseSkill.id === "counterattack") c._counterattackDefenseUsed = true;
-        // 執行者「妖刀」：完全無效化ノート自体は汎用（combat_defense_skill_negate_note）のまま。
-        // このディフェンス後、妖刀蓄積に✓1個（上限2、既に2でも使用自体は妨げない）を記入し、
-        // 次の戦闘フェイズ開始時に體力骰+1を予約する（setActionPhaseの「新しい回合開始」判定
-        // 箇所で消化する）。
-        if (activeDefenseSkill.id === "yoto") {
+        // 執行者「妖刀」／「妖刀（妖刀解放・攻）」：完全無效化ノート自体は汎用
+        // （combat_defense_skill_negate_note）のまま。このディフェンス後、妖刀蓄積に✓1個
+        // （上限2、既に2でも使用自体は妨げない）を記入し、次の戦闘フェイズ開始時に體力骰+1を
+        // 予約する（setActionPhaseの「新しい回合開始」判定箇所で消化する）。遺物効果由来の
+        // 代替Defense（消耗：2／HP價值：60）も同じ「此防禦後」の効果を受ける（本文どおり）。
+        if (activeDefenseSkill.id === "yoto" || activeDefenseSkill.id === "yoto_release_defense") {
           c._yotoMarks = Math.min(2, (c._yotoMarks || 0) + 1);
           c._yotoPendingBonusDice = true;
         }
@@ -5433,9 +5570,9 @@
         addLog(
           activeDefenseSkill.id === "counterattack"
             ? "log_counterattack_defense_use"
-            : activeDefenseSkill.id === "yoto"
+            : activeDefenseSkill.id === "yoto" || activeDefenseSkill.id === "yoto_release_defense"
             ? "log_yoto_defense_use"
-            : activeDefenseSkill.id === "trance"
+            : activeDefenseSkill.id === "trance" || activeDefenseSkill.id === "ice_coffin"
             ? "log_trance_defense_use"
             : "log_combat_defense_skill_use",
           {
@@ -6962,6 +7099,8 @@
       // 執行者「坩堝諸相・獸」：「階段結束まで」＝発動したフェイズ限定のため、フェイズ切替の
       // 都度リセットする（血魂之歌のbattle全体フラグとは異なりキャラごとのフラグ）。
       c._crucibleBeastActive = false;
+      // 隱者「聖幕」（混成魔法の遺物効果）：「フェイズ終了まで」限定のFP消耗無効バフ。
+      c._sacredCurtainActive = false;
       delete rosterDiceRollFeedback[c.id];
     });
     // 額外・防禦行動へ入るときは、各角色の確定行動（点線枠）を一旦全てクリアする。

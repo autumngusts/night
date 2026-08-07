@@ -5972,6 +5972,7 @@
     getPassiveAggroBonus: getPassiveAggroBonus,
     getFlaskHealBonus: getFlaskHealBonus,
     findLearnedRelicEffectByName: findLearnedRelicEffectByName,
+    countLearnedRelicEffectsByName: countLearnedRelicEffectsByName,
     getSkillUsesBonus: getSkillUsesBonus,
     getCombatSkillEntries: getCombatSkillEntries,
     getCombatDefenseSkillEntries: getCombatDefenseSkillEntries,
