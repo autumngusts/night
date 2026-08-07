@@ -4040,6 +4040,7 @@
           var unyieldingBonus = unyieldingHitBonus(c);
           var finaleHitBonus = finaleAttackBuffBonus(c);
           var ominousHitBonus = ominousStrikeHitBonus(c);
+          var heroMeatBonus = heroMeatHitBonus(c);
           var masteryBonus = hitAttackMasteryBonus(c, hitType, weapon, category);
           var consecutiveBonus = consecutiveAttackDamageBonus(c);
           var dmgValue =
@@ -4048,6 +4049,7 @@
             (hitType === "hit1" ? unyieldingBonus.hit1 : unyieldingBonus.hit2) +
             (hitType === "hit1" ? finaleHitBonus.hit1 : finaleHitBonus.hit2) +
             (hitType === "hit1" ? ominousHitBonus.hit1 : ominousHitBonus.hit2) +
+            (hitType === "hit1" ? heroMeatBonus.hit1 : heroMeatBonus.hit2) +
             masteryBonus +
             consecutiveBonus;
           var dmgSymbol = hitType === "hit1" ? damage.hit1Symbol : damage.hit2Symbol;
@@ -4474,6 +4476,20 @@
     return (c._unyieldingStacks || 0) * 10;
   }
 
+  // 消耗品「勇者的肉塊」／「調香瓶｜高揚之香」：直到結束階段為止的攻擊/戰技傷害buff
+  // （数値・ライフサイクルが同一のため共通化する）。c._heroMeatBuffLevelは1（等級1效果のみ）
+  // または2（博聞強識等により等級2效果も発揮＝数値2倍）。
+  function heroMeatHitBonus(c) {
+    var level = c._heroMeatBuffLevel || 0;
+    if (!level) return { hit1: 0, hit2: 0 };
+    return level >= 2 ? { hit1: 10, hit2: 20 } : { hit1: 5, hit2: 10 };
+  }
+  function heroMeatSkillBonus(c) {
+    var level = c._heroMeatBuffLevel || 0;
+    if (!level) return 0;
+    return level >= 2 ? 10 : 5;
+  }
+
   // R1 遺物効果「技藝強化（攻擊力提升）」：淑女「終曲」使用時に発動する自身限定バフ
   // （血魂之歌と同じ数値・同じ「直到結束階段為止」ライフサイクルだが、battle全体ではなく
   // 発動した本人だけのフラグなのでcharacter側に持たせる）。
@@ -4606,6 +4622,7 @@
     var unyieldingBonus = unyieldingSkillBonus(c);
     var finaleBonus = finaleSkillBuffBonus(c);
     var ominousBonus = ominousStrikeSkillBonus(c);
+    var heroMeatSkillBonusValue = heroMeatSkillBonus(c);
     var elementalControlBonus = elementalControlMagicBonus(c, skillDamageKind);
     var attachedSkillBonus = skillDamageKind ? CharacterDrawer.attachedSkillDamageBonus(c, skillDamageKind) : 0;
     // 執行者「妖刀（妖刀解放・攻）」：この遺物効果を2つ以上習得している場合、Action使用時の
@@ -4627,6 +4644,7 @@
       unyieldingBonus +
       finaleBonus +
       ominousBonus +
+      heroMeatSkillBonusValue +
       elementalControlBonus +
       attachedSkillBonus +
       yotoReleaseBonus +
@@ -5869,6 +5887,7 @@
   // R5 遺物効果「聖杯瓶可回復FP」：使用選択中の一時状態（true=FPへ切替 / false・null=通常のHP回復）。
   // 額外階段限定（ユーザー確認済みの仕様）で、習得済みキャラのみ切替の問いかけを出す。
   var flaskFpChoice = null;
+  var flaskExpandPcId = null;
 
   function renderCombatFlaskAction(c, content) {
     var available = c.flaskBase.current > 0 || (c.flaskExtra && c.flaskExtra.current > 0);
@@ -5908,6 +5927,52 @@
     }
     var useFp = canChooseFp && flaskFpChoice;
 
+    // 遺物効果「道具效果擴大」：自身使用聖杯瓶時，可對自身以外的任意1名PC也發揮相同效果（任選）。
+    var canExpandFlaskEffect = !!CharacterDrawer.findLearnedRelicEffectByName(c, ["道具效果擴大", "アイテム効果拡大"]);
+    var flaskExpandOptions = canExpandFlaskEffect
+      ? rosterCharacters.filter(function (rc) {
+          return rc.entered && rc.id !== c.id;
+        })
+      : [];
+    if (flaskExpandOptions.length) {
+      var flaskExpandRow = document.createElement("div");
+      flaskExpandRow.className = "wb-row";
+      var flaskExpandToggleBtn = document.createElement("button");
+      flaskExpandToggleBtn.type = "button";
+      flaskExpandToggleBtn.textContent = window.I18N.t("consumable_expand_toggle_label");
+      if (flaskExpandPcId) flaskExpandToggleBtn.classList.add("active");
+      flaskExpandToggleBtn.addEventListener("click", function () {
+        flaskExpandPcId = flaskExpandPcId ? null : flaskExpandOptions[0].id;
+        renderCombatModal();
+      });
+      flaskExpandRow.appendChild(flaskExpandToggleBtn);
+      content.appendChild(flaskExpandRow);
+
+      if (flaskExpandPcId) {
+        if (!flaskExpandOptions.some(function (rc) { return rc.id === flaskExpandPcId; })) {
+          flaskExpandPcId = flaskExpandOptions[0].id;
+        }
+        var flaskExpandSelectRow = document.createElement("label");
+        flaskExpandSelectRow.className = "field-row-block";
+        flaskExpandSelectRow.textContent = window.I18N.t("consumable_other_pc_target_label");
+        var flaskExpandSelect = document.createElement("select");
+        flaskExpandOptions.forEach(function (rc) {
+          var o = document.createElement("option");
+          o.value = rc.id;
+          o.textContent = rc.name;
+          if (rc.id === flaskExpandPcId) o.selected = true;
+          flaskExpandSelect.appendChild(o);
+        });
+        flaskExpandSelect.addEventListener("change", function () {
+          flaskExpandPcId = flaskExpandSelect.value;
+        });
+        flaskExpandSelectRow.appendChild(flaskExpandSelect);
+        content.appendChild(flaskExpandSelectRow);
+      }
+    } else {
+      flaskExpandPcId = null;
+    }
+
     renderCombatDicePicker(c, content);
     var confirmBtn = document.createElement("button");
     confirmBtn.type = "button";
@@ -5929,15 +5994,23 @@
       if (c.flaskBase.current > 0) c.flaskBase.current -= 1;
       else c.flaskExtra.current -= 1;
       target.current = Math.min(target.max, target.current + healAmount);
+      var flaskLines = [window.I18N.t("action_log_dice_used", { dice: dice.join("、") })];
+      // 遺物効果「道具效果擴大」：自身以外任意1名PCにも同様の効果を発揮する（選んだ場合のみ）。
+      if (flaskExpandPcId) {
+        var flaskOtherPc = rosterCharacters.filter(function (rc) {
+          return rc.id === flaskExpandPcId;
+        })[0];
+        if (flaskOtherPc) {
+          var otherTarget = useFp ? flaskOtherPc.fp : flaskOtherPc.hp;
+          otherTarget.current = Math.min(otherTarget.max, otherTarget.current + healAmount);
+          flaskLines = flaskLines.concat([window.I18N.t("consumable_effect_expand_applied", { name: flaskOtherPc.name })]);
+        }
+      }
       combatDiceSelection = [];
       flaskFpChoice = null;
+      flaskExpandPcId = null;
       saveRosterCharacters();
       addLog(useFp ? "log_combat_flask_use_fp" : "log_combat_flask_use", { character: c.name, dice: dice.join("、"), amount: healAmount });
-      var flaskLines = [window.I18N.t("action_log_dice_used", { dice: dice.join("、") })];
-      // 遺物効果「道具效果擴大」：自身以外任意1名PCにも同様の効果を発揮できる（対象選択UIが
-      // 無いため、GM/玩家が手動で対象を決めて適用する旨を注記のみ残す）。
-      var itemBoostEffect = CharacterDrawer.findLearnedRelicEffectByName(c, ["道具效果擴大", "アイテム効果拡大"]);
-      if (itemBoostEffect) flaskLines = flaskLines.concat([CharacterTypes.localizedText(itemBoostEffect.body)]);
       addActionBox(
         c,
         window.I18N.t("combat_action_flask"),
@@ -5982,6 +6055,46 @@
   // 不明のためGM/プレイヤーの手動判定に委ねる、淑女「重演」等と同型のゲート）。
   var carriedKnowledgeNoConsume = null; // true | false | null（null=未確認）
 
+  // 消耗品ごとの対象種別：selfは自身のみ（対象選択UI不要）、enemyは選択中の敵人から1体選ぶ、
+  // otherPcは自身以外のPCから1人選ぶ（溫石）、ailmentは自身が蓄積中の異常状態から1つ選ぶ
+  // （苔藥）、greaseは武器または盾を選ぶ（塗脂）、allPcは入場中の全PCが対象（高揚之香）。
+  var CONSUMABLE_TARGET_KIND = {
+    item_hero_meat_chunk: "self",
+    item_turtle_neck_pickle: "self",
+    item_shard_of_starlight: "self",
+    item_bitter_medicine: "ailment",
+    item_grease: "grease",
+    item_warming_stone: "otherPc",
+    item_throwing_dagger: "enemy",
+    item_azure_throwing_knife: "enemy",
+    item_bone_poison_dart: "enemy",
+    item_folding_shuriken: "enemy",
+    item_throwing_pot: "enemy",
+    item_perfume_acid_spray: "enemy",
+    item_perfume_iron_pot_spray: "self",
+    item_perfume_spark_aroma: "enemy",
+    item_perfume_uplifting_aroma: "allPc",
+    item_perfume_poison_spray: "enemy",
+  };
+
+  // 遺物効果「道具效果擴大」：習得済みの角色がこの一覧のいずれかの消耗品を使う場合、自身以外
+  // 任意1名PCへも同様の効果を発揮できる（聖杯瓶はrenderCombatFlaskAction側で別途処理する）。
+  var ITEM_EFFECT_EXPAND_IDS = ["item_hero_meat_chunk", "item_turtle_neck_pickle", "item_shard_of_starlight", "item_bitter_medicine"];
+
+  var combatConsumableOtherPcId = null;
+  var combatConsumableAilmentLabel = null;
+  var combatConsumableGreaseKind = null; // "weapon" | "shield" | null
+  var combatConsumableGreaseWeaponId = null;
+  var combatConsumableGreaseElementIdx = 0;
+
+  function resetCombatConsumableSubChoices() {
+    combatConsumableOtherPcId = null;
+    combatConsumableAilmentLabel = null;
+    combatConsumableGreaseKind = null;
+    combatConsumableGreaseWeaponId = null;
+    combatConsumableGreaseElementIdx = 0;
+  }
+
   function renderCombatConsumableAction(c, content) {
     var Consumables = window.PriTestConsumables;
     var byItemId = {};
@@ -6006,8 +6119,15 @@
       opt.textContent = Consumables.localizedText(item.name) + "（" + byItemId[id].length + "）";
       sel.appendChild(opt);
     });
+    sel.addEventListener("change", function () {
+      resetCombatConsumableSubChoices();
+      renderCombatModal();
+    });
     selLabel.appendChild(sel);
     content.appendChild(selLabel);
+
+    var selectedId = sel.value;
+    var targetKind = CONSUMABLE_TARGET_KIND[selectedId] || "self";
 
     // 學者「博聞強識」：自身が使う消耗品は常に等級2效果が發揮される（具体的な数値適用は
     // GM手動反映）。また、指定出目で骰子消耗を支払ったかどうかをYes/Noで確認し、「是」なら
@@ -6047,6 +6167,229 @@
       content.appendChild(ckRow);
     }
 
+    // 對象選択UI（種別ごと）。
+    var enemyOptions = targetKind === "enemy" ? resolveSelectedEnemyOptions() : [];
+    if (targetKind === "enemy" && enemyOptions.length > 1) {
+      if (!enemyOptions.some(function (opt) { return opt.key === combatAttackTargetEnemyKey; })) {
+        combatAttackTargetEnemyKey = enemyOptions[0].key;
+      }
+      var enemyTargetRow = document.createElement("div");
+      enemyTargetRow.className = "combat-attack-target-row";
+      var enemyTargetLabel = document.createElement("label");
+      enemyTargetLabel.textContent = window.I18N.t("combat_attack_target_enemy_label");
+      var enemyTargetSelect = document.createElement("select");
+      enemyOptions.forEach(function (opt) {
+        var o = document.createElement("option");
+        o.value = opt.key;
+        o.textContent = opt.name;
+        if (opt.key === combatAttackTargetEnemyKey) o.selected = true;
+        enemyTargetSelect.appendChild(o);
+      });
+      enemyTargetSelect.addEventListener("change", function () {
+        combatAttackTargetEnemyKey = enemyTargetSelect.value;
+      });
+      enemyTargetLabel.appendChild(enemyTargetSelect);
+      enemyTargetRow.appendChild(enemyTargetLabel);
+      content.appendChild(enemyTargetRow);
+    } else if (targetKind === "enemy" && enemyOptions.length === 1) {
+      combatAttackTargetEnemyKey = enemyOptions[0].key;
+    }
+
+    var otherPcOptions = [];
+    if (targetKind === "otherPc") {
+      otherPcOptions = rosterCharacters.filter(function (rc) {
+        return rc.entered && rc.id !== c.id;
+      });
+      if (otherPcOptions.length) {
+        if (!otherPcOptions.some(function (rc) { return rc.id === combatConsumableOtherPcId; })) {
+          combatConsumableOtherPcId = otherPcOptions[0].id;
+        }
+        var otherPcRow = document.createElement("label");
+        otherPcRow.className = "field-row-block";
+        otherPcRow.textContent = window.I18N.t("consumable_other_pc_target_label");
+        var otherPcSelect = document.createElement("select");
+        otherPcOptions.forEach(function (rc) {
+          var o = document.createElement("option");
+          o.value = rc.id;
+          o.textContent = rc.name;
+          if (rc.id === combatConsumableOtherPcId) o.selected = true;
+          otherPcSelect.appendChild(o);
+        });
+        otherPcSelect.addEventListener("change", function () {
+          combatConsumableOtherPcId = otherPcSelect.value;
+        });
+        otherPcRow.appendChild(otherPcSelect);
+        content.appendChild(otherPcRow);
+      }
+    }
+
+    var ailmentOptions = [];
+    if (targetKind === "ailment") {
+      var received = (state.battle.attributeStatus && state.battle.attributeStatus.received[c.id]) || {};
+      ailmentOptions = ATTRIBUTE_STATUS_AILMENT_OPTIONS.filter(function (opt) {
+        return (received[opt.zh] || received[opt.ja] || 0) > 0;
+      });
+      if (ailmentOptions.length) {
+        if (!combatConsumableAilmentLabel || !ailmentOptions.some(function (o) { return o.zh === combatConsumableAilmentLabel; })) {
+          combatConsumableAilmentLabel = ailmentOptions[0].zh;
+        }
+        var ailmentRow = document.createElement("label");
+        ailmentRow.className = "field-row-block";
+        ailmentRow.textContent = window.I18N.t("consumable_ailment_target_label");
+        var ailmentSelect = document.createElement("select");
+        ailmentOptions.forEach(function (opt) {
+          var o = document.createElement("option");
+          o.value = opt.zh;
+          o.textContent = CharacterTypes.localizedText(opt);
+          if (opt.zh === combatConsumableAilmentLabel) o.selected = true;
+          ailmentSelect.appendChild(o);
+        });
+        ailmentSelect.addEventListener("change", function () {
+          combatConsumableAilmentLabel = ailmentSelect.value;
+        });
+        ailmentRow.appendChild(ailmentSelect);
+        content.appendChild(ailmentRow);
+      } else {
+        var noAilmentNote = document.createElement("p");
+        noAilmentNote.className = "threat-ref-body";
+        noAilmentNote.textContent = window.I18N.t("consumable_no_ailment_note");
+        content.appendChild(noAilmentNote);
+      }
+    }
+
+    // 遺物効果「道具效果擴大」：自身使用消耗品「聖杯瓶／勇者的肉塊／龜首漬／星光碎片／苔玉」時，
+    // 可對自身以外的任意1名PC也發揮相同效果（任選，預設不擴大）。
+    var canExpandItemEffect =
+      ITEM_EFFECT_EXPAND_IDS.indexOf(selectedId) !== -1 &&
+      !!CharacterDrawer.findLearnedRelicEffectByName(c, ["道具效果擴大", "アイテム効果拡大"]);
+    var expandPcOptions = [];
+    if (canExpandItemEffect) {
+      expandPcOptions = rosterCharacters.filter(function (rc) {
+        return rc.entered && rc.id !== c.id;
+      });
+      if (expandPcOptions.length) {
+        var expandRow = document.createElement("div");
+        expandRow.className = "wb-row";
+        var expandToggleBtn = document.createElement("button");
+        expandToggleBtn.type = "button";
+        expandToggleBtn.textContent = window.I18N.t("consumable_expand_toggle_label");
+        if (combatConsumableOtherPcId) expandToggleBtn.classList.add("active");
+        expandToggleBtn.addEventListener("click", function () {
+          combatConsumableOtherPcId = combatConsumableOtherPcId ? null : expandPcOptions[0].id;
+          renderCombatModal();
+        });
+        expandRow.appendChild(expandToggleBtn);
+        content.appendChild(expandRow);
+
+        if (combatConsumableOtherPcId) {
+          if (!expandPcOptions.some(function (rc) { return rc.id === combatConsumableOtherPcId; })) {
+            combatConsumableOtherPcId = expandPcOptions[0].id;
+          }
+          var expandSelectRow = document.createElement("label");
+          expandSelectRow.className = "field-row-block";
+          expandSelectRow.textContent = window.I18N.t("consumable_other_pc_target_label");
+          var expandSelect = document.createElement("select");
+          expandPcOptions.forEach(function (rc) {
+            var o = document.createElement("option");
+            o.value = rc.id;
+            o.textContent = rc.name;
+            if (rc.id === combatConsumableOtherPcId) o.selected = true;
+            expandSelect.appendChild(o);
+          });
+          expandSelect.addEventListener("change", function () {
+            combatConsumableOtherPcId = expandSelect.value;
+          });
+          expandSelectRow.appendChild(expandSelect);
+          content.appendChild(expandSelectRow);
+        }
+      }
+    }
+
+    var greaseWeaponOptions = [];
+    if (targetKind === "grease") {
+      var Weapons = window.PriTestWeapons;
+      greaseWeaponOptions = (c.equippedWeaponIds || [])
+        .map(function (weaponId) {
+          var weapon = Weapons.get(weaponId.indexOf("::") !== -1 ? weaponId.slice(0, weaponId.indexOf("::")) : weaponId);
+          if (!weapon) return null;
+          var category = Weapons.getCategory(weapon.category);
+          return { weaponId: weaponId, name: Weapons.localizedText(weapon.name), isShield: !!(category && category.isShield) };
+        })
+        .filter(Boolean);
+      if (greaseWeaponOptions.length) {
+        if (!combatConsumableGreaseKind) combatConsumableGreaseKind = "weapon";
+        var greaseKindRow = document.createElement("div");
+        greaseKindRow.className = "wb-row";
+        [
+          { key: "weapon", label: window.I18N.t("consumable_grease_kind_weapon_label") },
+          { key: "shield", label: window.I18N.t("consumable_grease_kind_shield_label") },
+        ].forEach(function (opt) {
+          var btn = document.createElement("button");
+          btn.type = "button";
+          btn.textContent = opt.label;
+          if (combatConsumableGreaseKind === opt.key) btn.classList.add("active");
+          btn.addEventListener("click", function () {
+            combatConsumableGreaseKind = opt.key;
+            combatConsumableGreaseWeaponId = null;
+            renderCombatModal();
+          });
+          greaseKindRow.appendChild(btn);
+        });
+        content.appendChild(greaseKindRow);
+
+        var filteredGreaseOptions = greaseWeaponOptions.filter(function (o) {
+          return combatConsumableGreaseKind === "shield" ? o.isShield : !o.isShield;
+        });
+        if (filteredGreaseOptions.length) {
+          if (!filteredGreaseOptions.some(function (o) { return o.weaponId === combatConsumableGreaseWeaponId; })) {
+            combatConsumableGreaseWeaponId = filteredGreaseOptions[0].weaponId;
+          }
+          var greaseWeaponRow = document.createElement("label");
+          greaseWeaponRow.className = "field-row-block";
+          greaseWeaponRow.textContent = window.I18N.t("consumable_grease_target_label");
+          var greaseWeaponSelect = document.createElement("select");
+          filteredGreaseOptions.forEach(function (o) {
+            var opt = document.createElement("option");
+            opt.value = o.weaponId;
+            opt.textContent = o.name;
+            if (o.weaponId === combatConsumableGreaseWeaponId) opt.selected = true;
+            greaseWeaponSelect.appendChild(opt);
+          });
+          greaseWeaponSelect.addEventListener("change", function () {
+            combatConsumableGreaseWeaponId = greaseWeaponSelect.value;
+          });
+          greaseWeaponRow.appendChild(greaseWeaponSelect);
+          content.appendChild(greaseWeaponRow);
+        } else {
+          combatConsumableGreaseWeaponId = null;
+        }
+
+        if (combatConsumableGreaseKind === "weapon") {
+          var greaseElementRow = document.createElement("label");
+          greaseElementRow.className = "field-row-block";
+          greaseElementRow.textContent = window.I18N.t("consumable_grease_element_label");
+          var greaseElementSelect = document.createElement("select");
+          ATTRIBUTE_STATUS_ELEMENT_OPTIONS.forEach(function (opt, idx) {
+            var o = document.createElement("option");
+            o.value = String(idx);
+            o.textContent = CharacterTypes.localizedText(opt);
+            if (idx === combatConsumableGreaseElementIdx) o.selected = true;
+            greaseElementSelect.appendChild(o);
+          });
+          greaseElementSelect.addEventListener("change", function () {
+            combatConsumableGreaseElementIdx = Number(greaseElementSelect.value);
+          });
+          greaseElementRow.appendChild(greaseElementSelect);
+          content.appendChild(greaseElementRow);
+        }
+      } else {
+        var noWeaponNote = document.createElement("p");
+        noWeaponNote.className = "threat-ref-body";
+        noWeaponNote.textContent = window.I18N.t("consumable_no_weapon_note");
+        content.appendChild(noWeaponNote);
+      }
+    }
+
     renderCombatDicePicker(c, content);
     var confirmBtn = document.createElement("button");
     confirmBtn.type = "button";
@@ -6065,26 +6408,240 @@
         return a.usesRemaining - b.usesRemaining;
       });
       var target = instances[0];
+      var removedInstanceId = null;
       if (target && !(hasCarriedKnowledge && carriedKnowledgeNoConsume)) {
         target.usesRemaining -= 1;
         if (target.usesRemaining <= 0) {
           var idx = c.consumables.indexOf(target);
-          if (idx !== -1) c.consumables.splice(idx, 1);
+          if (idx !== -1) {
+            removedInstanceId = target.id;
+            c.consumables.splice(idx, 1);
+          }
         }
       }
+      // 遺物効果「節約術」：使用消耗品時，若以指定出目「6」支付骰子消耗（此消耗品原本的
+      // 「消耗：①」＝支付1個出目為1的骰子），則將該消耗品的使用次數回復「○1個」
+      // （即：這次使用不會實際減少使用次數）。
+      var frugalTriggered = false;
+      if (dice.indexOf(6) !== -1 && CharacterDrawer.findLearnedRelicEffectByName(c, ["節約術", "節約術"])) {
+        frugalTriggered = true;
+        if (removedInstanceId) {
+          if (!c.consumables) c.consumables = [];
+          c.consumables.push({ id: removedInstanceId, itemId: id, usesRemaining: 1 });
+        } else if (target) {
+          var maxUses = item && item.uses ? item.uses : target.usesRemaining + 1;
+          target.usesRemaining = Math.min(maxUses, target.usesRemaining + 1);
+        }
+      }
+      var applyLevel2 = !!hasCarriedKnowledge;
+      var effectResult = applyConsumableEffect(c, id, applyLevel2, {
+        enemyKey: combatAttackTargetEnemyKey,
+        otherPcId: combatConsumableOtherPcId,
+        ailmentLabel: combatConsumableAilmentLabel,
+        greaseKind: combatConsumableGreaseKind,
+        greaseWeaponId: combatConsumableGreaseWeaponId,
+        greaseElement: ATTRIBUTE_STATUS_ELEMENT_OPTIONS[combatConsumableGreaseElementIdx],
+      });
       combatDiceSelection = [];
       carriedKnowledgeNoConsume = null;
+      resetCombatConsumableSubChoices();
       saveRosterCharacters();
+      saveState();
       addLog("log_combat_consumable_use", {
         character: c.name,
         item: item ? Consumables.localizedText(item.name) : id,
         dice: dice.join("、"),
       });
-      addActionBox(c, item ? Consumables.localizedText(item.name) : id, null, [window.I18N.t("action_log_dice_used", { dice: dice.join("、") })]);
+      var lines = [window.I18N.t("action_log_dice_used", { dice: dice.join("、") })].concat(effectResult.lines || []);
+      if (frugalTriggered) lines = lines.concat([window.I18N.t("consumable_effect_frugal_applied")]);
+      addActionBox(c, item ? Consumables.localizedText(item.name) : id, effectResult.total || null, lines);
+      renderAttributeStatusList();
       renderCharacterRoster();
       renderCombatModal();
     });
     content.appendChild(confirmBtn);
+  }
+
+  // 消耗品の実際の効果適用。applyLevel2はhasCarriedKnowledge（學者「博聞強識」）の時のみtrue
+  // （それ以外は等級2效果の発揮条件が個別に不明瞭なため、reminder注記のみに留める）。
+  // targetは対象選択UIで決まった値（enemyKey／otherPcId／ailmentLabel／grease*）。
+  // 戻り値：{ total: 実行ログの見出し用文字列|null, lines: 実行ログ本文の配列 }
+  function applyConsumableEffect(c, itemId, applyLevel2, target) {
+    var lines = [];
+    var total = null;
+
+    function healSelf(hpAmount, fpAmount) {
+      if (hpAmount) c.hp.current = Math.min(c.hp.max, c.hp.current + hpAmount);
+      if (fpAmount) c.fp.current = Math.min(c.fp.max, c.fp.current + fpAmount);
+    }
+
+    // 遺物効果「道具效果擴大」：勇者的肉塊／龜首漬／星光碎片／苔藥に限り、選んだ対象PCの
+    // rosterCharacters上のオブジェクトを返す（未選択ならnull）。
+    function expandTargetPc() {
+      if (!target.otherPcId) return null;
+      return (
+        rosterCharacters.filter(function (rc) {
+          return rc.id === target.otherPcId;
+        })[0] || null
+      );
+    }
+    function pushExpandNote(otherPc) {
+      if (otherPc) lines.push(window.I18N.t("consumable_effect_expand_applied", { name: otherPc.name }));
+    }
+
+    if (itemId === "item_hero_meat_chunk") {
+      c._heroMeatBuffLevel = applyLevel2 ? 2 : 1;
+      lines.push(window.I18N.t("consumable_effect_hero_meat_applied"));
+      if (!applyLevel2) lines.push(window.I18N.t("consumable_effect_level2_reminder"));
+      var heroMeatOther = expandTargetPc();
+      if (heroMeatOther) {
+        heroMeatOther._heroMeatBuffLevel = applyLevel2 ? 2 : 1;
+        pushExpandNote(heroMeatOther);
+      }
+    } else if (itemId === "item_turtle_neck_pickle") {
+      if (!c.dicePool) c.dicePool = [];
+      c.dicePool.push(1);
+      lines.push(window.I18N.t("consumable_effect_turtle_neck_applied"));
+      if (applyLevel2) {
+        healSelf(2, 0);
+        lines.push(window.I18N.t("action_log_heal_total", { value: 2 }));
+      } else {
+        lines.push(window.I18N.t("consumable_effect_level2_reminder"));
+      }
+      var turtleOther = expandTargetPc();
+      if (turtleOther) {
+        if (!turtleOther.dicePool) turtleOther.dicePool = [];
+        turtleOther.dicePool.push(1);
+        if (applyLevel2) turtleOther.hp.current = Math.min(turtleOther.hp.max, turtleOther.hp.current + 2);
+        pushExpandNote(turtleOther);
+      }
+    } else if (itemId === "item_shard_of_starlight") {
+      var fpAmount = applyLevel2 ? 6 : 3;
+      healSelf(0, fpAmount);
+      lines.push(window.I18N.t("action_log_fp_heal_total", { value: fpAmount }));
+      var starlightOther = expandTargetPc();
+      if (starlightOther) {
+        starlightOther.fp.current = Math.min(starlightOther.fp.max, starlightOther.fp.current + fpAmount);
+        pushExpandNote(starlightOther);
+      }
+    } else if (itemId === "item_bitter_medicine") {
+      if (target.ailmentLabel) {
+        removeReceivedAttributeStatus(c.id, target.ailmentLabel);
+        lines.push(window.I18N.t("consumable_effect_bitter_medicine_applied", { label: target.ailmentLabel }));
+      } else {
+        lines.push(window.I18N.t("consumable_no_ailment_note"));
+      }
+      if (applyLevel2) {
+        healSelf(2, 0);
+        lines.push(window.I18N.t("action_log_heal_total", { value: 2 }));
+      } else {
+        lines.push(window.I18N.t("consumable_effect_level2_reminder"));
+      }
+      var bitterOther = expandTargetPc();
+      if (bitterOther) {
+        if (target.ailmentLabel) removeReceivedAttributeStatus(bitterOther.id, target.ailmentLabel);
+        if (applyLevel2) bitterOther.hp.current = Math.min(bitterOther.hp.max, bitterOther.hp.current + 2);
+        pushExpandNote(bitterOther);
+      }
+    } else if (itemId === "item_grease") {
+      if (target.greaseKind === "shield" && target.greaseWeaponId) {
+        c._greaseShieldId = target.greaseWeaponId;
+        c._guardValueBonusUntilEndPhase = 10;
+        c._guardValueBonusConsumed = false;
+        lines.push(window.I18N.t("consumable_effect_grease_shield_applied"));
+      } else if (target.greaseWeaponId && target.greaseElement) {
+        c._greaseWeaponId = target.greaseWeaponId;
+        c._greaseElementRef = target.greaseElement;
+        lines.push(
+          window.I18N.t("consumable_effect_grease_weapon_applied", { element: CharacterTypes.localizedText(target.greaseElement) })
+        );
+      } else {
+        lines.push(window.I18N.t("consumable_no_weapon_note"));
+      }
+    } else if (itemId === "item_warming_stone") {
+      var hpAmount = applyLevel2 ? 4 : 2;
+      healSelf(hpAmount, 0);
+      lines.push(window.I18N.t("action_log_heal_total", { value: hpAmount }));
+      var otherPc = target.otherPcId
+        ? rosterCharacters.filter(function (rc) {
+            return rc.id === target.otherPcId;
+          })[0]
+        : null;
+      if (otherPc) {
+        otherPc.hp.current = Math.min(otherPc.hp.max, otherPc.hp.current + hpAmount);
+        lines.push(window.I18N.t("consumable_effect_warming_stone_other", { name: otherPc.name, value: hpAmount }));
+      }
+      if (!applyLevel2) lines.push(window.I18N.t("consumable_effect_level2_reminder"));
+    } else if (itemId === "item_throwing_dagger") {
+      lines.push(window.I18N.t("consumable_effect_triangle_note"));
+      if (applyLevel2) {
+        total = window.I18N.t("action_log_damage_total", { value: 15 });
+      } else {
+        lines.push(window.I18N.t("consumable_effect_level2_reminder"));
+      }
+    } else if (itemId === "item_azure_throwing_knife") {
+      total = window.I18N.t("action_log_damage_total", { value: 2 });
+    } else if (itemId === "item_bone_poison_dart") {
+      var poisonRoll = 1 + Math.floor(Math.random() * 6);
+      if (target.enemyKey) recordAttributeStatusDealt(c.id, target.enemyKey, "猛毒", poisonRoll);
+      lines.push(window.I18N.t("action_log_status_accum", { label: CharacterTypes.localizedText({ zh: "猛毒", ja: "猛毒" }), value: poisonRoll }));
+      if (applyLevel2) {
+        total = window.I18N.t("action_log_damage_total", { value: 15 });
+      } else {
+        lines.push(window.I18N.t("consumable_effect_level2_reminder"));
+      }
+    } else if (itemId === "item_folding_shuriken") {
+      var shurikenRoll = 1 + Math.floor(Math.random() * 6);
+      var shurikenDmg = shurikenRoll * 10 + (applyLevel2 ? 15 : 0);
+      total = window.I18N.t("action_log_damage_total", { value: shurikenDmg });
+      lines.push(window.I18N.t("consumable_effect_dice_rolled_note", { dice: shurikenRoll }));
+      if (!applyLevel2) lines.push(window.I18N.t("consumable_effect_level2_reminder"));
+    } else if (itemId === "item_throwing_pot") {
+      lines.push(window.I18N.t("consumable_effect_throwing_pot_note"));
+      if (applyLevel2) {
+        total = window.I18N.t("action_log_damage_total", { value: 15 });
+      } else {
+        lines.push(window.I18N.t("consumable_effect_level2_reminder"));
+      }
+    } else if (itemId === "item_perfume_acid_spray") {
+      lines.push(window.I18N.t("consumable_effect_acid_spray_note"));
+      if (applyLevel2) {
+        c._guardValueBonusUntilEndPhase = 10;
+        c._guardValueBonusConsumed = false;
+        lines.push(window.I18N.t("consumable_effect_guard_value_bonus_applied"));
+      } else {
+        lines.push(window.I18N.t("consumable_effect_level2_reminder"));
+      }
+    } else if (itemId === "item_perfume_iron_pot_spray") {
+      lines.push(window.I18N.t("consumable_effect_iron_pot_note"));
+      lines.push(applyLevel2 ? window.I18N.t("consumable_effect_iron_pot_level2_note") : window.I18N.t("consumable_effect_level2_reminder"));
+    } else if (itemId === "item_perfume_spark_aroma") {
+      var sparkRoll = 1 + Math.floor(Math.random() * 6);
+      var sparkValue = sparkRoll + (applyLevel2 ? 2 : 0);
+      if (target.enemyKey) recordAttributeStatusDealt(c.id, target.enemyKey, "炎", sparkValue);
+      lines.push(window.I18N.t("action_log_element_accum", { label: CharacterTypes.localizedText({ zh: "火", ja: "炎" }), value: sparkValue }));
+      lines.push(window.I18N.t("consumable_effect_mob_damage_note"));
+      if (!applyLevel2) lines.push(window.I18N.t("consumable_effect_level2_reminder"));
+    } else if (itemId === "item_perfume_uplifting_aroma") {
+      var upliftLevel = applyLevel2 ? 2 : 1;
+      rosterCharacters.forEach(function (rc) {
+        if (!rc.entered) return;
+        rc._heroMeatBuffLevel = upliftLevel;
+        rc._guardValueBonusUntilEndPhase = upliftLevel >= 2 ? 20 : 10;
+        rc._guardValueBonusConsumed = false;
+      });
+      lines.push(window.I18N.t("consumable_effect_uplifting_aroma_applied"));
+      if (!applyLevel2) lines.push(window.I18N.t("consumable_effect_level2_reminder"));
+    } else if (itemId === "item_perfume_poison_spray") {
+      var toxinRoll = 1 + Math.floor(Math.random() * 6);
+      var toxinValue = toxinRoll + (applyLevel2 ? 2 : 0);
+      if (target.enemyKey) recordAttributeStatusDealt(c.id, target.enemyKey, "猛毒", toxinValue);
+      lines.push(window.I18N.t("action_log_status_accum", { label: CharacterTypes.localizedText({ zh: "猛毒", ja: "猛毒" }), value: toxinValue }));
+      lines.push(window.I18N.t("consumable_effect_mob_damage_note"));
+      if (!applyLevel2) lines.push(window.I18N.t("consumable_effect_level2_reminder"));
+    }
+
+    return { total: total, lines: lines };
   }
 
   function renderCombatMoveAction(c, content) {
@@ -6645,7 +7202,11 @@
         cost = { diceKind: "count", diceCountMin: parsed.diceCost || 1, diceCountMax: null, sumTotal: null, fpCost: 0, hpCost: 0 };
         baseValue = parsed.hpValue || 0;
       }
-      var value = applyConsecutiveGuardBonus(c, baseValue);
+      // 消耗品「塗脂（盾）」／「調香瓶｜高揚之香」／「調香瓶｜酸之噴霧」等級2：直到結束階段為止、
+      // 「複数回ガードする場合は初回のみ」のHP價值加算（+10、上限100）。表示時点で消費フラグを
+      // 立てず、実際に確定した時だけ消費する（プレビューと確定を分ける）。
+      var pendingGuardBonus = !c._guardValueBonusConsumed ? c._guardValueBonusUntilEndPhase || 0 : 0;
+      var value = Math.min(applyConsecutiveGuardBonus(c, baseValue) + pendingGuardBonus, 100);
       renderDiceCostAction(c, content, cost, function (dice) {
         var blockLines = [window.I18N.t("action_log_dice_used", { dice: dice.join("、") })];
         // 附帶効果「防禦成功時HP回復」：HP損害を処理する前に自身へ「HP回復□」＝+1を適用する。
@@ -6653,6 +7214,7 @@
           c.hp.current = Math.min(c.hp.max, c.hp.current + 1);
           blockLines = blockLines.concat([window.I18N.t("guard_hp_regen_applied_note")]);
         }
+        if (pendingGuardBonus) c._guardValueBonusConsumed = true;
         addActionBox(c, window.I18N.t("combat_defense_block_button"), window.I18N.t("action_log_defense_value_total", { value: value }), blockLines);
         addLog("log_combat_defense_block", { character: c.name, value: value, dice: dice.join("、") });
         registerGuardUsed(c);
@@ -8290,6 +8852,14 @@
       c._daggerTwoHitCountThisPhase = 0;
       c._phaseDamageDealt = 0;
       c._ominousStrikeBuffActive = false;
+      // 消耗品「勇者的肉塊」／「調香瓶｜高揚之香」（直到結束階段為止的攻擊/戰技傷害buff）と
+      // 「塗脂」（直到結束階段為止的武器屬性／盾防禦強化）は、いずれもフェイズ切替の都度リセット。
+      c._heroMeatBuffLevel = 0;
+      c._greaseWeaponId = null;
+      c._greaseElementRef = null;
+      c._greaseShieldId = null;
+      c._guardValueBonusUntilEndPhase = 0;
+      c._guardValueBonusConsumed = false;
       delete rosterDiceRollFeedback[c.id];
     });
     // 額外・防禦行動へ入るときは、各角色の確定行動（点線枠）を一旦全てクリアする。

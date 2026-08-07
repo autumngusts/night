@@ -856,26 +856,40 @@
       details.className = "ability-entry";
       var summary = document.createElement("summary");
       summary.textContent = CharacterTypes.localizedText(effect.name) + "［" + effect.kind + "］";
-      var effectName = (effect.name && (effect.name.zh || effect.name.ja)) || "";
-      var choiceTagOpt =
-        effectName === "屬性蓄積值＋1" || effectName === "属性蓄積値＋1"
-          ? c.relicAccumElementChoice
-          : effectName === "屬性達成的歡喜" || effectName === "属性達成の歓喜"
-          ? c.relicJoyElementChoice
-          : effectName === "異常狀態達成的歡喜" || effectName === "状態異常達成の歓喜"
-          ? c.relicJoyAilmentChoice
-          : null;
-      if (choiceTagOpt) {
-        var choiceTag = document.createElement("span");
-        choiceTag.className = "weapon-damage-tag";
-        choiceTag.textContent = " " + CharacterTypes.localizedText(choiceTagOpt);
-        summary.appendChild(choiceTag);
-      }
       details.appendChild(summary);
       var body = document.createElement("p");
       body.className = "threat-ref-body";
       body.textContent = CharacterTypes.localizedText(effect.body);
       details.appendChild(body);
+
+      // 「屬性蓄積值＋1」「屬性達成的歡喜」「異常狀態達成的歡喜」：習得済み後もいつでも
+      // 選択を変更できる（既存はランダム決定分も含む）。プレイヤーが自分で選ぶのが本則。
+      var choiceConfig = relicChoiceConfigForEffect(effect);
+      if (choiceConfig) {
+        var choiceRow = document.createElement("div");
+        choiceRow.className = "wb-row";
+        var choiceSelect = document.createElement("select");
+        choiceConfig.options.forEach(function (opt, idx) {
+          var o = document.createElement("option");
+          o.value = String(idx);
+          o.textContent = CharacterTypes.localizedText(opt);
+          if (c[choiceConfig.field] && CharacterTypes.localizedText(c[choiceConfig.field]) === CharacterTypes.localizedText(opt)) {
+            o.selected = true;
+          }
+          choiceSelect.appendChild(o);
+        });
+        choiceRow.appendChild(choiceSelect);
+        var choiceSetBtn = document.createElement("button");
+        choiceSetBtn.type = "button";
+        choiceSetBtn.textContent = window.I18N.t("relic_choice_set_button");
+        choiceSetBtn.addEventListener("click", function () {
+          c[choiceConfig.field] = choiceConfig.options[Number(choiceSelect.value)];
+          saveFn();
+          renderRelicSection();
+        });
+        choiceRow.appendChild(choiceSetBtn);
+        details.appendChild(choiceRow);
+      }
 
       var resetBtn = document.createElement("button");
       resetBtn.type = "button";
@@ -885,6 +899,7 @@
         if (!window.confirm(window.I18N.t("relic_reset_confirm", { name: CharacterTypes.localizedText(effect.name) }))) return;
         var idx = c.learnedRelicEffects.indexOf(key);
         if (idx !== -1) c.learnedRelicEffects.splice(idx, 1);
+        if (choiceConfig) delete c[choiceConfig.field];
         saveFn();
         relicRolledDice = null;
         renderRelicSection();
@@ -910,13 +925,38 @@
     body.textContent = CharacterTypes.localizedText(candidate.effect.body);
     card.appendChild(body);
 
+    // 「屬性蓄積值＋1」「屬性達成的歡喜」「異常狀態達成的歡喜」：習得ボタンを押す前に、
+    // 玩家自身で対象を選べるようにする（既定は「隨機決定」＝未選択のまま習得すると
+    // assignRelicChoiceIfNeededがランダムに決める、規則書どおりの本則は玩家が選ぶこと）。
+    var choiceConfig = relicChoiceConfigForEffect(candidate.effect);
+    var choiceSelect = null;
+    if (choiceConfig) {
+      var choiceRow = document.createElement("div");
+      choiceRow.className = "wb-row";
+      choiceSelect = document.createElement("select");
+      var randomOpt = document.createElement("option");
+      randomOpt.value = "-1";
+      randomOpt.textContent = window.I18N.t("relic_choice_random_option");
+      choiceSelect.appendChild(randomOpt);
+      choiceConfig.options.forEach(function (opt, idx) {
+        var o = document.createElement("option");
+        o.value = String(idx);
+        o.textContent = CharacterTypes.localizedText(opt);
+        choiceSelect.appendChild(o);
+      });
+      choiceRow.appendChild(choiceSelect);
+      card.appendChild(choiceRow);
+    }
+
     var learnBtn = document.createElement("button");
     learnBtn.type = "button";
     learnBtn.textContent = window.I18N.t("relic_learn_button");
     learnBtn.addEventListener("click", function () {
       if (!c.learnedRelicEffects) c.learnedRelicEffects = [];
       c.learnedRelicEffects.push(candidate.key);
-      assignRelicChoiceIfNeeded(c, candidate.effect);
+      var pickedIdx = choiceSelect ? Number(choiceSelect.value) : -1;
+      var pickedOption = choiceConfig && pickedIdx >= 0 ? choiceConfig.options[pickedIdx] : null;
+      assignRelicChoiceIfNeeded(c, candidate.effect, pickedOption);
       saveFn();
       relicRolledDice = null;
       renderRelicSection();
@@ -2676,6 +2716,11 @@
     var raritySum = rarityDice.reduce(function (a, b) {
       return a + b;
     }, 0);
+    // 遺物効果「發現力＋」：自身獲得「潛在力量」時，決定稀有度的骰子出目總和「+1」
+    // （例：骰出4→自動+1→5，可能因此從C變為U等）。
+    if (findLearnedRelicEffectByName(c, ["發現力＋", "発見力＋"])) {
+      raritySum += 1;
+    }
     var rarity = lookupRarityBySum(raritySum);
 
     var item = null,
@@ -2809,21 +2854,31 @@
     return resolved;
   }
 
-  // 遺物効果「屬性蓄積值＋1」「屬性達成的歡喜」「異常狀態達成的歡喜」：習得時に対象を1つ選ぶ規則だが、
-  // 附帶効果の狀態異常耐性／屬性耐性と同じ理由（選択UIが無い）でベストエフォートのランダム決定にする。
+  // 遺物効果「屬性蓄積值＋1」「屬性達成的歡喜」「異常狀態達成的歡喜」：習得時に対象を1つ選ぶ規則。
+  // 各效果名 → { field: c上に保存するプロパティ名, options: 候補一覧 } の対応表。
   // COMMON_SKILL_ELEMENT_OPTIONS／COMMON_SKILL_STATUS_OPTIONSは屬性4種・異常7種のどちらも
   // night.js側のATTRIBUTE_STATUS_ELEMENT_OPTIONS／AILMENT_OPTIONSと同一の候補一覧のため共用できる。
-  function assignRelicChoiceIfNeeded(c, effect) {
+  var RELIC_CHOICE_CONFIG_BY_NAME = {
+    "屬性蓄積值＋1": { field: "relicAccumElementChoice", options: COMMON_SKILL_ELEMENT_OPTIONS },
+    "属性蓄積値＋1": { field: "relicAccumElementChoice", options: COMMON_SKILL_ELEMENT_OPTIONS },
+    "屬性達成的歡喜": { field: "relicJoyElementChoice", options: COMMON_SKILL_ELEMENT_OPTIONS },
+    "属性達成の歓喜": { field: "relicJoyElementChoice", options: COMMON_SKILL_ELEMENT_OPTIONS },
+    "異常狀態達成的歡喜": { field: "relicJoyAilmentChoice", options: COMMON_SKILL_STATUS_OPTIONS },
+    "状態異常達成の歓喜": { field: "relicJoyAilmentChoice", options: COMMON_SKILL_STATUS_OPTIONS },
+  };
+
+  function relicChoiceConfigForEffect(effect) {
     var name = (effect && effect.name && (effect.name.zh || effect.name.ja)) || "";
-    if ((name === "屬性蓄積值＋1" || name === "属性蓄積値＋1") && !c.relicAccumElementChoice) {
-      c.relicAccumElementChoice = COMMON_SKILL_ELEMENT_OPTIONS[Math.floor(Math.random() * COMMON_SKILL_ELEMENT_OPTIONS.length)];
-    }
-    if ((name === "屬性達成的歡喜" || name === "属性達成の歓喜") && !c.relicJoyElementChoice) {
-      c.relicJoyElementChoice = COMMON_SKILL_ELEMENT_OPTIONS[Math.floor(Math.random() * COMMON_SKILL_ELEMENT_OPTIONS.length)];
-    }
-    if ((name === "異常狀態達成的歡喜" || name === "状態異常達成の歓喜") && !c.relicJoyAilmentChoice) {
-      c.relicJoyAilmentChoice = COMMON_SKILL_STATUS_OPTIONS[Math.floor(Math.random() * COMMON_SKILL_STATUS_OPTIONS.length)];
-    }
+    return RELIC_CHOICE_CONFIG_BY_NAME[name] || null;
+  }
+
+  // pickedOption（{zh,ja}）を渡せば玩家自身の選択をそのまま記録し、nullなら
+  // ベストエフォートで候補一覧からランダムに1つ選ぶ（玩家が選ばなかった場合のフォールバック）。
+  // 既に選択済み（c[field]が存在）の場合は上書きしない。
+  function assignRelicChoiceIfNeeded(c, effect, pickedOption) {
+    var config = relicChoiceConfigForEffect(effect);
+    if (!config || c[config.field]) return;
+    c[config.field] = pickedOption || config.options[Math.floor(Math.random() * config.options.length)];
   }
 
   // 附帶効果「狀態異常耐性」「屬性耐性」：習得時に対象を1つ選ぶ規則だが、本UIには選択ダイアログが
@@ -3444,6 +3499,12 @@
       }
       results.push({ label: Weapons.localizedText(fieldValue), isElement: isElement, scorpionBonus: scorpionBonus });
     });
+    // 消耗品「塗脂」：選んだ武器へ直到結束階段為止追加される「屬性｜X」（c._greaseWeaponId／
+    // c._greaseElementRef、night.js側で設定・フェイズ切替時にリセット）。武器本来のスキルとは
+    // 別枠の一時効果のため、c.weaponExtraSkills（永続）は触らずここで直接合成する。
+    if (c._greaseWeaponId === weaponId && c._greaseElementRef) {
+      results.push({ label: Weapons.localizedText(c._greaseElementRef), isElement: true, scorpionBonus: 0 });
+    }
     return results;
   }
 
@@ -3715,6 +3776,13 @@
     }
     if (name === "家族共鬥" || name === "ファミリー共闘") {
       return !!(c.spiritSummon && c.spiritSummonHp && c.spiritSummonHp[c.spiritSummon] && c.spiritSummonHp[c.spiritSummon].current > 0);
+    }
+    if (name === "武器脂的達人" || name === "武器脂の達人") {
+      // 消耗品「塗脂」を選んだ武器へ塗った直到結束階段為止だけ発揮する（night.js側で
+      // c._greaseWeaponIdを設定・フェイズ切替時にリセット）。本文が「1Hit：+5／2Hit：+10」の
+      // 定型句のため、条件を満たす場合だけこの関数がtrueを返せば既存のextractHitBonusループが
+      // そのまま値を拾ってくれる。
+      return c._greaseWeaponId === weaponId;
     }
     return true;
   }
@@ -5650,6 +5718,14 @@
     });
   }
 
+  // 遺物効果「得意祈禱「X」」：習得済みなら、裝備中の聖印（sacred_seal）でその祈禱を
+  // 直接使用できるようにする。名前 → 対応する祈禱（weapons.js側のprayer_*スキルid）の対応表。
+  var FAVORED_PRAYER_RELIC_MAP = [
+    { names: ["得意祈禱「雷之槍」", "得意祈祷「雷の槍」"], skillId: "prayer_lightning_spear" },
+    { names: ["得意祈禱「燃燒吧！」", "得意祈祷「火よ！」"], skillId: "prayer_fire_exclaim" },
+    { names: ["得意祈禱「獸爪」", "得意祈祷「獣爪」"], skillId: "prayer_beast_claw" },
+  ];
+
   // 戦闘モーダルの「技能」action用：装備中の武器・盾が持つ戦技（kind:"art"／"innate"のうち
   // Action種別のもの）を、type側のentryと同じ{id, name, body, kind}形式で返す。ランダム戦技枠は
   // 決定済み（c.weaponRandomSkills[weaponId]が設定済み）のものだけを対象にする。
@@ -5694,6 +5770,38 @@
         });
       });
     });
+
+    // 遺物効果「得意祈禱「X」」：習得済みの祈禱ごとに、裝備中の聖印の中でartPower
+    // （稀有度補正+威力補正）が最も高いものを自動選択し、その聖印で使用する扱いにする
+    // （威力計算・黄字表示はcomputeSkillDamage側で通常の祈禱と全く同じ経路を通る）。
+    var equippedSeals = (c.equippedWeaponIds || [])
+      .map(function (weaponId) {
+        var weapon = Weapons.get(baseWeaponId(weaponId));
+        if (!weapon) return null;
+        var category = Weapons.getCategory(weapon.category);
+        if (!category || category.id !== "sacred_seal") return null;
+        var artInfo = computeArtPower(c, weaponId);
+        return artInfo ? { weaponId: weaponId, weapon: weapon, artPower: artInfo.artPower } : null;
+      })
+      .filter(Boolean);
+    if (equippedSeals.length) {
+      var bestSeal = equippedSeals.reduce(function (best, cur) {
+        return !best || cur.artPower > best.artPower ? cur : best;
+      }, null);
+      FAVORED_PRAYER_RELIC_MAP.forEach(function (cfg) {
+        if (!findLearnedRelicEffectByName(c, cfg.names)) return;
+        var skill = Weapons.getSkill(cfg.skillId);
+        if (!skill || skill.kind !== "Action") return;
+        entries.push({
+          id: "favored_prayer:" + cfg.skillId,
+          name: skill.name,
+          body: skill.body,
+          kind: skill.kind,
+          weaponName: Weapons.localizedText(bestSeal.weapon.name),
+          weaponId: bestSeal.weaponId,
+        });
+      });
+    }
     return entries;
   }
 
