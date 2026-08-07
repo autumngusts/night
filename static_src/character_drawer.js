@@ -415,6 +415,7 @@
         return;
       }
       c.learnedAttachedEffects.push(effect.id);
+      assignAttachedResistChoiceIfNeeded(c, effect.id);
       saveFn();
       attachedRollResult = null;
       renderAttachedSection();
@@ -493,6 +494,18 @@
       details.className = "ability-entry";
       var summary = document.createElement("summary");
       summary.textContent = CharacterTypes.localizedText(effect.name) + "［Passive］";
+      if (id === "status_resist" && c.statusResistChoice) {
+        var statusTag = document.createElement("span");
+        statusTag.className = "weapon-damage-tag";
+        statusTag.textContent = " " + CharacterTypes.localizedText(c.statusResistChoice);
+        summary.appendChild(statusTag);
+      }
+      if (id === "element_resist" && c.elementResistChoice) {
+        var elementTag = document.createElement("span");
+        elementTag.className = "weapon-damage-tag";
+        elementTag.textContent = " " + CharacterTypes.localizedText(c.elementResistChoice);
+        summary.appendChild(elementTag);
+      }
       details.appendChild(summary);
       var body = document.createElement("p");
       body.className = "threat-ref-body";
@@ -693,6 +706,55 @@
         var nameZh = e.name && e.name.zh;
         var nameJa = e.name && e.name.ja;
         if (names.indexOf(nameZh) !== -1 || names.indexOf(nameJa) !== -1) found = e;
+      });
+    });
+    return found;
+  }
+
+  // findLearnedRelicEffectByNameと同じ探索だが、kind:"Action"（跳躍攻擊／衝刺攻擊／蓄力攻擊／
+  // 致命一擊など、戦闘中に能動的に使う遺物効果）だけを対象にする。既存のPassive探索系と混同
+  // しないよう別関数にする（同名でPassive/Actionが混在するケースは無いが、意味が異なるため）。
+  function findLearnedActionRelicByName(c, names) {
+    var type = c && c.typeId ? CharacterTypes.get(c.typeId) : null;
+    if (!type) return null;
+    var learned = c.learnedRelicEffects || [];
+    var found = null;
+    (type.relicEffectGroups || []).forEach(function (g, gi) {
+      g.effects.forEach(function (e, ei) {
+        if (found || e.kind !== "Action") return;
+        if (learned.indexOf(relicEffectKey(type.id, gi, ei)) === -1) return;
+        var nameZh = e.name && e.name.zh;
+        var nameJa = e.name && e.name.ja;
+        if (names.indexOf(nameZh) !== -1 || names.indexOf(nameJa) !== -1) found = e;
+      });
+    });
+    return found;
+  }
+
+  // R2 遺物効果「2Hit攻擊的達人（武器種類）」：括弧内の武器カテゴリ名が現在の武器カテゴリと
+  // 一致する場合のみ、本文中の数値（「變更為「N」」／「「N」に変更」）を2Hitコストの
+  // 上書き値として返す。命名が10タイプ分ばらばらのため、findLearnedRelicEffectByNameの
+  // 固定名リスト方式ではなく正規表現でカテゴリ名を抜き出して判定する。
+  function findTwoHitMasteryOverride(c, category) {
+    if (!category) return null;
+    var type = c && c.typeId ? CharacterTypes.get(c.typeId) : null;
+    if (!type) return null;
+    var learned = c.learnedRelicEffects || [];
+    var found = null;
+    (type.relicEffectGroups || []).forEach(function (g, gi) {
+      g.effects.forEach(function (e, ei) {
+        if (found || e.kind !== "Passive") return;
+        if (learned.indexOf(relicEffectKey(type.id, gi, ei)) === -1) return;
+        var nameZh = (e.name && e.name.zh) || "";
+        var nameJa = (e.name && e.name.ja) || "";
+        var mZh = /^2Hit攻擊的達人（(.+)）$/.exec(nameZh);
+        var mJa = /^2Hitアタックの達人（(.+)）$/.exec(nameJa);
+        var categoryLabel = mZh ? category.name && category.name.zh : mJa ? category.name && category.name.ja : null;
+        var matchedLabel = mZh ? mZh[1] : mJa ? mJa[1] : null;
+        if (!matchedLabel || matchedLabel !== categoryLabel) return;
+        var body = (e.body && e.body.zh) || (e.body && e.body.ja) || "";
+        var valueMatch = /變更為「(\d+)」/.exec(body) || /「(\d+)」に変更/.exec(body);
+        if (valueMatch) found = { value: parseInt(valueMatch[1], 10) };
       });
     });
     return found;
@@ -2689,6 +2751,7 @@
   // 戻り値のreplacedIdは上書きされた付帯効果のid（新規追加ならnull）。
   function commitAttachedEffectChoice(c, effect, preview) {
     if (!c.learnedAttachedEffects) c.learnedAttachedEffects = [];
+    assignAttachedResistChoiceIfNeeded(c, effect.id);
     if (c.learnedAttachedEffects.length < MAX_ATTACHED_EFFECTS) {
       c.learnedAttachedEffects.push(effect.id);
       return { slotIndex: c.learnedAttachedEffects.length - 1, replacedId: null, die: null };
@@ -2696,6 +2759,20 @@
     var resolved = preview || previewAttachedEffectSlot(c);
     c.learnedAttachedEffects.splice(resolved.slotIndex, 1, effect.id);
     return resolved;
+  }
+
+  // 附帶効果「狀態異常耐性」「屬性耐性」：習得時に対象を1つ選ぶ規則だが、本UIには選択ダイアログが
+  // 無いため、ベストエフォートで規則書の候補一覧からランダムに1つ選び c.statusResistChoice／
+  // c.elementResistChoice に記録する（GM側で確認・変更したい場合は今後選択UIを追加できる）。
+  function assignAttachedResistChoiceIfNeeded(c, effectId) {
+    if (effectId === "status_resist" && !c.statusResistChoice) {
+      var statusOpt = COMMON_SKILL_STATUS_OPTIONS[Math.floor(Math.random() * COMMON_SKILL_STATUS_OPTIONS.length)];
+      c.statusResistChoice = statusOpt;
+    }
+    if (effectId === "element_resist" && !c.elementResistChoice) {
+      var elementOpt = COMMON_SKILL_ELEMENT_OPTIONS[Math.floor(Math.random() * COMMON_SKILL_ELEMENT_OPTIONS.length)];
+      c.elementResistChoice = elementOpt;
+    }
   }
 
   function resolveSimpleTableRoll(category, d1) {
@@ -5996,6 +6073,8 @@
     getPassiveAggroBonus: getPassiveAggroBonus,
     getFlaskHealBonus: getFlaskHealBonus,
     findLearnedRelicEffectByName: findLearnedRelicEffectByName,
+    findLearnedActionRelicByName: findLearnedActionRelicByName,
+    findTwoHitMasteryOverride: findTwoHitMasteryOverride,
     countLearnedRelicEffectsByName: countLearnedRelicEffectsByName,
     getSkillUsesBonus: getSkillUsesBonus,
     getCombatSkillEntries: getCombatSkillEntries,

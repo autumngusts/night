@@ -150,6 +150,18 @@
     c.dicePool.push(1 + Math.floor(Math.random() * 6));
     c.dicePool.push(1 + Math.floor(Math.random() * 6));
     c.hp.current = Math.floor((c.hp.max || 0) / 2);
+    // 附帶効果「復歸時恢復技藝」：自身の技藝（arts）の使用回数を1回分回復する。
+    if ((c.learnedAttachedEffects || []).indexOf("arts_revive_regen") !== -1) {
+      var type = c.typeId ? CharacterTypes.get(c.typeId) : null;
+      var art = type && type.arts && type.arts[0];
+      if (art) {
+        if (!c.abilityUses) c.abilityUses = {};
+        var usesBonusForRevive = CharacterDrawer.getSkillUsesBonus(c);
+        var effectiveMaxForRevive = art.uses + usesBonusForRevive;
+        var currentRemaining = typeof c.abilityUses[art.id] === "number" ? c.abilityUses[art.id] : effectiveMaxForRevive;
+        c.abilityUses[art.id] = Math.min(effectiveMaxForRevive, currentRemaining + 1);
+      }
+    }
     saveRosterCharacters();
     var names = battlePositionNames();
     var idx = names.indexOf(c.name);
@@ -671,6 +683,9 @@
       },
       // 睡眠トリガーで敵人へ累加する「亂戰傷害」修正値（負数、キーは敵人key）。
       enemyDmgOverride: {},
+      // 遺物効果「致命一擊」：「1回合僅限1名PC使用」のため、誰が使ったかは問わずbattle全体で
+      // 1個のロックにする。combatフェイズへの新規突入（＝新しい回合）でリセットする。
+      fatalStrikeUsedThisRound: false,
     };
   }
 
@@ -981,6 +996,7 @@
         charRoundLocked: charRoundLocked,
       },
       enemyDmgOverride: enemyDmgOverride,
+      fatalStrikeUsedThisRound: !!raw.fatalStrikeUsedThisRound,
     };
   }
 
@@ -3760,6 +3776,7 @@
     combatModalCharacterId = null;
     combatModalAction = null;
     combatDiceSelection = [];
+    combatSpecialAttackState = null;
   }
 
   function showCombatError(key, params) {
@@ -3771,6 +3788,9 @@
   // 攻撃action中「どの武器のどちらのHitを実行しようとしているか」の一時状態。
   // アクションを閉じる／別のアクションに切り替えるたびにnullへ戻す。
   var combatAttackState = null; // { weaponId, hitType: "hit1"|"hit2" } | null
+  // R2 遺物効果「2Hit攻擊的達人（武器種類）」：通常の2Hitコストの代わりにこの遺物効果の
+  // 固定コストを使うかどうかのトグル。武器／Hit種別を切り替えるたびfalseへ戻す。
+  var twoHitMasteryToggle = false;
   // 攻撃actionで属性/異常蓄積の記録先とする、選択中の敵人のキー。選択肢が変わるたびに
   // 有効な値へ補正する（既定は先頭の敵人）。
   var combatAttackTargetEnemyKey = null;
@@ -3778,6 +3798,11 @@
   // （執行者「咆哮」と同じ二択パターン）。骰子を消費しない専用行動のため、攻擊清單の武器欄と
   // 同じ場所に追加し、行動階段が切り替わるたびに1回だけ使用可能にする。
   var spiritDamageChoice = null; // "enemy" | "pc" | null
+
+  // R3：遺物効果「跳躍攻擊／衝刺攻擊／蓄力攻擊」を選択中の一時状態（{kind, weaponId} | null）。
+  // 通常のcombatAttackStateとは別枠にする（同時に両方選択された状態にはならない前提で
+  // 切り替え時に互いをnullへ戻す）。
+  var combatSpecialAttackState = null;
 
   // 靈體資料（character_types.jsの召喚靈體スキル本文記載値、ユーザー確認済み）:
   // 海倫：發生傷害 15+（PC等級×5）／弗雷德里克：5+▲+（PC等級×5）／賽巴斯汀：10+（PC等級×5）。
@@ -3864,7 +3889,9 @@
         if (!posOk) hitBtn.disabled = true;
         hitBtn.addEventListener("click", function () {
           combatAttackState = isActive ? null : { weaponId: weaponId, hitType: hitType };
+          combatSpecialAttackState = null;
           combatDiceSelection = [];
+          twoHitMasteryToggle = false;
           renderCombatModal();
         });
         row.appendChild(hitBtn);
@@ -3874,6 +3901,30 @@
       if (combatAttackState && combatAttackState.weaponId === weaponId) {
         var hitType = combatAttackState.hitType;
         var cost = attackCost ? attackCost[hitType] : null;
+        // R2 遺物効果「2Hit攻擊的達人（武器種類）」：カテゴリ名が一致し、本フェイズまだ発揮
+        // していなければ、GMの選択で通常コストの代わりにこの固定コストを使える。
+        var masteryOverride = hitType === "hit2" ? CharacterDrawer.findTwoHitMasteryOverride(c, category) : null;
+        var masteryAvailable = masteryOverride && !c._twoHitMasteryUsedThisPhase;
+        if (masteryAvailable) {
+          var masteryRow = document.createElement("div");
+          masteryRow.className = "wb-row";
+          var masteryBtn = document.createElement("button");
+          masteryBtn.type = "button";
+          masteryBtn.textContent = window.I18N.t("combat_two_hit_mastery_toggle_label", { value: masteryOverride.value });
+          if (twoHitMasteryToggle) masteryBtn.classList.add("active");
+          masteryBtn.addEventListener("click", function () {
+            twoHitMasteryToggle = !twoHitMasteryToggle;
+            renderCombatModal();
+          });
+          masteryRow.appendChild(masteryBtn);
+          content.appendChild(masteryRow);
+        } else {
+          twoHitMasteryToggle = false;
+        }
+        var useMastery = masteryAvailable && twoHitMasteryToggle;
+        if (useMastery) {
+          cost = { diceKind: "sum", diceCountMin: 1, diceCountMax: null, sumTotal: masteryOverride.value, fpCost: 0, hpCost: 0 };
+        }
         // 属性/異常蓄積を「選択中のどの敵人へ」記録するか。複数選択されている場合のみ選ばせる
         // （1体だけならそれへ、0体なら記録しようがないのでUIごと出さない）。
         var enemyOptions = resolveSelectedEnemyOptions();
@@ -3905,12 +3956,19 @@
         renderDiceCostAction(c, content, cost, function (dice, costLines) {
           var songHitBonus = songOfBloodSpiritHitBonus();
           var unyieldingBonus = unyieldingHitBonus(c);
+          var finaleHitBonus = finaleAttackBuffBonus(c);
           var dmgValue =
             (hitType === "hit1" ? damage.hit1Damage : damage.hit2Damage) +
             (hitType === "hit1" ? songHitBonus.hit1 : songHitBonus.hit2) +
-            (hitType === "hit1" ? unyieldingBonus.hit1 : unyieldingBonus.hit2);
+            (hitType === "hit1" ? unyieldingBonus.hit1 : unyieldingBonus.hit2) +
+            (hitType === "hit1" ? finaleHitBonus.hit1 : finaleHitBonus.hit2);
           var dmgSymbol = hitType === "hit1" ? damage.hit1Symbol : damage.hit2Symbol;
           var lines = [window.I18N.t("action_log_dice_used", { dice: dice.join("、") })].concat(costLines);
+          if (useMastery) {
+            c._twoHitMasteryUsedThisPhase = true;
+            lines.push(window.I18N.t("action_log_two_hit_mastery_used", { value: masteryOverride.value }));
+          }
+          twoHitMasteryToggle = false;
           // 一部の武器カテゴリ（槍・刺剣＝1、大槍・重刺剣＝2、斧槍＝3）は、2Hitアタック後に
           // 固定点数のダイスをスタミナダイス（骰子池）へ追加する特典を持つ。
           if (hitType === "hit2") {
@@ -3959,6 +4017,8 @@
         });
       }
     });
+
+    renderCombatSpecialAttackActions(c, content, equippedIds);
 
     // 復仇者「召喚靈體」：靈體傷害は規則書上、行動階段・特殊階段ごとに自動で1回発生するもの
     // なので、骰子を消費しない専用行動として攻擊清單に追加する（ユーザー確認済み）。
@@ -4055,6 +4115,228 @@
     }
   }
 
+  // moveOminousStrikeToFrontと同型の汎用版：どの遺物効果／スキルからでも「自身を前衛へ
+  // 移動する」処理を呼べるようにする（setTimeout(0)で戦闘modalの再描画競合を避ける）。
+  function moveCharacterToFrontArea(c) {
+    // 附帶効果「疾跑時發生火焰」：後衛→前衛の移動action発動時、對敵人「火+1」（行動階段中1回のみ）。
+    if (!c._sprintFireUsedThisPhase && (c.learnedAttachedEffects || []).indexOf("sprint_fire") !== -1) {
+      c._sprintFireUsedThisPhase = true;
+      addLog("log_sprint_fire_trigger", { character: c.name });
+    }
+    setTimeout(function () {
+      var idx = battlePositionNames().indexOf(c.name);
+      if (idx !== -1 && idx < BATTLE_SLOT_COUNT) {
+        state.battle.front[idx] = true;
+        state.battle.back[idx] = false;
+        saveState();
+        renderBattlePositionAreas();
+        renderCombatModal();
+      }
+    }, 0);
+  }
+
+  // R3：遺物効果「跳躍攻擊／衝刺攻擊／蓄力攻擊／致命一擊」。いずれも近接武器を使う攻擊の
+  // 変則版で、CharacterDrawer.findLearnedActionRelicByNameで習得済みかどうかを判定し、習得
+  // している場合だけ攻擊清單に追加する（未習得の一般キャラには表示しない）。
+  function renderCombatSpecialAttackActions(c, content, equippedIds) {
+    var Weapons = window.PriTestWeapons;
+    var meleeWeaponIds = equippedIds.filter(function (weaponId) {
+      var baseId = weaponId.indexOf("::") !== -1 ? weaponId.slice(0, weaponId.indexOf("::")) : weaponId;
+      var weapon = Weapons.get(baseId);
+      var category = weapon ? Weapons.getCategory(weapon.category) : null;
+      return category && !category.isRanged;
+    });
+    var charPos = getCharacterBattlePosition(c);
+
+    var jumpEffect = CharacterDrawer.findLearnedActionRelicByName(c, ["跳躍攻擊", "ジャンプ攻撃"]);
+    if (jumpEffect && charPos === "front") {
+      // 附帶効果「跳躍攻擊強化」：+10（固定・条件記載無し）。
+      var jumpAtkUpBonus = (c.learnedAttachedEffects || []).indexOf("jump_atk_up") !== -1 ? 10 : 0;
+      meleeWeaponIds.forEach(function (weaponId) {
+        renderSpecialAttackWeaponRow(c, content, weaponId, "jump", jumpEffect, function (damage) {
+          return { value: damage.hit1Damage + damage.artPower + jumpAtkUpBonus, symbol: damage.hit1Symbol };
+        });
+      });
+    }
+
+    var dashEffect = CharacterDrawer.findLearnedActionRelicByName(c, ["衝刺攻擊", "ダッシュ攻撃"]);
+    if (dashEffect && charPos === "back") {
+      // 附帶効果「衝刺攻擊強化」：+10（固定・条件記載無し）。
+      var dashAtkUpBonus = (c.learnedAttachedEffects || []).indexOf("dash_atk_up") !== -1 ? 10 : 0;
+      meleeWeaponIds.forEach(function (weaponId) {
+        renderSpecialAttackWeaponRow(
+          c,
+          content,
+          weaponId,
+          "dash",
+          dashEffect,
+          function (damage, weapon, category) {
+            var isGreatSpear = category && category.id === "great_spear";
+            return { value: damage.hit1Damage + (isGreatSpear ? damage.artPower : 0) + dashAtkUpBonus, symbol: damage.hit1Symbol };
+          },
+          function () {
+            moveCharacterToFrontArea(c);
+          }
+        );
+      });
+    }
+
+    var chargeEffect = CharacterDrawer.findLearnedActionRelicByName(c, ["蓄力攻擊", "タメ攻撃"]);
+    if (chargeEffect && charPos === "front") {
+      meleeWeaponIds.forEach(function (weaponId) {
+        renderSpecialAttackWeaponRow(
+          c,
+          content,
+          weaponId,
+          "charge",
+          chargeEffect,
+          function (damage) {
+            return { value: damage.hit1Damage + 10, symbol: damage.hit1Symbol };
+          },
+          null,
+          function (category) {
+            var attackCost = CharacterDrawer.parseAttackCost(Weapons.localizedText(category.basicStats.attackCost));
+            var hit1Cost = attackCost ? attackCost.hit1 : null;
+            if (hit1Cost && hit1Cost.diceKind === "sum") {
+              return { diceKind: "sum", diceCountMin: 1, diceCountMax: null, sumTotal: hit1Cost.sumTotal + 1, fpCost: 0, hpCost: 0 };
+            }
+            return hit1Cost || { diceKind: null, diceCountMin: 0, diceCountMax: null, sumTotal: null, fpCost: 0, hpCost: 0 };
+          }
+        );
+      });
+    }
+
+    var fatalEffect = CharacterDrawer.findLearnedActionRelicByName(c, ["致命一擊", "致命の一撃"]);
+    if (fatalEffect && charPos === "front" && meleeWeaponIds.length) {
+      renderFatalStrikeAction(c, content, fatalEffect);
+    }
+  }
+
+  // 跳躍攻擊／衝刺攻擊／蓄力攻擊：武器1つにつき1行（名前・想定ダメージ・ボタン）を描画し、
+  // ボタンを押すと通常攻擊のhit1/hit2ボタンと同じ骰子選択→確定UI（renderDiceCostAction）を
+  // 展開する。computeCostがnullなら遺物効果本文（①①など）をそのままparseActionCostする。
+  function renderSpecialAttackWeaponRow(c, content, weaponId, kind, effect, computeDamage, onConfirmExtra, computeCost) {
+    var Weapons = window.PriTestWeapons;
+    var baseId = weaponId.indexOf("::") !== -1 ? weaponId.slice(0, weaponId.indexOf("::")) : weaponId;
+    var weapon = Weapons.get(baseId);
+    var category = Weapons.getCategory(weapon.category);
+    var damage = CharacterDrawer.computeWeaponDamage(c, weaponId);
+    if (!damage) return;
+    var result = computeDamage(damage, weapon, category);
+    var labelKey = "combat_special_attack_" + kind + "_label";
+
+    var row = document.createElement("div");
+    row.className = "combat-attack-weapon-row";
+    var nameEl = document.createElement("span");
+    nameEl.className = "combat-attack-weapon-name";
+    nameEl.textContent = Weapons.localizedText(weapon.name);
+    row.appendChild(nameEl);
+    var dmgTag = document.createElement("span");
+    dmgTag.className = "weapon-damage-tag";
+    dmgTag.textContent = " " + CharacterDrawer.formatValueWithSymbol(result.value, result.symbol);
+    row.appendChild(dmgTag);
+
+    var btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "combat-attack-hit-btn";
+    btn.textContent = window.I18N.t(labelKey);
+    var isActive =
+      combatSpecialAttackState && combatSpecialAttackState.kind === kind && combatSpecialAttackState.weaponId === weaponId;
+    if (isActive) btn.classList.add("active");
+    btn.addEventListener("click", function () {
+      combatSpecialAttackState = isActive ? null : { kind: kind, weaponId: weaponId };
+      combatAttackState = null;
+      combatDiceSelection = [];
+      renderCombatModal();
+    });
+    row.appendChild(btn);
+    content.appendChild(row);
+
+    if (isActive) {
+      var cost = computeCost ? computeCost(category) : CharacterDrawer.parseActionCost(effect.body && effect.body.zh);
+      renderDiceCostAction(c, content, cost, function (dice, costLines) {
+        var lines = [window.I18N.t("action_log_dice_used", { dice: dice.join("、") })].concat(costLines);
+        if (onConfirmExtra) {
+          onConfirmExtra();
+          lines.push(window.I18N.t("combat_special_attack_move_to_front_note"));
+        }
+        var valueText = CharacterDrawer.formatValueWithSymbol(result.value, result.symbol);
+        addActionBox(c, Weapons.localizedText(weapon.name) + "（" + window.I18N.t(labelKey) + "）", window.I18N.t("action_log_damage_total", { value: valueText }), lines);
+        addLog("log_combat_special_attack", {
+          character: c.name,
+          weapon: Weapons.localizedText(weapon.name),
+          action: window.I18N.t(labelKey),
+          damage: valueText,
+          dice: dice.join("、"),
+        });
+        combatSpecialAttackState = null;
+      });
+    }
+  }
+
+  // 致命一擊：武器を問わず単一の行動（近戰武器を1つでも装備していれば使用可）。
+  // コストは「豹子（3個）」だが額外階段中だけ「消耗：3」に変わる特殊仕様のため、
+  // effect本文をそのまま解析せず、フェイズに応じてここで直接組み立てる。
+  function renderFatalStrikeAction(c, content, effect) {
+    var fixed = CharacterDrawer.fixedSkillPowerValue(effect.body && effect.body.zh);
+    if (!fixed) return;
+    // 附帶効果「致命一擊強化」：上限値+10（本アプリでは致命一擊の値は常に固定120のため、
+    // 実質的にそのまま+10として加算する）。
+    if ((c.learnedAttachedEffects || []).indexOf("crit_up") !== -1) {
+      fixed = { value: fixed.value + 10, symbol: fixed.symbol };
+    }
+    var row = document.createElement("div");
+    row.className = "combat-attack-weapon-row";
+    var nameEl = document.createElement("span");
+    nameEl.className = "combat-attack-weapon-name";
+    nameEl.textContent = window.I18N.t("combat_special_attack_fatal_label");
+    row.appendChild(nameEl);
+    var dmgTag = document.createElement("span");
+    dmgTag.className = "weapon-damage-tag";
+    dmgTag.textContent = " " + CharacterDrawer.formatValueWithSymbol(fixed.value, fixed.symbol);
+    row.appendChild(dmgTag);
+
+    if (state.battle.fatalStrikeUsedThisRound) {
+      var usedNote = document.createElement("span");
+      usedNote.className = "ability-uses-label";
+      usedNote.textContent = window.I18N.t("combat_fatal_strike_used_note");
+      row.appendChild(usedNote);
+      content.appendChild(row);
+      return;
+    }
+
+    var btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "combat-attack-hit-btn";
+    btn.textContent = window.I18N.t("combat_special_attack_fatal_label");
+    var isActive = combatSpecialAttackState && combatSpecialAttackState.kind === "fatal";
+    if (isActive) btn.classList.add("active");
+    btn.addEventListener("click", function () {
+      combatSpecialAttackState = isActive ? null : { kind: "fatal", weaponId: null };
+      combatAttackState = null;
+      combatDiceSelection = [];
+      renderCombatModal();
+    });
+    row.appendChild(btn);
+    content.appendChild(row);
+
+    if (isActive) {
+      var cost =
+        state.actionPhase === "extra"
+          ? { diceKind: "sum", diceCountMin: 1, diceCountMax: null, sumTotal: 3, fpCost: 0, hpCost: 0 }
+          : CharacterDrawer.parseActionCost(effect.body && effect.body.zh);
+      renderDiceCostAction(c, content, cost, function (dice, costLines) {
+        var lines = [window.I18N.t("action_log_dice_used", { dice: dice.join("、") })].concat(costLines);
+        var valueText = CharacterDrawer.formatValueWithSymbol(fixed.value, fixed.symbol);
+        addActionBox(c, window.I18N.t("combat_special_attack_fatal_label"), window.I18N.t("action_log_damage_total", { value: valueText }), lines);
+        addLog("log_combat_fatal_strike", { character: c.name, damage: valueText, dice: dice.join("、") });
+        state.battle.fatalStrikeUsedThisRound = true;
+        saveState();
+        combatSpecialAttackState = null;
+      });
+    }
+  }
+
   // 技能action中「どの技能を使おうとしているか」の一時状態（entry.idまたは配列index）。
   var combatSkillState = null;
 
@@ -4084,6 +4366,22 @@
     return (c._unyieldingStacks || 0) * 10;
   }
 
+  // R1 遺物効果「技藝強化（攻擊力提升）」：淑女「終曲」使用時に発動する自身限定バフ
+  // （血魂之歌と同じ数値・同じ「直到結束階段為止」ライフサイクルだが、battle全体ではなく
+  // 発動した本人だけのフラグなのでcharacter側に持たせる）。
+  function finaleAttackBuffBonus(c) {
+    return c._finaleAttackBuffActive ? { hit1: 5, hit2: 10 } : { hit1: 0, hit2: 0 };
+  }
+  function finaleSkillBuffBonus(c) {
+    return c._finaleAttackBuffActive ? 10 : 0;
+  }
+
+  // R1 遺物効果「能力強化（魔術之地）」：隱者「元素操控」で屬性痕へ✓が入った直後から
+  // 「直到階段結束為止」自身の魔術ダメージ+5（重複しない＝フラグはbooleanのみ）。
+  function elementalControlMagicBonus(c, skillDamageKind) {
+    return skillDamageKind === "sorcery" && c._elementalControlMagicBonusActive ? 5 : 0;
+  }
+
   function computeSkillDamage(c, entry, body) {
     var dmg;
     if (!entry.weaponId) {
@@ -4110,12 +4408,32 @@
     var fightingSpiritBonus = CharacterDrawer.fightingSpiritFlatBonus(c);
     var songBonus = songOfBloodSpiritSkillBonus();
     var unyieldingBonus = unyieldingSkillBonus(c);
+    var finaleBonus = finaleSkillBuffBonus(c);
+    var elementalControlBonus = elementalControlMagicBonus(c, skillDamageKind);
     var attachedSkillBonus = skillDamageKind ? CharacterDrawer.attachedSkillDamageBonus(c, skillDamageKind) : 0;
     // 執行者「妖刀（妖刀解放・攻）」：この遺物効果を2つ以上習得している場合、Action使用時の
     // ダメージに固定+25。
     var yotoReleaseBonus =
       entry.id === "yoto_release_action" && CharacterDrawer.countLearnedRelicEffectsByName(c, ["妖刀解放・攻"]) >= 2 ? 25 : 0;
-    var flatBonus = talismanBonus + fightingSpiritBonus + songBonus + unyieldingBonus + attachedSkillBonus + yotoReleaseBonus;
+    // R1「技藝強化（燃燒）」：追蹤者「襲擊之楔」の対エネミーダメージに固定+50（「火：3D」は
+    // 数値未確定のためログ注記のみ、呼び出し元でaddActionBoxのlinesに追加する）。
+    var assaultWedgeBonus =
+      entry.id === "assault_wedge" && CharacterDrawer.findLearnedRelicEffectByName(c, ["技藝強化（燃燒）", "アーツ強化（炎上）"]) ? 50 : 0;
+    // R1「技藝強化（持續傷害）」：學者「共感術」が実際にエネミーへダメージを与える場合のみ+60
+    // （この時点でdmgが存在する＝エネミーへの効果が計算できている、を「與敵人造成傷害」とみなす）。
+    var empathyBonus =
+      entry.id === "empathy" && CharacterDrawer.findLearnedRelicEffectByName(c, ["技藝強化（持續傷害）", "アーツ強化（継続ダメージ）"]) ? 60 : 0;
+    var flatBonus =
+      talismanBonus +
+      fightingSpiritBonus +
+      songBonus +
+      unyieldingBonus +
+      finaleBonus +
+      elementalControlBonus +
+      attachedSkillBonus +
+      yotoReleaseBonus +
+      assaultWedgeBonus +
+      empathyBonus;
     return flatBonus ? { value: dmg.value + flatBonus, symbol: dmg.symbol } : dmg;
   }
 
@@ -4348,7 +4666,10 @@
               if (!c.abilityUses) c.abilityUses = {};
               c.abilityUses[entry.id] = Math.max(0, (remaining !== null ? remaining : effectiveMax) - 1);
             }
-            addActionBox(c, name, window.I18N.t("restage_applied_note"), [window.I18N.t("action_log_dice_used", { dice: dice.join("、") })].concat(costLines));
+            var restageLines = [window.I18N.t("action_log_dice_used", { dice: dice.join("、") })].concat(costLines);
+            var restageDamageBoost = CharacterDrawer.findLearnedRelicEffectByName(c, ["技能強化（損害增加）", "スキル強化（損害増加）"]);
+            if (restageDamageBoost) restageLines = restageLines.concat([CharacterTypes.localizedText(restageDamageBoost.body)]);
+            addActionBox(c, name, window.I18N.t("restage_applied_note"), restageLines);
             addLog("log_restage_use", { character: c.name, dice: dice.join("、") });
             combatSkillState = null;
             restageConfirmedThisUse = null;
@@ -4373,9 +4694,18 @@
           state.battle._totemStellaActive = true;
           saveState();
           var total = window.I18N.t("action_log_damage_total", { value: CharacterDrawer.formatValueWithSymbol(totemValue, "▲") });
-          addActionBox(c, name, total, [window.I18N.t("action_log_dice_used", { dice: dice.join("、") })].concat(costLines));
+          var totemLines = [window.I18N.t("action_log_dice_used", { dice: dice.join("、") })].concat(costLines);
+          // R1「技藝強化（HP回復）」：発動後、全體PCへ「HP回復：□×5」（+5）を適用する。
+          if (CharacterDrawer.findLearnedRelicEffectByName(c, ["技藝強化（HP回復）", "アーツ強化（HP回復）"])) {
+            rosterCharacters.forEach(function (rc) {
+              if (rc.entered) rc.hp.current = Math.min(rc.hp.max, rc.hp.current + 5);
+            });
+            totemLines = totemLines.concat([window.I18N.t("totem_stella_heal_applied_note")]);
+          }
+          addActionBox(c, name, total, totemLines);
           addLog("log_combat_skill_use", { character: c.name, skill: name, dice: dice.join("、") });
           combatSkillState = null;
+          renderCharacterRoster();
         });
       } else if (isActive && entry.id === "spirit_summon") {
         // 復仇者「召喚靈體」：海倫／弗雷德里克／賽巴斯汀の3択→骰子3個で確定。同時に1体のみ
@@ -4454,6 +4784,11 @@
             var elementalCost = CharacterDrawer.parseActionCost(body);
             renderDiceCostAction(c, content, elementalCost, function (dice, costLines) {
               c.elementalMarks = Math.min(3, (c.elementalMarks || 0) + 1);
+              // R1「能力強化（魔術之地）」：屬性痕へ✓が入った直後から直到階段結束為止、自身の
+              // 魔術ダメージ+5（重複しないのでbooleanのまま立てるだけでよい）。
+              if (CharacterDrawer.findLearnedRelicEffectByName(c, ["能力強化（魔術之地）", "アビリティ強化（魔術の地）"])) {
+                c._elementalControlMagicBonusActive = true;
+              }
               addActionBox(c, name, window.I18N.t("elemental_control_note", { marks: c.elementalMarks }), [window.I18N.t("action_log_dice_used", { dice: dice.join("、") })].concat(costLines));
               addLog("log_elemental_control_use", { character: c.name, dice: dice.join("、") });
               combatSkillState = null;
@@ -4534,6 +4869,24 @@
           inquiryChoiceRow.appendChild(inquiryBtn);
         });
         content.appendChild(inquiryChoiceRow);
+        // R1「技能強化（夥伴支援）」：效果1（體力骰+1）を選んでいるときだけ、対象を任意のPC
+        // （既定は自分）に変更できる。骰子自体は学者が振り、対象のdicePoolへ追加する。
+        var inquiryBuddyEffect = CharacterDrawer.findLearnedRelicEffectByName(c, ["技能強化（夥伴支援）", "スキル強化（仲間支援）"]);
+        var inquiryTargetSelect = null;
+        if (inquiryChoice === "bonus_dice" && inquiryBuddyEffect) {
+          var inquiryEnteredChars = rosterCharacters.filter(function (rc) {
+            return rc.entered;
+          });
+          inquiryTargetSelect = document.createElement("select");
+          inquiryEnteredChars.forEach(function (rc) {
+            var o = document.createElement("option");
+            o.value = rc.id;
+            o.textContent = rc.name;
+            if (rc.id === c.id) o.selected = true;
+            inquiryTargetSelect.appendChild(o);
+          });
+          content.appendChild(inquiryTargetSelect);
+        }
         if (inquiryChoice) {
           var inquiryCost = CharacterDrawer.parseActionCost(body);
           if (getCharacterBattlePosition(c) === "back") {
@@ -4547,9 +4900,19 @@
             }
             var inquiryNote;
             if (inquiryChoice === "bonus_dice") {
-              if (!c.dicePool) c.dicePool = [];
-              c.dicePool.push(1 + Math.floor(Math.random() * 6));
-              inquiryNote = window.I18N.t("inquiry_bonus_dice_note");
+              var inquiryDiceTarget = c;
+              if (inquiryTargetSelect) {
+                inquiryDiceTarget =
+                  rosterCharacters.filter(function (rc) {
+                    return rc.id === inquiryTargetSelect.value;
+                  })[0] || c;
+              }
+              if (!inquiryDiceTarget.dicePool) inquiryDiceTarget.dicePool = [];
+              inquiryDiceTarget.dicePool.push(1 + Math.floor(Math.random() * 6));
+              inquiryNote =
+                inquiryDiceTarget.id === c.id
+                  ? window.I18N.t("inquiry_bonus_dice_note")
+                  : window.I18N.t("inquiry_bonus_dice_target_note", { name: inquiryDiceTarget.name });
             } else {
               rosterCharacters.forEach(function (rc) {
                 rc._inquiryDamageReductionActive = true;
@@ -4595,6 +4958,27 @@
           });
           content.appendChild(roarTargetSelect);
         }
+        // R1「技藝強化（治癒咆哮）」：どちらの選択でも被動強制発動し、任意1名PCへ「HP回復：□□」
+        // （+2）を追加する。既に revival 選択でPC選択欄がある場合はそれを流用する。
+        var roarHealEffect = CharacterDrawer.findLearnedRelicEffectByName(c, ["技藝強化（治癒咆哮）", "アーツ強化（癒しの咆哮）"]);
+        var roarHealSelect = roarTargetSelect;
+        if (roarHealEffect && crucibleRoarChoice === "damage") {
+          var roarHealEntered = rosterCharacters.filter(function (rc) {
+            return rc.entered;
+          });
+          roarHealSelect = document.createElement("select");
+          roarHealEntered.forEach(function (rc) {
+            var o = document.createElement("option");
+            o.value = rc.id;
+            o.textContent = rc.name;
+            roarHealSelect.appendChild(o);
+          });
+          var roarHealNote = document.createElement("p");
+          roarHealNote.className = "weapon-damage-tag";
+          roarHealNote.textContent = window.I18N.t("crucible_roar_heal_enhancement_note");
+          content.appendChild(roarHealNote);
+          content.appendChild(roarHealSelect);
+        }
         if (crucibleRoarChoice) {
           var roarCost = CharacterDrawer.parseActionCost(body);
           renderDiceCostAction(c, content, roarCost, function (dice, costLines) {
@@ -4609,13 +4993,24 @@
                 : null;
               roarTotal = window.I18N.t("crucible_roar_target_label", { target: targetChar ? targetChar.name : "" });
             }
-            addActionBox(c, name, roarTotal, [window.I18N.t("action_log_dice_used", { dice: dice.join("、") })].concat(costLines));
+            var extraLines = [window.I18N.t("action_log_dice_used", { dice: dice.join("、") })].concat(costLines);
+            if (roarHealEffect && roarHealSelect) {
+              var healTarget = rosterCharacters.filter(function (rc) {
+                return rc.id === roarHealSelect.value;
+              })[0];
+              if (healTarget) {
+                healTarget.hp.current = Math.min(healTarget.hp.max, healTarget.hp.current + 2);
+                extraLines.push(window.I18N.t("crucible_roar_heal_applied_note", { name: healTarget.name }));
+              }
+            }
+            addActionBox(c, name, roarTotal, extraLines);
             addLog("log_crucible_roar_use", {
               character: c.name,
               choice: window.I18N.t(crucibleRoarChoice === "damage" ? "crucible_roar_choice_damage_label" : "crucible_roar_choice_revival_label"),
             });
             combatSkillState = null;
             crucibleRoarChoice = null;
+            renderCharacterRoster();
           });
         }
       } else if (isActive) {
@@ -4657,6 +5052,12 @@
             rosterCharacters.forEach(function (rc) {
               rc._wingsOfSalvationActive = true;
             });
+            // R1「技藝強化（HP回復）」：発動後、全體PCのHPを最大値まで回復する。
+            if (CharacterDrawer.findLearnedRelicEffectByName(c, ["技藝強化（HP回復）", "アーツ強化（HP回復）"])) {
+              rosterCharacters.forEach(function (rc) {
+                if (rc.entered) rc.hp.current = rc.hp.max;
+              });
+            }
           }
           // 復仇者「不死行軍」：救世之翼と全く同じライフサイクル（戦闘→額外→防禦の1回合を
           // 跨いで持続し、次に戦闘フェイズへ新規突入した時にのみクリア）の全体バフ。
@@ -4665,6 +5066,16 @@
             rosterCharacters.forEach(function (rc) {
               rc._marchOfTheUndyingActive = true;
             });
+            // R1「技藝強化（靈炎爆發）」：自身が召喚中の靈體へ「HP回復：□×6」（+6）を適用する
+            // （對敵人「火+2」は対象敵人選択UIが無いためGM手動反映＝下のnoteで注記のみ）。
+            var marchEnhancement = CharacterDrawer.findLearnedRelicEffectByName(c, ["技藝強化（靈炎爆發）", "アーツ強化（霊炎爆発）"]);
+            if (marchEnhancement) {
+              if (c.spiritSummon && c.spiritSummonHp && c.spiritSummonHp[c.spiritSummon]) {
+                var spiritHp = c.spiritSummonHp[c.spiritSummon];
+                spiritHp.current = Math.min(spiritHp.max, spiritHp.current + 6);
+              }
+              addLog("log_march_of_the_undying_enhancement_note", { character: c.name });
+            }
           }
           // 隱者「血魂之歌」：他キャラの回合跨ぎバフと異なり「階段結束まで」＝発動したフェイズ
           // 限定のため、battle全体のフラグとしてフェイズ切替の都度リセットする
@@ -4679,6 +5090,11 @@
           if (entry.id === "finale") {
             state.battle._finaleActive = true;
             saveState();
+            // R1「技藝強化（攻擊力提升）」：発動した本人限定で、直到結束階段為止、自身の
+            // 攻擊/戰技・魔術・祈禱ダメージを強化する（finaleAttackBuffBonus／finaleSkillBuffBonus参照）。
+            if (CharacterDrawer.findLearnedRelicEffectByName(c, ["技藝強化（攻擊力提升）", "アーツ強化（攻撃力上昇）"])) {
+              c._finaleAttackBuffActive = true;
+            }
           }
           // 執行者「坩堝諸相・獸」：自身をHP全回復し、「階段結束まで」＝発動したフェイズ限定で
           // 坩堝之獸狀態にする（武器攻撃不可＋襲擊／咆哮アクション追加、renderCombatAttackAction
@@ -4724,6 +5140,27 @@
               : null;
           var extraLines = [window.I18N.t("action_log_dice_used", { dice: dice.join("、") })].concat(costLines);
           if (entry.id === "ominous_strike") extraLines = extraLines.concat([window.I18N.t("log_ominous_strike_move_note")]);
+          // R1：数値化できる部分は上のcomputeSkillDamage／専用フラグで実際に加算済み。ここでは
+          // 「火：3D」のような出目未確定の副次効果だけ、遺物効果の本文をそのまま黃字注記として残す
+          // （GMが実際にダイスを振って適用する）。
+          if (entry.id === "assault_wedge") {
+            var assaultWedgeNote = CharacterDrawer.findLearnedRelicEffectByName(c, ["技藝強化（燃燒）", "アーツ強化（炎上）"]);
+            if (assaultWedgeNote) extraLines = extraLines.concat([CharacterTypes.localizedText(assaultWedgeNote.body)]);
+          }
+          if (entry.id === "whirlwind") {
+            var whirlwindNote = CharacterDrawer.findLearnedRelicEffectByName(c, ["技能強化（延長時間）", "スキル強化（時間延長）"]);
+            if (whirlwindNote) extraLines = extraLines.concat([CharacterTypes.localizedText(whirlwindNote.body)]);
+          }
+          if (entry.id === "marking") {
+            var markingDurationNote = CharacterDrawer.findLearnedRelicEffectByName(c, ["技能強化（延長時間）", "スキル強化（時間延長）"]);
+            if (markingDurationNote) extraLines = extraLines.concat([CharacterTypes.localizedText(markingDurationNote.body)]);
+            var markingPoisonNote = CharacterDrawer.findLearnedRelicEffectByName(c, ["技能強化（毒刃）", "スキル強化（毒刃）"]);
+            if (markingPoisonNote) extraLines = extraLines.concat([CharacterTypes.localizedText(markingPoisonNote.body)]);
+          }
+          if (entry.id === "song_of_blood_spirit") {
+            var bloodSpiritNote = CharacterDrawer.findLearnedRelicEffectByName(c, ["技藝強化（出血攻擊力強化）", "アーツ強化（出血攻撃力強化）"]);
+            if (bloodSpiritNote) extraLines = extraLines.concat([CharacterTypes.localizedText(bloodSpiritNote.body)]);
+          }
           addActionBox(c, name, total, extraLines);
           addLog("log_combat_skill_use", { character: c.name, skill: name, dice: dice.join("、") });
           combatSkillState = null;
@@ -5093,7 +5530,22 @@
         } else {
           pursueNote = window.I18N.t("claw_shot_choice_revival_label");
         }
-        addActionBox(c, window.I18N.t("claw_shot_pursue_label"), pursueNote, [window.I18N.t("action_log_dice_used", { dice: dice.join("、") })].concat(costLines));
+        var pursueLines = [window.I18N.t("action_log_dice_used", { dice: dice.join("、") })].concat(costLines);
+        // R1「技能強化（纏火）」：追撃で選んだ武器が「大劍」の場合のみ、本文をそのまま
+        // 黃字注記として残す（火：1D自体は出目未確定のためGM/玩家がその場で振る）。
+        var pursueBaseId = st.pursueWeaponId.indexOf("::") !== -1 ? st.pursueWeaponId.slice(0, st.pursueWeaponId.indexOf("::")) : st.pursueWeaponId;
+        var pursueWeapon = Weapons2.get(pursueBaseId);
+        var pursueCategory = pursueWeapon ? Weapons2.getCategory(pursueWeapon.category) : null;
+        if (pursueCategory && pursueCategory.id === "greatsword") {
+          var clawShotFireEffect = CharacterDrawer.findLearnedRelicEffectByName(c, ["技能強化（纏火）", "スキル強化（炎の纏い）"]);
+          if (clawShotFireEffect) {
+            pursueLines = pursueLines.concat([CharacterTypes.localizedText(clawShotFireEffect.body)]);
+            if (!c.weaponAttributeTags) c.weaponAttributeTags = {};
+            c.weaponAttributeTags[st.pursueWeaponId] = Weapons2.localizedText({ zh: "火", ja: "炎" });
+            c._clawShotFireTagWeaponId = st.pursueWeaponId;
+          }
+        }
+        addActionBox(c, window.I18N.t("claw_shot_pursue_label"), pursueNote, pursueLines);
         addLog("log_claw_shot_pursue", { character: c.name, effect: pursueNote });
         combatSkillState = null;
         resetClawShotState();
@@ -5208,6 +5660,10 @@
     return consumed.reverse();
   }
 
+  // R5 遺物効果「聖杯瓶可回復FP」：使用選択中の一時状態（true=FPへ切替 / false・null=通常のHP回復）。
+  // 額外階段限定（ユーザー確認済みの仕様）で、習得済みキャラのみ切替の問いかけを出す。
+  var flaskFpChoice = null;
+
   function renderCombatFlaskAction(c, content) {
     var available = c.flaskBase.current > 0 || (c.flaskExtra && c.flaskExtra.current > 0);
     if (!available) {
@@ -5223,6 +5679,29 @@
     });
     content.appendChild(healLabel);
 
+    var canChooseFp = state.actionPhase === "extra" && !!CharacterDrawer.findLearnedRelicEffectByName(c, ["聖杯瓶可回復FP", "聖杯瓶でFP回復可能"]);
+    if (canChooseFp) {
+      var fpChoiceRow = document.createElement("div");
+      fpChoiceRow.className = "wb-row";
+      var fpChoiceLabel = document.createElement("span");
+      fpChoiceLabel.className = "weapon-damage-tag";
+      fpChoiceLabel.textContent = window.I18N.t("combat_flask_fp_choice_question");
+      fpChoiceRow.appendChild(fpChoiceLabel);
+      var fpChoiceBtn = document.createElement("button");
+      fpChoiceBtn.type = "button";
+      fpChoiceBtn.textContent = window.I18N.t(flaskFpChoice ? "combat_flask_fp_choice_on_label" : "combat_flask_fp_choice_off_label");
+      if (flaskFpChoice) fpChoiceBtn.classList.add("active");
+      fpChoiceBtn.addEventListener("click", function () {
+        flaskFpChoice = !flaskFpChoice;
+        renderCombatModal();
+      });
+      fpChoiceRow.appendChild(fpChoiceBtn);
+      content.appendChild(fpChoiceRow);
+    } else {
+      flaskFpChoice = null;
+    }
+    var useFp = canChooseFp && flaskFpChoice;
+
     renderCombatDicePicker(c, content);
     var confirmBtn = document.createElement("button");
     confirmBtn.type = "button";
@@ -5230,21 +5709,30 @@
     confirmBtn.textContent = window.I18N.t("combat_confirm_button");
     confirmBtn.disabled = !combatDiceSelection.length;
     confirmBtn.addEventListener("click", function () {
-      if (c.hp.current + healAmount > c.hp.max) {
-        if (!window.confirm(window.I18N.t("combat_flask_overflow_confirm", { current: c.hp.current, max: c.hp.max, amount: healAmount }))) {
+      var target = useFp ? c.fp : c.hp;
+      if (target.current + healAmount > target.max) {
+        if (
+          !window.confirm(
+            window.I18N.t("combat_flask_overflow_confirm", { current: target.current, max: target.max, amount: healAmount })
+          )
+        ) {
           return;
         }
       }
       var dice = consumeCombatDice(c);
       if (c.flaskBase.current > 0) c.flaskBase.current -= 1;
       else c.flaskExtra.current -= 1;
-      c.hp.current = Math.min(c.hp.max, c.hp.current + healAmount);
+      target.current = Math.min(target.max, target.current + healAmount);
       combatDiceSelection = [];
+      flaskFpChoice = null;
       saveRosterCharacters();
-      addLog("log_combat_flask_use", { character: c.name, dice: dice.join("、"), amount: healAmount });
-      addActionBox(c, window.I18N.t("combat_action_flask"), window.I18N.t("action_log_heal_total", { value: healAmount }), [
-        window.I18N.t("action_log_dice_used", { dice: dice.join("、") }),
-      ]);
+      addLog(useFp ? "log_combat_flask_use_fp" : "log_combat_flask_use", { character: c.name, dice: dice.join("、"), amount: healAmount });
+      addActionBox(
+        c,
+        window.I18N.t("combat_action_flask"),
+        window.I18N.t(useFp ? "action_log_fp_heal_total" : "action_log_heal_total", { value: healAmount }),
+        [window.I18N.t("action_log_dice_used", { dice: dice.join("、") })]
+      );
       renderCharacterRoster();
       renderCombatModal();
     });
@@ -5454,18 +5942,37 @@
     });
     content.appendChild(listWrap);
 
+    // R10 遺物効果「回合中限1次裝備變更免費」：本回合まだ使っていなければ、骰子を1つも
+    // 選ばずに無償で確定できる（通常はrenderCombatDicePickerのバリデーションで骰子必須）。
+    var hasFreeEquipChange =
+      !c._freeEquipChangeUsedThisRound &&
+      !!CharacterDrawer.findLearnedRelicEffectByName(c, ["回合中限1次裝備變更免費", "回合中僅限1次裝備變更免費", "ターン中1回だけ装備変更無償"]);
+    if (hasFreeEquipChange) {
+      var freeNote = document.createElement("p");
+      freeNote.className = "weapon-damage-tag";
+      freeNote.textContent = window.I18N.t("combat_equip_free_change_note");
+      content.appendChild(freeNote);
+    }
+
     renderCombatDicePicker(c, content);
     var confirmBtn = document.createElement("button");
     confirmBtn.type = "button";
     confirmBtn.className = "primary-btn";
     confirmBtn.textContent = window.I18N.t("combat_confirm_button");
-    confirmBtn.disabled = !combatDiceSelection.length;
+    confirmBtn.disabled = !hasFreeEquipChange && !combatDiceSelection.length;
     confirmBtn.addEventListener("click", function () {
-      var dice = consumeCombatDice(c);
+      var useFree = hasFreeEquipChange && !combatDiceSelection.length;
+      var dice = useFree ? [] : consumeCombatDice(c);
       combatDiceSelection = [];
+      if (useFree) c._freeEquipChangeUsedThisRound = true;
       saveRosterCharacters();
-      addLog("log_combat_equip_change", { character: c.name, dice: dice.join("、") });
-      addActionBox(c, window.I18N.t("combat_action_equip"), null, [window.I18N.t("action_log_dice_used", { dice: dice.join("、") })]);
+      addLog(useFree ? "log_combat_equip_change_free" : "log_combat_equip_change", { character: c.name, dice: dice.join("、") });
+      addActionBox(
+        c,
+        window.I18N.t("combat_action_equip"),
+        null,
+        useFree ? [window.I18N.t("combat_equip_free_change_note")] : [window.I18N.t("action_log_dice_used", { dice: dice.join("、") })]
+      );
       renderCharacterRoster();
       renderCombatModal();
     });
@@ -5505,6 +6012,23 @@
   // 単騎武器（盾なし）での格擋は「雙手持握的達人」を習得している場合のみ可能。
   function getSoloWeaponGuardRelic(c) {
     return CharacterDrawer.findLearnedRelicEffectByName(c, SOLO_WEAPON_GUARD_RELIC_NAMES);
+  }
+
+  // R9 遺物効果「防禦反擊」：判定に使う「装備中の近接武器」を1つ探す（盾／杖・聖印など
+  // 1Hit/2Hitの概念を持たない武器種は除外、computeWeaponDamageがnullを返すことで判定）。
+  function getEquippedMeleeWeapon(c) {
+    var Weapons = window.PriTestWeapons;
+    var ids = c.equippedWeaponIds || [];
+    for (var i = 0; i < ids.length; i++) {
+      var baseId = ids[i].indexOf("::") !== -1 ? ids[i].slice(0, ids[i].indexOf("::")) : ids[i];
+      var weapon = Weapons.get(baseId);
+      if (!weapon) continue;
+      var category = Weapons.getCategory(weapon.category);
+      if (!category || category.isShield) continue;
+      var damage = CharacterDrawer.computeWeaponDamage(c, ids[i]);
+      if (damage) return { weaponId: ids[i], weapon: weapon, category: category, damage: damage };
+    }
+    return null;
   }
 
   // 遺物効果の本文中「骰子消耗：N」「HP價值：M」（ja:「ダイスコスト：N」「HP価値：M」）から
@@ -5602,6 +6126,54 @@
             combatDefenseState = null;
           });
         }
+      }
+    }
+
+    // R9 遺物効果「防禦反擊」：盾＋近接武器を装備し、瀕死状態でなければ発動できる独立行動。
+    // 「習得2個時+15」は countLearnedRelicEffectsByName（同名の複数エントリを個数として数える
+    // 既存規則）で判定し、「防禦反擊強化（斧槍）」はカテゴリが斧槍のときだけ追加+15する。
+    var guardCounterEffect = CharacterDrawer.findLearnedRelicEffectByName(c, ["防禦反擊", "ガードカウンター"]);
+    var guardCounterMeleeWeapon = getEquippedMeleeWeapon(c);
+    if (guardCounterEffect && shieldInfo && guardCounterMeleeWeapon && !c._nearDeath) {
+      var gcCost = CharacterDrawer.parseActionCost(guardCounterEffect.body && guardCounterEffect.body.zh);
+      var gcCount2Bonus = CharacterDrawer.countLearnedRelicEffectsByName(c, ["防禦反擊", "ガードカウンター"]) >= 2 ? 15 : 0;
+      var gcHalberdBonus = CharacterDrawer.findLearnedRelicEffectByName(c, ["防禦反擊強化（斧槍）", "ガードカウンター強化（斧槍）"])
+        && guardCounterMeleeWeapon.category.id === "halberd"
+        ? 15
+        : 0;
+      var gcAttachedBonus = (c.learnedAttachedEffects || []).indexOf("guard_counter_up") !== -1 ? 15 : 0;
+      var gcDamageValue = guardCounterMeleeWeapon.damage.hit1Damage + gcCount2Bonus + gcHalberdBonus + gcAttachedBonus;
+      var gcDamageSymbol = guardCounterMeleeWeapon.damage.hit1Symbol;
+      var gcRow = document.createElement("div");
+      gcRow.className = "combat-attack-weapon-row";
+      var gcNameEl = document.createElement("span");
+      gcNameEl.className = "combat-attack-weapon-name";
+      gcNameEl.textContent = window.I18N.t("combat_guard_counter_label");
+      gcRow.appendChild(gcNameEl);
+      var gcDmgTag = document.createElement("span");
+      gcDmgTag.className = "weapon-damage-tag";
+      gcDmgTag.textContent = " " + CharacterDrawer.formatValueWithSymbol(gcDamageValue, gcDamageSymbol);
+      gcRow.appendChild(gcDmgTag);
+      var gcBtn = document.createElement("button");
+      gcBtn.type = "button";
+      gcBtn.className = "combat-attack-hit-btn";
+      gcBtn.textContent = window.I18N.t("combat_guard_counter_label");
+      if (combatDefenseState === "guard_counter") gcBtn.classList.add("active");
+      gcBtn.addEventListener("click", function () {
+        combatDefenseState = combatDefenseState === "guard_counter" ? null : "guard_counter";
+        combatDiceSelection = [];
+        renderCombatModal();
+      });
+      gcRow.appendChild(gcBtn);
+      content.appendChild(gcRow);
+      if (combatDefenseState === "guard_counter") {
+        renderDiceCostAction(c, content, gcCost, function (dice, costLines) {
+          var lines = [window.I18N.t("action_log_dice_used", { dice: dice.join("、") })].concat(costLines);
+          var valueText = CharacterDrawer.formatValueWithSymbol(gcDamageValue, gcDamageSymbol);
+          addActionBox(c, window.I18N.t("combat_guard_counter_label"), window.I18N.t("action_log_damage_total", { value: valueText }), lines);
+          addLog("log_combat_guard_counter", { character: c.name, damage: valueText, dice: dice.join("、") });
+          combatDefenseState = null;
+        });
       }
     }
 
@@ -5730,7 +6302,15 @@
             : activeDefenseSkill.id === "yoto_release_defense"
             ? window.I18N.t("yoto_release_defense_note")
             : window.I18N.t("combat_defense_skill_negate_note");
-        if (activeDefenseSkill.id === "counterattack") c._counterattackDefenseUsed = true;
+        if (activeDefenseSkill.id === "counterattack") {
+          c._counterattackDefenseUsed = true;
+          // R1「技能強化（迎擊）」：被動強制發動——防禦階段用「逆襲」後，下個戰鬥階段開始時
+          // 自動發動「以Action使用時」的效果（對敵人造成【總合傷害：30+◆】、對象未確定なので
+          // GM/玩家がその場で敵人を選んで◆を適用する前提のリマインドとしてログへ残す）。
+          if (CharacterDrawer.findLearnedRelicEffectByName(c, ["技能強化（迎擊）", "スキル強化（迎撃）"])) {
+            c._counterattackAutoTriggerPending = true;
+          }
+        }
         // 執行者「妖刀」／「妖刀（妖刀解放・攻）」：完全無效化ノート自体は汎用
         // （combat_defense_skill_negate_note）のまま。このディフェンス後、妖刀蓄積に✓1個
         // （上限2、既に2でも使用自体は妨げない）を記入し、次の戦闘フェイズ開始時に體力骰+1を
@@ -5826,12 +6406,13 @@
       }
       var value = applyConsecutiveGuardBonus(c, baseValue);
       renderDiceCostAction(c, content, cost, function (dice) {
-        addActionBox(
-          c,
-          window.I18N.t("combat_defense_block_button"),
-          window.I18N.t("action_log_defense_value_total", { value: value }),
-          [window.I18N.t("action_log_dice_used", { dice: dice.join("、") })]
-        );
+        var blockLines = [window.I18N.t("action_log_dice_used", { dice: dice.join("、") })];
+        // 附帶効果「防禦成功時HP回復」：HP損害を処理する前に自身へ「HP回復□」＝+1を適用する。
+        if ((c.learnedAttachedEffects || []).indexOf("guard_hp_regen") !== -1) {
+          c.hp.current = Math.min(c.hp.max, c.hp.current + 1);
+          blockLines = blockLines.concat([window.I18N.t("guard_hp_regen_applied_note")]);
+        }
+        addActionBox(c, window.I18N.t("combat_defense_block_button"), window.I18N.t("action_log_defense_value_total", { value: value }), blockLines);
         addLog("log_combat_defense_block", { character: c.name, value: value, dice: dice.join("、") });
         registerGuardUsed(c);
         combatDefenseState = null;
@@ -6284,15 +6865,27 @@
         c._extraActionUsed = true;
       }
     } else if (state.actionPhase === "combat") {
-      if (c.dicePool.length === 0) {
+      // R4遺物効果「回合結束時，體力骰帶入1個」で骰子が1個持ち越されている場合でも、
+      // 戰鬥階段の獲得骰子数（staminaDice.action）はその影響を受けず、常に全量振れる
+      // （c.dicePool.length===0だけを判定基準にすると持ち越し骰があるせいで振れなくなるため、
+      // フェイズ切替の都度リセットする専用フラグで判定する）。
+      if (!c._combatDiceRolled) {
         // 睡眠トリガーで課された「次回合のスタミナ骰-3」を、この回合の擲骰時に1回だけ消費する。
         rolled = Math.max(0, type.staminaDice.action - (c._nextActionDicePenalty || 0));
         c._nextActionDicePenalty = 0;
         for (var j = 0; j < rolled; j++) c.dicePool.push(CharacterDrawer.rollD6());
+        c._combatDiceRolled = true;
       }
     } else if (state.actionPhase === "defense") {
       if (!c._defenseActionUsed) {
-        rolled = type.staminaDice.defense;
+        // R4 遺物効果「防禦階段開始時體力骰回復」：防禦フェイズの獲得骰子数に+1する
+        // （本文が「+1」のような具体数値を持たない代わりに、既存のカウント系ヘルパーで
+        // 名前一致1件ごとに固定+1として扱う既存規則に従う）。
+        var defenseDiceBonus = CharacterDrawer.countLearnedRelicEffectsByName(c, [
+          "防禦階段開始時體力骰回復",
+          "ディフェンス開始時スタミナダイス回復",
+        ]);
+        rolled = type.staminaDice.defense + defenseDiceBonus;
         for (var k = 0; k < rolled; k++) c.dicePool.push(CharacterDrawer.rollD6());
         c._defenseActionUsed = true;
       }
@@ -7286,18 +7879,41 @@
         clearAllPendingActionBoxes();
       }
       rosterCharacters.forEach(function (c) {
+        // R1「技能強化（迎擊）」：前回合の防禦フェイズで「逆襲」を使っていれば、新しい戰鬥
+        // フェイズの開始時に「以Action使用時」の効果（對敵人造成【總合傷害：30+◆】）を
+        // 被動強制發動する。對象敵人の選択はGM/玩家に委ねるため、確定数値30とともにログへ残す。
+        if (isNewRoundFromDefense && c._counterattackAutoTriggerPending) {
+          addLog("log_counterattack_auto_trigger", { character: c.name });
+          c._counterattackAutoTriggerPending = false;
+        }
         // 新しい回合（防禦フェイズから戰鬥フェイズへ再突入）に入るとき、原則として全員の
         // 個人骰子池を空にする（技能・遺物効果で次回合へ持ち越せる場合は、そのキャラだけ
         // ここをスキップする条件を将来追加できる）。消えた骰子はログに記録する。
         if (isNewRoundFromDefense && (c.dicePool || []).length) {
+          // R4 遺物効果「回合結束時，體力骰帶入1個」：防禦フェイズ終了時（＝新しい回合へ進む今）
+          // 残っている骰子の中で最も大きい出目1個だけを、これからクリアする骰子池から
+          // 除外して持ち越す（「任選1個」の「最大」実装：常に最良の1個を残す）。
+          var carryOverBonus = CharacterDrawer.countLearnedRelicEffectsByName(c, [
+            "回合結束時，體力骰帶入1個",
+            "ターン終了時、スタミナダイス1個持ち越し",
+          ]);
+          var carriedDice = [];
+          if (carryOverBonus > 0) {
+            var maxValue = Math.max.apply(null, c.dicePool);
+            var maxIdx = c.dicePool.indexOf(maxValue);
+            carriedDice = c.dicePool.splice(maxIdx, 1);
+          }
           var clearedDice = c.dicePool.join("、");
-          c.dicePool = [];
-          addLog("log_dice_pool_cleared_new_round", { character: c.name, dice: clearedDice });
+          c.dicePool = carriedDice;
+          if (clearedDice) addLog("log_dice_pool_cleared_new_round", { character: c.name, dice: clearedDice });
+          if (carriedDice.length) addLog("log_dice_pool_carried_new_round", { character: c.name, dice: carriedDice.join("、") });
         }
         c._wingsOfSalvationActive = false;
         c._marchOfTheUndyingActive = false;
         c._inquiryDamageReductionActive = false;
         c._empathyActive = false;
+        // R10 遺物効果「回合中限1次裝備變更免費」：新しい回合（戰鬥フェイズへの再突入）ごとに解禁する。
+        c._freeEquipChangeUsedThisRound = false;
         // 執行者「妖刀」：防禦フェイズで使用した際に予約された「次の行動階段開始時に體力骰+1」を
         // ここで消化する（新しい回合＝combatフェイズへの新規突入のタイミング）。
         if (c._yotoPendingBonusDice) {
@@ -7313,11 +7929,36 @@
     if (state.actionPhase === "defense" && phase !== "defense") {
       state.battle._finaleActive = false;
       state.battle._totemStellaActive = false;
+      // 附帶効果「HP持續回復」「FP持續回復」：防禦階段結束時（戰鬥結束・次回合いずれも含む）、
+      // 自身に「HP回復□」「FP回復□」＝+1として適用する。
+      rosterCharacters.forEach(function (c) {
+        if (!c.entered) return;
+        var attached = c.learnedAttachedEffects || [];
+        if (attached.indexOf("hp_regen") !== -1) c.hp.current = Math.min(c.hp.max, c.hp.current + 1);
+        if (attached.indexOf("fp_regen") !== -1) c.fp.current = Math.min(c.fp.max, c.fp.current + 1);
+      });
     }
     // 隱者「血魂之歌」：「階段結束まで」＝発動したフェイズ限定のバフのため、フェイズが
     // 変わるたびに必ずクリアする（回合単位で持続する救世之翼／終曲等とはライフサイクルが
     // 異なる。battle全体のフラグのため、下のrosterCharacters.forEachとは別に1回だけ行う）。
     state.battle._songOfBloodSpiritActive = false;
+    // 附帶効果「步行時發生落雷」「一定時間後產生輝石」：戰鬥階段→額外階段への遷移時のみ
+    // （最初の骰子ロールで前衛/敵視が決まる場面は対象外、ユーザー確認済み）、それぞれ
+    // 「前衛にいる」「敵視:1以上」を満たせば對敵人1D分の屬性を與える（行動階段ごとに1回）。
+    if (phase === "extra") {
+      rosterCharacters.forEach(function (c) {
+        if (!c.entered) return;
+        var attached = c.learnedAttachedEffects || [];
+        if (attached.indexOf("walk_lightning") !== -1 && getCharacterBattlePosition(c) === "front") {
+          addLog("log_walk_lightning_trigger", { character: c.name });
+        }
+        var idxForAggro = battlePositionNames().indexOf(c.name);
+        var aggroValue = idxForAggro !== -1 && idxForAggro < BATTLE_SLOT_COUNT ? state.battle.aggro[idxForAggro] || 0 : 0;
+        if (attached.indexOf("time_gem") !== -1 && aggroValue >= 1) {
+          addLog("log_time_gem_trigger", { character: c.name });
+        }
+      });
+    }
     state.actionPhase = phase;
     // GM／玩家が同時にプレイしなくてもよいよう、行動階段が切り替わるたびに「今の番」を
     // 必ずGM側へ戻す（GMが状況を確認・反応してから、改めて玩家へ番を渡す運用を想定）。
@@ -7330,8 +7971,24 @@
     rosterCharacters.forEach(function (c) {
       c._extraActionUsed = false;
       c._defenseActionUsed = false;
+      c._combatDiceRolled = false;
       c._consecutiveGuardCount = 0;
       c._dodgeActionUsed = false;
+      // R2 遺物効果「2Hit攻擊的達人（武器種類）」：「戰鬥階段／額外階段」ごとに1回まで。
+      c._twoHitMasteryUsedThisPhase = false;
+      // R1「技藝強化（攻擊力提升）」「能力強化（魔術之地）」：どちらも「直到階段結束為止」の
+      // 自身限定バフのため、フェイズ切替の都度リセットする。
+      c._finaleAttackBuffActive = false;
+      c._elementalControlMagicBonusActive = false;
+      // 附帶効果「疾跑時發生火焰」：行動階段（本アプリではフェイズ全般）ごとに1回のみ。
+      c._sprintFireUsedThisPhase = false;
+      // R1「技能強化（纏火）」：「行動後直到結束階段為止」の一時的な武器屬性タグなので、
+      // フェイズ切替の都度、付与した本人の分だけ剥がす（他の恒常的なweaponAttributeTagsは
+      // 別経路で管理されるため影響しない）。
+      if (c._clawShotFireTagWeaponId && c.weaponAttributeTags) {
+        delete c.weaponAttributeTags[c._clawShotFireTagWeaponId];
+        c._clawShotFireTagWeaponId = null;
+      }
       // 復仇者「靈體傷害」：行動階段・特殊階段ごとに1回だけ（規則書の「各自動發生1次」に対応）。
       c._spiritDamageUsedThisPhase = false;
       // 守護者「高防禦」（本フェイズが終わるまで持続）と「旋風」（本フェイズにつき1回まで）は
@@ -7350,6 +8007,21 @@
     // 額外・防禦行動へ入るときは、各角色の確定行動（点線枠）を一旦全てクリアする。
     if (phase === "extra" || phase === "defense") {
       clearAllPendingActionBoxes();
+    }
+    // 附帶効果「物理減傷+」：防禦フェイズ開始時、自動的に執行紀錄の先頭（他のPC操作より上位）
+    // へ本文をリマインドとして常駐させる（数値計算はGM/玩家が把握済みの前提で反映）。
+    if (phase === "defense") {
+      rosterCharacters.forEach(function (c) {
+        if (!c.entered || (c.learnedAttachedEffects || []).indexOf("phys_cut") === -1) return;
+        var physCutEffect = CharacterDrawer.attachedEffectById ? CharacterDrawer.attachedEffectById("phys_cut") : null;
+        if (!c.pendingActionBoxes) c.pendingActionBoxes = [];
+        c.pendingActionBoxes.unshift({
+          id: "pc" + Date.now() + Math.floor(Math.random() * 1000),
+          title: window.I18N.t("attached_effect_label_phys_cut"),
+          total: null,
+          lines: physCutEffect ? [CharacterTypes.localizedText(physCutEffect.body)] : [],
+        });
+      });
     }
     saveRosterCharacters();
     saveState();
@@ -11274,6 +11946,8 @@
       btn.addEventListener("click", function () {
         combatModalAction = btn.dataset.action;
         combatDiceSelection = [];
+        combatAttackState = null;
+        combatSpecialAttackState = null;
         renderCombatModal();
       });
     });
