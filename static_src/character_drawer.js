@@ -3417,6 +3417,45 @@
     return true;
   }
 
+  // 「刺突カウンターの達人」の対象武器種：刺劍／重刺劍／槍／大槍／斧槍（射擊武器はRANGED_CATEGORY_IDSで別途判定）。
+  var STAB_COUNTER_CATEGORY_IDS = ["rapier", "heavy_rapier", "spear", "great_spear", "halberd"];
+
+  // 遺物効果（learnedRelicEffects）の中には、本文に「僅在自身只裝備1把武器時發揮效果」
+  // 「同時裝備2把相同類別的近戰武器時」「當自身「敵視：1以上」時」「當自身位於後衛時」
+  // 「當自身召喚的「靈體」存在時」のような発動条件が明記されているものがある。以前はこれらの
+  // 条件を一切見ずに、習得した瞬間から常時ダメージへ加算していた（誤って過大なボーナスを
+  // 与えるバグ）。attachedEffectAppliesToと同じ「名前で判定」パターンで、対応済みの効果だけ
+  // 個別に条件をチェックする（未対応の効果はこれまで通りtrue＝常時適用のまま）。
+  function relicEffectAppliesTo(effect, c, weaponId, category) {
+    var name = (effect.name && (effect.name.zh || effect.name.ja)) || "";
+    if (name === "雙手持握的達人" || name === "両手持ちの達人") {
+      return (c.equippedWeaponIds || []).length === 1 && c.equippedWeaponIds[0] === weaponId;
+    }
+    if (name === "雙刀持握的達人" || name === "二刀持握的達人" || name === "二刀持ちの達人") {
+      var sameCategory = (c.equippedWeaponIds || []).filter(function (id) {
+        var w = Weapons.get(baseWeaponId(id));
+        return w && category && w.category === category.id;
+      });
+      return (c.equippedWeaponIds || []).length === 2 && sameCategory.length === 2 && (c.equippedWeaponIds || []).indexOf(weaponId) !== -1;
+    }
+    if (name === "突刺反擊的達人" || name === "刺突カウンターの達人") {
+      var isStabOrRanged =
+        !!category && (STAB_COUNTER_CATEGORY_IDS.indexOf(category.id) !== -1 || RANGED_CATEGORY_IDS.indexOf(category.id) !== -1);
+      if (!isStabOrRanged) return false;
+      var ctx = window.PriTestNightBattleContext ? window.PriTestNightBattleContext(c) : null;
+      return !!ctx && ctx.aggro >= 1;
+    }
+    if (name === "後衛戰術" || name === "後衛戦術") {
+      if (!category || RANGED_CATEGORY_IDS.indexOf(category.id) === -1) return false;
+      var ctx2 = window.PriTestNightBattleContext ? window.PriTestNightBattleContext(c) : null;
+      return !!ctx2 && ctx2.position === "back";
+    }
+    if (name === "家族共鬥" || name === "ファミリー共闘") {
+      return !!(c.spiritSummon && c.spiritSummonHp && c.spiritSummonHp[c.spiritSummon] && c.spiritSummonHp[c.spiritSummon].current > 0);
+    }
+    return true;
+  }
+
   // 稀有度補正+威力補正=戦技威力（artPower）だけを計算する。武器種を問わず（杖・聖印・盾を
   // 含む）常に使う共通部分で、各アーツ／魔術／祈祷の「威力：N＋戦技威力」の解決に使う。
   var NON_HIT_CATEGORY_IDS = ["staff", "sacred_seal"];
@@ -3481,6 +3520,7 @@
     (c.learnedRelicEffects || []).forEach(function (key) {
       var effect = charType ? relicEffectForKey(charType, key) : null;
       if (!effect || effect.kind !== "Passive") return;
+      if (!relicEffectAppliesTo(effect, c, weaponId, category)) return;
       var bJa = extractHitBonus(effect.body && effect.body.ja);
       var b = bJa[0] || bJa[1] || bJa[2] || bJa[3] ? bJa : extractHitBonus(effect.body && effect.body.zh);
       relic1 += b[0];

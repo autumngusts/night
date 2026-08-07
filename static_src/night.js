@@ -3287,6 +3287,16 @@
     return state.battle.front[idx] ? "front" : "back";
   }
 
+  // character_drawer.js（別クロージャ、night以外のページでも単独利用される）から、条件付き
+  // 遺物効果（「後衛時のみ」「敵視：1以上のとき」等）の判定に必要な戦場情報を参照するためのフック。
+  // 存在確認つきで呼ばれるため、night.js以外のページでは無害（未定義のまま＝条件不成立扱い）。
+  window.PriTestNightBattleContext = function (c) {
+    var names = battlePositionNames();
+    var idx = names.indexOf(c.name);
+    if (idx === -1 || idx >= BATTLE_SLOT_COUNT) return null;
+    return { position: state.battle.front[idx] ? "front" : "back", aggro: state.battle.aggro[idx] || 0 };
+  };
+
   function buildBattlePositionGrid(containerId, valuesArray, names) {
     var container = document.getElementById(containerId);
     if (!container) return;
