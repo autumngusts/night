@@ -585,6 +585,7 @@
     renderAttachedCandidates();
     renderAttachedLearnedList();
     renderAttachedAllList();
+    renderTalismanMaxStatMarkers(c);
   }
 
   function handleAttachedRoll2D() {
@@ -618,8 +619,11 @@
   // 遺物効果の本文が「自身を『敵視：+N』する」のような単純な常時加算効果だけを表す場合に、
   // そのNを取り出す。条件付き・複合効果の文章（他の語句を含む）にはマッチしない、
   // 純粋な数値調整のみの受動効果を検出するための厳密な正規表現。
-  var AGGRO_PASSIVE_RE_ZH = /^將自身「敵視：([+－\-]\d+)」。$/;
-  var AGGRO_PASSIVE_RE_JA = /^自身を「敵視：([+＋－\-]\d+)」する。$/;
+  // 遺物効果は「將自身「敵視：+1」。」、附帶効果（easy_target/hard_target）は
+  // 「將自身常時設為「敵視：+1」。」と、間に「常時設為／常に」が挟まる表記ゆれがあるため
+  // 両方許容する。
+  var AGGRO_PASSIVE_RE_ZH = /^將自身(?:常時設為)?「敵視：([+－\-]\d+)」。$/;
+  var AGGRO_PASSIVE_RE_JA = /^自身を(?:常に)?「敵視：([+＋－\-]\d+)」する。$/;
 
   function parseAggroDelta(text) {
     var m = AGGRO_PASSIVE_RE_ZH.exec(text || "") || AGGRO_PASSIVE_RE_JA.exec(text || "");
@@ -628,21 +632,29 @@
     return parseInt(normalized, 10) || 0;
   }
 
-  // 角色が習得済みの遺物効果の中に、常時「敵視」を加減する受動効果があれば合計値を返す。
-  // 新しい戦闘（雑魚・敵人が0体の状態から追加）の開始時に、初期敵視へ自動反映するために使う。
+  // 角色が習得済みの遺物効果／附帶効果の中に、常時「敵視」を加減する受動効果があれば合計値を
+  // 返す。新しい戦闘（雑魚・敵人が0体の状態から追加）の開始時に、初期敵視へ自動反映するために使う。
   function getPassiveAggroBonus(c) {
-    var type = c && c.typeId ? CharacterTypes.get(c.typeId) : null;
-    if (!type) return 0;
-    var learned = c.learnedRelicEffects || [];
     var total = 0;
-    (type.relicEffectGroups || []).forEach(function (g, gi) {
-      g.effects.forEach(function (e, ei) {
-        if (learned.indexOf(relicEffectKey(type.id, gi, ei)) === -1) return;
-        if (e.kind !== "Passive") return;
-        var delta = parseAggroDelta(e.body && e.body.zh);
-        if (!delta) delta = parseAggroDelta(e.body && e.body.ja);
-        total += delta;
+    var type = c && c.typeId ? CharacterTypes.get(c.typeId) : null;
+    if (type) {
+      var learned = c.learnedRelicEffects || [];
+      (type.relicEffectGroups || []).forEach(function (g, gi) {
+        g.effects.forEach(function (e, ei) {
+          if (learned.indexOf(relicEffectKey(type.id, gi, ei)) === -1) return;
+          if (e.kind !== "Passive") return;
+          var delta = parseAggroDelta(e.body && e.body.zh);
+          if (!delta) delta = parseAggroDelta(e.body && e.body.ja);
+          total += delta;
+        });
       });
+    }
+    (c && c.learnedAttachedEffects ? c.learnedAttachedEffects : []).forEach(function (id) {
+      var effect = attachedEffectById(id);
+      if (!effect) return;
+      var delta = parseAggroDelta(effect.body && effect.body.zh);
+      if (!delta) delta = parseAggroDelta(effect.body && effect.body.ja);
+      total += delta;
     });
     return total;
   }
@@ -867,6 +879,7 @@
     renderRelicLearnedList();
     renderRelicAllList();
     renderFlaskHealBonusMarker(c);
+    renderTalismanMaxStatMarkers(c);
   }
 
   // 「聖杯瓶回復量提升」遺物効果を習得している場合、その分を黄字の(+N)として表示する
@@ -1048,7 +1061,7 @@
       },
       min: 0,
       maxFn: function (c) {
-        return Math.max(0, c.blessingSlots.max + talismanFlatMaxStatBonus(c, "blessing"));
+        return Math.max(0, c.blessingSlots.max + totalFlatMaxStatBonus(c, "blessing"));
       },
     },
     {
@@ -1129,7 +1142,7 @@
       },
       min: 0,
       maxFn: function (c) {
-        return Math.max(0, c.hp.max + talismanFlatMaxStatBonus(c, "hp"));
+        return Math.max(0, c.hp.max + totalFlatMaxStatBonus(c, "hp"));
       },
     },
     {
@@ -1152,7 +1165,7 @@
       },
       min: 0,
       maxFn: function (c) {
-        return Math.max(0, c.fp.max + talismanFlatMaxStatBonus(c, "fp"));
+        return Math.max(0, c.fp.max + totalFlatMaxStatBonus(c, "fp"));
       },
     },
     {
@@ -3116,37 +3129,96 @@
     return total;
   }
 
-  // タリスマンの「自身の「最大HP」を「＋□」する」等から、指定したステータス（hp/fp/blessing）の
-  // 上限修正値を合計する。表記は「＋□」（空心正方形＝1個で+1、複数個なら加算した個数分）と、
-  // 「-2」のような具体的な符号付き数値の2パターンがあり（ユーザー確認済み）、どちらも対応する。
-  // 「現在HP＝最大HP」のような条件参照（符号が続かない）は対象外。
-  var TALISMAN_MAX_STAT_LABELS = { hp: "HP", fp: "FP", blessing: "加護" };
+  // 遺物効果の「將自身「力量」的威力補正設為「+5」」「自身の「筋力」の威力補正を「＋5」する」
+  // （力量/技巧/平衡/智力/信仰/神秘の6種、全て同じ文型）から、指定したstatKeyに該当する
+  // 加算値を合計する。talismanPowerModBonusと同じ加算先（computeArtPower）に載せることで、
+  // 戦技/魔術/祈祷のダメージ黃字プレビューと確定時の紅字の両方へ自動反映される。
+  function relicPowerModBonus(c, statKey) {
+    if (!statKey) return 0;
+    var charType = c.typeId ? CharacterTypes.get(c.typeId) : null;
+    if (!charType) return 0;
+    var total = 0;
+    (c.learnedRelicEffects || []).forEach(function (key) {
+      var effect = relicEffectForKey(charType, key);
+      if (!effect || effect.kind !== "Passive") return;
+      var text = (effect.body && effect.body.ja) || (effect.body && effect.body.zh);
+      if (!text) return;
+      var m = /「([^」]+)」(?:的|の)威力補正(?:設為|を)「([+＋－\-]\d+)」/.exec(text);
+      if (!m) return;
+      if (resolvePowerModStatKey(m[1]) === statKey) total += normalizeSignedNumber(m[2]);
+    });
+    return total;
+  }
+
+  // 「自身の「最大HP」を「＋□」する」「將自身「最大HP：+□」」等から、指定したステータス
+  // （hp/fp/blessing）の上限修正値を合計する。表記は「＋□」（空心正方形＝1個で+1、複数個
+  // なら加算した個数分）と、「-2」のような具体的な符号付き数値の2パターンがあり
+  // （ユーザー確認済み）、どちらも対応する。「現在HP＝最大HP」のような条件参照
+  // （符号が続かない）は対象外。タリスマン／遺物効果／附帶効果のいずれも同じ表記のため、
+  // 共通のパーサーを使う。
+  var MAX_STAT_LABELS = { hp: "HP", fp: "FP", blessing: "加護" };
+
+  function sumMaxStatDeltaFromText(text, label) {
+    if (!text) return 0;
+    // 表記ゆれに対応：「最大HP＋□」の直接付記、「最大HP：+□」のコロン付記、
+    // 「最大HP」を「＋□」するの日本語「」を「」区切り、いずれも許容する。
+    var re = new RegExp("最大" + label + "[：:]?(?:」を「)?([＋+－\\-])(\\d+|□+)", "g");
+    var total = 0;
+    var m;
+    while ((m = re.exec(text))) {
+      if (/^□+$/.test(m[2])) {
+        total += m[2].length;
+      } else {
+        var sign = m[1] === "－" || m[1] === "-" ? -1 : 1;
+        total += sign * parseInt(m[2], 10);
+      }
+    }
+    return total;
+  }
 
   function talismanFlatMaxStatBonus(c, statKey) {
-    var label = TALISMAN_MAX_STAT_LABELS[statKey];
+    var label = MAX_STAT_LABELS[statKey];
     if (!label) return 0;
-    // 表記ゆれに対応：「最大HP＋□」のような直接付記と、「最大HP」を「＋□」するのような
-    // 日本語の「」を「」区切りの両方を許容する。それ以外の文字が挟まる場合（「最大HP」のとき
-    // 等の条件参照）は符号が続かず不一致になるため、誤って別の記述を拾わない。
-    var re = new RegExp("最大" + label + "(?:」を「)?([＋+－\\-])(\\d+|□+)", "g");
     var total = 0;
     (c.talismanIds || []).forEach(function (id) {
       var t = Talismans.get(id);
       if (!t) return;
-      var text = (t.body && t.body.ja) || (t.body && t.body.zh);
-      if (!text) return;
-      var m;
-      re.lastIndex = 0;
-      while ((m = re.exec(text))) {
-        if (/^□+$/.test(m[2])) {
-          total += m[2].length;
-        } else {
-          var sign = m[1] === "－" || m[1] === "-" ? -1 : 1;
-          total += sign * parseInt(m[2], 10);
-        }
-      }
+      total += sumMaxStatDeltaFromText((t.body && t.body.ja) || (t.body && t.body.zh), label);
     });
     return total;
+  }
+
+  // 遺物効果（学習した型固有の効果）由来の最大HP/FP/加護修正値。
+  function relicFlatMaxStatBonus(c, statKey) {
+    var label = MAX_STAT_LABELS[statKey];
+    if (!label) return 0;
+    var charType = c.typeId ? CharacterTypes.get(c.typeId) : null;
+    if (!charType) return 0;
+    var total = 0;
+    (c.learnedRelicEffects || []).forEach(function (key) {
+      var effect = relicEffectForKey(charType, key);
+      if (!effect || effect.kind !== "Passive") return;
+      total += sumMaxStatDeltaFromText((effect.body && effect.body.ja) || (effect.body && effect.body.zh), label);
+    });
+    return total;
+  }
+
+  // 附帶効果（learnedAttachedEffects、全型共通）由来の最大HP/FP修正値（max_hp_up／max_fp_up）。
+  function attachedFlatMaxStatBonus(c, statKey) {
+    var label = MAX_STAT_LABELS[statKey];
+    if (!label) return 0;
+    var total = 0;
+    (c.learnedAttachedEffects || []).forEach(function (id) {
+      var effect = attachedEffectById(id);
+      if (!effect) return;
+      total += sumMaxStatDeltaFromText((effect.body && effect.body.ja) || (effect.body && effect.body.zh), label);
+    });
+    return total;
+  }
+
+  // タリスマン／遺物効果／附帶効果の全ソースを合算した、実際に使える上限修正値。
+  function totalFlatMaxStatBonus(c, statKey) {
+    return talismanFlatMaxStatBonus(c, statKey) + relicFlatMaxStatBonus(c, statKey) + attachedFlatMaxStatBonus(c, statKey);
   }
 
   // 属性を強化する「毒蠍」系タリスマン（Hit数を問わず蓄積値+1）を、属性名（ja表記固定）から
@@ -3260,6 +3332,17 @@
       if (id === "talisman_crimson_seven_edge" && c.hp && c.hp.current <= 3) bonus += 5;
     });
     return bonus;
+  }
+
+  // 附帶効果「戰技傷害+5」「魔術傷害+5」「祈禱傷害+5」（全型共通、条件記載無しなので習得済み
+  // なら常時+5）。kindは呼び出し側（night.js側のcomputeSkillDamage）が武器カテゴリから
+  // 判定して渡す："art"=杖／聖印以外の武器の戦技、"sorcery"=杖(魔術)、"incant"=聖印(祈祷)。
+  var ATTACHED_SKILL_DAMAGE_IDS = { art: "arts_dmg", sorcery: "sorcery_dmg", incant: "incant_dmg" };
+
+  function attachedSkillDamageBonus(c, kind) {
+    var id = ATTACHED_SKILL_DAMAGE_IDS[kind];
+    if (!id || !c) return 0;
+    return (c.learnedAttachedEffects || []).indexOf(id) !== -1 ? 5 : 0;
   }
 
   // 無賴漢「鬥爭心」：現在HPが最大HPと異なる場合（1点以上減っている場合）、自身が発生する
@@ -3490,7 +3573,8 @@
     var powerModText = weapon.powerModOverride ? Weapons.localizedText(weapon.powerModOverride) : Weapons.localizedText(category.basicStats.powerMod);
     var statKey = resolvePowerModStatKey(powerModText);
     var type = c.typeId ? CharacterTypes.get(c.typeId) : null;
-    var powerMod = (type && statKey && type.powerMod ? type.powerMod[statKey] || 0 : 0) + talismanPowerModBonus(c, statKey);
+    var powerMod =
+      (type && statKey && type.powerMod ? type.powerMod[statKey] || 0 : 0) + talismanPowerModBonus(c, statKey) + relicPowerModBonus(c, statKey);
     return { rarityCorrection: rarityCorrection, powerMod: powerMod, artPower: rarityCorrection + powerMod };
   }
 
@@ -4519,8 +4603,9 @@
     renderTalismanMaxStatMarkers(c);
   }
 
-  // タリスマンの最大HP/FP/加護修正値を、各ステータスの上限欄の横に「（+N）」として表示する。
-  // 値そのものはc.hp.max等に焼き込まず毎回動的に計算するため、装備解除や転交で自動的に外れる。
+  // タリスマン／遺物効果／附帶効果いずれか由来の最大HP/FP/加護修正値を合算し、各ステータスの
+  // 上限欄の横に「（+N）」として表示する。値そのものはc.hp.max等に焼き込まず毎回動的に計算
+  // するため、装備解除・忘却・転交で自動的に外れる。
   function renderTalismanMaxStatMarkers(c) {
     var hpEl = document.getElementById("char-hp-talisman-bonus");
     var fpEl = document.getElementById("char-fp-talisman-bonus");
@@ -4531,7 +4616,7 @@
       { el: fpEl, key: "fp" },
       { el: blessingEl, key: "blessing" },
     ].forEach(function (entry) {
-      var bonus = c ? talismanFlatMaxStatBonus(c, entry.key) : 0;
+      var bonus = c ? totalFlatMaxStatBonus(c, entry.key) : 0;
       entry.el.textContent = bonus !== 0 ? window.I18N.t("talisman_max_bonus_marker", { value: (bonus > 0 ? "+" : "") + bonus }) : "";
     });
   }
@@ -5925,7 +6010,9 @@
     MAX_ATTACHED_EFFECTS: MAX_ATTACHED_EFFECTS,
     weaponSpecialEffectNotes: weaponSpecialEffectNotes,
     talismanFlatSkillBonus: talismanFlatSkillBonus,
+    attachedSkillDamageBonus: attachedSkillDamageBonus,
     talismanFlatMaxStatBonus: talismanFlatMaxStatBonus,
+    totalFlatMaxStatBonus: totalFlatMaxStatBonus,
     fightingSpiritFlatBonus: fightingSpiritFlatBonus,
     computeWeaponDamage: computeWeaponDamage,
     weaponDamageTagText: weaponDamageTagText,

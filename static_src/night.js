@@ -3922,20 +3922,22 @@
       var category = Weapons.getCategory(weapon.category);
       var artInfo = CharacterDrawer.computeArtPower(c, entry.weaponId);
       if (!artInfo) return null;
-      var isSpellCategory = category && (category.id === "staff" || category.id === "sacred_seal");
+      var skillDamageKind = category.id === "staff" ? "sorcery" : category.id === "sacred_seal" ? "incant" : "art";
+      var isSpellCategory = skillDamageKind !== "art";
       dmg = isSpellCategory
         ? CharacterDrawer.spellSkillPowerValue(body, artInfo.artPower)
         : CharacterDrawer.artSkillPowerValue(body, artInfo.artPower);
     }
     if (!dmg) return null;
     // 基礎威力が実際に計算できた場合のみ、タリスマン起因の固定加算（戦技・魔術・祈祷向け）と
-    // 無賴漢「鬥爭心」（現在HPが最大HPと異なる場合＋20）を上乗せする（計算不能な場合にまで
-    // 数値を捏造しないため）。
+    // 無賴漢「鬥爭心」（現在HPが最大HPと異なる場合＋20）、附帶効果「戰技/魔術/祈禱傷害+5」を
+    // 上乗せする（計算不能な場合にまで数値を捏造しないため）。
     var talismanBonus = CharacterDrawer.talismanFlatSkillBonus(c);
     var fightingSpiritBonus = CharacterDrawer.fightingSpiritFlatBonus(c);
     var songBonus = songOfBloodSpiritSkillBonus();
     var unyieldingBonus = unyieldingSkillBonus(c);
-    var flatBonus = talismanBonus + fightingSpiritBonus + songBonus + unyieldingBonus;
+    var attachedSkillBonus = skillDamageKind ? CharacterDrawer.attachedSkillDamageBonus(c, skillDamageKind) : 0;
+    var flatBonus = talismanBonus + fightingSpiritBonus + songBonus + unyieldingBonus + attachedSkillBonus;
     return flatBonus ? { value: dmg.value + flatBonus, symbol: dmg.symbol } : dmg;
   }
 
