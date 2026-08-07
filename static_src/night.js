@@ -216,6 +216,10 @@
     }
   }
 
+  // 各角色「武器欄」の折りたたみ状態（キャラID→bool）。renderCharacterRosterは頻繁に
+  // 全体を再描画するため、この開閉状態だけはstateとは別にセッション内で保持する。
+  var rosterWeaponCollapsed = {};
+
   function renderCharacterRoster() {
     var tbody = document.getElementById("character-roster-tbody");
     var skillsWrap = document.getElementById("character-roster-skills");
@@ -481,12 +485,32 @@
 
       var weaponCol = document.createElement("div");
       weaponCol.className = "roster-detail-col";
+      var weaponHeader = document.createElement("div");
+      weaponHeader.className = "roster-weapon-col-header";
+      var weaponToggleBtn = document.createElement("button");
+      weaponToggleBtn.type = "button";
+      weaponToggleBtn.className = "collapse-triangle";
+      weaponToggleBtn.setAttribute("aria-label", "toggle weapon list");
       var weaponTitle = document.createElement("h5");
       weaponTitle.textContent = window.I18N.t("character_weapons_label");
+      var weaponSummary = document.createElement("span");
+      weaponSummary.className = "weapon-equipped-summary";
+      weaponSummary.textContent = CharacterDrawer.equippedWeaponSummaryText(c);
+      weaponHeader.appendChild(weaponToggleBtn);
+      weaponHeader.appendChild(weaponTitle);
+      weaponHeader.appendChild(weaponSummary);
       var weaponWrap = document.createElement("div");
       weaponWrap.className = "roster-weapon-list";
       CharacterDrawer.renderRosterWeaponList(c, weaponWrap);
-      weaponCol.appendChild(weaponTitle);
+      var weaponCollapsed = !!rosterWeaponCollapsed[c.id];
+      weaponWrap.classList.toggle("collapsed", weaponCollapsed);
+      weaponToggleBtn.innerHTML = weaponCollapsed ? "&#9656;" : "&#9662;";
+      weaponToggleBtn.addEventListener("click", function () {
+        var nowCollapsed = weaponWrap.classList.toggle("collapsed");
+        rosterWeaponCollapsed[c.id] = nowCollapsed;
+        weaponToggleBtn.innerHTML = nowCollapsed ? "&#9656;" : "&#9662;";
+      });
+      weaponCol.appendChild(weaponHeader);
       weaponCol.appendChild(weaponWrap);
 
       var talismanCol = document.createElement("div");
@@ -705,6 +729,7 @@
     turnMessageHistory: [], // 上記でクリアされた留言を全て保持する読み取り専用の履歴（最新300件まで）
     turnRewards: [], // {id, text, checked}の配列。地板獎勵とは無関係の獨立勾選清單、手動削除まで保持
     turnBoardEnabled: true, // 主選單から行動留言板機能全体を開閉するフラグ
+    logBubbleEnabled: false, // 紀錄ドロワーの懸浮泡泡（公開盤左上に常時表示するショートカット）を出すかどうか
     // GMが開いて縮小した抽選ウィンドウを全端末で共有するための領域。null=未使用。
     // 中身はcharacter_drawer.jsのweaponRollState/talismanRollState/consumableRollState、
     // またはnight.js内のpotentialPower関連状態と同じ形をした素のJSONオブジェクト。
@@ -774,6 +799,7 @@
       turnMessageHistory: state.turnMessageHistory,
       turnRewards: state.turnRewards,
       turnBoardEnabled: state.turnBoardEnabled,
+      logBubbleEnabled: state.logBubbleEnabled,
       activeDraws: state.activeDraws,
       activeThreatEffects: state.activeThreatEffects,
     };
@@ -1389,6 +1415,7 @@
       state.turnMessageHistory = Array.isArray(data.turnMessageHistory) ? data.turnMessageHistory : [];
       state.turnRewards = Array.isArray(data.turnRewards) ? data.turnRewards : [];
       state.turnBoardEnabled = typeof data.turnBoardEnabled === "boolean" ? data.turnBoardEnabled : true;
+      state.logBubbleEnabled = typeof data.logBubbleEnabled === "boolean" ? data.logBubbleEnabled : false;
       var loadedDraws = data.activeDraws && typeof data.activeDraws === "object" ? data.activeDraws : {};
       state.activeDraws = {
         potentialPower: loadedDraws.potentialPower || null,
@@ -1446,6 +1473,7 @@
     state.turnMessageHistory = [];
     state.turnRewards = [];
     state.turnBoardEnabled = true;
+    state.logBubbleEnabled = false;
     state.activeDraws = { potentialPower: null, weapon: null, talisman: null, consumable: null };
     state.activeThreatEffects = [];
     localStorage.removeItem(STORAGE_KEY);
@@ -3024,29 +3052,85 @@
     });
   }
 
+  // 公開盤の常時表示バーは、威脅効果追加やロール効果まで並べると長くなりすぎるため、
+  // 「夜雨」の到達済み最大段階のみを表示する（低い段階は高い段階の文言に包含されるため、
+  // 最大値だけ見せれば十分）。個別の「威脅効果追加」詳細は btn-time-loss-broadcast の
+  // 一時公告（triggerThreatBroadcast）で必要な時にだけ表示する。
   function renderTimeLossSummary() {
     var dayKey = isSwappedDay() ? "day2" : "day1";
     var rows = state.timeLoss[dayKey];
-    var triggered = [];
+    var maxRainTier = 0;
     TIME_LOSS_ROW_DEFS.forEach(function (def, i) {
-      if (rows[i].every(Boolean)) triggered.push(timeLossRowLabelDetail(dayKey, def));
-    });
-    ROLL_EFFECTS.forEach(function (effect) {
-      var count = state.rollEffects[effect.id] || 0;
-      if (count > 0) {
-        triggered.push([window.I18N.t("roll_effect_" + effect.id + "_label"), window.I18N.t("roll_effect_" + effect.id + "_tier" + count)]);
-      }
+      if (def.kind === "rain" && rows[i].every(Boolean) && def.tier > maxRainTier) maxRainTier = def.tier;
     });
     var summaryEl = document.getElementById("time-loss-summary");
-    if (triggered.length === 0) {
+    if (maxRainTier === 0) {
       summaryEl.textContent = window.I18N.t("time_loss_none");
       return;
     }
-    summaryEl.textContent = triggered
-      .map(function (parts) {
-        return parts[0] + window.I18N.t("colon_separator") + parts[1];
-      })
-      .join("、");
+    summaryEl.textContent =
+      window.I18N.t("night_rain_label") +
+      window.I18N.t("colon_separator") +
+      window.I18N.t("night_rain_detail_" + dayKey + "_" + maxRainTier);
+  }
+
+  // --- 威脅効果追加の一時公告（廣播） ---
+  // 公開盤の常時バーからは「威脅効果追加」を外したため、GMが必要なタイミングで手動公告
+  // できるよう、i情報ボタンの横に廣播ボタンを追加する。現在の日の「威脅効果追加」段が
+  // 発生済みの数だけ、分段（1件ずつ別行）で一時的に表示し、5秒後またはXで閉じる。
+  var threatBroadcastInterval = null;
+
+  function clearThreatBroadcastInterval() {
+    if (threatBroadcastInterval) {
+      clearInterval(threatBroadcastInterval);
+      threatBroadcastInterval = null;
+    }
+  }
+
+  function closeThreatBroadcast() {
+    var overlay = document.getElementById("threat-broadcast-overlay");
+    if (overlay) overlay.hidden = true;
+    clearThreatBroadcastInterval();
+  }
+
+  function showThreatBroadcast(segments) {
+    var overlay = document.getElementById("threat-broadcast-overlay");
+    var content = document.getElementById("threat-broadcast-content");
+    if (!overlay || !content) return;
+    content.innerHTML = "";
+    segments.forEach(function (text) {
+      var line = document.createElement("div");
+      line.className = "threat-broadcast-line";
+      line.textContent = text;
+      content.appendChild(line);
+    });
+    overlay.hidden = false;
+    clearThreatBroadcastInterval();
+    var remaining = 5;
+    var countdownEl = document.getElementById("threat-broadcast-countdown");
+    if (countdownEl) countdownEl.textContent = remaining;
+    threatBroadcastInterval = setInterval(function () {
+      remaining--;
+      if (remaining <= 0) {
+        closeThreatBroadcast();
+        return;
+      }
+      if (countdownEl) countdownEl.textContent = remaining;
+    }, 1000);
+  }
+
+  function triggerThreatBroadcast() {
+    var dayKey = isSwappedDay() ? "day2" : "day1";
+    var rows = state.timeLoss[dayKey];
+    var segments = [];
+    TIME_LOSS_ROW_DEFS.forEach(function (def, i) {
+      if (def.kind === "threat" && rows[i].every(Boolean)) {
+        var parts = timeLossRowLabelDetail(dayKey, def);
+        segments.push(parts[0] + window.I18N.t("colon_separator") + parts[1]);
+      }
+    });
+    if (segments.length === 0) segments.push(window.I18N.t("time_loss_none"));
+    showThreatBroadcast(segments);
   }
 
   function buildWanderingBlessingChecks() {
@@ -3370,8 +3454,57 @@
       buildBattlePositionGrid(t.front, state.battle.front, names);
       buildBattlePositionGrid(t.back, state.battle.back, names);
     });
+    renderBoardSidePositionCompact();
     var boardSidePosition = document.getElementById("board-side-position");
     if (boardSidePosition) boardSidePosition.hidden = !hasActiveBattleContext();
+  }
+
+  // 公開盤の前衛／後衛表は、既定で「名前(敵視)」を並べた1行の精簡表示にする。
+  // 長すぎてボックスに収まらない場合のみ、setMarqueeTextが往復スクロールを有効にする。
+  function renderBoardSidePositionCompact() {
+    var names = battlePositionNames();
+    var frontParts = [];
+    var backParts = [];
+    for (var i = 0; i < BATTLE_SLOT_COUNT; i++) {
+      if (i >= names.length) continue;
+      var tag = names[i] + "(" + (state.battle.aggro[i] || 0) + ")";
+      (state.battle.front[i] ? frontParts : backParts).push(tag);
+    }
+    var sep = window.I18N.t("colon_separator");
+    setMarqueeText(
+      "board-side-position-front-compact",
+      window.I18N.t("battle_front_area_label") + sep + (frontParts.join(" ") || "-")
+    );
+    setMarqueeText(
+      "board-side-position-back-compact",
+      window.I18N.t("battle_back_area_label") + sep + (backParts.join(" ") || "-")
+    );
+  }
+
+  // テキストが表示枠より長いときだけ、CSS変数--marquee-distanceを使った往復スクロール
+  // （.marquee-active）を有効にする汎用ヘルパー。公開盤の前衛/後衛表・威脅公告などで共用する。
+  function setMarqueeText(elId, text) {
+    var el = document.getElementById(elId);
+    if (!el) return;
+    el.textContent = text;
+    el.classList.remove("marquee-active");
+    el.style.removeProperty("--marquee-distance");
+    var wrap = el.parentElement;
+    if (!wrap) return;
+    requestAnimationFrame(function () {
+      var overflow = el.scrollWidth - wrap.clientWidth;
+      if (overflow > 2) {
+        el.style.setProperty("--marquee-distance", -(overflow + 6) + "px");
+        el.classList.add("marquee-active");
+      }
+    });
+  }
+
+  function setBoardPositionExpanded(expanded) {
+    document.getElementById("board-side-position-compact").hidden = expanded;
+    document.getElementById("board-side-position-full").hidden = !expanded;
+    var btn = document.getElementById("btn-board-position-toggle");
+    if (btn) btn.innerHTML = expanded ? "&#9662;" : "&#9656;";
   }
 
   // 骰子池の判定結果（前衛/後衛、6の目による敵視+1）を、戦場シートの対応するPCスロットへ
@@ -5821,6 +5954,9 @@
       for (var row = 0; row < ENEMY_HP_ROWS; row++) {
         (function (rowIdx) {
           var count = countRowChecked(state.battle.enemyHp, rowIdx * ENEMY_HP_COLS, ENEMY_HP_COLS);
+          // 第3/4段（夜の王等の多段エネミー専用）は、実際に割り当て（enemyHpMax設定）または
+          // 既にHPが入っている場合のみ表示する。通常の2段エネミーでは空の段を表示しない。
+          if (rowIdx >= 2 && !enemyHasRow(rowIdx) && count === 0) return;
           var rowDiv = document.createElement("div");
           rowDiv.className = "battle-hp-stepper-row";
 
@@ -10068,6 +10204,34 @@
     btn.title = window.I18N.t(collapsed ? "log_toggle_show" : "log_toggle_hide");
   }
 
+  function openLogDrawer() {
+    document.getElementById("log-drawer").classList.add("open");
+  }
+
+  function closeLogDrawer() {
+    document.getElementById("log-drawer").classList.remove("open");
+  }
+
+  // 懸浮泡泡：公開盤（全員が見る画面）左上に常時表示するショートカット。state.logBubbleEnabled
+  // （クラウド同期対象）で全端末に反映し、ドロワー内のボタンでON、泡泡自体の×ボタンでのみOFFにする。
+  function renderLogFloatToggleButton() {
+    var btn = document.getElementById("btn-log-float-toggle");
+    if (!btn) return;
+    btn.textContent = window.I18N.t(state.logBubbleEnabled ? "log_float_toggle_on_label" : "log_float_toggle_off_label");
+  }
+
+  function renderLogFloatingBubble() {
+    var wrap = document.getElementById("log-floating-bubble-wrap");
+    if (wrap) wrap.hidden = !state.logBubbleEnabled;
+  }
+
+  function setLogBubbleEnabled(enabled) {
+    state.logBubbleEnabled = enabled;
+    saveState();
+    renderLogFloatToggleButton();
+    renderLogFloatingBubble();
+  }
+
   // 全角色分の可発動能力／被動技能セクション（character-roster-skills）をまとめて折りたたむトグル。
   function renderRosterSkillsToggleLabel() {
     var btn = document.getElementById("btn-roster-skills-toggle");
@@ -10652,6 +10816,8 @@
     renderTurnHolderBar();
     renderTurnBoardToggleButton();
     renderActionPhaseGrid();
+    renderLogFloatToggleButton();
+    renderLogFloatingBubble();
     if (hadBoard) addLog("log_new_game");
   }
 
@@ -10788,6 +10954,8 @@
     renderBoard();
     renderLog();
     renderLogToggleLabel();
+    renderLogFloatToggleButton();
+    renderLogFloatingBubble();
     renderRosterSkillsToggleLabel();
     renderBossRulebook();
     renderWeaponRulebookAll();
@@ -10902,9 +11070,22 @@
       document.getElementById("log-list").classList.toggle("collapsed");
       renderLogToggleLabel();
     });
+    document.getElementById("btn-main-menu-log").addEventListener("click", openLogDrawer);
+    document.getElementById("btn-log-drawer-close").addEventListener("click", closeLogDrawer);
+    document.getElementById("log-drawer-backdrop").addEventListener("click", closeLogDrawer);
+    document.getElementById("btn-log-float-toggle").addEventListener("click", function () {
+      setLogBubbleEnabled(!state.logBubbleEnabled);
+    });
+    document.getElementById("btn-log-floating-bubble-open").addEventListener("click", openLogDrawer);
+    document.getElementById("btn-log-floating-bubble-close").addEventListener("click", function () {
+      setLogBubbleEnabled(false);
+    });
     document.getElementById("btn-roster-skills-toggle").addEventListener("click", function () {
       document.getElementById("character-roster-skills").classList.toggle("collapsed");
       renderRosterSkillsToggleLabel();
+    });
+    document.getElementById("btn-board-position-toggle").addEventListener("click", function () {
+      setBoardPositionExpanded(document.getElementById("board-side-position-full").hidden);
     });
     document.getElementById("btn-setup-info").addEventListener("click", function (e) {
       e.stopPropagation();
@@ -10918,6 +11099,8 @@
       closeSetupInfo();
     });
     document.getElementById("btn-time-loss-info").addEventListener("click", openThreatDrawer);
+    document.getElementById("btn-time-loss-broadcast").addEventListener("click", triggerThreatBroadcast);
+    document.getElementById("btn-threat-broadcast-close").addEventListener("click", closeThreatBroadcast);
     document.getElementById("btn-threat-drawer-close").addEventListener("click", closeThreatDrawer);
     document.getElementById("threat-drawer-backdrop").addEventListener("click", closeThreatDrawer);
     document.getElementById("btn-active-threat-effect-add").addEventListener("click", handleActiveThreatEffectAdd);

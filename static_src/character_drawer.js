@@ -1804,6 +1804,18 @@
     });
   }
 
+  // 盤面ロスターの「武器欄」タイトル横に、現在装備中の武器名を「（Aの刀 / Bの大弓）」の
+  // 形で添えるための文字列だけを組み立てる（描画自体はnight.js側のrenderCharacterRoster内）。
+  function equippedWeaponSummaryText(c) {
+    var names = ((c && c.equippedWeaponIds) || [])
+      .map(function (id) {
+        var weapon = Weapons.get(baseWeaponId(id));
+        return weapon ? Weapons.localizedText(weapon.name) : null;
+      })
+      .filter(Boolean);
+    return names.length ? "（" + names.join(" / ") + "）" : "";
+  }
+
   // 盤面ロスター用：戦技名だけを簡潔に取り出す（本文・ランダム決定表UIは含めない）。
   // ランダム戦技は、既に抽出済み（c.weaponRandomSkills[weaponId]が設定済み）ならその
   // 戦技名だけを表示し、未決定の間は何も表示しない（冗長な案内文を出さない）。
@@ -1876,6 +1888,10 @@
           }
           if (!checkbox.checked && idx !== -1) c.equippedWeaponIds.splice(idx, 1);
           saveFn();
+          // 「武器欄」見出し横の装備中サマリー（night.js側で同じroster-detail-col内に置かれる）を、
+          // 全体再描画なしにその場で更新する。
+          var summaryEl = container.parentElement && container.parentElement.querySelector(".weapon-equipped-summary");
+          if (summaryEl) summaryEl.textContent = equippedWeaponSummaryText(c);
           logIfAvailable("log_weapon_equip_change", {
             character: c.name,
             weapon: Weapons.localizedText(weapon.name),
@@ -5847,6 +5863,13 @@
     var consumableDetailBackdrop = document.getElementById("consumable-detail-drawer-backdrop");
     if (consumableDetailCloseBtn) consumableDetailCloseBtn.addEventListener("click", closeConsumableDetailDrawer);
     if (consumableDetailBackdrop) consumableDetailBackdrop.addEventListener("click", closeConsumableDetailDrawer);
+    var weaponListToggleBtn = document.getElementById("btn-weapon-list-toggle");
+    if (weaponListToggleBtn) {
+      weaponListToggleBtn.addEventListener("click", function () {
+        var collapsed = document.getElementById("weapon-list").classList.toggle("collapsed");
+        weaponListToggleBtn.innerHTML = collapsed ? "&#9656;" : "&#9662;";
+      });
+    }
     document.getElementById("btn-char-dice-add").addEventListener("click", function () {
       var c = findCharacter(activeCharacterId);
       if (!c || c.dicePool.length >= MAX_DICE_POOL) return;
@@ -5964,6 +5987,7 @@
     renderDiceDisplay: renderDiceDisplay,
     MAX_DICE_POOL: MAX_DICE_POOL,
     renderRosterWeaponList: renderRosterWeaponList,
+    equippedWeaponSummaryText: equippedWeaponSummaryText,
     openWeaponDetailDrawer: openWeaponDetailDrawer,
     renderRosterTalismanList: renderRosterTalismanList,
     renderRosterConsumableList: renderRosterConsumableList,

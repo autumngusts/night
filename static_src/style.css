@@ -277,6 +277,46 @@ button {
   border-radius: 8px 0 0 8px;
 }
 
+.log-floating-bubble-wrap {
+  position: fixed;
+  top: 0.6rem;
+  left: 0.6rem;
+  z-index: 45;
+}
+
+.log-floating-bubble-open {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: 1px solid #999;
+  background: #fff;
+  font-size: 1.3rem;
+  line-height: 1;
+  cursor: pointer;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+}
+
+.log-floating-bubble-close {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 1px solid #999;
+  background: #fff;
+  color: #666;
+  font-size: 0.7rem;
+  line-height: 1;
+  padding: 0;
+  cursor: pointer;
+}
+
+.log-float-toggle-btn {
+  display: block;
+  margin: 0.5rem 0 0.75rem;
+}
+
 .night-header-row {
   display: flex;
   justify-content: space-between;
@@ -526,12 +566,12 @@ button {
 
 .pile-wrap-start {
   grid-column: 1;
-  grid-row: 3;
+  grid-row: 2 / span 3;
 }
 
 .pile-wrap-end {
   grid-column: 5;
-  grid-row: 3;
+  grid-row: 2 / span 3;
 }
 
 .board-grid.swapped .pile-wrap-start {
@@ -771,6 +811,59 @@ button {
 #time-loss-summary {
   font-weight: 600;
   color: inherit;
+}
+
+.broadcast-btn {
+  border-radius: 4px;
+  font-size: 0.75rem;
+}
+
+#threat-broadcast-overlay {
+  position: fixed;
+  top: 0.75rem;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 60;
+  width: min(420px, 92vw);
+  background: #1c1c1c;
+  color: #fff;
+  border-radius: 10px;
+  padding: 0.75rem 2.25rem 0.6rem 1rem;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.4);
+}
+
+#threat-broadcast-content {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.threat-broadcast-line {
+  font-size: 0.9rem;
+  line-height: 1.4;
+  padding: 0.15rem 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.15);
+}
+
+.threat-broadcast-line:last-child {
+  border-bottom: none;
+}
+
+.threat-broadcast-countdown-wrap {
+  margin-top: 0.4rem;
+  font-size: 0.7rem;
+  color: #aaa;
+  text-align: right;
+}
+
+#threat-broadcast-overlay .modal-floating-close {
+  position: absolute;
+  top: 0.4rem;
+  right: 0.4rem;
+  width: 1.6rem;
+  height: 1.6rem;
+  line-height: 1.6rem;
+  font-size: 0.85rem;
 }
 
 .tl-list {
@@ -1811,12 +1904,6 @@ button {
   margin: 1rem 0;
 }
 
-.log-panel {
-  margin-top: 1.5rem;
-  border-top: 1px solid #ddd;
-  padding-top: 1rem;
-}
-
 .log-header {
   display: flex;
   align-items: center;
@@ -1836,20 +1923,18 @@ button {
   padding: 0.1rem 0.3rem;
 }
 
-.log-panel ul {
+#log-list {
   list-style: none;
   margin: 0.5rem 0 0;
   padding: 0;
-  max-height: 260px;
-  overflow-y: auto;
   font-size: 0.9rem;
 }
 
-.log-panel ul.collapsed {
+#log-list.collapsed {
   display: none;
 }
 
-.log-panel li {
+#log-list li {
   padding: 0.3rem 0;
   border-bottom: 1px dotted #ddd;
 }
@@ -2930,6 +3015,10 @@ button {
   margin-top: 0.75rem;
 }
 
+.board-side-mob-hp + .board-side-enemy-hp {
+  margin-top: 0.15rem;
+}
+
 .board-side-enemy-hp[hidden] {
   display: none;
 }
@@ -2938,6 +3027,81 @@ button {
   margin: 0 0 0.3rem;
   font-size: 0.78rem;
   color: #777;
+}
+
+.board-side-position-header {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.board-side-position-header h4 {
+  margin: 0;
+}
+
+.roster-weapon-col-header {
+  display: flex;
+  align-items: baseline;
+  gap: 0.3rem;
+  flex-wrap: wrap;
+}
+
+.roster-weapon-col-header h5 {
+  margin: 0;
+}
+
+.weapon-equipped-summary {
+  font-size: 0.78rem;
+  color: #2d6cdf;
+}
+
+.roster-weapon-list.collapsed {
+  display: none;
+}
+
+.collapse-triangle {
+  border: none;
+  background: none;
+  cursor: pointer;
+  padding: 0;
+  font-size: 0.7rem;
+  color: #777;
+  line-height: 1;
+}
+
+.board-side-position-compact {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  margin-top: 0.2rem;
+}
+
+.board-side-position-compact-row {
+  font-size: 0.78rem;
+  min-width: 0;
+}
+
+.marquee-wrap {
+  overflow: hidden;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+.marquee-text {
+  display: inline-block;
+}
+
+.marquee-text.marquee-active {
+  animation: board-marquee-scroll 6s ease-in-out infinite alternate;
+}
+
+@keyframes board-marquee-scroll {
+  0%, 15% {
+    transform: translateX(0);
+  }
+  85%, 100% {
+    transform: translateX(var(--marquee-distance, 0));
+  }
 }
 
 .battle-hp-grid-compact {
@@ -2983,6 +3147,19 @@ button {
     background: #1c1c1c;
   }
   .suit-black {
+    color: #eee;
+  }
+  .pile.active {
+    color: #6fa8ff;
+    border-color: #6fa8ff;
+  }
+  .weapon-equipped-summary {
+    color: #6fa8ff;
+  }
+  .log-floating-bubble-open,
+  .log-floating-bubble-close {
+    background: #1c1c1c;
+    border-color: #444;
     color: #eee;
   }
   .tag-chip {

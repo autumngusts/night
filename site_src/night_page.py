@@ -26,6 +26,7 @@ BODY = """    <div class="night-header-row">
             <button id="btn-main-menu-draw-talisman" type="button" class="main-menu-item" data-i18n="main_menu_draw_talisman_label"></button>
             <button id="btn-main-menu-draw-consumable" type="button" class="main-menu-item" data-i18n="main_menu_draw_consumable_label"></button>
             <button id="btn-turn-reward-open" type="button" class="main-menu-item" data-i18n="turn_reward_open_button"></button>
+            <button id="btn-main-menu-log" type="button" class="main-menu-item" data-i18n="log_menu_label"></button>
             <button id="btn-settings-menu-toggle" type="button" class="main-menu-item" data-i18n="settings_menu_label"></button>
             <div class="main-menu-submenu" id="settings-submenu" hidden>
               <button id="btn-undo-night" type="button" class="main-menu-item" data-i18n="undo_night_button"></button>
@@ -122,8 +123,7 @@ BODY = """    <div class="night-header-row">
         </div>
         <div class="board-side-wrap">
           <div id="board-side-enemies" class="selected-enemy-list board-side-enemies" hidden></div>
-          <div id="board-side-mob-hp" class="board-side-enemy-hp" hidden>
-            <h4 data-i18n="battle_mob_hp_title"></h4>
+          <div id="board-side-mob-hp" class="board-side-enemy-hp board-side-mob-hp" hidden>
             <div id="board-side-mob-hp-list"></div>
           </div>
           <div id="board-side-enemy-hp" class="board-side-enemy-hp" hidden>
@@ -131,8 +131,19 @@ BODY = """    <div class="night-header-row">
             <div class="battle-hp-grid battle-hp-grid-compact" id="board-side-enemy-hp-grid"></div>
           </div>
           <div id="board-side-position" class="board-side-enemy-hp" hidden>
-            <h4 data-i18n="battle_areas_title"></h4>
-            <div class="battle-areas">
+            <div class="board-side-position-header">
+              <button type="button" class="collapse-triangle" id="btn-board-position-toggle" aria-label="toggle position detail">&#9656;</button>
+              <h4 data-i18n="battle_areas_title"></h4>
+            </div>
+            <div class="board-side-position-compact" id="board-side-position-compact">
+              <div class="board-side-position-compact-row">
+                <div class="marquee-wrap"><span class="marquee-text" id="board-side-position-front-compact"></span></div>
+              </div>
+              <div class="board-side-position-compact-row">
+                <div class="marquee-wrap"><span class="marquee-text" id="board-side-position-back-compact"></span></div>
+              </div>
+            </div>
+            <div class="battle-areas" id="board-side-position-full" hidden>
               <div class="battle-area">
                 <h5 data-i18n="battle_front_area_label"></h5>
                 <div class="battle-toggle-grid" id="board-side-position-front"></div>
@@ -156,6 +167,15 @@ BODY = """    <div class="night-header-row">
         <span data-i18n="time_loss_summary_label"></span>
         <span id="time-loss-summary"></span>
         <button type="button" class="info-btn" id="btn-time-loss-info">i</button>
+        <button type="button" class="info-btn broadcast-btn" id="btn-time-loss-broadcast" aria-label="broadcast threat effects">&#128227;</button>
+      </div>
+      <div id="threat-broadcast-overlay" hidden>
+        <button type="button" class="modal-floating-close" id="btn-threat-broadcast-close">&times;</button>
+        <div id="threat-broadcast-content"></div>
+        <div class="threat-broadcast-countdown-wrap">
+          <span id="threat-broadcast-countdown"></span>
+          <span data-i18n="threat_broadcast_closing_in_label"></span>
+        </div>
       </div>
       <div class="time-loss-bar" id="attribute-status-bar">
         <span data-i18n="attribute_status_bar_label"></span>
@@ -248,19 +268,35 @@ BODY = """    <div class="night-header-row">
         </div>
         <div id="character-roster-skills"></div>
       </div>
-      <div class="log-panel">
-        <div class="log-header">
-          <h2 data-i18n="log_title"></h2>
-          <button id="btn-log-toggle" type="button" class="icon-btn" aria-label="toggle log">👁</button>
-        </div>
-        <div id="log-summary" class="threat-ref-body"></div>
-        <ul id="log-list"></ul>
-      </div>
 
       <div class="threat-ref-block">
         <button type="button" id="btn-open-rulebook" data-i18n="rulebook_open_button"></button>
       </div>
     </section>
+
+    <div id="log-floating-bubble-wrap" class="log-floating-bubble-wrap" hidden>
+      <button type="button" id="btn-log-floating-bubble-open" class="log-floating-bubble-open" aria-label="open log">&#128220;</button>
+      <button type="button" id="btn-log-floating-bubble-close" class="log-floating-bubble-close" aria-label="hide log bubble">&times;</button>
+    </div>
+
+    <div id="log-drawer" class="drawer drawer-left">
+      <div class="drawer-backdrop" id="log-drawer-backdrop"></div>
+      <div class="drawer-panel">
+        <button type="button" class="drawer-close-tab" data-close-btn="btn-log-drawer-close">&lsaquo;</button>
+        <div class="drawer-panel-scroll">
+        <div class="log-header">
+          <h2 data-i18n="log_title"></h2>
+          <button id="btn-log-toggle" type="button" class="icon-btn" aria-label="toggle log">👁</button>
+        </div>
+        <button type="button" id="btn-log-float-toggle" class="log-float-toggle-btn"></button>
+        <div id="log-summary" class="threat-ref-body"></div>
+        <ul id="log-list"></ul>
+        <div class="actions">
+          <button id="btn-log-drawer-close" type="button" class="primary-btn" data-i18n="close_button"></button>
+        </div>
+        </div>
+      </div>
+    </div>
 
     <div id="rulebook-modal" class="modal" hidden>
       <div class="modal-box gallery-modal-box rulebook-modal-box">
