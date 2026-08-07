@@ -7,6 +7,7 @@
   var FIREBASE_SDK_VERSION = "10.14.1";
   var sdkReadyPromise = null;
   var authReadyPromise = null;
+  var appCheckActivated = false;
 
   function loadScript(src) {
     return new Promise(function (resolve, reject) {
@@ -27,6 +28,12 @@
     var base = "https://www.gstatic.com/firebasejs/" + FIREBASE_SDK_VERSION + "/";
     sdkReadyPromise = loadScript(base + "firebase-app-compat.js")
       .then(function () {
+        // App Check（reCAPTCHA v3）：initializeApp直後、他のSDK（Auth/Database）が実際に
+        // リクエストを送る前に有効化する必要があるため、app-compat読み込み直後に行う。
+        // site keyが未設定（空文字）の間は何もしない＝App Check未導入時と同じ挙動を保つ。
+        return loadScript(base + "firebase-app-check-compat.js");
+      })
+      .then(function () {
         return loadScript(base + "firebase-auth-compat.js");
       })
       .then(function () {
@@ -35,6 +42,10 @@
       .then(function () {
         if (!window.firebase.apps.length) {
           window.firebase.initializeApp(window.PRITEST_FIREBASE_CONFIG);
+        }
+        if (window.PRITEST_APPCHECK_SITE_KEY && !appCheckActivated) {
+          window.firebase.appCheck().activate(window.PRITEST_APPCHECK_SITE_KEY, true);
+          appCheckActivated = true;
         }
       });
     return sdkReadyPromise;
