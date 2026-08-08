@@ -689,6 +689,10 @@
       // 遺物効果「致命一擊」：「1回合僅限1名PC使用」のため、誰が使ったかは問わずbattle全体で
       // 1個のロックにする。combatフェイズへの新規突入（＝新しい回合）でリセットする。
       fatalStrikeUsedThisRound: false,
+      // 自動化GM: 坩堝の騎士のような「戦闘開始時に雑兵の有無を確認し、以後は戦闘終了まで
+      // その判定を使い続ける」特殊能力用のスナップショット（キーはenemyKey）。一度記録したら
+      // 途中で雑兵が全滅してmobHpRowsから消えても、この特殊ロール判定には影響させない。
+      autoGmMobPresentSnapshot: {},
     };
   }
 
@@ -1009,6 +1013,7 @@
       },
       enemyDmgOverride: enemyDmgOverride,
       fatalStrikeUsedThisRound: !!raw.fatalStrikeUsedThisRound,
+      autoGmMobPresentSnapshot: loadBoolMap(raw.autoGmMobPresentSnapshot),
     };
   }
 
@@ -6823,8 +6828,15 @@
     var select = document.getElementById("auto-gm-enemy-select");
     var enemyKey = select && select.value;
     if (!AutoGm || !enemyKey) return;
-    var result = AutoGm.rollEnemyAction(enemyKey);
+    var result = AutoGm.rollEnemyAction(enemyKey, state.battle);
     if (!result) return;
+    // 坩堝の騎士「坩堝の双璧」：戦闘開始時の雑兵有無判定は初回のみ確定・永続化し、以後の
+    // ロールは同じ判定を使い続ける（auto_gm.js側は読み取り専用のため、このstate書き込みは
+    // night.js側で行う）。
+    if (result.mobPresentSnapshot !== null && !(enemyKey in state.battle.autoGmMobPresentSnapshot)) {
+      state.battle.autoGmMobPresentSnapshot[enemyKey] = result.mobPresentSnapshot;
+      saveState();
+    }
     var noteText = result.originalRow ? window.PriTestEnemies.localizedText(result.originalRow.note) : "";
     var actionName = result.originalRow ? window.PriTestEnemies.localizedText(result.originalRow.name) : "";
 
@@ -6865,6 +6877,22 @@
       }
     }
     (result.structuredRow.individualDamage || []).forEach(function (entry) {
+      if (entry.distribution === "rotate") {
+        // ユーザー確認済みルール：対象PCが「1体（不特定）」でN回実行の場合、条件を満たす対象の
+        // 中で輪流受傷し、最初の対象はランダム（同一対象が固定でrepeat回受けるのではない）。
+        var perHitResult = AutoGm.computeIndividualDamage({ amount: entry.amount }, state.rollEffects);
+        var rotated = AutoGm.resolveRotatedHits(entry.targetRule, state.battle, entered.length, entry.repeat || 1);
+        var rotateNames = rotated.map(function (r) {
+          var total = perHitResult.perHit * r.hits;
+          var input = document.getElementById("enemy-damage-individual-" + entered[r.index].id);
+          if (input) input.value = String(total);
+          return entered[r.index].name + window.I18N.t("colon_separator") + total;
+        });
+        breakdownParts.push(
+          window.I18N.t("auto_gm_rotate_breakdown", { perHit: perHitResult.perHit, list: rotateNames.join("、") })
+        );
+        return;
+      }
       var indivResult = AutoGm.computeIndividualDamage(entry, state.rollEffects);
       var indivBreakdown = window.I18N.t("auto_gm_individual_breakdown", {
         total: indivResult.total,
@@ -6881,6 +6909,32 @@
         if (input) input.value = String(indivResult.total);
       });
     });
+    if (result.structuredRow.savingThrow) {
+      // 「アローレイン」等：規則書の運試し／フィジカル／メンタル判定をシステムが直接振り、
+      // 加護による重骰は行わず（ユーザー確認済み）、出目を公開して順に効果を適用する。
+      var st = result.structuredRow.savingThrow;
+      var throwResults = AutoGm.resolveSavingThrow(st, entered, state.battle, window.PriTestCharacterTypes, CharacterDrawer);
+      var failLines = [];
+      throwResults.forEach(function (r) {
+        var statLabel = window.I18N.t("check_stat_" + st.stat);
+        failLines.push(
+          window.I18N.t("auto_gm_saving_throw_line", {
+            name: r.name,
+            dice: r.dice.join("、"),
+            sum: r.sum,
+            target: r.target,
+            stat: statLabel,
+            result: window.I18N.t(r.passed ? "auto_gm_saving_throw_pass" : "auto_gm_saving_throw_fail"),
+          })
+        );
+        if (!r.passed) {
+          var failResult = AutoGm.computeIndividualDamage(st.onFail, state.rollEffects);
+          var input = document.getElementById("enemy-damage-individual-" + entered[r.index].id);
+          if (input) input.value = String(failResult.total);
+        }
+      });
+      breakdownParts.push(failLines.join("　"));
+    }
 
     var resultEl = document.getElementById("auto-gm-roll-result");
     resultEl.hidden = false;
@@ -7243,6 +7297,7 @@
         purgeAttributeStatusForEnemyKey(key);
       });
       state.battle.selectedEnemyIds = [];
+      state.battle.autoGmMobPresentSnapshot = {};
       resetBattlePositionsAndAggro();
       renderSelectedEnemies();
       addLog("log_chat_command_clear_enemy");
@@ -8922,6 +8977,7 @@
             if (idx !== -1) {
               state.battle.selectedEnemyIds.splice(idx, 1);
               purgeAttributeStatusForEnemyKey(item.key);
+              if (state.battle.autoGmMobPresentSnapshot) delete state.battle.autoGmMobPresentSnapshot[item.key];
               resetBattlePositionsAndAggro();
               renderSelectedEnemies();
               addLog("log_battle_enemy_remove", { enemy: T(item.info.enemy.name), level: item.level });

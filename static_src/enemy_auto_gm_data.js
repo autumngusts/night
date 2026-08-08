@@ -21,6 +21,17 @@
   //
   // individualDamage: 個別ダメージが発生する行のみ設定する（無い行は省略）。乱戦ダメージとは
   // 独立した別枠の判定のため、上記の「—」ルールの対象外。
+  //
+  // individualDamage[].distribution === "rotate"（ユーザー確認済みルール）：本文が
+  // 「対象PC1体（不特定）」＋「N回実行」の場合、条件を満たす対象群の中で輪流受傷し、最初の
+  // 対象はランダム（同一PCが固定でN回受けるのではない）。対象が「敵視:最大」等で明確に
+  // 1人に絞られる場合はこのdistributionを使わず、通常のtargetRule（aggroMax等）を使う。
+  //
+  // structuredRow.savingThrow：判定（運試し／フィジカル／メンタル）で成否が分かれる行動用。
+  // ユーザー確認済み：「加護による重骰不可、システムが直接振り出目を公開して順に適用」。
+  //
+  // rollOverride: "halfIfNoMobs"（坩堝の騎士専用）：戦闘開始時に雑兵の有無を確認し、無ければ
+  // 「1Dの半分（端数切り捨て、最低1）」で行動を決定する。以後は戦闘終了まで同じ判定を使う。
   var DATA = {
     "soldier_knight|liege_army": {
       rows: [
@@ -270,11 +281,13 @@
         },
         {
           // 「宿し撃ち」：乱戦ダメージ修正が「—」のため乱戦ダメージは発生しない。個別ダメージ240を
-          // 「敵視:1以上」のPC1体（対象が不特定のため敵視最大を既定として採用）に、2回実行。
-          // 【要確認】対象PCが「1体」とだけ記載され特定できないため、敵視最大のPCを既定とした。
+          // 「敵視:1以上」のPC1体（対象不特定）に2回実行。ユーザー確認済み：対象は「敵視:1以上」
+          // を満たす候補の中で輪流受傷、最初の対象はランダム。
           rollMin: 3,
           rollMax: 4,
-          individualDamage: [{ amount: 240, repeat: 2, targetRule: { kind: "aggroMax" } }],
+          individualDamage: [
+            { amount: 240, repeat: 2, distribution: "rotate", targetRule: { kind: "aggroAtLeast1All" } },
+          ],
         },
         {
           // 「霊の飛沫」：乱戦ダメージ修正±0（「—」ではないため発生）。対象の明記が無いため既定
@@ -319,25 +332,32 @@
       rows: [
         {
           // 「アローレイン」：乱戦ダメージ修正±0（「—」ではないため発生）。対象の明記が無いため
-          // 既定ルール（前衛均等割り）。
-          // 【実装困難・未構造化】個別効果は運試し判定（敵視1以上のPCは〈12〉、それ以外は
-          // 〈10〉、失敗者のみ180+魔2を受ける）で、判定の成否を自動化する仕組みが無いため
-          // individualDamageは設定していない——ロール結果の本文をGMが読み、判定を手動で
-          // 実行・適用する必要がある。
+          // 既定ルール（前衛均等割り）。個別効果は運試し判定（敵視1以上のPCは目標12、それ以外は
+          // 目標10、失敗者のみ180+魔2を受ける）。ユーザー確認済み：システムが直接判定を振り、
+          // 加護による重骰は行わず、出目を公開して順に効果を適用する（judge_stat=luck）。
           rollMin: 1,
           rollMax: 2,
           groupDamage: { modifier: 0 },
           targetRule: { kind: "frontAll" },
-          conditions: ["requires_manual_saving_throw"],
+          savingThrow: {
+            stat: "luck",
+            targetByCondition: [
+              { condition: { kind: "aggroAtLeast1" }, target: 12 },
+              { condition: { kind: "default" }, target: 10 },
+            ],
+            onFail: { amount: 180 },
+          },
         },
         {
           // 「獅子斬り」：乱戦ダメージ修正が「—」のため乱戦ダメージは発生しない。個別ダメージ240を
-          // 「敵視:1以上」のPC1体（対象が不特定のため敵視最大を既定として採用）に、2回実行。
-          // 加えて対象PCの体力骰減少（HP損害を伴わないためconditionsのみ）。
-          // 【要確認】対象PCが「1体」とだけ記載され特定できないため、敵視最大のPCを既定とした。
+          // 「敵視:1以上」のPC1体（対象不特定）に2回実行。ユーザー確認済み：対象は「敵視:1以上」
+          // を満たす候補の中で輪流受傷、最初の対象はランダム。加えて対象PCの体力骰減少
+          // （HP損害を伴わないためconditionsのみ）。
           rollMin: 3,
           rollMax: 4,
-          individualDamage: [{ amount: 240, repeat: 2, targetRule: { kind: "aggroMax" } }],
+          individualDamage: [
+            { amount: 240, repeat: 2, distribution: "rotate", targetRule: { kind: "aggroAtLeast1All" } },
+          ],
           conditions: ["stamina_dice_reduction_next_phase"],
         },
         {
@@ -348,6 +368,96 @@
           groupDamage: { modifier: 60 },
           targetRule: { kind: "frontAll" },
           individualDamage: [{ amount: 120, targetRule: { kind: "aggroMax" } }],
+        },
+      ],
+    },
+    "soldier_knight|lostland_knight": {
+      rows: [
+        {
+          // 「剣嵐の刃」：乱戦ダメージ修正が「—」のため乱戦ダメージは発生しない。個別効果
+          // （PC人数回実行）＝前衛の中で「敵視:最大」のPC1体への個別ダメージ180。ユーザー確認済み
+          // 「PC人数回実行」の解釈：条件を満たす対象全員に1回ずつ行き渡る
+          // （＝frontAggroMaxAllで解決される全員にamountをそのまま適用、repeat不要）。
+          rollMin: 1,
+          rollMax: 2,
+          individualDamage: [{ amount: 180, targetRule: { kind: "frontAggroMaxAll" } }],
+        },
+        {
+          // 「二刀流回転突撃」：「敵視:1以上」で前衛のPC全員に「乱戦ダメージ:2人分」（本文に明記）。
+          rollMin: 3,
+          rollMax: 4,
+          groupDamage: { modifier: 120 },
+          targetRule: { kind: "frontAggroAtLeast1All" },
+        },
+        {
+          // 「斧槍嵐脚」：乱戦ダメージ修正±0（「—」ではないため発生）。既定ルール（前衛均等割り）。
+          // 個別効果（体力骰減少）はHP損害を伴わないためconditionsのみ。
+          rollMin: 5,
+          rollMax: 6,
+          groupDamage: { modifier: 0 },
+          targetRule: { kind: "frontAll" },
+          conditions: ["stamina_dice_reduction_next_phase"],
+        },
+      ],
+    },
+    "soldier_knight|crucible_knight": {
+      // 特殊能力「坩堝の双璧」：戦闘開始時に雑兵の有無を確認し、以後は戦闘終了まで同じ判定を
+      // 使い続ける。雑兵が居れば通常の1D6、居なければ「1Dの半分（端数切り捨て、最低1）」＝
+      // 出目1〜3のみで行動決定する（ユーザー確認済み）。rollMin/rollMaxは各roll値ごとに1刻み
+      // （他の敵と異なり範囲でなく単一出目に対応）。
+      rollOverride: "halfIfNoMobs",
+      rows: [
+        {
+          // 「踏み込み突き」：乱戦ダメージ修正±0（「—」ではないため発生）。対象の明記が無いため
+          // 既定ルール（前衛均等割り）。個別効果（体力骰減少）はHP損害を伴わないためconditionsのみ。
+          rollMin: 1,
+          rollMax: 1,
+          groupDamage: { modifier: 0 },
+          targetRule: { kind: "frontAll" },
+          conditions: ["stamina_dice_reduction_next_phase"],
+        },
+        {
+          // 「薙ぎ払い」：前衛の中で「敵視:最大」のPC全員に「乱戦ダメージ:3人分」（本文に明記）。
+          rollMin: 2,
+          rollMax: 2,
+          groupDamage: { modifier: 120 },
+          targetRule: { kind: "frontAggroMaxAll" },
+        },
+        {
+          // 「坩堝の諸相・翼」：乱戦ダメージ修正が「—」のため乱戦ダメージは発生しない。個別ダメージ
+          // 360を「敵視:最大」のPC全員に。ガード時のHP価値ペナルティはconditionsのみ。
+          rollMin: 3,
+          rollMax: 3,
+          individualDamage: [{ amount: 360, targetRule: { kind: "aggroMax" } }],
+          conditions: ["guard_hp_value_penalty"],
+        },
+        {
+          // 「武器叩きつけ」：「敵視:1以上」で前衛のPC全員に「乱戦ダメージ:2人分」（本文に明記）。
+          // 加えて敵HP価値バフはconditionsのみ。
+          rollMin: 4,
+          rollMax: 4,
+          groupDamage: { modifier: 60 },
+          targetRule: { kind: "frontAggroAtLeast1All" },
+          conditions: ["enemy_hp_value_buff"],
+        },
+        {
+          // 「坩堝の諸相・爪」：乱戦ダメージ修正±0（「—」ではないため発生）。既定ルール
+          // （前衛均等割り）。個別ダメージ240は「敵視:最大」のPC1体に（本文が明確に「敵視最大」
+          // と特定しているため輪流分配ではない）。ガード不可はconditionsのみ。
+          rollMin: 5,
+          rollMax: 5,
+          groupDamage: { modifier: 0 },
+          targetRule: { kind: "frontAll" },
+          individualDamage: [{ amount: 240, targetRule: { kind: "aggroMax" } }],
+          conditions: ["no_guard"],
+        },
+        {
+          // 「坩堝の諸相・喉」：乱戦ダメージ修正±0（「—」ではないため発生、属性ダメージのみで
+          // HP損害の個別効果は無し）。既定ルール（前衛均等割り）。
+          rollMin: 6,
+          rollMax: 6,
+          groupDamage: { modifier: 0 },
+          targetRule: { kind: "frontAll" },
         },
       ],
     },
