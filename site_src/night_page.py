@@ -19,7 +19,6 @@ BODY = """    <div class="night-header-row">
         <div class="main-menu-block" id="main-menu-block">
           <button type="button" class="main-menu-toggle-btn" id="btn-main-menu-toggle" aria-label="toggle main menu">&#9776;</button>
           <div class="main-menu-list" id="main-menu-list">
-            <a id="link-characters" class="back-link main-menu-item" href="../index.html" data-i18n="back_characters"></a>
             <button id="btn-battle-info" type="button" class="main-menu-item" data-i18n="battle_sheet_label"></button>
             <button id="btn-potential-power-info" type="button" class="main-menu-item" data-i18n="potential_power_menu_label"></button>
             <button id="btn-main-menu-draw-weapon" type="button" class="main-menu-item" data-i18n="main_menu_draw_weapon_label"></button>
@@ -29,11 +28,13 @@ BODY = """    <div class="night-header-row">
             <button id="btn-main-menu-log" type="button" class="main-menu-item" data-i18n="log_menu_label"></button>
             <button id="btn-settings-menu-toggle" type="button" class="main-menu-item" data-i18n="settings_menu_label"></button>
             <div class="main-menu-submenu" id="settings-submenu" hidden>
+              <a id="link-characters" class="back-link main-menu-item" href="../index.html" data-i18n="back_characters"></a>
               <button id="btn-undo-night" type="button" class="main-menu-item" data-i18n="undo_night_button"></button>
               <button id="btn-primary-action" type="button" class="main-menu-item primary-btn"></button>
               <button id="btn-tts-toggle" type="button" class="main-menu-item"></button>
               <button id="btn-dice-animation-toggle" type="button" class="main-menu-item"></button>
               <button id="btn-turn-board-toggle" type="button" class="main-menu-item"></button>
+              <button id="btn-reset-all-dice" type="button" class="main-menu-item danger-btn" data-i18n="reset_all_dice_button"></button>
               <button id="btn-new-game" type="button" class="main-menu-item danger-btn" data-i18n="new_game_button"></button>
             </div>
           </div>
@@ -176,6 +177,10 @@ BODY = """    <div class="night-header-row">
           <span id="threat-broadcast-countdown"></span>
           <span data-i18n="threat_broadcast_closing_in_label"></span>
         </div>
+      </div>
+      <div id="enemy-row-status-overlay" hidden>
+        <button type="button" class="modal-floating-close" id="btn-enemy-row-status-close">&times;</button>
+        <div id="enemy-row-status-content"></div>
       </div>
       <div class="time-loss-bar" id="attribute-status-bar">
         <span data-i18n="attribute_status_bar_label"></span>
@@ -333,6 +338,7 @@ BODY = """    <div class="night-header-row">
           <button type="button" class="rulebook-tab-btn" data-tab="board" data-i18n="rulebook_tab_board"></button>
           <button type="button" class="rulebook-tab-btn" data-tab="event" data-i18n="rulebook_tab_event"></button>
           <button type="button" class="rulebook-tab-btn" data-tab="worldview" data-i18n="rulebook_tab_worldview"></button>
+          <button type="button" class="rulebook-tab-btn" data-tab="commands" data-i18n="rulebook_tab_commands"></button>
         </div>
         <div class="rulebook-tab-panel" id="rulebook-panel-nightking">
           <div id="boss-rulebook-list"></div>
@@ -367,6 +373,9 @@ BODY = """    <div class="night-header-row">
         </div>
         <div class="rulebook-tab-panel" id="rulebook-panel-worldview" hidden>
           <div id="worldview-rulebook-list"></div>
+        </div>
+        <div class="rulebook-tab-panel" id="rulebook-panel-commands" hidden>
+          <div id="commands-rulebook-list"></div>
         </div>
         <div class="actions">
           <button type="button" id="btn-rulebook-close" class="primary-btn" data-i18n="close_button"></button>

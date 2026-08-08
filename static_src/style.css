@@ -420,6 +420,17 @@ button {
   font-size: 0.9rem;
 }
 
+/* #16：目前所在位置の卡牌名は通常の文字色で目立たせ、樓層數／全效果などの補足情報だけ
+   親要素(.day-status)の灰字のままにする（CanvasTextは現在の配色スキームの既定文字色）。 */
+.loc-name {
+  color: CanvasText;
+  font-weight: 600;
+}
+
+.loc-detail {
+  color: inherit;
+}
+
 .info-btn {
   width: 18px;
   height: 18px;
@@ -866,6 +877,45 @@ button {
   font-size: 0.85rem;
 }
 
+/* 敵人體崩／擊破の長時間公告：threat-broadcast-overlayと同じ配置だが、GMが額外／一般
+   フェイズへ切り替えるまで自動では閉じない（countdown無し）。段の状態で縁取り色を変える。 */
+#enemy-row-status-overlay {
+  position: fixed;
+  top: 0.75rem;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 60;
+  width: min(420px, 92vw);
+  background: #1c1c1c;
+  color: #fff;
+  border-radius: 10px;
+  border-left: 6px solid #d99a00;
+  padding: 0.75rem 2.25rem 0.6rem 1rem;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.4);
+}
+
+#enemy-row-status-overlay.status-defeated {
+  border-left-color: #d64545;
+}
+
+#enemy-row-status-content {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  font-size: 0.9rem;
+  line-height: 1.4;
+}
+
+#enemy-row-status-overlay .modal-floating-close {
+  position: absolute;
+  top: 0.4rem;
+  right: 0.4rem;
+  width: 1.6rem;
+  height: 1.6rem;
+  line-height: 1.6rem;
+  font-size: 0.85rem;
+}
+
 .tl-list {
   margin: 0.5rem 0 1rem;
 }
@@ -1266,7 +1316,7 @@ button {
 }
 
 .ability-uses-label {
-  font-size: 0.75rem;
+  font-size: 0.8rem;
   color: #888;
 }
 
@@ -1370,6 +1420,29 @@ button {
   font-size: 0.85rem;
   cursor: pointer;
   color: inherit;
+}
+
+/* #14：公開盤の武器名前方に稀有度色の■を表示する（C白色／U藍色／R紫色／L金色）。
+   Cの白は明背景で見えなくなるため、text-shadowで薄い輪郭を付けて両テーマで視認できるようにする。 */
+.weapon-rarity-dot {
+  display: inline-block;
+}
+
+.weapon-rarity-C {
+  color: #f2f2f2;
+  text-shadow: 0 0 0 1px #999, 0 0 1px #999;
+}
+
+.weapon-rarity-U {
+  color: #2d6cdf;
+}
+
+.weapon-rarity-R {
+  color: #8a5cb8;
+}
+
+.weapon-rarity-L {
+  color: #c9a227;
 }
 
 .roster-weapon-transfer-btn {
@@ -1487,8 +1560,28 @@ button {
 .battle-hp-stepper-row {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 6px;
   font-size: 0.85rem;
+}
+
+/* 敵人HP段が0になったときの注記（體崩／擊破）。段の＋－ボタン列の右側に付記する。 */
+.battle-hp-row-status {
+  font-size: 0.8rem;
+  font-weight: 600;
+  padding: 0.1rem 0.5rem;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
+.battle-hp-row-status.status-staggered {
+  background: rgba(217, 154, 0, 0.15);
+  color: #d99a00;
+}
+
+.battle-hp-row-status.status-defeated {
+  background: rgba(214, 69, 69, 0.15);
+  color: #d64545;
 }
 
 .battle-hp-stepper-label {
@@ -1747,7 +1840,9 @@ button {
   border-radius: 8px;
   padding: 0.5rem 1.4rem 0.5rem 0.5rem;
   margin: 0 0 0.4rem;
-  font-size: 0.8rem;
+  /* 判定發生の▶トグル（.function-menu-toggle-btn、0.85rem）に合わせる。ここは▲/◆を
+     含む確定済みダメージが実際に表示される場所のため、他の予告的なタグより優先して揃える。 */
+  font-size: 0.85rem;
 }
 
 .action-log-close {
@@ -1837,14 +1932,15 @@ button {
 }
 
 .weapon-damage-tag {
-  font-size: 0.78rem;
+  /* ▲/◆のダメージ記号を運ぶタグ。判定發生の▶（0.85rem）にできるだけ揃える。 */
+  font-size: 0.82rem;
   color: #b8860b;
   font-weight: 600;
 }
 
 .weapon-attribute-tag {
   display: inline-block;
-  font-size: 0.72rem;
+  font-size: 0.78rem;
   font-weight: 600;
   color: #a0331f;
   background: #fbe4de;
@@ -1934,6 +2030,7 @@ button {
 
 .wb-row {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 0.6rem;
   margin: 0.4rem 0;
@@ -1943,6 +2040,11 @@ button {
 .wb-row label {
   white-space: nowrap;
   flex: 0 0 auto;
+}
+
+#turn-reward-list {
+  max-height: 46vh;
+  overflow-y: auto;
 }
 
 #enemy-damage-group-tag {
@@ -2329,9 +2431,33 @@ button {
   background: #eee;
 }
 
+/* 階段ボタン：primary-btnの目立つ青は「常に押すべきボタン」に見えて紛らわしいため、
+   ここだけ階段そのものの意味を表す色に上書きする（一般＝非戦闘は控えめな輪郭のみ、
+   戦闘＝危険色、額外＝特殊色、防禦＝安全色。他のprimary-btnには影響しない）。 */
 .action-phase-btn {
   margin-top: 0.5rem;
   width: 100%;
+  background: none;
+  color: inherit;
+  border: 1px solid #bbb;
+}
+
+.action-phase-btn[data-phase="combat"] {
+  background: #d64545;
+  color: #fff;
+  border-color: #d64545;
+}
+
+.action-phase-btn[data-phase="extra"] {
+  background: #7c3aed;
+  color: #fff;
+  border-color: #7c3aed;
+}
+
+.action-phase-btn[data-phase="defense"] {
+  background: #1a7f5a;
+  color: #fff;
+  border-color: #1a7f5a;
 }
 
 .action-phase-grid {
@@ -2339,6 +2465,37 @@ button {
   grid-template-columns: repeat(2, 1fr);
   gap: 0.5rem;
   margin: 0.75rem 0;
+}
+
+.action-phase-grid button[data-phase] {
+  color: inherit;
+  background: none;
+  border: 1px solid #bbb;
+  border-radius: 8px;
+  padding: 0.6rem 1.2rem;
+  cursor: pointer;
+}
+
+.action-phase-grid button[data-phase="combat"] {
+  background: #d64545;
+  color: #fff;
+  border-color: #d64545;
+}
+
+.action-phase-grid button[data-phase="extra"] {
+  background: #7c3aed;
+  color: #fff;
+  border-color: #7c3aed;
+}
+
+.action-phase-grid button[data-phase="defense"] {
+  background: #1a7f5a;
+  color: #fff;
+  border-color: #1a7f5a;
+}
+
+.action-phase-grid button[data-phase].active {
+  box-shadow: 0 0 0 3px rgba(0, 0, 0, 0.25);
 }
 
 .tag-field {
@@ -2525,6 +2682,7 @@ button {
 
 .floor-reward-entry-row {
   display: flex;
+  flex-wrap: wrap;
   align-items: flex-start;
   gap: 0.5rem;
   padding: 0.3rem 0;
@@ -3046,6 +3204,31 @@ button {
   white-space: nowrap;
 }
 
+/* HP段が0になった敵人：情報を薄く取り消し線付きにし、Xを重ねて「もう戦えない」ことを
+   一目で分かるようにする（體崩／擊破どちらでも同じ見た目。復活すれば自動的に外れる）。 */
+.selected-enemy-chip.enemy-row-depleted {
+  position: relative;
+  opacity: 0.55;
+}
+
+.selected-enemy-chip.enemy-row-depleted .selected-enemy-name,
+.selected-enemy-chip.enemy-row-depleted .selected-enemy-stats {
+  text-decoration: line-through;
+}
+
+.selected-enemy-chip.enemy-row-depleted::after {
+  content: "\00d7";
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 2.2rem;
+  font-weight: 700;
+  color: rgba(214, 69, 69, 0.6);
+  pointer-events: none;
+}
+
 .board-side-wrap {
   display: flex;
   flex-direction: column;
@@ -3131,7 +3314,8 @@ button {
   background: none;
   cursor: pointer;
   padding: 0;
-  font-size: 0.7rem;
+  /* 判定發生の▶（.function-menu-toggle-btn）と同じ役割の◀/▶トグルなので同じ大きさに揃える。 */
+  font-size: 0.85rem;
   color: #777;
   line-height: 1;
 }
@@ -3199,6 +3383,31 @@ button {
     width: 98vw;
     max-height: 96vh;
     resize: vertical;
+  }
+
+  /* 獎勵清單（turn-reward/floor-reward）が手機端で対象名・数量・獲得ボタンまで
+     横に押し出されて見切れないよう、各行を縦積みに切り替える。 */
+  .combat-modal-box {
+    width: 96vw;
+  }
+
+  .wb-row,
+  .floor-reward-entry-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .wb-row select,
+  .wb-row button,
+  .wb-row input,
+  .floor-reward-entry-row select,
+  .floor-reward-entry-row button,
+  .floor-reward-entry-row input {
+    width: 100%;
+  }
+
+  #turn-reward-list {
+    max-height: 38vh;
   }
 }
 

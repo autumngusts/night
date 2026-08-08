@@ -2069,6 +2069,15 @@
       var nameBtn = document.createElement("button");
       nameBtn.type = "button";
       nameBtn.className = "roster-weapon-name-btn";
+      // #14：公開盤で武器の稀有度が一目でわかるよう、名前の前に稀有度色の■を付ける
+      // （C白色／U藍色／R紫色／L金色）。
+      if (weapon.rarity) {
+        var rarityDot = document.createElement("span");
+        rarityDot.className = "weapon-rarity-dot weapon-rarity-" + weapon.rarity;
+        rarityDot.textContent = "■";
+        nameBtn.appendChild(rarityDot);
+        nameBtn.appendChild(document.createTextNode(" "));
+      }
       nameBtn.appendChild(
         document.createTextNode(
           Weapons.localizedText(weapon.name) +
@@ -2408,7 +2417,6 @@
   var weaponRollFieldEl = null;
 
   function resetWeaponRollState() {
-    var firstCat = Weapons.categories()[0];
     weaponRollState = {
       characterId: null, // 跨裝置同期でどのキャラクター向けの抽選かを判別するために持たせる
       potentialPower: null, // null=未選択／true=潜在する力／false=それ以外の装備品獲得
@@ -2417,8 +2425,11 @@
       favoredResult: null,
       favoredNonWeaponNote: null,
 
-      categoryId: firstCat ? firstCat.id : null,
-      categoryResolved: true,
+      // 規則書にカテゴリの明記が無い「武器」獎勵は、特定カテゴリへ暗黙に絞り込むのではなく
+      // 大分類・小分類の擲骰から始まる「武器（未指定分類）」＝ANY_WEAPON_CATEGORYの手順を
+      // 経由させる（categoryResolved:falseにすると、下のレンダリングが自動的にその手順を描画する）。
+      categoryId: null,
+      categoryResolved: false,
       majorGroupShortcut: null, // "射撃武器"/"盾"のグループ選択肢を選んだ場合のみ非null
       majorDie: null,
       majorIndex: null,
@@ -3908,6 +3919,14 @@
     var hit2Damage =
       hit1Base * 2 + relic2 + attached2 + bonus2hit + innateHitBonus.hit2 + talismanFlatBonus.hit2 + fightingSpiritBonus + guardBreakBonus;
 
+    // クロスボウ／バリスタ等、attackCost欄に「2Hit」の記載が無い武器種は2Hitアタック自体が
+    // 存在しないため、hit2Damage/hit2Symbolをnullにして「2Hit不可」を呼び出し側へ伝える。
+    var attackCostParsed = parseAttackCost(Weapons.localizedText(category.basicStats.attackCost));
+    if (!attackCostParsed || !attackCostParsed.hit2) {
+      hit2Damage = null;
+      hit2Symbol = null;
+    }
+
     return {
       rarityCorrection: rarityCorrection,
       powerMod: powerMod,
@@ -3931,14 +3950,19 @@
   // night.jsのrenderCombatAttackActionが実際に加算している式と同じ）。省略時は従来通り。
   function weaponDamageTagText(d, accumEffects) {
     if (!d) return "";
-    var text = window.I18N.t("weapon_damage_hit_tag", {
-      hit1: formatValueWithSymbol(d.hit1Damage, d.hit1Symbol),
-      hit2: formatValueWithSymbol(d.hit2Damage, d.hit2Symbol),
-    });
+    var supportsHit2 = d.hit2Damage !== null;
+    var text = supportsHit2
+      ? window.I18N.t("weapon_damage_hit_tag", {
+          hit1: formatValueWithSymbol(d.hit1Damage, d.hit1Symbol),
+          hit2: formatValueWithSymbol(d.hit2Damage, d.hit2Symbol),
+        })
+      : window.I18N.t("weapon_damage_hit_tag_single", {
+          hit1: formatValueWithSymbol(d.hit1Damage, d.hit1Symbol),
+        });
     (accumEffects || []).forEach(function (eff) {
       var hit1Val = 1 + eff.scorpionBonus;
       var hit2Val = 2 + eff.scorpionBonus;
-      text += " | " + eff.label + ": +" + hit1Val + "/+" + hit2Val;
+      text += supportsHit2 ? " | " + eff.label + ": +" + hit1Val + "/+" + hit2Val : " | " + eff.label + ": +" + hit1Val;
     });
     return text;
   }
@@ -3963,6 +3987,18 @@
 
   function weaponDamageBreakdownText(d) {
     if (!d) return "";
+    if (d.hit2Damage === null) {
+      return window.I18N.t("weapon_damage_breakdown_single", {
+        rarity: d.rarityCorrection,
+        powerMod: d.powerMod,
+        artPower: d.artPower,
+        weaponPower: d.weaponPower,
+        relic1: d.relic1,
+        attached1: d.attached1,
+        hit1: formatValueWithSymbol(d.hit1Damage, d.hit1Symbol),
+        hit1Base: d.hit1Base,
+      });
+    }
     return window.I18N.t("weapon_damage_breakdown", {
       rarity: d.rarityCorrection,
       powerMod: d.powerMod,
@@ -4036,7 +4072,7 @@
   //   ・「／FP■」：FPコスト（■の個数＝必要FP）
   //   （N〜M個）のように範囲がある場合は、その個数の範囲内であれば良い。
   // ============================================================
-  var CIRCLED_DIGIT_MAP = { "①": 1, "②": 2, "③": 3, "④": 4, "⑤": 5, "⑥": 6 };
+  var CIRCLED_DIGIT_MAP = { "①": 1, "②": 2, "③": 3, "④": 4, "⑤": 5, "⑥": 6, "⑦": 7 };
 
   function parseFpCost(text) {
     var m = /FP[／\/]?(■+)/.exec(String(text || "")) || /FP(■+)/.exec(String(text || ""));
@@ -4074,7 +4110,7 @@
         sumTotal: null,
       };
     }
-    var circledChars = token.match(/[①②③④⑤⑥]/g);
+    var circledChars = token.match(/[①②③④⑤⑥⑦]/g);
     if (circledChars && circledChars.length) {
       var sum = 0;
       circledChars.forEach(function (ch) {
@@ -4113,14 +4149,25 @@
   }
 
   // 武器カテゴリのattackCost欄「1Hit：③／2Hit：③③」を1Hit・2Hitそれぞれのコストへ分解する。
+  // クロスボウ／バリスタのように「1Hit：⑤」だけで2Hitの概念を持たない武器種は、hit2をnullにして
+  // 返す（呼び出し側はhit2===nullを「この武器は2Hit不可」の判定に使う）。
   function parseAttackCost(text) {
     var t = String(text || "");
     var m = /1Hit[：:]\s*([^／\/]+)[／\/]2Hit[：:]\s*([^／\/]+)/.exec(t);
-    if (!m) return null;
-    return {
-      hit1: classifyDiceCostToken(m[1].trim()) || { diceKind: null, diceCountMin: 0, diceCountMax: null, sumTotal: null },
-      hit2: classifyDiceCostToken(m[2].trim()) || { diceKind: null, diceCountMin: 0, diceCountMax: null, sumTotal: null },
-    };
+    if (m) {
+      return {
+        hit1: classifyDiceCostToken(m[1].trim()) || { diceKind: null, diceCountMin: 0, diceCountMax: null, sumTotal: null },
+        hit2: classifyDiceCostToken(m[2].trim()) || { diceKind: null, diceCountMin: 0, diceCountMax: null, sumTotal: null },
+      };
+    }
+    var m1 = /1Hit[：:]\s*([^\s／\/]+)/.exec(t);
+    if (m1) {
+      return {
+        hit1: classifyDiceCostToken(m1[1].trim()) || { diceKind: null, diceCountMin: 0, diceCountMax: null, sumTotal: null },
+        hit2: null,
+      };
+    }
+    return null;
   }
 
   // 盾のguardCost欄（例："①"）を、renderDiceCostActionが期待するcost形状（FP/HPコスト無し）に変換する。
@@ -4186,6 +4233,17 @@
     if (t.indexOf("前衛のとき使用可能") !== -1 || t.indexOf("前衛時可使用") !== -1) return "front";
     if (t.indexOf("後衛のとき使用可能") !== -1 || t.indexOf("後衛時可使用") !== -1) return "back";
     return null;
+  }
+
+  // 「この技能は1ターンの間にPC1人ごとに1度しか使用できない」「此技能於1回合內每名PC限用1次」
+  // 系統の本文表記を検出する（踢擊・拒絕・黃金之怒・貴種的腹藝・盾擊など）。従来はentry.usesも
+  // idごとの個別処理も無く、本文に書いてあるだけで実際には無制限に使えてしまっていた。
+  function parseOncePerTurnRestriction(text) {
+    var t = String(text || "");
+    if (t.indexOf("PC1人ごとに") !== -1 && t.indexOf("しか使用できない") !== -1) return true;
+    // zh側の表記ゆれ（「1回合內每名PC限用1次」「每個PC每回合限用1次」等）を両方拾う。
+    if (t.indexOf("PC") !== -1 && t.indexOf("回合") !== -1 && (t.indexOf("限用1次") !== -1 || t.indexOf("僅能使用1次") !== -1)) return true;
+    return false;
   }
 
   function findNotePlaceholderWeapon(categoryId, rarity) {
@@ -6230,6 +6288,21 @@
 
     bindFieldSave("char-entered", function (c, el) {
       c.entered = el.checked;
+      // 入場時、初期武器（角色タイプのstartingWeaponId）を所持しているのに未装備なら、
+      // 自動的に装備済み扱いにする（#5：GMの手動裝備操作を省略する）。
+      if (c.entered) {
+        var type = c.typeId ? CharacterTypes.get(c.typeId) : null;
+        var startingId = type && type.startingWeaponId;
+        if (
+          startingId &&
+          (c.weaponIds || []).indexOf(startingId) !== -1 &&
+          (c.equippedWeaponIds || []).indexOf(startingId) === -1 &&
+          (c.equippedWeaponIds || []).length < MAX_EQUIPPED_WEAPONS
+        ) {
+          if (!c.equippedWeaponIds) c.equippedWeaponIds = [];
+          c.equippedWeaponIds.push(startingId);
+        }
+      }
     });
     bindFieldSave("char-hp-value", function (c, el) {
       c.hpValue = Number(el.value) || 0;
@@ -6325,6 +6398,7 @@
     RANGED_GROUP_CATEGORY: RANGED_GROUP_CATEGORY,
     SHIELD_GROUP_CATEGORY: SHIELD_GROUP_CATEGORY,
     weaponPreviewSkillNames: weaponPreviewSkillNames,
+    getItemSkillRefs: getItemSkillRefs,
     potentialPowerDrawWeapon: potentialPowerDrawWeapon,
     commitPotentialPowerWeapon: commitPotentialPowerWeapon,
     rollPotentialPowerAttachedEffect: rollPotentialPowerAttachedEffect,
@@ -6346,6 +6420,7 @@
     validateDiceSelection: validateDiceSelection,
     describeDiceCost: describeDiceCost,
     parsePositionRestriction: parsePositionRestriction,
+    parseOncePerTurnRestriction: parseOncePerTurnRestriction,
     computeArtPower: computeArtPower,
     artSkillPowerValue: artSkillPowerValue,
     spellSkillPowerValue: spellSkillPowerValue,

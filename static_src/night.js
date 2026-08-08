@@ -26,7 +26,6 @@
   var RULEBOOK_PASSWORD = "nightnight";
   var RULEBOOK_SESSION_KEY = "pritest-rulebook-session";
   var activeWeaponSubTab = "acquisition";
-  var LEVEL_STEPS = [null, 0, 1, 2, 3, 4, 5]; // null = "全"（未指定）
 
   var Games = window.PriTestGames;
   var GameStorage = window.PriTestGameStorage;
@@ -442,6 +441,13 @@
       diceStatus.className = "dice-status-label";
       CharacterDrawer.renderDiceStatusLabel(diceStatus, c.dicePool || []);
       diceCol.appendChild(diceStatus);
+      // 骰子池からの予測（上のdiceStatus）は骰子が解決/消化されると空になり、その後は
+      // 実際の隊列・敵視が変わっても何も表示されないままになる（#4b）。実際の戦場状態
+      // （state.battle側）から常に読み直す別行を追加し、隊列切替／敵視±のたびに再描画する。
+      var liveStatus = document.createElement("p");
+      liveStatus.className = "dice-status-label battle-live-status-label";
+      renderLiveBattleStatusLabel(liveStatus, c);
+      diceCol.appendChild(liveStatus);
       var blessingToggleBtn = document.createElement("button");
       blessingToggleBtn.type = "button";
       blessingToggleBtn.className = "breakthrough-blessing-btn";
@@ -750,6 +756,8 @@
     // またはnight.js内のpotentialPower関連状態と同じ形をした素のJSONオブジェクト。
     activeDraws: { potentialPower: null, weapon: null, talisman: null, consumable: null },
     activeThreatEffects: [], // {id, text}の配列。「階段結束為止」等の非純傷害スキル効果をGM/玩家が自由記述で追加・Xで削除する手動リスト
+    returnedCardMemory: {}, // key: slot index -> {code, cardLevel}。#19：うっかり「山札に戻す」した直前の内容を記録し、空きマス長押しで復元できるようにする
+    cardFloorRewardGranted: {}, // key: slot index -> true。#10：樓層レベルが「全」に達した瞬間の自動盧恩付与・広播が二重発火しないようにするフラグ
   };
 
   function shuffle(arr) {
@@ -817,6 +825,8 @@
       logBubbleEnabled: state.logBubbleEnabled,
       activeDraws: state.activeDraws,
       activeThreatEffects: state.activeThreatEffects,
+      returnedCardMemory: state.returnedCardMemory,
+      cardFloorRewardGranted: state.cardFloorRewardGranted,
     };
   }
 
@@ -1480,6 +1490,10 @@
         consumable: loadedDraws.consumable || null,
       };
       state.activeThreatEffects = Array.isArray(data.activeThreatEffects) ? data.activeThreatEffects : [];
+      state.returnedCardMemory =
+        data.returnedCardMemory && typeof data.returnedCardMemory === "object" ? data.returnedCardMemory : {};
+      state.cardFloorRewardGranted =
+        data.cardFloorRewardGranted && typeof data.cardFloorRewardGranted === "object" ? data.cardFloorRewardGranted : {};
     } catch (e) {
       // 壊れた状態は無視して初期状態のまま続行する
     }
@@ -1532,6 +1546,8 @@
     state.logBubbleEnabled = false;
     state.activeDraws = { potentialPower: null, weapon: null, talisman: null, consumable: null };
     state.activeThreatEffects = [];
+    state.returnedCardMemory = {};
+    state.cardFloorRewardGranted = {};
     localStorage.removeItem(STORAGE_KEY);
     clearUndoSnapshot();
   }
@@ -2271,6 +2287,18 @@
           details.appendChild(spBody);
         }
 
+        // 敵の行動注釈（乱戦ダメージへの注釈など）や特殊効果に「擊破盧恩：N」の記述が
+        // あっても、規則書タブには従来何も獲得手段が無かった（#9：enemies.js側）。
+        var enemyRuneText =
+          T(enemy.special || {}) +
+          "\n" +
+          (enemy.actions || [])
+            .map(function (a) {
+              return T(a.note || {});
+            })
+            .join("\n");
+        appendRuneGrantRowIfDetected(details, enemyRuneText, "enemyRulebook_" + fam.id + "_" + enemy.id);
+
         container.appendChild(details);
       });
     });
@@ -2394,7 +2422,7 @@
           renderFieldLine(floorDiv, line, T);
         });
 
-        if (floor.reward) {
+        if (floorHasAnyReward(floor)) {
           var rewardBtn = document.createElement("button");
           rewardBtn.type = "button";
           rewardBtn.className = "field-floor-reward-btn";
@@ -2570,6 +2598,32 @@
     renderWorldviewNav(container, sections, T);
     sections.forEach(function (section) {
       renderWorldviewSection(container, section, T);
+    });
+  }
+
+  // 規則書タブ「指令」（#11）：留言板で使える快速指令の一覧。handleChatCommandと一対一対応させる。
+  var CHAT_COMMANDS = [
+    { cmd: "/cleardice", key: "cleardice" },
+    { cmd: "/rune x", key: "rune" },
+    { cmd: "/clearenemy", key: "clearenemy" },
+  ];
+  function renderCommandsRulebook() {
+    var container = document.getElementById("commands-rulebook-list");
+    if (!container) return;
+    container.innerHTML = "";
+    var intro = document.createElement("p");
+    intro.className = "worldview-text";
+    intro.textContent = window.I18N.t("rulebook_commands_intro");
+    container.appendChild(intro);
+    CHAT_COMMANDS.forEach(function (entry) {
+      var h = document.createElement("h4");
+      h.className = "worldview-label";
+      h.textContent = entry.cmd;
+      container.appendChild(h);
+      var p = document.createElement("p");
+      p.className = "worldview-text";
+      p.textContent = window.I18N.t("chat_command_desc_" + entry.key);
+      container.appendChild(p);
     });
   }
 
@@ -3120,14 +3174,19 @@
       if (def.kind === "rain" && rows[i].every(Boolean) && def.tier > maxRainTier) maxRainTier = def.tier;
     });
     var summaryEl = document.getElementById("time-loss-summary");
-    if (maxRainTier === 0) {
-      summaryEl.textContent = window.I18N.t("time_loss_none");
-      return;
+    // #15：従来は夜雨の最大段階しか見ておらず、「威脅効果追加」（activeThreatEffects）が
+    // 何個現在有効かは常時バーのどこにも出ていなかった（"尚未觸發"のまま）。件数を先頭に足す。
+    var activeCount = (state.activeThreatEffects || []).length;
+    var parts = [];
+    if (activeCount > 0) {
+      parts.push(window.I18N.t("time_loss_active_effect_count", { count: activeCount }));
     }
-    summaryEl.textContent =
-      window.I18N.t("night_rain_label") +
-      window.I18N.t("colon_separator") +
-      window.I18N.t("night_rain_detail_" + dayKey + "_" + maxRainTier);
+    if (maxRainTier > 0) {
+      parts.push(
+        window.I18N.t("night_rain_label") + window.I18N.t("colon_separator") + window.I18N.t("night_rain_detail_" + dayKey + "_" + maxRainTier)
+      );
+    }
+    summaryEl.textContent = parts.length ? parts.join(" • ") : window.I18N.t("time_loss_none");
   }
 
   // --- 威脅効果追加の一時公告（廣播） ---
@@ -3185,8 +3244,30 @@
         segments.push(parts[0] + window.I18N.t("colon_separator") + parts[1]);
       }
     });
+    // #15：手動で改めて公告する際は、現在有効な威脅効果追加（activeThreatEffects）の
+    // テキストも合わせて再掲する（何が起きているか一目で分かるようにする）。
+    (state.activeThreatEffects || []).forEach(function (entry) {
+      segments.push(window.I18N.t("threat_effect_add_label") + window.I18N.t("colon_separator") + entry.text);
+    });
     if (segments.length === 0) segments.push(window.I18N.t("time_loss_none"));
     showThreatBroadcast(segments);
+  }
+
+  // --- 敵人體崩／擊破の長時間公告 ---
+  // threat-broadcast-overlayと違い、5秒で自動的には閉じない。GMが実際に行動階段を切り替える
+  // （額外階段へ進む、または戦闘終了で一般階段へ戻る）までは公開盤に残り続ける（setActionPhase参照）。
+  function closeEnemyRowStatusBanner() {
+    var overlay = document.getElementById("enemy-row-status-overlay");
+    if (overlay) overlay.hidden = true;
+  }
+
+  function showEnemyRowStatusBanner(kind, text) {
+    var overlay = document.getElementById("enemy-row-status-overlay");
+    var content = document.getElementById("enemy-row-status-content");
+    if (!overlay || !content) return;
+    content.textContent = text;
+    overlay.classList.toggle("status-defeated", kind === "defeated");
+    overlay.hidden = false;
   }
 
   function buildWanderingBlessingChecks() {
@@ -3380,6 +3461,12 @@
     input.value = "";
     saveState();
     renderActiveThreatEffects();
+    renderTimeLossSummary();
+    // #15：「威脅効果追加：追加 1 個效果」という汎用文言だけでは何が起きたか分からず、
+    // また今まで公告自体が出ていなかった。実際に追加した効果のテキストを公告する。
+    var addedMsg = window.I18N.t("threat_effect_add_label") + window.I18N.t("colon_separator") + text;
+    showThreatBroadcast([addedMsg]);
+    postSystemTurnMessage(addedMsg);
   }
 
   function removeActiveThreatEffect(id) {
@@ -3388,6 +3475,7 @@
     });
     saveState();
     renderActiveThreatEffects();
+    renderTimeLossSummary();
   }
 
   function openThreatDrawer() {
@@ -3437,6 +3525,20 @@
     return { position: state.battle.front[idx] ? "front" : "back", aggro: state.battle.aggro[idx] || 0 };
   };
 
+  // 玩家資訊（角色欄）の「目前○○區域＆敵視為N」表示：骰子池の予測(computeDiceStatus)とは
+  // 別に、state.battleの実際の値を毎回読み直す（#4b）。戦場に入っていない/未エントリーの
+  // 場合は何も表示しない。
+  function renderLiveBattleStatusLabel(el, c) {
+    if (!el) return;
+    var ctx = window.PriTestNightBattleContext(c);
+    if (!ctx) {
+      el.textContent = "";
+      return;
+    }
+    var positionText = window.I18N.t(ctx.position === "front" ? "dice_status_front" : "dice_status_back");
+    el.textContent = window.I18N.t("dice_status_live_label", { position: positionText, aggro: ctx.aggro });
+  }
+
   function buildBattlePositionGrid(containerId, valuesArray, names) {
     var container = document.getElementById(containerId);
     if (!container) return;
@@ -3457,6 +3559,7 @@
           valuesArray[idx] = !valuesArray[idx];
           saveState();
           renderBattlePositionAreas();
+          renderCharacterRoster(); // #4b: 玩家資訊欄の「目前○○區域＆敵視為N」を隊列変更に追随させる
         });
         cell.appendChild(btn);
 
@@ -3472,6 +3575,7 @@
           state.battle.aggro[idx] = Math.max(0, (state.battle.aggro[idx] || 0) - 1);
           saveState();
           renderBattlePositionAreas();
+          renderCharacterRoster(); // #4b
         });
         var value = document.createElement("span");
         value.className = "level-value battle-aggro-value";
@@ -3485,6 +3589,7 @@
           state.battle.aggro[idx] = (state.battle.aggro[idx] || 0) + 1;
           saveState();
           renderBattlePositionAreas();
+          renderCharacterRoster(); // #4b
         });
         stepper.appendChild(minus);
         stepper.appendChild(value);
@@ -3955,7 +4060,10 @@
         row.appendChild(posEl);
       }
 
-      ["hit1", "hit2"].forEach(function (hitType) {
+      // クロスボウ／バリスタ等、2Hitの概念を持たない武器種はdamage.hit2Damageがnullになる
+      // （CharacterDrawer.computeWeaponDamage参照）ため、2Hitボタン自体を出さない。
+      var hitTypes = damage && damage.hit2Damage === null ? ["hit1"] : ["hit1", "hit2"];
+      hitTypes.forEach(function (hitType) {
         var hitBtn = document.createElement("button");
         hitBtn.type = "button";
         hitBtn.className = "combat-attack-hit-btn";
@@ -4729,6 +4837,18 @@
         row.appendChild(usesEl);
       }
 
+      // 「此技能於1回合內每名PC限用1次」系統の本文（踢擊・拒絕・黃金之怒・貴種的腹藝・盾擊等）：
+      // 従来entry.usesが無いため無制限に使えてしまっていた（#6）。本文から自動検出し、
+      // c._entryUsedThisTurnで1回合（新しい回合が始まるまで）ブロックする汎用機構。
+      var isOncePerTurn = entry.id && CharacterDrawer.parseOncePerTurnRestriction(body);
+      var onceUsedThisTurn = isOncePerTurn && !!(c._entryUsedThisTurn && c._entryUsedThisTurn[entry.id]);
+      if (isOncePerTurn) {
+        var onceEl = document.createElement("span");
+        onceEl.className = "ability-uses-label";
+        onceEl.textContent = window.I18N.t(onceUsedThisTurn ? "combat_skill_once_per_turn_used_label" : "combat_skill_once_per_turn_label");
+        row.appendChild(onceEl);
+      }
+
       var posRestriction = CharacterDrawer.parsePositionRestriction(body);
       var charPos = getCharacterBattlePosition(c);
       var posOk = !posRestriction || posRestriction === charPos;
@@ -4751,6 +4871,7 @@
       if (
         (effectiveMax !== null && remaining <= 0) ||
         !posOk ||
+        onceUsedThisTurn ||
         (entry.id === "whirlwind" && c._whirlwindUsedThisPhase) ||
         (entry.id === "yoto_release_action" && (c._yotoMarks || 0) <= 0)
       )
@@ -5240,6 +5361,10 @@
           if (entry.uses && entry.id) {
             if (!c.abilityUses) c.abilityUses = {};
             c.abilityUses[entry.id] = Math.max(0, (remaining !== null ? remaining : effectiveMax) - 1);
+          }
+          if (isOncePerTurn) {
+            if (!c._entryUsedThisTurn) c._entryUsedThisTurn = {};
+            c._entryUsedThisTurn[entry.id] = true;
           }
           // 隱者「混成魔法」の遺物効果：聖幕はフェイズ終了までのFP消耗無効バフを発動し、
           // 聖光燈火は自身のHPを固定+3回復する（他PC1人への+3はGM手動反映）。
@@ -5746,10 +5871,14 @@
       renderDiceCostAction(c, content, pursueCost, function (dice, costLines) {
         var pursueNote;
         if (st.pursueEffectChoice === "damage") {
-          var artInfo = CharacterDrawer.computeArtPower(c, st.pursueWeaponId);
-          var dmg = artInfo ? CharacterDrawer.artSkillPowerValue(body, artInfo.artPower) : null;
-          pursueNote = dmg
-            ? window.I18N.t("action_log_damage_total", { value: CharacterDrawer.formatValueWithSymbol(dmg.value, dmg.symbol) })
+          // 本文「【總合傷害：相當於1Hit+▲】」は「威力：」節を持たないためartSkillPowerValueでは
+          // 解決できない（常にnullを返し、ダメージ非表示のまま無言でフォールバックしていた）。
+          // 実際には選んだ武器の1Hitダメージそのものなので、computeWeaponDamageから直接引く。
+          var pursueDamage = CharacterDrawer.computeWeaponDamage(c, st.pursueWeaponId);
+          pursueNote = pursueDamage
+            ? window.I18N.t("action_log_damage_total", {
+                value: CharacterDrawer.formatValueWithSymbol(pursueDamage.hit1Damage, pursueDamage.hit1Symbol),
+              })
             : window.I18N.t("claw_shot_choice_damage_label");
         } else {
           pursueNote = window.I18N.t("claw_shot_choice_revival_label");
@@ -6051,9 +6180,6 @@
     }
   }
 
-  // 學者「博聞強識」：消耗品使用時、指定出目で骰子消耗を支払ったかどうかのYes/No確認（範囲が
-  // 不明のためGM/プレイヤーの手動判定に委ねる、淑女「重演」等と同型のゲート）。
-  var carriedKnowledgeNoConsume = null; // true | false | null（null=未確認）
 
   // 消耗品ごとの対象種別：selfは自身のみ（対象選択UI不要）、enemyは選択中の敵人から1体選ぶ、
   // otherPcは自身以外のPCから1人選ぶ（溫石）、ailmentは自身が蓄積中の異常状態から1つ選ぶ
@@ -6129,9 +6255,11 @@
     var selectedId = sel.value;
     var targetKind = CONSUMABLE_TARGET_KIND[selectedId] || "self";
 
-    // 學者「博聞強識」：自身が使う消耗品は常に等級2效果が發揮される（具体的な数値適用は
-    // GM手動反映）。また、指定出目で骰子消耗を支払ったかどうかをYes/Noで確認し、「是」なら
-    // 使用回数を消費しない。
+    // 學者「博聞強識」：自身が使う消耗品は常に等級2效果が發揮され、支払った骰子の中に出目
+    // 「5」または「6」が1つでもあれば、その使用は使用回数を消費しない（#7：従来は範囲が
+    // 曖昧なままGMへのYes/No手動確認にしていたが、実際の規則は出目5・6のどちらでも良い）。
+    // これは実際に支払われた骰子（consumeCombatDice後のdice配列）から自動判定するため、
+    // ここでは案内文のみ表示する（判定本体は確定ボタンのハンドラ側）。
     var type = c.typeId ? CharacterTypes.get(c.typeId) : null;
     var hasCarriedKnowledge =
       type &&
@@ -6143,28 +6271,18 @@
       level2Note.className = "threat-ref-body";
       level2Note.textContent = window.I18N.t("carried_knowledge_level2_note");
       content.appendChild(level2Note);
-
-      var ckQuestion = document.createElement("p");
-      ckQuestion.className = "threat-ref-body";
-      ckQuestion.textContent = window.I18N.t("carried_knowledge_confirm_question");
-      content.appendChild(ckQuestion);
-      var ckRow = document.createElement("div");
-      ckRow.className = "wb-row";
-      [
-        { key: true, label: window.I18N.t("carried_knowledge_confirm_yes_button") },
-        { key: false, label: window.I18N.t("carried_knowledge_confirm_no_button") },
-      ].forEach(function (opt) {
-        var btn = document.createElement("button");
-        btn.type = "button";
-        btn.textContent = opt.label;
-        if (carriedKnowledgeNoConsume === opt.key) btn.classList.add("active");
-        btn.addEventListener("click", function () {
-          carriedKnowledgeNoConsume = carriedKnowledgeNoConsume === opt.key ? null : opt.key;
-          renderCombatModal();
-        });
-        ckRow.appendChild(btn);
-      });
-      content.appendChild(ckRow);
+      var ckHint = document.createElement("p");
+      ckHint.className = "threat-ref-body";
+      ckHint.textContent = window.I18N.t("carried_knowledge_no_consume_hint");
+      content.appendChild(ckHint);
+    }
+    // 遺物効果「節約術」：出目「6」を骰子消耗に含めて支払うと、その消耗品の使用次數を
+    // 1回復する（上限あり）。学習済みの場合のみ、確定前にその旨を案内する。
+    if (CharacterDrawer.findLearnedRelicEffectByName(c, ["節約術", "節約術"])) {
+      var frugalHint = document.createElement("p");
+      frugalHint.className = "threat-ref-body";
+      frugalHint.textContent = window.I18N.t("frugal_technique_hint");
+      content.appendChild(frugalHint);
     }
 
     // 對象選択UI（種別ごと）。
@@ -6409,7 +6527,10 @@
       });
       var target = instances[0];
       var removedInstanceId = null;
-      if (target && !(hasCarriedKnowledge && carriedKnowledgeNoConsume)) {
+      // 學者「博聞強識」：支払った骰子（dice）に出目5または6が1つでもあれば、この使用は
+      // 使用回数を消費しない（#7、節約術の「出目6のみ」判定とは対象の出目が異なる点に注意）。
+      var carriedKnowledgeNoConsume = hasCarriedKnowledge && (dice.indexOf(5) !== -1 || dice.indexOf(6) !== -1);
+      if (target && !carriedKnowledgeNoConsume) {
         target.usesRemaining -= 1;
         if (target.usesRemaining <= 0) {
           var idx = c.consumables.indexOf(target);
@@ -6443,7 +6564,6 @@
         greaseElement: ATTRIBUTE_STATUS_ELEMENT_OPTIONS[combatConsumableGreaseElementIdx],
       });
       combatDiceSelection = [];
-      carriedKnowledgeNoConsume = null;
       resetCombatConsumableSubChoices();
       saveRosterCharacters();
       saveState();
@@ -6604,6 +6724,15 @@
         lines.push(window.I18N.t("consumable_effect_level2_reminder"));
       }
     } else if (itemId === "item_perfume_acid_spray") {
+      // #8：「敵人傷害-120・不重複」はGM手動反映のままだが、うっかり見落とされないよう
+      // 「目前生效中的效果」（威脅一覧）にも同じ内容を残す（アクションログの一回性リマインドとは別）。
+      if (!state.activeThreatEffects) state.activeThreatEffects = [];
+      state.activeThreatEffects.push({
+        id: "ate" + Date.now() + Math.floor(Math.random() * 1000),
+        text: window.I18N.t("consumable_effect_acid_spray_note"),
+      });
+      saveState();
+      renderActiveThreatEffects();
       lines.push(window.I18N.t("consumable_effect_acid_spray_note"));
       if (applyLevel2) {
         c._guardValueBonusUntilEndPhase = 10;
@@ -6614,10 +6743,19 @@
       }
     } else if (itemId === "item_perfume_iron_pot_spray") {
       lines.push(window.I18N.t("consumable_effect_iron_pot_note"));
-      lines.push(applyLevel2 ? window.I18N.t("consumable_effect_iron_pot_level2_note") : window.I18N.t("consumable_effect_level2_reminder"));
+      if (applyLevel2) {
+        lines.push(window.I18N.t("consumable_effect_iron_pot_level2_note"));
+      } else {
+        // #8：「下個行動階段開始時獲得的體力骰減少1個」は具体的な数値が確定しているため、
+        // ■/1Dのような未確定値と違い自動反映できる（既存の「回合結束時，體力骰帶入1個」等と
+        // 同じ_nextActionDicePenaltyの仕組みを再利用する）。
+        c._nextActionDicePenalty = (c._nextActionDicePenalty || 0) + 1;
+        lines.push(window.I18N.t("consumable_effect_level2_reminder"));
+      }
     } else if (itemId === "item_perfume_spark_aroma") {
-      var sparkRoll = 1 + Math.floor(Math.random() * 6);
-      var sparkValue = sparkRoll + (applyLevel2 ? 2 : 0);
+      // #8：等級1＝雜兵一格／敵人炎1、等級2＝追加雜兵一格／敵人炎+2（累計炎3）。
+      // 以前は炎の値を1Dで振っていたが、GM確認により固定値だったため修正する。
+      var sparkValue = 1 + (applyLevel2 ? 2 : 0);
       if (target.enemyKey) recordAttributeStatusDealt(c.id, target.enemyKey, "炎", sparkValue);
       lines.push(window.I18N.t("action_log_element_accum", { label: CharacterTypes.localizedText({ zh: "火", ja: "炎" }), value: sparkValue }));
       lines.push(window.I18N.t("consumable_effect_mob_damage_note"));
@@ -6633,8 +6771,8 @@
       lines.push(window.I18N.t("consumable_effect_uplifting_aroma_applied"));
       if (!applyLevel2) lines.push(window.I18N.t("consumable_effect_level2_reminder"));
     } else if (itemId === "item_perfume_poison_spray") {
-      var toxinRoll = 1 + Math.floor(Math.random() * 6);
-      var toxinValue = toxinRoll + (applyLevel2 ? 2 : 0);
+      // #8：等級1＝對雜兵HP損害1／敵人猛毒1、等級2＝累計對雜兵HP損害2／敵人猛毒3（固定値）。
+      var toxinValue = 1 + (applyLevel2 ? 2 : 0);
       if (target.enemyKey) recordAttributeStatusDealt(c.id, target.enemyKey, "猛毒", toxinValue);
       lines.push(window.I18N.t("action_log_status_accum", { label: CharacterTypes.localizedText({ zh: "猛毒", ja: "猛毒" }), value: toxinValue }));
       lines.push(window.I18N.t("consumable_effect_mob_damage_note"));
@@ -7365,8 +7503,20 @@
     // した瞬間だけ発火させる（既に0の段をさらに操作しても再発火しない）。
     if (current !== 0 && target === 0) {
       handleMobRowDepleted();
+      if (enemyHasRow(rowIdx)) {
+        var depletedEnemyKey = (state.battle.selectedEnemyIds || [])[rowIdx];
+        var depletedEnemyName = depletedEnemyKey
+          ? enemyDisplayNameForKey(depletedEnemyKey)
+          : window.I18N.t("battle_hp_row_label", { row: rowIdx + 1 });
+        if (allEnemyHpRowsDepleted()) {
+          showEnemyRowStatusBanner("defeated", window.I18N.t("enemy_row_status_defeated_banner", { enemy: depletedEnemyName }));
+        } else {
+          showEnemyRowStatusBanner("staggered", window.I18N.t("enemy_row_status_staggered_banner", { enemy: depletedEnemyName }));
+        }
+      }
     }
     renderEnemyHpGrid();
+    renderSelectedEnemies();
     saveState();
     handleEnemyHpChanged();
   }
@@ -7414,6 +7564,14 @@
             adjustEnemyHpRow(rowIdx, 1);
           });
           rowDiv.appendChild(plus);
+
+          if (isEnemyHpRowDepleted(rowIdx)) {
+            var defeated = allEnemyHpRowsDepleted();
+            var statusBadge = document.createElement("span");
+            statusBadge.className = "battle-hp-row-status " + (defeated ? "status-defeated" : "status-staggered");
+            statusBadge.textContent = window.I18N.t(defeated ? "enemy_row_status_defeated_badge" : "enemy_row_status_staggered_badge");
+            rowDiv.appendChild(statusBadge);
+          }
 
           container.appendChild(rowDiv);
         })(row);
@@ -7629,6 +7787,23 @@
     renderActionPhaseGrid();
   }
 
+  // 設定の「重置全骰」：共用骰子池・各角色個別の骰子・各角色の執行紀錄（點線枠のアクション
+  // ボックス）をまとめて消去する。clearAllPendingActionBoxes自体が消去内容の要約をログへ
+  // 残すため、ここでは二重にログしない。
+  function handleResetAllDice() {
+    if (!window.confirm(window.I18N.t("reset_all_dice_confirm"))) return;
+    state.dicePool = [];
+    rosterCharacters.forEach(function (c) {
+      c.dicePool = [];
+    });
+    clearAllPendingActionBoxes();
+    saveState();
+    saveRosterCharacters();
+    addLog("log_reset_all_dice");
+    renderDicePool();
+    renderCharacterRoster();
+  }
+
   function renderDicePool() {
     var listEl = document.getElementById("dice-pool-list");
     CharacterDrawer.renderDicePool(
@@ -7709,6 +7884,11 @@
     var btn = document.getElementById("btn-action-phase");
     if (!btn) return;
     btn.textContent = window.I18N.t("action_phase_" + state.actionPhase);
+    // 階段ごとの配色（style.css .action-phase-btn[data-phase="..."]）を切り替えるための目印。
+    btn.dataset.phase = state.actionPhase;
+    document.querySelectorAll(".action-phase-grid button[data-phase]").forEach(function (phaseBtn) {
+      phaseBtn.classList.toggle("active", phaseBtn.dataset.phase === state.actionPhase);
+    });
     renderEnemyDamageButtonVisibility();
   }
 
@@ -8000,10 +8180,47 @@
     if (!input) return;
     var text = input.value.trim();
     if (!text) return;
+    // #11：留言板に「/」で始まる文字列を送ると、通常の留言としては投稿せず快速指令として処理する。
+    if (text.charAt(0) === "/") {
+      input.value = "";
+      handleChatCommand(text);
+      return;
+    }
     state.turnMessages.push({ text: text, time: Date.now(), side: turnHolderTeam(state.turnHolder) });
     input.value = "";
     saveState();
     renderTurnHolderBar();
+  }
+
+  // 留言板の快速指令（#11）。一覧は規則書タブ「指令」（renderCommandsRulebook）にも掲載する。
+  function handleChatCommand(text) {
+    var parts = text.trim().split(/\s+/);
+    var cmd = parts[0].toLowerCase();
+    if (cmd === "/cleardice") {
+      handleResetAllDice();
+      return;
+    }
+    if (cmd === "/rune") {
+      var value = parseInt(parts[1], 10);
+      if (!value || value <= 0) {
+        postSystemTurnMessage(window.I18N.t("chat_command_invalid_rune"));
+        return;
+      }
+      var count = grantRuneToAllEntered(value);
+      postSystemTurnMessage(window.I18N.t("chat_command_rune_granted", { value: value, count: count }));
+      return;
+    }
+    if (cmd === "/clearenemy") {
+      (state.battle.selectedEnemyIds || []).slice().forEach(function (key) {
+        purgeAttributeStatusForEnemyKey(key);
+      });
+      state.battle.selectedEnemyIds = [];
+      resetBattlePositionsAndAggro();
+      renderSelectedEnemies();
+      addLog("log_chat_command_clear_enemy");
+      return;
+    }
+    postSystemTurnMessage(window.I18N.t("chat_command_unknown", { command: parts[0] }));
   }
 
   // 獨立獎勵勾選清單：地板獎勵システムとは無関係に、GMが「種類・對象角色・數量」を指定して
@@ -8740,6 +8957,9 @@
         c._empathyActive = false;
         // R10 遺物効果「回合中限1次裝備變更免費」：新しい回合（戰鬥フェイズへの再突入）ごとに解禁する。
         c._freeEquipChangeUsedThisRound = false;
+        // 「1回合內每名PC限用1次」系統の技能（踢擊・拒絕・黃金之怒・貴種的腹藝・盾擊等、#6）：
+        // 戰鬥→額外→防禦が1回合のため、フェイズ切替の都度ではなく新しい回合ごとにのみ解除する。
+        c._entryUsedThisTurn = {};
         // 執行者「妖刀」：防禦フェイズで使用した際に予約された「次の行動階段開始時に體力骰+1」を
         // ここで消化する（新しい回合＝combatフェイズへの新規突入のタイミング）。
         if (c._yotoPendingBonusDice) {
@@ -8884,6 +9104,9 @@
     saveRosterCharacters();
     saveState();
     closeActionPhaseModal();
+    // 敵人體崩／擊破の長時間公告は、GMが実際に行動階段を切り替えた時点で役目を終える
+    // （額外階段へ進む、あるいは戦闘終了で一般階段へ戻る、いずれも「切替」なのでここで閉じる）。
+    closeEnemyRowStatusBanner();
     renderActionPhaseButton();
     renderTurnHolderBar();
     renderTurnBoardToggleButton();
@@ -9933,11 +10156,25 @@
       var weaponSummary = document.createElement("summary");
       weaponSummary.textContent = window.I18N.t("potential_power_weapon_detail_toggle");
       weaponDetails.appendChild(weaponSummary);
-      var skillNames = CharacterDrawer.weaponPreviewSkillNames(wr.item, wr.categoryId, wr.skillId);
-      var skillP = document.createElement("p");
-      skillP.className = "threat-ref-body";
-      skillP.textContent = skillNames.length ? skillNames.join("、") : window.I18N.t("potential_power_weapon_no_skill_note");
-      weaponDetails.appendChild(skillP);
+      // #13：従来は戦技名を並べるだけだったが、名前をクリックすると戦技/魔術/祈禱の詳細説明
+      // まで展開できるよう、規則書タブと同じrenderWeaponSkillRefEntry（<details>）を再利用する。
+      // ランダム戦技（kind:"random"）は、既に抽選済み（wr.skillId）ならその実際の戦技として
+      // 解決して表示する（規則書タブの「未決定」表示のままだと抽選結果と食い違うため）。
+      var wrCategory = Weapons.getCategory(wr.categoryId);
+      var skillRefs = CharacterDrawer.getItemSkillRefs(wrCategory, wr.item).filter(function (ref) {
+        return ref.kind !== "note";
+      });
+      if (skillRefs.length) {
+        skillRefs.forEach(function (ref) {
+          var effectiveRef = ref.kind === "random" && wr.skillId ? { kind: "art", id: wr.skillId } : ref;
+          renderWeaponSkillRefEntry(weaponDetails, effectiveRef);
+        });
+      } else {
+        var skillP = document.createElement("p");
+        skillP.className = "threat-ref-body";
+        skillP.textContent = window.I18N.t("potential_power_weapon_no_skill_note");
+        weaponDetails.appendChild(skillP);
+      }
       weaponCard.appendChild(weaponDetails);
       if (pp.pendingAttributeTag) {
         var attributeTagNote = document.createElement("p");
@@ -10370,7 +10607,9 @@
       container.hidden = resolved.length === 0;
       resolved.forEach(function (item) {
         var chip = document.createElement("div");
-        chip.className = "selected-enemy-chip";
+        var itemRowIdx = enemyHpRowIndexForKey(item.key);
+        chip.className =
+          "selected-enemy-chip" + (itemRowIdx !== -1 && isEnemyHpRowDepleted(itemRowIdx) ? " enemy-row-depleted" : "");
         chip.style.cursor = "pointer";
         chip.addEventListener("click", function () {
           var parts = item.key.split("|");
@@ -10454,13 +10693,46 @@
     });
   }
 
+  // #16：目前所在位置（focusedIndex）とその樓層情報を、画面上部に常時表示する。
+  // カード名以外（樓層數・全效果）は灰字（.loc-detail）で控えめに示す。
+  function renderCurrentLocationStatus(container) {
+    var idx = state.focusedIndex;
+    if (typeof idx !== "number") return;
+    var card = resolveFieldEntryForSlot(idx);
+    if (!card) return;
+    var levelVal = state.cardLevels[idx];
+    var levelText = levelVal === null || levelVal === undefined ? window.I18N.t("level_all") : String(levelVal);
+    var nameSpan = document.createElement("span");
+    nameSpan.className = "loc-name";
+    nameSpan.textContent = " ｜ " + window.PriTestFields.localizedText(card.name) + "(" + levelText + ")";
+    container.appendChild(nameSpan);
+    if (card.floorCount != null || card.allFloorEffect) {
+      var detailParts = [];
+      if (card.floorCount != null) {
+        detailParts.push(window.I18N.t("field_floor_count_label") + window.I18N.t("colon_separator") + card.floorCount);
+      }
+      if (card.allFloorEffect) {
+        detailParts.push(
+          window.I18N.t("field_all_floor_effect_label") + window.I18N.t("colon_separator") + window.PriTestFields.localizedText(card.allFloorEffect)
+        );
+      }
+      var detailSpan = document.createElement("span");
+      detailSpan.className = "loc-detail";
+      detailSpan.textContent = "（" + detailParts.join("　") + "）";
+      container.appendChild(detailSpan);
+    }
+  }
+
   function renderDayStatus() {
     var dayText = window.I18N.t("day_status", { n: state.dayNumber });
     var text = game.name + " " + dayText;
     if (scenario) {
       text += " ・ " + Scenarios.localizedName(scenario.name);
     }
-    document.getElementById("day-status").textContent = text;
+    var el = document.getElementById("day-status");
+    el.innerHTML = "";
+    el.appendChild(document.createTextNode(text));
+    renderCurrentLocationStatus(el);
     renderSetupInfo();
   }
 
@@ -10558,7 +10830,14 @@
     if (scenario) {
       var card = CARD_BY_CODE[slot.code];
       var dayKey = isSwappedDay() ? "day2" : "day1";
-      var effect = Scenarios.findCardEffect(game.scenarioId, dayKey, card.suit, card.rank);
+      // #18：留下的卡牌（submitKeepCards保留至下一天）はstate.dayNumberだけが進み、盤面上の
+      // カード自体（suit/rank）はそのまま据え置かれる。そのため「現在の日」のテーブルにしか
+      // 無い前提で引くと、前日にだけ登録されていたカードの表示が消えてしまう。現在日で
+      // 見つからなければ、もう一方の日のテーブルも試す。
+      var otherDayKey = dayKey === "day2" ? "day1" : "day2";
+      var effect =
+        Scenarios.findCardEffect(game.scenarioId, dayKey, card.suit, card.rank) ||
+        Scenarios.findCardEffect(game.scenarioId, otherDayKey, card.suit, card.rank);
       if (effect) {
         var effectLine = document.createElement("div");
         effectLine.textContent = Scenarios.localizedName(effect.name);
@@ -10592,13 +10871,64 @@
     }
   }
 
+  // #10：樓層カウンターのボタンをそのカード自身の樓層数（floorCount）に合わせる
+  // （例：floorCount:2のカードなら 0,1,2,全 のみ。従来は固定で0〜5,全だった）。
+  function levelStepsForSlot(index) {
+    var entry = resolveFieldEntryForSlot(index);
+    var floorCount = entry && typeof entry.floorCount === "number" ? entry.floorCount : 5;
+    var steps = [];
+    for (var i = 0; i <= floorCount; i++) steps.push(i);
+    steps.push(null); // "全"
+    return steps;
+  }
+
   function stepCardLevel(index, dir) {
     if (!state.slots[index]) return;
-    var curIdx = LEVEL_STEPS.indexOf(state.cardLevels[index]);
+    var steps = levelStepsForSlot(index);
+    var curIdx = steps.indexOf(state.cardLevels[index]);
     if (curIdx === -1) curIdx = 0;
-    var nextIdx = (curIdx + dir + LEVEL_STEPS.length) % LEVEL_STEPS.length;
-    state.cardLevels[index] = LEVEL_STEPS[nextIdx];
+    var nextIdx = (curIdx + dir + steps.length) % steps.length;
+    var nextValue = steps[nextIdx];
+    state.cardLevels[index] = nextValue;
     renderCardLevel(index);
+    if (state.focusedIndex === index) renderDayStatus();
+    saveState();
+    if (nextValue === null) grantCardFullClearRewardIfNeeded(index);
+  }
+
+  // 「全樓層踏破效果」（例：盧恩：2／時間損耗：1）本文から、該当ラベルの数値を取り出す。
+  function parseAllFloorEffectAmount(text, labels) {
+    var t = String(text || "");
+    for (var i = 0; i < labels.length; i++) {
+      var re = new RegExp(labels[i] + "[：:]\\s*([+＋]?\\d+)");
+      var m = re.exec(t);
+      if (m) return parseInt(m[1].replace(/[＋+]/g, ""), 10) || 0;
+    }
+    return 0;
+  }
+
+  // #10：樓層レベルが「全」に達したら、そのカードの「全樓層踏破效果」（盧恩／時間損耗）を
+  // 自動的に全入場PCへ付与し、時間損耗分を公告＆留言板へ投稿する。同じカードに対しては
+  // 1回のみ（cardFloorRewardGrantedへ「このカードのcode」を記録し、以後の重複を防ぐ。
+  // カードが入れ替われば別codeになるため、次のカードでは改めて発火できる）。
+  function grantCardFullClearRewardIfNeeded(index) {
+    var slot = state.slots[index];
+    if (!slot) return;
+    if (!state.cardFloorRewardGranted) state.cardFloorRewardGranted = {};
+    if (state.cardFloorRewardGranted[index] === slot.code) return;
+    var card = resolveFieldEntryForSlot(index);
+    if (!card || !card.allFloorEffect) return;
+    var effectText = window.PriTestFields.localizedText(card.allFloorEffect);
+    var runeAmount = parseAllFloorEffectAmount(effectText, ["盧恩", "ルーン"]);
+    var timeLossAmount = parseAllFloorEffectAmount(effectText, ["時間損耗", "タイムロス"]);
+    state.cardFloorRewardGranted[index] = slot.code;
+    if (runeAmount) grantRuneToAllEntered(runeAmount);
+    if (timeLossAmount) {
+      var cardName = window.PriTestFields.localizedText(card.name);
+      var msg = window.I18N.t("card_full_clear_time_loss_broadcast", { card: cardName, value: timeLossAmount });
+      postSystemTurnMessage(msg);
+      showThreatBroadcast([msg]);
+    }
     saveState();
   }
 
@@ -10679,6 +11009,89 @@
     document.getElementById("btn-floor-reward-restore").hidden = true;
     document.getElementById("floor-reward-modal").hidden = false;
     if (floorRewardModalFloor) renderFloorRewardSection(document.getElementById("floor-reward-modal-content"), floorRewardModalFloor);
+  }
+
+  // 規則書の記述文には「擊破盧恩：4」「撃破ルーン：4」のように盧恩獎勵が書かれているのに、
+  // 対応するfields.js/enemies.js/event_rulebook.jsのreward配列側にはボタンが用意されていない
+  // ケースが多い（データ二重管理のズレ）。この関数で本文から実際の数値を検出し、テキストが
+  // 見つかった箇所へ「発見した数値をGMが微調整できる、獲得ボタン付きの行」を後付けで足す。
+  var RUNE_AMOUNT_RE = /(?:擊破盧恩|撃破ルーン)[：:]\s*([+＋]?\d+)/g;
+  function parseRuneAmountFromText(text) {
+    if (!text) return 0;
+    var total = 0;
+    var re = new RegExp(RUNE_AMOUNT_RE.source, "g");
+    var m;
+    while ((m = re.exec(text))) {
+      total += parseInt(m[1].replace(/[＋+]/g, ""), 10) || 0;
+    }
+    return total;
+  }
+
+  // 全入場中PCへ盧恩を付与する共通処理（獎勵清單のrune種別・場地カードのrune種別・規則書の
+  // 自動検出行・留言板の/runeコマンドなど、複数箇所から同じ経路で呼べるようにまとめている）。
+  function grantRuneToAllEntered(value) {
+    var entered = rosterCharacters.filter(function (c) {
+      return c.entered;
+    });
+    entered.forEach(function (c) {
+      c.runes = (c.runes || 0) + value;
+    });
+    saveRosterCharacters();
+    renderCharacterRoster();
+    addLog("log_floor_reward_rune", { value: value, count: entered.length });
+    return entered.length;
+  }
+
+  function floorLineText(floor) {
+    return ((floor && floor.lines) || [])
+      .map(function (line) {
+        return window.PriTestFields.localizedText(line.text);
+      })
+      .join("\n");
+  }
+
+  // reward配列に何も無くても、本文に「擊破盧恩：N」の記述だけがあるフロアは獎勵欄を表示する
+  // 対象に含める（#9：規則書の記述とreward配列のズレを埋める）。
+  function floorHasAnyReward(floor) {
+    if (floor && floor.reward && floor.reward.length) return true;
+    return !!parseRuneAmountFromText(floorLineText(floor));
+  }
+
+  // 検出した盧恩獎勵を、対象コンテナへ「數値入力（GMが微調整可）＋獲得ボタン」の1行として
+  // 追加する。stateKeyを渡すとmarkFloorRewardObtainedと同じ仕組みで一度きりの獲得に制限する。
+  function appendRuneGrantRowIfDetected(container, text, stateKey) {
+    var amount = parseRuneAmountFromText(text);
+    if (!amount) return;
+    var already = !!(stateKey && state.floorRewardObtained && state.floorRewardObtained[stateKey]);
+    var row = document.createElement("div");
+    row.className = "wb-row rune-grant-row";
+    var label = document.createElement("span");
+    label.className = "threat-ref-body";
+    label.textContent = window.I18N.t("rune_grant_detected_label");
+    row.appendChild(label);
+    var input = document.createElement("input");
+    input.type = "number";
+    input.min = "0";
+    input.value = String(amount);
+    if (already) input.disabled = true;
+    row.appendChild(input);
+    var btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "primary-btn";
+    btn.textContent = window.I18N.t("rune_grant_button");
+    if (already) {
+      btn.disabled = true;
+      btn.classList.add("field-reward-obtained");
+    }
+    btn.addEventListener("click", function () {
+      var value = parseInt(input.value, 10) || 0;
+      if (value <= 0) return;
+      grantRuneToAllEntered(value);
+      input.disabled = true;
+      markFloorRewardObtained(btn, null, stateKey);
+    });
+    row.appendChild(btn);
+    container.appendChild(row);
   }
 
   // floor.rewardは「起こりうる報酬オプションの配列」として持つ（規則書の報酬記述は分岐・
@@ -11093,9 +11506,12 @@
       // 1人ずつ独立したボタンにする：押した瞬間にそのキャラクター専用の「潜在する力」
       // モーダルを開き（★数を引き継ぐ）、実際の抽選・確定はそちらのモーダルで行う。
       entered.forEach(function (c) {
+        // 獎勵清單が長くなりすぎる問題（#1）もあるため、ボタン自体のラベルは
+        // 「【角色名稱】全員獲得潛力：★×N」の短い形に留め、フロア個別の補足（noteText）は
+        // 別行のグレーテキストへ分離する（#12）。
         var ppBtn = document.createElement("button");
         ppBtn.type = "button";
-        ppBtn.textContent = window.I18N.t("floor_reward_potential_power_button", { value: entry.value }) + "（" + c.name + "）" + noteText;
+        ppBtn.textContent = window.I18N.t("floor_reward_potential_power_button", { value: entry.value, character: c.name });
         if (isAlreadyObtained(c.id)) {
           ppBtn.disabled = true;
           ppBtn.classList.add("field-reward-obtained");
@@ -11112,6 +11528,12 @@
           });
         });
         container.appendChild(ppBtn);
+        if (noteText) {
+          var ppNoteP = document.createElement("p");
+          ppNoteP.className = "threat-ref-body";
+          ppNoteP.textContent = window.I18N.t("floor_reward_potential_power_note") + noteText;
+          container.appendChild(ppNoteP);
+        }
       });
       return;
     }
@@ -11328,8 +11750,15 @@
 
   function renderFloorRewardSection(container, floor) {
     container.innerHTML = "";
-    var reward = floor && floor.reward;
-    if (!reward || !reward.length) return;
+    var reward = (floor && floor.reward) || [];
+    // 本文（lines[]）に「擊破盧恩：N」の記述があるのに、reward配列側にrune種別の項目が
+    // 用意されていない（＝規則書の記述とボタンがズレている）場合を検出する。reward配列自体が
+    // 空のフロアでも、この検出だけで報酬欄を出せるようにする（#9）。
+    var hasRuneReward = reward.some(function (entry) {
+      return entry.kind === "rune";
+    });
+    var detectedRuneAmount = !hasRuneReward ? parseRuneAmountFromText(floorLineText(floor)) : 0;
+    if (!reward.length && !detectedRuneAmount) return;
     var entered = rosterCharacters.filter(function (c) {
       return c.entered;
     });
@@ -11342,6 +11771,10 @@
     reward.forEach(function (entry, entryIndex) {
       renderFloorRewardOption(container, entry, entered, floor.__rewardKey, entryIndex);
     });
+    if (detectedRuneAmount) {
+      var detectedKey = floor.__rewardKey ? floor.__rewardKey + "_detectedRune" : null;
+      appendRuneGrantRowIfDetected(container, "擊破盧恩：" + detectedRuneAmount, detectedKey);
+    }
   }
 
   function populateBreakthroughFieldSelectors(index) {
@@ -12310,10 +12743,35 @@
     }, 50);
   }
 
+  // #19：うっかり「山札に戻す」を押した場合の回復用に、消す直前のカード情報を記録する
+  // （マス単位。次に同じマスを長押しすれば復元できる）。
+  function recordReturnedCard(index, slot) {
+    if (!state.returnedCardMemory) state.returnedCardMemory = {};
+    state.returnedCardMemory[index] = { code: slot.code, cardLevel: state.cardLevels[index] };
+  }
+
+  // 空きマスの長押し：直前にこのマスへ「放回牌庫」した記録があれば、確認の上で元に戻す。
+  function restoreReturnedCardIfAny(index) {
+    var mem = state.returnedCardMemory && state.returnedCardMemory[index];
+    if (!mem) return;
+    openConfirm("restore_returned_card_confirm", function () {
+      state.slots[index] = { code: mem.code, revealed: true };
+      state.cardLevels[index] = mem.cardLevel;
+      delete state.returnedCardMemory[index];
+      renderBoard();
+      saveState();
+      var card = CARD_BY_CODE[mem.code];
+      addLog("log_restore_returned_card", { slot: index + 1, card: card ? card.label : mem.code });
+    });
+  }
+
   // 長押し（1秒）＝既存の「めくる（未公開→公開）」「山札に戻す（公開→除去）」操作。
   function onSlotClick(index) {
     var slot = state.slots[index];
-    if (!slot) return;
+    if (!slot) {
+      restoreReturnedCardIfAny(index);
+      return;
+    }
 
     // 既存の「めくる／山札に戻す」フロー（focusedIndexの更新も含めて元の挙動のまま）。
     function proceedRevealOrReturn() {
@@ -12336,6 +12794,7 @@
         openConfirm(
           "confirm_draw_msg",
           function () {
+            recordReturnedCard(index, slot);
             state.slots[index] = null;
             state.cardLevels[index] = null;
             if (state.focusedIndex === index) state.focusedIndex = null;
@@ -12373,6 +12832,7 @@
           labelKey: "return_to_deck_button",
           onClick: function () {
             var card = CARD_BY_CODE[slot.code];
+            recordReturnedCard(index, slot);
             state.slots[index] = null;
             state.cardLevels[index] = null;
             if (state.focusedIndex === index) state.focusedIndex = null;
@@ -12622,6 +13082,7 @@
     renderFieldRulebook();
     renderEventRulebook();
     renderWorldviewRulebook();
+    renderCommandsRulebook();
 
     // クラウド保存ゲームのみ：Firebaseから最新状態を取得し（購読開始時に1回必ず呼ばれる）、
     // 以後は他端末からの変更を受信するたびに再描画する。ローカル専用ゲームでは何もしない。
@@ -12649,6 +13110,14 @@
         renderRosterSkillsToggleLabel();
         renderUndoButton();
         renderTurnHolderBar();
+        // 他端末がほぼ同時に同じ獎勵/突破チェックのモーダルを開いている場合、遠隔側の
+        // claimed/確定状態を反映し忘れると「まだ獲得できるように見える」→二重取得の原因になる
+        // （handleTurnHolderToggleにある再描画ガードと同じパターンをここにも適用する）。
+        if (!document.getElementById("turn-reward-modal").hidden) renderTurnRewardModal();
+        if (!document.getElementById("breakthrough-modal").hidden) renderBreakthroughCharacters();
+        if (!document.getElementById("floor-reward-modal").hidden && floorRewardModalFloor) {
+          renderFloorRewardSection(document.getElementById("floor-reward-modal-content"), floorRewardModalFloor);
+        }
         if (state.activeDraws.potentialPower) {
           var ppRemote = state.activeDraws.potentialPower;
           var ppModal = document.getElementById("potential-power-modal");
@@ -12756,6 +13225,7 @@
     document.getElementById("btn-time-loss-info").addEventListener("click", openThreatDrawer);
     document.getElementById("btn-time-loss-broadcast").addEventListener("click", triggerThreatBroadcast);
     document.getElementById("btn-threat-broadcast-close").addEventListener("click", closeThreatBroadcast);
+    document.getElementById("btn-enemy-row-status-close").addEventListener("click", closeEnemyRowStatusBanner);
     document.getElementById("btn-threat-drawer-close").addEventListener("click", closeThreatDrawer);
     document.getElementById("threat-drawer-backdrop").addEventListener("click", closeThreatDrawer);
     document.getElementById("btn-active-threat-effect-add").addEventListener("click", handleActiveThreatEffectAdd);
@@ -12799,6 +13269,7 @@
     document.getElementById("btn-turn-board-toggle").addEventListener("click", function () {
       setTurnBoardEnabled(!state.turnBoardEnabled);
     });
+    document.getElementById("btn-reset-all-dice").addEventListener("click", handleResetAllDice);
     document.getElementById("btn-main-menu-draw-close").addEventListener("click", closeMainMenuDrawModal);
     document.getElementById("btn-item-draw-modal-close").addEventListener("click", closeItemDrawModal);
     document.getElementById("btn-item-draw-modal-minimize").addEventListener("click", minimizeItemDrawModal);
@@ -12967,6 +13438,7 @@
       renderFieldRulebook();
       renderEventRulebook();
       renderWorldviewRulebook();
+      renderCommandsRulebook();
       renderSelectedEnemies();
     });
   });
