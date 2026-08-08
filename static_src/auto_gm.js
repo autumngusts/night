@@ -47,15 +47,47 @@
     };
   }
 
-  // 構造化されたgroupDamage.modifierから最終「乱戰傷害」を算出する:
-  // family.base[level].dmg（規則書のレベル別基準値）＋ modifier。
-  function computeGroupDamage(rollResult) {
+  // rollEffects.enemy_damage（Time Loss側の骰效果、tier0-4）を「亂戰＋tier*60／個別＋tier*20」
+  // という規則書記載の固定値に変換する（roll_effect_enemy_damage_tier1〜4のi18n文言と一致させた
+  // 数値、site_src/i18n_data_zh.py参照）。
+  function timeLossGroupBonus(rollEffects) {
+    return ((rollEffects && rollEffects.enemy_damage) || 0) * 60;
+  }
+
+  function timeLossIndividualBonus(rollEffects) {
+    return ((rollEffects && rollEffects.enemy_damage) || 0) * 20;
+  }
+
+  // 最終「乱戰傷害」＝ family.base[level].dmg（規則書のレベル別基準値）
+  //                 ＋ groupDamage.modifier（この行動固有の修正値）
+  //                 ＋ Time Loss側の骰效果（rollEffects.enemy_damage）
+  //                 ＋ state.battle.enemyDmgOverride（PC技能による減少・敵人特殊行動による増加、
+  //                    睡眠トリガー等で既に累積されている値、night.js側から解決済みの数値で渡す）
+  // 内訳を返すことで、GMが確定前に「なぜこの数字になったか」を検証できるようにする。
+  function computeGroupDamage(rollResult, rollEffects, enemyDmgOverride) {
     if (!rollResult || !rollResult.structuredRow || !rollResult.structuredRow.groupDamage) return null;
     var baseEntry = (rollResult.familyBase || []).filter(function (b) {
       return b.level === rollResult.level;
     })[0];
     var base = baseEntry ? baseEntry.dmg : 0;
-    return base + rollResult.structuredRow.groupDamage.modifier;
+    var modifier = rollResult.structuredRow.groupDamage.modifier;
+    var timeLoss = timeLossGroupBonus(rollEffects);
+    var override = enemyDmgOverride || 0;
+    return {
+      total: base + modifier + timeLoss + override,
+      base: base,
+      modifier: modifier,
+      timeLoss: timeLoss,
+      override: override,
+    };
+  }
+
+  // 個別ダメージ＝ 元の固定値（enemy_auto_gm_data.jsのamount）＋ Time Loss側の骰效果
+  // （個別分はrollEffects.enemy_damage * 20）。enemyDmgOverrideは「亂戰傷害」専用のため
+  // 個別ダメージには適用しない（既存コードの命名・コメントに合わせた解釈）。
+  function computeIndividualDamage(entry, rollEffects) {
+    var timeLoss = timeLossIndividualBonus(rollEffects);
+    return { total: entry.amount + timeLoss, base: entry.amount, timeLoss: timeLoss };
   }
 
   // targetRuleを実際のbattle状態（front/back/aggro）に照らして対象PCのroster配列indexへ解決する。
@@ -91,6 +123,7 @@
     isStructured: isStructured,
     rollEnemyAction: rollEnemyAction,
     computeGroupDamage: computeGroupDamage,
+    computeIndividualDamage: computeIndividualDamage,
     resolveTargets: resolveTargets,
   };
 })();

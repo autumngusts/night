@@ -6827,6 +6827,51 @@
     if (!result) return;
     var noteText = result.originalRow ? window.PriTestEnemies.localizedText(result.originalRow.note) : "";
     var actionName = result.originalRow ? window.PriTestEnemies.localizedText(result.originalRow.name) : "";
+
+    var entered = rosterCharacters.filter(function (c) {
+      return c.entered;
+    });
+    // 「亂戰傷害」の最終値＝規則書のレベル別基準値＋この行動固有の修正値＋Time Loss側の骰效果
+    // （state.rollEffects.enemy_damage）＋state.battle.enemyDmgOverride（PC技能による減少・
+    // 敵人特殊行動による増加、睡眠トリガー等で既に累積されている値）。個別ダメージも
+    // Time Loss側の骰效果を同様に加算する（enemyDmgOverrideは「亂戰傷害」専用のため対象外）。
+    var enemyOverride = (state.battle.enemyDmgOverride && state.battle.enemyDmgOverride[enemyKey]) || 0;
+    var groupResult = AutoGm.computeGroupDamage(result, state.rollEffects, enemyOverride);
+    var breakdownParts = [];
+    if (groupResult) {
+      breakdownParts.push(
+        window.I18N.t("auto_gm_group_breakdown", {
+          total: groupResult.total,
+          base: groupResult.base,
+          modifier: groupResult.modifier,
+          timeLoss: groupResult.timeLoss,
+          override: groupResult.override,
+        })
+      );
+      if (result.structuredRow.targetRule) {
+        var groupTargets = AutoGm.resolveTargets(result.structuredRow.targetRule, state.battle, entered.length);
+        groupTargets.forEach(function (idx) {
+          var input = document.getElementById("enemy-damage-group-" + entered[idx].id);
+          if (input) input.value = String(groupResult.total);
+        });
+      }
+    }
+    (result.structuredRow.individualDamage || []).forEach(function (entry) {
+      var indivResult = AutoGm.computeIndividualDamage(entry, state.rollEffects);
+      breakdownParts.push(
+        window.I18N.t("auto_gm_individual_breakdown", {
+          total: indivResult.total,
+          base: indivResult.base,
+          timeLoss: indivResult.timeLoss,
+        })
+      );
+      var indivTargets = AutoGm.resolveTargets(entry.targetRule, state.battle, entered.length);
+      indivTargets.forEach(function (idx) {
+        var input = document.getElementById("enemy-damage-individual-" + entered[idx].id);
+        if (input) input.value = String(indivResult.total);
+      });
+    });
+
     var resultEl = document.getElementById("auto-gm-roll-result");
     resultEl.hidden = false;
     resultEl.textContent = window.I18N.t("auto_gm_roll_result", {
@@ -6835,28 +6880,15 @@
       action: actionName,
       note: noteText,
     });
-
-    var entered = rosterCharacters.filter(function (c) {
-      return c.entered;
-    });
-    var groupValue = AutoGm.computeGroupDamage(result);
-    if (groupValue !== null && result.structuredRow.targetRule) {
-      var groupTargets = AutoGm.resolveTargets(result.structuredRow.targetRule, state.battle, entered.length);
-      groupTargets.forEach(function (idx) {
-        var input = document.getElementById("enemy-damage-group-" + entered[idx].id);
-        if (input) input.value = String(groupValue);
-      });
+    if (breakdownParts.length) {
+      var breakdownEl = document.createElement("p");
+      breakdownEl.textContent = breakdownParts.join("　");
+      resultEl.appendChild(breakdownEl);
     }
-    (result.structuredRow.individualDamage || []).forEach(function (entry) {
-      var indivTargets = AutoGm.resolveTargets(entry.targetRule, state.battle, entered.length);
-      indivTargets.forEach(function (idx) {
-        var input = document.getElementById("enemy-damage-individual-" + entered[idx].id);
-        if (input) input.value = String(entry.amount);
-      });
-    });
 
     addAutoGmLog(
-      window.I18N.t("log_auto_gm_roll", { enemy: result.enemyName, roll: result.rollValue, action: actionName })
+      window.I18N.t("log_auto_gm_roll", { enemy: result.enemyName, roll: result.rollValue, action: actionName }) +
+        (breakdownParts.length ? "　" + breakdownParts.join("　") : "")
     );
   }
 

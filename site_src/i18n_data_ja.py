@@ -177,6 +177,8 @@ STRINGS_JA: dict[str, str] = {
     "auto_gm_roll_button": "エネミーの行動をロール",
     "auto_gm_roll_result": "{enemy} の出目 {roll}：{action}／{note}",
     "log_auto_gm_roll": "自動化GM：{enemy} の出目 {roll}（{action}）",
+    "auto_gm_group_breakdown": "乱戦ダメージ {total}（基準{base}＋行動修正{modifier}＋Time Loss{timeLoss}＋その他調整{override}）",
+    "auto_gm_individual_breakdown": "個別ダメージ {total}（基準{base}＋Time Loss{timeLoss}）",
     "log_select_submit": "{n} 枚のカードを選んで送信しました：{cards}",
     "log_continue_submit": "続けて {n} 枚のカードを選び、空きマスに配りました：{cards}",
     "log_next_night": "第 {day} 夜へ進み、スタートとゴールが入れ替わりました",
