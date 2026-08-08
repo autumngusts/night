@@ -5,15 +5,32 @@
 
   var EnemyAutoGmData = window.PriTestEnemyAutoGmData;
   var Enemies = window.PriTestEnemies;
+  var BossAutoGmData = window.PriTestBossAutoGmData;
+  var BossRulebook = window.PriTestBossRulebook;
 
+  // state.battle.selectedEnemyIdsのキー形式 "familyId|enemyId|level" をパースする。
   function parseSelectedEnemyKey(key) {
-    // state.battle.selectedEnemyIdsのキー形式 "familyId|enemyId|level" をパースする。
     var parts = String(key || "").split("|");
     return { familyId: parts[0], enemyId: parts[1], level: parseInt(parts[2], 10) || 1 };
   }
 
-  function isStructured(enemyKey) {
-    var parsed = parseSelectedEnemyKey(enemyKey);
+  // 夜の王用のキー形式 "boss|<bossId>"（night_boss_rulebook.jsのBOSSES[].idと一致）。
+  // 通常エネミーの"familyId|enemyId|level"とは別の意味を持つため、"boss|"プレフィックスで
+  // 明確に区別する。
+  function isBossKey(key) {
+    return String(key || "").indexOf("boss|") === 0;
+  }
+
+  function parseBossKey(key) {
+    return { bossId: String(key || "").slice("boss|".length) };
+  }
+
+  function isStructured(key) {
+    if (isBossKey(key)) {
+      if (!BossAutoGmData) return false;
+      return !!BossAutoGmData.get(parseBossKey(key).bossId);
+    }
+    var parsed = parseSelectedEnemyKey(key);
     return !!EnemyAutoGmData.get(parsed.familyId, parsed.enemyId);
   }
 
@@ -24,8 +41,9 @@
     return null;
   }
 
-  // 敵の行動をロール（通常1D6）し、構造化データがあれば一致した行を、常に元のactions配列の
-  // 該当行（表示用のroll/name/note、常に真実の情報源）を返す。構造化データが無ければnullを返す。
+  // 敵／夜の王の行動をロール（通常1D6）し、構造化データがあれば一致した行を、常に元の
+  // actions配列の該当行（表示用のroll/name/note、常に真実の情報源）を返す。構造化データが
+  // 無ければnullを返す。
   //
   // structured.rollOverride === "halfIfNoMobs"（坩堝の騎士の特殊能力「坩堝の双璧」用）：
   // ユーザー確認済みルール：「戦闘開始時に雑兵の有無を確認し、以後は戦闘終了まで継続する」
@@ -35,10 +53,27 @@
   // （このモジュールはstateを直接書き換えないため、night.js側がresult.mobPresentSnapshotを
   // 見て初回のみstate.battle.autoGmMobPresentSnapshotへ永続化する）。
   function rollEnemyAction(enemyKey, battleState) {
-    var parsed = parseSelectedEnemyKey(enemyKey);
-    var enemyInfo = Enemies.get(parsed.familyId, parsed.enemyId);
-    var structured = EnemyAutoGmData.get(parsed.familyId, parsed.enemyId);
-    if (!enemyInfo || !structured) return null;
+    var isBoss = isBossKey(enemyKey);
+    var enemyName, familyBase, structured, actions, level;
+    if (isBoss) {
+      var bossParsed = parseBossKey(enemyKey);
+      var bossInfo = BossRulebook ? BossRulebook.get(bossParsed.bossId) : null;
+      structured = BossAutoGmData ? BossAutoGmData.get(bossParsed.bossId) : null;
+      if (!bossInfo || !structured) return null;
+      enemyName = Enemies.localizedText(bossInfo.name);
+      familyBase = null;
+      actions = null; // 夜の王のactionsは位置配列（roll/name/dmg/note）のため、rollEnemyAction内では使わない
+      level = bossInfo.level || 16;
+    } else {
+      var parsed = parseSelectedEnemyKey(enemyKey);
+      var enemyInfo = Enemies.get(parsed.familyId, parsed.enemyId);
+      structured = EnemyAutoGmData.get(parsed.familyId, parsed.enemyId);
+      if (!enemyInfo || !structured) return null;
+      enemyName = Enemies.localizedText(enemyInfo.enemy.name);
+      familyBase = enemyInfo.familyBase;
+      actions = enemyInfo.enemy.actions;
+      level = parsed.level;
+    }
 
     var rollValue;
     var mobPresentSnapshot = null;
@@ -55,14 +90,23 @@
     }
 
     var match = findStructuredRow(structured.rows, rollValue);
-    var originalRow = match && enemyInfo.enemy.actions[match.index] ? enemyInfo.enemy.actions[match.index] : null;
+    var originalRow = null;
+    if (match) {
+      if (isBoss) {
+        // 夜の王のactionsは [出目, アクション名, 乱戦ダメージ, 注釈]（ボスにより列順が異なりうる
+        // が、maris/caligo型は共通のためnameは1番目・noteは最後の要素として決め打ちする）。
+        var rawRow = BossRulebook.get(parseBossKey(enemyKey).bossId).actions[match.index];
+        originalRow = { name: rawRow[1], note: rawRow[rawRow.length - 1] };
+      } else {
+        originalRow = actions[match.index] || null;
+      }
+    }
     return {
       enemyKey: enemyKey,
-      familyId: parsed.familyId,
-      enemyId: parsed.enemyId,
-      level: parsed.level,
-      enemyName: Enemies.localizedText(enemyInfo.enemy.name),
-      familyBase: enemyInfo.familyBase,
+      isBoss: isBoss,
+      level: level,
+      enemyName: enemyName,
+      familyBase: familyBase,
       rollValue: rollValue,
       mobPresentSnapshot: mobPresentSnapshot,
       structuredRow: match ? match.row : null,
@@ -81,26 +125,36 @@
     return ((rollEffects && rollEffects.enemy_damage) || 0) * 20;
   }
 
-  // 最終「乱戰傷害」＝ family.base[level].dmg（規則書のレベル別基準値）
-  //                 ＋ groupDamage.modifier（この行動固有の修正値）
+  // 最終「乱戰傷害」＝ base（＋Time Loss＋override、下記）。
+  // 通常エネミー：base = family.base[level].dmg（規則書のレベル別基準値）＋groupDamage.modifier
+  //   （この行動固有の修正値）。
+  // 夜の王：actionColumnsの「乱戦ダメージ」列がそのまま最終値のため、groupDamage.value（直接値）
+  //   をbaseとして使う（modifierによる加算は行わない）——rollResult.isBossで判別する。
   //                 ＋ Time Loss側の骰效果（rollEffects.enemy_damage）
   //                 ＋ state.battle.enemyDmgOverride（PC技能による減少・敵人特殊行動による増加、
   //                    睡眠トリガー等で既に累積されている値、night.js側から解決済みの数値で渡す）
   // 内訳を返すことで、GMが確定前に「なぜこの数字になったか」を検証できるようにする。
   // groupDamage.repeat（例：「乱戦ダメージは2回発生する」）が指定されている場合、
-  // 1回分（base+modifier+timeLoss+override）をrepeat回分まとめた合計を返す——本文が
+  // 1回分（base+timeLoss+override）をrepeat回分まとめた合計を返す——本文が
   // 「同じ乱戦ダメージがN回発生する」という意味で、1回ごとに毎回Time Loss/その他調整も
   // 乗るという解釈（this行動が発生させる「亂戰傷害」という値そのものがN回発生するため）。
   function computeGroupDamage(rollResult, rollEffects, enemyDmgOverride) {
     if (!rollResult || !rollResult.structuredRow || !rollResult.structuredRow.groupDamage) return null;
-    var baseEntry = (rollResult.familyBase || []).filter(function (b) {
-      return b.level === rollResult.level;
-    })[0];
-    var base = baseEntry ? baseEntry.dmg : 0;
-    var modifier = rollResult.structuredRow.groupDamage.modifier;
+    var gd = rollResult.structuredRow.groupDamage;
+    var base, modifier;
+    if (rollResult.isBoss) {
+      base = gd.value || 0;
+      modifier = 0;
+    } else {
+      var baseEntry = (rollResult.familyBase || []).filter(function (b) {
+        return b.level === rollResult.level;
+      })[0];
+      base = baseEntry ? baseEntry.dmg : 0;
+      modifier = gd.modifier || 0;
+    }
     var timeLoss = timeLossGroupBonus(rollEffects);
     var override = enemyDmgOverride || 0;
-    var repeat = rollResult.structuredRow.groupDamage.repeat || 1;
+    var repeat = gd.repeat || 1;
     var perHit = base + modifier + timeLoss + override;
     return {
       total: perHit * repeat,

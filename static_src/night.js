@@ -6804,6 +6804,12 @@
     var structuredIds = ((state.battle && state.battle.selectedEnemyIds) || []).filter(function (key) {
       return AutoGm.isStructured(key);
     });
+    // 夜の王（試作）：state.battle.selectedEnemyIdsとは別枠で、このゲームに設定された
+    // night3BossId（管理員が選んだ夜の王）を、構造化済みであれば常に選択肢へ追加する
+    // （夜の王は通常エネミーの「編隊に追加」フローを経由しないため）。
+    if (game && game.night3BossId && AutoGm.isStructured("boss|" + game.night3BossId)) {
+      structuredIds = structuredIds.concat(["boss|" + game.night3BossId]);
+    }
     if (!structuredIds.length) {
       row.hidden = true;
       return;
@@ -6812,11 +6818,16 @@
     var select = document.getElementById("auto-gm-enemy-select");
     select.innerHTML = "";
     structuredIds.forEach(function (key) {
-      var parts = key.split("|");
-      var info = window.PriTestEnemies.get(parts[0], parts[1]);
       var opt = document.createElement("option");
       opt.value = key;
-      opt.textContent = info ? window.PriTestEnemies.localizedText(info.enemy.name) : key;
+      if (key.indexOf("boss|") === 0) {
+        var bossInfo = window.PriTestBossRulebook ? window.PriTestBossRulebook.get(key.slice(5)) : null;
+        opt.textContent = bossInfo ? window.PriTestEnemies.localizedText(bossInfo.name) : key;
+      } else {
+        var parts = key.split("|");
+        var info = window.PriTestEnemies.get(parts[0], parts[1]);
+        opt.textContent = info ? window.PriTestEnemies.localizedText(info.enemy.name) : key;
+      }
       select.appendChild(opt);
     });
   }
