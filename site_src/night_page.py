@@ -320,9 +320,19 @@ BODY = """    <div class="night-header-row">
           <h2 data-i18n="log_title"></h2>
           <button id="btn-log-toggle" type="button" class="icon-btn" aria-label="toggle log">👁</button>
         </div>
-        <button type="button" id="btn-log-float-toggle" class="log-float-toggle-btn"></button>
-        <div id="log-summary" class="threat-ref-body"></div>
-        <ul id="log-list"></ul>
+        <button type="button" id="btn-auto-gm-toggle" class="secondary-btn"></button>
+        <div class="log-drawer-tabs" id="log-drawer-tabs">
+          <button type="button" class="log-drawer-tab-btn active" data-log-tab="log" data-i18n="log_drawer_tab_log"></button>
+          <button type="button" class="log-drawer-tab-btn" data-log-tab="autogm" data-i18n="log_drawer_tab_autogm"></button>
+        </div>
+        <div class="log-drawer-tab-panel" id="log-drawer-panel-log">
+          <button type="button" id="btn-log-float-toggle" class="log-float-toggle-btn"></button>
+          <div id="log-summary" class="threat-ref-body"></div>
+          <ul id="log-list"></ul>
+        </div>
+        <div class="log-drawer-tab-panel" id="log-drawer-panel-autogm" hidden>
+          <ul id="auto-gm-log-list"></ul>
+        </div>
         <div class="actions">
           <button id="btn-log-drawer-close" type="button" class="primary-btn" data-i18n="close_button"></button>
         </div>

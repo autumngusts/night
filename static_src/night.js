@@ -748,6 +748,8 @@
     turnRewards: [], // {id, text, checked}の配列。地板獎勵とは無関係の獨立勾選清單、手動削除まで保持
     turnBoardEnabled: true, // 主選單から行動留言板機能全体を開閉するフラグ
     logBubbleEnabled: false, // 紀錄ドロワーの懸浮泡泡（公開盤左上に常時表示するショートカット）を出すかどうか
+    autoGmEnabled: false, // 自動化GM機能全体のON/OFF。規則書パスワード（"nightnight"）認証済みの人のみ切替可能（turnHolder制限は無し）
+    autoGmLog: [], // 自動化GMの監査ログ（通常のstate.logとは別。誰がいつ何を確認・確定したか、後から検証できるように保持）
     // GMが開いて縮小した抽選ウィンドウを全端末で共有するための領域。null=未使用。
     // 中身はcharacter_drawer.jsのweaponRollState/talismanRollState/consumableRollState、
     // またはnight.js内のpotentialPower関連状態と同じ形をした素のJSONオブジェクト。
@@ -820,6 +822,8 @@
       turnRewards: state.turnRewards,
       turnBoardEnabled: state.turnBoardEnabled,
       logBubbleEnabled: state.logBubbleEnabled,
+      autoGmEnabled: state.autoGmEnabled,
+      autoGmLog: state.autoGmLog,
       activeDraws: state.activeDraws,
       activeThreatEffects: state.activeThreatEffects,
       returnedCardMemory: state.returnedCardMemory,
@@ -882,6 +886,7 @@
     state.battle = snap.battle;
     state.dicePool = snap.dicePool;
     state.actionPhase = snap.actionPhase || "normal";
+    state.autoGmLog = snap.autoGmLog || [];
   }
 
   function handleUndoNight() {
@@ -1479,6 +1484,8 @@
       state.turnRewards = Array.isArray(data.turnRewards) ? data.turnRewards : [];
       state.turnBoardEnabled = typeof data.turnBoardEnabled === "boolean" ? data.turnBoardEnabled : true;
       state.logBubbleEnabled = typeof data.logBubbleEnabled === "boolean" ? data.logBubbleEnabled : false;
+      state.autoGmEnabled = typeof data.autoGmEnabled === "boolean" ? data.autoGmEnabled : false;
+      state.autoGmLog = Array.isArray(data.autoGmLog) ? data.autoGmLog : [];
       var loadedDraws = data.activeDraws && typeof data.activeDraws === "object" ? data.activeDraws : {};
       state.activeDraws = {
         potentialPower: loadedDraws.potentialPower || null,
@@ -1541,6 +1548,8 @@
     state.turnRewards = [];
     state.turnBoardEnabled = true;
     state.logBubbleEnabled = false;
+    state.autoGmEnabled = false;
+    state.autoGmLog = [];
     state.activeDraws = { potentialPower: null, weapon: null, talisman: null, consumable: null };
     state.activeThreatEffects = [];
     state.returnedCardMemory = {};
@@ -1695,6 +1704,37 @@
   // character_drawer.js（night.jsとは別クロージャ、night以外のページでも単独利用される）から
   // 任意でログへ記録できるようにするフック。存在確認つきで呼ばれるため、他ページでは無害。
   window.PriTestNightLog = addLog;
+
+  // 自動化GMの監査ログ。通常のstate.log（TTS読み上げ対象・確定行動記録）とは別の独立した記録で、
+  // 誰がいつ何を確認・確定したか後から検証できるようにする（Phase 0時点では機能ON/OFFの記録のみ、
+  // Phase 1以降で実際のロール結果・算出値・対象PCなどを記録する用途に使う）。
+  function addAutoGmLog(text) {
+    state.autoGmLog.push({ time: Date.now(), text: text });
+    renderAutoGmLog();
+    saveState();
+  }
+
+  // auto_gm.js（今後追加予定、night.jsとは別クロージャ）から呼べるようにする、他の
+  // window.PriTestNight*フックと同じ「存在確認つきグローバルフック」方式。
+  window.PriTestNightAddAutoGmLog = addAutoGmLog;
+
+  function renderAutoGmLog() {
+    var list = document.getElementById("auto-gm-log-list");
+    if (!list) return;
+    list.innerHTML = "";
+    if (!state.autoGmLog.length) {
+      var empty = document.createElement("li");
+      empty.textContent = window.I18N.t("auto_gm_log_empty");
+      list.appendChild(empty);
+      return;
+    }
+    state.autoGmLog.forEach(function (entry) {
+      var li = document.createElement("li");
+      var time = new Date(entry.time).toLocaleTimeString();
+      li.textContent = "[" + time + "] " + entry.text;
+      list.appendChild(li);
+    });
+  }
 
   // 獲得ボタンを押した瞬間に、画面上部へ短時間だけ「何を獲得したか」を表示する小さな通知。
   // 3秒後に自動で消える。DOM要素は初回呼び出し時に遅延生成する（HTMLテンプレート側の変更不要）。
@@ -1858,6 +1898,17 @@
     });
     document.querySelectorAll(".rulebook-tab-panel").forEach(function (panel) {
       panel.hidden = panel.id !== "rulebook-panel-" + tabId;
+    });
+  }
+
+  // 紀錄ドロワー内の「紀錄」／「自動化GM記錄」タブ切替。規則書モーダルの.rulebook-tab-*と
+  // 見た目は共通CSSを流用するが、クラス名は別にして意図せず互いのタブ切替に巻き込まれないようにする。
+  function switchLogDrawerTab(tabId) {
+    document.querySelectorAll(".log-drawer-tab-btn").forEach(function (btn) {
+      btn.classList.toggle("active", btn.getAttribute("data-log-tab") === tabId);
+    });
+    document.querySelectorAll(".log-drawer-tab-panel").forEach(function (panel) {
+      panel.hidden = panel.id !== "log-drawer-panel-" + tabId;
     });
   }
 
@@ -6823,6 +6874,29 @@
     renderTurnHolderBar();
   }
 
+  // 自動化GM機能全体のON/OFF。規則書パスワード認証済みの人のみ切り替えられる（規則書と同じ
+  // "nightnight"を再利用、新しいパスワード体系は作らない）。ON/OFFの切替自体は誰でも可能で、
+  // turnHolderによる制限は行わない（設定トグルという位置づけのため）。
+  function renderAutoGmToggleButton() {
+    var btn = document.getElementById("btn-auto-gm-toggle");
+    if (!btn) return;
+    btn.textContent = window.I18N.t(state.autoGmEnabled ? "auto_gm_toggle_on_label" : "auto_gm_toggle_off_label");
+  }
+
+  function setAutoGmEnabled(enabled) {
+    state.autoGmEnabled = enabled;
+    renderAutoGmToggleButton();
+    addAutoGmLog(window.I18N.t(enabled ? "log_auto_gm_enabled" : "log_auto_gm_disabled"));
+  }
+
+  function handleAutoGmToggleClick() {
+    if (!isRulebookAuthenticated() && !checkRulebookPassword()) {
+      alert(window.I18N.t("rulebook_password_wrong"));
+      return;
+    }
+    setAutoGmEnabled(!state.autoGmEnabled);
+  }
+
   // character_drawer.js（別クロージャ）が抽選の進行中状態をstate.activeDrawsへ書き戻すための
   // ブリッジ。window.PriTestNightLogと同じ「存在確認つきグローバルフック」方式。
   window.PriTestDrawStateSync = {
@@ -9884,6 +9958,8 @@
     renderActionPhaseButton();
     renderTurnHolderBar();
     renderTurnBoardToggleButton();
+    renderAutoGmToggleButton();
+    renderAutoGmLog();
     renderActionPhaseGrid();
     renderBoard();
     renderLog();
@@ -10088,6 +10164,12 @@
     renderDiceAnimationToggleButton();
     document.getElementById("btn-turn-board-toggle").addEventListener("click", function () {
       setTurnBoardEnabled(!state.turnBoardEnabled);
+    });
+    document.getElementById("btn-auto-gm-toggle").addEventListener("click", handleAutoGmToggleClick);
+    document.querySelectorAll(".log-drawer-tab-btn").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        switchLogDrawerTab(btn.getAttribute("data-log-tab"));
+      });
     });
     document.getElementById("btn-reset-all-dice").addEventListener("click", handleResetAllDice);
     document.getElementById("btn-main-menu-draw-close").addEventListener("click", closeMainMenuDrawModal);
