@@ -6839,15 +6839,17 @@
     var groupResult = AutoGm.computeGroupDamage(result, state.rollEffects, enemyOverride);
     var breakdownParts = [];
     if (groupResult) {
-      breakdownParts.push(
-        window.I18N.t("auto_gm_group_breakdown", {
-          total: groupResult.total,
-          base: groupResult.base,
-          modifier: groupResult.modifier,
-          timeLoss: groupResult.timeLoss,
-          override: groupResult.override,
-        })
-      );
+      var groupBreakdown = window.I18N.t("auto_gm_group_breakdown", {
+        total: groupResult.total,
+        base: groupResult.base,
+        modifier: groupResult.modifier,
+        timeLoss: groupResult.timeLoss,
+        override: groupResult.override,
+      });
+      if (groupResult.repeat > 1) {
+        groupBreakdown += window.I18N.t("auto_gm_repeat_suffix", { perHit: groupResult.perHit, repeat: groupResult.repeat });
+      }
+      breakdownParts.push(groupBreakdown);
       if (result.structuredRow.targetRule) {
         var groupTargets = AutoGm.resolveTargets(result.structuredRow.targetRule, state.battle, entered.length);
         groupTargets.forEach(function (idx) {

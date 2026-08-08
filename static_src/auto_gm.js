@@ -64,6 +64,10 @@
   //                 ＋ state.battle.enemyDmgOverride（PC技能による減少・敵人特殊行動による増加、
   //                    睡眠トリガー等で既に累積されている値、night.js側から解決済みの数値で渡す）
   // 内訳を返すことで、GMが確定前に「なぜこの数字になったか」を検証できるようにする。
+  // groupDamage.repeat（例：「乱戦ダメージは2回発生する」）が指定されている場合、
+  // 1回分（base+modifier+timeLoss+override）をrepeat回分まとめた合計を返す——本文が
+  // 「同じ乱戦ダメージがN回発生する」という意味で、1回ごとに毎回Time Loss/その他調整も
+  // 乗るという解釈（this行動が発生させる「亂戰傷害」という値そのものがN回発生するため）。
   function computeGroupDamage(rollResult, rollEffects, enemyDmgOverride) {
     if (!rollResult || !rollResult.structuredRow || !rollResult.structuredRow.groupDamage) return null;
     var baseEntry = (rollResult.familyBase || []).filter(function (b) {
@@ -73,12 +77,16 @@
     var modifier = rollResult.structuredRow.groupDamage.modifier;
     var timeLoss = timeLossGroupBonus(rollEffects);
     var override = enemyDmgOverride || 0;
+    var repeat = rollResult.structuredRow.groupDamage.repeat || 1;
+    var perHit = base + modifier + timeLoss + override;
     return {
-      total: base + modifier + timeLoss + override,
+      total: perHit * repeat,
       base: base,
       modifier: modifier,
       timeLoss: timeLoss,
       override: override,
+      repeat: repeat,
+      perHit: perHit,
     };
   }
 
@@ -91,6 +99,8 @@
   }
 
   // targetRuleを実際のbattle状態（front/back/aggro）に照らして対象PCのroster配列indexへ解決する。
+  // fallback（例："front"）は、本来の条件に該当するPCが1人もいない場合に本文が明記している
+  // 代替対象（例：「対象となるPCが1人もいない場合は、通常どおり、前衛が対象となる」）を表す。
   function resolveTargets(targetRule, battleState, rosterCount) {
     if (!targetRule || !battleState) return [];
     var candidates = [];
@@ -99,6 +109,8 @@
       var front = !!(battleState.front && battleState.front[i]);
       if (targetRule.kind === "frontAggroAtLeast1All") {
         if (front && aggro >= 1) candidates.push(i);
+      } else if (targetRule.kind === "aggroAtLeast1All") {
+        if (aggro >= 1) candidates.push(i);
       } else if (targetRule.kind === "aggroMax") {
         candidates.push(i);
       } else if (targetRule.kind === "allPCs") {
@@ -115,6 +127,11 @@
       candidates = candidates.filter(function (i) {
         return ((battleState.aggro && battleState.aggro[i]) || 0) === maxAggro;
       });
+    }
+    if (!candidates.length && targetRule.fallback === "front") {
+      for (var j = 0; j < rosterCount; j++) {
+        if (battleState.front && battleState.front[j]) candidates.push(j);
+      }
     }
     return candidates;
   }

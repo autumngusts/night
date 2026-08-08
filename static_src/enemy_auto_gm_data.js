@@ -40,6 +40,32 @@
         },
       ],
     },
+    "big_dog_bear|old_lions": {
+      rows: [
+        {
+          // 「連続噛みつき」：亂戰傷害は2回発生する。対象PCの指定が本文に明記されていないため
+          // targetRuleは未設定のまま（算出値は表示するが、対象への事前入力は行わない
+          // ——GMが対象を確認して手動で反映する）。
+          rollMin: 1,
+          rollMax: 2,
+          groupDamage: { modifier: -300, repeat: 2 },
+        },
+        {
+          // 「飛びかかり＆翻り」：PCへのHP損害は発生しない（敵HP価値バフ＋特殊能力「翻り」のみ）。
+          rollMin: 3,
+          rollMax: 4,
+          conditions: ["enemy_hp_value_buff", "special_flip"],
+        },
+        {
+          // 「跳躍叩きつけ＆翻り」：「敵視:1以上」のPC全員が対象、該当者が0人の場合は前衛が対象
+          // （本文に明記されたフォールバック規則）。
+          rollMin: 5,
+          rollMax: 6,
+          groupDamage: { modifier: 120 },
+          targetRule: { kind: "aggroAtLeast1All", fallback: "front" },
+        },
+      ],
+    },
   };
 
   function get(familyId, enemyId) {
