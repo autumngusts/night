@@ -3174,7 +3174,13 @@
     var summaryEl = document.getElementById("time-loss-summary");
     // #15：従来は夜雨の最大段階しか見ておらず、「威脅効果追加」（activeThreatEffects）が
     // 何個現在有効かは常時バーのどこにも出ていなかった（"尚未觸發"のまま）。件数を先頭に足す。
-    var activeCount = (state.activeThreatEffects || []).length;
+    // GM報告：骰效果（出目／發揮檢定の累積値、ROLL_EFFECTS）が實際に發動していても
+    // activeThreatEffectsだけを見ていたため「尚未觸發」のままだった。發動中の骰效果の
+    // 種類数も合わせて数える。
+    var activeRollEffectCount = ROLL_EFFECTS.filter(function (effect) {
+      return (state.rollEffects[effect.id] || 0) > 0;
+    }).length;
+    var activeCount = (state.activeThreatEffects || []).length + activeRollEffectCount;
     var parts = [];
     if (activeCount > 0) {
       parts.push(window.I18N.t("time_loss_active_effect_count", { count: activeCount }));
@@ -3233,15 +3239,12 @@
   }
 
   function triggerThreatBroadcast() {
-    var dayKey = isSwappedDay() ? "day2" : "day1";
-    var rows = state.timeLoss[dayKey];
     var segments = [];
-    TIME_LOSS_ROW_DEFS.forEach(function (def, i) {
-      if (def.kind === "threat" && rows[i].every(Boolean)) {
-        var parts = timeLossRowLabelDetail(dayKey, def);
-        segments.push(parts[0] + window.I18N.t("colon_separator") + parts[1]);
-      }
-    });
+    // GM報告：TIME_LOSS_ROW_DEFSの「threat」欄（day1/day2シート上のチェック欄）は
+    // 具体的な内容を持たない汎用プレースホルダー文言（「威脅効果追加：追加 1 個效果」）
+    // だったため、公告に出しても何も伝わらなかった。実際に何が起きたかは
+    // activeThreatEffects（自由記述）とactiveRollEffectBroadcastLines（骰效果の実数値）
+    // だけで十分伝わるため、汎用文言はここでは公告しない。
     // #15：手動で改めて公告する際は、現在有効な威脅効果追加（activeThreatEffects）の
     // テキストも合わせて再掲する（何が起きているか一目で分かるようにする）。
     (state.activeThreatEffects || []).forEach(function (entry) {
