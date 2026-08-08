@@ -58,11 +58,13 @@
         },
         {
           // 「跳躍叩きつけ＆翻り」：「敵視:1以上」のPC全員が対象、該当者が0人の場合は前衛が対象
-          // （本文に明記されたフォールバック規則）。
+          // （本文に明記されたフォールバック規則）。ユーザー確認済み: 「飛びかかり＆翻り」と同じく
+          // 特殊能力「翻り」（次の戦闘フェイズ終了まで、エリア移動消耗が1ではなく3になる）を発揮する。
           rollMin: 5,
           rollMax: 6,
           groupDamage: { modifier: 120 },
           targetRule: { kind: "aggroAtLeast1All", fallback: "front" },
+          conditions: ["special_flip"],
         },
       ],
     },

@@ -180,6 +180,7 @@ STRINGS_ZH: dict[str, str] = {
     "auto_gm_group_breakdown": "亂戰傷害 {total}（基準{base}＋行動修正{modifier}＋Time Loss{timeLoss}＋其他調整{override}）",
     "auto_gm_individual_breakdown": "個別傷害 {total}（基準{base}＋Time Loss{timeLoss}）",
     "auto_gm_repeat_suffix": "（每次{perHit}，發生{repeat}次）",
+    "auto_gm_split_note": "（由{count}名PC均分，每人{each}）",
     "log_select_submit": "選擇了 {n} 張卡片並送出：{cards}",
     "log_continue_submit": "接續選擇了 {n} 張卡片並分配至空格：{cards}",
     "log_next_night": "進入第 {day} 晚，起點與終點已對調",

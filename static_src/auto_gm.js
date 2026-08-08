@@ -98,6 +98,25 @@
     return { total: entry.amount + timeLoss, base: entry.amount, timeLoss: timeLoss };
   }
 
+  // 「亂戰傷害：N人份」の加重配分（ユーザー確認済みルール）：
+  // 「N人份」と明記された対象は重みN、それ以外の（同じ攻撃で別条件により対象になった）PCは
+  // 重み1として、傷害池を「合計重み」で割った単位値に各自の重みを掛けて配分する
+  // （例：480の傷害池、重み2の対象1人＋重み1の対象1人＝合計重み3、480/3×2=320／480/3×1=160）。
+  //
+  // 現時点で保持している構造化データは全対象が同一targetRuleから解決される「単一重みグループ」
+  // のみ（例: liege_army「群がる」は対象PC全員が同じく「2人份」）。この場合は数学的に
+  // 「重みが全員同じなら均等割りと同じ」（n×w／(n×w)＝1／n）ため、targetRule.perPersonShare
+  // は現状ドキュメント目的のみで、実際の配分は対象人数での均等割りとして計算する。
+  // 将来、異なる重みの対象グループが同時に発生する行が出てきた場合は、
+  // groupDamage.targetRule を配列化する等の拡張が必要になる（今は使用例が無いため未実装）。
+  function splitGroupShares(total, targetCount) {
+    if (!targetCount) return [];
+    var share = total / targetCount;
+    var shares = [];
+    for (var i = 0; i < targetCount; i++) shares.push(share);
+    return shares;
+  }
+
   // targetRuleを実際のbattle状態（front/back/aggro）に照らして対象PCのroster配列indexへ解決する。
   // fallback（例："front"）は、本来の条件に該当するPCが1人もいない場合に本文が明記している
   // 代替対象（例：「対象となるPCが1人もいない場合は、通常どおり、前衛が対象となる」）を表す。
@@ -140,6 +159,7 @@
     isStructured: isStructured,
     rollEnemyAction: rollEnemyAction,
     computeGroupDamage: computeGroupDamage,
+    splitGroupShares: splitGroupShares,
     computeIndividualDamage: computeIndividualDamage,
     resolveTargets: resolveTargets,
   };

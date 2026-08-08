@@ -180,6 +180,7 @@ STRINGS_EN: dict[str, str] = {
     "auto_gm_group_breakdown": "Group damage {total} (base {base} + action modifier {modifier} + Time Loss {timeLoss} + other adjustments {override})",
     "auto_gm_individual_breakdown": "Individual damage {total} (base {base} + Time Loss {timeLoss})",
     "auto_gm_repeat_suffix": " ({perHit} per hit, occurs {repeat}x)",
+    "auto_gm_split_note": " (split evenly among {count} PCs, {each} each)",
     "log_select_submit": "Selected {n} card(s) and submitted: {cards}",
     "log_continue_submit": "Selected {n} more card(s) and dealt them to empty slots: {cards}",
     "log_next_night": "Advanced to night {day}; start and end swapped",

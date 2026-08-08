@@ -180,6 +180,7 @@ STRINGS_JA: dict[str, str] = {
     "auto_gm_group_breakdown": "乱戦ダメージ {total}（基準{base}＋行動修正{modifier}＋Time Loss{timeLoss}＋その他調整{override}）",
     "auto_gm_individual_breakdown": "個別ダメージ {total}（基準{base}＋Time Loss{timeLoss}）",
     "auto_gm_repeat_suffix": "（1回あたり{perHit}、{repeat}回発生）",
+    "auto_gm_split_note": "（PC{count}人で均等割り、1人あたり{each}）",
     "log_select_submit": "{n} 枚のカードを選んで送信しました：{cards}",
     "log_continue_submit": "続けて {n} 枚のカードを選び、空きマスに配りました：{cards}",
     "log_next_night": "第 {day} 夜へ進み、スタートとゴールが入れ替わりました",

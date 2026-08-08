@@ -6852,10 +6852,16 @@
       breakdownParts.push(groupBreakdown);
       if (result.structuredRow.targetRule) {
         var groupTargets = AutoGm.resolveTargets(result.structuredRow.targetRule, state.battle, entered.length);
-        groupTargets.forEach(function (idx) {
+        // 「N人份」の加重配分（現状は対象全員が同一重みのため均等割りと数学的に同値、
+        // auto_gm.jsのsplitGroupShares参照）：対象が複数いる場合は傷害池を人数で分ける。
+        var shares = AutoGm.splitGroupShares(groupResult.total, groupTargets.length);
+        groupTargets.forEach(function (idx, shareIdx) {
           var input = document.getElementById("enemy-damage-group-" + entered[idx].id);
-          if (input) input.value = String(groupResult.total);
+          if (input) input.value = String(Math.round(shares[shareIdx]));
         });
+        if (groupTargets.length > 1) {
+          breakdownParts.push(window.I18N.t("auto_gm_split_note", { count: groupTargets.length, each: Math.round(shares[0]) }));
+        }
       }
     }
     (result.structuredRow.individualDamage || []).forEach(function (entry) {
