@@ -68,6 +68,31 @@
         },
       ],
     },
+    "commoner|highway_robbers": {
+      rows: [
+        {
+          // 「駆け込み斬り」：「敵視:1以上」のPC全員（前衛限定の記載なし）に「乱戦ダメージ:2人分」。
+          rollMin: 1,
+          rollMax: 2,
+          groupDamage: { modifier: 60 },
+          targetRule: { kind: "aggroAtLeast1All" },
+        },
+        {
+          // 「掴み攻撃」：「敵視:最大」のPC1体に個別ダメージ240。この効果はガード不可（表示用タグのみ、
+          // 実際のガード可否判定はGM/プレイヤーの手動確認に委ねる）。
+          rollMin: 3,
+          rollMax: 4,
+          individualDamage: [{ amount: 240, targetRule: { kind: "aggroMax" } }],
+          conditions: ["no_guard"],
+        },
+        {
+          // 「武器振り回し」：「敵視:最大」のPC1体に個別ダメージ120。
+          rollMin: 5,
+          rollMax: 6,
+          individualDamage: [{ amount: 120, targetRule: { kind: "aggroMax" } }],
+        },
+      ],
+    },
   };
 
   function get(familyId, enemyId) {
