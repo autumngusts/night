@@ -34,11 +34,42 @@
     return !!EnemyAutoGmData.get(parsed.familyId, parsed.enemyId);
   }
 
+  // 現在選択中のキーが多形態（グラディウス等、structured.formAware===true）かどうかを返す。
+  // night.js側が形態トグルUI（合体形態／分裂形態の切替ボタン）を表示すべきか判定するために使う。
+  function isFormAware(key) {
+    if (!isBossKey(key) || !BossAutoGmData) return false;
+    var structured = BossAutoGmData.get(parseBossKey(key).bossId);
+    return !!(structured && structured.formAware);
+  }
+
   function findStructuredRow(rows, rollValue) {
     for (var i = 0; i < rows.length; i++) {
       if (rollValue >= rows[i].rollMin && rollValue <= rows[i].rollMax) return { row: rows[i], index: i };
     }
     return null;
+  }
+
+  // 多形態の夜の王（グラディウス等）用：rowsの各要素がrollMin/rollMaxではなく
+  // rollRangeByForm: { <formId>: {min,max} | null } を持つ場合に、現在の形態(form)に対応する
+  // 範囲とrollValueを照合する（その形態では出現しない行はnullで表現）。
+  function findStructuredRowByForm(rows, rollValue, form) {
+    for (var i = 0; i < rows.length; i++) {
+      var range = rows[i].rollRangeByForm && rows[i].rollRangeByForm[form];
+      if (range && rollValue >= range.min && rollValue <= range.max) return { row: rows[i], index: i };
+    }
+    return null;
+  }
+
+  // 夜の王のactionColumns（列見出し、ボスごとに列構成が異なる）から、指定した見出し文言に
+  // 一致する列のインデックスを探す。「アクション名」列と「注釈」列の位置はボスによって異なる
+  // ため（例：マリスは4列でindex1/3、グラディウスは形態列が2つ増えてindex2/4）、決め打ちせず
+  // 動的に解決する。
+  function findBossColumnIndex(actionColumns, zhLabel, jaLabel) {
+    for (var i = 0; i < actionColumns.length; i++) {
+      var col = actionColumns[i];
+      if ((col.zh && col.zh === zhLabel) || (col.ja && col.ja === jaLabel)) return i;
+    }
+    return -1;
   }
 
   // 敵／夜の王の行動をロール（通常1D6）し、構造化データがあれば一致した行を、常に元の
@@ -89,14 +120,23 @@
       rollValue = 1 + Math.floor(Math.random() * 6);
     }
 
-    var match = findStructuredRow(structured.rows, rollValue);
+    // グラディウスのような多形態ボス（structured.formAware===true）は、現在の形態
+    // （battleState.bossForm、既定"fused"）に応じて別々の出目範囲を持つ行を照合する。
+    var currentForm = (battleState && battleState.bossForm) || "fused";
+    var match = structured.formAware
+      ? findStructuredRowByForm(structured.rows, rollValue, currentForm)
+      : findStructuredRow(structured.rows, rollValue);
     var originalRow = null;
     if (match) {
       if (isBoss) {
-        // 夜の王のactionsは [出目, アクション名, 乱戦ダメージ, 注釈]（ボスにより列順が異なりうる
-        // が、maris/caligo型は共通のためnameは1番目・noteは最後の要素として決め打ちする）。
-        var rawRow = BossRulebook.get(parseBossKey(enemyKey).bossId).actions[match.index];
-        originalRow = { name: rawRow[1], note: rawRow[rawRow.length - 1] };
+        var bossData = BossRulebook.get(parseBossKey(enemyKey).bossId);
+        var rawRow = bossData.actions[match.index];
+        var nameIdx = findBossColumnIndex(bossData.actionColumns, "招式名稱", "アクション名");
+        var noteIdx = findBossColumnIndex(bossData.actionColumns, "備註", "注釈");
+        originalRow = {
+          name: nameIdx !== -1 ? rawRow[nameIdx] : rawRow[rawRow.length - 2],
+          note: noteIdx !== -1 ? rawRow[noteIdx] : rawRow[rawRow.length - 1],
+        };
       } else {
         originalRow = actions[match.index] || null;
       }
@@ -108,6 +148,7 @@
       enemyName: enemyName,
       familyBase: familyBase,
       rollValue: rollValue,
+      currentForm: structured.formAware ? currentForm : null,
       mobPresentSnapshot: mobPresentSnapshot,
       structuredRow: match ? match.row : null,
       originalRow: originalRow,
@@ -299,6 +340,7 @@
 
   window.PriTestAutoGm = {
     isStructured: isStructured,
+    isFormAware: isFormAware,
     rollEnemyAction: rollEnemyAction,
     computeGroupDamage: computeGroupDamage,
     splitGroupShares: splitGroupShares,

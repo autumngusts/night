@@ -693,6 +693,10 @@
       // その判定を使い続ける」特殊能力用のスナップショット（キーはenemyKey）。一度記録したら
       // 途中で雑兵が全滅してmobHpRowsから消えても、この特殊ロール判定には影響させない。
       autoGmMobPresentSnapshot: {},
+      // 自動化GM: グラディウスのような多形態の夜の王用、現在の形態（"fused"＝合体形態／
+      // "split"＝分裂形態）。戦闘開始時は規則書どおり合体形態が既定。形態変化は「エンドフェイズ
+      // 開始時」というタイミング依存のため自動切替はせず、GMが手動でトグルする運用とする。
+      bossForm: "fused",
     };
   }
 
@@ -1014,6 +1018,7 @@
       enemyDmgOverride: enemyDmgOverride,
       fatalStrikeUsedThisRound: !!raw.fatalStrikeUsedThisRound,
       autoGmMobPresentSnapshot: loadBoolMap(raw.autoGmMobPresentSnapshot),
+      bossForm: raw.bossForm === "split" ? "split" : "fused",
     };
   }
 
@@ -6792,6 +6797,7 @@
   // 完全に非表示＝既存の手動フローと見た目・挙動ともに変わらない。
   function renderAutoGmRollRow() {
     var row = document.getElementById("auto-gm-roll-row");
+    var formRow = document.getElementById("auto-gm-boss-form-row");
     var resultEl = document.getElementById("auto-gm-roll-result");
     if (!row) return;
     resultEl.hidden = true;
@@ -6799,6 +6805,7 @@
     var AutoGm = window.PriTestAutoGm;
     if (!state.autoGmEnabled || state.turnHolder !== "gm" || !AutoGm) {
       row.hidden = true;
+      if (formRow) formRow.hidden = true;
       return;
     }
     var structuredIds = ((state.battle && state.battle.selectedEnemyIds) || []).filter(function (key) {
@@ -6812,6 +6819,7 @@
     }
     if (!structuredIds.length) {
       row.hidden = true;
+      if (formRow) formRow.hidden = true;
       return;
     }
     row.hidden = false;
@@ -6830,6 +6838,35 @@
       }
       select.appendChild(opt);
     });
+    // selectはinnerHTMLごと毎回作り直すが要素自体は使い回すため、onchange代入（addEventListener
+    // ではなく）で毎回上書きし、多重登録を防ぐ。
+    select.onchange = renderAutoGmBossFormToggle;
+    renderAutoGmBossFormToggle();
+  }
+
+  // グラディウス等、多形態（AutoGm.isFormAware）の夜の王を選択中のみ「合体形態／分裂形態」
+  // 手動切替ボタンを表示する。形態移行は本文上「エンドフェイズ開始時」という非同期タイミングの
+  // ため自動シミュレートせず、GMがこのボタンで手動反映する運用（state.battle.bossForm）。
+  function renderAutoGmBossFormToggle() {
+    var formRow = document.getElementById("auto-gm-boss-form-row");
+    var btn = document.getElementById("btn-auto-gm-boss-form-toggle");
+    if (!formRow || !btn) return;
+    var AutoGm = window.PriTestAutoGm;
+    var select = document.getElementById("auto-gm-enemy-select");
+    var key = select && select.value;
+    if (!AutoGm || !key || !AutoGm.isFormAware(key)) {
+      formRow.hidden = true;
+      return;
+    }
+    formRow.hidden = false;
+    var form = (state.battle && state.battle.bossForm) || "fused";
+    btn.textContent = window.I18N.t(form === "split" ? "auto_gm_boss_form_split_label" : "auto_gm_boss_form_fused_label");
+  }
+
+  function handleAutoGmBossFormToggleClick() {
+    state.battle.bossForm = state.battle.bossForm === "split" ? "fused" : "split";
+    saveState();
+    renderAutoGmBossFormToggle();
   }
 
   // ロール結果を表示し、算出できた分だけ該当PCの入力欄へ事前入力する（未算出の項目は0のまま
@@ -10363,6 +10400,7 @@
       setTurnBoardEnabled(!state.turnBoardEnabled);
     });
     document.getElementById("btn-auto-gm-toggle").addEventListener("click", handleAutoGmToggleClick);
+    document.getElementById("btn-auto-gm-boss-form-toggle").addEventListener("click", handleAutoGmBossFormToggleClick);
     document.querySelectorAll(".log-drawer-tab-btn").forEach(function (btn) {
       btn.addEventListener("click", function () {
         switchLogDrawerTab(btn.getAttribute("data-log-tab"));

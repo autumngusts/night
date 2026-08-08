@@ -219,6 +219,10 @@ BODY = """    <div class="night-header-row">
             <select id="auto-gm-enemy-select"></select>
             <button type="button" id="btn-auto-gm-roll" class="primary-btn" data-i18n="auto_gm_roll_button"></button>
           </div>
+          <div class="wb-row" id="auto-gm-boss-form-row" hidden>
+            <span data-i18n="auto_gm_boss_form_label"></span>
+            <button type="button" id="btn-auto-gm-boss-form-toggle"></button>
+          </div>
           <div id="auto-gm-roll-result" class="threat-ref-body" hidden></div>
           <div class="wb-row">
             <label data-i18n="enemy_damage_tag_label"></label>

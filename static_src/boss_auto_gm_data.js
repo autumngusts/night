@@ -9,15 +9,19 @@
   // - キーは "boss|<bossId>"（night_boss_rulebook.jsのBOSSES[].idと一致）。
   //
   // 【現時点の対象範囲・既知の制限】
-  // シナリオ1「三首獸」自体には専用の夜の王が無く（GMが標準9体から任意に選ぶ運用）、
-  // 試作として構造が最も単純な「maris（深海の夜、マリス）」の出目1〜6のみを構造化した。
-  // - 出目7〜8は特殊能力「行動激化」（體勢崩し発生後、以後は戦闘終了まで「1D」ではなく
+  // シナリオ1「三首獸」の夜の王は「gladius（夜の獣、グラディウス）」。加えて、構造が最も
+  // 単純な「maris（深海の夜、マリス）」も試作として出目1〜6を構造化済み。
+  // - maris出目7〜8は特殊能力「行動激化」（體勢崩し発生後、以後は戦闘終了まで「1D」ではなく
   //   「1D＋2」で判定する）でのみ到達するが、體勢崩しの発生判定・ロール方式の切替は
   //   このバージョンでは未実装のため、出目7〜8は構造化していない（通常の1D6ロールでは
   //   到達しないため、未構造化のままでも実害は無い＝安全側のフォールバック）。
-  // - 他の8体（fulghor/harmonia/gnoster/caligo/libra/edele/stragedes/gladius）は、
-  //   多形態（harmonia/gladius等）や二段階ロール表（stragedes等）など、マリスより複雑な
-  //   固有ルールを持つため今回は対象外。
+  // - gladiusは合体形態／分裂形態の2形態を持つため、rollRangeByForm（form別の出目範囲）で
+  //   判定するformAwareボスとして構造化した。分裂形態時のHP3分割・体勢崩し不発生などの
+  //   PC→敵ダメージ側の処理はスコープ外（本機能はGM→PCダメージ算出のみが対象）。形態移行は
+  //   「エンドフェイズ開始時」という非同期タイミングのため自動シミュレートせず、GM手動トグルで
+  //   state.battle.bossFormを切り替える運用とした。
+  // - 他の7体（fulghor/harmonia/gnoster/caligo/libra/edele/stragedes）は、多形態
+  //   （harmonia等）や二段階ロール表（stragedes等）など固有ルールを持つため今回は対象外。
   var DATA = {
     "maris": {
       rows: [
@@ -75,6 +79,69 @@
           groupDamage: { value: 1020 },
           targetRule: { kind: "frontAll" },
           conditions: ["special_magic_bubble", "sleep_on_damage"],
+        },
+      ],
+    },
+    "gladius": {
+      // 「夜の獣、グラディウス」：合体形態(LL)／分裂形態(L・3体分裂)の2形態を持つ多形態ボス。
+      // 出目の意味が形態ごとに異なる（actionColumns[0]=合体形態欄, [1]=分裂形態欄）ため、
+      // rollMin/rollMaxではなくrollRangeByForm（form別の出目範囲、無ければnull＝その形態では
+      // 到達不可）で判定する。現在の形態はstate.battle.bossForm（既定"fused"）で保持し、GMが
+      // 手動でトグルする（形態移行は「エンドフェイズ開始時」という非同期タイミングのため自動
+      // シミュレートしない）。
+      //
+      // 【対象範囲外・既知の制限】分裂形態時のHP3分割・体勢崩し不発生などのPC→敵ダメージ側の
+      // 処理はauto_gmのスコープ外（本機能はGM→PCの乱戦/個別ダメージ算出のみを対象とする）。
+      formAware: true,
+      rows: [
+        {
+          // 「噛みつき」（合体形態のみ、出目1~2）：「敵視：1以上」で前衛のPC全員は
+          // 「乱戦ダメージ：2人分」を割り振られる（本文に明記）。
+          rollRangeByForm: { fused: { min: 1, max: 2 }, split: null },
+          groupDamage: { value: 1080 },
+          targetRule: { kind: "frontAggroAtLeast1All" },
+        },
+        {
+          // 「鎖剣振り回し」（合体形態のみ、出目3）：乱戦ダメージの対象明記が無いため既定ルール
+          // （前衛均等割り）。個別効果：「敵視：最大」のPC1体に個別ダメージ300。
+          rollRangeByForm: { fused: { min: 3, max: 3 }, split: null },
+          groupDamage: { value: 900 },
+          targetRule: { kind: "frontAll" },
+          individualDamage: [{ amount: 300, targetRule: { kind: "aggroMax" } }],
+        },
+        {
+          // 「炎のブレス」（合体形態のみ、出目4）：乱戦ダメージの対象明記が無いため既定ルール。
+          // 個別効果：「敵視：1以上」で前衛のPC全員に個別ダメージ180＋「炎：1D」（属性ダイスは
+          // 従来通り手動反映）。
+          rollRangeByForm: { fused: { min: 4, max: 4 }, split: null },
+          groupDamage: { value: 900 },
+          targetRule: { kind: "frontAll" },
+          individualDamage: [{ amount: 180, targetRule: { kind: "frontAggroAtLeast1All" } }],
+        },
+        {
+          // 「炎突進＆形態変化」：合体形態の出目5~6、または分裂形態の出目1~2のどちらでも到達。
+          // 乱戦ダメージの対象明記が無いため既定ルール。特殊能力「形態変化」はGMが手動で
+          // フォームトグルを切り替える（conditionsは記録用のマーカーのみ）。
+          rollRangeByForm: { fused: { min: 5, max: 6 }, split: { min: 1, max: 2 } },
+          groupDamage: { value: 900 },
+          targetRule: { kind: "frontAll" },
+          conditions: ["form_change_at_end_phase"],
+        },
+        {
+          // 「3連噛みつき」（分裂形態のみ、出目3~4）：乱戦ダメージ列が「—」のため乱戦ダメージ無し。
+          // 個別効果（3回実行）：「敵視：最大」のPC1体に個別ダメージ120＋「炎：1D」。対象が
+          // 明示的に「敵視：最大」（曖昧な「1名・輪流」ではない）なのでaggroMax＋repeat:3で
+          // 同一PCへの連続ヒットとして扱う。
+          rollRangeByForm: { fused: null, split: { min: 3, max: 4 } },
+          individualDamage: [{ amount: 120, repeat: 3, targetRule: { kind: "aggroMax" } }],
+        },
+        {
+          // 「炎連弾」（分裂形態のみ、出目5~6）：乱戦ダメージの対象明記が無いため既定ルール。
+          // 個別効果：「敵視：1以上」のPC全員に個別ダメージ180＋「炎：1D」。
+          rollRangeByForm: { fused: null, split: { min: 5, max: 6 } },
+          groupDamage: { value: 900 },
+          targetRule: { kind: "frontAll" },
+          individualDamage: [{ amount: 180, targetRule: { kind: "aggroAtLeast1All" } }],
         },
       ],
     },
