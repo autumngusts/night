@@ -130,6 +130,10 @@
         if (front && aggro >= 1) candidates.push(i);
       } else if (targetRule.kind === "aggroAtLeast1All") {
         if (aggro >= 1) candidates.push(i);
+      } else if (targetRule.kind === "frontAll") {
+        // ユーザー確認済みの既定ルール: 行動本文に亂戰傷害の分配対象が明記されていない場合、
+        // 前衛の全員で均等割りする（規則書「乱戦ダメージ：n人」の一般ルールに対する既定値）。
+        if (front) candidates.push(i);
       } else if (targetRule.kind === "aggroMax") {
         candidates.push(i);
       } else if (targetRule.kind === "allPCs") {
