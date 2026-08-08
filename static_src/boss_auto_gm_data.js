@@ -10,11 +10,10 @@
   //
   // 【現時点の対象範囲・既知の制限】
   // シナリオ1「三首獸」の夜の王は「gladius（夜の獣、グラディウス）」。加えて、構造が最も
-  // 単純な「maris（深海の夜、マリス）」も試作として出目1〜6を構造化済み。
+  // 単純な「maris（深海の夜、マリス）」も試作として出目1〜8（全行）を構造化済み。
   // - maris出目7〜8は特殊能力「行動激化」（體勢崩し発生後、以後は戦闘終了まで「1D」ではなく
-  //   「1D＋2」で判定する）でのみ到達するが、體勢崩しの発生判定・ロール方式の切替は
-  //   このバージョンでは未実装のため、出目7〜8は構造化していない（通常の1D6ロールでは
-  //   到達しないため、未構造化のままでも実害は無い＝安全側のフォールバック）。
+  //   「1D＋2」で判定する）でのみ到達する。night.js側のstate.battle.guardBroken（HP行の
+  //   いずれかが最初に0へ到達した瞬間trueになる持続フラグ）とrollBonusAfterGuardBreakで対応。
   // - gladiusは合体形態／分裂形態の2形態を持つため、rollRangeByForm（form別の出目範囲）で
   //   判定するformAwareボスとして構造化した。分裂形態時のHP3分割・体勢崩し不発生などの
   //   PC→敵ダメージ側の処理はスコープ外（本機能はGM→PCダメージ算出のみが対象）。形態移行は
@@ -24,6 +23,11 @@
   //   （harmonia等）や二段階ロール表（stragedes等）など固有ルールを持つため今回は対象外。
   var DATA = {
     "maris": {
+      // 特殊能力「行動激化」：體勢崩潰（体勢崩し）発生後、戦闘終了まで行動決定を「1D」ではなく
+      // 「1D＋2」で行う（night.js側のstate.battle.guardBrokenフラグをauto_gm.jsが参照して
+      // 実装、通常の1D6では出目7〜8に到達しないため、この機構が無いと出目7〜8の行は永遠に
+      // 到達不可能だった）。
+      rollBonusAfterGuardBreak: 2,
       rows: [
         {
           // 「回転突進＆滞空」：「敵視：1以上」で前衛のPC全員に「乱戦ダメージ:2人分」（本文に明記）。
@@ -79,6 +83,24 @@
           groupDamage: { value: 1020 },
           targetRule: { kind: "frontAll" },
           conditions: ["special_magic_bubble", "sleep_on_damage"],
+        },
+        {
+          // 「滞空＆魔力の泡＆藻種の萌芽」（體勢崩潰後のみ到達）：対象の明記が無いため既定ルール。
+          rollMin: 7,
+          rollMax: 7,
+          groupDamage: { value: 900 },
+          targetRule: { kind: "frontAll" },
+          conditions: ["special_levitate", "special_magic_bubble", "special_algae_sprout"],
+        },
+        {
+          // 「渦潮」（體勢崩潰後のみ到達）：「敵視：1以上」のPC全員が対象、対象0人なら前衛が
+          // 対象（fallback）。乱戦ダメージは2回発生（本文に明記、groupDamage.repeat:2）。
+          // 睡眠1Dは属性ダイスのためconditionsのみ（GM手動反映）。
+          rollMin: 8,
+          rollMax: 8,
+          groupDamage: { value: 420, repeat: 2 },
+          targetRule: { kind: "aggroAtLeast1All", fallback: "front" },
+          conditions: ["sleep_1d"],
         },
       ],
     },

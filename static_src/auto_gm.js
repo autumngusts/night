@@ -120,6 +120,14 @@
       rollValue = 1 + Math.floor(Math.random() * 6);
     }
 
+    // マリスの特殊能力「行動激化」のような「體勢崩潰（体勢崩し）発生後、戦闘終了まで
+    // 行動決定が1Dではなく1D＋Nで行われる」ルール用（structured.rollBonusAfterGuardBreak、
+    // ユーザー確認済み：battleState.guardBroken＝どのHP行でも最初に0へ到達した瞬間trueになる
+    // 戦闘終了までの持続フラグ、night.js側で管理）。halfIfNoMobsとは同時使用されない前提。
+    if (structured.rollBonusAfterGuardBreak && battleState && battleState.guardBroken) {
+      rollValue += structured.rollBonusAfterGuardBreak;
+    }
+
     // グラディウスのような多形態ボス（structured.formAware===true）は、現在の形態
     // （battleState.bossForm、既定"fused"）に応じて別々の出目範囲を持つ行を照合する。
     var currentForm = (battleState && battleState.bossForm) || "fused";

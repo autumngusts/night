@@ -697,6 +697,12 @@
       // "split"＝分裂形態）。戦闘開始時は規則書どおり合体形態が既定。形態変化は「エンドフェイズ
       // 開始時」というタイミング依存のため自動切替はせず、GMが手動でトグルする運用とする。
       bossForm: "fused",
+      // 體勢崩潰（体勢崩し）：敵人／夜の王のHP行（state.battle.enemyHp）のいずれか1行でも
+      // 「未撃破→ちょうど今回0に到達」した瞬間に一度だけtrueになる、戦闘終了まで持続するフラグ
+      // （どの行が最初に0に到達したかは問わない、ユーザー確認済み仕様）。マリスの特殊能力
+      // 「行動激化」（體勢崩し発生後は「1D」ではなく「1D＋2」で行動判定）のように、体勢崩し発生後
+      // だけ有効になるルールの判定にauto_gm.js側から参照する。
+      guardBroken: false,
     };
   }
 
@@ -1019,6 +1025,7 @@
       fatalStrikeUsedThisRound: !!raw.fatalStrikeUsedThisRound,
       autoGmMobPresentSnapshot: loadBoolMap(raw.autoGmMobPresentSnapshot),
       bossForm: raw.bossForm === "split" ? "split" : "fused",
+      guardBroken: !!raw.guardBroken,
     };
   }
 
@@ -1090,6 +1097,23 @@
     var weakness = extractWeakness(info.enemy.special, Enemies.localizedText);
     if (!weakness) return [];
     return weakness.split(/[＆、,]/).map(function (s) {
+      return s.trim();
+    }).filter(Boolean);
+  }
+
+  // 敵人カード本体の「resistance」欄（例:"猛毒・腐敗・出血・凍傷・発狂"）を屬性/異常名の配列へ
+  // 分割する。弱點欄（special内の埋め込みテキスト）とは別の独立フィールドで、区切り文字も
+  // 「・」中心（弱點側は「＆」中心）のため別関数にする。夜の王（"boss|"キー）は現状、攻撃対象
+  // 選択（resolveSelectedEnemyOptions）に含まれておらずこの経路に到達しないため未対応
+  // （対応する場合はwindow.PriTestBossRulebook.get(bossId).resistanceを同様に読む）。
+  function enemyResistanceLabels(enemyKey) {
+    var Enemies = window.PriTestEnemies;
+    if (!Enemies || !enemyKey) return [];
+    var parts = enemyKey.split("|");
+    var info = Enemies.get(parts[0], parts[1]);
+    if (!info || !info.enemy.resistance) return [];
+    var text = Enemies.localizedText(info.enemy.resistance);
+    return text.split(/[・＆、,]/).map(function (s) {
       return s.trim();
     }).filter(Boolean);
   }
@@ -1340,6 +1364,13 @@
   // 敵人側の実蓄積(enemyAccum)を更新した上で閾値トリガーを判定する。
   function recordAttributeStatusDealt(characterId, enemyKey, label, value) {
     if (!enemyKey || !value) return;
+    // 耐性判定：敵人のresistance欄に一致する屬性/異常は、蓄積値をそもそも加算しない
+    // （ユーザー確認済み：「自動跳出此為耐性並不結算其累積值」）。既存のdealt内訳表示にも
+    // 残らないよう、accumulateより前で早期returnする。
+    if (enemyResistanceLabels(enemyKey).indexOf(label) !== -1) {
+      addLog("log_attribute_status_resistance_blocked", { enemy: enemyDisplayNameForKey(enemyKey), label: label, value: value });
+      return;
+    }
     if (!state.battle.attributeStatus) state.battle.attributeStatus = defaultBattleState().attributeStatus;
     // 遺物効果「屬性蓄積值＋1」：習得時に選んだ属性（c.relicAccumElementChoice）と一致する場合のみ、
     // このキャラクターが与えた蓄積値へ+1する（異常側は対象外、isAttributeStatusElementLabelで判定）。
@@ -6377,6 +6408,12 @@
     // 復仇者「死靈術」：雑兵の段と同様、非雑兵エネミー側の段も「未撃破→ちょうど今回0に到達」
     // した瞬間だけ発火させる（既に0の段をさらに操作しても再発火しない）。
     if (current !== 0 && target === 0) {
+      // 體勢崩潰：エネミー／夜の王のHP行のいずれか1行が最初に0へ到達した瞬間だけ一度発火する
+      // （ユーザー確認済み：どの行が最初かは問わない、以後の行の0到達では再発火しない）。
+      if (!state.battle.guardBroken) {
+        state.battle.guardBroken = true;
+        addLog("log_guard_break_triggered");
+      }
       handleMobRowDepleted();
       if (enemyHasRow(rowIdx)) {
         var depletedEnemyKey = (state.battle.selectedEnemyIds || [])[rowIdx];
@@ -7346,6 +7383,7 @@
       });
       state.battle.selectedEnemyIds = [];
       state.battle.autoGmMobPresentSnapshot = {};
+      state.battle.guardBroken = false;
       resetBattlePositionsAndAggro();
       renderSelectedEnemies();
       addLog("log_chat_command_clear_enemy");
