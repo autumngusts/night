@@ -48,6 +48,8 @@ def build_static_assets() -> None:
         "enemies_data_3.js",
         "enemies_data_4.js",
         "enemies.js",
+        "enemy_auto_gm_data.js",
+        "auto_gm.js",
         "fields_data_1.js",
         "fields_data_2.js",
         "fields_data_3.js",

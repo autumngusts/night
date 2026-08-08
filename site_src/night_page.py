@@ -215,6 +215,11 @@ BODY = """    <div class="night-header-row">
       <div id="enemy-damage-modal" class="modal" hidden>
         <div class="modal-box combat-modal-box">
           <h2 data-i18n="enemy_damage_modal_title"></h2>
+          <div class="wb-row" id="auto-gm-roll-row" hidden>
+            <select id="auto-gm-enemy-select"></select>
+            <button type="button" id="btn-auto-gm-roll" class="primary-btn" data-i18n="auto_gm_roll_button"></button>
+          </div>
+          <div id="auto-gm-roll-result" class="threat-ref-body" hidden></div>
           <div class="wb-row">
             <label data-i18n="enemy_damage_tag_label"></label>
             <input type="text" id="enemy-damage-group-tag">
@@ -1110,6 +1115,8 @@ def build_night_html() -> str:
             "enemies_data_3.js",
             "enemies_data_4.js",
             "enemies.js",
+            "enemy_auto_gm_data.js",
+            "auto_gm.js",
             "fields_data_1.js",
             "fields_data_2.js",
             "fields_data_3.js",

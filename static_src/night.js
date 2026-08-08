@@ -6782,8 +6782,87 @@
     document.getElementById("enemy-damage-modal").hidden = true;
   }
 
+  // 自動化GM Phase 1: 敵人傷害モーダルを開くたび、state.autoGmEnabled かつ turnHolder==="gm"
+  // かつ構造化済みの敵人が選択中の場合のみ、ロール用のセレクト＋ボタンを表示する。それ以外は
+  // 完全に非表示＝既存の手動フローと見た目・挙動ともに変わらない。
+  function renderAutoGmRollRow() {
+    var row = document.getElementById("auto-gm-roll-row");
+    var resultEl = document.getElementById("auto-gm-roll-result");
+    if (!row) return;
+    resultEl.hidden = true;
+    resultEl.textContent = "";
+    var AutoGm = window.PriTestAutoGm;
+    if (!state.autoGmEnabled || state.turnHolder !== "gm" || !AutoGm) {
+      row.hidden = true;
+      return;
+    }
+    var structuredIds = ((state.battle && state.battle.selectedEnemyIds) || []).filter(function (key) {
+      return AutoGm.isStructured(key);
+    });
+    if (!structuredIds.length) {
+      row.hidden = true;
+      return;
+    }
+    row.hidden = false;
+    var select = document.getElementById("auto-gm-enemy-select");
+    select.innerHTML = "";
+    structuredIds.forEach(function (key) {
+      var parts = key.split("|");
+      var info = window.PriTestEnemies.get(parts[0], parts[1]);
+      var opt = document.createElement("option");
+      opt.value = key;
+      opt.textContent = info ? window.PriTestEnemies.localizedText(info.enemy.name) : key;
+      select.appendChild(opt);
+    });
+  }
+
+  // ロール結果を表示し、算出できた分だけ該当PCの入力欄へ事前入力する（未算出の項目は0のまま
+  // ＝従来通り手動入力が必要）。GMは確定前にいつでも数値を手修正できる。
+  function handleAutoGmRollClick() {
+    var AutoGm = window.PriTestAutoGm;
+    var select = document.getElementById("auto-gm-enemy-select");
+    var enemyKey = select && select.value;
+    if (!AutoGm || !enemyKey) return;
+    var result = AutoGm.rollEnemyAction(enemyKey);
+    if (!result) return;
+    var noteText = result.originalRow ? window.PriTestEnemies.localizedText(result.originalRow.note) : "";
+    var actionName = result.originalRow ? window.PriTestEnemies.localizedText(result.originalRow.name) : "";
+    var resultEl = document.getElementById("auto-gm-roll-result");
+    resultEl.hidden = false;
+    resultEl.textContent = window.I18N.t("auto_gm_roll_result", {
+      enemy: result.enemyName,
+      roll: result.rollValue,
+      action: actionName,
+      note: noteText,
+    });
+
+    var entered = rosterCharacters.filter(function (c) {
+      return c.entered;
+    });
+    var groupValue = AutoGm.computeGroupDamage(result);
+    if (groupValue !== null && result.structuredRow.targetRule) {
+      var groupTargets = AutoGm.resolveTargets(result.structuredRow.targetRule, state.battle, entered.length);
+      groupTargets.forEach(function (idx) {
+        var input = document.getElementById("enemy-damage-group-" + entered[idx].id);
+        if (input) input.value = String(groupValue);
+      });
+    }
+    (result.structuredRow.individualDamage || []).forEach(function (entry) {
+      var indivTargets = AutoGm.resolveTargets(entry.targetRule, state.battle, entered.length);
+      indivTargets.forEach(function (idx) {
+        var input = document.getElementById("enemy-damage-individual-" + entered[idx].id);
+        if (input) input.value = String(entry.amount);
+      });
+    });
+
+    addAutoGmLog(
+      window.I18N.t("log_auto_gm_roll", { enemy: result.enemyName, roll: result.rollValue, action: actionName })
+    );
+  }
+
   function renderEnemyDamageModal() {
     document.getElementById("enemy-damage-group-tag").placeholder = window.I18N.t("enemy_damage_group_tag_placeholder");
+    renderAutoGmRollRow();
     var list = document.getElementById("enemy-damage-pc-list");
     list.innerHTML = "";
     var entered = rosterCharacters.filter(function (c) {
@@ -6843,6 +6922,15 @@
           window.I18N.t("enemy_damage_individual_short_label") +
           individual
       );
+      // 自動化GM Phase 1: 従来このモーダルはログ表示のみでc.hp.currentに一切触れておらず、
+      // HP減算は別途手動で行う運用だった。state.autoGmEnabled===trueの間だけ実際にHPも
+      // 減算する（未対応のOFF時は既存挙動とバイト同一を保つため、この修正もフラグの内側に
+      // 限定する——手動ワークフローを続けているGMがモーダル確定後にさらに手動でHPを引いて
+      // 二重減算になることを避けるための意図的な判断）。
+      if (state.autoGmEnabled && (groupValue || individual)) {
+        c.hp.current = Math.max(0, c.hp.current - groupValue - individual);
+        checkNearDeathTrigger(c);
+      }
     });
     saveRosterCharacters();
     if (individualParts.length) {
@@ -10231,6 +10319,7 @@
     document.getElementById("btn-enemy-damage-open").addEventListener("click", openEnemyDamageModal);
     document.getElementById("btn-enemy-damage-cancel").addEventListener("click", closeEnemyDamageModal);
     document.getElementById("btn-enemy-damage-confirm").addEventListener("click", handleEnemyDamageConfirm);
+    document.getElementById("btn-auto-gm-roll").addEventListener("click", handleAutoGmRollClick);
     document.getElementById("btn-function-menu-toggle").addEventListener("click", function () {
       var list = document.getElementById("function-menu-list");
       var open = list.classList.toggle("open");
