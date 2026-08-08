@@ -6866,13 +6866,15 @@
     }
     (result.structuredRow.individualDamage || []).forEach(function (entry) {
       var indivResult = AutoGm.computeIndividualDamage(entry, state.rollEffects);
-      breakdownParts.push(
-        window.I18N.t("auto_gm_individual_breakdown", {
-          total: indivResult.total,
-          base: indivResult.base,
-          timeLoss: indivResult.timeLoss,
-        })
-      );
+      var indivBreakdown = window.I18N.t("auto_gm_individual_breakdown", {
+        total: indivResult.total,
+        base: indivResult.base,
+        timeLoss: indivResult.timeLoss,
+      });
+      if (indivResult.repeat > 1) {
+        indivBreakdown += window.I18N.t("auto_gm_repeat_suffix", { perHit: indivResult.perHit, repeat: indivResult.repeat });
+      }
+      breakdownParts.push(indivBreakdown);
       var indivTargets = AutoGm.resolveTargets(entry.targetRule, state.battle, entered.length);
       indivTargets.forEach(function (idx) {
         var input = document.getElementById("enemy-damage-individual-" + entered[idx].id);

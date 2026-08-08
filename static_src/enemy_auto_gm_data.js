@@ -146,6 +146,211 @@
         },
       ],
     },
+    "imp_watchdog_gargoyle|returning_tree_watchdog": {
+      rows: [
+        {
+          // 「錫杖叩きつけ」：「敵視:1以上」で前衛のPC全員に「乱戦ダメージ:2人分」（本文に明記）。
+          rollMin: 1,
+          rollMax: 2,
+          groupDamage: { modifier: 120 },
+          targetRule: { kind: "frontAggroAtLeast1All" },
+        },
+        {
+          // 「回転炎吐き」：乱戦ダメージ修正±0（「—」ではないため発生）。対象の明記が無いため
+          // 既定ルール（前衛均等割り）。個別ダメージ60は「敵視:1以上」のPC全員に別枠で発生。
+          rollMin: 3,
+          rollMax: 4,
+          groupDamage: { modifier: 0 },
+          targetRule: { kind: "frontAll" },
+          individualDamage: [{ amount: 60, targetRule: { kind: "aggroAtLeast1All" } }],
+        },
+        {
+          // 「魔力のつぶて連弾」：乱戦ダメージ修正が「—」のため乱戦ダメージは発生しない。個別効果
+          // （PC人数回実行）＝「敵視:1以上」のPC1体への個別ダメージ120を対象人数分。
+          // 【要確認】「PC人数回実行」を「敵視:1以上の全員に1回ずつ」と解釈して実装（対象PC1体を
+          // 誰にするか本文で特定できないため、実質的に対象全員に行き渡ると解釈）。
+          rollMin: 5,
+          rollMax: 6,
+          individualDamage: [{ amount: 120, targetRule: { kind: "aggroAtLeast1All" } }],
+        },
+      ],
+    },
+    "demihuman_beastfolk_club|demihumans": {
+      rows: [
+        {
+          // 「咆哮」：乱戦ダメージ修正が「—」のため乱戦ダメージは発生しない。個別効果＝
+          // 「敵視:1以上」のPC全員にHP損害■■■（3、□/■記法の確認済み規則で1個=1）。
+          // スタミナダイス消費による軽減はPC側の任意選択のため自動計算しない（conditionsで明記）。
+          rollMin: 1,
+          rollMax: 2,
+          individualDamage: [{ amount: 3, targetRule: { kind: "aggroAtLeast1All" } }],
+          conditions: ["reducible_by_stamina_dice"],
+        },
+        {
+          // 「群がる」：「敵視:1以上」で前衛のPC全員に「乱戦ダメージ:2人分」（本文に明記）。
+          rollMin: 3,
+          rollMax: 4,
+          groupDamage: { modifier: 60 },
+          targetRule: { kind: "frontAggroAtLeast1All" },
+        },
+        {
+          // 「射撃＆投擲攻撃」：乱戦ダメージはPC全員が対象（本文に明記、前衛限定ではない）。
+          rollMin: 5,
+          rollMax: 6,
+          groupDamage: { modifier: 0 },
+          targetRule: { kind: "allPCs" },
+        },
+      ],
+    },
+    "demihuman_beastfolk_club|silver_tears_people": {
+      rows: [
+        {
+          // 「群がる」：「敵視:1以上」で前衛のPC全員に「乱戦ダメージ:2人分」（本文に明記）。
+          rollMin: 1,
+          rollMax: 2,
+          groupDamage: { modifier: 0 },
+          targetRule: { kind: "frontAggroAtLeast1All" },
+        },
+        {
+          // 「側転回り込み」：乱戦ダメージ修正+60（「—」ではないため発生）。対象の明記が無いため
+          // 既定ルール（前衛均等割り）。個別効果（体力骰減少）はHP損害を伴わないためconditionsのみ。
+          rollMin: 3,
+          rollMax: 4,
+          groupDamage: { modifier: 60 },
+          targetRule: { kind: "frontAll" },
+          conditions: ["stamina_dice_reduction_next_phase"],
+        },
+        {
+          // 「射手の一撃」：乱戦ダメージ修正が「—」のため乱戦ダメージは発生しない。個別ダメージ180を
+          // 「敵視:1以上」のPC全員に、2回実行（＝1人あたり180×2＝360）。
+          rollMin: 5,
+          rollMax: 6,
+          individualDamage: [{ amount: 180, repeat: 2, targetRule: { kind: "aggroAtLeast1All" } }],
+        },
+      ],
+    },
+    "mage_messenger|oracle_envoys": {
+      rows: [
+        {
+          // 「槍殴り」：乱戦ダメージ修正±0（「—」ではないため発生、本文自体が無い）。既定ルール
+          // （前衛均等割り）。
+          rollMin: 1,
+          rollMax: 2,
+          groupDamage: { modifier: 0 },
+          targetRule: { kind: "frontAll" },
+        },
+        {
+          // 「神託のシャボン」：乱戦ダメージ修正－60（「—」ではないため発生）。既定ルール
+          // （前衛均等割り）。個別効果は属性ダメージのみ（HP損害なし）のためindividualDamage無し。
+          rollMin: 3,
+          rollMax: 4,
+          groupDamage: { modifier: -60 },
+          targetRule: { kind: "frontAll" },
+        },
+        {
+          // 「神託の大シャボン」：乱戦ダメージ修正+60（「—」ではないため発生）。既定ルール
+          // （前衛均等割り）。個別ダメージ120は「敵視:最大」のPC1体に別枠で発生。
+          rollMin: 5,
+          rollMax: 6,
+          groupDamage: { modifier: 60 },
+          targetRule: { kind: "frontAll" },
+          individualDamage: [{ amount: 120, targetRule: { kind: "aggroMax" } }],
+        },
+      ],
+    },
+    "strong_type|ancestral_spirit_folk": {
+      rows: [
+        {
+          // 「乱舞」：乱戦ダメージは2回発生する。「敵視:1以上」で前衛のPC全員に「乱戦ダメージ:2人分」
+          // （両方とも本文に明記）。
+          rollMin: 1,
+          rollMax: 2,
+          groupDamage: { modifier: -240, repeat: 2 },
+          targetRule: { kind: "frontAggroAtLeast1All" },
+        },
+        {
+          // 「宿し撃ち」：乱戦ダメージ修正が「—」のため乱戦ダメージは発生しない。個別ダメージ240を
+          // 「敵視:1以上」のPC1体（対象が不特定のため敵視最大を既定として採用）に、2回実行。
+          // 【要確認】対象PCが「1体」とだけ記載され特定できないため、敵視最大のPCを既定とした。
+          rollMin: 3,
+          rollMax: 4,
+          individualDamage: [{ amount: 240, repeat: 2, targetRule: { kind: "aggroMax" } }],
+        },
+        {
+          // 「霊の飛沫」：乱戦ダメージ修正±0（「—」ではないため発生）。対象の明記が無いため既定
+          // ルール（前衛均等割り）。個別ダメージ120は「敵視:1以上」のPC全員に別枠で発生。
+          rollMin: 5,
+          rollMax: 6,
+          groupDamage: { modifier: 0 },
+          targetRule: { kind: "frontAll" },
+          individualDamage: [{ amount: 120, targetRule: { kind: "aggroAtLeast1All" } }],
+        },
+      ],
+    },
+    "golem_maiden_puppet|guardian_golem": {
+      rows: [
+        {
+          // 「斧槍叩きつけ」：「敵視:1以上」で前衛のPC全員に「乱戦ダメージ:2人分」（本文に明記）。
+          rollMin: 1,
+          rollMax: 2,
+          groupDamage: { modifier: 120 },
+          targetRule: { kind: "frontAggroAtLeast1All" },
+        },
+        {
+          // 「土礫散弾」：乱戦ダメージ修正±0（「—」ではないため発生）。既定ルール（前衛均等割り）。
+          // 個別ダメージ180は「敵視:最大」のPC1体に別枠で発生。
+          rollMin: 3,
+          rollMax: 4,
+          groupDamage: { modifier: 0 },
+          targetRule: { kind: "frontAll" },
+          individualDamage: [{ amount: 180, targetRule: { kind: "aggroMax" } }],
+        },
+        {
+          // 「炎噴き」：乱戦ダメージ修正±0（「—」ではないため発生、本文自体が無い）。既定ルール
+          // （前衛均等割り）。
+          rollMin: 5,
+          rollMax: 6,
+          groupDamage: { modifier: 0 },
+          targetRule: { kind: "frontAll" },
+        },
+      ],
+    },
+    "soldier_knight|red_lion_knights": {
+      rows: [
+        {
+          // 「アローレイン」：乱戦ダメージ修正±0（「—」ではないため発生）。対象の明記が無いため
+          // 既定ルール（前衛均等割り）。
+          // 【実装困難・未構造化】個別効果は運試し判定（敵視1以上のPCは〈12〉、それ以外は
+          // 〈10〉、失敗者のみ180+魔2を受ける）で、判定の成否を自動化する仕組みが無いため
+          // individualDamageは設定していない——ロール結果の本文をGMが読み、判定を手動で
+          // 実行・適用する必要がある。
+          rollMin: 1,
+          rollMax: 2,
+          groupDamage: { modifier: 0 },
+          targetRule: { kind: "frontAll" },
+          conditions: ["requires_manual_saving_throw"],
+        },
+        {
+          // 「獅子斬り」：乱戦ダメージ修正が「—」のため乱戦ダメージは発生しない。個別ダメージ240を
+          // 「敵視:1以上」のPC1体（対象が不特定のため敵視最大を既定として採用）に、2回実行。
+          // 加えて対象PCの体力骰減少（HP損害を伴わないためconditionsのみ）。
+          // 【要確認】対象PCが「1体」とだけ記載され特定できないため、敵視最大のPCを既定とした。
+          rollMin: 3,
+          rollMax: 4,
+          individualDamage: [{ amount: 240, repeat: 2, targetRule: { kind: "aggroMax" } }],
+          conditions: ["stamina_dice_reduction_next_phase"],
+        },
+        {
+          // 「赤獅子の炎」：乱戦ダメージ修正+60（「—」ではないため発生）。対象の明記が無いため
+          // 既定ルール（前衛均等割り）。個別ダメージ120は「敵視:最大」のPC全員に別枠で発生。
+          rollMin: 5,
+          rollMax: 6,
+          groupDamage: { modifier: 60 },
+          targetRule: { kind: "frontAll" },
+          individualDamage: [{ amount: 120, targetRule: { kind: "aggroMax" } }],
+        },
+      ],
+    },
   };
 
   function get(familyId, enemyId) {

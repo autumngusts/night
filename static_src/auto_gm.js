@@ -90,12 +90,16 @@
     };
   }
 
-  // 個別ダメージ＝ 元の固定値（enemy_auto_gm_data.jsのamount）＋ Time Loss側の骰效果
-  // （個別分はrollEffects.enemy_damage * 20）。enemyDmgOverrideは「亂戰傷害」専用のため
-  // 個別ダメージには適用しない（既存コードの命名・コメントに合わせた解釈）。
+  // 個別ダメージ＝ (元の固定値（enemy_auto_gm_data.jsのamount）＋ Time Loss側の骰效果
+  // （個別分はrollEffects.enemy_damage * 20）) × repeat（例：「2回実行」）。
+  // enemyDmgOverrideは「亂戰傷害」専用のため個別ダメージには適用しない
+  // （既存コードの命名・コメントに合わせた解釈）。groupDamage.repeatと同じ設計判断
+  // （1回分にTime Lossも乗せてからrepeat回分をまとめる）。
   function computeIndividualDamage(entry, rollEffects) {
     var timeLoss = timeLossIndividualBonus(rollEffects);
-    return { total: entry.amount + timeLoss, base: entry.amount, timeLoss: timeLoss };
+    var repeat = entry.repeat || 1;
+    var perHit = entry.amount + timeLoss;
+    return { total: perHit * repeat, base: entry.amount, timeLoss: timeLoss, repeat: repeat, perHit: perHit };
   }
 
   // 「亂戰傷害：N人份」の加重配分（ユーザー確認済みルール）：
