@@ -437,13 +437,11 @@
       renderRosterDiceDisplay(c, diceWrap);
       diceCol.appendChild(diceTitleRow);
       diceCol.appendChild(diceWrap);
-      var diceStatus = document.createElement("p");
-      diceStatus.className = "dice-status-label";
-      CharacterDrawer.renderDiceStatusLabel(diceStatus, c.dicePool || []);
-      diceCol.appendChild(diceStatus);
-      // 骰子池からの予測（上のdiceStatus）は骰子が解決/消化されると空になり、その後は
-      // 実際の隊列・敵視が変わっても何も表示されないままになる（#4b）。実際の戦場状態
-      // （state.battle側）から常に読み直す別行を追加し、隊列切替／敵視±のたびに再描画する。
+      // 骰子池からの予測（旧dice-status-label、computeDiceStatus由来）は骰子が解決/消化
+      // されると空になり、その後は実際の隊列・敵視が変わっても何も表示されないままになる
+      // うえ、常に最新の実際の戦場状態を示すliveStatusと二重表示になっていたため廃止した。
+      // 実際の戦場状態（state.battle側）から常に読み直すliveStatusのみを表示し、
+      // 隊列切替／敵視±のたびに再描画する（#4b）。
       var liveStatus = document.createElement("p");
       liveStatus.className = "dice-status-label battle-live-status-label";
       renderLiveBattleStatusLabel(liveStatus, c);
@@ -3249,6 +3247,9 @@
     (state.activeThreatEffects || []).forEach(function (entry) {
       segments.push(window.I18N.t("threat_effect_add_label") + window.I18N.t("colon_separator") + entry.text);
     });
+    // 現在發動中の骰效果（敵方傷害增加／敵方HP數值增加／PC最大加護減少／
+    // 屬性異常蓄積值降低／聖杯瓶使用次數）も同じ公告にまとめて載せる。
+    segments = segments.concat(activeRollEffectBroadcastLines());
     if (segments.length === 0) segments.push(window.I18N.t("time_loss_none"));
     showThreatBroadcast(segments);
   }
@@ -3353,6 +3354,28 @@
     renderCharacterRoster();
   }
 
+  // 現在發動中（count>0）の骰效果を「①②敵方傷害增加：亂戰60／個別20」のような條列式の
+  // 行に変換する。夜雨と違い骰效果はstate.rollEffectsが日をまたいでも1つのままなので、
+  // 第二天になっても素直に全件を数え続ける（day1/day2で分けない）。
+  function activeRollEffectBroadcastLines() {
+    var lines = [];
+    ROLL_EFFECTS.forEach(function (effect) {
+      var count = state.rollEffects[effect.id] || 0;
+      if (count <= 0) return;
+      var label = window.I18N.t("roll_effect_" + effect.id + "_label");
+      var detail = window.I18N.t("roll_effect_" + effect.id + "_tier" + count);
+      lines.push(label + window.I18N.t("colon_separator") + detail);
+    });
+    return lines;
+  }
+
+  function broadcastActiveRollEffects() {
+    var lines = activeRollEffectBroadcastLines();
+    if (!lines.length) return;
+    showThreatBroadcast(lines);
+    postSystemTurnMessage(lines.join(" / "));
+  }
+
   function renderRollEffects() {
     var container = document.getElementById("roll-effects-list");
     container.innerHTML = "";
@@ -3400,6 +3423,10 @@
         saveState();
         renderRollEffects();
         renderTimeLossSummary();
+        // 骰效果が新たに發動した際は、以前は汎用の「威脅効果追加」としか公告されず何が
+        // 起きたか分からなかった。実際にどの効果がどの数値で發動したか、現在有効な分を
+        // 條列式でそのまま公告する。
+        broadcastActiveRollEffects();
       });
       stepper.appendChild(minus);
       stepper.appendChild(value);
@@ -7788,8 +7815,12 @@
   }
 
   // 設定の「重置全骰」：共用骰子池・各角色個別の骰子・各角色の執行紀錄（點線枠のアクション
-  // ボックス）をまとめて消去する。clearAllPendingActionBoxes自体が消去内容の要約をログへ
-  // 残すため、ここでは二重にログしない。
+  // ボックス）に加えて、戦場面板（前後衛・敵視・敵HP・選択中の敵人）も丸ごと初期化し、
+  // 敵人を面板から取り除く（GM報告：以前は骰子だけ消してもsyncDiceStatusToBattleが空の
+  // 骰子池から前後衛/敵視の「表示」を再計算するだけで、敵人自体は面板に残ったままだった）。
+  // handleBattleClear単体の「清除並初始化戰鬥板」ボタンは、骰子は残したまま戦場だけ
+  // 初期化したい場合のために引き続き残す。clearAllPendingActionBoxes自体が消去内容の
+  // 要約をログへ残すため、ここでは二重にログしない。
   function handleResetAllDice() {
     if (!window.confirm(window.I18N.t("reset_all_dice_confirm"))) return;
     state.dicePool = [];
@@ -7797,11 +7828,17 @@
       c.dicePool = [];
     });
     clearAllPendingActionBoxes();
+    state.battle = defaultBattleState();
     saveState();
     saveRosterCharacters();
     addLog("log_reset_all_dice");
     renderDicePool();
     renderCharacterRoster();
+    renderBattlePositionAreas();
+    renderEnemyHpGrid();
+    renderMobHpList();
+    renderSelectedEnemies();
+    renderActionPhaseGrid();
   }
 
   function renderDicePool() {
@@ -10693,19 +10730,32 @@
     });
   }
 
-  // #16：目前所在位置（focusedIndex）とその樓層情報を、画面上部に常時表示する。
-  // カード名以外（樓層數・全效果）は灰字（.loc-detail）で控えめに示す。
-  function renderCurrentLocationStatus(container) {
+  // #20：目前所在位置（focusedIndex）とその樓層情報を、日常のヘッダー小文字ではなく、
+  // 他の「長時間公告」（enemy-row-status-overlayと同じ仕組み）で画面上部に表示する。
+  // GMが額外／一般フェイズへ切り替えるまで自動では閉じないtoastと違い、位置が変わるたびに
+  // 内容が更新され続ける常時バナー。カード名以外（樓層數・全效果）は.loc-detailで控えめに示す。
+  function closeLocationStatusBanner() {
+    var overlay = document.getElementById("location-status-overlay");
+    if (overlay) overlay.hidden = true;
+  }
+
+  function renderCurrentLocationStatus() {
+    var overlay = document.getElementById("location-status-overlay");
+    var content = document.getElementById("location-status-content");
+    if (!overlay || !content) return;
     var idx = state.focusedIndex;
-    if (typeof idx !== "number") return;
-    var card = resolveFieldEntryForSlot(idx);
-    if (!card) return;
+    var card = typeof idx === "number" ? resolveFieldEntryForSlot(idx) : null;
+    if (!card) {
+      overlay.hidden = true;
+      return;
+    }
+    content.innerHTML = "";
     var levelVal = state.cardLevels[idx];
     var levelText = levelVal === null || levelVal === undefined ? window.I18N.t("level_all") : String(levelVal);
     var nameSpan = document.createElement("span");
     nameSpan.className = "loc-name";
-    nameSpan.textContent = " ｜ " + window.PriTestFields.localizedText(card.name) + "(" + levelText + ")";
-    container.appendChild(nameSpan);
+    nameSpan.textContent = window.PriTestFields.localizedText(card.name) + "(" + levelText + ")";
+    content.appendChild(nameSpan);
     if (card.floorCount != null || card.allFloorEffect) {
       var detailParts = [];
       if (card.floorCount != null) {
@@ -10719,8 +10769,9 @@
       var detailSpan = document.createElement("span");
       detailSpan.className = "loc-detail";
       detailSpan.textContent = "（" + detailParts.join("　") + "）";
-      container.appendChild(detailSpan);
+      content.appendChild(detailSpan);
     }
+    overlay.hidden = false;
   }
 
   function renderDayStatus() {
@@ -10732,7 +10783,7 @@
     var el = document.getElementById("day-status");
     el.innerHTML = "";
     el.appendChild(document.createTextNode(text));
-    renderCurrentLocationStatus(el);
+    renderCurrentLocationStatus();
     renderSetupInfo();
   }
 
@@ -13226,6 +13277,7 @@
     document.getElementById("btn-time-loss-broadcast").addEventListener("click", triggerThreatBroadcast);
     document.getElementById("btn-threat-broadcast-close").addEventListener("click", closeThreatBroadcast);
     document.getElementById("btn-enemy-row-status-close").addEventListener("click", closeEnemyRowStatusBanner);
+    document.getElementById("btn-location-status-close").addEventListener("click", closeLocationStatusBanner);
     document.getElementById("btn-threat-drawer-close").addEventListener("click", closeThreatDrawer);
     document.getElementById("threat-drawer-backdrop").addEventListener("click", closeThreatDrawer);
     document.getElementById("btn-active-threat-effect-add").addEventListener("click", handleActiveThreatEffectAdd);

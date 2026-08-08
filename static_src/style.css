@@ -420,17 +420,6 @@ button {
   font-size: 0.9rem;
 }
 
-/* #16：目前所在位置の卡牌名は通常の文字色で目立たせ、樓層數／全效果などの補足情報だけ
-   親要素(.day-status)の灰字のままにする（CanvasTextは現在の配色スキームの既定文字色）。 */
-.loc-name {
-  color: CanvasText;
-  font-weight: 600;
-}
-
-.loc-detail {
-  color: inherit;
-}
-
 .info-btn {
   width: 18px;
   height: 18px;
@@ -829,13 +818,26 @@ button {
   font-size: 0.75rem;
 }
 
-#threat-broadcast-overlay {
+/* threat-broadcast-overlay／enemy-row-status-overlay／location-status-overlayはいずれも
+   画面上部中央に浮かぶ「公告」バナーのため、#top-banner-stackでまとめて縦積みにして
+   重なりを防ぐ（各バナー自体はposition:relativeにして、閉じるボタンのabsolute配置だけ
+   自分自身の箱を基準にする）。 */
+#top-banner-stack {
   position: fixed;
   top: 0.75rem;
   left: 50%;
   transform: translateX(-50%);
   z-index: 60;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
   width: min(420px, 92vw);
+}
+
+#threat-broadcast-overlay {
+  position: relative;
+  width: 100%;
   background: #1c1c1c;
   color: #fff;
   border-radius: 10px;
@@ -880,12 +882,8 @@ button {
 /* 敵人體崩／擊破の長時間公告：threat-broadcast-overlayと同じ配置だが、GMが額外／一般
    フェイズへ切り替えるまで自動では閉じない（countdown無し）。段の状態で縁取り色を変える。 */
 #enemy-row-status-overlay {
-  position: fixed;
-  top: 0.75rem;
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 60;
-  width: min(420px, 92vw);
+  position: relative;
+  width: 100%;
   background: #1c1c1c;
   color: #fff;
   border-radius: 10px;
@@ -907,6 +905,47 @@ button {
 }
 
 #enemy-row-status-overlay .modal-floating-close {
+  position: absolute;
+  top: 0.4rem;
+  right: 0.4rem;
+  width: 1.6rem;
+  height: 1.6rem;
+  line-height: 1.6rem;
+  font-size: 0.85rem;
+}
+
+/* #20：目前所在位置（カード名・樓層數・全效果）も、日常のヘッダー小文字ではなく、他の
+   長時間公告と同じ「GMが状態を変えるまで残る」バナーで表示する（#top-banner-stack内）。 */
+#location-status-overlay {
+  position: relative;
+  width: 100%;
+  background: #1c1c1c;
+  color: #fff;
+  border-radius: 10px;
+  border-left: 6px solid #2e9fd6;
+  padding: 0.75rem 2.25rem 0.6rem 1rem;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.4);
+}
+
+#location-status-content {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  font-size: 0.9rem;
+  line-height: 1.4;
+}
+
+#location-status-content .loc-name {
+  color: #fff;
+  font-weight: 600;
+}
+
+#location-status-content .loc-detail {
+  color: #bbb;
+  font-size: 0.8rem;
+}
+
+#location-status-overlay .modal-floating-close {
   position: absolute;
   top: 0.4rem;
   right: 0.4rem;
@@ -2433,7 +2472,8 @@ button {
 
 /* 階段ボタン：primary-btnの目立つ青は「常に押すべきボタン」に見えて紛らわしいため、
    ここだけ階段そのものの意味を表す色に上書きする（一般＝非戦闘は控えめな輪郭のみ、
-   戦闘＝危険色、額外＝特殊色、防禦＝安全色。他のprimary-btnには影響しない）。 */
+   戦闘＝ライトブルー（赤は「危険操作」の意味で使うdanger-btnと紛らわしいため避ける）、
+   額外＝特殊色、防禦＝安全色。他のprimary-btnには影響しない）。 */
 .action-phase-btn {
   margin-top: 0.5rem;
   width: 100%;
@@ -2443,9 +2483,9 @@ button {
 }
 
 .action-phase-btn[data-phase="combat"] {
-  background: #d64545;
+  background: #2e9fd6;
   color: #fff;
-  border-color: #d64545;
+  border-color: #2e9fd6;
 }
 
 .action-phase-btn[data-phase="extra"] {
@@ -2477,9 +2517,9 @@ button {
 }
 
 .action-phase-grid button[data-phase="combat"] {
-  background: #d64545;
+  background: #2e9fd6;
   color: #fff;
-  border-color: #d64545;
+  border-color: #2e9fd6;
 }
 
 .action-phase-grid button[data-phase="extra"] {
@@ -3314,8 +3354,9 @@ button {
   background: none;
   cursor: pointer;
   padding: 0;
-  /* 判定發生の▶（.function-menu-toggle-btn）と同じ役割の◀/▶トグルなので同じ大きさに揃える。 */
-  font-size: 0.85rem;
+  /* 武器欄／前後衛區域のトグルは押しにくいという指摘があったため、
+     .function-menu-toggle-btnより一回り大きくして視認性・タップ面積を確保する。 */
+  font-size: 1.35rem;
   color: #777;
   line-height: 1;
 }
@@ -3408,6 +3449,20 @@ button {
 
   #turn-reward-list {
     max-height: 38vh;
+  }
+
+  /* 「獎勵清單」の抽選種類／對象selectは.wb-row/.floor-reward-entry-rowを使っておらず、
+     .dice-pool-header（display:flex, nowrap）のまま並ぶため、手機端では右端（数量入力・
+     獲得ボタン）が画面外へ押し出されて見えなくなっていた。折り返して縦積みにする。 */
+  #turn-reward-modal .dice-pool-header {
+    flex-wrap: wrap;
+  }
+
+  #turn-reward-kind-select,
+  #turn-reward-target-select {
+    flex: 1 1 100%;
+    min-width: 0;
+    max-width: 100%;
   }
 }
 

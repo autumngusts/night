@@ -170,17 +170,23 @@ BODY = """    <div class="night-header-row">
         <button type="button" class="info-btn" id="btn-time-loss-info">i</button>
         <button type="button" class="info-btn broadcast-btn" id="btn-time-loss-broadcast" aria-label="broadcast threat effects">&#128227;</button>
       </div>
-      <div id="threat-broadcast-overlay" hidden>
-        <button type="button" class="modal-floating-close" id="btn-threat-broadcast-close">&times;</button>
-        <div id="threat-broadcast-content"></div>
-        <div class="threat-broadcast-countdown-wrap">
-          <span id="threat-broadcast-countdown"></span>
-          <span data-i18n="threat_broadcast_closing_in_label"></span>
+      <div id="top-banner-stack">
+        <div id="location-status-overlay" hidden>
+          <button type="button" class="modal-floating-close" id="btn-location-status-close">&times;</button>
+          <div id="location-status-content"></div>
         </div>
-      </div>
-      <div id="enemy-row-status-overlay" hidden>
-        <button type="button" class="modal-floating-close" id="btn-enemy-row-status-close">&times;</button>
-        <div id="enemy-row-status-content"></div>
+        <div id="threat-broadcast-overlay" hidden>
+          <button type="button" class="modal-floating-close" id="btn-threat-broadcast-close">&times;</button>
+          <div id="threat-broadcast-content"></div>
+          <div class="threat-broadcast-countdown-wrap">
+            <span id="threat-broadcast-countdown"></span>
+            <span data-i18n="threat_broadcast_closing_in_label"></span>
+          </div>
+        </div>
+        <div id="enemy-row-status-overlay" hidden>
+          <button type="button" class="modal-floating-close" id="btn-enemy-row-status-close">&times;</button>
+          <div id="enemy-row-status-content"></div>
+        </div>
       </div>
       <div class="time-loss-bar" id="attribute-status-bar">
         <span data-i18n="attribute_status_bar_label"></span>
