@@ -360,6 +360,16 @@
         Core.renderPiles();
       }
     }
+    // 第19項：この地點に未使用の籌碼事件があれば、樓層本文の敘述を始める前に先に使用可否を尋ねる。
+    if (offerEventChipIfPending(idx, "startWalk")) return;
+    beginFieldWalkFlow(idx, entry);
+  }
+
+  // handleEnterClickから分離：籌碼事件を先に確認する必要が無い場合はそのまま、確認後に
+  // 「使用」／「稍後」いずれを選んでも（resolveChipOffer経由で）ここへ戻ってくる。
+  function beginFieldWalkFlow(idx, entry) {
+    var Core = window.PriTestNightCore;
+    var state = Core.state;
     if (!entry || !entry.branches || !entry.branches.length) {
       // 分岐データが無いカード（規則書データが未整備、等）は従来通りの簡易リマインドへ退避する。
       var name = entry ? window.PriTestFields.localizedText(entry.name) : "";
@@ -397,6 +407,65 @@
     state.gmFlow.actionKind = "branchChoice";
     Core.saveState();
     Core.renderCurrentLocationStatus();
+  }
+
+  // ---- 第19項：籌碼事件の使用可否を先に尋ねる ----
+  // idxに未使用の籌碼（state.eventChips[idx] && !state.eventChipsUsed[idx]）があれば、
+  // 敘述を「使用しますか？」ゲートに切り替えてtrueを返す（呼び出し元はここで処理を止める）。
+  // 無ければ何もせずfalseを返す（呼び出し元がそのまま通常の処理を続ける）。
+  // continuation："startWalk"（［進入］直後、チップ解決後にbeginFieldWalkFlowへ続ける）｜
+  // "cardConclusion"（カードの全踏破処理が終わった後の再確認、解決後はadvanceCardConclusionChain
+  // を続けて［地圖移動］へ進む）。
+  function offerEventChipIfPending(idx, continuation) {
+    var Core = window.PriTestNightCore;
+    var state = Core.state;
+    if (typeof idx !== "number") return false;
+    var chipId = state.eventChips ? state.eventChips[idx] : null;
+    if (!chipId || (state.eventChipsUsed && state.eventChipsUsed[idx])) return false;
+    state.gmFlow.chipOfferSlot = idx;
+    state.gmFlow.chipOfferContinuation = continuation;
+    state.gmFlow.narrationText =
+      window.I18N.t("gm_flow_chip_offer_narration", { chip: window.I18N.t("event_chip_" + chipId) }) +
+      "\n" +
+      window.I18N.t("gm_flow_chip_effect_" + chipId);
+    state.gmFlow.awaitingOk = true;
+    state.gmFlow.actionKind = "chipOffer";
+    Core.saveState();
+    Core.renderCurrentLocationStatus();
+    return true;
+  }
+
+  // 「使用」：既存の籌碼事件モーダル（night_event_chips.js）をそのまま開く——中身の購買/祝福/
+  // 記錄等の個別UIは複製せず、既存の正しい実装に完全に委ねる（実際に使用済みになった時点で
+  // 拔除されるのも、既存のmarkEventChipUsed経由の挙動そのまま）。
+  function handleChipOfferUseClick() {
+    resolveChipOffer(true);
+  }
+
+  // 「稍後」：今は使わず、そのまま樓層の敘述（またはOK状態）へ進む。籌碼は盤面に残り続け、
+  // 樓層敘述が終わった後（continuation==="startWalk"の場合）にもう一度尋ねられる。
+  function handleChipOfferSkipClick() {
+    resolveChipOffer(false);
+  }
+
+  function resolveChipOffer(use) {
+    var Core = window.PriTestNightCore;
+    var state = Core.state;
+    var idx = state.gmFlow.chipOfferSlot;
+    var continuation = state.gmFlow.chipOfferContinuation;
+    state.gmFlow.chipOfferSlot = null;
+    state.gmFlow.chipOfferContinuation = null;
+    clearGmFlowGate();
+    Core.saveState();
+    Core.renderCurrentLocationStatus();
+    if (use && window.PriTestNightEventChips) window.PriTestNightEventChips.openEventChipModal(idx);
+    if (continuation === "startWalk") {
+      var entry = window.PriTestNightFloorBreakthrough.resolveFieldEntryForSlot(idx);
+      beginFieldWalkFlow(idx, entry);
+    } else if (continuation === "cardConclusion") {
+      // 使う／稍後いずれの場合も、次は［地圖移動機制］（まだ保留があれば）へ進める。
+      advanceCardConclusionChain();
+    }
   }
 
   function handleBranchChoiceClick(branchIndex) {
@@ -595,15 +664,18 @@
     // 起點/終點の板塊にはcardLevelsが無いためfloorのみ・数値indexのみ対象。
     if (floor && typeof walkSlotIndex === "number") {
       Core.stepCardLevel(walkSlotIndex, 1);
-      // 第18項「結束該卡牌的最後一個樓層後檢查是否所有樓層都有踏破」：たった今の＋1で
-      // カードの実在する樓層をすべて踏破済み（cardLevels===floorCount、まだ「全」では
-      // ない）になった場合、この樓層の獎勵ゲート（floorEnd）をGMが領取し終えるまで待って
-      // から（＝closeGmFlowGateAndConsumePendingAdvance側で）続けて「全」まで進め、
-      // 全踏破処理（撃破ルーン等の自動付与・GM敘述・地圖移動への案内）を発火させる。
-      // ここで即座に進めると、まだ見せていないこの樓層の獎勵ゲートを跨ぎ越してしまうため、
-      // 領取完了（[獲得完]）のタイミングまで意図的に遅延させる。
+      // 第18・19項「結束該卡牌的最後一個樓層後...則再處理［全踏破］處理...再次詢問是否使用
+      // 籌碼事件...接著處理［地圖移動機制］」：たった今の＋1でカードの実在する樓層をすべて
+      // 踏破済み（cardLevels===floorCount、まだ「全」ではない）になった場合、この樓層の
+      // 獎勵ゲート（floorEnd）をGMが領取し終えるまで待ってから（＝
+      // closeGmFlowGateAndConsumePendingAdvance／advanceCardConclusionChain側で）
+      // 「全」踏破処理→籌碼確認→地圖移動、の順で自動的に連鎖させる。ここで即座に進めると、
+      // まだ見せていないこの樓層の獎勵ゲートを跨ぎ越してしまうため、領取完了（[獲得完]）の
+      // タイミングまで意図的に遅延させる。
       if (walkEntry && typeof walkEntry.floorCount === "number" && Core.state.cardLevels[walkSlotIndex] === walkEntry.floorCount) {
         state.gmFlow.pendingFinalFloorSlot = walkSlotIndex;
+        state.gmFlow.pendingChipCheckSlot = walkSlotIndex;
+        state.gmFlow.pendingMapMoveSlot = walkSlotIndex;
       }
     }
   }
@@ -623,17 +695,29 @@
 
   // 第15・18項：全樓層踏破時、grantCardFullClearRewardIfNeeded（night.js）から呼ばれる。
   // 効果自体はすでに自動付与済み——ここは「何が起きたか」をGM敘述として見せて[OK]待ちにするだけ。
-  // effectTextが無いカード（allFloorEffect未設定）でも「全踏破した」こと自体は必ず敘述し、
-  // 続けて［地圖移動］機制への案内（次の目的地を選んでほしい旨）を同じ敘述に含める——
-  // この呼び出しはa_golden（黄金樹の帳）以外の全踏破でのみ発生するため、常に地圖移動への
-  // 案内で問題ない（黄金樹の帳はhandleGoldenTreeFullClearが別途、進次日の案内を出す）。
+  // effectTextが無いカード（allFloorEffect未設定）でも「全踏破した」こと自体は必ず敘述する。
+  // ［地圖移動］への案内はここでは出さない——この呼び出しの後、GMがこのゲートを閉じた時点で
+  // advanceCardConclusionChainが籌碼確認（あれば）を挟んでから改めて出す（第19項の順序：
+  // 全踏破処理→籌碼確認→地圖移動）。この呼び出しはa_golden（黄金樹の帳）以外の全踏破でのみ
+  // 発生する（黄金樹の帳はhandleGoldenTreeFullClearが別途、進次日の案内を出す）。
   function showFullClearNarration(cardName, effectText) {
     var Core = window.PriTestNightCore;
     var state = Core.state;
-    var mainText = effectText
+    state.gmFlow.narrationText = effectText
       ? window.I18N.t("gm_flow_full_clear_narration", { name: cardName, effect: effectText })
       : window.I18N.t("gm_flow_full_clear_narration_no_effect", { name: cardName });
-    state.gmFlow.narrationText = mainText + "\n" + window.I18N.t("gm_flow_map_move_prompt");
+    state.gmFlow.awaitingOk = true;
+    state.gmFlow.actionKind = "ok";
+    Core.saveState();
+    Core.renderCurrentLocationStatus();
+  }
+
+  // ［地圖移動機制］：全踏破処理（と、あれば籌碼確認）がすべて終わった後の最後の案内。
+  // 実際の移動操作自体は既存の盤面長押し移動UIに委ねる、単純な[OK]ゲート。
+  function showMapMoveNarration() {
+    var Core = window.PriTestNightCore;
+    var state = Core.state;
+    state.gmFlow.narrationText = window.I18N.t("gm_flow_map_move_prompt");
     state.gmFlow.awaitingOk = true;
     state.gmFlow.actionKind = "ok";
     Core.saveState();
@@ -674,26 +758,47 @@
     state.gmFlow.pendingChoiceLabels = [];
     state.gmFlow.battleWaitActive = false;
     state.gmFlow.combatTriggerLabel = null;
+    state.gmFlow.chipOfferSlot = null;
+    state.gmFlow.chipOfferContinuation = null;
     pendingFloorEndFloor = null;
     lastTypedNarration = null;
   }
 
-  // 第18項「結束該卡牌的最後一個樓層後...則再處理［全踏破］處理」：finishFieldWalkが
-  // 「この＋1でカードの実在する樓層をすべて踏破済みになった」と検出していた場合
-  // （state.gmFlow.pendingFinalFloorSlot）、GMがこの樓層の獎勵ゲートを実際に閉じ終えた
-  // （＝このゲート解決の）タイミングまで待ってから、続けて「全」まで進める——ここで即座に
-  // 進めてしまうと、まだ見せていない当該樓層の獎勵ゲート（floorEnd）を跨ぎ越してしまうため。
-  // handleGmFlowOk（[獲得完]/[OK]）とhandleFloorEndRewardClick（[領取獎勵]）の両方の
-  // ゲート解決経路から呼ばれる。
-  function closeGmFlowGateAndConsumePendingAdvance() {
+  // 第18・19項「結束該卡牌的最後一個樓層後...則再處理［全踏破］處理...再次詢問是否使用
+  // 籌碼事件...接著處理［地圖移動機制］」：finishFieldWalkが「この＋1でカードの実在する
+  // 樓層をすべて踏破済みになった」と検出していた場合、pendingFinalFloorSlot／
+  // pendingChipCheckSlot／pendingMapMoveSlotの3つを予約している。1つのゲートが閉じる
+  // たびに、この順（全踏破→籌碼確認→地圖移動）で次に何を出すべきか判定し直す
+  // ディスパッチャ——1ステップ進めるたびに新しいゲートが開いて処理が中断するため、
+  // 各ステップの解決処理（handleGmFlowOk／handleFloorEndRewardClick／resolveChipOffer）
+  // から改めて呼び直される。
+  function advanceCardConclusionChain() {
     var Core = window.PriTestNightCore;
     var state = Core.state;
     var finalFloorSlot = state.gmFlow.pendingFinalFloorSlot;
-    state.gmFlow.pendingFinalFloorSlot = null;
-    clearGmFlowGate();
     if (typeof finalFloorSlot === "number") {
-      Core.stepCardLevel(finalFloorSlot, 1); // → 「全」。内部でgrantCardFullClearRewardIfNeededが発火する
+      state.gmFlow.pendingFinalFloorSlot = null;
+      Core.stepCardLevel(finalFloorSlot, 1); // → 「全」。内部でgrantCardFullClearRewardIfNeededが発火し、続く敘述ゲートを新たに開く
+      return;
     }
+    var chipCheckSlot = state.gmFlow.pendingChipCheckSlot;
+    if (typeof chipCheckSlot === "number") {
+      state.gmFlow.pendingChipCheckSlot = null;
+      if (offerEventChipIfPending(chipCheckSlot, "cardConclusion")) return;
+    }
+    var mapMoveSlot = state.gmFlow.pendingMapMoveSlot;
+    if (typeof mapMoveSlot === "number") {
+      state.gmFlow.pendingMapMoveSlot = null;
+      showMapMoveNarration();
+    }
+  }
+
+  // GMがこの樓層のゲート（[獲得完]/[OK]/[領取獎勵]）を実際に閉じ終えたタイミングで呼ばれる。
+  // handleGmFlowOk（[獲得完]/[OK]）とhandleFloorEndRewardClick（[領取獎勵]）の両方の
+  // ゲート解決経路から呼ばれる。
+  function closeGmFlowGateAndConsumePendingAdvance() {
+    clearGmFlowGate();
+    advanceCardConclusionChain();
   }
 
   // ---- 日夜轉場整體流程（第16項） ----
@@ -722,11 +827,24 @@
     Core.renderCurrentLocationStatus();
   }
 
+  // 黄金樹の帳（a_golden）の全踏破は通常カードと同じfinishFieldWalk経路を通るため、
+  // pendingChipCheckSlot／pendingMapMoveSlotも一緒に予約されている場合がある。黄金樹の帳は
+  // ［地圖移動］ではなく進次日フロー（handleAdvanceNightClick/handleDismissNarrationClick）に
+  // 分岐するため、advanceCardConclusionChainを経由せず素通りする——次日は盤面ごと入れ替わり
+  // 無関係になるので、ここで確実に破棄しておく。
+  function clearPendingCardConclusionFlags() {
+    var state = window.PriTestNightCore.state;
+    state.gmFlow.pendingFinalFloorSlot = null;
+    state.gmFlow.pendingChipCheckSlot = null;
+    state.gmFlow.pendingMapMoveSlot = null;
+  }
+
   // [進入下一晚]：既存の主要ボタン（#btn-primary-action、シナリオ有無で
   // openKeepCardsDrawer/openSelectDrawerのどちらかに繋がる）をそのままクリックする——
   // ロジックを複製せず、既存の正しい分岐に完全に委ねる。
   function handleAdvanceNightClick() {
     clearGmFlowGate();
+    clearPendingCardConclusionFlags();
     window.PriTestNightCore.saveState();
     window.PriTestNightCore.renderCurrentLocationStatus();
     var btn = document.getElementById("btn-primary-action");
@@ -851,6 +969,10 @@
         // ［戰鬥機制］：ボタンは出さない。エネミーの全HP行が0になった瞬間
         // （notifyCombatEnded、night.jsのsetActionPhase combatEndオプション経由）に
         // 自動で敘述の続き（［戰鬥結束］）へ進む。
+      } else if (state.gmFlow.actionKind === "chipOffer") {
+        // 第19項：籌碼事件の使用可否確認。
+        addActionButton(actionsEl, "gm_flow_chip_offer_use_button", handleChipOfferUseClick);
+        addActionButton(actionsEl, "gm_flow_chip_offer_skip_button", handleChipOfferSkipClick);
       } else {
         addActionButton(actionsEl, "gm_flow_ok_button", handleGmFlowOk);
       }

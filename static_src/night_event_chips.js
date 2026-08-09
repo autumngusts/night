@@ -450,6 +450,7 @@
 
   window.PriTestNightEventChips = {
     handleEventChipTrigger: handleEventChipTrigger,
+    openEventChipModal: openEventChipModal,
     closeEventChipModal: closeEventChipModal,
     minimizeEventChipModal: minimizeEventChipModal,
     restoreEventChipModal: restoreEventChipModal,

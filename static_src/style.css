@@ -942,6 +942,21 @@ button {
   padding: 0.4rem 0.55rem;
 }
 
+/* #21：折りたたみ時のみ、長押し→ドラッグで右上／左上のどちらかへスナップ移動できる
+   （state.locationBannerCorner）。左上のときはborder-radiusを左右反転し、画面端に
+   square角が来るようにする（右上のときと同じ見た目の作法）。 */
+#location-status-overlay.corner-left {
+  right: auto;
+  left: 0.75rem;
+}
+
+/* ドラッグ中は指/カーソルへ追従させるため、top/leftをJS側でinlineで直接動かす
+   （transitionが掛かっていると追従が遅れて見えるため、ドラッグ中だけ無効化する）。 */
+#location-status-overlay.dragging {
+  transition: none;
+  cursor: grabbing;
+}
+
 /* 進度版本体：上段「樓層詳細資訊」（#location-status-content）と、下段「GM對話框」
    （#location-status-dialogue、自動化GM Phase 2）を縦に並べる縦長レイアウト。 */
 #location-status-body {

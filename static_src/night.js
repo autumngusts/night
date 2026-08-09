@@ -774,6 +774,7 @@
     turnBoardEnabled: true, // 主選單から行動留言板機能全体を開閉するフラグ
     logBubbleEnabled: false, // 紀錄ドロワーの懸浮泡泡（公開盤左上に常時表示するショートカット）を出すかどうか
     locationBannerCollapsed: false, // 右上の現在地バナー（#location-status-overlay）を折りたたみ表示にするかどうか
+    locationBannerCorner: "right", // #21：折りたたみ時、長押し＋ドラッグでスナップした位置。"right"|"left"
     autoGmEnabled: false, // 自動化GM機能全体のON/OFF。規則書パスワード（"nightnight"）認証済みの人のみ切替可能（turnHolder制限は無し）
     autoGmLog: [], // 自動化GMの監査ログ（通常のstate.logとは別。誰がいつ何を確認・確定したか、後から検証できるように保持）
     gmFlowEnabled: false, // 自動化GM Phase 2（シナリオ進行フロー：進度版の[進入]/[突破]・敘述・獎勵収集ゲート）のON/OFF。autoGmEnabledとは別軸、同じ規則書パスワードで保護
@@ -800,6 +801,14 @@
       // （closeGmFlowGateAndConsumePendingAdvance）まで、続けて「全」へ進めるのを遅延させておく
       // ためのポインタ。null＝該当なし。
       pendingFinalFloorSlot: null,
+      // 第19項：actionKind==="chipOffer"の間、確認対象の籌碼があるslotIndexと、解決後に
+      // 続ける処理（"startWalk"｜"cardConclusion"）。finishFieldWalkがカードの最後の樓層の
+      // 敘述終了時に記録しておいたslotIndex（pendingChipCheckSlot）とpendingMapMoveSlotは、
+      // advanceCardConclusionChainが「全踏破処理→籌碼確認→地圖移動」の順で順次消費する。
+      chipOfferSlot: null,
+      chipOfferContinuation: null,
+      pendingChipCheckSlot: null,
+      pendingMapMoveSlot: null,
     },
     // GMが開いて縮小した抽選ウィンドウを全端末で共有するための領域。null=未使用。
     // 中身はcharacter_drawer.jsのweaponRollState/talismanRollState/consumableRollState、
@@ -874,6 +883,7 @@
       turnBoardEnabled: state.turnBoardEnabled,
       logBubbleEnabled: state.logBubbleEnabled,
       locationBannerCollapsed: state.locationBannerCollapsed,
+      locationBannerCorner: state.locationBannerCorner,
       autoGmEnabled: state.autoGmEnabled,
       autoGmLog: state.autoGmLog,
       gmFlowEnabled: state.gmFlowEnabled,
@@ -1748,6 +1758,7 @@
       state.turnBoardEnabled = typeof data.turnBoardEnabled === "boolean" ? data.turnBoardEnabled : true;
       state.logBubbleEnabled = typeof data.logBubbleEnabled === "boolean" ? data.logBubbleEnabled : false;
       state.locationBannerCollapsed = typeof data.locationBannerCollapsed === "boolean" ? data.locationBannerCollapsed : false;
+      state.locationBannerCorner = data.locationBannerCorner === "left" ? "left" : "right";
       state.autoGmEnabled = typeof data.autoGmEnabled === "boolean" ? data.autoGmEnabled : false;
       state.autoGmLog = Array.isArray(data.autoGmLog) ? data.autoGmLog : [];
       state.gmFlowEnabled = typeof data.gmFlowEnabled === "boolean" ? data.gmFlowEnabled : false;
@@ -1770,9 +1781,16 @@
         narrationText: typeof loadedGmFlow.narrationText === "string" ? loadedGmFlow.narrationText : null,
         awaitingOk: !!loadedGmFlow.awaitingOk,
         actionKind:
-          ["ok", "nightAdvance", "finalDayBattle", "branchChoice", "lineChoice", "combatTrigger", "battleWait"].indexOf(
-            loadedGmFlow.actionKind
-          ) !== -1
+          [
+            "ok",
+            "nightAdvance",
+            "finalDayBattle",
+            "branchChoice",
+            "lineChoice",
+            "combatTrigger",
+            "battleWait",
+            "chipOffer",
+          ].indexOf(loadedGmFlow.actionKind) !== -1
             ? loadedGmFlow.actionKind
             : "ok",
         pendingRewardWindows: Array.isArray(loadedGmFlow.pendingRewardWindows) ? loadedGmFlow.pendingRewardWindows : [],
@@ -1783,6 +1801,10 @@
         combatTriggerLabel: typeof loadedGmFlow.combatTriggerLabel === "string" ? loadedGmFlow.combatTriggerLabel : null,
         battleWaitActive: !!loadedGmFlow.battleWaitActive,
         pendingFinalFloorSlot: typeof loadedGmFlow.pendingFinalFloorSlot === "number" ? loadedGmFlow.pendingFinalFloorSlot : null,
+        chipOfferSlot: typeof loadedGmFlow.chipOfferSlot === "number" ? loadedGmFlow.chipOfferSlot : null,
+        chipOfferContinuation: typeof loadedGmFlow.chipOfferContinuation === "string" ? loadedGmFlow.chipOfferContinuation : null,
+        pendingChipCheckSlot: typeof loadedGmFlow.pendingChipCheckSlot === "number" ? loadedGmFlow.pendingChipCheckSlot : null,
+        pendingMapMoveSlot: typeof loadedGmFlow.pendingMapMoveSlot === "number" ? loadedGmFlow.pendingMapMoveSlot : null,
       };
       var loadedDraws = data.activeDraws && typeof data.activeDraws === "object" ? data.activeDraws : {};
       state.activeDraws = {
@@ -1847,6 +1869,7 @@
     state.turnBoardEnabled = true;
     state.logBubbleEnabled = false;
     state.locationBannerCollapsed = false;
+    state.locationBannerCorner = "right";
     state.autoGmEnabled = false;
     state.autoGmLog = [];
     state.gmFlowEnabled = false;
@@ -1862,6 +1885,10 @@
       combatTriggerLabel: null,
       battleWaitActive: false,
       pendingFinalFloorSlot: null,
+      chipOfferSlot: null,
+      chipOfferContinuation: null,
+      pendingChipCheckSlot: null,
+      pendingMapMoveSlot: null,
     };
     state.activeDraws = { potentialPower: null, weapon: null, talisman: null, consumable: null };
     state.activeThreatEffects = [];
@@ -9415,6 +9442,23 @@
     return m ? m[1] : null;
   }
 
+  // enemyKeyに割り当てられた行（複数の可能性）がすべて撃破済みかどうかを返す。通常エネミーは
+  // 「選択順＝開始行」（enemyHpRowIndexForKey）だが、HP枠表記が2段（例："×5/×4"）の場合は
+  // その1体だけで開始行の次の行も占有する——applyOverflowingEnemyDamageのダメージ波及方向
+  // （開始行→後続の連続する割当済み行）と同じ規約で、後続行も併せて確認する。開始行だけを
+  // 見て「撃破」表示すると、2段目以降がまだ残っているのに戦場面板が誤って撃破（打X）表示に
+  // なってしまう（ユーザー報告：全HPを0にしたのに自動化GMが戦闘終了を検知しない、の原因）。
+  function isEnemyFullyDepletedAtRow(startRowIdx) {
+    if (startRowIdx === -1) return false;
+    var any = false;
+    for (var r = startRowIdx; r < ENEMY_HP_ROWS; r++) {
+      if (!enemyHasRow(r)) break;
+      any = true;
+      if (!isEnemyHpRowDepleted(r)) return false;
+    }
+    return any;
+  }
+
   function renderSelectedEnemies() {
     var Enemies = window.PriTestEnemies;
     if (!Enemies) return;
@@ -9445,8 +9489,7 @@
       resolved.forEach(function (item) {
         var chip = document.createElement("div");
         var itemRowIdx = enemyHpRowIndexForKey(item.key);
-        chip.className =
-          "selected-enemy-chip" + (itemRowIdx !== -1 && isEnemyHpRowDepleted(itemRowIdx) ? " enemy-row-depleted" : "");
+        chip.className = "selected-enemy-chip" + (isEnemyFullyDepletedAtRow(itemRowIdx) ? " enemy-row-depleted" : "");
         chip.style.cursor = "pointer";
         chip.addEventListener("click", function () {
           var parts = item.key.split("|");
@@ -9537,10 +9580,113 @@
   // 現在地表示は戦闘のstagger通知等と違い、常に存在し続けるべき情報のため）。折りたたみ時は
   // 樓層名だけの小さなブロックに、展開時は樓層數・全效果に加えて将来の自動GM文字/選択肢を
   // 置ける余白を持つ。折りたたみ状態はstate.locationBannerCollapsedで永続化する。
+  var bannerJustDragged = false; // ドラッグ確定直後の合成clickイベントで折りたたみが誤って切り替わらないようにする
+
   function handleLocationBannerToggleClick() {
+    if (bannerJustDragged) {
+      bannerJustDragged = false;
+      return;
+    }
     state.locationBannerCollapsed = !state.locationBannerCollapsed;
     saveState();
     renderCurrentLocationStatus();
+  }
+
+  // #21：折りたたみ時のみ、長押し（SLOT_LONG_PRESS_MSと同じ閾値）に続けてドラッグすると、
+  // バナーが指/カーソルへ追従し、離した位置が画面の左右どちらに近いかで右上／左上へ
+  // スナップする（state.locationBannerCorner）。板塊の長押し判定（pointerdown→setTimeout→
+  // pointerup/leave/cancelでclearTimeout）と同じ作法。閾値到達前に離せば通常のクリック
+  // （折りたたみ切替）として扱う——ここでは何もせず、ボタン自身のclickリスナーに委ねる。
+  function attachLocationBannerDrag() {
+    var overlay = document.getElementById("location-status-overlay");
+    if (!overlay) return;
+    var pressTimer = null;
+    var armed = false;
+    var moved = false;
+    var startX = 0;
+    var startY = 0;
+    var grabOffsetX = 0;
+    var grabOffsetY = 0;
+    var MOVE_THRESHOLD_PX = 6;
+
+    function beginDrag(e) {
+      armed = true;
+      moved = false;
+      var rect = overlay.getBoundingClientRect();
+      grabOffsetX = startX - rect.left;
+      grabOffsetY = startY - rect.top;
+      overlay.classList.add("dragging");
+      if (overlay.setPointerCapture && e.pointerId !== undefined) {
+        try {
+          overlay.setPointerCapture(e.pointerId);
+        } catch (err) {
+          /* Safari等でpointerId不正の場合は追従のみ諦め、スナップ判定は引き続き有効にする */
+        }
+      }
+    }
+
+    function followPointer(x, y) {
+      var rect = overlay.getBoundingClientRect();
+      var left = Math.max(0, Math.min(window.innerWidth - rect.width, x - grabOffsetX));
+      var top = Math.max(0, Math.min(window.innerHeight - rect.height, y - grabOffsetY));
+      overlay.style.left = left + "px";
+      overlay.style.top = top + "px";
+      overlay.style.right = "auto";
+    }
+
+    function endDrag(finalX) {
+      clearTimeout(pressTimer);
+      if (armed) {
+        overlay.classList.remove("dragging");
+        overlay.style.left = "";
+        overlay.style.top = "";
+        overlay.style.right = "";
+        if (moved) {
+          // ブラウザは押下→大きく移動→離す、の場合はネイティブclickイベント自体を発火させない
+          // ことが多い（＝bannerJustDraggedがどのclickにも消費されないまま残り得る）ため、
+          // 直後の合成clickだけを対象に、次のタスクで確実に解除する（setTimeout 0）。
+          bannerJustDragged = true;
+          setTimeout(function () {
+            bannerJustDragged = false;
+          }, 0);
+          state.locationBannerCorner = finalX < window.innerWidth / 2 ? "left" : "right";
+          saveState();
+          renderCurrentLocationStatus();
+        }
+      }
+      armed = false;
+      moved = false;
+    }
+
+    overlay.addEventListener("pointerdown", function (e) {
+      if (!state.locationBannerCollapsed) return; // 展開中はドラッグ対象外（縮小時のみ、との指定）
+      startX = e.clientX;
+      startY = e.clientY;
+      clearTimeout(pressTimer);
+      pressTimer = setTimeout(function () {
+        beginDrag(e);
+      }, SLOT_LONG_PRESS_MS);
+    });
+    overlay.addEventListener("pointermove", function (e) {
+      if (!armed) return;
+      if (!moved && Math.hypot(e.clientX - startX, e.clientY - startY) >= MOVE_THRESHOLD_PX) moved = true;
+      if (moved) followPointer(e.clientX, e.clientY);
+    });
+    overlay.addEventListener("pointerup", function (e) {
+      endDrag(e.clientX);
+    });
+    overlay.addEventListener("pointercancel", function () {
+      clearTimeout(pressTimer);
+      overlay.classList.remove("dragging");
+      overlay.style.left = "";
+      overlay.style.top = "";
+      overlay.style.right = "";
+      armed = false;
+      moved = false;
+    });
+    overlay.addEventListener("pointerleave", function () {
+      if (!armed) clearTimeout(pressTimer); // ドラッグ確定前に指/カーソルが外れたら長押し自体を取り消す
+    });
   }
 
   // 板塊の場地カードの「真正該劇本の名稱」を解決する。scenario.day1/day2に記録されている
@@ -9580,6 +9726,7 @@
       return;
     }
     overlay.classList.toggle("collapsed", !!state.locationBannerCollapsed);
+    overlay.classList.toggle("corner-left", state.locationBannerCorner === "left");
     if (toggleBtn) {
       toggleBtn.innerHTML = state.locationBannerCollapsed ? "&#9660;" : "&#9650;";
       toggleBtn.title = window.I18N.t(state.locationBannerCollapsed ? "location_banner_expand_label" : "location_banner_collapse_label");
@@ -10944,6 +11091,7 @@
     document.getElementById("btn-threat-broadcast-close").addEventListener("click", closeThreatBroadcast);
     document.getElementById("btn-enemy-row-status-close").addEventListener("click", closeEnemyRowStatusBanner);
     document.getElementById("btn-location-status-toggle").addEventListener("click", handleLocationBannerToggleClick);
+    attachLocationBannerDrag();
     document.getElementById("btn-threat-drawer-close").addEventListener("click", closeThreatDrawer);
     document.getElementById("threat-drawer-backdrop").addEventListener("click", closeThreatDrawer);
     document.getElementById("btn-active-threat-effect-add").addEventListener("click", handleActiveThreatEffectAdd);
