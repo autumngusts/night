@@ -313,19 +313,26 @@ hpBoxDamage = floor(totalDamage / hpValue)
 | 属性/状態異常の蓄積・トリガー（PC→敵人） | ✅ 実装済み | `static_src/night.js` `recordAttributeStatusDealt`ほか |
 | 耐性による蓄積無効化 | ✅ 実装済み（通常エネミー・夜の王とも対応） | `enemyResistanceLabels`, `recordAttributeStatusDealt` |
 | 夜の王をPC攻撃対象に含める | ✅ 実装済み | `resolveSelectedEnemyOptions` |
-| 体勢崩し発生フラグ（HP行が1つでも0到達） | ✅ 実装済み（フラグのみ、5節のガード回数とは未接続） | `state.battle.guardBroken`, `adjustEnemyHpRow` |
-| ガード回数（現在値）のstate管理 | ❌ 未実装 | – |
-| ガード削り値（▲=0.5/◆=1）の算出・適用 | ❌ 未実装 | – |
-| ガード回数→HP価値のstate参照テーブル（夜の王） | ❌ 未実装（通常エネミーは`guardValueTable`が既にあるが表示専用） | `night_rulebook.js`の`buildEnemyGuardValueTable`は表示のみ |
-| PCの総合ダメージ→エネミーHP自動適用（優先度1〜5） | ❌ 未実装（現状は表示された数値をGMが手動でHPステッパーへ反映） | – |
-| 夜の王のHP行の自動初期化（`hp`欄の自由文字列からのパース） | ❌ 未実装 | – |
-| グラディウス「分裂形態」のHP3分割・PC側総合ダメージの1/3換算 | ❌ 未実装（実装保留、5節のガード回数システムが前提） | – |
+| 体勢崩し発生フラグ（HP行が1つでも0到達） | ✅ 実装済み（フラグのみ、ガード回数システムとの接続は5.5節の「回復」のみ） | `state.battle.guardBroken`, `adjustEnemyHpRow` |
+| ガード回数（現在値）のstate管理・新しい回合での回復 | ✅ 実装済み | `state.battle.guardCount`, `setActionPhase`（`phase==="combat"`突入時にクリア） |
+| ガード削り値（▲=0.5/◆=1、事前合算値をGM入力）の算出・適用 | ✅ 実装済み（通常エネミー・gladius/marisのみ、他の夜の王は未構造化） | `applyGuardedDamageToEnemy`、UI: `#battle-guard-calc-block` |
+| ガード回数→HP価値のstate参照テーブル（夜の王） | ✅ gladius/marisのみ実装済み（他7体は自由文字列`guard`欄のまま） | `night_boss_rulebook.js`の`guardCount`/`guardValueTable`フィールド、`enemyGuardValueForCount` |
+| PCの総合ダメージ→エネミーHP自動適用（優先度1のHP行オーバーフロー含む） | ✅ 実装済み（GMが総合ダメージ＋ガード削り値を手入力→自動計算・適用、優先度2〜3のモブHP/属性異常は対象外） | `applyGuardedDamageToEnemy`, `applyOverflowingEnemyDamage` |
+| 夜の王のHP行の自動初期化 | ✅ gladius/marisのみ実装済み（`hp`欄の自由文字列は解析せず、`hpBoxes`という新規の構造化フィールドを手動で用意し、ENEMY_HP_ROWSの末尾から`hpRowCount`行分を割り当てる「後ろ詰め」規約） | `ensureBossHpRowsInitialized`, `enemyHpRowIndexForKey` |
+| グラディウス「分裂形態」のHP3分割・PC側総合ダメージの1/3換算 | ❌ 未実装（ガード回数システムという前提は整ったが、「分裂形態では1/3にして3行へ同時適用」という分岐そのものは未着手） | – |
 | グラディウス「分裂形態」→「合体形態」の自動移行（防御フェイズ終了時） | ❌ 未実装 | – |
 
-**次にこの領域を実装するときの前提**：5節のガード回数／HP価値システム
-（`static_src/night.js`側にstateフィールドとロジックを追加し、通常エネミーは
-既存の`family.guardCount`/`guardValueTable`を再利用、夜の王は`night_boss_rulebook.js`
-の`guard`自由文字列を新たに構造化データへパースする必要がある）を先に実装しないと、
-「グラディウス分裂形態のHP3分割」（ユーザー確認済み仕様：PC側総合ダメージを
-フロア(3で割ったガード削り後のHP損害)として3つの個体HP行へ同時に適用、いずれかが
-0以下になったら防御フェイズ終了時に合体形態へ自動移行）は正しく実装できない。
+**ガード計算機の使い方（GM向け、`#battle-drawer`＝戦場面板内）**：「防禦次數／HP價值
+計算機」ブロックで対象（通常エネミー／設定済みの夜の王）を選び、その1回の攻撃行動で
+発生した「総合ダメージ」と、GMが規則書の追加効果欄（◆=1点/▲=0.5点）を見て事前に
+合算した「ガード削り値」を入力して「適用」を押すと、優先度4→5の計算（5.3節の式）を
+行い、結果のHP行（オーバーフロー込み）へ自動反映する。優先度2（モブHP）・優先度3
+（属性/状態異常）は本ツールの対象外（それぞれ既存の別UIで従来通り処理する）。
+
+**次にこの領域を実装するときの前提**：グラディウス「分裂形態」のHP3分割を実装する際は、
+`applyGuardedDamageToEnemy`に`state.battle.bossForm==="split"`のときの分岐を追加し、
+`applyOverflowingEnemyDamage`（1行→オーバーフローで次の行へ）ではなく、
+`hpBoxes = floor(floor(totalDamage/hpValue)/3)`をenemyHpRowIndexForKeyが返す
+開始行から3行**同時に**（オーバーフローさせず、独立に）適用するロジックに置き換える
+必要がある。また、3行のいずれかが0以下になったら防御フェイズ終了時に
+`state.battle.bossForm`を"fused"へ自動で戻す処理（現状は手動トグルのみ）を追加する。

@@ -703,6 +703,12 @@
       // 「行動激化」（體勢崩し発生後は「1D」ではなく「1D＋2」で行動判定）のように、体勢崩し発生後
       // だけ有効になるルールの判定にauto_gm.js側から参照する。
       guardBroken: false,
+      // ガード回数（現在値）。キーはenemyKey（"familyId|enemyId|level"または"boss|<id>"）、
+      // 値は現在のガード回数。未設定（キーが存在しない）＝そのエネミーのガード回数最大値
+      // （family.guardCount／夜の王のguardCount）を意味する（docs/enemy_damage_rules.md
+      // 5節）。新しい回合（防禦→戰鬥フェイズ再突入）ごとに全員最大値へ回復するため、
+      // setActionPhaseでこのオブジェクト自体を空にする（＝全員フォールバックで最大値扱いに戻す）。
+      guardCount: {},
     };
   }
 
@@ -1026,6 +1032,7 @@
       autoGmMobPresentSnapshot: loadBoolMap(raw.autoGmMobPresentSnapshot),
       bossForm: raw.bossForm === "split" ? "split" : "fused",
       guardBroken: !!raw.guardBroken,
+      guardCount: loadNumberMap(raw.guardCount),
     };
   }
 
@@ -1152,12 +1159,139 @@
     return isWeak ? ATTRIBUTE_STATUS_WEAKNESS_THRESHOLD : ATTRIBUTE_STATUS_BASE_THRESHOLD;
   }
 
+  // ============================================================
+  // ガード回数／ガード削り損害／HP価値（docs/enemy_damage_rules.md 5節）
+  // 通常エネミー：family.guardCount（最大値）／family.guardValueTable（既存データ、
+  //   従来はnight_rulebook.jsの表示専用だったものをここでも計算に使う）。
+  // 夜の王：night_boss_rulebook.jsの該当ボスへ追加したguardCount/guardValueTable
+  //   （現時点ではgladius/marisのみ、他のボスは自由文字列のguard欄のまま未対応）。
+  // ============================================================
+
+  function enemyGuardMaxCount(enemyKey) {
+    if (isBossAttackKey(enemyKey)) {
+      var bossInfo = window.PriTestBossRulebook ? window.PriTestBossRulebook.get(enemyKey.slice(5)) : null;
+      return bossInfo && typeof bossInfo.guardCount === "number" ? bossInfo.guardCount : null;
+    }
+    var parts = enemyKey.split("|");
+    var fam = window.PriTestEnemies && window.PriTestEnemies.getFamily ? window.PriTestEnemies.getFamily(parts[0]) : null;
+    return fam && typeof fam.guardCount === "number" ? fam.guardCount : null;
+  }
+
+  // guardCountValueに対応する「HP価値」を引く。通常エネミーはguardValueTableの行が
+  // レベル別15要素配列を持つ場合があるため、enemyKeyのlevelでも解決する
+  // （night_rulebook.jsのbuildEnemyGuardValueTableと同じ判定）。
+  function enemyGuardValueForCount(enemyKey, guardCountValue) {
+    var table, level;
+    if (isBossAttackKey(enemyKey)) {
+      var bossInfo = window.PriTestBossRulebook ? window.PriTestBossRulebook.get(enemyKey.slice(5)) : null;
+      table = bossInfo && bossInfo.guardValueTable;
+      level = null;
+    } else {
+      var parts = enemyKey.split("|");
+      var fam = window.PriTestEnemies && window.PriTestEnemies.getFamily ? window.PriTestEnemies.getFamily(parts[0]) : null;
+      table = fam && fam.guardValueTable;
+      level = parseInt(parts[2], 10) || 1;
+    }
+    if (!table) return null;
+    var row = table.filter(function (r) {
+      return r.count === guardCountValue;
+    })[0];
+    if (!row) return null;
+    if (Array.isArray(row.value)) return row.value[Math.max(0, Math.min(row.value.length - 1, level - 1))];
+    return row.value;
+  }
+
+  // 現在のガード回数。state.battle.guardCountに未記録（＝新しい回合が始まって以降まだ
+  // ガード削り損害を受けていない）の場合は最大値にフォールバックする。
+  function enemyCurrentGuardCount(enemyKey) {
+    var stored = state.battle.guardCount && state.battle.guardCount[enemyKey];
+    if (typeof stored === "number") return stored;
+    var max = enemyGuardMaxCount(enemyKey);
+    return typeof max === "number" ? max : null;
+  }
+
+  // 優先度4（ガード削り損害の適用）→優先度5（総合ダメージの適用）を1回でまとめて行う。
+  // guardReductionPoints：◆=1点/▲=0.5点で事前に合計した値（呼び出し側のUIでGMが入力）。
+  // 整数部分だけをガード回数の減少に使う（端数は切り捨て、docs 5.2節）。
+  // ガード回数のデータが無いエネミー（未対応の夜の王等）はnullを返し、呼び出し側は
+  // 従来通りGM手動でのHP調整を促す。
+  function applyGuardedDamageToEnemy(enemyKey, totalDamage, guardReductionPoints) {
+    var maxGuard = enemyGuardMaxCount(enemyKey);
+    if (typeof maxGuard !== "number") return null;
+    var currentGuard = enemyCurrentGuardCount(enemyKey);
+    var reduceBy = Math.max(0, Math.floor(guardReductionPoints || 0));
+    var newGuard = Math.max(0, currentGuard - reduceBy);
+    if (!state.battle.guardCount) state.battle.guardCount = {};
+    state.battle.guardCount[enemyKey] = newGuard;
+    var hpValue = enemyGuardValueForCount(enemyKey, newGuard);
+    if (!hpValue) return null;
+    var hpBoxes = Math.floor((totalDamage || 0) / hpValue);
+    var rowIdx = enemyHpRowIndexForKey(enemyKey);
+    if (rowIdx !== -1 && hpBoxes > 0) applyOverflowingEnemyDamage(rowIdx, hpBoxes);
+    addLog("log_guarded_damage_applied", {
+      enemy: enemyDisplayNameForKey(enemyKey),
+      damage: totalDamage || 0,
+      guardBefore: currentGuard,
+      guardAfter: newGuard,
+      hpValue: hpValue,
+      boxes: hpBoxes,
+    });
+    saveState();
+    return { currentGuard: currentGuard, newGuard: newGuard, hpValue: hpValue, hpBoxes: hpBoxes, rowIdx: rowIdx };
+  }
+
+  // 優先度1「上のHP行から、余剰は次のHP行へ」を実装する。adjustEnemyHpRowは1行のみを
+  // 扱うため、boxesが対象行の残りHPを超える分を、次のHP行へ繰り越しながら順に適用する。
+  function applyOverflowingEnemyDamage(rowIdx, boxes) {
+    var remaining = boxes;
+    var idx = rowIdx;
+    while (remaining > 0 && idx < ENEMY_HP_ROWS) {
+      var current = countRowChecked(state.battle.enemyHp, idx * ENEMY_HP_COLS, ENEMY_HP_COLS);
+      var applied = Math.min(remaining, current);
+      if (applied > 0) adjustEnemyHpRow(idx, -applied);
+      remaining -= applied;
+      idx++;
+    }
+  }
+
   // enemyKeyに紐付くHP行番号を返す（選択順=行、ENEMY_HP_ROWS段を超える分は紐付け不可）。
+  // 夜の王（"boss|"キー）は選択順の概念（selectedEnemyIds）を経由しないため、
+  // ENEMY_HP_ROWSの末尾からそのボスのhpRowCount行分を占有する「後ろ詰め」規約で割り当てる
+  // （通常エネミー1体（最大2行）と同時に選択されても衝突しない）。hpRowCount未定義（＝まだ
+  // 構造化していない夜の王）は-1を返し、従来通りno-opにフォールバックする。
   function enemyHpRowIndexForKey(enemyKey) {
+    if (isBossAttackKey(enemyKey)) {
+      var bossInfo = window.PriTestBossRulebook ? window.PriTestBossRulebook.get(enemyKey.slice(5)) : null;
+      var rowCount = bossInfo && typeof bossInfo.hpRowCount === "number" ? bossInfo.hpRowCount : 0;
+      if (rowCount <= 0) return -1;
+      return Math.max(0, ENEMY_HP_ROWS - rowCount);
+    }
     var ids = (state.battle && state.battle.selectedEnemyIds) || [];
     var idx = ids.indexOf(enemyKey);
     if (idx === -1 || idx >= ENEMY_HP_ROWS) return -1;
     return idx;
+  }
+
+  // 夜の王のHP行（enemyHpRowIndexForKeyが割り当てた開始行から、hpRowCount行分）が
+  // まだ初期化されていなければ（enemyHpMaxが未設定）、hpBoxes（□×N欄を手入力で数値化した
+  // もの）から最大値を設定し、満タン初期化する。既に一度でも初期化済み（enemyHpMaxが
+  // 設定済み）の場合は何もしない（GMが調整済みのHPを壊さないため、通常エネミー追加時の
+  // 「isFreshEncounterの最初の1体のみ」パターンと同じ考え方）。
+  function ensureBossHpRowsInitialized(enemyKey) {
+    if (!isBossAttackKey(enemyKey)) return;
+    var bossInfo = window.PriTestBossRulebook ? window.PriTestBossRulebook.get(enemyKey.slice(5)) : null;
+    var rowCount = bossInfo && typeof bossInfo.hpRowCount === "number" ? bossInfo.hpRowCount : 0;
+    var hpBoxes = bossInfo && bossInfo.hpBoxes;
+    if (rowCount <= 0 || !Array.isArray(hpBoxes)) return;
+    var startRow = Math.max(0, ENEMY_HP_ROWS - rowCount);
+    if (state.battle.enemyHpMax[startRow] != null) return;
+    for (var i = 0; i < rowCount && startRow + i < ENEMY_HP_ROWS; i++) {
+      state.battle.enemyHpMax[startRow + i] = hpBoxes[i] || null;
+      setEnemyHpRowCount(startRow + i, hpBoxes[i] || 0);
+    }
+    saveState();
+    renderEnemyHpGrid();
+    handleEnemyHpChanged();
   }
 
   function enemyDisplayNameForKey(enemyKey) {
@@ -6523,6 +6657,71 @@
     });
   }
 
+  // 「防禦次數／HP價值 計算機」（battle-drawer）：GMがPCの總合ダメージ＋ガード削り値
+  // （◆/▲を事前に合算した数値、GMが規則書コラムに沿って手入力）を入力すると、
+  // applyGuardedDamageToEnemyがガード回数の減少とHP損害への換算を一括で行う。
+  // 対象はresolveSelectedEnemyOptions（通常エネミー＋設定済みの夜の王）と同じ一覧。
+  function renderBattleGuardCalc() {
+    var select = document.getElementById("battle-guard-calc-target-select");
+    var statusEl = document.getElementById("battle-guard-calc-status");
+    var applyBtn = document.getElementById("btn-battle-guard-calc-apply");
+    if (!select) return;
+    var options = resolveSelectedEnemyOptions();
+    var prevValue = select.value;
+    select.innerHTML = "";
+    options.forEach(function (opt) {
+      var o = document.createElement("option");
+      o.value = opt.key;
+      o.textContent = opt.name;
+      select.appendChild(o);
+    });
+    if (options.some(function (o) { return o.key === prevValue; })) select.value = prevValue;
+    var key = select.value;
+    var hasData = !!key && typeof enemyGuardMaxCount(key) === "number";
+    if (hasData) ensureBossHpRowsInitialized(key);
+    if (applyBtn) applyBtn.disabled = !options.length || !hasData;
+    if (!statusEl) return;
+    if (!options.length) {
+      statusEl.textContent = window.I18N.t("battle_guard_calc_no_target");
+    } else if (!hasData) {
+      statusEl.textContent = window.I18N.t("battle_guard_calc_no_guard_data", { enemy: enemyDisplayNameForKey(key) });
+    } else {
+      statusEl.textContent = window.I18N.t("battle_guard_calc_current_status", {
+        enemy: enemyDisplayNameForKey(key),
+        current: enemyCurrentGuardCount(key),
+        max: enemyGuardMaxCount(key),
+        hpValue: enemyGuardValueForCount(key, enemyCurrentGuardCount(key)),
+      });
+    }
+  }
+
+  function handleBattleGuardCalcApply() {
+    var select = document.getElementById("battle-guard-calc-target-select");
+    var damageInput = document.getElementById("battle-guard-calc-damage-input");
+    var reductionInput = document.getElementById("battle-guard-calc-reduction-input");
+    var resultEl = document.getElementById("battle-guard-calc-result");
+    var key = select && select.value;
+    if (!key) return;
+    var totalDamage = Math.max(0, Number(damageInput.value) || 0);
+    var reduction = Math.max(0, Number(reductionInput.value) || 0);
+    var result = applyGuardedDamageToEnemy(key, totalDamage, reduction);
+    if (!result) return;
+    if (resultEl) {
+      resultEl.hidden = false;
+      resultEl.textContent = window.I18N.t("battle_guard_calc_result_text", {
+        enemy: enemyDisplayNameForKey(key),
+        damage: totalDamage,
+        guardBefore: result.currentGuard,
+        guardAfter: result.newGuard,
+        hpValue: result.hpValue,
+        boxes: result.hpBoxes,
+      });
+    }
+    damageInput.value = "0";
+    reductionInput.value = "0";
+    renderBattleGuardCalc();
+  }
+
   // 雑魚HPリストも、エネミーHPグリッドと同様に戦場面板内のフル表示（削除ボタン付き）と、
   // 盤面左側の共用パネル（board-side-mob-hp-list、削除ボタンなしの簡易表示）の2箇所に
   // 同じstate.battle.mobHpRowsを描画する。どちらのチェックボックスを操作しても両方に
@@ -7416,6 +7615,7 @@
       state.battle.selectedEnemyIds = [];
       state.battle.autoGmMobPresentSnapshot = {};
       state.battle.guardBroken = false;
+      state.battle.guardCount = {};
       resetBattlePositionsAndAggro();
       renderSelectedEnemies();
       addLog("log_chat_command_clear_enemy");
@@ -8107,6 +8307,10 @@
     // 異常側の「今回合すでに發動した」ロックを解除する（屬性側は回合をまたいで蓄積を持ち越す）。
     if (phase === "combat" && state.actionPhase !== "combat") {
       resetAttributeStatusRoundLocks();
+      // ガード回数はアクションフェイズ開始時に最大値まで回復する（docs/enemy_damage_rules.md
+      // 5.5節）。stateには「現在値」だけを保持し、未設定＝最大値扱いにフォールバックする
+      // 設計（enemyCurrentGuardCount）なので、新しい回合の開始時はここを空にするだけでよい。
+      state.battle.guardCount = {};
       // 守護者「救世之翼」の全体バフ（戦闘→額外→防禦の1回合を跨いで持続）も、新しい回合が
       // 始まったタイミングでのみクリアする（フェイズ切替の都度リセットする他のフラグとは
       // ライフサイクルが異なる）。
@@ -9027,6 +9231,7 @@
     var boardSideHp = document.getElementById("board-side-enemy-hp");
     if (boardSideHp) boardSideHp.hidden = resolved.length === 0;
     if (typeof renderBattlePositionAreas === "function") renderBattlePositionAreas();
+    renderBattleGuardCalc();
 
     [
       { containerId: "battle-selected-enemies", withRemove: true },
@@ -9096,6 +9301,7 @@
               state.battle.selectedEnemyIds.splice(idx, 1);
               purgeAttributeStatusForEnemyKey(item.key);
               if (state.battle.autoGmMobPresentSnapshot) delete state.battle.autoGmMobPresentSnapshot[item.key];
+              if (state.battle.guardCount) delete state.battle.guardCount[item.key];
               resetBattlePositionsAndAggro();
               renderSelectedEnemies();
               addLog("log_battle_enemy_remove", { enemy: T(item.info.enemy.name), level: item.level });
@@ -10515,6 +10721,8 @@
     document.getElementById("bag-drawer-backdrop").addEventListener("click", closeBagDrawer);
     document.getElementById("battle-enemy-search-input").addEventListener("input", renderBattleEnemySearchResults);
     document.getElementById("btn-battle-add-mob-row").addEventListener("click", handleAddMobRow);
+    document.getElementById("battle-guard-calc-target-select").addEventListener("change", renderBattleGuardCalc);
+    document.getElementById("btn-battle-guard-calc-apply").addEventListener("click", handleBattleGuardCalcApply);
     document.getElementById("btn-battle-clear").addEventListener("click", handleBattleClear);
     document.getElementById("btn-dice-pool-add").addEventListener("click", handleAddDice);
     // 靈體管理／屬性痕管理を開くボタンは、キャラ個人の骰子池横（renderCharacterRoster内）に

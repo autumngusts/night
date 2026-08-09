@@ -12,10 +12,26 @@
       level: 16,
       size: C("合体状態：LL／分離状態：L", "合體狀態：LL／分裂狀態：L"),
       hp: C("※③④ □×12／□×12／□×12", "※③④ □×12／□×12／□×12"),
+      // 上記hp欄（自由文字列、表示専用）を構造化したもの。□×N＝N（1マス=1）としてそのまま
+      // 各行の最大値に使う（PCの最大HP加算の□とは異なり、こちらは単純に個数＝最大HPマス数）。
+      // enemyHpRowIndexForKeyがENEMY_HP_ROWSの末尾からhpRowCount行分をこの夜の王に割り当てる
+      // （通常エネミーとの同時選択と衝突しない後ろ詰め規約）。
+      hpRowCount: 3,
+      hpBoxes: [12, 12, 12],
       guard: C(
         "ガード回数 4以上：(80)／3：80／2：70／1：60／0（体勢崩し）：60",
         "防禦次數 4以上：(80)／3：80／2：70／1：60／0（崩勢）：60"
       ),
+      // 上記guard欄（自由文字列、表示専用）を構造化したもの。「4以上」は()付きの理論値
+      // （通常エネミーのfamily.guardValueTableのtheoretical行と同じ扱い）のため、実際の
+      // 最大ガード回数は3。docs/enemy_damage_rules.md 5節のガード回数/HP価値システムで使用。
+      guardCount: 3,
+      guardValueTable: [
+        { count: 3, value: 80 },
+        { count: 2, value: 70 },
+        { count: 1, value: 60 },
+        { count: 0, value: 60 },
+      ],
       weakness: C("聖", "聖"),
       resistance: C("猛毒", "劇毒"),
       specials: [
@@ -163,10 +179,20 @@
       level: 16,
       size: C("LL", "LL"),
       hp: C("※①□×6／□×20／□×20", "※①□×6／□×20／□×20"),
+      hpRowCount: 3,
+      hpBoxes: [6, 20, 20],
       guard: C(
         "ガード回数 4以上：(80)／3：(80)／2：80／1：60／0（体勢崩し）：50",
         "防禦次數 4以上：(80)／3：(80)／2：80／1：60／0（崩勢）：50"
       ),
+      // 「4以上」「3」がともに()付きの理論値のため、実際の最大ガード回数は2。
+      // docs/enemy_damage_rules.md 5節参照。
+      guardCount: 2,
+      guardValueTable: [
+        { count: 2, value: 80 },
+        { count: 1, value: 60 },
+        { count: 0, value: 50 },
+      ],
       weakness: C("雷", "雷"),
       resistance: C("炎、猛毒、出血、睡眠、発狂", "火、劇毒、出血、睡眠、發狂"),
       specials: [

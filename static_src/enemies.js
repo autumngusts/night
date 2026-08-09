@@ -89,11 +89,21 @@
     return { familyId: fam.id, familyName: fam.name, familyBase: fam.base, enemy: e };
   }
 
+  // 系統（科）そのもの（guardCount/guardValueTable等、get()が返さない科レベルの
+  // フィールドを読むため）を返す。docs/enemy_damage_rules.md 5節のガード回数/HP価値
+  // システムで使用。
+  function getFamily(familyId) {
+    return FAMILIES.filter(function (f) {
+      return f.id === familyId;
+    })[0] || null;
+  }
+
   window.PriTestEnemies = {
     listFamilies: listFamilies,
     allEnemies: allEnemies,
     search: search,
     get: get,
+    getFamily: getFamily,
     imagePath: imagePath,
     localizedText: T,
   };

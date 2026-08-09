@@ -1039,6 +1039,25 @@ BODY = """    <div class="night-header-row">
           <div class="battle-hp-grid" id="battle-enemy-hp-grid"></div>
         </div>
 
+        <div class="threat-ref-block" id="battle-guard-calc-block">
+          <h3 data-i18n="battle_guard_calc_title"></h3>
+          <p class="threat-ref-body" id="battle-guard-calc-status"></p>
+          <div class="wb-row">
+            <label data-i18n="battle_guard_calc_target_label"></label>
+            <select id="battle-guard-calc-target-select"></select>
+          </div>
+          <div class="wb-row">
+            <label data-i18n="battle_guard_calc_damage_label"></label>
+            <input type="number" id="battle-guard-calc-damage-input" min="0" value="0">
+          </div>
+          <div class="wb-row">
+            <label data-i18n="battle_guard_calc_reduction_label"></label>
+            <input type="number" id="battle-guard-calc-reduction-input" min="0" step="0.5" value="0">
+          </div>
+          <button type="button" id="btn-battle-guard-calc-apply" data-i18n="battle_guard_calc_apply_button"></button>
+          <p class="threat-ref-body" id="battle-guard-calc-result" hidden></p>
+        </div>
+
         <div class="threat-ref-block">
           <h3 data-i18n="battle_mob_hp_title"></h3>
           <p class="threat-ref-body" data-i18n="battle_mob_hp_note"></p>
