@@ -932,9 +932,16 @@ button {
   background: #f3d576;
   color: #453510;
   border-radius: 0 0 10px 10px;
-  padding: 0.6rem 0.75rem 0.6rem 0.9rem;
+  padding: 0.6rem 0.9rem;
   box-shadow: 0 6px 18px rgba(0, 0, 0, 0.28);
   transition: max-width 0.18s ease, padding 0.18s ease;
+}
+
+/* #26：展開時はGM敘述文（下段の對話框）を読みやすくするため、折りたたみ時より横幅を
+   広げる——左右のpaddingは常に対称（0.9rem）のまま、max-widthだけ広げてGM敘述文が
+   窮屈にならないようにする。 */
+#location-status-overlay:not(.collapsed) {
+  max-width: min(480px, 92vw);
 }
 
 #location-status-overlay.collapsed {

@@ -790,7 +790,7 @@
       finalDayAnnounced: false, // 3日目到達のアナウンスをこのゲームで再生済みか（二重再生防止）
       // 場地カードの規則書テキスト（branches[].floors[].lines[]）を順番に敘述していく進行状況。
       // null＝敘述walkthrough中ではない。
-      walk: null, // { slotIndex, branchIndex(nullなら分岐未選択), floorIndex, lineIndex }
+      walk: null, // { slotIndex, branchIndex(nullなら分岐未選択), floorIndex, lineIndex, branchFloor(第27項：選択済み分岐の深さ、nullなら制限無し), branchFloorArmed(ジャンプ直後の見出し行自身を境界判定から除外するフラグ), pendingPrefixText(ジャンプ先の見出しに辿り着くまでに挟まっていた共通・確定内容、次のadvanceFieldWalkで1回だけ差し込む) }
       pendingChoiceLabels: [], // actionKind==="lineChoice"のときに提示する(→X)ラベルの配列
       combatTriggerLabel: null, // actionKind==="combatTrigger"のときのボタン文言（「雜兵戰鬥」／「王戰」、トリガー行の文言そのもの）
       // actionKind==="battleWait"の間trueなら、エネミーの全HP行が0になった瞬間
@@ -1781,6 +1781,9 @@
               branchIndex: typeof loadedGmFlow.walk.branchIndex === "number" ? loadedGmFlow.walk.branchIndex : null,
               floorIndex: typeof loadedGmFlow.walk.floorIndex === "number" ? loadedGmFlow.walk.floorIndex : 0,
               lineIndex: typeof loadedGmFlow.walk.lineIndex === "number" ? loadedGmFlow.walk.lineIndex : 0,
+              branchFloor: typeof loadedGmFlow.walk.branchFloor === "number" ? loadedGmFlow.walk.branchFloor : null,
+              branchFloorArmed: !!loadedGmFlow.walk.branchFloorArmed,
+              pendingPrefixText: typeof loadedGmFlow.walk.pendingPrefixText === "string" ? loadedGmFlow.walk.pendingPrefixText : null,
             }
           : null;
       state.gmFlow = {
@@ -2287,9 +2290,15 @@
           cb.type = "checkbox";
           cb.id = "tl-" + dayKey + "-" + rowIndex + "-" + boxIndex;
           cb.addEventListener("change", function () {
+            var rowWasFull = state.timeLoss[dayKey][rowIndex].every(Boolean);
             state.timeLoss[dayKey][rowIndex][boxIndex] = cb.checked;
             renderTimeLossSummary();
             saveState();
+            // GMが手動でチェックした場合も、addTimeLossの自動付与と同じく「威脅効果追加」段が
+            // 新たに埋まった瞬間に1D6を振る（ユーザー確認済みの①〜⑥出目対応表）。
+            if (!rowWasFull && state.timeLoss[dayKey][rowIndex].every(Boolean) && TIME_LOSS_ROW_DEFS[rowIndex].kind === "threat") {
+              rollAndTriggerThreatEffect();
+            }
           });
           boxesWrap.appendChild(cb);
         })(b);
@@ -9906,6 +9915,64 @@
     return parts.length ? parts.join("／") : rawText;
   }
 
+  // 「威脅効果決定表」：i18nの roll_effect_*_label 先頭に付いている丸数字（①〜⑥）が
+  // そのまま1D6の出目に対応する表記（ユーザー確認済み）。①②の2目が「敵方傷害增加」に
+  // 割り当てられている（他は1目ずつ）。
+  var THREAT_EFFECT_ROLL_TABLE = ["enemy_damage", "enemy_damage", "enemy_hp", "max_blessing", "attribute_buildup", "flask_uses"];
+
+  // タイムロス軌道の「威脅効果追加」段（TIME_LOSS_ROW_DEFSのkind:"threat"）が新たに埋まった
+  // 瞬間に呼ぶ。1D6を振り、上表で対応する骰效果（ROLL_EFFECTS、state.rollEffects）を
+  // 1段階分だけ進める——renderRollEffectsの「+」ボタンと全く同じ処理・上限（GMが手で
+  // 押した場合と区別しない）。結果はGM留言板・公告へ骰値付きで知らせる。
+  function rollAndTriggerThreatEffect() {
+    var roll = 1 + Math.floor(Math.random() * 6);
+    var effectId = THREAT_EFFECT_ROLL_TABLE[roll - 1];
+    var effect = ROLL_EFFECTS.filter(function (e) {
+      return e.id === effectId;
+    })[0];
+    if (!effect) return;
+    var count = state.rollEffects[effectId] || 0;
+    var newCount = Math.min(effect.tiers, count + 1);
+    state.rollEffects[effectId] = newCount;
+    if (effectId === "flask_uses") applyFlaskUsesRollEffect(newCount - count);
+    saveState();
+    renderRollEffects();
+    renderTimeLossSummary();
+    var label = window.I18N.t("roll_effect_" + effectId + "_label");
+    var detail = window.I18N.t("roll_effect_" + effectId + "_tier" + newCount);
+    var msg = window.I18N.t("threat_effect_roll_broadcast", { roll: roll }) + label + window.I18N.t("colon_separator") + detail;
+    postSystemTurnMessage(msg);
+    showThreatBroadcast([msg]);
+  }
+
+  // 「時間損耗：N」をタイムロス軌道（TIME_LOSS_ROW_DEFS、現在の日にちに対応する
+  // state.timeLoss[dayKey]）へ実際に反映する。物理チェックリストと同じ「先頭から空いている
+  // 箱を順にN個チェックする」規則（GMが手でチェックする既存のbuildTimeLossRowsのリスナーと
+  // 全く同じstate書き換え）。以前はGM留言板への公告のみで、実際の軌道は更新されていなかった
+  // （ユーザー報告のバグ）。「威脅効果追加」段（kind:"threat"）がこの呼び出しで新たに
+  // 埋まった場合は、そのままrollAndTriggerThreatEffectで1D6を振って骰效果へ反映する
+  // （ユーザー確認済み：①〜⑥の丸数字が出目対応表そのもの）。
+  function addTimeLoss(n) {
+    if (!n) return;
+    var dayKey = isSwappedDay() ? "day2" : "day1";
+    var rows = state.timeLoss[dayKey];
+    var remaining = n;
+    for (var r = 0; r < TIME_LOSS_ROW_DEFS.length && remaining > 0; r++) {
+      var rowWasFull = rows[r].every(Boolean);
+      for (var b = 0; b < TIME_LOSS_ROW_DEFS[r].boxes && remaining > 0; b++) {
+        if (!rows[r][b]) {
+          rows[r][b] = true;
+          remaining--;
+        }
+      }
+      if (!rowWasFull && rows[r].every(Boolean) && TIME_LOSS_ROW_DEFS[r].kind === "threat") {
+        rollAndTriggerThreatEffect();
+      }
+    }
+    renderTimeLossChecks(dayKey);
+    renderTimeLossSummary();
+  }
+
   // #10：樓層レベルが「全」に達したら、そのカードの「全樓層踏破效果」（盧恩／時間損耗）を
   // 自動的に全入場PCへ付与し、時間損耗分を公告＆留言板へ投稿する。同じカードに対しては
   // 1回のみ（cardFloorRewardGrantedへ「このカードのcode」を記録し、以後の重複を防ぐ。
@@ -9927,6 +9994,7 @@
       var timeLossAmount = parseAllFloorEffectAmount(effectText, ["時間損耗", "タイムロス"]);
       if (runeAmount) window.PriTestNightFloorBreakthrough.grantRuneToAllEntered(runeAmount);
       if (timeLossAmount) {
+        addTimeLoss(timeLossAmount);
         var cardNameForBroadcast = window.PriTestFields.localizedText(card.name);
         var msg = window.I18N.t("card_full_clear_time_loss_broadcast", { card: cardNameForBroadcast, value: timeLossAmount });
         postSystemTurnMessage(msg);
@@ -9973,6 +10041,7 @@
       var timeLossAmount = parseAllFloorEffectAmount(effectText, ["時間損耗", "タイムロス"]);
       if (runeAmount) window.PriTestNightFloorBreakthrough.grantRuneToAllEntered(runeAmount);
       if (timeLossAmount) {
+        addTimeLoss(timeLossAmount);
         var pileCardNameForBroadcast = window.PriTestFields.localizedText(card.name);
         var pileMsg = window.I18N.t("card_full_clear_time_loss_broadcast", { card: pileCardNameForBroadcast, value: timeLossAmount });
         postSystemTurnMessage(pileMsg);

@@ -135,10 +135,14 @@
 
   // ---- [進入]：規則書の分岐/樓層本文（branches[].floors[].lines[]）を順に敘述する（第16項改） ----
   // 「(→XXX)」「(→XXX)(→YYY)」のような選択肢/分岐マーカーを検出する。規則書の表記ルール
-  // （docs/scenario_flow_rules.md §4「描写・行為判定・分岐の表記ルール」）に準拠：
-  // 深さが増える「→→」等は、その先の選択肢/分岐の後に処理する内容という位置づけなので、
-  // このアプリでは「選択肢を提示→GMがクリック→続きの行を敘述」という順送りで表現する。
-  var CHOICE_MARKER_RE = /\(→([^)]+)\)/g;
+  // （docs/scenario_flow_rules.md §4「描写・行為判定・分岐の表記ルール」）に準拠。
+  // 第27項で判明：実データの大多数（zh側はほぼ全て、ja側も過半）は全角括弧「（→X）」で
+  // 書かれており、旧・半角のみの正規表現では検出漏れが大量発生していた（zh基準で約93%が
+  // 未検出）——全角/半角どちらの括弧も受け付けるよう修正。「→→X」「→→→X」のような複数
+  // 矢印（規則書の入れ子表記）は、矢印の数を問わず末尾のラベル文字列だけを取り出す
+  // （このアプリでは深さの違いを区別せず、単に「選択肢を提示→クリック→続きを敘述」という
+  // 順送りで表現する既存方針のまま）。
+  var CHOICE_MARKER_RE = /[（(]→+([^）)]+)[）)]/g;
   function parseChoiceLabels(text) {
     var labels = [];
     var re = new RegExp(CHOICE_MARKER_RE.source, "g");
@@ -157,6 +161,122 @@
     var branch = entry.branches[walk.branchIndex];
     if (!branch) return null;
     return (branch.floors || [])[walk.floorIndex] || null;
+  }
+
+  // ---- 第27項：同一樓層内の「（→X）」選択肢／分岐を、実際に選ばれた側の内容だけ敘述する ----
+  // 構造化分析（劇本1の9+6枚）で判明：分岐/選択肢の行き先は必ず「トリガー行より1段深い
+  // （depth+1）・label無し・text（ja/zh）がマーカーのラベル文字列と一致（前置き括弧の手前
+  // までの一致でも可——「ザコ戦闘（撃破ルーン：1）」に対する「ザコ戦闘」ラベルのように、
+  // 既存のisCombatTriggerLineが検出する戦闘トリガー行もこの一致規則だけで自然にカバーできる）」
+  // という「見出し行」として存在する——新しいデータ欄は不要、既存のdepth/label/textの慣習を
+  // そのままジャンプ先の解決に使えばよい。
+
+  // lineの本文（ja/zh）が、見出しラベルlabelと一致するかどうかを判定する。完全一致、または
+  // 先頭の「（」「(」より手前部分の一致（ザコ戦闘（撃破ルーン：1）のような戦闘トリガー見出し・
+  // フロア1の内容表（1D）のようなダイス表見出し、どちらも同じ規則でカバーする）。
+  function lineHeadingMatchesLabel(line, label) {
+    if (line.label) return false;
+    var trimmedLabel = String(label || "").trim();
+    if (!trimmedLabel) return false;
+    var candidates = [(line.text && line.text.ja) || "", (line.text && line.text.zh) || ""];
+    for (var i = 0; i < candidates.length; i++) {
+      var full = candidates[i].trim();
+      if (!full) continue;
+      if (full === trimmedLabel) return true;
+      var prefix = full.split(/[（(]/)[0].trim();
+      if (prefix && prefix === trimmedLabel) return true;
+    }
+    return false;
+  }
+
+  // 1行分をadvanceFieldWalkと同じ書式（インデント＋ラベル＋本文）に整形する。
+  function formatWalkLine(line) {
+    var Fields = window.PriTestFields;
+    var lineText = Fields.localizedText(line.text);
+    var prefix = line.label ? Fields.localizedText(line.label) + window.I18N.t("colon_separator") : "";
+    var indent = line.depth ? new Array(line.depth + 1).join("　") : "";
+    return indent + prefix + lineText;
+  }
+
+  // fromIndex以降で、label無し・textがlabelと一致する最初の見出し行のindexを探す
+  // （見つからなければindex:-1）。意図的にdepthでは絞り込まない——ネストした選択肢/分岐
+  // マーカー（例：「忍んで切り抜ける」分岐のさらに内側にある「失敗」行が持つ「(→ザコ戦闘)」）
+  // は、自分自身より1段深いところではなく、外側の選択肢と共通の合流先（兄弟見出し、しばしば
+  // 自分より浅い深さ）を指すことがある——実データ（劇本1 card_2フロア1）で確認済み。
+  // 見出しラベルはフロア内で実質的に一意なgotoラベルとして機能する前提で、単純な前方一致
+  // 探索にする（呼び出し側resolveDiceTableHeadingIfAny/handleLineChoiceClickが見つかった
+  // 見出し自身のdepthを新しいbranchFloorとして採用するため、深さの整合性は自然に保たれる）。
+  //
+  // 途中で通過する行のうち、見出しではない通常行（label有り）は選択肢に依らない共通・確定
+  // 内容（例：card_k「フロア1の内容表（1D）」見出しの手前にある「獲得」行——ダイス目に
+  // 関わらず必ず起こる）として敘述テキストに蓄積し、textとして返す。一方、一致しない見出し
+  // （選ばなかった側の分岐、または別のダイス目結果）に行き当たった場合は、その見出し自身の
+  // 子孫（自分より深いdepthの行）だけを読み飛ばして次の兄弟見出しの探索を続け、その内容は
+  // 蓄積しない——選ばなかった分岐の内容を誤って敘述してしまわないようにするため。
+  function findHeadingIndexForLabel(lines, fromIndex, label) {
+    var collected = [];
+    var i = fromIndex;
+    while (i < lines.length) {
+      var line = lines[i];
+      if (!line.label) {
+        if (lineHeadingMatchesLabel(line, label)) return { index: i, text: collected.join("\n") };
+        i = skipConstructSiblings(lines, i + 1, line.depth + 1);
+        continue;
+      }
+      collected.push(formatWalkLine(line));
+      i++;
+    }
+    return { index: -1, text: collected.join("\n") };
+  }
+
+  // fromIndexから、depth以上の行（選ばなかった側の兄弟見出し・その子行）を読み飛ばし、
+  // depth未満（この選択肢/分岐構造全体を抜けた＝共通の続きの敘述）に達した最初のindex、
+  // または末尾を返す。
+  function skipConstructSiblings(lines, fromIndex, depth) {
+    var i = fromIndex;
+    while (i < lines.length && lines[i].depth >= depth) i++;
+    return i;
+  }
+
+  // 「フロア1の内容表（1D）」のような、GMが1D6を振ってどの見出しへ進むかを決めるダイス表
+  // 見出しかどうかを判定する（既存の場地カード直下varianceTable「内容 (1D)」列見出しと同じ
+  // 表記慣習——カード単位ではなく樓層内に入れ子になったもの）。
+  var DICE_TABLE_HEADING_RE = /[（(]\s*1D\d*\s*[）)]\s*$/;
+  function isDiceTableHeadingLine(line) {
+    if (!line || line.label) return false;
+    var ja = (line.text && line.text.ja) || "";
+    var zh = (line.text && line.text.zh) || "";
+    return DICE_TABLE_HEADING_RE.test(ja.trim()) || DICE_TABLE_HEADING_RE.test(zh.trim());
+  }
+
+  // ダイス表本文（例：「1＝埋まった女神像／2・3＝瓦礫の山／4・5＝商人／6＝強敵の予感」）を
+  // 解析する。各セグメントは「面数（・/、/,で複数列挙可）＝名前」の形——見つからない/形式が
+  // 想定外の場合はnullを返し、呼び出し側は自動解決を諦めてGMフォールバックに委ねる
+  // （数値・分岐先を捏造しない、既存の"■"と同じ方針）。
+  function parseInlineDiceTable(text) {
+    var segments = String(text || "")
+      .split(/[／\/]/)
+      .map(function (s) {
+        return s.trim();
+      })
+      .filter(Boolean);
+    if (segments.length < 2) return null;
+    var entries = [];
+    for (var i = 0; i < segments.length; i++) {
+      var m = /^([\d・、,]+)\s*[＝=]\s*(.+)$/.exec(segments[i]);
+      if (!m) return null;
+      var faces = m[1]
+        .split(/[・、,]/)
+        .map(function (f) {
+          return parseInt(f, 10);
+        })
+        .filter(function (n) {
+          return !isNaN(n);
+        });
+      if (!faces.length) return null;
+      entries.push({ faces: faces, name: m[2].trim() });
+    }
+    return entries;
   }
 
   // ---- 「戰鬥」構造の検出：ザコ戦闘／ボス戦闘の両方（第17・18項） ----
@@ -393,13 +513,29 @@
           side: "gm",
         });
       }
-      state.gmFlow.walk = { slotIndex: idx, branchIndex: resolved.branchIndex, floorIndex: currentFloorIndexForSlot(idx), lineIndex: 0 };
+      state.gmFlow.walk = {
+        slotIndex: idx,
+        branchIndex: resolved.branchIndex,
+        floorIndex: currentFloorIndexForSlot(idx),
+        lineIndex: 0,
+        branchFloor: null,
+        branchFloorArmed: false,
+        pendingPrefixText: null,
+      };
       advanceFieldWalk();
       return;
     }
     // 自動解決できなかった場合のみ（varianceTable未整備・シナリオ不明・データ不一致など）、
     // GMに規則書を見て選んでもらうフォールバックへ進む。
-    state.gmFlow.walk = { slotIndex: idx, branchIndex: null, floorIndex: currentFloorIndexForSlot(idx), lineIndex: 0 };
+    state.gmFlow.walk = {
+      slotIndex: idx,
+      branchIndex: null,
+      floorIndex: currentFloorIndexForSlot(idx),
+      lineIndex: 0,
+      branchFloor: null,
+      branchFloorArmed: false,
+      pendingPrefixText: null,
+    };
     state.gmFlow.narrationText = window.I18N.t("gm_flow_pick_branch_narration", {
       name: window.PriTestFields.localizedText(entry.name),
     });
@@ -475,17 +611,20 @@
     walk.branchIndex = branchIndex;
     walk.floorIndex = currentFloorIndexForSlot(walk.slotIndex);
     walk.lineIndex = 0;
+    walk.branchFloor = null;
+    walk.branchFloorArmed = false;
+    walk.pendingPrefixText = null;
     advanceFieldWalk();
   }
 
   // 現在のwalk位置から、次の(→X)選択肢が現れるまで（または樓層の本文が尽きるまで）行を
-  // 連結して1ブロックとして敘述する。選択肢が見つかればそこで停止してボタンを提示し、
-  // 見つからなければ樓層本文の終わりとして[OK]（または獎勵があれば領取ボタン）に戻す。
-  // 注意：複数の分岐選択肢がある行に遭遇しても、どの選択肢が実際にどの後続行に対応するかは
-  // データ上グループ化されていない（規則書原文がそもそもそういう構造）ため、選択後もそのまま
-  // 樓層本文の続きを順番に敘述する——選ばなかった側の説明文が混ざって出ることがあり得るが、
-  // 数値やルールを捏造するわけではなく規則書本文そのものなので、GMが読んで取捨選択すればよい
-  // という前提（docs/enemy_damage_rules.md系のGMディスクレション哲学に合わせる）。
+  // 連結して1ブロックとして敘述する。選択肢が見つかればそこで停止してボタンを提示する。
+  // 第27項：walk.branchFloorが設定されている間（＝選ばれた分岐の内容を辿っている間）、
+  // その深さ以下（＝選ばなかった兄弟見出し、またはこの構造を抜けた共通の続き）に達したら、
+  // 兄弟をまとめて読み飛ばしてから改めて判定し直す——handleLineChoiceClick側で実際に
+  // ジャンプ先を解決できた場合にのみbranchFloorが立つため、解決できなかった場合は従来通り
+  // 単純な線形敘述（選ばなかった側の説明文が混ざり得る、GMディスクレション任せ）にフォール
+  // バックする。
   function advanceFieldWalk() {
     var Core = window.PriTestNightCore;
     var state = Core.state;
@@ -498,14 +637,35 @@
     }
     var lines = floor.lines || [];
     var blockParts = [];
+    // 第27項：handleLineChoiceClickがジャンプ先を解決する際、マーカー行と実際の見出し行の
+    // 間に挟まっていた「選択肢に依らない共通・確定内容」（例：card_kの「獲得」行）を蓄積して
+    // ここに渡してくる。ジャンプ後最初の敘述ブロックの冒頭に差し込む（一度使ったら消費済み）。
+    if (walk.pendingPrefixText) {
+      blockParts.push(walk.pendingPrefixText);
+      walk.pendingPrefixText = null;
+    }
     var choiceLabels = [];
     var combatTriggerIndex = -1;
     var i = walk.lineIndex;
-    for (; i < lines.length; i++) {
+    while (i < lines.length) {
       var line = lines[i];
+      // walk.branchFloorArmed：ジャンプ直後の見出し行自身は必ず境界判定を素通りさせる
+      // （見出し行そのものの深さはbranchFloorと同じなので、境界判定を即有効にすると
+      // ジャンプ先の内容を一切敘述せずスキップしてしまう）。この行を処理し終えた直後に
+      // trueへ切り替え、以後（次の行から）は本来の「兄弟/より浅い行で打ち切る」判定を行う。
+      if (walk.branchFloor != null && walk.branchFloorArmed && line.depth <= walk.branchFloor) {
+        i = skipConstructSiblings(lines, i, walk.branchFloor);
+        walk.branchFloor = null;
+        walk.branchFloorArmed = false;
+        continue;
+      }
+      if (walk.branchFloor != null) walk.branchFloorArmed = true;
       // 「突破判定」欄は、玩家が突破判定を選んだ場合にのみ参照する非公開情報——
       // GM敘述には出さない（[突破]ボタンの対話框側で別途処理する）。
-      if (line.label && (line.label.ja === "突破判定" || line.label.zh === "突破判定")) continue;
+      if (line.label && (line.label.ja === "突破判定" || line.label.zh === "突破判定")) {
+        i++;
+        continue;
+      }
       // 「雜兵戰鬥」／「王戰」構造：ここで一旦停止し、［戰鬥機制］へ切り替える。敵の正体は
       // ボタンを押すまで敘述しない（第17・18項：任何進入戰鬥時、先暫停樓層判定機制）。
       if (isCombatTriggerLine(line)) {
@@ -513,15 +673,14 @@
         break;
       }
       var lineText = Fields.localizedText(line.text);
-      var prefix = line.label ? Fields.localizedText(line.label) + window.I18N.t("colon_separator") : "";
-      var indent = line.depth ? new Array(line.depth + 1).join("　") : "";
-      blockParts.push(indent + prefix + lineText);
+      blockParts.push(formatWalkLine(line));
       var labels = parseChoiceLabels(lineText);
       if (labels.length) {
         choiceLabels = labels;
         i++; // 次回はこの行の次から再開
         break;
       }
+      i++;
     }
     walk.lineIndex = i;
     var blockText = blockParts.join("\n");
@@ -543,12 +702,60 @@
     Core.renderCurrentLocationStatus();
   }
 
+  // 選ばれた選択肢labelの行き先（同じ樓層内、label無し・textが一致する見出し行）を探し、
+  // 見つかればそこへジャンプして以降その分岐の内容だけを敘述する（walk.branchFloorに
+  // 見つかった見出し自身のdepthを立てることで、advanceFieldWalk側が選ばなかった兄弟を
+  // 読み飛ばす）。見出しがダイス表（「フロア1の内容表（1D）」等）なら、1D6を振って対応する
+  // アウトカム見出しへさらにジャンプする。行き先を解決できなかった場合（想定外の表記等）は、
+  // 第27項適用前と同じ「そのまま線形に続ける」挙動へ安全にフォールバックする——数値・
+  // 分岐先を捏造しない、既存の"■"と同じ方針。
   function handleLineChoiceClick(label) {
     var Core = window.PriTestNightCore;
     var state = Core.state;
-    Core.state.turnMessages.push({ text: window.I18N.t("gm_flow_choice_picked_log", { label: label }), time: Date.now(), side: "gm" });
+    state.turnMessages.push({ text: window.I18N.t("gm_flow_choice_picked_log", { label: label }), time: Date.now(), side: "gm" });
     state.gmFlow.pendingChoiceLabels = [];
+    var walk = state.gmFlow.walk;
+    var floor = walk ? getWalkFloor(walk) : null;
+    if (walk && floor) {
+      var lines = floor.lines || [];
+      var found = findHeadingIndexForLabel(lines, walk.lineIndex, label);
+      if (found.index !== -1) {
+        var resolved = resolveDiceTableHeadingIfAny(lines, found.index);
+        walk.lineIndex = resolved.index;
+        walk.branchFloor = lines[resolved.index].depth;
+        walk.branchFloorArmed = false; // ジャンプ先の見出し行自身は境界判定の対象外にする
+        var prefixText = [found.text, resolved.text].filter(Boolean).join("\n");
+        walk.pendingPrefixText = prefixText || null;
+      }
+    }
     advanceFieldWalk();
+  }
+
+  // headingIndexの行が「フロア1の内容表（1D）」のようなダイス表見出しなら、1D6を振って
+  // 直後のbullet行（同表）から対応するアウトカム見出し（見出し自身と同じ深さの兄弟）を
+  // 探し出し、そのindexとtext（間に挟まる共通・確定内容、あれば）を返す。ダイス表見出し
+  // でない、または表の解析・アウトカム見出しの発見に失敗した場合は、headingIndexをそのまま
+  // 返す（フォールバック——見出し自体は敘述されるので、GMが規則書を見て手動で判断できる）。
+  function resolveDiceTableHeadingIfAny(lines, headingIndex) {
+    var heading = lines[headingIndex];
+    if (!isDiceTableHeadingLine(heading)) return { index: headingIndex, text: "" };
+    var depth = heading.depth;
+    var tableLine = lines[headingIndex + 1];
+    if (!tableLine || !tableLine.bullet || tableLine.depth !== depth + 1) return { index: headingIndex, text: "" };
+    var entries = parseInlineDiceTable(window.PriTestFields.localizedText(tableLine.text));
+    if (!entries) return { index: headingIndex, text: "" };
+    var roll = 1 + Math.floor(Math.random() * 6);
+    var matched = entries.filter(function (e) {
+      return e.faces.indexOf(roll) !== -1;
+    })[0];
+    if (!matched) return { index: headingIndex, text: "" };
+    window.PriTestNightCore.state.turnMessages.push({
+      text: window.I18N.t("gm_flow_dice_table_roll_log", { roll: roll, name: matched.name }),
+      time: Date.now(),
+      side: "gm",
+    });
+    var outcome = findHeadingIndexForLabel(lines, headingIndex + 1, matched.name);
+    return outcome.index !== -1 ? outcome : { index: headingIndex, text: "" };
   }
 
   // ---- ［戰鬥機制］入口：「雜兵戰鬥」／「王戰」ボタン。敵を敘述し、判明した分だけ戦場に
