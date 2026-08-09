@@ -408,8 +408,9 @@ PCたちが「黄金樹の帳」（2日目）を撃破し、その後配置さ�
 | イベントチットの盤面配置（種類・枚数） | ✅ 実装済み・完全自動（9マスへランダムシャッフル配置） | `rollEventChips`, `EVENT_CHIP_TYPES`（`night.js:722,735`） |
 | 霊脈／祝福／商人チットの解決 | ✅ 実装済み・完全自動（9節参照、`renderEventChipSpiritVein`等） | `night_event_chips.js` |
 | 強敵／ランダムチットの解決 | ❌ 未実装（自由記述・GM手動のまま） | `renderEventChipStrongEnemy`, `renderEventChipRandom`（`night_event_chips.js`） |
-| カード/樓層の`varianceTable`（どの分岐が適用されるか） | ❌ 未実装。規則書パネルに読み取り専用の表として表示されるのみで、どのコードからも読み取られない | `night_rulebook.js:546-547`（`buildBossTable`で表示のみ） |
+| カード/樓層の`varianceTable`（どの分岐が適用されるか） | ✅ 実装済み（自動化GM Phase 2、[進入]時にシナリオ番号＋必要なら1D6で自動解決。解決不能時のみGMに分岐ボタンを提示） | `autoResolveBranch`, `handleEnterClick`（`night_gm_flow.js`） |
 | 2日目セットアップ（カード6枚除去・新規配置・地変） | 状況未調査（本ドキュメント作成時点では未確認、`openKeepCardsDrawer`/`submitKeepCards`が関連する可能性が高いが、地変カードの自動選定ロジックまでは未検証） | `night.js`（`openKeepCardsDrawer`等、要追加調査） |
+| フロア本文中の「雜兵戰鬥（撃破ルーン：N）」構造：敘述の一時停止・敵の自動判定・戦場への自動追加 | ✅ 実装済み（自動化GM Phase 2第17項）。該当行に到達すると敘述を一旦止めて[雜兵戰鬥]ボタンを提示し、押すと直後の敵名bullet行（「XXX（頁）／Lv.N」）を敘述しつつ`Enemies.search`で一意に解決できた敵だけ戦場へ自動追加する（複数候補・不一致時はGM手動追加のリマインドに留める、"■"と同じ捏造しない方針）。「L補」レベル補正は未実装のため常にリマインドのみ。その後は該当カードの樓層数値（`state.cardLevels`）が変化した瞬間に自動で続きの敘述へ進む（GMが盤面の＋/-や[突破]確定で樓層を進める操作がトリガー） | `isZakoBattleTriggerLine`, `handleZakoBattleClick`, `notifyCardLevelChanged`（`night_gm_flow.js`）、`addEnemyToBattle`（`night.js`） |
 
 **次にこの領域を実装するときの前提**：フロア突破判定・登攀判定はすでに「目標値の自動算出＋
 ダイスの自動ロール」まで実装されているため、残る「合否判定」を自動化するのは比較的小さな

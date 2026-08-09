@@ -781,15 +781,20 @@
       narrationText: null, // 進度版に現在表示中のGM敘述文（打字機再生中/再生済み）。null=敘述なし（通常の[進入]/[突破]ボタン表示）
       awaitingOk: false, // trueの間は進度版に[OK]だけを表示し、[進入]/[突破]を隠す
       // awaitingOk中に出すボタンの種類："ok"(単一[OK])|"nightAdvance"([進入下一晚]/[稍後])|
-      // "finalDayBattle"([開啟夜王戰鬥])|"branchChoice"(分岐選択ボタン群)|"lineChoice"((→X)選択ボタン群)
+      // "finalDayBattle"([開啟夜王戰鬥])|"branchChoice"(分岐選択ボタン群)|"lineChoice"((→X)選択ボタン群)|
+      // "zakoBattle"([雜兵戰鬥]、第17項)|"battleWait"(戦闘解決待ち、ボタンなし、第17項)
       actionKind: "ok",
       pendingRewardWindows: [], // 縮小されたが未領取/未關閉の獎勵視窗id一覧。空でない間は[OK]を押しても再度リマインドする
       openingPlayed: false, // 夜の王の〔開場〕をこのゲームで再生済みか（二重再生防止）
       finalDayAnnounced: false, // 3日目到達のアナウンスをこのゲームで再生済みか（二重再生防止）
       // 場地カードの規則書テキスト（branches[].floors[].lines[]）を順番に敘述していく進行状況。
       // null＝敘述walkthrough中ではない。
-      walk: null, // { slotIndex, branchIndex(nullなら分岐未選択), floorIndex, lineIndex }
+      walk: null, // { slotIndex, branchIndex(nullなら分岐未選択), floorIndex, lineIndex, battleWaitAdvancedCardLevel }
       pendingChoiceLabels: [], // actionKind==="lineChoice"のときに提示する(→X)ラベルの配列
+      // actionKind==="battleWait"の間、trueなら「walk.slotIndexのcardLevelsが
+      // battleWaitCardLevelから変化した瞬間」に自動で敘述の続きへ進める（「雜兵戰鬥」ボタン後）。
+      battleWaitActive: false,
+      battleWaitCardLevel: null, // battleWaitActive中に監視するstate.cardLevels[walk.slotIndex]のスナップショット
     },
     // GMが開いて縮小した抽選ウィンドウを全端末で共有するための領域。null=未使用。
     // 中身はcharacter_drawer.jsのweaponRollState/talismanRollState/consumableRollState、
@@ -1754,13 +1759,18 @@
               branchIndex: typeof loadedGmFlow.walk.branchIndex === "number" ? loadedGmFlow.walk.branchIndex : null,
               floorIndex: typeof loadedGmFlow.walk.floorIndex === "number" ? loadedGmFlow.walk.floorIndex : 0,
               lineIndex: typeof loadedGmFlow.walk.lineIndex === "number" ? loadedGmFlow.walk.lineIndex : 0,
+              // 雜兵戰鬥の戦闘待ち中にGMの手動＋で既にこの樓層分のカウンターを進めたか
+              // （finishFieldWalkの自動＋1との二重加算防止、night_gm_flow.js参照）。
+              battleWaitAdvancedCardLevel: !!loadedGmFlow.walk.battleWaitAdvancedCardLevel,
             }
           : null;
       state.gmFlow = {
         narrationText: typeof loadedGmFlow.narrationText === "string" ? loadedGmFlow.narrationText : null,
         awaitingOk: !!loadedGmFlow.awaitingOk,
         actionKind:
-          ["ok", "nightAdvance", "finalDayBattle", "branchChoice", "lineChoice"].indexOf(loadedGmFlow.actionKind) !== -1
+          ["ok", "nightAdvance", "finalDayBattle", "branchChoice", "lineChoice", "zakoBattle", "battleWait"].indexOf(
+            loadedGmFlow.actionKind
+          ) !== -1
             ? loadedGmFlow.actionKind
             : "ok",
         pendingRewardWindows: Array.isArray(loadedGmFlow.pendingRewardWindows) ? loadedGmFlow.pendingRewardWindows : [],
@@ -1768,6 +1778,8 @@
         finalDayAnnounced: !!loadedGmFlow.finalDayAnnounced,
         walk: loadedWalk,
         pendingChoiceLabels: Array.isArray(loadedGmFlow.pendingChoiceLabels) ? loadedGmFlow.pendingChoiceLabels : [],
+        battleWaitActive: !!loadedGmFlow.battleWaitActive,
+        battleWaitCardLevel: typeof loadedGmFlow.battleWaitCardLevel === "number" ? loadedGmFlow.battleWaitCardLevel : null,
       };
       var loadedDraws = data.activeDraws && typeof data.activeDraws === "object" ? data.activeDraws : {};
       state.activeDraws = {
@@ -1844,6 +1856,8 @@
       finalDayAnnounced: false,
       walk: null,
       pendingChoiceLabels: [],
+      battleWaitActive: false,
+      battleWaitCardLevel: null,
     };
     state.activeDraws = { potentialPower: null, weapon: null, talisman: null, consumable: null };
     state.activeThreatEffects = [];
@@ -9336,35 +9350,46 @@
     addBtn.textContent = window.I18N.t("battle_enemy_add_button");
     addBtn.addEventListener("click", function () {
       var level = Math.max(1, Math.min(maxLevel, Number(levelInput.value) || 1));
-      var key = row.familyId + "|" + row.enemy.id + "|" + level;
-      if (state.battle.selectedEnemyIds.indexOf(key) === -1) {
-        var isFreshEncounter = state.battle.selectedEnemyIds.length === 0;
-        state.battle.selectedEnemyIds.push(key);
-        if (isFreshEncounter) {
-          applyInitialPassiveAggro();
-          // 新規遭遇の最初の1体に限り、そのレベルのHP枠表記（例："×7/×7"）から
-          // 第1段・第2段の実際の最大HPを記録し、残りHP（チェック数）を満タン初期化する
-          // （既存の戦闘中に追加する2体目以降は、既に設定済みの最大値／チェック数を
-          // 壊さないよう対象にしない）。
-          var lvRow = (row.familyBase || []).filter(function (lv) {
-            return lv.level === level;
-          })[0];
-          var hpNotation = lvRow && lvRow.hp ? parseEnemyHpNotation(lvRow.hp) : null;
-          if (hpNotation) {
-            state.battle.enemyHpMax[0] = hpNotation.row1;
-            state.battle.enemyHpMax[1] = hpNotation.row2;
-            setEnemyHpRowCount(0, hpNotation.row1);
-            setEnemyHpRowCount(1, hpNotation.row2);
-            renderEnemyHpGrid();
-            handleEnemyHpChanged();
-          }
-        }
-        renderSelectedEnemies();
-        addLog("log_battle_enemy_add", { enemy: T(row.enemy.name), level: level });
-      }
+      addEnemyToBattle(row, level);
     });
     addRow.appendChild(addBtn);
     container.appendChild(addRow);
+  }
+
+  // 戦場（state.battle.selectedEnemyIds）へエネミーを1体追加する共通処理。
+  // row: Enemies.get/search が返す{familyId, familyName, familyBase, enemy}の形。
+  // 手動の[追加]ボタン（renderBattleEnemyLookupResult）と、自動化GM Phase 2の
+  // 「雜兵戰鬥」ボタン（night_gm_flow.js、window.PriTestNightCore経由）の両方から呼ばれる。
+  // 戻り値: {key, added}（addedは既に同じキーが選択済みでスキップした場合false）。
+  function addEnemyToBattle(row, level) {
+    var maxLevel = (row.familyBase || []).length || 15;
+    level = Math.max(1, Math.min(maxLevel, Number(level) || 1));
+    var key = row.familyId + "|" + row.enemy.id + "|" + level;
+    if (state.battle.selectedEnemyIds.indexOf(key) !== -1) return { key: key, added: false };
+    var isFreshEncounter = state.battle.selectedEnemyIds.length === 0;
+    state.battle.selectedEnemyIds.push(key);
+    if (isFreshEncounter) {
+      applyInitialPassiveAggro();
+      // 新規遭遇の最初の1体に限り、そのレベルのHP枠表記（例："×7/×7"）から
+      // 第1段・第2段の実際の最大HPを記録し、残りHP（チェック数）を満タン初期化する
+      // （既存の戦闘中に追加する2体目以降は、既に設定済みの最大値／チェック数を
+      // 壊さないよう対象にしない）。
+      var lvRow = (row.familyBase || []).filter(function (lv) {
+        return lv.level === level;
+      })[0];
+      var hpNotation = lvRow && lvRow.hp ? parseEnemyHpNotation(lvRow.hp) : null;
+      if (hpNotation) {
+        state.battle.enemyHpMax[0] = hpNotation.row1;
+        state.battle.enemyHpMax[1] = hpNotation.row2;
+        setEnemyHpRowCount(0, hpNotation.row1);
+        setEnemyHpRowCount(1, hpNotation.row2);
+        renderEnemyHpGrid();
+        handleEnemyHpChanged();
+      }
+    }
+    renderSelectedEnemies();
+    addLog("log_battle_enemy_add", { enemy: window.PriTestEnemies.localizedText(row.enemy.name), level: level });
+    return { key: key, added: true };
   }
 
   // 戦場で選択中のエネミー（複数選択可）。合成キー「familyId|enemyId|level」をEnemies.getで解決し、
@@ -9755,6 +9780,11 @@
     renderCardLevel(index);
     if (state.focusedIndex === index) renderDayStatus();
     saveState();
+    // 自動化GM Phase 2「雜兵戰鬥」ボタン後の待機状態（state.gmFlow.battleWaitActive）：
+    // このカードの樓層数値が変化した瞬間、規則書敘述の続きへ自動的に進める。
+    if (window.PriTestNightGmFlow && window.PriTestNightGmFlow.notifyCardLevelChanged) {
+      window.PriTestNightGmFlow.notifyCardLevelChanged(index);
+    }
     if (nextValue === null) grantCardFullClearRewardIfNeeded(index);
   }
 
@@ -10678,6 +10708,7 @@
     getScenario: function () { return scenario; },
     getGame: function () { return game; },
     openKeepCardsDrawer: openKeepCardsDrawer,
+    addEnemyToBattle: addEnemyToBattle,
   };
 
   document.addEventListener("DOMContentLoaded", async function () {
