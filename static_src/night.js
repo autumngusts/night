@@ -6671,8 +6671,18 @@
   // 4段全滅であれば自動的に一般行動へ切り替えて戦闘終了を記録する。
   function handleEnemyHpChanged() {
     renderActionPhaseGrid();
-    if (state.actionPhase !== "normal" && allEnemyHpRowsDepleted()) {
-      setActionPhase("normal", { combatEnd: true });
+    var depleted = allEnemyHpRowsDepleted();
+    if (state.actionPhase !== "normal" && depleted) {
+      setActionPhase("normal", { combatEnd: true }); // 内部でnotifyCombatEndedも呼ばれる
+      return;
+    }
+    // 自動化GM Phase 2［戰鬥機制］：GMが行動階段を一度も「戰鬥」へ切り替えず（state.actionPhase
+    // が最初から"normal"のまま）に敵のHPだけ0まで減らした場合、上のif（actionPhase切替に
+    // 付随するcombatEnd）が発火しないため、雜兵戰鬥／王戰ボタン由来の戦闘待ちがいつまでも
+    // 解除されない不具合があった（ユーザー報告：出發地點で君主軍を撃破してもGMが検知しない）。
+    // ここで独立してもう一度チェックし、battleWaitActive中であれば直接解除する。
+    if (depleted && window.PriTestNightGmFlow && window.PriTestNightGmFlow.notifyCombatEnded) {
+      window.PriTestNightGmFlow.notifyCombatEnded();
     }
   }
 
@@ -9592,6 +9602,14 @@
     renderCurrentLocationStatus();
   }
 
+  // #22：展開時の◀／▶ボタン用（長押しドラッグより確実な代替手段、ユーザー報告）。
+  function setLocationBannerCorner(corner) {
+    if (state.locationBannerCorner === corner) return;
+    state.locationBannerCorner = corner;
+    saveState();
+    renderCurrentLocationStatus();
+  }
+
   // #21：折りたたみ時のみ、長押し（SLOT_LONG_PRESS_MSと同じ閾値）に続けてドラッグすると、
   // バナーが指/カーソルへ追従し、離した位置が画面の左右どちらに近いかで右上／左上へ
   // スナップする（state.locationBannerCorner）。板塊の長押し判定（pointerdown→setTimeout→
@@ -11092,6 +11110,12 @@
     document.getElementById("btn-enemy-row-status-close").addEventListener("click", closeEnemyRowStatusBanner);
     document.getElementById("btn-location-status-toggle").addEventListener("click", handleLocationBannerToggleClick);
     attachLocationBannerDrag();
+    document.getElementById("btn-location-status-move-left").addEventListener("click", function () {
+      setLocationBannerCorner("left");
+    });
+    document.getElementById("btn-location-status-move-right").addEventListener("click", function () {
+      setLocationBannerCorner("right");
+    });
     document.getElementById("btn-threat-drawer-close").addEventListener("click", closeThreatDrawer);
     document.getElementById("threat-drawer-backdrop").addEventListener("click", closeThreatDrawer);
     document.getElementById("btn-active-threat-effect-add").addEventListener("click", handleActiveThreatEffectAdd);

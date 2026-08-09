@@ -179,7 +179,11 @@ BODY = """    <div class="night-header-row">
             <div id="location-status-actions"></div>
           </div>
         </div>
-        <button type="button" id="btn-location-status-toggle" aria-label="toggle floor banner"></button>
+        <div id="location-status-controls">
+          <button type="button" id="btn-location-status-move-left" class="location-status-move-btn" aria-label="move banner to top-left">&#9664;</button>
+          <button type="button" id="btn-location-status-move-right" class="location-status-move-btn" aria-label="move banner to top-right">&#9654;</button>
+          <button type="button" id="btn-location-status-toggle" aria-label="toggle floor banner"></button>
+        </div>
       </div>
       <div id="top-banner-stack">
         <div id="threat-broadcast-overlay" hidden>
