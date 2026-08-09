@@ -80,7 +80,7 @@
     if (idx === null || !content || !titleEl) return;
     var chipId = window.PriTestNightCore.state.eventChips[idx];
     content.innerHTML = "";
-    titleEl.textContent = window.I18N.t("event_chip_" + chipId);
+    titleEl.textContent = window.PriTestNightCore.eventChipDisplayLabel(idx);
     if (chipId === "merchant") renderEventChipMerchant(idx, content);
     else if (chipId === "blessing") renderEventChipBlessing(idx, content);
     else if (chipId === "spirit_vein") renderEventChipSpiritVein(idx, content);

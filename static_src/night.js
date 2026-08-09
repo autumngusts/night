@@ -731,14 +731,41 @@
     { id: "random", icon: "random.png" },
   ];
 
+  // 規則書側は9個の籌碼それぞれに固定番号①〜⑨（EVENT_CHIP_TYPES配列順）を持つ（例：⑦⑧が
+  // 強敵、⑧は2日目に「恐るべき強敵」へ変化する特別枠）。従来はidだけshuffleしていたため
+  // 洗牌後にこの番号が失われ、⑦/⑧の区別がつかなくなっていた——{id,number}のペアごと
+  // shuffleすることで番号を保持する。
   function rollEventChips() {
-    return shuffle(EVENT_CHIP_TYPES.map(function (c) { return c.id; }));
+    var pool = EVENT_CHIP_TYPES.map(function (c, i) {
+      return { id: c.id, number: i + 1 };
+    });
+    var shuffled = shuffle(pool);
+    return {
+      ids: shuffled.map(function (p) { return p.id; }),
+      numbers: shuffled.map(function (p) { return p.number; }),
+    };
+  }
+
+  // チットの表示ラベル（盤面アイコンのalt/label、籌碼視窗のタイトル、自動化GM敘述で共通利用）。
+  // 通常は"event_chip_"+chipIdそのままだが、⑧号の強敵チットだけ規則書の既存文言
+  // （event_rulebook.jsに実在："２日目のイベントチット「⑧強敵※」は、「恐るべき強敵」として
+  // 扱う"）に沿って、1日目「強敵※」／2日目「恐るべき強敵」に差し替える。
+  function eventChipDisplayLabel(idx) {
+    var chipId = state.eventChips[idx];
+    if (!chipId) return "";
+    var isNo8StrongEnemy =
+      chipId === "strong_enemy" && state.eventChipNumbers && state.eventChipNumbers[idx] === 8;
+    if (isNo8StrongEnemy) {
+      return window.I18N.t(state.dayNumber === 2 ? "event_chip_strong_enemy_no8_day2" : "event_chip_strong_enemy_no8_day1");
+    }
+    return window.I18N.t("event_chip_" + chipId);
   }
 
   var state = {
     slots: new Array(SLOT_COUNT).fill(null), // { code, revealed } | null
     cardLevels: new Array(SLOT_COUNT).fill(null), // null("全") | 0-5
     eventChips: new Array(SLOT_COUNT).fill(null), // 各マスのイベントチット（翻開まで非公開）
+    eventChipNumbers: new Array(SLOT_COUNT).fill(null), // 各マスのチット固定番号（1-9、rollEventChipsで洗牌後も保持。⑦⑧強敵の区別に使う）
     eventChipsUsed: new Array(SLOT_COUNT).fill(false), // 「籌碼事件」で何らかの行動を使用済みのマス（取り消し線表示、再発火防止）
     eventChipsData: {}, // key: index -> チットごとの永続データ（例:強敵チットの決定済みエネミー）
     boardStarted: false,
@@ -790,10 +817,25 @@
       finalDayAnnounced: false, // 3日目到達のアナウンスをこのゲームで再生済みか（二重再生防止）
       // 場地カードの規則書テキスト（branches[].floors[].lines[]）を順番に敘述していく進行状況。
       // null＝敘述walkthrough中ではない。
-      walk: null, // { slotIndex, branchIndex(nullなら分岐未選択), floorIndex, lineIndex, branchFloor(第27項：選択済み分岐の深さ、nullなら制限無し), branchFloorArmed(ジャンプ直後の見出し行自身を境界判定から除外するフラグ), pendingPrefixText(ジャンプ先の見出しに辿り着くまでに挟まっていた共通・確定内容、次のadvanceFieldWalkで1回だけ差し込む) }
+      walk: null, // { slotIndex, branchIndex(nullなら分岐未選択), floorIndex, lineIndex, branchFloor(第27項：選択済み分岐の深さ、nullなら制限無し), branchFloorArmed(ジャンプ直後の見出し行自身を境界判定から除外するフラグ), pendingPrefixText(ジャンプ先の見出しに辿り着くまでに挟まっていた共通・確定内容、次のadvanceFieldWalkで1回だけ差し込む), pendingOutcomeFilter("成功"/"失敗"/null——協力式・単人指定判定確定直後、一致しない側の結果行を読み飛ばすためのフィルター), pendingConvergeLabel(判定行自身に埋め込まれた「成否に関わらず〜（→X）」マーカーのラベル/null——境界判定でこの行き先だけは「選ばなかった分岐」として誤って読み飛ばさないようにする) }
       pendingChoiceLabels: [], // actionKind==="lineChoice"のときに提示する(→X)ラベルの配列
       combatTriggerLabel: null, // actionKind==="combatTrigger"のときのボタン文言（「雜兵戰鬥」／「王戰」、トリガー行の文言そのもの）
       abilityCheckSpec: null, // actionKind==="abilityCheck"のときの{target,statKey}（PC全員が個別に判定する行為判定の自動擲骰モーダル用）
+      cooperativeCheckSpec: null, // actionKind==="cooperativeCheck"のときの{target,perPC,statKey}（協力式・単純な1回勝負の行為判定の自動擲骰モーダル用）
+      playerPickCheckSpec: null, // actionKind==="playerPickCheck"のときの{target,statKey,retryOnFail}（特定の1名のPCだけが行う判定用）
+      playerPickCheckExcluded: [], // playerPickCheckで既に失敗して除外済みのcharId配列（retryOnFail中のみ意味を持つ）
+      // actionKind==="branchPointTally"のときの{target,statKey,repeat,round,points,highLabel,lowLabel,lowThreshold}
+      // （坑道「白い結晶」専用：分岐ポイント累積で2枝分岐を自動決定する判定用）
+      branchPointTallySpec: null,
+      // actionKind==="sequentialPairCheck"のときの{checks:[{target,statKey}, {target,statKey}],stepIndex,
+      // totalSuccess,totalAttempts,markerLabel}（坑道「白い結晶」専用：連続2種判定を成功数で3段階へ振り分ける判定用）
+      sequentialPairSpec: null,
+      // actionKind==="conditionalCooperativeChoice"のときの{options:[{label,target,perPC,statKey}, {label,target,perPC,statKey}]}
+      // （湖沼(睡)専用：祭壇に興味があるか先に選ばせてから使う協力式判定を決める）
+      conditionalCooperativeChoiceSpec: null,
+      // actionKind==="sequentialCooperativeChain"のときの{steps:[{target,statKey}, ...],stepIndex,awaitingContinue}
+      // （東の地下砦「入り組んだ地下の回廊」専用：同じ屬性・異なる目標値の協力式判定を順番に連鎖させる）
+      sequentialChainSpec: null,
       freeFloorOptions: [], // actionKind==="freeFloorChoice"のときに提示する未踏破position（1始まり）の配列（路線自由カード用）
       // actionKind==="battleWait"の間trueなら、エネミーの全HP行が0になった瞬間
       // （night.jsのsetActionPhase、combatEndオプション経由）に自動で敘述の続きへ進める。
@@ -857,6 +899,7 @@
       slots: state.slots,
       cardLevels: state.cardLevels,
       eventChips: state.eventChips,
+      eventChipNumbers: state.eventChipNumbers,
       eventChipsUsed: state.eventChipsUsed,
       eventChipsData: state.eventChipsData,
       boardStarted: state.boardStarted,
@@ -934,6 +977,7 @@
     state.slots = snap.slots;
     state.cardLevels = snap.cardLevels;
     state.eventChips = snap.eventChips;
+    state.eventChipNumbers = Array.isArray(snap.eventChipNumbers) ? snap.eventChipNumbers : new Array(SLOT_COUNT).fill(null);
     state.eventChipsUsed = Array.isArray(snap.eventChipsUsed) ? snap.eventChipsUsed : new Array(SLOT_COUNT).fill(false);
     state.eventChipsData = snap.eventChipsData && typeof snap.eventChipsData === "object" ? snap.eventChipsData : {};
     state.boardStarted = snap.boardStarted;
@@ -1728,6 +1772,10 @@
       if (Array.isArray(data.eventChips) && data.eventChips.length === SLOT_COUNT) {
         state.eventChips = data.eventChips;
       }
+      state.eventChipNumbers =
+        Array.isArray(data.eventChipNumbers) && data.eventChipNumbers.length === SLOT_COUNT
+          ? data.eventChipNumbers
+          : new Array(SLOT_COUNT).fill(null);
       state.eventChipsUsed =
         Array.isArray(data.eventChipsUsed) && data.eventChipsUsed.length === SLOT_COUNT
           ? data.eventChipsUsed
@@ -1791,6 +1839,23 @@
               branchFloor: typeof loadedGmFlow.walk.branchFloor === "number" ? loadedGmFlow.walk.branchFloor : null,
               branchFloorArmed: !!loadedGmFlow.walk.branchFloorArmed,
               pendingPrefixText: typeof loadedGmFlow.walk.pendingPrefixText === "string" ? loadedGmFlow.walk.pendingPrefixText : null,
+              pendingOutcomeFilter:
+                [
+                  "成功",
+                  "失敗",
+                  "成功2回",
+                  "成功1回",
+                  "失敗2回",
+                  "成功1回目",
+                  "成功2回目",
+                  "成功3回目",
+                  "失敗1回目",
+                  "失敗2回目",
+                  "失敗3回目",
+                ].indexOf(loadedGmFlow.walk.pendingOutcomeFilter) !== -1
+                  ? loadedGmFlow.walk.pendingOutcomeFilter
+                  : null,
+              pendingConvergeLabel: typeof loadedGmFlow.walk.pendingConvergeLabel === "string" ? loadedGmFlow.walk.pendingConvergeLabel : null,
             }
           : null;
       state.gmFlow = {
@@ -1805,6 +1870,12 @@
             "lineChoice",
             "combatTrigger",
             "abilityCheck",
+            "cooperativeCheck",
+            "playerPickCheck",
+            "branchPointTally",
+            "sequentialPairCheck",
+            "conditionalCooperativeChoice",
+            "sequentialCooperativeChain",
             "freeFloorChoice",
             "battleWait",
             "chipOffer",
@@ -1819,7 +1890,85 @@
         combatTriggerLabel: typeof loadedGmFlow.combatTriggerLabel === "string" ? loadedGmFlow.combatTriggerLabel : null,
         abilityCheckSpec:
           loadedGmFlow.abilityCheckSpec && typeof loadedGmFlow.abilityCheckSpec.target === "number" && typeof loadedGmFlow.abilityCheckSpec.statKey === "string"
-            ? { target: loadedGmFlow.abilityCheckSpec.target, statKey: loadedGmFlow.abilityCheckSpec.statKey }
+            ? {
+                target: loadedGmFlow.abilityCheckSpec.target,
+                statKey: loadedGmFlow.abilityCheckSpec.statKey,
+                markerLabel: typeof loadedGmFlow.abilityCheckSpec.markerLabel === "string" ? loadedGmFlow.abilityCheckSpec.markerLabel : null,
+              }
+            : null,
+        cooperativeCheckSpec:
+          loadedGmFlow.cooperativeCheckSpec &&
+          typeof loadedGmFlow.cooperativeCheckSpec.target === "number" &&
+          typeof loadedGmFlow.cooperativeCheckSpec.statKey === "string"
+            ? {
+                target: loadedGmFlow.cooperativeCheckSpec.target,
+                perPC: !!loadedGmFlow.cooperativeCheckSpec.perPC,
+                statKey: loadedGmFlow.cooperativeCheckSpec.statKey,
+                markerLabel: typeof loadedGmFlow.cooperativeCheckSpec.markerLabel === "string" ? loadedGmFlow.cooperativeCheckSpec.markerLabel : null,
+              }
+            : null,
+        playerPickCheckSpec:
+          loadedGmFlow.playerPickCheckSpec &&
+          typeof loadedGmFlow.playerPickCheckSpec.target === "number" &&
+          typeof loadedGmFlow.playerPickCheckSpec.statKey === "string"
+            ? {
+                target: loadedGmFlow.playerPickCheckSpec.target,
+                statKey: loadedGmFlow.playerPickCheckSpec.statKey,
+                retryOnFail: !!loadedGmFlow.playerPickCheckSpec.retryOnFail,
+                markerLabel: typeof loadedGmFlow.playerPickCheckSpec.markerLabel === "string" ? loadedGmFlow.playerPickCheckSpec.markerLabel : null,
+              }
+            : null,
+        playerPickCheckExcluded: Array.isArray(loadedGmFlow.playerPickCheckExcluded) ? loadedGmFlow.playerPickCheckExcluded : [],
+        branchPointTallySpec:
+          loadedGmFlow.branchPointTallySpec &&
+          typeof loadedGmFlow.branchPointTallySpec.target === "number" &&
+          typeof loadedGmFlow.branchPointTallySpec.statKey === "string" &&
+          typeof loadedGmFlow.branchPointTallySpec.highLabel === "string" &&
+          typeof loadedGmFlow.branchPointTallySpec.lowLabel === "string"
+            ? {
+                target: loadedGmFlow.branchPointTallySpec.target,
+                statKey: loadedGmFlow.branchPointTallySpec.statKey,
+                repeat: typeof loadedGmFlow.branchPointTallySpec.repeat === "number" ? loadedGmFlow.branchPointTallySpec.repeat : 1,
+                round: typeof loadedGmFlow.branchPointTallySpec.round === "number" ? loadedGmFlow.branchPointTallySpec.round : 1,
+                points: typeof loadedGmFlow.branchPointTallySpec.points === "number" ? loadedGmFlow.branchPointTallySpec.points : 0,
+                highLabel: loadedGmFlow.branchPointTallySpec.highLabel,
+                lowLabel: loadedGmFlow.branchPointTallySpec.lowLabel,
+                lowThreshold: typeof loadedGmFlow.branchPointTallySpec.lowThreshold === "number" ? loadedGmFlow.branchPointTallySpec.lowThreshold : 0,
+              }
+            : null,
+        sequentialPairSpec:
+          loadedGmFlow.sequentialPairSpec && Array.isArray(loadedGmFlow.sequentialPairSpec.checks) && loadedGmFlow.sequentialPairSpec.checks.length === 2
+            ? {
+                checks: loadedGmFlow.sequentialPairSpec.checks.map(function (chk) {
+                  return { target: typeof chk.target === "number" ? chk.target : 0, statKey: typeof chk.statKey === "string" ? chk.statKey : "luck" };
+                }),
+                stepIndex: typeof loadedGmFlow.sequentialPairSpec.stepIndex === "number" ? loadedGmFlow.sequentialPairSpec.stepIndex : 0,
+                totalSuccess: typeof loadedGmFlow.sequentialPairSpec.totalSuccess === "number" ? loadedGmFlow.sequentialPairSpec.totalSuccess : 0,
+                totalAttempts: typeof loadedGmFlow.sequentialPairSpec.totalAttempts === "number" ? loadedGmFlow.sequentialPairSpec.totalAttempts : 0,
+                markerLabel: typeof loadedGmFlow.sequentialPairSpec.markerLabel === "string" ? loadedGmFlow.sequentialPairSpec.markerLabel : null,
+              }
+            : null,
+        conditionalCooperativeChoiceSpec:
+          loadedGmFlow.conditionalCooperativeChoiceSpec && Array.isArray(loadedGmFlow.conditionalCooperativeChoiceSpec.options)
+            ? {
+                options: loadedGmFlow.conditionalCooperativeChoiceSpec.options
+                  .filter(function (opt) {
+                    return opt && typeof opt.label === "string" && typeof opt.target === "number" && typeof opt.statKey === "string";
+                  })
+                  .map(function (opt) {
+                    return { label: opt.label, target: opt.target, perPC: !!opt.perPC, statKey: opt.statKey };
+                  }),
+              }
+            : null,
+        sequentialChainSpec:
+          loadedGmFlow.sequentialChainSpec && Array.isArray(loadedGmFlow.sequentialChainSpec.steps) && loadedGmFlow.sequentialChainSpec.steps.length >= 2
+            ? {
+                steps: loadedGmFlow.sequentialChainSpec.steps.map(function (stp) {
+                  return { target: typeof stp.target === "number" ? stp.target : 0, statKey: typeof stp.statKey === "string" ? stp.statKey : "luck" };
+                }),
+                stepIndex: typeof loadedGmFlow.sequentialChainSpec.stepIndex === "number" ? loadedGmFlow.sequentialChainSpec.stepIndex : 0,
+                awaitingContinue: !!loadedGmFlow.sequentialChainSpec.awaitingContinue,
+              }
             : null,
         freeFloorOptions: Array.isArray(loadedGmFlow.freeFloorOptions) ? loadedGmFlow.freeFloorOptions : [],
         battleWaitActive: !!loadedGmFlow.battleWaitActive,
@@ -1861,6 +2010,7 @@
     state.slots = new Array(SLOT_COUNT).fill(null);
     state.cardLevels = new Array(SLOT_COUNT).fill(null);
     state.eventChips = new Array(SLOT_COUNT).fill(null);
+    state.eventChipNumbers = new Array(SLOT_COUNT).fill(null);
     state.eventChipsUsed = new Array(SLOT_COUNT).fill(false);
     state.eventChipsData = {};
     state.boardStarted = false;
@@ -1908,6 +2058,13 @@
       pendingChoiceLabels: [],
       combatTriggerLabel: null,
       abilityCheckSpec: null,
+      cooperativeCheckSpec: null,
+      playerPickCheckSpec: null,
+      playerPickCheckExcluded: [],
+      branchPointTallySpec: null,
+      sequentialPairSpec: null,
+      conditionalCooperativeChoiceSpec: null,
+      sequentialChainSpec: null,
       freeFloorOptions: [],
       battleWaitActive: false,
       pendingFinalFloorSlot: null,
@@ -6932,12 +7089,15 @@
   function adjustMobHpRow(rowIndex, delta) {
     var row = state.battle.mobHpRows[rowIndex];
     if (!row) return;
-    var current = countRowChecked(row, 0, MOB_HP_COLS);
-    var target = Math.max(0, Math.min(MOB_HP_COLS, current + delta));
+    // 各列の上限＝そのrow配列自身の長さ（自動化GMが計算値でaddAutoMobHpRowした場合は
+    // 可変長。GM手動［+］のhandleAddMobRowは従来通りMOB_HP_COLS(10)固定で作る）。
+    var max = row.length;
+    var current = countRowChecked(row, 0, max);
+    var target = Math.max(0, Math.min(max, current + delta));
     if (target === current) return;
     if (target > current) {
       var need = target - current;
-      for (var i = 0; i < MOB_HP_COLS && need > 0; i++) {
+      for (var i = 0; i < max && need > 0; i++) {
         if (!row[i]) {
           row[i] = true;
           need--;
@@ -6945,7 +7105,7 @@
       }
     } else {
       var remove = current - target;
-      for (var j = MOB_HP_COLS - 1; j >= 0 && remove > 0; j--) {
+      for (var j = max - 1; j >= 0 && remove > 0; j--) {
         if (row[j]) {
           row[j] = false;
           remove--;
@@ -6955,7 +7115,7 @@
     // 復仇者「死靈術」：雑兵の段が「未到達→ちょうど今回HP0に到達」した瞬間だけ発火させる
     // （既にHP0の段をさらに操作しても再発火しない）。非雑兵エネミー側のhandleEnemyHpChangedに
     // 相当する検知が雑兵側には無かったため、ここに追加する。
-    if (current !== MOB_HP_COLS && target === MOB_HP_COLS) {
+    if (current !== max && target === max) {
       handleMobRowDepleted();
     }
     renderMobHpList();
@@ -7048,7 +7208,7 @@
         var rowDiv = document.createElement("div");
         rowDiv.className = "battle-hp-stepper-row";
 
-        var count = countRowChecked(row, 0, MOB_HP_COLS);
+        var count = countRowChecked(row, 0, row.length);
 
         var minus = document.createElement("button");
         minus.type = "button";
@@ -7061,7 +7221,7 @@
 
         var value = document.createElement("span");
         value.className = "level-value battle-hp-stepper-value";
-        value.textContent = count + "/" + MOB_HP_COLS;
+        value.textContent = count + "/" + row.length;
         rowDiv.appendChild(value);
 
         var plus = document.createElement("button");
@@ -7099,6 +7259,16 @@
     state.battle.mobHpRows.push(new Array(MOB_HP_COLS).fill(false));
     saveState();
     renderMobHpList();
+  }
+
+  // 自動化GM専用：算出済みの雜兵最大HPで新しい列を追加する（GM手動のhandleAddMobRowと違い、
+  // 上限が固定10ではなく計算値そのもの——night_gm_flow.jsのresolveAndAddCombatEnemies経由で呼ばれる）。
+  function addAutoMobHpRow(maxHp) {
+    var n = Math.max(1, Math.round(maxHp) || 1);
+    state.battle.mobHpRows.push(new Array(n).fill(false));
+    saveState();
+    renderMobHpList();
+    return n;
   }
 
   function renderBattleRefTexts() {
@@ -9871,9 +10041,9 @@
       var img = document.createElement("img");
       img.className = "slot-chip-icon";
       img.src = "../static/images/icons/" + chipDef.icon;
-      img.alt = window.I18N.t("event_chip_" + chipId);
+      img.alt = eventChipDisplayLabel(index);
       var label = document.createElement("span");
-      label.textContent = window.I18N.t("event_chip_" + chipId);
+      label.textContent = eventChipDisplayLabel(index);
       chipRow.appendChild(img);
       chipRow.appendChild(label);
       if (chipId === "merchant") {
@@ -10308,7 +10478,9 @@
       state.slots[pos] = { code: codes[i], revealed: false };
       state.cardLevels[pos] = 0;
     });
-    state.eventChips = rollEventChips();
+    var rolledEventChips = rollEventChips();
+    state.eventChips = rolledEventChips.ids;
+    state.eventChipNumbers = rolledEventChips.numbers;
     state.eventChipsUsed = new Array(SLOT_COUNT).fill(false);
     state.eventChipsData = {};
 
@@ -10358,7 +10530,9 @@
         state.cardLevels[idx] = 0;
       });
     }
-    state.eventChips = rollEventChips();
+    var rolledEventChips = rollEventChips();
+    state.eventChips = rolledEventChips.ids;
+    state.eventChipNumbers = rolledEventChips.numbers;
     state.eventChipsUsed = new Array(SLOT_COUNT).fill(false);
     state.eventChipsData = {};
     state.focusedIndex = "start";
@@ -10494,7 +10668,9 @@
       state.cardLevels[pos] = 0;
     });
     var day2Rows = allDay2Rows;
-    state.eventChips = rollEventChips();
+    var rolledEventChips = rollEventChips();
+    state.eventChips = rolledEventChips.ids;
+    state.eventChipNumbers = rolledEventChips.numbers;
     state.eventChipsUsed = new Array(SLOT_COUNT).fill(false);
     state.eventChipsData = {};
 
@@ -10956,6 +11132,9 @@
     grantPileFullClearRewardIfNeeded: grantPileFullClearRewardIfNeeded,
     grantCardFullClearRewardIfNeeded: grantCardFullClearRewardIfNeeded,
     renderCardLevel: renderCardLevel,
+    eventChipDisplayLabel: eventChipDisplayLabel,
+    fieldLevelsForDay: fieldLevelsForDay,
+    addAutoMobHpRow: addAutoMobHpRow,
   };
 
   document.addEventListener("DOMContentLoaded", async function () {
@@ -11263,6 +11442,8 @@
       window.PriTestNightFloorBreakthrough.resolveBreakthroughCheck(false);
     });
     document.getElementById("btn-ability-check-done").addEventListener("click", window.PriTestNightGmFlow.handleAbilityCheckDoneClick);
+    document.getElementById("btn-cooperative-check-confirm").addEventListener("click", window.PriTestNightGmFlow.handleCooperativeCheckConfirmClick);
+    document.getElementById("btn-branch-tally-confirm").addEventListener("click", window.PriTestNightGmFlow.handleBranchTallyConfirmClick);
     document.getElementById("breakthrough-target-input").addEventListener("input", window.PriTestNightFloorBreakthrough.renderBreakthroughCharacters);
     document.getElementById("breakthrough-perpc-checkbox").addEventListener("change", window.PriTestNightFloorBreakthrough.renderBreakthroughCharacters);
     document.getElementById("breakthrough-stat-select").addEventListener("change", window.PriTestNightFloorBreakthrough.renderBreakthroughCharacters);

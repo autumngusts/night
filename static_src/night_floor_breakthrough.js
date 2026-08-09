@@ -1334,5 +1334,6 @@
     resolveBreakthroughCheck: resolveBreakthroughCheck,
     getFloorRewardModalFloor: function () { return floorRewardModalFloor; },
     effectiveCheckValue: effectiveCheckValue,
+    parseBreakthroughCheckText: parseBreakthroughCheckText,
   };
 })();

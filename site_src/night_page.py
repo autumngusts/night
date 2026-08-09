@@ -638,6 +638,27 @@ BODY = """    <div class="night-header-row">
       </div>
     </div>
 
+    <div id="cooperative-check-modal" class="modal" hidden>
+      <div class="modal-box combat-modal-box">
+        <h2 id="cooperative-check-modal-title"></h2>
+        <div id="cooperative-check-characters"></div>
+        <p id="cooperative-check-pool-label" class="threat-ref-body"></p>
+        <div class="actions">
+          <button id="btn-cooperative-check-confirm" type="button" class="primary-btn" data-i18n="cooperative_check_confirm_button" disabled></button>
+        </div>
+      </div>
+    </div>
+
+    <div id="branch-tally-modal" class="modal" hidden>
+      <div class="modal-box combat-modal-box">
+        <h2 id="branch-tally-modal-title"></h2>
+        <div id="branch-tally-characters"></div>
+        <div class="actions">
+          <button id="btn-branch-tally-confirm" type="button" class="primary-btn" data-i18n="branch_tally_confirm_button" disabled></button>
+        </div>
+      </div>
+    </div>
+
     <div id="threat-drawer" class="drawer">
       <div class="drawer-backdrop" id="threat-drawer-backdrop"></div>
       <div class="drawer-panel">
