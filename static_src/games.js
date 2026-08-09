@@ -36,12 +36,17 @@
       mode === "cloud" && window.PriTestGameStorage
         ? window.PriTestGameStorage.generateCloudGameId()
         : "g" + Date.now() + Math.floor(Math.random() * 1000);
+    // 固定シナリオ（scenarios.jsのSCENARIOS、各エントリのbossId）には、そのシナリオの
+    // 最終夜に登場する夜の王が一意に決まっている。作成時点でnight3BossIdを自動で
+    // 対応させておき、GMは管理画面のセレクトで後からいつでも手動変更できる（自由シナリオ
+    // "custom..."にはbossIdが無いためnullのまま、従来通り手動選択が必要）。
+    var scenario = window.PriTestScenarios ? window.PriTestScenarios.get(scenarioId) : null;
     var game = {
       id: id,
       name: name,
       createdAt: Date.now(),
       scenarioId: scenarioId || null,
-      night3BossId: null,
+      night3BossId: (scenario && scenario.bossId) || null,
       storageMode: mode,
     };
     games.push(game);

@@ -54,14 +54,12 @@
       date.textContent = new Date(game.createdAt).toLocaleString();
       info.appendChild(name);
       info.appendChild(date);
-      if (game.scenarioId) {
-        var scenario = Scenarios.get(game.scenarioId);
-        if (scenario) {
-          var badge = document.createElement("span");
-          badge.className = "game-date";
-          badge.textContent = window.I18N.t("scenario_badge_label") + window.I18N.t("colon_separator") + Scenarios.localizedName(scenario.name);
-          info.appendChild(badge);
-        }
+      var scenario = game.scenarioId ? Scenarios.get(game.scenarioId) : null;
+      if (scenario) {
+        var badge = document.createElement("span");
+        badge.className = "game-date";
+        badge.textContent = window.I18N.t("scenario_badge_label") + window.I18N.t("colon_separator") + Scenarios.localizedName(scenario.name);
+        info.appendChild(badge);
       }
 
       var storageBadge = document.createElement("span");
@@ -99,6 +97,29 @@
       });
       bossLabel.appendChild(bossSelect);
       bossRow.appendChild(bossLabel);
+      // シナリオに対応する「真正」の最終夜の王（scenarios.jsのbossId）が分かっている場合、
+      // GMが上のセレクトで別のボスに変更していても、いつでもワンクリックで正解へ戻せる
+      // ようにする（bossSelectの選択肢自体は自由変更を妨げない——「画像は外部で差し替え
+      // 可能」という運用は維持しつつ、シナリオ番号との対応はここで明示する）。
+      if (scenario && scenario.bossId) {
+        var resetBtn = document.createElement("button");
+        resetBtn.type = "button";
+        resetBtn.className = "boss-reset-btn";
+        resetBtn.textContent = window.I18N.t("night3_boss_reset_button");
+        resetBtn.title = window.I18N.t("night3_boss_reset_button_title", {
+          boss: (function () {
+            var localized = BossRulebook ? BossRulebook.get(scenario.bossId) : null;
+            if (!localized || !localized.name) return scenario.bossId;
+            var lang = window.I18N ? window.I18N.getLang() : "zh";
+            return lang === "ja" ? localized.name.ja : localized.name.zh;
+          })(),
+        });
+        resetBtn.addEventListener("click", function () {
+          Games.update(game.id, { night3BossId: scenario.bossId });
+          bossSelect.value = scenario.bossId;
+        });
+        bossRow.appendChild(resetBtn);
+      }
       info.appendChild(bossRow);
 
       var actions = document.createElement("div");

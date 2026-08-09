@@ -818,10 +818,11 @@ button {
   font-size: 0.75rem;
 }
 
-/* threat-broadcast-overlay／enemy-row-status-overlay／location-status-overlayはいずれも
-   画面上部中央に浮かぶ「公告」バナーのため、#top-banner-stackでまとめて縦積みにして
-   重なりを防ぐ（各バナー自体はposition:relativeにして、閉じるボタンのabsolute配置だけ
-   自分自身の箱を基準にする）。 */
+/* threat-broadcast-overlay／enemy-row-status-overlayは、画面上部中央に浮かぶ「公告」バナー
+   （GMが閉じるかタイムアウトで消える一時的な通知）のため、#top-banner-stackでまとめて
+   縦積みにして重なりを防ぐ（各バナー自体はposition:relativeにして、閉じるボタンの
+   absolute配置だけ自分自身の箱を基準にする）。常時表示のlocation-status-overlay（現在地）は
+   性質が異なるため、この中央フロートには含めず、別枠で右上に固定表示する。 */
 #top-banner-stack {
   position: fixed;
   top: 0.75rem;
@@ -914,17 +915,31 @@ button {
   font-size: 0.85rem;
 }
 
-/* #20：目前所在位置（カード名・樓層數・全效果）も、日常のヘッダー小文字ではなく、他の
-   長時間公告と同じ「GMが状態を変えるまで残る」バナーで表示する（#top-banner-stack内）。 */
+/* #20：目前所在位置（カード名・樓層數・全效果）は、他の「公告」バナー（threat-broadcast／
+   enemy-row-status、いずれも画面中央・GMが閉じるまたはタイムアウトで消える）とは性質が
+   異なる——常に存在し続ける現在地表示のため、閉じるボタンは持たず、#top-banner-stackの
+   中央フロートとも別枠で、画面右上に貼り付ける専用バナーにする。折りたたみ時は樓層名だけの
+   小さなブロックに、展開時は樓層數・全效果に加えて将来の自動GM文字/選択肢を置ける余白を持つ。 */
 #location-status-overlay {
-  position: relative;
-  width: 100%;
-  background: #1c1c1c;
-  color: #fff;
-  border-radius: 10px;
-  border-left: 6px solid #2e9fd6;
-  padding: 0.75rem 2.25rem 0.6rem 1rem;
-  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.4);
+  position: fixed;
+  top: 0;
+  right: 0.75rem;
+  z-index: 61;
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  max-width: min(360px, 88vw);
+  background: #f3d576;
+  color: #453510;
+  border-radius: 0 0 10px 10px;
+  padding: 0.6rem 0.75rem 0.6rem 0.9rem;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.28);
+  transition: max-width 0.18s ease, padding 0.18s ease;
+}
+
+#location-status-overlay.collapsed {
+  max-width: 9.5rem;
+  padding: 0.4rem 0.55rem;
 }
 
 #location-status-content {
@@ -933,26 +948,43 @@ button {
   gap: 0.2rem;
   font-size: 0.9rem;
   line-height: 1.4;
+  min-width: 0;
+  flex: 1;
 }
 
 #location-status-content .loc-name {
-  color: #fff;
-  font-weight: 600;
+  color: #362809;
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 #location-status-content .loc-detail {
-  color: #bbb;
+  color: #6b551c;
   font-size: 0.8rem;
 }
 
-#location-status-overlay .modal-floating-close {
-  position: absolute;
-  top: 0.4rem;
-  right: 0.4rem;
-  width: 1.6rem;
-  height: 1.6rem;
-  line-height: 1.6rem;
-  font-size: 0.85rem;
+#location-status-overlay.collapsed #location-status-content .loc-detail {
+  display: none;
+}
+
+#btn-location-status-toggle {
+  flex-shrink: 0;
+  border: none;
+  background: rgba(54, 40, 9, 0.1);
+  color: #362809;
+  border-radius: 6px;
+  width: 1.7rem;
+  height: 1.7rem;
+  font-size: 0.75rem;
+  line-height: 1.7rem;
+  padding: 0;
+  cursor: pointer;
+}
+
+#btn-location-status-toggle:hover {
+  background: rgba(54, 40, 9, 0.18);
 }
 
 .tl-list {
@@ -2276,6 +2308,22 @@ button {
   padding: 0.15rem 0.3rem;
   max-width: 100%;
   min-width: 0;
+}
+
+.boss-reset-btn {
+  font-size: 0.76rem;
+  padding: 0.15rem 0.5rem;
+  border-radius: 6px;
+  border: 1px solid #555;
+  background: transparent;
+  color: #ccc;
+  cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.boss-reset-btn:hover {
+  background: #333;
 }
 
 .game-actions {

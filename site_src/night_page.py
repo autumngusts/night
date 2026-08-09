@@ -170,11 +170,11 @@ BODY = """    <div class="night-header-row">
         <button type="button" class="info-btn" id="btn-time-loss-info">i</button>
         <button type="button" class="info-btn broadcast-btn" id="btn-time-loss-broadcast" aria-label="broadcast threat effects">&#128227;</button>
       </div>
+      <div id="location-status-overlay" hidden>
+        <div id="location-status-content"></div>
+        <button type="button" id="btn-location-status-toggle" aria-label="toggle floor banner"></button>
+      </div>
       <div id="top-banner-stack">
-        <div id="location-status-overlay" hidden>
-          <button type="button" class="modal-floating-close" id="btn-location-status-close">&times;</button>
-          <div id="location-status-content"></div>
-        </div>
         <div id="threat-broadcast-overlay" hidden>
           <button type="button" class="modal-floating-close" id="btn-threat-broadcast-close">&times;</button>
           <div id="threat-broadcast-content"></div>

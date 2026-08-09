@@ -773,6 +773,7 @@
     turnRewards: [], // {id, text, checked}の配列。地板獎勵とは無関係の獨立勾選清單、手動削除まで保持
     turnBoardEnabled: true, // 主選單から行動留言板機能全体を開閉するフラグ
     logBubbleEnabled: false, // 紀錄ドロワーの懸浮泡泡（公開盤左上に常時表示するショートカット）を出すかどうか
+    locationBannerCollapsed: false, // 右上の現在地バナー（#location-status-overlay）を折りたたみ表示にするかどうか
     autoGmEnabled: false, // 自動化GM機能全体のON/OFF。規則書パスワード（"nightnight"）認証済みの人のみ切替可能（turnHolder制限は無し）
     autoGmLog: [], // 自動化GMの監査ログ（通常のstate.logとは別。誰がいつ何を確認・確定したか、後から検証できるように保持）
     // GMが開いて縮小した抽選ウィンドウを全端末で共有するための領域。null=未使用。
@@ -847,6 +848,7 @@
       turnRewards: state.turnRewards,
       turnBoardEnabled: state.turnBoardEnabled,
       logBubbleEnabled: state.logBubbleEnabled,
+      locationBannerCollapsed: state.locationBannerCollapsed,
       autoGmEnabled: state.autoGmEnabled,
       autoGmLog: state.autoGmLog,
       activeDraws: state.activeDraws,
@@ -1718,6 +1720,7 @@
       state.turnRewards = Array.isArray(data.turnRewards) ? data.turnRewards : [];
       state.turnBoardEnabled = typeof data.turnBoardEnabled === "boolean" ? data.turnBoardEnabled : true;
       state.logBubbleEnabled = typeof data.logBubbleEnabled === "boolean" ? data.logBubbleEnabled : false;
+      state.locationBannerCollapsed = typeof data.locationBannerCollapsed === "boolean" ? data.locationBannerCollapsed : false;
       state.autoGmEnabled = typeof data.autoGmEnabled === "boolean" ? data.autoGmEnabled : false;
       state.autoGmLog = Array.isArray(data.autoGmLog) ? data.autoGmLog : [];
       var loadedDraws = data.activeDraws && typeof data.activeDraws === "object" ? data.activeDraws : {};
@@ -1782,6 +1785,7 @@
     state.turnRewards = [];
     state.turnBoardEnabled = true;
     state.logBubbleEnabled = false;
+    state.locationBannerCollapsed = false;
     state.autoGmEnabled = false;
     state.autoGmLog = [];
     state.activeDraws = { potentialPower: null, weapon: null, talisman: null, consumable: null };
@@ -9386,23 +9390,31 @@
   }
 
   // #20：目前所在位置（focusedIndex）とその樓層情報を、日常のヘッダー小文字ではなく、
-  // 他の「長時間公告」（enemy-row-status-overlayと同じ仕組み）で画面上部に表示する。
-  // GMが額外／一般フェイズへ切り替えるまで自動では閉じないtoastと違い、位置が変わるたびに
-  // 内容が更新され続ける常時バナー。カード名以外（樓層數・全效果）は.loc-detailで控えめに示す。
-  function closeLocationStatusBanner() {
-    var overlay = document.getElementById("location-status-overlay");
-    if (overlay) overlay.hidden = true;
+  // 画面右上に常に貼り付く専用バナーで表示する（鵝黃色、閉じるボタンは持たない——GMの
+  // 現在地表示は戦闘のstagger通知等と違い、常に存在し続けるべき情報のため）。折りたたみ時は
+  // 樓層名だけの小さなブロックに、展開時は樓層數・全效果に加えて将来の自動GM文字/選択肢を
+  // 置ける余白を持つ。折りたたみ状態はstate.locationBannerCollapsedで永続化する。
+  function handleLocationBannerToggleClick() {
+    state.locationBannerCollapsed = !state.locationBannerCollapsed;
+    saveState();
+    renderCurrentLocationStatus();
   }
 
   function renderCurrentLocationStatus() {
     var overlay = document.getElementById("location-status-overlay");
     var content = document.getElementById("location-status-content");
+    var toggleBtn = document.getElementById("btn-location-status-toggle");
     if (!overlay || !content) return;
     var idx = state.focusedIndex;
     var card = typeof idx === "number" ? window.PriTestNightFloorBreakthrough.resolveFieldEntryForSlot(idx) : null;
     if (!card) {
       overlay.hidden = true;
       return;
+    }
+    overlay.classList.toggle("collapsed", !!state.locationBannerCollapsed);
+    if (toggleBtn) {
+      toggleBtn.innerHTML = state.locationBannerCollapsed ? "&#9660;" : "&#9650;";
+      toggleBtn.title = window.I18N.t(state.locationBannerCollapsed ? "location_banner_expand_label" : "location_banner_collapse_label");
     }
     content.innerHTML = "";
     var levelVal = state.cardLevels[idx];
@@ -10685,7 +10697,7 @@
     document.getElementById("btn-time-loss-broadcast").addEventListener("click", triggerThreatBroadcast);
     document.getElementById("btn-threat-broadcast-close").addEventListener("click", closeThreatBroadcast);
     document.getElementById("btn-enemy-row-status-close").addEventListener("click", closeEnemyRowStatusBanner);
-    document.getElementById("btn-location-status-close").addEventListener("click", closeLocationStatusBanner);
+    document.getElementById("btn-location-status-toggle").addEventListener("click", handleLocationBannerToggleClick);
     document.getElementById("btn-threat-drawer-close").addEventListener("click", closeThreatDrawer);
     document.getElementById("threat-drawer-backdrop").addEventListener("click", closeThreatDrawer);
     document.getElementById("btn-active-threat-effect-add").addEventListener("click", handleActiveThreatEffectAdd);

@@ -5,6 +5,10 @@
     {
       id: "tricephalos",
       name: { zh: "三首獸", ja: "三つ首の獣", en: "Tricephalos" },
+      // このシナリオ自体には他シナリオのようなbossName欄が本来無いが（三首獸専用の
+      // 固有ボスが規則書に明記されていない）、ユーザー確認済み：実際の最終夜の王は
+      // グラディウス固定。night_boss_rulebook.js（BOSSES）のidと対応する。
+      bossId: "gladius",
       start: { suit: "H", rank: "A" },
       end: { suit: "D", rank: "A" },
       day1: [
@@ -31,6 +35,7 @@
       id: "sentient_pest",
       name: { zh: "知性之蟲", ja: "知性の蟲", en: "Sentient Pest" },
       bossName: { zh: "夜之織、塔諾斯特", ja: "夜の織、タノスター", en: "Night's Weave, Tanoster" },
+      bossId: "gnoster",
       relicName: { zh: "識之夜", ja: "識の夜", en: "Night of Knowledge" },
       start: { suit: "H", rank: "A" },
       end: { suit: "C", rank: "A" },
@@ -58,6 +63,7 @@
       id: "augur",
       name: { zh: "兆頭", ja: "兆し", en: "Augur" },
       bossName: { zh: "深海之夜、瑪莉絲", ja: "深海の夜、マリス", en: "Night of the Deep, Maris" },
+      bossId: "maris",
       relicName: { zh: "深海之夜", ja: "深海の夜", en: "Night of the Deep" },
       start: { suit: "H", rank: "A" },
       end: { suit: "D", rank: "A" },
@@ -85,6 +91,7 @@
       id: "equilibrious_beast",
       name: { zh: "調律的魔物", ja: "調律の魔物", en: "Equilibrious Beast" },
       bossName: { zh: "夜之魔、莉絲拉", ja: "夜の魔、リスラ", en: "Night's Devil, Risura" },
+      bossId: "libra",
       relicName: { zh: "魔之夜", ja: "魔の夜", en: "Night of the Devil" },
       start: { suit: "D", rank: "A" },
       end: { suit: "C", rank: "A" },
@@ -116,6 +123,7 @@
       id: "darkdrift_knight",
       name: { zh: "闇馳騁的獵人", ja: "闇駆ける狩人", en: "Darkdrift Knight" },
       bossName: { zh: "夜光騎士、弗爾戈爾", ja: "夜光の騎士、フルゴール", en: "Knight of Nightglow, Fulgor" },
+      bossId: "fulghor",
       relicName: { zh: "獵人之夜", ja: "狩人の夜", en: "Night of the Hunter" },
       start: { suit: "S", rank: "A" },
       end: { suit: "H", rank: "A" },
@@ -147,6 +155,7 @@
       id: "fissure_in_the_fog",
       name: { zh: "霧之裂縫", ja: "霧の裂け目", en: "Fissure in the Fog" },
       bossName: { zh: "夜之霞、卡里戈", ja: "夜の霞、カリゴ", en: "Night's Haze, Caligo" },
+      bossId: "caligo",
       relicName: { zh: "霞之夜", ja: "霞の夜", en: "Night of Haze" },
       start: { suit: "H", rank: "A" },
       end: { suit: "S", rank: "A" },
@@ -178,6 +187,7 @@
       id: "balancers",
       name: { zh: "安寧者們", ja: "安寧者たち", en: "Balancers" },
       bossName: { zh: "救贖的旗手 安寧護器之女、哈爾摩妮亞", ja: "救いの旗手 安寧護器の娘たち、ハルモニア", en: "Herald of Salvation, Harmonia" },
+      bossId: "harmonia",
       relicName: { zh: "安寧者的遺志", ja: "安寧者の遺志", en: "Will of the Balancers" },
       start: { suit: "D", rank: "A" },
       end: { suit: "H", rank: "A" },
@@ -208,6 +218,7 @@
       id: "dreglord",
       name: { zh: "瓦礫之王", ja: "瓦礫の王", en: "Dreglord" },
       bossName: { zh: "反叛的斯特拉格達斯（衝動）", ja: "反逆のストラグダス（衝動）", en: "Rebellious Stagumadus (Impulse)" },
+      bossId: "stragedes",
       relicName: { zh: "瓦礫之夜", ja: "瓦礫の夜", en: "Night of Rubble" },
       start: { suit: "C", rank: "A" },
       end: { suit: "S", rank: "A" },
@@ -238,6 +249,9 @@
       id: "night_aspect",
       name: { zh: "夜之側影", ja: "夜を衆る者", en: "Night Aspect" },
       bossName: { zh: "夜之輪廓、夜之奧梅雷斯", ja: "夜の輪郭、夜のオメレス", en: "Night's Outline, Night Aspect Omerus" },
+      // night_boss_rulebook.jsのid（"nameless"）と対応。ただしnight_bosses.js（管理画面の
+      // 選択肢・画像）には現時点でnameless用の画像/エントリが無い（要素材追加、別途対応）。
+      bossId: "nameless",
       relicName: { zh: "王之夜", ja: "王の夜", en: "Night of the King" },
       start: { suit: "S", rank: "A" },
       end: { suit: "H", rank: "A" },
@@ -269,6 +283,7 @@
       id: "gaping_jaw",
       name: { zh: "咬噬之顎", ja: "喰らいつく顎", en: "Gaping Jaw" },
       bossName: { zh: "夜之爵、艾德蕾", ja: "夜の爵、エデレ", en: "Night's Baron, Edele" },
+      bossId: "edele",
       relicName: { zh: "爵之夜", ja: "爵の夜", en: "Night of the Baron" },
       start: { suit: "S", rank: "A" },
       end: { suit: "C", rank: "A" },
