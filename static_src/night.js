@@ -774,10 +774,10 @@
     turnBoardEnabled: true, // 主選單から行動留言板機能全体を開閉するフラグ
     logBubbleEnabled: false, // 紀錄ドロワーの懸浮泡泡（公開盤左上に常時表示するショートカット）を出すかどうか
     locationBannerCollapsed: false, // 右上の現在地バナー（#location-status-overlay）を折りたたみ表示にするかどうか
-    locationBannerCorner: "right", // #21：折りたたみ時、長押し＋ドラッグでスナップした位置。"right"|"left"
-    autoGmEnabled: false, // 自動化GM機能全体のON/OFF。規則書パスワード（"nightnight"）認証済みの人のみ切替可能（turnHolder制限は無し）
+    locationBannerCorner: "right", // #23：折りたたみ時、スワイプでスナップした位置。"right"|"left"
+    autoGmEnabled: false, // 自動化GM機能全体のON/OFF。誰でも切替可能（パスワード制限なし、turnHolder制限も無し）
     autoGmLog: [], // 自動化GMの監査ログ（通常のstate.logとは別。誰がいつ何を確認・確定したか、後から検証できるように保持）
-    gmFlowEnabled: false, // 自動化GM Phase 2（シナリオ進行フロー：進度版の[進入]/[突破]・敘述・獎勵収集ゲート）のON/OFF。autoGmEnabledとは別軸、同じ規則書パスワードで保護
+    gmFlowEnabled: false, // 自動化GM Phase 2（シナリオ進行フロー：進度版の[進入]/[突破]・敘述・獎勵収集ゲート）のON/OFF。autoGmEnabledとは別軸、こちらも誰でも切替可能
     gmFlow: {
       narrationText: null, // 進度版に現在表示中のGM敘述文（打字機再生中/再生済み）。null=敘述なし（通常の[進入]/[突破]ボタン表示）
       awaitingOk: false, // trueの間は進度版に[OK]だけを表示し、[進入]/[突破]を隠す
@@ -7543,9 +7543,9 @@
     renderTurnHolderBar();
   }
 
-  // 自動化GM機能全体のON/OFF。規則書パスワード認証済みの人のみ切り替えられる（規則書と同じ
-  // "nightnight"を再利用、新しいパスワード体系は作らない）。ON/OFFの切替自体は誰でも可能で、
-  // turnHolderによる制限は行わない（設定トグルという位置づけのため）。
+  // 自動化GM機能全体のON/OFF。以前は規則書パスワード認証済みの人のみ切り替え可能だったが、
+  // ユーザー指定によりこの制限を撤廃——誰でも自由に切り替えられる（turnHolderによる制限も
+  // 元々無い、設定トグルという位置づけのため）。
   function renderAutoGmToggleButton() {
     var btn = document.getElementById("btn-auto-gm-toggle");
     if (!btn) return;
@@ -7559,15 +7559,11 @@
   }
 
   function handleAutoGmToggleClick() {
-    if (!isRulebookAuthenticated() && !checkRulebookPassword()) {
-      alert(window.I18N.t("rulebook_password_wrong"));
-      return;
-    }
     setAutoGmEnabled(!state.autoGmEnabled);
   }
 
   // 自動化GM Phase 2（シナリオ進行フロー）のON/OFF。autoGmEnabled（戦闘中の敵行動ロール）とは
-  // 独立した切替だが、同じ規則書パスワードで保護する既存の慣例に合わせる。
+  // 独立した切替。こちらも同様にパスワード制限を撤廃済み。
   function renderGmFlowToggleButton() {
     var btn = document.getElementById("btn-gm-flow-toggle");
     if (!btn) return;
@@ -7587,10 +7583,6 @@
   }
 
   function handleGmFlowToggleClick() {
-    if (!isRulebookAuthenticated() && !checkRulebookPassword()) {
-      alert(window.I18N.t("rulebook_password_wrong"));
-      return;
-    }
     setGmFlowEnabled(!state.gmFlowEnabled);
   }
 
@@ -9596,105 +9588,20 @@
   // 現在地表示は戦闘のstagger通知等と違い、常に存在し続けるべき情報のため）。折りたたみ時は
   // 樓層名だけの小さなブロックに、展開時は樓層數・全效果に加えて将来の自動GM文字/選択肢を
   // 置ける余白を持つ。折りたたみ状態はstate.locationBannerCollapsedで永続化する。
-  var bannerJustDragged = false; // ドラッグ確定直後の合成clickイベントで折りたたみが誤って切り替わらないようにする
-
   function handleLocationBannerToggleClick() {
-    if (bannerJustDragged) {
-      bannerJustDragged = false;
-      return;
-    }
     state.locationBannerCollapsed = !state.locationBannerCollapsed;
     saveState();
     renderCurrentLocationStatus();
   }
 
-  // #23：折りたたみ時のみ、指/カーソルを押したまま一定距離動かす（スワイプ）と、バナーが
-  // 追従し、離した位置が画面の左右どちらに近いかで右上／左上へスナップする
-  // （state.locationBannerCorner）。第22項の◀／▶ボタン案はスペースを圧迫するとの指摘で
-  // 撤回し、長押し不要の直接スワイプに変更した——閾値未満の動きで離せば通常のクリック
-  // （折りたたみ切替）として扱う——ここでは何もせず、ボタン自身のclickリスナーに委ねる。
-  function attachLocationBannerDrag() {
-    var overlay = document.getElementById("location-status-overlay");
-    if (!overlay) return;
-    var tracking = false;
-    var armed = false;
-    var startX = 0;
-    var startY = 0;
-    var grabOffsetX = 0;
-    var grabOffsetY = 0;
-    var MOVE_THRESHOLD_PX = 8;
-
-    function armDrag(e) {
-      armed = true;
-      var rect = overlay.getBoundingClientRect();
-      grabOffsetX = startX - rect.left;
-      grabOffsetY = startY - rect.top;
-      overlay.classList.add("dragging");
-      if (overlay.setPointerCapture && e.pointerId !== undefined) {
-        try {
-          overlay.setPointerCapture(e.pointerId);
-        } catch (err) {
-          /* Safari等でpointerId不正の場合は追従のみ諦め、スナップ判定は引き続き有効にする */
-        }
-      }
-    }
-
-    function followPointer(x, y) {
-      var rect = overlay.getBoundingClientRect();
-      var left = Math.max(0, Math.min(window.innerWidth - rect.width, x - grabOffsetX));
-      var top = Math.max(0, Math.min(window.innerHeight - rect.height, y - grabOffsetY));
-      overlay.style.left = left + "px";
-      overlay.style.top = top + "px";
-      overlay.style.right = "auto";
-    }
-
-    function endDrag(finalX) {
-      if (armed) {
-        overlay.classList.remove("dragging");
-        overlay.style.left = "";
-        overlay.style.top = "";
-        overlay.style.right = "";
-        // ブラウザは押下→大きく移動→離す、の場合はネイティブclickイベント自体を発火させない
-        // ことが多い（＝bannerJustDraggedがどのclickにも消費されないまま残り得る）ため、
-        // 直後の合成clickだけを対象に、次のタスクで確実に解除する（setTimeout 0）。
-        bannerJustDragged = true;
-        setTimeout(function () {
-          bannerJustDragged = false;
-        }, 0);
-        state.locationBannerCorner = finalX < window.innerWidth / 2 ? "left" : "right";
-        saveState();
-        renderCurrentLocationStatus();
-      }
-      tracking = false;
-      armed = false;
-    }
-
-    overlay.addEventListener("pointerdown", function (e) {
-      if (!state.locationBannerCollapsed) return; // 展開中はドラッグ対象外（縮小時のみ、との指定）
-      tracking = true;
-      armed = false;
-      startX = e.clientX;
-      startY = e.clientY;
-    });
-    overlay.addEventListener("pointermove", function (e) {
-      if (!tracking) return;
-      if (!armed && Math.hypot(e.clientX - startX, e.clientY - startY) >= MOVE_THRESHOLD_PX) armDrag(e);
-      if (armed) followPointer(e.clientX, e.clientY);
-    });
-    overlay.addEventListener("pointerup", function (e) {
-      endDrag(e.clientX);
-    });
-    overlay.addEventListener("pointercancel", function () {
-      overlay.classList.remove("dragging");
-      overlay.style.left = "";
-      overlay.style.top = "";
-      overlay.style.right = "";
-      tracking = false;
-      armed = false;
-    });
-    overlay.addEventListener("pointerleave", function (e) {
-      if (armed) followPointer(e.clientX, e.clientY); // ドラッグ確定後は画面外へ出ても追従を続ける（setPointerCapture頼みのフォールバック）
-    });
+  // #24：折りたたみ時のみ表示される◀／▶ボタンで右上／左上へ移動する（state.locationBannerCorner）。
+  // 長押しドラッグ（第21項）・スワイプ（第23項）はいずれも「操作しづらい」とのユーザー指摘で
+  // 撤回済み——ボタンクリックのみのシンプルな操作に戻した。
+  function setLocationBannerCorner(corner) {
+    if (state.locationBannerCorner === corner) return;
+    state.locationBannerCorner = corner;
+    saveState();
+    renderCurrentLocationStatus();
   }
 
   // 板塊の場地カードの「真正該劇本の名稱」を解決する。scenario.day1/day2に記録されている
@@ -11157,7 +11064,12 @@
     document.getElementById("btn-threat-broadcast-close").addEventListener("click", closeThreatBroadcast);
     document.getElementById("btn-enemy-row-status-close").addEventListener("click", closeEnemyRowStatusBanner);
     document.getElementById("btn-location-status-toggle").addEventListener("click", handleLocationBannerToggleClick);
-    attachLocationBannerDrag();
+    document.getElementById("btn-location-status-move-left").addEventListener("click", function () {
+      setLocationBannerCorner("left");
+    });
+    document.getElementById("btn-location-status-move-right").addEventListener("click", function () {
+      setLocationBannerCorner("right");
+    });
     document.getElementById("btn-threat-drawer-close").addEventListener("click", closeThreatDrawer);
     document.getElementById("threat-drawer-backdrop").addEventListener("click", closeThreatDrawer);
     document.getElementById("btn-active-threat-effect-add").addEventListener("click", handleActiveThreatEffectAdd);
