@@ -1694,6 +1694,12 @@
     return { one: !!raw.one, all: !!raw.all };
   }
 
+  // gmFlowのpendingFinalFloorSlot／pendingMapMoveSlot用：数値板塊indexか"start"/"end"
+  // （起點/終點）のいずれかのみ許可し、それ以外はnullへフォールバックする。
+  function loadSlotOrPileIndex(v) {
+    return typeof v === "number" || v === "start" || v === "end" ? v : null;
+  }
+
   function loadDicePool(raw) {
     if (!Array.isArray(raw)) return [];
     return raw
@@ -1800,11 +1806,11 @@
         pendingChoiceLabels: Array.isArray(loadedGmFlow.pendingChoiceLabels) ? loadedGmFlow.pendingChoiceLabels : [],
         combatTriggerLabel: typeof loadedGmFlow.combatTriggerLabel === "string" ? loadedGmFlow.combatTriggerLabel : null,
         battleWaitActive: !!loadedGmFlow.battleWaitActive,
-        pendingFinalFloorSlot: typeof loadedGmFlow.pendingFinalFloorSlot === "number" ? loadedGmFlow.pendingFinalFloorSlot : null,
+        pendingFinalFloorSlot: loadSlotOrPileIndex(loadedGmFlow.pendingFinalFloorSlot),
         chipOfferSlot: typeof loadedGmFlow.chipOfferSlot === "number" ? loadedGmFlow.chipOfferSlot : null,
         chipOfferContinuation: typeof loadedGmFlow.chipOfferContinuation === "string" ? loadedGmFlow.chipOfferContinuation : null,
         pendingChipCheckSlot: typeof loadedGmFlow.pendingChipCheckSlot === "number" ? loadedGmFlow.pendingChipCheckSlot : null,
-        pendingMapMoveSlot: typeof loadedGmFlow.pendingMapMoveSlot === "number" ? loadedGmFlow.pendingMapMoveSlot : null,
+        pendingMapMoveSlot: loadSlotOrPileIndex(loadedGmFlow.pendingMapMoveSlot),
       };
       var loadedDraws = data.activeDraws && typeof data.activeDraws === "object" ? data.activeDraws : {};
       state.activeDraws = {
@@ -9602,34 +9608,24 @@
     renderCurrentLocationStatus();
   }
 
-  // #22：展開時の◀／▶ボタン用（長押しドラッグより確実な代替手段、ユーザー報告）。
-  function setLocationBannerCorner(corner) {
-    if (state.locationBannerCorner === corner) return;
-    state.locationBannerCorner = corner;
-    saveState();
-    renderCurrentLocationStatus();
-  }
-
-  // #21：折りたたみ時のみ、長押し（SLOT_LONG_PRESS_MSと同じ閾値）に続けてドラッグすると、
-  // バナーが指/カーソルへ追従し、離した位置が画面の左右どちらに近いかで右上／左上へ
-  // スナップする（state.locationBannerCorner）。板塊の長押し判定（pointerdown→setTimeout→
-  // pointerup/leave/cancelでclearTimeout）と同じ作法。閾値到達前に離せば通常のクリック
+  // #23：折りたたみ時のみ、指/カーソルを押したまま一定距離動かす（スワイプ）と、バナーが
+  // 追従し、離した位置が画面の左右どちらに近いかで右上／左上へスナップする
+  // （state.locationBannerCorner）。第22項の◀／▶ボタン案はスペースを圧迫するとの指摘で
+  // 撤回し、長押し不要の直接スワイプに変更した——閾値未満の動きで離せば通常のクリック
   // （折りたたみ切替）として扱う——ここでは何もせず、ボタン自身のclickリスナーに委ねる。
   function attachLocationBannerDrag() {
     var overlay = document.getElementById("location-status-overlay");
     if (!overlay) return;
-    var pressTimer = null;
+    var tracking = false;
     var armed = false;
-    var moved = false;
     var startX = 0;
     var startY = 0;
     var grabOffsetX = 0;
     var grabOffsetY = 0;
-    var MOVE_THRESHOLD_PX = 6;
+    var MOVE_THRESHOLD_PX = 8;
 
-    function beginDrag(e) {
+    function armDrag(e) {
       armed = true;
-      moved = false;
       var rect = overlay.getBoundingClientRect();
       grabOffsetX = startX - rect.left;
       grabOffsetY = startY - rect.top;
@@ -9653,57 +9649,51 @@
     }
 
     function endDrag(finalX) {
-      clearTimeout(pressTimer);
       if (armed) {
         overlay.classList.remove("dragging");
         overlay.style.left = "";
         overlay.style.top = "";
         overlay.style.right = "";
-        if (moved) {
-          // ブラウザは押下→大きく移動→離す、の場合はネイティブclickイベント自体を発火させない
-          // ことが多い（＝bannerJustDraggedがどのclickにも消費されないまま残り得る）ため、
-          // 直後の合成clickだけを対象に、次のタスクで確実に解除する（setTimeout 0）。
-          bannerJustDragged = true;
-          setTimeout(function () {
-            bannerJustDragged = false;
-          }, 0);
-          state.locationBannerCorner = finalX < window.innerWidth / 2 ? "left" : "right";
-          saveState();
-          renderCurrentLocationStatus();
-        }
+        // ブラウザは押下→大きく移動→離す、の場合はネイティブclickイベント自体を発火させない
+        // ことが多い（＝bannerJustDraggedがどのclickにも消費されないまま残り得る）ため、
+        // 直後の合成clickだけを対象に、次のタスクで確実に解除する（setTimeout 0）。
+        bannerJustDragged = true;
+        setTimeout(function () {
+          bannerJustDragged = false;
+        }, 0);
+        state.locationBannerCorner = finalX < window.innerWidth / 2 ? "left" : "right";
+        saveState();
+        renderCurrentLocationStatus();
       }
+      tracking = false;
       armed = false;
-      moved = false;
     }
 
     overlay.addEventListener("pointerdown", function (e) {
       if (!state.locationBannerCollapsed) return; // 展開中はドラッグ対象外（縮小時のみ、との指定）
+      tracking = true;
+      armed = false;
       startX = e.clientX;
       startY = e.clientY;
-      clearTimeout(pressTimer);
-      pressTimer = setTimeout(function () {
-        beginDrag(e);
-      }, SLOT_LONG_PRESS_MS);
     });
     overlay.addEventListener("pointermove", function (e) {
-      if (!armed) return;
-      if (!moved && Math.hypot(e.clientX - startX, e.clientY - startY) >= MOVE_THRESHOLD_PX) moved = true;
-      if (moved) followPointer(e.clientX, e.clientY);
+      if (!tracking) return;
+      if (!armed && Math.hypot(e.clientX - startX, e.clientY - startY) >= MOVE_THRESHOLD_PX) armDrag(e);
+      if (armed) followPointer(e.clientX, e.clientY);
     });
     overlay.addEventListener("pointerup", function (e) {
       endDrag(e.clientX);
     });
     overlay.addEventListener("pointercancel", function () {
-      clearTimeout(pressTimer);
       overlay.classList.remove("dragging");
       overlay.style.left = "";
       overlay.style.top = "";
       overlay.style.right = "";
+      tracking = false;
       armed = false;
-      moved = false;
     });
-    overlay.addEventListener("pointerleave", function () {
-      if (!armed) clearTimeout(pressTimer); // ドラッグ確定前に指/カーソルが外れたら長押し自体を取り消す
+    overlay.addEventListener("pointerleave", function (e) {
+      if (armed) followPointer(e.clientX, e.clientY); // ドラッグ確定後は画面外へ出ても追従を続ける（setPointerCapture頼みのフォールバック）
     });
   }
 
@@ -9770,9 +9760,11 @@
           detailParts.push(window.I18N.t("field_floor_count_label") + window.I18N.t("colon_separator") + card.floorCount);
         }
         if (card.allFloorEffect) {
-          detailParts.push(
-            window.I18N.t("field_all_floor_effect_label") + window.I18N.t("colon_separator") + window.PriTestFields.localizedText(card.allFloorEffect)
-          );
+          // 進度版は表示幅が狭いため、night_rulebook.js側の規則書パネルで使う正式ラベル
+          // （field_all_floor_effect_label＝「全樓層踏破效果」）とは別に、精簡ラベル
+          // （field_all_floor_effect_label_compact＝「全踏破」）と数値のみの表記を使う。
+          var compactEffectText = compactAllFloorEffectText(window.PriTestFields.localizedText(card.allFloorEffect));
+          detailParts.push(window.I18N.t("field_all_floor_effect_label_compact") + window.I18N.t("colon_separator") + compactEffectText);
         }
         var detailSpan = document.createElement("span");
         detailSpan.className = "loc-detail";
@@ -9970,6 +9962,19 @@
     return 0;
   }
 
+  // 進度版の樓層詳細資訊（#location-status-content）用：「全樓層踏破效果」の原文
+  // （例："盧恩：2／時間損耗：1"）を、ラベルの繰り返しコロンを省いた精簡表記
+  // （例："盧恩2／時間1"）へ変換する。数値を検出できなければ原文をそのまま返す
+  // （フォーマットが想定外のカードでも情報を失わないため）。
+  function compactAllFloorEffectText(rawText) {
+    var runeAmount = parseAllFloorEffectAmount(rawText, ["盧恩", "ルーン"]);
+    var timeLossAmount = parseAllFloorEffectAmount(rawText, ["時間損耗", "タイムロス"]);
+    var parts = [];
+    if (runeAmount) parts.push(window.I18N.t("field_all_floor_effect_rune_compact", { value: runeAmount }));
+    if (timeLossAmount) parts.push(window.I18N.t("field_all_floor_effect_time_compact", { value: timeLossAmount }));
+    return parts.length ? parts.join("／") : rawText;
+  }
+
   // #10：樓層レベルが「全」に達したら、そのカードの「全樓層踏破效果」（盧恩／時間損耗）を
   // 自動的に全入場PCへ付与し、時間損耗分を公告＆留言板へ投稿する。同じカードに対しては
   // 1回のみ（cardFloorRewardGrantedへ「このカードのcode」を記録し、以後の重複を防ぐ。
@@ -10010,6 +10015,48 @@
         window.PriTestNightGmFlow.showFullClearNarration(cardName, effectText);
       }
     }
+    saveState();
+  }
+
+  // grantCardFullClearRewardIfNeededの起點／終點（"start"|"end"）版。数値板塊はcardLevelsが
+  // "全"（null）に達したことをstepCardLevel経由で検知するが、起點/終點にはその概念が無い
+  // ため、代わりにstate.startChecks.all／endChecks.allそのものを重複防止フラグとして使う
+  // （defaultChecks()でリセットされるタイミング＝新しい起點/終點が割り当てられたタイミング
+  // と一致するため、数値板塊のcardFloorRewardGranted[index]===slot.codeと同じ役割を果たす）。
+  // 出發地點（a_start）は常にfloorCount:1で、樓層本文の敘述完了＝即座に全踏破対象になる
+  // （night_gm_flow.jsのfinishFieldWalk参照）。終點（"end"）は常にa_golden解決になるため、
+  // 下のcard.id==="a_golden"分岐へ入り、既存の進次日フローがそのまま使われる。
+  function grantPileFullClearRewardIfNeeded(which) {
+    var pileChecks = which === "start" ? state.startChecks : state.endChecks;
+    if (!pileChecks || pileChecks.all) return;
+    pileChecks.all = true;
+    var card = window.PriTestNightFloorBreakthrough.resolveFieldEntryForSlot(which);
+    if (!card) {
+      renderPiles();
+      saveState();
+      return;
+    }
+    var effectText = card.allFloorEffect ? window.PriTestFields.localizedText(card.allFloorEffect) : "";
+    if (card.allFloorEffect) {
+      var runeAmount = parseAllFloorEffectAmount(effectText, ["盧恩", "ルーン"]);
+      var timeLossAmount = parseAllFloorEffectAmount(effectText, ["時間損耗", "タイムロス"]);
+      if (runeAmount) window.PriTestNightFloorBreakthrough.grantRuneToAllEntered(runeAmount);
+      if (timeLossAmount) {
+        var pileCardNameForBroadcast = window.PriTestFields.localizedText(card.name);
+        var pileMsg = window.I18N.t("card_full_clear_time_loss_broadcast", { card: pileCardNameForBroadcast, value: timeLossAmount });
+        postSystemTurnMessage(pileMsg);
+        showThreatBroadcast([pileMsg]);
+      }
+    }
+    if (state.gmFlowEnabled && window.PriTestNightGmFlow) {
+      var pileCardName = window.PriTestFields.localizedText(card.name);
+      if (card.id === "a_golden") {
+        window.PriTestNightGmFlow.handleGoldenTreeFullClear(pileCardName, effectText);
+      } else {
+        window.PriTestNightGmFlow.showFullClearNarration(pileCardName, effectText);
+      }
+    }
+    renderPiles();
     saveState();
   }
 
@@ -10888,6 +10935,7 @@
     openKeepCardsDrawer: openKeepCardsDrawer,
     addEnemyToBattle: addEnemyToBattle,
     renderPiles: renderPiles,
+    grantPileFullClearRewardIfNeeded: grantPileFullClearRewardIfNeeded,
   };
 
   document.addEventListener("DOMContentLoaded", async function () {
@@ -11110,12 +11158,6 @@
     document.getElementById("btn-enemy-row-status-close").addEventListener("click", closeEnemyRowStatusBanner);
     document.getElementById("btn-location-status-toggle").addEventListener("click", handleLocationBannerToggleClick);
     attachLocationBannerDrag();
-    document.getElementById("btn-location-status-move-left").addEventListener("click", function () {
-      setLocationBannerCorner("left");
-    });
-    document.getElementById("btn-location-status-move-right").addEventListener("click", function () {
-      setLocationBannerCorner("right");
-    });
     document.getElementById("btn-threat-drawer-close").addEventListener("click", closeThreatDrawer);
     document.getElementById("threat-drawer-backdrop").addEventListener("click", closeThreatDrawer);
     document.getElementById("btn-active-threat-effect-add").addEventListener("click", handleActiveThreatEffectAdd);

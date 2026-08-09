@@ -1000,13 +1000,6 @@ button {
   display: none;
 }
 
-#location-status-controls {
-  flex-shrink: 0;
-  display: flex;
-  align-items: flex-start;
-  gap: 0.3rem;
-}
-
 #btn-location-status-toggle {
   flex-shrink: 0;
   border: none;
@@ -1019,26 +1012,6 @@ button {
   line-height: 1.7rem;
   padding: 0;
   cursor: pointer;
-}
-
-/* #22：展開時のみ、◀／▶ボタンで左上/右上へ即座に移動できる（縮小時の長押しドラッグより
-   確実な代替手段——ユーザー報告：長押しドラッグは操作しづらい）。縮小時は場所を取らないよう隠す。 */
-.location-status-move-btn {
-  flex-shrink: 0;
-  border: none;
-  background: rgba(54, 40, 9, 0.1);
-  color: #362809;
-  border-radius: 6px;
-  width: 1.7rem;
-  height: 1.7rem;
-  font-size: 0.7rem;
-  line-height: 1.7rem;
-  padding: 0;
-  cursor: pointer;
-}
-
-#location-status-overlay.collapsed .location-status-move-btn {
-  display: none;
 }
 
 /* 自動化GM Phase 2：「GM對話框」——樓層詳細資訊とは分隔線で区切った下段ブロック。
@@ -1139,10 +1112,6 @@ button {
 }
 
 #btn-location-status-toggle:hover {
-  background: rgba(54, 40, 9, 0.18);
-}
-
-.location-status-move-btn:hover {
   background: rgba(54, 40, 9, 0.18);
 }
 

@@ -661,7 +661,6 @@
     // 第5項改：この樓層の敘述が最後まで終わったら、GMが手動で盤面の[+]を押さなくても
     // 自動で樓層カウンターを1つ進め、公開盤地図上のカードの数字が自動的に「踏破済み」を
     // 反映するようにする——以後は自動化GMもそのカードの数字を見るだけで現在位置が分かる。
-    // 起點/終點の板塊にはcardLevelsが無いためfloorのみ・数値indexのみ対象。
     if (floor && typeof walkSlotIndex === "number") {
       Core.stepCardLevel(walkSlotIndex, 1);
       // 第18・19項「結束該卡牌的最後一個樓層後...則再處理［全踏破］處理...再次詢問是否使用
@@ -677,6 +676,15 @@
         state.gmFlow.pendingChipCheckSlot = walkSlotIndex;
         state.gmFlow.pendingMapMoveSlot = walkSlotIndex;
       }
+    } else if (floor && (walkSlotIndex === "start" || walkSlotIndex === "end")) {
+      // 起點／終點（出發地點／黄金樹の帳）は数値cardLevelsを持たないためstepCardLevelの
+      // 対象外だったが、常にfloorCount:1（fields.js参照）——樓層本文の敘述完了＝即座に
+      // その唯一の樓層を踏破済みなので、数値板塊の「cardLevels===floorCountに到達」と
+      // 同じ扱いで全踏破連鎖の対象にする（ユーザー報告：出發地點で戦闘に勝っても全踏破・
+      // 地圖移動が案内されないバグの修正）。籌碼事件（state.eventChips）は起點/終點には
+      // 存在しない概念のため、pendingChipCheckSlotはここでは設定しない。
+      state.gmFlow.pendingFinalFloorSlot = walkSlotIndex;
+      state.gmFlow.pendingMapMoveSlot = walkSlotIndex;
     }
   }
 
@@ -775,19 +783,27 @@
   function advanceCardConclusionChain() {
     var Core = window.PriTestNightCore;
     var state = Core.state;
+    // pendingFinalFloorSlot／pendingMapMoveSlotは数値（板塊index）または"start"/"end"
+    // （起點/終點）のいずれも取り得る——null/undefinedと区別するだけなので厳密等価で判定する。
     var finalFloorSlot = state.gmFlow.pendingFinalFloorSlot;
-    if (typeof finalFloorSlot === "number") {
+    if (finalFloorSlot !== null && finalFloorSlot !== undefined) {
       state.gmFlow.pendingFinalFloorSlot = null;
-      Core.stepCardLevel(finalFloorSlot, 1); // → 「全」。内部でgrantCardFullClearRewardIfNeededが発火し、続く敘述ゲートを新たに開く
+      if (typeof finalFloorSlot === "number") {
+        Core.stepCardLevel(finalFloorSlot, 1); // → 「全」。内部でgrantCardFullClearRewardIfNeededが発火し、続く敘述ゲートを新たに開く
+      } else {
+        Core.grantPileFullClearRewardIfNeeded(finalFloorSlot); // "start"|"end"
+      }
       return;
     }
+    // 籌碼事件（state.eventChips）は起點/終點には存在しない概念のため、pendingChipCheckSlotは
+    // 数値板塊のときのみ設定される（finishFieldWalk参照）——ここも数値限定のままでよい。
     var chipCheckSlot = state.gmFlow.pendingChipCheckSlot;
     if (typeof chipCheckSlot === "number") {
       state.gmFlow.pendingChipCheckSlot = null;
       if (offerEventChipIfPending(chipCheckSlot, "cardConclusion")) return;
     }
     var mapMoveSlot = state.gmFlow.pendingMapMoveSlot;
-    if (typeof mapMoveSlot === "number") {
+    if (mapMoveSlot !== null && mapMoveSlot !== undefined) {
       state.gmFlow.pendingMapMoveSlot = null;
       showMapMoveNarration();
     }
