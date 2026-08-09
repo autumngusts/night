@@ -319,20 +319,21 @@ hpBoxDamage = floor(totalDamage / hpValue)
 | ガード回数→HP価値のstate参照テーブル（夜の王） | ✅ gladius/marisのみ実装済み（他7体は自由文字列`guard`欄のまま） | `night_boss_rulebook.js`の`guardCount`/`guardValueTable`フィールド、`enemyGuardValueForCount` |
 | PCの総合ダメージ→エネミーHP自動適用（優先度1のHP行オーバーフロー含む） | ✅ 実装済み（GMが総合ダメージ＋ガード削り値を手入力→自動計算・適用、優先度2〜3のモブHP/属性異常は対象外） | `applyGuardedDamageToEnemy`, `applyOverflowingEnemyDamage` |
 | 夜の王のHP行の自動初期化 | ✅ gladius/marisのみ実装済み（`hp`欄の自由文字列は解析せず、`hpBoxes`という新規の構造化フィールドを手動で用意し、ENEMY_HP_ROWSの末尾から`hpRowCount`行分を割り当てる「後ろ詰め」規約） | `ensureBossHpRowsInitialized`, `enemyHpRowIndexForKey` |
-| グラディウス「分裂形態」のHP3分割・PC側総合ダメージの1/3換算 | ❌ 未実装（ガード回数システムという前提は整ったが、「分裂形態では1/3にして3行へ同時適用」という分岐そのものは未着手） | – |
-| グラディウス「分裂形態」→「合体形態」の自動移行（防御フェイズ終了時） | ❌ 未実装 | – |
+| グラディウス「分裂形態」のHP3分割・PC側総合ダメージの1/3換算 | ✅ 実装済み（`state.battle.bossForm==="split"`のとき、`floor(floor(totalDamage/3)/hpValue)`を3個体のHP行へオーバーフローさせず同時に適用） | `applyGuardedDamageToEnemy`（`splitActive`分岐） |
+| 分裂形態では体勢崩し（＝額外行動フェイズ解禁・體崩バナー）が発生しない | ✅ 実装済み（gladiusの`noStaggerInSplitForm`フラグで、そのボスに割り当てられた行のみ判定から除外） | `isSplitFormExemptRow`, `isEnemyHpRowDepleted`, `adjustEnemyHpRow` |
+| グラディウス「分裂形態」→「合体形態」の自動移行（防御フェイズ終了時） | ✅ 実装済み（分裂形態のいずれかの個体HPが0になった瞬間は予約フラグのみ立て、実際の切替は防御フェイズを抜けるタイミングで行う） | `state.battle.bossFormTransitionPending`, `setActionPhase` |
 
 **ガード計算機の使い方（GM向け、`#battle-drawer`＝戦場面板内）**：「防禦次數／HP價值
 計算機」ブロックで対象（通常エネミー／設定済みの夜の王）を選び、その1回の攻撃行動で
 発生した「総合ダメージ」と、GMが規則書の追加効果欄（◆=1点/▲=0.5点）を見て事前に
 合算した「ガード削り値」を入力して「適用」を押すと、優先度4→5の計算（5.3節の式）を
-行い、結果のHP行（オーバーフロー込み）へ自動反映する。優先度2（モブHP）・優先度3
-（属性/状態異常）は本ツールの対象外（それぞれ既存の別UIで従来通り処理する）。
+行い、結果のHP行（オーバーフロー込み、分裂形態時は3個体へ同時適用）へ自動反映する。
+優先度2（モブHP）・優先度3（属性/状態異常）は本ツールの対象外（それぞれ既存の別UIで
+従来通り処理する）。分裂形態→合体形態の移行はGMが何もしなくても防御フェイズを抜ける
+瞬間に自動で起こる（合体形態→分裂形態への移行、＝アクション表の「形態変化」条件成立時は
+引き続きGMが`#btn-auto-gm-boss-form-toggle`で手動トグルする運用のまま）。
 
-**次にこの領域を実装するときの前提**：グラディウス「分裂形態」のHP3分割を実装する際は、
-`applyGuardedDamageToEnemy`に`state.battle.bossForm==="split"`のときの分岐を追加し、
-`applyOverflowingEnemyDamage`（1行→オーバーフローで次の行へ）ではなく、
-`hpBoxes = floor(floor(totalDamage/hpValue)/3)`をenemyHpRowIndexForKeyが返す
-開始行から3行**同時に**（オーバーフローさせず、独立に）適用するロジックに置き換える
-必要がある。また、3行のいずれかが0以下になったら防御フェイズ終了時に
-`state.battle.bossForm`を"fused"へ自動で戻す処理（現状は手動トグルのみ）を追加する。
+**このrepoに残っている既知の未対応範囲**：gladius/maris以外の7体の夜の王
+（fulghor/harmonia/gnoster/caligo/libra/edele/stragedes）は、ガード回数・HP行の
+構造化データ（`guardCount`/`guardValueTable`/`hpRowCount`/`hpBoxes`）が未整備のため、
+上記の計算機・自動初期化のいずれも使えず、従来通りGM手動でのHP調整が必要。

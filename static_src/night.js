@@ -709,6 +709,11 @@
       // 5節）。新しい回合（防禦→戰鬥フェイズ再突入）ごとに全員最大値へ回復するため、
       // setActionPhaseでこのオブジェクト自体を空にする（＝全員フォールバックで最大値扱いに戻す）。
       guardCount: {},
+      // グラディウス「分裂形態」移行条件2：分裂形態のいずれかの個体HP行が「現在HP：0以下」に
+      // なった瞬間trueになり、防御フェイズ終了時（setActionPhaseがdefenseを抜けるタイミング）
+      // に消費されてbossFormを"fused"へ自動で戻す（分裂形態では体勢崩し自体は発生しない、
+      // ユーザー確認済み仕様。docs/enemy_damage_rules.md 9節）。
+      bossFormTransitionPending: false,
     };
   }
 
@@ -1033,6 +1038,7 @@
       bossForm: raw.bossForm === "split" ? "split" : "fused",
       guardBroken: !!raw.guardBroken,
       guardCount: loadNumberMap(raw.guardCount),
+      bossFormTransitionPending: !!raw.bossFormTransitionPending,
     };
   }
 
@@ -1225,9 +1231,30 @@
     state.battle.guardCount[enemyKey] = newGuard;
     var hpValue = enemyGuardValueForCount(enemyKey, newGuard);
     if (!hpValue) return null;
-    var hpBoxes = Math.floor((totalDamage || 0) / hpValue);
-    var rowIdx = enemyHpRowIndexForKey(enemyKey);
-    if (rowIdx !== -1 && hpBoxes > 0) applyOverflowingEnemyDamage(rowIdx, hpBoxes);
+
+    // グラディウス「分裂形態」移行条件2：PC側の総合ダメージは3分の1（端数切り捨て）にした
+    // 「X」点単位で扱い、Xをガード削り後のHP価値でさらに割った値を、オーバーフローさせず
+    // 3つの個体HP行それぞれへ**同時に**適用する（docs/enemy_damage_rules.md 9節）。
+    var bossInfo = isBossAttackKey(enemyKey) ? (window.PriTestBossRulebook ? window.PriTestBossRulebook.get(enemyKey.slice(5)) : null) : null;
+    var splitActive =
+      !!bossInfo && bossInfo.noStaggerInSplitForm && typeof bossInfo.hpRowCount === "number" && state.battle.bossForm === "split";
+
+    var hpBoxes, rowIdx;
+    if (splitActive) {
+      var splitDamage = Math.floor((totalDamage || 0) / 3);
+      hpBoxes = Math.floor(splitDamage / hpValue);
+      rowIdx = enemyHpRowIndexForKey(enemyKey);
+      if (rowIdx !== -1 && hpBoxes > 0) {
+        for (var i = 0; i < bossInfo.hpRowCount && rowIdx + i < ENEMY_HP_ROWS; i++) {
+          adjustEnemyHpRow(rowIdx + i, -hpBoxes);
+        }
+      }
+    } else {
+      hpBoxes = Math.floor((totalDamage || 0) / hpValue);
+      rowIdx = enemyHpRowIndexForKey(enemyKey);
+      if (rowIdx !== -1 && hpBoxes > 0) applyOverflowingEnemyDamage(rowIdx, hpBoxes);
+    }
+
     addLog("log_guarded_damage_applied", {
       enemy: enemyDisplayNameForKey(enemyKey),
       damage: totalDamage || 0,
@@ -1237,7 +1264,7 @@
       boxes: hpBoxes,
     });
     saveState();
-    return { currentGuard: currentGuard, newGuard: newGuard, hpValue: hpValue, hpBoxes: hpBoxes, rowIdx: rowIdx };
+    return { currentGuard: currentGuard, newGuard: newGuard, hpValue: hpValue, hpBoxes: hpBoxes, rowIdx: rowIdx, split: splitActive };
   }
 
   // 優先度1「上のHP行から、余剰は次のHP行へ」を実装する。adjustEnemyHpRowは1行のみを
@@ -6496,9 +6523,22 @@
     return typeof max === "number" && max > 0;
   }
 
+  // グラディウス「分裂形態」等、boss.noStaggerInSplitForm===trueな夜の王がstate.battle.
+  // bossForm==="split"の間、そのボスに割り当てられたHP行（enemyHpRowIndexForKeyと同じ
+  // 「後ろ詰め」規約）を体勢崩し／額外行動フェイズ解禁／撃破判定から除外する
+  // （ユーザー確認済み仕様「分裂形態では体勢崩しは発生しない」）。
+  function isSplitFormExemptRow(rowIdx) {
+    if (!game || !game.night3BossId || state.battle.bossForm !== "split") return false;
+    var bossInfo = window.PriTestBossRulebook ? window.PriTestBossRulebook.get(game.night3BossId) : null;
+    if (!bossInfo || !bossInfo.noStaggerInSplitForm || typeof bossInfo.hpRowCount !== "number") return false;
+    var start = Math.max(0, ENEMY_HP_ROWS - bossInfo.hpRowCount);
+    return rowIdx >= start && rowIdx < start + bossInfo.hpRowCount;
+  }
+
   // 段のチェック数（＝残りHP）は敵追加時に実際の最大値で満タン初期化され、GMが「－」を
   // 押して減らしていく。敵が割り当て済みの段でチェック数が0になった時点で「撃破」とみなす。
   function isEnemyHpRowDepleted(rowIdx) {
+    if (isSplitFormExemptRow(rowIdx)) return false;
     return enemyHasRow(rowIdx) && countRowChecked(state.battle.enemyHp, rowIdx * ENEMY_HP_COLS, ENEMY_HP_COLS) === 0;
   }
 
@@ -6573,7 +6613,12 @@
     }
     // 復仇者「死靈術」：雑兵の段と同様、非雑兵エネミー側の段も「未撃破→ちょうど今回0に到達」
     // した瞬間だけ発火させる（既に0の段をさらに操作しても再発火しない）。
-    if (current !== 0 && target === 0) {
+    if (current !== 0 && target === 0 && isSplitFormExemptRow(rowIdx)) {
+      // グラディウス「分裂形態」移行条件2：分裂形態では体勢崩し自体が発生しない
+      // （ユーザー確認済み仕様）ため、guardBroken／體崩バナーは一切発火させず、代わりに
+      // 「防御フェイズ終了時に合体形態へ戻す」予約フラグだけを立てる。
+      state.battle.bossFormTransitionPending = true;
+    } else if (current !== 0 && target === 0) {
       // 體勢崩潰：エネミー／夜の王のHP行のいずれか1行が最初に0へ到達した瞬間だけ一度発火する
       // （ユーザー確認済み：どの行が最初かは問わない、以後の行の0到達では再発火しない）。
       if (!state.battle.guardBroken) {
@@ -6708,7 +6753,7 @@
     if (!result) return;
     if (resultEl) {
       resultEl.hidden = false;
-      resultEl.textContent = window.I18N.t("battle_guard_calc_result_text", {
+      var text = window.I18N.t("battle_guard_calc_result_text", {
         enemy: enemyDisplayNameForKey(key),
         damage: totalDamage,
         guardBefore: result.currentGuard,
@@ -6716,6 +6761,8 @@
         hpValue: result.hpValue,
         boxes: result.hpBoxes,
       });
+      if (result.split) text += " " + window.I18N.t("battle_guard_calc_split_note", { boxes: result.hpBoxes });
+      resultEl.textContent = text;
     }
     damageInput.value = "0";
     reductionInput.value = "0";
@@ -8388,6 +8435,13 @@
         if (attached.indexOf("hp_regen") !== -1) c.hp.current = Math.min(c.hp.max, c.hp.current + 1);
         if (attached.indexOf("fp_regen") !== -1) c.fp.current = Math.min(c.fp.max, c.fp.current + 1);
       });
+      // グラディウス「分裂形態」移行条件2：分裂形態のいずれかの個体HPが0以下になっていた
+      // 場合、防御フェイズ終了時に合体形態へ自動で戻す（GM手動トグルの出番はここでは無い）。
+      if (state.battle.bossFormTransitionPending) {
+        state.battle.bossFormTransitionPending = false;
+        state.battle.bossForm = "fused";
+        addLog("log_boss_form_auto_transition");
+      }
     }
     // 隱者「血魂之歌」：「階段結束まで」＝発動したフェイズ限定のバフのため、フェイズが
     // 変わるたびに必ずクリアする（回合単位で持続する救世之翼／終曲等とはライフサイクルが
