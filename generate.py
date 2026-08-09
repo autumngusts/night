@@ -64,6 +64,7 @@ def build_static_assets() -> None:
         "night_event_chips.js",
         "night_potential_power.js",
         "night_floor_breakthrough.js",
+        "night_gm_flow.js",
         "night.js",
         "admin.js",
         "admin_scenarios.js",

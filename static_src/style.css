@@ -983,6 +983,56 @@ button {
   cursor: pointer;
 }
 
+/* 自動化GM Phase 2：進度版展開時のみ表示する右側サイドバー（[進入]/[突破]/[OK]等）。
+   地図/盤面側には一切ボタンを追加しない——GMの操作・敘述はすべてこの進度版内で完結させる。 */
+#location-status-actions {
+  display: none;
+  flex-direction: column;
+  gap: 0.3rem;
+  flex-shrink: 0;
+}
+
+#location-status-overlay:not(.collapsed) #location-status-actions.has-actions {
+  display: flex;
+}
+
+.gm-flow-action-btn {
+  border: none;
+  background: rgba(54, 40, 9, 0.12);
+  color: #362809;
+  border-radius: 6px;
+  padding: 0.3rem 0.7rem;
+  font-size: 0.78rem;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.gm-flow-action-btn:hover {
+  background: rgba(54, 40, 9, 0.22);
+}
+
+/* 突破合格/失敗の建議高亮（第3項）：ダイス合計と目標値を比較した「建議」表示のみで、
+   自動クリックはしない——最終確定は常にGMのクリックに委ねる。 */
+.gm-flow-suggested {
+  background: #362809;
+  color: #f3d576;
+  font-weight: 700;
+  box-shadow: 0 0 0 2px rgba(54, 40, 9, 0.35);
+}
+
+/* GM敘述打字機のカーソル演出。テキストが再生中の間だけ点滅するカーソルを末尾に付ける。 */
+.gm-flow-typing::after {
+  content: "\258c";
+  margin-left: 0.1em;
+  animation: gm-flow-cursor-blink 0.8s step-start infinite;
+}
+
+@keyframes gm-flow-cursor-blink {
+  50% {
+    opacity: 0;
+  }
+}
+
 #btn-location-status-toggle:hover {
   background: rgba(54, 40, 9, 0.18);
 }

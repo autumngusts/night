@@ -72,11 +72,13 @@
     document.getElementById("floor-reward-modal").hidden = true;
     document.getElementById("btn-floor-reward-restore").hidden = true;
     floorRewardModalFloor = null;
+    window.PriTestNightCore.removePendingRewardWindow("floorReward");
   }
 
   function minimizeFloorRewardModal() {
     document.getElementById("floor-reward-modal").hidden = true;
     document.getElementById("btn-floor-reward-restore").hidden = false;
+    window.PriTestNightCore.addPendingRewardWindow("floorReward");
   }
 
   function restoreFloorRewardModal() {
@@ -1222,6 +1224,20 @@
     document.getElementById("btn-breakthrough-reveal").hidden = breakthroughState.revealed;
     document.getElementById("btn-breakthrough-fail").hidden = !breakthroughState.revealed;
     document.getElementById("btn-breakthrough-pass").hidden = !breakthroughState.revealed;
+
+    // 建議高亮（半自動：算出は自動、確定は人間）。ダイス合計と目標値を比較して合格/失敗の
+    // どちらかをCSSで強調するだけで、自動クリックはしない——GMが意図的に逆を選ぶ余地を残す。
+    var passBtn = document.getElementById("btn-breakthrough-pass");
+    var failBtn = document.getElementById("btn-breakthrough-fail");
+    passBtn.classList.remove("gm-flow-suggested");
+    failBtn.classList.remove("gm-flow-suggested");
+    if (breakthroughState.revealed) {
+      if (breakthroughDiceSum() >= actualTarget) {
+        passBtn.classList.add("gm-flow-suggested");
+      } else {
+        failBtn.classList.add("gm-flow-suggested");
+      }
+    }
   }
 
   function computeBreakthroughActualTarget() {

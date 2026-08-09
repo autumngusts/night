@@ -776,6 +776,15 @@
     locationBannerCollapsed: false, // 右上の現在地バナー（#location-status-overlay）を折りたたみ表示にするかどうか
     autoGmEnabled: false, // 自動化GM機能全体のON/OFF。規則書パスワード（"nightnight"）認証済みの人のみ切替可能（turnHolder制限は無し）
     autoGmLog: [], // 自動化GMの監査ログ（通常のstate.logとは別。誰がいつ何を確認・確定したか、後から検証できるように保持）
+    gmFlowEnabled: false, // 自動化GM Phase 2（シナリオ進行フロー：進度版の[進入]/[突破]・敘述・獎勵収集ゲート）のON/OFF。autoGmEnabledとは別軸、同じ規則書パスワードで保護
+    gmFlow: {
+      narrationText: null, // 進度版に現在表示中のGM敘述文（打字機再生中/再生済み）。null=敘述なし（通常の[進入]/[突破]ボタン表示）
+      awaitingOk: false, // trueの間は進度版に[OK]だけを表示し、[進入]/[突破]を隠す
+      actionKind: "ok", // awaitingOk中に出すボタンの種類："ok"(単一[OK])|"nightAdvance"([進入下一晚]/[稍後])|"finalDayBattle"([開啟夜王戰鬥])
+      pendingRewardWindows: [], // 縮小されたが未領取/未關閉の獎勵視窗id一覧。空でない間は[OK]を押しても再度リマインドする
+      openingPlayed: false, // 夜の王の〔開場〕をこのゲームで再生済みか（二重再生防止）
+      finalDayAnnounced: false, // 3日目到達のアナウンスをこのゲームで再生済みか（二重再生防止）
+    },
     // GMが開いて縮小した抽選ウィンドウを全端末で共有するための領域。null=未使用。
     // 中身はcharacter_drawer.jsのweaponRollState/talismanRollState/consumableRollState、
     // またはnight.js内のpotentialPower関連状態と同じ形をした素のJSONオブジェクト。
@@ -851,6 +860,8 @@
       locationBannerCollapsed: state.locationBannerCollapsed,
       autoGmEnabled: state.autoGmEnabled,
       autoGmLog: state.autoGmLog,
+      gmFlowEnabled: state.gmFlowEnabled,
+      gmFlow: state.gmFlow,
       activeDraws: state.activeDraws,
       activeThreatEffects: state.activeThreatEffects,
       returnedCardMemory: state.returnedCardMemory,
@@ -1723,6 +1734,16 @@
       state.locationBannerCollapsed = typeof data.locationBannerCollapsed === "boolean" ? data.locationBannerCollapsed : false;
       state.autoGmEnabled = typeof data.autoGmEnabled === "boolean" ? data.autoGmEnabled : false;
       state.autoGmLog = Array.isArray(data.autoGmLog) ? data.autoGmLog : [];
+      state.gmFlowEnabled = typeof data.gmFlowEnabled === "boolean" ? data.gmFlowEnabled : false;
+      var loadedGmFlow = data.gmFlow && typeof data.gmFlow === "object" ? data.gmFlow : {};
+      state.gmFlow = {
+        narrationText: typeof loadedGmFlow.narrationText === "string" ? loadedGmFlow.narrationText : null,
+        awaitingOk: !!loadedGmFlow.awaitingOk,
+        actionKind: ["ok", "nightAdvance", "finalDayBattle"].indexOf(loadedGmFlow.actionKind) !== -1 ? loadedGmFlow.actionKind : "ok",
+        pendingRewardWindows: Array.isArray(loadedGmFlow.pendingRewardWindows) ? loadedGmFlow.pendingRewardWindows : [],
+        openingPlayed: !!loadedGmFlow.openingPlayed,
+        finalDayAnnounced: !!loadedGmFlow.finalDayAnnounced,
+      };
       var loadedDraws = data.activeDraws && typeof data.activeDraws === "object" ? data.activeDraws : {};
       state.activeDraws = {
         potentialPower: loadedDraws.potentialPower || null,
@@ -1788,6 +1809,15 @@
     state.locationBannerCollapsed = false;
     state.autoGmEnabled = false;
     state.autoGmLog = [];
+    state.gmFlowEnabled = false;
+    state.gmFlow = {
+      narrationText: null,
+      awaitingOk: false,
+      actionKind: "ok",
+      pendingRewardWindows: [],
+      openingPlayed: false,
+      finalDayAnnounced: false,
+    };
     state.activeDraws = { potentialPower: null, weapon: null, talisman: null, consumable: null };
     state.activeThreatEffects = [];
     state.returnedCardMemory = {};
@@ -7448,6 +7478,54 @@
     setAutoGmEnabled(!state.autoGmEnabled);
   }
 
+  // 自動化GM Phase 2（シナリオ進行フロー）のON/OFF。autoGmEnabled（戦闘中の敵行動ロール）とは
+  // 独立した切替だが、同じ規則書パスワードで保護する既存の慣例に合わせる。
+  function renderGmFlowToggleButton() {
+    var btn = document.getElementById("btn-gm-flow-toggle");
+    if (!btn) return;
+    btn.textContent = window.I18N.t(state.gmFlowEnabled ? "gm_flow_toggle_on_label" : "gm_flow_toggle_off_label");
+  }
+
+  function setGmFlowEnabled(enabled) {
+    state.gmFlowEnabled = enabled;
+    if (!enabled) {
+      state.gmFlow.narrationText = null;
+      state.gmFlow.awaitingOk = false;
+    }
+    saveState();
+    renderGmFlowToggleButton();
+    renderCurrentLocationStatus();
+    addAutoGmLog(window.I18N.t(enabled ? "log_gm_flow_enabled" : "log_gm_flow_disabled"));
+  }
+
+  function handleGmFlowToggleClick() {
+    if (!isRulebookAuthenticated() && !checkRulebookPassword()) {
+      alert(window.I18N.t("rulebook_password_wrong"));
+      return;
+    }
+    setGmFlowEnabled(!state.gmFlowEnabled);
+  }
+
+  // 縮小されたまま放置されている獎勵視窗を追跡する（第5項：獎勵収集完成ゲート）。
+  // idは種類ごとに1つだけ存在するモーダルを指す固定文字列（"turnReward"|"floorReward"）。
+  // 縮小した瞬間に追加し、モーダルを完全に閉じた瞬間に削除する（復元しただけでは消さない）。
+  function addPendingRewardWindow(id) {
+    if (state.gmFlow.pendingRewardWindows.indexOf(id) === -1) {
+      state.gmFlow.pendingRewardWindows.push(id);
+      saveState();
+      renderCurrentLocationStatus();
+    }
+  }
+
+  function removePendingRewardWindow(id) {
+    var idx = state.gmFlow.pendingRewardWindows.indexOf(id);
+    if (idx !== -1) {
+      state.gmFlow.pendingRewardWindows.splice(idx, 1);
+      saveState();
+      renderCurrentLocationStatus();
+    }
+  }
+
   // character_drawer.js（別クロージャ）が抽選の進行中状態をstate.activeDrawsへ書き戻すための
   // ブリッジ。window.PriTestNightLogと同じ「存在確認つきグローバルフック」方式。
   window.PriTestDrawStateSync = {
@@ -7720,12 +7798,14 @@
     }
     modal.hidden = true;
     document.getElementById("btn-turn-reward-restore").hidden = true;
+    removePendingRewardWindow("turnReward");
   }
 
   // 縮小/復元は樓層獲得と同じ「モーダルを隠す＋別のスタッキング型固定ボタンを表示」方式。
   function minimizeTurnRewardModal() {
     document.getElementById("turn-reward-modal").hidden = true;
     document.getElementById("btn-turn-reward-restore").hidden = false;
+    addPendingRewardWindow("turnReward");
   }
 
   function restoreTurnRewardModal() {
@@ -9407,7 +9487,10 @@
     if (!overlay || !content) return;
     var idx = state.focusedIndex;
     var card = typeof idx === "number" ? window.PriTestNightFloorBreakthrough.resolveFieldEntryForSlot(idx) : null;
-    if (!card) {
+    // 自動化GM Phase 2：ゲーム開始直後の〔開場〕敘述は、まだどの樓層にもフォーカスしていない
+    // （card===null）段階で表示する必要があるため、awaitingOk中はcardが無くてもバナーを出す。
+    var showForGmFlow = state.gmFlowEnabled && state.gmFlow.awaitingOk;
+    if (!card && !showForGmFlow) {
       overlay.hidden = true;
       return;
     }
@@ -9417,26 +9500,31 @@
       toggleBtn.title = window.I18N.t(state.locationBannerCollapsed ? "location_banner_expand_label" : "location_banner_collapse_label");
     }
     content.innerHTML = "";
-    var levelVal = state.cardLevels[idx];
-    var levelText = levelVal === null || levelVal === undefined ? window.I18N.t("level_all") : String(levelVal);
-    var nameSpan = document.createElement("span");
-    nameSpan.className = "loc-name";
-    nameSpan.textContent = window.PriTestFields.localizedText(card.name) + "(" + levelText + ")";
-    content.appendChild(nameSpan);
-    if (card.floorCount != null || card.allFloorEffect) {
-      var detailParts = [];
-      if (card.floorCount != null) {
-        detailParts.push(window.I18N.t("field_floor_count_label") + window.I18N.t("colon_separator") + card.floorCount);
+    if (card) {
+      var levelVal = state.cardLevels[idx];
+      var levelText = levelVal === null || levelVal === undefined ? window.I18N.t("level_all") : String(levelVal);
+      var nameSpan = document.createElement("span");
+      nameSpan.className = "loc-name";
+      nameSpan.textContent = window.PriTestFields.localizedText(card.name) + "(" + levelText + ")";
+      content.appendChild(nameSpan);
+      if (card.floorCount != null || card.allFloorEffect) {
+        var detailParts = [];
+        if (card.floorCount != null) {
+          detailParts.push(window.I18N.t("field_floor_count_label") + window.I18N.t("colon_separator") + card.floorCount);
+        }
+        if (card.allFloorEffect) {
+          detailParts.push(
+            window.I18N.t("field_all_floor_effect_label") + window.I18N.t("colon_separator") + window.PriTestFields.localizedText(card.allFloorEffect)
+          );
+        }
+        var detailSpan = document.createElement("span");
+        detailSpan.className = "loc-detail";
+        detailSpan.textContent = "（" + detailParts.join("　") + "）";
+        content.appendChild(detailSpan);
       }
-      if (card.allFloorEffect) {
-        detailParts.push(
-          window.I18N.t("field_all_floor_effect_label") + window.I18N.t("colon_separator") + window.PriTestFields.localizedText(card.allFloorEffect)
-        );
-      }
-      var detailSpan = document.createElement("span");
-      detailSpan.className = "loc-detail";
-      detailSpan.textContent = "（" + detailParts.join("　") + "）";
-      content.appendChild(detailSpan);
+    }
+    if (window.PriTestNightGmFlow) {
+      window.PriTestNightGmFlow.renderLocationBanner(content, idx, card);
     }
     overlay.hidden = false;
   }
@@ -9646,6 +9734,17 @@
       var msg = window.I18N.t("card_full_clear_time_loss_broadcast", { card: cardName, value: timeLossAmount });
       postSystemTurnMessage(msg);
       showThreatBroadcast([msg]);
+    }
+    // 自動化GM Phase 2：全樓層踏破の効果はすでに自動付与されているので（上のgrantRuneToAllEntered等）、
+    // ここでは進度版に「何が起きたか」をGM敘述として提示し、[OK]で確認してから次に進めるようにする。
+    // 「黄金樹の帳」（夜の強敵）の全踏破だけは特別に扱う：HP/FP/加護/聖杯瓶/技能を全員分自動回復し、
+    // 次の夜へ進むかどうかの選択肢を出す（規則書：夜の強敵撃破後の追加処理）。
+    if (state.gmFlowEnabled && window.PriTestNightGmFlow) {
+      if (card.id === "a_golden") {
+        window.PriTestNightGmFlow.handleGoldenTreeFullClear(window.PriTestFields.localizedText(card.name), effectText);
+      } else {
+        window.PriTestNightGmFlow.showFullClearNarration(window.PriTestFields.localizedText(card.name), effectText);
+      }
     }
     saveState();
   }
@@ -9887,6 +9986,7 @@
     var logKey = wasContinue ? "log_continue_submit" : "log_select_submit";
     if (!wasContinue) state.focusedIndex = "start";
     state.boardStarted = true;
+    if (state.gmFlowEnabled) revealStartAdjacentSlots();
     if (wasContinue) advanceToNextNight();
     closeSelectDrawer();
     renderBoard();
@@ -10331,6 +10431,35 @@
     return suit ? SUIT_ELEVATION[suit] : null;
   }
 
+  // 自動化GM Phase 2：移動後に周囲一圈（上下左右の隣接マスのみ、斜めは含まない——
+  // isAdjacentPositionと同じ隣接定義）を自動でオープンにする。state.gmFlowEnabledの間のみ動作し、
+  // 既存の「1枚ずつ長押しでオープン」手動操作（onSlotClick）はそのまま残す。
+  function revealAdjacentSlots(pos) {
+    if (typeof pos !== "number") return false;
+    var changed = false;
+    for (var i = 0; i < SLOT_COUNT; i++) {
+      if (i === pos) continue;
+      if (isAdjacentPosition(pos, i) && state.slots[i] && !state.slots[i].revealed) {
+        state.slots[i].revealed = true;
+        changed = true;
+      }
+    }
+    return changed;
+  }
+
+  // 出発地点（"start"板塊）に隣接する板塊を自動でオープンにする（規則書：セットアップ終了時に
+  // 「出発地点」に隣接している3ヵ所のトランプをオープンにする）。
+  function revealStartAdjacentSlots() {
+    var changed = false;
+    pileAdjacentSlotIndices("start").forEach(function (i) {
+      if (state.slots[i] && !state.slots[i].revealed) {
+        state.slots[i].revealed = true;
+        changed = true;
+      }
+    });
+    return changed;
+  }
+
   function attemptMoveToPosition(fromPos, toPos) {
     if (!isAdjacentPosition(fromPos, toPos)) {
       window.alert(window.I18N.t("move_not_adjacent_msg"));
@@ -10347,6 +10476,7 @@
 
   function finalizeSlotMove(toPos) {
     state.focusedIndex = toPos;
+    if (state.gmFlowEnabled) revealAdjacentSlots(toPos);
     renderBoard();
     saveState();
     if (typeof toPos === "number") {
@@ -10482,6 +10612,16 @@
     SLOT_COUNT: SLOT_COUNT,
     MERCHANT_CONSUMABLE_IDS: MERCHANT_CONSUMABLE_IDS,
     RULEBOOK_PASSWORD: RULEBOOK_PASSWORD,
+    openConfirm: openConfirm,
+    isRulebookAuthenticated: isRulebookAuthenticated,
+    checkRulebookPassword: checkRulebookPassword,
+    renderCurrentLocationStatus: renderCurrentLocationStatus,
+    addPendingRewardWindow: addPendingRewardWindow,
+    removePendingRewardWindow: removePendingRewardWindow,
+    openBattleDrawer: openBattleDrawer,
+    getScenario: function () { return scenario; },
+    getGame: function () { return game; },
+    openKeepCardsDrawer: openKeepCardsDrawer,
   };
 
   document.addEventListener("DOMContentLoaded", async function () {
@@ -10525,6 +10665,10 @@
       restrictEnteredAndDelete: true,
     });
     loadState();
+    if (window.PriTestNightGmFlow) {
+      window.PriTestNightGmFlow.maybeShowOpeningNarration();
+      window.PriTestNightGmFlow.maybeAnnounceFinalDay();
+    }
     renderBattlePositionAreas();
     renderEnemyHpGrid();
     renderMobHpList();
@@ -10536,6 +10680,7 @@
     renderTurnBoardToggleButton();
     renderAutoGmToggleButton();
     renderAutoGmLog();
+    renderGmFlowToggleButton();
     renderActionPhaseGrid();
     renderBoard();
     renderLog();
@@ -10742,6 +10887,7 @@
       setTurnBoardEnabled(!state.turnBoardEnabled);
     });
     document.getElementById("btn-auto-gm-toggle").addEventListener("click", handleAutoGmToggleClick);
+    document.getElementById("btn-gm-flow-toggle").addEventListener("click", handleGmFlowToggleClick);
     document.getElementById("btn-auto-gm-boss-form-toggle").addEventListener("click", handleAutoGmBossFormToggleClick);
     document.querySelectorAll(".log-drawer-tab-btn").forEach(function (btn) {
       btn.addEventListener("click", function () {

@@ -453,5 +453,6 @@
     closeEventChipModal: closeEventChipModal,
     minimizeEventChipModal: minimizeEventChipModal,
     restoreEventChipModal: restoreEventChipModal,
+    applyEventChipBlessingRest: applyEventChipBlessingRest,
   };
 })();
