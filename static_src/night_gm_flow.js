@@ -166,6 +166,100 @@
     return typeof levelVal === "number" ? levelVal : 0;
   }
 
+  // ---- 分岐の自動解決（GMや玩家がボタンで選ぶのではなく、劇本ごとの固定/抽選機制に従う） ----
+  // 「シナリオ1〜10」＝scenarios.jsのSCENARIOS配列順（1始まり）。night_king_N（worldview.js）との
+  // 対応をtricephalos=1/♥=varianceTable行1「小野営地の君主軍」で裏取りしたのと同じ考え方で、
+  // ここでも配列順をそのままシナリオ番号として扱う（カスタムシナリオはlist()の末尾に付くだけで
+  // 1-10の範囲に入らないため、該当行が見つからずGMへのフォールバックへ自然に流れる）。
+  function resolveScenarioNumber() {
+    var Scenarios = window.PriTestScenarios;
+    var Core = window.PriTestNightCore;
+    var scenario = Core.getScenario();
+    if (!scenario || !Scenarios || !Scenarios.list) return null;
+    var list = Scenarios.list();
+    for (var i = 0; i < list.length; i++) {
+      if (list[i].id === scenario.id) return i + 1;
+    }
+    return null;
+  }
+
+  // "2-7, 10" / "2-7、10" / "1" / "8, 9" のような表記を数値の配列に展開する。
+  function parseScenarioNumberRanges(text) {
+    var nums = [];
+    String(text || "")
+      .split(/[,、]/)
+      .forEach(function (part) {
+        var p = part.trim();
+        var range = /^(\d+)-(\d+)$/.exec(p);
+        if (range) {
+          for (var n = parseInt(range[1], 10); n <= parseInt(range[2], 10); n++) nums.push(n);
+        } else if (/^\d+$/.test(p)) {
+          nums.push(parseInt(p, 10));
+        }
+      });
+    return nums;
+  }
+
+  // varianceTableの「内容」列を解析する。"1-3 X／4-6 Y" のようにダイス目レンジ＋名前が
+  // 「／」区切りで複数あれば{min,max,name}の配列を返す（骰子を振って決める）。単一の内容
+  // （レンジ表記が無い）ならnullを返し、呼び出し側はテキストそのものを分岐名として扱う。
+  function parseVarianceContent(text) {
+    var segments = String(text || "")
+      .split(/[／\/]/)
+      .map(function (s) {
+        return s.trim();
+      })
+      .filter(Boolean);
+    if (segments.length < 2) return null;
+    var parsed = [];
+    for (var i = 0; i < segments.length; i++) {
+      var m = /^(\d+)(?:-(\d+))?\s*(.+)$/.exec(segments[i]);
+      if (!m) return null; // レンジ表記になっていない区切りが混ざっていたら安全側でnull
+      parsed.push({ min: parseInt(m[1], 10), max: m[2] ? parseInt(m[2], 10) : parseInt(m[1], 10), name: m[3].trim() });
+    }
+    return parsed;
+  }
+
+  // entryのvarianceTableとシナリオ番号から、実際に該当する分岐indexを自動で解決する。
+  // 骰子が必要な内容（複数レンジ）は、その場でこのアプリが1D6を振って決める——GMが把握して
+  // いない/記録されていない過去の骰目を「捏造」するのではなく、今その場で正規の骰子を振る
+  // という点で、既存の突破判定等の自動ダイス処理と同じ立ち位置。解決できなければnullを返し、
+  // 呼び出し側はGMに規則書を見て選んでもらうフォールバックへ進む。
+  function autoResolveBranch(entry) {
+    if (!entry.branches || !entry.branches.length) return null;
+    if (entry.branches.length === 1) return { branchIndex: 0, roll: null };
+    if (!entry.varianceTable || !entry.varianceTable.rows) return null;
+    var scenarioNum = resolveScenarioNumber();
+    if (scenarioNum === null) return null;
+    var matchRow = null;
+    for (var i = 0; i < entry.varianceTable.rows.length; i++) {
+      var row = entry.varianceTable.rows[i];
+      if (parseScenarioNumberRanges(row[0] && row[0].ja).indexOf(scenarioNum) !== -1) {
+        matchRow = row;
+        break;
+      }
+    }
+    if (!matchRow) return null;
+    var contentText = matchRow[2] ? matchRow[2].ja : "";
+    var diceOptions = parseVarianceContent(contentText);
+    var targetName = contentText.trim();
+    var roll = null;
+    if (diceOptions) {
+      roll = Math.floor(Math.random() * 6) + 1;
+      var picked = diceOptions.filter(function (o) {
+        return roll >= o.min && roll <= o.max;
+      })[0];
+      if (!picked) return null;
+      targetName = picked.name;
+    }
+    for (var bi = 0; bi < entry.branches.length; bi++) {
+      if (entry.branches[bi].name && entry.branches[bi].name.ja === targetName) {
+        return { branchIndex: bi, roll: roll };
+      }
+    }
+    return null; // 解決した名前がbranches[]のどれとも一致しない＝データの想定外、GMへ委ねる
+  }
+
   function handleEnterClick() {
     var Core = window.PriTestNightCore;
     var state = Core.state;
@@ -182,22 +276,32 @@
       Core.renderCurrentLocationStatus();
       return;
     }
-    if (entry.branches.length > 1) {
-      // 複数の分岐があり、どれが今回のプレイに実際に該当するかはアプリ側で追跡していない
-      // （varianceTableの解決は規則書上の骰子・シナリオ判定が必要——docs/scenario_flow_rules.md
-      // §10で明示的に未実装と記録済み）。GMに規則書を見て選んでもらう、選択肢ボタンとして提示する。
-      state.gmFlow.walk = { slotIndex: idx, branchIndex: null, floorIndex: currentFloorIndexForSlot(idx), lineIndex: 0 };
-      state.gmFlow.narrationText = window.I18N.t("gm_flow_pick_branch_narration", {
-        name: window.PriTestFields.localizedText(entry.name),
-      });
-      state.gmFlow.awaitingOk = true;
-      state.gmFlow.actionKind = "branchChoice";
-      Core.saveState();
-      Core.renderCurrentLocationStatus();
+    var resolved = autoResolveBranch(entry);
+    if (resolved) {
+      if (resolved.roll !== null) {
+        state.turnMessages.push({
+          text: window.I18N.t("gm_flow_branch_roll_log", {
+            roll: resolved.roll,
+            name: window.PriTestFields.localizedText(entry.branches[resolved.branchIndex].name),
+          }),
+          time: Date.now(),
+          side: "gm",
+        });
+      }
+      state.gmFlow.walk = { slotIndex: idx, branchIndex: resolved.branchIndex, floorIndex: currentFloorIndexForSlot(idx), lineIndex: 0 };
+      advanceFieldWalk();
       return;
     }
-    state.gmFlow.walk = { slotIndex: idx, branchIndex: 0, floorIndex: currentFloorIndexForSlot(idx), lineIndex: 0 };
-    advanceFieldWalk();
+    // 自動解決できなかった場合のみ（varianceTable未整備・シナリオ不明・データ不一致など）、
+    // GMに規則書を見て選んでもらうフォールバックへ進む。
+    state.gmFlow.walk = { slotIndex: idx, branchIndex: null, floorIndex: currentFloorIndexForSlot(idx), lineIndex: 0 };
+    state.gmFlow.narrationText = window.I18N.t("gm_flow_pick_branch_narration", {
+      name: window.PriTestFields.localizedText(entry.name),
+    });
+    state.gmFlow.awaitingOk = true;
+    state.gmFlow.actionKind = "branchChoice";
+    Core.saveState();
+    Core.renderCurrentLocationStatus();
   }
 
   function handleBranchChoiceClick(branchIndex) {
@@ -234,6 +338,9 @@
     var i = walk.lineIndex;
     for (; i < lines.length; i++) {
       var line = lines[i];
+      // 「突破判定」欄は、玩家が突破判定を選んだ場合にのみ参照する非公開情報——
+      // GM敘述には出さない（[突破]ボタンの対話框側で別途処理する）。
+      if (line.label && (line.label.ja === "突破判定" || line.label.zh === "突破判定")) continue;
       var lineText = Fields.localizedText(line.text);
       var prefix = line.label ? Fields.localizedText(line.label) + window.I18N.t("colon_separator") : "";
       var indent = line.depth ? new Array(line.depth + 1).join("　") : "";
@@ -273,6 +380,7 @@
     var Core = window.PriTestNightCore;
     var state = Core.state;
     var FloorBreakthrough = window.PriTestNightFloorBreakthrough;
+    var walkSlotIndex = state.gmFlow.walk ? state.gmFlow.walk.slotIndex : null;
     var hasReward = !!(floor && FloorBreakthrough.floorHasAnyReward && FloorBreakthrough.floorHasAnyReward(floor));
     state.gmFlow.narrationText = blockText || window.I18N.t("gm_flow_walk_end_narration");
     state.gmFlow.awaitingOk = true;
@@ -284,6 +392,15 @@
     } else {
       state.gmFlow.actionKind = "ok";
       pendingFloorEndFloor = null;
+    }
+    // 第5項改：この樓層の敘述が最後まで終わったら、GMが手動で盤面の[+]を押さなくても
+    // 自動で樓層カウンターを1つ進め、公開盤地図上のカードの数字が自動的に「踏破済み」を
+    // 反映するようにする——以後は自動化GMもそのカードの数字を見るだけで現在位置が分かる。
+    // 全樓層踏破に達した場合はstepCardLevel内部でgrantCardFullClearRewardIfNeededが発火し、
+    // そちらのGM敘述（全踏破／黄金樹の帳）が今設定した敘述を上書きする（意図的：より重要な
+    // 報告を優先する）。起點/終點の板塊にはcardLevelsが無いためfloorのみ・数値indexのみ対象。
+    if (floor && typeof walkSlotIndex === "number") {
+      Core.stepCardLevel(walkSlotIndex, 1);
     }
   }
 

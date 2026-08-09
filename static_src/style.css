@@ -971,7 +971,10 @@ button {
 
 #location-status-content .loc-detail {
   color: #6b551c;
-  font-size: 0.8rem;
+  font-size: 0.68rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 #location-status-overlay.collapsed #location-status-content .loc-detail {
@@ -1057,8 +1060,8 @@ button {
    知らせるバッジ。折りたたみ時も見えるよう、進度版本体の左上角に重ねて固定配置する。 */
 .gm-flow-waiting-badge {
   position: absolute;
-  top: -0.6rem;
-  left: -0.5rem;
+  bottom: -0.6rem;
+  right: -0.5rem;
   background: #b3261e;
   color: #fff;
   font-size: 0.7rem;
