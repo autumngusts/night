@@ -628,6 +628,16 @@ BODY = """    <div class="night-header-row">
     </div>
     <button id="btn-breakthrough-restore" type="button" class="potential-power-restore-btn breakthrough-restore-btn" data-i18n="breakthrough_restore_button" hidden></button>
 
+    <div id="ability-check-modal" class="modal" hidden>
+      <div class="modal-box combat-modal-box">
+        <h2 id="ability-check-modal-title"></h2>
+        <div id="ability-check-characters"></div>
+        <div class="actions">
+          <button id="btn-ability-check-done" type="button" class="primary-btn" data-i18n="ability_check_done_button" disabled></button>
+        </div>
+      </div>
+    </div>
+
     <div id="threat-drawer" class="drawer">
       <div class="drawer-backdrop" id="threat-drawer-backdrop"></div>
       <div class="drawer-panel">

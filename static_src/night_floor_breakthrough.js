@@ -1333,5 +1333,6 @@
     renderBreakthroughCharacters: renderBreakthroughCharacters,
     resolveBreakthroughCheck: resolveBreakthroughCheck,
     getFloorRewardModalFloor: function () { return floorRewardModalFloor; },
+    effectiveCheckValue: effectiveCheckValue,
   };
 })();

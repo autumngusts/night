@@ -151,6 +151,44 @@
     return labels;
   }
 
+  // ---- 「行為判定」の自動擲骰（PC全員／それぞれ／各自が固定目標値へ個別に判定する形式のみ）----
+  // 「協力 N×PC人数」のような党全員の骰子を合算する形式（既存の突破判定／判定發生UIの対象）
+  // とは別物。ブラケット〈N|屬性〉がちょうど1つだけ・「協力」を含まない・「全員」「それぞれ」
+  // 「各自」のいずれかを含む場合のみ対象とする。複数回連続判定・屬性選択式・特定の1名のみ
+  // 行う任意判定などそれ以外の形式は対象外とし、従来通り生の文言をそのまま敘述する（安全側
+  // ——このアプリが分岐先を誤って決め打ちしない、既存の"■"と同じ方針）。
+  var ABILITY_CHECK_BRACKET_RE = /[〈<]\s*(\d+)\s*[|｜]\s*(フィジカル|體能|メンタル|精神|運試し|運気|運氣|任意の判定値|任意判定值|任意的判定值)\s*[〉>]/;
+  var ABILITY_CHECK_STAT_MAP = {
+    フィジカル: "physical",
+    體能: "physical",
+    メンタル: "mental",
+    精神: "mental",
+    運試し: "luck",
+    運気: "luck",
+    運氣: "luck",
+    任意の判定値: "any",
+    任意判定值: "any",
+    任意的判定值: "any",
+  };
+  function parseIndividualAbilityCheck(line) {
+    if (!line.label || (line.label.ja !== "行為判定" && line.label.zh !== "行為判定")) return null;
+    var text = (line.text && line.text.ja) || "";
+    if (!text || text.indexOf("協力") !== -1) return null;
+    if (!/全員|それぞれ|各自/.test(text)) return null;
+    // 「それぞれ任意で〜行うことができる」のように「それぞれ」があっても「任意で」（各PCの
+    // 任意参加）が付いている場合は、全員必須の判定ではない——対象外として従来通りの
+    // 生の文言敘述に委ねる（実データで確認済み：event_rulebook.jsのスカラベ事件）。
+    if (text.indexOf("任意で") !== -1) return null;
+    var re = new RegExp(ABILITY_CHECK_BRACKET_RE.source, "g");
+    var matches = [];
+    var m;
+    while ((m = re.exec(text))) matches.push(m);
+    if (matches.length !== 1) return null;
+    var statKey = ABILITY_CHECK_STAT_MAP[matches[0][2]];
+    if (!statKey) return null;
+    return { target: parseInt(matches[0][1], 10), statKey: statKey };
+  }
+
   function getWalkEntry(walk) {
     return window.PriTestNightFloorBreakthrough.resolveFieldEntryForSlot(walk.slotIndex);
   }
@@ -161,6 +199,158 @@
     var branch = entry.branches[walk.branchIndex];
     if (!branch) return null;
     return (branch.floors || [])[walk.floorIndex] || null;
+  }
+
+  // ---- 「路線自由」カード（branch.freeFloorOrder、例：砦／地下砦）----
+  // 通常のcardLevels連番進行ではなく、フロアを任意の順で選ばせ、指定数踏破した時点で
+  // 全踏破とする。位置ごとのクリア状態はstate.freeFloorCleared[slotIndex]（boolean[]、
+  // branch.floorPreviews.length分）で管理する——cardLevelsは表示専用（クリア数、全踏破時null）
+  // として直接書き換えるだけで、stepCardLevelの連番ロジックは経由しない。
+
+  // slotIndex＋branchのクリア状態配列を取得する（未初期化ならbranch.floorPreviews.length分の
+  // falseで初期化して保存する）。
+  function getFreeFloorCleared(slotIndex, branch) {
+    var Core = window.PriTestNightCore;
+    var state = Core.state;
+    if (!state.freeFloorCleared) state.freeFloorCleared = {};
+    var key = String(slotIndex);
+    var previewCount = (branch.floorPreviews || []).length;
+    var arr = state.freeFloorCleared[key];
+    if (!Array.isArray(arr) || arr.length !== previewCount) {
+      arr = [];
+      for (var i = 0; i < previewCount; i++) arr.push(false);
+      state.freeFloorCleared[key] = arr;
+    }
+    return arr;
+  }
+
+  // position（1始まり）を踏破済みにマークし、盤面のカード数字表示をクリア数（全踏破前）に
+  // 同期する。全踏破の判定・処理自体はfinishFieldWalk側で行う。
+  function markFreeFloorCleared(slotIndex, branch, position) {
+    var Core = window.PriTestNightCore;
+    var state = Core.state;
+    var arr = getFreeFloorCleared(slotIndex, branch);
+    if (position >= 1 && position <= arr.length) arr[position - 1] = true;
+    var clearedCount = arr.filter(Boolean).length;
+    if (state.cardLevels[slotIndex] !== null) {
+      state.cardLevels[slotIndex] = clearedCount;
+      if (Core.renderCardLevel) Core.renderCardLevel(slotIndex);
+    }
+    return arr;
+  }
+
+  // floor.label（"フロア1"等）から位置番号（1始まり）を取り出す。パターンに合わなければnull。
+  function freeFloorPositionOfFloor(floor) {
+    var text = (floor.label && (floor.label.ja || floor.label.zh)) || "";
+    var m = /(\d+)/.exec(text);
+    return m ? parseInt(m[1], 10) : null;
+  }
+
+  // branch.floors[]の中から、position（1始まり）に対応する行き先を解決する。同じ位置に
+  // 複数の花色バリアントが並んでいる場合（例：砦branchのフロア2/3）は、各エントリーの
+  // titleの先頭にある花色記号（例："(♥) 正門広場..."）で絞り込む。候補が1つだけの場合は
+  // 花色を問わず常にそれを使う（西/東の地下砦branchのように、branch自体が既に特定の花色に
+  // 限定されているケース）。見つからなければ-1を返す。
+  function resolveFreeFloorEntryIndex(branch, position, suitCode) {
+    var floors = branch.floors || [];
+    var candidates = [];
+    for (var i = 0; i < floors.length; i++) {
+      if (freeFloorPositionOfFloor(floors[i]) === position) candidates.push(i);
+    }
+    if (!candidates.length) return -1;
+    if (candidates.length === 1) return candidates[0];
+    for (var ci = 0; ci < candidates.length; ci++) {
+      var title = (floors[candidates[ci]].title && floors[candidates[ci]].title.ja) || "";
+      var suitMatch = /^([♠♥♦◇♣]+)/.exec(title);
+      if (suitMatch && suitCellMatches(suitMatch[1], suitCode)) return candidates[ci];
+    }
+    return candidates[0]; // 花色で絞り込めなければ最初の候補へフォールバック
+  }
+
+  // ［路線自由］入口：まだ踏破していない位置のfloorPreviewsを列挙し、GMが読み上げてから
+  // プレイヤーに選ばせるための選択肢ゲートを開く（specialRuleの規則書文言通り）。既に
+  // clearThresholdに達している場合は「これ以上探索不可」を敘述するだけで終える。
+  function beginFreeFloorChoice(idx, entry, branchIndex) {
+    var Core = window.PriTestNightCore;
+    var state = Core.state;
+    var Fields = window.PriTestFields;
+    var branch = entry.branches[branchIndex];
+    var cleared = getFreeFloorCleared(idx, branch);
+    var threshold = branch.freeFloorOrder.clearThreshold;
+    var clearedCount = cleared.filter(Boolean).length;
+    if (clearedCount >= threshold) {
+      state.gmFlow.narrationText = window.I18N.t("gm_flow_free_floor_no_more_narration", { name: Fields.localizedText(entry.name) });
+      state.gmFlow.awaitingOk = true;
+      state.gmFlow.actionKind = "ok";
+      state.gmFlow.walk = null;
+      Core.saveState();
+      Core.renderCurrentLocationStatus();
+      return;
+    }
+    var previews = branch.floorPreviews || [];
+    var optionPositions = [];
+    var narrationParts = [];
+    for (var i = 0; i < previews.length; i++) {
+      if (cleared[i]) continue;
+      var p = previews[i];
+      optionPositions.push(i + 1);
+      narrationParts.push(
+        window.I18N.t("gm_flow_free_floor_preview_line", {
+          label: Fields.localizedText(p.label),
+          title: Fields.localizedText(p.title),
+          text: Fields.localizedText(p.text),
+        })
+      );
+    }
+    state.gmFlow.walk = {
+      slotIndex: idx,
+      branchIndex: branchIndex,
+      floorIndex: null,
+      lineIndex: 0,
+      branchFloor: null,
+      branchFloorArmed: false,
+      pendingPrefixText: null,
+    };
+    state.gmFlow.freeFloorOptions = optionPositions;
+    state.gmFlow.narrationText =
+      window.I18N.t("gm_flow_free_floor_choice_intro", { name: Fields.localizedText(entry.name), cleared: clearedCount, threshold: threshold }) +
+      "\n\n" +
+      narrationParts.join("\n\n");
+    state.gmFlow.awaitingOk = true;
+    state.gmFlow.actionKind = "freeFloorChoice";
+    Core.saveState();
+    Core.renderCurrentLocationStatus();
+  }
+
+  // ［路線自由］選択肢のボタンが押された：花色で行き先を解決し、通常のadvanceFieldWalk
+  // walkthroughへ引き継ぐ（解決できなかった場合のみ、想定外のデータとしてGMへ委ねる——
+  // 数値・分岐先を捏造しない、既存の"■"と同じ方針）。
+  function handleFreeFloorChoiceClick(position) {
+    var Core = window.PriTestNightCore;
+    var state = Core.state;
+    var walk = state.gmFlow.walk;
+    if (!walk) return;
+    var entry = getWalkEntry(walk);
+    var branch = entry && entry.branches ? entry.branches[walk.branchIndex] : null;
+    state.gmFlow.freeFloorOptions = [];
+    if (!branch) {
+      finishFieldWalk();
+      return;
+    }
+    var suitCode = resolveSuitForSlot(walk.slotIndex);
+    var floorIdx = resolveFreeFloorEntryIndex(branch, position, suitCode);
+    if (floorIdx === -1) {
+      state.gmFlow.narrationText = window.I18N.t("gm_flow_free_floor_resolve_failed_narration");
+      state.gmFlow.awaitingOk = true;
+      state.gmFlow.actionKind = "ok";
+      state.gmFlow.walk = null;
+      Core.saveState();
+      Core.renderCurrentLocationStatus();
+      return;
+    }
+    walk.floorIndex = floorIdx;
+    walk.lineIndex = 0;
+    advanceFieldWalk();
   }
 
   // ---- 第27項：同一樓層内の「（→X）」選択肢／分岐を、実際に選ばれた側の内容だけ敘述する ----
@@ -388,10 +578,13 @@
     return null;
   }
 
-  // "2-7, 10" / "2-7、10" / "1" / "8, 9" のような表記を数値の配列に展開する。
+  // "2-7, 10" / "2-7、10" / "1" / "8, 9" / "2～7、10"（全角/半角波ダッシュ）のような表記を
+  // 数値の配列に展開する。波ダッシュ（～/〜）は「-」と同じ範囲区切りとして正規化する
+  // （規則書側の表記揺れ——実データ調査で両方の書式が混在していると判明）。
   function parseScenarioNumberRanges(text) {
     var nums = [];
     String(text || "")
+      .replace(/[～〜]/g, "-")
       .split(/[,、]/)
       .forEach(function (part) {
         var p = part.trim();
@@ -405,9 +598,83 @@
     return nums;
   }
 
-  // varianceTableの「内容」列を解析する。"1-3 X／4-6 Y" のようにダイス目レンジ＋名前が
-  // 「／」区切りで複数あれば{min,max,name}の配列を返す（骰子を振って決める）。単一の内容
-  // （レンジ表記が無い）ならnullを返し、呼び出し側はテキストそのものを分岐名として扱う。
+  // varianceTableの「シナリオ」欄セル1つを解析する。"4"／"2-7, 10"／空欄（前行のシナリオ番号を
+  // 引き継ぐ——表計算ソフトの結合セル表記をそのまま配列化したデータでよく見られる）に加え、
+  // "4／1日目"のように「／N日目」の日程限定が付いている場合はそれを分離してdayとして返す
+  // （呼び出し側でstate.dayNumberと比較する）。日程限定が無ければday:nullとなり、その行は
+  // シナリオ番号が一致すれば日程を問わず対象になる。
+  function parseScenarioColumnCell(text) {
+    var t = String(text || "").trim();
+    if (!t) return { nums: [], day: null, blank: true };
+    var dayMatch = /^(.+?)[／\/]\s*(\d+)\s*日目\s*$/.exec(t);
+    var mainPart = dayMatch ? dayMatch[1] : t;
+    var day = dayMatch ? parseInt(dayMatch[2], 10) : null;
+    return { nums: parseScenarioNumberRanges(mainPart), day: day, blank: false };
+  }
+
+  // 花色コード（"S"/"H"/"D"/"C"）と、varianceTableの花色欄に実際に現れる記号の対応。
+  // ◇（白抜き）と♦（塗り）はどちらもダイヤを表す表記揺れとして同一視する。
+  var SUIT_CODE_TO_SYMBOLS = { S: ["♠"], H: ["♥"], D: ["♦", "◇"], C: ["♣"] };
+
+  // idx（板塊indexまたは"start"/"end"）に対応する実際の花色コードを取得する。
+  function resolveSuitForSlot(idx) {
+    var Core = window.PriTestNightCore;
+    var state = Core.state;
+    if (idx === "start") return state.startSuit;
+    if (idx === "end") return state.endSuit;
+    var slot = typeof idx === "number" ? state.slots[idx] : null;
+    if (!slot) return null;
+    var card = Core.CARD_BY_CODE[slot.code];
+    return card ? card.suit : null;
+  }
+
+  // 花色欄のテキストに実際の花色コードが含まれるか判定する。欄が空欄（制約無し）なら常に
+  // true。引いたカードの花色が不明（suitCode===null、例：起點/終點で花色未設定）な場合も、
+  // 誤って絞りすぎないようtrueを返す（＝制約を無視、既存の「花色を一切見ない」挙動に留まる）。
+  function suitCellMatches(suitText, suitCode) {
+    var t = String(suitText || "").trim();
+    if (!t) return true;
+    if (!suitCode) return true;
+    var symbols = SUIT_CODE_TO_SYMBOLS[suitCode];
+    if (!symbols) return true;
+    // 「♠♥♣（◇以外）」のような除外表記：括弧内に「以外」と共に挙げられている花色記号は、
+    // 逆に対象から除外する（例：この場合♦/◇の花色は対象外）——単純な部分文字列一致だと、
+    // 除外用に書かれた記号まで「含まれている」と誤判定してしまう。
+    var excludeMatch = /[（(]([^）)]*)以外[）)]/.exec(t);
+    if (excludeMatch) {
+      var excludedSymbols = excludeMatch[1].match(/[♠♥♦◇♣]/g) || [];
+      if (symbols.some(function (sym) { return excludedSymbols.indexOf(sym) !== -1; })) {
+        return false;
+      }
+    }
+    return symbols.some(function (sym) {
+      return t.indexOf(sym) !== -1;
+    });
+  }
+
+  // "1・2"／"1-2"／"1～2"／"1、2"のような面数リスト表記を、個々の面数の配列に展開する
+  // （parseInlineDiceTableと同じ考え方——ダイス表面数リストの表記揺れを許容する）。
+  function parseFaceList(text) {
+    var faces = [];
+    String(text || "")
+      .split(/[・、,]/)
+      .forEach(function (part) {
+        var p = part.trim().replace(/[～〜]/g, "-");
+        var range = /^(\d+)-(\d+)$/.exec(p);
+        if (range) {
+          for (var n = parseInt(range[1], 10); n <= parseInt(range[2], 10); n++) faces.push(n);
+        } else if (/^\d+$/.test(p)) {
+          faces.push(parseInt(p, 10));
+        }
+      });
+    return faces;
+  }
+
+  // varianceTableの「内容」列を解析する。"1-3 X／4-6 Y"や"1・2 X／3・4 Y"、"1～5＝X／6＝Y"の
+  // ように、ダイス面数リスト＋名前が「／」区切りで複数あれば{faces,name}の配列を返す
+  // （骰子を振って決める）。面数リストの後ろは空白または「＝」「=」区切りのどちらでも名前へ
+  // 続く。いずれかの区切りが面数リストで始まっていない（＝名前だけの並び等、想定外の書式）
+  // 場合はnullを返し、呼び出し側はテキストそのものを分岐名として扱う。
   function parseVarianceContent(text) {
     var segments = String(text || "")
       .split(/[／\/]/)
@@ -418,48 +685,255 @@
     if (segments.length < 2) return null;
     var parsed = [];
     for (var i = 0; i < segments.length; i++) {
-      var m = /^(\d+)(?:-(\d+))?\s*(.+)$/.exec(segments[i]);
-      if (!m) return null; // レンジ表記になっていない区切りが混ざっていたら安全側でnull
-      parsed.push({ min: parseInt(m[1], 10), max: m[2] ? parseInt(m[2], 10) : parseInt(m[1], 10), name: m[3].trim() });
+      var m = /^([\d,、・\-～〜]+)\s*[＝=]?\s*(.+)$/.exec(segments[i]);
+      if (!m) return null; // 面数リストで始まっていない区切りが混ざっていたら安全側でnull
+      var faces = parseFaceList(m[1]);
+      if (!faces.length) return null;
+      parsed.push({ faces: faces, name: m[2].trim() });
     }
     return parsed;
   }
 
-  // entryのvarianceTableとシナリオ番号から、実際に該当する分岐indexを自動で解決する。
+  // branches[].nameとvarianceTableの内容列から解決した名前を比較する際、全角/半角括弧の
+  // 表記揺れ（例："鍛冶村（雷1）" vs "鍛冶村(雷1)"）を吸収する。語順の違いなど括弧の表記
+  // 揺れ以外の不一致は正規化しない——それはデータ側の不整合であり、この関数で無理に一致
+  // させるのではなく元データ（fields_data_*.js）側を修正すべき、という既存方針を維持する。
+  function normalizeBranchNameForMatch(text) {
+    return String(text || "")
+      .replace(/[（(]/g, "(")
+      .replace(/[）)]/g, ")")
+      .trim();
+  }
+
+  // varianceTableの内容欄が「※ランダム決定」のような単純なプレースホルダーで、実際の対応
+  // 表がextraTables（例：鍛冶村／遺跡の「1回目×2回目」2段階ダイスグリッド）としてカード側に
+  // 用意されている場合に、その表を見つける。1列目の各行見出しに「1回目」/「第1次」、
+  // 1行目の各列見出し（先頭列を除く）に「2回目」/「第2次」を含む表だけを対象にする
+  // （既存データで確認できた表記——将来別の表記の2段階表が現れた場合は対象外＝GMへ
+  // フォールバックのままになる、無理に汎用化しない）。
+  function findTwoRollGridTable(entry) {
+    var tables = entry.extraTables;
+    if (!tables || !tables.length) return null;
+    for (var t = 0; t < tables.length; t++) {
+      var table = tables[t];
+      if (!table.columns || !table.rows || table.columns.length < 2 || !table.rows.length) continue;
+      var rowsOk = true;
+      for (var r = 0; r < table.rows.length; r++) {
+        var rowHead = (table.rows[r][0] && table.rows[r][0].ja) || "";
+        if (!/1回目|第1次/.test(rowHead)) {
+          rowsOk = false;
+          break;
+        }
+      }
+      if (!rowsOk) continue;
+      var colsOk = true;
+      for (var c = 1; c < table.columns.length; c++) {
+        var colHead = (table.columns[c] && table.columns[c].ja) || "";
+        if (!/2回目|第2次/.test(colHead)) {
+          colsOk = false;
+          break;
+        }
+      }
+      if (colsOk) return table;
+    }
+    return null;
+  }
+
+  // "1回目＝1・2"／"2回目＝3・4"のような表見出しから、末尾の面数リスト部分だけを取り出して
+  // parseFaceListへ渡す（見出し文言そのものを面数として誤解析しないため）。
+  function extractFaceListFromGridHeader(text) {
+    var m = /[＝=]\s*([\d・、,\-～〜]+)\s*$/.exec(String(text || ""));
+    if (!m) return [];
+    return parseFaceList(m[1]);
+  }
+
+  // 2段階ダイスグリッド（1回目＝行／2回目＝列）を実際に振って解決する。セルの内容が
+  // 「振り直し」／「重新擲骰」なら、このアプリがその場で振り直す（GMが記録していない過去の
+  // 骰目を捏造するのではなく、今その場で正規の骰子を振るという既存方針のまま）。
+  // 見出しの面数リストが解析できない、または20回振り直しても確定しない（想定外のデータ）
+  // 場合はnullを返し、呼び出し側はGMへのフォールバックへ進む。
+  function resolveTwoRollGrid(table) {
+    for (var attempt = 0; attempt < 20; attempt++) {
+      var roll1 = 1 + Math.floor(Math.random() * 6);
+      var roll2 = 1 + Math.floor(Math.random() * 6);
+      var rowIdx = -1;
+      for (var r = 0; r < table.rows.length; r++) {
+        if (extractFaceListFromGridHeader(table.rows[r][0].ja).indexOf(roll1) !== -1) {
+          rowIdx = r;
+          break;
+        }
+      }
+      var colIdx = -1;
+      for (var c = 1; c < table.columns.length; c++) {
+        if (extractFaceListFromGridHeader(table.columns[c].ja).indexOf(roll2) !== -1) {
+          colIdx = c;
+          break;
+        }
+      }
+      if (rowIdx === -1 || colIdx === -1) return null;
+      var cell = table.rows[rowIdx][colIdx];
+      var name = cell ? String(cell.ja || "").trim() : "";
+      if (/振り直し|重新擲骰|再抽選|再擲骰/.test(name)) continue;
+      return { name: name, roll1: roll1, roll2: roll2 };
+    }
+    return null;
+  }
+
+  // スート欄自体に「花色記号＋名前」の組がまとめて書かれているケース（例：大教会の
+  // "♠♥ 丘の上の大教会／♦♣ 水辺の大教会"——内容欄は「－」のプレースホルダーで、実際の
+  // 対応表はスート欄にある）を解析する。各「／」区切りグループの先頭にある花色記号
+  // （♠♥◇♦♣、連続してもよい）と、それに続く名前を読み取る。1つでも解析に失敗した
+  // グループがあればnullを返す（安全側——無理にこの形式だと決めつけない）。
+  function parseSuitEmbeddedNameGroups(text) {
+    var groups = String(text || "")
+      .split(/[／\/]/)
+      .map(function (s) {
+        return s.trim();
+      })
+      .filter(Boolean);
+    if (groups.length < 2) return null;
+    var parsed = [];
+    for (var i = 0; i < groups.length; i++) {
+      var m = /^([♠♥♦◇♣]+)\s+(.+)$/.exec(groups[i]);
+      if (!m) return null;
+      parsed.push({ suitSymbols: m[1], name: m[2].trim() });
+    }
+    return parsed;
+  }
+
+  // entryのvarianceTableとシナリオ番号・花色から、実際に該当する分岐indexを自動で解決する。
   // 骰子が必要な内容（複数レンジ）は、その場でこのアプリが1D6を振って決める——GMが把握して
   // いない/記録されていない過去の骰目を「捏造」するのではなく、今その場で正規の骰子を振る
   // という点で、既存の突破判定等の自動ダイス処理と同じ立ち位置。解決できなければnullを返し、
   // 呼び出し側はGMに規則書を見て選んでもらうフォールバックへ進む。
-  function autoResolveBranch(entry) {
+  function autoResolveBranch(entry, idx) {
     if (!entry.branches || !entry.branches.length) return null;
     if (entry.branches.length === 1) return { branchIndex: 0, roll: null };
     if (!entry.varianceTable || !entry.varianceTable.rows) return null;
     var scenarioNum = resolveScenarioNumber();
     if (scenarioNum === null) return null;
-    var matchRow = null;
+    var suitCode = resolveSuitForSlot(idx);
+    var dayNumber = window.PriTestNightCore.state.dayNumber;
+    var lastCellInfo = null;
+    var candidateRows = [];
     for (var i = 0; i < entry.varianceTable.rows.length; i++) {
       var row = entry.varianceTable.rows[i];
-      if (parseScenarioNumberRanges(row[0] && row[0].ja).indexOf(scenarioNum) !== -1) {
-        matchRow = row;
-        break;
-      }
+      var cellInfo = parseScenarioColumnCell(row[0] && row[0].ja);
+      // 空欄のシナリオ欄は「結合セル」——直前の非空行のシナリオ番号/日程をそのまま引き継ぐ。
+      if (cellInfo.blank && lastCellInfo) cellInfo = lastCellInfo;
+      else if (!cellInfo.blank) lastCellInfo = cellInfo;
+      if (cellInfo.nums.indexOf(scenarioNum) === -1) continue;
+      if (cellInfo.day !== null && cellInfo.day !== dayNumber) continue;
+      candidateRows.push(row);
     }
+    if (!candidateRows.length) return null;
+    // シナリオ番号（＋日程）が一致する行が複数残る場合、花色欄が実際の花色と一致する行を
+    // 優先する。どれも花色欄が空欄（制約無し）ならその中の最初の行を使う。
+    var matchRow =
+      candidateRows.filter(function (row) {
+        var suitText = row[1] && row[1].ja;
+        return suitText && String(suitText).trim() && suitCellMatches(suitText, suitCode);
+      })[0] ||
+      candidateRows.filter(function (row) {
+        var suitText = row[1] && row[1].ja;
+        return !suitText || !String(suitText).trim();
+      })[0] ||
+      null;
     if (!matchRow) return null;
     var contentText = matchRow[2] ? matchRow[2].ja : "";
     var diceOptions = parseVarianceContent(contentText);
     var targetName = contentText.trim();
     var roll = null;
+    var roll2 = null;
     if (diceOptions) {
       roll = Math.floor(Math.random() * 6) + 1;
       var picked = diceOptions.filter(function (o) {
-        return roll >= o.min && roll <= o.max;
+        return o.faces.indexOf(roll) !== -1;
       })[0];
       if (!picked) return null;
       targetName = picked.name;
+    } else if (/^※/.test(targetName)) {
+      // 内容欄が「※ランダム決定」等の単純なプレースホルダーの場合のみ、extraTablesの
+      // 2段階ダイスグリッドを試す（他の想定外の書式まで無理に対象化しない）。
+      var gridTable = findTwoRollGridTable(entry);
+      var gridResult = gridTable ? resolveTwoRollGrid(gridTable) : null;
+      if (!gridResult) return null;
+      targetName = gridResult.name;
+      roll = gridResult.roll1;
+      roll2 = gridResult.roll2;
+    } else {
+      // ダイスレンジでも「※」プレースホルダーでもない場合のみ、花色だけで（骰子を使わず）
+      // 決まる2つの書式を試す：
+      // (a) スート欄自体に「花色記号＋名前」の組が書かれている（大教会の丘/水辺パターン）。
+      // (b) スート欄・内容欄がどちらも同数の要素を持ち、位置で対応づけられている
+      //     （遺跡の崖上/下層パターン——スート欄は空白区切り、内容欄は「／」区切り）。
+      // どちらの書式の前提条件（欄の形）にも当てはまらない場合は、単一の直接名（大半の行
+      // ——例：坑道(1)のような通常行）とみなし、targetNameをそのまま使う（従来の挙動）。
+      // 一方、書式の前提条件には当てはまったのに実際の花色と一致する候補が無かった場合は
+      // nullを返す（GMへフォールバック）——無理に一致させない。
+      var suitText2 = matchRow[1] ? matchRow[1].ja : "";
+      var embeddedGroups = parseSuitEmbeddedNameGroups(suitText2);
+      if (embeddedGroups) {
+        var matchedGroup = embeddedGroups.filter(function (g) {
+          return suitCellMatches(g.suitSymbols, suitCode);
+        })[0];
+        if (!matchedGroup) return null;
+        targetName = matchedGroup.name;
+      } else {
+        var contentSegs = targetName
+          .split(/[／\/]/)
+          .map(function (s) {
+            return s.trim();
+          })
+          .filter(Boolean);
+        var suitTokens = suitText2
+          .split(/\s+/)
+          .map(function (s) {
+            return s.trim();
+          })
+          .filter(Boolean);
+        if (contentSegs.length >= 2 && contentSegs.length === suitTokens.length) {
+          var positionalName = null;
+          for (var si = 0; si < suitTokens.length; si++) {
+            if (suitCellMatches(suitTokens[si], suitCode)) {
+              positionalName = contentSegs[si];
+              break;
+            }
+          }
+          if (positionalName === null) return null;
+          targetName = positionalName;
+        }
+        // どちらの前提条件にも当てはまらない場合はtargetNameをそのまま使う（下へ続く）。
+      }
     }
+    var normalizedTarget = normalizeBranchNameForMatch(targetName);
     for (var bi = 0; bi < entry.branches.length; bi++) {
-      if (entry.branches[bi].name && entry.branches[bi].name.ja === targetName) {
-        return { branchIndex: bi, roll: roll };
+      if (entry.branches[bi].name && normalizeBranchNameForMatch(entry.branches[bi].name.ja) === normalizedTarget) {
+        return { branchIndex: bi, roll: roll, roll2: roll2 };
+      }
+    }
+    // 最終フォールバック：内容欄が複数の分岐候補名を「／」区切りで並べているだけで、実際の
+    // 対応花色はbranches[]自身の名前（「名前（花色）」形式、例：西の地下砦（♠♥）／東の地下砦
+    // （◇♣）——砦／地下砦カード）に書かれているケース。内容欄の各候補（先頭に装飾的な
+    // 「(...)」があれば取り除く——例：(黒陶)西の地下砦）が、いずれかの分岐名の花色部分を
+    // 除いた名前と一致し、かつその分岐自身の花色サフィックスが実際の花色と一致すれば採用する。
+    if (suitCode) {
+      var rawCandidates = targetName
+        .split(/[／\/]/)
+        .map(function (s) {
+          return s.trim().replace(/^[（(][^）)]*[）)]/, "").trim();
+        })
+        .filter(Boolean);
+      for (var ci = 0; ci < rawCandidates.length; ci++) {
+        var candidateNorm = normalizeBranchNameForMatch(rawCandidates[ci]);
+        for (var bi2 = 0; bi2 < entry.branches.length; bi2++) {
+          var bn = entry.branches[bi2].name;
+          if (!bn || !bn.ja) continue;
+          var pm = /^(.*?)[（(]([^）)]+)[）)]\s*$/.exec(bn.ja);
+          if (!pm) continue;
+          if (normalizeBranchNameForMatch(pm[1]) !== candidateNorm) continue;
+          if (suitCellMatches(pm[2], suitCode)) return { branchIndex: bi2, roll: roll, roll2: roll2 };
+        }
       }
     }
     return null; // 解決した名前がbranches[]のどれとも一致しない＝データの想定外、GMへ委ねる
@@ -501,9 +975,19 @@
       Core.renderCurrentLocationStatus();
       return;
     }
-    var resolved = autoResolveBranch(entry);
+    var resolved = autoResolveBranch(entry, idx);
     if (resolved) {
-      if (resolved.roll !== null) {
+      if (resolved.roll2 !== null && resolved.roll2 !== undefined) {
+        state.turnMessages.push({
+          text: window.I18N.t("gm_flow_branch_roll2_log", {
+            roll1: resolved.roll,
+            roll2: resolved.roll2,
+            name: window.PriTestFields.localizedText(entry.branches[resolved.branchIndex].name),
+          }),
+          time: Date.now(),
+          side: "gm",
+        });
+      } else if (resolved.roll !== null) {
         state.turnMessages.push({
           text: window.I18N.t("gm_flow_branch_roll_log", {
             roll: resolved.roll,
@@ -512,6 +996,13 @@
           time: Date.now(),
           side: "gm",
         });
+      }
+      var resolvedBranch = entry.branches[resolved.branchIndex];
+      if (resolvedBranch && resolvedBranch.freeFloorOrder) {
+        // ［路線自由］（specialRule参照）：フロアを任意の順で選ばせる特殊カード。通常の
+        // 連番floorIndex進行ではなく、専用の選択肢ゲートへ入る。
+        beginFreeFloorChoice(idx, entry, resolved.branchIndex);
+        return;
       }
       state.gmFlow.walk = {
         slotIndex: idx,
@@ -646,6 +1137,8 @@
     }
     var choiceLabels = [];
     var combatTriggerIndex = -1;
+    var abilityCheckIndex = -1;
+    var abilityCheckSpec = null;
     var i = walk.lineIndex;
     while (i < lines.length) {
       var line = lines[i];
@@ -672,11 +1165,37 @@
         combatTriggerIndex = i;
         break;
       }
+      // 「PC全員／それぞれ／各自が個別に固定目標値へ判定する」形式の行為判定：詳細な判定
+      // 基準（目標値・屬性）は進度版に出さず、自動GMが各玩家の判定骰を代行してから続きを
+      // 敘述する。この行自体は敘述に含めない（生のPC全員は〈N|屬性〉を行う、という文言を
+      // そのまま貼り出さない——ユーザー指示）。成功/失敗どちらの後続内容を敘述するかは
+      // 従来通りGMが規則書と実際の判定結果を照らして判断する（このアプリは自動で分岐先を
+      // 選ばない——複数PCが異なる結果になり得るため、単純に片方だけを選ぶと誤りうる）。
+      var parsedAbilityCheck = parseIndividualAbilityCheck(line);
+      if (parsedAbilityCheck) {
+        abilityCheckIndex = i;
+        abilityCheckSpec = parsedAbilityCheck;
+        i++; // 判定完了後はこの行の次から再開
+        break;
+      }
       var lineText = Fields.localizedText(line.text);
       blockParts.push(formatWalkLine(line));
       var labels = parseChoiceLabels(lineText);
-      if (labels.length) {
-        choiceLabels = labels;
+      if (labels.length) choiceLabels = labels; // 上書き（複数の結果行が別々に同じ選択肢マーカーを持つ場合、通常は同じ値になる）
+      // 「成功」「失敗」等の結果行は、それぞれが独立に同じ選択肢マーカーを持つことがある
+      // （例：坑道1の行為判定——成功・失敗どちらの行にも(→ザコ戦闘)が個別に埋め込まれている）。
+      // マーカーが見つかった時点ですぐ打ち切ると、まだ処理していない側の結果行（＝失敗した
+      // PCへ伝えるべき効果文など）が一切敘述されないままになってしまう。次の行も同じ深さの
+      // 「成功／失敗」系の結果行である間は打ち切らず、その行まで敘述に含めてから打ち切る。
+      var isOutcomeLabel = line.label && (/成功|失敗/.test(line.label.ja || "") || /成功|失敗/.test(line.label.zh || ""));
+      var nextLine = lines[i + 1];
+      var nextIsSiblingOutcome =
+        isOutcomeLabel &&
+        nextLine &&
+        nextLine.depth === line.depth &&
+        nextLine.label &&
+        (/成功|失敗/.test(nextLine.label.ja || "") || /成功|失敗/.test(nextLine.label.zh || ""));
+      if (choiceLabels.length && !nextIsSiblingOutcome) {
         i++; // 次回はこの行の次から再開
         break;
       }
@@ -690,6 +1209,12 @@
       state.gmFlow.awaitingOk = true;
       state.gmFlow.actionKind = "combatTrigger";
       state.gmFlow.combatTriggerLabel = combatTriggerTitle(lines[combatTriggerIndex]);
+    } else if (abilityCheckIndex !== -1) {
+      state.gmFlow.narrationText = blockText;
+      state.gmFlow.pendingChoiceLabels = [];
+      state.gmFlow.awaitingOk = true;
+      state.gmFlow.actionKind = "abilityCheck";
+      state.gmFlow.abilityCheckSpec = abilityCheckSpec;
     } else if (choiceLabels.length) {
       state.gmFlow.narrationText = blockText;
       state.gmFlow.pendingChoiceLabels = choiceLabels;
@@ -865,6 +1390,25 @@
       state.gmFlow.actionKind = "ok";
       pendingFloorEndFloor = null;
     }
+    // ［路線自由］（branch.freeFloorOrder）カード：通常のcardLevels連番進行ではなく、
+    // 位置ごとのクリア状態を管理する。しきい値に達したら「全踏破」チェーンへ乗せる
+    // （通常カードと同じpendingFinalFloorSlot等の仕組みを再利用するが、stepCardLevelの
+    // 連番ロジックは経由しない——advanceCardConclusionChain側でcardLevels===nullを見て
+    // stepCardLevelを呼ばないよう分岐する）。
+    var walkBranch = walkEntry && walk && typeof walk.branchIndex === "number" ? walkEntry.branches[walk.branchIndex] : null;
+    if (walkBranch && walkBranch.freeFloorOrder && floor && typeof walkSlotIndex === "number") {
+      var freeFloorPosition = freeFloorPositionOfFloor(floor);
+      if (freeFloorPosition !== null) markFreeFloorCleared(walkSlotIndex, walkBranch, freeFloorPosition);
+      var freeFloorClearedCount = getFreeFloorCleared(walkSlotIndex, walkBranch).filter(Boolean).length;
+      if (freeFloorClearedCount >= walkBranch.freeFloorOrder.clearThreshold) {
+        state.cardLevels[walkSlotIndex] = null;
+        if (Core.renderCardLevel) Core.renderCardLevel(walkSlotIndex);
+        state.gmFlow.pendingFinalFloorSlot = walkSlotIndex;
+        state.gmFlow.pendingChipCheckSlot = walkSlotIndex;
+        state.gmFlow.pendingMapMoveSlot = walkSlotIndex;
+      }
+      return;
+    }
     // 第5項改：この樓層の敘述が最後まで終わったら、GMが手動で盤面の[+]を押さなくても
     // 自動で樓層カウンターを1つ進め、公開盤地図上のカードの数字が自動的に「踏破済み」を
     // 反映するようにする——以後は自動化GMもそのカードの数字を見るだけで現在位置が分かる。
@@ -973,6 +1517,9 @@
     state.gmFlow.pendingChoiceLabels = [];
     state.gmFlow.battleWaitActive = false;
     state.gmFlow.combatTriggerLabel = null;
+    state.gmFlow.abilityCheckSpec = null;
+    abilityCheckRolls = null;
+    state.gmFlow.freeFloorOptions = [];
     state.gmFlow.chipOfferSlot = null;
     state.gmFlow.chipOfferContinuation = null;
     pendingFloorEndFloor = null;
@@ -996,7 +1543,15 @@
     if (finalFloorSlot !== null && finalFloorSlot !== undefined) {
       state.gmFlow.pendingFinalFloorSlot = null;
       if (typeof finalFloorSlot === "number") {
-        Core.stepCardLevel(finalFloorSlot, 1); // → 「全」。内部でgrantCardFullClearRewardIfNeededが発火し、続く敘述ゲートを新たに開く
+        // ［路線自由］カード（finishFieldWalkが既にcardLevelsを直接nullへ設定済み）は
+        // stepCardLevelの連番ロジックを経由せず、全踏破処理だけを直接発火する
+        // （stepCardLevelをここでも呼ぶと、既にnullな状態から更に1つ進めてしまい、
+        // steps配列の先頭へ巻き戻ってしまう）。
+        if (Core.state.cardLevels[finalFloorSlot] === null) {
+          Core.grantCardFullClearRewardIfNeeded(finalFloorSlot);
+        } else {
+          Core.stepCardLevel(finalFloorSlot, 1); // → 「全」。内部でgrantCardFullClearRewardIfNeededが発火し、続く敘述ゲートを新たに開く
+        }
       } else {
         Core.grantPileFullClearRewardIfNeeded(finalFloorSlot); // "start"|"end"
       }
@@ -1113,6 +1668,168 @@
     Core.openBattleDrawer();
   }
 
+  // ---- 「行為判定」自動擲骰モーダル ----
+  // { charId: { dice:[...], sum, passed, statKey } }。breakthroughState（night_floor_breakthrough.js）
+  // と同じ設計方針——現在進行中の判定發生のみ有効な非永続state、リロードで消えてもよい
+  // （判定自体は一瞬の操作であり、gmFlow.abilityCheckSpecだけ保存されていれば
+  // 再びこのモーダルを開き直して振り直せる）。
+  var abilityCheckRolls = null;
+
+  function beginAbilityCheck() {
+    abilityCheckRolls = {};
+    renderAbilityCheckModal();
+    var modalEl = document.getElementById("ability-check-modal");
+    if (modalEl) modalEl.hidden = false;
+  }
+
+  function renderAbilityCheckModal() {
+    var Core = window.PriTestNightCore;
+    var state = Core.state;
+    var spec = state.gmFlow.abilityCheckSpec;
+    var titleEl = document.getElementById("ability-check-modal-title");
+    var container = document.getElementById("ability-check-characters");
+    var doneBtn = document.getElementById("btn-ability-check-done");
+    if (!spec || !titleEl || !container || !doneBtn) return;
+    if (!abilityCheckRolls) abilityCheckRolls = {};
+    titleEl.textContent = window.I18N.t("ability_check_modal_title", {
+      target: spec.target,
+      stat: window.I18N.t("check_stat_" + spec.statKey),
+    });
+    container.innerHTML = "";
+    var CharacterTypes = window.PriTestCharacterTypes;
+    var entered = Core.getRosterCharacters().filter(function (c) {
+      return c.entered;
+    });
+    entered.forEach(function (c) {
+      var row = document.createElement("div");
+      row.className = "wb-row breakthrough-char-row";
+      var name = document.createElement("span");
+      name.className = "breakthrough-char-name";
+      name.textContent = c.name;
+      row.appendChild(name);
+
+      var entry = abilityCheckRolls[c.id];
+      var statSelect = null;
+      if (spec.statKey === "any") {
+        statSelect = document.createElement("select");
+        ["luck", "physical", "mental"].forEach(function (key) {
+          var opt = document.createElement("option");
+          opt.value = key;
+          opt.textContent = window.I18N.t("check_stat_" + key);
+          statSelect.appendChild(opt);
+        });
+        statSelect.value = (entry && entry.statKey) || "luck";
+        statSelect.disabled = !!entry;
+        row.appendChild(statSelect);
+      }
+
+      if (entry) {
+        var resultLabel = document.createElement("span");
+        resultLabel.className = "ability-check-result " + (entry.passed ? "ability-check-pass" : "ability-check-fail");
+        resultLabel.textContent = window.I18N.t("ability_check_result_label", {
+          dice: entry.dice.join("+"),
+          sum: entry.sum,
+          outcome: window.I18N.t(entry.passed ? "ability_check_pass_label" : "ability_check_fail_label"),
+        });
+        row.appendChild(resultLabel);
+      } else {
+        var rollBtn = document.createElement("button");
+        rollBtn.type = "button";
+        rollBtn.className = "combat-attack-hit-btn";
+        rollBtn.textContent = window.I18N.t("ability_check_roll_button");
+        rollBtn.addEventListener("click", function () {
+          var useStat = statSelect ? statSelect.value : spec.statKey;
+          rollAbilityCheckForCharacter(c.id, useStat);
+        });
+        row.appendChild(rollBtn);
+      }
+      container.appendChild(row);
+    });
+    // entered.length===0（入場PCがいない）の場合、everyは空配列に対してtrueを返す——
+    // 振る対象が無いのでそのまま［完成判定］を押せる状態にする（さもないと永久にボタンが
+    // 有効化されず、そのままwalkthroughが進められなくなってしまう）。
+    var allRolled = entered.every(function (c) {
+      return !!abilityCheckRolls[c.id];
+    });
+    doneBtn.disabled = !allRolled;
+  }
+
+  function rollAbilityCheckForCharacter(charId, statKey) {
+    var Core = window.PriTestNightCore;
+    var state = Core.state;
+    var spec = state.gmFlow.abilityCheckSpec;
+    if (!spec || !abilityCheckRolls) return;
+    var c = Core.getRosterCharacters().filter(function (rc) {
+      return rc.id === charId;
+    })[0];
+    var type = c && c.typeId ? window.PriTestCharacterTypes.get(c.typeId) : null;
+    var count = window.PriTestNightFloorBreakthrough.effectiveCheckValue(c, type, statKey);
+    var dice = [];
+    for (var i = 0; i < count; i++) dice.push(1 + Math.floor(Math.random() * 6));
+    var sum = dice.reduce(function (a, b) {
+      return a + b;
+    }, 0);
+    abilityCheckRolls[charId] = { dice: dice, sum: sum, passed: sum >= spec.target, statKey: statKey };
+    renderAbilityCheckModal();
+  }
+
+  // 全員の判定骰を振り終えたら［完成］：各PCの結果を留言板へ一括報告し（失敗者がいれば
+  // 追加で個別にリマインド——効果自体は"■"と同じく非強制／GM判断のため自動適用しない）、
+  // モーダルを閉じて敘述walkthroughを続行する（この行為判定自体の生の判定基準文は敘述に
+  // 出さない——後続の成功/失敗の文言はこれまで通りそのまま敘述され、GMが実際の結果と
+  // 照らして該当プレイヤーへ伝える）。
+  function handleAbilityCheckDoneClick() {
+    var Core = window.PriTestNightCore;
+    var state = Core.state;
+    var spec = state.gmFlow.abilityCheckSpec;
+    if (!spec || !abilityCheckRolls) return;
+    var entered = Core.getRosterCharacters().filter(function (c) {
+      return c.entered;
+    });
+    var entries = entered
+      .filter(function (c) {
+        return !!abilityCheckRolls[c.id];
+      })
+      .map(function (c) {
+        var entry = abilityCheckRolls[c.id];
+        return window.I18N.t("gm_flow_ability_check_result_entry", {
+          name: c.name,
+          dice: entry.dice.join("+"),
+          sum: entry.sum,
+          outcome: window.I18N.t(entry.passed ? "ability_check_pass_label" : "ability_check_fail_label"),
+        });
+      });
+    var failedNames = entered
+      .filter(function (c) {
+        return abilityCheckRolls[c.id] && !abilityCheckRolls[c.id].passed;
+      })
+      .map(function (c) {
+        return c.name;
+      });
+    state.turnMessages.push({
+      text: window.I18N.t("gm_flow_ability_check_summary_log", {
+        target: spec.target,
+        stat: window.I18N.t("check_stat_" + spec.statKey),
+        results: entries.join("、"),
+      }),
+      time: Date.now(),
+      side: "gm",
+    });
+    if (failedNames.length) {
+      state.turnMessages.push({
+        text: window.I18N.t("gm_flow_ability_check_fail_reminder_log", { names: failedNames.join("、") }),
+        time: Date.now(),
+        side: "gm",
+      });
+    }
+    abilityCheckRolls = null;
+    var modalEl = document.getElementById("ability-check-modal");
+    if (modalEl) modalEl.hidden = true;
+    state.gmFlow.abilityCheckSpec = null;
+    state.gmFlow.actionKind = "ok";
+    advanceFieldWalk();
+  }
+
   // night.js側のrenderCurrentLocationStatus()から、#location-status-content（樓層詳細資訊）を
   // 組み立てた直後に呼ばれる。進度版下段の「GM對話框」（#location-status-dialogue、分隔線で
   // 樓層詳細資訊と区切る）に、敘述文（あれば、#location-status-narration）と、
@@ -1196,6 +1913,31 @@
         // 第19項：籌碼事件の使用可否確認。
         addActionButton(actionsEl, "gm_flow_chip_offer_use_button", handleChipOfferUseClick);
         addActionButton(actionsEl, "gm_flow_chip_offer_skip_button", handleChipOfferSkipClick);
+      } else if (state.gmFlow.actionKind === "abilityCheck") {
+        // 行為判定（PC全員／それぞれ／各自が個別に判定する形式）：生の判定基準文は出さず、
+        // ボタンを押すとモーダルで各PCの判定骰を自動で振る。
+        addActionButton(actionsEl, "gm_flow_ability_check_button", function () {
+          beginAbilityCheck();
+        });
+      } else if (state.gmFlow.actionKind === "freeFloorChoice") {
+        // ［路線自由］：まだ踏破していない位置のボタンを1つずつ並べる（第Ｎ項：砦／地下砦等）。
+        var freeFloorWalk = state.gmFlow.walk;
+        var freeFloorEntry = freeFloorWalk ? getWalkEntry(freeFloorWalk) : null;
+        var freeFloorBranch = freeFloorEntry && freeFloorEntry.branches ? freeFloorEntry.branches[freeFloorWalk.branchIndex] : null;
+        var freeFloorPreviews = freeFloorBranch ? freeFloorBranch.floorPreviews || [] : [];
+        (state.gmFlow.freeFloorOptions || []).forEach(function (position) {
+          var preview = freeFloorPreviews[position - 1];
+          var btn = document.createElement("button");
+          btn.type = "button";
+          btn.className = "gm-flow-action-btn";
+          btn.textContent = preview
+            ? window.PriTestFields.localizedText(preview.label) + window.I18N.t("colon_separator") + window.PriTestFields.localizedText(preview.title)
+            : String(position);
+          btn.addEventListener("click", function () {
+            handleFreeFloorChoiceClick(position);
+          });
+          actionsEl.appendChild(btn);
+        });
       } else {
         addActionButton(actionsEl, "gm_flow_ok_button", handleGmFlowOk);
       }
@@ -1232,5 +1974,6 @@
     showFullClearNarration: showFullClearNarration,
     handleGoldenTreeFullClear: handleGoldenTreeFullClear,
     notifyCombatEnded: notifyCombatEnded,
+    handleAbilityCheckDoneClick: handleAbilityCheckDoneClick,
   };
 })();

@@ -793,6 +793,8 @@
       walk: null, // { slotIndex, branchIndex(nullなら分岐未選択), floorIndex, lineIndex, branchFloor(第27項：選択済み分岐の深さ、nullなら制限無し), branchFloorArmed(ジャンプ直後の見出し行自身を境界判定から除外するフラグ), pendingPrefixText(ジャンプ先の見出しに辿り着くまでに挟まっていた共通・確定内容、次のadvanceFieldWalkで1回だけ差し込む) }
       pendingChoiceLabels: [], // actionKind==="lineChoice"のときに提示する(→X)ラベルの配列
       combatTriggerLabel: null, // actionKind==="combatTrigger"のときのボタン文言（「雜兵戰鬥」／「王戰」、トリガー行の文言そのもの）
+      abilityCheckSpec: null, // actionKind==="abilityCheck"のときの{target,statKey}（PC全員が個別に判定する行為判定の自動擲骰モーダル用）
+      freeFloorOptions: [], // actionKind==="freeFloorChoice"のときに提示する未踏破position（1始まり）の配列（路線自由カード用）
       // actionKind==="battleWait"の間trueなら、エネミーの全HP行が0になった瞬間
       // （night.jsのsetActionPhase、combatEndオプション経由）に自動で敘述の続きへ進める。
       battleWaitActive: false,
@@ -817,6 +819,10 @@
     activeThreatEffects: [], // {id, text}の配列。「階段結束為止」等の非純傷害スキル効果をGM/玩家が自由記述で追加・Xで削除する手動リスト
     returnedCardMemory: {}, // key: slot index -> {code, cardLevel}。#19：うっかり「山札に戻す」した直前の内容を記録し、空きマス長押しで復元できるようにする
     cardFloorRewardGranted: {}, // key: slot index -> true。#10：樓層レベルが「全」に達した瞬間の自動盧恩付与・広播が二重発火しないようにするフラグ
+    // key: slot index -> boolean[]（branch.floorPreviews.length分、position-1がindex）。
+    // 「路線自由」（branch.freeFloorOrder）カード専用——通常のcardLevels連番進行の代わりに
+    // 位置ごとのクリア状態を持つ（砦／地下砦カード：フロアを任意の順で選べ、指定数踏破で全踏破）。
+    freeFloorCleared: {},
   };
 
   function shuffle(arr) {
@@ -892,6 +898,7 @@
       activeThreatEffects: state.activeThreatEffects,
       returnedCardMemory: state.returnedCardMemory,
       cardFloorRewardGranted: state.cardFloorRewardGranted,
+      freeFloorCleared: state.freeFloorCleared,
     };
   }
 
@@ -1797,6 +1804,8 @@
             "branchChoice",
             "lineChoice",
             "combatTrigger",
+            "abilityCheck",
+            "freeFloorChoice",
             "battleWait",
             "chipOffer",
           ].indexOf(loadedGmFlow.actionKind) !== -1
@@ -1808,6 +1817,11 @@
         walk: loadedWalk,
         pendingChoiceLabels: Array.isArray(loadedGmFlow.pendingChoiceLabels) ? loadedGmFlow.pendingChoiceLabels : [],
         combatTriggerLabel: typeof loadedGmFlow.combatTriggerLabel === "string" ? loadedGmFlow.combatTriggerLabel : null,
+        abilityCheckSpec:
+          loadedGmFlow.abilityCheckSpec && typeof loadedGmFlow.abilityCheckSpec.target === "number" && typeof loadedGmFlow.abilityCheckSpec.statKey === "string"
+            ? { target: loadedGmFlow.abilityCheckSpec.target, statKey: loadedGmFlow.abilityCheckSpec.statKey }
+            : null,
+        freeFloorOptions: Array.isArray(loadedGmFlow.freeFloorOptions) ? loadedGmFlow.freeFloorOptions : [],
         battleWaitActive: !!loadedGmFlow.battleWaitActive,
         pendingFinalFloorSlot: loadSlotOrPileIndex(loadedGmFlow.pendingFinalFloorSlot),
         chipOfferSlot: typeof loadedGmFlow.chipOfferSlot === "number" ? loadedGmFlow.chipOfferSlot : null,
@@ -1827,6 +1841,7 @@
         data.returnedCardMemory && typeof data.returnedCardMemory === "object" ? data.returnedCardMemory : {};
       state.cardFloorRewardGranted =
         data.cardFloorRewardGranted && typeof data.cardFloorRewardGranted === "object" ? data.cardFloorRewardGranted : {};
+      state.freeFloorCleared = data.freeFloorCleared && typeof data.freeFloorCleared === "object" ? data.freeFloorCleared : {};
     } catch (e) {
       // 壊れた状態は無視して初期状態のまま続行する
     }
@@ -1892,6 +1907,8 @@
       walk: null,
       pendingChoiceLabels: [],
       combatTriggerLabel: null,
+      abilityCheckSpec: null,
+      freeFloorOptions: [],
       battleWaitActive: false,
       pendingFinalFloorSlot: null,
       chipOfferSlot: null,
@@ -1903,6 +1920,7 @@
     state.activeThreatEffects = [];
     state.returnedCardMemory = {};
     state.cardFloorRewardGranted = {};
+    state.freeFloorCleared = {};
     localStorage.removeItem(STORAGE_KEY);
     clearUndoSnapshot();
   }
@@ -10936,6 +10954,8 @@
     addEnemyToBattle: addEnemyToBattle,
     renderPiles: renderPiles,
     grantPileFullClearRewardIfNeeded: grantPileFullClearRewardIfNeeded,
+    grantCardFullClearRewardIfNeeded: grantCardFullClearRewardIfNeeded,
+    renderCardLevel: renderCardLevel,
   };
 
   document.addEventListener("DOMContentLoaded", async function () {
@@ -11242,6 +11262,7 @@
     document.getElementById("btn-breakthrough-fail").addEventListener("click", function () {
       window.PriTestNightFloorBreakthrough.resolveBreakthroughCheck(false);
     });
+    document.getElementById("btn-ability-check-done").addEventListener("click", window.PriTestNightGmFlow.handleAbilityCheckDoneClick);
     document.getElementById("breakthrough-target-input").addEventListener("input", window.PriTestNightFloorBreakthrough.renderBreakthroughCharacters);
     document.getElementById("breakthrough-perpc-checkbox").addEventListener("change", window.PriTestNightFloorBreakthrough.renderBreakthroughCharacters);
     document.getElementById("breakthrough-stat-select").addEventListener("change", window.PriTestNightFloorBreakthrough.renderBreakthroughCharacters);

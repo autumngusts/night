@@ -2002,6 +2002,22 @@ button {
   flex: 1 1 auto;
 }
 
+.ability-check-result {
+  font-weight: 600;
+  padding: 0.15rem 0.5rem;
+  border-radius: 6px;
+}
+
+.ability-check-pass {
+  color: #1a7a34;
+  background: #e3f6e9;
+}
+
+.ability-check-fail {
+  color: #a3231f;
+  background: #fbe6e5;
+}
+
 .breakthrough-dice-wrap {
   display: inline-flex;
   align-items: center;
