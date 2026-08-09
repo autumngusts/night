@@ -942,6 +942,16 @@ button {
   padding: 0.4rem 0.55rem;
 }
 
+/* 進度版本体：上段「樓層詳細資訊」（#location-status-content）と、下段「GM對話框」
+   （#location-status-dialogue、自動化GM Phase 2）を縦に並べる縦長レイアウト。 */
+#location-status-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  min-width: 0;
+  flex: 1;
+}
+
 #location-status-content {
   display: flex;
   flex-direction: column;
@@ -949,7 +959,6 @@ button {
   font-size: 0.9rem;
   line-height: 1.4;
   min-width: 0;
-  flex: 1;
 }
 
 #location-status-content .loc-name {
@@ -969,6 +978,10 @@ button {
   display: none;
 }
 
+#location-status-overlay.collapsed #location-status-dialogue {
+  display: none;
+}
+
 #btn-location-status-toggle {
   flex-shrink: 0;
   border: none;
@@ -983,17 +996,37 @@ button {
   cursor: pointer;
 }
 
-/* 自動化GM Phase 2：進度版展開時のみ表示する右側サイドバー（[進入]/[突破]/[OK]等）。
+/* 自動化GM Phase 2：「GM對話框」——樓層詳細資訊とは分隔線で区切った下段ブロック。
+   GM敘述文（打字機）＋[進入]/[突破]/[OK]等のボタン行をまとめて収める。
    地図/盤面側には一切ボタンを追加しない——GMの操作・敘述はすべてこの進度版内で完結させる。 */
-#location-status-actions {
+#location-status-dialogue {
   display: none;
   flex-direction: column;
-  gap: 0.3rem;
-  flex-shrink: 0;
+  gap: 0.35rem;
+  padding-top: 0.4rem;
+  border-top: 1px solid rgba(54, 40, 9, 0.25);
 }
 
-#location-status-overlay:not(.collapsed) #location-status-actions.has-actions {
+#location-status-dialogue.has-dialogue {
   display: flex;
+}
+
+#location-status-narration {
+  margin: 0;
+  font-size: 0.82rem;
+  line-height: 1.45;
+  color: #362809;
+}
+
+#location-status-narration:empty {
+  display: none;
+}
+
+#location-status-actions {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  gap: 0.35rem;
 }
 
 .gm-flow-action-btn {
@@ -1018,6 +1051,33 @@ button {
   color: #f3d576;
   font-weight: 700;
   box-shadow: 0 0 0 2px rgba(54, 40, 9, 0.35);
+}
+
+/* 自動化GM Phase 2：state.gmFlow.awaitingOk中、常に点滅して「進度版に操作待ちがある」ことを
+   知らせるバッジ。折りたたみ時も見えるよう、進度版本体の左上角に重ねて固定配置する。 */
+.gm-flow-waiting-badge {
+  position: absolute;
+  top: -0.6rem;
+  left: -0.5rem;
+  background: #b3261e;
+  color: #fff;
+  font-size: 0.7rem;
+  font-weight: 700;
+  padding: 0.15rem 0.55rem;
+  border-radius: 999px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35);
+  animation: gm-flow-waiting-blink 1.1s ease-in-out infinite;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+@keyframes gm-flow-waiting-blink {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
+  }
 }
 
 /* GM敘述打字機のカーソル演出。テキストが再生中の間だけ点滅するカーソルを末尾に付ける。 */

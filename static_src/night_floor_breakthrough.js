@@ -32,11 +32,23 @@
 
   // 板塊のカード（rank・suit）から、該当する場地カードエントリーを解決する。
   // onSlotShortClickと同じ「Aのみスートで出発地点／黄金樹の帳を判別」ロジックを再利用する。
+  // index === "start"/"end"（盤外の板塊）の場合は、そのまま役割で決まる
+  // （出發地點＝a_start、終點＝a_golden。スート比較は板塊にのみ必要な曖昧さで、
+  // 起點/終點自体は役割が固定なので不要）。
   function resolveFieldEntryForSlot(index) {
+    var Fields = window.PriTestFields;
+    if (index === "start" || index === "end") {
+      if (!Fields) return null;
+      var wantPileId = index === "start" ? "a_start" : "a_golden";
+      return (
+        Fields.list().filter(function (fc) {
+          return fc.id === wantPileId;
+        })[0] || null
+      );
+    }
     var slot = window.PriTestNightCore.state.slots[index];
     if (!slot) return null;
     var card = window.PriTestNightCore.CARD_BY_CODE[slot.code];
-    var Fields = window.PriTestFields;
     if (!card || !Fields) return null;
     var matches = Fields.list().filter(function (fc) {
       return fc.cardLabel === card.rank;

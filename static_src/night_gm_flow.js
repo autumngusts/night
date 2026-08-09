@@ -122,10 +122,9 @@
   // ---- 進度版内の[進入]/[突破]/[OK]表示（第2・4項） ----
   var lastTypedNarration = null;
 
-  function renderNarrationInto(contentEl, text) {
-    var p = document.createElement("p");
-    p.className = "loc-detail gm-flow-narration";
-    contentEl.appendChild(p);
+  function renderNarrationInto(text) {
+    var p = document.getElementById("location-status-narration");
+    if (!p) return;
     if (text === lastTypedNarration) {
       p.textContent = text; // 同じ敘述の再描画（他の状態変化での再render）はアニメーションし直さない
       return;
@@ -134,17 +133,171 @@
     typewriteInto(p, text);
   }
 
+  // ---- [進入]：規則書の分岐/樓層本文（branches[].floors[].lines[]）を順に敘述する（第16項改） ----
+  // 「(→XXX)」「(→XXX)(→YYY)」のような選択肢/分岐マーカーを検出する。規則書の表記ルール
+  // （docs/scenario_flow_rules.md §4「描写・行為判定・分岐の表記ルール」）に準拠：
+  // 深さが増える「→→」等は、その先の選択肢/分岐の後に処理する内容という位置づけなので、
+  // このアプリでは「選択肢を提示→GMがクリック→続きの行を敘述」という順送りで表現する。
+  var CHOICE_MARKER_RE = /\(→([^)]+)\)/g;
+  function parseChoiceLabels(text) {
+    var labels = [];
+    var re = new RegExp(CHOICE_MARKER_RE.source, "g");
+    var m;
+    while ((m = re.exec(text))) labels.push(m[1]);
+    return labels;
+  }
+
+  function getWalkEntry(walk) {
+    return window.PriTestNightFloorBreakthrough.resolveFieldEntryForSlot(walk.slotIndex);
+  }
+
+  function getWalkFloor(walk) {
+    var entry = getWalkEntry(walk);
+    if (!entry || !entry.branches || walk.branchIndex === null) return null;
+    var branch = entry.branches[walk.branchIndex];
+    if (!branch) return null;
+    return (branch.floors || [])[walk.floorIndex] || null;
+  }
+
+  // カードの現在樓層（state.cardLevels、板塊のみ）に対応するfloorIndexを求める。
+  // 起點/終點の板塊にはcardLevelsが無いため常にfloor 0から始める。
+  function currentFloorIndexForSlot(idx) {
+    var levelVal = typeof idx === "number" ? window.PriTestNightCore.state.cardLevels[idx] : null;
+    return typeof levelVal === "number" ? levelVal : 0;
+  }
+
   function handleEnterClick() {
     var Core = window.PriTestNightCore;
     var state = Core.state;
     var idx = state.focusedIndex;
-    var card = typeof idx === "number" ? window.PriTestNightFloorBreakthrough.resolveFieldEntryForSlot(idx) : null;
-    var name = card ? window.PriTestFields.localizedText(card.name) : "";
-    state.gmFlow.narrationText = window.I18N.t("gm_flow_enter_narration", { name: name });
-    state.gmFlow.awaitingOk = true;
-    state.gmFlow.actionKind = "ok";
+    var entry = window.PriTestNightFloorBreakthrough.resolveFieldEntryForSlot(idx);
+    if (!entry || !entry.branches || !entry.branches.length) {
+      // 分岐データが無いカード（規則書データが未整備、等）は従来通りの簡易リマインドへ退避する。
+      var name = entry ? window.PriTestFields.localizedText(entry.name) : "";
+      state.gmFlow.narrationText = window.I18N.t("gm_flow_enter_narration", { name: name });
+      state.gmFlow.awaitingOk = true;
+      state.gmFlow.actionKind = "ok";
+      state.gmFlow.walk = null;
+      Core.saveState();
+      Core.renderCurrentLocationStatus();
+      return;
+    }
+    if (entry.branches.length > 1) {
+      // 複数の分岐があり、どれが今回のプレイに実際に該当するかはアプリ側で追跡していない
+      // （varianceTableの解決は規則書上の骰子・シナリオ判定が必要——docs/scenario_flow_rules.md
+      // §10で明示的に未実装と記録済み）。GMに規則書を見て選んでもらう、選択肢ボタンとして提示する。
+      state.gmFlow.walk = { slotIndex: idx, branchIndex: null, floorIndex: currentFloorIndexForSlot(idx), lineIndex: 0 };
+      state.gmFlow.narrationText = window.I18N.t("gm_flow_pick_branch_narration", {
+        name: window.PriTestFields.localizedText(entry.name),
+      });
+      state.gmFlow.awaitingOk = true;
+      state.gmFlow.actionKind = "branchChoice";
+      Core.saveState();
+      Core.renderCurrentLocationStatus();
+      return;
+    }
+    state.gmFlow.walk = { slotIndex: idx, branchIndex: 0, floorIndex: currentFloorIndexForSlot(idx), lineIndex: 0 };
+    advanceFieldWalk();
+  }
+
+  function handleBranchChoiceClick(branchIndex) {
+    var state = window.PriTestNightCore.state;
+    var walk = state.gmFlow.walk;
+    if (!walk) return;
+    walk.branchIndex = branchIndex;
+    walk.floorIndex = currentFloorIndexForSlot(walk.slotIndex);
+    walk.lineIndex = 0;
+    advanceFieldWalk();
+  }
+
+  // 現在のwalk位置から、次の(→X)選択肢が現れるまで（または樓層の本文が尽きるまで）行を
+  // 連結して1ブロックとして敘述する。選択肢が見つかればそこで停止してボタンを提示し、
+  // 見つからなければ樓層本文の終わりとして[OK]（または獎勵があれば領取ボタン）に戻す。
+  // 注意：複数の分岐選択肢がある行に遭遇しても、どの選択肢が実際にどの後続行に対応するかは
+  // データ上グループ化されていない（規則書原文がそもそもそういう構造）ため、選択後もそのまま
+  // 樓層本文の続きを順番に敘述する——選ばなかった側の説明文が混ざって出ることがあり得るが、
+  // 数値やルールを捏造するわけではなく規則書本文そのものなので、GMが読んで取捨選択すればよい
+  // という前提（docs/enemy_damage_rules.md系のGMディスクレション哲学に合わせる）。
+  function advanceFieldWalk() {
+    var Core = window.PriTestNightCore;
+    var state = Core.state;
+    var walk = state.gmFlow.walk;
+    var Fields = window.PriTestFields;
+    var floor = walk ? getWalkFloor(walk) : null;
+    if (!walk || !floor) {
+      finishFieldWalk();
+      return;
+    }
+    var lines = floor.lines || [];
+    var blockParts = [];
+    var choiceLabels = [];
+    var i = walk.lineIndex;
+    for (; i < lines.length; i++) {
+      var line = lines[i];
+      var lineText = Fields.localizedText(line.text);
+      var prefix = line.label ? Fields.localizedText(line.label) + window.I18N.t("colon_separator") : "";
+      var indent = line.depth ? new Array(line.depth + 1).join("　") : "";
+      blockParts.push(indent + prefix + lineText);
+      var labels = parseChoiceLabels(lineText);
+      if (labels.length) {
+        choiceLabels = labels;
+        i++; // 次回はこの行の次から再開
+        break;
+      }
+    }
+    walk.lineIndex = i;
+    var blockText = blockParts.join("\n");
+    if (choiceLabels.length) {
+      state.gmFlow.narrationText = blockText;
+      state.gmFlow.pendingChoiceLabels = choiceLabels;
+      state.gmFlow.awaitingOk = true;
+      state.gmFlow.actionKind = "lineChoice";
+    } else {
+      finishFieldWalk(blockText, floor);
+    }
     Core.saveState();
     Core.renderCurrentLocationStatus();
+  }
+
+  function handleLineChoiceClick(label) {
+    var Core = window.PriTestNightCore;
+    var state = Core.state;
+    Core.state.turnMessages.push({ text: window.I18N.t("gm_flow_choice_picked_log", { label: label }), time: Date.now(), side: "gm" });
+    state.gmFlow.pendingChoiceLabels = [];
+    advanceFieldWalk();
+  }
+
+  // 樓層本文が尽きた（または分岐データが解決できなかった）ときの締めくくり。
+  // floorにreward（fields.jsの構造化獎勵データ）があれば[領取獎勵]ボタンも合わせて出す。
+  function finishFieldWalk(blockText, floor) {
+    var Core = window.PriTestNightCore;
+    var state = Core.state;
+    var FloorBreakthrough = window.PriTestNightFloorBreakthrough;
+    var hasReward = !!(floor && FloorBreakthrough.floorHasAnyReward && FloorBreakthrough.floorHasAnyReward(floor));
+    state.gmFlow.narrationText = blockText || window.I18N.t("gm_flow_walk_end_narration");
+    state.gmFlow.awaitingOk = true;
+    state.gmFlow.pendingChoiceLabels = [];
+    state.gmFlow.walk = null;
+    if (hasReward) {
+      state.gmFlow.actionKind = "floorEnd";
+      pendingFloorEndFloor = floor;
+    } else {
+      state.gmFlow.actionKind = "ok";
+      pendingFloorEndFloor = null;
+    }
+  }
+
+  // finishFieldWalkが検出したfloor.reward情報は、モーダルを開くのに実物のfloorオブジェクトの
+  // 参照が要る（openFloorRewardModalはfloor自体を引数に取る）ため、stateに直列化保存せず
+  // モジュール内変数として持つ（devicecrossの同期は不要——[領取獎勵]は押した端末で
+  // 既存の獎勵モーダルを開くだけの操作で、既存の獎勵システム自体は元々cross-device同期済み）。
+  var pendingFloorEndFloor = null;
+
+  function handleFloorEndRewardClick() {
+    if (pendingFloorEndFloor) window.PriTestNightFloorBreakthrough.openFloorRewardModal(pendingFloorEndFloor);
+    clearGmFlowGate();
+    window.PriTestNightCore.saveState();
+    window.PriTestNightCore.renderCurrentLocationStatus();
   }
 
   // 第15項：全樓層踏破時、grantCardFullClearRewardIfNeeded（night.js）から呼ばれる。
@@ -161,7 +314,7 @@
 
   function handleBreakthroughClick() {
     var idx = window.PriTestNightCore.state.focusedIndex;
-    if (typeof idx !== "number") return;
+    if (idx === null || idx === undefined) return;
     window.PriTestNightFloorBreakthrough.openBreakthroughModal(idx);
   }
 
@@ -189,6 +342,9 @@
     state.gmFlow.awaitingOk = false;
     state.gmFlow.narrationText = null;
     state.gmFlow.actionKind = "ok";
+    state.gmFlow.walk = null;
+    state.gmFlow.pendingChoiceLabels = [];
+    pendingFloorEndFloor = null;
     lastTypedNarration = null;
   }
 
@@ -268,75 +424,96 @@
     Core.openBattleDrawer();
   }
 
-  // night.js側のrenderCurrentLocationStatus()から、#location-status-contentを組み立てた直後に
-  // 呼ばれる。敘述文（あれば）をcontentEl末尾に追記し、#location-status-actionsに
-  // [進入]/[突破]、または[OK]/[進入下一晚][稍後]/[開啟夜王戰鬥]のいずれかを描画する。
-  // cardはnull（開場敘述中など）でもよい。
-  function renderLocationBanner(contentEl, idx, card) {
+  // night.js側のrenderCurrentLocationStatus()から、#location-status-content（樓層詳細資訊）を
+  // 組み立てた直後に呼ばれる。進度版下段の「GM對話框」（#location-status-dialogue、分隔線で
+  // 樓層詳細資訊と区切る）に、敘述文（あれば、#location-status-narration）と、
+  // [進入]/[突破]、または[OK]/[進入下一晚][稍後]/[開啟夜王戰鬥]のいずれかのボタン
+  // （#location-status-actions）を描画する。cardはnull（開場敘述中など）でもよい。
+  function renderLocationBanner(idx, card) {
     var Core = window.PriTestNightCore;
     var state = Core.state;
+    var dialogueEl = document.getElementById("location-status-dialogue");
+    var narrationEl = document.getElementById("location-status-narration");
     var actionsEl = document.getElementById("location-status-actions");
-    if (!actionsEl) return;
+    var waitingBadge = document.getElementById("gm-flow-waiting-badge");
+    if (!dialogueEl || !narrationEl || !actionsEl) return;
     if (!state.gmFlowEnabled) {
-      actionsEl.classList.remove("has-actions");
+      dialogueEl.classList.remove("has-dialogue");
+      narrationEl.textContent = "";
       actionsEl.innerHTML = "";
       lastTypedNarration = null;
+      if (waitingBadge) waitingBadge.hidden = true;
       return;
     }
     maybeAnnounceFinalDay(); // stateを直接書き換えるだけ（自身はrenderを呼ばない、再帰防止）
-    actionsEl.classList.add("has-actions");
+    dialogueEl.classList.add("has-dialogue");
     actionsEl.innerHTML = "";
+    // [GM等待中]バッジ：折りたたみ時も見えるようにoverlay直下に置いているため、collapsedの
+    // 状態に関わらずawaitingOk中は常に点滅させる（＝GMが進度版を開いて対応する必要がある合図）。
+    if (waitingBadge) waitingBadge.hidden = !state.gmFlow.awaitingOk;
 
     if (state.gmFlow.awaitingOk) {
-      renderNarrationInto(contentEl, state.gmFlow.narrationText || "");
+      renderNarrationInto(state.gmFlow.narrationText || "");
       if (state.gmFlow.actionKind === "nightAdvance") {
-        var advanceBtn = document.createElement("button");
-        advanceBtn.type = "button";
-        advanceBtn.className = "gm-flow-action-btn";
-        advanceBtn.textContent = window.I18N.t("gm_flow_advance_night_button");
-        advanceBtn.addEventListener("click", handleAdvanceNightClick);
-        actionsEl.appendChild(advanceBtn);
-
-        var laterBtn = document.createElement("button");
-        laterBtn.type = "button";
-        laterBtn.className = "gm-flow-action-btn";
-        laterBtn.textContent = window.I18N.t("gm_flow_dismiss_button");
-        laterBtn.addEventListener("click", handleDismissNarrationClick);
-        actionsEl.appendChild(laterBtn);
+        addActionButton(actionsEl, "gm_flow_advance_night_button", handleAdvanceNightClick);
+        addActionButton(actionsEl, "gm_flow_dismiss_button", handleDismissNarrationClick);
       } else if (state.gmFlow.actionKind === "finalDayBattle") {
-        var battleBtn = document.createElement("button");
-        battleBtn.type = "button";
-        battleBtn.className = "gm-flow-action-btn";
-        battleBtn.textContent = window.I18N.t("gm_flow_open_final_battle_button");
-        battleBtn.addEventListener("click", handleOpenFinalBattleClick);
-        actionsEl.appendChild(battleBtn);
+        addActionButton(actionsEl, "gm_flow_open_final_battle_button", handleOpenFinalBattleClick);
+      } else if (state.gmFlow.actionKind === "branchChoice") {
+        // どの分岐がこのプレイに該当するかはアプリ側で判定できないため、規則書を見たGMに
+        // 選んでもらう——分岐名そのものをボタンラベルにする（(→X)選択肢と同じUIパターン）。
+        var walk = state.gmFlow.walk;
+        var entry = walk ? getWalkEntry(walk) : null;
+        (entry && entry.branches ? entry.branches : []).forEach(function (branch, bi) {
+          var btn = document.createElement("button");
+          btn.type = "button";
+          btn.className = "gm-flow-action-btn";
+          btn.textContent = window.PriTestFields.localizedText(branch.name);
+          btn.addEventListener("click", function () {
+            handleBranchChoiceClick(bi);
+          });
+          actionsEl.appendChild(btn);
+        });
+      } else if (state.gmFlow.actionKind === "lineChoice") {
+        (state.gmFlow.pendingChoiceLabels || []).forEach(function (label) {
+          var btn = document.createElement("button");
+          btn.type = "button";
+          btn.className = "gm-flow-action-btn";
+          btn.textContent = label;
+          btn.addEventListener("click", function () {
+            handleLineChoiceClick(label);
+          });
+          actionsEl.appendChild(btn);
+        });
+      } else if (state.gmFlow.actionKind === "floorEnd") {
+        addActionButton(actionsEl, "gm_flow_claim_reward_button", handleFloorEndRewardClick);
+        addActionButton(actionsEl, "gm_flow_ok_button", handleGmFlowOk);
       } else {
-        var okBtn = document.createElement("button");
-        okBtn.type = "button";
-        okBtn.className = "gm-flow-action-btn";
-        okBtn.textContent = window.I18N.t("gm_flow_ok_button");
-        okBtn.addEventListener("click", handleGmFlowOk);
-        actionsEl.appendChild(okBtn);
+        addActionButton(actionsEl, "gm_flow_ok_button", handleGmFlowOk);
       }
       return;
     }
 
     lastTypedNarration = null;
-    if (!card) return; // 樓層にフォーカスしていない間は[進入]/[突破]を出さない
+    narrationEl.textContent = "";
+    stopTypewriter(narrationEl);
+    if (!card) {
+      dialogueEl.classList.remove("has-dialogue"); // 敘述もボタンも出せることが無ければ分隔線ごと隠す
+      return;
+    }
 
-    var enterBtn = document.createElement("button");
-    enterBtn.type = "button";
-    enterBtn.className = "gm-flow-action-btn";
-    enterBtn.textContent = window.I18N.t("gm_flow_enter_button");
-    enterBtn.addEventListener("click", handleEnterClick);
-    actionsEl.appendChild(enterBtn);
+    addActionButton(actionsEl, "gm_flow_enter_button", handleEnterClick);
+    addActionButton(actionsEl, "gm_flow_breakthrough_button", handleBreakthroughClick);
+  }
 
-    var breakBtn = document.createElement("button");
-    breakBtn.type = "button";
-    breakBtn.className = "gm-flow-action-btn";
-    breakBtn.textContent = window.I18N.t("gm_flow_breakthrough_button");
-    breakBtn.addEventListener("click", handleBreakthroughClick);
-    actionsEl.appendChild(breakBtn);
+  function addActionButton(actionsEl, labelKey, onClick) {
+    var btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "gm-flow-action-btn";
+    btn.textContent = window.I18N.t(labelKey);
+    btn.addEventListener("click", onClick);
+    actionsEl.appendChild(btn);
+    return btn;
   }
 
   window.PriTestNightGmFlow = {

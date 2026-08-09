@@ -171,8 +171,14 @@ BODY = """    <div class="night-header-row">
         <button type="button" class="info-btn broadcast-btn" id="btn-time-loss-broadcast" aria-label="broadcast threat effects">&#128227;</button>
       </div>
       <div id="location-status-overlay" hidden>
-        <div id="location-status-content"></div>
-        <div id="location-status-actions"></div>
+        <span id="gm-flow-waiting-badge" class="gm-flow-waiting-badge" hidden data-i18n="gm_flow_waiting_badge"></span>
+        <div id="location-status-body">
+          <div id="location-status-content"></div>
+          <div id="location-status-dialogue">
+            <p id="location-status-narration" class="gm-flow-narration"></p>
+            <div id="location-status-actions"></div>
+          </div>
+        </div>
         <button type="button" id="btn-location-status-toggle" aria-label="toggle floor banner"></button>
       </div>
       <div id="top-banner-stack">

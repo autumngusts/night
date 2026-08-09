@@ -780,10 +780,16 @@
     gmFlow: {
       narrationText: null, // 進度版に現在表示中のGM敘述文（打字機再生中/再生済み）。null=敘述なし（通常の[進入]/[突破]ボタン表示）
       awaitingOk: false, // trueの間は進度版に[OK]だけを表示し、[進入]/[突破]を隠す
-      actionKind: "ok", // awaitingOk中に出すボタンの種類："ok"(単一[OK])|"nightAdvance"([進入下一晚]/[稍後])|"finalDayBattle"([開啟夜王戰鬥])
+      // awaitingOk中に出すボタンの種類："ok"(単一[OK])|"nightAdvance"([進入下一晚]/[稍後])|
+      // "finalDayBattle"([開啟夜王戰鬥])|"branchChoice"(分岐選択ボタン群)|"lineChoice"((→X)選択ボタン群)
+      actionKind: "ok",
       pendingRewardWindows: [], // 縮小されたが未領取/未關閉の獎勵視窗id一覧。空でない間は[OK]を押しても再度リマインドする
       openingPlayed: false, // 夜の王の〔開場〕をこのゲームで再生済みか（二重再生防止）
       finalDayAnnounced: false, // 3日目到達のアナウンスをこのゲームで再生済みか（二重再生防止）
+      // 場地カードの規則書テキスト（branches[].floors[].lines[]）を順番に敘述していく進行状況。
+      // null＝敘述walkthrough中ではない。
+      walk: null, // { slotIndex, branchIndex(nullなら分岐未選択), floorIndex, lineIndex }
+      pendingChoiceLabels: [], // actionKind==="lineChoice"のときに提示する(→X)ラベルの配列
     },
     // GMが開いて縮小した抽選ウィンドウを全端末で共有するための領域。null=未使用。
     // 中身はcharacter_drawer.jsのweaponRollState/talismanRollState/consumableRollState、
@@ -1736,13 +1742,32 @@
       state.autoGmLog = Array.isArray(data.autoGmLog) ? data.autoGmLog : [];
       state.gmFlowEnabled = typeof data.gmFlowEnabled === "boolean" ? data.gmFlowEnabled : false;
       var loadedGmFlow = data.gmFlow && typeof data.gmFlow === "object" ? data.gmFlow : {};
+      var loadedWalk =
+        loadedGmFlow.walk && typeof loadedGmFlow.walk === "object"
+          ? {
+              slotIndex:
+                typeof loadedGmFlow.walk.slotIndex === "number" ||
+                loadedGmFlow.walk.slotIndex === "start" ||
+                loadedGmFlow.walk.slotIndex === "end"
+                  ? loadedGmFlow.walk.slotIndex
+                  : null,
+              branchIndex: typeof loadedGmFlow.walk.branchIndex === "number" ? loadedGmFlow.walk.branchIndex : null,
+              floorIndex: typeof loadedGmFlow.walk.floorIndex === "number" ? loadedGmFlow.walk.floorIndex : 0,
+              lineIndex: typeof loadedGmFlow.walk.lineIndex === "number" ? loadedGmFlow.walk.lineIndex : 0,
+            }
+          : null;
       state.gmFlow = {
         narrationText: typeof loadedGmFlow.narrationText === "string" ? loadedGmFlow.narrationText : null,
         awaitingOk: !!loadedGmFlow.awaitingOk,
-        actionKind: ["ok", "nightAdvance", "finalDayBattle"].indexOf(loadedGmFlow.actionKind) !== -1 ? loadedGmFlow.actionKind : "ok",
+        actionKind:
+          ["ok", "nightAdvance", "finalDayBattle", "branchChoice", "lineChoice"].indexOf(loadedGmFlow.actionKind) !== -1
+            ? loadedGmFlow.actionKind
+            : "ok",
         pendingRewardWindows: Array.isArray(loadedGmFlow.pendingRewardWindows) ? loadedGmFlow.pendingRewardWindows : [],
         openingPlayed: !!loadedGmFlow.openingPlayed,
         finalDayAnnounced: !!loadedGmFlow.finalDayAnnounced,
+        walk: loadedWalk,
+        pendingChoiceLabels: Array.isArray(loadedGmFlow.pendingChoiceLabels) ? loadedGmFlow.pendingChoiceLabels : [],
       };
       var loadedDraws = data.activeDraws && typeof data.activeDraws === "object" ? data.activeDraws : {};
       state.activeDraws = {
@@ -1817,6 +1842,8 @@
       pendingRewardWindows: [],
       openingPlayed: false,
       finalDayAnnounced: false,
+      walk: null,
+      pendingChoiceLabels: [],
     };
     state.activeDraws = { potentialPower: null, weapon: null, talisman: null, consumable: null };
     state.activeThreatEffects = [];
@@ -9480,13 +9507,35 @@
     renderCurrentLocationStatus();
   }
 
+  // 板塊の場地カードの「真正該劇本の名稱」を解決する。scenario.day1/day2に記録されている
+  // 実際の表示名（例：「大野營地（1）」——同じrankでもスート違いで内容が変わるため、
+  // fields.jsの汎用参考データの名前より優先する）。renderSlotEffect()と同じ
+  // dayKey/otherDayKeyフォールバックパターンを踏襲する。scenarioが無い、または該当が
+  // 見つからない場合（起點／終點の板塊など、day1/day2に登録が無い位置を含む）はnullを返し、
+  // 呼び出し側でfields.jsの汎用名にフォールバックする。
+  function resolveScenarioTrueName(idx) {
+    if (!scenario || typeof idx !== "number") return null;
+    var slot = state.slots[idx];
+    if (!slot) return null;
+    var slotCard = CARD_BY_CODE[slot.code];
+    if (!slotCard) return null;
+    var dayKey = isSwappedDay() ? "day2" : "day1";
+    var otherDayKey = dayKey === "day2" ? "day1" : "day2";
+    var effect =
+      Scenarios.findCardEffect(game.scenarioId, dayKey, slotCard.suit, slotCard.rank) ||
+      Scenarios.findCardEffect(game.scenarioId, otherDayKey, slotCard.suit, slotCard.rank);
+    return effect ? Scenarios.localizedName(effect.name) : null;
+  }
+
   function renderCurrentLocationStatus() {
     var overlay = document.getElementById("location-status-overlay");
     var content = document.getElementById("location-status-content");
     var toggleBtn = document.getElementById("btn-location-status-toggle");
     if (!overlay || !content) return;
     var idx = state.focusedIndex;
-    var card = typeof idx === "number" ? window.PriTestNightFloorBreakthrough.resolveFieldEntryForSlot(idx) : null;
+    // resolveFieldEntryForSlotはidxが数値の板塊に加え、"start"/"end"（出發地點／終點の板塊）も
+    // 解決できる——出發地點にも樓層描写・突破判定があるため、進度版にも表示・操作対象にする。
+    var card = window.PriTestNightFloorBreakthrough.resolveFieldEntryForSlot(idx);
     // 自動化GM Phase 2：ゲーム開始直後の〔開場〕敘述は、まだどの樓層にもフォーカスしていない
     // （card===null）段階で表示する必要があるため、awaitingOk中はcardが無くてもバナーを出す。
     var showForGmFlow = state.gmFlowEnabled && state.gmFlow.awaitingOk;
@@ -9501,11 +9550,18 @@
     }
     content.innerHTML = "";
     if (card) {
-      var levelVal = state.cardLevels[idx];
-      var levelText = levelVal === null || levelVal === undefined ? window.I18N.t("level_all") : String(levelVal);
+      var trueName = resolveScenarioTrueName(idx);
+      var displayName = trueName || window.PriTestFields.localizedText(card.name);
       var nameSpan = document.createElement("span");
       nameSpan.className = "loc-name";
-      nameSpan.textContent = window.PriTestFields.localizedText(card.name) + "(" + levelText + ")";
+      if (typeof idx === "number") {
+        var levelVal = state.cardLevels[idx];
+        var levelText = levelVal === null || levelVal === undefined ? window.I18N.t("level_all") : String(levelVal);
+        nameSpan.textContent = displayName + "(" + levelText + ")";
+      } else {
+        // 起點／終點の板塊にはcardLevels（樓層踏破の段階）の概念自体が無いため、名前のみ表示する。
+        nameSpan.textContent = displayName;
+      }
       content.appendChild(nameSpan);
       if (card.floorCount != null || card.allFloorEffect) {
         var detailParts = [];
@@ -9524,7 +9580,7 @@
       }
     }
     if (window.PriTestNightGmFlow) {
-      window.PriTestNightGmFlow.renderLocationBanner(content, idx, card);
+      window.PriTestNightGmFlow.renderLocationBanner(idx, card);
     }
     overlay.hidden = false;
   }
