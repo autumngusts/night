@@ -1047,19 +1047,33 @@
     { ja: "呪死", zh: "呪死" },
   ];
 
+  // "boss|<bossId>"キー（night_boss_rulebook.jsのBOSSES[].idと一致）かどうかを判定する。
+  // auto_gm.js側のisBossKeyと同じ接頭辞規約。
+  function isBossAttackKey(key) {
+    return String(key || "").indexOf("boss|") === 0;
+  }
+
   // state.battle.selectedEnemyIds（"familyId|enemyId|level"）を、目標選択UIやパネル表示に使う
-  // {key, name}の配列へ解決する。
+  // {key, name}の配列へ解決する。加えて、第三夜以降で夜の王が設定済みなら、常に選択肢の末尾へ
+  // 追加する（夜の王は「編隊に追加」フロー＝selectedEnemyIdsを経由しないため、
+  // renderAutoGmRollRowと同じ「別枠で常に追加」パターンをここでも踏襲する。ユーザー確認済み：
+  // 攻撃対象・耐性判定を夜の王にも効かせる）。
   function resolveSelectedEnemyOptions() {
     var Enemies = window.PriTestEnemies;
     if (!Enemies) return [];
     var T = Enemies.localizedText;
-    return ((state.battle && state.battle.selectedEnemyIds) || [])
+    var options = ((state.battle && state.battle.selectedEnemyIds) || [])
       .map(function (key) {
         var parts = key.split("|");
         var info = Enemies.get(parts[0], parts[1]);
         return info ? { key: key, name: T(info.enemy.name) + "（Lv." + parts[2] + "）" } : null;
       })
       .filter(Boolean);
+    if (game && game.night3BossId && state.dayNumber >= 3 && window.PriTestBossRulebook) {
+      var bossInfo = window.PriTestBossRulebook.get(game.night3BossId);
+      if (bossInfo) options.push({ key: "boss|" + game.night3BossId, name: T(bossInfo.name) });
+    }
+    return options;
   }
 
   // ============================================================
@@ -1087,14 +1101,22 @@
   }
 
   // 敵人の「special」欄からextractWeaknessで取り出した弱點文字列（例:"炎＆猛毒"）を
-  // 屬性/異常名の配列へ分割する。
+  // 屬性/異常名の配列へ分割する。夜の王（"boss|"キー）は弱點が独立フィールド（例:"聖"、
+  // "竜※④、猛毒"）のためextractWeaknessを介さず直接読む。
   function enemyWeaknessLabels(enemyKey) {
     var Enemies = window.PriTestEnemies;
     if (!Enemies || !enemyKey) return [];
-    var parts = enemyKey.split("|");
-    var info = Enemies.get(parts[0], parts[1]);
-    if (!info) return [];
-    var weakness = extractWeakness(info.enemy.special, Enemies.localizedText);
+    var weakness;
+    if (isBossAttackKey(enemyKey)) {
+      var bossInfo = window.PriTestBossRulebook ? window.PriTestBossRulebook.get(enemyKey.slice(5)) : null;
+      if (!bossInfo) return [];
+      weakness = Enemies.localizedText(bossInfo.weakness);
+    } else {
+      var parts = enemyKey.split("|");
+      var info = Enemies.get(parts[0], parts[1]);
+      if (!info) return [];
+      weakness = extractWeakness(info.enemy.special, Enemies.localizedText);
+    }
     if (!weakness) return [];
     return weakness.split(/[＆、,]/).map(function (s) {
       return s.trim();
@@ -1103,16 +1125,22 @@
 
   // 敵人カード本体の「resistance」欄（例:"猛毒・腐敗・出血・凍傷・発狂"）を屬性/異常名の配列へ
   // 分割する。弱點欄（special内の埋め込みテキスト）とは別の独立フィールドで、区切り文字も
-  // 「・」中心（弱點側は「＆」中心）のため別関数にする。夜の王（"boss|"キー）は現状、攻撃対象
-  // 選択（resolveSelectedEnemyOptions）に含まれておらずこの経路に到達しないため未対応
-  // （対応する場合はwindow.PriTestBossRulebook.get(bossId).resistanceを同様に読む）。
+  // 「・」中心（弱點側は「＆」中心）のため別関数にする。夜の王（"boss|"キー）はresistanceが
+  // トップレベルの独立フィールド（区切りは「、」）のため同様に対応する。
   function enemyResistanceLabels(enemyKey) {
     var Enemies = window.PriTestEnemies;
     if (!Enemies || !enemyKey) return [];
-    var parts = enemyKey.split("|");
-    var info = Enemies.get(parts[0], parts[1]);
-    if (!info || !info.enemy.resistance) return [];
-    var text = Enemies.localizedText(info.enemy.resistance);
+    var text;
+    if (isBossAttackKey(enemyKey)) {
+      var bossInfo = window.PriTestBossRulebook ? window.PriTestBossRulebook.get(enemyKey.slice(5)) : null;
+      if (!bossInfo || !bossInfo.resistance) return [];
+      text = Enemies.localizedText(bossInfo.resistance);
+    } else {
+      var parts = enemyKey.split("|");
+      var info = Enemies.get(parts[0], parts[1]);
+      if (!info || !info.enemy.resistance) return [];
+      text = Enemies.localizedText(info.enemy.resistance);
+    }
     return text.split(/[・＆、,]/).map(function (s) {
       return s.trim();
     }).filter(Boolean);
@@ -1135,6 +1163,10 @@
   function enemyDisplayNameForKey(enemyKey) {
     var Enemies = window.PriTestEnemies;
     if (!Enemies) return enemyKey;
+    if (isBossAttackKey(enemyKey)) {
+      var bossInfo = window.PriTestBossRulebook ? window.PriTestBossRulebook.get(enemyKey.slice(5)) : null;
+      return bossInfo ? Enemies.localizedText(bossInfo.name) : enemyKey;
+    }
     var parts = enemyKey.split("|");
     var info = Enemies.get(parts[0], parts[1]);
     return info ? Enemies.localizedText(info.enemy.name) + "（Lv." + parts[2] + "）" : enemyKey;
