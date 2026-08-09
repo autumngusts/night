@@ -782,19 +782,24 @@
       awaitingOk: false, // trueの間は進度版に[OK]だけを表示し、[進入]/[突破]を隠す
       // awaitingOk中に出すボタンの種類："ok"(単一[OK])|"nightAdvance"([進入下一晚]/[稍後])|
       // "finalDayBattle"([開啟夜王戰鬥])|"branchChoice"(分岐選択ボタン群)|"lineChoice"((→X)選択ボタン群)|
-      // "zakoBattle"([雜兵戰鬥]、第17項)|"battleWait"(戦闘解決待ち、ボタンなし、第17項)
+      // "combatTrigger"([雜兵戰鬥]/[王戰]、第17・18項)|"battleWait"(戦闘解決待ち、ボタンなし、第17・18項)
       actionKind: "ok",
-      pendingRewardWindows: [], // 縮小されたが未領取/未關閉の獎勵視窗id一覧。空でない間は[OK]を押しても再度リマインドする
+      pendingRewardWindows: [], // 縮小されたが未領取/未關閉の獎勵視窗id一覧。空でない間は[獲得完]を押しても再度リマインドする
       openingPlayed: false, // 夜の王の〔開場〕をこのゲームで再生済みか（二重再生防止）
       finalDayAnnounced: false, // 3日目到達のアナウンスをこのゲームで再生済みか（二重再生防止）
       // 場地カードの規則書テキスト（branches[].floors[].lines[]）を順番に敘述していく進行状況。
       // null＝敘述walkthrough中ではない。
-      walk: null, // { slotIndex, branchIndex(nullなら分岐未選択), floorIndex, lineIndex, battleWaitAdvancedCardLevel }
+      walk: null, // { slotIndex, branchIndex(nullなら分岐未選択), floorIndex, lineIndex }
       pendingChoiceLabels: [], // actionKind==="lineChoice"のときに提示する(→X)ラベルの配列
-      // actionKind==="battleWait"の間、trueなら「walk.slotIndexのcardLevelsが
-      // battleWaitCardLevelから変化した瞬間」に自動で敘述の続きへ進める（「雜兵戰鬥」ボタン後）。
+      combatTriggerLabel: null, // actionKind==="combatTrigger"のときのボタン文言（「雜兵戰鬥」／「王戰」、トリガー行の文言そのもの）
+      // actionKind==="battleWait"の間trueなら、エネミーの全HP行が0になった瞬間
+      // （night.jsのsetActionPhase、combatEndオプション経由）に自動で敘述の続きへ進める。
       battleWaitActive: false,
-      battleWaitCardLevel: null, // battleWaitActive中に監視するstate.cardLevels[walk.slotIndex]のスナップショット
+      // finishFieldWalkが「この＋1でカードの実在する樓層を全踏破した（cardLevels===floorCount）」
+      // と検出した対象slotIndex（数値）。この樓層の獎勵ゲートをGMが領取し終える
+      // （closeGmFlowGateAndConsumePendingAdvance）まで、続けて「全」へ進めるのを遅延させておく
+      // ためのポインタ。null＝該当なし。
+      pendingFinalFloorSlot: null,
     },
     // GMが開いて縮小した抽選ウィンドウを全端末で共有するための領域。null=未使用。
     // 中身はcharacter_drawer.jsのweaponRollState/talismanRollState/consumableRollState、
@@ -1759,16 +1764,13 @@
               branchIndex: typeof loadedGmFlow.walk.branchIndex === "number" ? loadedGmFlow.walk.branchIndex : null,
               floorIndex: typeof loadedGmFlow.walk.floorIndex === "number" ? loadedGmFlow.walk.floorIndex : 0,
               lineIndex: typeof loadedGmFlow.walk.lineIndex === "number" ? loadedGmFlow.walk.lineIndex : 0,
-              // 雜兵戰鬥の戦闘待ち中にGMの手動＋で既にこの樓層分のカウンターを進めたか
-              // （finishFieldWalkの自動＋1との二重加算防止、night_gm_flow.js参照）。
-              battleWaitAdvancedCardLevel: !!loadedGmFlow.walk.battleWaitAdvancedCardLevel,
             }
           : null;
       state.gmFlow = {
         narrationText: typeof loadedGmFlow.narrationText === "string" ? loadedGmFlow.narrationText : null,
         awaitingOk: !!loadedGmFlow.awaitingOk,
         actionKind:
-          ["ok", "nightAdvance", "finalDayBattle", "branchChoice", "lineChoice", "zakoBattle", "battleWait"].indexOf(
+          ["ok", "nightAdvance", "finalDayBattle", "branchChoice", "lineChoice", "combatTrigger", "battleWait"].indexOf(
             loadedGmFlow.actionKind
           ) !== -1
             ? loadedGmFlow.actionKind
@@ -1778,8 +1780,9 @@
         finalDayAnnounced: !!loadedGmFlow.finalDayAnnounced,
         walk: loadedWalk,
         pendingChoiceLabels: Array.isArray(loadedGmFlow.pendingChoiceLabels) ? loadedGmFlow.pendingChoiceLabels : [],
+        combatTriggerLabel: typeof loadedGmFlow.combatTriggerLabel === "string" ? loadedGmFlow.combatTriggerLabel : null,
         battleWaitActive: !!loadedGmFlow.battleWaitActive,
-        battleWaitCardLevel: typeof loadedGmFlow.battleWaitCardLevel === "number" ? loadedGmFlow.battleWaitCardLevel : null,
+        pendingFinalFloorSlot: typeof loadedGmFlow.pendingFinalFloorSlot === "number" ? loadedGmFlow.pendingFinalFloorSlot : null,
       };
       var loadedDraws = data.activeDraws && typeof data.activeDraws === "object" ? data.activeDraws : {};
       state.activeDraws = {
@@ -1856,8 +1859,9 @@
       finalDayAnnounced: false,
       walk: null,
       pendingChoiceLabels: [],
+      combatTriggerLabel: null,
       battleWaitActive: false,
-      battleWaitCardLevel: null,
+      pendingFinalFloorSlot: null,
     };
     state.activeDraws = { potentialPower: null, weapon: null, talisman: null, consumable: null };
     state.activeThreatEffects = [];
@@ -8710,6 +8714,13 @@
       state.battle.attributeStatus = defaultBattleState().attributeStatus;
       state.battle.enemyDmgOverride = {};
       addLog("log_battle_combat_end");
+      // 自動化GM Phase 2［戰鬥機制］：樓層敘述中の「雜兵戰鬥／王戰」ボタンから開始した戦闘が
+      // ここで終結を検出された場合（state.gmFlow.battleWaitActive）、GMの手動操作なしで
+      // ［戰鬥結束］＝規則書敘述の続きへ自動的に進める。無関係の戦闘（樓層敘述と無関係にGMが
+      // 手動編成した戦闘等）ならnotifyCombatEnded側で無視される。
+      if (window.PriTestNightGmFlow && window.PriTestNightGmFlow.notifyCombatEnded) {
+        window.PriTestNightGmFlow.notifyCombatEnded();
+      }
     } else {
       addLog("log_action_phase_change", { phase: window.I18N.t("action_phase_" + phase) });
     }
@@ -9780,11 +9791,6 @@
     renderCardLevel(index);
     if (state.focusedIndex === index) renderDayStatus();
     saveState();
-    // 自動化GM Phase 2「雜兵戰鬥」ボタン後の待機状態（state.gmFlow.battleWaitActive）：
-    // このカードの樓層数値が変化した瞬間、規則書敘述の続きへ自動的に進める。
-    if (window.PriTestNightGmFlow && window.PriTestNightGmFlow.notifyCardLevelChanged) {
-      window.PriTestNightGmFlow.notifyCardLevelChanged(index);
-    }
     if (nextValue === null) grantCardFullClearRewardIfNeeded(index);
   }
 
@@ -9809,27 +9815,34 @@
     if (!state.cardFloorRewardGranted) state.cardFloorRewardGranted = {};
     if (state.cardFloorRewardGranted[index] === slot.code) return;
     var card = window.PriTestNightFloorBreakthrough.resolveFieldEntryForSlot(index);
-    if (!card || !card.allFloorEffect) return;
-    var effectText = window.PriTestFields.localizedText(card.allFloorEffect);
-    var runeAmount = parseAllFloorEffectAmount(effectText, ["盧恩", "ルーン"]);
-    var timeLossAmount = parseAllFloorEffectAmount(effectText, ["時間損耗", "タイムロス"]);
+    if (!card) return;
+    // 自動化GM Phase 2第18項：「この＋1でカードの実在する全樓層を踏破した」こと自体は
+    // allFloorEffectの有無にかかわらず必ずGM敘述する（続く［地圖移動］案内のため）。
+    // 実際のルーン／タイムロス自動付与だけはallFloorEffectがあるカードに限る。
     state.cardFloorRewardGranted[index] = slot.code;
-    if (runeAmount) window.PriTestNightFloorBreakthrough.grantRuneToAllEntered(runeAmount);
-    if (timeLossAmount) {
-      var cardName = window.PriTestFields.localizedText(card.name);
-      var msg = window.I18N.t("card_full_clear_time_loss_broadcast", { card: cardName, value: timeLossAmount });
-      postSystemTurnMessage(msg);
-      showThreatBroadcast([msg]);
+    var effectText = card.allFloorEffect ? window.PriTestFields.localizedText(card.allFloorEffect) : "";
+    if (card.allFloorEffect) {
+      var runeAmount = parseAllFloorEffectAmount(effectText, ["盧恩", "ルーン"]);
+      var timeLossAmount = parseAllFloorEffectAmount(effectText, ["時間損耗", "タイムロス"]);
+      if (runeAmount) window.PriTestNightFloorBreakthrough.grantRuneToAllEntered(runeAmount);
+      if (timeLossAmount) {
+        var cardNameForBroadcast = window.PriTestFields.localizedText(card.name);
+        var msg = window.I18N.t("card_full_clear_time_loss_broadcast", { card: cardNameForBroadcast, value: timeLossAmount });
+        postSystemTurnMessage(msg);
+        showThreatBroadcast([msg]);
+      }
     }
     // 自動化GM Phase 2：全樓層踏破の効果はすでに自動付与されているので（上のgrantRuneToAllEntered等）、
     // ここでは進度版に「何が起きたか」をGM敘述として提示し、[OK]で確認してから次に進めるようにする。
     // 「黄金樹の帳」（夜の強敵）の全踏破だけは特別に扱う：HP/FP/加護/聖杯瓶/技能を全員分自動回復し、
-    // 次の夜へ進むかどうかの選択肢を出す（規則書：夜の強敵撃破後の追加処理）。
+    // 次の夜へ進むかどうかの選択肢を出す（規則書：夜の強敵撃破後の追加処理）。それ以外の通常カードは
+    // showFullClearNarration側で続けて［地圖移動］（次の目的地選択）への案内も敘述する。
     if (state.gmFlowEnabled && window.PriTestNightGmFlow) {
+      var cardName = window.PriTestFields.localizedText(card.name);
       if (card.id === "a_golden") {
-        window.PriTestNightGmFlow.handleGoldenTreeFullClear(window.PriTestFields.localizedText(card.name), effectText);
+        window.PriTestNightGmFlow.handleGoldenTreeFullClear(cardName, effectText);
       } else {
-        window.PriTestNightGmFlow.showFullClearNarration(window.PriTestFields.localizedText(card.name), effectText);
+        window.PriTestNightGmFlow.showFullClearNarration(cardName, effectText);
       }
     }
     saveState();
@@ -10709,6 +10722,7 @@
     getGame: function () { return game; },
     openKeepCardsDrawer: openKeepCardsDrawer,
     addEnemyToBattle: addEnemyToBattle,
+    renderPiles: renderPiles,
   };
 
   document.addEventListener("DOMContentLoaded", async function () {

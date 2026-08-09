@@ -159,21 +159,36 @@
     return (branch.floors || [])[walk.floorIndex] || null;
   }
 
-  // ---- 「雜兵戰鬥」構造の検出（第17項） ----
+  // ---- 「戰鬥」構造の検出：ザコ戦闘／ボス戦闘の両方（第17・18項） ----
   // fields_data_*.js内の該当行は必ず L(depth, null, ["ザコ戦闘（撃破ルーン：N）", "雜兵戰鬥（擊破盧恩：N）"])
-  // の形（labelなし、本文がこの文言そのもの）で出現する。1件だけ半角スペース入りの表記ゆれ
+  // または同型の["ボス戦闘（撃破ルーン：N）", "王戰（擊破盧恩：N）"]の形（labelなし、本文がこの文言
+  // そのもの）で出現する。どちらも中身は通常のEnemies系データ（夜の王ではない、単に手強い雑兵編成）
+  // なので、以降の敵解決・戦場追加ロジックは完全に共通化できる。1件だけ半角スペース入りの表記ゆれ
   // （"ザコ戦闘 (撃破ルーン：1)"）があるため、開き括弧の直前は全角/半角どちらでも一致するようにする。
-  function isZakoBattleTriggerLine(line) {
+  var COMBAT_TRIGGER_TITLES = [
+    { ja: "ザコ戦闘", zh: "雜兵戰鬥" },
+    { ja: "ボス戦闘", zh: "王戰" },
+  ];
+  function isCombatTriggerLine(line) {
     if (line.label) return false;
     var ja = (line.text && line.text.ja) || "";
     var zh = (line.text && line.text.zh) || "";
-    return /^ザコ戦闘\s*[（(]/.test(ja) || /^雜兵戰鬥（/.test(zh);
+    return COMBAT_TRIGGER_TITLES.some(function (t) {
+      return new RegExp("^" + t.ja + "\\s*[（(]").test(ja) || new RegExp("^" + t.zh + "（").test(zh);
+    });
   }
 
-  // トリガー行の直後から、このザコ戦闘で登場する敵を名指ししているbullet行（「XXX（頁）／Lv.N」の
-  // ように"「"で始まる、トリガー行より深いdepthのbullet行）を、そうでない行（＝撃破後の結果文言、
+  // ボタンラベル・敘述冒頭に使う表示名（「雜兵戰鬥」／「王戰」）は、判定に使ったパターンではなく
+  // トリガー行自身の現在言語のテキストからそのまま切り出す（i18nキーを2つ用意する必要が無い）。
+  function combatTriggerTitle(line) {
+    var text = window.PriTestFields.localizedText(line.text);
+    return text.split(/[（(]/)[0];
+  }
+
+  // トリガー行の直後から、この戦闘で登場する敵を名指ししているbullet行（「XXX（頁）／Lv.N」の
+  // ように"「"で始まる、トリガー行以上のdepthのbullet行）を、そうでない行（＝撃破後の結果文言、
   // または次のイベント行）に当たるまで収集する。nextIndexが収集後の再開位置（walk.lineIndexへ書き戻す）。
-  function collectZakoEnemyLines(lines, triggerIndex) {
+  function collectCombatEnemyLines(lines, triggerIndex) {
     var triggerDepth = lines[triggerIndex].depth;
     var enemyLines = [];
     var j = triggerIndex + 1;
@@ -194,7 +209,7 @@
   // 敵名bullet行から、対戦相手候補の名前トークン（複数名が「＆」等で連記されている場合は分割）と
   // Lv数値、および「L補」（未実装のレベル補正、docs/scenario_flow_rules.md参照）の有無を取り出す。
   // 数値を捏造しない方針に合わせ、Lv.の後ろの「+L補」分はここでは加算しない——GM側の確認に委ねる。
-  function parseZakoEnemyRef(line) {
+  function parseCombatEnemyRef(line) {
     var ja = (line.text && line.text.ja) || "";
     var zh = (line.text && line.text.zh) || "";
     var jaInner = (/「([^」]+)」/.exec(ja) || [])[1] || "";
@@ -214,7 +229,7 @@
 
   // 名前トークンからEnemies.search経由で一意に一致するエネミーだけを返す（1件に絞れない場合は
   // null＝自動追加を諦めてGMの手動追加に委ねる、"■"と同じ「捏造しない」方針）。
-  function resolveZakoEnemyMatch(nameToken) {
+  function resolveCombatEnemyMatch(nameToken) {
     var Enemies = window.PriTestEnemies;
     if (!Enemies || !nameToken) return null;
     var matches = Enemies.search(nameToken);
@@ -335,6 +350,16 @@
     var state = Core.state;
     var idx = state.focusedIndex;
     var entry = window.PriTestNightFloorBreakthrough.resolveFieldEntryForSlot(idx);
+    // ［初始地點］第18項：起點／終點は数値cardLevelsを持たないため、[進入]を押した瞬間に
+    // 「1」チェックを自動でオンにし、盤面から見ても「現在フロア1にいる」ことが分かるようにする
+    // （従来はGMが手動でチェックしない限り、進度版の敘述以外に現在地を示す手掛かりが無かった）。
+    if (entry && (idx === "start" || idx === "end")) {
+      var pileChecks = idx === "start" ? state.startChecks : state.endChecks;
+      if (!pileChecks.one) {
+        pileChecks.one = true;
+        Core.renderPiles();
+      }
+    }
     if (!entry || !entry.branches || !entry.branches.length) {
       // 分岐データが無いカード（規則書データが未整備、等）は従来通りの簡易リマインドへ退避する。
       var name = entry ? window.PriTestFields.localizedText(entry.name) : "";
@@ -405,16 +430,17 @@
     var lines = floor.lines || [];
     var blockParts = [];
     var choiceLabels = [];
-    var zakoTriggerIndex = -1;
+    var combatTriggerIndex = -1;
     var i = walk.lineIndex;
     for (; i < lines.length; i++) {
       var line = lines[i];
       // 「突破判定」欄は、玩家が突破判定を選んだ場合にのみ参照する非公開情報——
       // GM敘述には出さない（[突破]ボタンの対話框側で別途処理する）。
       if (line.label && (line.label.ja === "突破判定" || line.label.zh === "突破判定")) continue;
-      // 「雜兵戰鬥」構造：ここで一旦停止し、敵の正体はボタンを押すまで敘述しない（第17項）。
-      if (isZakoBattleTriggerLine(line)) {
-        zakoTriggerIndex = i;
+      // 「雜兵戰鬥」／「王戰」構造：ここで一旦停止し、［戰鬥機制］へ切り替える。敵の正体は
+      // ボタンを押すまで敘述しない（第17・18項：任何進入戰鬥時、先暫停樓層判定機制）。
+      if (isCombatTriggerLine(line)) {
+        combatTriggerIndex = i;
         break;
       }
       var lineText = Fields.localizedText(line.text);
@@ -430,11 +456,12 @@
     }
     walk.lineIndex = i;
     var blockText = blockParts.join("\n");
-    if (zakoTriggerIndex !== -1) {
+    if (combatTriggerIndex !== -1) {
       state.gmFlow.narrationText = blockText;
       state.gmFlow.pendingChoiceLabels = [];
       state.gmFlow.awaitingOk = true;
-      state.gmFlow.actionKind = "zakoBattle";
+      state.gmFlow.actionKind = "combatTrigger";
+      state.gmFlow.combatTriggerLabel = combatTriggerTitle(lines[combatTriggerIndex]);
     } else if (choiceLabels.length) {
       state.gmFlow.narrationText = blockText;
       state.gmFlow.pendingChoiceLabels = choiceLabels;
@@ -455,8 +482,10 @@
     advanceFieldWalk();
   }
 
-  // ---- 「雜兵戰鬥」ボタン：敵を敘述し、判明した分だけ戦場に自動追加する（第17項） ----
-  function handleZakoBattleClick() {
+  // ---- ［戰鬥機制］入口：「雜兵戰鬥」／「王戰」ボタン。敵を敘述し、判明した分だけ戦場に
+  // 自動追加してから、GMには「戰鬥進行中」とだけ示して待機状態（battleWait）へ入る
+  // （第17・18項：目前先讓Gm敘述戰鬥中、額外的機制往後另行增加）。 ----
+  function handleCombatTriggerClick() {
     var Core = window.PriTestNightCore;
     var state = Core.state;
     var Fields = window.PriTestFields;
@@ -474,20 +503,20 @@
       advanceFieldWalk();
       return;
     }
-    var collected = collectZakoEnemyLines(lines, triggerIndex);
+    var collected = collectCombatEnemyLines(lines, triggerIndex);
     var narrationParts = [Fields.localizedText(triggerLine.text)];
     var addedNames = [];
     var addedKeys = {};
     var reminderTexts = [];
     collected.enemyLines.forEach(function (line) {
       narrationParts.push(Fields.localizedText(line.text));
-      var ref = parseZakoEnemyRef(line);
+      var ref = parseCombatEnemyRef(line);
       var matchedAny = false;
       // nameTokensにはja/zh両方の表記が別トークンとして入る（同一エネミーを指すことが多い）ため、
       // familyId|enemyIdで重複追加・重複ログを防ぐ（addEnemyToBattle自体は既に選択済みキーに
       // 対して何もしないが、addedNamesへの二重表示はここで防ぐ必要がある）。
       ref.nameTokens.forEach(function (token) {
-        var match = resolveZakoEnemyMatch(token);
+        var match = resolveCombatEnemyMatch(token);
         if (match) {
           matchedAny = true;
           var key = match.familyId + "|" + match.enemy.id;
@@ -499,14 +528,14 @@
         }
       });
       if (!matchedAny) {
-        reminderTexts.push(window.I18N.t("gm_flow_zako_battle_manual_add_reminder", { text: Fields.localizedText(line.text) }));
+        reminderTexts.push(window.I18N.t("gm_flow_combat_manual_add_reminder", { text: Fields.localizedText(line.text) }));
       } else if (ref.needsLevelCorrection) {
-        reminderTexts.push(window.I18N.t("gm_flow_zako_battle_level_correction_reminder", { text: Fields.localizedText(line.text) }));
+        reminderTexts.push(window.I18N.t("gm_flow_combat_level_correction_reminder", { text: Fields.localizedText(line.text) }));
       }
     });
     if (addedNames.length) {
       state.turnMessages.push({
-        text: window.I18N.t("gm_flow_zako_battle_added_log", { names: addedNames.join("、") }),
+        text: window.I18N.t("gm_flow_combat_added_log", { names: addedNames.join("、") }),
         time: Date.now(),
         side: "gm",
       });
@@ -515,41 +544,28 @@
       state.turnMessages.push({ text: text, time: Date.now(), side: "gm" });
     });
 
+    narrationParts.push(window.I18N.t("gm_flow_combat_in_progress_narration"));
     walk.lineIndex = collected.nextIndex;
     state.gmFlow.narrationText = narrationParts.join("\n");
-    if (typeof walk.slotIndex === "number") {
-      // このカードの樓層数値（state.cardLevels[slotIndex]）が変化した瞬間、
-      // notifyCardLevelChanged経由で自動的に敘述の続きへ進める——GMは進度版を操作しなくてよい。
-      state.gmFlow.battleWaitActive = true;
-      state.gmFlow.battleWaitCardLevel = Core.state.cardLevels ? Core.state.cardLevels[walk.slotIndex] : null;
-      state.gmFlow.awaitingOk = true;
-      state.gmFlow.actionKind = "battleWait";
-    } else {
-      // 起點／終點の板塊にはcardLevelsが無く自動検知できないため、[OK]による手動続行に留める。
-      state.gmFlow.battleWaitActive = false;
-      state.gmFlow.battleWaitCardLevel = null;
-      state.gmFlow.awaitingOk = true;
-      state.gmFlow.actionKind = "ok";
-    }
+    state.gmFlow.combatTriggerLabel = null;
+    // ［戰鬥機制］：エネミーの全HP行が0になるまで待つ（night.jsのsetActionPhase、
+    // combatEndオプション経由でnotifyCombatEndedが呼ばれる）。GMは進度版側で何も操作しない。
+    state.gmFlow.battleWaitActive = true;
+    state.gmFlow.awaitingOk = true;
+    state.gmFlow.actionKind = "battleWait";
     Core.saveState();
     Core.renderCurrentLocationStatus();
   }
 
-  // stepCardLevel（night.js、盤面の樓層数値＋/-ボタン）から、値が変化するたびに呼ばれる。
-  // battleWaitActive中で、かつ変化したのがこのwalkの対象カードであれば、規則書敘述の続きへ進める。
-  function notifyCardLevelChanged(index) {
+  // ［戰鬥結束］：night.jsのsetActionPhaseが「エネミー全滅→一般行動へ自動復帰」を検出した
+  // 瞬間（combatEndオプション）に呼ばれる。battleWaitActive中でなければ無関係の戦闘終了
+  // （樓層敘述と無関係にGMが手動で編成したエネミーを倒した場合等）なので何もしない。
+  function notifyCombatEnded() {
     var Core = window.PriTestNightCore;
     var state = Core.state;
-    var walk = state.gmFlow.walk;
-    if (!state.gmFlow.battleWaitActive || !walk || walk.slotIndex !== index) return;
-    if (state.cardLevels[index] === state.gmFlow.battleWaitCardLevel) return; // 変化なし（値の再確定など）
+    if (!state.gmFlow.battleWaitActive) return;
     state.gmFlow.battleWaitActive = false;
-    state.gmFlow.battleWaitCardLevel = null;
-    // このGMの手動＋クリックが、既にこの樓層の「踏破」を意味する数値変化として使われた——
-    // finishFieldWalkの第5項改（樓層本文終了時の自動＋1）と二重に加算されるのを防ぐ
-    // （二重加算されると、複数フロア持ちのカードでフロアを1つ丸ごと読み飛ばしてしまう）。
-    walk.battleWaitAdvancedCardLevel = true;
-    advanceFieldWalk();
+    advanceFieldWalk(); // ［樓層判定機制］へ戻り、撃破後の規則書敘述（獎勵等）を続ける
   }
 
   // 樓層本文が尽きた（または分岐データが解決できなかった）ときの締めくくり。
@@ -558,10 +574,9 @@
     var Core = window.PriTestNightCore;
     var state = Core.state;
     var FloorBreakthrough = window.PriTestNightFloorBreakthrough;
-    var walkSlotIndex = state.gmFlow.walk ? state.gmFlow.walk.slotIndex : null;
-    // notifyCardLevelChanged参照：雜兵戰鬥の戦闘待ち中にGMが盤面の＋をクリックして
-    // 既にこの樓層分のカウンターを進めている場合、下の自動＋1をスキップする。
-    var alreadyAdvancedByBattleWait = !!(state.gmFlow.walk && state.gmFlow.walk.battleWaitAdvancedCardLevel);
+    var walk = state.gmFlow.walk;
+    var walkSlotIndex = walk ? walk.slotIndex : null;
+    var walkEntry = walk ? getWalkEntry(walk) : null;
     var hasReward = !!(floor && FloorBreakthrough.floorHasAnyReward && FloorBreakthrough.floorHasAnyReward(floor));
     state.gmFlow.narrationText = blockText || window.I18N.t("gm_flow_walk_end_narration");
     state.gmFlow.awaitingOk = true;
@@ -577,11 +592,19 @@
     // 第5項改：この樓層の敘述が最後まで終わったら、GMが手動で盤面の[+]を押さなくても
     // 自動で樓層カウンターを1つ進め、公開盤地図上のカードの数字が自動的に「踏破済み」を
     // 反映するようにする——以後は自動化GMもそのカードの数字を見るだけで現在位置が分かる。
-    // 全樓層踏破に達した場合はstepCardLevel内部でgrantCardFullClearRewardIfNeededが発火し、
-    // そちらのGM敘述（全踏破／黄金樹の帳）が今設定した敘述を上書きする（意図的：より重要な
-    // 報告を優先する）。起點/終點の板塊にはcardLevelsが無いためfloorのみ・数値indexのみ対象。
-    if (floor && typeof walkSlotIndex === "number" && !alreadyAdvancedByBattleWait) {
+    // 起點/終點の板塊にはcardLevelsが無いためfloorのみ・数値indexのみ対象。
+    if (floor && typeof walkSlotIndex === "number") {
       Core.stepCardLevel(walkSlotIndex, 1);
+      // 第18項「結束該卡牌的最後一個樓層後檢查是否所有樓層都有踏破」：たった今の＋1で
+      // カードの実在する樓層をすべて踏破済み（cardLevels===floorCount、まだ「全」では
+      // ない）になった場合、この樓層の獎勵ゲート（floorEnd）をGMが領取し終えるまで待って
+      // から（＝closeGmFlowGateAndConsumePendingAdvance側で）続けて「全」まで進め、
+      // 全踏破処理（撃破ルーン等の自動付与・GM敘述・地圖移動への案内）を発火させる。
+      // ここで即座に進めると、まだ見せていないこの樓層の獎勵ゲートを跨ぎ越してしまうため、
+      // 領取完了（[獲得完]）のタイミングまで意図的に遅延させる。
+      if (walkEntry && typeof walkEntry.floorCount === "number" && Core.state.cardLevels[walkSlotIndex] === walkEntry.floorCount) {
+        state.gmFlow.pendingFinalFloorSlot = walkSlotIndex;
+      }
     }
   }
 
@@ -593,17 +616,24 @@
 
   function handleFloorEndRewardClick() {
     if (pendingFloorEndFloor) window.PriTestNightFloorBreakthrough.openFloorRewardModal(pendingFloorEndFloor);
-    clearGmFlowGate();
+    closeGmFlowGateAndConsumePendingAdvance();
     window.PriTestNightCore.saveState();
     window.PriTestNightCore.renderCurrentLocationStatus();
   }
 
-  // 第15項：全樓層踏破時、grantCardFullClearRewardIfNeeded（night.js）から呼ばれる。
+  // 第15・18項：全樓層踏破時、grantCardFullClearRewardIfNeeded（night.js）から呼ばれる。
   // 効果自体はすでに自動付与済み——ここは「何が起きたか」をGM敘述として見せて[OK]待ちにするだけ。
+  // effectTextが無いカード（allFloorEffect未設定）でも「全踏破した」こと自体は必ず敘述し、
+  // 続けて［地圖移動］機制への案内（次の目的地を選んでほしい旨）を同じ敘述に含める——
+  // この呼び出しはa_golden（黄金樹の帳）以外の全踏破でのみ発生するため、常に地圖移動への
+  // 案内で問題ない（黄金樹の帳はhandleGoldenTreeFullClearが別途、進次日の案内を出す）。
   function showFullClearNarration(cardName, effectText) {
     var Core = window.PriTestNightCore;
     var state = Core.state;
-    state.gmFlow.narrationText = window.I18N.t("gm_flow_full_clear_narration", { name: cardName, effect: effectText });
+    var mainText = effectText
+      ? window.I18N.t("gm_flow_full_clear_narration", { name: cardName, effect: effectText })
+      : window.I18N.t("gm_flow_full_clear_narration_no_effect", { name: cardName });
+    state.gmFlow.narrationText = mainText + "\n" + window.I18N.t("gm_flow_map_move_prompt");
     state.gmFlow.awaitingOk = true;
     state.gmFlow.actionKind = "ok";
     Core.saveState();
@@ -617,7 +647,7 @@
   }
 
   // 獎勵収集完成ゲート（第5項）：縮小されたまま未クローズの獎勵視窗が残っていれば、
-  // [OK]を押しても進めさせず、残数を再度リマインドする。
+  // [獲得完]を押しても進めさせず、残数を再度リマインドする。
   function handleGmFlowOk() {
     var Core = window.PriTestNightCore;
     var state = Core.state;
@@ -630,7 +660,7 @@
       return;
     }
     if (!state.gmFlow.openingPlayed) state.gmFlow.openingPlayed = true;
-    clearGmFlowGate();
+    closeGmFlowGateAndConsumePendingAdvance();
     Core.saveState();
     Core.renderCurrentLocationStatus();
   }
@@ -643,9 +673,27 @@
     state.gmFlow.walk = null;
     state.gmFlow.pendingChoiceLabels = [];
     state.gmFlow.battleWaitActive = false;
-    state.gmFlow.battleWaitCardLevel = null;
+    state.gmFlow.combatTriggerLabel = null;
     pendingFloorEndFloor = null;
     lastTypedNarration = null;
+  }
+
+  // 第18項「結束該卡牌的最後一個樓層後...則再處理［全踏破］處理」：finishFieldWalkが
+  // 「この＋1でカードの実在する樓層をすべて踏破済みになった」と検出していた場合
+  // （state.gmFlow.pendingFinalFloorSlot）、GMがこの樓層の獎勵ゲートを実際に閉じ終えた
+  // （＝このゲート解決の）タイミングまで待ってから、続けて「全」まで進める——ここで即座に
+  // 進めてしまうと、まだ見せていない当該樓層の獎勵ゲート（floorEnd）を跨ぎ越してしまうため。
+  // handleGmFlowOk（[獲得完]/[OK]）とhandleFloorEndRewardClick（[領取獎勵]）の両方の
+  // ゲート解決経路から呼ばれる。
+  function closeGmFlowGateAndConsumePendingAdvance() {
+    var Core = window.PriTestNightCore;
+    var state = Core.state;
+    var finalFloorSlot = state.gmFlow.pendingFinalFloorSlot;
+    state.gmFlow.pendingFinalFloorSlot = null;
+    clearGmFlowGate();
+    if (typeof finalFloorSlot === "number") {
+      Core.stepCardLevel(finalFloorSlot, 1); // → 「全」。内部でgrantCardFullClearRewardIfNeededが発火する
+    }
   }
 
   // ---- 日夜轉場整體流程（第16項） ----
@@ -786,13 +834,23 @@
           actionsEl.appendChild(btn);
         });
       } else if (state.gmFlow.actionKind === "floorEnd") {
+        // ［戰鬥結束］獎勵ゲート：領取後、全項目を受け取り終える（pendingRewardWindowsが
+        // 空になる）まで［獲得完］を押しても再度リマインドされる（第18項）。
         addActionButton(actionsEl, "gm_flow_claim_reward_button", handleFloorEndRewardClick);
-        addActionButton(actionsEl, "gm_flow_ok_button", handleGmFlowOk);
-      } else if (state.gmFlow.actionKind === "zakoBattle") {
-        addActionButton(actionsEl, "gm_flow_zako_battle_button", handleZakoBattleClick);
+        addActionButton(actionsEl, "gm_flow_reward_done_button", handleGmFlowOk);
+      } else if (state.gmFlow.actionKind === "combatTrigger") {
+        // ［戰鬥機制］入口：ボタンラベルはトリガー行自身の文言（「雜兵戰鬥」／「王戰」）を
+        // そのまま使う（第17・18項）。
+        var combatBtn = document.createElement("button");
+        combatBtn.type = "button";
+        combatBtn.className = "gm-flow-action-btn";
+        combatBtn.textContent = state.gmFlow.combatTriggerLabel || window.I18N.t("gm_flow_combat_trigger_button_fallback");
+        combatBtn.addEventListener("click", handleCombatTriggerClick);
+        actionsEl.appendChild(combatBtn);
       } else if (state.gmFlow.actionKind === "battleWait") {
-        // 戦闘解決待ち：ボタンは出さない。GMは戦場ドロワー側で戦闘を進め、盤面の樓層数値が
-        // 変化した瞬間（notifyCardLevelChanged）に自動で敘述の続きへ進む。
+        // ［戰鬥機制］：ボタンは出さない。エネミーの全HP行が0になった瞬間
+        // （notifyCombatEnded、night.jsのsetActionPhase combatEndオプション経由）に
+        // 自動で敘述の続き（［戰鬥結束］）へ進む。
       } else {
         addActionButton(actionsEl, "gm_flow_ok_button", handleGmFlowOk);
       }
@@ -828,6 +886,6 @@
     maybeAnnounceFinalDay: maybeAnnounceFinalDay,
     showFullClearNarration: showFullClearNarration,
     handleGoldenTreeFullClear: handleGoldenTreeFullClear,
-    notifyCardLevelChanged: notifyCardLevelChanged,
+    notifyCombatEnded: notifyCombatEnded,
   };
 })();
