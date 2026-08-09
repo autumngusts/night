@@ -9588,20 +9588,44 @@
   // 現在地表示は戦闘のstagger通知等と違い、常に存在し続けるべき情報のため）。折りたたみ時は
   // 樓層名だけの小さなブロックに、展開時は樓層數・全效果に加えて将来の自動GM文字/選択肢を
   // 置ける余白を持つ。折りたたみ状態はstate.locationBannerCollapsedで永続化する。
+  var locationBannerToggleLongPressFired = false; // 長押しでコーナー切替した直後、続く合成clickで折りたたみが誤って切り替わらないようにする
+
   function handleLocationBannerToggleClick() {
+    if (locationBannerToggleLongPressFired) {
+      locationBannerToggleLongPressFired = false;
+      return;
+    }
     state.locationBannerCollapsed = !state.locationBannerCollapsed;
     saveState();
     renderCurrentLocationStatus();
   }
 
-  // #24：折りたたみ時のみ表示される◀／▶ボタンで右上／左上へ移動する（state.locationBannerCorner）。
-  // 長押しドラッグ（第21項）・スワイプ（第23項）はいずれも「操作しづらい」とのユーザー指摘で
-  // 撤回済み——ボタンクリックのみのシンプルな操作に戻した。
   function setLocationBannerCorner(corner) {
     if (state.locationBannerCorner === corner) return;
     state.locationBannerCorner = corner;
     saveState();
     renderCurrentLocationStatus();
+  }
+
+  // #25：専用の◀／▶ボタン（第24項）は他ウィンドウの×ボタン等を隠してしまうとの指摘で撤回。
+  // 代わりに既存の▼／▲トグルボタンを流用し、折りたたみ時のみ長押し（SLOT_LONG_PRESS_MS、
+  // 板塊の長押し判定と同じ作法）で左右のコーナーを切り替える——短押しは従来通り折りたたみ／
+  // 展開の切替のまま。展開中は長押ししても何も起きない（対象外、との指定）。
+  function attachLocationBannerToggleLongPress(btn) {
+    var pressTimer = null;
+    btn.addEventListener("pointerdown", function () {
+      if (!state.locationBannerCollapsed) return;
+      locationBannerToggleLongPressFired = false;
+      pressTimer = setTimeout(function () {
+        locationBannerToggleLongPressFired = true;
+        setLocationBannerCorner(state.locationBannerCorner === "left" ? "right" : "left");
+      }, SLOT_LONG_PRESS_MS);
+    });
+    ["pointerup", "pointerleave", "pointercancel"].forEach(function (evt) {
+      btn.addEventListener(evt, function () {
+        clearTimeout(pressTimer);
+      });
+    });
   }
 
   // 板塊の場地カードの「真正該劇本の名稱」を解決する。scenario.day1/day2に記録されている
@@ -11063,13 +11087,9 @@
     document.getElementById("btn-time-loss-broadcast").addEventListener("click", triggerThreatBroadcast);
     document.getElementById("btn-threat-broadcast-close").addEventListener("click", closeThreatBroadcast);
     document.getElementById("btn-enemy-row-status-close").addEventListener("click", closeEnemyRowStatusBanner);
-    document.getElementById("btn-location-status-toggle").addEventListener("click", handleLocationBannerToggleClick);
-    document.getElementById("btn-location-status-move-left").addEventListener("click", function () {
-      setLocationBannerCorner("left");
-    });
-    document.getElementById("btn-location-status-move-right").addEventListener("click", function () {
-      setLocationBannerCorner("right");
-    });
+    var locationStatusToggleBtn = document.getElementById("btn-location-status-toggle");
+    locationStatusToggleBtn.addEventListener("click", handleLocationBannerToggleClick);
+    attachLocationBannerToggleLongPress(locationStatusToggleBtn);
     document.getElementById("btn-threat-drawer-close").addEventListener("click", closeThreatDrawer);
     document.getElementById("threat-drawer-backdrop").addEventListener("click", closeThreatDrawer);
     document.getElementById("btn-active-threat-effect-add").addEventListener("click", handleActiveThreatEffectAdd);

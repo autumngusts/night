@@ -172,7 +172,6 @@ BODY = """    <div class="night-header-row">
       </div>
       <div id="location-status-overlay" hidden>
         <span id="gm-flow-waiting-badge" class="gm-flow-waiting-badge" hidden data-i18n="gm_flow_waiting_badge"></span>
-        <button type="button" id="btn-location-status-move-left" class="location-status-move-btn" aria-label="move banner to top-left">&#9664;</button>
         <div id="location-status-body">
           <div id="location-status-content"></div>
           <div id="location-status-dialogue">
@@ -180,8 +179,7 @@ BODY = """    <div class="night-header-row">
             <div id="location-status-actions"></div>
           </div>
         </div>
-        <button type="button" id="btn-location-status-move-right" class="location-status-move-btn" aria-label="move banner to top-right">&#9654;</button>
-        <button type="button" id="btn-location-status-toggle" aria-label="toggle floor banner"></button>
+        <button type="button" id="btn-location-status-toggle" aria-label="toggle floor banner (long-press while collapsed to move corner)"></button>
       </div>
       <div id="top-banner-stack">
         <div id="threat-broadcast-overlay" hidden>
