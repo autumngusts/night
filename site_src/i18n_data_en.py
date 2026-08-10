@@ -962,7 +962,7 @@ STRINGS_EN: dict[str, str] = {
     "log_floor_reward_hp_damage": "Floor Reward: {character} took HP Damage {value}",
     "log_floor_reward_rune": "Floor Reward: All ({count}) each gained +{value} Rune",
     "log_floor_reward_auto_pushed": "Automatically added the following to the reward list: {items}",
-    "log_floor_reward_conditional_rune_reminder": "This floor mentions a rune reward of {amount}, but the amount depends on which tier/hand is resolved and no matching rune reward was found among the reward options. Please have the GM check manually and grant it if appropriate.",
+    "log_floor_reward_conditional_rune_reminder": "This floor mentions a rune reward of {amount}, but the amount depends on which tier/hand is resolved, so it was not auto-granted. If no matching rune reward is found among the reward options, please have the GM check manually and grant it if appropriate.",
     "log_floor_reward_consumable": "Floor Reward: {character} obtained consumable \"{item}\"",
     "log_floor_reward_consumable_roll_nav": "Floor Reward: {character} started a consumable draw",
     "log_floor_reward_talisman_roll_nav": "Floor Reward: {character} started a talisman draw",

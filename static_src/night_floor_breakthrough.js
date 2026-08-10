@@ -412,6 +412,32 @@
     return [];
   }
 
+  // tieredChoice/diceHandChoiceエントリの各tier/handのrewards配列を平坦化し、その中に
+  // rune種別が1つでもあるかを調べる（トップレベルのhasRuneRewardでは検出できない、
+  // 「段階/役ごとの分岐先にrune報酬がある」ケースを判定するため）。例：封牢(森)は3つの
+  // tierすべてにrune（3／11／3）を持つ、教会の「6＝強敵の予感」tierはrune:8を持つ、と
+  // いった具合にすでに正しく実装済みのフロアがあり、これらをconditionalRuneReminderの
+  // 誤検知（false positive）にしないために必要。
+  function floorConditionalRewardHasNestedRune(reward) {
+    return reward.some(function (entry) {
+      if (entry.kind === "tieredChoice") {
+        return (entry.tiers || []).some(function (tier) {
+          return (tier.rewards || []).some(function (r) {
+            return r.kind === "rune";
+          });
+        });
+      }
+      if (entry.kind === "diceHandChoice") {
+        return (entry.hands || []).some(function (hand) {
+          return (hand.rewards || []).some(function (r) {
+            return r.kind === "rune";
+          });
+        });
+      }
+      return false;
+    });
+  }
+
   // フロア終端で確定している「戦利品」を一括で獎勵清單へ積む配列を組み立てる。reward配列に
   // rune種別が無いのに本文に「擊破盧恩：N」がある（規則書の記述とデータのズレ）場合は、
   // フォールバック検出分もあわせて積む。二重pushは__rewardKeyベースのフラグで防ぐ。
@@ -466,16 +492,19 @@
           });
         }
       }
-    } else if (hasConditionalReward) {
+    } else if (hasConditionalReward && !floorConditionalRewardHasNestedRune(reward)) {
       // hasConditionalRewardによりフォールバック検出（上のブロック）が抑止された場合、
       // card0_4_0／card2_4_0のように「本文には撃破ルーン：Nの記述があるのに、reward配列の
-      // どのtieredChoice/diceHandChoiceの分岐にもrune種別が1つも無い」フロアでは、盧恩が
-      // どの経路からも一切GMへ提示されない“サイレント0”になってしまう（tieredChoice側に
-      // rune分岐が実在するフロアなら、そちら経由で正しくpushされるので実害は無い）。
-      // 全tier/handを辿ってrune種別の有無を検証するのは対象データの構造が多様で誤検知の
-      // リスクが高いため行わず、より安全側に倒して「本文に検出値がある限り常にGM向けの
-      // 確認リマインダーをログへ残す」方式にする（正しく処理済みのフロアでGMが再確認する
-      // 手間は小さいが、本当に漏れているフロアで誰も気づけないことの方が実害が大きいため）。
+      // どのtieredChoice/diceHandChoiceの分岐（tiers[].rewards / hands[].rewards）にも
+      // rune種別が1つも無い」フロアでは、盧恩がどの経路からも一切GMへ提示されない
+      // “サイレント0”になってしまう。tieredChoice/diceHandChoice側のいずれかのtier/handに
+      // rune分岐が実在するフロア（封牢(森)の3tierすべて、教会の「6＝強敵の予感」tierなど）は
+      // floorConditionalRewardHasNestedRuneで検出でき、そちら経由で正しくpushされるので
+      // 実害が無い＝リマインダー不要と判定して除外する。ただし「どのtier/handにも一致する
+      // rune分岐が無い」ことの判定はあくまでkind==="rune"の存在チェックであり、額が本文の
+      // 検出値と完全一致することまでは保証しない（tierの選び方次第で額が変わる設計は
+      // 正当なので、ここでは存在有無のみを見る）。念のため、リマインダー文言自体は
+      // 「対応する報酬が見つからない場合はGMが確認」という留保付きの表現にしてある。
       var conditionalAmount = parseRuneAmountFromText(floorLineText(floor));
       if (conditionalAmount) {
         var reminderKey = floor.__rewardKey ? floor.__rewardKey + "_conditionalRuneReminder_logged" : null;
