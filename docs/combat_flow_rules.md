@@ -174,6 +174,12 @@ PC側には「前衛／後衛」という位置関係があるが、エネミー
 GMがエネミーのレベルを公開・判断する際は、必ず「L補（レベル補正）」を加えた値を使わ
 なければならない（生のレベル値だけで比較しない）。
 
+**L補の数値公式（確認済み）**：L補は盤面9マスの列（`idx % 3`）だけで決まり、
+`docs/scenario_flow_rules.md`冒頭「L補について」に詳細がある。1日目は左列+0／中列+1／右列+2、
+2日目は左列+5／中列+4／右列+3（`night.js`の`fieldLevelsForDay()`）。自動化GMは
+`night_gm_flow.js`の`fieldLevelCorrectionForSlot(slotIndex)`でこの値を取得し、樓層敘述・
+強敵決定表いずれの敵人追加でも自動的に加算する。
+
 ---
 
 ## 7. 戦闘前判断
@@ -274,7 +280,7 @@ PCに「インターバル」（9節）の機会が与えられる。
 | ガード回数／HP価値システム | ✅ 実装済み（本セッションで追加） | `docs/enemy_damage_rules.md`参照 |
 | タイムロス／夜の雨／脅威効果（ROLL_EFFECTS） | ✅ 実装済み（GM手動でチェックボックス／段階ステッパーを操作、消費側の効果——例：ROLL_EFFECTS.enemy_damageは自動化GMのTime Loss加算に、flask_usesは聖杯瓶上限へ自動反映——は自動適用） | `night.js`（`TIME_LOSS_ROW_DEFS`, `ROLL_EFFECTS`, `renderRollEffects`） |
 | 通常戦闘／簡易戦闘の区別 | ❌ 未実装（アプリ内に対応する概念・状態フィールドが見当たらない。全戦闘が実質「通常戦闘」の手順＝ディフェンスフェイズありの前提で進んでいる可能性が高い、要追加調査） | – |
-| ボス戦闘／ザコ戦闘の自動判定（PC平均レベルとL補込みエネミーレベルの比較） | ❌ 未実装（判定式自体は6節の通り明確になったが、これを行うコードは見当たらない） | – |
+| ボス戦闘／ザコ戦闘の自動判定（PC平均レベルとL補込みエネミーレベルの比較） | ❌ 未実装（判定式自体は6節の通り明確になったが、これを行うコードは見当たらない）。ただし「L補込みエネミーレベル」自体は、戦場への敵人自動追加時（`resolveAndAddCombatEnemies`）に既にL補加算済みで登録されるようになったため、この判定を実装する際の前提条件は揃っている（詳細は`docs/scenario_flow_rules.md`「L補について」参照） | `night_gm_flow.js`の`fieldLevelCorrectionForSlot`, `resolveAndAddCombatEnemies` |
 | 戦闘開始時の公開情報／非公開情報の演出上の区別 | ❌ 未実装（弱点の表示等、個別の情報公開自体はできるが、「公開情報を一括提示し、非公開情報＝アクション内容/HP価値/ガード回数/耐性を隠す」という専用UIは無い模様。もっとも、GMが実質シナリオ製作者兼進行役を兼ねる想定のこのアプリでは、この区別自体の実装優先度は低いと考えられる） | – |
 | 開始装備（□開始装備）の自動装備 | ❌ 未実装（要追加調査。装備変更UI自体は存在するはずだが「□開始装備」チェック→戦闘開始時自動装備、という専用フローは未確認） | – |
 | 撃破ルーン／潜在する力の戦闘終了時自動付与 | 部分実装。`combatEnd`自体は死霊/属性状態のリセットのみだが、`docs/scenario_flow_rules.md`第17・18項（自動化GM Phase 2）で`combatEnd`検出を「フロア敘述中の雜兵戰鬥／ボス戦闘」の待機解除フックとして利用するようになり、続く敘述が既存の獎勵検出（`floorHasAnyReward`/`appendRuneGrantRowIfDetected`、撃破ルーンをGM微調整可能なボタンとして自動提示）へ自然に繋がる。ただし戦闘終了そのものからの直接的な自動付与（GMのボタン操作なし）ではない | `night.js`（`setActionPhase`の`combatEnd`分岐→`night_gm_flow.js`の`notifyCombatEnded`）、`night_floor_breakthrough.js`（`floorHasAnyReward`, `appendRuneGrantRowIfDetected`） |

@@ -382,12 +382,47 @@
       tblBlock.appendChild(tblWrap);
       content.appendChild(tblBlock);
     });
-    var inputRow = document.createElement("div");
-    inputRow.className = "wb-row";
     var input = document.createElement("input");
     input.type = "text";
     input.placeholder = window.I18N.t("event_chip_strong_enemy_input_placeholder");
     if (recorded) input.value = recorded.enemyName;
+
+    // 自動擲骰決定：⑧号強敵チットが2日目なら「恐るべき強敵決定表」（extraTables[1]）、
+    // それ以外（⑦、または⑧だが1日目）は「一般強敵決定表」（extraTables[0]）を自動選択する
+    // （state.eventChipNumbersで①〜⑨の身分を判別、GMの手動勾選は不要）。
+    var Core = window.PriTestNightCore;
+    var GmFlow = window.PriTestNightGmFlow;
+    var isTerribleSlot = Core.state.eventChipNumbers && Core.state.eventChipNumbers[idx] === 8 && Core.state.dayNumber === 2;
+    var selectedTable = card ? (card.extraTables || [])[isTerribleSlot ? 1 : 0] : null;
+    if (selectedTable && GmFlow) {
+      var autoRollBtn = document.createElement("button");
+      autoRollBtn.type = "button";
+      autoRollBtn.className = "primary-btn";
+      autoRollBtn.textContent = window.I18N.t("event_chip_strong_enemy_auto_roll_button");
+      autoRollBtn.addEventListener("click", function () {
+        var result = GmFlow.rollStrongEnemyTable(selectedTable);
+        if (!result) return; // 表の解析/解決に失敗：GMへ委ねる（既存の表参照・手動輸入のまま）
+        var entryText = Events.localizedText(result.entry);
+        input.value = entryText;
+        GmFlow.resolveStrongEnemyEntry(result.entry, idx, result.levelBonus);
+        var rollsText = result.rollLog
+          .map(function (r) {
+            return r.die1 + "+" + r.die2 + "＝" + r.text;
+          })
+          .join(" → ");
+        Core.state.turnMessages.push({
+          text: window.I18N.t("event_chip_strong_enemy_auto_roll_log", { rolls: rollsText, entry: entryText }),
+          time: Date.now(),
+          side: "gm",
+        });
+        Core.saveState();
+        renderEventChipModal();
+      });
+      content.appendChild(autoRollBtn);
+    }
+
+    var inputRow = document.createElement("div");
+    inputRow.className = "wb-row";
     inputRow.appendChild(input);
     var recordBtn = document.createElement("button");
     recordBtn.type = "button";

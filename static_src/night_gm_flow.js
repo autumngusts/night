@@ -246,6 +246,36 @@
     return { target: parseInt(matches[0][1], 10), statKey: statKey, retryOnFail: retryOnFail, markerLabel: singleMarkerLabel(text) };
   }
 
+  // ---- 「行為判定」自動擲骰（水辺の大教会「水辺を抜けて横の瓦礫から」専用：任意のPCが
+  // 任意の順番・任意回数で個別に判定を繰り返し、累積成功回数が目標に達するまで続ける。
+  // 失敗が一定回数溜まるたびに必要な成功回数が増える）----
+  // 「PCは任意の順番でこれを行う。成否の結果は1回の判定ごとに確認すること」という、この
+  // フロア特有の言い回しで検出する（実データ確認済み、この1箇所のみ・◇♣の2花色分岐で
+  // それぞれ1回ずつ出現）。目標成功回数・失敗エスカレーション幅は判定行自身ではなく、
+  // 直後の「成功1回ごと」「失敗1回ごと」ラベル行の本文から読み取る——呼び出し側
+  // （advanceFieldWalk）でlines配列を参照して行う（この関数は判定行1行のみを見る）。
+  // 「■」のHP損害量そのものは読み取らない・自動適用しない——GMが規則書通り手動で処理する、
+  // 既存の"■"と同じ方針。
+  // このフロアの判定行だけ、ブラケットが〈〉ではなく半角丸括弧"(11|任意の判定値)"という
+  // 表記ゆれになっている（実データ確認済み、書き起こし表記の揺れ）——他の検出関数が使う
+  // 共有ABILITY_CHECK_BRACKET_RE（〈〉/<>のみ）を緩めると、無関係な丸括弧付き文言まで
+  // 誤って引っかけるおそれがあるため、この関数専用の別パターンとして丸括弧も受け付ける。
+  var OPEN_ENDED_TALLY_BRACKET_RE = /[〈<(]\s*(\d+)\s*[|｜]\s*(フィジカル|體能|メンタル|精神|運試し|運気|運氣|任意の判定値|任意判定值|任意的判定值)\s*[〉>)]/;
+  function parseOpenEndedTallyCheck(line) {
+    if (!line.label || (line.label.ja !== "行為判定" && line.label.zh !== "行為判定")) return null;
+    var text = (line.text && line.text.ja) || "";
+    if (!text || text.indexOf("任意の順番で") === -1) return null;
+    if (text.indexOf("判定ごとに確認する") === -1) return null;
+    var re = new RegExp(OPEN_ENDED_TALLY_BRACKET_RE.source, "g");
+    var matches = [];
+    var m;
+    while ((m = re.exec(text))) matches.push(m);
+    if (matches.length !== 1) return null;
+    var statKey = ABILITY_CHECK_STAT_MAP[matches[0][2]];
+    if (!statKey) return null;
+    return { target: parseInt(matches[0][1], 10), statKey: statKey };
+  }
+
   // ---- 「行為判定」自動擲骰（坑道「白い結晶」専用：分岐ポイント累積 → 2枝分岐）----
   // このフロア一箇所にしか出現しない特殊な入れ子構造（既存の協力式／全員個別式のどちらの
   // 型にも当てはまらない——目標値に「×PC人数」が付かない一方、判定行自身の文中に2つの
@@ -355,9 +385,62 @@
     });
     if (stats.indexOf(undefined) !== -1 || stats.some(function (s) { return s !== stats[0]; })) return null; // 属性が異なる場合は対象外（安全側）
     return {
+      mode: "earlyExitChain",
       steps: matches.map(function (mm) {
         return { target: parseInt(mm[1], 10), statKey: ABILITY_CHECK_STAT_MAP[mm[2]] };
       }),
+    };
+  }
+
+  // ---- 「行為判定」自動擲骰（水辺の大教会「正面から（梅花）」専用：異なる屬性の協力式
+  // 判定を「順番に」複数回行い、成否に関わらず全段を実行してから、総成功回数（0〜N回成功）
+  // で結果を決める）----
+  // 「〜を順番に行うこと。成否に関わらず〜」という言い回しで検出する。属性が同じ場合は
+  // parseSequentialCooperativeChain（早期終了あり）の対象になるため、こちらは属性が
+  // 異なる場合のみを扱う——両者は互いに排他的（実データ確認済み）。
+  function parseSequentialCoopTallyCheck(line) {
+    if (!line.label || (line.label.ja !== "行為判定" && line.label.zh !== "行為判定")) return null;
+    var text = (line.text && line.text.ja) || "";
+    if (!text || text.indexOf("順番に行う") === -1) return null;
+    if (text.indexOf("成否に関わらず") === -1) return null;
+    var re = new RegExp(COOP_CHAIN_BRACKET_RE.source, "g");
+    var matches = [];
+    var m;
+    while ((m = re.exec(text))) matches.push(m);
+    if (matches.length < 2) return null;
+    var steps = matches.map(function (mm) {
+      return { target: parseInt(mm[1], 10), statKey: ABILITY_CHECK_STAT_MAP[mm[2]] };
+    });
+    if (steps.some(function (s) { return !s.statKey; })) return null;
+    return { mode: "tallyAll", steps: steps };
+  }
+
+  // ---- 「行為判定」自動擲骰（大野営地「火の戦車」専用：代表者1人を選び、代表者と
+  // それ以外のPC全員でそれぞれ異なる目標値の個別判定を行う）----
+  // 「PCのうち代表者1人を選んで〜〈N1|屬性〉を行い、他のPCは〜〈N2|屬性〉を行うこと」
+  // という、このフロア特有の言い回しで検出する（実データ確認済み、この1箇所のみ）。
+  // 結果（成功／失敗）は代表者自身の判定結果で決まる（後続の「成功」「失敗」本文は代表者
+  // 視点で分岐しており、他のPCの結果はその中で個別に触れられる形——実データ確認済み）。
+  // なお代表者の「成功」側にはさらに追加の個別判定（〈10|フィジカル〉での爆発回避）が
+  // 本文中に埋め込まれているが、これは自動化せず従来通り生の文言のままGMに委ねる
+  // （既存の"■"と同じ方針——このフロアに限り、代表者選出＋全員擲骰までを自動化の範囲とする）。
+  function parseRepresentativePickCheck(line) {
+    if (!line.label || (line.label.ja !== "行為判定" && line.label.zh !== "行為判定")) return null;
+    var text = (line.text && line.text.ja) || "";
+    if (!text || text.indexOf("代表者1人を選んで") === -1) return null;
+    var re = new RegExp(ABILITY_CHECK_BRACKET_RE.source, "g");
+    var matches = [];
+    var m;
+    while ((m = re.exec(text))) matches.push(m);
+    if (matches.length !== 2) return null;
+    var repStat = ABILITY_CHECK_STAT_MAP[matches[0][2]];
+    var othersStat = ABILITY_CHECK_STAT_MAP[matches[1][2]];
+    if (!repStat || !othersStat) return null;
+    return {
+      repTarget: parseInt(matches[0][1], 10),
+      repStat: repStat,
+      othersTarget: parseInt(matches[1][1], 10),
+      othersStat: othersStat,
     };
   }
 
@@ -1064,6 +1147,68 @@
     return null;
   }
 
+  // ---- 強敵決定表（event_rulebook.jsのstrong_enemyチット、extraTables）の自動擲骰 ----
+
+  // ダイス欄（例："1／135"）を解析する：1顆目の目（die1）と、2顆目の目が該当する面数文字列
+  // （faces2、"135"＝奇数目、"246"＝偶数目）を返す。解析できなければnull。
+  function parseStrongEnemyDiceCell(text) {
+    var m = /^(\d)\s*[／\/]\s*(\d+)$/.exec(String(text || "").trim());
+    if (!m) return null;
+    return { die1: parseInt(m[1], 10), faces2: m[2] };
+  }
+
+  // 強敵決定表の最終行「レベルを+1して振り直す」／「等級+1後重新擲骰」を検出する。
+  var STRONG_ENEMY_REROLL_RE = /振り直す|重新擲骰/;
+
+  // 強敵決定表を実際に1D6+1D6で振って解決する。reroll行に命中した場合は等級+1を積算して
+  // その場で振り直す（既存resolveTwoRollGridと同じ「今その場で正規の骰子を振る」方針、
+  // 上限20回で打ち切り）。表の解析・解決に失敗した場合はnull（GMへのフォールバック、
+  // 既存の"■"と同じ「捏造しない」方針）。
+  function rollStrongEnemyTable(table) {
+    var levelBonus = 0;
+    var rollLog = [];
+    for (var attempt = 0; attempt < 20; attempt++) {
+      var die1 = 1 + Math.floor(Math.random() * 6);
+      var die2 = 1 + Math.floor(Math.random() * 6);
+      var matchedRow = null;
+      for (var r = 0; r < table.rows.length; r++) {
+        var cell = parseStrongEnemyDiceCell(table.rows[r][0] && table.rows[r][0].ja);
+        if (cell && cell.die1 === die1 && cell.faces2.indexOf(String(die2)) !== -1) {
+          matchedRow = table.rows[r];
+          break;
+        }
+      }
+      if (!matchedRow) return null;
+      var entry = matchedRow[1];
+      rollLog.push({ die1: die1, die2: die2, text: (entry && entry.ja) || "" });
+      var isReroll = STRONG_ENEMY_REROLL_RE.test((entry && entry.ja) || "") || STRONG_ENEMY_REROLL_RE.test((entry && entry.zh) || "");
+      if (isReroll) {
+        levelBonus++;
+        continue;
+      }
+      return { entry: entry, die1: die1, die2: die2, levelBonus: levelBonus, rollLog: rollLog };
+    }
+    return null;
+  }
+
+  // 強敵決定表の条目テキスト（例："亜人の女王&亜人の剣聖（221頁）／Lv.8 + L補正"、「」括弧
+  // なし）を解析し、既存resolveAndAddCombatEnemiesで戦場へ自動追加する。強敵決定表の条目に
+  // 「+モブN」後綴の実例は無いため、hasMobRowは常にfalse固定にする。
+  function resolveStrongEnemyEntry(entry, slotIndex, levelBonus) {
+    var ja = (entry && entry.ja) || "";
+    var zh = (entry && entry.zh) || "";
+    var needsCorrection = /L補/.test(ja) || /L補/.test(zh);
+    var jaParsed = extractLevelAndNameTokens(ja);
+    var zhParsed = extractLevelAndNameTokens(zh);
+    var nameTokens = [];
+    jaParsed.nameTokens.concat(zhParsed.nameTokens).forEach(function (t) {
+      if (nameTokens.indexOf(t) === -1) nameTokens.push(t);
+    });
+    var baseLevel = (jaParsed.level !== null ? jaParsed.level : zhParsed.level) || 1;
+    var level = baseLevel + (levelBonus || 0);
+    return resolveAndAddCombatEnemies(nameTokens, level, needsCorrection, false, slotIndex);
+  }
+
   // スート欄自体に「花色記号＋名前」の組がまとめて書かれているケース（例：大教会の
   // "♠♥ 丘の上の大教会／♦♣ 水辺の大教会"——内容欄は「－」のプレースホルダーで、実際の
   // 対応表はスート欄にある）を解析する。各「／」区切りグループの先頭にある花色記号
@@ -1442,6 +1587,10 @@
     var conditionalChoiceSpec = null;
     var chainCheckIndex = -1;
     var chainCheckSpec = null;
+    var openEndedTallyIndex = -1;
+    var openEndedTallySpec = null;
+    var repPickIndex = -1;
+    var repPickSpec = null;
     var i = walk.lineIndex;
     while (i < lines.length) {
       var line = lines[i];
@@ -1517,6 +1666,53 @@
       if (parsedChainCheck) {
         chainCheckIndex = i;
         chainCheckSpec = parsedChainCheck;
+        i++;
+        break;
+      }
+      // 水辺の大教会「正面から（梅花）」専用：異なる屬性の協力式判定を順番に全段実行し、
+      // 総成功回数で結果を決める。
+      var parsedTallyCheck = parseSequentialCoopTallyCheck(line);
+      if (parsedTallyCheck) {
+        chainCheckIndex = i;
+        chainCheckSpec = parsedTallyCheck;
+        i++;
+        break;
+      }
+      // 水辺の大教会「水辺を抜けて横の瓦礫から」専用：任意のPCが任意回数、目標成功回数
+      // まで判定を繰り返す。目標成功回数・失敗エスカレーション幅は直後の「成功1回ごと」
+      // 「失敗1回ごと」ラベル行の本文から読み取る（この関数だけでは判定行1行しか見えない
+      // ため、ここでlines配列を直接参照する）。
+      var parsedOpenEndedTally = parseOpenEndedTallyCheck(line);
+      if (parsedOpenEndedTally) {
+        var oeSuccessLine = lines[i + 1] && lines[i + 1].label && /成功.*ごと/.test(lines[i + 1].label.ja || "") ? lines[i + 1] : null;
+        var oeFailLine = lines[i + 2] && lines[i + 2].label && /失敗.*ごと/.test(lines[i + 2].label.ja || "") ? lines[i + 2] : null;
+        var oeSuccessText = oeSuccessLine ? (oeSuccessLine.text && oeSuccessLine.text.ja) || "" : "";
+        var oeFailText = oeFailLine ? (oeFailLine.text && oeFailLine.text.ja) || "" : "";
+        var oeThresholdMatch = /合計(?:で)?(\d+)回(?:の)?成功/.exec(oeSuccessText);
+        var oeEscalationMatch = /合計(?:で)?(\d+)回失敗/.exec(oeFailText);
+        if (oeSuccessLine && oeThresholdMatch) {
+          openEndedTallyIndex = i;
+          openEndedTallySpec = {
+            target: parsedOpenEndedTally.target,
+            statKey: parsedOpenEndedTally.statKey,
+            successThreshold: parseInt(oeThresholdMatch[1], 10),
+            failEscalationStep: oeEscalationMatch ? parseInt(oeEscalationMatch[1], 10) : null,
+            successCount: 0,
+            failCount: 0,
+            successLineJaLabel: oeSuccessLine.label.ja,
+          };
+          i = i + (oeFailLine ? 3 : 2); // 判定行・成功/失敗ラベル行はいずれも生の文言を敘述に出さない
+          break;
+        }
+        // 直後の「成功1回ごと」行から数値を読み取れなかった場合は、安全側で従来通り
+        // 生の文言敘述にフォールバックする（数値・分岐先を捏造しない）。
+      }
+      // 大野営地「火の戦車」専用：代表者1人を選び、代表者とそれ以外のPC全員でそれぞれ
+      // 異なる目標値の個別判定を行う。
+      var parsedRepPick = parseRepresentativePickCheck(line);
+      if (parsedRepPick) {
+        repPickIndex = i;
+        repPickSpec = parsedRepPick;
         i++;
         break;
       }
@@ -1619,7 +1815,19 @@
       state.gmFlow.pendingChoiceLabels = [];
       state.gmFlow.awaitingOk = true;
       state.gmFlow.actionKind = "sequentialCooperativeChain";
-      state.gmFlow.sequentialChainSpec = { steps: chainCheckSpec.steps, stepIndex: 0, awaitingContinue: false };
+      state.gmFlow.sequentialChainSpec = { mode: chainCheckSpec.mode, steps: chainCheckSpec.steps, stepIndex: 0, successCount: 0, awaitingContinue: false };
+    } else if (openEndedTallyIndex !== -1) {
+      state.gmFlow.narrationText = (blockText ? blockText + "\n" : "") + window.I18N.t("gm_flow_player_pick_check_prompt");
+      state.gmFlow.pendingChoiceLabels = [];
+      state.gmFlow.awaitingOk = true;
+      state.gmFlow.actionKind = "openEndedTallyCheck";
+      state.gmFlow.openEndedTallySpec = openEndedTallySpec;
+    } else if (repPickIndex !== -1) {
+      state.gmFlow.narrationText = (blockText ? blockText + "\n" : "") + window.I18N.t("gm_flow_representative_pick_prompt");
+      state.gmFlow.pendingChoiceLabels = [];
+      state.gmFlow.awaitingOk = true;
+      state.gmFlow.actionKind = "representativePickCheck";
+      state.gmFlow.representativePickSpec = repPickSpec;
     } else if (abilityCheckIndex !== -1) {
       state.gmFlow.narrationText = blockText;
       state.gmFlow.pendingChoiceLabels = [];
@@ -1942,6 +2150,8 @@
     branchTallyRolls = null;
     state.gmFlow.conditionalCooperativeChoiceSpec = null;
     state.gmFlow.sequentialChainSpec = null;
+    state.gmFlow.openEndedTallySpec = null;
+    state.gmFlow.representativePickSpec = null;
     state.gmFlow.freeFloorOptions = [];
     state.gmFlow.chipOfferSlot = null;
     state.gmFlow.chipOfferContinuation = null;
@@ -2472,13 +2682,18 @@
     Core.saveState();
   }
 
-  // 現在の段の擲骰が確定した：この段専用の結果ラベル（「成功N回目」／「失敗N回目」）を
-  // フロアのlines[]から直接探して敘述する。最終段、または途中で失敗した場合は、通常の
-  // walkthrough機構（pendingOutcomeFilter／pendingConvergeLabel）に確定を委ねてadvanceFieldWalk
-  // を呼ぶ——結果文自身に埋め込まれた「（→X）」があれば正しく合流できる。途中の段で成功
-  // した場合だけ、その段の結果文をそのまま敘述し、［繼續］ボタンで次の段へ進める（walkの
-  // 線形読み進めには乗せない——このフロアの結果行はすべて兄弟として並んでおり、素通りすると
-  // 直後のザコ戦闘トリガーに誤って突入してしまうため）。
+  // 現在の段の擲骰が確定した。2つのモードがある：
+  // ・"earlyExitChain"（東の地下砦）：この段専用の結果ラベル（「成功N回目」／「失敗N回目」）
+  //   をフロアのlines[]から探して敘述する。失敗、または最終段まで終わった場合は通常の
+  //   walkthrough機構（pendingOutcomeFilter／pendingConvergeLabel）に確定を委ねる——結果文
+  //   自身に埋め込まれた「（→X）」があれば正しく合流できる。途中の段で成功した場合だけ、
+  //   その段の結果文をそのまま敘述し、［繼續］ボタンで次の段へ進める。
+  // ・"tallyAll"（水辺の大教会）：成否に関わらず全段を実行し、総成功回数を集計する。
+  //   最終段が終わって初めて「N回成功」ラベルで結果を確定する（途中経過は敘述しない
+  //   ——規則書も「成否に関わらず次に進む」としているため、途中の成否は隠したまま進める）。
+  // どちらのモードも、このフロアの結果行はすべて兄弟として並んでいるため、walkの線形読み
+  // 進めにそのまま任せると直後の戦闘トリガー見出し等へ誤って突入し得る——合流先マーカーが
+  // 無い場合は直接finishFieldWalkでフロア締めくくりへ進む。
   function resolveSequentialChainStep() {
     var Core = window.PriTestNightCore;
     var state = Core.state;
@@ -2502,8 +2717,6 @@
     cooperativeCheckRolls = null;
     var modalEl = document.getElementById("cooperative-check-modal");
     if (modalEl) modalEl.hidden = true;
-    var roundNum = chain.stepIndex + 1;
-    var outcomeLabel = (passed ? "成功" : "失敗") + roundNum + "回目";
     state.turnMessages.push({
       text: window.I18N.t("gm_flow_cooperative_check_summary_log", {
         sum: poolSum,
@@ -2515,33 +2728,55 @@
     var walk = state.gmFlow.walk;
     var floor = walk ? getWalkFloor(walk) : null;
     var lines = floor ? floor.lines || [] : [];
-    var outcomeLine = null;
-    for (var i = 0; i < lines.length; i++) {
-      if (lines[i].label && lines[i].label.ja === outcomeLabel) {
-        outcomeLine = lines[i];
-        break;
-      }
-    }
+    var roundNum = chain.stepIndex + 1;
     var isLastStep = roundNum >= chain.steps.length;
-    if (!passed || isLastStep) {
+
+    function findOutcomeLine(jaLabel) {
+      for (var i = 0; i < lines.length; i++) {
+        if (lines[i].label && lines[i].label.ja === jaLabel) return lines[i];
+      }
+      return null;
+    }
+    function finalizeWith(outcomeLabel, outcomeLine) {
       var marker = outcomeLine ? singleMarkerLabel((outcomeLine.text && outcomeLine.text.ja) || "") : null;
       state.gmFlow.sequentialChainSpec = null;
       state.gmFlow.cooperativeCheckSpec = null;
       if (marker && walk) {
-        // 早期終了で明確な合流先がある場合（例：失敗1/2回目→戦闘）：既存のwalkthrough
-        // 機構（pendingOutcomeFilter／pendingConvergeLabel）に確定を委ねる。
         state.gmFlow.actionKind = "ok";
         walk.pendingOutcomeFilter = outcomeLabel;
         walk.pendingConvergeLabel = marker;
         advanceFieldWalk();
       } else {
-        // 合流先マーカーが無い（最終段の成功／失敗など）：このフロアの結果行はすべて
-        // 兄弟として並んでおり、通常のwalkthroughに任せると直後の戦闘トリガー見出しへ
-        // 誤って突入してしまう——直接フロア締めくくりへ進む（フロア踏破）。
         finishFieldWalk(outcomeLine ? formatWalkLine(outcomeLine) : "", floor);
         Core.saveState();
         Core.renderCurrentLocationStatus();
       }
+    }
+
+    if (chain.mode === "tallyAll") {
+      if (passed) chain.successCount += 1;
+      if (!isLastStep) {
+        // 成否に関わらず次の段へ（途中経過は敘述しない）。
+        chain.stepIndex += 1;
+        chain.awaitingContinue = true;
+        state.gmFlow.cooperativeCheckSpec = null;
+        state.gmFlow.narrationText = window.I18N.t("gm_flow_chain_next_step_narration");
+        state.gmFlow.awaitingOk = true;
+        state.gmFlow.actionKind = "sequentialCooperativeChain";
+        Core.saveState();
+        Core.renderCurrentLocationStatus();
+        return;
+      }
+      var tallyLabel = chain.successCount + "回成功";
+      finalizeWith(tallyLabel, findOutcomeLine(tallyLabel));
+      return;
+    }
+
+    // mode === "earlyExitChain"（既定）
+    var outcomeLabel = (passed ? "成功" : "失敗") + roundNum + "回目";
+    var outcomeLine = findOutcomeLine(outcomeLabel);
+    if (!passed || isLastStep) {
+      finalizeWith(outcomeLabel, outcomeLine);
       return;
     }
     // 途中の段の成功：この段の結果文だけ敘述し、［繼續］で次の段へ。
@@ -2553,6 +2788,155 @@
     state.gmFlow.actionKind = "sequentialCooperativeChain";
     Core.saveState();
     Core.renderCurrentLocationStatus();
+  }
+
+  // ---- 「行為判定」（水辺の大教会「水辺を抜けて横の瓦礫から」専用：任意のPCが任意回数
+  // 判定を繰り返す）----
+  // クリックされたPC（＋statKeyが"any"の場合は選んだ屬性）で1回だけ擲骰し、累積成功回数
+  // へ反映する。目標成功回数に達していれば「成功N回ごと」ラベル行の本文を敘述してフロア
+  // 締めくくりへ、達していなければ進捗（成功／失敗回数）を敘述して同じピッカーを再表示する
+  // （retryOnFailのような除外はしない——「PCは任意の順番で」＝同じPCが何度でも挑戦できる）。
+  function handleOpenEndedTallyPickClick(charId, statKey) {
+    var Core = window.PriTestNightCore;
+    var state = Core.state;
+    var spec = state.gmFlow.openEndedTallySpec;
+    if (!spec) return;
+    var c = Core.getRosterCharacters().filter(function (rc) {
+      return rc.id === charId;
+    })[0];
+    if (!c) return;
+    var type = c.typeId ? window.PriTestCharacterTypes.get(c.typeId) : null;
+    var useStat = spec.statKey === "any" ? statKey : spec.statKey;
+    var count = window.PriTestNightFloorBreakthrough.effectiveCheckValue(c, type, useStat);
+    var dice = [];
+    for (var i = 0; i < count; i++) dice.push(1 + Math.floor(Math.random() * 6));
+    var sum = dice.reduce(function (a, b) {
+      return a + b;
+    }, 0);
+    var passed = sum >= spec.target;
+    state.turnMessages.push({
+      text: window.I18N.t("gm_flow_player_pick_check_result_log", {
+        name: c.name,
+        dice: dice.join("+"),
+        sum: sum,
+        outcome: window.I18N.t(passed ? "ability_check_pass_label" : "ability_check_fail_label"),
+      }),
+      time: Date.now(),
+      side: "gm",
+    });
+    if (passed) {
+      spec.successCount += 1;
+    } else {
+      spec.failCount += 1;
+      if (spec.failEscalationStep && spec.failCount % spec.failEscalationStep === 0) {
+        spec.successThreshold += 1;
+      }
+    }
+    if (spec.successCount >= spec.successThreshold) {
+      var walk = state.gmFlow.walk;
+      var floor = walk ? getWalkFloor(walk) : null;
+      var lines = floor ? floor.lines || [] : [];
+      var successLine = null;
+      for (var li = 0; li < lines.length; li++) {
+        if (lines[li].label && lines[li].label.ja === spec.successLineJaLabel) {
+          successLine = lines[li];
+          break;
+        }
+      }
+      state.gmFlow.openEndedTallySpec = null;
+      finishFieldWalk(successLine ? formatWalkLine(successLine) : "", floor);
+      Core.saveState();
+      Core.renderCurrentLocationStatus();
+      return;
+    }
+    state.gmFlow.narrationText = window.I18N.t("gm_flow_open_ended_tally_progress", {
+      success: spec.successCount,
+      threshold: spec.successThreshold,
+      fail: spec.failCount,
+    });
+    Core.saveState();
+    Core.renderCurrentLocationStatus();
+  }
+
+  // ---- 「行為判定」（大野営地「火の戦車」専用：代表者1人を選び、代表者とそれ以外の
+  // PC全員でそれぞれ異なる目標値の個別判定を行う）----
+  // クリックされたPCを代表者として、代表者本人＋それ以外の入場PC全員をまとめて自動で
+  // 擲骰する（GMが選ぶのは代表者のみ——他のPCは自動的に「それ以外」として全員判定する）。
+  // 結果の分岐（成功／失敗）は代表者自身の判定結果で決まる。
+  function handleRepresentativePickClick(charId) {
+    var Core = window.PriTestNightCore;
+    var state = Core.state;
+    var spec = state.gmFlow.representativePickSpec;
+    if (!spec) return;
+    var entered = Core.getRosterCharacters().filter(function (c) {
+      return c.entered;
+    });
+    var rep = entered.filter(function (c) {
+      return c.id === charId;
+    })[0];
+    if (!rep) return;
+    var others = entered.filter(function (c) {
+      return c.id !== charId;
+    });
+
+    function rollOne(c, target, statKey) {
+      var type = c.typeId ? window.PriTestCharacterTypes.get(c.typeId) : null;
+      var count = window.PriTestNightFloorBreakthrough.effectiveCheckValue(c, type, statKey);
+      var dice = [];
+      for (var i = 0; i < count; i++) dice.push(1 + Math.floor(Math.random() * 6));
+      var sum = dice.reduce(function (a, b) {
+        return a + b;
+      }, 0);
+      return { dice: dice, sum: sum, passed: sum >= target };
+    }
+
+    var repResult = rollOne(rep, spec.repTarget, spec.repStat);
+    var otherResults = others.map(function (c) {
+      return { name: c.name, result: rollOne(c, spec.othersTarget, spec.othersStat) };
+    });
+
+    var entries = [
+      window.I18N.t("gm_flow_representative_pick_result_entry", {
+        name: rep.name,
+        dice: repResult.dice.join("+"),
+        sum: repResult.sum,
+        outcome: window.I18N.t(repResult.passed ? "ability_check_pass_label" : "ability_check_fail_label"),
+      }),
+    ].concat(
+      otherResults.map(function (o) {
+        return window.I18N.t("gm_flow_representative_pick_result_entry", {
+          name: o.name,
+          dice: o.result.dice.join("+"),
+          sum: o.result.sum,
+          outcome: window.I18N.t(o.result.passed ? "ability_check_pass_label" : "ability_check_fail_label"),
+        });
+      })
+    );
+    state.turnMessages.push({
+      text: window.I18N.t("gm_flow_representative_pick_summary_log", { results: entries.join("、") }),
+      time: Date.now(),
+      side: "gm",
+    });
+    var failedNames = otherResults
+      .filter(function (o) {
+        return !o.result.passed;
+      })
+      .map(function (o) {
+        return o.name;
+      });
+    if (!repResult.passed) failedNames.unshift(rep.name);
+    if (failedNames.length) {
+      state.turnMessages.push({
+        text: window.I18N.t("gm_flow_ability_check_fail_reminder_log", { names: failedNames.join("、") }),
+        time: Date.now(),
+        side: "gm",
+      });
+    }
+    state.gmFlow.representativePickSpec = null;
+    state.gmFlow.actionKind = "ok";
+    var walk = state.gmFlow.walk;
+    if (walk) walk.pendingOutcomeFilter = repResult.passed ? "成功" : "失敗";
+    advanceFieldWalk();
   }
 
   // ---- 「行為判定」（特定の1名のPCだけが行う形式）：GMが「誰が行くか」を選ぶ ----
@@ -3033,6 +3417,53 @@
         addActionButton(actionsEl, chainBtnKey, function () {
           beginSequentialChainStep();
         });
+      } else if (state.gmFlow.actionKind === "openEndedTallyCheck") {
+        // 水辺の大教会専用：任意のPCが任意回数（statKey==="any"なら屬性も選んで）挑戦できる
+        // ピッカー——除外はしない（retryOnFailと違い、同じPCが何度でも再挑戦できる）。
+        var oeSpec = state.gmFlow.openEndedTallySpec;
+        var oeCandidates = Core.getRosterCharacters().filter(function (c) {
+          return c.entered;
+        });
+        oeCandidates.forEach(function (c) {
+          if (oeSpec && oeSpec.statKey === "any") {
+            ["luck", "physical", "mental"].forEach(function (statKey) {
+              var btn = document.createElement("button");
+              btn.type = "button";
+              btn.className = "gm-flow-action-btn";
+              btn.textContent = c.name + "（" + window.I18N.t("check_stat_" + statKey) + "）";
+              btn.addEventListener("click", function () {
+                handleOpenEndedTallyPickClick(c.id, statKey);
+              });
+              actionsEl.appendChild(btn);
+            });
+          } else {
+            var btn2 = document.createElement("button");
+            btn2.type = "button";
+            btn2.className = "gm-flow-action-btn";
+            btn2.textContent = c.name;
+            btn2.addEventListener("click", function () {
+              handleOpenEndedTallyPickClick(c.id, oeSpec ? oeSpec.statKey : "luck");
+            });
+            actionsEl.appendChild(btn2);
+          }
+        });
+      } else if (state.gmFlow.actionKind === "representativePickCheck") {
+        // 大野営地「火の戦車」専用：代表者1人だけを選ばせる——それ以外の入場PC全員は
+        // クリック時に自動で判定される。
+        Core.getRosterCharacters()
+          .filter(function (c) {
+            return c.entered;
+          })
+          .forEach(function (c) {
+            var btn = document.createElement("button");
+            btn.type = "button";
+            btn.className = "gm-flow-action-btn";
+            btn.textContent = c.name;
+            btn.addEventListener("click", function () {
+              handleRepresentativePickClick(c.id);
+            });
+            actionsEl.appendChild(btn);
+          });
       } else if (state.gmFlow.actionKind === "branchPointTally" || state.gmFlow.actionKind === "sequentialPairCheck") {
         // 坑道「白い結晶」専用：分岐ポイント累積／連続2種判定のどちらも同じ1つの
         // ［判定發生］ボタンで開始する（複数ラウンド/ステップはモーダル内で自動的に続く）。
@@ -3105,9 +3536,14 @@
     parseSequentialPairCheck: parseSequentialPairCheck,
     parseConditionalCooperativeChoice: parseConditionalCooperativeChoice,
     parseSequentialCooperativeChain: parseSequentialCooperativeChain,
+    parseSequentialCoopTallyCheck: parseSequentialCoopTallyCheck,
+    parseOpenEndedTallyCheck: parseOpenEndedTallyCheck,
+    parseRepresentativePickCheck: parseRepresentativePickCheck,
     resolveAndAddCombatEnemies: resolveAndAddCombatEnemies,
     extractLevelAndNameTokens: extractLevelAndNameTokens,
     fieldLevelCorrectionForSlot: fieldLevelCorrectionForSlot,
     mergeParams: mergeParams,
+    rollStrongEnemyTable: rollStrongEnemyTable,
+    resolveStrongEnemyEntry: resolveStrongEnemyEntry,
   };
 })();

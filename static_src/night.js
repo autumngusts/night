@@ -833,9 +833,15 @@
       // actionKind==="conditionalCooperativeChoice"のときの{options:[{label,target,perPC,statKey}, {label,target,perPC,statKey}]}
       // （湖沼(睡)専用：祭壇に興味があるか先に選ばせてから使う協力式判定を決める）
       conditionalCooperativeChoiceSpec: null,
-      // actionKind==="sequentialCooperativeChain"のときの{steps:[{target,statKey}, ...],stepIndex,awaitingContinue}
-      // （東の地下砦「入り組んだ地下の回廊」専用：同じ屬性・異なる目標値の協力式判定を順番に連鎖させる）
+      // actionKind==="sequentialCooperativeChain"のときの{mode,steps:[{target,statKey}, ...],stepIndex,successCount,awaitingContinue}
+      // （東の地下砦「入り組んだ地下の回廊」／水辺の大教会「正面から（梅花）」専用：協力式判定を順番に連鎖させる）
       sequentialChainSpec: null,
+      // actionKind==="openEndedTallyCheck"のときの{target,statKey,successThreshold,failEscalationStep,successCount,failCount,successLineJaLabel}
+      // （水辺の大教会「水辺を抜けて横の瓦礫から」専用：任意のPCが目標成功回数に達するまで判定を繰り返す）
+      openEndedTallySpec: null,
+      // actionKind==="representativePickCheck"のときの{repTarget,repStat,othersTarget,othersStat}
+      // （大野営地「火の戦車」専用：代表者1人＋それ以外の入場PC全員でそれぞれ異なる目標値の判定を行う）
+      representativePickSpec: null,
       freeFloorOptions: [], // actionKind==="freeFloorChoice"のときに提示する未踏破position（1始まり）の配列（路線自由カード用）
       // actionKind==="battleWait"の間trueなら、エネミーの全HP行が0になった瞬間
       // （night.jsのsetActionPhase、combatEndオプション経由）に自動で敘述の続きへ進める。
@@ -1839,22 +1845,10 @@
               branchFloor: typeof loadedGmFlow.walk.branchFloor === "number" ? loadedGmFlow.walk.branchFloor : null,
               branchFloorArmed: !!loadedGmFlow.walk.branchFloorArmed,
               pendingPrefixText: typeof loadedGmFlow.walk.pendingPrefixText === "string" ? loadedGmFlow.walk.pendingPrefixText : null,
-              pendingOutcomeFilter:
-                [
-                  "成功",
-                  "失敗",
-                  "成功2回",
-                  "成功1回",
-                  "失敗2回",
-                  "成功1回目",
-                  "成功2回目",
-                  "成功3回目",
-                  "失敗1回目",
-                  "失敗2回目",
-                  "失敗3回目",
-                ].indexOf(loadedGmFlow.walk.pendingOutcomeFilter) !== -1
-                  ? loadedGmFlow.walk.pendingOutcomeFilter
-                  : null,
+              // pendingConvergeLabel同様、line.label.ja/zhとの単純な文字列比較にしか使わないため、
+              // 固定候補の列挙ではなく型チェックのみで十分（新しい判定パターンを追加するたびに
+              // ここへ値を追加する必要をなくす）。
+              pendingOutcomeFilter: typeof loadedGmFlow.walk.pendingOutcomeFilter === "string" ? loadedGmFlow.walk.pendingOutcomeFilter : null,
               pendingConvergeLabel: typeof loadedGmFlow.walk.pendingConvergeLabel === "string" ? loadedGmFlow.walk.pendingConvergeLabel : null,
             }
           : null;
@@ -1876,6 +1870,8 @@
             "sequentialPairCheck",
             "conditionalCooperativeChoice",
             "sequentialCooperativeChain",
+            "openEndedTallyCheck",
+            "representativePickCheck",
             "freeFloorChoice",
             "battleWait",
             "chipOffer",
@@ -1963,11 +1959,43 @@
         sequentialChainSpec:
           loadedGmFlow.sequentialChainSpec && Array.isArray(loadedGmFlow.sequentialChainSpec.steps) && loadedGmFlow.sequentialChainSpec.steps.length >= 2
             ? {
+                mode: loadedGmFlow.sequentialChainSpec.mode === "tallyAll" ? "tallyAll" : "earlyExitChain",
                 steps: loadedGmFlow.sequentialChainSpec.steps.map(function (stp) {
                   return { target: typeof stp.target === "number" ? stp.target : 0, statKey: typeof stp.statKey === "string" ? stp.statKey : "luck" };
                 }),
                 stepIndex: typeof loadedGmFlow.sequentialChainSpec.stepIndex === "number" ? loadedGmFlow.sequentialChainSpec.stepIndex : 0,
+                successCount: typeof loadedGmFlow.sequentialChainSpec.successCount === "number" ? loadedGmFlow.sequentialChainSpec.successCount : 0,
                 awaitingContinue: !!loadedGmFlow.sequentialChainSpec.awaitingContinue,
+              }
+            : null,
+        openEndedTallySpec:
+          loadedGmFlow.openEndedTallySpec &&
+          typeof loadedGmFlow.openEndedTallySpec.target === "number" &&
+          typeof loadedGmFlow.openEndedTallySpec.statKey === "string" &&
+          typeof loadedGmFlow.openEndedTallySpec.successLineJaLabel === "string"
+            ? {
+                target: loadedGmFlow.openEndedTallySpec.target,
+                statKey: loadedGmFlow.openEndedTallySpec.statKey,
+                successThreshold:
+                  typeof loadedGmFlow.openEndedTallySpec.successThreshold === "number" ? loadedGmFlow.openEndedTallySpec.successThreshold : 1,
+                failEscalationStep:
+                  typeof loadedGmFlow.openEndedTallySpec.failEscalationStep === "number" ? loadedGmFlow.openEndedTallySpec.failEscalationStep : null,
+                successCount: typeof loadedGmFlow.openEndedTallySpec.successCount === "number" ? loadedGmFlow.openEndedTallySpec.successCount : 0,
+                failCount: typeof loadedGmFlow.openEndedTallySpec.failCount === "number" ? loadedGmFlow.openEndedTallySpec.failCount : 0,
+                successLineJaLabel: loadedGmFlow.openEndedTallySpec.successLineJaLabel,
+              }
+            : null,
+        representativePickSpec:
+          loadedGmFlow.representativePickSpec &&
+          typeof loadedGmFlow.representativePickSpec.repTarget === "number" &&
+          typeof loadedGmFlow.representativePickSpec.repStat === "string" &&
+          typeof loadedGmFlow.representativePickSpec.othersTarget === "number" &&
+          typeof loadedGmFlow.representativePickSpec.othersStat === "string"
+            ? {
+                repTarget: loadedGmFlow.representativePickSpec.repTarget,
+                repStat: loadedGmFlow.representativePickSpec.repStat,
+                othersTarget: loadedGmFlow.representativePickSpec.othersTarget,
+                othersStat: loadedGmFlow.representativePickSpec.othersStat,
               }
             : null,
         freeFloorOptions: Array.isArray(loadedGmFlow.freeFloorOptions) ? loadedGmFlow.freeFloorOptions : [],
@@ -2065,6 +2093,8 @@
       sequentialPairSpec: null,
       conditionalCooperativeChoiceSpec: null,
       sequentialChainSpec: null,
+      openEndedTallySpec: null,
+      representativePickSpec: null,
       freeFloorOptions: [],
       battleWaitActive: false,
       pendingFinalFloorSlot: null,
