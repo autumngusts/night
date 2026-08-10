@@ -551,6 +551,25 @@ BODY = """    <div class="night-header-row">
     </div>
     <button id="btn-item-draw-modal-restore" type="button" class="potential-power-restore-btn item-draw-restore-btn" data-i18n="item_draw_restore_button" hidden></button>
 
+    <div id="dice-hand-draw-modal" class="modal" hidden>
+      <div class="modal-box combat-modal-box">
+        <h2 data-i18n="dice_hand_draw_modal_title"></h2>
+        <p class="threat-ref-body" id="dice-hand-draw-label"></p>
+        <div id="dice-hand-draw-select-group" class="dice-hand-select-group"></div>
+        <div class="actions">
+          <button id="btn-dice-hand-draw-random" type="button" data-i18n="dice_hand_draw_random_button"></button>
+          <button id="btn-dice-hand-draw-judge" type="button" class="primary-btn" data-i18n="floor_reward_dice_hand_judge_button"></button>
+        </div>
+        <p id="dice-hand-draw-result" class="threat-ref-body"></p>
+        <div id="dice-hand-draw-result-list"></div>
+        <div class="actions">
+          <button id="btn-dice-hand-draw-minimize" type="button" data-i18n="potential_power_minimize_button"></button>
+          <button id="btn-dice-hand-draw-close" type="button" class="danger-btn" data-i18n="leave_button"></button>
+        </div>
+      </div>
+    </div>
+    <button id="btn-dice-hand-draw-restore" type="button" class="potential-power-restore-btn" data-i18n="dice_hand_draw_restore_button" hidden></button>
+
     <div id="weapon-skill-reroll-modal" class="modal" hidden>
       <div class="modal-box combat-modal-box">
         <h2 id="weapon-skill-reroll-modal-title"></h2>

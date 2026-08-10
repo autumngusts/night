@@ -11439,6 +11439,11 @@
     document.getElementById("btn-item-draw-modal-close").addEventListener("click", closeItemDrawModal);
     document.getElementById("btn-item-draw-modal-minimize").addEventListener("click", minimizeItemDrawModal);
     document.getElementById("btn-item-draw-modal-restore").addEventListener("click", restoreItemDrawModal);
+    document.getElementById("btn-dice-hand-draw-random").addEventListener("click", window.PriTestNightFloorBreakthrough.handleDiceHandDrawRandom);
+    document.getElementById("btn-dice-hand-draw-judge").addEventListener("click", window.PriTestNightFloorBreakthrough.handleDiceHandDrawJudge);
+    document.getElementById("btn-dice-hand-draw-minimize").addEventListener("click", window.PriTestNightFloorBreakthrough.minimizeDiceHandDrawModal);
+    document.getElementById("btn-dice-hand-draw-close").addEventListener("click", window.PriTestNightFloorBreakthrough.closeDiceHandDrawModal);
+    document.getElementById("btn-dice-hand-draw-restore").addEventListener("click", window.PriTestNightFloorBreakthrough.restoreDiceHandDrawModal);
     document.getElementById("btn-weapon-skill-reroll-modal-close").addEventListener("click", closeWeaponSkillRerollModal);
     document.getElementById("btn-potential-power-minimize").addEventListener("click", window.PriTestNightPotentialPower.minimizePotentialPowerModal);
     document.getElementById("btn-potential-power-restore").addEventListener("click", window.PriTestNightPotentialPower.restorePotentialPowerModal);
