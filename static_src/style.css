@@ -3084,7 +3084,7 @@ button {
 }
 
 .dice-hand-draw-restore-btn {
-  bottom: 13rem;
+  bottom: 12rem;
 }
 
 /* 上限超過（要解決）は他の縮小ボタンより優先度が高いため、スタッキングの最上位に置く。 */
