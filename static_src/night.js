@@ -714,6 +714,44 @@
       // に消費されてbossFormを"fused"へ自動で戻す（分裂形態では体勢崩し自体は発生しない、
       // ユーザー確認済み仕様。docs/enemy_damage_rules.md 9節）。
       bossFormTransitionPending: false,
+      // 使用者確認：「1段が體勢崩しを起こすのは1回だけ」——自動化GMがautoAdvanceBattlePhaseで
+      // 戰鬥→額外を自動判定する際、既にこの配列に含まれる段番号（0-3）は「もう額外階段の
+      // トリガーとして使用済み」とみなし、そのHPが0のまま残っていても再度額外階段へは進まない
+      // （guardBrokenは戰鬥全體で1回だけの体勢崩し発生フラグのため、これとは別の「段ごと」の
+      // 記録が必要）。戰鬥終了（combatEnd）時にクリアする。
+      staggerRowsHandled: [],
+      // 自動化GM 戰鬥自動化：通常戰鬥／簡易戰鬥判定（docs/combat_flow_rules.md §6）。
+      // "normal"｜"simplified"｜null（未判定＝尚未透過resolveAndAddCombatEnemies判定過）。
+      // 戰鬥級生命週期，combatEnd（notifyCombatEnded）時與guardCount等一併清除，不隨phase切換重置。
+      combatMode: null,
+      // ボス戰闘（王戦）は必ず通常戰鬥、ザコ戰鬥のみPC平均Lv比較で判定する（同docs §6）。
+      combatIsBoss: false,
+      // 簡易戰鬥の「追擊損害」確認バナーが表示中かどうか（GMが[確認]を押すまでtrue）。
+      simplifiedCombatEndPending: false,
+      // 回合內細粒度階段（"請擲骰！"／"攻擊中！"等GM敘述提示用）。進入combat/extra/defense時初始化。
+      roundStage: "awaitingRoll",
+      // 本回合已完成動作的角色（key=角色id、value=true）。每次phase切換都清空。
+      roundActionsDone: {},
+      // 每個角色按下「已完成」時，依「點擊順序」（不是角色欄位順序）追加一筆{charId, lines}，
+      // 顯示在進度版敘述中；取消準備時移除該筆（其後的行自然往上遞補），再次按下則排到最後面
+      // （使用者確認的行為）。每次phase切換都清空。
+      roundActionLog: [],
+      // [攻擊]/[防禦]確認後、[結束回合]前顯示在進度版的結算文字（roundStage==="resolving"時使用）。
+      roundResultText: null,
+      // 防禦階段全員擲骰完成時，autoTriggerDefenseRollが自動擲出的敵方行動結果，用來讓GM之後
+      // 打開#enemy-damage-modal時復原相同數值（不重新擲骰）。
+      pendingDefenseRoll: null,
+      // 防禦階段全員擲骰完成時，顯示在進度版的AutoGM擲骰速報文字（亂戰/個別傷害內訳＋各PC預估損害）。
+      defenseRollPreviewText: null,
+      // #enemy-damage-modal內，已按下［確定］的角色（key=角色id、value=true）。全員確定後才
+      // 觸發finishEnemyDamageRound並清空。
+      enemyDamageConfirmed: {},
+      // 每個角色按下［確定］時計算出的實際HP損害（key=角色id、value=數值），finishEnemyDamageRound
+      // 用來組成進度版的結算文字。
+      defenseHpLossSummary: {},
+      // 進入防禦階段時要處理的效果（時間消耗1、可能連帶觸發的威脅效果／夜雨），顯示在進度版
+      // 敘述最前面（打字機說明）。每次phase切換都清空。
+      defenseEntryEffectText: null,
     };
   }
 
@@ -833,9 +871,19 @@
       // actionKind==="conditionalCooperativeChoice"のときの{options:[{label,target,perPC,statKey}, {label,target,perPC,statKey}]}
       // （湖沼(睡)専用：祭壇に興味があるか先に選ばせてから使う協力式判定を決める）
       conditionalCooperativeChoiceSpec: null,
-      // actionKind==="sequentialCooperativeChain"のときの{steps:[{target,statKey}, ...],stepIndex,awaitingContinue}
-      // （東の地下砦「入り組んだ地下の回廊」専用：同じ屬性・異なる目標値の協力式判定を順番に連鎖させる）
+      // actionKind==="sequentialCooperativeChain"のときの{mode,steps:[{target,statKey}, ...],stepIndex,successCount,awaitingContinue,markerLabel}
+      // （東の地下砦「入り組んだ地下の回廊」／水辺の大教会「正面から（梅花）」／発狂地帯「狂い火の塔3」／
+      // 襲撃「三つ首の獣」「狼の気配2」専用：協力式判定を順番／連続で連鎖させる）
       sequentialChainSpec: null,
+      // actionKind==="openEndedTallyCheck"のときの{target,statKey,successThreshold,failEscalationStep,successCount,failCount,successLineJaLabel}
+      // （水辺の大教会「水辺を抜けて横の瓦礫から」専用：任意のPCが目標成功回数に達するまで判定を繰り返す）
+      openEndedTallySpec: null,
+      // actionKind==="representativePickCheck"のときの{repTarget,repStat,othersTarget,othersStat}
+      // （大野営地「火の戦車」専用：代表者1人＋それ以外の入場PC全員でそれぞれ異なる目標値の判定を行う）
+      representativePickSpec: null,
+      // actionKind==="multiStatIndividualCheck"のときの{checks:[{target,statKey}, ...],stepIndex,results,markerLabel}
+      // （砦「壺投げのトロル」専用：PC全員がそれぞれ異なる屬性の判定を複数回行う）
+      multiStatCheckSpec: null,
       freeFloorOptions: [], // actionKind==="freeFloorChoice"のときに提示する未踏破position（1始まり）の配列（路線自由カード用）
       // actionKind==="battleWait"の間trueなら、エネミーの全HP行が0になった瞬間
       // （night.jsのsetActionPhase、combatEndオプション経由）に自動で敘述の続きへ進める。
@@ -853,6 +901,10 @@
       chipOfferContinuation: null,
       pendingChipCheckSlot: null,
       pendingMapMoveSlot: null,
+      // 第4項：地圖移動ゲート（actionKind==="mapMove"）を開いた時点のfocusedIndex。
+      // [OK]を押した時点でこの値とfocusedIndexが同じなら「まだ移動していない」と判定し、
+      // ゲートを閉じずリマインドを繰り返す（handleMapMoveOkClick参照）。
+      pendingMapMoveFromIndex: null,
     },
     // GMが開いて縮小した抽選ウィンドウを全端末で共有するための領域。null=未使用。
     // 中身はcharacter_drawer.jsのweaponRollState/talismanRollState/consumableRollState、
@@ -865,6 +917,12 @@
     // 「路線自由」（branch.freeFloorOrder）カード専用——通常のcardLevels連番進行の代わりに
     // 位置ごとのクリア状態を持つ（砦／地下砦カード：フロアを任意の順で選べ、指定数踏破で全踏破）。
     freeFloorCleared: {},
+    // key: slot index -> boolean[]（floorCount分）。通常カード専用——cardLevelsは「次に
+    // 試すべき樓層」を指すポインタに過ぎず、突破判定で「スキップ」しただけの樓層も
+    // ポインタを進めてしまう。このため「実際にその樓層の敘述を最後まで読み終えた（真に
+    // 踏破した）」かどうかを別途ここで管理する（docs/scenario_flow_rules.md：突破スキップは
+    // フィールド移動まで一時的、真の踏破ではない）。
+    floorCleared: {},
   };
 
   function shuffle(arr) {
@@ -942,6 +1000,7 @@
       returnedCardMemory: state.returnedCardMemory,
       cardFloorRewardGranted: state.cardFloorRewardGranted,
       freeFloorCleared: state.freeFloorCleared,
+      floorCleared: state.floorCleared,
     };
   }
 
@@ -1129,6 +1188,43 @@
       guardBroken: !!raw.guardBroken,
       guardCount: loadNumberMap(raw.guardCount),
       bossFormTransitionPending: !!raw.bossFormTransitionPending,
+      staggerRowsHandled: Array.isArray(raw.staggerRowsHandled)
+        ? raw.staggerRowsHandled.filter(function (v) {
+            return typeof v === "number";
+          })
+        : [],
+      combatMode: raw.combatMode === "normal" || raw.combatMode === "simplified" ? raw.combatMode : null,
+      combatIsBoss: !!raw.combatIsBoss,
+      simplifiedCombatEndPending: !!raw.simplifiedCombatEndPending,
+      roundStage: ["awaitingRoll", "acting", "resolving"].indexOf(raw.roundStage) !== -1 ? raw.roundStage : "awaitingRoll",
+      roundActionsDone: loadBoolMap(raw.roundActionsDone),
+      roundActionLog: Array.isArray(raw.roundActionLog)
+        ? raw.roundActionLog
+            .filter(function (entry) {
+              return entry && typeof entry.charId === "string" && Array.isArray(entry.lines);
+            })
+            .map(function (entry) {
+              return {
+                charId: entry.charId,
+                lines: entry.lines.filter(function (l) {
+                  return typeof l === "string";
+                }),
+              };
+            })
+        : [],
+      roundResultText: typeof raw.roundResultText === "string" ? raw.roundResultText : null,
+      pendingDefenseRoll:
+        raw.pendingDefenseRoll && typeof raw.pendingDefenseRoll === "object"
+          ? {
+              enemyKey: typeof raw.pendingDefenseRoll.enemyKey === "string" ? raw.pendingDefenseRoll.enemyKey : null,
+              group: loadNumberMap(raw.pendingDefenseRoll.group),
+              individual: loadNumberMap(raw.pendingDefenseRoll.individual),
+            }
+          : null,
+      defenseRollPreviewText: typeof raw.defenseRollPreviewText === "string" ? raw.defenseRollPreviewText : null,
+      enemyDamageConfirmed: loadBoolMap(raw.enemyDamageConfirmed),
+      defenseHpLossSummary: loadNumberMap(raw.defenseHpLossSummary),
+      defenseEntryEffectText: typeof raw.defenseEntryEffectText === "string" ? raw.defenseEntryEffectText : null,
     };
   }
 
@@ -1273,6 +1369,19 @@
     return fam && typeof fam.guardCount === "number" ? fam.guardCount : null;
   }
 
+  // guardValueTableの1行が持つcount欄は、夜の王（night_boss_rulebook.js）は素の数値
+  // （例：{count:2,...}）だが、通常エネミー（enemies_data_*.js）はC(ja,zh)の多言語文字列
+  // オブジェクト（例：{count:C("2","2"),...}、理論値行は"4以上"・體勢崩し行は"0／體勢崩潰"）
+  // で書かれている。後者を素の数値と直接===比較すると常に不一致になるバグがあったため
+  // （2026-08-10 自動化GM戰鬥自動化で発見・修正——通常エネミーのGuard削り値計算機能は
+  // これまで一度も正しく動いていなかった）、両方の形をここで数値へ正規化してから比較する。
+  function parseGuardCountValue(count) {
+    if (typeof count === "number") return count;
+    var text = (count && (count.zh || count.ja)) || "";
+    var m = /^(\d+)/.exec(text);
+    return m ? parseInt(m[1], 10) : null;
+  }
+
   // guardCountValueに対応する「HP価値」を引く。通常エネミーはguardValueTableの行が
   // レベル別15要素配列を持つ場合があるため、enemyKeyのlevelでも解決する
   // （night_rulebook.jsのbuildEnemyGuardValueTableと同じ判定）。
@@ -1290,7 +1399,7 @@
     }
     if (!table) return null;
     var row = table.filter(function (r) {
-      return r.count === guardCountValue;
+      return parseGuardCountValue(r.count) === guardCountValue;
     })[0];
     if (!row) return null;
     if (Array.isArray(row.value)) return row.value[Math.max(0, Math.min(row.value.length - 1, level - 1))];
@@ -1675,6 +1784,16 @@
     as.dealt[key] = (as.dealt[key] || 0) + value;
     var accumKey = enemyKey + "|" + label;
     as.enemyAccum[accumKey] = (as.enemyAccum[accumKey] || 0) + value;
+    // 自動化GM 戰鬥自動化：進度版に出す「本回合行動說明」用に、フェイズ単位で増えた屬性/異常
+    // 蓄積値も別途追跡する（c._phaseAttributeGains、phase reset時にクリア。relic補正込みの
+    // 実際の増分valueを使う）。
+    var actor = rosterCharacters.filter(function (rc) {
+      return rc.id === characterId;
+    })[0];
+    if (actor) {
+      if (!actor._phaseAttributeGains) actor._phaseAttributeGains = {};
+      actor._phaseAttributeGains[label] = (actor._phaseAttributeGains[label] || 0) + value;
+    }
     processAttributeStatusEnemyTrigger(enemyKey, label);
   }
 
@@ -1839,22 +1958,10 @@
               branchFloor: typeof loadedGmFlow.walk.branchFloor === "number" ? loadedGmFlow.walk.branchFloor : null,
               branchFloorArmed: !!loadedGmFlow.walk.branchFloorArmed,
               pendingPrefixText: typeof loadedGmFlow.walk.pendingPrefixText === "string" ? loadedGmFlow.walk.pendingPrefixText : null,
-              pendingOutcomeFilter:
-                [
-                  "成功",
-                  "失敗",
-                  "成功2回",
-                  "成功1回",
-                  "失敗2回",
-                  "成功1回目",
-                  "成功2回目",
-                  "成功3回目",
-                  "失敗1回目",
-                  "失敗2回目",
-                  "失敗3回目",
-                ].indexOf(loadedGmFlow.walk.pendingOutcomeFilter) !== -1
-                  ? loadedGmFlow.walk.pendingOutcomeFilter
-                  : null,
+              // pendingConvergeLabel同様、line.label.ja/zhとの単純な文字列比較にしか使わないため、
+              // 固定候補の列挙ではなく型チェックのみで十分（新しい判定パターンを追加するたびに
+              // ここへ値を追加する必要をなくす）。
+              pendingOutcomeFilter: typeof loadedGmFlow.walk.pendingOutcomeFilter === "string" ? loadedGmFlow.walk.pendingOutcomeFilter : null,
               pendingConvergeLabel: typeof loadedGmFlow.walk.pendingConvergeLabel === "string" ? loadedGmFlow.walk.pendingConvergeLabel : null,
             }
           : null;
@@ -1876,6 +1983,9 @@
             "sequentialPairCheck",
             "conditionalCooperativeChoice",
             "sequentialCooperativeChain",
+            "openEndedTallyCheck",
+            "representativePickCheck",
+            "multiStatIndividualCheck",
             "freeFloorChoice",
             "battleWait",
             "chipOffer",
@@ -1963,11 +2073,57 @@
         sequentialChainSpec:
           loadedGmFlow.sequentialChainSpec && Array.isArray(loadedGmFlow.sequentialChainSpec.steps) && loadedGmFlow.sequentialChainSpec.steps.length >= 2
             ? {
+                mode: loadedGmFlow.sequentialChainSpec.mode === "tallyAll" ? "tallyAll" : "earlyExitChain",
                 steps: loadedGmFlow.sequentialChainSpec.steps.map(function (stp) {
                   return { target: typeof stp.target === "number" ? stp.target : 0, statKey: typeof stp.statKey === "string" ? stp.statKey : "luck" };
                 }),
                 stepIndex: typeof loadedGmFlow.sequentialChainSpec.stepIndex === "number" ? loadedGmFlow.sequentialChainSpec.stepIndex : 0,
+                successCount: typeof loadedGmFlow.sequentialChainSpec.successCount === "number" ? loadedGmFlow.sequentialChainSpec.successCount : 0,
                 awaitingContinue: !!loadedGmFlow.sequentialChainSpec.awaitingContinue,
+                markerLabel: typeof loadedGmFlow.sequentialChainSpec.markerLabel === "string" ? loadedGmFlow.sequentialChainSpec.markerLabel : null,
+              }
+            : null,
+        openEndedTallySpec:
+          loadedGmFlow.openEndedTallySpec &&
+          typeof loadedGmFlow.openEndedTallySpec.target === "number" &&
+          typeof loadedGmFlow.openEndedTallySpec.statKey === "string" &&
+          typeof loadedGmFlow.openEndedTallySpec.successLineJaLabel === "string"
+            ? {
+                target: loadedGmFlow.openEndedTallySpec.target,
+                statKey: loadedGmFlow.openEndedTallySpec.statKey,
+                successThreshold:
+                  typeof loadedGmFlow.openEndedTallySpec.successThreshold === "number" ? loadedGmFlow.openEndedTallySpec.successThreshold : 1,
+                failEscalationStep:
+                  typeof loadedGmFlow.openEndedTallySpec.failEscalationStep === "number" ? loadedGmFlow.openEndedTallySpec.failEscalationStep : null,
+                successCount: typeof loadedGmFlow.openEndedTallySpec.successCount === "number" ? loadedGmFlow.openEndedTallySpec.successCount : 0,
+                failCount: typeof loadedGmFlow.openEndedTallySpec.failCount === "number" ? loadedGmFlow.openEndedTallySpec.failCount : 0,
+                successLineJaLabel: loadedGmFlow.openEndedTallySpec.successLineJaLabel,
+              }
+            : null,
+        representativePickSpec:
+          loadedGmFlow.representativePickSpec &&
+          typeof loadedGmFlow.representativePickSpec.repTarget === "number" &&
+          typeof loadedGmFlow.representativePickSpec.repStat === "string" &&
+          typeof loadedGmFlow.representativePickSpec.othersTarget === "number" &&
+          typeof loadedGmFlow.representativePickSpec.othersStat === "string"
+            ? {
+                repTarget: loadedGmFlow.representativePickSpec.repTarget,
+                repStat: loadedGmFlow.representativePickSpec.repStat,
+                othersTarget: loadedGmFlow.representativePickSpec.othersTarget,
+                othersStat: loadedGmFlow.representativePickSpec.othersStat,
+              }
+            : null,
+        // ラウンド途中の擲骰履歴（results）はモーダルの一時state（abilityCheckRolls）と同様
+        // リロードで復元しない——checks／markerLabelだけ復元し、最初のラウンドからやり直す。
+        multiStatCheckSpec:
+          loadedGmFlow.multiStatCheckSpec && Array.isArray(loadedGmFlow.multiStatCheckSpec.checks) && loadedGmFlow.multiStatCheckSpec.checks.length >= 2
+            ? {
+                checks: loadedGmFlow.multiStatCheckSpec.checks.map(function (chk) {
+                  return { target: typeof chk.target === "number" ? chk.target : 0, statKey: typeof chk.statKey === "string" ? chk.statKey : "luck" };
+                }),
+                stepIndex: 0,
+                results: {},
+                markerLabel: typeof loadedGmFlow.multiStatCheckSpec.markerLabel === "string" ? loadedGmFlow.multiStatCheckSpec.markerLabel : null,
               }
             : null,
         freeFloorOptions: Array.isArray(loadedGmFlow.freeFloorOptions) ? loadedGmFlow.freeFloorOptions : [],
@@ -1977,6 +2133,7 @@
         chipOfferContinuation: typeof loadedGmFlow.chipOfferContinuation === "string" ? loadedGmFlow.chipOfferContinuation : null,
         pendingChipCheckSlot: typeof loadedGmFlow.pendingChipCheckSlot === "number" ? loadedGmFlow.pendingChipCheckSlot : null,
         pendingMapMoveSlot: loadSlotOrPileIndex(loadedGmFlow.pendingMapMoveSlot),
+        pendingMapMoveFromIndex: loadSlotOrPileIndex(loadedGmFlow.pendingMapMoveFromIndex),
       };
       var loadedDraws = data.activeDraws && typeof data.activeDraws === "object" ? data.activeDraws : {};
       state.activeDraws = {
@@ -1991,6 +2148,7 @@
       state.cardFloorRewardGranted =
         data.cardFloorRewardGranted && typeof data.cardFloorRewardGranted === "object" ? data.cardFloorRewardGranted : {};
       state.freeFloorCleared = data.freeFloorCleared && typeof data.freeFloorCleared === "object" ? data.freeFloorCleared : {};
+      state.floorCleared = data.floorCleared && typeof data.floorCleared === "object" ? data.floorCleared : {};
     } catch (e) {
       // 壊れた状態は無視して初期状態のまま続行する
     }
@@ -2065,6 +2223,9 @@
       sequentialPairSpec: null,
       conditionalCooperativeChoiceSpec: null,
       sequentialChainSpec: null,
+      openEndedTallySpec: null,
+      representativePickSpec: null,
+      multiStatCheckSpec: null,
       freeFloorOptions: [],
       battleWaitActive: false,
       pendingFinalFloorSlot: null,
@@ -2072,12 +2233,14 @@
       chipOfferContinuation: null,
       pendingChipCheckSlot: null,
       pendingMapMoveSlot: null,
+      pendingMapMoveFromIndex: null,
     };
     state.activeDraws = { potentialPower: null, weapon: null, talisman: null, consumable: null };
     state.activeThreatEffects = [];
     state.returnedCardMemory = {};
     state.cardFloorRewardGranted = {};
     state.freeFloorCleared = {};
+    state.floorCleared = {};
     localStorage.removeItem(STORAGE_KEY);
     clearUndoSnapshot();
   }
@@ -2637,6 +2800,46 @@
     content.textContent = text;
     overlay.classList.toggle("status-defeated", kind === "defeated");
     overlay.hidden = false;
+  }
+
+  // --- 自動化GM 戰鬥自動化：簡易戰鬥終了時「追擊損害」の確認バナー ---
+  // enemy-row-status-overlayと同様、GMが[確認]を押すまで公開盤に残り続ける
+  // （threat-broadcast-overlayと違い自動では閉じない）。
+  function closeSimplifiedCombatEndPrompt() {
+    var overlay = document.getElementById("simplified-combat-end-overlay");
+    if (overlay) overlay.hidden = true;
+  }
+
+  function renderSimplifiedCombatEndPrompt() {
+    var overlay = document.getElementById("simplified-combat-end-overlay");
+    var content = document.getElementById("simplified-combat-end-content");
+    if (!overlay || !content) return;
+    var value = computePursuitDamage();
+    content.textContent =
+      value > 0
+        ? window.I18N.t("simplified_combat_pursuit_damage_prompt", { value: value })
+        : window.I18N.t("simplified_combat_pursuit_damage_none_prompt");
+    overlay.hidden = false;
+  }
+
+  // GMが[確認]を押した時点で、敵人剩餘HPと同じ量のHP損害を在場全員PCに与えてから
+  // （docs/combat_flow_rules.md §6、使用者裁定＝battle_simple_combat_bodyの既存規則書
+  // 参照文と一致）、既存の戦闘終了処理（combatEnd）を呼ぶ。
+  function handleSimplifiedCombatEndConfirm() {
+    var value = computePursuitDamage();
+    if (value > 0) {
+      rosterCharacters.forEach(function (c) {
+        if (!c.entered) return;
+        c.hp.current = Math.max(0, c.hp.current - value);
+        checkNearDeathTrigger(c);
+      });
+      saveRosterCharacters();
+      addLog("log_simplified_combat_pursuit_damage", { value: value });
+    }
+    state.battle.simplifiedCombatEndPending = false;
+    closeSimplifiedCombatEndPrompt();
+    renderCharacterRoster();
+    setActionPhase("normal", { combatEnd: true, fromSimplifiedCombat: true });
   }
 
   function buildWanderingBlessingChecks() {
@@ -3556,7 +3759,7 @@
             masteryBonus +
             consecutiveBonus;
           var dmgSymbol = hitType === "hit1" ? damage.hit1Symbol : damage.hit2Symbol;
-          recordPhaseDamageDealt(c, dmgValue);
+          recordPhaseDamageDealt(c, dmgValue, dmgSymbol);
           var lines = [window.I18N.t("action_log_dice_used", { dice: dice.join("、") })].concat(costLines);
           // 淑女「短劍重演」：短劍で1つのフェイズ中に2Hitアタックを2回行った瞬間（■は数値未確定の
           // ためGM手動反映、注記のみ残す）。
@@ -3603,6 +3806,10 @@
           // 参考情報として本文を注記するのみに留める（過大なダメージ捏造を避けるため）。
           CharacterDrawer.weaponSpecialEffectNotes(weaponId).forEach(function (note) {
             lines.push(window.I18N.t("action_log_special_note", { note: note }));
+            // 自動化GM 戰鬥自動化：進度版に出す「本回合行動說明」の效果欄用に、フェイズ単位で
+            // 別途保持する（phase reset時にクリア）。
+            if (!c._phaseSpecialNotes) c._phaseSpecialNotes = [];
+            c._phaseSpecialNotes.push(note);
           });
           addActionBox(
             c,
@@ -3695,7 +3902,7 @@
                   })[0]
                 : null;
             c._spiritDamageUsedThisPhase = true;
-            if (spiritDamageChoice === "enemy") recordPhaseDamageDealt(c, spiritDamage.value);
+            if (spiritDamageChoice === "enemy") recordPhaseDamageDealt(c, spiritDamage.value, spiritDamage.symbol);
             saveRosterCharacters();
             addActionBox(
               c,
@@ -3867,7 +4074,7 @@
           lines.push(window.I18N.t("combat_special_attack_move_to_front_note"));
         }
         var valueText = CharacterDrawer.formatValueWithSymbol(result.value, result.symbol);
-        recordPhaseDamageDealt(c, result.value);
+        recordPhaseDamageDealt(c, result.value, result.symbol);
         addActionBox(c, Weapons.localizedText(weapon.name) + "（" + window.I18N.t(labelKey) + "）", window.I18N.t("action_log_damage_total", { value: valueText }), lines);
         addLog("log_combat_special_attack", {
           character: c.name,
@@ -3937,7 +4144,7 @@
         var valueText = CharacterDrawer.formatValueWithSymbol(fixed.value, fixed.symbol);
         addActionBox(c, window.I18N.t("combat_special_attack_fatal_label"), window.I18N.t("action_log_damage_total", { value: valueText }), lines);
         addLog("log_combat_fatal_strike", { character: c.name, damage: valueText, dice: dice.join("、") });
-        recordPhaseDamageDealt(c, fixed.value);
+        recordPhaseDamageDealt(c, fixed.value, fixed.symbol);
         // 淑女「致命一擊獲得盧恩」：發動遺物効果「致命一擊」時、1次戰鬥中僅發揮1次、全體PC獲得盧恩1。
         if (!state.battle._fatalStrikeRuneGranted && CharacterDrawer.findLearnedRelicEffectByName(c, ["致命一擊獲得盧恩", "致命の一撃でルーン獲得"])) {
           state.battle._fatalStrikeRuneGranted = true;
@@ -4047,9 +4254,19 @@
   // 遺物効果「130傷害回復HP」「130傷害回復FP」：1つのフェイズ中に自身が単独で与えた總合傷害の
   // 累計が判定対象（他PCの分は含めない）。攻擊・特殊攻擊・技能などダメージが確定するたびに
   // ここで積み上げ、フェイズ終了時（setActionPhase）にまとめて判定する。
-  function recordPhaseDamageDealt(c, value) {
-    if (!value) return;
-    c._phaseDamageDealt = (c._phaseDamageDealt || 0) + value;
+  // 自動化GM 戰鬥自動化：symbolは主傷害欄に含まれていた▲/◆（"▲"|"◆"|null|undefined）。
+  // 使用者裁定（Guard削り値の自動計算）に基づき、主傷害欄の▲=0.5点／◆=1点をこの1回の
+  // 攻撃行動が生んだGuard削り値として、既存のc._phaseDamageDealtと同じ「フェイズ単位で
+  // 蓄積し、phase reset loopで0に戻す」ライフサイクルでc._phaseGuardReductionPointsへ加算する。
+  function recordPhaseDamageDealt(c, value, symbol) {
+    if (value) c._phaseDamageDealt = (c._phaseDamageDealt || 0) + value;
+    if (symbol === "▲" || symbol === "◆") {
+      c._phaseGuardReductionPoints = (c._phaseGuardReductionPoints || 0) + (symbol === "▲" ? 0.5 : 1);
+      // 自動化GM 戰鬥自動化：進度版に出す「本回合行動說明」で▲/◆をそのまま表示するための
+      // 記号の並び（例：▲▲◆）。数値の_phaseGuardReductionPointsとは別に、表示用に保持する。
+      if (!c._phaseGuardSymbols) c._phaseGuardSymbols = [];
+      c._phaseGuardSymbols.push(symbol);
+    }
   }
 
   // 送葬人「連續攻擊時，產生總合傷害」：4/5/6/7個消費でそれぞれ+10/+20/+30/+40（段階的、
@@ -4298,7 +4515,7 @@
         freeUseBtn.addEventListener("click", function () {
           c._powerResonanceCredits = Math.max(0, (c._powerResonanceCredits || 0) - 1);
           var dmg = computeSkillDamage(c, entry, body);
-          if (dmg) recordPhaseDamageDealt(c, dmg.value);
+          if (dmg) recordPhaseDamageDealt(c, dmg.value, dmg.symbol);
           var total = dmg ? window.I18N.t("action_log_damage_total", { value: CharacterDrawer.formatValueWithSymbol(dmg.value, dmg.symbol) }) : null;
           moveOminousStrikeToFront(c);
           addActionBox(c, name, total, [window.I18N.t("log_ominous_strike_move_note")]);
@@ -4573,7 +4790,7 @@
                 recordAttributeStatusDealt(c.id, hybridEnemySelect.value, enemyLabels.zh, 2);
               }
               var dmg = computeSkillDamage(c, entry, body);
-              if (dmg) recordPhaseDamageDealt(c, dmg.value);
+              if (dmg) recordPhaseDamageDealt(c, dmg.value, dmg.symbol);
               var total = dmg ? window.I18N.t("action_log_damage_total", { value: CharacterDrawer.formatValueWithSymbol(dmg.value, dmg.symbol) }) : null;
               var hybridNote = [total, window.I18N.t("hybrid_magic_note", { element: elementLabel })].filter(Boolean).join(" / ");
               addActionBox(c, name, hybridNote, [window.I18N.t("action_log_dice_used", { dice: dice.join("、") })].concat(costLines));
@@ -4871,7 +5088,7 @@
             }, 0);
           }
           var dmg = computeSkillDamage(c, entry, body);
-          if (dmg) recordPhaseDamageDealt(c, dmg.value);
+          if (dmg) recordPhaseDamageDealt(c, dmg.value, dmg.symbol);
           var total =
             entry.id === "marking"
               ? window.I18N.t("marking_action_note")
@@ -6846,6 +7063,29 @@
     return false;
   }
 
+  // 使用者確認：「1段が體勢崩しを起こすのは1回だけ」。既にstaggerRowsHandledへ記録済みの段は
+  // （HPが0のまま残っていても）自動化GMの額外階段トリガー判定からは除外する。自動化GM以外の
+  // 既存機能（額外行動ボタンの有効化、guardBroken等）には影響しない——この関数はautoAdvance
+  // BattlePhase専用。
+  function anyUnhandledStaggeredRow() {
+    var handled = state.battle.staggerRowsHandled || [];
+    for (var i = 0; i < ENEMY_HP_ROWS; i++) {
+      if (isEnemyHpRowDepleted(i) && handled.indexOf(i) === -1) return true;
+    }
+    return false;
+  }
+
+  // 自動化GMが實際に額外階段へ進むと決めた瞬間に呼ぶ。現在0になっている段を全て
+  // 「使用済み」として記録し、以後その段だけでは再度額外階段を発生させない。
+  function markStaggeredRowsHandled() {
+    if (!state.battle.staggerRowsHandled) state.battle.staggerRowsHandled = [];
+    for (var i = 0; i < ENEMY_HP_ROWS; i++) {
+      if (isEnemyHpRowDepleted(i) && state.battle.staggerRowsHandled.indexOf(i) === -1) {
+        state.battle.staggerRowsHandled.push(i);
+      }
+    }
+  }
+
   // 敵が割り当て済みの段が1つ以上あり、そのすべてが撃破済み＝戦闘終了（一般行動へ自動的に戻す）。
   function allEnemyHpRowsDepleted() {
     var any = false;
@@ -6855,6 +7095,345 @@
       if (!isEnemyHpRowDepleted(i)) return false;
     }
     return any;
+  }
+
+  // 自動化GM 戰鬥自動化：進度版で戰鬥開始時に公開する「遭遇した敵人」情報（名稱／等級／種族／
+  // 尺寸／HP、雜兵の有無とそのHP）のテキストを組み立てる（docs/combat_flow_rules.md §4
+  // 「公開情報」に対応）。night_gm_flow.jsのhandleCombatTriggerClickからwindow.PriTestNightCore
+  // 経由で呼ばれる。
+  function buildEncounterSummaryText() {
+    var Enemies = window.PriTestEnemies;
+    if (!Enemies) return "";
+    var T = Enemies.localizedText;
+    var ids = (state.battle && state.battle.selectedEnemyIds) || [];
+    var lines = [];
+    ids.forEach(function (key) {
+      var parts = key.split("|");
+      var info = Enemies.get(parts[0], parts[1]);
+      if (!info) return;
+      var level = Math.max(1, Number(parts[2]) || 1);
+      var lvRow = (info.familyBase || []).filter(function (lv) {
+        return lv.level === level;
+      })[0];
+      var lineParts = [
+        T(info.enemy.name),
+        window.I18N.t("enemy_level_label") + window.I18N.t("colon_separator") + level,
+        T(info.familyName),
+        info.enemy.size || "-",
+      ];
+      if (lvRow && lvRow.hp) {
+        lineParts.push(window.I18N.t("enemy_hp_label") + window.I18N.t("colon_separator") + lvRow.hp);
+      }
+      lines.push(lineParts.join("　"));
+    });
+    if (state.battle.mobHpRows && state.battle.mobHpRows.length) {
+      var mobTotal = 0;
+      var mobChecked = 0;
+      state.battle.mobHpRows.forEach(function (row) {
+        mobTotal += row.length;
+        mobChecked += row.filter(Boolean).length;
+      });
+      lines.push(window.I18N.t("gm_flow_encounter_mob_line", { current: mobChecked, max: mobTotal }));
+    }
+    return lines.join("\n");
+  }
+
+  // 自動化GM 戰鬥自動化：簡易戰鬥（docs/combat_flow_rules.md §6）の第1回合が終わった時点で
+  // 「追擊損害」として全體玩家へ与えるダメージ量（使用者裁定：敵人剩餘HPと同じ値、GM畫面に
+  // 表示されている「現在HP」＝各HP行のチェック済み方格数の合計と同じ読み取り方）。
+  function computePursuitDamage() {
+    var total = 0;
+    for (var i = 0; i < ENEMY_HP_ROWS; i++) {
+      if (!enemyHasRow(i)) continue;
+      total += countRowChecked(state.battle.enemyHp, i * ENEMY_HP_COLS, ENEMY_HP_COLS);
+    }
+    return total;
+  }
+
+  // --- 自動化GM 戰鬥自動化：回合內細粒度階段（roundStage）・回合傷害彙總 ---
+
+  // 現在のphase（combat/extra/defense）で、entered中の全員（瀕死状態を除く）が本フェイズの
+  // スタミナダイスを振り終えたかどうか。
+  function allEnteredCharactersRolledForPhase() {
+    var flagKey =
+      state.actionPhase === "extra" ? "_extraActionUsed" : state.actionPhase === "defense" ? "_defenseActionUsed" : "_combatDiceRolled";
+    var entered = enteredCharactersForBattle();
+    if (!entered.length) return false;
+    return entered.every(function (c) {
+      return !!c[flagKey];
+    });
+  }
+
+  // 使用者確認：瀕死状態（c._nearDeath、救い出されるまで持続）のPCは、體力骰を振る要求や
+  // 「已完成」按鈕列の対象から除外する（行動できないため）。戰鬥回合の自動化（擲骰完了判定・
+  // 已完成按鈕・傷害/破防合計）は全てこの関数を経由するため、ここ1箇所で除外すれば十分。
+  function enteredCharactersForBattle() {
+    return rosterCharacters.filter(function (c) {
+      return c.entered && !c._nearDeath;
+    });
+  }
+
+  // 本回合、entered中の全員が「已完成」ボタンを押したかどうか。
+  function allEnteredCharactersActionsDone() {
+    var entered = enteredCharactersForBattle();
+    if (!entered.length) return false;
+    return entered.every(function (c) {
+      return !!state.battle.roundActionsDone[c.id];
+    });
+  }
+
+  // c._phaseDamageDealt（既存、每次攻撃で自動累積・phase reset時に0へ戻る）を全員分合算する。
+  function computeRoundDamageTotal() {
+    return enteredCharactersForBattle().reduce(function (sum, c) {
+      return sum + (c._phaseDamageDealt || 0);
+    }, 0);
+  }
+
+  // c._phaseGuardReductionPoints（recordPhaseDamageDealtが▲=0.5/◆=1で自動累積）を全員分合算する。
+  function computeRoundGuardReductionTotal() {
+    return enteredCharactersForBattle().reduce(function (sum, c) {
+      return sum + (c._phaseGuardReductionPoints || 0);
+    }, 0);
+  }
+
+  // 自動化GM 戰鬥自動化：GM敘述と玩家操作按鈕は、既存の「進度版」（#location-status-overlay、
+  // night_gm_flow.jsのrenderLocationBanner／actionKind==="battleWait"分支）内で完結させる
+  // （使用者確認：戰鬥もgmFlow既存の敘述システムの管轄。地図側やbattle-drawerに別のバナー/
+  // 按鈕列を新設しない）。この2つの関数はwindow.PriTestNightCore経由でnight_gm_flow.jsから
+  // 呼ばれる（getRoundStageNarrationTextは文字列を返すだけ、renderBattleRoundActionButtonsは
+  // 渡されたactionsEl＝#location-status-actionsへ直接描画する）。
+
+  // 使用者確認：進度版に出す「本回合行動說明」は、個別の攻擊/技能ログを全部貼るのではなく、
+  // この角色が本フェイズに与えた合計（傷害＋Guard削り値記号／屬性蓄積合計／特效）を1行に
+  // まとめる。既存の累積欄（_phaseDamageDealt/_phaseGuardSymbols/_phaseAttributeGains/
+  // _phaseSpecialNotes、いずれもrecordPhaseDamageDealt/recordAttributeStatusDealt/攻擊確定時に
+  // 既に集計済み）を読むだけで、新しい計算はしない。
+  function buildCharacterActionLogLines(c) {
+    var damage = c._phaseDamageDealt || 0;
+    var symbols = (c._phaseGuardSymbols || []).join("");
+    var gains = c._phaseAttributeGains || {};
+    var attrParts = Object.keys(gains).map(function (label) {
+      return label + "+" + gains[label];
+    });
+    var effectParts = c._phaseSpecialNotes || [];
+    if (!damage && !attrParts.length && !effectParts.length) {
+      return [window.I18N.t("gm_flow_battle_action_none", { character: c.name })];
+    }
+    var damageText = damage + (symbols ? "＋" + symbols : "");
+    return [
+      window.I18N.t("gm_flow_battle_action_line", {
+        character: c.name,
+        damage: damageText,
+        attribute: attrParts.length ? attrParts.join("、") : "-",
+        effect: effectParts.length ? effectParts.join("、") : "-",
+      }),
+    ];
+  }
+
+  // 進度版に出す敘述文字（「請擲骰！」「攻擊中！」等＋各角色の行動說明＋回合結算）。
+  // combat/extra/defense以外はnullを返し、呼び出し側は既存の静的敘述
+  // （state.gmFlow.narrationText）にフォールバックする。
+  function getRoundStageNarrationText() {
+    var phase = state.actionPhase;
+    if (phase !== "combat" && phase !== "extra" && phase !== "defense") return null;
+    var stage = state.battle.roundStage || "awaitingRoll";
+    var parts = [];
+    if (stage === "resolving" && state.battle.roundResultText) {
+      parts.push(state.battle.roundResultText);
+    } else {
+      var stageKey = stage === "awaitingRoll" ? "awaiting_roll" : stage;
+      parts.push(window.I18N.t("round_stage_banner_" + phase + "_" + stageKey));
+    }
+    // 使用者確認：防禦階段に入った瞬間の処理（時間消耗1、連帶発生する威脅効果／夜雨）は、
+    // 請擲骰！の段階から常に表示し続ける（awaitingRoll/acting問わず）。
+    if (phase === "defense" && state.battle.defenseEntryEffectText) {
+      parts.push(state.battle.defenseEntryEffectText);
+    }
+    if (stage === "acting") {
+      // 防禦フェイズは、全員擲骰完了時にautoTriggerDefenseRollが自動的に敵方行動をロールし、
+      // その速報（亂戰/個別傷害の内訳＋各PCの推定損害）をここに出す。
+      if (phase === "defense" && state.battle.defenseRollPreviewText) {
+        parts.push(state.battle.defenseRollPreviewText);
+      }
+      // 使用者確認：各角色の行は「按下已完成した順序」で1行ずつ並べる（roster順ではない）。
+      // 取消して再度押すと、その行は末尾へ再追加される（state.battle.roundActionLogは
+      // {charId, lines}の配列、push/spliceで管理——renderBattleRoundActionButtons参照）。
+      var logLines = [];
+      (state.battle.roundActionLog || []).forEach(function (entry) {
+        logLines = logLines.concat(entry.lines || []);
+      });
+      if (logLines.length) parts.push(logLines.join("\n"));
+      if (allEnteredCharactersActionsDone() && phase !== "defense") {
+        parts.push(
+          window.I18N.t("gm_flow_battle_round_damage_summary", {
+            damage: computeRoundDamageTotal(),
+            guard: computeRoundGuardReductionTotal(),
+          })
+        );
+      }
+    }
+    return parts.join("\n\n");
+  }
+
+  // 進度版の按鈕欄へ、本回合の玩家「已完成」按鈕列（未完了時）または[攻擊/防禦][返回]
+  // （全員完了後）または[結束回合]（roundStage==="resolving"時）を描画する。
+  // roundStage==="awaitingRoll"の間はまだ誰も骰子を振り終えていないため何も描画しない
+  // （既存のbattleWait＝「按鈕なしで待つ」挙動のまま）。戻り値は「何か描画したか」の真偽値
+  // （呼び出し側が既存のcombatTrigger等の按鈕と混同しないための判定に使う）。
+  function renderBattleRoundActionButtons(actionsEl) {
+    if (!actionsEl) return false;
+    var phase = state.actionPhase;
+    if (phase !== "combat" && phase !== "extra" && phase !== "defense") return false;
+    var stage = state.battle.roundStage || "awaitingRoll";
+    if (stage === "awaitingRoll") return false;
+    if (stage === "resolving") {
+      // 結果文字は敘述側（getRoundStageNarrationText）に出す。ここは[結束回合]のみ
+      // （角色按鈕・[攻擊/防禦][返回]は一時的に隱藏する）。
+      var endBtn = document.createElement("button");
+      endBtn.type = "button";
+      endBtn.className = "gm-flow-action-btn";
+      endBtn.textContent = window.I18N.t("battle_turn_end_round_button");
+      endBtn.addEventListener("click", handleBattleTurnEndRoundClick);
+      actionsEl.appendChild(endBtn);
+      return true;
+    }
+    var allDone = allEnteredCharactersActionsDone();
+    if (!allDone) {
+      enteredCharactersForBattle().forEach(function (c) {
+        var btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "gm-flow-action-btn";
+        // 「已完成」状態は、既存の「建議」ハイライトclass（gm-flow-suggested、通常は突破判定の
+        // 建議選択肢に使う）を流用して表現する（新規CSSを増やさない）。
+        if (state.battle.roundActionsDone[c.id]) btn.classList.add("gm-flow-suggested");
+        btn.textContent = c.name;
+        btn.addEventListener("click", function () {
+          var nowDone = !state.battle.roundActionsDone[c.id];
+          state.battle.roundActionsDone[c.id] = nowDone;
+          if (!state.battle.roundActionLog) state.battle.roundActionLog = [];
+          // 使用者確認：取消準備時はこの角色のぶんだけ配列から取り除く（後続の行は自然に
+          // 繰り上がる）。再度準備した場合は配列の末尾へ追加する（元の位置には戻さない）。
+          state.battle.roundActionLog = state.battle.roundActionLog.filter(function (entry) {
+            return entry.charId !== c.id;
+          });
+          if (nowDone) {
+            state.battle.roundActionLog.push({ charId: c.id, lines: buildCharacterActionLogLines(c) });
+          }
+          saveState();
+          renderCurrentLocationStatus();
+        });
+        actionsEl.appendChild(btn);
+      });
+    } else {
+      // 使用者確認：全員「已完成」を押した後は角色按鈕を一時的に隱藏し、[攻擊/防禦][返回]だけを出す。
+      var returnBtn = document.createElement("button");
+      returnBtn.type = "button";
+      returnBtn.className = "gm-flow-action-btn";
+      returnBtn.textContent = window.I18N.t("battle_turn_return_button");
+      returnBtn.addEventListener("click", handleBattleTurnReturnClick);
+      actionsEl.appendChild(returnBtn);
+
+      var confirmBtn = document.createElement("button");
+      confirmBtn.type = "button";
+      confirmBtn.className = "gm-flow-action-btn";
+      confirmBtn.textContent = window.I18N.t(
+        phase === "defense" ? "battle_turn_defense_confirm_button" : "battle_turn_attack_confirm_button"
+      );
+      confirmBtn.addEventListener("click", handleBattleTurnConfirmClick);
+      actionsEl.appendChild(confirmBtn);
+    }
+    return true;
+  }
+
+  function handleBattleTurnReturnClick() {
+    state.battle.roundActionsDone = {};
+    state.battle.roundActionLog = [];
+    saveState();
+    renderCurrentLocationStatus();
+  }
+
+  // 自動化GM 戰鬥自動化：使用者確認、行動階段の切替はGMが「行動階段」ボタンを手動で押す
+  // 必要はなく、[結束回合]確認のたびに自動化GMが次のフェイズを決めて自動的に切り替える
+  // （戰鬥→（體勢崩し時のみ）額外→防禦→戰鬥…の順、docs/combat_flow_rules.md §3）。
+  // 敵人全滅で既にcombatEnd（一般行動）へ自動的に戻っている場合は何もしない
+  // （handleEnemyHpChanged経由、applyGuardedDamageToEnemyの呼び出し内で既に起きている）。
+  // 既存の「行動階段」手動ボタンはそのまま残し、GMが自動判定を上書きしたい場合の脱出口とする。
+  // 防禦階段開始時の時間消耗+1（setActionPhase内、"defense"への遷移時に自動処理）は、この
+  // 自動経路だけでなく手動の「行動階段」ボタンから直接defenseへ切り替えた場合にも等しく発火する。
+  function autoAdvanceBattlePhase() {
+    if (state.actionPhase === "combat") {
+      // 使用者確認：「1段が體勢崩しを起こすのは1回だけ」——既に額外階段のトリガーとして
+      // 使用済みの段（staggerRowsHandled）はHPが0のままでも再度額外階段を発生させない。
+      if (anyUnhandledStaggeredRow()) {
+        markStaggeredRowsHandled();
+        setActionPhase("extra");
+      } else {
+        setActionPhase("defense");
+      }
+    } else if (state.actionPhase === "extra") {
+      setActionPhase("defense");
+    } else if (state.actionPhase === "defense") {
+      setActionPhase("combat");
+    } else {
+      // "normal"（combatEnd等で既に切り替わり済み）を含め、ここでは追加のphase遷移は行わず、
+      // 進度版の表示だけ最新化する。
+      renderCurrentLocationStatus();
+    }
+  }
+
+  // [攻擊]／[防禦]確認。combat/extraフェイズでは、既存の「防禦次數／HP價值計算機」
+  // （battle-guard-calc-block、battle-drawer内のGM専用ツール）の入力欄へ本回合の彙總値を
+  // 自動預填してから、既存のhandleBattleGuardCalcApply()をそのまま呼ぶ（applyGuardedDamageToEnemy
+  // を直接叩く専用経路は新設しない、既存Guard計算機と同じ挙動を保つ）。結果文字だけ進度版へ
+  // 表示し、実際のフェイズ遷移は[結束回合]（handleBattleTurnEndRoundClick）まで待つ。
+  // 防禦フェイズは既存の#enemy-damage-modalを開くだけ（結果文字とフェイズ自動遷移の準備は
+  // GMがモーダル内で確認した瞬間＝handleEnemyDamageConfirmの末尾で行う）。
+  function handleBattleTurnConfirmClick() {
+    if (state.actionPhase === "defense") {
+      openEnemyDamageModal();
+      return;
+    }
+    var damageInput = document.getElementById("battle-guard-calc-damage-input");
+    var reductionInput = document.getElementById("battle-guard-calc-reduction-input");
+    var resultText = "";
+    if (damageInput && reductionInput) {
+      damageInput.value = String(computeRoundDamageTotal());
+      reductionInput.value = String(computeRoundGuardReductionTotal());
+      var applyResult = handleBattleGuardCalcApply();
+      // 使用者確認：進度版に出す結算文字はHP價値／防禦次數を出さず、敵人名・總合傷害・
+      // 扣除したHP損害の格数、体勢崩し発生の有無だけに絞る（battle-guard-calc-result側の
+      // 詳細版はbattle-drawer内のGM専用ツール表示のまま変更しない）。
+      if (applyResult && applyResult.result) {
+        var enemyName = enemyDisplayNameForKey(applyResult.key);
+        var textKey = applyResult.result.split ? "gm_flow_battle_attack_result_split" : "gm_flow_battle_attack_result";
+        resultText = window.I18N.t(textKey, {
+          enemy: enemyName,
+          damage: applyResult.totalDamage,
+          boxes: applyResult.result.hpBoxes,
+        });
+        if (anyEnemyHpRowDepleted()) {
+          resultText += window.I18N.t("gm_flow_battle_stagger_note");
+        }
+      }
+    }
+    if (state.actionPhase === "normal") {
+      // 敵人がこの攻擊で全滅し、既にcombatEndで一般行動へ自動的に戻っている
+      // （handleEnemyHpChanged経由）。[結束回合]は不要、進度版の表示だけ最新化する。
+      renderCurrentLocationStatus();
+      return;
+    }
+    state.battle.roundResultText = resultText;
+    state.battle.roundStage = "resolving";
+    saveState();
+    renderCurrentLocationStatus();
+  }
+
+  // [結束回合]：使用者が結果文字を確認した後にクリックし、ここで初めて自動化GMが
+  // 次のフェイズへ実際に切り替える（autoAdvanceBattlePhase、docs/combat_flow_rules.md §3）。
+  function handleBattleTurnEndRoundClick() {
+    state.battle.roundResultText = null;
+    saveState();
+    autoAdvanceBattlePhase();
   }
 
   // エネミーHPが変化するたびに呼び、額外行動ボタンの活性状態を更新しつつ、
@@ -7073,6 +7652,9 @@
     damageInput.value = "0";
     reductionInput.value = "0";
     renderBattleGuardCalc();
+    // 自動化GM 戰鬥自動化：進度版側（handleBattleTurnConfirmClick）が既存のbattle-guard-calc
+    // ブロックとは別の簡潔な結算文字を組み立てられるよう、対象key／総合傷害／apply結果を返す。
+    return { key: key, totalDamage: totalDamage, result: result };
   }
 
   // 雑魚HPリストも、エネミーHPグリッドと同様に戦場面板内のフル表示（削除ボタン付き）と、
@@ -7397,6 +7979,23 @@
     if (rolled > 0) {
       playDiceRollAnimation(c.dicePool.slice(c.dicePool.length - rolled));
     }
+    // 自動化GM 戰鬥自動化：全員が本フェイズのスタミナダイスを振り終えたら"awaitingRoll"から
+    // "acting"へ進める。defenseフェイズも対象——全員の防禦體力骰が揃って初めて、AutoGM擲骰
+    // （既存のrenderAutoGmRollRow/handleAutoGmRollClick、Stage 6で別途ゲート）へ進める。
+    if (
+      (state.actionPhase === "combat" || state.actionPhase === "extra" || state.actionPhase === "defense") &&
+      state.battle.roundStage === "awaitingRoll" &&
+      allEnteredCharactersRolledForPhase()
+    ) {
+      state.battle.roundStage = "acting";
+      saveState();
+      // 自動化GM 戰鬥自動化：防禦フェイズは、全員の防禦體力骰が揃った瞬間にAutoGMの
+      // 敵方行動ロールを自動実行し、結果（亂戰傷害／個別傷害の内訳と各PCの推定損害）を
+      // 進度版へ表示する（GMが後で[防禦]を押した時に開くモーダルは、ここで確定した
+      // 同じ数値を復元するだけで再擲骰はしない）。
+      if (state.actionPhase === "defense") autoTriggerDefenseRoll();
+    }
+    renderCurrentLocationStatus();
   }
 
   function renderActionPhaseButton() {
@@ -7405,6 +8004,10 @@
     btn.textContent = window.I18N.t("action_phase_" + state.actionPhase);
     // 階段ごとの配色（style.css .action-phase-btn[data-phase="..."]）を切り替えるための目印。
     btn.dataset.phase = state.actionPhase;
+    // 自動化GM 戰鬥自動化：使用者確認、戰鬥が自動化GM（進度版のbattleWait）に委ねられている間は
+    // 手動の「行動階段」切替ボタンを表示しない（管理員は進度版の敘述だけで現在階段を把握できる。
+    // 前端のこのボタン自体は削除せず、非戰鬥時や手動編成した戰鬥では引き続き使える）。
+    btn.hidden = !!(state.gmFlow && state.gmFlow.battleWaitActive);
     document.querySelectorAll(".action-phase-grid button[data-phase]").forEach(function (phaseBtn) {
       phaseBtn.classList.toggle("active", phaseBtn.dataset.phase === state.actionPhase);
     });
@@ -7436,6 +8039,14 @@
     if (!row) return;
     resultEl.hidden = true;
     resultEl.textContent = "";
+    // 使用者確認：防禦フェイズは全員擲骰完了時にautoTriggerDefenseRollが既に1回だけ擲骰し、
+    // 結果を進度版で公開済み（state.battle.pendingDefenseRoll）。規則書上の再擲骰権限が無い限り、
+    // このモーダル内から重複して擲骰できないよう行自体を隠す（数値の食い違いを防ぐ）。
+    if (state.battle.pendingDefenseRoll) {
+      row.hidden = true;
+      if (formRow) formRow.hidden = true;
+      return;
+    }
     var AutoGm = window.PriTestAutoGm;
     if (!state.autoGmEnabled || state.turnHolder !== "gm" || !AutoGm) {
       row.hidden = true;
@@ -7638,6 +8249,11 @@
     );
   }
 
+  // 使用者確認：この結算視窗はAutoGM擲骰専用ではない（防禦フェイズは既にautoTriggerDefenseRoll
+  // が擲骰済みで進度版へ結果を出しているため、モーダルはその数値を確認・微調整する場だけに
+  // 使う）。各PC行に既存の亂戰/個別傷害欄に加え、新規のHP價值欄（c.hpValueを初期値、GM調整可）
+  // とその場で計算されるHP損害＝floor((亂戰+個別)/HP價值)を表示し、[確定]は行ごとに押す
+  // （全員分を1つのボタンでまとめて確定しない）。
   function renderEnemyDamageModal() {
     document.getElementById("enemy-damage-group-tag").placeholder = window.I18N.t("enemy_damage_group_tag_placeholder");
     renderAutoGmRollRow();
@@ -7646,80 +8262,199 @@
     var entered = rosterCharacters.filter(function (c) {
       return c.entered;
     });
+    // 自動化GM 戰鬥自動化：全員擲骰完了時にautoTriggerDefenseRollが既に自動擲骰済みなら、
+    // その結果（state.battle.pendingDefenseRoll）を初期値として復元する（再擲骰しない）。
+    var pending = state.battle.pendingDefenseRoll;
+    if (!state.battle.enemyDamageConfirmed) state.battle.enemyDamageConfirmed = {};
     entered.forEach(function (c) {
+      var confirmedAlready = !!state.battle.enemyDamageConfirmed[c.id];
       var row = document.createElement("div");
-      row.className = "wb-row enemy-damage-pc-row";
+      row.className = "wb-row enemy-damage-pc-row" + (confirmedAlready ? " confirmed" : "");
       var label = document.createElement("label");
       label.textContent = c.name;
       row.appendChild(label);
+
       var groupInput = document.createElement("input");
       groupInput.type = "number";
       groupInput.className = "stat-input";
       groupInput.min = "0";
-      groupInput.value = "0";
+      groupInput.value = pending && pending.group && typeof pending.group[c.id] === "number" ? String(pending.group[c.id]) : "0";
       groupInput.id = "enemy-damage-group-" + c.id;
+      groupInput.disabled = confirmedAlready;
       row.appendChild(groupInput);
+
       var individualInput = document.createElement("input");
       individualInput.type = "number";
       individualInput.className = "stat-input";
       individualInput.min = "0";
-      individualInput.value = "0";
+      individualInput.value =
+        pending && pending.individual && typeof pending.individual[c.id] === "number" ? String(pending.individual[c.id]) : "0";
       individualInput.id = "enemy-damage-individual-" + c.id;
+      individualInput.disabled = confirmedAlready;
       row.appendChild(individualInput);
+
+      var hpValueInput = document.createElement("input");
+      hpValueInput.type = "number";
+      hpValueInput.className = "stat-input";
+      hpValueInput.min = "1";
+      hpValueInput.value = String(c.hpValue || 30);
+      hpValueInput.id = "enemy-damage-hpvalue-" + c.id;
+      hpValueInput.disabled = confirmedAlready;
+      row.appendChild(hpValueInput);
+
+      var hpLossSpan = document.createElement("span");
+      hpLossSpan.className = "enemy-damage-hp-loss-value";
+      hpLossSpan.id = "enemy-damage-hploss-" + c.id;
+      row.appendChild(hpLossSpan);
+
+      function recomputeHpLoss() {
+        var g = parseInt(groupInput.value, 10) || 0;
+        var iv = parseInt(individualInput.value, 10) || 0;
+        var hv = Math.max(1, parseInt(hpValueInput.value, 10) || 1);
+        hpLossSpan.textContent = String(Math.floor((g + iv) / hv));
+      }
+      groupInput.addEventListener("input", recomputeHpLoss);
+      individualInput.addEventListener("input", recomputeHpLoss);
+      hpValueInput.addEventListener("input", recomputeHpLoss);
+      recomputeHpLoss();
+
+      var confirmBtn = document.createElement("button");
+      confirmBtn.type = "button";
+      confirmBtn.className = "primary-btn enemy-damage-confirm-btn";
+      confirmBtn.textContent = window.I18N.t("enemy_damage_confirm_button");
+      confirmBtn.disabled = confirmedAlready;
+      confirmBtn.addEventListener("click", function () {
+        handleEnemyDamageConfirmForCharacter(c.id);
+      });
+      row.appendChild(confirmBtn);
+
       list.appendChild(row);
     });
   }
 
-  function handleEnemyDamageConfirm() {
-    var groupTag = document.getElementById("enemy-damage-group-tag").value.trim();
+  // 自動化GM 戰鬥自動化：全員が防禦體力骰を振り終えた瞬間に1回だけ呼ばれる。既存の
+  // AutoGM敵方行動ロール鏈（rollEnemyAction→computeGroupDamage/computeIndividualDamage、
+  // handleAutoGmRollClickが内部で行う）をモーダルを開かずに裏側で実行し、結果を
+  // state.battle.pendingDefenseRoll（モーダルを開いた時に復元する数値）と
+  // state.battle.defenseRollPreviewText（進度版に出す速報文字）へ保存する。
+  // state.autoGmEnabledがfalse、または構造化済みの敵人が無い場合は何もしない
+  // （従来通りGMがモーダル内で手動入力／手動でAutoGM擲騎を押す運用にフォールバックする）。
+  function autoTriggerDefenseRoll() {
+    var AutoGm = window.PriTestAutoGm;
+    if (!state.autoGmEnabled || !AutoGm) return;
+    var structuredIds = ((state.battle && state.battle.selectedEnemyIds) || []).filter(function (key) {
+      return AutoGm.isStructured(key);
+    });
+    if (game && game.night3BossId && AutoGm.isStructured("boss|" + game.night3BossId)) {
+      structuredIds = structuredIds.concat(["boss|" + game.night3BossId]);
+    }
+    if (!structuredIds.length) return;
+    renderEnemyDamageModal();
+    var select = document.getElementById("auto-gm-enemy-select");
+    if (select && structuredIds.indexOf(select.value) === -1) select.value = structuredIds[0];
+    handleAutoGmRollClick();
     var entered = rosterCharacters.filter(function (c) {
       return c.entered;
     });
-    var individualParts = [];
+    var group = {};
+    var individual = {};
+    var previewParts = [];
     entered.forEach(function (c) {
       var groupInputEl = document.getElementById("enemy-damage-group-" + c.id);
-      var groupValue = groupInputEl ? parseInt(groupInputEl.value, 10) || 0 : 0;
       var individualInputEl = document.getElementById("enemy-damage-individual-" + c.id);
-      var individual = individualInputEl ? parseInt(individualInputEl.value, 10) || 0 : 0;
-      var line =
-        window.I18N.t("enemy_damage_log_prefix") +
-        window.I18N.t("colon_separator") +
-        groupValue +
-        (groupTag ? " | " + groupTag : "") +
-        ", " +
-        window.I18N.t("enemy_damage_individual_label") +
-        window.I18N.t("colon_separator") +
-        individual;
-      addEnemyDamageBox(c, line);
-      individualParts.push(
+      var gv = groupInputEl ? parseInt(groupInputEl.value, 10) || 0 : 0;
+      var iv = individualInputEl ? parseInt(individualInputEl.value, 10) || 0 : 0;
+      group[c.id] = gv;
+      individual[c.id] = iv;
+      previewParts.push(
         c.name +
           window.I18N.t("colon_separator") +
           window.I18N.t("enemy_damage_group_short_label") +
-          groupValue +
+          gv +
           "／" +
           window.I18N.t("enemy_damage_individual_short_label") +
-          individual
+          iv
       );
-      // 自動化GM Phase 1: 従来このモーダルはログ表示のみでc.hp.currentに一切触れておらず、
-      // HP減算は別途手動で行う運用だった。state.autoGmEnabled===trueの間だけ実際にHPも
-      // 減算する（未対応のOFF時は既存挙動とバイト同一を保つため、この修正もフラグの内側に
-      // 限定する——手動ワークフローを続けているGMがモーダル確定後にさらに手動でHPを引いて
-      // 二重減算になることを避けるための意図的な判断）。
-      if (state.autoGmEnabled && (groupValue || individual)) {
-        c.hp.current = Math.max(0, c.hp.current - groupValue - individual);
-        checkNearDeathTrigger(c);
-      }
     });
+    var resultEl = document.getElementById("auto-gm-roll-result");
+    var breakdownText = resultEl ? resultEl.textContent : "";
+    state.battle.pendingDefenseRoll = { enemyKey: select ? select.value : null, group: group, individual: individual };
+    state.battle.defenseRollPreviewText = [breakdownText, previewParts.join("\n")].filter(Boolean).join("\n");
+    saveState();
+  }
+
+  // 使用者確認：[確定]は角色ごとに個別で押す（玩家数の回数）。押した瞬間そのPCのHP損害
+  // （floor((亂戰+個別)/HP價值)）を確定してc.hp.currentへ反映し、行を無効化する。
+  // entered全員が確定し終えたら、進度版へ結算結果を表示してresolving（[結束回合]待ち）へ進む。
+  function handleEnemyDamageConfirmForCharacter(charId) {
+    var c = rosterCharacters.filter(function (rc) {
+      return rc.id === charId;
+    })[0];
+    if (!c || (state.battle.enemyDamageConfirmed && state.battle.enemyDamageConfirmed[charId])) return;
+    var groupTag = document.getElementById("enemy-damage-group-tag").value.trim();
+    var groupInputEl = document.getElementById("enemy-damage-group-" + charId);
+    var individualInputEl = document.getElementById("enemy-damage-individual-" + charId);
+    var hpValueInputEl = document.getElementById("enemy-damage-hpvalue-" + charId);
+    var groupValue = groupInputEl ? parseInt(groupInputEl.value, 10) || 0 : 0;
+    var individual = individualInputEl ? parseInt(individualInputEl.value, 10) || 0 : 0;
+    var hpValue = hpValueInputEl ? Math.max(1, parseInt(hpValueInputEl.value, 10) || 1) : Math.max(1, c.hpValue || 30);
+    var hpLoss = Math.floor((groupValue + individual) / hpValue);
+
+    var line =
+      window.I18N.t("enemy_damage_log_prefix") +
+      window.I18N.t("colon_separator") +
+      groupValue +
+      (groupTag ? " | " + groupTag : "") +
+      ", " +
+      window.I18N.t("enemy_damage_individual_label") +
+      window.I18N.t("colon_separator") +
+      individual +
+      "｜" +
+      window.I18N.t("enemy_damage_col_hp_loss") +
+      window.I18N.t("colon_separator") +
+      hpLoss;
+    addEnemyDamageBox(c, line);
+    c.hp.current = Math.max(0, c.hp.current - hpLoss);
+    checkNearDeathTrigger(c);
     saveRosterCharacters();
-    if (individualParts.length) {
-      var announceHeader =
-        window.I18N.t("enemy_damage_log_prefix") + (groupTag ? window.I18N.t("colon_separator") + groupTag : "");
-      var announceIndividual = individualParts.join("、");
-      postSystemTurnMessage(announceHeader + "　" + announceIndividual);
-      showThreatBroadcast([announceHeader, announceIndividual]);
-    }
-    closeEnemyDamageModal();
+
+    if (!state.battle.enemyDamageConfirmed) state.battle.enemyDamageConfirmed = {};
+    state.battle.enemyDamageConfirmed[charId] = true;
+    if (!state.battle.defenseHpLossSummary) state.battle.defenseHpLossSummary = {};
+    state.battle.defenseHpLossSummary[charId] = hpLoss;
+    saveState();
+
+    renderEnemyDamageModal();
     renderCharacterRoster();
+
+    var entered = rosterCharacters.filter(function (rc) {
+      return rc.entered;
+    });
+    var allConfirmed = entered.length > 0 && entered.every(function (rc) {
+      return !!state.battle.enemyDamageConfirmed[rc.id];
+    });
+    if (allConfirmed) finishEnemyDamageRound(entered);
+  }
+
+  // entered全員のHP損害確定が完了した時点で、進度版へ「各玩家本回合受到的傷害」を表示し、
+  // combat/extraフェイズのhandleBattleTurnConfirmClickと同じように[結束回合]待ち
+  // （roundStage="resolving"）へ進める。
+  function finishEnemyDamageRound(entered) {
+    var parts = entered.map(function (c) {
+      return c.name + window.I18N.t("colon_separator") + (state.battle.defenseHpLossSummary[c.id] || 0);
+    });
+    var summaryText = window.I18N.t("gm_flow_battle_defense_result_header") + "\n" + parts.join("\n");
+    postSystemTurnMessage(window.I18N.t("gm_flow_battle_defense_result_header") + "　" + parts.join("、"));
+    showThreatBroadcast([window.I18N.t("gm_flow_battle_defense_result_header"), parts.join("、")]);
+    closeEnemyDamageModal();
+    if (state.actionPhase === "defense") {
+      state.battle.roundResultText = summaryText;
+      state.battle.roundStage = "resolving";
+      state.battle.enemyDamageConfirmed = {};
+      state.battle.defenseHpLossSummary = {};
+      saveState();
+      renderCurrentLocationStatus();
+    }
   }
 
   // GM／玩家が同時にプレイしなくてもよいよう、「今は誰の番か」を示すバー。権限分離は行わず
@@ -8748,6 +9483,27 @@
       closeActionPhaseModal();
       return;
     }
+    // 自動化GM 戰鬥自動化：簡易戰鬥（docs/combat_flow_rules.md §6）はディフェンスフェイズを
+    // 発生させず、第1回合の戰鬥/額外階段が終わった時点で追擊損害へ差し替えて戦闘を終える
+    // （battle_simple_combat_body記載の既存規則書参照文と同じ内容、opts.forceDefenseで
+    // GMが手動で通常通り防禦フェイズへ進みたい場合の脱出口を残す）。
+    if (phase === "defense" && state.battle.combatMode === "simplified" && !opts.forceDefense) {
+      closeActionPhaseModal();
+      state.battle.simplifiedCombatEndPending = true;
+      state.battle.roundActionsDone = {};
+      state.battle.roundActionLog = [];
+      state.battle.roundResultText = null;
+      state.battle.pendingDefenseRoll = null;
+      state.battle.defenseRollPreviewText = null;
+      state.battle.enemyDamageConfirmed = {};
+      state.battle.defenseHpLossSummary = {};
+      state.battle.defenseEntryEffectText = null;
+      state.battle.roundStage = "awaitingRoll";
+      saveState();
+      renderSimplifiedCombatEndPrompt();
+      renderCurrentLocationStatus();
+      return;
+    }
     // 「戰鬥→額外→防禦」が1回合。combatフェイズへ新規突入するたびに新しい回合が始まったとみなし、
     // 異常側の「今回合すでに發動した」ロックを解除する（屬性側は回合をまたいで蓄積を持ち越す）。
     if (phase === "combat" && state.actionPhase !== "combat") {
@@ -8877,6 +9633,28 @@
       }
     });
     state.actionPhase = phase;
+    // 自動化GM 戰鬥自動化：本回合の「已完成」ボタン状態と細粒度階段（GM敘述提示用）は、
+    // フェイズが切り替わるたびにクリアする（combat/extra/defenseへ入るたびに"awaitingRoll"
+    // から始める。normalへ戻る場合はbanner非表示になるため値を問わない）。
+    state.battle.roundActionsDone = {};
+    state.battle.roundActionLog = [];
+    state.battle.roundResultText = null;
+    state.battle.pendingDefenseRoll = null;
+    state.battle.defenseRollPreviewText = null;
+    state.battle.enemyDamageConfirmed = {};
+    state.battle.defenseHpLossSummary = {};
+    state.battle.defenseEntryEffectText = null;
+    state.battle.roundStage = "awaitingRoll";
+    // 使用者確認：防禦階段に入るたびに時間損耗+1（規則書「防禦階段開始時、時間消耗1」）。
+    // 自動化GMの自動遷移（autoAdvanceBattlePhase）だけでなく、GMが「行動階段」ボタンから手動で
+    // defenseへ切り替えた場合にも等しく発火させるため、ここ（setActionPhase自身）で処理する。
+    // 直前のリセット（defenseEntryEffectText=null）より後で書き込むことで、消されずに残す。
+    // 威脅効果／夜雨が新たに到達した場合は、addTimeLossが返す文字も合わせて進度版へ表示する。
+    if (phase === "defense") {
+      var defenseEntryMessages = addTimeLoss(1) || [];
+      var defenseEntryLines = [window.I18N.t("gm_flow_battle_defense_entry_time_loss")].concat(defenseEntryMessages);
+      state.battle.defenseEntryEffectText = defenseEntryLines.join("\n");
+    }
     // GM／玩家が同時にプレイしなくてもよいよう、行動階段が切り替わるたびに「今の番」を
     // 必ずGM側へ戻す（GMが状況を確認・反応してから、改めて玩家へ番を渡す運用を想定）。
     // handleTurnHolderToggleと同じく、GM側の留言はここでも「次のGm回合開始」に該当するため
@@ -8928,6 +9706,10 @@
       c._fpRecoveryAppliedThisPhase = false;
       c._daggerTwoHitCountThisPhase = 0;
       c._phaseDamageDealt = 0;
+      c._phaseGuardReductionPoints = 0;
+      c._phaseGuardSymbols = [];
+      c._phaseAttributeGains = {};
+      c._phaseSpecialNotes = [];
       c._ominousStrikeBuffActive = false;
       // 消耗品「勇者的肉塊」／「調香瓶｜高揚之香」（直到結束階段為止的攻擊/戰技傷害buff）と
       // 「塗脂」（直到結束階段為止的武器屬性／盾防禦強化）は、いずれもフェイズ切替の都度リセット。
@@ -8969,6 +9751,7 @@
     renderTurnBoardToggleButton();
     renderActionPhaseGrid();
     renderCharacterRoster();
+    renderCurrentLocationStatus();
     if (opts.combatEnd) {
       // 復仇者「死靈術」で召喚した死靈は、靈體と異なりHPを維持せず戦闘終了時に全て消滅する
       // （「戰鬥結束時自動從劇本中移除」）。靈體（c.spiritSummon／spiritSummonHp）はここでは
@@ -8982,6 +9765,13 @@
       // （次の戦闘で選ばれる敵人と無関係の古いデータが残り続けるのを防ぐ）。
       state.battle.attributeStatus = defaultBattleState().attributeStatus;
       state.battle.enemyDmgOverride = {};
+      // 自動化GM 戰鬥自動化：通常/簡易戰鬥判定は戰鬥級の生命週期（回合をまたいで持続）のため、
+      // phase reset loopではなくこの戰鬥終了処理でのみクリアする。
+      state.battle.combatMode = null;
+      state.battle.combatIsBoss = false;
+      // 使用者確認：「1段1回だけ體勢崩し」の記録は戰鬥単位の生命週期のため、ここで一緒に
+      // クリアする（次の戦闘で改めて0から数える）。
+      state.battle.staggerRowsHandled = [];
       addLog("log_battle_combat_end");
       // 自動化GM Phase 2［戰鬥機制］：樓層敘述中の「雜兵戰鬥／王戰」ボタンから開始した戦闘が
       // ここで終結を検出された場合（state.gmFlow.battleWaitActive）、GMの手動操作なしで
@@ -9910,14 +10700,9 @@
       var displayName = trueName || window.PriTestFields.localizedText(card.name);
       var nameSpan = document.createElement("span");
       nameSpan.className = "loc-name";
-      if (typeof idx === "number") {
-        var levelVal = state.cardLevels[idx];
-        var levelText = levelVal === null || levelVal === undefined ? window.I18N.t("level_all") : String(levelVal);
-        nameSpan.textContent = displayName + "(" + levelText + ")";
-      } else {
-        // 起點／終點の板塊にはcardLevels（樓層踏破の段階）の概念自体が無いため、名前のみ表示する。
-        nameSpan.textContent = displayName;
-      }
+      // 目前所在樓層改由GM敘述（floorLeadingDescriptionText）直接告知，卡牌名稱後面
+      // 不再附加裸數字的樓層編號徽記（避免重複資訊）。
+      nameSpan.textContent = displayName;
       content.appendChild(nameSpan);
       if (card.floorCount != null || card.allFloorEffect) {
         var detailParts = [];
@@ -10155,7 +10940,7 @@
     var effect = ROLL_EFFECTS.filter(function (e) {
       return e.id === effectId;
     })[0];
-    if (!effect) return;
+    if (!effect) return null;
     var count = state.rollEffects[effectId] || 0;
     var newCount = Math.min(effect.tiers, count + 1);
     state.rollEffects[effectId] = newCount;
@@ -10168,6 +10953,9 @@
     var msg = window.I18N.t("threat_effect_roll_broadcast", { roll: roll }) + label + window.I18N.t("colon_separator") + detail;
     postSystemTurnMessage(msg);
     showThreatBroadcast([msg]);
+    // 自動化GM 戰鬥自動化：進度版（防禦階段開始時のTime Loss+1）から呼ばれた場合、
+    // このメッセージも進度版へ打字機で表示できるよう返す。
+    return msg;
   }
 
   // 「時間損耗：N」をタイムロス軌道（TIME_LOSS_ROW_DEFS、現在の日にちに対応する
@@ -10177,11 +10965,15 @@
   // （ユーザー報告のバグ）。「威脅効果追加」段（kind:"threat"）がこの呼び出しで新たに
   // 埋まった場合は、そのままrollAndTriggerThreatEffectで1D6を振って骰效果へ反映する
   // （ユーザー確認済み：①〜⑥の丸数字が出目対応表そのもの）。
+  // 使用者確認：戻り値は「今回のaddTimeLossで新たに発生した公告文字」の配列（威脅効果決定表の
+  // 抽選結果、夜雨が新しい段階に達した旨）。自動化GM 戰鬥自動化の防禦階段開始時Time Loss+1が
+  // 進度版へ打字機で表示するために利用する（既存のGM留言板／公告への投稿はそのまま維持）。
   function addTimeLoss(n) {
-    if (!n) return;
+    if (!n) return [];
     var dayKey = isSwappedDay() ? "day2" : "day1";
     var rows = state.timeLoss[dayKey];
     var remaining = n;
+    var messages = [];
     for (var r = 0; r < TIME_LOSS_ROW_DEFS.length && remaining > 0; r++) {
       var rowWasFull = rows[r].every(Boolean);
       for (var b = 0; b < TIME_LOSS_ROW_DEFS[r].boxes && remaining > 0; b++) {
@@ -10190,12 +10982,22 @@
           remaining--;
         }
       }
-      if (!rowWasFull && rows[r].every(Boolean) && TIME_LOSS_ROW_DEFS[r].kind === "threat") {
-        rollAndTriggerThreatEffect();
+      if (!rowWasFull && rows[r].every(Boolean)) {
+        if (TIME_LOSS_ROW_DEFS[r].kind === "threat") {
+          var threatMsg = rollAndTriggerThreatEffect();
+          if (threatMsg) messages.push(threatMsg);
+        } else if (TIME_LOSS_ROW_DEFS[r].kind === "rain") {
+          messages.push(
+            window.I18N.t("night_rain_label") +
+              window.I18N.t("colon_separator") +
+              window.I18N.t("night_rain_detail_" + dayKey + "_" + TIME_LOSS_ROW_DEFS[r].tier)
+          );
+        }
       }
     }
     renderTimeLossChecks(dayKey);
     renderTimeLossSummary();
+    return messages;
   }
 
   // #10：樓層レベルが「全」に達したら、そのカードの「全樓層踏破效果」（盧恩／時間損耗）を
@@ -11143,6 +11945,10 @@
     renderSmithingStoneCount: renderSmithingStoneCount,
     renderStoneswordKeyCount: renderStoneswordKeyCount,
     renderTurnHolderBar: renderTurnHolderBar,
+    // 自動化GM 戰鬥自動化：進度版（night_gm_flow.jsのrenderLocationBanner）から呼ばれる。
+    getRoundStageNarrationText: getRoundStageNarrationText,
+    renderBattleRoundActionButtons: renderBattleRoundActionButtons,
+    buildEncounterSummaryText: buildEncounterSummaryText,
     buildBossTable: buildBossTable,
     markFloorRewardObtained: markFloorRewardObtained,
     openItemDrawModal: openItemDrawModal,
@@ -11161,6 +11967,10 @@
     isRulebookAuthenticated: isRulebookAuthenticated,
     checkRulebookPassword: checkRulebookPassword,
     renderCurrentLocationStatus: renderCurrentLocationStatus,
+    // 自動化GM 戰鬥自動化：「雜兵戰鬥／王戰」トリガーで戦闘に入った瞬間、night_gm_flow.js側から
+    // 直接actionPhaseを"combat"へ切り替えるために公開する（GMが「行動階段」ボタンを手動で
+    // 押す必要をなくす。フロント側の手動ボタン自体は変更・削除しない、別経路として共存する）。
+    setActionPhase: setActionPhase,
     addPendingRewardWindow: addPendingRewardWindow,
     removePendingRewardWindow: removePendingRewardWindow,
     openBattleDrawer: openBattleDrawer,
@@ -11227,6 +12037,9 @@
     renderMobHpList();
     renderSelectedEnemies();
     renderBattleRefTexts();
+    // GMがページを再読込した場合でも、簡易戰鬥の追擊損害確認バナーが消えないようにする。
+    if (state.battle.simplifiedCombatEndPending) renderSimplifiedCombatEndPrompt();
+    renderCurrentLocationStatus();
     renderDicePool();
     renderActionPhaseButton();
     renderTurnHolderBar();
@@ -11395,6 +12208,7 @@
     document.getElementById("btn-time-loss-broadcast").addEventListener("click", triggerThreatBroadcast);
     document.getElementById("btn-threat-broadcast-close").addEventListener("click", closeThreatBroadcast);
     document.getElementById("btn-enemy-row-status-close").addEventListener("click", closeEnemyRowStatusBanner);
+    document.getElementById("btn-simplified-combat-end-confirm").addEventListener("click", handleSimplifiedCombatEndConfirm);
     var locationStatusToggleBtn = document.getElementById("btn-location-status-toggle");
     locationStatusToggleBtn.addEventListener("click", handleLocationBannerToggleClick);
     attachLocationBannerToggleLongPress(locationStatusToggleBtn);
@@ -11518,7 +12332,6 @@
     document.getElementById("btn-generic-check").addEventListener("click", window.PriTestNightFloorBreakthrough.openGenericCheckModal);
     document.getElementById("btn-enemy-damage-open").addEventListener("click", openEnemyDamageModal);
     document.getElementById("btn-enemy-damage-cancel").addEventListener("click", closeEnemyDamageModal);
-    document.getElementById("btn-enemy-damage-confirm").addEventListener("click", handleEnemyDamageConfirm);
     document.getElementById("btn-auto-gm-roll").addEventListener("click", handleAutoGmRollClick);
     document.getElementById("btn-function-menu-toggle").addEventListener("click", function () {
       var list = document.getElementById("function-menu-list");

@@ -194,6 +194,10 @@ BODY = """    <div class="night-header-row">
           <button type="button" class="modal-floating-close" id="btn-enemy-row-status-close">&times;</button>
           <div id="enemy-row-status-content"></div>
         </div>
+        <div id="simplified-combat-end-overlay" hidden>
+          <div id="simplified-combat-end-content"></div>
+          <button type="button" class="primary-btn" id="btn-simplified-combat-end-confirm" data-i18n="simplified_combat_end_confirm_button"></button>
+        </div>
       </div>
       <div class="time-loss-bar" id="attribute-status-bar">
         <span data-i18n="attribute_status_bar_label"></span>
@@ -239,11 +243,13 @@ BODY = """    <div class="night-header-row">
             <span data-i18n="enemy_damage_col_name"></span>
             <span data-i18n="enemy_damage_col_group"></span>
             <span data-i18n="enemy_damage_col_individual"></span>
+            <span data-i18n="enemy_damage_col_hp_value"></span>
+            <span data-i18n="enemy_damage_col_hp_loss"></span>
+            <span></span>
           </div>
           <div id="enemy-damage-pc-list"></div>
           <div class="actions">
             <button id="btn-enemy-damage-cancel" type="button" data-i18n="cancel_button"></button>
-            <button id="btn-enemy-damage-confirm" type="button" class="primary-btn" data-i18n="enemy_damage_confirm_button"></button>
           </div>
         </div>
       </div>

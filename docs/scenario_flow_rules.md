@@ -10,12 +10,21 @@
 
 **信頼度についての注意**：2026-08-09に、より鮮明な写真で「4節：フロア突破確認の詳細」
 「9節：イベントチットの解決手順」を再取材し、両節とも高信頼度に更新した。ただし以下の
-2箇所のみ、写真の一部が判読困難なため実装前に物理本での再確認を推奨する：
-- 4節「通常戦闘からの逃亡後・再挑戦時のHP増加」の一段落（128頁・141頁付近）
-- 9節「強敵決定表（319頁）」「ランダムイベント決定表」自体の中身（数値・エントリ一覧）
+1箇所のみ、写真の一部が判読困難なため実装前に物理本での再確認を推奨する：
+- 9節「ランダムイベント決定表」自体の中身（数値・エントリ一覧）
 
 それ以外の節（1・2・3・5〜8節、および4・9節の大部分）は鮮明な写真からの書き起こしで
-信頼度が高い。
+信頼度が高い。「強敵決定表（319頁）」は`event_rulebook.js`（`strong_enemy`チットの
+`extraTables`）に実データが確認済み（2顆骰、12エントリ×2表——通常強敵表／恐るべき強敵表）。
+
+**L補（レベル補正）について（確認済み）**：以前は数値公式が未確認だったが、ユーザー確認により
+判明——L補は盤面9マスの「列（縦の列、`idx % 3`）」だけで決まり、`night.js`の
+`fieldLevelsForDay()`が既にその値を持っている（GM向け表示`.field-level-0/1/2`、i18nの
+「（L補 {value}）」表記と同じ数値）。
+- 1日目（`fieldLevelsForDay()`が`[0,1,2]`を返す）：左列(col0)=+0／中列(col1)=+1／右列(col2)=+2。
+- 2日目（`isSwappedDay()`がtrueで`[5,4,3]`を返す）：左列=+5／中列=+4／右列=+3。
+- 起點／終點（`"start"`/`"end"`）は列を持たないため、L補は対応不可（自動化GMは提醒のみに留める）。
+実装は`night_gm_flow.js`の`fieldLevelCorrectionForSlot(slotIndex)`（詳細は§10参照）。
 
 **このrepoをcloneした別セッション/別PCのClaude Codeへ**：`CLAUDE.md`から本ドキュメントと
 `docs/enemy_damage_rules.md`の両方が参照されている。セッションフロー全体の自動化（カード解決・
@@ -170,12 +179,14 @@ PCが、現在地のフロアのイベントを進める。GMはシナリオに�
 満たしたら、マップ記録シートにフロア踏破した旨をチェックして記録する。その後〔2-5〕
 全フロア踏破確認へ移る。
 
-**通常戦闘からの逃亡の扱い（この段落のみやや低信頼度）**：PCがフロアの「通常戦闘」から
-逃亡した場合、そのフロアは「スキップした」ものとして扱われる（＝未踏破のまま）。その後
-再びそのフロアへ挑戦した場合、逃亡前と同じエネミーとの戦闘を再開する。ただし1日目に
-逃亡したエネミーに2日目改めて挑む場合、そのエネミーの最大HPは「L補（128頁）」の分だけ
-上昇している。正確な適用条件・数値は写真では判読しきれておらず、実装前に物理本128頁・
-141頁付近で要再確認。
+**通常戦闘からの逃亡の扱い**：PCがフロアの「通常戦闘」から逃亡した場合、そのフロアは
+「スキップした」ものとして扱われる（＝未踏破のまま）。その後再びそのフロアへ挑戦した場合、
+逃亡前と同じエネミーとの戦闘を再開する。ただし1日目に逃亡したエネミーに2日目改めて挑む場合、
+そのエネミーの最大HPは「L補（128頁）」の分だけ上昇している——L補の数値公式自体は確認済み
+（本ドキュメント冒頭「L補について」参照、`fieldLevelCorrectionForSlot`が同じカード位置の
+2日目時点のL補を自動的に適用する）。ただし「逃亡→2日目に同じ板塊へ再度挑む」という
+このケース固有の細かい適用条件（例：板塊が2日目セットアップで残存する場合のみ成立する等）は
+別途動作確認できていないため、実装前に要再確認。
 
 ### 描写・行為判定・分岐の表記ルール
 - **〔描写〕**：PCが感じている状況を示す段落。GMは必ず読み上げなければならない。
@@ -405,12 +416,15 @@ PCたちが「黄金樹の帳」（2日目）を撃破し、その後配置さ�
 | フィールド移動：隣接判定 | ✅ 実装済み・コード側で強制（隣接していない移動は`window.alert`でブロック） | `isAdjacentPosition`, `attemptMoveToPosition`（`night.js:10307,10334`） |
 | 登攀判定：目標値の自動算出 | ✅ 実装済み（`9＋スート補正差`） | `elevationOfPosition`, `SUIT_ELEVATION`（`night.js:10292,10324`） |
 | 登攀判定：合否の自動判定 | ❌ 未実装。突破判定と同じ仕組み（`resolveBreakthroughCheck`のclimateモード）で、GMが手動でPass/Failを押した場合のみ実際に移動が確定する | 同上 |
-| イベントチットの盤面配置（種類・枚数） | ✅ 実装済み・完全自動（9マスへランダムシャッフル配置） | `rollEventChips`, `EVENT_CHIP_TYPES`（`night.js:722,735`） |
+| イベントチットの盤面配置（種類・枚数・固定番号①〜⑨） | ✅ 実装済み・完全自動（9マスへランダムシャッフル配置。`{id,number}`のペアごとshuffleすることで、洗牌後も各チットの固定番号1-9＝規則書の①〜⑨を`state.eventChipNumbers`に保持——⑦⑧強敵の区別に使う） | `rollEventChips`, `EVENT_CHIP_TYPES`（`night.js`）、`state.eventChipNumbers` |
 | 霊脈／祝福／商人チットの解決 | ✅ 実装済み・完全自動（9節参照、`renderEventChipSpiritVein`等） | `night_event_chips.js` |
-| 強敵／ランダムチットの解決 | ❌ 未実装（自由記述・GM手動のまま） | `renderEventChipStrongEnemy`, `renderEventChipRandom`（`night_event_chips.js`） |
+| 強敵チットの解決：強敵決定表の自動擲骰・自動判定 | ✅ 実装済み。「自動擲骰決定」ボタンで2顆骰を振り、`event_rulebook.js`の`extraTables`（2顆骰×12列）から該当エネミーを解決、L補込みで戦場へ自動追加する。⑧号チットが2日目なら「恐るべき強敵決定表」（`extraTables[1]`）、それ以外は通常表（`extraTables[0]`）を`state.eventChipNumbers`から自動選択（GM手動選択は不要）。表の「レベル+1して振り直す」列も自動で振り直す。GMによる手動入力・記録機能も従来通り並存 | `rollStrongEnemyTable`, `resolveStrongEnemyEntry`（`night_gm_flow.js`）、`renderEventChipStrongEnemy`（`night_event_chips.js`） |
+| ランダムチットの解決 | ❌ 未実装（GMが規則書内容から手動選択、自由記述のまま） | `renderEventChipRandom`（`night_event_chips.js`） |
 | カード/樓層の`varianceTable`（どの分岐が適用されるか） | ✅ 実装済み（自動化GM Phase 2、[進入]時にシナリオ番号＋必要なら1D6で自動解決。解決不能時のみGMに分岐ボタンを提示） | `autoResolveBranch`, `handleEnterClick`（`night_gm_flow.js`） |
 | 2日目セットアップ（カード6枚除去・新規配置・地変） | 状況未調査（本ドキュメント作成時点では未確認、`openKeepCardsDrawer`/`submitKeepCards`が関連する可能性が高いが、地変カードの自動選定ロジックまでは未検証） | `night.js`（`openKeepCardsDrawer`等、要追加調査） |
-| フロア本文中の「雜兵戰鬥／ボス戦闘（撃破ルーン：N）」構造：敘述の一時停止・敵の自動判定・戦場への自動追加・戦闘終了検知 | ✅ 実装済み（自動化GM Phase 2第17・18項、［戰鬥機制］／［戰鬥結束］）。どちらの構造にも該当行に到達すると敘述を一旦止めて[雜兵戰鬥]／[王戰]ボタン（トリガー行自身の文言をそのままラベルに使う）を提示し、押すと直後の敵名bullet行（「XXX（頁）／Lv.N」）を敘述しつつ`Enemies.search`で一意に解決できた敵だけ戦場へ自動追加する（複数候補・不一致時はGM手動追加のリマインドに留める、"■"と同じ捏造しない方針）。「L補」レベル補正は未実装のため常にリマインドのみ。以後は「戰鬥進行中」とだけ示して待機し、エネミーの全HP行が0になった瞬間（`night.js`の`setActionPhase`が`combatEnd`を検出）に自動で続きの敘述（撃破後の獎勵敘述等）へ進む——GMは進度版側で何も操作しなくてよい | `isCombatTriggerLine`, `handleCombatTriggerClick`, `notifyCombatEnded`（`night_gm_flow.js`）、`addEnemyToBattle`, `setActionPhase`の`combatEnd`分岐（`night.js`） |
+| フロア本文中の「雜兵戰鬥／ボス戦闘（撃破ルーン：N）」構造：敘述の一時停止・敵の自動判定・戦場への自動追加・戦闘終了検知 | ✅ 実装済み（自動化GM Phase 2第17・18項、［戰鬥機制］／［戰鬥結束］）。どちらの構造にも該当行に到達すると敘述を一旦止めて[雜兵戰鬥]／[王戰]ボタン（トリガー行自身の文言をそのままラベルに使う）を提示し、押すと直後の敵名bullet行（「XXX（頁）／Lv.N」）を敘述しつつ`Enemies.search`で一意に解決できた敵だけ戦場へ自動追加する（複数候補・不一致時はGM手動追加のリマインドに留める、"■"と同じ捏造しない方針）。以後は「戰鬥進行中」とだけ示して待機し、エネミーの全HP行が0になった瞬間（`night.js`の`setActionPhase`が`combatEnd`を検出）に自動で続きの敘述（撃破後の獎勵敘述等）へ進む——GMは進度版側で何も操作しなくてよい | `isCombatTriggerLine`, `handleCombatTriggerClick`, `notifyCombatEnded`（`night_gm_flow.js`）、`addEnemyToBattle`, `setActionPhase`の`combatEnd`分岐（`night.js`） |
+| L補（等級補正）の自動套用 | ✅ 実装済み。敵名bullet行に「L補」の記載がある場合、所在マスの列（`idx % 3`）から`night.js`の`fieldLevelsForDay()`でL補値を引き、印刷レベルに加算した上で戦場へ追加する（起點/終點など列が無い場合のみ、従来通りリマインドに留める） | `fieldLevelCorrectionForSlot`, `resolveAndAddCombatEnemies`（`night_gm_flow.js`） |
+| 雜兵（モブ）HPの自動算出・自動新規列追加 | ✅ 実装済み。樓層文字の「」括弧外にある「+モブN／+雜兵N」後綴を検出し、対応する敵人の`special`欄位に「最大HP：PC人数×N」の明記があればその公式（PC人数＝現在entered角色數）、無ければ確認済みの既定値「L補+1」で血量上限を算出し、戦場面板の雜兵HP列（`state.battle.mobHpRows`、列ごとに可変長）へ自動追加する | `parseMobMaxHpOverride`, `resolveAndAddCombatEnemies`（`night_gm_flow.js`）、`addAutoMobHpRow`（`night.js`） |
 | カードの最後の樓層を踏破し終えた際の「全踏破」への自動継続、および出發地點／終點の「1」チェック | ✅ 実装済み（第18項）。従来はカードの実在する樓層をすべて敘述し終えても`cardLevels`が`floorCount`止まりで、GMが盤面の＋をもう一度手動で押さない限り「全」（＝全踏破効果の自動付与・GM敘述）に到達しなかった。現在は該当樓層の獎勵ゲート（[領取獎勵]/[獲得完]）をGMが実際に閉じ終えた直後に自動で「全」まで進め、続けて［地圖移動］（次の目的地を選んでほしい旨）をGM敘述へ追記する。出發地點／終點は`cardLevels`を持たないため、[進入]を押した瞬間に盤面の「1」チェックボックスを自動でオンにするだけに留める（全踏破側の自動化は対象外、要今後の追加調査） | `finishFieldWalk`の`pendingFinalFloorSlot`, `closeGmFlowGateAndConsumePendingAdvance`, `showFullClearNarration`（`night_gm_flow.js`）、`grantCardFullClearRewardIfNeeded`（`night.js`） |
 | フロア構造化獎勵（`floor.reward`）の確定・付与 | ✅ 実装済み（2026-08-11、`docs/superpowers/plans/2026-08-10-floor-reward-turn-reward-integration.md`）。各エントリを「戦利品」（rune／weaponStar／consumable／talisman／potentialPower／stoneswordKey／smithingStone／chaliceBonus／weaponSkillReroll、ただし`perPerson:true`のsmithingStone/stoneswordKeyは対象外）と「GM判断が必要」（hpDamage／tieredChoice／diceHandChoice／bargainReveal／note）に分類し、`openFloorRewardModal`が呼ばれた瞬間（自動化GMの［領取獎勵］経由・規則書の手動閲覧経由のどちらでも）に戦利品エントリを既存の「獎勵清單」（`state.turnRewards`）へ自動push、GM判断エントリが残る場合のみ縮小版モーダルを表示する。`tieredChoice`のtier確定・`diceHandChoice`の役判定確定時にも同じ経路で再帰的にpushする。`diceHandChoice`は専用の抽選視窗（`#dice-hand-draw-modal`、隨機擲骰ボタン付き）として独立。本文に「撃破ルーン：N」の記述はあるがreward配列（tier/hand内も含む）のどこにも対応するrune項目が無いフロアには、無言で0付与にならないようGM向けリマインダーをログへ出す（`hasConditionalReward`ゲート、ヒューリスティックのため過検知の可能性あり）。劇本1（tricephalos）の該当分岐は本文とreward配列の記述ズレを監査済み（26件補完）。既知の残課題：`appendRuneGrantRowIfDetected`は劇本1の監査対象外フロア・敵規則書タブ向けのフォールバックとして現存（獎勵清單へpushする形に統一済み）、`closeTurnRewardModal`での破棄操作は自動push済み項目の再送出を許可するようフラグを連動解除する | `isLootRewardEntry`, `floorAutoLootTurnRewards`, `openFloorRewardModal`, `openDiceHandDrawModal`（`night_floor_breakthrough.js`）、`pushTurnRewards`, `claimTurnReward`（`night.js`） |
 

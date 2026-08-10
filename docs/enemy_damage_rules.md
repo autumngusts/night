@@ -85,6 +85,18 @@
 ガード削り計算にのみ使う、別の意味を持つ記号。同じ記号が文脈で意味を変えるため、
 実装時は「どの欄に書かれた▲/◆か」を必ず区別すること。
 
+**2026-08-10追記（使用者裁定・自動化GM戰鬥自動化）**：上記の区別は規則書上の建前だが、
+実際に`weapons_skills.js`／`character_types.js`のデータを確認したところ、▲/◆が
+独立した「【追加効果：◆◆】」のような記法で出現する箇所は**1件も存在しない**（すべて
+メインダメージ欄の「威力＋▲」パターン）。一方`docs/enemy_damage_rules.md`§5.4の
+規則書算例自体も「ダメージ：80▲」のようにメインダメージ欄へ直接▲を付記する形で
+Guard削り値を説明している。データ側にこの区別を安全に解析できる材料が無いため、
+自動化GMのGuard削り値自動計算（`night.js`の`recordPhaseDamageDealt`第三引数）は
+**使用者の裁定により、メインダメージ欄の▲/◆もそのままGuard削り値としてカウントする**
+方針を採用した。将来この解釈に反する規則書記述が確認された場合は、この注記と
+実装（`recordPhaseDamageDealt`の呼び出し元、`computeRoundGuardReductionTotal`）を
+併せて見直すこと。
+
 ---
 
 ## 3. エネミーのHP行構造
@@ -315,7 +327,8 @@ hpBoxDamage = floor(totalDamage / hpValue)
 | 夜の王をPC攻撃対象に含める | ✅ 実装済み | `resolveSelectedEnemyOptions` |
 | 体勢崩し発生フラグ（HP行が1つでも0到達） | ✅ 実装済み（フラグのみ、ガード回数システムとの接続は5.5節の「回復」のみ） | `state.battle.guardBroken`, `adjustEnemyHpRow` |
 | ガード回数（現在値）のstate管理・新しい回合での回復 | ✅ 実装済み | `state.battle.guardCount`, `setActionPhase`（`phase==="combat"`突入時にクリア） |
-| ガード削り値（▲=0.5/◆=1、事前合算値をGM入力）の算出・適用 | ✅ 実装済み（通常エネミー・gladius/marisのみ、他の夜の王は未構造化） | `applyGuardedDamageToEnemy`、UI: `#battle-guard-calc-block` |
+| ガード削り値（▲=0.5/◆=1）の算出・適用 | ✅ 実装済み（通常エネミー・gladius/marisのみ、他の夜の王は未構造化）。2026-08-10 自動化GM戰鬥自動化で**自動計算**に対応：`recordPhaseDamageDealt`が攻撃ごとの▲/◆を`c._phaseGuardReductionPoints`へ自動累積し、戦鬥階段/額外階段の[攻擊]確認時に自動合算・自動預填する（GMはなお手動で上書き可能）。2節の「使用者裁定」参照 | `applyGuardedDamageToEnemy`, `recordPhaseDamageDealt`, `computeRoundGuardReductionTotal`、UI: `#battle-guard-calc-block` |
+| **バグ修正**：一般エネミーのGuard削り値計算が実際には機能していなかった不具合 | ✅ 2026-08-10発見・修正。`enemyGuardValueForCount()`の`r.count === guardCountValue`比較が、通常エネミー（`enemies_data_*.js`、`count`が`C(ja,zh)`オブジェクト）では常に不一致になり、`applyGuardedDamageToEnemy`が常に`null`を返してHPが減らない状態だった。夜の王（`night_boss_rulebook.js`、`count`が素の数値）のgladius/marisだけがこの比較で正しく動いていたため、これまで発見されていなかった。`parseGuardCountValue()`を新設し、両方の形式を数値へ正規化してから比較するよう修正 | `parseGuardCountValue`, `enemyGuardValueForCount` |
 | ガード回数→HP価値のstate参照テーブル（夜の王） | ✅ gladius/marisのみ実装済み（他7体は自由文字列`guard`欄のまま） | `night_boss_rulebook.js`の`guardCount`/`guardValueTable`フィールド、`enemyGuardValueForCount` |
 | PCの総合ダメージ→エネミーHP自動適用（優先度1のHP行オーバーフロー含む） | ✅ 実装済み（GMが総合ダメージ＋ガード削り値を手入力→自動計算・適用、優先度2〜3のモブHP/属性異常は対象外） | `applyGuardedDamageToEnemy`, `applyOverflowingEnemyDamage` |
 | 夜の王のHP行の自動初期化 | ✅ gladius/marisのみ実装済み（`hp`欄の自由文字列は解析せず、`hpBoxes`という新規の構造化フィールドを手動で用意し、ENEMY_HP_ROWSの末尾から`hpRowCount`行分を割り当てる「後ろ詰め」規約） | `ensureBossHpRowsInitialized`, `enemyHpRowIndexForKey` |

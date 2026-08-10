@@ -915,6 +915,31 @@ button {
   font-size: 0.85rem;
 }
 
+/* 簡易戰鬥の追擊損害確認バナー：enemy-row-status-overlayと同じ配置だが、閉じるボタンは
+   持たず（GMは必ず[確認]を押して結果を確定させる必要がある）、確認ボタンを内蔵する。 */
+#simplified-combat-end-overlay {
+  position: relative;
+  width: 100%;
+  background: #1c1c1c;
+  color: #fff;
+  border-radius: 10px;
+  border-left: 6px solid #7a4dd6;
+  padding: 0.75rem 1rem 0.6rem;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.4);
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+#simplified-combat-end-content {
+  font-size: 0.9rem;
+  line-height: 1.4;
+}
+
+#simplified-combat-end-overlay .primary-btn {
+  align-self: flex-end;
+}
+
 /* #20：目前所在位置（カード名・樓層數・全效果）は、他の「公告」バナー（threat-broadcast／
    enemy-row-status、いずれも画面中央・GMが閉じるまたはタイムアウトで消える）とは性質が
    異なる——常に存在し続ける現在地表示のため、閉じるボタンは持たず、#top-banner-stackの
@@ -1034,6 +1059,9 @@ button {
   font-size: 0.82rem;
   line-height: 1.45;
   color: #362809;
+  /* 自動化GM 戰鬥自動化：敘述文字內的\n（每個角色一行、各PC預估損害一行等）需要真的換行顯示，
+     否則瀏覽器預設會把換行字元收合成空白。 */
+  white-space: pre-line;
 }
 
 #location-status-narration:empty {
@@ -2129,8 +2157,8 @@ button {
 
 .enemy-damage-pc-list-header {
   display: grid;
-  grid-template-columns: 1fr auto auto;
-  gap: 0.5rem;
+  grid-template-columns: 1fr auto auto auto auto auto;
+  gap: 0.4rem;
   font-size: 0.78rem;
   color: #666;
   margin: 0.3rem 0 0.1rem;
@@ -2138,9 +2166,56 @@ button {
 
 .enemy-damage-pc-row {
   display: grid;
-  grid-template-columns: 1fr auto auto;
-  gap: 0.5rem;
+  grid-template-columns: 1fr auto auto auto auto auto;
+  gap: 0.4rem;
   align-items: center;
+  padding: 0.15rem 0;
+}
+
+.enemy-damage-pc-row.confirmed {
+  opacity: 0.5;
+}
+
+.enemy-damage-pc-row .stat-input {
+  width: 3.2em;
+  padding: 0.25rem 0.3rem;
+}
+
+.enemy-damage-hp-loss-value {
+  font-weight: 700;
+  min-width: 1.5em;
+  text-align: center;
+}
+
+.enemy-damage-confirm-btn {
+  padding: 0.25rem 0.55rem;
+  font-size: 0.78rem;
+}
+
+/* 手機端（狭幅画面）でHP價值・HP損害・確定ボタンまで横に押し出されて見切れないよう、
+   2列（角色名+亂戰/個別傷害、HP價值/HP損害/確定ボタン）に折り返す。 */
+@media (max-width: 480px) {
+  .enemy-damage-pc-list-header {
+    display: none;
+  }
+
+  /* DOM順（label→亂戰→個別→HP價值→HP損害→確定ボタン）のまま3列グリッドへ自然に流し込む：
+     1行目=角色名（3列分）、2行目=亂戰/個別/HP價值の3つの入力欄、3行目=HP損害＋確定ボタン。 */
+  .enemy-damage-pc-row {
+    grid-template-columns: repeat(3, 1fr);
+    row-gap: 0.3rem;
+    padding: 0.4rem 0;
+    border-bottom: 1px solid #eee;
+  }
+
+  .enemy-damage-pc-row label {
+    grid-column: 1 / -1;
+    font-weight: 600;
+  }
+
+  .enemy-damage-pc-row .stat-input {
+    width: 100%;
+  }
 }
 
 .dice-status-label {
