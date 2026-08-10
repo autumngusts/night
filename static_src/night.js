@@ -1359,14 +1359,23 @@
   //   （現時点ではgladius/marisのみ、他のボスは自由文字列のguard欄のまま未対応）。
   // ============================================================
 
+  // PC人數補正（battle_pc_count_4）：PC4人・かつ第2天／第3天の場合、敵人の防禦次數（最大値）
+  // 「+1」。既存の参考文をここで実装する。
+  function pcCountGuardBonus() {
+    return enteredPcCount() === 4 && (state.dayNumber === 2 || state.dayNumber === 3) ? 1 : 0;
+  }
+
   function enemyGuardMaxCount(enemyKey) {
+    var base;
     if (isBossAttackKey(enemyKey)) {
       var bossInfo = window.PriTestBossRulebook ? window.PriTestBossRulebook.get(enemyKey.slice(5)) : null;
-      return bossInfo && typeof bossInfo.guardCount === "number" ? bossInfo.guardCount : null;
+      base = bossInfo && typeof bossInfo.guardCount === "number" ? bossInfo.guardCount : null;
+    } else {
+      var parts = enemyKey.split("|");
+      var fam = window.PriTestEnemies && window.PriTestEnemies.getFamily ? window.PriTestEnemies.getFamily(parts[0]) : null;
+      base = fam && typeof fam.guardCount === "number" ? fam.guardCount : null;
     }
-    var parts = enemyKey.split("|");
-    var fam = window.PriTestEnemies && window.PriTestEnemies.getFamily ? window.PriTestEnemies.getFamily(parts[0]) : null;
-    return fam && typeof fam.guardCount === "number" ? fam.guardCount : null;
+    return typeof base === "number" ? base + pcCountGuardBonus() : base;
   }
 
   // guardValueTableの1行が持つcount欄は、夜の王（night_boss_rulebook.js）は素の数値
@@ -7150,6 +7159,31 @@
     return total;
   }
 
+  // --- 自動化GM 戰鬥自動化：PC人數補正（battle_pc_count_1〜4、既存の規則書参考文を実装） ---
+  // 「PC人數」は瀕死状態も含めた「entered」全員の人数（パーティ編成そのものの人数であり、
+  // 瀕死で一時的に行動不能でも人數補正の対象からは外れない——瀕死の除外はenteredCharacters
+  // ForBattle側の「本回合行動できるか」判定にのみ適用する既存仕様と役割が異なる）。
+  function enteredPcCount() {
+    return rosterCharacters.filter(function (c) {
+      return c.entered;
+    }).length;
+  }
+
+  // PC 1人：PC總合傷害「×4」。PC 2人：「×2」。PC 3人：無修正。PC 4人：無修正（4人時は
+  // 体力骰と敵人防禦次數の補正が別途ある、下記参照）。
+  function pcCountDamageMultiplier() {
+    var n = enteredPcCount();
+    if (n === 1) return 4;
+    if (n === 2) return 2;
+    return 1;
+  }
+
+  // 敵人亂戰傷害與個別傷害「÷4」（PC1人）／「÷2」（PC2人）。倍率の分母は上のdamageMultiplier
+  // と同じ表（4/2/1）を共用する。
+  function pcCountEnemyDamageDivisor() {
+    return pcCountDamageMultiplier();
+  }
+
   // --- 自動化GM 戰鬥自動化：回合內細粒度階段（roundStage）・回合傷害彙總 ---
 
   // 現在のphase（combat/extra/defense）で、entered中の全員（瀕死状態を除く）が本フェイズの
@@ -7182,11 +7216,15 @@
     });
   }
 
-  // c._phaseDamageDealt（既存、每次攻撃で自動累積・phase reset時に0へ戻る）を全員分合算する。
+  // c._phaseDamageDealt（既存、每次攻撃で自動累積・phase reset時に0へ戻る）を全員分合算し、
+  // PC人數補正（battle_pc_count_1/2）を「合計」にのみ適用する（各角色の個別の攻擊行動値・
+  // 進度版の個人行動說明は素の値のまま、規則書の「PC總合傷害」という文言どおり合計だけを
+  // 倍率対象にする）。
   function computeRoundDamageTotal() {
-    return enteredCharactersForBattle().reduce(function (sum, c) {
-      return sum + (c._phaseDamageDealt || 0);
+    var sum = enteredCharactersForBattle().reduce(function (total, c) {
+      return total + (c._phaseDamageDealt || 0);
     }, 0);
+    return sum * pcCountDamageMultiplier();
   }
 
   // c._phaseGuardReductionPoints（recordPhaseDamageDealtが▲=0.5/◆=1で自動累積）を全員分合算する。
@@ -7950,7 +7988,10 @@
       // フェイズ切替の都度リセットする専用フラグで判定する）。
       if (!c._combatDiceRolled) {
         // 睡眠トリガーで課された「次回合のスタミナ骰-3」を、この回合の擲骰時に1回だけ消費する。
-        rolled = Math.max(0, type.staminaDice.action - (c._nextActionDicePenalty || 0));
+        // PC人數補正（battle_pc_count_4）：PC4人の場合、行動階段（戰鬥階段）で獲得する
+        // 體力骰が全員「－1」個になる（既存の参考文をここで実装）。
+        var pcCountDicePenalty = enteredPcCount() === 4 ? 1 : 0;
+        rolled = Math.max(0, type.staminaDice.action - (c._nextActionDicePenalty || 0) - pcCountDicePenalty);
         c._nextActionDicePenalty = 0;
         for (var j = 0; j < rolled; j++) c.dicePool.push(CharacterDrawer.rollD6());
         c._combatDiceRolled = true;
@@ -8241,6 +8282,22 @@
       var breakdownEl = document.createElement("p");
       breakdownEl.textContent = breakdownParts.join("　");
       resultEl.appendChild(breakdownEl);
+    }
+
+    // PC人數補正（battle_pc_count_1/2）：敵人亂戰傷害與個別傷害「÷4」（PC1人）／「÷2」
+    // （PC2人）。既に上の各処理でentered各人の亂戰/個別傷害入力欄へ書き込み済みの値を、
+    // ここで一括して除算し直す（内部の複数の書き込み経路——均等割り／rotate／通常個別——を
+    // 個別に触らず、最後に1箇所でまとめて調整することで漏れを防ぐ）。
+    var pcDivisor = pcCountEnemyDamageDivisor();
+    if (pcDivisor > 1) {
+      entered.forEach(function (c) {
+        var groupInputEl = document.getElementById("enemy-damage-group-" + c.id);
+        var individualInputEl = document.getElementById("enemy-damage-individual-" + c.id);
+        if (groupInputEl) groupInputEl.value = String(Math.floor((parseInt(groupInputEl.value, 10) || 0) / pcDivisor));
+        if (individualInputEl) {
+          individualInputEl.value = String(Math.floor((parseInt(individualInputEl.value, 10) || 0) / pcDivisor));
+        }
+      });
     }
 
     addAutoGmLog(
