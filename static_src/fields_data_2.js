@@ -109,6 +109,7 @@
                 { kind: "weaponStar", value: 2, note: C("（こっそりチェスト・行為判定失敗時）", "（偷偷拿寶箱・行為判定失敗時）") },
                 { kind: "consumable", value: 1, note: C("（こっそりチェスト・行為判定失敗時）", "（偷偷拿寶箱・行為判定失敗時）") },
                 { kind: "weaponStar", value: 1, note: C("（ザコ戦闘撃破）", "（雜兵戰鬥擊破）") },
+                { kind: "rune", value: 1, note: C("（撃破ルーン）", "（擊破盧恩）") },
               ],
             },
             {
@@ -169,6 +170,7 @@
                 { kind: "stoneswordKey", value: 1, note: C("（ボス戦闘撃破）", "（王戰擊破）") },
                 { kind: "weaponStar", value: 1, note: C("（ボス戦闘撃破）", "（王戰擊破）") },
                 { kind: "consumable", value: 1, note: C("（ボス戦闘撃破）", "（王戰擊破）") },
+                { kind: "rune", value: 4, note: C("（撃破ルーン）", "（擊破盧恩）") },
               ],
             },
           ],
@@ -636,6 +638,7 @@
                 { kind: "consumable", value: 1, note: C("（防壁を乗り越える・行為判定成功時）", "（翻越防壁・行為判定成功時）") },
                 { kind: "stoneswordKey", value: 1, note: C("（ザコ戦闘撃破）", "（雜兵戰鬥擊破）") },
                 { kind: "consumable", value: 1, note: C("（ザコ戦闘撃破）", "（雜兵戰鬥擊破）") },
+                { kind: "rune", value: 1, note: C("（撃破ルーン）", "（擊破盧恩）") },
               ],
             },
             {
@@ -666,6 +669,7 @@
               reward: [
                 { kind: "potentialPower", perPerson: true, value: 1, note: C("（ボス戦闘撃破）", "（王戰擊破）") },
                 { kind: "weaponStar", value: 1, note: C("（ボス戦闘撃破）", "（王戰擊破）") },
+                { kind: "rune", value: 4, note: C("（撃破ルーン）", "（擊破盧恩）") },
               ],
             },
           ],
@@ -785,7 +789,10 @@
                 L(2, null, ["「君主軍たち（210頁）／Lv.2+L補」", "「君主軍們（210頁）／Lv.2+L補」"], true),
                 L(2, null, ["撃破に成功すると「消耗品」を1つ獲得（フロア踏破）。", "擊破成功則獲得「消耗品」1個（樓層踏破）。"], true),
               ],
-              reward: [{ kind: "consumable", value: 1, note: C("（ザコ戦闘撃破）", "（雜兵戰鬥擊破）") }],
+              reward: [
+                { kind: "consumable", value: 1, note: C("（ザコ戦闘撃破）", "（雜兵戰鬥擊破）") },
+                { kind: "rune", value: 1, note: C("（撃破ルーン）", "（擊破盧恩）") },
+              ],
             },
             {
               label: C("フロア2", "樓層2"),
@@ -821,6 +828,7 @@
                   note: C("（ボス戦闘撃破）", "（王戰擊破）"),
                 },
                 { kind: "stoneswordKey", value: 1, note: C("（ボス戦闘撃破・2ターン以内）", "（王戰擊破・2回合內）") },
+                { kind: "rune", value: 4, note: C("（撃破ルーン）", "（擊破盧恩）") },
               ],
             },
           ],
@@ -1582,6 +1590,7 @@
               ],
               reward: [
                 { kind: "stoneswordKey", value: 1, note: C("（遠回りで進む行為判定成功時のみ）", "（繞路前進行為判定成功時才可）") },
+                { kind: "rune", value: 1, note: C("（撃破ルーン）", "（擊破盧恩）") },
               ],
             },
             {

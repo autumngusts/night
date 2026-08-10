@@ -89,6 +89,7 @@
                   categoryId: RANGED_GROUP_CATEGORY,
                   note: C("（ザコ戦闘撃破・射撃武器）", "（雜兵戰鬥擊破・射擊武器）"),
                 },
+                { kind: "rune", value: 1, note: C("（撃破ルーン）", "（擊破盧恩）") },
               ],
             },
           ],
@@ -312,6 +313,7 @@
                     "（王戰擊破）獲得「附帶效果」1個。請使用「潛在之力」視窗的付帶效果抽選功能處理"
                   ),
                 },
+                { kind: "rune", value: 10, note: C("（撃破ルーン）", "（擊破盧恩）") },
               ],
             },
           ],
@@ -395,6 +397,7 @@
                     "（王戰1擊破）獲得「附帶效果」1個。請使用「潛在之力」視窗的付帶效果抽選功能處理"
                   ),
                 },
+                { kind: "rune", value: 15, note: C("（撃破ルーン）", "（擊破盧恩）") },
               ],
             },
           ],
@@ -615,6 +618,7 @@
                   categoryId: "sacred_seal",
                   note: C("（忍んで切り抜ける・行為判定成功時）", "（潛行通過・行為判定成功時）"),
                 },
+                { kind: "rune", value: 2, note: C("（撃破ルーン）", "（擊破盧恩）") },
               ],
             },
             {
@@ -675,6 +679,7 @@
                 { kind: "stoneswordKey", value: 1, note: C("（ボス戦闘撃破）", "（王戰擊破）") },
                 { kind: "weaponStar", value: 1, note: C("（ボス戦闘撃破）", "（王戰擊破）") },
                 { kind: "consumable", value: 1, note: C("（ボス戦闘撃破）", "（王戰擊破）") },
+                { kind: "rune", value: 3, note: C("（撃破ルーン）", "（擊破盧恩）") },
               ],
             },
           ],
@@ -967,6 +972,7 @@
                 { kind: "stoneswordKey", value: 1, note: C("（ボス戦闘撃破）", "（王戰擊破）") },
                 { kind: "weaponStar", value: 1, categoryId: "sacred_seal", note: C("（ボス戦闘撃破・聖印）", "（王戰擊破・聖印）") },
                 { kind: "consumable", value: 1, note: C("（ボス戦闘撃破）", "（王戰擊破）") },
+                { kind: "rune", value: 3, note: C("（撃破ルーン）", "（擊破盧恩）") },
               ],
             },
           ],

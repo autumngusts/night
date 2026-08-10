@@ -291,6 +291,7 @@
               reward: [
                 { kind: "potentialPower", perPerson: true, value: 2, note: C("（ボス戦闘撃破）", "（王戰擊破）") },
                 { kind: "talisman", value: 3, note: C("（ボス戦闘撃破）", "（王戰擊破）") },
+                { kind: "rune", value: 3, note: C("（撃破ルーン）", "（擊破盧恩）") },
               ],
             },
             {
@@ -335,6 +336,7 @@
                 { kind: "weaponStar", value: 2, note: C("（物資漁り・成否問わず）", "（搜刮物資・無論成敗）") },
                 { kind: "consumable", value: 2, note: C("（物資漁り・成否問わず）", "（搜刮物資・無論成敗）") },
                 { kind: "note", note: C("（物資漁り・行為判定失敗時は「タイムロス：1」も手動記録）", "（搜刮物資・行為判定失敗時，也手動記錄「時間損耗：1」）") },
+                { kind: "rune", value: 4, note: C("（撃破ルーン）", "（擊破盧恩）") },
               ],
             },
             {
@@ -448,6 +450,7 @@
                     "（搜刮物資・行為判定失敗時，手動記錄並分配HP／FP損害「■×（達成值11以下人數的2倍）」）"
                   ),
                 },
+                { kind: "rune", value: 3, note: C("（撃破ルーン）", "（擊破盧恩）") },
               ],
             },
             {
@@ -493,6 +496,8 @@
                   perPerson: true,
                   note: C("（商人・PC1人につき最大1回、ルーン1消費で鍛石1個）", "（商人・每位PC最多1次，消費盧恩1即得鍛石1個）"),
                 },
+                { kind: "rune", value: 3, note: C("（撃破ルーン）", "（擊破盧恩）") },
+                { kind: "rune", value: 2, note: C("（判定に失敗している場合・モブ2追加分）", "（判定失敗時・追加雜兵2分）") },
               ],
             },
             {
@@ -538,6 +543,8 @@
                   perPerson: true,
                   note: C("（商人・PC1人につき最大1回、ルーン1消費で鍛石1個）", "（商人・每位PC最多1次，消費盧恩1即得鍛石1個）"),
                 },
+                { kind: "rune", value: 3, note: C("（撃破ルーン）", "（擊破盧恩）") },
+                { kind: "rune", value: 2, note: C("（判定に失敗している場合・モブ2追加分）", "（判定失敗時・追加雜兵2分）") },
               ],
             },
             {
@@ -583,6 +590,8 @@
                   perPerson: true,
                   note: C("（商人・PC1人につき最大1回、ルーン1消費で鍛石1個）", "（商人・每位PC最多1次，消費盧恩1即得鍛石1個）"),
                 },
+                { kind: "rune", value: 3, note: C("（撃破ルーン）", "（擊破盧恩）") },
+                { kind: "rune", value: 1, note: C("（判定に失敗している場合・モブ1追加分）", "（判定失敗時・追加雜兵1分）") },
               ],
             },
             {
@@ -612,7 +621,10 @@
                 L(2, null, ["「屋上エネミー決定表で決定したエネミー」", "「以屋頂敵人決定表決定的敵人」"], true),
                 L(2, null, ["撃破できたら、PCそれぞれは「潜在する力：★★★★」を獲得（フロア踏破）。", "擊破後，PC各自獲得「潛力：★★★★」（樓層踏破）。"], true),
               ],
-              reward: [{ kind: "potentialPower", perPerson: true, value: 4, note: C("（ボス戦闘撃破）", "（王戰擊破）") }],
+              reward: [
+                { kind: "potentialPower", perPerson: true, value: 4, note: C("（ボス戦闘撃破）", "（王戰擊破）") },
+                { kind: "rune", value: 6, note: C("（撃破ルーン）", "（擊破盧恩）") },
+              ],
             },
           ],
         },
@@ -1395,7 +1407,10 @@
                     },
                     {
                       label: C("6＝強敵の予感", "6＝強敵的預感"),
-                      rewards: [{ kind: "potentialPower", perPerson: true, value: 2, note: C("（ボス戦闘撃破）", "（王戰擊破）") }],
+                      rewards: [
+                        { kind: "potentialPower", perPerson: true, value: 2, note: C("（ボス戦闘撃破）", "（王戰擊破）") },
+                        { kind: "rune", value: 8, note: C("（撃破ルーン）", "（擊破盧恩）") },
+                      ],
                     },
                   ],
                 },

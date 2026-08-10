@@ -87,7 +87,10 @@
                 L(2, null, ["「追い剥ぎ（226頁）／Lv.2＋L補」", "「強盜（226頁）／Lv.2+L補」"], true),
                 L(2, null, ["撃破に成功しても、得るものは何もない（フロア踏破）。", "擊破成功也無所獲（樓層踏破）。"], true),
               ],
-              reward: [{ kind: "hpDamage", value: 1, note: C("（不意打ち・行為判定失敗時）", "（偷襲・行為判定失敗時）") }],
+              reward: [
+                { kind: "hpDamage", value: 1, note: C("（不意打ち・行為判定失敗時）", "（偷襲・行為判定失敗時）") },
+                { kind: "rune", value: 1, note: C("（撃破ルーン）", "（擊破盧恩）") },
+              ],
             },
             {
               label: C("フロア2", "樓層2"),
@@ -126,6 +129,7 @@
               reward: [
                 { kind: "potentialPower", perPerson: true, value: 1, note: C("（ボス戦闘撃破）", "（王戰擊破）") },
                 { kind: "smithingStone", value: 2, perParty: true, note: C("（ボス戦闘撃破・PC1人につき2個）", "（王戰擊破・每位PC 2個）") },
+                { kind: "rune", value: 3, note: C("（撃破ルーン）", "（擊破盧恩）") },
               ],
             },
           ],
@@ -1614,6 +1618,7 @@
                   perPerson: true,
                   note: C("（撃破後、PC全員1回まで「戦技の鍛冶台」で武器の戦技を再決定可能）", "（擊破後，PC全員各限1次可用「戰技鍛造台」重新決定武器戰技）"),
                 },
+                { kind: "rune", value: 4, note: C("（撃破ルーン）", "（擊破盧恩）") },
               ],
             },
           ],
@@ -2200,6 +2205,7 @@
                   value: 1,
                   note: C("（ボス戦闘撃破。石剣の鍵消費が条件）", "（王戰擊破。需消費石劍鑰匙才會發生）"),
                 },
+                { kind: "rune", value: 3, note: C("（撃破ルーン）", "（擊破盧恩）") },
               ],
             },
           ],
@@ -2282,13 +2288,17 @@
                   tiers: [
                     {
                       label: C("乱入なしで撃破", "未被闖入且擊破"),
-                      rewards: [{ kind: "potentialPower", perPerson: true, value: 1 }],
+                      rewards: [
+                        { kind: "potentialPower", perPerson: true, value: 1 },
+                        { kind: "rune", value: 3, note: C("（撃破ルーン）", "（擊破盧恩）") },
+                      ],
                     },
                     {
                       label: C("乱入ありで両方撃破", "被闖入且雙方皆擊破"),
                       rewards: [
                         { kind: "potentialPower", perPerson: true, value: 1, note: C("（1/2）", "（1/2）") },
                         { kind: "potentialPower", perPerson: true, value: 2, note: C("（2/2）", "（2/2）") },
+                        { kind: "rune", value: 11, note: C("（撃破ルーン：3+8）", "（擊破盧恩：3+8）") },
                       ],
                     },
                     {
