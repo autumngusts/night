@@ -213,6 +213,12 @@ hpBoxDamage = floor(totalDamage / hpValue)
 - 特殊能力で「ガード回数の現在値：＋n回」のような効果を受けた場合は、最大値を
   超えない範囲で現在値が増加する。
 
+**2026-08-11追記（PC人數補正、`docs/combat_flow_rules.md`10節参照）**：参加PCが4人＋
+第2天／第3天の場合、ガード回数の**最大値**そのものに+1する（`enemyGuardMaxCount()`が
+基礎値へ`pcCountGuardBonus()`を加算）。現在値がアクションフェイズ開始時に最大値まで
+回復する仕様（上記）にそのまま乗るため、以後のガード削り計算は「+1された最大値」を
+基準に進む。
+
 ---
 
 ## 6. 体勢崩し（Guard Break）
@@ -315,9 +321,15 @@ hpBoxDamage = floor(totalDamage / hpValue)
 - 個別ダメージには「敵視：最大」のPCが複数いる場合、全員が対象になる、という
   規則を再確認（既存の`resolveTargets`実装と一致、今回の写真で追加の反証なし）。
 
+**2026-08-11追記（PC人數補正、`docs/combat_flow_rules.md`10節参照）**：参加PCが1人または
+2人の場合、AutoGMが算出した乱戦ダメージ・個別ダメージを、対象PC全員分まとめてそれぞれ
+÷4／÷2する（`Math.floor`で切り捨て、対象PCが誰であってもエネミー側の行動そのものの
+威力を下げる形——PC側が受け取った後の値を割るのではなく、`handleAutoGmRollClick()`が
+各PCの入力欄へ書き込んだ**後**に一括で割り直す）。3人・4人時は補正なし。
+
 ---
 
-## 9. このrepoでの実装状況マップ（2026-08-09時点）
+## 9. このrepoでの実装状況マップ（2026-08-09時点、2026-08-11更新）
 
 | 機能 | 実装状況 | 該当コード |
 |---|---|---|
@@ -335,6 +347,9 @@ hpBoxDamage = floor(totalDamage / hpValue)
 | グラディウス「分裂形態」のHP3分割・PC側総合ダメージの1/3換算 | ✅ 実装済み（`state.battle.bossForm==="split"`のとき、`floor(floor(totalDamage/3)/hpValue)`を3個体のHP行へオーバーフローさせず同時に適用） | `applyGuardedDamageToEnemy`（`splitActive`分岐） |
 | 分裂形態では体勢崩し（＝額外行動フェイズ解禁・體崩バナー）が発生しない | ✅ 実装済み（gladiusの`noStaggerInSplitForm`フラグで、そのボスに割り当てられた行のみ判定から除外） | `isSplitFormExemptRow`, `isEnemyHpRowDepleted`, `adjustEnemyHpRow` |
 | グラディウス「分裂形態」→「合体形態」の自動移行（防御フェイズ終了時） | ✅ 実装済み（分裂形態のいずれかの個体HPが0になった瞬間は予約フラグのみ立て、実際の切替は防御フェイズを抜けるタイミングで行う） | `state.battle.bossFormTransitionPending`, `setActionPhase` |
+| PC人數補正：ガード回数の最大値+1（4人＋第2/3天） | ✅ 実装済み（2026-08-11、`docs/combat_flow_rules.md`10節参照）。詳細は5.5節の追記参照 | `night.js`の`pcCountGuardBonus`, `enemyGuardMaxCount` |
+| PC人數補正：乱戦／個別ダメージの÷4（1人）／÷2（2人） | ✅ 実装済み（2026-08-11）。詳細は8節の追記参照 | `night.js`の`pcCountEnemyDamageDivisor`, `handleAutoGmRollClick` |
+| ディフェンス結算モーダル（`#enemy-damage-modal`）のHP價值ベース再設計 | ✅ 実装済み（2026-08-11）。各PC行にHP價值入力欄（既定値`c.hpValue\|\|30`）とHP損害の即時計算（`floor((乱戦+個別)/HP價值)`、入力変更のたびに再計算）を追加し、確定ボタンをPCごとに独立させた（`handleEnemyDamageConfirmForCharacter`）。AutoGM擲骰結果は`state.battle.pendingDefenseRoll`に保存され、モーダルはそれをそのまま初期表示に使う（再擲骰不可。GMが変更できるのはHP價值欄のみ）。詳細は`docs/combat_flow_rules.md`11節「玩家「已完成」按鈕列」行を参照 | `night.js`の`renderEnemyDamageModal`, `handleEnemyDamageConfirmForCharacter`, `finishEnemyDamageRound` |
 
 **ガード計算機の使い方（GM向け、`#battle-drawer`＝戦場面板内）**：「防禦次數／HP價值
 計算機」ブロックで対象（通常エネミー／設定済みの夜の王）を選び、その1回の攻撃行動で

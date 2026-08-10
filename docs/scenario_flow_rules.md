@@ -410,12 +410,12 @@ PCたちが「黄金樹の帳」（2日目）を撃破し、その後配置さ�
 | フィールド名/フロア数/描写/追加ルールの表示 | ✅ 実装済み（`resolveFieldEntryForSlot`が該当カードを解決、規則書パネルに表示） | `night_floor_breakthrough.js:35` |
 | フロア突破判定：ダイスロール・合計値の算出 | ✅ 実装済み | `rollBreakthroughDice`, `breakthroughDiceSum`（`night_floor_breakthrough.js:1051,1091`） |
 | フロア突破判定：目標値の自動解析 | ✅ 実装済み（「自動成功」「不可」「目標値＋スート補正」等をカード文から解析） | `parseBreakthroughCheckText`（`night_floor_breakthrough.js:19`） |
-| フロア突破判定：合否の自動判定 | ❌ 未実装。ダイス合計と目標値は両方表示されるが、比較はコードで行わず、GMが目視で判断して「合格／失敗」ボタンを手動で押す | `resolveBreakthroughCheck`（`night_floor_breakthrough.js:1246`）、`btn-breakthrough-pass`/`-fail`（`night.js:10777-10782`） |
+| フロア突破判定：合否の自動判定 | ❌ 未実装。ダイス合計と目標値は両方表示されるが、比較はコードで行わず、GMが目視で判断して「合格／失敗」ボタンを手動で押す。**バグ修正**（2026-08-11）：mode="floor"（目標値を伏せる仕様）では「揭曉」ボタンが常に非表示のため、そのボタンのクリックでのみtrueになる`breakthroughState.revealed`フラグが一度も立たず、合格/失敗ボタン自体（`!revealed`が表示条件）が永久に出現しないまま次のフロアへ進めなくなる不具合があった。全員のダイスロールが揃った時点で`revealed`を直接trueにする（目標値の表示自体は別途`showTargetValue`ガードで従来通り伏せたまま）よう修正 | `resolveBreakthroughCheck`（`night_floor_breakthrough.js:1246`）、`btn-breakthrough-pass`/`-fail`（`night.js:10777-10782`）、`renderBreakthroughCharacters`（`night_floor_breakthrough.js`） |
 | フロア進行状態の記録 | ✅ 実装済み（`state.cardLevels[slot]`、`null`＝全踏破） | `stepCardLevel`（`night.js:9603`） |
 | 全フロア踏破効果（ルーン付与／タイムロス） | ✅ 実装済み・自動付与（カード文の「盧恩：N／時間損耗：N」を自動解析） | `grantCardFullClearRewardIfNeeded`, `parseAllFloorEffectAmount`（`night.js:9618,9632`） |
 | フィールド移動：隣接判定 | ✅ 実装済み・コード側で強制（隣接していない移動は`window.alert`でブロック） | `isAdjacentPosition`, `attemptMoveToPosition`（`night.js:10307,10334`） |
 | 登攀判定：目標値の自動算出 | ✅ 実装済み（`9＋スート補正差`） | `elevationOfPosition`, `SUIT_ELEVATION`（`night.js:10292,10324`） |
-| 登攀判定：合否の自動判定 | ❌ 未実装。突破判定と同じ仕組み（`resolveBreakthroughCheck`のclimateモード）で、GMが手動でPass/Failを押した場合のみ実際に移動が確定する | 同上 |
+| 登攀判定：合否の自動判定 | ❌ 未実装。突破判定と同じ仕組み（`resolveBreakthroughCheck`のclimateモード）で、GMが手動でPass/Failを押した場合のみ実際に移動が確定する。上記フロア突破判定と同じ「揭曉ボタン非表示→`revealed`が立たない」バグが登攀判定（mode="climb"）にも存在し、同じ修正で解消済み（2026-08-11） | 同上 |
 | イベントチットの盤面配置（種類・枚数・固定番号①〜⑨） | ✅ 実装済み・完全自動（9マスへランダムシャッフル配置。`{id,number}`のペアごとshuffleすることで、洗牌後も各チットの固定番号1-9＝規則書の①〜⑨を`state.eventChipNumbers`に保持——⑦⑧強敵の区別に使う） | `rollEventChips`, `EVENT_CHIP_TYPES`（`night.js`）、`state.eventChipNumbers` |
 | 霊脈／祝福／商人チットの解決 | ✅ 実装済み・完全自動（9節参照、`renderEventChipSpiritVein`等） | `night_event_chips.js` |
 | 強敵チットの解決：強敵決定表の自動擲骰・自動判定 | ✅ 実装済み。「自動擲骰決定」ボタンで2顆骰を振り、`event_rulebook.js`の`extraTables`（2顆骰×12列）から該当エネミーを解決、L補込みで戦場へ自動追加する。⑧号チットが2日目なら「恐るべき強敵決定表」（`extraTables[1]`）、それ以外は通常表（`extraTables[0]`）を`state.eventChipNumbers`から自動選択（GM手動選択は不要）。表の「レベル+1して振り直す」列も自動で振り直す。GMによる手動入力・記録機能も従来通り並存 | `rollStrongEnemyTable`, `resolveStrongEnemyEntry`（`night_gm_flow.js`）、`renderEventChipStrongEnemy`（`night_event_chips.js`） |

@@ -27,7 +27,8 @@
 7. [戦闘前判断](#7-戦闘前判断)
 8. [戦闘開始処理](#8-戦闘開始処理)
 9. [インターバルと戦闘終了処理](#9-インターバルと戦闘終了処理)
-10. [このrepoでの実装状況マップ](#10-このrepoでの実装状況マップ)
+10. [PC人數補正](#10-pc人數補正)
+11. [このrepoでの実装状況マップ](#11-このrepoでの実装状況マップ)
 
 ---
 
@@ -266,7 +267,50 @@ PCに「インターバル」（9節）の機会が与えられる。
 
 ---
 
-## 10. このrepoでの実装状況マップ（2026-08-09時点）
+## 10. PC人數補正
+
+参加PC人数（`entered`＝戦場に入場済みの全PC、瀕死状態を含む——瀕死は「本回合行動できるか」
+という別の判定にのみ影響し、パーティ人数そのものからは除外しない）に応じて、少人数
+パーティ・大人数パーティ双方のバランスを取るための補正。規則書の参考文（`battle_pc_count_title`
+以下、GM向け早見表として従来から存在していた）を、2026-08-11に自動化GMのダメージ計算へ
+実装した。
+
+| PC人数 | PC總合傷害 | 敵人亂戰／個別傷害 | 戰鬥階段の體力骰 | 敵人の防禦次數（最大値） |
+|---|---|---|---|---|
+| 1人 | ×4 | ÷4 | 補正なし | 補正なし |
+| 2人 | ×2 | ÷2 | 補正なし | 補正なし |
+| 3人 | 補正なし | 補正なし | 補正なし | 補正なし |
+| 4人 | 補正なし | 補正なし | －1個 | 第2天／第3天のみ「+1」 |
+
+- **PC總合傷害の倍率**：1ターン中に`entered`全員が与えた総合ダメージの**合計**にのみ倍率を
+  掛ける（各PCの個別の攻擊行動値・進度版の個人行動説明欄は素の値のまま——規則書の
+  「PC總合傷害」という文言どおり、合計だけを倍率対象にする）。
+- **敵人亂戰／個別傷害の除数**：AutoGMの敵行動自動擲骰（`auto_gm.js`）が算出した乱戦
+  ダメージ・個別ダメージの値を、対象PC全員分まとめて同じ除数で割る（`Math.floor`、
+  小数点以下切り捨て）。
+- **4人時の體力骰－1**：戰鬥階段（アクションフェイズ）でスタミナダイスを獲得する際のみ
+  適用（額外階段の+2骰・防禦階段の骰には適用しない）。既存の「睡眠」ペナルティ
+  （`_nextActionDicePenalty`）とは独立に、毎ターン固定で－1される。
+- **4人時・第2/3天の敵人防禦次數+1**：ボス／通常エネミー問わず、`enemyGuardMaxCount()`の
+  戻り値（最大ガード回数）へ+1する。ガード回数の「現在値」がアクションフェイズ開始時に
+  最大値まで回復する既存仕様（`docs/enemy_damage_rules.md`§5.5）にそのまま乗る。
+
+### 実装箇所
+
+`static_src/night.js`：
+- `enteredPcCount()`：`entered`全員（瀕死含む）の人数を返す。
+- `pcCountDamageMultiplier()` / `pcCountEnemyDamageDivisor()`：上表の1/2/4を返す（3人・4人は
+  倍率1＝補正なし）。
+- `computeRoundDamageTotal()`：合計を出した**後**に倍率を掛ける。
+- `handleAutoGmRollClick()`：AutoGM擲骰の結果を各PCの乱戦/個別ダメージ入力欄へ書き込んだ
+  **後**に、まとめて除数で割り直す（内部の複数の書き込み経路を個別に触らず、最後に
+  1箇所でまとめて調整することで漏れを防ぐ設計）。
+- `rollDiceForCharacterActionPhase()`のcombat分岐：`pcCountDicePenalty`を骰数計算に加える。
+- `pcCountGuardBonus()` / `enemyGuardMaxCount()`：4人＋第2/3天のときのみ+1。
+
+---
+
+## 11. このrepoでの実装状況マップ（2026-08-09時点、2026-08-11更新）
 
 | 機能 | 実装状況 | 該当コード |
 |---|---|---|
@@ -283,7 +327,11 @@ PCに「インターバル」（9節）の機会が与えられる。
 | ボス戦闘／ザコ戦闘の自動判定（PC平均レベルとL補込みエネミーレベルの比較） | ✅ 実装済み（上記と同時実装）。トリガー行のタイトルが「ボス戦闘／王戰」（`COMBAT_TRIGGER_TITLES[1]`）かどうかで`isBoss`を判定し、`resolveAndAddCombatEnemies`の追加引数として渡す。強敵決定表（`resolveStrongEnemyEntry`）はザコ戦闘固定 | `night_gm_flow.js`の`isBossCombatTriggerLine`, `handleCombatTriggerClick` |
 | 簡易戦闘の追撃損害の自動計算・適用 | ✅ 実装済み（2026-08-10）。簡易戦闘の第1ターン（アクション／エクストラフェイズ）終了後、`setActionPhase`が"defense"への遷移を差し替え、敵人現在HP（各HP行のチェック済み方格数の合計）と同値のHP損害をGM確認後に全体PCへ適用してから戦闘終了処理を呼ぶ。この規則は既存の`battle_simple_combat_body`（i18n参考文）と一致することを実装時に確認済み | `night.js`の`computePursuitDamage`, `renderSimplifiedCombatEndPrompt`, `handleSimplifiedCombatEndConfirm`, `setActionPhase`内の`phase === "defense" && combatMode === "simplified"`分岐 |
 | GM敘述提示バナー（「請擲骰！」「攻擊中！」「體崩中！」「防禦中！」）＋回合內細粒度状態機 | ✅ 実装済み（2026-08-10）。`state.battle.roundStage`（"awaitingRoll"｜"acting"｜"resolving"）を新設。combat/extra/defenseへ入るたびに"awaitingRoll"へ初期化、entered中の全員が本フェイズのスタミナダイスを振り終えると"acting"へ、GM確認操作（後述）で"resolving"へ進む | `night.js`の`renderRoundStageBanner`, `allEnteredCharactersRolledForPhase`, `rollDiceForCharacterActionPhase`内のフック |
-| 玩家「已完成」按鈕列＋[攻擊/防禦][返回] | ✅ 実装済み（2026-08-10）。`state.battle.roundActionsDone`（key=角色id）で管理する新規UI（battle-drawer内、既存機構の外側に追加）。全員が押すと[攻擊/防禦]ボタンが現れる。[攻擊]（combat/extra）は`c._phaseDamageDealt`/`c._phaseGuardReductionPoints`（後述）を合算して既存の「防禦次數／HP價值計算機」入力欄へ自動預填し、既存`handleBattleGuardCalcApply()`をそのまま呼ぶ（`applyGuardedDamageToEnemy`を直接叩く専用経路は新設していない）。[防禦]は既存の`#enemy-damage-modal`を開くだけで、確定は既存`handleEnemyDamageConfirm()`のまま。[返回]は`roundActionsDone`のみ再クリアする | `night.js`の`renderBattleTurnProgressPanel`, `handleBattleTurnConfirmClick`, `handleBattleTurnReturnClick` |
+| 玩家「已完成」按鈕列＋[攻擊/防禦][返回] | ✅ 実装済み（2026-08-10、行動說明の表示順序とディフェンス結算UIは2026-08-11に再設計）。`state.battle.roundActionsDone`（key=角色id）で管理する新規UI（進度版＝`#location-status-overlay`内、`renderLocationBanner()`の`actionKind==="battleWait"`分岐から描画）。全員が押すと[攻擊/防禦]ボタンが現れる。行動說明（`state.battle.roundActionLog`）はkey=角色idの連想配列ではなく`{charId, lines}`の**配列**で管理し、押した順にpush・取り消したら該当エントリをfilterで除去→再度押すと配列末尾へ再push（＝表示順序は常にクリック順、取り消し前の元の位置には戻らない）。[攻擊]（combat/extra）は`c._phaseDamageDealt`/`c._phaseGuardReductionPoints`（後述）を合算して既存の「防禦次數／HP價值計算機」入力欄へ自動預填し、既存`handleBattleGuardCalcApply()`をそのまま呼ぶ。[防禦]は`#enemy-damage-modal`を開く——モーダルは2026-08-11に再設計済み：各PC行にHP價值入力欄（初期値`c.hpValue\|\|30`）とHP損害の即時計算表示（`floor((乱戦+個別)/HP價值)`、いずれかの入力欄変更で即再計算）、PCごとに独立した[確定]ボタンを持ち、`handleEnemyDamageConfirmForCharacter(charId)`が個別に扣血・瀕死判定・`state.battle.enemyDamageConfirmed[charId]`確定済みマークを行う。進度版に既に反映済みの行動（AutoGM擲骰結果）は`state.battle.pendingDefenseRoll`へ保存され、モーダルはこの値をそのまま初期表示に使う（再擲骰不可——規則書に明記された再判定権限がない限り、GMが数値を変えられるのはHP價值欄のみ）。全員確定で`finishEnemyDamageRound()`がモーダルを閉じ`roundStage="resolving"`へ。[返回]は`roundActionsDone`のみ再クリアする | `night.js`の`renderBattleTurnProgressPanel`（旧称、進度版統合後は`renderBattleRoundActionButtons`）, `handleBattleTurnConfirmClick`, `renderEnemyDamageModal`, `handleEnemyDamageConfirmForCharacter`, `finishEnemyDamageRound` |
+| 瀕死状態PCのダイスロール免除 | ✅ 実装済み（2026-08-10）。瀕死中のPCは「全員擲骰完了」判定・ボタン列のいずれからも除外され、GMが体力骰を要求する対象に含まれない（救助されるまで） | `night.js`の`enteredCharactersForBattle()`（`entered && !_nearDeath`） |
+| 体勢崩し（HP行0到達）の一回限りトリガー | ✅ 実装済み（2026-08-10）。HP行がいずれか1つでも0へ到達すると即座に額外階段が1回だけ挿入される。修正前は`anyEnemyHpRowDepleted()`が「一度0になったら戦闘終了までtrueのまま」の性質のため、同じ行が0のままだと毎ターン額外階段が再トリガーしてしまうバグがあった。`state.battle.staggerRowsHandled`（行indexの配列、戦鬥終了時のみクリア）で「どの行が既に処理済みか」を記録し、未処理の行があるときだけ額外階段へ進む。処理済みになった段階で黄色い「體崩」バナーも消す | `night.js`の`anyUnhandledStaggeredRow`, `markStaggeredRowsHandled`, `autoAdvanceBattlePhase` |
+| ディフェンス階段開始時のタイムロス+1自動処理 | ✅ 実装済み（2026-08-10）。ディフェンス階段へ入った瞬間に既存の`addTimeLoss(1)`を自動で呼び、消耗したタイムロスのマスが「威脅」行・「夜雨」行を跨いだ場合はそれぞれの効果（威脅表の自動擲骰・夜雨の該当日／段階テキスト）を進度版へ打字機で追記する。実装位置は`setActionPhase()`内部、汎用リセットバッチの直後（`defenseEntryEffectText`等がリセットされた**後**に上書きする必要があるため）——一度`enterDefensePhaseWithTimeLoss()`という外側ラッパー関数として実装したが、`setActionPhase("defense")`を直接呼ぶ他の経路（GM手動ボタン等）を素通りしてしまうバグがあり、`setActionPhase()`内部へ直接組み込む形に修正した | `night.js`の`setActionPhase`内`phase === "defense"`分岐、`addTimeLoss`（威脅/夜雨メッセージを返り値化） |
+| PC人數補正（PC總合傷害×4/×2、敵人亂戰/個別傷害÷4/÷2、4人時の體力骰－1、防禦次數+1） | ✅ 実装済み（2026-08-11）。詳細は10節参照 | `night.js`の`enteredPcCount`, `pcCountDamageMultiplier`, `pcCountEnemyDamageDivisor`, `pcCountGuardBonus` |
 | Guard削り値（▲=0.5点／◆=1点）の自動計算 | ✅ 実装済み（2026-08-10、使用者裁定：`docs/enemy_damage_rules.md`§2/§5.2参照）。既存の`recordPhaseDamageDealt(c, value)`に第三引数`symbol`を追加し、`c._phaseDamageDealt`と同じライフサイクル（phase reset loopで0に戻る）で`c._phaseGuardReductionPoints`へ0.5/1点を累積する。既存7箇所の呼び出し元（`renderCombatAttackAction`等）は既に`symbol`（`▲`/`◆`/null）を保持していたため、呼び出し引数を追加するだけで済んだ | `night.js`の`recordPhaseDamageDealt`, `computeRoundGuardReductionTotal` |
 | **バグ修正**：一般エネミー（非夜の王）のGuard削り値計算機が実際には一度も動作していなかった不具合 | ✅ 2026-08-10発見・修正。`enemyGuardValueForCount()`が`r.count === guardCountValue`で比較していたが、`enemies_data_*.js`のguardValueTableは`count`が`C(ja,zh)`の多言語オブジェクト（例：`C("2","2")`）であるのに対し、`night_boss_rulebook.js`（夜の王）は素の数値（例：`{count:2,...}`）——オブジェクトと数値の`===`比較は常に不一致になるため、通常エネミーは常に`applyGuardedDamageToEnemy`が`null`を返し、HPが減らない状態だった（夜の王＝gladius/marisのみ実際に動いていた）。新設`parseGuardCountValue()`で両方の形式を数値へ正規化してから比較するよう修正 | `night.js`の`parseGuardCountValue`, `enemyGuardValueForCount` |
 | 戦闘開始時の公開情報／非公開情報の演出上の区別 | ❌ 未実装（弱点の表示等、個別の情報公開自体はできるが、「公開情報を一括提示し、非公開情報＝アクション内容/HP価値/ガード回数/耐性を隠す」という専用UIは無い模様。もっとも、GMが実質シナリオ製作者兼進行役を兼ねる想定のこのアプリでは、この区別自体の実装優先度は低いと考えられる） | – |
@@ -297,4 +345,16 @@ PCに「インターバル」（9節）の機会が与えられる。
 の既存i18n参考文——「エンドフェイズにエネミーが生存していたなら、エネミーの現在HPと
 同じだけのHP損害をPC全員に与える。その後、エネミーは撃破したことになる」——と、使用者
 確認の両方から「敵人現在HPと同値のHP損害を全体PCに与え、その後撃破扱い」と確定）は、
-`state.actionPhase`の"defense"フェイズを完全にスキップする形で実装済み（10節参照）。
+`state.actionPhase`の"defense"フェイズを完全にスキップする形で実装済み（11節参照）。
+
+**2026-08-11 追記**：使用者からの実プレイフィードバックに基づき、以下を修正・追加した
+（詳細は各項目の11節該当行を参照）。①瀕死状態PCをダイスロール要求・ボタン列から除外。
+②行動說明の表示順序をクリック順（取り消し→再押下で末尾へ移動）に修正。③体勢崩しが
+同じHP行に対して毎ターン再トリガーしてしまうバグを修正（行ごとに一度だけ）。④ディフェンス
+階段開始時のタイムロス+1を自動処理し、威脅／夜雨の連動効果も打字機で説明するよう追加。
+⑤ディフェンス結算モーダル（`#enemy-damage-modal`）をHP價值ベースの即時計算・PCごと個別
+確定・再擲骰不可の設計へ再設計。⑥PC人數補正（10節）を新規実装。これとは別に、戦闘とは
+無関係だが同セッションで発見・修正した既存バグとして、フロア突破判定／登攀判定の
+「揭曉」ボタンがmode="floor"/"climb"では常に非表示のまま`revealed`フラグを立てる手段が
+無く、Pass/Fail判定ボタンが永久に出現しないままダイス確定後に地圖移動が止まってしまう
+不具合があった（`docs/scenario_flow_rules.md`10節参照、`night_floor_breakthrough.js`）。
