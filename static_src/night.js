@@ -863,6 +863,10 @@
       chipOfferContinuation: null,
       pendingChipCheckSlot: null,
       pendingMapMoveSlot: null,
+      // 第4項：地圖移動ゲート（actionKind==="mapMove"）を開いた時点のfocusedIndex。
+      // [OK]を押した時点でこの値とfocusedIndexが同じなら「まだ移動していない」と判定し、
+      // ゲートを閉じずリマインドを繰り返す（handleMapMoveOkClick参照）。
+      pendingMapMoveFromIndex: null,
     },
     // GMが開いて縮小した抽選ウィンドウを全端末で共有するための領域。null=未使用。
     // 中身はcharacter_drawer.jsのweaponRollState/talismanRollState/consumableRollState、
@@ -875,6 +879,12 @@
     // 「路線自由」（branch.freeFloorOrder）カード専用——通常のcardLevels連番進行の代わりに
     // 位置ごとのクリア状態を持つ（砦／地下砦カード：フロアを任意の順で選べ、指定数踏破で全踏破）。
     freeFloorCleared: {},
+    // key: slot index -> boolean[]（floorCount分）。通常カード専用——cardLevelsは「次に
+    // 試すべき樓層」を指すポインタに過ぎず、突破判定で「スキップ」しただけの樓層も
+    // ポインタを進めてしまう。このため「実際にその樓層の敘述を最後まで読み終えた（真に
+    // 踏破した）」かどうかを別途ここで管理する（docs/scenario_flow_rules.md：突破スキップは
+    // フィールド移動まで一時的、真の踏破ではない）。
+    floorCleared: {},
   };
 
   function shuffle(arr) {
@@ -952,6 +962,7 @@
       returnedCardMemory: state.returnedCardMemory,
       cardFloorRewardGranted: state.cardFloorRewardGranted,
       freeFloorCleared: state.freeFloorCleared,
+      floorCleared: state.floorCleared,
     };
   }
 
@@ -2024,6 +2035,7 @@
         chipOfferContinuation: typeof loadedGmFlow.chipOfferContinuation === "string" ? loadedGmFlow.chipOfferContinuation : null,
         pendingChipCheckSlot: typeof loadedGmFlow.pendingChipCheckSlot === "number" ? loadedGmFlow.pendingChipCheckSlot : null,
         pendingMapMoveSlot: loadSlotOrPileIndex(loadedGmFlow.pendingMapMoveSlot),
+        pendingMapMoveFromIndex: loadSlotOrPileIndex(loadedGmFlow.pendingMapMoveFromIndex),
       };
       var loadedDraws = data.activeDraws && typeof data.activeDraws === "object" ? data.activeDraws : {};
       state.activeDraws = {
@@ -2038,6 +2050,7 @@
       state.cardFloorRewardGranted =
         data.cardFloorRewardGranted && typeof data.cardFloorRewardGranted === "object" ? data.cardFloorRewardGranted : {};
       state.freeFloorCleared = data.freeFloorCleared && typeof data.freeFloorCleared === "object" ? data.freeFloorCleared : {};
+      state.floorCleared = data.floorCleared && typeof data.floorCleared === "object" ? data.floorCleared : {};
     } catch (e) {
       // 壊れた状態は無視して初期状態のまま続行する
     }
@@ -2122,12 +2135,14 @@
       chipOfferContinuation: null,
       pendingChipCheckSlot: null,
       pendingMapMoveSlot: null,
+      pendingMapMoveFromIndex: null,
     };
     state.activeDraws = { potentialPower: null, weapon: null, talisman: null, consumable: null };
     state.activeThreatEffects = [];
     state.returnedCardMemory = {};
     state.cardFloorRewardGranted = {};
     state.freeFloorCleared = {};
+    state.floorCleared = {};
     localStorage.removeItem(STORAGE_KEY);
     clearUndoSnapshot();
   }
@@ -9923,14 +9938,9 @@
       var displayName = trueName || window.PriTestFields.localizedText(card.name);
       var nameSpan = document.createElement("span");
       nameSpan.className = "loc-name";
-      if (typeof idx === "number") {
-        var levelVal = state.cardLevels[idx];
-        var levelText = levelVal === null || levelVal === undefined ? window.I18N.t("level_all") : String(levelVal);
-        nameSpan.textContent = displayName + "(" + levelText + ")";
-      } else {
-        // 起點／終點の板塊にはcardLevels（樓層踏破の段階）の概念自体が無いため、名前のみ表示する。
-        nameSpan.textContent = displayName;
-      }
+      // 目前所在樓層改由GM敘述（floorLeadingDescriptionText）直接告知，卡牌名稱後面
+      // 不再附加裸數字的樓層編號徽記（避免重複資訊）。
+      nameSpan.textContent = displayName;
       content.appendChild(nameSpan);
       if (card.floorCount != null || card.allFloorEffect) {
         var detailParts = [];

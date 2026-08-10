@@ -521,6 +521,81 @@
     return arr;
   }
 
+  // ---- 第5項：通常カード（連番floorIndex）の「真の踏破」状態 ----
+  // state.floorCleared[slotIndex]（boolean[]、floorCount分）——cardLevelsはあくまで
+  // 「次に試すべき樓層」を指すポインタで、突破判定の「スキップ」でも進んでしまうため、
+  // 「本当にその樓層の敘述を最後まで読み終えたか」は別途ここで管理する。
+
+  // slotIndex＋floorCountのクリア状態配列を取得する（未初期化ならfloorCount分のfalseで
+  // 初期化して保存する）。
+  function getFloorCleared(slotIndex, floorCount) {
+    var state = window.PriTestNightCore.state;
+    if (!state.floorCleared) state.floorCleared = {};
+    var key = String(slotIndex);
+    var arr = state.floorCleared[key];
+    if (!Array.isArray(arr) || arr.length !== floorCount) {
+      arr = [];
+      for (var i = 0; i < floorCount; i++) arr.push(false);
+      state.floorCleared[key] = arr;
+    }
+    return arr;
+  }
+
+  function markFloorCleared(slotIndex, floorCount, floorIndex) {
+    var arr = getFloorCleared(slotIndex, floorCount);
+    if (floorIndex >= 0 && floorIndex < arr.length) arr[floorIndex] = true;
+    return arr;
+  }
+
+  // floorCount分のfloorClearedのうち、最初にまだfalseの樓層indexを返す（全部true ならnull）。
+  function firstUnclearedFloorIndex(slotIndex, floorCount) {
+    var arr = getFloorCleared(slotIndex, floorCount);
+    for (var i = 0; i < floorCount; i++) {
+      if (!arr[i]) return i;
+    }
+    return null;
+  }
+
+  // justResolvedFloorIndexの樓層が1つ解決した（真に踏破 or 突破判定でスキップ）直後に
+  // cardLevels[slotIndex]を更新する。突破スキップで先の樓層へ進めるが、スキップした樓層
+  // 自体はfloorClearedに残らない（後で全樓層を1巡し終えたときに、まだfalseの樓層が
+  // 残っていれば、そこへ「巻き戻して」再度差し出す——docs/scenario_flow_rules.md：
+  // 突破スキップはフィールド移動まで一時的、離れると未踏破に戻る、を「同じ訪問中に全樓層
+  // 一巡し終えた時点」で強制する形で再現）。
+  // 1. justResolvedFloorIndex+1から、既にfloorClearedがtrueの樓層を飛ばして次を探す。
+  // 2. 見つかれば（floorCount未満）そこへ進む——通常の連続探索と、巻き戻し後に再び前進する
+  //    場合の両方をこれ1つでカバーする。
+  // 3. floorCountに達したら（この訪問で全樓層を1巡し終えた）、firstUnclearedFloorIndexで
+  //    最初からやり直し、まだfalseの樓層があればそこへ巻き戻す。無ければ「全」（null）。
+  function advanceOrRewindCardPointer(slotIndex, floorCount, justResolvedFloorIndex) {
+    var Core = window.PriTestNightCore;
+    var state = Core.state;
+    var clearedArr = getFloorCleared(slotIndex, floorCount);
+    var next = justResolvedFloorIndex + 1;
+    while (next < floorCount && clearedArr[next]) next++;
+    if (next < floorCount) {
+      state.cardLevels[slotIndex] = next;
+    } else {
+      var uncleared = firstUnclearedFloorIndex(slotIndex, floorCount);
+      state.cardLevels[slotIndex] = uncleared === null ? null : uncleared;
+    }
+    if (Core.renderCardLevel) Core.renderCardLevel(slotIndex);
+  }
+
+  // 突破判定モーダル（night_floor_breakthrough.js、既存の実装ではwalkと無関係にGMが
+  // ブランチ/樓層を手動選択する）から、樓層をスキップした直後に呼ばれる。スキップは
+  // 「真に踏破」扱いにしない（floorClearedはtrueにしない）——advanceOrRewindCardPointerで
+  // 先の樓層へポインタを進めるだけ。路線自由カードは「スキップ＝クリア数に含めない」
+  // だけでよく、ポインタ（クリア数表示）自体は変更しない。
+  function resolveFloorSkip(slotIndex, branchIndex, floorIndex) {
+    var Core = window.PriTestNightCore;
+    var entry = window.PriTestNightFloorBreakthrough.resolveFieldEntryForSlot(slotIndex);
+    var branch = entry && entry.branches ? entry.branches[branchIndex] : null;
+    if (!branch || branch.freeFloorOrder) return; // 路線自由カード、または解決不能：ポインタは変更しない
+    if (typeof entry.floorCount !== "number") return;
+    advanceOrRewindCardPointer(slotIndex, entry.floorCount, floorIndex);
+  }
+
   // floor.label（"フロア1"等）から位置番号（1始まり）を取り出す。パターンに合わなければnull。
   function freeFloorPositionOfFloor(floor) {
     var text = (floor.label && (floor.label.ja || floor.label.zh)) || "";
@@ -958,6 +1033,34 @@
   function currentFloorIndexForSlot(idx) {
     var levelVal = typeof idx === "number" ? window.PriTestNightCore.state.cardLevels[idx] : null;
     return typeof levelVal === "number" ? levelVal : 0;
+  }
+
+  // 第2項：［進入］／［突破］ボタンを出す直前に、その樓層の先頭〔描写〕を進度版へ
+  // 先に見せる（規則書§2-3-1→§2-3-2の順序）。autoResolveBranchは純粋関数（state変更なし）
+  // だが、複数候補から1D6で決めるカードは呼ぶたびに乱数を消費する——ここでのプレビュー用の
+  // 一時的な解決結果は捨てるだけ（実際の［進入］クリック時にbeginFieldWalkFlowが改めて
+  // 自前で解決する）ので状態への影響は無いが、"roll済み"の分岐と実際に確定する分岐が
+  // ズレて見える恐れがあるため、乱数が絡む場合（resolved.roll !== null）はプレビューを
+  // 諦めて空文字を返す（従来通りボタンだけのblind表示にフォールバック）。
+  // 路線自由カード（砦/地下砦）はfloorIndexという単純な連番概念を持たないため対象外。
+  function floorLeadingDescriptionText(idx, entry) {
+    if (!entry || !entry.branches || !entry.branches.length) return "";
+    // 第6項：全踏破済み（cardLevels===null）のカードはhandleEnterClick側で樓層敘述を
+    // 経由せず直接地圖移動へ案内するため、ここでも樓層0の内容を誤ってプレビューしない。
+    if (typeof idx === "number" && window.PriTestNightCore.state.cardLevels[idx] === null) return "";
+    var resolved = autoResolveBranch(entry, idx);
+    if (!resolved || resolved.roll !== null) return "";
+    var branch = entry.branches[resolved.branchIndex];
+    if (!branch || branch.freeFloorOrder) return "";
+    var floorIndex = currentFloorIndexForSlot(idx);
+    var floor = (branch.floors || [])[floorIndex];
+    if (!floor || !floor.lines || !floor.lines.length) return "";
+    var lines = floor.lines;
+    var descLine =
+      lines.filter(function (l) {
+        return l.label && (l.label.ja === "描写" || l.label.zh === "描寫");
+      })[0] || lines[0];
+    return formatWalkLine(descLine);
   }
 
   // ---- 分岐の自動解決（GMや玩家がボタンで選ぶのではなく、劇本ごとの固定/抽選機制に従う） ----
@@ -1404,6 +1507,19 @@
     var Core = window.PriTestNightCore;
     var state = Core.state;
     var idx = state.focusedIndex;
+    // 第6項：この卡牌が既に全踏破済み（cardLevels===null）の場合、再度[進入]を押しても
+    // 樓層0から敘述し直さない——currentFloorIndexForSlotはnullを「0扱い」で返すため、
+    // このガードが無いと全踏破済みカードでも毎回樓層0の内容を再敘述してしまう
+    // （ユーザー報告の追加バグ）。全踏破処理自体は既に完了済みなので、籌碼確認
+    // （まだ使っていなければ）→地圖移動の案内へ直接進める（advanceCardConclusionChainを
+    // そのまま再利用——チェーン自体は既に全踏破ゲートを閉じ終えた前提のロジックなので、
+    // pendingFinalFloorSlotは設定しない）。
+    if (typeof idx === "number" && state.cardLevels[idx] === null) {
+      state.gmFlow.pendingChipCheckSlot = idx;
+      state.gmFlow.pendingMapMoveSlot = idx;
+      advanceCardConclusionChain();
+      return;
+    }
     var entry = window.PriTestNightFloorBreakthrough.resolveFieldEntryForSlot(idx);
     // ［初始地點］第18項：起點／終點は数値cardLevelsを持たないため、[進入]を押した瞬間に
     // 「1」チェックを自動でオンにし、盤面から見ても「現在フロア1にいる」ことが分かるようにする
@@ -1415,8 +1531,13 @@
         Core.renderPiles();
       }
     }
-    // 第19項：この地點に未使用の籌碼事件があれば、樓層本文の敘述を始める前に先に使用可否を尋ねる。
-    if (offerEventChipIfPending(idx, "startWalk")) return;
+    // 第19項・第3項改：この地點に未使用の籌碼事件があれば、樓層本文の敘述を始める前に先に
+    // 使用可否を尋ねる——ただし「進入第一層前」の1回だけ（cardLevels[idx]===0＝このカード
+    // でまだ1つも樓層を進めていない、真の初回進入）。handleEnterClickは同じカード内の
+    // 2層目以降でも[進入]を押すたびに呼ばれる関数のため、この条件が無いと毎層聞いてしまう
+    // （ユーザー報告のバグ）。
+    var isFreshCardVisit = typeof idx === "number" && state.cardLevels[idx] === 0;
+    if (isFreshCardVisit && offerEventChipIfPending(idx, "startWalk")) return;
     beginFieldWalkFlow(idx, entry);
   }
 
@@ -2054,6 +2175,7 @@
     var walk = state.gmFlow.walk;
     var walkSlotIndex = walk ? walk.slotIndex : null;
     var walkEntry = walk ? getWalkEntry(walk) : null;
+    var walkFloorIndex = walk ? walk.floorIndex : null;
     var hasReward = !!(floor && FloorBreakthrough.floorHasAnyReward && FloorBreakthrough.floorHasAnyReward(floor));
     state.gmFlow.narrationText = blockText || window.I18N.t("gm_flow_walk_end_narration");
     state.gmFlow.awaitingOk = true;
@@ -2086,19 +2208,24 @@
       return;
     }
     // 第5項改：この樓層の敘述が最後まで終わったら、GMが手動で盤面の[+]を押さなくても
-    // 自動で樓層カウンターを1つ進め、公開盤地図上のカードの数字が自動的に「踏破済み」を
+    // 自動で樓層カウンターを進め、公開盤地図上のカードの数字が自動的に「踏破済み」を
     // 反映するようにする——以後は自動化GMもそのカードの数字を見るだけで現在位置が分かる。
+    // 敘述を最後まで読み終えた＝真の踏破なので、floorClearedにも記録する（突破判定の
+    // 「スキップ」との違いは第5項参照）。
     if (floor && typeof walkSlotIndex === "number") {
-      Core.stepCardLevel(walkSlotIndex, 1);
+      if (walkEntry && typeof walkEntry.floorCount === "number" && typeof walkFloorIndex === "number") {
+        markFloorCleared(walkSlotIndex, walkEntry.floorCount, walkFloorIndex);
+        advanceOrRewindCardPointer(walkSlotIndex, walkEntry.floorCount, walkFloorIndex);
+      }
       // 第18・19項「結束該卡牌的最後一個樓層後...則再處理［全踏破］處理...再次詢問是否使用
-      // 籌碼事件...接著處理［地圖移動機制］」：たった今の＋1でカードの実在する樓層をすべて
-      // 踏破済み（cardLevels===floorCount、まだ「全」ではない）になった場合、この樓層の
-      // 獎勵ゲート（floorEnd）をGMが領取し終えるまで待ってから（＝
-      // closeGmFlowGateAndConsumePendingAdvance／advanceCardConclusionChain側で）
-      // 「全」踏破処理→籌碼確認→地圖移動、の順で自動的に連鎖させる。ここで即座に進めると、
-      // まだ見せていないこの樓層の獎勵ゲートを跨ぎ越してしまうため、領取完了（[獲得完]）の
-      // タイミングまで意図的に遅延させる。
-      if (walkEntry && typeof walkEntry.floorCount === "number" && Core.state.cardLevels[walkSlotIndex] === walkEntry.floorCount) {
+      // 籌碼事件...接著處理［地圖移動機制］」：cardLevelsが「全」（null）になった＝floorCleared
+      // が全樓層true（第6項の巻き戻しロジックにより、途中にスキップだけの樓層が残っていれば
+      // nullにはならず、その樓層へポインタが巻き戻される）。この樓層の獎勵ゲート（floorEnd）
+      // をGMが領取し終えるまで待ってから（＝closeGmFlowGateAndConsumePendingAdvance／
+      // advanceCardConclusionChain側で）「全」踏破処理→籌碼確認→地圖移動、の順で自動的に
+      // 連鎖させる。ここで即座に進めると、まだ見せていないこの樓層の獎勵ゲートを跨ぎ越して
+      // しまうため、領取完了（[獲得完]）のタイミングまで意図的に遅延させる。
+      if (Core.state.cardLevels[walkSlotIndex] === null) {
         state.gmFlow.pendingFinalFloorSlot = walkSlotIndex;
         state.gmFlow.pendingChipCheckSlot = walkSlotIndex;
         state.gmFlow.pendingMapMoveSlot = walkSlotIndex;
@@ -2148,13 +2275,35 @@
   }
 
   // ［地圖移動機制］：全踏破処理（と、あれば籌碼確認）がすべて終わった後の最後の案内。
-  // 実際の移動操作自体は既存の盤面長押し移動UIに委ねる、単純な[OK]ゲート。
+  // 実際の移動操作自体は既存の盤面長押し移動UIに委ねる。第4項：ゲートを開いた時点の
+  // focusedIndexを記録しておき、[OK]を押した時点でまだ同じ位置のままなら（＝実際には
+  // 移動していない）ゲートを閉じずにリマインドを繰り返す（handleMapMoveOkClick参照）。
   function showMapMoveNarration() {
     var Core = window.PriTestNightCore;
     var state = Core.state;
     state.gmFlow.narrationText = window.I18N.t("gm_flow_map_move_prompt");
     state.gmFlow.awaitingOk = true;
-    state.gmFlow.actionKind = "ok";
+    state.gmFlow.actionKind = "mapMove";
+    state.gmFlow.pendingMapMoveFromIndex = state.focusedIndex;
+    Core.saveState();
+    Core.renderCurrentLocationStatus();
+  }
+
+  // 第4項：地圖移動ゲートの[OK]。まだ移動していない（focusedIndexがゲートを開いた時点と
+  // 同じ）場合はリマインドを再表示してゲートを維持する（＝実質的な迴圈）。移動済みなら
+  // 通常のゲート解決（closeGmFlowGateAndConsumePendingAdvance）へ進む。
+  function handleMapMoveOkClick() {
+    var Core = window.PriTestNightCore;
+    var state = Core.state;
+    if (state.focusedIndex === state.gmFlow.pendingMapMoveFromIndex) {
+      state.gmFlow.narrationText = window.I18N.t("gm_flow_map_move_not_moved_reminder");
+      lastTypedNarration = null; // リマインド文言は必ず打字機を再生する
+      Core.saveState();
+      Core.renderCurrentLocationStatus();
+      return;
+    }
+    state.gmFlow.pendingMapMoveFromIndex = null;
+    closeGmFlowGateAndConsumePendingAdvance();
     Core.saveState();
     Core.renderCurrentLocationStatus();
   }
@@ -2210,6 +2359,7 @@
     state.gmFlow.freeFloorOptions = [];
     state.gmFlow.chipOfferSlot = null;
     state.gmFlow.chipOfferContinuation = null;
+    state.gmFlow.pendingMapMoveFromIndex = null;
     pendingFloorEndFloor = null;
     lastTypedNarration = null;
   }
@@ -2380,7 +2530,6 @@
     if (!spec || !titleEl || !container || !doneBtn) return;
     if (!abilityCheckRolls) abilityCheckRolls = {};
     titleEl.textContent = window.I18N.t("ability_check_modal_title", {
-      target: spec.target,
       stat: window.I18N.t("check_stat_" + spec.statKey),
     });
     container.innerHTML = "";
@@ -3525,6 +3674,10 @@
         // ［戰鬥機制］：ボタンは出さない。エネミーの全HP行が0になった瞬間
         // （notifyCombatEnded、night.jsのsetActionPhase combatEndオプション経由）に
         // 自動で敘述の続き（［戰鬥結束］）へ進む。
+      } else if (state.gmFlow.actionKind === "mapMove") {
+        // 第4項：地圖移動ゲート。[OK]はhandleMapMoveOkClickへ——まだ移動していなければ
+        // ゲートを閉じずリマインドを繰り返す。
+        addActionButton(actionsEl, "gm_flow_ok_button", handleMapMoveOkClick);
       } else if (state.gmFlow.actionKind === "chipOffer") {
         // 第19項：籌碼事件の使用可否確認。
         addActionButton(actionsEl, "gm_flow_chip_offer_use_button", handleChipOfferUseClick);
@@ -3668,12 +3821,16 @@
     }
 
     lastTypedNarration = null;
-    narrationEl.textContent = "";
     stopTypewriter(narrationEl);
     if (!card) {
+      narrationEl.textContent = "";
       dialogueEl.classList.remove("has-dialogue"); // 敘述もボタンも出せることが無ければ分隔線ごと隠す
       return;
     }
+    // 第2項：進入/突破の選択肢を出す前に、その樓層の先頭〔描写〕を先に見せる
+    // （規則書§2-3-1→§2-3-2の順序）。解決できない場合（路線自由カード・乱数が絡む
+    // 分岐等）は従来通り空欄のまま。
+    narrationEl.textContent = typeof idx === "number" ? floorLeadingDescriptionText(idx, card) : "";
 
     addActionButton(actionsEl, "gm_flow_enter_button", handleEnterClick);
     addActionButton(actionsEl, "gm_flow_breakthrough_button", handleBreakthroughClick);
@@ -3717,5 +3874,6 @@
     mergeParams: mergeParams,
     rollStrongEnemyTable: rollStrongEnemyTable,
     resolveStrongEnemyEntry: resolveStrongEnemyEntry,
+    resolveFloorSkip: resolveFloorSkip,
   };
 })();

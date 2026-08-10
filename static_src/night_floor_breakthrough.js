@@ -936,6 +936,10 @@
     // 誰の目にも触れないようにする）。判定属性（stat-select）は骰子を振るために必要な情報
     // なので、こちらは常に表示する。
     document.getElementById("breakthrough-target-hideable").hidden = true;
+    // 第2項：自動化下の突破判定は目標値を一切表示しない（行為判定と同じ方針）——
+    // 揭曉ボタン自体を隠し、target-hideable区塊が開く経路を無くす（GMが規則書と
+    // 照らし合わせたい場合は規則書パネルを別途参照する）。
+    document.getElementById("btn-breakthrough-reveal").hidden = true;
     document.getElementById("breakthrough-target-input").value = "10";
     document.getElementById("breakthrough-target-input").disabled = false;
     document.getElementById("breakthrough-perpc-checkbox").checked = false;
@@ -958,6 +962,9 @@
     document.getElementById("breakthrough-modal-title").textContent = window.I18N.t("climb_check_modal_title");
     document.getElementById("breakthrough-import-row").hidden = true;
     document.getElementById("breakthrough-target-hideable").hidden = true;
+    // 第2項：登攀判定も目標値を表示しない（従来はGMの秘密ではないという理由で揭曉ボタンに
+    // パスワードは不要としていたが、自動化下では行為判定/突破判定と同じく一切表示しない）。
+    document.getElementById("btn-breakthrough-reveal").hidden = true;
     document.getElementById("breakthrough-target-input").value = String(9 + suitDiff);
     document.getElementById("breakthrough-target-input").disabled = true;
     document.getElementById("breakthrough-perpc-checkbox").checked = true;
@@ -1233,7 +1240,11 @@
       ? window.I18N.t("breakthrough_sum_label", { sum: breakthroughDiceSum(), target: actualTarget })
       : window.I18N.t("breakthrough_sum_label_hidden", { sum: breakthroughDiceSum() });
 
-    document.getElementById("btn-breakthrough-reveal").hidden = breakthroughState.revealed;
+    // 第2項：突破判定／登攀判定（mode "floor"/"climb"）は自動化下で目標値を一切表示しない
+    // ため、揭曉ボタン自体を常に隠す（revealedフラグに関わらず）。判定發生（mode "generic"）
+    // は従来通りrevealedで開閉する。
+    var hideRevealButton = breakthroughState.mode === "floor" || breakthroughState.mode === "climb" || breakthroughState.revealed;
+    document.getElementById("btn-breakthrough-reveal").hidden = hideRevealButton;
     document.getElementById("btn-breakthrough-fail").hidden = !breakthroughState.revealed;
     document.getElementById("btn-breakthrough-pass").hidden = !breakthroughState.revealed;
 
@@ -1305,7 +1316,20 @@
       return;
     }
     var index = breakthroughState.slotIndex;
-    if (passed) window.PriTestNightCore.stepCardLevel(index, 1);
+    if (passed) {
+      // 第5項：突破判定の「スキップ」は真の踏破ではないため、cardLevelsの単純+1
+      // （旧stepCardLevel）ではなくresolveFloorSkipへ委ねる——先の樓層へポインタは
+      // 進めるが、floorClearedはtrueにしない（同じ訪問中に全樓層を1巡し終えた時点で、
+      // このスキップした樓層へ改めて巻き戻して差し出される）。ブランチ/樓層はGMが
+      // モーダルで手動選択したもの（populateBreakthroughFieldSelectors）をそのまま使う。
+      var branchSelect = document.getElementById("breakthrough-branch-select");
+      var floorSelect = document.getElementById("breakthrough-floor-select");
+      var branchIndex = branchSelect && !branchSelect.hidden ? Number(branchSelect.value) : NaN;
+      var skipFloorIndex = floorSelect && !floorSelect.hidden ? Number(floorSelect.value) : NaN;
+      if (window.PriTestNightGmFlow && !isNaN(branchIndex) && !isNaN(skipFloorIndex)) {
+        window.PriTestNightGmFlow.resolveFloorSkip(index, branchIndex, skipFloorIndex);
+      }
+    }
     var floorKey = passed ? "log_breakthrough_check_pass" : "log_breakthrough_check_fail";
     var floorParams = { slot: index + 1, sum: sum, target: actualTarget };
     window.PriTestNightLog(floorKey, floorParams);
