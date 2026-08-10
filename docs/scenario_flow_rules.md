@@ -392,7 +392,7 @@ PCたちが「黄金樹の帳」（2日目）を撃破し、その後配置さ�
 
 ---
 
-## 10. このrepoでの実装状況マップ（2026-08-09時点）
+## 10. このrepoでの実装状況マップ（2026-08-11更新）
 
 | 機能 | 実装状況 | 該当コード |
 |---|---|---|
@@ -412,6 +412,7 @@ PCたちが「黄金樹の帳」（2日目）を撃破し、その後配置さ�
 | 2日目セットアップ（カード6枚除去・新規配置・地変） | 状況未調査（本ドキュメント作成時点では未確認、`openKeepCardsDrawer`/`submitKeepCards`が関連する可能性が高いが、地変カードの自動選定ロジックまでは未検証） | `night.js`（`openKeepCardsDrawer`等、要追加調査） |
 | フロア本文中の「雜兵戰鬥／ボス戦闘（撃破ルーン：N）」構造：敘述の一時停止・敵の自動判定・戦場への自動追加・戦闘終了検知 | ✅ 実装済み（自動化GM Phase 2第17・18項、［戰鬥機制］／［戰鬥結束］）。どちらの構造にも該当行に到達すると敘述を一旦止めて[雜兵戰鬥]／[王戰]ボタン（トリガー行自身の文言をそのままラベルに使う）を提示し、押すと直後の敵名bullet行（「XXX（頁）／Lv.N」）を敘述しつつ`Enemies.search`で一意に解決できた敵だけ戦場へ自動追加する（複数候補・不一致時はGM手動追加のリマインドに留める、"■"と同じ捏造しない方針）。「L補」レベル補正は未実装のため常にリマインドのみ。以後は「戰鬥進行中」とだけ示して待機し、エネミーの全HP行が0になった瞬間（`night.js`の`setActionPhase`が`combatEnd`を検出）に自動で続きの敘述（撃破後の獎勵敘述等）へ進む——GMは進度版側で何も操作しなくてよい | `isCombatTriggerLine`, `handleCombatTriggerClick`, `notifyCombatEnded`（`night_gm_flow.js`）、`addEnemyToBattle`, `setActionPhase`の`combatEnd`分岐（`night.js`） |
 | カードの最後の樓層を踏破し終えた際の「全踏破」への自動継続、および出發地點／終點の「1」チェック | ✅ 実装済み（第18項）。従来はカードの実在する樓層をすべて敘述し終えても`cardLevels`が`floorCount`止まりで、GMが盤面の＋をもう一度手動で押さない限り「全」（＝全踏破効果の自動付与・GM敘述）に到達しなかった。現在は該当樓層の獎勵ゲート（[領取獎勵]/[獲得完]）をGMが実際に閉じ終えた直後に自動で「全」まで進め、続けて［地圖移動］（次の目的地を選んでほしい旨）をGM敘述へ追記する。出發地點／終點は`cardLevels`を持たないため、[進入]を押した瞬間に盤面の「1」チェックボックスを自動でオンにするだけに留める（全踏破側の自動化は対象外、要今後の追加調査） | `finishFieldWalk`の`pendingFinalFloorSlot`, `closeGmFlowGateAndConsumePendingAdvance`, `showFullClearNarration`（`night_gm_flow.js`）、`grantCardFullClearRewardIfNeeded`（`night.js`） |
+| フロア構造化獎勵（`floor.reward`）の確定・付与 | ✅ 実装済み（2026-08-11、`docs/superpowers/plans/2026-08-10-floor-reward-turn-reward-integration.md`）。各エントリを「戦利品」（rune／weaponStar／consumable／talisman／potentialPower／stoneswordKey／smithingStone／chaliceBonus／weaponSkillReroll、ただし`perPerson:true`のsmithingStone/stoneswordKeyは対象外）と「GM判断が必要」（hpDamage／tieredChoice／diceHandChoice／bargainReveal／note）に分類し、`openFloorRewardModal`が呼ばれた瞬間（自動化GMの［領取獎勵］経由・規則書の手動閲覧経由のどちらでも）に戦利品エントリを既存の「獎勵清單」（`state.turnRewards`）へ自動push、GM判断エントリが残る場合のみ縮小版モーダルを表示する。`tieredChoice`のtier確定・`diceHandChoice`の役判定確定時にも同じ経路で再帰的にpushする。`diceHandChoice`は専用の抽選視窗（`#dice-hand-draw-modal`、隨機擲骰ボタン付き）として独立。本文に「撃破ルーン：N」の記述はあるがreward配列（tier/hand内も含む）のどこにも対応するrune項目が無いフロアには、無言で0付与にならないようGM向けリマインダーをログへ出す（`hasConditionalReward`ゲート、ヒューリスティックのため過検知の可能性あり）。劇本1（tricephalos）の該当分岐は本文とreward配列の記述ズレを監査済み（26件補完）。既知の残課題：`appendRuneGrantRowIfDetected`は劇本1の監査対象外フロア・敵規則書タブ向けのフォールバックとして現存（獎勵清單へpushする形に統一済み）、`closeTurnRewardModal`での破棄操作は自動push済み項目の再送出を許可するようフラグを連動解除する | `isLootRewardEntry`, `floorAutoLootTurnRewards`, `openFloorRewardModal`, `openDiceHandDrawModal`（`night_floor_breakthrough.js`）、`pushTurnRewards`, `claimTurnReward`（`night.js`） |
 
 **次にこの領域を実装するときの前提**：フロア突破判定・登攀判定はすでに「目標値の自動算出＋
 ダイスの自動ロール」まで実装されているため、残る「合否判定」を自動化するのは比較的小さな
