@@ -962,6 +962,7 @@ STRINGS_JA: dict[str, str] = {
     "log_floor_reward_hp_damage": "フロア獲得：{character}がHP損害{value}を被った",
     "log_floor_reward_rune": "フロア獲得：全員（{count}人）がそれぞれルーン+{value}を獲得した",
     "log_floor_reward_auto_pushed": "以下の獎勵を自動的に獎勵清單へ追加しました：{items}",
+    "log_floor_reward_conditional_rune_reminder": "このフロアには「撃破ルーン：{amount}」相当の記述がありますが、分岐／役の選択に応じて数値が変わるため自動付与を見送りました。対応する報酬選択肢にルーンが見当たらない場合はGMが手動で確認・付与してください",
     "log_floor_reward_consumable": "フロア獲得：{character}が消耗品「{item}」を獲得した",
     "log_floor_reward_consumable_roll_nav": "フロア獲得：{character}が消耗品抽選を開始した",
     "log_floor_reward_talisman_roll_nav": "フロア獲得：{character}が護符抽選を開始した",

@@ -466,6 +466,28 @@
           });
         }
       }
+    } else if (hasConditionalReward) {
+      // hasConditionalRewardによりフォールバック検出（上のブロック）が抑止された場合、
+      // card0_4_0／card2_4_0のように「本文には撃破ルーン：Nの記述があるのに、reward配列の
+      // どのtieredChoice/diceHandChoiceの分岐にもrune種別が1つも無い」フロアでは、盧恩が
+      // どの経路からも一切GMへ提示されない“サイレント0”になってしまう（tieredChoice側に
+      // rune分岐が実在するフロアなら、そちら経由で正しくpushされるので実害は無い）。
+      // 全tier/handを辿ってrune種別の有無を検証するのは対象データの構造が多様で誤検知の
+      // リスクが高いため行わず、より安全側に倒して「本文に検出値がある限り常にGM向けの
+      // 確認リマインダーをログへ残す」方式にする（正しく処理済みのフロアでGMが再確認する
+      // 手間は小さいが、本当に漏れているフロアで誰も気づけないことの方が実害が大きいため）。
+      var conditionalAmount = parseRuneAmountFromText(floorLineText(floor));
+      if (conditionalAmount) {
+        var reminderKey = floor.__rewardKey ? floor.__rewardKey + "_conditionalRuneReminder_logged" : null;
+        var alreadyReminded = !!(reminderKey && Core.state.floorRewardObtained && Core.state.floorRewardObtained[reminderKey]);
+        if (!alreadyReminded) {
+          if (reminderKey) {
+            if (!Core.state.floorRewardObtained) Core.state.floorRewardObtained = {};
+            Core.state.floorRewardObtained[reminderKey] = true;
+          }
+          window.PriTestNightLog("log_floor_reward_conditional_rune_reminder", { amount: conditionalAmount });
+        }
+      }
     }
     return results;
   }
