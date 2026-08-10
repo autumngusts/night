@@ -73,8 +73,24 @@
   var floorRewardModalFloor = null;
 
   function openFloorRewardModal(floor) {
-    floorRewardModalFloor = floor;
+    var Core = window.PriTestNightCore;
+    var entered = Core.getRosterCharacters().filter(function (c) {
+      return c.entered;
+    });
+    var lootObjs = floorAutoLootTurnRewards(floor, entered);
     document.getElementById("rulebook-modal").hidden = true;
+    if (lootObjs.length) {
+      Core.pushTurnRewards(lootObjs);
+      window.PriTestNightLog("log_floor_reward_auto_pushed", {
+        items: lootObjs
+          .map(function (r) {
+            return window.I18N.t("turn_reward_kind_" + r.kind);
+          })
+          .join("、"),
+      });
+    }
+    if (!floorHasJudgmentReward(floor)) return;
+    floorRewardModalFloor = floor;
     document.getElementById("floor-reward-modal").hidden = false;
     document.getElementById("btn-floor-reward-restore").hidden = true;
     renderFloorRewardSection(document.getElementById("floor-reward-modal-content"), floor);
@@ -145,8 +161,145 @@
     return !!parseRuneAmountFromText(floorLineText(floor));
   }
 
+  // 「戦利品」種別：GMの分岐選択を伴わず、確定した瞬間にそのまま獎勵清單
+  // （state.turnRewards）へpushしてよい種類。残り（hpDamage/tieredChoice/diceHandChoice/
+  // bargainReveal/note）はGM判断が必要なため、従来通りfloor-reward-modal内で解決する。
+  var LOOT_REWARD_KINDS = [
+    "rune",
+    "weaponStar",
+    "consumable",
+    "talisman",
+    "potentialPower",
+    "stoneswordKey",
+    "smithingStone",
+    "chaliceBonus",
+    "weaponSkillReroll",
+  ];
+  function isLootRewardKind(kind) {
+    return LOOT_REWARD_KINDS.indexOf(kind) !== -1;
+  }
+
+  function floorHasJudgmentReward(floor) {
+    var reward = (floor && floor.reward) || [];
+    return reward.some(function (entry) {
+      return !isLootRewardKind(entry.kind);
+    });
+  }
+
+  var turnRewardIdCounter = 0;
+  function makeTurnRewardId(suffix) {
+    turnRewardIdCounter++;
+    return "tr" + Date.now() + "_" + turnRewardIdCounter + "_" + suffix;
+  }
+
+  // floor.rewardの「戦利品」エントリ1件を、state.turnRewardsへpushする1件以上の
+  // オブジェクトへ変換する（実際のpushはfloorAutoLootTurnRewards/pushTurnRewardsが行う）。
+  function floorRewardEntryToTurnRewards(entry, entered, idSuffix) {
+    var Core = window.PriTestNightCore;
+    if (entry.kind === "rune" || entry.kind === "chaliceBonus") {
+      return [
+        {
+          id: makeTurnRewardId(idSuffix),
+          kind: entry.kind,
+          targetCharacterId: Core.TURN_REWARD_SHARED_TARGET_VALUE,
+          value: entry.value,
+          claimed: false,
+        },
+      ];
+    }
+    if (entry.kind === "stoneswordKey" || entry.kind === "smithingStone") {
+      var total = entry.perParty ? entry.value * entered.length : entry.value;
+      return [{ id: makeTurnRewardId(idSuffix), kind: entry.kind, targetCharacterId: null, value: total, claimed: false }];
+    }
+    if (entry.kind === "potentialPower" || entry.kind === "weaponSkillReroll") {
+      return entered.map(function (c, i) {
+        return {
+          id: makeTurnRewardId(idSuffix + "_" + i),
+          kind: entry.kind,
+          targetCharacterId: c.id,
+          value: entry.value || 1,
+          attributeTag: entry.attributeTag || null,
+          claimed: false,
+        };
+      });
+    }
+    if (entry.kind === "weaponStar") {
+      return [
+        {
+          id: makeTurnRewardId(idSuffix),
+          kind: "weapon",
+          targetCharacterId: Core.TURN_REWARD_ANY_TARGET_VALUE,
+          value: entry.value,
+          categoryId: entry.categoryId || null,
+          attributeTag: entry.attributeTag || null,
+          claimed: false,
+        },
+      ];
+    }
+    if (entry.kind === "consumable" || entry.kind === "talisman") {
+      return [
+        {
+          id: makeTurnRewardId(idSuffix),
+          kind: entry.kind,
+          targetCharacterId: Core.TURN_REWARD_ANY_TARGET_VALUE,
+          value: entry.value || 1,
+          claimed: false,
+        },
+      ];
+    }
+    return [];
+  }
+
+  // フロア終端で確定している「戦利品」を一括で獎勵清單へ積む配列を組み立てる。reward配列に
+  // rune種別が無いのに本文に「擊破盧恩：N」がある（規則書の記述とデータのズレ）場合は、
+  // フォールバック検出分もあわせて積む。二重pushは__rewardKeyベースのフラグで防ぐ。
+  function floorAutoLootTurnRewards(floor, entered) {
+    var Core = window.PriTestNightCore;
+    var reward = (floor && floor.reward) || [];
+    var results = [];
+    var hasRuneReward = reward.some(function (entry) {
+      return entry.kind === "rune";
+    });
+    reward.forEach(function (entry, entryIndex) {
+      if (!isLootRewardKind(entry.kind)) return;
+      var pushKey = floor.__rewardKey ? floor.__rewardKey + "_pushed_" + entryIndex : null;
+      if (pushKey && Core.state.floorRewardObtained && Core.state.floorRewardObtained[pushKey]) return;
+      var objs = floorRewardEntryToTurnRewards(entry, entered, (floor.__rewardKey || "floor") + "_" + entryIndex);
+      if (!objs.length) return;
+      if (pushKey) {
+        if (!Core.state.floorRewardObtained) Core.state.floorRewardObtained = {};
+        Core.state.floorRewardObtained[pushKey] = true;
+      }
+      results = results.concat(objs);
+    });
+    if (!hasRuneReward) {
+      var detectedAmount = parseRuneAmountFromText(floorLineText(floor));
+      if (detectedAmount) {
+        var detectedKey = floor.__rewardKey ? floor.__rewardKey + "_detectedRune_pushed" : null;
+        var alreadyDetected = !!(detectedKey && Core.state.floorRewardObtained && Core.state.floorRewardObtained[detectedKey]);
+        if (!alreadyDetected) {
+          if (detectedKey) {
+            if (!Core.state.floorRewardObtained) Core.state.floorRewardObtained = {};
+            Core.state.floorRewardObtained[detectedKey] = true;
+          }
+          results.push({
+            id: makeTurnRewardId((floor.__rewardKey || "floor") + "_detectedRune"),
+            kind: "rune",
+            targetCharacterId: Core.TURN_REWARD_SHARED_TARGET_VALUE,
+            value: detectedAmount,
+            claimed: false,
+          });
+        }
+      }
+    }
+    return results;
+  }
+
   // 検出した盧恩獎勵を、対象コンテナへ「數値入力（GMが微調整可）＋獲得ボタン」の1行として
   // 追加する。stateKeyを渡すとmarkFloorRewardObtainedと同じ仕組みで一度きりの獲得に制限する。
+  // 注意：floor-reward-modal自体はfloorAutoLootTurnRewardsの自動検出に一本化されたためもう
+  // 呼ばないが、night_rulebook.js（敵の規則書タブ、special/actions注釈からのルーン検出）が
+  // 別経路でこの関数を呼び続けているため、削除しない。
   function appendRuneGrantRowIfDetected(container, text, stateKey) {
     var amount = parseRuneAmountFromText(text);
     if (!amount) return;
@@ -192,6 +345,8 @@
   //     value: number（個数・点数）,
   //     note: {ja,zh}（任意、ボタンの補足テキストや"note"種別の本文） }
   function renderFloorRewardOption(container, entry, entered, floorKey, entryIndex) {
+    // 戦利品はopenFloorRewardModal内で自動的に獎勵清單へpush済みのため、ここには表示しない。
+    if (isLootRewardKind(entry.kind)) return;
     var Consumables = window.PriTestConsumables;
     // 武器／潜在する力の報酬は「獲得済み」を対象キャラID込みでstate.floorRewardObtainedへ
     // 永続化する（floorKeyが無い呼び出し元＝旧経路や単体テストでは永続化をスキップする）。
@@ -241,9 +396,6 @@
     outerRow.appendChild(contentEl);
     container = contentEl; // 以降の既存ロジックはcontainer.appendChildをそのまま使うため、以後はこのラッパー内に描画される。
     var noteText = entry.note ? window.PriTestFields.localizedText(entry.note) : "";
-    // 武器・潜在する力の共通戦技タグ（例:「炎/-5」）。fields.js側は{ja,zh}で持つため、
-    // ここで表示言語へ解決してから武器抽選ウィザード／潜在する力モーダルへ渡す。
-    var resolvedAttributeTag = entry.attributeTag ? window.PriTestFields.localizedText(entry.attributeTag) : null;
 
     function makeTargetSelect() {
       var select = document.createElement("select");
@@ -291,364 +443,6 @@
       });
       hpRow.appendChild(hpBtn);
       container.appendChild(hpRow);
-      return;
-    }
-
-    if (entry.kind === "rune") {
-      var runeBtn = document.createElement("button");
-      runeBtn.type = "button";
-      runeBtn.className = "primary-btn";
-      runeBtn.textContent = window.I18N.t("floor_reward_rune_button", { value: entry.value }) + noteText;
-      if (isAlreadyObtained()) {
-        runeBtn.disabled = true;
-        runeBtn.classList.add("field-reward-obtained");
-      }
-      runeBtn.addEventListener("click", function () {
-        entered.forEach(function (c) {
-          c.runes = (c.runes || 0) + entry.value;
-        });
-        window.PriTestNightCore.saveRosterCharacters();
-        window.PriTestNightCore.renderCharacterRoster();
-        window.PriTestNightLog("log_floor_reward_rune", { value: entry.value, count: entered.length });
-        window.PriTestNightCore.markFloorRewardObtained(
-          runeBtn,
-          window.I18N.t("log_floor_reward_rune", { value: entry.value, count: entered.length }),
-          obtainedStateKey()
-        );
-      });
-      container.appendChild(runeBtn);
-      return;
-    }
-
-    if (entry.kind === "chaliceBonus") {
-      // 全体PCの聖杯瓶「使用回数：+N」。基本欄ではなく追加欄（flaskExtra）へ加算する。
-      var chaliceBtn = document.createElement("button");
-      chaliceBtn.type = "button";
-      chaliceBtn.className = "primary-btn";
-      chaliceBtn.textContent = window.I18N.t("floor_reward_chalice_bonus_button", { value: entry.value }) + noteText;
-      if (isAlreadyObtained()) {
-        chaliceBtn.disabled = true;
-        chaliceBtn.classList.add("field-reward-obtained");
-      }
-      chaliceBtn.addEventListener("click", function () {
-        entered.forEach(function (c) {
-          if (!c.flaskExtra) c.flaskExtra = { current: 0, max: 0 };
-          c.flaskExtra.max = (c.flaskExtra.max || 0) + entry.value;
-          c.flaskExtra.current = (c.flaskExtra.current || 0) + entry.value;
-        });
-        window.PriTestNightCore.saveRosterCharacters();
-        window.PriTestNightCore.renderCharacterRoster();
-        window.PriTestNightLog("log_floor_reward_chalice_bonus", { value: entry.value, count: entered.length });
-        window.PriTestNightCore.markFloorRewardObtained(
-          chaliceBtn,
-          window.I18N.t("log_floor_reward_chalice_bonus", { value: entry.value, count: entered.length }),
-          obtainedStateKey()
-        );
-      });
-      container.appendChild(chaliceBtn);
-      return;
-    }
-
-    // 消耗品／護符の場地報酬は、GMの手動アイテム選択ではなく、主選單と同じ擲骰抽選UIを
-    // このカード内にそのまま展開して決める（詳細画面へは遷移しない）。
-    if (entry.kind === "consumable") {
-      var consumableRow = document.createElement("div");
-      consumableRow.className = "wb-row";
-      var consumableCharSelect = makeTargetSelect();
-      consumableRow.appendChild(consumableCharSelect);
-      var consumableBtn = document.createElement("button");
-      consumableBtn.type = "button";
-      consumableBtn.textContent = window.I18N.t("floor_reward_consumable_button", { value: entry.value }) + noteText;
-      if (isAlreadyObtained()) {
-        consumableBtn.disabled = true;
-        consumableBtn.classList.add("field-reward-obtained");
-        consumableCharSelect.disabled = true;
-      }
-      consumableBtn.addEventListener("click", function () {
-        var target = entered.filter(function (c) {
-          return c.id === consumableCharSelect.value;
-        })[0];
-        if (!target) return;
-        minimizeFloorRewardModal();
-        window.PriTestNightLog("log_floor_reward_consumable_roll_nav", { character: target.name });
-        window.PriTestNightCore.openItemDrawModal("consumable", target.id, {
-          grantCount: entry.value,
-          onGranted: function () {
-            consumableCharSelect.disabled = true;
-            window.PriTestNightCore.markFloorRewardObtained(
-              consumableBtn,
-              window.I18N.t("log_floor_reward_consumable_roll_nav", { character: target.name }),
-              obtainedStateKey()
-            );
-          },
-        });
-      });
-      consumableRow.appendChild(consumableBtn);
-      container.appendChild(consumableRow);
-      return;
-    }
-
-    if (entry.kind === "talisman") {
-      var talismanRow = document.createElement("div");
-      talismanRow.className = "wb-row";
-      var talismanCharSelect = makeTargetSelect();
-      talismanRow.appendChild(talismanCharSelect);
-      var talismanBtn = document.createElement("button");
-      talismanBtn.type = "button";
-      talismanBtn.textContent = window.I18N.t("floor_reward_talisman_button", { value: entry.value }) + noteText;
-      if (isAlreadyObtained()) {
-        talismanBtn.disabled = true;
-        talismanBtn.classList.add("field-reward-obtained");
-        talismanCharSelect.disabled = true;
-      }
-      talismanBtn.addEventListener("click", function () {
-        var target = entered.filter(function (c) {
-          return c.id === talismanCharSelect.value;
-        })[0];
-        if (!target) return;
-        minimizeFloorRewardModal();
-        window.PriTestNightLog("log_floor_reward_talisman_roll_nav", { character: target.name });
-        window.PriTestNightCore.openItemDrawModal("talisman", target.id, {
-          onGranted: function () {
-            talismanCharSelect.disabled = true;
-            window.PriTestNightCore.markFloorRewardObtained(
-              talismanBtn,
-              window.I18N.t("log_floor_reward_talisman_roll_nav", { character: target.name }),
-              obtainedStateKey()
-            );
-          },
-        });
-      });
-      talismanRow.appendChild(talismanBtn);
-      container.appendChild(talismanRow);
-      return;
-    }
-
-    if (entry.kind === "weaponStar") {
-      var weaponRow = document.createElement("div");
-      weaponRow.className = "wb-row";
-      var weaponCharSelect = makeTargetSelect();
-      weaponRow.appendChild(weaponCharSelect);
-      var weaponBtn = document.createElement("button");
-      weaponBtn.type = "button";
-
-      // カテゴリ指定（聖印／杖／射撃武器グループ等）や共通戦技タグ（例:「炎／-5」）が
-      // 付いている場合は、簡易抽選ではなく本格の武器抽選ウィザードへ連携する（詳細画面へは
-      // 遷移せず、このカード内に直接ウィザードを展開する）。
-      if (entry.categoryId || entry.attributeTag) {
-        weaponBtn.textContent = window.I18N.t("floor_reward_weapon_star_wizard_button", { value: "★".repeat(entry.value) }) + noteText;
-        if (isAlreadyObtained()) {
-          weaponBtn.disabled = true;
-          weaponBtn.classList.add("field-reward-obtained");
-          weaponCharSelect.disabled = true;
-        }
-        weaponBtn.addEventListener("click", function () {
-          var target = entered.filter(function (c) {
-            return c.id === weaponCharSelect.value;
-          })[0];
-          if (!target) return;
-          minimizeFloorRewardModal();
-          window.PriTestNightLog("log_floor_reward_weapon_wizard_nav", { character: target.name, value: "★".repeat(entry.value) });
-          window.PriTestNightCore.openItemDrawModal("weapon", target.id, {
-            starCount: entry.value,
-            categoryId: entry.categoryId,
-            attributeTag: resolvedAttributeTag,
-            onGranted: function () {
-              weaponCharSelect.disabled = true;
-              window.PriTestNightCore.markFloorRewardObtained(
-                weaponBtn,
-                window.I18N.t("log_floor_reward_weapon_wizard_nav", { character: target.name, value: "★".repeat(entry.value) }),
-                obtainedStateKey()
-              );
-            },
-          });
-        });
-        weaponRow.appendChild(weaponBtn);
-        container.appendChild(weaponRow);
-        return;
-      }
-
-      // カテゴリ/属性タグ指定のない単純な★数のみの場地報酬も、上のブロックと同じく
-      // 直接確定ではなく抽選ウィザード（開始→抽選→終了）を経由させる。
-      weaponBtn.textContent = window.I18N.t("floor_reward_weapon_star_wizard_button", { value: "★".repeat(entry.value) }) + noteText;
-      if (isAlreadyObtained()) {
-        weaponBtn.disabled = true;
-        weaponBtn.classList.add("field-reward-obtained");
-        weaponCharSelect.disabled = true;
-      }
-      weaponBtn.addEventListener("click", function () {
-        var target = entered.filter(function (c) {
-          return c.id === weaponCharSelect.value;
-        })[0];
-        if (!target) return;
-        minimizeFloorRewardModal();
-        window.PriTestNightLog("log_floor_reward_weapon_wizard_nav", { character: target.name, value: "★".repeat(entry.value) });
-        window.PriTestNightCore.openItemDrawModal("weapon", target.id, {
-          starCount: entry.value,
-          onGranted: function () {
-            weaponCharSelect.disabled = true;
-            window.PriTestNightCore.markFloorRewardObtained(
-              weaponBtn,
-              window.I18N.t("log_floor_reward_weapon_wizard_nav", { character: target.name, value: "★".repeat(entry.value) }),
-              obtainedStateKey()
-            );
-          },
-        });
-      });
-      weaponRow.appendChild(weaponBtn);
-      container.appendChild(weaponRow);
-      return;
-    }
-
-    if (entry.kind === "stoneswordKey") {
-      // perParty: true の場合、パーティ人数ぶんを1クリックで自動計算して加算する
-      // （元々は「人数分クリックしてください」という手動運用だった箇所の自動化）。
-      var keyTotal = entry.perParty ? entry.value * entered.length : entry.value;
-      var keyBtn = document.createElement("button");
-      keyBtn.type = "button";
-      keyBtn.textContent =
-        window.I18N.t("floor_reward_stonesword_key_button", { value: keyTotal }) +
-        (entry.perParty ? window.I18N.t("floor_reward_per_party_suffix", { count: entered.length }) : "") +
-        noteText;
-      if (isAlreadyObtained()) {
-        keyBtn.disabled = true;
-        keyBtn.classList.add("field-reward-obtained");
-      }
-      keyBtn.addEventListener("click", function () {
-        window.PriTestNightCore.state.stoneswordKeyCount = (window.PriTestNightCore.state.stoneswordKeyCount || 0) + keyTotal;
-        window.PriTestNightCore.saveState();
-        window.PriTestNightCore.renderStoneswordKeyCount();
-        window.PriTestNightLog("log_floor_reward_stonesword_key", { value: keyTotal });
-        window.PriTestNightCore.markFloorRewardObtained(keyBtn, window.I18N.t("log_floor_reward_stonesword_key", { value: keyTotal }), obtainedStateKey());
-      });
-      container.appendChild(keyBtn);
-      return;
-    }
-
-    if (entry.kind === "smithingStone" && entry.perPerson) {
-      // 教會の商人：PC各自が任意で「ルーン：1」を消費し「鍛石」を1個獲得できる（1人につき最大1回）。
-      // 従来は共有の1ボタンをGMが人数分クリックする運用だったが、各PCが自分のルーンを使う操作
-      // なので、キャラクターごとに独立したボタンにする。
-      var stoneCost = 1;
-      entered.forEach(function (c) {
-        var personStoneBtn = document.createElement("button");
-        personStoneBtn.type = "button";
-        personStoneBtn.textContent = window.I18N.t("floor_reward_smithing_stone_merchant_button", { name: c.name, cost: stoneCost });
-        var canAfford = (c.runes || 0) >= stoneCost;
-        if (isAlreadyObtained(c.id)) {
-          personStoneBtn.disabled = true;
-          personStoneBtn.classList.add("field-reward-obtained");
-        } else if (!canAfford) {
-          personStoneBtn.disabled = true;
-          personStoneBtn.title = window.I18N.t("floor_reward_smithing_stone_merchant_no_runes");
-        }
-        personStoneBtn.addEventListener("click", function () {
-          if ((c.runes || 0) < stoneCost || isAlreadyObtained(c.id)) return;
-          c.runes -= stoneCost;
-          window.PriTestNightCore.state.smithingStoneCount = (window.PriTestNightCore.state.smithingStoneCount || 0) + 1;
-          window.PriTestNightCore.saveRosterCharacters();
-          window.PriTestNightCore.renderCharacterRoster();
-          window.PriTestNightCore.renderSmithingStoneCount();
-          window.PriTestNightLog("log_floor_reward_smithing_stone_merchant", { character: c.name, cost: stoneCost });
-          window.PriTestNightCore.markFloorRewardObtained(
-            personStoneBtn,
-            window.I18N.t("log_floor_reward_smithing_stone_merchant", { character: c.name, cost: stoneCost }),
-            obtainedStateKey(c.id)
-          );
-        });
-        container.appendChild(personStoneBtn);
-      });
-      if (noteText) {
-        var stoneNoteP = document.createElement("p");
-        stoneNoteP.className = "threat-ref-body";
-        stoneNoteP.textContent = noteText;
-        container.appendChild(stoneNoteP);
-      }
-      return;
-    }
-
-    if (entry.kind === "smithingStone") {
-      var stoneTotal = entry.perParty ? entry.value * entered.length : entry.value;
-      var stoneBtn = document.createElement("button");
-      stoneBtn.type = "button";
-      stoneBtn.textContent =
-        window.I18N.t("floor_reward_smithing_stone_button", { value: stoneTotal }) +
-        (entry.perParty ? window.I18N.t("floor_reward_per_party_suffix", { count: entered.length }) : "") +
-        noteText;
-      if (isAlreadyObtained()) {
-        stoneBtn.disabled = true;
-        stoneBtn.classList.add("field-reward-obtained");
-      }
-      stoneBtn.addEventListener("click", function () {
-        window.PriTestNightCore.state.smithingStoneCount = (window.PriTestNightCore.state.smithingStoneCount || 0) + stoneTotal;
-        window.PriTestNightCore.saveState();
-        window.PriTestNightCore.renderSmithingStoneCount();
-        window.PriTestNightLog("log_floor_reward_smithing_stone", { value: stoneTotal });
-        window.PriTestNightCore.markFloorRewardObtained(stoneBtn, window.I18N.t("log_floor_reward_smithing_stone", { value: stoneTotal }), obtainedStateKey());
-      });
-      container.appendChild(stoneBtn);
-      return;
-    }
-
-    if (entry.kind === "potentialPower") {
-      // 1人ずつ独立したボタンにする：押した瞬間にそのキャラクター専用の「潜在する力」
-      // モーダルを開き（★数を引き継ぐ）、実際の抽選・確定はそちらのモーダルで行う。
-      entered.forEach(function (c) {
-        // 獎勵清單が長くなりすぎる問題（#1）もあるため、ボタン自体のラベルは
-        // 「【角色名稱】全員獲得潛力：★×N」の短い形に留め、フロア個別の補足（noteText）は
-        // 別行のグレーテキストへ分離する（#12）。
-        var ppBtn = document.createElement("button");
-        ppBtn.type = "button";
-        ppBtn.textContent = window.I18N.t("floor_reward_potential_power_button", { value: entry.value, character: c.name });
-        if (isAlreadyObtained(c.id)) {
-          ppBtn.disabled = true;
-          ppBtn.classList.add("field-reward-obtained");
-        }
-        ppBtn.addEventListener("click", function () {
-          window.PriTestNightLog("log_floor_reward_potential_power_note", { names: c.name });
-          minimizeFloorRewardModal();
-          window.PriTestNightPotentialPower.openPotentialPowerModal(c.id, entry.value, resolvedAttributeTag, function () {
-            window.PriTestNightCore.markFloorRewardObtained(
-              ppBtn,
-              window.I18N.t("log_floor_reward_potential_power_note", { names: c.name }),
-              obtainedStateKey(c.id)
-            );
-          });
-        });
-        container.appendChild(ppBtn);
-        if (noteText) {
-          var ppNoteP = document.createElement("p");
-          ppNoteP.className = "threat-ref-body";
-          ppNoteP.textContent = window.I18N.t("floor_reward_potential_power_note") + noteText;
-          container.appendChild(ppNoteP);
-        }
-      });
-      return;
-    }
-
-    // 鍛冶村「戦技の鍛冶台」：PC全員が1回まで、所持武器1つの戦技1つをランダム戦技決定表で
-    // 再抽選できる。潛在之力と同じく1人1ボタン方式で、確定はキャラごとの専用モーダルで行う。
-    if (entry.kind === "weaponSkillReroll") {
-      entered.forEach(function (c) {
-        var rerollBtn = document.createElement("button");
-        rerollBtn.type = "button";
-        rerollBtn.textContent = window.I18N.t("floor_reward_weapon_skill_reroll_button", { name: c.name }) + noteText;
-        if (isAlreadyObtained(c.id)) {
-          rerollBtn.disabled = true;
-          rerollBtn.classList.add("field-reward-obtained");
-        }
-        rerollBtn.addEventListener("click", function () {
-          minimizeFloorRewardModal();
-          window.PriTestNightCore.openWeaponSkillRerollModal(c.id, function () {
-            window.PriTestNightCore.markFloorRewardObtained(
-              rerollBtn,
-              window.I18N.t("log_floor_reward_weapon_skill_reroll_nav", { character: c.name }),
-              obtainedStateKey(c.id)
-            );
-          });
-        });
-        container.appendChild(rerollBtn);
-      });
       return;
     }
 
@@ -838,15 +632,7 @@
 
   function renderFloorRewardSection(container, floor) {
     container.innerHTML = "";
-    var reward = (floor && floor.reward) || [];
-    // 本文（lines[]）に「擊破盧恩：N」の記述があるのに、reward配列側にrune種別の項目が
-    // 用意されていない（＝規則書の記述とボタンがズレている）場合を検出する。reward配列自体が
-    // 空のフロアでも、この検出だけで報酬欄を出せるようにする（#9）。
-    var hasRuneReward = reward.some(function (entry) {
-      return entry.kind === "rune";
-    });
-    var detectedRuneAmount = !hasRuneReward ? parseRuneAmountFromText(floorLineText(floor)) : 0;
-    if (!reward.length && !detectedRuneAmount) return;
+    if (!floorHasJudgmentReward(floor)) return;
     var entered = window.PriTestNightCore.getRosterCharacters().filter(function (c) {
       return c.entered;
     });
@@ -856,13 +642,9 @@
     title.textContent = window.I18N.t("floor_reward_title");
     container.appendChild(title);
 
-    reward.forEach(function (entry, entryIndex) {
+    ((floor && floor.reward) || []).forEach(function (entry, entryIndex) {
       renderFloorRewardOption(container, entry, entered, floor.__rewardKey, entryIndex);
     });
-    if (detectedRuneAmount) {
-      var detectedKey = floor.__rewardKey ? floor.__rewardKey + "_detectedRune" : null;
-      appendRuneGrantRowIfDetected(container, "擊破盧恩：" + detectedRuneAmount, detectedKey);
-    }
   }
 
   function populateBreakthroughFieldSelectors(index) {
@@ -1322,6 +1104,10 @@
     grantRuneToAllEntered: grantRuneToAllEntered,
     floorHasAnyReward: floorHasAnyReward,
     appendRuneGrantRowIfDetected: appendRuneGrantRowIfDetected,
+    isLootRewardKind: isLootRewardKind,
+    floorHasJudgmentReward: floorHasJudgmentReward,
+    floorRewardEntryToTurnRewards: floorRewardEntryToTurnRewards,
+    floorAutoLootTurnRewards: floorAutoLootTurnRewards,
     renderFloorRewardSection: renderFloorRewardSection,
     openBreakthroughModal: openBreakthroughModal,
     openClimbingCheckModal: openClimbingCheckModal,

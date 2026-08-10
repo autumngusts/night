@@ -958,6 +958,7 @@ STRINGS_EN: dict[str, str] = {
     "stonesword_key_count_label": "Count: {value}",
     "log_floor_reward_hp_damage": "Floor Reward: {character} took HP Damage {value}",
     "log_floor_reward_rune": "Floor Reward: All ({count}) each gained +{value} Rune",
+    "log_floor_reward_auto_pushed": "Automatically added the following to the reward list: {items}",
     "log_floor_reward_consumable": "Floor Reward: {character} obtained consumable \"{item}\"",
     "log_floor_reward_consumable_roll_nav": "Floor Reward: {character} started a consumable draw",
     "log_floor_reward_talisman_roll_nav": "Floor Reward: {character} started a talisman draw",

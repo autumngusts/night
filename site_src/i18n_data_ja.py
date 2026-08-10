@@ -958,6 +958,7 @@ STRINGS_JA: dict[str, str] = {
     "stonesword_key_count_label": "個数：{value}",
     "log_floor_reward_hp_damage": "フロア獲得：{character}がHP損害{value}を被った",
     "log_floor_reward_rune": "フロア獲得：全員（{count}人）がそれぞれルーン+{value}を獲得した",
+    "log_floor_reward_auto_pushed": "以下の獎勵を自動的に獎勵清單へ追加しました：{items}",
     "log_floor_reward_consumable": "フロア獲得：{character}が消耗品「{item}」を獲得した",
     "log_floor_reward_consumable_roll_nav": "フロア獲得：{character}が消耗品抽選を開始した",
     "log_floor_reward_talisman_roll_nav": "フロア獲得：{character}が護符抽選を開始した",

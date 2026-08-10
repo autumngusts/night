@@ -958,6 +958,7 @@ STRINGS_ZH: dict[str, str] = {
     "stonesword_key_count_label": "數量：{value}",
     "log_floor_reward_hp_damage": "樓層獲得：{character} 承受HP損害{value}",
     "log_floor_reward_rune": "樓層獲得：全員（{count}人）各獲得盧恩+{value}",
+    "log_floor_reward_auto_pushed": "已自動將以下獎勵加入獎勵清單：{items}",
     "log_floor_reward_consumable": "樓層獲得：{character} 獲得消耗品「{item}」",
     "log_floor_reward_consumable_roll_nav": "樓層獲得：{character} 開始消耗品抽選",
     "log_floor_reward_talisman_roll_nav": "樓層獲得：{character} 開始護符抽選",
