@@ -7123,12 +7123,32 @@
     renderCurrentLocationStatus();
   }
 
+  // 自動化GM 戰鬥自動化：使用者確認、行動階段の切替はGMが「行動階段」ボタンを手動で押す
+  // 必要はなく、[攻擊]/[防禦]確認のたびに自動化GMが次のフェイズを決めて自動的に切り替える
+  // （戰鬥→（體勢崩し時のみ）額外→防禦→戰鬥…の順、docs/combat_flow_rules.md §3）。
+  // 敵人全滅で既にcombatEnd（一般行動）へ自動的に戻っている場合は何もしない
+  // （handleEnemyHpChanged経由、applyGuardedDamageToEnemyの呼び出し内で既に起きている）。
+  // 既存の「行動階段」手動ボタンはそのまま残し、GMが自動判定を上書きしたい場合の脱出口とする。
+  function autoAdvanceBattlePhase() {
+    if (state.actionPhase === "combat") {
+      setActionPhase(anyEnemyHpRowDepleted() ? "extra" : "defense");
+    } else if (state.actionPhase === "extra") {
+      setActionPhase("defense");
+    } else if (state.actionPhase === "defense") {
+      setActionPhase("combat");
+    } else {
+      // "normal"（combatEnd等で既に切り替わり済み）を含め、ここでは追加のphase遷移は行わず、
+      // 進度版の表示だけ最新化する。
+      renderCurrentLocationStatus();
+    }
+  }
+
   // [攻擊]／[防禦]確認。combat/extraフェイズでは、既存の「防禦次數／HP價值計算機」
   // （battle-guard-calc-block、battle-drawer内のGM専用ツール）の入力欄へ本回合の彙總値を
   // 自動預填してから、既存のhandleBattleGuardCalcApply()をそのまま呼ぶ（applyGuardedDamageToEnemy
   // を直接叩く専用経路は新設しない、既存Guard計算機と同じ挙動を保つ）。防禦フェイズは
-  // 既存の#enemy-damage-modalを開くだけ（roundActionsDone/roundStageの解決はGMがモーダル内で
-  // 確認した瞬間＝handleEnemyDamageConfirmの末尾で行う）。
+  // 既存の#enemy-damage-modalを開くだけ（roundActionsDone/roundStageの解決とフェイズ自動遷移は
+  // GMがモーダル内で確認した瞬間＝handleEnemyDamageConfirmの末尾で行う）。
   function handleBattleTurnConfirmClick() {
     if (state.actionPhase === "defense") {
       openEnemyDamageModal();
@@ -7144,7 +7164,7 @@
     state.battle.roundActionsDone = {};
     state.battle.roundStage = "resolving";
     saveState();
-    renderCurrentLocationStatus();
+    autoAdvanceBattlePhase();
   }
 
   // エネミーHPが変化するたびに呼び、額外行動ボタンの活性状態を更新しつつ、
@@ -8023,14 +8043,14 @@
     closeEnemyDamageModal();
     renderCharacterRoster();
     // 自動化GM 戰鬥自動化：防禦フェイズの本回合が確定した瞬間（このモーダルの確認）を
-    // もって「已完成」按鈕列をクリアし、roundStageを"resolving"へ進める（combat/extra
-    // フェイズのhandleBattleTurnConfirmClickと同じ役目、defenseはこのモーダル確定が
-    // その代わりを果たす）。
+    // もって「已完成」按鈕列をクリアし、次の戰鬥階段（新しい回合）へ自動的に進める
+    // （combat/extraフェイズのhandleBattleTurnConfirmClickと同じ役目、defenseはこの
+    // モーダル確定がその代わりを果たす）。
     if (state.actionPhase === "defense") {
       state.battle.roundActionsDone = {};
       state.battle.roundStage = "resolving";
       saveState();
-      renderCurrentLocationStatus();
+      autoAdvanceBattlePhase();
     }
   }
 
