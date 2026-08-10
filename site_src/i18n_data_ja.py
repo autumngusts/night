@@ -854,6 +854,7 @@ STRINGS_JA: dict[str, str] = {
     "gm_flow_battle_attack_result_split": "{enemy}：総合ダメージ{damage}（分裂形態、各個体それぞれHP損害 {boxes} 枠を減少）。",
     "gm_flow_battle_stagger_note": "（体勢崩し！）",
     "gm_flow_battle_defense_result_header": "今回合、PC全員が受けたダメージ：",
+    "gm_flow_battle_defense_entry_time_loss": "ディフェンスフェイズ開始、タイムロス+1",
     "battle_pc_count_title": "PC人数補正",
     "battle_pc_count_1": "PC1人：PCの総合ダメージ「×4」。エネミーの乱戦ダメージと個別ダメージ「÷4」。",
     "battle_pc_count_2": "PC2人：PCの総合ダメージ「×2」。エネミーの乱戦ダメージと個別ダメージ「÷2」。",

@@ -854,6 +854,7 @@ STRINGS_EN: dict[str, str] = {
     "gm_flow_battle_attack_result_split": "{enemy}: total damage {damage} (split form, each body loses HP {boxes} box(es)).",
     "gm_flow_battle_stagger_note": "(Staggered!)",
     "gm_flow_battle_defense_result_header": "Damage each PC took this round:",
+    "gm_flow_battle_defense_entry_time_loss": "Entering defense phase, Time Loss +1",
     "battle_pc_count_title": "PC Headcount Adjustment",
     "battle_pc_count_1": "1 PC: PC total damage ×4. Enemy brawl/individual damage ÷4.",
     "battle_pc_count_2": "2 PCs: PC total damage ×2. Enemy brawl/individual damage ÷2.",

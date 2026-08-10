@@ -1232,11 +1232,32 @@
       container.appendChild(row);
     });
 
+    // バグ修正（既存の缺口）：突破判定／登攀判定（mode "floor"/"climb"）は揭曉ボタン自体を
+    // 常に隠す設計（下のhideRevealButton参照）のため、revealBreakthroughTarget()が一度も
+    // 呼ばれず、Pass/Fail按鈕の表示条件（!breakthroughState.revealed）が永遠に成立しない
+    // ままだった——結果、GMがPass/Failを押せず地圖移動が進められずに詰まっていた
+    // （使用者報告）。目標値自体はrevealBreakthroughTarget()を経由しないここでは公開せず
+    // （sumLabelの判定を下で別途mode考慮に修正）、entered全員が擲骰完了した時点で
+    // revealedだけを直接trueにし、Pass/Fail按鈕を正常に出す。
+    if (
+      (breakthroughState.mode === "floor" || breakthroughState.mode === "climb") &&
+      !breakthroughState.revealed &&
+      entered.length > 0 &&
+      entered.every(function (c) {
+        return !!breakthroughState.characters[c.id];
+      })
+    ) {
+      breakthroughState.revealed = true;
+    }
+
     var target = Number(document.getElementById("breakthrough-target-input").value) || 0;
     var perPC = document.getElementById("breakthrough-perpc-checkbox").checked;
     var actualTarget = perPC ? target * entered.length : target;
     var sumLabel = document.getElementById("breakthrough-sum-label");
-    sumLabel.textContent = breakthroughState.revealed
+    // floor/climbは上記の自動revealed後もGMへの目標値表示は行わない（自動化下の既定方針）。
+    var showTargetValue =
+      breakthroughState.revealed && breakthroughState.mode !== "floor" && breakthroughState.mode !== "climb";
+    sumLabel.textContent = showTargetValue
       ? window.I18N.t("breakthrough_sum_label", { sum: breakthroughDiceSum(), target: actualTarget })
       : window.I18N.t("breakthrough_sum_label_hidden", { sum: breakthroughDiceSum() });
 

@@ -1059,6 +1059,9 @@ button {
   font-size: 0.82rem;
   line-height: 1.45;
   color: #362809;
+  /* 自動化GM 戰鬥自動化：敘述文字內的\n（每個角色一行、各PC預估損害一行等）需要真的換行顯示，
+     否則瀏覽器預設會把換行字元收合成空白。 */
+  white-space: pre-line;
 }
 
 #location-status-narration:empty {
@@ -2155,7 +2158,7 @@ button {
 .enemy-damage-pc-list-header {
   display: grid;
   grid-template-columns: 1fr auto auto auto auto auto;
-  gap: 0.5rem;
+  gap: 0.4rem;
   font-size: 0.78rem;
   color: #666;
   margin: 0.3rem 0 0.1rem;
@@ -2164,18 +2167,55 @@ button {
 .enemy-damage-pc-row {
   display: grid;
   grid-template-columns: 1fr auto auto auto auto auto;
-  gap: 0.5rem;
+  gap: 0.4rem;
   align-items: center;
+  padding: 0.15rem 0;
 }
 
 .enemy-damage-pc-row.confirmed {
   opacity: 0.5;
 }
 
+.enemy-damage-pc-row .stat-input {
+  width: 3.2em;
+  padding: 0.25rem 0.3rem;
+}
+
 .enemy-damage-hp-loss-value {
   font-weight: 700;
   min-width: 1.5em;
   text-align: center;
+}
+
+.enemy-damage-confirm-btn {
+  padding: 0.25rem 0.55rem;
+  font-size: 0.78rem;
+}
+
+/* 手機端（狭幅画面）でHP價值・HP損害・確定ボタンまで横に押し出されて見切れないよう、
+   2列（角色名+亂戰/個別傷害、HP價值/HP損害/確定ボタン）に折り返す。 */
+@media (max-width: 480px) {
+  .enemy-damage-pc-list-header {
+    display: none;
+  }
+
+  /* DOM順（label→亂戰→個別→HP價值→HP損害→確定ボタン）のまま3列グリッドへ自然に流し込む：
+     1行目=角色名（3列分）、2行目=亂戰/個別/HP價值の3つの入力欄、3行目=HP損害＋確定ボタン。 */
+  .enemy-damage-pc-row {
+    grid-template-columns: repeat(3, 1fr);
+    row-gap: 0.3rem;
+    padding: 0.4rem 0;
+    border-bottom: 1px solid #eee;
+  }
+
+  .enemy-damage-pc-row label {
+    grid-column: 1 / -1;
+    font-weight: 600;
+  }
+
+  .enemy-damage-pc-row .stat-input {
+    width: 100%;
+  }
 }
 
 .dice-status-label {

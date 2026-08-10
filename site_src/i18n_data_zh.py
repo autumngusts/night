@@ -854,6 +854,7 @@ STRINGS_ZH: dict[str, str] = {
     "gm_flow_battle_attack_result_split": "{enemy}：總合傷害{damage}（分裂形態，每個體分別扣除HP損害 {boxes} 格）。",
     "gm_flow_battle_stagger_note": "（體崩！）",
     "gm_flow_battle_defense_result_header": "各玩家本回合受到的傷害：",
+    "gm_flow_battle_defense_entry_time_loss": "進入防禦階段，時間消耗+1",
     "battle_pc_count_title": "PC 人數補正",
     "battle_pc_count_1": "PC 1人：PC總合傷害「×4」。敵人亂戰傷害與個別傷害「÷4」。",
     "battle_pc_count_2": "PC 2人：PC總合傷害「×2」。敵人亂戰傷害與個別傷害「÷2」。",

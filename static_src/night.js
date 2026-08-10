@@ -714,6 +714,12 @@
       // に消費されてbossFormを"fused"へ自動で戻す（分裂形態では体勢崩し自体は発生しない、
       // ユーザー確認済み仕様。docs/enemy_damage_rules.md 9節）。
       bossFormTransitionPending: false,
+      // 使用者確認：「1段が體勢崩しを起こすのは1回だけ」——自動化GMがautoAdvanceBattlePhaseで
+      // 戰鬥→額外を自動判定する際、既にこの配列に含まれる段番号（0-3）は「もう額外階段の
+      // トリガーとして使用済み」とみなし、そのHPが0のまま残っていても再度額外階段へは進まない
+      // （guardBrokenは戰鬥全體で1回だけの体勢崩し発生フラグのため、これとは別の「段ごと」の
+      // 記録が必要）。戰鬥終了（combatEnd）時にクリアする。
+      staggerRowsHandled: [],
       // 自動化GM 戰鬥自動化：通常戰鬥／簡易戰鬥判定（docs/combat_flow_rules.md §6）。
       // "normal"｜"simplified"｜null（未判定＝尚未透過resolveAndAddCombatEnemies判定過）。
       // 戰鬥級生命週期，combatEnd（notifyCombatEnded）時與guardCount等一併清除，不隨phase切換重置。
@@ -726,9 +732,10 @@
       roundStage: "awaitingRoll",
       // 本回合已完成動作的角色（key=角色id、value=true）。每次phase切換都清空。
       roundActionsDone: {},
-      // 每個角色按下「已完成」當下擷取的行動說明文字（key=角色id、value=文字行陣列），
-      // 顯示在進度版敘述中。每次phase切換都清空。
-      roundActionLog: {},
+      // 每個角色按下「已完成」時，依「點擊順序」（不是角色欄位順序）追加一筆{charId, lines}，
+      // 顯示在進度版敘述中；取消準備時移除該筆（其後的行自然往上遞補），再次按下則排到最後面
+      // （使用者確認的行為）。每次phase切換都清空。
+      roundActionLog: [],
       // [攻擊]/[防禦]確認後、[結束回合]前顯示在進度版的結算文字（roundStage==="resolving"時使用）。
       roundResultText: null,
       // 防禦階段全員擲骰完成時，autoTriggerDefenseRollが自動擲出的敵方行動結果，用來讓GM之後
@@ -742,6 +749,9 @@
       // 每個角色按下［確定］時計算出的實際HP損害（key=角色id、value=數值），finishEnemyDamageRound
       // 用來組成進度版的結算文字。
       defenseHpLossSummary: {},
+      // 進入防禦階段時要處理的效果（時間消耗1、可能連帶觸發的威脅效果／夜雨），顯示在進度版
+      // 敘述最前面（打字機說明）。每次phase切換都清空。
+      defenseEntryEffectText: null,
     };
   }
 
@@ -1178,12 +1188,30 @@
       guardBroken: !!raw.guardBroken,
       guardCount: loadNumberMap(raw.guardCount),
       bossFormTransitionPending: !!raw.bossFormTransitionPending,
+      staggerRowsHandled: Array.isArray(raw.staggerRowsHandled)
+        ? raw.staggerRowsHandled.filter(function (v) {
+            return typeof v === "number";
+          })
+        : [],
       combatMode: raw.combatMode === "normal" || raw.combatMode === "simplified" ? raw.combatMode : null,
       combatIsBoss: !!raw.combatIsBoss,
       simplifiedCombatEndPending: !!raw.simplifiedCombatEndPending,
       roundStage: ["awaitingRoll", "acting", "resolving"].indexOf(raw.roundStage) !== -1 ? raw.roundStage : "awaitingRoll",
       roundActionsDone: loadBoolMap(raw.roundActionsDone),
-      roundActionLog: loadStringArrayMap(raw.roundActionLog),
+      roundActionLog: Array.isArray(raw.roundActionLog)
+        ? raw.roundActionLog
+            .filter(function (entry) {
+              return entry && typeof entry.charId === "string" && Array.isArray(entry.lines);
+            })
+            .map(function (entry) {
+              return {
+                charId: entry.charId,
+                lines: entry.lines.filter(function (l) {
+                  return typeof l === "string";
+                }),
+              };
+            })
+        : [],
       roundResultText: typeof raw.roundResultText === "string" ? raw.roundResultText : null,
       pendingDefenseRoll:
         raw.pendingDefenseRoll && typeof raw.pendingDefenseRoll === "object"
@@ -1196,22 +1224,8 @@
       defenseRollPreviewText: typeof raw.defenseRollPreviewText === "string" ? raw.defenseRollPreviewText : null,
       enemyDamageConfirmed: loadBoolMap(raw.enemyDamageConfirmed),
       defenseHpLossSummary: loadNumberMap(raw.defenseHpLossSummary),
+      defenseEntryEffectText: typeof raw.defenseEntryEffectText === "string" ? raw.defenseEntryEffectText : null,
     };
-  }
-
-  // roundActionLog（key=角色id、value=文字行陣列）の読み込み専用ヘルパー。
-  function loadStringArrayMap(raw) {
-    var out = {};
-    if (raw && typeof raw === "object") {
-      Object.keys(raw).forEach(function (key) {
-        if (Array.isArray(raw[key])) {
-          out[key] = raw[key].filter(function (v) {
-            return typeof v === "string";
-          });
-        }
-      });
-    }
-    return out;
   }
 
   // 屬性/異常面板の「受け取った」欄で選べる、屬性／異常の名称一覧。武器の共通戦技
@@ -7049,6 +7063,29 @@
     return false;
   }
 
+  // 使用者確認：「1段が體勢崩しを起こすのは1回だけ」。既にstaggerRowsHandledへ記録済みの段は
+  // （HPが0のまま残っていても）自動化GMの額外階段トリガー判定からは除外する。自動化GM以外の
+  // 既存機能（額外行動ボタンの有効化、guardBroken等）には影響しない——この関数はautoAdvance
+  // BattlePhase専用。
+  function anyUnhandledStaggeredRow() {
+    var handled = state.battle.staggerRowsHandled || [];
+    for (var i = 0; i < ENEMY_HP_ROWS; i++) {
+      if (isEnemyHpRowDepleted(i) && handled.indexOf(i) === -1) return true;
+    }
+    return false;
+  }
+
+  // 自動化GMが實際に額外階段へ進むと決めた瞬間に呼ぶ。現在0になっている段を全て
+  // 「使用済み」として記録し、以後その段だけでは再度額外階段を発生させない。
+  function markStaggeredRowsHandled() {
+    if (!state.battle.staggerRowsHandled) state.battle.staggerRowsHandled = [];
+    for (var i = 0; i < ENEMY_HP_ROWS; i++) {
+      if (isEnemyHpRowDepleted(i) && state.battle.staggerRowsHandled.indexOf(i) === -1) {
+        state.battle.staggerRowsHandled.push(i);
+      }
+    }
+  }
+
   // 敵が割り当て済みの段が1つ以上あり、そのすべてが撃破済み＝戦闘終了（一般行動へ自動的に戻す）。
   function allEnemyHpRowsDepleted() {
     var any = false;
@@ -7115,23 +7152,24 @@
 
   // --- 自動化GM 戰鬥自動化：回合內細粒度階段（roundStage）・回合傷害彙總 ---
 
-  // 現在のphase（combat/extra/defense）で、entered中の全員が本フェイズのスタミナダイスを
-  // 振り終えたかどうか。
+  // 現在のphase（combat/extra/defense）で、entered中の全員（瀕死状態を除く）が本フェイズの
+  // スタミナダイスを振り終えたかどうか。
   function allEnteredCharactersRolledForPhase() {
     var flagKey =
       state.actionPhase === "extra" ? "_extraActionUsed" : state.actionPhase === "defense" ? "_defenseActionUsed" : "_combatDiceRolled";
-    var entered = rosterCharacters.filter(function (c) {
-      return c.entered;
-    });
+    var entered = enteredCharactersForBattle();
     if (!entered.length) return false;
     return entered.every(function (c) {
       return !!c[flagKey];
     });
   }
 
+  // 使用者確認：瀕死状態（c._nearDeath、救い出されるまで持続）のPCは、體力骰を振る要求や
+  // 「已完成」按鈕列の対象から除外する（行動できないため）。戰鬥回合の自動化（擲骰完了判定・
+  // 已完成按鈕・傷害/破防合計）は全てこの関数を経由するため、ここ1箇所で除外すれば十分。
   function enteredCharactersForBattle() {
     return rosterCharacters.filter(function (c) {
-      return c.entered;
+      return c.entered && !c._nearDeath;
     });
   }
 
@@ -7206,18 +7244,25 @@
       var stageKey = stage === "awaitingRoll" ? "awaiting_roll" : stage;
       parts.push(window.I18N.t("round_stage_banner_" + phase + "_" + stageKey));
     }
+    // 使用者確認：防禦階段に入った瞬間の処理（時間消耗1、連帶発生する威脅効果／夜雨）は、
+    // 請擲骰！の段階から常に表示し続ける（awaitingRoll/acting問わず）。
+    if (phase === "defense" && state.battle.defenseEntryEffectText) {
+      parts.push(state.battle.defenseEntryEffectText);
+    }
     if (stage === "acting") {
       // 防禦フェイズは、全員擲骰完了時にautoTriggerDefenseRollが自動的に敵方行動をロールし、
       // その速報（亂戰/個別傷害の内訳＋各PCの推定損害）をここに出す。
       if (phase === "defense" && state.battle.defenseRollPreviewText) {
         parts.push(state.battle.defenseRollPreviewText);
       }
-      var logParts = [];
-      enteredCharactersForBattle().forEach(function (c) {
-        var lines = state.battle.roundActionLog && state.battle.roundActionLog[c.id];
-        if (lines && lines.length) logParts.push(lines.join("\n"));
+      // 使用者確認：各角色の行は「按下已完成した順序」で1行ずつ並べる（roster順ではない）。
+      // 取消して再度押すと、その行は末尾へ再追加される（state.battle.roundActionLogは
+      // {charId, lines}の配列、push/spliceで管理——renderBattleRoundActionButtons参照）。
+      var logLines = [];
+      (state.battle.roundActionLog || []).forEach(function (entry) {
+        logLines = logLines.concat(entry.lines || []);
       });
-      if (logParts.length) parts.push(logParts.join("\n\n"));
+      if (logLines.length) parts.push(logLines.join("\n"));
       if (allEnteredCharactersActionsDone() && phase !== "defense") {
         parts.push(
           window.I18N.t("gm_flow_battle_round_damage_summary", {
@@ -7265,11 +7310,14 @@
         btn.addEventListener("click", function () {
           var nowDone = !state.battle.roundActionsDone[c.id];
           state.battle.roundActionsDone[c.id] = nowDone;
-          if (!state.battle.roundActionLog) state.battle.roundActionLog = {};
+          if (!state.battle.roundActionLog) state.battle.roundActionLog = [];
+          // 使用者確認：取消準備時はこの角色のぶんだけ配列から取り除く（後続の行は自然に
+          // 繰り上がる）。再度準備した場合は配列の末尾へ追加する（元の位置には戻さない）。
+          state.battle.roundActionLog = state.battle.roundActionLog.filter(function (entry) {
+            return entry.charId !== c.id;
+          });
           if (nowDone) {
-            state.battle.roundActionLog[c.id] = buildCharacterActionLogLines(c);
-          } else {
-            delete state.battle.roundActionLog[c.id];
+            state.battle.roundActionLog.push({ charId: c.id, lines: buildCharacterActionLogLines(c) });
           }
           saveState();
           renderCurrentLocationStatus();
@@ -7299,7 +7347,7 @@
 
   function handleBattleTurnReturnClick() {
     state.battle.roundActionsDone = {};
-    state.battle.roundActionLog = {};
+    state.battle.roundActionLog = [];
     saveState();
     renderCurrentLocationStatus();
   }
@@ -7310,9 +7358,18 @@
   // 敵人全滅で既にcombatEnd（一般行動）へ自動的に戻っている場合は何もしない
   // （handleEnemyHpChanged経由、applyGuardedDamageToEnemyの呼び出し内で既に起きている）。
   // 既存の「行動階段」手動ボタンはそのまま残し、GMが自動判定を上書きしたい場合の脱出口とする。
+  // 防禦階段開始時の時間消耗+1（setActionPhase内、"defense"への遷移時に自動処理）は、この
+  // 自動経路だけでなく手動の「行動階段」ボタンから直接defenseへ切り替えた場合にも等しく発火する。
   function autoAdvanceBattlePhase() {
     if (state.actionPhase === "combat") {
-      setActionPhase(anyEnemyHpRowDepleted() ? "extra" : "defense");
+      // 使用者確認：「1段が體勢崩しを起こすのは1回だけ」——既に額外階段のトリガーとして
+      // 使用済みの段（staggerRowsHandled）はHPが0のままでも再度額外階段を発生させない。
+      if (anyUnhandledStaggeredRow()) {
+        markStaggeredRowsHandled();
+        setActionPhase("extra");
+      } else {
+        setActionPhase("defense");
+      }
     } else if (state.actionPhase === "extra") {
       setActionPhase("defense");
     } else if (state.actionPhase === "defense") {
@@ -7982,6 +8039,14 @@
     if (!row) return;
     resultEl.hidden = true;
     resultEl.textContent = "";
+    // 使用者確認：防禦フェイズは全員擲骰完了時にautoTriggerDefenseRollが既に1回だけ擲骰し、
+    // 結果を進度版で公開済み（state.battle.pendingDefenseRoll）。規則書上の再擲骰権限が無い限り、
+    // このモーダル内から重複して擲骰できないよう行自体を隠す（数値の食い違いを防ぐ）。
+    if (state.battle.pendingDefenseRoll) {
+      row.hidden = true;
+      if (formRow) formRow.hidden = true;
+      return;
+    }
     var AutoGm = window.PriTestAutoGm;
     if (!state.autoGmEnabled || state.turnHolder !== "gm" || !AutoGm) {
       row.hidden = true;
@@ -8255,7 +8320,7 @@
 
       var confirmBtn = document.createElement("button");
       confirmBtn.type = "button";
-      confirmBtn.className = "primary-btn";
+      confirmBtn.className = "primary-btn enemy-damage-confirm-btn";
       confirmBtn.textContent = window.I18N.t("enemy_damage_confirm_button");
       confirmBtn.disabled = confirmedAlready;
       confirmBtn.addEventListener("click", function () {
@@ -9389,12 +9454,13 @@
       closeActionPhaseModal();
       state.battle.simplifiedCombatEndPending = true;
       state.battle.roundActionsDone = {};
-      state.battle.roundActionLog = {};
+      state.battle.roundActionLog = [];
       state.battle.roundResultText = null;
       state.battle.pendingDefenseRoll = null;
       state.battle.defenseRollPreviewText = null;
       state.battle.enemyDamageConfirmed = {};
       state.battle.defenseHpLossSummary = {};
+      state.battle.defenseEntryEffectText = null;
       state.battle.roundStage = "awaitingRoll";
       saveState();
       renderSimplifiedCombatEndPrompt();
@@ -9534,13 +9600,24 @@
     // フェイズが切り替わるたびにクリアする（combat/extra/defenseへ入るたびに"awaitingRoll"
     // から始める。normalへ戻る場合はbanner非表示になるため値を問わない）。
     state.battle.roundActionsDone = {};
-    state.battle.roundActionLog = {};
+    state.battle.roundActionLog = [];
     state.battle.roundResultText = null;
     state.battle.pendingDefenseRoll = null;
     state.battle.defenseRollPreviewText = null;
     state.battle.enemyDamageConfirmed = {};
     state.battle.defenseHpLossSummary = {};
+    state.battle.defenseEntryEffectText = null;
     state.battle.roundStage = "awaitingRoll";
+    // 使用者確認：防禦階段に入るたびに時間損耗+1（規則書「防禦階段開始時、時間消耗1」）。
+    // 自動化GMの自動遷移（autoAdvanceBattlePhase）だけでなく、GMが「行動階段」ボタンから手動で
+    // defenseへ切り替えた場合にも等しく発火させるため、ここ（setActionPhase自身）で処理する。
+    // 直前のリセット（defenseEntryEffectText=null）より後で書き込むことで、消されずに残す。
+    // 威脅効果／夜雨が新たに到達した場合は、addTimeLossが返す文字も合わせて進度版へ表示する。
+    if (phase === "defense") {
+      var defenseEntryMessages = addTimeLoss(1) || [];
+      var defenseEntryLines = [window.I18N.t("gm_flow_battle_defense_entry_time_loss")].concat(defenseEntryMessages);
+      state.battle.defenseEntryEffectText = defenseEntryLines.join("\n");
+    }
     // GM／玩家が同時にプレイしなくてもよいよう、行動階段が切り替わるたびに「今の番」を
     // 必ずGM側へ戻す（GMが状況を確認・反応してから、改めて玩家へ番を渡す運用を想定）。
     // handleTurnHolderToggleと同じく、GM側の留言はここでも「次のGm回合開始」に該当するため
@@ -9655,6 +9732,9 @@
       // phase reset loopではなくこの戰鬥終了処理でのみクリアする。
       state.battle.combatMode = null;
       state.battle.combatIsBoss = false;
+      // 使用者確認：「1段1回だけ體勢崩し」の記録は戰鬥単位の生命週期のため、ここで一緒に
+      // クリアする（次の戦闘で改めて0から数える）。
+      state.battle.staggerRowsHandled = [];
       addLog("log_battle_combat_end");
       // 自動化GM Phase 2［戰鬥機制］：樓層敘述中の「雜兵戰鬥／王戰」ボタンから開始した戦闘が
       // ここで終結を検出された場合（state.gmFlow.battleWaitActive）、GMの手動操作なしで
@@ -10823,7 +10903,7 @@
     var effect = ROLL_EFFECTS.filter(function (e) {
       return e.id === effectId;
     })[0];
-    if (!effect) return;
+    if (!effect) return null;
     var count = state.rollEffects[effectId] || 0;
     var newCount = Math.min(effect.tiers, count + 1);
     state.rollEffects[effectId] = newCount;
@@ -10836,6 +10916,9 @@
     var msg = window.I18N.t("threat_effect_roll_broadcast", { roll: roll }) + label + window.I18N.t("colon_separator") + detail;
     postSystemTurnMessage(msg);
     showThreatBroadcast([msg]);
+    // 自動化GM 戰鬥自動化：進度版（防禦階段開始時のTime Loss+1）から呼ばれた場合、
+    // このメッセージも進度版へ打字機で表示できるよう返す。
+    return msg;
   }
 
   // 「時間損耗：N」をタイムロス軌道（TIME_LOSS_ROW_DEFS、現在の日にちに対応する
@@ -10845,11 +10928,15 @@
   // （ユーザー報告のバグ）。「威脅効果追加」段（kind:"threat"）がこの呼び出しで新たに
   // 埋まった場合は、そのままrollAndTriggerThreatEffectで1D6を振って骰效果へ反映する
   // （ユーザー確認済み：①〜⑥の丸数字が出目対応表そのもの）。
+  // 使用者確認：戻り値は「今回のaddTimeLossで新たに発生した公告文字」の配列（威脅効果決定表の
+  // 抽選結果、夜雨が新しい段階に達した旨）。自動化GM 戰鬥自動化の防禦階段開始時Time Loss+1が
+  // 進度版へ打字機で表示するために利用する（既存のGM留言板／公告への投稿はそのまま維持）。
   function addTimeLoss(n) {
-    if (!n) return;
+    if (!n) return [];
     var dayKey = isSwappedDay() ? "day2" : "day1";
     var rows = state.timeLoss[dayKey];
     var remaining = n;
+    var messages = [];
     for (var r = 0; r < TIME_LOSS_ROW_DEFS.length && remaining > 0; r++) {
       var rowWasFull = rows[r].every(Boolean);
       for (var b = 0; b < TIME_LOSS_ROW_DEFS[r].boxes && remaining > 0; b++) {
@@ -10858,12 +10945,22 @@
           remaining--;
         }
       }
-      if (!rowWasFull && rows[r].every(Boolean) && TIME_LOSS_ROW_DEFS[r].kind === "threat") {
-        rollAndTriggerThreatEffect();
+      if (!rowWasFull && rows[r].every(Boolean)) {
+        if (TIME_LOSS_ROW_DEFS[r].kind === "threat") {
+          var threatMsg = rollAndTriggerThreatEffect();
+          if (threatMsg) messages.push(threatMsg);
+        } else if (TIME_LOSS_ROW_DEFS[r].kind === "rain") {
+          messages.push(
+            window.I18N.t("night_rain_label") +
+              window.I18N.t("colon_separator") +
+              window.I18N.t("night_rain_detail_" + dayKey + "_" + TIME_LOSS_ROW_DEFS[r].tier)
+          );
+        }
       }
     }
     renderTimeLossChecks(dayKey);
     renderTimeLossSummary();
+    return messages;
   }
 
   // #10：樓層レベルが「全」に達したら、そのカードの「全樓層踏破效果」（盧恩／時間損耗）を
