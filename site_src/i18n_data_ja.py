@@ -229,6 +229,8 @@ STRINGS_JA: dict[str, str] = {
     "gm_flow_representative_pick_prompt": "GM：代表者を務める玩家を選んでください：",
     "gm_flow_representative_pick_result_entry": "{name}：{dice}＝{sum}（{outcome}）",
     "gm_flow_representative_pick_summary_log": "GM：判定結果——{results}。",
+    "gm_flow_multi_stat_check_result_entry": "{name}：{pass}／{total} 回成功",
+    "gm_flow_multi_stat_check_summary_log": "GM：複数屬性判定結果——{results}。",
     "gm_flow_free_floor_choice_intro": "GM：「{name}」のフロアは任意の順番で攻略できる（踏破済み {cleared}／{threshold}）。以下の未踏破フロアの描写を読み上げ、プレイヤーにどのフロアへ挑むか選ばせること：",
     "gm_flow_free_floor_preview_line": "{label}「{title}」\n{text}",
     "gm_flow_free_floor_no_more_narration": "GM：「{name}」は既に全フロア踏破の条件を満たしたため、以降このフィールドは探索できない。",

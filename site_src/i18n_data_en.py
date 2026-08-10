@@ -229,6 +229,8 @@ STRINGS_EN: dict[str, str] = {
     "gm_flow_representative_pick_prompt": "GM: Choose who will act as the representative:",
     "gm_flow_representative_pick_result_entry": "{name}: {dice} = {sum} ({outcome})",
     "gm_flow_representative_pick_summary_log": "GM: Check results -- {results}.",
+    "gm_flow_multi_stat_check_result_entry": "{name}: {pass}/{total} passed",
+    "gm_flow_multi_stat_check_summary_log": "GM: Multi-attribute check results -- {results}.",
     "gm_flow_free_floor_choice_intro": "GM: \"{name}\"'s floors can be tackled in any order (cleared {cleared}/{threshold}). Read out the descriptions below for the floors not yet cleared and let the players choose which one to attempt:",
     "gm_flow_free_floor_preview_line": "{label} \"{title}\"\n{text}",
     "gm_flow_free_floor_no_more_narration": "GM: \"{name}\" has already reached the full-clear threshold -- this field can no longer be explored.",

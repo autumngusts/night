@@ -229,6 +229,8 @@ STRINGS_ZH: dict[str, str] = {
     "gm_flow_representative_pick_prompt": "GM：請選擇由哪位玩家擔任代表：",
     "gm_flow_representative_pick_result_entry": "{name}：{dice}＝{sum}（{outcome}）",
     "gm_flow_representative_pick_summary_log": "GM：判定結果——{results}。",
+    "gm_flow_multi_stat_check_result_entry": "{name}：{pass}／{total} 次成功",
+    "gm_flow_multi_stat_check_summary_log": "GM：多屬性判定結果——{results}。",
     "gm_flow_free_floor_choice_intro": "GM：「{name}」樓層可依任意順序攻略（已踏破 {cleared}／{threshold}）。請朗讀以下尚未踏破的樓層描寫，讓玩家選擇要挑戰哪一層：",
     "gm_flow_free_floor_preview_line": "{label}「{title}」\n{text}",
     "gm_flow_free_floor_no_more_narration": "GM：「{name}」已達全樓層踏破門檻，此後不可再探索此場地。",

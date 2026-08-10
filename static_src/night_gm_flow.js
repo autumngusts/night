@@ -392,17 +392,18 @@
     };
   }
 
-  // ---- 「行為判定」自動擲骰（水辺の大教会「正面から（梅花）」専用：異なる屬性の協力式
-  // 判定を「順番に」複数回行い、成否に関わらず全段を実行してから、総成功回数（0〜N回成功）
-  // で結果を決める）----
-  // 「〜を順番に行うこと。成否に関わらず〜」という言い回しで検出する。属性が同じ場合は
+  // ---- 「行為判定」自動擲骰（水辺の大教会「正面から（梅花）」／発狂地帯「狂い火の塔3」／
+  // 襲撃「三つ首の獣」「狼の気配2」共通：異なる屬性の協力式判定を「順番に」または
+  // 「連続して」複数回行い、成否に関わらず全段を実行してから、総成功回数で結果を決める）----
+  // 「〜を順番に／連続して行うこと。成否に関わらず／関係なく〜」という言い回しで検出する
+  // （実データ確認済み——言い回しに表記ゆれがあるため両方を受け付ける）。属性が同じ場合は
   // parseSequentialCooperativeChain（早期終了あり）の対象になるため、こちらは属性が
   // 異なる場合のみを扱う——両者は互いに排他的（実データ確認済み）。
   function parseSequentialCoopTallyCheck(line) {
     if (!line.label || (line.label.ja !== "行為判定" && line.label.zh !== "行為判定")) return null;
     var text = (line.text && line.text.ja) || "";
-    if (!text || text.indexOf("順番に行う") === -1) return null;
-    if (text.indexOf("成否に関わらず") === -1) return null;
+    if (!text || (text.indexOf("順番に行う") === -1 && text.indexOf("連続して行う") === -1)) return null;
+    if (text.indexOf("成否に関わらず") === -1 && text.indexOf("成否に関係なく") === -1) return null;
     var re = new RegExp(COOP_CHAIN_BRACKET_RE.source, "g");
     var matches = [];
     var m;
@@ -412,7 +413,7 @@
       return { target: parseInt(mm[1], 10), statKey: ABILITY_CHECK_STAT_MAP[mm[2]] };
     });
     if (steps.some(function (s) { return !s.statKey; })) return null;
-    return { mode: "tallyAll", steps: steps };
+    return { mode: "tallyAll", steps: steps, markerLabel: singleMarkerLabel(text) };
   }
 
   // ---- 「行為判定」自動擲骰（大野営地「火の戦車」専用：代表者1人を選び、代表者と
@@ -442,6 +443,32 @@
       othersTarget: parseInt(matches[1][1], 10),
       othersStat: othersStat,
     };
+  }
+
+  // ---- 「行為判定」自動擲骰（砦「壺投げのトロル」専用：PC全員がそれぞれ異なる屬性の
+  // 判定を複数回（1回ずつ）行う。成否に関わらず次へ進み、結果はPCごとに異なり得るため
+  // （既存のparseIndividualAbilityCheckと同じ方針で）両方の結果文をそのまま敘述し、GMが
+  // 実際の結果と照らして該当PCへ伝える）----
+  // 「それぞれ」＋ブラケットが2つ以上（＝複数の異なる屬性を1回ずつ）という、このフロア
+  // 特有の形で検出する。ブラケットが1つだけならparseIndividualAbilityCheckの対象。
+  function parseMultiStatIndividualCheck(line) {
+    if (!line.label || (line.label.ja !== "行為判定" && line.label.zh !== "行為判定")) return null;
+    var text = (line.text && line.text.ja) || "";
+    if (!text || text.indexOf("協力") !== -1) return null;
+    if (!/それぞれ/.test(text)) return null;
+    if (text.indexOf("任意で") !== -1) return null;
+    var re = new RegExp(ABILITY_CHECK_BRACKET_RE.source, "g");
+    var matches = [];
+    var m;
+    while ((m = re.exec(text))) matches.push(m);
+    if (matches.length < 2) return null;
+    var checks = [];
+    for (var i = 0; i < matches.length; i++) {
+      var statKey = ABILITY_CHECK_STAT_MAP[matches[i][2]];
+      if (!statKey) return null;
+      checks.push({ target: parseInt(matches[i][1], 10), statKey: statKey });
+    }
+    return { checks: checks, markerLabel: singleMarkerLabel(text) };
   }
 
   function getWalkEntry(walk) {
@@ -516,7 +543,11 @@
     if (candidates.length === 1) return candidates[0];
     for (var ci = 0; ci < candidates.length; ci++) {
       var title = (floors[candidates[ci]].title && floors[candidates[ci]].title.ja) || "";
-      var suitMatch = /^([♠♥♦◇♣]+)/.exec(title);
+      // 花色記号は「♠♥♦♣ 谷底の地下通路」のように裸で始まる場合と、
+      // 「(♥) 正門広場 (老獅子たち)」のように半角丸括弧で囲まれている場合の両方がある
+      // （実データ確認済み——後者を素通りしていたため、複数花色候補があるフロアで常に
+      // 配列順の最初の候補へフォールバックしてしまうバグがあった）。
+      var suitMatch = /^[（(]?([♠♥♦◇♣]+)[）)]?/.exec(title);
       if (suitMatch && suitCellMatches(suitMatch[1], suitCode)) return candidates[ci];
     }
     return candidates[0]; // 花色で絞り込めなければ最初の候補へフォールバック
@@ -1591,6 +1622,8 @@
     var openEndedTallySpec = null;
     var repPickIndex = -1;
     var repPickSpec = null;
+    var multiStatCheckIndex = -1;
+    var multiStatCheckSpec = null;
     var i = walk.lineIndex;
     while (i < lines.length) {
       var line = lines[i];
@@ -1716,6 +1749,14 @@
         i++;
         break;
       }
+      // 砦「壺投げのトロル」専用：PC全員がそれぞれ異なる屬性の判定を複数回（1回ずつ）行う。
+      var parsedMultiStatCheck = parseMultiStatIndividualCheck(line);
+      if (parsedMultiStatCheck) {
+        multiStatCheckIndex = i;
+        multiStatCheckSpec = parsedMultiStatCheck;
+        i++;
+        break;
+      }
       var parsedAbilityCheck = parseIndividualAbilityCheck(line);
       if (parsedAbilityCheck) {
         abilityCheckIndex = i;
@@ -1815,7 +1856,14 @@
       state.gmFlow.pendingChoiceLabels = [];
       state.gmFlow.awaitingOk = true;
       state.gmFlow.actionKind = "sequentialCooperativeChain";
-      state.gmFlow.sequentialChainSpec = { mode: chainCheckSpec.mode, steps: chainCheckSpec.steps, stepIndex: 0, successCount: 0, awaitingContinue: false };
+      state.gmFlow.sequentialChainSpec = {
+        mode: chainCheckSpec.mode,
+        steps: chainCheckSpec.steps,
+        stepIndex: 0,
+        successCount: 0,
+        awaitingContinue: false,
+        markerLabel: chainCheckSpec.markerLabel || null,
+      };
     } else if (openEndedTallyIndex !== -1) {
       state.gmFlow.narrationText = (blockText ? blockText + "\n" : "") + window.I18N.t("gm_flow_player_pick_check_prompt");
       state.gmFlow.pendingChoiceLabels = [];
@@ -1828,6 +1876,12 @@
       state.gmFlow.awaitingOk = true;
       state.gmFlow.actionKind = "representativePickCheck";
       state.gmFlow.representativePickSpec = repPickSpec;
+    } else if (multiStatCheckIndex !== -1) {
+      state.gmFlow.narrationText = blockText;
+      state.gmFlow.pendingChoiceLabels = [];
+      state.gmFlow.awaitingOk = true;
+      state.gmFlow.actionKind = "multiStatIndividualCheck";
+      state.gmFlow.multiStatCheckSpec = { checks: multiStatCheckSpec.checks, stepIndex: 0, results: {}, markerLabel: multiStatCheckSpec.markerLabel };
     } else if (abilityCheckIndex !== -1) {
       state.gmFlow.narrationText = blockText;
       state.gmFlow.pendingChoiceLabels = [];
@@ -2152,6 +2206,7 @@
     state.gmFlow.sequentialChainSpec = null;
     state.gmFlow.openEndedTallySpec = null;
     state.gmFlow.representativePickSpec = null;
+    state.gmFlow.multiStatCheckSpec = null;
     state.gmFlow.freeFloorOptions = [];
     state.gmFlow.chipOfferSlot = null;
     state.gmFlow.chipOfferContinuation = null;
@@ -2416,6 +2471,13 @@
     var state = Core.state;
     var spec = state.gmFlow.abilityCheckSpec;
     if (!spec || !abilityCheckRolls) return;
+    // 砦「壺投げのトロル」の多屬性連続判定中は、通常の完成処理ではなく専用の
+    // resolveMultiStatCheckRoundへ委ねる（同じモーダル・骰子ロジックをそのまま再利用しつつ、
+    // 複数ラウンドをまたいでPCごとの結果を積み上げる必要があるため）。
+    if (state.gmFlow.multiStatCheckSpec) {
+      resolveMultiStatCheckRound();
+      return;
+    }
     var entered = Core.getRosterCharacters().filter(function (c) {
       return c.entered;
     });
@@ -2464,6 +2526,76 @@
     // 誤って「選ばなかった分岐」として読み飛ばさないよう合流先ラベルを伝える。
     var abilityWalk = state.gmFlow.walk;
     if (abilityWalk && spec.markerLabel) abilityWalk.pendingConvergeLabel = spec.markerLabel;
+    advanceFieldWalk();
+  }
+
+  // ---- 砦「壺投げのトロル」専用：PC全員がそれぞれ異なる屬性の判定を複数回行う ----
+  // 既存のability-check-modalをラウンドごとに使い回す（各ラウンドは1つの屬性・全員個別式）。
+  function beginMultiStatCheck() {
+    var Core = window.PriTestNightCore;
+    var state = Core.state;
+    var spec = state.gmFlow.multiStatCheckSpec;
+    if (!spec) return;
+    spec.stepIndex = 0;
+    spec.results = {};
+    state.gmFlow.abilityCheckSpec = { target: spec.checks[0].target, statKey: spec.checks[0].statKey, markerLabel: null };
+    state.gmFlow.actionKind = "abilityCheck";
+    abilityCheckRolls = {};
+    renderAbilityCheckModal();
+    var modalEl = document.getElementById("ability-check-modal");
+    if (modalEl) modalEl.hidden = false;
+    Core.saveState();
+  }
+
+  // 現在のラウンドの擲骰が確定した：各PCの結果をmultiStatCheckSpec.resultsへ積み上げる。
+  // まだラウンドが残っていれば同じモーダルを次の屬性で振り直させ、最後まで終わったら
+  // PCごとの成功数を留言板へまとめて記録し（結果はPCごとに異なり得るため、既存の
+  // 個別判定と同様「すべて成功」「失敗」どちらの結果文もそのまま敘述してGM判断に委ねる
+  // ——自動でどちらかへ絞り込まない）、敘述walkthroughを続行する。
+  function resolveMultiStatCheckRound() {
+    var Core = window.PriTestNightCore;
+    var state = Core.state;
+    var multiSpec = state.gmFlow.multiStatCheckSpec;
+    var roundSpec = state.gmFlow.abilityCheckSpec;
+    if (!multiSpec || !roundSpec || !abilityCheckRolls) return;
+    var entered = Core.getRosterCharacters().filter(function (c) {
+      return c.entered;
+    });
+    entered.forEach(function (c) {
+      var entry = abilityCheckRolls[c.id];
+      if (!entry) return;
+      if (!multiSpec.results[c.id]) multiSpec.results[c.id] = [];
+      multiSpec.results[c.id].push(entry);
+    });
+    abilityCheckRolls = null;
+    if (multiSpec.stepIndex < multiSpec.checks.length - 1) {
+      multiSpec.stepIndex += 1;
+      var nextCheck = multiSpec.checks[multiSpec.stepIndex];
+      state.gmFlow.abilityCheckSpec = { target: nextCheck.target, statKey: nextCheck.statKey, markerLabel: null };
+      abilityCheckRolls = {};
+      renderAbilityCheckModal();
+      Core.saveState();
+      return;
+    }
+    var entries = entered.map(function (c) {
+      var rounds = multiSpec.results[c.id] || [];
+      var passCount = rounds.filter(function (r) {
+        return r.passed;
+      }).length;
+      return window.I18N.t("gm_flow_multi_stat_check_result_entry", { name: c.name, pass: passCount, total: rounds.length });
+    });
+    state.turnMessages.push({
+      text: window.I18N.t("gm_flow_multi_stat_check_summary_log", { results: entries.join("、") }),
+      time: Date.now(),
+      side: "gm",
+    });
+    var modalEl = document.getElementById("ability-check-modal");
+    if (modalEl) modalEl.hidden = true;
+    state.gmFlow.abilityCheckSpec = null;
+    state.gmFlow.multiStatCheckSpec = null;
+    state.gmFlow.actionKind = "ok";
+    var walk = state.gmFlow.walk;
+    if (walk && multiSpec.markerLabel) walk.pendingConvergeLabel = multiSpec.markerLabel;
     advanceFieldWalk();
   }
 
@@ -2737,8 +2869,41 @@
       }
       return null;
     }
+    // tallyAllモードは書き起こしごとに結果ラベルの命名規則が揺れている（実データ確認済み）：
+    // 「{n}回成功」（水辺の大教会）、「成功{n}回」／「失敗{total}回」（三つ首の獣・狼の気配2）、
+    // 「成功{n}回以上」（狂い火の塔3）。完全一致する回数のラベルを最優先、無ければ「◯回以上」
+    // 系のうち条件を満たす最も厳しい（＝値が大きい）閾値を採用し、0回成功時のみ
+    // 「すべて失敗」「全部失敗」系ラベルもフォールバックとして受け付ける。
+    function findBestTallyOutcomeLine(successCount, totalChecks) {
+      var thresholdBest = null;
+      var thresholdBestN = -1;
+      var zeroFallback = null;
+      for (var li = 0; li < lines.length; li++) {
+        var candLine = lines[li];
+        if (!candLine.label) continue;
+        var ja = candLine.label.ja || "";
+        var exactMatch = /^(\d+)回成功$/.exec(ja) || /^成功(\d+)回$/.exec(ja);
+        if (exactMatch && parseInt(exactMatch[1], 10) === successCount) return candLine;
+        var thresholdMatch = /^(\d+)回以上成功$/.exec(ja) || /^成功(\d+)回以上$/.exec(ja);
+        if (thresholdMatch) {
+          var n = parseInt(thresholdMatch[1], 10);
+          if (successCount >= n && n > thresholdBestN) {
+            thresholdBest = candLine;
+            thresholdBestN = n;
+          }
+        }
+        if (successCount === 0 && !zeroFallback) {
+          var failMatch = /^失敗(\d+)回$/.exec(ja);
+          if (ja === "すべて失敗" || ja === "全部失敗" || (failMatch && parseInt(failMatch[1], 10) === totalChecks)) {
+            zeroFallback = candLine;
+          }
+        }
+      }
+      return thresholdBest || zeroFallback;
+    }
     function finalizeWith(outcomeLabel, outcomeLine) {
-      var marker = outcomeLine ? singleMarkerLabel((outcomeLine.text && outcomeLine.text.ja) || "") : null;
+      var lineMarker = outcomeLine ? singleMarkerLabel((outcomeLine.text && outcomeLine.text.ja) || "") : null;
+      var marker = lineMarker || chain.markerLabel || null;
       state.gmFlow.sequentialChainSpec = null;
       state.gmFlow.cooperativeCheckSpec = null;
       if (marker && walk) {
@@ -2767,8 +2932,9 @@
         Core.renderCurrentLocationStatus();
         return;
       }
-      var tallyLabel = chain.successCount + "回成功";
-      finalizeWith(tallyLabel, findOutcomeLine(tallyLabel));
+      var tallyLine = findBestTallyOutcomeLine(chain.successCount, chain.steps.length);
+      var tallyLabel = tallyLine && tallyLine.label ? tallyLine.label.ja : chain.successCount + "回成功";
+      finalizeWith(tallyLabel, tallyLine);
       return;
     }
 
@@ -3464,6 +3630,11 @@
             });
             actionsEl.appendChild(btn);
           });
+      } else if (state.gmFlow.actionKind === "multiStatIndividualCheck") {
+        // 砦「壺投げのトロル」専用：複数ラウンドはモーダル内で自動的に続く。
+        addActionButton(actionsEl, "gm_flow_ability_check_button", function () {
+          beginMultiStatCheck();
+        });
       } else if (state.gmFlow.actionKind === "branchPointTally" || state.gmFlow.actionKind === "sequentialPairCheck") {
         // 坑道「白い結晶」専用：分岐ポイント累積／連続2種判定のどちらも同じ1つの
         // ［判定發生］ボタンで開始する（複数ラウンド/ステップはモーダル内で自動的に続く）。
@@ -3539,6 +3710,7 @@
     parseSequentialCoopTallyCheck: parseSequentialCoopTallyCheck,
     parseOpenEndedTallyCheck: parseOpenEndedTallyCheck,
     parseRepresentativePickCheck: parseRepresentativePickCheck,
+    parseMultiStatIndividualCheck: parseMultiStatIndividualCheck,
     resolveAndAddCombatEnemies: resolveAndAddCombatEnemies,
     extractLevelAndNameTokens: extractLevelAndNameTokens,
     fieldLevelCorrectionForSlot: fieldLevelCorrectionForSlot,

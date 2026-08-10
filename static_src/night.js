@@ -833,8 +833,9 @@
       // actionKind==="conditionalCooperativeChoice"のときの{options:[{label,target,perPC,statKey}, {label,target,perPC,statKey}]}
       // （湖沼(睡)専用：祭壇に興味があるか先に選ばせてから使う協力式判定を決める）
       conditionalCooperativeChoiceSpec: null,
-      // actionKind==="sequentialCooperativeChain"のときの{mode,steps:[{target,statKey}, ...],stepIndex,successCount,awaitingContinue}
-      // （東の地下砦「入り組んだ地下の回廊」／水辺の大教会「正面から（梅花）」専用：協力式判定を順番に連鎖させる）
+      // actionKind==="sequentialCooperativeChain"のときの{mode,steps:[{target,statKey}, ...],stepIndex,successCount,awaitingContinue,markerLabel}
+      // （東の地下砦「入り組んだ地下の回廊」／水辺の大教会「正面から（梅花）」／発狂地帯「狂い火の塔3」／
+      // 襲撃「三つ首の獣」「狼の気配2」専用：協力式判定を順番／連続で連鎖させる）
       sequentialChainSpec: null,
       // actionKind==="openEndedTallyCheck"のときの{target,statKey,successThreshold,failEscalationStep,successCount,failCount,successLineJaLabel}
       // （水辺の大教会「水辺を抜けて横の瓦礫から」専用：任意のPCが目標成功回数に達するまで判定を繰り返す）
@@ -842,6 +843,9 @@
       // actionKind==="representativePickCheck"のときの{repTarget,repStat,othersTarget,othersStat}
       // （大野営地「火の戦車」専用：代表者1人＋それ以外の入場PC全員でそれぞれ異なる目標値の判定を行う）
       representativePickSpec: null,
+      // actionKind==="multiStatIndividualCheck"のときの{checks:[{target,statKey}, ...],stepIndex,results,markerLabel}
+      // （砦「壺投げのトロル」専用：PC全員がそれぞれ異なる屬性の判定を複数回行う）
+      multiStatCheckSpec: null,
       freeFloorOptions: [], // actionKind==="freeFloorChoice"のときに提示する未踏破position（1始まり）の配列（路線自由カード用）
       // actionKind==="battleWait"の間trueなら、エネミーの全HP行が0になった瞬間
       // （night.jsのsetActionPhase、combatEndオプション経由）に自動で敘述の続きへ進める。
@@ -1872,6 +1876,7 @@
             "sequentialCooperativeChain",
             "openEndedTallyCheck",
             "representativePickCheck",
+            "multiStatIndividualCheck",
             "freeFloorChoice",
             "battleWait",
             "chipOffer",
@@ -1966,6 +1971,7 @@
                 stepIndex: typeof loadedGmFlow.sequentialChainSpec.stepIndex === "number" ? loadedGmFlow.sequentialChainSpec.stepIndex : 0,
                 successCount: typeof loadedGmFlow.sequentialChainSpec.successCount === "number" ? loadedGmFlow.sequentialChainSpec.successCount : 0,
                 awaitingContinue: !!loadedGmFlow.sequentialChainSpec.awaitingContinue,
+                markerLabel: typeof loadedGmFlow.sequentialChainSpec.markerLabel === "string" ? loadedGmFlow.sequentialChainSpec.markerLabel : null,
               }
             : null,
         openEndedTallySpec:
@@ -1996,6 +2002,19 @@
                 repStat: loadedGmFlow.representativePickSpec.repStat,
                 othersTarget: loadedGmFlow.representativePickSpec.othersTarget,
                 othersStat: loadedGmFlow.representativePickSpec.othersStat,
+              }
+            : null,
+        // ラウンド途中の擲骰履歴（results）はモーダルの一時state（abilityCheckRolls）と同様
+        // リロードで復元しない——checks／markerLabelだけ復元し、最初のラウンドからやり直す。
+        multiStatCheckSpec:
+          loadedGmFlow.multiStatCheckSpec && Array.isArray(loadedGmFlow.multiStatCheckSpec.checks) && loadedGmFlow.multiStatCheckSpec.checks.length >= 2
+            ? {
+                checks: loadedGmFlow.multiStatCheckSpec.checks.map(function (chk) {
+                  return { target: typeof chk.target === "number" ? chk.target : 0, statKey: typeof chk.statKey === "string" ? chk.statKey : "luck" };
+                }),
+                stepIndex: 0,
+                results: {},
+                markerLabel: typeof loadedGmFlow.multiStatCheckSpec.markerLabel === "string" ? loadedGmFlow.multiStatCheckSpec.markerLabel : null,
               }
             : null,
         freeFloorOptions: Array.isArray(loadedGmFlow.freeFloorOptions) ? loadedGmFlow.freeFloorOptions : [],
@@ -2095,6 +2114,7 @@
       sequentialChainSpec: null,
       openEndedTallySpec: null,
       representativePickSpec: null,
+      multiStatCheckSpec: null,
       freeFloorOptions: [],
       battleWaitActive: false,
       pendingFinalFloorSlot: null,
