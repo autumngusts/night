@@ -2154,7 +2154,7 @@ button {
 
 .enemy-damage-pc-list-header {
   display: grid;
-  grid-template-columns: 1fr auto auto;
+  grid-template-columns: 1fr auto auto auto auto auto;
   gap: 0.5rem;
   font-size: 0.78rem;
   color: #666;
@@ -2163,9 +2163,19 @@ button {
 
 .enemy-damage-pc-row {
   display: grid;
-  grid-template-columns: 1fr auto auto;
+  grid-template-columns: 1fr auto auto auto auto auto;
   gap: 0.5rem;
   align-items: center;
+}
+
+.enemy-damage-pc-row.confirmed {
+  opacity: 0.5;
+}
+
+.enemy-damage-hp-loss-value {
+  font-weight: 700;
+  min-width: 1.5em;
+  text-align: center;
 }
 
 .dice-status-label {

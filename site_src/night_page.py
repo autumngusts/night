@@ -243,11 +243,13 @@ BODY = """    <div class="night-header-row">
             <span data-i18n="enemy_damage_col_name"></span>
             <span data-i18n="enemy_damage_col_group"></span>
             <span data-i18n="enemy_damage_col_individual"></span>
+            <span data-i18n="enemy_damage_col_hp_value"></span>
+            <span data-i18n="enemy_damage_col_hp_loss"></span>
+            <span></span>
           </div>
           <div id="enemy-damage-pc-list"></div>
           <div class="actions">
             <button id="btn-enemy-damage-cancel" type="button" data-i18n="cancel_button"></button>
-            <button id="btn-enemy-damage-confirm" type="button" class="primary-btn" data-i18n="enemy_damage_confirm_button"></button>
           </div>
         </div>
       </div>

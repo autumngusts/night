@@ -71,6 +71,34 @@
     activeTimers.set(el, timer);
   }
 
+  // 自動化GM 戰鬥自動化：使用者確認、進度版の敘述が「既存の文字＋追加の1段落」という形で
+  // 増える場合（戰鬥中、玩家が1人ずつ「已完成」を押すたびに自分の行だけ追加される等）、
+  // 既に表示済みの部分は保持したまま、増えた差分だけを打字する（既存文字を毎回頭から
+  // 読み直させない）。prefixTextはそのまま即時表示し、delta（新規追加分）だけアニメーションする。
+  function typewriteAppend(el, prefixText, fullText, opts) {
+    opts = opts || {};
+    var chunkSize = opts.chunkSize || 2;
+    var intervalMs = opts.intervalMs || 28;
+    stopTypewriter(el);
+    el.textContent = prefixText;
+    var delta = fullText.slice(prefixText.length);
+    if (!delta) {
+      if (opts.onDone) opts.onDone();
+      return;
+    }
+    el.classList.add("gm-flow-typing");
+    var i = 0;
+    var timer = setInterval(function () {
+      i += chunkSize;
+      el.textContent = prefixText + delta.slice(0, i);
+      if (i >= delta.length) {
+        stopTypewriter(el);
+        if (opts.onDone) opts.onDone();
+      }
+    }, intervalMs);
+    activeTimers.set(el, timer);
+  }
+
   // ---- 夜の王〔開場〕の取得（第11項） ----
   function extractOpeningText(section) {
     var blocks = section.blocks || [];
@@ -129,7 +157,16 @@
       p.textContent = text; // 同じ敘述の再描画（他の状態変化での再render）はアニメーションし直さない
       return;
     }
+    var previous = lastTypedNarration;
     lastTypedNarration = text;
+    // 自動化GM 戰鬥自動化：新しい敘述が「既存の敘述＋追加分」という形（戰鬥中、玩家が1人ずつ
+    // 「已完成」を押すたびに自分の行だけ増える等）なら、既存部分は保持したまま増えた差分だけを
+    // 打字する（typewriteAppend）。それ以外（樓層敘述の切替等、内容が丸ごと変わる場合）は
+    // 従来通り最初から打字し直す。
+    if (previous && text.indexOf(previous) === 0) {
+      typewriteAppend(p, previous, text);
+      return;
+    }
     typewriteInto(p, text);
   }
 
