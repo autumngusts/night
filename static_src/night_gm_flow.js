@@ -2182,6 +2182,10 @@
       state.turnMessages.push({ text: text, time: Date.now(), side: "gm" });
     });
 
+    // 自動化GM 戰鬥自動化：使用者確認、公開情報として遭遇した敵人（名稱／等級／種族／尺寸／HP、
+    // 雜兵の有無とそのHP）を進度版の敘述に含める（docs/combat_flow_rules.md §4）。
+    var encounterSummary = Core.buildEncounterSummaryText ? Core.buildEncounterSummaryText() : "";
+    if (encounterSummary) narrationParts.push(encounterSummary);
     narrationParts.push(window.I18N.t("gm_flow_combat_in_progress_narration"));
     walk.lineIndex = collected.nextIndex;
     state.gmFlow.narrationText = narrationParts.join("\n");

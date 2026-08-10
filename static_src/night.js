@@ -726,6 +726,16 @@
       roundStage: "awaitingRoll",
       // 本回合已完成動作的角色（key=角色id、value=true）。每次phase切換都清空。
       roundActionsDone: {},
+      // 每個角色按下「已完成」當下擷取的行動說明文字（key=角色id、value=文字行陣列），
+      // 顯示在進度版敘述中。每次phase切換都清空。
+      roundActionLog: {},
+      // [攻擊]/[防禦]確認後、[結束回合]前顯示在進度版的結算文字（roundStage==="resolving"時使用）。
+      roundResultText: null,
+      // 防禦階段全員擲骰完成時，autoTriggerDefenseRollが自動擲出的敵方行動結果，用來讓GM之後
+      // 打開#enemy-damage-modal時復原相同數值（不重新擲骰）。
+      pendingDefenseRoll: null,
+      // 防禦階段全員擲骰完成時，顯示在進度版的AutoGM擲骰速報文字（亂戰/個別傷害內訳＋各PC預估損害）。
+      defenseRollPreviewText: null,
     };
   }
 
@@ -1167,7 +1177,33 @@
       simplifiedCombatEndPending: !!raw.simplifiedCombatEndPending,
       roundStage: ["awaitingRoll", "acting", "resolving"].indexOf(raw.roundStage) !== -1 ? raw.roundStage : "awaitingRoll",
       roundActionsDone: loadBoolMap(raw.roundActionsDone),
+      roundActionLog: loadStringArrayMap(raw.roundActionLog),
+      roundResultText: typeof raw.roundResultText === "string" ? raw.roundResultText : null,
+      pendingDefenseRoll:
+        raw.pendingDefenseRoll && typeof raw.pendingDefenseRoll === "object"
+          ? {
+              enemyKey: typeof raw.pendingDefenseRoll.enemyKey === "string" ? raw.pendingDefenseRoll.enemyKey : null,
+              group: loadNumberMap(raw.pendingDefenseRoll.group),
+              individual: loadNumberMap(raw.pendingDefenseRoll.individual),
+            }
+          : null,
+      defenseRollPreviewText: typeof raw.defenseRollPreviewText === "string" ? raw.defenseRollPreviewText : null,
     };
+  }
+
+  // roundActionLog（key=角色id、value=文字行陣列）の読み込み専用ヘルパー。
+  function loadStringArrayMap(raw) {
+    var out = {};
+    if (raw && typeof raw === "object") {
+      Object.keys(raw).forEach(function (key) {
+        if (Array.isArray(raw[key])) {
+          out[key] = raw[key].filter(function (v) {
+            return typeof v === "string";
+          });
+        }
+      });
+    }
+    return out;
   }
 
   // 屬性/異常面板の「受け取った」欄で選べる、屬性／異常の名称一覧。武器の共通戦技
@@ -6998,6 +7034,47 @@
     return any;
   }
 
+  // 自動化GM 戰鬥自動化：進度版で戰鬥開始時に公開する「遭遇した敵人」情報（名稱／等級／種族／
+  // 尺寸／HP、雜兵の有無とそのHP）のテキストを組み立てる（docs/combat_flow_rules.md §4
+  // 「公開情報」に対応）。night_gm_flow.jsのhandleCombatTriggerClickからwindow.PriTestNightCore
+  // 経由で呼ばれる。
+  function buildEncounterSummaryText() {
+    var Enemies = window.PriTestEnemies;
+    if (!Enemies) return "";
+    var T = Enemies.localizedText;
+    var ids = (state.battle && state.battle.selectedEnemyIds) || [];
+    var lines = [];
+    ids.forEach(function (key) {
+      var parts = key.split("|");
+      var info = Enemies.get(parts[0], parts[1]);
+      if (!info) return;
+      var level = Math.max(1, Number(parts[2]) || 1);
+      var lvRow = (info.familyBase || []).filter(function (lv) {
+        return lv.level === level;
+      })[0];
+      var lineParts = [
+        T(info.enemy.name),
+        window.I18N.t("enemy_level_label") + window.I18N.t("colon_separator") + level,
+        T(info.familyName),
+        info.enemy.size || "-",
+      ];
+      if (lvRow && lvRow.hp) {
+        lineParts.push(window.I18N.t("enemy_hp_label") + window.I18N.t("colon_separator") + lvRow.hp);
+      }
+      lines.push(lineParts.join("　"));
+    });
+    if (state.battle.mobHpRows && state.battle.mobHpRows.length) {
+      var mobTotal = 0;
+      var mobChecked = 0;
+      state.battle.mobHpRows.forEach(function (row) {
+        mobTotal += row.length;
+        mobChecked += row.filter(Boolean).length;
+      });
+      lines.push(window.I18N.t("gm_flow_encounter_mob_line", { current: mobChecked, max: mobTotal }));
+    }
+    return lines.join("\n");
+  }
+
   // 自動化GM 戰鬥自動化：簡易戰鬥（docs/combat_flow_rules.md §6）の第1回合が終わった時点で
   // 「追擊損害」として全體玩家へ与えるダメージ量（使用者裁定：敵人剩餘HPと同じ値、GM畫面に
   // 表示されている「現在HP」＝各HP行のチェック済み方格数の合計と同じ読み取り方）。
@@ -7062,17 +7139,67 @@
   // 呼ばれる（getRoundStageNarrationTextは文字列を返すだけ、renderBattleRoundActionButtonsは
   // 渡されたactionsEl＝#location-status-actionsへ直接描画する）。
 
-  // 進度版に出す敘述文字（「請擲骰！」「攻擊中！」等）。combat/extra/defense以外はnullを返し、
-  // 呼び出し側は既存の静的敘述（state.gmFlow.narrationText）にフォールバックする。
+  // c.pendingActionBoxes（既存、戰鬥中の攻擊/技能確定のたびaddActionBoxが積んでいる）から、
+  // kind:"enemyDamage"（受けた傷害用の置頂記録）を除いた「この角色が本フェイズ行った行動」
+  // だけを読み取り、進度版に出す説明文字（傷害・破防・屬性蓄積・特效を含む既存のtitle/total/
+  // linesをそのまま使う）へ整形する。新しい計算は行わず、既存のログ内容を再利用するだけ。
+  function buildCharacterActionLogLines(c) {
+    var boxes = (c.pendingActionBoxes || []).filter(function (b) {
+      return b.kind !== "enemyDamage";
+    });
+    if (!boxes.length) {
+      return [window.I18N.t("gm_flow_battle_action_none", { character: c.name })];
+    }
+    var lines = [window.I18N.t("gm_flow_battle_action_header", { character: c.name })];
+    boxes.forEach(function (box) {
+      lines.push("・" + (box.total ? box.title + "｜" + box.total : box.title));
+      (box.lines || []).forEach(function (l) {
+        lines.push("　" + l);
+      });
+    });
+    return lines;
+  }
+
+  // 進度版に出す敘述文字（「請擲骰！」「攻擊中！」等＋各角色の行動說明＋回合結算）。
+  // combat/extra/defense以外はnullを返し、呼び出し側は既存の静的敘述
+  // （state.gmFlow.narrationText）にフォールバックする。
   function getRoundStageNarrationText() {
     var phase = state.actionPhase;
     if (phase !== "combat" && phase !== "extra" && phase !== "defense") return null;
     var stage = state.battle.roundStage || "awaitingRoll";
-    var stageKey = stage === "awaitingRoll" ? "awaiting_roll" : stage;
-    return window.I18N.t("round_stage_banner_" + phase + "_" + stageKey);
+    var parts = [];
+    if (stage === "resolving" && state.battle.roundResultText) {
+      parts.push(state.battle.roundResultText);
+    } else {
+      var stageKey = stage === "awaitingRoll" ? "awaiting_roll" : stage;
+      parts.push(window.I18N.t("round_stage_banner_" + phase + "_" + stageKey));
+    }
+    if (stage === "acting") {
+      // 防禦フェイズは、全員擲骰完了時にautoTriggerDefenseRollが自動的に敵方行動をロールし、
+      // その速報（亂戰/個別傷害の内訳＋各PCの推定損害）をここに出す。
+      if (phase === "defense" && state.battle.defenseRollPreviewText) {
+        parts.push(state.battle.defenseRollPreviewText);
+      }
+      var logParts = [];
+      enteredCharactersForBattle().forEach(function (c) {
+        var lines = state.battle.roundActionLog && state.battle.roundActionLog[c.id];
+        if (lines && lines.length) logParts.push(lines.join("\n"));
+      });
+      if (logParts.length) parts.push(logParts.join("\n\n"));
+      if (allEnteredCharactersActionsDone() && phase !== "defense") {
+        parts.push(
+          window.I18N.t("gm_flow_battle_round_damage_summary", {
+            damage: computeRoundDamageTotal(),
+            guard: computeRoundGuardReductionTotal(),
+          })
+        );
+      }
+    }
+    return parts.join("\n\n");
   }
 
-  // 進度版の按鈕欄へ、本回合の玩家「已完成」按鈕列＋[攻擊/防禦][返回]を描画する。
+  // 進度版の按鈕欄へ、本回合の玩家「已完成」按鈕列（未完了時）または[攻擊/防禦][返回]
+  // （全員完了後）または[結束回合]（roundStage==="resolving"時）を描画する。
   // roundStage==="awaitingRoll"の間はまだ誰も骰子を振り終えていないため何も描画しない
   // （既存のbattleWait＝「按鈕なしで待つ」挙動のまま）。戻り値は「何か描画したか」の真偽値
   // （呼び出し側が既存のcombatTrigger等の按鈕と混同しないための判定に使う）。
@@ -7082,22 +7209,43 @@
     if (phase !== "combat" && phase !== "extra" && phase !== "defense") return false;
     var stage = state.battle.roundStage || "awaitingRoll";
     if (stage === "awaitingRoll") return false;
-    enteredCharactersForBattle().forEach(function (c) {
-      var btn = document.createElement("button");
-      btn.type = "button";
-      btn.className = "gm-flow-action-btn";
-      // 「已完成」状態は、既存の「建議」ハイライトclass（gm-flow-suggested、通常は突破判定の
-      // 建議選択肢に使う）を流用して表現する（新規CSSを増やさない）。
-      if (state.battle.roundActionsDone[c.id]) btn.classList.add("gm-flow-suggested");
-      btn.textContent = c.name;
-      btn.addEventListener("click", function () {
-        state.battle.roundActionsDone[c.id] = !state.battle.roundActionsDone[c.id];
-        saveState();
-        renderCurrentLocationStatus();
+    if (stage === "resolving") {
+      // 結果文字は敘述側（getRoundStageNarrationText）に出す。ここは[結束回合]のみ
+      // （角色按鈕・[攻擊/防禦][返回]は一時的に隱藏する）。
+      var endBtn = document.createElement("button");
+      endBtn.type = "button";
+      endBtn.className = "gm-flow-action-btn";
+      endBtn.textContent = window.I18N.t("battle_turn_end_round_button");
+      endBtn.addEventListener("click", handleBattleTurnEndRoundClick);
+      actionsEl.appendChild(endBtn);
+      return true;
+    }
+    var allDone = allEnteredCharactersActionsDone();
+    if (!allDone) {
+      enteredCharactersForBattle().forEach(function (c) {
+        var btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "gm-flow-action-btn";
+        // 「已完成」状態は、既存の「建議」ハイライトclass（gm-flow-suggested、通常は突破判定の
+        // 建議選択肢に使う）を流用して表現する（新規CSSを増やさない）。
+        if (state.battle.roundActionsDone[c.id]) btn.classList.add("gm-flow-suggested");
+        btn.textContent = c.name;
+        btn.addEventListener("click", function () {
+          var nowDone = !state.battle.roundActionsDone[c.id];
+          state.battle.roundActionsDone[c.id] = nowDone;
+          if (!state.battle.roundActionLog) state.battle.roundActionLog = {};
+          if (nowDone) {
+            state.battle.roundActionLog[c.id] = buildCharacterActionLogLines(c);
+          } else {
+            delete state.battle.roundActionLog[c.id];
+          }
+          saveState();
+          renderCurrentLocationStatus();
+        });
+        actionsEl.appendChild(btn);
       });
-      actionsEl.appendChild(btn);
-    });
-    if (allEnteredCharactersActionsDone()) {
+    } else {
+      // 使用者確認：全員「已完成」を押した後は角色按鈕を一時的に隱藏し、[攻擊/防禦][返回]だけを出す。
       var returnBtn = document.createElement("button");
       returnBtn.type = "button";
       returnBtn.className = "gm-flow-action-btn";
@@ -7119,12 +7267,13 @@
 
   function handleBattleTurnReturnClick() {
     state.battle.roundActionsDone = {};
+    state.battle.roundActionLog = {};
     saveState();
     renderCurrentLocationStatus();
   }
 
   // 自動化GM 戰鬥自動化：使用者確認、行動階段の切替はGMが「行動階段」ボタンを手動で押す
-  // 必要はなく、[攻擊]/[防禦]確認のたびに自動化GMが次のフェイズを決めて自動的に切り替える
+  // 必要はなく、[結束回合]確認のたびに自動化GMが次のフェイズを決めて自動的に切り替える
   // （戰鬥→（體勢崩し時のみ）額外→防禦→戰鬥…の順、docs/combat_flow_rules.md §3）。
   // 敵人全滅で既にcombatEnd（一般行動）へ自動的に戻っている場合は何もしない
   // （handleEnemyHpChanged経由、applyGuardedDamageToEnemyの呼び出し内で既に起きている）。
@@ -7146,8 +7295,9 @@
   // [攻擊]／[防禦]確認。combat/extraフェイズでは、既存の「防禦次數／HP價值計算機」
   // （battle-guard-calc-block、battle-drawer内のGM専用ツール）の入力欄へ本回合の彙總値を
   // 自動預填してから、既存のhandleBattleGuardCalcApply()をそのまま呼ぶ（applyGuardedDamageToEnemy
-  // を直接叩く専用経路は新設しない、既存Guard計算機と同じ挙動を保つ）。防禦フェイズは
-  // 既存の#enemy-damage-modalを開くだけ（roundActionsDone/roundStageの解決とフェイズ自動遷移は
+  // を直接叩く専用経路は新設しない、既存Guard計算機と同じ挙動を保つ）。結果文字だけ進度版へ
+  // 表示し、実際のフェイズ遷移は[結束回合]（handleBattleTurnEndRoundClick）まで待つ。
+  // 防禦フェイズは既存の#enemy-damage-modalを開くだけ（結果文字とフェイズ自動遷移の準備は
   // GMがモーダル内で確認した瞬間＝handleEnemyDamageConfirmの末尾で行う）。
   function handleBattleTurnConfirmClick() {
     if (state.actionPhase === "defense") {
@@ -7156,13 +7306,30 @@
     }
     var damageInput = document.getElementById("battle-guard-calc-damage-input");
     var reductionInput = document.getElementById("battle-guard-calc-reduction-input");
+    var resultText = "";
     if (damageInput && reductionInput) {
       damageInput.value = String(computeRoundDamageTotal());
       reductionInput.value = String(computeRoundGuardReductionTotal());
       handleBattleGuardCalcApply();
+      var resultEl = document.getElementById("battle-guard-calc-result");
+      resultText = resultEl ? resultEl.textContent : "";
     }
-    state.battle.roundActionsDone = {};
+    if (state.actionPhase === "normal") {
+      // 敵人がこの攻擊で全滅し、既にcombatEndで一般行動へ自動的に戻っている
+      // （handleEnemyHpChanged経由）。[結束回合]は不要、進度版の表示だけ最新化する。
+      renderCurrentLocationStatus();
+      return;
+    }
+    state.battle.roundResultText = resultText;
     state.battle.roundStage = "resolving";
+    saveState();
+    renderCurrentLocationStatus();
+  }
+
+  // [結束回合]：使用者が結果文字を確認した後にクリックし、ここで初めて自動化GMが
+  // 次のフェイズへ実際に切り替える（autoAdvanceBattlePhase、docs/combat_flow_rules.md §3）。
+  function handleBattleTurnEndRoundClick() {
+    state.battle.roundResultText = null;
     saveState();
     autoAdvanceBattlePhase();
   }
@@ -7717,6 +7884,11 @@
     ) {
       state.battle.roundStage = "acting";
       saveState();
+      // 自動化GM 戰鬥自動化：防禦フェイズは、全員の防禦體力骰が揃った瞬間にAutoGMの
+      // 敵方行動ロールを自動実行し、結果（亂戰傷害／個別傷害の内訳と各PCの推定損害）を
+      // 進度版へ表示する（GMが後で[防禦]を押した時に開くモーダルは、ここで確定した
+      // 同じ数値を復元するだけで再擲骰はしない）。
+      if (state.actionPhase === "defense") autoTriggerDefenseRoll();
     }
     renderCurrentLocationStatus();
   }
@@ -7727,6 +7899,10 @@
     btn.textContent = window.I18N.t("action_phase_" + state.actionPhase);
     // 階段ごとの配色（style.css .action-phase-btn[data-phase="..."]）を切り替えるための目印。
     btn.dataset.phase = state.actionPhase;
+    // 自動化GM 戰鬥自動化：使用者確認、戰鬥が自動化GM（進度版のbattleWait）に委ねられている間は
+    // 手動の「行動階段」切替ボタンを表示しない（管理員は進度版の敘述だけで現在階段を把握できる。
+    // 前端のこのボタン自体は削除せず、非戰鬥時や手動編成した戰鬥では引き続き使える）。
+    btn.hidden = !!(state.gmFlow && state.gmFlow.battleWaitActive);
     document.querySelectorAll(".action-phase-grid button[data-phase]").forEach(function (phaseBtn) {
       phaseBtn.classList.toggle("active", phaseBtn.dataset.phase === state.actionPhase);
     });
@@ -7968,6 +8144,9 @@
     var entered = rosterCharacters.filter(function (c) {
       return c.entered;
     });
+    // 自動化GM 戰鬥自動化：全員擲骰完了時にautoTriggerDefenseRollが既に自動擲骰済みなら、
+    // その結果（state.battle.pendingDefenseRoll）を初期値として復元する（再擲骰しない）。
+    var pending = state.battle.pendingDefenseRoll;
     entered.forEach(function (c) {
       var row = document.createElement("div");
       row.className = "wb-row enemy-damage-pc-row";
@@ -7978,18 +8157,70 @@
       groupInput.type = "number";
       groupInput.className = "stat-input";
       groupInput.min = "0";
-      groupInput.value = "0";
+      groupInput.value = pending && pending.group && typeof pending.group[c.id] === "number" ? String(pending.group[c.id]) : "0";
       groupInput.id = "enemy-damage-group-" + c.id;
       row.appendChild(groupInput);
       var individualInput = document.createElement("input");
       individualInput.type = "number";
       individualInput.className = "stat-input";
       individualInput.min = "0";
-      individualInput.value = "0";
+      individualInput.value =
+        pending && pending.individual && typeof pending.individual[c.id] === "number" ? String(pending.individual[c.id]) : "0";
       individualInput.id = "enemy-damage-individual-" + c.id;
       row.appendChild(individualInput);
       list.appendChild(row);
     });
+  }
+
+  // 自動化GM 戰鬥自動化：全員が防禦體力骰を振り終えた瞬間に1回だけ呼ばれる。既存の
+  // AutoGM敵方行動ロール鏈（rollEnemyAction→computeGroupDamage/computeIndividualDamage、
+  // handleAutoGmRollClickが内部で行う）をモーダルを開かずに裏側で実行し、結果を
+  // state.battle.pendingDefenseRoll（モーダルを開いた時に復元する数値）と
+  // state.battle.defenseRollPreviewText（進度版に出す速報文字）へ保存する。
+  // state.autoGmEnabledがfalse、または構造化済みの敵人が無い場合は何もしない
+  // （従来通りGMがモーダル内で手動入力／手動でAutoGM擲騎を押す運用にフォールバックする）。
+  function autoTriggerDefenseRoll() {
+    var AutoGm = window.PriTestAutoGm;
+    if (!state.autoGmEnabled || !AutoGm) return;
+    var structuredIds = ((state.battle && state.battle.selectedEnemyIds) || []).filter(function (key) {
+      return AutoGm.isStructured(key);
+    });
+    if (game && game.night3BossId && AutoGm.isStructured("boss|" + game.night3BossId)) {
+      structuredIds = structuredIds.concat(["boss|" + game.night3BossId]);
+    }
+    if (!structuredIds.length) return;
+    renderEnemyDamageModal();
+    var select = document.getElementById("auto-gm-enemy-select");
+    if (select && structuredIds.indexOf(select.value) === -1) select.value = structuredIds[0];
+    handleAutoGmRollClick();
+    var entered = rosterCharacters.filter(function (c) {
+      return c.entered;
+    });
+    var group = {};
+    var individual = {};
+    var previewParts = [];
+    entered.forEach(function (c) {
+      var groupInputEl = document.getElementById("enemy-damage-group-" + c.id);
+      var individualInputEl = document.getElementById("enemy-damage-individual-" + c.id);
+      var gv = groupInputEl ? parseInt(groupInputEl.value, 10) || 0 : 0;
+      var iv = individualInputEl ? parseInt(individualInputEl.value, 10) || 0 : 0;
+      group[c.id] = gv;
+      individual[c.id] = iv;
+      previewParts.push(
+        c.name +
+          window.I18N.t("colon_separator") +
+          window.I18N.t("enemy_damage_group_short_label") +
+          gv +
+          "／" +
+          window.I18N.t("enemy_damage_individual_short_label") +
+          iv
+      );
+    });
+    var resultEl = document.getElementById("auto-gm-roll-result");
+    var breakdownText = resultEl ? resultEl.textContent : "";
+    state.battle.pendingDefenseRoll = { enemyKey: select ? select.value : null, group: group, individual: individual };
+    state.battle.defenseRollPreviewText = [breakdownText, previewParts.join("\n")].filter(Boolean).join("\n");
+    saveState();
   }
 
   function handleEnemyDamageConfirm() {
@@ -8043,14 +8274,16 @@
     closeEnemyDamageModal();
     renderCharacterRoster();
     // 自動化GM 戰鬥自動化：防禦フェイズの本回合が確定した瞬間（このモーダルの確認）を
-    // もって「已完成」按鈕列をクリアし、次の戰鬥階段（新しい回合）へ自動的に進める
-    // （combat/extraフェイズのhandleBattleTurnConfirmClickと同じ役目、defenseはこの
-    // モーダル確定がその代わりを果たす）。
+    // もって、各玩家が実際に受けたHP損害（individualParts、既存のまま再利用）を進度版へ
+    // 表示し、[結束回合]が押されるまでフェイズ遷移は待つ（combat/extraフェイズの
+    // handleBattleTurnConfirmClickと同じ役目、defenseはこのモーダル確定がその代わりを果たす）。
     if (state.actionPhase === "defense") {
-      state.battle.roundActionsDone = {};
+      state.battle.roundResultText = individualParts.length
+        ? window.I18N.t("gm_flow_battle_defense_result_header") + "\n" + individualParts.join("\n")
+        : null;
       state.battle.roundStage = "resolving";
       saveState();
-      autoAdvanceBattlePhase();
+      renderCurrentLocationStatus();
     }
   }
 
@@ -9051,6 +9284,10 @@
       closeActionPhaseModal();
       state.battle.simplifiedCombatEndPending = true;
       state.battle.roundActionsDone = {};
+      state.battle.roundActionLog = {};
+      state.battle.roundResultText = null;
+      state.battle.pendingDefenseRoll = null;
+      state.battle.defenseRollPreviewText = null;
       state.battle.roundStage = "awaitingRoll";
       saveState();
       renderSimplifiedCombatEndPrompt();
@@ -9190,6 +9427,10 @@
     // フェイズが切り替わるたびにクリアする（combat/extra/defenseへ入るたびに"awaitingRoll"
     // から始める。normalへ戻る場合はbanner非表示になるため値を問わない）。
     state.battle.roundActionsDone = {};
+    state.battle.roundActionLog = {};
+    state.battle.roundResultText = null;
+    state.battle.pendingDefenseRoll = null;
+    state.battle.defenseRollPreviewText = null;
     state.battle.roundStage = "awaitingRoll";
     // GM／玩家が同時にプレイしなくてもよいよう、行動階段が切り替わるたびに「今の番」を
     // 必ずGM側へ戻す（GMが状況を確認・反応してから、改めて玩家へ番を渡す運用を想定）。
@@ -11461,6 +11702,7 @@
     // 自動化GM 戰鬥自動化：進度版（night_gm_flow.jsのrenderLocationBanner）から呼ばれる。
     getRoundStageNarrationText: getRoundStageNarrationText,
     renderBattleRoundActionButtons: renderBattleRoundActionButtons,
+    buildEncounterSummaryText: buildEncounterSummaryText,
     buildBossTable: buildBossTable,
     markFloorRewardObtained: markFloorRewardObtained,
     openItemDrawModal: openItemDrawModal,
