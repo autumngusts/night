@@ -3083,6 +3083,10 @@ button {
   background: #2b6ac9;
 }
 
+.dice-hand-draw-restore-btn {
+  bottom: 13rem;
+}
+
 /* 上限超過（要解決）は他の縮小ボタンより優先度が高いため、スタッキングの最上位に置く。 */
 .inventory-overflow-restore-btn {
   bottom: 13rem;
