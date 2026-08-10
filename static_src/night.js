@@ -8068,6 +8068,21 @@
     });
     if (hasUnclaimed) {
       if (!window.confirm(window.I18N.t("turn_reward_close_confirm"))) return;
+      // フロアの戦利品から自動pushされた項目（sourceFloorRewardKey付き）は、push済みフラグ
+      // （state.floorRewardObtained）を立てて二重pushを防いでいるため、放棄でそのまま消すと
+      // 二度と積み直せない＝GMの手入力以外に復旧手段が無くなる。放棄時はフラグも一緒に消し、
+      // 同じフロアの獲得口をもう一度開けば再pushできる状態へ戻す。
+      // ただし1つのpush済みフラグが複数項目（例：潛在之力＝入場PC人数分）に対応する場合、
+      // 一部だけ獲得済みの状態でフラグを消すと、再pushで獲得済みの分まで復活してしまう。
+      // 獲得済み項目が1つでも残っているキーはそのままにする。
+      var claimedKeys = {};
+      state.turnRewards.forEach(function (r) {
+        if (r.claimed && r.sourceFloorRewardKey) claimedKeys[r.sourceFloorRewardKey] = true;
+      });
+      state.turnRewards.forEach(function (r) {
+        if (r.claimed || !r.sourceFloorRewardKey || claimedKeys[r.sourceFloorRewardKey]) return;
+        if (state.floorRewardObtained) delete state.floorRewardObtained[r.sourceFloorRewardKey];
+      });
       state.turnRewards = state.turnRewards.filter(function (r) {
         return r.claimed;
       });

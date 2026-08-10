@@ -78,7 +78,12 @@
       return c.entered;
     });
     var lootObjs = floorAutoLootTurnRewards(floor, entered);
-    document.getElementById("rulebook-modal").hidden = true;
+    // 規則書ブラウズ経由（night_rulebook.jsの「獲得」ボタン）で呼ばれた場合、戦利品だけの
+    // フロアはこの下で早期returnするため、規則書を閉じたままにするとGM側に何も残らない
+    // （行動ログしか手掛かりが無い）。閉じる前の表示状態を控えておき、早期return時だけ戻す。
+    var rulebookModal = document.getElementById("rulebook-modal");
+    var rulebookWasVisible = !!(rulebookModal && !rulebookModal.hidden);
+    if (rulebookModal) rulebookModal.hidden = true;
     if (lootObjs.length) {
       Core.pushTurnRewards(lootObjs);
       window.PriTestNightLog("log_floor_reward_auto_pushed", {
@@ -89,7 +94,10 @@
           .join("、"),
       });
     }
-    if (!floorHasJudgmentReward(floor)) return;
+    if (!floorHasJudgmentReward(floor)) {
+      if (rulebookWasVisible && rulebookModal) rulebookModal.hidden = false;
+      return;
+    }
     floorRewardModalFloor = floor;
     document.getElementById("floor-reward-modal").hidden = false;
     document.getElementById("btn-floor-reward-restore").hidden = true;
@@ -213,6 +221,9 @@
     window.PriTestNightLog("log_floor_reward_dice_hand", { dice: values.join("、"), hand: handLabelText });
     if (matchedHand) {
       var pushed = [];
+      // 役判定は判定ボタンが一度きり（disabled化）で、state.floorRewardObtainedへ
+      // 永続フラグを立てない経路のため、sourceFloorRewardKey（＝放棄時に消すフラグの
+      // 参照先）は持たせない。消すべきフラグがそもそも存在しない。
       (matchedHand.rewards || []).forEach(function (sub, subIndex) {
         pushed = pushed.concat(floorRewardEntryToTurnRewards(sub, diceHandDrawEntry.entered, "diceHand_" + Date.now() + "_" + subIndex));
       });
@@ -331,7 +342,21 @@
 
   // floor.rewardの「戦利品」エントリ1件を、state.turnRewardsへpushする1件以上の
   // オブジェクトへ変換する（実際のpushはfloorAutoLootTurnRewards/pushTurnRewardsが行う）。
-  function floorRewardEntryToTurnRewards(entry, entered, idSuffix) {
+  // sourceKeyを渡すと、生成した各項目へsourceFloorRewardKeyとして刻む。獎勵清單を
+  // 「未獲得のまま閉じる（＝放棄）」した際、night.js側がこのキーを見てstate.floorRewardObtained
+  // の対応フラグも消し、同じフロアを開き直せば再pushできる状態へ戻せるようにするため
+  // （マーカーが無いと、一度きりpush方式のせいで自動戦利品が永久に失われる）。
+  function floorRewardEntryToTurnRewards(entry, entered, idSuffix, sourceKey) {
+    var objs = buildFloorRewardTurnRewards(entry, entered, idSuffix);
+    if (sourceKey) {
+      objs.forEach(function (o) {
+        o.sourceFloorRewardKey = sourceKey;
+      });
+    }
+    return objs;
+  }
+
+  function buildFloorRewardTurnRewards(entry, entered, idSuffix) {
     var Core = window.PriTestNightCore;
     if (entry.kind === "rune" || entry.kind === "chaliceBonus") {
       return [
@@ -402,11 +427,18 @@
     var hasRuneReward = reward.some(function (entry) {
       return entry.kind === "rune";
     });
+    // 段階選択・ダイス役のフロアは、盧恩の額そのものが「どの段階／役になったか」で変わる
+    // （例：封牢(森)の本文「撃破ルーン：3+8」は侵入者が出た場合のみ合計11、出なければ3）。
+    // 本文からの合計値検出でフロア開始時に無条件push＝過剰／時期尚早な付与になるため、
+    // これらのフロアではフォールバック検出を行わず、段階確定／役判定の経路だけでpushする。
+    var hasConditionalReward = reward.some(function (entry) {
+      return entry.kind === "tieredChoice" || entry.kind === "diceHandChoice";
+    });
     reward.forEach(function (entry, entryIndex) {
       if (!isLootRewardEntry(entry)) return;
       var pushKey = floor.__rewardKey ? floor.__rewardKey + "_pushed_" + entryIndex : null;
       if (pushKey && Core.state.floorRewardObtained && Core.state.floorRewardObtained[pushKey]) return;
-      var objs = floorRewardEntryToTurnRewards(entry, entered, (floor.__rewardKey || "floor") + "_" + entryIndex);
+      var objs = floorRewardEntryToTurnRewards(entry, entered, (floor.__rewardKey || "floor") + "_" + entryIndex, pushKey);
       if (!objs.length) return;
       if (pushKey) {
         if (!Core.state.floorRewardObtained) Core.state.floorRewardObtained = {};
@@ -414,7 +446,7 @@
       }
       results = results.concat(objs);
     });
-    if (!hasRuneReward) {
+    if (!hasRuneReward && !hasConditionalReward) {
       var detectedAmount = parseRuneAmountFromText(floorLineText(floor));
       if (detectedAmount) {
         var detectedKey = floor.__rewardKey ? floor.__rewardKey + "_detectedRune_pushed" : null;
@@ -430,6 +462,7 @@
             targetCharacterId: Core.TURN_REWARD_SHARED_TARGET_VALUE,
             value: detectedAmount,
             claimed: false,
+            sourceFloorRewardKey: detectedKey || null,
           });
         }
       }
@@ -469,7 +502,21 @@
     btn.addEventListener("click", function () {
       var value = parseInt(input.value, 10) || 0;
       if (value <= 0) return;
-      grantRuneToAllEntered(value);
+      // 他の報酬と同じく、ロスターへ直接加算せず獎勵清單（state.turnRewards）を経由する
+      // （実際の付与タイミング・対象の確認をGMが一覧上で行えるようにするため）。
+      // ボタン自体の一度きりロック（markFloorRewardObtained）は従来どおり維持する。
+      var runeObjs = [
+        {
+          id: makeTurnRewardId(stateKey || "runeGrantRow"),
+          kind: "rune",
+          targetCharacterId: window.PriTestNightCore.TURN_REWARD_SHARED_TARGET_VALUE,
+          value: value,
+          claimed: false,
+          sourceFloorRewardKey: stateKey || null,
+        },
+      ];
+      window.PriTestNightCore.pushTurnRewards(runeObjs);
+      window.PriTestNightLog("log_floor_reward_auto_pushed", { items: window.I18N.t("turn_reward_kind_rune") });
       input.disabled = true;
       window.PriTestNightCore.markFloorRewardObtained(btn, null, stateKey);
     });
@@ -666,9 +713,41 @@
         var tierLabelText = Fields.localizedText(tier.label);
         window.PriTestNightLog("log_floor_reward_tiered_choice", { tier: tierLabelText });
         window.PriTestNightCore.markFloorRewardObtained(tierConfirmBtn, window.I18N.t("log_floor_reward_tiered_choice", { tier: tierLabelText }));
-        (tier.rewards || []).forEach(function (sub) {
-          renderFloorRewardOption(tierResultContainer, sub, entered);
+        // 段階内の報酬も、トップレベルのreward配列と同じ扱いにする：戦利品種別は
+        // 獎勵清單へ直接push（renderFloorRewardOptionは戦利品を描画しないので、ここで
+        // 再帰させると何も表示されず何も付与されない）、GM判断が要る種別だけ従来通り
+        // この段階の結果欄へ描画する。二重pushはfloorKey＋段階index＋sub indexで防ぐ。
+        var tierIndex = parseInt(tierSelect.value, 10);
+        var tierPushed = [];
+        (tier.rewards || []).forEach(function (sub, subIndex) {
+          if (!isLootRewardEntry(sub)) {
+            renderFloorRewardOption(tierResultContainer, sub, entered);
+            return;
+          }
+          var subKeyBase = (floorKey || "floor") + "_" + (entryIndex === undefined ? "x" : entryIndex) + "_tier" + tierIndex + "_" + subIndex;
+          var subPushKey = floorKey && entryIndex !== undefined ? subKeyBase + "_pushed" : null;
+          if (subPushKey && window.PriTestNightCore.state.floorRewardObtained && window.PriTestNightCore.state.floorRewardObtained[subPushKey]) return;
+          var subObjs = floorRewardEntryToTurnRewards(sub, entered, subKeyBase, subPushKey);
+          if (!subObjs.length) return;
+          if (subPushKey) {
+            if (!window.PriTestNightCore.state.floorRewardObtained) window.PriTestNightCore.state.floorRewardObtained = {};
+            window.PriTestNightCore.state.floorRewardObtained[subPushKey] = true;
+          }
+          tierPushed = tierPushed.concat(subObjs);
         });
+        if (tierPushed.length) {
+          window.PriTestNightCore.pushTurnRewards(tierPushed);
+          var tierPushedItems = tierPushed
+            .map(function (r) {
+              return window.I18N.t("turn_reward_kind_" + r.kind);
+            })
+            .join("、");
+          window.PriTestNightLog("log_floor_reward_auto_pushed", { items: tierPushedItems });
+          var tierPushedP = document.createElement("p");
+          tierPushedP.className = "threat-ref-body";
+          tierPushedP.textContent = window.I18N.t("log_floor_reward_auto_pushed", { items: tierPushedItems });
+          tierResultContainer.appendChild(tierPushedP);
+        }
       });
       tieredRow.appendChild(tierConfirmBtn);
       container.appendChild(tieredRow);
