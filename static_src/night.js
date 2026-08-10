@@ -7055,79 +7055,82 @@
     }, 0);
   }
 
-  // GM敘述提示バナー（「請擲骰！」「攻擊中！」等）。combat/extra/defense以外では非表示。
-  function renderRoundStageBanner() {
-    var el = document.getElementById("battle-round-stage-banner");
-    if (!el) return;
+  // 自動化GM 戰鬥自動化：GM敘述と玩家操作按鈕は、既存の「進度版」（#location-status-overlay、
+  // night_gm_flow.jsのrenderLocationBanner／actionKind==="battleWait"分支）内で完結させる
+  // （使用者確認：戰鬥もgmFlow既存の敘述システムの管轄。地図側やbattle-drawerに別のバナー/
+  // 按鈕列を新設しない）。この2つの関数はwindow.PriTestNightCore経由でnight_gm_flow.jsから
+  // 呼ばれる（getRoundStageNarrationTextは文字列を返すだけ、renderBattleRoundActionButtonsは
+  // 渡されたactionsEl＝#location-status-actionsへ直接描画する）。
+
+  // 進度版に出す敘述文字（「請擲骰！」「攻擊中！」等）。combat/extra/defense以外はnullを返し、
+  // 呼び出し側は既存の静的敘述（state.gmFlow.narrationText）にフォールバックする。
+  function getRoundStageNarrationText() {
     var phase = state.actionPhase;
-    if (phase !== "combat" && phase !== "extra" && phase !== "defense") {
-      el.hidden = true;
-      return;
-    }
+    if (phase !== "combat" && phase !== "extra" && phase !== "defense") return null;
     var stage = state.battle.roundStage || "awaitingRoll";
     var stageKey = stage === "awaitingRoll" ? "awaiting_roll" : stage;
-    el.textContent = window.I18N.t("round_stage_banner_" + phase + "_" + stageKey);
-    el.hidden = false;
+    return window.I18N.t("round_stage_banner_" + phase + "_" + stageKey);
   }
 
-  // 本回合の玩家「已完成」按鈕列＋[攻擊/防禦][返回]。roundStage==="awaitingRoll"の間は
-  // まだ誰も骰子を振り終えていないため非表示（全員擲骰完了でrollDiceForCharacterActionPhase
-  // 側がroundStageを"acting"へ進める）。
-  function renderBattleTurnProgressPanel() {
-    var block = document.getElementById("battle-turn-progress-block");
-    var list = document.getElementById("battle-turn-progress-list");
-    var actionsRow = document.getElementById("battle-turn-progress-actions");
-    var confirmBtn = document.getElementById("btn-battle-turn-confirm");
-    if (!block || !list || !actionsRow || !confirmBtn) return;
+  // 進度版の按鈕欄へ、本回合の玩家「已完成」按鈕列＋[攻擊/防禦][返回]を描画する。
+  // roundStage==="awaitingRoll"の間はまだ誰も骰子を振り終えていないため何も描画しない
+  // （既存のbattleWait＝「按鈕なしで待つ」挙動のまま）。戻り値は「何か描画したか」の真偽値
+  // （呼び出し側が既存のcombatTrigger等の按鈕と混同しないための判定に使う）。
+  function renderBattleRoundActionButtons(actionsEl) {
+    if (!actionsEl) return false;
     var phase = state.actionPhase;
-    if (phase !== "combat" && phase !== "extra" && phase !== "defense") {
-      block.hidden = true;
-      return;
-    }
+    if (phase !== "combat" && phase !== "extra" && phase !== "defense") return false;
     var stage = state.battle.roundStage || "awaitingRoll";
-    if (stage === "awaitingRoll") {
-      block.hidden = true;
-      return;
-    }
-    block.hidden = false;
-    var entered = enteredCharactersForBattle();
-    list.innerHTML = "";
-    entered.forEach(function (c) {
+    if (stage === "awaitingRoll") return false;
+    enteredCharactersForBattle().forEach(function (c) {
       var btn = document.createElement("button");
       btn.type = "button";
-      btn.className = "battle-turn-progress-btn";
-      if (state.battle.roundActionsDone[c.id]) btn.classList.add("active");
+      btn.className = "gm-flow-action-btn";
+      // 「已完成」状態は、既存の「建議」ハイライトclass（gm-flow-suggested、通常は突破判定の
+      // 建議選択肢に使う）を流用して表現する（新規CSSを増やさない）。
+      if (state.battle.roundActionsDone[c.id]) btn.classList.add("gm-flow-suggested");
       btn.textContent = c.name;
       btn.addEventListener("click", function () {
         state.battle.roundActionsDone[c.id] = !state.battle.roundActionsDone[c.id];
         saveState();
-        renderBattleTurnProgressPanel();
+        renderCurrentLocationStatus();
       });
-      list.appendChild(btn);
+      actionsEl.appendChild(btn);
     });
-    var allDone = allEnteredCharactersActionsDone();
-    actionsRow.hidden = !allDone;
-    confirmBtn.textContent = window.I18N.t(
-      phase === "defense" ? "battle_turn_defense_confirm_button" : "battle_turn_attack_confirm_button"
-    );
+    if (allEnteredCharactersActionsDone()) {
+      var returnBtn = document.createElement("button");
+      returnBtn.type = "button";
+      returnBtn.className = "gm-flow-action-btn";
+      returnBtn.textContent = window.I18N.t("battle_turn_return_button");
+      returnBtn.addEventListener("click", handleBattleTurnReturnClick);
+      actionsEl.appendChild(returnBtn);
+
+      var confirmBtn = document.createElement("button");
+      confirmBtn.type = "button";
+      confirmBtn.className = "gm-flow-action-btn";
+      confirmBtn.textContent = window.I18N.t(
+        phase === "defense" ? "battle_turn_defense_confirm_button" : "battle_turn_attack_confirm_button"
+      );
+      confirmBtn.addEventListener("click", handleBattleTurnConfirmClick);
+      actionsEl.appendChild(confirmBtn);
+    }
+    return true;
   }
 
   function handleBattleTurnReturnClick() {
     state.battle.roundActionsDone = {};
     saveState();
-    renderBattleTurnProgressPanel();
+    renderCurrentLocationStatus();
   }
 
   // [攻擊]／[防禦]確認。combat/extraフェイズでは、既存の「防禦次數／HP價值計算機」
-  // （battle-guard-calc-block）の入力欄へ本回合の彙總値を自動預填してから、既存の
-  // handleBattleGuardCalcApply()をそのまま呼ぶ（applyGuardedDamageToEnemyを直接叩く
-  // 専用経路を新設しない、既存Guard計算機と同じ挙動を保つ）。防禦フェイズはStage 6で扱う。
+  // （battle-guard-calc-block、battle-drawer内のGM専用ツール）の入力欄へ本回合の彙總値を
+  // 自動預填してから、既存のhandleBattleGuardCalcApply()をそのまま呼ぶ（applyGuardedDamageToEnemy
+  // を直接叩く専用経路は新設しない、既存Guard計算機と同じ挙動を保つ）。防禦フェイズは
+  // 既存の#enemy-damage-modalを開くだけ（roundActionsDone/roundStageの解決はGMがモーダル内で
+  // 確認した瞬間＝handleEnemyDamageConfirmの末尾で行う）。
   function handleBattleTurnConfirmClick() {
     if (state.actionPhase === "defense") {
-      // 防禦フェイズは既存の#enemy-damage-modal（renderEnemyDamageModal/handleEnemyDamageConfirm）
-      // をそのまま使う——ここでは全員「已完成」を確認した上でそのモーダルを開くだけ。
-      // roundActionsDone/roundStageの解決は、実際にGMがモーダル内で確認した瞬間
-      // （handleEnemyDamageConfirmの末尾）で行う。
       openEnemyDamageModal();
       return;
     }
@@ -7141,8 +7144,7 @@
     state.battle.roundActionsDone = {};
     state.battle.roundStage = "resolving";
     saveState();
-    renderRoundStageBanner();
-    renderBattleTurnProgressPanel();
+    renderCurrentLocationStatus();
   }
 
   // エネミーHPが変化するたびに呼び、額外行動ボタンの活性状態を更新しつつ、
@@ -7696,8 +7698,7 @@
       state.battle.roundStage = "acting";
       saveState();
     }
-    renderRoundStageBanner();
-    renderBattleTurnProgressPanel();
+    renderCurrentLocationStatus();
   }
 
   function renderActionPhaseButton() {
@@ -8029,8 +8030,7 @@
       state.battle.roundActionsDone = {};
       state.battle.roundStage = "resolving";
       saveState();
-      renderRoundStageBanner();
-      renderBattleTurnProgressPanel();
+      renderCurrentLocationStatus();
     }
   }
 
@@ -9034,7 +9034,7 @@
       state.battle.roundStage = "awaitingRoll";
       saveState();
       renderSimplifiedCombatEndPrompt();
-      renderBattleTurnProgressPanel();
+      renderCurrentLocationStatus();
       return;
     }
     // 「戰鬥→額外→防禦」が1回合。combatフェイズへ新規突入するたびに新しい回合が始まったとみなし、
@@ -9264,8 +9264,7 @@
     renderTurnBoardToggleButton();
     renderActionPhaseGrid();
     renderCharacterRoster();
-    renderRoundStageBanner();
-    renderBattleTurnProgressPanel();
+    renderCurrentLocationStatus();
     if (opts.combatEnd) {
       // 復仇者「死靈術」で召喚した死靈は、靈體と異なりHPを維持せず戦闘終了時に全て消滅する
       // （「戰鬥結束時自動從劇本中移除」）。靈體（c.spiritSummon／spiritSummonHp）はここでは
@@ -11439,6 +11438,9 @@
     renderSmithingStoneCount: renderSmithingStoneCount,
     renderStoneswordKeyCount: renderStoneswordKeyCount,
     renderTurnHolderBar: renderTurnHolderBar,
+    // 自動化GM 戰鬥自動化：進度版（night_gm_flow.jsのrenderLocationBanner）から呼ばれる。
+    getRoundStageNarrationText: getRoundStageNarrationText,
+    renderBattleRoundActionButtons: renderBattleRoundActionButtons,
     buildBossTable: buildBossTable,
     markFloorRewardObtained: markFloorRewardObtained,
     openItemDrawModal: openItemDrawModal,
@@ -11522,8 +11524,7 @@
     renderBattleRefTexts();
     // GMがページを再読込した場合でも、簡易戰鬥の追擊損害確認バナーが消えないようにする。
     if (state.battle.simplifiedCombatEndPending) renderSimplifiedCombatEndPrompt();
-    renderRoundStageBanner();
-    renderBattleTurnProgressPanel();
+    renderCurrentLocationStatus();
     renderDicePool();
     renderActionPhaseButton();
     renderTurnHolderBar();
@@ -11693,8 +11694,6 @@
     document.getElementById("btn-threat-broadcast-close").addEventListener("click", closeThreatBroadcast);
     document.getElementById("btn-enemy-row-status-close").addEventListener("click", closeEnemyRowStatusBanner);
     document.getElementById("btn-simplified-combat-end-confirm").addEventListener("click", handleSimplifiedCombatEndConfirm);
-    document.getElementById("btn-battle-turn-return").addEventListener("click", handleBattleTurnReturnClick);
-    document.getElementById("btn-battle-turn-confirm").addEventListener("click", handleBattleTurnConfirmClick);
     var locationStatusToggleBtn = document.getElementById("btn-location-status-toggle");
     locationStatusToggleBtn.addEventListener("click", handleLocationBannerToggleClick);
     attachLocationBannerToggleLongPress(locationStatusToggleBtn);

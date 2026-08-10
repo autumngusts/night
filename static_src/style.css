@@ -940,44 +940,6 @@ button {
   align-self: flex-end;
 }
 
-/* 自動化GM 戰鬥自動化：戰場面板（battle-drawer）内、GM敘述提示バナー（「請擲骰！」等）。
-   drawer内固定表示のため、top-banner-stackの各overlayとは別にシンプルな帯状デザインにする。 */
-.battle-round-stage-banner {
-  background: #2c2c2c;
-  color: #fff;
-  border-left: 6px solid #d99a00;
-  border-radius: 8px;
-  padding: 0.6rem 0.9rem;
-  font-size: 0.95rem;
-  font-weight: bold;
-  margin-bottom: 0.75rem;
-}
-
-.battle-turn-progress-list {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.4rem;
-  margin: 0.4rem 0;
-}
-
-.battle-turn-progress-btn {
-  border: 1px solid #999;
-  border-radius: 6px;
-  padding: 0.35rem 0.7rem;
-  background: #fff;
-  font-size: 0.85rem;
-}
-
-.battle-turn-progress-btn.active {
-  background: #2f7d3a;
-  color: #fff;
-  border-color: #2f7d3a;
-}
-
-#battle-turn-progress-actions {
-  justify-content: flex-end;
-}
-
 /* #20：目前所在位置（カード名・樓層數・全效果）は、他の「公告」バナー（threat-broadcast／
    enemy-row-status、いずれも画面中央・GMが閉じるまたはタイムアウトで消える）とは性質が
    異なる——常に存在し続ける現在地表示のため、閉じるボタンは持たず、#top-banner-stackの

@@ -3664,7 +3664,13 @@
     if (waitingBadge) waitingBadge.hidden = !state.gmFlow.awaitingOk;
 
     if (state.gmFlow.awaitingOk) {
-      renderNarrationInto(state.gmFlow.narrationText || "");
+      // 自動化GM 戰鬥自動化：actionKind==="battleWait"の間（＝樓層敘述の「雜兵戰鬥／王戰」
+      // から開始した戦闘の待機中）は、敘述文字をnight.js側の回合狀態機（state.battle.roundStage）
+      // が動的に決める「請擲骰！」「攻擊中！」等へ差し替える（combat/extra/defense以外＝まだ
+      // 戦闘フェイズに入っていない間はnullが返るため、従来通りの静的敘述にフォールバックする）。
+      var battleRoundText =
+        state.gmFlow.actionKind === "battleWait" && Core.getRoundStageNarrationText ? Core.getRoundStageNarrationText() : null;
+      renderNarrationInto(battleRoundText || state.gmFlow.narrationText || "");
       if (state.gmFlow.actionKind === "nightAdvance") {
         addActionButton(actionsEl, "gm_flow_advance_night_button", handleAdvanceNightClick);
         addActionButton(actionsEl, "gm_flow_dismiss_button", handleDismissNarrationClick);
@@ -3711,9 +3717,13 @@
         combatBtn.addEventListener("click", handleCombatTriggerClick);
         actionsEl.appendChild(combatBtn);
       } else if (state.gmFlow.actionKind === "battleWait") {
-        // ［戰鬥機制］：ボタンは出さない。エネミーの全HP行が0になった瞬間
-        // （notifyCombatEnded、night.jsのsetActionPhase combatEndオプション経由）に
-        // 自動で敘述の続き（［戰鬥結束］）へ進む。
+        // ［戰鬥機制］：エネミーの全HP行が0になった瞬間（notifyCombatEnded、night.jsの
+        // setActionPhase combatEndオプション経由）に自動で敘述の続き（［戰鬥結束］）へ進む。
+        // 自動化GM 戰鬥自動化：それまでの間、戰鬥回合の按鈕（玩家「已完成」按鈕列＋
+        // [攻擊/防禦][返回]）はnight.js側の回合狀態機がここへ描画する。まだ骰子を振り
+        // 終えていない間（roundStage==="awaitingRoll"）は何も描画されず、従来通り
+        // 「按鈕なしで待つ」状態のままになる。
+        if (Core.renderBattleRoundActionButtons) Core.renderBattleRoundActionButtons(actionsEl);
       } else if (state.gmFlow.actionKind === "mapMove") {
         // 第4項：地圖移動ゲート。[OK]はhandleMapMoveOkClickへ——まだ移動していなければ
         // ゲートを閉じずリマインドを繰り返す。

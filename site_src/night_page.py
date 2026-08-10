@@ -1046,17 +1046,6 @@ BODY = """    <div class="night-header-row">
         <div class="drawer-panel-scroll">
         <h2 data-i18n="battle_sheet_title"></h2>
 
-        <div id="battle-round-stage-banner" class="battle-round-stage-banner" hidden></div>
-
-        <div class="threat-ref-block" id="battle-turn-progress-block" hidden>
-          <h3 data-i18n="battle_turn_progress_title"></h3>
-          <div id="battle-turn-progress-list" class="battle-turn-progress-list"></div>
-          <div class="wb-row" id="battle-turn-progress-actions" hidden>
-            <button type="button" id="btn-battle-turn-return" data-i18n="battle_turn_return_button"></button>
-            <button type="button" class="primary-btn" id="btn-battle-turn-confirm"></button>
-          </div>
-        </div>
-
         <div class="threat-ref-block">
           <h3 data-i18n="battle_enemy_lookup_title"></h3>
           <div class="weapon-search-box">
