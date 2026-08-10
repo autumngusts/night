@@ -8035,7 +8035,7 @@
   // ターン交代では消えず、GMが手動で削除するまで保持される。樓層獲得と同じ「モーダルを隠す＋
   // 別のスタッキング型固定ボタンを表示」パターンで縮小/復元できる。各項目は実際に地板獎勵と
   // 同じ抽選/加算処理を起動できる「獲得」ボタンを持ち、獲得済みかどうか(claimed)を保持する。
-  var TURN_REWARD_KINDS = ["weapon", "consumable", "talisman", "potentialPower", "stoneswordKey", "smithingStone", "chaliceBonus", "rune", "buriedTreasure"];
+  var TURN_REWARD_KINDS = ["weapon", "consumable", "talisman", "potentialPower", "weaponSkillReroll", "stoneswordKey", "smithingStone", "chaliceBonus", "rune", "buriedTreasure"];
   // stoneswordKey/smithingStoneは純粋な共有カウンター（角色の概念自体が無い）なので對象selectを
   // 常時非表示にする。chaliceBonus/runeは「全體」（従来通り全員へ一律付与）と「任意」（領取時に
   // 1名選ぶ）を選べるようにしたため、ここには含めない（對象selectを表示する側）。
@@ -8269,6 +8269,8 @@
       minimizeSelf();
       openItemDrawModal("weapon", target.id, {
         starCount: reward.value,
+        categoryId: reward.categoryId || null,
+        attributeTag: reward.attributeTag ? window.PriTestFields.localizedText(reward.attributeTag) : null,
         onGranted: function () {
           finish("log_turn_reward_claim_generic", { kind: window.I18N.t("turn_reward_kind_weapon"), character: target.name });
         },
@@ -8296,8 +8298,16 @@
     }
     if (reward.kind === "potentialPower") {
       minimizeSelf();
-      window.PriTestNightPotentialPower.openPotentialPowerModal(target.id, reward.value, null, function () {
+      var ppAttributeTag = reward.attributeTag ? window.PriTestFields.localizedText(reward.attributeTag) : null;
+      window.PriTestNightPotentialPower.openPotentialPowerModal(target.id, reward.value, ppAttributeTag, function () {
         finish("log_turn_reward_claim_generic", { kind: window.I18N.t("turn_reward_kind_potentialPower"), character: target.name });
+      });
+      return;
+    }
+    if (reward.kind === "weaponSkillReroll") {
+      minimizeSelf();
+      window.PriTestNightCore.openWeaponSkillRerollModal(target.id, function () {
+        finish("log_turn_reward_claim_generic", { kind: window.I18N.t("turn_reward_kind_weaponSkillReroll"), character: target.name });
       });
       return;
     }
@@ -8440,6 +8450,18 @@
     }
     saveState();
     renderTurnRewardModal();
+  }
+
+  // 他モジュール（night_floor_breakthrough.js等）が組み立てた獎勵清單アイテムを一括pushする。
+  // 個々の項目の形は既存のGM手動追加（handleTurnRewardAdd）と同一（{id,kind,targetCharacterId,value,claimed,...}）。
+  function pushTurnRewards(rewardObjs) {
+    if (!rewardObjs || !rewardObjs.length) return;
+    rewardObjs.forEach(function (r) {
+      state.turnRewards.push(r);
+    });
+    saveState();
+    var modal = document.getElementById("turn-reward-modal");
+    if (modal && !modal.hidden) renderTurnRewardModal();
   }
 
   // 額外行動は、非雑兵エネミーの4段のうちいずれか1段でもHP0にならない限り選択できない。
@@ -11113,6 +11135,9 @@
     finalizeSlotMove: finalizeSlotMove,
     stepCardLevel: stepCardLevel,
     restoreTurnRewardModalIfMinimized: restoreTurnRewardModalIfMinimized,
+    pushTurnRewards: pushTurnRewards,
+    TURN_REWARD_ANY_TARGET_VALUE: TURN_REWARD_ANY_TARGET_VALUE,
+    TURN_REWARD_SHARED_TARGET_VALUE: TURN_REWARD_SHARED_TARGET_VALUE,
     CARD_BY_CODE: CARD_BY_CODE,
     SLOT_COUNT: SLOT_COUNT,
     MERCHANT_CONSUMABLE_IDS: MERCHANT_CONSUMABLE_IDS,

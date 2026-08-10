@@ -1012,6 +1012,7 @@ STRINGS_ZH: dict[str, str] = {
     "turn_reward_kind_chaliceBonus": "聖杯瓶使用次數",
     "turn_reward_kind_rune": "盧恩",
     "turn_reward_kind_buriedTreasure": "埋藏的寶物（1D×3自動抽選）",
+    "turn_reward_kind_weaponSkillReroll": "戰技的鍛冶台",
     "turn_reward_roll_buried_treasure_button": "擲骰並加入",
     "log_buried_treasure_roll": "獎勵清單：埋藏的寶物 擲出{roll}，獲得{kind}×{value}",
     "turn_reward_item_specific_label": "{kind}×{value}　→　{target}",

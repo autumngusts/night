@@ -1012,6 +1012,7 @@ STRINGS_EN: dict[str, str] = {
     "turn_reward_kind_chaliceBonus": "Flask Uses",
     "turn_reward_kind_rune": "Rune",
     "turn_reward_kind_buriedTreasure": "Buried Treasure (auto-rolls 1D x3)",
+    "turn_reward_kind_weaponSkillReroll": "Weapon Skill Reroll",
     "turn_reward_roll_buried_treasure_button": "Roll & Add",
     "log_buried_treasure_roll": "Reward List: Buried Treasure rolled {roll}, gained {kind} x{value}",
     "turn_reward_item_specific_label": "{kind} x{value}  ->  {target}",

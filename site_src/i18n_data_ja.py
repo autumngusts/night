@@ -1012,6 +1012,7 @@ STRINGS_JA: dict[str, str] = {
     "turn_reward_kind_chaliceBonus": "聖杯瓶使用回数",
     "turn_reward_kind_rune": "ルーン",
     "turn_reward_kind_buriedTreasure": "埋もれ宝（1Dを3回自動抽選）",
+    "turn_reward_kind_weaponSkillReroll": "戦技の鍛冶台",
     "turn_reward_roll_buried_treasure_button": "ダイスを振って追加",
     "log_buried_treasure_roll": "報酬リスト：埋もれ宝で{roll}が出て、{kind}×{value}を獲得",
     "turn_reward_item_specific_label": "{kind}×{value}　→　{target}",
