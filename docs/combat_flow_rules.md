@@ -279,17 +279,22 @@ PCに「インターバル」（9節）の機会が与えられる。
 | エクストラフェイズの選択可否判定 | ✅ 実装済み（体勢崩し＝いずれかのHP行が0になっていることを条件に、額外行動フェイズのボタンが有効化される） | `night.js`（`anyEnemyHpRowDepleted`） |
 | ガード回数／HP価値システム | ✅ 実装済み（本セッションで追加） | `docs/enemy_damage_rules.md`参照 |
 | タイムロス／夜の雨／脅威効果（ROLL_EFFECTS） | ✅ 実装済み（GM手動でチェックボックス／段階ステッパーを操作、消費側の効果——例：ROLL_EFFECTS.enemy_damageは自動化GMのTime Loss加算に、flask_usesは聖杯瓶上限へ自動反映——は自動適用） | `night.js`（`TIME_LOSS_ROW_DEFS`, `ROLL_EFFECTS`, `renderRollEffects`） |
-| 通常戦闘／簡易戦闘の区別 | ❌ 未実装（アプリ内に対応する概念・状態フィールドが見当たらない。全戦闘が実質「通常戦闘」の手順＝ディフェンスフェイズありの前提で進んでいる可能性が高い、要追加調査） | – |
-| ボス戦闘／ザコ戦闘の自動判定（PC平均レベルとL補込みエネミーレベルの比較） | ❌ 未実装（判定式自体は6節の通り明確になったが、これを行うコードは見当たらない）。ただし「L補込みエネミーレベル」自体は、戦場への敵人自動追加時（`resolveAndAddCombatEnemies`）に既にL補加算済みで登録されるようになったため、この判定を実装する際の前提条件は揃っている（詳細は`docs/scenario_flow_rules.md`「L補について」参照） | `night_gm_flow.js`の`fieldLevelCorrectionForSlot`, `resolveAndAddCombatEnemies` |
+| 通常戦闘／簡易戦闘の区別 | ✅ 実装済み（2026-08-10 自動化GM戰鬥自動化）。`state.battle.combatMode`（"normal"｜"simplified"｜null）で管理。ボス戦闘は必ず"normal"固定、ザコ戦闘はPC平均Lv（端数切り捨て）とL補込みエネミーLvを比較して判定 | `night_gm_flow.js`の`determineCombatMode`, `resolveAndAddCombatEnemies` |
+| ボス戦闘／ザコ戦闘の自動判定（PC平均レベルとL補込みエネミーレベルの比較） | ✅ 実装済み（上記と同時実装）。トリガー行のタイトルが「ボス戦闘／王戰」（`COMBAT_TRIGGER_TITLES[1]`）かどうかで`isBoss`を判定し、`resolveAndAddCombatEnemies`の追加引数として渡す。強敵決定表（`resolveStrongEnemyEntry`）はザコ戦闘固定 | `night_gm_flow.js`の`isBossCombatTriggerLine`, `handleCombatTriggerClick` |
+| 簡易戦闘の追撃損害の自動計算・適用 | ✅ 実装済み（2026-08-10）。簡易戦闘の第1ターン（アクション／エクストラフェイズ）終了後、`setActionPhase`が"defense"への遷移を差し替え、敵人現在HP（各HP行のチェック済み方格数の合計）と同値のHP損害をGM確認後に全体PCへ適用してから戦闘終了処理を呼ぶ。この規則は既存の`battle_simple_combat_body`（i18n参考文）と一致することを実装時に確認済み | `night.js`の`computePursuitDamage`, `renderSimplifiedCombatEndPrompt`, `handleSimplifiedCombatEndConfirm`, `setActionPhase`内の`phase === "defense" && combatMode === "simplified"`分岐 |
+| GM敘述提示バナー（「請擲骰！」「攻擊中！」「體崩中！」「防禦中！」）＋回合內細粒度状態機 | ✅ 実装済み（2026-08-10）。`state.battle.roundStage`（"awaitingRoll"｜"acting"｜"resolving"）を新設。combat/extra/defenseへ入るたびに"awaitingRoll"へ初期化、entered中の全員が本フェイズのスタミナダイスを振り終えると"acting"へ、GM確認操作（後述）で"resolving"へ進む | `night.js`の`renderRoundStageBanner`, `allEnteredCharactersRolledForPhase`, `rollDiceForCharacterActionPhase`内のフック |
+| 玩家「已完成」按鈕列＋[攻擊/防禦][返回] | ✅ 実装済み（2026-08-10）。`state.battle.roundActionsDone`（key=角色id）で管理する新規UI（battle-drawer内、既存機構の外側に追加）。全員が押すと[攻擊/防禦]ボタンが現れる。[攻擊]（combat/extra）は`c._phaseDamageDealt`/`c._phaseGuardReductionPoints`（後述）を合算して既存の「防禦次數／HP價值計算機」入力欄へ自動預填し、既存`handleBattleGuardCalcApply()`をそのまま呼ぶ（`applyGuardedDamageToEnemy`を直接叩く専用経路は新設していない）。[防禦]は既存の`#enemy-damage-modal`を開くだけで、確定は既存`handleEnemyDamageConfirm()`のまま。[返回]は`roundActionsDone`のみ再クリアする | `night.js`の`renderBattleTurnProgressPanel`, `handleBattleTurnConfirmClick`, `handleBattleTurnReturnClick` |
+| Guard削り値（▲=0.5点／◆=1点）の自動計算 | ✅ 実装済み（2026-08-10、使用者裁定：`docs/enemy_damage_rules.md`§2/§5.2参照）。既存の`recordPhaseDamageDealt(c, value)`に第三引数`symbol`を追加し、`c._phaseDamageDealt`と同じライフサイクル（phase reset loopで0に戻る）で`c._phaseGuardReductionPoints`へ0.5/1点を累積する。既存7箇所の呼び出し元（`renderCombatAttackAction`等）は既に`symbol`（`▲`/`◆`/null）を保持していたため、呼び出し引数を追加するだけで済んだ | `night.js`の`recordPhaseDamageDealt`, `computeRoundGuardReductionTotal` |
+| **バグ修正**：一般エネミー（非夜の王）のGuard削り値計算機が実際には一度も動作していなかった不具合 | ✅ 2026-08-10発見・修正。`enemyGuardValueForCount()`が`r.count === guardCountValue`で比較していたが、`enemies_data_*.js`のguardValueTableは`count`が`C(ja,zh)`の多言語オブジェクト（例：`C("2","2")`）であるのに対し、`night_boss_rulebook.js`（夜の王）は素の数値（例：`{count:2,...}`）——オブジェクトと数値の`===`比較は常に不一致になるため、通常エネミーは常に`applyGuardedDamageToEnemy`が`null`を返し、HPが減らない状態だった（夜の王＝gladius/marisのみ実際に動いていた）。新設`parseGuardCountValue()`で両方の形式を数値へ正規化してから比較するよう修正 | `night.js`の`parseGuardCountValue`, `enemyGuardValueForCount` |
 | 戦闘開始時の公開情報／非公開情報の演出上の区別 | ❌ 未実装（弱点の表示等、個別の情報公開自体はできるが、「公開情報を一括提示し、非公開情報＝アクション内容/HP価値/ガード回数/耐性を隠す」という専用UIは無い模様。もっとも、GMが実質シナリオ製作者兼進行役を兼ねる想定のこのアプリでは、この区別自体の実装優先度は低いと考えられる） | – |
 | 開始装備（□開始装備）の自動装備 | ❌ 未実装（要追加調査。装備変更UI自体は存在するはずだが「□開始装備」チェック→戦闘開始時自動装備、という専用フローは未確認） | – |
 | 撃破ルーン／潜在する力の戦闘終了時自動付与 | 部分実装。`combatEnd`自体は死霊/属性状態のリセットのみだが、`docs/scenario_flow_rules.md`第17・18項（自動化GM Phase 2）で`combatEnd`検出を「フロア敘述中の雜兵戰鬥／ボス戦闘」の待機解除フックとして利用するようになり、続く敘述が既存の獎勵検出（`floorHasAnyReward`/`appendRuneGrantRowIfDetected`、撃破ルーンをGM微調整可能なボタンとして自動提示）へ自然に繋がる。ただし戦闘終了そのものからの直接的な自動付与（GMのボタン操作なし）ではない | `night.js`（`setActionPhase`の`combatEnd`分岐→`night_gm_flow.js`の`notifyCombatEnded`）、`night_floor_breakthrough.js`（`floorHasAnyReward`, `appendRuneGrantRowIfDetected`） |
 | 戦闘開始時のインターバル／装備変更宣言 | 状況未調査（既存の装備変更UI自体はあるはずだが、「戦闘開始処理の一部として」明示的にフラグ管理されているかは未確認） | – |
 
-**次にこの領域を実装するときの前提**：4・6・7・8節は2026-08-09の追加写真提供により
-高信頼度に更新済み（ボス戦闘＝必ず通常戦闘、ザコ戦闘＝L補込みレベル比較で通常/簡易が
-決まる、という判定式も含めて確定）。実装が全く無い「通常戦闘／簡易戦闘の区別」「ボス戦闘／
-ザコ戦闘の自動判定」に着手する場合、規則書側の根拠はこのドキュメントで足りるはずだが、
-着手前に(2)このrepoでのコードをgrepし直して実装状況（特に`state.actionPhase`の
-"defense"フェイズを完全にスキップする簡易戦闘フローが既存のフェイズ遷移とどう共存
-できるか）を再調査することを推奨する。
+**2026-08-10 追記**：4・6・7・8節は2026-08-09の追加写真提供により高信頼度に更新済み
+（ボス戦闘＝必ず通常戦闘、ザコ戦闘＝L補込みレベル比較で通常/簡易が決まる、という判定式も
+含めて確定）。この判定式と、簡易戦闘の追撃損害（規則書原文は不鮮明だが、`battle_simple_combat_body`
+の既存i18n参考文——「エンドフェイズにエネミーが生存していたなら、エネミーの現在HPと
+同じだけのHP損害をPC全員に与える。その後、エネミーは撃破したことになる」——と、使用者
+確認の両方から「敵人現在HPと同値のHP損害を全体PCに与え、その後撃破扱い」と確定）は、
+`state.actionPhase`の"defense"フェイズを完全にスキップする形で実装済み（10節参照）。

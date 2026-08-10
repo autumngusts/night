@@ -915,6 +915,69 @@ button {
   font-size: 0.85rem;
 }
 
+/* 簡易戰鬥の追擊損害確認バナー：enemy-row-status-overlayと同じ配置だが、閉じるボタンは
+   持たず（GMは必ず[確認]を押して結果を確定させる必要がある）、確認ボタンを内蔵する。 */
+#simplified-combat-end-overlay {
+  position: relative;
+  width: 100%;
+  background: #1c1c1c;
+  color: #fff;
+  border-radius: 10px;
+  border-left: 6px solid #7a4dd6;
+  padding: 0.75rem 1rem 0.6rem;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.4);
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+#simplified-combat-end-content {
+  font-size: 0.9rem;
+  line-height: 1.4;
+}
+
+#simplified-combat-end-overlay .primary-btn {
+  align-self: flex-end;
+}
+
+/* 自動化GM 戰鬥自動化：戰場面板（battle-drawer）内、GM敘述提示バナー（「請擲骰！」等）。
+   drawer内固定表示のため、top-banner-stackの各overlayとは別にシンプルな帯状デザインにする。 */
+.battle-round-stage-banner {
+  background: #2c2c2c;
+  color: #fff;
+  border-left: 6px solid #d99a00;
+  border-radius: 8px;
+  padding: 0.6rem 0.9rem;
+  font-size: 0.95rem;
+  font-weight: bold;
+  margin-bottom: 0.75rem;
+}
+
+.battle-turn-progress-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin: 0.4rem 0;
+}
+
+.battle-turn-progress-btn {
+  border: 1px solid #999;
+  border-radius: 6px;
+  padding: 0.35rem 0.7rem;
+  background: #fff;
+  font-size: 0.85rem;
+}
+
+.battle-turn-progress-btn.active {
+  background: #2f7d3a;
+  color: #fff;
+  border-color: #2f7d3a;
+}
+
+#battle-turn-progress-actions {
+  justify-content: flex-end;
+}
+
 /* #20：目前所在位置（カード名・樓層數・全效果）は、他の「公告」バナー（threat-broadcast／
    enemy-row-status、いずれも画面中央・GMが閉じるまたはタイムアウトで消える）とは性質が
    異なる——常に存在し続ける現在地表示のため、閉じるボタンは持たず、#top-banner-stackの

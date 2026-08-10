@@ -853,6 +853,15 @@
     });
   }
 
+  // 自動化GM 戰鬥自動化：トリガー行が「ボス戦闘／王戰」（COMBAT_TRIGGER_TITLES[1]）かどうかを
+  // 判定する（isCombatTriggerLineと同じマッチング方式）。「ザコ戦闘／雜兵戰鬥」ならfalse。
+  function isBossCombatTriggerLine(line) {
+    var t = COMBAT_TRIGGER_TITLES[1];
+    var ja = (line.text && line.text.ja) || "";
+    var zh = (line.text && line.text.zh) || "";
+    return new RegExp("^" + t.ja + "\\s*[（(]").test(ja) || new RegExp("^" + t.zh + "（").test(zh);
+  }
+
   // ボタンラベル・敘述冒頭に使う表示名（「雜兵戰鬥」／「王戰」）は、判定に使ったパターンではなく
   // トリガー行自身の現在言語のテキストからそのまま切り出す（i18nキーを2つ用意する必要が無い）。
   function combatTriggerTitle(line) {
@@ -933,6 +942,25 @@
     return levels[slotIndex % 3];
   }
 
+  // 自動化GM 戰鬥自動化：通常戰鬥／簡易戰鬥判定（docs/combat_flow_rules.md §6）。
+  // ボス戰闘（isBoss=true）は必ず通常戰鬥。ザコ戰闘はPC平均等級（端數捨去）とappliedLevel
+  // （L補込み）を比較する：PC平均<敵人等級→通常戰鬥、PC平均≧敵人等級→簡易戰鬥。
+  function determineCombatMode(appliedLevel, isBoss) {
+    if (isBoss) return "normal";
+    var Core = window.PriTestNightCore;
+    var entered = Core.getRosterCharacters().filter(function (c) {
+      return c.entered;
+    });
+    // entered中のPCが1人もいなければ判定不能。数値を捏造せず、安全側の通常戰鬥として扱う。
+    if (!entered.length) return "normal";
+    var totalLevel = 0;
+    entered.forEach(function (c) {
+      totalLevel += c.level || 1;
+    });
+    var avgLevel = Math.floor(totalLevel / entered.length);
+    return avgLevel < appliedLevel ? "normal" : "simplified";
+  }
+
   // 敵名bullet行から、対戦相手候補の名前トークン・Lv数値・「L補」の有無・「+モブN」雜兵HP
   // フラグの有無を取り出す。
   function parseCombatEnemyRef(line) {
@@ -973,7 +1001,7 @@
   // 樓層敘述の「雜兵戰鬥／王戰」（handleCombatTriggerClick）と、強敵決定表（night_event_chips.js
   // のresolveStrongEnemyEntry）の両方から呼ばれる共用ロジック。turnMessagesへは直接pushせず、
   // 呼び出し側が組み立てやすい{key,params}形の描述的オブジェクトを返すだけに留める。
-  function resolveAndAddCombatEnemies(nameTokens, level, needsCorrection, hasMobRow, slotIndex) {
+  function resolveAndAddCombatEnemies(nameTokens, level, needsCorrection, hasMobRow, slotIndex, isBoss) {
     var Core = window.PriTestNightCore;
     var Enemies = window.PriTestEnemies;
     var correction = fieldLevelCorrectionForSlot(slotIndex);
@@ -993,6 +1021,16 @@
       Core.addEnemyToBattle(match, appliedLevel);
       addedNames.push(Enemies.localizedText(match.enemy.name));
     });
+
+    // 自動化GM 戰鬥自動化：この呼び出しで実際に敵人を追加できた場合のみ、通常/簡易戰鬥判定を
+    // 更新する。1回の戰鬥トリガーで複数回呼ばれることがあるため（敵名bullet行が複数ある等）、
+    // 一度でも「通常戰鬥」判定が出たら以後は上書きしない（最も厳しい判定を優先、docs §6）。
+    if (matchedAny) {
+      var battle = Core.state.battle;
+      battle.combatIsBoss = battle.combatIsBoss || !!isBoss;
+      var thisMode = determineCombatMode(appliedLevel, isBoss);
+      battle.combatMode = battle.combatMode === "normal" || thisMode === "normal" ? "normal" : thisMode;
+    }
 
     var levelNote = null;
     if (matchedAny && needsCorrection) {
@@ -1340,7 +1378,8 @@
     });
     var baseLevel = (jaParsed.level !== null ? jaParsed.level : zhParsed.level) || 1;
     var level = baseLevel + (levelBonus || 0);
-    return resolveAndAddCombatEnemies(nameTokens, level, needsCorrection, false, slotIndex);
+    // 強敵決定表はランダム遭遇（ザコ戰鬥）のみで、王戰の実例は無いためisBoss常にfalse固定。
+    return resolveAndAddCombatEnemies(nameTokens, level, needsCorrection, false, slotIndex, false);
   }
 
   // スート欄自体に「花色記号＋名前」の組がまとめて書かれているケース（例：大教会の
@@ -2116,10 +2155,11 @@
     var narrationParts = [Fields.localizedText(triggerLine.text)];
     var addedNames = [];
     var reminderTexts = [];
+    var isBoss = isBossCombatTriggerLine(triggerLine);
     collected.enemyLines.forEach(function (line) {
       narrationParts.push(Fields.localizedText(line.text));
       var ref = parseCombatEnemyRef(line);
-      var result = resolveAndAddCombatEnemies(ref.nameTokens, ref.level, ref.needsLevelCorrection, ref.hasMobRow, walk.slotIndex);
+      var result = resolveAndAddCombatEnemies(ref.nameTokens, ref.level, ref.needsLevelCorrection, ref.hasMobRow, walk.slotIndex, isBoss);
       addedNames = addedNames.concat(result.addedNames);
       if (!result.matchedAny) {
         reminderTexts.push(window.I18N.t("gm_flow_combat_manual_add_reminder", { text: Fields.localizedText(line.text) }));

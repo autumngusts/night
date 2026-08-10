@@ -194,6 +194,10 @@ BODY = """    <div class="night-header-row">
           <button type="button" class="modal-floating-close" id="btn-enemy-row-status-close">&times;</button>
           <div id="enemy-row-status-content"></div>
         </div>
+        <div id="simplified-combat-end-overlay" hidden>
+          <div id="simplified-combat-end-content"></div>
+          <button type="button" class="primary-btn" id="btn-simplified-combat-end-confirm" data-i18n="simplified_combat_end_confirm_button"></button>
+        </div>
       </div>
       <div class="time-loss-bar" id="attribute-status-bar">
         <span data-i18n="attribute_status_bar_label"></span>
@@ -1041,6 +1045,17 @@ BODY = """    <div class="night-header-row">
         <button type="button" class="drawer-close-tab" data-close-btn="btn-battle-drawer-close">&rsaquo;</button>
         <div class="drawer-panel-scroll">
         <h2 data-i18n="battle_sheet_title"></h2>
+
+        <div id="battle-round-stage-banner" class="battle-round-stage-banner" hidden></div>
+
+        <div class="threat-ref-block" id="battle-turn-progress-block" hidden>
+          <h3 data-i18n="battle_turn_progress_title"></h3>
+          <div id="battle-turn-progress-list" class="battle-turn-progress-list"></div>
+          <div class="wb-row" id="battle-turn-progress-actions" hidden>
+            <button type="button" id="btn-battle-turn-return" data-i18n="battle_turn_return_button"></button>
+            <button type="button" class="primary-btn" id="btn-battle-turn-confirm"></button>
+          </div>
+        </div>
 
         <div class="threat-ref-block">
           <h3 data-i18n="battle_enemy_lookup_title"></h3>
