@@ -179,10 +179,22 @@
     return LOOT_REWARD_KINDS.indexOf(kind) !== -1;
   }
 
+  // isLootRewardKindだけではkind単位でしか判定できないが、smithingStoneは同じkindでも
+  // perPerson: true（教會の商人：PC各自がルーンを消費して個別に選び取る）の場合だけ例外的に
+  // GM判断（＝手動UI）へ回す必要がある（他のPC任意目標系kindと違い、個人のルーン消費という
+  // コストチェックを伴う選択のため、獎勵清單の共有カウンター/任意対象という仕組みに載らない）。
+  // stoneswordKeyには現状perPerson:trueのデータが存在しない（fields_data_*.js確認済み）ため、
+  // ここではsmithingStoneのみ例外扱いする。
+  function isLootRewardEntry(entry) {
+    if (!isLootRewardKind(entry.kind)) return false;
+    if (entry.kind === "smithingStone" && entry.perPerson) return false;
+    return true;
+  }
+
   function floorHasJudgmentReward(floor) {
     var reward = (floor && floor.reward) || [];
     return reward.some(function (entry) {
-      return !isLootRewardKind(entry.kind);
+      return !isLootRewardEntry(entry);
     });
   }
 
@@ -254,6 +266,11 @@
   // rune種別が無いのに本文に「擊破盧恩：N」がある（規則書の記述とデータのズレ）場合は、
   // フォールバック検出分もあわせて積む。二重pushは__rewardKeyベースのフラグで防ぐ。
   function floorAutoLootTurnRewards(floor, entered) {
+    // 誰も入場していない状態（例：規則書の閲覧だけでopenFloorRewardModalが呼ばれた場合）で
+    // 呼ばれた場合は何もpushしない。ここでstate.floorRewardObtainedへ既読フラグを立てて
+    // しまうと、perParty分がentered.length===0で0確定→以後実際に入場しても二度と
+    // pushされなくなる（一度きりpush方式のため）。よってstateには一切触れず即座に空配列を返す。
+    if (!entered || !entered.length) return [];
     var Core = window.PriTestNightCore;
     var reward = (floor && floor.reward) || [];
     var results = [];
@@ -261,7 +278,7 @@
       return entry.kind === "rune";
     });
     reward.forEach(function (entry, entryIndex) {
-      if (!isLootRewardKind(entry.kind)) return;
+      if (!isLootRewardEntry(entry)) return;
       var pushKey = floor.__rewardKey ? floor.__rewardKey + "_pushed_" + entryIndex : null;
       if (pushKey && Core.state.floorRewardObtained && Core.state.floorRewardObtained[pushKey]) return;
       var objs = floorRewardEntryToTurnRewards(entry, entered, (floor.__rewardKey || "floor") + "_" + entryIndex);
@@ -345,8 +362,9 @@
   //     value: number（個数・点数）,
   //     note: {ja,zh}（任意、ボタンの補足テキストや"note"種別の本文） }
   function renderFloorRewardOption(container, entry, entered, floorKey, entryIndex) {
-    // 戦利品はopenFloorRewardModal内で自動的に獎勵清單へpush済みのため、ここには表示しない。
-    if (isLootRewardKind(entry.kind)) return;
+    // 戦利品はopenFloorRewardModal内で自動的に獎勵清單へpush済みのため、ここには表示しない
+    // （smithingStone×perPerson:trueは例外——コスト付きの個人選択が必要なためGM判断側に残る）。
+    if (isLootRewardEntry(entry)) return;
     var Consumables = window.PriTestConsumables;
     // 武器／潜在する力の報酬は「獲得済み」を対象キャラID込みでstate.floorRewardObtainedへ
     // 永続化する（floorKeyが無い呼び出し元＝旧経路や単体テストでは永続化をスキップする）。
@@ -443,6 +461,50 @@
       });
       hpRow.appendChild(hpBtn);
       container.appendChild(hpRow);
+      return;
+    }
+
+    if (entry.kind === "smithingStone" && entry.perPerson) {
+      // 教會の商人：PC各自が任意で「ルーン：1」を消費し「鍛石」を1個獲得できる（1人につき最大1回）。
+      // 従来は共有の1ボタンをGMが人数分クリックする運用だったが、各PCが自分のルーンを使う操作
+      // なので、キャラクターごとに独立したボタンにする。ルーン消費というコストチェックを伴う
+      // 個人選択のため、獎勵清單の自動push（共有カウンター／任意対象）には載せずここに残す
+      // （isLootRewardEntryがこのkind×perPersonの組み合わせだけを例外扱いしている）。
+      var stoneCost = 1;
+      entered.forEach(function (c) {
+        var personStoneBtn = document.createElement("button");
+        personStoneBtn.type = "button";
+        personStoneBtn.textContent = window.I18N.t("floor_reward_smithing_stone_merchant_button", { name: c.name, cost: stoneCost });
+        var canAfford = (c.runes || 0) >= stoneCost;
+        if (isAlreadyObtained(c.id)) {
+          personStoneBtn.disabled = true;
+          personStoneBtn.classList.add("field-reward-obtained");
+        } else if (!canAfford) {
+          personStoneBtn.disabled = true;
+          personStoneBtn.title = window.I18N.t("floor_reward_smithing_stone_merchant_no_runes");
+        }
+        personStoneBtn.addEventListener("click", function () {
+          if ((c.runes || 0) < stoneCost || isAlreadyObtained(c.id)) return;
+          c.runes -= stoneCost;
+          window.PriTestNightCore.state.smithingStoneCount = (window.PriTestNightCore.state.smithingStoneCount || 0) + 1;
+          window.PriTestNightCore.saveRosterCharacters();
+          window.PriTestNightCore.renderCharacterRoster();
+          window.PriTestNightCore.renderSmithingStoneCount();
+          window.PriTestNightLog("log_floor_reward_smithing_stone_merchant", { character: c.name, cost: stoneCost });
+          window.PriTestNightCore.markFloorRewardObtained(
+            personStoneBtn,
+            window.I18N.t("log_floor_reward_smithing_stone_merchant", { character: c.name, cost: stoneCost }),
+            obtainedStateKey(c.id)
+          );
+        });
+        container.appendChild(personStoneBtn);
+      });
+      if (noteText) {
+        var stoneNoteP = document.createElement("p");
+        stoneNoteP.className = "threat-ref-body";
+        stoneNoteP.textContent = noteText;
+        container.appendChild(stoneNoteP);
+      }
       return;
     }
 
@@ -1105,6 +1167,7 @@
     floorHasAnyReward: floorHasAnyReward,
     appendRuneGrantRowIfDetected: appendRuneGrantRowIfDetected,
     isLootRewardKind: isLootRewardKind,
+    isLootRewardEntry: isLootRewardEntry,
     floorHasJudgmentReward: floorHasJudgmentReward,
     floorRewardEntryToTurnRewards: floorRewardEntryToTurnRewards,
     floorAutoLootTurnRewards: floorAutoLootTurnRewards,
