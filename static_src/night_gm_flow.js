@@ -2192,7 +2192,17 @@
     state.gmFlow.awaitingOk = true;
     state.gmFlow.actionKind = "battleWait";
     Core.saveState();
-    Core.renderCurrentLocationStatus();
+    // 自動化GM 戰鬥自動化：使用者確認、「雜兵戰鬥／王戰」トリガーで戦闘に入った時点で、
+    // 後端のstate.actionPhaseも自動的に"combat"へ切り替える（GMが別途「行動階段」ボタンを
+    // 手動で押す必要はない。フロント側のその手動ボタン／モーダルとは無関係な自動経路として
+    // 共存させる——ボタン自体は変更・削除しない）。setActionPhase自体が内部で
+    // renderCurrentLocationStatus()まで含めた再描画を行うため、以下の明示呼び出しは
+    // setActionPhaseが使えない場合（古いキャッシュ等）のフォールバックとして残す。
+    if (Core.setActionPhase) {
+      Core.setActionPhase("combat");
+    } else {
+      Core.renderCurrentLocationStatus();
+    }
   }
 
   // ［戰鬥結束］：night.jsのsetActionPhaseが「エネミー全滅→一般行動へ自動復帰」を検出した

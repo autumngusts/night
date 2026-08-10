@@ -11476,6 +11476,10 @@
     isRulebookAuthenticated: isRulebookAuthenticated,
     checkRulebookPassword: checkRulebookPassword,
     renderCurrentLocationStatus: renderCurrentLocationStatus,
+    // 自動化GM 戰鬥自動化：「雜兵戰鬥／王戰」トリガーで戦闘に入った瞬間、night_gm_flow.js側から
+    // 直接actionPhaseを"combat"へ切り替えるために公開する（GMが「行動階段」ボタンを手動で
+    // 押す必要をなくす。フロント側の手動ボタン自体は変更・削除しない、別経路として共存する）。
+    setActionPhase: setActionPhase,
     addPendingRewardWindow: addPendingRewardWindow,
     removePendingRewardWindow: removePendingRewardWindow,
     openBattleDrawer: openBattleDrawer,
