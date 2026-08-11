@@ -1711,6 +1711,11 @@
     var Core = window.PriTestNightCore;
     var state = Core.state;
     var idx = state.focusedIndex;
+    // ユーザー報告：3日目（最終夜）にはフィールド探索という概念自体が存在しない
+    // （地図・起點・終點いずれも対象外、夜の王戦闘のみ）。念のための安全策として、
+    // 万一この関数が呼ばれても樓層敘述を開始しない（renderCurrentLocationStatus側の
+    // 表示ガードが主対策だが、二重の防御として残す）。
+    if (state.dayNumber >= 3) return;
     // 第6項：この卡牌が既に全踏破済み（cardLevels===null）の場合、再度[進入]を押しても
     // 樓層0から敘述し直さない——currentFloorIndexForSlotはnullを「0扱い」で返すため、
     // このガードが無いと全踏破済みカードでも毎回樓層0の内容を再敘述してしまう

@@ -10929,6 +10929,20 @@
     // 側の同名バイパスと対になる）。
     var showingUnplayedOpening = state.gmFlow.awaitingOk && !state.gmFlow.openingPlayed;
     var showForGmFlow = (state.gmFlowEnabled && state.gmFlow.awaitingOk) || showingUnplayedOpening;
+    // ユーザー報告：3日目（最終夜）に到達すると、focusedIndexが直前の終點（"end"＝黄金樹の帳）を
+    // 指したまま残るため、[開啟夜王戰鬥]を押してゲートを閉じた後（＝showForGmFlowが再びfalseに
+    // 戻った後）に、cardは相変わらず「黄金樹の帳」を指したままのため進度版が復活し、しかも
+    // advanceToNextNightがendChecksをリセットしているせいで「未踏破」に見えて再入場
+    // （→樓層1の分岐選択）できてしまっていた。3日目にはフィールド探索という概念自体が無いため、
+    // 最終夜の案内を表示し終えた後（state.gmFlow.finalDayAnnounced、night_gm_flow.jsの
+    // maybeAnnounceFinalDayが一度きり立てるフラグ）は、以後cardを常に無しとして扱い進度版
+    // オーバーレイごと隠す。ただしfinalDayAnnounced自体がまだfalseな最初の描画（advance
+    // ToFinalNightDirect直後、案内がまだ一度も出ていない段階）まで塞いでしまうと、
+    // maybeAnnounceFinalDay自体（renderLocationBanner経由でこの後呼ばれる）が呼ばれず
+    // 案内が永久に出せなくなるため、finalDayAnnouncedがtrueになった後だけに限定する。
+    if (state.dayNumber >= MAX_DAY && state.gmFlow.finalDayAnnounced && !showForGmFlow) {
+      card = null;
+    }
     if (!card && !showForGmFlow) {
       overlay.hidden = true;
       return;
