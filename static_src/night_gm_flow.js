@@ -896,12 +896,23 @@
     { ja: "ザコ戦闘", zh: "雜兵戰鬥" },
     { ja: "ボス戦闘", zh: "王戰" },
   ];
+  // ユーザー報告：「黄金樹の帳」2日目のボス戦闘トリガー見出しが「ボス戦闘1（撃破ルーン：15）」
+  // （数字が直後に付いている）ため、以下の判定が一致せず戦闘トリガー自体が検出されない
+  // （＝［雜兵戰鬥／王戰］ボタンが一切出ず、敵人も戦場へ追加されない）バグがあった。
+  // 実データ全体を確認したところ、これはa_golden固有ではなく「ボス戦闘1／2」「ザコ戦闘1／2」
+  // （複数回の戦闘や分岐違いの見出しに連番を付けている、例：card_j 砦の「ボス戦闘1（♠）」）が
+  // 各所に存在しており、いずれも同じ理由で検出漏れになり得た。見出し語と開き括弧の間に
+  // 任意で挟まる半角/全角数字1桁を許容するよう正規表現を緩和する。
+  var COMBAT_TRIGGER_NUM_GAP = "[0-9０-９]?";
   function isCombatTriggerLine(line) {
     if (line.label) return false;
     var ja = (line.text && line.text.ja) || "";
     var zh = (line.text && line.text.zh) || "";
     return COMBAT_TRIGGER_TITLES.some(function (t) {
-      return new RegExp("^" + t.ja + "\\s*[（(]").test(ja) || new RegExp("^" + t.zh + "（").test(zh);
+      return (
+        new RegExp("^" + t.ja + COMBAT_TRIGGER_NUM_GAP + "\\s*[（(]").test(ja) ||
+        new RegExp("^" + t.zh + COMBAT_TRIGGER_NUM_GAP + "（").test(zh)
+      );
     });
   }
 
@@ -911,7 +922,7 @@
     var t = COMBAT_TRIGGER_TITLES[1];
     var ja = (line.text && line.text.ja) || "";
     var zh = (line.text && line.text.zh) || "";
-    return new RegExp("^" + t.ja + "\\s*[（(]").test(ja) || new RegExp("^" + t.zh + "（").test(zh);
+    return new RegExp("^" + t.ja + COMBAT_TRIGGER_NUM_GAP + "\\s*[（(]").test(ja) || new RegExp("^" + t.zh + COMBAT_TRIGGER_NUM_GAP + "（").test(zh);
   }
 
   // ボタンラベル・敘述冒頭に使う表示名（「雜兵戰鬥」／「王戰」）は、判定に使ったパターンではなく
@@ -1700,6 +1711,11 @@
     var Core = window.PriTestNightCore;
     var state = Core.state;
     var idx = state.focusedIndex;
+    // ユーザー報告：3日目（最終夜）にはフィールド探索という概念自体が存在しない
+    // （地図・起點・終點いずれも対象外、夜の王戦闘のみ）。念のための安全策として、
+    // 万一この関数が呼ばれても樓層敘述を開始しない（renderCurrentLocationStatus側の
+    // 表示ガードが主対策だが、二重の防御として残す）。
+    if (state.dayNumber >= 3) return;
     // 第6項：この卡牌が既に全踏破済み（cardLevels===null）の場合、再度[進入]を押しても
     // 樓層0から敘述し直さない——currentFloorIndexForSlotはnullを「0扱い」で返すため、
     // このガードが無いと全踏破済みカードでも毎回樓層0の内容を再敘述してしまう
@@ -1712,6 +1728,26 @@
       state.gmFlow.pendingMapMoveSlot = idx;
       advanceCardConclusionChain();
       return;
+    }
+    // ユーザー報告：起點／終點（"start"|"end"）には上と同じガードが無く、全踏破済み
+    // （pileChecks.all）でも[進入]を押すたびに樓層0の敘述をやり直してしまっていた
+    // （「黄金樹の帳」で夜の強敵を撃破・獎勵領取済みなのに[稍後]を押した後もう一度
+    // ［進入］すると戦闘敘述から再開してしまうバグ）。「全」に達したらどう辿り着いたかに
+    // 関わらずこのカードのイベントは終了済みという原則を、起點／終點にも同様に適用する。
+    // 「黄金樹の帳」だけは進次日ゲート（handleGoldenTreeFullClear相当）を再度開き、
+    // それ以外（出發地點）は通常の地圖移動確認を再度開く。
+    if (idx === "start" || idx === "end") {
+      var pileChecksForGuard = idx === "start" ? state.startChecks : state.endChecks;
+      if (pileChecksForGuard && pileChecksForGuard.all) {
+        var clearedEntry = window.PriTestNightFloorBreakthrough.resolveFieldEntryForSlot(idx);
+        if (clearedEntry && clearedEntry.id === "a_golden") {
+          reopenGoldenTreeAdvanceGate(clearedEntry);
+        } else {
+          state.gmFlow.pendingMapMoveSlot = idx;
+          advanceCardConclusionChain();
+        }
+        return;
+      }
     }
     var entry = window.PriTestNightFloorBreakthrough.resolveFieldEntryForSlot(idx);
     // ［初始地點］第18項：起點／終點は数値cardLevelsを持たないため、[進入]を押した瞬間に
@@ -2502,9 +2538,36 @@
   //
   // ユーザー指定：劇本によっては該当板塊の中身が既に固定されている（scenarios.jsの固定
   // カード名、night.jsのresolveScenarioTrueNameで判定可能）。その場合、本来ランダムではない
-  // 内容を自動骰子で決めてしまうと劇本の設定と食い違う恐れがあるため、自動では振らず、
-  // 表の選択肢をそのままGMへの手動選択ボタンとして提示する（呼び出し元がmanualEntriesを
-  // 見て処理を分岐する）。
+  // 内容を自動骰子で決めてしまうと劇本の設定と食い違う恐れがあるため、自動では振らない。
+  // ユーザー追加指定（教會カードの実プレイ報告）：固定されているにも関わらず、表の全選択肢を
+  // 手動選択ボタンとして提示するのはGM/玩家に不要な「どの樓層か選ぶ」操作を強いてしまう
+  // （劇本側で既に一意に決まっているのだから、選ぶ余地は無いはず）。固定カード名の括弧内
+  // 表記（例：「教会（瓦礫の山）」→「瓦礫の山」）と表の項目名が一致する場合は、その項目へ
+  // 自動的に解決する（言語混在対策：判定は常に日本語原文同士で行い、実際の遷移先探索には
+  // 現在表示言語の項目名を使う——ja/zhの項目順序が一致している前提、実データ確認済み）。
+  // 一致する項目が見つからない場合のみ、従来通り手動選択ボタンへフォールバックする
+  // （数値・分岐先を捏造しない、既存の"■"と同じ方針）。
+  function resolveFixedScenarioDiceTableMatch(entries, tableLine, slotIndex) {
+    var Core = window.PriTestNightCore;
+    if (!Core.resolveScenarioTrueNameRaw) return null;
+    var rawName = Core.resolveScenarioTrueNameRaw(slotIndex);
+    var rawNameJa = rawName && rawName.ja;
+    if (!rawNameJa) return null;
+    var suffixMatch = /[（(]([^）)]+)[）)]/.exec(rawNameJa);
+    var suffix = suffixMatch ? suffixMatch[1].trim() : rawNameJa.trim();
+    var jaEntries = parseInlineDiceTable((tableLine.text && tableLine.text.ja) || "");
+    if (!jaEntries || jaEntries.length !== entries.length) return null;
+    var matchIndex = -1;
+    for (var i = 0; i < jaEntries.length; i++) {
+      var name = jaEntries[i].name;
+      if (name === suffix || suffix.indexOf(name) !== -1 || name.indexOf(suffix) !== -1) {
+        matchIndex = i;
+        break;
+      }
+    }
+    return matchIndex !== -1 ? entries[matchIndex] : null;
+  }
+
   function resolveDiceTableHeadingIfAny(lines, headingIndex, slotIndex) {
     var heading = lines[headingIndex];
     if (!isDiceTableHeadingLine(heading)) return { index: headingIndex, text: "" };
@@ -2516,6 +2579,12 @@
     var Core = window.PriTestNightCore;
     var hasFixedScenarioName = typeof slotIndex === "number" && Core.resolveScenarioTrueName && !!Core.resolveScenarioTrueName(slotIndex);
     if (hasFixedScenarioName) {
+      var fixedMatch = resolveFixedScenarioDiceTableMatch(entries, tableLine, slotIndex);
+      if (fixedMatch) {
+        logGmDecision(window.I18N.t("gm_flow_dice_table_fixed_scenario_log", { name: fixedMatch.name }));
+        var fixedOutcome = findHeadingIndexForLabel(lines, headingIndex + 1, fixedMatch.name);
+        if (fixedOutcome.index !== -1) return fixedOutcome;
+      }
       return { index: headingIndex, text: "", manualEntries: entries };
     }
     var roll = 1 + Math.floor(Math.random() * 6);
@@ -2526,6 +2595,120 @@
     logGmDecision(window.I18N.t("gm_flow_dice_table_roll_log", { roll: roll, name: matched.name }));
     var outcome = findHeadingIndexForLabel(lines, headingIndex + 1, matched.name);
     return outcome.index !== -1 ? outcome : { index: headingIndex, text: "" };
+  }
+
+  // ---- 「黄金樹の帳」（a_golden）夜の強敵決定表の自動擲骰 ----
+  // fields_data_1.jsの「夜の強敵決定表：1日目／2日目」extraTablesは、劇本番号を行、
+  // 1日目／2日目を列に持つ表で、各セルはさらに複数行（例："1-3 敵名A\n4-6 敵名B"）に
+  // 分かれている。strong_enemyの「die1／faces2」形式とは書式が異なるため専用の解析を行う。
+
+  // タイトルに「夜の強敵決定表」を含むextraTableと、劇本番号（Scenarios.numberForId、
+  // scenarios.js側の並び順で確定済み）に一致する行を返す。無ければnull。
+  function resolveNightBossTableRow(card, scenarioNumber) {
+    if (scenarioNumber === null) return null;
+    var table = (card.extraTables || []).filter(function (t) {
+      return /夜の強敵決定表/.test((t.title && t.title.ja) || "");
+    })[0];
+    if (!table) return null;
+    return (
+      table.rows.filter(function (r) {
+        return String((r[0] && r[0].ja) || "").trim() === String(scenarioNumber);
+      })[0] || null
+    );
+  }
+
+  // セル本文（例："1-3 傷ついたデーモン&うろ底のデーモン（234頁）\n4-6 神獣の戦士たち（215頁）+モブ2"）
+  // を行ごとに解析する。ja/zhは行数・順序が一致している前提（実データ確認済み）で、位置対応
+  // させて両言語のテキストを保持する（resolveAndAddCombatEnemiesがja/zh両方から名前候補を
+  // 拾うため）。
+  function parseNightBossCellEntries(cell) {
+    var linesJa = String((cell && cell.ja) || "").split("\n");
+    var linesZh = String((cell && cell.zh) || "").split("\n");
+    var entries = [];
+    linesJa.forEach(function (l, i) {
+      var m = /^(\d)(?:[-～](\d))?\s+(.+)$/.exec(l.trim());
+      if (!m) return;
+      var lo = parseInt(m[1], 10);
+      var hi = m[2] ? parseInt(m[2], 10) : lo;
+      var faces = [];
+      for (var f = lo; f <= hi; f++) faces.push(f);
+      var zhMatch = /^(\d)(?:[-～](\d))?\s+(.+)$/.exec((linesZh[i] || "").trim());
+      entries.push({ faces: faces, ja: m[3].trim(), zh: zhMatch ? zhMatch[3].trim() : m[3].trim() });
+    });
+    return entries;
+  }
+
+  // colIndex：1＝1日目列、2＝2日目列。forcedRollを渡すと（劇本8・9の2日目連動用）その値で
+  // 判定し、渡さなければ今その場で1D6を振る（既存の「捏造しない・今その場で正規の骰子を
+  // 振る」方針）。
+  function rollNightBossEntry(row, colIndex, forcedRoll) {
+    var entries = parseNightBossCellEntries(row[colIndex]);
+    if (!entries.length) return null;
+    var roll = forcedRoll || 1 + Math.floor(Math.random() * 6);
+    var matched = entries.filter(function (e) {
+      return e.faces.indexOf(roll) !== -1;
+    })[0];
+    return matched ? { roll: roll, ja: matched.ja, zh: matched.zh } : null;
+  }
+
+  // 規則書のextraNotes「※シナリオ8とシナリオ9の連動」：この2つの劇本のみ、1日目の擲骰値を
+  // そのまま2日目列にも適用し、2日目は再擲骰しない。
+  var NIGHT_BOSS_LINKED_SCENARIOS = [8, 9];
+
+  // 王戰トリガーの敵名bulletが「夜の強敵決定表・N日目（後述）／Lv.N」参照だった場合の解決。
+  // state.nightBossRoll.day1／day2へ結果を保存し（リロードしても再利用、2回目以降の樓層
+  // 再訪でも再擲骰しない）、劇本8・9は1日目確定と同時に2日目分も連動して確定させる。
+  // レベルはこの参照行自身の「／Lv.N」から取り出す（決定表側のエントリにはレベル表記が無い）。
+  function resolveNightBossCombatLine(line, slotIndex, isBoss) {
+    var Core = window.PriTestNightCore;
+    var state = Core.state;
+    var Scenarios = window.PriTestScenarios;
+    var Fields = window.PriTestFields;
+    var lineText = Fields.localizedText(line.text);
+    var fallback = { addedNames: [], reminderText: window.I18N.t("gm_flow_combat_manual_add_reminder", { text: lineText }), rollLogText: null };
+    var walk = state.gmFlow.walk;
+    var dayKey = walk && walk.branchIndex === 1 ? "day2" : "day1";
+    var card = window.PriTestNightFloorBreakthrough.resolveFieldEntryForSlot(slotIndex);
+    var scenarioNumber = Scenarios && Core.getScenarioId ? Scenarios.numberForId(Core.getScenarioId()) : null;
+    if (!card) return fallback;
+    var row = resolveNightBossTableRow(card, scenarioNumber);
+    if (!row) return fallback;
+    if (!state.nightBossRoll) state.nightBossRoll = {};
+    var resolved = state.nightBossRoll[dayKey];
+    if (!resolved) {
+      if (dayKey === "day1") {
+        resolved = rollNightBossEntry(row, 1);
+        if (resolved) {
+          state.nightBossRoll.day1 = resolved;
+          if (NIGHT_BOSS_LINKED_SCENARIOS.indexOf(scenarioNumber) !== -1 && !state.nightBossRoll.day2) {
+            var linkedDay2 = rollNightBossEntry(row, 2, resolved.roll);
+            if (linkedDay2) state.nightBossRoll.day2 = linkedDay2;
+          }
+        }
+      } else {
+        resolved = rollNightBossEntry(row, 2);
+        if (resolved) state.nightBossRoll.day2 = resolved;
+      }
+    }
+    if (!resolved) return fallback;
+    Core.saveState();
+    var lvMatch = /Lv\.?\s*(\d+)/i.exec(lineText);
+    var level = lvMatch ? parseInt(lvMatch[1], 10) : 1;
+    var jaParsed = extractLevelAndNameTokens(resolved.ja);
+    var zhParsed = extractLevelAndNameTokens(resolved.zh);
+    var nameTokens = [];
+    jaParsed.nameTokens.concat(zhParsed.nameTokens).forEach(function (t) {
+      if (nameTokens.indexOf(t) === -1) nameTokens.push(t);
+    });
+    var hasMobRow = MOB_ROW_SUFFIX_RE.test(resolved.ja) || MOB_ROW_SUFFIX_RE.test(resolved.zh);
+    var addResult = resolveAndAddCombatEnemies(nameTokens, level, false, hasMobRow, slotIndex, isBoss);
+    var out = {
+      addedNames: addResult.addedNames,
+      reminderText: addResult.matchedAny ? null : window.I18N.t("gm_flow_combat_manual_add_reminder", { text: resolved.ja }),
+      rollLogText: window.I18N.t("gm_flow_night_boss_roll_log", { day: dayKey === "day2" ? "2" : "1", roll: resolved.roll, entry: resolved.ja }),
+      mobNote: addResult.mobNote || null,
+    };
+    return out;
   }
 
   // ---- ［戰鬥機制］入口：「雜兵戰鬥」／「王戰」ボタン。敵を敘述し、判明した分だけ戦場に
@@ -2555,6 +2738,21 @@
     var isBoss = isBossCombatTriggerLine(triggerLine);
     collected.enemyLines.forEach(function (line) {
       narrationParts.push(Fields.localizedText(line.text));
+      // 「黄金樹の帳」（a_golden）の夜の強敵戦闘：敵名bulletが具体名ではなく「夜の強敵決定表・
+      // N日目（後述）／Lv.N」という決定表参照になっている。通常のparseCombatEnemyRefでは
+      // 一致するはずがないため、先にこの参照かどうかを判定し、該当すれば専用の自動擲骰
+      // （resolveNightBossCombatLine）へ委ねる。
+      var isNightBossRef = /夜の強敵決定表|夜之強敵決定表/.test((line.text && line.text.ja) || "") || /夜の強敵決定表|夜之強敵決定表/.test((line.text && line.text.zh) || "");
+      if (isNightBossRef) {
+        var nbResult = resolveNightBossCombatLine(line, walk.slotIndex, isBoss);
+        addedNames = addedNames.concat(nbResult.addedNames);
+        if (nbResult.rollLogText) logGmDecision(nbResult.rollLogText);
+        if (nbResult.reminderText) reminderTexts.push(nbResult.reminderText);
+        if (nbResult.mobNote) {
+          reminderTexts.push(window.I18N.t(nbResult.mobNote.key, mergeParams({ text: Fields.localizedText(line.text) }, nbResult.mobNote.params)));
+        }
+        return;
+      }
       var ref = parseCombatEnemyRef(line);
       var result = resolveAndAddCombatEnemies(ref.nameTokens, ref.level, ref.needsLevelCorrection, ref.hasMobRow, walk.slotIndex, isBoss);
       addedNames = addedNames.concat(result.addedNames);
@@ -2945,6 +3143,24 @@
   // 規則書：夜の強敵撃破後の追加処理——全員の聖杯瓶使用回数／現在HP／現在FP／夜渡りスキル
   // 使用回数を最大値まで回復（レベルアップの実行自体は各キャラクター詳細ドロワー側の既存UIを
   // 使う操作なので、ここでは自動化せずリマインドに留める）。処理後は[進入下一晚]/[稍後]を出す。
+  // handleEnterClickが「黄金樹の帳を既に全踏破済みの状態で再度[進入]された」場合に呼ぶ。
+  // handleGoldenTreeFullClearと違い、HP/FP/加護等の全回復（applyEventChipBlessingRest）は
+  // 再度実行しない——それは初回の全踏破達成時に一度だけ行われるべき処理であり、単に
+  // ［稍後］の後もう一度確認したいだけのGMに対して毎回再実行するのは不適切なため。
+  function reopenGoldenTreeAdvanceGate(entry) {
+    var Core = window.PriTestNightCore;
+    var state = Core.state;
+    var effectText = entry.allFloorEffect ? window.PriTestFields.localizedText(entry.allFloorEffect) : "";
+    state.gmFlow.narrationText = window.I18N.t("gm_flow_golden_tree_clear_narration", {
+      name: window.PriTestFields.localizedText(entry.name),
+      effect: effectText,
+    });
+    state.gmFlow.awaitingOk = true;
+    state.gmFlow.actionKind = "nightAdvance";
+    Core.saveState();
+    Core.renderCurrentLocationStatus();
+  }
+
   function handleGoldenTreeFullClear(cardName, effectText) {
     var Core = window.PriTestNightCore;
     var state = Core.state;
@@ -2990,8 +3206,14 @@
   }
 
   // [稍後]：夜の強敵撃破の敘述だけ閉じる（進次日はまだしない）。
+  // ユーザー報告：ここでclearPendingCardConclusionFlagsを呼んでいなかったため、
+  // finishFieldWalkが予約していたpendingMapMoveSlot等が消費されないまま残り続け、
+  // 後で無関係なゲート解決のタイミングで誤って地圖移動確認へ迷い込む余地があった。
+  // handleAdvanceNightClick（[進入下一晚]）と同様にここでも確実に破棄しておく
+  // （黄金樹の帳は進次日フローに分岐するため、通常のadvanceCardConclusionChainは通らない）。
   function handleDismissNarrationClick() {
     clearGmFlowGate();
+    clearPendingCardConclusionFlags();
     window.PriTestNightCore.saveState();
     window.PriTestNightCore.renderCurrentLocationStatus();
   }
