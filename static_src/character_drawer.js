@@ -4073,6 +4073,25 @@
     return { value: parseInt(m[1], 10), symbol: m[2] || null };
   }
 
+  // 使用者確認：一部の技能（踢擊／拒絕／貴種的腹藝／盾擊等）は「威力：N」「總合傷害：N」の
+  // ような数値表記を一切持たず、効果そのものが「▲」／「◆」という記号だけで完結している
+  // （例：「対象に「▲」を与える」「效果：對敵人造成「▲」」）。上のfixedSkillPowerValue／
+  // artSkillPowerValue／spellSkillPowerValueはいずれも数値マッチが前提のため、これまでnullを
+  // 返し続け、Guard削り値（docs/enemy_damage_rules.md §2の「使用者裁定」）が一切記録されない
+  // 不具合になっていた。数値付きの記述が既に解決できている場合（呼び出し元でdmgが非nullの場合）
+  // はこちらを使わない——あくまで数値解決が失敗した場合の最終フォールバック。
+  //
+  // 「體型：S／M」「サイズ：S／M」のような対象条件付き記述（例：ハイガード持ちの「つむじ風」）は、
+  // 実際に対象となった敵人によって成否が変わり自動判定できないため、意図的に対象外のまま
+  // null を返す（■と同じ「捏造しない」方針）。
+  function bareGuardSymbolSkillValue(bodyText) {
+    var t = String(bodyText || "");
+    if (/體型|サイズ/.test(t)) return null;
+    var m = /「([▲◆])」(?:を与える|を付与する)/.exec(t) || /(?:造成|施加)「([▲◆])」/.exec(t);
+    if (!m) return null;
+    return { value: 0, symbol: m[1] };
+  }
+
   // ============================================================
   // 骰子コスト（コスト／消耗欄）の解析・検証エンジン。
   // 対応する表記（ユーザー確認済みルール）：
@@ -6437,6 +6456,7 @@
     artSkillPowerValue: artSkillPowerValue,
     spellSkillPowerValue: spellSkillPowerValue,
     fixedSkillPowerValue: fixedSkillPowerValue,
+    bareGuardSymbolSkillValue: bareGuardSymbolSkillValue,
     formatValueWithSymbol: formatValueWithSymbol,
   };
 })();

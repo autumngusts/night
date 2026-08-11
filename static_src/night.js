@@ -4403,7 +4403,18 @@
         ? CharacterDrawer.spellSkillPowerValue(body, artInfo.artPower)
         : CharacterDrawer.artSkillPowerValue(body, artInfo.artPower);
     }
+    // 使用者確認：踢擊／拒絕／貴種的腹藝／盾擊等、「威力：」「總合傷害：N」のような数値表記を
+    // 持たず「▲」／「◆」という記号だけで効果が完結する技能への最終フォールバック（上のいずれの
+    // 数値パーサーもnullを返した場合のみ、CharacterDrawer.bareGuardSymbolSkillValue参照）。
+    if (!dmg) dmg = CharacterDrawer.bareGuardSymbolSkillValue(body);
     if (!dmg) return null;
+    // 執行者「襲擊之楔」（assault_wedge）：本文「【總合傷害：100＋▲】與「▲」」は▲が2箇所
+    // 独立して存在する（1つ目は上のfixedSkillPowerValueが総合ダメージの数値と一緒に捕捉済み、
+    // 2つ目は正規表現の性質上1回のマッチでは拾えないため取りこぼされていた）。ここでのみ
+    // 明示的に2つ目の▲を追加のGuard削り値として持たせる（他の技能で同様の複数記号が今後
+    // 確認された場合も、汎用の「全部数える」処理は作らずここに個別追加する方針——1件しか
+    // 確認されていない特殊記述を汎用ロジック化すると誤検出のリスクが上がるため）。
+    var extraGuardSymbol = entry.id === "assault_wedge" && dmg.symbol === "▲" ? "▲" : null;
     // 基礎威力が実際に計算できた場合のみ、タリスマン起因の固定加算（戦技・魔術・祈祷向け）と
     // 無賴漢「鬥爭心」（現在HPが最大HPと異なる場合＋20）、附帶効果「戰技/魔術/祈禱傷害+5」を
     // 上乗せする（計算不能な場合にまで数値を捏造しないため）。
@@ -4441,7 +4452,9 @@
       yotoReleaseBonus +
       assaultWedgeBonus +
       empathyBonus;
-    return flatBonus ? { value: dmg.value + flatBonus, symbol: dmg.symbol } : dmg;
+    var result = flatBonus ? { value: dmg.value + flatBonus, symbol: dmg.symbol } : dmg;
+    if (extraGuardSymbol) result.extraGuardSymbol = extraGuardSymbol;
+    return result;
   }
 
   function renderCombatSkillAction(c, content) {
@@ -5159,7 +5172,13 @@
             }, 0);
           }
           var dmg = computeSkillDamage(c, entry, body);
-          if (dmg) recordPhaseDamageDealt(c, dmg.value, dmg.symbol);
+          if (dmg) {
+            recordPhaseDamageDealt(c, dmg.value, dmg.symbol);
+            // 執行者「襲擊之楔」：本文に独立して存在する2つ目の▲（computeSkillDamageのコメント
+            // 参照）を、表示用のdmg.value/symbolとは別枠で追加記録する（0.5点を追加加算するだけ、
+            // 傷害数値の表示は変えない）。
+            if (dmg.extraGuardSymbol) recordPhaseDamageDealt(c, 0, dmg.extraGuardSymbol);
+          }
           var total =
             entry.id === "marking"
               ? window.I18N.t("marking_action_note")
