@@ -2254,6 +2254,11 @@
     var state = Core.state;
     if (!state.gmFlow.battleWaitActive) return;
     state.gmFlow.battleWaitActive = false;
+    // 自動化GM 戰鬥自動化：この戰鬥に紐づく樓層獎勵ゲート（[領取獎勵]/[獲得完]/[OK]）を
+    // GMが実際に閉じ終えた瞬間（closeGmFlowGateAndConsumePendingAdvance）に、GMに代わって
+    // 「重置全骰」相当の処理（戰鬥面板・玩家骰子・執行紀錄を一括クリア）を自動実行するための
+    // 予約フラグ。ここで立て、ゲートが閉じた側で1回だけ消費する。
+    state.gmFlow.pendingBattleResetOnGateClose = true;
     advanceFieldWalk(); // ［樓層判定機制］へ戻り、撃破後の規則書敘述（獎勵等）を続ける
   }
 
@@ -2533,8 +2538,18 @@
   // handleGmFlowOk（[獲得完]/[OK]）とhandleFloorEndRewardClick（[領取獎勵]）の両方の
   // ゲート解決経路から呼ばれる。
   function closeGmFlowGateAndConsumePendingAdvance() {
+    var Core = window.PriTestNightCore;
+    var state = Core.state;
+    // 自動化GM 戰鬥自動化：敵人擊破（notifyCombatEnded）から続くゲートが、GMの操作で実際に
+    // ここで閉じ終えたタイミングでのみ1回だけ消費する（領取獎勵の有無に関わらず、この戰鬥に
+    // 紐づく最初のゲートクローズが「領取完獎勵」に相当する）。
+    var shouldResetBattlePanel = !!state.gmFlow.pendingBattleResetOnGateClose;
+    state.gmFlow.pendingBattleResetOnGateClose = false;
     clearGmFlowGate();
     advanceCardConclusionChain();
+    if (shouldResetBattlePanel && Core.resetAllDiceSilently) {
+      Core.resetAllDiceSilently();
+    }
   }
 
   // ---- 日夜轉場整體流程（第16項） ----
