@@ -5023,6 +5023,9 @@
     var title = document.createElement("div");
     title.className = "relic-candidate-name";
     title.textContent = Consumables.localizedText(consumable.name);
+    if (c.consumableAttributeTags && c.consumableAttributeTags[instance.id]) {
+      appendWeaponAttributeTag(title, c.consumableAttributeTags[instance.id]);
+    }
     card.appendChild(title);
 
     var body = document.createElement("p");
@@ -5071,6 +5074,7 @@
     removeBtn.addEventListener("click", function () {
       var idx = (c.consumables || []).indexOf(instance);
       if (idx !== -1) c.consumables.splice(idx, 1);
+      if (c.consumableAttributeTags) delete c.consumableAttributeTags[instance.id];
       saveFn();
       (onRemoved || renderConsumableList)();
     });

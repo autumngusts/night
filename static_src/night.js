@@ -7459,10 +7459,16 @@
     if (stage === "resolving") {
       // 結果文字は敘述側（getRoundStageNarrationText）に出す。ここは[結束回合]のみ
       // （角色按鈕・[攻擊/防禦][返回]は一時的に隱藏する）。
+      var endBtnKey =
+        phase === "extra"
+          ? "battle_turn_end_extra_phase_button"
+          : phase === "defense"
+          ? "battle_turn_end_defense_phase_button"
+          : "battle_turn_end_combat_phase_button";
       var endBtn = document.createElement("button");
       endBtn.type = "button";
       endBtn.className = "gm-flow-action-btn";
-      endBtn.textContent = window.I18N.t("battle_turn_end_round_button");
+      endBtn.textContent = window.I18N.t(endBtnKey);
       endBtn.addEventListener("click", handleBattleTurnEndRoundClick);
       actionsEl.appendChild(endBtn);
       return true;
@@ -9133,8 +9139,41 @@
     }
   }
 
+  // 武器のcategoryIdから、獎勵清單に出す短い分類名を解決する（規則書が武器種を明記している
+  // 場合、「抽選：武器」ではなく「抽選：射擊武器」のように具体的な種類を表示するため）。
+  // 個別カテゴリ（聖印等）はWeapons.getCategory()の名称をそのまま使い、射撃武器/盾の
+  // グループショートカット定数のみ専用ラベルを使う。解決できない場合はnull（呼び出し側で
+  // 汎用の「武器」ラベルへフォールバックする）。
+  function weaponCategoryShortLabel(categoryId) {
+    if (!categoryId) return null;
+    if (categoryId === CharacterDrawer.RANGED_GROUP_CATEGORY) return window.I18N.t("weapon_category_group_ranged_short");
+    if (categoryId === CharacterDrawer.SHIELD_GROUP_CATEGORY) return window.I18N.t("weapon_category_group_shield_short");
+    var cat = window.PriTestWeapons.getCategory(categoryId);
+    return cat ? window.PriTestWeapons.localizedText(cat.name) : null;
+  }
+
+  // 獎勵1件分の「種類」表示ラベルを解決する。武器はcategoryIdが分かれば具体的な武器種名を、
+  // 消耗品はitemIdが分かれば（規則書が特定のアイテム名を指名している場合）その品名＋
+  // 屬性タグをそのまま表示する（抽選ではなく直接指定のため「抽選：」接頭辞は付けない）。
+  // どちらも該当しない場合は従来通りturn_reward_kind_<kind>の汎用ラベルにフォールバックする。
+  function turnRewardKindLabel(reward) {
+    if (reward.kind === "weapon") {
+      var categoryLabel = weaponCategoryShortLabel(reward.categoryId);
+      if (categoryLabel) return window.I18N.t("turn_reward_kind_weapon_category", { category: categoryLabel });
+    }
+    if (reward.kind === "consumable" && reward.itemId) {
+      var item = window.PriTestConsumables.get(reward.itemId);
+      if (item) {
+        var itemName = window.PriTestConsumables.localizedText(item.name);
+        var tag = reward.attributeTag ? window.PriTestFields.localizedText(reward.attributeTag) : null;
+        return tag ? itemName + "（" + tag + "）" : itemName;
+      }
+    }
+    return window.I18N.t("turn_reward_kind_" + reward.kind);
+  }
+
   function turnRewardLabel(reward) {
-    var kindLabel = window.I18N.t("turn_reward_kind_" + reward.kind);
+    var kindLabel = turnRewardKindLabel(reward);
     if (isTurnRewardSharedKind(reward.kind) || reward.targetCharacterId === TURN_REWARD_SHARED_TARGET_VALUE) {
       return window.I18N.t("turn_reward_item_shared_label", { kind: kindLabel, value: reward.value });
     }
@@ -9244,6 +9283,37 @@
         onGranted: function () {
           finish("log_turn_reward_claim_generic", { kind: window.I18N.t("turn_reward_kind_weapon"), character: target.name });
         },
+      });
+      return;
+    }
+    if (reward.kind === "consumable" && reward.itemId) {
+      // 規則書が具体的な品名を指名している獎勵（例：「投擲壺(雷)」）は抽選を行わず、
+      // その場でtarget所持品へ直接付与する（第1項：獎勵清單の表記どおり「任意」で
+      // 對象だけ選べば即座に確定する）。
+      var namedItem = window.PriTestConsumables.get(reward.itemId);
+      if (!namedItem) {
+        window.alert(window.I18N.t("turn_reward_target_missing_note"));
+        return;
+      }
+      minimizeSelf();
+      if (!target.consumables) target.consumables = [];
+      var namedItemInstanceId = CharacterDrawer.makeConsumableInstanceId(reward.itemId, target);
+      target.consumables.push({
+        id: namedItemInstanceId,
+        itemId: reward.itemId,
+        usesRemaining: namedItem.uses || 1,
+      });
+      // 武器のweaponAttributeTagsと同じ規約：規則書が指定した屬性（例：投擲壺の「雷」）を
+      // 所持品側にも自動記録し、後で使用する際に手動で覚えておく必要をなくす。
+      if (reward.attributeTag) {
+        if (!target.consumableAttributeTags) target.consumableAttributeTags = {};
+        target.consumableAttributeTags[namedItemInstanceId] = window.PriTestFields.localizedText(reward.attributeTag);
+      }
+      saveRosterCharacters();
+      renderCharacterRoster();
+      CharacterDrawer.resolveInventoryOverflow(target, "consumable", function () {
+        renderCharacterRoster();
+        finish("log_turn_reward_claim_generic", { kind: turnRewardKindLabel(reward), character: target.name });
       });
       return;
     }
@@ -9396,10 +9466,10 @@
     var targetCharacterId = shared ? null : targetSelect.value || null;
     if (!shared && !targetCharacterId) return;
     var value = Math.max(1, parseInt(valueInput.value, 10) || 1);
-    // 消耗品は「value個の消耗品」を1回の抽選でまとめて同じ結果を複数個付与する仕様（grantCount）
-    // だと、本来別々に抽選されるべき消耗品が全て同一のものになってしまう。そのため個数分を
-    // それぞれ独立した項目（value:1）へ分割し、1件ずつ個別に抽選できるようにする。
-    if (kind === "consumable" && value > 1) {
+    // 消耗品・護符は「value個」を1回の抽選でまとめて同じ結果を複数個付与する仕様だと、
+    // 本来別々に抽選されるべきアイテムが全て同一のものになってしまう。そのため個数分を
+    // それぞれ独立した項目（value:1）へ分割し、1件ずつ個別に抽選できるようにする（第2項）。
+    if ((kind === "consumable" || kind === "talisman") && value > 1) {
       for (var i = 0; i < value; i++) {
         state.turnRewards.push({
           id: "tr" + Date.now() + Math.floor(Math.random() * 1000) + "_" + i,
@@ -10382,6 +10452,25 @@
       resultP.className = "threat-ref-body weapon-roll-result";
       resultP.textContent = window.I18N.t("weapon_skill_reroll_result", { old: oldName, new: newName });
       resultArea.appendChild(resultP);
+
+      // 玩家決定前に新舊戰技の詳細敘述を並べて展開比較できるようにする（第5項）。
+      function appendSkillDetail(labelKey, display, name) {
+        var details = document.createElement("details");
+        details.className = "ability-entry";
+        details.open = true;
+        var summary = document.createElement("summary");
+        summary.textContent = window.I18N.t(labelKey) + window.I18N.t("colon_separator") + name + (display && display.kind ? "［" + display.kind + "］" : "");
+        details.appendChild(summary);
+        if (display && display.body) {
+          var bodyP = document.createElement("p");
+          bodyP.className = "threat-ref-body";
+          bodyP.textContent = display.body;
+          details.appendChild(bodyP);
+        }
+        resultArea.appendChild(details);
+      }
+      appendSkillDetail("weapon_skill_reroll_old_detail_label", oldDisplay, oldName);
+      appendSkillDetail("weapon_skill_reroll_new_detail_label", newDisplay, newName);
 
       var confirmNewBtn = document.createElement("button");
       confirmNewBtn.type = "button";

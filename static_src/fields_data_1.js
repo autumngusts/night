@@ -1457,6 +1457,12 @@
         },
         {
           name: C("水辺の大教会", "水邊的大教會"),
+          // 追加ルール：ルートの自由（specialRule本文参照）——フロアを任意の順番で選べ、
+          // 2つ踏破した時点で全踏破。night_gm_flow.jsのbeginFreeFloorChoice等が読む。
+          // このマーカーが無いとカードの固定floorCount（2）が実際のフロア数（4）と
+          // 食い違い、markFloorCleared/advanceOrRewindCardPointerが誤動作して
+          // カード進行が正しく「全踏破」へ到達しなくなる（ユーザー報告バグの原因）。
+          freeFloorOrder: { clearThreshold: 2 },
           intro: C(
             "浅い水辺が広がる向こう、大きな教会を発見する。うっそうとしたその雰囲気はどうにも近寄りがたい。",
             "淺淺的水邊向遠方延展開去，可以看見一座大教會。那陰森的氛圍讓人難以靠近。"

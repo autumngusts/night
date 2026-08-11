@@ -404,15 +404,27 @@
       ];
     }
     if (entry.kind === "consumable" || entry.kind === "talisman") {
-      return [
-        {
-          id: makeTurnRewardId(idSuffix),
+      // 第2項：規則書が「N個」を明記している場合、獎勵清單上は1個ずつ独立した項目に
+      // 分割する（1件にまとめてしまうと、本来別々に抽選されるべきアイテムが同一の結果に
+      // なってしまう。手動追加フォーム側のhandleTurnRewardAddと同じ方針）。itemId指定
+      // （品名固定、第1項）の場合は常に1個扱いで、値の分割対象にはならない。
+      var itemCount = entry.itemId ? 1 : entry.value || 1;
+      var arr = [];
+      for (var vi = 0; vi < itemCount; vi++) {
+        var obj = {
+          id: makeTurnRewardId(idSuffix + "_" + vi),
           kind: entry.kind,
           targetCharacterId: Core.TURN_REWARD_ANY_TARGET_VALUE,
-          value: entry.value || 1,
+          value: 1,
           claimed: false,
-        },
-      ];
+        };
+        if (entry.itemId) {
+          obj.itemId = entry.itemId;
+          if (entry.attributeTag) obj.attributeTag = entry.attributeTag;
+        }
+        arr.push(obj);
+      }
+      return arr;
     }
     return [];
   }

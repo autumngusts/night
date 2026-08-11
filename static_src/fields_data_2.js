@@ -1005,7 +1005,7 @@
                       label: C("ザコ戦闘（撃破）", "雜兵戰鬥（擊破）"),
                       rewards: [
                         { kind: "stoneswordKey", value: 1 },
-                        { kind: "consumable", value: 1, note: C("（選択肢から「投擲壺」を選ぶこと）", "（請於選項中選擇「投擲壺」）") },
+                        { kind: "consumable", itemId: "item_throwing_pot", attributeTag: C("炎", "炎") },
                       ],
                     },
                   ],
@@ -1164,11 +1164,9 @@
               reward: [
                 {
                   kind: "consumable",
-                  value: 1,
-                  note: C(
-                    "（ザコ戦闘撃破。選択肢から「投擲壺」を選び、属性は（雷）に手動記録）",
-                    "（雜兵戰鬥擊破。請於選項中選擇「投擲壺」，屬性（雷）需手動記錄）"
-                  ),
+                  itemId: "item_throwing_pot",
+                  attributeTag: C("雷", "雷"),
+                  note: C("（ザコ戦闘撃破）", "（雜兵戰鬥擊破）"),
                 },
               ],
             },
@@ -1277,8 +1275,8 @@
                       rewards: [
                         {
                           kind: "consumable",
-                          value: 1,
-                          note: C("（選択肢から「投擲壺」を選び、属性は（発狂）に手動記録）", "（請於選項中選擇「投擲壺」，屬性（發狂）需手動記錄）"),
+                          itemId: "item_throwing_pot",
+                          attributeTag: C("発狂", "發狂"),
                         },
                       ],
                     },
@@ -1620,11 +1618,9 @@
                 { kind: "consumable", value: 1, note: C("（遺体の調査に1人でも成功時のみ）", "（調查遺體只要1人成功即可）") },
                 {
                   kind: "consumable",
-                  value: 1,
-                  note: C(
-                    "（遺体の調査に1人でも成功時のみ。選択肢から「投擲壺」を選び、属性は（魔）に手動記録）",
-                    "（調查遺體只要1人成功即可。請於選項中選擇「投擲壺」，屬性（魔）需手動記錄）"
-                  ),
+                  itemId: "item_throwing_pot",
+                  attributeTag: C("魔", "魔"),
+                  note: C("（遺体の調査に1人でも成功時のみ）", "（調查遺體只要1人成功即可）"),
                 },
               ],
             },
@@ -1748,11 +1744,9 @@
                 { kind: "consumable", value: 1, note: C("（ボス戦闘撃破・木箱）", "（王戰擊破・木箱）") },
                 {
                   kind: "consumable",
-                  value: 1,
-                  note: C(
-                    "（ボス戦闘撃破・木箱。選択肢から「投擲壺」を選び、属性は（聖）に手動記録）",
-                    "（王戰擊破・木箱。請於選項中選擇「投擲壺」，屬性（聖）需手動記錄）"
-                  ),
+                  itemId: "item_throwing_pot",
+                  attributeTag: C("聖", "聖"),
+                  note: C("（ボス戦闘撃破・木箱）", "（王戰擊破・木箱）"),
                 },
               ],
             },
@@ -2295,11 +2289,8 @@
                         { kind: "consumable", value: 2 },
                         {
                           kind: "consumable",
-                          value: 1,
-                          note: C(
-                            "（選択肢から「投擲壺」を選び、属性は（猛毒）に手動記録）",
-                            "（請於選項中選擇「投擲壺」，屬性（猛毒）需手動記錄）"
-                          ),
+                          itemId: "item_throwing_pot",
+                          attributeTag: C("猛毒", "猛毒"),
                         },
                       ],
                     },

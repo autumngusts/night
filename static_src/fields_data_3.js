@@ -513,11 +513,9 @@
                 { kind: "consumable", value: 1, note: C("（瓦礫をあさる）", "（翻找瓦礫）") },
                 {
                   kind: "consumable",
-                  value: 1,
-                  note: C(
-                    "（瓦礫をあさる。選択肢から「投擲壺」を選び、属性は（猛毒）に手動記録）",
-                    "（翻找瓦礫。請於選項中選擇「投擲壺」，屬性（猛毒）需手動記錄）"
-                  ),
+                  itemId: "item_throwing_pot",
+                  attributeTag: C("猛毒", "猛毒"),
+                  note: C("（瓦礫をあさる）", "（翻找瓦礫）"),
                 },
                 { kind: "weaponStar", value: 1, categoryId: "sacred_seal", note: C("（駆け抜ける・成功時）", "（衝過去・成功時）") },
               ],
@@ -706,11 +704,9 @@
                 { kind: "consumable", value: 1, note: C("（ボス戦闘撃破）", "（王戰擊破）") },
                 {
                   kind: "consumable",
-                  value: 1,
-                  note: C(
-                    "（ボス戦闘撃破。選択肢から「投擲壺」を選び、属性は（腐敗）に手動記録）",
-                    "（王戰擊破。請於選項中選擇「投擲壺」，屬性（腐敗）需手動記錄）"
-                  ),
+                  itemId: "item_throwing_pot",
+                  attributeTag: C("腐敗", "腐敗"),
+                  note: C("（ボス戦闘撃破）", "（王戰擊破）"),
                 },
               ],
             },
@@ -780,11 +776,9 @@
                 { kind: "consumable", value: 1, note: C("（瓦礫をあさる）", "（翻找瓦礫）") },
                 {
                   kind: "consumable",
-                  value: 1,
-                  note: C(
-                    "（瓦礫をあさる。選択肢から「投擲壺」を選び、属性は（凍傷）に手動記録）",
-                    "（翻找瓦礫。請於選項中選擇「投擲壺」，屬性（凍傷）需手動記錄）"
-                  ),
+                  itemId: "item_throwing_pot",
+                  attributeTag: C("凍傷", "凍傷"),
+                  note: C("（瓦礫をあさる）", "（翻找瓦礫）"),
                 },
                 { kind: "weaponStar", value: 1, categoryId: "staff", note: C("（崩れた建物へ）", "（前往崩塌的建築）") },
               ],
@@ -914,11 +908,9 @@
                 { kind: "consumable", value: 1, note: C("（瓦礫をあさる）", "（翻找瓦礫）") },
                 {
                   kind: "consumable",
-                  value: 1,
-                  note: C(
-                    "（瓦礫をあさる。選択肢から「投擲壺」を選び、属性は（睡眠）に手動記録）",
-                    "（翻找瓦礫。請於選項中選擇「投擲壺」，屬性（睡眠）需手動記錄）"
-                  ),
+                  itemId: "item_throwing_pot",
+                  attributeTag: C("睡眠", "睡眠"),
+                  note: C("（瓦礫をあさる）", "（翻找瓦礫）"),
                 },
                 { kind: "hpDamage", value: 2, note: C("（瓦礫をあさる・大蟹に巻き込まれた場合）", "（翻找瓦礫・被大蟹波及時）") },
               ],
@@ -1060,11 +1052,9 @@
                 { kind: "consumable", value: 1, note: C("（瓦礫を物色）", "（搜尋瓦礫）") },
                 {
                   kind: "consumable",
-                  value: 1,
-                  note: C(
-                    "（瓦礫を物色。選択肢から「投擲壺」を選び、属性は（発狂）に手動記録）",
-                    "（搜尋瓦礫。請於選項中選擇「投擲壺」，屬性（發狂）需手動記錄）"
-                  ),
+                  itemId: "item_throwing_pot",
+                  attributeTag: C("発狂", "發狂"),
+                  note: C("（瓦礫を物色）", "（搜尋瓦礫）"),
                 },
                 { kind: "weaponStar", value: 1, categoryId: "sacred_seal", note: C("（傾いた建物へ）", "（前往傾頹的建築）") },
               ],
@@ -1242,11 +1232,9 @@
                 { kind: "consumable", value: 1, note: C("（ボス戦闘撃破）", "（王戰擊破）") },
                 {
                   kind: "consumable",
-                  value: 1,
-                  note: C(
-                    "（ボス戦闘撃破。選択肢から「投擲壺」を選び、属性は（出血）に手動記録）",
-                    "（王戰擊破。請於選項中選擇「投擲壺」，屬性（出血）需手動記錄）"
-                  ),
+                  itemId: "item_throwing_pot",
+                  attributeTag: C("出血", "出血"),
+                  note: C("（ボス戦闘撃破）", "（王戰擊破）"),
                 },
               ],
             },
@@ -1592,11 +1580,8 @@
                         { kind: "consumable", value: 1 },
                         {
                           kind: "consumable",
-                          value: 1,
-                          note: C(
-                            "（選択肢から「投擲壺」を選び、属性は（雷）に手動記録）",
-                            "（請於選項中選擇「投擲壺」，屬性（雷）需手動記錄）"
-                          ),
+                          itemId: "item_throwing_pot",
+                          attributeTag: C("雷", "雷"),
                         },
                         { kind: "hpDamage", value: 1, note: C("（行為判定失敗時）", "（行為判定失敗時）") },
                       ],
@@ -1694,11 +1679,9 @@
                 { kind: "consumable", value: 1, note: C("（ザコ戦闘撃破）", "（雜兵戰鬥擊破）") },
                 {
                   kind: "consumable",
-                  value: 1,
-                  note: C(
-                    "（ザコ戦闘撃破。選択肢から「投擲壺」を選び、属性は（雷）に手動記録）",
-                    "（雜兵戰鬥擊破。請於選項中選擇「投擲壺」，屬性（雷）需手動記錄）"
-                  ),
+                  itemId: "item_throwing_pot",
+                  attributeTag: C("雷", "雷"),
+                  note: C("（ザコ戦闘撃破）", "（雜兵戰鬥擊破）"),
                 },
               ],
             },
@@ -1959,11 +1942,9 @@
                 { kind: "consumable", value: 1, note: C("（住民を避け探索・過半数成功時）", "（避開居民探索・過半數成功時）") },
                 {
                   kind: "consumable",
-                  value: 1,
-                  note: C(
-                    "（住民を避け探索・過半数成功時。選択肢から「投擲壺」を選び、属性は（出血）に手動記録）",
-                    "（避開居民探索・過半數成功時。請於選項中選擇「投擲壺」，屬性（出血）需手動記錄）"
-                  ),
+                  itemId: "item_throwing_pot",
+                  attributeTag: C("出血", "出血"),
+                  note: C("（住民を避け探索・過半数成功時）", "（避開居民探索・過半數成功時）"),
                 },
                 { kind: "hpDamage", value: 1, note: C("（住民を避け探索・行為判定失敗時）", "（避開居民探索・行為判定失敗時）") },
               ],

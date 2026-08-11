@@ -1191,8 +1191,12 @@
     // 第6項：全踏破済み（cardLevels===null）のカードはhandleEnterClick側で樓層敘述を
     // 経由せず直接地圖移動へ案内するため、ここでも樓層0の内容を誤ってプレビューしない。
     if (typeof idx === "number" && window.PriTestNightCore.state.cardLevels[idx] === null) return "";
-    var resolved = autoResolveBranch(entry, idx);
-    if (!resolved || resolved.roll !== null) return "";
+    // resolveOrCacheBranchで結果をキャッシュするようになったため、以後の実際の［進入］
+    // クリックでも同じ分岐が使われることが保証される（第6項）。骰子を伴う解決でも、この
+    // プレビュー呼び出し自体が最初にキャッシュへ書き込むので、以前のような「プレビューと
+    // 実際の確定がズレる恐れ」は無くなった——resolved.roll !== nullによる非表示制限を撤廃する。
+    var resolved = resolveOrCacheBranch(entry, idx);
+    if (!resolved) return "";
     var branch = entry.branches[resolved.branchIndex];
     if (!branch || branch.freeFloorOrder) return "";
     var floorIndex = currentFloorIndexForSlot(idx);
@@ -1707,6 +1711,39 @@
     return null; // 解決した名前がbranches[]のどれとも一致しない＝データの想定外、GMへ委ねる
   }
 
+  // 【第6項】autoResolveBranchはランダム決定表（extraTables、"※ランダム決定"）を含む場合、
+  // 呼ぶたびに新しい骰子を消費し、別の分岐（例：鍛冶村(1)⇔鍛冶村(炎)）を返し得る純粋関数。
+  // これをbeginFieldWalkFlowから毎回（＝カード内の樓層ごとに［進入］を押すたび）そのまま
+  // 呼んでいたため、同じカード訪問中でも樓層1と樓層2が別々の分岐から敘述されてしまう
+  // （ユーザー報告：【8】鍛造村で王戰後に樓層カウンターが正しく「全」へ進まず樓層1相当の
+  // 位置に固定されたまま戻ってきてしまうbugの原因——floorCleared/cardLevelsの管理自体は
+  // slotIndex＋floorIndexだけを見ており分岐の一致を前提にしているため、樓層ごとに違う
+  // 分岐へ解決されるとその前提が崩れる）。この板塊（idx＋現在置かれているカードのcode）に
+  // 一度解決した結果をstate.gmFlow.resolvedBranchCacheへ記憶し、以後は同じ訪問内で
+  // 一貫して同じ分岐を使う。盤面のカードが入れ替わる（2日目セットアップ等でslot.codeが
+  // 変わる）と自然に別キーになるため、明示的な無効化処理は不要。
+  function resolveOrCacheBranch(entry, idx) {
+    var Core = window.PriTestNightCore;
+    var state = Core.state;
+    var cacheKey = null;
+    if (typeof idx === "number") {
+      var slot = state.slots[idx];
+      if (slot) cacheKey = idx + ":" + slot.code;
+    } else if (idx === "start" || idx === "end") {
+      cacheKey = idx;
+    }
+    if (cacheKey) {
+      if (!state.gmFlow.resolvedBranchCache) state.gmFlow.resolvedBranchCache = {};
+      var cached = state.gmFlow.resolvedBranchCache[cacheKey];
+      if (cached && entry.branches[cached.branchIndex]) return { branchIndex: cached.branchIndex, roll: null, roll2: null, fromCache: true };
+    }
+    var resolved = autoResolveBranch(entry, idx);
+    if (resolved && cacheKey) {
+      state.gmFlow.resolvedBranchCache[cacheKey] = { branchIndex: resolved.branchIndex };
+    }
+    return resolved;
+  }
+
   function handleEnterClick() {
     var Core = window.PriTestNightCore;
     var state = Core.state;
@@ -1786,7 +1823,7 @@
       Core.renderCurrentLocationStatus();
       return;
     }
-    var resolved = autoResolveBranch(entry, idx);
+    var resolved = resolveOrCacheBranch(entry, idx);
     if (resolved) {
       if (resolved.roll2 !== null && resolved.roll2 !== undefined) {
         logGmDecision(
