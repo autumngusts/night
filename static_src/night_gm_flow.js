@@ -2275,9 +2275,18 @@
     if (hasReward) {
       state.gmFlow.actionKind = "floorEnd";
       pendingFloorEndFloor = floor;
+      // ページ再読み込み・端末切り替えでpendingFloorEndFloor（モジュール内変数）が失われても
+      // ［領取獎勵］が機能するよう、再解決可能な参照もstateへ残しておく（walkSlotIndex/
+      // walk.branchIndex/walkFloorIndexが揃っている通常ケースのみ。揃わない場合はnullのまま＝
+      // 従来通りモジュール内変数頼みだが、ここへ来る時点でほぼ必ず揃っている）。
+      state.gmFlow.pendingFloorEndRef =
+        walk && typeof walk.branchIndex === "number" && typeof walkFloorIndex === "number"
+          ? { slotIndex: walkSlotIndex, branchIndex: walk.branchIndex, floorIndex: walkFloorIndex }
+          : null;
     } else {
       state.gmFlow.actionKind = "ok";
       pendingFloorEndFloor = null;
+      state.gmFlow.pendingFloorEndRef = null;
     }
     // ［路線自由］（branch.freeFloorOrder）カード：通常のcardLevels連番進行ではなく、
     // 位置ごとのクリア状態を管理する。しきい値に達したら「全踏破」チェーンへ乗せる
@@ -2334,16 +2343,35 @@
   }
 
   // finishFieldWalkが検出したfloor.reward情報は、モーダルを開くのに実物のfloorオブジェクトの
-  // 参照が要る（openFloorRewardModalはfloor自体を引数に取る）ため、stateに直列化保存せず
+  // 参照が要る（openFloorRewardModalはfloor自体を引数に取る）ため、基本はstateに直列化保存せず
   // モジュール内変数として持つ（devicecrossの同期は不要——[領取獎勵]は押した端末で
   // 既存の獎勵モーダルを開くだけの操作で、既存の獎勵システム自体は元々cross-device同期済み）。
+  // ただし、この変数はページ再読み込み・再接続で失われる（ユーザー報告：戰鬥に勝って
+  // ［領取獎勵］が出た直後にリロードすると獎勵ゲートごと消えて何も獲得できないバグの原因）ため、
+  // state.gmFlow.pendingFloorEndRef（{slotIndex,branchIndex,floorIndex}のみの直列化可能な参照）
+  // からresolveFloorFromPendingRefで再解決できるフォールバックを用意する。
   var pendingFloorEndFloor = null;
 
+  function resolveFloorFromPendingRef(ref) {
+    if (!ref || typeof ref.branchIndex !== "number" || typeof ref.floorIndex !== "number") return null;
+    var FloorBreakthrough = window.PriTestNightFloorBreakthrough;
+    var card = FloorBreakthrough.resolveFieldEntryForSlot(ref.slotIndex);
+    var branch = card && card.branches ? card.branches[ref.branchIndex] : null;
+    var floor = branch && branch.floors ? branch.floors[ref.floorIndex] : null;
+    // night_rulebook.jsが規則書パネル描画時に付与するキーと同じ形式（card.id+branchIndex+floorIndex）。
+    // リロード直後はまだ規則書パネルを開いていないため未設定のことがあり、ここで先に埋めておく
+    // ことで獎勵清單への自動push側の一度きり判定（floor.__rewardKey）が正しく機能する。
+    if (floor && !floor.__rewardKey && card) floor.__rewardKey = card.id + "_" + ref.branchIndex + "_" + ref.floorIndex;
+    return floor || null;
+  }
+
   function handleFloorEndRewardClick() {
-    if (pendingFloorEndFloor) window.PriTestNightFloorBreakthrough.openFloorRewardModal(pendingFloorEndFloor);
+    var Core = window.PriTestNightCore;
+    var floor = pendingFloorEndFloor || resolveFloorFromPendingRef(Core.state.gmFlow.pendingFloorEndRef);
+    if (floor) window.PriTestNightFloorBreakthrough.openFloorRewardModal(floor);
     closeGmFlowGateAndConsumePendingAdvance();
-    window.PriTestNightCore.saveState();
-    window.PriTestNightCore.renderCurrentLocationStatus();
+    Core.saveState();
+    Core.renderCurrentLocationStatus();
   }
 
   // 第15・18項：全樓層踏破時、grantCardFullClearRewardIfNeeded（night.js）から呼ばれる。
@@ -2452,6 +2480,7 @@
     state.gmFlow.chipOfferContinuation = null;
     state.gmFlow.pendingMapMoveFromIndex = null;
     pendingFloorEndFloor = null;
+    state.gmFlow.pendingFloorEndRef = null;
     lastTypedNarration = null;
   }
 

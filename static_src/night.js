@@ -905,6 +905,11 @@
       // [OK]を押した時点でこの値とfocusedIndexが同じなら「まだ移動していない」と判定し、
       // ゲートを閉じずリマインドを繰り返す（handleMapMoveOkClick参照）。
       pendingMapMoveFromIndex: null,
+      // actionKind==="floorEnd"のfloorオブジェクト自体（night_gm_flow.jsのpendingFloorEndFloor、
+      // モジュール内変数）を再構築するための直列化可能な参照。ページ再読み込み・再接続を挟むと
+      // モジュール内変数は失われるため、{slotIndex,branchIndex,floorIndex}だけをstateに残しておき、
+      // resolveFieldEntryForSlot経由でfloorオブジェクトを再解決できるようにする。
+      pendingFloorEndRef: null,
     },
     // GMが開いて縮小した抽選ウィンドウを全端末で共有するための領域。null=未使用。
     // 中身はcharacter_drawer.jsのweaponRollState/talismanRollState/consumableRollState、
@@ -1989,6 +1994,8 @@
             "freeFloorChoice",
             "battleWait",
             "chipOffer",
+            "floorEnd",
+            "mapMove",
           ].indexOf(loadedGmFlow.actionKind) !== -1
             ? loadedGmFlow.actionKind
             : "ok",
@@ -2134,6 +2141,16 @@
         pendingChipCheckSlot: typeof loadedGmFlow.pendingChipCheckSlot === "number" ? loadedGmFlow.pendingChipCheckSlot : null,
         pendingMapMoveSlot: loadSlotOrPileIndex(loadedGmFlow.pendingMapMoveSlot),
         pendingMapMoveFromIndex: loadSlotOrPileIndex(loadedGmFlow.pendingMapMoveFromIndex),
+        pendingFloorEndRef:
+          loadedGmFlow.pendingFloorEndRef &&
+          typeof loadedGmFlow.pendingFloorEndRef.branchIndex === "number" &&
+          typeof loadedGmFlow.pendingFloorEndRef.floorIndex === "number"
+            ? {
+                slotIndex: loadSlotOrPileIndex(loadedGmFlow.pendingFloorEndRef.slotIndex),
+                branchIndex: loadedGmFlow.pendingFloorEndRef.branchIndex,
+                floorIndex: loadedGmFlow.pendingFloorEndRef.floorIndex,
+              }
+            : null,
       };
       var loadedDraws = data.activeDraws && typeof data.activeDraws === "object" ? data.activeDraws : {};
       state.activeDraws = {
@@ -2234,6 +2251,7 @@
       pendingChipCheckSlot: null,
       pendingMapMoveSlot: null,
       pendingMapMoveFromIndex: null,
+      pendingFloorEndRef: null,
     };
     state.activeDraws = { potentialPower: null, weapon: null, talisman: null, consumable: null };
     state.activeThreatEffects = [];
