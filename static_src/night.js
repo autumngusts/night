@@ -2569,10 +2569,12 @@
 
   // --- board ---
   function renderBoard() {
-    // ユーザー指定：3日目（最終夜）はフィールド探索盤面が存在しない（夜の王戦闘のみ）ため、
-    // 公開盤の地図カード自体を非表示にする。
-    var boardArea = document.getElementById("board-area");
-    if (boardArea) boardArea.hidden = state.dayNumber >= MAX_DAY;
+    // ユーザー指定：3日目（最終夜）は地図カード（#board-grid＝9マス＋起點/終點の山札）だけを
+    // 非表示にする。#board-area自体を隠すと、同じ要素内にネストされている夜の王画像
+    // （.night3-boss-wrap）や戦闘中の敵陣容パネル（.board-side-wrap、夜の王戦闘でも
+    // 引き続き使う）まで巻き添えで隠れてしまうため、#board-gridだけを対象にする。
+    var boardGrid = document.getElementById("board-grid");
+    if (boardGrid) boardGrid.hidden = state.dayNumber >= MAX_DAY;
     for (var i = 0; i < SLOT_COUNT; i++) {
       var el = document.getElementById("slot-" + i);
       var slot = state.slots[i];
