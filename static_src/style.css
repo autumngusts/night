@@ -485,6 +485,18 @@ button {
   white-space: pre-wrap;
 }
 
+.strong-enemy-info-bubble {
+  position: fixed;
+  top: auto;
+  left: auto;
+  width: max-content;
+  max-width: min(240px, 80vw);
+}
+
+.strong-enemy-info-bubble::before {
+  content: none;
+}
+
 .info-bubble-close {
   position: absolute;
   top: 4px;

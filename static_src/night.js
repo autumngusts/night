@@ -918,6 +918,21 @@
       // ユーザー指定：actionKind==="floorEnd"の間、[領取獎勵]ボタンを一度押したかどうか。
       // trueの間はrenderLocationBanner側で[領取獎勵]ボタン自体を描画しない（[領取完]のみ残す）。
       floorEndRewardOpened: false,
+      // 強敵チット：樓層の敘述（walk）とは独立した「強敵戦闘」に入っている間のslotIndex。
+      // null＝強敵戦闘中ではない。night.jsのsetActionPhase（combatEnd）が、樓層敘述由来の
+      // notifyCombatEndedと並行してnotifyChipCombatEndedも呼び、この値が数値の間だけ
+      // 強敵撃破処理（獎勵付与・チット使用済み化）を行う。
+      chipCombatSlot: null,
+      // 撃破時の獎勵が「強敵（撃破ルーン8／潜在する力★★）」か「恐るべき強敵（12／★★★）」かの
+      // 判定（event_rulebook.js「強敵チット」本文の固定値、2日目の⑧号チットのみtrue）。
+      chipCombatIsTerrible: false,
+      // 強敵戦闘に入る直前のchipOfferContinuation（"startWalk"｜"cardConclusion"）を、
+      // 撃破後（notifyChipCombatEnded→chipCombatResumeContinuation）まで保持しておくための
+      // 一時退避先。
+      chipCombatContinuation: null,
+      // 撃破直後の［OK］（handleChipCombatResolvedOkClick）で再開する継続処理と対象slotIndex。
+      chipCombatResumeContinuation: null,
+      chipCombatResumeSlot: null,
     },
     // GMが開いて縮小した抽選ウィンドウを全端末で共有するための領域。null=未使用。
     // 中身はcharacter_drawer.jsのweaponRollState/talismanRollState/consumableRollState、
@@ -2035,6 +2050,9 @@
             "chipOffer",
             "floorEnd",
             "mapMove",
+            "chipStrongEnemyOffer",
+            "chipCombatWait",
+            "chipCombatResolved",
           ].indexOf(loadedGmFlow.actionKind) !== -1
             ? loadedGmFlow.actionKind
             : "ok",
@@ -2192,6 +2210,12 @@
               }
             : null,
         floorEndRewardOpened: !!loadedGmFlow.floorEndRewardOpened,
+        chipCombatSlot: typeof loadedGmFlow.chipCombatSlot === "number" ? loadedGmFlow.chipCombatSlot : null,
+        chipCombatIsTerrible: !!loadedGmFlow.chipCombatIsTerrible,
+        chipCombatContinuation: typeof loadedGmFlow.chipCombatContinuation === "string" ? loadedGmFlow.chipCombatContinuation : null,
+        chipCombatResumeContinuation:
+          typeof loadedGmFlow.chipCombatResumeContinuation === "string" ? loadedGmFlow.chipCombatResumeContinuation : null,
+        chipCombatResumeSlot: typeof loadedGmFlow.chipCombatResumeSlot === "number" ? loadedGmFlow.chipCombatResumeSlot : null,
       };
       var loadedDraws = data.activeDraws && typeof data.activeDraws === "object" ? data.activeDraws : {};
       state.activeDraws = {
@@ -2297,6 +2321,11 @@
       pendingMapMoveFromIndex: null,
       pendingFloorEndRef: null,
       floorEndRewardOpened: false,
+      chipCombatSlot: null,
+      chipCombatIsTerrible: false,
+      chipCombatContinuation: null,
+      chipCombatResumeContinuation: null,
+      chipCombatResumeSlot: null,
     };
     state.activeDraws = { potentialPower: null, weapon: null, talisman: null, consumable: null, turnRewardAutoOpen: null };
     state.activeThreatEffects = [];
@@ -9941,6 +9970,11 @@
       if (window.PriTestNightGmFlow && window.PriTestNightGmFlow.notifyCombatEnded) {
         window.PriTestNightGmFlow.notifyCombatEnded();
       }
+      // 強敵チット専用の戦闘（chipCombatSlot、樓層敘述のbattleWaitActiveとは独立系統）が
+      // 進行中ならこちらも並行して検出する——notifyCombatEnded同様、無関係なら内部で無視される。
+      if (window.PriTestNightGmFlow && window.PriTestNightGmFlow.notifyChipCombatEnded) {
+        window.PriTestNightGmFlow.notifyChipCombatEnded();
+      }
     } else {
       addLog("log_action_phase_change", { phase: window.I18N.t("action_phase_" + phase) });
     }
@@ -11035,9 +11069,42 @@
       if (chipId === "merchant") {
         chipRow.style.cursor = "pointer";
         chipRow.addEventListener("click", openMerchantModal);
+      } else if (chipId === "strong_enemy") {
+        // ユーザー指定：公開盤上の強敵籌碼は、點擊すると小さな氣泡で既に決定済みの強敵名を
+        // 表示する（既存setup-info-bubbleと同じ「クリックで表示・外側クリックで閉じる」
+        // 仕組みを、盤面9マス分すべてに使い回せるよう1つの共用bubble要素を動的に位置合わせ
+        // して再利用する）。撃破済み（state.eventChipsUsed[index]）は上のchipRow.classList
+        // .add("used")で暗転＋取り消し線が自動適用される（.slot-chip-row.used、style.css）。
+        chipRow.style.cursor = "pointer";
+        chipRow.addEventListener("click", function (e) {
+          e.stopPropagation();
+          showStrongEnemyInfoBubble(index, chipRow);
+        });
       }
       el.appendChild(chipRow);
     }
+  }
+
+  // 強敵チットの公開盤氣泡：state.eventChipsData[index].enemyNameがまだ無ければ
+  // （＝オファー時の自動擲骰がまだ発生していない、通常は起こらないが念のため）簡易メッセージに
+  // フォールバックする。既に開いている状態でもう一度押すと閉じる（トグル）。
+  function showStrongEnemyInfoBubble(index, anchorEl) {
+    var bubble = document.getElementById("strong-enemy-info-bubble");
+    if (!bubble) return;
+    if (!bubble.hidden && bubble.dataset.slotIndex === String(index)) {
+      bubble.hidden = true;
+      return;
+    }
+    var data = state.eventChipsData[index];
+    var body = document.getElementById("strong-enemy-info-bubble-body");
+    body.textContent = data && data.enemyName ? data.enemyName : window.I18N.t("event_chip_strong_enemy_not_decided_note");
+    bubble.dataset.slotIndex = String(index);
+    // position:fixed（style.css）のため、getBoundingClientRectのビューポート座標をそのまま使う
+    // （offsetParentの入れ子構造に依存しない、盤面9マスどこでも同じロジックで位置合わせできる）。
+    var rect = anchorEl.getBoundingClientRect();
+    bubble.style.top = rect.bottom + 4 + "px";
+    bubble.style.left = Math.max(4, Math.min(rect.left, window.innerWidth - 240)) + "px";
+    bubble.hidden = false;
   }
 
   // #10：樓層カウンターのボタンをそのカード自身の樓層数（floorCount）に合わせる
@@ -12152,6 +12219,10 @@
   window.PriTestNightCore = {
     state: state,
     getRosterCharacters: function () { return rosterCharacters; },
+    // ランダムイベント決定表の劇本限定行判定（night_gm_flow.jsのautoRollRandomEventChipIfNeeded）
+    // 用：現在の副本id（game/scenarioは共にこのファイルのモジュール内closure変数のため未export、
+    // 自訂副本や副本未選択時はnull）。
+    getScenarioId: function () { return game && game.scenarioId ? game.scenarioId : null; },
     saveState: saveState,
     saveRosterCharacters: saveRosterCharacters,
     renderCharacterRoster: renderCharacterRoster,
@@ -12429,6 +12500,12 @@
       if (bubble.hidden) return;
       if (bubble.contains(e.target) || e.target.id === "btn-setup-info") return;
       closeSetupInfo();
+    });
+    document.addEventListener("click", function (e) {
+      var enemyBubble = document.getElementById("strong-enemy-info-bubble");
+      if (!enemyBubble || enemyBubble.hidden) return;
+      if (enemyBubble.contains(e.target)) return;
+      enemyBubble.hidden = true;
     });
     document.getElementById("btn-time-loss-info").addEventListener("click", openThreatDrawer);
     document.getElementById("btn-time-loss-broadcast").addEventListener("click", triggerThreatBroadcast);

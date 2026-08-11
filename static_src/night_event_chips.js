@@ -448,6 +448,19 @@
       return ec.id === "random_event";
     })[0] : null;
     var branches = card ? (card.branches || []).slice(1) : []; // 先頭は導入文のみのため除く
+    // night_gm_flow.jsのautoRollRandomEventChipIfNeededが2-1のオファー時点で既に自動抽選
+    // している場合、その結果（state.eventChipsData[idx].randomEventBranchIndex、branches
+    // フル配列基準＝この配列より1大きいindex）をデフォルト選択にする——GMが毎回また手動で
+    // 選び直す必要をなくす（ユーザー指定：自動化GM直接抽、告訴玩家抽到什麼事件）。
+    var recordedData = window.PriTestNightCore.state.eventChipsData[idx];
+    var recordedLocalIndex =
+      recordedData && typeof recordedData.randomEventBranchIndex === "number" ? recordedData.randomEventBranchIndex - 1 : null;
+    if (recordedLocalIndex !== null) {
+      var autoNote = document.createElement("p");
+      autoNote.className = "threat-ref-body";
+      autoNote.textContent = window.I18N.t("event_chip_random_auto_drawn_note", { event: recordedData.randomEventName });
+      content.appendChild(autoNote);
+    }
     var select = document.createElement("select");
     branches.forEach(function (b, i) {
       var o = document.createElement("option");
@@ -455,6 +468,7 @@
       o.textContent = Events.localizedText(b.name);
       select.appendChild(o);
     });
+    if (recordedLocalIndex !== null && branches[recordedLocalIndex]) select.value = String(recordedLocalIndex);
     content.appendChild(select);
     var detailDiv = document.createElement("div");
     content.appendChild(detailDiv);
@@ -490,5 +504,6 @@
     minimizeEventChipModal: minimizeEventChipModal,
     restoreEventChipModal: restoreEventChipModal,
     applyEventChipBlessingRest: applyEventChipBlessingRest,
+    markEventChipUsed: markEventChipUsed,
   };
 })();

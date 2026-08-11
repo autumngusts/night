@@ -32,6 +32,34 @@
       ],
     },
     {
+      id: "gaping_jaw",
+      name: { zh: "咬噬之顎", ja: "喰らいつく顎", en: "Gaping Jaw" },
+      bossName: { zh: "夜之爵、艾德蕾", ja: "夜の爵、エデレ", en: "Night's Baron, Edele" },
+      bossId: "edele",
+      relicName: { zh: "爵之夜", ja: "爵の夜", en: "Night of the Baron" },
+      start: { suit: "S", rank: "A" },
+      end: { suit: "C", rank: "A" },
+      day1: [
+        { pos: 1, suit: "C", rank: "2", name: { zh: "大教會（隨機）", ja: "大教会（ランダム）", en: "Grand Cathedral (Random)" } },
+        { pos: 2, suit: "H", rank: "4", name: { zh: "大野營地（隨機）", ja: "大野営地（ランダム）", en: "Main Camp (Random)" } },
+        { pos: 3, suit: "S", rank: "5", name: { zh: "遺跡（毒）", ja: "遺跡（毒）", en: "Ruins (Poison)" } },
+        { pos: 4, suit: "C", rank: "6", name: { zh: "坑道（2）", ja: "坑道（2）", en: "Tunnel (2)" } },
+        { pos: 5, suit: "D", rank: "7", name: { zh: "湖沼（毒）", ja: "湖沼（毒）", en: "Lake (Poison)" } },
+        { pos: 6, suit: "C", rank: "9", name: { zh: "封牢（隨機）", ja: "封牢（ランダム）", en: "Sealed Prison (Random)" } },
+        { pos: 7, suit: "H", rank: "10", name: { zh: "魔術師之塔", ja: "魔術師塔", en: "Sorcerer's Tower" } },
+        { pos: 8, suit: "D", rank: "K", name: { zh: "教會", ja: "教会", en: "Church" } },
+        { pos: 9, suit: "S", rank: "K", name: { zh: "教會", ja: "教会", en: "Church" } },
+      ],
+      day2: [
+        { pos: 1, suit: "H", rank: "2", name: { zh: "大教會（隨機）", ja: "大教会（ランダム）", en: "Grand Cathedral (Random)" } },
+        { pos: 2, suit: "D", rank: "3", name: { zh: "小砦（隨機）", ja: "小砦（ランダム）", en: "Small Fort (Random)" } },
+        { pos: 3, suit: "C", rank: "4", name: { zh: "大野營地（隨機）", ja: "大野営地（ランダム）", en: "Main Camp (Random)" } },
+        { pos: 4, suit: "H", rank: "5", name: { zh: "遺跡（隨機）", ja: "遺跡（ランダム）", en: "Ruins (Random)" } },
+        { pos: 5, suit: "S", rank: "9", name: { zh: "封牢（隨機）", ja: "封牢（ランダム）", en: "Sealed Prison (Random)" } },
+        { pos: 6, suit: "D", rank: "J", name: { zh: "砦（隨機）", ja: "砦（ランダム）", en: "Fort (Random)" } },
+      ],
+    },
+    {
       id: "sentient_pest",
       name: { zh: "知性之蟲", ja: "知性の蟲", en: "Sentient Pest" },
       bossName: { zh: "夜之織、塔諾斯特", ja: "夜の織、タノスター", en: "Night's Weave, Tanoster" },
@@ -279,34 +307,6 @@
         ja: "「地変」（135頁）は、自動的にフィールドライン5の3枚と入れ替えて配置されることに注意。",
       },
     },
-    {
-      id: "gaping_jaw",
-      name: { zh: "咬噬之顎", ja: "喰らいつく顎", en: "Gaping Jaw" },
-      bossName: { zh: "夜之爵、艾德蕾", ja: "夜の爵、エデレ", en: "Night's Baron, Edele" },
-      bossId: "edele",
-      relicName: { zh: "爵之夜", ja: "爵の夜", en: "Night of the Baron" },
-      start: { suit: "S", rank: "A" },
-      end: { suit: "C", rank: "A" },
-      day1: [
-        { pos: 1, suit: "C", rank: "2", name: { zh: "大教會（隨機）", ja: "大教会（ランダム）", en: "Grand Cathedral (Random)" } },
-        { pos: 2, suit: "H", rank: "4", name: { zh: "大野營地（隨機）", ja: "大野営地（ランダム）", en: "Main Camp (Random)" } },
-        { pos: 3, suit: "S", rank: "5", name: { zh: "遺跡（毒）", ja: "遺跡（毒）", en: "Ruins (Poison)" } },
-        { pos: 4, suit: "C", rank: "6", name: { zh: "坑道（2）", ja: "坑道（2）", en: "Tunnel (2)" } },
-        { pos: 5, suit: "D", rank: "7", name: { zh: "湖沼（毒）", ja: "湖沼（毒）", en: "Lake (Poison)" } },
-        { pos: 6, suit: "C", rank: "9", name: { zh: "封牢（隨機）", ja: "封牢（ランダム）", en: "Sealed Prison (Random)" } },
-        { pos: 7, suit: "H", rank: "10", name: { zh: "魔術師之塔", ja: "魔術師塔", en: "Sorcerer's Tower" } },
-        { pos: 8, suit: "D", rank: "K", name: { zh: "教會", ja: "教会", en: "Church" } },
-        { pos: 9, suit: "S", rank: "K", name: { zh: "教會", ja: "教会", en: "Church" } },
-      ],
-      day2: [
-        { pos: 1, suit: "H", rank: "2", name: { zh: "大教會（隨機）", ja: "大教会（ランダム）", en: "Grand Cathedral (Random)" } },
-        { pos: 2, suit: "D", rank: "3", name: { zh: "小砦（隨機）", ja: "小砦（ランダム）", en: "Small Fort (Random)" } },
-        { pos: 3, suit: "C", rank: "4", name: { zh: "大野營地（隨機）", ja: "大野営地（ランダム）", en: "Main Camp (Random)" } },
-        { pos: 4, suit: "H", rank: "5", name: { zh: "遺跡（隨機）", ja: "遺跡（ランダム）", en: "Ruins (Random)" } },
-        { pos: 5, suit: "S", rank: "9", name: { zh: "封牢（隨機）", ja: "封牢（ランダム）", en: "Sealed Prison (Random)" } },
-        { pos: 6, suit: "D", rank: "J", name: { zh: "砦（隨機）", ja: "砦（ランダム）", en: "Fort (Random)" } },
-      ],
-    },
   ];
 
   // --- 管理員が自由編輯できる自訂副本（localStorage 保存、ビルド時の固定データとは別枠） ---
@@ -396,6 +396,16 @@
     );
   }
 
+  // 規則書の「劇本N」表記（1〜10）に対応する番号。SCENARIOS配列の並び順＝規則書の
+  // 劇本番号順（ユーザー確認済み、2026-08-11：gaping_jawをtricephalosの直後へ並び替え済み）。
+  // 自訂副本（custom scenario）は規則書上の番号を持たないためnull。
+  function numberForId(id) {
+    for (var i = 0; i < SCENARIOS.length; i++) {
+      if (SCENARIOS[i].id === id) return i + 1;
+    }
+    return null;
+  }
+
   // dayKey: "day1" | "day2" 上の該当カードの情報（あれば）を返す
   function findCardEffect(scenarioId, dayKey, suit, rank) {
     var scenario = get(scenarioId);
@@ -411,6 +421,7 @@
   window.PriTestScenarios = {
     list: list,
     get: get,
+    numberForId: numberForId,
     findCardEffect: findCardEffect,
     localizedName: localizedName,
     createScenario: createScenario,

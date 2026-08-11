@@ -102,6 +102,9 @@ BODY = """    <div class="night-header-row">
       </div>
       <button id="btn-turn-reward-restore" type="button" class="potential-power-restore-btn turn-reward-restore-btn" data-i18n="turn_reward_restore_button" hidden></button>
 
+      <div id="strong-enemy-info-bubble" class="info-bubble strong-enemy-info-bubble" hidden>
+        <div id="strong-enemy-info-bubble-body"></div>
+      </div>
       <div class="board-area" id="board-area">
         <div class="board-grid" id="board-grid">
           <div class="field-level field-level-0" id="field-level-0"></div>
