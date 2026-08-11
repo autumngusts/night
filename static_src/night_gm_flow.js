@@ -896,12 +896,23 @@
     { ja: "ザコ戦闘", zh: "雜兵戰鬥" },
     { ja: "ボス戦闘", zh: "王戰" },
   ];
+  // ユーザー報告：「黄金樹の帳」2日目のボス戦闘トリガー見出しが「ボス戦闘1（撃破ルーン：15）」
+  // （数字が直後に付いている）ため、以下の判定が一致せず戦闘トリガー自体が検出されない
+  // （＝［雜兵戰鬥／王戰］ボタンが一切出ず、敵人も戦場へ追加されない）バグがあった。
+  // 実データ全体を確認したところ、これはa_golden固有ではなく「ボス戦闘1／2」「ザコ戦闘1／2」
+  // （複数回の戦闘や分岐違いの見出しに連番を付けている、例：card_j 砦の「ボス戦闘1（♠）」）が
+  // 各所に存在しており、いずれも同じ理由で検出漏れになり得た。見出し語と開き括弧の間に
+  // 任意で挟まる半角/全角数字1桁を許容するよう正規表現を緩和する。
+  var COMBAT_TRIGGER_NUM_GAP = "[0-9０-９]?";
   function isCombatTriggerLine(line) {
     if (line.label) return false;
     var ja = (line.text && line.text.ja) || "";
     var zh = (line.text && line.text.zh) || "";
     return COMBAT_TRIGGER_TITLES.some(function (t) {
-      return new RegExp("^" + t.ja + "\\s*[（(]").test(ja) || new RegExp("^" + t.zh + "（").test(zh);
+      return (
+        new RegExp("^" + t.ja + COMBAT_TRIGGER_NUM_GAP + "\\s*[（(]").test(ja) ||
+        new RegExp("^" + t.zh + COMBAT_TRIGGER_NUM_GAP + "（").test(zh)
+      );
     });
   }
 
@@ -911,7 +922,7 @@
     var t = COMBAT_TRIGGER_TITLES[1];
     var ja = (line.text && line.text.ja) || "";
     var zh = (line.text && line.text.zh) || "";
-    return new RegExp("^" + t.ja + "\\s*[（(]").test(ja) || new RegExp("^" + t.zh + "（").test(zh);
+    return new RegExp("^" + t.ja + COMBAT_TRIGGER_NUM_GAP + "\\s*[（(]").test(ja) || new RegExp("^" + t.zh + COMBAT_TRIGGER_NUM_GAP + "（").test(zh);
   }
 
   // ボタンラベル・敘述冒頭に使う表示名（「雜兵戰鬥」／「王戰」）は、判定に使ったパターンではなく
