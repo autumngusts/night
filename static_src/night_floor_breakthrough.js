@@ -94,14 +94,19 @@
           .join("、"),
       });
     }
-    if (!floorHasJudgmentReward(floor)) {
+    // 呼び出し元（night_gm_flow.jsのhandleFloorEndRewardClick）が「獎勵清單を開くべきか」
+    // 「樓層獎勵ゲート（pendingRewardWindows）を追跡すべきか」を判定できるよう、何が
+    // 起きたかを返す。night_rulebook.jsの既存呼び出しは戻り値を使わないため無変更で動く。
+    var hasJudgment = floorHasJudgmentReward(floor);
+    if (!hasJudgment) {
       if (rulebookWasVisible && rulebookModal) rulebookModal.hidden = false;
-      return;
+      return { lootPushed: lootObjs.length > 0, judgmentModalOpened: false };
     }
     floorRewardModalFloor = floor;
     document.getElementById("floor-reward-modal").hidden = false;
     document.getElementById("btn-floor-reward-restore").hidden = true;
     renderFloorRewardSection(document.getElementById("floor-reward-modal-content"), floor);
+    return { lootPushed: lootObjs.length > 0, judgmentModalOpened: true };
   }
 
   function closeFloorRewardModal() {
