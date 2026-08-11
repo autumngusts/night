@@ -741,6 +741,13 @@
       // 防禦階段全員擲骰完成時，autoTriggerDefenseRollが自動擲出的敵方行動結果，用來讓GM之後
       // 打開#enemy-damage-modal時復原相同數值（不重新擲骰）。
       pendingDefenseRoll: null,
+      // AutoGM敵方行動結構化資料中的elementAccum/ailmentAccum（固定數值的屬性/狀態異常附加值，
+      // 見enemy_auto_gm_data.js／auto_gm.js的structured schema）：key=角色id，value=
+      // [{label, amount}]。handleAutoGmRollClick依groupDamage/individualDamage的目標結算後
+      // 寫入（每次重新擲骰整個覆寫），handleEnemyDamageConfirmForCharacter於該角色按下［確定］
+      // 時實際套用到state.battle.attributeStatus.received並清除該角色的項目（與HP損害同樣延後到
+      // 確定時才產生實際效果，數值本身不可由GM於此UI調整）。
+      pendingDefenseElementAccum: {},
       // 防禦階段全員擲骰完成時，顯示在進度版的AutoGM擲骰速報文字（亂戰/個別傷害內訳＋各PC預估損害）。
       defenseRollPreviewText: null,
       // #enemy-damage-modal內，已按下［確定］的角色（key=角色id、value=true）。全員確定後才
@@ -1191,6 +1198,24 @@
       });
     }
     var enemyDmgOverride = loadNumberMap(raw.enemyDmgOverride);
+    function loadCharAccumMap(rawMap) {
+      var out = {};
+      if (rawMap && typeof rawMap === "object") {
+        Object.keys(rawMap).forEach(function (charId) {
+          var arr = rawMap[charId];
+          if (!Array.isArray(arr)) return;
+          var entries = arr
+            .filter(function (e) {
+              return e && typeof e.label === "string" && typeof e.amount === "number";
+            })
+            .map(function (e) {
+              return { label: e.label, amount: e.amount };
+            });
+          if (entries.length) out[charId] = entries;
+        });
+      }
+      return out;
+    }
     return {
       front: front,
       back: back,
@@ -1250,6 +1275,7 @@
             }
           : null,
       defenseRollPreviewText: typeof raw.defenseRollPreviewText === "string" ? raw.defenseRollPreviewText : null,
+      pendingDefenseElementAccum: loadCharAccumMap(raw.pendingDefenseElementAccum),
       enemyDamageConfirmed: loadBoolMap(raw.enemyDamageConfirmed),
       defenseHpLossSummary: loadNumberMap(raw.defenseHpLossSummary),
       defenseEntryEffectText: typeof raw.defenseEntryEffectText === "string" ? raw.defenseEntryEffectText : null,
@@ -3841,6 +3867,7 @@
           // ボーナスもこの攻擊のdmgValueへ載せるため）。
           recordAttackDiceConsumed(c, dice.length);
           maybeApplyFpRecoveryOnAttack(c);
+          maybeApplyHpRecoveryOnAttack(c);
           maybeOfferStaminaRecoveryOnAttack(c);
           var songHitBonus = songOfBloodSpiritHitBonus();
           var unyieldingBonus = unyieldingHitBonus(c);
@@ -3863,6 +3890,16 @@
           var lines = [window.I18N.t("action_log_dice_used", { dice: dice.join("、") })].concat(costLines);
           // 淑女「短劍重演」：短劍で1つのフェイズ中に2Hitアタックを2回行った瞬間（■は数値未確定の
           // ためGM手動反映、注記のみ残す）。
+          // 復仇者／復仇者（暗影）「2Hit攻擊的達人（復仇者的咒爪）」：使用武器「復仇者的咒爪」
+          // （fist_vengeful）的2Hit攻擊時，2Hit特典中額外獲得「復歸傷害：+10」。復歸傷害本身在本
+          // App一律由GM手動反映（無單一目標PC追蹤機制），因此僅在此處補上提醒注記。
+          if (hitType === "hit2" && weapon.id === "fist_vengeful") {
+            var vengefulClawMastery = CharacterDrawer.findLearnedRelicEffectByName(c, [
+              "2Hit攻擊的達人（復仇者的咒爪）",
+              "2Hitアタックの達人（復讐者の呪爪）",
+            ]);
+            if (vengefulClawMastery) lines.push(window.I18N.t("vengeful_claw_two_hit_revival_bonus_note"));
+          }
           if (hitType === "hit2" && category.id === "dagger") {
             c._daggerTwoHitCountThisPhase = (c._daggerTwoHitCountThisPhase || 0) + 1;
             if (c._daggerTwoHitCountThisPhase === 2) {
@@ -4076,6 +4113,9 @@
     if (dashEffect && charPos === "back") {
       // 附帶効果「衝刺攻擊強化」：+10（固定・条件記載無し）。
       var dashAtkUpBonus = (c.learnedAttachedEffects || []).indexOf("dash_atk_up") !== -1 ? 10 : 0;
+      // 送葬人（黎明）獨有「＞習得此技能2個以上時・造成的傷害「+15」」（base undertakerには無い
+      // 追加條款）。countLearnedActionRelicsByNameで実際の習得数を数える。
+      var dashMultiBonus = CharacterDrawer.countLearnedActionRelicsByName(c, ["衝刺攻擊", "ダッシュ攻撃"]) >= 2 ? 15 : 0;
       meleeWeaponIds.forEach(function (weaponId) {
         renderSpecialAttackWeaponRow(
           c,
@@ -4085,7 +4125,7 @@
           dashEffect,
           function (damage, weapon, category) {
             var isGreatSpear = category && category.id === "great_spear";
-            return { value: damage.hit1Damage + (isGreatSpear ? damage.artPower : 0) + dashAtkUpBonus, symbol: damage.hit1Symbol };
+            return { value: damage.hit1Damage + (isGreatSpear ? damage.artPower : 0) + dashAtkUpBonus + dashMultiBonus, symbol: damage.hit1Symbol };
           },
           function () {
             moveCharacterToFrontArea(c);
@@ -4096,6 +4136,10 @@
 
     var chargeEffect = CharacterDrawer.findLearnedActionRelicByName(c, ["蓄力攻擊", "タメ攻撃"]);
     if (chargeEffect && charPos === "front") {
+      // 「＞習得此技能2個以上時・造成的傷害「+10」」：countLearnedActionRelicsByNameで実際に
+      // 習得している「蓄力攻擊」の個数（同名のAction効果を複数選択できるrelicEffectGroups）を数え、
+      // 2個以上なら追加+10（基本+10と合わせて計+20）する。
+      var chargeMultiBonus = CharacterDrawer.countLearnedActionRelicsByName(c, ["蓄力攻擊", "タメ攻撃"]) >= 2 ? 10 : 0;
       meleeWeaponIds.forEach(function (weaponId) {
         renderSpecialAttackWeaponRow(
           c,
@@ -4104,7 +4148,7 @@
           "charge",
           chargeEffect,
           function (damage) {
-            return { value: damage.hit1Damage + 10, symbol: damage.hit1Symbol };
+            return { value: damage.hit1Damage + 10 + chargeMultiBonus, symbol: damage.hit1Symbol };
           },
           null,
           function (category) {
@@ -4199,6 +4243,12 @@
     if ((c.learnedAttachedEffects || []).indexOf("crit_up") !== -1) {
       fixed = { value: fixed.value + 10, symbol: fixed.symbol };
     }
+    // 淑女／淑女（黎明）「＞習得此技能2個時・造成的傷害「+20」」：致命一擊は同名のAction効果を
+    // 2つまで習得できるため、countLearnedActionRelicsByNameで実際の習得数を数える。
+    var fatalStrikeLearnedTwice = CharacterDrawer.countLearnedActionRelicsByName(c, ["致命一擊", "致命の一撃"]) >= 2;
+    if (fatalStrikeLearnedTwice) {
+      fixed = { value: fixed.value + 20, symbol: fixed.symbol };
+    }
     var row = document.createElement("div");
     row.className = "combat-attack-weapon-row";
     var nameEl = document.createElement("span");
@@ -4245,6 +4295,12 @@
         addActionBox(c, window.I18N.t("combat_special_attack_fatal_label"), window.I18N.t("action_log_damage_total", { value: valueText }), lines);
         addLog("log_combat_fatal_strike", { character: c.name, damage: valueText, dice: dice.join("、") });
         recordPhaseDamageDealt(c, fixed.value, fixed.symbol);
+        // 「＞習得此技能2個時」の後半：此行動後，對自身施加「HP回復：□」與「FP回復：□」（各+1）。
+        if (fatalStrikeLearnedTwice) {
+          c.hp.current = Math.min(c.hp.max, c.hp.current + 1);
+          if (c.fp) c.fp.current = Math.min(c.fp.max, c.fp.current + 1);
+          lines.push(window.I18N.t("action_log_heal_total", { value: 1 }));
+        }
         // 淑女「致命一擊獲得盧恩」：發動遺物効果「致命一擊」時、1次戰鬥中僅發揮1次、全體PC獲得盧恩1。
         if (!state.battle._fatalStrikeRuneGranted && CharacterDrawer.findLearnedRelicEffectByName(c, ["致命一擊獲得盧恩", "致命の一撃でルーン獲得"])) {
           state.battle._fatalStrikeRuneGranted = true;
@@ -4414,6 +4470,17 @@
     addLog("log_consecutive_attack_fp_recovery", { character: c.name });
   }
 
+  // 淑女（黎明）「攻擊連續時，HP回復」：上のFP版と全く同じ発動条件（1次行動階段中に攻擊で
+  // 4個體力骰を消費）を持つHP版。トリガー閾値・フェイズ単位のリセット（_hpRecoveryAppliedThisPhase）
+  // ともFP版と同じ設計。
+  function maybeApplyHpRecoveryOnAttack(c) {
+    if ((c._attackDiceConsumedThisPhase || 0) < 4 || c._hpRecoveryAppliedThisPhase) return;
+    if (!CharacterDrawer.findLearnedRelicEffectByName(c, ["攻擊連續時，HP回復", "攻撃連続時、HP回復"])) return;
+    c._hpRecoveryAppliedThisPhase = true;
+    c.hp.current = Math.min(c.hp.max, c.hp.current + 1);
+    addLog("log_consecutive_attack_hp_recovery", { character: c.name });
+  }
+
   function computeSkillDamage(c, entry, body) {
     var dmg;
     if (!entry.weaponId) {
@@ -4443,7 +4510,7 @@
     // 明示的に2つ目の▲を追加のGuard削り値として持たせる（他の技能で同様の複数記号が今後
     // 確認された場合も、汎用の「全部数える」処理は作らずここに個別追加する方針——1件しか
     // 確認されていない特殊記述を汎用ロジック化すると誤検出のリスクが上がるため）。
-    var extraGuardSymbol = entry.id === "assault_wedge" && dmg.symbol === "▲" ? "▲" : null;
+    var extraGuardSymbol = entry.id === "assault_wedge" && !entry.quickVariant && dmg.symbol === "▲" ? "▲" : null;
     // 基礎威力が実際に計算できた場合のみ、タリスマン起因の固定加算（戦技・魔術・祈祷向け）と
     // 無賴漢「鬥爭心」（現在HPが最大HPと異なる場合＋20）、附帶効果「戰技/魔術/祈禱傷害+5」を
     // 上乗せする（計算不能な場合にまで数値を捏造しないため）。
@@ -4460,6 +4527,10 @@
     // ダメージに固定+25。
     var yotoReleaseBonus =
       entry.id === "yoto_release_action" && CharacterDrawer.countLearnedRelicEffectsByName(c, ["妖刀解放・攻"]) >= 2 ? 25 : 0;
+    // 執行者（暗影）「妖刀（妖刀解放・癒）」：この遺物効果を2つ以上習得している場合、Action使用時の
+    // ダメージに固定+50。
+    var yotoReleaseHealBonus =
+      entry.id === "yoto_release_heal_action" && CharacterDrawer.countLearnedRelicEffectsByName(c, ["妖刀解放・癒"]) >= 2 ? 50 : 0;
     // R1「技藝強化（燃燒）」：追蹤者「襲擊之楔」の対エネミーダメージに固定+50（「火：3D」は
     // 数値未確定のためログ注記のみ、呼び出し元でaddActionBoxのlinesに追加する）。
     var assaultWedgeBonus =
@@ -4468,6 +4539,31 @@
     // （この時点でdmgが存在する＝エネミーへの効果が計算できている、を「與敵人造成傷害」とみなす）。
     var empathyBonus =
       entry.id === "empathy" && CharacterDrawer.findLearnedRelicEffectByName(c, ["技藝強化（持續傷害）", "アーツ強化（継続ダメージ）"]) ? 60 : 0;
+    // 鐵之眼「後衛戰術」：「當自身位於後衛時」，武器の戰技・魔術（skillDamageKindが"art"／
+    // "sorcery"のときのみ＝武器戰技系entryに限る。祈禱は本文に含まれないため対象外）の傷害＋5。
+    // 武器の1Hit/2Hit部分は既存relicEffectAppliesTo（character_drawer.js）で別途処理済み。
+    var rearTacticsBonus =
+      (skillDamageKind === "art" || skillDamageKind === "sorcery") &&
+      getCharacterBattlePosition(c) === "back" &&
+      CharacterDrawer.findLearnedRelicEffectByName(c, ["後衛戰術", "後衛戦術"])
+        ? 5
+        : 0;
+    // 復仇者「家族共鬥」：「當自身召喚的『靈體』存在時」，戰技・魔術・祈禱（skillDamageKindが
+    // "art"／"sorcery"／"incant"のいずれか＝武器戰技系entry）的傷害+10。武器の1Hit/2Hit部分は
+    // relicEffectAppliesTo（character_drawer.js）で既に処理済み。
+    var familyCoopBonus =
+      !!skillDamageKind &&
+      !!(c.spiritSummon && c.spiritSummonHp && c.spiritSummonHp[c.spiritSummon] && c.spiritSummonHp[c.spiritSummon].current > 0) &&
+      CharacterDrawer.findLearnedRelicEffectByName(c, ["家族共鬥", "ファミリー共闘"])
+        ? 10
+        : 0;
+    // 送葬人（黎明）「祈禱輔助強化火力提升」：「火力提升」狀態中（c._prayerFirepowerActive），
+    // 戰技・魔術・祈禱（skillDamageKindが"art"／"sorcery"／"incant"のいずれか）的傷害+10。
+    // 武器の1Hit/2Hit部分はrelicEffectAppliesTo（character_drawer.js）で処理済み。
+    var prayerFirepowerBonus =
+      !!skillDamageKind && c._prayerFirepowerActive && CharacterDrawer.findLearnedRelicEffectByName(c, ["祈禱輔助強化火力提升", "祈祷補助強化火力アップ"])
+        ? 10
+        : 0;
     var flatBonus =
       talismanBonus +
       fightingSpiritBonus +
@@ -4479,8 +4575,12 @@
       elementalControlBonus +
       attachedSkillBonus +
       yotoReleaseBonus +
+      yotoReleaseHealBonus +
       assaultWedgeBonus +
-      empathyBonus;
+      empathyBonus +
+      rearTacticsBonus +
+      familyCoopBonus +
+      prayerFirepowerBonus;
     var result = flatBonus ? { value: dmg.value + flatBonus, symbol: dmg.symbol } : dmg;
     if (extraGuardSymbol) result.extraGuardSymbol = extraGuardSymbol;
     return result;
@@ -4504,8 +4604,17 @@
     // 隱者「混成魔法」の遺物効果（漩渦烈焰／聖幕／冷氣風暴／聖光燈火）：習得済みのものだけ、
     // 元の混成魔法とは別の選択肢として一覧に追加する（各々「屬性痕」消費なしの代替効果）。
     var baseTypeId = type ? type.id.replace(/_dark$|_dawn$/, "") : null;
+    // 追跡者「技藝強化（速擊）」：習得していれば「襲擊之楔」を「速擊」でも使用できるようになる。
+    if (baseTypeId === "tracker" && CharacterDrawer.findLearnedRelicEffectByName(c, ["技藝強化（速擊）", "アーツ強化（速撃）"])) {
+      entries = entries.concat([TRACKER_ASSAULT_WEDGE_QUICK_ENTRY]);
+    }
     if (baseTypeId === "hermit") {
       HERMIT_HYBRID_MAGIC_ACTION_VARIANTS.forEach(function (v) {
+        if (CharacterDrawer.findLearnedRelicEffectByName(c, v.relicNames)) entries = entries.concat([v.entry]);
+      });
+      // 隱者（黎明）専用の混成魔法変化（橫掃雷擊／雷炎戰車／重力爆發）。relicNamesがhermit_dawn
+      // 専用のため、base hermitでは常にfindLearnedRelicEffectByNameがnullを返し混在しない。
+      HERMIT_DAWN_HYBRID_MAGIC_ACTION_VARIANTS.forEach(function (v) {
         if (CharacterDrawer.findLearnedRelicEffectByName(c, v.relicNames)) entries = entries.concat([v.entry]);
       });
     }
@@ -4513,6 +4622,11 @@
     // （妖刀蓄積を1個消費、對敵人造成【總合傷害：50+▲】）。
     if (baseTypeId === "executor" && CharacterDrawer.findLearnedRelicEffectByName(c, ["妖刀解放・攻"])) {
       entries = entries.concat([EXECUTOR_YOTO_RELEASE_ACTION_ENTRY]);
+    }
+    // 執行者（暗影）「妖刀解放・癒」：習得していれば「妖刀」を別効果のActionとしても使用できる
+    // ようになる（妖刀蓄積を2個消費、對敵人造成【總合傷害：100+◆】＋自身HP回復+5）。
+    if (baseTypeId === "executor" && CharacterDrawer.findLearnedRelicEffectByName(c, ["妖刀解放・癒"])) {
+      entries = entries.concat([EXECUTOR_YOTO_RELEASE_HEAL_ACTION_ENTRY]);
     }
     if (!entries.length) {
       var empty = document.createElement("p");
@@ -4598,7 +4712,8 @@
         !posOk ||
         onceUsedThisTurn ||
         (entry.id === "whirlwind" && c._whirlwindUsedThisPhase) ||
-        (entry.id === "yoto_release_action" && (c._yotoMarks || 0) <= 0)
+        (entry.id === "yoto_release_action" && (c._yotoMarks || 0) <= 0) ||
+        (entry.id === "yoto_release_heal_action" && (c._yotoMarks || 0) < 2)
       )
         useBtn.disabled = true;
       var isActive = combatSkillState === key;
@@ -4764,6 +4879,17 @@
               if (rc.entered) rc.hp.current = Math.min(rc.hp.max, rc.hp.current + 5);
             });
             totemLines = totemLines.concat([window.I18N.t("totem_stella_heal_applied_note")]);
+          }
+          // 無賴漢「技藝強化（堅陣）」：使用技藝「圖騰・史黛拉」時，直到結束階段為止，對全體PC
+          // 施加「HP價值：+20」（不超過100）。沿用_guardValueBonusUntilEndPhase機制，上限100
+          // 由既有消耗處（HP價值計算時Math.min(...,100)）自然滿足，不需在此另行限制。
+          if (CharacterDrawer.findLearnedRelicEffectByName(c, ["技藝強化（堅陣）", "アーツ強化（堅陣）"])) {
+            rosterCharacters.forEach(function (rc) {
+              if (!rc.entered) return;
+              rc._guardValueBonusUntilEndPhase = 20;
+              rc._guardValueBonusConsumed = false;
+            });
+            totemLines = totemLines.concat([window.I18N.t("totem_stella_fortify_applied_note")]);
           }
           addActionBox(c, name, total, totemLines);
           addLog("log_combat_skill_use", { character: c.name, skill: name, dice: dice.join("、") });
@@ -5082,6 +5208,26 @@
         // 隱者「聖幕」（混成魔法の遺物効果）：發動中は自身が武器の戰技・魔術・祈禱（＝weaponId
         // を持つentry）を使用する際の「FP消耗」を0にする。
         if (c._sacredCurtainActive && entry.weaponId) cost.fpCost = 0;
+        // 送葬人（黎明）「技藝強化（HP回復）」：使用技藝「不祥一擊」時，對自身以外任意1名PC施加
+        // 「HP回復：□□」（+2）。crucible_roarの治癒選択と同じ「選択肢を先に見せる」パターンだが、
+        // 主効果（傷害）を止めない副次ボーナスのため未選択でもコスト表示自体は続行し、選択肢が
+        // 無い場合は先頭の他PCへ既定適用する（roarHealSelectと同じベストエフォート方式）。
+        var ominousHealSelect = null;
+        if (entry.id === "ominous_strike" && CharacterDrawer.findLearnedRelicEffectByName(c, ["技藝強化（HP回復）", "アーツ強化（HP回復）"])) {
+          var ominousHealCandidates = rosterCharacters.filter(function (rc) {
+            return rc.entered && rc.id !== c.id;
+          });
+          if (ominousHealCandidates.length) {
+            ominousHealSelect = document.createElement("select");
+            ominousHealCandidates.forEach(function (rc) {
+              var o = document.createElement("option");
+              o.value = rc.id;
+              o.textContent = rc.name;
+              ominousHealSelect.appendChild(o);
+            });
+            content.appendChild(ominousHealSelect);
+          }
+        }
         renderDiceCostAction(c, content, cost, function (dice, costLines) {
           if (entry.uses && entry.id) {
             if (!c.abilityUses) c.abilityUses = {};
@@ -5097,10 +5243,36 @@
           if (entry.id === "hybrid_magic_holy_light") c.hp.current = Math.min(c.hp.max, c.hp.current + 3);
           // 執行者「妖刀（妖刀解放・攻）」のAction使用：妖刀蓄積を1個消費する。
           if (entry.id === "yoto_release_action") c._yotoMarks = Math.max(0, (c._yotoMarks || 0) - 1);
+          // 執行者（暗影）「妖刀（妖刀解放・癒）」のAction使用：妖刀蓄積を2個消費し、自身に
+          // 「HP回復：□×5」（+5）を適用する。
+          if (entry.id === "yoto_release_heal_action") {
+            c._yotoMarks = Math.max(0, (c._yotoMarks || 0) - 2);
+            c.hp.current = Math.min(c.hp.max, c.hp.current + 5);
+          }
+          // 無賴漢（暗影）「技能強化（敵人弱化）」：以［Action］使用夜渡技能「逆襲」時，下個防禦
+          // 階段中敵人產生的亂戰傷害（分割前）「－120」。與既存「圖騰・史黛拉」的－300同一設計
+          // （state.battle旗標＋防禦分頁提醒橫幅，數值本身由GM於AutoGM/手動結算時自行減去，
+          // 而不是寫入state.battle.enemyDmgOverride——沿用totem_stella既有的「提醒優先」處理方式）。
+          if (entry.id === "counterattack" && CharacterDrawer.findLearnedRelicEffectByName(c, ["技能強化（敵人弱化）", "スキル強化（エネミー弱体）"])) {
+            state.battle._ruffianDarkCounterDebuffActive = true;
+            saveState();
+          }
           // 葬儀屋「力量感應」：この汎用パスを通るあらゆる技藝の使用（他キャラのarts含む）が
           // 発火対象になりうる。判定自体はtriggerPowerResonance内でisArtをチェックする。
           triggerPowerResonance(c, entry);
-          if (entry.id === "whirlwind") c._whirlwindUsedThisPhase = true;
+          if (entry.id === "whirlwind") {
+            c._whirlwindUsedThisPhase = true;
+            // 守護者（黎明）「技能強化（防禦支援）」：夜渡技能「旋風」發揮效果時，直到結束階段為止，
+            // 將全體（已入場）PC「HP價值：+10」（沿用消耗品「盾塗脂」的_guardValueBonusUntilEndPhase
+            // 機制，設為固定值而非累加，天然滿足「此效果不重複」）。
+            if (CharacterDrawer.findLearnedRelicEffectByName(c, ["技能強化（防禦支援）", "スキル強化（防御支援）"])) {
+              rosterCharacters.forEach(function (rc) {
+                if (!rc.entered) return;
+                rc._guardValueBonusUntilEndPhase = 10;
+                rc._guardValueBonusConsumed = false;
+              });
+            }
+          }
           // 葬儀屋「恍惚」をActionとして使用した場合：即時に體力骰+1（妖刀と異なり次フェイズ
           // 待ちではない）。
           if (entry.id === "trance") {
@@ -5117,6 +5289,31 @@
             if (CharacterDrawer.findLearnedRelicEffectByName(c, ["技藝強化（攻擊力強化）", "アーツ強化（攻撃力強化）"])) {
               c._ominousStrikeBuffActive = true;
             }
+            // 送葬人（黎明）「技藝強化（HP回復）」：對自身以外任意1名PC施加「HP回復：□□」（+2）。
+            if (ominousHealSelect) {
+              var ominousHealTarget = rosterCharacters.filter(function (rc) {
+                return rc.id === ominousHealSelect.value;
+              })[0];
+              if (ominousHealTarget) {
+                ominousHealTarget.hp.current = Math.min(ominousHealTarget.hp.max, ominousHealTarget.hp.current + 2);
+              }
+            }
+          }
+          // 送葬人（黎明）「祈禱輔助強化火力提升」：自身使用「祈禱」（skillDamageKindが"incant"
+          // ＝聖印カテゴリの武器戰技entry）施加「直到階段結束為止／直到結束階段為止」持續的效果時，
+          // 進入「火力提升」狀態（c._prayerFirepowerActive、持續至戰鬥結束為止、不累積——combatEnd
+          // 時reset，見setActionPhase）。
+          if (
+            entry.weaponId &&
+            (body.indexOf("直到階段結束為止") !== -1 || body.indexOf("直到結束階段為止") !== -1) &&
+            CharacterDrawer.findLearnedRelicEffectByName(c, ["祈禱輔助強化火力提升", "祈祷補助強化火力アップ"])
+          ) {
+            var prayerBaseId = entry.weaponId.indexOf("::") !== -1 ? entry.weaponId.slice(0, entry.weaponId.indexOf("::")) : entry.weaponId;
+            var prayerWeapon = window.PriTestWeapons.get(prayerBaseId);
+            var prayerCategory = prayerWeapon ? window.PriTestWeapons.getCategory(prayerWeapon.category) : null;
+            if (prayerCategory && prayerCategory.id === "sacred_seal") {
+              c._prayerFirepowerActive = true;
+            }
           }
           // 守護者「救世之翼」：戦闘フェイズでの発動後、額外・防禦フェイズを跨いで持続する
           // 全体バフ（HP損害無効化）。次に戦闘フェイズへ新規突入した時にのみクリアされる
@@ -5125,10 +5322,14 @@
             rosterCharacters.forEach(function (rc) {
               rc._wingsOfSalvationActive = true;
             });
-            // R1「技藝強化（HP回復）」：発動後、全體PCのHPを最大値まで回復する。
+            // R1「技藝強化（HP回復）」：guardian版は発動後、全體PCのHPを最大値まで回復するが、
+            // guardian_dawn版は同名・別本文（「HP回復：□×5」＝+5、全快ではない）のため、
+            // c.typeIdで区別する（baseTypeIdはどちらも"guardian"に正規化されてしまい使えない）。
             if (CharacterDrawer.findLearnedRelicEffectByName(c, ["技藝強化（HP回復）", "アーツ強化（HP回復）"])) {
+              var wingsHealFull = c.typeId === "guardian";
               rosterCharacters.forEach(function (rc) {
-                if (rc.entered) rc.hp.current = rc.hp.max;
+                if (!rc.entered) return;
+                rc.hp.current = wingsHealFull ? rc.hp.max : Math.min(rc.hp.max, rc.hp.current + 5);
               });
             }
           }
@@ -5208,6 +5409,34 @@
             // 傷害数値の表示は変えない）。
             if (dmg.extraGuardSymbol) recordPhaseDamageDealt(c, 0, dmg.extraGuardSymbol);
           }
+          // 隱者「冷氣風暴」（hybrid_magic_frost_storm）與隱者（黎明）「雷炎戰車」
+          // （hybrid_magic_lightning_chariot）：本文中的屬性附加值是固定數字（非骰子），
+          // 與combatAttackTargetEnemyKey（現在選択中の敵人、跨UI共有）搭配即可自動蓄積；
+          // 未選擇對象時暫不處理（body已在UI中完整顯示，GM可自行讀取）。
+          var hybridVariantElementAccum =
+            entry.id === "hybrid_magic_frost_storm"
+              ? [{ label: "凍傷", amount: 2 }]
+              : entry.id === "hybrid_magic_lightning_chariot"
+              ? [
+                  { label: "火", amount: 3 },
+                  { label: "雷", amount: 3 },
+                ]
+              : null;
+          if (hybridVariantElementAccum && combatAttackTargetEnemyKey) {
+            hybridVariantElementAccum.forEach(function (a) {
+              recordAttributeStatusDealt(c.id, combatAttackTargetEnemyKey, a.label, a.amount);
+            });
+          }
+          // 鐵之眼（暗影）「技藝強化（毒箭）」：技藝「一擊必殺」（one_shot）の對敵人傷害に
+          // 固定「猛毒：8」を追加する。既存の武器攻擊タブで選択済みの對象敵人
+          // （combatAttackTargetEnemyKey、複数UIで共有する現在選択中の敵人）があればそのまま
+          // 蓄積し、未選択（まだ攻擊タブを開いていない等）ならGM向け注記のみ後でextraLinesへ残す
+          // （下のassault_wedge注記ブロックの近くでまとめて処理）。
+          var oneShotPoisonBonus =
+            entry.id === "one_shot" && CharacterDrawer.findLearnedRelicEffectByName(c, ["技藝強化（毒箭）", "アーツ強化（毒矢）"]);
+          if (oneShotPoisonBonus && combatAttackTargetEnemyKey) {
+            recordAttributeStatusDealt(c.id, combatAttackTargetEnemyKey, "猛毒", 8);
+          }
           var total =
             entry.id === "marking"
               ? window.I18N.t("marking_action_note")
@@ -5226,6 +5455,15 @@
           if (entry.id === "assault_wedge") {
             var assaultWedgeNote = CharacterDrawer.findLearnedRelicEffectByName(c, ["技藝強化（燃燒）", "アーツ強化（炎上）"]);
             if (assaultWedgeNote) extraLines = extraLines.concat([CharacterTypes.localizedText(assaultWedgeNote.body)]);
+            // 追跡者「技藝強化（速擊）」：以「速擊」使用時，使用次數在戰鬥結束時（而非當日結束時）
+            // 額外回復一次——這個特殊回復時機沒有對應的自動化機制，僅記錄提醒文字讓GM於戰鬥結束時
+            // 手動為此PC補回1次「襲擊之楔」使用次數。
+            if (entry.quickVariant) extraLines = extraLines.concat([window.I18N.t("assault_wedge_quick_recharge_note")]);
+          }
+          // 鐵之眼（暗影）「技藝強化（毒箭）」：對象敵人未選擇（尚未開啟過武器攻擊分頁）時，
+          // 無法自動判斷猛毒:8該蓄積到哪個敵人，改為留下原文注記由GM手動處理。
+          if (oneShotPoisonBonus && !combatAttackTargetEnemyKey) {
+            extraLines = extraLines.concat([CharacterTypes.localizedText(oneShotPoisonBonus.body)]);
           }
           if (entry.id === "whirlwind") {
             var whirlwindNote = CharacterDrawer.findLearnedRelicEffectByName(c, ["技能強化（延長時間）", "スキル強化（時間延長）"]);
@@ -5301,6 +5539,28 @@
       },
     },
   ];
+  // 追跡者「技藝強化（速擊）」：習得していれば「襲擊之楔」（assault_wedge）を通常版に加えて
+  // 「速擊」でも使用できるようになる。同じ技藝の別の使い方（本文「可任選...任選作為『速擊』使用」）
+  // のため、entry.idはあえて実entry（type.arts内のassault_wedge）と同じ"assault_wedge"を使い、
+  // 使用回数（c.abilityUses.assault_wedge）・「技藝強化（燃燒）」の追加ボーナスを両方の使い方で
+  // 共有する（uses:1も実entryと同じ値を明記し、effectiveMax/remainingの算出を独立させない）。
+  // quickVariant:trueで、computeSkillDamageの「▲が本文に2箇所出現する」特殊処理（実entry専用、
+  // 本バリアントの本文には該当箇所が無い）から除外する。使用回数が戦闘終了時に回復する特典
+  // （実entりの「當日結束時回復」とは異なるタイミング）は、既存のuses管理に新しい生命週期を
+  // 割り込ませる汎用機構が無いため自動化せず、本文とアクション記録の注記でGMに委ねる。
+  var TRACKER_ASSAULT_WEDGE_QUICK_ENTRY = {
+    id: "assault_wedge",
+    quickVariant: true,
+    uses: 1,
+    kind: "Action",
+    name: { zh: "襲擊之楔（速擊）", ja: "襲撃の楔（速撃）", en: "Assault Wedge (Quick Strike)" },
+    body: {
+      zh: "使用次數：○（於當日結束時回復）\n消耗：使用次數●\n對象：敵人＋雜兵＋1名PC\n編隊：前衛時可使用\n\n效果（作為「速擊」使用）\n・對雜兵造成「HP損害：■」，對敵人造成【總合傷害：60+▲】，對1名PC施加【復歸傷害：60】。此行動後，於戰鬥結束時，回復此技藝的使用次數。",
+      ja: "使用回数：○（1日の終了時に回復）\nコスト：使用回数●\n対象：エネミー＋モブ＋PC1人\n隊列：前衛のとき使用可能\n\n効果（「速撃」として使用）\n・モブに「HP損害：■」、エネミーに【総合ダメージ：60＋▲】、PC1人に【復帰ダメージ：60】を与える。このアクション後、戦闘終了時に、このアーツの使用回数を回復する。",
+      en: "Uses: ○ (recovers at day's end)\nCost: Use ●\nTarget: Enemy + Mob + 1 PC\nFormation: Usable in front row\n\nEffect (used as \"Quick Strike\")\nDeals [HP Damage: 1] to a mob, [Total Damage: 60+▲] to the enemy, and [Return Damage: 60] to 1 PC. After this action, this art's use count also recovers at the end of the battle.",
+    },
+  };
+
   // 執行者「咆哮」：對敵人傷害／對PC復歸傷害のどちらを選ぼうとしているかの中間状態。
   var crucibleRoarChoice = null; // "damage" | "revival" | null
 
@@ -5371,6 +5631,65 @@
       },
     },
   ];
+
+  // 隱者（黎明）「混成魔法」の遺物効果による変更後の効果（橫掃雷擊／雷炎戰車／重力爆發）。
+  // hermit_dawn専用のrelic名（base hermitとは別の名前）のため、別配列として管理する。
+  // 「雷炎戰車」のみ属性値が骰子ではなく固定値（火:3＋雷:3）のため、entry.idで判別して
+  // computeSkillDamage確定時にrecordAttributeStatusDealtを呼ぶ（下のisActive汎用分岐参照）。
+  var HERMIT_DAWN_HYBRID_MAGIC_ACTION_VARIANTS = [
+    {
+      relicNames: ["橫掃雷擊", "薙ぎ払う稲妻"],
+      entry: {
+        id: "hybrid_magic_lightning_sweep",
+        kind: "Action",
+        name: { zh: "橫掃雷擊", ja: "薙ぎ払う稲妻", en: "Lightning Sweep" },
+        body: {
+          zh: "消耗：1\n對象：敵人\n編隊：前衛・後衛皆可使用\n\n效果\n・對雜兵造成「HP損害：■」，對敵人造成【總合傷害：30】與「雷：1D」。",
+          ja: "コスト：1\n対象：エネミー\n隊列：前衛・後衛どちらでも使用可能\n\n効果\n・モブに「HP損害：■」、エネミーに【総合ダメージ：30】と「雷：1D」を与える。",
+          en: "Cost: 1\nTarget: Enemy\nFormation: Usable in front or back row\n\nEffect: Deals [HP Damage: 1] to a mob, and [Total Damage: 30] plus [Lightning: 1D] to the enemy.",
+        },
+      },
+    },
+    {
+      relicNames: ["雷炎戰車", "雷炎の戦車"],
+      entry: {
+        id: "hybrid_magic_lightning_chariot",
+        kind: "Action",
+        name: { zh: "雷炎戰車", ja: "雷炎の戦車", en: "Thunderfire Chariot" },
+        body: {
+          zh: "消耗：1\n對象：敵人\n編隊：前衛・後衛皆可使用\n\n效果\n・將自身移動至前衛區域，對敵人造成【總合傷害：30】與「火：3」與「雷：3」。",
+          ja: "コスト：1\n対象：エネミー\n隊列：前衛・後衛どちらでも使用可能\n\n効果\n・自身を前衛エリアに移動し、エネミーに【総合ダメージ：30】と「火：3」と「雷：3」を与える。",
+          en: "Cost: 1\nTarget: Enemy\nFormation: Usable in front or back row\n\nEffect: Moves self to the front row, and deals [Total Damage: 30] plus [Fire: 3] plus [Lightning: 3] to the enemy.",
+        },
+      },
+    },
+    {
+      relicNames: ["重力爆發", "重力爆発"],
+      entry: {
+        id: "hybrid_magic_gravity_burst",
+        kind: "Action",
+        name: { zh: "重力爆發", ja: "重力爆発", en: "Gravity Burst" },
+        body: {
+          zh: "消耗：1\n對象：敵人\n編隊：後衛時可使用\n\n效果\n・對雜兵造成「HP損害：■■」，對敵人造成【總合傷害：25】與「魔：1D」。",
+          ja: "コスト：1\n対象：エネミー\n隊列：後衛のとき使用可能\n\n効果\n・モブに「HP損害：■■」、エネミーに【総合ダメージ：25】と「魔：1D」を与える。",
+          en: "Cost: 1\nTarget: Enemy\nFormation: Usable in back row\n\nEffect: Deals [HP Damage: 2] to a mob, and [Total Damage: 25] plus [Arcane: 1D] to the enemy.",
+        },
+      },
+    },
+  ];
+  // 學者（暗影）「技能強化（衝擊波的緩和）」：夜渡技能「探求」を［Defense］で「迴避」の代わりに
+  // 実行できるようにする遺物効果。固定でHP價值：100の迴避扱い（鐵眼「標記」と全く同じ数値・
+  // 意味のため、defenseNote／logはmarking_defense_note等の既存i18nキーをそのまま再利用する）。
+  var SCHOLAR_DARK_INQUIRY_SHOCKWAVE_DEFENSE_ENTRY = {
+    id: "inquiry_shockwave_defense",
+    kind: "Defense",
+    name: { zh: "探求（衝擊波的緩和）", ja: "探求（衝撃波による緩和）", en: "Inquiry (Shockwave Mitigation)" },
+    body: {
+      zh: "對象：自身\n編隊：前衛・後衛皆可使用\n\n效果\n・視為自身進行了「HP價值：100」的「迴避」。",
+      ja: "対象：自身\n隊列：前衛・後衛どちらでも使用可能\n\n効果\n・自身は「HP価値：100」の「回避」を行ったとして扱う。",
+      en: "Target: Self\nFormation: Usable in front or back row\n\nEffect: Self is treated as having performed a dodge with HP value: 100.",
+    },
+  };
   var HERMIT_ICE_COFFIN_DEFENSE_ENTRY = {
     id: "ice_coffin",
     kind: "Defense",
@@ -5402,6 +5721,30 @@
       zh: "消耗：1／消去「妖刀蓄積」的「1個」\n對象：敵人\n編隊：前衛・後衛皆可使用\n\n效果\n・對敵人造成【總合傷害：50+▲】。",
       ja: "コスト：1／「妖刀蓄積」の「1つ」を消す\n対象：エネミー\n隊列：前衛・後衛どちらでも使用可能\n\n効果\n・エネミーに【総合ダメージ：50＋▲】を与える。",
       en: "Cost: 1 / Removes 1 Yoto Mark\nTarget: Enemy\nFormation: Usable in front or back row\n\nEffect: Deals [Total Damage: 50+▲] to the enemy.",
+    },
+  };
+
+  // 執行者（暗影）「妖刀解放・癒」：夜渡技能「妖刀」の代替Defense（攻版と同一の消耗2／
+  // HP價值60）と、新規Action（妖刀蓄積を2個消費、總合傷害：100+◆、かつ自身HP回復+5）を
+  // 追加する遺物効果（攻版とは消費量・数値とも異なる別entry）。
+  var EXECUTOR_YOTO_RELEASE_HEAL_DEFENSE_ENTRY = {
+    id: "yoto_release_heal_defense",
+    kind: "Defense",
+    name: { zh: "妖刀（妖刀解放・癒）", ja: "妖刀（妖刀解放・癒）", en: "Yoto (Yoto Release: Heal)" },
+    body: {
+      zh: "消耗：2\n對象：自身\n編隊：前衛・後衛皆可使用\n\n效果\n・視為自身進行了「HP價值：60」的「防禦」。",
+      ja: "コスト：2\n対象：自身\n隊列：前衛・後衛どちらでも使用可能\n\n効果\n・自身は「HP価値：60」の「ガード」を行ったとして扱う。",
+      en: "Cost: 2\nTarget: Self\nFormation: Usable in front or back row\n\nEffect: Self is treated as having performed a guard with HP value: 60.",
+    },
+  };
+  var EXECUTOR_YOTO_RELEASE_HEAL_ACTION_ENTRY = {
+    id: "yoto_release_heal_action",
+    kind: "Action",
+    name: { zh: "妖刀（妖刀解放・癒）", ja: "妖刀（妖刀解放・癒）", en: "Yoto (Yoto Release: Heal)" },
+    body: {
+      zh: "消耗：1／消去「妖刀蓄積」的「2個」\n對象：敵人、自身\n編隊：前衛・後衛皆可使用\n\n效果\n・對敵人造成【總合傷害：100+◆】，並對自身施加「HP回復：□×5」。",
+      ja: "コスト：1／「妖刀蓄積」の「2つ」を消す\n対象：エネミー、自身\n隊列：前衛・後衛どちらでも使用可能\n\n効果\n・エネミーに【総合ダメージ：100＋◆】を与え、自身に「HP回復：□×5」を適用する。",
+      en: "Cost: 1 / Removes 2 Yoto Marks\nTarget: Enemy, Self\nFormation: Usable in front or back row\n\nEffect: Deals [Total Damage: 100+◆] to the enemy, and applies [HP Recovery: 5] to self.",
     },
   };
 
@@ -6321,6 +6664,23 @@
     var lines = [];
     var total = null;
 
+    // 學者（暗影）「使用通用消耗品時HP回復」：為5個通用消耗品（勇者的肉塊／龜首漬／星光的碎片／
+    // 苔藥＝relic本文寫作「苔玉」，本App唯一含「苔」的消耗品／溫石＝relic本文寫作「溫暖石」）
+    // 的效果追加「對目標施加『HP回復：□』」（+1，對每個實際受到該消耗品效果的目標都適用，
+    // 含「道具效果擴大」延伸的另一目標）。
+    var GENERIC_HEAL_BONUS_ITEM_IDS = [
+      "item_hero_meat_chunk",
+      "item_turtle_neck_pickle",
+      "item_shard_of_starlight",
+      "item_bitter_medicine",
+      "item_warming_stone",
+    ];
+    var genericConsumableHealBonus =
+      GENERIC_HEAL_BONUS_ITEM_IDS.indexOf(itemId) !== -1 &&
+      CharacterDrawer.findLearnedRelicEffectByName(c, ["使用通用消耗品時HP回復", "汎用消耗品使用でHP回復"])
+        ? 1
+        : 0;
+
     function healSelf(hpAmount, fpAmount) {
       if (hpAmount) c.hp.current = Math.min(c.hp.max, c.hp.current + hpAmount);
       if (fpAmount) c.fp.current = Math.min(c.fp.max, c.fp.current + fpAmount);
@@ -6344,35 +6704,42 @@
       c._heroMeatBuffLevel = applyLevel2 ? 2 : 1;
       lines.push(window.I18N.t("consumable_effect_hero_meat_applied"));
       if (!applyLevel2) lines.push(window.I18N.t("consumable_effect_level2_reminder"));
+      if (genericConsumableHealBonus) {
+        healSelf(genericConsumableHealBonus, 0);
+        lines.push(window.I18N.t("action_log_heal_total", { value: genericConsumableHealBonus }));
+      }
       var heroMeatOther = expandTargetPc();
       if (heroMeatOther) {
         heroMeatOther._heroMeatBuffLevel = applyLevel2 ? 2 : 1;
+        if (genericConsumableHealBonus) heroMeatOther.hp.current = Math.min(heroMeatOther.hp.max, heroMeatOther.hp.current + genericConsumableHealBonus);
         pushExpandNote(heroMeatOther);
       }
     } else if (itemId === "item_turtle_neck_pickle") {
       if (!c.dicePool) c.dicePool = [];
       c.dicePool.push(1);
       lines.push(window.I18N.t("consumable_effect_turtle_neck_applied"));
-      if (applyLevel2) {
-        healSelf(2, 0);
-        lines.push(window.I18N.t("action_log_heal_total", { value: 2 }));
-      } else {
-        lines.push(window.I18N.t("consumable_effect_level2_reminder"));
+      var turtleHeal = (applyLevel2 ? 2 : 0) + genericConsumableHealBonus;
+      if (turtleHeal) {
+        healSelf(turtleHeal, 0);
+        lines.push(window.I18N.t("action_log_heal_total", { value: turtleHeal }));
       }
+      if (!applyLevel2) lines.push(window.I18N.t("consumable_effect_level2_reminder"));
       var turtleOther = expandTargetPc();
       if (turtleOther) {
         if (!turtleOther.dicePool) turtleOther.dicePool = [];
         turtleOther.dicePool.push(1);
-        if (applyLevel2) turtleOther.hp.current = Math.min(turtleOther.hp.max, turtleOther.hp.current + 2);
+        if (turtleHeal) turtleOther.hp.current = Math.min(turtleOther.hp.max, turtleOther.hp.current + turtleHeal);
         pushExpandNote(turtleOther);
       }
     } else if (itemId === "item_shard_of_starlight") {
       var fpAmount = applyLevel2 ? 6 : 3;
-      healSelf(0, fpAmount);
+      healSelf(genericConsumableHealBonus, fpAmount);
       lines.push(window.I18N.t("action_log_fp_heal_total", { value: fpAmount }));
+      if (genericConsumableHealBonus) lines.push(window.I18N.t("action_log_heal_total", { value: genericConsumableHealBonus }));
       var starlightOther = expandTargetPc();
       if (starlightOther) {
         starlightOther.fp.current = Math.min(starlightOther.fp.max, starlightOther.fp.current + fpAmount);
+        if (genericConsumableHealBonus) starlightOther.hp.current = Math.min(starlightOther.hp.max, starlightOther.hp.current + genericConsumableHealBonus);
         pushExpandNote(starlightOther);
       }
     } else if (itemId === "item_bitter_medicine") {
@@ -6382,16 +6749,16 @@
       } else {
         lines.push(window.I18N.t("consumable_no_ailment_note"));
       }
-      if (applyLevel2) {
-        healSelf(2, 0);
-        lines.push(window.I18N.t("action_log_heal_total", { value: 2 }));
-      } else {
-        lines.push(window.I18N.t("consumable_effect_level2_reminder"));
+      var bitterHeal = (applyLevel2 ? 2 : 0) + genericConsumableHealBonus;
+      if (bitterHeal) {
+        healSelf(bitterHeal, 0);
+        lines.push(window.I18N.t("action_log_heal_total", { value: bitterHeal }));
       }
+      if (!applyLevel2) lines.push(window.I18N.t("consumable_effect_level2_reminder"));
       var bitterOther = expandTargetPc();
       if (bitterOther) {
         if (target.ailmentLabel) removeReceivedAttributeStatus(bitterOther.id, target.ailmentLabel);
-        if (applyLevel2) bitterOther.hp.current = Math.min(bitterOther.hp.max, bitterOther.hp.current + 2);
+        if (bitterHeal) bitterOther.hp.current = Math.min(bitterOther.hp.max, bitterOther.hp.current + bitterHeal);
         pushExpandNote(bitterOther);
       }
     } else if (itemId === "item_grease") {
@@ -6410,7 +6777,7 @@
         lines.push(window.I18N.t("consumable_no_weapon_note"));
       }
     } else if (itemId === "item_warming_stone") {
-      var hpAmount = applyLevel2 ? 4 : 2;
+      var hpAmount = (applyLevel2 ? 4 : 2) + genericConsumableHealBonus;
       healSelf(hpAmount, 0);
       lines.push(window.I18N.t("action_log_heal_total", { value: hpAmount }));
       var otherPc = target.otherPcId
@@ -6751,6 +7118,12 @@
     if (defenseBaseTypeId === "executor" && CharacterDrawer.findLearnedRelicEffectByName(c, ["妖刀解放・攻"])) {
       defenseSkillEntries = defenseSkillEntries.concat([EXECUTOR_YOTO_RELEASE_DEFENSE_ENTRY]);
     }
+    if (defenseBaseTypeId === "executor" && CharacterDrawer.findLearnedRelicEffectByName(c, ["妖刀解放・癒"])) {
+      defenseSkillEntries = defenseSkillEntries.concat([EXECUTOR_YOTO_RELEASE_HEAL_DEFENSE_ENTRY]);
+    }
+    if (defenseBaseTypeId === "scholar" && CharacterDrawer.findLearnedRelicEffectByName(c, ["技能強化（衝擊波的緩和）", "スキル強化（衝撃波による緩和）"])) {
+      defenseSkillEntries = defenseSkillEntries.concat([SCHOLAR_DARK_INQUIRY_SHOCKWAVE_DEFENSE_ENTRY]);
+    }
     var usesBonus = CharacterDrawer.getSkillUsesBonus(c);
 
     // 守護者「高防禦」：kind:"Passive"だが、防禦フェイズの体力骰を得たタイミングで骰子1個を
@@ -6892,6 +7265,15 @@
       content.appendChild(totemStellaNote);
     }
 
+    // 無賴漢（暗影）「技能強化（敵人弱化）」：圖騰・史黛拉と同じくbattle全体のフラグで、
+    // 次の防禦フェイズ1回だけリマインドバナーを表示する。
+    if (state.battle._ruffianDarkCounterDebuffActive) {
+      var counterDebuffNote = document.createElement("p");
+      counterDebuffNote.className = "threat-ref-body";
+      counterDebuffNote.textContent = window.I18N.t("counterattack_debuff_defense_note");
+      content.appendChild(counterDebuffNote);
+    }
+
     var choiceRow = document.createElement("div");
     choiceRow.className = "combat-defense-choice-row";
     [
@@ -6958,13 +7340,13 @@
         // HP價值:80のガードを行ったものとして扱う（以後このフェイズ中は他の格擋を使用不可、
         // かつこのディフェンス後に現在HP：0になるはずの損害を受けた場合は現在HP：1になる）。
         var defenseNote =
-          activeDefenseSkill.id === "marking"
+          activeDefenseSkill.id === "marking" || activeDefenseSkill.id === "inquiry_shockwave_defense"
             ? window.I18N.t("marking_defense_note")
             : activeDefenseSkill.id === "counterattack"
             ? window.I18N.t("counterattack_defense_note")
             : activeDefenseSkill.id === "trance" || activeDefenseSkill.id === "ice_coffin"
             ? window.I18N.t("trance_defense_note")
-            : activeDefenseSkill.id === "yoto_release_defense"
+            : activeDefenseSkill.id === "yoto_release_defense" || activeDefenseSkill.id === "yoto_release_heal_defense"
             ? window.I18N.t("yoto_release_defense_note")
             : window.I18N.t("combat_defense_skill_negate_note");
         if (activeDefenseSkill.id === "counterattack") {
@@ -6981,7 +7363,11 @@
         // （上限2、既に2でも使用自体は妨げない）を記入し、次の戦闘フェイズ開始時に體力骰+1を
         // 予約する（setActionPhaseの「新しい回合開始」判定箇所で消化する）。遺物効果由来の
         // 代替Defense（消耗：2／HP價值：60）も同じ「此防禦後」の効果を受ける（本文どおり）。
-        if (activeDefenseSkill.id === "yoto" || activeDefenseSkill.id === "yoto_release_defense") {
+        if (
+          activeDefenseSkill.id === "yoto" ||
+          activeDefenseSkill.id === "yoto_release_defense" ||
+          activeDefenseSkill.id === "yoto_release_heal_defense"
+        ) {
           c._yotoMarks = Math.min(2, (c._yotoMarks || 0) + 1);
           c._yotoPendingBonusDice = true;
         }
@@ -6989,7 +7375,9 @@
         addLog(
           activeDefenseSkill.id === "counterattack"
             ? "log_counterattack_defense_use"
-            : activeDefenseSkill.id === "yoto" || activeDefenseSkill.id === "yoto_release_defense"
+            : activeDefenseSkill.id === "yoto" ||
+              activeDefenseSkill.id === "yoto_release_defense" ||
+              activeDefenseSkill.id === "yoto_release_heal_defense"
             ? "log_yoto_defense_use"
             : activeDefenseSkill.id === "trance" || activeDefenseSkill.id === "ice_coffin"
             ? "log_trance_defense_use"
@@ -8318,6 +8706,23 @@
     var enemyOverride = (state.battle.enemyDmgOverride && state.battle.enemyDmgOverride[enemyKey]) || 0;
     var groupResult = AutoGm.computeGroupDamage(result, state.rollEffects, enemyOverride);
     var breakdownParts = [];
+    // structured.groupDamage/individualDamageのelementAccum/ailmentAccum（固定数値の屬性/状態異常
+    // 附加值、docs/enemy_damage_rules.md §1「x:y」表記のうち骰子ではなく確定値のもの）を、対象PCの
+    // pendingDefenseElementAccumへ集約する。実際にstate.battle.attributeStatus.receivedへ反映するのは
+    // GMがこのPCの［確定］を押した時点（handleEnemyDamageConfirmForCharacter）。
+    var pendingAccum = {};
+    function queueAttributeAccum(idx, accumList) {
+      if (!accumList || !accumList.length) return;
+      var charId = entered[idx].id;
+      if (!pendingAccum[charId]) pendingAccum[charId] = [];
+      accumList.forEach(function (a) {
+        if (!a || typeof a.label !== "string" || !a.amount) return;
+        pendingAccum[charId].push({ label: a.label, amount: a.amount });
+        breakdownParts.push(
+          window.I18N.t("auto_gm_attribute_accum_breakdown", { name: entered[idx].name, label: a.label, amount: a.amount })
+        );
+      });
+    }
     if (groupResult) {
       var groupBreakdown = window.I18N.t("auto_gm_group_breakdown", {
         total: groupResult.total,
@@ -8338,6 +8743,8 @@
         groupTargets.forEach(function (idx, shareIdx) {
           var input = document.getElementById("enemy-damage-group-" + entered[idx].id);
           if (input) input.value = String(Math.round(shares[shareIdx]));
+          queueAttributeAccum(idx, result.structuredRow.groupDamage.elementAccum);
+          queueAttributeAccum(idx, result.structuredRow.groupDamage.ailmentAccum);
         });
         if (groupTargets.length > 1) {
           breakdownParts.push(window.I18N.t("auto_gm_split_note", { count: groupTargets.length, each: Math.round(shares[0]) }));
@@ -8375,6 +8782,8 @@
       indivTargets.forEach(function (idx) {
         var input = document.getElementById("enemy-damage-individual-" + entered[idx].id);
         if (input) input.value = String(indivResult.total);
+        queueAttributeAccum(idx, entry.elementAccum);
+        queueAttributeAccum(idx, entry.ailmentAccum);
       });
     });
     if (result.structuredRow.savingThrow) {
@@ -8403,6 +8812,7 @@
       });
       breakdownParts.push(failLines.join("　"));
     }
+    state.battle.pendingDefenseElementAccum = pendingAccum;
 
     var resultEl = document.getElementById("auto-gm-roll-result");
     resultEl.hidden = false;
@@ -8615,6 +9025,15 @@
     c.hp.current = Math.max(0, c.hp.current - hpLoss);
     checkNearDeathTrigger(c);
     saveRosterCharacters();
+
+    // AutoGM敵方行動の固定屬性/狀態異常附加值（elementAccum/ailmentAccum、handleAutoGmRollClickが
+    // 事前算出）を、このPCの［確定］操作と同時に實際套用する（HP損害と同様、擲骰時ではなく
+    // 確定時に效果が発生する設計）。
+    var pendingAccumForChar = (state.battle.pendingDefenseElementAccum && state.battle.pendingDefenseElementAccum[charId]) || [];
+    pendingAccumForChar.forEach(function (a) {
+      addReceivedAttributeStatus(charId, a.label, a.amount);
+    });
+    if (state.battle.pendingDefenseElementAccum) delete state.battle.pendingDefenseElementAccum[charId];
 
     if (!state.battle.enemyDamageConfirmed) state.battle.enemyDamageConfirmed = {};
     state.battle.enemyDamageConfirmed[charId] = true;
@@ -9474,6 +9893,23 @@
       return;
     }
 
+    // 復仇者（暗影）「靈體消滅時HP回復」「靈體消滅時FP回復」：自身召喚的「靈體」（含「死靈術」
+    // 召喚的靈體）HP歸零而消滅的瞬間，對自身各施加「HP回復：□□」「FP回復：□□」（各+2）。
+    // 兩個relic各自獨立判定是否已習得。
+    function maybeApplySpiritVanishRecovery(c, wasAboveZero, nowZero, label) {
+      if (!wasAboveZero || !nowZero) return;
+      var healed = false;
+      if (CharacterDrawer.findLearnedRelicEffectByName(c, ["靈體消滅時HP回復", "霊体消滅時HP回復"])) {
+        c.hp.current = Math.min(c.hp.max, c.hp.current + 2);
+        healed = true;
+      }
+      if (CharacterDrawer.findLearnedRelicEffectByName(c, ["靈體消滅時FP回復", "霊体消滅時FP回復"])) {
+        c.fp.current = Math.min(c.fp.max, c.fp.current + 2);
+        healed = true;
+      }
+      if (healed) addLog("log_spirit_vanish_recovery", { character: c.name, label: label });
+    }
+
     avengers.forEach(function (c) {
       var type = CharacterTypes.get(c.typeId);
       var section = document.createElement("div");
@@ -9498,7 +9934,9 @@
         minus.className = "level-btn";
         minus.textContent = "−";
         minus.addEventListener("click", function () {
+          var wasAboveZero = spirit.hpCurrent > 0;
           spirit.hpCurrent = Math.max(0, spirit.hpCurrent - 1);
+          maybeApplySpiritVanishRecovery(c, wasAboveZero, spirit.hpCurrent === 0, window.I18N.t("death_spirit_label", { index: idx + 1 }));
           saveRosterCharacters();
           addLog("log_spirit_hp_change", { character: c.name, label: window.I18N.t("death_spirit_label", { index: idx + 1 }), current: spirit.hpCurrent, max: spirit.hpMax });
           renderSpiritPanel();
@@ -9555,7 +9993,9 @@
         spiritMinus.className = "level-btn";
         spiritMinus.textContent = "−";
         spiritMinus.addEventListener("click", function () {
+          var summonWasAboveZero = hp.current > 0;
           hp.current = Math.max(0, hp.current - 1);
+          maybeApplySpiritVanishRecovery(c, summonWasAboveZero, hp.current === 0, window.I18N.t("spirit_summon_choice_" + kind + "_label"));
           saveRosterCharacters();
           addLog("log_spirit_hp_change", { character: c.name, label: window.I18N.t("spirit_summon_choice_" + kind + "_label"), current: hp.current, max: hp.max });
           renderSpiritPanel();
@@ -9786,6 +10226,7 @@
     if (state.actionPhase === "defense" && phase !== "defense") {
       state.battle._finaleActive = false;
       state.battle._totemStellaActive = false;
+      state.battle._ruffianDarkCounterDebuffActive = false;
       // 附帶効果「HP持續回復」「FP持續回復」：防禦階段結束時（戰鬥結束・次回合いずれも含む）、
       // 自身に「HP回復□」「FP回復□」＝+1として適用する。
       rosterCharacters.forEach(function (c) {
@@ -9913,6 +10354,7 @@
       c._consecutiveDamageBonusGranted = 0;
       c._staminaRecoveryOfferedThisPhase = false;
       c._fpRecoveryAppliedThisPhase = false;
+      c._hpRecoveryAppliedThisPhase = false;
       c._daggerTwoHitCountThisPhase = 0;
       c._phaseDamageDealt = 0;
       c._phaseGuardReductionPoints = 0;
@@ -9969,6 +10411,9 @@
         c.deathSpirits = [];
         // 執行者「不撓」：戦闘終了までの持続スタックのため、戦闘終了のタイミングでクリアする。
         c._unyieldingStacks = 0;
+        // 送葬人（黎明）「祈禱輔助強化火力提升」：「火力提升」狀態も持續至戰鬥結束為止のため、
+        // 同じタイミングでクリアする。
+        c._prayerFirepowerActive = false;
       });
       // 戦闘終了時、敵人への屬性/異常蓄積・亂戰傷害修正値も残留させず全消去する
       // （次の戦闘で選ばれる敵人と無関係の古いデータが残り続けるのを防ぐ）。

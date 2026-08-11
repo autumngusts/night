@@ -668,12 +668,13 @@
           individualDamage: [{ amount: 180, targetRule: { kind: "aggroMax" } }],
         },
         {
-          // 「結晶散弾＆剣聖の間合い」：乱戦ダメージ修正－120（「魔:2」は別枠・数値未確定）。
-          // 既定ルール（前衛均等割り）。次のアクションフェイズ終了までエネミーを
+          // 「結晶散弾＆剣聖の間合い」：乱戦ダメージ修正－120＋「魔:2」（modに明記された固定値、
+          // 骰子ではないためelementAccumとして構造化。乱戦ダメージを受ける対象＝前衛均等割りの
+          // 全員がそれぞれ「魔」蓄積値+2を受ける）。次のアクションフェイズ終了までエネミーを
           // 「HP価値:+10（最大100）」する（enemy_hp_value_buff）。
           rollMin: 3,
           rollMax: 4,
-          groupDamage: { modifier: -120 },
+          groupDamage: { modifier: -120, elementAccum: [{ label: "魔", amount: 2 }] },
           targetRule: { kind: "frontAll" },
           conditions: ["enemy_hp_value_buff"],
         },
@@ -688,13 +689,13 @@
         },
         {
           // 「咆哮＆掴み攻撃」：乱戦ダメージ修正±0。既定ルール（前衛均等割り）。個別ダメージ240は
-          // 「敵視:最大」のPC1体に別枠で発生（＋魔:2は別枠・数値未確定）。乱戦・個別とも
-          // ガード不可（no_guard）。
+          // 「敵視:最大」のPC1体に別枠で発生し、「魔:2」（固定値、骰子ではないためelementAccumで
+          // 構造化）も同じ対象（個別ダメージを受けたPC）が受ける。乱戦・個別ともガード不可（no_guard）。
           rollMin: 7,
           rollMax: 8,
           groupDamage: { modifier: 0 },
           targetRule: { kind: "frontAll" },
-          individualDamage: [{ amount: 240, targetRule: { kind: "aggroMax" } }],
+          individualDamage: [{ amount: 240, targetRule: { kind: "aggroMax" }, elementAccum: [{ label: "魔", amount: 2 }] }],
           conditions: ["no_guard"],
         },
         {
