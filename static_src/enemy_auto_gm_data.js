@@ -461,6 +461,254 @@
         },
       ],
     },
+    // 劇本1「三首獸」の夜の強敵（強敵決定表とは別枠の、劇本固有1D判定によるライン）。
+    "soldier_knight|bell_bearing_hunter": {
+      rows: [
+        {
+          // 「連撃」：「敵視:1以上」で前衛のPC全員に「乱戦ダメージ:2人分」（本文に明記）。
+          rollMin: 1,
+          rollMax: 1,
+          groupDamage: { modifier: 180 },
+          targetRule: { kind: "frontAggroAtLeast1All" },
+        },
+        {
+          // 「突進体当たり」：乱戦ダメージ修正+60（「—」ではないため発生）。対象の明記が無いため
+          // 既定ルール（前衛均等割り）。個別効果は判定（敵視:1以上→目標12／敵視:0→目標10、
+          // フィジカル、前衛/後衛問わずPC全員が対象）で、失敗してもHP損害は発生せず次回合の
+          // スタミナダイス-2のみのため、savingThrow（onFailは常にダメージ前提の設計）は使わず
+          // conditionsのみ記録する（GM手動判定・反映）。
+          rollMin: 2,
+          rollMax: 2,
+          groupDamage: { modifier: 60 },
+          targetRule: { kind: "frontAll" },
+          conditions: ["stamina_dice_reduction_next_phase"],
+        },
+        {
+          // 「盾撃」：乱戦ダメージ修正±0（「—」ではないため発生）。既定ルール（前衛均等割り）。
+          // 個別効果は判定（敵視:1以上で前衛→目標12／敵視:0で前衛→目標10、運試し、失敗で
+          // 個別ダメージ240）だが、対象が「前衛」限定のためsavingThrow（全PC対象前提、前衛限定の
+          // 絞り込み機構が無い）は使わず、本文をそのままGM手動判定に委ねる（conditionsも無し、
+          // 数値を捏造しない）。
+          rollMin: 3,
+          rollMax: 3,
+          groupDamage: { modifier: 0 },
+          targetRule: { kind: "frontAll" },
+        },
+        {
+          // 「掴み攻撃」：乱戦ダメージ修正－180。個別ダメージ360は「前衛の中で敵視:最大」の1体
+          // （frontAggroAtLeast1Allではなく、前衛に絞った上で敵視最大＝frontAggroMaxAll）。
+          // ガード不可はconditionsのみ。
+          rollMin: 4,
+          rollMax: 4,
+          groupDamage: { modifier: -180 },
+          targetRule: { kind: "frontAll" },
+          individualDamage: [{ amount: 360, targetRule: { kind: "frontAggroMaxAll" } }],
+          conditions: ["no_guard"],
+        },
+        {
+          // 「エオヒドの飛剣」：乱戦ダメージ修正+240。乱戦ダメージはPC全員（前後衛問わず）が対象。
+          rollMin: 5,
+          rollMax: 5,
+          groupDamage: { modifier: 240 },
+          targetRule: { kind: "allPCs" },
+        },
+        {
+          // 「エオヒドの剣舞」：乱戦ダメージ修正+120。「敵視:1以上」のPC全員が対象、該当者が
+          // 1人もいなければ前衛が対象（本文に明記されたフォールバック規則）。
+          rollMin: 6,
+          rollMax: 6,
+          groupDamage: { modifier: 120 },
+          targetRule: { kind: "aggroAtLeast1All", fallback: "front" },
+        },
+      ],
+    },
+    "cavalry|tree_guard_capital_cavalry": {
+      rows: [
+        {
+          // 「振り下ろし連撃」：「敵視:1以上」で前衛のPC全員に「乱戦ダメージ:2人分」（本文に明記）。
+          // 個別ダメージ180は「敵視:最大」のPC1体に別枠で発生。
+          rollMin: 1,
+          rollMax: 1,
+          groupDamage: { modifier: 120 },
+          targetRule: { kind: "frontAggroAtLeast1All" },
+          individualDamage: [{ amount: 180, targetRule: { kind: "aggroMax" } }],
+        },
+        {
+          // 「盾殴り＆黄金の返報」：乱戦ダメージ修正－60。既定ルール（前衛均等割り）。個別効果
+          // （体力骰減少）と特殊能力「黄金の返報」（次回合、属性/状態異常が蓄積しない）はHP損害を
+          // 伴わないため、conditionsのみ記録する（「黄金の返報」に対応する既存タグが無いため
+          // タグ化はせず、この注記のみに留める）。
+          rollMin: 2,
+          rollMax: 2,
+          groupDamage: { modifier: -60 },
+          targetRule: { kind: "frontAll" },
+          conditions: ["stamina_dice_reduction_next_phase"],
+        },
+        {
+          // 「馬蹴り上げ＆駆け抜け」：乱戦ダメージ修正±0。既定ルール（前衛均等割り）。特殊能力
+          // 「駆け抜け」＝次回合開始時PC全員が出目に関わらず後衛配置（force_back_row_next_phase）。
+          // 個別効果の体力骰減少はstamina_dice_reduction_next_phaseで記録。
+          rollMin: 3,
+          rollMax: 3,
+          groupDamage: { modifier: 0 },
+          targetRule: { kind: "frontAll" },
+          conditions: ["stamina_dice_reduction_next_phase", "force_back_row_next_phase"],
+        },
+        {
+          // 「時間差攻撃＆黄金の返報」：乱戦ダメージ修正－240、乱戦ダメージは2回発生する。対象の
+          // 明記が無いため既定ルール（前衛均等割り）。
+          rollMin: 4,
+          rollMax: 4,
+          groupDamage: { modifier: -240, repeat: 2 },
+          targetRule: { kind: "frontAll" },
+        },
+        {
+          // 「叩きつけ＆駆け抜け」：乱戦ダメージ修正+120。既定ルール（前衛均等割り）。個別ダメージ
+          // 240は「敵視:1以上」の前衛のPC全員に別枠で発生。特殊能力「駆け抜け」を発揮
+          // （force_back_row_next_phase）。
+          rollMin: 5,
+          rollMax: 5,
+          groupDamage: { modifier: 120 },
+          targetRule: { kind: "frontAll" },
+          individualDamage: [{ amount: 240, targetRule: { kind: "frontAggroAtLeast1All" } }],
+          conditions: ["force_back_row_next_phase"],
+        },
+        {
+          // 「突撃指示」：「敵視:1以上」で前衛のPC全員に「乱戦ダメージ:2人分」（本文に明記）。
+          // このダメージを回避するPCはダイスコストが半減する（reducible_by_stamina_dice）。
+          rollMin: 6,
+          rollMax: 6,
+          groupDamage: { modifier: 0 },
+          targetRule: { kind: "frontAggroAtLeast1All" },
+          conditions: ["reducible_by_stamina_dice"],
+        },
+      ],
+    },
+    "strong_type|loathed_demon": {
+      rows: [
+        {
+          // 「転移＆杖撃」：乱戦ダメージ修正+240。対象は「敵視:最大」のPCが前衛/後衛のどちらに
+          // 多いかで決まる複合条件（同数ならランダム）で、既存のtargetRule.kindに一致するものが
+          // 無いためtargetRuleは設定しない（合計傷害の自動算出のみ行い、実際の配分は既存の
+          // battle-guard-calc-block／GMが本文を見て手動で振り分ける、数値を捏造しない）。
+          rollMin: 1,
+          rollMax: 1,
+          groupDamage: { modifier: 240 },
+        },
+        {
+          // 「光の槍」：乱戦ダメージ修正±0（「—」ではないため発生）。既定ルール（前衛均等割り）。
+          // 個別ダメージ240は「敵視:最大」のPC1体に別枠で発生。
+          rollMin: 2,
+          rollMax: 2,
+          groupDamage: { modifier: 0 },
+          targetRule: { kind: "frontAll" },
+          individualDamage: [{ amount: 240, targetRule: { kind: "aggroMax" } }],
+        },
+        {
+          // 「短剣連続投擲」：乱戦ダメージ修正が「—」のため乱戦ダメージは発生しない。個別効果
+          // （PC人数+1回実行）＝「敵視:1以上」のPC1体への個別ダメージ120。
+          // 【要確認】既存の「PC人数回実行」と同じ解釈（対象PC1体を誰にするか本文で特定できない
+          // ため、条件を満たす全員に1回ずつ行き渡ると解釈）を踏襲し、「+1」の超過分1回は
+          // 反映しない（enemy_auto_gm_data.js内の他の「PC人数回実行」行と同じ簡略化）。
+          rollMin: 3,
+          rollMax: 3,
+          individualDamage: [{ amount: 120, targetRule: { kind: "aggroAtLeast1All" } }],
+        },
+        {
+          // 「光の大槌」：乱戦ダメージ修正±0。既定ルール（前衛均等割り）。個別ダメージ240は
+          // 「敵視:1以上」のPC全員に別枠で発生。回避時ダイスコスト半減
+          // （reducible_by_stamina_dice）。
+          rollMin: 4,
+          rollMax: 4,
+          groupDamage: { modifier: 0 },
+          targetRule: { kind: "frontAll" },
+          individualDamage: [{ amount: 240, targetRule: { kind: "aggroAtLeast1All" } }],
+          conditions: ["reducible_by_stamina_dice"],
+        },
+        {
+          // 「咳き込み」：乱戦ダメージ修正－120（「猛毒:1D」は別枠・数値未確定）。既定ルール
+          // （前衛均等割り）。個別効果は判定（敵視:最大→目標12、メンタル）の成否で猛毒の蓄積量が
+          // 変わるのみでHP損害を伴わないため、個別ダメージ・savingThrowは設定しない
+          // （GM手動判定・反映）。
+          rollMin: 5,
+          rollMax: 5,
+          groupDamage: { modifier: -120 },
+          targetRule: { kind: "frontAll" },
+        },
+        {
+          // 「血炎の交差斬撃」：乱戦ダメージ修正が「—」のため乱戦ダメージは発生しない。個別効果
+          // （PC人数回実行）＝「敵視:1以上」のPC1体への個別ダメージ120（既存の「PC人数回実行」
+          // 解釈を踏襲）。
+          rollMin: 6,
+          rollMax: 6,
+          individualDamage: [{ amount: 120, targetRule: { kind: "aggroAtLeast1All" } }],
+        },
+      ],
+    },
+    "demihuman_beastfolk_club|demihuman_queen_swordmaster": {
+      // 特殊能力「行動激化」：體勢崩潰が発生したターンの防禦階段は、行動決定の1Dを振らず
+      // 自動的に「棄杖＆流星擊」を実行する。その後、戦闘終了まで、行動決定は「1D」ではなく
+      // 「1D+4」で行う（ユーザー確認済み：base=1D6、maris/rollBonusAfterGuardBreakと同じ機構）。
+      // rollMin/rollMaxが6を超える行（7~8／9~10）は、通常時（1D6=1〜6）には到達せず、
+      // 體勢崩潰後（1D6+4=5〜10）にのみ到達する（maris方式と同一の設計）。
+      // 【既知の未対応範囲】體勢崩潰した「その回合の防禦階段」だけ1Dを振らず自動的に
+      // 「棄杖＆流星擊"（rollMin/rollMax無し、"—"行）を強制実行する部分は、既存のrollOverride/
+      // rollBonusAfterGuardBreak機構では表現できない新しいパターンのため未構造化のまま
+      // （GMが該当ターンの防禦階段だけ手動でこの行を適用する）。
+      rollBonusAfterGuardBreak: 4,
+      rows: [
+        {
+          // 「輝石のつぶて＆剣聖の連撃」：乱戦ダメージ修正±0（「—」ではないため発生）。対象の
+          // 明記が無いため既定ルール（前衛均等割り）。個別ダメージ180は「敵視:最大」のPC1体に
+          // 別枠で発生（＋魔:1Dは別枠・数値未確定）。
+          rollMin: 1,
+          rollMax: 2,
+          groupDamage: { modifier: 0 },
+          targetRule: { kind: "frontAll" },
+          individualDamage: [{ amount: 180, targetRule: { kind: "aggroMax" } }],
+        },
+        {
+          // 「結晶散弾＆剣聖の間合い」：乱戦ダメージ修正－120（「魔:2」は別枠・数値未確定）。
+          // 既定ルール（前衛均等割り）。次のアクションフェイズ終了までエネミーを
+          // 「HP価値:+10（最大100）」する（enemy_hp_value_buff）。
+          rollMin: 3,
+          rollMax: 4,
+          groupDamage: { modifier: -120 },
+          targetRule: { kind: "frontAll" },
+          conditions: ["enemy_hp_value_buff"],
+        },
+        {
+          // 「殴りかかり＆霧隠れ」：乱戦ダメージ修正+120。既定ルール（前衛均等割り）。次の
+          // アクションフェイズ終了まで、エネミーはモブ損害/属性損害/状態異常によるHP損害を
+          // 被らない（対応する既存のconditionsタグが無いため、この注記のみでタグ化はしない）。
+          rollMin: 5,
+          rollMax: 6,
+          groupDamage: { modifier: 120 },
+          targetRule: { kind: "frontAll" },
+        },
+        {
+          // 「咆哮＆掴み攻撃」：乱戦ダメージ修正±0。既定ルール（前衛均等割り）。個別ダメージ240は
+          // 「敵視:最大」のPC1体に別枠で発生（＋魔:2は別枠・数値未確定）。乱戦・個別とも
+          // ガード不可（no_guard）。
+          rollMin: 7,
+          rollMax: 8,
+          groupDamage: { modifier: 0 },
+          targetRule: { kind: "frontAll" },
+          individualDamage: [{ amount: 240, targetRule: { kind: "aggroMax" } }],
+          conditions: ["no_guard"],
+        },
+        {
+          // 「突撃指令＆剣聖の見切り」：乱戦ダメージ修正－120。既定ルール（前衛均等割り）。個別効果は
+          // 判定（敵視:1以上→目標12／それ以外→目標10、メンタル）の失敗でスタミナダイス-2
+          // （次回合）のみでHP損害を伴わないため、savingThrowは使わずconditionsのみ記録する。
+          rollMin: 9,
+          rollMax: 10,
+          groupDamage: { modifier: -120 },
+          targetRule: { kind: "frontAll" },
+          conditions: ["stamina_dice_reduction_next_phase"],
+        },
+      ],
+    },
   };
 
   function get(familyId, enemyId) {
