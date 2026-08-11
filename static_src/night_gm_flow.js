@@ -1724,6 +1724,26 @@
       advanceCardConclusionChain();
       return;
     }
+    // ユーザー報告：起點／終點（"start"|"end"）には上と同じガードが無く、全踏破済み
+    // （pileChecks.all）でも[進入]を押すたびに樓層0の敘述をやり直してしまっていた
+    // （「黄金樹の帳」で夜の強敵を撃破・獎勵領取済みなのに[稍後]を押した後もう一度
+    // ［進入］すると戦闘敘述から再開してしまうバグ）。「全」に達したらどう辿り着いたかに
+    // 関わらずこのカードのイベントは終了済みという原則を、起點／終點にも同様に適用する。
+    // 「黄金樹の帳」だけは進次日ゲート（handleGoldenTreeFullClear相当）を再度開き、
+    // それ以外（出發地點）は通常の地圖移動確認を再度開く。
+    if (idx === "start" || idx === "end") {
+      var pileChecksForGuard = idx === "start" ? state.startChecks : state.endChecks;
+      if (pileChecksForGuard && pileChecksForGuard.all) {
+        var clearedEntry = window.PriTestNightFloorBreakthrough.resolveFieldEntryForSlot(idx);
+        if (clearedEntry && clearedEntry.id === "a_golden") {
+          reopenGoldenTreeAdvanceGate(clearedEntry);
+        } else {
+          state.gmFlow.pendingMapMoveSlot = idx;
+          advanceCardConclusionChain();
+        }
+        return;
+      }
+    }
     var entry = window.PriTestNightFloorBreakthrough.resolveFieldEntryForSlot(idx);
     // ［初始地點］第18項：起點／終點は数値cardLevelsを持たないため、[進入]を押した瞬間に
     // 「1」チェックを自動でオンにし、盤面から見ても「現在フロア1にいる」ことが分かるようにする
@@ -3085,6 +3105,24 @@
   // 規則書：夜の強敵撃破後の追加処理——全員の聖杯瓶使用回数／現在HP／現在FP／夜渡りスキル
   // 使用回数を最大値まで回復（レベルアップの実行自体は各キャラクター詳細ドロワー側の既存UIを
   // 使う操作なので、ここでは自動化せずリマインドに留める）。処理後は[進入下一晚]/[稍後]を出す。
+  // handleEnterClickが「黄金樹の帳を既に全踏破済みの状態で再度[進入]された」場合に呼ぶ。
+  // handleGoldenTreeFullClearと違い、HP/FP/加護等の全回復（applyEventChipBlessingRest）は
+  // 再度実行しない——それは初回の全踏破達成時に一度だけ行われるべき処理であり、単に
+  // ［稍後］の後もう一度確認したいだけのGMに対して毎回再実行するのは不適切なため。
+  function reopenGoldenTreeAdvanceGate(entry) {
+    var Core = window.PriTestNightCore;
+    var state = Core.state;
+    var effectText = entry.allFloorEffect ? window.PriTestFields.localizedText(entry.allFloorEffect) : "";
+    state.gmFlow.narrationText = window.I18N.t("gm_flow_golden_tree_clear_narration", {
+      name: window.PriTestFields.localizedText(entry.name),
+      effect: effectText,
+    });
+    state.gmFlow.awaitingOk = true;
+    state.gmFlow.actionKind = "nightAdvance";
+    Core.saveState();
+    Core.renderCurrentLocationStatus();
+  }
+
   function handleGoldenTreeFullClear(cardName, effectText) {
     var Core = window.PriTestNightCore;
     var state = Core.state;
@@ -3130,8 +3168,14 @@
   }
 
   // [稍後]：夜の強敵撃破の敘述だけ閉じる（進次日はまだしない）。
+  // ユーザー報告：ここでclearPendingCardConclusionFlagsを呼んでいなかったため、
+  // finishFieldWalkが予約していたpendingMapMoveSlot等が消費されないまま残り続け、
+  // 後で無関係なゲート解決のタイミングで誤って地圖移動確認へ迷い込む余地があった。
+  // handleAdvanceNightClick（[進入下一晚]）と同様にここでも確実に破棄しておく
+  // （黄金樹の帳は進次日フローに分岐するため、通常のadvanceCardConclusionChainは通らない）。
   function handleDismissNarrationClick() {
     clearGmFlowGate();
+    clearPendingCardConclusionFlags();
     window.PriTestNightCore.saveState();
     window.PriTestNightCore.renderCurrentLocationStatus();
   }
