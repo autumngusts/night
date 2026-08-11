@@ -104,12 +104,37 @@
                 L(2, null, ["「君主軍たち(Lv.2 + L補)」", "「君主軍們（Lv.2+L補）」"], true),
                 L(2, null, ["「武器：★」（フロア踏破）", "獲得「武器：★」1個（樓層踏破）"], true),
               ],
+              // 3つの相互排他な結末（こっそりチェスト成功／こっそりチェスト失敗→ザコ戦闘／
+              // ザコ戦闘へ直接／無視）をtieredChoiceへ統一。失敗→ザコ戦闘の場合はチェストの
+              // 獎勵とザコ戦闘撃破の獎勵の両方が累積する点に注意（本文参照）。
               reward: [
-                { kind: "weaponStar", value: 2, note: C("（こっそりチェスト・行為判定成功時）", "（偷偷拿寶箱・行為判定成功時）") },
-                { kind: "weaponStar", value: 2, note: C("（こっそりチェスト・行為判定失敗時）", "（偷偷拿寶箱・行為判定失敗時）") },
-                { kind: "consumable", value: 1, note: C("（こっそりチェスト・行為判定失敗時）", "（偷偷拿寶箱・行為判定失敗時）") },
-                { kind: "weaponStar", value: 1, note: C("（ザコ戦闘撃破）", "（雜兵戰鬥擊破）") },
-                { kind: "rune", value: 1, note: C("（撃破ルーン）", "（擊破盧恩）") },
+                {
+                  kind: "tieredChoice",
+                  tierLabel: C("実際に進んだルート", "實際採取的路線"),
+                  tiers: [
+                    {
+                      label: C("こっそりチェスト（成功）", "偷偷拿寶箱（成功）"),
+                      rewards: [{ kind: "weaponStar", value: 2 }],
+                    },
+                    {
+                      label: C("こっそりチェスト（失敗）→ザコ戦闘（撃破）", "偷偷拿寶箱（失敗）→雜兵戰鬥（擊破）"),
+                      rewards: [
+                        { kind: "weaponStar", value: 2 },
+                        { kind: "consumable", value: 1 },
+                        { kind: "weaponStar", value: 1 },
+                        { kind: "rune", value: 1 },
+                      ],
+                    },
+                    {
+                      label: C("ザコ戦闘（撃破、直接選択）", "雜兵戰鬥（擊破，直接選擇）"),
+                      rewards: [
+                        { kind: "weaponStar", value: 1 },
+                        { kind: "rune", value: 1 },
+                      ],
+                    },
+                    { label: C("無視する（樓層踏破）", "無視（樓層踏破）"), rewards: [] },
+                  ],
+                },
               ],
             },
             {
@@ -162,15 +187,32 @@
                   true
                 ),
               ],
+              // 相互排他な2分岐（すり抜けて宝箱／ボス戦闘）の獎勵をtieredChoiceへ統一。
               reward: [
-                { kind: "stoneswordKey", value: 1, note: C("（すり抜けて宝箱）", "（鑽過取寶箱）") },
-                { kind: "weaponStar", value: 1, note: C("（すり抜けて宝箱）", "（鑽過取寶箱）") },
-                { kind: "consumable", value: 1, note: C("（すり抜けて宝箱）", "（鑽過取寶箱）") },
-                { kind: "potentialPower", perPerson: true, value: 1, note: C("（ボス戦闘撃破）", "（王戰擊破）") },
-                { kind: "stoneswordKey", value: 1, note: C("（ボス戦闘撃破）", "（王戰擊破）") },
-                { kind: "weaponStar", value: 1, note: C("（ボス戦闘撃破）", "（王戰擊破）") },
-                { kind: "consumable", value: 1, note: C("（ボス戦闘撃破）", "（王戰擊破）") },
-                { kind: "rune", value: 4, note: C("（撃破ルーン）", "（擊破盧恩）") },
+                {
+                  kind: "tieredChoice",
+                  tierLabel: C("実際に進んだルート", "實際採取的路線"),
+                  tiers: [
+                    {
+                      label: C("すり抜けて宝箱", "鑽過取寶箱"),
+                      rewards: [
+                        { kind: "stoneswordKey", value: 1 },
+                        { kind: "weaponStar", value: 1 },
+                        { kind: "consumable", value: 1 },
+                      ],
+                    },
+                    {
+                      label: C("ボス戦闘（撃破）", "王戰（擊破）"),
+                      rewards: [
+                        { kind: "potentialPower", perPerson: true, value: 1 },
+                        { kind: "stoneswordKey", value: 1 },
+                        { kind: "weaponStar", value: 1 },
+                        { kind: "consumable", value: 1 },
+                        { kind: "rune", value: 4 },
+                      ],
+                    },
+                  ],
+                },
               ],
             },
           ],
@@ -267,14 +309,31 @@
                   true
                 ),
               ],
+              // 相互排他な2分岐（塔へ潜入・成功／ザコ戦闘撃破）の獎勵をtieredChoiceへ統一。
               reward: [
-                { kind: "stoneswordKey", value: 1, note: C("（塔へ潜入・行為判定成功時）", "（潛入塔內・行為判定成功時）") },
-                { kind: "consumable", value: 1, note: C("（塔へ潜入・行為判定成功時）", "（潛入塔內・行為判定成功時）") },
-                { kind: "stoneswordKey", value: 1, note: C("（ザコ戦闘撃破）", "（雜兵戰鬥擊破）") },
-                { kind: "consumable", value: 1, note: C("（ザコ戦闘撃破）", "（雜兵戰鬥擊破）") },
                 {
-                  kind: "note",
-                  note: C("（ザコ戦闘撃破。地図のクローズエリアを1つオープン可能。GM判断で処理）", "（雜兵戰鬥擊破。可開啟地圖上1個未開啟區域，由GM判斷處理）"),
+                  kind: "tieredChoice",
+                  tierLabel: C("実際に進んだルート", "實際採取的路線"),
+                  tiers: [
+                    {
+                      label: C("塔へ潜入（成功）", "潛入塔內（成功）"),
+                      rewards: [
+                        { kind: "stoneswordKey", value: 1 },
+                        { kind: "consumable", value: 1 },
+                      ],
+                    },
+                    {
+                      label: C("ザコ戦闘（撃破）", "雜兵戰鬥（擊破）"),
+                      rewards: [
+                        { kind: "stoneswordKey", value: 1 },
+                        { kind: "consumable", value: 1 },
+                        {
+                          kind: "note",
+                          note: C("（地図のクローズエリアを1つオープン可能。GM判断で処理）", "（可開啟地圖上1個未開啟區域，由GM判斷處理）"),
+                        },
+                      ],
+                    },
+                  ],
                 },
               ],
             },
@@ -447,15 +506,30 @@
                   true
                 ),
               ],
+              // 「宝物庫に入る」を選ばず先を急いだ場合は無報酬のため、tieredChoiceへ統一。
               reward: [
-                { kind: "stoneswordKey", value: 1, note: C("（宝物庫に入る）", "（進入寶物庫）") },
                 {
-                  kind: "weaponStar",
-                  value: 1,
-                  attributeTag: C("魔／-5（154頁）", "魔／-5（154頁）"),
-                  note: C("（宝物庫に入る）", "（進入寶物庫）"),
+                  kind: "tieredChoice",
+                  tierLabel: C("実際に進んだルート", "實際採取的路線"),
+                  tiers: [
+                    {
+                      label: C("宝物庫に入る（ザコ戦闘撃破）", "進入寶物庫（雜兵戰鬥擊破）"),
+                      rewards: [
+                        { kind: "stoneswordKey", value: 1 },
+                        {
+                          kind: "weaponStar",
+                          value: 1,
+                          attributeTag: C("魔／-5（154頁）", "魔／-5（154頁）"),
+                        },
+                        { kind: "weaponStar", value: 1, categoryId: "staff" },
+                      ],
+                    },
+                    {
+                      label: C("先を急ぐ（フロア踏破）", "趕路（樓層踏破）"),
+                      rewards: [],
+                    },
+                  ],
                 },
-                { kind: "weaponStar", value: 1, categoryId: "staff", note: C("（ザコ戦闘撃破）", "（雜兵戰鬥擊破）") },
               ],
             },
             {
@@ -634,11 +708,30 @@
                   true
                 ),
               ],
+              // ユーザー報告：以前は「防壁を乗り越える」成功時の獎勵と「ザコ戦闘」撃破時の獎勵が
+              // 同じreward配列に並列で入っており、自動push機能がどちらか一方しか実際に発生
+              // していなくても両方を獎勵清單へ積んでしまっていた（相互排他な分岐の獎勵混在）。
+              // 既存のtieredChoice（GMがどちらの分岐が実際に起きたかを確定してから獎勵を積む
+              // 仕組み）へ統一する。
               reward: [
-                { kind: "consumable", value: 1, note: C("（防壁を乗り越える・行為判定成功時）", "（翻越防壁・行為判定成功時）") },
-                { kind: "stoneswordKey", value: 1, note: C("（ザコ戦闘撃破）", "（雜兵戰鬥擊破）") },
-                { kind: "consumable", value: 1, note: C("（ザコ戦闘撃破）", "（雜兵戰鬥擊破）") },
-                { kind: "rune", value: 1, note: C("（撃破ルーン）", "（擊破盧恩）") },
+                {
+                  kind: "tieredChoice",
+                  tierLabel: C("実際に進んだルート", "實際採取的路線"),
+                  tiers: [
+                    {
+                      label: C("防壁を乗り越える（成功）", "翻越防壁（成功）"),
+                      rewards: [{ kind: "consumable", value: 1 }],
+                    },
+                    {
+                      label: C("ザコ戦闘（撃破）", "雜兵戰鬥（擊破）"),
+                      rewards: [
+                        { kind: "stoneswordKey", value: 1 },
+                        { kind: "consumable", value: 1 },
+                        { kind: "rune", value: 1, note: C("（撃破ルーン）", "（擊破盧恩）") },
+                      ],
+                    },
+                  ],
+                },
               ],
             },
             {
@@ -896,13 +989,26 @@
                   true
                 ),
               ],
+              // 相互排他な2分岐（野営地の物色／ザコ戦闘）の獎勵をtieredChoiceへ統一
+              // （既存reward.js監査：混在によりどちらか一方の獎勵しか発生していなくても
+              // 両方pushされてしまう不具合の修正）。
               reward: [
-                { kind: "stoneswordKey", value: 1, note: C("（野営地の物色・行為判定成功時）", "（搜刮野營地・行為判定成功時）") },
-                { kind: "stoneswordKey", value: 1, note: C("（ザコ戦闘撃破）", "（雜兵戰鬥擊破）") },
                 {
-                  kind: "consumable",
-                  value: 1,
-                  note: C("（ザコ戦闘撃破。選択肢から「投擲壺」を選ぶこと）", "（雜兵戰鬥擊破。請於選項中選擇「投擲壺」）"),
+                  kind: "tieredChoice",
+                  tierLabel: C("実際に進んだルート", "實際採取的路線"),
+                  tiers: [
+                    {
+                      label: C("野営地の物色（成功）", "搜刮野營地（成功）"),
+                      rewards: [{ kind: "stoneswordKey", value: 1 }],
+                    },
+                    {
+                      label: C("ザコ戦闘（撃破）", "雜兵戰鬥（擊破）"),
+                      rewards: [
+                        { kind: "stoneswordKey", value: 1 },
+                        { kind: "consumable", value: 1, note: C("（選択肢から「投擲壺」を選ぶこと）", "（請於選項中選擇「投擲壺」）") },
+                      ],
+                    },
+                  ],
                 },
               ],
             },
@@ -1156,15 +1262,27 @@
                   true
                 ),
               ],
+              // 相互排他な2分岐（亡骸の物色／ザコ戦闘）の獎勵をtieredChoiceへ統一。
               reward: [
-                { kind: "stoneswordKey", value: 1, note: C("（亡骸の物色・行為判定成功時）", "（搜刮屍骸・行為判定成功時）") },
                 {
-                  kind: "consumable",
-                  value: 1,
-                  note: C(
-                    "（ザコ戦闘撃破。選択肢から「投擲壺」を選び、属性は（発狂）に手動記録）",
-                    "（雜兵戰鬥擊破。請於選項中選擇「投擲壺」，屬性（發狂）需手動記錄）"
-                  ),
+                  kind: "tieredChoice",
+                  tierLabel: C("実際に進んだルート", "實際採取的路線"),
+                  tiers: [
+                    {
+                      label: C("亡骸の物色（成功）", "搜刮屍骸（成功）"),
+                      rewards: [{ kind: "stoneswordKey", value: 1 }],
+                    },
+                    {
+                      label: C("ザコ戦闘（撃破）", "雜兵戰鬥（擊破）"),
+                      rewards: [
+                        {
+                          kind: "consumable",
+                          value: 1,
+                          note: C("（選択肢から「投擲壺」を選び、属性は（発狂）に手動記録）", "（請於選項中選擇「投擲壺」，屬性（發狂）需手動記錄）"),
+                        },
+                      ],
+                    },
+                  ],
                 },
               ],
             },
@@ -2163,22 +2281,47 @@
                   true
                 ),
               ],
+              // 「やり過ごす」（成功／失敗→ボス戦闘）と、やり過ごさず直接「戦う」は相互排他な
+              // ルートのため、tieredChoiceへ統一。
               reward: [
-                { kind: "talisman", value: 2, note: C("（やり過ごす・成功時）", "（放過對方・成功時）") },
-                { kind: "consumable", value: 2, note: C("（やり過ごす・成功時）", "（放過對方・成功時）") },
                 {
-                  kind: "consumable",
-                  value: 1,
-                  note: C(
-                    "（やり過ごす・成功時。選択肢から「投擲壺」を選び、属性は（猛毒）に手動記録）",
-                    "（放過對方・成功時。請於選項中選擇「投擲壺」，屬性（猛毒）需手動記錄）"
-                  ),
+                  kind: "tieredChoice",
+                  tierLabel: C("実際に進んだルート", "實際採取的路線"),
+                  tiers: [
+                    {
+                      label: C("やり過ごす（成功）", "放過對方（成功）"),
+                      rewards: [
+                        { kind: "talisman", value: 2 },
+                        { kind: "consumable", value: 2 },
+                        {
+                          kind: "consumable",
+                          value: 1,
+                          note: C(
+                            "（選択肢から「投擲壺」を選び、属性は（猛毒）に手動記録）",
+                            "（請於選項中選擇「投擲壺」，屬性（猛毒）需手動記錄）"
+                          ),
+                        },
+                      ],
+                    },
+                    {
+                      label: C("やり過ごす（失敗→ボス戦闘撃破）", "放過對方（失敗→王戰擊破）"),
+                      rewards: [
+                        { kind: "talisman", value: 2 },
+                        { kind: "consumable", value: 2 },
+                        { kind: "hpDamage", value: 2, note: C("（ランダムPC1人）", "（隨機1名PC）") },
+                        { kind: "potentialPower", perPerson: true, value: 1 },
+                        { kind: "note", note: C("（「共鳴する結晶：+1」は別途手動記録）", "（「共鳴結晶：+1」需另行手動記錄）") },
+                      ],
+                    },
+                    {
+                      label: C("戦う（ボス戦闘撃破）", "戰鬥（王戰擊破）"),
+                      rewards: [
+                        { kind: "potentialPower", perPerson: true, value: 1 },
+                        { kind: "note", note: C("（「共鳴する結晶：+1」は別途手動記録）", "（「共鳴結晶：+1」需另行手動記錄）") },
+                      ],
+                    },
+                  ],
                 },
-                { kind: "talisman", value: 2, note: C("（やり過ごす・失敗時）", "（放過對方・失敗時）") },
-                { kind: "consumable", value: 2, note: C("（やり過ごす・失敗時）", "（放過對方・失敗時）") },
-                { kind: "hpDamage", value: 2, note: C("（やり過ごす・失敗時。ランダムPC1人）", "（放過對方・失敗時。隨機1名PC）") },
-                { kind: "potentialPower", perPerson: true, value: 1, note: C("（ボス戦闘撃破）", "（王戰擊破）") },
-                { kind: "note", note: C("（ボス戦闘撃破。「共鳴する結晶：+1」は別途手動記録）", "（王戰擊破。「共鳴結晶：+1」需另行手動記錄）") },
               ],
             },
             {
@@ -2206,10 +2349,17 @@
                 L(2, ["成功", "成功"], ["なんと中から「武器：★★★★」を1つ獲得。", "居然從中獲得「武器：★★★★」1個。"], true),
                 L(2, ["失敗", "失敗"], ["「武器：★★」を1つ獲得。", "獲得「武器：★★」1個。"], true),
               ],
+              // 奥のチェストの武器★は運試しの成否で択一のため、tieredChoiceへ統一。
               reward: [
                 { kind: "potentialPower", perPerson: true, value: 1, note: C("（ボス戦闘撃破）", "（王戰擊破）") },
-                { kind: "weaponStar", value: 4, note: C("（奥のチェスト・運試し成功時）", "（深處寶箱・運氣判定成功時）") },
-                { kind: "weaponStar", value: 2, note: C("（奥のチェスト・運試し失敗時）", "（深處寶箱・運氣判定失敗時）") },
+                {
+                  kind: "tieredChoice",
+                  tierLabel: C("奥のチェスト・運試しの結果", "深處寶箱・運氣判定的結果"),
+                  tiers: [
+                    { label: C("成功", "成功"), rewards: [{ kind: "weaponStar", value: 4 }] },
+                    { label: C("失敗", "失敗"), rewards: [{ kind: "weaponStar", value: 2 }] },
+                  ],
+                },
               ],
             },
           ],
@@ -2277,14 +2427,43 @@
                   true
                 ),
               ],
+              // 「やり過ごす」（成功／失敗→ザコ戦闘）と、やり過ごさず直接「戦う」は相互排他な
+              // ルートのため、tieredChoiceへ統一。
               reward: [
-                { kind: "talisman", value: 2, note: C("（やり過ごす・成功時）", "（放過對方・成功時）") },
-                { kind: "consumable", value: 2, note: C("（やり過ごす・成功時。「ククリ」は別途手動追加）", "（放過對方・成功時。「廓爾喀彎刀」需另行手動追加）") },
-                { kind: "talisman", value: 2, note: C("（やり過ごす・失敗時）", "（放過對方・失敗時）") },
-                { kind: "consumable", value: 2, note: C("（やり過ごす・失敗時）", "（放過對方・失敗時）") },
-                { kind: "hpDamage", value: 1, note: C("（やり過ごす・失敗時。ランダムPC2人）", "（放過對方・失敗時。隨機2名PC）") },
-                { kind: "potentialPower", perPerson: true, value: 1, note: C("（ザコ戦闘撃破）", "（雜兵戰鬥擊破）") },
-                { kind: "note", note: C("（ザコ戦闘撃破。「共鳴する結晶：+1」は別途手動記録）", "（雜兵戰鬥擊破。「共鳴結晶：+1」需另行手動記錄）") },
+                {
+                  kind: "tieredChoice",
+                  tierLabel: C("実際に進んだルート", "實際採取的路線"),
+                  tiers: [
+                    {
+                      label: C("やり過ごす（成功）", "放過對方（成功）"),
+                      rewards: [
+                        { kind: "talisman", value: 2 },
+                        {
+                          kind: "consumable",
+                          value: 2,
+                          note: C("（「ククリ」は別途手動追加）", "（「廓爾喀彎刀」需另行手動追加）"),
+                        },
+                      ],
+                    },
+                    {
+                      label: C("やり過ごす（失敗→ザコ戦闘撃破）", "放過對方（失敗→雜兵戰鬥擊破）"),
+                      rewards: [
+                        { kind: "talisman", value: 2 },
+                        { kind: "consumable", value: 2 },
+                        { kind: "hpDamage", value: 1, note: C("（ランダムPC2人）", "（隨機2名PC）") },
+                        { kind: "potentialPower", perPerson: true, value: 1 },
+                        { kind: "note", note: C("（「共鳴する結晶：+1」は別途手動記録）", "（「共鳴結晶：+1」需另行手動記錄）") },
+                      ],
+                    },
+                    {
+                      label: C("戦う（ザコ戦闘撃破）", "戰鬥（雜兵戰鬥擊破）"),
+                      rewards: [
+                        { kind: "potentialPower", perPerson: true, value: 1 },
+                        { kind: "note", note: C("（「共鳴する結晶：+1」は別途手動記録）", "（「共鳴結晶：+1」需另行手動記錄）") },
+                      ],
+                    },
+                  ],
+                },
               ],
             },
             {
@@ -2312,10 +2491,17 @@
                 L(2, ["成功", "成功"], ["なんと中から「武器：★★★」を獲得。", "居然從中獲得「武器：★★★」。"], true),
                 L(2, ["失敗", "失敗"], ["「武器：★★」を獲得。", "獲得「武器：★★」。"], true),
               ],
+              // 奥のチェストの武器★は運試しの成否で択一のため、tieredChoiceへ統一。
               reward: [
                 { kind: "potentialPower", perPerson: true, value: 1, note: C("（ボス戦闘撃破）", "（王戰擊破）") },
-                { kind: "weaponStar", value: 3, note: C("（奥のチェスト・運試し成功時）", "（深處寶箱・運氣判定成功時）") },
-                { kind: "weaponStar", value: 2, note: C("（奥のチェスト・運試し失敗時）", "（深處寶箱・運氣判定失敗時）") },
+                {
+                  kind: "tieredChoice",
+                  tierLabel: C("奥のチェスト・運試しの結果", "深處寶箱・運氣判定的結果"),
+                  tiers: [
+                    { label: C("成功", "成功"), rewards: [{ kind: "weaponStar", value: 3 }] },
+                    { label: C("失敗", "失敗"), rewards: [{ kind: "weaponStar", value: 2 }] },
+                  ],
+                },
               ],
             },
           ],

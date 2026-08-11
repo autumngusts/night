@@ -1381,16 +1381,33 @@
                 L(1, null, ["戦闘開始時に「追加ルール：バリスタ射撃」を処理すること。", "戰鬥開始時處理「追加規則：投石機射擊」。"], true),
                 L(1, null, ["撃破に成功しても、得る物はない（フロア踏破）。", "擊破成功也無所獲（樓層踏破）。"], true),
               ],
+              // 「城壁へ登る」「住居をあさる」はどちらも独立した任意行動（両方／片方のみ／
+              // どちらも行わない、のいずれもあり得る）のため、それぞれ個別のtieredChoiceへ分離。
               reward: [
-                { kind: "consumable", value: 1, note: C("（城壁へ登る・過半数成功時）", "（登上城壁・過半數成功時）") },
+                {
+                  kind: "tieredChoice",
+                  tierLabel: C("城壁へ登る", "登上城壁"),
+                  tiers: [
+                    { label: C("実施した（過半数成功）", "有進行（過半數成功）"), rewards: [{ kind: "consumable", value: 1 }] },
+                    { label: C("実施した（過半数不成立）", "有進行（未達過半數成功）"), rewards: [] },
+                    { label: C("実施しなかった", "未進行"), rewards: [] },
+                  ],
+                },
                 { kind: "hpDamage", value: 2, note: C("（城壁へ登る・行為判定失敗時）", "（登上城壁・行為判定失敗時）") },
                 {
-                  kind: "weaponStar",
-                  value: 1,
-                  categoryId: RANGED_GROUP_CATEGORY,
-                  note: C("（住居をあさる）", "（翻找住居）"),
+                  kind: "tieredChoice",
+                  tierLabel: C("住居をあさる", "翻找住居"),
+                  tiers: [
+                    {
+                      label: C("実施した", "有進行"),
+                      rewards: [
+                        { kind: "weaponStar", value: 1, categoryId: RANGED_GROUP_CATEGORY },
+                        { kind: "consumable", value: 1 },
+                      ],
+                    },
+                    { label: C("実施しなかった", "未進行"), rewards: [] },
+                  ],
                 },
-                { kind: "consumable", value: 1, note: C("（住居をあさる）", "（翻找住居）") },
                 { kind: "hpDamage", value: 1, note: C("（住居をあさる・行為判定失敗時）", "（翻找住居・行為判定失敗時）") },
               ],
             },
@@ -1563,19 +1580,36 @@
                 L(2, ["成功", "成功"], ["羊を狩ることに成功。「ルーン：1」を獲得。", "成功獵捕羊群。獲得「盧恩：1」。"], true),
                 L(2, ["失敗", "失敗"], ["羊を狩ることはできたが、体当たりと球体の放電を受けてしまい「HP損害：■■」を被る。「ルーン：1」を獲得。", "雖成功獵捕羊群，卻遭衝撞與球體放電，承受「HP損害：■■」。獲得「盧恩：1」。"], true),
               ],
+              // 「羊を避ける」／「羊を狩る」は相互排他な選択のため、tieredChoiceへ統一。
               reward: [
-                { kind: "consumable", value: 1, note: C("（羊を避ける・1人でも成功時）", "（避開羊群・1人成功時）") },
                 {
-                  kind: "consumable",
-                  value: 1,
-                  note: C(
-                    "（羊を避ける・1人でも成功時。選択肢から「投擲壺」を選び、属性は（雷）に手動記録）",
-                    "（避開羊群・1人成功時。請於選項中選擇「投擲壺」，屬性（雷）需手動記錄）"
-                  ),
+                  kind: "tieredChoice",
+                  tierLabel: C("実際に進んだルート", "實際採取的路線"),
+                  tiers: [
+                    {
+                      label: C("羊を避ける", "避開羊群"),
+                      rewards: [
+                        { kind: "consumable", value: 1 },
+                        {
+                          kind: "consumable",
+                          value: 1,
+                          note: C(
+                            "（選択肢から「投擲壺」を選び、属性は（雷）に手動記録）",
+                            "（請於選項中選擇「投擲壺」，屬性（雷）需手動記錄）"
+                          ),
+                        },
+                        { kind: "hpDamage", value: 1, note: C("（行為判定失敗時）", "（行為判定失敗時）") },
+                      ],
+                    },
+                    {
+                      label: C("羊を狩る", "獵捕羊群"),
+                      rewards: [
+                        { kind: "rune", value: 1 },
+                        { kind: "hpDamage", value: 2, note: C("（行為判定失敗時）", "（行為判定失敗時）") },
+                      ],
+                    },
+                  ],
                 },
-                { kind: "hpDamage", value: 1, note: C("（羊を避ける・行為判定失敗時）", "（避開羊群・行為判定失敗時）") },
-                { kind: "rune", value: 1, note: C("（羊を狩る）", "（獵捕羊群）") },
-                { kind: "hpDamage", value: 2, note: C("（羊を狩る・行為判定失敗時）", "（獵捕羊群・行為判定失敗時）") },
               ],
             },
             {
