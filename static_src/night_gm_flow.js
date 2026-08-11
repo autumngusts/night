@@ -2850,6 +2850,24 @@
     // 「重置全骰」相当の処理（戰鬥面板・玩家骰子・執行紀錄を一括クリア）を自動実行するための
     // 予約フラグ。ここで立て、ゲートが閉じた側で1回だけ消費する。
     state.gmFlow.pendingBattleResetOnGateClose = true;
+    // 第三天（夜の王戰）：advanceFieldWalkは樓層本文の続きを敘述する仕組みで、第三天には
+    // 対応する樓層本文自体が存在しないため呼べない。代わりに撃破を進度版へ明確に伝える
+    // 簡易ゲートを出す（docs/scenario_flow_rules.md §8のエンディング演出・記憶の断片確認は
+    // このrepoではまだ自動化していないため、その先はGMが引き続き手動で進行する）。
+    if (state.dayNumber >= 3) {
+      var game = Core.getGame();
+      var bossName = "";
+      if (game && game.night3BossId && window.PriTestBossRulebook) {
+        var bossInfo = window.PriTestBossRulebook.get(game.night3BossId);
+        if (bossInfo) bossName = window.PriTestFields.localizedText(bossInfo.name);
+      }
+      state.gmFlow.narrationText = window.I18N.t("gm_flow_final_boss_defeated_narration", { boss: bossName });
+      state.gmFlow.awaitingOk = true;
+      state.gmFlow.actionKind = "ok";
+      Core.saveState();
+      Core.renderCurrentLocationStatus();
+      return;
+    }
     advanceFieldWalk(); // ［樓層判定機制］へ戻り、撃破後の規則書敘述（獎勵等）を続ける
   }
 
@@ -3279,18 +3297,25 @@
 
   // [開啟夜王戰鬥]：戦闘ドロワーを開く。夜の王自体はensureNight3BossInBattle（night.js、
   // renderNight3BossImageの毎描画で呼ばれる）が既に戦場（selectedEnemyIds）へ実在させて
-  // いるため、ここでの編隊追加処理は不要——ただし「行動階段」自体は通常のフィールド戦闘の
-  // ように［雜兵戰鬥／王戰］ボタンを経由しない（第三天にはフィールド探索自体が存在しない）
-  // ため、誰も切り替えないまま"normal"に留まってしまう（ユーザー報告：「無法使用戰鬥機制
-  // 跟夜王戰鬥」の一因）。ここでGMに代わって行動階段（アクションフェイズ）へ切り替え、
-  // 既存の戰鬥機制（回合banner・[結束戰鬥階段]等）をfloor戦闘と同じ形で使えるようにする。
+  // いるため、ここでの編隊追加処理は不要。
+  // ユーザー報告：「戰鬥面板には出るが進度版が主持しない」——handleCombatTriggerClick
+  // （通常のフィールド戦闘用）と同じ3点セット（battleWaitActive/awaitingOk/actionKind=
+  // "battleWait"）を立てていなかったため、renderLocationBanner側のawaitingOkゲートが
+  // 常にfalseのままとなり、回合banner（renderBattleRoundActionButtons）が一度も
+  // 描画されなかった。ここで同じ3点セットを立て、actionPhaseもfloor戦闘と同様に
+  // 自動で"combat"へ切り替えることで、進度版が通常の敵戦闘と全く同じ機制で
+  // このまま戦闘を主持できるようにする。
   function handleOpenFinalBattleClick() {
     clearGmFlowGate();
     var Core = window.PriTestNightCore;
-    if (Core.state.actionPhase === "normal" && Core.setActionPhase) {
+    var state = Core.state;
+    state.gmFlow.battleWaitActive = true;
+    state.gmFlow.awaitingOk = true;
+    state.gmFlow.actionKind = "battleWait";
+    Core.saveState();
+    if (state.actionPhase === "normal" && Core.setActionPhase) {
       Core.setActionPhase("combat");
     } else {
-      Core.saveState();
       Core.renderCurrentLocationStatus();
     }
     Core.openBattleDrawer();

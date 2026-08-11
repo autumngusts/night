@@ -208,6 +208,7 @@ STRINGS_JA: dict[str, str] = {
     "gm_flow_final_day_narration": "GM：3日目に到達した。いよいよこのシナリオ最後の「夜の王」戦闘：{boss}。PCの状態を確認してから戦闘パネルを開くこと。",
     "gm_flow_final_day_boss_unknown": "（未設定）",
     "gm_flow_open_final_battle_button": "夜の王戦闘を開く",
+    "gm_flow_final_boss_defeated_narration": "GM：「{boss}」の全HP行が0になり、戦闘終了！GMは勝利を宣言し、劇本のエンディング文章を読み上げ、記憶の断片を確認してください（この先の手順はまだ自動化されていません）。",
     "gm_flow_waiting_badge": "GM待機中",
     "gm_flow_waiting_badge_claim_reward": "獎勵を受け取ってください！",
     "gm_flow_waiting_badge_reward_pending": "受け取り完了待ち",

@@ -208,6 +208,7 @@ STRINGS_ZH: dict[str, str] = {
     "gm_flow_final_day_narration": "GM：第三天到了。接下來將迎來本劇本最終的「夜之王」戰鬥：{boss}。請確認PC狀態後開啟戰鬥面板。",
     "gm_flow_final_day_boss_unknown": "（尚未設定）",
     "gm_flow_open_final_battle_button": "開啟夜王戰鬥",
+    "gm_flow_final_boss_defeated_narration": "GM：「{boss}」的全部HP行已歸零，戰鬥結束！請自行宣告勝利、朗讀劇本的結局文字並確認記憶的碎片（此後續流程尚未自動化）。",
     "gm_flow_waiting_badge": "GM等待中",
     "gm_flow_waiting_badge_claim_reward": "領取獎勵！",
     "gm_flow_waiting_badge_reward_pending": "等待領取完",

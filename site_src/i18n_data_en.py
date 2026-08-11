@@ -208,6 +208,7 @@ STRINGS_EN: dict[str, str] = {
     "gm_flow_final_day_narration": "GM: Day 3 has arrived. This scenario's final Night Lord battle awaits: {boss}. Check party status, then open the battle panel.",
     "gm_flow_final_day_boss_unknown": "(not set)",
     "gm_flow_open_final_battle_button": "Open Night Lord Battle",
+    "gm_flow_final_boss_defeated_narration": "GM: All of {boss}'s HP rows have reached zero — the battle is over! Declare victory, read the scenario's ending text, and check for memory fragments yourself (that follow-up flow isn't automated yet).",
     "gm_flow_waiting_badge": "GM Waiting",
     "gm_flow_waiting_badge_claim_reward": "Claim Reward!",
     "gm_flow_waiting_badge_reward_pending": "Awaiting Claim",
