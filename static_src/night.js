@@ -888,6 +888,11 @@
       // actionKind==="battleWait"の間trueなら、エネミーの全HP行が0になった瞬間
       // （night.jsのsetActionPhase、combatEndオプション経由）に自動で敘述の続きへ進める。
       battleWaitActive: false,
+      // 自動化GM 戰鬥自動化：notifyCombatEndedが敵人擊破を検知した瞬間にtrueを立て、この戰鬥に
+      // 紐づく樓層獎勵ゲートが実際に閉じ終えた（closeGmFlowGateAndConsumePendingAdvance）時点で
+      // 消費し、GMに代わって「重置全骰」相当の処理（戰鬥面板・玩家骰子・執行紀錄の一括クリア）
+      // を自動実行するための予約フラグ。
+      pendingBattleResetOnGateClose: false,
       // finishFieldWalkが「この＋1でカードの実在する樓層を全踏破した（cardLevels===floorCount）」
       // と検出した対象slotIndex（数値）。この樓層の獎勵ゲートをGMが領取し終える
       // （closeGmFlowGateAndConsumePendingAdvance）まで、続けて「全」へ進めるのを遅延させておく
@@ -2137,6 +2142,7 @@
             : null,
         freeFloorOptions: Array.isArray(loadedGmFlow.freeFloorOptions) ? loadedGmFlow.freeFloorOptions : [],
         battleWaitActive: !!loadedGmFlow.battleWaitActive,
+        pendingBattleResetOnGateClose: !!loadedGmFlow.pendingBattleResetOnGateClose,
         pendingFinalFloorSlot: loadSlotOrPileIndex(loadedGmFlow.pendingFinalFloorSlot),
         chipOfferSlot: typeof loadedGmFlow.chipOfferSlot === "number" ? loadedGmFlow.chipOfferSlot : null,
         chipOfferContinuation: typeof loadedGmFlow.chipOfferContinuation === "string" ? loadedGmFlow.chipOfferContinuation : null,
@@ -2237,6 +2243,7 @@
       multiStatCheckSpec: null,
       freeFloorOptions: [],
       battleWaitActive: false,
+      pendingBattleResetOnGateClose: false,
       pendingFinalFloorSlot: null,
       chipOfferSlot: null,
       chipOfferContinuation: null,
@@ -6945,6 +6952,10 @@
           addActionBox(c, window.I18N.t("combat_defense_dodge_button"), window.I18N.t("action_log_defense_value_total", { value: value }), dodgeLines);
           addLog("log_combat_defense_dodge", { character: c.name, value: value, dice: dice.join("、") });
           c._dodgeActionUsed = true;
+          // 自動化GM 戰鬥自動化：#enemy-damage-modalのHP價值欄に、実際にこの防禦階段で執行した
+          // HP價值を自動預填するための記録（c.hpValueの固定値／30の仮値ではなく、今回本人が
+          // 迴避で実際に出した値をそのまま使う）。フェイズ切替のたびにsetActionPhase側でリセットする。
+          c._defenseHpValueThisTurn = value;
           combatDefenseState = null;
         });
       }
@@ -6977,6 +6988,9 @@
         addActionBox(c, window.I18N.t("combat_defense_block_button"), window.I18N.t("action_log_defense_value_total", { value: value }), blockLines);
         addLog("log_combat_defense_block", { character: c.name, value: value, dice: dice.join("、") });
         registerGuardUsed(c);
+        // 自動化GM 戰鬥自動化：迴避と同様、#enemy-damage-modalのHP價值欄への自動預填用に
+        // 今回格擋で実際に確定したHP價值（連續防禦補正・消耗品加算を反映済みの最終値）を記録する。
+        c._defenseHpValueThisTurn = value;
         combatDefenseState = null;
       });
     }
@@ -7923,8 +7937,11 @@
   // handleBattleClear単体の「清除並初始化戰鬥板」ボタンは、骰子は残したまま戦場だけ
   // 初期化したい場合のために引き続き残す。clearAllPendingActionBoxes自体が消去内容の
   // 要約をログへ残すため、ここでは二重にログしない。
-  function handleResetAllDice() {
-    if (!window.confirm(window.I18N.t("reset_all_dice_confirm"))) return;
+  // 実際のクリア処理本体（confirmダイアログを含まない）。手動の「重置全骰」ボタン
+  // （handleResetAllDice、window.confirmを経由）と、敵人擊破後の自動化GM經路
+  // （night_gm_flow.jsのresetAllDiceSilently呼び出し、GMの明示的な領取完了操作の延長として
+  // confirmを挟まない）の両方から共用する。
+  function performResetAllDice() {
     state.dicePool = [];
     rosterCharacters.forEach(function (c) {
       c.dicePool = [];
@@ -7941,6 +7958,11 @@
     renderMobHpList();
     renderSelectedEnemies();
     renderActionPhaseGrid();
+  }
+
+  function handleResetAllDice() {
+    if (!window.confirm(window.I18N.t("reset_all_dice_confirm"))) return;
+    performResetAllDice();
   }
 
   function renderDicePool() {
@@ -8354,7 +8376,10 @@
       hpValueInput.type = "number";
       hpValueInput.className = "stat-input";
       hpValueInput.min = "1";
-      hpValueInput.value = String(c.hpValue || 30);
+      // 使用者確認：初期値は「今回の防禦階段で実際に迴避／格擋を確定した値」（c._defenseHpValueThisTurn）
+      // を優先する。まだ防禦を確定していない（迴避／格擋未実行）場合のみ、従来通り角色詳細の
+      // 固定HP價值（c.hpValue）／既定値30へフォールバックする。GMは確定前にいつでも手修正できる。
+      hpValueInput.value = String(typeof c._defenseHpValueThisTurn === "number" ? c._defenseHpValueThisTurn : c.hpValue || 30);
       hpValueInput.id = "enemy-damage-hpvalue-" + c.id;
       hpValueInput.disabled = confirmedAlready;
       row.appendChild(hpValueInput);
@@ -9726,6 +9751,10 @@
       c._combatDiceRolled = false;
       c._consecutiveGuardCount = 0;
       c._dodgeActionUsed = false;
+      // 自動化GM 戰鬥自動化：#enemy-damage-modalへの自動預填用に記録した「今回の防禦階段で
+      // 実際に確定したHP價值」は、フェイズが切り替わるたびに次のフェイズへ持ち越さずクリアする
+      // （c._dodgeActionUsedと同じライフサイクル）。
+      c._defenseHpValueThisTurn = null;
       // R2 遺物効果「2Hit攻擊的達人（武器種類）」：「戰鬥階段／額外階段」ごとに1回まで。
       c._twoHitMasteryUsedThisPhase = false;
       // R1「技藝強化（攻擊力提升）」「能力強化（魔術之地）」：どちらも「直到階段結束為止」の
@@ -12042,6 +12071,9 @@
     eventChipDisplayLabel: eventChipDisplayLabel,
     fieldLevelsForDay: fieldLevelsForDay,
     addAutoMobHpRow: addAutoMobHpRow,
+    // 自動化GM 戰鬥自動化：敵人擊破後、樓層獎勵ゲートの領取完了をGMが確定した瞬間に
+    // night_gm_flow.js側から呼ぶ（「重置全骰」ボタンと同じ内容だがconfirmを挟まない）。
+    resetAllDiceSilently: performResetAllDice,
   };
 
   document.addEventListener("DOMContentLoaded", async function () {
