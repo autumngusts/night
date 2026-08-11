@@ -244,6 +244,7 @@ STRINGS_JA: dict[str, str] = {
     "gm_flow_pick_branch_narration": "GM：「{name}」には複数の内容パターンがあり、自動では判定できなかった（対照表データ不足の可能性）。規則書を確認し、今回実際に該当する分岐を選んでほしい：",
     "gm_flow_choice_picked_log": "GM：プレイヤーが「{label}」を選んだ。",
     "gm_flow_dice_table_roll_log": "GM：骰子で樓層内の内容表を決定（骰目：{roll}）：「{name}」。",
+    "gm_flow_dice_table_fixed_scenario_log": "GM：この劇本ではここの内容が既に固定されているため、自動判定：「{name}」（骰子・選択不要）。",
     "gm_flow_dice_table_manual_confirm_prompt": "GM：このシナリオではこのマスの内容が既に固定されています。自動で骰子を振らず、該当する分岐を直接選んでください。",
     "gm_flow_walk_end_narration": "GM：この樓層の描写はここまで。",
     "gm_flow_claim_reward_button": "獎勵を受け取る",

@@ -2533,9 +2533,36 @@
   //
   // ユーザー指定：劇本によっては該当板塊の中身が既に固定されている（scenarios.jsの固定
   // カード名、night.jsのresolveScenarioTrueNameで判定可能）。その場合、本来ランダムではない
-  // 内容を自動骰子で決めてしまうと劇本の設定と食い違う恐れがあるため、自動では振らず、
-  // 表の選択肢をそのままGMへの手動選択ボタンとして提示する（呼び出し元がmanualEntriesを
-  // 見て処理を分岐する）。
+  // 内容を自動骰子で決めてしまうと劇本の設定と食い違う恐れがあるため、自動では振らない。
+  // ユーザー追加指定（教會カードの実プレイ報告）：固定されているにも関わらず、表の全選択肢を
+  // 手動選択ボタンとして提示するのはGM/玩家に不要な「どの樓層か選ぶ」操作を強いてしまう
+  // （劇本側で既に一意に決まっているのだから、選ぶ余地は無いはず）。固定カード名の括弧内
+  // 表記（例：「教会（瓦礫の山）」→「瓦礫の山」）と表の項目名が一致する場合は、その項目へ
+  // 自動的に解決する（言語混在対策：判定は常に日本語原文同士で行い、実際の遷移先探索には
+  // 現在表示言語の項目名を使う——ja/zhの項目順序が一致している前提、実データ確認済み）。
+  // 一致する項目が見つからない場合のみ、従来通り手動選択ボタンへフォールバックする
+  // （数値・分岐先を捏造しない、既存の"■"と同じ方針）。
+  function resolveFixedScenarioDiceTableMatch(entries, tableLine, slotIndex) {
+    var Core = window.PriTestNightCore;
+    if (!Core.resolveScenarioTrueNameRaw) return null;
+    var rawName = Core.resolveScenarioTrueNameRaw(slotIndex);
+    var rawNameJa = rawName && rawName.ja;
+    if (!rawNameJa) return null;
+    var suffixMatch = /[（(]([^）)]+)[）)]/.exec(rawNameJa);
+    var suffix = suffixMatch ? suffixMatch[1].trim() : rawNameJa.trim();
+    var jaEntries = parseInlineDiceTable((tableLine.text && tableLine.text.ja) || "");
+    if (!jaEntries || jaEntries.length !== entries.length) return null;
+    var matchIndex = -1;
+    for (var i = 0; i < jaEntries.length; i++) {
+      var name = jaEntries[i].name;
+      if (name === suffix || suffix.indexOf(name) !== -1 || name.indexOf(suffix) !== -1) {
+        matchIndex = i;
+        break;
+      }
+    }
+    return matchIndex !== -1 ? entries[matchIndex] : null;
+  }
+
   function resolveDiceTableHeadingIfAny(lines, headingIndex, slotIndex) {
     var heading = lines[headingIndex];
     if (!isDiceTableHeadingLine(heading)) return { index: headingIndex, text: "" };
@@ -2547,6 +2574,12 @@
     var Core = window.PriTestNightCore;
     var hasFixedScenarioName = typeof slotIndex === "number" && Core.resolveScenarioTrueName && !!Core.resolveScenarioTrueName(slotIndex);
     if (hasFixedScenarioName) {
+      var fixedMatch = resolveFixedScenarioDiceTableMatch(entries, tableLine, slotIndex);
+      if (fixedMatch) {
+        logGmDecision(window.I18N.t("gm_flow_dice_table_fixed_scenario_log", { name: fixedMatch.name }));
+        var fixedOutcome = findHeadingIndexForLabel(lines, headingIndex + 1, fixedMatch.name);
+        if (fixedOutcome.index !== -1) return fixedOutcome;
+      }
       return { index: headingIndex, text: "", manualEntries: entries };
     }
     var roll = 1 + Math.floor(Math.random() * 6);

@@ -10881,7 +10881,7 @@
   // dayKey/otherDayKeyフォールバックパターンを踏襲する。scenarioが無い、または該当が
   // 見つからない場合（起點／終點の板塊など、day1/day2に登録が無い位置を含む）はnullを返し、
   // 呼び出し側でfields.jsの汎用名にフォールバックする。
-  function resolveScenarioTrueName(idx) {
+  function resolveScenarioTrueNameEffect(idx) {
     if (!scenario || typeof idx !== "number") return null;
     var slot = state.slots[idx];
     if (!slot) return null;
@@ -10889,10 +10889,23 @@
     if (!slotCard) return null;
     var dayKey = isSwappedDay() ? "day2" : "day1";
     var otherDayKey = dayKey === "day2" ? "day1" : "day2";
-    var effect =
+    return (
       Scenarios.findCardEffect(game.scenarioId, dayKey, slotCard.suit, slotCard.rank) ||
-      Scenarios.findCardEffect(game.scenarioId, otherDayKey, slotCard.suit, slotCard.rank);
+      Scenarios.findCardEffect(game.scenarioId, otherDayKey, slotCard.suit, slotCard.rank)
+    );
+  }
+
+  function resolveScenarioTrueName(idx) {
+    var effect = resolveScenarioTrueNameEffect(idx);
     return effect ? Scenarios.localizedName(effect.name) : null;
+  }
+
+  // resolveScenarioTrueNameの言語非依存版：現在の表示言語に関わらず判定用の日本語原文で
+  // 照合したい呼び出し元（night_gm_flow.jsのresolveDiceTableHeadingIfAny、フロア内ダイス表
+  // 見出しの「劇本固定分岐の自動一致」用）向けに、{ja,zh}の生のnameオブジェクトを返す。
+  function resolveScenarioTrueNameRaw(idx) {
+    var effect = resolveScenarioTrueNameEffect(idx);
+    return effect ? effect.name : null;
   }
 
   function renderCurrentLocationStatus() {
@@ -12298,6 +12311,7 @@
     grantCardFullClearRewardIfNeeded: grantCardFullClearRewardIfNeeded,
     renderCardLevel: renderCardLevel,
     resolveScenarioTrueName: resolveScenarioTrueName,
+    resolveScenarioTrueNameRaw: resolveScenarioTrueNameRaw,
     eventChipDisplayLabel: eventChipDisplayLabel,
     fieldLevelsForDay: fieldLevelsForDay,
     addAutoMobHpRow: addAutoMobHpRow,
