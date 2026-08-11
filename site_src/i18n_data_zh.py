@@ -244,6 +244,7 @@ STRINGS_ZH: dict[str, str] = {
     "gm_flow_pick_branch_narration": "GM：「{name}」有多種可能內容，且無法自動判斷（可能缺少對照表資料），請對照規則書選擇本次實際適用哪一個分岐：",
     "gm_flow_choice_picked_log": "GM：玩家選擇了「{label}」。",
     "gm_flow_dice_table_roll_log": "GM：擲骰決定樓層內容表（骰值：{roll}）：「{name}」。",
+    "gm_flow_dice_table_manual_confirm_prompt": "GM：此劇本已固定此格內容，請直接選擇正確的分岐（不自動擲骰）。",
     "gm_flow_walk_end_narration": "GM：此樓層的描寫已經唸完。",
     "gm_flow_claim_reward_button": "領取獎勵",
     "gm_flow_reward_done_button": "領取完",

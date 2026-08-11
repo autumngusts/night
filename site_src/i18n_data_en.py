@@ -244,6 +244,7 @@ STRINGS_EN: dict[str, str] = {
     "gm_flow_pick_branch_narration": "GM: \"{name}\" has multiple possible contents and couldn't be auto-resolved (lookup data may be missing). Check the rulebook and pick which branch actually applies this time:",
     "gm_flow_choice_picked_log": "GM: The players chose \"{label}\".",
     "gm_flow_dice_table_roll_log": "GM: Rolled to determine the in-floor content table (roll: {roll}): \"{name}\".",
+    "gm_flow_dice_table_manual_confirm_prompt": "GM: This scenario has already fixed this position's content. Please pick the correct branch directly instead of auto-rolling.",
     "gm_flow_walk_end_narration": "GM: That's the end of this floor's description.",
     "gm_flow_claim_reward_button": "Claim Reward",
     "gm_flow_reward_done_button": "Claim Complete",

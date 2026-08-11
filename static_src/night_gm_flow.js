@@ -2184,7 +2184,25 @@
       var lines = floor.lines || [];
       var found = findHeadingIndexForLabel(lines, walk.lineIndex, label);
       if (found.index !== -1) {
-        var resolved = resolveDiceTableHeadingIfAny(lines, found.index);
+        var resolved = resolveDiceTableHeadingIfAny(lines, found.index, walk.slotIndex);
+        if (resolved.manualEntries) {
+          // 劇本固定のため自動骰子を振らず、表の選択肢をそのままボタンとして提示し、
+          // GMの手動選択を待つ（walk.lineIndexは表見出し自身に留め、選び直された
+          // handleLineChoiceClickが通常のfindHeadingIndexForLabel経路でそこから
+          // 該当見出しを探せるようにする）。
+          walk.lineIndex = found.index;
+          state.gmFlow.pendingChoiceLabels = resolved.manualEntries.map(function (e) {
+            return e.name;
+          });
+          state.gmFlow.narrationText =
+            (state.gmFlow.narrationText || "") + "\n" + window.I18N.t("gm_flow_dice_table_manual_confirm_prompt");
+          lastTypedNarration = null;
+          state.gmFlow.awaitingOk = true;
+          state.gmFlow.actionKind = "lineChoice";
+          Core.saveState();
+          Core.renderCurrentLocationStatus();
+          return;
+        }
         walk.lineIndex = resolved.index;
         walk.branchFloor = lines[resolved.index].depth;
         walk.branchFloorArmed = false; // ジャンプ先の見出し行自身は境界判定の対象外にする
@@ -2200,7 +2218,13 @@
   // 探し出し、そのindexとtext（間に挟まる共通・確定内容、あれば）を返す。ダイス表見出し
   // でない、または表の解析・アウトカム見出しの発見に失敗した場合は、headingIndexをそのまま
   // 返す（フォールバック——見出し自体は敘述されるので、GMが規則書を見て手動で判断できる）。
-  function resolveDiceTableHeadingIfAny(lines, headingIndex) {
+  //
+  // ユーザー指定：劇本によっては該当板塊の中身が既に固定されている（scenarios.jsの固定
+  // カード名、night.jsのresolveScenarioTrueNameで判定可能）。その場合、本来ランダムではない
+  // 内容を自動骰子で決めてしまうと劇本の設定と食い違う恐れがあるため、自動では振らず、
+  // 表の選択肢をそのままGMへの手動選択ボタンとして提示する（呼び出し元がmanualEntriesを
+  // 見て処理を分岐する）。
+  function resolveDiceTableHeadingIfAny(lines, headingIndex, slotIndex) {
     var heading = lines[headingIndex];
     if (!isDiceTableHeadingLine(heading)) return { index: headingIndex, text: "" };
     var depth = heading.depth;
@@ -2208,6 +2232,11 @@
     if (!tableLine || !tableLine.bullet || tableLine.depth !== depth + 1) return { index: headingIndex, text: "" };
     var entries = parseInlineDiceTable(window.PriTestFields.localizedText(tableLine.text));
     if (!entries) return { index: headingIndex, text: "" };
+    var Core = window.PriTestNightCore;
+    var hasFixedScenarioName = typeof slotIndex === "number" && Core.resolveScenarioTrueName && !!Core.resolveScenarioTrueName(slotIndex);
+    if (hasFixedScenarioName) {
+      return { index: headingIndex, text: "", manualEntries: entries };
+    }
     var roll = 1 + Math.floor(Math.random() * 6);
     var matched = entries.filter(function (e) {
       return e.faces.indexOf(roll) !== -1;

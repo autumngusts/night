@@ -12171,6 +12171,7 @@
     grantPileFullClearRewardIfNeeded: grantPileFullClearRewardIfNeeded,
     grantCardFullClearRewardIfNeeded: grantCardFullClearRewardIfNeeded,
     renderCardLevel: renderCardLevel,
+    resolveScenarioTrueName: resolveScenarioTrueName,
     eventChipDisplayLabel: eventChipDisplayLabel,
     fieldLevelsForDay: fieldLevelsForDay,
     addAutoMobHpRow: addAutoMobHpRow,
