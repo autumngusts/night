@@ -8051,12 +8051,21 @@
       allEnteredCharactersRolledForPhase()
     ) {
       state.battle.roundStage = "acting";
-      saveState();
       // 自動化GM 戰鬥自動化：防禦フェイズは、全員の防禦體力骰が揃った瞬間にAutoGMの
       // 敵方行動ロールを自動実行し、結果（亂戰傷害／個別傷害の内訳と各PCの推定損害）を
       // 進度版へ表示する（GMが後で[防禦]を押した時に開くモーダルは、ここで確定した
       // 同じ数値を復元するだけで再擲骰はしない）。
-      if (state.actionPhase === "defense") autoTriggerDefenseRoll();
+      // 使用者確認（雲端同步ゲームで再現・修正）：ここで先にsaveState()してから直後に
+      // autoTriggerDefenseRoll()内でも再度saveState()すると、「roundStage:acting／
+      // pendingDefenseRoll:null」という一瞬だけの中間状態が別端末のsubscribeNightState
+      // 購読へ配信されてしまい、タイミング次第でその中間状態がそのまま最終表示として
+      // 残ってしまう（＝GM側の進度版に敵人の行動・傷害が一切表示されないバグの原因）。
+      // roundStage=actingとpendingDefenseRollの確定を必ず1回のsaveState()にまとめるため、
+      // autoTriggerDefenseRollが実際に処理した（＝自身でsaveState()した）場合はここで
+      // 重複保存しない。何もしなかった場合（autoGM無効／構造化データ無し等）のみ、
+      // 従来通りここでroundStage=actingの変更を保存する。
+      var autoRollHandled = state.actionPhase === "defense" && autoTriggerDefenseRoll();
+      if (!autoRollHandled) saveState();
     }
     renderCurrentLocationStatus();
   }
@@ -8421,16 +8430,19 @@
   // state.battle.defenseRollPreviewText（進度版に出す速報文字）へ保存する。
   // state.autoGmEnabledがfalse、または構造化済みの敵人が無い場合は何もしない
   // （従来通りGMがモーダル内で手動入力／手動でAutoGM擲騎を押す運用にフォールバックする）。
+  // 戻り値：末尾のsaveState()まで到達した（＝実際に処理してstateを保存した）場合はtrue、
+  // 何もせず早期returnした場合はfalse/undefined。呼び出し元（rollDiceForCharacterActionPhase）
+  // が、この関数がstateを保存したかどうかで自身のsaveState()呼び出しを重複させないための契約。
   function autoTriggerDefenseRoll() {
     var AutoGm = window.PriTestAutoGm;
-    if (!state.autoGmEnabled || !AutoGm) return;
+    if (!state.autoGmEnabled || !AutoGm) return false;
     var structuredIds = ((state.battle && state.battle.selectedEnemyIds) || []).filter(function (key) {
       return AutoGm.isStructured(key);
     });
     if (game && game.night3BossId && AutoGm.isStructured("boss|" + game.night3BossId)) {
       structuredIds = structuredIds.concat(["boss|" + game.night3BossId]);
     }
-    if (!structuredIds.length) return;
+    if (!structuredIds.length) return false;
     renderEnemyDamageModal();
     var select = document.getElementById("auto-gm-enemy-select");
     if (select && structuredIds.indexOf(select.value) === -1) select.value = structuredIds[0];
@@ -8463,6 +8475,7 @@
     state.battle.pendingDefenseRoll = { enemyKey: select ? select.value : null, group: group, individual: individual };
     state.battle.defenseRollPreviewText = [breakdownText, previewParts.join("\n")].filter(Boolean).join("\n");
     saveState();
+    return true;
   }
 
   // 使用者確認：[確定]は角色ごとに個別で押す（玩家数の回数）。押した瞬間そのPCのHP損害
