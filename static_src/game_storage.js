@@ -99,32 +99,97 @@
     });
   }
 
-  // 書き込みはfire-and-forget。失敗してもlocalStorageへの保存は既に完了しているため
-  // UIをブロックしない（コンソールに警告のみ出す）。
-  function pushNightState(gameId, storageMode, data) {
-    if (storageMode !== "cloud" || !gameId) return;
-    ensureCloudReady(storageMode)
+  // 使用者確認（雲端同步ゲームで再現・修正）：night.js側の1つの操作（例：防禦體力骰が全員分
+  // 揃った瞬間）が、短時間に複数回saveState()/saveRosterCharacters()を呼ぶことがある
+  // （例：roundStage="acting"への切替で1回、直後にAutoGMの擲骰結果確定で1回）。この2回を
+  // そのまま2回別々にpushNightState()/pushCharacters()すると、1回目（＝まだ結果が
+  // 確定していない中間状態）と2回目（＝最終状態）が別々にFirebaseへ書き込まれ、
+  // subscribeNightState/subscribeCharacters側の.on("value")は「自分自身の書き込みecho」も
+  // 含めて毎回コールバックを起動するため、タイミング次第でその中間状態が最終的に画面へ
+  // 反映されたまま残ってしまう（＝GMの進度版に敵人の行動が一切表示されないバグの実際の原因）。
+  //
+  // 呼び出し側（night.js/characters.js）を1つずつ「重複呼び出ししないよう」修正して回るのは
+  // 際限が無く、将来のコード追加でも同じ問題が再発しうるため、根本原因であるこの
+  // push層自体に短いdebounce（同一パスへの連続呼び出しを1回にまとめる）を設けて解決する。
+  // localStorageへの保存（呼び出し側のsaveState/saveRosterCharacters内、この関数の外）は
+  // 従来通り常に同期的・即時のまま——ここで遅延させるのはFirebaseへのネットワーク送信のみ。
+  var CLOUD_PUSH_DEBOUNCE_MS = 150;
+  var pendingNightStatePush = null; // { gameId, storageMode, data, timer }
+  var pendingCharactersPush = null; // { gameId, storageMode, characters, timer }
+
+  function sendNightStatePush(payload) {
+    ensureCloudReady(payload.storageMode)
       .then(function () {
-        window.firebase.database().ref("games/" + gameId + "/nightState").set(data);
+        window.firebase.database().ref("games/" + payload.gameId + "/nightState").set(payload.data);
       })
       .catch(function (err) {
         console.error("PriTestGameStorage.pushNightState failed", err);
       });
   }
 
-  function pushCharacters(gameId, storageMode, characters) {
-    if (storageMode !== "cloud" || !gameId) return;
-    ensureCloudReady(storageMode)
+  function sendCharactersPush(payload) {
+    ensureCloudReady(payload.storageMode)
       .then(function () {
         window.firebase
           .database()
-          .ref("games/" + gameId + "/characters")
-          .set(charactersArrayToMap(characters));
+          .ref("games/" + payload.gameId + "/characters")
+          .set(charactersArrayToMap(payload.characters));
       })
       .catch(function (err) {
         console.error("PriTestGameStorage.pushCharacters failed", err);
       });
   }
+
+  // 書き込みはfire-and-forget。失敗してもlocalStorageへの保存は既に完了しているため
+  // UIをブロックしない（コンソールに警告のみ出す）。
+  function pushNightState(gameId, storageMode, data) {
+    if (storageMode !== "cloud" || !gameId) return;
+    if (pendingNightStatePush && pendingNightStatePush.timer) {
+      clearTimeout(pendingNightStatePush.timer);
+    }
+    pendingNightStatePush = { gameId: gameId, storageMode: storageMode, data: data, timer: null };
+    pendingNightStatePush.timer = setTimeout(function () {
+      var payload = pendingNightStatePush;
+      pendingNightStatePush = null;
+      sendNightStatePush(payload);
+    }, CLOUD_PUSH_DEBOUNCE_MS);
+  }
+
+  function pushCharacters(gameId, storageMode, characters) {
+    if (storageMode !== "cloud" || !gameId) return;
+    if (pendingCharactersPush && pendingCharactersPush.timer) {
+      clearTimeout(pendingCharactersPush.timer);
+    }
+    pendingCharactersPush = { gameId: gameId, storageMode: storageMode, characters: characters, timer: null };
+    pendingCharactersPush.timer = setTimeout(function () {
+      var payload = pendingCharactersPush;
+      pendingCharactersPush = null;
+      sendCharactersPush(payload);
+    }, CLOUD_PUSH_DEBOUNCE_MS);
+  }
+
+  // ページを閉じる／離脱する瞬間にdebounce待ちの書き込みが残っていた場合のベストエフォート
+  // フラッシュ（タイマーを待たず即座に送信を試みる）。unload中の非同期処理はブラウザに
+  // よっては完走しない場合があるが、何もしないよりは救済できる可能性が上がる。
+  // localStorageへの保存自体は各saveState()/saveRosterCharacters()呼び出し時点で既に
+  // 同期的に完了済みのため、この端末自身のデータが失われることはない——影響があるとすれば
+  // 他端末（Firebase経由）が最後の1回分の変更を見られないまま、という範囲に留まる。
+  function flushPendingCloudPushes() {
+    if (pendingNightStatePush && pendingNightStatePush.timer) {
+      clearTimeout(pendingNightStatePush.timer);
+      var nsPayload = pendingNightStatePush;
+      pendingNightStatePush = null;
+      sendNightStatePush(nsPayload);
+    }
+    if (pendingCharactersPush && pendingCharactersPush.timer) {
+      clearTimeout(pendingCharactersPush.timer);
+      var charPayload = pendingCharactersPush;
+      pendingCharactersPush = null;
+      sendCharactersPush(charPayload);
+    }
+  }
+  window.addEventListener("pagehide", flushPendingCloudPushes);
+  window.addEventListener("beforeunload", flushPendingCloudPushes);
 
   function removeCloudGame(gameId, storageMode) {
     if (storageMode !== "cloud" || !gameId) return;

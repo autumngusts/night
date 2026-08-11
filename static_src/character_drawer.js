@@ -3855,11 +3855,23 @@
 
     var hit1Base = artPower + weaponPowerBase;
 
+    // 一部の武器カテゴリ（特大武器「45＋▲」／バリスタ「40＋▲」等）は、category.basicStats.weaponPower
+    // 自体に武器固有のガード削り記号（▲）が文字列として埋め込まれている（他の大半のカテゴリは
+    // 素の数値のみでこの記号を持たない）。従来はparseIntで数値部分だけ取り出し、この▲を
+    // 完全に読み捨てていたため、通常攻撃（1Hit/2Hit）でこの武器固有の▲/◆がGuard削り値へ
+    // 一切反映されない不具合があった（docs/enemy_damage_rules.md §2の「使用者裁定」により、
+    // 主傷害欄の▲/◆はそのままGuard削り値としてカウントする方針のため、この読み捨ては
+    // 実際のGuard削り計算の欠落に直結する）。2Hitはダメージが1Hitの2倍になる計算式
+    // （hit1Base*2）と同じ考え方で、▲（0.5点）も2倍の◆（1点）として扱う
+    // （great_weaponカテゴリのnote「2Hitアタック時には2倍になり「◆」として扱う」を一般化）。
+    var weaponPowerSymbolMatch = typeof weaponPowerRaw === "string" ? /[▲◆]/.exec(weaponPowerRaw) : null;
+    var weaponPowerSymbol = weaponPowerSymbolMatch ? weaponPowerSymbolMatch[0] : null;
+
     var charType = c.typeId ? CharacterTypes.get(c.typeId) : null;
     var relic1 = 0,
       relic2 = 0,
-      hit1Symbol = null,
-      hit2Symbol = null;
+      hit1Symbol = weaponPowerSymbol,
+      hit2Symbol = weaponPowerSymbol === "▲" ? "◆" : weaponPowerSymbol;
     (c.learnedRelicEffects || []).forEach(function (key) {
       var effect = charType ? relicEffectForKey(charType, key) : null;
       if (!effect || effect.kind !== "Passive") return;
