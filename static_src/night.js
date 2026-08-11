@@ -915,6 +915,9 @@
       // モジュール内変数は失われるため、{slotIndex,branchIndex,floorIndex}だけをstateに残しておき、
       // resolveFieldEntryForSlot経由でfloorオブジェクトを再解決できるようにする。
       pendingFloorEndRef: null,
+      // ユーザー指定：actionKind==="floorEnd"の間、[領取獎勵]ボタンを一度押したかどうか。
+      // trueの間はrenderLocationBanner側で[領取獎勵]ボタン自体を描画しない（[領取完]のみ残す）。
+      floorEndRewardOpened: false,
     },
     // GMが開いて縮小した抽選ウィンドウを全端末で共有するための領域。null=未使用。
     // 中身はcharacter_drawer.jsのweaponRollState/talismanRollState/consumableRollState、
@@ -2188,6 +2191,7 @@
                 floorIndex: loadedGmFlow.pendingFloorEndRef.floorIndex,
               }
             : null,
+        floorEndRewardOpened: !!loadedGmFlow.floorEndRewardOpened,
       };
       var loadedDraws = data.activeDraws && typeof data.activeDraws === "object" ? data.activeDraws : {};
       state.activeDraws = {
@@ -2292,6 +2296,7 @@
       pendingMapMoveSlot: null,
       pendingMapMoveFromIndex: null,
       pendingFloorEndRef: null,
+      floorEndRewardOpened: false,
     };
     state.activeDraws = { potentialPower: null, weapon: null, talisman: null, consumable: null, turnRewardAutoOpen: null };
     state.activeThreatEffects = [];

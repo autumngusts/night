@@ -1060,11 +1060,18 @@
     var collected = collectCombatEnemyLines(lines, triggerIndex);
     var levelBonus = fieldLevelCorrectionForSlot(slotIndex);
     var out = [];
+    // resolveAndAddCombatEnemiesと同様、1体の敵人に対して和名・中国語名の両トークンが
+    // 別々に解決に成功すると同じ敵が二重に出力されてしまう（ユーザー報告：戰鬥説明の重複）
+    // ため、解決済みの敵人（familyId+enemy.id）ごとに一度だけ出力する。
+    var addedKeys = {};
     collected.enemyLines.forEach(function (line) {
       var ref = parseCombatEnemyRef(line);
       ref.nameTokens.forEach(function (token) {
         var match = resolveCombatEnemyMatch(token);
         if (!match) return;
+        var dedupeKey = match.familyId + "|" + match.enemy.id;
+        if (addedKeys[dedupeKey]) return;
+        addedKeys[dedupeKey] = true;
         var level = Math.max(1, (ref.level || 1) + (ref.needsLevelCorrection && levelBonus ? levelBonus : 0));
         var lvRow = (match.familyBase || []).filter(function (lv) {
           return lv.level === level;
@@ -2318,6 +2325,11 @@
     state.gmFlow.walk = null;
     if (hasReward) {
       state.gmFlow.actionKind = "floorEnd";
+      // ユーザー報告：[領取獎勵]を押した後も同じボタンが残っていると誤って連打され、
+      // 二重に獎勵清單／樓層獎勵モーダルを開こうとしてしまう（実害は自動pushの一度きり
+      // ガードで防げているが、UI上は紛らわしい）。押した瞬間にtrueへ立て、renderLocationBanner
+      // 側で[領取獎勵]ボタン自体を消し、[領取完]だけを残す。
+      state.gmFlow.floorEndRewardOpened = false;
       pendingFloorEndFloor = floor;
       // ページ再読み込み・端末切り替えでpendingFloorEndFloor（モジュール内変数）が失われても
       // ［領取獎勵］が機能するよう、再解決可能な参照もstateへ残しておく（walkSlotIndex/
@@ -2412,6 +2424,9 @@
   function handleFloorEndRewardClick() {
     var Core = window.PriTestNightCore;
     var state = Core.state;
+    // ユーザー報告：連打による二重領取を防ぐため、押した瞬間に[領取獎勵]ボタン自体を
+    // 消す（renderLocationBanner側でfloorEndRewardOpened===trueなら描画しない）。
+    state.gmFlow.floorEndRewardOpened = true;
     var floor = pendingFloorEndFloor || resolveFloorFromPendingRef(state.gmFlow.pendingFloorEndRef);
     var result = floor ? window.PriTestNightFloorBreakthrough.openFloorRewardModal(floor) : null;
     if (!result || (!result.lootPushed && !result.judgmentModalOpened)) {
@@ -2547,6 +2562,7 @@
     state.gmFlow.pendingMapMoveFromIndex = null;
     pendingFloorEndFloor = null;
     state.gmFlow.pendingFloorEndRef = null;
+    state.gmFlow.floorEndRewardOpened = false;
     lastTypedNarration = null;
   }
 
@@ -3842,7 +3858,12 @@
       } else if (state.gmFlow.actionKind === "floorEnd") {
         // ［戰鬥結束］獎勵ゲート：領取後、全項目を受け取り終える（pendingRewardWindowsが
         // 空になる）まで［獲得完］を押しても再度リマインドされる（第18項）。
-        addActionButton(actionsEl, "gm_flow_claim_reward_button", handleFloorEndRewardClick);
+        // ユーザー指定：[領取獎勵]は一度押したら消し、[領取完]だけを残す（連打による
+        // 二重領取の誤操作を防ぐ——実害は自動push側の一度きりガードで防げているが、
+        // UI上紛らわしいため）。
+        if (!state.gmFlow.floorEndRewardOpened) {
+          addActionButton(actionsEl, "gm_flow_claim_reward_button", handleFloorEndRewardClick);
+        }
         addActionButton(actionsEl, "gm_flow_reward_done_button", handleGmFlowOk);
       } else if (state.gmFlow.actionKind === "combatTrigger") {
         // ［戰鬥機制］入口：ボタンラベルはトリガー行自身の文言（「雜兵戰鬥」／「王戰」）を
