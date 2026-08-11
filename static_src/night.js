@@ -11062,7 +11062,21 @@
     renderCardLevel(index);
     if (state.focusedIndex === index) renderDayStatus();
     saveState();
-    if (nextValue === null) grantCardFullClearRewardIfNeeded(index);
+    if (nextValue === null) {
+      // ユーザー報告：盤面の[+]で手動で「全」まで進めた場合、自動化GMの敘述経由
+      // （night_gm_flow.jsのfinishFieldWalk）を通らないため、以前はgrantCardFullClearReward
+      // IfNeededでルーン/タイムロス付与とGM敘述までは出るものの、続く「籌碼確認→地圖移動」への
+      // 自動連鎖（advanceCardConclusionChain、pendingChipCheckSlot/pendingMapMoveSlot依存）が
+      // 一切発火せず、そこで詰まってしまうbugがあった（自動戰鬥経由で全樓層踏破した場合は
+      // finishFieldWalkが両フラグを設定するため問題なかった）。手動操作でも同じ連鎖に乗せる
+      // よう、ここでも同じフラグを予約しておく（gmFlowEnabledでない場合は誰も読まないため
+      // 無害だが、grantCardFullClearRewardIfNeeded自身の挙動に合わせてガードしておく）。
+      if (state.gmFlowEnabled) {
+        state.gmFlow.pendingChipCheckSlot = index;
+        state.gmFlow.pendingMapMoveSlot = index;
+      }
+      grantCardFullClearRewardIfNeeded(index);
+    }
   }
 
   // 「全樓層踏破效果」（例：盧恩：2／時間損耗：1）本文から、該当ラベルの数値を取り出す。
