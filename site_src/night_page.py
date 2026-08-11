@@ -346,7 +346,6 @@ BODY = """    <div class="night-header-row">
           <button id="btn-log-toggle" type="button" class="icon-btn" aria-label="toggle log">👁</button>
         </div>
         <button type="button" id="btn-auto-gm-toggle" class="secondary-btn"></button>
-        <button type="button" id="btn-gm-flow-toggle" class="secondary-btn"></button>
         <div class="log-drawer-tabs" id="log-drawer-tabs">
           <button type="button" class="log-drawer-tab-btn active" data-log-tab="log" data-i18n="log_drawer_tab_log"></button>
           <button type="button" class="log-drawer-tab-btn" data-log-tab="autogm" data-i18n="log_drawer_tab_autogm"></button>

@@ -9158,6 +9158,12 @@
   // 自動化GM機能全体のON/OFF。以前は規則書パスワード認証済みの人のみ切り替え可能だったが、
   // ユーザー指定によりこの制限を撤廃——誰でも自由に切り替えられる（turnHolderによる制限も
   // 元々無い、設定トグルという位置づけのため）。
+  // ユーザー指定（2026-08-12）：名前は違っても本質的には1つの「自動化GM」という大系統
+  // なので、進行フロー（gmFlowEnabled：進度版の敘述・回合banner）と敵行動擲骰
+  // （autoGmEnabled：戦闘中の敵人行動決定）を別々のボタンで個別にON/OFFさせず、常に
+  // 連動する単一のトグルへ統合する（第三天の夜の王戦闘で「進度版は動くのに敵の行動だけ
+  // 出ない」という混乱の直接原因だった）。内部のstateフィールド自体は既存の多数の参照箇所
+  // を壊さないよう分けたまま残し、このトグル関数側で両方を同時に更新する。
   function renderAutoGmToggleButton() {
     var btn = document.getElementById("btn-auto-gm-toggle");
     if (!btn) return;
@@ -9166,36 +9172,19 @@
 
   function setAutoGmEnabled(enabled) {
     state.autoGmEnabled = enabled;
-    renderAutoGmToggleButton();
-    addAutoGmLog(window.I18N.t(enabled ? "log_auto_gm_enabled" : "log_auto_gm_disabled"));
-  }
-
-  function handleAutoGmToggleClick() {
-    setAutoGmEnabled(!state.autoGmEnabled);
-  }
-
-  // 自動化GM Phase 2（シナリオ進行フロー）のON/OFF。autoGmEnabled（戦闘中の敵行動ロール）とは
-  // 独立した切替。こちらも同様にパスワード制限を撤廃済み。
-  function renderGmFlowToggleButton() {
-    var btn = document.getElementById("btn-gm-flow-toggle");
-    if (!btn) return;
-    btn.textContent = window.I18N.t(state.gmFlowEnabled ? "gm_flow_toggle_on_label" : "gm_flow_toggle_off_label");
-  }
-
-  function setGmFlowEnabled(enabled) {
     state.gmFlowEnabled = enabled;
     if (!enabled) {
       state.gmFlow.narrationText = null;
       state.gmFlow.awaitingOk = false;
     }
     saveState();
-    renderGmFlowToggleButton();
+    renderAutoGmToggleButton();
     renderCurrentLocationStatus();
-    addAutoGmLog(window.I18N.t(enabled ? "log_gm_flow_enabled" : "log_gm_flow_disabled"));
+    addAutoGmLog(window.I18N.t(enabled ? "log_auto_gm_enabled" : "log_auto_gm_disabled"));
   }
 
-  function handleGmFlowToggleClick() {
-    setGmFlowEnabled(!state.gmFlowEnabled);
+  function handleAutoGmToggleClick() {
+    setAutoGmEnabled(!state.autoGmEnabled);
   }
 
   // 縮小されたまま放置されている獎勵視窗を追跡する（第5項：獎勵収集完成ゲート）。
@@ -13048,7 +13037,6 @@
     renderTurnBoardToggleButton();
     renderAutoGmToggleButton();
     renderAutoGmLog();
-    renderGmFlowToggleButton();
     renderActionPhaseGrid();
     renderBoard();
     renderLog();
@@ -13270,7 +13258,6 @@
       setTurnBoardEnabled(!state.turnBoardEnabled);
     });
     document.getElementById("btn-auto-gm-toggle").addEventListener("click", handleAutoGmToggleClick);
-    document.getElementById("btn-gm-flow-toggle").addEventListener("click", handleGmFlowToggleClick);
     document.getElementById("btn-auto-gm-boss-form-toggle").addEventListener("click", handleAutoGmBossFormToggleClick);
     document.querySelectorAll(".log-drawer-tab-btn").forEach(function (btn) {
       btn.addEventListener("click", function () {
