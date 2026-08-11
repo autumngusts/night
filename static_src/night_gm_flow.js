@@ -99,6 +99,17 @@
     activeTimers.set(el, timer);
   }
 
+  // ユーザー指定：進度版の選択判断・行為判定結果等（GM留言板state.turnMessagesへ記録される
+  // 内容と同一）を、紀錄ドロワーの「自動化GM紀錄」タブ（state.autoGmLog、night.jsの
+  // window.PriTestNightAddAutoGmLogフック）へも並行して記録する。単純な[進入]/[OK]等の
+  // ページ送りボタンはこの経路を通らないため対象外のまま（turnMessagesへ積まれる内容＝
+  // 「実際に何か決まった」瞬間のみが対象になる）。
+  function logGmDecision(text) {
+    var Core = window.PriTestNightCore;
+    Core.state.turnMessages.push({ text: text, time: Date.now(), side: "gm" });
+    if (window.PriTestNightAddAutoGmLog) window.PriTestNightAddAutoGmLog(text);
+  }
+
   // ---- 夜の王〔開場〕の取得（第11項） ----
   function extractOpeningText(section) {
     var blocks = section.blocks || [];
@@ -135,10 +146,14 @@
 
   // ゲーム読み込み直後に1度だけ呼ばれる（night.js DOMContentLoaded、loadState()直後）。
   // すでに開場済み・機能OFF・敘述表示中のいずれかならなにもしない。
+  // 自動化GM Phase 2の他の敘述とは異なり、この開場敘述だけはgmFlowEnabledに関わらず
+  // 常に一度だけ再生する（ユーザー指定：自動GMのON/OFFに関わらず、劇本の〔開場〕は
+  // 必ず進度版で見せる）。renderLocationBanner／renderCurrentLocationStatus側にも
+  // 対応するバイパスがある（openingPlayedがfalseのままawaitingOk中は表示を許可）。
   function maybeShowOpeningNarration() {
     var Core = window.PriTestNightCore;
     var state = Core.state;
-    if (!state.gmFlowEnabled || state.gmFlow.openingPlayed || state.gmFlow.awaitingOk) return;
+    if (state.gmFlow.openingPlayed || state.gmFlow.awaitingOk) return;
     var text = resolveOpeningNarrationText();
     if (!text) return;
     state.gmFlow.narrationText = text;
@@ -1034,6 +1049,48 @@
     return null;
   }
 
+  // 自動化GM 戰鬥自動化：ユーザー指定、［雜兵戰鬥］/［王戰］ボタンを押す前（actionKind===
+  // "combatTrigger"の間）に、遭遇する敵の名稱・等級・種族・尺寸・HPを進度版へ先出しする。
+  // resolveAndAddCombatEnemiesと違いstate.battleを一切変更しない「読み取り専用」の
+  // プレビューで、buildEncounterSummaryText（night.js、戦闘開始後の表示）と同じ項目のみ
+  // 出す（防禦次數・HP價值はどちらの関数も元々出力していない）。
+  function buildCombatEnemyPreviewText(lines, triggerIndex, slotIndex) {
+    var Enemies = window.PriTestEnemies;
+    if (!Enemies) return "";
+    var collected = collectCombatEnemyLines(lines, triggerIndex);
+    var levelBonus = fieldLevelCorrectionForSlot(slotIndex);
+    var out = [];
+    // resolveAndAddCombatEnemiesと同様、1体の敵人に対して和名・中国語名の両トークンが
+    // 別々に解決に成功すると同じ敵が二重に出力されてしまう（ユーザー報告：戰鬥説明の重複）
+    // ため、解決済みの敵人（familyId+enemy.id）ごとに一度だけ出力する。
+    var addedKeys = {};
+    collected.enemyLines.forEach(function (line) {
+      var ref = parseCombatEnemyRef(line);
+      ref.nameTokens.forEach(function (token) {
+        var match = resolveCombatEnemyMatch(token);
+        if (!match) return;
+        var dedupeKey = match.familyId + "|" + match.enemy.id;
+        if (addedKeys[dedupeKey]) return;
+        addedKeys[dedupeKey] = true;
+        var level = Math.max(1, (ref.level || 1) + (ref.needsLevelCorrection && levelBonus ? levelBonus : 0));
+        var lvRow = (match.familyBase || []).filter(function (lv) {
+          return lv.level === level;
+        })[0];
+        var parts = [
+          Enemies.localizedText(match.enemy.name),
+          window.I18N.t("enemy_level_label") + window.I18N.t("colon_separator") + level,
+          Enemies.localizedText(match.familyName),
+          match.enemy.size || "-",
+        ];
+        if (lvRow && lvRow.hp) {
+          parts.push(window.I18N.t("enemy_hp_label") + window.I18N.t("colon_separator") + lvRow.hp);
+        }
+        out.push(parts.join("　"));
+      });
+    });
+    return out.join("\n");
+  }
+
   // ---- 戦闘遭遇の共通解決：名前トークン一覧→敵人比對→L補適用→戦場追加→雜兵HP自動追加 ----
   // 樓層敘述の「雜兵戰鬥／王戰」（handleCombatTriggerClick）と、強敵決定表（night_event_chips.js
   // のresolveStrongEnemyEntry）の両方から呼ばれる共用ロジック。turnMessagesへは直接pushせず、
@@ -1636,24 +1693,20 @@
     var resolved = autoResolveBranch(entry, idx);
     if (resolved) {
       if (resolved.roll2 !== null && resolved.roll2 !== undefined) {
-        state.turnMessages.push({
-          text: window.I18N.t("gm_flow_branch_roll2_log", {
+        logGmDecision(
+          window.I18N.t("gm_flow_branch_roll2_log", {
             roll1: resolved.roll,
             roll2: resolved.roll2,
             name: window.PriTestFields.localizedText(entry.branches[resolved.branchIndex].name),
-          }),
-          time: Date.now(),
-          side: "gm",
-        });
+          })
+        );
       } else if (resolved.roll !== null) {
-        state.turnMessages.push({
-          text: window.I18N.t("gm_flow_branch_roll_log", {
+        logGmDecision(
+          window.I18N.t("gm_flow_branch_roll_log", {
             roll: resolved.roll,
             name: window.PriTestFields.localizedText(entry.branches[resolved.branchIndex].name),
-          }),
-          time: Date.now(),
-          side: "gm",
-        });
+          })
+        );
       }
       var resolvedBranch = entry.branches[resolved.branchIndex];
       if (resolvedBranch && resolvedBranch.freeFloorOrder) {
@@ -2025,7 +2078,8 @@
     walk.lineIndex = i;
     var blockText = blockParts.join("\n");
     if (combatTriggerIndex !== -1) {
-      state.gmFlow.narrationText = blockText;
+      var enemyPreview = buildCombatEnemyPreviewText(lines, combatTriggerIndex, walk.slotIndex);
+      state.gmFlow.narrationText = enemyPreview ? blockText + "\n" + enemyPreview : blockText;
       state.gmFlow.pendingChoiceLabels = [];
       state.gmFlow.awaitingOk = true;
       state.gmFlow.actionKind = "combatTrigger";
@@ -2122,7 +2176,7 @@
   function handleLineChoiceClick(label) {
     var Core = window.PriTestNightCore;
     var state = Core.state;
-    state.turnMessages.push({ text: window.I18N.t("gm_flow_choice_picked_log", { label: label }), time: Date.now(), side: "gm" });
+    logGmDecision(window.I18N.t("gm_flow_choice_picked_log", { label: label }));
     state.gmFlow.pendingChoiceLabels = [];
     var walk = state.gmFlow.walk;
     var floor = walk ? getWalkFloor(walk) : null;
@@ -2130,7 +2184,25 @@
       var lines = floor.lines || [];
       var found = findHeadingIndexForLabel(lines, walk.lineIndex, label);
       if (found.index !== -1) {
-        var resolved = resolveDiceTableHeadingIfAny(lines, found.index);
+        var resolved = resolveDiceTableHeadingIfAny(lines, found.index, walk.slotIndex);
+        if (resolved.manualEntries) {
+          // 劇本固定のため自動骰子を振らず、表の選択肢をそのままボタンとして提示し、
+          // GMの手動選択を待つ（walk.lineIndexは表見出し自身に留め、選び直された
+          // handleLineChoiceClickが通常のfindHeadingIndexForLabel経路でそこから
+          // 該当見出しを探せるようにする）。
+          walk.lineIndex = found.index;
+          state.gmFlow.pendingChoiceLabels = resolved.manualEntries.map(function (e) {
+            return e.name;
+          });
+          state.gmFlow.narrationText =
+            (state.gmFlow.narrationText || "") + "\n" + window.I18N.t("gm_flow_dice_table_manual_confirm_prompt");
+          lastTypedNarration = null;
+          state.gmFlow.awaitingOk = true;
+          state.gmFlow.actionKind = "lineChoice";
+          Core.saveState();
+          Core.renderCurrentLocationStatus();
+          return;
+        }
         walk.lineIndex = resolved.index;
         walk.branchFloor = lines[resolved.index].depth;
         walk.branchFloorArmed = false; // ジャンプ先の見出し行自身は境界判定の対象外にする
@@ -2146,7 +2218,13 @@
   // 探し出し、そのindexとtext（間に挟まる共通・確定内容、あれば）を返す。ダイス表見出し
   // でない、または表の解析・アウトカム見出しの発見に失敗した場合は、headingIndexをそのまま
   // 返す（フォールバック——見出し自体は敘述されるので、GMが規則書を見て手動で判断できる）。
-  function resolveDiceTableHeadingIfAny(lines, headingIndex) {
+  //
+  // ユーザー指定：劇本によっては該当板塊の中身が既に固定されている（scenarios.jsの固定
+  // カード名、night.jsのresolveScenarioTrueNameで判定可能）。その場合、本来ランダムではない
+  // 内容を自動骰子で決めてしまうと劇本の設定と食い違う恐れがあるため、自動では振らず、
+  // 表の選択肢をそのままGMへの手動選択ボタンとして提示する（呼び出し元がmanualEntriesを
+  // 見て処理を分岐する）。
+  function resolveDiceTableHeadingIfAny(lines, headingIndex, slotIndex) {
     var heading = lines[headingIndex];
     if (!isDiceTableHeadingLine(heading)) return { index: headingIndex, text: "" };
     var depth = heading.depth;
@@ -2154,16 +2232,17 @@
     if (!tableLine || !tableLine.bullet || tableLine.depth !== depth + 1) return { index: headingIndex, text: "" };
     var entries = parseInlineDiceTable(window.PriTestFields.localizedText(tableLine.text));
     if (!entries) return { index: headingIndex, text: "" };
+    var Core = window.PriTestNightCore;
+    var hasFixedScenarioName = typeof slotIndex === "number" && Core.resolveScenarioTrueName && !!Core.resolveScenarioTrueName(slotIndex);
+    if (hasFixedScenarioName) {
+      return { index: headingIndex, text: "", manualEntries: entries };
+    }
     var roll = 1 + Math.floor(Math.random() * 6);
     var matched = entries.filter(function (e) {
       return e.faces.indexOf(roll) !== -1;
     })[0];
     if (!matched) return { index: headingIndex, text: "" };
-    window.PriTestNightCore.state.turnMessages.push({
-      text: window.I18N.t("gm_flow_dice_table_roll_log", { roll: roll, name: matched.name }),
-      time: Date.now(),
-      side: "gm",
-    });
+    logGmDecision(window.I18N.t("gm_flow_dice_table_roll_log", { roll: roll, name: matched.name }));
     var outcome = findHeadingIndexForLabel(lines, headingIndex + 1, matched.name);
     return outcome.index !== -1 ? outcome : { index: headingIndex, text: "" };
   }
@@ -2209,14 +2288,10 @@
       }
     });
     if (addedNames.length) {
-      state.turnMessages.push({
-        text: window.I18N.t("gm_flow_combat_added_log", { names: addedNames.join("、") }),
-        time: Date.now(),
-        side: "gm",
-      });
+      logGmDecision(window.I18N.t("gm_flow_combat_added_log", { names: addedNames.join("、") }));
     }
     reminderTexts.forEach(function (text) {
-      state.turnMessages.push({ text: text, time: Date.now(), side: "gm" });
+      logGmDecision(text);
     });
 
     // 自動化GM 戰鬥自動化：使用者確認、公開情報として遭遇した敵人（名稱／等級／種族／尺寸／HP、
@@ -2279,10 +2354,24 @@
     state.gmFlow.walk = null;
     if (hasReward) {
       state.gmFlow.actionKind = "floorEnd";
+      // ユーザー報告：[領取獎勵]を押した後も同じボタンが残っていると誤って連打され、
+      // 二重に獎勵清單／樓層獎勵モーダルを開こうとしてしまう（実害は自動pushの一度きり
+      // ガードで防げているが、UI上は紛らわしい）。押した瞬間にtrueへ立て、renderLocationBanner
+      // 側で[領取獎勵]ボタン自体を消し、[領取完]だけを残す。
+      state.gmFlow.floorEndRewardOpened = false;
       pendingFloorEndFloor = floor;
+      // ページ再読み込み・端末切り替えでpendingFloorEndFloor（モジュール内変数）が失われても
+      // ［領取獎勵］が機能するよう、再解決可能な参照もstateへ残しておく（walkSlotIndex/
+      // walk.branchIndex/walkFloorIndexが揃っている通常ケースのみ。揃わない場合はnullのまま＝
+      // 従来通りモジュール内変数頼みだが、ここへ来る時点でほぼ必ず揃っている）。
+      state.gmFlow.pendingFloorEndRef =
+        walk && typeof walk.branchIndex === "number" && typeof walkFloorIndex === "number"
+          ? { slotIndex: walkSlotIndex, branchIndex: walk.branchIndex, floorIndex: walkFloorIndex }
+          : null;
     } else {
       state.gmFlow.actionKind = "ok";
       pendingFloorEndFloor = null;
+      state.gmFlow.pendingFloorEndRef = null;
     }
     // ［路線自由］（branch.freeFloorOrder）カード：通常のcardLevels連番進行ではなく、
     // 位置ごとのクリア状態を管理する。しきい値に達したら「全踏破」チェーンへ乗せる
@@ -2339,16 +2428,60 @@
   }
 
   // finishFieldWalkが検出したfloor.reward情報は、モーダルを開くのに実物のfloorオブジェクトの
-  // 参照が要る（openFloorRewardModalはfloor自体を引数に取る）ため、stateに直列化保存せず
+  // 参照が要る（openFloorRewardModalはfloor自体を引数に取る）ため、基本はstateに直列化保存せず
   // モジュール内変数として持つ（devicecrossの同期は不要——[領取獎勵]は押した端末で
   // 既存の獎勵モーダルを開くだけの操作で、既存の獎勵システム自体は元々cross-device同期済み）。
+  // ただし、この変数はページ再読み込み・再接続で失われる（ユーザー報告：戰鬥に勝って
+  // ［領取獎勵］が出た直後にリロードすると獎勵ゲートごと消えて何も獲得できないバグの原因）ため、
+  // state.gmFlow.pendingFloorEndRef（{slotIndex,branchIndex,floorIndex}のみの直列化可能な参照）
+  // からresolveFloorFromPendingRefで再解決できるフォールバックを用意する。
   var pendingFloorEndFloor = null;
 
+  function resolveFloorFromPendingRef(ref) {
+    if (!ref || typeof ref.branchIndex !== "number" || typeof ref.floorIndex !== "number") return null;
+    var FloorBreakthrough = window.PriTestNightFloorBreakthrough;
+    var card = FloorBreakthrough.resolveFieldEntryForSlot(ref.slotIndex);
+    var branch = card && card.branches ? card.branches[ref.branchIndex] : null;
+    var floor = branch && branch.floors ? branch.floors[ref.floorIndex] : null;
+    // night_rulebook.jsが規則書パネル描画時に付与するキーと同じ形式（card.id+branchIndex+floorIndex）。
+    // リロード直後はまだ規則書パネルを開いていないため未設定のことがあり、ここで先に埋めておく
+    // ことで獎勵清單への自動push側の一度きり判定（floor.__rewardKey）が正しく機能する。
+    if (floor && !floor.__rewardKey && card) floor.__rewardKey = card.id + "_" + ref.branchIndex + "_" + ref.floorIndex;
+    return floor || null;
+  }
+
   function handleFloorEndRewardClick() {
-    if (pendingFloorEndFloor) window.PriTestNightFloorBreakthrough.openFloorRewardModal(pendingFloorEndFloor);
-    closeGmFlowGateAndConsumePendingAdvance();
-    window.PriTestNightCore.saveState();
-    window.PriTestNightCore.renderCurrentLocationStatus();
+    var Core = window.PriTestNightCore;
+    var state = Core.state;
+    // ユーザー報告：連打による二重領取を防ぐため、押した瞬間に[領取獎勵]ボタン自体を
+    // 消す（renderLocationBanner側でfloorEndRewardOpened===trueなら描画しない）。
+    state.gmFlow.floorEndRewardOpened = true;
+    var floor = pendingFloorEndFloor || resolveFloorFromPendingRef(state.gmFlow.pendingFloorEndRef);
+    var result = floor ? window.PriTestNightFloorBreakthrough.openFloorRewardModal(floor) : null;
+    if (!result || (!result.lootPushed && !result.judgmentModalOpened)) {
+      // フロアが解決できなかった、または戦利品もGM判断項目も無かった（finishFieldWalkが
+      // floorEndへ遷移する時点でどちらか必ずある想定だが、念のための安全側フォールバック）。
+      // 従来通り即座にゲートを閉じて次へ進める。
+      closeGmFlowGateAndConsumePendingAdvance();
+      Core.saveState();
+      Core.renderCurrentLocationStatus();
+      return;
+    }
+    // ユーザー指定：戦利品／GM判断項目のいずれかが実際にモーダルとして開いた場合、
+    // ここではゲートを閉じない。獎勵清單・樓層獎勵モーダルの両方が閉じ終わる
+    // （＝pendingRewardWindowsが空になる）まで、進度版の敘述は「等待玩家領取完畢」の
+    // まま待機し、[領取完]（handleGmFlowOk）が既存のpendingRewardWindowsガードで
+    // リマインドを繰り返す。
+    if (result.judgmentModalOpened) Core.addPendingRewardWindow("floorReward");
+    if (result.lootPushed) {
+      Core.state.activeDraws.turnRewardAutoOpen = true;
+      Core.openTurnRewardModal();
+      Core.addPendingRewardWindow("turnReward");
+    }
+    state.gmFlow.narrationText = (state.gmFlow.narrationText || "") + "\n" + window.I18N.t("gm_flow_reward_wait_narration");
+    lastTypedNarration = null; // 追加した行を含めて必ず打字機を再生する
+    Core.saveState();
+    Core.renderCurrentLocationStatus();
   }
 
   // 第15・18項：全樓層踏破時、grantCardFullClearRewardIfNeeded（night.js）から呼ばれる。
@@ -2457,6 +2590,8 @@
     state.gmFlow.chipOfferContinuation = null;
     state.gmFlow.pendingMapMoveFromIndex = null;
     pendingFloorEndFloor = null;
+    state.gmFlow.pendingFloorEndRef = null;
+    state.gmFlow.floorEndRewardOpened = false;
     lastTypedNarration = null;
   }
 
@@ -2756,21 +2891,15 @@
       .map(function (c) {
         return c.name;
       });
-    state.turnMessages.push({
-      text: window.I18N.t("gm_flow_ability_check_summary_log", {
+    logGmDecision(
+      window.I18N.t("gm_flow_ability_check_summary_log", {
         target: spec.target,
         stat: window.I18N.t("check_stat_" + spec.statKey),
         results: entries.join("、"),
-      }),
-      time: Date.now(),
-      side: "gm",
-    });
+      })
+    );
     if (failedNames.length) {
-      state.turnMessages.push({
-        text: window.I18N.t("gm_flow_ability_check_fail_reminder_log", { names: failedNames.join("、") }),
-        time: Date.now(),
-        side: "gm",
-      });
+      logGmDecision(window.I18N.t("gm_flow_ability_check_fail_reminder_log", { names: failedNames.join("、") }));
     }
     abilityCheckRolls = null;
     var modalEl = document.getElementById("ability-check-modal");
@@ -2839,11 +2968,7 @@
       }).length;
       return window.I18N.t("gm_flow_multi_stat_check_result_entry", { name: c.name, pass: passCount, total: rounds.length });
     });
-    state.turnMessages.push({
-      text: window.I18N.t("gm_flow_multi_stat_check_summary_log", { results: entries.join("、") }),
-      time: Date.now(),
-      side: "gm",
-    });
+    logGmDecision(window.I18N.t("gm_flow_multi_stat_check_summary_log", { results: entries.join("、") }));
     var modalEl = document.getElementById("ability-check-modal");
     if (modalEl) modalEl.hidden = true;
     state.gmFlow.abilityCheckSpec = null;
@@ -3030,14 +3155,12 @@
     });
     var actualTarget = spec.perPC ? spec.target * entered.length : spec.target;
     var passed = poolSum >= actualTarget;
-    state.turnMessages.push({
-      text: window.I18N.t("gm_flow_cooperative_check_summary_log", {
+    logGmDecision(
+      window.I18N.t("gm_flow_cooperative_check_summary_log", {
         sum: poolSum,
         outcome: window.I18N.t(passed ? "ability_check_pass_label" : "ability_check_fail_label"),
-      }),
-      time: Date.now(),
-      side: "gm",
-    });
+      })
+    );
     cooperativeCheckRolls = null;
     var modalEl = document.getElementById("cooperative-check-modal");
     if (modalEl) modalEl.hidden = true;
@@ -3104,14 +3227,12 @@
     cooperativeCheckRolls = null;
     var modalEl = document.getElementById("cooperative-check-modal");
     if (modalEl) modalEl.hidden = true;
-    state.turnMessages.push({
-      text: window.I18N.t("gm_flow_cooperative_check_summary_log", {
+    logGmDecision(
+      window.I18N.t("gm_flow_cooperative_check_summary_log", {
         sum: poolSum,
         outcome: window.I18N.t(passed ? "ability_check_pass_label" : "ability_check_fail_label"),
-      }),
-      time: Date.now(),
-      side: "gm",
-    });
+      })
+    );
     var walk = state.gmFlow.walk;
     var floor = walk ? getWalkFloor(walk) : null;
     var lines = floor ? floor.lines || [] : [];
@@ -3235,16 +3356,14 @@
       return a + b;
     }, 0);
     var passed = sum >= spec.target;
-    state.turnMessages.push({
-      text: window.I18N.t("gm_flow_player_pick_check_result_log", {
+    logGmDecision(
+      window.I18N.t("gm_flow_player_pick_check_result_log", {
         name: c.name,
         dice: dice.join("+"),
         sum: sum,
         outcome: window.I18N.t(passed ? "ability_check_pass_label" : "ability_check_fail_label"),
-      }),
-      time: Date.now(),
-      side: "gm",
-    });
+      })
+    );
     if (passed) {
       spec.successCount += 1;
     } else {
@@ -3333,11 +3452,7 @@
         });
       })
     );
-    state.turnMessages.push({
-      text: window.I18N.t("gm_flow_representative_pick_summary_log", { results: entries.join("、") }),
-      time: Date.now(),
-      side: "gm",
-    });
+    logGmDecision(window.I18N.t("gm_flow_representative_pick_summary_log", { results: entries.join("、") }));
     var failedNames = otherResults
       .filter(function (o) {
         return !o.result.passed;
@@ -3347,11 +3462,7 @@
       });
     if (!repResult.passed) failedNames.unshift(rep.name);
     if (failedNames.length) {
-      state.turnMessages.push({
-        text: window.I18N.t("gm_flow_ability_check_fail_reminder_log", { names: failedNames.join("、") }),
-        time: Date.now(),
-        side: "gm",
-      });
+      logGmDecision(window.I18N.t("gm_flow_ability_check_fail_reminder_log", { names: failedNames.join("、") }));
     }
     state.gmFlow.representativePickSpec = null;
     state.gmFlow.actionKind = "ok";
@@ -3382,16 +3493,14 @@
       return a + b;
     }, 0);
     var passed = sum >= spec.target;
-    state.turnMessages.push({
-      text: window.I18N.t("gm_flow_player_pick_check_result_log", {
+    logGmDecision(
+      window.I18N.t("gm_flow_player_pick_check_result_log", {
         name: c.name,
         dice: dice.join("+"),
         sum: sum,
         outcome: window.I18N.t(passed ? "ability_check_pass_label" : "ability_check_fail_label"),
-      }),
-      time: Date.now(),
-      side: "gm",
-    });
+      })
+    );
     if (passed || !spec.retryOnFail) {
       state.gmFlow.playerPickCheckSpec = null;
       state.gmFlow.playerPickCheckExcluded = [];
@@ -3419,11 +3528,7 @@
     var state = Core.state;
     var spec = state.gmFlow.playerPickCheckSpec;
     if (!spec) return;
-    state.turnMessages.push({
-      text: window.I18N.t("gm_flow_player_pick_check_leave_log"),
-      time: Date.now(),
-      side: "gm",
-    });
+    logGmDecision(window.I18N.t("gm_flow_player_pick_check_leave_log"));
     state.gmFlow.playerPickCheckSpec = null;
     state.gmFlow.playerPickCheckExcluded = [];
     state.gmFlow.actionKind = "ok";
@@ -3440,7 +3545,7 @@
   function handleConditionalCooperativeChoiceClick(option) {
     var Core = window.PriTestNightCore;
     var state = Core.state;
-    state.turnMessages.push({ text: window.I18N.t("gm_flow_choice_picked_log", { label: option.label }), time: Date.now(), side: "gm" });
+    logGmDecision(window.I18N.t("gm_flow_choice_picked_log", { label: option.label }));
     state.gmFlow.conditionalCooperativeChoiceSpec = null;
     state.gmFlow.cooperativeCheckSpec = { target: option.target, perPC: option.perPC, statKey: option.statKey, markerLabel: null };
     state.gmFlow.actionKind = "cooperativeCheck";
@@ -3650,14 +3755,12 @@
       // 1点）の扱いを明記していない——GM判断を仰いだ結果、この空隙は「高い方」側へ
       // 寄せる方針を確認済み（lowThresholdより大きければ常に高い方）。
       var highBranch = outer.points > outer.lowThreshold;
-      state.turnMessages.push({
-        text: window.I18N.t("gm_flow_branch_tally_outer_summary_log", {
+      logGmDecision(
+        window.I18N.t("gm_flow_branch_tally_outer_summary_log", {
           points: outer.points,
           branch: highBranch ? outer.highLabel : outer.lowLabel,
-        }),
-        time: Date.now(),
-        side: "gm",
-      });
+        })
+      );
       var outerModalEl = document.getElementById("branch-tally-modal");
       if (outerModalEl) outerModalEl.hidden = true;
       state.gmFlow.branchPointTallySpec = null;
@@ -3683,11 +3786,7 @@
       } else {
         tierLabel = "成功1回";
       }
-      state.turnMessages.push({
-        text: window.I18N.t("gm_flow_branch_tally_inner_summary_log", { tier: tierLabel }),
-        time: Date.now(),
-        side: "gm",
-      });
+      logGmDecision(window.I18N.t("gm_flow_branch_tally_inner_summary_log", { tier: tierLabel }));
       var innerModalEl = document.getElementById("branch-tally-modal");
       if (innerModalEl) innerModalEl.hidden = true;
       state.gmFlow.sequentialPairSpec = null;
@@ -3714,7 +3813,12 @@
     var actionsEl = document.getElementById("location-status-actions");
     var waitingBadge = document.getElementById("gm-flow-waiting-badge");
     if (!dialogueEl || !narrationEl || !actionsEl) return;
-    if (!state.gmFlowEnabled) {
+    // 開場敘述（maybeShowOpeningNarration）は自動GMのON/OFFに関わらず一度だけ必ず見せる
+    // ため、「まだ再生していない開場を今まさに表示中」の間だけ、以下のgmFlowEnabledゲートを
+    // バイパスする。それ以外のactionKind（branchChoice・floorEnd等）は従来通りgmFlowEnabled
+    // 必須のまま。
+    var showingUnplayedOpening = state.gmFlow.awaitingOk && !state.gmFlow.openingPlayed;
+    if (!state.gmFlowEnabled && !showingUnplayedOpening) {
       dialogueEl.classList.remove("has-dialogue");
       narrationEl.textContent = "";
       actionsEl.innerHTML = "";
@@ -3727,7 +3831,19 @@
     actionsEl.innerHTML = "";
     // [GM等待中]バッジ：折りたたみ時も見えるようにoverlay直下に置いているため、collapsedの
     // 状態に関わらずawaitingOk中は常に点滅させる（＝GMが進度版を開いて対応する必要がある合図）。
-    if (waitingBadge) waitingBadge.hidden = !state.gmFlow.awaitingOk;
+    // ユーザー指定：actionKind==="floorEnd"の間は文言を状況に応じて差し替える
+    // （未クリック＝「領取獎勵！」、クリック後まだ獎勵清單／樓層獎勵モーダルが未解決＝
+    // 「等待領取完」）。
+    if (waitingBadge) {
+      waitingBadge.hidden = !state.gmFlow.awaitingOk;
+      if (state.gmFlow.awaitingOk) {
+        var badgeKey = "gm_flow_waiting_badge";
+        if (state.gmFlow.actionKind === "floorEnd") {
+          badgeKey = state.gmFlow.pendingRewardWindows.length > 0 ? "gm_flow_waiting_badge_reward_pending" : "gm_flow_waiting_badge_claim_reward";
+        }
+        waitingBadge.textContent = window.I18N.t(badgeKey);
+      }
+    }
 
     if (state.gmFlow.awaitingOk) {
       // 自動化GM 戰鬥自動化：actionKind==="battleWait"の間（＝樓層敘述の「雜兵戰鬥／王戰」
@@ -3771,7 +3887,12 @@
       } else if (state.gmFlow.actionKind === "floorEnd") {
         // ［戰鬥結束］獎勵ゲート：領取後、全項目を受け取り終える（pendingRewardWindowsが
         // 空になる）まで［獲得完］を押しても再度リマインドされる（第18項）。
-        addActionButton(actionsEl, "gm_flow_claim_reward_button", handleFloorEndRewardClick);
+        // ユーザー指定：[領取獎勵]は一度押したら消し、[領取完]だけを残す（連打による
+        // 二重領取の誤操作を防ぐ——実害は自動push側の一度きりガードで防げているが、
+        // UI上紛らわしいため）。
+        if (!state.gmFlow.floorEndRewardOpened) {
+          addActionButton(actionsEl, "gm_flow_claim_reward_button", handleFloorEndRewardClick);
+        }
         addActionButton(actionsEl, "gm_flow_reward_done_button", handleGmFlowOk);
       } else if (state.gmFlow.actionKind === "combatTrigger") {
         // ［戰鬥機制］入口：ボタンラベルはトリガー行自身の文言（「雜兵戰鬥」／「王戰」）を

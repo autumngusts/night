@@ -910,11 +910,19 @@
       // [OK]を押した時点でこの値とfocusedIndexが同じなら「まだ移動していない」と判定し、
       // ゲートを閉じずリマインドを繰り返す（handleMapMoveOkClick参照）。
       pendingMapMoveFromIndex: null,
+      // actionKind==="floorEnd"のfloorオブジェクト自体（night_gm_flow.jsのpendingFloorEndFloor、
+      // モジュール内変数）を再構築するための直列化可能な参照。ページ再読み込み・再接続を挟むと
+      // モジュール内変数は失われるため、{slotIndex,branchIndex,floorIndex}だけをstateに残しておき、
+      // resolveFieldEntryForSlot経由でfloorオブジェクトを再解決できるようにする。
+      pendingFloorEndRef: null,
+      // ユーザー指定：actionKind==="floorEnd"の間、[領取獎勵]ボタンを一度押したかどうか。
+      // trueの間はrenderLocationBanner側で[領取獎勵]ボタン自体を描画しない（[領取完]のみ残す）。
+      floorEndRewardOpened: false,
     },
     // GMが開いて縮小した抽選ウィンドウを全端末で共有するための領域。null=未使用。
     // 中身はcharacter_drawer.jsのweaponRollState/talismanRollState/consumableRollState、
     // またはnight.js内のpotentialPower関連状態と同じ形をした素のJSONオブジェクト。
-    activeDraws: { potentialPower: null, weapon: null, talisman: null, consumable: null },
+    activeDraws: { potentialPower: null, weapon: null, talisman: null, consumable: null, turnRewardAutoOpen: null },
     activeThreatEffects: [], // {id, text}の配列。「階段結束為止」等の非純傷害スキル効果をGM/玩家が自由記述で追加・Xで削除する手動リスト
     returnedCardMemory: {}, // key: slot index -> {code, cardLevel}。#19：うっかり「山札に戻す」した直前の内容を記録し、空きマス長押しで復元できるようにする
     cardFloorRewardGranted: {}, // key: slot index -> true。#10：樓層レベルが「全」に達した瞬間の自動盧恩付与・広播が二重発火しないようにするフラグ
@@ -1468,7 +1476,7 @@
       if (rowIdx !== -1 && hpBoxes > 0) applyOverflowingEnemyDamage(rowIdx, hpBoxes);
     }
 
-    addLog("log_guarded_damage_applied", {
+    addLogAndAutoGmLog("log_guarded_damage_applied", {
       enemy: enemyDisplayNameForKey(enemyKey),
       damage: totalDamage || 0,
       guardBefore: currentGuard,
@@ -1596,7 +1604,7 @@
 
   function applyAttributeStatusElementTriggerOnEnemy(enemyKey, label) {
     damageEnemyHpForKey(enemyKey, 1);
-    addLog("log_attribute_status_element_trigger_enemy", { enemy: enemyDisplayNameForKey(enemyKey), label: label });
+    addLogAndAutoGmLog("log_attribute_status_element_trigger_enemy", { enemy: enemyDisplayNameForKey(enemyKey), label: label });
     applyRelicJoyHealForLabel(label, "relicJoyElementChoice", ["屬性達成的歡喜", "属性達成の歓喜"]);
     renderEnemyHpGrid();
   }
@@ -1606,16 +1614,16 @@
       depleteEnemyHpRowForKey(enemyKey);
       if (!state.battle.enemyDmgOverride) state.battle.enemyDmgOverride = {};
       state.battle.enemyDmgOverride[enemyKey] = (state.battle.enemyDmgOverride[enemyKey] || 0) - 300;
-      addLog("log_attribute_status_sleep_trigger_enemy", { enemy: enemyDisplayNameForKey(enemyKey) });
+      addLogAndAutoGmLog("log_attribute_status_sleep_trigger_enemy", { enemy: enemyDisplayNameForKey(enemyKey) });
     } else if (label === ATTRIBUTE_STATUS_DEATH_CURSE_LABEL) {
       if (enemyIsAttackerFamily(enemyKey)) {
         depleteEnemyHpRowForKey(enemyKey);
-        addLog("log_attribute_status_death_curse_trigger_enemy", { enemy: enemyDisplayNameForKey(enemyKey) });
+        addLogAndAutoGmLog("log_attribute_status_death_curse_trigger_enemy", { enemy: enemyDisplayNameForKey(enemyKey) });
       }
       // 「襲擊者」以外の敵人は無效果（何もしない）。
     } else {
       damageEnemyHpForKey(enemyKey, 2);
-      addLog("log_attribute_status_ailment_trigger_enemy", { enemy: enemyDisplayNameForKey(enemyKey), label: label });
+      addLogAndAutoGmLog("log_attribute_status_ailment_trigger_enemy", { enemy: enemyDisplayNameForKey(enemyKey), label: label });
     }
     applyRelicJoyHealForLabel(label, "relicJoyAilmentChoice", ["異常狀態達成的歡喜", "状態異常達成の歓喜"]);
     renderEnemyHpGrid();
@@ -1709,7 +1717,7 @@
     c.hp.current = Math.max(0, (c.hp.current || 0) - 1);
     saveRosterCharacters();
     renderCharacterRoster();
-    addLog("log_attribute_status_element_trigger_char", { name: c.name, label: label });
+    addLogAndAutoGmLog("log_attribute_status_element_trigger_char", { name: c.name, label: label });
     checkNearDeathTrigger(c);
   }
 
@@ -1721,13 +1729,13 @@
     applyUnyieldingStack(c);
     if (label === ATTRIBUTE_STATUS_SLEEP_LABEL) {
       c._nextActionDicePenalty = (c._nextActionDicePenalty || 0) + 3;
-      addLog("log_attribute_status_sleep_trigger_char", { name: c.name });
+      addLogAndAutoGmLog("log_attribute_status_sleep_trigger_char", { name: c.name });
     } else if (label === ATTRIBUTE_STATUS_DEATH_CURSE_LABEL) {
       c.hp.current = 0;
-      addLog("log_attribute_status_death_curse_trigger_char", { name: c.name });
+      addLogAndAutoGmLog("log_attribute_status_death_curse_trigger_char", { name: c.name });
     } else {
       c.hp.current = Math.max(0, (c.hp.current || 0) - 2);
-      addLog("log_attribute_status_ailment_trigger_char", { name: c.name, label: label });
+      addLogAndAutoGmLog("log_attribute_status_ailment_trigger_char", { name: c.name, label: label });
     }
     saveRosterCharacters();
     renderCharacterRoster();
@@ -1807,6 +1815,15 @@
     if (actor) {
       if (!actor._phaseAttributeGains) actor._phaseAttributeGains = {};
       actor._phaseAttributeGains[label] = (actor._phaseAttributeGains[label] || 0) + value;
+      addAutoGmLog(
+        window.I18N.t("auto_gm_log_attribute_dealt", {
+          name: actor.name,
+          enemy: enemyDisplayNameForKey(enemyKey),
+          label: label,
+          value: value,
+          total: as.enemyAccum[accumKey],
+        })
+      );
     }
     processAttributeStatusEnemyTrigger(enemyKey, label);
   }
@@ -1828,6 +1845,19 @@
     var received = state.battle.attributeStatus.received;
     if (!received[characterId]) received[characterId] = {};
     received[characterId][label] = (received[characterId][label] || 0) + value;
+    var receivedChar = rosterCharacters.filter(function (rc) {
+      return rc.id === characterId;
+    })[0];
+    if (receivedChar) {
+      addAutoGmLog(
+        window.I18N.t("auto_gm_log_attribute_received", {
+          name: receivedChar.name,
+          label: label,
+          value: value,
+          total: received[characterId][label],
+        })
+      );
+    }
     processAttributeStatusCharTrigger(characterId, label);
     saveState();
     saveRosterCharacters();
@@ -2003,6 +2033,8 @@
             "freeFloorChoice",
             "battleWait",
             "chipOffer",
+            "floorEnd",
+            "mapMove",
           ].indexOf(loadedGmFlow.actionKind) !== -1
             ? loadedGmFlow.actionKind
             : "ok",
@@ -2149,6 +2181,17 @@
         pendingChipCheckSlot: typeof loadedGmFlow.pendingChipCheckSlot === "number" ? loadedGmFlow.pendingChipCheckSlot : null,
         pendingMapMoveSlot: loadSlotOrPileIndex(loadedGmFlow.pendingMapMoveSlot),
         pendingMapMoveFromIndex: loadSlotOrPileIndex(loadedGmFlow.pendingMapMoveFromIndex),
+        pendingFloorEndRef:
+          loadedGmFlow.pendingFloorEndRef &&
+          typeof loadedGmFlow.pendingFloorEndRef.branchIndex === "number" &&
+          typeof loadedGmFlow.pendingFloorEndRef.floorIndex === "number"
+            ? {
+                slotIndex: loadSlotOrPileIndex(loadedGmFlow.pendingFloorEndRef.slotIndex),
+                branchIndex: loadedGmFlow.pendingFloorEndRef.branchIndex,
+                floorIndex: loadedGmFlow.pendingFloorEndRef.floorIndex,
+              }
+            : null,
+        floorEndRewardOpened: !!loadedGmFlow.floorEndRewardOpened,
       };
       var loadedDraws = data.activeDraws && typeof data.activeDraws === "object" ? data.activeDraws : {};
       state.activeDraws = {
@@ -2156,6 +2199,7 @@
         weapon: loadedDraws.weapon || null,
         talisman: loadedDraws.talisman || null,
         consumable: loadedDraws.consumable || null,
+        turnRewardAutoOpen: !!loadedDraws.turnRewardAutoOpen,
       };
       state.activeThreatEffects = Array.isArray(data.activeThreatEffects) ? data.activeThreatEffects : [];
       state.returnedCardMemory =
@@ -2217,9 +2261,10 @@
     state.logBubbleEnabled = false;
     state.locationBannerCollapsed = false;
     state.locationBannerCorner = "right";
-    state.autoGmEnabled = false;
+    // ユーザー指定：新遊戲を押しても自動化GM機能のON/OFF設定（autoGmEnabled/gmFlowEnabled）は
+    // 変更しない——プレイヤーが設定した状態をそのまま維持する。autoGmLogだけは新しい遊戲の
+    // 監査ログとしてクリアする。
     state.autoGmLog = [];
-    state.gmFlowEnabled = false;
     state.gmFlow = {
       narrationText: null,
       awaitingOk: false,
@@ -2250,8 +2295,10 @@
       pendingChipCheckSlot: null,
       pendingMapMoveSlot: null,
       pendingMapMoveFromIndex: null,
+      pendingFloorEndRef: null,
+      floorEndRewardOpened: false,
     };
-    state.activeDraws = { potentialPower: null, weapon: null, talisman: null, consumable: null };
+    state.activeDraws = { potentialPower: null, weapon: null, talisman: null, consumable: null, turnRewardAutoOpen: null };
     state.activeThreatEffects = [];
     state.returnedCardMemory = {};
     state.cardFloorRewardGranted = {};
@@ -2415,6 +2462,14 @@
     state.autoGmLog.push({ time: Date.now(), text: text });
     renderAutoGmLog();
     saveState();
+  }
+
+  // 通常のaddLog（TTS対象・state.log）と全く同じi18nキー・paramsで、自動化GM紀錄
+  // （state.autoGmLog）へも並行して記録するためのヘルパー。文言のズレを防ぐため、
+  // 呼び出し側は1回だけキー・paramsを書けばよい。
+  function addLogAndAutoGmLog(key, params) {
+    addLog(key, params);
+    addAutoGmLog(window.I18N.t(key, params));
   }
 
   // auto_gm.js（今後追加予定、night.jsとは別クロージャ）から呼べるようにする、他の
@@ -8539,6 +8594,7 @@
       return c.name + window.I18N.t("colon_separator") + (state.battle.defenseHpLossSummary[c.id] || 0);
     });
     var summaryText = window.I18N.t("gm_flow_battle_defense_result_header") + "\n" + parts.join("\n");
+    addAutoGmLog(summaryText);
     postSystemTurnMessage(window.I18N.t("gm_flow_battle_defense_result_header") + "　" + parts.join("、"));
     showThreatBroadcast([window.I18N.t("gm_flow_battle_defense_result_header"), parts.join("、")]);
     closeEnemyDamageModal();
@@ -8920,6 +8976,9 @@
     }
     modal.hidden = true;
     document.getElementById("btn-turn-reward-restore").hidden = true;
+    // 跨端末自動ポップアップ（Task 8）の予約フラグも、実際に閉じられた時点でクリアする
+    // （removePendingRewardWindowが内部でsaveState()する——別途saveState呼び出しは不要）。
+    state.activeDraws.turnRewardAutoOpen = null;
     removePendingRewardWindow("turnReward");
   }
 
@@ -8993,18 +9052,21 @@
       targetSelect.value = prevTarget;
     }
     // 新增（種類/對象/數量/追加ボタン）はGM回合中のみ操作可能。既存項目の獲得/削除は対象外。
-    var isGmTurn = state.turnHolder === "gm";
+    // ユーザー指定：獎勵清單への手動「新增」は、GM回合中であることに加えて規則書パスワード
+    // 認証済み（isRulebookAuthenticated）のユーザーのみ操作可能にする。既存項目の獲得／削除
+    // ボタンはこの制限の対象外（renderTurnRewardModal側、誰でも操作可のまま）。
+    var canManageTurnRewards = state.turnHolder === "gm" && isRulebookAuthenticated();
     var valueInput = document.getElementById("turn-reward-value-input");
     var addBtn = document.getElementById("btn-turn-reward-add");
-    kindSelect.disabled = !isGmTurn;
-    targetSelect.disabled = !isGmTurn;
+    kindSelect.disabled = !canManageTurnRewards;
+    targetSelect.disabled = !canManageTurnRewards;
     if (valueInput) {
       valueInput.hidden = kindSelect.value === "buriedTreasure";
-      valueInput.disabled = !isGmTurn;
+      valueInput.disabled = !canManageTurnRewards;
     }
     if (addBtn) {
       addBtn.textContent = window.I18N.t(kindSelect.value === "buriedTreasure" ? "turn_reward_roll_buried_treasure_button" : "turn_reward_add_button");
-      addBtn.disabled = !isGmTurn;
+      addBtn.disabled = !canManageTurnRewards;
     }
   }
 
@@ -10782,7 +10844,10 @@
     var card = window.PriTestNightFloorBreakthrough.resolveFieldEntryForSlot(idx);
     // 自動化GM Phase 2：ゲーム開始直後の〔開場〕敘述は、まだどの樓層にもフォーカスしていない
     // （card===null）段階で表示する必要があるため、awaitingOk中はcardが無くてもバナーを出す。
-    var showForGmFlow = state.gmFlowEnabled && state.gmFlow.awaitingOk;
+    // 開場敘述だけはgmFlowEnabledに関わらず表示する（night_gm_flow.jsのrenderLocationBanner
+    // 側の同名バイパスと対になる）。
+    var showingUnplayedOpening = state.gmFlow.awaitingOk && !state.gmFlow.openingPlayed;
+    var showForGmFlow = (state.gmFlowEnabled && state.gmFlow.awaitingOk) || showingUnplayedOpening;
     if (!card && !showForGmFlow) {
       overlay.hidden = true;
       return;
@@ -11425,7 +11490,7 @@
     var logKey = wasContinue ? "log_continue_submit" : "log_select_submit";
     if (!wasContinue) state.focusedIndex = "start";
     state.boardStarted = true;
-    if (state.gmFlowEnabled) revealStartAdjacentSlots();
+    revealStartAdjacentSlots();
     if (wasContinue) advanceToNextNight();
     closeSelectDrawer();
     renderBoard();
@@ -11475,6 +11540,7 @@
     state.eventChipsData = {};
     state.focusedIndex = "start";
     state.boardStarted = true;
+    revealStartAdjacentSlots();
     renderBoard();
     addLog("log_select_submit", {
       n: scenario.day1.length,
@@ -11929,6 +11995,25 @@
     }
   }
 
+  // ユーザー指定：新遊戲で「角色状態も剛入場の状態へ戻す」を選んだ場合に使う。
+  // CharacterDrawer.newCharacter(name, typeId)が返す「まっさらな同職業角色」の中身で、
+  // id／enteredだけを保持したまま完全上書きする（等級1・初期武器のみ・盧恩0・已習得盧恩
+  // 效果／附加效果／護符／消耗品／骰子池／執行紀錄が全てクリアされる）。参照を保つため
+  // 配列要素を差し替えず、既存オブジェクトをin-placeで書き換える。
+  function resetCharacterToInitialState(c) {
+    var fresh = CharacterDrawer.newCharacter(c.name, c.typeId);
+    var id = c.id;
+    var entered = c.entered;
+    for (var key in c) {
+      if (Object.prototype.hasOwnProperty.call(c, key)) delete c[key];
+    }
+    for (var freshKey in fresh) {
+      if (Object.prototype.hasOwnProperty.call(fresh, freshKey)) c[freshKey] = fresh[freshKey];
+    }
+    c.id = id;
+    c.entered = entered;
+  }
+
   function checkNewGamePassword() {
     var input = window.prompt(window.I18N.t("new_game_password_prompt"));
     return input === NEW_GAME_PASSWORD;
@@ -11937,6 +12022,17 @@
   function handleNewGame() {
     if (!checkNewGamePassword()) return;
     var hadBoard = state.boardStarted;
+    // 既に盤面があった場合（＝本当に「新しい」遊戲を始める場合）のみ、角色重置の要否を確認する。
+    // まだ何も始まっていない盤面（hadBoard===false）に対して聞いても意味が無いため対象外。
+    if (hadBoard && window.confirm(window.I18N.t("new_game_reset_characters_confirm"))) {
+      rosterCharacters
+        .filter(function (c) {
+          return c.entered;
+        })
+        .forEach(resetCharacterToInitialState);
+      saveRosterCharacters();
+      renderCharacterRoster();
+    }
     resetState();
     renderBoard();
     renderLog();
@@ -11948,6 +12044,12 @@
     renderLogFloatToggleButton();
     renderLogFloatingBubble();
     if (hadBoard) addLog("log_new_game");
+    // resetStateでstate.gmFlow.openingPlayedがfalseへ戻るため、ページ再読込を挟まなくても
+    // 新しい遊戲の開場敘述をここで再生する。
+    if (window.PriTestNightGmFlow) {
+      window.PriTestNightGmFlow.maybeShowOpeningNarration();
+      renderCurrentLocationStatus();
+    }
   }
 
   function buildBoardSlots() {
@@ -12071,6 +12173,7 @@
     // 押す必要をなくす。フロント側の手動ボタン自体は変更・削除しない、別経路として共存する）。
     setActionPhase: setActionPhase,
     addPendingRewardWindow: addPendingRewardWindow,
+    openTurnRewardModal: openTurnRewardModal,
     removePendingRewardWindow: removePendingRewardWindow,
     openBattleDrawer: openBattleDrawer,
     getScenario: function () { return scenario; },
@@ -12081,6 +12184,7 @@
     grantPileFullClearRewardIfNeeded: grantPileFullClearRewardIfNeeded,
     grantCardFullClearRewardIfNeeded: grantCardFullClearRewardIfNeeded,
     renderCardLevel: renderCardLevel,
+    resolveScenarioTrueName: resolveScenarioTrueName,
     eventChipDisplayLabel: eventChipDisplayLabel,
     fieldLevelsForDay: fieldLevelsForDay,
     addAutoMobHpRow: addAutoMobHpRow,
@@ -12198,6 +12302,12 @@
         // claimed/確定状態を反映し忘れると「まだ獲得できるように見える」→二重取得の原因になる
         // （handleTurnHolderToggleにある再描画ガードと同じパターンをここにも適用する）。
         if (!document.getElementById("turn-reward-modal").hidden) renderTurnRewardModal();
+        // Task 8：戦利品自動push起因でstate.activeDraws.turnRewardAutoOpenが立っている間は、
+        // まだこの端末でモーダルを開いていなければ自動で開く（potentialPowerの跨端末復元と
+        // 同じパターン）。主選單から手動で開いた既存の挙動はこのフラグに依存しないため影響なし。
+        if (state.activeDraws.turnRewardAutoOpen && document.getElementById("turn-reward-modal").hidden) {
+          openTurnRewardModal();
+        }
         if (!document.getElementById("breakthrough-modal").hidden) window.PriTestNightFloorBreakthrough.renderBreakthroughCharacters();
         if (!document.getElementById("floor-reward-modal").hidden && window.PriTestNightFloorBreakthrough.getFloorRewardModalFloor()) {
           window.PriTestNightFloorBreakthrough.renderFloorRewardSection(document.getElementById("floor-reward-modal-content"), window.PriTestNightFloorBreakthrough.getFloorRewardModalFloor());
