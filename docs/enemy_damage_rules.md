@@ -341,7 +341,8 @@ hpBoxDamage = floor(totalDamage / hpValue)
 | ガード回数（現在値）のstate管理・新しい回合での回復 | ✅ 実装済み | `state.battle.guardCount`, `setActionPhase`（`phase==="combat"`突入時にクリア） |
 | ガード削り値（▲=0.5/◆=1）の算出・適用 | ✅ 実装済み（通常エネミー・gladius/marisのみ、他の夜の王は未構造化）。2026-08-10 自動化GM戰鬥自動化で**自動計算**に対応：`recordPhaseDamageDealt`が攻撃ごとの▲/◆を`c._phaseGuardReductionPoints`へ自動累積し、戦鬥階段/額外階段の[攻擊]確認時に自動合算・自動預填する（GMはなお手動で上書き可能）。2節の「使用者裁定」参照 | `applyGuardedDamageToEnemy`, `recordPhaseDamageDealt`, `computeRoundGuardReductionTotal`、UI: `#battle-guard-calc-block` |
 | **バグ修正**：一般エネミーのGuard削り値計算が実際には機能していなかった不具合 | ✅ 2026-08-10発見・修正。`enemyGuardValueForCount()`の`r.count === guardCountValue`比較が、通常エネミー（`enemies_data_*.js`、`count`が`C(ja,zh)`オブジェクト）では常に不一致になり、`applyGuardedDamageToEnemy`が常に`null`を返してHPが減らない状態だった。夜の王（`night_boss_rulebook.js`、`count`が素の数値）のgladius/marisだけがこの比較で正しく動いていたため、これまで発見されていなかった。`parseGuardCountValue()`を新設し、両方の形式を数値へ正規化してから比較するよう修正 | `parseGuardCountValue`, `enemyGuardValueForCount` |
-| ガード回数→HP価値のstate参照テーブル（夜の王） | ✅ gladius/marisのみ実装済み（他7体は自由文字列`guard`欄のまま） | `night_boss_rulebook.js`の`guardCount`/`guardValueTable`フィールド、`enemyGuardValueForCount` |
+| ガード回数→HP価値のstate参照テーブル（夜の王） | ✅ 2026-08-11、夜の王10体全員に構造化データ（`hpRowCount`/`hpBoxes`/`guardCount`/`guardValueTable`）を追加（既存の`hp`/`guard`自由文字列から機械的に導出、数値は捏造せず既存テキストをそのまま構造化）。gladius/marisの`guardValueTable`にはPC4人＋第2/3天のガード回数最大値+1補正に対応する理論値行（`( )`付き）も追加した | `night_boss_rulebook.js`の`guardCount`/`guardValueTable`フィールド、`enemyGuardValueForCount` |
+| 夜の王を戦場（`state.battle.selectedEnemyIds`）へ実際に編入・戰鬥機制の自動開始 | ✅ 2026-08-11実装。従来は`[開啟夜王戰鬥]`が既存のエネミー検索/追加UI（`enemies_data_*.js`カタログのみ検索）に委ねていたため、夜の王（`night_boss_rulebook.js`側の別データ）を検索しても見つからず戦場面板へ追加できなかった（ユーザー報告）。第三天到達時（`renderNight3BossImage`の毎描画）に`ensureNight3BossInBattle`が`selectedEnemyIds`へ`"boss|<id>"`キーを冪等に編入し、`renderSelectedEnemies`側もboss keyを解決できるよう対応。`[開啟夜王戰鬥]`（`handleOpenFinalBattleClick`）は開いた瞬間に`actionPhase`を`combat`へ切り替え、通常のフィールド戦闘と同じ回合/フェイズ自動進行（banner・`[結束戰鬥階段]`等）に乗る | `night.js`の`ensureNight3BossInBattle`, `renderSelectedEnemies`、`night_gm_flow.js`の`handleOpenFinalBattleClick` |
 | PCの総合ダメージ→エネミーHP自動適用（優先度1のHP行オーバーフロー含む） | ✅ 実装済み（GMが総合ダメージ＋ガード削り値を手入力→自動計算・適用、優先度2〜3のモブHP/属性異常は対象外） | `applyGuardedDamageToEnemy`, `applyOverflowingEnemyDamage` |
 | 夜の王のHP行の自動初期化 | ✅ gladius/marisのみ実装済み（`hp`欄の自由文字列は解析せず、`hpBoxes`という新規の構造化フィールドを手動で用意し、ENEMY_HP_ROWSの末尾から`hpRowCount`行分を割り当てる「後ろ詰め」規約） | `ensureBossHpRowsInitialized`, `enemyHpRowIndexForKey` |
 | グラディウス「分裂形態」のHP3分割・PC側総合ダメージの1/3換算 | ✅ 実装済み（`state.battle.bossForm==="split"`のとき、`floor(floor(totalDamage/3)/hpValue)`を3個体のHP行へオーバーフローさせず同時に適用） | `applyGuardedDamageToEnemy`（`splitActive`分岐） |
@@ -361,7 +362,13 @@ hpBoxDamage = floor(totalDamage / hpValue)
 瞬間に自動で起こる（合体形態→分裂形態への移行、＝アクション表の「形態変化」条件成立時は
 引き続きGMが`#btn-auto-gm-boss-form-toggle`で手動トグルする運用のまま）。
 
-**このrepoに残っている既知の未対応範囲**：gladius/maris以外の7体の夜の王
-（fulghor/harmonia/gnoster/caligo/libra/edele/stragedes）は、ガード回数・HP行の
-構造化データ（`guardCount`/`guardValueTable`/`hpRowCount`/`hpBoxes`）が未整備のため、
-上記の計算機・自動初期化のいずれも使えず、従来通りGM手動でのHP調整が必要。
+**このrepoに残っている既知の未対応範囲**：2026-08-11に夜の王10体全員のガード回数・
+HP行の構造化データ（`guardCount`/`guardValueTable`/`hpRowCount`/`hpBoxes`）を整備した
+ため、計算機・自動初期化はどの夜の王でも使えるようになった。ただし「そのターン夜の王が
+何を行うか」を自動で決定する`boss_auto_gm_data.js`側の擲骰オーバーレイは、引き続き
+gladius/marisのみの試作段階（他8体は多形態・二段階ロール表など固有ルールが複雑なため
+対象外）——それ以外の夜の王は、規則書パネル（`actionColumns`/`actions`、既に閲覧可能）を
+GMが見て手動でロールし、結果の総合ダメージ／ガード削り値を計算機へ入力する運用のまま。
+また、harmonia/stragedes/namelessの「第一形態→第二形態」自動移行（HP0到達時に全回復して
+第二形態のアクション表へ切り替える）も未実装——GMが規則書を見て手動でHP/ガード回数を
+回復させる必要がある（gladiusの合体/分裂トグルとは別のメカニクスのため、今回は対象外）。

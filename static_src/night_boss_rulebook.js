@@ -29,8 +29,12 @@
       // 上記guard欄（自由文字列、表示専用）を構造化したもの。「4以上」は()付きの理論値
       // （通常エネミーのfamily.guardValueTableのtheoretical行と同じ扱い）のため、実際の
       // 最大ガード回数は3。docs/enemy_damage_rules.md 5節のガード回数/HP価値システムで使用。
+      // count:4の行は「4以上：(80)」の理論値をそのまま採用——PC4人＋第2/3天でガード回数
+      // 最大値が+1される場合（docs/combat_flow_rules.md 10節）に3→4となるため、この行が
+      // 無いとenemyGuardValueForCountが該当行を見つけられずガード計算が不発になる。
       guardCount: 3,
       guardValueTable: [
+        { count: 4, value: 80 },
         { count: 3, value: 80 },
         { count: 2, value: 70 },
         { count: 1, value: 60 },
@@ -91,10 +95,23 @@
       level: 16,
       size: C("L", "L"),
       hp: C("□×14／□×14／□×14", "□×14／□×14／□×14"),
+      hpRowCount: 3,
+      hpBoxes: [14, 14, 14],
       guard: C(
         "ガード回数 4以上：(90)／3：(90)／2：80／1：70／0（体勢崩し）：60",
         "防禦次數 4以上：(90)／3：(90)／2：80／1：70／0（崩勢）：60"
       ),
+      // gladius/marisと同じ規約：( )付き行も理論値としてそのまま構造化（PC4人＋第2/3天の
+      // ガード回数最大値+1補正に対応）。実際の最大ガード回数は「3」「4以上」がともに
+      // ( )付きのため2。
+      guardCount: 2,
+      guardValueTable: [
+        { count: 4, value: 90 },
+        { count: 3, value: 90 },
+        { count: 2, value: 80 },
+        { count: 1, value: 70 },
+        { count: 0, value: 60 },
+      ],
       weakness: C("竜※④、猛毒", "龍※④、劇毒"),
       resistance: C("雷、出血、発狂", "雷、出血、發狂"),
       specials: [
@@ -143,10 +160,21 @@
       level: 16,
       size: C("LL", "LL"),
       hp: C("□×15／□×15／□×15", "□×15／□×15／□×15"),
+      hpRowCount: 3,
+      hpBoxes: [15, 15, 15],
       guard: C(
         "ガード回数 4以上：(90)／3：90／2：80／1：70／0（体勢崩し）：60",
         "防禦次數 4以上：(90)／3：90／2：80／1：70／0（崩勢）：60"
       ),
+      // 「4以上」のみ( )付きの理論値のため、実際の最大ガード回数は3。
+      guardCount: 3,
+      guardValueTable: [
+        { count: 4, value: 90 },
+        { count: 3, value: 90 },
+        { count: 2, value: 80 },
+        { count: 1, value: 70 },
+        { count: 0, value: 60 },
+      ],
       weakness: C("炎、腐敗、出血、凍傷", "火、腐敗、出血、凍傷"),
       resistance: C("猛毒、睡眠、発狂", "劇毒、睡眠、發狂"),
       specials: [
@@ -190,9 +218,11 @@
         "防禦次數 4以上：(80)／3：(80)／2：80／1：60／0（崩勢）：50"
       ),
       // 「4以上」「3」がともに()付きの理論値のため、実際の最大ガード回数は2。
-      // docs/enemy_damage_rules.md 5節参照。
+      // docs/enemy_damage_rules.md 5節参照。count:3の行は「3：(80)」の理論値——PC4人＋
+      // 第2/3天のガード回数最大値+1補正（2→3）に対応するため必要（gladius同様）。
       guardCount: 2,
       guardValueTable: [
+        { count: 3, value: 80 },
         { count: 2, value: 80 },
         { count: 1, value: 60 },
         { count: 0, value: 50 },
@@ -254,10 +284,21 @@
       level: 16,
       size: C("L", "L"),
       hp: C("□×18／□×18／□×18", "□×18／□×18／□×18"),
+      hpRowCount: 3,
+      hpBoxes: [18, 18, 18],
       guard: C(
         "ガード回数 4以上：(80)／3：(80)／2：80／1：60／0（体勢崩し）：50",
         "防禦次數 4以上：(80)／3：(80)／2：80／1：60／0（崩勢）：50"
       ),
+      // 「3」「4以上」がともに( )付きのため、実際の最大ガード回数は2。
+      guardCount: 2,
+      guardValueTable: [
+        { count: 4, value: 80 },
+        { count: 3, value: 80 },
+        { count: 2, value: 80 },
+        { count: 1, value: 60 },
+        { count: 0, value: 50 },
+      ],
       weakness: C("発狂", "發狂"),
       resistance: C("睡眠", "睡眠"),
       specials: [
@@ -301,10 +342,21 @@
       level: 16,
       size: C("L", "L"),
       hp: C("□×11／□×11／□×11", "□×11／□×11／□×11"),
+      hpRowCount: 3,
+      hpBoxes: [11, 11, 11],
       guard: C(
         "ガード回数 4以上：(90)／3：90／2：80／1：70／0（体勢崩し）：60",
         "防禦次數 4以上：(90)／3：90／2：80／1：70／0（崩勢）：60"
       ),
+      // 「4以上」のみ( )付きの理論値のため、実際の最大ガード回数は3。
+      guardCount: 3,
+      guardValueTable: [
+        { count: 4, value: 90 },
+        { count: 3, value: 90 },
+        { count: 2, value: 80 },
+        { count: 1, value: 70 },
+        { count: 0, value: 60 },
+      ],
       weakness: C("雷", "雷"),
       resistance: C("発狂", "發狂"),
       specials: [
@@ -348,10 +400,21 @@
       level: 16,
       size: C("LL", "LL"),
       hp: C("□×13／□×13／□×13", "□×13／□×13／□×13"),
+      hpRowCount: 3,
+      hpBoxes: [13, 13, 13],
       guard: C(
         "ガード回数 4以上：(90)／3：(90)／2：90／1：80／0（体勢崩し）：70",
         "防禦次數 4以上：(90)／3：(90)／2：90／1：80／0（崩勢）：70"
       ),
+      // 「3」「4以上」がともに( )付きのため、実際の最大ガード回数は2。
+      guardCount: 2,
+      guardValueTable: [
+        { count: 4, value: 90 },
+        { count: 3, value: 90 },
+        { count: 2, value: 90 },
+        { count: 1, value: 80 },
+        { count: 0, value: 70 },
+      ],
       weakness: C("炎、竜※③", "火、龍※③"),
       resistance: C("凍傷、睡眠、発狂", "凍傷、睡眠、發狂"),
       specials: [
@@ -392,10 +455,26 @@
       level: 16,
       size: C("M", "M"),
       hp: C("※① □×14／□×14", "※① □×14／□×14"),
+      hpRowCount: 2,
+      hpBoxes: [14, 14],
       guard: C(
         "ガード回数 4以上：(80)／3：80／2：70／1：60／0（体勢崩し）：50",
         "防禦次數 4以上：(80)／3：80／2：70／1：60／0（崩勢）：50"
       ),
+      // 「4以上」のみ( )付きの理論値のため、実際の最大ガード回数は3。
+      // ※①「第一形態」「第二形態」の2形態を持つボス（specials「形態変化」参照）で、
+      // HP行は2行（3行ではない）。形態遷移そのもの（HP0到達→次アクションフェイズ開始時に
+      // 全回復して第二形態へ）はこのrepoではまだ自動化していない——GMが規則書を見て
+      // 手動でHP/ガード回数を回復させる運用（gladiusの合体/分裂トグルとは異なる別の
+      // メカニクスのため、今回はガード/HP価値の構造化データ整備のみに留める）。
+      guardCount: 3,
+      guardValueTable: [
+        { count: 4, value: 80 },
+        { count: 3, value: 80 },
+        { count: 2, value: 70 },
+        { count: 1, value: 60 },
+        { count: 0, value: 50 },
+      ],
       weakness: C("睡眠", "睡眠"),
       resistance: C("魔、聖、発狂", "魔、聖、發狂"),
       specials: [
@@ -437,10 +516,22 @@
       level: 16,
       size: C("LL", "LL"),
       hp: C("※① □×17／□×17", "※① □×17／□×17"),
+      hpRowCount: 2,
+      hpBoxes: [17, 17],
       guard: C(
         "ガード回数 4以上：(80)／3：80／2：70／1：60／0（体勢崩し）：50",
         "防禦次數 4以上：(80)／3：80／2：70／1：60／0（崩勢）：50"
       ),
+      // 「4以上」のみ( )付きの理論値のため、実際の最大ガード回数は3。※①「第一形態」
+      // 「第二形態」の2形態を持つボス（harmoniaと同型。形態遷移の自動化は対象外）。
+      guardCount: 3,
+      guardValueTable: [
+        { count: 4, value: 80 },
+        { count: 3, value: 80 },
+        { count: 2, value: 70 },
+        { count: 1, value: 60 },
+        { count: 0, value: 50 },
+      ],
       weakness: C("聖", "聖"),
       resistance: C("魔、猛毒、腐敗、発狂", "魔、劇毒、腐敗、發狂"),
       specials: [
@@ -491,10 +582,22 @@
       level: 16,
       size: C("M", "M"),
       hp: C("※① □×14／□×14", "※① □×14／□×14"),
+      hpRowCount: 2,
+      hpBoxes: [14, 14],
       guard: C(
         "ガード回数 4以上：(80)／3：(80)／2：80／1：70／0（体勢崩し）：60",
         "防禦次數 4以上：(80)／3：(80)／2：80／1：70／0（崩勢）：60"
       ),
+      // 「3」「4以上」がともに( )付きのため、実際の最大ガード回数は2。※①「第一形態」
+      // 「第二形態」の2形態を持つボス（harmoniaと同型。形態遷移の自動化は対象外）。
+      guardCount: 2,
+      guardValueTable: [
+        { count: 4, value: 80 },
+        { count: 3, value: 80 },
+        { count: 2, value: 80 },
+        { count: 1, value: 70 },
+        { count: 0, value: 60 },
+      ],
       weakness: C("聖", "聖"),
       resistance: C("猛毒、出血、凍傷", "劇毒、出血、凍傷"),
       specials: [

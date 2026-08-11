@@ -3277,13 +3277,22 @@
     Core.saveState();
   }
 
-  // [開啟夜王戰鬥]：既存の戦闘ドロワーを開くだけ——エネミー追加自体は既存の検索/追加UIに委ねる
-  // （夜の王のHP/レベルは構造化データで既に正しいが、編隊への追加処理自体は複製しない）。
+  // [開啟夜王戰鬥]：戦闘ドロワーを開く。夜の王自体はensureNight3BossInBattle（night.js、
+  // renderNight3BossImageの毎描画で呼ばれる）が既に戦場（selectedEnemyIds）へ実在させて
+  // いるため、ここでの編隊追加処理は不要——ただし「行動階段」自体は通常のフィールド戦闘の
+  // ように［雜兵戰鬥／王戰］ボタンを経由しない（第三天にはフィールド探索自体が存在しない）
+  // ため、誰も切り替えないまま"normal"に留まってしまう（ユーザー報告：「無法使用戰鬥機制
+  // 跟夜王戰鬥」の一因）。ここでGMに代わって行動階段（アクションフェイズ）へ切り替え、
+  // 既存の戰鬥機制（回合banner・[結束戰鬥階段]等）をfloor戦闘と同じ形で使えるようにする。
   function handleOpenFinalBattleClick() {
     clearGmFlowGate();
     var Core = window.PriTestNightCore;
-    Core.saveState();
-    Core.renderCurrentLocationStatus();
+    if (Core.state.actionPhase === "normal" && Core.setActionPhase) {
+      Core.setActionPhase("combat");
+    } else {
+      Core.saveState();
+      Core.renderCurrentLocationStatus();
+    }
     Core.openBattleDrawer();
   }
 

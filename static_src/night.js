@@ -1590,6 +1590,25 @@
     handleEnemyHpChanged();
   }
 
+  // 第三天：夜の王を実際に「戦場（state.battle.selectedEnemyIds）」へ編入する。従来は
+  // [開啟夜王戰鬥]が既存のエネミー検索/追加UIへ委ねていたが、夜の王はEnemies.search()の
+  // 対象（enemies_data_*.js）ではなくnight_boss_rulebook.js側のBOSSESにしか存在しないため、
+  // 検索しても見つからず戦場面板へ追加できなかった（ユーザー報告：「戰鬥面板也無法新增他」）。
+  // resolveSelectedEnemyOptionsが対象選択欄で常に末尾へ追加する扱いと同じ理由で、ここでも
+  // 「戦場に実在するものとして」selectedEnemyIdsへ直接編入する（冪等——既に編入済みなら
+  // 何もしない）。第三天到達時（renderNight3BossImageの毎描画）に呼ぶことで、GMが
+  // 何も操作しなくても戦場面板・HP行・戰鬥機制（アクション/防禦フェイズの自動進行）の
+  // 対象に含まれるようにする。
+  function ensureNight3BossInBattle() {
+    if (!game || !game.night3BossId || state.dayNumber < 3) return;
+    var key = "boss|" + game.night3BossId;
+    if (state.battle.selectedEnemyIds.indexOf(key) === -1) {
+      state.battle.selectedEnemyIds.push(key);
+      saveState();
+    }
+    ensureBossHpRowsInitialized(key);
+  }
+
   function enemyDisplayNameForKey(enemyKey) {
     var Enemies = window.PriTestEnemies;
     if (!Enemies) return enemyKey;
@@ -2660,6 +2679,7 @@
       openRulebookToEntry("nightking", "boss-entry-" + boss.id);
     };
     if (hpBlock) hpBlock.hidden = false;
+    ensureNight3BossInBattle();
     if (typeof renderBattlePositionAreas === "function") renderBattlePositionAreas();
   }
 
@@ -8076,7 +8096,14 @@
       }
       handleMobRowDepleted();
       if (enemyHasRow(rowIdx)) {
-        var depletedEnemyKey = (state.battle.selectedEnemyIds || [])[rowIdx];
+        // 夜の王はHP行を末尾から割り当てる後ろ詰め規約（enemyHpRowIndexForKey）のため、
+        // selectedEnemyIds内の並び順（先頭から詰める通常エネミー用）とは対応しない。
+        // 第三天で夜の王のHP行なら先にそちらを優先して解決する。
+        var night3BossKey = game && game.night3BossId && state.dayNumber >= 3 ? "boss|" + game.night3BossId : null;
+        var depletedEnemyKey =
+          night3BossKey && enemyHpRowIndexForKey(night3BossKey) !== -1 && rowIdx >= enemyHpRowIndexForKey(night3BossKey)
+            ? night3BossKey
+            : (state.battle.selectedEnemyIds || [])[rowIdx];
         var depletedEnemyName = depletedEnemyKey
           ? enemyDisplayNameForKey(depletedEnemyKey)
           : window.I18N.t("battle_hp_row_label", { row: rowIdx + 1 });
@@ -8643,7 +8670,14 @@
     // 夜の王（試作）：state.battle.selectedEnemyIdsとは別枠で、このゲームに設定された
     // night3BossId（管理員が選んだ夜の王）を、構造化済みであれば常に選択肢へ追加する
     // （夜の王は通常エネミーの「編隊に追加」フローを経由しないため）。
-    if (game && game.night3BossId && AutoGm.isStructured("boss|" + game.night3BossId)) {
+    // 夜の王は現在ensureNight3BossInBattle経由でselectedEnemyIdsへも実在するが、
+    // 念のため二重追加を防ぐ（indexOf済みならconcatしない）。
+    if (
+      game &&
+      game.night3BossId &&
+      AutoGm.isStructured("boss|" + game.night3BossId) &&
+      structuredIds.indexOf("boss|" + game.night3BossId) === -1
+    ) {
       structuredIds = structuredIds.concat(["boss|" + game.night3BossId]);
     }
     if (!structuredIds.length) {
@@ -8973,7 +9007,14 @@
     var structuredIds = ((state.battle && state.battle.selectedEnemyIds) || []).filter(function (key) {
       return AutoGm.isStructured(key);
     });
-    if (game && game.night3BossId && AutoGm.isStructured("boss|" + game.night3BossId)) {
+    // 夜の王は現在ensureNight3BossInBattle経由でselectedEnemyIdsへも実在するが、
+    // 念のため二重追加を防ぐ（indexOf済みならconcatしない）。
+    if (
+      game &&
+      game.night3BossId &&
+      AutoGm.isStructured("boss|" + game.night3BossId) &&
+      structuredIds.indexOf("boss|" + game.night3BossId) === -1
+    ) {
       structuredIds = structuredIds.concat(["boss|" + game.night3BossId]);
     }
     if (!structuredIds.length) return false;
@@ -11261,6 +11302,13 @@
     var ids = (state.battle && state.battle.selectedEnemyIds) || [];
     var resolved = ids
       .map(function (key) {
+        // 夜の王（"boss|<id>"）は通常エネミーとは別データ源（night_boss_rulebook.js）の
+        // ため、Enemies.get()では解決できない——ここで解決できないとfilter(Boolean)で
+        // 黙って消え、戦場面板から夜の王が丸ごと欠落する（ユーザー報告の原因）。
+        if (isBossAttackKey(key)) {
+          var bossInfo = window.PriTestBossRulebook ? window.PriTestBossRulebook.get(key.slice(5)) : null;
+          return bossInfo ? { key: key, boss: bossInfo } : null;
+        }
         var parts = key.split("|");
         var info = Enemies.get(parts[0], parts[1]);
         var level = Math.max(1, Number(parts[2]) || 1);
@@ -11286,6 +11334,35 @@
         var itemRowIdx = enemyHpRowIndexForKey(item.key);
         chip.className = "selected-enemy-chip" + (isEnemyFullyDepletedAtRow(itemRowIdx) ? " enemy-row-depleted" : "");
         chip.style.cursor = "pointer";
+        // 夜の王：戦場面板には自動編入されるが（ensureNight3BossInBattle）、通常エネミーと
+        // 違いGMが手動で外せる存在ではないため、専用の簡略表示のみ行い×ボタンは出さない。
+        if (item.boss) {
+          chip.addEventListener("click", function () {
+            openRulebookToEntry("nightking", "boss-entry-" + item.boss.id);
+          });
+          var bossIcon = document.createElement("img");
+          bossIcon.className = "selected-enemy-icon";
+          var bossImg = window.PriTestNightBosses ? window.PriTestNightBosses.get(item.boss.id) : null;
+          bossIcon.src = (bossImg && window.PriTestNightBosses.imagePath(bossImg)) || "../static/images/icons/strong-enemy.png";
+          bossIcon.alt = "";
+          chip.appendChild(bossIcon);
+          var bossInfoEl = document.createElement("div");
+          bossInfoEl.className = "selected-enemy-info";
+          var bossName = document.createElement("span");
+          bossName.className = "selected-enemy-name";
+          bossName.textContent = window.PriTestFields.localizedText(item.boss.name);
+          bossInfoEl.appendChild(bossName);
+          var bossStatLine = document.createElement("span");
+          bossStatLine.className = "selected-enemy-stats";
+          bossStatLine.textContent = [
+            window.I18N.t("enemy_level_label") + window.I18N.t("colon_separator") + item.boss.level,
+            window.PriTestFields.localizedText(item.boss.size),
+          ].join("　");
+          bossInfoEl.appendChild(bossStatLine);
+          chip.appendChild(bossInfoEl);
+          container.appendChild(chip);
+          return;
+        }
         chip.addEventListener("click", function () {
           var parts = item.key.split("|");
           openRulebookToEntry("enemy", "enemy-entry-" + parts[0] + "-" + parts[1]);
