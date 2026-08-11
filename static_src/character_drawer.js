@@ -762,6 +762,26 @@
     return found;
   }
 
+  // findLearnedActionRelicByNameと同じ探索範囲（kind:"Action"）だが、countLearnedRelicEffectsByName
+  // と同じく該当数を返す。「蓄力攻擊」「致命一擊」等、同名のAction効果を複数回習得できる
+  // relicEffectGroupsで「習得此技能2個以上時」の追加ボーナス判定に使う。
+  function countLearnedActionRelicsByName(c, names) {
+    var type = c && c.typeId ? CharacterTypes.get(c.typeId) : null;
+    if (!type) return 0;
+    var learned = c.learnedRelicEffects || [];
+    var count = 0;
+    (type.relicEffectGroups || []).forEach(function (g, gi) {
+      g.effects.forEach(function (e, ei) {
+        if (learned.indexOf(relicEffectKey(type.id, gi, ei)) === -1) return;
+        if (e.kind !== "Action") return;
+        var nameZh = e.name && e.name.zh;
+        var nameJa = e.name && e.name.ja;
+        if (names.indexOf(nameZh) !== -1 || names.indexOf(nameJa) !== -1) count += 1;
+      });
+    });
+    return count;
+  }
+
   // R2 遺物効果「2Hit攻擊的達人（武器種類）」：括弧内の武器カテゴリ名が現在の武器カテゴリと
   // 一致する場合のみ、本文中の数値（「變更為「N」」／「「N」に変更」）を2Hitコストの
   // 上書き値として返す。命名が10タイプ分ばらばらのため、findLearnedRelicEffectByNameの
@@ -2875,6 +2895,10 @@
     "屬性達成的歡喜": { field: "relicJoyElementChoice", options: COMMON_SKILL_ELEMENT_OPTIONS },
     "属性達成の歓喜": { field: "relicJoyElementChoice", options: COMMON_SKILL_ELEMENT_OPTIONS },
     "異常狀態達成的歡喜": { field: "relicJoyAilmentChoice", options: COMMON_SKILL_STATUS_OPTIONS },
+    // 鐵之眼（暗影）版の同效果は、zh名稱の字序が「異常狀態」→「狀態異常」で逆になっている
+    // （ja名稱「状態異常達成の歓喜」は両版共通）。relicChoiceConfigForEffectはzhを優先して
+    // 検索するため、この別名も同じconfigを指すよう追加登録する（データ側の表記ゆれを吸収）。
+    "狀態異常達成的歡喜": { field: "relicJoyAilmentChoice", options: COMMON_SKILL_STATUS_OPTIONS },
     "状態異常達成の歓喜": { field: "relicJoyAilmentChoice", options: COMMON_SKILL_STATUS_OPTIONS },
   };
 
@@ -3794,6 +3818,13 @@
       // 定型句のため、条件を満たす場合だけこの関数がtrueを返せば既存のextractHitBonusループが
       // そのまま値を拾ってくれる。
       return c._greaseWeaponId === weaponId;
+    }
+    if (name === "祈禱輔助強化火力提升" || name === "祈祷補助強化火力アップ") {
+      // 送葬人（黎明）：「自身使用『祈禱』施加持續到階段結束的效果時」發動、持續至戰鬥結束為止の
+      // 「火力提升」状態でのみ1Hit:+5/2Hit:+10が有効（night.js側でc._prayerFirepowerActiveを
+      // 設定・戰鬥終了時にリセット）。この名前を明記しない限りデフォルトのtrue＝常時適用に
+      // なってしまい、条件を満たす前から無条件でボーナスが乗るバグがあったため追加。
+      return !!c._prayerFirepowerActive;
     }
     return true;
   }
@@ -6402,6 +6433,7 @@
     findLearnedActionRelicByName: findLearnedActionRelicByName,
     findTwoHitMasteryOverride: findTwoHitMasteryOverride,
     countLearnedRelicEffectsByName: countLearnedRelicEffectsByName,
+    countLearnedActionRelicsByName: countLearnedActionRelicsByName,
     countHealSquares: countHealSquares,
     relicEffectForKey: relicEffectForKey,
     getSkillUsesBonus: getSkillUsesBonus,
