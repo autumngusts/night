@@ -330,13 +330,29 @@
                   true
                 ),
               ],
+              // 「物資漁り」は先を急いでも良い任意選択のため、tieredChoiceへ統一。
               reward: [
                 { kind: "potentialPower", perPerson: true, value: 2, note: C("（ボス戦闘撃破）", "（王戰擊破）") },
                 { kind: "consumable", value: 1, note: C("（ボス戦闘撃破）", "（王戰擊破）") },
-                { kind: "weaponStar", value: 2, note: C("（物資漁り・成否問わず）", "（搜刮物資・無論成敗）") },
-                { kind: "consumable", value: 2, note: C("（物資漁り・成否問わず）", "（搜刮物資・無論成敗）") },
-                { kind: "note", note: C("（物資漁り・行為判定失敗時は「タイムロス：1」も手動記録）", "（搜刮物資・行為判定失敗時，也手動記錄「時間損耗：1」）") },
                 { kind: "rune", value: 4, note: C("（撃破ルーン）", "（擊破盧恩）") },
+                {
+                  kind: "tieredChoice",
+                  tierLabel: C("実際に進んだルート", "實際採取的路線"),
+                  tiers: [
+                    {
+                      label: C("物資漁り", "搜刮物資"),
+                      rewards: [
+                        { kind: "weaponStar", value: 2 },
+                        { kind: "consumable", value: 2 },
+                        {
+                          kind: "note",
+                          note: C("（行為判定失敗時は「タイムロス：1」も手動記録）", "（行為判定失敗時，也手動記錄「時間損耗：1」）"),
+                        },
+                      ],
+                    },
+                    { label: C("先を急ぐ（フロア踏破）", "趕路（樓層踏破）"), rewards: [] },
+                  ],
+                },
               ],
             },
             {
@@ -385,17 +401,31 @@
                   true
                 ),
               ],
+              // 頭上の壺は全員が個別判定する固定イベントなので据え置き。「物資漁り」のみ
+              // 先を急いでも良い任意選択のため、tieredChoiceへ統一。
               reward: [
                 { kind: "consumable", value: 1, note: C("（頭上の壺・全員成功時）", "（頭頂壺甕・全員成功時）") },
                 { kind: "hpDamage", value: 2, note: C("（頭上の壺・判定失敗1回ごと）", "（頭頂壺甕・每失敗1次）") },
-                { kind: "weaponStar", value: 2, note: C("（物資漁り・成否問わず）", "（搜刮物資・無論成敗）") },
-                { kind: "consumable", value: 2, note: C("（物資漁り・成否問わず）", "（搜刮物資・無論成敗）") },
                 {
-                  kind: "note",
-                  note: C(
-                    "（物資漁り・行為判定失敗時は「HP損害：□×（達成値11以下の人数の2倍）」を手動記録）",
-                    "（搜刮物資・行為判定失敗時，手動記錄「HP損害：□×（達成值11以下人數的2倍）」）"
-                  ),
+                  kind: "tieredChoice",
+                  tierLabel: C("実際に進んだルート", "實際採取的路線"),
+                  tiers: [
+                    {
+                      label: C("物資漁り", "搜刮物資"),
+                      rewards: [
+                        { kind: "weaponStar", value: 2 },
+                        { kind: "consumable", value: 2 },
+                        {
+                          kind: "note",
+                          note: C(
+                            "（行為判定失敗時は「HP損害：□×（達成値11以下の人数の2倍）」を手動記録）",
+                            "（行為判定失敗時，手動記錄「HP損害：□×（達成值11以下人數的2倍）」）"
+                          ),
+                        },
+                      ],
+                    },
+                    { label: C("先を急ぐ（フロア踏破）", "趕路（樓層踏破）"), rewards: [] },
+                  ],
                 },
               ],
             },
@@ -438,19 +468,32 @@
                   true
                 ),
               ],
+              // 「物資漁り」は先を急いでも良い任意選択のため、tieredChoiceへ統一。
               reward: [
                 { kind: "potentialPower", perPerson: true, value: 2, note: C("（ボス戦闘撃破）", "（王戰擊破）") },
                 { kind: "consumable", value: 1, note: C("（ボス戦闘撃破）", "（王戰擊破）") },
-                { kind: "weaponStar", value: 2, note: C("（物資漁り・成否問わず）", "（搜刮物資・無論成敗）") },
-                { kind: "consumable", value: 2, note: C("（物資漁り・成否問わず）", "（搜刮物資・無論成敗）") },
-                {
-                  kind: "note",
-                  note: C(
-                    "（物資漁り・行為判定失敗時はHP/FP損害「■×（達成値11以下の人数の2倍）」を手動記録・分配）",
-                    "（搜刮物資・行為判定失敗時，手動記錄並分配HP／FP損害「■×（達成值11以下人數的2倍）」）"
-                  ),
-                },
                 { kind: "rune", value: 3, note: C("（撃破ルーン）", "（擊破盧恩）") },
+                {
+                  kind: "tieredChoice",
+                  tierLabel: C("実際に進んだルート", "實際採取的路線"),
+                  tiers: [
+                    {
+                      label: C("物資漁り", "搜刮物資"),
+                      rewards: [
+                        { kind: "weaponStar", value: 2 },
+                        { kind: "consumable", value: 2 },
+                        {
+                          kind: "note",
+                          note: C(
+                            "（行為判定失敗時はHP/FP損害「■×（達成値11以下の人数の2倍）」を手動記録・分配）",
+                            "（行為判定失敗時，手動記錄並分配HP／FP損害「■×（達成值11以下人數的2倍）」）"
+                          ),
+                        },
+                      ],
+                    },
+                    { label: C("先を急ぐ（フロア踏破）", "趕路（樓層踏破）"), rewards: [] },
+                  ],
+                },
               ],
             },
             {
@@ -487,17 +530,25 @@
                   true
                 ),
               ],
+              // 撃破ルーン+2は「行為判定に失敗している場合」のみ加算されるため、tieredChoiceへ分離。
               reward: [
                 { kind: "potentialPower", perPerson: true, value: 2, note: C("（ボス戦闘撃破）", "（王戰擊破）") },
                 { kind: "consumable", value: 1, note: C("（ボス戦闘撃破）", "（王戰擊破）") },
+                { kind: "rune", value: 3, note: C("（撃破ルーン）", "（擊破盧恩）") },
                 {
                   kind: "smithingStone",
                   value: 1,
                   perPerson: true,
                   note: C("（商人・PC1人につき最大1回、ルーン1消費で鍛石1個）", "（商人・每位PC最多1次，消費盧恩1即得鍛石1個）"),
                 },
-                { kind: "rune", value: 3, note: C("（撃破ルーン）", "（擊破盧恩）") },
-                { kind: "rune", value: 2, note: C("（判定に失敗している場合・モブ2追加分）", "（判定失敗時・追加雜兵2分）") },
+                {
+                  kind: "tieredChoice",
+                  tierLabel: C("行為判定の結果", "行為判定的結果"),
+                  tiers: [
+                    { label: C("成功", "成功"), rewards: [] },
+                    { label: C("失敗（モブ2追加）", "失敗（追加雜兵2）"), rewards: [{ kind: "rune", value: 2 }] },
+                  ],
+                },
               ],
             },
             {
@@ -534,17 +585,25 @@
                   true
                 ),
               ],
+              // 撃破ルーン+2は「行為判定に失敗している場合」のみ加算されるため、tieredChoiceへ分離。
               reward: [
                 { kind: "potentialPower", perPerson: true, value: 2, note: C("（ボス戦闘撃破）", "（王戰擊破）") },
                 { kind: "consumable", value: 1, note: C("（ボス戦闘撃破）", "（王戰擊破）") },
+                { kind: "rune", value: 3, note: C("（撃破ルーン）", "（擊破盧恩）") },
                 {
                   kind: "smithingStone",
                   value: 1,
                   perPerson: true,
                   note: C("（商人・PC1人につき最大1回、ルーン1消費で鍛石1個）", "（商人・每位PC最多1次，消費盧恩1即得鍛石1個）"),
                 },
-                { kind: "rune", value: 3, note: C("（撃破ルーン）", "（擊破盧恩）") },
-                { kind: "rune", value: 2, note: C("（判定に失敗している場合・モブ2追加分）", "（判定失敗時・追加雜兵2分）") },
+                {
+                  kind: "tieredChoice",
+                  tierLabel: C("行為判定の結果", "行為判定的結果"),
+                  tiers: [
+                    { label: C("成功", "成功"), rewards: [] },
+                    { label: C("失敗（モブ2追加）", "失敗（追加雜兵2）"), rewards: [{ kind: "rune", value: 2 }] },
+                  ],
+                },
               ],
             },
             {
@@ -581,17 +640,25 @@
                   true
                 ),
               ],
+              // 撃破ルーン+1は「行為判定に失敗している場合」のみ加算されるため、tieredChoiceへ分離。
               reward: [
                 { kind: "potentialPower", perPerson: true, value: 2, note: C("（ボス戦闘撃破）", "（王戰擊破）") },
                 { kind: "consumable", value: 1, note: C("（ボス戦闘撃破）", "（王戰擊破）") },
+                { kind: "rune", value: 3, note: C("（撃破ルーン）", "（擊破盧恩）") },
                 {
                   kind: "smithingStone",
                   value: 1,
                   perPerson: true,
                   note: C("（商人・PC1人につき最大1回、ルーン1消費で鍛石1個）", "（商人・每位PC最多1次，消費盧恩1即得鍛石1個）"),
                 },
-                { kind: "rune", value: 3, note: C("（撃破ルーン）", "（擊破盧恩）") },
-                { kind: "rune", value: 1, note: C("（判定に失敗している場合・モブ1追加分）", "（判定失敗時・追加雜兵1分）") },
+                {
+                  kind: "tieredChoice",
+                  tierLabel: C("行為判定の結果", "行為判定的結果"),
+                  tiers: [
+                    { label: C("成功", "成功"), rewards: [] },
+                    { label: C("失敗（モブ1追加）", "失敗（追加雜兵1）"), rewards: [{ kind: "rune", value: 1 }] },
+                  ],
+                },
               ],
             },
             {
@@ -767,13 +834,24 @@
                   true
                 ),
               ],
+              // 「さらに奥へ」は切り上げても良い任意選択のため、その報酬のみtieredChoiceへ分離。
               reward: [
                 { kind: "chaliceBonus", value: 1, note: C("（水辺・行為判定成功時）", "（水邊・行為判定成功時）") },
                 { kind: "hpDamage", value: 2, note: C("（水辺・行為判定失敗時。ランダムPC1人）", "（水邊・行為判定失敗時。隨機1名PC）") },
                 { kind: "consumable", value: 2, note: C("（水辺・行為判定失敗時）", "（水邊・行為判定失敗時）") },
                 { kind: "weaponStar", value: 1, note: C("（ザコ戦闘撃破）", "（雜兵戰鬥擊破）") },
                 { kind: "weaponStar", value: 1, categoryId: "staff", note: C("（ザコ戦闘撃破）", "（雜兵戰鬥擊破）") },
-                { kind: "potentialPower", perPerson: true, value: 3, note: C("（さらに奥へ・ボス戦闘撃破）", "（更深處・王戰擊破）") },
+                {
+                  kind: "tieredChoice",
+                  tierLabel: C("実際に進んだルート", "實際採取的路線"),
+                  tiers: [
+                    {
+                      label: C("さらに奥へ（ボス戦闘撃破）", "更深處（王戰擊破）"),
+                      rewards: [{ kind: "potentialPower", perPerson: true, value: 3 }],
+                    },
+                    { label: C("ここで切り上げる（フロア踏破）", "在此結束（樓層踏破）"), rewards: [] },
+                  ],
+                },
               ],
             },
             {
@@ -895,19 +973,44 @@
                 ),
                 L(2, null, ["撃破できたら、PCはそれぞれ「潜在する力：★★★」を獲得し、チェストから「武器：★★」を1つと「消耗品」を1つ獲得（フロア踏破）。", "擊破後，PC各自獲得「潛力：★★★」，並從寶箱獲得「武器：★★」1個與「消耗品」1個（樓層踏破）。"], true),
               ],
+              // 「急ぎ足で駆け抜ける」／「慎重に進む」は相互排他な選択のため、tieredChoiceへ統一。
+              // 屋上のボス戦闘はどちらのルートでも必ず到達するため据え置き。
               reward: [
-                { kind: "hpDamage", value: 1, note: C("（急ぎ足で駆け抜ける・成功時。ランダムPC1人）", "（快步衝過去・成功時。隨機1名PC）") },
                 {
-                  kind: "note",
-                  note: C(
-                    "（急ぎ足で駆け抜ける・失敗時は「損害：■×（PC人数の3倍）」を手動記録・分配）",
-                    "（快步衝過去・失敗時，手動記錄並分配「損害：■×（PC人數的3倍）」）"
-                  ),
+                  kind: "tieredChoice",
+                  tierLabel: C("実際に進んだルート", "實際採取的路線"),
+                  tiers: [
+                    {
+                      label: C("急ぎ足で駆け抜ける（成功）", "快步衝過去（成功）"),
+                      rewards: [{ kind: "hpDamage", value: 1, note: C("（ランダムPC1人）", "（隨機1名PC）") }],
+                    },
+                    {
+                      label: C("急ぎ足で駆け抜ける（失敗）", "快步衝過去（失敗）"),
+                      rewards: [
+                        {
+                          kind: "note",
+                          note: C(
+                            "（「損害：■×（PC人数の3倍）」を手動記録・分配）",
+                            "（手動記錄並分配「損害：■×（PC人數的3倍）」）"
+                          ),
+                        },
+                      ],
+                    },
+                    {
+                      label: C("慎重に進む", "謹慎前進"),
+                      rewards: [
+                        { kind: "rune", value: 2 },
+                        { kind: "weaponStar", value: 2 },
+                        { kind: "consumable", value: 2 },
+                        {
+                          kind: "talisman",
+                          value: 1,
+                          note: C("（「タイムロス：1」も手動記録）", "（「時間損耗：1」也需手動記錄）"),
+                        },
+                      ],
+                    },
+                  ],
                 },
-                { kind: "rune", value: 2, note: C("（慎重に進む）", "（謹慎前進）") },
-                { kind: "weaponStar", value: 2, note: C("（慎重に進む）", "（謹慎前進）") },
-                { kind: "consumable", value: 2, note: C("（慎重に進む）", "（謹慎前進）") },
-                { kind: "talisman", value: 1, note: C("（慎重に進む。「タイムロス：1」も手動記録）", "（謹慎前進。「時間損耗：1」也需手動記錄）") },
                 { kind: "potentialPower", perPerson: true, value: 3, note: C("（屋上・ボス戦闘撃破）", "（屋頂・王戰擊破）") },
                 { kind: "weaponStar", value: 2, note: C("（屋上・ボス戦闘撃破）", "（屋頂・王戰擊破）") },
                 { kind: "consumable", value: 1, note: C("（屋上・ボス戦闘撃破）", "（屋頂・王戰擊破）") },
@@ -942,9 +1045,22 @@
                   true
                 ),
               ],
+              // ボス戦闘は先を急いでも良い任意選択のため、tieredChoiceへ統一。
               reward: [
-                { kind: "potentialPower", perPerson: true, value: 2, note: C("（ボス戦闘撃破）", "（王戰擊破）") },
-                { kind: "smithingStone", value: 1, perParty: true, note: C("（ボス戦闘撃破）", "（王戰擊破）") },
+                {
+                  kind: "tieredChoice",
+                  tierLabel: C("実際に進んだルート", "實際採取的路線"),
+                  tiers: [
+                    {
+                      label: C("ボス戦闘（撃破）", "王戰（擊破）"),
+                      rewards: [
+                        { kind: "potentialPower", perPerson: true, value: 2 },
+                        { kind: "smithingStone", value: 1, perParty: true },
+                      ],
+                    },
+                    { label: C("先を急ぐ（フロア踏破）", "趕路（樓層踏破）"), rewards: [] },
+                  ],
+                },
               ],
             },
           ],
@@ -1094,26 +1210,75 @@
                 L(1, null, ["「忌み子たち（216頁）／Lv.6+L補」＋モブ1", "「忌子們（216頁）／Lv.6+L補」＋雜兵1"], true),
                 L(1, null, ["撃破できたら、PCはそれぞれ「潜在する力：★★（武器は「腐敗／－5 (154頁)」を追加）」を獲得。", "擊破後，PC各自獲得「潛力：★★（武器附加「腐敗／-5（154頁）」）」。"], true),
               ],
+              // 3回の判定はそれぞれ独立して成否が確定するため、判定ごとに個別のtieredChoiceへ分離。
               reward: [
-                { kind: "rune", value: 1, note: C("（成功第1回目）", "（成功第1次）") },
-                { kind: "rune", value: 1, note: C("（成功第2回目）", "（成功第2次）") },
-                { kind: "consumable", value: 2, note: C("（成功第2回目）", "（成功第2次）") },
-                { kind: "rune", value: 1, note: C("（成功第3回目）", "（成功第3次）") },
-                { kind: "talisman", value: 2, note: C("（成功第3回目）", "（成功第3次）") },
-                { kind: "consumable", value: 2, note: C("（ザコ戦闘撃破）", "（雜兵戰鬥擊破）") },
                 {
-                  kind: "potentialPower",
-                  perPerson: true,
-                  value: 2,
-                  attributeTag: C("聖／-5（154頁）", "聖／-5（154頁）"),
-                  note: C("（ボス戦闘◇撃破）", "（王戰◇擊破）"),
+                  kind: "tieredChoice",
+                  tierLabel: C("判定1回目（協力10）の結果", "判定第1次（協力10）的結果"),
+                  tiers: [
+                    { label: C("成功", "成功"), rewards: [{ kind: "rune", value: 1 }] },
+                    { label: C("失敗（ザコ戦闘撃破）", "失敗（雜兵戰鬥擊破）"), rewards: [{ kind: "consumable", value: 2 }] },
+                  ],
                 },
                 {
-                  kind: "potentialPower",
-                  perPerson: true,
-                  value: 2,
-                  attributeTag: C("腐敗／-5（154頁）", "腐敗／-5（154頁）"),
-                  note: C("（ボス戦闘♣撃破）", "（王戰♣擊破）"),
+                  kind: "tieredChoice",
+                  tierLabel: C("判定2回目（協力11）の結果", "判定第2次（協力11）的結果"),
+                  tiers: [
+                    {
+                      label: C("成功", "成功"),
+                      rewards: [
+                        { kind: "rune", value: 1 },
+                        { kind: "consumable", value: 2 },
+                      ],
+                    },
+                    {
+                      label: C("失敗（ボス戦闘◇撃破）", "失敗（王戰◇擊破）"),
+                      rewards: [
+                        {
+                          kind: "potentialPower",
+                          perPerson: true,
+                          value: 2,
+                          attributeTag: C("聖／-5（154頁）", "聖／-5（154頁）"),
+                        },
+                      ],
+                    },
+                    {
+                      label: C("失敗（ボス戦闘♣撃破）", "失敗（王戰♣擊破）"),
+                      rewards: [
+                        {
+                          kind: "potentialPower",
+                          perPerson: true,
+                          value: 2,
+                          attributeTag: C("腐敗／-5（154頁）", "腐敗／-5（154頁）"),
+                        },
+                      ],
+                    },
+                  ],
+                },
+                {
+                  kind: "tieredChoice",
+                  tierLabel: C("判定3回目（協力12）の結果", "判定第3次（協力12）的結果"),
+                  tiers: [
+                    {
+                      label: C("成功", "成功"),
+                      rewards: [
+                        { kind: "rune", value: 1 },
+                        { kind: "talisman", value: 2 },
+                      ],
+                    },
+                    {
+                      label: C("失敗", "失敗"),
+                      rewards: [
+                        {
+                          kind: "note",
+                          note: C(
+                            "（PC1人ランダムに一度死亡して復帰、「タイムロス：1」を手動記録）",
+                            "（隨機1名PC視為死亡1次後復歸，手動記錄「時間損耗：1」）"
+                          ),
+                        },
+                      ],
+                    },
+                  ],
                 },
               ],
             },
@@ -1146,11 +1311,37 @@
                 L(2, null, ["このエネミーはすべての乱戦ダメージ、個別ダメージに「腐敗：1D」が追加される。", "此敵人的所有亂戰傷害、個別傷害皆額外附加「腐敗：1D」。"], true),
                 L(2, null, ["撃破できたら、PCはそれぞれ「潜在する力：★★★（武器は「腐敗/-5 (154頁)」を追加）」を獲得（フロア踏破）。", "擊破後，PC各自獲得「潛力：★★★（武器附加「腐敗／-5（154頁）」）」（樓層踏破）。"], true),
               ],
+              // 行為判定2・3の報酬は「過半数成功時」のみ有効なため、判定ごとに個別のtieredChoiceへ分離。
+              // ボス戦闘（行為判定3の成否に関わらず必ず発生）の報酬は据え置き。
               reward: [
-                { kind: "rune", value: 1, note: C("（行為判定2・過半数成功時）", "（行為判定2・過半數成功時）") },
-                { kind: "weaponStar", value: 2, categoryId: "staff", note: C("（行為判定2・過半数成功時）", "（行為判定2・過半數成功時）") },
-                { kind: "rune", value: 1, note: C("（行為判定3・過半数成功時）", "（行為判定3・過半數成功時）") },
-                { kind: "weaponStar", value: 2, categoryId: "sacred_seal", note: C("（行為判定3・過半数成功時）", "（行為判定3・過半數成功時）") },
+                {
+                  kind: "tieredChoice",
+                  tierLabel: C("行為判定2の結果", "行為判定2的結果"),
+                  tiers: [
+                    {
+                      label: C("過半数成功", "過半數成功"),
+                      rewards: [
+                        { kind: "rune", value: 1 },
+                        { kind: "weaponStar", value: 2, categoryId: "staff" },
+                      ],
+                    },
+                    { label: C("過半数不成立", "未達過半數成功"), rewards: [] },
+                  ],
+                },
+                {
+                  kind: "tieredChoice",
+                  tierLabel: C("行為判定3の結果", "行為判定3的結果"),
+                  tiers: [
+                    {
+                      label: C("過半数成功", "過半數成功"),
+                      rewards: [
+                        { kind: "rune", value: 1 },
+                        { kind: "weaponStar", value: 2, categoryId: "sacred_seal" },
+                      ],
+                    },
+                    { label: C("過半数不成立", "未達過半數成功"), rewards: [] },
+                  ],
+                },
                 {
                   kind: "potentialPower",
                   perPerson: true,
@@ -1190,20 +1381,36 @@
                 L(2, ["成功", "成功"], ["不運なPC1人（ランダムに選ぶ）が「HP損害：■■」を被っただけで、なんとか突破できた（フロア踏破）。", "只有1名倒楣的PC（隨機選出）承受「HP損害：■■」，總算成功突破（樓層踏破）。"], true),
                 L(2, ["失敗", "失敗"], ["全員がなにかしらの攻撃に巻き込まれてしまって「HP損害：■■」を被ったが、突破できた（フロア踏破）。", "全員都被某種攻擊波及，承受「HP損害：■■」，但成功突破（樓層踏破）。"], true),
               ],
+              // ボス戦闘（撃破）と強行突破（戦闘なし）は相互排他な選択のため、tieredChoiceへ統一。
               reward: [
                 {
-                  kind: "potentialPower",
-                  perPerson: true,
-                  value: 3,
-                  attributeTag: C("聖／-5（154頁）", "聖／-5（154頁）"),
-                  note: C("（ボス戦闘◇撃破）", "（王戰◇擊破）"),
-                },
-                {
-                  kind: "potentialPower",
-                  perPerson: true,
-                  value: 3,
-                  attributeTag: C("腐敗／-5（154頁）", "腐敗／-5（154頁）"),
-                  note: C("（ボス戦闘♣撃破）", "（王戰♣擊破）"),
+                  kind: "tieredChoice",
+                  tierLabel: C("実際に進んだルート", "實際採取的路線"),
+                  tiers: [
+                    {
+                      label: C("ボス戦闘◇撃破", "王戰◇擊破"),
+                      rewards: [
+                        {
+                          kind: "potentialPower",
+                          perPerson: true,
+                          value: 3,
+                          attributeTag: C("聖／-5（154頁）", "聖／-5（154頁）"),
+                        },
+                      ],
+                    },
+                    {
+                      label: C("ボス戦闘♣撃破", "王戰♣擊破"),
+                      rewards: [
+                        {
+                          kind: "potentialPower",
+                          perPerson: true,
+                          value: 3,
+                          attributeTag: C("腐敗／-5（154頁）", "腐敗／-5（154頁）"),
+                        },
+                      ],
+                    },
+                    { label: C("強行突破（戦闘なし）", "強行突破（不戰鬥）"), rewards: [] },
+                  ],
                 },
                 { kind: "hpDamage", value: 2, note: C("（強行突破・成功時。ランダムPC1人）", "（強行突破・成功時。隨機1名PC）") },
                 { kind: "hpDamage", value: 2, note: C("（強行突破・失敗時。PC全員）", "（強行突破・失敗時。PC全員）") },

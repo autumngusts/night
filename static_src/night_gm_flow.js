@@ -1417,10 +1417,34 @@
 
   // ダイス欄（例："1／135"）を解析する：1顆目の目（die1）と、2顆目の目が該当する面数文字列
   // （faces2、"135"＝奇数目、"246"＝偶数目）を返す。解析できなければnull。
+  // ランダムイベント決定表（event_rulebook.js「random_event」extraTables[0]）は、die1が
+  // 1・6の行のみ2顆目を問わない単一セル表記（例："1"、"6"）を使うため、その場合は
+  // faces2="123456"（全目）として扱う。
   function parseStrongEnemyDiceCell(text) {
-    var m = /^(\d)\s*[／\/]\s*(\d+)$/.exec(String(text || "").trim());
+    var t = String(text || "").trim();
+    var m = /^(\d)\s*[／\/]\s*(\d+)$/.exec(t);
+    if (m) return { die1: parseInt(m[1], 10), faces2: m[2] };
+    var bare = /^(\d)$/.exec(t);
+    if (bare) return { die1: parseInt(bare[1], 10), faces2: "123456" };
+    return null;
+  }
+
+  // ランダムイベント決定表の一部の行は「※シナリオX、Y…のときのみ。それ以外の場合は
+  // 振り直し。」（ja）／「※僅限劇本X、Y…時。其餘情況重新擲骰。」（zh）という劇本限定の
+  // 注記を持つ（event_rulebook.jsの実データ、ユーザー提供の実物ページ転記により確認済み）。
+  // 条目テキストからこの限定劇本番号のリストを取り出す（無ければnull＝無条件）。
+  var SCENARIO_RESTRICTION_RE = /(?:シナリオ|僅限劇本)([\d、,]+)/;
+  function extractAllowedScenarioNumbers(text) {
+    var m = SCENARIO_RESTRICTION_RE.exec(String(text || ""));
     if (!m) return null;
-    return { die1: parseInt(m[1], 10), faces2: m[2] };
+    return m[1]
+      .split(/[、,]/)
+      .map(function (s) {
+        return parseInt(s, 10);
+      })
+      .filter(function (n) {
+        return !isNaN(n);
+      });
   }
 
   // 強敵決定表の最終行「レベルを+1して振り直す」／「等級+1後重新擲骰」を検出する。
@@ -1453,6 +1477,42 @@
         continue;
       }
       return { entry: entry, die1: die1, die2: die2, levelBonus: levelBonus, rollLog: rollLog };
+    }
+    return null;
+  }
+
+  // ランダムイベント決定表（event_rulebook.js「random_event」extraTables[0]）を実際に
+  // 1D6+1D6で振って解決する。劇本限定の行（extractAllowedScenarioNumbers）は、現在の劇本
+  // 番号（scenarios.jsのnumberForId、自訂副本ならnull）が一致しなければ振り直す——「レベル
+  // +1して振り直す」と違い加算する値は無いため、rollStrongEnemyTableのlevelBonusに相当する
+  // ものはここでは扱わない。一致する行が見つかるまで（または上限30回）繰り返す。戻り値の
+  // rowIndexは、branches配列（先頭の導入文のみのbranches[0]を除く）に対する0始まりindexに
+  // 対応する——表の行順とbranches[1:]の並びが一致していることを確認済み（event_rulebook.js
+  // 実データ）。表の解析・解決に失敗した場合はnull（GMへのフォールバック、既存の"■"と同じ
+  // 「捏造しない」方針）。
+  function rollRandomEventTable(table, scenarioNumber) {
+    var rollLog = [];
+    for (var attempt = 0; attempt < 30; attempt++) {
+      var die1 = 1 + Math.floor(Math.random() * 6);
+      var die2 = 1 + Math.floor(Math.random() * 6);
+      var matchedRowIndex = -1;
+      for (var r = 0; r < table.rows.length; r++) {
+        var cell = parseStrongEnemyDiceCell(table.rows[r][0] && table.rows[r][0].ja);
+        if (cell && cell.die1 === die1 && cell.faces2.indexOf(String(die2)) !== -1) {
+          matchedRowIndex = r;
+          break;
+        }
+      }
+      if (matchedRowIndex === -1) return null;
+      var entry = table.rows[matchedRowIndex][1];
+      var entryJa = (entry && entry.ja) || "";
+      var entryZh = (entry && entry.zh) || "";
+      rollLog.push({ die1: die1, die2: die2, text: entryZh || entryJa });
+      var allowed = extractAllowedScenarioNumbers(entryJa) || extractAllowedScenarioNumbers(entryZh);
+      if (allowed && allowed.length && (scenarioNumber === null || allowed.indexOf(scenarioNumber) === -1)) {
+        continue; // 劇本不一致：振り直し
+      }
+      return { entry: entry, rowIndex: matchedRowIndex, die1: die1, die2: die2, rollLog: rollLog };
     }
     return null;
   }
@@ -1764,12 +1824,27 @@
     if (typeof idx !== "number") return false;
     var chipId = state.eventChips ? state.eventChips[idx] : null;
     if (!chipId || (state.eventChipsUsed && state.eventChipsUsed[idx])) return false;
+    // ユーザー指定：強敵チットは「進入此區域，自動GM就自動骰」——GMが籌碼視窗を開くのを待たず、
+    // ここ（2-1のオファー時点）で即座に決定表を振り、専用の分岐（強敵戦闘へ進む／樓層事件を
+    // 優先する）を提示する。
+    if (chipId === "strong_enemy") {
+      return offerStrongEnemyChip(idx, continuation);
+    }
+    // ランダムチットも同様に自動抽選するが、既存の「使用/稍後」→モーダル内で内容を読む、という
+    // 導線自体は変えない（GMが確認してから玩家に伝える運用を尊重）。オファー文言に既に
+    // 決定済みの事件名を添えるだけで、「使用」を押した瞬間にモーダル側もその事件を表示する。
+    if (chipId === "random") autoRollRandomEventChipIfNeeded(idx);
     state.gmFlow.chipOfferSlot = idx;
     state.gmFlow.chipOfferContinuation = continuation;
+    var randomData = chipId === "random" ? state.eventChipsData[idx] : null;
+    var extraNarration = randomData && randomData.randomEventName
+      ? "\n" + window.I18N.t("gm_flow_chip_random_predrawn_note", { event: randomData.randomEventName })
+      : "";
     state.gmFlow.narrationText =
       window.I18N.t("gm_flow_chip_offer_narration", { chip: Core.eventChipDisplayLabel(idx) }) +
       "\n" +
-      window.I18N.t("gm_flow_chip_effect_" + chipId);
+      window.I18N.t("gm_flow_chip_effect_" + chipId) +
+      extraNarration;
     state.gmFlow.awaitingOk = true;
     state.gmFlow.actionKind = "chipOffer";
     Core.saveState();
@@ -1808,6 +1883,212 @@
       // 使う／稍後いずれの場合も、次は［地圖移動機制］（まだ保留があれば）へ進める。
       advanceCardConclusionChain();
     }
+  }
+
+  // ---- 強敵チット：自動擲骰＋強敵戦闘／樓層事件の選択（ユーザー指定） ----
+
+  // まだ決定されていなければ「強敵決定表」（2日目の⑧号チットのみ「恐るべき強敵決定表」）を
+  // 自動で振り、state.eventChipsData[idx]へ記録する（既存renderEventChipStrongEnemyの
+  // 「自動擲骰決定」ボタンと全く同じ解決経路——rollStrongEnemyTable／resolveStrongEnemyEntry
+  // 用のentry.ja/zhも合わせて保存しておくことで、後で「進入強敵戰鬥」を押した瞬間に改めて
+  // 戦場へ追加できる）。表の解析・解決に失敗した場合（想定外データ）は何もしない——
+  // 呼び出し元がその場合は既存の「使用/稍後」→手動モーダルへフォールバックする。
+  function autoRollStrongEnemyChip(idx) {
+    var Core = window.PriTestNightCore;
+    var state = Core.state;
+    var Events = window.PriTestEventRulebook;
+    var card = Events
+      ? Events.list().filter(function (ec) {
+          return ec.id === "strong_enemy";
+        })[0]
+      : null;
+    if (!card) return;
+    var isTerribleSlot = state.eventChipNumbers && state.eventChipNumbers[idx] === 8 && state.dayNumber === 2;
+    var selectedTable = (card.extraTables || [])[isTerribleSlot ? 1 : 0];
+    if (!selectedTable) return;
+    var result = rollStrongEnemyTable(selectedTable);
+    if (!result) return;
+    var entryText = Events.localizedText(result.entry);
+    state.eventChipsData[idx] = {
+      enemyName: entryText,
+      entryJa: (result.entry && result.entry.ja) || "",
+      entryZh: (result.entry && result.entry.zh) || "",
+      levelBonus: result.levelBonus,
+      isTerrible: isTerribleSlot,
+    };
+    var rollsText = result.rollLog
+      .map(function (r) {
+        return r.die1 + "+" + r.die2 + "＝" + r.text;
+      })
+      .join(" → ");
+    logGmDecision(window.I18N.t("event_chip_strong_enemy_auto_roll_log", { rolls: rollsText, entry: entryText }));
+    Core.saveState();
+  }
+
+  function offerStrongEnemyChip(idx, continuation) {
+    var Core = window.PriTestNightCore;
+    var state = Core.state;
+    if (!state.eventChipsData[idx] || !state.eventChipsData[idx].enemyName) {
+      autoRollStrongEnemyChip(idx);
+    }
+    var data = state.eventChipsData[idx];
+    state.gmFlow.chipOfferSlot = idx;
+    state.gmFlow.chipOfferContinuation = continuation;
+    if (!data || !data.enemyName) {
+      // 表の解析・解決に失敗：既存の「使用/稍後」→手動モーダル（自分でボタンを押して振る）へ
+      // フォールバックする（既存の"■"と同じ、捏造しない方針）。
+      state.gmFlow.narrationText =
+        window.I18N.t("gm_flow_chip_offer_narration", { chip: Core.eventChipDisplayLabel(idx) }) +
+        "\n" +
+        window.I18N.t("gm_flow_chip_effect_strong_enemy");
+      state.gmFlow.awaitingOk = true;
+      state.gmFlow.actionKind = "chipOffer";
+      Core.saveState();
+      Core.renderCurrentLocationStatus();
+      return true;
+    }
+    state.gmFlow.narrationText = window.I18N.t("gm_flow_chip_strong_enemy_offer_narration", { enemy: data.enemyName });
+    state.gmFlow.awaitingOk = true;
+    state.gmFlow.actionKind = "chipStrongEnemyOffer";
+    Core.saveState();
+    Core.renderCurrentLocationStatus();
+    return true;
+  }
+
+  // 「進入強敵戰鬥」：既に決定済みの強敵をresolveStrongEnemyEntryで戦場へ追加し、
+  // 樓層敘述のbattleWaitActiveとは別系統のchipCombatSlotで待機する（notifyChipCombatEndedが
+  // 対応する）。継続先（continuation）は撃破後の再開のために保持しておく。
+  function handleChipStrongEnemyEnterCombatClick() {
+    var Core = window.PriTestNightCore;
+    var state = Core.state;
+    var idx = state.gmFlow.chipOfferSlot;
+    var continuation = state.gmFlow.chipOfferContinuation;
+    var data = state.eventChipsData[idx];
+    state.gmFlow.chipOfferSlot = null;
+    state.gmFlow.chipOfferContinuation = null;
+    clearGmFlowGate();
+    if (data && data.entryJa) {
+      resolveStrongEnemyEntry({ ja: data.entryJa, zh: data.entryZh }, idx, data.levelBonus);
+      logGmDecision(window.I18N.t("gm_flow_chip_strong_enemy_combat_start_log", { enemy: data.enemyName }));
+    }
+    state.gmFlow.chipCombatSlot = idx;
+    state.gmFlow.chipCombatIsTerrible = !!(data && data.isTerrible);
+    state.gmFlow.chipCombatContinuation = continuation;
+    state.gmFlow.narrationText = window.I18N.t("gm_flow_combat_in_progress_narration");
+    state.gmFlow.awaitingOk = true;
+    state.gmFlow.actionKind = "chipCombatWait";
+    Core.saveState();
+    if (Core.setActionPhase) {
+      Core.setActionPhase("combat");
+    } else {
+      Core.renderCurrentLocationStatus();
+    }
+  }
+
+  // 「進入樓層事件」：強敵チットには触れず、通常の樓層事件（or カード結論連鎖）へ進む。
+  // 籌碼は盤面に残り続け（撃破するまで消えない仕様）、再訪時に同じ強敵を改めて提示できる。
+  function handleChipStrongEnemyDeferClick() {
+    resolveChipOffer(false);
+  }
+
+  // ［戰鬥結束］：night.jsのsetActionPhaseが「敵人全滅→一般行動へ自動復帰」を検出した瞬間、
+  // notifyCombatEndedと並行して呼ばれる。chipCombatSlotが数値の間だけ強敵撃破処理を行う
+  // （樓層敘述由来の戦闘ならchipCombatSlotはnullのまま＝無関係、notifyCombatEnded側が処理）。
+  // 撃破報酬（撃破ルーン8／潜在する力★★、恐るべき強敵は12／★★★）はevent_rulebook.js
+  // 「強敵チット」本文の固定値。
+  function notifyChipCombatEnded() {
+    var Core = window.PriTestNightCore;
+    var state = Core.state;
+    var idx = state.gmFlow.chipCombatSlot;
+    if (typeof idx !== "number") return;
+    state.gmFlow.chipCombatSlot = null;
+    var isTerrible = !!state.gmFlow.chipCombatIsTerrible;
+    state.gmFlow.chipCombatIsTerrible = false;
+    var continuation = state.gmFlow.chipCombatContinuation;
+    state.gmFlow.chipCombatContinuation = null;
+    var FloorBreakthrough = window.PriTestNightFloorBreakthrough;
+    var entered = Core.getRosterCharacters().filter(function (c) {
+      return c.entered;
+    });
+    var runeValue = isTerrible ? 12 : 8;
+    var powerValue = isTerrible ? 3 : 2;
+    var idSuffix = "chip_strong_enemy_" + idx + "_" + Date.now();
+    var objs = FloorBreakthrough.floorRewardEntryToTurnRewards({ kind: "rune", value: runeValue }, entered, idSuffix + "_rune").concat(
+      FloorBreakthrough.floorRewardEntryToTurnRewards({ kind: "potentialPower", perPerson: true, value: powerValue }, entered, idSuffix + "_power")
+    );
+    if (objs.length) Core.pushTurnRewards(objs);
+    var enemyName = (state.eventChipsData[idx] && state.eventChipsData[idx].enemyName) || "";
+    if (window.PriTestNightEventChips) window.PriTestNightEventChips.markEventChipUsed(idx);
+    logGmDecision(window.I18N.t("gm_flow_chip_strong_enemy_defeated_log", { enemy: enemyName }));
+    state.gmFlow.narrationText = window.I18N.t("gm_flow_chip_strong_enemy_defeated_narration", {
+      enemy: enemyName,
+      rune: runeValue,
+      power: new Array(powerValue + 1).join("★"),
+    });
+    state.gmFlow.awaitingOk = true;
+    state.gmFlow.actionKind = "chipCombatResolved";
+    state.gmFlow.chipCombatResumeContinuation = continuation;
+    state.gmFlow.chipCombatResumeSlot = idx;
+    Core.saveState();
+    Core.renderCurrentLocationStatus();
+  }
+
+  // 強敵撃破後の［OK］：この強敵チットのオファーが割り込んだ元の継続処理（樓層事件へ進む／
+  // カード結論連鎖の続き）を再開する——強敵を倒したこと自体は樓層のイベントを妨げない。
+  function handleChipCombatResolvedOkClick() {
+    var Core = window.PriTestNightCore;
+    var state = Core.state;
+    var continuation = state.gmFlow.chipCombatResumeContinuation;
+    var idx = state.gmFlow.chipCombatResumeSlot;
+    state.gmFlow.chipCombatResumeContinuation = null;
+    state.gmFlow.chipCombatResumeSlot = null;
+    clearGmFlowGate();
+    Core.saveState();
+    Core.renderCurrentLocationStatus();
+    if (continuation === "startWalk" && typeof idx === "number") {
+      var entry = window.PriTestNightFloorBreakthrough.resolveFieldEntryForSlot(idx);
+      beginFieldWalkFlow(idx, entry);
+    } else if (continuation === "cardConclusion") {
+      advanceCardConclusionChain();
+    }
+  }
+
+  // ---- ランダムチット：自動抽選（ユーザー指定：GMが直接抽き、玩家に何が出たか告知する） ----
+
+  // まだ決定されていなければ「ランダムイベント決定表」（extraTables[0]）を自動で振り、
+  // 対応するbranchIndex（表の行順＝branches[1:]の並びと一致——実データ確認済み）を
+  // state.eventChipsData[idx]へ記録する。以後の再訪では再抽選せず同じ事件を使い続ける
+  // （規則書：決定したイベントは解決するまで残る）。劇本限定行は現在の劇本番号
+  // （Scenarios.numberForIdで解決、自訂副本ならnull＝限定行は常に振り直し対象）と
+  // 一致しない場合は自動的に振り直す。表の解析・解決に失敗した場合は何もしない
+  // （呼び出し元は既存の手動選択モーダルへフォールバックする）。
+  function autoRollRandomEventChipIfNeeded(idx) {
+    var Core = window.PriTestNightCore;
+    var state = Core.state;
+    if (state.eventChipsData[idx] && typeof state.eventChipsData[idx].randomEventBranchIndex === "number") return;
+    var Events = window.PriTestEventRulebook;
+    var card = Events
+      ? Events.list().filter(function (ec) {
+          return ec.id === "random_event";
+        })[0]
+      : null;
+    var table = card ? (card.extraTables || [])[0] : null;
+    if (!table) return;
+    var Scenarios = window.PriTestScenarios;
+    var scenarioNumber = Scenarios && Core.getScenarioId ? Scenarios.numberForId(Core.getScenarioId()) : null;
+    var result = rollRandomEventTable(table, scenarioNumber);
+    if (!result) return;
+    var branchIndex = result.rowIndex + 1; // branches[0]は導入文のみのため+1
+    var branch = (card.branches || [])[branchIndex];
+    var eventName = branch ? Events.localizedText(branch.name) : Events.localizedText(result.entry);
+    state.eventChipsData[idx] = { randomEventBranchIndex: branchIndex, randomEventName: eventName };
+    var rollsText = result.rollLog
+      .map(function (r) {
+        return r.die1 + "+" + r.die2 + "＝" + r.text;
+      })
+      .join(" → ");
+    logGmDecision(window.I18N.t("gm_flow_chip_random_auto_roll_log", { rolls: rollsText, event: eventName }));
+    Core.saveState();
   }
 
   function handleBranchChoiceClick(branchIndex) {
@@ -3919,6 +4200,16 @@
         // 第19項：籌碼事件の使用可否確認。
         addActionButton(actionsEl, "gm_flow_chip_offer_use_button", handleChipOfferUseClick);
         addActionButton(actionsEl, "gm_flow_chip_offer_skip_button", handleChipOfferSkipClick);
+      } else if (state.gmFlow.actionKind === "chipStrongEnemyOffer") {
+        // ユーザー指定：強敵チットは自動決定済みの敵情報を見せた上で、強敵戰鬥へ進むか
+        // 樓層事件を優先するかを選ばせる（既存chipOfferの「使用/稍後」より具体的な文言）。
+        addActionButton(actionsEl, "gm_flow_chip_strong_enemy_enter_combat_button", handleChipStrongEnemyEnterCombatClick);
+        addActionButton(actionsEl, "gm_flow_chip_strong_enemy_defer_button", handleChipStrongEnemyDeferClick);
+      } else if (state.gmFlow.actionKind === "chipCombatWait") {
+        // 強敵戦闘進行中：樓層敘述のbattleWaitと同じ回合ボタン群をそのまま再利用する。
+        if (Core.renderBattleRoundActionButtons) Core.renderBattleRoundActionButtons(actionsEl);
+      } else if (state.gmFlow.actionKind === "chipCombatResolved") {
+        addActionButton(actionsEl, "gm_flow_ok_button", handleChipCombatResolvedOkClick);
       } else if (state.gmFlow.actionKind === "abilityCheck") {
         // 行為判定（PC全員／それぞれ／各自が個別に判定する形式）：生の判定基準文は出さず、
         // ボタンを押すとモーダルで各PCの判定骰を自動で振る。
@@ -4091,6 +4382,7 @@
     showFullClearNarration: showFullClearNarration,
     handleGoldenTreeFullClear: handleGoldenTreeFullClear,
     notifyCombatEnded: notifyCombatEnded,
+    notifyChipCombatEnded: notifyChipCombatEnded,
     handleAbilityCheckDoneClick: handleAbilityCheckDoneClick,
     handleCooperativeCheckConfirmClick: handleCooperativeCheckConfirmClick,
     handleBranchTallyConfirmClick: handleBranchTallyConfirmClick,

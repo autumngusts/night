@@ -611,14 +611,23 @@
                 L(2, null, ["「亜人たち(220頁)/Lv.2+L補」+モブ1", "「亞人們（220頁）／Lv.2+L補」+雜兵1"], true),
                 L(2, null, ["撃破に成功しても、得られるものはない(フロア踏破)。", "即使擊破成功，也沒有可獲得的東西（樓層踏破）。"], true),
               ],
+              // 相互排他な2分岐（忍んで切り抜ける／ザコ戦闘）の獎勵をtieredChoiceへ統一
+              // （劇本1データ監査で発見、reward配列の当初のフラット並列では両方pushされていた）。
               reward: [
                 {
-                  kind: "weaponStar",
-                  value: 1,
-                  categoryId: "sacred_seal",
-                  note: C("（忍んで切り抜ける・行為判定成功時）", "（潛行通過・行為判定成功時）"),
+                  kind: "tieredChoice",
+                  tierLabel: C("実際に進んだルート", "實際採取的路線"),
+                  tiers: [
+                    {
+                      label: C("忍んで切り抜ける（成功）", "潛行通過（成功）"),
+                      rewards: [{ kind: "weaponStar", value: 1, categoryId: "sacred_seal" }],
+                    },
+                    {
+                      label: C("ザコ戦闘（撃破）", "雜兵戰鬥（擊破）"),
+                      rewards: [{ kind: "rune", value: 2 }],
+                    },
+                  ],
                 },
-                { kind: "rune", value: 2, note: C("（撃破ルーン）", "（擊破盧恩）") },
               ],
             },
             {
@@ -845,12 +854,29 @@
                   true
                 ),
               ],
+              // 相互排他な2分岐（こっそり祭壇へ／ザコ戦闘）の獎勵をtieredChoiceへ統一。
               reward: [
-                { kind: "stoneswordKey", value: 1, note: C("（こっそり祭壇へ・行為判定成功時）", "（悄悄前往祭壇・行為判定成功時）") },
-                { kind: "weaponStar", value: 1, note: C("（こっそり祭壇へ・行為判定成功時）", "（悄悄前往祭壇・行為判定成功時）") },
-                { kind: "stoneswordKey", value: 1, note: C("（ザコ戦闘撃破）", "（雜兵戰鬥擊破）") },
-                { kind: "weaponStar", value: 1, note: C("（ザコ戦闘撃破）", "（雜兵戰鬥擊破）") },
-                { kind: "consumable", value: 1, note: C("（ザコ戦闘撃破）", "（雜兵戰鬥擊破）") },
+                {
+                  kind: "tieredChoice",
+                  tierLabel: C("実際に進んだルート", "實際採取的路線"),
+                  tiers: [
+                    {
+                      label: C("こっそり祭壇へ（成功）", "悄悄前往祭壇（成功）"),
+                      rewards: [
+                        { kind: "stoneswordKey", value: 1 },
+                        { kind: "weaponStar", value: 1 },
+                      ],
+                    },
+                    {
+                      label: C("ザコ戦闘（撃破）", "雜兵戰鬥（擊破）"),
+                      rewards: [
+                        { kind: "stoneswordKey", value: 1 },
+                        { kind: "weaponStar", value: 1 },
+                        { kind: "consumable", value: 1 },
+                      ],
+                    },
+                  ],
+                },
               ],
             },
             {
@@ -1185,87 +1211,91 @@
                   true
                 ),
               ],
+              // 5つの相互排他な分岐（周囲の探索／人影があるところ／裏手→ボス戦闘1／大穴→ザコ戦闘／
+              // 地下への階段→ボス戦闘2）を、以前は個別のtieredChoice（花色選択）＋並列の付随獎勵という
+              // 形でreward配列にフラットに並べていたため、実際にはどれか1つの分岐しか発生しないのに
+              // 自動push機能が5つ全部を積んでしまっていた（劇本1データ監査で発見）。花色選択を
+              // ネストさせるとidempotencyキーが他樓層と衝突しうるため、「分岐×花色」の10通りを
+              // フラットな1段のtieredChoiceへ統合する。
               reward: [
                 {
                   kind: "tieredChoice",
-                  tierLabel: C("周囲の探索・武器のスート", "周圍的探索・武器花色"),
+                  tierLabel: C("実際に進んだルート・武器のスート", "實際採取的路線・武器花色"),
                   tiers: [
                     {
-                      label: C("♠", "♠"),
+                      label: C("周囲の探索（成功）♠", "周圍的探索（成功）♠"),
                       rewards: [
+                        { kind: "weaponStar", value: 1, categoryId: "sacred_seal" },
+                        { kind: "consumable", value: 2 },
                         { kind: "weaponStar", value: 1, attributeTag: C("凍傷／-5（154頁）", "凍傷／-5（154頁）"), note: C("（1/2）", "（1/2）") },
                         { kind: "weaponStar", value: 1, attributeTag: C("凍傷／-5（154頁）", "凍傷／-5（154頁）"), note: C("（2/2）", "（2/2）") },
                       ],
                     },
                     {
-                      label: C("♥", "♥"),
+                      label: C("周囲の探索（成功）♥", "周圍的探索（成功）♥"),
                       rewards: [
+                        { kind: "weaponStar", value: 1, categoryId: "sacred_seal" },
+                        { kind: "consumable", value: 2 },
                         { kind: "weaponStar", value: 1, attributeTag: C("聖／-5", "聖／-5"), note: C("（1/2）", "（1/2）") },
                         { kind: "weaponStar", value: 1, attributeTag: C("聖／-5", "聖／-5"), note: C("（2/2）", "（2/2）") },
                       ],
                     },
-                  ],
-                },
-                { kind: "weaponStar", value: 1, categoryId: "sacred_seal", note: C("（周囲の探索・行為判定成功時）", "（周圍的探索・行為判定成功時）") },
-                { kind: "consumable", value: 2, note: C("（周囲の探索・行為判定成功時）", "（周圍的探索・行為判定成功時）") },
-                {
-                  kind: "tieredChoice",
-                  tierLabel: C("人影があるところ・武器のスート", "有人影的地方・武器花色"),
-                  tiers: [
                     {
-                      label: C("♠", "♠"),
+                      label: C("人影があるところ（成功）♠", "有人影的地方（成功）♠"),
                       rewards: [
+                        { kind: "consumable", value: 2 },
                         { kind: "weaponStar", value: 1, attributeTag: C("凍傷／-5（154頁）", "凍傷／-5（154頁）"), note: C("（1/2）", "（1/2）") },
                         { kind: "weaponStar", value: 1, attributeTag: C("凍傷／-5（154頁）", "凍傷／-5（154頁）"), note: C("（2/2）", "（2/2）") },
                       ],
                     },
                     {
-                      label: C("♥", "♥"),
+                      label: C("人影があるところ（成功）♥", "有人影的地方（成功）♥"),
                       rewards: [
+                        { kind: "consumable", value: 2 },
                         { kind: "weaponStar", value: 1, attributeTag: C("聖／-5", "聖／-5"), note: C("（1/2）", "（1/2）") },
                         { kind: "weaponStar", value: 1, attributeTag: C("聖／-5", "聖／-5"), note: C("（2/2）", "（2/2）") },
                       ],
                     },
-                  ],
-                },
-                { kind: "consumable", value: 2, note: C("（人影があるところ・行為判定成功時）", "（有人影的地方・行為判定成功時）") },
-                { kind: "consumable", value: 2, note: C("（ボス戦闘1撃破）", "（王戰1擊破）") },
-                {
-                  kind: "tieredChoice",
-                  tierLabel: C("ボス戦闘1撃破・潜在する力の武器スート", "王戰1擊破・潛力武器花色"),
-                  tiers: [
-                    { label: C("♠", "♠"), rewards: [{ kind: "potentialPower", perPerson: true, value: 1, attributeTag: C("凍傷／-5（154頁）", "凍傷／-5（154頁）") }] },
-                    { label: C("♥", "♥"), rewards: [{ kind: "potentialPower", perPerson: true, value: 1, attributeTag: C("聖／-5", "聖／-5") }] },
-                  ],
-                },
-                { kind: "note", note: C("（ボス戦闘1撃破。「共鳴する結晶：+1」は別途手動記録）", "（王戰1擊破。「共鳴結晶：+1」需另行手動記錄）") },
-                {
-                  kind: "tieredChoice",
-                  tierLabel: C("ザコ戦闘撃破・武器のスート", "雜兵戰鬥擊破・武器花色"),
-                  tiers: [
                     {
-                      label: C("♠", "♠"),
+                      label: C("裏手→ボス戦闘1（撃破）♠", "後方→王戰1（擊破）♠"),
                       rewards: [
+                        { kind: "consumable", value: 2 },
+                        { kind: "potentialPower", perPerson: true, value: 1, attributeTag: C("凍傷／-5（154頁）", "凍傷／-5（154頁）") },
+                        { kind: "note", note: C("（「共鳴する結晶：+1」は別途手動記録）", "（「共鳴結晶：+1」需另行手動記錄）") },
+                      ],
+                    },
+                    {
+                      label: C("裏手→ボス戦闘1（撃破）♥", "後方→王戰1（擊破）♥"),
+                      rewards: [
+                        { kind: "consumable", value: 2 },
+                        { kind: "potentialPower", perPerson: true, value: 1, attributeTag: C("聖／-5", "聖／-5") },
+                        { kind: "note", note: C("（「共鳴する結晶：+1」は別途手動記録）", "（「共鳴結晶：+1」需另行手動記錄）") },
+                      ],
+                    },
+                    {
+                      label: C("大穴→ザコ戦闘（撃破）♠", "大洞→雜兵戰鬥（擊破）♠"),
+                      rewards: [
+                        { kind: "consumable", value: 2 },
                         { kind: "weaponStar", value: 1, attributeTag: C("凍傷／-5（154頁）", "凍傷／-5（154頁）"), note: C("（1/2）", "（1/2）") },
                         { kind: "weaponStar", value: 1, attributeTag: C("凍傷／-5（154頁）", "凍傷／-5（154頁）"), note: C("（2/2）", "（2/2）") },
                       ],
                     },
                     {
-                      label: C("♥", "♥"),
+                      label: C("大穴→ザコ戦闘（撃破）♥", "大洞→雜兵戰鬥（擊破）♥"),
                       rewards: [
+                        { kind: "consumable", value: 2 },
                         { kind: "weaponStar", value: 1, attributeTag: C("聖／-5", "聖／-5"), note: C("（1/2）", "（1/2）") },
                         { kind: "weaponStar", value: 1, attributeTag: C("聖／-5", "聖／-5"), note: C("（2/2）", "（2/2）") },
                       ],
                     },
-                  ],
-                },
-                { kind: "consumable", value: 2, note: C("（ザコ戦闘撃破）", "（雜兵戰鬥擊破）") },
-                {
-                  kind: "tieredChoice",
-                  tierLabel: C("ボス戦闘2撃破・潜在する力の武器スート", "王戰2擊破・潛力武器花色"),
-                  tiers: [
-                    { label: C("♠", "♠"), rewards: [{ kind: "potentialPower", perPerson: true, value: 1, attributeTag: C("凍傷／-5（154頁）", "凍傷／-5（154頁）") }] },
-                    { label: C("♥", "♥"), rewards: [{ kind: "potentialPower", perPerson: true, value: 1, attributeTag: C("聖／-5", "聖／-5") }] },
+                    {
+                      label: C("地下への階段→ボス戦闘2（撃破）♠", "通往地下的階梯→王戰2（擊破）♠"),
+                      rewards: [{ kind: "potentialPower", perPerson: true, value: 1, attributeTag: C("凍傷／-5（154頁）", "凍傷／-5（154頁）") }],
+                    },
+                    {
+                      label: C("地下への階段→ボス戦闘2（撃破）♥", "通往地下的階梯→王戰2（擊破）♥"),
+                      rewards: [{ kind: "potentialPower", perPerson: true, value: 1, attributeTag: C("聖／-5", "聖／-5") }],
+                    },
                   ],
                 },
               ],
@@ -1364,22 +1394,51 @@
                   true
                 ),
               ],
+              // 「霊呼びつむり」に失敗すると撤退（→報酬なし）、成功（1回/2回とも）すると
+              // 続けて「祭壇」（潜在する力・武器複製 or 鍛石選択）へ進む——連続する1本のルート
+              // であり、以前はreward配列がこの成否分岐を無視して常に全部pushしていた
+              // （劇本1データ監査で発見）。成功/失敗をtieredChoiceの最上位に据え、武器スートは
+              // ネスト回避のため各tierへ展開する。「複製」「鍛石」の選択自体はGM判断のnoteへ
+              // 統一する（鍛石をkind:"smithingStone"のまま自動pushすると、複製を選んだ場合にも
+              // 誤って鍛石が付与されてしまうため）。
               reward: [
-                { kind: "rune", value: 1, note: C("（霊呼びつむり・成功1回/2回時）", "（喚靈蝸牛・成功1次／2次時）") },
                 {
                   kind: "tieredChoice",
-                  tierLabel: C("霊呼びつむり・潜在する力の武器スート", "喚靈蝸牛・潛力武器花色"),
+                  tierLabel: C("霊呼びつむりの結果・武器のスート", "喚靈蝸牛的結果・武器花色"),
                   tiers: [
-                    { label: C("♠", "♠"), rewards: [{ kind: "potentialPower", perPerson: true, value: 1, attributeTag: C("凍傷／-5（154頁）", "凍傷／-5（154頁）") }] },
-                    { label: C("♥", "♥"), rewards: [{ kind: "potentialPower", perPerson: true, value: 1, attributeTag: C("聖／-5", "聖／-5") }] },
+                    {
+                      label: C("成功（→祭壇）♠", "成功（→前往祭壇）♠"),
+                      rewards: [
+                        { kind: "rune", value: 1 },
+                        { kind: "potentialPower", perPerson: true, value: 1, attributeTag: C("凍傷／-5（154頁）", "凍傷／-5（154頁）") },
+                        {
+                          kind: "note",
+                          note: C(
+                            "（祭壇：所持武器1つを複製する場合は個人紀錄へ手動反映。複製の代わりに「鍛石」1つを選ぶこともでき、その場合はGMが獎勵清單へ手動追加）",
+                            "（祭壇：複製持有武器需手動反映於個人紀錄。也可改為選擇「鍛石」1個，此時請GM手動加入獎勵清單）"
+                          ),
+                        },
+                        { kind: "note", note: C("（「共鳴する結晶：+1」は別途手動記録）", "（「共鳴結晶：+1」需另行手動記錄）") },
+                      ],
+                    },
+                    {
+                      label: C("成功（→祭壇）♥", "成功（→前往祭壇）♥"),
+                      rewards: [
+                        { kind: "rune", value: 1 },
+                        { kind: "potentialPower", perPerson: true, value: 1, attributeTag: C("聖／-5", "聖／-5") },
+                        {
+                          kind: "note",
+                          note: C(
+                            "（祭壇：所持武器1つを複製する場合は個人紀錄へ手動反映。複製の代わりに「鍛石」1つを選ぶこともでき、その場合はGMが獎勵清單へ手動追加）",
+                            "（祭壇：複製持有武器需手動反映於個人紀錄。也可改為選擇「鍛石」1個，此時請GM手動加入獎勵清單）"
+                          ),
+                        },
+                        { kind: "note", note: C("（「共鳴する結晶：+1」は別途手動記録）", "（「共鳴結晶：+1」需另行手動記錄）") },
+                      ],
+                    },
+                    { label: C("失敗（撤退）", "失敗（撤退）"), rewards: [] },
                   ],
                 },
-                {
-                  kind: "note",
-                  note: C("（祭壇。所持武器1つを複製する場合は個人紀錄へ手動反映）", "（祭壇。複製持有武器需手動反映於個人紀錄）"),
-                },
-                { kind: "smithingStone", value: 1, note: C("（祭壇。複製の代わりに「鍛石」を選択時）", "（祭壇。以「鍛石」代替複製時）") },
-                { kind: "note", note: C("（祭壇。「共鳴する結晶：+1」は別途手動記録）", "（祭壇。「共鳴結晶：+1」需另行手動記錄）") },
               ],
             },
           ],
