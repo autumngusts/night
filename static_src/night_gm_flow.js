@@ -2528,6 +2528,120 @@
     return outcome.index !== -1 ? outcome : { index: headingIndex, text: "" };
   }
 
+  // ---- 「黄金樹の帳」（a_golden）夜の強敵決定表の自動擲骰 ----
+  // fields_data_1.jsの「夜の強敵決定表：1日目／2日目」extraTablesは、劇本番号を行、
+  // 1日目／2日目を列に持つ表で、各セルはさらに複数行（例："1-3 敵名A\n4-6 敵名B"）に
+  // 分かれている。strong_enemyの「die1／faces2」形式とは書式が異なるため専用の解析を行う。
+
+  // タイトルに「夜の強敵決定表」を含むextraTableと、劇本番号（Scenarios.numberForId、
+  // scenarios.js側の並び順で確定済み）に一致する行を返す。無ければnull。
+  function resolveNightBossTableRow(card, scenarioNumber) {
+    if (scenarioNumber === null) return null;
+    var table = (card.extraTables || []).filter(function (t) {
+      return /夜の強敵決定表/.test((t.title && t.title.ja) || "");
+    })[0];
+    if (!table) return null;
+    return (
+      table.rows.filter(function (r) {
+        return String((r[0] && r[0].ja) || "").trim() === String(scenarioNumber);
+      })[0] || null
+    );
+  }
+
+  // セル本文（例："1-3 傷ついたデーモン&うろ底のデーモン（234頁）\n4-6 神獣の戦士たち（215頁）+モブ2"）
+  // を行ごとに解析する。ja/zhは行数・順序が一致している前提（実データ確認済み）で、位置対応
+  // させて両言語のテキストを保持する（resolveAndAddCombatEnemiesがja/zh両方から名前候補を
+  // 拾うため）。
+  function parseNightBossCellEntries(cell) {
+    var linesJa = String((cell && cell.ja) || "").split("\n");
+    var linesZh = String((cell && cell.zh) || "").split("\n");
+    var entries = [];
+    linesJa.forEach(function (l, i) {
+      var m = /^(\d)(?:[-～](\d))?\s+(.+)$/.exec(l.trim());
+      if (!m) return;
+      var lo = parseInt(m[1], 10);
+      var hi = m[2] ? parseInt(m[2], 10) : lo;
+      var faces = [];
+      for (var f = lo; f <= hi; f++) faces.push(f);
+      var zhMatch = /^(\d)(?:[-～](\d))?\s+(.+)$/.exec((linesZh[i] || "").trim());
+      entries.push({ faces: faces, ja: m[3].trim(), zh: zhMatch ? zhMatch[3].trim() : m[3].trim() });
+    });
+    return entries;
+  }
+
+  // colIndex：1＝1日目列、2＝2日目列。forcedRollを渡すと（劇本8・9の2日目連動用）その値で
+  // 判定し、渡さなければ今その場で1D6を振る（既存の「捏造しない・今その場で正規の骰子を
+  // 振る」方針）。
+  function rollNightBossEntry(row, colIndex, forcedRoll) {
+    var entries = parseNightBossCellEntries(row[colIndex]);
+    if (!entries.length) return null;
+    var roll = forcedRoll || 1 + Math.floor(Math.random() * 6);
+    var matched = entries.filter(function (e) {
+      return e.faces.indexOf(roll) !== -1;
+    })[0];
+    return matched ? { roll: roll, ja: matched.ja, zh: matched.zh } : null;
+  }
+
+  // 規則書のextraNotes「※シナリオ8とシナリオ9の連動」：この2つの劇本のみ、1日目の擲骰値を
+  // そのまま2日目列にも適用し、2日目は再擲骰しない。
+  var NIGHT_BOSS_LINKED_SCENARIOS = [8, 9];
+
+  // 王戰トリガーの敵名bulletが「夜の強敵決定表・N日目（後述）／Lv.N」参照だった場合の解決。
+  // state.nightBossRoll.day1／day2へ結果を保存し（リロードしても再利用、2回目以降の樓層
+  // 再訪でも再擲骰しない）、劇本8・9は1日目確定と同時に2日目分も連動して確定させる。
+  // レベルはこの参照行自身の「／Lv.N」から取り出す（決定表側のエントリにはレベル表記が無い）。
+  function resolveNightBossCombatLine(line, slotIndex, isBoss) {
+    var Core = window.PriTestNightCore;
+    var state = Core.state;
+    var Scenarios = window.PriTestScenarios;
+    var Fields = window.PriTestFields;
+    var lineText = Fields.localizedText(line.text);
+    var fallback = { addedNames: [], reminderText: window.I18N.t("gm_flow_combat_manual_add_reminder", { text: lineText }), rollLogText: null };
+    var walk = state.gmFlow.walk;
+    var dayKey = walk && walk.branchIndex === 1 ? "day2" : "day1";
+    var card = window.PriTestNightFloorBreakthrough.resolveFieldEntryForSlot(slotIndex);
+    var scenarioNumber = Scenarios && Core.getScenarioId ? Scenarios.numberForId(Core.getScenarioId()) : null;
+    if (!card) return fallback;
+    var row = resolveNightBossTableRow(card, scenarioNumber);
+    if (!row) return fallback;
+    if (!state.nightBossRoll) state.nightBossRoll = {};
+    var resolved = state.nightBossRoll[dayKey];
+    if (!resolved) {
+      if (dayKey === "day1") {
+        resolved = rollNightBossEntry(row, 1);
+        if (resolved) {
+          state.nightBossRoll.day1 = resolved;
+          if (NIGHT_BOSS_LINKED_SCENARIOS.indexOf(scenarioNumber) !== -1 && !state.nightBossRoll.day2) {
+            var linkedDay2 = rollNightBossEntry(row, 2, resolved.roll);
+            if (linkedDay2) state.nightBossRoll.day2 = linkedDay2;
+          }
+        }
+      } else {
+        resolved = rollNightBossEntry(row, 2);
+        if (resolved) state.nightBossRoll.day2 = resolved;
+      }
+    }
+    if (!resolved) return fallback;
+    Core.saveState();
+    var lvMatch = /Lv\.?\s*(\d+)/i.exec(lineText);
+    var level = lvMatch ? parseInt(lvMatch[1], 10) : 1;
+    var jaParsed = extractLevelAndNameTokens(resolved.ja);
+    var zhParsed = extractLevelAndNameTokens(resolved.zh);
+    var nameTokens = [];
+    jaParsed.nameTokens.concat(zhParsed.nameTokens).forEach(function (t) {
+      if (nameTokens.indexOf(t) === -1) nameTokens.push(t);
+    });
+    var hasMobRow = MOB_ROW_SUFFIX_RE.test(resolved.ja) || MOB_ROW_SUFFIX_RE.test(resolved.zh);
+    var addResult = resolveAndAddCombatEnemies(nameTokens, level, false, hasMobRow, slotIndex, isBoss);
+    var out = {
+      addedNames: addResult.addedNames,
+      reminderText: addResult.matchedAny ? null : window.I18N.t("gm_flow_combat_manual_add_reminder", { text: resolved.ja }),
+      rollLogText: window.I18N.t("gm_flow_night_boss_roll_log", { day: dayKey === "day2" ? "2" : "1", roll: resolved.roll, entry: resolved.ja }),
+      mobNote: addResult.mobNote || null,
+    };
+    return out;
+  }
+
   // ---- ［戰鬥機制］入口：「雜兵戰鬥」／「王戰」ボタン。敵を敘述し、判明した分だけ戦場に
   // 自動追加してから、GMには「戰鬥進行中」とだけ示して待機状態（battleWait）へ入る
   // （第17・18項：目前先讓Gm敘述戰鬥中、額外的機制往後另行增加）。 ----
@@ -2555,6 +2669,21 @@
     var isBoss = isBossCombatTriggerLine(triggerLine);
     collected.enemyLines.forEach(function (line) {
       narrationParts.push(Fields.localizedText(line.text));
+      // 「黄金樹の帳」（a_golden）の夜の強敵戦闘：敵名bulletが具体名ではなく「夜の強敵決定表・
+      // N日目（後述）／Lv.N」という決定表参照になっている。通常のparseCombatEnemyRefでは
+      // 一致するはずがないため、先にこの参照かどうかを判定し、該当すれば専用の自動擲骰
+      // （resolveNightBossCombatLine）へ委ねる。
+      var isNightBossRef = /夜の強敵決定表|夜之強敵決定表/.test((line.text && line.text.ja) || "") || /夜の強敵決定表|夜之強敵決定表/.test((line.text && line.text.zh) || "");
+      if (isNightBossRef) {
+        var nbResult = resolveNightBossCombatLine(line, walk.slotIndex, isBoss);
+        addedNames = addedNames.concat(nbResult.addedNames);
+        if (nbResult.rollLogText) logGmDecision(nbResult.rollLogText);
+        if (nbResult.reminderText) reminderTexts.push(nbResult.reminderText);
+        if (nbResult.mobNote) {
+          reminderTexts.push(window.I18N.t(nbResult.mobNote.key, mergeParams({ text: Fields.localizedText(line.text) }, nbResult.mobNote.params)));
+        }
+        return;
+      }
       var ref = parseCombatEnemyRef(line);
       var result = resolveAndAddCombatEnemies(ref.nameTokens, ref.level, ref.needsLevelCorrection, ref.hasMobRow, walk.slotIndex, isBoss);
       addedNames = addedNames.concat(result.addedNames);

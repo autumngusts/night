@@ -252,6 +252,7 @@ STRINGS_JA: dict[str, str] = {
     "gm_flow_combat_trigger_button_fallback": "戦闘",
     "gm_flow_combat_in_progress_narration": "GM：戦闘進行中。",
     "gm_flow_combat_added_log": "GM：「{names}」を戦闘パネルへ自動追加した。",
+    "gm_flow_night_boss_roll_log": "GM：夜の強敵決定表（{day}日目）自動ロール1D＝{roll}、決定内容：{entry}",
     "gm_flow_combat_manual_add_reminder": "GM：エネミーデータを自動照合できなかった。規則書を確認し、戦闘パネルへ手動で追加してほしい：{text}",
     "gm_flow_combat_level_correction_reminder": "GM：このエネミーには「L補」レベル補正（未実装）がある。正しいレベルを自分で確認すること：{text}",
     "gm_flow_combat_level_correction_applied_log": "GM：このエネミーは現在地のマスに応じたレベル補正（L補+{correction}）を適用し、自動的にLv.{level}と判定した：{text}",

@@ -806,6 +806,11 @@
     eventChipNumbers: new Array(SLOT_COUNT).fill(null), // 各マスのチット固定番号（1-9、rollEventChipsで洗牌後も保持。⑦⑧強敵の区別に使う）
     eventChipsUsed: new Array(SLOT_COUNT).fill(false), // 「籌碼事件」で何らかの行動を使用済みのマス（取り消し線表示、再発火防止）
     eventChipsData: {}, // key: index -> チットごとの永続データ（例:強敵チットの決定済みエネミー）
+    // 「黄金樹の帳」夜の強敵決定表の確定結果（{day1:{roll,ja,zh}, day2:{...}}、いずれも未確定
+    // ならkey自体が無い）。チットとは無関係の永続データのため、2日目セットアップの再配置
+    // （eventChipsDataがクリアされる箇所）では一緒にクリアしない——新しいゲーム開始時のみ
+    // resetStateでクリアする。
+    nightBossRoll: {},
     boardStarted: false,
     log: [], // { key, params, time(ms) }
     focusedIndex: null,
@@ -988,6 +993,7 @@
       eventChipNumbers: state.eventChipNumbers,
       eventChipsUsed: state.eventChipsUsed,
       eventChipsData: state.eventChipsData,
+      nightBossRoll: state.nightBossRoll,
       boardStarted: state.boardStarted,
       log: state.log,
       focusedIndex: state.focusedIndex,
@@ -1067,6 +1073,7 @@
     state.eventChipNumbers = Array.isArray(snap.eventChipNumbers) ? snap.eventChipNumbers : new Array(SLOT_COUNT).fill(null);
     state.eventChipsUsed = Array.isArray(snap.eventChipsUsed) ? snap.eventChipsUsed : new Array(SLOT_COUNT).fill(false);
     state.eventChipsData = snap.eventChipsData && typeof snap.eventChipsData === "object" ? snap.eventChipsData : {};
+    state.nightBossRoll = snap.nightBossRoll && typeof snap.nightBossRoll === "object" ? snap.nightBossRoll : {};
     state.boardStarted = snap.boardStarted;
     state.log = snap.log;
     state.focusedIndex = snap.focusedIndex;
@@ -1959,6 +1966,7 @@
           ? data.eventChipsUsed
           : new Array(SLOT_COUNT).fill(false);
       state.eventChipsData = data.eventChipsData && typeof data.eventChipsData === "object" ? data.eventChipsData : {};
+      state.nightBossRoll = data.nightBossRoll && typeof data.nightBossRoll === "object" ? data.nightBossRoll : {};
       state.boardStarted = !!data.boardStarted;
       state.log = Array.isArray(data.log) ? data.log : [];
       state.focusedIndex =
@@ -2254,6 +2262,7 @@
     state.eventChipNumbers = new Array(SLOT_COUNT).fill(null);
     state.eventChipsUsed = new Array(SLOT_COUNT).fill(false);
     state.eventChipsData = {};
+    state.nightBossRoll = {};
     state.boardStarted = false;
     state.log = [];
     state.focusedIndex = null;

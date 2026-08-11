@@ -252,6 +252,7 @@ STRINGS_ZH: dict[str, str] = {
     "gm_flow_combat_trigger_button_fallback": "戰鬥",
     "gm_flow_combat_in_progress_narration": "GM：戰鬥進行中。",
     "gm_flow_combat_added_log": "GM：已將「{names}」自動加入戰鬥面板。",
+    "gm_flow_night_boss_roll_log": "GM：夜之強敵決定表（第{day}天）自動擲骰1D＝{roll}，決定為：{entry}",
     "gm_flow_combat_manual_add_reminder": "GM：無法自動比對敵人資料，請對照規則書手動加入戰鬥面板：{text}",
     "gm_flow_combat_level_correction_reminder": "GM：此敵人含有「L補」等級修正（尚未自動化），請自行確認正確等級：{text}",
     "gm_flow_combat_level_correction_applied_log": "GM：此敵人已依所在格位置套用等級補正（L補+{correction}），自動判定為 Lv.{level}：{text}",

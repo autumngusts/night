@@ -252,6 +252,7 @@ STRINGS_EN: dict[str, str] = {
     "gm_flow_combat_trigger_button_fallback": "Battle",
     "gm_flow_combat_in_progress_narration": "GM: Battle in progress.",
     "gm_flow_combat_added_log": "GM: Automatically added \"{names}\" to the battle panel.",
+    "gm_flow_night_boss_roll_log": "GM: Night's Strong Enemy table (Day {day}) auto-rolled 1D = {roll}, resolved to: {entry}",
     "gm_flow_combat_manual_add_reminder": "GM: Couldn't auto-match enemy data. Check the rulebook and add it to the battle panel manually: {text}",
     "gm_flow_combat_level_correction_reminder": "GM: This enemy has an \"L-correction\" level adjustment (not automated). Please confirm the correct level yourself: {text}",
     "gm_flow_combat_level_correction_applied_log": "GM: Applied the level correction for this field's position (L-correction +{correction}), auto-determined as Lv.{level}: {text}",
