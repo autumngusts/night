@@ -2569,6 +2569,10 @@
 
   // --- board ---
   function renderBoard() {
+    // ユーザー指定：3日目（最終夜）はフィールド探索盤面が存在しない（夜の王戦闘のみ）ため、
+    // 公開盤の地図カード自体を非表示にする。
+    var boardArea = document.getElementById("board-area");
+    if (boardArea) boardArea.hidden = state.dayNumber >= MAX_DAY;
     for (var i = 0; i < SLOT_COUNT; i++) {
       var el = document.getElementById("slot-" + i);
       var slot = state.slots[i];
@@ -11400,6 +11404,11 @@
       btn.textContent = window.I18N.t("next_night_button");
       if (state.dayNumber >= MAX_DAY) {
         btn.disabled = true;
+      } else if (scenario && state.dayNumber >= MAX_DAY - 1) {
+        // ユーザー報告：2日目→3日目（最終夜）は探索盤面が存在しないため、1日目→2日目と同じ
+        // 「保持するカードを選ぶ」ドロワーを経由させず、直接夜の王戦闘の案内へ進める。
+        btn.disabled = false;
+        btn.onclick = advanceToFinalNightDirect;
       } else if (scenario) {
         btn.disabled = false;
         btn.onclick = openKeepCardsDrawer;
@@ -11628,6 +11637,39 @@
     state.endSuit = null;
     state.endChecks = defaultChecks();
     state.dayNumber += 1;
+  }
+
+  // ユーザー報告：3日目（最終夜、夜の王戦闘のみでフィールド探索盤面が存在しない）への遷移が、
+  // 1日目→2日目と同じ「保持するカードを選ぶ」ドロワー（openKeepCardsDrawer/submitKeepCards）
+  // を経由していた。submitKeepCardsは常にscenario.day2のデータで新しい盤面を組み立てる
+  // ため、2日目→3日目の遷移でもscenario.day2を使い回して意味のない「3日目の探索盤面」を
+  // 誤って再構築してしまっていた（scenario.day3という概念自体が存在しない）。
+  // 3日目には盤面が無いため、カードを選ぶ操作自体が不要——advanceToNextNightで日付だけ
+  // 進め、盤面データを空にして（renderBoardのdayNumber>=MAX_DAYガードで#board-area自体も
+  // 非表示にする）、そのまま夜の王戦闘の案内（night_gm_flow.jsのmaybeAnnounceFinalDay、
+  // renderLocationBanner呼び出しのたびに自動的にチェックされる）へ直行させる。
+  function advanceToFinalNightDirect() {
+    saveUndoSnapshot();
+    advanceToNextNight();
+    for (var i = 0; i < SLOT_COUNT; i++) {
+      state.slots[i] = null;
+      state.cardLevels[i] = null;
+    }
+    state.eventChips = new Array(SLOT_COUNT).fill(null);
+    state.eventChipNumbers = new Array(SLOT_COUNT).fill(null);
+    state.eventChipsUsed = new Array(SLOT_COUNT).fill(false);
+    state.eventChipsData = {};
+    // focusedIndexはあえてクリアしない：renderCurrentLocationStatusは
+    // 「focusedIndexが解決できる場地カードを持たず、かつgmFlow側が敘述待ち状態でもない」場合に
+    // 進度版オーバーレイ自体を早期return（非表示）してしまうため、nullにすると
+    // maybeAnnounceFinalDay（renderLocationBanner内、night_gm_flow.js）に到達する前に
+    // 描画が打ち切られ、3日目の夜の王戦闘案内が一切表示されなくなってしまう
+    // （盤面自体はboard-areaのhidden制御で別途隠しているため、focusedIndexを残しても
+    // 盤面が再表示されることはない）。
+    saveState();
+    renderBoard();
+    renderCurrentLocationStatus();
+    addLog("log_next_night", { day: state.dayNumber });
   }
 
   // --- シナリオ（副本）モード：固定カード配置 ---
