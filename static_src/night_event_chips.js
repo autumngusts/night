@@ -44,6 +44,7 @@
     eventChipModalIndex = idx;
     eventChipMerchantLastWeaponResult = null;
     eventChipBlessingUsedIds = {};
+    eventChipScarabState = {};
     document.getElementById("event-chip-modal").hidden = false;
     document.getElementById("btn-event-chip-restore").hidden = true;
     renderEventChipModal();
@@ -321,34 +322,68 @@
     });
   }
 
-  // --- 靈脈：任意の1マスへ現在のフォーカス位置（黄枠）を無条件で移動する（登攀判定不要）。 ---
+  // --- 靈脈：任意の1マス（または起點/終點）へ現在のフォーカス位置（黄枠）を無条件で移動する
+  // （登攀判定不要——規則書「登攀判定に自動成功する扱い」）。使用者確認（項目5）：目的地選択の
+  // 見た目は本盤面（3x3、buildBoardSlots）と同じ配置にし、飛んだ先の隣接マスも自動で翻牌する。
+  // finalizeSlotMove（night.js、exposed）は数値スロットとstart/endの両方を受け付け、
+  // focusedIndex設定・隣接翻牌（revealAdjacentSlots、gmFlowEnabled時）・保存・盤面再描画・
+  // ログまで一括で行う既存の正規移動処理のため、attemptMoveToPositionの隣接/登攀判定
+  // （靈脈には不要）を経由せず直接これを呼ぶ。 ---
   function renderEventChipSpiritVein(idx, content) {
+    var Core = window.PriTestNightCore;
     var note = document.createElement("p");
     note.className = "threat-ref-body";
     note.textContent = window.I18N.t("event_chip_spirit_vein_note");
     content.appendChild(note);
+
+    function moveTo(target, label) {
+      Core.finalizeSlotMove(target);
+      window.PriTestNightLog("log_event_chip_spirit_vein_move", { position: label });
+      markEventChipUsed(idx);
+      closeEventChipModal();
+    }
+
     var grid = document.createElement("div");
-    grid.className = "wb-row";
-    for (var i = 0; i < window.PriTestNightCore.SLOT_COUNT; i++) {
-      if (i === idx) continue;
+    grid.className = "spirit-vein-grid";
+    for (var i = 0; i < Core.SLOT_COUNT; i++) {
       (function (target) {
-        var slot = window.PriTestNightCore.state.slots[target];
+        var slot = Core.state.slots[target];
         var btn = document.createElement("button");
         btn.type = "button";
-        btn.textContent =
-          slot && slot.revealed ? window.PriTestNightCore.CARD_BY_CODE[slot.code].label : window.I18N.t("event_chip_spirit_vein_slot_hidden", { n: target + 1 });
-        btn.addEventListener("click", function () {
-          window.PriTestNightCore.state.focusedIndex = target;
-          window.PriTestNightCore.saveState();
-          window.PriTestNightCore.renderBoard();
-          window.PriTestNightLog("log_event_chip_spirit_vein_move", { position: btn.textContent });
-          markEventChipUsed(idx);
-          closeEventChipModal();
-        });
+        btn.className = "spirit-vein-cell";
+        var label =
+          slot && slot.revealed ? Core.CARD_BY_CODE[slot.code].label : window.I18N.t("event_chip_spirit_vein_slot_hidden", { n: target + 1 });
+        btn.textContent = label;
+        if (target === idx) {
+          btn.disabled = true;
+          btn.classList.add("spirit-vein-cell-current");
+        } else {
+          btn.addEventListener("click", function () {
+            moveTo(target, label);
+          });
+        }
         grid.appendChild(btn);
       })(i);
     }
     content.appendChild(grid);
+
+    var piles = document.createElement("div");
+    piles.className = "spirit-vein-piles";
+    [
+      { pos: "start", key: "start_point_label" },
+      { pos: "end", key: "end_point_label" },
+    ].forEach(function (p) {
+      var btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "spirit-vein-cell spirit-vein-pile-btn";
+      var label = window.I18N.t(p.key);
+      btn.textContent = label;
+      btn.addEventListener("click", function () {
+        moveTo(p.pos, label);
+      });
+      piles.appendChild(btn);
+    });
+    content.appendChild(piles);
   }
 
   // --- 強敵：既存の強敵決定表（event_rulebook.js）を参照表示し、GMが実際に振った出目に
@@ -439,9 +474,142 @@
     content.appendChild(inputRow);
   }
 
+  // --- 聖甲蟲（項目4）：PC人數匹＝各PC獨立1隻聖甲蟲，各自任意選擇是否參加〈13｜任選能力值〉
+  // 行為判定。成功者獲得「護符」1個（抽選）；失敗者承受FP損害1（黑方塊■＝1點，使用者已對照
+  // 規則書原文確認），並可再付出FP損害1挑戰一次（再次失敗則聖甲蟲完全逃離、不再有動作）。
+  // 進行中不呼叫markEventChipUsed，任何一位PC完成判定（成功或第一次失敗）後才標記使用——
+  // 比照祝福籌碼「任一PC完成動作即視為此籌碼已發揮」的既有慣例。
+  var SCARAB_TARGET = 13;
+  var eventChipScarabState = {}; // { [charId]: { stage: "unresolved"|"failedFirst"|"success"|"fled", statKey, dice, sum } }
+
+  function renderEventChipScarabRow(idx, container, c) {
+    var Core = window.PriTestNightCore;
+    var Breakthrough = window.PriTestNightFloorBreakthrough;
+    var CharacterTypes = window.PriTestCharacterTypes;
+    var type = c.typeId ? CharacterTypes.get(c.typeId) : null;
+    if (!eventChipScarabState[c.id]) eventChipScarabState[c.id] = { stage: "unresolved", statKey: "luck" };
+    var st = eventChipScarabState[c.id];
+
+    var row = document.createElement("div");
+    row.className = "wb-row breakthrough-char-row";
+    var name = document.createElement("span");
+    name.className = "breakthrough-char-name";
+    name.textContent = c.name;
+    row.appendChild(name);
+
+    function doRoll(isRetry) {
+      if (isRetry) {
+        // 為了獲得再挑戰一次的機會，先付出FP損害1（規則書：「さらに『FP損害：■』を被って」）。
+        c.fp.current = Math.max(0, c.fp.current - 1);
+      }
+      var count = Breakthrough.effectiveCheckValue(c, type, st.statKey);
+      var dice = [];
+      for (var i = 0; i < count; i++) dice.push(1 + Math.floor(Math.random() * 6));
+      var sum = dice.reduce(function (a, b) {
+        return a + b;
+      }, 0);
+      var passed = sum >= SCARAB_TARGET;
+      st.dice = dice;
+      st.sum = sum;
+      var outcomeKey = passed ? "ability_check_pass_label" : "ability_check_fail_label";
+      window.PriTestNightLog("log_event_chip_scarab_result", {
+        character: c.name,
+        dice: dice.join("+"),
+        sum: sum,
+        outcome: window.I18N.t(outcomeKey),
+      });
+      if (passed) {
+        st.stage = "success";
+        markEventChipUsed(idx);
+        Core.openItemDrawModal("talisman", c.id, {
+          onGranted: function () {
+            renderEventChipModal();
+          },
+        });
+      } else if (!isRetry) {
+        // 首次失敗：徒勞感導致的FP損害1（與再挑戰的付出各自獨立累計）。
+        c.fp.current = Math.max(0, c.fp.current - 1);
+        st.stage = "failedFirst";
+        markEventChipUsed(idx);
+      } else {
+        st.stage = "fled";
+      }
+      Core.saveRosterCharacters();
+      Core.renderCharacterRoster();
+      Core.saveState();
+      renderEventChipModal();
+    }
+
+    if (st.stage === "unresolved") {
+      var statSelect = document.createElement("select");
+      ["luck", "physical", "mental"].forEach(function (key) {
+        var opt = document.createElement("option");
+        opt.value = key;
+        opt.textContent = window.I18N.t("check_stat_" + key);
+        statSelect.appendChild(opt);
+      });
+      statSelect.value = st.statKey;
+      statSelect.addEventListener("change", function () {
+        st.statKey = statSelect.value;
+      });
+      row.appendChild(statSelect);
+      var rollBtn = document.createElement("button");
+      rollBtn.type = "button";
+      rollBtn.className = "combat-attack-hit-btn";
+      rollBtn.textContent = window.I18N.t("event_chip_scarab_participate_button");
+      rollBtn.addEventListener("click", function () {
+        doRoll(false);
+      });
+      row.appendChild(rollBtn);
+    } else {
+      var resultLabel = document.createElement("span");
+      var resultKey =
+        st.stage === "success"
+          ? "event_chip_scarab_result_success"
+          : st.stage === "fled"
+          ? "event_chip_scarab_result_fled"
+          : "event_chip_scarab_result_fail_first";
+      resultLabel.className = "ability-check-result " + (st.stage === "success" ? "ability-check-pass" : "ability-check-fail");
+      resultLabel.textContent = window.I18N.t("ability_check_result_label", {
+        dice: st.dice.join("+"),
+        sum: st.sum,
+        outcome: window.I18N.t(resultKey),
+      });
+      row.appendChild(resultLabel);
+      if (st.stage === "failedFirst") {
+        var retryBtn = document.createElement("button");
+        retryBtn.type = "button";
+        retryBtn.className = "combat-attack-hit-btn";
+        retryBtn.textContent = window.I18N.t("event_chip_scarab_retry_button");
+        retryBtn.addEventListener("click", function () {
+          doRoll(true);
+        });
+        row.appendChild(retryBtn);
+      }
+    }
+    container.appendChild(row);
+  }
+
+  function renderEventChipScarab(idx, content, branch, Events) {
+    (branch.floors || []).forEach(function (floor) {
+      (floor.lines || []).forEach(function (line) {
+        window.PriTestNightRulebook.renderFieldLine(content, line, Events.localizedText);
+      });
+    });
+    var entered = window.PriTestNightCore.getRosterCharacters().filter(function (c) {
+      return c.entered;
+    });
+    var list = document.createElement("div");
+    entered.forEach(function (c) {
+      renderEventChipScarabRow(idx, list, c);
+    });
+    content.appendChild(list);
+  }
+
   // --- 隨機事件：ランダムイベント決定表に載る全事件をGMが選択できるようにし、選んだ事件の
-  // 本文（event_rulebook.js）をそのまま表示する。実際の処理は玩家の反応を見ながらGMが
-  // 手動で進行する（自動化しない）。 ---
+  // 本文（event_rulebook.js）をそのまま表示する。聖甲蟲（スカラベ）のみ上記の専用UIで
+  // 自動化する（項目4）。それ以外は実際の処理を玩家の反応を見ながらGMが手動で進行する
+  // （自動化しない）。 ---
   function renderEventChipRandom(idx, content) {
     var Events = window.PriTestEventRulebook;
     var card = Events ? Events.list().filter(function (ec) {
@@ -472,18 +640,12 @@
     content.appendChild(select);
     var detailDiv = document.createElement("div");
     content.appendChild(detailDiv);
-    function renderDetail() {
-      detailDiv.innerHTML = "";
-      var b = branches[parseInt(select.value, 10)];
-      if (!b) return;
-      (b.floors || []).forEach(function (floor) {
-        (floor.lines || []).forEach(function (line) {
-          window.PriTestNightRulebook.renderFieldLine(detailDiv, line, Events.localizedText);
-        });
-      });
+    function isScarabBranch(b) {
+      return !!(b && b.name && (b.name.zh === "聖甲蟲" || b.name.ja === "スカラベ"));
     }
-    select.addEventListener("change", renderDetail);
-    renderDetail();
+    // 聖甲蟲は各PC個別の判定ボタンで進行が完結するため、汎用の「確定」ボタンは隠す
+    // （要素自体は常に作っておき、renderDetailの中でhiddenを切り替える——選択を切り替える
+    // たびに正しく更新されるようにする）。
     var confirmBtn = document.createElement("button");
     confirmBtn.type = "button";
     confirmBtn.className = "primary-btn";
@@ -494,6 +656,30 @@
       markEventChipUsed(idx);
       closeEventChipModal();
     });
+    function renderDetail() {
+      detailDiv.innerHTML = "";
+      var b = branches[parseInt(select.value, 10)];
+      if (!b) return;
+      if (isScarabBranch(b)) {
+        renderEventChipScarab(idx, detailDiv, b, Events);
+        confirmBtn.hidden = true;
+      } else {
+        (b.floors || []).forEach(function (floor) {
+          (floor.lines || []).forEach(function (line) {
+            window.PriTestNightRulebook.renderFieldLine(detailDiv, line, Events.localizedText);
+          });
+        });
+        confirmBtn.hidden = false;
+      }
+    }
+    select.addEventListener("change", function () {
+      // 別の事件へ切り替えたら聖甲蟲の個人別進行状態はリセットする（同一籌碼を開き直した
+      // だけなら、eventChipModalIndexが変わらない限りopenEventChipModal側ではクリアされない
+      // ため、ここで明示的にクリアする）。
+      eventChipScarabState = {};
+      renderDetail();
+    });
+    renderDetail();
     content.appendChild(confirmBtn);
   }
 

@@ -2666,6 +2666,7 @@
     renderCharacterRoster();
     renderNight3BossImage();
     renderUndoButton();
+    renderRainIcons();
   }
 
   // 第三天（最終夜）到達時のみ、管理員が設定した夜の王画像を盤面右側に表示する。
@@ -2805,6 +2806,9 @@
             var rowWasFull = state.timeLoss[dayKey][rowIndex].every(Boolean);
             state.timeLoss[dayKey][rowIndex][boxIndex] = cb.checked;
             renderTimeLossSummary();
+            // 使用者確認（項目8）：夜雨の段のチェック状態が変わるたびに、盤面の下雨アイコンも
+            // 追随して更新する。
+            renderRainIcons();
             saveState();
             // GMが手動でチェックした場合も、addTimeLossの自動付与と同じく「威脅効果追加」段が
             // 新たに埋まった瞬間に1D6を振る（ユーザー確認済みの①〜⑥出目対応表）。
@@ -2866,13 +2870,46 @@
   // 「夜雨」の到達済み最大段階のみを表示する（低い段階は高い段階の文言に包含されるため、
   // 最大値だけ見せれば十分）。個別の「威脅効果追加」詳細は btn-time-loss-broadcast の
   // 一時公告（triggerThreatBroadcast）で必要な時にだけ表示する。
-  function renderTimeLossSummary() {
+  // 使用者確認（項目8）：現在有効な夜雨の最大階段（0＝夜雨無し）。renderTimeLossSummary内の
+  // 既存ロジックを再利用可能な関数として抽出（盤面の下雨アイコン更新からも参照するため）。
+  function currentActiveRainTier() {
     var dayKey = isSwappedDay() ? "day2" : "day1";
     var rows = state.timeLoss[dayKey];
     var maxRainTier = 0;
     TIME_LOSS_ROW_DEFS.forEach(function (def, i) {
       if (def.kind === "rain" && rows[i].every(Boolean) && def.tier > maxRainTier) maxRainTier = def.tier;
     });
+    return maxRainTier;
+  }
+
+  // 夜雨の階段は「場地線：±0～+N」のようにL補の値そのもので範囲が決まる（列の左右位置とは
+  // 無関係——2日目はL補が[5,4,3]と1日目の逆順になるため、単純に「左からN列」ではない）。
+  // fieldLevelsForDay()の値が小さい列から順にN列（N＝現在の夜雨階段）を、影響を受ける列
+  // index（0-2）の集合として返す。夜雨が発生していなければ空配列。
+  function rainAffectedColumns() {
+    var tier = currentActiveRainTier();
+    if (!tier) return [];
+    var levels = fieldLevelsForDay();
+    var cols = [0, 1, 2].sort(function (a, b) {
+      return levels[a] - levels[b];
+    });
+    return cols.slice(0, tier);
+  }
+
+  // 盤面最上段（slot-wrap-0/1/2、各列の一番上のカード格）に、現在夜雨の影響を受けている列
+  // だけ下雨アイコンを表示する（項目8）。buildBoardSlotsが仕込んだ.slot-rain-icon要素の
+  // 表示/非表示を切り替えるだけで、DOM自体は作り直さない。
+  function renderRainIcons() {
+    var affected = rainAffectedColumns();
+    for (var col = 0; col < 3; col++) {
+      var icon = document.getElementById("slot-rain-icon-" + col);
+      if (icon) icon.hidden = affected.indexOf(col) === -1;
+    }
+  }
+
+  function renderTimeLossSummary() {
+    var dayKey = isSwappedDay() ? "day2" : "day1";
+    var maxRainTier = currentActiveRainTier();
     var summaryEl = document.getElementById("time-loss-summary");
     // #15：従来は夜雨の最大段階しか見ておらず、「威脅効果追加」（activeThreatEffects）が
     // 何個現在有効かは常時バーのどこにも出ていなかった（"尚未觸發"のまま）。件数を先頭に足す。
@@ -7595,10 +7632,13 @@
   // 盤面左側の共用パネル（board-side-enemies直下）の簡易表示、そして第三夜の
   // 夜の王画像の下（night3-boss-hp-grid）の3箇所に同じstate.battle.enemyHpを
   // 描画する。いずれかのチェックボックスを操作しても全箇所に即時反映される。
+  // 使用者確認（項目7）：公開盤／共用面板（board-side-enemy-hp-grid、night3-boss-hp-grid、
+  // 皆為玩家可見的公開盤一部分）不應顯示+/-鈕，只有戰場面板（battle-enemy-hp-grid、GM專用）
+  // 可以手動調整。readOnly的段落只畫數值，不畫±按鈕。
   var ENEMY_HP_GRID_TARGETS = [
     { containerId: "battle-enemy-hp-grid", idPrefix: "battle-enemy-hp-" },
-    { containerId: "board-side-enemy-hp-grid", idPrefix: "board-enemy-hp-" },
-    { containerId: "night3-boss-hp-grid", idPrefix: "night3-boss-hp-" },
+    { containerId: "board-side-enemy-hp-grid", idPrefix: "board-enemy-hp-", readOnly: true },
+    { containerId: "night3-boss-hp-grid", idPrefix: "night3-boss-hp-", readOnly: true },
   ];
 
   // チェックボックスを1つずつ押す方式は箱数が多い（4段×20＝80）と操作が煩雑なため、
@@ -8218,14 +8258,16 @@
           label.textContent = window.I18N.t("battle_hp_row_label", { row: rowIdx + 1 });
           rowDiv.appendChild(label);
 
-          var minus = document.createElement("button");
-          minus.type = "button";
-          minus.className = "level-btn";
-          minus.textContent = "−";
-          minus.addEventListener("click", function () {
-            adjustEnemyHpRow(rowIdx, -1);
-          });
-          rowDiv.appendChild(minus);
+          if (!target.readOnly) {
+            var minus = document.createElement("button");
+            minus.type = "button";
+            minus.className = "level-btn";
+            minus.textContent = "−";
+            minus.addEventListener("click", function () {
+              adjustEnemyHpRow(rowIdx, -1);
+            });
+            rowDiv.appendChild(minus);
+          }
 
           var value = document.createElement("span");
           value.className = "level-value battle-hp-stepper-value";
@@ -8234,14 +8276,16 @@
           value.textContent = count + "/" + ENEMY_HP_COLS;
           rowDiv.appendChild(value);
 
-          var plus = document.createElement("button");
-          plus.type = "button";
-          plus.className = "level-btn";
-          plus.textContent = "＋";
-          plus.addEventListener("click", function () {
-            adjustEnemyHpRow(rowIdx, 1);
-          });
-          rowDiv.appendChild(plus);
+          if (!target.readOnly) {
+            var plus = document.createElement("button");
+            plus.type = "button";
+            plus.className = "level-btn";
+            plus.textContent = "＋";
+            plus.addEventListener("click", function () {
+              adjustEnemyHpRow(rowIdx, 1);
+            });
+            rowDiv.appendChild(plus);
+          }
 
           if (isEnemyHpRowDepleted(rowIdx)) {
             var defeated = allEnemyHpRowsDepleted();
@@ -8331,9 +8375,10 @@
   // 盤面左側の共用パネル（board-side-mob-hp-list、削除ボタンなしの簡易表示）の2箇所に
   // 同じstate.battle.mobHpRowsを描画する。どちらのチェックボックスを操作しても両方に
   // 即時反映される。共用パネル側は雑魚が1行も無いときは非表示にする。
+  // 使用者確認（項目7）：board-side-mob-hp-list（公開盤共用面板）不應顯示+/-鈕。
   var MOB_HP_LIST_TARGETS = [
     { containerId: "battle-mob-hp-list", withRemove: true },
-    { containerId: "board-side-mob-hp-list", withRemove: false },
+    { containerId: "board-side-mob-hp-list", withRemove: false, readOnly: true },
   ];
 
   var MOB_HP_COLS = 10;
@@ -8466,28 +8511,32 @@
 
         var count = countRowChecked(row, 0, row.length);
 
-        var minus = document.createElement("button");
-        minus.type = "button";
-        minus.className = "level-btn";
-        minus.textContent = "−";
-        minus.addEventListener("click", function () {
-          adjustMobHpRow(rowIndex, -1);
-        });
-        rowDiv.appendChild(minus);
+        if (!target.readOnly) {
+          var minus = document.createElement("button");
+          minus.type = "button";
+          minus.className = "level-btn";
+          minus.textContent = "−";
+          minus.addEventListener("click", function () {
+            adjustMobHpRow(rowIndex, -1);
+          });
+          rowDiv.appendChild(minus);
+        }
 
         var value = document.createElement("span");
         value.className = "level-value battle-hp-stepper-value";
         value.textContent = count + "/" + row.length;
         rowDiv.appendChild(value);
 
-        var plus = document.createElement("button");
-        plus.type = "button";
-        plus.className = "level-btn";
-        plus.textContent = "＋";
-        plus.addEventListener("click", function () {
-          adjustMobHpRow(rowIndex, 1);
-        });
-        rowDiv.appendChild(plus);
+        if (!target.readOnly) {
+          var plus = document.createElement("button");
+          plus.type = "button";
+          plus.className = "level-btn";
+          plus.textContent = "＋";
+          plus.addEventListener("click", function () {
+            adjustMobHpRow(rowIndex, 1);
+          });
+          rowDiv.appendChild(plus);
+        }
 
         rowWrap.appendChild(rowDiv);
         if (target.withRemove) {
@@ -12021,6 +12070,9 @@
     }
     renderTimeLossChecks(dayKey);
     renderTimeLossSummary();
+    // 使用者確認（項目8）：自動化GM経由（防禦階段開始時のTime Loss+1等）で夜雨段階が
+    // 変わった場合も、盤面の下雨アイコンを追随して更新する。
+    renderRainIcons();
     return messages;
   }
 
@@ -12956,6 +13008,17 @@
       (function (index) {
         var wrap = document.createElement("div");
         wrap.className = "slot-wrap slot-wrap-" + index;
+
+        // 使用者確認（項目8）：最上段（index 0-2、各列の一番上のカード格）だけに、夜雨
+        // 発生時の下雨アイコン用プレースホルダーを仕込む（表示/非表示はrenderRainIcons）。
+        if (index < 3) {
+          var rainIcon = document.createElement("div");
+          rainIcon.className = "slot-rain-icon";
+          rainIcon.id = "slot-rain-icon-" + index;
+          rainIcon.hidden = true;
+          rainIcon.setAttribute("aria-hidden", "true");
+          wrap.appendChild(rainIcon);
+        }
 
         var btn = document.createElement("button");
         btn.type = "button";
