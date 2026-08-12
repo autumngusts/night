@@ -4007,6 +4007,21 @@
               }
             }
           }
+          // 守護者（黎明）「斧槍旋風」：「1度のフェイズ中に『斧槍』で2Hitアタックを2回以上行ったとき」
+          // または「遺物効果『タメ攻擊』を行ったとき」（renderSpecialAttackWeaponRow側で判定）に
+          // 発揮する。効果は「自身の発生する乱戦ダメージを+10」＝次の防禦フェイズで自身が受ける
+          // 個人分の亂戰傷害にのみ+10（前衛全員への総量ではない、ユーザー確認済み仕様）ため、
+          // handleEnemyDamageConfirmForCharacterで自身のgroupValueにだけ加算する。
+          if (hitType === "hit2" && category.id === "halberd") {
+            c._halberdTwoHitCountThisPhase = (c._halberdTwoHitCountThisPhase || 0) + 1;
+            if (c._halberdTwoHitCountThisPhase === 2) {
+              var halberdWhirlwind = CharacterDrawer.findLearnedRelicEffectByName(c, ["斧槍旋風", "斧槍でつむじ風"]);
+              if (halberdWhirlwind) {
+                c._halberdWhirlwindActive = true;
+                lines.push(window.I18N.t("halberd_whirlwind_triggered_note"));
+              }
+            }
+          }
           if (useMastery) {
             c._twoHitMasteryUsedThisPhase = true;
             lines.push(window.I18N.t("action_log_two_hit_mastery_used", { value: masteryOverride.value }));
@@ -4314,6 +4329,15 @@
         if (onConfirmExtra) {
           onConfirmExtra();
           lines.push(window.I18N.t("combat_special_attack_move_to_front_note"));
+        }
+        // 守護者（黎明）「斧槍旋風」：「遺物効果『タメ攻擊』を行ったとき」も発動条件を満たす
+        // （2Hitアタック2回のときと同じフラグを立てる。詳細は上のhit2ハンドラのコメント参照）。
+        if (kind === "charge") {
+          var halberdWhirlwindCharge = CharacterDrawer.findLearnedRelicEffectByName(c, ["斧槍旋風", "斧槍でつむじ風"]);
+          if (halberdWhirlwindCharge) {
+            c._halberdWhirlwindActive = true;
+            lines.push(window.I18N.t("halberd_whirlwind_triggered_note"));
+          }
         }
         var valueText = CharacterDrawer.formatValueWithSymbol(result.value, result.symbol);
         recordPhaseDamageDealt(c, result.value, result.symbol);
@@ -4830,28 +4854,48 @@
         renderCombatModal();
       });
       row.appendChild(useBtn);
-      // 葬儀屋「力量感應」：他PCの技藝使用で貯まった無消耗使用権がある間、「不祥一擊」の行に
-      // 専用ボタンを追加表示する。骰子コスト・使用回数どちらも消費しない即時確定（力量感應由来
-      // の使用はtriggerPowerResonanceを呼ばない＝連鎖しない）。
-      if (entry.id === "ominous_strike" && (c._powerResonanceCredits || 0) > 0) {
-        var freeUseBtn = document.createElement("button");
-        freeUseBtn.type = "button";
-        freeUseBtn.className = "combat-attack-hit-btn";
-        freeUseBtn.textContent = window.I18N.t("power_resonance_free_use_button", { credits: c._powerResonanceCredits });
-        freeUseBtn.addEventListener("click", function () {
-          c._powerResonanceCredits = Math.max(0, (c._powerResonanceCredits || 0) - 1);
-          var dmg = computeSkillDamage(c, entry, body);
-          if (dmg) recordPhaseDamageDealt(c, dmg.value, dmg.symbol);
-          var total = dmg ? window.I18N.t("action_log_damage_total", { value: CharacterDrawer.formatValueWithSymbol(dmg.value, dmg.symbol) }) : null;
-          moveOminousStrikeToFront(c);
-          addActionBox(c, name, total, [window.I18N.t("log_ominous_strike_move_note")]);
-          addLog("log_ominous_strike_free_use", { character: c.name });
-          combatSkillState = null;
-          renderCombatModal();
-        });
-        row.appendChild(freeUseBtn);
-      }
       content.appendChild(row);
+      // 葬儀屋（LV1被動「力量感應」）：其他PC以［Action］使用技藝時，自身可不消耗使用次數地
+      // 使用技藝「不祥一擊」（此效果從LV1即可觸發並累積，但因「不祥一擊」本身是LV3技藝，實際上
+      // 唯有LV3以上、已習得該技藝的送葬人才會看到下方的複製列）。使用者確認：不以「1個按鈕+
+      // 剩餘次數」呈現，而是每累積1點就在「不祥一擊」下方複製出1整列（名稱加註「（0消耗）」），
+      // 逐一按下即消耗——與技能一覽的原生視覺語言一致。骰子消耗・使用回數皆不消費（此技藝本身
+      // 的消耗僅為「使用次數●」，無額外骰子成本，力量感應僅豁免使用次數的扣除），且此使用不會
+      // 呼叫triggerPowerResonance（不連鎖產生新的0消耗使用權）。
+      if (entry.id === "ominous_strike") {
+        for (var resonanceIdx = 0; resonanceIdx < (c._powerResonanceCredits || 0); resonanceIdx++) {
+          var freeRow = document.createElement("div");
+          freeRow.className = "combat-skill-row";
+          var freeNameEl = document.createElement("span");
+          freeNameEl.className = "combat-skill-name";
+          freeNameEl.textContent = name + window.I18N.t("power_resonance_free_entry_suffix") + "［" + entry.kind + "］";
+          freeRow.appendChild(freeNameEl);
+          var freeDmg = computeSkillDamage(c, entry, body);
+          if (freeDmg) {
+            var freeDmgTag = document.createElement("span");
+            freeDmgTag.className = "weapon-damage-tag";
+            freeDmgTag.textContent = " " + CharacterDrawer.formatValueWithSymbol(freeDmg.value, freeDmg.symbol);
+            freeRow.appendChild(freeDmgTag);
+          }
+          var freeUseBtn = document.createElement("button");
+          freeUseBtn.type = "button";
+          freeUseBtn.className = "combat-attack-hit-btn";
+          freeUseBtn.textContent = window.I18N.t("combat_skill_use_button");
+          freeUseBtn.addEventListener("click", function () {
+            c._powerResonanceCredits = Math.max(0, (c._powerResonanceCredits || 0) - 1);
+            var dmg = computeSkillDamage(c, entry, body);
+            if (dmg) recordPhaseDamageDealt(c, dmg.value, dmg.symbol);
+            var total = dmg ? window.I18N.t("action_log_damage_total", { value: CharacterDrawer.formatValueWithSymbol(dmg.value, dmg.symbol) }) : null;
+            moveOminousStrikeToFront(c);
+            addActionBox(c, name + window.I18N.t("power_resonance_free_entry_suffix"), total, [window.I18N.t("log_ominous_strike_move_note")]);
+            addLog("log_ominous_strike_free_use", { character: c.name });
+            combatSkillState = null;
+            renderCombatModal();
+          });
+          freeRow.appendChild(freeUseBtn);
+          content.appendChild(freeRow);
+        }
+      }
 
       if (isActive && entry.id === "claw_shot") {
         renderClawShotAction(c, content, entry, name, body, function () {
@@ -4967,10 +5011,17 @@
           }
           // 淑女「終曲」と同じく、次の防禦フェイズを跨いで持続するbattle全体のフラグを立てる
           // （防禦フェイズを抜けたタイミングでリセットされる。setActionPhase参照）。
+          // 「此行動後，下個防禦階段中敵人產生的亂戰傷害（分割前）－300」：GMの手動減算に
+          // 頼らず、handleAutoGmRollClickが亂戰傷害を算出する際に自動で減算する
+          // （_nextDefenseMeleeDmgReductionへ累積、無賴漢（暗影）「技能強化（敵人弱化）」の
+          // －120と同じ仕組み、複数回發動時は加算で重複適用）。
           state.battle._totemStellaActive = true;
+          state.battle._nextDefenseMeleeDmgReduction = (state.battle._nextDefenseMeleeDmgReduction || 0) - 300;
           saveState();
           var total = window.I18N.t("action_log_damage_total", { value: CharacterDrawer.formatValueWithSymbol(totemValue, "▲") });
-          var totemLines = [window.I18N.t("action_log_dice_used", { dice: dice.join("、") })].concat(costLines);
+          var totemLines = [window.I18N.t("action_log_dice_used", { dice: dice.join("、") })].concat(costLines).concat([
+            window.I18N.t("totem_stella_debuff_triggered_note"),
+          ]);
           // R1「技藝強化（HP回復）」：発動後、全體PCへ「HP回復：□×5」（+5）を適用する。
           if (CharacterDrawer.findLearnedRelicEffectByName(c, ["技藝強化（HP回復）", "アーツ強化（HP回復）"])) {
             rosterCharacters.forEach(function (rc) {
@@ -5349,10 +5400,13 @@
           }
           // 無賴漢（暗影）「技能強化（敵人弱化）」：以［Action］使用夜渡技能「逆襲」時，下個防禦
           // 階段中敵人產生的亂戰傷害（分割前）「－120」。與既存「圖騰・史黛拉」的－300同一設計
-          // （state.battle旗標＋防禦分頁提醒橫幅，數值本身由GM於AutoGM/手動結算時自行減去，
-          // 而不是寫入state.battle.enemyDmgOverride——沿用totem_stella既有的「提醒優先」處理方式）。
-          if (entry.id === "counterattack" && CharacterDrawer.findLearnedRelicEffectByName(c, ["技能強化（敵人弱化）", "スキル強化（エネミー弱体）"])) {
+          // （_nextDefenseMeleeDmgReductionへ累積し、handleAutoGmRollClickが亂戰傷害を算出する
+          // 際に自動で減算する。進度版への告知はaddActionBox側でextraLinesへ注記を追加）。
+          var ruffianDarkCounterDebuffTriggered =
+            entry.id === "counterattack" && CharacterDrawer.findLearnedRelicEffectByName(c, ["技能強化（敵人弱化）", "スキル強化（エネミー弱体）"]);
+          if (ruffianDarkCounterDebuffTriggered) {
             state.battle._ruffianDarkCounterDebuffActive = true;
+            state.battle._nextDefenseMeleeDmgReduction = (state.battle._nextDefenseMeleeDmgReduction || 0) - 120;
             saveState();
           }
           // 葬儀屋「力量感應」：この汎用パスを通るあらゆる技藝の使用（他キャラのarts含む）が
@@ -5580,6 +5634,7 @@
             var bloodSpiritNote = CharacterDrawer.findLearnedRelicEffectByName(c, ["技藝強化（出血攻擊力強化）", "アーツ強化（出血攻撃力強化）"]);
             if (bloodSpiritNote) extraLines = extraLines.concat([CharacterTypes.localizedText(bloodSpiritNote.body)]);
           }
+          if (ruffianDarkCounterDebuffTriggered) extraLines = extraLines.concat([window.I18N.t("counterattack_debuff_triggered_note")]);
           addActionBox(c, name, total, extraLines);
           addLog("log_combat_skill_use", { character: c.name, skill: name, dice: dice.join("、") });
           combatSkillState = null;
@@ -6782,6 +6837,13 @@
         ? 1
         : 0;
 
+    // 鐵之眼／隱者「後衛戰術」：「當自身位於後衛時」，將消耗品產生的傷害「+5」（武器の1Hit/2Hit部分は
+    // relicEffectAppliesTo、戰技・魔術部分はrenderCombatSkillActionのrearTacticsBonusで既に処理済み。
+    // ここは唯一未実装だった消耗品ダメージ部分）。対象は実際にエネミーへ傷害を与える消耗品のみ
+    // （回復系アイテムは本文の「傷害」に含まれないため対象外）。
+    var rearTacticsConsumableDamageBonus =
+      getCharacterBattlePosition(c) === "back" && CharacterDrawer.findLearnedRelicEffectByName(c, ["後衛戰術", "後衛戦術"]) ? 5 : 0;
+
     function healSelf(hpAmount, fpAmount) {
       if (hpAmount) c.hp.current = Math.min(c.hp.max, c.hp.current + hpAmount);
       if (fpAmount) c.fp.current = Math.min(c.fp.max, c.fp.current + fpAmount);
@@ -6894,31 +6956,31 @@
     } else if (itemId === "item_throwing_dagger") {
       lines.push(window.I18N.t("consumable_effect_triangle_note"));
       if (applyLevel2) {
-        total = window.I18N.t("action_log_damage_total", { value: 15 });
+        total = window.I18N.t("action_log_damage_total", { value: 15 + rearTacticsConsumableDamageBonus });
       } else {
         lines.push(window.I18N.t("consumable_effect_level2_reminder"));
       }
     } else if (itemId === "item_azure_throwing_knife") {
-      total = window.I18N.t("action_log_damage_total", { value: 2 });
+      total = window.I18N.t("action_log_damage_total", { value: 2 + rearTacticsConsumableDamageBonus });
     } else if (itemId === "item_bone_poison_dart") {
       var poisonRoll = 1 + Math.floor(Math.random() * 6);
       if (target.enemyKey) recordAttributeStatusDealt(c.id, target.enemyKey, "猛毒", poisonRoll);
       lines.push(window.I18N.t("action_log_status_accum", { label: CharacterTypes.localizedText({ zh: "猛毒", ja: "猛毒" }), value: poisonRoll }));
       if (applyLevel2) {
-        total = window.I18N.t("action_log_damage_total", { value: 15 });
+        total = window.I18N.t("action_log_damage_total", { value: 15 + rearTacticsConsumableDamageBonus });
       } else {
         lines.push(window.I18N.t("consumable_effect_level2_reminder"));
       }
     } else if (itemId === "item_folding_shuriken") {
       var shurikenRoll = 1 + Math.floor(Math.random() * 6);
-      var shurikenDmg = shurikenRoll * 10 + (applyLevel2 ? 15 : 0);
+      var shurikenDmg = shurikenRoll * 10 + (applyLevel2 ? 15 : 0) + rearTacticsConsumableDamageBonus;
       total = window.I18N.t("action_log_damage_total", { value: shurikenDmg });
       lines.push(window.I18N.t("consumable_effect_dice_rolled_note", { dice: shurikenRoll }));
       if (!applyLevel2) lines.push(window.I18N.t("consumable_effect_level2_reminder"));
     } else if (itemId === "item_throwing_pot") {
       lines.push(window.I18N.t("consumable_effect_throwing_pot_note"));
       if (applyLevel2) {
-        total = window.I18N.t("action_log_damage_total", { value: 15 });
+        total = window.I18N.t("action_log_damage_total", { value: 15 + rearTacticsConsumableDamageBonus });
       } else {
         lines.push(window.I18N.t("consumable_effect_level2_reminder"));
       }
@@ -7314,6 +7376,15 @@
           combatDefenseState = null;
         });
       }
+    }
+
+    // 守護者（黎明）「斧槍旋風」：発動済みなら、この防禦階段の確定操作で自身のgroupValueへ
+    // 自動的に+10されることをここで告知する（実際の加算はhandleEnemyDamageConfirmForCharacter）。
+    if (c._halberdWhirlwindActive) {
+      var halberdWhirlwindNote = document.createElement("p");
+      halberdWhirlwindNote.className = "threat-ref-body";
+      halberdWhirlwindNote.textContent = window.I18N.t("halberd_whirlwind_defense_note");
+      content.appendChild(halberdWhirlwindNote);
     }
 
     // 守護者「救世之翼」：戦闘フェイズで発動していれば、防禦フェイズでも効果が持続している
@@ -8892,9 +8963,14 @@
     });
     // 「亂戰傷害」の最終値＝規則書のレベル別基準値＋この行動固有の修正値＋Time Loss側の骰效果
     // （state.rollEffects.enemy_damage）＋state.battle.enemyDmgOverride（PC技能による減少・
-    // 敵人特殊行動による増加、睡眠トリガー等で既に累積されている値）。個別ダメージも
-    // Time Loss側の骰效果を同様に加算する（enemyDmgOverrideは「亂戰傷害」専用のため対象外）。
-    var enemyOverride = (state.battle.enemyDmgOverride && state.battle.enemyDmgOverride[enemyKey]) || 0;
+    // 敵人特殊行動による増加、睡眠トリガー等で既に累積されている値、敵人keyごとに持続）＋
+    // state.battle._nextDefenseMeleeDmgReduction（無賴漢「圖騰・史黛拉」／（暗影）「技能強化
+    // （敵人弱化）」等の「下個防禦階段中敵人產生的亂戰傷害（分割前）－N」系、敵人keyを問わず
+    // この防禦階段中の全ロールに適用し、防禦フェイズを抜けたタイミングでクリアされる）。個別
+    // ダメージもTime Loss側の骰效果を同様に加算する（enemyDmgOverrideは「亂戰傷害」専用のため対象外）。
+    var enemyOverride =
+      ((state.battle.enemyDmgOverride && state.battle.enemyDmgOverride[enemyKey]) || 0) +
+      (state.battle._nextDefenseMeleeDmgReduction || 0);
     var groupResult = AutoGm.computeGroupDamage(result, state.rollEffects, enemyOverride);
     var breakdownParts = [];
     // structured.groupDamage/individualDamageのelementAccum/ailmentAccum（固定数値の屬性/状態異常
@@ -9205,6 +9281,13 @@
     var hpValueInputEl = document.getElementById("enemy-damage-hpvalue-" + charId);
     var groupValue = groupInputEl ? parseInt(groupInputEl.value, 10) || 0 : 0;
     var individual = individualInputEl ? parseInt(individualInputEl.value, 10) || 0 : 0;
+    // 守護者（黎明）「斧槍旋風」：「自身の発生する乱戦ダメージを+10」＝前衛全員で分割した後の、
+    // このPC自身が受け取る亂戰傷害分にのみ+10する（他のPCの分には影響しない、ユーザー確認済み
+    // 仕様）。分割前の敵人側総量（enemyDmgOverride）とは別経路のため、確定操作のこの時点で
+    // groupValueへ直接加算する。トリガー済みならconfirm操作で消費し、二重適用を防ぐ。
+    var halberdWhirlwindBonus = c._halberdWhirlwindActive ? 10 : 0;
+    if (halberdWhirlwindBonus) c._halberdWhirlwindActive = false;
+    groupValue += halberdWhirlwindBonus;
     var hpValue = hpValueInputEl ? Math.max(1, parseInt(hpValueInputEl.value, 10) || 1) : Math.max(1, c.hpValue || 30);
     var hpLoss = Math.floor((groupValue + individual) / hpValue);
 
@@ -9212,6 +9295,7 @@
       window.I18N.t("enemy_damage_log_prefix") +
       window.I18N.t("colon_separator") +
       groupValue +
+      (halberdWhirlwindBonus ? window.I18N.t("halberd_whirlwind_applied_suffix", { value: halberdWhirlwindBonus }) : "") +
       (groupTag ? " | " + groupTag : "") +
       ", " +
       window.I18N.t("enemy_damage_individual_label") +
@@ -10498,6 +10582,10 @@
       state.battle._finaleActive = false;
       state.battle._totemStellaActive = false;
       state.battle._ruffianDarkCounterDebuffActive = false;
+      // 無賴漢「圖騰・史黛拉」／（暗影）「技能強化（敵人弱化）」：「下個防禦階段」限定の
+      // 亂戰傷害減算（分割前）は、この防禦フェイズを抜けた時点で必ずクリアする（handleAutoGmRollClick
+      // で毎回加算適用済みのため、次回合以降まで持ち越さない）。
+      state.battle._nextDefenseMeleeDmgReduction = 0;
       // 附帶効果「HP持續回復」「FP持續回復」：防禦階段結束時（戰鬥結束・次回合いずれも含む）、
       // 自身に「HP回復□」「FP回復□」＝+1として適用する。
       rosterCharacters.forEach(function (c) {
@@ -10505,6 +10593,9 @@
         var attached = c.learnedAttachedEffects || [];
         if (attached.indexOf("hp_regen") !== -1) c.hp.current = Math.min(c.hp.max, c.hp.current + 1);
         if (attached.indexOf("fp_regen") !== -1) c.fp.current = Math.min(c.fp.max, c.fp.current + 1);
+        // 守護者（黎明）「斧槍旋風」：「下個防禦階段」限定の自身専用バフのため、その防禦
+        // フェイズを抜けるタイミングで消費・リセットする（totemStella等と同じライフサイクル）。
+        c._halberdWhirlwindActive = false;
       });
       // グラディウス「分裂形態」移行条件2：分裂形態のいずれかの個体HPが0以下になっていた
       // 場合、防御フェイズ終了時に合体形態へ自動で戻す（GM手動トグルの出番はここでは無い）。
@@ -10630,6 +10721,7 @@
       c._fpRecoveryAppliedThisPhase = false;
       c._hpRecoveryAppliedThisPhase = false;
       c._daggerTwoHitCountThisPhase = 0;
+      c._halberdTwoHitCountThisPhase = 0;
       c._phaseDamageDealt = 0;
       c._phaseGuardReductionPoints = 0;
       c._phaseGuardSymbols = [];
@@ -10696,6 +10788,9 @@
       // （次の戦闘で選ばれる敵人と無関係の古いデータが残り続けるのを防ぐ）。
       state.battle.attributeStatus = defaultBattleState().attributeStatus;
       state.battle.enemyDmgOverride = {};
+      state.battle._nextDefenseMeleeDmgReduction = 0;
+      state.battle._totemStellaActive = false;
+      state.battle._ruffianDarkCounterDebuffActive = false;
       // 自動化GM 戰鬥自動化：通常/簡易戰鬥判定は戰鬥級の生命週期（回合をまたいで持続）のため、
       // phase reset loopではなくこの戰鬥終了処理でのみクリアする。
       state.battle.combatMode = null;
