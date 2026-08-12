@@ -119,6 +119,8 @@ STRINGS_ZH: dict[str, str] = {
     "enemy_damage_col_individual": "個別傷害",
     "enemy_damage_col_hp_value": "HP價值",
     "enemy_damage_col_hp_loss": "HP損害",
+    "defense_full_negate_applied_suffix": "（本次傷害與異常狀態完全無效化，已自動歸零）",
+    "defense_floor_to_one_applied_suffix": "（若本應歸零，已自動改為剩餘1）",
     "enemy_damage_group_short_label": "亂戰",
     "enemy_damage_individual_short_label": "個別",
     "enemy_damage_confirm_button": "確定",

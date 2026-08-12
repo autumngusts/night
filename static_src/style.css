@@ -532,6 +532,11 @@ button {
   align-items: stretch;
 }
 
+.night3-boss-image-group {
+  display: flex;
+  flex-direction: column;
+}
+
 .night3-boss-image {
   max-width: 260px;
   max-height: 360px;
@@ -540,6 +545,18 @@ button {
   border-radius: 8px;
   object-fit: cover;
   margin-top: 1.75rem;
+}
+
+/* 格拉迪烏斯「分裂形態」：3體個別HP行に対応させ、公開盤の画像を3枚並べて表示する。 */
+.night3-boss-image-group-split {
+  flex-direction: row;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.night3-boss-image-group-split .night3-boss-image {
+  max-width: calc(33% - 0.4rem);
+  max-height: 160px;
 }
 
 .night3-boss-hp {

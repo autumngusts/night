@@ -119,6 +119,8 @@ STRINGS_JA: dict[str, str] = {
     "enemy_damage_col_individual": "個別ダメージ",
     "enemy_damage_col_hp_value": "HP価値",
     "enemy_damage_col_hp_loss": "HP損害",
+    "defense_full_negate_applied_suffix": "（今回のダメージと状態異常は完全無効化、自動的に0にしました）",
+    "defense_floor_to_one_applied_suffix": "（0になるはずのところ、自動的に残り1にしました）",
     "enemy_damage_group_short_label": "乱戦",
     "enemy_damage_individual_short_label": "個別",
     "enemy_damage_confirm_button": "確定",

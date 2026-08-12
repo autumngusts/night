@@ -119,6 +119,8 @@ STRINGS_EN: dict[str, str] = {
     "enemy_damage_col_individual": "Individual Damage",
     "enemy_damage_col_hp_value": "HP Value",
     "enemy_damage_col_hp_loss": "HP Loss",
+    "defense_full_negate_applied_suffix": " (damage and ailments fully negated, auto-set to 0)",
+    "defense_floor_to_one_applied_suffix": " (would have hit 0, auto-adjusted to 1 remaining)",
     "enemy_damage_group_short_label": "Melee",
     "enemy_damage_individual_short_label": "Individual",
     "enemy_damage_confirm_button": "Confirm",

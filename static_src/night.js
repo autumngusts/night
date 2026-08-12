@@ -992,6 +992,17 @@
     return state.dayNumber % 2 === 0;
   }
 
+  // 時間損耗軌道（state.timeLoss）は day1／day2 の2枚しか存在しない（docs/scenario_flow_rules.md
+  // §7「〔手順6〕3日目「夜の王」と戦闘」の通り、3日目はフィールド探索を行わず夜の王戦闘のみの
+  // ため、物理シート自体に3日目用の時間損耗軌道が無い）。3日目（state.dayNumber >= 3）は必ず
+  // nullを返し、呼び出し側で時間損耗の付与・夜雨判定を一切行わないようにする。1〜2日目は
+  // isSwappedDay()と同じ奇偶判定だが、3日目も奇数のため以前はisSwappedDay()だけで判定すると
+  // 1日目のトラックへ誤って書き込まれ続けるバグがあった（ユーザー報告）。
+  function currentTimeLossDayKey() {
+    if ((state.dayNumber || 1) >= 3) return null;
+    return isSwappedDay() ? "day2" : "day1";
+  }
+
   function fieldLevelsForDay() {
     return isSwappedDay() ? [5, 4, 3] : [0, 1, 2];
   }
@@ -2674,6 +2685,9 @@
   // 簡易グリッドも合わせて表示し、夜の王のHPもその場でチェックできるようにする。
   function renderNight3BossImage() {
     var img = document.getElementById("night3-boss-image");
+    var img2 = document.getElementById("night3-boss-image-2");
+    var img3 = document.getElementById("night3-boss-image-3");
+    var group = document.getElementById("night3-boss-image-group");
     var hpBlock = document.getElementById("night3-boss-hp");
     if (!img) return;
     var boss = game && game.night3BossId ? window.PriTestNightBosses.get(game.night3BossId) : null;
@@ -2681,17 +2695,44 @@
     if (!visible) {
       img.hidden = true;
       img.removeAttribute("src");
+      [img2, img3].forEach(function (el) {
+        if (!el) return;
+        el.hidden = true;
+        el.removeAttribute("src");
+      });
+      if (group) group.classList.remove("night3-boss-image-group-split");
       if (hpBlock) hpBlock.hidden = true;
       if (typeof renderBattlePositionAreas === "function") renderBattlePositionAreas();
       return;
     }
-    img.src = window.PriTestNightBosses.imagePath(boss);
-    img.alt = boss.title + " - " + boss.subtitle;
+    var src = window.PriTestNightBosses.imagePath(boss);
+    var alt = boss.title + " - " + boss.subtitle;
+    img.src = src;
+    img.alt = alt;
     img.hidden = false;
     img.style.cursor = "pointer";
     img.onclick = function () {
       openRulebookToEntry("nightking", "boss-entry-" + boss.id);
     };
+    // 格拉迪烏斯「分裂形態」：state.battle.bossForm==="split"の間、公開盤の夜の王画像を3枚に
+    // 複製する（実際に3個体へ分裂するのはbossInfo.noStaggerInSplitForm===trueな夜の王のみ、
+    // 現状は格拉迪烏斯だけが該当。合體形態へ戻ったタイミングで1枚に戻す）。
+    var bossInfo = window.PriTestBossRulebook ? window.PriTestBossRulebook.get(boss.id) : null;
+    var splitFormActive = !!bossInfo && bossInfo.noStaggerInSplitForm && state.battle.bossForm === "split";
+    if (group) group.classList.toggle("night3-boss-image-group-split", splitFormActive);
+    [img2, img3].forEach(function (el) {
+      if (!el) return;
+      if (splitFormActive) {
+        el.src = src;
+        el.alt = alt;
+        el.hidden = false;
+        el.style.cursor = "pointer";
+        el.onclick = img.onclick;
+      } else {
+        el.hidden = true;
+        el.removeAttribute("src");
+      }
+    });
     if (hpBlock) hpBlock.hidden = false;
     ensureNight3BossInBattle();
     if (typeof renderBattlePositionAreas === "function") renderBattlePositionAreas();
@@ -2873,7 +2914,8 @@
   // 使用者確認（項目8）：現在有効な夜雨の最大階段（0＝夜雨無し）。renderTimeLossSummary内の
   // 既存ロジックを再利用可能な関数として抽出（盤面の下雨アイコン更新からも参照するため）。
   function currentActiveRainTier() {
-    var dayKey = isSwappedDay() ? "day2" : "day1";
+    var dayKey = currentTimeLossDayKey();
+    if (!dayKey) return 0;
     var rows = state.timeLoss[dayKey];
     var maxRainTier = 0;
     TIME_LOSS_ROW_DEFS.forEach(function (def, i) {
@@ -2908,7 +2950,7 @@
   }
 
   function renderTimeLossSummary() {
-    var dayKey = isSwappedDay() ? "day2" : "day1";
+    var dayKey = currentTimeLossDayKey();
     var maxRainTier = currentActiveRainTier();
     var summaryEl = document.getElementById("time-loss-summary");
     // #15：従来は夜雨の最大段階しか見ておらず、「威脅効果追加」（activeThreatEffects）が
@@ -3916,7 +3958,12 @@
           masteryRow.className = "wb-row";
           var masteryBtn = document.createElement("button");
           masteryBtn.type = "button";
-          masteryBtn.textContent = window.I18N.t("combat_two_hit_mastery_toggle_label", { value: masteryOverride.value });
+          // 使用者確認（項目9）：変化型技能（消耗が通常と異なる代替行動）のボタンは、他の技能
+          // 行に並ぶボタンと同じcombat-attack-hit-btnクラスを付けて.active（発動中）の見た目が
+          // 正しく反映されるようにする（以前はclassNameが未設定で、常に無地灰色のまま変化が
+          // 見えなかった）。
+          masteryBtn.className = "combat-attack-hit-btn";
+          masteryBtn.textContent = window.I18N.t("combat_two_hit_mastery_toggle_label", { value: masteryOverride.label });
           if (twoHitMasteryToggle) masteryBtn.classList.add("active");
           masteryBtn.addEventListener("click", function () {
             twoHitMasteryToggle = !twoHitMasteryToggle;
@@ -4024,7 +4071,7 @@
           }
           if (useMastery) {
             c._twoHitMasteryUsedThisPhase = true;
-            lines.push(window.I18N.t("action_log_two_hit_mastery_used", { value: masteryOverride.value }));
+            lines.push(window.I18N.t("action_log_two_hit_mastery_used", { value: masteryOverride.label }));
           }
           twoHitMasteryToggle = false;
           // 一部の武器カテゴリ（槍・刺剣＝1、大槍・重刺剣＝2、斧槍＝3）は、2Hitアタック後に
@@ -7521,8 +7568,28 @@
             : activeDefenseSkill.id === "yoto_release_defense" || activeDefenseSkill.id === "yoto_release_heal_defense"
             ? window.I18N.t("yoto_release_defense_note")
             : window.I18N.t("combat_defense_skill_negate_note");
+        // 使用者確認：本文中に固定「HP價值：N」が明記されている防禦特殊技能は、迴避／格擋と
+        // 同じくenemy-damage-modalのHP價值欄へ自動預填する（c._defenseHpValueThisTurn、既存の
+        // 迴避/格擋と同じ仕組みを再利用）。該当しない場合（「本次傷害與異常狀態完全無效化」の
+        // ような固定数値を持たない完全無効化系）はc._defenseFullNegateThisTurnを立て、
+        // handleEnemyDamageConfirmForCharacterでHP損害を強制的に0にする。
+        if (activeDefenseSkill.id === "marking" || activeDefenseSkill.id === "inquiry_shockwave_defense") {
+          c._defenseHpValueThisTurn = 100;
+        } else if (activeDefenseSkill.id === "counterattack") {
+          c._defenseHpValueThisTurn = 80;
+        } else if (activeDefenseSkill.id === "trance" || activeDefenseSkill.id === "ice_coffin") {
+          c._defenseHpValueThisTurn = 100;
+        } else if (activeDefenseSkill.id === "yoto_release_defense" || activeDefenseSkill.id === "yoto_release_heal_defense") {
+          c._defenseHpValueThisTurn = 60;
+        } else {
+          c._defenseFullNegateThisTurn = true;
+        }
         if (activeDefenseSkill.id === "counterattack") {
           c._counterattackDefenseUsed = true;
+          // 「此防禦後，若自身受到將使「目前HP：0」的HP損害・屬性損害・異常狀態，則不會變為
+          // 「目前HP：0」，而是變為「目前HP：□（1點）」」：handleEnemyDamageConfirmForCharacter側で
+          // 消費するワンショットフラグ。
+          c._defenseFloorToOneThisTurn = true;
           // R1「技能強化（迎擊）」：被動強制發動——防禦階段用「逆襲」後，下個戰鬥階段開始時
           // 自動發動「以Action使用時」的效果（對敵人造成【總合傷害：30+◆】、對象未確定なので
           // GM/玩家がその場で敵人を選んで◆を適用する前提のリマインドとしてログへ残す）。
@@ -7544,6 +7611,12 @@
           c._yotoPendingBonusDice = true;
         }
         addActionBox(c, skillName, defenseNote, [window.I18N.t("action_log_dice_used", { dice: dice.join("、") })].concat(costLines));
+        // 使用者確認：迴避／格擋／elegantFootworkと同じく、防禦階段の特殊技能（逆襲・標記・
+        // 恍惚・妖刀・第六感等）による防禦も進度版の「本回合行動說明」（buildCharacterActionLogLines）
+        // へ反映されるよう_phaseSpecialNotesへ記録する（以前はここが抜けており、この防禦行動しか
+        // 行っていないPCが「已完成」を押すと「本回合尚未記錄到行動」に化けてしまうバグがあった）。
+        if (!c._phaseSpecialNotes) c._phaseSpecialNotes = [];
+        c._phaseSpecialNotes.push(skillName + "（" + defenseNote + "）");
         addLog(
           activeDefenseSkill.id === "counterattack"
             ? "log_counterattack_defense_use"
@@ -8011,9 +8084,11 @@
       var stageKey = stage === "awaitingRoll" ? "awaiting_roll" : stage;
       parts.push(window.I18N.t("round_stage_banner_" + phase + "_" + stageKey));
     }
-    // 使用者確認：防禦階段に入った瞬間の処理（時間消耗1、連帶発生する威脅効果／夜雨）は、
-    // 請擲骰！の段階から常に表示し続ける（awaitingRoll/acting問わず）。
-    if (phase === "defense" && state.battle.defenseEntryEffectText) {
+    // 使用者確認（変更）：防禦階段に入った瞬間の処理（時間消耗1、連帶発生する威脅効果／夜雨）は、
+    // 請擲骰！（awaitingRoll）の段階でのみ表示する。骰子を振り終えてacting段階へ進んだ後は、
+    // 敵方行動の速報（defenseRollPreviewText）と重複して表示され続けてしまうため表示しない
+    // （以前はawaitingRoll/acting問わず常に表示していたが、ユーザー報告により変更）。
+    if (phase === "defense" && stage === "awaitingRoll" && state.battle.defenseEntryEffectText) {
       parts.push(state.battle.defenseEntryEffectText);
     }
     if (stage === "acting") {
@@ -8185,7 +8260,12 @@
           damage: applyResult.totalDamage,
           boxes: applyResult.result.hpBoxes,
         });
-        if (anyEnemyHpRowDepleted()) {
+        // 使用者確認：「1段が體勢崩しを起こすのは1回だけ」。以前はanyEnemyHpRowDepleted()を
+        // 使っており、既に前回合でstaggerRowsHandledに記録済みの段がHP0のまま残っているだけでも
+        // 毎回合「（體崩！）」が再表示されてしまっていた。まだ未処理（staggerRowsHandled未記録）の
+        // 段が新たに0になった場合のみ表示する（autoAdvanceBattlePhaseの額外階段トリガー判定と
+        // 同じanyUnhandledStaggeredRowを流用）。
+        if (anyUnhandledStaggeredRow()) {
           resultText += window.I18N.t("gm_flow_battle_stagger_note");
         }
       }
@@ -8937,6 +9017,8 @@
     state.battle.bossForm = state.battle.bossForm === "split" ? "fused" : "split";
     saveState();
     renderAutoGmBossFormToggle();
+    // 格拉迪烏斯「分裂形態」：公開盤の夜の王画像を3枚複製／1枚に戻す。
+    renderNight3BossImage();
   }
 
   // ロール結果を表示し、算出できた分だけ該当PCの入力欄へ事前入力する（未算出の項目は0のまま
@@ -9290,6 +9372,16 @@
     groupValue += halberdWhirlwindBonus;
     var hpValue = hpValueInputEl ? Math.max(1, parseInt(hpValueInputEl.value, 10) || 1) : Math.max(1, c.hpValue || 30);
     var hpLoss = Math.floor((groupValue + individual) / hpValue);
+    // 追跡者「第六感」／執行者「妖刀」等「本次傷害與異常狀態完全無效化」：HP損害を強制的に0にする
+    // （屬性/異常蓄積はこの下で別途addReceivedAttributeStatusされるため、ここではHP損害のみ対象）。
+    var fullNegateApplied = !!c._defenseFullNegateThisTurn;
+    if (fullNegateApplied) {
+      hpLoss = 0;
+      c._defenseFullNegateThisTurn = false;
+    }
+    // 無賴漢「逆襲」（Defense使用）：「此防禦後，若本應使目前HP：0，則改為以剩餘1計算」。
+    var floorToOneApplied = !!c._defenseFloorToOneThisTurn;
+    if (floorToOneApplied) c._defenseFloorToOneThisTurn = false;
 
     var line =
       window.I18N.t("enemy_damage_log_prefix") +
@@ -9304,9 +9396,12 @@
       "｜" +
       window.I18N.t("enemy_damage_col_hp_loss") +
       window.I18N.t("colon_separator") +
-      hpLoss;
+      hpLoss +
+      (fullNegateApplied ? window.I18N.t("defense_full_negate_applied_suffix") : "") +
+      (floorToOneApplied ? window.I18N.t("defense_floor_to_one_applied_suffix") : "");
     addEnemyDamageBox(c, line);
-    c.hp.current = Math.max(0, c.hp.current - hpLoss);
+    var hpAfterLoss = c.hp.current - hpLoss;
+    c.hp.current = floorToOneApplied && c.hp.current > 0 && hpAfterLoss <= 0 ? 1 : Math.max(0, hpAfterLoss);
     checkNearDeathTrigger(c);
     saveRosterCharacters();
 
@@ -10603,6 +10698,9 @@
         state.battle.bossFormTransitionPending = false;
         state.battle.bossForm = "fused";
         addLog("log_boss_form_auto_transition");
+        // 格拉迪烏斯「分裂形態」：公開盤の夜の王画像を1枚に戻す（handleAutoGmBossFormToggleClick
+        // と同じ更新、この自動遷移経路だけ呼び忘れないよう明示的に呼ぶ）。
+        renderNight3BossImage();
       }
     }
     // 隱者「血魂之歌」：「階段結束まで」＝発動したフェイズ限定のバフのため、フェイズが
@@ -10684,6 +10782,11 @@
       // 実際に確定したHP價值」は、フェイズが切り替わるたびに次のフェイズへ持ち越さずクリアする
       // （c._dodgeActionUsedと同じライフサイクル）。
       c._defenseHpValueThisTurn = null;
+      // 「本次傷害與異常狀態完全無效化」／「若本應使目前HP：0，則改為以剩餘1計算」も同じく
+      // 本回合限定のワンショットフラグ（handleEnemyDamageConfirmForCharacterで確定時に消費
+      // されるが、未確定のままフェイズが切り替わった場合の保険としてここでもクリアする）。
+      c._defenseFullNegateThisTurn = false;
+      c._defenseFloorToOneThisTurn = false;
       // R2 遺物効果「2Hit攻擊的達人（武器種類）」：「戰鬥階段／額外階段」ごとに1回まで。
       c._twoHitMasteryUsedThisPhase = false;
       // R1「技藝強化（攻擊力提升）」「能力強化（魔術之地）」：どちらも「直到階段結束為止」の
@@ -12138,7 +12241,10 @@
   // 進度版へ打字機で表示するために利用する（既存のGM留言板／公告への投稿はそのまま維持）。
   function addTimeLoss(n) {
     if (!n) return [];
-    var dayKey = isSwappedDay() ? "day2" : "day1";
+    // 使用者確認：3日目（夜の王戦闘のみ、フィールド探索が無い日）には時間損耗軌道自体が
+    // 存在しないため、3日目以降は時間損耗を一切付与しない（currentTimeLossDayKey参照）。
+    var dayKey = currentTimeLossDayKey();
+    if (!dayKey) return [];
     var rows = state.timeLoss[dayKey];
     var remaining = n;
     var messages = [];

@@ -805,7 +805,17 @@
         if (!matchedLabel || matchedLabel !== categoryLabel) return;
         var body = (e.body && e.body.zh) || (e.body && e.body.ja) || "";
         var valueMatch = /變更為「(\d+)」/.exec(body) || /「(\d+)」に変更/.exec(body);
-        if (valueMatch) found = { value: parseInt(valueMatch[1], 10) };
+        if (valueMatch) {
+          // 使用者確認：本文の「23」「12」等は10進数の値ではなく、他の武器カテゴリの基本2Hit
+          // コスト（①①／②②／③③のように丸数字を2個並べる表記）と同じ「1桁ずつが丸数字1個分」の
+          // 表記が、丸数字グリフ無しでそのまま書き起こされたもの。「23」＝②③＝出目合計2+3=5、
+          // 「12」＝①②＝出目合計1+2=3として扱う（既存のclassifyDiceCostTokenの丸数字合計と
+          // 同じdiceKind:"sum"仕様に合わせる）。labelには元の表記（"23"等）を残し、表示用に使う。
+          var digitSum = valueMatch[1].split("").reduce(function (sum, ch) {
+            return sum + (parseInt(ch, 10) || 0);
+          }, 0);
+          found = { value: digitSum, label: valueMatch[1] };
+        }
       });
     });
     return found;

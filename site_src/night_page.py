@@ -160,7 +160,11 @@ BODY = """    <div class="night-header-row">
           </div>
         </div>
         <div class="night3-boss-wrap">
-          <img id="night3-boss-image" class="night3-boss-image" hidden>
+          <div class="night3-boss-image-group" id="night3-boss-image-group">
+            <img id="night3-boss-image" class="night3-boss-image" hidden>
+            <img id="night3-boss-image-2" class="night3-boss-image" hidden>
+            <img id="night3-boss-image-3" class="night3-boss-image" hidden>
+          </div>
           <div id="night3-boss-hp" class="board-side-enemy-hp night3-boss-hp" hidden>
             <h4 data-i18n="battle_enemy_hp_title"></h4>
             <div class="battle-hp-grid battle-hp-grid-compact" id="night3-boss-hp-grid"></div>
