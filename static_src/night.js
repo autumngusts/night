@@ -276,7 +276,8 @@
       // 升級して遺物効果の習得枠数が増えたのに、まだ習得しきっていない（例：3/4）場合、
       // 共有面板の角色圖像に常時点滅の外枠を付けて気づきやすくする。
       var relicMaxForThumb = type && type.relicEffectGroups ? CharacterDrawer.relicMaxLearnable(c.level) : 0;
-      if (relicMaxForThumb > 0 && (c.learnedRelicEffects || []).length < relicMaxForThumb) {
+      var relicLearnPendingForThumb = relicMaxForThumb > 0 && (c.learnedRelicEffects || []).length < relicMaxForThumb;
+      if (relicLearnPendingForThumb) {
         thumbWrap.classList.add("relic-learn-pending");
         if (!c._nearDeath) {
           thumbWrap.title = window.I18N.t("relic_learn_pending_hint", {
@@ -294,7 +295,9 @@
         thumb.addEventListener("click", function (e) {
           if (c._nearDeath) return;
           e.stopPropagation();
-          CharacterDrawer.openSkills(c.id);
+          // 使用者確認：閃爍中（尚有可習得的遺物效果空位）時，點下圖片除了開啟能力滑動視窗，
+          // 也自動捲動到視窗內的「習得遺物效果」區塊。
+          CharacterDrawer.openSkills(c.id, relicLearnPendingForThumb);
         });
         thumbWrap.appendChild(thumb);
       }
@@ -4159,6 +4162,7 @@
         ].forEach(function (opt) {
           var spiritChoiceBtn = document.createElement("button");
           spiritChoiceBtn.type = "button";
+          spiritChoiceBtn.className = "combat-attack-hit-btn";
           spiritChoiceBtn.textContent = opt.label;
           if (spiritDamageChoice === opt.key) spiritChoiceBtn.classList.add("active");
           spiritChoiceBtn.addEventListener("click", function () {
@@ -5101,6 +5105,7 @@
         ["helen", "frederick", "sebastian"].forEach(function (kind) {
           var choiceBtn = document.createElement("button");
           choiceBtn.type = "button";
+          choiceBtn.className = "combat-attack-hit-btn";
           choiceBtn.textContent = window.I18N.t("spirit_summon_choice_" + kind + "_label");
           if (spiritSummonChoice === kind) choiceBtn.classList.add("active");
           choiceBtn.addEventListener("click", function () {
@@ -5194,6 +5199,7 @@
           ["fire", "lightning", "holy", "arcane"].forEach(function (kind) {
             var hybridBtn = document.createElement("button");
             hybridBtn.type = "button";
+            hybridBtn.className = "combat-attack-hit-btn";
             hybridBtn.textContent = window.I18N.t("hybrid_magic_choice_" + kind + "_label");
             if (hybridMagicElementChoice === kind) hybridBtn.classList.add("active");
             hybridBtn.addEventListener("click", function () {
@@ -5246,6 +5252,7 @@
         ].forEach(function (opt) {
           var inquiryBtn = document.createElement("button");
           inquiryBtn.type = "button";
+          inquiryBtn.className = "combat-attack-hit-btn";
           inquiryBtn.textContent = opt.label;
           if (inquiryChoice === opt.key) inquiryBtn.classList.add("active");
           inquiryBtn.addEventListener("click", function () {
@@ -5321,6 +5328,7 @@
         ].forEach(function (opt) {
           var roarBtn = document.createElement("button");
           roarBtn.type = "button";
+          roarBtn.className = "combat-attack-hit-btn";
           roarBtn.textContent = opt.label;
           if (crucibleRoarChoice === opt.key) roarBtn.classList.add("active");
           roarBtn.addEventListener("click", function () {
@@ -5986,6 +5994,7 @@
       ].forEach(function (opt) {
         var btn = document.createElement("button");
         btn.type = "button";
+        btn.className = "combat-attack-hit-btn";
         btn.textContent = opt.label;
         if (st.primaryChoice === opt.key) btn.classList.add("active");
         btn.addEventListener("click", function () {
@@ -6132,6 +6141,7 @@
     ].forEach(function (opt) {
       var btn = document.createElement("button");
       btn.type = "button";
+      btn.className = "combat-attack-hit-btn";
       btn.textContent = opt.label;
       if (st.pursueEffectChoice === opt.key) btn.classList.add("active");
       btn.addEventListener("click", function () {
@@ -6320,6 +6330,7 @@
       fpChoiceRow.appendChild(fpChoiceLabel);
       var fpChoiceBtn = document.createElement("button");
       fpChoiceBtn.type = "button";
+      fpChoiceBtn.className = "combat-attack-hit-btn";
       fpChoiceBtn.textContent = window.I18N.t(flaskFpChoice ? "combat_flask_fp_choice_on_label" : "combat_flask_fp_choice_off_label");
       if (flaskFpChoice) fpChoiceBtn.classList.add("active");
       fpChoiceBtn.addEventListener("click", function () {
@@ -6345,6 +6356,7 @@
       flaskExpandRow.className = "wb-row";
       var flaskExpandToggleBtn = document.createElement("button");
       flaskExpandToggleBtn.type = "button";
+      flaskExpandToggleBtn.className = "combat-attack-hit-btn";
       flaskExpandToggleBtn.textContent = window.I18N.t("consumable_expand_toggle_label");
       if (flaskExpandPcId) flaskExpandToggleBtn.classList.add("active");
       flaskExpandToggleBtn.addEventListener("click", function () {
@@ -6667,6 +6679,7 @@
         expandRow.className = "wb-row";
         var expandToggleBtn = document.createElement("button");
         expandToggleBtn.type = "button";
+        expandToggleBtn.className = "combat-attack-hit-btn";
         expandToggleBtn.textContent = window.I18N.t("consumable_expand_toggle_label");
         if (combatConsumableOtherPcId) expandToggleBtn.classList.add("active");
         expandToggleBtn.addEventListener("click", function () {
@@ -6721,6 +6734,7 @@
         ].forEach(function (opt) {
           var btn = document.createElement("button");
           btn.type = "button";
+          btn.className = "combat-attack-hit-btn";
           btn.textContent = opt.label;
           if (combatConsumableGreaseKind === opt.key) btn.classList.add("active");
           btn.addEventListener("click", function () {

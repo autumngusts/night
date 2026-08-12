@@ -18,6 +18,27 @@
   var eventChipMerchantLastWeaponResult = null;
   var eventChipBlessingUsedIds = {}; // このモーダルを開いている間だけ、誰が既に使ったかを覚えておく
 
+  // 商人：購買ボタンを押した瞬間、そのボタンだけ1秒間だけ強調色にし、上部に「已購買」の
+  // 簡短提醒文字を出す（ユーザー確認済み仕様）。eventChipMerchantJustPurchasedKeyがどの
+  // ボタンを光らせるかの識別子（"weapon"／消耗品id／鍛造のweaponId）、Textが提醒文字。
+  // 1秒後にsetTimeoutで両方nullへ戻し再描画する（既存のthreatBroadcastIntervalと同じ
+  // 「一定時間だけ表示→自動で消す」パターン）。
+  var eventChipMerchantJustPurchasedKey = null;
+  var eventChipMerchantJustPurchasedText = null;
+  var eventChipMerchantJustPurchasedTimer = null;
+
+  function flashMerchantPurchase(key, text) {
+    eventChipMerchantJustPurchasedKey = key;
+    eventChipMerchantJustPurchasedText = text;
+    if (eventChipMerchantJustPurchasedTimer) clearTimeout(eventChipMerchantJustPurchasedTimer);
+    eventChipMerchantJustPurchasedTimer = setTimeout(function () {
+      eventChipMerchantJustPurchasedKey = null;
+      eventChipMerchantJustPurchasedText = null;
+      eventChipMerchantJustPurchasedTimer = null;
+      renderEventChipModal();
+    }, 1000);
+  }
+
   function currentFocusedChipIndex() {
     return typeof window.PriTestNightCore.state.focusedIndex === "number" ? window.PriTestNightCore.state.focusedIndex : null;
   }
@@ -130,6 +151,14 @@
     runeLabel.className = "threat-ref-body";
     runeLabel.textContent = window.I18N.t("merchant_rune_label", { value: c.runes || 0 });
     content.appendChild(runeLabel);
+    // ユーザー確認：購買ボタンを押した瞬間、上部に「已購買：xxx」の簡短提醒文字を1秒間だけ出す
+    // （flashMerchantPurchaseが1秒後に自動的にクリア＆再描画する）。
+    if (eventChipMerchantJustPurchasedText) {
+      var purchasedFlashNote = document.createElement("p");
+      purchasedFlashNote.className = "threat-ref-body merchant-purchase-flash-note";
+      purchasedFlashNote.textContent = eventChipMerchantJustPurchasedText;
+      content.appendChild(purchasedFlashNote);
+    }
     var canAfford = (c.runes || 0) >= 1;
     var Weapons = window.PriTestWeapons;
     var Consumables = window.PriTestConsumables;
@@ -139,7 +168,7 @@
     content.appendChild(weaponTitle);
     var weaponBtn = document.createElement("button");
     weaponBtn.type = "button";
-    weaponBtn.className = "primary-btn";
+    weaponBtn.className = "primary-btn" + (eventChipMerchantJustPurchasedKey === "weapon" ? " merchant-purchase-flash-btn" : "");
     weaponBtn.textContent = window.I18N.t("merchant_weapon_purchase_button");
     weaponBtn.disabled = !canAfford;
     weaponBtn.addEventListener("click", function () {
@@ -155,6 +184,7 @@
       window.PriTestNightLog("log_merchant_weapon_purchase", { character: c.name, weapon: Weapons.localizedText(result.item.name) });
       eventChipMerchantLastWeaponResult = result;
       markEventChipUsed(idx);
+      flashMerchantPurchase("weapon", window.I18N.t("merchant_purchase_flash_note", { item: Weapons.localizedText(result.item.name) }));
       renderEventChipModal();
       CharacterDrawer.resolveInventoryOverflow(c, "weapon", function () {
         window.PriTestNightCore.renderCharacterRoster();
@@ -182,7 +212,9 @@
       if (!item) return;
       var btn = document.createElement("button");
       btn.type = "button";
-      btn.textContent = Consumables.localizedText ? Consumables.localizedText(item.name) : item.name.zh;
+      var itemLabel = Consumables.localizedText ? Consumables.localizedText(item.name) : item.name.zh;
+      btn.className = "combat-attack-hit-btn" + (eventChipMerchantJustPurchasedKey === id ? " merchant-purchase-flash-btn" : "");
+      btn.textContent = itemLabel;
       btn.disabled = !canAfford;
       btn.addEventListener("click", function () {
         if ((c.runes || 0) < 1) return;
@@ -194,9 +226,10 @@
         window.PriTestNightCore.renderCharacterRoster();
         window.PriTestNightLog("log_merchant_consumable_purchase", {
           character: c.name,
-          item: Consumables.localizedText ? Consumables.localizedText(item.name) : item.name.zh,
+          item: itemLabel,
         });
         markEventChipUsed(idx);
+        flashMerchantPurchase(id, window.I18N.t("merchant_purchase_flash_note", { item: itemLabel }));
         window.PriTestCharacterDrawer.resolveInventoryOverflow(c, "consumable", function () {
           window.PriTestNightCore.renderCharacterRoster();
           renderEventChipModal();
@@ -234,6 +267,7 @@
       row.appendChild(label);
       var upgradeBtn = document.createElement("button");
       upgradeBtn.type = "button";
+      upgradeBtn.className = "combat-attack-hit-btn" + (eventChipMerchantJustPurchasedKey === weaponId ? " merchant-purchase-flash-btn" : "");
       upgradeBtn.textContent = window.I18N.t("merchant_smithing_upgrade_button", { cost: cost });
       upgradeBtn.disabled = (window.PriTestNightCore.state.smithingStoneCount || 0) < cost;
       upgradeBtn.addEventListener("click", function () {
@@ -251,6 +285,10 @@
           to: next,
         });
         markEventChipUsed(idx);
+        flashMerchantPurchase(
+          weaponId,
+          window.I18N.t("merchant_purchase_flash_note", { item: Weapons.localizedText(weapon.name) + "（" + rarity + " → " + next + "）" })
+        );
         renderEventChipModal();
       });
       row.appendChild(upgradeBtn);

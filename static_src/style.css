@@ -1377,6 +1377,18 @@ button {
   animation: relic-learn-pending-flash 1s ease-in-out infinite;
 }
 
+/* 「已習得 X / Y 個」の右側に付ける「可學習 N個」バッジ（白字・黃背景）。 */
+.relic-learnable-badge {
+  display: inline-block;
+  margin-left: 0.5rem;
+  padding: 0.1rem 0.5rem;
+  border-radius: 999px;
+  background: #ffd21a;
+  color: #fff;
+  font-weight: 700;
+  font-size: 0.8rem;
+}
+
 /* 後方の.modal-box基底ルール（max-width:320px）と同じ詳細度(単一クラス)だと
    ソース順で.modal-boxが勝ってしまうため、.modal-box.gallery-modal-boxで
    詳細度を上げて確実に上書きする。 */
@@ -2113,6 +2125,22 @@ button {
   color: #888;
   opacity: 1;
   cursor: not-allowed;
+}
+
+/* 商人：購買/強化ボタンを押した瞬間だけ1秒間強調色にする（flashMerchantPurchase参照）。 */
+.merchant-purchase-flash-btn {
+  background: #ffb400 !important;
+  color: #221a00 !important;
+  box-shadow: 0 0 0 2px rgba(255, 180, 0, 0.45);
+}
+
+.merchant-purchase-flash-note {
+  background: #fff3cd;
+  color: #7a5b00;
+  padding: 0.3rem 0.6rem;
+  border-radius: 6px;
+  font-weight: 600;
+  display: inline-block;
 }
 
 .breakthrough-char-row {

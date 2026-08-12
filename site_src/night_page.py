@@ -1009,6 +1009,7 @@ BODY = """    <div class="night-header-row">
             <button type="button" class="tag-add-btn" data-field="notes" data-i18n="tag_add_button"></button>
           </div>
         </div>
+        <div id="skills-drawer-relic-anchor"></div>
         <div class="threat-ref-block">
           <h3 data-i18n="cv_active_skills_title"></h3>
           <div id="skills-drawer-active"></div>

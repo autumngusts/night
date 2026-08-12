@@ -1048,7 +1048,18 @@
 
     var learned = (c.learnedRelicEffects || []).length;
     var maxLearnable = relicMaxLearnable(c.level);
-    progressEl.textContent = window.I18N.t("relic_progress_text", { learned: learned, max: maxLearnable });
+    // 使用者確認：「已習得 X / Y 個」の右側に、まだ習得できる枠数がある場合だけ
+    // 「可學習 N個」の白字黃背景バッジを付ける（progressElはtextContentで毎回作り直すため、
+    // ここでDOM組み立てに変更してバッジを子要素として同居させる）。
+    var pendingLearnable = Math.max(0, maxLearnable - learned);
+    progressEl.innerHTML = "";
+    progressEl.appendChild(document.createTextNode(window.I18N.t("relic_progress_text", { learned: learned, max: maxLearnable })));
+    if (pendingLearnable > 0) {
+      var pendingBadge = document.createElement("span");
+      pendingBadge.className = "relic-learnable-badge";
+      pendingBadge.textContent = window.I18N.t("relic_learnable_badge", { count: pendingLearnable });
+      progressEl.appendChild(pendingBadge);
+    }
     if (rollBtn) rollBtn.disabled = learned >= maxLearnable;
     if (diceEl) {
       if (relicRolledDice) renderDiceDisplay(diceEl, [relicRolledDice.x, relicRolledDice.y]);
@@ -5576,6 +5587,52 @@
   var characters = [];
   var activeCharacterId = null;
   var activeSkillsCharacterId = null;
+
+  // 使用者確認：「習得遺物效果」「附帶效果」抽選機制（relic-select-block／attached-select-block）を
+  // 能力滑動視窗（skills-drawer、角色頭像クリックで開く閲覧専用パネル）にも同期表示する。
+  // renderRelicSection等の内部ロジックは固定DOM id（relic-progress-text等）に依存しており、
+  // 2つ目の並行実装を作ると規則の二重管理になる（CLAUDE.md方針）ため、実体のDOM要素自体を
+  // 開いている側のドロワーへ移動させることで「同じ1つの抽選UI」を両方の入り口から使えるように
+  // する。character-drawer側の元の位置（親要素・直後の兄弟要素）を一度だけ記録しておき、
+  // openDrawer側で必ず復元する。
+  var relicSelectHomeParent = null;
+  var relicSelectHomeNext = null;
+  var attachedSelectHomeParent = null;
+  var attachedSelectHomeNext = null;
+
+  function captureRelicSelectHomesIfNeeded() {
+    if (relicSelectHomeParent && attachedSelectHomeParent) return;
+    var relicBlock = document.getElementById("relic-select-block");
+    var attachedBlock = document.getElementById("attached-select-block");
+    if (relicBlock && relicBlock.parentNode && !relicSelectHomeParent) {
+      relicSelectHomeParent = relicBlock.parentNode;
+      relicSelectHomeNext = relicBlock.nextSibling;
+    }
+    if (attachedBlock && attachedBlock.parentNode && !attachedSelectHomeParent) {
+      attachedSelectHomeParent = attachedBlock.parentNode;
+      attachedSelectHomeNext = attachedBlock.nextSibling;
+    }
+  }
+
+  // 能力滑動視窗（補充說明の下＝skills-drawer-relic-anchorの直前）へ移動する。
+  function moveRelicSelectBlocksToSkillsDrawer() {
+    captureRelicSelectHomesIfNeeded();
+    var relicBlock = document.getElementById("relic-select-block");
+    var attachedBlock = document.getElementById("attached-select-block");
+    var anchor = document.getElementById("skills-drawer-relic-anchor");
+    if (!anchor) return;
+    if (relicBlock) anchor.parentNode.insertBefore(relicBlock, anchor);
+    if (attachedBlock) anchor.parentNode.insertBefore(attachedBlock, anchor);
+  }
+
+  // 角色詳細ドロワー（character-drawer）の元の位置へ戻す。
+  function restoreRelicSelectBlocksToCharacterDrawer() {
+    captureRelicSelectHomesIfNeeded();
+    var relicBlock = document.getElementById("relic-select-block");
+    var attachedBlock = document.getElementById("attached-select-block");
+    if (relicBlock && relicSelectHomeParent) relicSelectHomeParent.insertBefore(relicBlock, relicSelectHomeNext);
+    if (attachedBlock && attachedSelectHomeParent) attachedSelectHomeParent.insertBefore(attachedBlock, attachedSelectHomeNext);
+  }
   var activeWeaponDetailCharacterId = null;
   var activeWeaponDetailWeaponId = null;
   var activeTalismanDetailCharacterId = null;
@@ -6052,6 +6109,10 @@
     var c = findCharacter(id);
     if (!c) return;
 
+    // 能力滑動視窗（skills-drawer）が「習得遺物效果」「附帶效果」ブロックを借りたままの場合に備え、
+    // 角色詳細ドロワーを開くたびに必ず本来の位置へ戻してから描画する。
+    restoreRelicSelectBlocksToCharacterDrawer();
+
     commonSkillSettingWeaponId = null;
     document.getElementById("character-drawer-name").textContent = c.name;
     hideCharDrawerError();
@@ -6115,7 +6176,7 @@
   }
 
   // 角色画像クリックで左からスライドインする、可発動技能／被動能力だけの閲覧専用パネル
-  function openSkillsDrawer(id) {
+  function openSkillsDrawer(id, scrollToRelic) {
     var c = findCharacter(id);
     if (!c) return;
     activeSkillsCharacterId = id;
@@ -6137,8 +6198,28 @@
       }
     }
     renderTagList("notes");
+    // 「習得遺物效果」「附帶效果」抽選機制をこの視窗へ同期表示する（補充說明の下＝
+    // skills-drawer-relic-anchorの位置）。openDrawerと同じく、抽選中の一時state（骰子結果／
+    // 全件表示トグル等）は別キャラクターの残留を防ぐためここでも初期化する。
+    moveRelicSelectBlocksToSkillsDrawer();
+    relicRolledDice = null;
+    relicShowAll = false;
+    attachedRollResult = null;
+    attachedPendingCandidate = null;
+    attachedShowAll = false;
+    renderRelicSection();
+    renderAttachedSection();
     renderAbilitySections(c, type, document.getElementById("skills-drawer-active"), document.getElementById("skills-drawer-passive"));
     document.getElementById("skills-drawer").classList.add("open");
+    // 使用者確認：角色圖像が閃爍中（尚有可習得的遺物效果空位）のときに開いた場合、
+    // 「習得遺物效果」區塊まで自動捲動する（drawerが開くアニメーション後にscrollIntoViewする
+    // よう、openRulebookToEntryと同じ短いsetTimeout遅延を使う）。
+    if (scrollToRelic) {
+      setTimeout(function () {
+        var target = document.getElementById("relic-select-block");
+        if (target) target.scrollIntoView({ behavior: "smooth", block: "start" });
+      }, 80);
+    }
   }
 
   function closeSkillsDrawer() {
