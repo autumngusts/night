@@ -3086,6 +3086,17 @@ button {
   color: #a5762f;
 }
 
+.commands-rulebook-header-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.commands-rulebook-header-row .worldview-label {
+  margin: 1rem 0 0.3rem;
+}
+
 .worldview-text {
   font-size: 0.88rem;
   line-height: 1.85;

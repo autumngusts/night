@@ -5471,7 +5471,8 @@
             if (dmg.extraGuardSymbol) recordPhaseDamageDealt(c, 0, dmg.extraGuardSymbol);
           }
           // 隱者「冷氣風暴」（hybrid_magic_frost_storm）與隱者（黎明）「雷炎戰車」
-          // （hybrid_magic_lightning_chariot）：本文中的屬性附加值是固定數字（非骰子），
+          // （hybrid_magic_lightning_chariot）、以及「夜之彗星（不可視）」（spell_night_comet，
+          // 喪失之杖）：本文中的屬性附加值是固定數字（非骰子），
           // 與combatAttackTargetEnemyKey（現在選択中の敵人、跨UI共有）搭配即可自動蓄積；
           // 未選擇對象時暫不處理（body已在UI中完整顯示，GM可自行讀取）。
           var hybridVariantElementAccum =
@@ -5482,6 +5483,8 @@
                   { label: "火", amount: 3 },
                   { label: "雷", amount: 3 },
                 ]
+              : entry.id === "spell_night_comet"
+              ? [{ label: "魔", amount: 4 }]
               : null;
           if (hybridVariantElementAccum && combatAttackTargetEnemyKey) {
             hybridVariantElementAccum.forEach(function (a) {
@@ -7488,6 +7491,12 @@
           );
           addLog("log_elegant_footwork_use", { character: c.name, dice: dice.join("、") });
           c._dodgeActionUsed = true;
+          // 使用者確認：防禦階段の行動（迴避／格擋／本技能のような特殊迴避）も進度版の
+          // 「本回合行動說明」に反映されるよう、_phaseSpecialNotesへ記録する（既存の
+          // buildCharacterActionLogLinesがこの欄位を読む。phase reset時に既存のリセット
+          // ループで自動的にクリアされる）。
+          if (!c._phaseSpecialNotes) c._phaseSpecialNotes = [];
+          c._phaseSpecialNotes.push(elegantFootworkName + "（" + window.I18N.t("elegant_footwork_negate_note") + "）");
           combatDefenseState = null;
           elegantFootworkActive = false;
         });
@@ -7508,6 +7517,9 @@
           // HP價值を自動預填するための記録（c.hpValueの固定値／30の仮値ではなく、今回本人が
           // 迴避で実際に出した値をそのまま使う）。フェイズ切替のたびにsetActionPhase側でリセットする。
           c._defenseHpValueThisTurn = value;
+          // 使用者確認：迴避も進度版「本回合行動說明」に反映されるよう記録する（項目15対応）。
+          if (!c._phaseSpecialNotes) c._phaseSpecialNotes = [];
+          c._phaseSpecialNotes.push(window.I18N.t("combat_defense_dodge_button") + "（" + window.I18N.t("action_log_defense_value_total", { value: value }) + "）");
           combatDefenseState = null;
         });
       }
@@ -7543,6 +7555,9 @@
         // 自動化GM 戰鬥自動化：迴避と同様、#enemy-damage-modalのHP價值欄への自動預填用に
         // 今回格擋で実際に確定したHP價值（連續防禦補正・消耗品加算を反映済みの最終値）を記録する。
         c._defenseHpValueThisTurn = value;
+        // 使用者確認：格擋も進度版「本回合行動說明」に反映されるよう記録する（項目15対応）。
+        if (!c._phaseSpecialNotes) c._phaseSpecialNotes = [];
+        c._phaseSpecialNotes.push(window.I18N.t("combat_defense_block_button") + "（" + window.I18N.t("action_log_defense_value_total", { value: value }) + "）");
         combatDefenseState = null;
       });
     }
@@ -7662,12 +7677,22 @@
   }
 
   // 敵が割り当て済みの段が1つ以上あり、そのすべてが撃破済み＝戦闘終了（一般行動へ自動的に戻す）。
+  // 使用者確認（項目1）：主要エネミーの段だけでなく、雜兵（+モブ/+雜兵、state.battle.mobHpRows）
+  // が存在する場合はそちらも全滅していなければ「戦闘終了」とみなさない（mobHpRowsは
+  // checked=damage-taken規約——adjustMobHpRow参照——のため、全マスcheckedで撃破済み）。
   function allEnemyHpRowsDepleted() {
     var any = false;
     for (var i = 0; i < ENEMY_HP_ROWS; i++) {
       if (!enemyHasRow(i)) continue;
       any = true;
       if (!isEnemyHpRowDepleted(i)) return false;
+    }
+    var mobRows = state.battle.mobHpRows || [];
+    for (var m = 0; m < mobRows.length; m++) {
+      var row = mobRows[m];
+      if (!row || !row.length) continue;
+      any = true;
+      if (countRowChecked(row, 0, row.length) !== row.length) return false;
     }
     return any;
   }
@@ -8347,6 +8372,10 @@
     }
     renderMobHpList();
     saveState();
+    // 使用者確認（項目1）：雜兵側のHP変化でも、非雜兵エネミー側のadjustEnemyHpRowと同様に
+    // 戦闘終了判定（allEnemyHpRowsDepleted経由）を起動する——以前は雜兵の段だけを扣光しても
+    // combatEndが一切検知されず、樓層が推進しないバグがあった。
+    handleEnemyHpChanged();
   }
 
   // 死靈術（necromancy）能力を持つ入場済みキャラ全員に「擲骰待ち」を1件積む。
@@ -8726,9 +8755,13 @@
     // （夜の王は通常エネミーの「編隊に追加」フローを経由しないため）。
     // 夜の王は現在ensureNight3BossInBattle経由でselectedEnemyIdsへも実在するが、
     // 念のため二重追加を防ぐ（indexOf済みならconcatしない）。
+    // 使用者確認：夜の王は第3天専用——第1/2天は夜の強敵（別データ、AutoGM構造化対象外）と
+    // 戦っているため、dayNumber<3の間はnight3BossIdを混ぜてはいけない
+    // （ensureNight3BossInBattleと同じ判定条件）。
     if (
       game &&
       game.night3BossId &&
+      state.dayNumber >= 3 &&
       AutoGm.isStructured("boss|" + game.night3BossId) &&
       structuredIds.indexOf("boss|" + game.night3BossId) === -1
     ) {
@@ -9062,10 +9095,12 @@
       return AutoGm.isStructured(key);
     });
     // 夜の王は現在ensureNight3BossInBattle経由でselectedEnemyIdsへも実在するが、
-    // 念のため二重追加を防ぐ（indexOf済みならconcatしない）。
+    // 念のため二重追加を防ぐ（indexOf済みならconcatしない）。使用者確認：夜の王は
+    // 第3天専用（ensureNight3BossInBattleと同じdayNumber>=3判定）。
     if (
       game &&
       game.night3BossId &&
+      state.dayNumber >= 3 &&
       AutoGm.isStructured("boss|" + game.night3BossId) &&
       structuredIds.indexOf("boss|" + game.night3BossId) === -1
     ) {
@@ -9483,6 +9518,24 @@
       resetBattlePositionsAndAggro();
       renderSelectedEnemies();
       addLog("log_chat_command_clear_enemy");
+      return;
+    }
+    // 使用者指定：Firebase同步のrace condition等で場上が「目前所在位置」（黃框、
+    // state.focusedIndex）を見失って卡住した場合に、GMが手動で復帰先のカード番号を
+    // 指定して直接そこへ移動させる緊急コマンド。通常の移動（finalizeSlotMove/
+    // attemptMoveToPosition）と違い、隣接判定や隣接板塊の自動オープンは行わない
+    // （あくまで「位置を復元するだけ」の状態修正であり、正規の移動アクションではないため）。
+    if (cmd === "/movetocard") {
+      var cardNumber = parseInt(parts[1], 10);
+      if (!cardNumber || cardNumber < 1 || cardNumber > SLOT_COUNT) {
+        postSystemTurnMessage(window.I18N.t("chat_command_invalid_movetocard", { max: SLOT_COUNT }));
+        return;
+      }
+      state.focusedIndex = cardNumber - 1;
+      renderBoard();
+      renderCurrentLocationStatus();
+      addLog("log_chat_command_move_to_card", { slot: cardNumber });
+      postSystemTurnMessage(window.I18N.t("chat_command_move_to_card_done", { slot: cardNumber }));
       return;
     }
     postSystemTurnMessage(window.I18N.t("chat_command_unknown", { command: parts[0] }));
@@ -11841,6 +11894,11 @@
 
   function stepCardLevel(index, dir) {
     if (!state.slots[index]) return;
+    // 使用者確認（項目1.1）：已經是「全」（全踏破，steps陣列最後一格＝null）時，若再往前
+    // （dir>0）推進一次（例如自動化GM流程已推進到「全」後，盤面［＋］又被多按一次），舊邏輯
+    // 會用%折返回steps[0]，等於把「全」重設回第一個樓層，導致王戰被重新敘述、無限觸發。
+    // 「全」是終端狀態，dir>0時直接維持不變；dir<0（倒退）仍允許從「全」退回最後一個實際樓層。
+    if (state.cardLevels[index] === null && dir > 0) return;
     var steps = levelStepsForSlot(index);
     var curIdx = steps.indexOf(state.cardLevels[index]);
     if (curIdx === -1) curIdx = 0;

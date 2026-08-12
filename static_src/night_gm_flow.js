@@ -980,7 +980,17 @@
 
   // 樓層文字の「」括弧の外側にある「+モブ1」／「+雜兵1」後綴（雜兵HP追加のフラグ）を検出する。
   // 例："「亜人たち(220頁)/Lv.2+L補」+モブ1"（enemies_data_2.js等の敵special欄と対になる表記）。
-  var MOB_ROW_SUFFIX_RE = /[+＋]\s*(?:モブ|雜兵)\s*\d+/;
+  var MOB_ROW_SUFFIX_RE = /[+＋]\s*(?:モブ|雜兵)\s*(\d+)/;
+
+  // 使用者確認（項目3）：「+雜兵N」のNは「雜兵N隻」を意味する——各隻それぞれ独立したHP列
+  // （L補+1／PC人数公式等は既存のまま、1隻＝1列）として扱う。マッチしなければ0（雜兵なし）、
+  // マッチしたが数字が解析できない場合は既存の後方互換として1隻扱いにフォールバックする。
+  function mobRowSuffixCount(text) {
+    var m = MOB_ROW_SUFFIX_RE.exec(String(text || ""));
+    if (!m) return 0;
+    var n = parseInt(m[1], 10);
+    return n > 0 ? n : 1;
+  }
 
   // 敵人special欄位の「最大HP：PC人数[×N]」血量覆寫公式を検出する（L補を問わず固定、と
   // 明記されている既存敵人資料に実例多数あり）。命中すれば倍率（無ければ×1扱い）を返す。
@@ -1032,7 +1042,7 @@
     var jaInner = (/「([^」]+)」/.exec(ja) || [])[1] || "";
     var zhInner = (/「([^」]+)」/.exec(zh) || [])[1] || "";
     var needsLevelCorrection = /L補/.test(jaInner) || /L補/.test(zhInner);
-    var hasMobRow = MOB_ROW_SUFFIX_RE.test(ja) || MOB_ROW_SUFFIX_RE.test(zh);
+    var mobRowCount = mobRowSuffixCount(ja) || mobRowSuffixCount(zh);
     var jaParsed = extractLevelAndNameTokens(jaInner);
     var zhParsed = extractLevelAndNameTokens(zhInner);
     var nameTokens = [];
@@ -1040,7 +1050,7 @@
       if (nameTokens.indexOf(t) === -1) nameTokens.push(t);
     });
     var level = jaParsed.level !== null ? jaParsed.level : zhParsed.level;
-    return { nameTokens: nameTokens, level: level, needsLevelCorrection: needsLevelCorrection, hasMobRow: hasMobRow };
+    return { nameTokens: nameTokens, level: level, needsLevelCorrection: needsLevelCorrection, mobRowCount: mobRowCount };
   }
 
   // 名前トークンからEnemies.search経由で一意に一致するエネミーだけを返す（1件に絞れない場合は
@@ -1106,7 +1116,7 @@
   // 樓層敘述の「雜兵戰鬥／王戰」（handleCombatTriggerClick）と、強敵決定表（night_event_chips.js
   // のresolveStrongEnemyEntry）の両方から呼ばれる共用ロジック。turnMessagesへは直接pushせず、
   // 呼び出し側が組み立てやすい{key,params}形の描述的オブジェクトを返すだけに留める。
-  function resolveAndAddCombatEnemies(nameTokens, level, needsCorrection, hasMobRow, slotIndex, isBoss) {
+  function resolveAndAddCombatEnemies(nameTokens, level, needsCorrection, mobRowCount, slotIndex, isBoss) {
     var Core = window.PriTestNightCore;
     var Enemies = window.PriTestEnemies;
     var correction = fieldLevelCorrectionForSlot(slotIndex);
@@ -1146,7 +1156,7 @@
     }
 
     var mobNote = null;
-    if (hasMobRow) {
+    if (mobRowCount > 0) {
       if (matchedFirst) {
         var multiplier = parseMobMaxHpOverride(matchedFirst.enemy.special);
         var maxHp = null;
@@ -1155,14 +1165,18 @@
             return c.entered;
           }).length;
           maxHp = multiplier * pcCount;
-          mobNote = { key: "gm_flow_combat_mob_hp_override_log", params: { max: maxHp, multiplier: multiplier, pcCount: pcCount } };
+          mobNote = { key: "gm_flow_combat_mob_hp_override_log", params: { max: maxHp, multiplier: multiplier, pcCount: pcCount, count: mobRowCount } };
         } else if (correction !== null) {
           maxHp = correction + 1;
-          mobNote = { key: "gm_flow_combat_mob_hp_default_log", params: { max: maxHp, correction: correction } };
+          mobNote = { key: "gm_flow_combat_mob_hp_default_log", params: { max: maxHp, correction: correction, count: mobRowCount } };
         } else {
           mobNote = { key: "gm_flow_combat_mob_hp_unknown_reminder", params: {} };
         }
-        if (maxHp !== null) Core.addAutoMobHpRow(maxHp);
+        // 使用者確認（項目3）：「+雜兵N」のNは雜兵N隻を意味する——1隻＝1列として、
+        // 同じmaxHpの列をN回追加する（従来は常に1回だけだった）。
+        if (maxHp !== null) {
+          for (var mi = 0; mi < mobRowCount; mi++) Core.addAutoMobHpRow(maxHp);
+        }
       } else {
         mobNote = { key: "gm_flow_combat_mob_hp_unresolved_reminder", params: {} };
       }
@@ -1534,7 +1548,7 @@
 
   // 強敵決定表の条目テキスト（例："亜人の女王&亜人の剣聖（221頁）／Lv.8 + L補正"、「」括弧
   // なし）を解析し、既存resolveAndAddCombatEnemiesで戦場へ自動追加する。強敵決定表の条目に
-  // 「+モブN」後綴の実例は無いため、hasMobRowは常にfalse固定にする。
+  // 「+モブN」後綴の実例は無いため、mobRowCountは常に0固定にする。
   function resolveStrongEnemyEntry(entry, slotIndex, levelBonus) {
     var ja = (entry && entry.ja) || "";
     var zh = (entry && entry.zh) || "";
@@ -1548,7 +1562,7 @@
     var baseLevel = (jaParsed.level !== null ? jaParsed.level : zhParsed.level) || 1;
     var level = baseLevel + (levelBonus || 0);
     // 強敵決定表はランダム遭遇（ザコ戰鬥）のみで、王戰の実例は無いためisBoss常にfalse固定。
-    return resolveAndAddCombatEnemies(nameTokens, level, needsCorrection, false, slotIndex, false);
+    return resolveAndAddCombatEnemies(nameTokens, level, needsCorrection, 0, slotIndex, false);
   }
 
   // スート欄自体に「花色記号＋名前」の組がまとめて書かれているケース（例：大教会の
@@ -1644,38 +1658,73 @@
       // 一方、書式の前提条件には当てはまったのに実際の花色と一致する候補が無かった場合は
       // nullを返す（GMへフォールバック）——無理に一致させない。
       var suitText2 = matchRow[1] ? matchRow[1].ja : "";
-      var embeddedGroups = parseSuitEmbeddedNameGroups(suitText2);
-      if (embeddedGroups) {
-        var matchedGroup = embeddedGroups.filter(function (g) {
-          return suitCellMatches(g.suitSymbols, suitCode);
+      // 使用者確認（項目2）：内容欄が「名稱：N日目」形式で「／」区切りされている場合
+      // （例：card_5遺跡「遺跡（無印）：1日目／遺跡（聖）：2日目」——花色欄自体にも
+      // 「♠ 1日目／♥ 2日目」のように日程情報が埋め込まれていて、既存の花色ベース解析
+      // （embeddedGroups／位置対応）では正しく解析できない）は、花色ではなく現在の
+      // state.dayNumberで直接どの分岐かを判定する。マッチした段が「※」で始まる場合
+      // （例：scenario2の2日目「※ランダムに決定」）は、既存の2段階ダイスグリッド
+      // （findTwoRollGridTable/resolveTwoRollGrid）へそのまま委ねる。
+      var daySegs = targetName
+        .split(/[／\/]/)
+        .map(function (s) {
+          return s.trim();
+        })
+        .filter(Boolean);
+      var isDayPattern =
+        daySegs.length >= 2 &&
+        daySegs.every(function (s) {
+          return /：\s*\d+日目\s*$/.test(s);
+        });
+      if (isDayPattern) {
+        var pickedDaySeg = daySegs.filter(function (s) {
+          var dm = /：\s*(\d+)日目\s*$/.exec(s);
+          return dm && parseInt(dm[1], 10) === dayNumber;
         })[0];
-        if (!matchedGroup) return null;
-        targetName = matchedGroup.name;
-      } else {
-        var contentSegs = targetName
-          .split(/[／\/]/)
-          .map(function (s) {
-            return s.trim();
-          })
-          .filter(Boolean);
-        var suitTokens = suitText2
-          .split(/\s+/)
-          .map(function (s) {
-            return s.trim();
-          })
-          .filter(Boolean);
-        if (contentSegs.length >= 2 && contentSegs.length === suitTokens.length) {
-          var positionalName = null;
-          for (var si = 0; si < suitTokens.length; si++) {
-            if (suitCellMatches(suitTokens[si], suitCode)) {
-              positionalName = contentSegs[si];
-              break;
-            }
-          }
-          if (positionalName === null) return null;
-          targetName = positionalName;
+        if (!pickedDaySeg) return null;
+        targetName = pickedDaySeg.replace(/：\s*\d+日目\s*$/, "").trim();
+        if (/^※/.test(targetName)) {
+          var dayGridTable = findTwoRollGridTable(entry);
+          var dayGridResult = dayGridTable ? resolveTwoRollGrid(dayGridTable) : null;
+          if (!dayGridResult) return null;
+          targetName = dayGridResult.name;
+          roll = dayGridResult.roll1;
+          roll2 = dayGridResult.roll2;
         }
-        // どちらの前提条件にも当てはまらない場合はtargetNameをそのまま使う（下へ続く）。
+      } else {
+        var embeddedGroups = parseSuitEmbeddedNameGroups(suitText2);
+        if (embeddedGroups) {
+          var matchedGroup = embeddedGroups.filter(function (g) {
+            return suitCellMatches(g.suitSymbols, suitCode);
+          })[0];
+          if (!matchedGroup) return null;
+          targetName = matchedGroup.name;
+        } else {
+          var contentSegs = targetName
+            .split(/[／\/]/)
+            .map(function (s) {
+              return s.trim();
+            })
+            .filter(Boolean);
+          var suitTokens = suitText2
+            .split(/\s+/)
+            .map(function (s) {
+              return s.trim();
+            })
+            .filter(Boolean);
+          if (contentSegs.length >= 2 && contentSegs.length === suitTokens.length) {
+            var positionalName = null;
+            for (var si = 0; si < suitTokens.length; si++) {
+              if (suitCellMatches(suitTokens[si], suitCode)) {
+                positionalName = contentSegs[si];
+                break;
+              }
+            }
+            if (positionalName === null) return null;
+            targetName = positionalName;
+          }
+          // どちらの前提条件にも当てはまらない場合はtargetNameをそのまま使う（下へ続く）。
+        }
       }
     }
     var normalizedTarget = normalizeBranchNameForMatch(targetName);
@@ -2102,6 +2151,9 @@
     state.gmFlow.actionKind = "chipCombatResolved";
     state.gmFlow.chipCombatResumeContinuation = continuation;
     state.gmFlow.chipCombatResumeSlot = idx;
+    // 使用者確認：籌碼強敵擊破後，也要比照一般樓層戰鬥（notifyCombatEnded）在GM關閉此戰鬥
+    // 對應的［OK］閘門時，自動清空戰鬥面板／角色執行紀錄（如一般擊破敵人的動作）。
+    state.gmFlow.pendingBattleResetOnGateClose = true;
     Core.saveState();
     Core.renderCurrentLocationStatus();
   }
@@ -2115,7 +2167,14 @@
     var idx = state.gmFlow.chipCombatResumeSlot;
     state.gmFlow.chipCombatResumeContinuation = null;
     state.gmFlow.chipCombatResumeSlot = null;
+    // 使用者確認：比照closeGmFlowGateAndConsumePendingAdvance的消費方式，1回だけ「重置全骰」
+    // 相当の処理（戰鬥面板・玩家骰子・執行紀錄を一括クリア）を自動実行する。
+    var shouldResetBattlePanel = !!state.gmFlow.pendingBattleResetOnGateClose;
+    state.gmFlow.pendingBattleResetOnGateClose = false;
     clearGmFlowGate();
+    if (shouldResetBattlePanel && Core.resetAllDiceSilently) {
+      Core.resetAllDiceSilently();
+    }
     Core.saveState();
     Core.renderCurrentLocationStatus();
     if (continuation === "startWalk" && typeof idx === "number") {
@@ -2737,8 +2796,8 @@
     jaParsed.nameTokens.concat(zhParsed.nameTokens).forEach(function (t) {
       if (nameTokens.indexOf(t) === -1) nameTokens.push(t);
     });
-    var hasMobRow = MOB_ROW_SUFFIX_RE.test(resolved.ja) || MOB_ROW_SUFFIX_RE.test(resolved.zh);
-    var addResult = resolveAndAddCombatEnemies(nameTokens, level, false, hasMobRow, slotIndex, isBoss);
+    var mobRowCount = mobRowSuffixCount(resolved.ja) || mobRowSuffixCount(resolved.zh);
+    var addResult = resolveAndAddCombatEnemies(nameTokens, level, false, mobRowCount, slotIndex, isBoss);
     var out = {
       addedNames: addResult.addedNames,
       reminderText: addResult.matchedAny ? null : window.I18N.t("gm_flow_combat_manual_add_reminder", { text: resolved.ja }),
@@ -2746,6 +2805,55 @@
       mobNote: addResult.mobNote || null,
     };
     return out;
+  }
+
+  // 使用者確認（項目6・11）：樓層文字中の敵名bulletが、夜の強敵決定表とは別に「カード自身の
+  // extraTables」に載っている決定表を「「◯◯決定表で決定したエネミー」」（ja）／
+  // 「「以◯◯決定表決定的敵人」」（zh）という形で引用しているケース（例：封牢エネミー決定表
+  // 〔fields_data_3.js〕、地下/屋上エネミー決定表〔fields_data_4.js〕）を検出する。
+  // 決定表自体は既存の強敵決定表と同じダイス欄書式（"N"単独＝1D6、"N／135"＝2D6）のため、
+  // rollStrongEnemyTable/resolveStrongEnemyEntryをそのまま再利用できる。
+  function findExtraTableByBulletLine(entry, line) {
+    var ja = (line.text && line.text.ja) || "";
+    var zh = (line.text && line.text.zh) || "";
+    // 「屋上エネミー決定表（前頁）で決定したエネミー」のように、決定表名と「で決定した」の
+    // 間に補足の「（...）」が挟まる実例があるため、任意の括弧注記を許容する。
+    var jaMatch = /「(.+決定表)(?:（[^）]*）)?で決定した(?:エネミー|敵人)」/.exec(ja);
+    var zhMatch = /「以(.+決定表)(?:（[^）]*）)?決定的(?:エネミー|敵人)」/.exec(zh);
+    if (!jaMatch && !zhMatch) return null;
+    var titleJa = jaMatch ? jaMatch[1] : null;
+    var titleZh = zhMatch ? zhMatch[1] : null;
+    var tables = (entry && entry.extraTables) || [];
+    for (var i = 0; i < tables.length; i++) {
+      var t = tables[i];
+      if (!t.title) continue;
+      if ((titleJa && t.title.ja === titleJa) || (titleZh && t.title.zh === titleZh)) return t;
+    }
+    return null;
+  }
+
+  function resolveEntryExtraTableCombatLine(line, slotIndex, isBoss) {
+    var Fields = window.PriTestFields;
+    var lineText = Fields.localizedText(line.text);
+    var fallback = { addedNames: [], reminderText: window.I18N.t("gm_flow_combat_manual_add_reminder", { text: lineText }), rollLogText: null };
+    var entry = window.PriTestNightFloorBreakthrough.resolveFieldEntryForSlot(slotIndex);
+    var table = entry ? findExtraTableByBulletLine(entry, line) : null;
+    if (!table) return fallback;
+    var rollResult = rollStrongEnemyTable(table);
+    if (!rollResult) return fallback;
+    var resolvedJa = (rollResult.entry && rollResult.entry.ja) || "";
+    var addResult = resolveStrongEnemyEntry(rollResult.entry, slotIndex, rollResult.levelBonus);
+    var rollsText = rollResult.rollLog
+      .map(function (r) {
+        return r.die1 + "+" + r.die2 + "＝" + r.text;
+      })
+      .join(" → ");
+    return {
+      addedNames: addResult.addedNames,
+      reminderText: addResult.matchedAny ? null : window.I18N.t("gm_flow_combat_manual_add_reminder", { text: resolvedJa }),
+      rollLogText: window.I18N.t("gm_flow_extra_table_roll_log", { table: (table.title && table.title.ja) || "", rolls: rollsText, entry: resolvedJa }),
+      mobNote: addResult.mobNote || null,
+    };
   }
 
   // ---- ［戰鬥機制］入口：「雜兵戰鬥」／「王戰」ボタン。敵を敘述し、判明した分だけ戦場に
@@ -2790,8 +2898,23 @@
         }
         return;
       }
+      // 使用者確認（項目6・11）：夜の強敵決定表以外にも、カード自身のextraTablesが持つ
+      // 決定表（封牢エネミー決定表／地下・屋上エネミー決定表等）を引用しているケースを検出し、
+      // 該当すれば自動擲骰で解決する（見つからなければfindExtraTableByBulletLineがnullを返し、
+      // 通常のparseCombatEnemyRef経路へフォールバックする）。
+      var entryForTable = window.PriTestNightFloorBreakthrough.resolveFieldEntryForSlot(walk.slotIndex);
+      if (entryForTable && findExtraTableByBulletLine(entryForTable, line)) {
+        var etResult = resolveEntryExtraTableCombatLine(line, walk.slotIndex, isBoss);
+        addedNames = addedNames.concat(etResult.addedNames);
+        if (etResult.rollLogText) logGmDecision(etResult.rollLogText);
+        if (etResult.reminderText) reminderTexts.push(etResult.reminderText);
+        if (etResult.mobNote) {
+          reminderTexts.push(window.I18N.t(etResult.mobNote.key, mergeParams({ text: Fields.localizedText(line.text) }, etResult.mobNote.params)));
+        }
+        return;
+      }
       var ref = parseCombatEnemyRef(line);
-      var result = resolveAndAddCombatEnemies(ref.nameTokens, ref.level, ref.needsLevelCorrection, ref.hasMobRow, walk.slotIndex, isBoss);
+      var result = resolveAndAddCombatEnemies(ref.nameTokens, ref.level, ref.needsLevelCorrection, ref.mobRowCount, walk.slotIndex, isBoss);
       addedNames = addedNames.concat(result.addedNames);
       if (!result.matchedAny) {
         reminderTexts.push(window.I18N.t("gm_flow_combat_manual_add_reminder", { text: Fields.localizedText(line.text) }));

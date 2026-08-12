@@ -783,7 +783,30 @@
     { cmd: "/cleardice", key: "cleardice" },
     { cmd: "/rune x", key: "rune" },
     { cmd: "/clearenemy", key: "clearenemy" },
+    // 使用者指定：場上因故遺失「目前所在位置」（黃框）而卡住時，GMが手動で復帰先の
+    // カード番号を指定できるようにする（例：/movetocard 1）。
+    { cmd: "/movetocard n", key: "movetocard" },
   ];
+
+  // 留言板の入力欄へコマンド文字列をそのまま挿入する（自動送信はしない——/rune x や
+  // /movetocard n のようにプレースホルダーを含むコマンドは、送出前にGMが実際の数値へ
+  // 書き換える必要があるため）。挿入後は規則書モーダルを閉じて留言板を見せ、末尾の
+  // プレースホルダー文字（あれば）を選択状態にして、そのまま数値を打ち込めるようにする。
+  function pasteCommandToTurnMessageInput(cmdText) {
+    var input = document.getElementById("turn-message-input");
+    var modal = document.getElementById("rulebook-modal");
+    if (!input) return;
+    input.value = cmdText;
+    if (modal) modal.hidden = true;
+    input.focus();
+    var lastSpace = cmdText.lastIndexOf(" ");
+    if (lastSpace !== -1) {
+      input.setSelectionRange(lastSpace + 1, cmdText.length);
+    } else {
+      input.setSelectionRange(cmdText.length, cmdText.length);
+    }
+  }
+
   function renderCommandsRulebook() {
     var container = document.getElementById("commands-rulebook-list");
     if (!container) return;
@@ -793,10 +816,21 @@
     intro.textContent = window.I18N.t("rulebook_commands_intro");
     container.appendChild(intro);
     CHAT_COMMANDS.forEach(function (entry) {
+      var headerRow = document.createElement("div");
+      headerRow.className = "commands-rulebook-header-row";
       var h = document.createElement("h4");
       h.className = "worldview-label";
       h.textContent = entry.cmd;
-      container.appendChild(h);
+      headerRow.appendChild(h);
+      var pasteBtn = document.createElement("button");
+      pasteBtn.type = "button";
+      pasteBtn.className = "gm-flow-action-btn";
+      pasteBtn.textContent = window.I18N.t("chat_command_paste_button");
+      pasteBtn.addEventListener("click", function () {
+        pasteCommandToTurnMessageInput(entry.cmd);
+      });
+      headerRow.appendChild(pasteBtn);
+      container.appendChild(headerRow);
       var p = document.createElement("p");
       p.className = "worldview-text";
       p.textContent = window.I18N.t("chat_command_desc_" + entry.key);
