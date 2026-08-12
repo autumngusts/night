@@ -871,7 +871,7 @@ STRINGS_ZH: dict[str, str] = {
     "gm_flow_battle_action_header": "{character}：",
     "gm_flow_battle_action_none": "{character}：本回合尚未記錄到行動",
     "gm_flow_battle_action_line": "{character}造成總計傷害：{damage}｜{attribute}　效果：{effect}",
-    "gm_flow_battle_round_damage_summary": "本回合統計：總傷害 {damage}｜總破防 {guard}",
+    "gm_flow_battle_round_damage_summary": "本回合統計：總傷害 {damage} + 總破防 {guard}｜{attribute}",
     "gm_flow_battle_attack_result": "{enemy}：總合傷害{damage}，扣除HP損害 {boxes} 格。",
     "gm_flow_battle_attack_result_split": "{enemy}：總合傷害{damage}（分裂形態，每個體分別扣除HP損害 {boxes} 格）。",
     "gm_flow_battle_stagger_note": "（體崩！）",

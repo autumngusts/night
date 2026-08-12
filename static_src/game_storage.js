@@ -117,13 +117,22 @@
   var pendingNightStatePush = null; // { gameId, storageMode, data, timer }
   var pendingCharactersPush = null; // { gameId, storageMode, characters, timer }
 
-  function sendNightStatePush(payload) {
+  // 使用者確認：Firebase同步のrace condition対策の一環。単発のネットワーク失敗で
+  // Firebase側が古いデータのまま取り残される（＝night.js側のタイムスタンプ判定で拾えるのは
+  // 「次に別の変更が起きた時」だけ）のを減らすため、失敗時に1回だけ遅延リトライする。
+  var NIGHT_STATE_PUSH_RETRY_MS = 2000;
+  function sendNightStatePush(payload, isRetry) {
     ensureCloudReady(payload.storageMode)
       .then(function () {
         window.firebase.database().ref("games/" + payload.gameId + "/nightState").set(payload.data);
       })
       .catch(function (err) {
         console.error("PriTestGameStorage.pushNightState failed", err);
+        if (!isRetry) {
+          setTimeout(function () {
+            sendNightStatePush(payload, true);
+          }, NIGHT_STATE_PUSH_RETRY_MS);
+        }
       });
   }
 

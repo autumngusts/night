@@ -871,7 +871,7 @@ STRINGS_JA: dict[str, str] = {
     "gm_flow_battle_action_header": "{character}：",
     "gm_flow_battle_action_none": "{character}：この回合はまだ行動が記録されていません",
     "gm_flow_battle_action_line": "{character}の合計ダメージ：{damage}｜{attribute}　効果：{effect}",
-    "gm_flow_battle_round_damage_summary": "今回合の集計：総合ダメージ {damage}｜総ガード削り値 {guard}",
+    "gm_flow_battle_round_damage_summary": "今回合の集計：総合ダメージ {damage} + 総ガード削り値 {guard}｜{attribute}",
     "gm_flow_battle_attack_result": "{enemy}：総合ダメージ{damage}、HP損害 {boxes} 枠を減少。",
     "gm_flow_battle_attack_result_split": "{enemy}：総合ダメージ{damage}（分裂形態、各個体それぞれHP損害 {boxes} 枠を減少）。",
     "gm_flow_battle_stagger_note": "（体勢崩し！）",

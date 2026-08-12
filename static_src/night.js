@@ -807,6 +807,10 @@
   }
 
   var state = {
+    // Firebase同步用のクライアント時刻タイムスタンプ（saveState()で書き込み時に更新、
+    // applyLoadedDataで遠端/localStorageから読み込んだ時にも更新）。subscribeNightStateの
+    // callbackが「遠端の方が古いデータかどうか」を判定するのに使う（後述）。
+    updatedAt: 0,
     slots: new Array(SLOT_COUNT).fill(null), // { code, revealed } | null
     cardLevels: new Array(SLOT_COUNT).fill(null), // null("全") | 0-5
     eventChips: new Array(SLOT_COUNT).fill(null), // 各マスのイベントチット（翻開まで非公開）
@@ -994,6 +998,7 @@
 
   function buildSaveData() {
     return {
+      updatedAt: state.updatedAt,
       slots: state.slots,
       cardLevels: state.cardLevels,
       eventChips: state.eventChips,
@@ -1046,6 +1051,11 @@
   }
 
   function saveState() {
+    // 使用者確認：Firebase同步のrace condition対策（「関掉分頁再打開」/「他裝置連線」で
+    // autoGmEnabled/focusedIndexが古いデータに巻き戻る問題）。ローカルで新しく書き込む
+    // 直前に必ずタイムスタンプを更新し、subscribeNightState側が「遠端の方が古い」と
+    // 判定できるようにする。
+    state.updatedAt = Date.now();
     var data = buildSaveData();
     localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
     if (game) GameStorage.pushNightState(gameId, game.storageMode, data);
@@ -1993,6 +2003,9 @@
   // dataは既にパース済みのオブジェクト（クラウド購読からの再入も想定）を受け取る。
   function applyLoadedData(data) {
     try {
+      // state.updatedAtは「今stateが表している内容の時刻」を常に指すよう、ローカル/遠端どちらの
+      // データを適用した場合でも更新する（saveState側の更新と対になる）。
+      state.updatedAt = typeof data.updatedAt === "number" ? data.updatedAt : 0;
       if (Array.isArray(data.slots) && data.slots.length === SLOT_COUNT) {
         state.slots = data.slots;
       }
@@ -3548,7 +3561,8 @@
 
   // 額外／防禦行動フェイズへ入るたび、各角色の確定行動（点線枠）を一括で消去する。
   // 消去前の内容は記録として全体ログへ残す。「敵人傷害」ボックス（kind:"enemyDamage"）は
-  // GMが長押しで明示的に消すまで残す想定のため、この一括消去の対象からは除外する。
+  // 専用のライフサイクル（clearEnemyDamageActionBoxes、防禦フェイズ開始時／戦闘終了時のみ
+  // 自動で消える）を持つため、この一括消去の対象からは除外する。
   function clearAllPendingActionBoxes() {
     rosterCharacters.forEach(function (c) {
       if (!c.pendingActionBoxes || !c.pendingActionBoxes.length) return;
@@ -3565,6 +3579,18 @@
         return b.kind === "enemyDamage";
       });
       addLog("log_action_box_clear", { character: c.name, actions: summary });
+    });
+  }
+
+  // 使用者確認：「敵人傷害」ボックスは各角色につき常に最大1件のみ表示する。防禦フェイズへ
+  // 新しく入るたびの一番最初（addEnemyDamageBoxで今回合の分を追加する前）と、戦闘終了時に
+  // 呼び出し、古い記録を消してから始める。
+  function clearEnemyDamageActionBoxes() {
+    rosterCharacters.forEach(function (c) {
+      if (!c.pendingActionBoxes || !c.pendingActionBoxes.length) return;
+      c.pendingActionBoxes = c.pendingActionBoxes.filter(function (b) {
+        return b.kind !== "enemyDamage";
+      });
     });
   }
 
@@ -7774,6 +7800,28 @@
     }, 0);
   }
 
+  // c._phaseAttributeGains（buildCharacterActionLogLinesと同じ既存欄位、labelは既に
+  // 本地化済みの屬性/異常名）を全員分labelごとに合算し、「本回合統計」行に出す用の1行文字列に
+  // まとめる。初出順（最初に登場したlabelの順）で「label+合計」を「、」でjoinする。使用者確認：
+  // 本回合まったく蓄積が無ければ「-」を返す。
+  function computeRoundAttributeGainsSummary() {
+    var totals = {};
+    var order = [];
+    enteredCharactersForBattle().forEach(function (c) {
+      var gains = c._phaseAttributeGains || {};
+      Object.keys(gains).forEach(function (label) {
+        if (!(label in totals)) order.push(label);
+        totals[label] = (totals[label] || 0) + gains[label];
+      });
+    });
+    if (!order.length) return "-";
+    return order
+      .map(function (label) {
+        return label + "+" + totals[label];
+      })
+      .join("、");
+  }
+
   // 自動化GM 戰鬥自動化：GM敘述と玩家操作按鈕は、既存の「進度版」（#location-status-overlay、
   // night_gm_flow.jsのrenderLocationBanner／actionKind==="battleWait"分支）内で完結させる
   // （使用者確認：戰鬥もgmFlow既存の敘述システムの管轄。地図側やbattle-drawerに別のバナー/
@@ -7812,6 +7860,11 @@
   // combat/extra/defense以外はnullを返し、呼び出し側は既存の静的敘述
   // （state.gmFlow.narrationText）にフォールバックする。
   function getRoundStageNarrationText() {
+    // 簡易戰鬥の追擊損害確認待ち（simplifiedCombatEndPending）の間は、setActionPhaseが
+    // "defense"への遷移を差し替えてstate.actionPhase自体は更新しない（＝phase/roundStageが
+    // 直前のextra/awaitingRoll等のまま残る）ため、ここで敘述をnullにして抑制する。追擊損害の
+    // 公告自体は#simplified-combat-end-overlay（renderSimplifiedCombatEndPrompt）が別途表示する。
+    if (state.battle.simplifiedCombatEndPending) return null;
     var phase = state.actionPhase;
     if (phase !== "combat" && phase !== "extra" && phase !== "defense") return null;
     var stage = state.battle.roundStage || "awaitingRoll";
@@ -7846,6 +7899,7 @@
           window.I18N.t("gm_flow_battle_round_damage_summary", {
             damage: computeRoundDamageTotal(),
             guard: computeRoundGuardReductionTotal(),
+            attribute: computeRoundAttributeGainsSummary(),
           })
         );
       }
@@ -10412,6 +10466,9 @@
     // 直前のリセット（defenseEntryEffectText=null）より後で書き込むことで、消されずに残す。
     // 威脅効果／夜雨が新たに到達した場合は、addTimeLossが返す文字も合わせて進度版へ表示する。
     if (phase === "defense") {
+      // 使用者確認：「敵人傷害」執行紀錄（紅框）は各角色につき常に最大1件——次の防禦階段へ
+      // 入る一番最初に、前回合分の古い記録を先に消してから今回合の処理を始める。
+      clearEnemyDamageActionBoxes();
       var defenseEntryMessages = addTimeLoss(1) || [];
       var defenseEntryLines = [window.I18N.t("gm_flow_battle_defense_entry_time_loss")].concat(defenseEntryMessages);
       state.battle.defenseEntryEffectText = defenseEntryLines.join("\n");
@@ -10530,6 +10587,9 @@
         // 同じタイミングでクリアする。
         c._prayerFirepowerActive = false;
       });
+      // 使用者確認：「敵人傷害」執行紀錄（紅框）は戦闘が完全に終了した時点でも必ず消す
+      // （通常戦闘・簡易戰鬥のどちらも setActionPhase("normal", { combatEnd: true }) を通る）。
+      clearEnemyDamageActionBoxes();
       // 戦闘終了時、敵人への屬性/異常蓄積・亂戰傷害修正値も残留させず全消去する
       // （次の戦闘で選ばれる敵人と無関係の古いデータが残り続けるのを防ぐ）。
       state.battle.attributeStatus = defaultBattleState().attributeStatus;
@@ -13068,6 +13128,16 @@
         night3BossId: game.night3BossId || null,
       });
       GameStorage.subscribeNightState(gameId, game.storageMode, function (data) {
+        // 使用者確認：Firebase同步のrace condition対策。「.on("value")」は購読開始時に必ず
+        // 一度、現在サーバーに残っている値で呼ばれる——直前の分頁を閉じた際にpushNightStateの
+        // debounce/fire-and-forget送信が間に合わなかった場合、ここに古いスナップショットが
+        // 届くことがある（autoGmEnabled/focusedIndexが巻き戻って見える不具合の根因）。
+        // 遠端のupdatedAtがこの端末が現在表示している内容より古ければ、適用せずに無視し、
+        // 逆に本機（より新しい）状態をFirebaseへ再送して自己修復する。
+        if (typeof data.updatedAt === "number" && typeof state.updatedAt === "number" && data.updatedAt < state.updatedAt) {
+          GameStorage.pushNightState(gameId, game.storageMode, buildSaveData());
+          return;
+        }
         applyLoadedData(data);
         localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
         renderEnemyHpGrid();

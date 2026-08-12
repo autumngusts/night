@@ -871,7 +871,7 @@ STRINGS_EN: dict[str, str] = {
     "gm_flow_battle_action_header": "{character}:",
     "gm_flow_battle_action_none": "{character}: no action recorded this round yet",
     "gm_flow_battle_action_line": "{character} dealt total damage: {damage} | {attribute} effect: {effect}",
-    "gm_flow_battle_round_damage_summary": "This round's totals: total damage {damage} | total guard reduction {guard}",
+    "gm_flow_battle_round_damage_summary": "This round's totals: total damage {damage} + total guard reduction {guard} | {attribute}",
     "gm_flow_battle_attack_result": "{enemy}: total damage {damage}, HP loss {boxes} box(es).",
     "gm_flow_battle_attack_result_split": "{enemy}: total damage {damage} (split form, each body loses HP {boxes} box(es)).",
     "gm_flow_battle_stagger_note": "(Staggered!)",
