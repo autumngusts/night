@@ -3467,6 +3467,15 @@
     return m ? m[1].length : 0;
   }
 
+  // 「モブに「HP損害：□」」（zh:「對雜兵造成「HP損害：□」」）のような、雜兵へ与える
+  // 一発HP損害の□個数を数える（countHealSquaresと同型のcountingヘルパー）。■（不可知値）は
+  // 対象外——CLAUDE.md §19の通りGM手動のまま維持し、この関数は□のみを扱う。
+  function countMobDamageSquares(text) {
+    if (!text) return 0;
+    var m = /(?:モブ|雜兵)[^」]*?HP損害[：:]\s*(□+)/.exec(text);
+    return m ? m[1].length : 0;
+  }
+
   function talismanFlatMaxStatBonus(c, statKey) {
     var label = MAX_STAT_LABELS[statKey];
     if (!label) return 0;
@@ -3674,6 +3683,18 @@
       });
   }
 
+  // 全武器カテゴリのinnateSkillsから、指定idに一致するスキル定義を1件探す
+  // （weaponInnatePowerAdjustment／weaponInnatePowerModAdjustmentで共用）。
+  function resolveWeaponInnateSkillById(id) {
+    var innate = null;
+    Weapons.categories().forEach(function (cat) {
+      (cat.innateSkills || []).forEach(function (s) {
+        if (s.id === id) innate = s;
+      });
+    });
+    return innate;
+  }
+
   // 武器自身が持つ「element_minus5／status_minus5」スキル（レア度C/U限定の武器威力-5スキル）や、
   // 固有スキル（innate、例：「武器威力＋10」）による武器威力の追加補正を合算する。
   function weaponInnatePowerAdjustment(weapon) {
@@ -3684,12 +3705,7 @@
         return;
       }
       if (ref.kind !== "innate") return;
-      var innate = null;
-      Weapons.categories().forEach(function (cat) {
-        (cat.innateSkills || []).forEach(function (s) {
-          if (s.id === ref.id) innate = s;
-        });
-      });
+      var innate = resolveWeaponInnateSkillById(ref.id);
       if (!innate) return;
       // ja/zhの両方を数えると二重加算になるため、いずれか一方（ja優先）だけを見る。
       var text = (innate.body && innate.body.ja) || (innate.body && innate.body.zh);
@@ -3697,6 +3713,29 @@
         var m = /武器威力[」』]?[：:]\s*([+＋－\-]\d+)/.exec(text);
         if (m) total += normalizeSignedNumber(m[1]);
       }
+    });
+    return total;
+  }
+
+  // 武器固有スキル（innate、例：曲刀「威力補正「技巧：＋5」」）による威力補正の追加分を、
+  // 指定したstatKeyについて合算する。talismanPowerModBonus／relicPowerModBonusと同じ加算先
+  // （computeArtPower）に載せる、同型のヘルパー（本文の句型が一致するため正規表現を流用）。
+  function weaponInnatePowerModAdjustment(weapon, statKey) {
+    if (!statKey) return 0;
+    var total = 0;
+    (weapon.skills || []).forEach(function (ref) {
+      if (ref.kind !== "innate") return;
+      var innate = resolveWeaponInnateSkillById(ref.id);
+      if (!innate) return;
+      var text = (innate.body && innate.body.ja) || (innate.body && innate.body.zh);
+      if (!text) return;
+      var m = /威力補正[「『]([^」』]+)[」』]/.exec(text);
+      if (!m) return;
+      m[1].split(/[、，]/).forEach(function (clause) {
+        var key = resolvePowerModStatKey(clause);
+        var numMatch = /[+＋－\-]\s*\d+/.exec(clause);
+        if (key === statKey && numMatch) total += normalizeSignedNumber(numMatch[0]);
+      });
     });
     return total;
   }
@@ -3885,7 +3924,10 @@
     var statKey = resolvePowerModStatKey(powerModText);
     var type = c.typeId ? CharacterTypes.get(c.typeId) : null;
     var powerMod =
-      (type && statKey && type.powerMod ? type.powerMod[statKey] || 0 : 0) + talismanPowerModBonus(c, statKey) + relicPowerModBonus(c, statKey);
+      (type && statKey && type.powerMod ? type.powerMod[statKey] || 0 : 0) +
+      talismanPowerModBonus(c, statKey) +
+      relicPowerModBonus(c, statKey) +
+      weaponInnatePowerModAdjustment(weapon, statKey);
     return { rarityCorrection: rarityCorrection, powerMod: powerMod, artPower: rarityCorrection + powerMod };
   }
 
@@ -6526,6 +6568,8 @@
     countLearnedRelicEffectsByName: countLearnedRelicEffectsByName,
     countLearnedActionRelicsByName: countLearnedActionRelicsByName,
     countHealSquares: countHealSquares,
+    countMobDamageSquares: countMobDamageSquares,
+    resolveWeaponInnateSkillById: resolveWeaponInnateSkillById,
     relicEffectForKey: relicEffectForKey,
     getSkillUsesBonus: getSkillUsesBonus,
     getCombatSkillEntries: getCombatSkillEntries,

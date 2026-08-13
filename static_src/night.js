@@ -5432,6 +5432,29 @@
             content.appendChild(ominousHealSelect);
           }
         }
+        // 巨型武器「崩壊波」「星呼び」等：本文「モブに「HP損害：□」」のように□個数で
+        // 表記される雜兵傷害（■ではなく計算可能な値）を、雜兵列が複数ある場合だけ対象を
+        // 選ばせる（ominousHealSelectと同じ「選択肢を先に見せる」パターン。1列のみなら
+        // 選択UIを出さず自動的に0番目の列を対象にし、対象が無い場合は下のconfirmコール
+        // バック側でGM向け注記にフォールバックする）。
+        var mobDamageSquares = CharacterDrawer.countMobDamageSquares(body);
+        var mobDamageRowSelect = null;
+        if (mobDamageSquares > 0 && state.battle.mobHpRows.length > 1) {
+          var mobDamageTargetRow = document.createElement("div");
+          mobDamageTargetRow.className = "combat-attack-target-row";
+          var mobDamageTargetLabel = document.createElement("label");
+          mobDamageTargetLabel.textContent = window.I18N.t("combat_attack_target_mob_row_label");
+          mobDamageRowSelect = document.createElement("select");
+          state.battle.mobHpRows.forEach(function (row, rowIdx) {
+            var o = document.createElement("option");
+            o.value = String(rowIdx);
+            o.textContent = window.I18N.t("battle_hp_row_label", { row: rowIdx + 1 });
+            mobDamageRowSelect.appendChild(o);
+          });
+          mobDamageTargetRow.appendChild(mobDamageTargetLabel);
+          mobDamageTargetRow.appendChild(mobDamageRowSelect);
+          content.appendChild(mobDamageTargetRow);
+        }
         renderDiceCostAction(c, content, cost, function (dice, costLines) {
           if (entry.uses && entry.id) {
             if (!c.abilityUses) c.abilityUses = {};
@@ -5637,6 +5660,16 @@
               recordAttributeStatusDealt(c.id, combatAttackTargetEnemyKey, a.label, a.amount);
             });
           }
+          // 巨型武器「崩壊波」「星呼び」等：モブへの□個数傷害を、雜兵列が存在すれば
+          // 自動的にadjustMobHpRow経由で適用する（renderMobHpList／saveState／
+          // handleEnemyHpChangedは同関数内で完結済み）。雜兵列が1つも無い場合のみ、
+          // 対象を自動決定できないため原文をextraLinesへ残しGM手動対応にフォールバックする。
+          if (mobDamageSquares > 0) {
+            if (state.battle.mobHpRows.length >= 1) {
+              var mobDamageRowIdx = mobDamageRowSelect ? parseInt(mobDamageRowSelect.value, 10) || 0 : 0;
+              adjustMobHpRow(mobDamageRowIdx, mobDamageSquares);
+            }
+          }
           // 鐵之眼（暗影）「技藝強化（毒箭）」：技藝「一擊必殺」（one_shot）の對敵人傷害に
           // 固定「猛毒：8」を追加する。既存の武器攻擊タブで選択済みの對象敵人
           // （combatAttackTargetEnemyKey、複数UIで共有する現在選択中の敵人）があればそのまま
@@ -5674,6 +5707,12 @@
           // 無法自動判斷猛毒:8該蓄積到哪個敵人，改為留下原文注記由GM手動處理。
           if (oneShotPoisonBonus && !combatAttackTargetEnemyKey) {
             extraLines = extraLines.concat([CharacterTypes.localizedText(oneShotPoisonBonus.body)]);
+          }
+          // 巨型武器「崩壊波」「星呼び」等：雜兵列が1つも無い場合は対象を自動決定できないため、
+          // 原文をそのままGM向け注記として残す（oneShotPoisonBonusの未選択フォールバックと
+          // 同じ考え方）。
+          if (mobDamageSquares > 0 && state.battle.mobHpRows.length === 0) {
+            extraLines = extraLines.concat([body]);
           }
           if (entry.id === "whirlwind") {
             var whirlwindNote = CharacterDrawer.findLearnedRelicEffectByName(c, ["技能強化（延長時間）", "スキル強化（時間延長）"]);
@@ -8823,6 +8862,49 @@
     renderDicePool();
   }
 
+  // 巨型武器「命運之死的加護」／曲刀「絕望的加護」用：角色が現在裝備中の武器のいずれかに、
+  // 指定した固有技能（innate）idを持つものがあるかどうかを判定する。
+  function characterHasEquippedInnateSkillId(c, skillId) {
+    var Weapons = window.PriTestWeapons;
+    if (!Weapons) return false;
+    return (c.equippedWeaponIds || []).some(function (weaponId) {
+      var baseId = weaponId.indexOf("::") !== -1 ? weaponId.slice(0, weaponId.indexOf("::")) : weaponId;
+      var weapon = Weapons.get(baseId);
+      return !!weapon && (weapon.skills || []).some(function (ref) {
+        return ref.kind === "innate" && ref.id === skillId;
+      });
+    });
+  }
+
+  // 使用者確認：「體力骰出目若包含『□□□』」（命運之死的加護）／「◎◎」（絕望的
+  // 加護）＝どちらも、新しく振った體力骰の中に「1」が3個以上含まれている場合
+  // （使用者確認済み：両者とも門檻3個）。戰鬥階段開始時の初回擲骰
+  // （rollDiceForCharacterActionPhase）でのみ判定し、對敵人「HP損害：1」（確定値、
+  // 使用者確認済み）を即座に適用する。對象敵人が一意に決まらない場合はGM向け注記のみ残す。
+  function triggerWeaponGraceDiceEffect(c, skillId) {
+    var innate = CharacterDrawer.resolveWeaponInnateSkillById(skillId);
+    var skillName = innate ? window.PriTestWeapons.localizedText(innate.name) : skillId;
+    var enemyOptions = resolveSelectedEnemyOptions();
+    var targetKey =
+      enemyOptions.length === 1
+        ? enemyOptions[0].key
+        : combatAttackTargetEnemyKey &&
+          enemyOptions.some(function (o) {
+            return o.key === combatAttackTargetEnemyKey;
+          })
+        ? combatAttackTargetEnemyKey
+        : null;
+    var applied = targetKey ? damageEnemyHpForKey(targetKey, 1) : false;
+    var detailLine = applied
+      ? window.I18N.t("weapon_grace_dice_applied_note", { enemy: enemyDisplayNameForKey(targetKey) })
+      : window.I18N.t("weapon_grace_dice_unresolved_target_note");
+    addActionBox(c, skillName, applied ? window.I18N.t("action_log_damage_total", { value: 1 }) : null, [detailLine]);
+    var msg = window.I18N.t("weapon_grace_dice_trigger_note", { character: c.name, skill: skillName }) + "　" + detailLine;
+    addLog("log_weapon_grace_dice_trigger", { character: c.name, skill: skillName });
+    postSystemTurnMessage(msg);
+    showThreatBroadcast([msg]);
+  }
+
   // 戦闘／額外／防禦行動フェイズ中、各角色の面板にある🎲アイコンから、その角色1人分だけ骰子を振る。
   // 戦闘は骰子池が空の時だけ（体力骰actionの数だけ）。額外・防禦は前フェイズの骰子を保持したまま
   // 追加で振れるが、いずれも1回限り（フェイズを切り替えるたびに使用済みフラグがリセットされる）。
@@ -8853,6 +8935,21 @@
         c._nextActionDicePenalty = 0;
         for (var j = 0; j < rolled; j++) c.dicePool.push(CharacterDrawer.rollD6());
         c._combatDiceRolled = true;
+        // 巨型武器「命運之死的加護」／曲刀「絕望的加護」：戰鬥階段開始時初次骰出的體力骰
+        // （このrolled個ぶん、持ち越し骰は含まない）に「1」が規定数以上含まれていた場合、
+        // 即座に對敵人「HP損害：1」を適用する（使用者確認済み仕様、詳細はtriggerWeaponGraceDiceEffect参照）。
+        if (rolled > 0) {
+          var freshCombatDice = c.dicePool.slice(c.dicePool.length - rolled);
+          var freshOnesCount = freshCombatDice.filter(function (v) {
+            return v === 1;
+          }).length;
+          if (freshOnesCount >= 3 && characterHasEquippedInnateSkillId(c, "colossal_fate_of_death_grace")) {
+            triggerWeaponGraceDiceEffect(c, "colossal_fate_of_death_grace");
+          }
+          if (freshOnesCount >= 3 && characterHasEquippedInnateSkillId(c, "curved_sword_despair_grace")) {
+            triggerWeaponGraceDiceEffect(c, "curved_sword_despair_grace");
+          }
+        }
       }
     } else if (state.actionPhase === "defense") {
       if (!c._defenseActionUsed) {
