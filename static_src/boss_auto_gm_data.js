@@ -167,6 +167,67 @@
         },
       ],
     },
+    "edele": {
+      // 「行動激化」：體勢崩潰後は「1D」ではなく「1D＋4」で判定する（既存の1~10表がその範囲を
+      // 完全にカバーするため追加行は不要）。
+      rollBonusAfterGuardBreak: 4,
+      rows: [
+        {
+          // 「噛みつき」（出目1~2）：「敵視：1以上」で前衛のPC全員は「乱戦ダメージ：3人分」を
+          // 割り振られる（gladius/marisと同じ規約：本文の数値は既にN人分込みの合計値）。
+          rollMin: 1,
+          rollMax: 2,
+          groupDamage: { value: 1080 },
+          targetRule: { kind: "frontAggroAtLeast1All" },
+        },
+        {
+          // 「突進」（出目3~4）：乱戦ダメージはPC全員が対象だが、「敵視：1以上」の前衛のみ「2人分」を
+          // 負担する加重分配のため、既存6種のtargetRuleでは正確に表現できない（allPCsは均等割りが
+          // 前提）。数値を捏造しないため、targetRuleは対象範囲のみ正しいallPCsに留め、加重の詳細は
+          // conditionsで記録してGMが本文どおり手動で再分配する。
+          rollMin: 3,
+          rollMax: 4,
+          groupDamage: { value: 1260 },
+          targetRule: { kind: "allPCs" },
+          conditions: ["manual_weighted_split_front_aggro_double"],
+        },
+        {
+          // 「拘束噛みつき」（出目5~6）：「敵視：最大」のPC1体のみ対象。ガード不可。次のアクション
+          // フェイズ終了まで敵に「HP価値：－10（最低10）」する。
+          rollMin: 5,
+          rollMax: 6,
+          groupDamage: { value: 600 },
+          targetRule: { kind: "aggroMax" },
+          conditions: ["no_guard", "enemy_hp_value_debuff"],
+        },
+        {
+          // 「雷噛みつき」（出目7~8）：対象の明記が無いため既定ルール（前衛均等割り）。次のアクション
+          // フェイズ終了まで敵に「HP価値：＋10（最高100）」する。
+          rollMin: 7,
+          rollMax: 8,
+          groupDamage: { value: 1080, elementAccum: [{ label: "雷", amount: 2 }] },
+          targetRule: { kind: "frontAll" },
+          conditions: ["enemy_hp_value_buff"],
+        },
+        {
+          // 「地擦り雷光」（出目9~10）：乱戦ダメージは対象の明記が無いため既定ルール。個別効果：
+          // 「敵視：1以上」で前衛のPC全員に【個別ダメージ：240】＋「雷：1D」。
+          rollMin: 9,
+          rollMax: 10,
+          groupDamage: { value: 600, elementAccum: [{ label: "雷", amount: 1 }] },
+          targetRule: { kind: "frontAll" },
+          individualDamage: [
+            { amount: 240, targetRule: { kind: "frontAggroAtLeast1All" }, elementAccum: [{ label: "雷", amount: 1 }] },
+          ],
+        },
+        // 「毒吐き」（出目無し＝特殊能力「猛毒の吐瀉」により1Dを振らず自動発動）：発動条件（このターン
+        // いずれかのPCが「状態異常：猛毒」でこのエネミーにHP損害を与えたか）はnight.js側で追跡して
+        // いないため、rows[]には含めずGM手動トリガーとする（gladiusの「形態変化」と同じ扱い）。
+        // 発動時の内容：乱戦ダメージ840＆「猛毒：2D」、対象は「敵視：1以上」のPC全員（0人なら前衛）、
+        // ガード不可。次のアクションフェイズ終了まで敵に「HP価値：－10（最低10）」する。「体勢崩し」後
+        // 戦闘終了まで発動しない。
+      ],
+    },
   };
 
   function get(bossId) {
