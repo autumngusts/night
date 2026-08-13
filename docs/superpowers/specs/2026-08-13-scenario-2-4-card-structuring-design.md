@@ -17,7 +17,7 @@
 ## 決定事項（ユーザー承認済み）
 
 1. **層B reward監査**：`gaping_jaw`/`sentient_pest`/`augur` それぞれについて、`Scenarios.numberForId()` が返す劇本番号を使い `fields_data_*.js` の各カードの `varianceTable` から該当劇本が実際に選ぶ分岐（branch）を特定し、その配下の全フロアで `lines[]` 本文と `reward[]` 配列を突き合わせ、記述はあるが構造化データが無い箇所を正式な `reward[]` エントリとして追記する（劇本1監査と同じ方式）。対象外（他劇本のみが選ぶ分岐）は変更しない。
-2. **層C・王のauto-GM覆蓋層**：`boss_auto_gm_data.js` に `edele`・`gnoster` を新規追加し、`maris` を試作（出目1~8）から完成させる。3体とも **出目1~12を完全網羅**する（gladiusと同水準）。データ源は `night_boss_rulebook.js` の既存 `actions[]` テキスト（HP/Guard/招式は既に構造化済み）を、`docs/enemy_damage_rules.md` の傷害適用優先順位・notation文法に従って `rows[]`（`rollMin`/`rollMax`/`groupDamage`/`individualDamage`/`targetRule`/`conditions`等）へ変換する。
+2. **層C・王のauto-GM覆蓋層**：`boss_auto_gm_data.js` に `edele`・`gnoster` を新規追加する。**出目範囲は各王の規則書 `actions[]` が実際に定義する範囲を完全網羅する**（`night_boss_rulebook.js` を実読して確認：edeleは1~10、gnosterは1~8。規則書に存在しない出目を作らない）。データ源は `night_boss_rulebook.js` の既存 `actions[]` テキスト（HP/Guard/招式は既に構造化済み）を、`docs/enemy_damage_rules.md` の傷害適用優先順位・notation文法に従って `rows[]`（`rollMin`/`rollMax`/`groupDamage`/`individualDamage`/`targetRule`/`conditions`等）へ変換する。特殊能力「行動激化」（體勢崩潰後 `1D＋N` で判定）は `rollBonusAfterGuardBreak` を設定する（edele: 4、gnoster: 2）。`maris` は既存 `boss_auto_gm_data.js` の出目1~8データが `night_boss_rulebook.js` の招式表（1~8、規則書上の全行）と既に一致しており新規追加の余地が無いため、「完成させる」対象から「既存8行を規則書と照合する精度監査（数値・対象規則・conditionsの誤り確認）」に変更する。
 3. **層C・夜之強敵auto-GM覆蓋層**：`fields_data_1.js` の `a_golden.extraTables[0]`（夜の強敵決定表）から劇本2/3/4のDay1/Day2列に列挙されている敵を抽出し、`enemies.js`/`enemies_data_1~4.js` の既存規則書テキストと照合しながら `enemy_auto_gm_data.js` へ覆蓋層データを追加する。劇本5等と重複する敵（例：`crucible_knight`）は既存データを再利用し、重複作業を避ける。
 4. **監査記録文書**：劇本ごとに個別文書を作成する（`docs/combat_move_structuring_scenario2.md`、`scenario3`、`scenario4`）。形式は `docs/combat_move_structuring_scenario1_and_classes.md` の劇本部分（敵人+王の稽核記録）を踏襲する。
 5. **実行順序**：劇本2→劇本3→劇本4（maris完成）の順で逐次実行する。理由：`boss_auto_gm_data.js`／`enemy_auto_gm_data.js` は3劇本で共有される単一ファイルであり、並行編集はマージ衝突のリスクがある。逐次実行により劇本ごとに個別commit＋ビルド検証ができ、リスクを抑えられる。
@@ -33,8 +33,8 @@
 
 ### B. 層C・王のauto-GM覆蓋層（`boss_auto_gm_data.js`）
 
-- `edele`/`gnoster` を新規キーとして追加。`night_boss_rulebook.js` の当該王の `actions[]`（招式テキスト、HP/Guard構造は既存）を精読し、gladiusの `rows[]` 実装パターンに倣って出目範囲ごとの `groupDamage`/`individualDamage`/`targetRule`/`conditions` を構造化する。
-- `maris` は既存の出目1~8データを踏襲しつつ、出目9~12を同じ方式で追加する。
+- `edele`/`gnoster` を新規キーとして追加。`night_boss_rulebook.js` の当該王の `actions[]`（招式テキスト、HP/Guard構造は既存）を精読し、maris/gladiusの `rows[]` 実装パターンに倣って出目範囲ごとの `groupDamage`/`individualDamage`/`targetRule`/`conditions` を構造化する。edeleは1~10（5グループ）、gnosterは1~8（8行）を規則書通りに完全網羅する。edeleの「毒吐き」（"—"、ロールなしで特定条件下に自動発動する特殊行動）は既存のrollMin/rollMaxモデルに存在しない発動条件のため、gladiusの「形態変化」と同様GM手動トリガーとして扱い、構造化データ側は通常時1D（+行動激化後1D+4）のroll tableのみを対象とする。
+- `maris` は新規追加ではなく、既存の出目1~8データを `night_boss_rulebook.js:270-279` の招式表と1行ずつ照合する精度監査を行う（数値・targetRule・conditionsの誤りが無いか確認、問題があれば修正）。
 - 傷害数値の算出は `docs/enemy_damage_rules.md` §2/§5（`▲`/`◆`の意味、Guard Reduction、5段階適用優先順位）に厳密に従う。規則書原文が曖昧、または `■` で確認不能な箇所は構造化せず、GM手動対応のフォールバックに委ねる。
 
 ### C. 層C・夜之強敵auto-GM覆蓋層（`enemy_auto_gm_data.js`）
