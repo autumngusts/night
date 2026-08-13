@@ -710,6 +710,376 @@
         },
       ],
     },
+    // 劇本2「夜之強敵決定表」1日目（fields_data_1.js:452-460）の5体：貪食ドラゴン、夜の騎兵たち、
+    // 英雄のガーゴイル、ミミズ顔たち、熔鉄デーモン。
+    //
+    // 【本ブロックで新規導入した conditions タグ（既存タグで表現できない行動のみ、GM手動処理を
+    // 明示するために追加。新しい状態管理機構は作らず、既存の groupDamage/individualDamage/
+    // savingThrow の枠に収まらない部分だけをタグ化する）】
+    // - variable_repeat_manual: 本文が「PC人数回実行」等、パーティ人数に依存する可変回数を指定して
+    //   いる行。固定回数のrepeat/rotateは使わず、GMが実際のPC人数を見て手動処理する。
+    // - unknown_hp_damage_manual: 「■」（数値未確定のプレースホルダ）を含むHP損害。数値を捏造しない
+    //   （Global Constraint 1／CLAUDE.md §19）。
+    // - accum_target_mismatch_manual: 属性/状態異常の蓄積のみ（HP損害の数値を伴わない）の効果で、
+    //   かつその対象集団が乱戦ダメージの対象（既定=前衛均等割り）と異なるため、groupDamage側の
+    //   elementAccum/ailmentAccum（乱戦ダメージ対象に付随する設計）にもindividualDamage
+    //   （amountというHP損害数値が必須で、0を入れるとTime Loss分だけ実際にダメージ入力欄へ数値が
+    //   入ってしまい実態と異なる）にも構造化できないケース。
+    // - max_hp_penalty_manual: 「最大HP」への継続的な減少（一時的なHP損害ではない）で、かつ累積回数
+    //   や上限を伴うもの。既存のgroupDamage/individualDamageはいずれも一時HP損害専用でmax-stat変動用
+    //   の欄が無いため構造化不能。
+    // - saving_throw_ailment_only_manual: 判定失敗時の効果がHP損害を伴わない属性/状態異常蓄積のみの
+    //   もの。savingThrow.onFailは既存実装（night.js）がonFail.amountしか読まずelementAccum/
+    //   ailmentAccumを一切反映しないため、ここに割り当てると見た目は動くが実際には何も適用されず
+    //   誤解を招く。よってsavingThrowは使わない。
+    // - furnace_flame_trigger（熔鉄デーモン専用）: 特殊能力「炉の炎」＝次のエンドフェイズ開始時、
+    //   前衛のPC全員が「HP損害:■」（数値未確定）を被る、という遅延効果のトリガーであることの記録。
+    // - no_evade: 「ガード、回避不可」等、既存no_guardではカバーしない回避不可の明記。
+    //
+    // 【既存ファイル内の先行事例との差異について（意図的な選択）】
+    // enemies_data内の他の敵の「PC人数回実行」記述は、旧エントリ（例：
+    // imp_watchdog_gargoyle|returning_tree_watchdog、strong_type|loathed_demon）では「敵視条件を
+    // 満たす全員に1回ずつ行き渡る」という【要確認】の未確定解釈でindividualDamageに構造化していた。
+    // 本タスクのGlobal Constraint 7は「可変回数はrepeatを使わずconditions+コメントでGM手動処理」と
+    // 明記しているため、本ブロックではその指示に従いvariable_repeat_manualへ統一する（旧エントリは
+    // 変更しない）。同様に、demihuman_beastfolk_club|demihumansの旧エントリは「■■■」を
+    // 「□/■記法の確認済み規則で1個=1」として amount:3 に変換していたが、本タスクのGlobal
+    // Constraint 1は「■を含む記述は数値化しない」と明記しているため、本ブロックでは■を一切
+    // 数値化せずunknown_hp_damage_manualへ統一する（旧エントリも変更しない）。
+    "dragon|gluttonous_dragon": {
+      rows: [
+        {
+          // 「這いずり回り」：「敵視:1以上」で前衛のPC全員に「乱戦ダメージ:2人分」（本文に明記）。
+          rollMin: 1,
+          rollMax: 1,
+          groupDamage: { modifier: 120 },
+          targetRule: { kind: "frontAggroAtLeast1All" },
+        },
+        {
+          // 「爪ひっかき」：乱戦ダメージ修正が「—」のため乱戦ダメージは発生しない。個別ダメージ180を
+          // 「敵視:1以上」のPC1体（対象不特定）に2回実行。ユーザー確認済み：対象は「敵視:1以上」を
+          // 満たす候補の中で輪流受傷、最初の対象はランダム。
+          rollMin: 2,
+          rollMax: 2,
+          individualDamage: [
+            { amount: 180, repeat: 2, distribution: "rotate", targetRule: { kind: "aggroAtLeast1All" } },
+          ],
+        },
+        {
+          // 「咥え込み＆跳躍」：乱戦ダメージ修正が「—」のため乱戦ダメージは発生しない。個別ダメージ360は
+          // 「敵視:最大」のPC1体に、ガード不可（no_guard）。特殊能力「竜の跳躍」＝次のアクションフェイズ
+          // 終了まで「HP価値:+10（最大100）」（enemy_hp_value_buff）を効果発揮。
+          rollMin: 3,
+          rollMax: 3,
+          individualDamage: [{ amount: 360, targetRule: { kind: "aggroMax" } }],
+          conditions: ["no_guard", "enemy_hp_value_buff"],
+        },
+        {
+          // 「跳躍プレス」：乱戦ダメージ修正±0（「—」ではないため発生）。対象の明記が無いため既定
+          // ルール（前衛均等割り）。特殊能力「竜の跳躍」（enemy_hp_value_buff）を効果発揮。
+          rollMin: 4,
+          rollMax: 4,
+          groupDamage: { modifier: 0 },
+          targetRule: { kind: "frontAll" },
+          conditions: ["enemy_hp_value_buff"],
+        },
+        {
+          // 「倒れ込み」：乱戦ダメージは「敵視:1以上」のPC全員を対象とする。対象となるPCが1人もいない
+          // 場合は、通常通り、前衛が対象となる（本文に明記されたフォールバック規則）。
+          rollMin: 5,
+          rollMax: 5,
+          groupDamage: { modifier: -120 },
+          targetRule: { kind: "aggroAtLeast1All", fallback: "front" },
+        },
+        {
+          // 「酸吐き出し」：乱戦ダメージはPC全員を対象とする（本文に明記）。個別効果（2回実行）:
+          // 「敵視:1以上」のPC全員は、戦闘終了まで「最大HP:-□（最低値1）」を被り、この効果は3回まで
+          // 累積する——「最大HP」への継続的な減少であり、既存のgroupDamage/individualDamageは
+          // いずれも一時的なHP損害専用でmax-stat変動用の欄が無いため構造化不能。□自体は「1個=1」で
+          // 計算可能だが、対象・累積回数・累積上限の扱いを表現する既存機構が無いためconditionsと
+          // コメントでGM手動処理に委ねる（新規機構は作らない／Global Constraint 6）。
+          rollMin: 6,
+          rollMax: 6,
+          groupDamage: { modifier: -240 },
+          targetRule: { kind: "allPCs" },
+          conditions: ["max_hp_penalty_manual"],
+        },
+      ],
+    },
+    "cavalry|night_cavalry": {
+      rows: [
+        {
+          // 「突進＆駆け抜け」：乱戦ダメージ修正±0（「—」ではないため発生）。対象の明記が無いため既定
+          // ルール（前衛均等割り）。個別ダメージ120＋「出血:1D」は「敵視:最大」のPC1体に別枠で発生。
+          // 特殊能力「駆け抜け」＝次のアクションフェイズ開始時、PC全員が出目に関わらず後衛へ強制配置
+          // される（force_back_row_next_phase）を効果発揮。
+          rollMin: 1,
+          rollMax: 1,
+          groupDamage: { modifier: 0 },
+          targetRule: { kind: "frontAll" },
+          individualDamage: [{ amount: 120, targetRule: { kind: "aggroMax" }, ailmentAccum: [{ label: "出血", amount: 1 }] }],
+          conditions: ["force_back_row_next_phase"],
+        },
+        {
+          // 「薙ぎ払い＆防御態勢」：「敵視:1以上」で前衛のPC全員に「乱戦ダメージ:2人分」（本文に明記）。
+          // 特殊能力「防御態勢」＝次のアクションフェイズ終了まで「HP価値:+20（最大100）」
+          // （enemy_hp_value_buff）を効果発揮。
+          rollMin: 2,
+          rollMax: 2,
+          groupDamage: { modifier: 0 },
+          targetRule: { kind: "frontAggroAtLeast1All" },
+          conditions: ["enemy_hp_value_buff"],
+        },
+        {
+          // 「馬体当たり」：乱戦ダメージ修正－120（「—」ではないため発生）。対象の明記が無いため既定
+          // ルール（前衛均等割り）。個別効果は「敵視:1以上」のPC全員が次のアクションフェイズ開始時に
+          // 獲得するスタミナダイスが1個減少するのみでHP損害を伴わないため、conditionsのみ記録する
+          // （stamina_dice_reduction_next_phase）。
+          rollMin: 3,
+          rollMax: 3,
+          groupDamage: { modifier: -120 },
+          targetRule: { kind: "frontAll" },
+          conditions: ["stamina_dice_reduction_next_phase"],
+        },
+        {
+          // 「フレイル振り回し＆駆け抜け」：乱戦ダメージ修正+60（「—」ではないため発生）。対象の明記が
+          // 無いため既定ルール（前衛均等割り）。本文は別途「「敵視:1以上」のPC全員は「出血:1D」を
+          // 被る」と明記しており、これは乱戦ダメージの対象（前衛均等割り）とは異なる対象集団への
+          // 蓄積のみの効果（HP損害を伴わない）のため、groupDamage.ailmentAccum（乱戦ダメージ対象に
+          // 付随する設計）にもindividualDamage（HP損害amountが必須）にも構造化できない。conditionsと
+          // コメントでGM手動処理に委ねる（Global Constraint 6）。特殊能力「駆け抜け」
+          // （force_back_row_next_phase）も効果発揮。
+          rollMin: 4,
+          rollMax: 4,
+          groupDamage: { modifier: 60 },
+          targetRule: { kind: "frontAll" },
+          conditions: ["accum_target_mismatch_manual", "force_back_row_next_phase"],
+        },
+        {
+          // 「斧槍振り回し＆防御態勢」：乱戦ダメージ修正+120（「—」ではないため発生）。対象の明記が
+          // 無いため既定ルール（前衛均等割り）。個別ダメージ180は「敵視:最大」のPC1体に別枠で発生。
+          // 特殊能力「防御態勢」（enemy_hp_value_buff）を効果発揮。
+          rollMin: 5,
+          rollMax: 5,
+          groupDamage: { modifier: 120 },
+          targetRule: { kind: "frontAll" },
+          individualDamage: [{ amount: 180, targetRule: { kind: "aggroMax" } }],
+          conditions: ["enemy_hp_value_buff"],
+        },
+        {
+          // 「コンビネーション攻撃」：乱戦ダメージ修正－240、乱戦ダメージは2回発生する。modに付随する
+          // 「出血:2」（固定値、骰子ではないためailmentAccum）は本文が別途対象を再指定していないため
+          // 乱戦ダメージと同じ対象（前衛均等割り）に付随するものとして構造化。対象の明記が無いため
+          // 既定ルール（前衛均等割り）。
+          rollMin: 6,
+          rollMax: 6,
+          groupDamage: { modifier: -240, repeat: 2, ailmentAccum: [{ label: "出血", amount: 2 }] },
+          targetRule: { kind: "frontAll" },
+        },
+      ],
+    },
+    "imp_watchdog_gargoyle|hero_gargoyle": {
+      rows: [
+        {
+          // 「剣連続攻撃＆跳躍」：乱戦ダメージ修正+120（「—」ではないため発生、本文に乱戦ダメージの
+          // 対象明記なし）。既定ルール（前衛均等割り）。個別ダメージ180は「敵視:最大」のPC1体に
+          // 別枠で発生。特殊能力「跳躍」＝次のアクションフェイズ開始時、PC全員が出目に関わらず後衛へ
+          // 強制配置される（force_back_row_next_phase）を効果発揮。
+          rollMin: 1,
+          rollMax: 1,
+          groupDamage: { modifier: 120 },
+          targetRule: { kind: "frontAll" },
+          individualDamage: [{ amount: 180, targetRule: { kind: "aggroMax" } }],
+          conditions: ["force_back_row_next_phase"],
+        },
+        {
+          // 「両刃剣回転攻撃」：乱戦ダメージ修正が「—」のため乱戦ダメージは発生しない。個別効果
+          // （PC人数回実行）：「敵視:1以上」のPC1体に【個別ダメージ:180】を与える——「PC人数」は
+          // パーティ人数に依存する可変値であり固定回数のリテラル値ではないため、既存のrepeat/rotate
+          // 機構（固定回数専用）は使わず、conditionsとコメントでGM手動処理に委ねる（Global
+          // Constraint 7）。
+          rollMin: 2,
+          rollMax: 2,
+          conditions: ["variable_repeat_manual"],
+        },
+        {
+          // 「斧叩きつけ＆跳躍」：「敵視:1以上」で前衛のPC全員に「乱戦ダメージ:2人分」（本文に明記）。
+          // 特殊能力「跳躍」（force_back_row_next_phase）を効果発揮。
+          rollMin: 3,
+          rollMax: 3,
+          groupDamage: { modifier: 120 },
+          targetRule: { kind: "frontAggroAtLeast1All" },
+          conditions: ["force_back_row_next_phase"],
+        },
+        {
+          // 「斧槍薙ぎ払い＆盾構え」：乱戦ダメージ修正±0（「—」ではないため発生、本文自体は「HP価値」
+          // バフのみを記載）。既定ルール（前衛均等割り）。次のアクションフェイズ終了まで「HP価値:+20
+          // （最大100）」（enemy_hp_value_buff）。
+          rollMin: 4,
+          rollMax: 4,
+          groupDamage: { modifier: 0 },
+          targetRule: { kind: "frontAll" },
+          conditions: ["enemy_hp_value_buff"],
+        },
+        {
+          // 「衝撃波＆跳躍」：乱戦ダメージ修正+240（「—」ではないため発生、本文に乱戦ダメージの対象
+          // 明記なし）。既定ルール（前衛均等割り）。個別効果は「敵視:最大」のPC1体のみを対象とする
+          // 判定（12|フィジカル）で、失敗時のみ次のアクションフェイズ開始時に獲得するスタミナダイスが
+          // 2個減少するのみでHP損害を伴わない。対象が全PCプールではなく単一PC（敵視:最大）に絞られて
+          // いるためsavingThrow（全PC対象前提）は使わず、conditionsのみ記録する
+          // （stamina_dice_reduction_next_phase）。特殊能力「跳躍」（force_back_row_next_phase）も
+          // 効果発揮。
+          rollMin: 5,
+          rollMax: 5,
+          groupDamage: { modifier: 240 },
+          targetRule: { kind: "frontAll" },
+          conditions: ["stamina_dice_reduction_next_phase", "force_back_row_next_phase"],
+        },
+        {
+          // 「咆哮」：乱戦ダメージ修正が「—」のため乱戦ダメージは発生しない。個別効果：「敵視:1以上」
+          // のPC全員に「HP損害:■■■」を与える（■は数値未確定のプレースホルダのため自動計算しない／
+          // 数値を捏造しない。スタミナダイス消費による軽減もPC側の任意選択のため自動計算しない）。
+          // conditionsとコメントでGM手動処理に委ねる。
+          rollMin: 6,
+          rollMax: 6,
+          conditions: ["unknown_hp_damage_manual", "reducible_by_stamina_dice"],
+        },
+      ],
+    },
+    "golem_maiden_puppet|molten_iron_demon": {
+      rows: [
+        {
+          // 「薙ぎ払い」：「敵視:1以上」で前衛のPC全員に「乱戦ダメージ:2人分」（本文に明記）。
+          rollMin: 1,
+          rollMax: 2,
+          groupDamage: { modifier: 120 },
+          targetRule: { kind: "frontAggroAtLeast1All" },
+        },
+        {
+          // 「叩きつけ＆炉の炎」：乱戦ダメージ修正+120（「—」ではないため発生、本文に乱戦ダメージの
+          // 対象明記なし）。既定ルール（前衛均等割り）。個別ダメージ300は「敵視:最大」のPC1体に
+          // 別枠で発生、ガード不可（no_guard）。特殊能力「炉の炎」＝次のエンドフェイズ開始時、前衛の
+          // PC全員は「HP損害:■」（数値未確定のため自動計算しない）を被る、という遅延効果
+          // （furnace_flame_trigger）を効果発揮。
+          rollMin: 3,
+          rollMax: 4,
+          groupDamage: { modifier: 120 },
+          targetRule: { kind: "frontAll" },
+          individualDamage: [{ amount: 300, targetRule: { kind: "aggroMax" } }],
+          conditions: ["no_guard", "furnace_flame_trigger"],
+        },
+        {
+          // 「掴みかかり」：乱戦ダメージ修正－120（「—」ではないため発生、本文に乱戦ダメージの対象
+          // 明記なし）。既定ルール（前衛均等割り）。個別ダメージ300＋「炎:2D」は「敵視:最大」のPC1体
+          // に別枠で発生、ガード不可（no_guard）。
+          rollMin: 5,
+          rollMax: 5,
+          groupDamage: { modifier: -120 },
+          targetRule: { kind: "frontAll" },
+          individualDamage: [{ amount: 300, targetRule: { kind: "aggroMax" }, elementAccum: [{ label: "炎", amount: 2 }] }],
+          conditions: ["no_guard"],
+        },
+        {
+          // 「炎爆発＆炉の炎」：乱戦ダメージ修正±0（「—」ではないため発生、本文に乱戦ダメージの対象
+          // 明記なし）。既定ルール（前衛均等割り）。modに付随する「炎:2D」は本文が別途対象を再指定
+          // していないため乱戦ダメージと同じ対象（前衛均等割り）に付随するものとして構造化。個別効果は
+          // 「敵視:1以上」のPC全員が判定（12|フィジカル）、それ以外が判定（10|フィジカル）を行い、
+          // 失敗したPCに「HP損害:■■」（数値未確定のため自動計算しない）を与える、ガード・回避不可
+          // （no_guard／no_evade）。savingThrow.onFailは既存実装（night.js）がonFail.amountしか
+          // 読まずelementAccum/ailmentAccumを一切反映しないうえ、そもそも■を捏造できないため
+          // savingThrowは使わない。conditionsとコメントでGM手動処理に委ねる。特殊能力「炉の炎」
+          // （furnace_flame_trigger）も効果発揮。
+          rollMin: 6,
+          rollMax: 6,
+          groupDamage: { modifier: 0, elementAccum: [{ label: "炎", amount: 2 }] },
+          targetRule: { kind: "frontAll" },
+          conditions: ["no_guard", "no_evade", "unknown_hp_damage_manual", "furnace_flame_trigger"],
+        },
+        {
+          // 「炎の連撃＆炉の炎」：乱戦ダメージ修正が「—」のため乱戦ダメージは発生しない。個別効果
+          // （PC人数回実行）：「敵視:1以上」のPC1体に【個別ダメージ:120】＋「炎:1D」を与える——
+          // 「PC人数」はパーティ人数に依存する可変値であり固定回数のリテラル値ではないため、
+          // 既存のrepeat/rotate機構（固定回数専用）は使わず、conditionsとコメントでGM手動処理に
+          // 委ねる（Global Constraint 7）。特殊能力「炉の炎」（furnace_flame_trigger）も効果発揮。
+          rollMin: 7,
+          rollMax: 8,
+          conditions: ["variable_repeat_manual", "furnace_flame_trigger"],
+        },
+        {
+          // 「叩きつけ＆火走り」：乱戦ダメージ修正+120（「—」ではないため発生、本文に乱戦ダメージの
+          // 対象明記なし）。既定ルール（前衛均等割り）。modに付随する「炎:1D」は本文が別途対象を
+          // 再指定していないため乱戦ダメージと同じ対象（前衛均等割り）に付随。本文は「敵視:1以上」の
+          // PCが乱戦ダメージを回避する際のダイスコスト半減にのみ言及（reducible_by_stamina_dice）。
+          rollMin: 9,
+          rollMax: 10,
+          groupDamage: { modifier: 120, elementAccum: [{ label: "炎", amount: 1 }] },
+          targetRule: { kind: "frontAll" },
+          conditions: ["reducible_by_stamina_dice"],
+        },
+      ],
+    },
+    "troll_dragonkin_wormface|worm_faces": {
+      rows: [
+        {
+          // 「群がる」：「敵視:1以上」で前衛のPC全員に「乱戦ダメージ:2人分」（本文に明記）。
+          rollMin: 1,
+          rollMax: 1,
+          groupDamage: { modifier: 0 },
+          targetRule: { kind: "frontAggroAtLeast1All" },
+        },
+        {
+          // 「連続踏み付け」：乱戦ダメージ修正－300、乱戦ダメージは2回発生する。対象の明記が無いため
+          // 既定ルール（前衛均等割り）。
+          rollMin: 2,
+          rollMax: 2,
+          groupDamage: { modifier: -300, repeat: 2 },
+          targetRule: { kind: "frontAll" },
+        },
+        {
+          // 「腕薙ぎ払い」：乱戦ダメージ修正+120（「—」ではないため発生、本文に乱戦ダメージの対象
+          // 明記なし）。既定ルール（前衛均等割り）。個別効果は「敵視:1以上」のPC全員に「呪死:2」
+          // （固定値、骰子ではない）を与えるのみでHP損害を伴わない。この蓄積の対象（敵視:1以上全員）は
+          // 乱戦ダメージの対象（前衛均等割り）と異なる集団であり、HP損害を伴わないためindividualDamage
+          // （amountが必須のためHP損害0を捏造することになり不適）にも構造化できない。conditionsと
+          // コメントでGM手動処理に委ねる（Global Constraint 6）。
+          rollMin: 3,
+          rollMax: 3,
+          groupDamage: { modifier: 120 },
+          targetRule: { kind: "frontAll" },
+          conditions: ["accum_target_mismatch_manual"],
+        },
+        {
+          // 「掴みかかり」：乱戦ダメージ修正が「—」のため乱戦ダメージは発生しない。個別ダメージ240＋
+          // 「呪死:1D」は「敵視:最大」のPC1体に。
+          rollMin: 4,
+          rollMax: 4,
+          individualDamage: [{ amount: 240, targetRule: { kind: "aggroMax" }, ailmentAccum: [{ label: "呪死", amount: 1 }] }],
+        },
+        {
+          // 「吐き出し」：乱戦ダメージ修正－120（「—」ではないため発生、本文に乱戦ダメージの対象
+          // 明記なし）。既定ルール（前衛均等割り）。modに付随する「呪死:1D」は本文が別途対象を
+          // 再指定していないため乱戦ダメージと同じ対象（前衛均等割り）に付随。個別ダメージ120＋
+          // 「呪死:2」（固定値、骰子ではない）は「敵視:1以上」のPC全員に別枠で発生。
+          rollMin: 5,
+          rollMax: 5,
+          groupDamage: { modifier: -120, ailmentAccum: [{ label: "呪死", amount: 1 }] },
+          targetRule: { kind: "frontAll" },
+          individualDamage: [{ amount: 120, targetRule: { kind: "aggroAtLeast1All" }, ailmentAccum: [{ label: "呪死", amount: 2 }] }],
+        },
+        {
+          // 「死の瘴気」：乱戦ダメージ修正が「—」のため乱戦ダメージは発生しない。個別効果は「敵視:1
+          // 以上」のPC全員が判定（12|運試し）、それ以外が判定（10|運試し）を行い、失敗したPCに
+          // 「呪死:1D」を与えるのみでHP損害を伴わない。savingThrow.onFailは既存実装（night.js）が
+          // onFail.amountしか読まずelementAccum/ailmentAccumを一切反映しないため、ここに割り当てても
+          // 見た目は動くが実際には何も適用されず誤解を招く。conditionsとコメントでGM手動処理に委ねる
+          // （Global Constraint 6/9）。次のアクションフェイズ終了まで「HP価値:+20（最大100）」
+          // （enemy_hp_value_buff）も発生する。
+          rollMin: 6,
+          rollMax: 6,
+          conditions: ["saving_throw_ailment_only_manual", "enemy_hp_value_buff"],
+        },
+      ],
+    },
   };
 
   function get(familyId, enemyId) {
