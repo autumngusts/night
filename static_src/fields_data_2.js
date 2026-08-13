@@ -257,7 +257,10 @@
                   true
                 ),
               ],
-              reward: [{ kind: "potentialPower", perPerson: true, value: 1, note: C("（ボス戦闘撃破）", "（王戰擊破）") }],
+              reward: [
+                { kind: "potentialPower", perPerson: true, value: 1, note: C("（ボス戦闘撃破）", "（王戰擊破）") },
+                { kind: "rune", value: 3, note: C("（撃破ルーン）", "（擊破盧恩）") },
+              ],
             },
             {
               label: C("フロア2", "樓層2"),
@@ -327,6 +330,7 @@
                       rewards: [
                         { kind: "stoneswordKey", value: 1 },
                         { kind: "consumable", value: 1 },
+                        { kind: "rune", value: 1, note: C("（撃破ルーン）", "（擊破盧恩）") },
                         {
                           kind: "note",
                           note: C("（地図のクローズエリアを1つオープン可能。GM判断で処理）", "（可開啟地圖上1個未開啟區域，由GM判斷處理）"),
@@ -413,6 +417,7 @@
               reward: [
                 { kind: "weaponStar", value: 1, note: C("（ザコ戦闘撃破）", "（雜兵戰鬥擊破）") },
                 { kind: "stoneswordKey", value: 1, note: C("（ザコ戦闘撃破）", "（雜兵戰鬥擊破）") },
+                { kind: "rune", value: 1, note: C("（撃破ルーン）", "（擊破盧恩）") },
               ],
             },
             {
@@ -437,7 +442,10 @@
                   true
                 ),
               ],
-              reward: [{ kind: "potentialPower", perPerson: true, value: 1, note: C("（ボス戦闘撃破）", "（王戰擊破）") }],
+              reward: [
+                { kind: "potentialPower", perPerson: true, value: 1, note: C("（ボス戦闘撃破）", "（王戰擊破）") },
+                { kind: "rune", value: 3, note: C("（撃破ルーン）", "（擊破盧恩）") },
+              ],
             },
           ],
         },
@@ -522,6 +530,7 @@
                           attributeTag: C("魔／-5（154頁）", "魔／-5（154頁）"),
                         },
                         { kind: "weaponStar", value: 1, categoryId: "staff" },
+                        { kind: "rune", value: 1, note: C("（撃破ルーン）", "（擊破盧恩）") },
                       ],
                     },
                     {
@@ -599,6 +608,7 @@
                   kind: "note",
                   note: C("（ボス戦闘撃破。地図のクローズエリアを1つオープン可能。GM判断で処理）", "（王戰擊破。可開啟地圖上1個未開啟區域，由GM判斷處理）"),
                 },
+                { kind: "rune", value: 3, note: C("（撃破ルーン）", "（擊破盧恩）") },
               ],
             },
           ],
@@ -800,7 +810,10 @@
                 ),
                 L(2, null, ["撃破に成功すると「消耗品」を1つ獲得（フロア踏破）。", "擊破成功則獲得「消耗品」1個（樓層踏破）。"], true),
               ],
-              reward: [{ kind: "consumable", value: 1, note: C("（ザコ戦闘撃破）", "（雜兵戰鬥擊破）") }],
+              reward: [
+                { kind: "consumable", value: 1, note: C("（ザコ戦闘撃破）", "（雜兵戰鬥擊破）") },
+                { kind: "rune", value: 1, note: C("（撃破ルーン）", "（擊破盧恩）") },
+              ],
             },
             {
               label: C("フロア2", "樓層2"),
@@ -830,6 +843,7 @@
               reward: [
                 { kind: "potentialPower", perPerson: true, value: 1, note: C("（ボス戦闘撃破）", "（王戰擊破）") },
                 { kind: "stoneswordKey", value: 1, note: C("（ボス戦闘撃破・2ターン以内）", "（王戰擊破・2回合內）") },
+                { kind: "rune", value: 4, note: C("（撃破ルーン）", "（擊破盧恩）") },
               ],
             },
           ],
@@ -1006,6 +1020,7 @@
                       rewards: [
                         { kind: "stoneswordKey", value: 1 },
                         { kind: "consumable", itemId: "item_throwing_pot", attributeTag: C("炎", "炎") },
+                        { kind: "rune", value: 1, note: C("（撃破ルーン）", "（擊破盧恩）") },
                       ],
                     },
                   ],
@@ -1168,6 +1183,7 @@
                   attributeTag: C("雷", "雷"),
                   note: C("（ザコ戦闘撃破）", "（雜兵戰鬥擊破）"),
                 },
+                { kind: "rune", value: 1, note: C("（撃破ルーン）", "（擊破盧恩）") },
               ],
             },
             {
@@ -1204,6 +1220,7 @@
                   note: C("（ボス戦闘撃破）", "（王戰擊破）"),
                 },
                 { kind: "stoneswordKey", value: 1, note: C("（ボス戦闘撃破・2ターン以内）", "（王戰擊破・2回合內）") },
+                { kind: "rune", value: 4, note: C("（撃破ルーン）", "（擊破盧恩）") },
               ],
             },
           ],
@@ -1278,6 +1295,7 @@
                           itemId: "item_throwing_pot",
                           attributeTag: C("発狂", "發狂"),
                         },
+                        { kind: "rune", value: 1, note: C("（撃破ルーン）", "（擊破盧恩）") },
                       ],
                     },
                   ],
@@ -1327,6 +1345,7 @@
                   attributeTag: C("発狂／-5（154頁）", "發狂／-5（154頁）"),
                   note: C("（ボス戦闘撃破）", "（王戰擊破）"),
                 },
+                { kind: "rune", value: 3, note: C("（撃破ルーン）", "（擊破盧恩）") },
               ],
             },
           ],
@@ -1519,6 +1538,7 @@
               ],
               reward: [
                 { kind: "stoneswordKey", value: 1, note: C("（隠れ進む行為判定成功時のみ）", "（潛行前進行為判定成功時才可）") },
+                { kind: "rune", value: 1, note: C("（撃破ルーン）", "（擊破盧恩）") },
               ],
             },
             {
@@ -1622,6 +1642,7 @@
                   attributeTag: C("魔", "魔"),
                   note: C("（遺体の調査に1人でも成功時のみ）", "（調查遺體只要1人成功即可）"),
                 },
+                { kind: "rune", value: 1, note: C("（撃破ルーン）", "（擊破盧恩）") },
               ],
             },
             {
@@ -1800,6 +1821,7 @@
                 { kind: "hpDamage", value: 1, note: C("（半数以上のPCが行為判定失敗時、失敗したPCへ）", "（半數以上PC行為判定失敗時，對失敗的PC）") },
                 { kind: "consumable", value: 1, note: C("（行為判定に全員成功時のみ）", "（行為判定全員成功時才可）") },
                 { kind: "consumable", value: 1, note: C("（行為判定に全員成功時のみ、骨の毒投げ矢を選ぶ）", "（行為判定全員成功時才可，選擇骨毒投擲箭）") },
+                { kind: "rune", value: 1, note: C("（撃破ルーン）", "（擊破盧恩）") },
               ],
             },
             {
@@ -1872,7 +1894,10 @@
                 L(2, null, ["「腐った亡者たち（222頁）／Lv.2 + L補」", "「腐爛的亡者們（222頁）／Lv.2+L補」"], true),
                 L(2, null, ["撃破できたら、周囲の木箱から「武器：★」を1つ獲得（フロア踏破）。", "擊破成功後，從周圍的木箱獲得「武器：★」1個（樓層踏破）。"], true),
               ],
-              reward: [{ kind: "weaponStar", value: 1, note: C("（ザコ戦闘撃破時のみ）", "（雜兵戰鬥擊破時才可）") }],
+              reward: [
+                { kind: "weaponStar", value: 1, note: C("（ザコ戦闘撃破時のみ）", "（雜兵戰鬥擊破時才可）") },
+                { kind: "rune", value: 1, note: C("（撃破ルーン）", "（擊破盧恩）") },
+              ],
             },
             {
               label: C("フロア2", "樓層2"),
@@ -2013,6 +2038,7 @@
                   attributeTag: C("凍傷／-5（154頁）", "凍傷／-5（154頁）"),
                   note: C("（ボス戦闘撃破）", "（王戰擊破）"),
                 },
+                { kind: "rune", value: 3, note: C("（撃破ルーン）", "（擊破盧恩）") },
               ],
             },
           ],
@@ -2121,6 +2147,7 @@
                   attributeTag: C("睡眠／-5（154頁）", "睡眠／-5（154頁）"),
                   note: C("（ボス戦闘撃破）", "（王戰擊破）"),
                 },
+                { kind: "rune", value: 3, note: C("（撃破ルーン）", "（擊破盧恩）") },
                 { kind: "potentialPower", perPerson: true, value: 1, note: C("（つがい撃破時のみ追加）", "（擊破成對盧恩熊時才額外追加）") },
                 { kind: "rune", value: 2, note: C("（つがい撃破時のみ追加）", "（擊破成對盧恩熊時才額外追加）") },
               ],
@@ -2189,6 +2216,7 @@
                 { kind: "smithingStone", value: 1, note: C("（地下への隠し通路・獲得）", "（通往地下的隱藏通道・獲得）") },
                 { kind: "consumable", value: 1, note: C("（地下への隠し通路・獲得）", "（通往地下的隱藏通道・獲得）") },
                 { kind: "hpDamage", value: 1, note: C("（隠れて調査・行為判定失敗時）", "（躲藏調查・行為判定失敗時）") },
+                { kind: "rune", value: 1, note: C("（撃破ルーン）", "（擊破盧恩）") },
               ],
             },
             {
@@ -2208,7 +2236,10 @@
                 L(2, null, ["「ミミズ顔たち（229頁）／Lv.6＋L補」+モブ2", "「蟲顏怪們（229頁）／Lv.6+L補」+雜兵2"], true),
                 L(2, null, ["撃破できたら、PCはそれぞれ「潜在する力：★」を獲得（フロア踏破）。", "擊破成功後，PC各自獲得「潛力：★」（樓層踏破）。"], true),
               ],
-              reward: [{ kind: "potentialPower", perPerson: true, value: 1, note: C("（ボス戦闘撃破）", "（王戰擊破）") }],
+              reward: [
+                { kind: "potentialPower", perPerson: true, value: 1, note: C("（ボス戦闘撃破）", "（王戰擊破）") },
+                { kind: "rune", value: 3, note: C("（撃破ルーン）", "（擊破盧恩）") },
+              ],
             },
           ],
         },

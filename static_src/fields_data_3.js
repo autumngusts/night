@@ -179,6 +179,7 @@
                 { kind: "stoneswordKey", value: 1, note: C("（ボス戦闘撃破）", "（王戰擊破）") },
                 { kind: "potentialPower", perPerson: true, value: 1, note: C("（ボス戦闘撃破）", "（王戰擊破）") },
                 { kind: "smithingStone", value: 2, perParty: true, note: C("（ボス戦闘撃破・PC1人につき2個）", "（王戰擊破・每位PC 2個）") },
+                { kind: "rune", value: 3, note: C("（撃破ルーン）", "（擊破盧恩）") },
               ],
             },
             {
@@ -221,6 +222,7 @@
                   kind: "note",
                   note: C("（行為判定に過半数失敗時は「夜の脅威シート」のタイムロスを1つチェック）", "（行為判定過半數失敗時，於「夜間威脅表」勾選1格時間損耗）"),
                 },
+                { kind: "rune", value: 1, note: C("（撃破ルーン）", "（擊破盧恩）") },
               ],
             },
           ],
@@ -518,6 +520,7 @@
                   note: C("（瓦礫をあさる）", "（翻找瓦礫）"),
                 },
                 { kind: "weaponStar", value: 1, categoryId: "sacred_seal", note: C("（駆け抜ける・成功時）", "（衝過去・成功時）") },
+                { kind: "rune", value: 1, note: C("（撃破ルーン）", "（擊破盧恩）") },
               ],
             },
             {
@@ -561,6 +564,7 @@
                 },
                 { kind: "weaponStar", value: 1, categoryId: "staff", note: C("（ボス戦闘撃破）", "（王戰擊破）") },
                 { kind: "consumable", value: 1, note: C("（ボス戦闘撃破）", "（王戰擊破）") },
+                { kind: "rune", value: 4, note: C("（撃破ルーン）", "（擊破盧恩）") },
               ],
             },
           ],
