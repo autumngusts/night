@@ -1086,6 +1086,371 @@
         },
       ],
     },
+    // 劇本2「夜之強敵決定表」（fields_data_1.js:452-460）の5体：公のフレイディア（1日目）、
+    // 古竜／僻地の宿将／ノクスの竜人兵／死儀礼の鳥（2日目）。坩堝の騎士は既存の
+    // soldier_knight|crucible_knightとして構造化済みのため対象外（Task 4 brief）。
+    //
+    // 【属性/状態異常の分類（docs/enemy_damage_rules.md §7で確認済み）】
+    // 属性（4種、elementAccum）＝魔／炎／雷／聖。状態異常（7種、ailmentAccum）＝猛毒／腐敗／出血／
+    // 凍傷／発狂／睡眠／呪死。「凍傷」は状態異常のためailmentAccumで構造化する（elementAccumではない）。
+    //
+    // 【本ブロックで新規導入した conditions タグ】
+    // - saving_throw_damage_and_ailment_manual: 「敵視:1以上→目標X／それ以外（敵視:0）→目標Y」の
+    //   全PCプール型・敵視分岐DCの判定で、失敗時の効果が【個別ダメージ】＋属性/状態異常蓄積の
+    //   両方を伴うもの。savingThrow.onFailは既存実装（night.js）がonFail.amountしか読まず
+    //   elementAccum/ailmentAccumを一切反映しないため（saving_throw_ailment_only_manualと同じ理由）、
+    //   ダメージ部分だけをsavingThrowで自動化すると蓄積部分が黙って欠落し誤解を招く。よって
+    //   savingThrow自体を使わず、判定・ダメージ・蓄積のすべてをコメントに記載してGM手動処理に
+    //   委ねる（Global Constraint 9）。
+    // - majority_fail_time_loss_manual: PC全員が同一目標値で判定し、「半数以上が失敗」という
+    //   集団閾値の結果によって「タイムロス」が蓄積するかどうかが決まる行動。savingThrowは
+    //   個別PCごとの成否判定＋敵視分岐DCを前提とした構造のため、この「集団の過半数」という
+    //   閾値判定にはそもそも対応できない。conditionsとコメントでGM手動処理に委ねる。
+    // - mob_hp_full_heal: 「モブHPの1行を最大値まで回復する」というエネミー側の自己回復効果
+    //   （PCへの効果ではないため既存タグでは表現不可）。
+    // - guard_cost_penalty: 「ガードするとき、そのガードコストを+1する」という、ガード選択時の
+    //   コスト悪化効果（HP損害を伴わないため個別/乱戦ダメージ枠には構造化できない）。
+    //
+    // 【mod欄に付随する属性/状態異常表記の扱いについて（本ブロック共通の解釈方針）】
+    // mod欄の「＆X」表記が、本文中の個別判定の失敗時効果として明記されているXと数値・種別が
+    // 完全に一致する場合、mod欄の表記は当該個別効果を要約的に繰り返したものと解釈し、
+    // groupDamageには（乱戦ダメージの対象へ二重に適用されることを避けるため）Xを付随させない
+    // （例:ancient_dragon「地を這う赤雷」「赤雷叩きつけ」、remote_veteran「冷気の嵐」、
+    // nox_dragonkin_soldier「氷槍＆飛び退き」）。一方、本文が乱戦ダメージ対象とは別に「◯◯のPC
+    // 全員はXを被る」という無条件の別枠効果を明記している場合や、mod欄のXと本文個別効果のXが
+    // 数値・種別で異なる場合は、既存事例（troll_dragonkin_wormface|worm_facesの「吐き出し」等）に
+    // 倣いそれぞれ独立した効果として構造化する（例:remote_veteranの「雷の蹴撃」）。あるいは対象
+    // 集団自体が乱戦ダメージの対象と異なる場合はaccum_target_mismatch_manualで手動処理に委ねる
+    // （例:remote_veteranの「氷嵐の剣技」、death_ritual_birdの「槍呼び＆飛び退き」）。数値を捏造
+    // しないという原則（Global Constraint 1）に基づく判断であり、断定できない場合は常に控えめな側
+    // （二重適用を避ける側）を採用する。
+    "crustacean|duke_freydia": {
+      rows: [
+        {
+          // 「飛びかかり」：「敵視:1以上」で前衛のPC全員に「乱戦ダメージ:2人分」（本文に明記）。
+          rollMin: 1,
+          rollMax: 1,
+          groupDamage: { modifier: 120 },
+          targetRule: { kind: "frontAggroAtLeast1All" },
+        },
+        {
+          // 「酸吐き」：乱戦ダメージ修正－120（「—」ではないため発生、本文に乱戦ダメージの対象
+          // 明記なし）。既定ルール（前衛均等割り）。個別効果は全PCプール・敵視分岐DCの判定
+          // （敵視:1以上→目標12、それ以外→目標10、運試し）で、失敗したPCに【個別ダメージ:120】＋
+          // 「猛毒:3」（固定値）を与える。savingThrow.onFailはamountしか反映しないため、ダメージと
+          // 蓄積が揃った本行はsavingThrowを使わずGM手動判定に委ねる（saving_throw_damage_and_
+          // ailment_manual）。
+          rollMin: 2,
+          rollMax: 2,
+          groupDamage: { modifier: -120 },
+          targetRule: { kind: "frontAll" },
+          conditions: ["saving_throw_damage_and_ailment_manual"],
+        },
+        {
+          // 「子蜘蛛の牙」：乱戦ダメージ修正が「—」のため乱戦ダメージは発生しない。個別効果
+          // （PC人数回実行）：「敵視:1以上」のPC1体に【個別ダメージ:180】を与える——「PC人数」は
+          // パーティ人数に依存する可変値のため、固定回数のrepeat/rotateは使わずconditionsと
+          // コメントでGM手動処理に委ねる（Global Constraint 7）。
+          rollMin: 3,
+          rollMax: 3,
+          conditions: ["variable_repeat_manual"],
+        },
+        {
+          // 「子蜘蛛の抱擁」：乱戦ダメージ修正±0（「—」ではないため発生）。対象の明記が無いため
+          // 既定ルール（前衛均等割り）。乱戦ダメージに対してガード不可（no_guard）。
+          rollMin: 4,
+          rollMax: 4,
+          groupDamage: { modifier: 0 },
+          targetRule: { kind: "frontAll" },
+          conditions: ["no_guard"],
+        },
+        {
+          // 「貫く糸」：乱戦ダメージはPC全員を対象とする（本文に明記）。個別効果は全PCプール・
+          // 敵視分岐DCの判定（敵視:1以上→目標12、それ以外→目標10、フィジカル）だが、失敗しても
+          // HP損害は発生せず次のアクションフェイズのスタミナダイス-2のみのため、savingThrow
+          // （常にダメージ前提の設計）は使わずconditionsのみ記録する。
+          rollMin: 5,
+          rollMax: 5,
+          groupDamage: { modifier: 120 },
+          targetRule: { kind: "allPCs" },
+          conditions: ["stamina_dice_reduction_next_phase"],
+        },
+        {
+          // 「糸の雨」：乱戦ダメージはPC全員を対象とする（本文に明記）。乱戦ダメージを回避する
+          // PCはダイスコストが半減する（reducible_by_stamina_dice）。
+          rollMin: 6,
+          rollMax: 6,
+          groupDamage: { modifier: 180 },
+          targetRule: { kind: "allPCs" },
+          conditions: ["reducible_by_stamina_dice"],
+        },
+      ],
+    },
+    "dragon|ancient_dragon": {
+      rows: [
+        {
+          // 「尻尾振り回し」：「敵視:1以上」のPC全員が「乱戦ダメージ割合:3人分」（本文に明記、
+          // 前衛限定の記載なし）。
+          rollMin: 1,
+          rollMax: 1,
+          groupDamage: { modifier: 120 },
+          targetRule: { kind: "aggroAtLeast1All" },
+        },
+        {
+          // 「爪ひっかき」：乱戦ダメージは「敵視:1以上」のPC全員が対象、該当者が1人もいない場合は
+          // 前衛が対象（本文に明記されたフォールバック規則）。
+          rollMin: 2,
+          rollMax: 2,
+          groupDamage: { modifier: 0 },
+          targetRule: { kind: "aggroAtLeast1All", fallback: "front" },
+        },
+        {
+          // 「空中旋回＆滞空」：乱戦ダメージ修正が「—」のため乱戦ダメージは発生しない。個別効果は
+          // PC全員が同一目標値（11|運試し）で判定し、「半数以上が失敗」という集団閾値の結果で
+          // 「タイムロス」が蓄積するかどうかが決まる——savingThrowは個別PCごとの敵視分岐DCを
+          // 前提とした構造のためこの集団閾値判定には対応できない。conditionsとコメントでGM手動
+          // 処理に委ねる（majority_fail_time_loss_manual）。特殊能力「滞空」＝次のアクションフェイズ
+          // 開始時、PC全員が出目に関わらず後衛へ強制配置される（force_back_row_next_phase）。
+          rollMin: 3,
+          rollMax: 3,
+          conditions: ["majority_fail_time_loss_manual", "force_back_row_next_phase"],
+        },
+        {
+          // 「地を這う赤雷」：乱戦ダメージ修正－120（「—」ではないため発生、本文に乱戦ダメージの
+          // 対象明記なし）。既定ルール（前衛均等割り）。個別効果は全PCプール・敵視分岐DCの判定
+          // （敵視:1以上→目標12、それ以外→目標10、フィジカル）で、失敗したPCに【個別ダメージ:
+          // 240】＋「雷:1D」を与える。mod欄の「雷:1D」はこの個別判定の失敗時効果と数値が一致する
+          // ため二重計上を避けてgroupDamageには付随させず、判定・ダメージ・蓄積のすべてを
+          // GM手動処理に委ねる（saving_throw_damage_and_ailment_manual）。
+          rollMin: 4,
+          rollMax: 4,
+          groupDamage: { modifier: -120 },
+          targetRule: { kind: "frontAll" },
+          conditions: ["saving_throw_damage_and_ailment_manual"],
+        },
+        {
+          // 「赤雷叩きつけ」：乱戦ダメージ修正±0（「—」ではないため発生）。既定ルール（前衛均等
+          // 割り）。個別効果は「敵視:1以上」のPCのみが対象の判定（11|フィジカル、全PCプールでは
+          // なく敵視1以上のみに絞られた部分集合）で、失敗したPCに【個別ダメージ:120】＋「雷:1D」を
+          // 与える。対象が全PCプールではなく敵視条件で絞られた部分集合のためsavingThrow（全PC
+          // 対象・敵視分岐DC前提）は使わず、本文をそのままGM手動判定に委ねる（conditionsも無し、
+          // 数値を捏造しない）。
+          rollMin: 5,
+          rollMax: 5,
+          groupDamage: { modifier: 0 },
+          targetRule: { kind: "frontAll" },
+        },
+        {
+          // 「炎ブレス＆滞空」：乱戦ダメージはPC全員を対象とする（本文に明記）。mod欄の「炎:2D」は
+          // 本文が別途対象を再指定していないため乱戦ダメージと同じ対象（PC全員）に付随。特殊能力
+          // 「滞空」（force_back_row_next_phase）を効果発揮。
+          rollMin: 6,
+          rollMax: 6,
+          groupDamage: { modifier: 0, elementAccum: [{ label: "炎", amount: 2 }] },
+          targetRule: { kind: "allPCs" },
+          conditions: ["force_back_row_next_phase"],
+        },
+      ],
+    },
+    "soldier_knight|remote_veteran": {
+      rows: [
+        {
+          // 「突撃指令＆防御態勢」：乱戦ダメージ修正－300、乱戦ダメージは2回発生する。対象の明記が
+          // 無いため既定ルール（前衛均等割り）。次のアクションフェイズ終了までエネミーを
+          // 「HP価値:+10（最大100）」する（enemy_hp_value_buff）。
+          rollMin: 1,
+          rollMax: 1,
+          groupDamage: { modifier: -300, repeat: 2 },
+          targetRule: { kind: "frontAll" },
+          conditions: ["enemy_hp_value_buff"],
+        },
+        {
+          // 「斧槍の連撃」：「敵視:1以上」で前衛のPC全員に「乱戦ダメージ:2人分」（本文に明記）。
+          rollMin: 2,
+          rollMax: 2,
+          groupDamage: { modifier: 180 },
+          targetRule: { kind: "frontAggroAtLeast1All" },
+        },
+        {
+          // 「雷の蹴撃」：乱戦ダメージ修正±0＋「雷:2」（固定値、骰子ではないためelementAccum）。
+          // 本文に乱戦ダメージの対象明記が無いため既定ルール（前衛均等割り）にこの固定蓄積が付随。
+          // 個別効果:「敵視:最大」のPC1体に【個別ダメージ:240】＋「雷:1D」（骰子）を別枠で発生
+          // ——mod欄の固定値「2」と個別効果の骰子「1D」は数値・種別が異なるため独立した2つの
+          // 効果として構造化する（troll_dragonkin_wormface|worm_facesの「吐き出し」と同型）。
+          rollMin: 3,
+          rollMax: 3,
+          groupDamage: { modifier: 0, elementAccum: [{ label: "雷", amount: 2 }] },
+          targetRule: { kind: "frontAll" },
+          individualDamage: [{ amount: 240, targetRule: { kind: "aggroMax" }, elementAccum: [{ label: "雷", amount: 1 }] }],
+        },
+        {
+          // 「薙ぎ払い＆再召喚」：乱戦ダメージ修正－120（「—」ではないため発生）。対象の明記が無い
+          // ため既定ルール（前衛均等割り）。加えてモブHPの1行（最もHPの減少している行）を最大値
+          // まで回復するというエネミー側の自己回復効果（PCへの効果ではないためmob_hp_full_heal）。
+          rollMin: 4,
+          rollMax: 4,
+          groupDamage: { modifier: -120 },
+          targetRule: { kind: "frontAll" },
+          conditions: ["mob_hp_full_heal"],
+        },
+        {
+          // 「氷嵐の剣技」：「敵視:1以上」で前衛のPC全員に「乱戦ダメージ:2人分」（本文に明記）。
+          // 個別効果:「敵視:1以上」のPC全員（前衛限定の記載なし）は「凍傷:1D」を被る——この蓄積の
+          // 対象集団は乱戦ダメージの対象（前衛の敵視1以上のみ）と異なる可能性があり、かつHP損害を
+          // 伴わないためgroupDamage.ailmentAccumにもindividualDamageにも構造化できない。conditions
+          // とコメントでGM手動処理に委ねる（accum_target_mismatch_manual）。
+          rollMin: 5,
+          rollMax: 5,
+          groupDamage: { modifier: -120 },
+          targetRule: { kind: "frontAggroAtLeast1All" },
+          conditions: ["accum_target_mismatch_manual"],
+        },
+        {
+          // 「冷気の嵐」：乱戦ダメージ修正±0（「—」ではないため発生）。既定ルール（前衛均等割り）。
+          // 個別効果は全PCプール・敵視分岐DCの判定（敵視:1以上→目標12、敵視:0→目標10、フィジカル）
+          // で、失敗したPCに【個別ダメージ:120】＋「凍傷:1D」を与える。mod欄の「凍傷:1D」はこの
+          // 判定の失敗時効果と数値が一致するため二重計上を避け、判定・ダメージ・蓄積のすべてを
+          // GM手動処理に委ねる（saving_throw_damage_and_ailment_manual）。
+          rollMin: 6,
+          rollMax: 6,
+          groupDamage: { modifier: 0 },
+          targetRule: { kind: "frontAll" },
+          conditions: ["saving_throw_damage_and_ailment_manual"],
+        },
+      ],
+    },
+    "troll_dragonkin_wormface|nox_dragonkin_soldier": {
+      rows: [
+        {
+          // 「腕薙ぎ払い」：乱戦ダメージ修正+60（「—」ではないため発生、本文に乱戦ダメージの対象
+          // 明記なし）。既定ルール（前衛均等割り）。個別効果:「敵視:1以上」のPC全員（前衛限定の
+          // 記載なし）に【個別ダメージ:180】を無条件で与える。
+          rollMin: 1,
+          rollMax: 1,
+          groupDamage: { modifier: 60 },
+          targetRule: { kind: "frontAll" },
+          individualDamage: [{ amount: 180, targetRule: { kind: "aggroAtLeast1All" } }],
+        },
+        {
+          // 「両腕叩きつけ」：乱戦ダメージ修正+120（「—」ではないため発生）。既定ルール（前衛均等
+          // 割り）。「敵視:1以上」のPC全員は、ガードするとき、そのガードコストを+1する——HP損害を
+          // 伴わないコスト悪化効果のためconditionsのみ記録する（guard_cost_penalty）。
+          rollMin: 2,
+          rollMax: 2,
+          groupDamage: { modifier: 120 },
+          targetRule: { kind: "frontAll" },
+          conditions: ["guard_cost_penalty"],
+        },
+        {
+          // 「掴みかかり」：乱戦ダメージ修正が「—」のため乱戦ダメージは発生しない。個別ダメージ
+          // 300は「敵視:最大」のPC1体に、ガード不可（no_guard）。
+          rollMin: 3,
+          rollMax: 3,
+          individualDamage: [{ amount: 300, targetRule: { kind: "aggroMax" } }],
+          conditions: ["no_guard"],
+        },
+        {
+          // 「氷槍＆飛び退き」：乱戦ダメージ修正±0（「—」ではないため発生、本文に乱戦ダメージの
+          // 対象明記なし）。既定ルール（前衛均等割り）。個別ダメージ240＋「凍傷:1D」は「敵視:最大」
+          // のPC1体に無条件で発生（mod欄の「凍傷:1D」はこの個別効果と数値が一致するため同一効果と
+          // 解釈しgroupDamageには付随させない）。加えて「敵視:1以上」のPC全員の次フェイズ体力骰-1
+          // （stamina_dice_reduction_next_phase）と特殊能力「飛び退き」（force_back_row_next_phase）
+          // を効果発揮。
+          rollMin: 4,
+          rollMax: 4,
+          groupDamage: { modifier: 0 },
+          targetRule: { kind: "frontAll" },
+          individualDamage: [{ amount: 240, targetRule: { kind: "aggroMax" }, ailmentAccum: [{ label: "凍傷", amount: 1 }] }],
+          conditions: ["stamina_dice_reduction_next_phase", "force_back_row_next_phase"],
+        },
+        {
+          // 「氷腕薙ぎ払い」：乱戦ダメージはPC全員を対象とする（本文に明記）。mod欄の「凍傷:1D」は
+          // 本文が別途対象を再指定していないため乱戦ダメージと同じ対象（PC全員）に付随。
+          rollMin: 5,
+          rollMax: 5,
+          groupDamage: { modifier: 120, ailmentAccum: [{ label: "凍傷", amount: 1 }] },
+          targetRule: { kind: "allPCs" },
+        },
+        {
+          // 「氷の吐息」：乱戦ダメージ修正が「—」のため乱戦ダメージは発生しない。個別効果は全PC
+          // プール・敵視分岐DCの判定（敵視:1以上→目標12、それ以外→目標10、フィジカル）で、失敗
+          // したPCに「凍傷:1D」を与えるのみでHP損害を伴わない。savingThrow.onFailはamountしか
+          // 反映しないため、ここに割り当てても実際には何も適用されず誤解を招く。conditionsと
+          // コメントでGM手動処理に委ねる（saving_throw_ailment_only_manual）。
+          rollMin: 6,
+          rollMax: 6,
+          conditions: ["saving_throw_ailment_only_manual"],
+        },
+      ],
+    },
+    "death_bird_raven|death_ritual_bird": {
+      rows: [
+        {
+          // 「槍振り回し」：「敵視:1以上」で前衛のPC全員に「乱戦ダメージ:2人分」（本文に明記）。
+          rollMin: 1,
+          rollMax: 1,
+          groupDamage: { modifier: 120 },
+          targetRule: { kind: "frontAggroAtLeast1All" },
+        },
+        {
+          // 「尻尾振り回し＆飛び退き」：「敵視:1以上」のPC全員が「乱戦ダメージ割合:3人分」（本文に
+          // 明記、前衛限定の記載なし）。特殊能力「飛び退き」（force_back_row_next_phase）を効果発揮。
+          rollMin: 2,
+          rollMax: 2,
+          groupDamage: { modifier: 0 },
+          targetRule: { kind: "aggroAtLeast1All" },
+          conditions: ["force_back_row_next_phase"],
+        },
+        {
+          // 「咥え込み」：乱戦ダメージ修正が「—」のため乱戦ダメージは発生しない。個別ダメージ240＋
+          // 「凍傷:2D」は「敵視:最大」のPC1体に無条件で発生、ガード不可（no_guard）。
+          rollMin: 3,
+          rollMax: 3,
+          individualDamage: [{ amount: 240, targetRule: { kind: "aggroMax" }, ailmentAccum: [{ label: "凍傷", amount: 2 }] }],
+          conditions: ["no_guard"],
+        },
+        {
+          // 「霊炎発火」：乱戦ダメージ修正±0（「—」ではないため発生、本文に乱戦ダメージの対象
+          // 明記なし）。既定ルール（前衛均等割り）。個別効果:「敵視:1以上」のPC全員（前衛限定の
+          // 記載なし）に【個別ダメージ:180】＋「炎:1D」＋「凍傷:1D」を無条件で与える。
+          rollMin: 4,
+          rollMax: 4,
+          groupDamage: { modifier: 0 },
+          targetRule: { kind: "frontAll" },
+          individualDamage: [
+            {
+              amount: 180,
+              targetRule: { kind: "aggroAtLeast1All" },
+              elementAccum: [{ label: "炎", amount: 1 }],
+              ailmentAccum: [{ label: "凍傷", amount: 1 }],
+            },
+          ],
+        },
+        {
+          // 「槍呼び＆飛び退き」：乱戦ダメージはPC全員を対象とする（本文に明記）。個別効果:
+          // 「敵視:1以上」のPC全員（乱戦ダメージ対象のPC全員より狭い集団）は「炎:1D」＋「凍傷:1D」
+          // を被る——mod欄の「炎:1D」＆「凍傷:1D」と数値は一致するが、本文が対象集団を明確に
+          // 「敵視:1以上」へ再指定しているため、乱戦ダメージの対象（PC全員）とは異なる集団への
+          // 付随効果として扱い、groupDamageのelementAccum/ailmentAccumには含めない
+          // （accum_target_mismatch_manual）。特殊能力「飛び退き」（force_back_row_next_phase）を
+          // 効果発揮。
+          rollMin: 5,
+          rollMax: 5,
+          groupDamage: { modifier: 180 },
+          targetRule: { kind: "allPCs" },
+          conditions: ["accum_target_mismatch_manual", "force_back_row_next_phase"],
+        },
+        {
+          // 「古き死の怨霊」：乱戦ダメージ修正が「—」のため乱戦ダメージは発生しない。個別効果
+          // （PC人数回実行）:「敵視:1以上」のPC1体に【個別ダメージ:180】＋「炎:1D」＋「凍傷:1D」を
+          // 与える——「PC人数」はパーティ人数に依存する可変値のため、conditionsとコメントでGM
+          // 手動処理に委ねる（Global Constraint 7）。
+          rollMin: 6,
+          rollMax: 6,
+          conditions: ["variable_repeat_manual"],
+        },
+      ],
+    },
   };
 
   function get(familyId, enemyId) {
