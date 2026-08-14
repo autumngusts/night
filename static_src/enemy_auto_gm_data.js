@@ -947,6 +947,12 @@
       ],
     },
     "golem_maiden_puppet|molten_iron_demon": {
+      // 特殊能力「行動激化」：「体勢崩し」が発生した後は、戦闘終了まで、アクション決定を「1D」
+      // ではなく「1D+4」で行う（enemies_data_4.js:955）。demihuman_beastfolk_club|
+      // demihuman_queen_swordmasterと同一の機構（rollBonusAfterGuardBreak）で表現する。
+      // rollMin/rollMaxが6を超える行（7~8／9~10）は、通常時（1D6=1〜6）には到達せず、
+      // 體勢崩潰後（1D6+4=5〜10）にのみ到達する。
+      rollBonusAfterGuardBreak: 4,
       rows: [
         {
           // 「薙ぎ払い」：「敵視:1以上」で前衛のPC全員に「乱戦ダメージ:2人分」（本文に明記）。
