@@ -961,7 +961,16 @@
     // GMが開いて縮小した抽選ウィンドウを全端末で共有するための領域。null=未使用。
     // 中身はcharacter_drawer.jsのweaponRollState/talismanRollState/consumableRollState、
     // またはnight.js内のpotentialPower関連状態と同じ形をした素のJSONオブジェクト。
-    activeDraws: { potentialPower: null, weapon: null, talisman: null, consumable: null, turnRewardAutoOpen: null },
+    activeDraws: {
+      potentialPower: null,
+      weapon: null,
+      talisman: null,
+      consumable: null,
+      turnRewardAutoOpen: null,
+      eventChip: null,
+      breakthrough: null,
+      diceHandDraw: null,
+    },
     activeThreatEffects: [], // {id, text}の配列。「階段結束為止」等の非純傷害スキル効果をGM/玩家が自由記述で追加・Xで削除する手動リスト
     returnedCardMemory: {}, // key: slot index -> {code, cardLevel}。#19：うっかり「山札に戻す」した直前の内容を記録し、空きマス長押しで復元できるようにする
     cardFloorRewardGranted: {}, // key: slot index -> true。#10：樓層レベルが「全」に達した瞬間の自動盧恩付与・広播が二重発火しないようにするフラグ
@@ -1565,10 +1574,36 @@
     return { currentGuard: currentGuard, newGuard: newGuard, hpValue: hpValue, hpBoxes: hpBoxes, rowIdx: rowIdx, split: splitActive };
   }
 
+  // 使用者確認（再裁定）：一般傷害（防禦次數／HP價值計算機経由の総合ダメージ→HP箱換算）を
+  // 敵人へ適用する際、場に残っている雜兵HP（state.battle.mobHpRows、まだ未チェック＝
+  // 残りHPがある列）を優先して消費し、溢れた分だけ通常のHP行へ適用する（雜兵は主體エネミー
+  // より優先して扣除される、という使用者裁定）。GMが雜兵HPパネルの＋－ボタンで直接雜兵へ
+  // ダメージを与える場合（adjustMobHpRow）はこの関数を経由しないため、既に0の雜兵段へ
+  // オーバーフローすることはない（従来通り、その段のみで完結する）。
+  function applyOverflowingMobDamage(boxes) {
+    var remaining = boxes;
+    var rows = state.battle.mobHpRows || [];
+    var changed = false;
+    for (var r = 0; r < rows.length && remaining > 0; r++) {
+      var row = rows[r];
+      if (!row || !row.length) continue;
+      for (var i = 0; i < row.length && remaining > 0; i++) {
+        if (!row[i]) {
+          row[i] = true;
+          remaining--;
+          changed = true;
+        }
+      }
+    }
+    if (changed) renderMobHpList();
+    return remaining;
+  }
+
   // 優先度1「上のHP行から、余剰は次のHP行へ」を実装する。adjustEnemyHpRowは1行のみを
   // 扱うため、boxesが対象行の残りHPを超える分を、次のHP行へ繰り越しながら順に適用する。
+  // まず雜兵HP（あれば）から消費し、溢れた分だけ通常のHP行へ適用する。
   function applyOverflowingEnemyDamage(rowIdx, boxes) {
-    var remaining = boxes;
+    var remaining = applyOverflowingMobDamage(boxes);
     var idx = rowIdx;
     while (remaining > 0 && idx < ENEMY_HP_ROWS) {
       var current = countRowChecked(state.battle.enemyHp, idx * ENEMY_HP_COLS, ENEMY_HP_COLS);
@@ -2309,6 +2344,9 @@
         talisman: loadedDraws.talisman || null,
         consumable: loadedDraws.consumable || null,
         turnRewardAutoOpen: !!loadedDraws.turnRewardAutoOpen,
+        eventChip: loadedDraws.eventChip || null,
+        breakthrough: loadedDraws.breakthrough || null,
+        diceHandDraw: loadedDraws.diceHandDraw || null,
       };
       state.activeThreatEffects = Array.isArray(data.activeThreatEffects) ? data.activeThreatEffects : [];
       state.returnedCardMemory =
@@ -2413,7 +2451,16 @@
       chipCombatResumeContinuation: null,
       chipCombatResumeSlot: null,
     };
-    state.activeDraws = { potentialPower: null, weapon: null, talisman: null, consumable: null, turnRewardAutoOpen: null };
+    state.activeDraws = {
+      potentialPower: null,
+      weapon: null,
+      talisman: null,
+      consumable: null,
+      turnRewardAutoOpen: null,
+      eventChip: null,
+      breakthrough: null,
+      diceHandDraw: null,
+    };
     state.activeThreatEffects = [];
     state.returnedCardMemory = {};
     state.cardFloorRewardGranted = {};
@@ -7919,22 +7966,18 @@
   }
 
   // 敵が割り当て済みの段が1つ以上あり、そのすべてが撃破済み＝戦闘終了（一般行動へ自動的に戻す）。
-  // 使用者確認（項目1）：主要エネミーの段だけでなく、雜兵（+モブ/+雜兵、state.battle.mobHpRows）
-  // が存在する場合はそちらも全滅していなければ「戦闘終了」とみなさない（mobHpRowsは
-  // checked=damage-taken規約——adjustMobHpRow参照——のため、全マスcheckedで撃破済み）。
+  // 使用者確認（再裁定）：以前は「項目1」の裁定により雜兵（state.battle.mobHpRows）も全滅
+  // していなければ戦闘終了とみなさなかったが、これはdocs/enemy_damage_rules.md §3・§6
+  // （「エネミーのHP行が全て0点」＝一般HP行のみで判定、モブHPは体勢崩し/戦闘終了の条件に
+  // ならない）と矛盾しており、「祖靈之民們」のような主體+付加モブ構成の戦闘で撃破後も
+  // 戦闘終了が検知されない不具合の原因になっていた。規則書原文どおり、一般HP行のみで判定する
+  // よう戻す。雜兵側の後始末（自動的に取り除く）はsetActionPhaseのcombatEnd処理側で行う。
   function allEnemyHpRowsDepleted() {
     var any = false;
     for (var i = 0; i < ENEMY_HP_ROWS; i++) {
       if (!enemyHasRow(i)) continue;
       any = true;
       if (!isEnemyHpRowDepleted(i)) return false;
-    }
-    var mobRows = state.battle.mobHpRows || [];
-    for (var m = 0; m < mobRows.length; m++) {
-      var row = mobRows[m];
-      if (!row || !row.length) continue;
-      any = true;
-      if (countRowChecked(row, 0, row.length) !== row.length) return false;
     }
     return any;
   }
@@ -8684,9 +8727,11 @@
     }
     renderMobHpList();
     saveState();
-    // 使用者確認（項目1）：雜兵側のHP変化でも、非雜兵エネミー側のadjustEnemyHpRowと同様に
-    // 戦闘終了判定（allEnemyHpRowsDepleted経由）を起動する——以前は雜兵の段だけを扣光しても
-    // combatEndが一切検知されず、樓層が推進しないバグがあった。
+    // 使用者確認（再裁定）：戰鬥結束の判定自体は一般HP行のみで行うようになったが（規則書
+    // どおり、雜兵HPは対象外）、雜兵側のHP変化をきっかけに額外階段ボタンの活性状態
+    // （renderActionPhaseGrid）は引き続き最新化する必要があるため、このフックは残す。
+    // 万一、主體の一般HP行が既に全滅済みのまま雜兵側だけ最後に扣光した場合でも、
+    // ここでallEnemyHpRowsDepleted経由の戰鬥終了判定に乗せられる。
     handleEnemyHpChanged();
   }
 
@@ -11065,6 +11110,12 @@
       // （次の戦闘で選ばれる敵人と無関係の古いデータが残り続けるのを防ぐ）。
       state.battle.attributeStatus = defaultBattleState().attributeStatus;
       state.battle.enemyDmgOverride = {};
+      // 使用者確認（再裁定）：戰鬥結束は一般HP行のみで判定するようになったため（項目1裁定の
+      // 撤回）、雜兵HP（state.battle.mobHpRows）は戰鬥終了時点でHPが残っていても放置せず、
+      // ここで面板から丸ごと取り除く（0にするだけでなく列自体を消す——次の戦闘に無関係な
+      // 古い雜兵列が残り続けるのを防ぐ、「清除並初始化戰鬥板」ボタンと同じ扱い）。
+      state.battle.mobHpRows = [];
+      renderMobHpList();
       state.battle._nextDefenseMeleeDmgReduction = 0;
       state.battle._totemStellaActive = false;
       state.battle._ruffianDarkCounterDebuffActive = false;
@@ -11320,6 +11371,55 @@
 
   function closeMainMenuDrawModal() {
     document.getElementById("main-menu-draw-modal").hidden = true;
+  }
+
+  // ============================================================
+  // 設定選單「放回牌庫」：以前は板塊の長押しダイアログから直接実行できたが、誤操作が
+  // 多かったため廃止し、GMが設定選單から明示的に選んで実行する専用フローへ統一する。
+  // 盤面に公開済み（revealed）のカードだけを一覧表示し、選んだ1枚を確認の上で
+  // drawOutCardFromSlot（既存の「放回牌庫」実処理）へ渡す。
+  // ============================================================
+  function renderReturnCardToDeckList() {
+    var container = document.getElementById("return-card-to-deck-list");
+    if (!container) return;
+    container.innerHTML = "";
+    var entries = [];
+    state.slots.forEach(function (slot, index) {
+      if (slot && slot.revealed) entries.push(index);
+    });
+    if (!entries.length) {
+      var emptyP = document.createElement("p");
+      emptyP.className = "threat-ref-body";
+      emptyP.textContent = window.I18N.t("return_card_to_deck_empty_note");
+      container.appendChild(emptyP);
+      return;
+    }
+    entries.forEach(function (index) {
+      var slot = state.slots[index];
+      var card = CARD_BY_CODE[slot.code];
+      var btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "roster-char-action-btn main-menu-draw-char-btn";
+      btn.textContent = window.I18N.t("return_card_to_deck_slot_label", {
+        slot: index + 1,
+        card: card ? card.label : slot.code,
+      });
+      btn.addEventListener("click", function () {
+        if (!window.confirm(window.I18N.t("confirm_draw_msg"))) return;
+        drawOutCardFromSlot(index);
+        renderReturnCardToDeckList();
+      });
+      container.appendChild(btn);
+    });
+  }
+
+  function openReturnCardToDeckModal() {
+    renderReturnCardToDeckList();
+    document.getElementById("return-card-to-deck-modal").hidden = false;
+  }
+
+  function closeReturnCardToDeckModal() {
+    document.getElementById("return-card-to-deck-modal").hidden = true;
   }
 
   // ============================================================
@@ -13125,6 +13225,21 @@
     state.returnedCardMemory[index] = { code: slot.code, cardLevel: state.cardLevels[index] };
   }
 
+  // 使用者確認：「放回牌庫」から板塊長押しの誤操作導線を廃止し、設定選單から明示的に選んで
+  // 実行する専用フローへ統一する（onSlotClick側の2箇所で重複していた実処理をここへ集約）。
+  function drawOutCardFromSlot(index) {
+    var slot = state.slots[index];
+    if (!slot) return;
+    var card = CARD_BY_CODE[slot.code];
+    recordReturnedCard(index, slot);
+    state.slots[index] = null;
+    state.cardLevels[index] = null;
+    if (state.focusedIndex === index) state.focusedIndex = null;
+    renderBoard();
+    saveState();
+    addLog("log_draw_out", { slot: index + 1, card: card ? card.label : slot.code });
+  }
+
   // 空きマスの長押し：直前にこのマスへ「放回牌庫」した記録があれば、確認の上で元に戻す。
   function restoreReturnedCardIfAny(index) {
     var mem = state.returnedCardMemory && state.returnedCardMemory[index];
@@ -13148,9 +13263,12 @@
       return;
     }
 
-    // 既存の「めくる／山札に戻す」フロー（focusedIndexの更新も含めて元の挙動のまま）。
+    // 既存の「めくる」フロー（focusedIndexの更新も含めて元の挙動のまま）。
+    // 使用者確認：既に公開済みのマスを長押ししても、以前はここで「山札に戻す」確認が
+    // 出ていたが、誤操作が多いため廃止した。「放回牌庫」は設定選單の専用UI
+    // （openReturnCardToDeckModal）からのみ実行できる。
     function proceedRevealOrReturn() {
-      // めくる／放回牌庫は現在地（focusedIndex）を更新しない。現在地は「移動」操作でのみ
+      // めくるは現在地（focusedIndex）を更新しない。現在地は「移動」操作でのみ
       // 変わる（黄色枠のハイライトは実際の移動があった場所を示すため）。
       var card = CARD_BY_CODE[slot.code];
       if (!slot.revealed) {
@@ -13163,21 +13281,6 @@
           },
           function () {
             addLog("log_cancel_reveal", { slot: index + 1 });
-          }
-        );
-      } else {
-        openConfirm(
-          "confirm_draw_msg",
-          function () {
-            recordReturnedCard(index, slot);
-            state.slots[index] = null;
-            state.cardLevels[index] = null;
-            if (state.focusedIndex === index) state.focusedIndex = null;
-            renderBoard();
-            addLog("log_draw_out", { slot: index + 1, card: card.label });
-          },
-          function () {
-            addLog("log_cancel_draw", { slot: index + 1, card: card.label });
           }
         );
       }
@@ -13196,27 +13299,10 @@
         : true);
 
     if (canOfferMove) {
-      // 否／是（移動）／放回牌庫（赤）を1つのダイアログに統合する。
-      openConfirm(
-        "confirm_move_here_msg",
-        function () {
-          attemptMoveToPosition(previousFocusedIndex, index);
-        },
-        null,
-        {
-          labelKey: "return_to_deck_button",
-          onClick: function () {
-            var card = CARD_BY_CODE[slot.code];
-            recordReturnedCard(index, slot);
-            state.slots[index] = null;
-            state.cardLevels[index] = null;
-            if (state.focusedIndex === index) state.focusedIndex = null;
-            renderBoard();
-            saveState();
-            addLog("log_draw_out", { slot: index + 1, card: card.label });
-          },
-        }
-      );
+      // 使用者確認：長押しダイアログから「放回牌庫」（赤）ボタンは廃止。否／是（移動）のみ。
+      openConfirm("confirm_move_here_msg", function () {
+        attemptMoveToPosition(previousFocusedIndex, index);
+      });
     } else {
       proceedRevealOrReturn();
     }
@@ -13666,6 +13752,14 @@
         renderRosterSkillsToggleLabel();
         renderUndoButton();
         renderTurnHolderBar();
+        // 使用者確認（重要）：進度版の敘述（renderCurrentLocationStatus／renderLocationBanner、
+        // ［進入］［突破］ボタン、戰鬥「已完成」ボタン列、行為判定／協力判定／分歧計數等の
+        // 各判定視窗を含む）は、以前この同期回呼から一切呼ばれておらず、GMの端末で敘述が
+        // 進んでも他の端末は自分が何か操作するまで画面が古いまま止まっていた（例えば別の
+        // 玩家が各自のダイスを振るための行為判定視窗が出てこない）。ここで毎回呼び直す
+        // ことで解消する——打字機演出は既存のlastTypedNarrationガード（テキストが前回と
+        // 同じなら再生しない）により、変化が無いときの余計な再アニメーションは発生しない。
+        renderCurrentLocationStatus();
         // 他端末がほぼ同時に同じ獎勵/突破チェックのモーダルを開いている場合、遠隔側の
         // claimed/確定状態を反映し忘れると「まだ獲得できるように見える」→二重取得の原因になる
         // （handleTurnHolderToggleにある再描画ガードと同じパターンをここにも適用する）。
@@ -13708,6 +13802,59 @@
           var ppModalIdle = document.getElementById("potential-power-modal");
           var ppRestoreBtnIdle = document.getElementById("btn-potential-power-restore");
           if (ppModalIdle.hidden && !ppRestoreBtnIdle.hidden) ppRestoreBtnIdle.hidden = true;
+        }
+        // 使用者確認：籌碼事件視窗（聖甲蟲／商人／祝福／靈脈／強敵／隨機）も同じパターン。
+        // idxさえ分かれば内容はstate.eventChips/eventChipsData（既に同期済み）から
+        // どの端末でも再現できるため、restoreEventChipModal自体はどの端末で押しても
+        // 正しく機能する——ここでは「大視窗は本人の端末のみ」「縮小は全端末で連動」の
+        // 開閉制御だけを行う。
+        if (state.activeDraws.eventChip) {
+          var ecRemote = state.activeDraws.eventChip;
+          var ecModal = document.getElementById("event-chip-modal");
+          var ecRestoreBtn = document.getElementById("btn-event-chip-restore");
+          if (!ecModal.hidden) {
+            if (ecRemote.minimized) {
+              ecModal.hidden = true;
+              ecRestoreBtn.hidden = false;
+            } else {
+              window.PriTestNightEventChips.renderEventChipModal();
+            }
+          } else {
+            ecRestoreBtn.hidden = false;
+          }
+        } else {
+          var ecModalIdle = document.getElementById("event-chip-modal");
+          var ecRestoreBtnIdle = document.getElementById("btn-event-chip-restore");
+          if (ecModalIdle.hidden && !ecRestoreBtnIdle.hidden) ecRestoreBtnIdle.hidden = true;
+          // 遠端（本人の端末）で既に閉じられた籌碼を、この端末だけ開いたまま／縮小したまま
+          // 残さない（内容が既に無意味になっているため）。
+          if (!ecModalIdle.hidden || !ecRestoreBtnIdle.hidden) window.PriTestNightEventChips.closeEventChipModal();
+        }
+        // 使用者確認：突破／攀登判定視窗（breakthrough-modal）は、進行中の骰子が
+        // 各端末のローカルbreakthroughStateに紐づいているため（誰がどの骰子を振ったかを
+        // 精確に跨裝置再現するには専用の再設計が必要）、ここでは「縮小」の連動表示のみ
+        // 同期する。開いた本人の端末以外では常に縮小の還元ボタンだけを見せ、押しても
+        // その端末にローカルの進行中データが無ければ何も起きない（開いた本人の端末へ
+        // 戻って操作するよう促す）。
+        if (state.activeDraws.breakthrough) {
+          var bkModal = document.getElementById("breakthrough-modal");
+          var bkRestoreBtn = document.getElementById("btn-breakthrough-restore");
+          if (bkModal.hidden) bkRestoreBtn.hidden = false;
+        } else {
+          var bkModalIdle = document.getElementById("breakthrough-modal");
+          var bkRestoreBtnIdle = document.getElementById("btn-breakthrough-restore");
+          if (bkModalIdle.hidden && !bkRestoreBtnIdle.hidden) bkRestoreBtnIdle.hidden = true;
+        }
+        // 使用者確認：骰子役判定視窗（dice-hand-draw-modal）も同様に縮小の連動表示のみ
+        // 同期する（進行中のentry参照はローカルのみ）。
+        if (state.activeDraws.diceHandDraw) {
+          var dhModal = document.getElementById("dice-hand-draw-modal");
+          var dhRestoreBtn = document.getElementById("btn-dice-hand-draw-restore");
+          if (dhModal.hidden) dhRestoreBtn.hidden = false;
+        } else {
+          var dhModalIdle = document.getElementById("dice-hand-draw-modal");
+          var dhRestoreBtnIdle = document.getElementById("btn-dice-hand-draw-restore");
+          if (dhModalIdle.hidden && !dhRestoreBtnIdle.hidden) dhRestoreBtnIdle.hidden = true;
         }
         // weapon/talisman/consumableは、確定(resolved)時・閉じた時に自動でnullへ戻るため、
         // 通常は同時に高々1つしか非nullにならない。念のため複数該当してもタイトルと内容が
@@ -13866,6 +14013,8 @@
       });
     });
     document.getElementById("btn-reset-all-dice").addEventListener("click", handleResetAllDice);
+    document.getElementById("btn-return-card-to-deck-open").addEventListener("click", openReturnCardToDeckModal);
+    document.getElementById("btn-return-card-to-deck-close").addEventListener("click", closeReturnCardToDeckModal);
     document.getElementById("btn-main-menu-draw-close").addEventListener("click", closeMainMenuDrawModal);
     document.getElementById("btn-item-draw-modal-close").addEventListener("click", closeItemDrawModal);
     document.getElementById("btn-item-draw-modal-minimize").addEventListener("click", minimizeItemDrawModal);

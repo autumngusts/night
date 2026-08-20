@@ -61,10 +61,16 @@
     openEventChipModal(idx);
   }
 
+  // 使用者確認：籌碼事件視窗も獎勵清單／潛在之力と同じ「大視窗は開いた本人の端末のみ、
+  // 縮小状態だけ全端末で同期」パターンに揃える。state.eventChips/state.eventChipsDataは
+  // 既に跨裝置同步済みなので、idxさえ分かればどの端末でも同じ内容を再現できる——
+  // したがって縮小からの「還元」はどの端末で押しても正しく機能する（他の3つ＝骰子役判定／
+  // 突破・攀登判定とは異なり、内容を丸ごと同期する必要が無い簡単なケース）。
   function openEventChipModal(idx) {
     eventChipModalIndex = idx;
     eventChipMerchantLastWeaponResult = null;
     eventChipBlessingUsedIds = {};
+    window.PriTestDrawStateSync.set("eventChip", { idx: idx, minimized: false });
     document.getElementById("event-chip-modal").hidden = false;
     document.getElementById("btn-event-chip-restore").hidden = true;
     renderEventChipModal();
@@ -74,6 +80,7 @@
     document.getElementById("event-chip-modal").hidden = true;
     document.getElementById("btn-event-chip-restore").hidden = true;
     eventChipModalIndex = null;
+    window.PriTestDrawStateSync.set("eventChip", null);
     // 霊脈チットを「使用」した後、結局どこへも移動せずにこのモーダルを閉じた場合、
     // 保留していたGM敘述の継続処理をここで再開する（moveTo側で先に消費済みなら
     // 何も起きない）。
@@ -85,11 +92,21 @@
   function minimizeEventChipModal() {
     document.getElementById("event-chip-modal").hidden = true;
     document.getElementById("btn-event-chip-restore").hidden = false;
+    var current = window.PriTestDrawStateSync.get("eventChip");
+    window.PriTestDrawStateSync.set("eventChip", { idx: current ? current.idx : eventChipModalIndex, minimized: true });
   }
 
   function restoreEventChipModal() {
     document.getElementById("btn-event-chip-restore").hidden = true;
     document.getElementById("event-chip-modal").hidden = false;
+    // 他端末の縮小ボタンから復元した場合、この端末ではeventChipModalIndexがまだnullの
+    // ままなので、同期済みのidxから補う（state.eventChips/eventChipsDataは既に跨裝置
+    // 同步済みのため、idxさえ分かればどの端末でも正しい内容を再現できる）。
+    if (eventChipModalIndex === null) {
+      var remote = window.PriTestDrawStateSync.get("eventChip");
+      if (remote && typeof remote.idx === "number") eventChipModalIndex = remote.idx;
+    }
+    window.PriTestDrawStateSync.set("eventChip", { idx: eventChipModalIndex, minimized: false });
     renderEventChipModal();
   }
 
@@ -760,5 +777,6 @@
     restoreEventChipModal: restoreEventChipModal,
     applyEventChipBlessingRest: applyEventChipBlessingRest,
     markEventChipUsed: markEventChipUsed,
+    renderEventChipModal: renderEventChipModal,
   };
 })();

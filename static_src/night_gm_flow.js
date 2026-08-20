@@ -1861,6 +1861,24 @@
       advanceCardConclusionChain();
       return;
     }
+    // 使用者確認（バグ報告：K板塊で正常進入した後、獎勵を領取しても全踏破に変わらない／
+    // 再度［進入］すると先へ進めなくなる問題）：advanceOrRewindCardPointerは、突破判定で
+    // スキップしたまま未解決の樓層が残っている場合、cardLevelsを「全」（null）にはせず
+    // floorCount（floors配列としては範囲外の値）で打ち止めにする。この状態のまま再度
+    // ［進入］を押すと、floorIndexとしてこの範囲外の値がそのままbeginFieldWalkFlowへ
+    // 渡ってしまい、対応する樓層が存在しないため敘述が完全に停止する（finishFieldWalkが
+    // markFloorCleared／advanceOrRewindCardPointerを一切経由しないため、cardLevelsが
+    // 永久にこの値のまま固まる）。全踏破済み（上のnullガード）と同様に、樓層敘述を
+    // やり直さず籌碼確認／地圖移動の案内へ直接進める。
+    if (typeof idx === "number" && typeof state.cardLevels[idx] === "number") {
+      var stuckEntry = window.PriTestNightFloorBreakthrough.resolveFieldEntryForSlot(idx);
+      if (stuckEntry && typeof stuckEntry.floorCount === "number" && state.cardLevels[idx] >= stuckEntry.floorCount) {
+        state.gmFlow.pendingChipCheckSlot = idx;
+        state.gmFlow.pendingMapMoveSlot = idx;
+        advanceCardConclusionChain();
+        return;
+      }
+    }
     // ユーザー報告：起點／終點（"start"|"end"）には上と同じガードが無く、全踏破済み
     // （pileChecks.all）でも[進入]を押すたびに樓層0の敘述をやり直してしまっていた
     // （「黄金樹の帳」で夜の強敵を撃破・獎勵領取済みなのに[稍後]を押した後もう一度
@@ -3231,7 +3249,8 @@
     // 消す（renderLocationBanner側でfloorEndRewardOpened===trueなら描画しない）。
     state.gmFlow.floorEndRewardOpened = true;
     var floor = pendingFloorEndFloor || resolveFloorFromPendingRef(state.gmFlow.pendingFloorEndRef);
-    var result = floor ? window.PriTestNightFloorBreakthrough.openFloorRewardModal(floor) : null;
+    var rewardSlotIndex = state.gmFlow.pendingFloorEndRef ? state.gmFlow.pendingFloorEndRef.slotIndex : null;
+    var result = floor ? window.PriTestNightFloorBreakthrough.openFloorRewardModal(floor, rewardSlotIndex) : null;
     if (!result || (!result.lootPushed && !result.judgmentModalOpened)) {
       // フロアが解決できなかった、または戦利品もGM判断項目も無かった（finishFieldWalkが
       // floorEndへ遷移する時点でどちらか必ずある想定だが、念のための安全側フォールバック）。

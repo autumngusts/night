@@ -71,8 +71,24 @@
   // 閉じてこの小さな専用モーダルを開く。抽選と違って各ボタンは即時に効果を適用するだけ
   // （やり直しが効く一覧選択なので）、保持すべき状態は「どのフロアを開いているか」だけ。
   var floorRewardModalFloor = null;
+  // 使用者確認（バグ報告：連續進入兩張同名卡牌，第二張沒有發到獎勵）：floor.__rewardKey は
+  // night_rulebook.js の renderFieldCard がカード定義（規則書表示用、盤面のどのマスかとは
+  // 無関係）を描画する際に1回だけ設定する共有プロパティのため、地図上に同じ rank（例：K）の
+  // カードが複数マスへ同時に存在する場合、両方が同じ floor オブジェクト参照＝同じ
+  // __rewardKey を共有してしまう。1枚目で獲得済みフラグ（state.floorRewardObtained）が
+  // 立つと、2枚目でも「既に獲得済み」と誤判定されて獎勵が発放されなくなる。
+  // floor自体（共有オブジェクト）は書き換えず、代わりにこのモーダルを開いた時点の
+  // slotIndex を別途保持し、実際に使う「獲得済みキー」はrewardKeyBase()経由で
+  // slotIndex接頭辞を付けたものを使う（同じ floor でもマスが違えば別キーになる）。
+  var floorRewardModalSlotIndex = null;
 
-  function openFloorRewardModal(floor) {
+  function rewardKeyBase(floor) {
+    var base = (floor && floor.__rewardKey) || "floor";
+    return typeof floorRewardModalSlotIndex === "number" ? "slot" + floorRewardModalSlotIndex + "_" + base : base;
+  }
+
+  function openFloorRewardModal(floor, slotIndex) {
+    floorRewardModalSlotIndex = typeof slotIndex === "number" ? slotIndex : null;
     var Core = window.PriTestNightCore;
     var entered = Core.getRosterCharacters().filter(function (c) {
       return c.entered;
@@ -113,6 +129,7 @@
     document.getElementById("floor-reward-modal").hidden = true;
     document.getElementById("btn-floor-reward-restore").hidden = true;
     floorRewardModalFloor = null;
+    floorRewardModalSlotIndex = null;
     window.PriTestNightCore.removePendingRewardWindow("floorReward");
   }
 
@@ -186,23 +203,34 @@
     document.getElementById("btn-dice-hand-draw-judge").disabled = false;
     document.getElementById("dice-hand-draw-modal").hidden = false;
     document.getElementById("btn-dice-hand-draw-restore").hidden = true;
+    window.PriTestDrawStateSync.set("diceHandDraw", { minimized: false });
   }
 
   function closeDiceHandDrawModal() {
     document.getElementById("dice-hand-draw-modal").hidden = true;
     document.getElementById("btn-dice-hand-draw-restore").hidden = true;
     diceHandDrawEntry = null;
+    window.PriTestDrawStateSync.set("diceHandDraw", null);
     restoreFloorRewardModalIfMinimized();
   }
 
+  // 使用者確認：縮小状態は全端末で連動表示させるが（state.activeDraws.diceHandDraw）、
+  // 進行中のentry（floor.rewardの参照）自体はこの端末のローカルにしか無いため、他端末で
+  // 還元ボタンを押しても実際の内容は復元できない（restoreDiceHandDrawModal側でガードする）。
   function minimizeDiceHandDrawModal() {
     document.getElementById("dice-hand-draw-modal").hidden = true;
     document.getElementById("btn-dice-hand-draw-restore").hidden = false;
+    window.PriTestDrawStateSync.set("diceHandDraw", { minimized: true });
   }
 
   function restoreDiceHandDrawModal() {
+    if (!diceHandDrawEntry) {
+      window.alert(window.I18N.t("remote_restore_unavailable_note"));
+      return;
+    }
     document.getElementById("btn-dice-hand-draw-restore").hidden = true;
     document.getElementById("dice-hand-draw-modal").hidden = false;
+    window.PriTestDrawStateSync.set("diceHandDraw", { minimized: false });
   }
 
   function handleDiceHandDrawRandom() {
@@ -477,30 +505,27 @@
     var hasConditionalReward = reward.some(function (entry) {
       return entry.kind === "tieredChoice" || entry.kind === "diceHandChoice";
     });
+    var keyBase = rewardKeyBase(floor);
     reward.forEach(function (entry, entryIndex) {
       if (!isLootRewardEntry(entry)) return;
-      var pushKey = floor.__rewardKey ? floor.__rewardKey + "_pushed_" + entryIndex : null;
-      if (pushKey && Core.state.floorRewardObtained && Core.state.floorRewardObtained[pushKey]) return;
-      var objs = floorRewardEntryToTurnRewards(entry, entered, (floor.__rewardKey || "floor") + "_" + entryIndex, pushKey);
+      var pushKey = keyBase + "_pushed_" + entryIndex;
+      if (Core.state.floorRewardObtained && Core.state.floorRewardObtained[pushKey]) return;
+      var objs = floorRewardEntryToTurnRewards(entry, entered, keyBase + "_" + entryIndex, pushKey);
       if (!objs.length) return;
-      if (pushKey) {
-        if (!Core.state.floorRewardObtained) Core.state.floorRewardObtained = {};
-        Core.state.floorRewardObtained[pushKey] = true;
-      }
+      if (!Core.state.floorRewardObtained) Core.state.floorRewardObtained = {};
+      Core.state.floorRewardObtained[pushKey] = true;
       results = results.concat(objs);
     });
     if (!hasRuneReward && !hasConditionalReward) {
       var detectedAmount = parseRuneAmountFromText(floorLineText(floor));
       if (detectedAmount) {
-        var detectedKey = floor.__rewardKey ? floor.__rewardKey + "_detectedRune_pushed" : null;
-        var alreadyDetected = !!(detectedKey && Core.state.floorRewardObtained && Core.state.floorRewardObtained[detectedKey]);
+        var detectedKey = keyBase + "_detectedRune_pushed";
+        var alreadyDetected = !!(Core.state.floorRewardObtained && Core.state.floorRewardObtained[detectedKey]);
         if (!alreadyDetected) {
-          if (detectedKey) {
-            if (!Core.state.floorRewardObtained) Core.state.floorRewardObtained = {};
-            Core.state.floorRewardObtained[detectedKey] = true;
-          }
+          if (!Core.state.floorRewardObtained) Core.state.floorRewardObtained = {};
+          Core.state.floorRewardObtained[detectedKey] = true;
           results.push({
-            id: makeTurnRewardId((floor.__rewardKey || "floor") + "_detectedRune"),
+            id: makeTurnRewardId(keyBase + "_detectedRune"),
             kind: "rune",
             targetCharacterId: Core.TURN_REWARD_SHARED_TARGET_VALUE,
             value: detectedAmount,
@@ -524,13 +549,11 @@
       // 「対応する報酬が見つからない場合はGMが確認」という留保付きの表現にしてある。
       var conditionalAmount = parseRuneAmountFromText(floorLineText(floor));
       if (conditionalAmount) {
-        var reminderKey = floor.__rewardKey ? floor.__rewardKey + "_conditionalRuneReminder_logged" : null;
-        var alreadyReminded = !!(reminderKey && Core.state.floorRewardObtained && Core.state.floorRewardObtained[reminderKey]);
+        var reminderKey = keyBase + "_conditionalRuneReminder_logged";
+        var alreadyReminded = !!(Core.state.floorRewardObtained && Core.state.floorRewardObtained[reminderKey]);
         if (!alreadyReminded) {
-          if (reminderKey) {
-            if (!Core.state.floorRewardObtained) Core.state.floorRewardObtained = {};
-            Core.state.floorRewardObtained[reminderKey] = true;
-          }
+          if (!Core.state.floorRewardObtained) Core.state.floorRewardObtained = {};
+          Core.state.floorRewardObtained[reminderKey] = true;
           window.PriTestNightLog("log_floor_reward_conditional_rune_reminder", { amount: conditionalAmount });
         }
       }
@@ -918,7 +941,7 @@
     container.appendChild(title);
 
     ((floor && floor.reward) || []).forEach(function (entry, entryIndex) {
-      renderFloorRewardOption(container, entry, entered, floor.__rewardKey, entryIndex);
+      renderFloorRewardOption(container, entry, entered, rewardKeyBase(floor), entryIndex);
     });
   }
 
@@ -987,6 +1010,7 @@
 
   function openBreakthroughModal(index) {
     breakthroughState = { slotIndex: index, mode: "floor", moveTarget: null, characters: {}, revealed: false };
+    window.PriTestDrawStateSync.set("breakthrough", { minimized: false });
     document.getElementById("breakthrough-modal-title").textContent = window.I18N.t("breakthrough_modal_title");
     document.getElementById("breakthrough-import-row").hidden = false;
     // 目標點數・PC人數倍のチェックは揭曉するまで非表示（GMも含め、揭曉ボタンを押すまでは
@@ -1016,6 +1040,7 @@
   // （任意選択にしない）。
   function openClimbingCheckModal(toIndex, suitDiff) {
     breakthroughState = { slotIndex: null, mode: "climb", moveTarget: toIndex, characters: {}, revealed: false };
+    window.PriTestDrawStateSync.set("breakthrough", { minimized: false });
     document.getElementById("breakthrough-modal-title").textContent = window.I18N.t("climb_check_modal_title");
     document.getElementById("breakthrough-import-row").hidden = true;
     document.getElementById("breakthrough-target-hideable").hidden = true;
@@ -1048,6 +1073,7 @@
       return;
     }
     breakthroughState = { slotIndex: null, mode: "generic", moveTarget: null, characters: {}, revealed: false };
+    window.PriTestDrawStateSync.set("breakthrough", { minimized: false });
     document.getElementById("breakthrough-modal-title").textContent = window.I18N.t("generic_check_modal_title");
     document.getElementById("breakthrough-import-row").hidden = true;
     document.getElementById("breakthrough-target-hideable").hidden = true;
@@ -1099,19 +1125,31 @@
     document.getElementById("breakthrough-target-hideable").hidden = false;
     document.getElementById("btn-breakthrough-restore").hidden = true;
     breakthroughState = null;
+    window.PriTestDrawStateSync.set("breakthrough", null);
   }
 
   // 縮小/復元は他のモーダル(獎勵清單・抽選等)と同じ「モーダルを隠す＋別のスタッキング型
   // 固定ボタンを表示」方式。判定發生は目標揭曉前・揭曉後（結果発表）のどちらの状態でも
   // 同じモーダルを縮小するだけなので、専用の分岐は不要。
+  // 使用者確認：縮小状態は全端末で連動表示させる（state.activeDraws.breakthrough）が、
+  // 進行中の骰子（breakthroughState）自体はこの端末のローカルにしか無いため、他端末で
+  // 還元ボタンを押しても実際の内容は復元できない（restoreBreakthroughModal側でガードする）。
   function minimizeBreakthroughModal() {
     document.getElementById("breakthrough-modal").hidden = true;
     document.getElementById("btn-breakthrough-restore").hidden = false;
+    window.PriTestDrawStateSync.set("breakthrough", { minimized: true });
   }
 
   function restoreBreakthroughModal() {
+    if (!breakthroughState) {
+      // 開いた本人の端末ではない：復元できる内容が無いので、その旨を伝えるだけに留める
+      // （他の縮小系モーダルと同じ「本人の端末へ戻って操作してほしい」案内）。
+      window.alert(window.I18N.t("remote_restore_unavailable_note"));
+      return;
+    }
     document.getElementById("btn-breakthrough-restore").hidden = true;
     document.getElementById("breakthrough-modal").hidden = false;
+    window.PriTestDrawStateSync.set("breakthrough", { minimized: false });
     renderBreakthroughCharacters();
   }
 

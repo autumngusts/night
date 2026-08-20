@@ -35,6 +35,7 @@ BODY = """    <div class="night-header-row">
               <button id="btn-dice-animation-toggle" type="button" class="main-menu-item"></button>
               <button id="btn-turn-board-toggle" type="button" class="main-menu-item"></button>
               <button id="btn-reset-all-dice" type="button" class="main-menu-item danger-btn" data-i18n="reset_all_dice_button"></button>
+              <button id="btn-return-card-to-deck-open" type="button" class="main-menu-item danger-btn" data-i18n="return_card_to_deck_menu_label"></button>
               <button id="btn-new-game" type="button" class="main-menu-item danger-btn" data-i18n="new_game_button"></button>
             </div>
           </div>
@@ -547,6 +548,17 @@ BODY = """    <div class="night-header-row">
         <div id="main-menu-draw-char-list" class="main-menu-draw-char-list"></div>
         <div class="actions">
           <button id="btn-main-menu-draw-close" type="button" class="danger-btn" data-i18n="leave_button"></button>
+        </div>
+      </div>
+    </div>
+
+    <div id="return-card-to-deck-modal" class="modal" hidden>
+      <div class="modal-box combat-modal-box">
+        <h2 data-i18n="return_card_to_deck_menu_label"></h2>
+        <p class="threat-ref-body" data-i18n="return_card_to_deck_select_note"></p>
+        <div id="return-card-to-deck-list" class="main-menu-draw-char-list"></div>
+        <div class="actions">
+          <button id="btn-return-card-to-deck-close" type="button" class="danger-btn" data-i18n="leave_button"></button>
         </div>
       </div>
     </div>
