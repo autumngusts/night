@@ -7,6 +7,9 @@
   var gameId = Games.getGameIdFromQuery();
   var game = gameId ? Games.get(gameId) : null;
   var characters = [];
+  // night.jsと同様：雲端遊戲では第一份 characters snapshot を受信するまで、本地資料
+  // （無痕視窗等の空殼state）をpushして雲端の既存存檔を覆寫しないようにする。
+  var cloudCharactersSynced = !(game && game.storageMode === "cloud");
 
   function storageKey() {
     return "pritest-characters-" + gameId;
@@ -26,7 +29,7 @@
 
   function saveCharacters() {
     localStorage.setItem(storageKey(), JSON.stringify(characters));
-    if (game) GameStorage.pushCharacters(gameId, game.storageMode, characters);
+    if (game && cloudCharactersSynced) GameStorage.pushCharacters(gameId, game.storageMode, characters);
   }
 
   function findCharacter(id) {
@@ -223,6 +226,7 @@
         night3BossId: game.night3BossId || null,
       });
       GameStorage.subscribeCharacters(gameId, game.storageMode, function (list) {
+        cloudCharactersSynced = true;
         characters.length = 0;
         list.forEach(function (c) {
           characters.push(CharacterDrawer.ensureDefaults(c));

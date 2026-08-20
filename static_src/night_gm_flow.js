@@ -610,15 +610,22 @@
 
   // justResolvedFloorIndexの樓層が1つ解決した（真に踏破 or 突破判定でスキップ）直後に
   // cardLevels[slotIndex]を更新する。突破スキップで先の樓層へ進めるが、スキップした樓層
-  // 自体はfloorClearedに残らない（後で全樓層を1巡し終えたときに、まだfalseの樓層が
-  // 残っていれば、そこへ「巻き戻して」再度差し出す——docs/scenario_flow_rules.md：
-  // 突破スキップはフィールド移動まで一時的、離れると未踏破に戻る、を「同じ訪問中に全樓層
-  // 一巡し終えた時点」で強制する形で再現）。
+  // 自体はfloorClearedに残らない。
+  // 使用者確認・規則書再確認（docs/scenario_flow_rules.md 4節「突破判定でのフロアの
+  // スキップは、PCが他のフィールドへ移動すると無効化される」）：スキップの無効化タイミングは
+  // 「他のフィールドへ実際に移動した時」であり、「同じ訪問中に全樓層を1巡し終えた時」
+  // ではない。以前の実装はこの2つを混同し、王戦勝利などで最後の樓層に到達した瞬間に
+  // 即座に巻き戻してしまい、直前に倒したはずの階層まで「未踏破」扱いに戻る不具合の原因に
+  // なっていた（該当バグ報告：突破判定→王戦勝利後に樓層が巻き戻る／最終樓層で突破判定した
+  // 場合に前進しない）。
   // 1. justResolvedFloorIndex+1から、既にfloorClearedがtrueの樓層を飛ばして次を探す。
-  // 2. 見つかれば（floorCount未満）そこへ進む——通常の連続探索と、巻き戻し後に再び前進する
-  //    場合の両方をこれ1つでカバーする。
-  // 3. floorCountに達したら（この訪問で全樓層を1巡し終えた）、firstUnclearedFloorIndexで
-  //    最初からやり直し、まだfalseの樓層があればそこへ巻き戻す。無ければ「全」（null）。
+  // 2. 見つかれば（floorCount未満）そこへ進む——通常の連続探索と、後述の巻き戻し後に
+  //    再び前進する場合の両方をこれ1つでカバーする。
+  // 3. floorCountに達したら（この訪問で全樓層を1巡し終えた）：全樓層が真に踏破済みなら
+  //    「全」（null）。1つでもスキップしたまま未踏破の樓層が残っていれば、この時点では
+  //    まだ巻き戻さず、ポインタをfloorCount（＝最終樓層より先、「全」の一歩手前）に留めた
+  //    まま2-6のフィールド移動確認へ進める——実際の巻き戻しはinvalidatePendingFloorSkip
+  //    （実際にフィールド移動が発生した時点で呼ばれる）に委ねる。
   function advanceOrRewindCardPointer(slotIndex, floorCount, justResolvedFloorIndex) {
     var Core = window.PriTestNightCore;
     var state = Core.state;
@@ -629,9 +636,29 @@
       state.cardLevels[slotIndex] = next;
     } else {
       var uncleared = firstUnclearedFloorIndex(slotIndex, floorCount);
-      state.cardLevels[slotIndex] = uncleared === null ? null : uncleared;
+      state.cardLevels[slotIndex] = uncleared === null ? null : floorCount;
     }
     if (Core.renderCardLevel) Core.renderCardLevel(slotIndex);
+  }
+
+  // 使用者確認・規則書再確認（docs/scenario_flow_rules.md 4節）：PCが実際に他のフィールドへ
+  // 移動した瞬間、そのフィールドに残っている「突破判定でスキップしたが真には踏破していない
+  // 樓層」を無効化する——次にこのフィールドへ戻ってきた時は、その樓層を改めて（スキップ
+  // 済み扱いにせず）差し出す。cardLevelsが既に「全」（null）＝スキップが残っていない場合は
+  // 何もしない。night.jsのfinalizeSlotMove（通常のフィールド移動）と、霊脈チットの移動
+  // （night_event_chips.js）の両方から、移動元のslotIndexを渡して呼び出す。
+  function invalidatePendingFloorSkip(slotIndex) {
+    if (typeof slotIndex !== "number") return;
+    var Core = window.PriTestNightCore;
+    var state = Core.state;
+    if (state.cardLevels[slotIndex] === null || state.cardLevels[slotIndex] === undefined) return;
+    var entry = window.PriTestNightFloorBreakthrough.resolveFieldEntryForSlot(slotIndex);
+    if (!entry || typeof entry.floorCount !== "number") return;
+    var uncleared = firstUnclearedFloorIndex(slotIndex, entry.floorCount);
+    if (uncleared !== null && state.cardLevels[slotIndex] > uncleared) {
+      state.cardLevels[slotIndex] = uncleared;
+      if (Core.renderCardLevel) Core.renderCardLevel(slotIndex);
+    }
   }
 
   // 突破判定モーダル（night_floor_breakthrough.js、既存の実装ではwalkと無関係にGMが
@@ -641,11 +668,30 @@
   // だけでよく、ポインタ（クリア数表示）自体は変更しない。
   function resolveFloorSkip(slotIndex, branchIndex, floorIndex) {
     var Core = window.PriTestNightCore;
+    var state = Core.state;
     var entry = window.PriTestNightFloorBreakthrough.resolveFieldEntryForSlot(slotIndex);
     var branch = entry && entry.branches ? entry.branches[branchIndex] : null;
     if (!branch || branch.freeFloorOrder) return; // 路線自由カード、または解決不能：ポインタは変更しない
     if (typeof entry.floorCount !== "number") return;
     advanceOrRewindCardPointer(slotIndex, entry.floorCount, floorIndex);
+    // 使用者確認（バグ報告4）：以前はこの関数がpendingFinalFloorSlot／pendingChipCheckSlot／
+    // pendingMapMoveSlotを一切設定しなかったため、最終樓層を突破判定でスキップすると
+    // GM側に次の操作ボタンが何も出ず、そのまま進行が止まってしまっていた。真の踏破
+    // （finishFieldWalk）と同じ連鎖に乗せる：全樓層が揃った（＝cardLevelsが「全」）場合は
+    // 全踏破報酬まで含めて連鎖、他にスキップしたまま残っている樓層がある場合（cardLevelsが
+    // floorCountで打ち止め）は全踏破報酬を出さずに籌碼確認／地圖移動の判断だけへ進める。
+    if (state.cardLevels[slotIndex] === null) {
+      state.gmFlow.pendingFinalFloorSlot = slotIndex;
+      state.gmFlow.pendingChipCheckSlot = slotIndex;
+      state.gmFlow.pendingMapMoveSlot = slotIndex;
+      Core.saveState();
+      advanceCardConclusionChain();
+    } else if (state.cardLevels[slotIndex] === entry.floorCount) {
+      state.gmFlow.pendingChipCheckSlot = slotIndex;
+      state.gmFlow.pendingMapMoveSlot = slotIndex;
+      Core.saveState();
+      advanceCardConclusionChain();
+    }
   }
 
   // floor.label（"フロア1"等）から位置番号（1始まり）を取り出す。パターンに合わなければnull。
@@ -1987,22 +2033,74 @@
     resolveChipOffer(false);
   }
 
+  // 使用者確認（バグ報告2-1）：霊脈チットは「使用」を選んでも、プレイヤーが実際にどこへ
+  // 移動するか（あるいはやはり移動しないか）をこの後モーダル内で選ぶまで確定しない。
+  // 以前はここで即座にbeginFieldWalkFlow/advanceCardConclusionChainを（移動元のidxのまま）
+  // 呼んでしまい、実際の移動が完了する前にstate.gmFlow.walkを移動元用のデータで上書きして
+  // いたため、実際に選ばれた移動先で樓層判定が食い違う不具合の原因になっていた（移動元の
+  // 樓層継続処理が、既にfocusedIndexだけ切り替わった移動先に対して走ってしまう）。
+  // 実際にモーダルが閉じるタイミング（移動確定 or キャンセル）まで継続処理を保留する。
+  var pendingSpiritVeinContinuation = null; // { idx, continuation } | null
+
   function resolveChipOffer(use) {
     var Core = window.PriTestNightCore;
     var state = Core.state;
     var idx = state.gmFlow.chipOfferSlot;
     var continuation = state.gmFlow.chipOfferContinuation;
+    var chipId = state.eventChips ? state.eventChips[idx] : null;
     state.gmFlow.chipOfferSlot = null;
     state.gmFlow.chipOfferContinuation = null;
     clearGmFlowGate();
     Core.saveState();
     Core.renderCurrentLocationStatus();
+    if (use && chipId === "spirit_vein") {
+      pendingSpiritVeinContinuation = { idx: idx, continuation: continuation };
+      if (window.PriTestNightEventChips) window.PriTestNightEventChips.openEventChipModal(idx);
+      return;
+    }
     if (use && window.PriTestNightEventChips) window.PriTestNightEventChips.openEventChipModal(idx);
     if (continuation === "startWalk") {
       var entry = window.PriTestNightFloorBreakthrough.resolveFieldEntryForSlot(idx);
       beginFieldWalkFlow(idx, entry);
     } else if (continuation === "cardConclusion") {
       // 使う／稍後いずれの場合も、次は［地圖移動機制］（まだ保留があれば）へ進める。
+      advanceCardConclusionChain();
+    }
+  }
+
+  // 霊脈モーダルで実際に移動先が確定した時、night_event_chips.jsのmoveToから呼ばれる。
+  // 保留していた継続処理を消費して返す（呼び出し側が「移動した」ことを踏まえて処理する）。
+  function consumePendingSpiritVeinContinuation() {
+    var pending = pendingSpiritVeinContinuation;
+    pendingSpiritVeinContinuation = null;
+    return pending;
+  }
+
+  // 実際に移動が確定した後の処理：通常のフィールド移動（2-6）と同じ挙動に揃え、GMが
+  // 改めて移動先で［進入］を押すまで自動で樓層敘述を始めない（startWalk側は何もしない）。
+  // cardConclusion側は、移動が発生した時点で「地圖移動確認」の要件は満たされたとみなし、
+  // 保留中のpendingMapMoveSlotをクリアするだけに留める（移動先の敘述は開始しない）。
+  function resumeChipOfferContinuationAfterMove(pending) {
+    if (!pending) return;
+    if (pending.continuation === "cardConclusion") {
+      var Core = window.PriTestNightCore;
+      var state = Core.state;
+      if (state.gmFlow.pendingMapMoveSlot === pending.idx) state.gmFlow.pendingMapMoveSlot = null;
+      Core.saveState();
+    }
+  }
+
+  // 霊脈モーダルが「移動せずに」閉じられた時（closeEventChipModal）に呼ばれる。使用を選んだ
+  // ものの結局どこへも移動しなかった場合は、稍後を選んだ場合と同じく元のidxのまま継続処理を
+  // 再開する。
+  function declinePendingSpiritVeinContinuation() {
+    var pending = pendingSpiritVeinContinuation;
+    pendingSpiritVeinContinuation = null;
+    if (!pending) return;
+    if (pending.continuation === "startWalk") {
+      var entry = window.PriTestNightFloorBreakthrough.resolveFieldEntryForSlot(pending.idx);
+      beginFieldWalkFlow(pending.idx, entry);
+    } else if (pending.continuation === "cardConclusion") {
       advanceCardConclusionChain();
     }
   }
@@ -2586,9 +2684,28 @@
   // アウトカム見出しへさらにジャンプする。行き先を解決できなかった場合（想定外の表記等）は、
   // 第27項適用前と同じ「そのまま線形に続ける」挙動へ安全にフォールバックする——数値・
   // 分岐先を捏造しない、既存の"■"と同じ方針。
+  // 使用者確認（バグ報告3・封牢の「石剣の鍵を使う」選択肢）：この文言はfields_data_3.jsの
+  // 封牢(無印)／封牢(森)の2ブランチで全く同じ表記のまま使われている（要再確認：将来別の
+  // カードで同じ選択肢が追加された場合もこの表記に揃える運用を維持すること）。
+  function isStoneswordKeyUseChoiceLabel(label) {
+    return label === "石剣の鍵を使う" || label === "使用石劍鑰匙";
+  }
+
   function handleLineChoiceClick(label) {
     var Core = window.PriTestNightCore;
     var state = Core.state;
+    // 使用者確認（バグ報告3）：「石剣の鍵を使う」を選んでも、実際にその道具（state.
+    // stoneswordKeyCount）を持っていなければ先へ進めない。以前はここでチェックしておらず、
+    // 道具の有無に関わらずそのまま鍵を使った扱いの敘述が進んでしまっていた。所持数0の
+    // 場合はこの樓層を「未踏破のまま」で終わらせ（floorCleared/cardLevelsは一切変更しない
+    // ため、次にまたこの場地へ来た時に改めて鍵の使用を試せる）、GMには籌碼確認／地圖移動へ
+    // 案内するリマインダーを出す。
+    if (isStoneswordKeyUseChoiceLabel(label) && !(Core.state.stoneswordKeyCount > 0)) {
+      logGmDecision(window.I18N.t("gm_flow_choice_picked_log", { label: label }));
+      state.gmFlow.pendingChoiceLabels = [];
+      finishFieldWalk(window.I18N.t("gm_flow_key_item_missing_narration"), null);
+      return;
+    }
     logGmDecision(window.I18N.t("gm_flow_choice_picked_log", { label: label }));
     state.gmFlow.pendingChoiceLabels = [];
     var walk = state.gmFlow.walk;
@@ -4820,5 +4937,9 @@
     rollStrongEnemyTable: rollStrongEnemyTable,
     resolveStrongEnemyEntry: resolveStrongEnemyEntry,
     resolveFloorSkip: resolveFloorSkip,
+    invalidatePendingFloorSkip: invalidatePendingFloorSkip,
+    consumePendingSpiritVeinContinuation: consumePendingSpiritVeinContinuation,
+    resumeChipOfferContinuationAfterMove: resumeChipOfferContinuationAfterMove,
+    declinePendingSpiritVeinContinuation: declinePendingSpiritVeinContinuation,
   };
 })();

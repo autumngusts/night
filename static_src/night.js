@@ -37,6 +37,11 @@
   var STORAGE_KEY = "pritest-night-state-" + gameId;
   var CHARACTERS_KEY = "pritest-characters-" + gameId;
   var rosterCharacters = [];
+  // 雲端遊戲：頁面剛載入、尚未收到過雲端第一份 nightState/characters snapshot 之前，
+  // 一律禁止把本地資料（可能是無痕視窗/清過快取的空殼 state）推上雲端覆寫既有存檔。
+  // 非雲端（local）遊戲不需要等待，視為一開始就已「同步完成」。
+  var cloudNightStateSynced = !(game && game.storageMode === "cloud");
+  var cloudCharactersSynced = !(game && game.storageMode === "cloud");
 
   function loadRosterCharacters() {
     var raw = localStorage.getItem(CHARACTERS_KEY);
@@ -52,7 +57,7 @@
 
   function saveRosterCharacters() {
     localStorage.setItem(CHARACTERS_KEY, JSON.stringify(rosterCharacters));
-    if (game) GameStorage.pushCharacters(gameId, game.storageMode, rosterCharacters);
+    if (game && cloudCharactersSynced) GameStorage.pushCharacters(gameId, game.storageMode, rosterCharacters);
   }
 
   var rosterDetailCollapsed = {};
@@ -1072,7 +1077,7 @@
     state.updatedAt = Date.now();
     var data = buildSaveData();
     localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
-    if (game) GameStorage.pushNightState(gameId, game.storageMode, data);
+    if (game && cloudNightStateSynced) GameStorage.pushNightState(gameId, game.storageMode, data);
   }
 
   // --- 「次の夜」への移行を1回分だけ取り消せる（押し間違い対策） ---
@@ -8048,8 +8053,18 @@
   // PC人數補正（battle_pc_count_1/2）を「合計」にのみ適用する（各角色の個別の攻擊行動値・
   // 進度版の個人行動說明は素の値のまま、規則書の「PC總合傷害」という文言どおり合計だけを
   // 倍率対象にする）。
+  // 使用者確認：本回合對敵人造成的傷害合計，只應該計入「已完成」（＝出現在roundActionLog
+  // 執行行動清單中）的角色。以前這裡對entered全員無條件加總，即使某角色尚未按下已完成、
+  // 或已經被「取消」移出執行行動清單，其c._phaseDamageDealt仍會被算進本回合總傷害——
+  // 與「執行行動清單」實際顯示的內容不一致。
+  function charactersCountedInRoundDamage() {
+    return enteredCharactersForBattle().filter(function (c) {
+      return !!state.battle.roundActionsDone[c.id];
+    });
+  }
+
   function computeRoundDamageTotal() {
-    var sum = enteredCharactersForBattle().reduce(function (total, c) {
+    var sum = charactersCountedInRoundDamage().reduce(function (total, c) {
       return total + (c._phaseDamageDealt || 0);
     }, 0);
     return sum * pcCountDamageMultiplier();
@@ -8057,7 +8072,7 @@
 
   // c._phaseGuardReductionPoints（recordPhaseDamageDealtが▲=0.5/◆=1で自動累積）を全員分合算する。
   function computeRoundGuardReductionTotal() {
-    return enteredCharactersForBattle().reduce(function (sum, c) {
+    return charactersCountedInRoundDamage().reduce(function (sum, c) {
       return sum + (c._phaseGuardReductionPoints || 0);
     }, 0);
   }
@@ -8069,7 +8084,7 @@
   function computeRoundAttributeGainsSummary() {
     var totals = {};
     var order = [];
-    enteredCharactersForBattle().forEach(function (c) {
+    charactersCountedInRoundDamage().forEach(function (c) {
       var gains = c._phaseAttributeGains || {};
       Object.keys(gains).forEach(function (label) {
         if (!(label in totals)) order.push(label);
@@ -8211,6 +8226,54 @@
         btn.textContent = c.name;
         btn.addEventListener("click", function () {
           var nowDone = !state.battle.roundActionsDone[c.id];
+          // 使用者確認：從「已完成」（＝執行行動清單中）刪除一條行動時，如果場上還有其他
+          // 瀕死角色，詢問是否要把這次刪除的傷害轉換為「復歸傷害」。轉換後：(a)這份傷害
+          // 不再計入本回合對敵人造成的傷害（computeRoundDamageTotal已改為只計入
+          // roundActionsDone中的角色，因此取消已完成本身就會讓它不被計入；轉換時額外把
+          // c._phaseDamageDealt歸零，避免之後又被重新算進去）；(b)依「floor(復歸傷害÷該
+          // 瀕死角色目前每格所需點數)」自動點擊瀕死角色的復歸圓鈕（優先點還沒點過的，數量
+          // 不超過剩餘未點數）。
+          if (!nowDone) {
+            var pendingDamage = c._phaseDamageDealt || 0;
+            var nearDeathTargets = rosterCharacters.filter(function (nc) {
+              return nc.entered && nc._nearDeath && nc.id !== c.id;
+            });
+            if (pendingDamage > 0 && nearDeathTargets.length) {
+              var target = nearDeathTargets[0];
+              var confirmed = window.confirm(
+                window.I18N.t("battle_action_delete_convert_revival_confirm", {
+                  character: c.name,
+                  damage: pendingDamage,
+                  target: target.name,
+                })
+              );
+              if (confirmed) {
+                var value = nearDeathRevivalValue(target);
+                var affordable = value > 0 ? Math.floor(pendingDamage / value) : 0;
+                if (!target._nearDeathRevivalClicked) target._nearDeathRevivalClicked = [false, false, false];
+                var actuallyClicked = 0;
+                for (var i = 0; i < target._nearDeathRevivalClicked.length && actuallyClicked < affordable; i++) {
+                  if (!target._nearDeathRevivalClicked[i]) {
+                    target._nearDeathRevivalClicked[i] = true;
+                    actuallyClicked++;
+                  }
+                }
+                c._phaseDamageDealt = 0;
+                addLog("log_battle_action_convert_revival", {
+                  character: c.name,
+                  damage: pendingDamage,
+                  target: target.name,
+                  clicks: actuallyClicked,
+                });
+                var allClicked = target._nearDeathRevivalClicked.every(function (v) {
+                  return v;
+                });
+                if (allClicked) completeNearDeathRevival(target);
+                saveRosterCharacters();
+                renderCharacterRoster();
+              }
+            }
+          }
           state.battle.roundActionsDone[c.id] = nowDone;
           if (!state.battle.roundActionLog) state.battle.roundActionLog = [];
           // 使用者確認：取消準備時はこの角色のぶんだけ配列から取り除く（後続の行は自然に
@@ -13246,6 +13309,15 @@
   }
 
   function finalizeSlotMove(toPos) {
+    // 使用者確認・規則書再確認（docs/scenario_flow_rules.md 4節）：実際に別フィールドへ
+    // 移動する瞬間が、突破判定でスキップした樓層を無効化するタイミング。ここは通常移動
+    // （attemptMoveToPosition経由）・登攀判定通過（resolveBreakthroughCheckのclimbモード）・
+    // 靈脈チットでの移動（night_event_chips.js）が最終的にすべて経由する共通の「実際に
+    // フィールドを離れる」箇所なので、ここ1箇所だけに実装すれば全経路をカバーできる。
+    var fromPos = state.focusedIndex;
+    if (window.PriTestNightGmFlow && typeof fromPos === "number" && fromPos !== toPos) {
+      window.PriTestNightGmFlow.invalidatePendingFloorSkip(fromPos);
+    }
     state.focusedIndex = toPos;
     if (state.gmFlowEnabled) revealAdjacentSlots(toPos);
     renderBoard();
@@ -13561,13 +13633,22 @@
         night3BossId: game.night3BossId || null,
       });
       GameStorage.subscribeNightState(gameId, game.storageMode, function (data) {
+        // 使用者確認：無痕視窗/清過快取的裝置開啟遊戲連結時，本地state是尚未載入的空殼
+        // （updatedAt預設值很小甚至0），但頁面初始化過程中的其他呼叫（如開場敘述）仍可能
+        // 提前呼叫saveState()把state.updatedAt推進到Date.now()。此時若把「本機時間戳較新」
+        // 當作「本機資料較可信」，會在收到雲端第一份snapshot時誤判成「遠端較舊」而觸發下方
+        // 自我修復push，結果把空殼state覆寫回雲端、抹掉其他裝置已有的存檔。因此本次訂閱
+        // 收到的「第一份」snapshot一律無條件採用遠端資料，不做時間戳比較、也不觸發自我修復
+        // push；只有在後續（非第一次）收到的snapshot才需要這個自我修復判斷。
+        var isFirstNightStateSnapshot = !cloudNightStateSynced;
+        cloudNightStateSynced = true;
         // 使用者確認：Firebase同步のrace condition対策。「.on("value")」は購読開始時に必ず
         // 一度、現在サーバーに残っている値で呼ばれる——直前の分頁を閉じた際にpushNightStateの
         // debounce/fire-and-forget送信が間に合わなかった場合、ここに古いスナップショットが
         // 届くことがある（autoGmEnabled/focusedIndexが巻き戻って見える不具合の根因）。
         // 遠端のupdatedAtがこの端末が現在表示している内容より古ければ、適用せずに無視し、
         // 逆に本機（より新しい）状態をFirebaseへ再送して自己修復する。
-        if (typeof data.updatedAt === "number" && typeof state.updatedAt === "number" && data.updatedAt < state.updatedAt) {
+        if (!isFirstNightStateSnapshot && typeof data.updatedAt === "number" && typeof state.updatedAt === "number" && data.updatedAt < state.updatedAt) {
           GameStorage.pushNightState(gameId, game.storageMode, buildSaveData());
           return;
         }
@@ -13589,11 +13670,15 @@
         // claimed/確定状態を反映し忘れると「まだ獲得できるように見える」→二重取得の原因になる
         // （handleTurnHolderToggleにある再描画ガードと同じパターンをここにも適用する）。
         if (!document.getElementById("turn-reward-modal").hidden) renderTurnRewardModal();
-        // Task 8：戦利品自動push起因でstate.activeDraws.turnRewardAutoOpenが立っている間は、
-        // まだこの端末でモーダルを開いていなければ自動で開く（potentialPowerの跨端末復元と
-        // 同じパターン）。主選單から手動で開いた既存の挙動はこのフラグに依存しないため影響なし。
+        // 使用者確認：大視窗の展開はその端末のローカル操作のみに限定し、他端末の畫面は
+        // 強制的に連動させない。state.activeDraws.turnRewardAutoOpenが立っていても、この
+        // 端末で誰も能動的に開いていなければ（＝turn-reward-modalがhidden）縮小表示の
+        // 還元ボタンだけを見せ、押した人だけがフルモーダルを見る（weapon/talisman/consumable
+        // 抽選と同じ縮小パターンに統一）。実際に［領取獎勵］を押した本人の端末は、
+        // handleFloorEndRewardClick側でopenTurnRewardModal()を直接ローカル呼び出し済みなので
+        // ここに来た時点で既にhidden=falseになっており、この分岐には入らない。
         if (state.activeDraws.turnRewardAutoOpen && document.getElementById("turn-reward-modal").hidden) {
-          openTurnRewardModal();
+          document.getElementById("btn-turn-reward-restore").hidden = false;
         }
         if (!document.getElementById("breakthrough-modal").hidden) window.PriTestNightFloorBreakthrough.renderBreakthroughCharacters();
         if (!document.getElementById("floor-reward-modal").hidden && window.PriTestNightFloorBreakthrough.getFloorRewardModalFloor()) {
@@ -13603,14 +13688,26 @@
           var ppRemote = state.activeDraws.potentialPower;
           var ppModal = document.getElementById("potential-power-modal");
           var ppRestoreBtn = document.getElementById("btn-potential-power-restore");
-          if (ppRemote.minimized) {
-            ppModal.hidden = true;
+          // 使用者確認：大視窗の展開は開いた本人の端末のみのローカル状態として扱う。
+          // 縮小（minimized）だけは全端末で連動させ、右下の還元ボタンとして保留表示する。
+          if (!ppModal.hidden) {
+            // 本機で既に開いている（＝自分の操作で開いた本人）場合のみ、内容を追従更新する。
+            // 遠端でminimizedになった場合も、それは本人自身の操作で送られてきた値のはずなので
+            // そのまま閉じてよい。
+            if (ppRemote.minimized) {
+              ppModal.hidden = true;
+              ppRestoreBtn.hidden = false;
+            } else {
+              window.PriTestNightPotentialPower.renderPotentialPowerModal();
+            }
+          } else {
+            // 本機はまだ開いていない：他端末の展開状態に関わらず、縮小の還元ボタンだけを見せる。
             ppRestoreBtn.hidden = false;
-          } else if (ppModal.hidden) {
-            ppModal.hidden = false;
-            ppRestoreBtn.hidden = true;
-            window.PriTestNightPotentialPower.renderPotentialPowerModal();
           }
+        } else {
+          var ppModalIdle = document.getElementById("potential-power-modal");
+          var ppRestoreBtnIdle = document.getElementById("btn-potential-power-restore");
+          if (ppModalIdle.hidden && !ppRestoreBtnIdle.hidden) ppRestoreBtnIdle.hidden = true;
         }
         // weapon/talisman/consumableは、確定(resolved)時・閉じた時に自動でnullへ戻るため、
         // 通常は同時に高々1つしか非nullにならない。念のため複数該当してもタイトルと内容が
@@ -13645,6 +13742,7 @@
         }
       });
       GameStorage.subscribeCharacters(gameId, game.storageMode, function (list) {
+        cloudCharactersSynced = true;
         rosterCharacters.length = 0;
         list.forEach(function (c) {
           rosterCharacters.push(CharacterDrawer.ensureDefaults(c));

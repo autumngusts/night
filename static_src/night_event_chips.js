@@ -65,7 +65,6 @@
     eventChipModalIndex = idx;
     eventChipMerchantLastWeaponResult = null;
     eventChipBlessingUsedIds = {};
-    eventChipScarabState = {};
     document.getElementById("event-chip-modal").hidden = false;
     document.getElementById("btn-event-chip-restore").hidden = true;
     renderEventChipModal();
@@ -75,6 +74,12 @@
     document.getElementById("event-chip-modal").hidden = true;
     document.getElementById("btn-event-chip-restore").hidden = true;
     eventChipModalIndex = null;
+    // 霊脈チットを「使用」した後、結局どこへも移動せずにこのモーダルを閉じた場合、
+    // 保留していたGM敘述の継続処理をここで再開する（moveTo側で先に消費済みなら
+    // 何も起きない）。
+    if (window.PriTestNightGmFlow && window.PriTestNightGmFlow.declinePendingSpiritVeinContinuation) {
+      window.PriTestNightGmFlow.declinePendingSpiritVeinContinuation();
+    }
   }
 
   function minimizeEventChipModal() {
@@ -375,10 +380,20 @@
     content.appendChild(note);
 
     function moveTo(target, label) {
+      // 使用者確認（バグ報告2-1）：実際に移動が確定する前に、保留していた継続処理
+      // （resolveChipOfferが移動元idxのまま即座に呼ぶのを止めていたもの）を先に取り出して
+      // おく——closeEventChipModal自体は「移動せず閉じた」場合の再開フックも兼ねているため、
+      // 先に消費しておかないと二重に発火してしまう。
+      var pendingContinuation = window.PriTestNightGmFlow && window.PriTestNightGmFlow.consumePendingSpiritVeinContinuation
+        ? window.PriTestNightGmFlow.consumePendingSpiritVeinContinuation()
+        : null;
       Core.finalizeSlotMove(target);
       window.PriTestNightLog("log_event_chip_spirit_vein_move", { position: label });
       markEventChipUsed(idx);
       closeEventChipModal();
+      if (pendingContinuation && window.PriTestNightGmFlow && window.PriTestNightGmFlow.resumeChipOfferContinuationAfterMove) {
+        window.PriTestNightGmFlow.resumeChipOfferContinuationAfterMove(pendingContinuation);
+      }
     }
 
     var grid = document.createElement("div");
@@ -518,15 +533,28 @@
   // 進行中不呼叫markEventChipUsed，任何一位PC完成判定（成功或第一次失敗）後才標記使用——
   // 比照祝福籌碼「任一PC完成動作即視為此籌碼已發揮」的既有慣例。
   var SCARAB_TARGET = 13;
-  var eventChipScarabState = {}; // { [charId]: { stage: "unresolved"|"failedFirst"|"success"|"fled", statKey, dice, sum } }
+  // 使用者確認：改用state.eventChipsData[idx].scarab（跨端末同步、依idx區分）取代原本模組層級的
+  // 純本地變數，避免（a）不同裝置各自持有獨立、互不同步的進度，導致誰按下判定/FP扣款對象
+  // 混亂；（b）切換到別的籌碼再切回來時，eventChipModalIndex沒變但進度卻被意外重置。
+  function scarabStateForIdx(idx) {
+    var Core = window.PriTestNightCore;
+    if (!Core.state.eventChipsData[idx] || typeof Core.state.eventChipsData[idx] !== "object") {
+      Core.state.eventChipsData[idx] = {};
+    }
+    if (!Core.state.eventChipsData[idx].scarab || typeof Core.state.eventChipsData[idx].scarab !== "object") {
+      Core.state.eventChipsData[idx].scarab = {}; // { [charId]: { stage: "unresolved"|"failedFirst"|"success"|"fled", statKey, dice, sum } }
+    }
+    return Core.state.eventChipsData[idx].scarab;
+  }
 
   function renderEventChipScarabRow(idx, container, c) {
     var Core = window.PriTestNightCore;
     var Breakthrough = window.PriTestNightFloorBreakthrough;
     var CharacterTypes = window.PriTestCharacterTypes;
     var type = c.typeId ? CharacterTypes.get(c.typeId) : null;
-    if (!eventChipScarabState[c.id]) eventChipScarabState[c.id] = { stage: "unresolved", statKey: "luck" };
-    var st = eventChipScarabState[c.id];
+    var scarabState = scarabStateForIdx(idx);
+    if (!scarabState[c.id]) scarabState[c.id] = { stage: "unresolved", statKey: "luck" };
+    var st = scarabState[c.id];
 
     var row = document.createElement("div");
     row.className = "wb-row breakthrough-char-row";
@@ -711,10 +739,13 @@
       }
     }
     select.addEventListener("change", function () {
-      // 別の事件へ切り替えたら聖甲蟲の個人別進行状態はリセットする（同一籌碼を開き直した
-      // だけなら、eventChipModalIndexが変わらない限りopenEventChipModal側ではクリアされない
-      // ため、ここで明示的にクリアする）。
-      eventChipScarabState = {};
+      // 別の事件へ切り替えたら聖甲蟲の個人別進行状態はリセットする（同一チットで別の
+      // ランダムイベントを選び直した場合のみ。scarabの進行状態は今はstate.eventChipsData[idx]
+      // 側に持つため、ここではその中のscarabキーだけを消す）。
+      var Core = window.PriTestNightCore;
+      if (Core.state.eventChipsData[idx] && Core.state.eventChipsData[idx].scarab) {
+        delete Core.state.eventChipsData[idx].scarab;
+      }
       renderDetail();
     });
     renderDetail();
