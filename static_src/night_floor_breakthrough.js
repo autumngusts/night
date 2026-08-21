@@ -407,16 +407,25 @@
       return [{ id: makeTurnRewardId(idSuffix), kind: entry.kind, targetCharacterId: null, value: total, claimed: false }];
     }
     if (entry.kind === "potentialPower" || entry.kind === "weaponSkillReroll") {
-      return entered.map(function (c, i) {
-        return {
-          id: makeTurnRewardId(idSuffix + "_" + i),
-          kind: entry.kind,
-          targetCharacterId: c.id,
-          value: entry.value || 1,
-          attributeTag: entry.attributeTag || null,
-          claimed: false,
-        };
+      // 修正（ユーザー報告）：valueが2以上（例：「潛在之力★★」）の場合、以前は1人につき
+      // 1件（value:2以上）にまとめていたため、獎勵清單上では1回分の抽選ウィザードの中で
+      // まとめて処理され、個別に確認・選択できなかった。consumable/talismanと同じ
+      // 「1件＝1回分」の方針に合わせ、1人あたりvalue個の独立した項目（value:1）に分割する。
+      var perPersonDraws = entry.value || 1;
+      var objs = [];
+      entered.forEach(function (c, i) {
+        for (var vi = 0; vi < perPersonDraws; vi++) {
+          objs.push({
+            id: makeTurnRewardId(idSuffix + "_" + i + "_" + vi),
+            kind: entry.kind,
+            targetCharacterId: c.id,
+            value: 1,
+            attributeTag: entry.attributeTag || null,
+            claimed: false,
+          });
+        }
       });
+      return objs;
     }
     if (entry.kind === "weaponStar") {
       return [

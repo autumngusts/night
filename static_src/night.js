@@ -2405,6 +2405,7 @@
         chipCombatResumeContinuation:
           typeof loadedGmFlow.chipCombatResumeContinuation === "string" ? loadedGmFlow.chipCombatResumeContinuation : null,
         chipCombatResumeSlot: typeof loadedGmFlow.chipCombatResumeSlot === "number" ? loadedGmFlow.chipCombatResumeSlot : null,
+        branchOverrideActive: !!loadedGmFlow.branchOverrideActive,
       };
       var loadedDraws = data.activeDraws && typeof data.activeDraws === "object" ? data.activeDraws : {};
       state.activeDraws = {
@@ -2519,6 +2520,7 @@
       chipCombatContinuation: null,
       chipCombatResumeContinuation: null,
       chipCombatResumeSlot: null,
+      branchOverrideActive: false,
     };
     state.activeDraws = {
       potentialPower: null,
@@ -10628,7 +10630,10 @@
     // 消耗品・護符は「value個」を1回の抽選でまとめて同じ結果を複数個付与する仕様だと、
     // 本来別々に抽選されるべきアイテムが全て同一のものになってしまう。そのため個数分を
     // それぞれ独立した項目（value:1）へ分割し、1件ずつ個別に抽選できるようにする（第2項）。
-    if ((kind === "consumable" || kind === "talisman") && value > 1) {
+    // 修正（ユーザー報告）：潛在之力／戦技再抽選も同じく「value回分」を1件にまとめると
+    // 獎勵清單から個別に確認・領取できなかったため、同じ分割方針を適用する（武器はvalueが
+    // 個数ではなく★數＝稀有度を表すため対象外のまま）。
+    if ((kind === "consumable" || kind === "talisman" || kind === "potentialPower" || kind === "weaponSkillReroll") && value > 1) {
       for (var i = 0; i < value; i++) {
         state.turnRewards.push({
           id: "tr" + Date.now() + Math.floor(Math.random() * 1000) + "_" + i,

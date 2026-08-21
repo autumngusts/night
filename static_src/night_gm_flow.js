@@ -1500,10 +1500,15 @@
   // ランダムイベント決定表（event_rulebook.js「random_event」extraTables[0]）は、die1が
   // 1・6の行のみ2顆目を問わない単一セル表記（例："1"、"6"）を使うため、その場合は
   // faces2="123456"（全目）として扱う。
+  // 修正（ユーザー報告：J堡壘「屋上エネミー決定表」が自動抽選できない）：fields_data_4.js
+  // のこの表だけ2顆目を"1・3・5"のように中點区切りで表記しており（他の決定表は"135"の
+  // ように区切り無しの連続数字）、以前の正規表現は区切り文字を許容せず常にnullを返して
+  // いた。値そのものは変わらない（面数の並びは同じ）ため、中點・読点・カンマ区切りも
+  // 受理してから区切り文字を除去し、既存の連続数字形式と同じfaces2へ正規化する。
   function parseStrongEnemyDiceCell(text) {
     var t = String(text || "").trim();
-    var m = /^(\d)\s*[／\/]\s*(\d+)$/.exec(t);
-    if (m) return { die1: parseInt(m[1], 10), faces2: m[2] };
+    var m = /^(\d)\s*[／\/]\s*([\d・、,]+)$/.exec(t);
+    if (m) return { die1: parseInt(m[1], 10), faces2: m[2].replace(/[・、,]/g, "") };
     var bare = /^(\d)$/.exec(t);
     if (bare) return { die1: parseInt(bare[1], 10), faces2: "123456" };
     return null;
@@ -2307,7 +2312,17 @@
     var objs = FloorBreakthrough.floorRewardEntryToTurnRewards({ kind: "rune", value: runeValue }, entered, idSuffix + "_rune").concat(
       FloorBreakthrough.floorRewardEntryToTurnRewards({ kind: "potentialPower", perPerson: true, value: powerValue }, entered, idSuffix + "_power")
     );
-    if (objs.length) Core.pushTurnRewards(objs);
+    // 修正（ユーザー報告）：以前はここでpushTurnRewardsするだけで獎勵清單モーダルを開かず、
+    // handleChipCombatResolvedOkClickもpendingRewardWindowsを確認していなかったため、GMが
+    // ［OK］を押すと玩家が獎勵を確認・領取する間もなく即座に樓層事件へ接續してしまっていた
+    // （一般樓層戰鬥のhandleFloorEndRewardClickと同じ「モーダルを開いてpendingRewardWindowsで
+    // 足止めする」パターンに合わせる）。
+    if (objs.length) {
+      Core.pushTurnRewards(objs);
+      Core.state.activeDraws.turnRewardAutoOpen = true;
+      Core.openTurnRewardModal();
+      Core.addPendingRewardWindow("turnReward");
+    }
     var enemyName = (state.eventChipsData[idx] && state.eventChipsData[idx].enemyName) || "";
     if (window.PriTestNightEventChips) window.PriTestNightEventChips.markEventChipUsed(idx);
     logGmDecision(window.I18N.t("gm_flow_chip_strong_enemy_defeated_log", { enemy: enemyName }));
@@ -2332,6 +2347,17 @@
   function handleChipCombatResolvedOkClick() {
     var Core = window.PriTestNightCore;
     var state = Core.state;
+    // 修正（ユーザー報告）：獎勵清單モーダルが開いたまま（pendingRewardWindows未消化）でも
+    // 続行できてしまっていたため、handleGmFlowOkと同じ「残っていればリマインドして止める」
+    // ガードをここにも追加する。
+    var pending = state.gmFlow.pendingRewardWindows.length;
+    if (pending > 0) {
+      state.gmFlow.narrationText = window.I18N.t("gm_flow_reward_pending_reminder", { count: pending });
+      lastTypedNarration = null;
+      Core.saveState();
+      Core.renderCurrentLocationStatus();
+      return;
+    }
     var continuation = state.gmFlow.chipCombatResumeContinuation;
     var idx = state.gmFlow.chipCombatResumeSlot;
     state.gmFlow.chipCombatResumeContinuation = null;
@@ -2405,6 +2431,46 @@
     walk.pendingOutcomeFilter = null;
     walk.pendingConvergeLabel = null;
     advanceFieldWalk();
+  }
+
+  // 「GM更改」（使用者指定）：varianceTableで複数分岐を持つカード（例：大教會）は
+  // autoResolveBranchが劇本/花色/1D6から自動決定するのが既定挙動だが、規則書の
+  // varianceNoteに「GMが任意で、まだ遊んだことのない内容を選んでもよい」と明記されている
+  // カードもあるため、規則書パスワード認証済みのGM限定で、自動決定後でも別の分岐へ
+  // 手動切り替えできる進入口を用意する。既存のbranchChoice（自動解決に失敗した場合の
+  // フォールバック選択UI）と同じボタン描画・handleBranchChoiceClickをそのまま再利用し、
+  // 新しい選択UIをもう1つ作らない。
+  function handleBranchOverrideToggleClick() {
+    var Core = window.PriTestNightCore;
+    var state = Core.state;
+    state.gmFlow.branchOverrideActive = !state.gmFlow.branchOverrideActive;
+    Core.saveState();
+    Core.renderCurrentLocationStatus();
+  }
+
+  function handleBranchOverrideSelectClick(branchIndex) {
+    var Core = window.PriTestNightCore;
+    var state = Core.state;
+    var walk = state.gmFlow.walk;
+    if (!walk) return;
+    var entry = getWalkEntry(walk);
+    var branch = entry && entry.branches ? entry.branches[branchIndex] : null;
+    // resolveOrCacheBranchと同じcacheKey規則で上書きし、以後のフロア数参照
+    // （peekCachedBranchIndex／resolveEffectiveFloorCount）がGMの選択と食い違わないようにする。
+    var cacheKey = null;
+    if (typeof walk.slotIndex === "number") {
+      var slot = state.slots[walk.slotIndex];
+      if (slot) cacheKey = walk.slotIndex + ":" + slot.code;
+    } else if (walk.slotIndex === "start" || walk.slotIndex === "end") {
+      cacheKey = walk.slotIndex;
+    }
+    if (cacheKey) {
+      if (!state.gmFlow.resolvedBranchCache) state.gmFlow.resolvedBranchCache = {};
+      state.gmFlow.resolvedBranchCache[cacheKey] = { branchIndex: branchIndex };
+    }
+    state.gmFlow.branchOverrideActive = false;
+    if (branch) logGmDecision(window.I18N.t("gm_flow_branch_override_log", { name: window.PriTestFields.localizedText(branch.name) }));
+    handleBranchChoiceClick(branchIndex);
   }
 
   // 現在のwalk位置から、次の(→X)選択肢が現れるまで（または樓層の本文が尽きるまで）行を
@@ -3449,6 +3515,7 @@
     pendingFloorEndFloor = null;
     state.gmFlow.pendingFloorEndRef = null;
     state.gmFlow.floorEndRewardOpened = false;
+    state.gmFlow.branchOverrideActive = false;
     lastTypedNarration = null;
   }
 
@@ -4960,6 +5027,36 @@
         });
       } else {
         addActionButton(actionsEl, "gm_flow_ok_button", handleGmFlowOk);
+      }
+      // 「GM更改」（使用者指定）：上のactionKind別ボタン群に追加して、規則書パスワード
+      // 認証済みのGMだけに見える分岐変更ボタンを常に併設する。branchChoice自体（自動解決に
+      // 失敗した場合の必須選択）は既にこの目的を満たしているため対象外。walkが複数分岐を
+      // 持つカードを指している間、進度版のどの敘述段階でも押せる（分岐変更後は
+      // handleBranchOverrideSelectClickがその分岐の樓層1から敘述をやり直す）。
+      var overrideWalk = state.gmFlow.walk;
+      var overrideEntry = overrideWalk ? getWalkEntry(overrideWalk) : null;
+      var canOverrideBranch =
+        overrideEntry &&
+        overrideEntry.branches &&
+        overrideEntry.branches.length > 1 &&
+        state.gmFlow.actionKind !== "branchChoice" &&
+        Core.isRulebookAuthenticated();
+      if (canOverrideBranch) {
+        if (state.gmFlow.branchOverrideActive) {
+          overrideEntry.branches.forEach(function (branch, bi) {
+            var overrideBtn = document.createElement("button");
+            overrideBtn.type = "button";
+            overrideBtn.className = "gm-flow-action-btn";
+            overrideBtn.textContent = window.PriTestFields.localizedText(branch.name);
+            overrideBtn.addEventListener("click", function () {
+              handleBranchOverrideSelectClick(bi);
+            });
+            actionsEl.appendChild(overrideBtn);
+          });
+          addActionButton(actionsEl, "gm_flow_branch_override_cancel_button", handleBranchOverrideToggleClick);
+        } else {
+          addActionButton(actionsEl, "gm_flow_branch_override_button", handleBranchOverrideToggleClick);
+        }
       }
       return;
     }
