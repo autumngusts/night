@@ -5533,6 +5533,21 @@
           });
         }
       } else if (isActive) {
+        // 隱者／隱者（黎明）「混成魔法」の遺物効果（渦巻く炎／聖なる帳／冷気の嵐／聖なる灯火／
+        // 薙ぎ払う稲妻／雷炎の戦車／重力爆発）：規則書の文言は「混成魔法の効果を変更してもよい」
+        // であり、効果の中身が変わるだけで発動条件（屬性痕3個を消去）自体は元の混成魔法と
+        // 共有する。修正（ユーザー報告）：以前はこの汎用フォールバックに合成entryとして
+        // 乗せていただけで屬性痕の充足チェックを一切行わず、base hybrid_magic（下のentry.id
+        // ==="hybrid_magic"分岐、屬性痕3個未満なら発動不可）と違って毎回無制限に発動できて
+        // しまっていた。同じ「3個未満なら発動不可の注記のみ」というガードをここに追加する
+        // （3個消費自体は下のrenderDiceCostAction確認コールバック内、entry.idチェックで行う）。
+        if (isHybridMagicVariantEntryId(entry.id) && (c.elementalMarks || 0) < 3) {
+          var hybridVariantInsufficientNote = document.createElement("p");
+          hybridVariantInsufficientNote.className = "threat-ref-body";
+          hybridVariantInsufficientNote.textContent = window.I18N.t("hybrid_magic_insufficient_marks_note", { marks: c.elementalMarks || 0 });
+          content.appendChild(hybridVariantInsufficientNote);
+          return;
+        }
         var cost = CharacterDrawer.parseActionCost(body);
         // 隱者「聖幕」（混成魔法の遺物効果）：發動中は自身が武器の戰技・魔術・祈禱（＝weaponId
         // を持つentry）を使用する際の「FP消耗」を0にする。
@@ -5609,6 +5624,9 @@
           }
         }
         renderDiceCostAction(c, content, cost, function (dice, costLines) {
+          // 混成魔法の遺物効果（渦巻く炎等）：base hybrid_magicと同じく、確定時に屬性痕を3個
+          // 消去する（発動可否は上のガードで既に3個以上を確認済み）。
+          if (isHybridMagicVariantEntryId(entry.id)) c.elementalMarks = Math.max(0, (c.elementalMarks || 0) - 3);
           if (entry.uses && entry.id) {
             if (!c.abilityUses) c.abilityUses = {};
             c.abilityUses[entry.id] = Math.max(0, (remaining !== null ? remaining : effectiveMax) - 1);
@@ -5800,6 +5818,12 @@
           // 喪失之杖）：本文中的屬性附加值是固定數字（非骰子），
           // 與combatAttackTargetEnemyKey（現在選択中の敵人、跨UI共有）搭配即可自動蓄積；
           // 未選擇對象時暫不處理（body已在UI中完整顯示，GM可自行讀取）。
+          // 修正（ユーザー報告）：「渦巻く炎」「薙ぎ払う稲妻」「重力爆発」の3つは本文の屬性値が
+          // 固定ではなく「1D」（骰子）のため、以前はこの一覧に含まれておらず屬性が一切
+          // 蓄積されていなかった。他の骰子コスト（renderDiceCostAction）と同じくその場で
+          // 正規の1D6を振り、結果をそのまま蓄積・ログへ残す（GMへの手動対応リマインドに
+          // 留めない——本体の主効果であり、既存の"■"不明値とは異なり数値自体は1D6で
+          // 確定できるため）。
           var hybridVariantElementAccum =
             entry.id === "hybrid_magic_frost_storm"
               ? [{ label: "凍傷", amount: 2 }]
@@ -5810,10 +5834,21 @@
                 ]
               : entry.id === "spell_night_comet"
               ? [{ label: "魔", amount: 4 }]
+              : entry.id === "hybrid_magic_vortex_flame"
+              ? [{ label: "火", dice: true }]
+              : entry.id === "hybrid_magic_lightning_sweep"
+              ? [{ label: "雷", dice: true }]
+              : entry.id === "hybrid_magic_gravity_burst"
+              ? [{ label: "魔", dice: true }]
               : null;
+          var hybridVariantElementRollNotes = [];
           if (hybridVariantElementAccum && combatAttackTargetEnemyKey) {
             hybridVariantElementAccum.forEach(function (a) {
-              recordAttributeStatusDealt(c.id, combatAttackTargetEnemyKey, a.label, a.amount);
+              var amount = a.dice ? 1 + Math.floor(Math.random() * 6) : a.amount;
+              recordAttributeStatusDealt(c.id, combatAttackTargetEnemyKey, a.label, amount);
+              if (a.dice) {
+                hybridVariantElementRollNotes.push(window.I18N.t("hybrid_magic_variant_element_roll_note", { label: a.label, roll: amount }));
+              }
             });
           }
           // 巨型武器「崩壊波」「星呼び」等：モブへの□個数傷害を、雜兵列が存在すれば
@@ -5847,6 +5882,7 @@
               ? window.I18N.t("action_log_damage_total", { value: CharacterDrawer.formatValueWithSymbol(dmg.value, dmg.symbol) })
               : null;
           var extraLines = [window.I18N.t("action_log_dice_used", { dice: dice.join("、") })].concat(costLines);
+          if (hybridVariantElementRollNotes.length) extraLines = extraLines.concat(hybridVariantElementRollNotes);
           if (entry.id === "ominous_strike") extraLines = extraLines.concat([window.I18N.t("log_ominous_strike_move_note")]);
           // R1：数値化できる部分は上のcomputeSkillDamage／専用フラグで実際に加算済み。ここでは
           // 「火：3D」のような出目未確定の副次効果だけ、遺物効果の本文をそのまま黃字注記として残す
@@ -6101,6 +6137,20 @@
       },
     },
   ];
+
+  // 隱者／隱者（黎明）「混成魔法」の遺物効果（渦巻く炎等）の合成entry.idかどうかを判定する。
+  // これらは効果を変更するだけで、発動条件（屬性痕3個を消去）自体は元の混成魔法と共有する。
+  function isHybridMagicVariantEntryId(id) {
+    if (!id) return false;
+    return (
+      HERMIT_HYBRID_MAGIC_ACTION_VARIANTS.some(function (v) {
+        return v.entry.id === id;
+      }) ||
+      HERMIT_DAWN_HYBRID_MAGIC_ACTION_VARIANTS.some(function (v) {
+        return v.entry.id === id;
+      })
+    );
+  }
   // 學者（暗影）「技能強化（衝擊波的緩和）」：夜渡技能「探求」を［Defense］で「迴避」の代わりに
   // 実行できるようにする遺物効果。固定でHP價值：100の迴避扱い（鐵眼「標記」と全く同じ数値・
   // 意味のため、defenseNote／logはmarking_defense_note等の既存i18nキーをそのまま再利用する）。
@@ -7564,6 +7614,13 @@
     return Math.min(baseValue + bonus, 100);
   }
 
+  // 附帶効果「物理減傷+」（phys_cut）：修正（ユーザー報告）。以前は本文の「物理カット値：+10」が
+  // 実際にはどの計算にも反映されておらず、習得しても迴避・格擋どちらの数値にも影響しなかった。
+  // 「HP價值：+10」として常時（迴避・格擋・防禦未確定時のフォールバックいずれにも）反映する。
+  function physicalCutHpValueBonus(c) {
+    return (c.learnedAttachedEffects || []).indexOf("phys_cut") !== -1 ? 10 : 0;
+  }
+
   function registerGuardUsed(c) {
     c._consecutiveGuardCount = (c._consecutiveGuardCount || 0) + 1;
   }
@@ -7793,6 +7850,10 @@
       btn.textContent = entryName + (effectiveMax !== null ? window.I18N.t("action_log_uses_remaining", { current: remaining, max: effectiveMax }) : "");
       if (combatDefenseState === entry.id) btn.classList.add("active");
       if (effectiveMax !== null && remaining <= 0) btn.disabled = true;
+      // 隱者「冰塊之棺」（混成魔法の遺物効果）：効果を変更するだけで、発動条件（屬性痕3個を
+      // 消去）自体は元の混成魔法と共有する——修正（ユーザー報告）：以前は屬性痕の充足チェックを
+      // 一切行わず、無制限に発動できてしまっていた。
+      if (entry.id === "ice_coffin" && (c.elementalMarks || 0) < 3) btn.disabled = true;
       btn.addEventListener("click", function () {
         combatDefenseState = combatDefenseState === entry.id ? null : entry.id;
         combatDiceSelection = [];
@@ -7810,6 +7871,9 @@
       var skillName = CharacterTypes.localizedText(activeDefenseSkill.name);
       var skillCost = CharacterDrawer.parseActionCost(skillBody);
       renderDiceCostAction(c, content, skillCost, function (dice, costLines) {
+        // 冰塊之棺（混成魔法の遺物効果）：base hybrid_magicと同じく、確定時に屬性痕を3個
+        // 消去する（発動可否は上のボタンdisabledガードで既に3個以上を確認済み）。
+        if (activeDefenseSkill.id === "ice_coffin") c.elementalMarks = Math.max(0, (c.elementalMarks || 0) - 3);
         var effectiveMax = activeDefenseSkill.uses ? activeDefenseSkill.uses + usesBonus : null;
         if (effectiveMax !== null) {
           if (!c.abilityUses) c.abilityUses = {};
@@ -7946,7 +8010,7 @@
         });
       } else {
         renderDiceCostAction(c, content, DODGE_COST, function (dice) {
-          var value = dice[0] * 10 + 30;
+          var value = dice[0] * 10 + 30 + physicalCutHpValueBonus(c);
           var dodgeLines = [window.I18N.t("action_log_dice_used", { dice: dice.join("、") })];
           // 遺物効果「轉身之步」：迴避で「骰子消耗：6」（出目6の骰子）を支払った場合、傷害處理後
           // 所受的HP損害減輕■（■は数値未確定のためGM手動反映、注記のみ残す）。
@@ -7984,7 +8048,7 @@
       // 「複数回ガードする場合は初回のみ」のHP價值加算（+10、上限100）。表示時点で消費フラグを
       // 立てず、実際に確定した時だけ消費する（プレビューと確定を分ける）。
       var pendingGuardBonus = !c._guardValueBonusConsumed ? c._guardValueBonusUntilEndPhase || 0 : 0;
-      var value = Math.min(applyConsecutiveGuardBonus(c, baseValue) + pendingGuardBonus, 100);
+      var value = Math.min(applyConsecutiveGuardBonus(c, baseValue) + pendingGuardBonus + physicalCutHpValueBonus(c), 100);
       renderDiceCostAction(c, content, cost, function (dice) {
         var blockLines = [window.I18N.t("action_log_dice_used", { dice: dice.join("、") })];
         // 附帶効果「防禦成功時HP回復」：HP損害を処理する前に自身へ「HP回復□」＝+1を適用する。
@@ -9626,8 +9690,9 @@
       hpValueInput.min = "1";
       // 使用者確認：初期値は「今回の防禦階段で実際に迴避／格擋を確定した値」（c._defenseHpValueThisTurn）
       // を優先する。まだ防禦を確定していない（迴避／格擋未実行）場合のみ、従来通り角色詳細の
-      // 固定HP價值（c.hpValue）／既定値30へフォールバックする。GMは確定前にいつでも手修正できる。
-      hpValueInput.value = String(typeof c._defenseHpValueThisTurn === "number" ? c._defenseHpValueThisTurn : c.hpValue || 30);
+      // 固定HP價值（c.hpValue）／既定値30へフォールバックする（附帶効果「物理減傷+」の+10込み）。
+      // GMは確定前にいつでも手修正できる。
+      hpValueInput.value = String(typeof c._defenseHpValueThisTurn === "number" ? c._defenseHpValueThisTurn : (c.hpValue || 30) + physicalCutHpValueBonus(c));
       hpValueInput.id = "enemy-damage-hpvalue-" + c.id;
       hpValueInput.disabled = confirmedAlready;
       row.appendChild(hpValueInput);
@@ -9704,8 +9769,15 @@
     entered.forEach(function (c) {
       var groupInputEl = document.getElementById("enemy-damage-group-" + c.id);
       var individualInputEl = document.getElementById("enemy-damage-individual-" + c.id);
+      // 修正（ユーザー報告）：進度版の速報には亂戰／個別傷害の生値だけが出ており、各PCが
+      // 実際にHP價值で割った後にどれだけHP損害を受けるかは#enemy-damage-modalを開かないと
+      // 見えなかった。同じ算出式（floor((亂戦+個別)/HP價值)）とhpValueInputの初期値解決
+      // （c._defenseHpValueThisTurn優先、既定c.hpValue||30）をここでも使い、進度版の速報
+      // 文字に各PCの推定HP損害も書き出す。
+      var hpValueInputEl = document.getElementById("enemy-damage-hpvalue-" + c.id);
       var gv = groupInputEl ? parseInt(groupInputEl.value, 10) || 0 : 0;
       var iv = individualInputEl ? parseInt(individualInputEl.value, 10) || 0 : 0;
+      var hv = Math.max(1, hpValueInputEl ? parseInt(hpValueInputEl.value, 10) || 0 : typeof c._defenseHpValueThisTurn === "number" ? c._defenseHpValueThisTurn : (c.hpValue || 30) + physicalCutHpValueBonus(c));
       group[c.id] = gv;
       individual[c.id] = iv;
       previewParts.push(
@@ -9715,7 +9787,10 @@
           gv +
           "／" +
           window.I18N.t("enemy_damage_individual_short_label") +
-          iv
+          iv +
+          "／" +
+          window.I18N.t("enemy_damage_predicted_hp_loss_short_label") +
+          Math.floor((gv + iv) / hv)
       );
     });
     var resultEl = document.getElementById("auto-gm-roll-result");
@@ -9747,7 +9822,7 @@
     var halberdWhirlwindBonus = c._halberdWhirlwindActive ? 10 : 0;
     if (halberdWhirlwindBonus) c._halberdWhirlwindActive = false;
     groupValue += halberdWhirlwindBonus;
-    var hpValue = hpValueInputEl ? Math.max(1, parseInt(hpValueInputEl.value, 10) || 1) : Math.max(1, c.hpValue || 30);
+    var hpValue = hpValueInputEl ? Math.max(1, parseInt(hpValueInputEl.value, 10) || 1) : Math.max(1, (c.hpValue || 30) + physicalCutHpValueBonus(c));
     var hpLoss = Math.floor((groupValue + individual) / hpValue);
     // 追跡者「第六感」／執行者「妖刀」等「本次傷害與異常狀態完全無效化」：HP損害を強制的に0にする
     // （屬性/異常蓄積はこの下で別途addReceivedAttributeStatusされるため、ここではHP損害のみ対象）。
