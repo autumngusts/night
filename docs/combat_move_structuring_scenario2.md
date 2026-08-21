@@ -1,4 +1,4 @@
-# 劇本2「顎の激戦」（gaping_jaw）：場地卡reward陣列與敵人／王 auto-GM 稽核記錄（2026-08-13）
+# 劇本2「喰らいつく顎／咬噬之顎」（gaping_jaw）：場地卡reward陣列與敵人／王 auto-GM 稽核記錄（2026-08-13）
 
 本文件記錄劇本1〜4結構化計畫（`docs/superpowers/plans/2026-08-13-scenario-2-4-card-structuring.md`）
 Phase 1（劇本2）Task 1〜4的稽核與實裝內容，格式比照
@@ -161,13 +161,13 @@ formAware/固定王schema（王城戦用，`groupDamage.value`直接值，非通
 | `molten_iron_demon` | 炎の連撃＆炉の炎（roll7〜8） | 完全fallback | 「PC人数回実行」可變次數 → `variable_repeat_manual` |
 | `worm_faces` | 腕薙ぎ払い（roll3） | 部分fallback | 「呪死:2」對象「敵視:1以上PC全員」與前衛均等割り的乱戦對象不同 → `accum_target_mismatch_manual` |
 | `worm_faces` | 死の瘴気（roll6） | 完全fallback | 判定失敗效果為純異常蓄積（呪死1D），savingThrow.onFail不支援 → `saving_throw_ailment_only_manual` |
-| `duke_freydia` | 酸吐き（roll2） | 完全fallback | 全PC池・敵視分岐DC判定，失敗效果同時含HP損害＋猛毒3蓄積，savingThrow.onFail僅讀`amount` → `saving_throw_damage_and_ailment_manual`（本次新增tag） |
+| `duke_freydia` | 酸吐き（roll2） | 部分fallback | `groupDamage.modifier:-120`／`frontAll`自動；個別判定為全PC池・敵視分岐DC判定，失敗效果同時含HP損害＋猛毒3蓄積，savingThrow.onFail僅讀`amount` → `saving_throw_damage_and_ailment_manual`（本次新增tag） |
 | `duke_freydia` | 子蜘蛛の牙（roll3） | 完全fallback | 「PC人數回實行」可變次數 → `variable_repeat_manual` |
 | `ancient_dragon` | 空中旋回＆滞空（roll3） | 完全fallback | PC全員同一DC判定、「半數以上失敗」的**集團閾值**觸發時間流逝，不符合savingThrow之個別PC判定前提 → `majority_fail_time_loss_manual`（本次新增tag） |
-| `ancient_dragon` | 地を這う赤雷（roll4） | 完全fallback | 全PC池・敵視分岐DC判定，失敗效果含HP損害＋雷1D → `saving_throw_damage_and_ailment_manual` |
-| `ancient_dragon` | 赤雷叩きつけ（roll5） | 完全fallback | 個別判定僅「敵視:1以上」子集合（非全PC池），不符合savingThrow前提；比照既有`bell_bearing_hunter`「盾撃」先例純註解交由GM |
+| `ancient_dragon` | 地を這う赤雷（roll4） | 部分fallback | `groupDamage.modifier:-120`／`frontAll`自動；個別判定為全PC池・敵視分岐DC判定，失敗效果含HP損害＋雷1D → `saving_throw_damage_and_ailment_manual` |
+| `ancient_dragon` | 赤雷叩きつけ（roll5） | 部分fallback | `groupDamage.modifier:0`／`frontAll`自動；個別判定僅「敵視:1以上」子集合（非全PC池），不符合savingThrow「全PC池」前提；比照既有`bell_bearing_hunter`「盾撃」先例純註解交由GM手動判定，不加conditions tag（不捏造數值） |
 | `remote_veteran` | 氷嵐の剣技（roll5） | 部分fallback | 「敵視:1以上PC全員」被凍傷1D，對象群未限定前衛，與群傷對象（前衛敵視1以上）可能不同 → `accum_target_mismatch_manual` |
-| `remote_veteran` | 冷気の嵐（roll6） | 完全fallback | 全PC池・敵視分岐DC判定，失敗效果含HP損害＋凍傷1D → `saving_throw_damage_and_ailment_manual` |
+| `remote_veteran` | 冷気の嵐（roll6） | 部分fallback | `groupDamage.modifier:0`／`frontAll`自動；個別判定為全PC池・敵視分岐DC判定，失敗效果含HP損害＋凍傷1D → `saving_throw_damage_and_ailment_manual` |
 | `nox_dragonkin_soldier` | 氷の吐息（roll6） | 完全fallback | 全PC池・敵視分岐DC判定，失敗效果僅凍傷1D（無HP損害） → `saving_throw_ailment_only_manual` |
 | `death_ritual_bird` | 槍呼び＆飛び退き（roll5） | 部分fallback | 「敵視:1以上PC全員」被炎1D＋凍傷1D，對象群比群傷對象（PC全員）更窄 → `accum_target_mismatch_manual` |
 | `death_ritual_bird` | 古き死の怨霊（roll6） | 完全fallback | 「PC人數回實行」可變次數 → `variable_repeat_manual` |
