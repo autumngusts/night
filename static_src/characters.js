@@ -9,7 +9,12 @@
   var characters = [];
   // night.jsと同様：雲端遊戲では第一份 characters snapshot を受信するまで、本地資料
   // （無痕視窗等の空殼state）をpushして雲端の既存存檔を覆寫しないようにする。
-  var cloudCharactersSynced = !(game && game.storageMode === "cloud");
+  // 修正（ユーザー報告）：この端末がまだ知らない雲端遊戲（無痕視窗で初めて開いた場合）は
+  // 読み込み直後のGames.get(gameId)がnullを返すため、以前は「!(game && ...)」がtrueに
+  // 誤判定され、初期化中のsaveCharacters()呼び出しが空殼state即座にpushしてしまっていた。
+  // pushCharactersは非雲端（local）遊戲では常にno-opなので、一律falseスタートにしても
+  // 本地遊戲には影響しない。
+  var cloudCharactersSynced = false;
 
   function storageKey() {
     return "pritest-characters-" + gameId;

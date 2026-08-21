@@ -39,9 +39,19 @@
   var rosterCharacters = [];
   // 雲端遊戲：頁面剛載入、尚未收到過雲端第一份 nightState/characters snapshot 之前，
   // 一律禁止把本地資料（可能是無痕視窗/清過快取的空殼 state）推上雲端覆寫既有存檔。
-  // 非雲端（local）遊戲不需要等待，視為一開始就已「同步完成」。
-  var cloudNightStateSynced = !(game && game.storageMode === "cloud");
-  var cloudCharactersSynced = !(game && game.storageMode === "cloud");
+  // 修正（ユーザー報告：無痕視窗開啟同一個雲端遊戲連結，資料被刷新成完全重新開始）：
+  // 以前這裡用「game && game.storageMode === "cloud"」同步判定，但這台裝置若從未見過
+  // 這個gameId（無痕視窗、清過快取），此時Games.get(gameId)必定回傳null——game要等到
+  // 下面DOMContentLoaded內非同步的registerCloudGame完成後才會確定是雲端遊戲。結果是
+  // game為null時旗標被誤判成「已同步」（true），於是registerCloudGame完成、game確定為
+  // 雲端遊戲後，只要任何初始化流程在subscribeNightState收到第一份遠端snapshot之前呼叫了
+  // saveState()，空殼state就會立刻被push上雲端覆寫既有存檔（連帶讓下方「第一份snapshot
+  // 無條件採用遠端資料」的isFirstNightStateSnapshot保護機制也失效，因為它正是靠這個旗標
+  // 為false才會判定「這是第一份」）。這兩個旗標只用來擋pushNightState/pushCharacters，
+  // 而GameStorage側這兩個函式對非雲端（local）遊戲本來就是no-op，因此一律預設false不會
+  // 影響本地遊戲，只會讓雲端遊戲更安全地等到真正收到遠端存檔後才允許推送。
+  var cloudNightStateSynced = false;
+  var cloudCharactersSynced = false;
 
   function loadRosterCharacters() {
     var raw = localStorage.getItem(CHARACTERS_KEY);
@@ -13041,10 +13051,15 @@
     state.eventChipsData = {};
 
     var logKey = wasContinue ? "log_continue_submit" : "log_select_submit";
-    if (!wasContinue) state.focusedIndex = "start";
     state.boardStarted = true;
-    revealStartAdjacentSlots();
+    // 修正（ユーザー報告）：以前はrevealStartAdjacentSlotsをadvanceToNextNightより先に
+    // 呼んでいたため、継続日（2日目）の開始地点鄰接オープンが「前日のisSwappedDay」で
+    // 計算されてしまい、実際には前日の終点（黄金樹の帳）側の板塊がオープンされていた。
+    // dayNumberを進めてからfocusedIndexとreveal処理を行うことで、新しい日の出発地点
+    // （前日の終点と同じ物理位置＝盤面の反対側）が正しく起点として扱われる。
     if (wasContinue) advanceToNextNight();
+    state.focusedIndex = "start";
+    revealStartAdjacentSlots();
     closeSelectDrawer();
     renderBoard();
     addLog(logKey, { n: codes.length, cards: cardsLabel });
@@ -13265,6 +13280,13 @@
     state.eventChipsData = {};
 
     advanceToNextNight();
+    // 修正（ユーザー報告）：submitKeepCardsはfocusedIndexを一切更新していなかったため、
+    // 2日目開始時点でも1日目終了時の位置（大抵は終点＝黄金樹の帳）が「現在地」のまま
+    // 残ってしまっていた。dayNumberを進めた直後にfocusedIndexを新しい日の出発地点へ
+    // リセットし、その出発地点（isSwappedDayにより前日の終点と同じ物理位置＝盤面の
+    // 反対側へ切り替わる）に鄰接する板塊も自動オープンする。
+    state.focusedIndex = "start";
+    revealStartAdjacentSlots();
     closeKeepCardsDrawer();
     renderBoard();
     addLog("log_continue_submit", {
