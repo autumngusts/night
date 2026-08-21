@@ -653,8 +653,9 @@
     var state = Core.state;
     if (state.cardLevels[slotIndex] === null || state.cardLevels[slotIndex] === undefined) return;
     var entry = window.PriTestNightFloorBreakthrough.resolveFieldEntryForSlot(slotIndex);
-    if (!entry || typeof entry.floorCount !== "number") return;
-    var uncleared = firstUnclearedFloorIndex(slotIndex, entry.floorCount);
+    var effectiveFloorCount = resolveEffectiveFloorCount(entry, slotIndex, true);
+    if (!entry || typeof effectiveFloorCount !== "number") return;
+    var uncleared = firstUnclearedFloorIndex(slotIndex, effectiveFloorCount);
     if (uncleared !== null && state.cardLevels[slotIndex] > uncleared) {
       state.cardLevels[slotIndex] = uncleared;
       if (Core.renderCardLevel) Core.renderCardLevel(slotIndex);
@@ -672,8 +673,12 @@
     var entry = window.PriTestNightFloorBreakthrough.resolveFieldEntryForSlot(slotIndex);
     var branch = entry && entry.branches ? entry.branches[branchIndex] : null;
     if (!branch || branch.freeFloorOrder) return; // 路線自由カード、または解決不能：ポインタは変更しない
-    if (typeof entry.floorCount !== "number") return;
-    advanceOrRewindCardPointer(slotIndex, entry.floorCount, floorIndex);
+    // branchIndexは呼び出し元（突破判定モーダル）が既に確定済みのため、branch.floors.length
+    // （実際のフロア数）を最優先で使う——entry.floorCount（静的値）は分岐間でフロア数が
+    // 異なるカードでは食い違うことがある。
+    var effectiveFloorCount = branch.floors && typeof branch.floors.length === "number" ? branch.floors.length : typeof entry.floorCount === "number" ? entry.floorCount : null;
+    if (typeof effectiveFloorCount !== "number") return;
+    advanceOrRewindCardPointer(slotIndex, effectiveFloorCount, floorIndex);
     // 使用者確認（バグ報告4）：以前はこの関数がpendingFinalFloorSlot／pendingChipCheckSlot／
     // pendingMapMoveSlotを一切設定しなかったため、最終樓層を突破判定でスキップすると
     // GM側に次の操作ボタンが何も出ず、そのまま進行が止まってしまっていた。真の踏破
@@ -686,7 +691,7 @@
       state.gmFlow.pendingMapMoveSlot = slotIndex;
       Core.saveState();
       advanceCardConclusionChain();
-    } else if (state.cardLevels[slotIndex] === entry.floorCount) {
+    } else if (state.cardLevels[slotIndex] === effectiveFloorCount) {
       state.gmFlow.pendingChipCheckSlot = slotIndex;
       state.gmFlow.pendingMapMoveSlot = slotIndex;
       Core.saveState();
@@ -1839,6 +1844,53 @@
     return resolved;
   }
 
+  // resolveOrCacheBranchと同じキャッシュだけを参照し、新規解決（＝※ランダム決定表の骰子消費）
+  // は一切行わない「覗き見」版。まだ樓層敘述（beginFieldWalkFlow）を開始していない段階でも
+  // 呼ばれる表示専用の呼び出し元（樓層数バッジ、盤面の手動樓層ステッパー）向け——そこで
+  // 未解決の分岐を強制解決すると、GMがまだ［進入］すら押していないのに骰子を消費してしまう。
+  function peekCachedBranchIndex(entry, idx) {
+    if (!entry || !entry.branches || !entry.branches.length) return null;
+    if (entry.branches.length === 1) return 0;
+    var state = window.PriTestNightCore.state;
+    var cacheKey = null;
+    if (typeof idx === "number") {
+      var slot = state.slots[idx];
+      if (slot) cacheKey = idx + ":" + slot.code;
+    } else if (idx === "start" || idx === "end") {
+      cacheKey = idx;
+    }
+    if (!cacheKey || !state.gmFlow.resolvedBranchCache) return null;
+    var cached = state.gmFlow.resolvedBranchCache[cacheKey];
+    return cached && entry.branches[cached.branchIndex] ? cached.branchIndex : null;
+  }
+
+  // カード自身のfloorCount（fields_data_*.jsの静的値）は、branchesごとにフロア数が異なる
+  // フィールド（例：坑道／倒れた大結晶カード、大教會「水辺の大教会」等——varianceNote自体が
+  // 「フィールドごとにフロア数も違うので注意」と明記）では、実際に選ばれた分岐のフロア数と
+  // 食い違うことがある（バグ報告：坑道で樓層1/2が正しく判別できない、大教會等で最終樓層の
+  // 王戰報酬を受け取った直後に樓層1へ巻き戻り無限に再突入する）。このため樓層の踏破管理
+  // （markFloorCleared／advanceOrRewindCardPointer等）で使う「実効フロア数」は、常に
+  // ①解決済み（またはこの場で解決可能）な分岐のbranch.floors.lengthを最優先し、
+  // ②分岐が無い／解決できない／freeFloorOrder（路線自由、別の進行管理を使うため対象外）の
+  // 場合のみentry.floorCount（静的値）へフォールバックする。resolveActual=trueなら
+  // resolveOrCacheBranchで（未解決なら）その場で確定させる——樓層敘述の進行ロジック側専用
+  // （呼び出し時点で既にwalkが始まっている前提のため、新規解決の副作用は許容できる）。
+  // falseならpeekCachedBranchIndexのみを使う（表示専用、新規解決やダイス消費はしない）。
+  function resolveEffectiveFloorCount(entry, idx, resolveActual) {
+    if (!entry) return null;
+    if (entry.branches && entry.branches.length) {
+      var branchIndex = resolveActual ? (function () {
+        var resolved = resolveOrCacheBranch(entry, idx);
+        return resolved ? resolved.branchIndex : null;
+      })() : peekCachedBranchIndex(entry, idx);
+      var branch = branchIndex !== null && branchIndex !== undefined ? entry.branches[branchIndex] : null;
+      if (branch && !branch.freeFloorOrder && branch.floors && typeof branch.floors.length === "number") {
+        return branch.floors.length;
+      }
+    }
+    return typeof entry.floorCount === "number" ? entry.floorCount : null;
+  }
+
   function handleEnterClick() {
     var Core = window.PriTestNightCore;
     var state = Core.state;
@@ -1872,7 +1924,8 @@
     // やり直さず籌碼確認／地圖移動の案内へ直接進める。
     if (typeof idx === "number" && typeof state.cardLevels[idx] === "number") {
       var stuckEntry = window.PriTestNightFloorBreakthrough.resolveFieldEntryForSlot(idx);
-      if (stuckEntry && typeof stuckEntry.floorCount === "number" && state.cardLevels[idx] >= stuckEntry.floorCount) {
+      var stuckFloorCount = resolveEffectiveFloorCount(stuckEntry, idx, true);
+      if (stuckEntry && typeof stuckFloorCount === "number" && state.cardLevels[idx] >= stuckFloorCount) {
         state.gmFlow.pendingChipCheckSlot = idx;
         state.gmFlow.pendingMapMoveSlot = idx;
         advanceCardConclusionChain();
@@ -3190,9 +3243,20 @@
     // 敘述を最後まで読み終えた＝真の踏破なので、floorClearedにも記録する（突破判定の
     // 「スキップ」との違いは第5項参照）。
     if (floor && typeof walkSlotIndex === "number") {
-      if (walkEntry && typeof walkEntry.floorCount === "number" && typeof walkFloorIndex === "number") {
-        markFloorCleared(walkSlotIndex, walkEntry.floorCount, walkFloorIndex);
-        advanceOrRewindCardPointer(walkSlotIndex, walkEntry.floorCount, walkFloorIndex);
+      // walkBranchは既にこの訪問で解決済み（walk.branchIndex由来）のため、branch.floors.length
+      // （実際のフロア数）を最優先で使う。entry.floorCount（静的値）は分岐間でフロア数が
+      // 異なるカード（坑道／倒れた大結晶、大教會等）では食い違い、最終樓層の王戰報酬を
+      // 受け取った直後に樓層1へ巻き戻って無限に再突入する・逆に途中の樓層を跨ぎ越して
+      // 「全」へ飛んでしまう、といった不具合の原因になっていた（バグ報告）。
+      var walkEffectiveFloorCount =
+        walkBranch && walkBranch.floors && typeof walkBranch.floors.length === "number"
+          ? walkBranch.floors.length
+          : walkEntry && typeof walkEntry.floorCount === "number"
+          ? walkEntry.floorCount
+          : null;
+      if (typeof walkEffectiveFloorCount === "number" && typeof walkFloorIndex === "number") {
+        markFloorCleared(walkSlotIndex, walkEffectiveFloorCount, walkFloorIndex);
+        advanceOrRewindCardPointer(walkSlotIndex, walkEffectiveFloorCount, walkFloorIndex);
       }
       // 第18・19項「結束該卡牌的最後一個樓層後...則再處理［全踏破］處理...再次詢問是否使用
       // 籌碼事件...接著處理［地圖移動機制］」：cardLevelsが「全」（null）になった＝floorCleared
@@ -4956,6 +5020,7 @@
     rollStrongEnemyTable: rollStrongEnemyTable,
     resolveStrongEnemyEntry: resolveStrongEnemyEntry,
     resolveFloorSkip: resolveFloorSkip,
+    resolveEffectiveFloorCount: resolveEffectiveFloorCount,
     invalidatePendingFloorSkip: invalidatePendingFloorSkip,
     consumePendingSpiritVeinContinuation: consumePendingSpiritVeinContinuation,
     resumeChipOfferContinuationAfterMove: resumeChipOfferContinuationAfterMove,

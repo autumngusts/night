@@ -178,6 +178,65 @@
     renderCharacterRoster();
   }
 
+  // 技能・武器効果本文中の確定数値の「復歸傷害：N」「復帰ダメージ：N」を対象PCへ直接適用する
+  // 共通ヘルパー。既存の瀕死復歸サークル（handleNearDeathRevivalClick／completeNearDeathRevival）
+  // と同じ経路——nearDeathRevivalValue(target)分の円ボタンをfloor(amount/perClick)個分、
+  // まだ押していないものから自動クリックする（3個揃えば自動で復歸処理まで発火する）。
+  // 対象が瀕死状態でない場合は何もしない（復歸傷害は瀕死状態のPCを復歸させるための数値のため、
+  // event_rulebook.jsの「使世界安寧之力」記述など既存の規則書引用と同じ前提）。戻り値は実際に
+  // クリックした円の数（呼び出し元のログ表示用）。
+  function applyRevivalDamage(target, amount) {
+    if (!target || !target._nearDeath || !(amount > 0)) return 0;
+    var perClick = nearDeathRevivalValue(target);
+    if (!(perClick > 0)) return 0;
+    if (!target._nearDeathRevivalClicked) target._nearDeathRevivalClicked = [false, false, false];
+    var affordable = Math.floor(amount / perClick);
+    var clicked = 0;
+    for (var i = 0; i < target._nearDeathRevivalClicked.length && clicked < affordable; i++) {
+      if (!target._nearDeathRevivalClicked[i]) {
+        target._nearDeathRevivalClicked[i] = true;
+        clicked++;
+      }
+    }
+    if (clicked > 0) {
+      var allClicked = target._nearDeathRevivalClicked.every(function (v) {
+        return v;
+      });
+      if (allClicked) completeNearDeathRevival(target);
+    }
+    return clicked;
+  }
+
+  // 本文から確定数値の「復歸傷害：N」（zh）／「復帰ダメージ：N」（ja）のみを抽出する
+  // （■は非対応——既存のcountHealSquares／sumMaxStatDeltaFromTextと同じ「□/■を捏造しない」
+  // 方針）。1つの効果内に複数出現するケースは確認されていないため、最初に見つかった1件のみ返す。
+  function parseFixedRevivalDamageValue(text) {
+    var m = /復[帰歸](?:ダメージ|傷害)[：:]\s*(\d+)/.exec(String(text || ""));
+    return m ? parseInt(m[1], 10) : null;
+  }
+
+  // 復歸傷害の対象が「全體PC／PC全員」か「任意の1名PC」かを判定する。本文冒頭の「對象：」行は
+  // 効果全体（エネミー＋モブ＋全體PC等）の対象範囲を列挙しているだけで、實際の復歸傷害自体が
+  // 全員向けとは限らない（例：救世之翼は「對象：敵人＋雜兵＋全體PC」だが復歸傷害自体は
+  // 「對1名PC施加」の1人だけ）。そのため本文全体ではなく、「復歸傷害」の直前一定範囲だけを
+  // 見て、そこに一番近い「全體PC/PC全員/全員」または「1名PC/PC1人」のどちらが直前にあるかで
+  // 判定する（どちらも見つからない場合は安全側＝単体扱いにし、GMに対象を選ばせる）。
+  function revivalDamageTargetsAllPc(text) {
+    var s = String(text || "");
+    var m = /復[帰歸](?:ダメージ|傷害)[：:]\s*\d+/.exec(s);
+    if (!m) return false;
+    var windowText = s.slice(Math.max(0, m.index - 40), m.index);
+    var allIdx = Math.max(windowText.lastIndexOf("全體PC"), windowText.lastIndexOf("PC全員"), windowText.lastIndexOf("全員"));
+    var singleIdx = Math.max(
+      windowText.lastIndexOf("1名PC"),
+      windowText.lastIndexOf("PC1人"),
+      windowText.lastIndexOf("任意的PC1人"),
+      windowText.lastIndexOf("任意のPC1人")
+    );
+    if (allIdx === -1 && singleIdx === -1) return false;
+    return allIdx > singleIdx;
+  }
+
   // HPを減らす全ての経路（角色詳細のHPステッパー、屬性/異常のトリガー等）から呼ぶ共通チェック。
   // 0に到達した瞬間だけ発火し、既に瀕死中なら何もしない。
   function checkNearDeathTrigger(c) {
@@ -4256,6 +4315,7 @@
                 : null;
             c._spiritDamageUsedThisPhase = true;
             if (spiritDamageChoice === "enemy") recordPhaseDamageDealt(c, spiritDamage.value, spiritDamage.symbol);
+            else if (targetChar) applyRevivalDamage(targetChar, spiritDamage.value);
             saveRosterCharacters();
             addActionBox(
               c,
@@ -5438,6 +5498,7 @@
                   })[0]
                 : null;
               roarTotal = window.I18N.t("crucible_roar_target_label", { target: targetChar ? targetChar.name : "" });
+              if (targetChar) applyRevivalDamage(targetChar, 30);
             }
             var extraLines = [window.I18N.t("action_log_dice_used", { dice: dice.join("、") })].concat(costLines);
             if (roarHealEffect && roarHealSelect) {
@@ -5506,6 +5567,34 @@
           mobDamageTargetRow.appendChild(mobDamageTargetLabel);
           mobDamageTargetRow.appendChild(mobDamageRowSelect);
           content.appendChild(mobDamageTargetRow);
+        }
+        // 本文に確定数値の「復歸傷害：N」（■ではない実数値）が含まれる場合、既存の瀕死復歸
+        // サークル機構（applyRevivalDamage）へ直接繋ぐ。「PC全員／全體PC」向けの効果はentered
+        // 全員が対象（実際に反映されるのは瀕死中のPCのみ）、それ以外は対象PCを1人選ばせる
+        // （mobDamageRowSelectと同じ「選択肢を先に見せる」パターン）。
+        var revivalDamageAmount = parseFixedRevivalDamageValue(body);
+        var revivalDamageTargetsAll = !!revivalDamageAmount && revivalDamageTargetsAllPc(body);
+        var revivalDamageSelect = null;
+        if (revivalDamageAmount && !revivalDamageTargetsAll) {
+          var revivalDamageCandidates = rosterCharacters.filter(function (rc) {
+            return rc.entered;
+          });
+          if (revivalDamageCandidates.length) {
+            var revivalDamageTargetRow = document.createElement("div");
+            revivalDamageTargetRow.className = "combat-attack-target-row";
+            var revivalDamageTargetLabel = document.createElement("label");
+            revivalDamageTargetLabel.textContent = window.I18N.t("combat_revival_damage_target_label", { value: revivalDamageAmount });
+            revivalDamageSelect = document.createElement("select");
+            revivalDamageCandidates.forEach(function (rc) {
+              var o = document.createElement("option");
+              o.value = rc.id;
+              o.textContent = rc.name;
+              revivalDamageSelect.appendChild(o);
+            });
+            revivalDamageTargetRow.appendChild(revivalDamageTargetLabel);
+            revivalDamageTargetRow.appendChild(revivalDamageSelect);
+            content.appendChild(revivalDamageTargetRow);
+          }
         }
         renderDiceCostAction(c, content, cost, function (dice, costLines) {
           if (entry.uses && entry.id) {
@@ -5617,7 +5706,10 @@
           }
           // 復仇者「不死行軍」：救世之翼と全く同じライフサイクル（戦闘→額外→防禦の1回合を
           // 跨いで持続し、次に戦闘フェイズへ新規突入した時にのみクリア）の全体バフ。
-          // 「復歸傷害：120」自体はGM手動反映（■/▲と同様の未確定数値は捏造しない方針）。
+          // 「復歸傷害：120」（PC全員が対象）自体は、この関数冒頭のrevivalDamageAmount／
+          // revivalDamageTargetsAll汎用パス（本文の「PC全員」検出）で自動的に適用される
+          // （applyRevivalDamage、瀕死中のPCのみ実際に反映される）ため、ここでは他の固有効果
+          // （バフフラグ・靈體回復）だけを扱う。
           if (entry.id === "march_of_the_undying") {
             rosterCharacters.forEach(function (rc) {
               rc._marchOfTheUndyingActive = true;
@@ -5781,6 +5873,24 @@
             if (bloodSpiritNote) extraLines = extraLines.concat([CharacterTypes.localizedText(bloodSpiritNote.body)]);
           }
           if (ruffianDarkCounterDebuffTriggered) extraLines = extraLines.concat([window.I18N.t("counterattack_debuff_triggered_note")]);
+          if (revivalDamageAmount) {
+            var revivalDamageTargets = revivalDamageTargetsAll
+              ? rosterCharacters.filter(function (rc) {
+                  return rc.entered;
+                })
+              : revivalDamageSelect
+              ? rosterCharacters.filter(function (rc) {
+                  return rc.id === revivalDamageSelect.value;
+                })
+              : [];
+            revivalDamageTargets.forEach(function (rt) {
+              var clicked = applyRevivalDamage(rt, revivalDamageAmount);
+              if (clicked > 0) {
+                extraLines = extraLines.concat([window.I18N.t("combat_revival_damage_applied_note", { name: rt.name, value: revivalDamageAmount })]);
+              }
+            });
+            if (revivalDamageTargets.length) saveRosterCharacters();
+          }
           addActionBox(c, name, total, extraLines);
           addLog("log_combat_skill_use", { character: c.name, skill: name, dice: dice.join("、") });
           combatSkillState = null;
@@ -6150,6 +6260,7 @@
             }, 0);
           }
           var targetChar = st.revivalTargetId ? entered.filter(function (rc) { return rc.id === st.revivalTargetId; })[0] : null;
+          if (st.primaryChoice === "revival" && targetChar) applyRevivalDamage(targetChar, 40);
           var effectNote =
             st.primaryChoice === "damage"
               ? window.I18N.t("claw_shot_choice_damage_label")
@@ -6243,6 +6354,22 @@
     });
     content.appendChild(pursueChoiceRow);
 
+    if (st.pursueEffectChoice === "revival") {
+      var pursueTargetSelect = document.createElement("select");
+      entered.forEach(function (rc) {
+        var opt = document.createElement("option");
+        opt.value = rc.id;
+        opt.textContent = rc.name;
+        pursueTargetSelect.appendChild(opt);
+      });
+      pursueTargetSelect.value = st.revivalTargetId || (entered[0] && entered[0].id) || "";
+      pursueTargetSelect.addEventListener("change", function () {
+        st.revivalTargetId = pursueTargetSelect.value;
+      });
+      st.revivalTargetId = pursueTargetSelect.value;
+      content.appendChild(pursueTargetSelect);
+    }
+
     if (st.pursueEffectChoice) {
       // 本文「額外支付『骰子消耗：3』」＝出目合計3（個数ではない、ユーザー確認済み）。
       var pursueCost = { diceKind: "sum", diceCountMin: 1, diceCountMax: null, sumTotal: 3, fpCost: 0, hpCost: 0 };
@@ -6259,7 +6386,13 @@
               })
             : window.I18N.t("claw_shot_choice_damage_label");
         } else {
-          pursueNote = window.I18N.t("claw_shot_choice_revival_label");
+          var pursueTargetChar = st.revivalTargetId
+            ? entered.filter(function (rc) {
+                return rc.id === st.revivalTargetId;
+              })[0]
+            : null;
+          if (pursueTargetChar) applyRevivalDamage(pursueTargetChar, 40);
+          pursueNote = window.I18N.t("claw_shot_choice_revival_applied_note", { name: pursueTargetChar ? pursueTargetChar.name : "" });
         }
         var pursueLines = [window.I18N.t("action_log_dice_used", { dice: dice.join("、") })].concat(costLines);
         // R1「技能強化（纏火）」：追撃で選んだ武器が「大劍」の場合のみ、本文をそのまま
@@ -6587,6 +6720,11 @@
   // 任意1名PCへも同様の効果を発揮できる（聖杯瓶はrenderCombatFlaskAction側で別途処理する）。
   var ITEM_EFFECT_EXPAND_IDS = ["item_hero_meat_chunk", "item_turtle_neck_pickle", "item_shard_of_starlight", "item_bitter_medicine"];
 
+  // 現在選択中の消耗品ID。再描画（他のselect変更・骰子選択等、renderCombatModal()を
+  // 呼ぶあらゆる操作）をまたいで保持しないと、後述のselのoption[0]既定選択に押し戻され、
+  // 最初の選択肢（所持順で先頭の消耗品、例：塗脂）以外を選べなくなるバグの原因になる
+  // （ユーザー報告：消耗品を選べず塗脂に固定される）。
+  var combatConsumableSelectedId = null;
   var combatConsumableOtherPcId = null;
   var combatConsumableAilmentLabel = null;
   var combatConsumableGreaseKind = null; // "weapon" | "shield" | null
@@ -6613,6 +6751,12 @@
       showCombatError("combat_error_no_consumable");
       return;
     }
+    // 他のselect（對象・塗脂等）の変更やダイス選択のたびにrenderCombatModal()経由でこの関数
+    // 全体が再実行されるため、選択中のIDをモジュール内変数へ保存しておかないと、新しく作られる
+    // <select>は常にoption[0]（所持順で先頭の消耗品）へ戻ってしまい、それ以外を選べなくなる。
+    if (!combatConsumableSelectedId || ownedIds.indexOf(combatConsumableSelectedId) === -1) {
+      combatConsumableSelectedId = ownedIds[0];
+    }
     var selLabel = document.createElement("label");
     selLabel.className = "field-row-block";
     selLabel.textContent = window.I18N.t("combat_select_consumable_label");
@@ -6623,16 +6767,18 @@
       var opt = document.createElement("option");
       opt.value = id;
       opt.textContent = Consumables.localizedText(item.name) + "（" + byItemId[id].length + "）";
+      if (id === combatConsumableSelectedId) opt.selected = true;
       sel.appendChild(opt);
     });
     sel.addEventListener("change", function () {
+      combatConsumableSelectedId = sel.value;
       resetCombatConsumableSubChoices();
       renderCombatModal();
     });
     selLabel.appendChild(sel);
     content.appendChild(selLabel);
 
-    var selectedId = sel.value;
+    var selectedId = combatConsumableSelectedId;
     var targetKind = CONSUMABLE_TARGET_KIND[selectedId] || "self";
 
     // 學者「博聞強識」：自身が使う消耗品は常に等級2效果が發揮され、支払った骰子の中に出目
@@ -12197,10 +12343,18 @@
       // 不再附加裸數字的樓層編號徽記（避免重複資訊）。
       nameSpan.textContent = displayName;
       content.appendChild(nameSpan);
-      if (card.floorCount != null || card.allFloorEffect) {
+      // 分岐によってフロア数が異なるカード（坑道／倒れた大結晶、大教會等）では、card.floorCount
+      // （静的値）は実際のフロア数と食い違うことがある。既に分岐が解決済み（この訪問で
+      // ［進入］済み）ならその実際のフロア数を表示する。まだ未解決の段階では新規解決や
+      // ダイス消費をしたくないため、キャッシュ済みの結果だけを覗き見る（resolveActual=false）。
+      var effectiveFloorCount =
+        window.PriTestNightGmFlow && window.PriTestNightGmFlow.resolveEffectiveFloorCount
+          ? window.PriTestNightGmFlow.resolveEffectiveFloorCount(card, idx, false)
+          : card.floorCount;
+      if (effectiveFloorCount != null || card.allFloorEffect) {
         var detailParts = [];
-        if (card.floorCount != null) {
-          detailParts.push(window.I18N.t("field_floor_count_label") + window.I18N.t("colon_separator") + card.floorCount);
+        if (effectiveFloorCount != null) {
+          detailParts.push(window.I18N.t("field_floor_count_label") + window.I18N.t("colon_separator") + effectiveFloorCount);
         }
         if (card.allFloorEffect) {
           // 進度版は表示幅が狭いため、night_rulebook.js側の規則書パネルで使う正式ラベル
@@ -12406,7 +12560,14 @@
   // （例：floorCount:2のカードなら 0,1,2,全 のみ。従来は固定で0〜5,全だった）。
   function levelStepsForSlot(index) {
     var entry = window.PriTestNightFloorBreakthrough.resolveFieldEntryForSlot(index);
-    var floorCount = entry && typeof entry.floorCount === "number" ? entry.floorCount : 5;
+    // 分岐によってフロア数が異なるカードでは、既に分岐が解決済み（この訪問で［進入］済み）
+    // ならその実際のフロア数に合わせてステッパーの範囲を出す（未解決なら新規解決や骰子消費を
+    // したくないため、覗き見のみ＝resolveActual=falseで、entry.floorCountへフォールバック）。
+    var effectiveFloorCount =
+      window.PriTestNightGmFlow && window.PriTestNightGmFlow.resolveEffectiveFloorCount
+        ? window.PriTestNightGmFlow.resolveEffectiveFloorCount(entry, index, false)
+        : entry && entry.floorCount;
+    var floorCount = typeof effectiveFloorCount === "number" ? effectiveFloorCount : 5;
     var steps = [];
     for (var i = 0; i <= floorCount; i++) steps.push(i);
     steps.push(null); // "全"

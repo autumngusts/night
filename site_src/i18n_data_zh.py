@@ -805,6 +805,8 @@ STRINGS_ZH: dict[str, str] = {
     "attribute_status_add_button": "新增",
     "combat_attack_target_enemy_label": "目標敵人",
     "combat_attack_target_mob_row_label": "目標雜兵列",
+    "combat_revival_damage_target_label": "選擇【復歸傷害：{value}】的施加對象",
+    "combat_revival_damage_applied_note": "已對「{name}」施加復歸傷害：{value}",
     "weapon_grace_dice_trigger_note": "{character}的「{skill}」發動！",
     "weapon_grace_dice_applied_note": "已自動對「{enemy}」造成HP損害1點",
     "weapon_grace_dice_unresolved_target_note": "敵人目標不明確，請GM手動為對應敵人套用「HP損害：1」",
