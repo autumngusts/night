@@ -3,3 +3,5 @@ __pycache__/
 *.pyc
 .aider*
 .venv/*
+tools/field_card_sweep/node_modules/
+tools/field_card_sweep/sweep-results-*.json

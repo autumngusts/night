@@ -678,6 +678,18 @@
     var state = Core.state;
     var entry = window.PriTestNightFloorBreakthrough.resolveFieldEntryForSlot(slotIndex);
     var branch = entry && entry.branches ? entry.branches[branchIndex] : null;
+    // 使用者確認（自動化GMテストで発見）：出發地點／黄金樹の帳（"start"|"end"）はcardLevelsを
+    // 持たず（state.startChecks／endChecksで別管理、finishFieldWalk参照）、floorCleared／
+    // advanceOrRewindCardPointerなどこの先の連番floorIndexブックキーピングは全て数値板塊
+    // 専用の前提で書かれている。突破判定モーダルは板塊の種類を問わず開けてしまうため、
+    // 起點／終點で「突破」から合格を選ぶとここへ数値以外のslotIndexのまま流れ込み、
+    // advanceOrRewindCardPointer内のCore.renderCardLevel(slotIndex)が存在しないDOM要素
+    // （"level-value-start"等、板塊専用のid）を参照してtextContentの代入に失敗し、例外で
+    // 処理全体が止まっていた（進度版が固まる不具合）。路線自由カードと同じ「ブックキーピング
+    // の前提が崩れる組み合わせ」として、ここで早期returnし、突破ボタン自体は何も変更せず
+    // 静かに終わらせる（起點／終點は元々floorCount:1で〔描写〕を読み終えた時点＝即座に
+    // 全踏破対象になるため、GMは代わりに［進入］を使えば通常通り進行できる）。
+    if (typeof slotIndex !== "number") return;
     if (!branch || branch.freeFloorOrder) return; // 路線自由カード、または解決不能：ポインタは変更しない
     // branchIndexは呼び出し元（突破判定モーダル）が既に確定済みのため、branch.floors.length
     // （実際のフロア数）を最優先で使う——entry.floorCount（静的値）は分岐間でフロア数が
@@ -2428,10 +2440,31 @@
     Core.saveState();
   }
 
+  // 使用者確認（自動化GMテストで発見）：この関数はautoResolveBranchが自動決定できなかった
+  // （劇本のvarianceTableが無い／該当しない等）場合のGM手動選択の確定経路。以前はwalk.branchIndex
+  // だけを更新し、state.gmFlow.resolvedBranchCacheへは書き込んでいなかった（handleBranchOverrideSelect
+  // Clickは同じ理由で既にキャッシュへ書き込む修正済みだったが、こちらは未対応のまま残っていた）。
+  // その結果、複数樓層を持つ分岐（例：card_9の「神殿」、branch.floors.length=3 vs entry.floorCount=1
+  // という食い違いを持つカード）で樓層1を終えて再度［進入］すると、resolveEffectiveFloorCountが
+  // キャッシュ不在のためautoResolveBranchを再試行→再び解決失敗→entry.floorCount（静的値、この例
+  // では1）へフォールバックしてしまい、handleEnterClickの「既に樓層数の上限に達した」判定
+  // （cardLevels[idx] >= stuckFloorCount）が誤って真になり、樓層2・3を一切敘述せずそのまま
+  // 籌碼確認／地圖移動へ進んでしまう（樓層が丸ごと飛ばされる）不具合があった。
   function handleBranchChoiceClick(branchIndex) {
     var state = window.PriTestNightCore.state;
     var walk = state.gmFlow.walk;
     if (!walk) return;
+    var cacheKey = null;
+    if (typeof walk.slotIndex === "number") {
+      var slot = state.slots[walk.slotIndex];
+      if (slot) cacheKey = walk.slotIndex + ":" + slot.code;
+    } else if (walk.slotIndex === "start" || walk.slotIndex === "end") {
+      cacheKey = walk.slotIndex;
+    }
+    if (cacheKey) {
+      if (!state.gmFlow.resolvedBranchCache) state.gmFlow.resolvedBranchCache = {};
+      state.gmFlow.resolvedBranchCache[cacheKey] = { branchIndex: branchIndex };
+    }
     walk.branchIndex = branchIndex;
     walk.floorIndex = currentFloorIndexForSlot(walk.slotIndex);
     walk.lineIndex = 0;
@@ -3356,6 +3389,19 @@
       // しまうため、領取完了（[獲得完]）のタイミングまで意図的に遅延させる。
       if (Core.state.cardLevels[walkSlotIndex] === null) {
         state.gmFlow.pendingFinalFloorSlot = walkSlotIndex;
+        state.gmFlow.pendingChipCheckSlot = walkSlotIndex;
+        state.gmFlow.pendingMapMoveSlot = walkSlotIndex;
+      } else if (Core.state.cardLevels[walkSlotIndex] === walkEffectiveFloorCount) {
+        // 使用者確認（自動化GMテストで発見、resolveFloorSkipの既存分岐と揃える）：この訪問中に
+        // 突破判定でスキップしたまま真には踏破していない樓層が他に残っている場合、
+        // advanceOrRewindCardPointerはcardLevelsを「全」（null）にはせずfloorCount止まりにする
+        // （第6項）。以前はこのケースだけpendingChipCheckSlot／pendingMapMoveSlotを一切
+        // 予約しないままゲートを閉じてしまい、GMが最後の樓層の獎勵ゲートを閉じた直後は
+        // 進度版が何も案内せず一旦アイドル状態（［進入］/［突破］のみ）へ戻ってしまっていた
+        // （実際には無言のまま再度［進入］を押すとhandleEnterClickの「打止」ガードが籌碼確認／
+        // 地圖移動へ導いてくれるが、その1回分の無意味なクリックをGMに強いていた）。
+        // resolveFloorSkip（突破判定でスキップした場合の同じ「打止」ケース）は既にこの直接連鎖を
+        // 行っているため、finishFieldWalk側も同じ挙動へ揃える。
         state.gmFlow.pendingChipCheckSlot = walkSlotIndex;
         state.gmFlow.pendingMapMoveSlot = walkSlotIndex;
       }
