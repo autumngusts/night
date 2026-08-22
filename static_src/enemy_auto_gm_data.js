@@ -2041,7 +2041,7 @@
           // 回実行）：「敵視:1以上」のPC1体に【個別ダメージ:120】＋「猛毒:1」（固定値、骰子では
           // ない）を与える——「PC人数+1」はパーティ人数に依存する可変値であり固定回数のリテラル値
           // ではないため、既存のrepeat/rotate機構（固定回数専用）は使わず、conditionsとコメントで
-          // GM手動処理に委ねる（Global Constraint 6、grafted_lord|斧連続攻撃と同種の判断）。
+          // GM手動処理に委ねる（Global Constraint 7、grafted_lord|斧連続攻撃と同種の判断）。
           rollMin: 1,
           rollMax: 1,
           conditions: ["variable_repeat_manual"],
