@@ -9419,8 +9419,16 @@
     if (boardSideMobHp) boardSideMobHp.hidden = state.battle.mobHpRows.length === 0;
   }
 
+  // 使用者確認（自動化GMテストで発見）：state.battle.mobHpRowsは主要エネミーのHP行
+  // （state.battle.enemyHp）と同じ「チェック済み＝現在HP残数」規約を共有する
+  // （setEnemyHpRowCountの「殘りHPを実際の最大値で滿タン初期化する」コメント、および
+  // adjustEnemyHpRowの「「＋」（回復）」コメント参照——「＋」は回復、「－」が損害）。
+  // 以前はここで.fill(false)（全マス未チェック）していたため、新規追加した雜兵列が
+  // 「現在HP：0／上限：N」＝最初から瀕死（実質撃破済み）の状態で出現してしまい、
+  // 一般エネミーのHP行の挙動と食い違っていた（ユーザー報告）。.fill(true)（全マス
+  // チェック済み＝滿タン）にして、一般エネミーと同じ「追加時は必ず滿タン」の規約に揃える。
   function handleAddMobRow() {
-    state.battle.mobHpRows.push(new Array(MOB_HP_COLS).fill(false));
+    state.battle.mobHpRows.push(new Array(MOB_HP_COLS).fill(true));
     saveState();
     renderMobHpList();
   }
@@ -9429,7 +9437,7 @@
   // 上限が固定10ではなく計算値そのもの——night_gm_flow.jsのresolveAndAddCombatEnemies経由で呼ばれる）。
   function addAutoMobHpRow(maxHp) {
     var n = Math.max(1, Math.round(maxHp) || 1);
-    state.battle.mobHpRows.push(new Array(n).fill(false));
+    state.battle.mobHpRows.push(new Array(n).fill(true));
     saveState();
     renderMobHpList();
     return n;
