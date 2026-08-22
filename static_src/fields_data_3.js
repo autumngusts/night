@@ -637,6 +637,7 @@
                 { kind: "consumable", value: 1, note: C("（瓦礫をあさる）", "（翻找瓦礫）") },
                 { kind: "hpDamage", value: 1, note: C("（過半数失敗時・野犬に不意打ちされた場合）", "（過半數判定失敗時・遭野犬偷襲）") },
                 { kind: "weaponStar", value: 1, categoryId: "staff", note: C("（ザコ戦闘撃破）", "（雜兵戰鬥擊破）") },
+                { kind: "rune", value: 1, note: C("（撃破ルーン）", "（擊破盧恩）") },
               ],
             },
             {
@@ -713,6 +714,7 @@
                   attributeTag: C("腐敗", "腐敗"),
                   note: C("（ボス戦闘撃破）", "（王戰擊破）"),
                 },
+                { kind: "rune", value: 3, note: C("（撃破ルーン）", "（擊破盧恩）") },
               ],
             },
           ],
@@ -920,6 +922,7 @@
                   note: C("（瓦礫をあさる）", "（翻找瓦礫）"),
                 },
                 { kind: "hpDamage", value: 2, note: C("（瓦礫をあさる・大蟹に巻き込まれた場合）", "（翻找瓦礫・被大蟹波及時）") },
+                { kind: "rune", value: 1, note: C("（撃破ルーン）", "（擊破盧恩）") },
               ],
             },
             {
@@ -991,6 +994,7 @@
                   note: C("（ボス戦闘撃破）", "（王戰擊破）"),
                 },
                 { kind: "weaponStar", value: 1, categoryId: "staff", note: C("（ボス戦闘撃破）", "（王戰擊破）") },
+                { kind: "rune", value: 4, note: C("（撃破ルーン）", "（擊破盧恩）") },
               ],
             },
           ],
@@ -1064,6 +1068,7 @@
                   note: C("（瓦礫を物色）", "（搜尋瓦礫）"),
                 },
                 { kind: "weaponStar", value: 1, categoryId: "sacred_seal", note: C("（傾いた建物へ）", "（前往傾頹的建築）") },
+                { kind: "rune", value: 1, note: C("（撃破ルーン）", "（擊破盧恩）") },
               ],
             },
             {
@@ -1131,6 +1136,7 @@
                   attributeTag: C("発狂／-5（154頁）", "發狂／-5（154頁）"),
                   note: C("（ボス戦闘撃破）", "（王戰擊破）"),
                 },
+                { kind: "rune", value: 4, note: C("（撃破ルーン）", "（擊破盧恩）") },
               ],
             },
           ],
@@ -1189,6 +1195,7 @@
                 { kind: "weaponStar", value: 1, categoryId: "staff", note: C("（瓦礫をあさる）", "（翻找瓦礫）") },
                 { kind: "hpDamage", value: 1, note: C("（瓦礫をあさる・行為判定失敗時）", "（翻找瓦礫・行為判定失敗時）") },
                 { kind: "weaponStar", value: 1, categoryId: "sacred_seal", note: C("（崩れかかった建物へ）", "（前往即將崩塌的建築）") },
+                { kind: "rune", value: 1, note: C("（撃破ルーン）", "（擊破盧恩）") },
               ],
             },
             {
@@ -1243,6 +1250,7 @@
                   attributeTag: C("出血", "出血"),
                   note: C("（ボス戦闘撃破）", "（王戰擊破）"),
                 },
+                { kind: "rune", value: 4, note: C("（撃破ルーン）", "（擊破盧恩）") },
               ],
             },
           ],
