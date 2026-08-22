@@ -1377,6 +1377,23 @@ button {
   animation: relic-learn-pending-flash 1s ease-in-out infinite;
 }
 
+/* 復仇者「死靈術」：雜兵陣亡使可擲骰召喚死靈時，公開盤上的靈體圖示閃爍提示。 */
+@keyframes necromancy-pending-flash {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.35;
+    transform: scale(1.2);
+  }
+}
+
+.roster-dice-add-btn.necromancy-pending {
+  animation: necromancy-pending-flash 1s ease-in-out infinite;
+}
+
 /* 「已習得 X / Y 個」の右側に付ける「可學習 N個」バッジ（白字・黃背景）。 */
 .relic-learnable-badge {
   display: inline-block;

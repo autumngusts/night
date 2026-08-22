@@ -217,6 +217,24 @@
     return clicked;
   }
 
+  // 復仇者（暗影）「靈體消滅時HP回復」「靈體消滅時FP回復」：自身召喚的「靈體」（含「死靈術」
+  // 召喚的靈體）HP歸零而消滅的瞬間，對自身各施加「HP回復：□□」「FP回復：□□」（各+2）。
+  // 兩個relic各自獨立判定是否已習得。moduleレベルへ抽出（元はrenderSpiritPanel内のネスト関数
+  // だったが、敵人傷害結算視窗の靈體/死靈行の確定処理からも同じロジックを再利用するため）。
+  function maybeApplySpiritVanishRecovery(c, wasAboveZero, nowZero, label) {
+    if (!wasAboveZero || !nowZero) return;
+    var healed = false;
+    if (CharacterDrawer.findLearnedRelicEffectByName(c, ["靈體消滅時HP回復", "霊体消滅時HP回復"])) {
+      c.hp.current = Math.min(c.hp.max, c.hp.current + 2);
+      healed = true;
+    }
+    if (CharacterDrawer.findLearnedRelicEffectByName(c, ["靈體消滅時FP回復", "霊体消滅時FP回復"])) {
+      c.fp.current = Math.min(c.fp.max, c.fp.current + 2);
+      healed = true;
+    }
+    if (healed) addLog("log_spirit_vanish_recovery", { character: c.name, label: label });
+  }
+
   // 使用者確認：取消一份即將被撤回的傷害時（取消「已完成」、或用X刪除單一執行行動記錄），
   // 若場上還有其他瀕死角色，詢問GM是否要把這份傷害轉換為「復歸傷害」並直接套用
   // （applyRevivalDamage，共用既存的復歸圓鈕自動點擊機制）。回傳true代表已確認並套用轉換，
@@ -515,6 +533,9 @@
         var spiritPanelBtn = document.createElement("button");
         spiritPanelBtn.type = "button";
         spiritPanelBtn.className = "dice-add-btn roster-dice-add-btn";
+        // 使用者確認：雜兵陣亡使死靈術可以擲骰召喚時，公開盤上自己的靈體圖示要閃爍提示
+        // （c._necromancyPendingCount，與near-death-flash同一視覚語言，見style.css）。
+        if (c._necromancyPendingCount > 0) spiritPanelBtn.classList.add("necromancy-pending");
         spiritPanelBtn.textContent = "\u{1F47B}";
         spiritPanelBtn.title = window.I18N.t("spirit_panel_title");
         spiritPanelBtn.addEventListener("click", function () {
@@ -3775,26 +3796,60 @@
 
   // --- 実行アクションログ（点線枠のボックス）：戦闘の6行動いずれかで骰子決済が完了するたびに、
   // 盤面ロスターの各角色エリアへ実行結果を記録する。右上のXでいつでも消去できる。
-  // dmgValue（省略可）：この行動がc._phaseDamageDealtへ実際に計上した生數值（recordPhaseDamageDealt
-  // と同じ値）。removeActionBoxが「瀕死角色への復歸傷害転換」を確認する際に使う。
-  function addActionBox(c, title, total, lines, dmgValue) {
+  // 使用者確認（重要）：「執行紀錄上的才是對敵人造成的傷害」——c._phaseDamageDealt／
+  // _phaseGuardReductionPoints／_phaseGuardSymbolsは、もう個別にrecordPhaseDamageDealtで
+  // 加算するだけの値ではなく、毎回recomputeCharacterPhaseTotalsでc.pendingActionBoxesから
+  // 再計算し直す「導出値」として扱う。こうすることで、行動を取り消す（removeActionBox）たびに
+  // 総量が自動的に正しく同期され、自動化GM側（[攻擊/防禦]確認時の自動預填、buildCharacterAction
+  // LogLines）に古い値が残らない。
+  // meta（省略可）：{dmgValue, guardSymbol, extraGuardSymbol}。dmgValueはこの行動が
+  // c._phaseDamageDealtへ計上する生數值（recordPhaseDamageDealtに渡したvalueと同じ）。
+  // guardSymbol/extraGuardSymbolは主傷害欄の▲/◆記号（recordPhaseDamageDealtのsymbol引数と
+  // 同じ、無ければnull）。
+  function addActionBox(c, title, total, lines, meta) {
+    meta = meta || {};
     if (!c.pendingActionBoxes) c.pendingActionBoxes = [];
     c.pendingActionBoxes.push({
       id: "ab" + Date.now() + Math.floor(Math.random() * 1000),
       title: title,
       total: total,
       lines: lines || [],
-      dmgValue: dmgValue > 0 ? dmgValue : 0,
+      dmgValue: meta.dmgValue > 0 ? meta.dmgValue : 0,
+      guardSymbol: meta.guardSymbol === "▲" || meta.guardSymbol === "◆" ? meta.guardSymbol : null,
+      extraGuardSymbol: meta.extraGuardSymbol === "▲" || meta.extraGuardSymbol === "◆" ? meta.extraGuardSymbol : null,
     });
+    recomputeCharacterPhaseTotals(c);
     saveRosterCharacters();
   }
 
+  // c.pendingActionBoxes（kind:"enemyDamage"＝受けた敵人傷害のボックスは対象外、あくまで
+  // 自分が與えた傷害のみ）から、c._phaseDamageDealt／_phaseGuardReductionPoints／
+  // _phaseGuardSymbolsを毎回まるごと再計算する。addActionBox／removeActionBoxの両方から
+  // 呼ぶことで、実行紀錄に無い傷害は決して総量に残らないことを保証する。
+  function recomputeCharacterPhaseTotals(c) {
+    var dmg = 0;
+    var guardPts = 0;
+    var guardSymbols = [];
+    (c.pendingActionBoxes || []).forEach(function (b) {
+      if (b.kind === "enemyDamage") return;
+      if (b.dmgValue > 0) dmg += b.dmgValue;
+      [b.guardSymbol, b.extraGuardSymbol].forEach(function (sym) {
+        if (sym === "▲" || sym === "◆") {
+          guardPts += sym === "▲" ? 0.5 : 1;
+          guardSymbols.push(sym);
+        }
+      });
+    });
+    c._phaseDamageDealt = dmg;
+    c._phaseGuardReductionPoints = guardPts;
+    c._phaseGuardSymbols = guardSymbols;
+  }
+
   // 使用者確認：右上のXで実行行動を1件だけ取り消す場合も、「已完成」取消（下のhandleBattle
-  // TurnActionsClick内）と同じく、場上に瀕死角色がいればこの1件分の傷害を復歸傷害へ転換するか
-  // 確認する（promptConvertDamageToRevival、共通ヘルパー）。dmgValueが記録されている行動
-  // （＝c._phaseDamageDealtへ計上済みの攻擊/技能ダメージ）のみ対象とし、転換の有無に関わらず
-  // この1件分だけをc._phaseDamageDealtから差し引く（本回合對敵人總傷害の二重計上を防ぐ、
-  // 同一角色の他の未取消行動分はそのまま残す）。
+  // TurnActionsClick內、現在也改為對每一件執行行動個別呼叫這個函式）と同じく、場上に瀕死角色が
+  // いればこの1件分の傷害を復歸傷害へ転換するか確認する（promptConvertDamageToRevival、
+  // 共通ヘルパー）。転換の有無に関わらず、削除した瞬間にrecomputeCharacterPhaseTotalsで
+  // 総量を再計算するため、本回合對敵人總傷害の二重計上は起こらない。
   function removeActionBox(c, boxId) {
     var removed = null;
     c.pendingActionBoxes = (c.pendingActionBoxes || []).filter(function (b) {
@@ -3806,8 +3861,8 @@
     });
     if (removed && removed.dmgValue > 0) {
       promptConvertDamageToRevival(c, removed.dmgValue);
-      c._phaseDamageDealt = Math.max(0, (c._phaseDamageDealt || 0) - removed.dmgValue);
     }
+    recomputeCharacterPhaseTotals(c);
     saveRosterCharacters();
     renderCharacterRoster();
   }
@@ -4287,7 +4342,7 @@
             Weapons.localizedText(weapon.name) + "（" + window.I18N.t(hitType === "hit1" ? "combat_attack_hit1_button" : "combat_attack_hit2_button") + "）",
             window.I18N.t("action_log_damage_total", { value: CharacterDrawer.formatValueWithSymbol(dmgValue, dmgSymbol) }),
             lines,
-            dmgValue
+            { dmgValue: dmgValue, guardSymbol: dmgSymbol }
           );
           addLog("log_combat_attack", {
             character: c.name,
@@ -4385,7 +4440,7 @@
                 ? window.I18N.t("spirit_damage_pc_target_total", { value: valueText, target: targetChar ? targetChar.name : "" })
                 : window.I18N.t("action_log_damage_total", { value: valueText }),
               [],
-              spiritDamageChoice === "enemy" ? spiritDamage.value : 0
+              spiritDamageChoice === "enemy" ? { dmgValue: spiritDamage.value, guardSymbol: spiritDamage.symbol } : null
             );
             addLog("log_spirit_damage_use", {
               character: c.name,
@@ -4566,7 +4621,10 @@
         }
         var valueText = CharacterDrawer.formatValueWithSymbol(result.value, result.symbol);
         recordPhaseDamageDealt(c, result.value, result.symbol);
-        addActionBox(c, Weapons.localizedText(weapon.name) + "（" + window.I18N.t(labelKey) + "）", window.I18N.t("action_log_damage_total", { value: valueText }), lines);
+        addActionBox(c, Weapons.localizedText(weapon.name) + "（" + window.I18N.t(labelKey) + "）", window.I18N.t("action_log_damage_total", { value: valueText }), lines, {
+          dmgValue: result.value,
+          guardSymbol: result.symbol,
+        });
         addLog("log_combat_special_attack", {
           character: c.name,
           weapon: Weapons.localizedText(weapon.name),
@@ -4639,7 +4697,10 @@
       renderDiceCostAction(c, content, cost, function (dice, costLines) {
         var lines = [window.I18N.t("action_log_dice_used", { dice: dice.join("、") })].concat(costLines);
         var valueText = CharacterDrawer.formatValueWithSymbol(fixed.value, fixed.symbol);
-        addActionBox(c, window.I18N.t("combat_special_attack_fatal_label"), window.I18N.t("action_log_damage_total", { value: valueText }), lines, fixed.value);
+        addActionBox(c, window.I18N.t("combat_special_attack_fatal_label"), window.I18N.t("action_log_damage_total", { value: valueText }), lines, {
+          dmgValue: fixed.value,
+          guardSymbol: fixed.symbol,
+        });
         addLog("log_combat_fatal_strike", { character: c.name, damage: valueText, dice: dice.join("、") });
         recordPhaseDamageDealt(c, fixed.value, fixed.symbol);
         // 「＞習得此技能2個時」の後半：此行動後，對自身施加「HP回復：□」與「FP回復：□」（各+1）。
@@ -4985,10 +5046,42 @@
 
     var usesBonus = CharacterDrawer.getSkillUsesBonus(c);
 
+    // 使用者確認：「跳躍攻擊／衝刺攻擊／蓄力攻擊／致命一擊」這4個遺物效果（relicEffectGroups
+    // 內的kind:"Action"，沒有entry.id）在「攻擊」分頁已經有專用的正確實作
+    // （renderCombatSpecialAttackActions／renderSpecialAttackWeaponRow／renderFatalStrikeAction，
+    // 會正確代入「裝備中1把近戰武器的1Hit傷害」）。但因為這些效果本身kind是"Action"，也會被
+    // getCombatSkillEntries原封不動列進「技能」分頁——這裡的通用computeSkillDamage/renderDiceCostAction
+    // 完全無法解析「裝備中1把近戰武器的1Hit傷害」這種依賴裝備武器才能算出的敘述，導致按下使用
+    // 沒有正確效果。改為在「技能」分頁停用按鈕並提示改用「攻擊」分頁，而不是讓兩套不同結果的
+    // 路徑並存。
+    var ATTACK_TAB_ONLY_SKILL_NAMES = [
+      ["跳躍攻擊", "ジャンプ攻撃"],
+      ["衝刺攻擊", "ダッシュ攻撃"],
+      ["蓄力攻擊", "タメ攻撃"],
+      ["致命一擊", "致命の一撃"],
+    ];
+
     entries.forEach(function (entry, idx) {
       var key = entry.id || "entry" + idx;
       var name = CharacterTypes.localizedText(entry.name);
       var body = CharacterTypes.localizedText(entry.body);
+      var attackTabOnly = ATTACK_TAB_ONLY_SKILL_NAMES.some(function (pair) {
+        return entry.name && (entry.name.zh === pair[0] || entry.name.ja === pair[1]);
+      });
+      if (attackTabOnly) {
+        var attackTabOnlyRow = document.createElement("div");
+        attackTabOnlyRow.className = "combat-skill-row";
+        var attackTabOnlyName = document.createElement("span");
+        attackTabOnlyName.className = "combat-skill-name";
+        attackTabOnlyName.textContent = name + "［" + entry.kind + "］";
+        attackTabOnlyRow.appendChild(attackTabOnlyName);
+        var attackTabOnlyNote = document.createElement("p");
+        attackTabOnlyNote.className = "threat-ref-body";
+        attackTabOnlyNote.textContent = window.I18N.t("combat_skill_use_via_attack_tab_note");
+        attackTabOnlyRow.appendChild(attackTabOnlyNote);
+        content.appendChild(attackTabOnlyRow);
+        return;
+      }
 
       var row = document.createElement("div");
       row.className = "combat-skill-row";
@@ -5112,7 +5205,13 @@
             if (dmg) recordPhaseDamageDealt(c, dmg.value, dmg.symbol);
             var total = dmg ? window.I18N.t("action_log_damage_total", { value: CharacterDrawer.formatValueWithSymbol(dmg.value, dmg.symbol) }) : null;
             moveOminousStrikeToFront(c);
-            addActionBox(c, name + window.I18N.t("power_resonance_free_entry_suffix"), total, [window.I18N.t("log_ominous_strike_move_note")], dmg ? dmg.value : 0);
+            addActionBox(
+              c,
+              name + window.I18N.t("power_resonance_free_entry_suffix"),
+              total,
+              [window.I18N.t("log_ominous_strike_move_note")],
+              dmg ? { dmgValue: dmg.value, guardSymbol: dmg.symbol } : null
+            );
             addLog("log_ominous_strike_free_use", { character: c.name });
             combatSkillState = null;
             renderCombatModal();
@@ -5408,7 +5507,13 @@
               if (dmg) recordPhaseDamageDealt(c, dmg.value, dmg.symbol);
               var total = dmg ? window.I18N.t("action_log_damage_total", { value: CharacterDrawer.formatValueWithSymbol(dmg.value, dmg.symbol) }) : null;
               var hybridNote = [total, window.I18N.t("hybrid_magic_note", { element: elementLabel })].filter(Boolean).join(" / ");
-              addActionBox(c, name, hybridNote, [window.I18N.t("action_log_dice_used", { dice: dice.join("、") })].concat(costLines), dmg ? dmg.value : 0);
+              addActionBox(
+                c,
+                name,
+                hybridNote,
+                [window.I18N.t("action_log_dice_used", { dice: dice.join("、") })].concat(costLines),
+                dmg ? { dmgValue: dmg.value, guardSymbol: dmg.symbol } : null
+              );
               addLog("log_hybrid_magic_use", { character: c.name, element: elementLabel });
               combatSkillState = null;
               hybridMagicElementChoice = null;
@@ -5947,10 +6052,14 @@
               ? [{ label: "炎", amount: 2 }]
               : null;
           var hybridVariantElementRollNotes = [];
+          // 使用者確認：招式傷害計算的黃字（total）如果同時附帶固定屬性/異常附加值，要在同一行
+          // 標註出來（例：「總計傷害：60｜魔：4」），不要只留在extraLines裡才看得到。
+          var hybridVariantElementSummaryParts = [];
           if (hybridVariantElementAccum && combatAttackTargetEnemyKey) {
             hybridVariantElementAccum.forEach(function (a) {
               var amount = a.dice ? 1 + Math.floor(Math.random() * 6) : a.amount;
               recordAttributeStatusDealt(c.id, combatAttackTargetEnemyKey, a.label, amount);
+              hybridVariantElementSummaryParts.push(a.label + window.I18N.t("colon_separator") + amount);
               if (a.dice) {
                 hybridVariantElementRollNotes.push(window.I18N.t("hybrid_magic_variant_element_roll_note", { label: a.label, roll: amount }));
               }
@@ -5975,6 +6084,7 @@
             entry.id === "one_shot" && CharacterDrawer.findLearnedRelicEffectByName(c, ["技藝強化（毒箭）", "アーツ強化（毒矢）"]);
           if (oneShotPoisonBonus && combatAttackTargetEnemyKey) {
             recordAttributeStatusDealt(c.id, combatAttackTargetEnemyKey, "猛毒", 8);
+            hybridVariantElementSummaryParts.push("猛毒" + window.I18N.t("colon_separator") + 8);
           }
           var total =
             entry.id === "marking"
@@ -5986,6 +6096,12 @@
               : dmg
               ? window.I18N.t("action_log_damage_total", { value: CharacterDrawer.formatValueWithSymbol(dmg.value, dmg.symbol) })
               : null;
+          // 使用者確認：黃字（total）如果同時附帶固定屬性/異常附加值（hybridVariantElementAccum／
+          // 一擊必殺的猛毒:8），用「｜」串接標註在同一行（沿用enemy_damage_confirm等既有的「｜」
+          // 分隔符樣式），不必額外展開extraLines才看得到。
+          if (hybridVariantElementSummaryParts.length) {
+            total = (total ? total + "｜" : "") + hybridVariantElementSummaryParts.join("、");
+          }
           var extraLines = [window.I18N.t("action_log_dice_used", { dice: dice.join("、") })].concat(costLines);
           if (hybridVariantElementRollNotes.length) extraLines = extraLines.concat(hybridVariantElementRollNotes);
           if (entry.id === "ominous_strike") extraLines = extraLines.concat([window.I18N.t("log_ominous_strike_move_note")]);
@@ -6044,7 +6160,13 @@
             });
             if (revivalDamageTargets.length) saveRosterCharacters();
           }
-          addActionBox(c, name, total, extraLines, dmg ? dmg.value : 0);
+          addActionBox(
+            c,
+            name,
+            total,
+            extraLines,
+            dmg ? { dmgValue: dmg.value, guardSymbol: dmg.symbol, extraGuardSymbol: dmg.extraGuardSymbol } : null
+          );
           addLog("log_combat_skill_use", { character: c.name, skill: name, dice: dice.join("、") });
           combatSkillState = null;
         });
@@ -6329,10 +6451,74 @@
 
   // 靈體の種類ごとの最大HP・傷害計算式・HP價值（character_types.jsの本文記載値、ユーザー確認済み）。
   var SPIRIT_SUMMON_KINDS = {
-    helen: { hpMax: 2 },
-    frederick: { hpMax: 5 },
-    sebastian: { hpMax: 6 },
+    helen: { hpMax: 2, hpValue: 80 },
+    frederick: { hpMax: 5, hpValue: 60 },
+    sebastian: { hpMax: 6, hpValue: 80 },
   };
+  // 死靈術で召喚した死靈：本文「除HP外資料與『召喚靈體』中的『海倫』靈體相同」のため、
+  // HP價值も海倫と同じ80を使う。
+  var DEATH_SPIRIT_HP_VALUE = SPIRIT_SUMMON_KINDS.helen.hpValue;
+
+  // 使用者確認：「靈體會分擔以『前衛』為目標的亂戰傷害（相當於1名PC份），個別傷害則被視為
+  // 『敵視：0』的1名PC，且不會受到傷害以外的任何效果」。敵人傷害結算視窗（#enemy-damage-modal）
+  // にPC行と並べて表示するため、entered中の全復仇者が持つ召喚中の靈體／死靈術で召喚した死靈を
+  // 「1行分の対象」の形（{key, ownerId, ownerName, label, hpValue, getCurrent/setCurrent/getMax}）
+  // へ変換して返す。keyはPC idと衝突しないよう"spirit:"/"deathSpirit:"を前置する
+  // （state.battle.pendingDefenseRoll・enemyDamageConfirmed・defenseHpLossSummaryは全てPC idを
+  // キーとする既存の連想配列だが、文字列キーである限り型を問わないため同じ構造をそのまま流用できる）。
+  function activeSpiritDamageTargets() {
+    var targets = [];
+    rosterCharacters.forEach(function (c) {
+      if (!c.entered) return;
+      if (c.spiritSummon && c.spiritSummonHp && c.spiritSummonHp[c.spiritSummon]) {
+        var kind = c.spiritSummon;
+        var hp = c.spiritSummonHp[kind];
+        var label = window.I18N.t("spirit_summon_choice_" + kind + "_label");
+        targets.push({
+          key: "spirit:" + c.id,
+          ownerId: c.id,
+          ownerName: c.name,
+          label: label,
+          hpValue: (SPIRIT_SUMMON_KINDS[kind] && SPIRIT_SUMMON_KINDS[kind].hpValue) || 80,
+          getCurrent: function () {
+            return hp.current;
+          },
+          setCurrent: function (v) {
+            hp.current = v;
+          },
+          getMax: function () {
+            return hp.max;
+          },
+          onVanishCheck: function (wasAboveZero, nowZero) {
+            maybeApplySpiritVanishRecovery(c, wasAboveZero, nowZero, label);
+          },
+        });
+      }
+      (c.deathSpirits || []).forEach(function (spirit, idx) {
+        var label = window.I18N.t("death_spirit_label", { index: idx + 1 });
+        targets.push({
+          key: "deathSpirit:" + c.id + ":" + spirit.id,
+          ownerId: c.id,
+          ownerName: c.name,
+          label: label,
+          hpValue: DEATH_SPIRIT_HP_VALUE,
+          getCurrent: function () {
+            return spirit.hpCurrent;
+          },
+          setCurrent: function (v) {
+            spirit.hpCurrent = v;
+          },
+          getMax: function () {
+            return spirit.hpMax;
+          },
+          onVanishCheck: function (wasAboveZero, nowZero) {
+            maybeApplySpiritVanishRecovery(c, wasAboveZero, nowZero, label);
+          },
+        });
+      });
+    });
+    return targets;
+  }
 
   function resetClawShotState() {
     clawShotState = {
@@ -7257,6 +7443,10 @@
         greaseKind: combatConsumableGreaseKind,
         greaseWeaponId: combatConsumableGreaseWeaponId,
         greaseElement: ATTRIBUTE_STATUS_ELEMENT_OPTIONS[combatConsumableGreaseElementIdx],
+        // 投擲壺「X：1D」：取得時のフィールドが指定した屬性（c.consumableAttributeTags、
+        // instance idごとに記録済み）を、実際に消費するこのinstance（target、上でusesRemaining
+        // が最も少ないものから優先消費するよう選ばれている）のidで引く。
+        instanceId: target ? target.id : null,
       });
       combatDiceSelection = [];
       resetCombatConsumableSubChoices();
@@ -7443,7 +7633,24 @@
       lines.push(window.I18N.t("consumable_effect_dice_rolled_note", { dice: shurikenRoll }));
       if (!applyLevel2) lines.push(window.I18N.t("consumable_effect_level2_reminder"));
     } else if (itemId === "item_throwing_pot") {
-      lines.push(window.I18N.t("consumable_effect_throwing_pot_note"));
+      // 修正（使用者回報）：本文「X：1D」のXは、取得時のフィールドが「投擲壺(X)」と明記していれば
+      // その屬性、無指定なら既定で「炎」（docs/enemy_damage_rules.md §7.1の屬性表記に合わせ「火」
+      // ではなく「炎」を使う）。X自体はfields_data側でc.consumableAttributeTags（instance id基準）
+      // へ既に記録済み（handleTurnRewardClaim系）のため、ここではそれを引いて1D6を振り、対象敵人へ
+      // 自動蓄積する。対象敵人未選択時のみ、従来通りGM手動対応の注記へフォールバックする。
+      var potAttrLabel = (c.consumableAttributeTags && target.instanceId && c.consumableAttributeTags[target.instanceId]) || "炎";
+      if (target.enemyKey) {
+        var potRoll = 1 + Math.floor(Math.random() * 6);
+        recordAttributeStatusDealt(c.id, target.enemyKey, potAttrLabel, potRoll);
+        lines.push(
+          window.I18N.t(
+            ["魔", "炎", "雷", "聖"].indexOf(potAttrLabel) !== -1 ? "action_log_element_accum" : "action_log_status_accum",
+            { label: potAttrLabel, value: potRoll }
+          )
+        );
+      } else {
+        lines.push(window.I18N.t("consumable_effect_throwing_pot_note"));
+      }
       if (applyLevel2) {
         total = window.I18N.t("action_log_damage_total", { value: 15 + rearTacticsConsumableDamageBonus });
       } else {
@@ -8596,13 +8803,22 @@
         btn.textContent = c.name;
         btn.addEventListener("click", function () {
           var nowDone = !state.battle.roundActionsDone[c.id];
-          // 使用者確認：從「已完成」（＝執行行動清單中）刪除一條行動時，如果場上還有其他
-          // 瀕死角色，詢問是否要把這次刪除的傷害轉換為「復歸傷害」（promptConvertDamageToRevival，
-          // 與removeActionBox共用的helper）。轉換後這份傷害不再計入本回合對敵人造成的傷害
-          // （computeRoundDamageTotal已改為只計入roundActionsDone中的角色，因此取消已完成本身
-          // 就會讓它不被計入；轉換時額外把c._phaseDamageDealt歸零，避免之後又被重新算進去）。
-          if (!nowDone && promptConvertDamageToRevival(c, c._phaseDamageDealt || 0)) {
-            c._phaseDamageDealt = 0;
+          // 使用者確認：取消「已完成」＝這個角色本回合的行動要整批撤回，不是只隱藏而已。
+          // 修正（使用者回報）：以前是把整個phase的c._phaseDamageDealt彙總值一次性詢問是否
+          // 轉換復歸，但玩家實際想要的是「依每一個執行行動分別選擇要不要轉換」。改為逐一走訪
+          // 這個角色目前的執行行動記錄（pendingActionBoxes，「敵人傷害」ボックス＝這個角色
+          // 受到的傷害記錄除外，不屬於「本回合對敵人造成的傷害」也不該被這次取消影響），對每一件
+          // 都呼叫與X刪除鈕完全相同的removeActionBox（逐件詢問是否轉換復歸、逐件正確從
+          // recomputeCharacterPhaseTotals重新計算總量）。取消後這個角色沒有任何殘留的執行
+          // 行動記錄，之後若重新按「已完成」也不會有舊行動殘留計入。
+          if (!nowDone) {
+            (c.pendingActionBoxes || [])
+              .filter(function (b) {
+                return b.kind !== "enemyDamage";
+              })
+              .forEach(function (b) {
+                removeActionBox(c, b.id);
+              });
           }
           state.battle.roundActionsDone[c.id] = nowDone;
           if (!state.battle.roundActionLog) state.battle.roundActionLog = [];
@@ -9041,11 +9257,10 @@
     renderCharacterRoster();
   }
 
-  // 死靈術の擲骰待ちが1件以上あるキャラのみ、擲骰UI（またはロール後のYes/No確認）を描画する。
-  // 出目が「指定範囲內」かどうかの実際の判定基準は本文に数値が無いため、淑女「重演」の3格確認
-  // ゲートと同型でGM/プレイヤーの手動判定に委ねる（本アプリ全体の「■/▲等の数値未確定値は
-  // 捏造しない」方針を踏襲）。
-  var necromancyRollState = null; // { characterId, rollValue } | null
+  // 死靈術の擲骰待ちが1件以上あるキャラのみ、擲骰ボタンを描画する。
+  // 使用者確認：出目「5」「6」が指定範囲（成功）。範囲確定済みのため、他の骰効果と同じく
+  // その場で自動判定・自動適用する（GM/プレイヤーへのYes/No手動確認は不要）。
+  var NECROMANCY_SUCCESS_ROLLS = [5, 6];
 
   function renderNecromancyPendingSection(c, container) {
     if (!(c._necromancyPendingCount > 0)) return;
@@ -9054,47 +9269,25 @@
     note.textContent = window.I18N.t("necromancy_pending_note", { count: c._necromancyPendingCount });
     container.appendChild(note);
 
-    if (necromancyRollState && necromancyRollState.characterId === c.id) {
-      var resultNote = document.createElement("p");
-      resultNote.className = "threat-ref-body";
-      resultNote.textContent = window.I18N.t("necromancy_roll_result_note", { value: necromancyRollState.rollValue });
-      container.appendChild(resultNote);
-      var confirmRow = document.createElement("div");
-      confirmRow.className = "wb-row";
-      [
-        { key: true, label: window.I18N.t("necromancy_confirm_yes_button") },
-        { key: false, label: window.I18N.t("necromancy_confirm_no_button") },
-      ].forEach(function (opt) {
-        var btn = document.createElement("button");
-        btn.type = "button";
-        btn.textContent = opt.label;
-        btn.addEventListener("click", function () {
-          c._necromancyPendingCount = Math.max(0, (c._necromancyPendingCount || 0) - 1);
-          if (opt.key) {
-            if (!c.deathSpirits) c.deathSpirits = [];
-            c.deathSpirits.push({ id: "ds" + Date.now() + Math.floor(Math.random() * 1000), hpCurrent: 3, hpMax: 3 });
-            addLog("log_necromancy_summon", { character: c.name });
-          } else {
-            addLog("log_necromancy_fail", { character: c.name });
-          }
-          necromancyRollState = null;
-          saveRosterCharacters();
-          renderSpiritPanel();
-        });
-        confirmRow.appendChild(btn);
-      });
-      container.appendChild(confirmRow);
-    } else {
-      var rollBtn = document.createElement("button");
-      rollBtn.type = "button";
-      rollBtn.className = "combat-attack-hit-btn";
-      rollBtn.textContent = window.I18N.t("necromancy_roll_button");
-      rollBtn.addEventListener("click", function () {
-        necromancyRollState = { characterId: c.id, rollValue: 1 + Math.floor(Math.random() * 6) };
-        renderSpiritPanel();
-      });
-      container.appendChild(rollBtn);
-    }
+    var rollBtn = document.createElement("button");
+    rollBtn.type = "button";
+    rollBtn.className = "combat-attack-hit-btn";
+    rollBtn.textContent = window.I18N.t("necromancy_roll_button");
+    rollBtn.addEventListener("click", function () {
+      var rollValue = 1 + Math.floor(Math.random() * 6);
+      c._necromancyPendingCount = Math.max(0, (c._necromancyPendingCount || 0) - 1);
+      if (NECROMANCY_SUCCESS_ROLLS.indexOf(rollValue) !== -1) {
+        if (!c.deathSpirits) c.deathSpirits = [];
+        c.deathSpirits.push({ id: "ds" + Date.now() + Math.floor(Math.random() * 1000), hpCurrent: 3, hpMax: 3 });
+        addLog("log_necromancy_summon", { character: c.name, roll: rollValue });
+      } else {
+        addLog("log_necromancy_fail", { character: c.name, roll: rollValue });
+      }
+      saveRosterCharacters();
+      renderSpiritPanel();
+      renderCharacterRoster();
+    });
+    container.appendChild(rollBtn);
   }
 
   function renderMobHpList() {
@@ -9604,6 +9797,18 @@
         if (groupTargets.length > 1) {
           breakdownParts.push(window.I18N.t("auto_gm_split_note", { count: groupTargets.length, each: Math.round(shares[0]) }));
         }
+        // 使用者確認：「靈體會分擔以『前衛』為目標的亂戰傷害（相當於1名PC份）」。この行動の
+        // 亂戰傷害が実際に前衛のPCへ命中した（groupTargetsの中に前衛が1人以上いた）場合のみ、
+        // 召喚中の靈體／死靈にもPCと同じ1人分の分配額（shares[0]、全員同額のため代表して使う）を
+        // 予填する。PC側の人数・分配自体（groupTargets／shares）は変更しない——「相當於1名PC份」
+        // は靈體が同額を追加で受け取る意味であり、既存PCの取り分を再分割する意味ではない
+        // （GMは確定前にこの欄をいつでも手修正できる）。
+        if (groupTargets.some(function (idx) { return !!(state.battle.front && state.battle.front[idx]); })) {
+          activeSpiritDamageTargets().forEach(function (spiritTarget) {
+            var spiritInput = document.getElementById("enemy-damage-group-" + spiritTarget.key);
+            if (spiritInput) spiritInput.value = String(Math.round(shares[0]));
+          });
+        }
       }
     }
     (result.structuredRow.individualDamage || []).forEach(function (entry) {
@@ -9689,14 +9894,25 @@
     // 個別に触らず、最後に1箇所でまとめて調整することで漏れを防ぐ）。
     var pcDivisor = pcCountEnemyDamageDivisor();
     if (pcDivisor > 1) {
-      entered.forEach(function (c) {
-        var groupInputEl = document.getElementById("enemy-damage-group-" + c.id);
-        var individualInputEl = document.getElementById("enemy-damage-individual-" + c.id);
-        if (groupInputEl) groupInputEl.value = String(Math.floor((parseInt(groupInputEl.value, 10) || 0) / pcDivisor));
-        if (individualInputEl) {
-          individualInputEl.value = String(Math.floor((parseInt(individualInputEl.value, 10) || 0) / pcDivisor));
-        }
-      });
+      // 靈體/死靈も「1名PC份」を分擔する以上、PC人數補正（÷4/÷2）後の実際の取り分もPCと
+      // 揃える必要があるため、PC行と同じ除算をここで一緒に行う。
+      entered
+        .map(function (c) {
+          return c.id;
+        })
+        .concat(
+          activeSpiritDamageTargets().map(function (t) {
+            return t.key;
+          })
+        )
+        .forEach(function (key) {
+          var groupInputEl = document.getElementById("enemy-damage-group-" + key);
+          var individualInputEl = document.getElementById("enemy-damage-individual-" + key);
+          if (groupInputEl) groupInputEl.value = String(Math.floor((parseInt(groupInputEl.value, 10) || 0) / pcDivisor));
+          if (individualInputEl) {
+            individualInputEl.value = String(Math.floor((parseInt(individualInputEl.value, 10) || 0) / pcDivisor));
+          }
+        });
     }
 
     addAutoGmLog(
@@ -9790,6 +10006,76 @@
 
       list.appendChild(row);
     });
+
+    // 使用者確認：「靈體會分擔以『前衛』為目標的亂戰傷害（相當於1名PC份），個別傷害則被視為
+    // 『敵視：0』的1名PC，且不會受到傷害以外的任何效果」。PC行と同じ見た目・同じ計算式
+    // （floor((亂戰+個別)/HP價值)）の行を、召喚中の靈體／死靈ごとに追加する。HP價值は固定値
+    // （SPIRIT_SUMMON_KINDS／DEATH_SPIRIT_HP_VALUE）を使い、PC行と違って迴避／格擋・物理減傷等
+    // 一切のPC側修正を経由しない（「傷害以外の効果を受けない」に対応）。
+    activeSpiritDamageTargets().forEach(function (target) {
+      var key = target.key;
+      var confirmedAlready = !!state.battle.enemyDamageConfirmed[key];
+      var row = document.createElement("div");
+      row.className = "wb-row enemy-damage-pc-row" + (confirmedAlready ? " confirmed" : "");
+      var label = document.createElement("label");
+      label.textContent = target.ownerName + "｜" + target.label;
+      row.appendChild(label);
+
+      var groupInput = document.createElement("input");
+      groupInput.type = "number";
+      groupInput.className = "stat-input";
+      groupInput.min = "0";
+      groupInput.value = pending && pending.group && typeof pending.group[key] === "number" ? String(pending.group[key]) : "0";
+      groupInput.id = "enemy-damage-group-" + key;
+      groupInput.disabled = confirmedAlready;
+      row.appendChild(groupInput);
+
+      var individualInput = document.createElement("input");
+      individualInput.type = "number";
+      individualInput.className = "stat-input";
+      individualInput.min = "0";
+      individualInput.value = pending && pending.individual && typeof pending.individual[key] === "number" ? String(pending.individual[key]) : "0";
+      individualInput.id = "enemy-damage-individual-" + key;
+      individualInput.disabled = confirmedAlready;
+      row.appendChild(individualInput);
+
+      var hpValueInput = document.createElement("input");
+      hpValueInput.type = "number";
+      hpValueInput.className = "stat-input";
+      hpValueInput.min = "1";
+      hpValueInput.value = String(target.hpValue);
+      hpValueInput.id = "enemy-damage-hpvalue-" + key;
+      hpValueInput.disabled = confirmedAlready;
+      row.appendChild(hpValueInput);
+
+      var hpLossSpan = document.createElement("span");
+      hpLossSpan.className = "enemy-damage-hp-loss-value";
+      hpLossSpan.id = "enemy-damage-hploss-" + key;
+      row.appendChild(hpLossSpan);
+
+      function recomputeSpiritHpLoss() {
+        var g = parseInt(groupInput.value, 10) || 0;
+        var iv = parseInt(individualInput.value, 10) || 0;
+        var hv = Math.max(1, parseInt(hpValueInput.value, 10) || 1);
+        hpLossSpan.textContent = String(Math.floor((g + iv) / hv));
+      }
+      groupInput.addEventListener("input", recomputeSpiritHpLoss);
+      individualInput.addEventListener("input", recomputeSpiritHpLoss);
+      hpValueInput.addEventListener("input", recomputeSpiritHpLoss);
+      recomputeSpiritHpLoss();
+
+      var confirmBtn = document.createElement("button");
+      confirmBtn.type = "button";
+      confirmBtn.className = "primary-btn enemy-damage-confirm-btn";
+      confirmBtn.textContent = window.I18N.t("enemy_damage_confirm_button");
+      confirmBtn.disabled = confirmedAlready;
+      confirmBtn.addEventListener("click", function () {
+        handleEnemyDamageConfirmForSpirit(target);
+      });
+      row.appendChild(confirmBtn);
+
+      list.appendChild(row);
+    });
   }
 
   // 自動化GM 戰鬥自動化：全員が防禦體力骰を振り終えた瞬間に1回だけ呼ばれる。既存の
@@ -9847,6 +10133,33 @@
       individual[c.id] = iv;
       previewParts.push(
         c.name +
+          window.I18N.t("colon_separator") +
+          window.I18N.t("enemy_damage_group_short_label") +
+          gv +
+          "／" +
+          window.I18N.t("enemy_damage_individual_short_label") +
+          iv +
+          "／" +
+          window.I18N.t("enemy_damage_predicted_hp_loss_short_label") +
+          Math.floor((gv + iv) / hv)
+      );
+    });
+    // 靈體/死靈も同じ速報へ含める（renderEnemyDamageModalが復元時に読むpending.group/individual
+    // のキー、"spirit:"/"deathSpirit:"接頭辞つき）。
+    activeSpiritDamageTargets().forEach(function (target) {
+      var key = target.key;
+      var groupInputEl = document.getElementById("enemy-damage-group-" + key);
+      var individualInputEl = document.getElementById("enemy-damage-individual-" + key);
+      var hpValueInputEl = document.getElementById("enemy-damage-hpvalue-" + key);
+      var gv = groupInputEl ? parseInt(groupInputEl.value, 10) || 0 : 0;
+      var iv = individualInputEl ? parseInt(individualInputEl.value, 10) || 0 : 0;
+      var hv = Math.max(1, hpValueInputEl ? parseInt(hpValueInputEl.value, 10) || 0 : target.hpValue);
+      group[key] = gv;
+      individual[key] = iv;
+      previewParts.push(
+        target.ownerName +
+          "｜" +
+          target.label +
           window.I18N.t("colon_separator") +
           window.I18N.t("enemy_damage_group_short_label") +
           gv +
@@ -9940,23 +10253,98 @@
     renderEnemyDamageModal();
     renderCharacterRoster();
 
+    checkAllEnemyDamageRowsConfirmedAndFinish();
+  }
+
+  // 使用者確認：「靈體會分擔以『前衛』為目標的亂戰傷害（相當於1名PC份），個別傷害則被視為
+  // 『敵視：0』的1名PC，且不會受到傷害以外的任何效果」。PC版（handleEnemyDamageConfirmForCharacter）
+  // と同じ計算式・見た目の行だが、PC専用の遺物効果修正（斧槍旋風／完全無効化／逆襲の剩餘1）や
+  // 屬性/異常蓄積の反映は一切行わない（「傷害以外の効果を受けない」への対応。そもそもPC固有の
+  // 遺物効果は靈體には該当しない）。
+  function handleEnemyDamageConfirmForSpirit(target) {
+    var key = target.key;
+    if (state.battle.enemyDamageConfirmed && state.battle.enemyDamageConfirmed[key]) return;
+    var groupTag = document.getElementById("enemy-damage-group-tag").value.trim();
+    var groupInputEl = document.getElementById("enemy-damage-group-" + key);
+    var individualInputEl = document.getElementById("enemy-damage-individual-" + key);
+    var hpValueInputEl = document.getElementById("enemy-damage-hpvalue-" + key);
+    var groupValue = groupInputEl ? parseInt(groupInputEl.value, 10) || 0 : 0;
+    var individual = individualInputEl ? parseInt(individualInputEl.value, 10) || 0 : 0;
+    var hpValue = Math.max(1, hpValueInputEl ? parseInt(hpValueInputEl.value, 10) || 1 : target.hpValue);
+    var hpLoss = Math.floor((groupValue + individual) / hpValue);
+
+    var line =
+      target.ownerName +
+      "｜" +
+      target.label +
+      " " +
+      window.I18N.t("enemy_damage_log_prefix") +
+      window.I18N.t("colon_separator") +
+      groupValue +
+      (groupTag ? " | " + groupTag : "") +
+      ", " +
+      window.I18N.t("enemy_damage_individual_label") +
+      window.I18N.t("colon_separator") +
+      individual +
+      "｜" +
+      window.I18N.t("enemy_damage_col_hp_loss") +
+      window.I18N.t("colon_separator") +
+      hpLoss;
+    addAutoGmLog(line);
+
+    var wasAboveZero = target.getCurrent() > 0;
+    var hpAfterLoss = Math.max(0, target.getCurrent() - hpLoss);
+    target.setCurrent(hpAfterLoss);
+    target.onVanishCheck(wasAboveZero, hpAfterLoss === 0);
+    addLog("log_spirit_hp_change", { character: target.ownerName, label: target.label, current: hpAfterLoss, max: target.getMax() });
+    saveRosterCharacters();
+
+    if (!state.battle.enemyDamageConfirmed) state.battle.enemyDamageConfirmed = {};
+    state.battle.enemyDamageConfirmed[key] = true;
+    if (!state.battle.defenseHpLossSummary) state.battle.defenseHpLossSummary = {};
+    state.battle.defenseHpLossSummary[key] = hpLoss;
+    saveState();
+
+    renderEnemyDamageModal();
+    renderCharacterRoster();
+    renderSpiritPanel();
+
+    checkAllEnemyDamageRowsConfirmedAndFinish();
+  }
+
+  // handleEnemyDamageConfirmForCharacter／handleEnemyDamageConfirmForSpirit共通：PC・靈體/死靈の
+  // 全ての行が確定済みになった時点でfinishEnemyDamageRoundへ進む（どちらか一方の確定操作からでも
+  // 判定できるよう、この関数へ集約する）。
+  function checkAllEnemyDamageRowsConfirmedAndFinish() {
     // 瀕死狀態的PC不是敵人攻擊的對象，不會出現在renderEnemyDamageModal的列表中，因此判斷是否
     // 全員都已確定時也要用同一基準（enteredCharactersForBattle）排除，否則瀕死PC會讓這裡永遠等不到
     // allConfirmed。
     var entered = enteredCharactersForBattle();
-    var allConfirmed = entered.length > 0 && entered.every(function (rc) {
-      return !!state.battle.enemyDamageConfirmed[rc.id];
-    });
-    if (allConfirmed) finishEnemyDamageRound(entered);
+    var spiritTargets = activeSpiritDamageTargets();
+    var allConfirmed =
+      entered.length + spiritTargets.length > 0 &&
+      entered.every(function (rc) {
+        return !!state.battle.enemyDamageConfirmed[rc.id];
+      }) &&
+      spiritTargets.every(function (t) {
+        return !!state.battle.enemyDamageConfirmed[t.key];
+      });
+    if (allConfirmed) finishEnemyDamageRound(entered, spiritTargets);
   }
 
-  // entered全員のHP損害確定が完了した時点で、進度版へ「各玩家本回合受到的傷害」を表示し、
-  // combat/extraフェイズのhandleBattleTurnConfirmClickと同じように[結束回合]待ち
-  // （roundStage="resolving"）へ進める。
-  function finishEnemyDamageRound(entered) {
-    var parts = entered.map(function (c) {
-      return c.name + window.I18N.t("colon_separator") + (state.battle.defenseHpLossSummary[c.id] || 0);
-    });
+  // entered全員＋召喚中の靈體/死靈すべてのHP損害確定が完了した時点で、進度版へ「各玩家本回合
+  // 受到的傷害」を表示し、combat/extraフェイズのhandleBattleTurnConfirmClickと同じように
+  // [結束回合]待ち（roundStage="resolving"）へ進める。
+  function finishEnemyDamageRound(entered, spiritTargets) {
+    var parts = entered
+      .map(function (c) {
+        return c.name + window.I18N.t("colon_separator") + (state.battle.defenseHpLossSummary[c.id] || 0);
+      })
+      .concat(
+        (spiritTargets || []).map(function (t) {
+          return t.ownerName + "｜" + t.label + window.I18N.t("colon_separator") + (state.battle.defenseHpLossSummary[t.key] || 0);
+        })
+      );
     var summaryText = window.I18N.t("gm_flow_battle_defense_result_header") + "\n" + parts.join("\n");
     addAutoGmLog(summaryText);
     postSystemTurnMessage(window.I18N.t("gm_flow_battle_defense_result_header") + "　" + parts.join("、"));
@@ -10864,23 +11252,6 @@
       return;
     }
 
-    // 復仇者（暗影）「靈體消滅時HP回復」「靈體消滅時FP回復」：自身召喚的「靈體」（含「死靈術」
-    // 召喚的靈體）HP歸零而消滅的瞬間，對自身各施加「HP回復：□□」「FP回復：□□」（各+2）。
-    // 兩個relic各自獨立判定是否已習得。
-    function maybeApplySpiritVanishRecovery(c, wasAboveZero, nowZero, label) {
-      if (!wasAboveZero || !nowZero) return;
-      var healed = false;
-      if (CharacterDrawer.findLearnedRelicEffectByName(c, ["靈體消滅時HP回復", "霊体消滅時HP回復"])) {
-        c.hp.current = Math.min(c.hp.max, c.hp.current + 2);
-        healed = true;
-      }
-      if (CharacterDrawer.findLearnedRelicEffectByName(c, ["靈體消滅時FP回復", "霊体消滅時FP回復"])) {
-        c.fp.current = Math.min(c.fp.max, c.fp.current + 2);
-        healed = true;
-      }
-      if (healed) addLog("log_spirit_vanish_recovery", { character: c.name, label: label });
-    }
-
     avengers.forEach(function (c) {
       var type = CharacterTypes.get(c.typeId);
       var section = document.createElement("div");
@@ -11399,6 +11770,10 @@
       // クリアしない（目前HP維持のまま自動的に姿を消すのみで、再召喚時にHPを引き継ぐため）。
       rosterCharacters.forEach(function (c) {
         c.deathSpirits = [];
+        // 使用者確認：戰鬥結束（含雜兵全滅導致的簡易戰鬥自動結束）時，尚未擲骰確認的死靈術
+        // 「擲骰待ち」も一緒にクリアする（次の戦闘に無関係な待機が残り続けるのを防ぐ、
+        // 公開盤の閃爍アイコンもこれで正しく消える）。
+        c._necromancyPendingCount = 0;
         // 執行者「不撓」：戦闘終了までの持続スタックのため、戦闘終了のタイミングでクリアする。
         c._unyieldingStacks = 0;
         // 送葬人（黎明）「祈禱輔助強化火力提升」：「火力提升」狀態も持續至戰鬥結束為止のため、
