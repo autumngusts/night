@@ -1111,7 +1111,10 @@
                 ),
               ],
               reward: [
+                { kind: "hpDamage", value: 2, note: C("（行為判定失敗時・ランダム2人）", "（行為判定失敗時・隨機2人）") },
                 { kind: "rune", value: 1, note: C("（火の戦車・弱点を突く成功ごと）", "（火之戰車・每次擊破弱點成功）") },
+                { kind: "hpDamage", value: 2, note: C("（弱点を突く試み・再判定失敗時）", "（試圖擊破弱點・再判定失敗時）") },
+                { kind: "hpDamage", value: 2, note: C("（弱点を突く試み・失敗時）", "（試圖擊破弱點・失敗時）") },
                 {
                   kind: "potentialPower",
                   perPerson: true,
