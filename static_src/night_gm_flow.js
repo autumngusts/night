@@ -629,6 +629,12 @@
   function advanceOrRewindCardPointer(slotIndex, floorCount, justResolvedFloorIndex) {
     var Core = window.PriTestNightCore;
     var state = Core.state;
+    // 使用者確認：已經是「全」（全踏破，cardLevels===null）的板塊，判定完成後不應再自行自動
+    // 變更（重新計算指標、甚至再次觸發全踏破連鎖）。正常情境下handleEnterClickの第6項ガードが
+    // 既に全踏破済みカードへの再進入自体を防いでいるため、この関数は通常呼ばれないはずだが、
+    // 呼び出し元（resolveFloorSkip／finishFieldWalk）が何らかの経路で再度呼んでしまった場合の
+    // 保険として、ここでも直接ガードする（markFreeFloorClearedの既存ガードと同じ考え方）。
+    if (state.cardLevels[slotIndex] === null) return;
     var clearedArr = getFloorCleared(slotIndex, floorCount);
     var next = justResolvedFloorIndex + 1;
     while (next < floorCount && clearedArr[next]) next++;
@@ -678,6 +684,10 @@
     // 異なるカードでは食い違うことがある。
     var effectiveFloorCount = branch.floors && typeof branch.floors.length === "number" ? branch.floors.length : typeof entry.floorCount === "number" ? entry.floorCount : null;
     if (typeof effectiveFloorCount !== "number") return;
+    // 使用者確認：この板塊が既に「全」（全踏破済み）なら、以後の判定機は自行自動變更しない
+    // （通常はhandleEnterClickの第6項ガードで既に全踏破済みカードへの再進入自体を防いでいる
+    // ため到達しないはずだが、念のためここでも全踏破連鎖の再発火を防ぐ）。
+    if (state.cardLevels[slotIndex] === null) return;
     advanceOrRewindCardPointer(slotIndex, effectiveFloorCount, floorIndex);
     // 使用者確認（バグ報告4）：以前はこの関数がpendingFinalFloorSlot／pendingChipCheckSlot／
     // pendingMapMoveSlotを一切設定しなかったため、最終樓層を突破判定でスキップすると
@@ -3290,6 +3300,12 @@
     // 連番ロジックは経由しない——advanceCardConclusionChain側でcardLevels===nullを見て
     // stepCardLevelを呼ばないよう分岐する）。
     var walkBranch = walkEntry && walk && typeof walk.branchIndex === "number" ? walkEntry.branches[walk.branchIndex] : null;
+    // 使用者確認：已經是「全」（全踏破済み）的板塊，判定完成後不會再自行自動變更——通常
+    // handleEnterClickの第6項ガードが既に全踏破済みカードへの再進入自体を防いでいるため
+    // 到達しないはずだが、念のためここでも全踏破連鎖（pendingFinalFloorSlot等）の再発火を防ぐ。
+    if (walkBranch && walkBranch.freeFloorOrder && floor && typeof walkSlotIndex === "number" && state.cardLevels[walkSlotIndex] === null) {
+      return;
+    }
     if (walkBranch && walkBranch.freeFloorOrder && floor && typeof walkSlotIndex === "number") {
       var freeFloorPosition = freeFloorPositionOfFloor(floor);
       if (freeFloorPosition !== null) markFreeFloorCleared(walkSlotIndex, walkBranch, freeFloorPosition);
@@ -3308,6 +3324,12 @@
     // 反映するようにする——以後は自動化GMもそのカードの数字を見るだけで現在位置が分かる。
     // 敘述を最後まで読み終えた＝真の踏破なので、floorClearedにも記録する（突破判定の
     // 「スキップ」との違いは第5項参照）。
+    // 使用者確認：已經是「全」（全踏破済み）的板塊，判定完成後不會再自行自動變更——通常
+    // handleEnterClickの第6項ガードが既に全踏破済みカードへの再進入自体を防いでいるため
+    // 到達しないはずだが、念のためここでも全踏破連鎖（pendingFinalFloorSlot等）の再発火を防ぐ。
+    if (floor && typeof walkSlotIndex === "number" && state.cardLevels[walkSlotIndex] === null) {
+      return;
+    }
     if (floor && typeof walkSlotIndex === "number") {
       // walkBranchは既にこの訪問で解決済み（walk.branchIndex由来）のため、branch.floors.length
       // （実際のフロア数）を最優先で使う。entry.floorCount（静的値）は分岐間でフロア数が
