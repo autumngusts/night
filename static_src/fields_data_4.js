@@ -3278,40 +3278,23 @@
                 L(2, null, ["「竜人兵（228頁）／Lv.9＋L補」", "「龍人兵（228頁）／Lv.9+L補」"], true),
                 L(2, null, ["撃破できたら、PCはそれぞれ「潜在する力：★★（武器は「雷／－5(154頁)」を追加）」を獲得（フロア踏破）。", "擊破後，PC各自獲得「潛力：★★（武器附加「雷／-5（154頁）」）」（樓層踏破）。"], true),
               ],
-              // 「右の門」「左の門」は合流困難と明記された相互排他の選択のため、tieredChoiceへ統一。
               reward: [
                 {
-                  kind: "tieredChoice",
-                  tierLabel: C("進んだ門", "選擇的門"),
-                  tiers: [
-                    {
-                      label: C("右の門（黒き刃の刺客）", "右門（黑刃刺客）"),
-                      rewards: [
-                        {
-                          kind: "potentialPower",
-                          perPerson: true,
-                          value: 2,
-                          attributeTag: C("魔／-5（154頁）", "魔／-5（154頁）"),
-                          note: C("（ボス戦闘1撃破）", "（王戰1擊破）"),
-                        },
-                        { kind: "rune", value: 3, note: C("（撃破ルーン）", "（擊破盧恩）") },
-                      ],
-                    },
-                    {
-                      label: C("左の門（竜人兵）", "左門（龍人兵）"),
-                      rewards: [
-                        {
-                          kind: "potentialPower",
-                          perPerson: true,
-                          value: 2,
-                          attributeTag: C("雷／-5（154頁）", "雷／-5（154頁）"),
-                          note: C("（ボス戦闘2撃破）", "（王戰2擊破）"),
-                        },
-                        { kind: "rune", value: 6, note: C("（撃破ルーン）", "（擊破盧恩）") },
-                      ],
-                    },
-                  ],
+                  kind: "potentialPower",
+                  perPerson: true,
+                  value: 2,
+                  attributeTag: C("魔／-5（154頁）", "魔／-5（154頁）"),
+                  note: C("（ボス戦闘1撃破）", "（王戰1擊破）"),
                 },
+                { kind: "rune", value: 3, note: C("（ボス戦闘1撃破ルーン）", "（王戰1擊破盧恩）") },
+                {
+                  kind: "potentialPower",
+                  perPerson: true,
+                  value: 2,
+                  attributeTag: C("雷／-5（154頁）", "雷／-5（154頁）"),
+                  note: C("（ボス戦闘2撃破）", "（王戰2擊破）"),
+                },
+                { kind: "rune", value: 6, note: C("（ボス戦闘2撃破ルーン）", "（王戰2擊破盧恩）") },
               ],
             },
             {
