@@ -3278,20 +3278,39 @@
                 L(2, null, ["「竜人兵（228頁）／Lv.9＋L補」", "「龍人兵（228頁）／Lv.9+L補」"], true),
                 L(2, null, ["撃破できたら、PCはそれぞれ「潜在する力：★★（武器は「雷／－5(154頁)」を追加）」を獲得（フロア踏破）。", "擊破後，PC各自獲得「潛力：★★（武器附加「雷／-5（154頁）」）」（樓層踏破）。"], true),
               ],
+              // 「右の門」「左の門」は合流困難と明記された相互排他の選択のため、tieredChoiceへ統一。
               reward: [
                 {
-                  kind: "potentialPower",
-                  perPerson: true,
-                  value: 2,
-                  attributeTag: C("魔／-5（154頁）", "魔／-5（154頁）"),
-                  note: C("（ボス戦闘1撃破）", "（王戰1擊破）"),
-                },
-                {
-                  kind: "potentialPower",
-                  perPerson: true,
-                  value: 2,
-                  attributeTag: C("雷／-5（154頁）", "雷／-5（154頁）"),
-                  note: C("（ボス戦闘2撃破）", "（王戰2擊破）"),
+                  kind: "tieredChoice",
+                  tierLabel: C("進んだ門", "選擇的門"),
+                  tiers: [
+                    {
+                      label: C("右の門（黒き刃の刺客）", "右門（黑刃刺客）"),
+                      rewards: [
+                        {
+                          kind: "potentialPower",
+                          perPerson: true,
+                          value: 2,
+                          attributeTag: C("魔／-5（154頁）", "魔／-5（154頁）"),
+                          note: C("（ボス戦闘1撃破）", "（王戰1擊破）"),
+                        },
+                        { kind: "rune", value: 3, note: C("（撃破ルーン）", "（擊破盧恩）") },
+                      ],
+                    },
+                    {
+                      label: C("左の門（竜人兵）", "左門（龍人兵）"),
+                      rewards: [
+                        {
+                          kind: "potentialPower",
+                          perPerson: true,
+                          value: 2,
+                          attributeTag: C("雷／-5（154頁）", "雷／-5（154頁）"),
+                          note: C("（ボス戦闘2撃破）", "（王戰2擊破）"),
+                        },
+                        { kind: "rune", value: 6, note: C("（撃破ルーン）", "（擊破盧恩）") },
+                      ],
+                    },
+                  ],
                 },
               ],
             },
@@ -3360,6 +3379,7 @@
               ],
               reward: [
                 { kind: "consumable", value: 2, note: C("（行為判定成功時）", "（行為判定成功時）") },
+                { kind: "hpDamage", value: 1, note: C("（襲撃者・行為判定失敗時）", "（襲擊者・行為判定失敗時）") },
                 {
                   kind: "potentialPower",
                   perPerson: true,
@@ -3367,6 +3387,7 @@
                   attributeTag: C("魔／-5（154頁）", "魔／-5（154頁）"),
                   note: C("（ボス戦闘撃破）", "（王戰擊破）"),
                 },
+                { kind: "rune", value: 4, note: C("（撃破ルーン）", "（擊破盧恩）") },
               ],
             },
             {
@@ -3400,6 +3421,7 @@
               ],
               reward: [
                 { kind: "potentialPower", perPerson: true, value: 3, note: C("（ボス戦闘撃破）", "（王戰擊破）") },
+                { kind: "rune", value: 15, note: C("（撃破ルーン）", "（擊破盧恩）") },
                 {
                   kind: "note",
                   note: C("（隠れ都の恩寵を獲得。恩寵内容は個人紀錄へ手動反映）", "（獲得隱藏都市的恩寵。恩寵內容需手動反映於個人紀錄）"),
@@ -3504,6 +3526,7 @@
               reward: [
                 { kind: "potentialPower", perPerson: true, value: 2, note: C("（ボス戦闘撃破）", "（王戰擊破）") },
                 { kind: "talisman", value: 1, note: C("（ボス戦闘撃破。人数分クリックしてください）", "（王戰擊破。請依人數點擊）") },
+                { kind: "rune", value: 3, note: C("（撃破ルーン）", "（擊破盧恩）") },
               ],
             },
           ],
@@ -3536,7 +3559,10 @@
                 L(2, null, ["「バジリスクたち（233頁）／Lv.3＋L補」＋モブ1", "「蛇怪們（233頁）／Lv.3+L補」＋雜兵1"], true),
                 L(2, null, ["撃破に成功すると「聖印：★★」を獲得（フロア踏破）。", "擊破成功後獲得「聖印：★★」（樓層踏破）。"], true),
               ],
-              reward: [{ kind: "weaponStar", value: 2, categoryId: "sacred_seal", note: C("（ザコ戦闘撃破）", "（雜兵戰鬥擊破）") }],
+              reward: [
+                { kind: "weaponStar", value: 2, categoryId: "sacred_seal", note: C("（ザコ戦闘撃破）", "（雜兵戰鬥擊破）") },
+                { kind: "rune", value: 2, note: C("（撃破ルーン）", "（擊破盧恩）") },
+              ],
             },
             {
               label: C("フロア2", "樓層2"),
@@ -3551,7 +3577,10 @@
                 L(2, null, ["「王族の幽鬼（235頁）／Lv.7＋L補」", "「王族的幽鬼（235頁）／Lv.7+L補」"], true),
                 L(2, null, ["撃破できたら、PCはそれぞれ「潜在する力：★★」を獲得（フロア踏破）。", "擊破後，PC各自獲得「潛力：★★」（樓層踏破）。"], true),
               ],
-              reward: [{ kind: "potentialPower", perPerson: true, value: 2, note: C("（ボス戦闘撃破）", "（王戰擊破）") }],
+              reward: [
+                { kind: "potentialPower", perPerson: true, value: 2, note: C("（ボス戦闘撃破）", "（王戰擊破）") },
+                { kind: "rune", value: 3, note: C("（撃破ルーン）", "（擊破盧恩）") },
+              ],
             },
             {
               label: C("フロア3", "樓層3"),
@@ -3578,6 +3607,7 @@
               ],
               reward: [
                 { kind: "potentialPower", perPerson: true, value: 3, note: C("（ボス戦闘撃破）", "（王戰擊破）") },
+                { kind: "rune", value: 4, note: C("（撃破ルーン）", "（擊破盧恩）") },
                 {
                   kind: "note",
                   note: C("（隠された霊廟。所持装備品を1つ複製可能。個人紀錄へ手動反映）", "（隱藏的靈廟。可複製1個持有裝備品，需手動反映於個人紀錄）"),
