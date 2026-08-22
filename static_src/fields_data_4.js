@@ -2792,6 +2792,7 @@
                 },
                 { kind: "weaponStar", value: 2, note: C("（ザコ戦闘撃破）", "（雜兵戰鬥擊破）") },
                 { kind: "weaponStar", value: 2, categoryId: "staff", note: C("（ザコ戦闘撃破）", "（雜兵戰鬥擊破）") },
+                { kind: "rune", value: 2, note: C("（撃破ルーン）", "（擊破盧恩）") },
               ],
             },
             {
