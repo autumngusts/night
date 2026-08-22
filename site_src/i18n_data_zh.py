@@ -530,7 +530,7 @@ STRINGS_ZH: dict[str, str] = {
     "combat_special_attack_charge_label": "蓄力攻擊",
     "combat_special_attack_fatal_label": "致命一擊",
     "combat_special_attack_move_to_front_note": "此動作後，自身移動至前衛區域。",
-    "combat_fatal_strike_used_note": "本回合已有1名PC使用過「致命一擊」",
+    "combat_fatal_strike_used_note": "本階段已有1名PC使用過「致命一擊」",
     "log_combat_special_attack": "{character} 使用「{weapon}」（{action}）造成傷害 {damage}，支付骰子：{dice}",
     "log_combat_fatal_strike": "{character} 使用「致命一擊」造成傷害 {damage}，支付骰子：{dice}",
     "combat_two_hit_mastery_toggle_label": "遺物效果「2Hit攻擊的達人」：改用消耗{value}",

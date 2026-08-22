@@ -814,8 +814,10 @@
       },
       // 睡眠トリガーで敵人へ累加する「亂戰傷害」修正値（負数、キーは敵人key）。
       enemyDmgOverride: {},
-      // 遺物効果「致命一擊」：「1回合僅限1名PC使用」のため、誰が使ったかは問わずbattle全体で
-      // 1個のロックにする。combatフェイズへの新規突入（＝新しい回合）でリセットする。
+      // 遺物効果「致命一擊」：使用者確認（2026-08-22修正）——制限の単位は「1回合」ではなく
+      // 「1階段（戰鬥階段／額外階段）」ごとに全PC共通で1個のロック。誰が使ったかは問わず、
+      // combat／extraへ新規突入するたびにリセットする（setActionPhase内）。旧実装はリセット
+      // 処理が一切無く、実質「1度の戰鬥に1回」しか使えなくなっていたバグがあった。
       fatalStrikeUsedThisRound: false,
       // 自動化GM: 坩堝の騎士のような「戦闘開始時に雑兵の有無を確認し、以後は戦闘終了まで
       // その判定を使い続ける」特殊能力用のスナップショット（キーはenemyKey）。一度記録したら
@@ -8803,23 +8805,13 @@
         btn.textContent = c.name;
         btn.addEventListener("click", function () {
           var nowDone = !state.battle.roundActionsDone[c.id];
-          // 使用者確認：取消「已完成」＝這個角色本回合的行動要整批撤回，不是只隱藏而已。
-          // 修正（使用者回報）：以前是把整個phase的c._phaseDamageDealt彙總值一次性詢問是否
-          // 轉換復歸，但玩家實際想要的是「依每一個執行行動分別選擇要不要轉換」。改為逐一走訪
-          // 這個角色目前的執行行動記錄（pendingActionBoxes，「敵人傷害」ボックス＝這個角色
-          // 受到的傷害記錄除外，不屬於「本回合對敵人造成的傷害」也不該被這次取消影響），對每一件
-          // 都呼叫與X刪除鈕完全相同的removeActionBox（逐件詢問是否轉換復歸、逐件正確從
-          // recomputeCharacterPhaseTotals重新計算總量）。取消後這個角色沒有任何殘留的執行
-          // 行動記錄，之後若重新按「已完成」也不會有舊行動殘留計入。
-          if (!nowDone) {
-            (c.pendingActionBoxes || [])
-              .filter(function (b) {
-                return b.kind !== "enemyDamage";
-              })
-              .forEach(function (b) {
-                removeActionBox(c, b.id);
-              });
-          }
+          // 使用者確認（2026-08-22再修正）：「取消已完成」只是取消這個角色本回合的「準備完畢」
+          // 狀態本身（＝從roundActionLog的顯示清單中移除），不應該連帶刪除或詢問轉換這個角色的
+          // 執行行動記錄（c.pendingActionBoxes）——之前的版本會對每一件執行行動呼叫
+          // removeActionBox，導致「取消準備」誤刪傷害紀錄、且反覆詢問是否轉換復歸傷害。
+          // 是否刪除單一執行行動、是否轉換復歸傷害，統一交給執行行動記錄本身右上角的X按鈕
+          // （removeActionBox／promptConvertDamageToRevival）處理。取消準備後若再次按下
+          // 「已完成」，先前未被X刪除的執行行動記錄會原封不動地重新計入。
           state.battle.roundActionsDone[c.id] = nowDone;
           if (!state.battle.roundActionLog) state.battle.roundActionLog = [];
           // 使用者確認：取消準備時はこの角色のぶんだけ配列から取り除く（後続の行は自然に
@@ -9785,9 +9777,19 @@
       breakdownParts.push(groupBreakdown);
       if (result.structuredRow.targetRule) {
         var groupTargets = AutoGm.resolveTargets(result.structuredRow.targetRule, state.battle, entered.length);
+        // 使用者確認（2026-08-22再修正）：「靈體與PC共通分攤亂戰傷害」——この行動の亂戰傷害が
+        // 実際に前衛のPCへ命中した（groupTargetsの中に前衛が1人以上いた）場合のみ、召喚中の
+        // 靈體／死靈も「1名PC份」としてPCと**同じ傷害池**を一緒に均等割りする（GMは確定前に
+        // 各欄をいつでも手修正できる）。旧実装はPC側の人数・分配（groupTargets／shares）を
+        // そのままにして靈體へ同額を追加で渡していたため、実質的に傷害池の総量が水増しされて
+        // いたバグがあった（「共通分攤」＝同じ池を分け合う、という字面と矛盾していた）。
+        var hasFrontGroupTarget = groupTargets.some(function (idx) {
+          return !!(state.battle.front && state.battle.front[idx]);
+        });
+        var spiritSplitTargets = hasFrontGroupTarget ? activeSpiritDamageTargets() : [];
         // 「N人份」の加重配分（現状は対象全員が同一重みのため均等割りと数学的に同値、
-        // auto_gm.jsのsplitGroupShares参照）：対象が複数いる場合は傷害池を人数で分ける。
-        var shares = AutoGm.splitGroupShares(groupResult.total, groupTargets.length);
+        // auto_gm.jsのsplitGroupShares参照）：対象PC＋靈體/死靈の頭数で傷害池を分ける。
+        var shares = AutoGm.splitGroupShares(groupResult.total, groupTargets.length + spiritSplitTargets.length);
         groupTargets.forEach(function (idx, shareIdx) {
           var input = document.getElementById("enemy-damage-group-" + entered[idx].id);
           if (input) input.value = String(Math.round(shares[shareIdx]));
@@ -9797,18 +9799,10 @@
         if (groupTargets.length > 1) {
           breakdownParts.push(window.I18N.t("auto_gm_split_note", { count: groupTargets.length, each: Math.round(shares[0]) }));
         }
-        // 使用者確認：「靈體會分擔以『前衛』為目標的亂戰傷害（相當於1名PC份）」。この行動の
-        // 亂戰傷害が実際に前衛のPCへ命中した（groupTargetsの中に前衛が1人以上いた）場合のみ、
-        // 召喚中の靈體／死靈にもPCと同じ1人分の分配額（shares[0]、全員同額のため代表して使う）を
-        // 予填する。PC側の人数・分配自体（groupTargets／shares）は変更しない——「相當於1名PC份」
-        // は靈體が同額を追加で受け取る意味であり、既存PCの取り分を再分割する意味ではない
-        // （GMは確定前にこの欄をいつでも手修正できる）。
-        if (groupTargets.some(function (idx) { return !!(state.battle.front && state.battle.front[idx]); })) {
-          activeSpiritDamageTargets().forEach(function (spiritTarget) {
-            var spiritInput = document.getElementById("enemy-damage-group-" + spiritTarget.key);
-            if (spiritInput) spiritInput.value = String(Math.round(shares[0]));
-          });
-        }
+        spiritSplitTargets.forEach(function (spiritTarget) {
+          var spiritInput = document.getElementById("enemy-damage-group-" + spiritTarget.key);
+          if (spiritInput) spiritInput.value = String(Math.round(shares[0]));
+        });
       }
     }
     (result.structuredRow.individualDamage || []).forEach(function (entry) {
@@ -11630,6 +11624,13 @@
         addLog("log_130_damage_heal_fp", { character: c.name });
       }
     });
+    // 遺物効果「致命一擊」：使用者確認（2026-08-22修正）——「1回合僅限1名PC使用」は実際には
+    // 「1階段（戰鬥階段／額外階段）につき全PC共通で1回」の意味だったため、combat／extraへ
+    // 新規突入するたび（防禦フェイズや通常状態から戻ってくる場合も含む）に解除し、次の階段で
+    // 再び誰か1人が使用できるようにする。
+    if (phase === "combat" || phase === "extra") {
+      state.battle.fatalStrikeUsedThisRound = false;
+    }
     state.actionPhase = phase;
     // 自動化GM 戰鬥自動化：本回合の「已完成」ボタン状態と細粒度階段（GM敘述提示用）は、
     // フェイズが切り替わるたびにクリアする（combat/extra/defenseへ入るたびに"awaitingRoll"

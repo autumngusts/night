@@ -530,7 +530,7 @@ STRINGS_JA: dict[str, str] = {
     "combat_special_attack_charge_label": "タメ攻撃",
     "combat_special_attack_fatal_label": "致命の一撃",
     "combat_special_attack_move_to_front_note": "このアクション後、自身を前衛エリアに移動する。",
-    "combat_fatal_strike_used_note": "この回合はすでに1人のPCが「致命の一撃」を使用済み",
+    "combat_fatal_strike_used_note": "この階段はすでに1人のPCが「致命の一撃」を使用済み",
     "log_combat_special_attack": "{character}が「{weapon}」（{action}）を使用し、ダメージ{damage}を与えた。支払ったダイス：{dice}",
     "log_combat_fatal_strike": "{character}が「致命の一撃」を使用し、ダメージ{damage}を与えた。支払ったダイス：{dice}",
     "combat_two_hit_mastery_toggle_label": "遺物効果「2Hitアタックの達人」：コストを{value}に変更",

@@ -530,7 +530,7 @@ STRINGS_EN: dict[str, str] = {
     "combat_special_attack_charge_label": "Charged Attack",
     "combat_special_attack_fatal_label": "Fatal Strike",
     "combat_special_attack_move_to_front_note": "After this action, move to the front area.",
-    "combat_fatal_strike_used_note": "A PC has already used Fatal Strike this round",
+    "combat_fatal_strike_used_note": "A PC has already used Fatal Strike this phase",
     "log_combat_special_attack": "{character} used {weapon} ({action}) dealing {damage} damage. Dice paid: {dice}",
     "log_combat_fatal_strike": "{character} used Fatal Strike dealing {damage} damage. Dice paid: {dice}",
     "combat_two_hit_mastery_toggle_label": "Relic effect \"2Hit Attack Mastery\": switch cost to {value}",
