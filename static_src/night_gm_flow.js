@@ -5096,36 +5096,12 @@
       } else {
         addActionButton(actionsEl, "gm_flow_ok_button", handleGmFlowOk);
       }
-      // 「GM更改」（使用者指定）：上のactionKind別ボタン群に追加して、規則書パスワード
-      // 認証済みのGMだけに見える分岐変更ボタンを常に併設する。branchChoice自体（自動解決に
-      // 失敗した場合の必須選択）は既にこの目的を満たしているため対象外。walkが複数分岐を
-      // 持つカードを指している間、進度版のどの敘述段階でも押せる（分岐変更後は
-      // handleBranchOverrideSelectClickがその分岐の樓層1から敘述をやり直す）。
-      var overrideWalk = state.gmFlow.walk;
-      var overrideEntry = overrideWalk ? getWalkEntry(overrideWalk) : null;
-      var canOverrideBranch =
-        overrideEntry &&
-        overrideEntry.branches &&
-        overrideEntry.branches.length > 1 &&
-        state.gmFlow.actionKind !== "branchChoice" &&
-        Core.isRulebookAuthenticated();
-      if (canOverrideBranch) {
-        if (state.gmFlow.branchOverrideActive) {
-          overrideEntry.branches.forEach(function (branch, bi) {
-            var overrideBtn = document.createElement("button");
-            overrideBtn.type = "button";
-            overrideBtn.className = "gm-flow-action-btn";
-            overrideBtn.textContent = window.PriTestFields.localizedText(branch.name);
-            overrideBtn.addEventListener("click", function () {
-              handleBranchOverrideSelectClick(bi);
-            });
-            actionsEl.appendChild(overrideBtn);
-          });
-          addActionButton(actionsEl, "gm_flow_branch_override_cancel_button", handleBranchOverrideToggleClick);
-        } else {
-          addActionButton(actionsEl, "gm_flow_branch_override_button", handleBranchOverrideToggleClick);
-        }
-      }
+      // 「GM更改」ボタンは使用者指定により非表示化した。押すとhandleBranchOverrideSelectClick
+      // が常にその分岐の樓層1から敘述をやり直す仕様のため、複数樓層のカードで樓層2以降を
+      // 敘述中でも押せてしまい、意図せず樓層1へ巻き戻る事故の原因になっていた（ユーザー報告：
+      // 打完後に樓層1へ戻ってしまう）。ボタンの描画自体をやめる（handleBranchOverrideToggleClick／
+      // handleBranchOverrideSelectClickの実装自体は変更せず残す——再度有効化したくなった場合に
+      // 備える）。
       return;
     }
 
