@@ -2016,6 +2016,91 @@
         },
       ],
     },
+    // 劇本5「夜之強敵決定表」1日目（fields_data_1.js:487-491）のうち今回追加する1体：王族の幽鬼
+    // （familyId:grafted、enemyId:royal_wraith）。同じ行に列挙される百足のデーモン／戦場の宿将／
+    // ティビアの呼び舟は既存の centipede_demon|duke_freydia|tibias_summoning_boat 各エントリで
+    // 劇本2/3構造化済み、公のフレイディアも同様に構造化済みのため、いずれも本タスクの対象外
+    // （task-2-brief.md参照）。2日目の坩堝の騎士／神肌の使徒たち／死儀礼の鳥も既存対応済みのため
+    // 対象外。
+    //
+    // 【special フィールドについて（rows[]には含めずここに完全記録し、GM手動対応とする）】
+    // - 〔亡者特効〕公開情報。このエネミーは「死に生きる者」である（亡者特効が有効）。出目に
+    //   関係なく常時有効な受動的特性のため、行動テーブルの行としては構造化しない。
+    // - 〔弱点:回復〕いずれかのPCが前衛エリアで「HP回復:□以上」を伴う「祈祷」を使用した場合、
+    //   そのアクションはこのエネミーに追加効果として「◆」（【追加効果】文脈の◆＝1 Guard
+    //   Reduction、CLAUDE.md §18）を与える。トリガーがPC側の行動でありエネミーの出目テーブルに
+    //   存在しないため、rows[]には含めずここに記録する。
+    // - 〔転移（条件発揮）〕次のアクションフェイズ開始時、すべてのPCはスタミナダイスの出目に
+    //   かかわらず、後衛に配置される。本文中で「転移」を明記する行（roll 2「回転殴り＆転移」、
+    //   roll 4「叩きつけ＆転移」）でのみ発揮されるため、既存タグforce_back_row_next_phaseとして
+    //   該当行のconditionsにのみ記録する（他行では付与しない）。
+    "grafted|royal_wraith": {
+      rows: [
+        {
+          // 「猛追」：乱戦ダメージ修正が「—」のため乱戦ダメージは発生しない。個別効果（PC人数+1
+          // 回実行）：「敵視:1以上」のPC1体に【個別ダメージ:120】＋「猛毒:1」（固定値、骰子では
+          // ない）を与える——「PC人数+1」はパーティ人数に依存する可変値であり固定回数のリテラル値
+          // ではないため、既存のrepeat/rotate機構（固定回数専用）は使わず、conditionsとコメントで
+          // GM手動処理に委ねる（Global Constraint 6、grafted_lord|斧連続攻撃と同種の判断）。
+          rollMin: 1,
+          rollMax: 1,
+          conditions: ["variable_repeat_manual"],
+        },
+        {
+          // 「回転殴り＆転移」：「敵視:1以上」で前衛のPC全員に「乱戦ダメージ:2人分」（本文に明記）。
+          // 特殊能力「転移」（次のアクションフェイズ開始時、PC全員がスタミナダイスの出目に
+          // かかわらず後衛に配置される＝force_back_row_next_phase）を効果発揮。
+          rollMin: 2,
+          rollMax: 2,
+          groupDamage: { modifier: 0 },
+          targetRule: { kind: "frontAggroAtLeast1All" },
+          conditions: ["force_back_row_next_phase"],
+        },
+        {
+          // 「毒吐き」：乱戦ダメージ修正－120＋「猛毒:1D」（mod欄の固定値、骰子ではないため
+          // ailmentAccum、本文に乱戦ダメージの対象明記なし＝既定ルール＝前衛均等割り）。個別
+          // ダメージ180＋「猛毒:1D」は「敵視:最大」のPC1体に別枠で発生（grafted_lord|吐き出しの
+          // 「呪死」二重発生と同型構造）。
+          rollMin: 3,
+          rollMax: 3,
+          groupDamage: { modifier: -120, ailmentAccum: [{ label: "猛毒", amount: 1 }] },
+          targetRule: { kind: "frontAll" },
+          individualDamage: [{ amount: 180, targetRule: { kind: "aggroMax" }, ailmentAccum: [{ label: "猛毒", amount: 1 }] }],
+        },
+        {
+          // 「叩きつけ＆転移」：乱戦ダメージ修正+120（「—」ではないため発生、本文に乱戦ダメージの
+          // 対象明記なし）。既定ルール（前衛均等割り）。個別効果:「敵視:1以上」のPC全員は次の
+          // アクションフェイズ開始時に獲得するスタミナダイスが1個減少する（HP損害を伴わないため
+          // conditionsのみ）。特殊能力「転移」（force_back_row_next_phase）を効果発揮。
+          rollMin: 4,
+          rollMax: 4,
+          groupDamage: { modifier: 120 },
+          targetRule: { kind: "frontAll" },
+          conditions: ["stamina_dice_reduction_next_phase", "force_back_row_next_phase"],
+        },
+        {
+          // 「爆発光弾」：乱戦ダメージ修正±0＋「聖:1D」（mod欄の固定値、骰子ではないため
+          // elementAccum、本文に乱戦ダメージの対象明記なし＝既定ルール＝前衛均等割り）。個別
+          // ダメージ180＋「聖:1D」は「敵視:1以上」のPC全員に別枠で発生（grafted_lord|地擦り
+          // 斬撃＆体当たりと同型の二重発生構造）。
+          rollMin: 5,
+          rollMax: 5,
+          groupDamage: { modifier: 0, elementAccum: [{ label: "聖", amount: 1 }] },
+          targetRule: { kind: "frontAll" },
+          individualDamage: [{ amount: 180, targetRule: { kind: "aggroAtLeast1All" }, elementAccum: [{ label: "聖", amount: 1 }] }],
+        },
+        {
+          // 「死の叫び」：乱戦ダメージ修正が「—」のため乱戦ダメージは発生しない。個別効果：
+          // 「敵視:1以上」のPC全員に「HP損害:■■■」を与える（■は数値未確定のプレースホルダの
+          // ため自動計算しない／Global Constraint 1）。スタミナダイス1個を消費するごとに
+          // 「HP損害:■」を軽減してもよいのはPC側の任意選択のため自動計算しない
+          // （imp_watchdog_gargoyle|hero_gargoyle「咆哮」と同型、reducible_by_stamina_dice）。
+          rollMin: 6,
+          rollMax: 6,
+          conditions: ["unknown_hp_damage_manual", "reducible_by_stamina_dice"],
+        },
+      ],
+    },
   };
 
   function get(familyId, enemyId) {
