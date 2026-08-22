@@ -1777,6 +1777,245 @@
         },
       ],
     },
+    // 劇本4「夜之強敵決定表」（fields_data_1.js:474-482）の3体：接ぎ木の君主（1日目、
+    // familyId:grafted）、神肌の使徒たち／降る星の成獣（2日目、familyId:strong_type／
+    // rock_spirit_beast）。貪食ドラゴン／英雄のガーゴイル／ミミズ顔たち／熔鉄デーモンはTask 3で
+    // 構造化済み、ツリーガード&王都の騎兵は既存cavalry|tree_guard_capital_cavalryのため対象外
+    // （task-12-brief.md参照）。
+    //
+    // 【本ブロックで新規導入した conditions タグ】
+    // - back_row_target_manual: 乱戦ダメージの対象が「前衛ではなく後衛」（後衛にPCが1人もいない
+    //   場合のみ前衛にフォールバック）という、既存6種のtargetRule.kindのいずれにも該当しない
+    //   対象規則。新しいtargetRule.kindは追加せず、targetRuleを省略しconditionsとコメントで
+    //   GM手動処理に委ねる（Global Constraint 6）。
+    // - aggro_area_target_manual: 乱戦ダメージの対象が「敵視:最大のPCが存在するエリア（前衛／
+    //   後衛）全員」という、PC個人ではなくエリア単位の多数決で決まる対象規則（同数時は前衛固定の
+    //   タイブレークを伴う）。既存6種のtargetRule.kindはいずれもPC個人の敵視/隊列条件で候補を
+    //   決めるため、このエリア多数決型の対象規則には対応できない（Global Constraint 6、
+    //   strong_type|loathed_demon「転移＆杖撃」と同種の判断）。
+    // - black_flame_corrosion_trigger（神肌の使徒たち専用）: 特殊能力「黒炎の侵蝕（条件発揮）」＝
+    //   適用後、そのフェイズ中に「乱戦ダメージ or 個別ダメージ」でHP損害を受けたPCが
+    //   「最大HP:-□（最低値1）」（重複可）を被り、PCが「祝福での休息」を行うか当該「夜の強敵」を
+    //   撃破するまで持続する、という条件発揮型の効果を適用したことの記録（furnace_flame_trigger
+    //   と同じ設計思想。この行自身のgroupDamage/individualDamageとは別枠・別タイミングの効果の
+    //   ため、conditionsのみで記録する）。
+    // - gravity_rock_generate_trigger（降る星の成獣専用）: 特殊能力「重力岩生成（条件発揮）」＝
+    //   戦闘終了か「重力岩破壊」が発揮されるまでの間、PCたちの任意でPC1人を選び、「重力岩」が
+    //   無い場合のみ前衛エリアに生成する（生成後、選ばれたPCが前衛にいればディフェンスフェイズ
+    //   開始時に「岩に隠れる」選択肢を得る）という、既存スキーマに無い持続的な場：状態オブジェクト
+    //   を導入する効果のため、条件発揮のトリガーであることのみをconditionsで記録する。
+    // - gravity_rock_break_trigger（降る星の成獣専用）: 特殊能力「重力岩破壊（条件発揮）」＝
+    //   「重力岩」が生成されている場合、PC1人がそれを破壊してもよく、破壊した場合このエネミーは
+    //   「HP損害:■■■」（■は数値未確定のプレースホルダのため自動計算しない／Global
+    //   Constraint 1）を被る、という条件発揮型のPC選択トリガーであることの記録。
+    "grafted|grafted_lord": {
+      rows: [
+        {
+          // 「転がりジャンプ斬り」：乱戦ダメージ修正+60（「—」ではないため発生、本文に乱戦
+          // ダメージの対象明記なし）。既定ルール（前衛均等割り）。個別効果は「敵視:最大」のPC1体
+          // の次アクションフェイズ開始時のスタミナダイス-2のみでHP損害を伴わないため、
+          // conditionsのみ記録する（stamina_dice_reduction_next_phase）。
+          rollMin: 1,
+          rollMax: 1,
+          groupDamage: { modifier: 60 },
+          targetRule: { kind: "frontAll" },
+          conditions: ["stamina_dice_reduction_next_phase"],
+        },
+        {
+          // 「風飛ばし」：乱戦ダメージ修正が「—」のため乱戦ダメージは発生しない。個別効果
+          // （2回実行）：「敵視:最大」のPC1体に【個別ダメージ:180】を与える（対象が「敵視:最大」
+          // の単一PCで明確なため、輪流分配ではなく同一対象への2回実行として構造化）。
+          rollMin: 2,
+          rollMax: 2,
+          individualDamage: [{ amount: 180, repeat: 2, targetRule: { kind: "aggroMax" } }],
+        },
+        {
+          // 「アースシーカー」：乱戦ダメージ修正+120（「—」ではないため発生、本文に乱戦ダメージの
+          // 対象明記なし）。既定ルール（前衛均等割り）。個別効果は全PCプール・敵視分岐DCの判定
+          // （敵視:1以上→目標12、それ以外→目標10、運試し）で、失敗したPCに【個別ダメージ:180】を
+          // 与える（ダメージのみで属性/状態異常蓄積を伴わないため、既存のsoldier_knight|
+          // red_lion_knights「アローレイン」と同型でsavingThrowに構造化できる）。
+          rollMin: 3,
+          rollMax: 3,
+          groupDamage: { modifier: 120 },
+          targetRule: { kind: "frontAll" },
+          savingThrow: {
+            stat: "luck",
+            targetByCondition: [
+              { condition: { kind: "aggroAtLeast1" }, target: 12 },
+              { condition: { kind: "default" }, target: 10 },
+            ],
+            onFail: { amount: 180 },
+          },
+        },
+        {
+          // 「地擦り斬撃＆体当たり」：乱戦ダメージ修正+180（「—」ではないため発生、本文に乱戦
+          // ダメージの対象明記なし）。既定ルール（前衛均等割り）。個別効果:「敵視:1以上」の
+          // PC全員（前衛限定の記載なし）に無条件で【個別ダメージ:120】＋「聖:1D」を与え、次の
+          // アクションフェイズ開始時のスタミナダイス-1も発生する（HP損害を伴わない部分は
+          // conditionsで記録）。
+          rollMin: 4,
+          rollMax: 4,
+          groupDamage: { modifier: 180 },
+          targetRule: { kind: "frontAll" },
+          individualDamage: [{ amount: 120, targetRule: { kind: "aggroAtLeast1All" }, elementAccum: [{ label: "聖", amount: 1 }] }],
+          conditions: ["stamina_dice_reduction_next_phase"],
+        },
+        {
+          // 「尻尾薙ぎ払い＆叩きつけ」：乱戦ダメージ修正－300、乱戦ダメージは2回発生する。対象の
+          // 明記が無いため既定ルール（前衛均等割り）。
+          rollMin: 5,
+          rollMax: 5,
+          groupDamage: { modifier: -300, repeat: 2 },
+          targetRule: { kind: "frontAll" },
+        },
+        {
+          // 「斧連続攻撃」：乱戦ダメージ修正が「—」のため乱戦ダメージは発生しない。個別効果
+          // （PC人数回実行）：「敵視:1以上」のPC1体に【個別ダメージ:180】を与える——「PC人数」は
+          // パーティ人数に依存する可変値のため、既存のrepeat/rotate機構（固定回数専用）は使わず
+          // conditionsとコメントでGM手動処理に委ねる（Global Constraint 7）。このダメージを
+          // 回避するPCはダイスコストが半減する（reducible_by_stamina_dice）。
+          rollMin: 6,
+          rollMax: 6,
+          conditions: ["variable_repeat_manual", "reducible_by_stamina_dice"],
+        },
+      ],
+    },
+    "strong_type|divine_skin_apostles": {
+      rows: [
+        {
+          // 「両刃剣乱舞」：前衛の中で「敵視:最大」のPC全員に「乱戦ダメージ:3人分」を割り振る
+          // （本文に明記、soldier_knight|crucible_knight「薙ぎ払い」と同型のfrontAggroMaxAll）。
+          rollMin: 1,
+          rollMax: 1,
+          groupDamage: { modifier: 60 },
+          targetRule: { kind: "frontAggroMaxAll" },
+        },
+        {
+          // 「連続突き」：乱戦ダメージ修正－60（「—」ではないため発生）。対象の明記が無いため
+          // 既定ルール（前衛均等割り）。個別ダメージ180は「敵視:1以上」のPC1体（対象不特定）に
+          // 2回実行。ユーザー確認済み：対象は「敵視:1以上」を満たす候補の中で輪流受傷、最初の
+          // 対象はランダム。
+          rollMin: 2,
+          rollMax: 2,
+          groupDamage: { modifier: -60 },
+          targetRule: { kind: "frontAll" },
+          individualDamage: [
+            { amount: 180, repeat: 2, distribution: "rotate", targetRule: { kind: "aggroAtLeast1All" } },
+          ],
+        },
+        {
+          // 「黒炎投げ」：乱戦ダメージ修正±0（「—」ではないため発生）。乱戦ダメージは前衛を対象と
+          // せず、代わりに後衛を対象とする（後衛にPCが1人もいない場合は前衛が対象）——既存6種の
+          // targetRule.kindのいずれにも該当しない対象規則のため、新規kindは追加せずtargetRuleを
+          // 省略する（back_row_target_manual）。mod欄の「炎:1D」は本文が別途「敵視:1以上」の
+          // PC全員へ与えると明記しており、乱戦ダメージの対象（後衛／フォールバック前衛）とは
+          // 異なる集団への蓄積のみの効果（HP損害を伴わない）のため、groupDamage.elementAccumにも
+          // individualDamageにも構造化できない（accum_target_mismatch_manual）。特殊能力
+          // 「黒炎の侵蝕」を適用（black_flame_corrosion_trigger）。
+          rollMin: 3,
+          rollMax: 3,
+          groupDamage: { modifier: 0 },
+          conditions: ["back_row_target_manual", "accum_target_mismatch_manual", "black_flame_corrosion_trigger"],
+        },
+        {
+          // 「連携攻撃」：乱戦ダメージ修正－180、乱戦ダメージは2回発生する。「敵視:1以上」で前衛
+          // のPC全員に「乱戦ダメージ:2人分」（本文に明記）。
+          rollMin: 4,
+          rollMax: 4,
+          groupDamage: { modifier: -180, repeat: 2 },
+          targetRule: { kind: "frontAggroAtLeast1All" },
+        },
+        {
+          // 「肉弾戦車」：乱戦ダメージ修正±0（「—」ではないため発生）。対象の明記が無いため既定
+          // ルール（前衛均等割り）。「敵視:最大」のPC全員はこの乱戦ダメージに対してガード不可
+          // （no_guard、前衛均等割りの対象全員のうち敵視最大の部分集合にのみ適用される）。
+          rollMin: 5,
+          rollMax: 5,
+          groupDamage: { modifier: 0 },
+          targetRule: { kind: "frontAll" },
+          conditions: ["no_guard"],
+        },
+        {
+          // 「黒炎の乱舞」：乱戦ダメージ修正+60（「—」ではないため発生、本文に乱戦ダメージの対象
+          // 明記なし）。既定ルール（前衛均等割り）。個別効果：「敵視:1以上」のPC全員（前衛限定の
+          // 記載なし）に無条件で【個別ダメージ:120】＋「炎:1D」を与える——mod欄の「炎:1D」は
+          // この個別効果と数値・種別が一致するため二重計上を避けgroupDamageには付随させない。
+          // 特殊能力「黒炎の侵蝕」を適用（black_flame_corrosion_trigger）。
+          rollMin: 6,
+          rollMax: 6,
+          groupDamage: { modifier: 60 },
+          targetRule: { kind: "frontAll" },
+          individualDamage: [{ amount: 120, targetRule: { kind: "aggroAtLeast1All" }, elementAccum: [{ label: "炎", amount: 1 }] }],
+          conditions: ["black_flame_corrosion_trigger"],
+        },
+      ],
+    },
+    "rock_spirit_beast|falling_star_beast": {
+      rows: [
+        {
+          // 「突進＆重力岩破壊」：「敵視:1以上」で前衛のPC全員に「乱戦ダメージ:3人分」（本文に
+          // 明記）。特殊能力「重力岩破壊」を効果発揮（gravity_rock_break_trigger）。
+          rollMin: 1,
+          rollMax: 1,
+          groupDamage: { modifier: 180 },
+          targetRule: { kind: "frontAggroAtLeast1All" },
+          conditions: ["gravity_rock_break_trigger"],
+        },
+        {
+          // 「跳躍回転体当たり＆重力岩破壊」：乱戦ダメージ修正+240（「—」ではないため発生）。
+          // 対象は「敵視:最大」のPCが存在するエリア全員（対象エリアが同数の場合は前衛固定）と
+          // いう、PC個人ではなくエリア単位で決まる対象規則のため、既存6種のtargetRule.kindの
+          // いずれにも該当せずtargetRuleは省略する（aggro_area_target_manual、strong_type|
+          // loathed_demon「転移＆杖撃」と同種の判断）。特殊能力「重力岩破壊」を効果発揮
+          // （gravity_rock_break_trigger）。
+          rollMin: 2,
+          rollMax: 2,
+          groupDamage: { modifier: 240 },
+          conditions: ["aggro_area_target_manual", "gravity_rock_break_trigger"],
+        },
+        {
+          // 「尻尾薙ぎ払い」：乱戦ダメージ修正+180（「—」ではないため発生、本文に乱戦ダメージの
+          // 対象明記なし）。既定ルール（前衛均等割り）。次のアクションフェイズ終了までエネミーを
+          // 「HP価値:+20（最大100）」する（enemy_hp_value_buff）。
+          rollMin: 3,
+          rollMax: 3,
+          groupDamage: { modifier: 180 },
+          targetRule: { kind: "frontAll" },
+          conditions: ["enemy_hp_value_buff"],
+        },
+        {
+          // 「ハサミ振り回し＆重力岩生成」：乱戦ダメージ修正－180、乱戦ダメージは2回発生する。
+          // 「敵視:1以上」で前衛のPC全員に「乱戦ダメージ:2人分」（本文に明記）。特殊能力
+          // 「重力岩生成」を効果発揮（gravity_rock_generate_trigger）。
+          rollMin: 4,
+          rollMax: 4,
+          groupDamage: { modifier: -180, repeat: 2 },
+          targetRule: { kind: "frontAggroAtLeast1All" },
+          conditions: ["gravity_rock_generate_trigger"],
+        },
+        {
+          // 「重力雷落とし」：乱戦ダメージ修正が「—」のため乱戦ダメージは発生しない。個別効果
+          // （PC人数回実行）：「敵視:1以上」のPC1体に【個別ダメージ:180】＋「魔:1D」を与える——
+          // 「PC人数」はパーティ人数に依存する可変値のため、既存のrepeat/rotate機構（固定回数
+          // 専用）は使わずconditionsとコメントでGM手動処理に委ねる（Global Constraint 7）。
+          rollMin: 5,
+          rollMax: 5,
+          conditions: ["variable_repeat_manual"],
+        },
+        {
+          // 「重力操作＆重力岩生成」：乱戦ダメージ修正+120＋「魔:2D」（mod欄の固定値、骰子では
+          // ないためelementAccum）。乱戦ダメージはPC全員を対象とする（本文に明記）。この乱戦
+          // ダメージに対してガード不可（no_guard）。特殊能力「重力岩生成」を効果発揮
+          // （gravity_rock_generate_trigger）。
+          rollMin: 6,
+          rollMax: 6,
+          groupDamage: { modifier: 120, elementAccum: [{ label: "魔", amount: 2 }] },
+          targetRule: { kind: "allPCs" },
+          conditions: ["no_guard", "gravity_rock_generate_trigger"],
+        },
+      ],
+    },
   };
 
   function get(familyId, enemyId) {
