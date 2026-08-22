@@ -347,7 +347,7 @@ hpBoxDamage = floor(totalDamage / hpValue)
 | 夜の王のHP行の自動初期化 | ✅ gladius/marisのみ実装済み（`hp`欄の自由文字列は解析せず、`hpBoxes`という新規の構造化フィールドを手動で用意し、ENEMY_HP_ROWSの末尾から`hpRowCount`行分を割り当てる「後ろ詰め」規約） | `ensureBossHpRowsInitialized`, `enemyHpRowIndexForKey` |
 | グラディウス「分裂形態」のHP3分割・PC側総合ダメージの1/3換算 | ✅ 実装済み（`state.battle.bossForm==="split"`のとき、`floor(floor(totalDamage/3)/hpValue)`を3個体のHP行へオーバーフローさせず同時に適用） | `applyGuardedDamageToEnemy`（`splitActive`分岐） |
 | 分裂形態では体勢崩し（＝額外行動フェイズ解禁・體崩バナー）が発生しない | ✅ 実装済み（gladiusの`noStaggerInSplitForm`フラグで、そのボスに割り当てられた行のみ判定から除外） | `isSplitFormExemptRow`, `isEnemyHpRowDepleted`, `adjustEnemyHpRow` |
-| グラディウス「分裂形態」→「合体形態」の自動移行（防御フェイズ終了時） | ✅ 実装済み（分裂形態のいずれかの個体HPが0になった瞬間は予約フラグのみ立て、実際の切替は防御フェイズを抜けるタイミングで行う） | `state.battle.bossFormTransitionPending`, `setActionPhase` |
+| グラディウス「分裂形態」⇔「合体形態」の自動移行（防御フェイズ終了時） | ✅ 実装済み（2026-08-22拡張）。2つの独立したトリガーが同じ`bossFormTransitionPending`予約フラグを共有し、実際の切替（トグル：fused⇔split）は常に防御フェイズを抜けるタイミングで行う：①分裂形態のいずれかの個体HPが0になった瞬間（従来）、②AutoGM擲骰結果が「炎突進＆形態変化」の行（合體形態出目5-6／分裂形態出目1-2、`boss_auto_gm_data.js`の`conditions:["form_change_at_end_phase"]`）に到達した瞬間（新規、`handleAutoGmRollClick`）。②は従来GMが規則書を見て手動で`#btn-auto-gm-boss-form-toggle`を押す運用だったが、AutoGM擲骰と連動して自動化した。形態が切り替わればrollRangeByFormの参照先も自動的に変わるため、「攻擊模式」（行動表の該当欄）も連動して更新される | `state.battle.bossFormTransitionPending`, `setActionPhase`, `handleAutoGmRollClick` |
 | PC人數補正：ガード回数の最大値+1（4人＋第2/3天） | ✅ 実装済み（2026-08-11、`docs/combat_flow_rules.md`10節参照）。詳細は5.5節の追記参照 | `night.js`の`pcCountGuardBonus`, `enemyGuardMaxCount` |
 | PC人數補正：乱戦／個別ダメージの÷4（1人）／÷2（2人） | ✅ 実装済み（2026-08-11）。詳細は8節の追記参照 | `night.js`の`pcCountEnemyDamageDivisor`, `handleAutoGmRollClick` |
 | ディフェンス結算モーダル（`#enemy-damage-modal`）のHP價值ベース再設計 | ✅ 実装済み（2026-08-11）。各PC行にHP價值入力欄（既定値`c.hpValue\|\|30`）とHP損害の即時計算（`floor((乱戦+個別)/HP價值)`、入力変更のたびに再計算）を追加し、確定ボタンをPCごとに独立させた（`handleEnemyDamageConfirmForCharacter`）。AutoGM擲骰結果は`state.battle.pendingDefenseRoll`に保存され、モーダルはそれをそのまま初期表示に使う（再擲骰不可。GMが変更できるのはHP價值欄のみ）。詳細は`docs/combat_flow_rules.md`11節「玩家「已完成」按鈕列」行を参照 | `night.js`の`renderEnemyDamageModal`, `handleEnemyDamageConfirmForCharacter`, `finishEnemyDamageRound` |
@@ -360,9 +360,10 @@ hpBoxDamage = floor(totalDamage / hpValue)
 合算した「ガード削り値」を入力して「適用」を押すと、優先度4→5の計算（5.3節の式）を
 行い、結果のHP行（オーバーフロー込み、分裂形態時は3個体へ同時適用）へ自動反映する。
 優先度2（モブHP）・優先度3（属性/状態異常）は本ツールの対象外（それぞれ既存の別UIで
-従来通り処理する）。分裂形態→合体形態の移行はGMが何もしなくても防御フェイズを抜ける
-瞬間に自動で起こる（合体形態→分裂形態への移行、＝アクション表の「形態変化」条件成立時は
-引き続きGMが`#btn-auto-gm-boss-form-toggle`で手動トグルする運用のまま）。
+従来通り処理する）。分裂形態⇔合体形態の移行はどちらの方向もGMが何もしなくても防御
+フェイズを抜ける瞬間に自動で起こる（2026-08-22時点。分裂形態→合体形態＝個体HP0到達、
+合体形態→分裂形態＝擲骰「形態変化」到達の両トリガー。`#btn-auto-gm-boss-form-toggle`は
+自動化GM未使用時やGMが任意のタイミングで手動介入したい場合向けに引き続き残っている）。
 
 **このrepoに残っている既知の未対応範囲**：2026-08-11に夜の王10体全員のガード回数・
 HP行の構造化データ（`guardCount`/`guardValueTable`/`hpRowCount`/`hpBoxes`）を整備した

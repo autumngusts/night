@@ -181,6 +181,13 @@
     if (idx !== -1 && idx < BATTLE_SLOT_COUNT) {
       state.battle.front[idx] = false;
       state.battle.back[idx] = true;
+      // 使用者確認：「瀕死後被救回，固定將自己位置轉到後衛」。ここで新たに2顆骰子を追加した
+      // 直後にrenderCharacterRoster→syncDiceStatusToBattleが走ると、positionLockedが
+      // まだfalseの場合は骰子の内容（最大値の偶奇）から前後衛を再判定し、上の後衛固定を
+      // 上書きしてしまう。そのためここでpositionLockedも立てて、復歸による後衛固定を
+      // 骰子内容による自動再判定から保護する。
+      if (!state.battle.positionLocked) state.battle.positionLocked = new Array(BATTLE_SLOT_COUNT).fill(false);
+      state.battle.positionLocked[idx] = true;
       saveState();
       renderBattlePositionAreas();
     }
@@ -239,20 +246,30 @@
   // 若場上還有其他瀕死角色，詢問GM是否要把這份傷害轉換為「復歸傷害」並直接套用
   // （applyRevivalDamage，共用既存的復歸圓鈕自動點擊機制）。回傳true代表已確認並套用轉換，
   // 呼叫端可據此決定是否需要把這份傷害從自己保存的累積值中扣除。
+  // 使用者指示：若場上同時有多名瀕死角色，需要能選擇要套用給誰——這裡沿用既有window.confirm
+  // 風格（本專案未對此類臨時操作使用select型UI），依序對每一名候選人詢問一次，GM選「確定」
+  // 的第一人即為轉換對象，全部選「取消」則視為放棄轉換（僅有1名候選人時行為與修改前相同）。
   function promptConvertDamageToRevival(c, pendingDamage) {
     var nearDeathTargets = rosterCharacters.filter(function (nc) {
       return nc.entered && nc._nearDeath && nc.id !== c.id;
     });
     if (!(pendingDamage > 0) || !nearDeathTargets.length) return false;
-    var target = nearDeathTargets[0];
-    var confirmed = window.confirm(
-      window.I18N.t("battle_action_delete_convert_revival_confirm", {
-        character: c.name,
-        damage: pendingDamage,
-        target: target.name,
-      })
-    );
-    if (!confirmed) return false;
+    var target = null;
+    for (var i = 0; i < nearDeathTargets.length; i++) {
+      var candidate = nearDeathTargets[i];
+      var confirmed = window.confirm(
+        window.I18N.t("battle_action_delete_convert_revival_confirm", {
+          character: c.name,
+          damage: pendingDamage,
+          target: candidate.name,
+        })
+      );
+      if (confirmed) {
+        target = candidate;
+        break;
+      }
+    }
+    if (!target) return false;
     var clicked = applyRevivalDamage(target, pendingDamage);
     addLog("log_battle_action_convert_revival", {
       character: c.name,
@@ -839,10 +856,15 @@
       // 5節）。新しい回合（防禦→戰鬥フェイズ再突入）ごとに全員最大値へ回復するため、
       // setActionPhaseでこのオブジェクト自体を空にする（＝全員フォールバックで最大値扱いに戻す）。
       guardCount: {},
-      // グラディウス「分裂形態」移行条件2：分裂形態のいずれかの個体HP行が「現在HP：0以下」に
-      // なった瞬間trueになり、防御フェイズ終了時（setActionPhaseがdefenseを抜けるタイミング）
-      // に消費されてbossFormを"fused"へ自動で戻す（分裂形態では体勢崩し自体は発生しない、
-      // ユーザー確認済み仕様。docs/enemy_damage_rules.md 9節）。
+      // グラディウス「形態変化」自動移行の予約フラグ。防御フェイズ終了時（setActionPhaseが
+      // defenseを抜けるタイミング）に消費され、その時点のbossFormをトグル（fused⇔split）する。
+      // 2つの独立したトリガーが同じこのフラグを共有する（使用者確認済み、いずれも「防禦階段
+      // 結束時」に解決する点で同じライフサイクルのため）：
+      // 1. 分裂形態のいずれかの個体HP行が「現在HP：0以下」になった瞬間（分裂形態では体勢崩し
+      //    自体は発生しない仕様、docs/enemy_damage_rules.md 9節）——トグルの結果は常にfused。
+      // 2. AutoGMの擲骰結果が「形態変化」の行（boss_auto_gm_data.jsのconditions配列に
+      //    "form_change_at_end_phase"を含む行、合體形態の出目5-6／分裂形態の出目1-2）に
+      //    到達した瞬間（handleAutoGmRollClick）——トグルの結果は擲骰時点の形態の逆。
       bossFormTransitionPending: false,
       // 使用者確認：「1段が體勢崩しを起こすのは1回だけ」——自動化GMがautoAdvanceBattlePhaseで
       // 戰鬥→額外を自動判定する際、既にこの配列に含まれる段番号（0-3）は「もう額外階段の
@@ -4067,7 +4089,10 @@
   // 復仇者「靈體傷害」：總合傷害（敵人）／復歸傷害（PC）のどちらを選ぼうとしているかの中間状態
   // （執行者「咆哮」と同じ二択パターン）。骰子を消費しない専用行動のため、攻擊清單の武器欄と
   // 同じ場所に追加し、行動階段が切り替わるたびに1回だけ使用可能にする。
-  var spiritDamageChoice = null; // "enemy" | "pc" | null
+  // 使用者確認：死靈術で召喚した死靈も靈體と同様「行動階段・特殊階段ごとに1回」靈體傷害を
+  // 發生させられる（2隻の死靈＋1隻の靈體がいれば、この階段で最大3回）ため、単一の値ではなく
+  // エンティティ（"spirit" または "deathSpirit:<id>"）ごとに選択状態を持つmapへ変更する。
+  var spiritDamageChoiceByKey = {}; // { [entityKey]: "enemy" | "pc" }
 
   // R3：遺物効果「跳躍攻擊／衝刺攻擊／蓄力攻擊」を選択中の一時状態（{kind, weaponId} | null）。
   // 通常のcombatAttackStateとは別枠にする（同時に両方選択された状態にはならない前提で
@@ -4076,19 +4101,28 @@
 
   // 靈體資料（character_types.jsの召喚靈體スキル本文記載値、ユーザー確認済み）:
   // 海倫：發生傷害 15+（PC等級×5）／弗雷德里克：5+▲+（PC等級×5）／賽巴斯汀：10+（PC等級×5）。
-  function computeSpiritSummonDamage(c) {
-    if (!c.spiritSummon) return null;
+  function computeSpiritKindDamage(c, kind) {
     var level = c.level || 1;
     var result;
-    if (c.spiritSummon === "helen") result = { value: 15 + level * 5, symbol: null };
-    else if (c.spiritSummon === "frederick") result = { value: 5 + level * 5, symbol: "▲" };
-    else if (c.spiritSummon === "sebastian") result = { value: 10 + level * 5, symbol: null };
+    if (kind === "helen") result = { value: 15 + level * 5, symbol: null };
+    else if (kind === "frederick") result = { value: 5 + level * 5, symbol: "▲" };
+    else if (kind === "sebastian") result = { value: 10 + level * 5, symbol: null };
     else return null;
-    // 遺物効果「家族強化」：自身召喚の「靈體」產生的傷害+10。
+    // 遺物効果「家族強化」：自身召喚の「靈體」產生的傷害+10。死靈術で召喚した死靈も
+    // 「規則上與靈體視為相同處理」（character_types.js「死靈術」本文）のため同様に適用する。
     if (CharacterDrawer.findLearnedRelicEffectByName(c, ["家族強化", "ファミリー強化"])) {
       result.value += 10;
     }
     return result;
+  }
+  function computeSpiritSummonDamage(c) {
+    if (!c.spiritSummon) return null;
+    return computeSpiritKindDamage(c, c.spiritSummon);
+  }
+  // 死靈：「除HP外資料與『召喚靈體』中的『海倫』靈體相同」（character_types.js「死靈術」本文）
+  // のため、發生傷害も海倫と同じ 15+（PC等級×5） を使う。
+  function computeDeathSpiritDamage(c) {
+    return computeSpiritKindDamage(c, "helen");
   }
 
   function renderCombatAttackAction(c, content) {
@@ -4361,15 +4395,46 @@
 
     renderCombatSpecialAttackActions(c, content, equippedIds);
 
-    // 復仇者「召喚靈體」：靈體傷害は規則書上、行動階段・特殊階段ごとに自動で1回発生するもの
-    // なので、骰子を消費しない専用行動として攻擊清單に追加する（ユーザー確認済み）。
-    var spiritDamage = computeSpiritSummonDamage(c);
-    if (spiritDamage) {
+    // 復仇者「召喚靈體」／「死靈術」：靈體傷害は規則書上、行動階段・特殊階段ごとに自動で1回
+    // 発生するものなので、骰子を消費しない専用行動として攻擊清單に追加する（ユーザー確認済み）。
+    // 死靈は「規則上與靈體視為相同處理」のため、召喚中の靈體1隻＋死靈N隻がいれば、この階段で
+    // 各々1回ずつ（最大1+N回）獨立して發生させられる（ユーザー指示：2死靈+1靈體なら計3回）。
+    var spiritDamageEntities = [];
+    var summonedSpiritDamage = computeSpiritSummonDamage(c);
+    if (summonedSpiritDamage && c.spiritSummonHp && c.spiritSummonHp[c.spiritSummon] && c.spiritSummonHp[c.spiritSummon].current > 0) {
+      spiritDamageEntities.push({
+        key: "spirit",
+        label: window.I18N.t("spirit_summon_choice_" + c.spiritSummon + "_label"),
+        damage: summonedSpiritDamage,
+        isUsed: function () {
+          return !!c._spiritDamageUsedThisPhase;
+        },
+        markUsed: function () {
+          c._spiritDamageUsedThisPhase = true;
+        },
+      });
+    }
+    (c.deathSpirits || []).forEach(function (spirit, idx) {
+      if (!(spirit.hpCurrent > 0)) return;
+      spiritDamageEntities.push({
+        key: "deathSpirit:" + spirit.id,
+        label: window.I18N.t("death_spirit_label", { index: idx + 1 }),
+        damage: computeDeathSpiritDamage(c),
+        isUsed: function () {
+          return !!spirit.damageUsedThisPhase;
+        },
+        markUsed: function () {
+          spirit.damageUsedThisPhase = true;
+        },
+      });
+    });
+    spiritDamageEntities.forEach(function (spiritEntity) {
+      var spiritDamage = spiritEntity.damage;
       var spiritRow = document.createElement("div");
       spiritRow.className = "combat-attack-weapon-row";
       var spiritNameEl = document.createElement("span");
       spiritNameEl.className = "combat-attack-weapon-name";
-      spiritNameEl.textContent = window.I18N.t("spirit_summon_choice_" + c.spiritSummon + "_label");
+      spiritNameEl.textContent = spiritEntity.label;
       spiritRow.appendChild(spiritNameEl);
       var spiritDmgTag = document.createElement("span");
       spiritDmgTag.className = "weapon-damage-tag";
@@ -4377,7 +4442,7 @@
       spiritRow.appendChild(spiritDmgTag);
       content.appendChild(spiritRow);
 
-      if (c._spiritDamageUsedThisPhase) {
+      if (spiritEntity.isUsed()) {
         var spiritUsedNote = document.createElement("p");
         spiritUsedNote.className = "threat-ref-body";
         spiritUsedNote.textContent = window.I18N.t("spirit_damage_used_this_phase_note");
@@ -4393,9 +4458,9 @@
           spiritChoiceBtn.type = "button";
           spiritChoiceBtn.className = "combat-attack-hit-btn";
           spiritChoiceBtn.textContent = opt.label;
-          if (spiritDamageChoice === opt.key) spiritChoiceBtn.classList.add("active");
+          if (spiritDamageChoiceByKey[spiritEntity.key] === opt.key) spiritChoiceBtn.classList.add("active");
           spiritChoiceBtn.addEventListener("click", function () {
-            spiritDamageChoice = spiritDamageChoice === opt.key ? null : opt.key;
+            spiritDamageChoiceByKey[spiritEntity.key] = spiritDamageChoiceByKey[spiritEntity.key] === opt.key ? null : opt.key;
             renderCombatModal();
           });
           spiritChoiceRow.appendChild(spiritChoiceBtn);
@@ -4403,7 +4468,7 @@
         content.appendChild(spiritChoiceRow);
 
         var spiritTargetSelect = null;
-        if (spiritDamageChoice === "pc") {
+        if (spiritDamageChoiceByKey[spiritEntity.key] === "pc") {
           var enteredForSpirit = rosterCharacters.filter(function (rc) {
             return rc.entered;
           });
@@ -4417,47 +4482,48 @@
           content.appendChild(spiritTargetSelect);
         }
 
-        if (spiritDamageChoice) {
+        if (spiritDamageChoiceByKey[spiritEntity.key]) {
           var spiritConfirmBtn = document.createElement("button");
           spiritConfirmBtn.type = "button";
           spiritConfirmBtn.className = "primary-btn";
           spiritConfirmBtn.textContent = window.I18N.t("combat_confirm_button");
           spiritConfirmBtn.addEventListener("click", function () {
-            var spiritName = window.I18N.t("spirit_summon_choice_" + c.spiritSummon + "_label");
+            var spiritChoice = spiritDamageChoiceByKey[spiritEntity.key];
+            var spiritName = spiritEntity.label;
             var valueText = CharacterDrawer.formatValueWithSymbol(spiritDamage.value, spiritDamage.symbol);
             var targetChar =
-              spiritDamageChoice === "pc" && spiritTargetSelect
+              spiritChoice === "pc" && spiritTargetSelect
                 ? rosterCharacters.filter(function (rc) {
                     return rc.id === spiritTargetSelect.value;
                   })[0]
                 : null;
-            c._spiritDamageUsedThisPhase = true;
-            if (spiritDamageChoice === "enemy") recordPhaseDamageDealt(c, spiritDamage.value, spiritDamage.symbol);
+            spiritEntity.markUsed();
+            if (spiritChoice === "enemy") recordPhaseDamageDealt(c, spiritDamage.value, spiritDamage.symbol);
             else if (targetChar) applyRevivalDamage(targetChar, spiritDamage.value);
             saveRosterCharacters();
             addActionBox(
               c,
               window.I18N.t("spirit_damage_action_title", { name: spiritName }),
-              spiritDamageChoice === "pc"
+              spiritChoice === "pc"
                 ? window.I18N.t("spirit_damage_pc_target_total", { value: valueText, target: targetChar ? targetChar.name : "" })
                 : window.I18N.t("action_log_damage_total", { value: valueText }),
               [],
-              spiritDamageChoice === "enemy" ? { dmgValue: spiritDamage.value, guardSymbol: spiritDamage.symbol } : null
+              spiritChoice === "enemy" ? { dmgValue: spiritDamage.value, guardSymbol: spiritDamage.symbol } : null
             );
             addLog("log_spirit_damage_use", {
               character: c.name,
               spirit: spiritName,
-              choice: window.I18N.t(spiritDamageChoice === "pc" ? "spirit_damage_choice_pc_label" : "spirit_damage_choice_enemy_label"),
+              choice: window.I18N.t(spiritChoice === "pc" ? "spirit_damage_choice_pc_label" : "spirit_damage_choice_enemy_label"),
               target: targetChar ? "（" + targetChar.name + "）" : "",
             });
-            spiritDamageChoice = null;
+            delete spiritDamageChoiceByKey[spiritEntity.key];
             renderCharacterRoster();
             renderCombatModal();
           });
           content.appendChild(spiritConfirmBtn);
         }
       }
-    }
+    });
   }
 
   // moveOminousStrikeToFrontと同型の汎用版：どの遺物効果／スキルからでも「自身を前衛へ
@@ -5449,6 +5515,10 @@
             var elementalCost = CharacterDrawer.parseActionCost(body);
             renderDiceCostAction(c, content, elementalCost, function (dice, costLines) {
               c.elementalMarks = Math.min(3, (c.elementalMarks || 0) + 1);
+              // 元素操控「並對自身施加「FP回復：□」」：□=1（CLAUDE.md §17.1、一次性治療context）
+              // のため、自動でFP+1を適用する（旧仕様はGM手動反映の注記のみだったが、ユーザーの
+              // 指示によりここで自動化）。
+              c.fp.current = Math.min(c.fp.max, (c.fp.current || 0) + 1);
               // R1「能力強化（魔術之地）」：屬性痕へ✓が入った直後から直到階段結束為止、自身の
               // 魔術ダメージ+5（重複しないのでbooleanのまま立てるだけでよい）。
               if (CharacterDrawer.findLearnedRelicEffectByName(c, ["能力強化（魔術之地）", "アビリティ強化（魔術の地）"])) {
@@ -6472,7 +6542,11 @@
     var targets = [];
     rosterCharacters.forEach(function (c) {
       if (!c.entered) return;
-      if (c.spiritSummon && c.spiritSummonHp && c.spiritSummonHp[c.spiritSummon]) {
+      // 使用者確認：HPが0まで減った靈體／死靈は「自動移出戰鬥」——以後の亂戰傷害分配・
+      // 攻擊対象選択の対象からは除外する（HP0で消滅済みの存在を傷害分配の頭数に含めない）。
+      // 管理表示（renderSpiritPanel）自体は0/maxのまま残し、GMが×ボタンで手動削除できる
+      // 既存動線は変えない。
+      if (c.spiritSummon && c.spiritSummonHp && c.spiritSummonHp[c.spiritSummon] && c.spiritSummonHp[c.spiritSummon].current > 0) {
         var kind = c.spiritSummon;
         var hp = c.spiritSummonHp[kind];
         var label = window.I18N.t("spirit_summon_choice_" + kind + "_label");
@@ -6497,6 +6571,7 @@
         });
       }
       (c.deathSpirits || []).forEach(function (spirit, idx) {
+        if (!(spirit.hpCurrent > 0)) return;
         var label = window.I18N.t("death_spirit_label", { index: idx + 1 });
         targets.push({
           key: "deathSpirit:" + c.id + ":" + spirit.id,
@@ -9731,6 +9806,18 @@
     var noteText = result.originalRow ? window.PriTestEnemies.localizedText(result.originalRow.note) : "";
     var actionName = result.originalRow ? window.PriTestEnemies.localizedText(result.originalRow.name) : "";
 
+    // グラディウス「炎突進＆形態変化」：合體形態の出目5-6、または分裂形態の出目1-2のどちらでも
+    // このrowに到達する（boss_auto_gm_data.jsのrollRangeByForm）。conditionsに
+    // "form_change_at_end_phase"が含まれる行が出た瞬間、防禦階段結束時に形態をトグルする予約
+    // フラグを立てる（実際の切替・攻擊模式の変更はstate.battle.bossForm参照箇所が自動で反映する
+    // ため、ここでは予約するだけでよい。既存のHP0到達トリガーと同じフラグ・同じ解決タイミングを
+    // 共有する、setActionPhase側のbossFormTransitionPendingコメント参照）。
+    if (result.structuredRow && (result.structuredRow.conditions || []).indexOf("form_change_at_end_phase") !== -1) {
+      state.battle.bossFormTransitionPending = true;
+      saveState();
+      addAutoGmLog(window.I18N.t("log_boss_form_change_roll_pending", { enemy: result.enemyName }));
+    }
+
     var entered = rosterCharacters.filter(function (c) {
       return c.entered;
     });
@@ -11578,12 +11665,15 @@
         // フェイズを抜けるタイミングで消費・リセットする（totemStella等と同じライフサイクル）。
         c._halberdWhirlwindActive = false;
       });
-      // グラディウス「分裂形態」移行条件2：分裂形態のいずれかの個体HPが0以下になっていた
-      // 場合、防御フェイズ終了時に合体形態へ自動で戻す（GM手動トグルの出番はここでは無い）。
+      // グラディウス「形態変化」：HP0到達／擲骰「形態変化」のどちらかで予約されたフラグを、
+      // 防御フェイズ終了時にトグル（fused⇔split）として消費する（GM手動トグルの出番はここでは
+      // 無い。上のstate.battle.bossFormTransitionPendingの定義コメント参照）。
       if (state.battle.bossFormTransitionPending) {
         state.battle.bossFormTransitionPending = false;
-        state.battle.bossForm = "fused";
-        addLog("log_boss_form_auto_transition");
+        state.battle.bossForm = state.battle.bossForm === "split" ? "fused" : "split";
+        addLog("log_boss_form_auto_transition", {
+          form: window.I18N.t(state.battle.bossForm === "split" ? "boss_form_name_split" : "boss_form_name_fused"),
+        });
         // 格拉迪烏斯「分裂形態」：公開盤の夜の王画像を1枚に戻す（handleAutoGmBossFormToggleClick
         // と同じ更新、この自動遷移経路だけ呼び忘れないよう明示的に呼ぶ）。
         renderNight3BossImage();
@@ -11696,7 +11786,13 @@
         c._clawShotFireTagWeaponId = null;
       }
       // 復仇者「靈體傷害」：行動階段・特殊階段ごとに1回だけ（規則書の「各自動發生1次」に対応）。
+      // 使用者確認：死靈術で召喚した死靈も「規則上與靈體視為相同處理」のため、召喚中の靈體1隻＋
+      // 死靈N隻がいれば、この階段で最大1+N回（各々1回ずつ）發生させられる——死靈は個体ごとに
+      // 別枠のフラグ（spirit.damageUsedThisPhase）を持つため、ここで一括リセットする。
       c._spiritDamageUsedThisPhase = false;
+      (c.deathSpirits || []).forEach(function (spirit) {
+        spirit.damageUsedThisPhase = false;
+      });
       // 守護者「高防禦」（本フェイズが終わるまで持続）と「旋風」（本フェイズにつき1回まで）は
       // どちらもフェイズ切替の都度リセットする。無賴漢「逆襲」をDefenseとして使用した後の
       // 「他の格擋を使用できない」ロックも同様に、フェイズ切替の都度リセットする。
