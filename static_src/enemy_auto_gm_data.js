@@ -2101,6 +2101,189 @@
         },
       ],
     },
+    // 劇本6「夜之強敵決定表」2日目（fields_data_1.js:503-506）のうち今回追加する2体：
+    // 冷たい谷の踊り子（familyId:warrior_swordsman）、無名の王（familyId:cavalry）。同じ行に
+    // 列挙される忌み鬼／僻地の宿将／ノクスの竜人兵、および1日目の鈴玉狩り／貪食ドラゴン／
+    // 夜の騎兵たち／英雄のガーゴイル／ミミズ顔たち／百足のデーモンはすべて既存対応済みのため
+    // 対象外（task-5-brief.md参照）。
+    //
+    // 【special フィールドについて（rows[]には含めずここに完全記録し、GM手動対応とする）】
+    // - 〔HP価値:+20〕このエネミーを常に「HP価値:+20（最大100）」する（恒常的なベース値補正で
+    //   あり、出目に紐づく行動ではないためrows[]には構造化しない）。
+    // - 〔行動激化〕「体勢崩し」が発生した後は、戦闘終了まで、アクション決定を「1D」ではなく
+    //   「1D+2」で行う——ガードブレイク依存の行動激化のため、既存のrollBonusAfterGuardBreak
+    //   機構（demihuman_beastfolk_club|demihuman_queen_swordmaster等と同型）でそのまま表現できる
+    //   （Global Constraint 7）。rollMin/rollMaxが6を超える行（6~8）は通常時（1D6=1〜6）には
+    //   到達せず、体勢崩し後（1D6+2=3〜8）にのみ到達する。
+    "warrior_swordsman|cold_valley_dancer": {
+      rollBonusAfterGuardBreak: 2,
+      rows: [
+        {
+          // 「薙ぎ払い」：「敵視:1以上」で前衛のPC全員に「乱戦ダメージ:2人分」（本文に明記）。
+          rollMin: 1,
+          rollMax: 1,
+          groupDamage: { modifier: 120 },
+          targetRule: { kind: "frontAggroAtLeast1All" },
+        },
+        {
+          // 「叩きつけ＆火走り」：乱戦ダメージ修正±0（「—」ではないため発生、本文に乱戦ダメージの
+          // 対象明記なし）。既定ルール（前衛均等割り）。個別効果：【個別ダメージ:120】＋「炎:1D」
+          // （ダイス、固定値化しない）は「敵視:1以上」のPC全員に別枠で発生。
+          rollMin: 2,
+          rollMax: 2,
+          groupDamage: { modifier: 0 },
+          targetRule: { kind: "frontAll" },
+          individualDamage: [
+            { amount: 120, targetRule: { kind: "aggroAtLeast1All" }, elementAccum: [{ label: "炎", amount: 1 }] },
+          ],
+        },
+        {
+          // 「掴みかかり」：乱戦ダメージ修正が「—」のため乱戦ダメージは発生しない。個別ダメージ300は
+          // 「敵視:最大」のPC1体に。この効果に対してガード不可（no_guard）。
+          rollMin: 3,
+          rollMax: 3,
+          individualDamage: [{ amount: 300, targetRule: { kind: "aggroMax" } }],
+          conditions: ["no_guard"],
+        },
+        {
+          // 「炎爆発」：乱戦ダメージ修正±0＋「炎:2D」（mod欄のダイス表記、固定値化せずダイス数のみ
+          // elementAccumで構造化。乱戦ダメージの対象明記なし＝既定ルール＝前衛均等割り）。本文は
+          // 別途「「敵視:最大」のPC1体に「炎:1D」を与える」と明記しており、これは乱戦ダメージの
+          // 対象（前衛均等割り）とは異なる集団（敵視最大の1体のみ）への蓄積のみの効果（HP損害を
+          // 伴わない）のため、groupDamage.elementAccumにもindividualDamage（HP損害amountが必須）
+          // にも構造化できない（accum_target_mismatch_manual、Global Constraint 6）。
+          rollMin: 4,
+          rollMax: 4,
+          groupDamage: { modifier: 0, elementAccum: [{ label: "炎", amount: 2 }] },
+          targetRule: { kind: "frontAll" },
+          conditions: ["accum_target_mismatch_manual"],
+        },
+        {
+          // 「双剣叩きつけ」：「敵視:1以上」で前衛のPC全員に「乱戦ダメージ:2人分」（本文に明記）。
+          // mod欄の「魔:1D」＋「炎:1D」（ダイス、固定値化しない）は乱戦ダメージの対象にそのまま
+          // 付随させる。
+          rollMin: 5,
+          rollMax: 5,
+          groupDamage: {
+            modifier: 180,
+            elementAccum: [
+              { label: "魔", amount: 1 },
+              { label: "炎", amount: 1 },
+            ],
+          },
+          targetRule: { kind: "frontAggroAtLeast1All" },
+        },
+        {
+          // 「双剣の舞」：乱戦ダメージ修正が「—」のため乱戦ダメージは発生しない。個別効果
+          // （PC人数+1回実行）：「敵視:1以上」のPC1体に【個別ダメージ:60】＋「魔:1D」＋「炎:1D」を
+          // 与える——「PC人数+1」はパーティ人数に依存する可変値であり固定回数のリテラル値では
+          // ないため、既存のrepeat/rotate機構（固定回数専用）は使わず、conditionsとコメントでGM
+          // 手動処理に委ねる（Global Constraint 7）。rollMin/rollMax（6~8）は体勢崩し後
+          // （rollBonusAfterGuardBreak:2）にのみ到達する。
+          rollMin: 6,
+          rollMax: 8,
+          conditions: ["variable_repeat_manual"],
+        },
+      ],
+    },
+    // 【special フィールドについて（rows[]には含めずここに完全記録し、GM手動対応とする）】
+    // - 〔竜特効〕公開情報。このエネミーは「竜」として扱う（竜特効の対象である）。出目に関係なく
+    //   常時有効な受動的特性のため、行動テーブルの行としては構造化しない。
+    // - 〔モブ1追加〕戦闘開始時、HP枠に「モブ1」を追加し、このエネミーを「撃破ルーン:+1」する。
+    //   このモブHPはL補を問わず「最大HP:PC人数×4」である。出目テーブルの行ではなく戦闘開始時の
+    //   セットアップ処理のため、rows[]には構造化しない。
+    // - 〔王の威光〕モブHPが0以下になると、戦闘終了まで、このエネミーは特殊能力「竜特効」を失い、
+    //   アクション決定は「1D」ではなく「1D+6」で行う——【task-5-brief.mdの注意点】この行動激化の
+    //   発動条件は「体勢崩し」ではなく「モブHPが0以下になること」であり、Global Constraint 7の
+    //   rollBonusAfterGuardBreak（体勢崩し依存専用の機構）をそのまま流用すると発動条件を誤って
+    //   実装することになるため、rollBonusAfterGuardBreakは使わない（トップレベルフィールドを
+    //   新設もしない）。この特殊能力が発動して初めて到達可能になる行（roll 7~8／9~10／11~12）には
+    //   conditions:["mob_hp_trigger_manual"]を付与し、コメントで発動条件全文を記録してGM手動で
+    //   モブHPが0以下になったタイミングを確認したうえで1D+6に切り替えるトリガーとする。
+    "cavalry|unnamed_king": {
+      rows: [
+        {
+          // 「滞空ブレス＆雷の槍」：乱戦ダメージ修正±0＋「炎:4」（mod欄の固定値、骰子ではない。
+          // 乱戦ダメージの対象明記なし＝既定ルール＝前衛均等割り）。個別効果：【個別ダメージ:240】
+          // ＋「雷:4」（固定値、骰子ではない）は「敵視:最大」のPC1体に別枠で発生。mod欄が「炎」、
+          // 個別効果が「雷」で属性・数値とも一致しないため、独立した効果としてそれぞれ構造化する
+          // （本文の記載どおり転記。原文の属性表記の食い違いは規則書側の記述であり、本タスクでは
+          // 数値・属性名を一切変更せずそのまま反映する）。
+          rollMin: 1,
+          rollMax: 2,
+          groupDamage: { modifier: 0, elementAccum: [{ label: "炎", amount: 4 }] },
+          targetRule: { kind: "frontAll" },
+          individualDamage: [
+            { amount: 240, targetRule: { kind: "aggroMax" }, elementAccum: [{ label: "雷", amount: 4 }] },
+          ],
+        },
+        {
+          // 「騎乗薙ぎ払い」：「敵視:1以上」で前衛のPC全員に「乱戦ダメージ:2人分」（本文に明記）。
+          rollMin: 3,
+          rollMax: 4,
+          groupDamage: { modifier: 180 },
+          targetRule: { kind: "frontAggroAtLeast1All" },
+        },
+        {
+          // 「扇形ブレス＆叩きつけ」：乱戦ダメージはすべてのPCを対象とする（本文に明記）。mod欄の
+          // 「炎:3」（固定値、骰子ではない）はこの乱戦ダメージの対象に付随。個別ダメージ300は
+          // 「敵視:最大」のPC1体に別枠で発生。
+          rollMin: 5,
+          rollMax: 6,
+          groupDamage: { modifier: 120, elementAccum: [{ label: "炎", amount: 3 }] },
+          targetRule: { kind: "allPCs" },
+          individualDamage: [{ amount: 300, targetRule: { kind: "aggroMax" } }],
+        },
+        {
+          // 「地を這う嵐＆剣槍突き刺し」：乱戦ダメージ修正+120（「—」ではないため発生、本文に
+          // 乱戦ダメージの対象明記なし）。既定ルール（前衛均等割り）。個別ダメージ360＋「雷:2」
+          // （固定値、骰子ではない）は「敵視:最大」のPC1体に別枠で発生。この個別効果に対して
+          // ガード不可（no_guard）。この行は特殊能力「王の威光」（モブHP0以下）発動後の
+          // 1D+6でのみ到達する（mob_hp_trigger_manual、上記specialコメント参照）。
+          rollMin: 7,
+          rollMax: 8,
+          groupDamage: { modifier: 120 },
+          targetRule: { kind: "frontAll" },
+          individualDamage: [{ amount: 360, targetRule: { kind: "aggroMax" }, elementAccum: [{ label: "雷", amount: 2 }] }],
+          conditions: ["no_guard", "mob_hp_trigger_manual"],
+        },
+        {
+          // 「雷光剣槍＆落雷」：乱戦ダメージ修正±0＋「雷:4」（mod欄の固定値、骰子ではない。乱戦
+          // ダメージの対象明記なし＝既定ルール＝前衛均等割り）。個別効果はPC全員が判定
+          // （11|運試し）を行い、失敗したPCに【個別ダメージ:240】＋「雷:3」（固定値、骰子では
+          // ない）を与える——mod欄の「雷:4」と個別効果の「雷:3」は数値が一致しないため独立した
+          // 効果として扱い、mod欄側はgroupDamage.elementAccumに付随させる。個別効果は判定失敗時に
+          // 【個別ダメージ】と属性蓄積の両方を伴うため、savingThrow.onFailは既存実装（night.js）が
+          // onFail.amountしか読まずelementAccumを一切反映せず、蓄積部分が黙って欠落し誤解を招く。
+          // よってsavingThrow自体を使わず、判定・ダメージ・蓄積のすべてをコメントに記載してGM
+          // 手動処理に委ねる（saving_throw_damage_and_ailment_manual、Global Constraint 9）。
+          // この行は特殊能力「王の威光」発動後の1D+6でのみ到達する（mob_hp_trigger_manual）。
+          rollMin: 9,
+          rollMax: 10,
+          groupDamage: { modifier: 0, elementAccum: [{ label: "雷", amount: 4 }] },
+          targetRule: { kind: "frontAll" },
+          conditions: ["saving_throw_damage_and_ailment_manual", "mob_hp_trigger_manual"],
+        },
+        {
+          // 「剣槍叩きつけ＆雷光地走り」：乱戦ダメージはPC全員を対象とする（本文に明記）。加えて
+          // 「敵視:1以上」のPC全員は「乱戦ダメージ:2人分」を割り振られる——対象範囲自体はPC全員
+          // だが、その中で敵視1以上の部分集合のみ2倍の重み付けを受けるという加重分配であり、
+          // 既存6種のtargetRule.kindのいずれにも正確には該当しない（allPCsは均等割りが前提）。
+          // 数値を捏造しないため、targetRuleは対象範囲が一致するallPCsに留め、加重の詳細は
+          // conditionsで記録してGMが本文どおり手動で再分配する（manual_weighted_split_aggro_double、
+          // boss_auto_gm_data.js「edele」の「突進」と同種の判断。本行は前衛限定の記載が無い点が
+          // 異なるためタグ名から「front」を外す）。このダメージを回避するPCは、支払った
+          // ダイスコストの値を半分（端数切り捨て、最低値1）として扱う
+          // （reducible_by_stamina_dice）。この行は特殊能力「王の威光」発動後の1D+6でのみ到達する
+          // （mob_hp_trigger_manual）。
+          rollMin: 11,
+          rollMax: 12,
+          groupDamage: { modifier: 240 },
+          targetRule: { kind: "allPCs" },
+          conditions: ["manual_weighted_split_aggro_double", "reducible_by_stamina_dice", "mob_hp_trigger_manual"],
+        },
+      ],
+    },
   };
 
   function get(familyId, enemyId) {
