@@ -998,6 +998,21 @@
     return new RegExp("^" + t.ja + COMBAT_TRIGGER_NUM_GAP + "\\s*[（(]").test(ja) || new RegExp("^" + t.zh + COMBAT_TRIGGER_NUM_GAP + "（").test(zh);
   }
 
+  // 使用者確認（2026-08-23）：card_j（砦／地下砦）西の地下砦「研究棟」の「ボス戦闘1（♠）」は、
+  // 見出し文言こそ戦闘トリガーと同じ形だが、本文（フロア3描写）の通り実際には敵と戦うわけ
+  // ではない——静止した「魔術師球」を〈協力12×PC人数|メンタル〉の行為判定（加護使用可、
+  // 通常の協力式判定と同じ）で処理するだけで、通常の戦闘パネル／敵人比對は一切発生しない。
+  // 直後のbulletが「「魔術師球」」（唯一の実例）の場合のみ、通常の戦闘トリガー判定から除外し、
+  // 後続の〔行為判定〕行（parseCooperativeAbilityCheck）へそのまま素通りさせる。
+  function isFakeCombatAbilityCheckTrigger(line, lines, index) {
+    if (!isBossCombatTriggerLine(line)) return false;
+    var next = lines[index + 1];
+    if (!next || !next.bullet) return false;
+    var ja = ((next.text && next.text.ja) || "").trim();
+    var zh = ((next.text && next.text.zh) || "").trim();
+    return ja === "「魔術師球」" || zh === "「魔術師球」";
+  }
+
   // ボタンラベル・敘述冒頭に使う表示名（「雜兵戰鬥」／「王戰」）は、判定に使ったパターンではなく
   // トリガー行自身の現在言語のテキストからそのまま切り出す（i18nキーを2つ用意する必要が無い）。
   function combatTriggerTitle(line) {
@@ -1021,6 +1036,14 @@
       var ja = (l.text && l.text.ja) || "";
       var zh = (l.text && l.text.zh) || "";
       if (ja.indexOf("「") !== 0 && zh.indexOf("「") !== 0) break;
+      // バグ修正（2026-08-23）：撃破後の獎勵bullet（例：「「武器：★」（フロア踏破）」）も
+      // 「」で始まるため、敵名bulletと誤認されて「無法自動比對敵人資料」の誤警報を出していた。
+      // 実データを全数調査した結果、報酬スタブは必ず「品目名：★…」（コロン＋★のみ）という
+      // 形で終わる一方、実際の敵名（「Lv.」表記・「決定表」参照含む）はこの形を一切取らない
+      // ため、この形だけを敵名候補から除外する（打ち切り＝以降の行も収集終了）。
+      var jaBracket = (/「([^」]*)」/.exec(ja) || [])[1] || "";
+      var zhBracket = (/「([^」]*)」/.exec(zh) || [])[1] || "";
+      if (/[:：]\s*★+\s*$/.test(jaBracket) || /[:：]\s*★+\s*$/.test(zhBracket)) break;
       enemyLines.push(l);
     }
     return { enemyLines: enemyLines, nextIndex: j };
@@ -1527,12 +1550,17 @@
   // ように区切り無しの連続数字）、以前の正規表現は区切り文字を許容せず常にnullを返して
   // いた。値そのものは変わらない（面数の並びは同じ）ため、中點・読点・カンマ区切りも
   // 受理してから区切り文字を除去し、既存の連続数字形式と同じfaces2へ正規化する。
+  // バグ修正（2026-08-23）：card_9「神殿」の第1〜3階層ボス決定表は、1顆目（die1）側も
+  // "2・3"「4・5・6」のように複数面をまとめた表記が使われる（1顆目が単一面の表記しか
+  // 想定していなかった旧実装では、これらの行が一切マッチせず常にnullへフォールバックして
+  // いた）。1顆目・2顆目のどちらも複数面の区切り表記（中點・読点・カンマ）を受理し、
+  // 実際に振った目がそのいずれかの面に含まれるかで判定するよう、2顆目と同じ方式に統一する。
   function parseStrongEnemyDiceCell(text) {
     var t = String(text || "").trim();
-    var m = /^(\d)\s*[／\/]\s*([\d・、,]+)$/.exec(t);
-    if (m) return { die1: parseInt(m[1], 10), faces2: m[2].replace(/[・、,]/g, "") };
+    var m = /^([\d・、,]+)\s*[／\/]\s*([\d・、,]+)$/.exec(t);
+    if (m) return { faces1: m[1].replace(/[・、,]/g, ""), faces2: m[2].replace(/[・、,]/g, "") };
     var bare = /^(\d)$/.exec(t);
-    if (bare) return { die1: parseInt(bare[1], 10), faces2: "123456" };
+    if (bare) return { faces1: bare[1], faces2: "123456" };
     return null;
   }
 
@@ -1570,7 +1598,7 @@
       var matchedRow = null;
       for (var r = 0; r < table.rows.length; r++) {
         var cell = parseStrongEnemyDiceCell(table.rows[r][0] && table.rows[r][0].ja);
-        if (cell && cell.die1 === die1 && cell.faces2.indexOf(String(die2)) !== -1) {
+        if (cell && cell.faces1.indexOf(String(die1)) !== -1 && cell.faces2.indexOf(String(die2)) !== -1) {
           matchedRow = table.rows[r];
           break;
         }
@@ -1605,7 +1633,7 @@
       var matchedRowIndex = -1;
       for (var r = 0; r < table.rows.length; r++) {
         var cell = parseStrongEnemyDiceCell(table.rows[r][0] && table.rows[r][0].ja);
-        if (cell && cell.die1 === die1 && cell.faces2.indexOf(String(die2)) !== -1) {
+        if (cell && cell.faces1.indexOf(String(die1)) !== -1 && cell.faces2.indexOf(String(die2)) !== -1) {
           matchedRowIndex = r;
           break;
         }
@@ -1710,11 +1738,19 @@
     var roll = null;
     var roll2 = null;
     if (diceOptions) {
-      roll = Math.floor(Math.random() * 6) + 1;
-      var picked = diceOptions.filter(function (o) {
-        return o.faces.indexOf(roll) !== -1;
-      })[0];
-      if (!picked) return null;
+      // 使用者確認（2026-08-23）：小砦カードの「5-6＝※再抽選」のように、出目が「再抽選」
+      // 指定の場合は文字通り出目を振り直す（そのまま分岐名として扱うと一致するbranchが無く
+      // GMへフォールバックしてしまう）。無限ループ防止のため試行回数に上限を設ける。
+      var rerollGuard = 0;
+      var picked;
+      do {
+        roll = Math.floor(Math.random() * 6) + 1;
+        picked = diceOptions.filter(function (o) {
+          return o.faces.indexOf(roll) !== -1;
+        })[0];
+        rerollGuard++;
+      } while (picked && /^※(重新)?再抽選$/.test(picked.name.trim()) && rerollGuard < 20);
+      if (!picked || /^※(重新)?再抽選$/.test(picked.name.trim())) return null;
       targetName = picked.name;
     } else if (/^※/.test(targetName)) {
       // 内容欄が「※ランダム決定」等の単純なプレースホルダーの場合のみ、extraTablesの
@@ -2600,7 +2636,9 @@
       }
       // 「雜兵戰鬥」／「王戰」構造：ここで一旦停止し、［戰鬥機制］へ切り替える。敵の正体は
       // ボタンを押すまで敘述しない（第17・18項：任何進入戰鬥時、先暫停樓層判定機制）。
-      if (isCombatTriggerLine(line)) {
+      // ただし見出しだけが戦闘トリガーの形をした「魔術師球」（isFakeCombatAbilityCheckTrigger）
+      // は除外し、後続の〔行為判定〕行までそのまま素通りさせる。
+      if (isCombatTriggerLine(line) && !isFakeCombatAbilityCheckTrigger(line, lines, i)) {
         combatTriggerIndex = i;
         break;
       }
@@ -3118,8 +3156,12 @@
     var jaMatch = /「(.+決定表)(?:（[^）]*）)?で決定した(?:エネミー|敵人)」/.exec(ja);
     var zhMatch = /「以(.+決定表)(?:（[^）]*）)?決定的(?:エネミー|敵人)」/.exec(zh);
     if (!jaMatch && !zhMatch) return null;
-    var titleJa = jaMatch ? jaMatch[1] : null;
-    var titleZh = zhMatch ? zhMatch[1] : null;
+    // バグ修正（2026-08-23）：「下記の第1階層ボス決定表で決定したエネミー」／「以下述第1階層
+    // 王決定表決定的敵人」のように、決定表名の直前に「下記の」「下述」という指示語が付く実例
+    // （神殿カード）があり、これを含めたまま比較すると extraTables 側の実際の表題（例：
+    // 「第1階層ボス決定表」）と一致しなくなる。比較前に先頭の指示語だけを取り除く。
+    var titleJa = jaMatch ? jaMatch[1].replace(/^(下記の|以下の|後述の)/, "") : null;
+    var titleZh = zhMatch ? zhMatch[1].replace(/^(下述|以下|後述)/, "") : null;
     var tables = (entry && entry.extraTables) || [];
     for (var i = 0; i < tables.length; i++) {
       var t = tables[i];
