@@ -1451,6 +1451,332 @@
         },
       ],
     },
+    // 劇本3「夜之強敵決定表」（fields_data_1.js:463-471）の5体：百足のデーモン／戦場の宿将／
+    // 爛れた樹霊／ティビアの呼び舟（1日目）、大土竜（2日目）。熔鉄デーモンはTask 3で、ノクスの
+    // 竜人兵はTask 4で、ツリーガード&王都の騎兵は既存cavalry|tree_guard_capital_cavalryで
+    // 構造化済みのため対象外（task-8-brief.md参照）。
+    //
+    // 【本ブロックで新規導入した conditions タグ】
+    // - lava_pooling_trigger（大土竜専用）: 特殊能力「溶岩の滞留」＝効果発揮後、エンドフェイズ
+    //   開始時に前衛のPC全員へ「炎:1D」を与える、という遅延・持続効果のトリガーであることの記録
+    //   （furnace_flame_triggerと同じ設計思想。値は「■」ではなく「炎:1D」で確定しているが、この
+    //   行自身のgroupDamage/individualDamageとは発生タイミングが異なる別枠の効果のため、
+    //   elementAccumには含めずconditionsのみで記録する）。
+    // - mob_hp_full_heal（既存タグ、本ブロックでも再利用）: 「モブHPの1行を最大値まで回復する」
+    //   というエネミー側の自己回復効果（PCへの効果ではない）。
+    "crustacean|centipede_demon": {
+      // 特殊能力「目立つ腕」でモブ1を追加。actions配列の末尾2行（roll:"—"の「蠢く尻尾」
+      // ［体勢崩し発生ターンに追加行動として実行］／「動き回る腕」［モブHP0以下になったターンに
+      // 追加行動として実行］）は、通常のディフェンスフェイズのアクション決定（1Dロール）に
+      // 加えて追加で実行される特殊トリガー行動であり、既存のrollOverride/rollBonusAfterGuardBreak
+      // （どちらも「1D自体の振り方・出目のズラし方」を変える機構であり「追加行動を割り込ませる」
+      // 機構ではない）では表現できない新しいパターンのため未構造化のまま
+      // （demihuman_beastfolk_club|demihuman_queen_swordmasterの「棄杖＆流星撃」と同種の判断。
+      // GMがこの2行の条件成立時に手動で追加実行する）。rows配列はactions配列の先頭4行
+      // （通常の1D6ロール対象、roll:"1~2"/"3"/"4"/"5~6"）にのみ対応させる。
+      rows: [
+        {
+          // 「回転攻撃」：「敵視:1以上」で前衛のPC全員に「乱戦ダメージ:2人分」（本文に明記）。
+          rollMin: 1,
+          rollMax: 2,
+          groupDamage: { modifier: 120 },
+          targetRule: { kind: "frontAggroAtLeast1All" },
+        },
+        {
+          // 「つかみかかり」：乱戦ダメージ修正±0（「—」ではないため発生）。対象の明記が無いため
+          // 既定ルール（前衛均等割り）。「敵視:最大」のPC全員はこの乱戦ダメージに対してガード
+          // 不可（no_guard、前衛均等割りの対象全員のうち敵視最大の部分集合にのみ適用される）。
+          rollMin: 3,
+          rollMax: 3,
+          groupDamage: { modifier: 0 },
+          targetRule: { kind: "frontAll" },
+          conditions: ["no_guard"],
+        },
+        {
+          // 「炎吐き」：乱戦ダメージ修正±0＋「炎:2D」（mod欄の固定値、骰子ではないためelementAccum）。
+          // 乱戦ダメージはPC全員を対象とする（本文に明記）。
+          rollMin: 4,
+          rollMax: 4,
+          groupDamage: { modifier: 0, elementAccum: [{ label: "炎", amount: 2 }] },
+          targetRule: { kind: "allPCs" },
+        },
+        {
+          // 「跳躍体当たり」：乱戦ダメージ修正+180（「—」ではないため発生）。対象の明記が無いため
+          // 既定ルール（前衛均等割り）。個別効果:「敵視:1以上」のPC全員は次のアクションフェイズ
+          // 開始時に獲得するスタミナダイスが1個減少する（HP損害を伴わないためconditionsのみ）。
+          rollMin: 5,
+          rollMax: 6,
+          groupDamage: { modifier: 180 },
+          targetRule: { kind: "frontAll" },
+          conditions: ["stamina_dice_reduction_next_phase"],
+        },
+      ],
+    },
+    "soldier_knight|battlefield_veteran": {
+      rows: [
+        {
+          // 「突撃指令＆防御態勢」：乱戦ダメージ修正－300、乱戦ダメージは2回発生する。対象の明記が
+          // 無いため既定ルール（前衛均等割り）。次のアクションフェイズ終了までエネミーを
+          // 「HP価値:+10（最大100）」する（enemy_hp_value_buff）。
+          rollMin: 1,
+          rollMax: 1,
+          groupDamage: { modifier: -300, repeat: 2 },
+          targetRule: { kind: "frontAll" },
+          conditions: ["enemy_hp_value_buff"],
+        },
+        {
+          // 「斧槍の連撃」：「敵視:1以上」で前衛のPC全員に「乱戦ダメージ:2人分」（本文に明記）＋
+          // 「腐敗:1D」（mod欄の固定値、骰子ではないためailmentAccumとして同じ対象に付随）。
+          rollMin: 2,
+          rollMax: 2,
+          groupDamage: { modifier: 60, ailmentAccum: [{ label: "腐敗", amount: 1 }] },
+          targetRule: { kind: "frontAggroAtLeast1All" },
+        },
+        {
+          // 「一斉射撃」：乱戦ダメージは「敵視:1以上」のPC全員を対象とする。対象となるPCが1人も
+          // いない場合は、通常通り、前衛が対象となる（本文に明記されたフォールバック規則）。
+          rollMin: 3,
+          rollMax: 3,
+          groupDamage: { modifier: 60 },
+          targetRule: { kind: "aggroAtLeast1All", fallback: "front" },
+        },
+        {
+          // 「薙ぎ払い＆再召喚」：乱戦ダメージ修正－120（「—」ではないため発生）。乱戦ダメージは
+          // PC全員を対象とする（本文に明記、remote_veteranの同名行とは対象記載が異なる点に注意）。
+          // 加えてモブHPの1行を最大値まで回復するエネミー側の自己回復効果（mob_hp_full_heal）。
+          rollMin: 4,
+          rollMax: 4,
+          groupDamage: { modifier: -120 },
+          targetRule: { kind: "allPCs" },
+          conditions: ["mob_hp_full_heal"],
+        },
+        {
+          // 「腐敗薙ぎ払い」：乱戦ダメージ修正±0（「—」ではないため発生）。対象の明記が無いため
+          // 既定ルール（前衛均等割り）。個別効果は全PCプール・敵視分岐DCの判定（敵視:1以上→
+          // 目標12、敵視:0→目標10、フィジカル）で、失敗したPCに【個別ダメージ:120】＋
+          // 「腐敗:1D」（mod欄の固定値と一致）を与える。savingThrow.onFailはamountしか反映
+          // しないため、ダメージと蓄積が揃った本行はsavingThrowを使わずGM手動判定に委ねる
+          // （saving_throw_damage_and_ailment_manual）。
+          rollMin: 5,
+          rollMax: 5,
+          groupDamage: { modifier: 0 },
+          targetRule: { kind: "frontAll" },
+          conditions: ["saving_throw_damage_and_ailment_manual"],
+        },
+        {
+          // 「腐敗の嵐」：乱戦ダメージ修正±0（「—」ではないため発生）。対象の明記が無いため既定
+          // ルール（前衛均等割り）。個別効果:「敵視:1以上」のPC全員に【個別ダメージ:60】＋
+          // 「腐敗:1D」を無条件で与える（判定を伴わないためsavingThrowではなくindividualDamage）。
+          rollMin: 6,
+          rollMax: 6,
+          groupDamage: { modifier: 0 },
+          targetRule: { kind: "frontAll" },
+          individualDamage: [
+            { amount: 60, targetRule: { kind: "aggroAtLeast1All" }, ailmentAccum: [{ label: "腐敗", amount: 1 }] },
+          ],
+        },
+      ],
+    },
+    "tree_spirit|withered_tree_spirit": {
+      rows: [
+        {
+          // 「突進」：「敵視:1以上」で前衛のPC全員に「乱戦ダメージ:2人分」（本文に明記）。
+          rollMin: 1,
+          rollMax: 1,
+          groupDamage: { modifier: 120 },
+          targetRule: { kind: "frontAggroAtLeast1All" },
+        },
+        {
+          // 「尻尾薙ぎ払い」：乱戦ダメージ修正－240、乱戦ダメージは2回発生する。対象の明記が無い
+          // ため既定ルール（前衛均等割り）。
+          rollMin: 2,
+          rollMax: 2,
+          groupDamage: { modifier: -240, repeat: 2 },
+          targetRule: { kind: "frontAll" },
+        },
+        {
+          // 「咥え込み＆回り込み」：乱戦ダメージ修正が「—」のため乱戦ダメージは発生しない。個別
+          // 効果（PC人数回実行）:「敵視:1以上」のPC1体に【個別ダメージ:300】＋「聖:1D」を与える
+          // ——「PC人数」はパーティ人数に依存する可変値のため、既存のrepeat/rotate機構（固定回数
+          // 専用）は使わず、conditionsとコメントでGM手動処理に委ねる（Global Constraint 7）。
+          // 特殊能力「回り込み」（次のアクションフェイズ開始時、PC全員はスタミナダイスの出目に
+          // かかわらず後衛に配置される＝force_back_row_next_phaseと同じ効果）も効果発揮。
+          rollMin: 3,
+          rollMax: 3,
+          conditions: ["variable_repeat_manual", "force_back_row_next_phase"],
+        },
+        {
+          // 「咆哮＆黄金の柱」：乱戦ダメージ修正±0（「—」ではないため発生）。対象の明記が無いため
+          // 既定ルール（前衛均等割り）。個別ダメージ180＋「聖:1D」は「敵視:最大」のPC1体に別枠で
+          // 発生。
+          rollMin: 4,
+          rollMax: 4,
+          groupDamage: { modifier: 0 },
+          targetRule: { kind: "frontAll" },
+          individualDamage: [{ amount: 180, targetRule: { kind: "aggroMax" }, elementAccum: [{ label: "聖", amount: 1 }] }],
+        },
+        {
+          // 「黄金の爆発＆回り込み」：乱戦ダメージ修正±0＋「聖:2D」（mod欄の固定値、骰子では
+          // ないためelementAccum）。対象の明記が無いため既定ルール（前衛均等割り）。特殊能力
+          // 「回り込み」（force_back_row_next_phase）を効果発揮。
+          rollMin: 5,
+          rollMax: 5,
+          groupDamage: { modifier: 0, elementAccum: [{ label: "聖", amount: 2 }] },
+          targetRule: { kind: "frontAll" },
+          conditions: ["force_back_row_next_phase"],
+        },
+        {
+          // 「黄金ブレス」：乱戦ダメージ修正+120＋「聖:1D」（mod欄の固定値、骰子ではないため
+          // elementAccum）。対象の明記が無いため既定ルール（前衛均等割り）。「敵視:最大」のPC
+          // 全員は、この乱戦ダメージに対してガード不可（no_guard）で、回避時のダイスコストも
+          // 半減（reducible_by_stamina_dice）——いずれも前衛均等割りの対象全員のうち敵視最大の
+          // 部分集合にのみ適用される。
+          rollMin: 6,
+          rollMax: 6,
+          groupDamage: { modifier: 120, elementAccum: [{ label: "聖", amount: 1 }] },
+          targetRule: { kind: "frontAll" },
+          conditions: ["no_guard", "reducible_by_stamina_dice"],
+        },
+      ],
+    },
+    "undead|tibias_summoning_boat": {
+      rows: [
+        {
+          // 「飛沫の一撃＆転移」：乱戦ダメージ修正±0（「—」ではないため発生）。対象の明記が無い
+          // ため既定ルール（前衛均等割り）。個別効果:「敵視:1以上」のPC全員は次のアクション
+          // フェイズ開始時に獲得するスタミナダイスが1個減少する。アクション名に「転移」とあるが
+          // 注釈本文には特殊能力「転移」の効果発揮が明記されていないため、数値・効果を捏造せず
+          // タグ付けしない（他の行では該当能力名を明記時のみforce_back_row_next_phaseを付与）。
+          rollMin: 1,
+          rollMax: 1,
+          groupDamage: { modifier: 0 },
+          targetRule: { kind: "frontAll" },
+          conditions: ["stamina_dice_reduction_next_phase"],
+        },
+        {
+          // 「櫂振り回し＆再召喚」：「敵視:1以上」で前衛のPC全員に「乱戦ダメージ:2人分」（本文に
+          // 明記）。特殊能力「再召喚」（モブHPの1行を最大値まで回復、mob_hp_full_heal）を効果発揮。
+          rollMin: 2,
+          rollMax: 2,
+          groupDamage: { modifier: 120 },
+          targetRule: { kind: "frontAggroAtLeast1All" },
+          conditions: ["mob_hp_full_heal"],
+        },
+        {
+          // 「死に生きる者:暴れまわる＆転移」：乱戦ダメージ修正－300、乱戦ダメージは2回発生する。
+          // 対象の明記が無いため既定ルール（前衛均等割り）。特殊能力「転移」（次のアクション
+          // フェイズ開始時、PC全員はスタミナダイスの出目にかかわらず後衛に配置される＝
+          // force_back_row_next_phase）を効果発揮。
+          rollMin: 3,
+          rollMax: 3,
+          groupDamage: { modifier: -300, repeat: 2 },
+          targetRule: { kind: "frontAll" },
+          conditions: ["force_back_row_next_phase"],
+        },
+        {
+          // 「死に生きる者:掴みかかり＆再召喚」：乱戦ダメージ修正－60（「—」ではないため発生）。
+          // 「敵視:1以上」のPC全員はこの乱戦ダメージに対してガード不可（no_guard、対象の明記が
+          // 無いため既定ルール＝前衛均等割りの対象全員のうち敵視1以上の部分集合にのみ適用）。
+          // 特殊能力「再召喚」（mob_hp_full_heal）を効果発揮。
+          rollMin: 4,
+          rollMax: 4,
+          groupDamage: { modifier: -60 },
+          targetRule: { kind: "frontAll" },
+          conditions: ["no_guard", "mob_hp_full_heal"],
+        },
+        {
+          // 「死儀礼の鳥:呪霊爆発＆転移」：乱戦ダメージ修正+60（「—」ではないため発生）。対象の
+          // 明記が無いため既定ルール（前衛均等割り）。個別効果:「敵視:1以上」のPC全員に【個別
+          // ダメージ:120】＋「聖:1D」（mod欄の固定値と一致する個別効果の骰子付随ダメージ）を
+          // 別枠で発生。特殊能力「転移」（force_back_row_next_phase）を効果発揮。
+          rollMin: 5,
+          rollMax: 5,
+          groupDamage: { modifier: 60 },
+          targetRule: { kind: "frontAll" },
+          individualDamage: [{ amount: 120, targetRule: { kind: "aggroAtLeast1All" }, elementAccum: [{ label: "聖", amount: 1 }] }],
+          conditions: ["force_back_row_next_phase"],
+        },
+        {
+          // 「死儀礼の鳥:槍呼び＆再召喚」：乱戦ダメージ修正+120（「—」ではないため発生）。対象の
+          // 明記が無いため既定ルール（前衛均等割り）。個別効果は「敵視:1以上」のPCのみが対象の
+          // 判定（11|フィジカル、全PCプールではなく敵視1以上のみに絞られた部分集合）で、失敗した
+          // PCに【個別ダメージ:180】＋「炎:1D」＋「凍傷:1D」（mod欄の固定値と一致）を与える。
+          // 対象が全PCプールではなく敵視条件で絞られた部分集合のためsavingThrow（全PC対象・
+          // 敵視分岐DC前提）は使わず、本文をそのままGM手動判定に委ねる（conditionsも無し、
+          // 数値を捏造しない）。特殊能力「再召喚」（mob_hp_full_heal）を効果発揮。
+          rollMin: 6,
+          rollMax: 6,
+          groupDamage: { modifier: 120 },
+          targetRule: { kind: "frontAll" },
+          conditions: ["mob_hp_full_heal"],
+        },
+      ],
+    },
+    "dragon|great_earth_dragon": {
+      rows: [
+        {
+          // 「剣薙ぎ払い」：「敵視:1以上」で前衛のPC全員に「乱戦ダメージ:2人分」（本文に明記）。
+          rollMin: 1,
+          rollMax: 1,
+          groupDamage: { modifier: 120 },
+          targetRule: { kind: "frontAggroAtLeast1All" },
+        },
+        {
+          // 「武器叩きつけ」：乱戦ダメージ修正±0（「—」ではないため発生）。対象の明記が無いため
+          // 既定ルール（前衛均等割り）。個別効果:「敵視:最大」のPC全員は次のアクションフェイズ
+          // 開始時に獲得するスタミナダイスが2個減少する（HP損害を伴わないためconditionsのみ）。
+          rollMin: 2,
+          rollMax: 2,
+          groupDamage: { modifier: 0 },
+          targetRule: { kind: "frontAll" },
+          conditions: ["stamina_dice_reduction_next_phase"],
+        },
+        {
+          // 「尻尾振り回し」：乱戦ダメージ修正+60（「—」ではないため発生）。対象の明記が無いため
+          // 既定ルール（前衛均等割り）。乱戦ダメージを回避するPCは、支払ったダイスコストの値を
+          // 半分として扱う（reducible_by_stamina_dice）。
+          rollMin: 3,
+          rollMax: 3,
+          groupDamage: { modifier: 60 },
+          targetRule: { kind: "frontAll" },
+          conditions: ["reducible_by_stamina_dice"],
+        },
+        {
+          // 「溶岩吐き＆溶岩の滞留」：乱戦ダメージ修正±0＋「炎:1D」（mod欄の固定値、骰子では
+          // ないためelementAccum、対象の明記が無いため既定ルール＝前衛均等割り）。個別ダメージ
+          // 180は「敵視:最大」のPC1体に別枠で発生。特殊能力「溶岩の滞留」（効果発揮後、エンド
+          // フェイズ開始時に前衛のPC全員へ別途「炎:1D」を与える遅延・持続効果、lava_pooling_
+          // trigger）を効果発揮。
+          rollMin: 4,
+          rollMax: 4,
+          groupDamage: { modifier: 0, elementAccum: [{ label: "炎", amount: 1 }] },
+          targetRule: { kind: "frontAll" },
+          individualDamage: [{ amount: 180, targetRule: { kind: "aggroMax" } }],
+          conditions: ["lava_pooling_trigger"],
+        },
+        {
+          // 「這いずり回り＆溶岩の滞留」：乱戦ダメージ修正－240、乱戦ダメージは2回発生する。対象の
+          // 明記が無いため既定ルール（前衛均等割り）。特殊能力「溶岩の滞留」（lava_pooling_
+          // trigger）を効果発揮。
+          rollMin: 5,
+          rollMax: 5,
+          groupDamage: { modifier: -240, repeat: 2 },
+          targetRule: { kind: "frontAll" },
+          conditions: ["lava_pooling_trigger"],
+        },
+        {
+          // 「立ち上がり剣撃＆溶岩の滞留」：乱戦ダメージ修正±0。乱戦ダメージは「敵視:1以上」の
+          // PC全員を対象とする。対象となるPCが1人もいない場合は、通常通り、前衛が対象となる
+          // （本文に明記されたフォールバック規則）。特殊能力「溶岩の滞留」（lava_pooling_
+          // trigger）を効果発揮。
+          rollMin: 6,
+          rollMax: 6,
+          groupDamage: { modifier: 0 },
+          targetRule: { kind: "aggroAtLeast1All", fallback: "front" },
+          conditions: ["lava_pooling_trigger"],
+        },
+      ],
+    },
   };
 
   function get(familyId, enemyId) {
