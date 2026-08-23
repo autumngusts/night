@@ -1731,6 +1731,16 @@
         return !suitText || !String(suitText).trim();
       })[0] ||
       null;
+    // 使用者報告（劇本2/6/8/10で「出發地點」が毎回GM手動選択に落ちる）：a_start／a_golden
+    // カードのように、複数の劇本番号を1行にまとめた花色欄（例：「2-7, 10」行の「♦♥♦♣」）が、
+    // その行が実際に対応する劇本の一部（劇本2/6/10の実際の開始花色♠等）を含んでいない
+    // ケースがある。シナリオ番号だけで候補行が一意に絞れているなら、花色欄はそもそも
+    // 内容選択に必要ない（内容欄自体が別途「1D」で更に分岐を決める）ため、花色不一致だけを
+    // 理由に丸ごとGMへ委ねてしまうのは過剰。候補行が1つしかない（＝シナリオ番号だけで
+    // 一意に決まる）場合に限り、花色欄が一致しなくてもその行を採用する（数値を捏造するのでは
+    // なく、既にシナリオ番号で一意確定している行をそのまま使うだけ）。候補が複数残っている
+    // 場合（花色で本当に絞り込む必要があるケース）は、従来通りnullでGMフォールバックする。
+    if (!matchRow && candidateRows.length === 1) matchRow = candidateRows[0];
     if (!matchRow) return null;
     var contentText = matchRow[2] ? matchRow[2].ja : "";
     var diceOptions = parseVarianceContent(contentText);
@@ -3247,7 +3257,15 @@
       if (isNightBossRef) {
         var nbResult = resolveNightBossCombatLine(line, walk.slotIndex, isBoss);
         addedNames = addedNames.concat(nbResult.addedNames);
-        if (nbResult.rollLogText) logGmDecision(nbResult.rollLogText);
+        // 使用者報告：「黃金樹之帳」抽選出敵人後，進度版一直沒有顯示是哪一隻（rollLogTextは
+        // 従来autoGmLog／行動留言板だけに記録され、進度版の敘述バナーには一切表示されて
+        // いなかった。敵人自動比對に成功していればbuildEncounterSummaryText経由で後から
+        // 表示されるが、比對に失敗した場合は結果自体が一切見えなかった）。決定表で実際に
+        // 何を引いたかは戰鬥の根幹情報のため、比對成否に関わらず進度版の敘述へ直接含める。
+        if (nbResult.rollLogText) {
+          logGmDecision(nbResult.rollLogText);
+          narrationParts.push(nbResult.rollLogText);
+        }
         if (nbResult.reminderText) reminderTexts.push(nbResult.reminderText);
         if (nbResult.mobNote) {
           reminderTexts.push(window.I18N.t(nbResult.mobNote.key, mergeParams({ text: Fields.localizedText(line.text) }, nbResult.mobNote.params)));
@@ -3262,7 +3280,11 @@
       if (entryForTable && findExtraTableByBulletLine(entryForTable, line)) {
         var etResult = resolveEntryExtraTableCombatLine(line, walk.slotIndex, isBoss);
         addedNames = addedNames.concat(etResult.addedNames);
-        if (etResult.rollLogText) logGmDecision(etResult.rollLogText);
+        // 上のisNightBossRefと同じ理由：決定表の擲骰結果は進度版の敘述に直接含める。
+        if (etResult.rollLogText) {
+          logGmDecision(etResult.rollLogText);
+          narrationParts.push(etResult.rollLogText);
+        }
         if (etResult.reminderText) reminderTexts.push(etResult.reminderText);
         if (etResult.mobNote) {
           reminderTexts.push(window.I18N.t(etResult.mobNote.key, mergeParams({ text: Fields.localizedText(line.text) }, etResult.mobNote.params)));
