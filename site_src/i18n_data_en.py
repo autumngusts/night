@@ -965,6 +965,7 @@ STRINGS_EN: dict[str, str] = {
     "merchant_weapon_draw_failed": "The draw failed. Please try again.",
     "merchant_weapon_result": "Obtained \"{weapon}\" (Rarity: {rarity})",
     "merchant_consumable_purchase_title": "Consumable Purchase (costs 1 Rune, pick one)",
+    "main_menu_draw_menu_label": "Draw",
     "potential_power_menu_label": "Potential Power",
     "main_menu_draw_weapon_label": "Draw: Weapon",
     "main_menu_draw_talisman_label": "Draw: Talisman",

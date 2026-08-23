@@ -965,6 +965,7 @@ STRINGS_JA: dict[str, str] = {
     "merchant_weapon_draw_failed": "抽選に失敗しました。もう一度お試しください。",
     "merchant_weapon_result": "「{weapon}」（稀有度：{rarity}）を獲得した",
     "merchant_consumable_purchase_title": "消耗品の購入（ルーン：1消費、任意で1個選択）",
+    "main_menu_draw_menu_label": "抽選",
     "potential_power_menu_label": "潜在する力",
     "main_menu_draw_weapon_label": "抽選：武器",
     "main_menu_draw_talisman_label": "抽選：護符",

@@ -872,6 +872,12 @@
       // （guardBrokenは戰鬥全體で1回だけの体勢崩し発生フラグのため、これとは別の「段ごと」の
       // 記録が必要）。戰鬥終了（combatEnd）時にクリアする。
       staggerRowsHandled: [],
+      // 使用者確認：公開盤（戰場面板／battle-enemy-hp-grid）の黄色「（敵人體崩！可進入額外階段）」
+      // バッジは、GMが実際に次の戰鬥階段へ切り替えた時点（setActionPhase）で非表示にする
+      // （HPが0のまま残っていても再表示しない）。GMが再度その段を回復させてから改めて0に
+      // した場合（adjustEnemyHpRowの体勢崩し分岐）は、新しい体勢崩し発生とみなし配列から除去して
+      // 再表示させる。staggerRowsHandled（自動化GMの額外階段トリガー判定専用）とは別系統。
+      staggerBadgeSuppressedRows: [],
       // 自動化GM 戰鬥自動化：通常戰鬥／簡易戰鬥判定（docs/combat_flow_rules.md §6）。
       // "normal"｜"simplified"｜null（未判定＝尚未透過resolveAndAddCombatEnemies判定過）。
       // 戰鬥級生命週期，combatEnd（notifyCombatEnded）時與guardCount等一併清除，不隨phase切換重置。
@@ -1432,6 +1438,11 @@
       bossFormTransitionPending: !!raw.bossFormTransitionPending,
       staggerRowsHandled: Array.isArray(raw.staggerRowsHandled)
         ? raw.staggerRowsHandled.filter(function (v) {
+            return typeof v === "number";
+          })
+        : [],
+      staggerBadgeSuppressedRows: Array.isArray(raw.staggerBadgeSuppressedRows)
+        ? raw.staggerBadgeSuppressedRows.filter(function (v) {
             return typeof v === "number";
           })
         : [],
@@ -9093,6 +9104,10 @@
         state.battle.guardBroken = true;
         addLog("log_guard_break_triggered");
       }
+      // GMが一度回復させてから改めてこの段を0にした場合は、新しい体勢崩し発生とみなし
+      // 黄色バッジの非表示記録を解除して再表示させる（staggerBadgeSuppressedRows）。
+      var _resuppressIdx = state.battle.staggerBadgeSuppressedRows.indexOf(rowIdx);
+      if (_resuppressIdx !== -1) state.battle.staggerBadgeSuppressedRows.splice(_resuppressIdx, 1);
       handleMobRowDepleted();
       if (enemyHasRow(rowIdx)) {
         // 夜の王はHP行を末尾から割り当てる後ろ詰め規約（enemyHpRowIndexForKey）のため、
@@ -9167,8 +9182,12 @@
             rowDiv.appendChild(plus);
           }
 
-          if (isEnemyHpRowDepleted(rowIdx)) {
-            var defeated = allEnemyHpRowsDepleted();
+          var defeated = allEnemyHpRowsDepleted();
+          // 使用者確認：黄色「（敵人體崩！可進入額外階段）」は次の戰鬥階段へ切り替わった時点で
+          // 役目を終えるため、staggerBadgeSuppressedRowsに記録済みの段は表示しない
+          // （擊破済み＝defeatedバッジは対象外、そのまま常時表示を維持する）。
+          var suppressed = !defeated && (state.battle.staggerBadgeSuppressedRows || []).indexOf(rowIdx) !== -1;
+          if (isEnemyHpRowDepleted(rowIdx) && !suppressed) {
             var statusBadge = document.createElement("span");
             statusBadge.className = "battle-hp-row-status " + (defeated ? "status-defeated" : "status-staggered");
             statusBadge.textContent = window.I18N.t(defeated ? "enemy_row_status_defeated_badge" : "enemy_row_status_staggered_badge");
@@ -11863,6 +11882,17 @@
     // 敵人體崩／擊破の長時間公告は、GMが実際に行動階段を切り替えた時点で役目を終える
     // （額外階段へ進む、あるいは戦闘終了で一般階段へ戻る、いずれも「切替」なのでここで閉じる）。
     closeEnemyRowStatusBanner();
+    // 公開盤（battle-enemy-hp-grid）の黄色「（敵人體崩！可進入額外階段）」バッジも同じ切替の
+    // 瞬間に役目を終える。現時点で撃破済みの段を全て「表示済み」として記録し、以後HPが0のまま
+    // 残っていてもこのバッジだけは再表示しない（isEnemyHpRowDepleted自体は引き続きtrueのまま）。
+    for (var _staggerBadgeRow = 0; _staggerBadgeRow < ENEMY_HP_ROWS; _staggerBadgeRow++) {
+      if (isEnemyHpRowDepleted(_staggerBadgeRow) && state.battle.staggerBadgeSuppressedRows.indexOf(_staggerBadgeRow) === -1) {
+        state.battle.staggerBadgeSuppressedRows.push(_staggerBadgeRow);
+      }
+    }
+    // battle-drawer（公開盤）は開閉状態に関わらずDOMに常駐しているため、上のバッジ非表示記録を
+    // 即座に見た目へ反映させるには明示的に再描画する必要がある。
+    renderEnemyHpGrid();
     renderActionPhaseButton();
     renderTurnHolderBar();
     renderTurnBoardToggleButton();
@@ -11908,6 +11938,7 @@
       // 使用者確認：「1段1回だけ體勢崩し」の記録は戰鬥単位の生命週期のため、ここで一緒に
       // クリアする（次の戦闘で改めて0から数える）。
       state.battle.staggerRowsHandled = [];
+      state.battle.staggerBadgeSuppressedRows = [];
       addLog("log_battle_combat_end");
       // 自動化GM Phase 2［戰鬥機制］：樓層敘述中の「雜兵戰鬥／王戰」ボタンから開始した戦闘が
       // ここで終結を検出された場合（state.gmFlow.battleWaitActive）、GMの手動操作なしで
@@ -14905,11 +14936,16 @@
     document.getElementById("main-menu-list").addEventListener("click", function () {
       this.classList.remove("open");
     });
-    // 「設定」はサブメニューを開閉するだけのトグルなので、押しても主選單自体は閉じない
-    // （e.stopPropagationでmain-menu-listの全体クローズ処理をブロックする）。
+    // 「設定」「抽選」はいずれもサブメニューを開閉するだけのトグルなので、押しても主選單自体は
+    // 閉じない（e.stopPropagationでmain-menu-listの全体クローズ処理をブロックする）。
     document.getElementById("btn-settings-menu-toggle").addEventListener("click", function (e) {
       e.stopPropagation();
       var submenu = document.getElementById("settings-submenu");
+      submenu.hidden = !submenu.hidden;
+    });
+    document.getElementById("btn-draw-menu-toggle").addEventListener("click", function (e) {
+      e.stopPropagation();
+      var submenu = document.getElementById("draw-submenu");
       submenu.hidden = !submenu.hidden;
     });
     document.querySelectorAll(".action-phase-grid button").forEach(function (btn) {

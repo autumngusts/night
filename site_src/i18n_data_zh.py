@@ -965,6 +965,7 @@ STRINGS_ZH: dict[str, str] = {
     "merchant_weapon_draw_failed": "抽選失敗，請重新嘗試。",
     "merchant_weapon_result": "獲得了「{weapon}」（稀有度：{rarity}）",
     "merchant_consumable_purchase_title": "消耗品的購買（消耗盧恩：1，任選其一）",
+    "main_menu_draw_menu_label": "抽選",
     "potential_power_menu_label": "潛在之力",
     "main_menu_draw_weapon_label": "抽選：武器",
     "main_menu_draw_talisman_label": "抽選：護符",

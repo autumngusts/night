@@ -20,22 +20,25 @@ BODY = """    <div class="night-header-row">
           <button type="button" class="main-menu-toggle-btn" id="btn-main-menu-toggle" aria-label="toggle main menu">&#9776;</button>
           <div class="main-menu-list" id="main-menu-list">
             <button id="btn-battle-info" type="button" class="main-menu-item" data-i18n="battle_sheet_label"></button>
-            <button id="btn-potential-power-info" type="button" class="main-menu-item" data-i18n="potential_power_menu_label"></button>
-            <button id="btn-main-menu-draw-weapon" type="button" class="main-menu-item" data-i18n="main_menu_draw_weapon_label"></button>
-            <button id="btn-main-menu-draw-talisman" type="button" class="main-menu-item" data-i18n="main_menu_draw_talisman_label"></button>
-            <button id="btn-main-menu-draw-consumable" type="button" class="main-menu-item" data-i18n="main_menu_draw_consumable_label"></button>
             <button id="btn-turn-reward-open" type="button" class="main-menu-item" data-i18n="turn_reward_open_button"></button>
             <button id="btn-main-menu-log" type="button" class="main-menu-item" data-i18n="log_menu_label"></button>
+            <button id="btn-draw-menu-toggle" type="button" class="main-menu-item" data-i18n="main_menu_draw_menu_label"></button>
+            <div class="main-menu-submenu" id="draw-submenu" hidden>
+              <button id="btn-potential-power-info" type="button" class="main-menu-item" data-i18n="potential_power_menu_label"></button>
+              <button id="btn-main-menu-draw-weapon" type="button" class="main-menu-item" data-i18n="main_menu_draw_weapon_label"></button>
+              <button id="btn-main-menu-draw-talisman" type="button" class="main-menu-item" data-i18n="main_menu_draw_talisman_label"></button>
+              <button id="btn-main-menu-draw-consumable" type="button" class="main-menu-item" data-i18n="main_menu_draw_consumable_label"></button>
+            </div>
             <button id="btn-settings-menu-toggle" type="button" class="main-menu-item" data-i18n="settings_menu_label"></button>
             <div class="main-menu-submenu" id="settings-submenu" hidden>
               <a id="link-characters" class="back-link main-menu-item" href="../index.html" data-i18n="back_characters"></a>
-              <button id="btn-undo-night" type="button" class="main-menu-item" data-i18n="undo_night_button"></button>
-              <button id="btn-primary-action" type="button" class="main-menu-item primary-btn"></button>
+              <button id="btn-turn-board-toggle" type="button" class="main-menu-item"></button>
               <button id="btn-tts-toggle" type="button" class="main-menu-item"></button>
               <button id="btn-dice-animation-toggle" type="button" class="main-menu-item"></button>
-              <button id="btn-turn-board-toggle" type="button" class="main-menu-item"></button>
-              <button id="btn-reset-all-dice" type="button" class="main-menu-item danger-btn" data-i18n="reset_all_dice_button"></button>
               <button id="btn-return-card-to-deck-open" type="button" class="main-menu-item danger-btn" data-i18n="return_card_to_deck_menu_label"></button>
+              <button id="btn-reset-all-dice" type="button" class="main-menu-item danger-btn" data-i18n="reset_all_dice_button"></button>
+              <button id="btn-undo-night" type="button" class="main-menu-item" data-i18n="undo_night_button"></button>
+              <button id="btn-primary-action" type="button" class="main-menu-item primary-btn"></button>
               <button id="btn-new-game" type="button" class="main-menu-item danger-btn" data-i18n="new_game_button"></button>
             </div>
           </div>
