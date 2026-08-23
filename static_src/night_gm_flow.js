@@ -2328,7 +2328,12 @@
     state.gmFlow.chipCombatSlot = idx;
     state.gmFlow.chipCombatIsTerrible = !!(data && data.isTerrible);
     state.gmFlow.chipCombatContinuation = continuation;
-    state.gmFlow.narrationText = window.I18N.t("gm_flow_combat_in_progress_narration");
+    // handleCombatTriggerClickと同じ簡易戰鬥リマインダー（docs/combat_flow_rules.md §6）。
+    // 強敵籌碼の戦闘はhandleCombatTriggerClickを経由しない独立系統のため、ここでも同様に判定する。
+    state.gmFlow.narrationText =
+      state.battle.combatMode === "simplified"
+        ? window.I18N.t("gm_flow_combat_simplified_reminder") + "\n" + window.I18N.t("gm_flow_combat_in_progress_narration")
+        : window.I18N.t("gm_flow_combat_in_progress_narration");
     state.gmFlow.awaitingOk = true;
     state.gmFlow.actionKind = "chipCombatWait";
     Core.saveState();
@@ -2978,14 +2983,27 @@
   // 現在表示言語の項目名を使う——ja/zhの項目順序が一致している前提、実データ確認済み）。
   // 一致する項目が見つからない場合のみ、従来通り手動選択ボタンへフォールバックする
   // （数値・分岐先を捏造しない、既存の"■"と同じ方針）。
-  function resolveFixedScenarioDiceTableMatch(entries, tableLine, slotIndex) {
+  // 使用者報告（劇本2/3の教會カードで実際に確認）：scenarios.jsのday1/day2欄は、劇本1のように
+  // 「教会（埋まった女神像）」と括弧付きで具体的な変体名まで指定している場合と、劇本2/3のように
+  // 括弧無しの汎用カード名「教会」だけを書いている場合の両方がある。前者は劇本表自体がその
+  // 板塊の中身を一意に決めているため、決定表を無視してその変体へ直接解決すべきだが、後者
+  // （括弧無し）は劇本側では何も決まっておらず、決定表通り実際に1D6を振るべきケース——にも
+  // 関わらず、以前はfindCardEffectが行自体を見つけた時点で「劇本固定」とみなしてしまい、
+  // 括弧が無い場合は行名そのもの（例:「教会」）を疑似サフィックスとして扱っていた。これは
+  // 決定表のどの項目（「埋まった女神像」等）とも一致しないため、常に「一致失敗→GM手動選択」
+  // に落ちてしまい、劇本2/3では規則書が指示する自動骰子決定が一切機能していなかった。
+  // 括弧付きサフィックスが実在する場合のみ「劇本固定」として扱うよう、判定をここへ集約する。
+  function scenarioRowFixedVariantSuffix(slotIndex) {
     var Core = window.PriTestNightCore;
-    if (!Core.resolveScenarioTrueNameRaw) return null;
+    if (typeof slotIndex !== "number" || !Core.resolveScenarioTrueNameRaw) return null;
     var rawName = Core.resolveScenarioTrueNameRaw(slotIndex);
     var rawNameJa = rawName && rawName.ja;
     if (!rawNameJa) return null;
     var suffixMatch = /[（(]([^）)]+)[）)]/.exec(rawNameJa);
-    var suffix = suffixMatch ? suffixMatch[1].trim() : rawNameJa.trim();
+    return suffixMatch ? suffixMatch[1].trim() : null;
+  }
+
+  function resolveFixedScenarioDiceTableMatch(entries, tableLine, suffix) {
     var jaEntries = parseInlineDiceTable((tableLine.text && tableLine.text.ja) || "");
     if (!jaEntries || jaEntries.length !== entries.length) return null;
     var matchIndex = -1;
@@ -3007,10 +3025,9 @@
     if (!tableLine || !tableLine.bullet || tableLine.depth !== depth + 1) return { index: headingIndex, text: "" };
     var entries = parseInlineDiceTable(window.PriTestFields.localizedText(tableLine.text));
     if (!entries) return { index: headingIndex, text: "" };
-    var Core = window.PriTestNightCore;
-    var hasFixedScenarioName = typeof slotIndex === "number" && Core.resolveScenarioTrueName && !!Core.resolveScenarioTrueName(slotIndex);
-    if (hasFixedScenarioName) {
-      var fixedMatch = resolveFixedScenarioDiceTableMatch(entries, tableLine, slotIndex);
+    var fixedSuffix = scenarioRowFixedVariantSuffix(slotIndex);
+    if (fixedSuffix) {
+      var fixedMatch = resolveFixedScenarioDiceTableMatch(entries, tableLine, fixedSuffix);
       if (fixedMatch) {
         logGmDecision(window.I18N.t("gm_flow_dice_table_fixed_scenario_log", { name: fixedMatch.name }));
         var fixedOutcome = findHeadingIndexForLabel(lines, headingIndex + 1, fixedMatch.name);
@@ -3276,6 +3293,14 @@
     // 雜兵の有無とそのHP）を進度版の敘述に含める（docs/combat_flow_rules.md §4）。
     var encounterSummary = Core.buildEncounterSummaryText ? Core.buildEncounterSummaryText() : "";
     if (encounterSummary) narrationParts.push(encounterSummary);
+    // 使用者報告：簡易戰鬥（ザコ戰鬥判定がPC平均Lvに対してエネミーのレベルが十分低い場合、
+    // docs/combat_flow_rules.md §6）は防禦フェイズを省略し1回合しか続かないため、GMが見落として
+    // 通常戰鬥のつもりで進行しないよう、進度版の敘述に目立つ形で明記する（既存のautoGmLogだけ
+    // では埋もれてしまうため、narrationText自体にも含める）。combatModeはresolveAndAddCombatEnemies
+    // が上のforEachループ内で確定済み。
+    if (Core.state.battle.combatMode === "simplified") {
+      narrationParts.push(window.I18N.t("gm_flow_combat_simplified_reminder"));
+    }
     narrationParts.push(window.I18N.t("gm_flow_combat_in_progress_narration"));
     walk.lineIndex = collected.nextIndex;
     state.gmFlow.narrationText = narrationParts.join("\n");

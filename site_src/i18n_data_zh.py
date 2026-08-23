@@ -877,6 +877,7 @@ STRINGS_ZH: dict[str, str] = {
     "battle_position_body": "・前衛／後衛的決定：於行動階段開始時獲得的體力骰中，數出「出目最多的那個數字的個數」來決定。奇數＝前衛／偶數＝後衛。\n・敵視：行動階段開始時獲得的體力骰中，「特定圖案的個數＝敵視」。",
     "battle_simple_combat_title": "簡易戰鬥的特徵",
     "battle_simple_combat_body": "・省略防禦階段、限定1回合：簡易戰鬥省略防禦階段，只戰鬥1回合，會發生追擊損害。\n・追擊損害：結束階段時若敵人仍存活，則對全體PC造成等同於敵人目前HP的HP損害，之後視為擊破敵人。",
+    "gm_flow_combat_simplified_reminder": "⚠ 判定為簡易戰鬥（僅1回合，省略防禦階段）：本回合結束時若敵人仍存活，將自動觸發追擊損害。",
     "simplified_combat_end_confirm_button": "確認",
     "simplified_combat_pursuit_damage_prompt": "簡易戰鬥結束，敵人尚有 {value} 點HP轉為追擊損害，全體玩家各扣 {value} 點HP。",
     "simplified_combat_pursuit_damage_none_prompt": "簡易戰鬥結束，敵人已無殘留HP，無追擊損害。",

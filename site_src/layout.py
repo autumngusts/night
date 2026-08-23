@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from site_src.version import VERSION
+
 LANGS = ("zh", "ja", "en")
 
 
@@ -32,7 +34,9 @@ def page_shell(
 </head>
 <body>
   <header class="site-header">
-    <a class="site-title" href="{home_href}" data-i18n="site_name"></a>
+    <div class="site-title-group">
+      <a class="site-title" href="{home_href}" data-i18n="site_name"></a><span class="site-version">v{VERSION}</span>
+    </div>
     <nav class="lang-switch">
 {lang_buttons}
     </nav>

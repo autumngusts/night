@@ -3150,14 +3150,18 @@
     return cols.slice(0, tier);
   }
 
-  // 盤面最上段（slot-wrap-0/1/2、各列の一番上のカード格）に、現在夜雨の影響を受けている列
-  // だけ下雨アイコンを表示する（項目8）。buildBoardSlotsが仕込んだ.slot-rain-icon要素の
-  // 表示/非表示を切り替えるだけで、DOM自体は作り直さない。
+  // 使用者確認：夜雨の影響を受けている列は、最上段（各列の一番上のカード格）だけでなく、
+  // 同じ列の下2枚（行2・行3）にも下雨アイコンを表示する（3x3盤面はindex=row*3+colの
+  // row-major配置のため、列colの3マスはindex col／col+3／col+6）。buildBoardSlotsが
+  // 仕込んだ.slot-rain-icon要素の表示/非表示を切り替えるだけで、DOM自体は作り直さない。
   function renderRainIcons() {
     var affected = rainAffectedColumns();
     for (var col = 0; col < 3; col++) {
-      var icon = document.getElementById("slot-rain-icon-" + col);
-      if (icon) icon.hidden = affected.indexOf(col) === -1;
+      var isAffected = affected.indexOf(col) !== -1;
+      for (var row = 0; row < 3; row++) {
+        var icon = document.getElementById("slot-rain-icon-" + (col + row * 3));
+        if (icon) icon.hidden = !isAffected;
+      }
     }
   }
 
@@ -14319,16 +14323,15 @@
         var wrap = document.createElement("div");
         wrap.className = "slot-wrap slot-wrap-" + index;
 
-        // 使用者確認（項目8）：最上段（index 0-2、各列の一番上のカード格）だけに、夜雨
-        // 発生時の下雨アイコン用プレースホルダーを仕込む（表示/非表示はrenderRainIcons）。
-        if (index < 3) {
-          var rainIcon = document.createElement("div");
-          rainIcon.className = "slot-rain-icon";
-          rainIcon.id = "slot-rain-icon-" + index;
-          rainIcon.hidden = true;
-          rainIcon.setAttribute("aria-hidden", "true");
-          wrap.appendChild(rainIcon);
-        }
+        // 使用者確認：夜雨発生時の下雨アイコンは、影響を受ける列の全3マス（最上段だけでなく
+        // 同じ列の下2枚も）に表示するため、全マスにプレースホルダーを仕込む
+        // （表示/非表示はrenderRainIcons）。
+        var rainIcon = document.createElement("div");
+        rainIcon.className = "slot-rain-icon";
+        rainIcon.id = "slot-rain-icon-" + index;
+        rainIcon.hidden = true;
+        rainIcon.setAttribute("aria-hidden", "true");
+        wrap.appendChild(rainIcon);
 
         var btn = document.createElement("button");
         btn.type = "button";

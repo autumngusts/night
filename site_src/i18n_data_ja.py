@@ -877,6 +877,7 @@ STRINGS_JA: dict[str, str] = {
     "battle_position_body": "・前衛＆後衛の決定：アクションフェイズ開始時に獲得するスタミナダイスの「最も大きい出目の個数」を数えて決定。奇数＝前衛／偶数＝後衛。\n・敵視：アクションフェイズ開始時に獲得するスタミナダイスの「特定の目の個数＝敵視」。",
     "battle_simple_combat_title": "簡易戦闘の特徴",
     "battle_simple_combat_body": "・ディフェンス省略＆1ターン限定：簡易戦闘ではディフェンスフェイズを省略し、1ターンしか戦闘せず、追撃損害が発生。\n・追撃損害：エンドフェイズにエネミーが生存していたなら、エネミーの現在HPと同じだけのHP損害をPC全員に与える。その後、エネミーは撃破したことになる。",
+    "gm_flow_combat_simplified_reminder": "⚠ 簡易戦闘と判定（1ターンのみ、ディフェンスフェイズ省略）：このターン終了時にエネミーが生存していれば、自動的に追撃損害が発生する。",
     "simplified_combat_end_confirm_button": "確認",
     "simplified_combat_pursuit_damage_prompt": "簡易戦闘終了。エネミーに残りHP {value} 点があるため追撃損害が発生、PC全員がそれぞれ {value} 点のHP損害を受けます。",
     "simplified_combat_pursuit_damage_none_prompt": "簡易戦闘終了。エネミーに残りHPが無いため追撃損害は発生しません。",

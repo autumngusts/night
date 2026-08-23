@@ -877,6 +877,7 @@ STRINGS_EN: dict[str, str] = {
     "battle_position_body": "・Front/back is decided at the start of the Action Phase by counting the most common die face among stamina dice rolled: odd count = front, even count = back.\n・Aggro: the count of a specific die face among stamina dice rolled at the start of the Action Phase.",
     "battle_simple_combat_title": "Simplified Combat Features",
     "battle_simple_combat_body": "・Defense phase skipped, 1 turn only: simplified combat skips the Defense Phase and lasts only one turn, causing pursuit damage.\n・Pursuit damage: if the enemy survives to the End Phase, all PCs take HP damage equal to the enemy's current HP, after which the enemy is considered defeated.",
+    "gm_flow_combat_simplified_reminder": "⚠ Judged as simplified combat (1 turn only, Defense Phase skipped): if the enemy survives this turn, pursuit damage will trigger automatically.",
     "simplified_combat_end_confirm_button": "Confirm",
     "simplified_combat_pursuit_damage_prompt": "Simplified combat ends. The enemy still has {value} HP, causing pursuit damage: all PCs each take {value} HP damage.",
     "simplified_combat_pursuit_damage_none_prompt": "Simplified combat ends. The enemy has no remaining HP, so no pursuit damage occurs.",
