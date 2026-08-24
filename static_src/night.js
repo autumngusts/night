@@ -8928,9 +8928,16 @@
       breakdownParts.push(groupBreakdown);
       if (result.structuredRow.targetRule) {
         var groupTargets = AutoGm.resolveTargets(result.structuredRow.targetRule, state.battle, entered.length);
-        // 「N人份」の加重配分（現状は対象全員が同一重みのため均等割りと数学的に同値、
-        // auto_gm.jsのsplitGroupShares参照）：対象が複数いる場合は傷害池を人数で分ける。
-        var shares = AutoGm.splitGroupShares(groupResult.total, groupTargets.length);
+        var shares;
+        if (result.structuredRow.targetRule.weightRule) {
+          // 「乱戦ダメージはPC全員対象、◯◯条件のPCはn人分の加重」パターン（edele「突進」等）。
+          var weighted = AutoGm.resolveWeightedTargets(result.structuredRow.targetRule, state.battle, entered.length);
+          shares = AutoGm.splitGroupSharesWeighted(groupResult.total, weighted);
+        } else {
+          // 「N人份」の加重配分（対象全員が同一重みのため均等割りと数学的に同値、
+          // auto_gm.jsのsplitGroupShares参照）：対象が複数いる場合は傷害池を人数で分ける。
+          shares = AutoGm.splitGroupShares(groupResult.total, groupTargets.length);
+        }
         groupTargets.forEach(function (idx, shareIdx) {
           var input = document.getElementById("enemy-damage-group-" + entered[idx].id);
           if (input) input.value = String(Math.round(shares[shareIdx]));

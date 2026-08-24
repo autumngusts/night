@@ -247,6 +247,39 @@
     return shares;
   }
 
+  // 「乱戦ダメージはPC全員が対象、ただし◯◯条件を満たすPCはn人分の加重を受ける」パターン
+  // （edele「突進」等）：targetRule.weightRuleが指定されている場合、resolveTargetsで得た
+  // 候補のうち、weightRule.kindの条件を満たすPCはweightRule.weight、それ以外は1として
+  // 各PCの重みを返す。
+  function matchesWeightCondition(kind, battleState, idx) {
+    var aggro = (battleState.aggro && battleState.aggro[idx]) || 0;
+    var front = !!(battleState.front && battleState.front[idx]);
+    if (kind === "frontAggroAtLeast1") return front && aggro >= 1;
+    return false;
+  }
+
+  function resolveWeightedTargets(targetRule, battleState, rosterCount) {
+    var candidates = resolveTargets(targetRule, battleState, rosterCount);
+    var weightRule = targetRule.weightRule;
+    return candidates.map(function (idx) {
+      var weight = weightRule && matchesWeightCondition(weightRule.kind, battleState, idx) ? weightRule.weight : 1;
+      return { index: idx, weight: weight };
+    });
+  }
+
+  // 加重版のsplitGroupShares：合計重みで傷害池を割り、各対象の重み分を掛けて配分する
+  // （通常のsplitGroupSharesは全員重み1固定の特殊ケースに相当）。
+  function splitGroupSharesWeighted(total, weightedTargets) {
+    var totalWeight = weightedTargets.reduce(function (sum, t) {
+      return sum + t.weight;
+    }, 0);
+    if (!totalWeight) return weightedTargets.map(function () { return 0; });
+    var unit = total / totalWeight;
+    return weightedTargets.map(function (t) {
+      return unit * t.weight;
+    });
+  }
+
   // targetRuleを実際のbattle状態（front/back/aggro）に照らして対象PCのroster配列indexへ解決する。
   // fallback（例："front"）は、本来の条件に該当するPCが1人もいない場合に本文が明記している
   // 代替対象（例：「対象となるPCが1人もいない場合は、通常どおり、前衛が対象となる」）を表す。
@@ -352,6 +385,8 @@
     rollEnemyAction: rollEnemyAction,
     computeGroupDamage: computeGroupDamage,
     splitGroupShares: splitGroupShares,
+    resolveWeightedTargets: resolveWeightedTargets,
+    splitGroupSharesWeighted: splitGroupSharesWeighted,
     computeIndividualDamage: computeIndividualDamage,
     resolveTargets: resolveTargets,
     resolveRotatedHits: resolveRotatedHits,
