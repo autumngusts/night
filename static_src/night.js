@@ -11503,6 +11503,9 @@
     var re = /〔([^〕]+)〕([^〔]*)/g;
     var m;
     while ((m = re.exec(text))) {
+      // 「弱点／弱點」見出しは既にextractWeaknessが別途処理・表示しているため、
+      // 公開特殊能力リストには重複して含めない。
+      if (m[1].indexOf("弱点") === 0 || m[1].indexOf("弱點") === 0) continue;
       if (m[2].indexOf("公開情報") !== -1 || m[2].indexOf("公開資訊") !== -1) {
         names.push(m[1]);
       }
