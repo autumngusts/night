@@ -8913,17 +8913,19 @@
     // しないが、対象群A（「敵視:1以上」PC全員、前後衛問わず）とB（それ以外の前衛PC）の実名は
     // 機械的に決まるため、規則書本文の穴埋め文を組み立てて進度版へ追記する。
     if (result.enemyKey === "boss|gnoster" && result.rollValue === 5) {
-      var groupA = AutoGm.resolveTargets({ kind: "aggroAtLeast1All" }, state.battle, entered.length).map(function (idx) {
+      // PCの表示名(name)は一意性が保証されていないため、groupA/groupBの重複除外は必ず
+      // entered配列のインデックス（またはid）で行い、名前での比較はしない（同名PCの誤判定防止）。
+      var groupAIdx = AutoGm.resolveTargets({ kind: "aggroAtLeast1All" }, state.battle, entered.length);
+      var allFrontIdx = AutoGm.resolveTargets({ kind: "frontAll" }, state.battle, entered.length);
+      var groupBIdx = allFrontIdx.filter(function (idx) {
+        return groupAIdx.indexOf(idx) === -1;
+      });
+      var groupA = groupAIdx.map(function (idx) {
         return entered[idx].name;
       });
-      var allFrontIdx = AutoGm.resolveTargets({ kind: "frontAll" }, state.battle, entered.length);
-      var groupB = allFrontIdx
-        .filter(function (idx) {
-          return groupA.indexOf(entered[idx].name) === -1;
-        })
-        .map(function (idx) {
-          return entered[idx].name;
-        });
+      var groupB = groupBIdx.map(function (idx) {
+        return entered[idx].name;
+      });
       breakdownParts.push(
         window.I18N.t("auto_gm_gnoster_scream_breakdown", { groupA: groupA.join("、") || "—", groupB: groupB.join("、") || "—" })
       );
