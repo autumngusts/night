@@ -10469,8 +10469,15 @@
         // これから振る骰子による自動前後衛判定=syncDiceStatusToBattleで上書きされないように
         // する——本文の「骰目に関わらず後衛配置」を反映）。
         if (state.battle.forceBackRowNextPhase) {
-          rosterCharacters.forEach(function (c, idx) {
-            if (!c.entered || idx >= BATTLE_SLOT_COUNT) return;
+          // state.battle.front/back/positionLockedはrosterCharacters全体ではなく、entered
+          // でフィルタした後の連番インデックス（0〜BATTLE_SLOT_COUNT-1）を使う配列のため
+          // （syncDiceStatusToBattleと同じパターン）、rosterCharacters.forEachのidxを直接
+          // 使ってはならない。
+          var forceBackRowEntered = rosterCharacters.filter(function (c) {
+            return c.entered;
+          });
+          forceBackRowEntered.forEach(function (c, idx) {
+            if (idx >= BATTLE_SLOT_COUNT) return;
             state.battle.front[idx] = false;
             state.battle.back[idx] = true;
             state.battle.positionLocked[idx] = true;
