@@ -2105,13 +2105,16 @@
         },
         {
           // 「死の叫び」：乱戦ダメージ修正が「—」のため乱戦ダメージは発生しない。個別効果：
-          // 「敵視:1以上」のPC全員に「HP損害:■■■」を与える（■は数値未確定のプレースホルダの
-          // ため自動計算しない／Global Constraint 1）。スタミナダイス1個を消費するごとに
-          // 「HP損害:■」を軽減してもよいのはPC側の任意選択のため自動計算しない
-          // （imp_watchdog_gargoyle|hero_gargoyle「咆哮」と同型、reducible_by_stamina_dice）。
+          // 「敵視:1以上」のPC全員に「HP損害:■■■」を与える。■は本来数値未確定のプレースホルダ
+          // （CLAUDE.md §19）だが、2026-08-24使用者裁定によりこの1箇所限定で「実際に描かれた
+          // ■の個数（3）をそのまま固定ダメージ値として採用する」方針を採る（他の■表記への
+          // 一般適用ではない、docs/superpowers/plans/2026-08-24-night-lord-edele-gnoster-auto-gm.md
+          // 参照）。スタミナダイス1個を消費するごとに「HP損害:■」を軽減してもよいのはPC側の
+          // 任意選択のため、軽減量自体は自動計算しない（reducible_by_stamina_dice）。
           rollMin: 6,
           rollMax: 6,
-          conditions: ["unknown_hp_damage_manual", "reducible_by_stamina_dice"],
+          individualDamage: [{ amount: 3, targetRule: { kind: "aggroAtLeast1All" } }],
+          conditions: ["reducible_by_stamina_dice"],
         },
       ],
     },
