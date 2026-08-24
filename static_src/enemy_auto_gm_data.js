@@ -1220,25 +1220,39 @@
           // 対象明記なし）。既定ルール（前衛均等割り）。個別効果は全PCプール・敵視分岐DCの判定
           // （敵視:1以上→目標12、それ以外→目標10、フィジカル）で、失敗したPCに【個別ダメージ:
           // 240】＋「雷:1D」を与える。mod欄の「雷:1D」はこの個別判定の失敗時効果と数値が一致する
-          // ため二重計上を避けてgroupDamageには付随させず、判定・ダメージ・蓄積のすべてを
-          // GM手動処理に委ねる（saving_throw_damage_and_ailment_manual）。
+          // ため二重計上を避けてgroupDamageには付随させない。2026-08-24：Task3で拡張した
+          // savingThrow.onFail.elementAccumにより、「雷:1D」をTask1裁定の固定値1として自動化
+          // する（以前はamountしか反映できなかったため手動処理としていた）。
           rollMin: 4,
           rollMax: 4,
           groupDamage: { modifier: -120 },
           targetRule: { kind: "frontAll" },
-          conditions: ["saving_throw_damage_and_ailment_manual"],
+          savingThrow: {
+            stat: "physical",
+            targetByCondition: [
+              { condition: { kind: "aggroAtLeast1" }, target: 12 },
+              { condition: { kind: "default" }, target: 10 },
+            ],
+            onFail: { amount: 240, elementAccum: [{ label: "雷", amount: 1 }] },
+          },
         },
         {
           // 「赤雷叩きつけ」：乱戦ダメージ修正±0（「—」ではないため発生）。既定ルール（前衛均等
           // 割り）。個別効果は「敵視:1以上」のPCのみが対象の判定（11|フィジカル、全PCプールでは
           // なく敵視1以上のみに絞られた部分集合）で、失敗したPCに【個別ダメージ:120】＋「雷:1D」を
-          // 与える。対象が全PCプールではなく敵視条件で絞られた部分集合のためsavingThrow（全PC
-          // 対象・敵視分岐DC前提）は使わず、本文をそのままGM手動判定に委ねる（conditionsも無し、
-          // 数値を捏造しない）。
+          // 与える。2026-08-24：Task3で拡張したsavingThrow.targetFilterにより、対象を「敵視:1以上」
+          // のみへ絞り込んだ判定として自動化する（以前は全PCプール前提のsavingThrowでは表現
+          // できなかったため手動処理としていた）。「雷:1D」はTask1裁定により固定値1。
           rollMin: 5,
           rollMax: 5,
           groupDamage: { modifier: 0 },
           targetRule: { kind: "frontAll" },
+          savingThrow: {
+            stat: "physical",
+            targetFilter: { kind: "aggroAtLeast1" },
+            targetByCondition: [{ condition: { kind: "default" }, target: 11 }],
+            onFail: { amount: 120, elementAccum: [{ label: "雷", amount: 1 }] },
+          },
         },
         {
           // 「炎ブレス＆滞空」：乱戦ダメージはPC全員を対象とする（本文に明記）。mod欄の「炎:2D」は
