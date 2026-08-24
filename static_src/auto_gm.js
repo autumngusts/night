@@ -285,6 +285,29 @@
   // 代替対象（例：「対象となるPCが1人もいない場合は、通常どおり、前衛が対象となる」）を表す。
   function resolveTargets(targetRule, battleState, rosterCount) {
     if (!targetRule || !battleState) return [];
+    // 「敵視:最大のPCが多いエリア（前衛/後衛）全員」パターン（gnoster「潜航＆毒液」等）：
+    // 他のkindのように1PCずつ判定するループでは表現できない（先に全体の敵視最大値と
+    // 前衛/後衛の人数比較が必要）ため、専用の早期returnで処理する。
+    if (targetRule.kind === "majorityAreaAggroMax") {
+      var allAggro = [];
+      for (var a = 0; a < rosterCount; a++) allAggro.push((battleState.aggro && battleState.aggro[a]) || 0);
+      var maxAggroValue = allAggro.length ? Math.max.apply(null, allAggro) : 0;
+      var maxAggroIdxs = [];
+      for (var b = 0; b < rosterCount; b++) if (allAggro[b] === maxAggroValue) maxAggroIdxs.push(b);
+      var frontCount = 0;
+      var backCount = 0;
+      maxAggroIdxs.forEach(function (idx) {
+        if (battleState.front && battleState.front[idx]) frontCount++;
+        else backCount++;
+      });
+      var chooseFront = frontCount === backCount ? Math.random() < 0.5 : frontCount > backCount;
+      var areaResult = [];
+      for (var d = 0; d < rosterCount; d++) {
+        var isFrontD = !!(battleState.front && battleState.front[d]);
+        if (isFrontD === chooseFront) areaResult.push(d);
+      }
+      return areaResult;
+    }
     var candidates = [];
     for (var i = 0; i < rosterCount; i++) {
       var aggro = (battleState.aggro && battleState.aggro[i]) || 0;
@@ -297,6 +320,8 @@
         // ユーザー確認済みの既定ルール: 行動本文に亂戰傷害の分配対象が明記されていない場合、
         // 前衛の全員で均等割りする（規則書「乱戦ダメージ：n人」の一般ルールに対する既定値）。
         if (front) candidates.push(i);
+      } else if (targetRule.kind === "backAll") {
+        if (!front) candidates.push(i);
       } else if (targetRule.kind === "aggroMax" || targetRule.kind === "frontAggroMaxAll") {
         if (targetRule.kind === "aggroMax" || front) candidates.push(i);
       } else if (targetRule.kind === "allPCs") {
