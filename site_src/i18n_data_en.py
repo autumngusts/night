@@ -316,6 +316,7 @@ STRINGS_EN: dict[str, str] = {
     "log_dice_pool_reset": "{character} reset their dice pool. Cleared values: {dice}",
     "log_dice_pool_cleared_new_round": "New round started; {character}'s personal dice pool was cleared. Cleared values: {dice}",
     "log_dice_pool_carried_new_round": "{character} carried a stamina die into the next round: {dice}",
+    "log_force_back_row_next_phase": "Special ability triggered: all PCs are forced to the back row at the start of the new round.",
     "log_battle_clear": "Cleared the battle sheet",
     "log_reset_all_dice": "Reset the shared dice pool, each character's dice, and action logs",
     "log_combat_flask_use": "{character} used a Flask of Crimson/Cerulean Tears, spending dice ({dice}), healing {amount} HP",

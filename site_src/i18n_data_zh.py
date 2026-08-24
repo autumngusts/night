@@ -316,6 +316,7 @@ STRINGS_ZH: dict[str, str] = {
     "log_dice_pool_reset": "「{character}」重置了骰子池，清除點數：{dice}",
     "log_dice_pool_cleared_new_round": "新回合開始，「{character}」的個人骰子池已清空，清除點數：{dice}",
     "log_dice_pool_carried_new_round": "「{character}」的體力骰帶入下回合：{dice}",
+    "log_force_back_row_next_phase": "特殊能力效果發揮：新回合開始時，PC全員強制配置於後衛。",
     "log_battle_clear": "已清空戰場面板",
     "log_reset_all_dice": "已重置共用骰子池、各角色骰子與執行紀錄",
     "log_combat_flask_use": "「{character}」消費骰子（{dice}）使用了聖杯瓶，回復{amount}點HP",

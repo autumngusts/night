@@ -316,6 +316,7 @@ STRINGS_JA: dict[str, str] = {
     "log_dice_pool_reset": "「{character}」がダイスプールをリセットしました。消去した出目：{dice}",
     "log_dice_pool_cleared_new_round": "新しい回合が始まり、「{character}」の個人ダイスプールがクリアされました。消去した出目：{dice}",
     "log_dice_pool_carried_new_round": "「{character}」のスタミナダイスを次の回合へ持ち越し：{dice}",
+    "log_force_back_row_next_phase": "特殊能力の効果発揮：新しい回合の開始時、PC全員が強制的に後衛へ配置されました。",
     "log_battle_clear": "戦場面板をクリアしました",
     "log_reset_all_dice": "共用骰子池・各キャラクターの骰子・実行記録をリセットしました",
     "log_combat_flask_use": "「{character}」がダイス（{dice}）を消費して聖杯瓶を使用し、HPを{amount}点回復しました",

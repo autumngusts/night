@@ -748,6 +748,11 @@
       // 時實際套用到state.battle.attributeStatus.received並清除該角色的項目（與HP損害同樣延後到
       // 確定時才產生實際效果，數值本身不可由GM於此UI調整）。
       pendingDefenseElementAccum: {},
+      // 「次のアクションフェイズ開始時、PC全員が骰目に関わらず後衛へ強制配置される」特殊能力
+      // （死儀礼の鳥「飛び退き」等、conditions:["force_back_row_next_phase"]）用の1回限りフラグ。
+      // handleAutoGmRollClickが該当行を確定した時にtrueへ、setActionPhase("combat")新規突入時に
+      // 消費してfalseへ戻す。
+      forceBackRowNextPhase: false,
       // 防禦階段全員擲骰完成時，顯示在進度版的AutoGM擲骰速報文字（亂戰/個別傷害內訳＋各PC預估損害）。
       defenseRollPreviewText: null,
       // #enemy-damage-modal內，已按下［確定］的角色（key=角色id、value=true）。全員確定後才
@@ -8896,6 +8901,13 @@
     // Time Loss側の骰效果を同様に加算する（enemyDmgOverrideは「亂戰傷害」専用のため対象外）。
     var enemyOverride = (state.battle.enemyDmgOverride && state.battle.enemyDmgOverride[enemyKey]) || 0;
     var groupResult = AutoGm.computeGroupDamage(result, state.rollEffects, enemyOverride);
+    // 「次のアクションフェイズ開始時、PC全員が骰目に関わらず後衛へ強制配置される」特殊能力
+    // （死儀礼の鳥「飛び退き」、王族的幽鬼「転移」、古龍「滞空」等）：本文を確認したところ
+    // 対象は常に「PC全員」（乱戦ダメージの対象者に限らない）のため、行内容に依らず戦闘全体の
+    // 1回限りフラグとして立てるだけでよい。
+    if (result.structuredRow.conditions && result.structuredRow.conditions.indexOf("force_back_row_next_phase") !== -1) {
+      state.battle.forceBackRowNextPhase = true;
+    }
     var breakdownParts = [];
     // structured.groupDamage/individualDamageのelementAccum/ailmentAccum（固定数値の屬性/状態異常
     // 附加值、docs/enemy_damage_rules.md §1「x:y」表記のうち骰子ではなく確定値のもの）を、対象PCの
@@ -10451,6 +10463,21 @@
         // 新しい回合の開始（防禦→戰鬥）でも、額外／防禦フェイズ突入時と同様に前回合の
         // 確定行動（点線枠）を一括で消去する（ユーザー確認済みの行動階段フロー仕様）。
         clearAllPendingActionBoxes();
+        // 特殊能力「飛び退き／転移／滞空」等（conditions:["force_back_row_next_phase"]）：
+        // 前回合のディフェンスフェイズでこの効果が発動していれば、entered全員をこの新しい
+        // 戰鬥フェイズの開始時点で強制的に後衛へ固定する（positionLockedをtrueにして、
+        // これから振る骰子による自動前後衛判定=syncDiceStatusToBattleで上書きされないように
+        // する——本文の「骰目に関わらず後衛配置」を反映）。
+        if (state.battle.forceBackRowNextPhase) {
+          rosterCharacters.forEach(function (c, idx) {
+            if (!c.entered || idx >= BATTLE_SLOT_COUNT) return;
+            state.battle.front[idx] = false;
+            state.battle.back[idx] = true;
+            state.battle.positionLocked[idx] = true;
+          });
+          state.battle.forceBackRowNextPhase = false;
+          addLog("log_force_back_row_next_phase");
+        }
       }
       rosterCharacters.forEach(function (c) {
         // R1「技能強化（迎擊）」：前回合の防禦フェイズで「逆襲」を使っていれば、新しい戰鬥
