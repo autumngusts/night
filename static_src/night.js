@@ -11492,6 +11492,24 @@
     return m ? m[1] : null;
   }
 
+  // enemy.specialテキスト中、直後に「公開情報／公開資訊」という語を伴う〔◯◯〕見出しを
+  // すべて抽出する（例："〔亡者特効〕公開情報。..."）。docs/combat_flow_rules.md §4の
+  // 「追加ルールはあらかじめプレイヤーへ公開しておく」に対応——弱点と同様、公開盤の
+  // エネミーchipに常時表示することで、GMが公開情報の提示漏れを防ぐ。
+  function extractPublicSpecialNames(specialField, T) {
+    if (!specialField) return [];
+    var text = T(specialField);
+    var names = [];
+    var re = /〔([^〕]+)〕([^〔]*)/g;
+    var m;
+    while ((m = re.exec(text))) {
+      if (m[2].indexOf("公開情報") !== -1 || m[2].indexOf("公開資訊") !== -1) {
+        names.push(m[1]);
+      }
+    }
+    return names;
+  }
+
   // enemyKeyに割り当てられた行（複数の可能性）がすべて撃破済みかどうかを返す。通常エネミーは
   // 「選択順＝開始行」（enemyHpRowIndexForKey）だが、HP枠表記が2段（例："×5/×4"）の場合は
   // その1体だけで開始行の次の行も占有する——applyOverflowingEnemyDamageのダメージ波及方向
@@ -11615,6 +11633,10 @@
         var weakness = extractWeakness(item.info.enemy.special, T);
         if (weakness) {
           statParts.push(window.I18N.t("enemy_weakness_label") + window.I18N.t("colon_separator") + weakness);
+        }
+        var publicSpecials = extractPublicSpecialNames(item.info.enemy.special, T);
+        if (publicSpecials.length) {
+          statParts.push(window.I18N.t("enemy_public_special_label") + window.I18N.t("colon_separator") + publicSpecials.join("、"));
         }
         statLine.textContent = statParts.join("　");
         info.appendChild(statLine);

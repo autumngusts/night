@@ -1224,6 +1224,7 @@ STRINGS_JA: dict[str, str] = {
     "enemy_melee_damage_label": "乱戦ダメージ",
     "enemy_level_table_toggle_label": "レベル別データ（HP量／乱戦ダメージ）",
     "enemy_weakness_label": "弱点",
+    "enemy_public_special_label": "公開特殊能力",
     "enemy_hp_unavailable_note": "この系統の詳細なHP数値は規則書230-238頁の基礎データ表を参照してください。",
     "battle_enemy_lookup_title": "エネミー簡易検索",
     "battle_enemy_add_button": "戦場に追加",

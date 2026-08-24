@@ -1224,6 +1224,7 @@ STRINGS_EN: dict[str, str] = {
     "enemy_melee_damage_label": "Melee Damage",
     "enemy_level_table_toggle_label": "Level Stats (HP / Melee Damage)",
     "enemy_weakness_label": "Weakness",
+    "enemy_public_special_label": "Public Special",
     "enemy_hp_unavailable_note": "Exact HP values for this family are not modeled here — see the rulebook's level table on pages 230-238.",
     "battle_enemy_lookup_title": "Quick Enemy Lookup",
     "battle_enemy_add_button": "Add to Battlefield",

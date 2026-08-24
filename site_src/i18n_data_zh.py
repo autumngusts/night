@@ -1224,6 +1224,7 @@ STRINGS_ZH: dict[str, str] = {
     "enemy_melee_damage_label": "亂戰傷害",
     "enemy_level_table_toggle_label": "各等級數值（HP量／亂戰傷害）",
     "enemy_weakness_label": "弱點",
+    "enemy_public_special_label": "公開特殊能力",
     "enemy_hp_unavailable_note": "此系統的詳細HP數值請參照規則書230-238頁的基礎資料表。",
     "battle_enemy_lookup_title": "敵人簡易查詢",
     "battle_enemy_add_button": "加入戰場",
