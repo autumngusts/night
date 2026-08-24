@@ -8938,7 +8938,27 @@
         groupBreakdown += window.I18N.t("auto_gm_repeat_suffix", { perHit: groupResult.perHit, repeat: groupResult.repeat });
       }
       breakdownParts.push(groupBreakdown);
-      if (result.structuredRow.targetRule) {
+      if (result.structuredRow.groupDamage.sequence) {
+        // 「乱戦ダメージがN回発生し、それぞれ異なる対象を持つ」パターン（gnoster「合体突進」：
+        // 1回目は前衛全員、2回目は後衛全員、3回目は敵視1以上全員）。既存のgroupDamage.repeat
+        // （同一対象へのN回）とは異なり対象が回ごとに変わるため、専用ロジックで処理する。
+        // 各回は「その回の対象で1回分(perHit)を均等割り」、同一PCが複数回対象になれば合算する。
+        var seqTotals = {};
+        result.structuredRow.groupDamage.sequence.forEach(function (seq) {
+          var seqTargets = AutoGm.resolveTargets(seq.targetRule, state.battle, entered.length);
+          var seqShares = AutoGm.splitGroupShares(groupResult.perHit, seqTargets.length);
+          seqTargets.forEach(function (idx, shareIdx) {
+            seqTotals[idx] = (seqTotals[idx] || 0) + seqShares[shareIdx];
+          });
+        });
+        Object.keys(seqTotals).forEach(function (idxKey) {
+          var idx = parseInt(idxKey, 10);
+          var input = document.getElementById("enemy-damage-group-" + entered[idx].id);
+          if (input) input.value = String(Math.round(seqTotals[idx]));
+          queueAttributeAccum(idx, result.structuredRow.groupDamage.elementAccum);
+          queueAttributeAccum(idx, result.structuredRow.groupDamage.ailmentAccum);
+        });
+      } else if (result.structuredRow.targetRule) {
         var groupTargets = AutoGm.resolveTargets(result.structuredRow.targetRule, state.battle, entered.length);
         var shares;
         if (result.structuredRow.targetRule.weightRule) {
