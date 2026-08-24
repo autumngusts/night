@@ -238,6 +238,124 @@
         },
       ],
     },
+    "gnoster": {
+      // 「夜の識、グノスター」（劇本3、night_boss_rulebook.js:158-206）：単一形態。特殊能力
+      // 「行動激化」（體勢崩し発生後、戦闘終了まで「1D」ではなく「1D＋2」で判定）は
+      // rollBonusAfterGuardBreak:2（marisと同型、出目レンジは1D6=1~6を+2シフトした3~8まで
+      // 対応、出目7・8はいずれも體勢崩し後のみ到達）。
+      //
+      // 【対象範囲外・既知の制限】特殊能力「毒性の卵」（PCがこのエネミーからの猛毒蓄積で
+      // HP損害を受けると「毒性の卵」状態になる）は、猛毒によるHP損害発生の追跡と新しい
+      // PC状態異常フラグの新設が必要で、既存のnight.js側の状態管理には対応する仕組みが
+      // 無いため今回のスコープ外（GMが規則書パネル参照の上で手動管理する）。
+      rollBonusAfterGuardBreak: 2,
+      rows: [
+        {
+          // 「押しつぶし＆毒牙の鱗粉」：乱戦ダメージ列が「—」のため乱戦ダメージ無し。個別効果：
+          // 「敵視：最大」のPC1体に個別ダメージ120＋「猛毒：2D」（Task1裁定によりailmentAccum
+          // 固定値2）。
+          rollMin: 1,
+          rollMax: 1,
+          individualDamage: [{ amount: 120, targetRule: { kind: "aggroMax" }, ailmentAccum: [{ label: "猛毒", amount: 2 }] }],
+        },
+        {
+          // 「連続挟み込み＆誘導弾」：乱戦ダメージ列が「—」のため乱戦ダメージ無し。個別効果
+          // （PC人数回実行、既存の「PC人数回実行」解釈を踏襲＝対象全員に1回ずつ）：「敵視：1以上」
+          // で前衛のPC全員に個別ダメージ180。個別効果：「敵視：最大」のPC1体に個別ダメージ120＋
+          // 「魔：1D」（Task1裁定によりelementAccum固定値1）。
+          rollMin: 2,
+          rollMax: 2,
+          individualDamage: [
+            { amount: 180, targetRule: { kind: "frontAggroAtLeast1All" } },
+            { amount: 120, targetRule: { kind: "aggroMax" }, elementAccum: [{ label: "魔", amount: 1 }] },
+          ],
+        },
+        {
+          // 「瓦礫隆起＆掴み攻撃」：乱戦ダメージの対象明記が本文に無いため既定ルール
+          // （前衛均等割り）。個別ダメージ240を「敵視：最大」のPC1体に、ガード不可
+          // （「猛毒：2D」はTask1裁定によりailmentAccum固定値2）。
+          rollMin: 3,
+          rollMax: 3,
+          groupDamage: { value: 1020 },
+          targetRule: { kind: "frontAll" },
+          individualDamage: [{ amount: 240, targetRule: { kind: "aggroMax" }, ailmentAccum: [{ label: "猛毒", amount: 2 }] }],
+          conditions: ["no_guard"],
+        },
+        {
+          // 「硬化＆魔力弾の雨」：乱戦ダメージの対象明記が本文に無いため既定ルール（前衛均等割り）。
+          // 個別効果はTask3で拡張したsavingThrow（敵視:1以上→目標12／それ以外→目標10、運試し=luck、
+          // 全PCプール対象のためtargetFilterは指定しない）、失敗者に個別ダメージ240＋「魔：2D」
+          // （Task1裁定によりonFail.elementAccum固定値2）。次のアクションフェイズ終了まで、
+          // エネミーに「HP価値：＋20（最大100）」する。
+          rollMin: 4,
+          rollMax: 4,
+          groupDamage: { value: 600 },
+          targetRule: { kind: "frontAll" },
+          savingThrow: {
+            stat: "luck",
+            targetByCondition: [
+              { condition: { kind: "aggroAtLeast1" }, target: 12 },
+              { condition: { kind: "default" }, target: 10 },
+            ],
+            onFail: { amount: 240, elementAccum: [{ label: "魔", amount: 2 }] },
+          },
+          conditions: ["enemy_hp_value_buff"],
+        },
+        {
+          // 「叫び＆滞空」：乱戦ダメージ列が「—」のため乱戦ダメージ無し。個別効果のHP損害が
+          // 「■×4」「■×2」表記（CLAUDE.md §19、規則書のcontext依存プレースホルダー）のため
+          // 数値そのものは自動計算しない。ただし対象群A（「敵視：1以上」PC全員、前後衛問わず）
+          // とB（それ以外の前衛PC）の算出はauto_gm.js側のtargetRuleで機械的に決まるため、
+          // night.js側でA/Bの実名リストを組み立てて進度版へ出力する（Task9 Step2参照、
+          // individualDamage自体は設定しない＝■は依然GM手動）。後衛全員「猛毒：1D」
+          // （Task1裁定によりailmentAccum固定値1）と次アクションフェイズ開始時スタミナ
+          // ダイス1個減少は、HP損害を伴わずgroupDamage/individualDamageの対象集団（A/B）とも
+          // 異なる第三の集団（後衛全員）のため、既存targetRule語彙では同時に表現できず
+          // conditionsで記録してGM手動反映する。
+          rollMin: 5,
+          rollMax: 5,
+          conditions: ["unknown_hp_damage_manual_with_target_breakdown", "back_row_poison_1d_manual"],
+        },
+        {
+          // 「潜航＆毒液」：Task4で新設したtargetRule.kind「majorityAreaAggroMax」で自動決定
+          // （「敵視：最大」のPCが多いエリア全員、同数ならランダム）。個別効果（対象外PC全員に
+          // 「猛毒：1D」）はHP損害を伴わないため引き続きconditions
+          rollMin: 6,
+          rollMax: 6,
+          groupDamage: { value: 900 },
+          targetRule: { kind: "majorityAreaAggroMax" },
+          conditions: ["accum_target_mismatch_manual"],
+        },
+        {
+          // 「光の柱＆毒まき散らし」：乱戦ダメージは「敵視：最大」のPC1体のみが対象、「魔：2D」は
+          // Task1裁定によりelementAccum固定値2。個別効果（乱戦ダメージの対象にならなかったPC
+          // 全員に個別ダメージ120＋猛毒）は「対象以外全員」という既存targetRule語彙に無い
+          // 複合条件のため、individualDamageは設定せずconditionsでGM手動判定に委ねる。出目7・8は
+          // 體勢崩し後（1D6+2＝3~8）のみ到達。
+          rollMin: 7,
+          rollMax: 7,
+          groupDamage: { value: 600, elementAccum: [{ label: "魔", amount: 2 }] },
+          targetRule: { kind: "aggroMax" },
+          conditions: ["accum_target_mismatch_manual"],
+        },
+        {
+          // 「合体突進」：Task6で新設したgroupDamage.sequenceで自動化。乱戦ダメージ360が
+          // 1回目=前衛全員、2回目=後衛全員、3回目=「敵視：1以上」全員の順で発生し、同一PCが
+          // 複数回対象になれば合算される。「魔：1D」はTask1裁定によりelementAccum固定値1。
+          rollMin: 8,
+          rollMax: 8,
+          groupDamage: {
+            value: 360,
+            elementAccum: [{ label: "魔", amount: 1 }],
+            sequence: [
+              { targetRule: { kind: "frontAll" } },
+              { targetRule: { kind: "backAll" } },
+              { targetRule: { kind: "aggroAtLeast1All" } },
+            ],
+          },
+        },
+      ],
+    },
   };
 
   function get(bossId) {

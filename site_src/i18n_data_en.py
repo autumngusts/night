@@ -290,6 +290,7 @@ STRINGS_EN: dict[str, str] = {
     "auto_gm_repeat_suffix": " ({perHit} per hit, occurs {repeat}x)",
     "auto_gm_split_note": " (split evenly among {count} PCs, {each} each)",
     "auto_gm_attribute_accum_breakdown": "Plus: {name} \"{label}\" accumulation +{amount}",
+    "auto_gm_gnoster_scream_breakdown": "Individual effect: {groupA} take HP damage: ■×4, {groupB} take HP damage: ■×2 (reduce by ■ per stamina die spent).",
     "log_select_submit": "Selected {n} card(s) and submitted: {cards}",
     "log_continue_submit": "Selected {n} more card(s) and dealt them to empty slots: {cards}",
     "log_next_night": "Advanced to night {day}; start and end swapped",

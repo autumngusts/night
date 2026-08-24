@@ -290,6 +290,7 @@ STRINGS_ZH: dict[str, str] = {
     "auto_gm_repeat_suffix": "（每次{perHit}，發生{repeat}次）",
     "auto_gm_split_note": "（由{count}名PC均分，每人{each}）",
     "auto_gm_attribute_accum_breakdown": "附加：{name}「{label}」蓄積值+{amount}",
+    "auto_gm_gnoster_scream_breakdown": "個別效果：{groupA}承受「HP損害：■×4」，{groupB}承受「HP損害：■×2」，每消耗1個體力骰可減輕「■」。",
     "log_select_submit": "選擇了 {n} 張卡片並送出：{cards}",
     "log_continue_submit": "接續選擇了 {n} 張卡片並分配至空格：{cards}",
     "log_next_night": "進入第 {day} 晚，起點與終點已對調",

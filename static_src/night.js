@@ -8909,6 +8909,25 @@
       state.battle.forceBackRowNextPhase = true;
     }
     var breakdownParts = [];
+    // gnoster「叫び＆滞空」（rollMin:5, rollMax:5）専用：HP損害の数値自体は■のため自動計算
+    // しないが、対象群A（「敵視:1以上」PC全員、前後衛問わず）とB（それ以外の前衛PC）の実名は
+    // 機械的に決まるため、規則書本文の穴埋め文を組み立てて進度版へ追記する。
+    if (result.enemyKey === "boss|gnoster" && result.rollValue === 5) {
+      var groupA = AutoGm.resolveTargets({ kind: "aggroAtLeast1All" }, state.battle, entered.length).map(function (idx) {
+        return entered[idx].name;
+      });
+      var allFrontIdx = AutoGm.resolveTargets({ kind: "frontAll" }, state.battle, entered.length);
+      var groupB = allFrontIdx
+        .filter(function (idx) {
+          return groupA.indexOf(entered[idx].name) === -1;
+        })
+        .map(function (idx) {
+          return entered[idx].name;
+        });
+      breakdownParts.push(
+        window.I18N.t("auto_gm_gnoster_scream_breakdown", { groupA: groupA.join("、") || "—", groupB: groupB.join("、") || "—" })
+      );
+    }
     // structured.groupDamage/individualDamageのelementAccum/ailmentAccum（固定数値の屬性/状態異常
     // 附加值、docs/enemy_damage_rules.md §1「x:y」表記のうち骰子ではなく確定値のもの）を、対象PCの
     // pendingDefenseElementAccumへ集約する。実際にstate.battle.attributeStatus.receivedへ反映するのは

@@ -290,6 +290,7 @@ STRINGS_JA: dict[str, str] = {
     "auto_gm_repeat_suffix": "（1回あたり{perHit}、{repeat}回発生）",
     "auto_gm_split_note": "（PC{count}人で均等割り、1人あたり{each}）",
     "auto_gm_attribute_accum_breakdown": "追加：{name}「{label}」蓄積値+{amount}",
+    "auto_gm_gnoster_scream_breakdown": "個別効果：{groupA}は「HP損害：■×4」を、{groupB}は「HP損害：■×2」を被る。スタミナダイス1個消費ごとに「■」だけ軽減可。",
     "log_select_submit": "{n} 枚のカードを選んで送信しました：{cards}",
     "log_continue_submit": "続けて {n} 枚のカードを選び、空きマスに配りました：{cards}",
     "log_next_night": "第 {day} 夜へ進み、スタートとゴールが入れ替わりました",
