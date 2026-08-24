@@ -116,6 +116,7 @@
               reward: [
                 { kind: "weaponStar", value: 1, categoryId: "sacred_seal", note: C("（ザコ戦闘撃破・聖印1）", "（雜兵戰鬥擊破・聖印1）") },
                 { kind: "weaponStar", value: 1, categoryId: "sacred_seal", note: C("（ザコ戦闘撃破・聖印2）", "（雜兵戰鬥擊破・聖印2）") },
+                { kind: "rune", value: 1, note: C("（撃破ルーン）", "（擊破盧恩）") },
               ],
             },
           ],
@@ -150,6 +151,7 @@
               reward: [
                 { kind: "consumable", value: 1, note: C("（ザコ戦闘撃破）", "（雜兵戰鬥擊破）") },
                 { kind: "chaliceBonus", value: 1, note: C("（ザコ戦闘撃破）", "（雜兵戰鬥擊破）") },
+                { kind: "rune", value: 1, note: C("（撃破ルーン）", "（擊破盧恩）") },
               ],
             },
           ],
@@ -766,6 +768,7 @@
               reward: [
                 { kind: "weaponStar", value: 1, categoryId: "sacred_seal", note: C("（行為判定成功時）", "（行為判定成功時）") },
                 { kind: "weaponStar", value: 1, categoryId: "sacred_seal", note: C("（ザコ戦闘撃破）", "（雜兵戰鬥擊破）") },
+                { kind: "rune", value: 1, note: C("（撃破ルーン）", "（擊破盧恩）") },
               ],
             },
             {
@@ -810,7 +813,10 @@
                 L(2, null, ["「霊廟騎士(211頁)/Lv.5+L補」", "「靈廟騎士（211頁）／Lv.5+L補」"], true),
                 L(2, null, ["撃破できたら、PCはそれぞれ「潜在する力:★」を獲得(フロア踏破)。", "擊破成功後，PC各自獲得「潛力：★」（樓層踏破）。"], true),
               ],
-              reward: [{ kind: "potentialPower", perPerson: true, value: 1, note: C("（ボス戦闘撃破）", "（王戰擊破）") }],
+              reward: [
+                { kind: "potentialPower", perPerson: true, value: 1, note: C("（ボス戦闘撃破）", "（王戰擊破）") },
+                { kind: "rune", value: 3, note: C("（撃破ルーン）", "（擊破盧恩）") },
+              ],
             },
           ],
         },
@@ -885,6 +891,7 @@
                         { kind: "stoneswordKey", value: 1 },
                         { kind: "weaponStar", value: 1 },
                         { kind: "consumable", value: 1 },
+                        { kind: "rune", value: 1, note: C("（撃破ルーン）", "（擊破盧恩）") },
                       ],
                     },
                   ],
@@ -926,6 +933,7 @@
                 },
                 { kind: "weaponStar", value: 1, categoryId: "sacred_seal", note: C("（ボス戦闘撃破・聖印）", "（王戰擊破・聖印）") },
                 { kind: "consumable", value: 1, note: C("（ボス戦闘撃破）", "（王戰擊破）") },
+                { kind: "rune", value: 3, note: C("（撃破ルーン）", "（擊破盧恩）") },
               ],
             },
           ],

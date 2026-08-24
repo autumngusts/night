@@ -247,11 +247,67 @@
     return shares;
   }
 
+  // 「乱戦ダメージはPC全員が対象、ただし◯◯条件を満たすPCはn人分の加重を受ける」パターン
+  // （edele「突進」等）：targetRule.weightRuleが指定されている場合、resolveTargetsで得た
+  // 候補のうち、weightRule.kindの条件を満たすPCはweightRule.weight、それ以外は1として
+  // 各PCの重みを返す。
+  function matchesWeightCondition(kind, battleState, idx) {
+    var aggro = (battleState.aggro && battleState.aggro[idx]) || 0;
+    var front = !!(battleState.front && battleState.front[idx]);
+    if (kind === "frontAggroAtLeast1") return front && aggro >= 1;
+    return false;
+  }
+
+  function resolveWeightedTargets(targetRule, battleState, rosterCount) {
+    var candidates = resolveTargets(targetRule, battleState, rosterCount);
+    var weightRule = targetRule.weightRule;
+    return candidates.map(function (idx) {
+      var weight = weightRule && matchesWeightCondition(weightRule.kind, battleState, idx) ? weightRule.weight : 1;
+      return { index: idx, weight: weight };
+    });
+  }
+
+  // 加重版のsplitGroupShares：合計重みで傷害池を割り、各対象の重み分を掛けて配分する
+  // （通常のsplitGroupSharesは全員重み1固定の特殊ケースに相当）。
+  function splitGroupSharesWeighted(total, weightedTargets) {
+    var totalWeight = weightedTargets.reduce(function (sum, t) {
+      return sum + t.weight;
+    }, 0);
+    if (!totalWeight) return weightedTargets.map(function () { return 0; });
+    var unit = total / totalWeight;
+    return weightedTargets.map(function (t) {
+      return unit * t.weight;
+    });
+  }
+
   // targetRuleを実際のbattle状態（front/back/aggro）に照らして対象PCのroster配列indexへ解決する。
   // fallback（例："front"）は、本来の条件に該当するPCが1人もいない場合に本文が明記している
   // 代替対象（例：「対象となるPCが1人もいない場合は、通常どおり、前衛が対象となる」）を表す。
   function resolveTargets(targetRule, battleState, rosterCount) {
     if (!targetRule || !battleState) return [];
+    // 「敵視:最大のPCが多いエリア（前衛/後衛）全員」パターン（gnoster「潜航＆毒液」等）：
+    // 他のkindのように1PCずつ判定するループでは表現できない（先に全体の敵視最大値と
+    // 前衛/後衛の人数比較が必要）ため、専用の早期returnで処理する。
+    if (targetRule.kind === "majorityAreaAggroMax") {
+      var allAggro = [];
+      for (var a = 0; a < rosterCount; a++) allAggro.push((battleState.aggro && battleState.aggro[a]) || 0);
+      var maxAggroValue = allAggro.length ? Math.max.apply(null, allAggro) : 0;
+      var maxAggroIdxs = [];
+      for (var b = 0; b < rosterCount; b++) if (allAggro[b] === maxAggroValue) maxAggroIdxs.push(b);
+      var frontCount = 0;
+      var backCount = 0;
+      maxAggroIdxs.forEach(function (idx) {
+        if (battleState.front && battleState.front[idx]) frontCount++;
+        else backCount++;
+      });
+      var chooseFront = frontCount === backCount ? Math.random() < 0.5 : frontCount > backCount;
+      var areaResult = [];
+      for (var d = 0; d < rosterCount; d++) {
+        var isFrontD = !!(battleState.front && battleState.front[d]);
+        if (isFrontD === chooseFront) areaResult.push(d);
+      }
+      return areaResult;
+    }
     var candidates = [];
     for (var i = 0; i < rosterCount; i++) {
       var aggro = (battleState.aggro && battleState.aggro[i]) || 0;
@@ -264,6 +320,8 @@
         // ユーザー確認済みの既定ルール: 行動本文に亂戰傷害の分配対象が明記されていない場合、
         // 前衛の全員で均等割りする（規則書「乱戦ダメージ：n人」の一般ルールに対する既定値）。
         if (front) candidates.push(i);
+      } else if (targetRule.kind === "backAll") {
+        if (!front) candidates.push(i);
       } else if (targetRule.kind === "aggroMax" || targetRule.kind === "frontAggroMaxAll") {
         if (targetRule.kind === "aggroMax" || front) candidates.push(i);
       } else if (targetRule.kind === "backAll") {
@@ -323,7 +381,23 @@
     var entered = (rosterCharacters || []).filter(function (c) {
       return c.entered;
     });
-    return entered.map(function (c, idx) {
+    // targetFilterが指定されている場合（例：「敵視:1以上」PCのみが判定を行う「赤雷叩きつけ」型）、
+    // 条件を満たさないPCはそもそも判定対象に含めない（全PCプール前提のtargetByConditionとは
+    // 別の絞り込み軸）。indexは元のentered配列上のインデックスを維持する。
+    var filterKind = savingThrow.targetFilter && savingThrow.targetFilter.kind;
+    var filtered = entered
+      .map(function (c, idx) {
+        return { c: c, idx: idx };
+      })
+      .filter(function (pair) {
+        if (!filterKind) return true;
+        var aggro = (battleState && battleState.aggro && battleState.aggro[pair.idx]) || 0;
+        if (filterKind === "aggroAtLeast1") return aggro >= 1;
+        return true;
+      });
+    return filtered.map(function (pair) {
+      var c = pair.c;
+      var idx = pair.idx;
       var aggro = (battleState && battleState.aggro && battleState.aggro[idx]) || 0;
       var rule = savingThrow.targetByCondition.filter(function (r) {
         if (r.condition.kind === "aggroAtLeast1") return aggro >= 1;
@@ -357,6 +431,8 @@
     rollEnemyAction: rollEnemyAction,
     computeGroupDamage: computeGroupDamage,
     splitGroupShares: splitGroupShares,
+    resolveWeightedTargets: resolveWeightedTargets,
+    splitGroupSharesWeighted: splitGroupSharesWeighted,
     computeIndividualDamage: computeIndividualDamage,
     resolveTargets: resolveTargets,
     resolveRotatedHits: resolveRotatedHits,

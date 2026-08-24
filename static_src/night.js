@@ -906,6 +906,11 @@
       // 時實際套用到state.battle.attributeStatus.received並清除該角色的項目（與HP損害同樣延後到
       // 確定時才產生實際效果，數值本身不可由GM於此UI調整）。
       pendingDefenseElementAccum: {},
+      // 「次のアクションフェイズ開始時、PC全員が骰目に関わらず後衛へ強制配置される」特殊能力
+      // （死儀礼の鳥「飛び退き」等、conditions:["force_back_row_next_phase"]）用の1回限りフラグ。
+      // handleAutoGmRollClickが該当行を確定した時にtrueへ、setActionPhase("combat")新規突入時に
+      // 消費してfalseへ戻す。
+      forceBackRowNextPhase: false,
       // 防禦階段全員擲骰完成時，顯示在進度版的AutoGM擲骰速報文字（亂戰/個別傷害內訳＋各PC預估損害）。
       defenseRollPreviewText: null,
       // #enemy-damage-modal內，已按下［確定］的角色（key=角色id、value=true）。全員確定後才
@@ -9863,7 +9868,35 @@
       ((state.battle.enemyDmgOverride && state.battle.enemyDmgOverride[enemyKey]) || 0) +
       (state.battle._nextDefenseMeleeDmgReduction || 0);
     var groupResult = AutoGm.computeGroupDamage(result, state.rollEffects, enemyOverride);
+    // 「次のアクションフェイズ開始時、PC全員が骰目に関わらず後衛へ強制配置される」特殊能力
+    // （死儀礼の鳥「飛び退き」、王族的幽鬼「転移」、古龍「滞空」等）：本文を確認したところ
+    // 対象は常に「PC全員」（乱戦ダメージの対象者に限らない）のため、行内容に依らず戦闘全体の
+    // 1回限りフラグとして立てるだけでよい。
+    if (result.structuredRow.conditions && result.structuredRow.conditions.indexOf("force_back_row_next_phase") !== -1) {
+      state.battle.forceBackRowNextPhase = true;
+    }
     var breakdownParts = [];
+    // gnoster「叫び＆滞空」（rollMin:5, rollMax:5）専用：HP損害の数値自体は■のため自動計算
+    // しないが、対象群A（「敵視:1以上」PC全員、前後衛問わず）とB（それ以外の前衛PC）の実名は
+    // 機械的に決まるため、規則書本文の穴埋め文を組み立てて進度版へ追記する。
+    if (result.enemyKey === "boss|gnoster" && result.rollValue === 5) {
+      // PCの表示名(name)は一意性が保証されていないため、groupA/groupBの重複除外は必ず
+      // entered配列のインデックス（またはid）で行い、名前での比較はしない（同名PCの誤判定防止）。
+      var groupAIdx = AutoGm.resolveTargets({ kind: "aggroAtLeast1All" }, state.battle, entered.length);
+      var allFrontIdx = AutoGm.resolveTargets({ kind: "frontAll" }, state.battle, entered.length);
+      var groupBIdx = allFrontIdx.filter(function (idx) {
+        return groupAIdx.indexOf(idx) === -1;
+      });
+      var groupA = groupAIdx.map(function (idx) {
+        return entered[idx].name;
+      });
+      var groupB = groupBIdx.map(function (idx) {
+        return entered[idx].name;
+      });
+      breakdownParts.push(
+        window.I18N.t("auto_gm_gnoster_scream_breakdown", { groupA: groupA.join("、") || "—", groupB: groupB.join("、") || "—" })
+      );
+    }
     // structured.groupDamage/individualDamageのelementAccum/ailmentAccum（固定数値の屬性/状態異常
     // 附加值、docs/enemy_damage_rules.md §1「x:y」表記のうち骰子ではなく確定値のもの）を、対象PCの
     // pendingDefenseElementAccumへ集約する。実際にstate.battle.attributeStatus.receivedへ反映するのは
@@ -9893,7 +9926,27 @@
         groupBreakdown += window.I18N.t("auto_gm_repeat_suffix", { perHit: groupResult.perHit, repeat: groupResult.repeat });
       }
       breakdownParts.push(groupBreakdown);
-      if (result.structuredRow.targetRule) {
+      if (result.structuredRow.groupDamage.sequence) {
+        // 「乱戦ダメージがN回発生し、それぞれ異なる対象を持つ」パターン（gnoster「合体突進」：
+        // 1回目は前衛全員、2回目は後衛全員、3回目は敵視1以上全員）。既存のgroupDamage.repeat
+        // （同一対象へのN回）とは異なり対象が回ごとに変わるため、専用ロジックで処理する。
+        // 各回は「その回の対象で1回分(perHit)を均等割り」、同一PCが複数回対象になれば合算する。
+        var seqTotals = {};
+        result.structuredRow.groupDamage.sequence.forEach(function (seq) {
+          var seqTargets = AutoGm.resolveTargets(seq.targetRule, state.battle, entered.length);
+          var seqShares = AutoGm.splitGroupShares(groupResult.perHit, seqTargets.length);
+          seqTargets.forEach(function (idx, shareIdx) {
+            seqTotals[idx] = (seqTotals[idx] || 0) + seqShares[shareIdx];
+          });
+        });
+        Object.keys(seqTotals).forEach(function (idxKey) {
+          var idx = parseInt(idxKey, 10);
+          var input = document.getElementById("enemy-damage-group-" + entered[idx].id);
+          if (input) input.value = String(Math.round(seqTotals[idx]));
+          queueAttributeAccum(idx, result.structuredRow.groupDamage.elementAccum);
+          queueAttributeAccum(idx, result.structuredRow.groupDamage.ailmentAccum);
+        });
+      } else if (result.structuredRow.targetRule) {
         var groupTargets = AutoGm.resolveTargets(result.structuredRow.targetRule, state.battle, entered.length);
         // 使用者確認（2026-08-22再修正）：「靈體與PC共通分攤亂戰傷害」——この行動の亂戰傷害が
         // 実際に前衛のPCへ命中した（groupTargetsの中に前衛が1人以上いた）場合のみ、召喚中の
@@ -9905,9 +9958,20 @@
           return !!(state.battle.front && state.battle.front[idx]);
         });
         var spiritSplitTargets = hasFrontGroupTarget ? activeSpiritDamageTargets() : [];
-        // 「N人份」の加重配分（現状は対象全員が同一重みのため均等割りと数学的に同値、
-        // auto_gm.jsのsplitGroupShares参照）：対象PC＋靈體/死靈の頭数で傷害池を分ける。
-        var shares = AutoGm.splitGroupShares(groupResult.total, groupTargets.length + spiritSplitTargets.length);
+        // 「乱戦ダメージはPC全員対象、◯◯条件のPCはn人分の加重」パターン（edele「突進」等）と、
+        // 靈體/死靈の共通分攤（頭数1として同じ傷害池に加わる）を両立させる：weightRuleがあれば
+        // PC側の重みをresolveWeightedTargetsで求め（無ければ全員重み1）、靈體/死靈を重み1として
+        // 同じ加重リストに追加してからsplitGroupSharesWeightedで一括配分する（groupTargets側は
+        // 常にweightedTargetsの先頭len個と同じ並び順になるため、shares[shareIdx]の対応は保たれる）。
+        var weightedTargets = result.structuredRow.targetRule.weightRule
+          ? AutoGm.resolveWeightedTargets(result.structuredRow.targetRule, state.battle, entered.length)
+          : groupTargets.map(function (idx) {
+              return { index: idx, weight: 1 };
+            });
+        spiritSplitTargets.forEach(function () {
+          weightedTargets.push({ index: null, weight: 1 });
+        });
+        var shares = AutoGm.splitGroupSharesWeighted(groupResult.total, weightedTargets);
         groupTargets.forEach(function (idx, shareIdx) {
           var input = document.getElementById("enemy-damage-group-" + entered[idx].id);
           if (input) input.value = String(Math.round(shares[shareIdx]));
@@ -9980,6 +10044,8 @@
           var failResult = AutoGm.computeIndividualDamage(st.onFail, state.rollEffects);
           var input = document.getElementById("enemy-damage-individual-" + entered[r.index].id);
           if (input) input.value = String(failResult.total);
+          queueAttributeAccum(r.index, st.onFail.elementAccum);
+          queueAttributeAccum(r.index, st.onFail.ailmentAccum);
         }
       });
       breakdownParts.push(failLines.join("　"));
@@ -11625,6 +11691,28 @@
         // 新しい回合の開始（防禦→戰鬥）でも、額外／防禦フェイズ突入時と同様に前回合の
         // 確定行動（点線枠）を一括で消去する（ユーザー確認済みの行動階段フロー仕様）。
         clearAllPendingActionBoxes();
+        // 特殊能力「飛び退き／転移／滞空」等（conditions:["force_back_row_next_phase"]）：
+        // 前回合のディフェンスフェイズでこの効果が発動していれば、entered全員をこの新しい
+        // 戰鬥フェイズの開始時点で強制的に後衛へ固定する（positionLockedをtrueにして、
+        // これから振る骰子による自動前後衛判定=syncDiceStatusToBattleで上書きされないように
+        // する——本文の「骰目に関わらず後衛配置」を反映）。
+        if (state.battle.forceBackRowNextPhase) {
+          // state.battle.front/back/positionLockedはrosterCharacters全体ではなく、entered
+          // でフィルタした後の連番インデックス（0〜BATTLE_SLOT_COUNT-1）を使う配列のため
+          // （syncDiceStatusToBattleと同じパターン）、rosterCharacters.forEachのidxを直接
+          // 使ってはならない。
+          var forceBackRowEntered = rosterCharacters.filter(function (c) {
+            return c.entered;
+          });
+          forceBackRowEntered.forEach(function (c, idx) {
+            if (idx >= BATTLE_SLOT_COUNT) return;
+            state.battle.front[idx] = false;
+            state.battle.back[idx] = true;
+            state.battle.positionLocked[idx] = true;
+          });
+          state.battle.forceBackRowNextPhase = false;
+          addLog("log_force_back_row_next_phase");
+        }
       }
       rosterCharacters.forEach(function (c) {
         // R1「技能強化（迎擊）」：前回合の防禦フェイズで「逆襲」を使っていれば、新しい戰鬥
@@ -12718,6 +12806,27 @@
     return m ? m[1] : null;
   }
 
+  // enemy.specialテキスト中、直後に「公開情報／公開資訊」という語を伴う〔◯◯〕見出しを
+  // すべて抽出する（例："〔亡者特効〕公開情報。..."）。docs/combat_flow_rules.md §4の
+  // 「追加ルールはあらかじめプレイヤーへ公開しておく」に対応——弱点と同様、公開盤の
+  // エネミーchipに常時表示することで、GMが公開情報の提示漏れを防ぐ。
+  function extractPublicSpecialNames(specialField, T) {
+    if (!specialField) return [];
+    var text = T(specialField);
+    var names = [];
+    var re = /〔([^〕]+)〕([^〔]*)/g;
+    var m;
+    while ((m = re.exec(text))) {
+      // 「弱点／弱點」見出しは既にextractWeaknessが別途処理・表示しているため、
+      // 公開特殊能力リストには重複して含めない。
+      if (m[1].indexOf("弱点") === 0 || m[1].indexOf("弱點") === 0) continue;
+      if (m[2].indexOf("公開情報") !== -1 || m[2].indexOf("公開資訊") !== -1) {
+        names.push(m[1]);
+      }
+    }
+    return names;
+  }
+
   // enemyKeyに割り当てられた行（複数の可能性）がすべて撃破済みかどうかを返す。通常エネミーは
   // 「選択順＝開始行」（enemyHpRowIndexForKey）だが、HP枠表記が2段（例："×5/×4"）の場合は
   // その1体だけで開始行の次の行も占有する——applyOverflowingEnemyDamageのダメージ波及方向
@@ -12841,6 +12950,10 @@
         var weakness = extractWeakness(item.info.enemy.special, T);
         if (weakness) {
           statParts.push(window.I18N.t("enemy_weakness_label") + window.I18N.t("colon_separator") + weakness);
+        }
+        var publicSpecials = extractPublicSpecialNames(item.info.enemy.special, T);
+        if (publicSpecials.length) {
+          statParts.push(window.I18N.t("enemy_public_special_label") + window.I18N.t("colon_separator") + publicSpecials.join("、"));
         }
         statLine.textContent = statParts.join("　");
         info.appendChild(statLine);

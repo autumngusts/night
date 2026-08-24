@@ -189,6 +189,7 @@
                 { kind: "stoneswordKey", value: 1, note: C("（ボス戦闘撃破）", "（王戰擊破）") },
                 { kind: "potentialPower", perPerson: true, value: 1, note: C("（ボス戦闘撃破）", "（王戰擊破）") },
                 { kind: "smithingStone", value: 2, perParty: true, note: C("（ボス戦闘撃破・PC1人につき2個）", "（王戰擊破・每位PC 2個）") },
+                { kind: "rune", value: 3, note: C("（撃破ルーン）", "（擊破盧恩）") },
               ],
             },
             {
@@ -231,6 +232,7 @@
                   kind: "note",
                   note: C("（行為判定に過半数失敗時は「夜の脅威シート」のタイムロスを1つチェック）", "（行為判定過半數失敗時，於「夜間威脅表」勾選1格時間損耗）"),
                 },
+                { kind: "rune", value: 1, note: C("（撃破ルーン）", "（擊破盧恩）") },
               ],
             },
           ],
@@ -301,6 +303,7 @@
               reward: [
                 { kind: "potentialPower", perPerson: true, value: 1, note: C("（ボス戦闘撃破）", "（王戰擊破）") },
                 { kind: "smithingStone", value: 1, perParty: true, note: C("（ボス戦闘撃破）", "（王戰擊破）") },
+                { kind: "rune", value: 3, note: C("（撃破ルーン）", "（擊破盧恩）") },
               ],
             },
           ],
@@ -528,6 +531,7 @@
                   note: C("（瓦礫をあさる）", "（翻找瓦礫）"),
                 },
                 { kind: "weaponStar", value: 1, categoryId: "sacred_seal", note: C("（駆け抜ける・成功時）", "（衝過去・成功時）") },
+                { kind: "rune", value: 1, note: C("（撃破ルーン）", "（擊破盧恩）") },
               ],
             },
             {
@@ -571,6 +575,7 @@
                 },
                 { kind: "weaponStar", value: 1, categoryId: "staff", note: C("（ボス戦闘撃破）", "（王戰擊破）") },
                 { kind: "consumable", value: 1, note: C("（ボス戦闘撃破）", "（王戰擊破）") },
+                { kind: "rune", value: 4, note: C("（撃破ルーン）", "（擊破盧恩）") },
               ],
             },
           ],
@@ -642,6 +647,7 @@
                 { kind: "consumable", value: 1, note: C("（瓦礫をあさる）", "（翻找瓦礫）") },
                 { kind: "hpDamage", value: 1, note: C("（過半数失敗時・野犬に不意打ちされた場合）", "（過半數判定失敗時・遭野犬偷襲）") },
                 { kind: "weaponStar", value: 1, categoryId: "staff", note: C("（ザコ戦闘撃破）", "（雜兵戰鬥擊破）") },
+                { kind: "rune", value: 1, note: C("（撃破ルーン）", "（擊破盧恩）") },
               ],
             },
             {
@@ -718,6 +724,7 @@
                   attributeTag: C("腐敗", "腐敗"),
                   note: C("（ボス戦闘撃破）", "（王戰擊破）"),
                 },
+                { kind: "rune", value: 3, note: C("（撃破ルーン）", "（擊破盧恩）") },
               ],
             },
           ],
@@ -791,6 +798,7 @@
                   note: C("（瓦礫をあさる）", "（翻找瓦礫）"),
                 },
                 { kind: "weaponStar", value: 1, categoryId: "staff", note: C("（崩れた建物へ）", "（前往崩塌的建築）") },
+                { kind: "rune", value: 1, note: C("（撃破ルーン）", "（擊破盧恩）") },
               ],
             },
             {
@@ -854,6 +862,7 @@
                   attributeTag: C("凍傷／-5（154頁）", "凍傷／-5（154頁）"),
                   note: C("（ボス戦闘撃破）", "（王戰擊破）"),
                 },
+                { kind: "rune", value: 3, note: C("（撃破ルーン）", "（擊破盧恩）") },
               ],
             },
           ],
@@ -923,6 +932,7 @@
                   note: C("（瓦礫をあさる）", "（翻找瓦礫）"),
                 },
                 { kind: "hpDamage", value: 2, note: C("（瓦礫をあさる・大蟹に巻き込まれた場合）", "（翻找瓦礫・被大蟹波及時）") },
+                { kind: "rune", value: 1, note: C("（撃破ルーン）", "（擊破盧恩）") },
               ],
             },
             {
@@ -994,6 +1004,7 @@
                   note: C("（ボス戦闘撃破）", "（王戰擊破）"),
                 },
                 { kind: "weaponStar", value: 1, categoryId: "staff", note: C("（ボス戦闘撃破）", "（王戰擊破）") },
+                { kind: "rune", value: 4, note: C("（撃破ルーン）", "（擊破盧恩）") },
               ],
             },
           ],
@@ -1067,6 +1078,7 @@
                   note: C("（瓦礫を物色）", "（搜尋瓦礫）"),
                 },
                 { kind: "weaponStar", value: 1, categoryId: "sacred_seal", note: C("（傾いた建物へ）", "（前往傾頹的建築）") },
+                { kind: "rune", value: 1, note: C("（撃破ルーン）", "（擊破盧恩）") },
               ],
             },
             {
@@ -1134,6 +1146,7 @@
                   attributeTag: C("発狂／-5（154頁）", "發狂／-5（154頁）"),
                   note: C("（ボス戦闘撃破）", "（王戰擊破）"),
                 },
+                { kind: "rune", value: 4, note: C("（撃破ルーン）", "（擊破盧恩）") },
               ],
             },
           ],
@@ -1192,6 +1205,7 @@
                 { kind: "weaponStar", value: 1, categoryId: "staff", note: C("（瓦礫をあさる）", "（翻找瓦礫）") },
                 { kind: "hpDamage", value: 1, note: C("（瓦礫をあさる・行為判定失敗時）", "（翻找瓦礫・行為判定失敗時）") },
                 { kind: "weaponStar", value: 1, categoryId: "sacred_seal", note: C("（崩れかかった建物へ）", "（前往即將崩塌的建築）") },
+                { kind: "rune", value: 1, note: C("（撃破ルーン）", "（擊破盧恩）") },
               ],
             },
             {
@@ -1246,6 +1260,7 @@
                   attributeTag: C("出血", "出血"),
                   note: C("（ボス戦闘撃破）", "（王戰擊破）"),
                 },
+                { kind: "rune", value: 4, note: C("（撃破ルーン）", "（擊破盧恩）") },
               ],
             },
           ],
@@ -1407,6 +1422,7 @@
                   ],
                 },
                 { kind: "hpDamage", value: 1, note: C("（住居をあさる・行為判定失敗時）", "（翻找住居・行為判定失敗時）") },
+                { kind: "rune", value: 1, note: C("（ザコ戦闘撃破・住居をあさる実施時のみ）", "（雜兵戰鬥擊破・限進行「翻找住居」時）") },
               ],
             },
             {
@@ -1443,6 +1459,7 @@
                   perPerson: true,
                   note: C("（撃破後、PC全員1回まで「戦技の鍛冶台」で武器の戦技を再決定可能）", "（擊破後，PC全員各限1次可用「戰技鍛造台」重新決定武器戰技）"),
                 },
+                { kind: "rune", value: 4, note: C("（撃破ルーン）", "（擊破盧恩）") },
               ],
             },
           ],
@@ -1495,6 +1512,7 @@
               reward: [
                 { kind: "consumable", value: 1, note: C("（壺を避ける・行為判定成功時）", "（避開壺甕・行為判定成功時）") },
                 { kind: "hpDamage", value: 1, note: C("（壺を調べる・行為判定失敗時）", "（調查壺甕・行為判定失敗時）") },
+                { kind: "rune", value: 1, note: C("（撃破ルーン）", "（擊破盧恩）") },
               ],
             },
             {
@@ -1537,6 +1555,7 @@
                   perPerson: true,
                   note: C("（撃破後、PC全員1回まで「戦技の鍛冶台」で武器の戦技を再決定可能）", "（擊破後，PC全員各限1次可用「戰技鍛造台」重新決定武器戰技）"),
                 },
+                { kind: "rune", value: 4, note: C("（撃破ルーン）", "（擊破盧恩）") },
               ],
             },
           ],
@@ -1693,6 +1712,7 @@
                   attributeTag: C("雷", "雷"),
                   note: C("（ザコ戦闘撃破）", "（雜兵戰鬥擊破）"),
                 },
+                { kind: "rune", value: 1, note: C("（撃破ルーン）", "（擊破盧恩）") },
               ],
             },
             {
@@ -1735,6 +1755,7 @@
                   perPerson: true,
                   note: C("（撃破後、PC全員1回まで「戦技の鍛冶台」で武器の戦技を再決定可能）", "（擊破後，PC全員各限1次可用「戰技鍛造台」重新決定武器戰技）"),
                 },
+                { kind: "rune", value: 3, note: C("（撃破ルーン）", "（擊破盧恩）") },
               ],
             },
           ],
@@ -1767,7 +1788,10 @@
                 L(2, null, ["「墓守鳥たち（227頁）／Lv.2＋L補」＋モブ1", "「墓守鳥們（227頁）／Lv.2+L補」＋雜兵1"], true),
                 L(2, null, ["撃破に成功しても、得る物はない（フロア踏破）。", "擊破成功也無所獲（樓層踏破）。"], true),
               ],
-              reward: [{ kind: "hpDamage", value: 1, note: C("（屋根伝いの道・行為判定失敗時）", "（沿屋頂而行的道路・行為判定失敗時）") }],
+              reward: [
+                { kind: "hpDamage", value: 1, note: C("（屋根伝いの道・行為判定失敗時）", "（沿屋頂而行的道路・行為判定失敗時）") },
+                { kind: "rune", value: 2, note: C("（撃破ルーン）", "（擊破盧恩）") },
+              ],
             },
             {
               label: C("フロア2", "樓層2"),
@@ -1809,6 +1833,7 @@
                   perPerson: true,
                   note: C("（撃破後、PC全員1回まで「戦技の鍛冶台」で武器の戦技を再決定可能）", "（擊破後，PC全員各限1次可用「戰技鍛造台」重新決定武器戰技）"),
                 },
+                { kind: "rune", value: 3, note: C("（撃破ルーン）", "（擊破盧恩）") },
               ],
             },
           ],
@@ -1857,6 +1882,7 @@
                   note: C("（上へ登る・過半数成功時）", "（往上爬・過半數成功時）"),
                 },
                 { kind: "hpDamage", value: 1, note: C("（上へ登る・行為判定失敗時）", "（往上爬・行為判定失敗時）") },
+                { kind: "rune", value: 2, note: C("（撃破ルーン）", "（擊破盧恩）") },
               ],
             },
             {
@@ -1899,6 +1925,7 @@
                   perPerson: true,
                   note: C("（撃破後、PC全員1回まで「戦技の鍛冶台」で武器の戦技を再決定可能）", "（擊破後，PC全員各限1次可用「戰技鍛造台」重新決定武器戰技）"),
                 },
+                { kind: "rune", value: 4, note: C("（撃破ルーン）", "（擊破盧恩）") },
               ],
             },
           ],
@@ -1957,6 +1984,18 @@
                   note: C("（住民を避け探索・過半数成功時）", "（避開居民探索・過半數成功時）"),
                 },
                 { kind: "hpDamage", value: 1, note: C("（住民を避け探索・行為判定失敗時）", "（避開居民探索・行為判定失敗時）") },
+                { kind: "rune", value: 1, note: C("（撃破ルーン）", "（擊破盧恩）") },
+                {
+                  kind: "tieredChoice",
+                  tierLabel: C("モブ追加の有無", "是否追加雜兵"),
+                  tiers: [
+                    { label: C("通常（モブ追加なし）", "一般（未追加雜兵）"), rewards: [] },
+                    {
+                      label: C("半数以上失敗でモブ1追加", "半數以上失敗，追加雜兵1"),
+                      rewards: [{ kind: "rune", value: 1 }],
+                    },
+                  ],
+                },
               ],
             },
             {
@@ -1992,6 +2031,7 @@
                   perPerson: true,
                   note: C("（撃破後、PC全員1回まで「戦技の鍛冶台」で武器の戦技を再決定可能）", "（擊破後，PC全員各限1次可用「戰技鍛造台」重新決定武器戰技）"),
                 },
+                { kind: "rune", value: 4, note: C("（撃破ルーン）", "（擊破盧恩）") },
               ],
             },
           ],
@@ -2041,6 +2081,7 @@
                 { kind: "consumable", value: 1, note: C("（過半数成功時）", "（過半數成功時）") },
                 { kind: "consumable", value: 1, note: C("（過半数成功時。「骨の毒投げ矢」を選択）", "（過半數成功時。請選擇「骨的毒投擲箭」）") },
                 { kind: "hpDamage", value: 2, note: C("（行為判定失敗時）", "（行為判定失敗時）") },
+                { kind: "rune", value: 1, note: C("（撃破ルーン）", "（擊破盧恩）") },
               ],
             },
             {
@@ -2083,6 +2124,7 @@
                   perPerson: true,
                   note: C("（撃破後、PC全員1回まで「戦技の鍛冶台」で武器の戦技を再決定可能）", "（擊破後，PC全員各限1次可用「戰技鍛造台」重新決定武器戰技）"),
                 },
+                { kind: "rune", value: 4, note: C("（撃破ルーン）", "（擊破盧恩）") },
               ],
             },
           ],
