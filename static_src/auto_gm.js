@@ -351,7 +351,23 @@
     var entered = (rosterCharacters || []).filter(function (c) {
       return c.entered;
     });
-    return entered.map(function (c, idx) {
+    // targetFilterが指定されている場合（例：「敵視:1以上」PCのみが判定を行う「赤雷叩きつけ」型）、
+    // 条件を満たさないPCはそもそも判定対象に含めない（全PCプール前提のtargetByConditionとは
+    // 別の絞り込み軸）。indexは元のentered配列上のインデックスを維持する。
+    var filterKind = savingThrow.targetFilter && savingThrow.targetFilter.kind;
+    var filtered = entered
+      .map(function (c, idx) {
+        return { c: c, idx: idx };
+      })
+      .filter(function (pair) {
+        if (!filterKind) return true;
+        var aggro = (battleState && battleState.aggro && battleState.aggro[pair.idx]) || 0;
+        if (filterKind === "aggroAtLeast1") return aggro >= 1;
+        return true;
+      });
+    return filtered.map(function (pair) {
+      var c = pair.c;
+      var idx = pair.idx;
       var aggro = (battleState && battleState.aggro && battleState.aggro[idx]) || 0;
       var rule = savingThrow.targetByCondition.filter(function (r) {
         if (r.condition.kind === "aggroAtLeast1") return aggro >= 1;

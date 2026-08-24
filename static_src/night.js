@@ -9006,6 +9006,8 @@
           var failResult = AutoGm.computeIndividualDamage(st.onFail, state.rollEffects);
           var input = document.getElementById("enemy-damage-individual-" + entered[r.index].id);
           if (input) input.value = String(failResult.total);
+          queueAttributeAccum(r.index, st.onFail.elementAccum);
+          queueAttributeAccum(r.index, st.onFail.ailmentAccum);
         }
       });
       breakdownParts.push(failLines.join("　"));
