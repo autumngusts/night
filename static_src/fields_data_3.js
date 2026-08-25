@@ -518,6 +518,9 @@
                   true
                 ),
               ],
+              // 「ザコ戦闘（撃破ルーン：1）」「駆け抜ける（成功）」は相互排他な分岐（本文参照。
+              // 駆け抜け失敗時も同じザコ戦闘へ合流するが、成功時は非戦闘のため撃破ルーンは
+              // 発生しない）。撃破ルーンとweaponStarをtieredChoiceへ統一する。
               reward: [
                 { kind: "stoneswordKey", value: 1, note: C("（瓦礫をあさる）", "（翻找瓦礫）") },
                 { kind: "consumable", value: 1, note: C("（瓦礫をあさる）", "（翻找瓦礫）") },
@@ -527,8 +530,20 @@
                   attributeTag: C("猛毒", "猛毒"),
                   note: C("（瓦礫をあさる）", "（翻找瓦礫）"),
                 },
-                { kind: "weaponStar", value: 1, categoryId: "sacred_seal", note: C("（駆け抜ける・成功時）", "（衝過去・成功時）") },
-                { kind: "rune", value: 1, note: C("（撃破ルーン）", "（擊破盧恩）") },
+                {
+                  kind: "tieredChoice",
+                  tierLabel: C("実際に進んだルート", "實際採取的路線"),
+                  tiers: [
+                    {
+                      label: C("ザコ戦闘（撃破）", "雜兵戰鬥（擊破）"),
+                      rewards: [{ kind: "rune", value: 1 }],
+                    },
+                    {
+                      label: C("駆け抜ける（成功）", "衝過去（成功）"),
+                      rewards: [{ kind: "weaponStar", value: 1, categoryId: "sacred_seal" }],
+                    },
+                  ],
+                },
               ],
             },
             {
@@ -785,17 +800,29 @@
                   true
                 ),
               ],
+              // 「瓦礫をあさる（→→ザコ戦闘へ合流）」「崩れた建物へ」は相互排他な分岐（本文参照。
+              // 前者を選ぶと必ずザコ戦闘へ進み撃破ルーンを得るが武器は得られず、後者を選ぶと
+              // 戦闘なしで杖を得るが撃破ルーンは発生しない）。tieredChoiceへ統一する。
               reward: [
-                { kind: "stoneswordKey", value: 1, note: C("（瓦礫をあさる）", "（翻找瓦礫）") },
-                { kind: "consumable", value: 1, note: C("（瓦礫をあさる）", "（翻找瓦礫）") },
                 {
-                  kind: "consumable",
-                  itemId: "item_throwing_pot",
-                  attributeTag: C("凍傷", "凍傷"),
-                  note: C("（瓦礫をあさる）", "（翻找瓦礫）"),
+                  kind: "tieredChoice",
+                  tierLabel: C("実際に進んだルート", "實際採取的路線"),
+                  tiers: [
+                    {
+                      label: C("瓦礫をあさる→ザコ戦闘（撃破）", "翻找瓦礫→雜兵戰鬥（擊破）"),
+                      rewards: [
+                        { kind: "stoneswordKey", value: 1 },
+                        { kind: "consumable", value: 1 },
+                        { kind: "consumable", itemId: "item_throwing_pot", attributeTag: C("凍傷", "凍傷") },
+                        { kind: "rune", value: 1 },
+                      ],
+                    },
+                    {
+                      label: C("崩れた建物へ", "前往崩塌的建築"),
+                      rewards: [{ kind: "weaponStar", value: 1, categoryId: "staff" }],
+                    },
+                  ],
                 },
-                { kind: "weaponStar", value: 1, categoryId: "staff", note: C("（崩れた建物へ）", "（前往崩塌的建築）") },
-                { kind: "rune", value: 1, note: C("（撃破ルーン）", "（擊破盧恩）") },
               ],
             },
             {
@@ -1065,17 +1092,29 @@
                   true
                 ),
               ],
+              // 「瓦礫を物色（→→ザコ戦闘へ合流）」「傾いた建物へ」は相互排他な分岐（本文参照。
+              // 前者を選ぶと必ずザコ戦闘へ進み撃破ルーンを得るが武器は得られず、後者を選ぶと
+              // 戦闘なしで聖印を得るが撃破ルーンは発生しない）。tieredChoiceへ統一する。
               reward: [
-                { kind: "stoneswordKey", value: 1, note: C("（瓦礫を物色）", "（搜尋瓦礫）") },
-                { kind: "consumable", value: 1, note: C("（瓦礫を物色）", "（搜尋瓦礫）") },
                 {
-                  kind: "consumable",
-                  itemId: "item_throwing_pot",
-                  attributeTag: C("発狂", "發狂"),
-                  note: C("（瓦礫を物色）", "（搜尋瓦礫）"),
+                  kind: "tieredChoice",
+                  tierLabel: C("実際に進んだルート", "實際採取的路線"),
+                  tiers: [
+                    {
+                      label: C("瓦礫を物色→ザコ戦闘（撃破）", "搜尋瓦礫→雜兵戰鬥（擊破）"),
+                      rewards: [
+                        { kind: "stoneswordKey", value: 1 },
+                        { kind: "consumable", value: 1 },
+                        { kind: "consumable", itemId: "item_throwing_pot", attributeTag: C("発狂", "發狂") },
+                        { kind: "rune", value: 1 },
+                      ],
+                    },
+                    {
+                      label: C("傾いた建物へ", "前往傾頹的建築"),
+                      rewards: [{ kind: "weaponStar", value: 1, categoryId: "sacred_seal" }],
+                    },
+                  ],
                 },
-                { kind: "weaponStar", value: 1, categoryId: "sacred_seal", note: C("（傾いた建物へ）", "（前往傾頹的建築）") },
-                { kind: "rune", value: 1, note: C("（撃破ルーン）", "（擊破盧恩）") },
               ],
             },
             {
@@ -1197,12 +1236,29 @@
                   true
                 ),
               ],
+              // 「瓦礫をあさる（→ザコ戦闘へ合流）」「崩れかかった建物へ」は相互排他な分岐（本文参照。
+              // 前者を選ぶと必ずザコ戦闘へ進み撃破ルーンを得るが聖印は得られず、後者を選ぶと
+              // 戦闘なしで聖印を得るが撃破ルーンは発生しない）。tieredChoiceへ統一する。
               reward: [
-                { kind: "stoneswordKey", value: 1, note: C("（瓦礫をあさる）", "（翻找瓦礫）") },
-                { kind: "weaponStar", value: 1, categoryId: "staff", note: C("（瓦礫をあさる）", "（翻找瓦礫）") },
-                { kind: "hpDamage", value: 1, note: C("（瓦礫をあさる・行為判定失敗時）", "（翻找瓦礫・行為判定失敗時）") },
-                { kind: "weaponStar", value: 1, categoryId: "sacred_seal", note: C("（崩れかかった建物へ）", "（前往即將崩塌的建築）") },
-                { kind: "rune", value: 1, note: C("（撃破ルーン）", "（擊破盧恩）") },
+                {
+                  kind: "tieredChoice",
+                  tierLabel: C("実際に進んだルート", "實際採取的路線"),
+                  tiers: [
+                    {
+                      label: C("瓦礫をあさる→ザコ戦闘（撃破）", "翻找瓦礫→雜兵戰鬥（擊破）"),
+                      rewards: [
+                        { kind: "stoneswordKey", value: 1 },
+                        { kind: "weaponStar", value: 1, categoryId: "staff" },
+                        { kind: "hpDamage", value: 1, note: C("（行為判定失敗時）", "（行為判定失敗時）") },
+                        { kind: "rune", value: 1 },
+                      ],
+                    },
+                    {
+                      label: C("崩れかかった建物へ", "前往即將崩塌的建築"),
+                      rewards: [{ kind: "weaponStar", value: 1, categoryId: "sacred_seal" }],
+                    },
+                  ],
+                },
               ],
             },
             {
