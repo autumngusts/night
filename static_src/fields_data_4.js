@@ -1658,7 +1658,8 @@
                         {
                           kind: "smithingStone",
                           value: 1,
-                          note: C("（ルーン1消費ごとに1個。人数分クリックしてください）", "（每消費盧恩1即得1個。請依人數點擊）"),
+                          perPerson: true,
+                          note: C("（商人・PC1人につき最大1回、ルーン1消費で鍛石1個）", "（商人・每位PC最多1次，消費盧恩1即得鍛石1個）"),
                         },
                       ],
                     },
@@ -1720,9 +1721,34 @@
                   true
                 ),
               ],
+              // 「ザコ戦闘」と「こっそり作戦」は相互排他な選択のため、tieredChoiceへ統一。
               reward: [
-                { kind: "consumable", value: 2, note: C("（ザコ戦闘撃破）", "（雜兵戰鬥擊破）") },
-                { kind: "note", note: C("（ザコ戦闘撃破。「共鳴する結晶：+1」は別途手動記録）", "（雜兵戰鬥擊破。「共鳴結晶：+1」需另行手動記錄）") },
+                {
+                  kind: "tieredChoice",
+                  tierLabel: C("実際に進んだルート", "實際採取的路線"),
+                  tiers: [
+                    {
+                      label: C("ザコ戦闘（撃破）", "雜兵戰鬥（擊破）"),
+                      rewards: [
+                        { kind: "consumable", value: 2 },
+                        { kind: "note", note: C("（「共鳴する結晶：+1」は別途手動記録）", "（「共鳴結晶：+1」需另行手動記錄）") },
+                      ],
+                    },
+                    { label: C("こっそり作戦（成功）", "悄悄行動作戰（成功）"), rewards: [] },
+                    {
+                      label: C("こっそり作戦（失敗）", "悄悄行動作戰（失敗）"),
+                      rewards: [
+                        {
+                          kind: "note",
+                          note: C(
+                            "（GMは2Dを振り、出目合計分の損害をPC全員で相談してHP/FPへ任意に分割）",
+                            "（GM擲2D，出目總和的損害由PC全員協商後任意分配至HP／FP）"
+                          ),
+                        },
+                      ],
+                    },
+                  ],
+                },
               ],
             },
             {
@@ -1800,9 +1826,23 @@
                   true
                 ),
               ],
+              // ボス戦闘は「やり過ごす」ことも可能な任意選択のため、tieredChoiceへ統一。
               reward: [
-                { kind: "potentialPower", perPerson: true, value: 1, note: C("（ボス戦闘撃破）", "（王戰擊破）") },
-                { kind: "note", note: C("（「共鳴する結晶：+1」は別途手動記録）", "（「共鳴結晶：+1」需另行手動記錄）") },
+                {
+                  kind: "tieredChoice",
+                  tierLabel: C("実際に進んだルート", "實際採取的路線"),
+                  tiers: [
+                    {
+                      label: C("ボス戦闘（撃破）", "王戰（擊破）"),
+                      rewards: [
+                        { kind: "potentialPower", perPerson: true, value: 1 },
+                        { kind: "rune", value: 3 },
+                        { kind: "note", note: C("（「共鳴する結晶：+1」は別途手動記録）", "（「共鳴結晶：+1」需另行手動記錄）") },
+                      ],
+                    },
+                    { label: C("やり過ごす（フロア踏破）", "設法避開（樓層踏破）"), rewards: [] },
+                  ],
+                },
               ],
             },
           ],
