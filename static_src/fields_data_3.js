@@ -521,14 +521,29 @@
               // 「雜兵戰鬥（擊破盧恩：1）」「衝過去（成功）」為相互排他的分岐（見本文。衝過去
               // 失敗時會合流至同一場雜兵戰鬥，但成功時因未發生戰鬥，故不會產生擊破盧恩）。
               // 將擊破盧恩與weaponStar統一為tieredChoice。
+              // 另外「翻找瓦礫（→瓦礫をあさる）」本身是可跳過的選項路線（見本文：「毒の沼にある
+              // 瓦礫をあさってみてもよいし（→瓦礫をあさる）、傾いた建物へ進んでもよい（→傾いた
+              // 建物へ）」），翻找瓦礫後仍會合流至同一個「傾いた建物へ」分岐，因此與上述雜兵戰鬥
+              // ／衝過去的選擇是相互獨立的兩個軸，改用第二個獨立的tieredChoice表達，避免未選擇
+              // 翻找瓦礫的玩家也拿到瓦礫戰利品（過度授予）。
               reward: [
-                { kind: "stoneswordKey", value: 1, note: C("（瓦礫をあさる）", "（翻找瓦礫）") },
-                { kind: "consumable", value: 1, note: C("（瓦礫をあさる）", "（翻找瓦礫）") },
                 {
-                  kind: "consumable",
-                  itemId: "item_throwing_pot",
-                  attributeTag: C("猛毒", "猛毒"),
-                  note: C("（瓦礫をあさる）", "（翻找瓦礫）"),
+                  kind: "tieredChoice",
+                  tierLabel: C("瓦礫をあさったか", "是否翻找瓦礫"),
+                  tiers: [
+                    {
+                      label: C("瓦礫をあさる", "翻找瓦礫"),
+                      rewards: [
+                        { kind: "stoneswordKey", value: 1 },
+                        { kind: "consumable", value: 1 },
+                        { kind: "consumable", itemId: "item_throwing_pot", attributeTag: C("猛毒", "猛毒") },
+                      ],
+                    },
+                    {
+                      label: C("傾いた建物へ（瓦礫をあさらず直接）", "前往傾頹的建築（未翻找瓦礫直接前往）"),
+                      rewards: [],
+                    },
+                  ],
                 },
                 {
                   kind: "tieredChoice",
@@ -654,12 +669,43 @@
                   true
                 ),
               ],
+              // 「瓦礫をあさる」は本文で「傾いた建物の内部へ進んでみてもよい（→フロア踏破）」と
+              // 明記された、あさらず直接フロア踏破できる任意スキップ可能ルート。瓦礫をあさった
+              // 場合も、行為判定の過半数成功時は「野犬を始末してもよいし（→ザコ戦闘）、野犬を
+              // 避けて…進んでもよい（フロア踏破）」とさらに分岐する（過半数失敗時のみ強制的に
+              // ザコ戦闘）。過度授与を避けるため、3つの相互排他な結果へtieredChoice化する。
               reward: [
-                { kind: "stoneswordKey", value: 1, note: C("（瓦礫をあさる）", "（翻找瓦礫）") },
-                { kind: "consumable", value: 1, note: C("（瓦礫をあさる）", "（翻找瓦礫）") },
-                { kind: "hpDamage", value: 1, note: C("（過半数失敗時・野犬に不意打ちされた場合）", "（過半數判定失敗時・遭野犬偷襲）") },
-                { kind: "weaponStar", value: 1, categoryId: "staff", note: C("（ザコ戦闘撃破）", "（雜兵戰鬥擊破）") },
-                { kind: "rune", value: 1, note: C("（撃破ルーン）", "（擊破盧恩）") },
+                {
+                  kind: "tieredChoice",
+                  tierLabel: C("実際に進んだルート", "實際採取的路線"),
+                  tiers: [
+                    {
+                      label: C("瓦礫をあさる→ザコ戦闘（撃破）", "翻找瓦礫→雜兵戰鬥（擊破）"),
+                      rewards: [
+                        { kind: "stoneswordKey", value: 1 },
+                        { kind: "consumable", value: 1 },
+                        {
+                          kind: "hpDamage",
+                          value: 1,
+                          note: C("（過半数失敗・野犬に不意打ちされた場合のみ）", "（過半數判定失敗・遭野犬偷襲時）"),
+                        },
+                        { kind: "weaponStar", value: 1, categoryId: "staff" },
+                        { kind: "rune", value: 1 },
+                      ],
+                    },
+                    {
+                      label: C("瓦礫をあさる→野犬を避ける（フロア踏破）", "翻找瓦礫→避開野犬（樓層踏破）"),
+                      rewards: [
+                        { kind: "stoneswordKey", value: 1 },
+                        { kind: "consumable", value: 1 },
+                      ],
+                    },
+                    {
+                      label: C("傾いた建物の内部へ直接（フロア踏破）", "直接前往傾頹建築內部（樓層踏破）"),
+                      rewards: [],
+                    },
+                  ],
+                },
               ],
             },
             {
@@ -946,17 +992,34 @@
                   true
                 ),
               ],
+              // 「瓦礫をあさる」（→強制的にザコ戦闘へ合流）と「崩れかかった建物へ」（→戦闘なしで
+              // フロア踏破のみ）は本文上の相互排他な選択（見L(1)行）。瓦礫をあさらなかった場合に
+              // 瓦礫戦利品・撃破ルーンまで得てしまう過度授与を避けるため、tieredChoiceへ統一。
               reward: [
-                { kind: "stoneswordKey", value: 1, note: C("（瓦礫をあさる）", "（翻找瓦礫）") },
-                { kind: "consumable", value: 1, note: C("（瓦礫をあさる）", "（翻找瓦礫）") },
                 {
-                  kind: "consumable",
-                  itemId: "item_throwing_pot",
-                  attributeTag: C("睡眠", "睡眠"),
-                  note: C("（瓦礫をあさる）", "（翻找瓦礫）"),
+                  kind: "tieredChoice",
+                  tierLabel: C("実際に進んだルート", "實際採取的路線"),
+                  tiers: [
+                    {
+                      label: C("瓦礫をあさる→ザコ戦闘（撃破）", "翻找瓦礫→雜兵戰鬥（擊破）"),
+                      rewards: [
+                        { kind: "stoneswordKey", value: 1 },
+                        { kind: "consumable", value: 1 },
+                        { kind: "consumable", itemId: "item_throwing_pot", attributeTag: C("睡眠", "睡眠") },
+                        {
+                          kind: "hpDamage",
+                          value: 2,
+                          note: C("（大蟹に巻き込まれた場合のみ）", "（被大蟹波及時）"),
+                        },
+                        { kind: "rune", value: 1 },
+                      ],
+                    },
+                    {
+                      label: C("崩れかかった建物へ（直接）", "直接前往即將崩塌的建築"),
+                      rewards: [],
+                    },
+                  ],
                 },
-                { kind: "hpDamage", value: 2, note: C("（瓦礫をあさる・大蟹に巻き込まれた場合）", "（翻找瓦礫・被大蟹波及時）") },
-                { kind: "rune", value: 1, note: C("（撃破ルーン）", "（擊破盧恩）") },
               ],
             },
             {
