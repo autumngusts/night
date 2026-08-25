@@ -2334,6 +2334,7 @@
                     {
                       label: C("やり過ごす（失敗→ボス戦闘撃破）", "放過對方（失敗→王戰擊破）"),
                       rewards: [
+                        { kind: "rune", value: 4 },
                         { kind: "talisman", value: 2 },
                         { kind: "consumable", value: 2 },
                         { kind: "hpDamage", value: 2, note: C("（ランダムPC1人）", "（隨機1名PC）") },
@@ -2344,6 +2345,7 @@
                     {
                       label: C("戦う（ボス戦闘撃破）", "戰鬥（王戰擊破）"),
                       rewards: [
+                        { kind: "rune", value: 4 },
                         { kind: "potentialPower", perPerson: true, value: 1 },
                         { kind: "note", note: C("（「共鳴する結晶：+1」は別途手動記録）", "（「共鳴結晶：+1」需另行手動記錄）") },
                       ],
@@ -2379,6 +2381,7 @@
               ],
               // 奥のチェストの武器★は運試しの成否で択一のため、tieredChoiceへ統一。
               reward: [
+                { kind: "rune", value: 4, note: C("（ボス戦闘撃破）", "（王戰擊破）") },
                 { kind: "potentialPower", perPerson: true, value: 1, note: C("（ボス戦闘撃破）", "（王戰擊破）") },
                 {
                   kind: "tieredChoice",
@@ -2476,6 +2479,7 @@
                     {
                       label: C("やり過ごす（失敗→ザコ戦闘撃破）", "放過對方（失敗→雜兵戰鬥擊破）"),
                       rewards: [
+                        { kind: "rune", value: 2 },
                         { kind: "talisman", value: 2 },
                         { kind: "consumable", value: 2 },
                         { kind: "hpDamage", value: 1, note: C("（ランダムPC2人）", "（隨機2名PC）") },
@@ -2486,6 +2490,7 @@
                     {
                       label: C("戦う（ザコ戦闘撃破）", "戰鬥（雜兵戰鬥擊破）"),
                       rewards: [
+                        { kind: "rune", value: 2 },
                         { kind: "potentialPower", perPerson: true, value: 1 },
                         { kind: "note", note: C("（「共鳴する結晶：+1」は別途手動記録）", "（「共鳴結晶：+1」需另行手動記錄）") },
                       ],
@@ -2521,6 +2526,7 @@
               ],
               // 奥のチェストの武器★は運試しの成否で択一のため、tieredChoiceへ統一。
               reward: [
+                { kind: "rune", value: 3, note: C("（ボス戦闘撃破）", "（王戰擊破）") },
                 { kind: "potentialPower", perPerson: true, value: 1, note: C("（ボス戦闘撃破）", "（王戰擊破）") },
                 {
                   kind: "tieredChoice",
