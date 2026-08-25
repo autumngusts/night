@@ -187,6 +187,7 @@
                 { kind: "consumable", value: 1, note: C("（ザコ戦闘撃破）", "（雜兵戰鬥擊破）") },
                 { kind: "weaponStar", value: 1, note: C("（ザコ戦闘撃破）", "（雜兵戰鬥擊破）") },
                 { kind: "potentialPower", perPerson: true, value: 1, note: C("（ザコ戦闘撃破）", "（雜兵戰鬥擊破）") },
+                { kind: "rune", value: 1, note: C("（撃破ルーン）", "（擊破盧恩）") },
               ],
             },
           ],
@@ -230,13 +231,26 @@
               reward: [
                 { kind: "consumable", value: 1, note: C("（ザコ戦闘撃破）", "（雜兵戰鬥擊破）") },
                 { kind: "weaponStar", value: 1, note: C("（ザコ戦闘撃破）", "（雜兵戰鬥擊破）") },
+                { kind: "rune", value: 1, note: C("（撃破ルーン）", "（擊破盧恩）") },
                 {
                   kind: "tieredChoice",
                   tierLabel: C("スカラベ追跡数", "追逐聖甲蟲數量"),
                   tiers: [
                     { label: C("0体", "0隻"), rewards: [] },
-                    { label: C("1体", "1隻"), rewards: [{ kind: "talisman", value: 1, note: C("（スカラベ1体追跡）", "（追逐1隻聖甲蟲）") }] },
-                    { label: C("2体", "2隻"), rewards: [{ kind: "talisman", value: 2, note: C("（スカラベ2体追跡）", "（追逐2隻聖甲蟲）") }] },
+                    {
+                      label: C("1体", "1隻"),
+                      rewards: [
+                        { kind: "talisman", value: 1, note: C("（スカラベ1体追跡）", "（追逐1隻聖甲蟲）") },
+                        { kind: "rune", value: 1, note: C("（スカラベ1体追跡・追加撃破ルーン）", "（追逐1隻聖甲蟲・追加擊破盧恩）") },
+                      ],
+                    },
+                    {
+                      label: C("2体", "2隻"),
+                      rewards: [
+                        { kind: "talisman", value: 2, note: C("（スカラベ2体追跡）", "（追逐2隻聖甲蟲）") },
+                        { kind: "rune", value: 2, note: C("（スカラベ2体追跡・追加撃破ルーン）", "（追逐2隻聖甲蟲・追加擊破盧恩）") },
+                      ],
+                    },
                   ],
                 },
               ],
