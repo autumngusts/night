@@ -1019,6 +1019,7 @@
                       label: C("ザコ戦闘（撃破）", "雜兵戰鬥（擊破）"),
                       rewards: [
                         { kind: "stoneswordKey", value: 1 },
+                        { kind: "consumable", value: 1 },
                         { kind: "consumable", itemId: "item_throwing_pot", attributeTag: C("炎", "炎") },
                         { kind: "rune", value: 1, note: C("（撃破ルーン）", "（擊破盧恩）") },
                       ],
@@ -1180,6 +1181,7 @@
                 ),
               ],
               reward: [
+                { kind: "consumable", value: 1, note: C("（ザコ戦闘撃破）", "（雜兵戰鬥擊破）") },
                 {
                   kind: "consumable",
                   itemId: "item_throwing_pot",
@@ -1293,6 +1295,7 @@
                     {
                       label: C("ザコ戦闘（撃破）", "雜兵戰鬥（擊破）"),
                       rewards: [
+                        { kind: "consumable", value: 1 },
                         {
                           kind: "consumable",
                           itemId: "item_throwing_pot",
