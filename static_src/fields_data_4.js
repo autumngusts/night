@@ -760,7 +760,10 @@
                 L(2, null, ["「神肌の使徒たち（217頁）／Lv.7+L補」", "「神肌的使徒們（217頁）／Lv.7+L補」"], true),
                 L(2, null, ["撃破できたら、PCはそれぞれ「潜在する力：★★★」を獲得（フロア踏破）。", "擊破後，PC各自獲得「潛力：★★★」（樓層踏破）。"], true),
               ],
-              reward: [{ kind: "potentialPower", perPerson: true, value: 3, note: C("（ボス戦闘撃破）", "（王戰擊破）") }],
+              reward: [
+                { kind: "potentialPower", perPerson: true, value: 3, note: C("（ボス戦闘撃破）", "（王戰擊破）") },
+                { kind: "rune", value: 3, note: C("（撃破ルーン）", "（擊破盧恩）") },
+              ],
             },
             {
               label: C("フロア2", "樓層2"),
@@ -841,13 +844,17 @@
                 { kind: "consumable", value: 2, note: C("（水辺・行為判定失敗時）", "（水邊・行為判定失敗時）") },
                 { kind: "weaponStar", value: 1, note: C("（ザコ戦闘撃破）", "（雜兵戰鬥擊破）") },
                 { kind: "weaponStar", value: 1, categoryId: "staff", note: C("（ザコ戦闘撃破）", "（雜兵戰鬥擊破）") },
+                { kind: "rune", value: 2, note: C("（ザコ戦闘撃破）", "（雜兵戰鬥擊破）") },
                 {
                   kind: "tieredChoice",
                   tierLabel: C("実際に進んだルート", "實際採取的路線"),
                   tiers: [
                     {
                       label: C("さらに奥へ（ボス戦闘撃破）", "更深處（王戰擊破）"),
-                      rewards: [{ kind: "potentialPower", perPerson: true, value: 3 }],
+                      rewards: [
+                        { kind: "potentialPower", perPerson: true, value: 3 },
+                        { kind: "rune", value: 6 },
+                      ],
                     },
                     { label: C("ここで切り上げる（フロア踏破）", "在此結束（樓層踏破）"), rewards: [] },
                   ],
@@ -907,11 +914,38 @@
                 L(2, ["成功", "成功"], ["壁の一部が崩れているのを発見する。そこには美しいチェストがあり、中から「タリスマン」を2つ獲得。", "發現牆壁一部分崩塌。那裡有座美麗的寶箱，從中獲得「護符」2個。"], true),
                 L(2, ["失敗", "失敗"], ["なにもめぼしい物は発見できなかった。", "未能發現任何值得注意的東西。"], true),
               ],
+              // ボス戦闘1・ザコ戦闘はいずれも切り上げても良い任意選択のため、tieredChoiceへ統一。
+              // ボス戦闘1は♠♥どちらのスートでも、また成否に関わらず撃破ルーン：3で共通。
               reward: [
-                { kind: "potentialPower", perPerson: true, value: 2, note: C("（ボス戦闘1♠/♥ 撃破）", "（王戰1♠／♥ 擊破）") },
-                { kind: "rune", value: 3, note: C("（ボス戦闘1♠・成功時のみ）", "（王戰1♠・成功時才有）") },
-                { kind: "weaponStar", value: 2, categoryId: "staff", note: C("（ザコ戦闘撃破・1/2）", "（雜兵戰鬥擊破・1/2）") },
-                { kind: "weaponStar", value: 2, categoryId: "staff", note: C("（ザコ戦闘撃破・2/2）", "（雜兵戰鬥擊破・2/2）") },
+                {
+                  kind: "tieredChoice",
+                  tierLabel: C("実際に進んだルート（ボス戦闘1）", "實際採取的路線（王戰1）"),
+                  tiers: [
+                    {
+                      label: C("ボス戦闘1（♠/♥ 撃破）", "王戰1（♠／♥ 擊破）"),
+                      rewards: [
+                        { kind: "potentialPower", perPerson: true, value: 2 },
+                        { kind: "rune", value: 3 },
+                      ],
+                    },
+                    { label: C("先を急ぐ（2階部分へ）", "繼續前進（前往2樓部分）"), rewards: [] },
+                  ],
+                },
+                {
+                  kind: "tieredChoice",
+                  tierLabel: C("実際に進んだルート（ザコ戦闘）", "實際採取的路線（雜兵戰鬥）"),
+                  tiers: [
+                    {
+                      label: C("ザコ戦闘（撃破）", "雜兵戰鬥（擊破）"),
+                      rewards: [
+                        { kind: "weaponStar", value: 2, categoryId: "staff", note: C("（1/2）", "（1/2）") },
+                        { kind: "weaponStar", value: 2, categoryId: "staff", note: C("（2/2）", "（2/2）") },
+                        { kind: "rune", value: 2 },
+                      ],
+                    },
+                    { label: C("諦める（3階部分へ）", "放棄（前往3樓部分）"), rewards: [] },
+                  ],
+                },
                 { kind: "talisman", value: 2, note: C("（3階部分探索・行為判定成功時）", "（3樓部分探索・行為判定成功時）") },
               ],
             },
@@ -1014,6 +1048,7 @@
                 { kind: "potentialPower", perPerson: true, value: 3, note: C("（屋上・ボス戦闘撃破）", "（屋頂・王戰擊破）") },
                 { kind: "weaponStar", value: 2, note: C("（屋上・ボス戦闘撃破）", "（屋頂・王戰擊破）") },
                 { kind: "consumable", value: 1, note: C("（屋上・ボス戦闘撃破）", "（屋頂・王戰擊破）") },
+                { kind: "rune", value: 6, note: C("（屋上・ボス戦闘撃破）", "（屋頂・王戰擊破）") },
               ],
             },
             {
@@ -1056,6 +1091,7 @@
                       rewards: [
                         { kind: "potentialPower", perPerson: true, value: 2 },
                         { kind: "smithingStone", value: 1, perParty: true },
+                        { kind: "rune", value: 3 },
                       ],
                     },
                     { label: C("先を急ぐ（フロア踏破）", "趕路（樓層踏破）"), rewards: [] },
@@ -1131,6 +1167,7 @@
                   note: C("（ボス戦闘撃破）", "（王戰擊破）"),
                 },
                 { kind: "consumable", value: 2, note: C("（ボス戦闘撃破）", "（王戰擊破）") },
+                { kind: "rune", value: 4, note: C("（撃破ルーン）", "（擊破盧恩）") },
               ],
             },
             {
@@ -1165,6 +1202,7 @@
                   note: C("（ボス戦闘撃破）", "（王戰擊破）"),
                 },
                 { kind: "consumable", value: 2, note: C("（ボス戦闘撃破）", "（王戰擊破）") },
+                { kind: "rune", value: 4, note: C("（撃破ルーン）", "（擊破盧恩）") },
               ],
             },
             {
@@ -1217,7 +1255,13 @@
                   tierLabel: C("判定1回目（協力10）の結果", "判定第1次（協力10）的結果"),
                   tiers: [
                     { label: C("成功", "成功"), rewards: [{ kind: "rune", value: 1 }] },
-                    { label: C("失敗（ザコ戦闘撃破）", "失敗（雜兵戰鬥擊破）"), rewards: [{ kind: "consumable", value: 2 }] },
+                    {
+                      label: C("失敗（ザコ戦闘撃破）", "失敗（雜兵戰鬥擊破）"),
+                      rewards: [
+                        { kind: "consumable", value: 2 },
+                        { kind: "rune", value: 2 },
+                      ],
+                    },
                   ],
                 },
                 {
@@ -1240,6 +1284,7 @@
                           value: 2,
                           attributeTag: C("聖／-5（154頁）", "聖／-5（154頁）"),
                         },
+                        { kind: "rune", value: 4 },
                       ],
                     },
                     {
@@ -1251,6 +1296,7 @@
                           value: 2,
                           attributeTag: C("腐敗／-5（154頁）", "腐敗／-5（154頁）"),
                         },
+                        { kind: "rune", value: 4 },
                       ],
                     },
                   ],
@@ -1349,6 +1395,7 @@
                   attributeTag: C("聖／-5（154頁）", "聖／-5（154頁）"),
                   note: C("（ボス戦闘◇撃破）", "（王戰◇擊破）"),
                 },
+                { kind: "rune", value: 6, note: C("（ボス戦闘◇撃破）", "（王戰◇擊破）") },
                 {
                   kind: "potentialPower",
                   perPerson: true,
@@ -1356,6 +1403,7 @@
                   attributeTag: C("腐敗／-5（154頁）", "腐敗／-5（154頁）"),
                   note: C("（ボス戦闘♣撃破）", "（王戰♣擊破）"),
                 },
+                { kind: "rune", value: 6, note: C("（ボス戦闘♣撃破）", "（王戰♣擊破）") },
               ],
             },
             {
@@ -1396,6 +1444,7 @@
                           value: 3,
                           attributeTag: C("聖／-5（154頁）", "聖／-5（154頁）"),
                         },
+                        { kind: "rune", value: 4 },
                       ],
                     },
                     {
@@ -1407,6 +1456,7 @@
                           value: 3,
                           attributeTag: C("腐敗／-5（154頁）", "腐敗／-5（154頁）"),
                         },
+                        { kind: "rune", value: 4 },
                       ],
                     },
                     { label: C("強行突破（戦闘なし）", "強行突破（不戰鬥）"), rewards: [] },
