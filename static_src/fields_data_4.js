@@ -1730,6 +1730,7 @@
                     {
                       label: C("ザコ戦闘（撃破）", "雜兵戰鬥（擊破）"),
                       rewards: [
+                        { kind: "rune", value: 2 },
                         { kind: "consumable", value: 2 },
                         { kind: "note", note: C("（「共鳴する結晶：+1」は別途手動記録）", "（「共鳴結晶：+1」需另行手動記錄）") },
                       ],
