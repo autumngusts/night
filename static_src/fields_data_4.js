@@ -2429,7 +2429,13 @@
                     {
                       label: C("ウロの奥を覗く（ボス戦闘撃破）", "窺視樹洞深處（王戰擊破）"),
                       rewards: [
-                        { kind: "talisman", value: 1, perParty: true },
+                        {
+                          kind: "note",
+                          note: C(
+                            "「タリスマン」をPC人数と同じ数だけ獲得。GM判断でPC人数分を手動付与",
+                            "獲得與PC人數相同數量的「護符」。由GM判斷手動給予人數分"
+                          ),
+                        },
                         { kind: "rune", value: 4 },
                       ],
                     },
@@ -3903,7 +3909,13 @@
               ],
               reward: [
                 { kind: "potentialPower", perPerson: true, value: 2, note: C("（ボス戦闘撃破）", "（王戰擊破）") },
-                { kind: "talisman", value: 1, perParty: true, note: C("（ボス戦闘撃破）", "（王戰擊破）") },
+                {
+                  kind: "note",
+                  note: C(
+                    "（ボス戦闘撃破）「タリスマン」をPC人数と同じ数だけ獲得。GM判断でPC人数分を手動付与",
+                    "（王戰擊破）獲得與PC人數相同數量的「護符」。由GM判斷手動給予人數分"
+                  ),
+                },
                 { kind: "rune", value: 3, note: C("（撃破ルーン）", "（擊破盧恩）") },
               ],
             },
