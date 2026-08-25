@@ -367,25 +367,32 @@
                   true
                 ),
               ],
+              // 「聖甲蟲（分歧點數2以上）」「不祥的預感（分歧點數0以下）」為相互排他的分岐
+              // （見本文），若將talisman放在tieredChoice外層以flat方式呈現，實際上即使玩家
+              // 走上不祥的預感路線，聖甲蟲的talisman仍會被自動push。因此統一為單一
+              // tieredChoice（劇本資料稽核時發現）。
               reward: [
-                { kind: "talisman", value: 2, note: C("（スカラベ・分岐ポイント2以上）", "（聖甲蟲・分歧點數2以上）") },
                 {
                   kind: "tieredChoice",
-                  tierLabel: C("嫌な予感・結果", "不祥的預感・結果"),
+                  tierLabel: C("実際に進んだルート・結果", "實際採取的路線・結果"),
                   tiers: [
                     {
-                      label: C("成功2回", "成功2次"),
+                      label: C("スカラベ（分岐ポイント2以上）", "聖甲蟲（分歧點數2以上）"),
+                      rewards: [{ kind: "talisman", value: 2 }],
+                    },
+                    {
+                      label: C("嫌な予感・成功2回", "不祥的預感・成功2次"),
                       rewards: [{ kind: "note", note: C("（「共鳴する結晶：+1」を手動記録）", "（手動記錄「共鳴結晶：+1」）") }],
                     },
                     {
-                      label: C("成功1回", "成功1次"),
+                      label: C("嫌な予感・成功1回", "不祥的預感・成功1次"),
                       rewards: [
                         { kind: "hpDamage", value: 2, note: C("（ランダム1人）", "（隨機1人）") },
                         { kind: "note", note: C("（「共鳴する結晶：+1」を手動記録）", "（手動記錄「共鳴結晶：+1」）") },
                       ],
                     },
                     {
-                      label: C("失敗2回", "失敗2次"),
+                      label: C("嫌な予感・失敗2回", "不祥的預感・失敗2次"),
                       rewards: [
                         { kind: "hpDamage", value: 3, note: C("（行為判定失敗者全員）", "（行為判定失敗者全員）") },
                         { kind: "note", note: C("（「夜の脅威シート」のタイムロスを1つチェック）", "（於「夜間威脅表」勾選1格時間損耗）") },
@@ -511,6 +518,9 @@
                   true
                 ),
               ],
+              // 「雜兵戰鬥（擊破盧恩：1）」「衝過去（成功）」為相互排他的分岐（見本文。衝過去
+              // 失敗時會合流至同一場雜兵戰鬥，但成功時因未發生戰鬥，故不會產生擊破盧恩）。
+              // 將擊破盧恩與weaponStar統一為tieredChoice。
               reward: [
                 { kind: "stoneswordKey", value: 1, note: C("（瓦礫をあさる）", "（翻找瓦礫）") },
                 { kind: "consumable", value: 1, note: C("（瓦礫をあさる）", "（翻找瓦礫）") },
@@ -520,8 +530,20 @@
                   attributeTag: C("猛毒", "猛毒"),
                   note: C("（瓦礫をあさる）", "（翻找瓦礫）"),
                 },
-                { kind: "weaponStar", value: 1, categoryId: "sacred_seal", note: C("（駆け抜ける・成功時）", "（衝過去・成功時）") },
-                { kind: "rune", value: 1, note: C("（撃破ルーン）", "（擊破盧恩）") },
+                {
+                  kind: "tieredChoice",
+                  tierLabel: C("実際に進んだルート", "實際採取的路線"),
+                  tiers: [
+                    {
+                      label: C("ザコ戦闘（撃破）", "雜兵戰鬥（擊破）"),
+                      rewards: [{ kind: "rune", value: 1 }],
+                    },
+                    {
+                      label: C("駆け抜ける（成功）", "衝過去（成功）"),
+                      rewards: [{ kind: "weaponStar", value: 1, categoryId: "sacred_seal" }],
+                    },
+                  ],
+                },
               ],
             },
             {
@@ -778,17 +800,29 @@
                   true
                 ),
               ],
+              // 「翻找瓦礫（→→合流至雜兵戰鬥）」「前往崩塌的建築」為相互排他的分岐（見本文。
+              // 選擇前者必定進入雜兵戰鬥並獲得擊破盧恩，但無法取得武器；選擇後者則無需戰鬥
+              // 即可獲得杖，但不會產生擊破盧恩）。統一為tieredChoice。
               reward: [
-                { kind: "stoneswordKey", value: 1, note: C("（瓦礫をあさる）", "（翻找瓦礫）") },
-                { kind: "consumable", value: 1, note: C("（瓦礫をあさる）", "（翻找瓦礫）") },
                 {
-                  kind: "consumable",
-                  itemId: "item_throwing_pot",
-                  attributeTag: C("凍傷", "凍傷"),
-                  note: C("（瓦礫をあさる）", "（翻找瓦礫）"),
+                  kind: "tieredChoice",
+                  tierLabel: C("実際に進んだルート", "實際採取的路線"),
+                  tiers: [
+                    {
+                      label: C("瓦礫をあさる→ザコ戦闘（撃破）", "翻找瓦礫→雜兵戰鬥（擊破）"),
+                      rewards: [
+                        { kind: "stoneswordKey", value: 1 },
+                        { kind: "consumable", value: 1 },
+                        { kind: "consumable", itemId: "item_throwing_pot", attributeTag: C("凍傷", "凍傷") },
+                        { kind: "rune", value: 1 },
+                      ],
+                    },
+                    {
+                      label: C("崩れた建物へ", "前往崩塌的建築"),
+                      rewards: [{ kind: "weaponStar", value: 1, categoryId: "staff" }],
+                    },
+                  ],
                 },
-                { kind: "weaponStar", value: 1, categoryId: "staff", note: C("（崩れた建物へ）", "（前往崩塌的建築）") },
-                { kind: "rune", value: 1, note: C("（撃破ルーン）", "（擊破盧恩）") },
               ],
             },
             {
@@ -1058,17 +1092,29 @@
                   true
                 ),
               ],
+              // 「搜尋瓦礫（→→合流至雜兵戰鬥）」「前往傾頹的建築」為相互排他的分岐（見本文。
+              // 選擇前者必定進入雜兵戰鬥並獲得擊破盧恩，但無法取得武器；選擇後者則無需戰鬥
+              // 即可獲得聖印，但不會產生擊破盧恩）。統一為tieredChoice。
               reward: [
-                { kind: "stoneswordKey", value: 1, note: C("（瓦礫を物色）", "（搜尋瓦礫）") },
-                { kind: "consumable", value: 1, note: C("（瓦礫を物色）", "（搜尋瓦礫）") },
                 {
-                  kind: "consumable",
-                  itemId: "item_throwing_pot",
-                  attributeTag: C("発狂", "發狂"),
-                  note: C("（瓦礫を物色）", "（搜尋瓦礫）"),
+                  kind: "tieredChoice",
+                  tierLabel: C("実際に進んだルート", "實際採取的路線"),
+                  tiers: [
+                    {
+                      label: C("瓦礫を物色→ザコ戦闘（撃破）", "搜尋瓦礫→雜兵戰鬥（擊破）"),
+                      rewards: [
+                        { kind: "stoneswordKey", value: 1 },
+                        { kind: "consumable", value: 1 },
+                        { kind: "consumable", itemId: "item_throwing_pot", attributeTag: C("発狂", "發狂") },
+                        { kind: "rune", value: 1 },
+                      ],
+                    },
+                    {
+                      label: C("傾いた建物へ", "前往傾頹的建築"),
+                      rewards: [{ kind: "weaponStar", value: 1, categoryId: "sacred_seal" }],
+                    },
+                  ],
                 },
-                { kind: "weaponStar", value: 1, categoryId: "sacred_seal", note: C("（傾いた建物へ）", "（前往傾頹的建築）") },
-                { kind: "rune", value: 1, note: C("（撃破ルーン）", "（擊破盧恩）") },
               ],
             },
             {
@@ -1190,12 +1236,32 @@
                   true
                 ),
               ],
+              // 「翻找瓦礫→雜兵戰鬥」「前往即將崩塌的建築」在初始選擇上互斥，但本文（擊破成功
+              // 也無所獲（→前往即將崩塌的建築）。）顯示，選擇翻找瓦礫路線後最終仍會合流至
+              // 「前往即將崩塌的建築」，因此無論走哪條路線都能獲得聖印（此點與湖沼(毒)樓層1
+              // 不同）。因此聖印保留為無條件的flat項目，僅將翻找瓦礫路線特有的部分（石劍鑰匙、
+              // 杖、HP損害、擊破盧恩）納入tier化（fix round 1修正）。
               reward: [
-                { kind: "stoneswordKey", value: 1, note: C("（瓦礫をあさる）", "（翻找瓦礫）") },
-                { kind: "weaponStar", value: 1, categoryId: "staff", note: C("（瓦礫をあさる）", "（翻找瓦礫）") },
-                { kind: "hpDamage", value: 1, note: C("（瓦礫をあさる・行為判定失敗時）", "（翻找瓦礫・行為判定失敗時）") },
-                { kind: "weaponStar", value: 1, categoryId: "sacred_seal", note: C("（崩れかかった建物へ）", "（前往即將崩塌的建築）") },
-                { kind: "rune", value: 1, note: C("（撃破ルーン）", "（擊破盧恩）") },
+                { kind: "weaponStar", value: 1, categoryId: "sacred_seal" },
+                {
+                  kind: "tieredChoice",
+                  tierLabel: C("実際に進んだルート", "實際採取的路線"),
+                  tiers: [
+                    {
+                      label: C("瓦礫をあさる→ザコ戦闘（撃破）", "翻找瓦礫→雜兵戰鬥（擊破）"),
+                      rewards: [
+                        { kind: "stoneswordKey", value: 1 },
+                        { kind: "weaponStar", value: 1, categoryId: "staff" },
+                        { kind: "hpDamage", value: 1, note: C("（行為判定失敗時）", "（行為判定失敗時）") },
+                        { kind: "rune", value: 1 },
+                      ],
+                    },
+                    {
+                      label: C("崩れかかった建物へ（直接）", "前往即將崩塌的建築（直接前往）"),
+                      rewards: [],
+                    },
+                  ],
+                },
               ],
             },
             {
@@ -1778,9 +1844,26 @@
                 L(2, null, ["「墓守鳥たち（227頁）／Lv.2＋L補」＋モブ1", "「墓守鳥們（227頁）／Lv.2+L補」＋雜兵1"], true),
                 L(2, null, ["撃破に成功しても、得る物はない（フロア踏破）。", "擊破成功也無所獲（樓層踏破）。"], true),
               ],
+              // 「沿屋頂而行的道路」只要有1人以上判定成功即可迴避雜兵戰鬥（見本文，僅全員
+              // 失敗時才會合流至雜兵戰鬥）。由於擊破盧恩僅在實際發生戰鬥時才會產生，因此
+              // 只在「直接選擇雜兵戰鬥」或「迴避失敗而合流」的情況下，才透過tieredChoice
+              // 產生擊破盧恩。
               reward: [
                 { kind: "hpDamage", value: 1, note: C("（屋根伝いの道・行為判定失敗時）", "（沿屋頂而行的道路・行為判定失敗時）") },
-                { kind: "rune", value: 2, note: C("（撃破ルーン）", "（擊破盧恩）") },
+                {
+                  kind: "tieredChoice",
+                  tierLabel: C("実際に進んだルート", "實際採取的路線"),
+                  tiers: [
+                    {
+                      label: C("ザコ戦闘（撃破）", "雜兵戰鬥（擊破）"),
+                      rewards: [{ kind: "rune", value: 2 }],
+                    },
+                    {
+                      label: C("屋根伝いの道（1人以上成功・戦闘回避）", "沿屋頂而行的道路（1人以上成功・迴避戰鬥）"),
+                      rewards: [],
+                    },
+                  ],
+                },
               ],
             },
             {
@@ -1864,15 +1947,24 @@
                 L(2, null, ["「野犬たち（213頁）／Lv.2＋L補」＋モブ1", "「野犬們（213頁）／Lv.2+L補」＋雜兵1"], true),
                 L(2, null, ["撃破に成功しても得る物はない（フロア踏破）。", "擊破成功也無所獲（樓層踏破）。"], true),
               ],
+              // 「往上爬（過半數成功可迴避戰鬥）」「雜兵戰鬥（直接選擇，或半數以上失敗時合流）」
+              // 為相互排他的分岐（見本文）。將武器與擊破盧恩統一為tieredChoice。
               reward: [
-                {
-                  kind: "weaponStar",
-                  value: 1,
-                  attributeTag: C("出血／-5（154頁）", "出血／-5（154頁）"),
-                  note: C("（上へ登る・過半数成功時）", "（往上爬・過半數成功時）"),
-                },
                 { kind: "hpDamage", value: 1, note: C("（上へ登る・行為判定失敗時）", "（往上爬・行為判定失敗時）") },
-                { kind: "rune", value: 2, note: C("（撃破ルーン）", "（擊破盧恩）") },
+                {
+                  kind: "tieredChoice",
+                  tierLabel: C("実際に進んだルート", "實際採取的路線"),
+                  tiers: [
+                    {
+                      label: C("ザコ戦闘（撃破）", "雜兵戰鬥（擊破）"),
+                      rewards: [{ kind: "rune", value: 2 }],
+                    },
+                    {
+                      label: C("上へ登る（過半数成功・戦闘回避）", "往上爬（過半數成功・迴避戰鬥）"),
+                      rewards: [{ kind: "weaponStar", value: 1, attributeTag: C("出血／-5（154頁）", "出血／-5（154頁）") }],
+                    },
+                  ],
+                },
               ],
             },
             {
@@ -1965,24 +2057,28 @@
                 L(2, null, ["撃破に成功しても得る物はない（フロア踏破）。", "擊破成功也無所獲（樓層踏破）。"], true),
                 L(2, null, ["先の判定でモブが増えている場合は「撃破ルーン：+1」。", "若先前判定使雜兵增加，則「擊破盧恩：+1」。"], true),
               ],
+              // 「避開居民探索（過半數成功可迴避戰鬥）」「雜兵戰鬥（半數以上失敗時合流，追加雜兵1＋
+              // 擊破盧恩+1）」為相互排他的分岐（見本文）。統一為單一tieredChoice。
               reward: [
-                { kind: "consumable", value: 1, note: C("（住民を避け探索・過半数成功時）", "（避開居民探索・過半數成功時）") },
-                {
-                  kind: "consumable",
-                  itemId: "item_throwing_pot",
-                  attributeTag: C("出血", "出血"),
-                  note: C("（住民を避け探索・過半数成功時）", "（避開居民探索・過半數成功時）"),
-                },
                 { kind: "hpDamage", value: 1, note: C("（住民を避け探索・行為判定失敗時）", "（避開居民探索・行為判定失敗時）") },
-                { kind: "rune", value: 1, note: C("（撃破ルーン）", "（擊破盧恩）") },
                 {
                   kind: "tieredChoice",
-                  tierLabel: C("モブ追加の有無", "是否追加雜兵"),
+                  tierLabel: C("実際に進んだルート", "實際採取的路線"),
                   tiers: [
-                    { label: C("通常（モブ追加なし）", "一般（未追加雜兵）"), rewards: [] },
                     {
-                      label: C("半数以上失敗でモブ1追加", "半數以上失敗，追加雜兵1"),
+                      label: C("住民を避け探索（過半数成功・戦闘回避）", "避開居民探索（過半數成功・迴避戰鬥）"),
+                      rewards: [
+                        { kind: "consumable", value: 1 },
+                        { kind: "consumable", itemId: "item_throwing_pot", attributeTag: C("出血", "出血") },
+                      ],
+                    },
+                    {
+                      label: C("ザコ戦闘（撃破・モブ追加なし）", "雜兵戰鬥（擊破・未追加雜兵）"),
                       rewards: [{ kind: "rune", value: 1 }],
+                    },
+                    {
+                      label: C("ザコ戦闘（撃破・半数以上失敗でモブ1追加）", "雜兵戰鬥（擊破・半數以上失敗，追加雜兵1）"),
+                      rewards: [{ kind: "rune", value: 2 }],
                     },
                   ],
                 },
