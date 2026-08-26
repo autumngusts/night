@@ -8864,7 +8864,13 @@
     }
     formRow.hidden = false;
     var form = (state.battle && state.battle.bossForm) || "fused";
-    btn.textContent = window.I18N.t(form === "split" ? "auto_gm_boss_form_split_label" : "auto_gm_boss_form_fused_label");
+    var structured = AutoGm.getStructuredData ? AutoGm.getStructuredData(key) : null;
+    var labels = structured && structured.formLabels;
+    if (labels && labels[form]) {
+      btn.textContent = window.PriTestFields.localizedText(labels[form]);
+    } else {
+      btn.textContent = window.I18N.t(form === "split" ? "auto_gm_boss_form_split_label" : "auto_gm_boss_form_fused_label");
+    }
   }
 
   function handleAutoGmBossFormToggleClick() {

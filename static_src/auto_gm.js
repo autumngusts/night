@@ -34,11 +34,18 @@
     return !!EnemyAutoGmData.get(parsed.familyId, parsed.enemyId);
   }
 
+  // キーからボス構造化データ（BossAutoGmData.get()の返り値）を取得する。
+  // 通常エネミーのkey（"familyId|enemyId|level"形式）が渡された場合はnullを返す
+  // （現状の用途はボスのformLabels等の取得のみのため、通常エネミー側の構造化データ取得は対象外）。
+  function getStructuredData(key) {
+    if (!isBossKey(key) || !BossAutoGmData) return null;
+    return BossAutoGmData.get(parseBossKey(key).bossId) || null;
+  }
+
   // 現在選択中のキーが多形態（グラディウス等、structured.formAware===true）かどうかを返す。
   // night.js側が形態トグルUI（合体形態／分裂形態の切替ボタン）を表示すべきか判定するために使う。
   function isFormAware(key) {
-    if (!isBossKey(key) || !BossAutoGmData) return false;
-    var structured = BossAutoGmData.get(parseBossKey(key).bossId);
+    var structured = getStructuredData(key);
     return !!(structured && structured.formAware);
   }
 
@@ -423,6 +430,7 @@
   window.PriTestAutoGm = {
     isStructured: isStructured,
     isFormAware: isFormAware,
+    getStructuredData: getStructuredData,
     rollEnemyAction: rollEnemyAction,
     computeGroupDamage: computeGroupDamage,
     splitGroupShares: splitGroupShares,
