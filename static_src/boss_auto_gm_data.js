@@ -24,17 +24,27 @@
   //   同型）で構造化済み（edele/gnosterは2026-08-24、caligo/fulghorは2026-08-26追加）。
   // - libra（夜の魔、リブラ）も単一形態だが「行動激化」を持たないためrollBonusAfterGuardBreak
   //   なしで構造化済み（2026-08-26追加、詳細はDATA.libraの先頭コメント参照）。
-  // - harmonia（救いの旗手／英雄武器の娘たち、ハルモニア）もgladiusと同型のformAware多形態
-  //   ボスとして構造化済み（2026-08-27追加）。gladiusの「合体／分裂」とは異なり「第一形態／
-  //   第二形態」の意味だが、state.battle.bossFormの2値（"fused"/"split"）をそのまま流用し、
-  //   formLabelsで表示文言のみ上書きする。特殊能力「形態変化」（HP0到達→次アクションフェイズ
-  //   開始時に第二形態へ移行）と「生きた娘」（第二形態限定、ディフェンスフェイズ開始ごとの
-  //   判定）は既存のrows/state機構でカバーできないためスコープ外（GM手動処理）。
-  // - stragedes（反逆のストラゲス／衝動のストラゲス）もharmoniaと同型のformAware多形態ボスとして
-  //   構造化済み（2026-08-27追加）。「亡者召喚」「モブ自壊」「瓦礫生成」等のモブ関連特殊能力は
-  //   既存のrows/state機構でカバーできないためスコープ外（GM手動処理）。
-  // - 残る夜の王「nameless（夜の輪郭／夜の王、ナメレス）」も別途構造化予定（night_bosses.js
-  //   名簿には未掲載だが劇本10「night_aspect」の実際のボス、ユーザー確認済みでスコープに含む）。
+  // - harmonia（救いの旗手／英雄武器の娘たち、ハルモニア）・stragedes（反逆のストラゲス／衝動の
+  //   ストラゲス）もgladiusと同型のformAware多形態ボスとして構造化済み（2026-08-27追加）。
+  //   gladiusの「合体／分裂」とは異なり「第一形態／第二形態」の意味だが、state.battle.bossForm
+  //   の2値（"fused"/"split"）をそのまま流用し、formLabelsで表示文言のみ上書きする。特殊能力
+  //   「形態変化」（HP0到達→次アクションフェイズ開始時に第二形態へ移行）、harmoniaの「生きた娘」、
+  //   stragedesの「亡者召喚」「モブ自壊」「瓦礫生成」は既存のrows/state機構でカバーできない
+  //   ためスコープ外（GM手動処理）。
+  // - nameless（夜の輪郭／夜の王、ナメレス）も同型のformAware多形態ボスとして構造化済み
+  //   （2026-08-27追加、night_bosses.js名簿には未掲載だが劇本10「night_aspect」の実際のボス、
+  //   ユーザー確認済みでスコープに含む）。特殊能力「追加効果」（2D6×9列のadditionalEffectTable
+  //   を参照し、蓄積する属性／状態異常を決定する）は、このボス専用の新規ロール表であり既存の
+  //   elementAccum/ailmentAccum（属性が本文に既に確定している場合の固定値表記）とは前提が異なる
+  //   （どの属性／状態異常になるかは判定するまで不明）ため、本Taskでは自動解決ロジックを追加せず、
+  //   該当行はconditionsで"additional_effect_table_manual"を記録し、GMが規則書パネル
+  //   （night_rulebook.jsが既にboss.additionalEffectTableを表示する）を参照して手動で2D6を
+  //   振る運用とした（night_gm_flow.jsの強敵決定表と同型の2D6×N列だが、あちらはシナリオ開始時の
+  //   1回限りの選択、こちらは戦闘中に何度も参照され得る上に集計結果を「どのPCに」「どれだけ」
+  //   蓄積するかの結線がnight.js側に必要になるため、単純な流用ではなく新規のstate書き込み経路の
+  //   追加が必要になり、本Taskの「読み取り専用オーバーレイ＋計算専用関数」というスコープを
+  //   超えると判断した）。
+  // - 夜王9体＋nameless、計10体すべてが構造化完了（2026-08-27）。
   var DATA = {
     "maris": {
       // 特殊能力「行動激化」：體勢崩潰（体勢崩し）発生後、戦闘終了まで行動決定を「1D」ではなく
@@ -980,6 +990,127 @@
             ],
             onFail: { amount: 120, ailmentAccum: [{ label: "腐敗", amount: 1 }] },
           },
+        },
+      ],
+    },
+    "nameless": {
+      // 「夜の輪郭（第一形態）／夜の王、ナメレス（第二形態）」（劇本10「night_aspect」、
+      // night_boss_rulebook.js:579-655）。第一形態⇔第二形態の2形態を持つformAwareボス
+      // （gladiusと同型）。第一形態を内部形態id "fused"、第二形態を内部形態id "split" として
+      // 扱い、formLabelsで表示ラベルのみ「第一形態／第二形態」に上書きする（gladiusの
+      // 「合体形態／分裂形態」という既定ラベルとは意味が異なるため）。
+      //
+      // 【出目対応（night_boss_rulebook.js:648-654を直接確認、非対称構造に注意）】
+      // 第一形態：1~2, 3~4, 5, 6 の4行で1~6を完全カバー。
+      // 第二形態：3~4, 5~6 の2行のみ（1~2に対応する行は規則書上「—」で存在しない）。
+      // 形態移行自体（「エンドフェイズ開始時」の非同期タイミング）は自動化せず、gladiusと同じく
+      // GMがstate.battle.bossFormを手動トグルする運用。
+      //
+      // 【対象範囲外・既知の制限】
+      // - 特殊能力「属性による弱体」（エネミーが「属性：聖」で属性損害を受けた場合、エンド
+      //   フェイズまで「乱戦ダメージ：－120」「個別ダメージ：－60」）：PC側の属性ダメージ判定に
+      //   依存する反応効果で、night.js側はエネミーへの属性別ダメージ発生を個別に追跡していない
+      //   ため既存機構では自動化できない（edeleの「猛毒の吐瀉」と同種の未対応パターン）。GMが
+      //   エネミーが「聖」属性損害を受けた事実を確認した場合、下記rows未収録のこの反応効果を
+      //   手動で乱戦/個別ダメージから減算すること。
+      // - 特殊能力「浮遊」の「次のアクションフェイズ終了まで、エネミーに『HP価値：＋10
+      //   （最大100）』」は、浮遊が発揮される各行（下記rowsの該当行）でconditions:
+      //   ["enemy_hp_value_buff"]として記録（edele/gnosterの既存タグを再利用、実際の
+      //   HP-value反映はGMが#battle-guard-calc-block側で手動調整）。
+      // - 特殊能力「浮遊」のうち「このエネミーが『第二形態』に移行したターンのアクション
+      //   フェイズでは、PCは『アタック／夜渡りスキル／アーツ／装備品スキル』以外の行動を
+      //   実行できない」は、"形態移行が発生したターン"という一時的な状態をnight.js側が
+      //   追跡していないため自動化できない。GMが形態移行の当該ターンにのみ手動でPCの行動を
+      //   制限すること。
+      // - 特殊能力「浮遊」のうち「このエネミーが『第二形態』に移行したターンのディフェンス
+      //   フェイズでは、このエネミーはアクション決定の1Dを振らず、自動的に『属性爆発＆浮遊』を
+      //   行う」は、出目に紐づかない強制発動（libraの特殊トリガー行と同種の未対応パターン）
+      //   のため、あえてrowsには含めない（rollMin/rollMax・rollRangeByFormのどの範囲にも
+      //   対応させると、通常の1D6判定でも同じ行に到達し得てしまい、強制発動と通常判定の区別が
+      //   つかなくなるため）。GMは第二形態移行ターンのディフェンスフェイズでは1Dを振らず、
+      //   下記rows中の「属性爆発＆浮遊」（第二形態3~4行）の内容を直接適用すること。
+      // - 特殊能力「追加効果」＋additionalEffectTable：ファイル冒頭コメント参照。該当行では
+      //   conditions: ["additional_effect_table_manual"] のみを記録し、実際の2D6判定と
+      //   属性／状態異常の決定・蓄積はGMが規則書パネルを見ながら手動で行う。
+      formAware: true,
+      formLabels: {
+        fused: { ja: "第一形態", zh: "第一形態" },
+        split: { ja: "第二形態", zh: "第二形態" },
+      },
+      rows: [
+        {
+          // 「直剣突き＆大剣薙ぎ払い」（第一形態のみ、出目1~2）：前衛の中で「敵視：最大」の
+          // PC全員が「乱戦ダメージ：3人分」を割り振られる（本文に明記、gladius/edele/marisと
+          // 同じ規約で本文の数値は既にN人分込みの合計値）。対象は「前衛かつ敵視最大」なので
+          // 既存のfrontAggroMaxAll（前衛の中で敵視最大の全員）で表現する。
+          rollRangeByForm: { fused: { min: 1, max: 2 }, split: null },
+          groupDamage: { value: 1200 },
+          targetRule: { kind: "frontAggroMaxAll" },
+        },
+        {
+          // 「2連斬り＆魔力の刃」（第一形態のみ、出目3~4）：乱戦ダメージの対象明記が本文に
+          // 無いため既定ルール（前衛均等割り）。「魔：2」は本文がダイス表記（ND）ではなく
+          // 直接の確定値「2」のため、そのままelementAccum固定値2として扱う（Task1裁定の
+          // 「Xd＝固定値」変換すら不要な、既に確定値の表記）。個別効果（2回実行）：
+          // 「敵視：1以上」のPC1体（不特定・輪流）に個別ダメージ240
+          // （distribution:"rotate"、既存のenemy_auto_gm_data.jsと同型パターン）。
+          rollRangeByForm: { fused: { min: 3, max: 4 }, split: null },
+          groupDamage: { value: 1080, elementAccum: [{ label: "魔", amount: 2 }] },
+          targetRule: { kind: "frontAll" },
+          individualDamage: [{ amount: 240, repeat: 2, distribution: "rotate", targetRule: { kind: "aggroAtLeast1All" } }],
+        },
+        {
+          // 「咆哮4連斬り」（第一形態のみ、出目5）：乱戦ダメージ列が「—」のため乱戦ダメージ無し。
+          // 個別効果（4回実行）：「敵視：1以上」のPC1体（不特定・輪流）に個別ダメージ180は
+          // 確定値のため自動計算するが、付随する「※追加効果：1D」（どの属性/状態異常が
+          // 蓄積するかは規則書のadditionalEffectTableを2D6で参照するまで不明）は自動化せず
+          // conditionsに記録し、GMが規則書パネルを見ながら手動決定する。
+          rollRangeByForm: { fused: { min: 5, max: 5 }, split: null },
+          individualDamage: [{ amount: 180, repeat: 4, distribution: "rotate", targetRule: { kind: "aggroAtLeast1All" } }],
+          conditions: ["additional_effect_table_manual"],
+        },
+        {
+          // 「とびかかり＆光波2連」（第一形態のみ、出目6）：乱戦ダメージの対象明記が本文に
+          // 無いため既定ルール（前衛均等割り）。乱戦ダメージに付随する「追加効果：2D」は
+          // additionalEffectTableを2回参照する必要があるためconditionsに記録しGM手動。
+          // 個別効果：「敵視：1以上」のPC全員に個別ダメージ300＋「魔：4」（確定値のため
+          // elementAccum固定値4として自動計算、追加効果とは無関係の別表記）。
+          rollRangeByForm: { fused: { min: 6, max: 6 }, split: null },
+          groupDamage: { value: 1200 },
+          targetRule: { kind: "frontAll" },
+          individualDamage: [
+            { amount: 300, targetRule: { kind: "aggroAtLeast1All" }, elementAccum: [{ label: "魔", amount: 4 }] },
+          ],
+          conditions: ["additional_effect_table_manual"],
+        },
+        {
+          // 「属性爆発＆浮遊」（第二形態のみ、出目3~4）：乱戦ダメージはPC全員が対象、2回発生し
+          // 2回目は「敵視：1以上」のPC全員が対象——gnosterの「合体突進」と同型の
+          // groupDamage.sequenceで自動化する。乱戦ダメージに付随する「追加効果：2D」は
+          // additionalEffectTable参照のためconditionsに記録しGM手動。特殊能力「浮遊」の
+          // 効果発揮（次アクションフェイズ終了までHP価値＋10）もconditionsに記録
+          // （edele/gnosterの既存enemy_hp_value_buffタグを再利用）。
+          rollRangeByForm: { fused: null, split: { min: 3, max: 4 } },
+          groupDamage: {
+            value: 600,
+            sequence: [{ targetRule: { kind: "allPCs" } }, { targetRule: { kind: "aggroAtLeast1All" } }],
+          },
+          conditions: ["additional_effect_table_manual", "enemy_hp_value_buff"],
+        },
+        {
+          // 「属性剣乱舞＆浮遊」（第二形態のみ、出目5~6）：乱戦ダメージの対象明記が本文に無い
+          // ため既定ルール（前衛均等割り）。乱戦ダメージに付随する「追加効果：1D」は
+          // additionalEffectTable参照のためconditionsに記録しGM手動。個別効果（「敵視：1以上」
+          // 全員は目標12、それ以外は目標10の運試し、失敗者に「HP損害：■■」＋「※追加効果：
+          // 1D」）は、失敗時HP損害が「■■」（CLAUDE.md §19のcontext依存プレースホルダー）で
+          // 自動計算できる確定値が無いため、gnosterのsavingThrow機構（onFail.amountが必須）を
+          // 使わず、判定自体を含めてconditionsのみに留める（GMが目標12/10の運試しを実際に
+          // 振り、失敗者へ■■のHP損害と追加効果決定表参照を手動で適用する）。特殊能力「浮遊」の
+          // 効果発揮もconditionsに記録。
+          rollRangeByForm: { fused: null, split: { min: 5, max: 6 } },
+          groupDamage: { value: 900 },
+          targetRule: { kind: "frontAll" },
+          conditions: ["additional_effect_table_manual", "unknown_hp_damage_manual", "enemy_hp_value_buff"],
         },
       ],
     },
