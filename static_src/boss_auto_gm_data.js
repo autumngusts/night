@@ -30,8 +30,11 @@
   //   formLabelsで表示文言のみ上書きする。特殊能力「形態変化」（HP0到達→次アクションフェイズ
   //   開始時に第二形態へ移行）と「生きた娘」（第二形態限定、ディフェンスフェイズ開始ごとの
   //   判定）は既存のrows/state機構でカバーできないためスコープ外（GM手動処理）。
-  // - 他の1体（stragedes）は、二段階ロール表など固有ルールを持つため今回は対象外
-  //   （別途構造化予定）。
+  // - stragedes（反逆のストラゲス／衝動のストラゲス）もharmoniaと同型のformAware多形態ボスとして
+  //   構造化済み（2026-08-27追加）。「亡者召喚」「モブ自壊」「瓦礫生成」等のモブ関連特殊能力は
+  //   既存のrows/state機構でカバーできないためスコープ外（GM手動処理）。
+  // - 残る夜の王「nameless（夜の輪郭／夜の王、ナメレス）」も別途構造化予定（night_bosses.js
+  //   名簿には未掲載だが劇本10「night_aspect」の実際のボス、ユーザー確認済みでスコープに含む）。
   var DATA = {
     "maris": {
       // 特殊能力「行動激化」：體勢崩潰（体勢崩し）発生後、戦闘終了まで行動決定を「1D」ではなく
@@ -853,6 +856,130 @@
           targetRule: { kind: "allPCs" },
           individualDamage: [{ amount: 300, targetRule: { kind: "aggroMax" } }],
           conditions: ["enemy_hp_value_buff"],
+        },
+      ],
+    },
+    "stragedes": {
+      // 「反逆のストラゲス（第一形態）／衝動のストラゲス（第二形態）」（night_boss_rulebook.js:513-578）：
+      // gladiusと同型の合体/分裂ではなく「第一形態→第二形態」の一方向遷移だが、行動決定表が
+      // 形態ごとに完全に別（第一形態専用の出目1~6、第二形態専用の出目1~6）という点はgladiusの
+      // rollRangeByFormパターンと同一構造のため、内部的にform "fused"＝第一形態／"split"＝
+      // 第二形態として流用し、formLabels（Task 0で汎用化）でボタン文言のみ「第一形態」
+      // 「第二形態」に上書きする。形態移行トリガー自体（HP「0」到達→次アクションフェイズ開始時に
+      // 移行）は自動シミュレートせず、gladius同様GMがstate.battle.bossFormを手動トグルする運用。
+      //
+      // 【対象範囲外・既知の制限（specialsのうち3つ）】
+      // - 特殊能力「亡者召喚」（HP枠にモブHPを追加、最大HP＝PC人数×3、既存モブHPがあれば
+      //   最下行に追加）：既存のモブHP自動追加関数 addAutoMobHpRow（night.js内、
+      //   night_gm_flow.jsのresolveAndAddCombatEnemies＝戦闘開始時の雑兵検出フローからのみ
+      //   呼ばれる、window.PriTestNightCore等へは公開されておらず擲骰オーバーレイ
+      //   （handleAutoGmRollClick／auto_gm.js）から呼び出せる汎用機構ではないことを確認した。
+      //   無理に新規配線を作らず、該当行のconditionsに"mob_summon_manual"を記録し、GMが規則書
+      //   本文（originalRow.note、既に進度版へ表示される）を見て手動でモブHP行を追加する運用とする。
+      // - 特殊能力「モブ自壊」（エンドフェイズ開始時、モブHP存在時に「モブ損害：■×PC人数」＋
+      //   PC全員に同値の「腐敗」）：エンドフェイズ起点の非同期処理かつ■を含むため、rowsには含めず
+      //   このコメントに規則書原文の要旨のみ記録する（自動化対象外）。
+      // - 特殊能力「瓦礫生成」（第二形態移行時に前衛エリアへ「瓦礫」生成、以後ディフェンス時に
+      //   任意PC1人がHP価値+20／腐敗2を選択可）：形態遷移自体が手動運用のため、この特殊能力も
+      //   自動化対象外（GMが規則書パネルを見て手動運用）。
+      formAware: true,
+      formLabels: {
+        fused: { ja: "第一形態", zh: "第一形態" },
+        split: { ja: "第二形態", zh: "第二形態" },
+      },
+      rows: [
+        {
+          // 第一形態出目1~2「横薙ぎ連打」：「敵視：1以上」で前衛のPC全員に「乱戦ダメージ：2人分」を
+          // 割り振り（frontAggroAtLeast1Allの既定分配ロジックに一致）、かつ「乱戦ダメージは2回発生する」
+          // 明記のためgroupDamage.repeat:2（maris出目8「渦潮」と同型の解釈）。
+          rollRangeByForm: { fused: { min: 1, max: 2 }, split: null },
+          groupDamage: { value: 780, repeat: 2 },
+          targetRule: { kind: "frontAggroAtLeast1All" },
+        },
+        {
+          // 第一形態出目3~4「腐敗飛散＆亡者召喚」：乱戦ダメージ列「—」のため乱戦ダメージ無し。
+          // 個別効果：「敵視：1以上」PC1体に個別ダメージ240＋「腐敗：3」を「PC人数」回行う——
+          // gnoster「連続挟み込み＆誘導弾」で採用した「PC人数回実行＝対象全員に1回ずつ」の
+          // 既存解釈を踏襲し、targetRule.aggroAtLeast1Allで「敵視：1以上」の対象全員に1回ずつ
+          // 個別ダメージを与える形で構造化する（本文の「1体」表記は輪流受傷ではなく対象群全体を
+          // 指すものとして扱う、gnosterと同じ裁定）。「腐敗：3」は固定値のためailmentAccum:3。
+          // 特殊能力「亡者召喚」はモブHP追加の汎用機構が無いためconditionsのみ（GM手動）。
+          rollRangeByForm: { fused: { min: 3, max: 4 }, split: null },
+          individualDamage: [
+            { amount: 240, targetRule: { kind: "aggroAtLeast1All" }, ailmentAccum: [{ label: "腐敗", amount: 3 }] },
+          ],
+          conditions: ["mob_summon_manual"],
+        },
+        {
+          // 第一形態出目5「叩きつけ＆引き寄せ」：乱戦ダメージ1080の対象明記が本文に無いため、
+          // 他ボス（maris/gnoster/gladius）と同じ既定ルール（前衛均等割り＝frontAll）を採用する。
+          // 個別効果（「敵視：最大」PC全員が次アクションフェイズ開始時獲得スタミナダイス2個減少）は
+          // HP損害を伴わない状態効果のためconditionsのみ（GM手動）。
+          rollRangeByForm: { fused: { min: 5, max: 5 }, split: null },
+          groupDamage: { value: 1080 },
+          targetRule: { kind: "frontAll" },
+          conditions: ["stamina_dice_reduction_aggro_max_manual"],
+        },
+        {
+          // 第一形態出目6「腐敗地割れ＆亡者召喚」：乱戦ダメージはPC全員が対象（本文に明記、
+          // allPCs）。「腐敗：1D」はTask1裁定によりailmentAccum固定値1。特殊能力「亡者召喚」は
+          // 出目3~4と同様conditionsのみ（GM手動）。
+          rollRangeByForm: { fused: { min: 6, max: 6 }, split: null },
+          groupDamage: { value: 1200, ailmentAccum: [{ label: "腐敗", amount: 1 }] },
+          targetRule: { kind: "allPCs" },
+          conditions: ["mob_summon_manual"],
+        },
+        {
+          // 第二形態出目1~2「柱張り付き＆突進」：乱戦ダメージ1080の対象明記が本文に無いため
+          // frontAll既定ルール。回避時ダイスコスト半減はダイス消費ルールでHP損害を伴わないため
+          // conditionsのみ。次アクションフェイズ終了までエネミーに「HP価値：＋10（最大100）」は
+          // edeleと同じenemy_hp_value_buffタグを再利用（記録用のみ、コードから消費されない）。
+          rollRangeByForm: { fused: null, split: { min: 1, max: 2 } },
+          groupDamage: { value: 1080 },
+          targetRule: { kind: "frontAll" },
+          conditions: ["evasion_dice_cost_half_manual", "enemy_hp_value_buff"],
+        },
+        {
+          // 第二形態出目3~4「腐敗散弾＆跳躍叩きつけ」：乱戦ダメージの対象明記が本文に無いため
+          // frontAll既定ルール、「腐敗：2」は固定値のためgroupDamage.ailmentAccum:2。
+          // 個別効果：「敵視：1以上」PC全員に個別ダメージ180＋「腐敗：1D」（Task1裁定によりailmentAccum
+          // 固定値1）、対象は前後衛を問わないためaggroAtLeast1All（frontAggroAtLeast1Allではない、
+          // 本文に「前衛」の限定が無いことを確認済み）。
+          rollRangeByForm: { fused: null, split: { min: 3, max: 4 } },
+          groupDamage: { value: 840, ailmentAccum: [{ label: "腐敗", amount: 2 }] },
+          targetRule: { kind: "frontAll" },
+          individualDamage: [
+            { amount: 180, targetRule: { kind: "aggroAtLeast1All" }, ailmentAccum: [{ label: "腐敗", amount: 1 }] },
+          ],
+        },
+        {
+          // 第二形態出目5「咆哮＆腐敗噴出」：乱戦ダメージ列「—」のため乱戦ダメージ無し。
+          // 個別効果①（前衛PC全員「HP損害：■■■」、スタミナダイス消費で■軽減可）はCLAUDE.md §19の
+          // 文脈依存プレースホルダーのため自動計算せず、conditionsに記録してGM手動（originalRow.noteの
+          // 規則書本文で確認可能）。個別効果②（「敵視：最大」PC1体に個別ダメージ180＋「腐敗：2」）は
+          // 数値が確定しているためindividualDamageで構造化する。
+          rollRangeByForm: { fused: null, split: { min: 5, max: 5 } },
+          individualDamage: [
+            { amount: 180, targetRule: { kind: "aggroMax" }, ailmentAccum: [{ label: "腐敗", amount: 2 }] },
+          ],
+          conditions: ["unknown_hp_damage_manual_front_all"],
+        },
+        {
+          // 第二形態出目6「薙ぎ払い＆腐敗地割れ」：乱戦ダメージの対象明記が本文に無いためfrontAll
+          // 既定ルール、「腐敗：2」は固定値のためgroupDamage.ailmentAccum:2。個別効果はgnoster
+          // 「硬化＆魔力弾の雨」と同型のsavingThrow（敵視:1以上→目標12／それ以外→目標10、運試し=luck）、
+          // 失敗者に個別ダメージ120＋「腐敗：1D」（Task1裁定によりonFail.ailmentAccum固定値1）。
+          rollRangeByForm: { fused: null, split: { min: 6, max: 6 } },
+          groupDamage: { value: 1080, ailmentAccum: [{ label: "腐敗", amount: 2 }] },
+          targetRule: { kind: "frontAll" },
+          savingThrow: {
+            stat: "luck",
+            targetByCondition: [
+              { condition: { kind: "aggroAtLeast1" }, target: 12 },
+              { condition: { kind: "default" }, target: 10 },
+            ],
+            onFail: { amount: 120, ailmentAccum: [{ label: "腐敗", amount: 1 }] },
+          },
         },
       ],
     },
