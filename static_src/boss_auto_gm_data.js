@@ -356,6 +356,133 @@
         },
       ],
     },
+    "fulghor": {
+      // 「夜光の騎士、フルゴール」（night_boss_rulebook.js:339-396）：単一形態。特殊能力
+      // 「行動激化」（體勢崩し発生後、戦闘終了まで「1D」ではなく「1D＋2」で判定）は
+      // rollBonusAfterGuardBreak:2（gnosterと同型、出目レンジは1D6=1~6を+2シフトした3~8まで
+      // 対応、出目7・8はいずれも體勢崩し後のみ到達）。
+      //
+      // 【対象範囲外・既知の制限】
+      // - 特殊能力「疾走」（次のアクションフェイズ開始時、「最も大きい出目のスタミナダイスが
+      //   2つ以下」のPCが後衛に配置される）：既存のforce_back_row_next_phase機構は「PC全員が
+      //   骰目に関わらず後衛へ強制配置される」場合専用（死儀礼の鳥「飛び退き」等）で、対象が
+      //   PCごとのスタミナダイス出目条件で絞り込まれる本能力とは条件が異なるため転用できない。
+      //   新規state機構は追加せず、conditions:["speed_backrow_note"]としてGM向けnoteに留める。
+      // - 特殊能力「回避困難」（対象の個別ダメージを回避するPCは、支払ったダイスコストを半分
+      //   （端数切り捨て、最低1）として扱う）：PC側の回避処理ロジックの話でGM自動化の対象外。
+      //   本文にこの特殊能力の適用が明記されている出目4・5の該当individualDamageに
+      //   conditions:["dodge_difficult_note"]のタグのみ記録する。
+      rollBonusAfterGuardBreak: 2,
+      rows: [
+        {
+          // 「風起こし＆疾走」：乱戦ダメージの対象明記が無いため既定ルール（前衛均等割り）。
+          // 個別効果：「敵視：最大」のPC1体に個別ダメージ240。特殊能力「疾走」の効果発揮
+          // （conditionsのみ、上記【対象範囲外】参照）。
+          rollMin: 1,
+          rollMax: 1,
+          groupDamage: { value: 1260 },
+          targetRule: { kind: "frontAll" },
+          individualDamage: [{ amount: 240, targetRule: { kind: "aggroMax" } }],
+          conditions: ["speed_backrow_note"],
+        },
+        {
+          // 「両刃剣乱舞」：乱戦ダメージの対象明記が無いため既定ルール（前衛均等割り）。
+          // 個別効果（2回実行）：乱戦ダメージの対象となった、前衛で「敵視：1」以上のPC1体
+          // （対象不特定）に個別ダメージ180。strong_type|divine_skin_apostles「連続突き」等と
+          // 同型のdistribution:"rotate"（ユーザー確認済みルール＝候補の中で輪流受傷、最初の
+          // 対象はランダム）で構造化する。
+          rollMin: 2,
+          rollMax: 2,
+          groupDamage: { value: 1080 },
+          targetRule: { kind: "frontAll" },
+          individualDamage: [
+            { amount: 180, repeat: 2, distribution: "rotate", targetRule: { kind: "frontAggroAtLeast1All" } },
+          ],
+          conditions: ["speed_backrow_note"],
+        },
+        {
+          // 「突進斬り上げ＆疾走」：乱戦ダメージの対象明記が無いため既定ルール（前衛均等割り）。
+          // 「乱戦ダメージを与える前に、敵視：1以上のPC全員は任意のスタミナダイス1個を消費する」
+          // はPCが消費するダイスを選択するPC側処理のため自動化せずconditionsのみ。特殊能力
+          // 「疾走」の効果発揮（conditionsのみ）。
+          rollMin: 3,
+          rollMax: 3,
+          groupDamage: { value: 960 },
+          targetRule: { kind: "frontAll" },
+          conditions: ["stamina_die_cost_note", "speed_backrow_note"],
+        },
+        {
+          // 「追尾する光の雨」：乱戦ダメージ列が「—」のため乱戦ダメージ無し。個別効果：PC全員に
+          // 個別ダメージ180＋「聖：2」（本文の「聖：2」は□ではなく固定数値表記のためelementAccum
+          // 固定値2）。個別効果：「敵視：1以上」のPC全員に個別ダメージ180＋「聖：2」。いずれも
+          // 特殊能力「回避困難」を適用（conditionsのみ、上記【対象範囲外】参照）。
+          rollMin: 4,
+          rollMax: 4,
+          individualDamage: [
+            { amount: 180, targetRule: { kind: "allPCs" }, elementAccum: [{ label: "聖", amount: 2 }] },
+            { amount: 180, targetRule: { kind: "aggroAtLeast1All" }, elementAccum: [{ label: "聖", amount: 2 }] },
+          ],
+          conditions: ["dodge_difficult_note"],
+        },
+        {
+          // 「聖槍爆発」：乱戦ダメージの対象明記が無いため既定ルール（前衛均等割り）、mod欄の
+          // 「聖：1D」はTask1裁定によりelementAccum固定値1。個別効果：「敵視：1以上」のPC全員に
+          // 個別ダメージ300＋「聖：1D」（固定値1）、特殊能力「回避困難」を適用（conditionsのみ）。
+          rollMin: 5,
+          rollMax: 5,
+          groupDamage: { value: 1080, elementAccum: [{ label: "聖", amount: 1 }] },
+          targetRule: { kind: "frontAll" },
+          individualDamage: [
+            { amount: 300, targetRule: { kind: "aggroAtLeast1All" }, elementAccum: [{ label: "聖", amount: 1 }] },
+          ],
+          conditions: ["dodge_difficult_note"],
+        },
+        {
+          // 「連続突進＆疾走」：乱戦ダメージ列が「—」のため乱戦ダメージ無し。個別効果：
+          // 「敵視：1以上」のPC全員に個別ダメージ240。個別効果：「敵視：最大」のPC全員に
+          // 個別ダメージ240（2つのindividualDamageエントリ、両集団が重複する場合はどちらも
+          // 適用されうる＝既存gnoster等と同型の挙動）。特殊能力「疾走」の効果発揮
+          // （conditionsのみ）。
+          rollMin: 6,
+          rollMax: 6,
+          individualDamage: [
+            { amount: 240, targetRule: { kind: "aggroAtLeast1All" } },
+            { amount: 240, targetRule: { kind: "aggroMax" } },
+          ],
+          conditions: ["speed_backrow_note"],
+        },
+        {
+          // 「腕乱舞」：乱戦ダメージの対象明記が無いため既定ルール（前衛均等割り）。個別効果の
+          // 「HP損害：■■」（CLAUDE.md §19のcontext依存プレースホルダー）は自力で数値化せず、
+          // GMが規則書本文（自動的にaction logへ表示される原文）を確認して手動処理する
+          // （対象自体は「敵視：最大」のPC全員でtargetRule上は機械的に決まるが、■の数値未確定
+          // のためindividualDamageは設定しない）。
+          rollMin: 7,
+          rollMax: 7,
+          groupDamage: { value: 1200 },
+          targetRule: { kind: "frontAll" },
+          conditions: ["unknown_hp_damage_manual_aggro_max_all"],
+        },
+        {
+          // 「腕叩きつけ」：乱戦ダメージの対象明記が無いため既定ルール（前衛均等割り）。個別効果：
+          // 「敵視：1以上」のPC全員が〈11｜フィジカル〉判定（savingThrow、targetFilterで
+          // 敵視：1以上のみに絞り込み、目標値は常に11のためtargetByConditionは"default"1件のみ）、
+          // 失敗者に個別ダメージ180。判定失敗PCの「次のアクションフェイズ開始時獲得スタミナ
+          // ダイス1個減少」は既存の汎用state機構が無いためconditionsのみ（GM向けnote）。
+          rollMin: 8,
+          rollMax: 8,
+          groupDamage: { value: 1320 },
+          targetRule: { kind: "frontAll" },
+          savingThrow: {
+            stat: "physical",
+            targetFilter: { kind: "aggroAtLeast1" },
+            targetByCondition: [{ condition: { kind: "default" }, target: 11 }],
+            onFail: { amount: 180 },
+          },
+          conditions: ["stamina_die_reduction_next_phase_note"],
+        },
+      ],
+    },
   };
 
   function get(bossId) {
