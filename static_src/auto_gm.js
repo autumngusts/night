@@ -262,6 +262,11 @@
     var aggro = (battleState.aggro && battleState.aggro[idx]) || 0;
     var front = !!(battleState.front && battleState.front[idx]);
     if (kind === "frontAggroAtLeast1") return front && aggro >= 1;
+    // harmonia「瞬間移動＆乱舞」用：基準の対象群がbackAll（後衛のPC全員）のため、
+    // frontAggroAtLeast1（前衛限定）では後衛PCは常にfront===falseとなり誤って
+    // 全員weight1になってしまう。前衛／後衛を問わず「敵視：1以上」のみを条件とする
+    // 種別を追加する（既存のfrontAggroAtLeast1の挙動は変更しない）。
+    if (kind === "aggroAtLeast1") return aggro >= 1;
     return false;
   }
 
