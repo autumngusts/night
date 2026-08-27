@@ -24,8 +24,14 @@
   //   同型）で構造化済み（edele/gnosterは2026-08-24、caligo/fulghorは2026-08-26追加）。
   // - libra（夜の魔、リブラ）も単一形態だが「行動激化」を持たないためrollBonusAfterGuardBreak
   //   なしで構造化済み（2026-08-26追加、詳細はDATA.libraの先頭コメント参照）。
-  // - 他の2体（harmonia/stragedes）は、多形態＋二段階ロール表など固有ルールを持つため今回は
-  //   対象外（別途構造化予定）。
+  // - harmonia（救いの旗手／英雄武器の娘たち、ハルモニア）もgladiusと同型のformAware多形態
+  //   ボスとして構造化済み（2026-08-27追加）。gladiusの「合体／分裂」とは異なり「第一形態／
+  //   第二形態」の意味だが、state.battle.bossFormの2値（"fused"/"split"）をそのまま流用し、
+  //   formLabelsで表示文言のみ上書きする。特殊能力「形態変化」（HP0到達→次アクションフェイズ
+  //   開始時に第二形態へ移行）と「生きた娘」（第二形態限定、ディフェンスフェイズ開始ごとの
+  //   判定）は既存のrows/state機構でカバーできないためスコープ外（GM手動処理）。
+  // - 他の1体（stragedes）は、二段階ロール表など固有ルールを持つため今回は対象外
+  //   （別途構造化予定）。
   var DATA = {
     "maris": {
       // 特殊能力「行動激化」：體勢崩潰（体勢崩し）発生後、戦闘終了まで行動決定を「1D」ではなく
@@ -749,6 +755,104 @@
           groupDamage: { value: 960, ailmentAccum: [{ label: "発狂", amount: 3 }] },
           targetRule: { kind: "frontAll" },
           conditions: ["mob_hp_stagnation_circle_add_manual", "special_madness_seed"],
+        },
+      ],
+    },
+    "harmonia": {
+      // 「救いの旗手（第一形態）／英雄武器の娘たち、ハルモニア（第二形態）」
+      // （night_boss_rulebook.js:452-512）：gladiusと同型のformAware多形態ボス。ただし
+      // gladiusの「合体形態／分裂形態」とは異なり、意味上は「第一形態／第二形態」。
+      // state.battle.bossFormが持つ2値（既定"fused"／"split"）のうち"fused"を第一形態、
+      // "split"を第二形態として内部的に流用し、formLabelsでトグルボタンの表示文言のみを
+      // 上書きする（rollRangeByForm等のデータ構造・挙動はgladiusと完全に同一）。
+      //
+      // 特殊能力「形態変化」：HP0到達時、次のアクションフェイズ開始時に第二形態へ移行
+      // （全HP行／ガード回数が最大値まで回復、PC・エネミー双方の属性／状態異常蓄積が0）。
+      // この移行は「エンドフェイズ開始時」ではなく「次のアクションフェイズ開始時」だが、
+      // いずれにせよターン進行をまたぐ非同期タイミングのため、gladiusと同様に自動シミュレート
+      // しない。GMがフォームトグルボタンを手動で切り替える運用のまま（rowsには含めない）。
+      //
+      // 【対象範囲外・既知の制限】特殊能力「生きた娘」（第二形態限定。ディフェンスフェイズ
+      // 開始ごとに〈11｜メンタル〉を行い、PCの半数以上が失敗した場合、そのディフェンス
+      // フェイズ終了まで、エネミーを「HP価値：＋10（最大100）」し、エネミーの乱戦ダメージ／
+      // 個別ダメージを「＋120」する）は、rowsが表す「1D6の出目→行動」モデルとは別の
+      // 「ディフェンスフェイズ開始ごと」というトリガーのため、rowsには含めずGM手動判定に
+      // 委ねる（edeleの「猛毒の吐瀉」と同種の未対応パターン）。
+      formAware: true,
+      formLabels: {
+        fused: { ja: "第一形態", zh: "第一形態" },
+        split: { ja: "第二形態", zh: "第二形態" },
+      },
+      rows: [
+        {
+          // 「個別攻撃＆散開」（第一形態のみ、出目1~2）：乱戦ダメージ600が2回発生する
+          // （本文に明記、groupDamage.repeat:2）。対象の明記が無いため既定ルール
+          // （前衛均等割り）。特殊能力「散開」（次のアクションフェイズ終了までエネミーに
+          // 「HP価値：＋10（最大100）」）はedele/gnosterと同じ既存タグenemy_hp_value_buffで
+          // 記録する。
+          rollRangeByForm: { fused: { min: 1, max: 2 }, split: null },
+          groupDamage: { value: 600, repeat: 2 },
+          targetRule: { kind: "frontAll" },
+          conditions: ["enemy_hp_value_buff"],
+        },
+        {
+          // 「集中攻撃」（第一形態のみ、出目3~4）：乱戦ダメージ列が「—」のため乱戦ダメージ
+          // 無し。個別効果（2回実行）：「敵視：1以上」のPC全員に個別ダメージ300。対象が
+          // 「1体」ではなく「全員」なのでtargetRuleはaggroAtLeast1All、repeat:2で対象群
+          // 全員が2回分（600）を受ける（gladiusの「3連噛みつき」と同じrepeat解釈、対象が
+          // 単数か複数かのみ異なる）。
+          rollRangeByForm: { fused: { min: 3, max: 4 }, split: null },
+          individualDamage: [{ amount: 300, repeat: 2, targetRule: { kind: "aggroAtLeast1All" } }],
+        },
+        {
+          // 「聖槍の壁」：規則書actionColumnsの「第一形態※①」＝5、「第二形態※①」＝1が
+          // 同一行（同じ内容）のため、rollRangeByFormの両方に対応する範囲を設定する。
+          // 「前衛の中で敵視：最大のPC全員は乱戦ダメージ：2人分を割り振られる」＝対象群が
+          // 全員同じ重みのため、gladius「噛みつき」と同じくfrontAggroMaxAllのみで表現できる
+          // （weightRule不要、全員同重みの均等割りと数学的に同値）。「次のアクションフェイズ
+          // 終了まで、PC全員はエリア移動およびエリア移動を含むアクション（アーツを除く）を
+          // 行えない」は既存の汎用state機構が無いため、conditionsにGM向けnoteとして残す。
+          rollRangeByForm: { fused: { min: 5, max: 5 }, split: { min: 1, max: 1 } },
+          groupDamage: { value: 900 },
+          targetRule: { kind: "frontAggroMaxAll" },
+          conditions: ["area_move_lock_until_next_action_phase_manual"],
+        },
+        {
+          // 「掴み攻撃＆散開」：規則書actionColumnsの「第一形態※①」＝6、「第二形態※①」＝2が
+          // 同一行。乱戦ダメージ列が「—」のため乱戦ダメージ無し。個別効果：前衛の中で
+          // 「敵視：最大」のPC（本文は「1体」表記だがgladiusの「3連噛みつき」と同じ既存解釈で
+          // タイなら該当者全員がヒットする、frontAggroMaxAll）に個別ダメージ360、ガード不可。
+          // 特殊能力「散開」はenemy_hp_value_buffで記録する。
+          rollRangeByForm: { fused: { min: 6, max: 6 }, split: { min: 2, max: 2 } },
+          individualDamage: [{ amount: 360, targetRule: { kind: "frontAggroMaxAll" } }],
+          conditions: ["no_guard", "enemy_hp_value_buff"],
+        },
+        {
+          // 「瞬間移動＆乱舞」（第二形態のみ、出目3~4）：乱戦ダメージ900は後衛のPC全員が
+          // 対象（本文に明記）。その中で「敵視：1以上」のPC全員は「乱戦ダメージ：2人分」を
+          // 割り振られる＝基準の対象群（backAll）の中に重みの異なる2群が混在するため、
+          // edeleの「突進」と同じくtargetRule.weightRuleが必要。ただしedeleのweightRule.kind
+          // 「frontAggroAtLeast1」は前衛限定で、後衛PCは常にfront===falseとなり誤って全員
+          // weight1になってしまうため使えない。auto_gm.jsのmatchesWeightConditionへ前衛条件を
+          // 課さない新種別「aggroAtLeast1」を追加した（既存のfrontAggroAtLeast1の挙動は
+          // 変更していない）。「次のアクションフェイズ開始時、対象PCが獲得するスタミナ
+          // ダイスが1個減少する」はenemy_auto_gm_data.jsの既存タグ
+          // stamina_dice_reduction_next_phaseを再利用してGM向けnoteとして残す。
+          rollRangeByForm: { fused: null, split: { min: 3, max: 4 } },
+          groupDamage: { value: 900 },
+          targetRule: { kind: "backAll", weightRule: { kind: "aggroAtLeast1", weight: 2 } },
+          conditions: ["stamina_dice_reduction_next_phase"],
+        },
+        {
+          // 「一斉射撃＆散開」（第二形態のみ、出目5~6）：乱戦ダメージ1200はPC全員が対象
+          // （本文に明記、allPCs）。個別効果：「敵視：最大」のPC全員（前衛/後衛を問わない
+          // ためfrontAggroMaxAllではなくaggroMax）に個別ダメージ300。特殊能力「散開」は
+          // enemy_hp_value_buffで記録する。
+          rollRangeByForm: { fused: null, split: { min: 5, max: 6 } },
+          groupDamage: { value: 1200 },
+          targetRule: { kind: "allPCs" },
+          individualDamage: [{ amount: 300, targetRule: { kind: "aggroMax" } }],
+          conditions: ["enemy_hp_value_buff"],
         },
       ],
     },
