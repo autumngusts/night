@@ -9061,12 +9061,19 @@
             result: window.I18N.t(r.passed ? "auto_gm_saving_throw_pass" : "auto_gm_saving_throw_fail"),
           })
         );
-        if (!r.passed) {
-          var failResult = AutoGm.computeIndividualDamage(st.onFail, state.rollEffects);
-          var input = document.getElementById("enemy-damage-individual-" + entered[r.index].id);
-          if (input) input.value = String(failResult.total);
-          queueAttributeAccum(r.index, st.onFail.elementAccum);
-          queueAttributeAccum(r.index, st.onFail.ailmentAccum);
+        // libra「狂乱の雲」等：成功/失敗どちらも異なる蓄積を受ける行のためonPassを新設
+        // （Task3裁定）。onPass未指定なら従来どおり成功側は何もしない（後方互換）。amountが
+        // 数値でない場合（HP損害を伴わずailmentAccum等のみの効果）は個別ダメージ入力欄への
+        // 書き込みをスキップする。
+        var outcomeEntry = r.passed ? st.onPass : st.onFail;
+        if (outcomeEntry) {
+          if (typeof outcomeEntry.amount === "number") {
+            var outcomeResult = AutoGm.computeIndividualDamage(outcomeEntry, state.rollEffects);
+            var input = document.getElementById("enemy-damage-individual-" + entered[r.index].id);
+            if (input) input.value = String(outcomeResult.total);
+          }
+          queueAttributeAccum(r.index, outcomeEntry.elementAccum);
+          queueAttributeAccum(r.index, outcomeEntry.ailmentAccum);
         }
       });
       breakdownParts.push(failLines.join("　"));
