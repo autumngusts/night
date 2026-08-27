@@ -19,10 +19,11 @@
   //   PC→敵ダメージ側の処理はスコープ外（本機能はGM→PCダメージ算出のみが対象）。形態移行は
   //   「エンドフェイズ開始時」という非同期タイミングのため自動シミュレートせず、GM手動トグルで
   //   state.battle.bossFormを切り替える運用とした。
-  // - edele（夜の爵、エデレ）・gnoster（夜の識、グノスター）も単一形態＋
-  //   rollBonusAfterGuardBreak方式（maris/gladiusと同型）で構造化済み（2026-08-24追加）。
-  // - 他の5体（fulghor/harmonia/caligo/libra/stragedes）は、多形態（harmonia等）や
-  //   二段階ロール表（stragedes等）など固有ルールを持つため今回は対象外。
+  // - edele（夜の爵、エデレ）・gnoster（夜の識、グノスター）・caligo（夜の霞、カリゴ）も単一形態＋
+  //   rollBonusAfterGuardBreak方式（maris/gladiusと同型）で構造化済み（edele/gnosterは2026-08-24、
+  //   caligoは2026-08-26追加）。caligoのrollBonusAfterGuardBreakは2（gnosterと同値）。
+  // - 他の4体（fulghor/harmonia/libra/stragedes）は、多形態（harmonia等）や二段階ロール表
+  //   （stragedes等）など固有ルールを持つため今回は対象外。
   var DATA = {
     "maris": {
       // 特殊能力「行動激化」：體勢崩潰（体勢崩し）発生後、戦闘終了まで行動決定を「1D」ではなく
@@ -480,6 +481,147 @@
             onFail: { amount: 180 },
           },
           conditions: ["stamina_die_reduction_next_phase_note"],
+        },
+      ],
+    },
+    "caligo": {
+      // 「夜の霞、カリゴ」（劇本4、night_boss_rulebook.js:397-451）：単一形態（sizeはLL、HP3分割
+      // だが本モジュールのスコープはGM→PCダメージ算出のみのためHP分割ロジックは対象外）。特殊能力
+      // 「行動激化」（體勢崩し発生後、戦闘終了まで「1D」ではなく「1D＋2」で判定）は
+      // rollBonusAfterGuardBreak:2（maris/gnosterと同型、出目レンジは1D6=1~6を+2シフトした3~8まで
+      // 対応、出目7・8はいずれも體勢崩し後のみ到達）。
+      //
+      // 【特殊能力「氷霜の戦場」の扱い】〔条件発揮〕前衛のPC全員は「凍傷：1D」を受ける（固定値1、
+      // Task1裁定）。この対象（前衛PC全員、敵視を問わない）は各行の乱戦ダメージ対象（多くは
+      // 「敵視:1以上」の前衛等、より狭い集団）と一致しないため、gnoster「潜航＆毒液」等と同じ
+      // 「対象集団の不一致」型の扱いとし、本文に「特殊能力『氷霜の戦場』の効果発揮」と明記されて
+      // いる行にのみconditions:["special_icy_battlefield"]を付与し、実際の凍傷付与はGM手動で反映
+      // する（各行自身の乱戦ダメージに付随する凍傷値——例：出目1の「凍傷:2」——は従来通り
+      // groupDamage.ailmentAccumへ含める。これは氷霜の戦場とは別の、乱戦ダメージ本体に明記された
+      // 蓄積である）。
+      //
+      // 【特殊能力「竜特攻」の扱い】公開情報「このエネミーは『竜』として扱う」は、night_gm_flow.js
+      // 側の公開情報特殊能力表示の対象だが、本ボスにはenemy.special相当のテキストが無いため本
+      // モジュールのスコープ外（GMが規則書パネルを直接参照する）。
+      //
+      // 【対象範囲外・既知の制限】
+      // - 出目5「氷嵐＆氷霜」：「乱戦ダメージから『HP損害：■（1点）以上』を被ったPCは次アクション
+      //   フェイズ開始時に前衛強制配置＋エリア移動不可」は■を含む条件付き効果のため自動化せず、
+      //   conditionsへnoteとして記録するのみ（CLAUDE.md §19、■は自力で数値化しない）。
+      // - 出目6「広範囲氷柱落とし」：このディフェンスフェイズは行動せず、次のディフェンスフェイズ
+      //   開始時に後衛PC全員へ個別ダメージ420＋「凍傷：2D」（固定値2）を与えてから改めてアクション
+      //   決定をやり直す、というターンをまたぐ特殊な発動タイミングのため自動化困難。ただし
+      //   rowsから出目6を完全に省くと、night.js側のhandleAutoGmRollClick（result.structuredRowが
+      //   nullの場合に.conditionsへ直接アクセスする箇所）が出目6ロール時にTypeErrorで例外を送出
+      //   してしまう（全ボスの出目レンジが1D6＋rollBonusAfterGuardBreakの範囲を欠けなくカバー
+      //   している前提の既存実装のため）。そのため「rowsに含めない」という当初の想定を文字通りには
+      //   実装せず、gnoster出目5「叫び＆滞空」と同型の「rollMin/rollMaxのみ登録しgroupDamage／
+      //   individualDamage／savingThrowは一切設定しない（conditionsのみ）」行としてrowsに含める
+      //   ことでクラッシュを回避しつつ、自動化される数値は一切追加していない（下記rows参照）。
+      // - 出目8「空中連続突進」：個別ダメージのrepeat+distribution:"rotate"パターン（既存の
+      //   「対象PC1体（不特定）＋N回実行」規約）に付随する「凍傷：2」は、night.js側の
+      //   distribution==="rotate"分岐がqueueAttributeAccumを呼んでいない（既存のenemy_auto_gm_data.js
+      //   のrotateエントリにも前例が無い＝この構造では属性/状態異常蓄積を運べない）ため、
+      //   ailmentAccumをentryへ設定しても静かに無視されてしまう。誤解を招く設定はせずconditionsへ
+      //   noteとして記録しGM手動反映に委ねる。
+      rollBonusAfterGuardBreak: 2,
+      rows: [
+        {
+          // 「尻尾叩きつけ＆氷霜」：「敵視：1以上」で前衛のPC全員は「乱戦ダメージ：2人分」を
+          // 割り振られる（本文に明記）。特殊能力「氷霜の戦場」の効果発揮（上記コメント参照、前衛
+          // 全員への凍傷:1Dは対象集団が異なるためconditionsのみ）。
+          rollMin: 1,
+          rollMax: 1,
+          groupDamage: { value: 1080, ailmentAccum: [{ label: "凍傷", amount: 2 }] },
+          targetRule: { kind: "frontAggroAtLeast1All" },
+          conditions: ["special_icy_battlefield"],
+        },
+        {
+          // 「前方ブレス」：乱戦ダメージはPC全員を対象とする（本文に明記）。個別効果：「敵視：最大」
+          // のPC1体に追加ダメージ240＋「凍傷：2」。氷霜の戦場の効果発揮の記載は無い。
+          rollMin: 2,
+          rollMax: 2,
+          groupDamage: { value: 960, ailmentAccum: [{ label: "凍傷", amount: 2 }] },
+          targetRule: { kind: "allPCs" },
+          individualDamage: [{ amount: 240, targetRule: { kind: "aggroMax" }, ailmentAccum: [{ label: "凍傷", amount: 2 }] }],
+        },
+        {
+          // 「足元ブレス＆氷霜」：乱戦ダメージの対象明記が本文に無いため既定ルール（前衛均等割り）。
+          // ガード不可。次のアクションフェイズ終了まで、エネミーに「HP価値：＋10（最大100）」する。
+          // 特殊能力「氷霜の戦場」の効果発揮。
+          rollMin: 3,
+          rollMax: 3,
+          groupDamage: { value: 900, ailmentAccum: [{ label: "凍傷", amount: 2 }] },
+          targetRule: { kind: "frontAll" },
+          conditions: ["no_guard", "enemy_hp_value_buff", "special_icy_battlefield"],
+        },
+        {
+          // 「とびかかり＆氷霜」：乱戦ダメージは「敵視：最大」のPCが多いエリアのPC全員を対象とする
+          // （前衛/後衛が同数ならランダム）。gnoster「潜航＆毒液」で新設したtargetRule.kind
+          // 「majorityAreaAggroMax」を再利用する。本文はさらに「『敵視：最大』のPC全員は乱戦ダメージ
+          // ：2人分を割り振られる」と加重を指定しているが、majorityAreaAggroMaxはエリア内全員を
+          // 均等割りする既存実装（weightRuleは同エリア内の敵視最大／非最大の区別に対応していない）
+          // のため、この2人分加重は自動化せず均等割りに留める。
+          rollMin: 4,
+          rollMax: 4,
+          groupDamage: { value: 1140 },
+          targetRule: { kind: "majorityAreaAggroMax" },
+          conditions: ["special_icy_battlefield"],
+        },
+        {
+          // 「氷嵐＆氷霜」：乱戦ダメージの対象明記が本文に無いため既定ルール（前衛均等割り）。
+          // 「乱戦ダメージからHP損害：■（1点）以上を被ったPCは次アクションフェイズ前衛強制配置＋
+          // エリア移動不可」は■を含むため自動化せずconditionsへ本文をそのままnoteとして記録する。
+          // 特殊能力「氷霜の戦場」の効果発揮。
+          rollMin: 5,
+          rollMax: 5,
+          groupDamage: { value: 1080, ailmentAccum: [{ label: "凍傷", amount: 4 }] },
+          targetRule: { kind: "frontAll" },
+          conditions: ["special_icy_battlefield", "front_lock_on_hp_damage_manual"],
+        },
+        {
+          // 「広範囲氷柱落とし」：上記ヘッダコメント【対象範囲外・既知の制限】参照。ターンをまたぐ
+          // 特殊な発動タイミングのため自動化せず、rollMin/rollMaxのみ登録してnight.js側のクラッシュ
+          // を回避する（groupDamage／individualDamage／savingThrowは一切設定しない）。本文：
+          // 「このディフェンスフェイズで、このエネミーはアクションを行わない。次のディフェンス
+          // フェイズの開始時、後衛のPC全員に【個別ダメージ：420】＋『凍傷：2D』（固定値2、Task1
+          // 裁定）を与え、その後、このエネミーのアクション決定を行い、それを実行する。このとき
+          // 『広範囲氷柱落とし』になりそうな場合、アクション決定をやり直す。」
+          rollMin: 6,
+          rollMax: 6,
+          conditions: ["cross_phase_manual_action_skip"],
+        },
+        {
+          // 「広範囲冷風＆氷霜」：乱戦ダメージ「—」のためgroupDamage無し。個別効果はgnoster
+          // 「硬化＆魔力弾の雨」と同型のsavingThrow（敵視:1以上→目標12／それ以外→目標10、
+          // 運試し=luck、全PCプール対象のためtargetFilterは指定しない）、失敗者に個別ダメージ300＋
+          // 「凍傷：3」。「次のアクションフェイズ開始時獲得スタミナダイス2個減少」はHP損害を伴わず
+          // savingThrow.onFailの構造（amountのみ）では表現できないためconditionsへnoteのみ。特殊
+          // 能力「氷霜の戦場」の効果発揮。
+          rollMin: 7,
+          rollMax: 7,
+          savingThrow: {
+            stat: "luck",
+            targetByCondition: [
+              { condition: { kind: "aggroAtLeast1" }, target: 12 },
+              { condition: { kind: "default" }, target: 10 },
+            ],
+            onFail: { amount: 300, ailmentAccum: [{ label: "凍傷", amount: 3 }] },
+          },
+          conditions: ["special_icy_battlefield", "stamina_dice_reduction_next_phase"],
+        },
+        {
+          // 「空中連続突進」：乱戦ダメージ「—」のためgroupDamage無し。個別効果（3回実行）：
+          // 「敵視：1以上」のPC1体（対象不特定）に個別ダメージ300、既存の「対象PC1体（不特定）＋
+          // N回実行」規約（distribution:"rotate"）で自動化する。付随する「凍傷：2」はrotate分岐が
+          // 属性/状態異常蓄積を運べない既存実装の制約のため自動化せずconditionsへnote（上記
+          // ヘッダコメント参照）。次のアクションフェイズ開始時、PC全員はスタミナダイスの出目に
+          // 関わらず後衛に配置される＝既存のforce_back_row_next_phaseタグ（night.js側で実行時に
+          // 消費される）で処理する。
+          rollMin: 8,
+          rollMax: 8,
+          individualDamage: [{ amount: 300, repeat: 3, distribution: "rotate", targetRule: { kind: "aggroAtLeast1All" } }],
+          conditions: ["force_back_row_next_phase", "rotate_ailment_manual_note"],
         },
       ],
     },
