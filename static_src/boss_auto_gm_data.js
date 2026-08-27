@@ -21,7 +21,9 @@
   //   state.battle.bossFormを切り替える運用とした。
   // - edele（夜の爵、エデレ）・gnoster（夜の識、グノスター）も単一形態＋
   //   rollBonusAfterGuardBreak方式（maris/gladiusと同型）で構造化済み（2026-08-24追加）。
-  // - 他の5体（fulghor/harmonia/caligo/libra/stragedes）は、多形態（harmonia等）や
+  // - libra（夜の魔、リブラ）も単一形態だが「行動激化」を持たないためrollBonusAfterGuardBreak
+  //   なしで構造化済み（2026-08-26追加、詳細はDATA.libraの先頭コメント参照）。
+  // - 他の4体（fulghor/harmonia/caligo/stragedes）は、多形態（harmonia等）や
   //   二段階ロール表（stragedes等）など固有ルールを持つため今回は対象外。
   var DATA = {
     "maris": {
@@ -353,6 +355,131 @@
               { targetRule: { kind: "aggroAtLeast1All" } },
             ],
           },
+        },
+      ],
+    },
+    "libra": {
+      // 「夜の魔、リブラ」（night_boss_rulebook.js:281-338）：単一形態。特殊能力「行動激化」を
+      // 持たないため、rollBonusAfterGuardBreakは設定しない（他の夜の王と異なる点、Task3裁定）。
+      // 出目1~6の標準6行＋出目なしの特殊トリガー2行のみで構成される。
+      //
+      // 【対象範囲外・既知の制限】以下の3つの特殊能力は、モブHP「滞留魔法陣」の有無で次の
+      // ディフェンスフェイズの行動が無条件に決まる（1Dを振らない）という、既存のrowsベースの
+      // 出目決定モデルと根本的に異なる制御フローのため、rowsには含めずGM向けに全文記録するに
+      // 留める（gladiusの分裂/合体のような既存機構への統合は本Taskの範囲外——将来的な拡張候補）：
+      //
+      // ・「発狂の種」：次のアクションフェイズ終了まで、PCが行えるアクションに「種拾い」を
+      //   追加する。「種拾い」（コスト：1）自身の「状態異常蓄積値：発狂」を「1」減少させ
+      //   「HP回復：□」を適用する。このアクションは後衛のみで実行可能。
+      // ・「モブHP『滞留魔法陣』の扱い」：モブHP「滞留魔法陣」は、通常のモブHPの扱いと異なり、
+      //   PCが総合ダメージを与える際、モブHPから損害を与えるか、モブHPを無視して本体HPに損害を
+      //   与えるかを選択できる（総合ダメージを与える際、PC全員で相談して決定する）。
+      // ・「魔法陣滞留による行動内容指定」：アクション「結跏趺坐＆滞留魔法陣生成」が行われた後、
+      //   次のターンの通常のアクション決定を行わず、この特殊能力の効果に従う。ディフェンス
+      //   フェイズ開始時に「モブHP（滞留魔法陣）」が「現在HP：□（1）以上」の場合、アクション
+      //   決定の1Dを振らず、自動的に「逃れ得ぬ発狂の瞳＆発狂の種」を行う。ディフェンスフェイズ
+      //   開始時に「モブHP（滞留魔法陣）」が存在しない（HP0点の）場合も1Dを振らず、自動的に
+      //   「両腕連続叩きつけ」を行う。
+      //
+      // 上記に連動する、出目に紐づかない特殊トリガー行2つ（rows外、gnosterの「毒吐き」と同じ
+      // 扱い）：
+      // ・「両腕連続叩きつけ」：個別効果（3回実行）：「敵視：1以上」のPC1体に
+      //   【個別ダメージ：240】＋「状態異常：発狂」を与える。
+      // ・「逃れ得ぬ発狂の瞳＆発狂の種」：乱戦ダメージ780＆「発狂：2」、前衛の中で
+      //   「敵視：最大」のPC全員は「乱戦ダメージ：3人分」を割り振られる。個別効果：PC全員は
+      //   〈13｜メンタル〉で達成し、失敗したPCは、目標値に対し不足した値と同じ数の蓄積数の
+      //   「発狂」を被り、モブHP「滞留魔法陣」の現在HPが「0」点になり消失する。特殊能力
+      //   「発狂の種」の効果発揮。
+      //
+      // 【出目5「狂乱の雲」のsavingThrow拡張】従来のsavingThrow（gnoster等）は「失敗時のみ効果」
+      // のonFailしか持たなかったが、本行は成功/失敗どちらも異なる蓄積（発狂1D/2D）を受けるため、
+      // onPassフィールドを新設した（auto_gm.js自体は無変更——resolveSavingThrowは元々passed
+      // 真偽を返すだけで、onFail/onPassの適用はnight.js側の消費コードが行っていたため、
+      // night.js側でr.passed分岐をonPassにも対応させるだけで済んだ、Task3裁定）。
+      rows: [
+        {
+          // 「錫杖振り回し」：前衛の中で「敵視：最大」のPC全員は「乱戦ダメージ：2人分」を
+          // 割り振られる（本文に明記）。既存kind"frontAggroMaxAll"（坩堝の騎士「薙ぎ払い」等と
+          // 同型）で対応。「発狂：1D」はTask1裁定によりailmentAccum固定値1。
+          rollMin: 1,
+          rollMax: 1,
+          groupDamage: { value: 960, ailmentAccum: [{ label: "発狂", amount: 1 }] },
+          targetRule: { kind: "frontAggroMaxAll" },
+        },
+        {
+          // 「転移＆錫杖薙ぎ払い」：gnoster「潜航＆毒液」と同型のmajorityAreaAggroMax
+          // （「敵視：最大」のPCが多いエリア全員、同数ならランダム）。「発狂：2」は固定値。
+          // 次のアクションフェイズ終了までエネミーに「HP価値：＋10（最大100）」する。
+          rollMin: 2,
+          rollMax: 2,
+          groupDamage: { value: 1080, ailmentAccum: [{ label: "発狂", amount: 2 }] },
+          targetRule: { kind: "majorityAreaAggroMax" },
+          conditions: ["enemy_hp_value_buff"],
+        },
+        {
+          // 「発狂のつぶて＆発狂の種」：「敵視：1以上」のPC全員が対象、対象0人なら前衛が対象
+          // （fallback、maris「渦潮」と同型）。「発狂：1D」は固定値1。特殊能力「発狂の種」の
+          // 効果発揮はモブ機構と連動するためconditionsのみ（自動化しない）。
+          rollMin: 3,
+          rollMax: 3,
+          groupDamage: { value: 720, ailmentAccum: [{ label: "発狂", amount: 1 }] },
+          targetRule: { kind: "aggroAtLeast1All", fallback: "front" },
+          conditions: ["special_madness_seed"],
+        },
+        {
+          // 「転移＆魔法陣展開＆発狂の種」：対象の明記が無いため乱戦ダメージは既定ルール
+          // （前衛均等割り）。「発狂：2」は固定値。個別効果：「敵視：1以上」PCのみが対象の
+          // 〈11｜運試し〉（targetFilter:aggroAtLeast1で絞り込み）、失敗者に個別ダメージ180＋
+          // 「発狂：1D」（固定値1）。次のアクションフェイズ終了までエネミーに
+          // 「HP価値：＋10（最大100）」する。特殊能力「発狂の種」の効果発揮はconditionsのみ。
+          rollMin: 4,
+          rollMax: 4,
+          groupDamage: { value: 840, ailmentAccum: [{ label: "発狂", amount: 2 }] },
+          targetRule: { kind: "frontAll" },
+          savingThrow: {
+            stat: "luck",
+            targetFilter: { kind: "aggroAtLeast1" },
+            targetByCondition: [{ condition: { kind: "default" }, target: 11 }],
+            onFail: { amount: 180, ailmentAccum: [{ label: "発狂", amount: 1 }] },
+          },
+          conditions: ["enemy_hp_value_buff", "special_madness_seed"],
+        },
+        {
+          // 「狂乱の雲」：乱戦ダメージは対象の明記が無いため既定ルール（前衛均等割り）。
+          // 「発狂：2」は固定値。個別効果はsavingThrow（敵視:1以上→目標12／それ以外→目標10、
+          // メンタル、全PCプール対象のためtargetFilterは指定しない、gnoster「硬化＆魔力弾の雨」
+          // と同型のtargetByCondition）。成功/失敗どちらも異なる蓄積を受けるため、onFail
+          // （「発狂：2D」固定値2）に加えて本Taskで新設したonPass（「発狂：1D」固定値1）を使う
+          // （どちらもHP損害を伴わないためamountは指定しない＝night.js側は個別ダメージ入力欄
+          // への書き込みをスキップし、ailmentAccumのみキューする）。
+          rollMin: 5,
+          rollMax: 5,
+          groupDamage: { value: 960, ailmentAccum: [{ label: "発狂", amount: 2 }] },
+          targetRule: { kind: "frontAll" },
+          savingThrow: {
+            stat: "mental",
+            targetByCondition: [
+              { condition: { kind: "aggroAtLeast1" }, target: 12 },
+              { condition: { kind: "default" }, target: 10 },
+            ],
+            onPass: { ailmentAccum: [{ label: "発狂", amount: 1 }] },
+            onFail: { ailmentAccum: [{ label: "発狂", amount: 2 }] },
+          },
+        },
+        {
+          // 「結跏趺坐＆滞留魔法陣生成＆発狂の種」：乱戦ダメージは対象の明記が無いため既定ルール
+          // （前衛均等割り）。「発狂：3」は固定値。HP枠へのモブ「滞留魔法陣」追加／回復
+          // （最大HP：PC人数×2、レベル補正の影響を受けない）は、enemy_auto_gm_data.js側にも
+          // 対応するモブHP自動追加パターンが見当たらないため、GM向けconditionsのみに留める
+          // （このアクションが行われた後は特殊能力「魔法陣滞留による行動内容指定」に従い、
+          // 次のディフェンスフェイズは1Dを振らず強制的にrows外の2つのトリガー行のどちらかが
+          // 発動する——上記ヘッダーコメント参照）。特殊能力「発狂の種」の効果発揮はconditions
+          // のみ。
+          rollMin: 6,
+          rollMax: 6,
+          groupDamage: { value: 960, ailmentAccum: [{ label: "発狂", amount: 3 }] },
+          targetRule: { kind: "frontAll" },
+          conditions: ["mob_hp_stagnation_circle_add_manual", "special_madness_seed"],
         },
       ],
     },
