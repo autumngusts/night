@@ -1,8 +1,10 @@
 # 全敵人自動化GM對應 Master Plan（夜王／夜之強敵／敵人）
 
+> **2026-08-28 更新：Phase 1（夜王6体：fulghor/caligo/libra/harmonia/stragedes/nameless）は全Task（Task 0〜6）が実装・commit・merge済み（commit `76c915a`〜`4b92d9a`、`node --check`通過確認済み）。夜王10体は全て`boss_auto_gm_data.js`に構造化済み。統合検証Task（Playwright回帰確認・whole-branchレビュー・push）の実施有無は本更新時点で未確認——次にPhase 1の仕上げ確認を行うか、Phase 2/3へ進むかはユーザー判断待ち。詳細は`docs/enemy_auto_gm_coverage_audit.md`（2026-08-28更新版）を参照。**
+>
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 >
-> **本Planは3フェーズ構成**：Phase 1（夜王6体）はTask単位まで詳細化済みで即実行可能。Phase 2（夜之強敵、劇本8/9の8体）・Phase 3（一般敵人111体）は対象一覧とアプローチのみ記載し、着手時に別途詳細タスクへ展開する（ユーザー承認済み：今回のセッションではPhase 1のみ実行）。
+> **本Planは3フェーズ構成**：Phase 1（夜王6体）はTask単位まで詳細化済みで実行完了。Phase 2（夜之強敵、劇本8/9の8体）・Phase 3（一般敵人111体）は対象一覧とアプローチのみ記載し、着手時に別途詳細タスクへ展開する（今回のセッションでPhase 2/3のいずれかの詳細タスク化・実行に進むかはユーザー確認待ち）。
 >
 > **並行実行に関する注意**：Phase 1のTask 0（多形態トグルの汎用化）は`night.js`/i18nを変更するロジックタスクであり、他の全Taskの前提となるため**単独で先行実行**する。Task 0完了後、Batch A（Task 1〜3：fulghor/caligo/libra、単一形態）とBatch B（Task 4〜6：harmonia/stragedes/nameless、多形態、Task 0のトグルに依存）に分け、各Batch内は`boss_auto_gm_data.js`という単一ファイルへの追記のみで独立しているため並行worktree dispatch可能（設計文書の決定事項参照）。Batch BはTask 0完了後にのみ開始する。
 
