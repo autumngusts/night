@@ -610,18 +610,31 @@
 
   // justResolvedFloorIndexの樓層が1つ解決した（真に踏破 or 突破判定でスキップ）直後に
   // cardLevels[slotIndex]を更新する。突破スキップで先の樓層へ進めるが、スキップした樓層
-  // 自体はfloorClearedに残らない（後で全樓層を1巡し終えたときに、まだfalseの樓層が
-  // 残っていれば、そこへ「巻き戻して」再度差し出す——docs/scenario_flow_rules.md：
-  // 突破スキップはフィールド移動まで一時的、離れると未踏破に戻る、を「同じ訪問中に全樓層
-  // 一巡し終えた時点」で強制する形で再現）。
+  // 自体はfloorClearedに残らない。
+  // 使用者確認・規則書再確認（docs/scenario_flow_rules.md 4節「突破判定でのフロアの
+  // スキップは、PCが他のフィールドへ移動すると無効化される」）：スキップの無効化タイミングは
+  // 「他のフィールドへ実際に移動した時」であり、「同じ訪問中に全樓層を1巡し終えた時」
+  // ではない。以前の実装はこの2つを混同し、王戦勝利などで最後の樓層に到達した瞬間に
+  // 即座に巻き戻してしまい、直前に倒したはずの階層まで「未踏破」扱いに戻る不具合の原因に
+  // なっていた（該当バグ報告：突破判定→王戦勝利後に樓層が巻き戻る／最終樓層で突破判定した
+  // 場合に前進しない）。
   // 1. justResolvedFloorIndex+1から、既にfloorClearedがtrueの樓層を飛ばして次を探す。
-  // 2. 見つかれば（floorCount未満）そこへ進む——通常の連続探索と、巻き戻し後に再び前進する
-  //    場合の両方をこれ1つでカバーする。
-  // 3. floorCountに達したら（この訪問で全樓層を1巡し終えた）、firstUnclearedFloorIndexで
-  //    最初からやり直し、まだfalseの樓層があればそこへ巻き戻す。無ければ「全」（null）。
+  // 2. 見つかれば（floorCount未満）そこへ進む——通常の連続探索と、後述の巻き戻し後に
+  //    再び前進する場合の両方をこれ1つでカバーする。
+  // 3. floorCountに達したら（この訪問で全樓層を1巡し終えた）：全樓層が真に踏破済みなら
+  //    「全」（null）。1つでもスキップしたまま未踏破の樓層が残っていれば、この時点では
+  //    まだ巻き戻さず、ポインタをfloorCount（＝最終樓層より先、「全」の一歩手前）に留めた
+  //    まま2-6のフィールド移動確認へ進める——実際の巻き戻しはinvalidatePendingFloorSkip
+  //    （実際にフィールド移動が発生した時点で呼ばれる）に委ねる。
   function advanceOrRewindCardPointer(slotIndex, floorCount, justResolvedFloorIndex) {
     var Core = window.PriTestNightCore;
     var state = Core.state;
+    // 使用者確認：已經是「全」（全踏破，cardLevels===null）的板塊，判定完成後不應再自行自動
+    // 變更（重新計算指標、甚至再次觸發全踏破連鎖）。正常情境下handleEnterClickの第6項ガードが
+    // 既に全踏破済みカードへの再進入自体を防いでいるため、この関数は通常呼ばれないはずだが、
+    // 呼び出し元（resolveFloorSkip／finishFieldWalk）が何らかの経路で再度呼んでしまった場合の
+    // 保険として、ここでも直接ガードする（markFreeFloorClearedの既存ガードと同じ考え方）。
+    if (state.cardLevels[slotIndex] === null) return;
     var clearedArr = getFloorCleared(slotIndex, floorCount);
     var next = justResolvedFloorIndex + 1;
     while (next < floorCount && clearedArr[next]) next++;
@@ -629,9 +642,30 @@
       state.cardLevels[slotIndex] = next;
     } else {
       var uncleared = firstUnclearedFloorIndex(slotIndex, floorCount);
-      state.cardLevels[slotIndex] = uncleared === null ? null : uncleared;
+      state.cardLevels[slotIndex] = uncleared === null ? null : floorCount;
     }
     if (Core.renderCardLevel) Core.renderCardLevel(slotIndex);
+  }
+
+  // 使用者確認・規則書再確認（docs/scenario_flow_rules.md 4節）：PCが実際に他のフィールドへ
+  // 移動した瞬間、そのフィールドに残っている「突破判定でスキップしたが真には踏破していない
+  // 樓層」を無効化する——次にこのフィールドへ戻ってきた時は、その樓層を改めて（スキップ
+  // 済み扱いにせず）差し出す。cardLevelsが既に「全」（null）＝スキップが残っていない場合は
+  // 何もしない。night.jsのfinalizeSlotMove（通常のフィールド移動）と、霊脈チットの移動
+  // （night_event_chips.js）の両方から、移動元のslotIndexを渡して呼び出す。
+  function invalidatePendingFloorSkip(slotIndex) {
+    if (typeof slotIndex !== "number") return;
+    var Core = window.PriTestNightCore;
+    var state = Core.state;
+    if (state.cardLevels[slotIndex] === null || state.cardLevels[slotIndex] === undefined) return;
+    var entry = window.PriTestNightFloorBreakthrough.resolveFieldEntryForSlot(slotIndex);
+    var effectiveFloorCount = resolveEffectiveFloorCount(entry, slotIndex, true);
+    if (!entry || typeof effectiveFloorCount !== "number") return;
+    var uncleared = firstUnclearedFloorIndex(slotIndex, effectiveFloorCount);
+    if (uncleared !== null && state.cardLevels[slotIndex] > uncleared) {
+      state.cardLevels[slotIndex] = uncleared;
+      if (Core.renderCardLevel) Core.renderCardLevel(slotIndex);
+    }
   }
 
   // 突破判定モーダル（night_floor_breakthrough.js、既存の実装ではwalkと無関係にGMが
@@ -641,11 +675,50 @@
   // だけでよく、ポインタ（クリア数表示）自体は変更しない。
   function resolveFloorSkip(slotIndex, branchIndex, floorIndex) {
     var Core = window.PriTestNightCore;
+    var state = Core.state;
     var entry = window.PriTestNightFloorBreakthrough.resolveFieldEntryForSlot(slotIndex);
     var branch = entry && entry.branches ? entry.branches[branchIndex] : null;
+    // 使用者確認（自動化GMテストで発見）：出發地點／黄金樹の帳（"start"|"end"）はcardLevelsを
+    // 持たず（state.startChecks／endChecksで別管理、finishFieldWalk参照）、floorCleared／
+    // advanceOrRewindCardPointerなどこの先の連番floorIndexブックキーピングは全て数値板塊
+    // 専用の前提で書かれている。突破判定モーダルは板塊の種類を問わず開けてしまうため、
+    // 起點／終點で「突破」から合格を選ぶとここへ数値以外のslotIndexのまま流れ込み、
+    // advanceOrRewindCardPointer内のCore.renderCardLevel(slotIndex)が存在しないDOM要素
+    // （"level-value-start"等、板塊専用のid）を参照してtextContentの代入に失敗し、例外で
+    // 処理全体が止まっていた（進度版が固まる不具合）。路線自由カードと同じ「ブックキーピング
+    // の前提が崩れる組み合わせ」として、ここで早期returnし、突破ボタン自体は何も変更せず
+    // 静かに終わらせる（起點／終點は元々floorCount:1で〔描写〕を読み終えた時点＝即座に
+    // 全踏破対象になるため、GMは代わりに［進入］を使えば通常通り進行できる）。
+    if (typeof slotIndex !== "number") return;
     if (!branch || branch.freeFloorOrder) return; // 路線自由カード、または解決不能：ポインタは変更しない
-    if (typeof entry.floorCount !== "number") return;
-    advanceOrRewindCardPointer(slotIndex, entry.floorCount, floorIndex);
+    // branchIndexは呼び出し元（突破判定モーダル）が既に確定済みのため、branch.floors.length
+    // （実際のフロア数）を最優先で使う——entry.floorCount（静的値）は分岐間でフロア数が
+    // 異なるカードでは食い違うことがある。
+    var effectiveFloorCount = branch.floors && typeof branch.floors.length === "number" ? branch.floors.length : typeof entry.floorCount === "number" ? entry.floorCount : null;
+    if (typeof effectiveFloorCount !== "number") return;
+    // 使用者確認：この板塊が既に「全」（全踏破済み）なら、以後の判定機は自行自動變更しない
+    // （通常はhandleEnterClickの第6項ガードで既に全踏破済みカードへの再進入自体を防いでいる
+    // ため到達しないはずだが、念のためここでも全踏破連鎖の再発火を防ぐ）。
+    if (state.cardLevels[slotIndex] === null) return;
+    advanceOrRewindCardPointer(slotIndex, effectiveFloorCount, floorIndex);
+    // 使用者確認（バグ報告4）：以前はこの関数がpendingFinalFloorSlot／pendingChipCheckSlot／
+    // pendingMapMoveSlotを一切設定しなかったため、最終樓層を突破判定でスキップすると
+    // GM側に次の操作ボタンが何も出ず、そのまま進行が止まってしまっていた。真の踏破
+    // （finishFieldWalk）と同じ連鎖に乗せる：全樓層が揃った（＝cardLevelsが「全」）場合は
+    // 全踏破報酬まで含めて連鎖、他にスキップしたまま残っている樓層がある場合（cardLevelsが
+    // floorCountで打ち止め）は全踏破報酬を出さずに籌碼確認／地圖移動の判断だけへ進める。
+    if (state.cardLevels[slotIndex] === null) {
+      state.gmFlow.pendingFinalFloorSlot = slotIndex;
+      state.gmFlow.pendingChipCheckSlot = slotIndex;
+      state.gmFlow.pendingMapMoveSlot = slotIndex;
+      Core.saveState();
+      advanceCardConclusionChain();
+    } else if (state.cardLevels[slotIndex] === effectiveFloorCount) {
+      state.gmFlow.pendingChipCheckSlot = slotIndex;
+      state.gmFlow.pendingMapMoveSlot = slotIndex;
+      Core.saveState();
+      advanceCardConclusionChain();
+    }
   }
 
   // floor.label（"フロア1"等）から位置番号（1始まり）を取り出す。パターンに合わなければnull。
@@ -925,6 +998,21 @@
     return new RegExp("^" + t.ja + COMBAT_TRIGGER_NUM_GAP + "\\s*[（(]").test(ja) || new RegExp("^" + t.zh + COMBAT_TRIGGER_NUM_GAP + "（").test(zh);
   }
 
+  // 使用者確認（2026-08-23）：card_j（砦／地下砦）西の地下砦「研究棟」の「ボス戦闘1（♠）」は、
+  // 見出し文言こそ戦闘トリガーと同じ形だが、本文（フロア3描写）の通り実際には敵と戦うわけ
+  // ではない——静止した「魔術師球」を〈協力12×PC人数|メンタル〉の行為判定（加護使用可、
+  // 通常の協力式判定と同じ）で処理するだけで、通常の戦闘パネル／敵人比對は一切発生しない。
+  // 直後のbulletが「「魔術師球」」（唯一の実例）の場合のみ、通常の戦闘トリガー判定から除外し、
+  // 後続の〔行為判定〕行（parseCooperativeAbilityCheck）へそのまま素通りさせる。
+  function isFakeCombatAbilityCheckTrigger(line, lines, index) {
+    if (!isBossCombatTriggerLine(line)) return false;
+    var next = lines[index + 1];
+    if (!next || !next.bullet) return false;
+    var ja = ((next.text && next.text.ja) || "").trim();
+    var zh = ((next.text && next.text.zh) || "").trim();
+    return ja === "「魔術師球」" || zh === "「魔術師球」";
+  }
+
   // ボタンラベル・敘述冒頭に使う表示名（「雜兵戰鬥」／「王戰」）は、判定に使ったパターンではなく
   // トリガー行自身の現在言語のテキストからそのまま切り出す（i18nキーを2つ用意する必要が無い）。
   function combatTriggerTitle(line) {
@@ -948,6 +1036,14 @@
       var ja = (l.text && l.text.ja) || "";
       var zh = (l.text && l.text.zh) || "";
       if (ja.indexOf("「") !== 0 && zh.indexOf("「") !== 0) break;
+      // バグ修正（2026-08-23）：撃破後の獎勵bullet（例：「「武器：★」（フロア踏破）」）も
+      // 「」で始まるため、敵名bulletと誤認されて「無法自動比對敵人資料」の誤警報を出していた。
+      // 実データを全数調査した結果、報酬スタブは必ず「品目名：★…」（コロン＋★のみ）という
+      // 形で終わる一方、実際の敵名（「Lv.」表記・「決定表」参照含む）はこの形を一切取らない
+      // ため、この形だけを敵名候補から除外する（打ち切り＝以降の行も収集終了）。
+      var jaBracket = (/「([^」]*)」/.exec(ja) || [])[1] || "";
+      var zhBracket = (/「([^」]*)」/.exec(zh) || [])[1] || "";
+      if (/[:：]\s*★+\s*$/.test(jaBracket) || /[:：]\s*★+\s*$/.test(zhBracket)) break;
       enemyLines.push(l);
     }
     return { enemyLines: enemyLines, nextIndex: j };
@@ -1449,12 +1545,22 @@
   // ランダムイベント決定表（event_rulebook.js「random_event」extraTables[0]）は、die1が
   // 1・6の行のみ2顆目を問わない単一セル表記（例："1"、"6"）を使うため、その場合は
   // faces2="123456"（全目）として扱う。
+  // 修正（ユーザー報告：J堡壘「屋上エネミー決定表」が自動抽選できない）：fields_data_4.js
+  // のこの表だけ2顆目を"1・3・5"のように中點区切りで表記しており（他の決定表は"135"の
+  // ように区切り無しの連続数字）、以前の正規表現は区切り文字を許容せず常にnullを返して
+  // いた。値そのものは変わらない（面数の並びは同じ）ため、中點・読点・カンマ区切りも
+  // 受理してから区切り文字を除去し、既存の連続数字形式と同じfaces2へ正規化する。
+  // バグ修正（2026-08-23）：card_9「神殿」の第1〜3階層ボス決定表は、1顆目（die1）側も
+  // "2・3"「4・5・6」のように複数面をまとめた表記が使われる（1顆目が単一面の表記しか
+  // 想定していなかった旧実装では、これらの行が一切マッチせず常にnullへフォールバックして
+  // いた）。1顆目・2顆目のどちらも複数面の区切り表記（中點・読点・カンマ）を受理し、
+  // 実際に振った目がそのいずれかの面に含まれるかで判定するよう、2顆目と同じ方式に統一する。
   function parseStrongEnemyDiceCell(text) {
     var t = String(text || "").trim();
-    var m = /^(\d)\s*[／\/]\s*(\d+)$/.exec(t);
-    if (m) return { die1: parseInt(m[1], 10), faces2: m[2] };
+    var m = /^([\d・、,]+)\s*[／\/]\s*([\d・、,]+)$/.exec(t);
+    if (m) return { faces1: m[1].replace(/[・、,]/g, ""), faces2: m[2].replace(/[・、,]/g, "") };
     var bare = /^(\d)$/.exec(t);
-    if (bare) return { die1: parseInt(bare[1], 10), faces2: "123456" };
+    if (bare) return { faces1: bare[1], faces2: "123456" };
     return null;
   }
 
@@ -1492,7 +1598,7 @@
       var matchedRow = null;
       for (var r = 0; r < table.rows.length; r++) {
         var cell = parseStrongEnemyDiceCell(table.rows[r][0] && table.rows[r][0].ja);
-        if (cell && cell.die1 === die1 && cell.faces2.indexOf(String(die2)) !== -1) {
+        if (cell && cell.faces1.indexOf(String(die1)) !== -1 && cell.faces2.indexOf(String(die2)) !== -1) {
           matchedRow = table.rows[r];
           break;
         }
@@ -1527,7 +1633,7 @@
       var matchedRowIndex = -1;
       for (var r = 0; r < table.rows.length; r++) {
         var cell = parseStrongEnemyDiceCell(table.rows[r][0] && table.rows[r][0].ja);
-        if (cell && cell.die1 === die1 && cell.faces2.indexOf(String(die2)) !== -1) {
+        if (cell && cell.faces1.indexOf(String(die1)) !== -1 && cell.faces2.indexOf(String(die2)) !== -1) {
           matchedRowIndex = r;
           break;
         }
@@ -1625,6 +1731,16 @@
         return !suitText || !String(suitText).trim();
       })[0] ||
       null;
+    // 使用者報告（劇本2/6/8/10で「出發地點」が毎回GM手動選択に落ちる）：a_start／a_golden
+    // カードのように、複数の劇本番号を1行にまとめた花色欄（例：「2-7, 10」行の「♦♥♦♣」）が、
+    // その行が実際に対応する劇本の一部（劇本2/6/10の実際の開始花色♠等）を含んでいない
+    // ケースがある。シナリオ番号だけで候補行が一意に絞れているなら、花色欄はそもそも
+    // 内容選択に必要ない（内容欄自体が別途「1D」で更に分岐を決める）ため、花色不一致だけを
+    // 理由に丸ごとGMへ委ねてしまうのは過剰。候補行が1つしかない（＝シナリオ番号だけで
+    // 一意に決まる）場合に限り、花色欄が一致しなくてもその行を採用する（数値を捏造するのでは
+    // なく、既にシナリオ番号で一意確定している行をそのまま使うだけ）。候補が複数残っている
+    // 場合（花色で本当に絞り込む必要があるケース）は、従来通りnullでGMフォールバックする。
+    if (!matchRow && candidateRows.length === 1) matchRow = candidateRows[0];
     if (!matchRow) return null;
     var contentText = matchRow[2] ? matchRow[2].ja : "";
     var diceOptions = parseVarianceContent(contentText);
@@ -1632,11 +1748,19 @@
     var roll = null;
     var roll2 = null;
     if (diceOptions) {
-      roll = Math.floor(Math.random() * 6) + 1;
-      var picked = diceOptions.filter(function (o) {
-        return o.faces.indexOf(roll) !== -1;
-      })[0];
-      if (!picked) return null;
+      // 使用者確認（2026-08-23）：小砦カードの「5-6＝※再抽選」のように、出目が「再抽選」
+      // 指定の場合は文字通り出目を振り直す（そのまま分岐名として扱うと一致するbranchが無く
+      // GMへフォールバックしてしまう）。無限ループ防止のため試行回数に上限を設ける。
+      var rerollGuard = 0;
+      var picked;
+      do {
+        roll = Math.floor(Math.random() * 6) + 1;
+        picked = diceOptions.filter(function (o) {
+          return o.faces.indexOf(roll) !== -1;
+        })[0];
+        rerollGuard++;
+      } while (picked && /^※(重新)?再抽選$/.test(picked.name.trim()) && rerollGuard < 20);
+      if (!picked || /^※(重新)?再抽選$/.test(picked.name.trim())) return null;
       targetName = picked.name;
     } else if (/^※/.test(targetName)) {
       // 内容欄が「※ランダム決定」等の単純なプレースホルダーの場合のみ、extraTablesの
@@ -1793,6 +1917,53 @@
     return resolved;
   }
 
+  // resolveOrCacheBranchと同じキャッシュだけを参照し、新規解決（＝※ランダム決定表の骰子消費）
+  // は一切行わない「覗き見」版。まだ樓層敘述（beginFieldWalkFlow）を開始していない段階でも
+  // 呼ばれる表示専用の呼び出し元（樓層数バッジ、盤面の手動樓層ステッパー）向け——そこで
+  // 未解決の分岐を強制解決すると、GMがまだ［進入］すら押していないのに骰子を消費してしまう。
+  function peekCachedBranchIndex(entry, idx) {
+    if (!entry || !entry.branches || !entry.branches.length) return null;
+    if (entry.branches.length === 1) return 0;
+    var state = window.PriTestNightCore.state;
+    var cacheKey = null;
+    if (typeof idx === "number") {
+      var slot = state.slots[idx];
+      if (slot) cacheKey = idx + ":" + slot.code;
+    } else if (idx === "start" || idx === "end") {
+      cacheKey = idx;
+    }
+    if (!cacheKey || !state.gmFlow.resolvedBranchCache) return null;
+    var cached = state.gmFlow.resolvedBranchCache[cacheKey];
+    return cached && entry.branches[cached.branchIndex] ? cached.branchIndex : null;
+  }
+
+  // カード自身のfloorCount（fields_data_*.jsの静的値）は、branchesごとにフロア数が異なる
+  // フィールド（例：坑道／倒れた大結晶カード、大教會「水辺の大教会」等——varianceNote自体が
+  // 「フィールドごとにフロア数も違うので注意」と明記）では、実際に選ばれた分岐のフロア数と
+  // 食い違うことがある（バグ報告：坑道で樓層1/2が正しく判別できない、大教會等で最終樓層の
+  // 王戰報酬を受け取った直後に樓層1へ巻き戻り無限に再突入する）。このため樓層の踏破管理
+  // （markFloorCleared／advanceOrRewindCardPointer等）で使う「実効フロア数」は、常に
+  // ①解決済み（またはこの場で解決可能）な分岐のbranch.floors.lengthを最優先し、
+  // ②分岐が無い／解決できない／freeFloorOrder（路線自由、別の進行管理を使うため対象外）の
+  // 場合のみentry.floorCount（静的値）へフォールバックする。resolveActual=trueなら
+  // resolveOrCacheBranchで（未解決なら）その場で確定させる——樓層敘述の進行ロジック側専用
+  // （呼び出し時点で既にwalkが始まっている前提のため、新規解決の副作用は許容できる）。
+  // falseならpeekCachedBranchIndexのみを使う（表示専用、新規解決やダイス消費はしない）。
+  function resolveEffectiveFloorCount(entry, idx, resolveActual) {
+    if (!entry) return null;
+    if (entry.branches && entry.branches.length) {
+      var branchIndex = resolveActual ? (function () {
+        var resolved = resolveOrCacheBranch(entry, idx);
+        return resolved ? resolved.branchIndex : null;
+      })() : peekCachedBranchIndex(entry, idx);
+      var branch = branchIndex !== null && branchIndex !== undefined ? entry.branches[branchIndex] : null;
+      if (branch && !branch.freeFloorOrder && branch.floors && typeof branch.floors.length === "number") {
+        return branch.floors.length;
+      }
+    }
+    return typeof entry.floorCount === "number" ? entry.floorCount : null;
+  }
+
   function handleEnterClick() {
     var Core = window.PriTestNightCore;
     var state = Core.state;
@@ -1814,6 +1985,25 @@
       state.gmFlow.pendingMapMoveSlot = idx;
       advanceCardConclusionChain();
       return;
+    }
+    // 使用者確認（バグ報告：K板塊で正常進入した後、獎勵を領取しても全踏破に変わらない／
+    // 再度［進入］すると先へ進めなくなる問題）：advanceOrRewindCardPointerは、突破判定で
+    // スキップしたまま未解決の樓層が残っている場合、cardLevelsを「全」（null）にはせず
+    // floorCount（floors配列としては範囲外の値）で打ち止めにする。この状態のまま再度
+    // ［進入］を押すと、floorIndexとしてこの範囲外の値がそのままbeginFieldWalkFlowへ
+    // 渡ってしまい、対応する樓層が存在しないため敘述が完全に停止する（finishFieldWalkが
+    // markFloorCleared／advanceOrRewindCardPointerを一切経由しないため、cardLevelsが
+    // 永久にこの値のまま固まる）。全踏破済み（上のnullガード）と同様に、樓層敘述を
+    // やり直さず籌碼確認／地圖移動の案内へ直接進める。
+    if (typeof idx === "number" && typeof state.cardLevels[idx] === "number") {
+      var stuckEntry = window.PriTestNightFloorBreakthrough.resolveFieldEntryForSlot(idx);
+      var stuckFloorCount = resolveEffectiveFloorCount(stuckEntry, idx, true);
+      if (stuckEntry && typeof stuckFloorCount === "number" && state.cardLevels[idx] >= stuckFloorCount) {
+        state.gmFlow.pendingChipCheckSlot = idx;
+        state.gmFlow.pendingMapMoveSlot = idx;
+        advanceCardConclusionChain();
+        return;
+      }
     }
     // ユーザー報告：起點／終點（"start"|"end"）には上と同じガードが無く、全踏破済み
     // （pileChecks.all）でも[進入]を押すたびに樓層0の敘述をやり直してしまっていた
@@ -1987,22 +2177,74 @@
     resolveChipOffer(false);
   }
 
+  // 使用者確認（バグ報告2-1）：霊脈チットは「使用」を選んでも、プレイヤーが実際にどこへ
+  // 移動するか（あるいはやはり移動しないか）をこの後モーダル内で選ぶまで確定しない。
+  // 以前はここで即座にbeginFieldWalkFlow/advanceCardConclusionChainを（移動元のidxのまま）
+  // 呼んでしまい、実際の移動が完了する前にstate.gmFlow.walkを移動元用のデータで上書きして
+  // いたため、実際に選ばれた移動先で樓層判定が食い違う不具合の原因になっていた（移動元の
+  // 樓層継続処理が、既にfocusedIndexだけ切り替わった移動先に対して走ってしまう）。
+  // 実際にモーダルが閉じるタイミング（移動確定 or キャンセル）まで継続処理を保留する。
+  var pendingSpiritVeinContinuation = null; // { idx, continuation } | null
+
   function resolveChipOffer(use) {
     var Core = window.PriTestNightCore;
     var state = Core.state;
     var idx = state.gmFlow.chipOfferSlot;
     var continuation = state.gmFlow.chipOfferContinuation;
+    var chipId = state.eventChips ? state.eventChips[idx] : null;
     state.gmFlow.chipOfferSlot = null;
     state.gmFlow.chipOfferContinuation = null;
     clearGmFlowGate();
     Core.saveState();
     Core.renderCurrentLocationStatus();
+    if (use && chipId === "spirit_vein") {
+      pendingSpiritVeinContinuation = { idx: idx, continuation: continuation };
+      if (window.PriTestNightEventChips) window.PriTestNightEventChips.openEventChipModal(idx);
+      return;
+    }
     if (use && window.PriTestNightEventChips) window.PriTestNightEventChips.openEventChipModal(idx);
     if (continuation === "startWalk") {
       var entry = window.PriTestNightFloorBreakthrough.resolveFieldEntryForSlot(idx);
       beginFieldWalkFlow(idx, entry);
     } else if (continuation === "cardConclusion") {
       // 使う／稍後いずれの場合も、次は［地圖移動機制］（まだ保留があれば）へ進める。
+      advanceCardConclusionChain();
+    }
+  }
+
+  // 霊脈モーダルで実際に移動先が確定した時、night_event_chips.jsのmoveToから呼ばれる。
+  // 保留していた継続処理を消費して返す（呼び出し側が「移動した」ことを踏まえて処理する）。
+  function consumePendingSpiritVeinContinuation() {
+    var pending = pendingSpiritVeinContinuation;
+    pendingSpiritVeinContinuation = null;
+    return pending;
+  }
+
+  // 実際に移動が確定した後の処理：通常のフィールド移動（2-6）と同じ挙動に揃え、GMが
+  // 改めて移動先で［進入］を押すまで自動で樓層敘述を始めない（startWalk側は何もしない）。
+  // cardConclusion側は、移動が発生した時点で「地圖移動確認」の要件は満たされたとみなし、
+  // 保留中のpendingMapMoveSlotをクリアするだけに留める（移動先の敘述は開始しない）。
+  function resumeChipOfferContinuationAfterMove(pending) {
+    if (!pending) return;
+    if (pending.continuation === "cardConclusion") {
+      var Core = window.PriTestNightCore;
+      var state = Core.state;
+      if (state.gmFlow.pendingMapMoveSlot === pending.idx) state.gmFlow.pendingMapMoveSlot = null;
+      Core.saveState();
+    }
+  }
+
+  // 霊脈モーダルが「移動せずに」閉じられた時（closeEventChipModal）に呼ばれる。使用を選んだ
+  // ものの結局どこへも移動しなかった場合は、稍後を選んだ場合と同じく元のidxのまま継続処理を
+  // 再開する。
+  function declinePendingSpiritVeinContinuation() {
+    var pending = pendingSpiritVeinContinuation;
+    pendingSpiritVeinContinuation = null;
+    if (!pending) return;
+    if (pending.continuation === "startWalk") {
+      var entry = window.PriTestNightFloorBreakthrough.resolveFieldEntryForSlot(pending.idx);
+      beginFieldWalkFlow(pending.idx, entry);
+    } else if (pending.continuation === "cardConclusion") {
       advanceCardConclusionChain();
     }
   }
@@ -2096,7 +2338,12 @@
     state.gmFlow.chipCombatSlot = idx;
     state.gmFlow.chipCombatIsTerrible = !!(data && data.isTerrible);
     state.gmFlow.chipCombatContinuation = continuation;
-    state.gmFlow.narrationText = window.I18N.t("gm_flow_combat_in_progress_narration");
+    // handleCombatTriggerClickと同じ簡易戰鬥リマインダー（docs/combat_flow_rules.md §6）。
+    // 強敵籌碼の戦闘はhandleCombatTriggerClickを経由しない独立系統のため、ここでも同様に判定する。
+    state.gmFlow.narrationText =
+      state.battle.combatMode === "simplified"
+        ? window.I18N.t("gm_flow_combat_simplified_reminder") + "\n" + window.I18N.t("gm_flow_combat_in_progress_narration")
+        : window.I18N.t("gm_flow_combat_in_progress_narration");
     state.gmFlow.awaitingOk = true;
     state.gmFlow.actionKind = "chipCombatWait";
     Core.saveState();
@@ -2138,7 +2385,17 @@
     var objs = FloorBreakthrough.floorRewardEntryToTurnRewards({ kind: "rune", value: runeValue }, entered, idSuffix + "_rune").concat(
       FloorBreakthrough.floorRewardEntryToTurnRewards({ kind: "potentialPower", perPerson: true, value: powerValue }, entered, idSuffix + "_power")
     );
-    if (objs.length) Core.pushTurnRewards(objs);
+    // 修正（ユーザー報告）：以前はここでpushTurnRewardsするだけで獎勵清單モーダルを開かず、
+    // handleChipCombatResolvedOkClickもpendingRewardWindowsを確認していなかったため、GMが
+    // ［OK］を押すと玩家が獎勵を確認・領取する間もなく即座に樓層事件へ接續してしまっていた
+    // （一般樓層戰鬥のhandleFloorEndRewardClickと同じ「モーダルを開いてpendingRewardWindowsで
+    // 足止めする」パターンに合わせる）。
+    if (objs.length) {
+      Core.pushTurnRewards(objs);
+      Core.state.activeDraws.turnRewardAutoOpen = true;
+      Core.openTurnRewardModal();
+      Core.addPendingRewardWindow("turnReward");
+    }
     var enemyName = (state.eventChipsData[idx] && state.eventChipsData[idx].enemyName) || "";
     if (window.PriTestNightEventChips) window.PriTestNightEventChips.markEventChipUsed(idx);
     logGmDecision(window.I18N.t("gm_flow_chip_strong_enemy_defeated_log", { enemy: enemyName }));
@@ -2163,6 +2420,17 @@
   function handleChipCombatResolvedOkClick() {
     var Core = window.PriTestNightCore;
     var state = Core.state;
+    // 修正（ユーザー報告）：獎勵清單モーダルが開いたまま（pendingRewardWindows未消化）でも
+    // 続行できてしまっていたため、handleGmFlowOkと同じ「残っていればリマインドして止める」
+    // ガードをここにも追加する。
+    var pending = state.gmFlow.pendingRewardWindows.length;
+    if (pending > 0) {
+      state.gmFlow.narrationText = window.I18N.t("gm_flow_reward_pending_reminder", { count: pending });
+      lastTypedNarration = null;
+      Core.saveState();
+      Core.renderCurrentLocationStatus();
+      return;
+    }
     var continuation = state.gmFlow.chipCombatResumeContinuation;
     var idx = state.gmFlow.chipCombatResumeSlot;
     state.gmFlow.chipCombatResumeContinuation = null;
@@ -2223,10 +2491,31 @@
     Core.saveState();
   }
 
+  // 使用者確認（自動化GMテストで発見）：この関数はautoResolveBranchが自動決定できなかった
+  // （劇本のvarianceTableが無い／該当しない等）場合のGM手動選択の確定経路。以前はwalk.branchIndex
+  // だけを更新し、state.gmFlow.resolvedBranchCacheへは書き込んでいなかった（handleBranchOverrideSelect
+  // Clickは同じ理由で既にキャッシュへ書き込む修正済みだったが、こちらは未対応のまま残っていた）。
+  // その結果、複数樓層を持つ分岐（例：card_9の「神殿」、branch.floors.length=3 vs entry.floorCount=1
+  // という食い違いを持つカード）で樓層1を終えて再度［進入］すると、resolveEffectiveFloorCountが
+  // キャッシュ不在のためautoResolveBranchを再試行→再び解決失敗→entry.floorCount（静的値、この例
+  // では1）へフォールバックしてしまい、handleEnterClickの「既に樓層数の上限に達した」判定
+  // （cardLevels[idx] >= stuckFloorCount）が誤って真になり、樓層2・3を一切敘述せずそのまま
+  // 籌碼確認／地圖移動へ進んでしまう（樓層が丸ごと飛ばされる）不具合があった。
   function handleBranchChoiceClick(branchIndex) {
     var state = window.PriTestNightCore.state;
     var walk = state.gmFlow.walk;
     if (!walk) return;
+    var cacheKey = null;
+    if (typeof walk.slotIndex === "number") {
+      var slot = state.slots[walk.slotIndex];
+      if (slot) cacheKey = walk.slotIndex + ":" + slot.code;
+    } else if (walk.slotIndex === "start" || walk.slotIndex === "end") {
+      cacheKey = walk.slotIndex;
+    }
+    if (cacheKey) {
+      if (!state.gmFlow.resolvedBranchCache) state.gmFlow.resolvedBranchCache = {};
+      state.gmFlow.resolvedBranchCache[cacheKey] = { branchIndex: branchIndex };
+    }
     walk.branchIndex = branchIndex;
     walk.floorIndex = currentFloorIndexForSlot(walk.slotIndex);
     walk.lineIndex = 0;
@@ -2236,6 +2525,46 @@
     walk.pendingOutcomeFilter = null;
     walk.pendingConvergeLabel = null;
     advanceFieldWalk();
+  }
+
+  // 「GM更改」（使用者指定）：varianceTableで複数分岐を持つカード（例：大教會）は
+  // autoResolveBranchが劇本/花色/1D6から自動決定するのが既定挙動だが、規則書の
+  // varianceNoteに「GMが任意で、まだ遊んだことのない内容を選んでもよい」と明記されている
+  // カードもあるため、規則書パスワード認証済みのGM限定で、自動決定後でも別の分岐へ
+  // 手動切り替えできる進入口を用意する。既存のbranchChoice（自動解決に失敗した場合の
+  // フォールバック選択UI）と同じボタン描画・handleBranchChoiceClickをそのまま再利用し、
+  // 新しい選択UIをもう1つ作らない。
+  function handleBranchOverrideToggleClick() {
+    var Core = window.PriTestNightCore;
+    var state = Core.state;
+    state.gmFlow.branchOverrideActive = !state.gmFlow.branchOverrideActive;
+    Core.saveState();
+    Core.renderCurrentLocationStatus();
+  }
+
+  function handleBranchOverrideSelectClick(branchIndex) {
+    var Core = window.PriTestNightCore;
+    var state = Core.state;
+    var walk = state.gmFlow.walk;
+    if (!walk) return;
+    var entry = getWalkEntry(walk);
+    var branch = entry && entry.branches ? entry.branches[branchIndex] : null;
+    // resolveOrCacheBranchと同じcacheKey規則で上書きし、以後のフロア数参照
+    // （peekCachedBranchIndex／resolveEffectiveFloorCount）がGMの選択と食い違わないようにする。
+    var cacheKey = null;
+    if (typeof walk.slotIndex === "number") {
+      var slot = state.slots[walk.slotIndex];
+      if (slot) cacheKey = walk.slotIndex + ":" + slot.code;
+    } else if (walk.slotIndex === "start" || walk.slotIndex === "end") {
+      cacheKey = walk.slotIndex;
+    }
+    if (cacheKey) {
+      if (!state.gmFlow.resolvedBranchCache) state.gmFlow.resolvedBranchCache = {};
+      state.gmFlow.resolvedBranchCache[cacheKey] = { branchIndex: branchIndex };
+    }
+    state.gmFlow.branchOverrideActive = false;
+    if (branch) logGmDecision(window.I18N.t("gm_flow_branch_override_log", { name: window.PriTestFields.localizedText(branch.name) }));
+    handleBranchChoiceClick(branchIndex);
   }
 
   // 現在のwalk位置から、次の(→X)選択肢が現れるまで（または樓層の本文が尽きるまで）行を
@@ -2322,7 +2651,9 @@
       }
       // 「雜兵戰鬥」／「王戰」構造：ここで一旦停止し、［戰鬥機制］へ切り替える。敵の正体は
       // ボタンを押すまで敘述しない（第17・18項：任何進入戰鬥時、先暫停樓層判定機制）。
-      if (isCombatTriggerLine(line)) {
+      // ただし見出しだけが戦闘トリガーの形をした「魔術師球」（isFakeCombatAbilityCheckTrigger）
+      // は除外し、後続の〔行為判定〕行までそのまま素通りさせる。
+      if (isCombatTriggerLine(line) && !isFakeCombatAbilityCheckTrigger(line, lines, i)) {
         combatTriggerIndex = i;
         break;
       }
@@ -2586,9 +2917,28 @@
   // アウトカム見出しへさらにジャンプする。行き先を解決できなかった場合（想定外の表記等）は、
   // 第27項適用前と同じ「そのまま線形に続ける」挙動へ安全にフォールバックする——数値・
   // 分岐先を捏造しない、既存の"■"と同じ方針。
+  // 使用者確認（バグ報告3・封牢の「石剣の鍵を使う」選択肢）：この文言はfields_data_3.jsの
+  // 封牢(無印)／封牢(森)の2ブランチで全く同じ表記のまま使われている（要再確認：将来別の
+  // カードで同じ選択肢が追加された場合もこの表記に揃える運用を維持すること）。
+  function isStoneswordKeyUseChoiceLabel(label) {
+    return label === "石剣の鍵を使う" || label === "使用石劍鑰匙";
+  }
+
   function handleLineChoiceClick(label) {
     var Core = window.PriTestNightCore;
     var state = Core.state;
+    // 使用者確認（バグ報告3）：「石剣の鍵を使う」を選んでも、実際にその道具（state.
+    // stoneswordKeyCount）を持っていなければ先へ進めない。以前はここでチェックしておらず、
+    // 道具の有無に関わらずそのまま鍵を使った扱いの敘述が進んでしまっていた。所持数0の
+    // 場合はこの樓層を「未踏破のまま」で終わらせ（floorCleared/cardLevelsは一切変更しない
+    // ため、次にまたこの場地へ来た時に改めて鍵の使用を試せる）、GMには籌碼確認／地圖移動へ
+    // 案内するリマインダーを出す。
+    if (isStoneswordKeyUseChoiceLabel(label) && !(Core.state.stoneswordKeyCount > 0)) {
+      logGmDecision(window.I18N.t("gm_flow_choice_picked_log", { label: label }));
+      state.gmFlow.pendingChoiceLabels = [];
+      finishFieldWalk(window.I18N.t("gm_flow_key_item_missing_narration"), null);
+      return;
+    }
     logGmDecision(window.I18N.t("gm_flow_choice_picked_log", { label: label }));
     state.gmFlow.pendingChoiceLabels = [];
     var walk = state.gmFlow.walk;
@@ -2643,14 +2993,27 @@
   // 現在表示言語の項目名を使う——ja/zhの項目順序が一致している前提、実データ確認済み）。
   // 一致する項目が見つからない場合のみ、従来通り手動選択ボタンへフォールバックする
   // （数値・分岐先を捏造しない、既存の"■"と同じ方針）。
-  function resolveFixedScenarioDiceTableMatch(entries, tableLine, slotIndex) {
+  // 使用者報告（劇本2/3の教會カードで実際に確認）：scenarios.jsのday1/day2欄は、劇本1のように
+  // 「教会（埋まった女神像）」と括弧付きで具体的な変体名まで指定している場合と、劇本2/3のように
+  // 括弧無しの汎用カード名「教会」だけを書いている場合の両方がある。前者は劇本表自体がその
+  // 板塊の中身を一意に決めているため、決定表を無視してその変体へ直接解決すべきだが、後者
+  // （括弧無し）は劇本側では何も決まっておらず、決定表通り実際に1D6を振るべきケース——にも
+  // 関わらず、以前はfindCardEffectが行自体を見つけた時点で「劇本固定」とみなしてしまい、
+  // 括弧が無い場合は行名そのもの（例:「教会」）を疑似サフィックスとして扱っていた。これは
+  // 決定表のどの項目（「埋まった女神像」等）とも一致しないため、常に「一致失敗→GM手動選択」
+  // に落ちてしまい、劇本2/3では規則書が指示する自動骰子決定が一切機能していなかった。
+  // 括弧付きサフィックスが実在する場合のみ「劇本固定」として扱うよう、判定をここへ集約する。
+  function scenarioRowFixedVariantSuffix(slotIndex) {
     var Core = window.PriTestNightCore;
-    if (!Core.resolveScenarioTrueNameRaw) return null;
+    if (typeof slotIndex !== "number" || !Core.resolveScenarioTrueNameRaw) return null;
     var rawName = Core.resolveScenarioTrueNameRaw(slotIndex);
     var rawNameJa = rawName && rawName.ja;
     if (!rawNameJa) return null;
     var suffixMatch = /[（(]([^）)]+)[）)]/.exec(rawNameJa);
-    var suffix = suffixMatch ? suffixMatch[1].trim() : rawNameJa.trim();
+    return suffixMatch ? suffixMatch[1].trim() : null;
+  }
+
+  function resolveFixedScenarioDiceTableMatch(entries, tableLine, suffix) {
     var jaEntries = parseInlineDiceTable((tableLine.text && tableLine.text.ja) || "");
     if (!jaEntries || jaEntries.length !== entries.length) return null;
     var matchIndex = -1;
@@ -2672,10 +3035,9 @@
     if (!tableLine || !tableLine.bullet || tableLine.depth !== depth + 1) return { index: headingIndex, text: "" };
     var entries = parseInlineDiceTable(window.PriTestFields.localizedText(tableLine.text));
     if (!entries) return { index: headingIndex, text: "" };
-    var Core = window.PriTestNightCore;
-    var hasFixedScenarioName = typeof slotIndex === "number" && Core.resolveScenarioTrueName && !!Core.resolveScenarioTrueName(slotIndex);
-    if (hasFixedScenarioName) {
-      var fixedMatch = resolveFixedScenarioDiceTableMatch(entries, tableLine, slotIndex);
+    var fixedSuffix = scenarioRowFixedVariantSuffix(slotIndex);
+    if (fixedSuffix) {
+      var fixedMatch = resolveFixedScenarioDiceTableMatch(entries, tableLine, fixedSuffix);
       if (fixedMatch) {
         logGmDecision(window.I18N.t("gm_flow_dice_table_fixed_scenario_log", { name: fixedMatch.name }));
         var fixedOutcome = findHeadingIndexForLabel(lines, headingIndex + 1, fixedMatch.name);
@@ -2821,8 +3183,12 @@
     var jaMatch = /「(.+決定表)(?:（[^）]*）)?で決定した(?:エネミー|敵人)」/.exec(ja);
     var zhMatch = /「以(.+決定表)(?:（[^）]*）)?決定的(?:エネミー|敵人)」/.exec(zh);
     if (!jaMatch && !zhMatch) return null;
-    var titleJa = jaMatch ? jaMatch[1] : null;
-    var titleZh = zhMatch ? zhMatch[1] : null;
+    // バグ修正（2026-08-23）：「下記の第1階層ボス決定表で決定したエネミー」／「以下述第1階層
+    // 王決定表決定的敵人」のように、決定表名の直前に「下記の」「下述」という指示語が付く実例
+    // （神殿カード）があり、これを含めたまま比較すると extraTables 側の実際の表題（例：
+    // 「第1階層ボス決定表」）と一致しなくなる。比較前に先頭の指示語だけを取り除く。
+    var titleJa = jaMatch ? jaMatch[1].replace(/^(下記の|以下の|後述の)/, "") : null;
+    var titleZh = zhMatch ? zhMatch[1].replace(/^(下述|以下|後述)/, "") : null;
     var tables = (entry && entry.extraTables) || [];
     for (var i = 0; i < tables.length; i++) {
       var t = tables[i];
@@ -2891,7 +3257,15 @@
       if (isNightBossRef) {
         var nbResult = resolveNightBossCombatLine(line, walk.slotIndex, isBoss);
         addedNames = addedNames.concat(nbResult.addedNames);
-        if (nbResult.rollLogText) logGmDecision(nbResult.rollLogText);
+        // 使用者報告：「黃金樹之帳」抽選出敵人後，進度版一直沒有顯示是哪一隻（rollLogTextは
+        // 従来autoGmLog／行動留言板だけに記録され、進度版の敘述バナーには一切表示されて
+        // いなかった。敵人自動比對に成功していればbuildEncounterSummaryText経由で後から
+        // 表示されるが、比對に失敗した場合は結果自体が一切見えなかった）。決定表で実際に
+        // 何を引いたかは戰鬥の根幹情報のため、比對成否に関わらず進度版の敘述へ直接含める。
+        if (nbResult.rollLogText) {
+          logGmDecision(nbResult.rollLogText);
+          narrationParts.push(nbResult.rollLogText);
+        }
         if (nbResult.reminderText) reminderTexts.push(nbResult.reminderText);
         if (nbResult.mobNote) {
           reminderTexts.push(window.I18N.t(nbResult.mobNote.key, mergeParams({ text: Fields.localizedText(line.text) }, nbResult.mobNote.params)));
@@ -2906,7 +3280,11 @@
       if (entryForTable && findExtraTableByBulletLine(entryForTable, line)) {
         var etResult = resolveEntryExtraTableCombatLine(line, walk.slotIndex, isBoss);
         addedNames = addedNames.concat(etResult.addedNames);
-        if (etResult.rollLogText) logGmDecision(etResult.rollLogText);
+        // 上のisNightBossRefと同じ理由：決定表の擲骰結果は進度版の敘述に直接含める。
+        if (etResult.rollLogText) {
+          logGmDecision(etResult.rollLogText);
+          narrationParts.push(etResult.rollLogText);
+        }
         if (etResult.reminderText) reminderTexts.push(etResult.reminderText);
         if (etResult.mobNote) {
           reminderTexts.push(window.I18N.t(etResult.mobNote.key, mergeParams({ text: Fields.localizedText(line.text) }, etResult.mobNote.params)));
@@ -2937,6 +3315,14 @@
     // 雜兵の有無とそのHP）を進度版の敘述に含める（docs/combat_flow_rules.md §4）。
     var encounterSummary = Core.buildEncounterSummaryText ? Core.buildEncounterSummaryText() : "";
     if (encounterSummary) narrationParts.push(encounterSummary);
+    // 使用者報告：簡易戰鬥（ザコ戰鬥判定がPC平均Lvに対してエネミーのレベルが十分低い場合、
+    // docs/combat_flow_rules.md §6）は防禦フェイズを省略し1回合しか続かないため、GMが見落として
+    // 通常戰鬥のつもりで進行しないよう、進度版の敘述に目立つ形で明記する（既存のautoGmLogだけ
+    // では埋もれてしまうため、narrationText自体にも含める）。combatModeはresolveAndAddCombatEnemies
+    // が上のforEachループ内で確定済み。
+    if (Core.state.battle.combatMode === "simplified") {
+      narrationParts.push(window.I18N.t("gm_flow_combat_simplified_reminder"));
+    }
     narrationParts.push(window.I18N.t("gm_flow_combat_in_progress_narration"));
     walk.lineIndex = collected.nextIndex;
     state.gmFlow.narrationText = narrationParts.join("\n");
@@ -3036,6 +3422,12 @@
     // 連番ロジックは経由しない——advanceCardConclusionChain側でcardLevels===nullを見て
     // stepCardLevelを呼ばないよう分岐する）。
     var walkBranch = walkEntry && walk && typeof walk.branchIndex === "number" ? walkEntry.branches[walk.branchIndex] : null;
+    // 使用者確認：已經是「全」（全踏破済み）的板塊，判定完成後不會再自行自動變更——通常
+    // handleEnterClickの第6項ガードが既に全踏破済みカードへの再進入自体を防いでいるため
+    // 到達しないはずだが、念のためここでも全踏破連鎖（pendingFinalFloorSlot等）の再発火を防ぐ。
+    if (walkBranch && walkBranch.freeFloorOrder && floor && typeof walkSlotIndex === "number" && state.cardLevels[walkSlotIndex] === null) {
+      return;
+    }
     if (walkBranch && walkBranch.freeFloorOrder && floor && typeof walkSlotIndex === "number") {
       var freeFloorPosition = freeFloorPositionOfFloor(floor);
       if (freeFloorPosition !== null) markFreeFloorCleared(walkSlotIndex, walkBranch, freeFloorPosition);
@@ -3054,10 +3446,27 @@
     // 反映するようにする——以後は自動化GMもそのカードの数字を見るだけで現在位置が分かる。
     // 敘述を最後まで読み終えた＝真の踏破なので、floorClearedにも記録する（突破判定の
     // 「スキップ」との違いは第5項参照）。
+    // 使用者確認：已經是「全」（全踏破済み）的板塊，判定完成後不會再自行自動變更——通常
+    // handleEnterClickの第6項ガードが既に全踏破済みカードへの再進入自体を防いでいるため
+    // 到達しないはずだが、念のためここでも全踏破連鎖（pendingFinalFloorSlot等）の再発火を防ぐ。
+    if (floor && typeof walkSlotIndex === "number" && state.cardLevels[walkSlotIndex] === null) {
+      return;
+    }
     if (floor && typeof walkSlotIndex === "number") {
-      if (walkEntry && typeof walkEntry.floorCount === "number" && typeof walkFloorIndex === "number") {
-        markFloorCleared(walkSlotIndex, walkEntry.floorCount, walkFloorIndex);
-        advanceOrRewindCardPointer(walkSlotIndex, walkEntry.floorCount, walkFloorIndex);
+      // walkBranchは既にこの訪問で解決済み（walk.branchIndex由来）のため、branch.floors.length
+      // （実際のフロア数）を最優先で使う。entry.floorCount（静的値）は分岐間でフロア数が
+      // 異なるカード（坑道／倒れた大結晶、大教會等）では食い違い、最終樓層の王戰報酬を
+      // 受け取った直後に樓層1へ巻き戻って無限に再突入する・逆に途中の樓層を跨ぎ越して
+      // 「全」へ飛んでしまう、といった不具合の原因になっていた（バグ報告）。
+      var walkEffectiveFloorCount =
+        walkBranch && walkBranch.floors && typeof walkBranch.floors.length === "number"
+          ? walkBranch.floors.length
+          : walkEntry && typeof walkEntry.floorCount === "number"
+          ? walkEntry.floorCount
+          : null;
+      if (typeof walkEffectiveFloorCount === "number" && typeof walkFloorIndex === "number") {
+        markFloorCleared(walkSlotIndex, walkEffectiveFloorCount, walkFloorIndex);
+        advanceOrRewindCardPointer(walkSlotIndex, walkEffectiveFloorCount, walkFloorIndex);
       }
       // 第18・19項「結束該卡牌的最後一個樓層後...則再處理［全踏破］處理...再次詢問是否使用
       // 籌碼事件...接著處理［地圖移動機制］」：cardLevelsが「全」（null）になった＝floorCleared
@@ -3069,6 +3478,19 @@
       // しまうため、領取完了（[獲得完]）のタイミングまで意図的に遅延させる。
       if (Core.state.cardLevels[walkSlotIndex] === null) {
         state.gmFlow.pendingFinalFloorSlot = walkSlotIndex;
+        state.gmFlow.pendingChipCheckSlot = walkSlotIndex;
+        state.gmFlow.pendingMapMoveSlot = walkSlotIndex;
+      } else if (Core.state.cardLevels[walkSlotIndex] === walkEffectiveFloorCount) {
+        // 使用者確認（自動化GMテストで発見、resolveFloorSkipの既存分岐と揃える）：この訪問中に
+        // 突破判定でスキップしたまま真には踏破していない樓層が他に残っている場合、
+        // advanceOrRewindCardPointerはcardLevelsを「全」（null）にはせずfloorCount止まりにする
+        // （第6項）。以前はこのケースだけpendingChipCheckSlot／pendingMapMoveSlotを一切
+        // 予約しないままゲートを閉じてしまい、GMが最後の樓層の獎勵ゲートを閉じた直後は
+        // 進度版が何も案内せず一旦アイドル状態（［進入］/［突破］のみ）へ戻ってしまっていた
+        // （実際には無言のまま再度［進入］を押すとhandleEnterClickの「打止」ガードが籌碼確認／
+        // 地圖移動へ導いてくれるが、その1回分の無意味なクリックをGMに強いていた）。
+        // resolveFloorSkip（突破判定でスキップした場合の同じ「打止」ケース）は既にこの直接連鎖を
+        // 行っているため、finishFieldWalk側も同じ挙動へ揃える。
         state.gmFlow.pendingChipCheckSlot = walkSlotIndex;
         state.gmFlow.pendingMapMoveSlot = walkSlotIndex;
       }
@@ -3114,7 +3536,8 @@
     // 消す（renderLocationBanner側でfloorEndRewardOpened===trueなら描画しない）。
     state.gmFlow.floorEndRewardOpened = true;
     var floor = pendingFloorEndFloor || resolveFloorFromPendingRef(state.gmFlow.pendingFloorEndRef);
-    var result = floor ? window.PriTestNightFloorBreakthrough.openFloorRewardModal(floor) : null;
+    var rewardSlotIndex = state.gmFlow.pendingFloorEndRef ? state.gmFlow.pendingFloorEndRef.slotIndex : null;
+    var result = floor ? window.PriTestNightFloorBreakthrough.openFloorRewardModal(floor, rewardSlotIndex) : null;
     if (!result || (!result.lootPushed && !result.judgmentModalOpened)) {
       // フロアが解決できなかった、または戦利品もGM判断項目も無かった（finishFieldWalkが
       // floorEndへ遷移する時点でどちらか必ずある想定だが、念のための安全側フォールバック）。
@@ -3249,6 +3672,7 @@
     pendingFloorEndFloor = null;
     state.gmFlow.pendingFloorEndRef = null;
     state.gmFlow.floorEndRewardOpened = false;
+    state.gmFlow.branchOverrideActive = false;
     lastTypedNarration = null;
   }
 
@@ -4761,6 +5185,12 @@
       } else {
         addActionButton(actionsEl, "gm_flow_ok_button", handleGmFlowOk);
       }
+      // 「GM更改」ボタンは使用者指定により非表示化した。押すとhandleBranchOverrideSelectClick
+      // が常にその分岐の樓層1から敘述をやり直す仕様のため、複数樓層のカードで樓層2以降を
+      // 敘述中でも押せてしまい、意図せず樓層1へ巻き戻る事故の原因になっていた（ユーザー報告：
+      // 打完後に樓層1へ戻ってしまう）。ボタンの描画自体をやめる（handleBranchOverrideToggleClick／
+      // handleBranchOverrideSelectClickの実装自体は変更せず残す——再度有効化したくなった場合に
+      // 備える）。
       return;
     }
 
@@ -4820,5 +5250,10 @@
     rollStrongEnemyTable: rollStrongEnemyTable,
     resolveStrongEnemyEntry: resolveStrongEnemyEntry,
     resolveFloorSkip: resolveFloorSkip,
+    resolveEffectiveFloorCount: resolveEffectiveFloorCount,
+    invalidatePendingFloorSkip: invalidatePendingFloorSkip,
+    consumePendingSpiritVeinContinuation: consumePendingSpiritVeinContinuation,
+    resumeChipOfferContinuationAfterMove: resumeChipOfferContinuationAfterMove,
+    declinePendingSpiritVeinContinuation: declinePendingSpiritVeinContinuation,
   };
 })();

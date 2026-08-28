@@ -222,7 +222,7 @@
       fixedLayout: true,
       day1: [
         { pos: 1, suit: "H", rank: "5", name: { zh: "崖上遺跡（血）", ja: "崖上の遺跡（血）", en: "Cliffside Ruins (Blood)" } },
-        { pos: 2, suit: "S", rank: "7", name: { zh: "倒下的大結晶", ja: "倒れた大結晶", en: "Fallen Great Crystal" } },
+        { pos: 2, suit: "S", rank: "6", name: { zh: "倒下的大結晶", ja: "倒れた大結晶", en: "Fallen Great Crystal" } },
         { pos: 3, suit: "H", rank: "J", name: { zh: "西方地下砦", ja: "西の地下砦", en: "Western Underground Fort" } },
         { pos: 4, suit: "H", rank: "K", name: { zh: "教會（大空洞）", ja: "教会（大空洞）", en: "Church (Great Cavern)" } },
         { pos: 5, suit: "C", rank: "Q", name: { zh: "大結晶", ja: "大結晶", en: "Great Crystal" } },
@@ -253,7 +253,7 @@
       fixedLayout: true,
       day1: [
         { pos: 1, suit: "D", rank: "K", name: { zh: "教會（大空洞）", ja: "教会（大空洞）", en: "Church (Great Cavern)" } },
-        { pos: 2, suit: "S", rank: "7", name: { zh: "倒下的大結晶", ja: "倒れた大結晶", en: "Fallen Great Crystal" } },
+        { pos: 2, suit: "S", rank: "6", name: { zh: "倒下的大結晶", ja: "倒れた大結晶", en: "Fallen Great Crystal" } },
         { pos: 3, suit: "C", rank: "2", name: { zh: "水邊的大教會", ja: "水辺の大教会", en: "Waterside Cathedral" } },
         { pos: 4, suit: "D", rank: "5", name: { zh: "下層遺跡", ja: "下層の遺跡", en: "Lower Ruins" } },
         { pos: 5, suit: "C", rank: "Q", name: { zh: "大結晶", ja: "大結晶", en: "Great Crystal" } },

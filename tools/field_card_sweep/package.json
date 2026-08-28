@@ -1,0 +1,13 @@
+{
+  "name": "pritest-field-card-sweep",
+  "private": true,
+  "version": "1.0.0",
+  "description": "自動化 GM 場地卡（板塊）迴歸測試腳本，見 sweep.js 開頭的說明。",
+  "scripts": {
+    "test:normal": "node sweep.js normal",
+    "test:breakthrough": "node sweep.js breakthrough"
+  },
+  "devDependencies": {
+    "playwright": "^1.62.1"
+  }
+}

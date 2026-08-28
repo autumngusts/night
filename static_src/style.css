@@ -35,11 +35,23 @@ button {
   margin-bottom: 1.5rem;
 }
 
+.site-title-group {
+  display: flex;
+  align-items: baseline;
+  gap: 0.4rem;
+}
+
 .site-title {
   font-weight: 700;
   font-size: 1.1rem;
   text-decoration: none;
   color: inherit;
+}
+
+.site-version {
+  font-size: 0.75rem;
+  font-weight: 400;
+  color: #888;
 }
 
 .lang-switch button {
@@ -532,6 +544,11 @@ button {
   align-items: stretch;
 }
 
+.night3-boss-image-group {
+  display: flex;
+  flex-direction: column;
+}
+
 .night3-boss-image {
   max-width: 260px;
   max-height: 360px;
@@ -540,6 +557,18 @@ button {
   border-radius: 8px;
   object-fit: cover;
   margin-top: 1.75rem;
+}
+
+/* 格拉迪烏斯「分裂形態」：3體個別HP行に対応させ、公開盤の画像を3枚並べて表示する。 */
+.night3-boss-image-group-split {
+  flex-direction: row;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.night3-boss-image-group-split .night3-boss-image {
+  max-width: calc(33% - 0.4rem);
+  max-height: 160px;
 }
 
 .night3-boss-hp {
@@ -1360,6 +1389,35 @@ button {
   animation: relic-learn-pending-flash 1s ease-in-out infinite;
 }
 
+/* 復仇者「死靈術」：雜兵陣亡使可擲骰召喚死靈時，公開盤上的靈體圖示閃爍提示。 */
+@keyframes necromancy-pending-flash {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.35;
+    transform: scale(1.2);
+  }
+}
+
+.roster-dice-add-btn.necromancy-pending {
+  animation: necromancy-pending-flash 1s ease-in-out infinite;
+}
+
+/* 「已習得 X / Y 個」の右側に付ける「可學習 N個」バッジ（白字・黃背景）。 */
+.relic-learnable-badge {
+  display: inline-block;
+  margin-left: 0.5rem;
+  padding: 0.1rem 0.5rem;
+  border-radius: 999px;
+  background: #ffd21a;
+  color: #fff;
+  font-weight: 700;
+  font-size: 0.8rem;
+}
+
 /* 後方の.modal-box基底ルール（max-width:320px）と同じ詳細度(単一クラス)だと
    ソース順で.modal-boxが勝ってしまうため、.modal-box.gallery-modal-boxで
    詳細度を上げて確実に上書きする。 */
@@ -2096,6 +2154,22 @@ button {
   color: #888;
   opacity: 1;
   cursor: not-allowed;
+}
+
+/* 商人：購買/強化ボタンを押した瞬間だけ1秒間強調色にする（flashMerchantPurchase参照）。 */
+.merchant-purchase-flash-btn {
+  background: #ffb400 !important;
+  color: #221a00 !important;
+  box-shadow: 0 0 0 2px rgba(255, 180, 0, 0.45);
+}
+
+.merchant-purchase-flash-note {
+  background: #fff3cd;
+  color: #7a5b00;
+  padding: 0.3rem 0.6rem;
+  border-radius: 6px;
+  font-weight: 600;
+  display: inline-block;
 }
 
 .breakthrough-char-row {

@@ -18,6 +18,27 @@
   var eventChipMerchantLastWeaponResult = null;
   var eventChipBlessingUsedIds = {}; // このモーダルを開いている間だけ、誰が既に使ったかを覚えておく
 
+  // 商人：購買ボタンを押した瞬間、そのボタンだけ1秒間だけ強調色にし、上部に「已購買」の
+  // 簡短提醒文字を出す（ユーザー確認済み仕様）。eventChipMerchantJustPurchasedKeyがどの
+  // ボタンを光らせるかの識別子（"weapon"／消耗品id／鍛造のweaponId）、Textが提醒文字。
+  // 1秒後にsetTimeoutで両方nullへ戻し再描画する（既存のthreatBroadcastIntervalと同じ
+  // 「一定時間だけ表示→自動で消す」パターン）。
+  var eventChipMerchantJustPurchasedKey = null;
+  var eventChipMerchantJustPurchasedText = null;
+  var eventChipMerchantJustPurchasedTimer = null;
+
+  function flashMerchantPurchase(key, text) {
+    eventChipMerchantJustPurchasedKey = key;
+    eventChipMerchantJustPurchasedText = text;
+    if (eventChipMerchantJustPurchasedTimer) clearTimeout(eventChipMerchantJustPurchasedTimer);
+    eventChipMerchantJustPurchasedTimer = setTimeout(function () {
+      eventChipMerchantJustPurchasedKey = null;
+      eventChipMerchantJustPurchasedText = null;
+      eventChipMerchantJustPurchasedTimer = null;
+      renderEventChipModal();
+    }, 1000);
+  }
+
   function currentFocusedChipIndex() {
     return typeof window.PriTestNightCore.state.focusedIndex === "number" ? window.PriTestNightCore.state.focusedIndex : null;
   }
@@ -40,11 +61,16 @@
     openEventChipModal(idx);
   }
 
+  // 使用者確認：籌碼事件視窗も獎勵清單／潛在之力と同じ「大視窗は開いた本人の端末のみ、
+  // 縮小状態だけ全端末で同期」パターンに揃える。state.eventChips/state.eventChipsDataは
+  // 既に跨裝置同步済みなので、idxさえ分かればどの端末でも同じ内容を再現できる——
+  // したがって縮小からの「還元」はどの端末で押しても正しく機能する（他の3つ＝骰子役判定／
+  // 突破・攀登判定とは異なり、内容を丸ごと同期する必要が無い簡単なケース）。
   function openEventChipModal(idx) {
     eventChipModalIndex = idx;
     eventChipMerchantLastWeaponResult = null;
     eventChipBlessingUsedIds = {};
-    eventChipScarabState = {};
+    window.PriTestDrawStateSync.set("eventChip", { idx: idx, minimized: false });
     document.getElementById("event-chip-modal").hidden = false;
     document.getElementById("btn-event-chip-restore").hidden = true;
     renderEventChipModal();
@@ -54,16 +80,33 @@
     document.getElementById("event-chip-modal").hidden = true;
     document.getElementById("btn-event-chip-restore").hidden = true;
     eventChipModalIndex = null;
+    window.PriTestDrawStateSync.set("eventChip", null);
+    // 霊脈チットを「使用」した後、結局どこへも移動せずにこのモーダルを閉じた場合、
+    // 保留していたGM敘述の継続処理をここで再開する（moveTo側で先に消費済みなら
+    // 何も起きない）。
+    if (window.PriTestNightGmFlow && window.PriTestNightGmFlow.declinePendingSpiritVeinContinuation) {
+      window.PriTestNightGmFlow.declinePendingSpiritVeinContinuation();
+    }
   }
 
   function minimizeEventChipModal() {
     document.getElementById("event-chip-modal").hidden = true;
     document.getElementById("btn-event-chip-restore").hidden = false;
+    var current = window.PriTestDrawStateSync.get("eventChip");
+    window.PriTestDrawStateSync.set("eventChip", { idx: current ? current.idx : eventChipModalIndex, minimized: true });
   }
 
   function restoreEventChipModal() {
     document.getElementById("btn-event-chip-restore").hidden = true;
     document.getElementById("event-chip-modal").hidden = false;
+    // 他端末の縮小ボタンから復元した場合、この端末ではeventChipModalIndexがまだnullの
+    // ままなので、同期済みのidxから補う（state.eventChips/eventChipsDataは既に跨裝置
+    // 同步済みのため、idxさえ分かればどの端末でも正しい内容を再現できる）。
+    if (eventChipModalIndex === null) {
+      var remote = window.PriTestDrawStateSync.get("eventChip");
+      if (remote && typeof remote.idx === "number") eventChipModalIndex = remote.idx;
+    }
+    window.PriTestDrawStateSync.set("eventChip", { idx: eventChipModalIndex, minimized: false });
     renderEventChipModal();
   }
 
@@ -130,6 +173,14 @@
     runeLabel.className = "threat-ref-body";
     runeLabel.textContent = window.I18N.t("merchant_rune_label", { value: c.runes || 0 });
     content.appendChild(runeLabel);
+    // ユーザー確認：購買ボタンを押した瞬間、上部に「已購買：xxx」の簡短提醒文字を1秒間だけ出す
+    // （flashMerchantPurchaseが1秒後に自動的にクリア＆再描画する）。
+    if (eventChipMerchantJustPurchasedText) {
+      var purchasedFlashNote = document.createElement("p");
+      purchasedFlashNote.className = "threat-ref-body merchant-purchase-flash-note";
+      purchasedFlashNote.textContent = eventChipMerchantJustPurchasedText;
+      content.appendChild(purchasedFlashNote);
+    }
     var canAfford = (c.runes || 0) >= 1;
     var Weapons = window.PriTestWeapons;
     var Consumables = window.PriTestConsumables;
@@ -139,7 +190,7 @@
     content.appendChild(weaponTitle);
     var weaponBtn = document.createElement("button");
     weaponBtn.type = "button";
-    weaponBtn.className = "primary-btn";
+    weaponBtn.className = "primary-btn" + (eventChipMerchantJustPurchasedKey === "weapon" ? " merchant-purchase-flash-btn" : "");
     weaponBtn.textContent = window.I18N.t("merchant_weapon_purchase_button");
     weaponBtn.disabled = !canAfford;
     weaponBtn.addEventListener("click", function () {
@@ -155,6 +206,7 @@
       window.PriTestNightLog("log_merchant_weapon_purchase", { character: c.name, weapon: Weapons.localizedText(result.item.name) });
       eventChipMerchantLastWeaponResult = result;
       markEventChipUsed(idx);
+      flashMerchantPurchase("weapon", window.I18N.t("merchant_purchase_flash_note", { item: Weapons.localizedText(result.item.name) }));
       renderEventChipModal();
       CharacterDrawer.resolveInventoryOverflow(c, "weapon", function () {
         window.PriTestNightCore.renderCharacterRoster();
@@ -182,7 +234,9 @@
       if (!item) return;
       var btn = document.createElement("button");
       btn.type = "button";
-      btn.textContent = Consumables.localizedText ? Consumables.localizedText(item.name) : item.name.zh;
+      var itemLabel = Consumables.localizedText ? Consumables.localizedText(item.name) : item.name.zh;
+      btn.className = "combat-attack-hit-btn" + (eventChipMerchantJustPurchasedKey === id ? " merchant-purchase-flash-btn" : "");
+      btn.textContent = itemLabel;
       btn.disabled = !canAfford;
       btn.addEventListener("click", function () {
         if ((c.runes || 0) < 1) return;
@@ -194,9 +248,10 @@
         window.PriTestNightCore.renderCharacterRoster();
         window.PriTestNightLog("log_merchant_consumable_purchase", {
           character: c.name,
-          item: Consumables.localizedText ? Consumables.localizedText(item.name) : item.name.zh,
+          item: itemLabel,
         });
         markEventChipUsed(idx);
+        flashMerchantPurchase(id, window.I18N.t("merchant_purchase_flash_note", { item: itemLabel }));
         window.PriTestCharacterDrawer.resolveInventoryOverflow(c, "consumable", function () {
           window.PriTestNightCore.renderCharacterRoster();
           renderEventChipModal();
@@ -234,6 +289,7 @@
       row.appendChild(label);
       var upgradeBtn = document.createElement("button");
       upgradeBtn.type = "button";
+      upgradeBtn.className = "combat-attack-hit-btn" + (eventChipMerchantJustPurchasedKey === weaponId ? " merchant-purchase-flash-btn" : "");
       upgradeBtn.textContent = window.I18N.t("merchant_smithing_upgrade_button", { cost: cost });
       upgradeBtn.disabled = (window.PriTestNightCore.state.smithingStoneCount || 0) < cost;
       upgradeBtn.addEventListener("click", function () {
@@ -251,6 +307,10 @@
           to: next,
         });
         markEventChipUsed(idx);
+        flashMerchantPurchase(
+          weaponId,
+          window.I18N.t("merchant_purchase_flash_note", { item: Weapons.localizedText(weapon.name) + "（" + rarity + " → " + next + "）" })
+        );
         renderEventChipModal();
       });
       row.appendChild(upgradeBtn);
@@ -337,10 +397,20 @@
     content.appendChild(note);
 
     function moveTo(target, label) {
+      // 使用者確認（バグ報告2-1）：実際に移動が確定する前に、保留していた継続処理
+      // （resolveChipOfferが移動元idxのまま即座に呼ぶのを止めていたもの）を先に取り出して
+      // おく——closeEventChipModal自体は「移動せず閉じた」場合の再開フックも兼ねているため、
+      // 先に消費しておかないと二重に発火してしまう。
+      var pendingContinuation = window.PriTestNightGmFlow && window.PriTestNightGmFlow.consumePendingSpiritVeinContinuation
+        ? window.PriTestNightGmFlow.consumePendingSpiritVeinContinuation()
+        : null;
       Core.finalizeSlotMove(target);
       window.PriTestNightLog("log_event_chip_spirit_vein_move", { position: label });
       markEventChipUsed(idx);
       closeEventChipModal();
+      if (pendingContinuation && window.PriTestNightGmFlow && window.PriTestNightGmFlow.resumeChipOfferContinuationAfterMove) {
+        window.PriTestNightGmFlow.resumeChipOfferContinuationAfterMove(pendingContinuation);
+      }
     }
 
     var grid = document.createElement("div");
@@ -480,15 +550,28 @@
   // 進行中不呼叫markEventChipUsed，任何一位PC完成判定（成功或第一次失敗）後才標記使用——
   // 比照祝福籌碼「任一PC完成動作即視為此籌碼已發揮」的既有慣例。
   var SCARAB_TARGET = 13;
-  var eventChipScarabState = {}; // { [charId]: { stage: "unresolved"|"failedFirst"|"success"|"fled", statKey, dice, sum } }
+  // 使用者確認：改用state.eventChipsData[idx].scarab（跨端末同步、依idx區分）取代原本模組層級的
+  // 純本地變數，避免（a）不同裝置各自持有獨立、互不同步的進度，導致誰按下判定/FP扣款對象
+  // 混亂；（b）切換到別的籌碼再切回來時，eventChipModalIndex沒變但進度卻被意外重置。
+  function scarabStateForIdx(idx) {
+    var Core = window.PriTestNightCore;
+    if (!Core.state.eventChipsData[idx] || typeof Core.state.eventChipsData[idx] !== "object") {
+      Core.state.eventChipsData[idx] = {};
+    }
+    if (!Core.state.eventChipsData[idx].scarab || typeof Core.state.eventChipsData[idx].scarab !== "object") {
+      Core.state.eventChipsData[idx].scarab = {}; // { [charId]: { stage: "unresolved"|"failedFirst"|"success"|"fled", statKey, dice, sum } }
+    }
+    return Core.state.eventChipsData[idx].scarab;
+  }
 
   function renderEventChipScarabRow(idx, container, c) {
     var Core = window.PriTestNightCore;
     var Breakthrough = window.PriTestNightFloorBreakthrough;
     var CharacterTypes = window.PriTestCharacterTypes;
     var type = c.typeId ? CharacterTypes.get(c.typeId) : null;
-    if (!eventChipScarabState[c.id]) eventChipScarabState[c.id] = { stage: "unresolved", statKey: "luck" };
-    var st = eventChipScarabState[c.id];
+    var scarabState = scarabStateForIdx(idx);
+    if (!scarabState[c.id]) scarabState[c.id] = { stage: "unresolved", statKey: "luck" };
+    var st = scarabState[c.id];
 
     var row = document.createElement("div");
     row.className = "wb-row breakthrough-char-row";
@@ -673,10 +756,13 @@
       }
     }
     select.addEventListener("change", function () {
-      // 別の事件へ切り替えたら聖甲蟲の個人別進行状態はリセットする（同一籌碼を開き直した
-      // だけなら、eventChipModalIndexが変わらない限りopenEventChipModal側ではクリアされない
-      // ため、ここで明示的にクリアする）。
-      eventChipScarabState = {};
+      // 別の事件へ切り替えたら聖甲蟲の個人別進行状態はリセットする（同一チットで別の
+      // ランダムイベントを選び直した場合のみ。scarabの進行状態は今はstate.eventChipsData[idx]
+      // 側に持つため、ここではその中のscarabキーだけを消す）。
+      var Core = window.PriTestNightCore;
+      if (Core.state.eventChipsData[idx] && Core.state.eventChipsData[idx].scarab) {
+        delete Core.state.eventChipsData[idx].scarab;
+      }
       renderDetail();
     });
     renderDetail();
@@ -691,5 +777,6 @@
     restoreEventChipModal: restoreEventChipModal,
     applyEventChipBlessingRest: applyEventChipBlessingRest,
     markEventChipUsed: markEventChipUsed,
+    renderEventChipModal: renderEventChipModal,
   };
 })();
