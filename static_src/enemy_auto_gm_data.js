@@ -6541,6 +6541,205 @@
         },
       ],
     },
+    // Batch D11: commoner科5体（影の貴人たち／さまよえる貴人／狂い火の民たち／市民たち／守人たち）。
+    // 出典: static_src/enemies_data_4.js:1018-1201（batch-D11-brief.md）。同科の既存エントリは
+    // commoner|highway_robbers（本ファイル100行目付近）のみ。
+    //
+    // 【本バッチで新規導入した conditions タグ】
+    // - mob_hp_add_manual: 「HP枠にモブHPを新規追加し、撃破ルーンを加算する（既にモブHPが存在
+    //   する場合はその現在値を最大値まで回復する）」という、行動テーブルの1行に紐づく戦闘中の
+    //   動的モブHP追加効果。既存のmob_hp_full_heal（既存モブHP行の回復専用、新規追加は不可）や
+    //   rollOverride（1Dの振り方を変える機構であり追加行を割り込ませたりモブHP行を新設したりは
+    //   しない）のいずれもモブHP行を戦闘中に新規追加する処理を持たないため（本ファイル4057-4067行
+    //   のstragedes「亡者召喚」・4926-4933行のformless_other|reflection_trolls「モブ1追加」と
+    //   同型の判断——後者は戦闘開始時トリガーで対象外だったが、本タグは出目テーブルの行に紐づく
+    //   点が異なる）、rows化せずconditions＋コメントでGM手動処理に委ねる。
+    "commoner|shadow_nobles": {
+      // special:〔闇討ち〕毎ターンのアクションフェイズ開始時、「敵視:最大」のPC全員は「HP損害:■」
+      // を被る。出目テーブルの行ではなく毎ターンのアクションフェイズ開始時トリガーであり、対象も
+      // 前衛/後衛を問わない「敵視:最大」全員、かつHP損害が■（数値未確定）のプレースホルダのため、
+      // 既存機構のいずれにも対応できない（Global Constraint 1・6、page_lowly_soldier|lowly_
+      // soldiers「毒石の罠」と同型のフェイズ開始時トリガー）。rows[]には組み込まずGM手動運用に
+      // 委ねる。
+      rows: [
+        {
+          // 「闇に紛れる」：mod「－60」（「—」ではないため乱戦ダメージも発生、本文には対象の
+          // 記述が無く次アクションフェイズの後衛強制配置のみ記載＝乱戦ダメージは既定ルール＝
+          // 前衛均等割り）。特殊能力「後衛強制配置」（force_back_row_next_phase）を効果発揮。
+          rollMin: 1,
+          rollMax: 2,
+          groupDamage: { modifier: -60 },
+          targetRule: { kind: "frontAll" },
+          conditions: ["force_back_row_next_phase"],
+        },
+        {
+          // 「群がる」：「敵視:1以上」で前衛のPC全員に「乱戦ダメージ:2人分」（本文に明記）。
+          rollMin: 3,
+          rollMax: 4,
+          groupDamage: { modifier: 0 },
+          targetRule: { kind: "frontAggroAtLeast1All" },
+        },
+        {
+          // 「背後からの一撃」：mod「—」のため乱戦ダメージは発生しない。個別効果:「敵視:1以上」の
+          // PC全員が〈11|メンタル〉を行い、失敗したPCは「HP損害:■■■」を被る——■は数値未確定の
+          // プレースホルダのため自動計算しない（Global Constraint 1）。savingThrowへ構造化しても
+          // onFail.amountを設定できず（数値を捏造できないため）実質何も適用されない空の判定に
+          // なってしまい誤解を招くため、savingThrowは使わずconditionsとコメントでGM手動処理に
+          // 委ねる（unknown_hp_damage_manual）。
+          rollMin: 5,
+          rollMax: 6,
+          conditions: ["unknown_hp_damage_manual"],
+        },
+      ],
+    },
+    "commoner|wandering_nobles": {
+      rows: [
+        {
+          // 「武器殴り」：mod「±0」、note無し。乱戦ダメージ修正±0（「—」ではないため発生）、対象
+          // 明記無しのため既定ルール（前衛均等割り）。
+          rollMin: 1,
+          rollMax: 2,
+          groupDamage: { modifier: 0 },
+          targetRule: { kind: "frontAll" },
+        },
+        {
+          // 「輝石のつぶて」：mod「－60＆「魔:2」」。乱戦ダメージ修正－60（本文に乱戦ダメージの
+          // 対象・属性蓄積の記載が無いため既定ルール＝前衛均等割り、mod欄の付随蓄積なし扱い）。
+          // 個別効果:「敵視:最大」のPC1体に【個別ダメージ:120】＋「魔:2」（mod欄の固定値と数値・
+          // 種別が完全一致）を与える——本文が乱戦ダメージ側の属性蓄積を明記していないため、mod欄の
+          // 「魔:2」はこの個別効果を要約的に繰り返したものと解釈し、二重計上を避けてindividualDamage
+          // 側にのみ構造化する（2254行の解釈方針）。
+          rollMin: 3,
+          rollMax: 4,
+          groupDamage: { modifier: -60 },
+          targetRule: { kind: "frontAll" },
+          individualDamage: [
+            { amount: 120, targetRule: { kind: "aggroMax" }, elementAccum: [{ label: "魔", amount: 2 }] },
+          ],
+        },
+        {
+          // 「転移」：mod「—」のため乱戦ダメージは発生しない。個別効果:PC全員が同一目標値
+          // （11|運試し）で判定し、「半数以上が失敗」という集団閾値の結果で「タイムロス」が
+          // 蓄積するかどうかが決まる——savingThrowは個別PCごとの敵視分岐DCを前提とした構造の
+          // ためこの集団閾値判定には対応できない。conditionsとコメントでGM手動処理に委ねる
+          // （majority_fail_time_loss_manual、dragon|ancient_dragon「空中旋回＆滞空」と同型）。
+          rollMin: 5,
+          rollMax: 6,
+          conditions: ["majority_fail_time_loss_manual"],
+        },
+      ],
+    },
+    "commoner|mad_flame_folk": {
+      rows: [
+        {
+          // 「群がる」：「敵視:1以上」で前衛のPC全員に「乱戦ダメージ:2人分」（本文に明記）。
+          rollMin: 1,
+          rollMax: 2,
+          groupDamage: { modifier: 0 },
+          targetRule: { kind: "frontAggroAtLeast1All" },
+        },
+        {
+          // 「掴みかかり」：mod「—」のため乱戦ダメージは発生しない。個別効果:「敵視:最大」のPC
+          // 全員（複数タイ時は全員が対象、resolveTargetsのaggroMax既存解釈と一致）に【個別
+          // ダメージ:120】＋「発狂:2D」を与える。この効果に対してガード不可（no_guard）。
+          rollMin: 3,
+          rollMax: 4,
+          individualDamage: [
+            { amount: 120, targetRule: { kind: "aggroMax" }, ailmentAccum: [{ label: "発狂", amount: 2 }] },
+          ],
+          conditions: ["no_guard"],
+        },
+        {
+          // 「狂い火」：mod「±0＆「発狂:1D」」。乱戦ダメージ修正±0（「—」ではないため発生、対象
+          // 明記なし＝既定ルール＝前衛均等割り）。本文は別途「「敵視:1以上」のPC全員に「発狂:1D」を
+          // 与える」と明記しており、これは乱戦ダメージの対象（前衛均等割り）とは異なる対象集団
+          // （aggroAtLeast1All、前衛/後衛問わず）への蓄積のみの効果（HP損害を伴わない）のため、
+          // groupDamage.ailmentAccumにもindividualDamage（amountが必須）にも構造化できない。
+          // soldier_knight|madfire_knights「狂い火」と同型のaccum_target_mismatch_manualでGM
+          // 手動処理に委ねる。
+          rollMin: 5,
+          rollMax: 6,
+          groupDamage: { modifier: 0 },
+          targetRule: { kind: "frontAll" },
+          conditions: ["accum_target_mismatch_manual"],
+        },
+      ],
+    },
+    "commoner|citizens": {
+      rows: [
+        {
+          // 「怯える」：mod「－60」（「—」ではないため乱戦ダメージも発生、本文に対象の記載が
+          // 無いため既定ルール＝前衛均等割り）。個別効果:PC全員が同一目標値（11|運試し）で判定し、
+          // 「半数以上が失敗」という集団閾値の結果で「タイムロス」が蓄積するかどうかが決まる——
+          // savingThrowでは表現できない集団閾値判定のため、conditionsとコメントでGM手動処理に
+          // 委ねる（majority_fail_time_loss_manual）。
+          rollMin: 1,
+          rollMax: 2,
+          groupDamage: { modifier: -60 },
+          targetRule: { kind: "frontAll" },
+          conditions: ["majority_fail_time_loss_manual"],
+        },
+        {
+          // 「群がる」：「敵視:1以上」で前衛のPC全員に「乱戦ダメージ:2人分」（本文に明記）。
+          rollMin: 3,
+          rollMax: 4,
+          groupDamage: { modifier: 0 },
+          targetRule: { kind: "frontAggroAtLeast1All" },
+        },
+        {
+          // 「仲間呼び」：mod「－120」（「—」ではないため乱戦ダメージも発生、対象明記なし＝既定
+          // ルール＝前衛均等割り）。加えて本文:「HP枠に『モブ1』を追加し、このエネミーを『撃破
+          // ルーン:+1』する。すでにモブHPが存在する場合、モブHPの現在値を最大値まで回復する。この
+          // モブHPはL補を問わず『最大HP:PC人数×2』である」——出目テーブルの1行に紐づく戦闘中の
+          // 動的モブHP新規追加＋撃破ルーン加算効果であり、既存のmob_hp_full_heal（既存モブHP行の
+          // 回復専用）を含むいずれの既存機構にも対応できない（本エントリ冒頭の新規タグ解説参照）。
+          // conditionsとコメントでGM手動処理に委ねる（mob_hp_add_manual）。
+          rollMin: 5,
+          rollMax: 6,
+          groupDamage: { modifier: -120 },
+          targetRule: { kind: "frontAll" },
+          conditions: ["mob_hp_add_manual"],
+        },
+      ],
+    },
+    "commoner|watchers": {
+      rows: [
+        {
+          // 「槍突き出し」：mod「±0」（「—」ではないため乱戦ダメージも発生、対象明記なし＝既定
+          // ルール＝前衛均等割り）。本文:「乱戦ダメージで『HP損害:■』以上を被った対象は、次の
+          // アクションフェイズ開始時に獲得するスタミナダイスが1個減少する」——■（数値未確定の
+          // プレースホルダ）を閾値とする条件付き効果のため、対象PCを自動判定できない（Global
+          // Constraint 1）。soldier_knight|knight_alutrius「縦回転斬り」と同型の判断で
+          // stamina_dice_reduction_next_phaseは付与せず、unknown_hp_damage_manualとコメントで
+          // GM手動処理に委ねる。
+          rollMin: 1,
+          rollMax: 2,
+          groupDamage: { modifier: 0 },
+          targetRule: { kind: "frontAll" },
+          conditions: ["unknown_hp_damage_manual"],
+        },
+        {
+          // 「群がる」：「敵視:1以上」で前衛のPC全員に「乱戦ダメージ:2人分」（本文に明記）。
+          rollMin: 3,
+          rollMax: 4,
+          groupDamage: { modifier: 0 },
+          targetRule: { kind: "frontAggroAtLeast1All" },
+        },
+        {
+          // 「毒霧」：mod「－120＆「猛毒:1D」」。乱戦ダメージ修正－120（対象明記なし＝既定ルール＝
+          // 前衛均等割り）。本文は別途「「敵視:1以上」のPC全員に「猛毒:1D」を与える」と明記して
+          // おり、これは乱戦ダメージの対象（前衛均等割り）とは異なる対象集団（aggroAtLeast1All、
+          // 前衛/後衛問わず）への蓄積のみの効果（HP損害を伴わない）のため、groupDamage.
+          // ailmentAccumにもindividualDamageにも構造化できない。formless_other|miranda_flowers
+          // 「毒散布」と同型のaccum_target_mismatch_manualでGM手動処理に委ねる。
+          rollMin: 5,
+          rollMax: 6,
+          groupDamage: { modifier: -120 },
+          targetRule: { kind: "frontAll" },
+          conditions: ["accum_target_mismatch_manual"],
+        },
+      ],
+    },
   };
 
   function get(familyId, enemyId) {
