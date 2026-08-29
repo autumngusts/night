@@ -3893,6 +3893,68 @@
         },
       ],
     },
+    // Task6: soldier_knight|death_knight（死の騎士、enemies_data_2.js:1264-1297確認済み）。
+    //
+    // 【出目1~2「瞬雷・双斧」のsavingThrow構造化について】
+    // mod: "＋120＆「雷:1D」"。個別効果：PC全員は〈11|フィジカル〉を行い、失敗すると「雷:1D」を
+    // 被る（HP損害を伴わないailment/element蓄積のみの失敗効果）。night.js（約10049-10061行）を
+    // 確認したところ、savingThrow.onFailは`typeof outcomeEntry.amount === "number"`のときのみ
+    // 個別ダメージ入力欄へ書き込み、elementAccum/ailmentAccumは`amount`の型に関わらず常に
+    // queueAttributeAccumへ渡される実装であることを確認した。つまりonFailに`amount`キーを
+    // 含めずelementAccumのみを指定しても、HP損害を誤って書き込むことなく蓄積のみを正しく適用
+    // できる。よってGlobal Constraints文書で示された「savingThrowのonFailはamount専用のため
+    // 構造化不能」という理由は現在の実装と一致しないため採用せず、savingThrowで構造化する。
+    // 判定対象は「PC全員」（敵視条件の指定なし）のためtargetFilterは付与せず、resolveSavingThrow
+    // の既定動作（entered全員が対象）に委ねる。またmod欄の「雷:1D」はgroupDamage側にも付随する
+    // 表記のため、他の行で確立された「元素:Xd」統一ルールに従いgroupDamage.elementAccumにも
+    // 同じ値を設定する。
+    "soldier_knight|death_knight": {
+      rows: [
+        {
+          // 「瞬雷・双斧」：乱戦ダメージ修正＋120（「—」ではないため発生、本文に乱戦ダメージの
+          // 対象明記なし）。既定ルール（前衛均等割り）。mod欄の「雷:1D」はgroupDamageに付随。
+          // 個別効果：PC全員が〈11|フィジカル〉を行い、失敗すると「雷:1D」（HP損害なし）。
+          // 上記コメントの検証結果に基づき、savingThrow.onFailはamountキーを含めずelementAccumのみ
+          // を設定する。
+          rollMin: 1,
+          rollMax: 2,
+          groupDamage: { modifier: 120, elementAccum: [{ label: "雷", amount: 1 }] },
+          targetRule: { kind: "frontAll" },
+          savingThrow: {
+            stat: "physical",
+            targetByCondition: [{ condition: { kind: "default" }, target: 11 }],
+            onFail: { elementAccum: [{ label: "雷", amount: 1 }] },
+          },
+        },
+        {
+          // 「騎士の雷槍」：乱戦ダメージ修正－60（「—」ではないため発生、本文に乱戦ダメージの対象
+          // 明記なし）。既定ルール（前衛均等割り）。mod欄の「雷:2D」はgroupDamageに付随。
+          // 個別効果：「敵視:1以上」のPC全員に【個別ダメージ:60】＋「雷:1D」を別枠で与える
+          // （mod欄の雷2Dとは数値が異なるため別効果として個別に構造化）。この効果に対して回避する
+          // とき、支払ったダイスコストの値を半分（端数切り捨て、最低値1）として扱う
+          // （halved_evade_cost_note、big_dog_bear|rune_bearの既存表記と同じタグ）。
+          rollMin: 3,
+          rollMax: 4,
+          groupDamage: { modifier: -60, elementAccum: [{ label: "雷", amount: 2 }] },
+          targetRule: { kind: "frontAll" },
+          individualDamage: [
+            { amount: 60, targetRule: { kind: "aggroAtLeast1All" }, elementAccum: [{ label: "雷", amount: 1 }] },
+          ],
+          conditions: ["halved_evade_cost_note"],
+        },
+        {
+          // 「薙ぎ払い＆掴み攻撃」：乱戦ダメージ修正－120（「—」ではないため発生、本文に乱戦ダメージ
+          // の対象明記なし）。既定ルール（前衛均等割り）。個別効果：「敵視:最大」のPC1体に
+          // 【個別ダメージ:240】を与える。この効果に対してガード不可（no_guard）。
+          rollMin: 5,
+          rollMax: 6,
+          groupDamage: { modifier: -120 },
+          targetRule: { kind: "frontAll" },
+          individualDamage: [{ amount: 240, targetRule: { kind: "aggroMax" } }],
+          conditions: ["no_guard"],
+        },
+      ],
+    },
   };
 
   function get(familyId, enemyId) {
