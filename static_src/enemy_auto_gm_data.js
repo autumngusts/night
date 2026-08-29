@@ -4122,7 +4122,7 @@
           // 数値化せずコメントのみ。
           rollMin: 3,
           rollMax: 4,
-          conditions: ["variable_repeat_manual"],
+          conditions: ["variable_repeat_manual", "unknown_hp_damage_manual"],
         },
         {
           // 「跳躍突き刺し」：mod:"＋180"。乱戦ダメージに対してガード不可（no_guard）。
