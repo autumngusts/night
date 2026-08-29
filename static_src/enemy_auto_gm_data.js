@@ -3637,6 +3637,117 @@
         },
       ],
     },
+    // 劇本8「夜之強敵決定表」出目4-6：神獣の戦士たち＋モブ2（enemies_data_3.js:504-568）。
+    // resistance: 雷、size: M。
+    //
+    // 【special フィールドについて（rows[]には含めずここに完全記録し、GM手動対応とする）】
+    // - 〔闇の中〕このエネミーを「撃破ルーン:+2」する。このエネミーは戦闘の1ターン目のみ、
+    //   「HP価値:-20」され、ディフェンスフェイズにアクションせず、代わりにアクションフェイズで
+    //   PCがアクションする前に（アクションフェイズ開始時のスタミナダイスを獲得し、隊列と敵視を
+    //   決定した直後に）、アクション決定し実行する（1ターン目のみ、PCより先に行動し、
+    //   ディフェンスフェイズに行動しない）——ターン数に依存する特殊タイミング（「戦闘1ターン目
+    //   のみ」「PCより先に行動」）で、既存rows/rollOverride機構はいずれも「毎ターン同じ判定表を
+    //   引く」前提のためこの種のターン依存分岐を表現できない。新規機構は追加せずGM手動運用とする。
+    // - 〔闇に紛れる（条件発揮）〕すべてのPCは、次のアクションフェイズの開始時に〈11|メンタル〉を
+    //   行う。失敗した場合、スタミナダイスの黒目をすべて白丸の目に変更する——既存の
+    //   savingThrow機構は「このエネミーの行動が発生した直後に判定」を前提としており、「次の
+    //   アクションフェイズ開始時」という遅延判定かつ「スタミナダイスの出目を書き換える」という
+    //   HP損害・属性/状態異常蓄積のいずれでもない効果のため、既存フィールドに構造化できない。
+    //   出目3・4のnote内で「闇に紛れる」効果発揮に触れているが、rows化はせずconditionsのコメントで
+    //   言及するに留め、機構化しない（新しいstate機構は追加しない）。
+    "warrior_swordsman|divine_beast_warriors": {
+      rows: [
+        {
+          // 「円刃剣の舞」：mod「±0＆「出血:1D」」。乱戦ダメージ修正±0（対象明記なし＝既定ルール＝
+          // 前衛均等割り）。個別効果：「敵視:最大」のPC1体に【個別ダメージ:60】＋「出血:1D」を
+          // 別枠で与える——note文言上、出血1Dは個別ダメージに付随（wounded_demon出目3-4の
+          // 「跳躍叩きつけ」と同型）。出血は状態異常（docs/enemy_damage_rules.md §7、CLAUDE.md
+          // §17分類）のためailmentAccumで構造化する（elementAccumではない）。
+          rollMin: 1,
+          rollMax: 1,
+          groupDamage: { modifier: 0 },
+          targetRule: { kind: "frontAll" },
+          individualDamage: [
+            { amount: 60, targetRule: { kind: "aggroMax" }, ailmentAccum: [{ label: "出血", amount: 1 }] },
+          ],
+        },
+        {
+          // 「短剣投擲」：mod「－60＆「出血:1D」」。乱戦ダメージの基本対象はPC全員（本文に明記）、
+          // かつ「敵視:1以上」で前衛のPC全員は「乱戦ダメージ:2人分」を割り振られる混在パターン。
+          // auto_gm.js resolveWeightedTargets/matchesWeightCondition（258-280行）で
+          // weightRule.kind: "frontAggroAtLeast1"（前衛かつ敵視1以上のみ重み2、それ以外は重み1）が
+          // 既に実装済みであること、およびresolveTargetsのtargetRule.kind: "allPCs"（344-345行）も
+          // 既存対応済みであることをauto_gm.js本体で確認したうえで採用（edele「突進」等の既存
+          // 使用例と同型）。individualDamageは無い（noteに個別効果の記載なし）。出血1Dは乱戦
+          // ダメージに付随（ailmentAccum、docs/enemy_damage_rules.md §7分類）。
+          rollMin: 2,
+          rollMax: 2,
+          groupDamage: { modifier: -60, ailmentAccum: [{ label: "出血", amount: 1 }] },
+          targetRule: { kind: "allPCs", weightRule: { kind: "frontAggroAtLeast1", weight: 2 } },
+        },
+        {
+          // 「奇襲＆闇に紛れる」：mod「＋120＆「出血:1D」」。乱戦ダメージ修正＋120、対象明記なしの
+          // ため既定ルール（前衛均等割り）。乱戦ダメージの対象になった「敵視:最大」のPC1体は
+          // 〈12|メンタル〉を行い、失敗するとこの乱戦ダメージに対してディフェンス不可となる——
+          // 「判定失敗時のみ特定PCが対象行動に防御不可」という条件分岐は既存savingThrow機構
+          // （onFail.amount/elementAccum/ailmentAccumのみ読む）はもちろんno_guard（無条件ガード
+          // 不可）でも表現できないため、新規タグ（no_evade_defense_check_manual）＋本コメントで
+          // GM手動運用に委ねる。特殊能力「闇に紛れる（条件発揮）」も効果発揮するが、上記の理由で
+          // rows化しない（エントリ冒頭コメント参照）。出血1Dは乱戦ダメージに付随（ailmentAccum）。
+          rollMin: 3,
+          rollMax: 3,
+          groupDamage: { modifier: 120, ailmentAccum: [{ label: "出血", amount: 1 }] },
+          targetRule: { kind: "frontAll" },
+          conditions: ["no_evade_defense_check_manual"],
+        },
+        {
+          // 「噛みつき＆闇に紛れる」：mod「±0」。乱戦ダメージ修正±0、対象明記なしのため既定ルール
+          // （前衛均等割り）。「敵視:最大」のPC全員は、次のアクションフェイズ開始時、スタミナ
+          // ダイスの出目にかかわらず後衛に配置される。
+          // 【重要な範囲の注意】既存のforce_back_row_next_phase（night.js
+          // 11707-11728行）は、フラグが立つとentered全員（rosterCharacters.filter(entered)）を
+          // 無条件で次の戰鬥フェイズ開始時に後衛固定する実装（死儀礼の鳥「飛び退き」等の先例は
+          // 本文上も対象が「PC全員」のため一致していた）。しかし本行動の本文が明記する対象は
+          // 「敵視:最大」のPC全員のみであり、敵視最大でないPCまで後衛に固定されるのは本文と
+          // 一致しない。既存機構には対象PCを限定するパラメータが無く、新規の部分適用機構を
+          // 追加するのは本タスクの範囲を超えるため、ここではconditionsタグをそのまま付与しつつ、
+          // GM/実装者は「このタグは対象を『敵視:最大』のPCのみに限定する必要があり、実際の
+          // 挙動（entered全員を後衛固定）とは範囲が異なる」ことを認識したうえで、必要なら該当
+          // 行動の解決時にGMが手動で「敵視:最大」以外のPCの前後衛を戻す運用を取ること
+          // （機構自体は変更しない）。特殊能力「闇に紛れる（条件発揮）」も効果発揮するが、
+          // エントリ冒頭コメントの理由によりrows化しない。
+          rollMin: 4,
+          rollMax: 4,
+          groupDamage: { modifier: 0 },
+          targetRule: { kind: "frontAll" },
+          conditions: ["force_back_row_next_phase"],
+        },
+        {
+          // 「雷大剣連撃＆角降ろし」：mod「＋120＆「雷:1D」」。乱戦ダメージ修正＋120、対象明記なしの
+          // ため既定ルール（前衛均等割り）。雷1Dはnote上、個別効果とは別に乱戦ダメージ本体に付随
+          // （個別効果側に属性の言及なし）のためgroupDamage.elementAccumへ構造化（雷は属性、
+          // docs/enemy_damage_rules.md §7分類）。個別効果：「敵視:1以上」のPC全員に
+          // 【個別ダメージ:180】を与える（本文に明記された対象、既定ルールではない）。
+          rollMin: 5,
+          rollMax: 5,
+          groupDamage: { modifier: 120, elementAccum: [{ label: "雷", amount: 1 }] },
+          targetRule: { kind: "frontAll" },
+          individualDamage: [{ amount: 180, targetRule: { kind: "aggroAtLeast1All" } }],
+        },
+        {
+          // 「雷槍」：mod「±0」。乱戦ダメージ修正±0、対象明記なしのため既定ルール（前衛均等割り）。
+          // 個別効果：「敵視:最大」のPC1体に【個別ダメージ:120】＋「雷:2D」を別枠で与える——note
+          // 文言上、雷2Dは個別ダメージに付随（雷は属性のためelementAccumで構造化）。
+          rollMin: 6,
+          rollMax: 6,
+          groupDamage: { modifier: 0 },
+          targetRule: { kind: "frontAll" },
+          individualDamage: [
+            { amount: 120, targetRule: { kind: "aggroMax" }, elementAccum: [{ label: "雷", amount: 2 }] },
+          ],
+        },
+      ],
+    },
   };
 
   function get(familyId, enemyId) {
