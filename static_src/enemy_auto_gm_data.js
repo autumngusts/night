@@ -3905,20 +3905,25 @@
     // できる。よってGlobal Constraints文書で示された「savingThrowのonFailはamount専用のため
     // 構造化不能」という理由は現在の実装と一致しないため採用せず、savingThrowで構造化する。
     // 判定対象は「PC全員」（敵視条件の指定なし）のためtargetFilterは付与せず、resolveSavingThrow
-    // の既定動作（entered全員が対象）に委ねる。またmod欄の「雷:1D」はgroupDamage側にも付随する
-    // 表記のため、他の行で確立された「元素:Xd」統一ルールに従いgroupDamage.elementAccumにも
-    // 同じ値を設定する。
+    // の既定動作（entered全員が対象）に委ねる。
+    // 2026-08-29修正：mod欄の「雷:1D」は本文中の個別判定（PC全員〈11|フィジカル〉、失敗時
+    // 「雷:1D」、HP損害なし）の失敗時効果と数値・種別が完全に一致し、本文はこれ以外に乱戦
+    // ダメージ側の別枠属性効果を明記していない。よって2277-2289行の解釈方針（ancient_dragon
+    // 「地を這う赤雷」等の先例）に従い、mod欄の表記は当該個別効果を要約的に繰り返したものと
+    // 解釈し、groupDamage.elementAccumには付随させず、savingThrow.onFail.elementAccumのみに
+    // 構造化する（乱戦ダメージ対象への二重適用を回避）。旧版はgroupDamageとsavingThrow.onFailの
+    // 両方に雷:1を設定しており、二重計上バグだった。
     "soldier_knight|death_knight": {
       rows: [
         {
           // 「瞬雷・双斧」：乱戦ダメージ修正＋120（「—」ではないため発生、本文に乱戦ダメージの
-          // 対象明記なし）。既定ルール（前衛均等割り）。mod欄の「雷:1D」はgroupDamageに付随。
-          // 個別効果：PC全員が〈11|フィジカル〉を行い、失敗すると「雷:1D」（HP損害なし）。
-          // 上記コメントの検証結果に基づき、savingThrow.onFailはamountキーを含めずelementAccumのみ
-          // を設定する。
+          // 対象明記なし）。既定ルール（前衛均等割り）。個別効果：PC全員が〈11|フィジカル〉を
+          // 行い、失敗すると「雷:1D」（HP損害なし）。mod欄の「雷:1D」はこの個別判定失敗時効果と
+          // 数値・種別が完全に一致するため二重計上を避け、groupDamageには付随させない
+          // （savingThrow.onFail側のみに構造化。上記エントリ冒頭コメント参照）。
           rollMin: 1,
           rollMax: 2,
-          groupDamage: { modifier: 120, elementAccum: [{ label: "雷", amount: 1 }] },
+          groupDamage: { modifier: 120 },
           targetRule: { kind: "frontAll" },
           savingThrow: {
             stat: "physical",
