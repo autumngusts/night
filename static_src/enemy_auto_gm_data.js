@@ -4338,6 +4338,302 @@
         },
       ],
     },
+    // Batch D2（.superpowers/sdd/2026-08-28-enemy-boss-auto-gm-phase2-phase3-plan/
+    // batch-D2-brief.md参照）：rock_spirit_beast科4体（黄金カバ／暗黒の落とし子／暗黒の落とし子
+    // （枯れ）／祖霊）＋rat_basilisk科2体（ユビムシたち／バジリスクたち）を追加。属性/状態異常
+    // taxonomy（elementAccum＝魔/炎/雷/聖、ailmentAccum＝猛毒/腐敗/出血/凍傷/発狂/睡眠/呪死）は
+    // 本ファイル冒頭付近の既存taxonomyコメントブロックに準拠。
+    //
+    // 【本ブロックで新規導入した conditions タグ】
+    // - size_restricted_guard_break_manual: golden_hippo「大型個体」特殊能力専用。「体勢崩し」後の
+    //   行動激化（1D+4）が「エネミー名:黄金カバ（大）」のサイズでのみ発揮されるという、既存の
+    //   rollBonusAfterGuardBreak（体勢崩し依存のみでサイズ条件を持たない汎用機構）ではそのまま
+    //   適用すると通常サイズの個体にも誤って1D+4が適用されてしまう条件のため、
+    //   cavalry|unnamed_king「王の威光」（mob_hp_trigger_manual）と同型の判断で、トップレベルの
+    //   rollBonusAfterGuardBreakは設定せず、この条件でのみ到達可能な行（golden_hippoのroll
+    //   7~8／9~10）にのみ本タグを付与し、GMがサイズ＆体勢崩しの両条件を確認した上で手動運用する。
+    "rock_spirit_beast|golden_hippo": {
+      // 特殊能力（rows[]には含めずここに完全記録し、GM手動対応とする）：
+      // 〔弱点:腐敗〕公開情報（209頁）。常時有効な受動的特性のため行動テーブルの行としては
+      // 構造化しない。
+      // 〔大型個体〕「エネミー名:黄金カバ（大）」のサイズでのみ効果発揮。「体勢崩し」になった
+      // ターンのディフェンスフェイズは、アクション決定の1Dを振らず、自動的に「針降らし」
+      // （－240＆「聖:1D」、乱戦ダメージは2回発生する）を行う——ロール無しの強制アクションのため
+      // 既存のrollOverride/rollBonusAfterGuardBreak機構では表現できない新しいパターンとして
+      // 未構造化のまま（rows外、GM手動処理、demihuman_beastfolk_club|demihuman_queen_swordmaster
+      // 「棄杖＆流星撃」と同型の判断）。その後、戦闘終了まで、アクション決定は「1D」ではなく
+      // 「1D+4」で行う——ただしこの1D+4化はサイズ条件（黄金カバ（大）のみ）付きであり、上記の
+      // 新規タグ導入理由コメント（本ブロック冒頭）のとおりrollBonusAfterGuardBreakは設定しない。
+      rows: [
+        {
+          // 「突進」：「敵視:1以上」のPC全員が「乱戦ダメージ割合:3人分」（本文に明記、前衛限定の
+          // 記載なし、dragon|ancient_dragon「尻尾振り回し」と同型のaggroAtLeast1All）。
+          rollMin: 1,
+          rollMax: 2,
+          groupDamage: { modifier: 120 },
+          targetRule: { kind: "aggroAtLeast1All" },
+        },
+        {
+          // 「叩きつけ」：乱戦ダメージ修正±0（「—」ではないため発生、対象明記なし＝既定ルール＝
+          // 前衛均等割り）。個別効果:「敵視:1以上」のPC全員は次のアクションフェイズ開始時に
+          // 獲得するスタミナダイスが1個減少する（HP損害を伴わないためconditionsのみ）。
+          rollMin: 3,
+          rollMax: 4,
+          groupDamage: { modifier: 0 },
+          targetRule: { kind: "frontAll" },
+          conditions: ["stamina_dice_reduction_next_phase"],
+        },
+        {
+          // 「食いつき」：乱戦ダメージ修正－120（対象明記なし＝既定ルール＝前衛均等割り）。個別
+          // ダメージ300は「敵視:最大」のPC1体に別枠で発生し、この効果に対してガード不可
+          // （no_guard）。
+          rollMin: 5,
+          rollMax: 6,
+          groupDamage: { modifier: -120 },
+          targetRule: { kind: "frontAll" },
+          individualDamage: [{ amount: 300, targetRule: { kind: "aggroMax" } }],
+          conditions: ["no_guard"],
+        },
+        {
+          // 「大回転突進」：乱戦ダメージ修正±0＋「聖:1D」（mod欄の固定値、骰子ではないため
+          // elementAccum。本文に対応する個別効果の記載が無く二重計上のおそれ無し。対象明記なし＝
+          // 既定ルール＝前衛均等割り）。「敵視:1以上」のPC全員は乱戦ダメージを回避するとき、
+          // 支払ったダイスコストの値を半分として扱う（reducible_by_stamina_dice）。この行は通常
+          // の1D6（1~6）には到達せず、上記特殊能力〔大型個体〕の1D+4でのみ到達する
+          // （size_restricted_guard_break_manual）。
+          rollMin: 7,
+          rollMax: 8,
+          groupDamage: { modifier: 0, elementAccum: [{ label: "聖", amount: 1 }] },
+          targetRule: { kind: "frontAll" },
+          conditions: ["reducible_by_stamina_dice", "size_restricted_guard_break_manual"],
+        },
+        {
+          // 「針飛ばし」：乱戦ダメージ修正が「—」のため乱戦ダメージは発生しない。個別効果
+          // （PC人数回実行）：「敵視:1以上」のPC1体に【個別ダメージ:120】＋「聖:1D」を与える——
+          // 「PC人数」はパーティ人数に依存する可変値のため、固定回数のrepeat/rotateは使わず
+          // conditionsとコメントでGM手動処理に委ねる（Global Constraint 7）。この行も上記と同様
+          // 通常の1D6には到達せず、〔大型個体〕の1D+4でのみ到達する
+          // （size_restricted_guard_break_manual）。
+          rollMin: 9,
+          rollMax: 10,
+          conditions: ["variable_repeat_manual", "size_restricted_guard_break_manual"],
+        },
+      ],
+    },
+    "rock_spirit_beast|dark_offspring": {
+      // 特殊能力（rows[]には含めずここに完全記録し、GM手動対応とする）：
+      // 〔隕鉄特効〕公開情報。このエネミーは「星の眷属」として扱う（隕鉄特効の対象である）。
+      // 常時有効な受動的特性のため行動テーブルの行としては構造化しない。
+      // 〔先制の一撃〕このエネミーを「撃破ルーン:+2」する。このエネミーは戦闘の1ターン目のみ
+      // 「HP価値:-20」され、ディフェンスフェイズにアクションしない。代わりに、アクションフェイズで
+      // PCがスタミナダイスを獲得し隊列と敵視を決定した直後、PCがアクション決定の1Dを振るより先に、
+      // このエネミーが自動的に「魔力の閃光」を行う（この処理は1ターン目のみ）——ターンをまたぐ
+      // 固定順序の自動処理であり既存のrollOverride/rollBonusAfterGuardBreak機構では表現できない
+      // ため、rows外・GM手動処理とする（Global Constraint 7）。
+      rows: [
+        {
+          // 「魔力の閃光」：乱戦ダメージ修正+120＋「魔:2D」（mod欄の固定値。対象明記なし＝既定
+          // ルール＝前衛均等割り）。個別効果:「敵視:1以上」のPC全員に【個別ダメージ:180】＋
+          // 「魔:1D」を別枠で与える——mod欄の魔:2と個別効果の魔:1は数値が異なるため、
+          // cavalry|unnamed_king「雷光剣槍＆落雷」と同型の判断でそれぞれ独立した効果として構造化
+          // する。
+          rollMin: 1,
+          rollMax: 2,
+          groupDamage: { modifier: 120, elementAccum: [{ label: "魔", amount: 2 }] },
+          targetRule: { kind: "frontAll" },
+          individualDamage: [
+            { amount: 180, targetRule: { kind: "aggroAtLeast1All" }, elementAccum: [{ label: "魔", amount: 1 }] },
+          ],
+        },
+        {
+          // 「星雲」：乱戦ダメージ修正±0＋「魔:1D」（mod欄の固定値、本文に対応する個別効果の
+          // 記載が無く二重計上のおそれ無し。対象明記なし＝既定ルール＝前衛均等割り）。「敵視:1
+          // 以上」のPC全員は乱戦ダメージを回避するとき、支払ったダイスコストの値を半分として
+          // 扱う（reducible_by_stamina_dice）。
+          rollMin: 3,
+          rollMax: 4,
+          groupDamage: { modifier: 0, elementAccum: [{ label: "魔", amount: 1 }] },
+          targetRule: { kind: "frontAll" },
+          conditions: ["reducible_by_stamina_dice"],
+        },
+        {
+          // 「ハサミ食らいつき」：乱戦ダメージ修正が「—」のため乱戦ダメージは発生しない。個別
+          // ダメージ300は「敵視:最大」のPC1体に別枠で発生し、この効果に対してガード不可
+          // （no_guard）。
+          rollMin: 5,
+          rollMax: 6,
+          individualDamage: [{ amount: 300, targetRule: { kind: "aggroMax" } }],
+          conditions: ["no_guard"],
+        },
+      ],
+    },
+    "rock_spirit_beast|dark_offspring_withered": {
+      // 特殊能力（rows[]には含めずここに完全記録し、GM手動対応とする）：
+      // 〔隕鉄特効〕公開情報。このエネミーは「星の眷属」として扱う（隕鉄特効の対象である）。
+      // 常時有効な受動的特性のため行動テーブルの行としては構造化しない。
+      // 〔遠距離〕アクションフェイズ開始時、PC全員はスタミナダイスの出目にかかわらず後衛に配置
+      // され、エンドフェイズまで「エリア移動」のダイスコストが1から3に変更される——出目に紐づく
+      // 行動ではなく常時（毎ターン）有効な受動的特性のため、行動テーブルの行としては構造化しない
+      // （big_dog_bear|rune_bear「HP価値:+10」と同型の判断）。
+      rows: [
+        {
+          // 「魔力の閃光」：乱戦ダメージ修正+120＋「魔:2D」（mod欄の固定値、本文に対応する個別
+          // 効果の記載が無く二重計上のおそれ無し。対象明記なし＝既定ルール＝前衛均等割り）。
+          // 「敵視:1以上」のPC全員は乱戦ダメージを回避するとき、支払ったダイスコストの値を半分
+          // として扱う（reducible_by_stamina_dice）。
+          rollMin: 1,
+          rollMax: 2,
+          groupDamage: { modifier: 120, elementAccum: [{ label: "魔", amount: 2 }] },
+          targetRule: { kind: "frontAll" },
+          conditions: ["reducible_by_stamina_dice"],
+        },
+        {
+          // 「重力波」：乱戦ダメージ修正－300＋「魔:1D」（mod欄の固定値、本文に対応する個別効果の
+          // 記載が無く二重計上のおそれ無し。対象明記なし＝既定ルール＝前衛均等割り）。乱戦
+          // ダメージは2回発生する（repeat:2）。
+          rollMin: 3,
+          rollMax: 4,
+          groupDamage: { modifier: -300, repeat: 2, elementAccum: [{ label: "魔", amount: 1 }] },
+          targetRule: { kind: "frontAll" },
+        },
+        {
+          // 「アステール・メテオ」：乱戦ダメージ修正±0＋「魔:1D」（対象明記なし＝既定ルール＝
+          // 前衛均等割り）。個別効果（PC人数+1回実行）：「敵視:1以上」のPC全員に【個別ダメージ:
+          // 60】＋「魔:1D」を与える——「PC人数+1」はパーティ人数に依存する可変値のため、固定
+          // 回数のrepeat/rotateは使わずconditionsとコメントでGM手動処理に委ねる（Global
+          // Constraint 7）。個別効果側のamountは構造化しないため、mod欄の魔:1Dは
+          // death_bird_raven|demon_prince「黄金の地」と同型の判断でgroupDamage側にそのまま残す
+          // （individualDamage自体を構造化しないためデータ上の二重計上は発生しない）。
+          rollMin: 5,
+          rollMax: 6,
+          groupDamage: { modifier: 0, elementAccum: [{ label: "魔", amount: 1 }] },
+          targetRule: { kind: "frontAll" },
+          conditions: ["variable_repeat_manual"],
+        },
+      ],
+    },
+    "rock_spirit_beast|ancestral_spirit": {
+      // special: null（特殊能力なし）。
+      rows: [
+        {
+          // 「角振り上げ」：乱戦ダメージ修正+120（対象明記なし＝既定ルール＝前衛均等割り）。
+          // 個別効果:「敵視:最大」のPC全員は次のアクションフェイズ開始時に獲得するスタミナ
+          // ダイスが2個減少する（HP損害を伴わないためconditionsのみ）。
+          rollMin: 1,
+          rollMax: 2,
+          groupDamage: { modifier: 120 },
+          targetRule: { kind: "frontAll" },
+          conditions: ["stamina_dice_reduction_next_phase"],
+        },
+        {
+          // 「霊の飛沫」：乱戦ダメージ修正±0（対象明記なし＝既定ルール＝前衛均等割り）。個別
+          // 効果:「敵視:1以上」のPC全員が判定（11|フィジカル、全PCプールではなく敵視1以上のみに
+          // 絞られた部分集合、soldier_knight|death_knight系のsavingThrow.targetFilter:
+          // aggroAtLeast1と同型）を行い、失敗したPCに【個別ダメージ:120】＋「魔:1D」を与える。
+          // mod欄の「魔:1D」はonFailの魔:1と数値・種別が完全一致するため二重計上を避け
+          // groupDamageには付随させない。
+          rollMin: 3,
+          rollMax: 4,
+          groupDamage: { modifier: 0 },
+          targetRule: { kind: "frontAll" },
+          savingThrow: {
+            stat: "physical",
+            targetFilter: { kind: "aggroAtLeast1" },
+            targetByCondition: [{ condition: { kind: "default" }, target: 11 }],
+            onFail: { amount: 120, elementAccum: [{ label: "魔", amount: 1 }] },
+          },
+        },
+        {
+          // 「跳躍踏みつけ」：乱戦ダメージ修正+120（対象明記なし＝既定ルール＝前衛均等割り）。
+          // 次のアクションフェイズ開始時、PC全員はスタミナダイスの出目にかかわらず後衛に配置
+          // される（force_back_row_next_phase）。
+          rollMin: 5,
+          rollMax: 6,
+          groupDamage: { modifier: 120 },
+          targetRule: { kind: "frontAll" },
+          conditions: ["force_back_row_next_phase"],
+        },
+      ],
+    },
+    "rat_basilisk|finger_bugs": {
+      // 特殊能力（rows[]には含めずここに完全記録し、GM手動対応とする）：
+      // 〔のたうち回る〕このエネミーに対する「属性:炎」による属性損害を発生させたPCは、
+      // 〈10|メンタル〉を行う。この行為判定に成功すると、このエネミーを「HP価値:-10（最低10）」
+      // する——トリガーがPC側の任意行動（属性損害の発生）でありエネミーの出目テーブルに存在
+      // しないため、rows[]には含めず、既存の対応する機構も無いためGM手動処理に委ねる（Global
+      // Constraint 7）。
+      rows: [
+        {
+          // 「群がる」：「敵視:1以上」で前衛のPC全員に「乱戦ダメージ:2人分」（本文に明記、
+          // rat_basilisk|big_ratsと同一の記述）。
+          rollMin: 1,
+          rollMax: 2,
+          groupDamage: { modifier: 0 },
+          targetRule: { kind: "frontAggroAtLeast1All" },
+        },
+        {
+          // 「掴みかかり」：乱戦ダメージ修正が「—」のため乱戦ダメージは発生しない。個別ダメージ
+          // 240は「敵視:最大」のPC1体に別枠で発生し、この効果に対してガード不可（no_guard）。
+          rollMin: 3,
+          rollMax: 4,
+          individualDamage: [{ amount: 240, targetRule: { kind: "aggroMax" } }],
+          conditions: ["no_guard"],
+        },
+        {
+          // 「拘束弾＆叩きつけ」：乱戦ダメージ修正+120（対象明記なし＝既定ルール＝前衛均等割り）。
+          // 「敵視:最大」のPC全員は、この乱戦ダメージに対してガード不可（no_guard、
+          // rock_spirit_beast|falling_star_beast「黄金ブレス」と同型——前衛均等割りの対象全員の
+          // うち敵視最大の部分集合にのみ適用される）。
+          rollMin: 5,
+          rollMax: 6,
+          groupDamage: { modifier: 120 },
+          targetRule: { kind: "frontAll" },
+          conditions: ["no_guard"],
+        },
+      ],
+    },
+    "rat_basilisk|basilisks": {
+      // special: 〔弱点:出血＆凍傷＆睡眠〕公開情報（209頁）。常時有効な受動的特性のため行動
+      // テーブルの行としては構造化しない。
+      rows: [
+        {
+          // 「後ずさる」：乱戦ダメージ修正が「—」のため乱戦ダメージは発生しない。個別効果:PC
+          // 全員（敵視条件の指定なし）は〈11|メンタル〉を行い、失敗したPCは「呪死:1D」（HP損害を
+          // 伴わない）を被る。soldier_knight|death_knight「瞬雷・双斧」と同型（targetFilter無し
+          // ＝全PCプール、onFailはamount無しでailmentAccumのみ、2026-08-29確認済みの
+          // queueAttributeAccum実装によりamount無しでも正しく反映される）。
+          rollMin: 1,
+          rollMax: 2,
+          savingThrow: {
+            stat: "mental",
+            targetByCondition: [{ condition: { kind: "default" }, target: 11 }],
+            onFail: { ailmentAccum: [{ label: "呪死", amount: 1 }] },
+          },
+        },
+        {
+          // 「範囲ブレス」：乱戦ダメージ修正が「—」のため乱戦ダメージは発生しない。個別効果:
+          // 「敵視:1以上」のPC全員に無条件で「呪死:1D」（HP損害を伴わない）を与える——判定を
+          // 伴わないためsavingThrowは使えず、individualDamageはamountが必須（未設定だと
+          // Time Loss分だけ数値が個別ダメージ入力欄に書き込まれてしまい実態と異なる）のため
+          // 使えない。既存のいずれの構造化フィールドにも収まらないためaccum_target_mismatch_
+          // manualでGM手動処理に委ねる（strong_type|omen_children「大刀振り回し」と同種の
+          // 制約）。
+          rollMin: 3,
+          rollMax: 4,
+          conditions: ["accum_target_mismatch_manual"],
+        },
+        {
+          // 「飛びかかりブレス」：乱戦ダメージ修正が「—」のため乱戦ダメージは発生しない。個別
+          // 効果:「敵視:最大」のPC1体は〈12|フィジカル〉を行い、失敗すると「呪死:2D」（HP損害を
+          // 伴わない）を被る——判定対象が「敵視:最大」の部分集合だが、savingThrow.targetFilterは
+          // aggroAtLeast1のみをサポートしaggroMaxをサポートしないため構造化できない
+          // （saving_throw_ailment_only_manualでGM手動処理に委ねる）。
+          rollMin: 5,
+          rollMax: 6,
+          conditions: ["saving_throw_ailment_only_manual"],
+        },
+      ],
+    },
   };
 
   function get(familyId, enemyId) {
