@@ -4069,6 +4069,93 @@
         },
       ],
     },
+    // 劇本9「夜之強敵決定表」に登場する騎士アルトリウス（familyId:soldier_knight、
+    // enemies_data_2.js:1522-1580、size:M、resistance:null）。Task 8 brief参照。
+    //
+    // 【特殊能力〔モブ1追加＆固定行動〕投資調査結果】
+    // boss_auto_gm_data.js冒頭コメント（27-33行）で、同種の「戦闘中にモブHPを動的追加する」
+    // stragedesの「亡者召喚」が「既存のrows/state機構でカバーできないためスコープ外
+    // （GM手動処理）」と明記されている。auto_gm.js（86-136行）を確認したところ、
+    // structured.rollOverrideは既存のmobHpRowsの有無で出目を半減する"halfIfNoMobs"
+    // （坩堝の騎士用）のみが実装されており、「戦闘開始時にPC人数×2のモブHP行を新規追加する」
+    // 機構や「モブHPが閾値以上なら1Dを振らず特定行を強制実行する」機構は存在しない
+    // （night_gm_flow.jsの「+モブN」後綴もシナリオ開始時の遭遇テーブル表記であり、戦闘中の
+    // 動的追加とは無関係）。よってstragedesと同じ結論に従い、この特殊能力はrows外の
+    // コメントとして原文のみ記録し、新規state機構は追加しない（GM手動処理）。
+    //
+    // 〔モブ1追加＆固定行動〕戦闘開始時、HP枠に「モブ1」を追加する。このモブHPはL補を問わず
+    // 「最大HP:PC人数×2」である。このエネミーのアクション決定時、「モブHP:□以上」の場合、
+    // アクション決定の1Dを振らず、自動的に「影の貴人の群れ」を実行する。
+    //
+    // 【特殊能力〔行動激化〕】「体勢崩し」発生後、戦闘終了まで「1D」ではなく「1D+1」で行う
+    // → rollBonusAfterGuardBreak: 1（既存機構をそのまま使用）。
+    //
+    // 【特殊能力〔深淵纏い（条件発揮）〕】PC全員は、戦闘終了まで、このエネミーの「乱戦ダメージ／
+    // 個別ダメージ」を受けるごとに追加で「HP損害:■」を被り、このエネミーが「総合ダメージ」から
+    // 被るHP損害を■だけ軽減する。この効果は最大で2回まで累積する。■を複数含み累積状態管理も
+    // 必要な複雑効果のため、CLAUDE.md §19の原則（■は自行発明禁止）に従い数値化・状態機構の
+    // 新設はせず、この能力が発揮される出目6・7にconditions: ["unknown_hp_damage_manual"]を
+    // 付与し、GM手動処理に委ねる。
+    //
+    // 【出目「—」（モブHP依存トリガー）「影の貴人の群れ」】mod:"－120"。乱戦ダメージをガードする
+    // PCはそのガードコストを+1する（例:2なら3に悪化する）。乱戦ダメージを回避するPCは、支払った
+    // ダイスコストの値を半分（端数切り捨て。最低値1）として扱う（例:3で回避した場合は1で回避した
+    // ことになる）。上記〔モブ1追加＆固定行動〕によりモブHP存在時のみ自動発動しうる（1Dを振らず
+    // 自動実行される）die-lessな行のため、rows配列には含めずコメントとしてのみ記録する
+    // （strong_type|blood_lord「数え上げる呪い」Task 4と同型の扱い）。
+    "soldier_knight|knight_alutrius": {
+      rollBonusAfterGuardBreak: 1,
+      rows: [
+        {
+          // 「連撃」：mod:"－300"。乱戦ダメージが2回発生する（本文に明記）。
+          rollMin: 1,
+          rollMax: 2,
+          groupDamage: { modifier: -300, repeat: 2 },
+          targetRule: { kind: "frontAll" },
+        },
+        {
+          // 「縦回転斬り」：mod:"—"のため乱戦ダメージは発生しない。個別効果（PC人数回実行）：
+          // 「敵視:1以上」のPC1体に【個別ダメージ:180】を与える。「PC人数」はパーティ人数に
+          // 依存する可変値のため、固定回数のrepeat/rotateは使わずconditionsでGM手動処理に
+          // 委ねる（Global Constraint 7）。この個別ダメージで「HP損害:■」以上を被ったPCは
+          // 次のアクションフェイズ開始時に獲得するスタミナダイスが1個減少するが、■を含むため
+          // 数値化せずコメントのみ。
+          rollMin: 3,
+          rollMax: 4,
+          conditions: ["variable_repeat_manual"],
+        },
+        {
+          // 「跳躍突き刺し」：mod:"＋180"。乱戦ダメージに対してガード不可（no_guard）。
+          rollMin: 5,
+          rollMax: 5,
+          groupDamage: { modifier: 180 },
+          targetRule: { kind: "frontAll" },
+          conditions: ["no_guard"],
+        },
+        {
+          // 「飛び退き＆深淵纏い」：mod:"－120"。〔深淵纏い〕発揮（上記エントリ冒頭コメント参照、
+          // ■を含み複雑な累積のため数値化せずunknown_hp_damage_manualのみ付与）。次の
+          // アクションフェイズでPC全員がスタミナダイスの出目にかかわらず後衛に配置される
+          // （force_back_row_next_phase）。
+          rollMin: 6,
+          rollMax: 6,
+          groupDamage: { modifier: -120 },
+          targetRule: { kind: "frontAll" },
+          conditions: ["force_back_row_next_phase", "unknown_hp_damage_manual"],
+        },
+        {
+          // 「咆哮連撃＆深淵纏い」：mod:"＋120"。〔深淵纏い〕発揮（■を含むため
+          // unknown_hp_damage_manual）。個別効果：「敵視:最大」のPC1体に【個別ダメージ:300】を
+          // 与える。
+          rollMin: 7,
+          rollMax: 7,
+          groupDamage: { modifier: 120 },
+          targetRule: { kind: "frontAll" },
+          individualDamage: [{ amount: 300, targetRule: { kind: "aggroMax" } }],
+          conditions: ["unknown_hp_damage_manual"],
+        },
+      ],
+    },
   };
 
   function get(familyId, enemyId) {
