@@ -3865,6 +3865,34 @@
         },
       ],
     },
+    "big_dog_bear|rune_bear": {
+      // 特殊能力〔HP価値:+10〕：常に「HP価値:+10（最大100）」→ conditions: ["enemy_hp_value_buff_permanent"]
+      rows: [
+        {
+          // 「腕振り回し」：mod: "±0"。個別効果：「敵視:1以上」のPC全員は、次のアクションフェイズに獲得するスタミナダイスが1個減少する。
+          rollMin: 1,
+          rollMax: 2,
+          groupDamage: { modifier: 0 },
+          targetRule: { kind: "frontAll" },
+          conditions: ["stamina_dice_reduction_next_phase"],
+        },
+        {
+          // 「のしかかり」：mod: "＋120"。乱戦ダメージを回避するPCは、支払ったダイスコストの値を半分（端数切り捨て。最低値1）として扱う（PC側処理、コメントのみ）。
+          rollMin: 3,
+          rollMax: 4,
+          groupDamage: { modifier: 120 },
+          targetRule: { kind: "frontAll" },
+          conditions: ["halved_evade_cost_note"],
+        },
+        {
+          // 「ベアハッグ」：mod: "—"。個別効果：「敵視:最大」のPC1体に【個別ダメージ:300】を与える。この効果に対してガード不可。
+          rollMin: 5,
+          rollMax: 6,
+          individualDamage: [{ amount: 300, targetRule: { kind: "aggroMax" } }],
+          conditions: ["no_guard"],
+        },
+      ],
+    },
   };
 
   function get(familyId, enemyId) {
