@@ -312,7 +312,18 @@
         if (battleState.front && battleState.front[idx]) frontCount++;
         else backCount++;
       });
-      var chooseFront = frontCount === backCount ? Math.random() < 0.5 : frontCount > backCount;
+      // targetRule.tieBreak（任意）：同数時の決定方法。未指定の場合は既存どおりランダム
+      // （gnoster「潜航＆毒液」／nameless「転移＆錫杖薙ぎ払い」／fulghor「とびかかり＆氷霜」の
+      // 3体は規則書原文が「同数の場合はランダムに決定する」と明記しているため、この既定動作を
+      // そのまま維持する＝tieBreak未指定時の挙動は変更しない）。"front"を指定した場合のみ、
+      // 同数時に前衛を確定的に選ぶ（falling_hawk_corps「射撃攻撃」は規則書原文が「同数の場合は、
+      // 通常どおり、前衛が対象となる」と明記しているため専用）。
+      var chooseFront =
+        targetRule.tieBreak === "front" && frontCount === backCount
+          ? true
+          : frontCount === backCount
+          ? Math.random() < 0.5
+          : frontCount > backCount;
       var areaResult = [];
       for (var d = 0; d < rosterCount; d++) {
         var isFrontD = !!(battleState.front && battleState.front[d]);
