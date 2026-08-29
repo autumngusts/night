@@ -6346,6 +6346,201 @@
         },
       ],
     },
+    // Batch D10: mage_messenger科2体（隕石漁りたち／責問官たち）＋imp_watchdog_gargoyle科1体
+    // （黒き剣の眷属）＋page_lowly_soldier科2体（上流の小姓たち／卑兵たち、科全体が本バッチで
+    // 初対応）。enemies_data_4.js:504/615/1298/1850/1887参照（batch-D10-brief.md）。
+    //
+    // 【本バッチで新規導入した conditions タグ】
+    // - saving_throw_group_damage_target_manual（黒き剣の眷属「死蝋斬り」専用）：乱戦ダメージ
+    //   （groupDamage、対象人数に応じて総量を分割する共有プール型）の対象そのものが、敵視分岐DCの
+    //   運試し判定（「敵視:1以上」のPC全員は〈12|運試し〉、それ以外は〈10|運試し〉、判定に失敗した
+    //   PC全員のみが乱戦ダメージの対象になる）という判定結果に依存する行動。既存のsavingThrow機構
+    //   はonFail.amountを各失敗PCへ個別に適用する設計（個別ダメージ専用）であり、共有プール型の
+    //   groupDamageへ判定結果に基づく動的な対象集合を渡す仕組みは無いため、rows化せずconditions＋
+    //   コメントでGM手動処理に委ねる（Global Constraint 6）。
+    "mage_messenger|meteor_scavengers": {
+      // 特殊能力〔隕石背負い〕：常に「HP価値:+30（最大100）」（rollMin/rollMaxに紐づかないエントリ
+      // 全体の常時効果のためrows外・機構化せずGM手動運用、big_dog_bear|rune_bear「HP価値:+10」と
+      // 同型の判断）。〔弱点:猛毒＆腐敗〕は公開情報のみで既存の弱点抽出機構（enemies_data側special
+      // 欄）で処理されるためrows化しない。
+      rows: [
+        {
+          // 「つるはし殴り」：mod「±0」（「—」ではないため乱戦ダメージも発生、対象明記なし＝既定
+          // ルール＝前衛均等割り）。個別効果:PCがこのエネミーへの乱戦ダメージをガードした場合、
+          // エンドフェイズまで、そのPCを「HP価値:-10（最低10）」にする（guard_hp_value_penalty、
+          // soldier_knight|crucible_knight「坩堝の諸相・翼」と同型）。
+          rollMin: 1,
+          rollMax: 2,
+          groupDamage: { modifier: 0 },
+          targetRule: { kind: "frontAll" },
+          conditions: ["guard_hp_value_penalty"],
+        },
+        {
+          // 「隕石投げ」：mod「－60＆「魔:1D」」。乱戦ダメージ修正－60（対象明記なし＝既定ルール＝
+          // 前衛均等割り）。個別効果:「敵視:1以上」のPC全員は無条件で「魔:1D」を被る（HP損害を
+          // 伴わない）。mod欄の「魔:1D」は数値・種別がこの個別効果と完全一致するが、対象集団
+          // （敵視:1以上のPC全員、前衛/後衛問わず）が乱戦ダメージの対象（前衛均等割り）と異なる
+          // 可能性があるため、groupDamage.elementAccumにもindividualDamageにも構造化せず
+          // accum_target_mismatch_manualでGM手動処理に委ねる（2262行の解釈方針と同型）。
+          rollMin: 3,
+          rollMax: 4,
+          groupDamage: { modifier: -60 },
+          targetRule: { kind: "frontAll" },
+          conditions: ["accum_target_mismatch_manual"],
+        },
+        {
+          // 「重力弾」：mod「—」のため乱戦ダメージは発生しない。個別効果（PC人数回実行）：
+          // 「敵視:最大」のPC1体に【個別ダメージ:120】＋「魔:1D」を与える——「PC人数」はパーティ
+          // 人数に依存する可変値のため、固定回数のrepeat/rotateは使わずconditionsとコメントでGM
+          // 手動処理に委ねる（Global Constraint 7）。
+          rollMin: 5,
+          rollMax: 6,
+          conditions: ["variable_repeat_manual"],
+        },
+      ],
+    },
+    "mage_messenger|interrogators": {
+      rows: [
+        {
+          // 「火炎放射」：mod「±0＆「炎:1D」」。乱戦ダメージ修正±0（対象明記なし＝既定ルール＝
+          // 前衛均等割り）。個別効果:「敵視:最大」のPC1体に【個別ダメージ:120】＋「炎:1D」を
+          // 別枠で与える——mod欄の「炎:1D」は数値・種別がこの個別効果と完全一致するため、
+          // individualDamage側にのみelementAccumを構造化し、groupDamageには含めない
+          // （二重計上回避、soldier_knight|corrupted_knight「腐敗の槍突き」と同型）。
+          rollMin: 1,
+          rollMax: 2,
+          groupDamage: { modifier: 0 },
+          targetRule: { kind: "frontAll" },
+          individualDamage: [
+            { amount: 120, targetRule: { kind: "aggroMax" }, elementAccum: [{ label: "炎", amount: 1 }] },
+          ],
+        },
+        {
+          // 「黄金の弧」：mod「－300＆「聖:1D」」。乱戦ダメージは「敵視:1以上」のPC全員を対象と
+          // する（本文に明記、対象PCが1人もいない場合は前衛が対象）。乱戦ダメージは2回発生する。
+          // 本文に別途の個別効果記載が無いため、mod欄の「聖:1D」はこの乱戦ダメージと同じ対象へ
+          // 直接付随させる。
+          rollMin: 3,
+          rollMax: 4,
+          groupDamage: { modifier: -300, repeat: 2, elementAccum: [{ label: "聖", amount: 1 }] },
+          targetRule: { kind: "aggroAtLeast1All", fallback: "front" },
+        },
+        {
+          // 「燭台＆支援」：mod「－120＆「炎:1D」」。乱戦ダメージ修正－120（対象明記なし＝既定
+          // ルール＝前衛均等割り）。本文に別途の個別効果記載が無いため、mod欄の「炎:1D」はこの
+          // 乱戦ダメージにそのまま付随させる。次のアクションフェイズ終了まで、このエネミーを
+          // 「HP価値:+20（最大100）」する（enemy_hp_value_buff）。
+          rollMin: 5,
+          rollMax: 6,
+          groupDamage: { modifier: -120, elementAccum: [{ label: "炎", amount: 1 }] },
+          targetRule: { kind: "frontAll" },
+          conditions: ["enemy_hp_value_buff"],
+        },
+      ],
+    },
+    "imp_watchdog_gargoyle|black_blade_kindred": {
+      rows: [
+        {
+          // 「斧槍薙ぎ払い＆飛び退き」：「敵視:1以上」で前衛のPC全員に「乱戦ダメージ:2人分」
+          // （本文に明記）。特殊能力「飛び退き（条件発揮）」＝次のアクションフェイズ終了まで、
+          // このエネミーを「HP価値:+10（最大100）」する（enemy_hp_value_buff）。
+          rollMin: 1,
+          rollMax: 2,
+          groupDamage: { modifier: 120 },
+          targetRule: { kind: "frontAggroAtLeast1All" },
+          conditions: ["enemy_hp_value_buff"],
+        },
+        {
+          // 「剣の連撃」：mod「—」のため乱戦ダメージは発生しない。個別効果:「敵視:最大」のPC1体に
+          // 【個別ダメージ:240】を与える。特殊能力「飛び退き（条件発揮）」（enemy_hp_value_buff）
+          // も効果発揮。
+          rollMin: 3,
+          rollMax: 4,
+          individualDamage: [{ amount: 240, targetRule: { kind: "aggroMax" } }],
+          conditions: ["enemy_hp_value_buff"],
+        },
+        {
+          // 「死蝋斬り」：mod「±0」。本文:「乱戦ダメージを適用する前、『敵視:1以上』のPC全員は
+          // 〈12|運試し〉を行い、それ以外のPC全員は〈10|運試し〉を行う。判定に失敗したPC全員が
+          // 乱戦ダメージの対象となる（対象が1人もいない場合は前衛が対象）」——乱戦ダメージ
+          // （共有プール型）の対象そのものが判定結果で決まるため、rows化せずGM手動処理に委ねる
+          // （saving_throw_group_damage_target_manual、本エントリ冒頭の新規タグ解説参照）。
+          rollMin: 5,
+          rollMax: 6,
+          conditions: ["saving_throw_group_damage_target_manual"],
+        },
+      ],
+    },
+    // page_lowly_soldier科（enemies_data_4.js:1826-1927）は本バッチで初対応。
+    "page_lowly_soldier|upper_pages": {
+      rows: [
+        {
+          // 「連続突き」：mod「＋60」。乱戦ダメージ修正+60（対象明記なし＝既定ルール＝前衛均等
+          // 割り）。個別効果:「敵視:最大」のPC1体に【個別ダメージ:180】を別枠で与える。
+          rollMin: 1,
+          rollMax: 2,
+          groupDamage: { modifier: 60 },
+          targetRule: { kind: "frontAll" },
+          individualDamage: [{ amount: 180, targetRule: { kind: "aggroMax" } }],
+        },
+        {
+          // 「突撃」：mod「±0」。乱戦ダメージは「敵視:1以上」のPC全員を対象とする（本文に明記、
+          // 対象PCが1人もいない場合は前衛が対象）。
+          rollMin: 3,
+          rollMax: 4,
+          groupDamage: { modifier: 0 },
+          targetRule: { kind: "aggroAtLeast1All", fallback: "front" },
+        },
+        {
+          // 「爆裂ボルト」：mod「—」のため乱戦ダメージは発生しない。個別効果（PC人数回実行）：
+          // 「敵視:1以上」のPC1体に【個別ダメージ:120】＋「炎:2D」を与える——「PC人数」はパーティ
+          // 人数に依存する可変値のため、固定回数のrepeat/rotateは使わずconditionsとコメントでGM
+          // 手動処理に委ねる（Global Constraint 7）。
+          rollMin: 5,
+          rollMax: 6,
+          conditions: ["variable_repeat_manual"],
+        },
+      ],
+    },
+    "page_lowly_soldier|lowly_soldiers": {
+      // 特殊能力〔毒石の罠〕：毎ターンのアクションフェイズの開始時、PC全員は〈11|メンタル〉を
+      // 行う。失敗したPCは「猛毒:1D」を被り、任意のスタミナダイス1個を消費する——出目テーブルの
+      // 行ではなく毎ターンのフェイズ開始時トリガーのため、rows[]には構造化せずGM手動運用とする
+      // （Global Constraint 6）。
+      rows: [
+        {
+          // 「薙ぎ払い＆投げナイフ」：mod「±0」（「—」ではないため乱戦ダメージも発生、対象明記
+          // なし＝既定ルール＝前衛均等割り）。個別効果:「敵視:1以上」のPC全員に「HP損害:■」を
+          // 与える——■は数値未確定のプレースホルダのため自動計算しない（Global Constraint 1、
+          // golem_maiden_puppet|fire_chariot_ganmen「擦過器突進」と同型）。
+          rollMin: 1,
+          rollMax: 2,
+          groupDamage: { modifier: 0 },
+          targetRule: { kind: "frontAll" },
+          conditions: ["unknown_hp_damage_manual"],
+        },
+        {
+          // 「跳躍叩きつけ」：mod「＋60」。乱戦ダメージ修正+60（対象明記なし＝既定ルール＝前衛
+          // 均等割り）。個別効果:「敵視:最大」のPC1体に【個別ダメージ:180】を別枠で与える。
+          rollMin: 3,
+          rollMax: 4,
+          groupDamage: { modifier: 60 },
+          targetRule: { kind: "frontAll" },
+          individualDamage: [{ amount: 180, targetRule: { kind: "aggroMax" } }],
+        },
+        {
+          // 「毒壺投げ＆飛び退き」：mod「－120＆「猛毒:1D」」。乱戦ダメージ修正－120（対象明記
+          // なし＝既定ルール＝前衛均等割り）。本文に別途の個別効果記載が無いため、mod欄の
+          // 「猛毒:1D」はこの乱戦ダメージにそのまま付随させる。次のアクションフェイズ開始時、
+          // PC全員はスタミナダイスの出目にかかわらず後衛に配置される（force_back_row_next_phase）。
+          rollMin: 5,
+          rollMax: 6,
+          groupDamage: { modifier: -120, ailmentAccum: [{ label: "猛毒", amount: 1 }] },
+          targetRule: { kind: "frontAll" },
+          conditions: ["force_back_row_next_phase"],
+        },
+      ],
+    },
   };
 
   function get(familyId, enemyId) {
