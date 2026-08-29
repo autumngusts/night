@@ -3544,6 +3544,99 @@
         },
       ],
     },
+    // 【special フィールドについて（rows[]には含めずここに完全記録し、GM手動対応とする）】
+    // - GM運用note：このエネミーは進行中シナリオで「傷ついたデーモン＆うろ底のデーモン」を撃破した
+    //   場合にのみ登場可能（シナリオ進行条件、機構化不要）。
+    // - 〔依り代〕戦闘開始時、プレイヤーが進行中のシナリオで「傷ついたデーモン」と「うろ底のデーモン」
+    //   のどちらを記録しているのか確認し、「うろ底のデーモン」が記録されているならアクション決定を
+    //   「1D+4」で行う。既存のrollOverride: "halfIfNoMobs"は「現在の戦闘中のmobHpRowsの有無」を
+    //   battleStateから自動判定できる条件だが、本行動の判定条件（進行中シナリオでどちらの敵を
+    //   過去に撃破・記録したか）はstate.battle側に対応する既存フィールドが存在せず、GMがシナリオ
+    //   記録を参照して手動確認する以外に判定手段が無い。新規rollOverride文字列をauto_gm.jsに
+    //   追加しても、それを駆動する新規state.battleフィールドとGM向け確認UIを合わせて追加しない
+    //   限り機能せず、それはauto_gm.jsの小規模な分岐追加の範囲を超える（night.js側の状態・UI
+    //   変更が必要になる）。よって既存rollOverrideパターンへの機構化は行わず、コメントのみに
+    //   留めてGM手動運用とする（Global Constraintsの「既存に無ければ最小限追加してよい」例外を
+    //   検討したうえで、より保守的な「コメントのみ」を採用）。
+    "death_bird_raven|demon_prince": {
+      rows: [
+        {
+          // 「炎の隕石」：mod欄「－120＆「炎:1D」」。乱戦ダメージ修正－120（「－」ではなく数値の
+          // ため必ずgroupDamageを設定、対象明記なし＝既定ルール＝前衛均等割り）。mod欄に直接
+          // 付随する「炎:1D」（固定値、骰子ではない）はgroupDamage.elementAccumへ構造化。
+          // 個別効果（PC人数回実行、「敵視:1以上」のPC1体に個別120＋炎1D）は可変回数のため
+          // Global Constraint 7によりrepeat/rotateを使わずconditionsで手動処理に委ねる。
+          rollMin: 1,
+          rollMax: 2,
+          groupDamage: { modifier: -120, elementAccum: [{ label: "炎", amount: 1 }] },
+          targetRule: { kind: "frontAll" },
+          conditions: ["variable_repeat_manual"],
+        },
+        {
+          // 「浮遊火球＆突進」：乱戦ダメージ修正±0（「－」ではないため発生、対象明記なし＝
+          // 既定ルール）。個別効果（PC人数+1回実行）はPC協議で任意対象・1体が「HP損害:■」＋
+          // 「炎:1D」を被る——対象がPC協議による任意対象（既存targetRuleのいずれにも該当せず）、
+          // かつダメージ量が■（GM運用ルールにより自動計算禁止）のため、構造化可能なフィールドが
+          // 存在しない。よって「炎:1D」もelementAccumへ構造化せず、可変回数・任意対象・■の
+          // すべてをconditions＋本コメントでGM手動処理に委ねる。
+          rollMin: 3,
+          rollMax: 4,
+          groupDamage: { modifier: 0 },
+          targetRule: { kind: "frontAll" },
+          conditions: ["variable_repeat_manual", "unknown_hp_damage_manual"],
+        },
+        {
+          // 「跳躍叩きつけ」：「敵視:1以上」で前衛全員に「乱戦ダメージ:2人分」（本文に明記）。
+          // 次のアクションフェイズ開始時、PC全員はスタミナダイスの出目に関係なく後衛に配置される
+          // （force_back_row_next_phase）。
+          rollMin: 5,
+          rollMax: 5,
+          groupDamage: { modifier: 240 },
+          targetRule: { kind: "frontAggroAtLeast1All" },
+          conditions: ["force_back_row_next_phase"],
+        },
+        {
+          // 「両腕掴み」：乱戦ダメージ修正±0（対象明記なし＝既定ルール）。個別効果は「敵視:最大」
+          // のPC1体に【個別ダメージ:300】を別枠で与え、この効果に対してガード不可（no_guard）。
+          rollMin: 6,
+          rollMax: 6,
+          groupDamage: { modifier: 0 },
+          targetRule: { kind: "frontAll" },
+          individualDamage: [{ amount: 300, targetRule: { kind: "aggroMax" } }],
+          conditions: ["no_guard"],
+        },
+        {
+          // 「毒の瘴気」：mod欄「＋120＆「猛毒:1D」」。乱戦ダメージ修正＋120（対象明記なし＝
+          // 既定ルール）。個別効果は「敵視:1以上」のPC全員が〈11|運試し〉判定を行い（stat:
+          // "luck"、既存の「運試し」使用エントリsoldier_knight|red_lion_knights等で確認済みの
+          // プロパティ名）、失敗したPCに【個別ダメージ:120】＋「猛毒:1D」を与える。猛毒1Dは
+          // savingThrow.onFail.elementAccum（night.js側のqueueAttributeAccumが読み取り自動反映、
+          // 本ファイルdeath_bird_raven|wounded_demonの猛毒2D事例と同型）へ構造化する。
+          rollMin: 7,
+          rollMax: 8,
+          groupDamage: { modifier: 120 },
+          targetRule: { kind: "frontAll" },
+          savingThrow: {
+            stat: "luck",
+            targetFilter: { kind: "aggroAtLeast1" },
+            targetByCondition: [{ condition: { kind: "default" }, target: 11 }],
+            onFail: { amount: 120, elementAccum: [{ label: "猛毒", amount: 1 }] },
+          },
+        },
+        {
+          // 「熱戦爆発」：mod欄「－300＆「猛毒:1D」」。乱戦ダメージ修正－300、2回発生（repeat:2）。
+          // 対象は「敵視:1以上」のPC全員（本文に明記）、対象0人の場合は通常通り前衛にフォール
+          // バックする——既存resolveTargetsのtargetRule.fallback === "front"機構（auto_gm.js内、
+          // 本ファイルの他多数の"aggroAtLeast1All", fallback: "front"エントリと同型）がまさに
+          // この挙動を実装済みのため、そのまま再利用する。mod欄の「猛毒:1D」は
+          // groupDamage.elementAccumへ構造化。
+          rollMin: 9,
+          rollMax: 10,
+          groupDamage: { modifier: -300, repeat: 2, elementAccum: [{ label: "猛毒", amount: 1 }] },
+          targetRule: { kind: "aggroAtLeast1All", fallback: "front" },
+        },
+      ],
+    },
   };
 
   function get(familyId, enemyId) {
