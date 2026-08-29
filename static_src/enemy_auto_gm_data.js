@@ -3748,6 +3748,123 @@
         },
       ],
     },
+    // 劇本8「夜之強敵決定表」2日目 出目4-6：血の君主（enemies_data_3.js:1098-1164、直前の
+    // fields_data_1.js:540「1-3 デーモンの王子（234頁）\n4-6 血の君主（217頁）」に対応）。
+    // resistance: 炎・発狂、size: L。単一形態。特殊能力〔行動激化〕（「体勢崩し」発生後、戦闘
+    // 終了まで「1D」ではなく「1D+4」で判定）はrollBonusAfterGuardBreak:4（既存1~10表がこの範囲を
+    // 完全にカバーするため追加行は不要、edele/maris/gladius/fulghorと同型）。
+    //
+    // 【対象範囲外・既知の制限その1】特殊能力〔捧げる呪い〕：「体勢崩し」が発生した直後の
+    // ディフェンスフェイズには、アクション決定の1Dを振らず、自動的に出目「—」の行「数え上げる
+    // 呪い」を実行する。night_gm_flow.js／auto_gm.jsを確認したが、既存のrows／
+    // rollBonusAfterGuardBreak機構はいずれも「毎回1Dを振ってrows内の該当行を引く」ことを前提と
+    // しており、「体勢崩し直後の1回だけ1Dを振らず特定行を強制実行する」という条件付き上書きを
+    // 表現できる構造化フィールドは存在しない。gnoster「毒吐き」（boss_auto_gm_data.js:200-206）・
+    // edele「猛毒の吐瀉」（同194-206）・libra「魔法陣滞留による行動内容指定」の2トリガー行
+    // （同649-679）も同種の制限のため、いずれもrows外のコメント記録のみでGM手動発動としている。
+    // 本Taskもこの既存の前例（コメントのみ、rows化しない、新規state機構は追加しない）を踏襲する。
+    // 「数え上げる呪い」（出目「—」、mod:「－300＆「出血:1D」」）の全文：乱戦ダメージはPC全員を
+    // 対象とし、乱戦ダメージは3回発生する（規則書本文どおり。GMは〔捧げる呪い〕の発動条件
+    // （直前ターンで「体勢崩し」が発生した）を確認できた回のみ、次のディフェンスフェイズで
+    // この行動を手動実行し、通常のrows表からは1Dを振らないこと）。
+    //
+    // 【対象範囲外・既知の制限その2】特殊能力〔血の君主の歓喜〕：ディフェンスフェイズでPCが
+    // 「状態異常：出血」でHP損害を受けるたびに、このエネミーの「最も現在HPが減少しているHP行」に
+    // 「HP回復：□□」（□は+1換算のためHP回復2に相当。ただしCLAUDE.md §17／countHealSquares・
+    // sumMaxStatDeltaFromTextはいずれもPC側の回復テキスト解析用helperであり、条件付きで自動発動
+    // する「敵HP側」の回復には未接続）を適用する。auto_gm.js／night.js／enemy_auto_gm_data.jsの
+    // いずれにも「PCが特定の状態異常でHP損害を受けたことを検知し、自動でエネミーHPを回復させる」
+    // 機構は存在しない（night.jsはPCが受けた損害がどの属性/状態異常に由来するかを、エネミー側の
+    // 自動回復トリガーとしては追跡していない）。新規のstate追跡機構を追加するのは本Taskの範囲を
+    // 超えるため、GM向けに規則書の全文を記録するに留める：「ただし、このエネミーが2回以上
+    // 『体勢崩し』になることはなく、モブHPには適用しない」という但し書きも含めて手動運用すること。
+    "strong_type|blood_lord": {
+      rollBonusAfterGuardBreak: 4,
+      rows: [
+        {
+          // 「槍突進」（出目1~2）：「敵視:1以上」で前衛のPC全員に「乱戦ダメージ:2人分」（本文に
+          // 明記、gladius/maris/edeleと同じ規約で本文の数値は既にN人分込みの合計値）。
+          rollMin: 1,
+          rollMax: 2,
+          groupDamage: { modifier: 180 },
+          targetRule: { kind: "frontAggroAtLeast1All" },
+        },
+        {
+          // 「血の飛沫」（出目3~4）：mod「－120＆「出血:1D」」。乱戦ダメージ修正－120（対象明記
+          // なし＝既定ルール＝前衛均等割り）。個別効果：「敵視:1以上」のPC全員に【個別ダメージ:
+          // 120】＋「出血:1D」を別枠で与える——note文言上、出血1Dは個別ダメージに付随（mod欄の
+          // 数値・種別と個別効果の記述が完全に一致するため、二重計上を避けgroupDamageには付随
+          // させない）。出血は状態異常（docs/enemy_damage_rules.md §7、CLAUDE.md §17分類）の
+          // ためailmentAccumで構造化する（elementAccumではない）。
+          rollMin: 3,
+          rollMax: 4,
+          groupDamage: { modifier: -120 },
+          targetRule: { kind: "frontAll" },
+          individualDamage: [
+            { amount: 120, targetRule: { kind: "aggroAtLeast1All" }, ailmentAccum: [{ label: "出血", amount: 1 }] },
+          ],
+        },
+        {
+          // 「血炎の爪痕」（出目5~6）：mod「±0＆「炎:1D」＆「出血:1D」」。乱戦ダメージ修正±0
+          // （対象明記なし＝既定ルール＝前衛均等割り）。個別効果：「敵視:最大」のPC1体に
+          // 【個別ダメージ:180】＋「炎:1D」＋「出血:1D」を別枠で与える——mod欄の数値・種別が
+          // この個別効果と完全に一致するためgroupDamageには付随させない。炎は属性
+          // （elementAccum）、出血は状態異常（ailmentAccum）で構造化する。
+          rollMin: 5,
+          rollMax: 6,
+          groupDamage: { modifier: 0 },
+          targetRule: { kind: "frontAll" },
+          individualDamage: [
+            {
+              amount: 180,
+              targetRule: { kind: "aggroMax" },
+              elementAccum: [{ label: "炎", amount: 1 }],
+              ailmentAccum: [{ label: "出血", amount: 1 }],
+            },
+          ],
+        },
+        {
+          // 「血炎の槍撃＆槍の幻影」（出目7~8）：mod「±0＆「炎:1D」＆「出血:1D」」。乱戦ダメージ
+          // 修正±0、「敵視:1以上」で前衛のPC全員に「乱戦ダメージ:2人分」（本文に明記）。mod欄の
+          // 「炎:1D」は本文中に矛盾する別記載が無いため既定どおりgroupDamage（乱戦ダメージ対象＝
+          // frontAggroAtLeast1All）に付随させる。一方、mod欄の「出血:1D」は本文が明確に「個別
+          // 効果：『1D』して、出目『1~3』なら前衛のPC全員に、『4~6』なら後衛のPC全員に、出血:1Dを
+          // 与える」という、乱戦ダメージ対象（前衛かつ敵視1以上のみ）とは異なる対象集団への、
+          // 二次判定（1D）で決まる別枠の状態異常蓄積のみの効果（HP損害を伴わない）と明記して
+          // いるため、これをgroupDamageへ重複して付随させることはしない。この二次判定は「前衛
+          // 全員 or 後衛全員のいずれか」という、既存targetRule（6種）のどれにも該当しない可変
+          // ターゲットを1Dで決定する構造であり、既存のindividualDamage/repeat/rotateはいずれも
+          // 固定対象・固定回数を前提とするため構造化できない。新規タグdice_branch_target_manual
+          // （本ブロック専用、「1Dで対象集団自体が分岐する」ケースの記録用。既存の
+          // variable_repeat_manualは「PC人数依存の可変回数」専用のタグのため意味が異なり流用
+          // しない）を付与し、GM手動処理に委ねる。
+          rollMin: 7,
+          rollMax: 8,
+          groupDamage: { modifier: 0, elementAccum: [{ label: "炎", amount: 1 }] },
+          targetRule: { kind: "frontAggroAtLeast1All" },
+          conditions: ["dice_branch_target_manual"],
+        },
+        {
+          // 「血炎の飛沫」（出目9~10）：mod「－180」。乱戦ダメージ修正－180（対象明記なし＝既定
+          // ルール＝前衛均等割り）。個別効果は「敵視:1以上」のPC全員が対象の判定（11|フィジカル、
+          // 全PCプールではなく敵視1以上のみに絞られた部分集合、edele/nox_dragonkin_soldier系の
+          // savingThrow.targetFilter: aggroAtLeast1と同型）で、失敗したPCに【個別ダメージ:120】＋
+          // 「炎:1D」＋「出血:1D」を与える。savingThrow.onFail.elementAccum/ailmentAccumは
+          // Task3で拡張済みでnight.js側のqueueAttributeAccumが読み取り自動反映するため
+          // （enemy_auto_gm_data.js内「毒の瘴気」等の既存事例と同型）、ここに構造化する。
+          rollMin: 9,
+          rollMax: 10,
+          groupDamage: { modifier: -180 },
+          targetRule: { kind: "frontAll" },
+          savingThrow: {
+            stat: "physical",
+            targetFilter: { kind: "aggroAtLeast1" },
+            targetByCondition: [{ condition: { kind: "default" }, target: 11 }],
+            onFail: { amount: 120, elementAccum: [{ label: "炎", amount: 1 }], ailmentAccum: [{ label: "出血", amount: 1 }] },
+          },
+        },
+      ],
+    },
   };
 
   function get(familyId, enemyId) {
