@@ -6743,19 +6743,24 @@
     // 特殊能力〔巨剣陣（条件発揮）〕（knight_troll専用）：エンドフェイズ開始時、「敵視:1以上」の
     // PC全員は「HP損害:■×敵視の値」を被る。エンドフェイズ開始時トリガー・敵視値に比例した
     // 倍率・■（数値未確定）という3要素を持ち、既存機構（rollBonusAfterGuardBreak等）のいずれにも
-    // 対応できない特殊能力のため、rows[]には組み込まずここにルールブック原文どおり記録し、GMが
-    // 手動で運用する。roll 1~2「薙ぎ払い＆巨剣陣」・roll 5~6「叩きつけ＆巨剣陣」の本文が
-    // 「特殊能力「巨剣陣」を効果発揮」と明記しているが、上記の理由により該当行のconditionsには
-    // このトリガーを示すタグを追加しない（rows外の効果のため）。
+    // 対応できない特殊能力のため、rows[]には（発揮の有無を示すタグ以外の）実処理は組み込まず
+    // ここにルールブック原文どおり記録し、GMが手動で運用する。roll 1~2「薙ぎ払い＆巨剣陣」・
+    // roll 5~6「叩きつけ＆巨剣陣」の本文が「特殊能力「巨剣陣」を効果発揮」と明記しているため、
+    // soldier_knight|knight_alutrius「深淵纏い（条件発揮）」／dragon|ancient_dragon「炉の炎」
+    // （furnace_flame_trigger）の先例に倣い、発揮元の各行にunknown_hp_damage_manualを付与し、
+    // 「この出目ではGMが■の巨剣陣を手動処理する必要がある」ことを行単位で明示する。
     "troll_dragonkin_wormface|knight_troll": {
       rows: [
         {
           // 「薙ぎ払い＆巨剣陣」：乱戦ダメージ修正+60（対象明記なし＝既定ルール＝前衛均等割り）。
-          // 特殊能力「巨剣陣」を効果発揮（上記コメント参照、rows外でGM手動処理）。
+          // 特殊能力「巨剣陣」を効果発揮（上記コメント参照、■を含みrows外でGM手動処理。
+          // soldier_knight|knight_alutrius「深淵纏い」の先例に倣い、発揮元の行に
+          // unknown_hp_damage_manualを付与する）。
           rollMin: 1,
           rollMax: 2,
           groupDamage: { modifier: 60 },
           targetRule: { kind: "frontAll" },
+          conditions: ["unknown_hp_damage_manual"],
         },
         {
           // 「魔力の大剣」：mod「＋120＆「魔:1D」」。乱戦ダメージ修正+120（対象明記なし＝既定
@@ -6771,12 +6776,13 @@
         {
           // 「叩きつけ＆巨剣陣」：乱戦ダメージ修正±0（対象明記なし＝既定ルール＝前衛均等割り）。
           // この乱戦ダメージを回避するPCはダイスコストが半減する（reducible_by_stamina_dice）。
-          // 特殊能力「巨剣陣」を効果発揮（上記コメント参照、rows外でGM手動処理）。
+          // 特殊能力「巨剣陣」を効果発揮（上記コメント参照、■を含みrows外でGM手動処理。
+          // knight_alutrius「深淵纏い」の先例に倣いunknown_hp_damage_manualも付与する）。
           rollMin: 5,
           rollMax: 6,
           groupDamage: { modifier: 0 },
           targetRule: { kind: "frontAll" },
-          conditions: ["reducible_by_stamina_dice"],
+          conditions: ["reducible_by_stamina_dice", "unknown_hp_damage_manual"],
         },
       ],
     },
