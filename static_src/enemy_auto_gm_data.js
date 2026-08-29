@@ -1129,37 +1129,6 @@
         },
       ],
     },
-    "big_dog_bear|rune_bear": {
-      rows: [
-        {
-          // 「腕振り回し」：乱戦ダメージ修正±0、対象明記無しのため既定ルール。個別効果：
-          // 「敵視:1以上」PC全員の次アクションフェイズ体力骰-1（HP損害を伴わないため
-          // individualDamage無し）。
-          rollMin: 1,
-          rollMax: 2,
-          groupDamage: { modifier: 0 },
-          targetRule: { kind: "frontAll" },
-          conditions: ["stamina_dice_reduction_next_phase"],
-        },
-        {
-          // 「伏せ叩き」：乱戦ダメージ修正+120、対象明記無しのため既定ルール。この乱戦ダメージを
-          // 回避するPCはダイスコストが半減する。
-          rollMin: 3,
-          rollMax: 4,
-          groupDamage: { modifier: 120 },
-          targetRule: { kind: "frontAll" },
-          conditions: ["reducible_by_stamina_dice"],
-        },
-        {
-          // 「抱きしめ」：乱戦ダメージ修正が「—」のため発生しない。個別ダメージ300を
-          // 「敵視:最大」のPC1体に、ガード不可。
-          rollMin: 5,
-          rollMax: 6,
-          individualDamage: [{ amount: 300, targetRule: { kind: "aggroMax" } }],
-          conditions: ["no_guard"],
-        },
-      ],
-    },
     "warrior_swordsman|cursed_swordsman": {
       rows: [
         {
@@ -2260,11 +2229,18 @@
     // 【本ブロックで新規導入した conditions タグ】
     // - saving_throw_damage_and_ailment_manual: 「敵視:1以上→目標X／それ以外（敵視:0）→目標Y」の
     //   全PCプール型・敵視分岐DCの判定で、失敗時の効果が【個別ダメージ】＋属性/状態異常蓄積の
-    //   両方を伴うもの。savingThrow.onFailは既存実装（night.js）がonFail.amountしか読まず
-    //   elementAccum/ailmentAccumを一切反映しないため（saving_throw_ailment_only_manualと同じ理由）、
-    //   ダメージ部分だけをsavingThrowで自動化すると蓄積部分が黙って欠落し誤解を招く。よって
-    //   savingThrow自体を使わず、判定・ダメージ・蓄積のすべてをコメントに記載してGM手動処理に
-    //   委ねる（Global Constraint 9）。
+    //   両方を伴うもの。本ブロック作成時点ではsavingThrow.onFailはonFail.amountしか読まず
+    //   elementAccum/ailmentAccumを一切反映しないと判断し（saving_throw_ailment_only_manualと
+    //   同じ理由）、savingThrow自体を使わずコメントでGM手動処理に委ねていた。
+    //   【2026-08-29修正】Task6（soldier_knight|death_knight）でnight.js（約10049-10061行）を
+    //   再確認したところ、savingThrow.onFailは`typeof outcomeEntry.amount === "number"`の
+    //   ときのみ個別ダメージ入力欄へ書き込むが、elementAccum/ailmentAccumはonFail.amountの型に
+    //   関わらず常にqueueAttributeAccumへ渡される実装であることが判明した。よって上記の
+    //   「onFail.amountしか読まない」という判断は誤りであり、実際には【個別ダメージ】＋属性/
+    //   状態異常蓄積の両方を伴う失敗効果もsavingThrowへ構造化可能である。ただし本ブロック内で
+    //   既にこのタグを使用している箇所を今回遡って再構造化することはせず（Global Constraint 9の
+    //   例外的な保守的判断は維持）、次回以降このタグの新規使用を検討する際の参考として本コメントを
+    //   更新するに留める（Global Constraint 9）。
     // - majority_fail_time_loss_manual: PC全員が同一目標値で判定し、「半数以上が失敗」という
     //   集団閾値の結果によって「タイムロス」が蓄積するかどうかが決まる行動。savingThrowは
     //   個別PCごとの成否判定＋敵視分岐DCを前提とした構造のため、この「集団の過半数」という
@@ -3509,12 +3485,13 @@
         },
         {
           // 「毒爪ひっかき」：前衛の中で「敵視:最大」のPC全員に「乱戦ダメージ:3人分」（本文に明記）。
-          // mod欄の「猛毒:1D」（固定値、骰子ではないためelementAccum）はこの乱戦ダメージに付随
-          // （出目1~2「炎爪ひっかき」と同型の「－N＆「属性:1D」」構文のため、同様にelementAccumへ
-          // 構造化して一貫させる）。
+          // mod欄の「猛毒:1D」はこの乱戦ダメージに付随（出目1~2「炎爪ひっかき」と同型の
+          // 「－N＆「属性/状態異常:1D」」構文のため、同様に本体へ構造化して一貫させる）。猛毒は
+          // 状態異常（docs/enemy_damage_rules.md §7、CLAUDE.md §17分類）のためailmentAccumで
+          // 構造化する（elementAccumではない）。
           rollMin: 7,
           rollMax: 8,
-          groupDamage: { modifier: -420, elementAccum: [{ label: "猛毒", amount: 1 }] },
+          groupDamage: { modifier: -420, ailmentAccum: [{ label: "猛毒", amount: 1 }] },
           targetRule: { kind: "frontAggroMaxAll" },
         },
         {
@@ -3530,16 +3507,17 @@
         {
           // 「毒のブレス」：乱戦ダメージ修正が「—」のため発生しない。個別効果：PC全員が判定
           // （11|フィジカル）を行い、失敗したPCに【個別ダメージ:60】＋「猛毒:2D」を与える。
-          // 2026-08-24のTask3拡張によりsavingThrow.onFail.elementAccumがnight.js側
+          // 2026-08-24のTask3拡張によりsavingThrow.onFail.elementAccum/ailmentAccumがnight.js側
           // （queueAttributeAccum呼び出し、cavalry|unnamed_king等の既存事例）で読まれるように
-          // なっているため、「猛毒:2D」（固定値、骰子ではないためelementAccum）もonFailへ構造化して
-          // 自動反映する。
+          // なっているため、「猛毒:2D」もonFailへ構造化して自動反映する。猛毒は状態異常
+          // （docs/enemy_damage_rules.md §7、CLAUDE.md §17分類）のためailmentAccumで構造化する
+          // （elementAccumではない）。
           rollMin: 11,
           rollMax: 12,
           savingThrow: {
             stat: "physical",
             targetByCondition: [{ condition: { kind: "default" }, target: 11 }],
-            onFail: { amount: 60, elementAccum: [{ label: "猛毒", amount: 2 }] },
+            onFail: { amount: 60, ailmentAccum: [{ label: "猛毒", amount: 2 }] },
           },
         },
       ],
@@ -3612,8 +3590,10 @@
           // 既定ルール）。個別効果は「敵視:1以上」のPC全員が〈11|運試し〉判定を行い（stat:
           // "luck"、既存の「運試し」使用エントリsoldier_knight|red_lion_knights等で確認済みの
           // プロパティ名）、失敗したPCに【個別ダメージ:120】＋「猛毒:1D」を与える。猛毒1Dは
-          // savingThrow.onFail.elementAccum（night.js側のqueueAttributeAccumが読み取り自動反映、
-          // 本ファイルdeath_bird_raven|wounded_demonの猛毒2D事例と同型）へ構造化する。
+          // savingThrow.onFail.ailmentAccum（night.js側のqueueAttributeAccumが読み取り自動反映、
+          // 本ファイルdeath_bird_raven|wounded_demonの猛毒2D事例と同型）へ構造化する。猛毒は
+          // 状態異常（docs/enemy_damage_rules.md §7、CLAUDE.md §17分類）のためailmentAccumで
+          // 構造化する（elementAccumではない）。
           rollMin: 7,
           rollMax: 8,
           groupDamage: { modifier: 120 },
@@ -3622,7 +3602,7 @@
             stat: "luck",
             targetFilter: { kind: "aggroAtLeast1" },
             targetByCondition: [{ condition: { kind: "default" }, target: 11 }],
-            onFail: { amount: 120, elementAccum: [{ label: "猛毒", amount: 1 }] },
+            onFail: { amount: 120, ailmentAccum: [{ label: "猛毒", amount: 1 }] },
           },
         },
         {
@@ -3630,11 +3610,12 @@
           // 対象は「敵視:1以上」のPC全員（本文に明記）、対象0人の場合は通常通り前衛にフォール
           // バックする——既存resolveTargetsのtargetRule.fallback === "front"機構（auto_gm.js内、
           // 本ファイルの他多数の"aggroAtLeast1All", fallback: "front"エントリと同型）がまさに
-          // この挙動を実装済みのため、そのまま再利用する。mod欄の「猛毒:1D」は
-          // groupDamage.elementAccumへ構造化。
+          // この挙動を実装済みのため、そのまま再利用する。猛毒は状態異常
+          // （docs/enemy_damage_rules.md §7、CLAUDE.md §17分類）のためmod欄の「猛毒:1D」は
+          // groupDamage.ailmentAccumへ構造化する（elementAccumではない）。
           rollMin: 9,
           rollMax: 10,
-          groupDamage: { modifier: -300, repeat: 2, elementAccum: [{ label: "猛毒", amount: 1 }] },
+          groupDamage: { modifier: -300, repeat: 2, ailmentAccum: [{ label: "猛毒", amount: 1 }] },
           targetRule: { kind: "aggroAtLeast1All", fallback: "front" },
         },
       ],
@@ -3707,22 +3688,22 @@
           // （前衛均等割り）。「敵視:最大」のPC全員は、次のアクションフェイズ開始時、スタミナ
           // ダイスの出目にかかわらず後衛に配置される。
           // 【重要な範囲の注意】既存のforce_back_row_next_phase（night.js
-          // 11707-11728行）は、フラグが立つとentered全員（rosterCharacters.filter(entered)）を
+          // 11712-11728行付近）は、フラグが立つとentered全員（rosterCharacters.filter(entered)）を
           // 無条件で次の戰鬥フェイズ開始時に後衛固定する実装（死儀礼の鳥「飛び退き」等の先例は
           // 本文上も対象が「PC全員」のため一致していた）。しかし本行動の本文が明記する対象は
           // 「敵視:最大」のPC全員のみであり、敵視最大でないPCまで後衛に固定されるのは本文と
           // 一致しない。既存機構には対象PCを限定するパラメータが無く、新規の部分適用機構を
-          // 追加するのは本タスクの範囲を超えるため、ここではconditionsタグをそのまま付与しつつ、
-          // GM/実装者は「このタグは対象を『敵視:最大』のPCのみに限定する必要があり、実際の
-          // 挙動（entered全員を後衛固定）とは範囲が異なる」ことを認識したうえで、必要なら該当
-          // 行動の解決時にGMが手動で「敵視:最大」以外のPCの前後衛を戻す運用を取ること
-          // （機構自体は変更しない）。特殊能力「闇に紛れる（条件発揮）」も効果発揮するが、
+          // 追加するのは本タスクの範囲を超えるため、force_back_row_next_phaseは使わず、
+          // 新規タグforce_back_row_aggro_max_manual（本文が「敵視:最大」のみを対象とする
+          // 後衛強制配置を明記しており、既存タグをそのまま使うとentered全員に誤って適用されて
+          // しまうケース専用）で機構化せずGM手動運用に委ねる。行動解決時にGMが「敵視:最大」の
+          // PCのみを手動で後衛へ配置すること。特殊能力「闇に紛れる（条件発揮）」も効果発揮するが、
           // エントリ冒頭コメントの理由によりrows化しない。
           rollMin: 4,
           rollMax: 4,
           groupDamage: { modifier: 0 },
           targetRule: { kind: "frontAll" },
-          conditions: ["force_back_row_next_phase"],
+          conditions: ["force_back_row_aggro_max_manual"],
         },
         {
           // 「雷大剣連撃＆角降ろし」：mod「＋120＆「雷:1D」」。乱戦ダメージ修正＋120、対象明記なしの
@@ -3868,7 +3849,10 @@
       ],
     },
     "big_dog_bear|rune_bear": {
-      // 特殊能力〔HP価値:+10〕：常に「HP価値:+10（最大100）」→ conditions: ["enemy_hp_value_buff_permanent"]
+      // 特殊能力〔HP価値:+10〕：常に「HP価値:+10（最大100）」。個別roll行のconditionsは各roll行
+      // 固有の効果を表すフィールドであり、この特殊能力はrollMin/rollMaxに紐づかないエントリ全体の
+      // 常時効果のため、rowに紐づけるのは意味的に不正確。night.js側にエントリ全体の常時HP価値
+      // バフを読み取る既存の仕組みは無いため、機構化せずGM手動運用（rows外、機構化せず）とする。
       rows: [
         {
           // 「腕振り回し」：mod: "±0"。個別効果：「敵視:1以上」のPC全員は、次のアクションフェイズに獲得するスタミナダイスが1個減少する。
@@ -3879,12 +3863,13 @@
           conditions: ["stamina_dice_reduction_next_phase"],
         },
         {
-          // 「のしかかり」：mod: "＋120"。乱戦ダメージを回避するPCは、支払ったダイスコストの値を半分（端数切り捨て。最低値1）として扱う（PC側処理、コメントのみ）。
+          // 「のしかかり」：mod: "＋120"。この乱戦ダメージを回避するPCはダイスコストが半減する
+          // （reducible_by_stamina_dice、既存タグと同じ効果）。
           rollMin: 3,
           rollMax: 4,
           groupDamage: { modifier: 120 },
           targetRule: { kind: "frontAll" },
-          conditions: ["halved_evade_cost_note"],
+          conditions: ["reducible_by_stamina_dice"],
         },
         {
           // 「ベアハッグ」：mod: "—"。個別効果：「敵視:最大」のPC1体に【個別ダメージ:300】を与える。この効果に対してガード不可。
@@ -3937,9 +3922,8 @@
           // 「騎士の雷槍」：乱戦ダメージ修正－60（「—」ではないため発生、本文に乱戦ダメージの対象
           // 明記なし）。既定ルール（前衛均等割り）。mod欄の「雷:2D」はgroupDamageに付随。
           // 個別効果：「敵視:1以上」のPC全員に【個別ダメージ:60】＋「雷:1D」を別枠で与える
-          // （mod欄の雷2Dとは数値が異なるため別効果として個別に構造化）。この効果に対して回避する
-          // とき、支払ったダイスコストの値を半分（端数切り捨て、最低値1）として扱う
-          // （halved_evade_cost_note、big_dog_bear|rune_bearの既存表記と同じタグ）。
+          // （mod欄の雷2Dとは数値が異なるため別効果として個別に構造化）。この乱戦ダメージを
+          // 回避するPCはダイスコストが半減する（reducible_by_stamina_dice）。
           rollMin: 3,
           rollMax: 4,
           groupDamage: { modifier: -60, elementAccum: [{ label: "雷", amount: 2 }] },
@@ -3947,7 +3931,7 @@
           individualDamage: [
             { amount: 60, targetRule: { kind: "aggroAtLeast1All" }, elementAccum: [{ label: "雷", amount: 1 }] },
           ],
-          conditions: ["halved_evade_cost_note"],
+          conditions: ["reducible_by_stamina_dice"],
         },
         {
           // 「薙ぎ払い＆掴み攻撃」：乱戦ダメージ修正－120（「—」ではないため発生、本文に乱戦ダメージ
@@ -4039,14 +4023,13 @@
         {
           // 「神獣霜踏み」：乱戦ダメージ修正－120＋「凍傷:2D」（本文に別途対応する個別効果の
           // 記載なし＝mod欄独自の付随効果、二重計上のおそれ無し。凍傷は状態異常のため
-          // ailmentAccum）。既定ルール（前衛均等割り）。乱戦ダメージを回避するPCはダイス
-          // コストが半減する（reducible_by_stamina_dice相当だが本文は「支払ったダイスコストの
-          // 値を半分」と明記しているため既存タグhalved_evade_cost_noteを使用）。
+          // ailmentAccum）。既定ルール（前衛均等割り）。この乱戦ダメージを回避するPCは
+          // ダイスコストが半減する（reducible_by_stamina_dice）。
           rollMin: 7,
           rollMax: 7,
           groupDamage: { modifier: -120, ailmentAccum: [{ label: "凍傷", amount: 2 }] },
           targetRule: { kind: "frontAll" },
-          conditions: ["halved_evade_cost_note"],
+          conditions: ["reducible_by_stamina_dice"],
         },
         {
           // 「神獣の舞」：乱戦ダメージ修正±0、対象明記無しのため既定ルール（前衛均等割り）。
