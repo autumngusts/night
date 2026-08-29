@@ -6101,6 +6101,251 @@
         },
       ],
     },
+    // Batch D9（enemies_data_4.js）：undead科4体（falling_hawk_corps/skeletons/graveyard_shades/
+    // wraith_servants）＋crystal_puppet科1体（stone_diggers）＋golem_maiden_puppet科1体
+    // （fire_chariot_ganmen）。
+    "undead|falling_hawk_corps": {
+      rows: [
+        {
+          // 「盾構え突き」：mod「－60」。乱戦ダメージ修正－60、対象明記無しのため既定ルール（前衛
+          // 均等割り）。特殊効果:次のアクションフェイズ終了までエネミーを「HP価値:+20（最大100）」
+          // する（enemy_hp_value_buff）。
+          rollMin: 1,
+          rollMax: 2,
+          groupDamage: { modifier: -60 },
+          targetRule: { kind: "frontAll" },
+          conditions: ["enemy_hp_value_buff"],
+        },
+        {
+          // 「斬りかかり」：mod「＋60」。乱戦ダメージ修正+60、対象明記無しのため既定ルール（前衛
+          // 均等割り）。個別ダメージ120は「敵視:最大」のPC1体に別枠で発生。
+          rollMin: 3,
+          rollMax: 4,
+          groupDamage: { modifier: 60 },
+          targetRule: { kind: "frontAll" },
+          individualDamage: [{ amount: 120, targetRule: { kind: "aggroMax" } }],
+        },
+        {
+          // 「射撃攻撃」：mod「±0」。乱戦ダメージは「敵視:最大」のPCが存在するエリア（前衛/後衛）の
+          // PC全員が対象（本文に明記）。既存targetRule.kind「majorityAreaAggroMax」（gnoster
+          // 「潜航＆毒液」で新設）を再利用する。【要確認・GM向け注記】本文は「『敵視:最大』のPCが
+          // どちらのエリアにも同数存在する場合、通常どおり、前衛が対象となる」と明記しているが、
+          // 既存のresolveTargets実装（auto_gm.js約303-320行）は同数時にランダムで前衛/後衛どちらかを
+          // 選ぶ仕様（gnoster/nameless側の既存コメントも「同数ならランダム」と記載、本文で明示的に
+          // 確認されたものではなかった可能性がある）。他エネミー（gnoster等）にも影響する共有
+          // ロジックのため本タスクでは変更せず、この食い違いをコメントで記録するに留める。GMは同数
+          // ケースに遭遇した場合、本行の本文どおり前衛を優先することを推奨する。
+          rollMin: 5,
+          rollMax: 6,
+          groupDamage: { modifier: 0 },
+          targetRule: { kind: "majorityAreaAggroMax" },
+        },
+      ],
+    },
+    "undead|skeletons": {
+      rows: [
+        {
+          // 「連続斬り」：mod「＋60」。「敵視:1以上」で前衛のPC全員に「乱戦ダメージ:2人分」（本文に
+          // 明記）。
+          rollMin: 1,
+          rollMax: 2,
+          groupDamage: { modifier: 60 },
+          targetRule: { kind: "frontAggroAtLeast1All" },
+        },
+        {
+          // 「回転斬り」：mod「＋60」。乱戦ダメージ修正+60、対象明記無しのため既定ルール（前衛均等
+          // 割り）。個別ダメージ120＋「出血:1D」（出血は状態異常のためailmentAccum）を「敵視:最大」
+          // のPC1体に別枠で発生。
+          rollMin: 3,
+          rollMax: 4,
+          groupDamage: { modifier: 60 },
+          targetRule: { kind: "frontAll" },
+          individualDamage: [
+            { amount: 120, targetRule: { kind: "aggroMax" }, ailmentAccum: [{ label: "出血", amount: 1 }] },
+          ],
+        },
+        {
+          // 「呪霊呼び」：mod「—」のため乱戦ダメージは発生しない。個別効果（PC人数回実行、既存解釈＝
+          // 対象全員に1回ずつ、demihuman_beastfolk_club|rot_kindred「頭突き連打」等と同型）：
+          // 「敵視:1以上」のPC全員に【個別ダメージ:120】＋「聖:1D」を与える。
+          rollMin: 5,
+          rollMax: 6,
+          individualDamage: [
+            { amount: 120, targetRule: { kind: "aggroAtLeast1All" }, elementAccum: [{ label: "聖", amount: 1 }] },
+          ],
+        },
+      ],
+    },
+    // 特殊能力「闇に紛れる（条件発揮）」（graveyard_shades専用、rows出目1-2/3-4のnoteで言及）：
+    // すべてのPCは次のアクションフェイズ開始時に〈11|メンタル〉を行い、失敗した場合はスタミナ
+    // ダイスの出目アイコンをすべて「1」に変更する——既存savingThrow機構は「行動直後の判定」を
+    // 前提としており「次フェイズ開始時」という遅延判定は表現できず、かつ「出目を書き換える」効果は
+    // HP損害・属性/状態異常蓄積のいずれでもないため既存フィールドに構造化できない。rows化はせず
+    // GM手動運用に委ねる（warrior_swordsman|divine_beast_warriors「闇に紛れる」と同型の判断）。
+    "undead|graveyard_shades": {
+      rows: [
+        {
+          // 「連続斬り＆闇に紛れる」：mod「±0＆「出血:1D」」。乱戦ダメージ修正±0、対象明記無しの
+          // ため既定ルール（前衛均等割り）。mod欄の「出血:1D」は本文個別効果（「敵視:1以上」のPC
+          // 全員に「出血:1D」を与える）と数値・種別が一致するが、対象集団（敵視:1以上のPC全員）が
+          // 乱戦ダメージの対象（前衛全員）と異なるため、groupDamage.ailmentAccumにも
+          // individualDamage（HP損害を伴わずamount必須のため入力不可）にも構造化できず、
+          // accum_target_mismatch_manualでGM手動処理に委ねる（2262行の解釈方針）。特殊能力
+          // 「闇に紛れる」も効果発揮する（エントリ冒頭コメント参照、rows化しない）。
+          rollMin: 1,
+          rollMax: 2,
+          groupDamage: { modifier: 0 },
+          targetRule: { kind: "frontAll" },
+          conditions: ["accum_target_mismatch_manual"],
+        },
+        {
+          // 「交差斬り＆闇に紛れる」：mod「＋60＆「出血:1D」」。乱戦ダメージ修正+60、対象明記無しの
+          // ため既定ルール（前衛均等割り）。mod欄の「出血:1D」は本文個別効果（「敵視:最大」のPC1体
+          // への【個別ダメージ:180】＋「出血:1D」）と数値・種別が完全一致するため二重計上を避け、
+          // groupDamageには付随させず個別ダメージ側にのみ構造化する（2254行の解釈方針）。特殊能力
+          // 「闇に紛れる」も効果発揮する（エントリ冒頭コメント参照、rows化しない）。
+          rollMin: 3,
+          rollMax: 4,
+          groupDamage: { modifier: 60 },
+          targetRule: { kind: "frontAll" },
+          individualDamage: [
+            { amount: 180, targetRule: { kind: "aggroMax" }, ailmentAccum: [{ label: "出血", amount: 1 }] },
+          ],
+        },
+        {
+          // 「拘束弾＆掴みかかり」：mod「－240」。乱戦ダメージ修正－240（「—」ではないため発生）、
+          // 対象明記無しのため既定ルール（前衛均等割り）。個別ダメージ240を「敵視:最大」のPC1体に
+          // 別枠で発生、この個別ダメージに対してガード不可（no_guard）。
+          rollMin: 5,
+          rollMax: 6,
+          groupDamage: { modifier: -240 },
+          targetRule: { kind: "frontAll" },
+          individualDamage: [{ amount: 240, targetRule: { kind: "aggroMax" } }],
+          conditions: ["no_guard"],
+        },
+      ],
+    },
+    "undead|wraith_servants": {
+      rows: [
+        {
+          // 「群がる」：mod「±0」。「敵視:1以上」で前衛のPC全員に「乱戦ダメージ:2人分」（本文に
+          // 明記）。
+          rollMin: 1,
+          rollMax: 2,
+          groupDamage: { modifier: 0 },
+          targetRule: { kind: "frontAggroAtLeast1All" },
+        },
+        {
+          // 「抱きつき」：mod「－60」。乱戦ダメージ修正－60、対象明記無しのため既定ルール（前衛均等
+          // 割り）。乱戦ダメージの対象となった「敵視:1以上」のPC全員はガード不可（no_guard、対象の
+          // 明記が無いため既定ルール＝前衛均等割りの対象全員のうち敵視1以上の部分集合にのみ適用、
+          // undead|tibias_summoning_boat「死に生きる者:掴みかかり＆再召喚」と同型）。
+          rollMin: 3,
+          rollMax: 4,
+          groupDamage: { modifier: -60 },
+          targetRule: { kind: "frontAll" },
+          conditions: ["no_guard"],
+        },
+        {
+          // 「呪霊呼び」：mod「—」のため乱戦ダメージは発生しない。個別効果（PC人数回実行、既存解釈＝
+          // 対象全員に1回ずつ）：「敵視:1以上」のPC全員に【個別ダメージ:120】＋「聖:1D」を与える
+          // （undead|skeletons「呪霊呼び」と同一文言・同型）。
+          rollMin: 5,
+          rollMax: 6,
+          individualDamage: [
+            { amount: 120, targetRule: { kind: "aggroAtLeast1All" }, elementAccum: [{ label: "聖", amount: 1 }] },
+          ],
+        },
+      ],
+    },
+    "crystal_puppet|stone_diggers": {
+      rows: [
+        {
+          // 「殴りかかり」：mod「±0」、本文自体が無いため既定ルール（前衛均等割り）。
+          rollMin: 1,
+          rollMax: 2,
+          groupDamage: { modifier: 0 },
+          targetRule: { kind: "frontAll" },
+        },
+        {
+          // 「火炎壺」：mod「－60＆「炎:1D」」。乱戦ダメージ修正－60、対象明記無しのため既定ルール
+          // （前衛均等割り）。mod欄の「炎:1D」は本文個別効果（「敵視:1以上」のPC全員に「炎:1D」を
+          // 与える）と数値・種別が一致するが、対象集団（敵視:1以上のPC全員）が乱戦ダメージの対象
+          // （前衛全員）と異なるため、accum_target_mismatch_manualでGM手動処理に委ねる（2262行の
+          // 解釈方針）。
+          rollMin: 3,
+          rollMax: 4,
+          groupDamage: { modifier: -60 },
+          targetRule: { kind: "frontAll" },
+          conditions: ["accum_target_mismatch_manual"],
+        },
+        {
+          // 「岩盤砕き」：mod「＋60＆「魔:1D」」。乱戦ダメージ修正+60（対象明記無しのため既定ルール
+          // ＝前衛均等割り）。「魔:1D」は本文が別途対象を再指定していないため乱戦ダメージと同じ対象
+          // に付随（elementAccum、魔は属性）。本文の別効果（乱戦ダメージをガードしたPCの防禦消耗
+          // +1）はguard_cost_penaltyで記録。
+          rollMin: 5,
+          rollMax: 6,
+          groupDamage: { modifier: 60, elementAccum: [{ label: "魔", amount: 1 }] },
+          targetRule: { kind: "frontAll" },
+          conditions: ["guard_cost_penalty"],
+        },
+      ],
+    },
+    // special フィールドについて（rows[]には含めずここに記録し、GM手動対応とする）：
+    // 〔むき出しの弱点〕PCが遺物効果「致命の一撃」を習得している場合、そのコストを「消耗:②」に
+    // 変更してよい。そうした場合、このエネミーはどれだけ総合ダメージ／HP損害を適用されても、その
+    // フェイズの間には撃破されず「現在HP:□（1点）」が残る。
+    // 〔自爆誘発〕PCが遺物効果「致命の一撃」を行った場合、このエネミーはディフェンスフェイズで
+    // アクション決定の1Dを振らず、自動的に下記「自爆」（出目5~6）を行う——既存rows/rollOverride
+    // 機構はいずれも「毎ターン通常どおり判定表を振る」前提のため、「特定PCの行動をトリガーに判定を
+    // 飛ばして固定行動を強制する」という分岐は表現できない。新規機構は追加せずGM手動運用とする。
+    "golem_maiden_puppet|fire_chariot_ganmen": {
+      rows: [
+        {
+          // 「擦過器突進」：mod「＋120」。乱戦ダメージ修正+120、対象明記無しのため既定ルール（前衛
+          // 均等割り）。本文はさらに「個別効果:前衛のPC全員に『HP損害:■』を与える」と、乱戦ダメージ
+          // とは別枠の追加HP損害（数値未確定の■）を明記しているが、■の数値を自動計算・捏造しない
+          // （Global Constraint 1）ためunknown_hp_damage_manualでGM手動処理に委ねる。
+          rollMin: 1,
+          rollMax: 2,
+          groupDamage: { modifier: 120 },
+          targetRule: { kind: "frontAll" },
+          conditions: ["unknown_hp_damage_manual"],
+        },
+        {
+          // 「炎の舌」：mod「－60＆「炎:1D」」。乱戦ダメージ修正－60、対象明記無しのため既定ルール
+          // （前衛均等割り）。mod欄の「炎:1D」は本文個別効果（「敵視:1以上」のPC全員に「炎:1D」を
+          // 与える）と数値・種別が一致するが、対象集団が乱戦ダメージの対象と異なるため、
+          // accum_target_mismatch_manualでGM手動処理に委ねる（2262行の解釈方針）。
+          rollMin: 3,
+          rollMax: 4,
+          groupDamage: { modifier: -60 },
+          targetRule: { kind: "frontAll" },
+          conditions: ["accum_target_mismatch_manual"],
+        },
+        {
+          // 「自爆」：mod「＋120＆「炎:2D」」。乱戦ダメージ修正+120（「—」ではないため発生）、対象
+          // 明記無しのため既定ルール（前衛均等割り）。個別効果はPC全員（前後衛問わず、targetFilter
+          // 無し）が〈11|フィジカル〉を行い、失敗したPCに【個別ダメージ:300】＋「炎:2D」を与える
+          // （ancient_dragon「地を這う赤雷」と同型のsavingThrow構造）。mod欄の「炎:2D」はこの判定
+          // 失敗効果と数値・種別が完全一致するため二重計上を避け、groupDamageには付随させず
+          // savingThrow.onFail側にのみ構造化する（2254行の解釈方針）。本文はさらに「その後、
+          // エネミーは『現在HP:0』になる」と自壊を明記しているが、既存rows/state機構には「行動実行
+          // 後に自身のHPを即0にする」自己効果を表現する専用フィールドが無いため、rows化せずコメント
+          // に留めGM手動処理に委ねる。
+          rollMin: 5,
+          rollMax: 6,
+          groupDamage: { modifier: 120 },
+          targetRule: { kind: "frontAll" },
+          savingThrow: {
+            stat: "physical",
+            targetByCondition: [{ condition: { kind: "default" }, target: 11 }],
+            onFail: { amount: 300, elementAccum: [{ label: "炎", amount: 2 }] },
+          },
+        },
+      ],
+    },
   };
 
   function get(familyId, enemyId) {
