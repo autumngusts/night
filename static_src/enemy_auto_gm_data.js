@@ -4922,6 +4922,207 @@
         },
       ],
     },
+
+    // Batch D4: formless_other(reflection_trolls/omen/silver_drops/mud_men/miranda_flowers) = 5体。
+    // 出典: static_src/enemies_data_2.js:539〜805行付近。同familyの既存エントリ
+    // （man_bats:982行目付近、spider_scorpions:1167行目付近）の書式・命名を踏襲する。
+    "formless_other|reflection_trolls": {
+      // special:〔モブ1追加〕戦闘開始時、HP枠に「モブ1」を追加し、このエネミーを「撃破ルーン:+1」
+      // する。このモブHPはL補を問わず「最大HP:PC人数×2」である。戦闘開始時トリガーのモブHP
+      // 追加＋撃破ルーン増加という既存に対応する機構が無い特殊能力（Global Constraint「モブHP
+      // 連動の固定行動」に該当）のため、rows[]には組み込まずGM手動運用に委ねる。
+      rows: [
+        {
+          // 「剣薙ぎ払い」：前衛の中で「敵視:最大」のPC全員に「乱戦ダメージ:3人分」（本文に明記、
+          // soldier_knight|crucible_knight「薙ぎ払い」と同型）。
+          rollMin: 1,
+          rollMax: 2,
+          groupDamage: { modifier: 60 },
+          targetRule: { kind: "frontAggroMaxAll" },
+        },
+        {
+          // 「突進斬り」：乱戦ダメージ修正+120（「—」ではないため発生）。対象の明記が無いため
+          // 既定ルール（前衛均等割り）。「敵視:1以上」のPC全員は、この乱戦ダメージを回避する際の
+          // ダイスコストが半減する（reducible_by_stamina_dice）。
+          rollMin: 3,
+          rollMax: 4,
+          groupDamage: { modifier: 120 },
+          targetRule: { kind: "frontAll" },
+          conditions: ["reducible_by_stamina_dice"],
+        },
+        {
+          // 「叩きつけ衝撃波」：乱戦ダメージ修正+120（「—」ではないため発生）。対象の明記が無い
+          // ため既定ルール（前衛均等割り）。この乱戦ダメージに対してガードを行ったPCは、
+          // エンドフェイズまで「HP価値:-10（最低10）」になる（guard_hp_value_penalty、
+          // soldier_knight|crucible_knight「坩堝の諸相・翼」と同型）。
+          rollMin: 5,
+          rollMax: 6,
+          groupDamage: { modifier: 120 },
+          targetRule: { kind: "frontAll" },
+          conditions: ["guard_hp_value_penalty"],
+        },
+      ],
+    },
+    "formless_other|omen": {
+      // special:〔耐久力〕戦闘開始時、このエネミーのすべての「HP行」を「最大HP:+□×5（5点増加）」
+      // する。〔消失〕戦闘開始から3ターン目のエンドフェイズの開始時、このエネミーが消失し、戦闘は
+      // 終了する（この場合撃破ルーンを得られない）。いずれも戦闘開始時／エンドフェイズ起点の自動
+      // 処理であり既存に対応する機構が無いため、rows[]には組み込まずGM手動運用に委ねる。
+      rows: [
+        {
+          // 「魔力弾」：乱戦ダメージ修正が「—」のため乱戦ダメージは発生しない。個別効果
+          // （PC人数回実行）:「敵視:1以上」のPC1体に【個別ダメージ:120】＋「魔:1D」を与える。
+          // 「PC人数回実行」はパーティ人数に依存する可変回数のため、固定回数のrepeat/rotateは
+          // 使わずconditionsとコメントでGM手動処理に委ねる（Global Constraint 7）。「魔:1D」は
+          // docs/enemy_damage_rules.md §1.1のXd＝固定値X裁定により固定値1（手動反映時の参考値）。
+          rollMin: 1,
+          rollMax: 2,
+          conditions: ["variable_repeat_manual"],
+        },
+        {
+          // 「浮遊」：乱戦ダメージ修正±0（「—」ではないため発生）。対象の明記が無いため既定
+          // ルール（前衛均等割り）。個別効果:「敵視:1以上」のPC全員は次のアクションフェイズ開始時
+          // に獲得するスタミナダイスが1個減少する（stamina_dice_reduction_next_phase）。加えて
+          // PC全員（敵視条件なし、こちらは全PC対象）が次のアクションフェイズ開始時、出目に
+          // 関わらず後衛に配置される（force_back_row_next_phase）。両タグは対象範囲が異なる点に
+          // 注意（前者は敵視:1以上のみ、後者はPC全員）。
+          rollMin: 3,
+          rollMax: 4,
+          groupDamage: { modifier: 0 },
+          targetRule: { kind: "frontAll" },
+          conditions: ["stamina_dice_reduction_next_phase", "force_back_row_next_phase"],
+        },
+        {
+          // 「大波」：乱戦ダメージ修正+120＋「魔:1D」＋「睡眠:1D」（docs/enemy_damage_rules.md
+          // §1.1のXd＝固定値X裁定に基づきelementAccum/ailmentAccumとして構造化）。本文は「乱戦
+          // ダメージはPC全員に与えられる」と明記するのみで、mod欄の魔/睡眠を要約し直した別枠の
+          // 個別効果記述は無いため、mod欄と個別効果の数値突合の結果、二重計上の懸念は無い。
+          rollMin: 5,
+          rollMax: 6,
+          groupDamage: {
+            modifier: 120,
+            elementAccum: [{ label: "魔", amount: 1 }],
+            ailmentAccum: [{ label: "睡眠", amount: 1 }],
+          },
+          targetRule: { kind: "allPCs" },
+        },
+      ],
+    },
+    "formless_other|silver_drops": {
+      rows: [
+        {
+          // 「群がる」：「敵視:1以上」で前衛のPC全員に「乱戦ダメージ:2人分」（本文に明記）。
+          rollMin: 1,
+          rollMax: 2,
+          groupDamage: { modifier: 0 },
+          targetRule: { kind: "frontAggroAtLeast1All" },
+        },
+        {
+          // 「槍突き＆盾ガード」：乱戦ダメージ修正+60（「—」ではないため発生）。対象の明記が無い
+          // ため既定ルール（前衛均等割り）。次のアクションフェイズ終了までエネミーを
+          // 「HP価値:+20（最大100）」する（enemy_hp_value_buff）。
+          rollMin: 3,
+          rollMax: 4,
+          groupDamage: { modifier: 60 },
+          targetRule: { kind: "frontAll" },
+          conditions: ["enemy_hp_value_buff"],
+        },
+        {
+          // 「放電」：乱戦ダメージ修正－60（「—」ではないため発生）。対象の明記が無いため既定
+          // ルール（前衛均等割り）。個別効果:「敵視:1以上」のPC全員は〈11|メンタル〉を行い、
+          // 失敗すると【個別ダメージ:60】＋「雷:1D」を受ける（targetFilter:aggroAtLeast1、
+          // ancient_dragon「赤雷叩きつけ」と同型）。mod欄の「雷:1D」はこの個別判定の失敗時効果と
+          // 数値・種別が完全一致するため二重計上を避け、groupDamageには付随させずsavingThrow.
+          // onFail側のみに構造化する（本ファイル冒頭2253〜2265行目の解釈方針）。
+          rollMin: 5,
+          rollMax: 6,
+          groupDamage: { modifier: -60 },
+          targetRule: { kind: "frontAll" },
+          savingThrow: {
+            stat: "mental",
+            targetFilter: { kind: "aggroAtLeast1" },
+            targetByCondition: [{ condition: { kind: "default" }, target: 11 }],
+            onFail: { amount: 60, elementAccum: [{ label: "雷", amount: 1 }] },
+          },
+        },
+      ],
+    },
+    "formless_other|mud_men": {
+      rows: [
+        {
+          // 「銛突き」：「敵視:1以上」で前衛のPC全員に「乱戦ダメージ:2人分」（本文に明記）。
+          rollMin: 1,
+          rollMax: 2,
+          groupDamage: { modifier: 120 },
+          targetRule: { kind: "frontAggroAtLeast1All" },
+        },
+        {
+          // 「つかみかかり」：乱戦ダメージ修正が「—」のため乱戦ダメージは発生しない。個別ダメージ
+          // 240を「敵視:最大」のPC1体に、ガード不可（no_guard）。
+          rollMin: 3,
+          rollMax: 4,
+          individualDamage: [{ amount: 240, targetRule: { kind: "aggroMax" } }],
+          conditions: ["no_guard"],
+        },
+        {
+          // 「神託のシャボン」：乱戦ダメージ修正±0＋「魔:1D」（「—」ではないため既定ルール＝
+          // 前衛均等割りのgroupDamageは発生する）。個別効果:「敵視:1以上」のPC全員は無条件で
+          // 「魔:1D」を被る（HP損害を伴わない）。mod欄の「魔:1D」は数値・種別がこの個別効果と
+          // 完全一致するが、対象集団（敵視:1以上のPC全員、前衛/後衛問わず）が乱戦ダメージの対象
+          // （前衛均等割り）と異なる可能性があり、かつHP損害を伴わないためgroupDamage.
+          // elementAccumにもindividualDamageにも構造化できない。conditionsとコメントでGM手動
+          // 処理に委ねる（accum_target_mismatch_manual、troll_dragonkin_wormface|nox_
+          // dragonkin_soldier「氷槍＆飛び退き」等と同型の判断）。
+          rollMin: 5,
+          rollMax: 6,
+          groupDamage: { modifier: 0 },
+          targetRule: { kind: "frontAll" },
+          conditions: ["accum_target_mismatch_manual"],
+        },
+      ],
+    },
+    "formless_other|miranda_flowers": {
+      // special:〔弱点:凍傷〕公開情報（209頁）。night.jsのextractWeakness等の既存機構が
+      // enemies_data側のspecialフィールドを直接解析して敵チップへ反映するため、rows[]には
+      // 構造化しない（attacker_warrior|night_blasphemerと同型の判断）。
+      rows: [
+        {
+          // 「群がる」：「敵視:1以上」で前衛のPC全員に「乱戦ダメージ:2人分」（本文に明記）。
+          rollMin: 1,
+          rollMax: 2,
+          groupDamage: { modifier: 0 },
+          targetRule: { kind: "frontAggroAtLeast1All" },
+        },
+        {
+          // 「毒散布」：乱戦ダメージ修正－120＋「猛毒:1D」（「—」ではないため既定ルール＝前衛
+          // 均等割りのgroupDamageは発生する）。個別効果:「敵視:最大」のPC1体は無条件で
+          // 「猛毒:1D」を被る（HP損害を伴わない）。mod欄の「猛毒:1D」は数値・種別がこの個別効果と
+          // 完全一致するが、対象（敵視:最大の1体のみ）が乱戦ダメージの対象（前衛均等割り）と
+          // 異なるため、groupDamage.ailmentAccumにもindividualDamage（amountが必須）にも
+          // 構造化できない。conditionsとコメントでGM手動処理に委ねる
+          // （accum_target_mismatch_manual）。
+          rollMin: 3,
+          rollMax: 4,
+          groupDamage: { modifier: -120 },
+          targetRule: { kind: "frontAll" },
+          conditions: ["accum_target_mismatch_manual"],
+        },
+        {
+          // 「光の柱」：乱戦ダメージ修正が「—」のため乱戦ダメージは発生しない。個別効果:
+          // 「敵視:1以上」のPC全員は〈11|運試し〉を行い、失敗したPCに【個別ダメージ:120】＋
+          // 「聖:1D」を与える（targetFilter:aggroAtLeast1、ancient_dragon「赤雷叩きつけ」と
+          // 同型）。
+          rollMin: 5,
+          rollMax: 6,
+          savingThrow: {
+            stat: "luck",
+            targetFilter: { kind: "aggroAtLeast1" },
+            targetByCondition: [{ condition: { kind: "default" }, target: 11 }],
+            onFail: { amount: 120, elementAccum: [{ label: "聖", amount: 1 }] },
+          },
+        },
+      ],
+    },
   };
 
   function get(familyId, enemyId) {
