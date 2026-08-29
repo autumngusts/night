@@ -5640,6 +5640,128 @@
         },
       ],
     },
+    // Batch D7: dog_wolf(2) + warrior_swordsman(1) + big_dog_bear(1)。
+    // dog_wolf科は本ブロックで初対応（既存の家族guardCount/guardValueTable以外は
+    // 未構造化だった）。static_src/enemies_data_3.js:33-120（dog_wolf）、474-505
+    // （warrior_swordsman|exiled_soldier）、1935-1970（big_dog_bear|huge_dog）を確認済み。
+    "dog_wolf|stray_dogs": {
+      rows: [
+        {
+          // 「咬擊」：「敵視:1以上」で前衛のPC全員に「乱戦ダメージ:2人分」（本文に明記）。
+          rollMin: 1,
+          rollMax: 2,
+          groupDamage: { modifier: 60 },
+          targetRule: { kind: "frontAggroAtLeast1All" },
+        },
+        {
+          // 「撲擊」：乱戦ダメージ修正+120（「—」ではないため発生）、対象明記無し（本文「なし」）
+          // のため既定ルール（前衛均等割り）。
+          rollMin: 3,
+          rollMax: 4,
+          groupDamage: { modifier: 120 },
+          targetRule: { kind: "frontAll" },
+        },
+        {
+          // 「迂迴」：乱戦ダメージ修正が「—」のため乱戦ダメージは発生しない。個別効果
+          // （2回実行）：「敵視:1以上」のPC1体に【個別ダメージ:180】——本文が「対象PC1体
+          // （不特定）」＋固定回数の実行を明記しているため、既存のdistribution:"rotate"
+          // （輪流受傷、最初の対象はランダム）で構造化する。
+          rollMin: 5,
+          rollMax: 6,
+          individualDamage: [
+            { amount: 180, repeat: 2, distribution: "rotate", targetRule: { kind: "aggroAtLeast1All" } },
+          ],
+        },
+      ],
+    },
+    "dog_wolf|wolf": {
+      rows: [
+        {
+          // 「連續咬擊」：「敵視:1以上」で前衛のPC全員に「乱戦ダメージ:2人分」（本文に明記）。
+          rollMin: 1,
+          rollMax: 2,
+          groupDamage: { modifier: 60 },
+          targetRule: { kind: "frontAggroAtLeast1All" },
+        },
+        {
+          // 「迂迴」：乱戦ダメージ修正が「—」のため乱戦ダメージは発生しない。個別効果
+          // （2回実行）：「敵視:1以上」のPC1体に【個別ダメージ:180】——stray_dogs「迂迴」と
+          // 同型のためdistribution:"rotate"で構造化する。
+          rollMin: 3,
+          rollMax: 4,
+          individualDamage: [
+            { amount: 180, repeat: 2, distribution: "rotate", targetRule: { kind: "aggroAtLeast1All" } },
+          ],
+        },
+        {
+          // 「遠嚎＆齊擊」：乱戦ダメージ修正－60（「—」ではないため発生、対象明記無しのため
+          // 既定ルール＝前衛均等割り）。個別効果：「敵視:最大」のPC1体に【個別ダメージ:240】。
+          rollMin: 5,
+          rollMax: 6,
+          groupDamage: { modifier: -60 },
+          targetRule: { kind: "frontAll" },
+          individualDamage: [{ amount: 240, targetRule: { kind: "aggroMax" } }],
+        },
+      ],
+    },
+    "warrior_swordsman|exiled_soldier": {
+      rows: [
+        {
+          // 「弩」：乱戦ダメージ修正－60。乱戦ダメージはPC全員を対象とする（本文に明記）。
+          rollMin: 1,
+          rollMax: 2,
+          groupDamage: { modifier: -60 },
+          targetRule: { kind: "allPCs" },
+        },
+        {
+          // 「直劍連擊」：乱戦ダメージ修正±0（「—」ではないため発生、対象明記無しのため既定
+          // ルール＝前衛均等割り）。個別効果：「敵視:最大」のPC1体に【個別ダメージ:120】。
+          rollMin: 3,
+          rollMax: 4,
+          groupDamage: { modifier: 0 },
+          targetRule: { kind: "frontAll" },
+          individualDamage: [{ amount: 120, targetRule: { kind: "aggroMax" } }],
+        },
+        {
+          // 「斧槍橫掃」：「敵視:1以上」で前衛のPC全員に「乱戦ダメージ:2人分」（本文に明記）。
+          rollMin: 5,
+          rollMax: 6,
+          groupDamage: { modifier: 60 },
+          targetRule: { kind: "frontAggroAtLeast1All" },
+        },
+      ],
+    },
+    "big_dog_bear|huge_dog": {
+      rows: [
+        {
+          // 「咬擊」：「敵視:1以上」で前衛のPC全員に「乱戦ダメージ:2人分」（本文に明記）。
+          rollMin: 1,
+          rollMax: 2,
+          groupDamage: { modifier: 120 },
+          targetRule: { kind: "frontAggroAtLeast1All" },
+        },
+        {
+          // 「拘束咬擊」：乱戦ダメージ修正が「—」のため乱戦ダメージは発生しない。個別効果：
+          // 「敵視:最大」のPC1体に【個別ダメージ:240】＋「出血:1D」（Xd＝固定値1）を与える。
+          // この効果に対してガード不可（no_guard）。
+          rollMin: 3,
+          rollMax: 4,
+          individualDamage: [
+            { amount: 240, targetRule: { kind: "aggroMax" }, ailmentAccum: [{ label: "出血", amount: 1 }] },
+          ],
+          conditions: ["no_guard"],
+        },
+        {
+          // 「衝刺」：乱戦ダメージ修正±0（「—」ではないため発生）。乱戦ダメージは「敵視:1以上」の
+          // PC全員を対象とし、対象となるPCが1人もいない場合は通常どおり前衛が対象となる（本文に
+          // 明記）。
+          rollMin: 5,
+          rollMax: 6,
+          groupDamage: { modifier: 0 },
+          targetRule: { kind: "aggroAtLeast1All", fallback: "front" },
+        },
+      ],
+    },
   };
 
   function get(familyId, enemyId) {
