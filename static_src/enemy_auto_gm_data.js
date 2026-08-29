@@ -4139,6 +4139,205 @@
         },
       ],
     },
+    // Batch D1: dragon科3体（丘陵の飛竜／山嶺の氷竜／溶岩土竜）＋tree_spirit科1体（黄金樹の化身）＋
+    // death_bird_raven科1体（碩大鴉）。enemies_data_1.js:253/293/333/395/1064参照
+    // （batch-D1-brief.md）。既存の同familyエントリ（dragon|great_earth_dragon/gluttonous_dragon/
+    // ancient_dragon、tree_spirit|withered_tree_spirit、death_bird_raven|death_ritual_bird等）を
+    // 参照し、同型の書式・タグを踏襲した。
+    //
+    // 【本ブロックで新規導入した conditions タグ】
+    // - ice_frost_trigger（山嶺の氷竜専用）: 特殊能力「氷霜（条件発揮）」＝効果発揮後、エンド
+    //   フェイズの開始時に前衛のPC全員へ「凍傷:1D」を与える、という遅延・持続効果のトリガーで
+    //   あることの記録（great_earth_dragon「溶岩の滞留」＝lava_pooling_triggerと同じ設計思想。
+    //   この行自身のgroupDamage/individualDamageとは発生タイミングが異なる別枠の効果のため、
+    //   ailmentAccumには含めずconditionsのみで記録する）。
+    "dragon|hill_wyvern": {
+      rows: [
+        {
+          // 「尻尾振り回し」：「敵視:1以上」のPC全員が「乱戦ダメージ割合:3人分」（本文に明記、
+          // 前衛限定の記載なし。dragon|ancient_dragonの同名行と完全一致するパターン）。
+          rollMin: 1,
+          rollMax: 2,
+          groupDamage: { modifier: 120 },
+          targetRule: { kind: "aggroAtLeast1All" },
+        },
+        {
+          // 「爪ひっかき」：乱戦ダメージは「敵視:1以上」のPC全員が対象、該当者が1人もいない場合は
+          // 前衛が対象（本文に明記されたフォールバック規則。ancient_dragonの同名行と完全一致）。
+          rollMin: 3,
+          rollMax: 4,
+          groupDamage: { modifier: 0 },
+          targetRule: { kind: "aggroAtLeast1All", fallback: "front" },
+        },
+        {
+          // 「空中旋回＆滞空」：乱戦ダメージ修正が「—」のため乱戦ダメージは発生しない。個別効果は
+          // PC全員が同一目標値（11|運試し）で判定し、「半数以上が失敗」という集団閾値の結果で
+          // 「タイムロス」が蓄積するかどうかが決まる——savingThrowは個別PCごとの敵視分岐DCを
+          // 前提とした構造のためこの集団閾値判定には対応できない。conditionsとコメントでGM手動
+          // 処理に委ねる（majority_fail_time_loss_manual）。特殊能力「滞空」＝次のアクション
+          // フェイズ開始時、PC全員が出目に関わらず後衛へ強制配置される
+          // （force_back_row_next_phase。ancient_dragonの同名行と完全一致）。
+          rollMin: 5,
+          rollMax: 6,
+          conditions: ["majority_fail_time_loss_manual", "force_back_row_next_phase"],
+        },
+      ],
+    },
+    "dragon|mountain_ice_dragon": {
+      rows: [
+        {
+          // 「尻尾振り回し＆氷霜」：乱戦ダメージ修正±0（「—」ではないため発生）。対象の明記が
+          // 無いため既定ルール（前衛均等割り）。特殊能力「氷霜」を効果発揮（ice_frost_trigger）。
+          rollMin: 1,
+          rollMax: 2,
+          groupDamage: { modifier: 0 },
+          targetRule: { kind: "frontAll" },
+          conditions: ["ice_frost_trigger"],
+        },
+        {
+          // 「爪ひっかき＆飛び退き」：乱戦ダメージ修正が「—」のため乱戦ダメージは発生しない。
+          // 個別ダメージ180＋「凍傷:1D」は「敵視:最大」のPC1体に無条件で発生。特殊能力「氷霜」を
+          // 効果発揮（ice_frost_trigger）。行動名に「飛び退き」とあるが、注釈本文には特殊能力
+          // 「飛び退き」の効果発揮が明記されていないため、数値・効果を捏造せずタグ付けしない
+          // （tibias_summoning_boatの「飛沫の一撃＆転移」と同種の判断）。
+          rollMin: 3,
+          rollMax: 4,
+          individualDamage: [
+            { amount: 180, targetRule: { kind: "aggroMax" }, ailmentAccum: [{ label: "凍傷", amount: 1 }] },
+          ],
+          conditions: ["ice_frost_trigger"],
+        },
+        {
+          // 「前方ブレス」：乱戦ダメージはPC全員を対象とする（本文に明記）。mod欄の「凍傷:1D」は
+          // 本文が別途対象を再指定していないため乱戦ダメージと同じ対象（PC全員）に付随する
+          // （ancient_dragon「炎ブレス＆滞空」と同型）。個別効果は「敵視:最大」のPC1体に
+          // 【追加ダメージ:240】＋別途「凍傷:1D」を与える——本文が「追加」と明記しており、対象・
+          // 数値ともに乱戦ダメージ側（PC全員・凍傷1D）とは異なる別枠の効果のため、二重計上では
+          // なく両方を構造化する（Global Constraint 5の「mod欄のXと本文個別効果のXが数値で
+          // 異なる場合は独立した効果として構造化する」の解釈に基づく）。
+          rollMin: 5,
+          rollMax: 6,
+          groupDamage: { modifier: 0, ailmentAccum: [{ label: "凍傷", amount: 1 }] },
+          targetRule: { kind: "allPCs" },
+          individualDamage: [
+            { amount: 240, targetRule: { kind: "aggroMax" }, ailmentAccum: [{ label: "凍傷", amount: 1 }] },
+          ],
+        },
+      ],
+    },
+    "dragon|lava_earth_dragon": {
+      rows: [
+        {
+          // 「武器叩きつけ」：乱戦ダメージ修正±0（「—」ではないため発生）。対象の明記が無いため
+          // 既定ルール（前衛均等割り）。個別効果:「敵視:最大」のPC全員は次のアクションフェイズ
+          // 開始時に獲得するスタミナダイスが2個減少する（HP損害を伴わないためconditionsのみ。
+          // great_earth_dragonの同名行と完全一致するパターン）。
+          rollMin: 1,
+          rollMax: 2,
+          groupDamage: { modifier: 0 },
+          targetRule: { kind: "frontAll" },
+          conditions: ["stamina_dice_reduction_next_phase"],
+        },
+        {
+          // 「尻尾振り回し」：乱戦ダメージ修正+60（「—」ではないため発生）。対象の明記が無いため
+          // 既定ルール（前衛均等割り）。乱戦ダメージを回避するPCは、支払ったダイスコストの値を
+          // 半分として扱う（reducible_by_stamina_dice。great_earth_dragonの同名行と完全一致）。
+          rollMin: 3,
+          rollMax: 4,
+          groupDamage: { modifier: 60 },
+          targetRule: { kind: "frontAll" },
+          conditions: ["reducible_by_stamina_dice"],
+        },
+        {
+          // 「溶岩吐き＆溶岩の滞留」：乱戦ダメージ修正±0＋「炎:1D」（mod欄の固定値、骰子では
+          // ないためelementAccum、対象の明記が無いため既定ルール＝前衛均等割り）。個別ダメージ
+          // 180は「敵視:最大」のPC1体に別枠で発生。特殊能力「溶岩の滞留」（great_earth_dragonの
+          // 同名行と完全一致するパターン、lava_pooling_trigger）を効果発揮。
+          rollMin: 5,
+          rollMax: 6,
+          groupDamage: { modifier: 0, elementAccum: [{ label: "炎", amount: 1 }] },
+          targetRule: { kind: "frontAll" },
+          individualDamage: [{ amount: 180, targetRule: { kind: "aggroMax" } }],
+          conditions: ["lava_pooling_trigger"],
+        },
+      ],
+    },
+    "tree_spirit|golden_tree_avatar": {
+      rows: [
+        {
+          // 「錫杖叩きつけ」：「敵視:1以上」で前衛のPC全員に「乱戦ダメージ:2人分」（本文に明記。
+          // withered_tree_spirit「突進」と同型のパターン）。
+          rollMin: 1,
+          rollMax: 2,
+          groupDamage: { modifier: 120 },
+          targetRule: { kind: "frontAggroAtLeast1All" },
+        },
+        {
+          // 「黄金樹の尻撃」：乱戦ダメージ修正－120＋「聖:1D」（mod欄の固定値、骰子ではないため
+          // elementAccum。本文個別効果には聖の言及が一切無いため二重計上のおそれが無く、独立した
+          // 付随効果としてgroupDamageに構造化する）。対象の明記が無いため既定ルール（前衛均等
+          // 割り）。個別効果は「敵視:最大」のPC全員の判定（12|フィジカル）で、失敗しても
+          // HP損害は発生せず次のアクションフェイズのスタミナダイス-2のみのため、savingThrow
+          // （常にダメージ前提の設計）は使わずconditionsのみ記録する
+          // （duke_freydia「貫く糸」と同型の判断、stamina_dice_reduction_next_phase）。
+          rollMin: 3,
+          rollMax: 4,
+          groupDamage: { modifier: -120, elementAccum: [{ label: "聖", amount: 1 }] },
+          targetRule: { kind: "frontAll" },
+          conditions: ["stamina_dice_reduction_next_phase"],
+        },
+        {
+          // 「黄金の地」：乱戦ダメージ修正－180＋「聖:1D」（mod欄の固定値、骰子ではないため
+          // elementAccum。対象の明記が無いため既定ルール＝前衛均等割り）。個別効果（PC人数回
+          // 実行）:「敵視:1以上」のPC1体に【個別ダメージ:120】＋「聖:1D」を与える——mod欄の
+          // 数値（180）と個別効果の数値（120）が一致しないため、demon_prince「炎の隕石」のような
+          // 要約表記とは判断せず、それぞれ独立した効果として構造化する（2254行の解釈方針）。
+          // 個別効果は対象PC1体（不特定）＋「PC人数」というパーティ人数依存の可変回数のため、
+          // 固定回数のrepeat/rotateは使わずconditionsとコメントでGM手動処理に委ねる
+          // （Global Constraint 7、variable_repeat_manual）。
+          rollMin: 5,
+          rollMax: 6,
+          groupDamage: { modifier: -180, elementAccum: [{ label: "聖", amount: 1 }] },
+          targetRule: { kind: "frontAll" },
+          conditions: ["variable_repeat_manual"],
+        },
+      ],
+    },
+    "death_bird_raven|giant_raven": {
+      rows: [
+        {
+          // 「連続嘴突き」：乱戦ダメージ修正が「—」のため乱戦ダメージは発生しない。個別効果
+          // （PC人数回実行）:「敵視:1以上」のPC1体に【個別ダメージ:120】を与える——「PC人数」は
+          // パーティ人数に依存する可変値のため、固定回数のrepeat/rotateは使わずconditionsと
+          // コメントでGM手動処理に委ねる（Global Constraint 7）。
+          rollMin: 1,
+          rollMax: 2,
+          conditions: ["variable_repeat_manual"],
+        },
+        {
+          // 「跳躍踏みつけ」：乱戦ダメージ修正+60（「—」ではないため発生）。対象の明記が無いため
+          // 既定ルール（前衛均等割り）。個別効果:「敵視:最大」のPC1体は次のアクションフェイズの
+          // 開始時、獲得するスタミナダイスが2個減少する（HP損害を伴わないためconditionsのみ）。
+          rollMin: 3,
+          rollMax: 4,
+          groupDamage: { modifier: 60 },
+          targetRule: { kind: "frontAll" },
+          conditions: ["stamina_dice_reduction_next_phase"],
+        },
+        {
+          // 「噛みつき」：乱戦ダメージ修正+120（「—」ではないため発生）。対象の明記が無いため
+          // 既定ルール（前衛均等割り）。この乱戦ダメージをガードするPCは、そのガードコストを+1
+          // する（guard_cost_penalty、troll_dragonkin_wormface|nox_dragonkin_soldier「両腕
+          // 叩きつけ」と同型）。回避するPCは、支払ったダイスコストの値を半分として扱う
+          // （reducible_by_stamina_dice）。
+          rollMin: 5,
+          rollMax: 6,
+          groupDamage: { modifier: 120 },
+          targetRule: { kind: "frontAll" },
+          conditions: ["guard_cost_penalty", "reducible_by_stamina_dice"],
+        },
+      ],
+    },
   };
 
   function get(familyId, enemyId) {
