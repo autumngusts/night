@@ -5367,6 +5367,279 @@
         },
       ],
     },
+    // Batch D6：soldier_knight科の残る6体（enemies_data_2.js:1084-1441付近）：
+    // カッコウ騎士たち／貴腐騎士／狂い火の騎士たち／火の騎士たち／メスメル兵たち／
+    // レアルカリアの雑兵たち。いずれも既に多数対応済みのsoldier_knight科への追加であり、
+    // 6体ともspecialフィールドを持たない（enemies_data_2.js確認済み）ため特殊能力の
+    // 注記は不要。
+    //
+    // 【本ブロックで新規導入した conditions タグ】
+    // - delayed_effect_next_phase_manual（貴腐騎士「聖槍の壁」専用）：「次のアクション
+    //   フェイズ開始時が確定したとき」PC全員が「聖:1D」を被り、かつディフェンス不可という、
+    //   ターンをまたぐ遅延効果（Global Constraint 6：既存に対応する機構が無い特殊能力）。
+    //   現在の行動解決時に即座に適用されるindividualDamage/savingThrowでは表現できない
+    //   ため、mod欄の「聖:1D」もこの遅延効果に付随するものとしてgroupDamageには含めず
+    //   （二重計上回避）、本タグ＋行コメントでGM手動処理に委ねる。
+    //
+    // 【mod欄の「＆X」の帰属について】
+    // カッコウ騎士たち「魔力の大剣＆輝剣の円陣」・貴腐騎士「腐敗の槍突き」は、mod欄の
+    // 「＆X」が本文の個別ダメージ（amount有り）に数値・種別完全一致する形で付随しているため
+    // individualDamage側にのみelementAccum/ailmentAccumを構造化し、groupDamageには含めない
+    // （二重計上回避）。狂い火の騎士たち「狂い火」「空裂狂火」は、mod欄の「＆発狂:1D」が
+    // 本文の「敵視:1以上のPC全員に発狂:1Dを与える」と数値・種別は一致するが、対象集団が
+    // 乱戦ダメージの既定対象（前衛均等割り）と異なるため、soldier_knight|remote_veteran
+    // 「氷嵐の剣技」と同じくaccum_target_mismatch_manualで記録する（groupDamage/
+    // individualDamageのいずれにも構造化しない）。レアルカリアの雑兵たち「二連斬り＆
+    // 魔術の輝剣」は、mod欄「＆魔:1D」（Xd＝固定値1、docs/enemy_damage_rules.md §1.1）と
+    // 本文の「魔:2」が数値不一致（1≠2）のため同一効果とはみなさず、mod側はgroupDamageへ
+    // 直接構造化し、本文側の「魔:2」（対象＝敵視1以上のPC全員、前衛均等割りと対象集団が
+    // 異なる）はaccum_target_mismatch_manualで別途記録する。
+    "soldier_knight|cuckoo_knights": {
+      rows: [
+        {
+          // 「薙ぎ払い＆輝剣の円陣」：mod「－60」（＆表記なし）。乱戦ダメージ修正－60（「—」
+          // ではないため発生、対象明記なし＝既定ルール＝前衛均等割り）。個別効果：
+          // 「敵視:1以上」のPC全員に【個別ダメージ:60】＋「魔:1D」（Xd＝固定値1）を別枠で
+          // 与える。
+          rollMin: 1,
+          rollMax: 2,
+          groupDamage: { modifier: -60 },
+          targetRule: { kind: "frontAll" },
+          individualDamage: [
+            { amount: 60, targetRule: { kind: "aggroAtLeast1All" }, elementAccum: [{ label: "魔", amount: 1 }] },
+          ],
+        },
+        {
+          // 「輝石のつぶて」：mod「—」のため乱戦ダメージは発生しない。個別効果（PC人数回
+          // 実行）：「敵視:1以上」のPC1体に【個別ダメージ:120】＋「魔:1D」を与える——
+          // 「PC人数」はパーティ人数に依存する可変値であり固定回数のリテラル値ではないため、
+          // 既存のrepeat/rotate機構（固定回数専用）は使わず、conditionsとコメントでGM手動
+          // 処理に委ねる（Global Constraint 7）。
+          rollMin: 3,
+          rollMax: 4,
+          conditions: ["variable_repeat_manual"],
+        },
+        {
+          // 「魔力の大剣＆輝剣の円陣」：mod「＋60＆「魔:1D」」。乱戦ダメージ修正+60
+          // （「—」ではないため発生、対象明記なし＝既定ルール＝前衛均等割り）。個別効果：
+          // 「敵視:1以上」のPC全員に【個別ダメージ:60】＋「魔:1D」を別枠で与える——mod欄の
+          // 「魔:1D」は数値・種別がこの個別効果と完全一致するため、individualDamage側にのみ
+          // elementAccumを構造化し、groupDamageには含めない（二重計上回避）。
+          rollMin: 5,
+          rollMax: 6,
+          groupDamage: { modifier: 60 },
+          targetRule: { kind: "frontAll" },
+          individualDamage: [
+            { amount: 60, targetRule: { kind: "aggroAtLeast1All" }, elementAccum: [{ label: "魔", amount: 1 }] },
+          ],
+        },
+      ],
+    },
+    "soldier_knight|corrupted_knight": {
+      rows: [
+        {
+          // 「腐敗の槍突き」：mod「±0＆「腐敗:1D」」。乱戦ダメージ修正±0（「—」ではないため
+          // 発生、対象明記なし＝既定ルール＝前衛均等割り）。個別効果：「敵視:最大」のPC1体に
+          // 【個別ダメージ:120】＋「腐敗:1D」を別枠で与える——mod欄の「腐敗:1D」は数値・種別が
+          // この個別効果と完全一致するため、individualDamage側にのみailmentAccumを構造化し、
+          // groupDamageには含めない（二重計上回避）。腐敗は状態異常（CLAUDE.md §17分類）の
+          // ためailmentAccumで構造化する。
+          rollMin: 1,
+          rollMax: 2,
+          groupDamage: { modifier: 0 },
+          targetRule: { kind: "frontAll" },
+          individualDamage: [
+            { amount: 120, targetRule: { kind: "aggroMax" }, ailmentAccum: [{ label: "腐敗", amount: 1 }] },
+          ],
+        },
+        {
+          // 「腐敗の鎌薙ぎ払い」：「敵視:1以上」で前衛のPC全員に「乱戦ダメージ:2人分」
+          // （本文に明記）。mod欄の「腐敗:1D」は本文に別途記載が無いため、この乱戦ダメージと
+          // 同じ対象（frontAggroAtLeast1All）に付随するものとして構造化する。
+          rollMin: 3,
+          rollMax: 4,
+          groupDamage: { modifier: 120, ailmentAccum: [{ label: "腐敗", amount: 1 }] },
+          targetRule: { kind: "frontAggroAtLeast1All" },
+        },
+        {
+          // 「聖槍の壁」：mod「＋60＆「聖:1D」」。乱戦ダメージ修正+60（「—」ではないため発生、
+          // 対象明記なし＝既定ルール＝前衛均等割り）。個別効果：PC全員は、次のアクション
+          // フェイズ開始時が確定したとき「聖:1D」を被る（この効果に対してディフェンス不可）
+          // ——ターンをまたぐ遅延効果であり、現在の行動解決時に即座に適用される既存の
+          // individualDamage/savingThrow機構では表現できないため、mod欄の「聖:1D」もこの
+          // 遅延効果に付随するものとしてgroupDamageには含めず（二重計上回避）、新規タグ
+          // delayed_effect_next_phase_manualとコメントでGM手動処理に委ねる
+          // （Global Constraint 6）。
+          rollMin: 5,
+          rollMax: 6,
+          groupDamage: { modifier: 60 },
+          targetRule: { kind: "frontAll" },
+          conditions: ["delayed_effect_next_phase_manual"],
+        },
+      ],
+    },
+    "soldier_knight|madfire_knights": {
+      rows: [
+        {
+          // 「狂い火」：mod「±0＆「発狂:1D」」。乱戦ダメージ修正±0（「—」ではないため発生、
+          // 対象明記なし＝既定ルール＝前衛均等割り）。本文は別途「「敵視:1以上」のPC全員に
+          // 「発狂:1D」を与える」と明記しており、これは乱戦ダメージの対象（前衛均等割り）とは
+          // 異なる対象集団（aggroAtLeast1All）への蓄積のみの効果（HP損害を伴わない）のため、
+          // groupDamage.ailmentAccum（乱戦ダメージ対象に付随する設計）にもindividualDamage
+          // （HP損害amountが必須）にも構造化できない。soldier_knight|remote_veteran
+          // 「氷嵐の剣技」と同型のaccum_target_mismatch_manualでGM手動処理に委ねる
+          // （Global Constraint 8）。
+          rollMin: 1,
+          rollMax: 2,
+          groupDamage: { modifier: 0 },
+          targetRule: { kind: "frontAll" },
+          conditions: ["accum_target_mismatch_manual"],
+        },
+        {
+          // 「組みつき」：mod「—」のため乱戦ダメージは発生しない。個別効果（PC人数回実行）：
+          // 「敵視:1以上」のPC1体に【個別ダメージ:240】＋「発狂:1D」を与える——「PC人数」は
+          // パーティ人数に依存する可変値のため、既存のrepeat/rotate機構（固定回数専用）は
+          // 使わずconditionsとコメントでGM手動処理に委ねる（Global Constraint 7）。この効果に
+          // 対してガード不可（no_guard）。
+          rollMin: 3,
+          rollMax: 4,
+          conditions: ["variable_repeat_manual", "no_guard"],
+        },
+        {
+          // 「空裂狂火」：mod「＋120＆「発狂:1D」」。乱戦ダメージ修正+120（「—」ではないため
+          // 発生、対象明記なし＝既定ルール＝前衛均等割り）。本文の「敵視:1以上のPC全員に
+          // 発狂:1Dを与える」は「狂い火」と同じく対象集団が乱戦ダメージの既定対象と異なる
+          // ためaccum_target_mismatch_manualで記録する。
+          rollMin: 5,
+          rollMax: 6,
+          groupDamage: { modifier: 120 },
+          targetRule: { kind: "frontAll" },
+          conditions: ["accum_target_mismatch_manual"],
+        },
+      ],
+    },
+    "soldier_knight|fire_knights": {
+      rows: [
+        {
+          // 「火炎薙ぎ払い」：「敵視:1以上」で前衛のPC全員に「乱戦ダメージ:2人分」
+          // （本文に明記）。mod欄の「炎:1D」は本文に別途記載が無いため、この乱戦ダメージと
+          // 同じ対象（frontAggroAtLeast1All）に付随するものとして構造化する。
+          rollMin: 1,
+          rollMax: 2,
+          groupDamage: { modifier: 60, elementAccum: [{ label: "炎", amount: 1 }] },
+          targetRule: { kind: "frontAggroAtLeast1All" },
+        },
+        {
+          // 「薙ぎ払い＆追い縋る火」：mod「±0」（＆表記なし）。乱戦ダメージ修正±0（「—」では
+          // ないため発生、対象明記なし＝既定ルール＝前衛均等割り）。個別効果（PC人数+1回
+          // 実行）：「敵視:1以上」のPC全員に【個別ダメージ:60】＋「炎:1」を与える——
+          // 「PC人数+1」はパーティ人数に依存する可変値であり固定回数のリテラル値ではないため、
+          // 既存のrepeat/rotate機構（固定回数専用）は使わず、conditionsとコメントでGM手動
+          // 処理に委ねる（Global Constraint 7）。
+          rollMin: 3,
+          rollMax: 4,
+          groupDamage: { modifier: 0 },
+          targetRule: { kind: "frontAll" },
+          conditions: ["variable_repeat_manual"],
+        },
+        {
+          // 「火炎連続突き」：「敵視:1以上」で前衛のPC全員に「乱戦ダメージ:2人分」（本文に
+          // 明記）。乱戦ダメージは2回発生する。mod欄の「炎:1D」は本文に別途記載が無いため、
+          // この乱戦ダメージと同じ対象（frontAggroAtLeast1All）に付随するものとして構造化する。
+          rollMin: 5,
+          rollMax: 6,
+          groupDamage: { modifier: -240, repeat: 2, elementAccum: [{ label: "炎", amount: 1 }] },
+          targetRule: { kind: "frontAggroAtLeast1All" },
+        },
+      ],
+    },
+    "soldier_knight|messmer_soldiers": {
+      rows: [
+        {
+          // 「射撃攻撃」：mod「－60」（＆表記なし）。本文は「乱戦ダメージは前衛を対象と
+          // せずに、後衛を対象とする。後衛にPCが1人もいない場合は、前衛が対象となる。
+          // 「敵視:1以上」で後衛のPC全員は、「乱戦ダメージ:2人分」を割り振られる」と明記
+          // ——基準の対象群がbackAll（後衛のPC全員、後衛不在なら前衛にfallback）で、その
+          // 中に重みの異なる2群（敵視1以上＝2人分、それ以外＝1人分）が混在するため、
+          // harmonia「瞬間移動＆乱舞」と同型のtargetRule.weightRule（kind:"aggroAtLeast1"、
+          // 前後衛不問）をbackAll＋fallback:"front"に組み合わせて構造化する。
+          rollMin: 1,
+          rollMax: 2,
+          groupDamage: { modifier: -60 },
+          targetRule: { kind: "backAll", fallback: "front", weightRule: { kind: "aggroAtLeast1", weight: 2 } },
+        },
+        {
+          // 「ウォークライ＆突撃」：乱戦ダメージ修正+120（「—」ではないため発生）。乱戦
+          // ダメージは「敵視:1以上」のPC全員を対象とし、対象となるPCが1人もいない場合は
+          // 通常どおり前衛が対象となる（本文に明記）。加えて次のアクションフェイズ終了まで
+          // エネミーを「HP価値:+10（最大100）」する（enemy_hp_value_buff）。
+          rollMin: 3,
+          rollMax: 4,
+          groupDamage: { modifier: 120 },
+          targetRule: { kind: "aggroAtLeast1All", fallback: "front" },
+          conditions: ["enemy_hp_value_buff"],
+        },
+        {
+          // 「火の雨」：mod「±0」（＆表記なし）。乱戦ダメージ修正±0（「—」ではないため発生、
+          // 対象明記なし＝既定ルール＝前衛均等割り）。個別効果（2回実行、固定回数）：
+          // 「敵視:1以上」のPC1体に【個別ダメージ:120】＋「炎:1D」を与える——本文が「対象PC
+          // 1体（不特定）」＋固定回数の実行を明記しているため、既存のdistribution:"rotate"
+          // （輪流受傷、最初の対象はランダム）で構造化する。
+          rollMin: 5,
+          rollMax: 6,
+          groupDamage: { modifier: 0 },
+          targetRule: { kind: "frontAll" },
+          individualDamage: [
+            {
+              amount: 120,
+              repeat: 2,
+              distribution: "rotate",
+              targetRule: { kind: "aggroAtLeast1All" },
+              elementAccum: [{ label: "炎", amount: 1 }],
+            },
+          ],
+        },
+      ],
+    },
+    "soldier_knight|raya_lucaria_soldiers": {
+      rows: [
+        {
+          // 「斬りかかり」：mod「±0」。本文「「敵視:1以上」のPC全員は「乱戦ダメージ割合:
+          // 2人分」として数える」——soldier_knight|mausoleum_knight「切り払い＆転移」と
+          // 同じく「乱戦ダメージ割合」表記も通常の「乱戦ダメージ」と同様に扱い、対象PC全員が
+          // 同じ重み（2人分）のため均等割りと数学的に等価（前後衛問わずaggroAtLeast1All）。
+          rollMin: 1,
+          rollMax: 2,
+          groupDamage: { modifier: 0 },
+          targetRule: { kind: "aggroAtLeast1All" },
+        },
+        {
+          // 「二連斬り＆魔術の輝剣」：mod「－60＆「魔:1D」」（Xd＝固定値1）。本文「個別効果：
+          // 「敵視:1以上」のPC全員に「魔:2」を与える」——mod欄の数値（1）と本文の数値（2）が
+          // 一致しないため、demon_prince「炎の隕石」のような要約表記とは判断せず、それぞれ
+          // 独立した効果として扱う。mod欄の「魔:1D」は本文に一致する記載が無いため、この
+          // 乱戦ダメージ（対象明記なし＝既定ルール＝前衛均等割り）に直接付随させる。本文の
+          // 「魔:2」は対象が「敵視:1以上」のPC全員（前衛均等割りとは異なる対象集団）への
+          // 蓄積のみの効果（HP損害を伴わない）のため、accum_target_mismatch_manualで別途
+          // 記録しGM手動処理に委ねる。
+          rollMin: 3,
+          rollMax: 4,
+          groupDamage: { modifier: -60, elementAccum: [{ label: "魔", amount: 1 }] },
+          targetRule: { kind: "frontAll" },
+          conditions: ["accum_target_mismatch_manual"],
+        },
+        {
+          // 「カーリアの速剣」：乱戦ダメージ修正－120（「—」ではないため発生）。乱戦ダメージは
+          // 「敵視:1以上」のPC全員を対象とし、対象となるPCが1人もいない場合は通常どおり
+          // 前衛が対象となる（本文に明記）。mod欄の「魔:2D」（Xd＝固定値2）は本文に別途
+          // 記載が無いため、この乱戦ダメージと同じ対象に付随するものとして構造化する。
+          rollMin: 5,
+          rollMax: 6,
+          groupDamage: { modifier: -120, elementAccum: [{ label: "魔", amount: 2 }] },
+          targetRule: { kind: "aggroAtLeast1All", fallback: "front" },
+        },
+      ],
+    },
   };
 
   function get(familyId, enemyId) {
