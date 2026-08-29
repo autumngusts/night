@@ -4501,12 +4501,20 @@
           // 前衛均等割り）。個別効果（PC人数+1回実行）：「敵視:1以上」のPC全員に【個別ダメージ:
           // 60】＋「魔:1D」を与える——「PC人数+1」はパーティ人数に依存する可変値のため、固定
           // 回数のrepeat/rotateは使わずconditionsとコメントでGM手動処理に委ねる（Global
-          // Constraint 7）。個別効果側のamountは構造化しないため、mod欄の魔:1Dは
-          // death_bird_raven|demon_prince「黄金の地」と同型の判断でgroupDamage側にそのまま残す
-          // （individualDamage自体を構造化しないためデータ上の二重計上は発生しない）。
+          // Constraint 7）。mod欄の「魔:1D」は個別効果の「魔:1D」と数値・種別が完全一致するため、
+          // 本ファイル冒頭の解釈方針（約2253〜2265行目、ancient_dragon「地を這う赤雷」等の先例）
+          // どおり個別効果を要約的に繰り返したものと解釈し、二重計上を避けるためgroupDamage側には
+          // 付随させない。【2026-08-29レビュー訂正】旧版はdeath_bird_raven|demon_prince「黄金の
+          // 地」を根拠にgroupDamage.elementAccumへ構造化していたが、「黄金の地」は実際にはmod欄
+          // 180と個別効果120の数値が不一致だったため独立構造化した事例であり、mod欄と個別効果が
+          // 完全一致する本行とは逆のケースで根拠として誤っていた。加えてgroupDamage側の
+          // targetRuleはfrontAll（敵視条件なし）のため、そのまま残すと敵視0の前衛PCにも誤って
+          // 魔+1が付与され、敵視1以上のPCはGMが個別効果側で手動付与する魔+1と合わせて二重計上に
+          // なる問題があった。魔:1DはPC人数+1回実行の個別効果側（GM手動処理、variable_repeat_
+          // manual）に完全に委ね、groupDamageは既定ルール分のmodifier:0のみを構造化する。
           rollMin: 5,
           rollMax: 6,
-          groupDamage: { modifier: 0, elementAccum: [{ label: "魔", amount: 1 }] },
+          groupDamage: { modifier: 0 },
           targetRule: { kind: "frontAll" },
           conditions: ["variable_repeat_manual"],
         },
@@ -4616,8 +4624,15 @@
           // 伴わないためsavingThrowは使えず、individualDamageはamountが必須（未設定だと
           // Time Loss分だけ数値が個別ダメージ入力欄に書き込まれてしまい実態と異なる）のため
           // 使えない。既存のいずれの構造化フィールドにも収まらないためaccum_target_mismatch_
-          // manualでGM手動処理に委ねる（strong_type|omen_children「大刀振り回し」と同種の
-          // 制約）。
+          // manualを流用してGM手動処理に委ねる。【2026-08-29レビュー注記】このタグの本来の定義
+          // （本ファイル約1855行目付近）は「groupDamageの対象集団と属性/状態異常蓄積の対象集団が
+          // 異なる」ケース専用であり、本行はmod自体が「—」でgroupDamageが最初から存在しないため
+          // 厳密には定義と一致しない（旧版が根拠とした strong_type|omen_children「大刀振り回し」
+          // もこのタグを使わずコメントのみで処理していた行であり、正確な前例ではなかった）。ただし
+          // 「判定なし・無条件蓄積・HP損害なし」という、既存の構造化フィールド（groupDamage/
+          // individualDamage/savingThrow）のいずれにも収まらない性質は共通するため、新規タグを
+          // 追加せず類似ケースとして本タグを流用した（このタグはUIには表示されずGM向けドキュメント
+          // 目的のみのため機能上の実害はない）。
           rollMin: 3,
           rollMax: 4,
           conditions: ["accum_target_mismatch_manual"],
