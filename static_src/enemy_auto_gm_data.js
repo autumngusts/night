@@ -5123,6 +5123,250 @@
         },
       ],
     },
+    // 一般エネミー科「attacker_mage」（襲撃者・魔術師系、enemies_data_2.js:808-1025）5体：
+    // 夜の狩人／夜の偶像／夜の盗賊／夜の魔女／夜の虚言師。科全体が本ファイル未対応だったため、
+    // mage_messenger|sinners／warrior_swordsman|divine_beast_warriors等、既存の魔法系エネミーの
+    // targetRule/conditions語彙をそのまま踏襲する。resistance:呪死（各エネミーのspecialフィールド
+    // 「〔弱点:呪死〕」）は既存のenemyResistanceLabels経由で自動処理されるため、rows化は不要。
+    //
+    // 【本ブロックで新規導入した conditions タグ】
+    // - pc_hp_value_penalty_manual（夜の狩人「マーキング」専用）：「敵視:最大」のPC1体に、
+    //   戦闘終了まで「HP価値:-10（最低10）」を与える（同一PCに重複しない）という、PC側の
+    //   HP価値そのものを継続的に悪化させる効果の記録。既存のguard_hp_value_penalty（ガードを
+    //   行ったPC限定・エンドフェイズまでの一時効果）とはトリガー条件・対象・持続期間が異なる
+    //   別効果のため区別して新設する。PC側hpValue欄（#enemy-damage-modal、docs/
+    //   enemy_damage_rules.md 372行目付近）を自動で書き換える機構は無いため、GMが手動で対象PCの
+    //   HP価値欄を調整すること。
+    // - holy_grail_flask_recovery_trigger（夜の虚言師「連続突き＆回復」専用）：特殊能力
+    //   「聖杯瓶回復（条件発揮）」＝このエネミーの「最も現在HPが減少しているHP行」に
+    //   「HP回復:□×PC人数」を適用する（ただし2回以上「体勢崩し」にならず、モブHPには適用
+    //   しない）という、PC人数依存の可変値かつエネミー側自己回復のためHP損害系フィールドでは
+    //   構造化できない条件発揮トリガーの記録（furnace_flame_triggerと同じ設計思想）。
+    //
+    // 【mod欄の「＆X」の帰属について】
+    // 夜の偶像「光輪」・夜の盗賊「魔力の短剣」・夜の魔女「輝石のつぶて」は、mod欄の「＆X」が
+    // 本文の個別ダメージ（amount有り）に数値・種別完全一致する形で付随しているため、
+    // warrior_swordsman|divine_beast_warriors「円刃剣の舞」と同型でelementAccumを
+    // individualDamage側にのみ構造化し、groupDamageには含めない（二重計上回避）。一方、夜の魔女
+    // 「夜の彗星」・夜の虚言師「腐敗壺投げ」はmod欄の「＆X」が判定失敗時効果（savingThrow.onFail）
+    // に数値・種別完全一致するため、そちらにのみ構造化する（2026-08-29のsoldier_knight|
+    // death_knight修正コメントで確認済みのnight.js実装により、savingThrow.onFailはamountの
+    // 有無に関わらずelementAccum/ailmentAccumを常にqueueAttributeAccumへ渡すため、
+    // saving_throw_ailment_only_manual等の代替タグではなく素のsavingThrowで構造化する）。
+    "attacker_mage|night_hunter": {
+      rows: [
+        {
+          // 「射撃」：mod「±0＆「猛毒:1D」」。note「乱戦ダメージはPC全員を対象とする。
+          // 「敵視:1以上」のPC全員は、「乱戦ダメージ:2人分」を割り振られる」——個別効果の記載が
+          // 無いため猛毒:1Dはこの乱戦ダメージに付随する（状態異常のためailmentAccum、
+          // elementAccumではない）。対象は前後衛問わずPC全員がベースで敵視1以上のみ重み2
+          // （targetRule.kind:"allPCs"＋weightRule.kind:"aggroAtLeast1"、auto_gm.js
+          // matchesWeightConditionで既に実装済み。warrior_swordsman|divine_beast_warriors
+          // 「短剣投擲」のfrontAggroAtLeast1版と同じ機構を前衛限定なし版で使用）。
+          rollMin: 1,
+          rollMax: 2,
+          groupDamage: { modifier: 0, ailmentAccum: [{ label: "猛毒", amount: 1 }] },
+          targetRule: { kind: "allPCs", weightRule: { kind: "aggroAtLeast1", weight: 2 } },
+        },
+        {
+          // 「連続射撃」：mod「—」のため乱戦ダメージは発生しない。個別効果（PC人数回実行）：
+          // 「敵視:1以上」のPC1体に【個別ダメージ:120】＋「猛毒:1D」を与える——「PC人数」は
+          // パーティ人数に依存する可変値であり固定回数のリテラル値ではないため、既存の
+          // repeat/rotate機構（固定回数専用）は使わずconditionsとコメントでGM手動処理に委ねる
+          // （Global Constraint 7）。
+          rollMin: 3,
+          rollMax: 4,
+          conditions: ["variable_repeat_manual"],
+        },
+        {
+          // 「マーキング」：mod「±0」（「—」ではないため乱戦ダメージも発生、対象明記なし＝
+          // 既定ルール＝前衛均等割り）。個別効果:「敵視:最大」のPC1体に、戦闘終了まで
+          // 「HP価値:-10（最低10）」を与える（同一PCに重複しない）——HP損害を伴わないPC側の
+          // 継続的ステータス悪化のため、pc_hp_value_penalty_manualへ記録しGM手動処理に委ねる
+          // （本エントリ冒頭の新規タグ解説参照）。
+          rollMin: 5,
+          rollMax: 6,
+          groupDamage: { modifier: 0 },
+          targetRule: { kind: "frontAll" },
+          conditions: ["pc_hp_value_penalty_manual"],
+        },
+      ],
+    },
+    "attacker_mage|night_idol": {
+      rows: [
+        {
+          // 「爪攻撃」：「敵視:1以上」で前衛のPC全員に「乱戦ダメージ:2人分」（本文に明記）。
+          rollMin: 1,
+          rollMax: 2,
+          groupDamage: { modifier: 60 },
+          targetRule: { kind: "frontAggroAtLeast1All" },
+        },
+        {
+          // 「拒絶」：乱戦ダメージ修正－120（「—」ではないため発生、対象明記なし＝既定ルール＝
+          // 前衛均等割り）。個別効果:「敵視:最大」のPC1体は次のアクションフェイズ開始時に獲得
+          // するスタミナダイスが2個減少する（HP損害を伴わないためstamina_dice_reduction_
+          // next_phaseのみ記録）。
+          rollMin: 3,
+          rollMax: 4,
+          groupDamage: { modifier: -120 },
+          targetRule: { kind: "frontAll" },
+          conditions: ["stamina_dice_reduction_next_phase"],
+        },
+        {
+          // 「光輪」：mod「±0＆「聖:1D」」。乱戦ダメージ修正±0（対象明記なし＝既定ルール＝
+          // 前衛均等割り）。個別効果:「敵視:1以上」のPC全員に【個別ダメージ:60】＋「聖:1D」を
+          // 別枠で与える——note文言上、聖1Dは個別ダメージに付随（divine_beast_warriors
+          // 「円刃剣の舞」と同型）ためindividualDamage側にelementAccumを構造化し、groupDamage
+          // には含めない（二重計上回避）。
+          rollMin: 5,
+          rollMax: 6,
+          groupDamage: { modifier: 0 },
+          targetRule: { kind: "frontAll" },
+          individualDamage: [
+            { amount: 60, targetRule: { kind: "aggroAtLeast1All" }, elementAccum: [{ label: "聖", amount: 1 }] },
+          ],
+        },
+      ],
+    },
+    "attacker_mage|night_thief": {
+      rows: [
+        {
+          // 「短剣連続攻撃」：mod「—」のため乱戦ダメージは発生しない。個別効果（PC人数+1回
+          // 実行）：「敵視:1以上」のPC1体に【個別ダメージ:60】を与える——「PC人数+1」は
+          // パーティ人数に依存する可変値であり固定回数のリテラル値ではないため、既存の
+          // repeat/rotate機構（固定回数専用）は使わずconditionsとコメントでGM手動処理に委ねる
+          // （Global Constraint 7）。
+          rollMin: 1,
+          rollMax: 2,
+          conditions: ["variable_repeat_manual"],
+        },
+        {
+          // 「背後致命」：mod「—」のため乱戦ダメージは発生しない。個別効果:「敵視:最大」のPC1体
+          // のみが〈12|メンタル〉を行い、失敗すると「HP損害:■×4」を被る——auto_gm.jsの
+          // resolveSavingThrow実装は「全PCプール（targetFilterで絞り込み可能なのはaggroAtLeast1
+          // のみ）」を前提としており、「敵視:最大の1体のみが判定する」という単体対象の判定は
+          // 既存savingThrow機構では表現できない。加えて失敗時ダメージが「■」（数値未確定）で
+          // 数値を捏造できないため、いずれにせよ自動計算は不可。conditionsとコメントでGM手動
+          // 処理に委ねる（unknown_hp_damage_manual）。
+          rollMin: 3,
+          rollMax: 4,
+          conditions: ["unknown_hp_damage_manual"],
+        },
+        {
+          // 「魔力の短剣」：mod「±0＆「魔:1D」」。乱戦ダメージ修正±0（対象明記なし＝既定ルール＝
+          // 前衛均等割り）。個別効果:「敵視:最大」のPC1体に【個別ダメージ:60】＋「魔:1D」を
+          // 別枠で与える——note文言上、魔1Dは個別ダメージに付随（divine_beast_warriors
+          // 「円刃剣の舞」と同型）ためindividualDamage側にelementAccumを構造化し、groupDamage
+          // には含めない（二重計上回避）。
+          rollMin: 5,
+          rollMax: 6,
+          groupDamage: { modifier: 0 },
+          targetRule: { kind: "frontAll" },
+          individualDamage: [{ amount: 60, targetRule: { kind: "aggroMax" }, elementAccum: [{ label: "魔", amount: 1 }] }],
+        },
+      ],
+    },
+    "attacker_mage|night_witch": {
+      rows: [
+        {
+          // 「輝石のつぶて」：mod「－60＆「魔:1D」」。乱戦ダメージ修正－60（「—」ではないため
+          // 発生、対象明記なし＝既定ルール＝前衛均等割り）。個別効果:「敵視:1以上」のPC全員に
+          // 【個別ダメージ:60】＋「魔:1D」を別枠で与える——note文言上、魔1Dは個別ダメージに
+          // 付随（divine_beast_warriors「円刃剣の舞」と同型）ためindividualDamage側に
+          // elementAccumを構造化し、groupDamageには含めない（二重計上回避）。
+          rollMin: 1,
+          rollMax: 2,
+          groupDamage: { modifier: -60 },
+          targetRule: { kind: "frontAll" },
+          individualDamage: [
+            { amount: 60, targetRule: { kind: "aggroAtLeast1All" }, elementAccum: [{ label: "魔", amount: 1 }] },
+          ],
+        },
+        {
+          // 「夜の彗星」：mod「－120＆「魔:2D」」。乱戦ダメージはPC全員を対象とする（本文に
+          // 明記）。個別効果:「敵視:1以上」のPC全員のみが〈11|運試し〉を行い（targetFilter:
+          // aggroAtLeast1、ancient_dragon「赤雷叩きつけ」と同型）、失敗したPCに
+          // 【個別ダメージ:120】＋「魔:2D」を与える。mod欄の「魔:2D」は数値・種別がこの判定
+          // 失敗効果と完全一致するため、savingThrow.onFail側にのみ構造化し、groupDamageには
+          // 含めない（二重計上回避）。
+          rollMin: 3,
+          rollMax: 4,
+          groupDamage: { modifier: -120 },
+          targetRule: { kind: "allPCs" },
+          savingThrow: {
+            stat: "luck",
+            targetFilter: { kind: "aggroAtLeast1" },
+            targetByCondition: [{ condition: { kind: "default" }, target: 11 }],
+            onFail: { amount: 120, elementAccum: [{ label: "魔", amount: 2 }] },
+          },
+        },
+        {
+          // 「創星雨」：乱戦ダメージ修正－240＋「魔:1D」（mod欄の固定値表記、docs/
+          // enemy_damage_rules.md §1.1のXd＝固定値X裁定に基づきelementAccumとして構造化。
+          // 個別効果側に重複する記載が無いためgroupDamageへ直接付随させる）。乱戦ダメージは
+          // PC全員を対象とし、乱戦ダメージは2回発生する（本文に明記）。
+          rollMin: 5,
+          rollMax: 6,
+          groupDamage: { modifier: -240, repeat: 2, elementAccum: [{ label: "魔", amount: 1 }] },
+          targetRule: { kind: "allPCs" },
+        },
+      ],
+    },
+    // 〔HP価値:-10〕特殊能力（夜の魔女）：このエネミーは常に「HP価値:-10（最低10）」として
+    // 扱う、戦闘開始から常時有効な受動的特性。既存のguardValueTable/enemyGuardValueForCountは
+    // ロール依存の一時バフ（enemy_hp_value_buff）専用で、「常時ベースのHP価値そのものを補正
+    // する」恒常的な補正値を保持するフィールドが無いため、rows化はせずGMがガード削り値計算機の
+    // HP価値欄に反映する際に手動で-10（下限10）すること。
+    "attacker_mage|night_liar": {
+      rows: [
+        {
+          // 「連続突き＆回復」：乱戦ダメージ修正－60（「—」ではないため発生、対象明記なし＝
+          // 既定ルール＝前衛均等割り）。個別効果:「敵視:最大」のPC1体に【個別ダメージ:120】を
+          // 別枠で与える。特殊能力「聖杯瓶回復（条件発揮）」＝このエネミーの「最も現在HPが
+          // 減少しているHP行」に「HP回復:□×PC人数」を適用（2回以上体勢崩しにならず、モブHPには
+          // 適用しない）——PC人数依存の可変値かつエネミー側自己回復のため既存フィールドに
+          // 構造化できず、holy_grail_flask_recovery_triggerで記録しGM手動処理に委ねる（本エントリ
+          // 冒頭の新規タグ解説参照）。
+          rollMin: 1,
+          rollMax: 2,
+          groupDamage: { modifier: -60 },
+          targetRule: { kind: "frontAll" },
+          individualDamage: [{ amount: 120, targetRule: { kind: "aggroMax" } }],
+          conditions: ["holy_grail_flask_recovery_trigger"],
+        },
+        {
+          // 「腐敗壺投げ」：mod「－120＆「腐敗:1D」」。乱戦ダメージ修正－120（「—」ではないため
+          // 発生、対象明記なし＝既定ルール＝前衛均等割り）。個別効果:PC全員（敵視条件の記載
+          // なし）が〈10|運試し〉を行い、失敗したPCは「腐敗:1D」を被る（HP損害を伴わない）。
+          // mod欄の「腐敗:1D」は数値・種別がこの判定失敗効果と完全一致するため、savingThrow.
+          // onFail側にのみ構造化し、groupDamageには含めない（二重計上回避）。soldier_knight|
+          // death_knight「後ずさる」型（2026-08-29確認済みのqueueAttributeAccum実装により、
+          // onFailはamount無し・ailmentAccumのみでも正しく反映される）に倣い素のsavingThrowで
+          // 構造化する。さらに次のアクションフェイズ終了まで、このエネミーを「HP価値:+20
+          // （最大100）」する（enemy_hp_value_buff）。
+          rollMin: 3,
+          rollMax: 4,
+          groupDamage: { modifier: -120 },
+          targetRule: { kind: "frontAll" },
+          savingThrow: {
+            stat: "luck",
+            targetByCondition: [{ condition: { kind: "default" }, target: 10 }],
+            onFail: { ailmentAccum: [{ label: "腐敗", amount: 1 }] },
+          },
+          conditions: ["enemy_hp_value_buff"],
+        },
+        {
+          // 「薙ぎ払い＆高揚の香り」：mod「±0」、note無し。乱戦ダメージ修正±0（「—」ではない
+          // ため発生、対象明記なし＝既定ルール＝前衛均等割り）のみ構造化する。「高揚の香り」の
+          // 具体的な追加効果はenemies_data_2.js側にも本文が存在しない（note:null）ため、
+          // 数値・効果を捏造せずgroupDamageのみ記録する。
+          rollMin: 5,
+          rollMax: 6,
+          groupDamage: { modifier: 0 },
+          targetRule: { kind: "frontAll" },
+        },
+      ],
+    },
   };
 
   function get(familyId, enemyId) {
