@@ -3962,6 +3962,113 @@
         },
       ],
     },
+    // 劇本9「夜之強敵決定表」に登場する神獣獅子舞（familyId:rock_spirit_beast、
+    // enemies_data_1.js:590-654、size:L、resistance:発狂）。Task 7 brief参照。
+    //
+    // 【特殊能力〔弱点:猛毒＆出血＆腐敗〕公開情報について】
+    // このテキストはenemies_data_1.js:652の`special`フィールドに既存で記録されており
+    // （〔弱点:◯◯〕公開情報...という形式）、night.jsの`extractWeakness`/
+    // `extractPublicSpecialNames`（night.js:12815-12830付近）が既にこの`special`テキストを
+    // 正規表現で解析し、敵チップの公開情報表示欄に自動反映する仕組みが存在する。これは
+    // enemy_auto_gm_data.jsのスキーマとは完全に独立した既存機構であり、本エントリ側で
+    // 追加のフィールドを新設する必要はない（gnoster「〔弱点:回復〕」等の先例と同様、
+    // rows[]構造化の対象外。CLAUDE.md §36「不要為単一效果建立第三套特殊架構」に基づき
+    // 既存のspecial表示機構をそのまま利用する）。
+    //
+    // 【特殊能力〔行動激化〕】「体勢崩し」発生後、戦闘終了まで行動決定を「1D」ではなく
+    // 「1D+2」で行う——demihuman_beastfolk_club|demihuman_queen_swordmaster等と同型の
+    // rollBonusAfterGuardBreak機構でそのまま表現できる。rollMin/rollMaxが6を超える行
+    // （6~8）は通常時（1D6=1〜6）には到達せず、体勢崩し後（1D6+2=3〜8）にのみ到達する。
+    //
+    // 【出目8「神獣の舞」の二重計上判定について（2277-2289行の解釈方針を適用）】
+    // mod: "±0＆「魔:1D」＆「雷:1D」＆「凍傷:1D」"。本文の個別効果は「敵視:最大」のPC1体に
+    // 【個別ダメージ:120】＋「魔:1D」のみを明記しており、雷:1D・凍傷:1Dへの言及は個別効果側に
+    // 一切無い。よって「魔:1D」はmod欄と個別効果で数値・種別が完全一致する同一効果の要約的
+    // 重複と解釈し、individualDamage側にのみ構造化してgroupDamageには含めない（二重計上回避）。
+    // 一方「雷:1D」「凍傷:1D」はmod欄にのみ存在し本文個別効果に対応する記載が無いため、二重
+    // 適用のおそれが無い乱戦ダメージ側の独立した付随効果としてgroupDamageに構造化する
+    // （凍傷は状態異常のためailmentAccum、魔・雷は属性のためelementAccum。2257行の分類基準）。
+    "rock_spirit_beast|sacred_beast_lion_dance": {
+      rollBonusAfterGuardBreak: 2,
+      rows: [
+        {
+          // 「突撃」：「敵視:1以上」で前衛のPC全員に「乱戦ダメージ:2人分」（本文に明記）。
+          rollMin: 1,
+          rollMax: 2,
+          groupDamage: { modifier: 120 },
+          targetRule: { kind: "frontAggroAtLeast1All" },
+        },
+        {
+          // 「神獣竜巻」：乱戦ダメージ修正+120（「—」ではないため発生、本文に乱戦ダメージの対象
+          // 明記なし）。既定ルール（前衛均等割り）。個別効果：「敵視:最大」のPC全員は次の
+          // アクションフェイズ開始時に獲得するスタミナダイスが2個減少する（HP損害を伴わないため
+          // individualDamage無し）。
+          rollMin: 3,
+          rollMax: 4,
+          groupDamage: { modifier: 120 },
+          targetRule: { kind: "frontAll" },
+          conditions: ["stamina_dice_reduction_next_phase"],
+        },
+        {
+          // 「雷の槍」：乱戦ダメージ修正が「—」のため乱戦ダメージは発生しない。個別効果
+          // （PC人数回実行）：「敵視:1以上」のPC1体に【個別ダメージ:120】＋「雷:1D」を与える——
+          // 「PC人数」はパーティ人数に依存する可変値のため、固定回数のrepeat/rotateは使わず
+          // conditionsとコメントでGM手動処理に委ねる（Global Constraint 7）。
+          rollMin: 5,
+          rollMax: 5,
+          conditions: ["variable_repeat_manual"],
+        },
+        {
+          // 「広範囲降雷」：乱戦ダメージ修正が「—」のため乱戦ダメージは発生しない。個別効果：
+          // 「敵視:1以上」のPC全員は〈12|運試し〉、それ以外のPC全員は〈10|運試し〉を行い、
+          // 失敗したPCに【個別ダメージ:180】＋「雷:2D」を与える。savingThrow.onFailは
+          // amountの型に関わらずelementAccum/ailmentAccumが常にqueueAttributeAccumへ渡される
+          // 実装（night.js queueAttributeAccum、soldier_knight|death_knightの2026-08-29修正
+          // コメント参照）ため、amountとelementAccumを両方構造化する。
+          rollMin: 6,
+          rollMax: 6,
+          savingThrow: {
+            stat: "luck",
+            targetByCondition: [
+              { condition: { kind: "aggroAtLeast1" }, target: 12 },
+              { condition: { kind: "default" }, target: 10 },
+            ],
+            onFail: { amount: 180, elementAccum: [{ label: "雷", amount: 2 }] },
+          },
+        },
+        {
+          // 「神獣霜踏み」：乱戦ダメージ修正－120＋「凍傷:2D」（本文に別途対応する個別効果の
+          // 記載なし＝mod欄独自の付随効果、二重計上のおそれ無し。凍傷は状態異常のため
+          // ailmentAccum）。既定ルール（前衛均等割り）。乱戦ダメージを回避するPCはダイス
+          // コストが半減する（reducible_by_stamina_dice相当だが本文は「支払ったダイスコストの
+          // 値を半分」と明記しているため既存タグhalved_evade_cost_noteを使用）。
+          rollMin: 7,
+          rollMax: 7,
+          groupDamage: { modifier: -120, ailmentAccum: [{ label: "凍傷", amount: 2 }] },
+          targetRule: { kind: "frontAll" },
+          conditions: ["halved_evade_cost_note"],
+        },
+        {
+          // 「神獣の舞」：乱戦ダメージ修正±0、対象明記無しのため既定ルール（前衛均等割り）。
+          // mod欄の「魔:1D」は本文個別効果（「敵視:最大」PC1体に【個別ダメージ:120】＋「魔:1D」）
+          // と数値・種別が完全一致するため要約的重複と解釈し、individualDamage側にのみ構造化
+          // （groupDamageには含めない、上記エントリ冒頭コメント参照）。「雷:1D」「凍傷:1D」は
+          // 本文個別効果に対応する記載が無く二重適用のおそれが無いため、乱戦ダメージ側の独立した
+          // 付随効果としてgroupDamageに構造化する（凍傷はailmentAccum、雷はelementAccum）。
+          rollMin: 8,
+          rollMax: 8,
+          groupDamage: {
+            modifier: 0,
+            elementAccum: [{ label: "雷", amount: 1 }],
+            ailmentAccum: [{ label: "凍傷", amount: 1 }],
+          },
+          targetRule: { kind: "frontAll" },
+          individualDamage: [
+            { amount: 120, targetRule: { kind: "aggroMax" }, elementAccum: [{ label: "魔", amount: 1 }] },
+          ],
+        },
+      ],
+    },
   };
 
   function get(familyId, enemyId) {
