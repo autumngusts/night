@@ -3561,14 +3561,16 @@
     "death_bird_raven|demon_prince": {
       rows: [
         {
-          // 「炎の隕石」：mod欄「－120＆「炎:1D」」。乱戦ダメージ修正－120（「－」ではなく数値の
-          // ため必ずgroupDamageを設定、対象明記なし＝既定ルール＝前衛均等割り）。mod欄に直接
-          // 付随する「炎:1D」（固定値、骰子ではない）はgroupDamage.elementAccumへ構造化。
-          // 個別効果（PC人数回実行、「敵視:1以上」のPC1体に個別120＋炎1D）は可変回数のため
-          // Global Constraint 7によりrepeat/rotateを使わずconditionsで手動処理に委ねる。
+          // 「炎の隕石」：乱戦ダメージ修正－120（「－」ではなく数値のため必ずgroupDamageを
+          // 設定、対象明記なし＝既定ルール＝前衛均等割り）。個別効果（PC人数回実行、
+          // 「敵視:1以上」のPC1体に個別120＋炎1D）はmod欄の「－120＆「炎:1D」」と数値・
+          // 種別が完全一致する同一効果の要約表記であり、かつ回数がPC人数依存の可変値の
+          // ためGlobal Constraint 7によりrepeat/rotateを使わずconditionsで手動処理に
+          // 委ねる（remote_veteran「冷気の嵐」と同様、二重計上を避けるためgroupDamage側
+          // には炎:1Dを構造化せず、variable_repeat_manualの手動処理注記に炎:1Dも含める）。
           rollMin: 1,
           rollMax: 2,
-          groupDamage: { modifier: -120, elementAccum: [{ label: "炎", amount: 1 }] },
+          groupDamage: { modifier: -120 },
           targetRule: { kind: "frontAll" },
           conditions: ["variable_repeat_manual"],
         },
