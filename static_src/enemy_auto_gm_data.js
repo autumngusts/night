@@ -4649,6 +4649,279 @@
         },
       ],
     },
+
+    // Batch D3: crustacean(big_crabs/big_ants) + attacker_warrior(night_assassin/
+    // night_executioner/night_fallen/night_destroyer/night_blasphemer) = 7体。
+    // 出典: static_src/enemies_data_2.js（crustacean:186〜295行付近、attacker_warrior:
+    // 298〜517行付近）。attacker_warriorは科全体が本ブロック初対応のため、他family
+    // （soldier_knight/troll_dragonkin_wormface等）で確立済みのtargetRule/conditions語彙を
+    // そのまま流用する。
+    "crustacean|big_crabs": {
+      rows: [
+        {
+          // 「爪叩きつけ」：乱戦ダメージ修正±0（「—」ではないため発生）。対象の明記が無いため
+          // 既定ルール（前衛均等割り）。個別ダメージ120は「敵視:最大」のPC1体に別枠で発生
+          // （crustacean|big_crayfish「爪突き刺し」と同型）。
+          rollMin: 1,
+          rollMax: 2,
+          groupDamage: { modifier: 0 },
+          targetRule: { kind: "frontAll" },
+          individualDamage: [{ amount: 120, targetRule: { kind: "aggroMax" } }],
+        },
+        {
+          // 「泡ブレス」：乱戦ダメージ修正－120（「—」ではないため発生）。対象の明記が無いため
+          // 既定ルール（前衛均等割り）。この乱戦ダメージをガードするPCは、そのガードコストを
+          // +1する（guard_cost_penalty、troll_dragonkin_wormface|nox_dragonkin_soldier
+          // 「噛みつき」と同型）。
+          rollMin: 3,
+          rollMax: 4,
+          groupDamage: { modifier: -120 },
+          targetRule: { kind: "frontAll" },
+          conditions: ["guard_cost_penalty"],
+        },
+        {
+          // 「挟み込み拘束」：乱戦ダメージ修正が「—」のため発生しない。個別ダメージ240を
+          // 「敵視:最大」のPC1体に、ガード不可（crustacean|big_crayfish／duke_freydiaの
+          // 「挟み込み拘束」と同型）。
+          rollMin: 5,
+          rollMax: 6,
+          individualDamage: [{ amount: 240, targetRule: { kind: "aggroMax" } }],
+          conditions: ["no_guard"],
+        },
+      ],
+    },
+    "crustacean|big_ants": {
+      rows: [
+        {
+          // 「群がる」：「敵視:1以上」で前衛のPC全員に「乱戦ダメージ:2人分」（本文に明記）。
+          rollMin: 1,
+          rollMax: 2,
+          groupDamage: { modifier: 0 },
+          targetRule: { kind: "frontAggroAtLeast1All" },
+        },
+        {
+          // 「脚ひっかき」：乱戦ダメージ修正+60（「—」ではないため発生）。対象の明記が無いため
+          // 既定ルール（前衛均等割り）。個別ダメージ120は「敵視:1以上」のPC全員に別枠で発生。
+          rollMin: 3,
+          rollMax: 4,
+          groupDamage: { modifier: 60 },
+          targetRule: { kind: "frontAll" },
+          individualDamage: [{ amount: 120, targetRule: { kind: "aggroAtLeast1All" } }],
+        },
+        {
+          // 「蟻酸」：乱戦ダメージ修正－60（「—」ではないため発生）。対象の明記が無いため既定
+          // ルール（前衛均等割り）。個別ダメージ180は「敵視:最大」のPC1体に、この個別ダメージを
+          // 回避するPCはダイスコストが半減する（reducible_by_stamina_dice）。
+          rollMin: 5,
+          rollMax: 6,
+          groupDamage: { modifier: -60 },
+          targetRule: { kind: "frontAll" },
+          individualDamage: [{ amount: 180, targetRule: { kind: "aggroMax" } }],
+          conditions: ["reducible_by_stamina_dice"],
+        },
+      ],
+    },
+    "attacker_warrior|night_assassin": {
+      // special: 〔弱点:呪死〕公開情報（209頁）。night.jsのextractWeakness等の既存機構が
+      // enemies_data側のspecialフィールドを直接解析して敵チップへ反映するため（3952〜3960行
+      // 付近の既存注記と同型の判断）、rows[]には構造化しない。
+      rows: [
+        {
+          // 「薙ぎ払い」：「敵視:1以上」で前衛のPC全員に「乱戦ダメージ:2人分」（本文に明記）。
+          rollMin: 1,
+          rollMax: 2,
+          groupDamage: { modifier: 60 },
+          targetRule: { kind: "frontAggroAtLeast1All" },
+        },
+        {
+          // 「構え斬り」：乱戦ダメージ修正+120（「—」ではないため発生）。対象の明記が無いため
+          // 既定ルール（前衛均等割り）。「敵視:最大」のPC全員は、この乱戦ダメージを回避する
+          // とき、支払ったダイスコストの値を半分として扱う。【判断メモ】既存の
+          // reducible_by_stamina_diceタグは対象PCの部分集合（前衛均等割りの対象全員のうち
+          // 敵視最大の部分集合のみ）を区別しないため厳密には対象範囲がズレるが、
+          // troll_dragonkin_wormface|nox_dragonkin_soldier「噛みつき」等の既存事例（本文が
+          // 「敵視:最大のPC全員」等の部分集合を回避コスト半減の対象に限定していても同タグを
+          // 流用）と同じ扱いとしてそのまま流用する。
+          rollMin: 3,
+          rollMax: 4,
+          groupDamage: { modifier: 120 },
+          targetRule: { kind: "frontAll" },
+          conditions: ["reducible_by_stamina_dice"],
+        },
+        {
+          // 「バックラーパリィ」：乱戦ダメージ修正－60（「—」ではないため発生）。対象の明記が
+          // 無いため既定ルール（前衛均等割り）。個別ダメージ180は「敵視:最大」のPC1体に、加えて
+          // 次のアクションフェイズ開始時のスタミナダイス-2（HP損害を伴う個別効果のため
+          // individualDamageで構造化しつつ、体力骰減少はconditionsで併記）。
+          rollMin: 5,
+          rollMax: 6,
+          groupDamage: { modifier: -60 },
+          targetRule: { kind: "frontAll" },
+          individualDamage: [{ amount: 180, targetRule: { kind: "aggroMax" } }],
+          conditions: ["stamina_dice_reduction_next_phase"],
+        },
+      ],
+    },
+    "attacker_warrior|night_executioner": {
+      // special: 〔弱点:呪死〕公開情報（209頁）。night.jsのextractWeakness等の既存機構が
+      // enemies_data側のspecialフィールドを直接解析して敵チップへ反映するため、rows[]には
+      // 構造化しない（night_assassinと同型の判断）。
+      rows: [
+        {
+          // 「居合斬り」：「敵視:1以上」で前衛のPC全員に「乱戦ダメージ:2人分」（本文に明記）。
+          rollMin: 1,
+          rollMax: 2,
+          groupDamage: { modifier: 60 },
+          targetRule: { kind: "frontAggroAtLeast1All" },
+        },
+        {
+          // 「連続斬り」：乱戦ダメージ修正が「—」のため乱戦ダメージは発生しない。個別効果
+          // （PC人数回実行）:「敵視:1以上」のPC1体に【個別ダメージ:180】を与える——「PC人数」は
+          // パーティ人数に依存する可変値のため、固定回数のrepeat/rotateは使わずconditionsと
+          // コメントでGM手動処理に委ねる（Global Constraint 7、crustacean|duke_freydia
+          // 「子蜘蛛の牙」と同型）。
+          rollMin: 3,
+          rollMax: 4,
+          conditions: ["variable_repeat_manual"],
+        },
+        {
+          // 「弾き＆妖刀解放」：乱戦ダメージ修正+120（「—」ではないため発生）。対象の明記が無い
+          // ため既定ルール（前衛均等割り）。個別効果:「敵視:最大」のPC1体は次のアクション
+          // フェイズ開始時に獲得するスタミナダイスが2個減少する（HP損害を伴わないため
+          // individualDamageは設定せずconditionsのみ、demihuman_beastfolk_club|
+          // silver_tears_people「側転回り込み」と同型）。
+          rollMin: 5,
+          rollMax: 6,
+          groupDamage: { modifier: 120 },
+          targetRule: { kind: "frontAll" },
+          conditions: ["stamina_dice_reduction_next_phase"],
+        },
+      ],
+    },
+    // 特殊能力〔耐久力〕（attacker_warrior|night_fallenのみ）：戦闘開始時、このエネミーの
+    // すべての「HP行」を「最大HP:+□×5（5点増加）」する——出目テーブルの行ではなく戦闘開始時
+    // のセットアップ処理であり、既存のrows[]構造（1D6の出目に対応する行動）にもenemy_auto_gm_
+    // data.jsのスキーマにも対応する機構が無いため（cavalry|unnamed_king「モブ1追加」等と同型の
+    // 判断）、rows[]には構造化せずこのコメントに規則書原文をそのまま記録してGM手動セットアップに
+    // 委ねる。□=+1（CLAUDE.md §17.1）のため実数値は+5（Global Constraint 1：■ではなく□の
+    // ため数値は確定済み、ただし反映先の機構が無いため手動運用）。
+    "attacker_warrior|night_fallen": {
+      // special: 〔弱点:呪死〕公開情報（209頁）。night.jsのextractWeakness等の既存機構が
+      // enemies_data側のspecialフィールドを直接解析して敵チップへ反映するため、rows[]には
+      // 構造化しない（night_assassinと同型の判断）。
+      rows: [
+        {
+          // 「斧槍薙ぎ払い」：「敵視:1以上」で前衛のPC全員に「乱戦ダメージ:2人分」（本文に明記）。
+          rollMin: 1,
+          rollMax: 2,
+          groupDamage: { modifier: 60 },
+          targetRule: { kind: "frontAggroAtLeast1All" },
+        },
+        {
+          // 「つむじ風」：乱戦ダメージ修正－300、乱戦ダメージは2回発生する
+          // （big_dog_bear|old_lions「連続噛みつき」と同型）。対象の明記が無いため既定ルール
+          // （前衛均等割り）。
+          rollMin: 3,
+          rollMax: 4,
+          groupDamage: { modifier: -300, repeat: 2 },
+          targetRule: { kind: "frontAll" },
+        },
+        {
+          // 「ハイガード＆ガードカウンター」：乱戦ダメージ修正－240（「—」ではないため発生）。
+          // 乱戦ダメージは「敵視:最大」のPC1体のみを対象とし、対象となるPCが1人もいない場合は
+          // 通常どおり前衛が対象となる（本文に明記、aggroMax+fallback:"front"、
+          // strong_type|divine_skin_apostles「黒炎投げ」等でfallback:"front"が既に確立済みの
+          // 汎用機構であることを確認済み）。次のアクションフェイズ終了までエネミーを
+          // 「HP価値:+20（最大100）」する（enemy_hp_value_buff）。
+          rollMin: 5,
+          rollMax: 6,
+          groupDamage: { modifier: -240 },
+          targetRule: { kind: "aggroMax", fallback: "front" },
+          conditions: ["enemy_hp_value_buff"],
+        },
+      ],
+    },
+    "attacker_warrior|night_destroyer": {
+      // special: 〔弱点:呪死〕公開情報（209頁）。night.jsのextractWeakness等の既存機構が
+      // enemies_data側のspecialフィールドを直接解析して敵チップへ反映するため、rows[]には
+      // 構造化しない（night_assassinと同型の判断）。
+      rows: [
+        {
+          // 「我慢＆薙ぎ払い」：「敵視:1以上」で前衛のPC全員に「乱戦ダメージ:2人分」（本文に
+          // 明記）。次のアクションフェイズ終了までエネミーを「HP価値:+10（最大100）」する
+          // （enemy_hp_value_buff）。
+          rollMin: 1,
+          rollMax: 2,
+          groupDamage: { modifier: 60 },
+          targetRule: { kind: "frontAggroAtLeast1All" },
+          conditions: ["enemy_hp_value_buff"],
+        },
+        {
+          // 「ジャンプ攻撃」：乱戦ダメージ修正+120（「—」ではないため発生）。対象の明記が無い
+          // ため既定ルール（前衛均等割り）。個別効果:「敵視:最大」のPC1体は次のアクション
+          // フェイズ開始時に獲得するスタミナダイスが2個減少する（HP損害を伴わないため
+          // conditionsのみ）。
+          rollMin: 3,
+          rollMax: 4,
+          groupDamage: { modifier: 120 },
+          targetRule: { kind: "frontAll" },
+          conditions: ["stamina_dice_reduction_next_phase"],
+        },
+        {
+          // 「ダッシュ攻撃」：乱戦ダメージ修正+120（「—」ではないため発生）。対象の明記が無い
+          // ため既定ルール（前衛均等割り）。個別効果:「敵視:1以上」のPC全員は次のアクション
+          // フェイズ開始時に獲得するスタミナダイスが1個減少する（HP損害を伴わないため
+          // conditionsのみ）。
+          rollMin: 5,
+          rollMax: 6,
+          groupDamage: { modifier: 120 },
+          targetRule: { kind: "frontAll" },
+          conditions: ["stamina_dice_reduction_next_phase"],
+        },
+      ],
+    },
+    "attacker_warrior|night_blasphemer": {
+      // special: 〔弱点:呪死〕公開情報（209頁）。night.jsのextractWeakness等の既存機構が
+      // enemies_data側のspecialフィールドを直接解析して敵チップへ反映するため、rows[]には
+      // 構造化しない（night_assassinと同型の判断）。
+      rows: [
+        {
+          // 「ジャンプ攻撃」：乱戦ダメージ修正+120（「—」ではないため発生）。対象の明記が無い
+          // ため既定ルール（前衛均等割り）。個別効果:「敵視:最大」のPC1体は次のアクション
+          // フェイズ開始時に獲得するスタミナダイスが2個減少する（HP損害を伴わないため
+          // conditionsのみ）。
+          rollMin: 1,
+          rollMax: 2,
+          groupDamage: { modifier: 120 },
+          targetRule: { kind: "frontAll" },
+          conditions: ["stamina_dice_reduction_next_phase"],
+        },
+        {
+          // 「ダッシュ攻撃」：乱戦ダメージ修正+120（「—」ではないため発生）。対象の明記が無い
+          // ため既定ルール（前衛均等割り）。個別効果:「敵視:1以上」のPC全員は次のアクション
+          // フェイズ開始時に獲得するスタミナダイスが1個減少する（HP損害を伴わないため
+          // conditionsのみ）。
+          rollMin: 3,
+          rollMax: 4,
+          groupDamage: { modifier: 120 },
+          targetRule: { kind: "frontAll" },
+          conditions: ["stamina_dice_reduction_next_phase"],
+        },
+        {
+          // 「祈りの一撃」：乱戦ダメージ修正±0＋「聖:1D」（mod欄の固定値表記、docs/
+          // enemy_damage_rules.md §1.1のXd＝固定値X裁定に基づきelementAccumとして構造化。
+          // 本文の個別効果側には聖への言及が一切無いため、mod欄と個別効果の数値突合の結果
+          // 二重計上の懸念は無い）。対象の明記が無いため既定ルール（前衛均等割り）。次の
+          // アクションフェイズ終了までエネミーを「HP価値:+20（最大100）」する
+          // （enemy_hp_value_buff）。
+          rollMin: 5,
+          rollMax: 6,
+          groupDamage: { modifier: 0, elementAccum: [{ label: "聖", amount: 1 }] },
+          targetRule: { kind: "frontAll" },
+          conditions: ["enemy_hp_value_buff"],
+        },
+      ],
+    },
   };
 
   function get(familyId, enemyId) {
