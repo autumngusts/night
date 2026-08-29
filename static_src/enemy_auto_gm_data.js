@@ -6740,6 +6740,115 @@
         },
       ],
     },
+    // 特殊能力〔巨剣陣（条件発揮）〕（knight_troll専用）：エンドフェイズ開始時、「敵視:1以上」の
+    // PC全員は「HP損害:■×敵視の値」を被る。エンドフェイズ開始時トリガー・敵視値に比例した
+    // 倍率・■（数値未確定）という3要素を持ち、既存機構（rollBonusAfterGuardBreak等）のいずれにも
+    // 対応できない特殊能力のため、rows[]には組み込まずここにルールブック原文どおり記録し、GMが
+    // 手動で運用する。roll 1~2「薙ぎ払い＆巨剣陣」・roll 5~6「叩きつけ＆巨剣陣」の本文が
+    // 「特殊能力「巨剣陣」を効果発揮」と明記しているが、上記の理由により該当行のconditionsには
+    // このトリガーを示すタグを追加しない（rows外の効果のため）。
+    "troll_dragonkin_wormface|knight_troll": {
+      rows: [
+        {
+          // 「薙ぎ払い＆巨剣陣」：乱戦ダメージ修正+60（対象明記なし＝既定ルール＝前衛均等割り）。
+          // 特殊能力「巨剣陣」を効果発揮（上記コメント参照、rows外でGM手動処理）。
+          rollMin: 1,
+          rollMax: 2,
+          groupDamage: { modifier: 60 },
+          targetRule: { kind: "frontAll" },
+        },
+        {
+          // 「魔力の大剣」：mod「＋120＆「魔:1D」」。乱戦ダメージ修正+120（対象明記なし＝既定
+          // ルール＝前衛均等割り）。個別効果:「敵視:最大」のPC1体に【個別ダメージ:180】＋
+          // 「魔:1D」を与える——mod欄の「魔:1D」は個別効果の「魔:1D」と数値・種別が完全一致する
+          // ため二重計上を避け、groupDamageには付随させず個別効果側にのみ構造化する。
+          rollMin: 3,
+          rollMax: 4,
+          groupDamage: { modifier: 120 },
+          targetRule: { kind: "frontAll" },
+          individualDamage: [{ amount: 180, targetRule: { kind: "aggroMax" }, elementAccum: [{ label: "魔", amount: 1 }] }],
+        },
+        {
+          // 「叩きつけ＆巨剣陣」：乱戦ダメージ修正±0（対象明記なし＝既定ルール＝前衛均等割り）。
+          // この乱戦ダメージを回避するPCはダイスコストが半減する（reducible_by_stamina_dice）。
+          // 特殊能力「巨剣陣」を効果発揮（上記コメント参照、rows外でGM手動処理）。
+          rollMin: 5,
+          rollMax: 6,
+          groupDamage: { modifier: 0 },
+          targetRule: { kind: "frontAll" },
+          conditions: ["reducible_by_stamina_dice"],
+        },
+      ],
+    },
+    "troll_dragonkin_wormface|headless_trolls": {
+      rows: [
+        {
+          // 「薙ぎ払い＆転移」：「敵視:1以上」で前衛のPC全員に「乱戦ダメージ:2人分」（本文に明記）。
+          // 特殊能力「転移」＝次のアクションフェイズ開始時、すべてのPCはスタミナダイスの出目に
+          // かかわらず後衛に配置される（既存タグforce_back_row_next_phase）。
+          rollMin: 1,
+          rollMax: 2,
+          groupDamage: { modifier: 0 },
+          targetRule: { kind: "frontAggroAtLeast1All" },
+          conditions: ["force_back_row_next_phase"],
+        },
+        {
+          // 「突進斬り」：乱戦ダメージ修正+120（対象明記なし＝既定ルール＝前衛均等割り）。この乱戦
+          // ダメージを回避するPCはダイスコストが半減する（reducible_by_stamina_dice）。
+          rollMin: 3,
+          rollMax: 4,
+          groupDamage: { modifier: 120 },
+          targetRule: { kind: "frontAll" },
+          conditions: ["reducible_by_stamina_dice"],
+        },
+        {
+          // 「叩きつけ衝撃波」：乱戦ダメージ修正+120（対象明記なし＝既定ルール＝前衛均等割り）。
+          // PCがガードを行う際、エンドフェイズまでそのPCを「HP価値:-10（最低10）」する
+          // （既存タグguard_hp_value_penalty）。
+          rollMin: 5,
+          rollMax: 6,
+          groupDamage: { modifier: 120 },
+          targetRule: { kind: "frontAll" },
+          conditions: ["guard_hp_value_penalty"],
+        },
+      ],
+    },
+    "troll_dragonkin_wormface|snowfield_trolls": {
+      // 特殊能力（rows[]には含めずここに記録）：
+      // 〔弱点:睡眠〕公開情報（209頁）。常時有効な受動的特性のため行動テーブルの行としては
+      // 構造化しない（night.jsのextractWeakness等の既存機構がenemies_data側specialテキストを
+      // 解析して敵チップの公開情報表示欄に自動反映する）。
+      rows: [
+        {
+          // 「脚踏み＆転がり」：乱戦ダメージ修正±0（対象明記なし＝既定ルール＝前衛均等割り）。個別
+          // 効果:「敵視:1以上」のPC全員は次のアクションフェイズ開始時に獲得するスタミナダイスが
+          // 1個減少する（HP損害を伴わないためconditionsのみ、troll_dragonkin_wormface|troll
+          // 「踏みつけ」と同型）。
+          rollMin: 1,
+          rollMax: 2,
+          groupDamage: { modifier: 0 },
+          targetRule: { kind: "frontAll" },
+          conditions: ["stamina_dice_reduction_next_phase"],
+        },
+        {
+          // 「叩きつけ衝撃波」：乱戦ダメージ修正+120（対象明記なし＝既定ルール＝前衛均等割り）。
+          // PCがガードを行う際、エンドフェイズまでそのPCを「HP価値:-10（最低10）」する
+          // （既存タグguard_hp_value_penalty、headless_trolls「叩きつけ衝撃波」と同型）。
+          rollMin: 3,
+          rollMax: 4,
+          groupDamage: { modifier: 120 },
+          targetRule: { kind: "frontAll" },
+          conditions: ["guard_hp_value_penalty"],
+        },
+        {
+          // 「剣薙ぎ払い」：前衛の中で「敵視:最大」のPC全員に「乱戦ダメージ:3人分」（本文に明記）。
+          rollMin: 5,
+          rollMax: 6,
+          groupDamage: { modifier: 60 },
+          targetRule: { kind: "frontAggroMaxAll" },
+        },
+      ],
+    },
   };
 
   function get(familyId, enemyId) {
