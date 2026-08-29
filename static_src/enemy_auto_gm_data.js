@@ -5762,6 +5762,345 @@
         },
       ],
     },
+    // Batch D8（strong_type科4体、cavalry科4体）。static_src/enemies_data_3.js:740〜1571を
+    // 実際にReadして本文を確認したうえで構造化した。
+    "strong_type|black_flame_sinners": {
+      // 〔黒炎の侵蝕（条件発揮）〕このフェイズに「乱戦ダメージ／個別ダメージ」でHP損害を受けた
+      // PCは「最大HP:-□（最低値1）」する。この効果は重複し、PCが「祝福での休息」を行うか
+      // 「夜の強敵」を撃破するまで続く——「最大HP」への継続的な減少で対象・累積回数・累積上限を
+      // 表現する既存機構が無いため（strong_type|blood_lord「酸吐き出し」等と同型）、rows内では
+      // max_hp_penalty_manualのconditionsタグとコメントのみでGM手動処理に委ねる。
+      rows: [
+        {
+          // 「薙ぎ払い」：「敵視:1以上」で前衛のPC全員に「乱戦ダメージ:2人分」（本文に明記）。
+          rollMin: 1,
+          rollMax: 2,
+          groupDamage: { modifier: 120 },
+          targetRule: { kind: "frontAggroAtLeast1All" },
+        },
+        {
+          // 「黒炎発火」：乱戦ダメージ修正±0＋「炎:1D」（mod欄の固定値、骰子ではないため
+          // elementAccum）。対象の明記が本文に無いため既定ルール（前衛均等割り）。個別効果:
+          // 「敵視:1以上」のPC全員に特殊能力「黒炎の侵蝕」を適用する——対象が乱戦ダメージの
+          // 既定対象（前衛均等割り）と異なり、かつ最大HP減少という既存機構で表現できない効果の
+          // ためmax_hp_penalty_manualで手動処理に委ねる。
+          rollMin: 3,
+          rollMax: 4,
+          groupDamage: { modifier: 0, elementAccum: [{ label: "炎", amount: 1 }] },
+          targetRule: { kind: "frontAll" },
+          conditions: ["max_hp_penalty_manual"],
+        },
+        {
+          // 「黒炎の扇」：乱戦ダメージ修正－240＋「炎:2」（固定値のためelementAccum）、乱戦
+          // ダメージは2回発生する（本文に明記）。対象の明記が無いため既定ルール（前衛均等割り）。
+          // 個別効果:「敵視:1以上」のPC全員に特殊能力「黒炎の侵蝕」を適用する（上記と同様に
+          // max_hp_penalty_manual）。
+          rollMin: 5,
+          rollMax: 6,
+          groupDamage: { modifier: -240, repeat: 2, elementAccum: [{ label: "炎", amount: 2 }] },
+          targetRule: { kind: "frontAll" },
+          conditions: ["max_hp_penalty_manual"],
+        },
+      ],
+    },
+    "strong_type|blood_demons": {
+      // 〔血の霧〕エンドフェイズ開始時、前衛のPC全員は「出血:1D」を被る——エンドフェイズ起点の
+      // 自動処理に対応する既存機構が無いため（Global Constraint「エンドフェイズ起点の自動処理」
+      // 除外規定）、rows[]には組み込まずこのコメントに規則書原文を記録してGM手動処理に委ねる。
+      rows: [
+        {
+          // 「飛びかかり」：乱戦ダメージ修正±0＋「出血:1D」（固定値のためailmentAccum、出血は
+          // 状態異常のためailmentAccum。対象の明記が無いため既定ルール＝前衛均等割り）。個別効果：
+          // 「敵視:最大」のPC全員はさらに「出血:1D」を追加で被る——乱戦ダメージの既定対象
+          // （前衛均等割り）とは異なる集団（敵視:最大）への蓄積のみの付随効果でHP損害数値を
+          // 伴わないため、accum_target_mismatch_manualで手動処理に委ねる。
+          rollMin: 1,
+          rollMax: 2,
+          groupDamage: { modifier: 0, ailmentAccum: [{ label: "出血", amount: 1 }] },
+          targetRule: { kind: "frontAll" },
+          conditions: ["accum_target_mismatch_manual"],
+        },
+        {
+          // 「跳躍叩きつけ」：「敵視:1以上」で前衛のPC全員に「乱戦ダメージ:2人分」（本文に明記）。
+          rollMin: 3,
+          rollMax: 4,
+          groupDamage: { modifier: 120 },
+          targetRule: { kind: "frontAggroAtLeast1All" },
+        },
+        {
+          // 「血炎の爪痕」：乱戦ダメージ修正±0（「—」ではないため発生、対象明記なし＝既定ルール＝
+          // 前衛均等割り）。個別効果:「敵視:最大」のPC1体に【個別ダメージ:120】＋「炎:1D」＋
+          // 「出血:1D」を与える。mod欄の「炎:1D」＆「出血:1D」は数値・種別がこの個別効果と完全
+          // 一致するため、二重計上を避けgroupDamage側には付随させずindividualDamage側にのみ
+          // 構造化する（troll_dragonkin_wormface|nox_dragonkin_soldier「霊炎発火」と同型）。
+          rollMin: 5,
+          rollMax: 6,
+          groupDamage: { modifier: 0 },
+          targetRule: { kind: "frontAll" },
+          individualDamage: [
+            {
+              amount: 120,
+              targetRule: { kind: "aggroMax" },
+              elementAccum: [{ label: "炎", amount: 1 }],
+              ailmentAccum: [{ label: "出血", amount: 1 }],
+            },
+          ],
+        },
+      ],
+    },
+    "strong_type|tuning_demon": {
+      rows: [
+        {
+          // 「錫杖薙ぎ払い」：「敵視:1以上」で前衛のPC全員に「乱戦ダメージ:2人分」（本文に明記）。
+          rollMin: 1,
+          rollMax: 2,
+          groupDamage: { modifier: 120 },
+          targetRule: { kind: "frontAggroAtLeast1All" },
+        },
+        {
+          // 「錫杖叩きつけ」：乱戦ダメージ修正＋180（「—」ではないため発生、対象明記なし＝既定
+          // ルール＝前衛均等割り）。この乱戦ダメージに対してガードを行ったPCは、エンドフェイズまで
+          // 「HP価値:-10（最低10）」になる（guard_hp_value_penalty、soldier_knight|crucible_
+          // knight「坩堝の諸相・翼」と同型）。
+          rollMin: 3,
+          rollMax: 4,
+          groupDamage: { modifier: 180 },
+          targetRule: { kind: "frontAll" },
+          conditions: ["guard_hp_value_penalty"],
+        },
+        {
+          // 「両腕跳躍叩きつけ」：乱戦ダメージ修正が「—」のため乱戦ダメージは発生しない。個別効果
+          // （PC人数回実行）：「敵視:1以上」のPC1体に【個別ダメージ:180】を与える——「PC人数」は
+          // パーティ人数に依存する可変値のため、固定回数のrepeat/rotateは使わずconditionsで
+          // GM手動処理に委ねる（Global Constraint 7）。
+          rollMin: 5,
+          rollMax: 6,
+          conditions: ["variable_repeat_manual"],
+        },
+      ],
+    },
+    "strong_type|purple_ogre_chief": {
+      rows: [
+        {
+          // 「飛びかかり」：乱戦ダメージ修正＋120（「—」ではないため発生、対象明記なし＝既定
+          // ルール＝前衛均等割り）。個別効果：「敵視:最大」のPC1体に【個別ダメージ:180】を与える。
+          rollMin: 1,
+          rollMax: 2,
+          groupDamage: { modifier: 120 },
+          targetRule: { kind: "frontAll" },
+          individualDamage: [{ amount: 180, targetRule: { kind: "aggroMax" } }],
+        },
+        {
+          // 「跳躍叩きつけ」：「敵視:1以上」で前衛のPC全員に「乱戦ダメージ:2人分」（本文に明記）。
+          rollMin: 3,
+          rollMax: 4,
+          groupDamage: { modifier: 120 },
+          targetRule: { kind: "frontAggroAtLeast1All" },
+        },
+        {
+          // 「紫の吐息」：乱戦ダメージ修正－120＋「睡眠:2D」（mod欄の固定値、骰子ではないため
+          // ailmentAccum。睡眠は状態異常のためailmentAccum）。本文（note）が無く対象の明記も
+          // 無いため既定ルール（前衛均等割り）。
+          rollMin: 5,
+          rollMax: 6,
+          groupDamage: { modifier: -120, ailmentAccum: [{ label: "睡眠", amount: 2 }] },
+          targetRule: { kind: "frontAll" },
+        },
+      ],
+    },
+    "cavalry|royal_capital_cavalry": {
+      rows: [
+        {
+          // 「振り下ろし」：「敵視:1以上」で前衛のPC全員に「乱戦ダメージ:2人分」（本文に明記）。
+          rollMin: 1,
+          rollMax: 2,
+          groupDamage: { modifier: 60 },
+          targetRule: { kind: "frontAggroAtLeast1All" },
+        },
+        {
+          // 「駆け抜け」：乱戦ダメージ修正±0（「—」ではないため発生、対象明記なし＝既定ルール＝
+          // 前衛均等割り）。個別効果:「敵視:最大」のPC全員は次のアクションフェイズ獲得スタミナ
+          // ダイスが2個減少する——HP損害を伴わずconditionsのみ記録する
+          // （stamina_dice_reduction_next_phase）。
+          rollMin: 3,
+          rollMax: 4,
+          groupDamage: { modifier: 0 },
+          targetRule: { kind: "frontAll" },
+          conditions: ["stamina_dice_reduction_next_phase"],
+        },
+        {
+          // 「跳躍叩きつけ」：乱戦ダメージ修正±0（「—」ではないため発生、対象明記なし＝既定
+          // ルール＝前衛均等割り）。個別効果:「敵視:1以上」のPC全員に【個別ダメージ:180】を
+          // 与える。
+          rollMin: 5,
+          rollMax: 6,
+          groupDamage: { modifier: 0 },
+          targetRule: { kind: "frontAll" },
+          individualDamage: [{ amount: 180, targetRule: { kind: "aggroAtLeast1All" } }],
+        },
+      ],
+    },
+    "cavalry|kaiden_mercenary": {
+      rows: [
+        {
+          // 「曲刀振り回し」：乱戦ダメージ修正＋60。本文「「敵視:最大」のPC全員は「乱戦ダメージ
+          // 割合:3人分」として扱う」——対象群（敵視:最大PC全員）は全員同じ重みのため、均等割りと
+          // 数学的に等価（dragon|ancient_dragon「尻尾振り回し」・soldier_knight|raya_lucaria_
+          // soldiers「斬りかかり」と同型の解釈、ただし対象は敵視:1以上ではなく敵視:最大のため
+          // targetRule.kind:"aggroMax"を使用）。
+          rollMin: 1,
+          rollMax: 2,
+          groupDamage: { modifier: 60 },
+          targetRule: { kind: "aggroMax" },
+        },
+        {
+          // 「駆け抜け」：乱戦ダメージ修正±0（「—」ではないため発生、対象明記なし＝既定ルール＝
+          // 前衛均等割り）。個別効果:「敵視:最大」のPC全員は次のアクションフェイズ獲得スタミナ
+          // ダイスが2個減少する（stamina_dice_reduction_next_phase）。
+          rollMin: 3,
+          rollMax: 4,
+          groupDamage: { modifier: 0 },
+          targetRule: { kind: "frontAll" },
+          conditions: ["stamina_dice_reduction_next_phase"],
+        },
+        {
+          // 「後足蹴り」：乱戦ダメージ修正－60（「—」ではないため発生、対象明記なし＝既定ルール＝
+          // 前衛均等割り）。この乱戦ダメージをガードするPCは、そのガードコストを+1する
+          // （guard_cost_penalty）。
+          rollMin: 5,
+          rollMax: 6,
+          groupDamage: { modifier: -60 },
+          targetRule: { kind: "frontAll" },
+          conditions: ["guard_cost_penalty"],
+        },
+      ],
+    },
+    "cavalry|carian_royal_guard": {
+      // 〔輝剣の円陣:X（条件発揮）〕「ランダムに選んだPC1体に、「HP損害:■」＋「魔2」を与える」
+      // ことをX回（X=PC人数）繰り返す——対象がランダムな1体・回数がPC人数依存の可変値・HP損害が
+      // ■（数値未確定）のすべてを兼ねるため、既存rows機構では構造化不能。variable_repeat_manual
+      // ＋unknown_hp_damage_manualのconditionsとコメントでGM手動処理に委ねる（troll_dragonkin_
+      // wormface|ancient_dragon「浮遊火球＆突進」と同型の判断、付随する「魔2」も個別に構造化せず
+      // 手動処理注記へまとめる）。
+      // 〔騎馬跳躍（条件発揮）〕次のアクションフェイズ終了まで、エネミーを「HP価値:+10（最大
+      // 100）」する（enemy_hp_value_buff）。
+      rows: [
+        {
+          // 「ローレッタの斬撃＆騎馬跳躍」：乱戦ダメージ修正－300＋「魔:1D」（mod欄の固定値、
+          // 骰子ではないためelementAccum）、乱戦ダメージは2回発生する（本文に明記）。対象の明記が
+          // 無いため既定ルール（前衛均等割り）。特殊能力「騎馬跳躍」（enemy_hp_value_buff）を
+          // 効果発揮。
+          rollMin: 1,
+          rollMax: 2,
+          groupDamage: { modifier: -300, repeat: 2, elementAccum: [{ label: "魔", amount: 1 }] },
+          targetRule: { kind: "frontAll" },
+          conditions: ["enemy_hp_value_buff"],
+        },
+        {
+          // 「ローレッタの絶技＆輝剣の円陣」：乱戦ダメージ修正±0（「—」ではないため発生、対象
+          // 明記なし＝既定ルール＝前衛均等割り）。個別効果:「敵視:1以上」のPC全員に【個別
+          // ダメージ:180】＋「魔:4」を与える。さらに特殊能力「輝剣の円陣:PC人数」を効果発揮
+          // （上記エントリ冒頭コメント参照、variable_repeat_manual＋unknown_hp_damage_manual）。
+          rollMin: 3,
+          rollMax: 4,
+          groupDamage: { modifier: 0 },
+          targetRule: { kind: "frontAll" },
+          individualDamage: [
+            { amount: 180, targetRule: { kind: "aggroAtLeast1All" }, elementAccum: [{ label: "魔", amount: 4 }] },
+          ],
+          conditions: ["variable_repeat_manual", "unknown_hp_damage_manual"],
+        },
+        {
+          // 「突撃薙ぎ払い＆騎馬跳躍＆輝剣の円陣」：乱戦ダメージ修正＋120（「—」ではないため発生、
+          // 対象明記なし＝既定ルール＝前衛均等割り）。特殊能力「輝剣の円陣:PC人数」
+          // （variable_repeat_manual＋unknown_hp_damage_manual）と「騎馬跳躍」
+          // （enemy_hp_value_buff）を効果発揮。
+          rollMin: 5,
+          rollMax: 6,
+          groupDamage: { modifier: 120 },
+          targetRule: { kind: "frontAll" },
+          conditions: ["variable_repeat_manual", "unknown_hp_damage_manual", "enemy_hp_value_buff"],
+        },
+      ],
+    },
+    "cavalry|dragon_tree_guard": {
+      // 〔モブ1追加〕戦闘開始時、HP枠に「モブ1」を追加し、このエネミーを「撃破ルーン:+1」する。
+      // このモブHPはL補を問わず「最大HP:PC人数×3」である——出目テーブルの行ではなく戦闘開始時の
+      // セットアップ処理のため、rows[]には構造化しない（cavalry|unnamed_king「モブ1追加」等と
+      // 同型の判断）。
+      rows: [
+        {
+          // 「突撃指示」：乱戦ダメージ修正±0（「—」ではないため発生）。「敵視:1以上」で前衛の
+          // PC全員に「乱戦ダメージ:2人分」（本文に明記）。このダメージを回避するPCは、支払った
+          // ダイスコストの値を半分（端数切り捨て。最低値1）として扱う
+          // （reducible_by_stamina_dice）。
+          rollMin: 1,
+          rollMax: 1,
+          groupDamage: { modifier: 0 },
+          targetRule: { kind: "frontAggroAtLeast1All" },
+          conditions: ["reducible_by_stamina_dice"],
+        },
+        {
+          // 「大槌薙ぎ払い＆駆け抜け」：乱戦ダメージ修正＋120。前衛の中で「敵視:最大」のPC全員は
+          // 「乱戦ダメージ:2人分」を割り振られる（本文に明記、frontAggroMaxAll）。特殊能力
+          // 「駆け抜け」＝PC全員が次のアクションフェイズ開始時、出目にかかわらず後衛に配置される
+          // （force_back_row_next_phase）。
+          rollMin: 2,
+          rollMax: 2,
+          groupDamage: { modifier: 120 },
+          targetRule: { kind: "frontAggroMaxAll" },
+          conditions: ["force_back_row_next_phase"],
+        },
+        {
+          // 「落雷」：乱戦ダメージ修正が「—」のため乱戦ダメージは発生しない。個別効果（PC人数回
+          // 実行）:「敵視:1以上」のPC1体に【個別ダメージ:180】＋「雷:1D」を与える——「PC人数」は
+          // パーティ人数に依存する可変値のため、固定回数のrepeat/rotateは使わずconditionsで
+          // GM手動処理に委ねる（Global Constraint 7、付随する「雷:1D」も手動処理注記に含める）。
+          rollMin: 3,
+          rollMax: 3,
+          conditions: ["variable_repeat_manual"],
+        },
+        {
+          // 「突撃＆炎の弾丸」：乱戦ダメージ修正±0（「—」ではないため発生、対象明記なし＝既定
+          // ルール＝前衛均等割り）。個別効果:「敵視:1以上」のPCすべてに【個別ダメージ:120】＋
+          // 「炎:2D」（固定値のためelementAccum）を与える。
+          rollMin: 4,
+          rollMax: 4,
+          groupDamage: { modifier: 0 },
+          targetRule: { kind: "frontAll" },
+          individualDamage: [
+            { amount: 120, targetRule: { kind: "aggroAtLeast1All" }, elementAccum: [{ label: "炎", amount: 2 }] },
+          ],
+        },
+        {
+          // 「赤い雷槌＆迸る赤雷」：乱戦ダメージ修正＋120（「—」ではないため発生、対象明記なし＝
+          // 既定ルール＝前衛均等割り）。個別効果:「敵視:1以上」のPC全員は〈12|運試し〉を行い、
+          // 失敗したPCに【個別ダメージ:120】＋「雷:1D」を与える。mod欄の「雷:1D」はこの判定
+          // 失敗時効果と数値・種別が完全一致するため二重計上を避け、groupDamageには付随させず
+          // savingThrow.onFail側にのみ構造化する（ancient_dragon「赤雷叩きつけ」と同型）。
+          rollMin: 5,
+          rollMax: 5,
+          groupDamage: { modifier: 120 },
+          targetRule: { kind: "frontAll" },
+          savingThrow: {
+            stat: "luck",
+            targetFilter: { kind: "aggroAtLeast1" },
+            targetByCondition: [{ condition: { kind: "default" }, target: 12 }],
+            onFail: { amount: 120, elementAccum: [{ label: "雷", amount: 1 }] },
+          },
+        },
+        {
+          // 「飛びかかり雷槌＆駆け抜け」：乱戦ダメージ修正－300＋「雷:1D」（mod欄の固定値、骰子
+          // ではないためelementAccum）。乱戦ダメージは「敵視:1以上」のPC全員を対象とし、2回発生
+          // する（本文に明記）。特殊能力「駆け抜け」（force_back_row_next_phase）を効果発揮。
+          rollMin: 6,
+          rollMax: 6,
+          groupDamage: { modifier: -300, repeat: 2, elementAccum: [{ label: "雷", amount: 1 }] },
+          targetRule: { kind: "aggroAtLeast1All" },
+          conditions: ["force_back_row_next_phase"],
+        },
+      ],
+    },
   };
 
   function get(familyId, enemyId) {
