@@ -3464,6 +3464,86 @@
         },
       ],
     },
+    // 【special フィールドについて（rows[]には含めずここに完全記録し、GM手動対応とする）】
+    // - 〔2回行動〕このエネミーは1回のディフェンスフェイズに「1D（傷ついたデーモン）」と
+    //   「1D+6（うろ底のデーモン）」で、2回のアクション決定を行い、その双方を実行する。下記rowsは
+    //   1〜12の統一表になっているため、新規のdual-roll機構は追加せず、既存の擲骰オーバーレイUIへ
+    //   「1回目は出目そのまま（1〜6）」「2回目は出目+6した値（7〜12）」を2回連続で入力する運用で
+    //   両方の結果を得る（GM手動で2回操作、新規の状態管理機構は追加しない）。
+    // - 〔行動激化〕このエネミーは「体勢崩し」が発生せず、代わりに戦闘終了まで特殊能力「2回行動」を
+    //   失う。このとき、PCは相談して任意で「1D（傷ついたデーモン）」か「1D+6（うろ底のデーモン）」
+    //   のいずれか一方の「生き残った側」を選んで記録し、以降は戦闘終了まで、生き残った側の
+    //   アクションを「総合ダメージ:+300／個別ダメージ:+120」して決定する——ターンをまたぐ状態遷移で
+    //   rowsモデルでは表現不可のため、GM手動運用とする（新規の状態管理機構は追加しない）。
+    "death_bird_raven|wounded_demon": {
+      rows: [
+        {
+          // 「炎爪ひっかき」：「敵視:1以上」で前衛のPC全員に「乱戦ダメージ:2人分」（本文に明記）。
+          // mod欄の「炎:1D」（固定値、骰子ではないためelementAccum、Global Constraint 2）は
+          // この乱戦ダメージに付随。
+          rollMin: 1,
+          rollMax: 2,
+          groupDamage: { modifier: -300, elementAccum: [{ label: "炎", amount: 1 }] },
+          targetRule: { kind: "frontAggroAtLeast1All" },
+        },
+        {
+          // 「跳躍叩きつけ」：乱戦ダメージ修正－480、対象明記無しのため既定ルール（前衛均等割り）。
+          // 個別効果：「敵視:最大」のPC1体に【個別ダメージ:60】＋「炎:1D」（固定値のため
+          // elementAccum）を別枠で与える。
+          rollMin: 3,
+          rollMax: 4,
+          groupDamage: { modifier: -480 },
+          targetRule: { kind: "frontAll" },
+          individualDamage: [
+            { amount: 60, targetRule: { kind: "aggroMax" }, elementAccum: [{ label: "炎", amount: 1 }] },
+          ],
+        },
+        {
+          // 「火球」：乱戦ダメージ修正が「—」のため発生しない。個別効果（PC人数回実行）：
+          // 「敵視:1以上」のPC1体に【個別ダメージ:60】＋「炎:2D」を与える——「PC人数」はパーティ
+          // 人数に依存する可変値であり固定回数のリテラル値ではないため、既存のrepeat/rotate機構
+          // （固定回数専用）は使わず、conditionsとコメントでGM手動処理に委ねる（Global Constraint 7）。
+          rollMin: 5,
+          rollMax: 6,
+          conditions: ["variable_repeat_manual"],
+        },
+        {
+          // 「毒爪ひっかき」：前衛の中で「敵視:最大」のPC全員に「乱戦ダメージ:3人分」（本文に明記）。
+          // mod欄の「猛毒:1D」（固定値、骰子ではないためelementAccum）はこの乱戦ダメージに付随
+          // （出目1~2「炎爪ひっかき」と同型の「－N＆「属性:1D」」構文のため、同様にelementAccumへ
+          // 構造化して一貫させる）。
+          rollMin: 7,
+          rollMax: 8,
+          groupDamage: { modifier: -420, elementAccum: [{ label: "猛毒", amount: 1 }] },
+          targetRule: { kind: "frontAggroMaxAll" },
+        },
+        {
+          // 「跳躍叩きつけ」：乱戦ダメージ修正－600、対象明記無しのため既定ルール（前衛均等割り）。
+          // 次のアクションフェイズ開始時、PC全員はスタミナダイスの出目にかかわらず後衛に配置される
+          // （force_back_row_next_phase）。
+          rollMin: 9,
+          rollMax: 10,
+          groupDamage: { modifier: -600 },
+          targetRule: { kind: "frontAll" },
+          conditions: ["force_back_row_next_phase"],
+        },
+        {
+          // 「毒のブレス」：乱戦ダメージ修正が「—」のため発生しない。個別効果：PC全員が判定
+          // （11|フィジカル）を行い、失敗したPCに【個別ダメージ:60】＋「猛毒:2D」を与える。
+          // 2026-08-24のTask3拡張によりsavingThrow.onFail.elementAccumがnight.js側
+          // （queueAttributeAccum呼び出し、cavalry|unnamed_king等の既存事例）で読まれるように
+          // なっているため、「猛毒:2D」（固定値、骰子ではないためelementAccum）もonFailへ構造化して
+          // 自動反映する。
+          rollMin: 11,
+          rollMax: 12,
+          savingThrow: {
+            stat: "physical",
+            targetByCondition: [{ condition: { kind: "default" }, target: 11 }],
+            onFail: { amount: 60, elementAccum: [{ label: "猛毒", amount: 2 }] },
+          },
+        },
+      ],
+    },
   };
 
   function get(familyId, enemyId) {
