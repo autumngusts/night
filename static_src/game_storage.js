@@ -262,8 +262,13 @@
           .database()
           .ref("games/" + gameId + "/nightState")
           .on("value", function (snap) {
-            var val = snap.val();
-            if (val) onRemoteChange(val);
+            // 使用者確認：全新建立的雲端遊戲，Firebase上這個路徑一開始是空的，若在這裡
+            // 略過空值不呼叫callback（舊行為），night.js側依賴這個callback才會啟動的
+            // cloudNightStateSynced旗標就永遠不會變true，導致saveState()永遠不推送——
+            // 造成「這場遊戲不管開幾台裝置都無法同步地圖/戰鬥狀態」的死鎖。改為無條件呼叫，
+            // 與subscribeCharacters()（本來就沒有這個guard）行為一致，空值(null)一樣要
+            // 通知呼叫端（由呼叫端判斷「遠端目前沒有資料」並自行決定要不要用本機資料回填）。
+            onRemoteChange(snap.val());
           });
       })
       .catch(function (err) {

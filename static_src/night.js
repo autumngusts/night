@@ -14697,6 +14697,18 @@
         // push；只有在後續（非第一次）收到的snapshot才需要這個自我修復判斷。
         var isFirstNightStateSnapshot = !cloudNightStateSynced;
         cloudNightStateSynced = true;
+        // 使用者確認：全新建立的雲端遊戲，Firebase上這個路徑一開始沒有任何資料（建立遊戲時
+        // 只推送了meta，nightState要等第一次saveState()才會有），此時data會是null/undefined。
+        // 以前subscribeNightState端有guard會直接跳過空值不呼叫這個callback，導致上面的
+        // cloudNightStateSynced永遠無法變true、saveState()永遠不推送——形成「這場遊戲不管
+        // 開幾台裝置都無法同步地圖/戰鬥狀態」的死鎖（只有沒有這種guard的subscribeCharacters
+        // 角色同步管線不受影響）。現在改為無條件呼叫，這裡收到空值時不套用（避免用null覆寫
+        // 這台裝置正常的state/localStorage），而是把本機目前狀態立刻推上雲端，讓這場遊戲第一次
+        // 有了雲端nightState、之後其他裝置訂閱時才能收到非空snapshot。
+        if (!data) {
+          if (isFirstNightStateSnapshot) GameStorage.pushNightState(gameId, game.storageMode, buildSaveData());
+          return;
+        }
         // 使用者確認：Firebase同步のrace condition対策。「.on("value")」は購読開始時に必ず
         // 一度、現在サーバーに残っている値で呼ばれる——直前の分頁を閉じた際にpushNightStateの
         // debounce/fire-and-forget送信が間に合わなかった場合、ここに古いスナップショットが
