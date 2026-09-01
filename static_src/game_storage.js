@@ -121,10 +121,59 @@
   // Firebase側が古いデータのまま取り残される（＝night.js側のタイムスタンプ判定で拾えるのは
   // 「次に別の変更が起きた時」だけ）のを減らすため、失敗時に1回だけ遅延リトライする。
   var NIGHT_STATE_PUSH_RETRY_MS = 2000;
+
+  // 使用者確認（2026-09-01、潛在之力/武器/飾品/消耗品跨裝置抽選race condition修正）：
+  // この4つのマップ（state.activeDraws配下、各角色が自分の抽選だけを獨立して書く設計）は
+  // 通常の全體.set()上書きから除外し、pushDrawCharEntry()の專用leaf update経路のみで
+  // 同期する。理由：saveState()は無關の操作でも頻繁に呼ばれ、その都度「この端末が
+  // 呼び出し時点で知っているだけの（他端末が直前に別のcharIdへ追加した分がまだ
+  // 反映されていないかもしれない）」スナップショットを丸ごと書き戻していた。2台が
+  // ほぼ同時に別々のcharIdへ追加すると、後から書いた側が先の追加を消してしまう
+  // （詳細はdocs/combat_flow_rules.md該当箇所）。
+  var EXCLUDED_ACTIVE_DRAWS_KEYS = ["potentialPowerByChar", "weaponByChar", "talismanByChar", "consumableByChar"];
+
+  // 使用者確認：Firebaseの複數パスupdate()を薄くラップした汎用ヘルパー。keyはnightState
+  // からの相對パス（スラッシュ區切り、例："activeDraws/eventChip"）、valueはそのパスに
+  // 書き込む値（nullで該当パスを削除）。updatesの各キーは互いに獨立して書き込まれるため、
+  // updatesに含まれないパスは一切変更されない——これを利用して「特定のcharIdのエントリ
+  // だけを書く」「特定のmapまるごとだけをnullにする」等、全體.set()上書きの影響範囲を
+  // 狭めた書き込みができる。
+  function updateNightStatePaths(gameId, storageMode, updates) {
+    if (storageMode !== "cloud" || !gameId) return;
+    ensureCloudReady(storageMode)
+      .then(function () {
+        window.firebase.database().ref("games/" + gameId + "/nightState").update(updates);
+      })
+      .catch(function (err) {
+        console.error("PriTestGameStorage.updateNightStatePaths failed", err);
+      });
+  }
+
+  // 特定の1角色（charId）分のエントリだけをpotentialPowerByChar等へ書く（またはvalue===null
+  // で削除する）専用の狭い書き込み経路。上記EXCLUDED_ACTIVE_DRAWS_KEYSの4マップは、通常の
+  // pushNightState()からは完全に除外され、この経路でのみFirebaseへ反映される。
+  function pushDrawCharEntry(gameId, storageMode, mapKey, charId, value) {
+    var updates = {};
+    updates["activeDraws/" + mapKey + "/" + charId] = value === undefined ? null : value;
+    updateNightStatePaths(gameId, storageMode, updates);
+  }
+
   function sendNightStatePush(payload, isRetry) {
     ensureCloudReady(payload.storageMode)
       .then(function () {
-        window.firebase.database().ref("games/" + payload.gameId + "/nightState").set(payload.data);
+        var updates = {};
+        Object.keys(payload.data).forEach(function (k) {
+          if (k === "activeDraws" && payload.data.activeDraws && typeof payload.data.activeDraws === "object") {
+            Object.keys(payload.data.activeDraws).forEach(function (subK) {
+              if (EXCLUDED_ACTIVE_DRAWS_KEYS.indexOf(subK) === -1) {
+                updates["activeDraws/" + subK] = payload.data.activeDraws[subK];
+              }
+            });
+          } else {
+            updates[k] = payload.data[k];
+          }
+        });
+        window.firebase.database().ref("games/" + payload.gameId + "/nightState").update(updates);
       })
       .catch(function (err) {
         console.error("PriTestGameStorage.pushNightState failed", err);
@@ -300,6 +349,8 @@
     removeCloudGame: removeCloudGame,
     pushNightState: pushNightState,
     pushCharacters: pushCharacters,
+    pushDrawCharEntry: pushDrawCharEntry,
+    updateNightStatePaths: updateNightStatePaths,
     subscribeNightState: subscribeNightState,
     subscribeCharacters: subscribeCharacters,
   };

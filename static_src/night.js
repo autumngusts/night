@@ -59,6 +59,10 @@
   var turnRewardForcedOpenByRemote = false;
   // 使用者確認：跨裝置同步顯示視窗——floor-reward-modal版，道理與turnRewardForcedOpenByRemote相同。
   var floorRewardForcedOpenByRemote = false;
+  // 使用者確認（2026-09-01改版）：event-chip-modal版，道理與turnRewardForcedOpenByRemote相同——
+  // 籌碼事件視窗（靈脈/祝福/商人/強敵/隨機）原本是「大視窗僅開啟者本機顯示，縮小才全端同步」，
+  // 改為與獎勵清單/樓層獎勵一致的「大視窗全端強制開啟」。
+  var eventChipForcedOpenByRemote = false;
 
   function loadRosterCharacters() {
     var raw = localStorage.getItem(CHARACTERS_KEY);
@@ -142,6 +146,15 @@
     c.pendingActionBoxes = [];
     saveRosterCharacters();
     addLog("log_near_death_trigger", { character: c.name });
+    // 使用者確認（2026-09-01）：流浪祝福自動化——非戰鬥中（state.actionPhase==="normal"）瀕死時，
+    // 立即自動救起並消耗1格流浪祝福。戰鬥中瀕死不在這裡處理，見setActionPhaseのopts.combatEnd
+    // 區塊：要等該場戰鬥擊倒敵人結束後，隊伍中若仍有瀕死者才一併自動救起、各消耗1格。
+    if (state.actionPhase === "normal") {
+      completeNearDeathRevival(c);
+      consumeNextWanderingBlessingSlot();
+      saveState();
+      renderGameFailedBanner();
+    }
   }
 
   function handleNearDeathRevivalClick(c, idx) {
@@ -1010,6 +1023,14 @@
     startDefeatedDay: null,
     timeLoss: defaultTimeLoss(),
     wanderingBlessing: defaultWanderingBlessing(),
+    // 使用者確認（2026-09-01）：恩寵取得的「額外流浪祝福」實際格數（0-3，對應wb-extra-0/1/2
+    // 三個checkbox），用來讓自動判定知道「所有流浪祝福格子」的真正上限是幾格
+    // （基本3格＋這個數字），而不是永遠假設額外3格都已取得。
+    wanderingBlessingExtraCount: 0,
+    // 使用者確認（2026-09-01）：當「所有」流浪祝福格子（基本3格＋額外已取得格數）都被勾滿時，
+    // 視同全滅、判定遊戲失敗，但遊戲不中斷——改為顯示這個旗標驅動的紅字通知，並繼續進行
+    // （簡單模式）。一旦為true就不會再變回false（同一局遊戲內失敗狀態不可逆）。
+    gameFailedEasyMode: false,
     rollEffects: defaultRollEffects(),
     smithingStone: "",
     smithingStoneCount: 0,
@@ -1235,6 +1256,8 @@
       startDefeatedDay: state.startDefeatedDay,
       timeLoss: state.timeLoss,
       wanderingBlessing: state.wanderingBlessing,
+      wanderingBlessingExtraCount: state.wanderingBlessingExtraCount,
+      gameFailedEasyMode: state.gameFailedEasyMode,
       rollEffects: state.rollEffects,
       smithingStone: state.smithingStone,
       smithingStoneCount: state.smithingStoneCount,
@@ -1321,6 +1344,8 @@
     state.startDefeatedDay = snap.startDefeatedDay;
     state.timeLoss = snap.timeLoss;
     state.wanderingBlessing = snap.wanderingBlessing;
+    state.wanderingBlessingExtraCount = snap.wanderingBlessingExtraCount || 0;
+    state.gameFailedEasyMode = !!snap.gameFailedEasyMode;
     state.rollEffects = snap.rollEffects;
     state.smithingStone = snap.smithingStone;
     state.smithingStoneCount = snap.smithingStoneCount || 0;
@@ -2295,6 +2320,8 @@
         day2: loadTimeLossDay(data.timeLoss && data.timeLoss.day2),
       };
       state.wanderingBlessing = loadWanderingBlessing(data.wanderingBlessing);
+      state.wanderingBlessingExtraCount = Math.max(0, Math.min(3, Number(data.wanderingBlessingExtraCount) || 0));
+      state.gameFailedEasyMode = !!data.gameFailedEasyMode;
       state.rollEffects = loadRollEffects(data.rollEffects);
       state.smithingStone = typeof data.smithingStone === "string" ? data.smithingStone : "";
       state.smithingStoneCount = Number(data.smithingStoneCount) || 0;
@@ -2646,6 +2673,8 @@
     state.startDefeatedDay = null;
     state.timeLoss = defaultTimeLoss();
     state.wanderingBlessing = defaultWanderingBlessing();
+    state.wanderingBlessingExtraCount = 0;
+    state.gameFailedEasyMode = false;
     state.rollEffects = defaultRollEffects();
     state.smithingStone = "";
     state.smithingStoneCount = 0;
@@ -2725,6 +2754,17 @@
     state.floorCleared = {};
     localStorage.removeItem(STORAGE_KEY);
     clearUndoSnapshot();
+    // 使用者確認（2026-09-01）：potentialPowerByChar/weaponByChar/talismanByChar/
+    // consumableByCharの4マップは通常のpushNightState()から除外済み（上記setCharEntry参照）
+    // のため、新遊戲でここを空にしても自然にはFirebaseへ反映されない。ここで明示的に
+    // 4マップまるごとをnullにする狹いupdateを1回送る。
+    if (game && cloudNightStateSynced) {
+      var clearUpdates = {};
+      ["potentialPowerByChar", "weaponByChar", "talismanByChar", "consumableByChar"].forEach(function (k) {
+        clearUpdates["activeDraws/" + k] = null;
+      });
+      GameStorage.updateNightStatePaths(gameId, game.storageMode, clearUpdates);
+    }
   }
 
   // ============================================================
@@ -3421,7 +3461,9 @@
           cb.id = "wb-" + which + "-" + idx;
           cb.addEventListener("change", function () {
             state.wanderingBlessing[which][idx] = cb.checked;
+            recomputeGameFailedEasyMode();
             saveState();
+            renderGameFailedBanner();
           });
           container.appendChild(cb);
         })(i);
@@ -3430,17 +3472,84 @@
   }
 
   function renderWanderingBlessing() {
+    var extraCount = Math.max(0, Math.min(3, state.wanderingBlessingExtraCount || 0));
     ["base", "extra"].forEach(function (which) {
       for (var i = 0; i < 3; i++) {
-        document.getElementById("wb-" + which + "-" + i).checked = !!state.wanderingBlessing[which][i];
+        var cb = document.getElementById("wb-" + which + "-" + i);
+        cb.checked = !!state.wanderingBlessing[which][i];
+        // 使用者確認（2026-09-01）：「額外」格子只有恩寵實際取得的數量（wanderingBlessingExtraCount）
+        // 才能勾選，尚未取得的格子鎖住（disabled），避免GM手動勾選還沒取得的額外流浪祝福。
+        cb.disabled = which === "extra" && i >= extraCount;
       }
     });
+  }
+
+  function renderWanderingBlessingExtraCount() {
+    var el = document.getElementById("wb-extra-count-label");
+    if (!el) return;
+    el.textContent = String(state.wanderingBlessingExtraCount || 0);
+  }
+
+  function adjustWanderingBlessingExtraCount(delta) {
+    state.wanderingBlessingExtraCount = Math.max(0, Math.min(3, (state.wanderingBlessingExtraCount || 0) + delta));
+    saveState();
+    renderWanderingBlessingExtraCount();
+    renderWanderingBlessing();
+  }
+
+  // 使用者確認（2026-09-01）：流浪祝福「所有」格子（基本3格＋恩寵實際取得的額外格數）都被
+  // 勾滿的那一刻＝視同全滅，判定遊戲失敗（但遊戲不中斷，改為顯示紅字通知並繼續進行＝簡單
+  // 模式）。這裡用「重新計算」而非「這是不是最後一格」的方式判斷，讓自動救起（combat/
+  // 非combat瀕死觸發）與GM手動勾選checkbox都能共用同一份邏輯、結果一致。一旦判定失敗就
+  // 不會再變回false（同一局遊戲內失敗狀態不可逆）。
+  function recomputeGameFailedEasyMode() {
+    if (state.gameFailedEasyMode) return;
+    var extraCount = Math.max(0, Math.min(3, state.wanderingBlessingExtraCount || 0));
+    var pool = 3 + extraCount;
+    var checked = (state.wanderingBlessing.base || []).filter(Boolean).length;
+    checked += (state.wanderingBlessing.extra || []).slice(0, extraCount).filter(Boolean).length;
+    if (checked >= pool) {
+      state.gameFailedEasyMode = true;
+      addLog("log_game_failed_easy_mode");
+    }
+  }
+
+  function renderGameFailedBanner() {
+    var el = document.getElementById("game-failed-banner");
+    if (!el) return;
+    el.hidden = !state.gameFailedEasyMode;
+  }
+
+  // 自動勾選「下一個尚未勾選」的流浪祝福格子（先基本3格，再額外已取得的格子），用於
+  // 瀕死自動救起時消耗流浪祝福。找不到可勾選格子（已經全部勾滿／額外尚未取得）時什麼都
+  // 不做——即使已經處於gameFailedEasyMode，救起本身仍然照常發生（呼叫端負責），只是不會
+  // 再消耗流浪祝福格子。
+  function consumeNextWanderingBlessingSlot() {
+    var extraCount = Math.max(0, Math.min(3, state.wanderingBlessingExtraCount || 0));
+    var base = state.wanderingBlessing.base;
+    for (var i = 0; i < base.length; i++) {
+      if (!base[i]) {
+        base[i] = true;
+        recomputeGameFailedEasyMode();
+        return true;
+      }
+    }
+    var extra = state.wanderingBlessing.extra;
+    for (var j = 0; j < extraCount; j++) {
+      if (!extra[j]) {
+        extra[j] = true;
+        recomputeGameFailedEasyMode();
+        return true;
+      }
+    }
+    return false;
   }
 
   function renderThreatTextFields() {
     document.getElementById("input-grace").value = state.grace || "";
     renderStoneswordKeyCount();
     renderSmithingStoneCount();
+    renderWanderingBlessingExtraCount();
   }
 
   // 鍛石／石劍鑰匙は自由記述の入力欄を廃止し、＋－ボタンのみでカウントを直接編集する
@@ -3589,6 +3698,7 @@
     renderThreatRefTexts();
     renderRollEffects();
     renderActiveThreatEffects();
+    renderGameFailedBanner();
   }
 
   // 「階段結束為止，將敵人設為『HP價值：－10』」等、純粋なダメージ以外のスキル効果をGM/玩家が
@@ -10791,6 +10901,19 @@
       state.activeDraws[kind] = obj || null;
       saveState();
     },
+    // 使用者確認（2026-09-01、跨裝置race condition修正）：potentialPowerByChar/weaponByChar/
+    // talismanByChar/consumableByCharの4マップ専用。呼び出し側は既にstate.activeDraws[mapKey]
+    // （＝map、ppMap()/drawStateMap()と同じ參照）を直接書き換え済みという前提。ここでは
+    // (1) saveState()でlocalStorage・nightStateの残り部分（この4マップ以外）を同期しつつ、
+    // (2) このcharId 1件だけをFirebaseの狹いleaf update経路（pushDrawCharEntry）で書く。
+    // game_storage.js側でこの4マップはpushNightState()の全體上書きから除外済みのため、(1)が
+    // この書き込みを消すことはない。
+    setCharEntry: function (mapKey, charId, value) {
+      saveState();
+      if (charId && game && cloudNightStateSynced) {
+        GameStorage.pushDrawCharEntry(gameId, game.storageMode, mapKey, charId, value);
+      }
+    },
   };
 
   window.PriTestTurnHolder = function () {
@@ -12185,6 +12308,24 @@
         // 同じタイミングでクリアする。
         c._prayerFirepowerActive = false;
       });
+      // 使用者確認（2026-09-01）：流浪祝福自動化——戰鬥中瀕死不會立即消耗流浪祝福（見
+      // triggerNearDeath），要等這場戰鬥（擊倒敵人）結束時，隊伍中若仍有瀕死者，才在這裡
+      // 一次自動救起、各自消耗1格流浪祝福（全員同時瀕死＝全滅時，就是這裡一次勾多格）。
+      var anyRevivedAtCombatEnd = false;
+      rosterCharacters.forEach(function (c) {
+        if (c.entered && c._nearDeath) {
+          completeNearDeathRevival(c);
+          consumeNextWanderingBlessingSlot();
+          anyRevivedAtCombatEnd = true;
+        }
+      });
+      // completeNearDeathRevival/consumeNextWanderingBlessingSlotで変更したstate.wanderingBlessing・
+      // state.gameFailedEasyModeは、この関数冒頭で既に呼ばれたsaveState()より後の変更のため、
+      // ここで改めて明示的にpush同期する（saveRosterCharactersは各関数内で既に呼ばれている）。
+      if (anyRevivedAtCombatEnd) {
+        saveState();
+        renderGameFailedBanner();
+      }
       // 使用者確認：「敵人傷害」執行紀錄（紅框）は戦闘が完全に終了した時点でも必ず消す
       // （通常戦闘・簡易戰鬥のどちらも setActionPhase("normal", { combatEnd: true }) を通る）。
       clearEnemyDamageActionBoxes();
@@ -15080,32 +15221,30 @@
         // 使用者確認：跨裝置同步顯示視窗——潛在之力（含武器/飾品/消耗品抽選同款設計）改為
         // 每角色獨立槽位，見night_potential_power.jsのapplyRemotePotentialPowerState。
         window.PriTestNightPotentialPower.applyRemotePotentialPowerState();
-        // 使用者確認：籌碼事件視窗（聖甲蟲／商人／祝福／靈脈／強敵／隨機）も同じパターン。
-        // idxさえ分かれば内容はstate.eventChips/eventChipsData（既に同期済み）から
-        // どの端末でも再現できるため、restoreEventChipModal自体はどの端末で押しても
-        // 正しく機能する——ここでは「大視窗は本人の端末のみ」「縮小は全端末で連動」の
-        // 開閉制御だけを行う。
-        if (state.activeDraws.eventChip) {
-          var ecRemote = state.activeDraws.eventChip;
-          var ecModal = document.getElementById("event-chip-modal");
-          var ecRestoreBtn = document.getElementById("btn-event-chip-restore");
-          if (!ecModal.hidden) {
-            if (ecRemote.minimized) {
-              ecModal.hidden = true;
-              ecRestoreBtn.hidden = false;
-            } else {
-              window.PriTestNightEventChips.renderEventChipModal();
-            }
-          } else {
-            ecRestoreBtn.hidden = false;
-          }
-        } else {
-          var ecModalIdle = document.getElementById("event-chip-modal");
-          var ecRestoreBtnIdle = document.getElementById("btn-event-chip-restore");
-          if (ecModalIdle.hidden && !ecRestoreBtnIdle.hidden) ecRestoreBtnIdle.hidden = true;
-          // 遠端（本人の端末）で既に閉じられた籌碼を、この端末だけ開いたまま／縮小したまま
-          // 残さない（内容が既に無意味になっているため）。
-          if (!ecModalIdle.hidden || !ecRestoreBtnIdle.hidden) window.PriTestNightEventChips.closeEventChipModal();
+        // 使用者確認（2026-09-01改版）：籌碼事件視窗（靈脈／祝福／商人／強敵／隨機）改為
+        // 與獎勵清單/樓層獎勵一致的「大視窗全端強制開啟」（原本是「大視窗僅開啟者本機顯示，
+        // 縮小才全端同步」）。idxさえ分かれば内容はstate.eventChips/eventChipsData（既に
+        // 同期済み）からどの端末でも再現できるため、syncEventChipModalIndexFromRemoteで
+        // このクライアントのローカルindexを合わせてから描画すればよい。
+        var ecModal = document.getElementById("event-chip-modal");
+        var ecRestoreBtn = document.getElementById("btn-event-chip-restore");
+        var ecRemote = state.activeDraws.eventChip;
+        if (ecRemote && !ecRemote.minimized) {
+          window.PriTestNightEventChips.syncEventChipModalIndexFromRemote(ecRemote.idx);
+          window.PriTestNightEventChips.renderEventChipModal();
+          ecModal.hidden = false;
+          ecRestoreBtn.hidden = true;
+          eventChipForcedOpenByRemote = true;
+        } else if (ecRemote && ecRemote.minimized) {
+          ecModal.hidden = true;
+          ecRestoreBtn.hidden = false;
+          eventChipForcedOpenByRemote = false;
+        } else if (eventChipForcedOpenByRemote && !ecModal.hidden) {
+          ecModal.hidden = true;
+          ecRestoreBtn.hidden = true;
+          eventChipForcedOpenByRemote = false;
+        } else if (!ecRemote) {
+          ecRestoreBtn.hidden = true;
         }
         // 使用者確認：跨裝置同步顯示視窗——突破／攀登／判定發生視窗（breakthrough-modal）的
         // breakthroughState（含進行中骰子）現在整份同步，先讓這台裝置的本機變數指向遠端資料
@@ -15284,7 +15423,12 @@
     document.getElementById("btn-merchant-modal-close").addEventListener("click", closeMerchantModal);
     document.getElementById("btn-event-chip-trigger").addEventListener("click", window.PriTestNightEventChips.handleEventChipTrigger);
     document.getElementById("btn-event-chip-minimize").addEventListener("click", window.PriTestNightEventChips.minimizeEventChipModal);
-    document.getElementById("btn-event-chip-modal-close").addEventListener("click", window.PriTestNightEventChips.closeEventChipModal);
+    document.getElementById("btn-event-chip-modal-close").addEventListener("click", function () {
+      // 使用者確認（2026-09-01）：籌碼事件視窗現在是全端同步的大視窗，按「離開」會讓所有
+      // 裝置一起關閉，因此需要先跳出確認提示，避免誤觸把其他玩家正在看的內容關掉。
+      if (!window.confirm(window.I18N.t("event_chip_leave_confirm"))) return;
+      window.PriTestNightEventChips.closeEventChipModal();
+    });
     document.getElementById("btn-event-chip-restore").addEventListener("click", window.PriTestNightEventChips.restoreEventChipModal);
     document.getElementById("btn-potential-power-info").addEventListener("click", window.PriTestNightPotentialPower.openPotentialPowerModal);
     document.getElementById("btn-potential-power-modal-close").addEventListener("click", window.PriTestNightPotentialPower.closePotentialPowerModal);
@@ -15436,6 +15580,12 @@
     });
     document.getElementById("btn-smithing-stone-plus").addEventListener("click", function () {
       adjustSmithingStoneCount(1);
+    });
+    document.getElementById("btn-wb-extra-count-minus").addEventListener("click", function () {
+      adjustWanderingBlessingExtraCount(-1);
+    });
+    document.getElementById("btn-wb-extra-count-plus").addEventListener("click", function () {
+      adjustWanderingBlessingExtraCount(1);
     });
     document.getElementById("btn-stonesword-key-minus").addEventListener("click", function () {
       adjustStoneswordKeyCount(-1);

@@ -109,6 +109,7 @@ BODY = """    <div class="night-header-row">
       <div id="strong-enemy-info-bubble" class="info-bubble strong-enemy-info-bubble" hidden>
         <div id="strong-enemy-info-bubble-body"></div>
       </div>
+      <p id="game-failed-banner" class="error-banner" data-i18n="game_failed_easy_mode_banner" hidden></p>
       <div class="board-area" id="board-area">
         <div class="board-grid" id="board-grid">
           <div class="field-level field-level-0" id="field-level-0"></div>
@@ -767,6 +768,12 @@ BODY = """    <div class="night-header-row">
           <div class="wb-row">
             <span data-i18n="wandering_blessing_extra_label"></span>
             <span id="wb-extra" class="wb-checks"></span>
+          </div>
+          <div class="field-row-block">
+            <label data-i18n="wandering_blessing_extra_count_label"></label>
+            <button type="button" class="level-btn" id="btn-wb-extra-count-minus">&minus;</button>
+            <span id="wb-extra-count-label" class="level-value"></span>
+            <button type="button" class="level-btn" id="btn-wb-extra-count-plus">&plus;</button>
           </div>
         </div>
 

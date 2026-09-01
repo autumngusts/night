@@ -44,8 +44,15 @@
     return map[charId];
   }
 
+  // 使用者確認（2026-09-01、跨裝置race condition修正）：以前はppMap()全體を
+  // PriTestDrawStateSync.set()経由で丸ごと書き戻していたが、複数端末がほぼ同時に別々の
+  // charIdへ書き込むと、後から書いた側が先の追加を消してしまうrace conditionがあった
+  // （詳細はdocs/combat_flow_rules.md該当箇所）。ppSave()を呼ぶ全箇所は必ずその時点の
+  // viewingCharacterId（＝今このクライアントが編集している角色）のエントリだけを変更する
+  // ため、そのcharId1件だけをFirebaseの狭いleaf update経路（setCharEntry）で書けば十分。
   function ppSave() {
-    window.PriTestDrawStateSync.set("potentialPowerByChar", ppMap());
+    var map = ppMap();
+    window.PriTestDrawStateSync.setCharEntry("potentialPowerByChar", viewingCharacterId, map[viewingCharacterId] || null);
   }
 
   function openPotentialPowerModal(presetCharacterId, presetStarCount, presetAttributeTag, onResolved) {

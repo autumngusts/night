@@ -37,6 +37,12 @@
     return window.PriTestNightCore.state.activeDraws[mapKey];
   }
 
+  // 使用者確認（2026-09-01、跨裝置race condition修正）：以前はdrawStateMap(kind)全體を
+  // PriTestDrawStateSync.set()経由で丸ごと書き戻していたが、複数端末がほぼ同時に別々の
+  // charIdへ書き込むと、後から書いた側が先の追加を消してしまうrace conditionがあった
+  // （potentialPowerByCharと同じ問題、詳細はdocs/combat_flow_rules.md該当箇所）。charIdは
+  // ここで既に確定しているため、そのcharId1件だけをFirebaseの狭いleaf update経路
+  // （setCharEntry）で書けば十分。
   function syncDrawStateIfAvailable(kind, stateVar) {
     if (suppressDrawSync || !window.PriTestDrawStateSync) return;
     var charId = stateVar && stateVar.characterId;
@@ -54,7 +60,11 @@
       });
       map[charId] = safe;
     }
-    window.PriTestDrawStateSync.set(mapKeyFor(kind), map);
+    if (window.PriTestDrawStateSync.setCharEntry) {
+      window.PriTestDrawStateSync.setCharEntry(mapKeyFor(kind), charId, map[charId] || null);
+    } else {
+      window.PriTestDrawStateSync.set(mapKeyFor(kind), map);
+    }
   }
 
   function mapKeyFor(kind) {

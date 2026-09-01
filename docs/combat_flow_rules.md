@@ -265,6 +265,31 @@ PCに「インターバル」（9節）の機会が与えられる。
 エネミーを撃破すると戦闘終了処理を行う。シナリオに示されている「撃破ルーン」を獲得でき、
 「潜在する力」を獲得できる場合もある。
 
+### 瀕死状態と流浪祝福（近死・復活、2026-09-01ユーザー確認）
+PCのHPが0になると瀕死状態になる（`triggerNearDeath`）。瀕死からの復帰は「流浪祝福
+（さすらいの祝福）」を1格消費する形で、非戦闘中／戦闘中で挙動が異なる：
+
+- **非戦闘中**（`state.actionPhase === "normal"`）に瀕死になった場合：即座に自動で
+  救われる（復帰処理＝`completeNearDeathRevival`が即時発火）と同時に、流浪祝福を1格
+  消費する。
+- **戦闘中**（`actionPhase`が`combat`/`extra`/`defense`のいずれか）に瀕死になった場合：
+  その場では救われず、流浪祝福も消費しない（既存の瀕死判定・骰子除外はそのまま維持）。
+  その戦闘でエネミーを撃破し戦闘が終了した時点（`setActionPhase("normal", {combatEnd:
+  true})`）で、パーティ内にまだ瀕死状態のPCが残っていれば、その時点で一括して全員を
+  自動で救い、それぞれ流浪祝福を1格ずつ消費する（全員同時に瀕死＝全滅の場合は、この
+  タイミングで一度に複数格を消費する）。
+
+流浪祝福の総枠数は「基本3格＋恩寵で実際に獲得した額外格数（`wanderingBlessingExtraCount`、
+0〜3、鞄ドロワーの＋－ボタンで管理）」。この総枠が**すべて**消費された瞬間、全滅と同等と
+みなして「ゲーム失敗」判定（`state.gameFailedEasyMode`）が立つ。ただしゲームは中断せず、
+瀕死者はそのまま救われた上で、盤面上部に赤字で「因為已失敗，開啟簡單模式」の通知を表示し
+続けたままプレイを続行する（一度trueになったら同一ゲーム内でfalseへは戻らない）。
+
+この自動化は「瀕死判定の3つの復帰サークル（`handleNearDeathRevivalClick`、+20/+30/+40の
+既存手動復帰UI）」や、技能/遺物効果由来の「復歸傷害：N」（`applyRevivalDamage`）とは
+**別経路**——これらの既存の手動/効果由来の復帰は流浪祝福を消費しない（意図的な設計判断。
+戦闘中に手動で瀕死サークルを押すこと自体は今回のスコープでは塞いでいない）。
+
 ---
 
 ## 10. PC人數補正
@@ -339,6 +364,7 @@ PCに「インターバル」（9節）の機会が与えられる。
 | PC人數補正（PC總合傷害×4/×2、敵人亂戰/個別傷害÷4/÷2、4人時の體力骰－1、防禦次數+1） | ✅ 実装済み（2026-08-11）。詳細は10節参照 | `night.js`の`enteredPcCount`, `pcCountDamageMultiplier`, `pcCountEnemyDamageDivisor`, `pcCountGuardBonus` |
 | Guard削り値（▲=0.5点／◆=1点）の自動計算 | ✅ 実装済み（2026-08-10、使用者裁定：`docs/enemy_damage_rules.md`§2/§5.2参照）。既存の`recordPhaseDamageDealt(c, value)`に第三引数`symbol`を追加し、`c._phaseDamageDealt`と同じライフサイクル（phase reset loopで0に戻る）で`c._phaseGuardReductionPoints`へ0.5/1点を累積する。既存7箇所の呼び出し元（`renderCombatAttackAction`等）は既に`symbol`（`▲`/`◆`/null）を保持していたため、呼び出し引数を追加するだけで済んだ | `night.js`の`recordPhaseDamageDealt`, `computeRoundGuardReductionTotal` |
 | **バグ修正**：一般エネミー（非夜の王）のGuard削り値計算機が実際には一度も動作していなかった不具合 | ✅ 2026-08-10発見・修正。`enemyGuardValueForCount()`が`r.count === guardCountValue`で比較していたが、`enemies_data_*.js`のguardValueTableは`count`が`C(ja,zh)`の多言語オブジェクト（例：`C("2","2")`）であるのに対し、`night_boss_rulebook.js`（夜の王）は素の数値（例：`{count:2,...}`）——オブジェクトと数値の`===`比較は常に不一致になるため、通常エネミーは常に`applyGuardedDamageToEnemy`が`null`を返し、HPが減らない状態だった（夜の王＝gladius/marisのみ実際に動いていた）。新設`parseGuardCountValue()`で両方の形式を数値へ正規化してから比較するよう修正 | `night.js`の`parseGuardCountValue`, `enemyGuardValueForCount` |
+| 瀕死状態からの自動復帰と流浪祝福の自動消費（非戦闘中は即時、戦闘中は戦闘終了時に一括） | ✅ 2026-09-01ユーザー確認・実装。詳細は上記「瀕死状態と流浪祝福」節参照。流浪祝福の全枠（基本3＋額外`wanderingBlessingExtraCount`）を使い切った瞬間、全滅相当として`state.gameFailedEasyMode`を立て、盤面上部の赤字バナーで通知しつつゲームは継続する | `night.js`の`triggerNearDeath`, `setActionPhase`内`opts.combatEnd`分岐, `consumeNextWanderingBlessingSlot`, `recomputeGameFailedEasyMode` |
 | 戦闘開始時の公開情報／非公開情報の演出上の区別 | ❌ 未実装（弱点の表示等、個別の情報公開自体はできるが、「公開情報を一括提示し、非公開情報＝アクション内容/HP価値/ガード回数/耐性を隠す」という専用UIは無い模様。もっとも、GMが実質シナリオ製作者兼進行役を兼ねる想定のこのアプリでは、この区別自体の実装優先度は低いと考えられる） | – |
 | 開始装備（□開始装備）の自動装備 | ❌ 未実装（要追加調査。装備変更UI自体は存在するはずだが「□開始装備」チェック→戦闘開始時自動装備、という専用フローは未確認） | – |
 | 撃破ルーン／潜在する力の戦闘終了時自動付与 | 部分実装。`combatEnd`自体は死霊/属性状態のリセットのみだが、`docs/scenario_flow_rules.md`第17・18項（自動化GM Phase 2）で`combatEnd`検出を「フロア敘述中の雜兵戰鬥／ボス戦闘」の待機解除フックとして利用するようになり、続く敘述が既存の獎勵検出（`floorHasAnyReward`/`appendRuneGrantRowIfDetected`、撃破ルーンをGM微調整可能なボタンとして自動提示）へ自然に繋がる。ただし戦闘終了そのものからの直接的な自動付与（GMのボタン操作なし）ではない | `night.js`（`setActionPhase`の`combatEnd`分岐→`night_gm_flow.js`の`notifyCombatEnded`）、`night_floor_breakthrough.js`（`floorHasAnyReward`, `appendRuneGrantRowIfDetected`） |
