@@ -8,4 +8,5 @@ tools/field_card_sweep/sweep-results-*.json
 tools/field_card_sweep/structure-audit-results.json
 tools/field_card_sweep/enemy-coverage-results.json
 tools/field_card_sweep/scenario23-playthrough-results.json
+tools/field_card_sweep/scenario1-multi-device-results.json
 tools/field_card_sweep/*.log
