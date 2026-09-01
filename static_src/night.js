@@ -1757,6 +1757,14 @@
     var currentGuard = enemyCurrentGuardCount(enemyKey);
     var reduceBy = Math.max(0, Math.floor(guardReductionPoints || 0));
     var newGuard = Math.max(0, currentGuard - reduceBy);
+    // 使用者確認（2026-09-01、docs/enemy_damage_rules.md 6節「まだ接続されていない」だった
+    // ギャップを接続）：體勢崩し中の額外階段は、實際に減算したnewGuardがまだ0より大きくても
+    // 規則書の「ガード回数0（体勢崩し）」行のHP價值を強制的に使う（額外階段はHP行が0に到達
+    // した＝ガード完全崩壊した時にしか入れないフェイズのため、state.actionPhase==="extra"は
+    // 體崩狀態と等価）。額外階段は「combat」からしか入れず、1回合1回限りなので、體崩中に
+    // 再度體崩（2回目の額外階段挿入）は既存のフェイズ遷移（autoAdvanceBattlePhase相当）の
+    // 構造上そもそも発生しない。
+    if (state.actionPhase === "extra") newGuard = 0;
     if (!state.battle.guardCount) state.battle.guardCount = {};
     state.battle.guardCount[enemyKey] = newGuard;
     var hpValue = enemyGuardValueForCount(enemyKey, newGuard);

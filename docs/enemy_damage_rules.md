@@ -249,10 +249,15 @@ hpBoxDamage = floor(totalDamage / hpValue)
 「未撃破→ちょうど0に到達」した瞬間に一度だけtrueになり、戦闘終了まで持続する
 フラグとして実装されている。マリスの特殊能力「行動激化」（体勢崩し発生後は
 「1D」ではなく「1D＋2」で行動判定）が`auto_gm.js`の
-`structured.rollBonusAfterGuardBreak`で対応済み。ただし、これは「体勢崩し発生の
-有無」という1ビットのフラグのみであり、5節のガード回数／HP価値システムとは
-**まだ接続されていない**（ガード回数を実際に消費してHP価値を切り替える処理は
-未実装）。
+`structured.rollBonusAfterGuardBreak`で対応済み。
+
+**2026-09-01追記（使用者確認、5節のガード回数／HP価値システムと接続）**：体勢崩し中の
+額外階段では、`applyGuardedDamageToEnemy`が実際に減算した新ガード回数が0より大きくても、
+HP価値の参照だけ強制的に「ガード回数0（体勢崩し）」行を使う（`state.actionPhase==="extra"`
+の間は`newGuard`を0に固定）。額外階段は「いずれかのHP行が0に到達＝ガード完全崩壊」した
+時にしか入れないフェイズのため、この2つは等価。また額外階段は「combat」からしか入れず
+1回合1回限りのため、体勢崩し中に2回目の額外階段が挿入される（＝再度体勢崩しする）ことは
+既存のフェイズ遷移の構造上そもそも起こらない。
 
 ---
 
@@ -352,7 +357,8 @@ hpBoxDamage = floor(totalDamage / hpValue)
 | 属性/状態異常の蓄積・トリガー（PC→敵人） | ✅ 実装済み | `static_src/night.js` `recordAttributeStatusDealt`ほか |
 | 耐性による蓄積無効化 | ✅ 実装済み（通常エネミー・夜の王とも対応） | `enemyResistanceLabels`, `recordAttributeStatusDealt` |
 | 夜の王をPC攻撃対象に含める | ✅ 実装済み | `resolveSelectedEnemyOptions` |
-| 体勢崩し発生フラグ（HP行が1つでも0到達） | ✅ 実装済み（フラグのみ、ガード回数システムとの接続は5.5節の「回復」のみ） | `state.battle.guardBroken`, `adjustEnemyHpRow` |
+| 体勢崩し発生フラグ（HP行が1つでも0到達） | ✅ 実装済み | `state.battle.guardBroken`, `adjustEnemyHpRow` |
+| 体勢崩し中の額外階段でHP価値をガード回数0（体勢崩し）行から取る | ✅ 2026-09-01実装（6節追記参照）。`state.actionPhase==="extra"`の間はnewGuardを0に固定してHP価値を引く | `applyGuardedDamageToEnemy` |
 | ガード回数（現在値）のstate管理・新しい回合での回復 | ✅ 実装済み | `state.battle.guardCount`, `setActionPhase`（`phase==="combat"`突入時にクリア） |
 | ガード削り値（▲=0.5/◆=1）の算出・適用 | ✅ 実装済み（通常エネミー・gladius/marisのみ、他の夜の王は未構造化）。2026-08-10 自動化GM戰鬥自動化で**自動計算**に対応：`recordPhaseDamageDealt`が攻撃ごとの▲/◆を`c._phaseGuardReductionPoints`へ自動累積し、戦鬥階段/額外階段の[攻擊]確認時に自動合算・自動預填する（GMはなお手動で上書き可能）。2節の「使用者裁定」参照 | `applyGuardedDamageToEnemy`, `recordPhaseDamageDealt`, `computeRoundGuardReductionTotal`、UI: `#battle-guard-calc-block` |
 | **バグ修正**：一般エネミーのGuard削り値計算が実際には機能していなかった不具合 | ✅ 2026-08-10発見・修正。`enemyGuardValueForCount()`の`r.count === guardCountValue`比較が、通常エネミー（`enemies_data_*.js`、`count`が`C(ja,zh)`オブジェクト）では常に不一致になり、`applyGuardedDamageToEnemy`が常に`null`を返してHPが減らない状態だった。夜の王（`night_boss_rulebook.js`、`count`が素の数値）のgladius/marisだけがこの比較で正しく動いていたため、これまで発見されていなかった。`parseGuardCountValue()`を新設し、両方の形式を数値へ正規化してから比較するよう修正 | `parseGuardCountValue`, `enemyGuardValueForCount` |

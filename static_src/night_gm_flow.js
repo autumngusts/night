@@ -3211,6 +3211,58 @@
     return out;
   }
 
+  // 使用者確認（2026-09-01）：劇本固定王戰位置の敵名bulletが「強敵決定表（319頁）で抽選」／
+  // 「強敵決定表（319頁）で決定したエネミー」／「恐るべき強敵決定表（319頁）で決定した
+  // エネミー」のように、盤面イベントチット「強敵」と全く同じ決定表（319頁）を参照している
+  // ケース（例：fields_data_4.jsの「教會（強敵の予感）」「強敵との連戦」）を検出する。
+  // fields_data_4.jsの「強敵との連戦」フロア本文自体が「GMは強敵を決定する。内容は
+  // イベントチットにおける「強敵」と同じ（319頁）」と明記しており、対応関係は確認済み
+  // （以前docs/scenario_flow_rules.mdに記載していた「対応関係が実物本で確認できるまで
+  // 自動化を保留」は解消）。カード側のentry.extraTablesには表自体が定義されていないため
+  // （findExtraTableByBulletLineでは見つからない）、盤面イベントチット側と同じ資料源
+  // （event_rulebook.jsのstrong_enemyカードのextraTables、[0]=強敵決定表／[1]=恐るべき
+  // 強敵決定表）を直接参照する。どちらを使うかはbullet本文に「恐るべき」／「可怖」が
+  // 含まれるかどうかで判定する——劇本固定王戰はイベントチットの番号（①〜⑨）を持たないため
+  // event_chip側の「eventChipNumbers[idx]===8 && dayNumber===2」という判定式は使えず、
+  // 本文の明記が唯一の手がかり（実際に「強敵との連戦」フロアは1体目=強敵決定表／2体目=
+  // 恐るべき強敵決定表、と本文中で明確に書き分けている）。
+  var SCENARIO_STRONG_ENEMY_RE = /「(恐るべき)?強敵決定表(?:（319頁）)?(?:で抽選|で決定した(?:エネミー|敵人))」/;
+  var SCENARIO_STRONG_ENEMY_RE_ZH = /「以(可怖)?強敵決定表(?:（319頁）)?(?:抽選|決定的(?:エネミー|敵人))」/;
+  function resolveScenarioStrongEnemyCombatLine(line, slotIndex) {
+    var Fields = window.PriTestFields;
+    var Events = window.PriTestEventRulebook;
+    var lineText = Fields.localizedText(line.text);
+    var fallback = { addedNames: [], reminderText: window.I18N.t("gm_flow_combat_manual_add_reminder", { text: lineText }), rollLogText: null };
+    var ja = (line.text && line.text.ja) || "";
+    var zh = (line.text && line.text.zh) || "";
+    var jaMatch = SCENARIO_STRONG_ENEMY_RE.exec(ja);
+    var zhMatch = SCENARIO_STRONG_ENEMY_RE_ZH.exec(zh);
+    if (!jaMatch && !zhMatch) return null;
+    var isTerrible = !!(jaMatch && jaMatch[1]) || !!(zhMatch && zhMatch[1]);
+    var card = Events
+      ? Events.list().filter(function (ec) {
+          return ec.id === "strong_enemy";
+        })[0]
+      : null;
+    var table = card ? (card.extraTables || [])[isTerrible ? 1 : 0] : null;
+    if (!table) return fallback;
+    var rollResult = rollStrongEnemyTable(table);
+    if (!rollResult) return fallback;
+    var resolvedJa = (rollResult.entry && rollResult.entry.ja) || "";
+    var addResult = resolveStrongEnemyEntry(rollResult.entry, slotIndex, rollResult.levelBonus);
+    var rollsText = rollResult.rollLog
+      .map(function (r) {
+        return r.die1 + "+" + r.die2 + "＝" + r.text;
+      })
+      .join(" → ");
+    return {
+      addedNames: addResult.addedNames,
+      reminderText: addResult.matchedAny ? null : window.I18N.t("gm_flow_combat_manual_add_reminder", { text: resolvedJa }),
+      rollLogText: window.I18N.t("gm_flow_extra_table_roll_log", { table: (table.title && table.title.ja) || "", rolls: rollsText, entry: resolvedJa }),
+      mobNote: addResult.mobNote || null,
+    };
+  }
+
   // 使用者確認（項目6・11）：樓層文字中の敵名bulletが、夜の強敵決定表とは別に「カード自身の
   // extraTables」に載っている決定表を「「◯◯決定表で決定したエネミー」」（ja）／
   // 「「以◯◯決定表決定的敵人」」（zh）という形で引用しているケース（例：封牢エネミー決定表
@@ -3311,6 +3363,23 @@
         if (nbResult.reminderText) reminderTexts.push(nbResult.reminderText);
         if (nbResult.mobNote) {
           reminderTexts.push(window.I18N.t(nbResult.mobNote.key, mergeParams({ text: Fields.localizedText(line.text) }, nbResult.mobNote.params)));
+        }
+        return;
+      }
+      // 使用者確認（2026-09-01）：劇本固定王戰位置が盤面イベントチット「強敵」と同じ決定表
+      // （319頁）を参照しているケース（resolveScenarioStrongEnemyCombatLine参照）。カード
+      // 自身にはextraTablesが無いため、次のfindExtraTableByBulletLineチェックより先に判定
+      // する必要がある（該当しなければnullを返し、下のフォールバックへ進む）。
+      var scResult = resolveScenarioStrongEnemyCombatLine(line, walk.slotIndex);
+      if (scResult) {
+        addedNames = addedNames.concat(scResult.addedNames);
+        if (scResult.rollLogText) {
+          logGmDecision(scResult.rollLogText);
+          narrationParts.push(scResult.rollLogText);
+        }
+        if (scResult.reminderText) reminderTexts.push(scResult.reminderText);
+        if (scResult.mobNote) {
+          reminderTexts.push(window.I18N.t(scResult.mobNote.key, mergeParams({ text: Fields.localizedText(line.text) }, scResult.mobNote.params)));
         }
         return;
       }
