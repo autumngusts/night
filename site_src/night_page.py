@@ -587,7 +587,7 @@ BODY = """    <div class="night-header-row">
         </div>
       </div>
     </div>
-    <button id="btn-item-draw-modal-restore" type="button" class="potential-power-restore-btn item-draw-restore-btn" data-i18n="item_draw_restore_button" hidden></button>
+    <div id="item-draw-restore-list" class="potential-power-restore-btn item-draw-restore-btn potential-power-restore-list" hidden></div>
 
     <div id="dice-hand-draw-modal" class="modal" hidden>
       <div class="modal-box combat-modal-box">

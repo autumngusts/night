@@ -1150,9 +1150,11 @@
       // 使用者確認：跨裝置同步顯示視窗——潛在之力改為{[charId]: {...}}的每角色獨立槽位
       // （見night_potential_power.js），取代舊版單一全域槽位potentialPower。
       potentialPowerByChar: {},
-      weapon: null,
-      talisman: null,
-      consumable: null,
+      // 使用者確認：跨裝置同步顯示視窗——武器/飾品/消耗品抽選同款改為{[charId]: {...}}的
+      // 每角色獨立槽位（見character_drawer.jsのdrawStateMap），取代舊版單一全域槽位。
+      weaponByChar: {},
+      talismanByChar: {},
+      consumableByChar: {},
       turnRewardAutoOpen: null,
       eventChip: null,
       breakthrough: null,
@@ -2594,9 +2596,9 @@
       state.activeDraws = {
         potentialPowerByChar:
           loadedDraws.potentialPowerByChar && typeof loadedDraws.potentialPowerByChar === "object" ? loadedDraws.potentialPowerByChar : {},
-        weapon: loadedDraws.weapon || null,
-        talisman: loadedDraws.talisman || null,
-        consumable: loadedDraws.consumable || null,
+        weaponByChar: loadedDraws.weaponByChar && typeof loadedDraws.weaponByChar === "object" ? loadedDraws.weaponByChar : {},
+        talismanByChar: loadedDraws.talismanByChar && typeof loadedDraws.talismanByChar === "object" ? loadedDraws.talismanByChar : {},
+        consumableByChar: loadedDraws.consumableByChar && typeof loadedDraws.consumableByChar === "object" ? loadedDraws.consumableByChar : {},
         turnRewardAutoOpen: !!loadedDraws.turnRewardAutoOpen,
         eventChip: loadedDraws.eventChip || null,
         breakthrough: loadedDraws.breakthrough || null,
@@ -2708,9 +2710,9 @@
     };
     state.activeDraws = {
       potentialPowerByChar: {},
-      weapon: null,
-      talisman: null,
-      consumable: null,
+      weaponByChar: {},
+      talismanByChar: {},
+      consumableByChar: {},
       turnRewardAutoOpen: null,
       eventChip: null,
       breakthrough: null,
@@ -12511,6 +12513,15 @@
   // 場地報酬側の「復元」ボタンで手動で戻る。確定後はCharacterDrawer側のresolvedフラグにより
   // 抽選UIが静的な結果表示に固定されるため、このモーダルを再度開いても重複取得はできない。
   // ============================================================
+  // 使用者確認：跨裝置同步顯示視窗——武器/飾品/消耗品抽選改為每角色獨立槽位
+  // （state.activeDraws.weaponByChar／talismanByChar／consumableByChar），與潛在之力
+  // 同款設計，解決「一次給全員時，其中一人的擲骰進度會被另一人洗掉」的問題。
+  // itemDrawViewingKind/itemDrawViewingCharId是這台裝置本機專用（不同步）的指標，
+  // 記錄目前#item-draw-modal這個共用容器正在顯示哪一筆（kind,charId）；其餘進行中但
+  // 未在本機顯示的項目，只會出現在下面的堆疊還原清單裡。
+  var itemDrawViewingKind = null;
+  var itemDrawViewingCharId = null;
+
   function openItemDrawModal(kind, characterId, options) {
     var c = rosterCharacters.filter(function (rc) { return rc.id === characterId; })[0];
     var titleKey = kind === "weapon" ? "item_draw_modal_title_weapon" : kind === "talisman" ? "item_draw_modal_title_talisman" : "item_draw_modal_title_consumable";
@@ -12519,6 +12530,8 @@
     field.innerHTML = "";
     var opts = options || {};
     var onGranted = opts.onGranted || null;
+    itemDrawViewingKind = kind;
+    itemDrawViewingCharId = characterId;
     if (kind === "weapon") {
       // 場地報酬の武器ウィザード（★数／カテゴリ指定あり）はプリセット付きで起動、
       // 主選單からの武器抽選（指定なし）は「潛在之力か否か」からGMに選ばせる通常の
@@ -12534,29 +12547,73 @@
       CharacterDrawer.openConsumableRollInline(field, characterId, opts.grantCount || 1, onGranted);
     }
     document.getElementById("item-draw-modal").hidden = false;
-    document.getElementById("btn-item-draw-modal-restore").hidden = true;
+    renderItemDrawRestoreList();
   }
 
   function closeItemDrawModal() {
-    // 確定せずに閉じた場合でもstate.activeDraws側に古い情報が残らないよう、明示的にクリアする
+    // 確定せずに閉じた場合でもmapに古い情報が残らないよう、明示的にクリアする
     // （通常は確定時点で自動クリアされるが、GMが確定前にキャンセルするケースの保険）。
-    var kind = CharacterDrawer.getLastOpenedRollKind && CharacterDrawer.getLastOpenedRollKind();
-    if (kind && window.PriTestDrawStateSync) window.PriTestDrawStateSync.set(kind, null);
+    if (itemDrawViewingKind && itemDrawViewingCharId) {
+      CharacterDrawer.removeDrawEntry(itemDrawViewingKind, itemDrawViewingCharId);
+    }
+    itemDrawViewingKind = null;
+    itemDrawViewingCharId = null;
     document.getElementById("item-draw-modal").hidden = true;
-    document.getElementById("btn-item-draw-modal-restore").hidden = true;
+    renderItemDrawRestoreList();
     restoreTurnRewardModalIfMinimized();
   }
 
   // 縮小/復元は樓層獲得と同じ「モーダルを隠す＋別のスタッキング型固定ボタンを表示」方式。
+  // 縮小状態自体はCharacterDrawer.setDrawEntryMinimized経由でmapに保存・同期される
+  // （潛在之力と同じく全裝置で連動する縮小シグナル）。
   function minimizeItemDrawModal() {
+    if (itemDrawViewingKind && itemDrawViewingCharId) {
+      CharacterDrawer.setDrawEntryMinimized(itemDrawViewingKind, itemDrawViewingCharId, true);
+    }
     document.getElementById("item-draw-modal").hidden = true;
-    document.getElementById("btn-item-draw-modal-restore").hidden = false;
+    renderItemDrawRestoreList();
   }
 
-  function restoreItemDrawModal() {
-    document.getElementById("btn-item-draw-modal-restore").hidden = true;
+  function restoreItemDrawModal(kind, characterId) {
+    var targetKind = kind || itemDrawViewingKind;
+    var targetCharId = characterId || itemDrawViewingCharId;
+    if (!targetKind || !targetCharId || !CharacterDrawer.getDrawEntry(targetKind, targetCharId)) return;
+    itemDrawViewingKind = targetKind;
+    itemDrawViewingCharId = targetCharId;
+    CharacterDrawer.setDrawEntryMinimized(targetKind, targetCharId, false);
+    var c = rosterCharacters.filter(function (rc) { return rc.id === targetCharId; })[0];
+    var titleKey = targetKind === "weapon" ? "item_draw_modal_title_weapon" : targetKind === "talisman" ? "item_draw_modal_title_talisman" : "item_draw_modal_title_consumable";
+    document.getElementById("item-draw-modal-title").textContent = window.I18N.t(titleKey, { name: c ? c.name : "" });
+    CharacterDrawer.mountRemoteDrawField(targetKind, targetCharId, document.getElementById("item-draw-modal-content"));
     document.getElementById("item-draw-modal").hidden = false;
     CharacterDrawer.refreshActiveRollField();
+    renderItemDrawRestoreList();
+  }
+
+  // 使用者確認：跨裝置同步顯示視窗——目前有幾筆武器/飾品/消耗品抽選處於「縮小中」，
+  // 就在右下顯示幾個還原按鈕（橫向並排在同一個固定位置，與潛在之力共用同一套樣式）。
+  // 這台裝置目前正在viewing的那一筆（itemDrawViewingKind/CharId）不重複列出。
+  function renderItemDrawRestoreList() {
+    var list = document.getElementById("item-draw-restore-list");
+    if (!list) return;
+    var entries = (CharacterDrawer.listPendingDrawEntries ? CharacterDrawer.listPendingDrawEntries() : []).filter(function (e) {
+      return e.minimized && !(e.kind === itemDrawViewingKind && e.charId === itemDrawViewingCharId);
+    });
+    list.innerHTML = "";
+    list.hidden = entries.length === 0;
+    entries.forEach(function (entry) {
+      var c = rosterCharacters.filter(function (rc) { return rc.id === entry.charId; })[0];
+      var kindLabelKey =
+        entry.kind === "weapon" ? "turn_reward_kind_weapon" : entry.kind === "talisman" ? "turn_reward_kind_talisman" : "turn_reward_kind_consumable";
+      var btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "potential-power-restore-chip";
+      btn.textContent = window.I18N.t(kindLabelKey) + (c ? "（" + c.name + "）" : "");
+      btn.addEventListener("click", function () {
+        restoreItemDrawModal(entry.kind, entry.charId);
+      });
+      list.appendChild(btn);
+    });
   }
 
   // ============================================================
@@ -15079,37 +15136,22 @@
           var dhRestoreBtnIdle = document.getElementById("btn-dice-hand-draw-restore");
           if (dhModalIdle.hidden && !dhRestoreBtnIdle.hidden) dhRestoreBtnIdle.hidden = true;
         }
-        // weapon/talisman/consumableは、確定(resolved)時・閉じた時に自動でnullへ戻るため、
-        // 通常は同時に高々1つしか非nullにならない。念のため複数該当してもタイトルと内容が
-        // 食い違わないよう、最初に見つかった1つだけを処理する。まだこのクライアントで
-        // 見ていない場合は樓層獲得と同じ縮小ボタンとして表示する（フルモーダルでは画面を
-        // 占有しない）。該当が無くなった場合、縮小ボタンとして表示されたままなら隠す
-        // （遠隔で確定/クローズされた抽選のゴースト表示を防ぐ）。
-        var activeDrawKind = ["weapon", "talisman", "consumable"].filter(function (kind) {
-          return !!state.activeDraws[kind];
-        })[0];
+        // 使用者確認：跨裝置同步顯示視窗——武器/飾品/消耗品抽選是「給特定1名角色」的個人
+        // 獎勵，不像防禦階段視窗是全員共同關心的戰鬥資訊，因此不強制在所有裝置自動彈出
+        // （潛在之力也是同樣的設計）。這裡只做兩件事：(1) 如果這台裝置本來就已經在viewing
+        // 某一筆（itemDrawViewingKind/CharId），持續同步該筆的最新內容，若該筆已在別的
+        // 裝置確定完成並消失就跟著關閉；(2) 讓堆疊還原清單隨時反映所有裝置各自進行中的項目。
         var itemDrawModalEl = document.getElementById("item-draw-modal");
-        var itemDrawRestoreBtnEl = document.getElementById("btn-item-draw-modal-restore");
-        if (activeDrawKind) {
-          var drawData = state.activeDraws[activeDrawKind];
-          var titleKey =
-            activeDrawKind === "weapon"
-              ? "item_draw_modal_title_weapon"
-              : activeDrawKind === "talisman"
-              ? "item_draw_modal_title_talisman"
-              : "item_draw_modal_title_consumable";
-          var drawChar = rosterCharacters.filter(function (rc) {
-            return rc.id === drawData.characterId;
-          })[0];
-          document.getElementById("item-draw-modal-title").textContent = window.I18N.t(titleKey, { name: drawChar ? drawChar.name : "" });
-          if (itemDrawModalEl.hidden && itemDrawRestoreBtnEl.hidden) {
-            CharacterDrawer.mountRemoteDrawField(activeDrawKind, document.getElementById("item-draw-modal-content"));
-            itemDrawRestoreBtnEl.hidden = false;
+        if (!itemDrawModalEl.hidden && itemDrawViewingKind && itemDrawViewingCharId) {
+          if (CharacterDrawer.getDrawEntry(itemDrawViewingKind, itemDrawViewingCharId)) {
+            CharacterDrawer.applyRemoteDrawState(itemDrawViewingKind, itemDrawViewingCharId);
+          } else {
+            itemDrawViewingKind = null;
+            itemDrawViewingCharId = null;
+            itemDrawModalEl.hidden = true;
           }
-          CharacterDrawer.applyRemoteDrawState(activeDrawKind, drawData);
-        } else if (itemDrawModalEl.hidden && !itemDrawRestoreBtnEl.hidden) {
-          itemDrawRestoreBtnEl.hidden = true;
         }
+        renderItemDrawRestoreList();
         // 使用者確認：跨裝置同步顯示視窗——防禦階段視窗（enemy-damage-modal）與各判定視窗
         // （ability-check-modal／cooperative-check-modal／branch-tally-modal）不同於上面
         // 其他視窗「僅同步縮小狀態」的設計，改為直接依state內容在所有裝置自動開啟／更新／
@@ -15280,7 +15322,8 @@
     document.getElementById("btn-main-menu-draw-close").addEventListener("click", closeMainMenuDrawModal);
     document.getElementById("btn-item-draw-modal-close").addEventListener("click", closeItemDrawModal);
     document.getElementById("btn-item-draw-modal-minimize").addEventListener("click", minimizeItemDrawModal);
-    document.getElementById("btn-item-draw-modal-restore").addEventListener("click", restoreItemDrawModal);
+    // 使用者確認：跨裝置同步顯示視窗——item-draw-restore-list改為動態產生多個按鈕
+    // （一筆進行中抽選一顆），各自的click listener在renderItemDrawRestoreList內綁定。
     document.getElementById("btn-dice-hand-draw-random").addEventListener("click", window.PriTestNightFloorBreakthrough.handleDiceHandDrawRandom);
     document.getElementById("btn-dice-hand-draw-judge").addEventListener("click", window.PriTestNightFloorBreakthrough.handleDiceHandDrawJudge);
     document.getElementById("btn-dice-hand-draw-minimize").addEventListener("click", window.PriTestNightFloorBreakthrough.minimizeDiceHandDrawModal);

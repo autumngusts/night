@@ -28,47 +28,73 @@
   // 「受信→再描画→送信→受信……」のechoループを防ぐ。
   var suppressDrawSync = false;
 
+  // 使用者確認：跨裝置同步顯示視窗——武器/飾品/消耗品抽選從單一全域槽位改為每角色獨立槽位
+  // （state.activeDraws.weaponByChar／talismanByChar／consumableByChar，key=角色id），
+  // 解決「一次給全員時，其中一人的擲骰進度會被另一人洗掉」的問題（與潛在之力同款設計）。
+  function drawStateMap(kind) {
+    var mapKey = kind + "ByChar";
+    if (!window.PriTestNightCore.state.activeDraws[mapKey]) window.PriTestNightCore.state.activeDraws[mapKey] = {};
+    return window.PriTestNightCore.state.activeDraws[mapKey];
+  }
+
   function syncDrawStateIfAvailable(kind, stateVar) {
     if (suppressDrawSync || !window.PriTestDrawStateSync) return;
-    // 確定済み(resolved)になった時点でnullを送信し、state.activeDraws[kind]に古い情報が
+    var charId = stateVar && stateVar.characterId;
+    if (!charId) return;
+    var map = drawStateMap(kind);
+    // 確定済み(resolved)になった時点でこの角色のエントリ自体を削除し、map内に古い情報が
     // 残り続けないようにする。残り続けると回合交代のたびに縮小ボタンが復活したり、
     // 既に確定済みの内容へ古いechoが上書きして再確定（重複付与）を許してしまう不具合になる。
-    if (stateVar && stateVar.resolved) {
-      window.PriTestDrawStateSync.set(kind, null);
-      return;
-    }
-    var safe = null;
-    if (stateVar) {
-      safe = {};
+    if (stateVar.resolved) {
+      delete map[charId];
+    } else {
+      var safe = {};
       Object.keys(stateVar).forEach(function (k) {
         if (typeof stateVar[k] !== "function") safe[k] = stateVar[k];
       });
+      map[charId] = safe;
     }
-    window.PriTestDrawStateSync.set(kind, safe);
+    window.PriTestDrawStateSync.set(mapKeyFor(kind), map);
   }
 
-  // リモート側（他端末）で更新されたstate.activeDraws[kind]をローカルのXxxRollStateへ
-  // 反映する。既にオブジェクトが存在する場合はプロパティを上書きするだけにとどめ、
-  // オブジェクト参照そのものは差し替えない——renderXxxRollField内の`var st = xxxRollState;`
-  // で捕まえた古い参照が、後から発火するイベントハンドラの中で書き込みを行っても
-  // 反映され続けるようにするため（参照を丸ごと差し替えると、進行中の操作が
-  // 見えなくなったオブジェクトへ書き込まれて消えてしまう）。同じ理由でonConfirm
-  // （関数、同期対象外）もローカルの値をそのまま保持する。
+  function mapKeyFor(kind) {
+    return kind + "ByChar";
+  }
+
   // 他端末で開始された抽選を、このクライアント側でまだ一度もopenXxxRollInline等を
   // 呼んでいない状態から表示するための配線。dataset.openを立てておくことで、
   // applyRemoteDrawStateの再描画ガード（"dataset.open === 1"）を満たすようにする。
-  function mountRemoteDrawField(kind, containerEl) {
-    if (kind === "weapon") weaponRollFieldEl = containerEl;
-    else if (kind === "talisman") talismanRollFieldEl = containerEl;
-    else if (kind === "consumable") consumableRollFieldEl = containerEl;
+  // charIdを渡すことで、mapの中の「どの角色の進行中データを見るか」を明示的に指定する
+  // （複数角色が同時に抽選中でも、このクライアントは常に1つだけを表示する設計）。
+  function mountRemoteDrawField(kind, charId, containerEl) {
+    var entry = charId ? drawStateMap(kind)[charId] : null;
+    if (kind === "weapon") {
+      weaponRollFieldEl = containerEl;
+      if (entry) weaponRollState = entry;
+    } else if (kind === "talisman") {
+      talismanRollFieldEl = containerEl;
+      if (entry) talismanRollState = entry;
+    } else if (kind === "consumable") {
+      consumableRollFieldEl = containerEl;
+      if (entry) consumableRollState = entry;
+    }
     lastOpenedRollKind = kind;
+    if (entry && entry.characterId) activeCharacterId = entry.characterId;
     if (containerEl) containerEl.dataset.open = "1";
   }
 
-  function applyRemoteDrawState(kind, data) {
+  // リモート側（他端末）で更新されたstate.activeDraws[kind+"ByChar"][charId]をローカルの
+  // XxxRollStateへ反映する。既にこの角色のオブジェクトが表示中の場合はプロパティを上書き
+  // するだけにとどめ、オブジェクト参照そのものは差し替えない——renderXxxRollField内の
+  // `var st = xxxRollState;`で捕まえた古い参照が、後から発火するイベントハンドラの中で
+  // 書き込みを行っても反映され続けるようにするため。同じ理由でonConfirm（関数、同期対象外）
+  // もローカルの値をそのまま保持する。
+  function applyRemoteDrawState(kind, charId) {
+    if (!charId) return;
+    var data = drawStateMap(kind)[charId];
     if (!data) return;
     var current = kind === "weapon" ? weaponRollState : kind === "talisman" ? talismanRollState : consumableRollState;
-    if (!current) {
+    if (!current || current.characterId !== charId) {
       current = {};
       if (kind === "weapon") weaponRollState = current;
       else if (kind === "talisman") talismanRollState = current;
@@ -89,6 +115,39 @@
     } finally {
       suppressDrawSync = false;
     }
+  }
+
+  // 使用者確認：跨裝置同步顯示視窗——列出武器/飾品/消耗品三種抽選中，目前所有裝置各自
+  // 進行中（尚未確定/離開）的{kind,charId,minimized}清單，供night.js組成堆疊還原按鈕。
+  function listPendingDrawEntries() {
+    var out = [];
+    ["weapon", "talisman", "consumable"].forEach(function (kind) {
+      var map = drawStateMap(kind);
+      Object.keys(map).forEach(function (charId) {
+        var entry = map[charId];
+        if (!entry) return;
+        out.push({ kind: kind, charId: charId, minimized: !!entry.minimized });
+      });
+    });
+    return out;
+  }
+
+  function getDrawEntry(kind, charId) {
+    return charId ? drawStateMap(kind)[charId] || null : null;
+  }
+
+  function setDrawEntryMinimized(kind, charId, minimized) {
+    var entry = charId ? drawStateMap(kind)[charId] : null;
+    if (!entry) return;
+    entry.minimized = !!minimized;
+    syncDrawStateIfAvailable(kind, entry);
+  }
+
+  function removeDrawEntry(kind, charId) {
+    if (!charId) return;
+    var map = drawStateMap(kind);
+    delete map[charId];
+    if (window.PriTestDrawStateSync) window.PriTestDrawStateSync.set(mapKeyFor(kind), map);
   }
 
   // 共通武器スキル（規則書154-155頁、カテゴリを問わず武器に付与され得る汎用テンプレート）。
@@ -2457,9 +2516,9 @@
   // 要素）。詳細画面固定のDOM idには依存せず、呼び出し側が渡した要素へ直接描画する。
   var weaponRollFieldEl = null;
 
-  function resetWeaponRollState() {
+  function resetWeaponRollState(characterId) {
     weaponRollState = {
-      characterId: null, // 跨裝置同期でどのキャラクター向けの抽選かを判別するために持たせる
+      characterId: characterId || null, // 跨裝置同期でどのキャラクター向けの抽選かを判別するために持たせる
       potentialPower: null, // null=未選択／true=潜在する力／false=それ以外の装備品獲得
       favoredDie: null,
       favoredIndex: null,
@@ -2502,7 +2561,10 @@
       // 再クリックによる重複取得を防ぐ）。
       resolved: false,
       resolvedMessage: null,
+      // 使用者確認：跨裝置同步顯示視窗——縮小狀態，見night.jsのminimizeItemDrawModal。
+      minimized: false,
     };
+    if (characterId) drawStateMap("weapon")[characterId] = weaponRollState;
   }
 
   // 場地カードの獲得ボタンから、本格の武器抽選ウィザードへ直接連携するための起動関数。
@@ -2512,8 +2574,7 @@
     activeCharacterId = characterId;
     weaponRollFieldEl = containerEl;
     lastOpenedRollKind = "weapon";
-    resetWeaponRollState();
-    weaponRollState.characterId = characterId;
+    resetWeaponRollState(characterId);
     weaponRollState.onConfirm = onConfirm || null;
     weaponRollState.potentialPower = false;
     if (categoryId === RANGED_GROUP_CATEGORY || categoryId === SHIELD_GROUP_CATEGORY) {
@@ -2530,6 +2591,8 @@
     if (starCount) weaponRollState.starCount = starCount;
     if (attributeTag) weaponRollState.pendingAttributeTag = attributeTag;
     if (containerEl) containerEl.dataset.open = "1";
+    // 使用者確認：「簡化抽選」開啟時，跳過中間分段判定，直接自動骰完並顯示結果。
+    if (window.PriTestNightCore && window.PriTestNightCore.state.simplifiedDrawEnabled) autoResolveWeaponDraw(weaponRollState);
     renderWeaponRollField();
   }
 
@@ -2540,10 +2603,13 @@
     activeCharacterId = characterId;
     weaponRollFieldEl = containerEl;
     lastOpenedRollKind = "weapon";
-    resetWeaponRollState();
-    weaponRollState.characterId = characterId;
+    resetWeaponRollState(characterId);
     weaponRollState.onConfirm = onConfirm || null;
     if (containerEl) containerEl.dataset.open = "1";
+    if (window.PriTestNightCore && window.PriTestNightCore.state.simplifiedDrawEnabled) {
+      weaponRollState.potentialPower = false;
+      autoResolveWeaponDraw(weaponRollState);
+    }
     renderWeaponRollField();
   }
 
@@ -2554,10 +2620,10 @@
     activeCharacterId = characterId;
     talismanRollFieldEl = containerEl;
     lastOpenedRollKind = "talisman";
-    resetTalismanRollState();
-    talismanRollState.characterId = characterId;
+    resetTalismanRollState(characterId);
     talismanRollState.onConfirm = onConfirm || null;
     if (containerEl) containerEl.dataset.open = "1";
+    if (window.PriTestNightCore && window.PriTestNightCore.state.simplifiedDrawEnabled) autoResolveTalismanDraw(talismanRollState);
     renderTalismanRollField();
   }
 
@@ -2566,10 +2632,10 @@
     consumableRollFieldEl = containerEl;
     lastOpenedRollKind = "consumable";
     consumableRollGrantCount = grantCount || 1;
-    resetConsumableRollState();
-    consumableRollState.characterId = characterId;
+    resetConsumableRollState(characterId);
     consumableRollState.onConfirm = onConfirm || null;
     if (containerEl) containerEl.dataset.open = "1";
+    if (window.PriTestNightCore && window.PriTestNightCore.state.simplifiedDrawEnabled) autoResolveConsumableDraw(consumableRollState);
     renderConsumableRollField();
   }
 
@@ -2801,6 +2867,69 @@
       skillId: skillResolution ? skillResolution.skillId : null,
       skillDice: skillResolution ? skillResolution.dice : null,
     };
+  }
+
+  // 使用者確認：「簡化抽選」開啟時，跳過武器抽選中間分段判定（潛在之力有無、大分類/小分類、
+  // 稀有度骰子等），直接自動骰完所有步驟並落在「確認」畫面。若呼叫端已經預先指定categoryId
+  // （例如樓層獎勵明確指定分類），沿用該分類，否則比照potentialPowerDrawWeaponの規則
+  // （得意武器骰）自動決定。直接改寫傳入的st物件（weaponRollState）。
+  function autoResolveWeaponDraw(st) {
+    var c = findCharacter(st.characterId);
+    if (!c) return false;
+    var categoryId = st.categoryResolved && st.categoryId ? st.categoryId : null;
+    if (!categoryId) {
+      var type = c.typeId ? CharacterTypes.get(c.typeId) : null;
+      var favoredNames = type
+        ? CharacterTypes.localizedText(type.favoredWeapons)
+            .split("・")
+            .map(function (s) {
+              return s.trim();
+            })
+            .filter(Boolean)
+        : [];
+      var favoredDie = rollD6();
+      var favoredIndex = favoredDie <= 3 ? 0 : favoredDie <= 5 ? 1 : 2;
+      var favoredName = favoredNames[favoredIndex] || null;
+      st.favoredDie = favoredDie;
+      st.favoredIndex = favoredIndex;
+      st.favoredResult = favoredName;
+      categoryId = favoredName && favoredName !== "武器" ? findCategoryIdByMinorLabel(favoredName) : null;
+      if (!categoryId) {
+        var categories = Weapons.categories();
+        if (categories.length) categoryId = categories[Math.floor(Math.random() * categories.length)].id;
+      }
+      if (!categoryId) return false;
+      st.categoryId = categoryId;
+    }
+    st.categoryResolved = true;
+    var stars = Math.max(1, Math.min(4, st.starCount || 1));
+    var rarityDice = [];
+    for (var i = 0; i < stars; i++) rarityDice.push(rollD6());
+    var raritySum = rarityDice.reduce(function (a, b) {
+      return a + b;
+    }, 0);
+    if (findLearnedRelicEffectByName(c, ["發現力＋", "発見力＋"])) raritySum += 1;
+    var rarity = lookupRarityBySum(raritySum);
+    var item = null,
+      itemDie = null;
+    for (var attempt = 0; attempt < 20; attempt++) {
+      itemDie = rollD6();
+      item = pickWeaponByRoll(categoryId, rarity, itemDie);
+      if (item && !isNotePlaceholderWeapon(item)) break;
+      item = null;
+    }
+    if (!item) return false;
+    var category = Weapons.getCategory(categoryId);
+    var skillResolution = resolveRandomSkillForItem(category, item);
+    st.rarityDice = rarityDice;
+    st.raritySum = raritySum;
+    st.rarity = rarity;
+    st.rarityConfirmed = true;
+    st.itemDie = itemDie;
+    st.item = item;
+    st.skillId = skillResolution ? skillResolution.skillId : null;
+    st.skillDice = skillResolution ? skillResolution.dice : null;
+    return true;
   }
 
   // まだ入手していない（インスタンスID未発行の）武器カタログデータから、戦技名の一覧を
@@ -4449,9 +4578,8 @@
       var prevCharacterId = st.characterId;
       var prevOnConfirm = st.onConfirm;
       var prevPendingAttributeTag = st.pendingAttributeTag;
-      resetWeaponRollState();
+      resetWeaponRollState(prevCharacterId);
       weaponRollState.potentialPower = newValue;
-      weaponRollState.characterId = prevCharacterId;
       weaponRollState.onConfirm = prevOnConfirm;
       weaponRollState.pendingAttributeTag = prevPendingAttributeTag;
       if (newValue === true) {
@@ -4571,9 +4699,8 @@
         var prevCharacterId = st.characterId;
         var prevOnConfirm = st.onConfirm;
         var prevPendingAttributeTag = st.pendingAttributeTag;
-        resetWeaponRollState();
+        resetWeaponRollState(prevCharacterId);
         weaponRollState.potentialPower = prevPotentialPower;
-        weaponRollState.characterId = prevCharacterId;
         weaponRollState.onConfirm = prevOnConfirm;
         weaponRollState.pendingAttributeTag = prevPendingAttributeTag;
         if (newValue === ANY_WEAPON_CATEGORY) {
@@ -5005,10 +5132,9 @@
       var keepCharacterId = st.characterId;
       var keepOnConfirm = st.onConfirm;
       var keepPendingAttributeTag = st.pendingAttributeTag;
-      resetWeaponRollState();
+      resetWeaponRollState(keepCharacterId);
       weaponRollState.categoryId = keepCategoryId;
       weaponRollState.starCount = keepStarCount;
-      weaponRollState.characterId = keepCharacterId;
       weaponRollState.onConfirm = keepOnConfirm;
       weaponRollState.pendingAttributeTag = keepPendingAttributeTag;
       renderWeaponRollField();
@@ -5245,9 +5371,9 @@
   var talismanRollState = null;
   var talismanRollFieldEl = null;
 
-  function resetTalismanRollState() {
+  function resetTalismanRollState(characterId) {
     talismanRollState = {
-      characterId: null,
+      characterId: characterId || null,
       tableDie: null,
       tableLetter: null,
       groupDie: null,
@@ -5257,7 +5383,33 @@
       itemMissMessage: false,
       resolved: false,
       resolvedMessage: null,
+      minimized: false,
     };
+    if (characterId) drawStateMap("talisman")[characterId] = talismanRollState;
+  }
+
+  // 使用者確認：「簡化抽選」開啟時，跳過飾品抽選中間分段判定（決定表/分組/項目3顆骰），
+  // 直接自動骰完並落在「確認」畫面（規則同renderTalismanRollFieldの三段流程）。
+  function autoResolveTalismanDraw(st) {
+    var tables = Talismans.acquisitionTables();
+    st.tableDie = rollD6();
+    st.tableLetter = st.tableDie <= 3 ? "A" : "B";
+    st.groupDie = rollD6();
+    st.groupIndex = st.groupDie - 1;
+    var group = (st.tableLetter === "A" ? tables.groupsA : tables.groupsB)[st.groupIndex] || [];
+    st.itemDie = rollD6();
+    var row = group.filter(function (r) {
+      var range = parseDashRange(r.roll);
+      return range && st.itemDie >= range[0] && st.itemDie <= range[1];
+    })[0];
+    if (row) {
+      st.item = Talismans.get(row.id);
+      st.itemMissMessage = !st.item;
+    } else {
+      st.item = null;
+      st.itemMissMessage = true;
+    }
+    return !!st.item;
   }
 
   function renderTalismanRollField() {
@@ -5418,8 +5570,7 @@
       // （武器の同様の修正と同じ理由）。
       var keepCharacterId = st.characterId;
       var keepOnConfirm = st.onConfirm;
-      resetTalismanRollState();
-      talismanRollState.characterId = keepCharacterId;
+      resetTalismanRollState(keepCharacterId);
       talismanRollState.onConfirm = keepOnConfirm;
       renderTalismanRollField();
     });
@@ -5434,9 +5585,9 @@
   var consumableRollState = null;
   var consumableRollFieldEl = null;
 
-  function resetConsumableRollState() {
+  function resetConsumableRollState(characterId) {
     consumableRollState = {
-      characterId: null,
+      characterId: characterId || null,
       groupDie: null,
       groupLabel: null,
       itemDie: null,
@@ -5445,7 +5596,9 @@
       needsReroll: false,
       resolved: false,
       resolvedMessage: null,
+      minimized: false,
     };
+    if (characterId) drawStateMap("consumable")[characterId] = consumableRollState;
   }
 
   function resolveConsumableTableRow(d1, d2) {
@@ -5459,6 +5612,42 @@
       }
     }
     return null;
+  }
+
+  // 使用者確認：「簡化抽選」開啟時，跳過消耗品抽選中間分段判定，直接自動骰完並落在
+  // 「確認」畫面（規則同renderConsumableRollFieldの二段流程，含「※同分類內重擲」處理）。
+  function autoResolveConsumableDraw(st) {
+    var table = Consumables.determineTable();
+    st.groupDie = rollD6();
+    var groupRow = table.rows.filter(function (r) {
+      var range = parseDashRange(r[0].ja);
+      return range && st.groupDie >= range[0] && st.groupDie <= range[1];
+    })[0];
+    st.groupLabel = groupRow ? Consumables.localizedText(groupRow[0]) : null;
+    for (var attempt = 0; attempt < 20; attempt++) {
+      st.itemDie = rollD6();
+      var row = resolveConsumableTableRow(st.groupDie, st.itemDie);
+      if (!row) {
+        st.item = null;
+        st.itemMissMessage = true;
+        st.needsReroll = false;
+        break;
+      }
+      var nameField = row[2];
+      var nameText = Consumables.localizedText(nameField);
+      if (nameText.indexOf("※") !== -1) {
+        st.needsReroll = true;
+        continue; // 同じ分類內、次の擲騎で再抽選
+      }
+      var found = Consumables.list().filter(function (it) {
+        return it.name.ja === nameField.ja || it.name.ja.indexOf(nameField.ja) !== -1;
+      })[0];
+      st.item = found || null;
+      st.itemMissMessage = !found;
+      st.needsReroll = false;
+      break;
+    }
+    return !!st.item;
   }
 
   function renderConsumableRollField() {
@@ -5622,8 +5811,7 @@
       // 同上：呼び出し元が設定したcharacterId/onConfirmを引き継ぐ。
       var keepCharacterId = st.characterId;
       var keepOnConfirm = st.onConfirm;
-      resetConsumableRollState();
-      consumableRollState.characterId = keepCharacterId;
+      resetConsumableRollState(keepCharacterId);
       consumableRollState.onConfirm = keepOnConfirm;
       renderConsumableRollField();
     });
@@ -6603,6 +6791,10 @@
     mountRemoteDrawField: mountRemoteDrawField,
     refreshActiveRollField: refreshActiveRollField,
     getLastOpenedRollKind: getLastOpenedRollKind,
+    listPendingDrawEntries: listPendingDrawEntries,
+    getDrawEntry: getDrawEntry,
+    setDrawEntryMinimized: setDrawEntryMinimized,
+    removeDrawEntry: removeDrawEntry,
     RANGED_GROUP_CATEGORY: RANGED_GROUP_CATEGORY,
     SHIELD_GROUP_CATEGORY: SHIELD_GROUP_CATEGORY,
     weaponPreviewSkillNames: weaponPreviewSkillNames,
