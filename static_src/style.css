@@ -2559,6 +2559,12 @@ button {
 .modal {
   position: fixed;
   inset: 0;
+  /* 使用者確認（2026-09-01修正）：本來沒有設z-index，跟版塊卡片（.slot-wrap，position:
+     relative、z-index:auto）落在同一個「定位元素、z-index:auto」堆疊層級，DOM順序在
+     .modalの後面的卡片就會蓋到彈窗上面，造成獎勵清單等彈窗「看起來透過去、卡片浮在
+     上面」的問題（實際上彈窗背景本身不透明，只是被蓋住）。.drawer(z-index:50)/
+     #dice-roll-overlay(z-index:900)都有設z-index所以沒有這個問題，只有.modal漏設。 */
+  z-index: 200;
   background: rgba(0, 0, 0, 0.45);
   display: flex;
   align-items: center;
