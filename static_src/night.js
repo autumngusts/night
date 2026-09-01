@@ -52,6 +52,13 @@
   // 影響本地遊戲，只會讓雲端遊戲更安全地等到真正收到遠端存檔後才允許推送。
   var cloudNightStateSynced = false;
   var cloudCharactersSynced = false;
+  // 使用者確認：跨裝置同步顯示視窗——turnRewardAutoOpen旗標讓subscribeNightState回呼在
+  // 所有裝置強制開啟獎勵清單視窗（見下方）。這個本機（非同步）旗標只用來記住「這台裝置目前
+  // 開著的獎勵清單，是被遠端旗標強制打開的」，之後遠端旗標清除時才會跟著自動關閉；玩家透過
+  // #btn-turn-reward-open手動瀏覽時完全不碰這個旗標，因此不會被之後的remote tick誤關閉。
+  var turnRewardForcedOpenByRemote = false;
+  // 使用者確認：跨裝置同步顯示視窗——floor-reward-modal版，道理與turnRewardForcedOpenByRemote相同。
+  var floorRewardForcedOpenByRemote = false;
 
   function loadRosterCharacters() {
     var raw = localStorage.getItem(CHARACTERS_KEY);
@@ -922,6 +929,9 @@
       // 進入防禦階段時要處理的效果（時間消耗1、可能連帶觸發的威脅效果／夜雨），顯示在進度版
       // 敘述最前面（打字機說明）。每次phase切換都清空。
       defenseEntryEffectText: null,
+      // 使用者確認：跨裝置同步顯示視窗——防禦階段視窗（enemy-damage-modal）是否應在所有裝置
+      // 自動開啟，見openEnemyDamageModal/closeEnemyDamageModal與subscribeNightState回呼。
+      enemyDamageModalOpen: false,
     };
   }
 
@@ -1020,6 +1030,10 @@
     locationBannerCollapsed: false, // 右上の現在地バナー（#location-status-overlay）を折りたたみ表示にするかどうか
     locationBannerCorner: "right", // #23：折りたたみ時、スワイプでスナップした位置。"right"|"left"
     autoGmEnabled: false, // 自動化GM機能全体のON/OFF。誰でも切替可能（パスワード制限なし、turnHolder制限も無し）
+    // 使用者確認：新增「簡化抽選」開關（自動化GM開關右側）。ON時，潛在之力／武器／飾品／
+    // 消耗品抽選都跳過中間分段判定（星數/大分類/稀有度骰子等），直接自動骰完並顯示最終結果，
+    // 讓玩家只需要查看並按確定收下。與autoGmEnabled同樣誰都能切替，不限GM。
+    simplifiedDrawEnabled: false,
     autoGmLog: [], // 自動化GMの監査ログ（通常のstate.logとは別。誰がいつ何を確認・確定したか、後から検証できるように保持）
     gmFlowEnabled: false, // 自動化GM Phase 2（シナリオ進行フロー：進度版の[進入]/[突破]・敘述・獎勵収集ゲート）のON/OFF。autoGmEnabledとは別軸、こちらも誰でも切替可能
     gmFlow: {
@@ -1037,8 +1051,16 @@
       walk: null, // { slotIndex, branchIndex(nullなら分岐未選択), floorIndex, lineIndex, branchFloor(第27項：選択済み分岐の深さ、nullなら制限無し), branchFloorArmed(ジャンプ直後の見出し行自身を境界判定から除外するフラグ), pendingPrefixText(ジャンプ先の見出しに辿り着くまでに挟まっていた共通・確定内容、次のadvanceFieldWalkで1回だけ差し込む), pendingOutcomeFilter("成功"/"失敗"/null——協力式・単人指定判定確定直後、一致しない側の結果行を読み飛ばすためのフィルター), pendingConvergeLabel(判定行自身に埋め込まれた「成否に関わらず〜（→X）」マーカーのラベル/null——境界判定でこの行き先だけは「選ばなかった分岐」として誤って読み飛ばさないようにする) }
       pendingChoiceLabels: [], // actionKind==="lineChoice"のときに提示する(→X)ラベルの配列
       combatTriggerLabel: null, // actionKind==="combatTrigger"のときのボタン文言（「雜兵戰鬥」／「王戰」、トリガー行の文言そのもの）
+      // 使用者確認：跨裝置同步顯示視窗——{slotIndex, rewardKey}，floor-reward-modalが現在
+      // 開いているフロアを示す（floor自体は同期しない、resolveFloorByRewardKeyで復元）。
+      floorRewardModalKey: null,
       abilityCheckSpec: null, // actionKind==="abilityCheck"のときの{target,statKey}（PC全員が個別に判定する行為判定の自動擲骰モーダル用）
+      // 使用者確認：跨裝置同步顯示視窗——{charId: {dice, sum, passed, statKey}}。讓每位玩家能在
+      // 自己的裝置上為自己入場的角色擲骰，其他裝置（含GM）透過subscribeNightState即時同步顯示。
+      abilityCheckRolls: null,
       cooperativeCheckSpec: null, // actionKind==="cooperativeCheck"のときの{target,perPC,statKey}（協力式・単純な1回勝負の行為判定の自動擲骰モーダル用）
+      // 使用者確認：跨裝置同步顯示視窗——{charId: {dice, statKey, rerollPending}}，同abilityCheckRolls。
+      cooperativeCheckRolls: null,
       playerPickCheckSpec: null, // actionKind==="playerPickCheck"のときの{target,statKey,retryOnFail}（特定の1名のPCだけが行う判定用）
       playerPickCheckExcluded: [], // playerPickCheckで既に失敗して除外済みのcharId配列（retryOnFail中のみ意味を持つ）
       // actionKind==="branchPointTally"のときの{target,statKey,repeat,round,points,highLabel,lowLabel,lowThreshold}
@@ -1047,6 +1069,9 @@
       // actionKind==="sequentialPairCheck"のときの{checks:[{target,statKey}, {target,statKey}],stepIndex,
       // totalSuccess,totalAttempts,markerLabel}（坑道「白い結晶」専用：連続2種判定を成功数で3段階へ振り分ける判定用）
       sequentialPairSpec: null,
+      // 使用者確認：跨裝置同步顯示視窗——{charId: {dice, rerollPending}}，branchPointTallySpec／
+      // sequentialPairSpecの両方で共用（同じbranch-tally-modal）。
+      branchTallyRolls: null,
       // actionKind==="conditionalCooperativeChoice"のときの{options:[{label,target,perPC,statKey}, {label,target,perPC,statKey}]}
       // （湖沼(睡)専用：祭壇に興味があるか先に選ばせてから使う協力式判定を決める）
       conditionalCooperativeChoiceSpec: null,
@@ -1094,6 +1119,11 @@
       // モジュール内変数は失われるため、{slotIndex,branchIndex,floorIndex}だけをstateに残しておき、
       // resolveFieldEntryForSlot経由でfloorオブジェクトを再解決できるようにする。
       pendingFloorEndRef: null,
+      // 使用者確認：自動套用樓層獎勵——這個樓層敘述walkthrough實際敘述過的見出し行標籤
+      // （成功/失敗判定結果、選中的(→X)分支名等），floorRewardModalが開く時にtieredChoice
+      // の「実際に進んだルート」等を自動比對用。walk自体はfinishFieldWalkでnullになるため、
+      // ここへ複製して持ち越す。
+      pendingFloorEndRouteLabels: [],
       // ユーザー指定：actionKind==="floorEnd"の間、[領取獎勵]ボタンを一度押したかどうか。
       // trueの間はrenderLocationBanner側で[領取獎勵]ボタン自体を描画しない（[領取完]のみ残す）。
       floorEndRewardOpened: false,
@@ -1117,7 +1147,9 @@
     // 中身はcharacter_drawer.jsのweaponRollState/talismanRollState/consumableRollState、
     // またはnight.js内のpotentialPower関連状態と同じ形をした素のJSONオブジェクト。
     activeDraws: {
-      potentialPower: null,
+      // 使用者確認：跨裝置同步顯示視窗——潛在之力改為{[charId]: {...}}的每角色獨立槽位
+      // （見night_potential_power.js），取代舊版單一全域槽位potentialPower。
+      potentialPowerByChar: {},
       weapon: null,
       talisman: null,
       consumable: null,
@@ -1221,6 +1253,7 @@
       locationBannerCollapsed: state.locationBannerCollapsed,
       locationBannerCorner: state.locationBannerCorner,
       autoGmEnabled: state.autoGmEnabled,
+      simplifiedDrawEnabled: state.simplifiedDrawEnabled,
       autoGmLog: state.autoGmLog,
       gmFlowEnabled: state.gmFlowEnabled,
       gmFlow: state.gmFlow,
@@ -1484,6 +1517,9 @@
       enemyDamageConfirmed: loadBoolMap(raw.enemyDamageConfirmed),
       defenseHpLossSummary: loadNumberMap(raw.defenseHpLossSummary),
       defenseEntryEffectText: typeof raw.defenseEntryEffectText === "string" ? raw.defenseEntryEffectText : null,
+      // 使用者確認：跨裝置同步顯示視窗——防禦階段視窗（enemy-damage-modal）是否應在所有裝置
+      // 自動開啟，見openEnemyDamageModal/closeEnemyDamageModal與subscribeNightState回呼。
+      enemyDamageModalOpen: !!raw.enemyDamageModalOpen,
     };
   }
 
@@ -2279,9 +2315,35 @@
       state.locationBannerCollapsed = typeof data.locationBannerCollapsed === "boolean" ? data.locationBannerCollapsed : false;
       state.locationBannerCorner = data.locationBannerCorner === "left" ? "left" : "right";
       state.autoGmEnabled = typeof data.autoGmEnabled === "boolean" ? data.autoGmEnabled : false;
+      state.simplifiedDrawEnabled = typeof data.simplifiedDrawEnabled === "boolean" ? data.simplifiedDrawEnabled : false;
       state.autoGmLog = Array.isArray(data.autoGmLog) ? data.autoGmLog : [];
       state.gmFlowEnabled = typeof data.gmFlowEnabled === "boolean" ? data.gmFlowEnabled : false;
       var loadedGmFlow = data.gmFlow && typeof data.gmFlow === "object" ? data.gmFlow : {};
+      // 使用者確認：跨裝置同步顯示視窗——判定視窗（ability-check-modal／cooperative-check-modal／
+      // branch-tally-modal）的各PC擲骰結果，key為角色id，value固定含dice陣列＋依判定類型而異的
+      // 少數欄位（fieldSpecs指定型別，逐一驗證後複製，其餘欄位一律忽略）。
+      function loadCharRollMap(rawMap, fieldSpecs) {
+        var out = {};
+        if (rawMap && typeof rawMap === "object") {
+          Object.keys(rawMap).forEach(function (charId) {
+            var row = rawMap[charId];
+            if (!row || typeof row !== "object" || !Array.isArray(row.dice)) return;
+            var entry = {
+              dice: row.dice.filter(function (d) {
+                return typeof d === "number";
+              }),
+            };
+            Object.keys(fieldSpecs).forEach(function (k) {
+              var t = fieldSpecs[k];
+              if (t === "number") entry[k] = typeof row[k] === "number" ? row[k] : 0;
+              else if (t === "string") entry[k] = typeof row[k] === "string" ? row[k] : null;
+              else if (t === "boolean") entry[k] = !!row[k];
+            });
+            out[charId] = entry;
+          });
+        }
+        return out;
+      }
       var loadedWalk =
         loadedGmFlow.walk && typeof loadedGmFlow.walk === "object"
           ? {
@@ -2302,6 +2364,20 @@
               // ここへ値を追加する必要をなくす）。
               pendingOutcomeFilter: typeof loadedGmFlow.walk.pendingOutcomeFilter === "string" ? loadedGmFlow.walk.pendingOutcomeFilter : null,
               pendingConvergeLabel: typeof loadedGmFlow.walk.pendingConvergeLabel === "string" ? loadedGmFlow.walk.pendingConvergeLabel : null,
+              // 使用者確認：自動套用樓層獎勵——{[floorIndex]: [label, ...]}。keyは文字列化した
+              // floorIndex、値は各floorで実際に敘述された見出し行の標籤陣列。
+              routeLabelsByFloor:
+                loadedGmFlow.walk.routeLabelsByFloor && typeof loadedGmFlow.walk.routeLabelsByFloor === "object"
+                  ? Object.keys(loadedGmFlow.walk.routeLabelsByFloor).reduce(function (acc, key) {
+                      var arr = loadedGmFlow.walk.routeLabelsByFloor[key];
+                      if (Array.isArray(arr)) {
+                        acc[key] = arr.filter(function (v) {
+                          return typeof v === "string";
+                        });
+                      }
+                      return acc;
+                    }, {})
+                  : {},
             }
           : null;
       state.gmFlow = {
@@ -2350,6 +2426,14 @@
                 markerLabel: typeof loadedGmFlow.abilityCheckSpec.markerLabel === "string" ? loadedGmFlow.abilityCheckSpec.markerLabel : null,
               }
             : null,
+        floorRewardModalKey:
+          loadedGmFlow.floorRewardModalKey && typeof loadedGmFlow.floorRewardModalKey.rewardKey === "string"
+            ? {
+                slotIndex: typeof loadedGmFlow.floorRewardModalKey.slotIndex === "number" ? loadedGmFlow.floorRewardModalKey.slotIndex : null,
+                rewardKey: loadedGmFlow.floorRewardModalKey.rewardKey,
+              }
+            : null,
+        abilityCheckRolls: loadCharRollMap(loadedGmFlow.abilityCheckRolls, { sum: "number", passed: "boolean", statKey: "string" }),
         cooperativeCheckSpec:
           loadedGmFlow.cooperativeCheckSpec &&
           typeof loadedGmFlow.cooperativeCheckSpec.target === "number" &&
@@ -2361,6 +2445,7 @@
                 markerLabel: typeof loadedGmFlow.cooperativeCheckSpec.markerLabel === "string" ? loadedGmFlow.cooperativeCheckSpec.markerLabel : null,
               }
             : null,
+        cooperativeCheckRolls: loadCharRollMap(loadedGmFlow.cooperativeCheckRolls, { statKey: "string", rerollPending: "boolean" }),
         playerPickCheckSpec:
           loadedGmFlow.playerPickCheckSpec &&
           typeof loadedGmFlow.playerPickCheckSpec.target === "number" &&
@@ -2402,6 +2487,8 @@
                 markerLabel: typeof loadedGmFlow.sequentialPairSpec.markerLabel === "string" ? loadedGmFlow.sequentialPairSpec.markerLabel : null,
               }
             : null,
+        // branchPointTallySpec／sequentialPairSpecの両方で共用（同じbranch-tally-modal）。
+        branchTallyRolls: loadCharRollMap(loadedGmFlow.branchTallyRolls, { rerollPending: "boolean" }),
         conditionalCooperativeChoiceSpec:
           loadedGmFlow.conditionalCooperativeChoiceSpec && Array.isArray(loadedGmFlow.conditionalCooperativeChoiceSpec.options)
             ? {
@@ -2489,6 +2576,11 @@
                 floorIndex: loadedGmFlow.pendingFloorEndRef.floorIndex,
               }
             : null,
+        pendingFloorEndRouteLabels: Array.isArray(loadedGmFlow.pendingFloorEndRouteLabels)
+          ? loadedGmFlow.pendingFloorEndRouteLabels.filter(function (v) {
+              return typeof v === "string";
+            })
+          : [],
         floorEndRewardOpened: !!loadedGmFlow.floorEndRewardOpened,
         chipCombatSlot: typeof loadedGmFlow.chipCombatSlot === "number" ? loadedGmFlow.chipCombatSlot : null,
         chipCombatIsTerrible: !!loadedGmFlow.chipCombatIsTerrible,
@@ -2500,7 +2592,8 @@
       };
       var loadedDraws = data.activeDraws && typeof data.activeDraws === "object" ? data.activeDraws : {};
       state.activeDraws = {
-        potentialPower: loadedDraws.potentialPower || null,
+        potentialPowerByChar:
+          loadedDraws.potentialPowerByChar && typeof loadedDraws.potentialPowerByChar === "object" ? loadedDraws.potentialPowerByChar : {},
         weapon: loadedDraws.weapon || null,
         talisman: loadedDraws.talisman || null,
         consumable: loadedDraws.consumable || null,
@@ -2614,7 +2707,7 @@
       branchOverrideActive: false,
     };
     state.activeDraws = {
-      potentialPower: null,
+      potentialPowerByChar: {},
       weapon: null,
       talisman: null,
       consumable: null,
@@ -8807,6 +8900,27 @@
     ];
   }
 
+  // 使用者確認：戰鬥中進度版顯示優化——不重複battle-enemy-hp-grid（戰場面板）的數值格式
+  // （count/20），改用■數量直接呈現各段目前剩餘HP（每段一行，便於快速掃視），只列出目前
+  // 有敵人資料的段（enemyHasRow）。回傳null代表目前沒有任何段有敵人資料，呼叫端不附加此區塊。
+  function battleEnemyHpSquaresText() {
+    // renderEnemyHpGrid（戰場面板）と同じ判定基準：allDepleted＝全段撃破済みなら「擊破敵人」、
+    // このrowだけ0ならそれ以外の段がまだ残っている「體崩」を意味する。
+    var allDepleted = allEnemyHpRowsDepleted();
+    var lines = [];
+    for (var row = 0; row < ENEMY_HP_ROWS; row++) {
+      if (!enemyHasRow(row)) continue;
+      var count = countRowChecked(state.battle.enemyHp, row * ENEMY_HP_COLS, ENEMY_HP_COLS);
+      var squares = count > 0 ? new Array(count + 1).join("■") : "";
+      var suppressed = !allDepleted && (state.battle.staggerBadgeSuppressedRows || []).indexOf(row) !== -1;
+      var badge = isEnemyHpRowDepleted(row) && !suppressed ? window.I18N.t(allDepleted ? "enemy_row_status_defeated_badge" : "enemy_row_status_staggered_badge") : "";
+      lines.push(
+        window.I18N.t("battle_hp_row_label", { row: row + 1 }) + window.I18N.t("colon_separator") + (squares || "-") + badge
+      );
+    }
+    return lines.length ? window.I18N.t("gm_flow_battle_enemy_hp_header") + "\n" + lines.join("\n") : null;
+  }
+
   // 進度版に出す敘述文字（「請擲骰！」「攻擊中！」等＋各角色の行動說明＋回合結算）。
   // combat/extra/defense以外はnullを返し、呼び出し側は既存の静的敘述
   // （state.gmFlow.narrationText）にフォールバックする。
@@ -8820,6 +8934,10 @@
     if (phase !== "combat" && phase !== "extra" && phase !== "defense") return null;
     var stage = state.battle.roundStage || "awaitingRoll";
     var parts = [];
+    // 使用者確認：戰鬥中進度版隨時顯示敵人目前血量（■圖案，多段各自換行），放在最前面
+    // 讓GM/玩家一開始就能看到，不需要另外打開戰場面板。
+    var hpSquares = battleEnemyHpSquaresText();
+    if (hpSquares) parts.push(hpSquares);
     if (stage === "resolving" && state.battle.roundResultText) {
       parts.push(state.battle.roundResultText);
     } else {
@@ -9666,9 +9784,21 @@
     if (rolled > 0) {
       playDiceRollAnimation(c.dicePool.slice(c.dicePool.length - rolled));
     }
-    // 自動化GM 戰鬥自動化：全員が本フェイズのスタミナダイスを振り終えたら"awaitingRoll"から
-    // "acting"へ進める。defenseフェイズも対象——全員の防禦體力骰が揃って初めて、AutoGM擲骰
-    // （既存のrenderAutoGmRollRow/handleAutoGmRollClick、Stage 6で別途ゲート）へ進める。
+    checkAndAdvanceRoundStageIfAllRolled();
+    renderCurrentLocationStatus();
+  }
+
+  // 使用者確認（跨裝置回歸修正）：全員が本フェイズのスタミナダイスを振り終えたら"awaitingRoll"から
+  // "acting"へ進める。defenseフェイズも対象——全員の防禦體力骰が揃って初めて、AutoGM擲骰
+  // （既存のrenderAutoGmRollRow/handleAutoGmRollClick、Stage 6で別途ゲート）へ進める。
+  // 元々rollDiceForCharacterActionPhase内に直書きされていたが、「自分の擲骰」の瞬間にしか
+  // 判定されないため、雲端遊戲で2名以上のPCが別々の裝置からほぼ同時に擲骰した場合、
+  // 「玩家B擲骰完成」がFirebaseのcharacters頻道経由でPlayer A側に届いた時にはこの判定が
+  // 一切走らない（subscribeCharactersのcallbackはロースター再描画のみで、この判定を
+  // 呼んでいなかった）ため、両者とも実際には全員擲骰済みなのにawaitingRollのまま固まり、
+  // 「もう一度どれかのダイスを押すと直る」という報告バグの直接原因だった。関数化して
+  // subscribeCharactersのcallback側からも同じ判定を呼べるようにする。
+  function checkAndAdvanceRoundStageIfAllRolled() {
     if (
       (state.actionPhase === "combat" || state.actionPhase === "extra" || state.actionPhase === "defense") &&
       state.battle.roundStage === "awaitingRoll" &&
@@ -9690,8 +9820,9 @@
       // 従来通りここでroundStage=actingの変更を保存する。
       var autoRollHandled = state.actionPhase === "defense" && autoTriggerDefenseRoll();
       if (!autoRollHandled) saveState();
+      return true;
     }
-    renderCurrentLocationStatus();
+    return false;
   }
 
   function renderActionPhaseButton() {
@@ -9716,13 +9847,20 @@
     if (btn) btn.hidden = state.actionPhase !== "defense";
   }
 
+  // 使用者確認：跨裝置同步顯示視窗——state.battle.enemyDamageModalOpen（已在buildSaveData的
+  // battle欄位內同步）記錄此視窗是否應該開啟，讓其他裝置（含各玩家）也能自動彈出同一份
+  // 防禦階段視窗、查看/確認自己角色的傷害列（見subscribeNightState回呼）。
   function openEnemyDamageModal() {
     renderEnemyDamageModal();
     document.getElementById("enemy-damage-modal").hidden = false;
+    state.battle.enemyDamageModalOpen = true;
+    saveState();
   }
 
   function closeEnemyDamageModal() {
     document.getElementById("enemy-damage-modal").hidden = true;
+    state.battle.enemyDamageModalOpen = false;
+    saveState();
   }
 
   // 自動化GM Phase 1: 敵人傷害モーダルを開くたび、state.autoGmEnabled かつ turnHolder==="gm"
@@ -10601,6 +10739,26 @@
     setAutoGmEnabled(!state.autoGmEnabled);
   }
 
+  // 使用者確認：「簡化抽選」開關——與自動化GM開關並列，誰都能切替。狀態本身只是一個
+  // 旗標，實際跳過中間分段判定的邏輯在各自的openXxxRollInline/openPotentialPowerModal等
+  // 開啟函式內判斷這個旗標後自動連續呼叫既有的擲骰/確定函式（不新建第二套抽選邏輯）。
+  function renderSimplifiedDrawToggleButton() {
+    var btn = document.getElementById("btn-simplified-draw-toggle");
+    if (!btn) return;
+    btn.textContent = window.I18N.t(state.simplifiedDrawEnabled ? "simplified_draw_toggle_on_label" : "simplified_draw_toggle_off_label");
+  }
+
+  function setSimplifiedDrawEnabled(enabled) {
+    state.simplifiedDrawEnabled = enabled;
+    saveState();
+    renderSimplifiedDrawToggleButton();
+    addAutoGmLog(window.I18N.t(enabled ? "log_simplified_draw_enabled" : "log_simplified_draw_disabled"));
+  }
+
+  function handleSimplifiedDrawToggleClick() {
+    setSimplifiedDrawEnabled(!state.simplifiedDrawEnabled);
+  }
+
   // 縮小されたまま放置されている獎勵視窗を追跡する（第5項：獎勵収集完成ゲート）。
   // idは種類ごとに1つだけ存在するモーダルを指す固定文字列（"turnReward"|"floorReward"）。
   // 縮小した瞬間に追加し、モーダルを完全に閉じた瞬間に削除する（復元しただけでは消さない）。
@@ -10926,6 +11084,7 @@
     }
     modal.hidden = true;
     document.getElementById("btn-turn-reward-restore").hidden = true;
+    turnRewardForcedOpenByRemote = false;
     // 跨端末自動ポップアップ（Task 8）の予約フラグも、実際に閉じられた時点でクリアする
     // （removePendingRewardWindowが内部でsaveState()する——別途saveState呼び出しは不要）。
     state.activeDraws.turnRewardAutoOpen = null;
@@ -11866,6 +12025,10 @@
     state.battle.defenseHpLossSummary = {};
     state.battle.defenseEntryEffectText = null;
     state.battle.roundStage = "awaitingRoll";
+    // 使用者確認：防禦階段視窗（enemy-damage-modal）的跨裝置同步開啟旗標，每次phase切換都要
+    // 一併重置，避免舊回合殘留的「開啟中」狀態被新回合/新裝置誤讀而強制彈出過期視窗。
+    state.battle.enemyDamageModalOpen = false;
+    document.getElementById("enemy-damage-modal").hidden = true;
     // 使用者確認：防禦階段に入るたびに時間損耗+1（規則書「防禦階段開始時、時間消耗1」）。
     // 自動化GMの自動遷移（autoAdvanceBattlePhase）だけでなく、GMが「行動階段」ボタンから手動で
     // defenseへ切り替えた場合にも等しく発火させるため、ここ（setActionPhase自身）で処理する。
@@ -12539,6 +12702,64 @@
 
   // 屬性/異常面板：入場中の各角色ごとに、「受け取った」（手動タグ管理）と「与えた」
   // （攻撃action確定時にrecordAttributeStatusDealtで自動集計、敵人ごとに読み取り専用表示）を描画する。
+  // 使用者確認：公開盤簡易顯示——除了完整的屬性/異常抽屜（renderAttributeStatusList）外，
+  // 在公開盤敵人資訊下方、前後衛區域上方也顯示一份精簡版（只列出非0的項目，不含加/移除操作），
+  // 讓所有裝置不用另外開抽屜就能一眼看到目前的屬性/異常蓄積現況。
+  function renderBoardAttributeSummary() {
+    var container = document.getElementById("board-side-attribute-summary");
+    if (!container) return;
+    if (!state.battle.attributeStatus) state.battle.attributeStatus = defaultBattleState().attributeStatus;
+    var enemyAccum = state.battle.attributeStatus.enemyAccum || {};
+    var received = state.battle.attributeStatus.received || {};
+    var enemyOptions = resolveSelectedEnemyOptions();
+    var dealtParts = [];
+    enemyOptions.forEach(function (opt) {
+      Object.keys(enemyAccum)
+        .filter(function (key) {
+          return key.indexOf(opt.key + "|") === 0 && enemyAccum[key];
+        })
+        .forEach(function (key) {
+          var label = key.slice(opt.key.length + 1);
+          var threshold = attributeStatusThresholdForEnemy(opt.key, label);
+          dealtParts.push(opt.name + " " + label + enemyAccum[key] + "/" + threshold);
+        });
+    });
+    var receivedParts = [];
+    rosterCharacters
+      .filter(function (c) {
+        return c.entered;
+      })
+      .forEach(function (c) {
+        var map = received[c.id] || {};
+        Object.keys(map).forEach(function (label) {
+          if (!map[label]) return;
+          receivedParts.push(c.name + " " + label + map[label] + "/" + ATTRIBUTE_STATUS_BASE_THRESHOLD);
+        });
+      });
+    container.hidden = !dealtParts.length && !receivedParts.length;
+    if (container.hidden) return;
+    var dealtEl = document.getElementById("board-side-attribute-dealt");
+    var receivedEl = document.getElementById("board-side-attribute-received");
+    if (dealtEl) {
+      dealtEl.innerHTML = "";
+      dealtParts.forEach(function (text) {
+        var chip = document.createElement("span");
+        chip.className = "tag-chip";
+        chip.textContent = text;
+        dealtEl.appendChild(chip);
+      });
+    }
+    if (receivedEl) {
+      receivedEl.innerHTML = "";
+      receivedParts.forEach(function (text) {
+        var chip = document.createElement("span");
+        chip.className = "tag-chip";
+        chip.textContent = text;
+        receivedEl.appendChild(chip);
+      });
+    }
+  }
+
   function renderAttributeStatusList() {
     var container = document.getElementById("attribute-status-list");
     if (!container) return;
@@ -12684,6 +12905,7 @@
 
       container.appendChild(block);
     });
+    renderBoardAttributeSummary();
   }
 
   // 戦闘盤の簡易エネミー検索。規則書タブと異なり、等級・HP量・系別のみを表示する（耐性・アクション・特殊能力は非表示）。
@@ -12994,6 +13216,7 @@
         container.appendChild(chip);
       });
     });
+    renderBoardAttributeSummary();
   }
 
   function renderFieldLevels() {
@@ -14656,6 +14879,7 @@
     renderTurnHolderBar();
     renderTurnBoardToggleButton();
     renderAutoGmToggleButton();
+    renderSimplifiedDrawToggleButton();
     renderAutoGmLog();
     renderActionPhaseGrid();
     renderBoard();
@@ -14744,46 +14968,61 @@
         // 他端末がほぼ同時に同じ獎勵/突破チェックのモーダルを開いている場合、遠隔側の
         // claimed/確定状態を反映し忘れると「まだ獲得できるように見える」→二重取得の原因になる
         // （handleTurnHolderToggleにある再描画ガードと同じパターンをここにも適用する）。
-        if (!document.getElementById("turn-reward-modal").hidden) renderTurnRewardModal();
-        // 使用者確認：大視窗の展開はその端末のローカル操作のみに限定し、他端末の畫面は
-        // 強制的に連動させない。state.activeDraws.turnRewardAutoOpenが立っていても、この
-        // 端末で誰も能動的に開いていなければ（＝turn-reward-modalがhidden）縮小表示の
-        // 還元ボタンだけを見せ、押した人だけがフルモーダルを見る（weapon/talisman/consumable
-        // 抽選と同じ縮小パターンに統一）。実際に［領取獎勵］を押した本人の端末は、
-        // handleFloorEndRewardClick側でopenTurnRewardModal()を直接ローカル呼び出し済みなので
-        // ここに来た時点で既にhidden=falseになっており、この分岐には入らない。
-        if (state.activeDraws.turnRewardAutoOpen && document.getElementById("turn-reward-modal").hidden) {
-          document.getElementById("btn-turn-reward-restore").hidden = false;
+        // 使用者確認：跨裝置同步顯示視窗——turnRewardAutoOpenが立っている間は全裝置で
+        // 強制的にフルモーダルを開く（renderTurnRewardModalは既にstate.turnRewards駆動の
+        // ため、どの裝置で呼んでも安全）。以前は「開いた本人の端末のみフル表示、他端末は
+        // 縮小の還元ボタンだけ」という設計だったが、獎勵清單はGM/玩家全員がその場で確認・
+        // 領取できる必要があるため、防禦階段視窗／判定視窗と同じ全裝置自動開啟パターンへ変更。
+        // 「縮小」（pendingRewardWindows）は既に跨裝置同步済みのシグナルのため、これが立って
+        // いる間は強制フル開啟を控え、還元ボタンだけを見せる（本人がminimizeした状態を
+        // 別の裝置がリマインド受信のたびに強制フルモーダルへ引き戻さないようにするため）。
+        var pendingRewardSet = state.gmFlow.pendingRewardWindows || [];
+        var trModalEl = document.getElementById("turn-reward-modal");
+        var trRestoreBtnEl = document.getElementById("btn-turn-reward-restore");
+        var trMinimized = pendingRewardSet.indexOf("turnReward") !== -1;
+        if (state.activeDraws.turnRewardAutoOpen && !trMinimized) {
+          renderTurnRewardModal();
+          trModalEl.hidden = false;
+          trRestoreBtnEl.hidden = true;
+          turnRewardForcedOpenByRemote = true;
+        } else if (state.activeDraws.turnRewardAutoOpen && trMinimized) {
+          trModalEl.hidden = true;
+          trRestoreBtnEl.hidden = false;
+          turnRewardForcedOpenByRemote = false;
+        } else if (turnRewardForcedOpenByRemote && !trModalEl.hidden) {
+          trModalEl.hidden = true;
+          trRestoreBtnEl.hidden = true;
+          turnRewardForcedOpenByRemote = false;
         }
-        if (!document.getElementById("breakthrough-modal").hidden) window.PriTestNightFloorBreakthrough.renderBreakthroughCharacters();
-        if (!document.getElementById("floor-reward-modal").hidden && window.PriTestNightFloorBreakthrough.getFloorRewardModalFloor()) {
-          window.PriTestNightFloorBreakthrough.renderFloorRewardSection(document.getElementById("floor-reward-modal-content"), window.PriTestNightFloorBreakthrough.getFloorRewardModalFloor());
-        }
-        if (state.activeDraws.potentialPower) {
-          var ppRemote = state.activeDraws.potentialPower;
-          var ppModal = document.getElementById("potential-power-modal");
-          var ppRestoreBtn = document.getElementById("btn-potential-power-restore");
-          // 使用者確認：大視窗の展開は開いた本人の端末のみのローカル状態として扱う。
-          // 縮小（minimized）だけは全端末で連動させ、右下の還元ボタンとして保留表示する。
-          if (!ppModal.hidden) {
-            // 本機で既に開いている（＝自分の操作で開いた本人）場合のみ、内容を追従更新する。
-            // 遠端でminimizedになった場合も、それは本人自身の操作で送られてきた値のはずなので
-            // そのまま閉じてよい。
-            if (ppRemote.minimized) {
-              ppModal.hidden = true;
-              ppRestoreBtn.hidden = false;
-            } else {
-              window.PriTestNightPotentialPower.renderPotentialPowerModal();
-            }
-          } else {
-            // 本機はまだ開いていない：他端末の展開状態に関わらず、縮小の還元ボタンだけを見せる。
-            ppRestoreBtn.hidden = false;
+        // breakthrough-modal（突破/攀登/判定發生視窗）的完整同步邏輯見下方
+        // applyRemoteBreakthroughState區塊，這裡不再重複render。
+        // 使用者確認：跨裝置同步顯示視窗——樓層獲得獎勵視窗，同turn-reward-modal的全裝置
+        // 自動開啟模式（state.gmFlow.floorRewardModalKey驅動，其他裝置用resolveFloorByRewardKey
+        // 從自己的靜態場地資料重新解出同一個floor物件）。
+        var frModalEl = document.getElementById("floor-reward-modal");
+        var frRestoreBtnEl = document.getElementById("btn-floor-reward-restore");
+        var frMinimized = pendingRewardSet.indexOf("floorReward") !== -1;
+        var frKey = state.gmFlow.floorRewardModalKey;
+        if (frKey && frKey.rewardKey && !frMinimized) {
+          var frFloor = window.PriTestNightFloorBreakthrough.resolveFloorByRewardKey(frKey.rewardKey);
+          if (frFloor) {
+            window.PriTestNightFloorBreakthrough.renderFloorRewardSection(document.getElementById("floor-reward-modal-content"), frFloor);
+            frModalEl.hidden = false;
+            frRestoreBtnEl.hidden = true;
+            floorRewardForcedOpenByRemote = true;
           }
-        } else {
-          var ppModalIdle = document.getElementById("potential-power-modal");
-          var ppRestoreBtnIdle = document.getElementById("btn-potential-power-restore");
-          if (ppModalIdle.hidden && !ppRestoreBtnIdle.hidden) ppRestoreBtnIdle.hidden = true;
+        } else if (frKey && frMinimized) {
+          frModalEl.hidden = true;
+          frRestoreBtnEl.hidden = false;
+          floorRewardForcedOpenByRemote = false;
+        } else if (floorRewardForcedOpenByRemote && !frModalEl.hidden) {
+          frModalEl.hidden = true;
+          frRestoreBtnEl.hidden = true;
+          floorRewardForcedOpenByRemote = false;
         }
+        // 使用者確認：跨裝置同步顯示視窗——潛在之力（含武器/飾品/消耗品抽選同款設計）改為
+        // 每角色獨立槽位，見night_potential_power.jsのapplyRemotePotentialPowerState。
+        window.PriTestNightPotentialPower.applyRemotePotentialPowerState();
         // 使用者確認：籌碼事件視窗（聖甲蟲／商人／祝福／靈脈／強敵／隨機）も同じパターン。
         // idxさえ分かれば内容はstate.eventChips/eventChipsData（既に同期済み）から
         // どの端末でも再現できるため、restoreEventChipModal自体はどの端末で押しても
@@ -14811,20 +15050,23 @@
           // 残さない（内容が既に無意味になっているため）。
           if (!ecModalIdle.hidden || !ecRestoreBtnIdle.hidden) window.PriTestNightEventChips.closeEventChipModal();
         }
-        // 使用者確認：突破／攀登判定視窗（breakthrough-modal）は、進行中の骰子が
-        // 各端末のローカルbreakthroughStateに紐づいているため（誰がどの骰子を振ったかを
-        // 精確に跨裝置再現するには専用の再設計が必要）、ここでは「縮小」の連動表示のみ
-        // 同期する。開いた本人の端末以外では常に縮小の還元ボタンだけを見せ、押しても
-        // その端末にローカルの進行中データが無ければ何も起きない（開いた本人の端末へ
-        // 戻って操作するよう促す）。
-        if (state.activeDraws.breakthrough) {
-          var bkModal = document.getElementById("breakthrough-modal");
-          var bkRestoreBtn = document.getElementById("btn-breakthrough-restore");
-          if (bkModal.hidden) bkRestoreBtn.hidden = false;
+        // 使用者確認：跨裝置同步顯示視窗——突破／攀登／判定發生視窗（breakthrough-modal）的
+        // breakthroughState（含進行中骰子）現在整份同步，先讓這台裝置的本機變數指向遠端資料
+        // （applyRemoteBreakthroughState），再依minimized/是否存在決定要開啟、縮小、還是關閉，
+        // 讓每位玩家能在自己的裝置上為自己入場的角色擲骰。
+        window.PriTestNightFloorBreakthrough.applyRemoteBreakthroughState(state.activeDraws.breakthrough);
+        var bkModalEl = document.getElementById("breakthrough-modal");
+        var bkRestoreBtnEl = document.getElementById("btn-breakthrough-restore");
+        if (state.activeDraws.breakthrough && !state.activeDraws.breakthrough.minimized) {
+          window.PriTestNightFloorBreakthrough.renderBreakthroughCharacters();
+          bkModalEl.hidden = false;
+          bkRestoreBtnEl.hidden = true;
+        } else if (state.activeDraws.breakthrough && state.activeDraws.breakthrough.minimized) {
+          bkModalEl.hidden = true;
+          bkRestoreBtnEl.hidden = false;
         } else {
-          var bkModalIdle = document.getElementById("breakthrough-modal");
-          var bkRestoreBtnIdle = document.getElementById("btn-breakthrough-restore");
-          if (bkModalIdle.hidden && !bkRestoreBtnIdle.hidden) bkRestoreBtnIdle.hidden = true;
+          bkModalEl.hidden = true;
+          bkRestoreBtnEl.hidden = true;
         }
         // 使用者確認：骰子役判定視窗（dice-hand-draw-modal）も同様に縮小の連動表示のみ
         // 同期する（進行中のentry参照はローカルのみ）。
@@ -14868,6 +15110,39 @@
         } else if (itemDrawModalEl.hidden && !itemDrawRestoreBtnEl.hidden) {
           itemDrawRestoreBtnEl.hidden = true;
         }
+        // 使用者確認：跨裝置同步顯示視窗——防禦階段視窗（enemy-damage-modal）與各判定視窗
+        // （ability-check-modal／cooperative-check-modal／branch-tally-modal）不同於上面
+        // 其他視窗「僅同步縮小狀態」的設計，改為直接依state內容在所有裝置自動開啟／更新／
+        // 關閉，讓每位玩家能在自己的裝置上為自己入場的角色操作（擲骰／確認傷害），
+        // 不需要集中在單一裝置由GM代為操作。
+        var edModalEl = document.getElementById("enemy-damage-modal");
+        if (state.battle.enemyDamageModalOpen) {
+          renderEnemyDamageModal();
+          edModalEl.hidden = false;
+        } else if (!edModalEl.hidden) {
+          edModalEl.hidden = true;
+        }
+        var abilityCheckModalEl = document.getElementById("ability-check-modal");
+        if (state.gmFlow.abilityCheckSpec) {
+          if (window.PriTestNightGmFlow) window.PriTestNightGmFlow.renderAbilityCheckModal();
+          abilityCheckModalEl.hidden = false;
+        } else if (!abilityCheckModalEl.hidden) {
+          abilityCheckModalEl.hidden = true;
+        }
+        var cooperativeCheckModalEl = document.getElementById("cooperative-check-modal");
+        if (state.gmFlow.cooperativeCheckSpec) {
+          if (window.PriTestNightGmFlow) window.PriTestNightGmFlow.renderCooperativeCheckModal();
+          cooperativeCheckModalEl.hidden = false;
+        } else if (!cooperativeCheckModalEl.hidden) {
+          cooperativeCheckModalEl.hidden = true;
+        }
+        var branchTallyModalEl = document.getElementById("branch-tally-modal");
+        if (state.gmFlow.branchPointTallySpec || state.gmFlow.sequentialPairSpec) {
+          if (window.PriTestNightGmFlow) window.PriTestNightGmFlow.renderBranchTallyModal();
+          branchTallyModalEl.hidden = false;
+        } else if (!branchTallyModalEl.hidden) {
+          branchTallyModalEl.hidden = true;
+        }
       });
       GameStorage.subscribeCharacters(gameId, game.storageMode, function (list) {
         cloudCharactersSynced = true;
@@ -14877,6 +15152,11 @@
         });
         localStorage.setItem(CHARACTERS_KEY, JSON.stringify(rosterCharacters));
         renderCharacterRoster();
+        // 使用者確認（跨裝置回歸修正）：見checkAndAdvanceRoundStageIfAllRolled的說明——
+        // 遠端角色資料更新也可能是「湊齊全員擲骰」的最後一塊拼圖，這裡也要判定一次，
+        // 否則兩名玩家在不同裝置幾乎同時擲骰時，roundStage可能永遠卡在awaitingRoll，
+        // 需要有人再隨意點一次骰子才會發現其實已經全員擲骰完成。
+        if (checkAndAdvanceRoundStageIfAllRolled()) renderCurrentLocationStatus();
       });
     }
 
@@ -14987,6 +15267,7 @@
       setTurnBoardEnabled(!state.turnBoardEnabled);
     });
     document.getElementById("btn-auto-gm-toggle").addEventListener("click", handleAutoGmToggleClick);
+    document.getElementById("btn-simplified-draw-toggle").addEventListener("click", handleSimplifiedDrawToggleClick);
     document.getElementById("btn-auto-gm-boss-form-toggle").addEventListener("click", handleAutoGmBossFormToggleClick);
     document.querySelectorAll(".log-drawer-tab-btn").forEach(function (btn) {
       btn.addEventListener("click", function () {
@@ -15007,7 +15288,9 @@
     document.getElementById("btn-dice-hand-draw-restore").addEventListener("click", window.PriTestNightFloorBreakthrough.restoreDiceHandDrawModal);
     document.getElementById("btn-weapon-skill-reroll-modal-close").addEventListener("click", closeWeaponSkillRerollModal);
     document.getElementById("btn-potential-power-minimize").addEventListener("click", window.PriTestNightPotentialPower.minimizePotentialPowerModal);
-    document.getElementById("btn-potential-power-restore").addEventListener("click", window.PriTestNightPotentialPower.restorePotentialPowerModal);
+    // 使用者確認：跨裝置同步顯示視窗——potential-power-restore-list改為動態產生多個
+    // 按鈕（一位角色一顆），各自的click listener在renderPotentialPowerRestoreList內綁定，
+    // 這裡不再需要單一固定按鈕的監聽器。
     document.getElementById("btn-floor-reward-modal-close").addEventListener("click", window.PriTestNightFloorBreakthrough.closeFloorRewardModal);
     document.getElementById("btn-floor-reward-minimize").addEventListener("click", window.PriTestNightFloorBreakthrough.minimizeFloorRewardModal);
     document.getElementById("btn-floor-reward-restore").addEventListener("click", window.PriTestNightFloorBreakthrough.restoreFloorRewardModal);

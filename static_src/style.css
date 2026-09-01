@@ -3303,6 +3303,30 @@ button {
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
 }
 
+/* 使用者確認：跨裝置同步顯示視窗——潛在之力可能同時有多名角色各自進行中，這裡改為
+   橫向並排顯示多個小按鈕（同一個固定位置，不佔用其他視窗類型的堆疊欄位）。 */
+.potential-power-restore-list {
+  display: flex;
+  flex-direction: row-reverse;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  padding: 0;
+  background: none;
+  box-shadow: none;
+  max-width: calc(100vw - 2rem);
+}
+
+.potential-power-restore-chip {
+  padding: 0.5rem 0.8rem;
+  border-radius: 999px;
+  background: #2b6cb0;
+  color: #fff;
+  border: none;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  font-size: 0.85rem;
+  white-space: nowrap;
+}
+
 .floor-reward-restore-btn {
   bottom: 4rem;
   background: #2f8f5b;
@@ -3757,6 +3781,27 @@ button {
   margin: 0 0 0.3rem;
   font-size: 0.78rem;
   color: #777;
+}
+
+.board-side-attribute-row {
+  margin-bottom: 0.3rem;
+}
+
+.board-side-attribute-row-label {
+  display: block;
+  margin: 0 0 0.2rem;
+  font-size: 0.78rem;
+  color: #777;
+}
+
+.board-side-attribute-row .tag-list {
+  gap: 0.25rem;
+  margin-bottom: 0;
+}
+
+.board-side-attribute-row .tag-chip {
+  padding: 0.1rem 0.4rem;
+  font-size: 0.75rem;
 }
 
 .board-side-position-header {

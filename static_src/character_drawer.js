@@ -4438,7 +4438,9 @@
       }
       potentialSelect.appendChild(opt);
     });
-    potentialSelect.disabled = !!(window.PriTestTurnHolder && window.PriTestTurnHolder() !== "gm");
+    // 使用者確認：一般抽選時，武器是否具有潛在之力已由樓層獎勵發放當下自動決定好，一般玩家
+    // 不應更改；只有規則書密碼驗證過的GM才能視情況手動調整（比單純turnHolder==="gm"更嚴格）。
+    potentialSelect.disabled = !(window.PriTestNightCore && window.PriTestNightCore.isRulebookAuthenticated && window.PriTestNightCore.isRulebookAuthenticated());
     potentialSelect.addEventListener("change", function () {
       var newValue = potentialSelect.value === "yes" ? true : potentialSelect.value === "no" ? false : null;
       // resetWeaponRollState()は新規に丸ごと作り直すため、呼び出し元（openWeaponRollInline等）が
@@ -4560,7 +4562,8 @@
         catSelect.appendChild(opt);
       });
       catSelect.value = st.categoryId !== null ? st.categoryId : st.majorGroupShortcut || ANY_WEAPON_CATEGORY;
-      catSelect.disabled = !!(window.PriTestTurnHolder && window.PriTestTurnHolder() !== "gm");
+      // 使用者確認：武器種類（大分類）不應由一般玩家更改，只有規則書GM能調整。
+      catSelect.disabled = !(window.PriTestNightCore && window.PriTestNightCore.isRulebookAuthenticated && window.PriTestNightCore.isRulebookAuthenticated());
       catSelect.addEventListener("change", function () {
         var newValue = catSelect.value;
         var prevPotentialPower = st.potentialPower;
@@ -4683,7 +4686,9 @@
       if (n === st.starCount) opt.selected = true;
       starSelect.appendChild(opt);
     });
-    starSelect.disabled = st.rarityConfirmed || !!(window.PriTestTurnHolder && window.PriTestTurnHolder() !== "gm");
+    // 使用者確認：稀有度骰子的顆數（★數）不應由一般玩家更改，只有規則書GM能調整。
+    starSelect.disabled =
+      st.rarityConfirmed || !(window.PriTestNightCore && window.PriTestNightCore.isRulebookAuthenticated && window.PriTestNightCore.isRulebookAuthenticated());
     starSelect.addEventListener("change", function () {
       st.starCount = parseInt(starSelect.value, 10);
       syncDrawStateIfAvailable("weapon", st);
@@ -4727,7 +4732,7 @@
         var rarityRerollBtn = document.createElement("button");
         rarityRerollBtn.type = "button";
         rarityRerollBtn.textContent = window.I18N.t("weapon_roll_star_reroll_button");
-        rarityRerollBtn.disabled = !!(window.PriTestTurnHolder && window.PriTestTurnHolder() !== "gm");
+        rarityRerollBtn.disabled = !(window.PriTestNightCore && window.PriTestNightCore.isRulebookAuthenticated && window.PriTestNightCore.isRulebookAuthenticated());
         rarityRerollBtn.addEventListener("click", function () {
           st.rarityDice = null;
           st.raritySum = null;
@@ -4751,7 +4756,8 @@
         if (r === st.rarity) opt.selected = true;
         raritySelect.appendChild(opt);
       });
-      raritySelect.disabled = !!(window.PriTestTurnHolder && window.PriTestTurnHolder() !== "gm");
+      // 使用者確認：稀有度不應由一般玩家更改，只有規則書GM能調整。
+      raritySelect.disabled = !(window.PriTestNightCore && window.PriTestNightCore.isRulebookAuthenticated && window.PriTestNightCore.isRulebookAuthenticated());
       raritySelect.addEventListener("change", function () {
         st.rarity = raritySelect.value;
         syncDrawStateIfAvailable("weapon", st);
