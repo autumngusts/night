@@ -344,14 +344,12 @@
         // 前衛の全員で均等割りする（規則書「乱戦ダメージ：n人」の一般ルールに対する既定値）。
         if (front) candidates.push(i);
       } else if (targetRule.kind === "backAll") {
+        // 「乱戦ダメージは前衛ではなく後衛が対象」という本文明記のケース用。
+        // targetRule.fallback === "front"と組み合わせて「後衛が対象、後衛不在なら前衛」を表現する
+        // （下記372行目付近のfallback処理を参照）。
         if (!front) candidates.push(i);
       } else if (targetRule.kind === "aggroMax" || targetRule.kind === "frontAggroMaxAll") {
         if (targetRule.kind === "aggroMax" || front) candidates.push(i);
-      } else if (targetRule.kind === "backAll") {
-        // frontAllの対称形：「乱戦ダメージは前衛ではなく後衛が対象」という本文明記のケース用
-        // （例: strong_type|divine_skin_apostles「黒炎投擲」）。fallback:"front"と組み合わせて
-        // 「後衛が対象、後衛不在なら前衛」を表現する。
-        if (!front) candidates.push(i);
       } else if (targetRule.kind === "allPCs") {
         candidates.push(i);
       }
