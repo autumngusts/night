@@ -1002,7 +1002,12 @@
       //
       // 【出目対応（night_boss_rulebook.js:648-654を直接確認、非対称構造に注意）】
       // 第一形態：1~2, 3~4, 5, 6 の4行で1~6を完全カバー。
-      // 第二形態：3~4, 5~6 の2行のみ（1~2に対応する行は規則書上「—」で存在しない）。
+      // 第二形態：1, 2, 3~4, 5~6 の4行で1~6を完全カバー。うち出目1・2は、night_boss_rulebook.js
+      // の「咆哮4連斬り」（第一形態列"5"／第二形態列"1"）・「とびかかり＆光波2連」（第一形態列"6"
+      // ／第二形態列"2"）と同一の物理行を共有する（harmoniaの「聖槍の壁」「掴み攻撃＆散開」と
+      // 同型の両形態共有行パターン、2026-09-01修正：以前は誤ってsplit側をnullにしており、
+      // 第二形態選択中の出目1・2でresult.structuredRowがnullになりhandleAutoGmRollClick側で
+      // 例外が発生していた）。
       // 形態移行自体（「エンドフェイズ開始時」の非同期タイミング）は自動化せず、gladiusと同じく
       // GMがstate.battle.bossFormを手動トグルする運用。
       //
@@ -1060,22 +1065,24 @@
           individualDamage: [{ amount: 240, repeat: 2, distribution: "rotate", targetRule: { kind: "aggroAtLeast1All" } }],
         },
         {
-          // 「咆哮4連斬り」（第一形態のみ、出目5）：乱戦ダメージ列が「—」のため乱戦ダメージ無し。
-          // 個別効果（4回実行）：「敵視：1以上」のPC1体（不特定・輪流）に個別ダメージ180は
-          // 確定値のため自動計算するが、付随する「※追加効果：1D」（どの属性/状態異常が
-          // 蓄積するかは規則書のadditionalEffectTableを2D6で参照するまで不明）は自動化せず
-          // conditionsに記録し、GMが規則書パネルを見ながら手動決定する。
-          rollRangeByForm: { fused: { min: 5, max: 5 }, split: null },
+          // 「咆哮4連斬り」：規則書actionColumnsの「第一形態」＝5、「第二形態」＝1が同一行
+          // （同じ内容、harmonia「聖槍の壁」と同型の両形態共有行）。乱戦ダメージ列が「—」の
+          // ため乱戦ダメージ無し。個別効果（4回実行）：「敵視：1以上」のPC1体（不特定・輪流）に
+          // 個別ダメージ180は確定値のため自動計算するが、付随する「※追加効果：1D」（どの属性/
+          // 状態異常が蓄積するかは規則書のadditionalEffectTableを2D6で参照するまで不明）は
+          // 自動化せずconditionsに記録し、GMが規則書パネルを見ながら手動決定する。
+          rollRangeByForm: { fused: { min: 5, max: 5 }, split: { min: 1, max: 1 } },
           individualDamage: [{ amount: 180, repeat: 4, distribution: "rotate", targetRule: { kind: "aggroAtLeast1All" } }],
           conditions: ["additional_effect_table_manual"],
         },
         {
-          // 「とびかかり＆光波2連」（第一形態のみ、出目6）：乱戦ダメージの対象明記が本文に
-          // 無いため既定ルール（前衛均等割り）。乱戦ダメージに付随する「追加効果：2D」は
-          // additionalEffectTableを2回参照する必要があるためconditionsに記録しGM手動。
-          // 個別効果：「敵視：1以上」のPC全員に個別ダメージ300＋「魔：4」（確定値のため
-          // elementAccum固定値4として自動計算、追加効果とは無関係の別表記）。
-          rollRangeByForm: { fused: { min: 6, max: 6 }, split: null },
+          // 「とびかかり＆光波2連」：規則書actionColumnsの「第一形態」＝6、「第二形態」＝2が
+          // 同一行（同じ内容、harmonia「掴み攻撃＆散開」と同型の両形態共有行）。乱戦ダメージの
+          // 対象明記が本文に無いため既定ルール（前衛均等割り）。乱戦ダメージに付随する
+          // 「追加効果：2D」はadditionalEffectTableを2回参照する必要があるためconditionsに
+          // 記録しGM手動。個別効果：「敵視：1以上」のPC全員に個別ダメージ300＋「魔：4」
+          // （確定値のためelementAccum固定値4として自動計算、追加効果とは無関係の別表記）。
+          rollRangeByForm: { fused: { min: 6, max: 6 }, split: { min: 2, max: 2 } },
           groupDamage: { value: 1200 },
           targetRule: { kind: "frontAll" },
           individualDamage: [
