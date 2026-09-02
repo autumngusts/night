@@ -9878,7 +9878,7 @@
     // （死儀礼の鳥「飛び退き」、王族的幽鬼「転移」、古龍「滞空」等）：本文を確認したところ
     // 対象は常に「PC全員」（乱戦ダメージの対象者に限らない）のため、行内容に依らず戦闘全体の
     // 1回限りフラグとして立てるだけでよい。
-    if (result.structuredRow.conditions && result.structuredRow.conditions.indexOf("force_back_row_next_phase") !== -1) {
+    if (result.structuredRow && result.structuredRow.conditions && result.structuredRow.conditions.indexOf("force_back_row_next_phase") !== -1) {
       state.battle.forceBackRowNextPhase = true;
     }
     var breakdownParts = [];
@@ -9993,7 +9993,7 @@
         });
       }
     }
-    (result.structuredRow.individualDamage || []).forEach(function (entry) {
+    ((result.structuredRow && result.structuredRow.individualDamage) || []).forEach(function (entry) {
       if (entry.distribution === "rotate") {
         // ユーザー確認済みルール：対象PCが「1体（不特定）」でN回実行の場合、条件を満たす対象の
         // 中で輪流受傷し、最初の対象はランダム（同一対象が固定でrepeat回受けるのではない）。
@@ -10028,7 +10028,7 @@
         queueAttributeAccum(idx, entry.ailmentAccum);
       });
     });
-    if (result.structuredRow.savingThrow) {
+    if (result.structuredRow && result.structuredRow.savingThrow) {
       // 「アローレイン」等：規則書の運試し／フィジカル／メンタル判定をシステムが直接振り、
       // 加護による重骰は行わず（ユーザー確認済み）、出目を公開して順に効果を適用する。
       var st = result.structuredRow.savingThrow;
