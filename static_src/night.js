@@ -860,6 +860,16 @@
       // その判定を使い続ける」特殊能力用のスナップショット（キーはenemyKey）。一度記録したら
       // 途中で雑兵が全滅してmobHpRowsから消えても、この特殊ロール判定には影響させない。
       autoGmMobPresentSnapshot: {},
+      // 傷ついたデーモン＆うろ底のデーモン「行動激化」：この戦闘中に発動済みのenemyKeyを
+      // 記録する（1エネミー1回のみ発動、戰鬥単位でクリア）。
+      actionIntensifiedKeys: {},
+      // 上記行動激化トリガー後、PCが選んだ「生き残った側」（"wounded"｜"hollow"）。
+      // enemyKeyごとに保持（戰鬥単位でクリア）——確定したらstate.woundedDemonSurvivorRecord
+      // （state直下、戰鬥をまたいで永続）へも同時に記録する。
+      dualRollSurvivorSide: {},
+      // 戦闘開始時にstate.woundedDemonSurvivorRecordをスナップショットしたもの。auto_gm.js
+      // はstateではなくbattleStateしか読めないため、デーモンの王子「依り代」判定用にここへ複製する。
+      woundedDemonSurvivorSnapshot: null,
       // 自動化GM: グラディウスのような多形態の夜の王用、現在の形態（"fused"＝合体形態／
       // "split"＝分裂形態）。戦闘開始時は規則書どおり合体形態が既定。形態変化は「エンドフェイズ
       // 開始時」というタイミング依存のため自動切替はせず、GMが手動でトグルする運用とする。
@@ -1055,6 +1065,12 @@
     // 消耗品抽選都跳過中間分段判定（星數/大分類/稀有度骰子等），直接自動骰完並顯示最終結果，
     // 讓玩家只需要查看並按確定收下。與autoGmEnabled同樣誰都能切替，不限GM。
     simplifiedDrawEnabled: false,
+    // 死の鳥・大鴉系「傷ついたデーモン＆うろ底のデーモン」特殊能力〔行動激化〕でPCが選んだ
+    // 「生き残った側」の記録。"wounded"（傷ついたデーモン、1D側）｜"hollow"（うろ底のデーモン、
+    // 1D+6側）｜null（未記録＝行動激化が一度も発生していない）。この戦闘が終わっても消えない
+    // シナリオ進行レベルの記録（state.battleではなくstate直下）——「デーモンの王子」特殊能力
+    // 〔依り代〕が別の戦闘（劇本8夜之強敵2日目）で参照するため。
+    woundedDemonSurvivorRecord: null,
     autoGmLog: [], // 自動化GMの監査ログ（通常のstate.logとは別。誰がいつ何を確認・確定したか、後から検証できるように保持）
     gmFlowEnabled: false, // 自動化GM Phase 2（シナリオ進行フロー：進度版の[進入]/[突破]・敘述・獎勵収集ゲート）のON/OFF。autoGmEnabledとは別軸、こちらも誰でも切替可能
     gmFlow: {
@@ -1279,6 +1295,7 @@
       locationBannerCorner: state.locationBannerCorner,
       autoGmEnabled: state.autoGmEnabled,
       simplifiedDrawEnabled: state.simplifiedDrawEnabled,
+      woundedDemonSurvivorRecord: state.woundedDemonSurvivorRecord,
       autoGmLog: state.autoGmLog,
       gmFlowEnabled: state.gmFlowEnabled,
       gmFlow: state.gmFlow,
@@ -1497,6 +1514,17 @@
       enemyDmgOverride: enemyDmgOverride,
       fatalStrikeUsedThisRound: !!raw.fatalStrikeUsedThisRound,
       autoGmMobPresentSnapshot: loadBoolMap(raw.autoGmMobPresentSnapshot),
+      actionIntensifiedKeys: loadBoolMap(raw.actionIntensifiedKeys),
+      dualRollSurvivorSide:
+        raw.dualRollSurvivorSide && typeof raw.dualRollSurvivorSide === "object"
+          ? Object.keys(raw.dualRollSurvivorSide).reduce(function (acc, key) {
+              if (raw.dualRollSurvivorSide[key] === "wounded" || raw.dualRollSurvivorSide[key] === "hollow") {
+                acc[key] = raw.dualRollSurvivorSide[key];
+              }
+              return acc;
+            }, {})
+          : {},
+      woundedDemonSurvivorSnapshot: raw.woundedDemonSurvivorSnapshot === "hollow" ? "hollow" : raw.woundedDemonSurvivorSnapshot === "wounded" ? "wounded" : null,
       bossForm: raw.bossForm === "split" ? "split" : "fused",
       guardBroken: !!raw.guardBroken,
       guardCount: loadNumberMap(raw.guardCount),
@@ -2353,6 +2381,10 @@
       state.locationBannerCorner = data.locationBannerCorner === "left" ? "left" : "right";
       state.autoGmEnabled = typeof data.autoGmEnabled === "boolean" ? data.autoGmEnabled : false;
       state.simplifiedDrawEnabled = typeof data.simplifiedDrawEnabled === "boolean" ? data.simplifiedDrawEnabled : false;
+      state.woundedDemonSurvivorRecord =
+        data.woundedDemonSurvivorRecord === "wounded" || data.woundedDemonSurvivorRecord === "hollow"
+          ? data.woundedDemonSurvivorRecord
+          : null;
       state.autoGmLog = Array.isArray(data.autoGmLog) ? data.autoGmLog : [];
       state.gmFlowEnabled = typeof data.gmFlowEnabled === "boolean" ? data.gmFlowEnabled : false;
       var loadedGmFlow = data.gmFlow && typeof data.gmFlow === "object" ? data.gmFlow : {};
@@ -9345,33 +9377,52 @@
       // 「防御フェイズ終了時に合体形態へ戻す」予約フラグだけを立てる。
       state.battle.bossFormTransitionPending = true;
     } else if (current !== 0 && target === 0) {
-      // 體勢崩潰：エネミー／夜の王のHP行のいずれか1行が最初に0へ到達した瞬間だけ一度発火する
-      // （ユーザー確認済み：どの行が最初かは問わない、以後の行の0到達では再発火しない）。
-      if (!state.battle.guardBroken) {
-        state.battle.guardBroken = true;
-        addLog("log_guard_break_triggered");
-      }
-      // GMが一度回復させてから改めてこの段を0にした場合は、新しい体勢崩し発生とみなし
-      // 黄色バッジの非表示記録を解除して再表示させる（staggerBadgeSuppressedRows）。
-      var _resuppressIdx = state.battle.staggerBadgeSuppressedRows.indexOf(rowIdx);
-      if (_resuppressIdx !== -1) state.battle.staggerBadgeSuppressedRows.splice(_resuppressIdx, 1);
-      handleMobRowDepleted();
-      if (enemyHasRow(rowIdx)) {
-        // 夜の王はHP行を末尾から割り当てる後ろ詰め規約（enemyHpRowIndexForKey）のため、
-        // selectedEnemyIds内の並び順（先頭から詰める通常エネミー用）とは対応しない。
-        // 第三天で夜の王のHP行なら先にそちらを優先して解決する。
-        var night3BossKey = game && game.night3BossId && state.dayNumber >= 3 ? "boss|" + game.night3BossId : null;
-        var depletedEnemyKey =
-          night3BossKey && enemyHpRowIndexForKey(night3BossKey) !== -1 && rowIdx >= enemyHpRowIndexForKey(night3BossKey)
-            ? night3BossKey
-            : (state.battle.selectedEnemyIds || [])[rowIdx];
-        var depletedEnemyName = depletedEnemyKey
-          ? enemyDisplayNameForKey(depletedEnemyKey)
-          : window.I18N.t("battle_hp_row_label", { row: rowIdx + 1 });
-        if (allEnemyHpRowsDepleted()) {
-          showEnemyRowStatusBanner("defeated", window.I18N.t("enemy_row_status_defeated_banner", { enemy: depletedEnemyName }));
-        } else {
-          showEnemyRowStatusBanner("staggered", window.I18N.t("enemy_row_status_staggered_banner", { enemy: depletedEnemyName }));
+      // 夜の王はHP行を末尾から割り当てる後ろ詰め規約（enemyHpRowIndexForKey）のため、
+      // selectedEnemyIds内の並び順（先頭から詰める通常エネミー用）とは対応しない。
+      // 第三天で夜の王のHP行なら先にそちらを優先して解決する。
+      var night3BossKey = game && game.night3BossId && state.dayNumber >= 3 ? "boss|" + game.night3BossId : null;
+      var depletedEnemyKey =
+        night3BossKey && enemyHpRowIndexForKey(night3BossKey) !== -1 && rowIdx >= enemyHpRowIndexForKey(night3BossKey)
+          ? night3BossKey
+          : (state.battle.selectedEnemyIds || [])[rowIdx];
+      var AutoGmForRow = window.PriTestAutoGm;
+      var depletedStructured =
+        depletedEnemyKey && AutoGmForRow && AutoGmForRow.getStructuredData ? AutoGmForRow.getStructuredData(depletedEnemyKey) : null;
+      // 傷ついたデーモン＆うろ底のデーモン特殊能力〔行動激化〕：規則書原文どおり「体勢崩しが
+      // 発生せず」代わりにこのエネミーだけ「2回行動」を戦闘終了まで失う（guardBroken／體崩
+      // バナー／額外階段解禁は一切発火させない）。ただしこの1手でエネミーが完全撃破に至る
+      // 場合は、行動激化が意味を持たないため通常の撃破処理を優先する。
+      if (
+        depletedStructured &&
+        depletedStructured.actionIntensifiedInsteadOfStagger &&
+        !(state.battle.actionIntensifiedKeys && state.battle.actionIntensifiedKeys[depletedEnemyKey]) &&
+        !allEnemyHpRowsDepleted()
+      ) {
+        if (!state.battle.actionIntensifiedKeys) state.battle.actionIntensifiedKeys = {};
+        state.battle.actionIntensifiedKeys[depletedEnemyKey] = true;
+        addLog("log_action_intensified_triggered", { enemy: enemyDisplayNameForKey(depletedEnemyKey) });
+        renderActionIntensifiedChoicePrompt();
+      } else {
+        // 體勢崩潰：エネミー／夜の王のHP行のいずれか1行が最初に0へ到達した瞬間だけ一度発火する
+        // （ユーザー確認済み：どの行が最初かは問わない、以後の行の0到達では再発火しない）。
+        if (!state.battle.guardBroken) {
+          state.battle.guardBroken = true;
+          addLog("log_guard_break_triggered");
+        }
+        // GMが一度回復させてから改めてこの段を0にした場合は、新しい体勢崩し発生とみなし
+        // 黄色バッジの非表示記録を解除して再表示させる（staggerBadgeSuppressedRows）。
+        var _resuppressIdx = state.battle.staggerBadgeSuppressedRows.indexOf(rowIdx);
+        if (_resuppressIdx !== -1) state.battle.staggerBadgeSuppressedRows.splice(_resuppressIdx, 1);
+        handleMobRowDepleted();
+        if (enemyHasRow(rowIdx)) {
+          var depletedEnemyName = depletedEnemyKey
+            ? enemyDisplayNameForKey(depletedEnemyKey)
+            : window.I18N.t("battle_hp_row_label", { row: rowIdx + 1 });
+          if (allEnemyHpRowsDepleted()) {
+            showEnemyRowStatusBanner("defeated", window.I18N.t("enemy_row_status_defeated_banner", { enemy: depletedEnemyName }));
+          } else {
+            showEnemyRowStatusBanner("staggered", window.I18N.t("enemy_row_status_staggered_banner", { enemy: depletedEnemyName }));
+          }
         }
       }
     }
@@ -10050,8 +10101,12 @@
     });
     // selectはinnerHTMLごと毎回作り直すが要素自体は使い回すため、onchange代入（addEventListener
     // ではなく）で毎回上書きし、多重登録を防ぐ。
-    select.onchange = renderAutoGmBossFormToggle;
+    select.onchange = function () {
+      renderAutoGmBossFormToggle();
+      renderActionIntensifiedChoicePrompt();
+    };
     renderAutoGmBossFormToggle();
+    renderActionIntensifiedChoicePrompt();
   }
 
   // グラディウス等、多形態（AutoGm.isFormAware）の夜の王を選択中のみ「合体形態／分裂形態」
@@ -10094,73 +10149,35 @@
     var select = document.getElementById("auto-gm-enemy-select");
     var enemyKey = select && select.value;
     if (!AutoGm || !enemyKey) return;
-    var result = AutoGm.rollEnemyAction(enemyKey, state.battle);
-    if (!result) return;
-    // 坩堝の騎士「坩堝の双璧」：戦闘開始時の雑兵有無判定は初回のみ確定・永続化し、以後の
-    // ロールは同じ判定を使い続ける（auto_gm.js側は読み取り専用のため、このstate書き込みは
-    // night.js側で行う）。
-    if (result.mobPresentSnapshot !== null && !(enemyKey in state.battle.autoGmMobPresentSnapshot)) {
-      state.battle.autoGmMobPresentSnapshot[enemyKey] = result.mobPresentSnapshot;
-      saveState();
-    }
-    var noteText = result.originalRow ? window.PriTestEnemies.localizedText(result.originalRow.note) : "";
-    var actionName = result.originalRow ? window.PriTestEnemies.localizedText(result.originalRow.name) : "";
-
-    // グラディウス「炎突進＆形態変化」：合體形態の出目5-6、または分裂形態の出目1-2のどちらでも
-    // このrowに到達する（boss_auto_gm_data.jsのrollRangeByForm）。conditionsに
-    // "form_change_at_end_phase"が含まれる行が出た瞬間、防禦階段結束時に形態をトグルする予約
-    // フラグを立てる（実際の切替・攻擊模式の変更はstate.battle.bossForm参照箇所が自動で反映する
-    // ため、ここでは予約するだけでよい。既存のHP0到達トリガーと同じフラグ・同じ解決タイミングを
-    // 共有する、setActionPhase側のbossFormTransitionPendingコメント参照）。
-    if (result.structuredRow && (result.structuredRow.conditions || []).indexOf("form_change_at_end_phase") !== -1) {
-      state.battle.bossFormTransitionPending = true;
-      saveState();
-      addAutoGmLog(window.I18N.t("log_boss_form_change_roll_pending", { enemy: result.enemyName }));
+    var structuredForKey = AutoGm.getStructuredData ? AutoGm.getStructuredData(enemyKey) : null;
+    // 傷ついたデーモン＆うろ底のデーモン「行動激化」：既に発動済みなのにPCがまだ「生き残った側」を
+    // 選んでいない間は、GMが誤って擲骰しないよう自動GM擲骰そのものを保留する（進度版側の
+    // renderActionIntensifiedChoicePrompt経由でボタンを選ぶまで待つ）。
+    if (
+      structuredForKey &&
+      structuredForKey.actionIntensifiedInsteadOfStagger &&
+      state.battle.actionIntensifiedKeys &&
+      state.battle.actionIntensifiedKeys[enemyKey] &&
+      !(state.battle.dualRollSurvivorSide && state.battle.dualRollSurvivorSide[enemyKey])
+    ) {
+      return;
     }
 
     var entered = rosterCharacters.filter(function (c) {
       return c.entered;
     });
-    // 「亂戰傷害」の最終値＝規則書のレベル別基準値＋この行動固有の修正値＋Time Loss側の骰效果
-    // （state.rollEffects.enemy_damage）＋state.battle.enemyDmgOverride（PC技能による減少・
-    // 敵人特殊行動による増加、睡眠トリガー等で既に累積されている値、敵人keyごとに持続）＋
-    // state.battle._nextDefenseMeleeDmgReduction（無賴漢「圖騰・史黛拉」／（暗影）「技能強化
-    // （敵人弱化）」等の「下個防禦階段中敵人產生的亂戰傷害（分割前）－N」系、敵人keyを問わず
-    // この防禦階段中の全ロールに適用し、防禦フェイズを抜けたタイミングでクリアされる）。個別
-    // ダメージもTime Loss側の骰效果を同様に加算する（enemyDmgOverrideは「亂戰傷害」専用のため対象外）。
-    var enemyOverride =
-      ((state.battle.enemyDmgOverride && state.battle.enemyDmgOverride[enemyKey]) || 0) +
-      (state.battle._nextDefenseMeleeDmgReduction || 0);
-    var groupResult = AutoGm.computeGroupDamage(result, state.rollEffects, enemyOverride);
-    // 「次のアクションフェイズ開始時、PC全員が骰目に関わらず後衛へ強制配置される」特殊能力
-    // （死儀礼の鳥「飛び退き」、王族的幽鬼「転移」、古龍「滞空」等）：本文を確認したところ
-    // 対象は常に「PC全員」（乱戦ダメージの対象者に限らない）のため、行内容に依らず戦闘全体の
-    // 1回限りフラグとして立てるだけでよい。
-    if (result.structuredRow && result.structuredRow.conditions && result.structuredRow.conditions.indexOf("force_back_row_next_phase") !== -1) {
-      state.battle.forceBackRowNextPhase = true;
+    // 通常は1回のロール結果をそのままDOMへ書き込むが、傷ついたデーモン＆うろ底のデーモン
+    // 「2回行動」（1回のクリックで「1D」「1D+6」の2つの独立判定を両方実行）では、同じPCの
+    // 同じ欄に2回分の値を合算して書き込む必要がある。書き込み先ごとに数値を積算するだけの
+    // pendingWritesへ一旦集約し、全ロール処理が終わった後に最後の1回だけ実際にinput.valueへ
+    // 書く（PC人數補正÷N等の最終調整も、合算後の値に対して1回だけ正しく適用できる）。
+    var pendingWrites = {};
+    function accumulate(id, amount) {
+      if (!id) return;
+      pendingWrites[id] = (pendingWrites[id] || 0) + amount;
     }
     var breakdownParts = [];
-    // gnoster「叫び＆滞空」（rollMin:5, rollMax:5）専用：HP損害の数値自体は■のため自動計算
-    // しないが、対象群A（「敵視:1以上」PC全員、前後衛問わず）とB（それ以外の前衛PC）の実名は
-    // 機械的に決まるため、規則書本文の穴埋め文を組み立てて進度版へ追記する。
-    if (result.enemyKey === "boss|gnoster" && result.rollValue === 5) {
-      // PCの表示名(name)は一意性が保証されていないため、groupA/groupBの重複除外は必ず
-      // entered配列のインデックス（またはid）で行い、名前での比較はしない（同名PCの誤判定防止）。
-      var groupAIdx = AutoGm.resolveTargets({ kind: "aggroAtLeast1All" }, state.battle, entered.length);
-      var allFrontIdx = AutoGm.resolveTargets({ kind: "frontAll" }, state.battle, entered.length);
-      var groupBIdx = allFrontIdx.filter(function (idx) {
-        return groupAIdx.indexOf(idx) === -1;
-      });
-      var groupA = groupAIdx.map(function (idx) {
-        return entered[idx].name;
-      });
-      var groupB = groupBIdx.map(function (idx) {
-        return entered[idx].name;
-      });
-      breakdownParts.push(
-        window.I18N.t("auto_gm_gnoster_scream_breakdown", { groupA: groupA.join("、") || "—", groupB: groupB.join("、") || "—" })
-      );
-    }
+    var summaries = [];
     // structured.groupDamage/individualDamageのelementAccum/ailmentAccum（固定数値の屬性/状態異常
     // 附加值、docs/enemy_damage_rules.md §1「x:y」表記のうち骰子ではなく確定値のもの）を、対象PCの
     // pendingDefenseElementAccumへ集約する。実際にstate.battle.attributeStatus.receivedへ反映するのは
@@ -10178,159 +10195,255 @@
         );
       });
     }
-    if (groupResult) {
-      var groupBreakdown = window.I18N.t("auto_gm_group_breakdown", {
-        total: groupResult.total,
-        base: groupResult.base,
-        modifier: groupResult.modifier,
-        timeLoss: groupResult.timeLoss,
-        override: groupResult.override,
-      });
-      if (groupResult.repeat > 1) {
-        groupBreakdown += window.I18N.t("auto_gm_repeat_suffix", { perHit: groupResult.perHit, repeat: groupResult.repeat });
+
+    // forcedRollOffset：AutoGm.rollEnemyActionへそのまま渡す（傷ついたデーモン＆うろ底のデーモンの
+    // 「1D+6」側、または行動激化後にPCが「窟底のデーモン」を選んだ場合の単発ロールに使う）。
+    // extraGroupBonus/extraIndividualBonus：行動激化後の「総合ダメージ+300／個別ダメージ+120」用
+    // （既存のenemyDmgOverride／computeIndividualDamageの第3引数にそのまま乗せるだけで、行本体に
+    // 亂戰/個別ダメージが無い行には何も付加されない——数値を捏造しない既存方針と整合する）。
+    function processOneRoll(forcedRollOffset, extraGroupBonus, extraIndividualBonus) {
+      var result = AutoGm.rollEnemyAction(enemyKey, state.battle, forcedRollOffset);
+      if (!result) return false;
+      // 坩堝の騎士「坩堝の双璧」：戦闘開始時の雑兵有無判定は初回のみ確定・永続化し、以後の
+      // ロールは同じ判定を使い続ける（auto_gm.js側は読み取り専用のため、このstate書き込みは
+      // night.js側で行う）。
+      if (result.mobPresentSnapshot !== null && !(enemyKey in state.battle.autoGmMobPresentSnapshot)) {
+        state.battle.autoGmMobPresentSnapshot[enemyKey] = result.mobPresentSnapshot;
+        saveState();
       }
-      breakdownParts.push(groupBreakdown);
-      if (result.structuredRow.groupDamage.sequence) {
-        // 「乱戦ダメージがN回発生し、それぞれ異なる対象を持つ」パターン（gnoster「合体突進」：
-        // 1回目は前衛全員、2回目は後衛全員、3回目は敵視1以上全員）。既存のgroupDamage.repeat
-        // （同一対象へのN回）とは異なり対象が回ごとに変わるため、専用ロジックで処理する。
-        // 各回は「その回の対象で1回分(perHit)を均等割り」、同一PCが複数回対象になれば合算する。
-        var seqTotals = {};
-        result.structuredRow.groupDamage.sequence.forEach(function (seq) {
-          var seqTargets = AutoGm.resolveTargets(seq.targetRule, state.battle, entered.length);
-          var seqShares = AutoGm.splitGroupShares(groupResult.perHit, seqTargets.length);
-          seqTargets.forEach(function (idx, shareIdx) {
-            seqTotals[idx] = (seqTotals[idx] || 0) + seqShares[shareIdx];
-          });
-        });
-        Object.keys(seqTotals).forEach(function (idxKey) {
-          var idx = parseInt(idxKey, 10);
-          var input = document.getElementById("enemy-damage-group-" + entered[idx].id);
-          if (input) input.value = String(Math.round(seqTotals[idx]));
-          queueAttributeAccum(idx, result.structuredRow.groupDamage.elementAccum);
-          queueAttributeAccum(idx, result.structuredRow.groupDamage.ailmentAccum);
-        });
-      } else if (result.structuredRow.targetRule) {
-        var groupTargets = AutoGm.resolveTargets(result.structuredRow.targetRule, state.battle, entered.length);
-        // 使用者確認（2026-08-22再修正）：「靈體與PC共通分攤亂戰傷害」——この行動の亂戰傷害が
-        // 実際に前衛のPCへ命中した（groupTargetsの中に前衛が1人以上いた）場合のみ、召喚中の
-        // 靈體／死靈も「1名PC份」としてPCと**同じ傷害池**を一緒に均等割りする（GMは確定前に
-        // 各欄をいつでも手修正できる）。旧実装はPC側の人数・分配（groupTargets／shares）を
-        // そのままにして靈體へ同額を追加で渡していたため、実質的に傷害池の総量が水増しされて
-        // いたバグがあった（「共通分攤」＝同じ池を分け合う、という字面と矛盾していた）。
-        var hasFrontGroupTarget = groupTargets.some(function (idx) {
-          return !!(state.battle.front && state.battle.front[idx]);
-        });
-        var spiritSplitTargets = hasFrontGroupTarget ? activeSpiritDamageTargets() : [];
-        // 「乱戦ダメージはPC全員対象、◯◯条件のPCはn人分の加重」パターン（edele「突進」等）と、
-        // 靈體/死靈の共通分攤（頭数1として同じ傷害池に加わる）を両立させる：weightRuleがあれば
-        // PC側の重みをresolveWeightedTargetsで求め（無ければ全員重み1）、靈體/死靈を重み1として
-        // 同じ加重リストに追加してからsplitGroupSharesWeightedで一括配分する（groupTargets側は
-        // 常にweightedTargetsの先頭len個と同じ並び順になるため、shares[shareIdx]の対応は保たれる）。
-        var weightedTargets = result.structuredRow.targetRule.weightRule
-          ? AutoGm.resolveWeightedTargets(result.structuredRow.targetRule, state.battle, entered.length)
-          : groupTargets.map(function (idx) {
-              return { index: idx, weight: 1 };
-            });
-        spiritSplitTargets.forEach(function () {
-          weightedTargets.push({ index: null, weight: 1 });
-        });
-        var shares = AutoGm.splitGroupSharesWeighted(groupResult.total, weightedTargets);
-        groupTargets.forEach(function (idx, shareIdx) {
-          var input = document.getElementById("enemy-damage-group-" + entered[idx].id);
-          if (input) input.value = String(Math.round(shares[shareIdx]));
-          queueAttributeAccum(idx, result.structuredRow.groupDamage.elementAccum);
-          queueAttributeAccum(idx, result.structuredRow.groupDamage.ailmentAccum);
-        });
-        if (groupTargets.length > 1) {
-          breakdownParts.push(window.I18N.t("auto_gm_split_note", { count: groupTargets.length, each: Math.round(shares[0]) }));
-        }
-        spiritSplitTargets.forEach(function (spiritTarget) {
-          var spiritInput = document.getElementById("enemy-damage-group-" + spiritTarget.key);
-          if (spiritInput) spiritInput.value = String(Math.round(shares[0]));
-        });
+      var noteText = result.originalRow ? window.PriTestEnemies.localizedText(result.originalRow.note) : "";
+      var actionName = result.originalRow ? window.PriTestEnemies.localizedText(result.originalRow.name) : "";
+      summaries.push({ enemy: result.enemyName, roll: result.rollValue, action: actionName, note: noteText });
+
+      // グラディウス「炎突進＆形態変化」：合體形態の出目5-6、または分裂形態の出目1-2のどちらでも
+      // このrowに到達する（boss_auto_gm_data.jsのrollRangeByForm）。conditionsに
+      // "form_change_at_end_phase"が含まれる行が出た瞬間、防禦階段結束時に形態をトグルする予約
+      // フラグを立てる（実際の切替・攻擊模式の変更はstate.battle.bossForm参照箇所が自動で反映する
+      // ため、ここでは予約するだけでよい。既存のHP0到達トリガーと同じフラグ・同じ解決タイミングを
+      // 共有する、setActionPhase側のbossFormTransitionPendingコメント参照）。
+      if (result.structuredRow && (result.structuredRow.conditions || []).indexOf("form_change_at_end_phase") !== -1) {
+        state.battle.bossFormTransitionPending = true;
+        saveState();
+        addAutoGmLog(window.I18N.t("log_boss_form_change_roll_pending", { enemy: result.enemyName }));
       }
-    }
-    ((result.structuredRow && result.structuredRow.individualDamage) || []).forEach(function (entry) {
-      if (entry.distribution === "rotate") {
-        // ユーザー確認済みルール：対象PCが「1体（不特定）」でN回実行の場合、条件を満たす対象の
-        // 中で輪流受傷し、最初の対象はランダム（同一対象が固定でrepeat回受けるのではない）。
-        var perHitResult = AutoGm.computeIndividualDamage({ amount: entry.amount }, state.rollEffects);
-        var rotated = AutoGm.resolveRotatedHits(entry.targetRule, state.battle, entered.length, entry.repeat || 1);
-        var rotateNames = rotated.map(function (r) {
-          var total = perHitResult.perHit * r.hits;
-          var input = document.getElementById("enemy-damage-individual-" + entered[r.index].id);
-          if (input) input.value = String(total);
-          return entered[r.index].name + window.I18N.t("colon_separator") + total;
+
+      // 「亂戰傷害」の最終値＝規則書のレベル別基準値＋この行動固有の修正値＋Time Loss側の骰效果
+      // （state.rollEffects.enemy_damage）＋state.battle.enemyDmgOverride（PC技能による減少・
+      // 敵人特殊行動による増加、睡眠トリガー等で既に累積されている値、敵人keyごとに持続）＋
+      // state.battle._nextDefenseMeleeDmgReduction（無賴漢「圖騰・史黛拉」／（暗影）「技能強化
+      // （敵人弱化）」等の「下個防禦階段中敵人產生的亂戰傷害（分割前）－N」系、敵人keyを問わず
+      // この防禦階段中の全ロールに適用し、防禦フェイズを抜けたタイミングでクリアされる）＋
+      // extraGroupBonus（行動激化後の固定ボーナス、上記コメント参照）。個別ダメージもTime Loss側の
+      // 骰效果を同様に加算する（enemyDmgOverrideは「亂戰傷害」専用のため対象外）。
+      var enemyOverride =
+        ((state.battle.enemyDmgOverride && state.battle.enemyDmgOverride[enemyKey]) || 0) +
+        (state.battle._nextDefenseMeleeDmgReduction || 0) +
+        (extraGroupBonus || 0);
+      var groupResult = AutoGm.computeGroupDamage(result, state.rollEffects, enemyOverride);
+      // 「次のアクションフェイズ開始時、PC全員が骰目に関わらず後衛へ強制配置される」特殊能力
+      // （死儀礼の鳥「飛び退き」、王族的幽鬼「転移」、古龍「滞空」等）：本文を確認したところ
+      // 対象は常に「PC全員」（乱戦ダメージの対象者に限らない）のため、行内容に依らず戦闘全体の
+      // 1回限りフラグとして立てるだけでよい。
+      if (result.structuredRow && result.structuredRow.conditions && result.structuredRow.conditions.indexOf("force_back_row_next_phase") !== -1) {
+        state.battle.forceBackRowNextPhase = true;
+      }
+      // gnoster「叫び＆滞空」（rollMin:5, rollMax:5）専用：HP損害の数値自体は■のため自動計算
+      // しないが、対象群A（「敵視:1以上」PC全員、前後衛問わず）とB（それ以外の前衛PC）の実名は
+      // 機械的に決まるため、規則書本文の穴埋め文を組み立てて進度版へ追記する。
+      if (result.enemyKey === "boss|gnoster" && result.rollValue === 5) {
+        // PCの表示名(name)は一意性が保証されていないため、groupA/groupBの重複除外は必ず
+        // entered配列のインデックス（またはid）で行い、名前での比較はしない（同名PCの誤判定防止）。
+        var groupAIdx = AutoGm.resolveTargets({ kind: "aggroAtLeast1All" }, state.battle, entered.length);
+        var allFrontIdx = AutoGm.resolveTargets({ kind: "frontAll" }, state.battle, entered.length);
+        var groupBIdx = allFrontIdx.filter(function (idx) {
+          return groupAIdx.indexOf(idx) === -1;
+        });
+        var groupA = groupAIdx.map(function (idx) {
+          return entered[idx].name;
+        });
+        var groupB = groupBIdx.map(function (idx) {
+          return entered[idx].name;
         });
         breakdownParts.push(
-          window.I18N.t("auto_gm_rotate_breakdown", { perHit: perHitResult.perHit, list: rotateNames.join("、") })
+          window.I18N.t("auto_gm_gnoster_scream_breakdown", { groupA: groupA.join("、") || "—", groupB: groupB.join("、") || "—" })
         );
-        return;
       }
-      var indivResult = AutoGm.computeIndividualDamage(entry, state.rollEffects);
-      var indivBreakdown = window.I18N.t("auto_gm_individual_breakdown", {
-        total: indivResult.total,
-        base: indivResult.base,
-        timeLoss: indivResult.timeLoss,
-      });
-      if (indivResult.repeat > 1) {
-        indivBreakdown += window.I18N.t("auto_gm_repeat_suffix", { perHit: indivResult.perHit, repeat: indivResult.repeat });
-      }
-      breakdownParts.push(indivBreakdown);
-      var indivTargets = AutoGm.resolveTargets(entry.targetRule, state.battle, entered.length);
-      indivTargets.forEach(function (idx) {
-        var input = document.getElementById("enemy-damage-individual-" + entered[idx].id);
-        if (input) input.value = String(indivResult.total);
-        queueAttributeAccum(idx, entry.elementAccum);
-        queueAttributeAccum(idx, entry.ailmentAccum);
-      });
-    });
-    if (result.structuredRow && result.structuredRow.savingThrow) {
-      // 「アローレイン」等：規則書の運試し／フィジカル／メンタル判定をシステムが直接振り、
-      // 加護による重骰は行わず（ユーザー確認済み）、出目を公開して順に効果を適用する。
-      var st = result.structuredRow.savingThrow;
-      var throwResults = AutoGm.resolveSavingThrow(st, entered, state.battle, window.PriTestCharacterTypes, CharacterDrawer);
-      var failLines = [];
-      throwResults.forEach(function (r) {
-        var statLabel = window.I18N.t("check_stat_" + st.stat);
-        failLines.push(
-          window.I18N.t("auto_gm_saving_throw_line", {
-            name: r.name,
-            dice: r.dice.join("、"),
-            sum: r.sum,
-            target: r.target,
-            stat: statLabel,
-            result: window.I18N.t(r.passed ? "auto_gm_saving_throw_pass" : "auto_gm_saving_throw_fail"),
-          })
-        );
-        // libra「狂乱の雲」等：成功/失敗どちらも異なる蓄積を受ける行のためonPassを新設
-        // （Task3裁定）。onPass未指定なら従来どおり成功側は何もしない（後方互換）。amountが
-        // 数値でない場合（HP損害を伴わずailmentAccum等のみの効果）は個別ダメージ入力欄への
-        // 書き込みをスキップする。
-        var outcomeEntry = r.passed ? st.onPass : st.onFail;
-        if (outcomeEntry) {
-          if (typeof outcomeEntry.amount === "number") {
-            var outcomeResult = AutoGm.computeIndividualDamage(outcomeEntry, state.rollEffects);
-            var input = document.getElementById("enemy-damage-individual-" + entered[r.index].id);
-            if (input) input.value = String(outcomeResult.total);
-          }
-          queueAttributeAccum(r.index, outcomeEntry.elementAccum);
-          queueAttributeAccum(r.index, outcomeEntry.ailmentAccum);
+      if (groupResult) {
+        var groupBreakdown = window.I18N.t("auto_gm_group_breakdown", {
+          total: groupResult.total,
+          base: groupResult.base,
+          modifier: groupResult.modifier,
+          timeLoss: groupResult.timeLoss,
+          override: groupResult.override,
+        });
+        if (groupResult.repeat > 1) {
+          groupBreakdown += window.I18N.t("auto_gm_repeat_suffix", { perHit: groupResult.perHit, repeat: groupResult.repeat });
         }
+        breakdownParts.push(groupBreakdown);
+        if (result.structuredRow.groupDamage.sequence) {
+          // 「乱戦ダメージがN回発生し、それぞれ異なる対象を持つ」パターン（gnoster「合体突進」：
+          // 1回目は前衛全員、2回目は後衛全員、3回目は敵視1以上全員）。既存のgroupDamage.repeat
+          // （同一対象へのN回）とは異なり対象が回ごとに変わるため、専用ロジックで処理する。
+          // 各回は「その回の対象で1回分(perHit)を均等割り」、同一PCが複数回対象になれば合算する。
+          var seqTotals = {};
+          result.structuredRow.groupDamage.sequence.forEach(function (seq) {
+            var seqTargets = AutoGm.resolveTargets(seq.targetRule, state.battle, entered.length);
+            var seqShares = AutoGm.splitGroupShares(groupResult.perHit, seqTargets.length);
+            seqTargets.forEach(function (idx, shareIdx) {
+              seqTotals[idx] = (seqTotals[idx] || 0) + seqShares[shareIdx];
+            });
+          });
+          Object.keys(seqTotals).forEach(function (idxKey) {
+            var idx = parseInt(idxKey, 10);
+            accumulate("enemy-damage-group-" + entered[idx].id, seqTotals[idx]);
+            queueAttributeAccum(idx, result.structuredRow.groupDamage.elementAccum);
+            queueAttributeAccum(idx, result.structuredRow.groupDamage.ailmentAccum);
+          });
+        } else if (result.structuredRow.targetRule) {
+          var groupTargets = AutoGm.resolveTargets(result.structuredRow.targetRule, state.battle, entered.length);
+          // 使用者確認（2026-08-22再修正）：「靈體與PC共通分攤亂戰傷害」——この行動の亂戰傷害が
+          // 実際に前衛のPCへ命中した（groupTargetsの中に前衛が1人以上いた）場合のみ、召喚中の
+          // 靈體／死靈も「1名PC份」としてPCと**同じ傷害池**を一緒に均等割りする（GMは確定前に
+          // 各欄をいつでも手修正できる）。旧実装はPC側の人数・分配（groupTargets／shares）を
+          // そのままにして靈體へ同額を追加で渡していたため、実質的に傷害池の総量が水増しされて
+          // いたバグがあった（「共通分攤」＝同じ池を分け合う、という字面と矛盾していた）。
+          var hasFrontGroupTarget = groupTargets.some(function (idx) {
+            return !!(state.battle.front && state.battle.front[idx]);
+          });
+          var spiritSplitTargets = hasFrontGroupTarget ? activeSpiritDamageTargets() : [];
+          // 「乱戦ダメージはPC全員対象、◯◯条件のPCはn人分の加重」パターン（edele「突進」等）と、
+          // 靈體/死靈の共通分攤（頭数1として同じ傷害池に加わる）を両立させる：weightRuleがあれば
+          // PC側の重みをresolveWeightedTargetsで求め（無ければ全員重み1）、靈體/死靈を重み1として
+          // 同じ加重リストに追加してからsplitGroupSharesWeightedで一括配分する（groupTargets側は
+          // 常にweightedTargetsの先頭len個と同じ並び順になるため、shares[shareIdx]の対応は保たれる）。
+          var weightedTargets = result.structuredRow.targetRule.weightRule
+            ? AutoGm.resolveWeightedTargets(result.structuredRow.targetRule, state.battle, entered.length)
+            : groupTargets.map(function (idx) {
+                return { index: idx, weight: 1 };
+              });
+          spiritSplitTargets.forEach(function () {
+            weightedTargets.push({ index: null, weight: 1 });
+          });
+          var shares = AutoGm.splitGroupSharesWeighted(groupResult.total, weightedTargets);
+          groupTargets.forEach(function (idx, shareIdx) {
+            accumulate("enemy-damage-group-" + entered[idx].id, shares[shareIdx]);
+            queueAttributeAccum(idx, result.structuredRow.groupDamage.elementAccum);
+            queueAttributeAccum(idx, result.structuredRow.groupDamage.ailmentAccum);
+          });
+          if (groupTargets.length > 1) {
+            breakdownParts.push(window.I18N.t("auto_gm_split_note", { count: groupTargets.length, each: Math.round(shares[0]) }));
+          }
+          spiritSplitTargets.forEach(function (spiritTarget) {
+            accumulate("enemy-damage-group-" + spiritTarget.key, shares[0]);
+          });
+        }
+      }
+      ((result.structuredRow && result.structuredRow.individualDamage) || []).forEach(function (entry) {
+        if (entry.distribution === "rotate") {
+          // ユーザー確認済みルール：対象PCが「1体（不特定）」でN回実行の場合、条件を満たす対象の
+          // 中で輪流受傷し、最初の対象はランダム（同一対象が固定でrepeat回受けるのではない）。
+          var perHitResult = AutoGm.computeIndividualDamage({ amount: entry.amount }, state.rollEffects, extraIndividualBonus);
+          var rotated = AutoGm.resolveRotatedHits(entry.targetRule, state.battle, entered.length, entry.repeat || 1);
+          var rotateNames = rotated.map(function (r) {
+            var total = perHitResult.perHit * r.hits;
+            accumulate("enemy-damage-individual-" + entered[r.index].id, total);
+            return entered[r.index].name + window.I18N.t("colon_separator") + total;
+          });
+          breakdownParts.push(
+            window.I18N.t("auto_gm_rotate_breakdown", { perHit: perHitResult.perHit, list: rotateNames.join("、") })
+          );
+          return;
+        }
+        var indivResult = AutoGm.computeIndividualDamage(entry, state.rollEffects, extraIndividualBonus);
+        var indivBreakdown = window.I18N.t("auto_gm_individual_breakdown", {
+          total: indivResult.total,
+          base: indivResult.base,
+          timeLoss: indivResult.timeLoss,
+        });
+        if (indivResult.repeat > 1) {
+          indivBreakdown += window.I18N.t("auto_gm_repeat_suffix", { perHit: indivResult.perHit, repeat: indivResult.repeat });
+        }
+        breakdownParts.push(indivBreakdown);
+        var indivTargets = AutoGm.resolveTargets(entry.targetRule, state.battle, entered.length);
+        indivTargets.forEach(function (idx) {
+          accumulate("enemy-damage-individual-" + entered[idx].id, indivResult.total);
+          queueAttributeAccum(idx, entry.elementAccum);
+          queueAttributeAccum(idx, entry.ailmentAccum);
+        });
       });
-      breakdownParts.push(failLines.join("　"));
+      if (result.structuredRow && result.structuredRow.savingThrow) {
+        // 「アローレイン」等：規則書の運試し／フィジカル／メンタル判定をシステムが直接振り、
+        // 加護による重骰は行わず（ユーザー確認済み）、出目を公開して順に効果を適用する。
+        var st = result.structuredRow.savingThrow;
+        var throwResults = AutoGm.resolveSavingThrow(st, entered, state.battle, window.PriTestCharacterTypes, CharacterDrawer);
+        var failLines = [];
+        throwResults.forEach(function (r) {
+          var statLabel = window.I18N.t("check_stat_" + st.stat);
+          failLines.push(
+            window.I18N.t("auto_gm_saving_throw_line", {
+              name: r.name,
+              dice: r.dice.join("、"),
+              sum: r.sum,
+              target: r.target,
+              stat: statLabel,
+              result: window.I18N.t(r.passed ? "auto_gm_saving_throw_pass" : "auto_gm_saving_throw_fail"),
+            })
+          );
+          // libra「狂乱の雲」等：成功/失敗どちらも異なる蓄積を受ける行のためonPassを新設
+          // （Task3裁定）。onPass未指定なら従来どおり成功側は何もしない（後方互換）。amountが
+          // 数値でない場合（HP損害を伴わずailmentAccum等のみの効果）は個別ダメージ入力欄への
+          // 書き込みをスキップする。
+          var outcomeEntry = r.passed ? st.onPass : st.onFail;
+          if (outcomeEntry) {
+            if (typeof outcomeEntry.amount === "number") {
+              var outcomeResult = AutoGm.computeIndividualDamage(outcomeEntry, state.rollEffects, extraIndividualBonus);
+              accumulate("enemy-damage-individual-" + entered[r.index].id, outcomeResult.total);
+            }
+            queueAttributeAccum(r.index, outcomeEntry.elementAccum);
+            queueAttributeAccum(r.index, outcomeEntry.ailmentAccum);
+          }
+        });
+        breakdownParts.push(failLines.join("　"));
+      }
+      return true;
     }
+
+    // 傷ついたデーモン＆うろ底のデーモン「2回行動」：行動激化がまだ発動していない間は、
+    // 1回のクリックで「1D（受傷惡魔）」「1D+6（窟底惡魔）」の両方を自動的に振って両方実行する
+    // （エントリ冒頭コメントで定義済みの運用をUIで自動化）。行動激化発動後はPCが選んだ側
+    // （state.battle.dualRollSurvivorSide[enemyKey]）で単発ロールし、survivorBonus
+    // （総合ダメージ+300／個別ダメージ+120）を上乗せする。
+    var dualNow =
+      structuredForKey &&
+      structuredForKey.dualActionUntilIntensified &&
+      !(state.battle.actionIntensifiedKeys && state.battle.actionIntensifiedKeys[enemyKey]);
+    var ok;
+    if (dualNow) {
+      var ok1 = processOneRoll(0, 0, 0);
+      var ok2 = processOneRoll(6, 0, 0);
+      ok = ok1 || ok2;
+    } else {
+      var survivorSide = state.battle.dualRollSurvivorSide && state.battle.dualRollSurvivorSide[enemyKey];
+      var forcedOffset = survivorSide === "hollow" ? 6 : 0;
+      var isIntensified = !!(state.battle.actionIntensifiedKeys && state.battle.actionIntensifiedKeys[enemyKey]);
+      var bonus = isIntensified && structuredForKey ? structuredForKey.survivorBonus : null;
+      ok = processOneRoll(forcedOffset, bonus ? bonus.groupModifier : 0, bonus ? bonus.individualAmount : 0);
+    }
+    if (!ok) return;
+
+    Object.keys(pendingWrites).forEach(function (id) {
+      var input = document.getElementById(id);
+      if (input) input.value = String(Math.round(pendingWrites[id]));
+    });
     state.battle.pendingDefenseElementAccum = pendingAccum;
 
     var resultEl = document.getElementById("auto-gm-roll-result");
     resultEl.hidden = false;
-    resultEl.textContent = window.I18N.t("auto_gm_roll_result", {
-      enemy: result.enemyName,
-      roll: result.rollValue,
-      action: actionName,
-      note: noteText,
-    });
+    resultEl.textContent = summaries
+      .map(function (s) {
+        return window.I18N.t("auto_gm_roll_result", { enemy: s.enemy, roll: s.roll, action: s.action, note: s.note });
+      })
+      .join("　／　");
     if (breakdownParts.length) {
       var breakdownEl = document.createElement("p");
       breakdownEl.textContent = breakdownParts.join("　");
@@ -10338,9 +10451,10 @@
     }
 
     // PC人數補正（battle_pc_count_1/2）：敵人亂戰傷害與個別傷害「÷4」（PC1人）／「÷2」
-    // （PC2人）。既に上の各処理でentered各人の亂戰/個別傷害入力欄へ書き込み済みの値を、
-    // ここで一括して除算し直す（内部の複数の書き込み経路——均等割り／rotate／通常個別——を
-    // 個別に触らず、最後に1箇所でまとめて調整することで漏れを防ぐ）。
+    // （PC2人）。既に上のpendingWrites書き込みでentered各人の亂戰/個別傷害入力欄へ
+    // （2回行動の場合は合算済みの値で）反映済みのため、ここで一括して1回だけ除算し直す
+    // （内部の複数の書き込み経路——均等割り／rotate／通常個別——を個別に触らず、最後に
+    // 1箇所でまとめて調整することで漏れを防ぐ）。
     var pcDivisor = pcCountEnemyDamageDivisor();
     if (pcDivisor > 1) {
       // 靈體/死靈も「1名PC份」を分擔する以上、PC人數補正（÷4/÷2）後の実際の取り分もPCと
@@ -10365,9 +10479,55 @@
     }
 
     addAutoGmLog(
-      window.I18N.t("log_auto_gm_roll", { enemy: result.enemyName, roll: result.rollValue, action: actionName }) +
-        (breakdownParts.length ? "　" + breakdownParts.join("　") : "")
+      summaries
+        .map(function (s) {
+          return window.I18N.t("log_auto_gm_roll", { enemy: s.enemy, roll: s.roll, action: s.action });
+        })
+        .join("　") + (breakdownParts.length ? "　" + breakdownParts.join("　") : "")
     );
+  }
+
+  // 傷ついたデーモン＆うろ底のデーモン「行動激化」：発動済みでPCがまだ「生き残った側」を
+  // 選んでいない間、擲骰ボタンの代わりに選択プロンプトを表示する（renderAutoGmBossFormToggle
+  // と同じ「選択中のenemyKeyに応じて表示/非表示を切り替える」パターン）。
+  function renderActionIntensifiedChoicePrompt() {
+    var row = document.getElementById("auto-gm-action-intensified-row");
+    if (!row) return;
+    var select = document.getElementById("auto-gm-enemy-select");
+    var enemyKey = select && select.value;
+    var AutoGm = window.PriTestAutoGm;
+    var structured = enemyKey && AutoGm && AutoGm.getStructuredData ? AutoGm.getStructuredData(enemyKey) : null;
+    var needsChoice =
+      !!structured &&
+      structured.actionIntensifiedInsteadOfStagger &&
+      state.battle.actionIntensifiedKeys &&
+      state.battle.actionIntensifiedKeys[enemyKey] &&
+      !(state.battle.dualRollSurvivorSide && state.battle.dualRollSurvivorSide[enemyKey]);
+    row.hidden = !needsChoice;
+    var rollBtn = document.getElementById("btn-auto-gm-roll");
+    if (rollBtn) rollBtn.disabled = needsChoice;
+    if (!needsChoice) return;
+    var enemyName = enemyDisplayNameForKey(enemyKey);
+    var title = document.getElementById("auto-gm-action-intensified-title");
+    if (title) title.textContent = window.I18N.t("auto_gm_action_intensified_prompt_title", { enemy: enemyName });
+  }
+
+  function handleActionIntensifiedChoiceClick(side) {
+    var select = document.getElementById("auto-gm-enemy-select");
+    var enemyKey = select && select.value;
+    if (!enemyKey || (side !== "wounded" && side !== "hollow")) return;
+    if (!state.battle.dualRollSurvivorSide) state.battle.dualRollSurvivorSide = {};
+    state.battle.dualRollSurvivorSide[enemyKey] = side;
+    // デーモンの王子「依り代」が別の戦闘で参照するシナリオ進行レベルの記録
+    // （state直下、戰鬥をまたいで永続——上記フィールド定義コメント参照）。
+    state.woundedDemonSurvivorRecord = side;
+    var enemyName = enemyDisplayNameForKey(enemyKey);
+    var sideLabel = window.I18N.t(
+      side === "hollow" ? "auto_gm_action_intensified_choice_hollow" : "auto_gm_action_intensified_choice_wounded"
+    );
+    addAutoGmLog(window.I18N.t("log_action_intensified_side_chosen", { enemy: enemyName, side: sideLabel }));
+    saveState();
+    renderActionIntensifiedChoicePrompt();
   }
 
   // 使用者確認：この結算視窗はAutoGM擲骰専用ではない（防禦フェイズは既にautoTriggerDefenseRoll
@@ -11131,6 +11291,8 @@
       state.battle.autoGmMobPresentSnapshot = {};
       state.battle.guardBroken = false;
       state.battle.guardCount = {};
+      state.battle.actionIntensifiedKeys = {};
+      state.battle.dualRollSurvivorSide = {};
       resetBattlePositionsAndAggro();
       renderSelectedEnemies();
       addLog("log_chat_command_clear_enemy");
@@ -12358,6 +12520,10 @@
       // クリアする（次の戦闘で改めて0から数える）。
       state.battle.staggerRowsHandled = [];
       state.battle.staggerBadgeSuppressedRows = [];
+      // 傷ついたデーモン＆うろ底のデーモン「行動激化」も戰鬥単位の生命週期のためここでクリアする
+      // （state.woundedDemonSurvivorRecordはシナリオ進行レベルの記録のため、こちらは消さない）。
+      state.battle.actionIntensifiedKeys = {};
+      state.battle.dualRollSurvivorSide = {};
       addLog("log_battle_combat_end");
       // 自動化GM Phase 2［戰鬥機制］：樓層敘述中の「雜兵戰鬥／王戰」ボタンから開始した戦闘が
       // ここで終結を検出された場合（state.gmFlow.battleWaitActive）、GMの手動操作なしで
@@ -13212,6 +13378,10 @@
     var isFreshEncounter = state.battle.selectedEnemyIds.length === 0;
     state.battle.selectedEnemyIds.push(key);
     if (isFreshEncounter) {
+      // デーモンの王子「依り代」用：新規遭遇の開始時点でstate.woundedDemonSurvivorRecord
+      // （シナリオ進行レベルの記録）をこの戰鬥のbattleStateへスナップショットする
+      // （auto_gm.jsはbattleStateしか読めないため）。
+      state.battle.woundedDemonSurvivorSnapshot = state.woundedDemonSurvivorRecord || null;
       applyInitialPassiveAggro();
       // 新規遭遇の最初の1体に限り、そのレベルのHP枠表記（例："×7/×7"）から
       // 第1段・第2段の実際の最大HPを記録し、残りHP（チェック数）を満タン初期化する
@@ -15463,6 +15633,12 @@
     document.getElementById("btn-auto-gm-toggle").addEventListener("click", handleAutoGmToggleClick);
     document.getElementById("btn-simplified-draw-toggle").addEventListener("click", handleSimplifiedDrawToggleClick);
     document.getElementById("btn-auto-gm-boss-form-toggle").addEventListener("click", handleAutoGmBossFormToggleClick);
+    document.getElementById("btn-auto-gm-action-intensified-wounded").addEventListener("click", function () {
+      handleActionIntensifiedChoiceClick("wounded");
+    });
+    document.getElementById("btn-auto-gm-action-intensified-hollow").addEventListener("click", function () {
+      handleActionIntensifiedChoiceClick("hollow");
+    });
     document.querySelectorAll(".log-drawer-tab-btn").forEach(function (btn) {
       btn.addEventListener("click", function () {
         switchLogDrawerTab(btn.getAttribute("data-log-tab"));

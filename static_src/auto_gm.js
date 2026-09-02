@@ -34,12 +34,17 @@
     return !!EnemyAutoGmData.get(parsed.familyId, parsed.enemyId);
   }
 
-  // キーからボス構造化データ（BossAutoGmData.get()の返り値）を取得する。
-  // 通常エネミーのkey（"familyId|enemyId|level"形式）が渡された場合はnullを返す
-  // （現状の用途はボスのformLabels等の取得のみのため、通常エネミー側の構造化データ取得は対象外）。
+  // キーから構造化データ（ボスはBossAutoGmData.get()、通常エネミーはEnemyAutoGmData.get()の
+  // 返り値）を取得する。ボス用formLabels取得に加え、通常エネミー側の特殊フラグ
+  // （actionIntensifiedInsteadOfStagger等）参照にも使う（傷ついたデーモン＆うろ底のデーモン
+  // 「行動激化」実装で通常エネミー対応に拡張）。
   function getStructuredData(key) {
-    if (!isBossKey(key) || !BossAutoGmData) return null;
-    return BossAutoGmData.get(parseBossKey(key).bossId) || null;
+    if (isBossKey(key)) {
+      return BossAutoGmData ? BossAutoGmData.get(parseBossKey(key).bossId) || null : null;
+    }
+    if (!EnemyAutoGmData) return null;
+    var parsed = parseSelectedEnemyKey(key);
+    return EnemyAutoGmData.get(parsed.familyId, parsed.enemyId) || null;
   }
 
   // 現在選択中のキーが多形態（グラディウス等、structured.formAware===true）かどうかを返す。
@@ -90,7 +95,11 @@
   // 無ければ現在のmobHpRowsから新規判定してresult.mobPresentSnapshotへ返す
   // （このモジュールはstateを直接書き換えないため、night.js側がresult.mobPresentSnapshotを
   // 見て初回のみstate.battle.autoGmMobPresentSnapshotへ永続化する）。
-  function rollEnemyAction(enemyKey, battleState) {
+  // forcedRollOffset（既定0）：傷ついたデーモン＆うろ底のデーモン「2回行動」用。「1D」（受傷惡魔、
+  // offset 0）と「1D+6」（窟底惡魔、offset 6）の2つの独立した1D6判定をそれぞれ得るために
+  // night.js側から2回呼び出す際、2回目の呼び出しにoffset 6を渡す（rowsの1〜12統一表は
+  // このoffset適用後のrollValueでfindStructuredRowする）。
+  function rollEnemyAction(enemyKey, battleState, forcedRollOffset) {
     var isBoss = isBossKey(enemyKey);
     var enemyName, familyBase, structured, actions, level;
     if (isBoss) {
@@ -127,12 +136,26 @@
       rollValue = 1 + Math.floor(Math.random() * 6);
     }
 
+    // 傷ついたデーモン＆うろ底のデーモン「2回行動」用：night.js側が1回のGMクリックで
+    // 「1D（受傷惡魔）」「1D+6（窟底惡魔）」の2つの独立判定を得るために渡す固定オフセット
+    // （行動激化トリガー後、GMが選んだ「生き残った側」が窟底惡魔＝offset6の場合の単発ロールにも使う）。
+    if (forcedRollOffset) rollValue += forcedRollOffset;
+
     // マリスの特殊能力「行動激化」のような「體勢崩潰（体勢崩し）発生後、戦闘終了まで
     // 行動決定が1Dではなく1D＋Nで行われる」ルール用（structured.rollBonusAfterGuardBreak、
     // ユーザー確認済み：battleState.guardBroken＝どのHP行でも最初に0へ到達した瞬間trueになる
     // 戦闘終了までの持続フラグ、night.js側で管理）。halfIfNoMobsとは同時使用されない前提。
     if (structured.rollBonusAfterGuardBreak && battleState && battleState.guardBroken) {
       rollValue += structured.rollBonusAfterGuardBreak;
+    }
+
+    // デーモンの王子「依り代」用：戦闘開始時にnight.js側がstate.woundedDemonSurvivorRecord
+    // （前戦「傷ついたデーモン＆うろ底のデーモン」でPCが選んだ生き残った側）を
+    // battleState.woundedDemonSurvivorSnapshotへスナップショットしておき、それが
+    // "hollow"（窟底のデーモンが生き残った）ならアクション決定を「1D+4」で行う
+    // （halfIfNoMobs・rollBonusAfterGuardBreakとは同時使用されない前提）。
+    if (structured.rollOverride === "plus4IfHollowSurvived" && battleState && battleState.woundedDemonSurvivorSnapshot === "hollow") {
+      rollValue += 4;
     }
 
     // グラディウスのような多形態ボス（structured.formAware===true）は、現在の形態
@@ -228,10 +251,14 @@
   // enemyDmgOverrideは「亂戰傷害」専用のため個別ダメージには適用しない
   // （既存コードの命名・コメントに合わせた解釈）。groupDamage.repeatと同じ設計判断
   // （1回分にTime Lossも乗せてからrepeat回分をまとめる）。
-  function computeIndividualDamage(entry, rollEffects) {
+  // extraBonus（既定0）：傷ついたデーモン＆うろ底のデーモン「行動激化」後の
+  // 「個別ダメージ:+120」等、行本体の数値とは別枠で加算する固定ボーナス用
+  // （computeGroupDamageのenemyDmgOverrideと同じ立ち位置。entry.amountは構造化データの
+  // 共有オブジェクトのため直接変更せず、この引数経由で加算する）。
+  function computeIndividualDamage(entry, rollEffects, extraBonus) {
     var timeLoss = timeLossIndividualBonus(rollEffects);
     var repeat = entry.repeat || 1;
-    var perHit = entry.amount + timeLoss;
+    var perHit = entry.amount + timeLoss + (extraBonus || 0);
     return { total: perHit * repeat, base: entry.amount, timeLoss: timeLoss, repeat: repeat, perHit: perHit };
   }
 
