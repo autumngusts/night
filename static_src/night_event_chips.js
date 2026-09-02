@@ -713,10 +713,18 @@
     var recordedData = window.PriTestNightCore.state.eventChipsData[idx];
     var recordedLocalIndex =
       recordedData && typeof recordedData.randomEventBranchIndex === "number" ? recordedData.randomEventBranchIndex - 1 : null;
+    // 「簡化抽選」開関（自動化GM開関右側、night.jsのstate.simplifiedDrawEnabled）ON時：
+    // 既に自動抽選済みの事件が確定しているなら、GMが<select>から選び直す必要をなくし、
+    // 「変更可能」の文言を出さない専用ノートへ差し替える（他のsimplifiedDrawEnabled消費箇所と
+    // 同様、中間の選択操作だけを省略し、最終結果の確認・確定ボタンはそのまま残す）。
+    var simplifiedDrawOn = !!window.PriTestNightCore.state.simplifiedDrawEnabled;
+    var skipSelectUi = simplifiedDrawOn && recordedLocalIndex !== null && !!branches[recordedLocalIndex];
     if (recordedLocalIndex !== null) {
       var autoNote = document.createElement("p");
       autoNote.className = "threat-ref-body";
-      autoNote.textContent = window.I18N.t("event_chip_random_auto_drawn_note", { event: recordedData.randomEventName });
+      autoNote.textContent = skipSelectUi
+        ? window.I18N.t("event_chip_random_auto_drawn_note_simplified", { event: recordedData.randomEventName })
+        : window.I18N.t("event_chip_random_auto_drawn_note", { event: recordedData.randomEventName });
       content.appendChild(autoNote);
     }
     var select = document.createElement("select");
@@ -727,6 +735,7 @@
       select.appendChild(o);
     });
     if (recordedLocalIndex !== null && branches[recordedLocalIndex]) select.value = String(recordedLocalIndex);
+    if (skipSelectUi) select.hidden = true;
     content.appendChild(select);
     var detailDiv = document.createElement("div");
     content.appendChild(detailDiv);
