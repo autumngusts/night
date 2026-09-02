@@ -109,6 +109,7 @@ BODY = """    <div class="night-header-row">
       <div id="strong-enemy-info-bubble" class="info-bubble strong-enemy-info-bubble" hidden>
         <div id="strong-enemy-info-bubble-body"></div>
       </div>
+      <p id="game-failed-banner" class="error-banner" data-i18n="game_failed_easy_mode_banner" hidden></p>
       <div class="board-area" id="board-area">
         <div class="board-grid" id="board-grid">
           <div class="field-level field-level-0" id="field-level-0"></div>
@@ -137,6 +138,16 @@ BODY = """    <div class="night-header-row">
           <div id="board-side-enemy-hp" class="board-side-enemy-hp" hidden>
             <h4 data-i18n="battle_enemy_hp_title"></h4>
             <div class="battle-hp-grid battle-hp-grid-compact" id="board-side-enemy-hp-grid"></div>
+          </div>
+          <div id="board-side-attribute-summary" class="board-side-enemy-hp" hidden>
+            <div class="board-side-attribute-row">
+              <span class="board-side-attribute-row-label" data-i18n="attribute_status_dealt_title_compact"></span>
+              <div class="tag-list" id="board-side-attribute-dealt"></div>
+            </div>
+            <div class="board-side-attribute-row">
+              <span class="board-side-attribute-row-label" data-i18n="attribute_status_received_title_compact"></span>
+              <div class="tag-list" id="board-side-attribute-received"></div>
+            </div>
           </div>
           <div id="board-side-position" class="board-side-enemy-hp" hidden>
             <div class="board-side-position-header">
@@ -354,6 +365,7 @@ BODY = """    <div class="night-header-row">
           <button id="btn-log-toggle" type="button" class="icon-btn" aria-label="toggle log">👁</button>
         </div>
         <button type="button" id="btn-auto-gm-toggle" class="secondary-btn"></button>
+        <button type="button" id="btn-simplified-draw-toggle" class="secondary-btn"></button>
         <div class="log-drawer-tabs" id="log-drawer-tabs">
           <button type="button" class="log-drawer-tab-btn active" data-log-tab="log" data-i18n="log_drawer_tab_log"></button>
           <button type="button" class="log-drawer-tab-btn" data-log-tab="autogm" data-i18n="log_drawer_tab_autogm"></button>
@@ -542,7 +554,7 @@ BODY = """    <div class="night-header-row">
         </div>
       </div>
     </div>
-    <button id="btn-potential-power-restore" type="button" class="potential-power-restore-btn" data-i18n="potential_power_restore_button" hidden></button>
+    <div id="potential-power-restore-list" class="potential-power-restore-btn potential-power-restore-list" hidden></div>
 
     <div id="main-menu-draw-modal" class="modal" hidden>
       <div class="modal-box combat-modal-box">
@@ -576,7 +588,7 @@ BODY = """    <div class="night-header-row">
         </div>
       </div>
     </div>
-    <button id="btn-item-draw-modal-restore" type="button" class="potential-power-restore-btn item-draw-restore-btn" data-i18n="item_draw_restore_button" hidden></button>
+    <div id="item-draw-restore-list" class="potential-power-restore-btn item-draw-restore-btn potential-power-restore-list" hidden></div>
 
     <div id="dice-hand-draw-modal" class="modal" hidden>
       <div class="modal-box combat-modal-box">
@@ -756,6 +768,12 @@ BODY = """    <div class="night-header-row">
           <div class="wb-row">
             <span data-i18n="wandering_blessing_extra_label"></span>
             <span id="wb-extra" class="wb-checks"></span>
+          </div>
+          <div class="field-row-block">
+            <label data-i18n="wandering_blessing_extra_count_label"></label>
+            <button type="button" class="level-btn" id="btn-wb-extra-count-minus">&minus;</button>
+            <span id="wb-extra-count-label" class="level-value"></span>
+            <button type="button" class="level-btn" id="btn-wb-extra-count-plus">&plus;</button>
           </div>
         </div>
 

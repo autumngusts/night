@@ -92,12 +92,29 @@
     if (current) select.value = current;
   }
 
-  // カルーセルで表示する対象は基本10タイプのみ（_dark/_dawnの外見バリアントは同じ内容の
-  // 重複表示になるため対象外）。
+  // 使用者確認（2026-09-01）：以前は_dark/_dawnの外見バリアントを「同じ内容の重複表示」と
+  // みなしてカルーセルから除外していたが、実際にはcharacter_types.js側で名前・得意武器・
+  // 開始装備・技能/技藝/被動がそれぞれ独立した完全なデータとして定義されている（画像だけ
+  // 基本タイプと共通）ため、除外するとこれらの差分が確認できない。基本10タイプ＋各10種の
+  // _dark/_dawnバリアント、計20種を表示するが、CharacterTypes.list()の生順（基本10種の後に
+  // バリアント10種がまとめて続く）のままだと同じ角色同士が離れて見づらいため、各基本タイプの
+  // 直後にそのバリアントを並べる（例：tracker→tracker_dark→ruffian→ruffian_dark→…）。
   function galleryTypes() {
-    return CharacterTypes.list().filter(function (t) {
+    var all = CharacterTypes.list();
+    var baseTypes = all.filter(function (t) {
       return !/_dark$|_dawn$/.test(t.id);
     });
+    var variantByBaseId = {};
+    all.forEach(function (t) {
+      if (/_dark$|_dawn$/.test(t.id)) variantByBaseId[t.id.replace(/_dark$|_dawn$/, "")] = t;
+    });
+    var ordered = [];
+    baseTypes.forEach(function (t) {
+      ordered.push(t);
+      var variant = variantByBaseId[t.id];
+      if (variant) ordered.push(variant);
+    });
+    return ordered;
   }
 
   var galleryIndex = 0;

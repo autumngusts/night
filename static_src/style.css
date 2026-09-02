@@ -2559,6 +2559,12 @@ button {
 .modal {
   position: fixed;
   inset: 0;
+  /* 使用者確認（2026-09-01修正）：本來沒有設z-index，跟版塊卡片（.slot-wrap，position:
+     relative、z-index:auto）落在同一個「定位元素、z-index:auto」堆疊層級，DOM順序在
+     .modalの後面的卡片就會蓋到彈窗上面，造成獎勵清單等彈窗「看起來透過去、卡片浮在
+     上面」的問題（實際上彈窗背景本身不透明，只是被蓋住）。.drawer(z-index:50)/
+     #dice-roll-overlay(z-index:900)都有設z-index所以沒有這個問題，只有.modal漏設。 */
+  z-index: 200;
   background: rgba(0, 0, 0, 0.45);
   display: flex;
   align-items: center;
@@ -3303,6 +3309,30 @@ button {
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
 }
 
+/* 使用者確認：跨裝置同步顯示視窗——潛在之力可能同時有多名角色各自進行中，這裡改為
+   橫向並排顯示多個小按鈕（同一個固定位置，不佔用其他視窗類型的堆疊欄位）。 */
+.potential-power-restore-list {
+  display: flex;
+  flex-direction: row-reverse;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  padding: 0;
+  background: none;
+  box-shadow: none;
+  max-width: calc(100vw - 2rem);
+}
+
+.potential-power-restore-chip {
+  padding: 0.5rem 0.8rem;
+  border-radius: 999px;
+  background: #2b6cb0;
+  color: #fff;
+  border: none;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  font-size: 0.85rem;
+  white-space: nowrap;
+}
+
 .floor-reward-restore-btn {
   bottom: 4rem;
   background: #2f8f5b;
@@ -3757,6 +3787,27 @@ button {
   margin: 0 0 0.3rem;
   font-size: 0.78rem;
   color: #777;
+}
+
+.board-side-attribute-row {
+  margin-bottom: 0.3rem;
+}
+
+.board-side-attribute-row-label {
+  display: block;
+  margin: 0 0 0.2rem;
+  font-size: 0.78rem;
+  color: #777;
+}
+
+.board-side-attribute-row .tag-list {
+  gap: 0.25rem;
+  margin-bottom: 0;
+}
+
+.board-side-attribute-row .tag-chip {
+  padding: 0.1rem 0.4rem;
+  font-size: 0.75rem;
 }
 
 .board-side-position-header {

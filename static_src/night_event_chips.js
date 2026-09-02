@@ -110,6 +110,13 @@
     renderEventChipModal();
   }
 
+  // 使用者確認（2026-09-01）：籌碼事件視窗改為全端強制開啟後，其他裝置需要在渲染前先把
+  // 這個模組的本機eventChipModalIndex對齊到遠端的idx，才能正確render——跟restoreEventChipModal
+  // 不同的是，這裡只同步本機index，不會再push一次（避免echo迴圈）。
+  function syncEventChipModalIndexFromRemote(idx) {
+    if (typeof idx === "number") eventChipModalIndex = idx;
+  }
+
   function markEventChipUsed(idx) {
     if (window.PriTestNightCore.state.eventChipsUsed[idx]) return;
     window.PriTestNightCore.state.eventChipsUsed[idx] = true;
@@ -778,5 +785,6 @@
     applyEventChipBlessingRest: applyEventChipBlessingRest,
     markEventChipUsed: markEventChipUsed,
     renderEventChipModal: renderEventChipModal,
+    syncEventChipModalIndexFromRemote: syncEventChipModalIndexFromRemote,
   };
 })();

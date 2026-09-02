@@ -121,10 +121,59 @@
   // Firebase側が古いデータのまま取り残される（＝night.js側のタイムスタンプ判定で拾えるのは
   // 「次に別の変更が起きた時」だけ）のを減らすため、失敗時に1回だけ遅延リトライする。
   var NIGHT_STATE_PUSH_RETRY_MS = 2000;
+
+  // 使用者確認（2026-09-01、潛在之力/武器/飾品/消耗品跨裝置抽選race condition修正）：
+  // この4つのマップ（state.activeDraws配下、各角色が自分の抽選だけを獨立して書く設計）は
+  // 通常の全體.set()上書きから除外し、pushDrawCharEntry()の專用leaf update経路のみで
+  // 同期する。理由：saveState()は無關の操作でも頻繁に呼ばれ、その都度「この端末が
+  // 呼び出し時点で知っているだけの（他端末が直前に別のcharIdへ追加した分がまだ
+  // 反映されていないかもしれない）」スナップショットを丸ごと書き戻していた。2台が
+  // ほぼ同時に別々のcharIdへ追加すると、後から書いた側が先の追加を消してしまう
+  // （詳細はdocs/combat_flow_rules.md該当箇所）。
+  var EXCLUDED_ACTIVE_DRAWS_KEYS = ["potentialPowerByChar", "weaponByChar", "talismanByChar", "consumableByChar"];
+
+  // 使用者確認：Firebaseの複數パスupdate()を薄くラップした汎用ヘルパー。keyはnightState
+  // からの相對パス（スラッシュ區切り、例："activeDraws/eventChip"）、valueはそのパスに
+  // 書き込む値（nullで該当パスを削除）。updatesの各キーは互いに獨立して書き込まれるため、
+  // updatesに含まれないパスは一切変更されない——これを利用して「特定のcharIdのエントリ
+  // だけを書く」「特定のmapまるごとだけをnullにする」等、全體.set()上書きの影響範囲を
+  // 狭めた書き込みができる。
+  function updateNightStatePaths(gameId, storageMode, updates) {
+    if (storageMode !== "cloud" || !gameId) return;
+    ensureCloudReady(storageMode)
+      .then(function () {
+        window.firebase.database().ref("games/" + gameId + "/nightState").update(updates);
+      })
+      .catch(function (err) {
+        console.error("PriTestGameStorage.updateNightStatePaths failed", err);
+      });
+  }
+
+  // 特定の1角色（charId）分のエントリだけをpotentialPowerByChar等へ書く（またはvalue===null
+  // で削除する）専用の狭い書き込み経路。上記EXCLUDED_ACTIVE_DRAWS_KEYSの4マップは、通常の
+  // pushNightState()からは完全に除外され、この経路でのみFirebaseへ反映される。
+  function pushDrawCharEntry(gameId, storageMode, mapKey, charId, value) {
+    var updates = {};
+    updates["activeDraws/" + mapKey + "/" + charId] = value === undefined ? null : value;
+    updateNightStatePaths(gameId, storageMode, updates);
+  }
+
   function sendNightStatePush(payload, isRetry) {
     ensureCloudReady(payload.storageMode)
       .then(function () {
-        window.firebase.database().ref("games/" + payload.gameId + "/nightState").set(payload.data);
+        var updates = {};
+        Object.keys(payload.data).forEach(function (k) {
+          if (k === "activeDraws" && payload.data.activeDraws && typeof payload.data.activeDraws === "object") {
+            Object.keys(payload.data.activeDraws).forEach(function (subK) {
+              if (EXCLUDED_ACTIVE_DRAWS_KEYS.indexOf(subK) === -1) {
+                updates["activeDraws/" + subK] = payload.data.activeDraws[subK];
+              }
+            });
+          } else {
+            updates[k] = payload.data[k];
+          }
+        });
+        window.firebase.database().ref("games/" + payload.gameId + "/nightState").update(updates);
       })
       .catch(function (err) {
         console.error("PriTestGameStorage.pushNightState failed", err);
@@ -262,8 +311,13 @@
           .database()
           .ref("games/" + gameId + "/nightState")
           .on("value", function (snap) {
-            var val = snap.val();
-            if (val) onRemoteChange(val);
+            // 使用者確認：全新建立的雲端遊戲，Firebase上這個路徑一開始是空的，若在這裡
+            // 略過空值不呼叫callback（舊行為），night.js側依賴這個callback才會啟動的
+            // cloudNightStateSynced旗標就永遠不會變true，導致saveState()永遠不推送——
+            // 造成「這場遊戲不管開幾台裝置都無法同步地圖/戰鬥狀態」的死鎖。改為無條件呼叫，
+            // 與subscribeCharacters()（本來就沒有這個guard）行為一致，空值(null)一樣要
+            // 通知呼叫端（由呼叫端判斷「遠端目前沒有資料」並自行決定要不要用本機資料回填）。
+            onRemoteChange(snap.val());
           });
       })
       .catch(function (err) {
@@ -295,6 +349,8 @@
     removeCloudGame: removeCloudGame,
     pushNightState: pushNightState,
     pushCharacters: pushCharacters,
+    pushDrawCharEntry: pushDrawCharEntry,
+    updateNightStatePaths: updateNightStatePaths,
     subscribeNightState: subscribeNightState,
     subscribeCharacters: subscribeCharacters,
   };

@@ -14,7 +14,13 @@
   // 「取り込む」ボタンで自動反映するか、目標点・PC人数倍・判定属性を直接手入力するかの
   // どちらも選べるようにする（自動判定はあくまで下書き、最終的な数値は常に編集可能）。
   // ============================================================
-  var breakthroughState = null; // { slotIndex, characters: { [charId]: { stat, dice } } }
+  // { slotIndex, mode, moveTarget, characters: { [charId]: { stat, dice, rerollPending } }, revealed, minimized }。
+  // 使用者確認：跨裝置同步顯示視窗——這個物件本身透過window.PriTestDrawStateSync完整同步到
+  // state.activeDraws.breakthrough（不再只同步{minimized}），讓每位玩家能在自己的裝置上為
+  // 自己入場的角色擲骰；applyRemoteBreakthroughState()負責在收到遠端snapshot時，把這個
+  // 本機變數重新指向遠端資料，讓下面所有既有函式（rollBreakthroughDice等）無需修改就能
+  // 對「這台裝置本地開啟」與「這台裝置只是被動同步」兩種情境一視同仁地運作。
+  var breakthroughState = null;
 
   function parseBreakthroughCheckText(text) {
     var t = String(text || "");
@@ -87,6 +93,50 @@
     return typeof floorRewardModalSlotIndex === "number" ? "slot" + floorRewardModalSlotIndex + "_" + base : base;
   }
 
+  // 使用者確認：跨裝置同步顯示視窗——floor自體（fields.js的靜態資料物件）無法直接放進
+  // state同步（不是JSON安全的動態資料，且每個裝置本來就有相同的靜態資料庫），因此改為同步
+  // 精簡的還原鍵（__rewardKey本身就是"cardId_branchIndex_floorIndex"格式），其他裝置收到後
+  // 用resolveFloorByRewardKey從自己的靜態資料重新解出同一個floor物件。
+  // 使用者確認：自動套用樓層獎勵——給定tieredChoiceのtiers陣列與這個樓層實際敘述過的見出し
+  // 標籤清單（routeLabels），嘗試找出「唯一且明確」符合的段落index。每個tier.label先依常見
+  // 分隔符號（（）・/）拆成片段（例如「忍んで切り抜ける（成功）」→["忍んで切り抜ける","成功"]），
+  // 只有當該tier的**所有**片段都能在routeLabels中找到完全一致的項目時才算符合。若符合的tier
+  // 不是恰好1個（0個或2個以上都算），一律回傳null交由GM手動選擇——避免猜錯導致誤發獎勵。
+  function matchTieredChoiceTierIndex(tiers, routeLabels) {
+    if (!routeLabels || !routeLabels.length || !Array.isArray(tiers) || !tiers.length) return null;
+    var Fields = window.PriTestFields;
+    var matchedIndexes = [];
+    tiers.forEach(function (tier, idx) {
+      var tierLabelText = tier && tier.label ? Fields.localizedText(tier.label) : "";
+      if (!tierLabelText) return;
+      var fragments = tierLabelText
+        .split(/[（）()・/]/)
+        .map(function (s) {
+          return s.trim();
+        })
+        .filter(Boolean);
+      if (!fragments.length) return;
+      var allFragmentsMatched = fragments.every(function (frag) {
+        return routeLabels.indexOf(frag) !== -1;
+      });
+      if (allFragmentsMatched) matchedIndexes.push(idx);
+    });
+    return matchedIndexes.length === 1 ? matchedIndexes[0] : null;
+  }
+
+  function resolveFloorByRewardKey(rewardKey) {
+    if (!rewardKey || typeof rewardKey !== "string") return null;
+    var parts = rewardKey.split("_");
+    if (parts.length < 3) return null;
+    var floorIndex = Number(parts.pop());
+    var branchIndex = Number(parts.pop());
+    var cardId = parts.join("_");
+    var Fields = window.PriTestFields;
+    var card = Fields && Fields.get ? Fields.get(cardId) : null;
+    var branch = card && Array.isArray(card.branches) ? card.branches[branchIndex] : null;
+    return branch && Array.isArray(branch.floors) ? branch.floors[floorIndex] || null : null;
+  }
+
   function openFloorRewardModal(floor, slotIndex) {
     floorRewardModalSlotIndex = typeof slotIndex === "number" ? slotIndex : null;
     var Core = window.PriTestNightCore;
@@ -122,6 +172,8 @@
     document.getElementById("floor-reward-modal").hidden = false;
     document.getElementById("btn-floor-reward-restore").hidden = true;
     renderFloorRewardSection(document.getElementById("floor-reward-modal-content"), floor);
+    Core.state.gmFlow.floorRewardModalKey = { slotIndex: floorRewardModalSlotIndex, rewardKey: floor.__rewardKey || null };
+    Core.saveState();
     return { lootPushed: lootObjs.length > 0, judgmentModalOpened: true };
   }
 
@@ -130,6 +182,8 @@
     document.getElementById("btn-floor-reward-restore").hidden = true;
     floorRewardModalFloor = null;
     floorRewardModalSlotIndex = null;
+    window.PriTestNightCore.state.gmFlow.floorRewardModalKey = null;
+    window.PriTestNightCore.saveState();
     window.PriTestNightCore.removePendingRewardWindow("floorReward");
   }
 
@@ -782,42 +836,22 @@
 
     if (entry.kind === "tieredChoice") {
       // 成功回数・聖甲蟲追跡回数など、段階に応じて報酬が変わるケース向け。
-      // 先にセレクタで段階を選び、確定ボタンを押すまでは他の段階の報酬を見せない。
       var Fields = window.PriTestFields;
-      var tieredRow = document.createElement("div");
-      tieredRow.className = "wb-row tiered-choice-row";
-      var tieredLabel = document.createElement("span");
-      tieredLabel.className = "threat-ref-body";
-      tieredLabel.textContent =
-        (entry.tierLabel ? Fields.localizedText(entry.tierLabel) : window.I18N.t("floor_reward_tiered_choice_label")) +
-        window.I18N.t("colon_separator");
-      tieredRow.appendChild(tieredLabel);
-      var tierSelect = document.createElement("select");
-      (entry.tiers || []).forEach(function (tier, idx) {
-        var o = document.createElement("option");
-        o.value = String(idx);
-        o.textContent = Fields.localizedText(tier.label);
-        tierSelect.appendChild(o);
-      });
-      tieredRow.appendChild(tierSelect);
-      var tierConfirmBtn = document.createElement("button");
-      tierConfirmBtn.type = "button";
-      tierConfirmBtn.className = "primary-btn";
-      tierConfirmBtn.textContent = window.I18N.t("floor_reward_tiered_choice_confirm_button");
       var tierResultContainer = document.createElement("div");
       tierResultContainer.className = "tiered-choice-result";
-      tierConfirmBtn.addEventListener("click", function () {
-        var tier = (entry.tiers || [])[parseInt(tierSelect.value, 10)];
+
+      function applyTierChoice(tierIndex, autoDetected) {
+        var tier = (entry.tiers || [])[tierIndex];
         if (!tier) return;
-        tierSelect.disabled = true;
         var tierLabelText = Fields.localizedText(tier.label);
-        window.PriTestNightLog("log_floor_reward_tiered_choice", { tier: tierLabelText });
-        window.PriTestNightCore.markFloorRewardObtained(tierConfirmBtn, window.I18N.t("log_floor_reward_tiered_choice", { tier: tierLabelText }));
+        var logKey = autoDetected ? "log_floor_reward_tiered_choice_auto" : "log_floor_reward_tiered_choice";
+        window.PriTestNightLog(logKey, { tier: tierLabelText });
         // 段階内の報酬も、トップレベルのreward配列と同じ扱いにする：戦利品種別は
         // 獎勵清單へ直接push（renderFloorRewardOptionは戦利品を描画しないので、ここで
         // 再帰させると何も表示されず何も付与されない）、GM判断が要る種別だけ従来通り
-        // この段階の結果欄へ描画する。二重pushはfloorKey＋段階index＋sub indexで防ぐ。
-        var tierIndex = parseInt(tierSelect.value, 10);
+        // この段階の結果欄へ描画する。二重pushはfloorKey＋段階index＋sub indexで防ぐ
+        // （自動判定・手動確定どちらの経路でも同じsubPushKeyを使うため、再描画のたびに
+        // 呼ばれても実際の付与は最初の1回だけになる）。
         var tierPushed = [];
         (tier.rewards || []).forEach(function (sub, subIndex) {
           if (!isLootRewardEntry(sub)) {
@@ -848,6 +882,51 @@
           tierPushedP.textContent = window.I18N.t("log_floor_reward_auto_pushed", { items: tierPushedItems });
           tierResultContainer.appendChild(tierPushedP);
         }
+      }
+
+      // 使用者確認：自動套用樓層獎勵——這個樓層敘述walkthrough實際敘述過的見出し行標籤
+      // （pendingFloorEndRouteLabels）與各段落label比對，只有「唯一且明確」比對成功時才
+      // 自動套用，避免誤判導致錯誤發放獎勵（有歧義或找不到就照舊交給GM手動選擇）。
+      var routeLabels = (window.PriTestNightCore.state.gmFlow && window.PriTestNightCore.state.gmFlow.pendingFloorEndRouteLabels) || [];
+      var autoTierIndex = matchTieredChoiceTierIndex(entry.tiers, routeLabels);
+      if (autoTierIndex !== null) {
+        var autoNote = document.createElement("p");
+        autoNote.className = "threat-ref-body";
+        autoNote.textContent = window.I18N.t("floor_reward_tiered_choice_auto_note", {
+          tier: Fields.localizedText(entry.tiers[autoTierIndex].label),
+        });
+        container.appendChild(autoNote);
+        container.appendChild(tierResultContainer);
+        applyTierChoice(autoTierIndex, true);
+        return;
+      }
+
+      // 找不到有信心的自動判斷依據（例如依成功次數/花色等這次沒有追蹤到的其他類型），
+      // 照舊交由GM對照實際遊戲結果手動選擇段落。
+      var tieredRow = document.createElement("div");
+      tieredRow.className = "wb-row tiered-choice-row";
+      var tieredLabel = document.createElement("span");
+      tieredLabel.className = "threat-ref-body";
+      tieredLabel.textContent =
+        (entry.tierLabel ? Fields.localizedText(entry.tierLabel) : window.I18N.t("floor_reward_tiered_choice_label")) +
+        window.I18N.t("colon_separator");
+      tieredRow.appendChild(tieredLabel);
+      var tierSelect = document.createElement("select");
+      (entry.tiers || []).forEach(function (tier, idx) {
+        var o = document.createElement("option");
+        o.value = String(idx);
+        o.textContent = Fields.localizedText(tier.label);
+        tierSelect.appendChild(o);
+      });
+      tieredRow.appendChild(tierSelect);
+      var tierConfirmBtn = document.createElement("button");
+      tierConfirmBtn.type = "button";
+      tierConfirmBtn.className = "primary-btn";
+      tierConfirmBtn.textContent = window.I18N.t("floor_reward_tiered_choice_confirm_button");
+      tierConfirmBtn.addEventListener("click", function () {
+        tierSelect.disabled = true;
+        tierConfirmBtn.disabled = true;
+        applyTierChoice(parseInt(tierSelect.value, 10), false);
       });
       tieredRow.appendChild(tierConfirmBtn);
       container.appendChild(tieredRow);
@@ -1018,8 +1097,8 @@
   }
 
   function openBreakthroughModal(index) {
-    breakthroughState = { slotIndex: index, mode: "floor", moveTarget: null, characters: {}, revealed: false };
-    window.PriTestDrawStateSync.set("breakthrough", { minimized: false });
+    breakthroughState = { slotIndex: index, mode: "floor", moveTarget: null, characters: {}, revealed: false, minimized: false };
+    window.PriTestDrawStateSync.set("breakthrough", breakthroughState);
     document.getElementById("breakthrough-modal-title").textContent = window.I18N.t("breakthrough_modal_title");
     document.getElementById("breakthrough-import-row").hidden = false;
     // 目標點數・PC人數倍のチェックは揭曉するまで非表示（GMも含め、揭曉ボタンを押すまでは
@@ -1048,8 +1127,8 @@
   // GMの秘密ではないため揭曉に規則書パスワードは要求しない）。判定属性も固定で體能のみ
   // （任意選択にしない）。
   function openClimbingCheckModal(toIndex, suitDiff) {
-    breakthroughState = { slotIndex: null, mode: "climb", moveTarget: toIndex, characters: {}, revealed: false };
-    window.PriTestDrawStateSync.set("breakthrough", { minimized: false });
+    breakthroughState = { slotIndex: null, mode: "climb", moveTarget: toIndex, characters: {}, revealed: false, minimized: false };
+    window.PriTestDrawStateSync.set("breakthrough", breakthroughState);
     document.getElementById("breakthrough-modal-title").textContent = window.I18N.t("climb_check_modal_title");
     document.getElementById("breakthrough-import-row").hidden = true;
     document.getElementById("breakthrough-target-hideable").hidden = true;
@@ -1081,8 +1160,8 @@
       window.alert(window.I18N.t("generic_check_target_invalid"));
       return;
     }
-    breakthroughState = { slotIndex: null, mode: "generic", moveTarget: null, characters: {}, revealed: false };
-    window.PriTestDrawStateSync.set("breakthrough", { minimized: false });
+    breakthroughState = { slotIndex: null, mode: "generic", moveTarget: null, characters: {}, revealed: false, minimized: false };
+    window.PriTestDrawStateSync.set("breakthrough", breakthroughState);
     document.getElementById("breakthrough-modal-title").textContent = window.I18N.t("generic_check_modal_title");
     document.getElementById("breakthrough-import-row").hidden = true;
     document.getElementById("breakthrough-target-hideable").hidden = true;
@@ -1123,6 +1202,7 @@
     document.getElementById("breakthrough-perpc-checkbox").disabled = true;
     document.getElementById("breakthrough-stat-select").disabled = true;
     renderBreakthroughCharacters();
+    window.PriTestDrawStateSync.set("breakthrough", breakthroughState);
   }
 
   function closeBreakthroughModal() {
@@ -1140,26 +1220,36 @@
   // 縮小/復元は他のモーダル(獎勵清單・抽選等)と同じ「モーダルを隠す＋別のスタッキング型
   // 固定ボタンを表示」方式。判定發生は目標揭曉前・揭曉後（結果発表）のどちらの状態でも
   // 同じモーダルを縮小するだけなので、専用の分岐は不要。
-  // 使用者確認：縮小状態は全端末で連動表示させる（state.activeDraws.breakthrough）が、
-  // 進行中の骰子（breakthroughState）自体はこの端末のローカルにしか無いため、他端末で
-  // 還元ボタンを押しても実際の内容は復元できない（restoreBreakthroughModal側でガードする）。
+  // 使用者確認：跨裝置同步顯示視窗——breakthroughState自体（進行中の骰子含む）を丸ごと
+  // 同步するようになったため、縮小/復元どちらも全端末で完全に連動する（以前は{minimized}
+  // だけを同期し、実際の骰子は開いた本人の端末にしか無かったため他端末では復元不可だった）。
   function minimizeBreakthroughModal() {
     document.getElementById("breakthrough-modal").hidden = true;
     document.getElementById("btn-breakthrough-restore").hidden = false;
-    window.PriTestDrawStateSync.set("breakthrough", { minimized: true });
+    if (breakthroughState) breakthroughState.minimized = true;
+    window.PriTestDrawStateSync.set("breakthrough", breakthroughState);
   }
 
   function restoreBreakthroughModal() {
     if (!breakthroughState) {
-      // 開いた本人の端末ではない：復元できる内容が無いので、その旨を伝えるだけに留める
-      // （他の縮小系モーダルと同じ「本人の端末へ戻って操作してほしい」案内）。
+      // 縮小旗標だけ届いていて実体がまだ同期されていない極めて短い過渡期のみ発生しうる
+      // （通常はapplyRemoteBreakthroughStateで即座に復元されるためほぼ起こらない）。
       window.alert(window.I18N.t("remote_restore_unavailable_note"));
       return;
     }
     document.getElementById("btn-breakthrough-restore").hidden = true;
     document.getElementById("breakthrough-modal").hidden = false;
-    window.PriTestDrawStateSync.set("breakthrough", { minimized: false });
+    breakthroughState.minimized = false;
+    window.PriTestDrawStateSync.set("breakthrough", breakthroughState);
     renderBreakthroughCharacters();
+  }
+
+  // 使用者確認：跨裝置同步顯示視窗——subscribeNightState收到遠端snapshot時呼叫，把這台
+  // 裝置的breakthroughState指向遠端資料（若這台裝置正是本人剛才saveState()推送出去的
+  // echo，資料內容相同，重新指向也無害）。呼叫後即可直接使用renderBreakthroughCharacters()
+  // 等既有函式，不需要另外改寫內部邏輯。
+  function applyRemoteBreakthroughState(remoteData) {
+    breakthroughState = remoteData || null;
   }
 
   var CHECK_STAT_KEYS = { luck: "luck", physical: "physical", mental: "mental" };
@@ -1184,6 +1274,7 @@
     for (var i = 0; i < count; i++) dice.push(1 + Math.floor(Math.random() * 6));
     breakthroughState.characters[charId] = { stat: statKey, dice: dice, rerollPending: false };
     renderBreakthroughCharacters();
+    window.PriTestDrawStateSync.set("breakthrough", breakthroughState);
   }
 
   function useBreakthroughBlessing(charId) {
@@ -1203,6 +1294,7 @@
     window.PriTestNightCore.saveRosterCharacters();
     entry.rerollPending = true;
     renderBreakthroughCharacters();
+    window.PriTestDrawStateSync.set("breakthrough", breakthroughState);
   }
 
   function rerollBreakthroughDie(charId, dieIndex) {
@@ -1211,6 +1303,7 @@
     entry.dice[dieIndex] = 1 + Math.floor(Math.random() * 6);
     entry.rerollPending = false;
     renderBreakthroughCharacters();
+    window.PriTestDrawStateSync.set("breakthrough", breakthroughState);
   }
 
   function breakthroughDiceSum() {
@@ -1490,9 +1583,11 @@
     closeBreakthroughModal: closeBreakthroughModal,
     minimizeBreakthroughModal: minimizeBreakthroughModal,
     restoreBreakthroughModal: restoreBreakthroughModal,
+    applyRemoteBreakthroughState: applyRemoteBreakthroughState,
     renderBreakthroughCharacters: renderBreakthroughCharacters,
     resolveBreakthroughCheck: resolveBreakthroughCheck,
     getFloorRewardModalFloor: function () { return floorRewardModalFloor; },
+    resolveFloorByRewardKey: resolveFloorByRewardKey,
     effectiveCheckValue: effectiveCheckValue,
     parseBreakthroughCheckText: parseBreakthroughCheckText,
   };

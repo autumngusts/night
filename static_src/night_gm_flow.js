@@ -104,10 +104,38 @@
   // window.PriTestNightAddAutoGmLogフック）へも並行して記録する。単純な[進入]/[OK]等の
   // ページ送りボタンはこの経路を通らないため対象外のまま（turnMessagesへ積まれる内容＝
   // 「実際に何か決まった」瞬間のみが対象になる）。
-  function logGmDecision(text) {
+  // 使用者確認（2026-09-02）：GM留言板（turnMessages）は玩家全員が常時見る聊天版，文字要精簡；
+  // 詳細內容改放進自動化GM紀錄（autoGmLog，紀錄ドロワー內、需要時才展開查看）。第2引數
+  // fullText為選填，省略時兩邊寫入同一段文字（維持既有全部呼叫端的原本行為不變）。
+  function logGmDecision(text, fullText) {
     var Core = window.PriTestNightCore;
     Core.state.turnMessages.push({ text: text, time: Date.now(), side: "gm" });
-    if (window.PriTestNightAddAutoGmLog) window.PriTestNightAddAutoGmLog(text);
+    if (window.PriTestNightAddAutoGmLog) window.PriTestNightAddAutoGmLog(fullText || text);
+  }
+
+  // 使用者確認（2026-09-02）：樓層本文（advanceFieldWalkのblockText）往往有好幾段敘述文字，
+  // 直接整段寫進GM留言板會太長。這裡把換行併成空格後取第一句，讓GM留言板一眼看出「這格
+  // 發生了什麼」，完整內容留給自動化GM紀錄（logGmDecisionの第2引數）。
+  // 測試中發現：像「（預覽）\n描寫：...」這種第一行只是極短標籤的情況，若單純在第一個換行/
+  // 句末標點就截斷，會只留下沒有資訊量的「（預覽）」。改為換行視為空格接續，並且只在累積
+  // 內容達到FLOOR_NARRATION_BOARD_SUMMARY_MIN字以上時才允許在句末標點截斷，避免摘要文字
+  // 短到看不出內容。
+  var FLOOR_NARRATION_BOARD_SUMMARY_MIN = 10;
+  var FLOOR_NARRATION_BOARD_SUMMARY_MAX = 40;
+  function condenseNarrationForTurnBoard(text) {
+    var full = String(text || "").replace(/\s+/g, " ").replace(/^\s+|\s+$/g, "");
+    if (full.length <= FLOOR_NARRATION_BOARD_SUMMARY_MAX) return full;
+    var punctRe = /[。！？]/g;
+    var m;
+    var cut = -1;
+    while ((m = punctRe.exec(full))) {
+      if (m.index + 1 >= FLOOR_NARRATION_BOARD_SUMMARY_MIN) {
+        cut = m.index + 1;
+        break;
+      }
+    }
+    if (cut !== -1 && cut <= FLOOR_NARRATION_BOARD_SUMMARY_MAX) return full.slice(0, cut);
+    return full.slice(0, FLOOR_NARRATION_BOARD_SUMMARY_MAX) + "…";
   }
 
   // ---- 夜の王〔開場〕の取得（第11項） ----
@@ -838,6 +866,7 @@
     }
     walk.floorIndex = floorIdx;
     walk.lineIndex = 0;
+    walk.pendingPrefixText = window.I18N.t("gm_flow_floor_preview_label");
     walk.pendingOutcomeFilter = null;
     walk.pendingConvergeLabel = null;
     advanceFieldWalk();
@@ -870,9 +899,16 @@
   }
 
   // 1行分をadvanceFieldWalkと同じ書式（インデント＋ラベル＋本文）に整形する。
+  // 使用者確認：進度版顯示優化——敘述本文中內嵌的「（→分岐名）」選擇項標記，實際的分岐
+  // 按鈕（pendingChoiceLabels）已經另外顯示，敘述文字裡重複出現反而干擾閱讀，因此顯示時
+  // 移除（判定分岐本身用的parseChoiceLabels仍讀取line.text原始內容，不受影響）。
+  function stripChoiceMarkerText(text) {
+    return text.replace(new RegExp(CHOICE_MARKER_RE.source, "g"), "").replace(/[ 　]+$/, "");
+  }
+
   function formatWalkLine(line) {
     var Fields = window.PriTestFields;
-    var lineText = Fields.localizedText(line.text);
+    var lineText = stripChoiceMarkerText(Fields.localizedText(line.text));
     var prefix = line.label ? Fields.localizedText(line.label) + window.I18N.t("colon_separator") : "";
     var indent = line.depth ? new Array(line.depth + 1).join("　") : "";
     return indent + prefix + lineText;
@@ -1205,6 +1241,9 @@
         out.push(parts.join("　"));
       });
     });
+    // 使用者確認：戰鬥前顯示敵人資訊時，順帶提醒玩家目前仍可自由更換入場武器
+    // （角色詳情視窗的裝備勾選，戰鬥開始前隨時可調整）。
+    if (out.length) out.push(window.I18N.t("gm_flow_combat_preview_weapon_swap_note"));
     return out.join("\n");
   }
 
@@ -2094,7 +2133,9 @@
         lineIndex: 0,
         branchFloor: null,
         branchFloorArmed: false,
-        pendingPrefixText: null,
+        // 使用者確認：進度版顯示優化——進入新板塊時的第一行標示「（預覽）」，讓GM/玩家
+        // 一眼分辨這是剛進入的敘述、還是後續判定/戰鬥產生的內容。
+        pendingPrefixText: window.I18N.t("gm_flow_floor_preview_label"),
         pendingOutcomeFilter: null,
         pendingConvergeLabel: null,
       };
@@ -2521,9 +2562,14 @@
     walk.lineIndex = 0;
     walk.branchFloor = null;
     walk.branchFloorArmed = false;
-    walk.pendingPrefixText = null;
+    walk.pendingPrefixText = window.I18N.t("gm_flow_floor_preview_label");
     walk.pendingOutcomeFilter = null;
     walk.pendingConvergeLabel = null;
+    // 使用者確認：自動套用樓層獎勵——分岐（branchIndex）が変われば、floorIndexが同じ値でも
+    // 別の内容の樓層になる（例：card_2のC分岐フロア1とD分岐フロア1は別物）。routeLabelsByFloor
+    // をキャッシュしたまま次に持ち越すと誤って古い分岐の記錄が新しい分岐のマッチングに
+    // 混入するため、新しい分岐へ切り替える時は必ずクリアする。
+    walk.routeLabelsByFloor = {};
     advanceFieldWalk();
   }
 
@@ -2811,6 +2857,19 @@
       }
       var lineText = Fields.localizedText(line.text);
       blockParts.push(formatWalkLine(line));
+      // 使用者確認：自動套用樓層獎勵——記錄這個樓層實際敘述過的每一個「見出し行」標籤
+      // （例如「成功」「失敗」等判定結果行），供floor.reward的tieredChoice（tierLabel為
+      // 「実際に進んだルート」等路線類）事後比對，判斷玩家實際走了哪條路線。只記錄有label
+      // 的行（無label的純敘述行不具備可比對的固定標籤文字）。
+      if (line.label && walk) {
+        if (!walk.routeLabelsByFloor) walk.routeLabelsByFloor = {};
+        var routeFloorKey = String(walk.floorIndex);
+        if (!walk.routeLabelsByFloor[routeFloorKey]) walk.routeLabelsByFloor[routeFloorKey] = [];
+        var routeLabelText = Fields.localizedText(line.label);
+        if (walk.routeLabelsByFloor[routeFloorKey].indexOf(routeLabelText) === -1) {
+          walk.routeLabelsByFloor[routeFloorKey].push(routeLabelText);
+        }
+      }
       var labels = parseChoiceLabels(lineText);
       if (labels.length) choiceLabels = labels; // 上書き（複数の結果行が別々に同じ選択肢マーカーを持つ場合、通常は同じ値になる）
       if (choiceLabels.length && !nextIsSiblingOutcome) {
@@ -2821,6 +2880,17 @@
     }
     walk.lineIndex = i;
     var blockText = blockParts.join("\n");
+    // 使用者確認（2026-09-02）：「樓層經過要有背景紀錄」——這個區塊敘述過的樓層本文（blockText）
+    // 以前只寫入state.gmFlow.narrationText（單一欄位、每次前進都會被下一段覆蓋，且只有目前
+    // 這台裝置的render function讀到），並沒有進入任何跨裝置共享、永久保留的紀錄，導致GM/玩家
+    // 事後無法回顧「這個樓層剛才發生了什麼」。這裡比照戰鬥觸發等「實際確定了什麼」的既有做法
+    // （見logGmDecision本身的説明），把敘述過的本文也記入state.turnMessages（GM留言板，跨裝置
+    // 同步）與state.autoGmLog（自動化GM紀錄）。只在此處記一次（下面每個分支各自附加的選項提示
+    // 文字如「請選擇...」不重複記錄），避免blockText在多個分支重複寫入。
+    // 使用者確認（2026-09-02再追加）：GM留言板是玩家全員常駐可見的聊天版，整段樓層本文太長，
+    // 只寫入精簡版（condenseNarrationForTurnBoard，取第一句/首行並截短）；完整全文則透過
+    // logGmDecision第2引數寫入自動化GM紀錄（紀錄ドロワー，需要時才展開查看）。
+    if (blockText) logGmDecision(condenseNarrationForTurnBoard(blockText), blockText);
     if (combatTriggerIndex !== -1) {
       var enemyPreview = buildCombatEnemyPreviewText(lines, combatTriggerIndex, walk.slotIndex);
       state.gmFlow.narrationText = enemyPreview ? blockText + "\n" + enemyPreview : blockText;
@@ -2943,6 +3013,17 @@
     state.gmFlow.pendingChoiceLabels = [];
     var walk = state.gmFlow.walk;
     var floor = walk ? getWalkFloor(walk) : null;
+    // 使用者確認：自動套用樓層獎勵——這裡選中的(→X)分支標籤本身（例如「忍んで切り抜ける」），
+    // 是route-labelsの重要な一部（見出し自体はlabel:nullのため上のadvanceFieldWalkループの
+    // 記録だけでは拾えない）。
+    if (walk) {
+      if (!walk.routeLabelsByFloor) walk.routeLabelsByFloor = {};
+      var choiceFloorKey = String(walk.floorIndex);
+      if (!walk.routeLabelsByFloor[choiceFloorKey]) walk.routeLabelsByFloor[choiceFloorKey] = [];
+      if (walk.routeLabelsByFloor[choiceFloorKey].indexOf(label) === -1) {
+        walk.routeLabelsByFloor[choiceFloorKey].push(label);
+      }
+    }
     if (walk && floor) {
       var lines = floor.lines || [];
       var found = findHeadingIndexForLabel(lines, walk.lineIndex, label);
@@ -3169,6 +3250,58 @@
     return out;
   }
 
+  // 使用者確認（2026-09-01）：劇本固定王戰位置の敵名bulletが「強敵決定表（319頁）で抽選」／
+  // 「強敵決定表（319頁）で決定したエネミー」／「恐るべき強敵決定表（319頁）で決定した
+  // エネミー」のように、盤面イベントチット「強敵」と全く同じ決定表（319頁）を参照している
+  // ケース（例：fields_data_4.jsの「教會（強敵の予感）」「強敵との連戦」）を検出する。
+  // fields_data_4.jsの「強敵との連戦」フロア本文自体が「GMは強敵を決定する。内容は
+  // イベントチットにおける「強敵」と同じ（319頁）」と明記しており、対応関係は確認済み
+  // （以前docs/scenario_flow_rules.mdに記載していた「対応関係が実物本で確認できるまで
+  // 自動化を保留」は解消）。カード側のentry.extraTablesには表自体が定義されていないため
+  // （findExtraTableByBulletLineでは見つからない）、盤面イベントチット側と同じ資料源
+  // （event_rulebook.jsのstrong_enemyカードのextraTables、[0]=強敵決定表／[1]=恐るべき
+  // 強敵決定表）を直接参照する。どちらを使うかはbullet本文に「恐るべき」／「可怖」が
+  // 含まれるかどうかで判定する——劇本固定王戰はイベントチットの番号（①〜⑨）を持たないため
+  // event_chip側の「eventChipNumbers[idx]===8 && dayNumber===2」という判定式は使えず、
+  // 本文の明記が唯一の手がかり（実際に「強敵との連戦」フロアは1体目=強敵決定表／2体目=
+  // 恐るべき強敵決定表、と本文中で明確に書き分けている）。
+  var SCENARIO_STRONG_ENEMY_RE = /「(恐るべき)?強敵決定表(?:（319頁）)?(?:で抽選|で決定した(?:エネミー|敵人))」/;
+  var SCENARIO_STRONG_ENEMY_RE_ZH = /「以(可怖)?強敵決定表(?:（319頁）)?(?:抽選|決定的(?:エネミー|敵人))」/;
+  function resolveScenarioStrongEnemyCombatLine(line, slotIndex) {
+    var Fields = window.PriTestFields;
+    var Events = window.PriTestEventRulebook;
+    var lineText = Fields.localizedText(line.text);
+    var fallback = { addedNames: [], reminderText: window.I18N.t("gm_flow_combat_manual_add_reminder", { text: lineText }), rollLogText: null };
+    var ja = (line.text && line.text.ja) || "";
+    var zh = (line.text && line.text.zh) || "";
+    var jaMatch = SCENARIO_STRONG_ENEMY_RE.exec(ja);
+    var zhMatch = SCENARIO_STRONG_ENEMY_RE_ZH.exec(zh);
+    if (!jaMatch && !zhMatch) return null;
+    var isTerrible = !!(jaMatch && jaMatch[1]) || !!(zhMatch && zhMatch[1]);
+    var card = Events
+      ? Events.list().filter(function (ec) {
+          return ec.id === "strong_enemy";
+        })[0]
+      : null;
+    var table = card ? (card.extraTables || [])[isTerrible ? 1 : 0] : null;
+    if (!table) return fallback;
+    var rollResult = rollStrongEnemyTable(table);
+    if (!rollResult) return fallback;
+    var resolvedJa = (rollResult.entry && rollResult.entry.ja) || "";
+    var addResult = resolveStrongEnemyEntry(rollResult.entry, slotIndex, rollResult.levelBonus);
+    var rollsText = rollResult.rollLog
+      .map(function (r) {
+        return r.die1 + "+" + r.die2 + "＝" + r.text;
+      })
+      .join(" → ");
+    return {
+      addedNames: addResult.addedNames,
+      reminderText: addResult.matchedAny ? null : window.I18N.t("gm_flow_combat_manual_add_reminder", { text: resolvedJa }),
+      rollLogText: window.I18N.t("gm_flow_extra_table_roll_log", { table: (table.title && table.title.ja) || "", rolls: rollsText, entry: resolvedJa }),
+      mobNote: addResult.mobNote || null,
+    };
+  }
+
   // 使用者確認（項目6・11）：樓層文字中の敵名bulletが、夜の強敵決定表とは別に「カード自身の
   // extraTables」に載っている決定表を「「◯◯決定表で決定したエネミー」」（ja）／
   // 「「以◯◯決定表決定的敵人」」（zh）という形で引用しているケース（例：封牢エネミー決定表
@@ -3269,6 +3402,23 @@
         if (nbResult.reminderText) reminderTexts.push(nbResult.reminderText);
         if (nbResult.mobNote) {
           reminderTexts.push(window.I18N.t(nbResult.mobNote.key, mergeParams({ text: Fields.localizedText(line.text) }, nbResult.mobNote.params)));
+        }
+        return;
+      }
+      // 使用者確認（2026-09-01）：劇本固定王戰位置が盤面イベントチット「強敵」と同じ決定表
+      // （319頁）を参照しているケース（resolveScenarioStrongEnemyCombatLine参照）。カード
+      // 自身にはextraTablesが無いため、次のfindExtraTableByBulletLineチェックより先に判定
+      // する必要がある（該当しなければnullを返し、下のフォールバックへ進む）。
+      var scResult = resolveScenarioStrongEnemyCombatLine(line, walk.slotIndex);
+      if (scResult) {
+        addedNames = addedNames.concat(scResult.addedNames);
+        if (scResult.rollLogText) {
+          logGmDecision(scResult.rollLogText);
+          narrationParts.push(scResult.rollLogText);
+        }
+        if (scResult.reminderText) reminderTexts.push(scResult.reminderText);
+        if (scResult.mobNote) {
+          reminderTexts.push(window.I18N.t(scResult.mobNote.key, mergeParams({ text: Fields.localizedText(line.text) }, scResult.mobNote.params)));
         }
         return;
       }
@@ -3391,6 +3541,11 @@
     var walkEntry = walk ? getWalkEntry(walk) : null;
     var walkFloorIndex = walk ? walk.floorIndex : null;
     var hasReward = !!(floor && FloorBreakthrough.floorHasAnyReward && FloorBreakthrough.floorHasAnyReward(floor));
+    // 使用者確認：自動套用樓層獎勵——walk.routeLabelsByFloor（這個樓層實際敘述過的見出し行
+    // 記錄）在下面walk=null之後就會遺失，樓層獎勵視窗要等GM之後按［領取獎勵］才會開啟，
+    // 因此先把這個樓層對應的記錄複製到跨越walk生命週期的state.gmFlow欄位保留。
+    state.gmFlow.pendingFloorEndRouteLabels =
+      walk && walk.routeLabelsByFloor && typeof walkFloorIndex === "number" ? walk.routeLabelsByFloor[String(walkFloorIndex)] || [] : [];
     state.gmFlow.narrationText = blockText || window.I18N.t("gm_flow_walk_end_narration");
     state.gmFlow.awaitingOk = true;
     state.gmFlow.pendingChoiceLabels = [];
@@ -3652,14 +3807,14 @@
     state.gmFlow.battleWaitActive = false;
     state.gmFlow.combatTriggerLabel = null;
     state.gmFlow.abilityCheckSpec = null;
-    abilityCheckRolls = null;
+    state.gmFlow.abilityCheckRolls = null;
     state.gmFlow.cooperativeCheckSpec = null;
-    cooperativeCheckRolls = null;
+    state.gmFlow.cooperativeCheckRolls = null;
     state.gmFlow.playerPickCheckSpec = null;
     state.gmFlow.playerPickCheckExcluded = [];
     state.gmFlow.branchPointTallySpec = null;
     state.gmFlow.sequentialPairSpec = null;
-    branchTallyRolls = null;
+    state.gmFlow.branchTallyRolls = null;
     state.gmFlow.conditionalCooperativeChoiceSpec = null;
     state.gmFlow.sequentialChainSpec = null;
     state.gmFlow.openEndedTallySpec = null;
@@ -3869,17 +4024,17 @@
   }
 
   // ---- 「行為判定」自動擲骰モーダル ----
-  // { charId: { dice:[...], sum, passed, statKey } }。breakthroughState（night_floor_breakthrough.js）
-  // と同じ設計方針——現在進行中の判定發生のみ有効な非永続state、リロードで消えてもよい
-  // （判定自体は一瞬の操作であり、gmFlow.abilityCheckSpecだけ保存されていれば
-  // 再びこのモーダルを開き直して振り直せる）。
-  var abilityCheckRolls = null;
+  // { charId: { dice:[...], sum, passed, statKey } }。使用者確認：跨裝置同步顯示視窗——各PC的
+  // 擲骰結果保存在state.gmFlow.abilityCheckRolls（跨裝置同步），讓每位玩家能在自己的裝置上
+  // 為自己入場的角色擲骰，其他裝置（含GM）即時看到同一份結果，不需要集中在單一裝置操作。
 
   function beginAbilityCheck() {
-    abilityCheckRolls = {};
+    var state = window.PriTestNightCore.state;
+    state.gmFlow.abilityCheckRolls = {};
     renderAbilityCheckModal();
     var modalEl = document.getElementById("ability-check-modal");
     if (modalEl) modalEl.hidden = false;
+    window.PriTestNightCore.saveState();
   }
 
   function renderAbilityCheckModal() {
@@ -3890,7 +4045,8 @@
     var container = document.getElementById("ability-check-characters");
     var doneBtn = document.getElementById("btn-ability-check-done");
     if (!spec || !titleEl || !container || !doneBtn) return;
-    if (!abilityCheckRolls) abilityCheckRolls = {};
+    if (!state.gmFlow.abilityCheckRolls) state.gmFlow.abilityCheckRolls = {};
+    var abilityCheckRolls = state.gmFlow.abilityCheckRolls;
     titleEl.textContent = window.I18N.t("ability_check_modal_title", {
       stat: window.I18N.t("check_stat_" + spec.statKey),
     });
@@ -3957,7 +4113,7 @@
     var Core = window.PriTestNightCore;
     var state = Core.state;
     var spec = state.gmFlow.abilityCheckSpec;
-    if (!spec || !abilityCheckRolls) return;
+    if (!spec || !state.gmFlow.abilityCheckRolls) return;
     var c = Core.getRosterCharacters().filter(function (rc) {
       return rc.id === charId;
     })[0];
@@ -3968,8 +4124,9 @@
     var sum = dice.reduce(function (a, b) {
       return a + b;
     }, 0);
-    abilityCheckRolls[charId] = { dice: dice, sum: sum, passed: sum >= spec.target, statKey: statKey };
+    state.gmFlow.abilityCheckRolls[charId] = { dice: dice, sum: sum, passed: sum >= spec.target, statKey: statKey };
     renderAbilityCheckModal();
+    Core.saveState();
   }
 
   // 全員の判定骰を振り終えたら［完成］：各PCの結果を留言板へ一括報告し（失敗者がいれば
@@ -3981,7 +4138,7 @@
     var Core = window.PriTestNightCore;
     var state = Core.state;
     var spec = state.gmFlow.abilityCheckSpec;
-    if (!spec || !abilityCheckRolls) return;
+    if (!spec || !state.gmFlow.abilityCheckRolls) return;
     // 砦「壺投げのトロル」の多屬性連続判定中は、通常の完成処理ではなく専用の
     // resolveMultiStatCheckRoundへ委ねる（同じモーダル・骰子ロジックをそのまま再利用しつつ、
     // 複数ラウンドをまたいでPCごとの結果を積み上げる必要があるため）。
@@ -3989,6 +4146,7 @@
       resolveMultiStatCheckRound();
       return;
     }
+    var abilityCheckRolls = state.gmFlow.abilityCheckRolls;
     var entered = Core.getRosterCharacters().filter(function (c) {
       return c.entered;
     });
@@ -4022,7 +4180,7 @@
     if (failedNames.length) {
       logGmDecision(window.I18N.t("gm_flow_ability_check_fail_reminder_log", { names: failedNames.join("、") }));
     }
-    abilityCheckRolls = null;
+    state.gmFlow.abilityCheckRolls = null;
     var modalEl = document.getElementById("ability-check-modal");
     if (modalEl) modalEl.hidden = true;
     state.gmFlow.abilityCheckSpec = null;
@@ -4045,7 +4203,7 @@
     spec.results = {};
     state.gmFlow.abilityCheckSpec = { target: spec.checks[0].target, statKey: spec.checks[0].statKey, markerLabel: null };
     state.gmFlow.actionKind = "abilityCheck";
-    abilityCheckRolls = {};
+    state.gmFlow.abilityCheckRolls = {};
     renderAbilityCheckModal();
     var modalEl = document.getElementById("ability-check-modal");
     if (modalEl) modalEl.hidden = false;
@@ -4062,22 +4220,22 @@
     var state = Core.state;
     var multiSpec = state.gmFlow.multiStatCheckSpec;
     var roundSpec = state.gmFlow.abilityCheckSpec;
-    if (!multiSpec || !roundSpec || !abilityCheckRolls) return;
+    if (!multiSpec || !roundSpec || !state.gmFlow.abilityCheckRolls) return;
     var entered = Core.getRosterCharacters().filter(function (c) {
       return c.entered;
     });
     entered.forEach(function (c) {
-      var entry = abilityCheckRolls[c.id];
+      var entry = state.gmFlow.abilityCheckRolls[c.id];
       if (!entry) return;
       if (!multiSpec.results[c.id]) multiSpec.results[c.id] = [];
       multiSpec.results[c.id].push(entry);
     });
-    abilityCheckRolls = null;
+    state.gmFlow.abilityCheckRolls = null;
     if (multiSpec.stepIndex < multiSpec.checks.length - 1) {
       multiSpec.stepIndex += 1;
       var nextCheck = multiSpec.checks[multiSpec.stepIndex];
       state.gmFlow.abilityCheckSpec = { target: nextCheck.target, statKey: nextCheck.statKey, markerLabel: null };
-      abilityCheckRolls = {};
+      state.gmFlow.abilityCheckRolls = {};
       renderAbilityCheckModal();
       Core.saveState();
       return;
@@ -4101,15 +4259,18 @@
   }
 
   // ---- 「行為判定」自動擲骰モーダル（協力式・単純な1回勝負のみ）----
-  // { charId: { dice:[...], statKey, rerollPending } }。個別判定用のabilityCheckRollsとは
-  // 別変数——黨全員の骰子を1つのプールに合算する点が違う（個別のpassedは持たない）。
-  var cooperativeCheckRolls = null;
+  // { charId: { dice:[...], statKey, rerollPending } }。使用者確認：跨裝置同步顯示視窗——
+  // 保存在state.gmFlow.cooperativeCheckRolls（跨裝置同步），讓每位玩家能在自己的裝置上為
+  // 自己入場的角色擲骰。個別判定用のabilityCheckRollsとは別欄位——黨全員的骰子を1つの
+  // プールに合算する点が違う（個別のpassedは持たない）。
 
   function beginCooperativeCheck() {
-    cooperativeCheckRolls = {};
+    var state = window.PriTestNightCore.state;
+    state.gmFlow.cooperativeCheckRolls = {};
     renderCooperativeCheckModal();
     var modalEl = document.getElementById("cooperative-check-modal");
     if (modalEl) modalEl.hidden = false;
+    window.PriTestNightCore.saveState();
   }
 
   function renderCooperativeCheckModal() {
@@ -4121,7 +4282,8 @@
     var poolLabel = document.getElementById("cooperative-check-pool-label");
     var confirmBtn = document.getElementById("btn-cooperative-check-confirm");
     if (!spec || !titleEl || !container || !confirmBtn) return;
-    if (!cooperativeCheckRolls) cooperativeCheckRolls = {};
+    if (!state.gmFlow.cooperativeCheckRolls) state.gmFlow.cooperativeCheckRolls = {};
+    var cooperativeCheckRolls = state.gmFlow.cooperativeCheckRolls;
     // 門檻（目標値）は玩家にも進度版にも一切表示しない——擲骰完了後、自動GMが通過/失敗の
     // 結果だけを進度版で揭曉する（ユーザー指示：始終不顯示判定門檻）。
     titleEl.textContent = window.I18N.t("cooperative_check_modal_title", { stat: window.I18N.t("check_stat_" + spec.statKey) });
@@ -4211,7 +4373,8 @@
 
   function rollCooperativeCheckForCharacter(charId, statKey) {
     var Core = window.PriTestNightCore;
-    if (!cooperativeCheckRolls) return;
+    var state = Core.state;
+    if (!state.gmFlow.cooperativeCheckRolls) return;
     var c = Core.getRosterCharacters().filter(function (rc) {
       return rc.id === charId;
     })[0];
@@ -4219,31 +4382,37 @@
     var count = window.PriTestNightFloorBreakthrough.effectiveCheckValue(c, type, statKey);
     var dice = [];
     for (var i = 0; i < count; i++) dice.push(1 + Math.floor(Math.random() * 6));
-    cooperativeCheckRolls[charId] = { dice: dice, statKey: statKey, rerollPending: false };
+    state.gmFlow.cooperativeCheckRolls[charId] = { dice: dice, statKey: statKey, rerollPending: false };
     renderCooperativeCheckModal();
+    Core.saveState();
   }
 
   function useCooperativeCheckBlessing(charId) {
     var Core = window.PriTestNightCore;
+    var state = Core.state;
     var c = Core.getRosterCharacters().filter(function (rc) {
       return rc.id === charId;
     })[0];
     if (!c || !c.blessingSlots || c.blessingSlots.current <= 0) return;
-    var entry = cooperativeCheckRolls && cooperativeCheckRolls[charId];
+    var entry = state.gmFlow.cooperativeCheckRolls && state.gmFlow.cooperativeCheckRolls[charId];
     if (!entry || !entry.dice.length) return;
     if (!window.confirm(window.I18N.t("breakthrough_blessing_confirm", { name: c.name }))) return;
     c.blessingSlots.current -= 1;
     Core.saveRosterCharacters();
     entry.rerollPending = true;
     renderCooperativeCheckModal();
+    Core.saveState();
   }
 
   function rerollCooperativeCheckDie(charId, dieIndex) {
-    var entry = cooperativeCheckRolls && cooperativeCheckRolls[charId];
+    var Core = window.PriTestNightCore;
+    var state = Core.state;
+    var entry = state.gmFlow.cooperativeCheckRolls && state.gmFlow.cooperativeCheckRolls[charId];
     if (!entry || !entry.rerollPending) return;
     entry.dice[dieIndex] = 1 + Math.floor(Math.random() * 6);
     entry.rerollPending = false;
     renderCooperativeCheckModal();
+    Core.saveState();
   }
 
   // ［確認骰子］：全員が振り終えたら、自動GMがプール合計と目標値（perPCならPC人数倍）を
@@ -4254,7 +4423,7 @@
     var Core = window.PriTestNightCore;
     var state = Core.state;
     var spec = state.gmFlow.cooperativeCheckSpec;
-    if (!spec || !cooperativeCheckRolls) return;
+    if (!spec || !state.gmFlow.cooperativeCheckRolls) return;
     // 東の地下砦「入り組んだ地下の回廊」の連鎖判定中は、通常の確認処理ではなく専用の
     // resolveSequentialChainStepへ委ねる（同じモーダル・骰子ロジックをそのまま再利用しつつ、
     // 各段ごとに異なる結果文へ振り分ける必要があるため）。
@@ -4262,6 +4431,7 @@
       resolveSequentialChainStep();
       return;
     }
+    var cooperativeCheckRolls = state.gmFlow.cooperativeCheckRolls;
     var entered = Core.getRosterCharacters().filter(function (c) {
       return c.entered;
     });
@@ -4282,7 +4452,7 @@
         outcome: window.I18N.t(passed ? "ability_check_pass_label" : "ability_check_fail_label"),
       })
     );
-    cooperativeCheckRolls = null;
+    state.gmFlow.cooperativeCheckRolls = null;
     var modalEl = document.getElementById("cooperative-check-modal");
     if (modalEl) modalEl.hidden = true;
     state.gmFlow.cooperativeCheckSpec = null;
@@ -4306,7 +4476,7 @@
     var step = chain.steps[chain.stepIndex];
     state.gmFlow.cooperativeCheckSpec = { target: step.target, perPC: true, statKey: step.statKey, markerLabel: null };
     state.gmFlow.actionKind = "cooperativeCheck";
-    cooperativeCheckRolls = {};
+    state.gmFlow.cooperativeCheckRolls = {};
     renderCooperativeCheckModal();
     var modalEl = document.getElementById("cooperative-check-modal");
     if (modalEl) modalEl.hidden = false;
@@ -4330,7 +4500,8 @@
     var state = Core.state;
     var chain = state.gmFlow.sequentialChainSpec;
     var spec = state.gmFlow.cooperativeCheckSpec;
-    if (!chain || !spec || !cooperativeCheckRolls) return;
+    if (!chain || !spec || !state.gmFlow.cooperativeCheckRolls) return;
+    var cooperativeCheckRolls = state.gmFlow.cooperativeCheckRolls;
     var entered = Core.getRosterCharacters().filter(function (c) {
       return c.entered;
     });
@@ -4345,7 +4516,7 @@
     });
     var actualTarget = spec.target * entered.length;
     var passed = poolSum >= actualTarget;
-    cooperativeCheckRolls = null;
+    state.gmFlow.cooperativeCheckRolls = null;
     var modalEl = document.getElementById("cooperative-check-modal");
     if (modalEl) modalEl.hidden = true;
     logGmDecision(
@@ -4679,7 +4850,8 @@
   // 「各PCが個別に骰子を振る→自動GMが目標値と照合→次のラウンド/ステップへ、または最終
   // 結果を確定」という同じ形なので、1つのモーダル・stateを使い回す。既存のcooperativeCheck
   // 同様、目標値はここでも一切表示しない（ユーザー指示：判定門檻を終始見せない）。
-  var branchTallyRolls = null; // { charId: { dice:[...], rerollPending } }（ラウンド/ステップごとに使い回す一時state）
+  // 使用者確認：跨裝置同步顯示視窗——保存在state.gmFlow.branchTallyRolls（跨裝置同步），
+  // 讓每位玩家能在自己的裝置上為自己入場的角色擲骰。
 
   function beginBranchPointTally() {
     var state = window.PriTestNightCore.state;
@@ -4687,10 +4859,11 @@
     if (!spec) return;
     spec.round = 1;
     spec.points = 0;
-    branchTallyRolls = {};
+    state.gmFlow.branchTallyRolls = {};
     renderBranchTallyModal();
     var modalEl = document.getElementById("branch-tally-modal");
     if (modalEl) modalEl.hidden = false;
+    window.PriTestNightCore.saveState();
   }
 
   function beginSequentialPairCheck() {
@@ -4700,10 +4873,11 @@
     spec.stepIndex = 0;
     spec.totalSuccess = 0;
     spec.totalAttempts = 0;
-    branchTallyRolls = {};
+    state.gmFlow.branchTallyRolls = {};
     renderBranchTallyModal();
     var modalEl = document.getElementById("branch-tally-modal");
     if (modalEl) modalEl.hidden = false;
+    window.PriTestNightCore.saveState();
   }
 
   // 現在アクティブな段階（外側の分岐ポイントラウンド、または内側の連続判定ステップ）に
@@ -4727,7 +4901,8 @@
     var container = document.getElementById("branch-tally-characters");
     var confirmBtn = document.getElementById("btn-branch-tally-confirm");
     if (!step || !titleEl || !container || !confirmBtn) return;
-    if (!branchTallyRolls) branchTallyRolls = {};
+    if (!state.gmFlow.branchTallyRolls) state.gmFlow.branchTallyRolls = {};
+    var branchTallyRolls = state.gmFlow.branchTallyRolls;
     if (outer) {
       titleEl.textContent = window.I18N.t("gm_flow_branch_tally_outer_title", {
         round: outer.round,
@@ -4802,7 +4977,8 @@
 
   function rollBranchTallyForCharacter(charId, statKey) {
     var Core = window.PriTestNightCore;
-    if (!branchTallyRolls) return;
+    var state = Core.state;
+    if (!state.gmFlow.branchTallyRolls) return;
     var c = Core.getRosterCharacters().filter(function (rc) {
       return rc.id === charId;
     })[0];
@@ -4810,31 +4986,37 @@
     var count = window.PriTestNightFloorBreakthrough.effectiveCheckValue(c, type, statKey);
     var dice = [];
     for (var i = 0; i < count; i++) dice.push(1 + Math.floor(Math.random() * 6));
-    branchTallyRolls[charId] = { dice: dice, rerollPending: false };
+    state.gmFlow.branchTallyRolls[charId] = { dice: dice, rerollPending: false };
     renderBranchTallyModal();
+    Core.saveState();
   }
 
   function useBranchTallyBlessing(charId) {
     var Core = window.PriTestNightCore;
+    var state = Core.state;
     var c = Core.getRosterCharacters().filter(function (rc) {
       return rc.id === charId;
     })[0];
     if (!c || !c.blessingSlots || c.blessingSlots.current <= 0) return;
-    var entry = branchTallyRolls && branchTallyRolls[charId];
+    var entry = state.gmFlow.branchTallyRolls && state.gmFlow.branchTallyRolls[charId];
     if (!entry || !entry.dice.length) return;
     if (!window.confirm(window.I18N.t("breakthrough_blessing_confirm", { name: c.name }))) return;
     c.blessingSlots.current -= 1;
     Core.saveRosterCharacters();
     entry.rerollPending = true;
     renderBranchTallyModal();
+    Core.saveState();
   }
 
   function rerollBranchTallyDie(charId, dieIndex) {
-    var entry = branchTallyRolls && branchTallyRolls[charId];
+    var Core = window.PriTestNightCore;
+    var state = Core.state;
+    var entry = state.gmFlow.branchTallyRolls && state.gmFlow.branchTallyRolls[charId];
     if (!entry || !entry.rerollPending) return;
     entry.dice[dieIndex] = 1 + Math.floor(Math.random() * 6);
     entry.rerollPending = false;
     renderBranchTallyModal();
+    Core.saveState();
   }
 
   // ［確認骰子］：現在のラウンド/ステップの各PCの合計をそれぞれ目標値と比較し（門檻は
@@ -4845,7 +5027,8 @@
     var Core = window.PriTestNightCore;
     var state = Core.state;
     var step = activeBranchTallyStep();
-    if (!step || !branchTallyRolls) return;
+    if (!step || !state.gmFlow.branchTallyRolls) return;
+    var branchTallyRolls = state.gmFlow.branchTallyRolls;
     var entered = Core.getRosterCharacters().filter(function (c) {
       return c.entered;
     });
@@ -4860,14 +5043,14 @@
       if (sum >= step.target) successCount++;
       else failCount++;
     });
-    branchTallyRolls = null;
+    state.gmFlow.branchTallyRolls = null;
     var outer = state.gmFlow.branchPointTallySpec;
     var inner = state.gmFlow.sequentialPairSpec;
     if (outer) {
       outer.points += successCount * 2 - failCount;
       if (outer.round < outer.repeat) {
         outer.round += 1;
-        branchTallyRolls = {};
+        state.gmFlow.branchTallyRolls = {};
         renderBranchTallyModal();
         Core.saveState();
         return;
@@ -4894,7 +5077,7 @@
       inner.totalAttempts += entered.length;
       if (inner.stepIndex < inner.checks.length - 1) {
         inner.stepIndex += 1;
-        branchTallyRolls = {};
+        state.gmFlow.branchTallyRolls = {};
         renderBranchTallyModal();
         Core.saveState();
         return;
@@ -5232,6 +5415,9 @@
     handleAbilityCheckDoneClick: handleAbilityCheckDoneClick,
     handleCooperativeCheckConfirmClick: handleCooperativeCheckConfirmClick,
     handleBranchTallyConfirmClick: handleBranchTallyConfirmClick,
+    renderAbilityCheckModal: renderAbilityCheckModal,
+    renderCooperativeCheckModal: renderCooperativeCheckModal,
+    renderBranchTallyModal: renderBranchTallyModal,
     parseIndividualAbilityCheck: parseIndividualAbilityCheck,
     parseCooperativeAbilityCheck: parseCooperativeAbilityCheck,
     parseSinglePlayerCheck: parseSinglePlayerCheck,
