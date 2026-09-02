@@ -830,6 +830,13 @@
           groupDamage: { modifier: -60 },
           targetRule: { kind: "frontAll" },
         },
+        {
+          // 「叩きつけ」：乱戦ダメージ修正＋120、対象明記無しのため既定ルール。
+          rollMin: 5,
+          rollMax: 6,
+          groupDamage: { modifier: 120 },
+          targetRule: { kind: "frontAll" },
+        },
       ],
     },
     "soldier_knight|leyndell_knights": {
