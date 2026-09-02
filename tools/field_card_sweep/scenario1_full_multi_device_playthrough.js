@@ -137,6 +137,11 @@ async function compareModalSync(pages, modalId, label) {
 // ---------------------------------------------------------------------------
 // 戰鬥驅動（一般樓層戰鬥／籌碼強敵戰鬥／day3最終夜之王戰鬥共用）
 // ---------------------------------------------------------------------------
+// 使用者確認（2026-09-01再追加）：「盡量使用2Hit攻擊」——武器攻擊分頁裡，同一把武器一定是
+// 先渲染1Hit按鈕、再渲染2Hit按鈕（見night.jsのrenderCombatAttackAction，hitTypes固定
+// ["hit1","hit2"]順序；沒有2Hit概念的武器種類則只有1Hit按鈕）。按鈕文字固定是"1Hit"/"2Hit"
+// （site_src/i18n_data_zh.py確認），不必去猜測傷害數字，直接把文字含"2Hit"的按鈕排到前面
+// 優先嘗試即可，2Hit不可行（骰子成本付不起）才會退回試1Hit。
 async function attemptAttackForCharacter(driver, idx) {
   return driver.evaluate((idx) => {
     const combatBtns = Array.from(document.querySelectorAll("#character-roster-tbody .roster-combat-btn"));
@@ -147,7 +152,10 @@ async function attemptAttackForCharacter(driver, idx) {
     attackTab.click();
 
     function enabledHitBtns() {
-      return Array.from(document.querySelectorAll("#combat-modal-content .combat-attack-hit-btn")).filter((b) => !b.disabled);
+      const all = Array.from(document.querySelectorAll("#combat-modal-content .combat-attack-hit-btn")).filter((b) => !b.disabled);
+      const hit2 = all.filter((b) => b.textContent.indexOf("2Hit") !== -1);
+      const rest = all.filter((b) => b.textContent.indexOf("2Hit") === -1);
+      return hit2.concat(rest);
     }
     function diceBtns() {
       return Array.from(document.querySelectorAll("#combat-modal-content .combat-dice-pick-btn"));
@@ -164,6 +172,7 @@ async function attemptAttackForCharacter(driver, idx) {
     let attackResult = { attacked: false };
     const hitBtnsSnapshot = enabledHitBtns();
     for (let h = 0; h < hitBtnsSnapshot.length && !attackResult.attacked; h++) {
+      const hitLabel = hitBtnsSnapshot[h].textContent;
       hitBtnsSnapshot[h].click(); // 選定這個武器/Hit
       clearDice();
       const n = diceBtns().length;
@@ -172,7 +181,7 @@ async function attemptAttackForCharacter(driver, idx) {
         const cb = confirmBtn();
         if (cb && !cb.disabled) {
           cb.click();
-          attackResult = { attacked: true, diceUsed: 0, hitIndex: h };
+          attackResult = { attacked: true, diceUsed: 0, hitIndex: h, hitLabel };
           break;
         }
         continue;
@@ -183,7 +192,7 @@ async function attemptAttackForCharacter(driver, idx) {
         const cb = confirmBtn();
         if (cb && !cb.disabled) {
           cb.click();
-          attackResult = { attacked: true, diceUsed: k, hitIndex: h };
+          attackResult = { attacked: true, diceUsed: k, hitIndex: h, hitLabel };
           break;
         }
       }
@@ -195,10 +204,194 @@ async function attemptAttackForCharacter(driver, idx) {
   }, idx);
 }
 
+// 使用者確認（2026-09-01再追加）：「腳本也用技能，不是只用武器普通攻擊」——docs/enemy_damage_rules.md
+// 的Guard機制是「敵人防禦次數要先被Guard削減值（▲=0.5/◆=1，通常來自技能效果敘述，不是單純武器
+// 普通攻擊）扣到0，之後傷害才會真正扣到HP格數」，如果角色從頭到尾只用武器普通攻擊、從不用技能，
+// 防禦次數可能永遠打不穿，這是規則書機制本身，不是bug。這裡只處理「最簡單的情況」：技能點下去
+// （combat-action-btn[data-action="skill"]分頁裡的「使用」按鈕，class同樣是combat-attack-hit-btn）
+// 之後重新render出來的內容，如果沒有出現任何<select>（代表不需要額外的目標/選項選擇），才嘗試繼續
+// 走骰子選擇＋確認流程；只要出現<select>就視為「複雜情況」，退回（再點一次同一顆按鈕取消選定）、
+// 換下一個技能entry，全部技能都不符合簡單情況就直接回報skillUsed:false，讓呼叫端退回武器攻擊。
+// 不嘗試處理有下拉選單/多步驟選擇的技能——那類技能種類差異太大，硬做泛用driver風險高於這次追查
+// 「Guard削減有沒有正確發生」所需要的程度。
+async function attemptSkillForCharacter(driver, idx) {
+  return driver.evaluate((idx) => {
+    const combatBtns = Array.from(document.querySelectorAll("#character-roster-tbody .roster-combat-btn"));
+    if (!combatBtns[idx]) return { opened: false, skillUsed: false };
+    combatBtns[idx].click();
+    const skillTab = document.querySelector('.combat-action-btn[data-action="skill"]');
+    if (!skillTab) return { opened: true, skillUsed: false, reason: "no-skill-tab" };
+    skillTab.click();
+
+    function useBtns() {
+      return Array.from(document.querySelectorAll("#combat-modal-content .combat-attack-hit-btn")).filter((b) => !b.disabled);
+    }
+    function diceBtns() {
+      return Array.from(document.querySelectorAll("#combat-modal-content .combat-dice-pick-btn"));
+    }
+    function clearDice() {
+      diceBtns().forEach((b) => {
+        if (b.classList.contains("active")) b.click();
+      });
+    }
+    function confirmBtn() {
+      return document.querySelector("#combat-modal-content .primary-btn");
+    }
+    function hasComplexSelect() {
+      return document.querySelectorAll("#combat-modal-content select").length > 0;
+    }
+
+    let result = { opened: true, skillUsed: false };
+    const candidateCount = useBtns().length; // 先取snapshot數量，因為每次點擊都會整個重render，元素會失效
+    for (let s = 0; s < candidateCount && !result.skillUsed; s++) {
+      const btns = useBtns();
+      if (!btns[s]) break;
+      const skillLabel = btns[s].closest(".combat-skill-row") ? btns[s].closest(".combat-skill-row").textContent.slice(0, 30) : "";
+      btns[s].click(); // 選定這個技能（combatSkillState = key）
+      if (hasComplexSelect()) {
+        // 複雜情況（需要額外選擇）：取消選定，換下一個候選
+        const reBtns = useBtns();
+        const stillActive = document.querySelector("#combat-modal-content .combat-attack-hit-btn.active");
+        if (stillActive) stillActive.click();
+        continue;
+      }
+      clearDice();
+      const n = diceBtns().length;
+      let usedThis = false;
+      if (n === 0) {
+        const cb = confirmBtn();
+        if (cb && !cb.disabled) {
+          cb.click();
+          result = { opened: true, skillUsed: true, diceUsed: 0, skillIndex: s, skillLabel };
+          usedThis = true;
+        }
+      } else {
+        const dbtns = diceBtns();
+        for (let k = 1; k <= n && !usedThis; k++) {
+          dbtns[k - 1].click();
+          const cb = confirmBtn();
+          if (cb && !cb.disabled) {
+            cb.click();
+            result = { opened: true, skillUsed: true, diceUsed: k, skillIndex: s, skillLabel };
+            usedThis = true;
+          }
+        }
+      }
+      if (!usedThis) {
+        // 骰子怎麼選confirm都不會啟用（多半是成本付不起）：取消選定，換下一個候選
+        clearDice();
+        const stillActive = document.querySelector("#combat-modal-content .combat-attack-hit-btn.active");
+        if (stillActive) stillActive.click();
+      }
+    }
+    const closeBtn = document.getElementById("btn-combat-modal-close");
+    if (closeBtn) closeBtn.click();
+    return result;
+  }, idx);
+}
+
+// 先試「簡單情況」的技能，成功就視為本回合這個角色的行動；沒有技能可用/都太複雜，才退回武器攻擊。
+async function attemptActionForCharacter(driver, idx) {
+  const skillResult = await attemptSkillForCharacter(driver, idx);
+  if (skillResult.skillUsed) return Object.assign({ via: "skill" }, skillResult, { attacked: true });
+  const attackResult = await attemptAttackForCharacter(driver, idx);
+  return Object.assign({ via: "attack" }, attackResult);
+}
+
+// 使用者確認（2026-09-01再追加）：「印出當下實際的Guard Count跟HP數值」——每回合confirm
+// 前後都印一次，讓下一步能直接對帳「傷害到底有沒有算出來、Guard有沒有被削減、HP格數為什麼
+// 變或不變」，不用再用猜的。enemyHp是攤平陣列（ENEMY_HP_ROWS段×ENEMY_HP_COLS格），這兩個
+// 常數沒有export到window，改用state.battle.enemyHpMax.length（固定4段）反推COLS。
+async function logGuardHpSnapshot(driver, label) {
+  const info = await driver.evaluate(() => {
+    const Core = window.PriTestNightCore;
+    const s = Core.state;
+    const rows = (s.battle.enemyHpMax || []).length || 4;
+    const cols = Math.floor((s.battle.enemyHp || []).length / rows) || 20;
+    const hpByRow = [];
+    for (let r = 0; r < rows; r++) {
+      let checked = 0;
+      for (let c = 0; c < cols; c++) {
+        if (s.battle.enemyHp[r * cols + c]) checked++;
+      }
+      hpByRow.push({ row: r, checked, max: s.battle.enemyHpMax[r] });
+    }
+    const roster = Core.getRosterCharacters()
+      .filter((c) => c.entered && !c._nearDeath)
+      .map((c) => ({
+        name: c.name,
+        phaseDamageDealt: c._phaseDamageDealt || 0,
+        phaseGuardReductionPoints: c._phaseGuardReductionPoints || 0,
+      }));
+    return {
+      guardCount: s.battle.guardCount,
+      selectedEnemyIds: s.battle.selectedEnemyIds,
+      hpByRow,
+      roster,
+    };
+  });
+  console.log("      [guard/hp " + label + "] " + JSON.stringify(info));
+  return info;
+}
+
 async function enteredCharacterCount(driver) {
   return driver.evaluate(() => {
     const Core = window.PriTestNightCore;
     return Core.getRosterCharacters().filter((c) => c.entered && !c._nearDeath).length;
+  });
+}
+
+// 使用者確認（2026-09-01追加）：#character-roster-tbody的.roster-combat-btn是依照
+// 「entered全員（含瀕死者）」的固定順序render的（renderCharacterRoster的entered=
+// rosterCharacters.filter(c=>c.entered)，瀕死不會把人從列表拿掉，只是換成復歸圓鈕），
+// 所以「跟entCount（entered&&!nearDeath的人數）」對不上——一旦有人瀕死，用0..entCount-1
+// 當index去點.roster-combat-btn，會誤點到錯的角色（例如跳過還活著、排在後面的角色）。
+// 這個helper回傳「非瀕死的entered角色，在完整entered列表中的實際DOM位置」，讓呼叫端
+// 用正確的index去點對應的按鈕。
+async function nonNearDeathRosterIndexes(driver) {
+  return driver.evaluate(() => {
+    const Core = window.PriTestNightCore;
+    const entered = Core.getRosterCharacters().filter((c) => c.entered);
+    const idxs = [];
+    entered.forEach((c, i) => {
+      if (!c._nearDeath) idxs.push(i);
+    });
+    return idxs;
+  });
+}
+
+// 使用者確認（2026-09-01追加）：「有盧恩就直接升級」——角色身上的runes只要付得起下一級
+// （花費=level+1，見character_drawer.js STAT_STEPPERS的char-level onDelta）就一路升到
+// 升不動為止（盧恩不夠或撞到LEVEL_CAP）。照現有腳本一貫「一律透過真實UI操作」的風格，
+// 真的開角色詳細抽屜、點data-stepper="char-level" data-delta="1"的+按鈕（這個stepper
+// 靠activeCharacterId辨識角色，所以必須先CharacterDrawer.open(c.id)），而不是直接改
+// c.level/c.runes——這樣才會連動applyLevelUpResourceBonus等既有的升級副作用（HP/FP/加護
+// 上限提升等），跟真人在角色詳細畫面手動升級的結果完全一致。
+async function autoLevelUpAllEntered(driver) {
+  return driver.evaluate(() => {
+    const Core = window.PriTestNightCore;
+    const CD = window.PriTestCharacterDrawer;
+    const entered = Core.getRosterCharacters().filter((c) => c.entered && !c._nearDeath);
+    const results = [];
+    entered.forEach((c) => {
+      CD.open(c.id);
+      const startLevel = c.level;
+      const startRunes = c.runes || 0;
+      let guard = 0;
+      while (guard < 100) {
+        guard++;
+        const btn = document.querySelector('[data-stepper="char-level"][data-delta="1"]');
+        if (!btn) break;
+        const beforeLevel = c.level;
+        btn.click();
+        if (c.level === beforeLevel) break; // 沒升成功（盧恩不夠、或已達LEVEL_CAP）
+      }
+      CD.close();
+      if (c.level !== startLevel) {
+        results.push({ name: c.name, from: startLevel, to: c.level, runesSpent: startRunes - (c.runes || 0), runesLeft: c.runes || 0 });
+      }
+    });
+    return results;
   });
 }
 
@@ -209,6 +402,27 @@ async function rollAllDiceThisPhase(driver) {
     );
     btns.forEach((b) => b.click());
     return btns.length;
+  });
+}
+
+// 使用者確認（2026-09-01追加）：「全滅就直接復活繼續打」——全滅時（entered&&!nearDeath
+// 人數變成0）不放棄，改成點擊每個瀕死角色既有的3個「瀕死復歸圓鈕」（renderRosterDiceDisplay
+// 渲染的.near-death-revival-circle，night.js的handleNearDeathRevivalClick/
+// completeNearDeathRevival——這是App本身既有、且本session的自動復活機制刻意沒有動到的
+// 手動UI，戰鬥中仍然可以正常按），對應真實遊戲裡「還沒瀕死的隊友執行復活行動」；全滅時
+// 沒人能動，等同劇本/GM需要出手介入才能讓戰鬥繼續——用既有UI操作，不是腳本發明新規則。
+async function reviveAllNearDeath(driver) {
+  return driver.evaluate(() => {
+    let clicks = 0;
+    for (let pass = 0; pass < 4; pass++) {
+      const circles = Array.from(document.querySelectorAll(".near-death-revival-circle")).filter((b) => !b.disabled);
+      if (!circles.length) break;
+      circles.forEach((b) => {
+        b.click();
+        clicks++;
+      });
+    }
+    return clicks;
   });
 }
 
@@ -231,28 +445,50 @@ async function driveFullCombat(driver, label, maxRounds) {
   let rounds = 0;
   let stuckRounds = 0;
   let lastEnemyHp = null;
+  let wipeRecoveries = 0;
+  const MAX_WIPE_RECOVERIES = 2; // 避免對一場真的打不過的敵人無限重複「全滅→復活→又全滅」，每次重試本身也要耗好幾回合才會被stuckRounds偵測到，次數不宜設太高
 
   while (rounds < maxRounds) {
     const phaseNow = await driver.evaluate(() => window.PriTestNightCore.state.actionPhase);
     if (phaseNow === "normal") break;
 
-    // 安全閥：如果entered且非瀕死的角色數變成0（例如強敵籌碼戰鬥打太久、全員瀕死），
-    // 這場戰鬥不可能再有人擲骰/按已完成，roundStage會永遠卡在awaitingRoll——這種情況下
-    // 腳本沒有實作「復活」動作（真實遊戲需要由其他PC執行復活行動），視為此戰鬥腳本
-    // 無法自動繼續，明確回報而不是無限重試。
+    // 使用者確認（2026-09-01修正）：全滅（entered且非瀕死的角色數變成0）不再直接放棄——
+    // App本身的自動救起機制（triggerNearDeath/setActionPhase combatEnd）只在「非戰鬥中」
+    // 或「戰鬥真的結束時」才會發動，全員同時瀕死、敵人卻還活著的情況下沒有人能再行動，
+    // 戰鬥永遠不會走到combatEnd，這是遊戲設計上「隊伍需要有人出手介入」的情境（不是App
+    // bug）。改用既有的瀕死復歸圓鈕（reviveAllNearDeath）把大家救起來繼續打，模擬真實
+        // 遊戲裡GM/劇本出手介入。設MAX_WIPE_RECOVERIES上限，避免對打不過的敵人無限重試。
     const activeCount = await enteredCharacterCount(driver);
     if (activeCount === 0) {
-      log.push({ round: rounds, status: "party-wiped-no-revival-in-script" });
-      break;
+      wipeRecoveries++;
+      if (wipeRecoveries > MAX_WIPE_RECOVERIES) {
+        log.push({ round: rounds, status: "party-wiped-too-many-times-giving-up", wipeRecoveries });
+        break;
+      }
+      const revived = await reviveAllNearDeath(driver);
+      log.push({ round: rounds, status: "party-wiped-revived", wipeRecoveries, revivedClicks: revived });
+      await driver.waitForTimeout(300);
+      const activeAfterRevive = await enteredCharacterCount(driver);
+      if (activeAfterRevive === 0) {
+        // 復歸圓鈕沒有生效（例如按鈕根本不存在），視為腳本端真的無法繼續，明確回報。
+        log.push({ round: rounds, status: "revive-attempt-failed" });
+        break;
+      }
+      continue; // 不消耗這回合的rounds計數，直接重新開始這回合
     }
     rounds++;
 
     // 0. 低血量角色先喝聖杯瓶（避免不必要的瀕死/團滅——真實玩家也會這樣做）。
+    // 使用者確認（2026-09-01修正）：combatBtns的順序是「entered全員（含瀕死者）」的固定
+    // DOM順序，不能直接用「entered&&!nearDeath」重新編號後的idx去對應，否則一旦有人瀕死
+    // 就會點錯人（見nonNearDeathRosterIndexes註解）。這裡改成先取得完整entered列表，
+    // 用該列表裡的真實位置對應combatBtns，只是跳過瀕死者不做動作。
     await driver.evaluate(() => {
       const combatBtns = Array.from(document.querySelectorAll("#character-roster-tbody .roster-combat-btn"));
       const Core = window.PriTestNightCore;
-      const entered = Core.getRosterCharacters().filter((c) => c.entered && !c._nearDeath);
+      const entered = Core.getRosterCharacters().filter((c) => c.entered);
       entered.forEach((c, idx) => {
+        if (c._nearDeath) return;
         if (!combatBtns[idx]) return;
         const lowHp = c.hp && c.hp.max && c.hp.current < c.hp.max * 0.5;
         const hasFlask = c.flaskBase && c.flaskBase.current > 0;
@@ -286,12 +522,15 @@ async function driveFullCombat(driver, label, maxRounds) {
     }
 
     const phaseForThisRound = await driver.evaluate(() => window.PriTestNightCore.state.actionPhase);
-    const entCount = await enteredCharacterCount(driver);
     const attackReports = [];
 
     if (phaseForThisRound === "combat" || phaseForThisRound === "extra") {
-      for (let idx = 0; idx < entCount; idx++) {
-        const r = await attemptAttackForCharacter(driver, idx);
+      // 使用者確認（2026-09-01修正）：改用nonNearDeathRosterIndexes取得「非瀕死者在完整
+      // entered列表中的實際DOM位置」，而不是0..entCount-1重新編號，避免點錯角色（見上方
+      // nonNearDeathRosterIndexes/flask區塊的說明）。
+      const idxs = await nonNearDeathRosterIndexes(driver);
+      for (const idx of idxs) {
+        const r = await attemptActionForCharacter(driver, idx);
         attackReports.push(r);
         await driver.waitForTimeout(80);
       }
@@ -315,6 +554,13 @@ async function driveFullCombat(driver, label, maxRounds) {
     });
     await driver.waitForTimeout(150);
 
+    // 使用者確認（2026-09-01再追加）：confirm前先印一次guard/hp快照，這是「傷害還沒真正
+    // 套用到敵人HP格數之前」的基準點（c._phaseDamageDealt/_phaseGuardReductionPoints已經
+    // 累積好、但handleBattleGuardCalcApply還沒被呼叫）。
+    if (phaseForThisRound === "combat" || phaseForThisRound === "extra") {
+      await logGuardHpSnapshot(driver, "round" + rounds + " confirm前");
+    }
+
     // 4. 點[攻擊/防禦]確認鈕（已完成後倒數第二顆按鈕通常是確認、最後一顆是返回，這裡用文字比對比較穩）
     const confirmClicked = await driver.evaluate(() => {
       const btns = Array.from(document.querySelectorAll("#location-status-actions button"));
@@ -327,6 +573,10 @@ async function driveFullCombat(driver, label, maxRounds) {
       return false;
     });
     await driver.waitForTimeout(200);
+
+    if (phaseForThisRound === "combat" || phaseForThisRound === "extra") {
+      await logGuardHpSnapshot(driver, "round" + rounds + " confirm後");
+    }
 
     if (phaseForThisRound === "defense") {
       // 開了enemy-damage-modal：對每個PC/靈體列按確定
@@ -530,16 +780,16 @@ async function driveGenericStep(driver, s, combatLogs) {
       const result = await driveFullCombat(driver, "樓層戰鬥(slot narration)");
       combatLogs.push(result);
       if (!result.ended) {
+        // 使用者確認（2026-09-01修正）：driveFullCombat內部已經會用reviveAllNearDeath
+        // 處理全滅（見該函式），所以走到這裡代表「就算救回來了，這場戰鬥還是沒辦法在
+        // 合理回合內結束」（可能是敵人太強、或救回來後round-stage卡住等更深層問題）。
+        // 過去版本會讓外層runOneSlot繼續無限重試同一場battleWait，一旦真的卡住就會
+        // 反覆重跑driveFullCombat（每次都再打好幾回合），耗費大量時間卻毫無進展。這裡
+        // 改成：只打一次，沒結束就直接回報卡住（false），不要重試，交給人工複查。
         note(5, "一場樓層戰鬥在" + result.rounds + "回合內未能結束，可能卡住");
-        const wiped = result.log.some((l) => l.status === "party-wiped-no-revival-in-script");
-        if (wiped) {
-          // 全員瀕死且腳本沒有實作「復活」動作，這場戰鬥不可能再自動推進——回報為卡住
-          // （false），讓外層runOneSlot立刻停止，而不是耗盡整個maxSteps預算原地打轉。
-          return false;
-        }
-      } else {
-        note(5, "樓層戰鬥正常打完，共" + result.rounds + "回合");
+        return false;
       }
+      note(5, "樓層戰鬥正常打完，共" + result.rounds + "回合");
     } else {
       // 沒有真的進入combat phase（可能是舊有shortcut路徑），保底呼叫既有notify
       await driver.evaluate(() => {
@@ -848,6 +1098,7 @@ async function checkPotentialPowerIndependence(obsB, obsC, charIds) {
   obsC.on("pageerror", (e) => consoleErrors.obsC.push(String(e.message || e)));
 
   const report = { day1: [], day2: [], day3: null };
+  const levelUpLog = [];
 
   try {
     console.log("=== 建立劇本1雲端遊戲、3個分頁模擬3台裝置 ===");
@@ -874,6 +1125,13 @@ async function checkPotentialPowerIndependence(obsB, obsC, charIds) {
       }
       report.day1.push({ idx, ...result });
       console.log(" [day1 slot" + idx + "] => " + result.status, "steps=" + result.steps);
+      // 使用者確認（2026-09-01追加）：有盧恩就直接升級——每個版塊跑完（樓層獎勵最常見的
+      // 盧恩來源）都檢查一次，能升就升，讓角色盡量不要維持在脆弱的Lv1應付後面的戰鬥。
+      const lvUps1 = await autoLevelUpAllEntered(driver);
+      if (lvUps1.length) {
+        levelUpLog.push({ when: "day1 slot" + idx, ups: lvUps1 });
+        console.log("    [升級] " + JSON.stringify(lvUps1));
+      }
       if (result.status && result.status.indexOf("stuck") === 0) {
         note(2, "slot" + idx + " 卡住：" + result.status + " lastButtons=" + JSON.stringify(result.lastButtons));
       } else if (result.status && result.status.indexOf("ok") === 0) {
@@ -887,6 +1145,11 @@ async function checkPotentialPowerIndependence(obsB, obsC, charIds) {
     report.day1ToDay2 = adv;
 
     if (adv.ok) {
+      const lvUpsD2 = await autoLevelUpAllEntered(driver);
+      if (lvUpsD2.length) {
+        levelUpLog.push({ when: "day1->day2跳轉後", ups: lvUpsD2 });
+        console.log("    [升級] " + JSON.stringify(lvUpsD2));
+      }
       console.log("\n########## day2 ##########");
       for (let idx = 0; idx < slotCount; idx++) {
         let result;
@@ -897,6 +1160,11 @@ async function checkPotentialPowerIndependence(obsB, obsC, charIds) {
         }
         report.day2.push({ idx, ...result });
         console.log(" [day2 slot" + idx + "] => " + result.status, "steps=" + result.steps);
+        const lvUps2 = await autoLevelUpAllEntered(driver);
+        if (lvUps2.length) {
+          levelUpLog.push({ when: "day2 slot" + idx, ups: lvUps2 });
+          console.log("    [升級] " + JSON.stringify(lvUps2));
+        }
       }
 
       console.log("\n-- 進入day3（最終夜之王戰鬥）--");
@@ -924,6 +1192,12 @@ async function checkPotentialPowerIndependence(obsB, obsC, charIds) {
         }));
         console.log(" 開啟夜之王戰鬥後：", JSON.stringify(afterOpen));
         note(8, "開啟夜之王戰鬥，actionPhase=" + afterOpen.actionPhase + "，selectedEnemyIds=" + JSON.stringify(afterOpen.selectedEnemyIds));
+
+        const lvUpsBoss = await autoLevelUpAllEntered(driver);
+        if (lvUpsBoss.length) {
+          levelUpLog.push({ when: "夜之王戰鬥前", ups: lvUpsBoss });
+          console.log("    [升級] " + JSON.stringify(lvUpsBoss));
+        }
 
         if (afterOpen.actionPhase === "combat") {
           const bossResult = await driveFullCombat(driver, "夜之王(gladius)戰鬥", 60);
@@ -978,9 +1252,20 @@ async function checkPotentialPowerIndependence(obsB, obsC, charIds) {
     console.log("\n=== 疑似App bug清單 ===");
     findings.forEach((f) => console.log(" - " + f));
 
+    console.log("\n=== 升級紀錄（有盧恩就升級） ===");
+    levelUpLog.forEach((entry) => console.log(" [" + entry.when + "] " + JSON.stringify(entry.ups)));
+    try {
+      const finalRoster = await driver.evaluate(() =>
+        window.PriTestNightCore.getRosterCharacters()
+          .filter((c) => c.entered)
+          .map((c) => ({ name: c.name, level: c.level, runes: c.runes, nearDeath: !!c._nearDeath }))
+      );
+      console.log("最終角色狀態：", JSON.stringify(finalRoster));
+    } catch (e) {}
+
     fs.writeFileSync(
       RESULTS_PATH,
-      JSON.stringify({ report, criteriaLog, findings, consoleErrors }, null, 2)
+      JSON.stringify({ report, criteriaLog, findings, consoleErrors, levelUpLog }, null, 2)
     );
     await browser.close();
   }
