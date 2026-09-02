@@ -104,10 +104,38 @@
   // window.PriTestNightAddAutoGmLogフック）へも並行して記録する。単純な[進入]/[OK]等の
   // ページ送りボタンはこの経路を通らないため対象外のまま（turnMessagesへ積まれる内容＝
   // 「実際に何か決まった」瞬間のみが対象になる）。
-  function logGmDecision(text) {
+  // 使用者確認（2026-09-02）：GM留言板（turnMessages）は玩家全員が常時見る聊天版，文字要精簡；
+  // 詳細內容改放進自動化GM紀錄（autoGmLog，紀錄ドロワー內、需要時才展開查看）。第2引數
+  // fullText為選填，省略時兩邊寫入同一段文字（維持既有全部呼叫端的原本行為不變）。
+  function logGmDecision(text, fullText) {
     var Core = window.PriTestNightCore;
     Core.state.turnMessages.push({ text: text, time: Date.now(), side: "gm" });
-    if (window.PriTestNightAddAutoGmLog) window.PriTestNightAddAutoGmLog(text);
+    if (window.PriTestNightAddAutoGmLog) window.PriTestNightAddAutoGmLog(fullText || text);
+  }
+
+  // 使用者確認（2026-09-02）：樓層本文（advanceFieldWalkのblockText）往往有好幾段敘述文字，
+  // 直接整段寫進GM留言板會太長。這裡把換行併成空格後取第一句，讓GM留言板一眼看出「這格
+  // 發生了什麼」，完整內容留給自動化GM紀錄（logGmDecisionの第2引數）。
+  // 測試中發現：像「（預覽）\n描寫：...」這種第一行只是極短標籤的情況，若單純在第一個換行/
+  // 句末標點就截斷，會只留下沒有資訊量的「（預覽）」。改為換行視為空格接續，並且只在累積
+  // 內容達到FLOOR_NARRATION_BOARD_SUMMARY_MIN字以上時才允許在句末標點截斷，避免摘要文字
+  // 短到看不出內容。
+  var FLOOR_NARRATION_BOARD_SUMMARY_MIN = 10;
+  var FLOOR_NARRATION_BOARD_SUMMARY_MAX = 40;
+  function condenseNarrationForTurnBoard(text) {
+    var full = String(text || "").replace(/\s+/g, " ").replace(/^\s+|\s+$/g, "");
+    if (full.length <= FLOOR_NARRATION_BOARD_SUMMARY_MAX) return full;
+    var punctRe = /[。！？]/g;
+    var m;
+    var cut = -1;
+    while ((m = punctRe.exec(full))) {
+      if (m.index + 1 >= FLOOR_NARRATION_BOARD_SUMMARY_MIN) {
+        cut = m.index + 1;
+        break;
+      }
+    }
+    if (cut !== -1 && cut <= FLOOR_NARRATION_BOARD_SUMMARY_MAX) return full.slice(0, cut);
+    return full.slice(0, FLOOR_NARRATION_BOARD_SUMMARY_MAX) + "…";
   }
 
   // ---- 夜の王〔開場〕の取得（第11項） ----
@@ -2852,6 +2880,17 @@
     }
     walk.lineIndex = i;
     var blockText = blockParts.join("\n");
+    // 使用者確認（2026-09-02）：「樓層經過要有背景紀錄」——這個區塊敘述過的樓層本文（blockText）
+    // 以前只寫入state.gmFlow.narrationText（單一欄位、每次前進都會被下一段覆蓋，且只有目前
+    // 這台裝置的render function讀到），並沒有進入任何跨裝置共享、永久保留的紀錄，導致GM/玩家
+    // 事後無法回顧「這個樓層剛才發生了什麼」。這裡比照戰鬥觸發等「實際確定了什麼」的既有做法
+    // （見logGmDecision本身的説明），把敘述過的本文也記入state.turnMessages（GM留言板，跨裝置
+    // 同步）與state.autoGmLog（自動化GM紀錄）。只在此處記一次（下面每個分支各自附加的選項提示
+    // 文字如「請選擇...」不重複記錄），避免blockText在多個分支重複寫入。
+    // 使用者確認（2026-09-02再追加）：GM留言板是玩家全員常駐可見的聊天版，整段樓層本文太長，
+    // 只寫入精簡版（condenseNarrationForTurnBoard，取第一句/首行並截短）；完整全文則透過
+    // logGmDecision第2引數寫入自動化GM紀錄（紀錄ドロワー，需要時才展開查看）。
+    if (blockText) logGmDecision(condenseNarrationForTurnBoard(blockText), blockText);
     if (combatTriggerIndex !== -1) {
       var enemyPreview = buildCombatEnemyPreviewText(lines, combatTriggerIndex, walk.slotIndex);
       state.gmFlow.narrationText = enemyPreview ? blockText + "\n" + enemyPreview : blockText;
