@@ -20,7 +20,6 @@ def build_index_html() -> str:
     <div class="project-grid">
 {cards}
     </div>
-    <a class="back-link admin-entry-link" href="admin/index.html" data-i18n="admin_entry_link"></a>
 """
 
     return page_shell(

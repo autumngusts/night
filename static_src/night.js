@@ -15044,7 +15044,17 @@
       window.location.href = "../admin/index.html";
       return;
     }
+    // 使用者確認（2026-09-03）：取消首頁的「管理員入口」連結後，主選單「night」卡片本身
+    // 就是唯一入口（不帶?game=）。密碼驗證已在上面通過，若這裡再顯示「遊戲不存在」死路
+    // 畫面，GM會完全卡住、看不到任何可以建立/管理遊戲的地方。改為直接導向admin/index.html
+    // （已通過的管理員驗證共用同一個sessionStorage旗標，admin.js的requireAdmin不會重複詢問）。
+    // 只有「帶了?game=但這個id根本不存在（例如舊連結、遊戲已被刪除）」才維持顯示原本的
+    // 「遊戲不存在」畫面，避免誤導成「這個gameId對應的遊戲不見了，去建新的就好」。
     if (!game) {
+      if (!gameId) {
+        window.location.href = "../admin/index.html";
+        return;
+      }
       document.getElementById("screen-missing-game").hidden = false;
       document.getElementById("screen-board").hidden = true;
       document.getElementById("day-status").hidden = true;
