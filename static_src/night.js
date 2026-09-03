@@ -12946,9 +12946,18 @@
     document.getElementById("weapon-skill-reroll-modal").hidden = false;
   }
 
+  // ユーザー報告バグ修正（2026-09-03）：「離開」ボタン（btn-weapon-skill-reroll-modal-close）が
+  // 単にモーダルを閉じるだけでweaponSkillRerollOnResolvedFnを呼んでいなかったため、対象キャラに
+  // 再抽選可能な戦技スロットが無い場合や、GMが再抽選せずそのまま離れた場合、獎勵清單側の
+  // reward.claimingがtrueのまま（finishが一度も呼ばれず）永久に「進行中…」で固まっていた。
+  // 呼び出し元（confirmNewBtn／keepOldBtn）が持っていた「閉じる前にonResolvedFnを呼ぶ」処理を
+  // ここへ一本化し、どの経路でモーダルを閉じてもonResolvedFnが必ず（一度だけ）呼ばれるようにする。
   function closeWeaponSkillRerollModal() {
     document.getElementById("weapon-skill-reroll-modal").hidden = true;
     weaponSkillRerollCharacterId = null;
+    var fn = weaponSkillRerollOnResolvedFn;
+    weaponSkillRerollOnResolvedFn = null;
+    if (typeof fn === "function") fn();
   }
 
   function weaponSkillSlotLabel(slot) {
@@ -13043,7 +13052,7 @@
         saveRosterCharacters();
         renderCharacterRoster();
         addLog("log_weapon_skill_reroll", { character: c.name, weapon: s.weaponName, old: oldName, new: newName });
-        if (typeof weaponSkillRerollOnResolvedFn === "function") weaponSkillRerollOnResolvedFn();
+        // onResolvedFnの呼び出しはcloseWeaponSkillRerollModal側に一本化済み（重複発火防止）。
         closeWeaponSkillRerollModal();
       });
       resultArea.appendChild(confirmNewBtn);
@@ -13052,7 +13061,6 @@
       keepOldBtn.type = "button";
       keepOldBtn.textContent = window.I18N.t("weapon_skill_reroll_keep_old_button");
       keepOldBtn.addEventListener("click", function () {
-        if (typeof weaponSkillRerollOnResolvedFn === "function") weaponSkillRerollOnResolvedFn();
         closeWeaponSkillRerollModal();
       });
       resultArea.appendChild(keepOldBtn);

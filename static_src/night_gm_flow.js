@@ -2082,14 +2082,22 @@
     // （ユーザー報告のバグ）。
     var isFreshCardVisit = typeof idx === "number" && state.cardLevels[idx] === 0;
     if (isFreshCardVisit && offerEventChipIfPending(idx, "startWalk")) return;
-    beginFieldWalkFlow(idx, entry);
+    beginFieldWalkFlow(idx, entry, isFreshCardVisit);
   }
 
   // handleEnterClickから分離：籌碼事件を先に確認する必要が無い場合はそのまま、確認後に
   // 「使用」／「稍後」いずれを選んでも（resolveChipOffer経由で）ここへ戻ってくる。
-  function beginFieldWalkFlow(idx, entry) {
+  // isFreshCardVisit：このカードへの「真の初回進入」（handleEnterClickのisFreshCardVisitと
+  // 同義）かどうか。ユーザー報告のバグ修正（2026-09-03）：以前はここを経由するたびに
+  // 無条件で樓層描寫の先頭に「（預覽）」ラベルを付けていたため、同じカード内で樓層1→2→3と
+  // ［進入］を繰り返し押すたびに（＝2層目以降でも）「（預覽）」が再表示されてしまっていた。
+  // 「（預覽）」は「初めてこのカードへ移動してきた際、カード環境を見せる」ためのラベルなので、
+  // 真の初回進入時のみ付与する。state.gmFlow.walkIsFreshCardVisitへも保存し、自動解決に
+  // 失敗した場合のGM手動選択フォールバック（handleBranchChoiceClick）でも同じ判定を使う。
+  function beginFieldWalkFlow(idx, entry, isFreshCardVisit) {
     var Core = window.PriTestNightCore;
     var state = Core.state;
+    state.gmFlow.walkIsFreshCardVisit = !!isFreshCardVisit;
     if (!entry || !entry.branches || !entry.branches.length) {
       // 分岐データが無いカード（規則書データが未整備、等）は従来通りの簡易リマインドへ退避する。
       var name = entry ? window.PriTestFields.localizedText(entry.name) : "";
@@ -2134,8 +2142,10 @@
         branchFloor: null,
         branchFloorArmed: false,
         // 使用者確認：進度版顯示優化——進入新板塊時的第一行標示「（預覽）」，讓GM/玩家
-        // 一眼分辨這是剛進入的敘述、還是後續判定/戰鬥產生的內容。
-        pendingPrefixText: window.I18N.t("gm_flow_floor_preview_label"),
+        // 一眼分辨這是剛進入的敘述、還是後續判定/戰鬥產生的內容。僅在「真的初次進入這張
+        // 卡牌」時附加（isFreshCardVisit），避免同一張卡牌內樓層2、3…每次按［進入］都
+        // 重複顯示「（預覽）」。
+        pendingPrefixText: isFreshCardVisit ? window.I18N.t("gm_flow_floor_preview_label") : null,
         pendingOutcomeFilter: null,
         pendingConvergeLabel: null,
       };
@@ -2245,8 +2255,11 @@
     }
     if (use && window.PriTestNightEventChips) window.PriTestNightEventChips.openEventChipModal(idx);
     if (continuation === "startWalk") {
+      // このcontinuationはofferEventChipIfPending(idx, "startWalk")経由でのみ発生し、
+      // 常に「真の初回進入」（handleEnterClick側のisFreshCardVisit===true）から来ているため、
+      // ここでも同じ扱い（「（預覽）」を表示する）にする。
       var entry = window.PriTestNightFloorBreakthrough.resolveFieldEntryForSlot(idx);
-      beginFieldWalkFlow(idx, entry);
+      beginFieldWalkFlow(idx, entry, true);
     } else if (continuation === "cardConclusion") {
       // 使う／稍後いずれの場合も、次は［地圖移動機制］（まだ保留があれば）へ進める。
       advanceCardConclusionChain();
@@ -2283,8 +2296,10 @@
     pendingSpiritVeinContinuation = null;
     if (!pending) return;
     if (pending.continuation === "startWalk") {
+      // resolveChipOfferと同じ理由（常に真の初回進入から来ているcontinuation）で
+      // isFreshCardVisit=trueを渡す。
       var entry = window.PriTestNightFloorBreakthrough.resolveFieldEntryForSlot(pending.idx);
-      beginFieldWalkFlow(pending.idx, entry);
+      beginFieldWalkFlow(pending.idx, entry, true);
     } else if (pending.continuation === "cardConclusion") {
       advanceCardConclusionChain();
     }
@@ -2487,8 +2502,10 @@
     Core.saveState();
     Core.renderCurrentLocationStatus();
     if (continuation === "startWalk" && typeof idx === "number") {
+      // resolveChipOfferと同じ理由（このcontinuationはofferEventChipIfPending(idx,"startWalk")
+      // 経由の真の初回進入からのみ発生する）でisFreshCardVisit=trueを渡す。
       var entry = window.PriTestNightFloorBreakthrough.resolveFieldEntryForSlot(idx);
-      beginFieldWalkFlow(idx, entry);
+      beginFieldWalkFlow(idx, entry, true);
     } else if (continuation === "cardConclusion") {
       advanceCardConclusionChain();
     }
@@ -2562,7 +2579,10 @@
     walk.lineIndex = 0;
     walk.branchFloor = null;
     walk.branchFloorArmed = false;
-    walk.pendingPrefixText = window.I18N.t("gm_flow_floor_preview_label");
+    // isFreshCardVisitはbeginFieldWalkFlowが今回のカードへ進入した時点で保存した値
+    // （state.gmFlow.walkIsFreshCardVisit）を使う——同一カード内2層目以降のGM手動選択では
+    // 「（預覽）」を再表示しない（beginFieldWalkFlow側の同じ修正と同じ理由）。
+    walk.pendingPrefixText = state.gmFlow.walkIsFreshCardVisit ? window.I18N.t("gm_flow_floor_preview_label") : null;
     walk.pendingOutcomeFilter = null;
     walk.pendingConvergeLabel = null;
     // 使用者確認：自動套用樓層獎勵——分岐（branchIndex）が変われば、floorIndexが同じ値でも
