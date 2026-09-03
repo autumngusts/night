@@ -2887,6 +2887,19 @@
     var c = findCharacter(st.characterId);
     if (!c) return false;
     var categoryId = st.categoryResolved && st.categoryId ? st.categoryId : null;
+    if (!categoryId && st.majorIndex !== null) {
+      // 「射撃武器」「盾」グループショートカット（presetWeaponRollForReward）等、大分類のみ
+      // 既に確定しているケース。typeの得意武器ロジックへは進まず、手動フローと同じ小分類
+      // 決定表を1D6で解決する（さもないと簡化抽選時に指定したカテゴリが無視され、無関係な
+      // カテゴリが選ばれてしまう）。
+      for (var minorAttempt = 0; minorAttempt < 20 && !categoryId; minorAttempt++) {
+        var minorResult = resolveMinorCategoryForMajorIndex(st.majorIndex);
+        st.minorDie = minorResult.die;
+        categoryId = minorResult.categoryId;
+      }
+      if (!categoryId) return false;
+      st.categoryId = categoryId;
+    }
     if (!categoryId) {
       var type = c.typeId ? CharacterTypes.get(c.typeId) : null;
       var favoredNames = type
@@ -3134,6 +3147,25 @@
       return Weapons.localizedText(c.name) === name;
     })[0];
     return match ? match.id : null;
+  }
+
+  // 大分類が既に確定している状態（majorIndex）から、小分類決定表を1D6で解決する。
+  // 手動フロー（renderWeaponRollFieldの〔4-2〕小分類抽選ボタン）と簡化抽選の自動解決
+  // （autoResolveWeaponDraw）の両方で同じ規則を使うための共通ヘルパー。
+  function resolveMinorCategoryForMajorIndex(majorIndex) {
+    var minorTable = WeaponRulebook.minorTables()[majorIndex];
+    if (!minorTable) return { die: null, categoryId: null };
+    var die = rollD6();
+    var row = null;
+    for (var i = 0; i < minorTable.rows.length; i++) {
+      var range = parseRollRange(Weapons.localizedText(minorTable.rows[i][0]));
+      if (range && die >= range[0] && die <= range[1]) {
+        row = minorTable.rows[i];
+        break;
+      }
+    }
+    var categoryId = row ? findCategoryIdByMinorLabel(Weapons.localizedText(row[1])) : null;
+    return { die: die, categoryId: categoryId };
   }
 
   // 盾は skills ではなく attachedEffect／reverseArt にランダム枠を持つ（renderWeaponCard の
@@ -4761,25 +4793,15 @@
           panel.appendChild(majorResult);
         }
 
-        var minorTable = WeaponRulebook.minorTables()[st.majorIndex];
         var minorBtn = document.createElement("button");
         minorBtn.type = "button";
         minorBtn.className = "primary-btn";
         minorBtn.textContent = window.I18N.t("weapon_roll_minor_button");
         minorBtn.addEventListener("click", function () {
-          var die = rollD6();
-          st.minorDie = die;
-          var row = null;
-          for (var i = 0; i < minorTable.rows.length; i++) {
-            var range = parseRollRange(Weapons.localizedText(minorTable.rows[i][0]));
-            if (range && die >= range[0] && die <= range[1]) {
-              row = minorTable.rows[i];
-              break;
-            }
-          }
-          var resolvedId = row ? findCategoryIdByMinorLabel(Weapons.localizedText(row[1])) : null;
-          if (resolvedId) {
-            st.categoryId = resolvedId;
+          var result = resolveMinorCategoryForMajorIndex(st.majorIndex);
+          st.minorDie = result.die;
+          if (result.categoryId) {
+            st.categoryId = result.categoryId;
             st.categoryResolved = true;
             st.minorRerollNote = false;
           } else {

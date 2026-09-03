@@ -256,6 +256,11 @@ BODY = """    <div class="night-header-row">
             <span data-i18n="auto_gm_boss_form_label"></span>
             <button type="button" id="btn-auto-gm-boss-form-toggle"></button>
           </div>
+          <div class="wb-row" id="auto-gm-action-intensified-row" hidden>
+            <span id="auto-gm-action-intensified-title"></span>
+            <button type="button" id="btn-auto-gm-action-intensified-wounded" data-i18n="auto_gm_action_intensified_choice_wounded"></button>
+            <button type="button" id="btn-auto-gm-action-intensified-hollow" data-i18n="auto_gm_action_intensified_choice_hollow"></button>
+          </div>
           <div id="auto-gm-roll-result" class="threat-ref-body" hidden></div>
           <div class="wb-row">
             <label data-i18n="enemy_damage_tag_label"></label>

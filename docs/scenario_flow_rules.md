@@ -401,6 +401,15 @@ PCたちが「黄金樹の帳」（2日目）を撃破し、その後配置さ�
   続けるとは限らない可能性がある。正確な条件は写真から読み取り切れておらず、実装前に
   物理本の再確認を推奨）。
 
+**2026-09-02更新**：「ランダムイベント決定表」でどのイベントが起こるかの決定自体は
+`night_gm_flow.js`の`autoRollRandomEventChipIfNeeded`が既に自動擲骰・自動決定している
+（フィールド初回訪問時、`event_rulebook.js`の`random_event`の`extraTables`を参照）。GMが
+チットを開くと、決定済みの事件が下拉選単に自動選択された状態で表示され、「簡化抽選」開関
+（自動化GM開関右側、`state.simplifiedDrawEnabled`）がONの場合は選択操作自体を省略し
+（下拉選単を隠して事件名を固定表示）、GMは「確定採用」ボタンを押すだけでよい（半自動：
+算出は自動、確定は人間という既存の自動化GM設計哲学に合わせ、確定ボタン自体は残す）。
+イベント内容自体の進行（本文の敘述・解決）は引き続きGM手動で行う（機構化対象外）。
+
 ---
 
 ## 10. このrepoでの実装状況マップ（2026-08-11更新）
@@ -419,7 +428,8 @@ PCたちが「黄金樹の帳」（2日目）を撃破し、その後配置さ�
 | イベントチットの盤面配置（種類・枚数・固定番号①〜⑨） | ✅ 実装済み・完全自動（9マスへランダムシャッフル配置。`{id,number}`のペアごとshuffleすることで、洗牌後も各チットの固定番号1-9＝規則書の①〜⑨を`state.eventChipNumbers`に保持——⑦⑧強敵の区別に使う） | `rollEventChips`, `EVENT_CHIP_TYPES`（`night.js`）、`state.eventChipNumbers` |
 | 霊脈／祝福／商人チットの解決 | ✅ 実装済み・完全自動（9節参照、`renderEventChipSpiritVein`等） | `night_event_chips.js` |
 | 強敵チットの解決：強敵決定表の自動擲骰・自動判定 | ✅ 実装済み。「自動擲骰決定」ボタンで2顆骰を振り、`event_rulebook.js`の`extraTables`（2顆骰×12列）から該当エネミーを解決、L補込みで戦場へ自動追加する。⑧号チットが2日目なら「恐るべき強敵決定表」（`extraTables[1]`）、それ以外は通常表（`extraTables[0]`）を`state.eventChipNumbers`から自動選択（GM手動選択は不要）。表の「レベル+1して振り直す」列も自動で振り直す。GMによる手動入力・記録機能も従来通り並存 | `rollStrongEnemyTable`, `resolveStrongEnemyEntry`（`night_gm_flow.js`）、`renderEventChipStrongEnemy`（`night_event_chips.js`） |
-| ランダムチットの解決 | ❌ 未実装（GMが規則書内容から手動選択、自由記述のまま） | `renderEventChipRandom`（`night_event_chips.js`） |
+| ランダムチットの解決：どの事件が起こるかの自動擲骰・決定 | ✅ 実装済み（フィールド初回訪問時に自動擲骰、`event_rulebook.js`の`extraTables`から決定、下拉選単に自動選択。`simplifiedDrawEnabled`ON時は選択操作自体を省略し確定ボタンのみ残す。2026-09-02更新） | `autoRollRandomEventChipIfNeeded`（`night_gm_flow.js`）、`renderEventChipRandom`（`night_event_chips.js`） |
+| ランダムチットの解決：事件本文の敘述・解決自体 | ❌ 未実装（GMが本文を見ながら手動進行、聖甲蟲のみ別枠で自動化済み） | `renderEventChipRandom`／`renderEventChipScarab`（`night_event_chips.js`） |
 | カード/樓層の`varianceTable`（どの分岐が適用されるか） | ✅ 実装済み（自動化GM Phase 2、[進入]時にシナリオ番号＋必要なら1D6で自動解決。解決不能時のみGMに分岐ボタンを提示） | `autoResolveBranch`, `handleEnterClick`（`night_gm_flow.js`） |
 | 2日目セットアップ（カード6枚除去・新規配置・地変） | 状況未調査（本ドキュメント作成時点では未確認、`openKeepCardsDrawer`/`submitKeepCards`が関連する可能性が高いが、地変カードの自動選定ロジックまでは未検証） | `night.js`（`openKeepCardsDrawer`等、要追加調査） |
 | フロア本文中の「雜兵戰鬥／ボス戦闘（撃破ルーン：N）」構造：敘述の一時停止・敵の自動判定・戦場への自動追加・戦闘終了検知 | ✅ 実装済み（自動化GM Phase 2第17・18項、［戰鬥機制］／［戰鬥結束］）。どちらの構造にも該当行に到達すると敘述を一旦止めて[雜兵戰鬥]／[王戰]ボタン（トリガー行自身の文言をそのままラベルに使う）を提示し、押すと直後の敵名bullet行（「XXX（頁）／Lv.N」）を敘述しつつ`Enemies.search`で一意に解決できた敵だけ戦場へ自動追加する（複数候補・不一致時はGM手動追加のリマインドに留める、"■"と同じ捏造しない方針）。以後は「戰鬥進行中」とだけ示して待機し、エネミーの全HP行が0になった瞬間（`night.js`の`setActionPhase`が`combatEnd`を検出）に自動で続きの敘述（撃破後の獎勵敘述等）へ進む——GMは進度版側で何も操作しなくてよい | `isCombatTriggerLine`, `handleCombatTriggerClick`, `notifyCombatEnded`（`night_gm_flow.js`）、`addEnemyToBattle`, `setActionPhase`の`combatEnd`分岐（`night.js`） |

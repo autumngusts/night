@@ -830,6 +830,13 @@
           groupDamage: { modifier: -60 },
           targetRule: { kind: "frontAll" },
         },
+        {
+          // 「叩きつけ」：乱戦ダメージ修正＋120、対象明記無しのため既定ルール。
+          rollMin: 5,
+          rollMax: 6,
+          groupDamage: { modifier: 120 },
+          targetRule: { kind: "frontAll" },
+        },
       ],
     },
     "soldier_knight|leyndell_knights": {
@@ -3440,18 +3447,25 @@
         },
       ],
     },
-    // 【special フィールドについて（rows[]には含めずここに完全記録し、GM手動対応とする）】
+    // 【special フィールドについて（2026-09-02機構化）】
     // - 〔2回行動〕このエネミーは1回のディフェンスフェイズに「1D（傷ついたデーモン）」と
     //   「1D+6（うろ底のデーモン）」で、2回のアクション決定を行い、その双方を実行する。下記rowsは
-    //   1〜12の統一表になっているため、新規のdual-roll機構は追加せず、既存の擲骰オーバーレイUIへ
-    //   「1回目は出目そのまま（1〜6）」「2回目は出目+6した値（7〜12）」を2回連続で入力する運用で
-    //   両方の結果を得る（GM手動で2回操作、新規の状態管理機構は追加しない）。
+    //   1〜12の統一表になっているため、night.jsのhandleAutoGmRollClickが
+    //   dualActionUntilIntensified:trueを見て、1回のGMクリックで内部的に2回
+    //   AutoGm.rollEnemyAction(enemyKey, battleState, 0/6)を呼び、両方の結果を同じPC欄へ
+    //   合算して書き込む（GMは通常どおり1回擲骰ボタンを押すだけでよい）。
     // - 〔行動激化〕このエネミーは「体勢崩し」が発生せず、代わりに戦闘終了まで特殊能力「2回行動」を
-    //   失う。このとき、PCは相談して任意で「1D（傷ついたデーモン）」か「1D+6（うろ底のデーモン）」
-    //   のいずれか一方の「生き残った側」を選んで記録し、以降は戦闘終了まで、生き残った側の
-    //   アクションを「総合ダメージ:+300／個別ダメージ:+120」して決定する——ターンをまたぐ状態遷移で
-    //   rowsモデルでは表現不可のため、GM手動運用とする（新規の状態管理機構は追加しない）。
+    //   失う。actionIntensifiedInsteadOfStagger:trueにより、night.jsのadjustEnemyHpRowが
+    //   通常の體勢崩し（guardBroken／體崩バナー／額外階段解禁）の代わりにこのフラグを検知し、
+    //   PCが「1D（傷ついたデーモン）」か「1D+6（うろ底のデーモン）」のいずれか一方の
+    //   「生き残った側」を選ぶボタンを表示する（state.battle.dualRollSurvivorSide、同時に
+    //   state.woundedDemonSurvivorRecordへも永続記録——デーモンの王子「依り代」が別戦闘で参照）。
+    //   以降は戦闘終了まで、選んだ側の単発ロールに対しsurvivorBonus（総合ダメージ:+300／
+    //   個別ダメージ:+120）を上乗せする（行本体に亂戰/個別ダメージが無い行には何も付加しない）。
     "death_bird_raven|wounded_demon": {
+      dualActionUntilIntensified: true,
+      actionIntensifiedInsteadOfStagger: true,
+      survivorBonus: { groupModifier: 300, individualAmount: 120 },
       rows: [
         {
           // 「炎爪ひっかき」：「敵視:1以上」で前衛のPC全員に「乱戦ダメージ:2人分」（本文に明記）。
@@ -3522,21 +3536,17 @@
         },
       ],
     },
-    // 【special フィールドについて（rows[]には含めずここに完全記録し、GM手動対応とする）】
+    // 【special フィールドについて（2026-09-02機構化）】
     // - GM運用note：このエネミーは進行中シナリオで「傷ついたデーモン＆うろ底のデーモン」を撃破した
     //   場合にのみ登場可能（シナリオ進行条件、機構化不要）。
     // - 〔依り代〕戦闘開始時、プレイヤーが進行中のシナリオで「傷ついたデーモン」と「うろ底のデーモン」
     //   のどちらを記録しているのか確認し、「うろ底のデーモン」が記録されているならアクション決定を
-    //   「1D+4」で行う。既存のrollOverride: "halfIfNoMobs"は「現在の戦闘中のmobHpRowsの有無」を
-    //   battleStateから自動判定できる条件だが、本行動の判定条件（進行中シナリオでどちらの敵を
-    //   過去に撃破・記録したか）はstate.battle側に対応する既存フィールドが存在せず、GMがシナリオ
-    //   記録を参照して手動確認する以外に判定手段が無い。新規rollOverride文字列をauto_gm.jsに
-    //   追加しても、それを駆動する新規state.battleフィールドとGM向け確認UIを合わせて追加しない
-    //   限り機能せず、それはauto_gm.jsの小規模な分岐追加の範囲を超える（night.js側の状態・UI
-    //   変更が必要になる）。よって既存rollOverrideパターンへの機構化は行わず、コメントのみに
-    //   留めてGM手動運用とする（Global Constraintsの「既存に無ければ最小限追加してよい」例外を
-    //   検討したうえで、より保守的な「コメントのみ」を採用）。
+    //   「1D+4」で行う。rollOverride: "plus4IfHollowSurvived"により、night.jsが新規遭遇の最初の
+    //   敵追加時にstate.woundedDemonSurvivorRecord（「傷ついたデーモン＆うろ底のデーモン」戦闘の
+    //   〔行動激化〕でPCが選んだ側、シナリオ進行レベルで永続）をbattleState.woundedDemonSurvivorSnapshot
+    //   へスナップショットし、auto_gm.jsのrollEnemyActionがそれが"hollow"の場合のみ+4する。
     "death_bird_raven|demon_prince": {
+      rollOverride: "plus4IfHollowSurvived",
       rows: [
         {
           // 「炎の隕石」：乱戦ダメージ修正－120（「－」ではなく数値のため必ずgroupDamageを

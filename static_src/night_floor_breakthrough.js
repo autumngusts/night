@@ -168,6 +168,25 @@
       if (rulebookWasVisible && rulebookModal) rulebookModal.hidden = false;
       return { lootPushed: lootObjs.length > 0, judgmentModalOpened: false };
     }
+    // ユーザー指定（2026-09-03）：簡化抽選が有効な場合、GM判断項目のうちPCの主体的選択を
+    // 伴わない種類（hpDamage/tieredChoice/diceHandChoice/note）をバックグラウンドで自動解決する。
+    // bargainReveal・smithingStone×perPerson（PCが取引/消費を自分で選ぶ）や、tieredChoiceで
+    // 自動判定できなかった場合はautoResolveJudgmentEntryがfalseを返すため、必ずモーダルが残り
+    // 従来通りGM/PCの手動判断に委ねられる（この場合、自動解決済みの項目だけがrenderFloorReward
+    // Option側で「自動解決済み」表示に切り替わる）。
+    if (Core.state.simplifiedDrawEnabled) {
+      var autoFloorKey = rewardKeyBase(floor);
+      var allAutoResolved = true;
+      (floor.reward || []).forEach(function (entry, entryIndex) {
+        if (isLootRewardEntry(entry)) return;
+        if (!autoResolveJudgmentEntry(entry, entered, autoFloorKey, entryIndex)) allAutoResolved = false;
+      });
+      if (allAutoResolved) {
+        Core.saveState();
+        if (rulebookWasVisible && rulebookModal) rulebookModal.hidden = false;
+        return { lootPushed: lootObjs.length > 0, judgmentModalOpened: false };
+      }
+    }
     floorRewardModalFloor = floor;
     document.getElementById("floor-reward-modal").hidden = false;
     document.getElementById("btn-floor-reward-restore").hidden = true;
@@ -419,6 +438,113 @@
     return reward.some(function (entry) {
       return !isLootRewardEntry(entry);
     });
+  }
+
+  // ユーザー指定（2026-09-03、簡化抽選対応）：GM判断項目のうち、PCの主体的選択を伴わない
+  // 種類（hpDamage/tieredChoice/diceHandChoice/note）だけを自動解決した際のフラグキー。
+  // bargainReveal（取引内容をPCが選ぶ）とsmithingStone×perPerson（PC各自がルーン消費するか
+  // 選ぶ）はここでは扱わない＝キーが常にnullを返し、autoResolveJudgmentEntryもfalseを返す
+  // ため、この2種類は簡化抽選が有効でも必ず従来通りfloor-reward-modalへ残りGM/PCの手動判断に
+  // 委ねられる。
+  function autoResolvedKey(floorKey, entryIndex) {
+    if (!floorKey || entryIndex === undefined) return null;
+    return floorKey + "_auto_" + entryIndex;
+  }
+  function isAutoResolved(floorKey, entryIndex) {
+    var key = autoResolvedKey(floorKey, entryIndex);
+    return !!(key && window.PriTestNightCore.state.floorRewardObtained && window.PriTestNightCore.state.floorRewardObtained[key]);
+  }
+  function markAutoResolved(floorKey, entryIndex) {
+    var key = autoResolvedKey(floorKey, entryIndex);
+    if (!key) return;
+    if (!window.PriTestNightCore.state.floorRewardObtained) window.PriTestNightCore.state.floorRewardObtained = {};
+    window.PriTestNightCore.state.floorRewardObtained[key] = true;
+  }
+
+  // 簡化抽選が有効な場合にopenFloorRewardModalから呼ばれる、GM判断項目1件分の自動解決。
+  // 戻り値true＝自動解決済み（この項目はモーダルに出す必要が無い）、false＝この項目は
+  // 従来通りGM/PCの手動判断に委ねる必要がある（bargainReveal・smithingStone×perPerson、
+  // またはtieredChoiceで自動判定できなかった場合）。実際の処理内容は既存の手動UI
+  // （renderFloorRewardOption内の各kind分岐）と同じ規則・同じヘルパー関数を再利用する。
+  function autoResolveJudgmentEntry(entry, entered, floorKey, entryIndex) {
+    var key = autoResolvedKey(floorKey, entryIndex);
+    if (key && isAutoResolved(floorKey, entryIndex)) return true;
+    if (entry.kind === "hpDamage") {
+      if (!entered.length) return false;
+      var target = entered[Math.floor(Math.random() * entered.length)];
+      target.hp.current = Math.max(0, (target.hp.current || 0) - entry.value);
+      window.PriTestNightCore.saveRosterCharacters();
+      window.PriTestNightCore.renderCharacterRoster();
+      window.PriTestNightLog("log_floor_reward_hp_damage_auto", { character: target.name, value: entry.value });
+      markAutoResolved(floorKey, entryIndex);
+      return true;
+    }
+    if (entry.kind === "tieredChoice") {
+      var routeLabels = (window.PriTestNightCore.state.gmFlow && window.PriTestNightCore.state.gmFlow.pendingFloorEndRouteLabels) || [];
+      var autoTierIndex = matchTieredChoiceTierIndex(entry.tiers, routeLabels);
+      if (autoTierIndex === null) return false;
+      var tier = (entry.tiers || [])[autoTierIndex];
+      if (!tier) return false;
+      // tier内のサブ報酬が全て戦利品種別（isLootRewardEntry）の場合のみ完全自動化する。
+      // サブ報酬にさらにGM判断が必要な項目（例：入れ子のhpDamage）が混ざるケースは、
+      // 誤って捏造した結果を発放しないよう安全側に倒し、従来通りモーダル行きにする。
+      var subRewards = tier.rewards || [];
+      if (!subRewards.every(isLootRewardEntry)) return false;
+      var tierLabelText = window.PriTestFields.localizedText(tier.label);
+      window.PriTestNightLog("log_floor_reward_tiered_choice_auto", { tier: tierLabelText });
+      var tierPushed = [];
+      subRewards.forEach(function (sub, subIndex) {
+        var subKeyBase = (floorKey || "floor") + "_" + entryIndex + "_tier" + autoTierIndex + "_" + subIndex;
+        tierPushed = tierPushed.concat(floorRewardEntryToTurnRewards(sub, entered, subKeyBase, subKeyBase + "_pushed"));
+      });
+      if (tierPushed.length) {
+        window.PriTestNightCore.pushTurnRewards(tierPushed);
+        window.PriTestNightLog("log_floor_reward_auto_pushed", {
+          items: tierPushed
+            .map(function (r) {
+              return window.I18N.t("turn_reward_kind_" + r.kind);
+            })
+            .join("、"),
+        });
+      }
+      markAutoResolved(floorKey, entryIndex);
+      return true;
+    }
+    if (entry.kind === "diceHandChoice") {
+      var diceCount = entry.diceCount || 12;
+      var values = [];
+      for (var i = 0; i < diceCount; i++) values.push(1 + Math.floor(Math.random() * 6));
+      var matchedHand = judgeDiceHand(entry, values);
+      var handLabelText = matchedHand ? window.PriTestFields.localizedText(matchedHand.label) : window.I18N.t("floor_reward_dice_hand_result_none");
+      window.PriTestNightLog("log_floor_reward_dice_hand", { dice: values.join("、"), hand: handLabelText });
+      if (matchedHand) {
+        var pushed = [];
+        (matchedHand.rewards || []).forEach(function (sub, subIndex) {
+          pushed = pushed.concat(floorRewardEntryToTurnRewards(sub, entered, "diceHand_" + Date.now() + "_" + subIndex));
+        });
+        if (pushed.length) {
+          window.PriTestNightCore.pushTurnRewards(pushed);
+          window.PriTestNightLog("log_floor_reward_auto_pushed", {
+            items: pushed
+              .map(function (r) {
+                return window.I18N.t("turn_reward_kind_" + r.kind);
+              })
+              .join("、"),
+          });
+        }
+      }
+      markAutoResolved(floorKey, entryIndex);
+      return true;
+    }
+    if (entry.kind === "note") {
+      if (entry.note) {
+        window.PriTestNightLog("log_floor_reward_note_auto", { note: window.PriTestFields.localizedText(entry.note) });
+      }
+      markAutoResolved(floorKey, entryIndex);
+      return true;
+    }
+    // bargainReveal・smithingStone×perPersonはPCの主体的選択そのものを表すため自動化しない。
+    return false;
   }
 
   var turnRewardIdCounter = 0;
@@ -716,6 +842,17 @@
       dismissedNote.style.textDecoration = "line-through";
       dismissedNote.textContent = window.I18N.t("floor_reward_dismissed_note");
       outerRow.appendChild(dismissedNote);
+      return;
+    }
+    // ユーザー指定（2026-09-03、簡化抽選対応）：簡化抽選が有効な状態でopenFloorRewardModalが
+    // 既にautoResolveJudgmentEntryで自動解決済みの項目（hpDamage/tieredChoice/diceHandChoice/
+    // note）は、通常のUIを出さず「自動解決済み」の結果だけを表示する（bargainReveal・
+    // smithingStone×perPersonはPCの主体的選択を伴うため対象外＝この判定に引っかからない）。
+    if (autoResolvedKey(floorKey, entryIndex) && isAutoResolved(floorKey, entryIndex)) {
+      var autoResolvedNote = document.createElement("p");
+      autoResolvedNote.className = "threat-ref-body";
+      autoResolvedNote.textContent = window.I18N.t("floor_reward_auto_resolved_note");
+      outerRow.appendChild(autoResolvedNote);
       return;
     }
     if (dismissKey) {
@@ -1250,6 +1387,13 @@
   // 等既有函式，不需要另外改寫內部邏輯。
   function applyRemoteBreakthroughState(remoteData) {
     breakthroughState = remoteData || null;
+    // ユーザー報告バグ修正（2026-09-03）：Firebase Realtime Databaseは値が空オブジェクト{}の
+    // フィールドを保存しない仕様があるため、openClimbingCheckModal/openBreakthroughModal等が
+    // 送信したcharacters:{}（まだ誰も骰子を振っていない開始直後の状態）が同期後は
+    // 欠落してundefinedになる。この状態でbreakthroughDiceSum()のObject.keys(...characters)が
+    // 例外を投げ、以後のsubscribeNightStateコールバック（breakthrough-modalを開く処理を含む）が
+    // 丸ごと停止していた——これが「登攀判定モーダルが自分の端末以外に表示されない」の実際の原因。
+    if (breakthroughState && !breakthroughState.characters) breakthroughState.characters = {};
   }
 
   var CHECK_STAT_KEYS = { luck: "luck", physical: "physical", mental: "mental" };
