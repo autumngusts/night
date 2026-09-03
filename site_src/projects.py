@@ -14,4 +14,10 @@ PROJECTS = [
         "name_key": "project_night_name",
         "desc_key": "project_night_desc",
     },
+    {
+        "id": "midnight",
+        "href": "midnight/index.html",
+        "name_key": "project_midnight_name",
+        "desc_key": "project_midnight_desc",
+    },
 ]

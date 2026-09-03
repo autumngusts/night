@@ -18,6 +18,9 @@
         "meta": {
           ".validate": "newData.exists()"
         },
+        "rtState": {
+          ".validate": "newData.exists()"
+        },
 
         "$other": {
           ".validate": false

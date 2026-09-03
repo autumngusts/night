@@ -158,6 +158,76 @@
     updateNightStatePaths(gameId, storageMode, updates);
   }
 
+  // midnight（即時制擴張版技術驗證片）専用：games/{gameId}/rtStateへの汎用アクセス。
+  // nightState/characters（デバウンス＋丸ごと.update()＋client時間戳LWW、night.js専用の
+  // 形式）とは別のトップレベル子ノード（database.rules.jsonのgames/$gameId/rtStateを
+  // 参照）。真即時制の要件（頻繁な座標更新、複數端末が同じ値を同時に書き換える共有カウンター）
+  // に合わせて、汎用の生パス書き込み・購読・トランザクションの3つだけを薄く提供する——
+  // nightState側の複雑な差分/除外ロジックはmidnight側には不要（そもそも別の同期方式を
+  // 採用するため）、ここでは意図的にシンプルなまま留める。
+  // 使用者實測發現的bug修正（2026-09-03）：回傳ensureCloudReady().then(...)這條Promise鏈
+  // （原本是fire-and-forget、不回傳），讓呼叫端能視需要await寫入真正完成。起因是
+  // midnight.js的「建立測試場」流程呼叫rtSet()後立刻window.location.href導航到帶?game=
+  // 的網址——SDK載入（4個依序的網路script請求）＋匿名登入都還沒完成，整個頁面就被導航
+  // 摧毀，實際的Firebase寫入永遠沒有機會真正送出，導致其他裝置訂閱到的meta永遠是null
+  // （不是Firebase權限或AppCheck的問題，是呼叫端沒有等寫入完成就跳頁）。
+  function rtSet(gameId, storageMode, subPath, value) {
+    if (storageMode !== "cloud" || !gameId) return Promise.resolve();
+    return ensureCloudReady(storageMode)
+      .then(function () {
+        return window.firebase
+          .database()
+          .ref("games/" + gameId + "/rtState/" + subPath)
+          .set(value);
+      })
+      .catch(function (err) {
+        console.error("PriTestGameStorage.rtSet failed", err);
+      });
+  }
+
+  // subPathの値が変わるたびonChange(value)を呼ぶ。戻り値は購読解除用の関数。
+  function rtSubscribe(gameId, storageMode, subPath, onChange) {
+    if (storageMode !== "cloud" || !gameId) return function () {};
+    var refObj = null;
+    var listener = function (snap) {
+      onChange(snap.val());
+    };
+    ensureCloudReady(storageMode)
+      .then(function () {
+        refObj = window.firebase.database().ref("games/" + gameId + "/rtState/" + subPath);
+        refObj.on("value", listener);
+      })
+      .catch(function (err) {
+        console.error("PriTestGameStorage.rtSubscribe failed", err);
+      });
+    return function unsubscribe() {
+      if (refObj) refObj.off("value", listener);
+    };
+  }
+
+  // 使用者確認済みの技術路線（2026-09-03）：共有數值（例：圈外扣血目標的demo存活值）改用
+  // Firebase RTDB內建transaction()做原子操作——伺服器端保證多端同時寫入不會互相覆蓋遺失，
+  // 跟nightState既有的「整物件覆寫+client時間戳LWW」（會弄丟其中一邊修改）是刻意分開的
+  // 不同機制。updateFn(currentValue)是transaction()標準用法：currentValue可能是null（尚未
+  // 存在），updateFn必須是純函式、回傳新值，可能因衝突被Firebase重複呼叫以重試。
+  function rtTransaction(gameId, storageMode, subPath, updateFn) {
+    if (storageMode !== "cloud" || !gameId) return Promise.resolve(null);
+    return ensureCloudReady(storageMode)
+      .then(function () {
+        return window.firebase
+          .database()
+          .ref("games/" + gameId + "/rtState/" + subPath)
+          .transaction(updateFn);
+      })
+      .then(function (result) {
+        return result && result.committed ? result.snapshot.val() : null;
+      })
+      .catch(function (err) {
+        console.error("PriTestGameStorage.rtTransaction failed", err);
+        return null;
+      });
+  }
+
   function sendNightStatePush(payload, isRetry) {
     ensureCloudReady(payload.storageMode)
       .then(function () {
@@ -353,5 +423,8 @@
     updateNightStatePaths: updateNightStatePaths,
     subscribeNightState: subscribeNightState,
     subscribeCharacters: subscribeCharacters,
+    rtSet: rtSet,
+    rtSubscribe: rtSubscribe,
+    rtTransaction: rtTransaction,
   };
 })();

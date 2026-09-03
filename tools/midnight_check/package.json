@@ -1,0 +1,12 @@
+{
+  "name": "pritest-midnight-check",
+  "private": true,
+  "version": "1.0.0",
+  "description": "midnight（即時制擴張版・技術驗證片）多裝置同步回歸測試腳本，見 multi_device_sync_check.js 開頭的說明。",
+  "scripts": {
+    "test": "node multi_device_sync_check.js"
+  },
+  "devDependencies": {
+    "playwright": "^1.62.1"
+  }
+}

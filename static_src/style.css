@@ -2604,11 +2604,6 @@ button {
   text-align: center;
 }
 
-.admin-entry-link {
-  display: block;
-  margin-top: 1.5rem;
-}
-
 .game-list,
 .character-list {
   list-style: none;
@@ -4151,4 +4146,35 @@ button {
     border-color: #444;
     background: #1c1c1c;
   }
+}
+
+/* ---- midnight（即時制擴張版・技術驗證片） ---- */
+.midnight-wrap {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 1rem;
+}
+
+#midnight-canvas {
+  display: block;
+  margin: 1rem auto;
+  max-width: 100%;
+  border: 1px solid #444;
+  background: #0c0f14;
+  image-rendering: pixelated;
+}
+
+#midnight-start-screen {
+  text-align: center;
+  padding: 2rem 0;
+}
+
+#midnight-hud .wb-row {
+  gap: 0.75rem;
+  align-items: center;
+}
+
+#midnight-share-link {
+  flex: 1;
+  min-width: 0;
 }
