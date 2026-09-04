@@ -2075,13 +2075,16 @@
         Core.renderPiles();
       }
     }
-    // 第19項・第3項改：この地點に未使用の籌碼事件があれば、樓層本文の敘述を始める前に先に
-    // 使用可否を尋ねる——ただし「進入第一層前」の1回だけ（cardLevels[idx]===0＝このカード
-    // でまだ1つも樓層を進めていない、真の初回進入）。handleEnterClickは同じカード内の
-    // 2層目以降でも[進入]を押すたびに呼ばれる関数のため、この条件が無いと毎層聞いてしまう
-    // （ユーザー報告のバグ）。
-    var isFreshCardVisit = typeof idx === "number" && state.cardLevels[idx] === 0;
-    if (isFreshCardVisit && offerEventChipIfPending(idx, "startWalk")) return;
+    // 第19項・第3項改・使用者確認（2026-09-05再改）：この地點に未使用の籌碼事件があれば、
+    // 樓層本文の敘述を始める前に先に使用可否を尋ねる。規則書〔2-7〕繰り返し「現在地にまだ
+    // 『未踏破のフロア』または未解決の『イベントチット』があれば〔2-1〕へ戻る」の通り、同じ
+    // フィールド内で樓層が進んでも未解決の籌碼がある限り毎回〔2-1〕イベントチット確認に戻る
+    // のが正しい挙動のため、「進入第一層前」の1回だけに限定していた以前の制限
+    // （isFreshCardVisitガード）を撤廃する。offerEventChipIfPending自体が「籌碼が無い／
+    // 既に使用済み」なら即falseを返す（state.eventChipsUsed参照）ため、実際に未解決の籌碼が
+    // 残っている場合のみ尋ねられ、一度使用・解決すればそれ以降は自動的に聞かれなくなる。
+    var isFreshCardVisit = isFreshCardVisitForSlot(idx);
+    if (offerEventChipIfPending(idx, "startWalk")) return;
     beginFieldWalkFlow(idx, entry, isFreshCardVisit);
   }
 
@@ -2174,6 +2177,17 @@
     Core.renderCurrentLocationStatus();
   }
 
+  // 「このカードでまだ1つも樓層を進めていない、真の初回進入」かどうかを、cardLevelsから
+  // その都度判定する。handleEnterClickのisFreshCardVisit判定と全く同じ式だが、籌碼確認
+  // モーダルを経由して非同期に樓層敘述へ戻ってくる複数の再開経路（resolveChipOffer／
+  // declinePendingSpiritVeinContinuation／強敵チット戦闘後の再開）でも同じ判定が必要なため
+  // 共通化する。籌碼確認自体は樓層を進めないため、この間にcardLevels[idx]が変化することはない。
+  function isFreshCardVisitForSlot(idx) {
+    var Core = window.PriTestNightCore;
+    var state = Core.state;
+    return typeof idx === "number" && state.cardLevels[idx] === 0;
+  }
+
   // ---- 第19項：籌碼事件の使用可否を先に尋ねる ----
   // idxに未使用の籌碼（state.eventChips[idx] && !state.eventChipsUsed[idx]）があれば、
   // 敘述を「使用しますか？」ゲートに切り替えてtrueを返す（呼び出し元はここで処理を止める）。
@@ -2255,11 +2269,11 @@
     }
     if (use && window.PriTestNightEventChips) window.PriTestNightEventChips.openEventChipModal(idx);
     if (continuation === "startWalk") {
-      // このcontinuationはofferEventChipIfPending(idx, "startWalk")経由でのみ発生し、
-      // 常に「真の初回進入」（handleEnterClick側のisFreshCardVisit===true）から来ているため、
-      // ここでも同じ扱い（「（預覽）」を表示する）にする。
+      // このcontinuationはofferEventChipIfPending(idx, "startWalk")経由で発生する（樓層1の
+      // 前だけでなく、未解決の籌碼が残っていれば樓層2以降の前でも発生しうる——上のisFreshCardVisit
+      // ガード撤廃を参照）。「（預覽）」表示要否はここで改めてcardLevelsから判定し直す。
       var entry = window.PriTestNightFloorBreakthrough.resolveFieldEntryForSlot(idx);
-      beginFieldWalkFlow(idx, entry, true);
+      beginFieldWalkFlow(idx, entry, isFreshCardVisitForSlot(idx));
     } else if (continuation === "cardConclusion") {
       // 使う／稍後いずれの場合も、次は［地圖移動機制］（まだ保留があれば）へ進める。
       advanceCardConclusionChain();
@@ -2296,10 +2310,9 @@
     pendingSpiritVeinContinuation = null;
     if (!pending) return;
     if (pending.continuation === "startWalk") {
-      // resolveChipOfferと同じ理由（常に真の初回進入から来ているcontinuation）で
-      // isFreshCardVisit=trueを渡す。
+      // resolveChipOfferと同じ理由でisFreshCardVisitをcardLevelsから改めて判定し直す。
       var entry = window.PriTestNightFloorBreakthrough.resolveFieldEntryForSlot(pending.idx);
-      beginFieldWalkFlow(pending.idx, entry, true);
+      beginFieldWalkFlow(pending.idx, entry, isFreshCardVisitForSlot(pending.idx));
     } else if (pending.continuation === "cardConclusion") {
       advanceCardConclusionChain();
     }
@@ -2502,10 +2515,9 @@
     Core.saveState();
     Core.renderCurrentLocationStatus();
     if (continuation === "startWalk" && typeof idx === "number") {
-      // resolveChipOfferと同じ理由（このcontinuationはofferEventChipIfPending(idx,"startWalk")
-      // 経由の真の初回進入からのみ発生する）でisFreshCardVisit=trueを渡す。
+      // resolveChipOfferと同じ理由でisFreshCardVisitをcardLevelsから改めて判定し直す。
       var entry = window.PriTestNightFloorBreakthrough.resolveFieldEntryForSlot(idx);
-      beginFieldWalkFlow(idx, entry, true);
+      beginFieldWalkFlow(idx, entry, isFreshCardVisitForSlot(idx));
     } else if (continuation === "cardConclusion") {
       advanceCardConclusionChain();
     }

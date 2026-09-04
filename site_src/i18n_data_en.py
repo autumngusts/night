@@ -823,6 +823,7 @@ STRINGS_EN: dict[str, str] = {
     "combat_attack_target_mob_row_label": "Target Mob Row",
     "combat_revival_damage_target_label": "Select target for [Return Damage: {value}]",
     "combat_revival_damage_applied_note": "Applied Return Damage: {value} to {name}",
+    "combat_post_action_self_heal_note": "After this action, applied HP Recovery +{value} to self",
     "weapon_grace_dice_trigger_note": "{character}'s \"{skill}\" triggered!",
     "weapon_grace_dice_applied_note": "Automatically applied \"HP Loss: 1\" to {enemy}",
     "weapon_grace_dice_unresolved_target_note": "Target enemy is ambiguous — GM should manually apply \"HP Loss: 1\" to the intended enemy",

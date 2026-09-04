@@ -823,6 +823,7 @@ STRINGS_JA: dict[str, str] = {
     "combat_attack_target_mob_row_label": "対象モブ列",
     "combat_revival_damage_target_label": "【復帰ダメージ：{value}】を与える対象を選択",
     "combat_revival_damage_applied_note": "「{name}」に復帰ダメージ：{value}を適用した",
+    "combat_post_action_self_heal_note": "このアクション後、自身にHP回復＋{value}を適用した",
     "weapon_grace_dice_trigger_note": "{character}の「{skill}」が発動！",
     "weapon_grace_dice_applied_note": "「{enemy}」に自動で「HP損害：1」を適用しました",
     "weapon_grace_dice_unresolved_target_note": "対象エネミーが確定できないため、GMが該当エネミーへ手動で「HP損害：1」を適用してください",

@@ -6351,6 +6351,15 @@
             // 傷害数値の表示は変えない）。
             if (dmg.extraGuardSymbol) recordPhaseDamageDealt(c, 0, dmg.extraGuardSymbol);
           }
+          // 特大武器「祈禱之一擊」「掠奪之炎」等武器戰技：本文「此動作後，對自身「HP回復：□」」
+          // （ja:「このアクション後、自身に「HP回復：□」」）を汎用パースし、使用確定時に自身へ
+          // 自動でHP回復を適用する（□=1個分＝+1、CLAUDE.md §17.1）。特定entry.idへ個別ハード
+          // コードせず、本文パターンで判定するため今後同種の武器戰技が増えても自動的に対応する。
+          var postActionSelfHealAmount = CharacterDrawer.parsePostActionSelfHealSquares(body);
+          if (postActionSelfHealAmount > 0) {
+            c.hp.current = Math.min(c.hp.max, c.hp.current + postActionSelfHealAmount);
+            saveRosterCharacters();
+          }
           // 隱者「冷氣風暴」（hybrid_magic_frost_storm）與隱者（黎明）「雷炎戰車」
           // （hybrid_magic_lightning_chariot）、以及「夜之彗星（不可視）」（spell_night_comet，
           // 喪失之杖）：本文中的屬性附加值是固定數字（非骰子），
@@ -6441,6 +6450,9 @@
           }
           var extraLines = [window.I18N.t("action_log_dice_used", { dice: dice.join("、") })].concat(costLines);
           if (hybridVariantElementRollNotes.length) extraLines = extraLines.concat(hybridVariantElementRollNotes);
+          if (postActionSelfHealAmount > 0) {
+            extraLines = extraLines.concat([window.I18N.t("combat_post_action_self_heal_note", { value: postActionSelfHealAmount })]);
+          }
           if (entry.id === "ominous_strike") extraLines = extraLines.concat([window.I18N.t("log_ominous_strike_move_note")]);
           // R1：数値化できる部分は上のcomputeSkillDamage／専用フラグで実際に加算済み。ここでは
           // 「火：3D」のような出目未確定の副次効果だけ、遺物効果の本文をそのまま黃字注記として残す

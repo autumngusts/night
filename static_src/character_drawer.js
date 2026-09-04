@@ -851,15 +851,27 @@
     return count;
   }
 
-  // R2 遺物効果「2Hit攻擊的達人（武器種類）」：括弧内の武器カテゴリ名が現在の武器カテゴリと
-  // 一致する場合のみ、本文中の数値（「變更為「N」」／「「N」に変更」）を2Hitコストの
-  // 上書き値として返す。命名が10タイプ分ばらばらのため、findLearnedRelicEffectByNameの
-  // 固定名リスト方式ではなく正規表現でカテゴリ名を抜き出して判定する。
+  // 正規表現の特殊文字をエスケープする（カテゴリ名を動的にパターンへ埋め込むため）。
+  function escapeRegExpLiteral(s) {
+    return String(s).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  }
+
+  // R2 遺物効果「2Hit攻擊的達人（武器種類）」：本文中に現在の武器カテゴリ名が「カテゴリ名」の
+  // 形で登場する箇所を探し、その直後の数値（「變更為「N」」／「「N」に変更」）を2Hitコストの
+  // 上書き値として返す。
+  // 注意：括弧内の名前（遺物効果名）は必ずしも武器カテゴリ名と1対1ではない。例えば
+  // 無賴漢「2Hit攻擊的達人（大型武器）」は1つの遺物効果で「大斧」「大槌」「特大武器」という
+  // 3つの異なるカテゴリの数値を本文中に列挙しているため、括弧内の文字列そのものと現在の
+  // カテゴリ名を比較する方式（旧実装）では「大型武器」というカテゴリが実在せず、常に不一致に
+  // なり3種いずれの武器でも発揮されないバグがあった。本文全体を対象にカテゴリ名で検索する
+  // ことで、単一カテゴリのみを対象とする既存の他の遺物効果もそのまま扱える。
   function findTwoHitMasteryOverride(c, category) {
     if (!category) return null;
     var type = c && c.typeId ? CharacterTypes.get(c.typeId) : null;
     if (!type) return null;
     var learned = c.learnedRelicEffects || [];
+    var categoryZh = category.name && category.name.zh;
+    var categoryJa = category.name && category.name.ja;
     var found = null;
     (type.relicEffectGroups || []).forEach(function (g, gi) {
       g.effects.forEach(function (e, ei) {
@@ -867,13 +879,16 @@
         if (learned.indexOf(relicEffectKey(type.id, gi, ei)) === -1) return;
         var nameZh = (e.name && e.name.zh) || "";
         var nameJa = (e.name && e.name.ja) || "";
-        var mZh = /^2Hit攻擊的達人（(.+)）$/.exec(nameZh);
-        var mJa = /^2Hitアタックの達人（(.+)）$/.exec(nameJa);
-        var categoryLabel = mZh ? category.name && category.name.zh : mJa ? category.name && category.name.ja : null;
-        var matchedLabel = mZh ? mZh[1] : mJa ? mJa[1] : null;
-        if (!matchedLabel || matchedLabel !== categoryLabel) return;
-        var body = (e.body && e.body.zh) || (e.body && e.body.ja) || "";
-        var valueMatch = /變更為「(\d+)」/.exec(body) || /「(\d+)」に変更/.exec(body);
+        if (nameZh.indexOf("2Hit攻擊的達人（") !== 0 && nameJa.indexOf("2Hitアタックの達人（") !== 0) return;
+        var bodyZh = (e.body && e.body.zh) || "";
+        var bodyJa = (e.body && e.body.ja) || "";
+        var valueMatch = null;
+        if (categoryZh) {
+          valueMatch = new RegExp("「" + escapeRegExpLiteral(categoryZh) + "」的\\d?Hit(?:攻擊)?消耗變更為「(\\d+)」").exec(bodyZh);
+        }
+        if (!valueMatch && categoryJa) {
+          valueMatch = new RegExp("「" + escapeRegExpLiteral(categoryJa) + "」の\\d?Hit(?:アタック)?のコストを「(\\d+)」に変更").exec(bodyJa);
+        }
         if (valueMatch) {
           // 使用者確認：本文の「23」「12」等は10進数の値ではなく、他の武器カテゴリの基本2Hit
           // コスト（①①／②②／③③のように丸数字を2個並べる表記）と同じ「1桁ずつが丸数字1個分」の
@@ -3635,6 +3650,18 @@
     if (!text) return 0;
     var re = new RegExp(label + "回復[：:]\\s*(□+)");
     var m = re.exec(text);
+    return m ? m[1].length : 0;
+  }
+
+  // 武器戰技（例：特大武器「祈禱之一擊」「掠奪之炎」）の本文にある
+  // 「此動作後，對自身「HP回復：□」」（ja:「このアクション後、自身に「HP回復：□」」）のような、
+  // アクション使用直後に自身へ発生する固定HP回復量の□個数を数える。文中「此動作後」／
+  // 「このアクション後」の節の中で自身を対象にしたHP回復記述のみを拾い、対象がモブ／エネミー／
+  // 他PCのものや、■を含む不確定な追加条件（例：「若對雜兵HP造成損害，額外再獲得」）は対象外
+  // （CLAUDE.md §19の通り■は自動計算しない。□のみの最初の1箇所を確定値として返す）。
+  function parsePostActionSelfHealSquares(text) {
+    if (!text) return 0;
+    var m = /(?:此動作後|このアクション後)[，、,][^。]*?自身[^」]*?「?HP回復[：:]\s*(□+)/.exec(text);
     return m ? m[1].length : 0;
   }
 
@@ -6794,6 +6821,7 @@
     countLearnedRelicEffectsByName: countLearnedRelicEffectsByName,
     countLearnedActionRelicsByName: countLearnedActionRelicsByName,
     countHealSquares: countHealSquares,
+    parsePostActionSelfHealSquares: parsePostActionSelfHealSquares,
     countMobDamageSquares: countMobDamageSquares,
     resolveWeaponInnateSkillById: resolveWeaponInnateSkillById,
     relicEffectForKey: relicEffectForKey,
