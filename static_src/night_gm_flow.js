@@ -2075,16 +2075,17 @@
         Core.renderPiles();
       }
     }
-    // 第19項・第3項改・使用者確認（2026-09-05再改）：この地點に未使用の籌碼事件があれば、
-    // 樓層本文の敘述を始める前に先に使用可否を尋ねる。規則書〔2-7〕繰り返し「現在地にまだ
-    // 『未踏破のフロア』または未解決の『イベントチット』があれば〔2-1〕へ戻る」の通り、同じ
-    // フィールド内で樓層が進んでも未解決の籌碼がある限り毎回〔2-1〕イベントチット確認に戻る
-    // のが正しい挙動のため、「進入第一層前」の1回だけに限定していた以前の制限
-    // （isFreshCardVisitガード）を撤廃する。offerEventChipIfPending自体が「籌碼が無い／
-    // 既に使用済み」なら即falseを返す（state.eventChipsUsed参照）ため、実際に未解決の籌碼が
-    // 残っている場合のみ尋ねられ、一度使用・解決すればそれ以降は自動的に聞かれなくなる。
+    // 第19項・第3項改・使用者確認（2026-09-05再改、同日中に再修正）：この地點に未使用の
+    // 籌碼事件があれば、樓層本文の敘述を始める前に先に使用可否を尋ねる。一時的に規則書
+    // 〔2-7〕の文言通り「未解決の籌碼がある限り毎回〔2-1〕へ戻る」＝樓層2以降の［進入］でも
+    // 毎回問い直す挙動に変更したが、実際に使ってみると「まだ最終樓層に達していないのに
+    // 地圖移動寄りの敘述（霊脈チット等）を提示される／樓層が先へ進んでいない」ように見えて
+    // しまうと使用者から報告があった。ユーザー確認：籌碼確認は「進入樓層第一層前」（この
+    // カードへの真の初回進入、isFreshCardVisit）と「地圖移動準備前」（cardConclusion、
+    // advanceCardConclusionChain経由）の2箇所だけに戻す——樓層2以降への［進入］では
+    // 問い直さない。
     var isFreshCardVisit = isFreshCardVisitForSlot(idx);
-    if (offerEventChipIfPending(idx, "startWalk")) return;
+    if (isFreshCardVisit && offerEventChipIfPending(idx, "startWalk")) return;
     beginFieldWalkFlow(idx, entry, isFreshCardVisit);
   }
 
@@ -2269,9 +2270,9 @@
     }
     if (use && window.PriTestNightEventChips) window.PriTestNightEventChips.openEventChipModal(idx);
     if (continuation === "startWalk") {
-      // このcontinuationはofferEventChipIfPending(idx, "startWalk")経由で発生する（樓層1の
-      // 前だけでなく、未解決の籌碼が残っていれば樓層2以降の前でも発生しうる——上のisFreshCardVisit
-      // ガード撤廃を参照）。「（預覽）」表示要否はここで改めてcardLevelsから判定し直す。
+      // このcontinuationはofferEventChipIfPending(idx, "startWalk")経由で発生する（handleEnterClick
+      // 側のisFreshCardVisitガードにより、真の初回進入＝樓層1の前でのみ発生する）。
+      // 「（預覽）」表示要否はここで改めてcardLevelsから判定し直す。
       var entry = window.PriTestNightFloorBreakthrough.resolveFieldEntryForSlot(idx);
       beginFieldWalkFlow(idx, entry, isFreshCardVisitForSlot(idx));
     } else if (continuation === "cardConclusion") {
@@ -5437,6 +5438,9 @@
 
   window.PriTestNightGmFlow = {
     typewriteInto: typewriteInto,
+    parseChoiceLabels: parseChoiceLabels,
+    parseCombatEnemyRef: parseCombatEnemyRef,
+    resolveCombatEnemyMatch: resolveCombatEnemyMatch,
     renderLocationBanner: renderLocationBanner,
     maybeShowOpeningNarration: maybeShowOpeningNarration,
     maybeAnnounceFinalDay: maybeAnnounceFinalDay,

@@ -11347,6 +11347,16 @@
   var TURN_REWARD_ANY_TARGET_VALUE = "__any__"; // 領取時に1名選ぶ
   var TURN_REWARD_SHARED_TARGET_VALUE = "__shared__"; // 全員へ一律付与
 
+  // 使用者確認（多裝置同步バグ報告）：獎勵清單は他裝置の操作（別の項目を領取／新增等）で
+  // stateが変わるたびrenderTurnRewardModal()がlist.innerHTMLを丸ごと再構築するため、
+  // 「任意」對象を選ぶ下拉選單がまだ確定（領取）していない途中でも毎回初期値へ巻き戻り、
+  // 玩家が選び終える前に別の裝置の操作で選択が消えてしまう（気づかず確定すると誤った對象へ
+  // 付与される）不具合があった。この選択自体はこの裝置だけのUI状態（他裝置と共有する必要が
+  // 無い）ため、state（同步対象）には入れず、この裝置専用のモジュール内変数で
+  // reward.id -> characterIdを記憶し、再構築のたびに復元する。領取／該項目の削除で用済みに
+  // なったら消す。
+  var pendingAnyTargetPicks = {};
+
   function isTurnRewardSharedKind(kind) {
     return TURN_REWARD_SHARED_KINDS.indexOf(kind) !== -1;
   }
@@ -11735,6 +11745,15 @@
             o.textContent = c.name;
             anyPickerSelect.appendChild(o);
           });
+          // 使用者確認：他裝置の同步による再構築でこの下拉選單がリセットされても、この
+          // 裝置でまだ確定していない選択を復元する（pendingAnyTargetPicks、上部の説明参照）。
+          var savedPick = pendingAnyTargetPicks[reward.id];
+          if (savedPick && enteredForPicker.some(function (c) { return c.id === savedPick; })) {
+            anyPickerSelect.value = savedPick;
+          }
+          anyPickerSelect.addEventListener("change", function () {
+            pendingAnyTargetPicks[reward.id] = anyPickerSelect.value;
+          });
           row.appendChild(anyPickerSelect);
         }
         var claimBtn = document.createElement("button");
@@ -11744,6 +11763,7 @@
         if (anyPickerSelect && !anyPickerSelect.options.length) claimBtn.disabled = true;
         claimBtn.addEventListener("click", function () {
           if (anyPickerSelect) reward.targetCharacterId = anyPickerSelect.value;
+          delete pendingAnyTargetPicks[reward.id];
           claimTurnReward(reward);
         });
         row.appendChild(claimBtn);
@@ -11760,6 +11780,7 @@
       removeBtn.addEventListener("click", function () {
         var idx = state.turnRewards.indexOf(reward);
         if (idx !== -1) state.turnRewards.splice(idx, 1);
+        delete pendingAnyTargetPicks[reward.id];
         saveState();
         renderTurnRewardModal();
       });
@@ -14845,7 +14866,12 @@
   }
 
   // 長押し（1秒）＝既存の「めくる（未公開→公開）」「山札に戻す（公開→除去）」操作。
+  // 使用者確認：共用板塊（公開盤地図）上のボタンは、規則書パスワード認証済み
+  // （isRulebookAuthenticated、onSlotShortClickと同じ判定）の裝置だけが操作できるようにする
+  // ——翻牌／移動は盤面全體の進行を左右するGM操作のため、未認證の裝置では静かに無視する
+  // （onSlotShortClickの既存の無反応パターンに合わせる、alert等は出さない）。
   function onSlotClick(index) {
+    if (!isRulebookAuthenticated()) return;
     var slot = state.slots[index];
     if (!slot) {
       restoreReturnedCardIfAny(index);
@@ -15116,7 +15142,12 @@
         minus.type = "button";
         minus.className = "level-btn";
         minus.textContent = "-";
+        // 使用者確認：卡牌下の樓層+/-も共用板塊の操作の一部のため、規則書パスワード
+        // 認證済み（onSlotClickと同じisRulebookAuthenticated判定）の裝置だけが押せるようにする。
+        // stepCardLevel自体は自動化GM（night_gm_flow.js）からも呼ばれる共用関数のため、
+        // ガードは関数内ではなくここ（手動UIの呼び出し口）だけに入れる。
         minus.addEventListener("click", function () {
+          if (!isRulebookAuthenticated()) return;
           stepCardLevel(index, -1);
         });
 
@@ -15129,6 +15160,7 @@
         plus.className = "level-btn";
         plus.textContent = "+";
         plus.addEventListener("click", function () {
+          if (!isRulebookAuthenticated()) return;
           openConfirm(
             "confirm_breakthrough_check_msg",
             function () {

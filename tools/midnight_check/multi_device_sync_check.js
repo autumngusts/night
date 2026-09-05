@@ -2,8 +2,9 @@
 // midnight（即時制擴張版・技術驗證片）多裝置同步回歸測試。
 // ============================================================================
 // 用途：驗證 docs之外另存的規劃紀錄（見專案根目錄的規劃摘要）明確要求的3個技術風險點：
-//   1. 程式生地圖：兩台裝置各自用同一個mapSeed在本地跑midnight_map.js演算法，
-//      算出的地圖必須逐格相同（不透過網路傳整張地圖資料，只傳種子）。
+//   1. 固定地圖佈局＋seed衍生的隨機性：兩台裝置各自用同一個mapSeed在本地跑
+//      midnight_map.js演算法，算出的地圖格子、點位（抽牌生成）、縮圈中心錨點都必須
+//      逐一相同（不透過網路傳整張地圖資料，只傳種子）。
 //   2. 即時移動同步：裝置A移動，裝置B必須在短時間內（節流間隔＋一點網路延遲）
 //      看到座標更新（允許lerp插值誤差）。
 //   3. 併發扣血用RTDB transaction()不會丟資料：裝置A、B同時攻擊同一個共用標靶，
@@ -62,14 +63,40 @@ function assert(cond, label, results) {
       timeout: META_WAIT_MS,
     });
 
+    // 使用者確認（2026-09-05）：等待房加入需要先點空席位開表單、填4碼密碼、送出加入，
+    // 全部已佔用席位都準備好後5秒倒數才會寫入meta.sessionStartAt——這個流程是lobby系統
+    // 加進來之後才有的，沒有先完成這段，updateMovement()／attack按鈕等mySlot存在才會動作
+    // 的功能全部不會生效（見emulator_sync_check.js同樣的說明）。
+    console.log("=== 等待房：兩裝置各自加入席位並準備，觸發5秒倒數開局 ===");
+    await pageA.click("#midnight-lobby-slots .midnight-slot-empty button");
+    await pageA.fill("#midnight-lobby-passcode-input", "1234");
+    await pageA.click("#btn-midnight-lobby-join");
+    await pageA.waitForFunction(() => !!window.PriTestMidnight._debugState().mySlot, { timeout: META_WAIT_MS });
+    await pageB.click("#midnight-lobby-slots .midnight-slot-empty button");
+    await pageB.fill("#midnight-lobby-passcode-input", "5678");
+    await pageB.click("#btn-midnight-lobby-join");
+    await pageB.waitForFunction(() => !!window.PriTestMidnight._debugState().mySlot, { timeout: META_WAIT_MS });
+    await pageA.click("#btn-midnight-lobby-ready");
+    await pageB.click("#btn-midnight-lobby-ready");
+    await pageA.waitForFunction(() => window.PriTestMidnight._debugState().meta.sessionStartAt, { timeout: 20000 });
+    await pageB.waitForFunction(() => window.PriTestMidnight._debugState().meta.sessionStartAt, { timeout: 20000 });
+
     const stateA = await pageA.evaluate(() => window.PriTestMidnight._debugState());
     const stateB = await pageB.evaluate(() => window.PriTestMidnight._debugState());
     assert(stateA.meta.mapSeed === stateB.meta.mapSeed, "兩裝置收到同一個mapSeed", results);
 
-    console.log("=== 風險點1：程式生地圖（同seed本地生成結果逐格相同） ===");
+    console.log("=== 風險點1：固定地圖佈局＋seed衍生的點位／縮圈錨點，兩裝置本地算出結果一致 ===");
     const gridA = await pageA.evaluate((seed) => Array.from(window.PriTestMidnightMap.generateMap(seed).grid).join(","), stateA.meta.mapSeed);
     const gridB = await pageB.evaluate((seed) => Array.from(window.PriTestMidnightMap.generateMap(seed).grid).join(","), stateB.meta.mapSeed);
-    assert(gridA === gridB, "兩裝置各自用相同mapSeed在本地生成的地圖逐格相同", results);
+    assert(gridA === gridB, "兩裝置各自用相同mapSeed在本地生成的固定地圖逐格相同", results);
+
+    const pointsA = await pageA.evaluate((seed) => JSON.stringify(window.PriTestMidnightMap.generateMap(seed).points), stateA.meta.mapSeed);
+    const pointsB = await pageB.evaluate((seed) => JSON.stringify(window.PriTestMidnightMap.generateMap(seed).points), stateB.meta.mapSeed);
+    assert(pointsA === pointsB, "兩裝置各自用抽牌邏輯算出的地點位置逐一相同", results);
+
+    const dayPlanA = await pageA.evaluate((seed) => JSON.stringify(window.PriTestMidnightMap.generateMap(seed).dayPlan), stateA.meta.mapSeed);
+    const dayPlanB = await pageB.evaluate((seed) => JSON.stringify(window.PriTestMidnightMap.generateMap(seed).dayPlan), stateB.meta.mapSeed);
+    assert(dayPlanA === dayPlanB, "兩裝置各自算出的三天縮圈時間軸（Day1/Day2開始地點與兩階段終點）相同", results);
 
     console.log("=== 風險點2：即時移動同步 ===");
     await pageA.focus("body");

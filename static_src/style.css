@@ -4157,11 +4157,11 @@ button {
 
 #midnight-canvas {
   display: block;
-  margin: 1rem auto;
   max-width: 100%;
   border: 1px solid #444;
   background: #0c0f14;
   image-rendering: pixelated;
+  touch-action: none;
 }
 
 #midnight-start-screen {
@@ -4177,4 +4177,757 @@ button {
 #midnight-share-link {
   flex: 1;
   min-width: 0;
+}
+
+/* 全螢幕地圖modal（2026-09-05 HUD優化改版）：取代原本文件流內的小面板＋「縮小顯示
+   尺寸但仍看得到」的中間態。注意：地圖展開是遊戲開局的預設狀態（見midnight.jsの
+   updateLobbyOrGameVisibility()呼叫setMapExpanded(true)），玩家平常探索時地圖跟HUD
+   是同時看得到、同時操作的——所以地圖modal的z-index必須低於HUD四角面板（50<下方
+   #midnight-hud-*的500），不能像tower/merchant那種「開啟後真的要擋住其他操作」的
+   彈窗一樣蓋過HUD，否則展開地圖時所有戰鬥/卡片按鈕都會被蓋住點不到（2026-09-05
+   HUD優化實作時的Playwright驗證抓到這個問題）。 */
+#midnight-map-panel {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  flex-direction: column;
+  background: rgba(4, 6, 10, 0.92);
+  padding: 0.5rem;
+  box-sizing: border-box;
+  overflow: auto;
+}
+
+#midnight-canvas-wrap {
+  position: relative;
+  max-width: 100%;
+  width: fit-content;
+  margin: auto;
+}
+
+#midnight-spirit-bird-prompt {
+  position: absolute;
+  left: 50%;
+  bottom: 12px;
+  transform: translateX(-50%);
+  z-index: 2;
+}
+
+/* ---- HUD固定角落面板（2026-09-05 HUD全面重排，取代原本文件流排列的
+   #midnight-char-panel／#midnight-combat-panel／#midnight-players-panel）：數值來源見
+   midnight.js內STAMINA_*／FP_*／FLASK_*／TOWER_*常數註解，多數是使用者尚未提供正式
+   數值前的佔位值。這5個區塊固定在viewport四角/上下緣（position:fixed），不隨地圖
+   展開/收合而受影響——使用者明確規格：這些是「底層畫面配置」，地圖只是另外點開的
+   子畫面，不是操作角色/戰鬥的前提。z-index低於#midnight-map-panel（900），地圖展開時
+   蓋在上面。 ---- */
+#midnight-hud-top-left,
+#midnight-hud-top-right,
+#midnight-hud-bottom-center {
+  background: rgba(10, 12, 18, 0.72);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: 6px;
+  padding: 0.5rem 0.7rem;
+  font-size: 0.78rem;
+  color: #f0f0f0;
+}
+
+#midnight-hud-top-left {
+  position: fixed;
+  top: 0.6rem;
+  left: 0.6rem;
+  z-index: 500;
+  width: 220px;
+  max-width: 42vw;
+}
+
+#midnight-hud-top-left .midnight-slot-card {
+  padding: 0.2rem 0.4rem;
+  gap: 0.35rem;
+  font-size: 0.72rem;
+}
+
+/* 接管按鈕（斷線重連用）保留但縮小，避免撐爆這個角落HUD——功能不變，只是尺寸配合
+   縮小後的隊友卡片，見renderOccupiedSlotCard()既有邏輯。 */
+#midnight-hud-top-left .midnight-slot-card button {
+  font-size: 0.62rem;
+  padding: 0.1rem 0.3rem;
+}
+
+#midnight-hud-top-right {
+  position: fixed;
+  top: 0.6rem;
+  right: 0.6rem;
+  z-index: 500;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.35rem;
+}
+
+#btn-midnight-map-icon,
+#btn-midnight-open-character-sheet,
+#btn-midnight-toggle-menu {
+  font-size: 0.85rem;
+  padding: 0.35rem 0.6rem;
+}
+
+/* 戰鬥結束提示（見midnight.jsのmapIconNudge）：脈動放大+發光，提醒玩家點開地圖繼續移動。 */
+#btn-midnight-map-icon.midnight-map-icon-nudge {
+  animation: midnight-map-icon-nudge-pulse 1s ease-in-out infinite;
+}
+
+@keyframes midnight-map-icon-nudge-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 rgba(255, 213, 74, 0.7);
+    transform: scale(1);
+  }
+  50% {
+    box-shadow: 0 0 10px rgba(255, 213, 74, 0.9);
+    transform: scale(1.08);
+  }
+}
+
+#midnight-hud-bottom-left {
+  position: fixed;
+  left: 0.6rem;
+  bottom: 0.6rem;
+  z-index: 500;
+  display: grid;
+  grid-template-columns: repeat(3, 72px);
+  grid-template-rows: repeat(2, 48px);
+  grid-template-areas:
+    ".    flask    ."
+    "left consumable right";
+  gap: 0.3rem;
+}
+
+.midnight-action-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.15rem;
+  background: rgba(10, 12, 18, 0.72);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 6px;
+  color: #f0f0f0;
+  font-size: 0.62rem;
+  text-align: center;
+  padding: 0.2rem;
+  overflow: hidden;
+}
+
+.midnight-action-card:disabled {
+  opacity: 0.45;
+}
+
+#btn-midnight-use-flask {
+  grid-area: flask;
+}
+
+#btn-midnight-weapon-left {
+  grid-area: left;
+}
+
+#btn-midnight-weapon-right {
+  grid-area: right;
+}
+
+#btn-midnight-use-consumable {
+  grid-area: consumable;
+}
+
+#midnight-hud-bottom-right {
+  position: fixed;
+  right: 0.6rem;
+  bottom: 0.6rem;
+  z-index: 500;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  justify-content: flex-end;
+  max-width: 46vw;
+}
+
+#midnight-hud-bottom-right button {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.15rem;
+}
+
+/* 2026-09-05戰鬥優化新增：攻擊/戰技用劍圖示、防禦用盾圖示，inline SVG data URI
+   （mask-image＋background-color，這樣圖示顏色能跟文字一樣用currentColor邏輯手動指定，
+   不需要額外圖檔請求，符合這個repo沒有建置框架、純靜態檔案的既有限制）。 */
+.midnight-icon-sword,
+.midnight-icon-shield {
+  display: inline-block;
+  width: 1.1rem;
+  height: 1.1rem;
+  background-color: currentColor;
+  mask-repeat: no-repeat;
+  mask-position: center;
+  mask-size: contain;
+  -webkit-mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+  -webkit-mask-size: contain;
+}
+
+.midnight-icon-sword {
+  mask-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><path d='M3 21l6-6M14.5 3.5l6 6-9 9-4-4 9-9z'/><path d='M11.5 6.5l6 6' stroke='black' stroke-width='2' fill='none'/></svg>");
+  -webkit-mask-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><path d='M3 21l6-6M14.5 3.5l6 6-9 9-4-4 9-9z'/><path d='M11.5 6.5l6 6' stroke='black' stroke-width='2' fill='none'/></svg>");
+}
+
+.midnight-icon-shield {
+  mask-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><path d='M12 2l8 3v6c0 5-3.5 8.5-8 11-4.5-2.5-8-6-8-11V5l8-3z'/></svg>");
+  -webkit-mask-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><path d='M12 2l8 3v6c0 5-3.5 8.5-8 11-4.5-2.5-8-6-8-11V5l8-3z'/></svg>");
+}
+
+.midnight-bar-row {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin-bottom: 0.25rem;
+}
+
+.midnight-bar-row:last-child {
+  margin-bottom: 0;
+}
+
+.midnight-bar-label {
+  flex-shrink: 0;
+  width: 2em;
+  opacity: 0.85;
+}
+
+.midnight-bar-track {
+  flex: 1;
+  display: inline-block;
+  height: 9px;
+  border-radius: 4px;
+  background: rgba(0, 0, 0, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  overflow: hidden;
+}
+
+.midnight-bar-track-sm {
+  flex: none;
+  width: 48px;
+  height: 6px;
+}
+
+.midnight-bar-fill {
+  display: block;
+  height: 100%;
+  width: 0%;
+  transition: width 0.15s linear;
+}
+
+.midnight-bar-hp {
+  background: #d84a4a;
+}
+
+.midnight-bar-fp {
+  background: #4a8fd8;
+}
+
+.midnight-bar-stamina {
+  background: #6fbf4a;
+}
+
+.midnight-bar-enemy {
+  background: #d8944a;
+}
+
+/* 聖杯瓶讀取條／戰技B施法讀條（2026-09-05 HUD優化新增），見midnight.jsの
+   renderFlaskReadBar()／renderSorceryCastBar()。 */
+.midnight-bar-flask-read {
+  background: #f2c14e;
+}
+
+.midnight-bar-sorcery-cast {
+  background: #b98af0;
+}
+
+.midnight-bar-value {
+  flex-shrink: 0;
+  min-width: 3.2em;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.midnight-rune-value {
+  flex-shrink: 0;
+  margin-left: 0.4rem;
+  white-space: nowrap;
+}
+
+#midnight-flask-count {
+  flex: 1;
+}
+
+#midnight-tower-prompt {
+  position: absolute;
+  left: 50%;
+  top: 8px;
+  transform: translateX(-50%);
+  z-index: 2;
+}
+
+#midnight-hud-bottom-center {
+  position: fixed;
+  left: 50%;
+  bottom: 0.6rem;
+  transform: translateX(-50%);
+  z-index: 500;
+  width: 260px;
+  max-width: 60vw;
+  text-align: center;
+}
+
+.midnight-enemy-hp-row .midnight-bar-track {
+  min-width: 120px;
+}
+
+#midnight-combo-note {
+  margin: 0.3rem 0 0;
+  min-height: 1em;
+  font-size: 0.68rem;
+  opacity: 0.85;
+}
+
+.midnight-slot-hp {
+  flex-shrink: 0;
+}
+
+#midnight-tower-puzzle-modal {
+  position: absolute;
+  inset: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.75);
+}
+
+#midnight-tower-puzzle-box {
+  background: #1a1d24;
+  border: 1px solid #555;
+  border-radius: 8px;
+  padding: 1.2rem;
+  max-width: 300px;
+  width: 90%;
+  text-align: center;
+  color: #f0f0f0;
+}
+
+#midnight-puzzle-question {
+  font-size: 1.3rem;
+  font-weight: bold;
+  margin: 0.5rem 0;
+}
+
+#midnight-puzzle-answer-input {
+  width: 100%;
+  box-sizing: border-box;
+  margin-bottom: 0.5rem;
+}
+
+#midnight-puzzle-result {
+  min-height: 1.2em;
+  margin-top: 0.5rem;
+}
+
+/* 角色面板（2026-09-05角色面板優化改版：左右分割＋6/4/2格欄位＋裝備/丟棄）：外層
+   modal/box比照#midnight-tower-puzzle-modal/-box同款全螢幕覆蓋樣式，只是box放寬以
+   容納左右分割版面。 */
+#midnight-character-sheet-modal {
+  position: absolute;
+  inset: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.75);
+}
+
+#midnight-character-sheet-box {
+  background: #1a1d24;
+  border: 1px solid #555;
+  border-radius: 8px;
+  padding: 1rem;
+  max-width: 640px;
+  width: 92%;
+  max-height: 85vh;
+  overflow-y: auto;
+  color: #f0f0f0;
+  box-sizing: border-box;
+}
+
+#midnight-character-sheet-split {
+  display: flex;
+  gap: 0.8rem;
+}
+
+#midnight-character-sheet-list {
+  flex: 1 1 60%;
+  min-width: 0;
+}
+
+#midnight-character-sheet-detail {
+  flex: 1 1 40%;
+  min-width: 0;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 6px;
+  padding: 0.6rem;
+}
+
+.midnight-sheet-section {
+  margin-bottom: 0.6rem;
+}
+
+.midnight-sheet-section h4 {
+  margin: 0.3rem 0;
+  font-size: 0.85rem;
+  opacity: 0.85;
+}
+
+.midnight-sheet-slots {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
+  gap: 0.3rem;
+}
+
+.midnight-sheet-slot {
+  min-height: 2.2rem;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.06);
+  color: #f0f0f0;
+  font-size: 0.72rem;
+  padding: 0.25rem;
+}
+
+.midnight-sheet-slot-empty {
+  border-style: dashed;
+  opacity: 0.4;
+}
+
+.midnight-sheet-slot-selected {
+  border-color: #ffd54a;
+  background: rgba(255, 213, 74, 0.18);
+}
+
+#midnight-mobile-joystick {
+  position: absolute;
+  left: 16px;
+  bottom: 16px;
+  width: 96px;
+  height: 96px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.25);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  touch-action: none;
+}
+
+#midnight-mobile-joystick-knob {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 40px;
+  height: 40px;
+  margin: -20px 0 0 -20px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.55);
+  pointer-events: none;
+}
+
+/* ---- 地圖點卡牌事件（2026-09-05新增，2026-09-06改版：進入提示／邀請提示／banner
+   三個區塊共用同一種固定在畫面最上方的外觀，跟地圖是否展開/縮小無關，靠近地圖上的
+   點就會顯示，同一時間只有其中一個會被static/midnight.js的renderFieldOverlay()
+   顯示出來）。 ---- */
+#midnight-field-enter-prompt,
+#midnight-field-invite-prompt,
+#midnight-field-banner {
+  position: fixed;
+  top: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 600;
+  max-width: 480px;
+  width: 92%;
+  background: rgba(10, 12, 18, 0.88);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 6px;
+  padding: 0.5rem 0.8rem;
+  color: #f0f0f0;
+  text-align: center;
+}
+
+#midnight-field-enter-name,
+#midnight-field-banner-name {
+  margin: 0 0 0.3rem;
+  font-weight: bold;
+}
+
+#midnight-field-invite-text {
+  margin: 0;
+}
+
+#midnight-field-invite-timer {
+  margin: 0.2rem 0 0.4rem;
+  opacity: 0.85;
+}
+
+#midnight-field-narrative-text {
+  margin: 0;
+  min-height: 1.4em;
+  white-space: pre-line;
+}
+
+#midnight-field-vote-panel {
+  margin-top: 0.4rem;
+  font-size: 0.8rem;
+}
+
+#midnight-field-vote-timer {
+  margin: 0 0 0.3rem;
+  opacity: 0.85;
+}
+
+#midnight-field-vote-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  justify-content: center;
+}
+
+#midnight-field-vote-status {
+  margin: 0.4rem 0 0;
+  opacity: 0.9;
+}
+
+/* ---- 敵人攻擊（2026-09-05新增）：警示圖示閃爍0.5秒＋攻擊特效（刀光/爪痕），只在被
+   指定為攻擊目標的玩家自己畫面上顯示（見static/midnight.js的updateEnemyAttack()）。
+   兩者都是全螢幕固定疊層，pointer-events:none避免擋到下面的操作按鈕。 ---- */
+#midnight-incoming-attack-warning {
+  position: fixed;
+  inset: 0;
+  z-index: 600;
+  pointer-events: none;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+}
+
+#midnight-incoming-attack-warning::after {
+  content: "⚠";
+  margin-top: 14vh;
+  width: 56px;
+  height: 56px;
+  line-height: 56px;
+  text-align: center;
+  border-radius: 50%;
+  background: #d64545;
+  color: #fff;
+  font-size: 30px;
+  font-weight: bold;
+  animation: incoming-attack-warning-flash 0.25s ease-in-out infinite;
+}
+
+@keyframes incoming-attack-warning-flash {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.15;
+  }
+}
+
+#midnight-attack-effect {
+  position: fixed;
+  inset: 0;
+  z-index: 600;
+  pointer-events: none;
+}
+
+#midnight-attack-effect.midnight-attack-effect-slash::after,
+#midnight-attack-effect.midnight-attack-effect-claw::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  animation: midnight-attack-effect-fade 0.4s ease-out both;
+}
+
+#midnight-attack-effect.midnight-attack-effect-slash::after {
+  background: linear-gradient(115deg, transparent 42%, rgba(255, 255, 255, 0.85) 48%, rgba(255, 255, 255, 0.85) 52%, transparent 58%);
+}
+
+#midnight-attack-effect.midnight-attack-effect-claw::after {
+  background: repeating-linear-gradient(
+    100deg,
+    transparent 0,
+    transparent 10px,
+    rgba(214, 69, 69, 0.75) 10px,
+    rgba(214, 69, 69, 0.75) 14px
+  );
+}
+
+@keyframes midnight-attack-effect-fade {
+  0% {
+    opacity: 0;
+  }
+  30% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+/* ---- 遇敵：戰鬥面板內的敵人圖片/名稱（2026-09-05新增） ---- */
+#midnight-field-encounter {
+  text-align: center;
+  margin-bottom: 0.4rem;
+}
+
+#midnight-field-encounter-image {
+  max-width: 140px;
+  max-height: 140px;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+}
+
+#midnight-field-encounter-name {
+  margin: 0.2rem 0 0;
+  font-weight: bold;
+}
+
+/* ---- 等待房／玩家面板 ---- */
+#midnight-lobby {
+  max-width: 560px;
+  margin: 1rem auto;
+  text-align: center;
+}
+
+#midnight-lobby-slots,
+#midnight-players-panel-slots {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin: 0.75rem 0;
+}
+
+.midnight-slot-card {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid #444;
+  border-radius: 6px;
+  text-align: left;
+}
+
+.midnight-slot-card.midnight-slot-empty {
+  opacity: 0.6;
+  font-style: italic;
+}
+
+.midnight-slot-color-dot {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  border: 1px solid rgba(0, 0, 0, 0.3);
+}
+
+.midnight-slot-card .midnight-slot-name {
+  flex: 1;
+  min-width: 0;
+}
+
+.midnight-slot-card button {
+  flex-shrink: 0;
+}
+
+#midnight-lobby-join-form {
+  max-width: 360px;
+  margin: 0.75rem auto;
+}
+
+#midnight-lobby-character-picker {
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.5rem;
+  max-width: 460px;
+  margin: 0 auto;
+}
+
+.midnight-character-option {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 64px;
+  padding: 0.25rem;
+  border-radius: 8px;
+  border: 2px solid transparent;
+  cursor: pointer;
+  background: transparent;
+}
+
+.midnight-character-option img {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  object-fit: cover;
+  background: #222;
+}
+
+.midnight-character-option-label {
+  display: block;
+  margin-top: 0.2rem;
+  font-size: 0.7rem;
+  line-height: 1.1;
+  text-align: center;
+  white-space: normal;
+  word-break: break-word;
+}
+
+#midnight-lobby-countdown {
+  font-size: 1.5rem;
+  font-weight: bold;
+}
+
+/* ---- 選單／暫停 ---- */
+/* 2026-09-05 HUD優化改版：選單面板從#midnight-map-panel內部搬到跟
+   #midnight-hud-top-right同層級（見midnight_page.py說明），改成固定定位貼在按鈕列
+   下方，這樣不管地圖是展開還是收合都能看到/操作（跟按鈕本身的可見性一致），z-index
+   跟#midnight-hud-top-right一樣高，確保地圖展開時（z-index 50）不會被蓋住。 */
+#midnight-menu-panel {
+  position: fixed;
+  top: 2.6rem;
+  right: 0.6rem;
+  z-index: 500;
+  display: flex;
+  gap: 0.5rem;
+  justify-content: flex-end;
+}
+
+#midnight-pause-overlay {
+  position: absolute;
+  left: 0;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.6);
+  color: #fff;
+  font-size: 1.4rem;
+  text-align: center;
 }

@@ -9,6 +9,25 @@
   var authReadyPromise = null;
   var appCheckActivated = false;
 
+  // Firebase Local Emulator Suite切替（2026-09-05新增，開發／自動化測試專用）：正式環境
+  // （GitHub Pages／使用者手動用真的Firebase專案測試）完全不受影響——這個旗標預設一定是
+  // false，只有測試工具自己用sessionStorage明確設定過才會生效（見tools/midnight_check/
+  // emulator_sync_check.js）。用sessionStorage而不是URL query string，是因為midnight.js的
+  // 「建立測試場」流程會用window.location.href="?game="+id整個蓋掉原本的query string
+  // （見static/midnight.js的handleCreateClick()），query string形式的旗標會在那個瞬間
+  // 遺失；sessionStorage不受這次導頁影響，同一分頁、同一origin下全程有效。
+  // 生效時效果：①database()／auth()改連本機emulator（127.0.0.1，見firebase.json的
+  // emulators.database/auth port），完全不會對外連線；②略過App Check（reCAPTCHA v3）
+  // 啟用——emulator本來就不會、也不需要驗證App Check token，啟用它只會白白多送一堆
+  // 一定會失敗的reCAPTCHA請求。
+  function rtdbEmulatorEnabled() {
+    try {
+      return window.sessionStorage.getItem("pritestRtdbEmulator") === "1";
+    } catch (e) {
+      return false;
+    }
+  }
+
   function loadScript(src) {
     return new Promise(function (resolve, reject) {
       var s = document.createElement("script");
@@ -42,6 +61,13 @@
       .then(function () {
         if (!window.firebase.apps.length) {
           window.firebase.initializeApp(window.PRITEST_FIREBASE_CONFIG);
+        }
+        if (rtdbEmulatorEnabled()) {
+          // useEmulator()必須在這個app的auth()/database()第一次被實際使用之前呼叫——
+          // ensureSdkLoaded()整個Promise鏈完成後才會有任何呼叫端去用它們，順序上沒問題。
+          window.firebase.auth().useEmulator("http://127.0.0.1:9099");
+          window.firebase.database().useEmulator("127.0.0.1", 9000);
+          return;
         }
         if (window.PRITEST_APPCHECK_SITE_KEY && !appCheckActivated) {
           window.firebase.appCheck().activate(window.PRITEST_APPCHECK_SITE_KEY, true);
