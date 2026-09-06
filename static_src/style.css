@@ -426,6 +426,12 @@ button {
   font: inherit;
 }
 
+/* 角色視窗持有物詳細資訊的[裝備][丟棄]間距（2026-09-06使用者明確要求「稍微有間距」），
+   見static/midnight.jsのappendInventoryButtons()。 */
+.midnight-sheet-discard-btn {
+  margin-left: 0.5rem;
+}
+
 .day-status {
   margin: 0;
   color: #888;
@@ -2094,6 +2100,13 @@ button {
 /* 遺物・升級由来の.level-bonus-marker（橙）と区別しやすいよう、タリスマン由来は紫系にする。 */
 .talisman-bonus-marker {
   color: #8a5cb8;
+}
+
+/* midnight角色面板「+」升級鈕旁的盧恩不足提示（2026-09-06使用者明確要求「（-4）改成黃字
+   （需要4盧恩）」），見static/midnight.jsのrenderCharacterSheetLevelRow()。 */
+.midnight-level-cost-insufficient {
+  color: #e0b400;
+  font-weight: 700;
 }
 
 .combat-attack-weapon-row,
@@ -4205,6 +4218,94 @@ button {
   margin: auto;
 }
 
+/* 商人／祝福籌碼的進入提示（2026-09-06改版：跟#midnight-field-enter-prompt同款固定定位
+   置中在畫面上方，額外加上背景框＋名稱文字，比照「顯示資訊＋進入」的樣式，取代原本只有
+   一顆孤零零按鈕的畫面；2026-09-06再修正：這三個原本用position:absolute疊在
+   #midnight-canvas-wrap上，導致地圖收合時完全看不到，改成跟#midnight-field-*系列一樣的
+   position:fixed，不管地圖是否展開都顯示，見midnight_page.pyの說明）。 */
+#midnight-tower-prompt,
+#midnight-merchant-prompt,
+#midnight-blessing-prompt {
+  position: fixed;
+  left: 50%;
+  top: 8px;
+  transform: translateX(-50%);
+  z-index: 600;
+  min-width: 160px;
+  background: rgba(10, 12, 18, 0.88);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 6px;
+  padding: 0.5rem 0.8rem;
+  color: #f0f0f0;
+  text-align: center;
+}
+
+#midnight-merchant-prompt-name,
+#midnight-blessing-prompt-name {
+  margin: 0 0 0.3rem;
+  font-weight: bold;
+}
+
+/* 進入讀取條共用樣式（2026-09-06新增，見static/midnight.jsのstartEnterLoading()／
+   renderFieldOverlay()）：固定0.5秒動畫，配合FIELD_ENTER_WAIT_MS常數。 */
+.midnight-loading-track {
+  height: 4px;
+  background: rgba(255, 255, 255, 0.18);
+  border-radius: 2px;
+  overflow: hidden;
+  margin: 0.35rem 0 0.1rem;
+}
+
+.midnight-loading-fill {
+  display: block;
+  height: 100%;
+  width: 0%;
+  background: #ffd54a;
+}
+
+.midnight-loading-fill-animate {
+  animation: midnight-loading-fill-anim 0.5s linear forwards;
+}
+
+@keyframes midnight-loading-fill-anim {
+  from {
+    width: 0%;
+  }
+  to {
+    width: 100%;
+  }
+}
+
+/* 商人／祝福視窗（2026-09-06新增，使用者明確要求「進入後在地圖上疊一層視窗來顯示
+   商人/祝福等等，同時將地圖在後層增加透明度50%」）：比照#midnight-tower-puzzle-modal
+   同款絕對定位＋置中版型，差別是背景改成0.5透明度黑（tower/character-sheet是0.75），
+   對應「地圖透明度50%」的規格。 */
+#midnight-merchant-modal,
+#midnight-blessing-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(4, 6, 10, 0.5);
+}
+
+#midnight-merchant-box,
+#midnight-blessing-box {
+  background: #1a1d24;
+  border: 1px solid #555;
+  border-radius: 8px;
+  padding: 1.2rem;
+  max-width: 360px;
+  width: 92%;
+  max-height: 85vh;
+  overflow-y: auto;
+  text-align: center;
+  color: #f0f0f0;
+  box-sizing: border-box;
+}
+
 #midnight-spirit-bird-prompt {
   position: absolute;
   left: 50%;
@@ -4246,6 +4347,107 @@ button {
   font-size: 0.72rem;
 }
 
+/* 掉落物簡易資訊（2026-09-06使用者明確要求「靠近掉落物時顯示簡易資訊在左側，延續隊友
+   血量資訊下方，拾取按鈕也在其下方」）：原本巢狀在地圖modal內部（地圖收合時完全看不到）
+   的#midnight-ground-item-prompt搬到這裡，本身不需要額外position，跟著
+   #midnight-hud-top-left（position:fixed）走一般文件流就會排在#midnight-players-panel-slots
+   下面。 */
+#midnight-ground-item-prompt {
+  margin-top: 0.35rem;
+  padding-top: 0.35rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+/* 2026-09-06優化：進入戰鬥提示／夜之強敵系統倒數／祝福/商人/準備（見
+   static/midnight.jsのrenderEnterBattlePrompt()／renderFinalCircleCountdown()／
+   renderFinalCircleRewardsHud()），統一放在#midnight-hud-top-left最上面，跟隊友血量卡
+   同一個文件流、有內容才佔位。 */
+#midnight-enter-battle-prompt,
+#midnight-hud-merchant-row,
+#midnight-hud-ready-final-row {
+  margin-bottom: 0.35rem;
+}
+
+#midnight-final-circle-countdown {
+  margin: 0 0 0.35rem;
+  color: #ffd76a;
+  font-weight: bold;
+}
+
+#btn-midnight-hud-blessing {
+  margin-bottom: 0.35rem;
+}
+
+#midnight-hud-ready-final-row {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+#midnight-ready-final-note {
+  font-variant-numeric: tabular-nums;
+}
+
+#midnight-ground-item-name {
+  margin: 0 0 0.25rem;
+  font-weight: bold;
+}
+
+/* 測試模式面板（2026-09-06數值真正接入新增，使用者明確規格：「開始遊戲可以選擇
+   測試模式，在右邊可以顯示敵我傷害資訊，甚至可以手動拉條來改變傷害值」）：改成
+   #midnight-hud-top-right（flex column、align-items:flex-end）的最後一個子元素，
+   讓它自動接在按鈕列/小地圖列下方、跟著切齊右邊——使用者回報舊版寫死top值會擋住
+   選單/角色按鈕，原因是沒有算進按鈕列實際高度（尤其是後來新增的小地圖列），改用
+   文件流排列後不管上面有幾個元素、多高都不會重疊。見static/midnight.jsの
+   renderTestPanel()。 */
+#midnight-test-panel {
+  width: 220px;
+  max-width: 42vw;
+  background: rgba(10, 12, 18, 0.72);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: 6px;
+  padding: 0.5rem 0.7rem;
+  font-size: 0.78rem;
+  color: #f0f0f0;
+}
+
+#midnight-test-panel h3 {
+  margin: 0 0 0.35rem;
+  font-size: 0.85rem;
+}
+
+#midnight-test-panel .wb-row {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin: 0.3rem 0;
+}
+
+#midnight-test-panel .wb-row label {
+  flex: 1 1 auto;
+  font-size: 0.72rem;
+}
+
+#midnight-test-panel input[type="range"] {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+/* 2026-09-06優化：滑桿旁新增可直接輸入數字的輸入框（見midnight_page.pyのwb-row），
+   固定小寬度避免撐爆這個220px寬的角落面板。 */
+#midnight-test-panel input.midnight-test-number-input {
+  flex: 0 0 3.4rem;
+  width: 3.4rem;
+  min-width: 0;
+  font-size: 0.7rem;
+  padding: 0.05rem 0.2rem;
+}
+
+#midnight-test-panel span[id$="-value"] {
+  flex: 0 0 auto;
+  font-variant-numeric: tabular-nums;
+}
+
 /* 接管按鈕（斷線重連用）保留但縮小，避免撐爆這個角落HUD——功能不變，只是尺寸配合
    縮小後的隊友卡片，見renderOccupiedSlotCard()既有邏輯。 */
 #midnight-hud-top-left .midnight-slot-card button {
@@ -4271,8 +4473,51 @@ button {
   padding: 0.35rem 0.6rem;
 }
 
-/* 戰鬥結束提示（見midnight.jsのmapIconNudge）：脈動放大+發光，提醒玩家點開地圖繼續移動。 */
+/* 小地圖（2026-09-06使用者明確要求「戰鬥中小地圖顯示在地圖按鈕左邊,尺寸為原地圖的
+   1/10倍」）：跟地圖按鈕同一行、貼在它左邊，見static/midnight.jsのrender()結尾
+   （直接把#midnight-canvas目前畫好的內容整張縮小畫進這顆canvas，不重畫地圖邏輯）。 */
+#midnight-map-icon-row {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+#midnight-minimap-canvas {
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  border-radius: 4px;
+  background: #0c0f14;
+}
+
+/* 地圖右上關閉✕（2026-09-06使用者明確要求「直接放置在地圖圖片上的右上」）：疊在
+   #midnight-canvas-wrap（position:relative）右上角，跟canvas本身綁在一起，不是HUD固定
+   面板的一部分，見static/midnight.jsのsetMapExpanded()。用圓形✕跟其他文字按鈕做出
+   區別，一眼就看得出是「關掉」動作。 */
+#btn-midnight-map-close-corner {
+  position: absolute;
+  top: 0.4rem;
+  right: 0.4rem;
+  z-index: 3;
+  width: 1.8rem;
+  height: 1.8rem;
+  line-height: 1;
+  border-radius: 50%;
+  padding: 0;
+  font-size: 1.1rem;
+  background: rgba(168, 20, 20, 0.75);
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  color: #f5f5f0;
+  cursor: pointer;
+}
+
+/* 戰鬥結束／換日提示（見midnight.jsのmapIconNudge）：脈動放大+發光，提醒玩家點開地圖查看。 */
 #btn-midnight-map-icon.midnight-map-icon-nudge {
+  animation: midnight-map-icon-nudge-pulse 1s ease-in-out infinite;
+}
+
+/* 2026-09-06三次優化（使用者明確規格「角色還有遺物效果可學習時，角色按鈕閃黃光」）：
+   直接重用上面同一個keyframe，只是換一個selector套用到角色按鈕，見
+   midnight.jsのrenderCharacterIcon()。 */
+#btn-midnight-open-character-sheet.midnight-character-icon-nudge {
   animation: midnight-map-icon-nudge-pulse 1s ease-in-out infinite;
 }
 
@@ -4355,13 +4600,154 @@ button {
   flex-direction: column;
   align-items: center;
   gap: 0.15rem;
+  position: relative;
+}
+
+/* 2026-09-06優化：迴避/防禦成功、受到傷害的浮動提示（見static/midnight.jsの
+   showActionFlash()），固定在按鈕正上方，1秒後由JS重新加上hidden。 */
+.midnight-action-flash {
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  margin-bottom: 0.2rem;
+  padding: 0.05rem 0.4rem;
+  border-radius: 4px;
+  font-size: 0.72rem;
+  font-weight: bold;
+  white-space: nowrap;
+  pointer-events: none;
+  background: rgba(10, 12, 18, 0.75);
+}
+
+.midnight-action-flash-success {
+  color: #7ee787;
+}
+
+.midnight-action-flash-damage {
+  color: #ff5c5c;
+}
+
+/* 2026-09-06優化：長按攻擊鍵顯示的特殊攻擊（跳躍攻擊/衝刺攻擊）選單，見
+   static/midnight.jsのbindAttackHoldInput()／renderAttackSpecialMenu()。選單元素不能
+   巢狀在<button>裡面（HTML不允許button巢狀button），改用.midnight-attack-wrap包住
+   按鈕本身＋選單，用絕對定位疊在按鈕正上方。 */
+.midnight-attack-wrap {
+  position: relative;
+}
+
+.midnight-attack-special-menu {
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  margin-bottom: 0.3rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  z-index: 600;
+}
+
+.midnight-attack-special-btn {
+  white-space: nowrap;
+  padding: 0.3rem 0.6rem;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  background: rgba(10, 12, 18, 0.85);
+  color: #f0f0f0;
+  font-size: 0.75rem;
+}
+
+/* 2026-09-06二次優化（使用者明確規格「不要完全覆蓋其動畫演出頁面，仍舊要逐漸顯現出地圖，
+   靈鷹圖示與所有人在地圖外順時針繞兩圈後，定位在開始地點並開始」）：開局10秒進場動畫，見
+   static/midnight.jsのrenderIntroOverlay()／positionIntroFlyers()。背景改成半透明（不再是
+   不透明的radial-gradient），底下地圖canvas的透明度漸變才看得見；靈鷹與隊員小圓點的位置
+   改由JS依真實地圖座標逐幀計算並寫入inline left/top（見introFlightPoint()），不再是跟地圖
+   座標無關的CSS keyframe，因此這裡拿掉舊的漩渦keyframe，只保留形狀/顏色樣式。 */
+#midnight-intro-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  display: block;
+  background: rgba(4, 6, 12, 0.22);
+  pointer-events: auto;
+}
+
+#midnight-intro-bird-wrap {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  width: 6rem;
+  height: 6rem;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+
+#midnight-intro-bird-svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: auto;
+  fill: #cfd6ff;
+  opacity: 0.95;
+}
+
+.midnight-intro-party-dot {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  width: 0.6rem;
+  height: 0.6rem;
+  border-radius: 50%;
+  background: #ffd76a;
+  box-shadow: 0 0 6px 1px rgba(255, 215, 106, 0.7);
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+
+#midnight-intro-note {
+  position: absolute;
+  left: 50%;
+  bottom: 2.5rem;
+  transform: translateX(-50%);
+  color: #cfd6ff;
+  font-size: 0.9rem;
+  letter-spacing: 0.05em;
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.6);
+}
+
+/* 進場動畫期間地圖canvas由static/midnight.jsのrenderIntroOverlay()逐幀寫入inline
+   opacity（0→1），這裡加transition讓數值跳動之間更平滑。 */
+#midnight-canvas {
+  transition: opacity 0.2s linear;
+}
+
+/* 左手一般攻擊／魔術祈禱（2026-09-05武器資料真正接入新增）：疊在#midnight-hud-bottom-left
+   （2列48px+間距，約6.3rem高）正上方，跟右下角#midnight-hud-bottom-right同款排版。 */
+#midnight-hud-bottom-left-actions {
+  position: fixed;
+  left: 0.6rem;
+  bottom: 7.2rem;
+  z-index: 500;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  max-width: 46vw;
+}
+
+#midnight-hud-bottom-left-actions button {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.15rem;
 }
 
 /* 2026-09-05戰鬥優化新增：攻擊/戰技用劍圖示、防禦用盾圖示，inline SVG data URI
    （mask-image＋background-color，這樣圖示顏色能跟文字一樣用currentColor邏輯手動指定，
    不需要額外圖檔請求，符合這個repo沒有建置框架、純靜態檔案的既有限制）。 */
 .midnight-icon-sword,
-.midnight-icon-shield {
+.midnight-icon-shield,
+.midnight-icon-art {
   display: inline-block;
   width: 1.1rem;
   height: 1.1rem;
@@ -4382,6 +4768,18 @@ button {
 .midnight-icon-shield {
   mask-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><path d='M12 2l8 3v6c0 5-3.5 8.5-8 11-4.5-2.5-8-6-8-11V5l8-3z'/></svg>");
   -webkit-mask-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><path d='M12 2l8 3v6c0 5-3.5 8.5-8 11-4.5-2.5-8-6-8-11V5l8-3z'/></svg>");
+}
+
+/* 技藝專屬圖示（2026-09-06使用者明確要求「腳色的技藝要比較特別的圖示，使用次數較少
+   難以回復」）：跟一般攻擊/戰技共用的劍圖示區分開來，改用寶石/稀有結晶造型＋金色，
+   暗示「珍貴、用量有限」。 */
+.midnight-icon-art {
+  mask-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><path d='M12 2l4 4H8l4-4z'/><path d='M4 8h16l-8 14L4 8z'/><path d='M8 8l4 14M16 8l-4 14M4 8l4 0M20 8l-4 0' stroke='black' stroke-width='0.6' fill='none'/></svg>");
+  -webkit-mask-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><path d='M12 2l4 4H8l4-4z'/><path d='M4 8h16l-8 14L4 8z'/><path d='M8 8l4 14M16 8l-4 14M4 8l4 0M20 8l-4 0' stroke='black' stroke-width='0.6' fill='none'/></svg>");
+}
+
+#btn-midnight-art .midnight-icon-art {
+  color: #ffd54a;
 }
 
 .midnight-bar-row {
@@ -4467,44 +4865,62 @@ button {
   flex: 1;
 }
 
-#midnight-tower-prompt {
-  position: absolute;
-  left: 50%;
-  top: 8px;
-  transform: translateX(-50%);
-  z-index: 2;
-}
-
+/* 2026-09-06使用者回報bug「敵人圖片放大到420px後，背景視窗框沒有跟著放大」：
+   #midnight-field-encounter-image／#midnight-strong-enemy-image在別處已放大到
+   max-width:420px（見下方該規則的說明註解），但這個容器仍停留在放大前的260px，
+   導致圖片溢出背景框。改成跟圖片一致的寬度＋足夠的max-width。 */
 #midnight-hud-bottom-center {
   position: fixed;
   left: 50%;
   bottom: 0.6rem;
   transform: translateX(-50%);
   z-index: 500;
-  width: 260px;
-  max-width: 60vw;
+  width: 460px;
+  max-width: 92vw;
   text-align: center;
+}
+
+/* 逃離戰鬥（2026-09-06使用者明確要求「在敵人資訊中右上方有逃離戰鬥按鈕」）：
+   #midnight-hud-bottom-center本身已經是position:fixed，天生就是這顆按鈕的定位錨點，
+   不需要額外包一層容器。 */
+#btn-midnight-flee-battle {
+  position: absolute;
+  top: 0.3rem;
+  right: 0.3rem;
+  font-size: 0.68rem;
+  padding: 0.15rem 0.4rem;
+  background: rgba(168, 20, 20, 0.75);
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  border-radius: 4px;
+  color: #f5f5f0;
+  cursor: pointer;
 }
 
 .midnight-enemy-hp-row .midnight-bar-track {
   min-width: 120px;
 }
 
-#midnight-combo-note {
-  margin: 0.3rem 0 0;
+/* 屬性/狀態異常共同蓄積小型顯示（2026-09-05武器資料真正接入新增），見
+   midnight.jsのrenderAttributeAccumNote()。 */
+#midnight-attribute-accum-note {
+  margin: 0.15rem 0 0;
   min-height: 1em;
-  font-size: 0.68rem;
-  opacity: 0.85;
+  font-size: 0.65rem;
+  opacity: 0.75;
 }
 
 .midnight-slot-hp {
   flex-shrink: 0;
 }
 
+/* 2026-09-06修正：這幾個全螢幕modal原本用position:absolute疊在#midnight-canvas-wrap
+   上（inset:0相對canvas-wrap，不是viewport），巢狀在地圖modal內部時地圖收合就完全看
+   不到；搬到#midnight-map-area底層後改成position:fixed（相對viewport），z-index拉到
+   700，確保不管地圖是展開（z-index 50）或收合都蓋在HUD（z-index 500）之上。 */
 #midnight-tower-puzzle-modal {
-  position: absolute;
+  position: fixed;
   inset: 0;
-  z-index: 10;
+  z-index: 700;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -4543,45 +4959,134 @@ button {
    modal/box比照#midnight-tower-puzzle-modal/-box同款全螢幕覆蓋樣式，只是box放寬以
    容納左右分割版面。 */
 #midnight-character-sheet-modal {
-  position: absolute;
+  position: fixed;
   inset: 0;
-  z-index: 10;
+  z-index: 700;
   display: flex;
   align-items: center;
   justify-content: center;
   background: rgba(0, 0, 0, 0.75);
 }
 
+/* 2026-09-06改版：固定右上角關閉✕需要box本身是定位錨點（position:relative）；box改用
+   flex column＋固定height:85vh（原本是max-height，內容短時box會跟著縮小），
+   #midnight-character-sheet-split設flex:1讓「清單／detail」兩欄永遠填滿box剩餘高度，
+   使用者明確要求「右側的說明資訊拉長上下滿版」——detail不再只跟著自己內容高度顯示。 */
 #midnight-character-sheet-box {
+  position: relative;
   background: #1a1d24;
   border: 1px solid #555;
   border-radius: 8px;
   padding: 1rem;
   max-width: 640px;
   width: 92%;
-  max-height: 85vh;
-  overflow-y: auto;
+  height: 85vh;
   color: #f0f0f0;
   box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
 }
 
 #midnight-character-sheet-split {
   display: flex;
   gap: 0.8rem;
+  flex: 1;
+  min-height: 0;
 }
 
 #midnight-character-sheet-list {
   flex: 1 1 60%;
   min-width: 0;
+  overflow-y: auto;
 }
 
 #midnight-character-sheet-detail {
   flex: 1 1 40%;
   min-width: 0;
+  overflow-y: auto;
   background: rgba(255, 255, 255, 0.05);
   border: 1px solid rgba(255, 255, 255, 0.15);
   border-radius: 6px;
   padding: 0.6rem;
+}
+
+/* 獎勵清單視窗（2026-09-06使用者回報bug「獎勵清單沒有顯示在最上層」）：這個modal原本
+   完全沒有設position/z-index，落在一般文件流裡，跟#midnight-merchant-modal／
+   #midnight-character-sheet-modal等其他疊層視窗不一致，才會被其他固定定位的HUD/地圖
+   蓋住或位置跑掉。比照#midnight-character-sheet-modal同款「全螢幕覆蓋＋左清單/右
+   detail」版型：清單在左（點擊選擇要收下的品項），detail在右邊底層顯示名稱/資訊＋
+   ［取得］按鈕（既有static/midnight.jsのrenderRewardDetail()邏輯不變，只是補齊外層
+   CSS）。 */
+#midnight-reward-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.75);
+}
+
+#midnight-reward-box {
+  background: #1a1d24;
+  border: 1px solid #555;
+  border-radius: 8px;
+  padding: 1rem;
+  max-width: 560px;
+  width: 92%;
+  max-height: 85vh;
+  color: #f0f0f0;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  text-align: center;
+}
+
+#midnight-reward-split {
+  display: flex;
+  gap: 0.8rem;
+  min-height: 0;
+  text-align: left;
+}
+
+#midnight-reward-list {
+  flex: 1 1 55%;
+  min-width: 0;
+  max-height: 60vh;
+  overflow-y: auto;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+#midnight-reward-detail {
+  flex: 1 1 45%;
+  min-width: 0;
+  max-height: 60vh;
+  overflow-y: auto;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 6px;
+  padding: 0.6rem;
+}
+
+/* 固定右上角關閉✕（2026-09-06使用者明確要求「角色視窗固定右上方有關閉X按鈕」），
+   取代原本擠在最下面的關閉字按鈕，跟#btn-midnight-map-close-corner同款圓形✕視覺。 */
+.midnight-modal-close-x {
+  position: absolute;
+  top: 0.6rem;
+  right: 0.6rem;
+  z-index: 1;
+  width: 1.8rem;
+  height: 1.8rem;
+  line-height: 1;
+  border-radius: 50%;
+  padding: 0;
+  font-size: 1.1rem;
+  background: rgba(168, 20, 20, 0.75);
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  color: #f5f5f0;
+  cursor: pointer;
 }
 
 .midnight-sheet-section {
@@ -4620,6 +5125,14 @@ button {
   background: rgba(255, 213, 74, 0.18);
 }
 
+/* 目前實際生效的技藝/技能替代招式（2026-09-05角色能力真正接入新增，見
+   static/midnight.js的renderSkillArtSlot()）：跟-selected（唯讀detail檢視中）是各自獨立的
+   狀態，兩者可能同時套用在同一顆按鈕上，因此用不同視覺（左側色條）區分，不互相覆蓋。 */
+.midnight-sheet-variant-active {
+  border-left: 3px solid #7fd8ff;
+  font-weight: bold;
+}
+
 #midnight-mobile-joystick {
   position: absolute;
   left: 16px;
@@ -4650,7 +5163,8 @@ button {
    顯示出來）。 ---- */
 #midnight-field-enter-prompt,
 #midnight-field-invite-prompt,
-#midnight-field-banner {
+#midnight-field-banner,
+#midnight-strong-enemy-banner {
   position: fixed;
   top: 8px;
   left: 50%;
@@ -4667,9 +5181,19 @@ button {
 }
 
 #midnight-field-enter-name,
-#midnight-field-banner-name {
+#midnight-field-banner-name,
+#midnight-strong-enemy-name {
   margin: 0 0 0.3rem;
   font-weight: bold;
+}
+
+/* 強敵資訊列（種類／體型／弱點，2026-09-06使用者明確要求），見static/midnight.jsの
+   renderStrongEnemyOverlay()。#midnight-strong-enemy-banner本身原本沒有跟其他地點卡
+   banner共用固定定位樣式，一併補上（見上方選擇器）。 */
+#midnight-strong-enemy-detail {
+  margin: 0 0 0.4rem;
+  font-size: 0.8rem;
+  opacity: 0.9;
 }
 
 #midnight-field-invite-text {
@@ -4734,7 +5258,26 @@ button {
   color: #fff;
   font-size: 30px;
   font-weight: bold;
-  animation: incoming-attack-warning-flash 0.25s ease-in-out infinite;
+  /* 2026-09-06使用者明確要求「攻擊的警示閃爍的更慢,只閃一次後顯示再消失」：取代原本
+     0.25s無限循環的持續閃爍，改成只播一次、時間拉長到0.4s，animation-fill-mode:
+     forwards讓動畫結束後停在關鍵影格100%（opacity:1，見下方@keyframes），維持顯示
+     直到警示視窗結束（由static/midnight.jsのrenderEnemyAttackOverlay()切換hidden）。 */
+  animation: incoming-attack-warning-flash 0.4s ease-in-out 1 forwards;
+}
+
+/* 招式名稱（2026-09-06數值真正接入新增，使用者明確規格：「閃爍驚嘆號時也顯示招式
+   名稱」）：疊在警示圖示正下方，跟::after同一個閃爍節奏，不需要另外的JS計時器。 */
+#midnight-incoming-attack-name {
+  position: absolute;
+  margin-top: calc(14vh + 60px);
+  padding: 0.15rem 0.6rem;
+  border-radius: 8px;
+  background: rgba(20, 24, 34, 0.85);
+  color: #fff;
+  font-size: 0.85rem;
+  font-weight: bold;
+  white-space: nowrap;
+  animation: incoming-attack-warning-flash 0.4s ease-in-out 1 forwards;
 }
 
 @keyframes incoming-attack-warning-flash {
@@ -4754,26 +5297,14 @@ button {
   pointer-events: none;
 }
 
-#midnight-attack-effect.midnight-attack-effect-slash::after,
-#midnight-attack-effect.midnight-attack-effect-claw::after {
+/* 攻擊特效：2026-09-06數值真正接入，使用者明確要求取消野獸撕咬動畫，固定只用刀光
+   （見static/midnight.jsのtriggerAttackEffect()），原本的爪痕樣式已移除。 */
+#midnight-attack-effect.midnight-attack-effect-slash::after {
   content: "";
   position: absolute;
   inset: 0;
   animation: midnight-attack-effect-fade 0.4s ease-out both;
-}
-
-#midnight-attack-effect.midnight-attack-effect-slash::after {
   background: linear-gradient(115deg, transparent 42%, rgba(255, 255, 255, 0.85) 48%, rgba(255, 255, 255, 0.85) 52%, transparent 58%);
-}
-
-#midnight-attack-effect.midnight-attack-effect-claw::after {
-  background: repeating-linear-gradient(
-    100deg,
-    transparent 0,
-    transparent 10px,
-    rgba(214, 69, 69, 0.75) 10px,
-    rgba(214, 69, 69, 0.75) 14px
-  );
 }
 
 @keyframes midnight-attack-effect-fade {
@@ -4794,9 +5325,70 @@ button {
   margin-bottom: 0.4rem;
 }
 
+/* 敵人圖片方格（2026-09-06使用者明確要求「敵人顯示視窗中放大目前的三倍」）：140px→420px。 */
 #midnight-field-encounter-image {
-  max-width: 140px;
-  max-height: 140px;
+  max-width: 420px;
+  max-height: 420px;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+}
+
+/* 命中特效容器（2026-09-06新增）：跟圖片同一個尺寸疊在正上方，display:inline-block讓
+   容器寬高自動貼合圖片實際渲染尺寸（圖片本身用max-width/max-height縮放，容器不能用
+   固定px）。 */
+#midnight-field-encounter-image-wrap {
+  position: relative;
+  display: inline-block;
+}
+
+/* 玩家攻擊命中特效（2026-09-06使用者明確要求「玩家使用任何攻擊效果時,也在敵人的圖片上
+   產生不同的刀光效果,且能根據屬性等等的更換顏色」）：疊在敵人圖片上的斜向刀光，顏色由
+   static/midnight.jsのtriggerEnemyHitEffect()透過內聯style設定的--hit-color決定
+   （無屬性=白色，見同函式的顏色對照表）。閃一下就消失，跟#midnight-attack-effect
+   （敵人打玩家用的刀光/爪痕）是完全獨立的兩組視覺效果。 */
+#midnight-enemy-hit-effect {
+  position: absolute;
+  inset: -20%;
+  pointer-events: none;
+  overflow: hidden;
+  background: linear-gradient(
+    115deg,
+    transparent 42%,
+    var(--hit-color, #ffffff) 48%,
+    var(--hit-color, #ffffff) 52%,
+    transparent 58%
+  );
+  opacity: 0;
+}
+
+/* JS用classList.remove()+強制reflow+classList.add()重新觸發這個class來重播動畫
+   （見static/midnight.jsのtriggerEnemyHitEffect()），連續命中時每次都能重新播放。 */
+#midnight-enemy-hit-effect.midnight-enemy-hit-effect-play {
+  animation: midnight-enemy-hit-slash 0.3s ease-out;
+}
+
+@keyframes midnight-enemy-hit-slash {
+  0% {
+    opacity: 0;
+    transform: translateX(-25%);
+  }
+  35% {
+    opacity: 0.95;
+  }
+  100% {
+    opacity: 0;
+    transform: translateX(25%);
+  }
+}
+
+/* 強敵籌碼的靠近提示圖片（2026-09-06使用者明確要求「碰觸地圖上的強敵等等敵人時顯示的
+   敵人資訊圖片放小1/4倍」）：原本跟#midnight-field-encounter-image共用420px規則，改成
+   單獨縮小成105px（420÷4）。進入戰鬥後（已是participant）改由static/midnight.jsの
+   renderStrongEnemyOverlay()把這個元素整個hidden——戰鬥中的#midnight-field-encounter
+   本身已經放大顯示同一張敵人照片，不需要在上方資訊欄重複一次。 */
+#midnight-strong-enemy-image {
+  max-width: 105px;
+  max-height: 105px;
   border-radius: 6px;
   border: 1px solid rgba(255, 255, 255, 0.25);
 }
@@ -4822,6 +5414,7 @@ button {
 }
 
 .midnight-slot-card {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 0.6rem;
@@ -4829,6 +5422,61 @@ button {
   border: 1px solid #444;
   border-radius: 6px;
   text-align: left;
+}
+
+/* 攻擊／技能使用提示對話框（見static/midnight.jsの broadcastCombatActionBubble()
+   說明）：用position:absolute掛在卡片右邊，不佔用#midnight-hud-top-left本來就很窄的
+   固定寬度版面，2秒後static/midnight.js會重新render把逾時的那筆拿掉（不是CSS動畫
+   控制消失時機）。2026-09-06使用者明確要求「按下後要更新使用的動作且要有向上滑動的
+   動畫，一名玩家可以同時顯示兩筆動作，新的動作發生時往上捲動一筆」：改成
+   flex-column堆疊最多兩則（舊的在上、新的在下），每筆重新render時都是全新DOM節點，
+   套用.midnight-action-bubble-line的滑入animation即可自然播放一次，不需要額外的
+   RAF/reflow技巧。 */
+.midnight-action-bubble-stack {
+  position: absolute;
+  left: 100%;
+  top: 50%;
+  transform: translateY(-50%);
+  margin-left: 0.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  z-index: 10;
+  pointer-events: none;
+}
+
+.midnight-action-bubble-line {
+  position: relative;
+  background: rgba(20, 24, 34, 0.92);
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  border-radius: 10px;
+  padding: 0.15rem 0.55rem;
+  font-size: 0.7rem;
+  white-space: nowrap;
+  color: #f5f5f0;
+  animation: midnight-action-bubble-in 0.25s ease-out;
+}
+
+.midnight-action-bubble-line:first-child::before {
+  content: "";
+  position: absolute;
+  right: 100%;
+  top: 50%;
+  transform: translateY(-50%);
+  border-width: 5px 5px 5px 0;
+  border-style: solid;
+  border-color: transparent rgba(255, 255, 255, 0.35) transparent transparent;
+}
+
+@keyframes midnight-action-bubble-in {
+  0% {
+    opacity: 0;
+    transform: translateY(60%);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .midnight-slot-card.midnight-slot-empty {

@@ -6,7 +6,10 @@
   "scripts": {
     "test": "node multi_device_sync_check.js",
     "test:emulator": "node emulator_sync_check.js",
-    "test:new_chips": "node new_chips_check.js"
+    "test:new_chips": "node new_chips_check.js",
+    "test:weapon_combat": "node weapon_combat_check.js",
+    "test:character_ability": "node character_ability_check.js",
+    "test:ui_layout_fixes": "node ui_layout_fixes_check.js"
   },
   "devDependencies": {
     "firebase-tools": "^15.29.0",

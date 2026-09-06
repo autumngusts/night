@@ -5344,31 +5344,34 @@
     if (c._crucibleBeastActive) entries = entries.concat(CRUCIBLE_BEAST_ACTIONS);
     // 隱者「混成魔法」の遺物効果（漩渦烈焰／聖幕／冷氣風暴／聖光燈火）：習得済みのものだけ、
     // 元の混成魔法とは別の選択肢として一覧に追加する（各々「屬性痕」消費なしの代替効果）。
+    // 実際のentry本体は2026-09-05角色能力真正接入でcharacter_types.jsの対応する遺物効果へ
+    // variantEntryとして移設済み（single source of truth、CLAUDE.md §36、midnight.jsも
+    // 同じフィールドを読む）——ここではrelicNamesで検索した効果オブジェクトからそのまま読む。
     var baseTypeId = type ? type.id.replace(/_dark$|_dawn$/, "") : null;
     // 追跡者「技藝強化（速擊）」：習得していれば「襲擊之楔」を「速擊」でも使用できるようになる。
-    if (baseTypeId === "tracker" && CharacterDrawer.findLearnedRelicEffectByName(c, ["技藝強化（速擊）", "アーツ強化（速撃）"])) {
-      entries = entries.concat([TRACKER_ASSAULT_WEDGE_QUICK_ENTRY]);
-    }
+    var trackerQuickRelic =
+      baseTypeId === "tracker" ? CharacterDrawer.findLearnedRelicEffectByName(c, ["技藝強化（速擊）", "アーツ強化（速撃）"]) : null;
+    if (trackerQuickRelic && trackerQuickRelic.variantEntry) entries = entries.concat([trackerQuickRelic.variantEntry]);
     if (baseTypeId === "hermit") {
-      HERMIT_HYBRID_MAGIC_ACTION_VARIANTS.forEach(function (v) {
-        if (CharacterDrawer.findLearnedRelicEffectByName(c, v.relicNames)) entries = entries.concat([v.entry]);
+      HERMIT_HYBRID_MAGIC_RELIC_NAMES.forEach(function (names) {
+        var effect = CharacterDrawer.findLearnedRelicEffectByName(c, names);
+        if (effect && effect.variantEntry) entries = entries.concat([effect.variantEntry]);
       });
       // 隱者（黎明）専用の混成魔法変化（橫掃雷擊／雷炎戰車／重力爆發）。relicNamesがhermit_dawn
       // 専用のため、base hermitでは常にfindLearnedRelicEffectByNameがnullを返し混在しない。
-      HERMIT_DAWN_HYBRID_MAGIC_ACTION_VARIANTS.forEach(function (v) {
-        if (CharacterDrawer.findLearnedRelicEffectByName(c, v.relicNames)) entries = entries.concat([v.entry]);
+      HERMIT_DAWN_HYBRID_MAGIC_RELIC_NAMES.forEach(function (names) {
+        var effect = CharacterDrawer.findLearnedRelicEffectByName(c, names);
+        if (effect && effect.variantEntry) entries = entries.concat([effect.variantEntry]);
       });
     }
     // 執行者「妖刀解放・攻」：習得していれば「妖刀」をActionとしても使用できるようになる
     // （妖刀蓄積を1個消費、對敵人造成【總合傷害：50+▲】）。
-    if (baseTypeId === "executor" && CharacterDrawer.findLearnedRelicEffectByName(c, ["妖刀解放・攻"])) {
-      entries = entries.concat([EXECUTOR_YOTO_RELEASE_ACTION_ENTRY]);
-    }
+    var yotoAttackSkillRelic = baseTypeId === "executor" ? CharacterDrawer.findLearnedRelicEffectByName(c, ["妖刀解放・攻"]) : null;
+    if (yotoAttackSkillRelic && yotoAttackSkillRelic.variantEntry) entries = entries.concat([yotoAttackSkillRelic.variantEntry.action]);
     // 執行者（暗影）「妖刀解放・癒」：習得していれば「妖刀」を別効果のActionとしても使用できる
     // ようになる（妖刀蓄積を2個消費、對敵人造成【總合傷害：100+◆】＋自身HP回復+5）。
-    if (baseTypeId === "executor" && CharacterDrawer.findLearnedRelicEffectByName(c, ["妖刀解放・癒"])) {
-      entries = entries.concat([EXECUTOR_YOTO_RELEASE_HEAL_ACTION_ENTRY]);
-    }
+    var yotoHealSkillRelic = baseTypeId === "executor" ? CharacterDrawer.findLearnedRelicEffectByName(c, ["妖刀解放・癒"]) : null;
+    if (yotoHealSkillRelic && yotoHealSkillRelic.variantEntry) entries = entries.concat([yotoHealSkillRelic.variantEntry.action]);
     if (!entries.length) {
       var empty = document.createElement("p");
       empty.className = "threat-ref-body";
@@ -6575,28 +6578,6 @@
       },
     },
   ];
-  // 追跡者「技藝強化（速擊）」：習得していれば「襲擊之楔」（assault_wedge）を通常版に加えて
-  // 「速擊」でも使用できるようになる。同じ技藝の別の使い方（本文「可任選...任選作為『速擊』使用」）
-  // のため、entry.idはあえて実entry（type.arts内のassault_wedge）と同じ"assault_wedge"を使い、
-  // 使用回数（c.abilityUses.assault_wedge）・「技藝強化（燃燒）」の追加ボーナスを両方の使い方で
-  // 共有する（uses:1も実entryと同じ値を明記し、effectiveMax/remainingの算出を独立させない）。
-  // quickVariant:trueで、computeSkillDamageの「▲が本文に2箇所出現する」特殊処理（実entry専用、
-  // 本バリアントの本文には該当箇所が無い）から除外する。使用回数が戦闘終了時に回復する特典
-  // （実entりの「當日結束時回復」とは異なるタイミング）は、既存のuses管理に新しい生命週期を
-  // 割り込ませる汎用機構が無いため自動化せず、本文とアクション記録の注記でGMに委ねる。
-  var TRACKER_ASSAULT_WEDGE_QUICK_ENTRY = {
-    id: "assault_wedge",
-    quickVariant: true,
-    uses: 1,
-    kind: "Action",
-    name: { zh: "襲擊之楔（速擊）", ja: "襲撃の楔（速撃）", en: "Assault Wedge (Quick Strike)" },
-    body: {
-      zh: "使用次數：○（於當日結束時回復）\n消耗：使用次數●\n對象：敵人＋雜兵＋1名PC\n編隊：前衛時可使用\n\n效果（作為「速擊」使用）\n・對雜兵造成「HP損害：■」，對敵人造成【總合傷害：60+▲】，對1名PC施加【復歸傷害：60】。此行動後，於戰鬥結束時，回復此技藝的使用次數。",
-      ja: "使用回数：○（1日の終了時に回復）\nコスト：使用回数●\n対象：エネミー＋モブ＋PC1人\n隊列：前衛のとき使用可能\n\n効果（「速撃」として使用）\n・モブに「HP損害：■」、エネミーに【総合ダメージ：60＋▲】、PC1人に【復帰ダメージ：60】を与える。このアクション後、戦闘終了時に、このアーツの使用回数を回復する。",
-      en: "Uses: ○ (recovers at day's end)\nCost: Use ●\nTarget: Enemy + Mob + 1 PC\nFormation: Usable in front row\n\nEffect (used as \"Quick Strike\")\nDeals [HP Damage: 1] to a mob, [Total Damage: 60+▲] to the enemy, and [Return Damage: 60] to 1 PC. After this action, this art's use count also recovers at the end of the battle.",
-    },
-  };
-
   // 執行者「咆哮」：對敵人傷害／對PC復歸傷害のどちらを選ぼうとしているかの中間状態。
   var crucibleRoarChoice = null; // "damage" | "revival" | null
 
@@ -6610,193 +6591,42 @@
     arcane: { zh: "魔", ja: "魔" },
   };
 
-  // 隱者「混成魔法」の遺物効果による変更後の効果（漩渦烈焰／聖幕／冷氣風暴／聖光燈火）。
-  // いずれも「屬性痕」消費なしの代替効果のため、汎用のisActiveフォールバック（computeSkillDamage
-  // による固定値解析）にそのまま乗る合成entryとして注入する（CRUCIBLE_BEAST_ACTIONSと同じ手法）。
-  var HERMIT_HYBRID_MAGIC_ACTION_VARIANTS = [
-    {
-      relicNames: ["漩渦烈焰", "渦巻く炎"],
-      entry: {
-        id: "hybrid_magic_vortex_flame",
-        kind: "Action",
-        name: { zh: "漩渦烈焰", ja: "渦巻く炎", en: "Vortex Flame" },
-        body: {
-          zh: "消耗：1\n對象：敵人\n編隊：前衛・後衛皆可使用\n\n效果\n・對雜兵造成「HP損害：■」，對敵人造成【總合傷害：30】與「火：1D」。",
-          ja: "コスト：1\n対象：エネミー\n隊列：前衛・後衛どちらでも使用可能\n\n効果\n・モブに「HP損害：■」、エネミーに【総合ダメージ：30】と「炎：1D」を与える。",
-          en: "Cost: 1\nTarget: Enemy\nFormation: Usable in front or back row\n\nEffect: Deals [HP Damage: 1] to a mob, and [Total Damage: 30] plus [Fire: 1D] to the enemy.",
-        },
-      },
-    },
-    {
-      relicNames: ["聖幕", "聖なる帳"],
-      entry: {
-        id: "hybrid_magic_sacred_curtain",
-        kind: "Action",
-        name: { zh: "聖幕", ja: "聖なる帳", en: "Sacred Curtain" },
-        body: {
-          zh: "消耗：1\n對象：自身\n編隊：前衛・後衛皆可使用\n\n效果\n・直到階段結束為止，自身使用戰技・魔術・祈禱時不需要「FP消耗」。",
-          ja: "コスト：1\n対象：自身\n隊列：前衛・後衛どちらでも使用可能\n\n効果\n・フェイズ終了まで、自身が戦技・魔術・祈祷を使用するとき、「FPコスト」が不要になる。",
-          en: "Cost: 1\nTarget: Self\nFormation: Usable in front or back row\n\nEffect: Until the end of the phase, self no longer needs to pay FP cost when using arts, sorceries, or incantations.",
-        },
-      },
-    },
-    {
-      relicNames: ["冷氣風暴", "冷気の嵐"],
-      entry: {
-        id: "hybrid_magic_frost_storm",
-        kind: "Action",
-        name: { zh: "冷氣風暴", ja: "冷気の嵐", en: "Frost Storm" },
-        body: {
-          zh: "消耗：1\n對象：敵人\n編隊：前衛時可使用\n\n效果\n・對雜兵造成「HP損害：■■」，對敵人造成【總合傷害：25】與「凍傷：2」。",
-          ja: "コスト：1\n対象：エネミー\n隊列：前衛のとき使用可能\n\n効果\n・モブに「HP損害：■■」、エネミーに【総合ダメージ：25】と「凍傷：2」を与える。",
-          en: "Cost: 1\nTarget: Enemy\nFormation: Usable in front row\n\nEffect: Deals [HP Damage: 2] to a mob, and [Total Damage: 25] plus [Frostbite: 2] to the enemy.",
-        },
-      },
-    },
-    {
-      relicNames: ["聖光燈火", "聖なる灯火"],
-      entry: {
-        id: "hybrid_magic_holy_light",
-        kind: "Action",
-        name: { zh: "聖光燈火", ja: "聖なる灯火", en: "Holy Light" },
-        body: {
-          zh: "消耗：1\n對象：自身、1名PC\n編隊：前衛・後衛皆可使用\n\n效果\n・對自身與其他任意1名PC施加「HP回復：3」。",
-          ja: "コスト：1\n対象：自身、PC1人\n隊列：前衛・後衛どちらでも使用可能\n\n効果\n・自身と他の任意のPC1人に「HP回復：3」を適用する。",
-          en: "Cost: 1\nTarget: Self, 1 PC\nFormation: Usable in front or back row\n\nEffect: Applies [HP Recovery: 3] to self and to any other 1 PC.",
-        },
-      },
-    },
+  // 隱者「混成魔法」の遺物効果による変更（漩渦烈焰／聖幕／冷氣風暴／聖光燈火）。実際のentry
+  // 本体は2026-09-05角色能力真正接入でcharacter_types.jsの対応する遺物効果へvariantEntryと
+  // して移設済み（見renderCombatSkillAction）。ここに残すのはfindLearnedRelicEffectByName
+  // 検索用のrelicNames一覧のみ（既存の~70箇所と同じ「relicNamesをnight.js側で保持する」
+  // パターンを踏襲、本文・数値は重複させない）。
+  var HERMIT_HYBRID_MAGIC_RELIC_NAMES = [
+    ["漩渦烈焰", "渦巻く炎"],
+    ["聖幕", "聖なる帳"],
+    ["冷氣風暴", "冷気の嵐"],
+    ["聖光燈火", "聖なる灯火"],
   ];
 
-  // 隱者（黎明）「混成魔法」の遺物効果による変更後の効果（橫掃雷擊／雷炎戰車／重力爆發）。
-  // hermit_dawn専用のrelic名（base hermitとは別の名前）のため、別配列として管理する。
-  // 「雷炎戰車」のみ属性値が骰子ではなく固定値（火:3＋雷:3）のため、entry.idで判別して
-  // computeSkillDamage確定時にrecordAttributeStatusDealtを呼ぶ（下のisActive汎用分岐参照）。
-  var HERMIT_DAWN_HYBRID_MAGIC_ACTION_VARIANTS = [
-    {
-      relicNames: ["橫掃雷擊", "薙ぎ払う稲妻"],
-      entry: {
-        id: "hybrid_magic_lightning_sweep",
-        kind: "Action",
-        name: { zh: "橫掃雷擊", ja: "薙ぎ払う稲妻", en: "Lightning Sweep" },
-        body: {
-          zh: "消耗：1\n對象：敵人\n編隊：前衛・後衛皆可使用\n\n效果\n・對雜兵造成「HP損害：■」，對敵人造成【總合傷害：30】與「雷：1D」。",
-          ja: "コスト：1\n対象：エネミー\n隊列：前衛・後衛どちらでも使用可能\n\n効果\n・モブに「HP損害：■」、エネミーに【総合ダメージ：30】と「雷：1D」を与える。",
-          en: "Cost: 1\nTarget: Enemy\nFormation: Usable in front or back row\n\nEffect: Deals [HP Damage: 1] to a mob, and [Total Damage: 30] plus [Lightning: 1D] to the enemy.",
-        },
-      },
-    },
-    {
-      relicNames: ["雷炎戰車", "雷炎の戦車"],
-      entry: {
-        id: "hybrid_magic_lightning_chariot",
-        kind: "Action",
-        name: { zh: "雷炎戰車", ja: "雷炎の戦車", en: "Thunderfire Chariot" },
-        body: {
-          zh: "消耗：1\n對象：敵人\n編隊：前衛・後衛皆可使用\n\n效果\n・將自身移動至前衛區域，對敵人造成【總合傷害：30】與「火：3」與「雷：3」。",
-          ja: "コスト：1\n対象：エネミー\n隊列：前衛・後衛どちらでも使用可能\n\n効果\n・自身を前衛エリアに移動し、エネミーに【総合ダメージ：30】と「火：3」と「雷：3」を与える。",
-          en: "Cost: 1\nTarget: Enemy\nFormation: Usable in front or back row\n\nEffect: Moves self to the front row, and deals [Total Damage: 30] plus [Fire: 3] plus [Lightning: 3] to the enemy.",
-        },
-      },
-    },
-    {
-      relicNames: ["重力爆發", "重力爆発"],
-      entry: {
-        id: "hybrid_magic_gravity_burst",
-        kind: "Action",
-        name: { zh: "重力爆發", ja: "重力爆発", en: "Gravity Burst" },
-        body: {
-          zh: "消耗：1\n對象：敵人\n編隊：後衛時可使用\n\n效果\n・對雜兵造成「HP損害：■■」，對敵人造成【總合傷害：25】與「魔：1D」。",
-          ja: "コスト：1\n対象：エネミー\n隊列：後衛のとき使用可能\n\n効果\n・モブに「HP損害：■■」、エネミーに【総合ダメージ：25】と「魔：1D」を与える。",
-          en: "Cost: 1\nTarget: Enemy\nFormation: Usable in back row\n\nEffect: Deals [HP Damage: 2] to a mob, and [Total Damage: 25] plus [Arcane: 1D] to the enemy.",
-        },
-      },
-    },
+  // 隱者（黎明）専用の混成魔法変化（橫掃雷擊／雷炎戰車／重力爆發）。hermit_dawn専用のrelic名
+  // （base hermitとは別の名前）のため、別配列として管理する。
+  var HERMIT_DAWN_HYBRID_MAGIC_RELIC_NAMES = [
+    ["橫掃雷擊", "薙ぎ払う稲妻"],
+    ["雷炎戰車", "雷炎の戦車"],
+    ["重力爆發", "重力爆発"],
   ];
 
   // 隱者／隱者（黎明）「混成魔法」の遺物効果（渦巻く炎等）の合成entry.idかどうかを判定する。
   // これらは効果を変更するだけで、発動条件（屬性痕3個を消去）自体は元の混成魔法と共有する。
+  // idの並びはcharacter_types.jsの対応するvariantEntry.idと一致させる（値そのものは
+  // 2026-09-05角色能力真正接入前後で変わっていない）。
+  var HYBRID_MAGIC_VARIANT_ENTRY_IDS = [
+    "hybrid_magic_vortex_flame",
+    "hybrid_magic_sacred_curtain",
+    "hybrid_magic_frost_storm",
+    "hybrid_magic_holy_light",
+    "hybrid_magic_lightning_sweep",
+    "hybrid_magic_lightning_chariot",
+    "hybrid_magic_gravity_burst",
+  ];
   function isHybridMagicVariantEntryId(id) {
-    if (!id) return false;
-    return (
-      HERMIT_HYBRID_MAGIC_ACTION_VARIANTS.some(function (v) {
-        return v.entry.id === id;
-      }) ||
-      HERMIT_DAWN_HYBRID_MAGIC_ACTION_VARIANTS.some(function (v) {
-        return v.entry.id === id;
-      })
-    );
+    return !!id && HYBRID_MAGIC_VARIANT_ENTRY_IDS.indexOf(id) !== -1;
   }
-  // 學者（暗影）「技能強化（衝擊波的緩和）」：夜渡技能「探求」を［Defense］で「迴避」の代わりに
-  // 実行できるようにする遺物効果。固定でHP價值：100の迴避扱い（鐵眼「標記」と全く同じ数値・
-  // 意味のため、defenseNote／logはmarking_defense_note等の既存i18nキーをそのまま再利用する）。
-  var SCHOLAR_DARK_INQUIRY_SHOCKWAVE_DEFENSE_ENTRY = {
-    id: "inquiry_shockwave_defense",
-    kind: "Defense",
-    name: { zh: "探求（衝擊波的緩和）", ja: "探求（衝撃波による緩和）", en: "Inquiry (Shockwave Mitigation)" },
-    body: {
-      zh: "對象：自身\n編隊：前衛・後衛皆可使用\n\n效果\n・視為自身進行了「HP價值：100」的「迴避」。",
-      ja: "対象：自身\n隊列：前衛・後衛どちらでも使用可能\n\n効果\n・自身は「HP価値：100」の「回避」を行ったとして扱う。",
-      en: "Target: Self\nFormation: Usable in front or back row\n\nEffect: Self is treated as having performed a dodge with HP value: 100.",
-    },
-  };
-  var HERMIT_ICE_COFFIN_DEFENSE_ENTRY = {
-    id: "ice_coffin",
-    kind: "Defense",
-    name: { zh: "冰塊之棺", ja: "氷塊の棺", en: "Ice Coffin" },
-    body: {
-      zh: "消耗：1\n對象：自身\n編隊：前衛・後衛皆可使用\n\n效果\n・視為自身進行了「HP價值：100」的「防禦」。",
-      ja: "コスト：1\n対象：自身\n隊列：前衛・後衛どちらでも使用可能\n\n効果\n・自身は「HP価値：100」の「ガード」を行ったとして扱う。",
-      en: "Cost: 1\nTarget: Self\nFormation: Usable in front or back row\n\nEffect: Self is treated as having performed a guard with HP value: 100.",
-    },
-  };
-
-  // 執行者「妖刀解放・攻」：夜渡技能「妖刀」の代替Defense（消耗：2／HP價值：60）と、
-  // 新規Action（妖刀蓄積を1個消費、總合傷害：50+▲）を追加する遺物効果。
-  var EXECUTOR_YOTO_RELEASE_DEFENSE_ENTRY = {
-    id: "yoto_release_defense",
-    kind: "Defense",
-    name: { zh: "妖刀（妖刀解放・攻）", ja: "妖刀（妖刀解放・攻）", en: "Yoto (Yoto Release: Attack)" },
-    body: {
-      zh: "消耗：2\n對象：自身\n編隊：前衛・後衛皆可使用\n\n效果\n・視為自身進行了「HP價值：60」的「防禦」。",
-      ja: "コスト：2\n対象：自身\n隊列：前衛・後衛どちらでも使用可能\n\n効果\n・自身は「HP価値：60」の「ガード」を行ったとして扱う。",
-      en: "Cost: 2\nTarget: Self\nFormation: Usable in front or back row\n\nEffect: Self is treated as having performed a guard with HP value: 60.",
-    },
-  };
-  var EXECUTOR_YOTO_RELEASE_ACTION_ENTRY = {
-    id: "yoto_release_action",
-    kind: "Action",
-    name: { zh: "妖刀（妖刀解放・攻）", ja: "妖刀（妖刀解放・攻）", en: "Yoto (Yoto Release: Attack)" },
-    body: {
-      zh: "消耗：1／消去「妖刀蓄積」的「1個」\n對象：敵人\n編隊：前衛・後衛皆可使用\n\n效果\n・對敵人造成【總合傷害：50+▲】。",
-      ja: "コスト：1／「妖刀蓄積」の「1つ」を消す\n対象：エネミー\n隊列：前衛・後衛どちらでも使用可能\n\n効果\n・エネミーに【総合ダメージ：50＋▲】を与える。",
-      en: "Cost: 1 / Removes 1 Yoto Mark\nTarget: Enemy\nFormation: Usable in front or back row\n\nEffect: Deals [Total Damage: 50+▲] to the enemy.",
-    },
-  };
-
-  // 執行者（暗影）「妖刀解放・癒」：夜渡技能「妖刀」の代替Defense（攻版と同一の消耗2／
-  // HP價值60）と、新規Action（妖刀蓄積を2個消費、總合傷害：100+◆、かつ自身HP回復+5）を
-  // 追加する遺物効果（攻版とは消費量・数値とも異なる別entry）。
-  var EXECUTOR_YOTO_RELEASE_HEAL_DEFENSE_ENTRY = {
-    id: "yoto_release_heal_defense",
-    kind: "Defense",
-    name: { zh: "妖刀（妖刀解放・癒）", ja: "妖刀（妖刀解放・癒）", en: "Yoto (Yoto Release: Heal)" },
-    body: {
-      zh: "消耗：2\n對象：自身\n編隊：前衛・後衛皆可使用\n\n效果\n・視為自身進行了「HP價值：60」的「防禦」。",
-      ja: "コスト：2\n対象：自身\n隊列：前衛・後衛どちらでも使用可能\n\n効果\n・自身は「HP価値：60」の「ガード」を行ったとして扱う。",
-      en: "Cost: 2\nTarget: Self\nFormation: Usable in front or back row\n\nEffect: Self is treated as having performed a guard with HP value: 60.",
-    },
-  };
-  var EXECUTOR_YOTO_RELEASE_HEAL_ACTION_ENTRY = {
-    id: "yoto_release_heal_action",
-    kind: "Action",
-    name: { zh: "妖刀（妖刀解放・癒）", ja: "妖刀（妖刀解放・癒）", en: "Yoto (Yoto Release: Heal)" },
-    body: {
-      zh: "消耗：1／消去「妖刀蓄積」的「2個」\n對象：敵人、自身\n編隊：前衛・後衛皆可使用\n\n效果\n・對敵人造成【總合傷害：100+◆】，並對自身施加「HP回復：□×5」。",
-      ja: "コスト：1／「妖刀蓄積」の「2つ」を消す\n対象：エネミー、自身\n隊列：前衛・後衛どちらでも使用可能\n\n効果\n・エネミーに【総合ダメージ：100＋◆】を与え、自身に「HP回復：□×5」を適用する。",
-      en: "Cost: 1 / Removes 2 Yoto Marks\nTarget: Enemy, Self\nFormation: Usable in front or back row\n\nEffect: Deals [Total Damage: 100+◆] to the enemy, and applies [HP Recovery: 5] to self.",
-    },
-  };
 
   // 靈體の種類ごとの最大HP・傷害計算式・HP價值（character_types.jsの本文記載値、ユーザー確認済み）。
   var SPIRIT_SUMMON_KINDS = {
@@ -8305,21 +8135,23 @@
         })[0]
       : null;
     var defenseSkillEntries = type ? CharacterDrawer.getCombatDefenseSkillEntries(c, type) : [];
-    // 隱者「冰塊之棺」（混成魔法の遺物効果）／執行者「妖刀解放・攻」（妖刀の代替Defense）：
-    // 習得済みなら、通常の防禦選択肢に並ぶ追加のDefenseエントリとして注入する。
+    // 隱者「冰塊之棺」（混成魔法の遺物効果）／執行者「妖刀解放・攻／癒」／學者（暗影）
+    // 「技能強化（衝擊波的緩和）」：習得済みなら、通常の防禦選択肢に並ぶ追加のDefenseエントリ
+    // として注入する。実際のentry本体は2026-09-05角色能力真正接入でcharacter_types.jsの
+    // 対応する遺物効果へvariantEntryとして移設済み（single source of truth、CLAUDE.md §36）
+    // ——findLearnedRelicEffectByNameが返す効果オブジェクトからそのまま読む。
     var defenseBaseTypeId = type ? type.id.replace(/_dark$|_dawn$/, "") : null;
-    if (defenseBaseTypeId === "hermit" && CharacterDrawer.findLearnedRelicEffectByName(c, ["冰塊之棺", "氷塊の棺"])) {
-      defenseSkillEntries = defenseSkillEntries.concat([HERMIT_ICE_COFFIN_DEFENSE_ENTRY]);
-    }
-    if (defenseBaseTypeId === "executor" && CharacterDrawer.findLearnedRelicEffectByName(c, ["妖刀解放・攻"])) {
-      defenseSkillEntries = defenseSkillEntries.concat([EXECUTOR_YOTO_RELEASE_DEFENSE_ENTRY]);
-    }
-    if (defenseBaseTypeId === "executor" && CharacterDrawer.findLearnedRelicEffectByName(c, ["妖刀解放・癒"])) {
-      defenseSkillEntries = defenseSkillEntries.concat([EXECUTOR_YOTO_RELEASE_HEAL_DEFENSE_ENTRY]);
-    }
-    if (defenseBaseTypeId === "scholar" && CharacterDrawer.findLearnedRelicEffectByName(c, ["技能強化（衝擊波的緩和）", "スキル強化（衝撃波による緩和）"])) {
-      defenseSkillEntries = defenseSkillEntries.concat([SCHOLAR_DARK_INQUIRY_SHOCKWAVE_DEFENSE_ENTRY]);
-    }
+    var iceCoffinRelic = defenseBaseTypeId === "hermit" ? CharacterDrawer.findLearnedRelicEffectByName(c, ["冰塊之棺", "氷塊の棺"]) : null;
+    if (iceCoffinRelic && iceCoffinRelic.variantEntry) defenseSkillEntries = defenseSkillEntries.concat([iceCoffinRelic.variantEntry]);
+    var yotoAttackRelic = defenseBaseTypeId === "executor" ? CharacterDrawer.findLearnedRelicEffectByName(c, ["妖刀解放・攻"]) : null;
+    if (yotoAttackRelic && yotoAttackRelic.variantEntry) defenseSkillEntries = defenseSkillEntries.concat([yotoAttackRelic.variantEntry.defense]);
+    var yotoHealRelic = defenseBaseTypeId === "executor" ? CharacterDrawer.findLearnedRelicEffectByName(c, ["妖刀解放・癒"]) : null;
+    if (yotoHealRelic && yotoHealRelic.variantEntry) defenseSkillEntries = defenseSkillEntries.concat([yotoHealRelic.variantEntry.defense]);
+    var inquiryShockwaveRelic =
+      defenseBaseTypeId === "scholar"
+        ? CharacterDrawer.findLearnedRelicEffectByName(c, ["技能強化（衝擊波的緩和）", "スキル強化（衝撃波による緩和）"])
+        : null;
+    if (inquiryShockwaveRelic && inquiryShockwaveRelic.variantEntry) defenseSkillEntries = defenseSkillEntries.concat([inquiryShockwaveRelic.variantEntry]);
     var usesBonus = CharacterDrawer.getSkillUsesBonus(c);
 
     // 守護者「高防禦」：kind:"Passive"だが、防禦フェイズの体力骰を得たタイミングで骰子1個を

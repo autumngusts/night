@@ -1274,6 +1274,20 @@
                 zh: "可將夜渡技能「混成魔法」的效果變更為「漩渦烈焰」。\n漩渦烈焰：對雜兵造成「HP損害：■」，對敵人造成【總合傷害：30】與「火：1D」。",
                 ja: "夜渡りスキル「混成魔法」の効果を、「渦巻く炎」に変更してもよい。\n渦巻く炎：モブに「HP損害：■」、エネミーに【総合ダメージ：30】と「炎：1D」を与える。",
               },
+              // 混成魔法的替代招式實際entry（2026-09-05角色能力真正接入新增，原本硬編碼於
+              // night.js的HERMIT_HYBRID_MAGIC_ACTION_VARIANTS，改放這裡當單一資料來源，
+              // night.js／midnight.js都改讀這個欄位，見CLAUDE.md §36）。
+              variantEntry: {
+                id: "hybrid_magic_vortex_flame",
+                slot: "skill", // 2026-09-05 midnight角色能力真正接入新增：標示這是type.skills[0]的替代招式
+                kind: "Action",
+                name: { zh: "漩渦烈焰", ja: "渦巻く炎", en: "Vortex Flame" },
+                body: {
+                  zh: "消耗：1\n對象：敵人\n編隊：前衛・後衛皆可使用\n\n效果\n・對雜兵造成「HP損害：■」，對敵人造成【總合傷害：30】與「火：1D」。",
+                  ja: "コスト：1\n対象：エネミー\n隊列：前衛・後衛どちらでも使用可能\n\n効果\n・モブに「HP損害：■」、エネミーに【総合ダメージ：30】と「炎：1D」を与える。",
+                  en: "Cost: 1\nTarget: Enemy\nFormation: Usable in front or back row\n\nEffect: Deals [HP Damage: 1] to a mob, and [Total Damage: 30] plus [Fire: 1D] to the enemy.",
+                },
+              },
             },
             {
               kind: "Passive",
@@ -1282,6 +1296,17 @@
                 zh: "可將夜渡技能「混成魔法」的效果變更為「聖幕」。\n聖幕：直到階段結束為止，自身使用戰技・祈禱・魔術時不需要「FP消耗」。",
                 ja: "夜渡りスキル「混成魔法」の効果を、「聖なる帳」に変更してもよい。\n聖なる帳：フェイズ終了まで、自身が戦技・祈祷・魔術を使用するとき、「FPコスト」が不要になる。",
               },
+              variantEntry: {
+                id: "hybrid_magic_sacred_curtain",
+                slot: "skill",
+                kind: "Action",
+                name: { zh: "聖幕", ja: "聖なる帳", en: "Sacred Curtain" },
+                body: {
+                  zh: "消耗：1\n對象：自身\n編隊：前衛・後衛皆可使用\n\n效果\n・直到階段結束為止，自身使用戰技・魔術・祈禱時不需要「FP消耗」。",
+                  ja: "コスト：1\n対象：自身\n隊列：前衛・後衛どちらでも使用可能\n\n効果\n・フェイズ終了まで、自身が戦技・魔術・祈祷を使用するとき、「FPコスト」が不要になる。",
+                  en: "Cost: 1\nTarget: Self\nFormation: Usable in front or back row\n\nEffect: Until the end of the phase, self no longer needs to pay FP cost when using arts, sorceries, or incantations.",
+                },
+              },
             },
             {
               kind: "Passive",
@@ -1289,6 +1314,18 @@
               body: {
                 zh: "可將夜渡技能「混成魔法」的效果變更為可用［Defense］使用的「冰塊之棺」。\n冰塊之棺：視為自身進行了「HP價值：100」的「防禦」。",
                 ja: "夜渡りスキル「混成魔法」の効果を、［Defense］で使用できる「氷塊の棺」に変更してもよい。\n氷塊の棺：自身は「HP価値：100」の「ガード」を行ったとして扱う。",
+              },
+              // 這個是防禦側額外選項（不是攻擊技藝的切換），原本硬編碼於night.js的
+              // HERMIT_ICE_COFFIN_DEFENSE_ENTRY，見上方TRACKER的variantEntry注解。
+              variantEntry: {
+                id: "ice_coffin",
+                kind: "Defense",
+                name: { zh: "冰塊之棺", ja: "氷塊の棺", en: "Ice Coffin" },
+                body: {
+                  zh: "消耗：1\n對象：自身\n編隊：前衛・後衛皆可使用\n\n效果\n・視為自身進行了「HP價值：100」的「防禦」。",
+                  ja: "コスト：1\n対象：自身\n隊列：前衛・後衛どちらでも使用可能\n\n効果\n・自身は「HP価値：100」の「ガード」を行ったとして扱う。",
+                  en: "Cost: 1\nTarget: Self\nFormation: Usable in front or back row\n\nEffect: Self is treated as having performed a guard with HP value: 100.",
+                },
               },
             },
           ],
@@ -1353,6 +1390,17 @@
                 zh: "可將夜渡技能「混成魔法」的效果變更為「冷氣風暴」。\n冷氣風暴：僅在自身位於前衛時可使用。對雜兵造成「HP損害：■■」，對敵人造成【總合傷害：25】與「凍傷：2」。",
                 ja: "夜渡りスキル「混成魔法」の効果を、「冷気の嵐」に変更してもよい。\n冷気の嵐：自身が前衛のときだけ使用可能。モブに「HP損害：■■」、エネミーに【総合ダメージ：25】と「凍傷：2」を与える。",
               },
+              variantEntry: {
+                id: "hybrid_magic_frost_storm",
+                slot: "skill",
+                kind: "Action",
+                name: { zh: "冷氣風暴", ja: "冷気の嵐", en: "Frost Storm" },
+                body: {
+                  zh: "消耗：1\n對象：敵人\n編隊：前衛時可使用\n\n效果\n・對雜兵造成「HP損害：■■」，對敵人造成【總合傷害：25】與「凍傷：2」。",
+                  ja: "コスト：1\n対象：エネミー\n隊列：前衛のとき使用可能\n\n効果\n・モブに「HP損害：■■」、エネミーに【総合ダメージ：25】と「凍傷：2」を与える。",
+                  en: "Cost: 1\nTarget: Enemy\nFormation: Usable in front row\n\nEffect: Deals [HP Damage: 2] to a mob, and [Total Damage: 25] plus [Frostbite: 2] to the enemy.",
+                },
+              },
             },
             {
               kind: "Passive",
@@ -1360,6 +1408,17 @@
               body: {
                 zh: "可將夜渡技能「混成魔法」的效果變更為「聖光燈火」。\n聖光燈火：對自身與其他任意1名PC施加「HP回復：□□□」。",
                 ja: "夜渡りスキル「混成魔法」の効果を、「聖なる灯火」に変更してもよい。\n聖なる灯火：自身と他の任意のPC1人に「HP回復：□□□」を適用する。",
+              },
+              variantEntry: {
+                id: "hybrid_magic_holy_light",
+                slot: "skill",
+                kind: "Action",
+                name: { zh: "聖光燈火", ja: "聖なる灯火", en: "Holy Light" },
+                body: {
+                  zh: "消耗：1\n對象：自身、1名PC\n編隊：前衛・後衛皆可使用\n\n效果\n・對自身與其他任意1名PC施加「HP回復：3」。",
+                  ja: "コスト：1\n対象：自身、PC1人\n隊列：前衛・後衛どちらでも使用可能\n\n効果\n・自身と他の任意のPC1人に「HP回復：3」を適用する。",
+                  en: "Cost: 1\nTarget: Self, 1 PC\nFormation: Usable in front or back row\n\nEffect: Applies [HP Recovery: 3] to self and to any other 1 PC.",
+                },
               },
             },
             {
@@ -1457,6 +1516,33 @@
                 zh: "以［Defense］使用夜渡技能「妖刀」時，可改以「消耗：2」使用。此時視為「HP價值：60」的防禦，而非原本效果。\n夜渡技能「妖刀」也可以［Action］使用（效果變更如下）。\n\n＞以［Action］使用時的變更效果\n・消耗：1／消去「妖刀蓄積」的「1個」\n・編隊：前衛・後衛皆可使用\n・效果：對敵人造成【總合傷害：50+▲】。\n\n＞習得此技能2個以上時\n・以［Action］使用時產生的傷害「+25」。",
                 ja: "夜渡りスキル「妖刀」を［Defense］で行う場合、「コスト：2」で使用してもよい。その場合、元の効果ではなく「HP価値：60」のガードとして扱う。\n夜渡りスキル「妖刀」を［Action］で使用してもよい（以下に効果変更）。\n\n＞［Action］で使用した場合の変更効果\n・コスト：1／「妖刀蓄積」の「1つ」を消す\n・隊列：前衛・後衛どちらでも使用可能\n・効果：エネミーに【総合ダメージ：50＋▲】を与える。\n\n＞このスキルを2つ以上習得しているとき\n・［Action］で使用した際に発生するダメージを「＋25」する。",
               },
+              // 此relic effect在群組內出現2次（同名、可重複習得以取得+25疊加，見body最後一句），
+              // 兩份都要有相同的variantEntry，讓findLearnedRelicEffectByName不論比對到哪一份
+              // 都能取得（2026-09-05角色能力真正接入新增，原本硬編碼於night.jsの
+              // EXECUTOR_YOTO_RELEASE_ACTION_ENTRY／_DEFENSE_ENTRY）。
+              variantEntry: {
+                action: {
+                  id: "yoto_release_action",
+                  slot: "skill",
+                  kind: "Action",
+                  name: { zh: "妖刀（妖刀解放・攻）", ja: "妖刀（妖刀解放・攻）", en: "Yoto (Yoto Release: Attack)" },
+                  body: {
+                    zh: "消耗：1／消去「妖刀蓄積」的「1個」\n對象：敵人\n編隊：前衛・後衛皆可使用\n\n效果\n・對敵人造成【總合傷害：50+▲】。",
+                    ja: "コスト：1／「妖刀蓄積」の「1つ」を消す\n対象：エネミー\n隊列：前衛・後衛どちらでも使用可能\n\n効果\n・エネミーに【総合ダメージ：50＋▲】を与える。",
+                    en: "Cost: 1 / Removes 1 Yoto Mark\nTarget: Enemy\nFormation: Usable in front or back row\n\nEffect: Deals [Total Damage: 50+▲] to the enemy.",
+                  },
+                },
+                defense: {
+                  id: "yoto_release_defense",
+                  kind: "Defense",
+                  name: { zh: "妖刀（妖刀解放・攻）", ja: "妖刀（妖刀解放・攻）", en: "Yoto (Yoto Release: Attack)" },
+                  body: {
+                    zh: "消耗：2\n對象：自身\n編隊：前衛・後衛皆可使用\n\n效果\n・視為自身進行了「HP價值：60」的「防禦」。",
+                    ja: "コスト：2\n対象：自身\n隊列：前衛・後衛どちらでも使用可能\n\n効果\n・自身は「HP価値：60」の「ガード」を行ったとして扱う。",
+                    en: "Cost: 2\nTarget: Self\nFormation: Usable in front or back row\n\nEffect: Self is treated as having performed a guard with HP value: 60.",
+                  },
+                },
+              },
             },
             {
               kind: "Passive",
@@ -1464,6 +1550,33 @@
               body: {
                 zh: "以［Defense］使用夜渡技能「妖刀」時，可改以「消耗：2」使用。此時視為「HP價值：60」的防禦，而非原本效果。\n夜渡技能「妖刀」也可以［Action］使用（效果變更如下）。\n\n＞以［Action］使用時的變更效果\n・消耗：1／消去「妖刀蓄積」的「1個」\n・編隊：前衛・後衛皆可使用\n・效果：對敵人造成【總合傷害：50+▲】。\n\n＞習得此技能2個以上時\n・以［Action］使用時產生的傷害「+25」。",
                 ja: "夜渡りスキル「妖刀」を［Defense］で行う場合、「コスト：2」で使用してもよい。その場合、元の効果ではなく「HP価値：60」のガードとして扱う。\n夜渡りスキル「妖刀」を［Action］で使用してもよい（以下に効果変更）。\n\n＞［Action］で使用した場合の変更効果\n・コスト：1／「妖刀蓄積」の「1つ」を消す\n・隊列：前衛・後衛どちらでも使用可能\n・効果：エネミーに【総合ダメージ：50＋▲】を与える。\n\n＞このスキルを2つ以上習得しているとき\n・［Action］で使用した際に発生するダメージを「＋25」する。",
+              },
+              // 此relic effect在群組內出現2次（同名、可重複習得以取得+25疊加，見body最後一句），
+              // 兩份都要有相同的variantEntry，讓findLearnedRelicEffectByName不論比對到哪一份
+              // 都能取得（2026-09-05角色能力真正接入新增，原本硬編碼於night.jsの
+              // EXECUTOR_YOTO_RELEASE_ACTION_ENTRY／_DEFENSE_ENTRY）。
+              variantEntry: {
+                action: {
+                  id: "yoto_release_action",
+                  slot: "skill",
+                  kind: "Action",
+                  name: { zh: "妖刀（妖刀解放・攻）", ja: "妖刀（妖刀解放・攻）", en: "Yoto (Yoto Release: Attack)" },
+                  body: {
+                    zh: "消耗：1／消去「妖刀蓄積」的「1個」\n對象：敵人\n編隊：前衛・後衛皆可使用\n\n效果\n・對敵人造成【總合傷害：50+▲】。",
+                    ja: "コスト：1／「妖刀蓄積」の「1つ」を消す\n対象：エネミー\n隊列：前衛・後衛どちらでも使用可能\n\n効果\n・エネミーに【総合ダメージ：50＋▲】を与える。",
+                    en: "Cost: 1 / Removes 1 Yoto Mark\nTarget: Enemy\nFormation: Usable in front or back row\n\nEffect: Deals [Total Damage: 50+▲] to the enemy.",
+                  },
+                },
+                defense: {
+                  id: "yoto_release_defense",
+                  kind: "Defense",
+                  name: { zh: "妖刀（妖刀解放・攻）", ja: "妖刀（妖刀解放・攻）", en: "Yoto (Yoto Release: Attack)" },
+                  body: {
+                    zh: "消耗：2\n對象：自身\n編隊：前衛・後衛皆可使用\n\n效果\n・視為自身進行了「HP價值：60」的「防禦」。",
+                    ja: "コスト：2\n対象：自身\n隊列：前衛・後衛どちらでも使用可能\n\n効果\n・自身は「HP価値：60」の「ガード」を行ったとして扱う。",
+                    en: "Cost: 2\nTarget: Self\nFormation: Usable in front or back row\n\nEffect: Self is treated as having performed a guard with HP value: 60.",
+                  },
+                },
               },
             },
             {
@@ -2069,6 +2182,25 @@
               body: {
                 zh: "可將技藝「襲擊之楔」任選作為「速擊」使用。若作為「速擊」使用，則變更為以下效果。\n・對雜兵造成「HP損害：■」，對敵人造成【總合傷害：60+▲】，對1名PC施加【復歸傷害：60】。此行動後，於戰鬥結束時，回復此技藝的使用次數。",
                 ja: "アーツ「襲撃の楔」を、任意に「速撃」として使用可能。「速撃」として使用するなら、次の効果に変更する。\n・モブに「HP損害：■」、エネミーに【総合ダメージ：60＋▲】、PC1人に【復帰ダメージ：60】を与える。このアクション後、戦闘終了時に、このアーツの使用回数を回復する。",
+              },
+              // 「襲擊之楔」的替代招式實際entry（2026-09-05角色能力真正接入新增，原本硬編碼於
+              // night.js的TRACKER_ASSAULT_WEDGE_QUICK_ENTRY，改放這裡當單一資料來源，
+              // night.js／midnight.js都改讀這個欄位，不重複定義規則文字，見CLAUDE.md §36）。
+              // entry.idゆえTRACKER_ASSAULT_WEDGE_QUICK_ENTRYと同じ"assault_wedge"を使い、
+              // 使用回数（c.abilityUses.assault_wedge）を実entryと共有する。quickVariant:trueで
+              // computeSkillDamageの「▲が本文に2箇所出現する」特殊処理から除外する。
+              variantEntry: {
+                id: "assault_wedge",
+                slot: "art", // 2026-09-05 midnight角色能力真正接入新增：標示這是type.arts[0]的替代招式
+                quickVariant: true,
+                uses: 1,
+                kind: "Action",
+                name: { zh: "襲擊之楔（速擊）", ja: "襲撃の楔（速撃）", en: "Assault Wedge (Quick Strike)" },
+                body: {
+                  zh: "使用次數：○（於當日結束時回復）\n消耗：使用次數●\n對象：敵人＋雜兵＋1名PC\n編隊：前衛時可使用\n\n效果（作為「速擊」使用）\n・對雜兵造成「HP損害：■」，對敵人造成【總合傷害：60+▲】，對1名PC施加【復歸傷害：60】。此行動後，於戰鬥結束時，回復此技藝的使用次數。",
+                  ja: "使用回数：○（1日の終了時に回復）\nコスト：使用回数●\n対象：エネミー＋モブ＋PC1人\n隊列：前衛のとき使用可能\n\n効果（「速撃」として使用）\n・モブに「HP損害：■」、エネミーに【総合ダメージ：60＋▲】、PC1人に【復帰ダメージ：60】を与える。このアクション後、戦闘終了時に、このアーツの使用回数を回復する。",
+                  en: "Uses: ○ (recovers at day's end)\nCost: Use ●\nTarget: Enemy + Mob + 1 PC\nFormation: Usable in front row\n\nEffect (used as \"Quick Strike\")\nDeals [HP Damage: 1] to a mob, [Total Damage: 60+▲] to the enemy, and [Return Damage: 60] to 1 PC. After this action, this art's use count also recovers at the end of the battle.",
+                },
               },
             },
             {
@@ -3237,6 +3369,17 @@
                 zh: "可將夜渡技能「混成魔法」的效果變更為「橫掃雷擊」。\n橫掃雷擊：對雜兵造成「HP損害：■」，對敵人造成【總合傷害：30】與「雷：1D」。",
                 ja: "夜渡りスキル「混成魔法」の効果を、「薙ぎ払う稲妻」に変更してもよい。\n薙ぎ払う稲妻：モブに「HP損害：■」、エネミーに【総合ダメージ：30】と「雷：1D」を与える。",
               },
+              variantEntry: {
+                id: "hybrid_magic_lightning_sweep",
+                slot: "skill",
+                kind: "Action",
+                name: { zh: "橫掃雷擊", ja: "薙ぎ払う稲妻", en: "Lightning Sweep" },
+                body: {
+                  zh: "消耗：1\n對象：敵人\n編隊：前衛・後衛皆可使用\n\n效果\n・對雜兵造成「HP損害：■」，對敵人造成【總合傷害：30】與「雷：1D」。",
+                  ja: "コスト：1\n対象：エネミー\n隊列：前衛・後衛どちらでも使用可能\n\n効果\n・モブに「HP損害：■」、エネミーに【総合ダメージ：30】と「雷：1D」を与える。",
+                  en: "Cost: 1\nTarget: Enemy\nFormation: Usable in front or back row\n\nEffect: Deals [HP Damage: 1] to a mob, and [Total Damage: 30] plus [Lightning: 1D] to the enemy.",
+                },
+              },
             },
             {
               kind: "Passive",
@@ -3244,6 +3387,21 @@
               body: {
                 zh: "可將夜渡技能「混成魔法」的效果變更為「雷炎戰車」。\n雷炎戰車：將自身移動至前衛區域，對敵人造成【總合傷害：30】與「火：3」與「雷：3」。",
                 ja: "夜渡りスキル「混成魔法」の効果を、「雷炎の戦車」に変更してもよい。\n雷炎の戦車：自身を前衛エリアに移動し、エネミーに【総合ダメージ：30】と「火：3」と「雷：3」を与える。",
+              },
+              // entry.idが"hybrid_magic_lightning_chariot"の場合、屬性値は骰子ではなく固定値
+              // （火:3＋雷:3）——night.js側のcomputeSkillDamage確定時にentry.idで判別して
+              // recordAttributeStatusDealtを呼ぶ既存分岐は、entry.idさえ変わらなければ
+              // このデータ移動の影響を受けない。
+              variantEntry: {
+                id: "hybrid_magic_lightning_chariot",
+                slot: "skill",
+                kind: "Action",
+                name: { zh: "雷炎戰車", ja: "雷炎の戦車", en: "Thunderfire Chariot" },
+                body: {
+                  zh: "消耗：1\n對象：敵人\n編隊：前衛・後衛皆可使用\n\n效果\n・將自身移動至前衛區域，對敵人造成【總合傷害：30】與「火：3」與「雷：3」。",
+                  ja: "コスト：1\n対象：エネミー\n隊列：前衛・後衛どちらでも使用可能\n\n効果\n・自身を前衛エリアに移動し、エネミーに【総合ダメージ：30】と「火：3」と「雷：3」を与える。",
+                  en: "Cost: 1\nTarget: Enemy\nFormation: Usable in front or back row\n\nEffect: Moves self to the front row, and deals [Total Damage: 30] plus [Fire: 3] plus [Lightning: 3] to the enemy.",
+                },
               },
             },
           ],
@@ -3312,6 +3470,17 @@
               body: {
                 zh: "可將夜渡技能「混成魔法」的效果變更為「重力爆發」。\n重力爆發：僅在自身位於後衛時可使用。對雜兵造成「HP損害：■■」，對敵人造成【總合傷害：25】與「魔：1D」。",
                 ja: "夜渡りスキル「混成魔法」の効果を、「重力爆発」に変更してもよい。\n重力爆発：自身が後衛のときだけ使用可能。モブに「HP損害：■■」、エネミーに【総合ダメージ：25】と「魔：1D」を与える。",
+              },
+              variantEntry: {
+                id: "hybrid_magic_gravity_burst",
+                slot: "skill",
+                kind: "Action",
+                name: { zh: "重力爆發", ja: "重力爆発", en: "Gravity Burst" },
+                body: {
+                  zh: "消耗：1\n對象：敵人\n編隊：後衛時可使用\n\n效果\n・對雜兵造成「HP損害：■■」，對敵人造成【總合傷害：25】與「魔：1D」。",
+                  ja: "コスト：1\n対象：エネミー\n隊列：後衛のとき使用可能\n\n効果\n・モブに「HP損害：■■」、エネミーに【総合ダメージ：25】と「魔：1D」を与える。",
+                  en: "Cost: 1\nTarget: Enemy\nFormation: Usable in back row\n\nEffect: Deals [HP Damage: 2] to a mob, and [Total Damage: 25] plus [Arcane: 1D] to the enemy.",
+                },
               },
             },
             {
@@ -3409,6 +3578,31 @@
               body: {
                 zh: "以［Defense］執行夜渡技能「妖刀」時，可以「消耗：2」使用。若如此，不發揮原本效果，改視為「HP價值：60」的防禦。\n・可以［Action］使用夜渡技能「妖刀」（效果變更如下）。\n\n＞以［Action］使用時的變更效果\n・消耗：1／消去「妖刀蓄積」的「✓2個」\n・編隊：前衛・後衛皆可使用\n・效果：對敵人造成【總合傷害：100+◆】，並對自身施加「HP回復：□×5」。\n\n＞習得此技能2個以上時\n・以［Action］使用時造成的傷害「+50」。",
                 ja: "夜渡りスキル「妖刀」を［Defense］で行う場合、「コスト：2」で使用してもよい。その場合、元の効果ではなく「HP価値：60」のガードとして扱う。\n・夜渡りスキル「妖刀」を［Action］で使用してもよい（以下に効果変更）。\n\n＞［Action］で使用した場合の変更効果\n・コスト：1／「妖刀蓄積」の「✓2つ」を消す\n・隊列：前衛・後衛どちらでも使用可能\n・効果：エネミーに【総合ダメージ：100＋◆】を与え、自身に「HP回復：□×5」を適用する。\n\n＞このスキルを2つ以上習得しているとき\n・［Action］で使用した際に発生するダメージを「＋50」する。",
+              },
+              // 2026-09-05角色能力真正接入新增，原本硬編碼於night.jsの
+              // EXECUTOR_YOTO_RELEASE_HEAL_ACTION_ENTRY／_DEFENSE_ENTRY。
+              variantEntry: {
+                action: {
+                  id: "yoto_release_heal_action",
+                  slot: "skill",
+                  kind: "Action",
+                  name: { zh: "妖刀（妖刀解放・癒）", ja: "妖刀（妖刀解放・癒）", en: "Yoto (Yoto Release: Heal)" },
+                  body: {
+                    zh: "消耗：1／消去「妖刀蓄積」的「2個」\n對象：敵人、自身\n編隊：前衛・後衛皆可使用\n\n效果\n・對敵人造成【總合傷害：100+◆】，並對自身施加「HP回復：□×5」。",
+                    ja: "コスト：1／「妖刀蓄積」の「2つ」を消す\n対象：エネミー、自身\n隊列：前衛・後衛どちらでも使用可能\n\n効果\n・エネミーに【総合ダメージ：100＋◆】を与え、自身に「HP回復：□×5」を適用する。",
+                    en: "Cost: 1 / Removes 2 Yoto Marks\nTarget: Enemy, Self\nFormation: Usable in front or back row\n\nEffect: Deals [Total Damage: 100+◆] to the enemy, and applies [HP Recovery: 5] to self.",
+                  },
+                },
+                defense: {
+                  id: "yoto_release_heal_defense",
+                  kind: "Defense",
+                  name: { zh: "妖刀（妖刀解放・癒）", ja: "妖刀（妖刀解放・癒）", en: "Yoto (Yoto Release: Heal)" },
+                  body: {
+                    zh: "消耗：2\n對象：自身\n編隊：前衛・後衛皆可使用\n\n效果\n・視為自身進行了「HP價值：60」的「防禦」。",
+                    ja: "コスト：2\n対象：自身\n隊列：前衛・後衛どちらでも使用可能\n\n効果\n・自身は「HP価値：60」の「ガード」を行ったとして扱う。",
+                    en: "Cost: 2\nTarget: Self\nFormation: Usable in front or back row\n\nEffect: Self is treated as having performed a guard with HP value: 60.",
+                  },
+                },
               },
             },
             {
@@ -3602,6 +3796,18 @@
               body: {
                 zh: "可將夜渡技能「探求」以［Defense］代替「迴避」執行。若如此，將自身視為「HP價值：100」。",
                 ja: "夜渡りスキル「探求」を［Defense］で「回避」の代わりに実行してもよい。そうした場合、自身を「HP価値：100」として扱う。",
+              },
+              // 防禦側額外選項（不是攻擊技藝的切換），原本硬編碼於night.jsの
+              // SCHOLAR_DARK_INQUIRY_SHOCKWAVE_DEFENSE_ENTRY（2026-09-05角色能力真正接入新增）。
+              variantEntry: {
+                id: "inquiry_shockwave_defense",
+                kind: "Defense",
+                name: { zh: "探求（衝擊波的緩和）", ja: "探求（衝撃波による緩和）", en: "Inquiry (Shockwave Mitigation)" },
+                body: {
+                  zh: "對象：自身\n編隊：前衛・後衛皆可使用\n\n效果\n・視為自身進行了「HP價值：100」的「迴避」。",
+                  ja: "対象：自身\n隊列：前衛・後衛どちらでも使用可能\n\n効果\n・自身は「HP価値：100」の「回避」を行ったとして扱う。",
+                  en: "Target: Self\nFormation: Usable in front or back row\n\nEffect: Self is treated as having performed a dodge with HP value: 100.",
+                },
               },
             },
             {

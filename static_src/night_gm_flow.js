@@ -5471,6 +5471,14 @@
     mergeParams: mergeParams,
     rollStrongEnemyTable: rollStrongEnemyTable,
     resolveStrongEnemyEntry: resolveStrongEnemyEntry,
+    // 2026-09-06 midnight.js優化新增匯出：這3個是「夜の強敵決定表」（劇本行×1日目/2日目列，
+    // fields_data_1.jsのextraTables）本身的純函式解析/擲骰邏輯，不依賴night.jsのCore.state
+    // （跟同檔案的resolveNightBossCombatLine()不同，那個依賴night.js專屬的gmFlow.walk等
+    // 狀態，無法在midnight.js重用）。midnight.js的「第一天/第二天夜之強敵」自動化直接呼叫
+    // 這幾個，不重新寫一套解析規則書格式的邏輯（CLAUDE.md §12：不在多處重複定義同一套規則）。
+    resolveNightBossTableRow: resolveNightBossTableRow,
+    rollNightBossEntry: rollNightBossEntry,
+    parseNightBossCellEntries: parseNightBossCellEntries,
     resolveFloorSkip: resolveFloorSkip,
     resolveEffectiveFloorCount: resolveEffectiveFloorCount,
     invalidatePendingFloorSkip: invalidatePendingFloorSkip,

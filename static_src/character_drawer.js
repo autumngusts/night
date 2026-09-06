@@ -949,6 +949,16 @@
     return null;
   }
 
+  // 習得候選（{key, effect}，見relicCandidateFor／relicAllUnlearned）真正寫入c.learnedRelicEffects
+  // 的純規則邏輯，抽成獨立函式並匯出，讓midnight.js的角色面板（2026-09-05角色能力真正接入新增）
+  // 能重用同一套習得流程，不用另外重寫push+assignRelicChoiceIfNeeded的順序。呼叫端仍需自行
+  // 負責存檔（saveFn）與重繪。
+  function learnRelicEffect(c, candidate, pickedOption) {
+    if (!c.learnedRelicEffects) c.learnedRelicEffects = [];
+    c.learnedRelicEffects.push(candidate.key);
+    assignRelicChoiceIfNeeded(c, candidate.effect, pickedOption);
+  }
+
   // 誤クリックで習得してしまった遺物効果を、個別に未習得の状態へ戻せるようにする一覧。
   function renderRelicLearnedList() {
     var c = findCharacter(activeCharacterId);
@@ -1066,11 +1076,9 @@
     learnBtn.type = "button";
     learnBtn.textContent = window.I18N.t("relic_learn_button");
     learnBtn.addEventListener("click", function () {
-      if (!c.learnedRelicEffects) c.learnedRelicEffects = [];
-      c.learnedRelicEffects.push(candidate.key);
       var pickedIdx = choiceSelect ? Number(choiceSelect.value) : -1;
       var pickedOption = choiceConfig && pickedIdx >= 0 ? choiceConfig.options[pickedIdx] : null;
-      assignRelicChoiceIfNeeded(c, candidate.effect, pickedOption);
+      learnRelicEffect(c, candidate, pickedOption);
       saveFn();
       relicRolledDice = null;
       renderRelicSection();
@@ -1290,6 +1298,29 @@
   // 変更のたびにrenderAllStatSteppersで全項目の表示をまとめて更新する（例:等級を上げると盧恩も
   // 連動して減るなど、項目間の依存を個別に追いかける必要が無い）。等級のみ、盧恩が足りるかの
   // 確認と消費を伴う特別処理（onDelta）を持つ。
+  // 等級升降的純規則邏輯（盧恩費用檢查＋c.level增減＋applyLevelUpResourceBonus），抽成
+  // 獨立函式並匯出，讓night.js既有的角色卡（下面STAT_STEPPERS）與midnight.js的角色面板
+  // （2026-09-05角色能力真正接入新增）共用同一套規則，不重複定義升級費用公式。回傳結果物件
+  // 讓呼叫端自行決定要不要顯示錯誤訊息（drawer用showCharDrawerError，midnight用showToast）。
+  function tryLevelUp(c, delta) {
+    if (delta > 0) {
+      if (c.level >= LEVEL_CAP) return { ok: false, reason: "cap" };
+      var cost = c.level + 1;
+      if ((c.runes || 0) < cost) {
+        return { ok: false, reason: "insufficient_runes", nextLevel: c.level + 1, cost: cost, runes: c.runes || 0 };
+      }
+      c.runes -= cost;
+      c.level += 1;
+      applyLevelUpResourceBonus(c, c.level, 1);
+      return { ok: true };
+    }
+    if (c.level <= 1) return { ok: false, reason: "min" };
+    var oldLevel = c.level;
+    c.level = Math.max(1, c.level - 1);
+    applyLevelUpResourceBonus(c, oldLevel, -1);
+    return { ok: true };
+  }
+
   var STAT_STEPPERS = [
     {
       id: "char-level",
@@ -1297,21 +1328,11 @@
         return c.level;
       },
       onDelta: function (c, delta) {
-        if (delta > 0) {
-          if (c.level >= LEVEL_CAP) return;
-          var cost = c.level + 1;
-          if ((c.runes || 0) < cost) {
-            showCharDrawerError(window.I18N.t("level_up_insufficient_runes", { level: c.level + 1, cost: cost, runes: c.runes || 0 }));
-            return;
-          }
-          c.runes -= cost;
-          c.level += 1;
-          applyLevelUpResourceBonus(c, c.level, 1);
-        } else {
-          if (c.level <= 1) return;
-          var oldLevel = c.level;
-          c.level = Math.max(1, c.level - 1);
-          applyLevelUpResourceBonus(c, oldLevel, -1);
+        var result = tryLevelUp(c, delta);
+        if (!result.ok && result.reason === "insufficient_runes") {
+          showCharDrawerError(
+            window.I18N.t("level_up_insufficient_runes", { level: result.nextLevel, cost: result.cost, runes: result.runes })
+          );
         }
       },
     },
@@ -3829,11 +3850,17 @@
   //   （アタックの1Hit：+5／2Hit：+10とは別記載のため、talismanFlatHitBonusとは別枠で扱う）
   // ・talisman_crimson_seven_edge：現在HP＝3（□□□）以下のとき、自身から発生するダメージ+5
   //   （アタック限定の記載ではなく「自身から発生するダメージ」全般が対象）
-  function talismanFlatSkillBonus(c) {
+  // hpOverride（省略可）：呼び出し側がc.hpとは別のHP表現を使う場合に渡す{current,max}。
+  // c.hp自体は書き換えない（2026-09-05 midnight角色能力真正接入新增：midnightは自分の
+  // アリーナ内HPをc.hpとは別のdemoStat数値で管理しているため、c.hpを直接同期させると
+  // 主遊戲側の角色卡データを壊してしまう。この関数のHP判定だけ呼び出し側の実際値に
+  // 差し替えられるようにする）。
+  function talismanFlatSkillBonus(c, hpOverride) {
+    var hp = hpOverride || c.hp;
     var bonus = 0;
     (c.talismanIds || []).forEach(function (id) {
-      if (id === "talisman_sword_scorpion_charm" && c.hp && c.hp.current === c.hp.max) bonus += 5;
-      if (id === "talisman_crimson_seven_edge" && c.hp && c.hp.current <= 3) bonus += 5;
+      if (id === "talisman_sword_scorpion_charm" && hp && hp.current === hp.max) bonus += 5;
+      if (id === "talisman_crimson_seven_edge" && hp && hp.current <= 3) bonus += 5;
     });
     return bonus;
   }
@@ -3853,7 +3880,9 @@
   // 総合ダメージの最終合計値に「+20」する。タリスマン起因の固定加算（talismanFlatHitBonus／
   // talismanFlatSkillBonus）と全く同じ「HP条件付き固定加算」の形のため、同じ注入点に載せる
   // （アタックごとに倍加させないため、hit1/hit2どちらにも同じ固定値を1回だけ加える）。
-  function fightingSpiritFlatBonus(c) {
+  // hpOverride（省略可）：talismanFlatSkillBonusと同じ理由・同じ引数パターン（呼び出し側が
+  // c.hp以外のHP表現を使う場合の差し替え用、c.hp自体は書き換えない）。
+  function fightingSpiritFlatBonus(c, hpOverride) {
     var type = c.typeId ? CharacterTypes.get(c.typeId) : null;
     var hasAbility =
       type &&
@@ -3861,7 +3890,8 @@
         return entry.id === "fighting_spirit";
       });
     if (!hasAbility) return 0;
-    if (!c.hp || c.hp.current === c.hp.max) return 0;
+    var hp = hpOverride || c.hp;
+    if (!hp || hp.current === hp.max) return 0;
     return 20;
   }
 
@@ -4111,6 +4141,12 @@
     return true;
   }
 
+  // upgradeWeaponRarity()を実際に呼ぶ前にUI側で「もう強化できない」状態を判定するための
+  // 副作用なしヘルパー（RARITY_UPGRADE_NEXTの中身を呼び出し側でコピーしないため）。
+  function canUpgradeWeaponRarity(c, weaponId) {
+    return !!RARITY_UPGRADE_NEXT[getEffectiveWeaponRarity(c, weaponId)];
+  }
+
   function computeArtPower(c, weaponId) {
     var weapon = Weapons.get(baseWeaponId(weaponId));
     if (!weapon) return null;
@@ -4126,12 +4162,19 @@
       talismanPowerModBonus(c, statKey) +
       relicPowerModBonus(c, statKey) +
       weaponInnatePowerModAdjustment(weapon, statKey);
-    return { rarityCorrection: rarityCorrection, powerMod: powerMod, artPower: rarityCorrection + powerMod };
+    // powerModText（2026-09-06 midnight角色視窗武器詳細資訊改版新增，使用者明確要求
+    // 「威力補正: 平衡(10)寫上根據甚麼加成的威力」）：附加回傳這把武器實際套用的威力補正
+    // 分類原文（例："平衡"/"技巧"/"力"），供UI標示「這個威力補正數值是依哪個分類算出來
+    // 的」，不影響既有呼叫端（都是額外新增欄位，沒有動到既有欄位）。
+    return { rarityCorrection: rarityCorrection, powerMod: powerMod, artPower: rarityCorrection + powerMod, powerModText: powerModText };
   }
 
   // 武器1つ分のダメージ内訳を計算する。盾／杖／聖印（1Hit・2Hitの概念を持たない武器種）や
   // カテゴリ不明の場合はnullを返す（杖・聖印は各魔術／祈祷ごとにcomputeArtPowerを使う）。
-  function computeWeaponDamage(c, weaponId) {
+  // hpOverride（省略可）：fightingSpiritFlatBonus用、talismanFlatSkillBonusと同じ理由・
+  // 同じ引数パターン（2026-09-05 midnight角色能力真正接入新增。呼び出し側がc.hp以外の
+  // HP表現を使う場合の差し替え用、c.hp自体は書き換えない）。
+  function computeWeaponDamage(c, weaponId, hpOverride) {
     var weapon = Weapons.get(baseWeaponId(weaponId));
     if (!weapon) return null;
     var category = Weapons.getCategory(weapon.category);
@@ -4197,7 +4240,7 @@
 
     var innateHitBonus = weaponInnateHitBonus(c, weaponId, weapon);
     var talismanFlatBonus = talismanFlatHitBonus(c, weaponId, category);
-    var fightingSpiritBonus = fightingSpiritFlatBonus(c);
+    var fightingSpiritBonus = fightingSpiritFlatBonus(c, hpOverride);
 
     // 遺物効果「雙手持握的削韌強化」：自身が「威力補正：力量／平衡」の武器を1つだけ装備している
     // ときだけ、その武器の2Hit攻擊傷害へ「+▲」（=artPower、跳躍攻擊等の▲解決と同じ考え方）を追加する。
@@ -6825,6 +6868,15 @@
     countMobDamageSquares: countMobDamageSquares,
     resolveWeaponInnateSkillById: resolveWeaponInnateSkillById,
     relicEffectForKey: relicEffectForKey,
+    relicEffectKey: relicEffectKey,
+    relicCandidateFor: relicCandidateFor,
+    relicAllUnlearned: relicAllUnlearned,
+    learnRelicEffect: learnRelicEffect,
+    assignRelicChoiceIfNeeded: assignRelicChoiceIfNeeded,
+    relicChoiceConfigForEffect: relicChoiceConfigForEffect,
+    LEVEL_CAP: LEVEL_CAP,
+    applyLevelUpResourceBonus: applyLevelUpResourceBonus,
+    tryLevelUp: tryLevelUp,
     getSkillUsesBonus: getSkillUsesBonus,
     getCombatSkillEntries: getCombatSkillEntries,
     getCombatDefenseSkillEntries: getCombatDefenseSkillEntries,
@@ -6834,6 +6886,7 @@
     relicMaxLearnable: relicMaxLearnable,
     getEffectiveWeaponRarity: getEffectiveWeaponRarity,
     upgradeWeaponRarity: upgradeWeaponRarity,
+    canUpgradeWeaponRarity: canUpgradeWeaponRarity,
     merchantDrawWeapon: merchantDrawWeapon,
     presetWeaponRollForReward: presetWeaponRollForReward,
     makeConsumableInstanceId: makeConsumableInstanceId,
@@ -6887,5 +6940,6 @@
     fixedSkillPowerValue: fixedSkillPowerValue,
     bareGuardSymbolSkillValue: bareGuardSymbolSkillValue,
     formatValueWithSymbol: formatValueWithSymbol,
+    resolveWeaponSkillDisplay: resolveWeaponSkillDisplay,
   };
 })();
