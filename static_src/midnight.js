@@ -8010,6 +8010,12 @@
         maybeCancelLobbyCountdown();
         maybeTriggerSessionStart(now);
         renderLobbyCountdown(now);
+        // 修正既有bug（2026-09-07使用者回報「等待房中夜王劇本無法選擇」）：renderLobbySettings()
+        // （負責populateNightBossSelect()／同步下拉選單目前值）原本只在下方「遊戲已開始」
+        // 的主迴圈分支被呼叫，但夜王本來就該在等待房、遊戲開始前就能選——當時只call到
+        // renderLobbyCountdown()，never populate這個select，導致選單永遠是空的（連「隨機
+        // 決定」這個固定選項都沒有），玩家自然完全無法選擇。
+        renderLobbySettings();
       }
       requestAnimationFrame(frame);
       return;
