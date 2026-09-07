@@ -4168,6 +4168,15 @@ button {
   padding: 1rem;
 }
 
+/* 黃字警示提示（設計文件§3.1／§3.2共用，例如背包已滿、共享獎勵池「非全員獲得」標註）：
+   沿用本檔案既有金黃色警示色調（同#midnight-final-circle-countdown的#ffd76a），
+   本檔案目前沒有現成的通用警示文字class，這裡建一個供midnight相關提示共用，
+   避免每個提示各自散落inline style。 */
+.warning-text {
+  color: #ffd76a;
+  font-weight: 600;
+}
+
 #midnight-canvas {
   display: block;
   max-width: 100%;

@@ -5573,6 +5573,13 @@
     return null;
   }
 
+  // 背包已滿（設計文件§3.1）：grantLootRewardEntryToCharacter()對weaponStar/consumable/
+  // talisman三種kind會在hasInventorySpace()判定已滿時回傳null（見上方該函式），本來這裡
+  // 只看labels是否為空、滿了就整包靜默略過、玩家完全不知道漏拿了東西。現在額外記一個
+  // anyFull旗標，只要有任一筆因為背包滿而被略過，就把midnight_inventory_full_note這句
+  // 既有i18n提示文字接在通知後面一起顯示（不是新增規則數值，純粹是「讓玩家知道」）。
+  // 注意：只比對這三種kind——其餘kind（如目前尚未實作角色欄位的potentialPower／
+  // weaponSkillReroll）回傳null是「功能範圍限制」而非「背包已滿」，不能誤判成滿了。
   function grantTileLootToParticipants(trig, lootEntries) {
     Object.keys(trig.participants || {}).forEach(function (slot) {
       var p = players[slot];
@@ -5580,12 +5587,16 @@
       var c = characters[p.tokenId];
       if (!c) return;
       var labels = [];
+      var anyFull = false;
       lootEntries.forEach(function (entry) {
         var label = grantLootRewardEntryToCharacter(c, entry);
         if (label) labels.push(label);
+        else if (entry.kind === "weaponStar" || entry.kind === "talisman" || entry.kind === "consumable") anyFull = true;
       });
-      if (!labels.length) return;
-      c._lastTileRewardNote = { text: window.I18N.t("midnight_reward_toast_prefix") + labels.join("、"), at: Date.now() };
+      var text = labels.length ? window.I18N.t("midnight_reward_toast_prefix") + labels.join("、") : "";
+      if (anyFull) text = text + (text ? "　" : "") + window.I18N.t("midnight_inventory_full_note");
+      if (!text) return;
+      c._lastTileRewardNote = { text: text, at: Date.now() };
       GameStorage.rtSet(gameId, "cloud", "character/" + p.tokenId, c);
     });
   }
@@ -6000,7 +6011,11 @@
     var inventoryKind = needsDrawStep ? entry.kind : null;
     var c0 = characters[myTokenId];
     if (inventoryKind && c0 && !hasInventorySpace(c0, inventoryKind)) {
+      // 設計文件§3.1「黃字提示取代靜默略過」：這裡本來就已經不給確認按鈕、彈窗不關閉，
+      // 只差視覺上沒有標成警示色——補上.warning-text（本檔案目前唯一的黃字警示樣式，
+      // 見style.css，供本次與之後同類黃字提示共用，不重複發明）。
       var fullNote = document.createElement("p");
+      fullNote.className = "warning-text";
       fullNote.textContent = window.I18N.t("midnight_inventory_full_note");
       detail.appendChild(fullNote);
       return;
