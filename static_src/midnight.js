@@ -319,10 +319,14 @@
   var SKILL_COOLDOWN_MS = 60000; // 使用者明確規格：技能冷卻60秒
 
   // ---- 強敵籌碼擊殺獎勵（2026-09-05新增，數值取自event_rulebook.jsのstrong_enemy
-  // chip文字「撃破ルーン：8」「潜在する力：★★」，1日目/一般值；不做2日目「恐るべき
-  // 強敵」的12盧恩/★★★區分，見規劃紀錄）----
+  // chip文字「撃破ルーン：8」「潜在する力：★★」，1日目/一般值）----
   var STRONG_ENEMY_REWARD_RUNES = 8;
   var STRONG_ENEMY_REWARD_POTENTIAL_STARS = 2;
+
+  // ---- 2日目「⑧恐るべき強敵」擊殺獎勵（Task 18新增，設計文件§7；數值取自
+  // event_rulebook.jsのstrong_enemy chip文字「撃破ルーン：12」「潜在する力：★★★」）----
+  var TERRIFYING_STRONG_ENEMY_REWARD_RUNES = 12;
+  var TERRIFYING_STRONG_ENEMY_REWARD_POTENTIAL_STARS = 3;
 
   // ---- 標點（ping）----
   var PING_DISPLAY_MS = 6000; // 標點顯示幾毫秒後自動消失（本地渲染端判斷，不刪RTDB資料）
@@ -734,6 +738,13 @@
   var nearbyRandomEvent = null; // 目前在使用範圍內的隨機事件（聖甲蟲）地點
   var strongEnemyRollAttempted = {}; // pointId -> true（本地節流：強敵決定表只送一次transaction）
   var strongEnemyRewardAttempted = {}; // pointId -> true（本地節流：擊殺獎勵只送一次transaction）
+  // Task 18新增：2日目「⑧恐るべき強敵」點位決定的本地節流旗標（跟day3TriggerAttempted等
+  // 同一套pattern）——每台裝置只嘗試送一次meta/terrifyingStrongEnemyPointId transaction，
+  // 見maybeAssignTerrifyingStrongEnemyPoint()說明（該函式掛在updateAutoDayAdvance()裡，
+  // 每偵都會被呼叫，若不用這個旗標擋住，「3個點在Day1就已全數擊敗」的null結果會因為
+  // Firebase transaction對某路徑寫入null等同刪除該節點、之後永遠讀不到「已決定」痕跡，
+  // 而被每偵重複呼叫）。
+  var terrifyingStrongEnemyAssignAttempted = false;
   // 2026-09-06優化（使用者明確規格「第一天/第二天夜之強敵」）：縮圈到最小（見
   // phaseInfoForDay()的waitingForDay2/3 stage）後的強制夜之強敵戰鬥，比照strong_enemy
   // 籌碼同一套fieldTrigger/fieldEnemyHp shape，id固定為"finalCircleDayN"，見
@@ -4924,7 +4935,11 @@
     strongEnemyRollAttempted[pt.id] = true;
     var GmFlow = window.PriTestNightGmFlow;
     var chip = findEventChip("strong_enemy");
-    var table = chip && chip.extraTables && chip.extraTables[0];
+    // Task 18（設計文件§7）：這個點若是Day2開始時決定性挑中的「⑧恐るべき強敵」點
+    // （meta.terrifyingStrongEnemyPointId===pt.id），改查extraTables[1]（恐るべき強敵決定表），
+    // 其餘2個點維持extraTables[0]（一般強敵決定表）。
+    var isTerrifying = meta && meta.terrifyingStrongEnemyPointId === pt.id;
+    var table = chip && chip.extraTables && chip.extraTables[isTerrifying ? 1 : 0];
     if (!GmFlow || !table) return;
     var rolled = GmFlow.rollStrongEnemyTable(table);
     if (!rolled) return;
@@ -5248,6 +5263,46 @@
       lastAutoDayForCooldownReset = phaseInfo.day;
       resetAbilityCooldowns();
     }
+    maybeAssignTerrifyingStrongEnemyPoint();
+  }
+
+  // ---- Task 18新增（設計文件§7）：2日目「⑧恐るべき強敵」點位決定性挑選——「Day2已經
+  // 開始」這個訊號不是靠獨立的day-counter函式（本檔沒有currentDayNumber()這種東西），而是
+  // 直接沿用上面updateAutoDayAdvance()已經在維護、經RTDB同步給所有裝置的meta.day2StartAt
+  // 本身（跟meta.sessionStartAt／meta.day3StartAt同一套「寫入即代表該天已開始」慣例，見
+  // currentPhaseInfo()）。從map.points中「目前尚未被擊敗」的strong_enemy點（依fieldTriggers／
+  // fieldEnemyHp現況判斷）用fieldSeededIndex()決定性挑1個，寫入meta.terrifyingStrongEnemyPointId
+  // ——若3個點在Day2開始當下就已全數擊敗，chosenId=null，一樣送出transaction（不是直接
+  // return不寫），對應規劃§7「3個點在Day1就已全數擊敗，則設為null，Day2沒有恐るべき強敵
+  // 可打，不硬湊」。
+  //
+  // 冪等性：strong_enemy籌碼點只會從「活著」單向轉成「已擊敗」、不會復活，因此不論哪台
+  // 裝置在哪個時間點跑到這裡，候選集合只會隨時間縮小、不會擴大——最早一次成功的transaction
+  // 結果（不論是挑到某個點、還是null）永遠是「當時可能的最大候選集合」下的結果，之後任何
+  // 裝置重複呼叫都只會算出同一個或候選更少的子集合，不會推翻先前已經鎖定的選擇。真正決定
+  // 「該選哪一個」不需要transaction仲裁（各裝置用同一份meta.mapSeed+候選清單算出同樣的
+  // chosenId，跟fieldSeededIndex()既有慣例相同），transaction只用來擋「這個節點是否已經被
+  // 寫過」；一旦寫入非null的真實pointId，之後的transaction一律讀到非null的cur、原樣回傳，
+  // 不會再被覆蓋。terrifyingStrongEnemyAssignAttempted這個本地旗標則單純節流「同一台裝置
+  // 不用每偵都送一次transaction」——尤其重要於null分支：Firebase transaction對某路徑寫入
+  // null等同刪除該節點，之後永遠讀不到「已經決定過」的持久痕跡，若沒有本地旗標擋著，
+  // updateAutoDayAdvance()每偵呼叫都會再送一次transaction（雖然結果永遠一致、不會出錯，
+  // 但會造成不必要的網路流量）。
+  function maybeAssignTerrifyingStrongEnemyPoint() {
+    if (!meta || !map || !meta.day2StartAt || terrifyingStrongEnemyAssignAttempted) return;
+    terrifyingStrongEnemyAssignAttempted = true;
+    if (meta.terrifyingStrongEnemyPointId !== undefined) return; // 本機已經同步到別的裝置決定的結果
+    var candidates = map.points.filter(function (pt) {
+      if (pt.type !== "strong_enemy") return false;
+      var trig = fieldTriggers[pt.id];
+      var hp = fieldEnemyHp[pt.id];
+      var alreadyDefeated = trig && trig.enemyFamilyId && hp !== undefined && hp <= 0;
+      return !alreadyDefeated;
+    });
+    var chosenId = candidates.length ? candidates[fieldSeededIndex("day2_terrifying_strong_enemy", candidates.length)].id : null;
+    GameStorage.rtTransaction(gameId, "cloud", "meta/terrifyingStrongEnemyPointId", function (cur) {
+      return cur === null ? chosenId : cur;
+    });
   }
 
   // 上方資訊欄「使用祝福」：2026-09-06三次優化，使用者明確規格把原本「day>=2就能用」改成
@@ -5618,6 +5673,10 @@
     var hp = fieldEnemyHp[pt.id];
     if (hp === undefined || hp > 0) return;
     strongEnemyRewardAttempted[pt.id] = true;
+    // Task 18（設計文件§7）：Day2「⑧恐るべき強敵」點用高倍獎勵，其餘2個點維持一般值。
+    var isTerrifying = meta && meta.terrifyingStrongEnemyPointId === pt.id;
+    var runes = isTerrifying ? TERRIFYING_STRONG_ENEMY_REWARD_RUNES : STRONG_ENEMY_REWARD_RUNES;
+    var stars = isTerrifying ? TERRIFYING_STRONG_ENEMY_REWARD_POTENTIAL_STARS : STRONG_ENEMY_REWARD_POTENTIAL_STARS;
     GameStorage.rtTransaction(gameId, "cloud", "fieldTrigger/" + pt.id + "/rewardGrantedBy", function (cur) {
       return cur === null ? myTokenId : cur;
     }).then(function (committed) {
@@ -5625,8 +5684,8 @@
       Object.keys(trig.participants || {}).forEach(function (slot) {
         var p = players[slot];
         if (!p) return;
-        pushPendingReward(p.tokenId, { kind: "rune", value: STRONG_ENEMY_REWARD_RUNES });
-        pushPendingReward(p.tokenId, { kind: "potentialPower", value: STRONG_ENEMY_REWARD_POTENTIAL_STARS });
+        pushPendingReward(p.tokenId, { kind: "rune", value: runes });
+        pushPendingReward(p.tokenId, { kind: "potentialPower", value: stars });
       });
     });
   }
