@@ -755,6 +755,9 @@
   // 獎勵的本地節流旗標，同meteorEnemyAssignAttempted/meteorRewardAttempted既有寫法。
   var ambushEnemyAssignAttempted = {}; // pointId -> true
   var ambushRewardAttempted = {}; // pointId -> true
+  // final review指摘修正：renderAmbushBranch()自己的初次決定表roll漏了本地節流旗標，
+  // 同ambushEnemyAssignAttempted/randomEventRollAttempted既有idiom補上。
+  var ambushRollAttempted = {}; // pointId -> true
   var tuningDemonBargainOpened = {}; // pointId -> true（本地節流：調律の魔物「取引に応じる」的取引揭曉modal，每台裝置只主動開一次，避免render tick每偵重複呼叫openBargainRevealModal()把使用者剛關閉的modal又打開）
   // Task 18新增：2日目「⑧恐るべき強敵」點位決定的本地節流旗標（跟day3TriggerAttempted等
   // 同一套pattern）——每台裝置只嘗試送一次meta/terrifyingStrongEnemyPointId transaction，
@@ -6151,6 +6154,8 @@
 
   function renderAmbushBranch(pt, trig) {
     if (!trig.ambushEnemyNameJa) {
+      if (ambushRollAttempted[pt.id]) return;
+      ambushRollAttempted[pt.id] = true;
       var scenarioId = resolveNightBossScenarioId();
       var Scenarios = window.PriTestScenarios;
       var scenarioNumber = scenarioId && Scenarios ? Scenarios.numberForId(scenarioId) : null;
