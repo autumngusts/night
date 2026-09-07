@@ -662,17 +662,14 @@ BODY = """    <div class="midnight-wrap">
           </div>
         </div>
 
+        <!-- 魔術師塔解謎modal（2026-09-07改版：兩數四則運算換成6種參數化謎題，見設計文件
+             §4.1／static/midnight_puzzles.js／static/midnight.jsのrenderTowerPuzzleModal()）：
+             box內容完全由JS依puzzle.kind動態產生，這裡只留空容器＋答錯提示。 -->
         <div id="midnight-tower-puzzle-modal" hidden>
           <div id="midnight-tower-puzzle-box">
             <h3 data-i18n="midnight_puzzle_title"></h3>
-            <p id="midnight-puzzle-timer"></p>
-            <p id="midnight-puzzle-question"></p>
-            <input type="number" id="midnight-puzzle-answer-input">
-            <div class="wb-row">
-              <button type="button" id="btn-midnight-puzzle-submit" data-i18n="midnight_puzzle_submit_button"></button>
-              <button type="button" id="btn-midnight-puzzle-close" data-i18n="midnight_puzzle_close_button"></button>
-            </div>
-            <p id="midnight-puzzle-result"></p>
+            <div id="midnight-tower-puzzle-body"></div>
+            <p id="midnight-tower-puzzle-wrong-note" class="warning-text" hidden data-i18n="midnight_tower_wrong_note"></p>
           </div>
         </div>
 

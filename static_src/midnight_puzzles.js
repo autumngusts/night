@@ -85,6 +85,10 @@
   }
 
   // ---- 邏輯消去法（3~5人，身高排序線索）----
+  // 2026-09-07修正（Task 10 review時發現）：原本這裡直接把「A 比 B 高」組成完整字串放進
+  // clues，等於把繁體中文語句硬編碼進純資料模組，UI端無法透過window.I18N.t()翻譯成日文
+  // /英文。改成回傳{higher, lower}結構化pair，由呼叫端（midnight.js的
+  // renderLogicEliminationPuzzle）自行組合i18n文字——這裡仍是純資料，不含任何語言文字。
   function genLogicElimination() {
     var n = 3 + Math.floor(Math.random() * 3); // 3~5
     var names = ["A", "B", "C", "D", "E"].slice(0, n);
@@ -92,7 +96,7 @@
     var order = shuffle(names);
     var clues = [];
     for (var i = 0; i < order.length - 1; i++) {
-      clues.push(order[i] + " 比 " + order[i + 1] + " 高");
+      clues.push({ higher: order[i], lower: order[i + 1] });
     }
     return { kind: "logicElimination", names: names, clues: shuffle(clues), answer: order[0] };
   }

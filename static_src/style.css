@@ -4947,21 +4947,26 @@ button {
   color: #f0f0f0;
 }
 
-#midnight-puzzle-question {
-  font-size: 1.3rem;
+/* 2026-09-07改版：#midnight-puzzle-question/-answer-input/-result（兩數四則運算專用固定
+   id）換成6種參數化謎題後改由JS動態產生內容，改用#midnight-tower-puzzle-body底下的通用
+   選擇器套樣式，不再綁定單一題型的固定id。 */
+#midnight-tower-puzzle-body p {
+  font-size: 1.1rem;
   font-weight: bold;
   margin: 0.5rem 0;
 }
 
-#midnight-puzzle-answer-input {
+#midnight-tower-puzzle-body input,
+#midnight-tower-puzzle-body select {
   width: 100%;
   box-sizing: border-box;
   margin-bottom: 0.5rem;
 }
 
-#midnight-puzzle-result {
-  min-height: 1.2em;
-  margin-top: 0.5rem;
+#midnight-tower-puzzle-body ul {
+  text-align: left;
+  margin: 0.5rem 0;
+  padding-left: 1.2rem;
 }
 
 /* 角色面板（2026-09-05角色面板優化改版：左右分割＋6/4/2格欄位＋裝備/丟棄）：外層

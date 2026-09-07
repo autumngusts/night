@@ -241,8 +241,6 @@
   var FLASK_MAX_DEFAULT = 3;
   var FLASK_HEAL_AMOUNT = 30;
   var TOWER_ACTIVATE_RADIUS = 1.5; // 沿用SPIRIT_BIRD_ACTIVATE_RADIUS同樣的數值
-  var TOWER_PUZZLE_TIME_LIMIT_MS = 30000; // 使用者指定「預計要解30秒程度」
-  var TOWER_REWARD_RUNES = 50;
 
   // ---- 角色面板持有量上限（2026-09-05角色面板優化新增，使用者明確規格：「6格武器欄
   // 4格消耗品欄 2格裝飾品欄」＋確認過這是硬性上限，超過需先丟棄才能撿新的）----
@@ -582,6 +580,7 @@
   // 另開一份，見onCharactersReceived／規劃紀錄「角色屬性管理」章節的設計取捨）。
   var characters = {};
   var towerSolved = {}; // pointId -> { solvedBy }（來自RTDB，見onTowerSolvedReceived）
+  var towerPuzzleState = {}; // pointId -> { puzzle, pointId }（本地only，2026-09-07新增：6種參數化謎題，見startTowerPuzzle）
   // 塔的邀請狀態（2026-09-05籌碼優化新增，使用者明確規格：「魔術師塔...顯示進入選項
   // 進入邀請完後 才會顯示其解謎 任何一個人完成就全員完成能獲得獎勵」）。獨立於
   // fieldTriggers之外自成一份RTDB路徑（不是重用fieldTriggers/{pointId}），因為
@@ -733,7 +732,6 @@
   var readyFinalBoss = {}; // slot -> true（來自RTDB，第二天夜之強敵擊破後的「準備開始夜王戰鬥」，見handleReadyFinalBossToggle()）
   var scarabResult = null; // { pointId, statKey, dice, sum, target, success } 本次聖甲蟲判定結果（本地only，顯示用）
   var pendingRewards = {}; // tokenId -> [{id, kind, value, resolved}]（來自RTDB，見onPendingRewardsReceived）
-  var puzzle = null; // { pointId, answer, deadline } 進行中的解謎狀態（本地only，不同步）
   var keysDown = {};
   var lastFrameTime = null;
   var lastPosPushTime = 0;
@@ -1469,8 +1467,6 @@
     el("btn-midnight-tower-invite-accept").addEventListener("click", function () {
       if (nearbyTower) handleAcceptTowerInviteClick(nearbyTower);
     });
-    el("btn-midnight-puzzle-submit").addEventListener("click", handlePuzzleSubmit);
-    el("btn-midnight-puzzle-close").addEventListener("click", closeTowerPuzzleModal);
     el("btn-midnight-use-spirit-bird").addEventListener("click", function () {
       // 見handleTowerEnterClick()同一則2026-09-06三次優化註解：戰鬥中不能使用靈鳥飛行。
       if (!mySlot || isPaused() || activeEncounter || !nearbyBird) return;
@@ -3790,85 +3786,133 @@
     }
   }
 
+  // 2026-09-07改版（設計文件§4.1）：兩數四則運算題目改為window.PriTestMidnightPuzzles
+  // 提供的6種參數化謎題（純函式產生器，見midnight_puzzles.js），本檔只負責依puzzle.kind
+  // 分派到對應renderer、呼叫check()判定答案。解謎成功後的獎勵改為12骰牌型抽獎
+  // （設計文件§4.2，見Task 11新增的startTowerDiceHandReward()），不再是固定盧恩數。
   function startTowerPuzzle(pt) {
     if (towerSolved[pt.id]) return;
-    var a = 1 + Math.floor(Math.random() * 12);
-    var b = 1 + Math.floor(Math.random() * 12);
-    var ops = ["+", "-", "×"];
-    var op = ops[Math.floor(Math.random() * ops.length)];
-    var answer;
-    if (op === "+") {
-      answer = a + b;
-    } else if (op === "-") {
-      if (b > a) {
-        var tmp = a;
-        a = b;
-        b = tmp;
-      }
-      answer = a - b;
-    } else {
-      answer = a * b;
-    }
-    puzzle = { pointId: pt.id, answer: answer, deadline: Date.now() + TOWER_PUZZLE_TIME_LIMIT_MS };
-    el("midnight-puzzle-question").hidden = false;
-    el("midnight-puzzle-question").textContent = a + " " + op + " " + b + " = ?";
-    el("midnight-puzzle-answer-input").hidden = false;
-    el("midnight-puzzle-answer-input").value = "";
-    el("btn-midnight-puzzle-submit").hidden = false;
-    el("btn-midnight-puzzle-submit").disabled = false;
-    el("midnight-puzzle-result").textContent = "";
+    var puzzle = window.PriTestMidnightPuzzles.generate();
+    towerPuzzleState[pt.id] = { puzzle: puzzle, pointId: pt.id };
+    renderTowerPuzzleModal(pt, puzzle);
+  }
+
+  function renderTowerPuzzleModal(pt, puzzle) {
+    var container = el("midnight-tower-puzzle-body");
+    container.innerHTML = "";
+    el("midnight-tower-puzzle-wrong-note").hidden = true;
+    var renderers = {
+      numberGuess: renderNumberGuessPuzzle,
+      chickenRabbit: renderSingleAnswerPuzzle,
+      weighing: renderSingleAnswerPuzzle,
+      bridge: renderSingleAnswerPuzzle,
+      logicElimination: renderLogicEliminationPuzzle,
+      sequence: renderSingleAnswerPuzzle,
+    };
+    renderers[puzzle.kind](pt, puzzle, container);
     el("midnight-tower-puzzle-modal").hidden = false;
   }
 
-  function handlePuzzleSubmit() {
-    if (!puzzle) return;
-    if (Date.now() > puzzle.deadline) {
-      showPuzzleResult(window.I18N.t("midnight_puzzle_timeout_text"));
-      puzzle = null;
-      return;
-    }
-    var input = parseInt(el("midnight-puzzle-answer-input").value, 10);
-    if (input !== puzzle.answer) {
-      el("midnight-puzzle-result").textContent = window.I18N.t("midnight_puzzle_fail_text");
-      return;
-    }
-    var pointId = puzzle.pointId;
-    var submitBtn = el("btn-midnight-puzzle-submit");
-    submitBtn.disabled = true;
-    GameStorage.rtTransaction(gameId, "cloud", "towerSolved/" + pointId, function (cur) {
-      return cur ? cur : { solvedBy: myTokenId };
-    }).then(function (committed) {
-      if (committed && committed.solvedBy === myTokenId) {
-        // 「任何一個人完成就全員完成能獲得獎勵」（使用者明確規格）：對towerInvites裡
-        // 這場邀請的所有參與者發獎，不是只給實際解謎、贏得transaction的這個人——比照
-        // maybeGrantStrongEnemyReward()「對participants全體push獎勵」的既有寫法。
-        var invite = towerInvites[pointId];
-        var participantSlotsList = invite ? Object.keys(invite.participants || {}) : [mySlot];
-        participantSlotsList.forEach(function (slot) {
-          var p = players[slot];
-          var targetTokenId = p ? p.tokenId : myTokenId;
-          GameStorage.rtTransaction(gameId, "cloud", "character/" + targetTokenId + "/runes", function (cur) {
-            return (cur === null ? 0 : cur) + TOWER_REWARD_RUNES;
-          });
-        });
-        showPuzzleResult(window.I18N.t("midnight_puzzle_success_text", { runes: TOWER_REWARD_RUNES }));
-      } else {
-        showPuzzleResult(window.I18N.t("midnight_puzzle_already_solved_text"));
-      }
-      puzzle = null;
+  var TOWER_PROMPT_KEYS = {
+    chickenRabbit: "midnight_tower_prompt_chicken_rabbit",
+    weighing: "midnight_tower_prompt_weighing",
+    bridge: "midnight_tower_prompt_bridge",
+    sequence: "midnight_tower_prompt_sequence",
+  };
+
+  function renderSingleAnswerPuzzle(pt, puzzle, container) {
+    var promptText;
+    if (puzzle.kind === "chickenRabbit") promptText = window.I18N.t(TOWER_PROMPT_KEYS.chickenRabbit, { h: puzzle.H, f: puzzle.F });
+    else if (puzzle.kind === "weighing") promptText = window.I18N.t(TOWER_PROMPT_KEYS.weighing, { n: puzzle.N });
+    else if (puzzle.kind === "bridge") promptText = window.I18N.t(TOWER_PROMPT_KEYS.bridge, { times: puzzle.times.join("、") });
+    else promptText = window.I18N.t(TOWER_PROMPT_KEYS.sequence, { seq: puzzle.sequence.join("、") });
+    var p = document.createElement("p");
+    p.textContent = promptText;
+    var input = document.createElement("input");
+    input.type = "number";
+    input.id = "midnight-tower-answer-input";
+    var btn = document.createElement("button");
+    btn.type = "button";
+    btn.textContent = window.I18N.t("midnight_tower_submit_button");
+    btn.addEventListener("click", function () {
+      var result = window.PriTestMidnightPuzzles.check(puzzle.kind, puzzle, input.value);
+      handleTowerPuzzleResult(pt, result.solved);
     });
+    container.appendChild(p);
+    container.appendChild(input);
+    container.appendChild(btn);
   }
 
-  function showPuzzleResult(text) {
-    el("midnight-puzzle-result").textContent = text;
-    el("midnight-puzzle-question").hidden = true;
-    el("midnight-puzzle-answer-input").hidden = true;
-    el("btn-midnight-puzzle-submit").hidden = true;
+  function renderNumberGuessPuzzle(pt, puzzle, container) {
+    var p = document.createElement("p");
+    p.textContent = window.I18N.t("midnight_tower_prompt_number_guess");
+    var input = document.createElement("input");
+    input.type = "text";
+    input.maxLength = 4;
+    input.pattern = "[0-9]{4}";
+    var resultLine = document.createElement("p");
+    var btn = document.createElement("button");
+    btn.type = "button";
+    btn.textContent = window.I18N.t("midnight_tower_guess_button");
+    btn.addEventListener("click", function () {
+      var digits = String(input.value).split("").map(Number);
+      if (digits.length !== 4 || digits.some(isNaN)) return;
+      var result = window.PriTestMidnightPuzzles.check("numberGuess", puzzle, digits);
+      resultLine.textContent = window.I18N.t("midnight_tower_number_guess_result", { a: result.a, b: result.b });
+      if (result.solved) handleTowerPuzzleResult(pt, true);
+    });
+    container.appendChild(p);
+    container.appendChild(input);
+    container.appendChild(btn);
+    container.appendChild(resultLine);
   }
 
-  function closeTowerPuzzleModal() {
+  function renderLogicEliminationPuzzle(pt, puzzle, container) {
+    var p = document.createElement("p");
+    p.textContent = window.I18N.t("midnight_tower_prompt_logic_elimination");
+    var clueList = document.createElement("ul");
+    // 2026-09-07修正（見midnight_puzzles.js的genLogicElimination註解）：clue是{higher,lower}
+    // 結構化資料，這裡才是唯一組合成使用者可見文字的地方，因此透過window.I18N.t()翻譯，
+    // 不再直接顯示pure-data模組裡硬編碼的繁體中文字串。
+    puzzle.clues.forEach(function (clue) {
+      var li = document.createElement("li");
+      li.textContent = window.I18N.t("midnight_tower_logic_clue", { higher: clue.higher, lower: clue.lower });
+      clueList.appendChild(li);
+    });
+    var select = document.createElement("select");
+    puzzle.names.forEach(function (name) {
+      var opt = document.createElement("option");
+      opt.value = name;
+      opt.textContent = name;
+      select.appendChild(opt);
+    });
+    var btn = document.createElement("button");
+    btn.type = "button";
+    btn.textContent = window.I18N.t("midnight_tower_submit_button");
+    btn.addEventListener("click", function () {
+      var result = window.PriTestMidnightPuzzles.check("logicElimination", puzzle, select.value);
+      handleTowerPuzzleResult(pt, result.solved);
+    });
+    container.appendChild(p);
+    container.appendChild(clueList);
+    container.appendChild(select);
+    container.appendChild(btn);
+  }
+
+  // 解謎成功：本地標記towerSolved並寫回RTDB（不再用transaction搶「誰先解開」——新設計
+  // 下每個參與者各自解自己的謎題、各自獲得一份12骰牌型獎勵，不是「搶到才有獎勵」，見
+  // startTowerDiceHandReward()裡對myTokenId角色發獎的寫法，不需要靠transaction判斷唯一
+  // solvedBy）。解謎失敗：只顯示「答案不對」提示，不關閉modal，讓玩家可以重新作答。
+  function handleTowerPuzzleResult(pt, solved) {
+    if (!solved) {
+      el("midnight-tower-puzzle-wrong-note").hidden = false;
+      return;
+    }
     el("midnight-tower-puzzle-modal").hidden = true;
-    puzzle = null;
+    delete towerPuzzleState[pt.id];
+    towerSolved[pt.id] = true;
+    GameStorage.rtSet(gameId, "cloud", "towerSolved/" + pt.id, true);
+    startTowerDiceHandReward(pt); // Task 11
   }
 
   // ============================================================================
@@ -7123,18 +7167,6 @@
     el("midnight-field-vote-status").textContent = window.I18N.t("midnight_field_vote_progress_label", { voted: votedCount, total: participants.length });
   }
 
-  // 解謎倒數：跟畫面上其他計時文字一樣，每影格重算剩餘秒數，不逐秒另外排timer。
-  function updatePuzzleTimer(now) {
-    if (!puzzle) return;
-    var remainMs = puzzle.deadline - now;
-    if (remainMs <= 0) {
-      showPuzzleResult(window.I18N.t("midnight_puzzle_timeout_text"));
-      puzzle = null;
-      return;
-    }
-    el("midnight-puzzle-timer").textContent = window.I18N.t("midnight_puzzle_timer_label", { seconds: Math.ceil(remainMs / 1000) });
-  }
-
   // ============================================================================
   // 角色資訊面板／戰鬥面板 render：HP/FP/體力/盧恩/聖杯瓶（自己）、敵人HP（共用標靶）。
   // 其他玩家的HP條在renderOccupiedSlotCard()裡（玩家面板既有機制，不在這裡重複畫）。
@@ -8380,7 +8412,6 @@
     updateSorceryHold(now);
     updateAttackHold(now);
     updateFlaskReading(now);
-    updatePuzzleTimer(now);
     maybePushPosition(now);
     var phaseInfo = currentPhaseInfo(now);
     maybeApplyCircleDamage(now, phaseInfo);
@@ -8648,7 +8679,7 @@
         groundItems: groundItems,
         nearbyGroundItem: nearbyGroundItem,
         nearbyTower: nearbyTower,
-        puzzle: puzzle,
+        towerPuzzleState: towerPuzzleState,
         fieldTriggers: fieldTriggers,
         fieldEnemyHp: fieldEnemyHp,
         fieldMobHp: fieldMobHp,
