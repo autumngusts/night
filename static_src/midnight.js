@@ -3915,6 +3915,139 @@
     startTowerDiceHandReward(pt); // Task 11
   }
 
+  // ---- 塔謎題12骰牌型獎勵（設計文件§4.2，Task 10遺留的forward reference在此實作）----
+  // 解謎成功後每個參與者各自擲12顆骰子，可以任選其中幾顆重骰一次（單次限定），確定後用
+  // window.PriTestMidnightPuzzles.judgeDiceHand()（Task 9，跟night.js版
+  // static/night_floor_breakthrough.jsのjudgeDiceHand()同一套五種牌型規則：sevenDice/
+  // large/small/straight/default）判定牌型，依下表發獎。「杖」品項用
+  // window.PriTestCharacterDrawer.drawWeaponFromCategory()（本檔案這次新增，見
+  // character_drawer.js，category固定不隨機、其餘完全複用merchantDrawWeapon同一套
+  // pickWeaponByRoll/lookupRarityBySum規則與weaponId格式）單獨處理；其餘武器/塔利斯曼/
+  // 消耗品沿用既有grantLootRewardEntryToCharacter()一套發獎邏輯，不另建第二套。
+  var TOWER_DICE_HAND_REWARDS = {
+    sevenDice: [
+      { kind: "staffStar", value: 2 },
+      { kind: "weaponStar", value: 3 },
+      { kind: "talisman" },
+      { kind: "consumable", itemId: "item_shard_of_starlight", count: 2 },
+    ],
+    large: [
+      { kind: "staffStar", value: 2 },
+      { kind: "weaponStar", value: 2 },
+      { kind: "talisman" },
+      { kind: "consumable", itemId: "item_shard_of_starlight", count: 1 },
+    ],
+    small: [
+      { kind: "staffStar", value: 2 },
+      { kind: "weaponStar", value: 2 },
+      { kind: "consumable", itemId: "item_shard_of_starlight", count: 1 },
+    ],
+    straight: [
+      { kind: "staffStar", value: 2 },
+      { kind: "weaponStar", value: 2 },
+      { kind: "weaponStar", value: 1 },
+      { kind: "consumable", itemId: "item_shard_of_starlight", count: 1 },
+    ],
+    default: [
+      { kind: "staffStar", value: 1 },
+      { kind: "weaponStar", value: 1 },
+      { kind: "consumable", itemId: "item_shard_of_starlight", count: 1 },
+    ],
+  };
+
+  var towerDiceState = {}; // pointId -> { dice: [1..6 x12], rerolled: bool }
+
+  function startTowerDiceHandReward(pt) {
+    var dice = [];
+    for (var i = 0; i < 12; i++) dice.push(1 + Math.floor(Math.random() * 6));
+    towerDiceState[pt.id] = { dice: dice, rerolled: false };
+    renderTowerDiceHandModal(pt);
+  }
+
+  function renderTowerDiceHandModal(pt) {
+    var state = towerDiceState[pt.id];
+    var container = el("midnight-tower-dice-hand-body");
+    container.innerHTML = "";
+    state.dice.forEach(function (value, idx) {
+      var die = document.createElement("button");
+      die.type = "button";
+      die.className = "midnight-tower-die midnight-tower-die-flip"; // CSS処理：追加時に5回転してから静止する
+      die.textContent = String(value);
+      die.dataset.selected = "false";
+      die.addEventListener("click", function () {
+        if (state.rerolled) return; // 已經重骰過一次，不能再選（單次限定）
+        var sel = die.dataset.selected === "true";
+        die.dataset.selected = sel ? "false" : "true";
+        die.classList.toggle("midnight-tower-die-selected", !sel);
+      });
+      container.appendChild(die);
+    });
+    el("btn-midnight-tower-dice-reroll").hidden = state.rerolled;
+    el("btn-midnight-tower-dice-reroll").onclick = function () {
+      handleTowerDiceReroll(pt);
+    };
+    el("btn-midnight-tower-dice-confirm").onclick = function () {
+      handleTowerDiceConfirm(pt);
+    };
+    el("midnight-tower-dice-hand-modal").hidden = false;
+  }
+
+  function handleTowerDiceReroll(pt) {
+    var state = towerDiceState[pt.id];
+    if (state.rerolled) return;
+    var dieEls = el("midnight-tower-dice-hand-body").querySelectorAll(".midnight-tower-die");
+    dieEls.forEach(function (dieEl, idx) {
+      // 只重骰玩家有標記選取的那幾顆，其餘保留原本出目——這是這個功能的核心規則。
+      if (dieEl.dataset.selected === "true") {
+        state.dice[idx] = 1 + Math.floor(Math.random() * 6);
+      }
+    });
+    state.rerolled = true;
+    renderTowerDiceHandModal(pt); // 整批重新render：重骰後的骰子也會重播一次flip動畫
+  }
+
+  function handleTowerDiceConfirm(pt) {
+    var state = towerDiceState[pt.id];
+    if (!state) return;
+    var handId = window.PriTestMidnightPuzzles.judgeDiceHand(state.dice);
+    var rewardSpecs = TOWER_DICE_HAND_REWARDS[handId] || TOWER_DICE_HAND_REWARDS.default;
+    var c = characters[myTokenId];
+    if (!c) return;
+    var labels = [];
+    var anyFull = false;
+    var entries = [];
+    rewardSpecs.forEach(function (spec) {
+      if (spec.kind === "staffStar") {
+        // merchantDrawWeapon同様、hasInventorySpace判定は「抽選する前」に行う――抽選自体は
+        // drawWeaponFromCategory内部でc.weaponIdsへ直接pushしてしまうため、抽選後に判定して
+        // 弾くと「実際には手に入っていないのにweaponIdsへ残る」不整合が起きる。
+        if (!hasInventorySpace(c, "weapon")) {
+          anyFull = true;
+          return;
+        }
+        var drawn = window.PriTestCharacterDrawer.drawWeaponFromCategory(c, "staff", spec.value);
+        if (drawn) labels.push(window.PriTestWeapons.localizedText(drawn.item.name));
+      } else if (spec.kind === "weaponStar") {
+        entries.push({ kind: "weaponStar", value: spec.value });
+      } else if (spec.kind === "talisman") {
+        entries.push({ kind: "talisman" });
+      } else if (spec.kind === "consumable") {
+        for (var i = 0; i < spec.count; i++) entries.push({ kind: "consumable", itemId: spec.itemId });
+      }
+    });
+    entries.forEach(function (entry) {
+      var label = grantLootRewardEntryToCharacter(c, entry);
+      if (label) labels.push(label);
+      else if (entry.kind === "weaponStar" || entry.kind === "talisman" || entry.kind === "consumable") anyFull = true;
+    });
+    GameStorage.rtSet(gameId, "cloud", "character/" + myTokenId, c);
+    el("midnight-tower-dice-hand-modal").hidden = true;
+    var toastText = labels.length ? window.I18N.t("midnight_reward_toast_prefix") + labels.join("、") : "";
+    if (anyFull) toastText = toastText + (toastText ? "　" : "") + window.I18N.t("midnight_inventory_full_note");
+    if (toastText) showToast(toastText);
+    delete towerDiceState[pt.id];
+  }
+
   // ============================================================================
   // 地圖點卡牌事件（2026-09-05新增，2026-09-06改版，見上方FIELD_*常數註解）。
   // ============================================================================

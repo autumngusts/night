@@ -2782,6 +2782,40 @@
     };
   }
 
+  // 塔謎題12骰獎勵「杖」品項用（設計文件§4.2）：跟merchantDrawWeaponほぼ同じだが、categoryは
+  // ランダムに選ばずに固定で渡す。pickWeaponByRoll/lookupRarityBySum/makeWeaponInstanceIdを
+  // そのまま再利用し、抽選確率やweaponIdの形式を新たに発明しない。merchantDrawWeaponと同様、
+  // 呼び出し時点でc.weaponIdsに新しいインスタンスidを直接pushしてから返す。
+  function drawWeaponFromCategory(c, categoryId, starCount) {
+    var stars = Math.max(1, Math.min(4, starCount || 1));
+    var attempt, item, rarity, rarityDice, itemDie;
+    for (attempt = 0; attempt < 20; attempt++) {
+      rarityDice = [];
+      for (var i = 0; i < stars; i++) rarityDice.push(rollD6());
+      rarity = lookupRarityBySum(
+        rarityDice.reduce(function (a, b) {
+          return a + b;
+        }, 0)
+      );
+      itemDie = rollD6();
+      item = pickWeaponByRoll(categoryId, rarity, itemDie);
+      if (item && !isNotePlaceholderWeapon(item)) break;
+      item = null;
+    }
+    if (!item) return null;
+    if (!c.weaponIds) c.weaponIds = [];
+    var newInstanceId = makeWeaponInstanceId(item.id, c);
+    c.weaponIds.push(newInstanceId);
+    return {
+      categoryId: categoryId,
+      rarity: rarity,
+      rarityDice: rarityDice,
+      itemDie: itemDie,
+      item: item,
+      weaponId: newInstanceId,
+    };
+  }
+
   // 「潜在する力」で「得意武器」を選んだ場合の武器抽選（規則書093/149-151頁）。GMが指定した
   // レベルアップ時の武器抽選（weaponRollState）のstep3ボタンと全く同じ規則で、ランダム
   // 戦技枠（kind:"random"）を解決する（カテゴリにnamedSkillTablesがあれば2D6、無ければ1D6）。
@@ -6888,6 +6922,7 @@
     upgradeWeaponRarity: upgradeWeaponRarity,
     canUpgradeWeaponRarity: canUpgradeWeaponRarity,
     merchantDrawWeapon: merchantDrawWeapon,
+    drawWeaponFromCategory: drawWeaponFromCategory,
     presetWeaponRollForReward: presetWeaponRollForReward,
     makeConsumableInstanceId: makeConsumableInstanceId,
     INVENTORY_MAX: INVENTORY_MAX,

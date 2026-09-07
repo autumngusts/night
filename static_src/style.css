@@ -4969,6 +4969,74 @@ button {
   padding-left: 1.2rem;
 }
 
+/* 塔謎題12骰牌型獎勵（設計文件§4.2、Task 11新增）：modal/box比照
+   #midnight-tower-puzzle-modal/-box同款全螢幕覆蓋樣式，只是box放寬以容納一排12顆骰子。 */
+#midnight-tower-dice-hand-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.75);
+}
+
+#midnight-tower-dice-hand-box {
+  background: #1a1d24;
+  border: 1px solid #555;
+  border-radius: 8px;
+  padding: 1.2rem;
+  max-width: 420px;
+  width: 92%;
+  text-align: center;
+  color: #f0f0f0;
+}
+
+#midnight-tower-dice-hand-body {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  justify-content: center;
+  margin: 0.8rem 0;
+}
+
+.midnight-tower-die {
+  width: 2.4rem;
+  height: 2.4rem;
+  line-height: 2.4rem;
+  text-align: center;
+  font-size: 1.3rem;
+  font-weight: bold;
+  background: #fff;
+  color: #222;
+  border: 2px solid #888;
+  border-radius: 6px;
+  cursor: pointer;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
+}
+
+/* 出目登場：5周分回転してから静止する（既存の.dice-roll-overlay-die系アニメと同じ
+   命名／記述スタイルに合わせた@keyframes、reroll時も同じクラスを付け直して再生させる）。 */
+.midnight-tower-die-flip {
+  animation: midnight-tower-die-flip 0.6s ease-out both;
+}
+
+@keyframes midnight-tower-die-flip {
+  0% {
+    transform: rotate(0deg) scale(0.85);
+  }
+  100% {
+    transform: rotate(1800deg) scale(1);
+  }
+}
+
+.midnight-tower-die-selected {
+  border-color: #ffd21a;
+  background: #4a3d0e;
+  color: #ffd21a;
+  box-shadow: 0 0 0 2px #ffd21a, 0 2px 6px rgba(0, 0, 0, 0.4);
+}
+
 /* 角色面板（2026-09-05角色面板優化改版：左右分割＋6/4/2格欄位＋裝備/丟棄）：外層
    modal/box比照#midnight-tower-puzzle-modal/-box同款全螢幕覆蓋樣式，只是box放寬以
    容納左右分割版面。 */

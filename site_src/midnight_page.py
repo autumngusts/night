@@ -673,6 +673,26 @@ BODY = """    <div class="midnight-wrap">
           </div>
         </div>
 
+        <!-- 塔謎題12骰牌型獎勵（設計文件§4.2，Task 11新增）：解謎成功後由
+             static/midnight.jsのstartTowerDiceHandReward()自動彈出，box樣式比照
+             #midnight-tower-puzzle-modal/-box同款全螢幕覆蓋。12顆骰子由JS動態產生於
+             #midnight-tower-dice-hand-body（renderTowerDiceHandModal()），重骰只能用一次，
+             確定牌型按鈕呼叫window.PriTestMidnightPuzzles.judgeDiceHand()判定後依
+             TOWER_DICE_HAND_REWARDS發獎，沿用既有grantLootRewardEntryToCharacter()/
+             CharacterDrawer.drawWeaponFromCategory()，不另外發明發獎邏輯。標題重用既有
+             night.js版「役判定式獎勵」同一個i18n key（dice_hand_draw_modal_title），
+             兩邊都是同一套judgeDiceHand()牌型結果、語意相同。 -->
+        <div id="midnight-tower-dice-hand-modal" hidden>
+          <div id="midnight-tower-dice-hand-box">
+            <h3 data-i18n="dice_hand_draw_modal_title"></h3>
+            <div id="midnight-tower-dice-hand-body"></div>
+            <div class="wb-row">
+              <button type="button" id="btn-midnight-tower-dice-reroll" data-i18n="midnight_tower_dice_reroll_button"></button>
+              <button type="button" id="btn-midnight-tower-dice-confirm" data-i18n="midnight_tower_dice_confirm_button"></button>
+            </div>
+          </div>
+        </div>
+
         <div id="midnight-merchant-modal" hidden>
           <div id="midnight-merchant-box">
             <h3 data-i18n="midnight_merchant_title"></h3>

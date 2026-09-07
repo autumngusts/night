@@ -1360,6 +1360,8 @@ STRINGS_JA: dict[str, str] = {
     "midnight_tower_logic_clue": "{higher}は{lower}より背が高い",
     "midnight_tower_submit_button": "回答を送信",
     "midnight_tower_wrong_note": "不正解です。もう一度どうぞ",
+    "midnight_tower_dice_reroll_button": "好きなサイコロを選んで1回だけ振り直す",
+    "midnight_tower_dice_confirm_button": "役を確定する",
     "midnight_controls_hint": "PC：矢印キーまたはWASDで移動、中クリックまたは長押しでピン。スマホ：画面上のバブルをドラッグして移動、長押しでピン。円の外にいると継続ダメージを受けます。",
     "midnight_default_player_name": "テスター",
     "midnight_field_enter_button": "進入",

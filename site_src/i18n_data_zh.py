@@ -1360,6 +1360,8 @@ STRINGS_ZH: dict[str, str] = {
     "midnight_tower_logic_clue": "{higher} 比 {lower} 高",
     "midnight_tower_submit_button": "提交答案",
     "midnight_tower_wrong_note": "答案不對，再試一次",
+    "midnight_tower_dice_reroll_button": "指定任意骰子並重骰一次",
+    "midnight_tower_dice_confirm_button": "確定牌型",
     "midnight_controls_hint": "電腦：方向鍵或WASD移動，中鍵點擊或長按可標點；手機：拖曳畫面上的氣泡移動，長按可標點。圈外會持續扣血。",
     "midnight_default_player_name": "測試者",
     "midnight_field_enter_button": "進入",
