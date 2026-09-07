@@ -4315,6 +4315,56 @@ button {
   box-sizing: border-box;
 }
 
+/* 戰技重抽鍛造台（設計文件§3.5，Task 13新增）：版型跟#midnight-merchant-modal/-box
+   同款全螢幕半透明黑＋置中卡片，但這個modal是從已經開著的#midnight-character-sheet-modal
+   內部再疊一層開啟（角色面板武器格下方按鈕，見midnight_page.py），跟商人/祝福/塔謎題
+   彼此互斥、各自獨立開啟的既有慣例不同。#midnight-character-sheet-modal同樣是
+   z-index:700，若沿用同一個700就會依HTML中的DOM順序決定疊放（後定義的
+   #midnight-character-sheet-modal會蓋在前面定義的本modal之上，導致開啟鍛造台後畫面
+   仍被角色面板蓋住看不到——這正是CLAUDE.md/Task 6教訓「疊層/position」問題的另一種
+   形式，這次不是漏了position:fixed，而是同z-index下的DOM順序陷阱）。因此這裡刻意拉高到
+   750，確保一定蓋在角色面板（700）之上，不依賴HTML撰寫順序。 */
+#midnight-weapon-reroll-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 750;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(4, 6, 10, 0.5);
+}
+
+#midnight-weapon-reroll-box {
+  background: #1a1d24;
+  border: 1px solid #555;
+  border-radius: 8px;
+  padding: 1.2rem;
+  max-width: 360px;
+  width: 92%;
+  max-height: 85vh;
+  overflow-y: auto;
+  text-align: center;
+  color: #f0f0f0;
+  box-sizing: border-box;
+}
+
+#midnight-weapon-reroll-list button {
+  display: block;
+  width: 100%;
+  margin: 0.3rem 0;
+}
+
+/* 選定武器「貼」在鍛造台下方的高亮卡片（設計文件§3.5步驟2，純UI呈現，不代表任何數值），
+   視覺上比照.midnight-sheet-slot-selected同一組黃色強調色，讓玩家一眼看出目前鎖定哪一把。 */
+.midnight-forge-pinned-weapon {
+  margin: 0.5rem 0;
+  padding: 0.5rem;
+  border: 1px solid #ffd54a;
+  border-radius: 6px;
+  background: rgba(255, 213, 74, 0.18);
+  font-weight: bold;
+}
+
 #midnight-spirit-bird-prompt {
   position: absolute;
   left: 50%;

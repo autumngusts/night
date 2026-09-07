@@ -1508,6 +1508,10 @@
       handleMidnightLevelDelta(1);
     });
     el("btn-midnight-sheet-relic-roll").addEventListener("click", handleMidnightRelicRoll);
+    el("btn-midnight-open-weapon-reroll").addEventListener("click", openWeaponRerollModal);
+    el("btn-midnight-weapon-reroll-use").addEventListener("click", handleWeaponRerollUseClick);
+    el("btn-midnight-weapon-reroll-apply").addEventListener("click", handleWeaponRerollApplyClick);
+    el("btn-midnight-weapon-reroll-keep-leave").addEventListener("click", handleWeaponRerollKeepAndLeaveClick);
     el("btn-midnight-toggle-menu").addEventListener("click", function () {
       var panel = el("midnight-menu-panel");
       panel.hidden = !panel.hidden;
@@ -5928,7 +5932,15 @@
       var itemData = window.PriTestConsumables.get(itemId);
       return itemData ? window.PriTestConsumables.localizedText(itemData.name) : itemId;
     }
-    // 其餘loot kind（potentialPower／weaponSkillReroll）
+    // 戰技重抽券（設計文件§3.5，Task 13）：perPerson:true一次性使用權，不即時套用任何
+    // 戰技變更，只累加c._weaponRerollCredits點數，實際重抽/套用交由角色面板的鍛造台UI
+    // （openWeaponRerollModal()/handleWeaponRerollApplyClick()）處理，見上方
+    // isPerPersonRewardEntry()/grantTileLootToParticipants()呼叫路徑。
+    if (entry.kind === "weaponSkillReroll") {
+      c._weaponRerollCredits = (c._weaponRerollCredits || 0) + (entry.value || 1);
+      return window.I18N.t("midnight_reward_label_weapon_skill_reroll", { value: entry.value || 1 });
+    }
+    // 其餘loot kind（potentialPower）
     // midnight角色物件目前沒有對應欄位，本次milestone先略過，不阻塞其餘品項的授予
     // （不是bug，是已知範圍限制，見規劃紀錄）。
     return null;
@@ -6474,6 +6486,27 @@
   // 是完全不同的頁面），開關角色面板時重置，避免跨角色殘留擲骰結果。
   var midnightRelicRolledDice = null;
 
+  // 戰技重抽鍛造台（設計文件§3.5，Task 13新增）：跟商人的鍛冶合稀有度強化面板（見上方
+  // renderMerchantForgeList()）完全分開，是不同功能——這裡改的是c.weaponRandomSkills裡的
+  // random戰技枠，不是武器稀有度。weaponRerollState為null時渲染清單模式；選定武器/枠後固定
+  // 該筆＋顯示[使用]；[使用]呼叫CD.rerollWeaponSkill()後才顯示新舊比較＋[套用]/[保留並離開]。
+  // 三個既有character_drawer.js函式的實際簽章（已於實作前逐一讀取原始碼確認，跟一開始
+  // brief猜測的欄位名稱不完全相同）：
+  //   listRerollableWeaponSkillSlots(c) → [{weaponId, slot, weaponName(已本地化字串),
+  //     currentSkillId}]
+  //   rerollWeaponSkill(c, weaponId, slot) → {oldSkillId, newSkillId, dice} | null
+  //     （不是{oldLabel,newLabel}現成文字，要另外用CD.resolveRandomSkillDisplay(skillId)
+  //     換算成{name,body,kind}才能顯示戰技名稱——跟weaponSkillRefName()裡random分支同一套
+  //     helper，見character_drawer.js:2117-2123）
+  //   commitWeaponSkillReroll(c, weaponId, slot, skillId) → 直接寫入c.weaponRandomSkills，
+  //     無回傳值
+  var weaponRerollState = null; // { weaponId, slot, weaponName, rerollResult:{oldSkillId,newSkillId,dice}|null } | null
+  // [保留並離開]的二段式確認狀態（跟原本三步驟「離開」型confirm同一種節奏，比照
+  // handleLateJoinFieldClick等既有setTimeout用法）：第一次按只顯示警告，3秒內沒有第二次
+  // 點擊就視同取消、狀態重置。
+  var weaponRerollLeaveArmed = false;
+  var weaponRerollLeaveTimer = null;
+
   function openCharacterSheetModal() {
     characterSheetSelection = null;
     midnightRelicRolledDice = null;
@@ -6785,6 +6818,7 @@
       var w = window.PriTestWeapons.get(baseCatalogId(wid));
       return w ? window.PriTestWeapons.localizedText(w.name) : wid;
     });
+    renderWeaponRerollOpenButton(c);
     renderInventorySlots(el("midnight-character-sheet-consumables"), c.consumables || [], CONSUMABLE_SLOT_COUNT, "consumable", function (inst) {
       var item = window.PriTestConsumables.get(inst.itemId);
       return (item ? window.PriTestConsumables.localizedText(item.name) : inst.itemId) + " x" + inst.usesRemaining;
@@ -6834,6 +6868,149 @@
     });
 
     renderCharacterSheetDetail(c, type, CharacterTypes, CD);
+  }
+
+  // 鍛造台開啟按鈕（角色面板武器格下方，設計文件§3.5）：文字帶剩餘可重抽次數，
+  // c._weaponRerollCredits為0（含未設定）時disabled。這個button是grantLootRewardEntryToCharacter()
+  // 給的weaponSkillReroll點數唯一的消費入口。
+  function renderWeaponRerollOpenButton(c) {
+    var btn = el("btn-midnight-open-weapon-reroll");
+    if (!btn) return;
+    var credits = (c && c._weaponRerollCredits) || 0;
+    btn.disabled = credits <= 0;
+    btn.textContent = window.I18N.t("midnight_weapon_reroll_open_button", { count: credits });
+  }
+
+  // 開啟鍛造台：credits為0時直接no-op（按鈕本身也是disabled，這裡是防禦性二次確認，
+  // 例如鍵盤操作繞過disabled屬性的邊角情形）。每次開啟都重置選取/確認狀態，避免殘留
+  // 上一次操作到一半的畫面。
+  function openWeaponRerollModal() {
+    var c = characters[myTokenId];
+    if (!c || !((c._weaponRerollCredits || 0) > 0)) return;
+    weaponRerollState = null;
+    weaponRerollLeaveArmed = false;
+    if (weaponRerollLeaveTimer) {
+      clearTimeout(weaponRerollLeaveTimer);
+      weaponRerollLeaveTimer = null;
+    }
+    el("midnight-weapon-reroll-leave-note").hidden = true;
+    renderWeaponRerollModal();
+    el("midnight-weapon-reroll-modal").hidden = false;
+  }
+
+  function closeWeaponRerollModal() {
+    el("midnight-weapon-reroll-modal").hidden = true;
+    el("midnight-weapon-reroll-leave-note").hidden = true;
+    weaponRerollState = null;
+    weaponRerollLeaveArmed = false;
+    if (weaponRerollLeaveTimer) {
+      clearTimeout(weaponRerollLeaveTimer);
+      weaponRerollLeaveTimer = null;
+    }
+  }
+
+  // 三種畫面狀態：①未選定武器/枠——只列清單。②已選定、尚未[使用]——清單區改顯示固定
+  // 卡片＋[使用]。③已[使用]——額外顯示新舊比較＋[套用]/[保留並離開]。[保留並離開]刻意
+  // 在①②③都顯示（不是只有③才有）：它是整個鍛造台唯一的離開手段，語意上「保留」在還沒
+  // [使用]時就是單純的「離開」（沒有可放棄的暫存結果）。
+  function renderWeaponRerollModal() {
+    var CD = window.PriTestCharacterDrawer;
+    var c = characters[myTokenId];
+    var listEl = el("midnight-weapon-reroll-list");
+    var useBtn = el("btn-midnight-weapon-reroll-use");
+    var applyBtn = el("btn-midnight-weapon-reroll-apply");
+    listEl.innerHTML = "";
+
+    if (!weaponRerollState) {
+      (c ? CD.listRerollableWeaponSkillSlots(c) : []).forEach(function (slotInfo) {
+        var currentDisplay = CD.resolveRandomSkillDisplay(slotInfo.currentSkillId);
+        var btn = document.createElement("button");
+        btn.type = "button";
+        btn.textContent =
+          slotInfo.weaponName + "　" + (currentDisplay ? currentDisplay.name : window.I18N.t("midnight_weapon_reroll_undetermined_note"));
+        btn.addEventListener("click", function () {
+          weaponRerollState = { weaponId: slotInfo.weaponId, slot: slotInfo.slot, weaponName: slotInfo.weaponName, rerollResult: null };
+          renderWeaponRerollModal();
+        });
+        listEl.appendChild(btn);
+      });
+      el("midnight-weapon-reroll-compare").hidden = true;
+      useBtn.hidden = true;
+      applyBtn.hidden = true;
+      return;
+    }
+
+    // 選定卡片「貼」在鍛造台下方（純UI呈現的高亮卡片，見設計文件§3.5步驟2）。
+    var pinned = document.createElement("div");
+    pinned.className = "midnight-forge-pinned-weapon";
+    pinned.textContent = weaponRerollState.weaponName;
+    listEl.appendChild(pinned);
+
+    var hasResult = !!weaponRerollState.rerollResult;
+    el("midnight-weapon-reroll-compare").hidden = !hasResult;
+    useBtn.hidden = hasResult;
+    applyBtn.hidden = !hasResult;
+    if (hasResult) {
+      var oldDisplay = CD.resolveRandomSkillDisplay(weaponRerollState.rerollResult.oldSkillId);
+      var newDisplay = CD.resolveRandomSkillDisplay(weaponRerollState.rerollResult.newSkillId);
+      el("midnight-weapon-reroll-compare-old").textContent = oldDisplay ? oldDisplay.name : "";
+      el("midnight-weapon-reroll-compare-new").textContent = newDisplay ? newDisplay.name : "";
+    }
+  }
+
+  // [使用]：呼叫CD.rerollWeaponSkill()重抽一次（純計算，尚未寫回角色）。理論上不會回傳
+  // null（listRerollableWeaponSkillSlots只列出確實是random枠的項目，resolveRandomSkillForItem
+  // 對應同一份category資料一定能解析），這裡的null guard只是防禦性寫法，不代表有已知的
+  // 失敗情境。
+  function handleWeaponRerollUseClick() {
+    if (!weaponRerollState || weaponRerollState.rerollResult) return;
+    var c = characters[myTokenId];
+    if (!c) return;
+    var result = window.PriTestCharacterDrawer.rerollWeaponSkill(c, weaponRerollState.weaponId, weaponRerollState.slot);
+    if (!result) return;
+    weaponRerollState.rerollResult = result;
+    renderWeaponRerollModal();
+  }
+
+  // [套用]：真正寫回角色（CD.commitWeaponSkillReroll）並扣1點_weaponRerollCredits——這是
+  // _weaponRerollCredits唯一會被扣減的地方（[保留並離開]／逾時取消都不會消耗點數，見
+  // handleWeaponRerollKeepAndLeaveClick）。寫回後同步RTDB並更新角色面板（鍛造台開啟按鈕
+  // 的剩餘次數文字要跟著變）。
+  function handleWeaponRerollApplyClick() {
+    if (!weaponRerollState || !weaponRerollState.rerollResult) return;
+    var c = characters[myTokenId];
+    if (!c) return;
+    window.PriTestCharacterDrawer.commitWeaponSkillReroll(
+      c,
+      weaponRerollState.weaponId,
+      weaponRerollState.slot,
+      weaponRerollState.rerollResult.newSkillId
+    );
+    c._weaponRerollCredits = Math.max(0, (c._weaponRerollCredits || 0) - 1);
+    GameStorage.rtSet(gameId, "cloud", "character/" + myTokenId, c);
+    closeWeaponRerollModal();
+    renderCharacterSheet();
+  }
+
+  // [保留並離開]：放棄目前的重抽結果（不寫回角色、不扣點數），同時觸發跟原本「離開」
+  // 相同的二段式確認（設計文件§3.5）——第一次按只顯示黃字警告（不關閉modal）；同一按鈕
+  // 3秒內再按一次才真正closeWeaponRerollModal()；逾時（3秒內沒有第二次點擊）視同取消提醒、
+  // 狀態重置，下次按[保留並離開]重新從第一次點擊開始算。
+  function handleWeaponRerollKeepAndLeaveClick() {
+    if (!weaponRerollLeaveArmed) {
+      weaponRerollLeaveArmed = true;
+      el("midnight-weapon-reroll-leave-note").hidden = false;
+      if (weaponRerollLeaveTimer) clearTimeout(weaponRerollLeaveTimer);
+      weaponRerollLeaveTimer = setTimeout(function () {
+        weaponRerollLeaveArmed = false;
+        weaponRerollLeaveTimer = null;
+        el("midnight-weapon-reroll-leave-note").hidden = true;
+      }, 3000);
+      return;
+    }
+    clearTimeout(weaponRerollLeaveTimer);
+    weaponRerollLeaveTimer = null;
+    closeWeaponRerollModal();
   }
 
   // 單一戰技/共通戰技條目：名稱（Action類戰技才附上估計傷害黃字，跟night.jsの

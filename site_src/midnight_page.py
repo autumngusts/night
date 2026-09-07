@@ -710,6 +710,36 @@ BODY = """    <div class="midnight-wrap">
           </div>
         </div>
 
+        <!-- 戰技重抽鍛造台（設計文件§3.5，Task 13新增）：跟#midnight-merchant-modal／
+             #midnight-blessing-modal完全分開的獨立功能（跟商人的鍛冶合稀有度強化面板也是
+             不同功能，見上方#midnight-merchant-forge-title），從角色面板武器格下方的
+             #btn-midnight-open-weapon-reroll開啟（見static/midnight.jsのopenWeaponRerollModal()）。
+             CSS沿用跟#midnight-merchant-modal/-box同款的全螢幕覆蓋＋置中卡片版型（見
+             style.css的#midnight-merchant-modal選擇器群組），不是Task 6教訓中那種
+             position:fixed小型浮動提示——這是完整modal覆蓋。
+             ①未選定武器/枠：#midnight-weapon-reroll-list只顯示可選清單。
+             ②已選定、尚未[使用]：list區改顯示固定卡片＋[使用]按鈕可見。
+             ③已[使用]：#midnight-weapon-reroll-compare顯示新舊戰技比較＋[套用]可見。
+             [保留並離開]在①②③都可見（唯一離開手段，二段式確認見
+             handleWeaponRerollKeepAndLeaveClick()），可見性/文字切換全部由
+             static/midnight.jsのrenderWeaponRerollModal()動態控制，這裡只放空容器。 -->
+        <div id="midnight-weapon-reroll-modal" hidden>
+          <div id="midnight-weapon-reroll-box">
+            <h3 data-i18n="midnight_weapon_reroll_title"></h3>
+            <div id="midnight-weapon-reroll-list"></div>
+            <div id="midnight-weapon-reroll-compare" hidden>
+              <p><span data-i18n="midnight_weapon_reroll_old_label"></span><span id="midnight-weapon-reroll-compare-old"></span></p>
+              <p><span data-i18n="midnight_weapon_reroll_new_label"></span><span id="midnight-weapon-reroll-compare-new"></span></p>
+            </div>
+            <div class="wb-row">
+              <button type="button" id="btn-midnight-weapon-reroll-use" data-i18n="midnight_weapon_reroll_use_button"></button>
+              <button type="button" id="btn-midnight-weapon-reroll-apply" data-i18n="midnight_weapon_reroll_apply_button"></button>
+              <button type="button" id="btn-midnight-weapon-reroll-keep-leave" data-i18n="midnight_weapon_reroll_keep_leave_button"></button>
+            </div>
+            <p id="midnight-weapon-reroll-leave-note" class="warning-text" hidden data-i18n="midnight_weapon_reroll_leave_note"></p>
+          </div>
+        </div>
+
         <!-- 祝福視窗（2026-09-06新增）：疊在地圖上方的視窗，跟#midnight-merchant-modal
              同款CSS（背景50%透明黑，見style.css），使用者確認可重複使用、不打X，見
              static/midnight.js的openBlessingModal()／handleBlessingUseClick()。 -->
@@ -767,6 +797,12 @@ BODY = """    <div class="midnight-wrap">
                 <div class="midnight-sheet-section">
                   <h4 data-i18n="midnight_character_sheet_weapons_label"></h4>
                   <div id="midnight-character-sheet-weapons" class="midnight-sheet-slots"></div>
+                  <!-- 戰技重抽鍛造台開啟按鈕（設計文件§3.5，Task 13新增）：跟上面稀有度強化
+                       用的#midnight-merchant-forge-title是不同功能，這裡改的是random戰技枠，
+                       見static/midnight.jsのrenderWeaponRerollOpenButton()／
+                       openWeaponRerollModal()。button文字含剩餘次數，0點時disabled
+                       （見renderWeaponRerollOpenButton()）。 -->
+                  <button type="button" id="btn-midnight-open-weapon-reroll" data-i18n="midnight_weapon_reroll_open_button"></button>
                 </div>
                 <div class="midnight-sheet-section">
                   <h4 data-i18n="midnight_character_sheet_consumables_label"></h4>
