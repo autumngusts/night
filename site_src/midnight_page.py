@@ -195,12 +195,15 @@ BODY = """    <div class="midnight-wrap">
         <!-- 隨機事件籌碼其餘8個分支通用banner（Task 20新增，設計文件§8.1-8.2）：聖甲蟲
              繼續沿用上面的#midnight-scarab-banner（renderScarabBranch()原樣呼叫既有
              renderScarabOverlay()）；Task 20實作女神像／埋もれ宝／隕石3個分支，Task 21
-             再補上歩く霊廟／夜の勢力／虫の大量発生／発狂地帯4個分支——這4個分支全部
-             沿用同一組#midnight-random-event-action／choice-a／choice-b按鈕（發狂地帯的
-             「離開」／「探索塔」、虫の大量発生的「HP」／「FP」二選一都是動態覆寫這兩顆
-             按鈕的文字，見renderRandomEventOverlay()裡每次重繪都先重置回預設文字的說明），
-             不需要新增DOM元素。只剩「襲撃」留給Task 22沿用同一組DOM。見
-             static/midnight.js的renderRandomEventOverlay()。 -->
+             再補上歩く霊廟／夜の勢力／虫の大量発生／発狂地帯4個分支，Task 22補上「襲撃」
+             （6種命定敵：忌み鬼／兆し／調律の魔物／三つ首の獣／霧の裂け目／安寧者たち）——
+             這些分支大多沿用同一組#midnight-random-event-action／choice-a／choice-b按鈕
+             （發狂地帯的「離開」／「探索塔」、虫の大量発生的「HP」／「FP」二選一都是動態
+             覆寫這兩顆按鈕的文字，見renderRandomEventOverlay()裡每次重繪都先重置回預設文字
+             的說明）。只有「襲撃」→「調律の魔物」的3選1（取引に応じる／立ち去る／
+             戦いを仕掛ける）需要額外3顆專用按鈕（見下方midnight-tuning-demon-choice-*，
+             Task 22新增），因為3個選項需要同時並列顯示，不是像其餘分支那樣的2選1。見
+             static/midnight.js的renderRandomEventOverlay()／renderTuningDemonBranch()。 -->
         <div id="midnight-random-event-banner" hidden>
           <p id="midnight-random-event-text"></p>
           <button type="button" id="midnight-random-event-action" data-i18n="midnight_random_event_action_button"></button>
@@ -215,6 +218,27 @@ BODY = """    <div class="midnight-wrap">
             type="button"
             id="midnight-random-event-goddess-break-action"
             data-i18n="midnight_random_event_goddess_break_button"
+            hidden
+          ></button>
+          <!-- 「襲撃」→「調律の魔物」分支專用（Task 22新增，event_rulebook.js:862-985）：
+               取引に応じる／立ち去る／戦いを仕掛ける3選1，見static/midnight.jsの
+               renderTuningDemonBranch()。 -->
+          <button
+            type="button"
+            id="midnight-tuning-demon-choice-deal"
+            data-i18n="midnight_tuning_demon_choice_deal_button"
+            hidden
+          ></button>
+          <button
+            type="button"
+            id="midnight-tuning-demon-choice-leave"
+            data-i18n="midnight_tuning_demon_choice_leave_button"
+            hidden
+          ></button>
+          <button
+            type="button"
+            id="midnight-tuning-demon-choice-fight"
+            data-i18n="midnight_tuning_demon_choice_fight_button"
             hidden
           ></button>
           <p id="midnight-random-event-result"></p>

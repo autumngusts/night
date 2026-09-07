@@ -751,6 +751,11 @@
   var randomEventRollAttempted = {}; // pointId -> true（本地節流：隨機事件決定表只送一次transaction）
   var meteorEnemyAssignAttempted = {}; // pointId -> true（本地節流：隕石王戰敵人指派只送一次transaction）
   var meteorRewardAttempted = {}; // pointId -> true（本地節流：隕石撃破獎勵只送一次transaction）
+  // Task 22新增：「襲撃」分支（忌み鬼／兆し／調律の魔物戦いを仕掛ける分支）敵人指派/撃破
+  // 獎勵的本地節流旗標，同meteorEnemyAssignAttempted/meteorRewardAttempted既有寫法。
+  var ambushEnemyAssignAttempted = {}; // pointId -> true
+  var ambushRewardAttempted = {}; // pointId -> true
+  var tuningDemonBargainOpened = {}; // pointId -> true（本地節流：調律の魔物「取引に応じる」的取引揭曉modal，每台裝置只主動開一次，避免render tick每偵重複呼叫openBargainRevealModal()把使用者剛關閉的modal又打開）
   // Task 18新增：2日目「⑧恐るべき強敵」點位決定的本地節流旗標（跟day3TriggerAttempted等
   // 同一套pattern）——每台裝置只嘗試送一次meta/terrifyingStrongEnemyPointId transaction，
   // 見maybeAssignTerrifyingStrongEnemyPoint()說明（該函式掛在updateAutoDayAdvance()裡，
@@ -2947,9 +2952,21 @@
       return next < 0 ? 0 : next;
     });
     var maxHp = mySelfHpMaxFallback();
+    var beforeHp = null;
     GameStorage.rtTransaction(gameId, "cloud", "demoStat/" + myTokenId, function (cur) {
-      var next = (cur === null ? maxHp : cur) + FLASK_HEAL_AMOUNT;
+      beforeHp = cur === null ? maxHp : cur;
+      var next = beforeHp + FLASK_HEAL_AMOUNT;
       return next > maxHp ? maxHp : next;
+    }).then(function (committedHp) {
+      // 兆し的恩寵「融合する命」（event_rulebook.js:857-858，c._fusedLife旗標見
+      // maybeGrantAmbushReward()）：聖杯瓶回HP時FP同量回復。healedAmount取「這次實際回復
+      // 量」（已扣掉HP已滿溢出的部分），不是固定FLASK_HEAL_AMOUNT——單純加成、無條件分支，
+      // 風險低，因此結構化套用（不同於其餘「直到結束階段」類效果，這裡不需要phase reset）。
+      if (committedHp === null || beforeHp === null) return;
+      var c = characters[myTokenId];
+      if (!c || !c._fusedLife) return;
+      var healedAmount = committedHp - beforeHp;
+      if (healedAmount > 0) fp.current = Math.min(fp.max, fp.current + healedAmount);
     });
   }
 
@@ -4962,6 +4979,9 @@
       // 繼續下一輪，或（達到requiredRounds）發放最終獎勵。跟maybeGrantMeteorReward同一套
       // 「每偵掃描一次」節奏，掛在同一個呼叫點（不是另外發明第二套HP=0偵測機制）。
       maybeAdvanceNightForceRound(randomEvent);
+      // Task 22新增：「襲撃」分支（忌み鬼／兆し／調律の魔物戦いを仕掛ける分支）的撃破獎勵，
+      // 同maybeGrantMeteorReward()同一套「每偵掃描一次」節奏。
+      maybeGrantAmbushReward(randomEvent);
     }
 
     recomputeActiveEncounter();
@@ -6090,13 +6110,267 @@
     });
   }
 
-  // Task 22尚未定義的「襲撃」render function：先用var宣告佔位（值為undefined）。JS對「引用
-  // 未宣告的識別字」跟「引用值為undefined的已宣告識別字」是兩回事——前者在下面RENDERERS
-  // 物件字面量建構當下就會丟出ReferenceError（等於每次呼叫renderRandomEventOverlay()都會
-  // 整個崩潰，連スカラベ／女神像等已完成的分支也會被拖累），後者只是查表後renderer為falsy、
-  // 直接略過。Task 22加上真正的function宣告（function宣告會被hoist）時，可以直接刪除
-  // 這行var，不影響檔案其餘部分。
-  var renderAmbushBranch;
+  // ============================================================================
+  // Task 22（設計文件§8.1-8.2）：「襲撃」分支——6種命定敵（1D，event_rulebook.js:1284-1289
+  // 「襲撃イベント決定表」，各自劇本限定）：忌み鬼／兆し／調律の魔物／三つ首の獣／
+  // 霧の裂け目／安寧者たち。決定表roll已由rollAmbushTable()完成（midnight_random_events.js，
+  // Task19/20已核對過event_rulebook.js逐字轉錄），這裡負責render＋分支dispatch。
+  //
+  // 範圍取捨（見task-22-report.md完整說明）：
+  //   - 忌み鬼／兆し（event_rulebook.js:791-861）：乾淨的單體王戰，比照renderMeteorBranch()
+  //     直接指派敵人，Lv.6（跳過+L補正，同METEOR_ENEMY_LEVEL等既有慣例），撃破ルーン各6。
+  //   - 調律の魔物（event_rulebook.js:862-985）：完整3選1（取引に応じる／立ち去る／
+  //     戦いを仕掛ける），重用Task 15的openBargainRevealModal()/BARGAIN_DEAL_EFFECTS/
+  //     bargainDealMatchKey()，「戦いを仕掛ける」分支則重用renderAmbushBossBranch()同一套
+  //     敵人指派pipeline（trig.ambushEnemyNameJa本來就是"調律の魔物"）。
+  //   - 三つ首の獣／霧の裂け目／安寧者たち（event_rulebook.js:986-1280，已於task規劃階段
+  //     完整讀過原文）：規則書原文是多階段分歧敘事＋擲骰檢定，沒有單一「指派1隻敵人、
+  //     打倒即結束」的乾淨結構（三つ首の獣是3階段逃走/追撃分歧、完全沒有單一敵人物件；
+  //     霧の裂け目是3個判定關卡後接協力偷襲、沒有真正的HP戰鬥；安寧者たち是傳送隊伍並
+  //     為「之後」的王戰加成，本身不是戰鬥）。硬套用既有王戰pipeline或另外建立第三套
+  //     state machine都會發明規則書未明確結構化的機制（CLAUDE.md §11/§36）。比照
+  //     docs/midnight_field_chip_rules.md §7.3「規則書其餘分支未接入」的既有先例、CLAUDE.md
+  //     §19「■不得自行發明數值」精神：只顯示banner告知分支名稱，交由GM/玩家依實體規則書
+  //     桌上處理，並提供「確認」按鈕讓事件視為已處理（沿用trig單一欄位記錄狀態的既有寫法，
+  //     同meteorChoice/madnessStage，不另外發明第三套選擇/dismiss機制）。
+  // ============================================================================
+  var AMBUSH_NAME_LABELS = {
+    "忌み鬼": { ja: "忌み鬼", zh: "忌鬼" },
+    "兆し": { ja: "兆し", zh: "兆頭" },
+    "調律の魔物": { ja: "調律の魔物", zh: "調律的魔物" },
+    "三つ首の獣": { ja: "三つ首の獣", zh: "三首之獸" },
+    "霧の裂け目": { ja: "霧の裂け目", zh: "霧之裂縫" },
+    "安寧者たち": { ja: "安寧者たち", zh: "安寧者們" },
+  };
+  var AMBUSH_MANUAL_BRANCHES = { "三つ首の獣": true, "霧の裂け目": true, "安寧者たち": true };
+  // 忌み鬼(event_rulebook.js:802)／兆し(:842)／調律の魔物「戦いを仕掛ける」分支(:976)皆為
+  // 「Lv.6+L補正」，跳過+L補正（既有慣例，同METEOR_ENEMY_LEVEL不套用L補正的理由）。
+  var AMBUSH_BOSS_LEVEL = 6;
+  // 各自「撃破ルーン」數值：event_rulebook.js:801（忌み鬼）／:841（兆し）／:975（調律の魔物）。
+  var AMBUSH_BOSS_RUNE = { "忌み鬼": 6, "兆し": 6, "調律の魔物": 3 };
+
+  function renderAmbushBranch(pt, trig) {
+    if (!trig.ambushEnemyNameJa) {
+      var scenarioId = resolveNightBossScenarioId();
+      var Scenarios = window.PriTestScenarios;
+      var scenarioNumber = scenarioId && Scenarios ? Scenarios.numberForId(scenarioId) : null;
+      var rolled = window.PriTestMidnightRandomEvents.rollAmbushTable(scenarioNumber);
+      if (!rolled) return;
+      GameStorage.rtTransaction(gameId, "cloud", "fieldTrigger/" + pt.id + "/ambushEnemyNameJa", function (cur) {
+        return cur === null ? rolled.nameJa : cur;
+      });
+      return;
+    }
+    el("midnight-random-event-choice-a").hidden = true;
+    el("midnight-random-event-choice-b").hidden = true;
+    if (trig.ambushEnemyNameJa === "調律の魔物") {
+      renderTuningDemonBranch(pt, trig);
+      return;
+    }
+    if (AMBUSH_MANUAL_BRANCHES[trig.ambushEnemyNameJa]) {
+      renderAmbushManualBranch(pt, trig);
+      return;
+    }
+    renderAmbushBossBranch(pt, trig);
+  }
+
+  // 忌み鬼／兆し：乾淨單體王戰，比照renderMeteorBranch()直接指派敵人、不走§1.3投票/分歧。
+  // 也被renderTuningDemonBranch()的「戦いを仕掛ける」分支重用（trig.ambushEnemyNameJa此時
+  // 已經是"調律の魔物"，AMBUSH_BOSS_LEVEL/AMBUSH_BOSS_RUNE都能查到正確值）。
+  function renderAmbushBossBranch(pt, trig) {
+    el("midnight-random-event-action").hidden = true;
+    var Fields = window.PriTestFields;
+    var label = AMBUSH_NAME_LABELS[trig.ambushEnemyNameJa] || { ja: trig.ambushEnemyNameJa, zh: trig.ambushEnemyNameJa };
+    el("midnight-random-event-text").textContent = window.I18N.t("midnight_random_event_ambush_boss_desc", {
+      name: Fields.localizedText(label),
+    });
+    if (trig.enemyFamilyId || ambushEnemyAssignAttempted[pt.id]) return;
+    ambushEnemyAssignAttempted[pt.id] = true;
+    var GmFlow = window.PriTestNightGmFlow;
+    var match = GmFlow && GmFlow.resolveCombatEnemyMatch(trig.ambushEnemyNameJa);
+    if (!match) return; // 找不到就整體放棄，不硬湊（同rollAndAssignStrongEnemy()等既有精神）
+    // 同rollAndAssignNightForceEnemy()既有寫法：對整個fieldTrigger物件做單一atomic
+    // transaction，避免enemyFamilyId/enemyId/level分開多次transaction可能交錯寫入的不一致組合。
+    GameStorage.rtTransaction(gameId, "cloud", "fieldTrigger/" + pt.id, function (cur) {
+      if (cur && cur.enemyFamilyId) return cur;
+      var out = {};
+      for (var k in cur) out[k] = cur[k];
+      out.enemyFamilyId = match.familyId;
+      out.enemyId = match.enemy.id;
+      out.level = AMBUSH_BOSS_LEVEL;
+      return out;
+    }).then(function () {
+      GameStorage.rtTransaction(gameId, "cloud", "fieldEnemyHp/" + pt.id, function (cur) {
+        return cur === null
+          ? enemyRealHpMax({ enemyFamilyId: match.familyId, enemyId: match.enemy.id, level: AMBUSH_BOSS_LEVEL })
+          : cur;
+      });
+    });
+  }
+
+  // 撃破偵測與獎勵：跟maybeGrantMeteorReward()同一套first-writer-wins transaction，掛在
+  // 同一個「每偵掃描一次」呼叫點（updateNearbyChipPoint()）。涵蓋忌み鬼／兆し／調律の魔物
+  // 「戦いを仕掛ける」這3種會真正走上王戰pipeline的結局（三つ首の獣等3個manual分支不會
+  // 指派enemyFamilyId，本函式自然不會對它們動作）。
+  function maybeGrantAmbushReward(pt) {
+    if (!pt || ambushRewardAttempted[pt.id]) return;
+    var trig = fieldTriggers[pt.id];
+    if (!trig || trig.branchNameJa !== "襲撃" || !trig.enemyFamilyId) return;
+    var hp = fieldEnemyHp[pt.id];
+    if (hp === undefined || hp > 0) return;
+    ambushRewardAttempted[pt.id] = true;
+    var runeValue = AMBUSH_BOSS_RUNE[trig.ambushEnemyNameJa] || 0;
+    GameStorage.rtTransaction(gameId, "cloud", "fieldTrigger/" + pt.id + "/rewardGrantedBy", function (cur) {
+      return cur === null ? myTokenId : cur;
+    }).then(function (committed) {
+      if (committed !== myTokenId) return;
+      Object.keys(trig.participants || {}).forEach(function (slot) {
+        var p = players[slot];
+        if (!p) return;
+        if (runeValue) pushPendingReward(p.tokenId, { kind: "rune", value: runeValue });
+        if (trig.ambushEnemyNameJa === "調律の魔物") {
+          // event_rulebook.js:981-982「潜在する力：★★」＝2個★，跟fields_data_4.js:2216-2219
+          // 已結構化的同一份固定卡牌獎勵一致（武器附加「発狂／-5」的文字性質同weaponStar的
+          // attributeTag，grantLootRewardEntryToCharacter()本來就不吃potentialPower的
+          // attributeTag，同既有簡化，不重新發明）。
+          pushPendingReward(p.tokenId, { kind: "potentialPower", value: 2 });
+        }
+        var c = characters[p.tokenId];
+        if (!c) return;
+        if (trig.ambushEnemyNameJa === "忌み鬼") {
+          // event_rulebook.js:826-827「祝福王の恩寵」需要追蹤「本劇本內用於祝福休息的祝福數a」，
+          // 已grep確認codebase沒有這個計數器，因此不自動套用「+(a×2)」，只留規則書原文交由
+          // GM/玩家自行判斷（CLAUDE.md §19）。「夜に刻まれし癒えぬ傷」是PC死亡分支才會觸發的
+          // 另一種結局，本函式只在hp<=0（真正撃破）時執行，不會誤觸發它。
+          c._lastTileRewardNote = { text: window.I18N.t("midnight_random_event_ambush_imi_oni_grace_note"), at: Date.now() };
+          GameStorage.rtSet(gameId, "cloud", "character/" + p.tokenId, c);
+        } else if (trig.ambushEnemyNameJa === "兆し") {
+          // event_rulebook.js:857-858「融合する命」：聖杯瓶回HP時FP同量回復——比其餘恩寵單純
+          // （純加成、無條件分支），且commitFlaskHeal()的改動風險低，因此結構化為_fusedLife
+          // 旗標（見commitFlaskHeal()新增的判斷）。
+          c._fusedLife = true;
+          c._lastTileRewardNote = { text: window.I18N.t("midnight_random_event_ambush_kizashi_grace_note"), at: Date.now() };
+          GameStorage.rtSet(gameId, "cloud", "character/" + p.tokenId, c);
+        }
+      });
+    });
+  }
+
+  // 三つ首の獣／霧の裂け目／安寧者たち：規則書為多階段分歧敘事，不建立第三套state machine
+  // （見上方大段設計取捨註解），只顯示分支名稱＋交由GM/玩家依實體規則書桌上處理，並提供
+  // 一個「確認」按鈕讓事件視為已處理（沿用trig單一欄位記錄狀態的既有寫法，同meteorChoice）。
+  function renderAmbushManualBranch(pt, trig) {
+    var Fields = window.PriTestFields;
+    var label = AMBUSH_NAME_LABELS[trig.ambushEnemyNameJa] || { ja: trig.ambushEnemyNameJa, zh: trig.ambushEnemyNameJa };
+    el("midnight-random-event-text").textContent = window.I18N.t("midnight_random_event_ambush_manual_desc", {
+      name: Fields.localizedText(label),
+    });
+    var acknowledged = !!trig.ambushManualAcknowledged;
+    el("midnight-random-event-action").hidden = acknowledged;
+    el("midnight-random-event-action").textContent = window.I18N.t("midnight_random_event_ambush_manual_ack_button");
+    el("midnight-random-event-action").onclick = function () {
+      GameStorage.rtSet(gameId, "cloud", "fieldTrigger/" + pt.id + "/ambushManualAcknowledged", true);
+    };
+    el("midnight-random-event-result").textContent = acknowledged
+      ? window.I18N.t("midnight_random_event_ambush_manual_done_note")
+      : "";
+  }
+
+  // 調律の魔物：完整3選1（取引に応じる／立ち去る／戦いを仕掛ける，event_rulebook.js:862-985）。
+  // 「取引抽選表」6個deal跟Task 15為fields_data_4.js「秤の商人」固定卡牌結構化的是同一份
+  // rulebook內容（同一個「秤の商人」，只是這裡是隨機事件觸發、那裡是固定卡牌觸發），
+  // 因此直接複製該處已核對過的deals陣列（fields_data_4.js:2151-2197）供openBargainRevealModal()
+  // /BARGAIN_DEAL_EFFECTS/bargainDealMatchKey()重用，不重新從event_rulebook.js原文轉錄
+  // 第二次（避免轉錄drift）。注意：event_rulebook.js自己這份「襲撃」版本原文（:891-945）
+  // 在deal 3的悪い効果與deal 5的悪い効果上，文字跟fields_data_4.js已結構化版本有極小出入
+  // （deal3：「現在HP」有無；deal5：「⚀」vs「□」），已於task-22-report.md記錄，這裡依
+  // brief指示採用fields_data_4.js已核對版本，不視為需要修正的錯誤。
+  var TUNING_DEMON_DEALS = [
+    {
+      label: { ja: "1｜〇〇に優れた体になりたい", zh: "1｜想擁有擅長〇〇的身體" },
+      good: {
+        ja: "判定値：運試し／フィジカル／メンタルをランダムに1種選び「+2」する。",
+        zh: "判定值：運氣／體能／精神隨機選1種「+2」。",
+      },
+      bad: { ja: "「+5」以上の威力補正をランダムに1種選び「-5」する。", zh: "隨機選擇「+5」以上的威力補正1種「-5」。" },
+    },
+    {
+      label: { ja: "2｜後に大成したい", zh: "2｜想在日後有所成就" },
+      good: {
+        ja: "夜の王との戦闘で2ターン目のアクションフェイズ開始時を迎えたとき、シナリオ終了まで自身を「最大HP：+□□□」する。",
+        zh: "與夜之王戰鬥時，迎來第2回合行動階段開始時，直到劇本結束為止，自身「最大HP：+□□□」。",
+      },
+      bad: { ja: "自身を「最大FP：-□」と「最大加護：-□」する。", zh: "自身「最大FP：-□」與「最大加護：-□」。" },
+    },
+    {
+      label: { ja: "3｜全力で戦いたい", zh: "3｜想全力戰鬥" },
+      good: { ja: "自身を「最大HP：+□」し、「任意の威力補正：+5」する。", zh: "自身「最大HP：+□」，並「任選威力補正：+5」。" },
+      bad: {
+        ja: "夜の王のすべてのHPラインを「最大HPと現在HP：+□」する（複数のPCでこの効果が発揮された場合、累積する）。",
+        zh: "夜之王的所有HP行「最大HP與現在HP：+□」（多名PC發揮此效果時，累積）。",
+      },
+    },
+    {
+      label: { ja: "4｜聖杯瓶が欲しい", zh: "4｜想要聖杯瓶" },
+      good: { ja: "自身の聖杯瓶を「最大使用回数：+〇」する。", zh: "自身聖杯瓶「最大使用次數：+〇」。" },
+      bad: { ja: "自身を「最大HP：-□（最低値1）」する。", zh: "自身「最大HP：-□（最低值1）」。" },
+    },
+    {
+      label: { ja: "5｜状態異常に強くなりたい", zh: "5｜想更能抵抗異常狀態" },
+      good: {
+        ja: "自身がエネミーから被るすべての「状態異常蓄積最大値」を「+1」する（状態異常になりづらくなる）。",
+        zh: "自身承受敵人所有「異常狀態最大蓄積值」「+1」（更不易陷入異常狀態）。",
+      },
+      bad: {
+        ja: "自身がアクションフェイズかエクストラフェイズの開始時に獲得したすべてのスタミナダイスの出目を自動的に「□」に変更する（隊列決定前）。",
+        zh: "自身於行動階段或額外階段開始時獲得的所有體力骰出目，自動變更為「□」（隊列決定前）。",
+      },
+    },
+    {
+      label: { ja: "6｜死を遠ざけたい", zh: "6｜想遠離死亡" },
+      good: { ja: "自身はディフェンスフェイズ開始時にスタミナダイス1個を獲得。", zh: "自身於防禦階段開始時獲得體力骰1個。" },
+      bad: { ja: "自身を「最大HP：-□（最低値1）」する。", zh: "自身「最大HP：-□（最低值1）」。" },
+    },
+  ];
+
+  function renderTuningDemonBranch(pt, trig) {
+    el("midnight-random-event-action").hidden = true;
+    el("midnight-random-event-text").textContent = window.I18N.t("midnight_random_event_tuning_demon_desc");
+    el("midnight-random-event-result").textContent = "";
+    if (!trig.tuningDemonChoice) {
+      ["deal", "leave", "fight"].forEach(function (choiceKey) {
+        var btn = el("midnight-tuning-demon-choice-" + choiceKey);
+        btn.hidden = false;
+        btn.onclick = function () {
+          GameStorage.rtSet(gameId, "cloud", "fieldTrigger/" + pt.id + "/tuningDemonChoice", choiceKey);
+        };
+      });
+      return;
+    }
+    ["deal", "leave", "fight"].forEach(function (choiceKey) {
+      el("midnight-tuning-demon-choice-" + choiceKey).hidden = true;
+    });
+    if (trig.tuningDemonChoice === "deal") {
+      // 取引是玩家個人選擇（同maybeGrantFieldTileReward()既有bargainReveal處理精神：每個
+      // participant各自在自己的裝置上開自己的取引視窗，不走搶鎖流程）。用本地節流旗標
+      // 只主動開啟一次，避免render tick每偵重複呼叫把使用者剛關閉的modal又打開。
+      if (!tuningDemonBargainOpened[pt.id]) {
+        tuningDemonBargainOpened[pt.id] = true;
+        openBargainRevealModal(pt, trig, { deals: TUNING_DEMON_DEALS });
+      }
+      return;
+    }
+    if (trig.tuningDemonChoice === "leave") {
+      // event_rulebook.js:960-961：僅「発狂」最大蓄積值-2的note，跟fields_data_4.js:2201-2212
+      // 既有的note-kind precedent一致，不可自動套用，交由GM/玩家自行記錄（不新增
+      // _madnessMaxDebuff之類沒有其他地方會讀取的欄位）。
+      el("midnight-random-event-result").textContent = window.I18N.t("midnight_random_event_tuning_demon_leave_note");
+      return;
+    }
+    // 戦いを仕掛ける：重用renderAmbushBossBranch()同一套敵人指派pipeline
+    // （trig.ambushEnemyNameJa此時已是"調律の魔物"）。
+    renderAmbushBossBranch(pt, trig);
+  }
 
   function renderRandomEventOverlay() {
     var pt = nearbyRandomEvent;
@@ -6121,6 +6395,11 @@
     el("midnight-scarab-banner").hidden = true;
     el("midnight-random-event-banner").hidden = true;
     el("midnight-random-event-goddess-break-action").hidden = true;
+    // Task 22新增：調律の魔物専用的3顆選項按鈕，跟goddess-break-action同一種「其餘分支完全
+    // 不會碰它，若不在這裡統一重置就會殘留顯示」的理由，一併每次重繪先收起。
+    el("midnight-tuning-demon-choice-deal").hidden = true;
+    el("midnight-tuning-demon-choice-leave").hidden = true;
+    el("midnight-tuning-demon-choice-fight").hidden = true;
     if (!pt || !trig || !trig.branchNameJa) return;
     var RENDERERS = {
       "スカラベ": renderScarabBranch,
