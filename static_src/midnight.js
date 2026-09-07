@@ -4327,9 +4327,10 @@
   // fieldProgress。
   function claimLateFieldTriggerRewards(pointId) {
     GameStorage.rtTransaction(gameId, "cloud", "fieldTrigger/" + pointId + "/claimedBy/" + myTokenId, function (cur) {
-      return cur ? cur : true;
+      if (cur) return undefined; // 已經領過：中止transaction，不重複授予（同claimLatePerPlayerRewards()寫法）
+      return true;
     }).then(function (committed) {
-      if (committed !== true) return;
+      if (committed !== true) return; // 這次沒有真正搶到(committed===null，代表已經領過)
       var trig = fieldTriggers[pointId] || {};
       var ledger = trig.perPlayerRewards || {};
       var c = characters[myTokenId];
