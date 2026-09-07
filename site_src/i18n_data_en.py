@@ -1362,6 +1362,8 @@ STRINGS_EN: dict[str, str] = {
     "midnight_field_invite_text": "{inviter} invites you to join entering \"{name}\"",
     "midnight_field_invite_timer_label": "{seconds}s left, the invite closes automatically after that",
     "midnight_field_invite_accept_button": "Join",
+    "midnight_field_invite_joined_label": "Joined:",
+    "midnight_field_force_enter_button": "Enter Now",
     "midnight_field_vote_timer_label": "{seconds}s left, the system will decide if time runs out",
     "midnight_field_vote_progress_label": "{voted}/{total} voted",
     "midnight_field_encounter_cleared_note": "The enemy has been driven off.",

@@ -4209,6 +4209,15 @@
     GameStorage.rtSet(gameId, "cloud", "fieldTrigger/" + pt.id + "/participants/" + mySlot, true);
   }
 
+  // 2026-09-07優化：已加入者可按「立即進入」跳過剩餘邀請時限。直接把inviteDeadline改成現在，
+  // 不新增狀態機分支——maybeAdvanceFieldInvite()既有的Date.now()>=inviteDeadline判斷會在下一輪
+  // updateNearbyFieldPoint()自然觸發。
+  function handleForceEnterFieldClick(pt) {
+    var trig = fieldTriggers[pt.id];
+    if (!trig || trig.status !== "inviting" || !trig.participants || !trig.participants[mySlot]) return;
+    GameStorage.rtSet(gameId, "cloud", "fieldTrigger/" + pt.id + "/inviteDeadline", Date.now());
+  }
+
   // 邀請時限一到，任何看得到這個點的裝置都可以把狀態從inviting轉成active（不論當時
   // 究竟有誰加入了——「第一次邀請結束後才正式進入」是使用者明確規格，不會因為沒人回應
   // 而卡住不動）。分歧變體（branchIndex）只在這張卡第一次被進入時決定性挑定，之後
@@ -6733,6 +6742,11 @@
     var enterPrompt = el("midnight-field-enter-prompt");
     var invitePrompt = el("midnight-field-invite-prompt");
     var banner = el("midnight-field-banner");
+    // 已加入者的「已加入名單／立即進入」框（2026-09-07新增）：只有邀請中且自己已是
+    // participants時才顯示（見下方trig.status==="inviting" && amParticipant分支），
+    // 這裡先統一預設收合，避免切換到其他狀態/離開範圍時殘留上一次的內容。
+    var inviteStatusBox = el("midnight-field-invite-status");
+    inviteStatusBox.hidden = true;
     if (!pt) {
       enterPrompt.hidden = true;
       invitePrompt.hidden = true;
@@ -6789,6 +6803,17 @@
           Math.min(100, ((Date.now() - trig.startedAt) / (trig.inviteDeadline - trig.startedAt)) * 100)
         );
         el("midnight-field-loading-fill").style.width = invitePct + "%";
+        // 已加入名單＋「立即進入」（2026-09-07新增，design§1.2）：只有自己已加入時才會
+        // 走到這個分支，直接列出目前participants對應的玩家名稱，並讓自己可以按「立即進入」
+        // 提前把inviteDeadline改成現在（見handleForceEnterFieldClick），不需要等剩餘玩家。
+        var joinedNames = Object.keys(trig.participants || {}).map(function (slot) {
+          return players[slot] && players[slot].name;
+        }).filter(Boolean);
+        inviteStatusBox.hidden = false;
+        inviteStatusBox.querySelector("[data-role=names]").textContent = joinedNames.join("、");
+        var forceEnterBtn = inviteStatusBox.querySelector("[data-role=force-enter]");
+        forceEnterBtn.disabled = !mySlot || isPaused();
+        forceEnterBtn.onclick = function () { handleForceEnterFieldClick(pt); };
         return;
       }
       banner.hidden = true;

@@ -1362,6 +1362,8 @@ STRINGS_JA: dict[str, str] = {
     "midnight_field_invite_text": "{inviter}が「{name}」への同行を招待しています",
     "midnight_field_invite_timer_label": "残り{seconds}秒、超過すると招待は自動終了します",
     "midnight_field_invite_accept_button": "参加する",
+    "midnight_field_invite_joined_label": "参加済み：",
+    "midnight_field_force_enter_button": "今すぐ進入",
     "midnight_field_vote_timer_label": "残り{seconds}秒、超過すると系統が決定します",
     "midnight_field_vote_progress_label": "選択済み {voted}/{total} 人",
     "midnight_field_encounter_cleared_note": "敵を撃退した。",

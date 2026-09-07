@@ -1362,6 +1362,8 @@ STRINGS_ZH: dict[str, str] = {
     "midnight_field_invite_text": "{inviter} 邀請你一起進入「{name}」",
     "midnight_field_invite_timer_label": "剩餘{seconds}秒，逾時邀請將自動結束",
     "midnight_field_invite_accept_button": "加入",
+    "midnight_field_invite_joined_label": "已加入：",
+    "midnight_field_force_enter_button": "立即進入",
     "midnight_field_vote_timer_label": "剩餘{seconds}秒，逾時將由系統決定",
     "midnight_field_vote_progress_label": "已選擇 {voted}/{total} 人",
     "midnight_field_encounter_cleared_note": "敵人已被擊退。",

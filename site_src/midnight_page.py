@@ -125,6 +125,15 @@ BODY = """    <div class="midnight-wrap">
             <span id="midnight-field-loading-fill" class="midnight-loading-fill"></span>
           </div>
           <p id="midnight-field-narrative-text"></p>
+          <!-- 已加入名單／「立即進入」（2026-09-07新增，design§1.2）：邀請時限尚未結束前，
+               自己若已加入，顯示目前已加入的玩家名字＋讓自己可以提前跳過剩餘時限直接
+               進入，不需要等其他人。見static/midnight.jsのrenderFieldOverlay()／
+               handleForceEnterFieldClick()。 -->
+          <div id="midnight-field-invite-status" hidden>
+            <p data-i18n="midnight_field_invite_joined_label"></p>
+            <p><span data-role="names"></span></p>
+            <button type="button" data-role="force-enter" data-i18n="midnight_field_force_enter_button"></button>
+          </div>
           <div id="midnight-field-vote-panel" hidden>
             <p id="midnight-field-vote-timer"></p>
             <div id="midnight-field-vote-options"></div>
