@@ -296,8 +296,10 @@
   // 重疊的機率。
   var FIELD_TRIGGER_RADIUS = 1.6; // 「靠近」的判定半徑，比TOWER/SPIRIT_BIRD略大——這類點的卡片圖示本身較大
   var FIELD_INVITE_RADIUS = FIELD_TRIGGER_RADIUS; // 「地圖一定小周圍附近」的邀請範圍，沿用同一個靠近半徑
-  var FIELD_INVITE_TIME_LIMIT_MS = 3000; // 使用者明確規格：邀請時限3秒
-  var FIELD_ENTER_WAIT_MS = 500; // 使用者明確規格：正式進入後一同等待0.5秒才開始敘述
+  var FIELD_INVITE_TIME_LIMIT_MS = 10000; // 2026-09-07優化：3秒→10秒
+  var FIELD_ENTER_WAIT_MS = 1000; // 2026-09-07優化：0.5秒→1秒（一般板塊：A/2~10/K/籌碼）
+  var FIELD_ENTER_WAIT_MS_CASTLE = 5000; // 2026-09-07優化新增：僅J（堡壘）適用
+  var FIELD_LATE_JOIN_WAIT_MS = 2000; // 2026-09-07優化新增：中途加入/後補領獎的等待時間
   var FIELD_VOTE_TIME_LIMIT_MS = 10000; // 使用者明確規格：分歧意見不一致的等待時間10秒，逾時交給系統決定
   // 2026-09-06數值真正接入：敵人HP不再用demo佔位固定值30，改成「實際hp格數x10」
   // （見enemyRealHpMax()，讀enemies_data_*.jsのfamily.base[level-1].hp既有格數字串）。
@@ -4244,10 +4246,12 @@
     if (!trig || trig.status === "inviting") return;
     if (!trig.participants || !trig.participants[mySlot]) return;
     if (fieldTypewriterStartedFor[pt.id]) return;
-    if (Date.now() < trig.enterAt + FIELD_ENTER_WAIT_MS) return;
+    var waitMs = pt.card === "J" ? FIELD_ENTER_WAIT_MS_CASTLE : FIELD_ENTER_WAIT_MS;
+    if (Date.now() < trig.enterAt + waitMs) return;
     fieldTypewriterStartedFor[pt.id] = true;
     var text = fieldNarrativeTextFor(pt, trig);
     window.PriTestNightGmFlow.typewriteInto(el("midnight-field-narrative-text"), text, {
+      intervalMs: 56, // 2026-09-07優化：預設28ms的2倍＝變慢0.5倍
       onDone: function () {
         fieldTypewriterDoneFor[pt.id] = true;
       },
