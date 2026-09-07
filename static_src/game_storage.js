@@ -184,7 +184,7 @@
     updateNightStatePaths(gameId, storageMode, updates);
   }
 
-  // midnight（即時制擴張版技術驗證片）専用：games/{gameId}/rtStateへの汎用アクセス。
+  // midnight（即時制擴張版）専用：games/{gameId}/rtStateへの汎用アクセス。
   // nightState/characters（デバウンス＋丸ごと.update()＋client時間戳LWW、night.js専用の
   // 形式）とは別のトップレベル子ノード（database.rules.jsonのgames/$gameId/rtStateを
   // 参照）。真即時制の要件（頻繁な座標更新、複數端末が同じ値を同時に書き換える共有カウンター）

@@ -1,5 +1,5 @@
 // ============================================================================
-// midnight（即時制擴張版・技術驗證片）多裝置同步回歸測試——Firebase Local Emulator版。
+// midnight（即時制擴張版）多裝置同步回歸測試——Firebase Local Emulator版。
 // ============================================================================
 // 用途：跟multi_device_sync_check.js驗證同樣的3個技術風險點，但完全連本機Firebase
 // emulator（Database＋Auth），不連真的Firebase專案、不需要對外網路、不會觸發App Check

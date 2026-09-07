@@ -1,4 +1,4 @@
-// midnight（即時制擴張版・技術驗證片）板塊多樓層探索流程 回歸測試——Firebase Local
+// midnight（即時制擴張版）板塊多樓層探索流程 回歸測試——Firebase Local
 // Emulator版，沿用emulator_sync_check.js／new_chips_check.js同一套「連本機emulator、
 // 不觸發App Check」手法。這裡驗證2026-09-05套用night.js既有板塊流程新增的功能：
 //   - fieldProgress（樓層探索進度）：固定樓層數、逐層推進、branchIndex在同一張卡的

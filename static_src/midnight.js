@@ -1,7 +1,7 @@
 // ============================================================================
-// midnight（即時制擴張版・技術驗證片）主邏輯。
+// midnight（即時制擴張版）主邏輯。
 // ============================================================================
-// 這是技術驗證片，範圍見docs之外另存的規劃紀錄（本次milestone明確排除：任何實際戰鬥
+// 範圍見docs之外另存的規劃紀錄（本次milestone明確排除：任何實際戰鬥
 // 數值/傷害公式/角色卡整合，只驗證「canvas+rAF連續渲染＋即時移動同步＋
 // 縮圈錨點計時＋共享數值用RTDB transaction()原子操作」這幾個技術風險點）。
 // 簡易測試改版：地圖改用固定佈局（見midnight_map.js），seed用來決定地圖上的點位置、
@@ -220,7 +220,7 @@
   // activeEncounter／fieldTrigger存在時才會發動，跟沒有板塊概念的demoStat/sharedTarget
   // 共用標靶無關）。數值來源：使用者聊天訊息明確給的機率／秒數，加上事前用
   // AskUserQuestion跟使用者確認過的三個設計決定：
-  //   ①「敵視」判定＝目前對這隻敵人造成最多累積傷害的參與者（這個技術驗證片沒有既有
+  //   ①「敵視」判定＝目前對這隻敵人造成最多累積傷害的參與者（目前沒有既有
   //     仇恨值/威脅值系統，使用者選擇不新增一套，直接沿用傷害量最簡單判定）。
   //   ②攻擊觸發＝敵人存活期間，每次攻擊結束後隨機等待2~4秒再發動下一次。
   //   ③「多名一起攻擊」鎖定人數＝2人或3人都有可能（使用者原話：「2人3人都有可能」）。
@@ -1740,8 +1740,7 @@
 
   // 攻擊/戰技實際要打的對象：如果目前站在一個已解決分歧、敵人仍存活的地圖點旁
   // （activeEncounter非null），打這個點的敵人（fieldEnemyHp/{pointId}）；否則沿用
-  // 原本技術驗證片的共用標靶（demoStat/sharedTarget）。兩者都用同一套transaction()
-  // 原子扣血機制，只是路徑不同。雜兵（2026-09-06死靈術前置工程新增，使用者明確規格）：
+  // 雜兵（2026-09-06死靈術前置工程新增，使用者明確規格）：
   // 這個地圖點有雜兵HP（fieldMobHp）且尚未歸零時，攻擊一律先扣雜兵HP，超過雜兵剩餘量的
   // 部分（溢出）才繼續扣到敵人本體——雜兵歸零後的必要偵測（觸發死靈術）放在
   // onFieldMobHpReceived()做，因為要讓「所有正在旁觀這個雜兵HP的client」都能各自判斷
@@ -1766,7 +1765,6 @@
         applyDamageToFieldEnemyHp(pointId, amount);
       }
       // 累積每個席位對這隻敵人造成的傷害，供敵人攻擊的「敵視」目標判定使用
-      // （見aggroHolderSlot()）——這個技術驗證片沒有既有仇恨值系統，使用者確認過
       // 直接用累積傷害最高者當作demo佔位規則即可。
       if (mySlot) {
         GameStorage.rtTransaction(gameId, "cloud", "fieldTrigger/" + pointId + "/damageBySlot/" + mySlot, function (cur) {
@@ -3119,8 +3117,7 @@
 
   // ============================================================================
   // 敵人攻擊（2026-09-05新增，見上方ENEMY_ATTACK_*常數區塊的設計決定與資料來源說明）。
-  // 只在activeEncounter存在時（同一板塊、同一籌碼事件、敵人仍存活）才會運作，跟原本
-  // 技術驗證片的demoStat/sharedTarget共用標靶無關。
+  // 只在activeEncounter存在時（同一板塊、同一籌碼事件、敵人仍存活）才會運作，
   //
   // 資料流：fieldTrigger/{pointId}下新增三個欄位——
   //   damageBySlot: { [slot]: 累積傷害 }        用於判定「敵視」目標
@@ -5226,7 +5223,7 @@
   // ---- 商人籌碼：純本地modal，比照tower puzzle的模式。武器/消耗品購買都直接複用
   // CharacterDrawer既有helper，操作角色屬性管理章節的characters[myTokenId]物件。
   // 消耗品固定清單沿用night.js的MERCHANT_CONSUMABLE_IDS同一批id（night.js本身太重、
-  // 依賴自己頁面的DOM/state，不適合整個載入這個技術驗證片，因此在這裡另存一份同樣的
+  // 依賴自己頁面的DOM/state，因此在這裡另存一份同樣的
   // id清單，只複製5個id字串，不重抄任何規則邏輯，見規劃紀錄）。----
   var MERCHANT_CONSUMABLE_IDS = [
     "item_warming_stone",
@@ -6899,7 +6896,7 @@
     labelEl.textContent = w ? window.PriTestWeapons.localizedText(w.name) + "（" + w.rarity + "）" : effectiveId;
   }
 
-  // 戰鬥面板：預設顯示技術驗證片原本的共用標靶（沒有遇到敵人時），一旦站在已解決分歧
+  // 戰鬥面板：預設不顯示（沒有遇到敵人時），一旦站在已解決分歧
   // 且敵人仍存活的地圖點旁（activeEncounter），改顯示該點專屬的敵人圖片/名稱/HP——
   // 攻擊/戰技按鈕本身不變，實際打誰由damageCombatTarget()判斷。
   function renderCombatPanel() {
@@ -6915,7 +6912,7 @@
     }
     setBar("midnight-enemy-hp-fill", "midnight-enemy-hp-value", hp, max);
     // 敵人HP掛在畫面中間下方，只在真正「碰到敵人進入戰鬥」（活躍的地圖點/強敵遭遇戰）
-    // 時顯示——使用者明確規格，跟技術驗證片原本的共用標靶demo（沒有遇敵概念）分開。
+    // 時顯示——使用者明確規格，。
     var hudBottomCenter = el("midnight-hud-bottom-center");
     if (hudBottomCenter) hudBottomCenter.hidden = !usingEncounter;
     var canAct = !!mySlot && !isPaused();
@@ -7515,7 +7512,7 @@
   }
 
   // ---- 縮圈扣血：本地每秒判定一次自己是否在圈外，若是則透過transaction()對自己的
-  // demoStat做原子扣血。這是「持續傷害縮圈」規則的技術驗證（非正式數值），也直接沿用
+  // demoStat做原子扣血。這是「持續傷害縮圈」規則的也直接沿用
   // 跟共享標靶攻擊按鈕相同的transaction()機制。day3（與地圖無關）不扣血。----
   function maybeApplyCircleDamage(now, phaseInfo) {
     if (!mySlot || !localPos) return; // 觀戰者沒有角色，不扣血
