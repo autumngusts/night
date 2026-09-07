@@ -1492,6 +1492,7 @@ STRINGS_JA: dict[str, str] = {
     "midnight_reward_title": "報酬リスト",
     "midnight_reward_close_button": "閉じる",
     "midnight_reward_toast_prefix": "獲得：",
+    "midnight_reward_shared_note": "（共有報酬・全員が獲得できるわけではありません）",
     "midnight_reward_label_rune": "ルーン+{value}",
     "midnight_reward_label_chalice_bonus": "聖杯瓶使用回数+{value}",
     "midnight_reward_kind_rune": "ルーン",

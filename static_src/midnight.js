@@ -994,6 +994,9 @@
 
   function onFieldTriggersReceived(value) {
     fieldTriggers = value || {};
+    // 共享獎勵池（Task 14b）：其他玩家領走／新的共享獎勵被推入時要跟著重繪，
+    // 跟onPendingRewardsReceived()呼叫renderRewardModal()是同一個既有pattern。
+    renderRewardModal();
   }
 
   function onFieldEnemyHpReceived(value) {
@@ -6061,6 +6064,26 @@
     });
   }
 
+  // 掃描所有fieldTriggers，收集尚未被任何人領取(沒有resolvedBy)的sharedRewards項目
+  // （設計文件§3.2：教會/隨機事件埋藏寶物等固定數量獎勵的共享池，先搶先贏；Task 14b新增，
+  // 補齊Task 1遺留的玩家端UI缺口）。掃描全部fieldTriggers、不只自己目前所在的地圖點——
+  // 共享池是跨全場景玩家可見的，任何人都可能先看到、先領到。
+  function collectUnresolvedSharedRewards() {
+    var out = [];
+    Object.keys(fieldTriggers).forEach(function (pointId) {
+      var trig = fieldTriggers[pointId];
+      var shared = trig && trig.sharedRewards;
+      if (!shared) return;
+      Object.keys(shared).forEach(function (rewardId) {
+        var entry = shared[rewardId];
+        if (entry && !entry.resolvedBy) {
+          out.push({ pointId: pointId, rewardId: rewardId, entry: entry });
+        }
+      });
+    });
+    return out;
+  }
+
   // 複製自night_floor_breakthrough.js:250(純函式，該檔案雖有載入本頁extra_scripts，但這個
   // 函式本身沒有export，見window.PriTestNightFloorBreakthrough的物件字面量，故在此複製一份)，
   // GM判斷類diceHandChoice獎勵用。演算法與night.js板塊踏破的12骰牌型判定完全相同（辨識同一份
@@ -6586,14 +6609,24 @@
     var unresolvedIds = Object.keys(list).filter(function (id) {
       return !list[id].resolved;
     });
-    var idsKey = unresolvedIds.slice().sort().join(",");
+    // 共享獎勵池（Task 14b）：跟個人pendingRewards是完全不同的兩套資料來源，
+    // 一併算進「有沒有東西要顯示/要不要自動彈出」的判斷，但selectedRewardId/detail面板
+    // 只服務個人清單——共享池項目點擊後直接claimSharedReward()，沒有detail這一層。
+    var sharedEntries = collectUnresolvedSharedRewards();
+    var sharedKey = sharedEntries
+      .map(function (s) {
+        return s.pointId + ":" + s.rewardId;
+      })
+      .sort()
+      .join(",");
+    var idsKey = unresolvedIds.slice().sort().join(",") + "|" + sharedKey;
     if (idsKey !== lastRewardIdsKey) {
       lastRewardIdsKey = idsKey;
-      rewardModalDismissed = false; // 有新的未解決獎勵時，重新自動彈出
+      rewardModalDismissed = false; // 有新的未解決獎勵(個人或共享)時，重新自動彈出
     }
     var modal = el("midnight-reward-modal");
     if (!modal) return;
-    if (!unresolvedIds.length || rewardModalDismissed) {
+    if ((!unresolvedIds.length && !sharedEntries.length) || rewardModalDismissed) {
       modal.hidden = true;
       return;
     }
@@ -6613,6 +6646,32 @@
       li.appendChild(btn);
       listEl.appendChild(li);
     });
+    // 共享池項目：獨立的<li>/按鈕，附黃字「共有獎勵，非全員獲得」提示，點擊直接
+    // claimSharedReward(pointId, rewardId)——不經過個人清單的selectedRewardId/
+    // renderRewardDetail兩層流程，因為共享池項目沒有「抽選/選擇」的二段式情境，
+    // 看到就能直接領（既有claimSharedReward()內建transaction保證first-writer-wins）。
+    sharedEntries.forEach(function (shared) {
+      var li = document.createElement("li");
+      var btn = document.createElement("button");
+      btn.type = "button";
+      btn.textContent = rewardEntryLabel(shared.entry);
+      btn.addEventListener("click", function () {
+        claimSharedReward(shared.pointId, shared.rewardId);
+      });
+      li.appendChild(btn);
+      var note = document.createElement("span");
+      note.className = "warning-text";
+      note.textContent = window.I18N.t("midnight_reward_shared_note");
+      li.appendChild(note);
+      listEl.appendChild(li);
+    });
+    if (!unresolvedIds.length) {
+      // 個人清單目前沒有未解決項目(可能只有共享池項目)：清空detail面板，避免殘留上一次
+      // 選取的個人獎勵detail內容。
+      selectedRewardId = null;
+      el("midnight-reward-detail").innerHTML = "";
+      return;
+    }
     if (!selectedRewardId || !list[selectedRewardId] || list[selectedRewardId].resolved) {
       selectedRewardId = unresolvedIds[0];
     }

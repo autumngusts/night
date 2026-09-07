@@ -1492,6 +1492,7 @@ STRINGS_EN: dict[str, str] = {
     "midnight_reward_title": "Reward List",
     "midnight_reward_close_button": "Close",
     "midnight_reward_toast_prefix": "Obtained: ",
+    "midnight_reward_shared_note": "(Shared reward — not everyone gets one)",
     "midnight_reward_label_rune": "+{value} runes",
     "midnight_reward_label_chalice_bonus": "+{value} flask uses",
     "midnight_reward_kind_rune": "Runes",

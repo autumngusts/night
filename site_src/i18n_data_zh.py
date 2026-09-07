@@ -1492,6 +1492,7 @@ STRINGS_ZH: dict[str, str] = {
     "midnight_reward_title": "獎勵清單",
     "midnight_reward_close_button": "關閉",
     "midnight_reward_toast_prefix": "獲得：",
+    "midnight_reward_shared_note": "（共有獎勵，非全員獲得）",
     "midnight_reward_label_rune": "盧恩+{value}",
     "midnight_reward_label_chalice_bonus": "聖杯瓶使用次數+{value}",
     "midnight_reward_kind_rune": "盧恩",
