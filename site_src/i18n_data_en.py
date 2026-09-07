@@ -1447,6 +1447,7 @@ STRINGS_EN: dict[str, str] = {
     "midnight_random_event_choice_a_button": "Go look",
     "midnight_random_event_choice_b_button": "Stay away",
     "midnight_random_event_goddess_desc": "A huge goddess statue is half-buried on a hill, rune power seeping from its cracks. Any PC may take \"FP damage: ■\" and attempt a check <10 | Mental> (the GM decides the actual ■ value per the rulebook text).",
+    "midnight_random_event_goddess_break_button": "Spend an Arts use to break the statue",
     "midnight_random_event_success_note": "Check succeeded ({sum} / target {target})!",
     "midnight_random_event_fail_note": "Check failed ({sum} / target {target}).",
     "midnight_random_event_buried_treasure_desc": "Something feels off at a corner of the cliff you passed. The whole party attempts a cooperative check <12 x party size | Luck>. Either way, the event ends.",

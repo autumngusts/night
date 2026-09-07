@@ -6101,9 +6101,13 @@
     // 每次重繪先把「聖甲蟲」跟「其餘8分支通用」兩個banner都收起來，才由實際命中的分支
     // render function決定顯示哪一個——兩者是各自獨立的DOM id（見site_src/midnight_page.py），
     // 不會互相自動隱藏，否則「先靠近A分支點看到banner，走開後靠近B分支點」會有banner
-    // 殘留沒收起來的問題。
+    // 殘留沒收起來的問題。同理，女神像專用的「破壊」按鈕（fix-round新增）也在這裡一併
+    // 先收起——它只被renderGoddessStatueBranch()主動顯示，其餘分支render function
+    // （埋もれ宝／隕石／聖甲蟲等）完全不會碰它，若不在這裡統一重置，「先靠近女神像點看到
+    // 按鈕顯示，走開後靠近另一個分支點」會讓這顆按鈕（連同其綁定舊pt的onclick）殘留顯示。
     el("midnight-scarab-banner").hidden = true;
     el("midnight-random-event-banner").hidden = true;
+    el("midnight-random-event-goddess-break-action").hidden = true;
     if (!pt || !trig || !trig.branchNameJa) return;
     var RENDERERS = {
       "スカラベ": renderScarabBranch,
@@ -6143,6 +6147,23 @@
       handleGoddessStatueCheckClick(pt);
     };
     if (!attempted) el("midnight-random-event-result").textContent = "";
+
+    // fix-round（review指摘）：event_rulebook.js:426-427實際上是兩個彼此獨立的條件——
+    // ①「1人でも成功すれば」是全場只要曾有任一PC（不限職業、不限是不是後面破壞的那個人）
+    // 成功過一次〈10｜メンタル〉，這件事就對全場成立；②「PCに追跡者／無頼漢／守護者／
+    // 執行者のいずれかがいる場合」則是任一符合這4職業(含變體)之一的PC都可以消費技藝破壞，
+    // 規則書原文沒有要求②的人必須是①判定成功的同一人。因此這裡用另一顆獨立按鈕呈現
+    // 「破壊」動作：只要trig.goddessSucceeded為真（不管是誰讓它變真）、且目前操作角色
+    // 本身符合4職業之一、且尚未被任何人領取過（trig.statueRewardGrantedBy，
+    // first-writer-wins鎖，見handleGoddessStatueBreakClick()），任何裝置上符合條件的
+    // PC都能看到並按下這顆按鈕。
+    var breakBtn = el("midnight-random-event-goddess-break-action");
+    var breakC = characters[myTokenId];
+    var breakEligible = !!(breakC && breakC.typeId && GODDESS_STATUE_RESTRICTED_TYPE_IDS.indexOf(breakC.typeId) !== -1);
+    breakBtn.hidden = !(trig.goddessSucceeded && breakEligible && !trig.statueRewardGrantedBy);
+    breakBtn.onclick = function () {
+      handleGoddessStatueBreakClick(pt);
+    };
   }
 
   function handleGoddessStatueCheckClick(pt) {
@@ -6163,20 +6184,41 @@
       sum: sum,
       target: GODDESS_STATUE_CHECK_TARGET,
     });
-    if (success && c && GODDESS_STATUE_RESTRICTED_TYPE_IDS.indexOf(c.typeId) !== -1) {
-      // event_rulebook.js:426-427：判定成功、且PC為指定4職業(含變體)之一，消費技藝破壞
-      // 女神像後獲得「鍊石」3個——這是單一PC的個人動作，不是trig.participants群體踏破
-      // 獎勵，因此不走pushPerPlayerReward()（那只是fieldProgress後補領取ledger的紀錄，
-      // 本身不會立即套用任何東西給任何角色，見下方grantTileLootToParticipants()呼叫端
-      // 既有註解），改直接重用grantTileLootToParticipants()既有的「授予＋toast note＋
-      // 背包已滿訊息」完整邏輯，participants只放自己這一個席位。另外，
+    if (success) {
+      // fix-round（review指摘）：event_rulebook.js:426「1人でも成功すれば」是對全場成立的
+      // 共享事實，不是只屬於這次點擊的local變數，因此寫入trig層級的goddessSucceeded，讓
+      // 所有裝置上的renderGoddessStatueBranch()／任何符合4職業之一的PC都能感知並之後
+      // 觸發破壞（見handleGoddessStatueBreakClick()），不要求破壞者必須是判定成功的
+      // 同一人。
+      GameStorage.rtSet(gameId, "cloud", "fieldTrigger/" + pt.id + "/goddessSucceeded", true);
+    }
+  }
+
+  function handleGoddessStatueBreakClick(pt) {
+    if (!mySlot || isPaused()) return;
+    var trig = fieldTriggers[pt.id];
+    if (!trig || !trig.goddessSucceeded) return;
+    var c = characters[myTokenId];
+    if (!c || GODDESS_STATUE_RESTRICTED_TYPE_IDS.indexOf(c.typeId) === -1) return;
+    // event_rulebook.js:426-427：只要全場曾有任一人判定成功（trig.goddessSucceeded，不必是
+    // 自己），且自己是指定4職業(含變體)之一，即可消費技藝破壞女神像，獲得鍊石×3。跟
+    // maybeGrantStrongEnemyReward()/maybeGrantFieldTileReward()同款first-writer-wins
+    // transaction鎖（fieldTrigger/{id}/statueRewardGrantedBy），確保就算多名符合職業的
+    // PC同時按下，也只會真正發放一次。
+    GameStorage.rtTransaction(gameId, "cloud", "fieldTrigger/" + pt.id + "/statueRewardGrantedBy", function (cur) {
+      return cur === null ? myTokenId : cur;
+    }).then(function (committed) {
+      if (committed !== myTokenId) return;
+      // 這是單一PC的個人動作（消費自己的技藝），不是trig.participants群體踏破獎勵，
+      // 因此沿用既有做法：直接重用grantTileLootToParticipants()既有的「授予＋toast note＋
+      // 背包已滿訊息」完整邏輯，participants只放觸發者自己這一個席位。
       // grantLootRewardEntryToCharacter()的"consumable"分支只認itemId對應的namedItem.uses
       // （固定授予1個、忽略value欄位），無法表達「×3」，正確的kind是"smithingStone"
       // （見該函式"stoneswordKey"/"smithingStone"分支，value才真的會被疊加進usesRemaining）。
       var soloParticipants = {};
       soloParticipants[mySlot] = true;
       grantTileLootToParticipants({ participants: soloParticipants }, [{ kind: "smithingStone", value: 3, perPerson: true }]);
-    }
+    });
   }
 
   // ---- 埋もれ宝分支（event_rulebook.js:442-464）----

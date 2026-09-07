@@ -1447,6 +1447,7 @@ STRINGS_JA: dict[str, str] = {
     "midnight_random_event_choice_a_button": "見に行く",
     "midnight_random_event_choice_b_button": "遠ざかる",
     "midnight_random_event_goddess_desc": "小高い丘に巨大な女神像が埋まっており、亀裂からルーンの力がにじみ出ている。任意のPCは「FP損害：■」を受けて〈10｜メンタル〉を行ってもよい（■の実際の数値はGMが原文に沿って判断する）。",
+    "midnight_random_event_goddess_break_button": "アーツを消費して女神像を破壊する",
     "midnight_random_event_success_note": "判定成功（{sum} / 目標{target}）！",
     "midnight_random_event_fail_note": "判定失敗（{sum} / 目標{target}）。",
     "midnight_random_event_buried_treasure_desc": "通りかかった崖の片隅に、何か違和感がある。全員で〈協力12×PC人数｜運試し〉を行う。成否に関わらず、イベント終了。",

@@ -202,6 +202,17 @@ BODY = """    <div class="midnight-wrap">
           <button type="button" id="midnight-random-event-action" data-i18n="midnight_random_event_action_button"></button>
           <button type="button" id="midnight-random-event-choice-a" data-i18n="midnight_random_event_choice_a_button" hidden></button>
           <button type="button" id="midnight-random-event-choice-b" data-i18n="midnight_random_event_choice_b_button" hidden></button>
+          <!-- 女神像分支專用（fix-round，review指摘）：event_rulebook.js:426-427的「判定
+               成功」與「PCが追跡者／無頼漢／守護者／執行者のいずれか」是兩個彼此獨立的
+               條件，破壊者不必是判定成功的同一人，因此另外用一個獨立按鈕呈現，不與上面
+               的-action（進行判定）共用。見static/midnight.js的
+               renderGoddessStatueBranch()／handleGoddessStatueBreakClick()。 -->
+          <button
+            type="button"
+            id="midnight-random-event-goddess-break-action"
+            data-i18n="midnight_random_event_goddess_break_button"
+            hidden
+          ></button>
           <p id="midnight-random-event-result"></p>
         </div>
 

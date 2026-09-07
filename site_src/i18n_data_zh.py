@@ -1447,6 +1447,7 @@ STRINGS_ZH: dict[str, str] = {
     "midnight_random_event_choice_a_button": "前往查看",
     "midnight_random_event_choice_b_button": "遠離",
     "midnight_random_event_goddess_desc": "小丘上埋著一座巨大的女神像，像上有裂痕，滲出盧恩之力。任一PC可承受「FP損害：■」後進行〈10｜精神〉判定（■的實際數值由GM依規則書原文判斷）。",
+    "midnight_random_event_goddess_break_button": "消費技藝破壞女神像",
     "midnight_random_event_success_note": "判定成功（{sum} / 目標{target}）！",
     "midnight_random_event_fail_note": "判定失敗（{sum} / 目標{target}）。",
     "midnight_random_event_buried_treasure_desc": "經過的懸崖一角，感覺有些不對勁。全體進行〈協力12×PC人數｜運氣〉判定，無論成敗，事件結束。",
