@@ -6498,20 +6498,29 @@
     var GmFlow = window.PriTestNightGmFlow;
     var match = GmFlow && GmFlow.resolveCombatEnemyMatch(row.nameJa);
     if (!match) return; // 找不到就整體放棄，不硬湊（同rollAndAssignStrongEnemy()/renderMeteorBranch()既有精神）
-    GameStorage.rtTransaction(gameId, "cloud", "fieldTrigger/" + pt.id + "/enemyFamilyId", function (cur) {
-      return cur === null ? match.familyId : cur;
-    });
-    GameStorage.rtTransaction(gameId, "cloud", "fieldTrigger/" + pt.id + "/enemyId", function (cur) {
-      return cur === null ? match.enemy.id : cur;
-    });
-    GameStorage.rtTransaction(gameId, "cloud", "fieldTrigger/" + pt.id + "/level", function (cur) {
-      return cur === null ? row.level : cur;
-    });
-    GameStorage.rtTransaction(gameId, "cloud", "fieldTrigger/" + pt.id + "/requiredRounds", function (cur) {
-      return cur === null ? row.rounds : cur;
-    });
-    GameStorage.rtTransaction(gameId, "cloud", "fieldEnemyHp/" + pt.id, function (cur) {
-      return cur === null ? enemyRealHpMax({ enemyFamilyId: match.familyId, enemyId: match.enemy.id, level: row.level }) : cur;
+    // review指摘修正（fix round）：改為對整個fieldTrigger/pt.id物件做單一atomic transaction
+    // （同上方maybeAssignFieldEnemy()判定分支既有的手動合成手法），而不是enemyFamilyId／
+    // enemyId／level／requiredRounds各自獨立4次transaction——多裝置同時各自roll到
+    // NIGHT_FORCE_TABLE不同列時，各自的4個獨立transaction可能交錯寫入同一個trigger，
+    // 拼出「enemyId來自裝置A、level卻來自裝置B」的不一致組合，進而汙染
+    // enemyRealHpMax()的等級對照與敵人比對本身。這裡的fieldTrigger在呼叫此函式之前，
+    // 已經由random event chip解決流程建立好{status,branchNameJa,participants,resolvedAt}
+    // （見上方分派表建立處），因此用for-in手動合成既有欄位、只新增4個敵人欄位，而不是
+    // 整包覆寫（跟rollAndAssignStrongEnemy()從null建立全新物件的情境不同，但「單一
+    // transaction對整個trigger物件」的atomic精神完全一致）。
+    GameStorage.rtTransaction(gameId, "cloud", "fieldTrigger/" + pt.id, function (cur) {
+      if (cur && cur.enemyFamilyId) return cur; // 已有裝置搶先指派過，整個既有物件原封不動送回
+      var out = {};
+      for (var k in cur) out[k] = cur[k]; // ES5：不用Object.assign，手動合成（同maybeAssignFieldEnemy()既有寫法）
+      out.enemyFamilyId = match.familyId;
+      out.enemyId = match.enemy.id;
+      out.level = row.level;
+      out.requiredRounds = row.rounds;
+      return out;
+    }).then(function () {
+      GameStorage.rtTransaction(gameId, "cloud", "fieldEnemyHp/" + pt.id, function (cur) {
+        return cur === null ? enemyRealHpMax({ enemyFamilyId: match.familyId, enemyId: match.enemy.id, level: row.level }) : cur;
+      });
     });
   }
 
@@ -6579,6 +6588,8 @@
   // （midnight_random_events.js，Task 19/20已核對過event_rulebook.js逐字轉錄），不在這裡
   // 重複定義同一批規則數值。
   var insectBountySelfApplied = {}; // pointId -> true（本地節流：討伐ボーナス的個人套用只做一次，見下方render函式尾端）
+  var insectGroundStageAdvanceAttempted = {}; // pointId -> true（本地節流：review指摘修正，避免render tick逐frame重送transaction，同nightForceEnemyAssignAttempted既有idiom）
+  var insectChaseStageAdvanceAttempted = {}; // pointId -> true（同上，追蟲階段版本）
 
   function renderInsectSwarmBranch(pt, trig) {
     var steps = window.PriTestMidnightRandomEvents.insectSwarmSteps;
@@ -6669,12 +6680,14 @@
   // 別人尚未同步到的attempted」而卡住不觸發（同maybeGrantMeteorReward()等既有做法，
   // transaction本身冪等，重複呼叫無副作用）。
   function maybeAdvanceInsectGroundStage(pt, trig) {
+    if (insectGroundStageAdvanceAttempted[pt.id]) return; // review指摘修正：已送過一次transaction，等RTDB回顯前不重送
     var seatedSlots = currentlySeatedSlots();
     var attemptedMap = trig.attempted || {};
     var allAttempted = seatedSlots.length > 0 && seatedSlots.every(function (slot) {
       return !!attemptedMap[slot];
     });
     if (!allAttempted) return;
+    insectGroundStageAdvanceAttempted[pt.id] = true; // 送出transaction前先設旗標，同maybeAdvanceNightForceRound()既有idiom
     GameStorage.rtTransaction(gameId, "cloud", "fieldTrigger/" + pt.id + "/groundBugsOutcome", function (cur) {
       return cur ? cur : "done";
     });
@@ -6701,12 +6714,14 @@
   // 全員都嘗試過追蟲判定後，依「PCの半数以上が成功すれば」（event_rulebook.js:645）比對
   // 多數決，寫入chaseOutcome。同maybeAdvanceInsectGroundStage()，放在render tick持續檢查。
   function maybeAdvanceInsectChaseStage(pt, trig) {
+    if (insectChaseStageAdvanceAttempted[pt.id]) return; // review指摘修正：已送過一次transaction，等RTDB回顯前不重送
     var seatedSlots = currentlySeatedSlots();
     var attemptedMap = trig.chaseAttempted || {};
     var allAttempted = seatedSlots.length > 0 && seatedSlots.every(function (slot) {
       return !!attemptedMap[slot];
     });
     if (!allAttempted) return;
+    insectChaseStageAdvanceAttempted[pt.id] = true; // 送出transaction前先設旗標，同maybeAdvanceNightForceRound()既有idiom
     var results = trig.chaseResults || {};
     var successCount = 0;
     seatedSlots.forEach(function (slot) {
@@ -6729,6 +6744,14 @@
   var MADNESS_TOWER1_LEAVE_CHECK_TARGET_PER_PC = 11; // event_rulebook.js:685
   var MADNESS_TOWER1_LEAVE_STAT_KEY = "mental";
   var madnessTower3LocalApplied = {}; // pointId -> true（本地節流：塔3個人發狂蓄積/潛力獎勵只套用一次，見correction #5）
+  // pointId+"|"+stage -> true（本地節流：review指摘修正，避免render tick逐frame重送transaction）。
+  // 用複合key（而非單純pointId）是因為塔1「離開」失敗後會把madnessStage退回"madFire"並清空
+  // attempted/tower2Attempted（見handleMadnessTower1LeaveClick()），讓玩家重新再挑戰一輪——
+  // 若只用pointId當旗標會在第一輪送出後永久卡死、不再送出第二輪的推進transaction，因此
+  // 下方maybeAdvanceMadnessStage()在偵測到attemptedMap被清空（keys數為0）時會主動重置該
+  // stage的旗標，讓下一輪仍能正常推進（不同insectGround/insectChase兩個一次性、不會重來
+  // 的階段，那兩個仍用單純的pointId布林旗標即可）。
+  var madnessStageAdvanceAttempted = {};
 
   function renderMadnessZoneBranch(pt, trig) {
     var steps = window.PriTestMidnightRandomEvents.madnessZoneSteps;
@@ -6832,12 +6855,21 @@
   // madFire／tower2皆為「全員都嘗試過才前進」（event_rulebook.js:699/727「成否に関わらず
   // 次へ進む」），跟maybeAdvanceInsectGroundStage()同一種render tick持續檢查寫法。
   function maybeAdvanceMadnessStage(pt, trig, stage, attemptField, nextStage) {
-    var seatedSlots = currentlySeatedSlots();
+    var key = pt.id + "|" + stage;
     var attemptedMap = trig[attemptField] || {};
+    if (Object.keys(attemptedMap).length === 0) {
+      // attempted被清空（塔1離開失敗、回到madFire重來一輪，見上方欄位註解）：重置旗標，
+      // 讓下一輪全員判定完成時仍能送出推進transaction。
+      madnessStageAdvanceAttempted[key] = false;
+      return;
+    }
+    if (madnessStageAdvanceAttempted[key]) return; // review指摘修正：已送過一次transaction，等RTDB回顯前不重送
+    var seatedSlots = currentlySeatedSlots();
     var allAttempted = seatedSlots.length > 0 && seatedSlots.every(function (slot) {
       return !!attemptedMap[slot];
     });
     if (!allAttempted) return;
+    madnessStageAdvanceAttempted[key] = true; // 送出transaction前先設旗標，同maybeAdvanceNightForceRound()既有idiom
     GameStorage.rtTransaction(gameId, "cloud", "fieldTrigger/" + pt.id + "/madnessStage", function (cur) {
       return cur === stage ? nextStage : cur;
     });
