@@ -5169,10 +5169,15 @@ button {
 /* ---- 地圖點卡牌事件（2026-09-05新增，2026-09-06改版：進入提示／邀請提示／banner
    三個區塊共用同一種固定在畫面最上方的外觀，跟地圖是否展開/縮小無關，靠近地圖上的
    點就會顯示，同一時間只有其中一個會被static/midnight.js的renderFieldOverlay()
-   顯示出來）。 ---- */
+   顯示出來）。2026-09-07新增中途加入提示#midnight-field-late-join-prompt
+   一併納入同一群組——review發現這個新元素原本沒有套用position:fixed，
+   會被#midnight-map-panel（position:fixed全螢幕不透明背景，見下方約4211行）蓋住，
+   實際遊玩中完全看不到也點不到，補上這裡即可修正（跟其他4個一樣同一時間只有其中
+   一個會顯示）。 ---- */
 #midnight-field-enter-prompt,
 #midnight-field-invite-prompt,
 #midnight-field-banner,
+#midnight-field-late-join-prompt,
 #midnight-strong-enemy-banner {
   position: fixed;
   top: 8px;
@@ -5203,6 +5208,15 @@ button {
   margin: 0 0 0.4rem;
   font-size: 0.8rem;
   opacity: 0.9;
+}
+
+/* 中途加入等待提示文字（2026-09-07新增，design§1.4）：按下「參加探索」到實際寫入
+   participants之間的FIELD_LATE_JOIN_WAIT_MS等待期間顯示，跟#midnight-field-invite-timer
+   同款次要文字樣式。 */
+#midnight-field-late-join-loading {
+  margin: 0.35rem 0 0;
+  font-size: 0.85rem;
+  opacity: 0.85;
 }
 
 #midnight-field-invite-text {

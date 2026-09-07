@@ -113,11 +113,17 @@ BODY = """    <div class="midnight-wrap">
 
         <!-- 中途加入（2026-09-07新增，design§1.4）：跟上面3個互斥區塊獨立，不受pt/trig狀態
              分支影響——靠近一個「已經過了邀請階段（投票中或已解決）、但自己還不是participants」
-             的地圖點時就會顯示，跟其他區塊同時存在也沒關係（例如同時看到banner）。按下後等待
-             FIELD_LATE_JOIN_WAIT_MS才真正寫入participants，見static/midnight.jsの
-             handleLateJoinFieldClick()／renderFieldOverlay()。 -->
-        <button type="button" id="midnight-field-late-join-prompt" hidden data-i18n="midnight_field_late_join_button"></button>
-        <div id="midnight-field-late-join-loading" hidden data-i18n="midnight_field_late_join_loading_note"></div>
+             的地圖點時就會顯示。2026-09-07 review修正：外層改成跟#midnight-merchant-prompt／
+             #midnight-blessing-prompt同款的巢狀<div hidden>結構（按鈕＋讀取提示都是內部一般
+             流排版的子元素），套用style.css既有的固定定位選擇器群組（見約5173行），否則沒有
+             position:fixed的裸元素會被#midnight-map-panel（position:fixed全螢幕不透明背景）
+             蓋住，實際遊玩中完全看不到也點不到。按下後等待FIELD_LATE_JOIN_WAIT_MS才真正
+             寫入participants，見static/midnight.jsのhandleLateJoinFieldClick()／
+             renderFieldOverlay()。 -->
+        <div id="midnight-field-late-join-prompt" hidden>
+          <button type="button" id="btn-midnight-field-late-join" data-i18n="midnight_field_late_join_button"></button>
+          <div id="midnight-field-late-join-loading" hidden data-i18n="midnight_field_late_join_loading_note"></div>
+        </div>
 
         <div id="midnight-field-invite-prompt" hidden>
           <p id="midnight-field-invite-text"></p>

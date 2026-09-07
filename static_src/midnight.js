@@ -6785,10 +6785,12 @@
     // nearbyLateJoinPoint（已在updateNearbyFieldPoint()排除status==="inviting"與自己已是
     // participant的情況）——這樣即使下面的分支因為trig.status==="inviting"或!pt而提早
     // return，這顆按鈕的顯示狀態仍然每frame都會被正確更新，不會殘留上一個地圖點的狀態。
-    var lateJoinBtn = el("midnight-field-late-join-prompt");
-    lateJoinBtn.hidden = !nearbyLateJoinPoint;
+    // 2026-09-07 review修正：外層#midnight-field-late-join-prompt是套用了position:fixed的
+    // 容器（見style.css），真正可點擊的按鈕是內部的#btn-midnight-field-late-join。
+    var lateJoinBox = el("midnight-field-late-join-prompt");
+    lateJoinBox.hidden = !nearbyLateJoinPoint;
     if (nearbyLateJoinPoint) {
-      lateJoinBtn.onclick = function () { handleLateJoinFieldClick(nearbyLateJoinPoint); };
+      el("btn-midnight-field-late-join").onclick = function () { handleLateJoinFieldClick(nearbyLateJoinPoint); };
     }
     if (!pt) {
       enterPrompt.hidden = true;
