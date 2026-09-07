@@ -804,26 +804,29 @@ git commit -m "feat(midnight): 分歧變體挑選改為劇本連動(依卡牌名
   }
 
   // ---- 秤重找次品 ----
+  // 2026-09-07 Task 9實作階段修正：Math.log(N)/Math.log(3)在N=9/27(剛好落在8~27產生範圍內)
+  // 有浮點數精度誤差(log(9)/log(3)===2.0000000000000004)，Math.ceil後多算1次。改用整數
+  // 迴圈避開浮點數，已用N=3/8/9/10/26/27逐一驗證正確。
   function genWeighing() {
     var N = 8 + Math.floor(Math.random() * 20); // 8~27
     var lighter = Math.random() < 0.5;
-    var answer = Math.ceil(Math.log(N) / Math.log(3));
+    var answer = 0, cap = 1;
+    while (cap < N) { cap *= 3; answer++; }
     return { kind: "weighing", N: N, lighter: lighter, answer: answer };
   }
   function checkWeighing(puzzle, guess) {
     return { solved: Number(guess) === puzzle.answer };
   }
 
-  // ---- 過橋問題（4人，貪心：最快2人來回護送）----
+  // ---- 過橋問題（4人）----
+  // 2026-09-07 Task 9實作階段修正：原公式(t0+2*t1+t3 / 2*t0+t1+t3)經窮舉搜尋(Dijkstra)驗證
+  // 是錯的，算出的答案低於真實可達成的最短時間(例：經典題目times=[1,2,5,10]，原公式算出14，
+  // 真實最短解是17，等於出了一題無解的謎題)。修正為標準4人過橋兩種策略：
   function genBridge() {
     var times = shuffle([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]).slice(0, 4).sort(function (a, b) { return a - b; });
     var t = times;
-    // 標準4人過橋貪心解：min(
-    //   t0+2*t1+t3,      // 快的兩人來回護送
-    //   2*t0+t1+t3       // 最快的人當擺渡
-    // )
-    var optA = t[0] + 2 * t[1] + t[3];
-    var optB = 2 * t[0] + t[1] + t[3];
+    var optA = t[0] + 3 * t[1] + t[3];          // 最快2人來回護送最慢2人一起過橋(b,a,d,b,b)
+    var optB = 2 * t[0] + t[1] + t[2] + t[3];   // 最快的人自己來回擺渡其他3人(d,a,c,a,b)
     var answer = Math.min(optA, optB);
     return { kind: "bridge", times: times, answer: answer };
   }
