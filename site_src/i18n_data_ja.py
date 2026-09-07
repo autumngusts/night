@@ -1500,6 +1500,7 @@ STRINGS_JA: dict[str, str] = {
     "midnight_reward_kind_talisman": "タリスマン",
     "midnight_reward_kind_weapon": "武器",
     "midnight_reward_kind_consumable": "消耗品",
+    "midnight_reward_kind_chalice_bonus": "聖杯瓶の上限",
     "midnight_reward_draw_rune": "ルーン+{value}",
     "midnight_reward_draw_empty": "抽選できる品がありません。",
     "midnight_reward_confirm_button": "受け取る",

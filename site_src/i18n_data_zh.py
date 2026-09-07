@@ -1500,6 +1500,7 @@ STRINGS_ZH: dict[str, str] = {
     "midnight_reward_kind_talisman": "護符",
     "midnight_reward_kind_weapon": "武器",
     "midnight_reward_kind_consumable": "消耗品",
+    "midnight_reward_kind_chalice_bonus": "聖杯瓶上限",
     "midnight_reward_draw_rune": "盧恩+{value}",
     "midnight_reward_draw_empty": "沒有可抽選的品項。",
     "midnight_reward_confirm_button": "確認收下",

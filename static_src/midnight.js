@@ -6074,6 +6074,13 @@
       var labels = [];
       Object.keys(ledger).forEach(function (seq) {
         (ledger[seq].entries || []).forEach(function (entry) {
+          // chaliceBonus改走個人待領取清單（設計文件§5，Task 16）：跟上方
+          // maybeGrantFieldTileReward()的即時授予路徑保持一致，後補領取者也不應該
+          // 繞過獎勵清單直接套用，因此改成推進pendingRewards、由玩家自己按「領取」。
+          if (entry.kind === "chaliceBonus") {
+            pushPendingReward(myTokenId, { kind: entry.kind, value: entry.value });
+            return;
+          }
           var label = grantLootRewardEntryToCharacter(c, entry);
           if (label) labels.push(label);
         });
@@ -6428,7 +6435,29 @@
           return !isPerPersonRewardEntry(e);
         });
         if (perPerson.length) {
-          grantTileLootToParticipants(trig, perPerson);
+          // chaliceBonus改走個人待領取清單而非立即套用（設計文件§5，Task 16）：跟
+          // rune/talisman等擊殺獎勵一樣，需要玩家自己在獎勵清單彈窗按「領取」才真正
+          // 套用flaskMax/flaskCount，不能再讓grantTileLootToParticipants()直接連同
+          // 其餘perPerson kind一起立即授予。ledger(pushPerPlayerReward)仍記錄完整
+          // perPerson（含chaliceBonus）供後補領取判斷「這個玩家有沒有錯過」；後補流程
+          // （claimLatePerPlayerRewards）也同步改成對chaliceBonus改走pushPendingReward、
+          // 不再直接立即套用，兩條路徑維持一致。pushPendingReward()這裡改傳淺拷貝
+          // （而不是floor.reward裡的原始entry物件參考）：跟pushSharedReward()既有做法
+          // 一致，避免把.resolved等執行期欄位直接寫回fields_data_*.js模組層級共用的
+          // 靜態資料物件。
+          var chaliceEntries = perPerson.filter(function (e) {
+            return e.kind === "chaliceBonus";
+          });
+          var immediateEntries = perPerson.filter(function (e) {
+            return e.kind !== "chaliceBonus";
+          });
+          if (immediateEntries.length) grantTileLootToParticipants(trig, immediateEntries);
+          chaliceEntries.forEach(function (e) {
+            Object.keys(trig.participants || {}).forEach(function (slot) {
+              var p = players[slot];
+              if (p) pushPendingReward(p.tokenId, { kind: e.kind, value: e.value });
+            });
+          });
           pushPerPlayerReward(pt.id, perPerson);
         }
         shared.forEach(function (e) {
@@ -6557,6 +6586,7 @@
     if (entry.kind === "talisman") return window.I18N.t("midnight_reward_kind_talisman");
     if (entry.kind === "weapon") return window.I18N.t("midnight_reward_kind_weapon");
     if (entry.kind === "consumable") return window.I18N.t("midnight_reward_kind_consumable");
+    if (entry.kind === "chaliceBonus") return window.I18N.t("midnight_reward_kind_chalice_bonus");
     return entry.kind;
   }
 
@@ -6571,6 +6601,19 @@
         label: window.I18N.t("midnight_reward_draw_rune", { value: value }),
         apply: function (c) {
           c.runes = (c.runes || 0) + value;
+        },
+      };
+    }
+    if (entry.kind === "chaliceBonus") {
+      // 跟"rune"一樣是固定數值，沒有隨機抽選的必要，直接回傳可套用的draft
+      // （renderRewardDetail()的needsDrawStep只認weapon/consumable/talisman三種，
+      // chaliceBonus會跟rune一樣直接落到這裡、顯示確認/丟棄兩顆按鈕）。
+      var chaliceValue = entry.value || 0;
+      return {
+        label: window.I18N.t("midnight_reward_label_chalice_bonus", { value: chaliceValue }),
+        apply: function (c) {
+          c.flaskMax = (c.flaskMax || FLASK_MAX_DEFAULT) + chaliceValue;
+          c.flaskCount = (c.flaskCount || 0) + chaliceValue;
         },
       };
     }

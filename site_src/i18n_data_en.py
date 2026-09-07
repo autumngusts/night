@@ -1500,6 +1500,7 @@ STRINGS_EN: dict[str, str] = {
     "midnight_reward_kind_talisman": "Talisman",
     "midnight_reward_kind_weapon": "Weapon",
     "midnight_reward_kind_consumable": "Consumable",
+    "midnight_reward_kind_chalice_bonus": "Flask Capacity",
     "midnight_reward_draw_rune": "+{value} runes",
     "midnight_reward_draw_empty": "Nothing to draw.",
     "midnight_reward_confirm_button": "Confirm",
