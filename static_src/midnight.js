@@ -5560,6 +5560,7 @@
       if (existing) {
         existing.usesRemaining = (existing.usesRemaining || 0) + value;
       } else {
+        if (!hasInventorySpace(c, "consumable")) return null; // 已滿：略過（同上方既有「不阻塞其餘品項」精神）
         var instId = CD.makeConsumableInstanceId(itemId, c);
         c.consumables.push({ id: instId, itemId: itemId, usesRemaining: value });
       }
@@ -5616,9 +5617,10 @@
   // 呼叫端本來就不會替它們顯示這個按鈕，見Task 8）。
   function claimLatePerPlayerRewards(pointId) {
     GameStorage.rtTransaction(gameId, "cloud", "fieldProgress/" + pointId + "/claimedBy/" + myTokenId, function (cur) {
-      return cur ? cur : true;
+      if (cur) return undefined; // 已經領過：中止transaction，不重複授予
+      return true;
     }).then(function (committed) {
-      if (committed !== true) return; // 已經領過（不可能發生，transaction本身已保證，防禦性判斷）
+      if (committed !== true) return; // 這次沒有真正搶到(committed===null，代表已經領過)
       var progress = fieldProgress[pointId] || {};
       var ledger = progress.perPlayerRewards || {};
       var c = characters[myTokenId];
