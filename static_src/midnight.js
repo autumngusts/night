@@ -4283,7 +4283,8 @@
 
   // 只有「目前在同一卡牌事件的參與者」（trig.participants）需要選擇同一項才確定，不是
   // 全場已入座玩家——不在事件內的人本來就不參與這個板塊的任何事情（使用者明確規格）。
-  // 全員一致才確定執行；全員都投了但意見不一致則繼續等，直到10秒逾時才由系統決定。
+  // 全員一致就直接採用該項；2026-09-07優化：全員都投完後即使意見不一致，也立即用多數決
+  // 判定（不必等滿10秒），加快節奏——只有「還沒全員投完」時才會繼續等到逾時再交給系統決定。
   function maybeResolveFieldVote(pt) {
     var trig = fieldTriggers[pt.id];
     if (!trig || trig.status !== "active" || fieldVoteResolveAttempted[pt.id]) return;
@@ -4307,9 +4308,8 @@
         var consensus = participants.every(function (slot) {
           return votes[slot] === first;
         });
-        if (consensus) choiceIndex = first;
-        else if (timedOut) choiceIndex = pickFallbackChoice(votes, participants, labels.length, pt);
-        else return; // 全員都投了但還沒有共識，且還沒逾時，繼續等待
+        // 2026-09-07優化：全員投完就立即判定，不再等timedOut——一致用該值，不一致立即多數決。
+        choiceIndex = consensus ? first : pickFallbackChoice(votes, participants, labels.length, pt);
       } else if (timedOut) {
         choiceIndex = pickFallbackChoice(votes, participants, labels.length, pt);
       } else {
@@ -6909,9 +6909,14 @@
       var optionsWrap = el("midnight-field-vote-options");
       optionsWrap.innerHTML = "";
       labels.forEach(function (label, i) {
+        // 2026-09-07新增：即時票數——依trig.votes（席位→選項index）統計目前這個選項有幾票，
+        // 讓玩家投票中就能看到目前局勢，不用等到resolved。
+        var voteCount = Object.keys(votes).filter(function (slot) {
+          return votes[slot] === i;
+        }).length;
         var btn = document.createElement("button");
         btn.type = "button";
-        btn.textContent = label + (myVote === i ? " ✓" : "");
+        btn.textContent = label + " (" + voteCount + "票)" + (myVote === i ? " ✓" : "");
         btn.disabled = !mySlot || isPaused();
         btn.addEventListener("click", function () {
           GameStorage.rtSet(gameId, "cloud", "fieldTrigger/" + pt.id + "/votes/" + mySlot, i);
