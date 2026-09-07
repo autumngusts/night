@@ -5574,11 +5574,14 @@
   }
 
   // 背包已滿（設計文件§3.1）：grantLootRewardEntryToCharacter()對weaponStar/consumable/
-  // talisman三種kind會在hasInventorySpace()判定已滿時回傳null（見上方該函式），本來這裡
-  // 只看labels是否為空、滿了就整包靜默略過、玩家完全不知道漏拿了東西。現在額外記一個
-  // anyFull旗標，只要有任一筆因為背包滿而被略過，就把midnight_inventory_full_note這句
-  // 既有i18n提示文字接在通知後面一起顯示（不是新增規則數值，純粹是「讓玩家知道」）。
-  // 注意：只比對這三種kind——其餘kind（如目前尚未實作角色欄位的potentialPower／
+  // talisman/stoneswordKey/smithingStone五種kind會在hasInventorySpace(c,"consumable"/
+  // "weapon")判定已滿時回傳null（見上方該函式；stoneswordKey/smithingStone在角色
+  // 尚未持有該道具、需要新開一格consumable slot時才會走到滿的判斷，已持有同名道具則是
+  // 疊加usesRemaining、不受inventory上限影響），本來這裡只看labels是否為空、滿了就整包
+  // 靜默略過、玩家完全不知道漏拿了東西。現在額外記一個anyFull旗標，只要有任一筆因為背包
+  // 滿而被略過，就把midnight_inventory_full_note這句既有i18n提示文字接在通知後面一起
+  // 顯示（不是新增規則數值，純粹是「讓玩家知道」）。
+  // 注意：只比對這五種kind——其餘kind（如目前尚未實作角色欄位的potentialPower／
   // weaponSkillReroll）回傳null是「功能範圍限制」而非「背包已滿」，不能誤判成滿了。
   function grantTileLootToParticipants(trig, lootEntries) {
     Object.keys(trig.participants || {}).forEach(function (slot) {
@@ -5591,7 +5594,14 @@
       lootEntries.forEach(function (entry) {
         var label = grantLootRewardEntryToCharacter(c, entry);
         if (label) labels.push(label);
-        else if (entry.kind === "weaponStar" || entry.kind === "talisman" || entry.kind === "consumable") anyFull = true;
+        else if (
+          entry.kind === "weaponStar" ||
+          entry.kind === "talisman" ||
+          entry.kind === "consumable" ||
+          entry.kind === "stoneswordKey" ||
+          entry.kind === "smithingStone"
+        )
+          anyFull = true;
       });
       var text = labels.length ? window.I18N.t("midnight_reward_toast_prefix") + labels.join("、") : "";
       if (anyFull) text = text + (text ? "　" : "") + window.I18N.t("midnight_inventory_full_note");
