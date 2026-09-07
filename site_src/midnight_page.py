@@ -125,6 +125,18 @@ BODY = """    <div class="midnight-wrap">
           <div id="midnight-field-late-join-loading" hidden data-i18n="midnight_field_late_join_loading_note"></div>
         </div>
 
+        <!-- 後補領獎（2026-09-07新增，design§1.5）：跟上面的中途加入按鈕同款結構，獨立於
+             其他區塊，不受pt/trig狀態分支影響——靠近「自己從未加入過、但已留有一次性內容
+             過去發放紀錄」的地圖點（板塊樓層看fieldProgress，強敵/隨機事件看fieldTrigger
+             自己的resolved+HP歸零）時就會顯示。沿用#midnight-field-late-join-prompt同款
+             巢狀<div hidden>結構＋共用固定定位選擇器群組（見style.css約5173行），按下後
+             等待FIELD_LATE_JOIN_WAIT_MS才真正呼叫對應的claim函式，見static/midnight.jsの
+             handleLateClaimClick()／renderFieldOverlay()。 -->
+        <div id="midnight-field-late-claim-prompt" hidden>
+          <button type="button" id="btn-midnight-field-late-claim" data-i18n="midnight_field_late_claim_button"></button>
+          <div id="midnight-field-late-claim-loading" hidden data-i18n="midnight_field_late_join_loading_note"></div>
+        </div>
+
         <div id="midnight-field-invite-prompt" hidden>
           <p id="midnight-field-invite-text"></p>
           <p id="midnight-field-invite-timer"></p>

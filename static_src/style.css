@@ -5173,11 +5173,17 @@ button {
    一併納入同一群組——review發現這個新元素原本沒有套用position:fixed，
    會被#midnight-map-panel（position:fixed全螢幕不透明背景，見下方約4211行）蓋住，
    實際遊玩中完全看不到也點不到，補上這裡即可修正（跟其他4個一樣同一時間只有其中
-   一個會顯示）。 ---- */
+   一個會顯示）。2026-09-07再新增後補領獎提示#midnight-field-late-claim-prompt
+   （design§1.5）——同一批「沿用共用固定定位選擇器群組」的巢狀<div hidden>結構，
+   避免重蹈上面同一個review發現的缺CSS問題。跟#midnight-field-late-join-prompt的
+   互斥規則見static/midnight.jsのupdateNearbyFieldPoint()內部註解（board floor
+   點若同時符合「參加探索」條件，中途加入優先顯示，領取獎勵延後到沒有進行中內容時
+   再顯示，避免兩者疊在同一個座標）。 ---- */
 #midnight-field-enter-prompt,
 #midnight-field-invite-prompt,
 #midnight-field-banner,
 #midnight-field-late-join-prompt,
+#midnight-field-late-claim-prompt,
 #midnight-strong-enemy-banner {
   position: fixed;
   top: 8px;
@@ -5210,10 +5216,11 @@ button {
   opacity: 0.9;
 }
 
-/* 中途加入等待提示文字（2026-09-07新增，design§1.4）：按下「參加探索」到實際寫入
-   participants之間的FIELD_LATE_JOIN_WAIT_MS等待期間顯示，跟#midnight-field-invite-timer
-   同款次要文字樣式。 */
-#midnight-field-late-join-loading {
+/* 中途加入／後補領獎等待提示文字（2026-09-07新增，design§1.4／§1.5）：按下「參加探索」
+   或「領取獎勵」到實際寫入participants／ledger claimedBy之間的FIELD_LATE_JOIN_WAIT_MS
+   等待期間顯示，跟#midnight-field-invite-timer同款次要文字樣式。 */
+#midnight-field-late-join-loading,
+#midnight-field-late-claim-loading {
   margin: 0.35rem 0 0;
   font-size: 0.85rem;
   opacity: 0.85;

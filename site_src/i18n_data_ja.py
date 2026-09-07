@@ -1373,6 +1373,7 @@ STRINGS_JA: dict[str, str] = {
     "midnight_field_fully_explored_note": "このフィールドは全フロア踏破済みです。",
     "midnight_field_late_join_button": "途中から探索に参加",
     "midnight_field_late_join_loading_note": "合流準備中…",
+    "midnight_field_late_claim_button": "報酬を受け取る",
     "midnight_spirit_bird_use_button": "霊鳥を使う",
     "midnight_day_phase_label": "{day}日目／{phase}",
     "midnight_phase_grace": "開放中",

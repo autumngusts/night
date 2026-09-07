@@ -674,6 +674,11 @@
   // handleAcceptFieldInviteClick）。由updateNearbyFieldPoint()逐frame判斷，見
   // handleLateJoinFieldClick／renderFieldOverlay()的「參加探索」按鈕。
   var nearbyLateJoinPoint = null;
+  // 後補領獎（設計文件§1.5）：自己從未加入過、但這個點已留有一次性內容的過去發放紀錄
+  // （板塊樓層看fieldProgress、強敵/隨機事件看fieldTrigger自己的resolved+HP歸零），
+  // 由updateNearbyFieldPoint()逐frame判斷，見handleLateClaimClick／renderFieldOverlay()的
+  // 「領取獎勵」按鈕。跟nearbyLateJoinPoint的互斥規則見updateNearbyFieldPoint()內部註解。
+  var nearbyLateClaimPoint = null;
   var nearbyCastlePoint = null; // 目前是否站在王城castleZone範圍內，見updateNearbyCastle()
   var CASTLE_POINT_ID = "castle_j"; // 王城合成點的固定id，跟一般地圖點的隨機id分開，方便辨識
   var activeEncounter = null; // 目前在範圍內、我是參與者、已解決分歧且敵人仍存活的地圖點——非null時攻擊/戰技要打這個點的敵人，不是共用標靶
@@ -3985,6 +3990,7 @@
     if (!mySlot || !localPos || autoFly) {
       nearbyFieldPoint = null;
       nearbyLateJoinPoint = null;
+      nearbyLateClaimPoint = null;
       recomputeActiveEncounter();
       renderFieldOverlay();
       return;
@@ -4008,12 +4014,55 @@
     // 且自己尚未在participants裡時才成立，涵蓋投票中(active)與已解決(resolved，戰鬥中
     // 或已結束)兩種情況。
     nearbyLateJoinPoint = null;
+    // 後補領獎判斷（設計文件§1.5，Task 7新增）：板塊樓層半部分——「這個點留有進度紀錄
+    // （progress0，代表至少發放過一次perPerson獎勵）、自己從未加入過目前這次trig、也還
+    // 沒領過」，不受目前trig狀態或是否已全清影響（ledger累積的是「過去每一層」發過的
+    // 獎勵，不是這次trig當下的狀態）。
+    nearbyLateClaimPoint = null;
     if (found) {
       var trig0 = fieldTriggers[found.id];
-      if (trig0 && trig0.status !== "inviting" && (!trig0.participants || !trig0.participants[mySlot])) {
+      var progress0 = fieldProgress[found.id];
+      // 2026-09-07 Task 7新增：全樓層已踏破後（progress0.cleared，見
+      // maybeAdvanceFieldProgressAfterFloorClear()）trig會「維持原樣不清空」，讓地圖圖示能
+      // 繼續用trig.status==="resolved"＋HP<=0判斷isPointCleared()——這代表已完全踏破的
+      // 板塊，trig0.status永遠停在"resolved"、且自己永遠不在participants裡，若不額外排除
+      // 全清狀態，下面的「參加探索」判斷會永遠成立（沒有下一場戰鬥可打，卻一直邀請加入），
+      // 且會跟下面新增的「領取獎勵」同時渲染在同一個position:fixed座標（見style.css共用
+      // 選擇器，設計是同一時間只顯示其中一個）。已全清時中途加入本來就沒有意義，排除後讓
+      // 「領取獎勵」單獨顯示。
+      if (trig0 && trig0.status !== "inviting" && !(progress0 && progress0.cleared) &&
+        (!trig0.participants || !trig0.participants[mySlot])) {
         nearbyLateJoinPoint = found;
       }
+      // 跟nearbyLateJoinPoint互斥：若「參加探索」這一刻已經成立，代表還有進行中的內容
+      // 更優先，先不顯示領取獎勵——ledger本身不會過期，等中途加入不再適用（trig被清空
+      // 進入下一層、或已全清如上面排除的情況）時再靠近仍能領到，不會遺失獎勵。
+      if (!nearbyLateJoinPoint && progress0) {
+        var alreadyClaimed0 = progress0.claimedBy && progress0.claimedBy[myTokenId];
+        var neverJoined0 = !(trig0 && trig0.participants && trig0.participants[mySlot]);
+        if (neverJoined0 && !alreadyClaimed0) {
+          nearbyLateClaimPoint = found;
+        }
+      }
     }
+    // 後補領獎判斷（設計文件§1.5）：強敵籌碼／隨機事件半部分——這兩型沒有fieldProgress
+    // （見NON_FIELD_POINT_TYPES，found不會是這兩型），改讀fieldTrigger自己的resolved狀態＋
+    // HP歸零（scarab沒有HP，改看scarabResolved，留給Task 21/22/25接上）判斷「已清除」。
+    // 這兩型跟nearbyLateJoinPoint（只適用board floor的found）天然不會撞在一起，不需要
+    // 額外互斥判斷。
+    map.points.forEach(function (pt2) {
+      if (nearbyLateClaimPoint) return;
+      if (pt2.type !== "strong_enemy" && pt2.type !== "random_event") return;
+      var dist2 = Math.hypot(localPos.x - (pt2.x + 0.5), localPos.y - (pt2.y + 0.5));
+      if (dist2 > FIELD_TRIGGER_RADIUS) return;
+      var trig2 = fieldTriggers[pt2.id];
+      if (!trig2 || trig2.status !== "resolved") return;
+      var hp2 = fieldEnemyHp[pt2.id];
+      var cleared2 = trig2.enemyFamilyId ? (hp2 !== undefined && hp2 <= 0) : !!trig2.scarabResolved; // scarab目前尚未設定resolved旗標，留給Task 21/22/25接上
+      var claimed2 = trig2.claimedBy && trig2.claimedBy[myTokenId];
+      var joined2 = trig2.participants && trig2.participants[mySlot];
+      if (cleared2 && !claimed2 && !joined2) nearbyLateClaimPoint = pt2;
+    });
     recomputeActiveEncounter();
     renderFieldOverlay();
   }
@@ -4250,6 +4299,53 @@
       el("midnight-field-late-join-loading").hidden = true;
       GameStorage.rtSet(gameId, "cloud", "fieldTrigger/" + pt.id + "/participants/" + mySlot, true);
     }, FIELD_LATE_JOIN_WAIT_MS);
+  }
+
+  // 後補領獎（設計文件§1.5）：按下「領取獎勵」後，等待FIELD_LATE_JOIN_WAIT_MS（跟中途加入
+  // 同款會合意象時間）才真正呼叫對應的ledger claim函式——板塊樓層的ledger放在
+  // fieldProgress/{id}/perPlayerRewards（見Task 1 claimLatePerPlayerRewards()），強敵籌碼／
+  // 隨機事件等沒有fieldProgress的一次性內容則改放在fieldTrigger/{id}/perPlayerRewards（見
+  // 下方claimLateFieldTriggerRewards()），用fieldProgress[pt.id]是否存在判斷要分派到哪一種。
+  var lateClaimTimer = null;
+  function handleLateClaimClick(pt) {
+    if (!mySlot || isPaused() || lateClaimTimer) return;
+    el("midnight-field-late-claim-loading").hidden = false;
+    lateClaimTimer = setTimeout(function () {
+      lateClaimTimer = null;
+      el("midnight-field-late-claim-loading").hidden = true;
+      if (fieldProgress[pt.id]) {
+        claimLatePerPlayerRewards(pt.id);
+      } else {
+        claimLateFieldTriggerRewards(pt.id);
+      }
+    }, FIELD_LATE_JOIN_WAIT_MS);
+  }
+
+  // 對strong_enemy/random_event等沒有fieldProgress的一次性內容，ledger改存在
+  // fieldTrigger/{id}/perPlayerRewards（跟fieldProgress版同一種{seq:{entries,grantedAt}}
+  // 結構），claimedBy也存在fieldTrigger底下——Task 21/25會把撃破獎勵寫進這裡而不是
+  // fieldProgress。
+  function claimLateFieldTriggerRewards(pointId) {
+    GameStorage.rtTransaction(gameId, "cloud", "fieldTrigger/" + pointId + "/claimedBy/" + myTokenId, function (cur) {
+      return cur ? cur : true;
+    }).then(function (committed) {
+      if (committed !== true) return;
+      var trig = fieldTriggers[pointId] || {};
+      var ledger = trig.perPlayerRewards || {};
+      var c = characters[myTokenId];
+      if (!c) return;
+      var labels = [];
+      Object.keys(ledger).forEach(function (seq) {
+        (ledger[seq].entries || []).forEach(function (entry) {
+          var label = grantLootRewardEntryToCharacter(c, entry);
+          if (label) labels.push(label);
+        });
+      });
+      if (labels.length) {
+        c._lastTileRewardNote = { text: window.I18N.t("midnight_reward_toast_prefix") + labels.join("、"), at: Date.now() };
+      }
+      GameStorage.rtSet(gameId, "cloud", "character/" + myTokenId, c);
+    });
   }
 
   // 邀請時限一到，任何看得到這個點的裝置都可以把狀態從inviting轉成active（不論當時
@@ -6791,6 +6887,16 @@
     lateJoinBox.hidden = !nearbyLateJoinPoint;
     if (nearbyLateJoinPoint) {
       el("btn-midnight-field-late-join").onclick = function () { handleLateJoinFieldClick(nearbyLateJoinPoint); };
+    }
+    // 後補領獎按鈕（設計文件§1.5）：跟上面的中途加入按鈕同一套「獨立於pt/trig狀態分支」
+    // 的渲染方式——不論下面的分支怎麼early return，這顆按鈕的顯示狀態每frame都會被正確
+    // 更新，不會殘留上一個地圖點的狀態。nearbyLateClaimPoint可能是board floor點（found）
+    // 也可能是strong_enemy/random_event點（見updateNearbyFieldPoint()的第二段偵測），兩者
+    // 用同一顆按鈕與同一個handleLateClaimClick()分派。
+    var lateClaimBox = el("midnight-field-late-claim-prompt");
+    lateClaimBox.hidden = !nearbyLateClaimPoint;
+    if (nearbyLateClaimPoint) {
+      el("btn-midnight-field-late-claim").onclick = function () { handleLateClaimClick(nearbyLateClaimPoint); };
     }
     if (!pt) {
       enterPrompt.hidden = true;

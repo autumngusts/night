@@ -1373,6 +1373,7 @@ STRINGS_ZH: dict[str, str] = {
     "midnight_field_fully_explored_note": "此地已全部樓層踏破。",
     "midnight_field_late_join_button": "參加探索",
     "midnight_field_late_join_loading_note": "準備會合中…",
+    "midnight_field_late_claim_button": "領取獎勵",
     "midnight_spirit_bird_use_button": "使用靈鳥",
     "midnight_day_phase_label": "第{day}天／{phase}",
     "midnight_phase_grace": "開放中",

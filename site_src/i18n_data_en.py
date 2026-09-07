@@ -1373,6 +1373,7 @@ STRINGS_EN: dict[str, str] = {
     "midnight_field_fully_explored_note": "This location has been fully explored.",
     "midnight_field_late_join_button": "Join Exploration",
     "midnight_field_late_join_loading_note": "Preparing to join...",
+    "midnight_field_late_claim_button": "Claim Reward",
     "midnight_spirit_bird_use_button": "Use spirit bird",
     "midnight_day_phase_label": "Day {day} / {phase}",
     "midnight_phase_grace": "Open",
