@@ -3,25 +3,32 @@
 日期：2026-09-07
 範圍：`static_src/midnight.js`／`midnight_map.js`（即時制擴張版），不影響 `night.js`（回合制）。
 
+> **修訂記錄**：本文件第一版由背景研究 agent 起草，經使用者與主對話逐項確認、並由本對話重新
+> 驗證所有引用的既有函式/資料結構後修正定稿。與研究草稿的主要差異：§2 改用卡牌名稱比對
+> （非花色點數比對，理由見 §2.1）、§3 獎勵分類改讀 `perPerson` 旗標本體（非依 kind 寫死）、
+> §4 六種謜題全部改為參數化模板即時生成、§8.2 补齊虫の大量発生／発狂地帯完整設計、§1.5
+> 後補領獎機制擴大並排除可重複使用籌碼。
+
 ## 0. 背景與既有機制盤點
 
-本次改版前已完成的調查記錄於 `docs/midnight_field_chip_rules.md`（板塊樓層/籌碼機制現況整理）。
-本文件在該份文件基礎上，設計 9 項使用者要求的優化。以下是設計中會重用的既有函式／資料，
-先列出避免重複發明：
+現況整理見 `docs/midnight_field_chip_rules.md`。以下是本次設計會重用的既有函式／資料
+（已逐一在程式中核對存在，位置與簽名均為實際確認過的內容）：
 
-| 用途 | 既有函式／資料 | 位置 |
+| 用途 | 既有函式／資料 | 位置（已核對） |
 |---|---|---|
-| 打字機敘述（可調速度） | `typewriteInto(el, text, {intervalMs})` | `night_gm_flow.js:51` |
-| 突破判定/協力判定文字解析（`〈協力N×PC人數｜屬性〉`） | `parseBreakthroughCheckText(text)` | `night_floor_breakthrough.js:25`（純函式，需複製一份到 midnight.js，同 `MERCHANT_CONSUMABLE_IDS` 既有慣例） |
-| GM 判斷類獎勵自動解決（`hpDamage`/`tieredChoice`/`diceHandChoice`/`note`） | `autoResolveJudgmentEntry(entry, entered, floorKey, entryIndex)` 的邏輯（不能直接呼叫，需要在 midnight.js 內移植等價邏輯，因為它依賴 `night.js` 專屬的 `state.gmFlow`/`state.turnRewards`） | `night_floor_breakthrough.js:469` |
-| 潛在力量★ 抽選（得意武器／附帶效果） | `CharacterDrawer.potentialPowerDrawWeapon(c, starCount)`／`rollPotentialPowerAttachedEffect(c)`／`previewAttachedEffectSlot(c)`／`commitPotentialPowerWeapon(c, wr)`／`commitAttachedEffectChoice(c, effect, slotPreview)` | `character_drawer.js` |
-| 戰技重抽 | `listRerollableWeaponSkillSlots(c)`／`rerollWeaponSkill(c, weaponId, slot)`／`commitWeaponSkillReroll(c, weaponId, slot, skillId)` | `character_drawer.js:2814~2848`（既有函式，目前沒有任何 UI 呼叫） |
+| 打字機敘述（可調速度） | `typewriteInto(el, text, opts)` | `night_gm_flow.js:51` |
+| 突破/協力判定文字解析（`〈協力N×PC人數｜屬性〉`） | `parseBreakthroughCheckText(text)` | `night_floor_breakthrough.js:25`（純函式，需複製一份到 midnight.js，同既有 `MERCHANT_CONSUMABLE_IDS` 慣例） |
+| GM 判斷類獎勵處理參考實作 | `judgeDiceHand(entry, values)` / `autoResolveJudgmentEntry(entry, entered, floorKey, entryIndex)` | `night_floor_breakthrough.js:250` / `:469`（邏輯需移植，不能直接呼叫——依賴 `night.js` 專屬的 `state.gmFlow`） |
+| 潛在力量★ 抽選（武器／附帶效果） | `potentialPowerDrawWeapon(c, starCount)` / `commitPotentialPowerWeapon(c, result, attributeTag)` / `rollPotentialPowerAttachedEffect(c)` / `previewAttachedEffectSlot(c)` / `commitAttachedEffectChoice(c, effect, preview)` | `character_drawer.js:2857/3015/3049/3073/3084` |
+| 戰技重抽 | `listRerollableWeaponSkillSlots(c)` / `rerollWeaponSkill(c, weaponId, slot)` / `commitWeaponSkillReroll(c, weaponId, slot, skillId)` | `character_drawer.js:2817/2835/2845`（既有函式，目前沒有任何 UI 呼叫過） |
 | 強敵決定表／恐るべき強敵決定表（2 顆骰×12列） | `event_rulebook.js` `strong_enemy` chip `extraTables[0]`（一般）／`extraTables[1]`（恐るべき） | `event_rulebook.js:271` |
-| 隨機事件決定表（劇本篩選重擲） | `rollRandomEventTable(table, scenarioNumber)`（已含「不符合當前劇本就重擲，上限30次」邏輯） | `night_gm_flow.js:1667` |
-| 隨機事件的 10 種分支全文 | `event_rulebook.js` `random_event` chip `branches[]`（含「聖甲蟲／靈鷹の止まり木／女神像／埋もれ宝／隕石／歩く霊廟／夜の勢力／虫の大量発生（含蟻の大量発生的變體）／発狂地帯／襲撃」） | `event_rulebook.js:313~` |
-| 夜の強敵決定表（劇本×日別查表） | `resolveNightBossTableRow(card, scenarioNumber)`／`rollNightBossEntry(row, colIndex)` | `night_gm_flow.js:3179/3216` |
-| 各劇本固定卡牌配置（含花色/點數/分歧名稱提示） | `SCENARIOS[i].day1[]`／`day2[]`（每格 `{pos, suit, rank, name}`） | `scenarios.js` |
-| 消耗品資料（石劍鑰匙/鍛造石，已是 midnight 專用道具化版本） | `item_stonesword_key`／`item_smithing_stone`（`noStackLimit:true`） | `consumables.js:172/182` |
+| 隨機事件決定表（含劇本篩選重擲，上限 30 次） | `rollRandomEventTable(table, scenarioNumber)` | `night_gm_flow.js:1667` |
+| 隨機事件的完整 10 個分支原文 | `event_rulebook.js` `random_event` chip `branches[]` | `event_rulebook.js:317~923` |
+| 夜の強敵決定表（劇本×日別查表） | `resolveNightBossTableRow(card, scenarioNumber)` / `rollNightBossEntry(row, colIndex)` | `night_gm_flow.js:3179/3216` |
+| **各劇本、各天、各位置實際板塊變體名稱**（含花色/點數） | `SCENARIOS[i].day1[]` / `day2[]`，每筆 `{pos, suit, rank, name:{ja,zh,en}}` | `scenarios.js:14~`（已核對：`name` 欄位就是 `fields_data_*.js` 對應卡牌 `branches[].name` 的同款字串，例如 `card_2` 分支有 `"大教會（聖）"`/`"大教會（1）"`/`"大教會（2）"`等，`scenarios.js` 劇本1 day1 pos1 正好是 `"大教會（聖）"`） |
+| 消耗品資料（石劍鑰匙/鍛造石） | `item_stonesword_key` / `item_smithing_stone`（`noStackLimit:true`） | `consumables.js:172/182` |
+| 武器稀有度強化（C→U→R） | `getEffectiveWeaponRarity(c, weaponId)` / `upgradeWeaponRarity(c, weaponId)` / `canUpgradeWeaponRarity(c, weaponId)` | `character_drawer.js:4129/4135/4146` |
+| 屬性/異常蓄積（含「発狂」） | `ATTRIBUTE_STATUS_AILMENT_NAMES_JA`（已含 `"発狂"`）＋既有蓄積 helper | `midnight.js`（既有，§8.2 発狂地帯直接沿用） |
 
 ---
 
@@ -30,28 +37,27 @@
 ### 1.1 時間常數調整
 
 ```js
-FIELD_INVITE_TIME_LIMIT_MS = 10000;      // 現狀已是10秒，不變
-FIELD_ENTER_WAIT_MS = 1000;              // 0.5s → 1s
-FIELD_ENTER_WAIT_MS_SPECIAL = 5000;      // 新增：J（堡壘）/其他「非A,2~10,K,籌碼」板塊專用
-FIELD_VOTE_TIME_LIMIT_MS = 10000;        // 不變
+FIELD_INVITE_TIME_LIMIT_MS = 10000;      // 3s → 10s
+FIELD_ENTER_WAIT_MS = 1000;              // 0.5s → 1s（A／2~10／K／籌碼點適用）
+FIELD_ENTER_WAIT_MS_CASTLE = 5000;       // 新增：僅 J（堡壘）適用
 ```
 
-`maybeStartFieldTypewriter()` 呼叫等待判斷時，改成依 `pt.card` 選擇上述兩個常數其中之一
-（`pt.card === "J"` 用 special，其餘一般板塊卡維持 1 秒）。
+> **「Q」澄清**：使用者原文「A,2~10,K,籌碼 以外的板塊＝J,Q」，經核對 `fields_data_1~4.js`／
+> `midnight_map.js` 現有卡牌清單，`Q`（地變，`floorCount:4`）雖然規則書資料裡確實存在
+> （`fields_data_4.js` 有 `card_q`），但這次**確認不加入地圖**（使用者決定：基礎版地圖暫不
+> 涵蓋 Q，之後如果要加入需另外設計「怎麼安排 Q 卡出現時機」，本次範圍只把 5 秒等待套用在
+> J 一種）。
 
-> **澄清**：原始需求寫「A,2~10,K,籌碼以外的板塊＝J,Q」。經比對 `fields_data_1~4.js` 與
-> `midnight_map.js` 的既有卡牌 id 清單，本作品只實作了 `A／2~10／K／J` 共 12 種板塊，**沒有
-> `Q` 這張卡**（規則書亦無此編號）。因此本設計把「特殊 5 秒等待」的範圍認定為**僅 J（堡壘）
-> 一種**；若你之後確認還有其他應歸類的板塊，之後再擴充 `FIELD_ENTER_WAIT_MS_SPECIAL` 的
-> 判斷條件即可，不影響其餘設計。
+`maybeStartFieldTypewriter()` 依 `pt.card === "J"` 判斷用哪個等待常數。
 
-打字機速度：呼叫 `typewriteInto()` 時額外傳 `{ intervalMs: 56 }`（預設 28ms 的 2 倍＝變慢 0.5 倍）。
+**打字機速度**：`typewriteInto()` 呼叫時傳入比預設慢一倍的 `intervalMs`（沿用該函式既有的
+`opts.intervalMs` 參數，不需要新增函式簽名）。
 
 ### 1.2 邀請階段：顯示已加入名單＋「立即進入」
 
-`renderFieldVoteOrResult()`（或新增 `renderFieldInviteStatus()`）在 `trig.status === "inviting"` 時：
-- 渲染 `trig.participants` 目前已加入的玩家名字列表。
-- 顯示「立即進入」按鈕（任一已加入者可按），點擊後：
+`renderFieldVoteOrResult()` 新增邀請中的渲染分支：
+- 列出 `trig.participants` 目前已加入的玩家名字。
+- 已加入者可按「立即進入」，直接把 `inviteDeadline` 改成 `Date.now()`：
 
 ```js
 function handleForceEnterFieldClick(pt) {
@@ -61,143 +67,166 @@ function handleForceEnterFieldClick(pt) {
 }
 ```
 
-不新增狀態機分支——`maybeAdvanceFieldInvite()` 既有的「`Date.now() >= trig.inviteDeadline`」判斷
-會在下一輪 `updateNearbyFieldPoint()` 自然觸發，不需要改動判斷邏輯本身。
+不新增狀態機分支：`maybeAdvanceFieldInvite()` 既有的 `Date.now() >= trig.inviteDeadline`
+判斷會在下一輪 `updateNearbyFieldPoint()` 自然觸發。
 
 ### 1.3 投票階段：即時票型分布＋全員投完立即判定
 
-- `renderFieldVoteOrResult()` 新增：依 `trig.votes` 即時渲染各選項目前票數（長條/數字皆可，沿用
-  既有 CSS class 風格）。
-- `maybeResolveFieldVote()` 邏輯調整：目前「全員都投但沒共識」要等到 `timedOut` 才多數決。改為
-  **只要全員都投了（`allVoted`），不論是否逾時，立即判定**——一致就直接用該項，不一致就立即套用
-  `pickFallbackChoice()`（多數決）。也就是把原本 `else return;`（全員投完但未逾時、沒共識時的
-  「繼續等」分支）拿掉，改成立即呼叫 `pickFallbackChoice`。
+- 新增即時票數分布渲染（依 `trig.votes` 統計各選項目前票數）。
+- `maybeResolveFieldVote()`：拿掉「全員都投但沒共識時等到 `timedOut` 才多數決」的
+  `else return;` 分支，改成只要 `allVoted` 就立即判定（一致採該項，不一致立即
+  `pickFallbackChoice()` 多數決），不再等待 `voteDeadline`。
 
 ### 1.4 中途加入（「參加探索」）
 
-新增獨立於原邀請機制的第二套加入流程，只在 `trig` 已存在（`inviting`/`active`/`resolved`
-皆可）且 `mySlot` 不在 `trig.participants` 時觸發：
+新增第二套加入流程，只在 `fieldTrigger` 已存在（`inviting`/`active`/`resolved` 皆可）且
+`mySlot` 不在 `participants` 中時觸發：
 
-- `updateNearbyFieldPoint()` 偵測到此情況時，顯示 `[參加探索]` 按鈕（跟原本的
-  `[加入]`/`inviteWait` UI 分開渲染，因為原邀請 3 秒視窗可能早已結束）。
-- 按下後啟動本地 2 秒計時器（`FIELD_LATE_JOIN_WAIT_MS = 2000`），逾時後才真正
-  `GameStorage.rtSet(..., "fieldTrigger/" + pt.id + "/participants/" + mySlot, true)`。
-- 此時玩家會合併看到當前 `status` 對應的畫面（敘述中/投票中/戰鬥中皆自然銜接，因為渲染函式本來
-  就是依 `trig.status` 決定顯示什麼，只是原本 `participants` 檢查會排除他，現在他加入後就能看到）。
-- **投票視窗仍在 `active` 且未 `resolved`**：新加入者可以投票（`participantSlots(trig)` 動態
-  讀 `trig.participants`，本來就會自動納入新成員，不需要特別處理）。
-- **已經 `resolved`（含戰鬥中/已和平通過）**：新加入者只是加入 `participants`，不會回頭觸發投票。
+- 顯示 `[參加探索]` 按鈕（跟原本的 `[加入]` UI 分開渲染，因為原 10 秒邀請視窗可能早已結束）。
+- 按下後本地等待 `FIELD_LATE_JOIN_WAIT_MS = 2000`，逾時後才 `rtSet` 把自己加進
+  `fieldTrigger/{id}/participants/{mySlot}`。
+- **仍在投票階段（`active` 且未 `resolved`）**：加入後跟現有玩家一起投票——
+  `participantSlots(trig)` 本來就即時讀 `trig.participants`，不需要額外處理。
+- **已經 `resolved`（含戰鬥中/已和平通過）**：加入後只是併入 `participants`，直接看到目前畫面
+  （敘述/戰鬥），不會回頭觸發打字機或投票。
 
-### 1.5 落後獎勵追蹤（per-player reward ledger）
+### 1.5 落後獎勵追蹤與後補領獎（perPlayerRewards ledger）
 
-新增 RTDB 節點 `fieldProgress/{pointId}/perPlayerRewards/{seq}`：每次
-`maybeGrantFieldTileReward()` / `maybeGrantFieldFullClearReward()` / §3 新增的潛在力量等
-「per-player 保證獲得」獎勵發放時，除了發給當下 `trig.participants` 外，同時 push 一筆
-`{ entries: [...], grantedAt }` 進這個節點（累加、不覆蓋，`seq` 遞增）。
+**範圍**：只適用於「一次性完成、之後維持已清除狀態」的內容——一般板塊樓層／強敵籌碼／
+隨機事件（各分支的戰鬥或判定結果）／Day1/2 最終小圓夜之強敵／Day3 夜之王。
+**明確排除祝福、商人這類「可重複使用、沒有清除狀態」的籌碼**——這兩者本來就是任何人
+隨時可用，不存在「已被別人領走」的概念，不需要後補領獎機制。
 
-「per-player 保證獲得」的判斷：`rune`／`weaponStar`／`consumable`／`talisman`／`chaliceBonus`／
-`potentialPower`——即現有 `LOOT_REWARD_KINDS` 中，非「固定數量、先到先得」的種類。
-`stoneswordKey`／`smithingStone`（走 §3 的「固定數量共享池」）不記錄進這個 ledger，因為
-它們的規則就是「搶完就沒有」，落後玩家本來就不該追討。
+**perPerson 判斷（依你的規格，直接讀資料本體的旗標，不依 kind 寫死）**：
+```js
+function isPerPersonRewardEntry(entry) {
+  return entry.perPerson !== false; // 未標記或明確 true 都視為每人各自一份；只有明確 false 才是固定共享
+}
+```
+`fields_data_*.js`／`event_rulebook.js` 的 reward entry 若標記 `perPerson: false`，代表這是
+「固定數量、全隊共用一份、先搶先贏」（例如教會商人的鍛石兌換、某些 `stoneswordKey`/
+`smithingStone` 條目）；沒有標記或標記 `true` 的都視為「每個參與者各自獨立獲得一份」。
+
+**RTDB 結構**：`fieldProgress/{pointId}/perPlayerRewards/{seq}` 記錄每次發放的
+`{ entries: [...perPerson的entries], grantedAt }`（累加、不覆蓋）；`固定共享`（`perPerson:false`）
+的獎勵改走 §3.2 的共享池機制，不進這個 ledger（因為規則本來就是「搶完就沒有」，後補玩家
+不該追討）。
+
+強敵籌碼／隨機事件／Day1-2 夜之強敵／Day3 夜之王 撃破時發放的固定值獎勵（`STRONG_ENEMY_
+REWARD_RUNES` 等）視為 `perPerson:true`（規則書原文本來就是「PC 各自獲得」），同樣寫入
+對應點位的 `perPlayerRewards` ledger。
 
 **領取機制**：
-- 玩家靠近「自己從未參與過、但已有進度（`fieldProgress` 存在）」的板塊點（不論該點是否已全
-  踏破、卡牌是否顯示 ✕）時，顯示 `[領取獎勵]` 按鈕。
-- 按下後 2 秒（沿用 `FIELD_LATE_JOIN_WAIT_MS`），把 `perPlayerRewards` 中「這個 tokenId 尚未
-  領過」的所有 entries 一次發給他（用 `fieldProgress/{pointId}/claimedBy/{tokenId} = true` 標記
-  已處理，避免重複發放；不需要逐筆 seq 標記，因為一次全部結清）。
-- HP/FP 消耗、戰鬥本身不追溯（維持現狀，這些不記錄進 ledger）。
+- 玩家靠近「自己從未加入過、但這個點已有 `fieldTrigger`/`fieldProgress` 記錄」的一次性內容時
+  （不論目前是否已全清），顯示 `[領取獎勵]` 按鈕。
+- 按下後等待 2 秒（`FIELD_LATE_JOIN_WAIT_MS`），把該點 `perPlayerRewards` 中「自己
+  （`myTokenId`）尚未領過」的全部 entries 一次授予，並寫入
+  `fieldProgress/{pointId}/claimedBy/{myTokenId} = true` 標記已處理（同一 tokenId 之後不會
+  再顯示這個按鈕、也不會重複授予）。
+- HP/FP 消耗、戰鬥過程本身不追溯（沿用現狀）。
 
 ---
 
 ## 2. 分歧「變體」挑選：劇本連動
 
-### 2.1 資料來源：`scenarios.js` 既有的劇本卡牌配置
+### 2.1 比對依據：卡牌名稱而非花色/點數
 
-`SCENARIOS[i].day1[]`／`day2[]` 每筆 `{pos, suit, rank, name}` 已經是「這個劇本在這一天、這個
-位置放的是哪張牌（含花色）、規則書怎麼稱呼這個變體」的權威資料（例：`tricephalos` 劇本 day1
-pos1 是 `{suit:"C", rank:"2", name:"大教會（聖）"}`）。
+`scenarios.js` 的 `SCENARIOS[i].day1[]`／`day2[]` 每筆是「這個劇本在這一天、這個位置放的是
+哪張牌」，含 `{pos, suit, rank, name}`。**原始構想是用 `rank` 對應 `pt.card`**，但實際核對後
+發現同一個 `rank` 在不同劇本可能對應完全不同的板塊類型——例如劇本 1 day2 pos5 是
+`{rank:"J", name:"砦（隨機）"}`，但 `rank:"J"` 在 midnight 的基礎地圖規則裡固定代表「堡壘」
+（`FIELD_CARD_NAMES.J = 堡壘`），"砦"（小砦）實際對應的是 `rank:"3"`。這代表 `scenarios.js`
+的 `rank` 欄位反映的是「該劇本這一局實際抽到的花色牌面」，不是「板塊類型」——兩者在
+不同劇本可能不一致，用 `rank` 比對會選錯完全不同種類的板塊。
 
-### 2.2 建立「劇本＋卡牌點數」→ 候選變體池
+**改用卡牌名稱字串比對**：`fields_data_*.js` 每張卡的 `branches[].name` 都是「卡牌本名＋
+變體後綴」格式（例如 `card_2` 大教會的分支名稱是 `"大教會（1）"`／`"大教會（聖）"`／
+`"丘上的大教會"`等），跟 `scenarios.js` 的 `name` 欄位用的是同一種字串慣例。因此比對依據
+改成：從 `scenarios.js` 該劇本 `day1`+`day2` 全部項目中，篩出 `name.zh` 以
+`fieldLocationName(pt)`（該卡牌本名，如「大教會」）開頭的項目，收集成候選池。
 
-新增函式 `scenarioVariantCandidatesForRank(scenarioId, rank)`：
+### 2.2 建立候選池與挑選
 
 ```js
-function scenarioVariantCandidatesForRank(scenarioId, rank) {
+// 注意：比對邏輯全程只用 .zh 欄位（不透過 localizedText()），因為這是後端資料比對，
+// 不是 UI 顯示——localizedText() 會依目前介面語言回傳 ja/zh/en，若混用會導致日文/英文
+// UI 的玩家配對到錯誤結果（fields_data與scenarios.js的.zh字串保證一致，用它當比對key
+// 最穩定，不受玩家個人語言設定影響，遊戲邏輯本應與顯示語言脫鉤）。
+function scenarioVariantCandidatesForCard(scenarioId, card) {
   var Scenarios = window.PriTestScenarios;
-  var scenario = Scenarios.get(scenarioId); // 需確認scenarios.js是否已有get(id)，若無則list().filter
+  var scenario = Scenarios.get ? Scenarios.get(scenarioId) : Scenarios.list().filter(function (s) { return s.id === scenarioId; })[0];
   if (!scenario) return [];
+  var data = fieldCardData(card);
+  var baseName = data ? data.name.zh : ""; // 卡牌本名（.zh固定），如"大教會"
+  if (!baseName) return [];
   var out = [];
   ["day1", "day2"].forEach(function (dayKey) {
     (scenario[dayKey] || []).forEach(function (slot) {
-      if (slot.rank === rank) out.push(slot); // 保留day1/day2兩邊、不同花色都各自收錄
+      if (slot.name && slot.name.zh && slot.name.zh.indexOf(baseName) === 0) out.push(slot);
     });
   });
   return out;
 }
 ```
 
-依使用者確認「若區分一日二日有不同的花色，則兩者都能套用抽選查看」：不分天，把 day1／day2
-所有符合這個點數（rank）的項目都收進候選池（同一個 rank 在 day1/day2 可能是不同花色、不同
-變體名稱，例如上面 tricephalos 例子的「大教會（聖）」vs day2 的「大教會（無印）」都會進池）。
-
-### 2.3 用候選池決定 `pickFieldBranchIndex()`
+不分天：day1／day2 兩邊符合這個卡牌本名的項目都收進同一個候選池（依你的確認：「若區分一日
+二日有不同的花色，則兩者都能套用抽選查看」）。
 
 ```js
 function pickFieldBranchIndex(pt) {
   var branches = fieldCardBranches(pt.card);
   if (!branches.length) return 0;
   var scenarioId = resolveNightBossScenarioId();
-  var candidates = scenarioId ? scenarioVariantCandidatesForRank(scenarioId, pt.card.toUpperCase()) : [];
+  var candidates = scenarioId ? scenarioVariantCandidatesForCard(scenarioId, pt.card) : [];
   if (candidates.length) {
+    // 依你的規格：同一張卡不同地點的板塊都需要重抽——用pt.id（而非card本身）當seed key，
+    // 確保地圖上兩個「大教會」實體各自獨立抽選，不共用同一個結果。
     var picked = candidates[fieldSeededIndex(pt.id + ":scenario_variant", candidates.length)];
-    var resolvedIndex = matchBranchIndexByNameHint(branches, picked.name);
+    var resolvedIndex = matchBranchIndexByName(branches, picked.name.zh);
     if (resolvedIndex !== null) return resolvedIndex;
-    // name含"隨機"／比對不到明確分支：退回varianceTable真正查表（見2.4）
-    var viaVariance = resolveBranchViaVarianceTable(pt.card, scenarioId, picked.suit);
-    if (viaVariance !== null) return viaVariance;
   }
-  return fieldSeededIndex(pt.id + ":branch", branches.length); // 無劇本資料/比對失敗：退回現行純隨機
+  return fieldSeededIndex(pt.id + ":branch", branches.length); // 找不到劇本資料或比對失敗：退回現行純隨機
+}
+
+function matchBranchIndexByName(branches, nameHintZh) {
+  for (var i = 0; i < branches.length; i++) {
+    if (branches[i].name && branches[i].name.zh === nameHintZh) return i; // 同樣固定比對.zh，不經localizedText
+  }
+  return null; // 找不到完全相同名稱就不勉強比對，交由呼叫端退回純隨機
 }
 ```
 
-`matchBranchIndexByNameHint(branches, nameHint)`：`nameHint` 例如「大教會（聖）」，去掉卡牌
-本名只留「（聖）」這類後綴，跟 `branches[i].name`（localizedText）做包含比對；命中就回傳該
-index，含「隨機」二字或找不到比對就回傳 `null`（交給 2.4 的 varianceTable 真查表，或最終
-退回純隨機）。
+用**完全相同字串**比對（不是子字串），避免「大教會（1）」誤配到「大教會（12）」這類前綴重疊
+問題（目前資料沒有這種情況，但用完全比對更安全）。找不到就整體退回現行的
+`fieldSeededIndex(pt.id + ":branch", ...)` 純隨機（不阻塞流程、不猜規則）。
 
-### 2.4 `varianceTable` 真查表（`name` 含「隨機」時）
+### 2.3 J（堡壘）與 A（出發地點）
 
-沿用規則書 `varianceTable.rows`（`[劇本欄, 花色欄, 內容(1D)欄]`），用劇本編號比對劇本欄、
-`picked.suit` 比對花色欄，找到對應列後用 `fieldSeededIndex` 骰 1D 決定最終內容字串，再拿這個
-字串去 `matchBranchIndexByNameHint()` 一次。若這一步也找不到就回傳 `null`，最終由呼叫端退回
-純隨機（不阻塞流程）。
+- J：套用同一套機制（`fieldLocationName` 對 J 卡回傳「堡壘」，候選池篩選邏輯不變）。
+- A（出發地點）：`a_start` 卡本身也有 `branches`，套用同一套機制（`fieldLocationName` 對
+  A 卡回傳「出發地點」）。
 
-### 2.5 J（堡壘）與 A（出發地點）／Z（黃金樹之帳）
+### 2.4 Z（黃金樹之帳）與夜之強敵/夜之王
 
-- J 對應 `fields_data_4.js card_j`，同樣走上述機制（`rank: "J"`，若 `scenarios.js` 沒有記錄
-  堡壘的資料列則直接退回純隨機，堡壘本身較可能沒有分歧變體）。
-- A／Z 本來就有各自的 `nightBossFixedLevel`／夜之強敵決定表查詢邏輯（§8 已涵蓋一半），
-  出發地點的 `varianceTable`（`a_start` 卡）改用 §2.4 的真查表邏輯（`start.suit`／
-  `SCENARIOS[i].start.suit` 已存在於 `scenarios.js`）。
+Z 不透過這套「分歧變體」機制（它本來就沒有 `branches` 多選，是走 §8 已有的
+「夜の強敵決定表」查表邏輯，不受本節影響）。
 
 ---
 
 ## 3. 獎勵清單優化
 
-### 3.1 背包已滿：黃字提示取代靜默隱藏
+### 3.1 背包已滿：黃字提示取代靜默略過
 
-`renderRewardDetail()`／`grantLootRewardEntryToCharacter()` 判斷背包滿時，改成顯示
-`midnight_inventory_full_note`（黃字樣式，沿用既有 `.toast`/`.warning-text` class）而不是
-直接不出現確認按鈕；按鈕仍保留（可選擇先去角色面板丟棄再回來按，或直接無視）。
+`grantLootRewardEntryToCharacter()`／獎勵清單彈窗的「領取」handler，背包已滿時不再直接
+`return null` 略過，改為：
+- 樓層戰利品自動授予流程（`grantTileLootToParticipants`）：該筆略過，但額外把
+  `midnight_inventory_full_note`（黃字）加進通知文字，讓玩家知道有東西沒拿到。
+- 獎勵清單彈窗（`confirmRewardEntry`）：按下「領取」時背包已滿，直接在彈窗內顯示黃字
+  `midnight_inventory_full_note`，不關閉彈窗（讓玩家可以先去角色面板丟棄再回來按）。
 
-### 3.2 固定數量獎勵：共享池、先搶先贏
+### 3.2 固定數量獎勵（`perPerson:false`）：共享池、先搶先贏
 
-新增 RTDB 節點 `fieldTrigger/{pointId}/sharedRewards/{rewardId}`（結構同 `pendingRewards`
-entry，但**只有一份**，所有 `participants` 共享）。
-
-發放時機（樓層戰利品含 `stoneswordKey`／`smithingStone`，或未來任何 `perParty:false` 的固定
-數量品項）：
+新增 RTDB 節點 `fieldTrigger/{pointId}/sharedRewards/{rewardId}`：
 
 ```js
 function pushSharedReward(pointId, entry) {
@@ -207,198 +236,179 @@ function pushSharedReward(pointId, entry) {
 }
 ```
 
-所有 `participants` 的畫面都渲染同一份 `fieldTrigger/{pointId}/sharedRewards`；任一人按
-「領取」時用 `rtTransaction` 鎖定 `.../sharedRewards/{rewardId}/resolvedBy`
-（first-writer-wins，同 `tileRewardGrantedBy` 既有手法），成功者才真正把物品寫進自己角色，
-其餘人畫面上該項目立即變成「已被 XXX 領取」（唯讀）。
+所有 `participants`（含後補加入者）都看得到同一份 `sharedRewards` 清單；任一人按「領取」時
+用 `rtTransaction` 鎖定 `.../sharedRewards/{rewardId}/resolvedBy`（first-writer-wins，跟既有
+`tileRewardGrantedBy` 同款手法）——成功者才真正把物品寫進自己角色，其餘人畫面上該項目立即
+變成「已被 OO 領取」（唯讀，不能再按）。
+
+`stoneswordKey`／`smithingStone`（`perPerson:false` 時）／其餘任何標記 `perPerson:false` 的
+戰利品皆走這條路徑，不走 §1.5 的 ledger。
 
 ### 3.3 潛在力量★：雙抽同時揭示、二選一
 
-改寫 `renderPotentialPowerRewardDetail()`：不再是「武器」「效果」各自獨立按鈕，改成單一
-「抽選」按鈕，按下同時呼叫 `potentialPowerDrawWeapon()` 與 `rollPotentialPowerAttachedEffect()`
-（+`previewAttachedEffectSlot()`），兩個結果並排顯示，上方黃字 `midnight_reward_potential_choose_note`
-＝「請從下方選項中獲得一項」。選其中一個確認後，另一個結果作廢（不寫回角色）。
+`renderPotentialPowerRewardDetail()` 改寫：按下單一「抽選」按鈕時，同時呼叫
+`potentialPowerDrawWeapon(c, starCount)` 與 `rollPotentialPowerAttachedEffect(c)` +
+`previewAttachedEffectSlot(c)`，兩個結果並排顯示，上方黃字
+`midnight_reward_potential_choose_note`＝「請從下方選項中獲得一項」。玩家點選其中一個結果
+才呼叫對應的 `commitPotentialPowerWeapon()`／`commitAttachedEffectChoice()`；未選的另一個
+作廢、不寫回角色。
 
 ### 3.4 石劍鑰匙／鍛造石：走共享池，領到後進消耗品欄
 
-`grantLootRewardEntryToCharacter` 新增 `stoneswordKey`／`smithingStone` 分支——但因為這兩種
-改走 §3.2 共享池，不是走這個「直接授予」函式，而是在共享池的「領取」handler 裡呼叫類似邏輯：
-把 `item_stonesword_key`／`item_smithing_stone` 塞進 `c.consumables`（`noStackLimit:true`，
-跟現有 `handlePickupGroundItem()` 的疊加邏輯一致：已有同 itemId 就 `usesRemaining += value`，
+在 §3.2 共享池的「領取」handler 內，`kind==="stoneswordKey"`／`"smithingStone"` 時把
+`item_stonesword_key`／`item_smithing_stone` 塞進 `c.consumables`（`noStackLimit:true`，
+比照現有 `handlePickupGroundItem()` 的疊加邏輯：已有同 itemId 就 `usesRemaining += value`，
 否則新增 instance）。
 
-### 3.5 戰技重抽：鍛造台 UI（全新畫面）
+### 3.5 戰技重抽：全新鍛造台 UI
 
-新增 modal（例如 `#midnight-weapon-reroll-modal`）：
-1. 展開 `listRerollableWeaponSkillSlots(characters[myTokenId])`（有隨機戰技槽的武器清單），
-   每項顯示武器名＋目前戰技（呼叫既有 `renderWeaponSkillRefEntry` 展示詳情，沿用
-   `night_potential_power.js` 的既有 pattern）。
-2. 選定一項後，該武器「貼」到畫面中「鍛造台」下方空格（純 UI 呈現，一個高亮卡片）。
-3. `[使用]`：呼叫 `rerollWeaponSkill(c, weaponId, slot)`，顯示新舊戰技比較表（沿用
-   `potential_power_effect_will_replace_note` 同款「舊→新」對照卡片 pattern）。玩家再選
-   `[套用]`（呼叫 `commitWeaponSkillReroll`，寫回角色）或 `[保留]`（放棄這次重抽結果，
-   不寫回，可以重新選其他武器）。
-4. `[離開]`：第一次按只顯示黃字提醒「再按一下放棄使用鍛造台」（不關閉），第二次按才真正
-   `closeWeaponRerollModal()`。
+新增 `#midnight-weapon-reroll-modal`（跟商人的鍛冶合稀有度強化面板完全分開，兩者是不同功能）：
 
-這個獎勵發放方式：跟潛在力量★一樣是「per-player 保證獲得」的一次性使用權（`weaponSkillReroll`
-kind，`value` 決定可以重抽幾次），不是共享池。
+1. 展開 `listRerollableWeaponSkillSlots(characters[myTokenId])`，逐一顯示武器名＋目前戰技
+   詳情（沿用既有武器詳情渲染 pattern）。
+2. 選定一項後，該武器卡片「貼」到畫面中「鍛造台」下方空格（純 UI 呈現的高亮卡片）。
+3. `[使用]`：呼叫 `rerollWeaponSkill(c, weaponId, slot)`，並排顯示新舊戰技/魔術/祈禱比較表
+   （限同武器種類，`rerollWeaponSkill` 本身已保證這點）。玩家再選：
+   - `[套用]`：呼叫 `commitWeaponSkillReroll(c, weaponId, slot, skillId)` 寫回角色。
+   - `[保留]`：放棄這次結果、不寫回，可重新選其他武器再抽。
+4. `[離開]`：第一次按只顯示黃字「再按一下放棄使用鍛造台」（不關閉）；同一動作 3 秒內再按
+   一次才真正 `closeWeaponRerollModal()`；逾時則視同取消提醒，下次按離開重新從第一次開始。
 
-### 3.6 GM 判斷類（hpDamage／tieredChoice／diceHandChoice／bargainReveal／note）自動套用
+`weaponSkillReroll` 這個 kind 的 `value` 決定可重抽次數，視為 `perPerson:true` 的一次性使用權
+（進 §1.5 ledger，不走共享池）。
 
-在 midnight.js 內移植（非直接呼叫，因為 night.js 版本綁定 `state.gmFlow`/`state.turnRewards`）
-等價邏輯，掛在 `maybeGrantFieldTileReward()` 流程內，對 `floor.reward` 裡這 5 種 kind 逐一處理：
+### 3.6 GM 判斷類（`hpDamage`／`tieredChoice`／`diceHandChoice`／`bargainReveal`／`note`）自動套用
 
-- **`hpDamage`**：隨機一位 `trig.participants` 扣 `entry.value` 點 HP（`demoStat` transaction）。
-- **`tieredChoice`**：用 §1.3 投票判定出的 `choiceIndex` 對應的 label，去比對
-  `entry.tiers[].label`（跟 `night.js` 用「已選路線標籤」比對 tier 是同個精神，只是 midnight
-  的「已選路線」來源是玩家投票結果而非 GM 敘述路徑）；找到對應 tier 後，該 tier 的
-  `rewards[]` 遞迴丟回 `maybeGrantFieldTileReward` 同一套處理（含可能再次是 GM 判斷類，遞迴
-  處理）。比對不到就整個 tier 陣列跳過（不硬猜）。
-- **`diceHandChoice`**：`diceCount`（預設12）顆 1D6，呼叫既有役判定邏輯——**此函式
-  （`judgeDiceHand`）位於 `night_floor_breakthrough.js`，屬純函式，複製一份到 midnight.js**
-  （同 `parseBreakthroughCheckText` 的既有慣例）。判定出的役對應 `rewards[]` 同上遞迴處理。
-- **`note`**：只顯示 toast／寫進角色 `_lastTileRewardNote`，不套用任何數值。
+在 `maybeGrantFieldTileReward()` 流程內新增分類處理（邏輯移植自 `night_floor_breakthrough.js`
+對應函式，改綁 midnight 自己的 state，不直接呼叫 night.js 版本）：
+
+- **`hpDamage`**：`trig.participants` 中隨機一位扣 `entry.value` 點 HP（`demoStat` transaction）。
+- **`tieredChoice`**：用 §1.3 投票判定出的 `choiceIndex` 對應的選項標籤，去比對
+  `entry.tiers[].label`；找到對應 tier 後，該 tier 的 `rewards[]` 遞迴丟回同一套獎勵處理
+  （可能再次含 GM 判斷類，遞迴處理）。比對不到就整個 tier 跳過（不硬猜）。
+- **`diceHandChoice`**：複製 `judgeDiceHand()`（純函式）到 midnight.js，擲 `entry.diceCount`
+  （預設 12）顆 1D6 判定役，對應 `rewards[]` 同上遞迴處理。
+- **`note`**：只顯示 toast／寫進 `_lastTileRewardNote`，不套用任何數值。
 - **`bargainReveal`**（依你的規格）：
-  - 顯示一個新 modal，一次列出全部 6 個 `deals`，每項顯示 `[標題：X　良い効果：X]`（good
-    效果先顯示、bad 效果暫時隱藏）。
-  - 玩家（`trig.participants` 任一人，多人可各自獨立操作、各自選各自的，因為這是「PC 各自
-    選擇」的規則精神）點選其中一項後，才顯示該項的「悪い効果」文字。
-  - 確認後，`good`／`bad` 兩段文字**都**直接寫進該玩家角色的 `_lastTileRewardNote`／log
-    （可長期查閱），凡是文字裡符合既有可解析格式的（例如「最大HP：+□□□」可用既有
-    `sumMaxStatDeltaFromText` 解析並真正疊加進 `totalFlatMaxStatBonus` 相關欄位）才真正套用
-    數值；無法結構化解析的部分（例如「直到夜之王戰鬥第2回合為止」這種有生命週期的效果、
-    「隨機選一種威力補正-5」這種需要玩家再次選擇的效果）保留文字紀錄，交由玩家在後續戰鬥中
-    自行對照套用（沿用 CLAUDE.md §17/§19 對「□」與非結構化規則文字的既有處理原則，不發明
-    尚未支援的機制）。
+  - 新增 modal，一次列出全部（通常 6 個）`deals`，每項先顯示「標題＋良い效果」（bad 效果
+    暫時隱藏）。
+  - `trig.participants` 中任一人可各自獨立選擇一項（多人各自選各自的，符合規則書「PC 各自
+    選擇」精神），選定後才顯示該項的「悪い效果」文字。
+  - 確認後，`good`／`bad` 兩段文字都寫進該玩家 `_lastTileRewardNote`／log；文字中符合既有
+    可解析格式的（例如「最大HP：+□□□」用既有 □ 解析並真正疊加進對應 flat bonus 欄位）
+    才真正套用數值；無法結構化解析的部分（有生命週期限制、或需要玩家在特定時機再次選擇的
+    效果，例如「與夜之王戰鬥時第2回合開始」這類條件觸發）保留文字紀錄，交由玩家在後續戰鬥
+    自行對照套用（沿用 CLAUDE.md §17/§19 對「□」與非結構化規則文字的既有處理原則）。
 
 ---
 
-## 4. 魔術師塔重做
+## 4. 魔術師塔重做：全部改為參數化模板即時生成
 
-拿掉現有「兩數四則運算」，改為隨機挑一種題型（各題型各準備若干題庫，開局隨機挑一題，不含
-規則書依據，純遊戲性補充，比照現行「不是規則書內容」的既有定位）：
+拿掉現有「兩數四則運算」，改為每次隨機挑一種題型，該題型的參數/答案**在執行當下即時生成並
+自動算出**（不是固定題庫抽選）：
 
-- **猜數字（4位數字 AB 猜謎）**：系統產生 4 個不重複數字，玩家輸入猜測，回饋 `nA nB`
-  （n=位置與數字皆對／數字對位置錯的個數），全部猜對（4A）過關。
-- **邏輯應用題**：準備一個小題庫模組（`midnight.js` 內新增常數陣列，10~15 題，涵蓋雞兔同籠／
-  秤重找次品／過橋時間／邏輯消去法／動態逆向思考等經典題型），每題 `{ prompt, answer }`，
-  隨機抽一題，玩家輸入數字答案比對。
+| 題型 | 生成邏輯 |
+|---|---|
+| 猜數字（4 位不重複數字，幾A幾B） | 隨機生成 4 個不重複數字（0-9）當答案；玩家每次輸入 4 位猜測，即時算出 A（位置與數字皆對）／B（數字對位置錯）並顯示，全部猜對（4A）過關 |
+| 雞兔同籠 | 隨機生成頭數 `H`（8~20）與腳數範圍內的合法腳數 `F`（需滿足 `2H ≤ F ≤ 4H` 且 `F` 為偶數），算出雞 `x=(4H-F)/2`、兔 `y=H-x`；題目顯示「共 H 隻雞兔、F 隻腳，求雞兔各幾隻」，玩家輸入雞的數量比對 |
+| 秤重找次品 | 隨機生成物品數 `N`（8~27）與較輕/較重次品的方向；顯示「N 顆球中有 1 顆較輕/較重的，用天秤最少秤幾次能找出」，答案用 `ceil(log3(N))` 算出，玩家輸入次數比對 |
+| 過橋問題 | 隨機生成 4 人的過橋耗時（1~10 分鐘，各不相同），答案用固定的「兩人先過、快者返回」貪心演算法算出最短總時間，玩家輸入分鐘數比對 |
+| 邏輯消去法 | 隨機生成 N 個角色（3~5 人）與 N 條線索（每人對應唯一身份/位置，線索排除法可唯一解出），玩家從清單中選出「符合所有線索」的答案；生成時用簡單模板（例如「A 不是最高的」「B 比 C 矮」...）直接構造保證有唯一解的線索組合，不用通用 constraint solver |
+| 動態逆向思考 | 隨機生成一個簡單數列規則（等差/等比/平方數列其一），顯示前 4 項，玩家推算第 5 項（或倒推第 0 項），答案由生成規則直接算出 |
 
 沿用現行 `towerSolved`／`towerInvites` 既有的邀請/開始/結算流程，只替換 `startTowerPuzzle()`
-內部出題邏輯，不動外層 pipeline。
+內部出題邏輯（改成 6 選 1 題型 dispatch），不動外層 pipeline。
 
 ---
 
 ## 5. 教會（K）聖杯瓶獎勵走獎勵清單
 
-`grantLootRewardEntryToCharacter` 的 `chaliceBonus` 分支不再「立即發放」，改成跟其他
-per-player 獎勵一樣先記錄進 §1.5 的 `perPlayerRewards` ledger／推入 `pendingRewards`，
-由玩家在獎勵清單彈窗主動按「領取」才真正 `flaskMax`/`flaskCount` +N。
+`grantLootRewardEntryToCharacter()` 的 `chaliceBonus` 分支不再立即發放，改成跟其他
+`perPerson:true` 獎勵一樣先記錄進 §1.5 的 `perPlayerRewards` ledger／推入 `pendingRewards`
+（依你的要求：「也需顯示在獎勵清單讓各人領取」），由玩家在獎勵清單彈窗主動按「領取」才真正
+`flaskMax`/`flaskCount` +N。
 
 ---
 
 ## 6. 商人「鍛冶合」費用改為消耗鍛造石
 
 ```js
-var FORGE_COST_C_TO_U = 1; // 鍛造石數量
+var FORGE_COST_C_TO_U = 1; // 消耗鍛造石數量
 var FORGE_COST_U_TO_R = 2;
 ```
 
-`renderMerchantForgeList()`／對應 handler 改為檢查
-`characterConsumableCount(c, "item_smithing_stone")` 是否足額，成功後扣除對應數量（消耗
-`usesRemaining`，`noStackLimit` instance 用完即移除）。UI 顯示「持有鍛造石：N」取代原本的
-盧恩顯示。
+移除現有的 `MERCHANT_FORGE_COST_RUNES`（盧恩費用佔位值，已確認不是規則書數字）。
+`renderMerchantForgeList()`／`handleMerchantForgeWeapon()` 改為：
+- 檢查 `characterConsumableCount(c, "item_smithing_stone")` 是否達到目前升級所需數量
+  （C→U 需 1、U→R 需 2，依 `getEffectiveWeaponRarity()` 目前等級決定）。
+- 足額時扣除對應數量（消耗 `usesRemaining`，用完即移除該 instance），呼叫既有
+  `upgradeWeaponRarity()`。
+- UI 顯示「持有鍛造石：N」取代原本的盧恩顯示。
 
 ---
 
-## 7. 強敵籌碼「⑧恐るべき強敵」
+## 7. 強敵籌碼「⑧恐るべき強敵」（Day2）
 
-新增：進入 Day2 時（`meta.dayNumber === 2` 或等價判斷），用
-`fieldSeededIndex("day2_terrifying_strong_enemy", 3)` 從地圖上 3 個 `strong_enemy` 點中
-決定性挑 1 個，標記為 `meta.terrifyingStrongEnemyPointId`。
+進入 Day2 時，用 `fieldSeededIndex("day2_terrifying_strong_enemy", ...)` 從地圖上**尚未被
+擊敗**的 `strong_enemy` 點中決定性挑 1 個，標記為 `meta.terrifyingStrongEnemyPointId`
+（若 3 個點在 Day1 就已全數擊敗，則設為 `null`，Day2 沒有恐るべき強敵可打，不硬湊）。
 
-`rollAndAssignStrongEnemy(pt)` 判斷：若 `pt.id === meta.terrifyingStrongEnemyPointId` 且
-已進入 Day2，改用 `extraTables[1]`（恐るべき強敵決定表）查表，撃破獎勵改為
-`盧恩12／潛在力量★★★`（新常數 `TERRIFYING_STRONG_ENEMY_REWARD_RUNES=12`／
-`_POTENTIAL_STARS=3`）；其餘 2 個點維持 `extraTables[0]` 與現行 8/★★ 獎勵。
-
-**時機處理**：若這個點在 Day1 就已經被撃破（`fieldTriggers[pt.id].status==="resolved"`
-且 HP 已 0），Day2 判斷時直接跳過（不會「已擊敗的敵人突然變成恐るべき強敵」），只從**Day2
-仍存活/未觸發**的點中挑選——`fieldSeededIndex` 挑選時先過濾掉已撃破的點，若 3 個都已撃破則
-不指定（`meta.terrifyingStrongEnemyPointId = null`，Day2 沒有恐るべき強敵可打，不硬湊）。
+`rollAndAssignStrongEnemy(pt)` 新增判斷：若 `pt.id === meta.terrifyingStrongEnemyPointId`
+且目前已進入 Day2，改用 `extraTables[1]`（恐るべき強敵決定表）查表，撃破獎勵改用新常數
+`TERRIFYING_STRONG_ENEMY_REWARD_RUNES=12`／`_POTENTIAL_STARS=3`；其餘 2 個點維持
+`extraTables[0]` 與現行 8 盧恩／★★ 獎勵。
 
 ---
 
-## 8. 隨機事件籌碼：完整轉錄（10 種分支全機制化）
+## 8. 隨機事件籌碼：完整轉錄（10 分支全機制化）
 
 ### 8.1 決定機制
 
-`rollAndAssignFinalCircleBoss` 同款寫法，新增 `rollAndAssignRandomEvent(pt)`：
-呼叫 `rollRandomEventTable(findEventChip("random_event").extraTables[0], scenarioNumber)`
-（既有函式，已含劇本篩選重擲），取得 `result.rowIndex`（對應 `branches[rowIndex+1]`）。
+新增 `rollAndAssignRandomEvent(pt)`（跟 `rollAndAssignStrongEnemy` 同款寫法）：呼叫
+`rollRandomEventTable(findEventChip("random_event").extraTables[0], scenarioNumber)`（已內建
+「不符合當前劇本就重擲，上限30次」邏輯，見 §8.3），取得對應的 `branches[]` 索引。
 
-**特例**：若解出的分支是「霊鷹の止まり木」，依你的規格**直接替換成「聖甲蟲」分支**（沿用
-現有 `findScarabBranch()` 全部邏輯），不走靈鷹止まり木本身的機制。
+**特例（依你的規格）**：解出「霊鷹の止まり木」時，**直接替換成「聖甲蟲」分支**（沿用現有
+`findScarabBranch()` 全部邏輯），不走靈鷹止まり木本身的場地移動機制。
 
-其餘 9 種分支（聖甲蟲已有；女神像／埋もれ宝／隕石／歩く霊廟／夜の勢力／虫の大量発生／
-蟻の大量発生／発狂地帯／襲撃）逐一設計如下。共同基礎設施先建立：
-
-**通用「行為判定」元件**（generalize 自現有 `handleScarabCheckClick`）：
-
-```js
-function performAbilityCheck(statKey, targetValue) {
-  var type = characterTypeOf(myTokenId);
-  var diceCount = type && type.checkValues ? type.checkValues[statKey] || 0 : 0;
-  var dice = rollDice(diceCount);
-  var sum = sumDice(dice);
-  return { sum: sum, success: sum >= targetValue, dice: dice };
-}
-```
-
-**通用「協力判定」元件**（複製 `parseBreakthroughCheckText` 到 midnight.js，解析
-`〈協力N×PC人數｜屬性〉`得到 `{target, perPC, stat}`，`perPC` 時 `target *= trig.participants長度`；
-判定方式：所有參與者各自擲對應屬性骰加總比對同一目標值，或依文字指定用途取「任一人成功即算」，
-依各分支原文個別判斷）。
-
-### 8.2 各分支設計
+### 8.2 各分支設計（10 分支，含完整轉錄的虫の大量発生／発狂地帯）
 
 | 分支 | 判定 | 自動化設計 |
 |---|---|---|
 | 聖甲蟲 | 個人 13｜任選能力值 | 現有機制，不動 |
-| 女神像 | 個人 10｜精神（自願） | 顯示描寫，任一參與者可選擇「挑戰」（付 FP 損害■，交由玩家自行套用同 CLAUDE §19）並判定；1人成功即算成功，成功者所屬隊伍若含追跡者/無頼漢/守護者/執行者角色則額外顯示「消費技能可破壞、獲得鍊石×3」選項（複用既有技能次數扣除機制） |
-| 埋もれ宝 | 協力12×PC人數｜運試し | 全參與者各自判定加總比對，成功則用「1D×3次」查 `event_rulebook.js` 的「チェスト内容決定表」（鍛石/石劍鑰匙/消耗品★/武器★★/武器★★★，見 §0 表列），逐一轉成戰利品 entry 走 §1.5 ledger |
-| 隕石 | 王戰（撃破ルーン8+L補正，潛在力量★★★★） | 描寫敘述後，`(→隕石)` 分支重用**現有 `scanLinesForEnemyMatches`／`maybeAssignFieldEnemy` pipeline**（跟一般樓層完全同一套，因為結構本來就是「描寫＋敵名bullet」），敵人固定「降る星の成獣／Lv.8」 |
-| 歩く霊廟 | 個人 11｜體能 | 判定成功或失敗都獲得「自身持有武器中任選1個」的複製品（UI：從 `c.weaponIds` 選一把，`grantLootRewardEntryToCharacter` style 直接複製該武器 id 進背包，背包滿則走 §3.1 黃字提示）；失敗額外扣 HP□□（用既有 `sumMaxStatDeltaFromText`/`countHealSquares` 同款 □ 解析，此處為「損害」方向） |
-| 夜の勢力 | 協力11×PC人數｜體能，王戰、需連續n回 | 沿用王戰 pipeline，額外用「夜の勢力決定表」（1D6，6列）決定敵人＋戰鬥類型（ザコ/ボス）＋n回。**連續n回機制**：新增 `trig.requiredRounds`／`trig.completedRounds` 欄位，每次擊敗後若 `completedRounds < requiredRounds` 立即重新指派同一隻敵人滿血再戰一次（無 interval），直到達成 n 回才視為撃破、發放潛在力量★★＋夜の恩寵（新增角色欄位 `_nightBlessing:true`，供技藝冷卻邏輯查詢：有此旗標時技藝改用「祝福於休息」才回復，但 midnight 冷卻是計時制非規則書「使用次數」制，這點需要在實作階段跟你確認技藝冷卻機制如何對應「夜之恩寵」——先記錄為已知待確認項，見 §9 風險清單） |
-| 虫の大量発生（蟻の大量発生變體） | 協力12×PC人數｜體能 | 只讀到部分原文（見下方風險備註），依既有「地面の蟲たち」分支結構，比照隕石/夜之勢力模式重用王戰/雜兵戰鬥 pipeline，具體判定與獎勵待實作階段完整讀取 `event_rulebook.js` 該分支全文後定案 |
-| 発狂地帯 | 未讀取到具體原文 | 待實作階段讀取 `event_rulebook.js` 該分支完整內容後設計（目前僅確認決定表有此項、僅限劇本3/5/8/9） |
-| 襲撃 | 依「襲擊事件決定表」查表決定敵人（含劇本篩選重擲，格式同強敵決定表） | 沿用強敵決定表同款查表 pipeline（`rollStrongEnemyTable` 風格），決定敵人後走王戰/雜兵戰鬥 pipeline |
+| 女神像 | 個人 10｜精神（自願，需先付 FP 損害■） | 顯示描寫，任一參與者可選擇「挑戰」並判定；FP 損害■ 交由玩家自行套用（同 CLAUDE §19，■ 不猜值）；1 人成功即算成功；成功後若隊伍含追跡者/無頼漢/守護者/執行者，額外顯示「消費技能破壞、獲得鍊石×3」選項（沿用既有技能次數扣除機制）；無人成功則事件結束、無獎勵 |
+| 埋もれ宝 | 協力12×PC人數｜運試し | 全參與者各自判定加總比對；成功則擲「1D×3次」查 `event_rulebook.js` 的「チェスト内容決定表」（1=鍛石／2=石劍鑰匙／3=消耗品★／4-5=武器★★／6=武器★★★），逐一轉成 loot entry 走 §1.5 ledger；失敗無獎勵、事件結束 |
+| 隕石 | 王戰（撃破盧恩8+L補正，潛在力量★★★★） | 顯示描寫後提供「(→隕石)／遠離（事件結束）」選項（沿用 §1.3 投票機制當作 2 選 1）；選擇前往後，重用**現有 `scanLinesForEnemyMatches`／`maybeAssignFieldEnemy` pipeline**（結構本來就是「描寫＋敵名bullet」，跟一般樓層完全同構）解析出「降る星の成獣／Lv.8」並開戰；本表項目本身已由 `rollRandomEventTable` 的劇本篩選限定僅劇本1/2/7/8出現 |
+| 歩く霊廟 | 個人 11｜體能 | 判定成功或失敗都獲得「自身持有武器中任選 1 個」的複製品（UI：從 `c.weaponIds` 選一把，直接複製該武器 id 進背包，背包滿則走 §3.1 黃字提示）；失敗額外扣 HP□□（沿用既有 □ 解析工具，此處為損害方向） |
+| 夜の勢力 | 協力11×PC人數｜體能，王戰、需連續n回 | 沿用王戰 pipeline，用「夜の勢力決定表」（1D6，6列）決定敵人＋戰鬥類型（雜兵/王戰）＋所需回合數n。新增 `trig.requiredRounds`／`trig.completedRounds`：每次擊敗後若未達 n 回，立即重新指派同一隻敵人滿血再戰（無 interval），達成後才視為撃破、發放潛在力量★★＋「夜の恩寵」——見下方風險項，「夜の恩寵」與 midnight 計時制技藝冷卻的對應方式需要你確認（§9-1） |
+| 虫の大量発生（蟻の大量発生變體） | 協力12×PC人數｜體能 | 描寫後進入「地面の蟲たち」：PC 各自 12｜運試し，失敗者各自損失盧恩10（盧恩9以下則全失，等級不降），無論成敗都進「知性の蟲を追う」；該階段 PC 各自可選「HP損害□+12｜體能」或「FP損害□+12｜精神」，半數以上成功→「討伐獎勵」：（若地面階段有人失敗過）取回全部損失盧恩＋PC全員獲得撃破盧恩3＋獲得恩寵「知の集約」（戰鬥結束時代表擲1D，出目⚀則PC各自額外獲得盧恩1，此為戰鬥結束時的一次性判定，非持續效果，可直接實作）；半數以上失敗→蟲逃脫、一無所獲、事件結束 |
+| 発狂地帯 | 協力11×PC人數｜精神 | 描寫後進入「狂い火」：PC各自12｜任選判定值，無論成敗都到「狂い火の塔1」，成功者承受發狂2D／失敗者發狂3D（**直接用 midnight 既有「発狂」屬性異常蓄積機制**，`ATTRIBUTE_STATUS_AILMENT_NAMES_JA` 已含此項，不需要新機制）；「狂い火の塔1」提供「離開（需突破判定）／探索塔」2選1；探索塔進「狂い火の塔2」重複一次同款12｜任選判定值＋發狂2D/3D，無論成敗進「狂い火の塔3」；塔3依序做3次協力判定（運試し／體能／精神，各11×PC人數），成功2次以上→PC各自獲得潛力★★×2、再承受發狂2D；成功1次→同樣獲得潛力★★×2、但承受發狂3D；全部失敗→承受發狂3D（時間損耗1不適用，同既有全踏破效果的簡化原則，midnight無對應資源） |
+| 襲撃 | 依「襲擊事件決定表」查表決定敵人（1D6，6列，各自劇本限定重擲） | 沿用 `rollRandomEventTable` 同款「劇本篩選+重擲」邏輯查出 6 種之一（忌み鬼／兆し／調律の魔物／三つ首の獣／霧の裂け目／安寧者たち），除「調律の魔物」外其餘走王戰 pipeline＋各自固定獎勵/恩寵文字（沿用既有 □ 解析＋ CLAUDE §19 對非結構化恩寵文字的處理）；「調律の魔物」的「取引抽選表」（6 個 good/bad 配對、選擇後持續整個劇本、部分效果連動 Day3 夜之王戰鬥第2回合）**直接複用 §3.6 的 `bargainReveal` 自動套用邏輯**（資料結構完全相同：good/bad 配對、可解析部分自動套用、不可解析部分留文字紀錄），不需要另外設計第二套取引機制 |
 
 ### 8.3 劇本篩選（呼應第9項）
 
 `event_rulebook.js` 的「隨機事件決定表」本身多筆條目帶「※僅限劇本X」重擲條件（隕石限
-1/2/7/8，歩く霊廟限4/7/8，夜の勢力限1/4/6，蟻の大量発生限4/5/9/10，発狂地帯限3/5/8/9）——
-`rollRandomEventTable()` 已經內建這個重擲邏輯，**只要正確傳入 `scenarioNumber` 就自動生效**，
-不需要 midnight.js 額外處理。
+1/2/7/8，歩く霊廟限4/7/8，夜の勢力限1/4/6，蟻の大量発生限4/5/9/10，発狂地帯限3/5/8/9；
+「襲擊事件決定表」同樣逐項帶劇本限定）——`rollRandomEventTable()` 已內建這個重擲邏輯，
+只要正確傳入 `scenarioNumber`（`resolveNightBossScenarioId()` → `Scenarios.numberForId()`）
+即自動生效，不需要 midnight.js 額外處理篩選規則本身。
 
 ---
 
-## 9. 已知風險與待確認項（實作階段需注意）
+## 9. 已知風險與待確認項（實作階段需注意，不阻塞開發順序）
 
-1. **夜の勢力「夜の恩寵」如何對應 midnight 的技藝冷卻制**：規則書原文是「技藝改用『祝福での
-   休息』回復使用次數」，但 midnight 技藝是 180 秒計時冷卻制（非使用次數制），兩者機制不同。
-   實作前需要跟你確認：是否單純解讀為「該角色的技藝冷卻在下次使用祝福籌碼時強制清零」（利用
-   既有祝福機制），還是需要新的角色旗標邏輯。
-2. **虫の大量発生／発狂地帯**：目前只確認了分支存在、部分判定文字，完整內文尚未在本次調查中
-   讀取（`event_rulebook.js` 該區塊很長，需要在實作階段完整讀取後才能定案細節，不影響其餘 8
-   個分支的設計與開發順序）。
-3. **bargainReveal 的「□」數值自動套用範圍**：§3.6 提到部分效果文字可用既有 □ 解析工具自動
-   套用，部分（有生命週期限制、或需要玩家二次選擇的）只能留文字紀錄——實作時需要逐條 6 個
-   deals 檢視文字才能決定哪些可以真正結構化。
-4. **「立即進入」按鈕的濫用防呆**：目前設計沒有限制「立即進入」只能按一次或設冷卻，理論上
-   可以被連續按（但因為只是把 `inviteDeadline` 往前提，重複按沒有額外效果，不算 bug，僅記錄
-   於此供實作時留意是否要加簡單的按鈕 disable）。
+1. **夜の勢力「夜の恩寵」如何對應 midnight 的技藝冷卻制**：規則書原文「技藝改用『祝福での
+   休息』回復使用次數」，但 midnight 技藝是 180 秒計時冷卻制（非使用次數制），機制不同。
+   實作前需要你確認：是否解讀為「取得此恩寵的角色，之後每次使用祝福籌碼時技藝冷卻直接歸零」
+   （沿用既有祝福機制觸發點），還是需要新的角色旗標與額外邏輯。
+2. **bargainReveal／調律の魔物取引 的「□」數值自動套用範圍**：部分效果文字（例如「+(a的2倍)」
+   這種需要追蹤「本劇本內使用過幾次祝福」的動態變數）無法用現有 □ 解析工具直接套用，實作時
+   需要逐條檢視 6 個 deals 才能定案哪些可以真正結構化、哪些只能留文字紀錄。
+3. **調律の魔物 bargain 效果連動 Day3 夜之王戰鬥「第2回合行動階段」**：midnight 是即時制、
+   沒有回合/階段概念，這類「第N回合開始時」的觸發時機需要另外定義等價的即時制觸發點（例如
+   戰鬥開始後固定秒數），实作階段需要你確認換算方式。
+4. **「立即進入」按鈕沒有額外防呆**：連續按沒有副作用（只是把 `inviteDeadline` 往前提），
+   不是 bug，但實作時可視情況加簡單的按鈕 disable 避免誤觸感。
 
 ---
 
@@ -406,14 +416,15 @@ function performAbilityCheck(statKey, targetValue) {
 
 沿用 CLAUDE.md §4 既有流程：`python generate.py` → 本機 server → Playwright（多分頁模擬
 2~3 名玩家）驗證：
-1. 板塊樓層：邀請/立即進入/投票即時分布/全員投完立即判定/中途加入/落後獎勵領取，各自建立
-   最小重現場景驗證。
-2. 分歧變體：固定 `meta.mapSeed`＋固定劇本，驗證同一劇本重複開局時同一 rank 卡牌選到的變體
-   具一致性（決定性）。
-3. 獎勵清單：背包滿提示、固定數量共享池搶先、潛在力量雙抽二選一、戰技重抽鍛造台 UI、GM 判斷
-   類自動套用（含 bargainReveal 六選一）。
-4. 魔術師塔：猜數字/邏輯題各測一輪。
-5. 商人鍛造石消耗。
-6. 強敵⑧恐るべき強敵：固定 seed 驗證 Day2 挑選出的點確實套用高倍獎勵。
-7. 隨機事件：針對聖甲蟲/隕石/夜之勢力/歩く霊廟優先驗證（機制較完整），虫の大量発生/発狂地帯
-   待內文補齊後再測。
+1. 板塊樓層：邀請/立即進入/投票即時分布/全員投完立即判定/中途加入/後補領獎，各自建立最小
+   重現場景驗證（含驗證祝福/商人不受影響——靠近時仍是原本的直接互動，不會冒出領取獎勵按鈕）。
+2. 分歧變體：固定 `meta.mapSeed`＋固定劇本，驗證同一劇本重複開局時同一張卡選到的變體具
+   一致性；驗證地圖上同一種卡牌的兩個實體各自獨立抽選（不共用同一結果）。
+3. 獎勵清單：背包滿黃字提示、共享池搶先領取、潛在力量雙抽二選一、戰技重抽鍛造台 UI 完整
+   流程、GM 判斷類自動套用（含 bargainReveal 六選一與調律の魔物取引共用同一套邏輯）。
+4. 魔術師塔：6 種題型各測一輪，確認參數/答案每次不同且能正確判定。
+5. 商人：驗證鍛造石數量不足時無法升級、消耗數量正確（1/2）。
+6. 強敵⑧恐るべき強敵：固定 seed 驗證 Day2 選中的點確實套用高倍表與高倍獎勵；驗證 Day1
+   已擊敗的點不會被選中。
+7. 隨機事件：10 分支逐一驗證（含発狂地帯的發狂蓄積、虫の大量発生的盧恩損失/取回、隕石的
+   劇本限定重擲、襲撃的調律の魔物取引流程）。
