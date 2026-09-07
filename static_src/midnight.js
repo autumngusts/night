@@ -5852,10 +5852,11 @@
 
   function handleMerchantForgeWeapon(weaponId) {
     var c = characters[myTokenId];
+    if (!c) return;
     var CD = window.PriTestCharacterDrawer;
     var rarity = CD.getEffectiveWeaponRarity(c, weaponId);
     var cost = forgeCostForRarity(rarity);
-    if (!c || !cost || !consumeSmithingStones(c, cost)) return;
+    if (!cost || !consumeSmithingStones(c, cost)) return;
     if (!CD.upgradeWeaponRarity(c, weaponId)) return;
     GameStorage.rtSet(gameId, "cloud", "character/" + myTokenId, c);
     var weapon = window.PriTestWeapons.get(baseCatalogId(weaponId));
