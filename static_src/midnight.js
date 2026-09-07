@@ -5552,7 +5552,21 @@
       c.flaskCount = (c.flaskCount || 0) + bonus;
       return window.I18N.t("midnight_reward_label_chalice_bonus", { value: bonus });
     }
-    // 其餘loot kind（stoneswordKey／smithingStone／potentialPower／weaponSkillReroll）
+    if (entry.kind === "stoneswordKey" || entry.kind === "smithingStone") {
+      var itemId = entry.kind === "stoneswordKey" ? "item_stonesword_key" : "item_smithing_stone";
+      var value = entry.value || 1;
+      c.consumables = c.consumables || [];
+      var existing = c.consumables.filter(function (inst) { return inst.itemId === itemId; })[0];
+      if (existing) {
+        existing.usesRemaining = (existing.usesRemaining || 0) + value;
+      } else {
+        var instId = CD.makeConsumableInstanceId(itemId, c);
+        c.consumables.push({ id: instId, itemId: itemId, usesRemaining: value });
+      }
+      var itemData = window.PriTestConsumables.get(itemId);
+      return itemData ? window.PriTestConsumables.localizedText(itemData.name) : itemId;
+    }
+    // 其餘loot kind（potentialPower／weaponSkillReroll）
     // midnight角色物件目前沒有對應欄位，本次milestone先略過，不阻塞其餘品項的授予
     // （不是bug，是已知範圍限制，見規劃紀錄）。
     return null;
@@ -5576,6 +5590,80 @@
   }
 
   var fieldTileRewardAttempted = {}; // pointId -> true（本地節流：板塊獎勵只送一次transaction）
+
+  // perPerson判斷（設計文件§1.5）：讀資料本體旗標，未標記或true都視為每人各自一份，
+  // 只有明確false才是固定共享（先搶先贏）——不依kind寫死，同一個kind不同板塊可能標記不同。
+  function isPerPersonRewardEntry(entry) {
+    return entry.perPerson !== false;
+  }
+
+  // 落後獎勵ledger（設計文件§1.5）：每次對trig.participants發放perPerson獎勵時，額外記一份
+  // 到 fieldProgress/{pointId}/perPlayerRewards/{seq}，供之後才加入、原本不在participants裡
+  // 的玩家後補領取。固定共享(perPerson:false)的獎勵不進這裡，見pushSharedReward()。
+  function pushPerPlayerReward(pointId, entries) {
+    var perPersonEntries = entries.filter(isPerPersonRewardEntry);
+    if (!perPersonEntries.length) return;
+    var seq = "pr" + Date.now() + Math.floor(Math.random() * 100000);
+    GameStorage.rtSet(gameId, "cloud", "fieldProgress/" + pointId + "/perPlayerRewards/" + seq, {
+      entries: perPersonEntries,
+      grantedAt: Date.now(),
+    });
+  }
+
+  // 後補領獎（設計文件§1.5）：後加入者按下[領取獎勵]、等待FIELD_LATE_JOIN_WAIT_MS後呼叫。
+  // 只把「目前fieldProgress記錄的perPlayerRewards」中，這個玩家(myTokenId)尚未領過的entries
+  // 一次授予，並標記claimedBy防止重複。範圍明確排除祝福/商人（那兩種沒有fieldProgress，
+  // 呼叫端本來就不會替它們顯示這個按鈕，見Task 8）。
+  function claimLatePerPlayerRewards(pointId) {
+    GameStorage.rtTransaction(gameId, "cloud", "fieldProgress/" + pointId + "/claimedBy/" + myTokenId, function (cur) {
+      return cur ? cur : true;
+    }).then(function (committed) {
+      if (committed !== true) return; // 已經領過（不可能發生，transaction本身已保證，防禦性判斷）
+      var progress = fieldProgress[pointId] || {};
+      var ledger = progress.perPlayerRewards || {};
+      var c = characters[myTokenId];
+      if (!c) return;
+      var labels = [];
+      Object.keys(ledger).forEach(function (seq) {
+        (ledger[seq].entries || []).forEach(function (entry) {
+          var label = grantLootRewardEntryToCharacter(c, entry);
+          if (label) labels.push(label);
+        });
+      });
+      if (labels.length) {
+        c._lastTileRewardNote = { text: window.I18N.t("midnight_reward_toast_prefix") + labels.join("、"), at: Date.now() };
+      }
+      GameStorage.rtSet(gameId, "cloud", "character/" + myTokenId, c);
+    });
+  }
+
+  // 固定共享池（設計文件§3.2）：perPerson:false的獎勵走這裡，全部participants看到同一份，
+  // 任一人按領取用transaction鎖定resolvedBy，first-writer-wins（同既有tileRewardGrantedBy
+  // 手法）。
+  function pushSharedReward(pointId, entry) {
+    var rewardId = "srw" + Date.now() + Math.floor(Math.random() * 100000);
+    var withFlag = {};
+    for (var k in entry) withFlag[k] = entry[k];
+    withFlag.resolved = false;
+    GameStorage.rtSet(gameId, "cloud", "fieldTrigger/" + pointId + "/sharedRewards/" + rewardId, withFlag);
+  }
+
+  function claimSharedReward(pointId, rewardId) {
+    GameStorage.rtTransaction(gameId, "cloud", "fieldTrigger/" + pointId + "/sharedRewards/" + rewardId + "/resolvedBy", function (cur) {
+      return cur ? cur : myTokenId;
+    }).then(function (committed) {
+      if (committed !== myTokenId) return; // 被別人搶先領走
+      var trig = fieldTriggers[pointId];
+      var entry = trig && trig.sharedRewards && trig.sharedRewards[rewardId];
+      var c = characters[myTokenId];
+      if (!entry || !c) return;
+      var label = grantLootRewardEntryToCharacter(c, entry);
+      if (label) {
+        c._lastTileRewardNote = { text: window.I18N.t("midnight_reward_toast_prefix") + label, at: Date.now() };
+      }
+      GameStorage.rtSet(gameId, "cloud", "character/" + myTokenId, c);
+    });
+  }
 
   function maybeGrantFieldTileReward(pt, trig, floor) {
     if (fieldTileRewardAttempted[pt.id]) return;
