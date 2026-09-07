@@ -5270,16 +5270,19 @@
   // 開始」這個訊號不是靠獨立的day-counter函式（本檔沒有currentDayNumber()這種東西），而是
   // 直接沿用上面updateAutoDayAdvance()已經在維護、經RTDB同步給所有裝置的meta.day2StartAt
   // 本身（跟meta.sessionStartAt／meta.day3StartAt同一套「寫入即代表該天已開始」慣例，見
-  // currentPhaseInfo()）。從map.points中「目前尚未被擊敗」的strong_enemy點（依fieldTriggers／
-  // fieldEnemyHp現況判斷）用fieldSeededIndex()決定性挑1個，寫入meta.terrifyingStrongEnemyPointId
-  // ——若3個點在Day2開始當下就已全數擊敗，chosenId=null，一樣送出transaction（不是直接
-  // return不寫），對應規劃§7「3個點在Day1就已全數擊敗，則設為null，Day2沒有恐るべき強敵
-  // 可打，不硬湊」。
+  // currentPhaseInfo()）。從map.points中「目前尚未被roll過（fieldTriggers[pt.id]尚不存在）」
+  // 的strong_enemy點用fieldSeededIndex()決定性挑1個，寫入meta.terrifyingStrongEnemyPointId
+  // ——若3個點在Day2開始當下就已全數被roll過（不論生死），chosenId=null，一樣送出
+  // transaction（不是直接return不寫），對應規劃§7「3個點在Day1就已全數擊敗，則設為null，
+  // Day2沒有恐るべき強敵可打，不硬湊」（Fix round 1修正：這裡的候選排除條件是「已被roll過」
+  // 而不是單純「已擊敗」，見下方candidates filter的說明）。
   //
-  // 冪等性：strong_enemy籌碼點只會從「活著」單向轉成「已擊敗」、不會復活，因此不論哪台
-  // 裝置在哪個時間點跑到這裡，候選集合只會隨時間縮小、不會擴大——最早一次成功的transaction
-  // 結果（不論是挑到某個點、還是null）永遠是「當時可能的最大候選集合」下的結果，之後任何
-  // 裝置重複呼叫都只會算出同一個或候選更少的子集合，不會推翻先前已經鎖定的選擇。真正決定
+  // 冪等性：strong_enemy籌碼點的fieldTriggers[pt.id]只會從「不存在」單向轉成「存在」
+  // （rollAndAssignStrongEnemy()對已存在的點絕對不會重roll，也沒有任何地方會把
+  // fieldTriggers[pt.id]刪回不存在），因此不論哪台裝置在哪個時間點跑到這裡，候選集合只會
+  // 隨時間縮小、不會擴大——最早一次成功的transaction結果（不論是挑到某個點、還是null）
+  // 永遠是「當時可能的最大候選集合」下的結果，之後任何裝置重複呼叫都只會算出同一個或候選
+  // 更少的子集合，不會推翻先前已經鎖定的選擇。真正決定
   // 「該選哪一個」不需要transaction仲裁（各裝置用同一份meta.mapSeed+候選清單算出同樣的
   // chosenId，跟fieldSeededIndex()既有慣例相同），transaction只用來擋「這個節點是否已經被
   // 寫過」；一旦寫入非null的真實pointId，之後的transaction一律讀到非null的cur、原樣回傳，
@@ -5292,12 +5295,17 @@
     if (!meta || !map || !meta.day2StartAt || terrifyingStrongEnemyAssignAttempted) return;
     terrifyingStrongEnemyAssignAttempted = true;
     if (meta.terrifyingStrongEnemyPointId !== undefined) return; // 本機已經同步到別的裝置決定的結果
+    // Fix round 1（審查發現）：候選必須排除「已經被roll過」的點，不只排除「已擊敗」的點
+    // ——rollAndAssignStrongEnemy()對已存在fieldTriggers[pt.id]的點絕對不會重roll（見該
+    // 函式開頭的`if (strongEnemyRollAttempted[pt.id] || fieldTriggers[pt.id]) return;`），
+    // 所以只要fieldTriggers[pt.id]已存在（不論生死、不論是否已擊敗），該點的敵人就已經是
+    // 用一般表決定好的，此時再把它標記為「恐るべき強敵」只會造成「敵人是一般強度、卻拿到
+    // 恐るべき強敵的12盧恩/★★★高倍獎勵」的不一致（例如隊伍分散行動、有人還在跟該點戰鬥
+    // 中就跨過了Day1→Day2的20秒過渡窗，這點在多人連線裡是常見情境，不需要精確的單偵時間
+    // 巧合）。對應設計文件§7原文「尚未被擊敗」的意圖應理解為「尚未被觸發（尚未roll過）」。
     var candidates = map.points.filter(function (pt) {
       if (pt.type !== "strong_enemy") return false;
-      var trig = fieldTriggers[pt.id];
-      var hp = fieldEnemyHp[pt.id];
-      var alreadyDefeated = trig && trig.enemyFamilyId && hp !== undefined && hp <= 0;
-      return !alreadyDefeated;
+      return !fieldTriggers[pt.id]; // 已經roll過（不論生死）就排除
     });
     var chosenId = candidates.length ? candidates[fieldSeededIndex("day2_terrifying_strong_enemy", candidates.length)].id : null;
     GameStorage.rtTransaction(gameId, "cloud", "meta/terrifyingStrongEnemyPointId", function (cur) {
