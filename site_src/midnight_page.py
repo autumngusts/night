@@ -194,8 +194,12 @@ BODY = """    <div class="midnight-wrap">
 
         <!-- 隨機事件籌碼其餘8個分支通用banner（Task 20新增，設計文件§8.1-8.2）：聖甲蟲
              繼續沿用上面的#midnight-scarab-banner（renderScarabBranch()原樣呼叫既有
-             renderScarabOverlay()）；本task實作女神像／埋もれ宝／隕石3個分支，歩く霊廟／
-             夜の勢力／虫の大量発生／発狂地帯／襲撃留給Task 21/22沿用同一組DOM。見
+             renderScarabOverlay()）；Task 20實作女神像／埋もれ宝／隕石3個分支，Task 21
+             再補上歩く霊廟／夜の勢力／虫の大量発生／発狂地帯4個分支——這4個分支全部
+             沿用同一組#midnight-random-event-action／choice-a／choice-b按鈕（發狂地帯的
+             「離開」／「探索塔」、虫の大量発生的「HP」／「FP」二選一都是動態覆寫這兩顆
+             按鈕的文字，見renderRandomEventOverlay()裡每次重繪都先重置回預設文字的說明），
+             不需要新增DOM元素。只剩「襲撃」留給Task 22沿用同一組DOM。見
              static/midnight.js的renderRandomEventOverlay()。 -->
         <div id="midnight-random-event-banner" hidden>
           <p id="midnight-random-event-text"></p>

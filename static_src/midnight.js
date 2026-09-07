@@ -4958,6 +4958,10 @@
     if (randomEvent) {
       rollAndAssignRandomEvent(randomEvent);
       maybeGrantMeteorReward(randomEvent);
+      // Task 21新增：夜の勢力「n連戦」——每次擊敗當前敵人時，判斷是否要重生一隻同款敵人
+      // 繼續下一輪，或（達到requiredRounds）發放最終獎勵。跟maybeGrantMeteorReward同一套
+      // 「每偵掃描一次」節奏，掛在同一個呼叫點（不是另外發明第二套HP=0偵測機制）。
+      maybeAdvanceNightForceRound(randomEvent);
     }
 
     recomputeActiveEncounter();
@@ -6048,10 +6052,9 @@
 
   // ============================================================================
   // Task 20（設計文件§8.1-8.2）：隨機事件決定機制＋4個分支（聖甲蟲替換／女神像／
-  // 埋もれ宝／隕石）。其餘5個分支（歩く霊廟／夜の勢力／虫の大量発生／発狂地帯／襲撃）
-  // 留給Task 21/22，這裡先只放dispatch table的key、renderer名稱先用var宣告佔位
-  // （見下方renderRandomEventOverlay()前的說明，避免RENDERERS物件字面量在建構當下
-  // 對尚未宣告的識別字丟出ReferenceError）。
+  // 埋もれ宝／隕石）。Task 21再補上4個分支（歩く霊廟／夜の勢力／虫の大量発生／
+  // 発狂地帯），只剩「襲撃」留給Task 22（其render function仍先用var宣告佔位，理由見
+  // 下方renderRandomEventOverlay()前的說明）。
   // ============================================================================
 
   // 隨機事件籌碼決定（設計文件§8.1）：跟rollAndAssignStrongEnemy()同款first-writer-wins
@@ -6087,13 +6090,13 @@
     });
   }
 
-  // Task 21/22尚未定義的分支render function：先用var宣告佔位（值為undefined）。JS對「引用
+  // Task 22尚未定義的「襲撃」render function：先用var宣告佔位（值為undefined）。JS對「引用
   // 未宣告的識別字」跟「引用值為undefined的已宣告識別字」是兩回事——前者在下面RENDERERS
   // 物件字面量建構當下就會丟出ReferenceError（等於每次呼叫renderRandomEventOverlay()都會
   // 整個崩潰，連スカラベ／女神像等已完成的分支也會被拖累），後者只是查表後renderer為falsy、
-  // 直接略過。Task 21/22加上真正的function宣告（function宣告會被hoist）時，可以直接刪除
-  // 這幾行var，不影響檔案其餘部分。
-  var renderWalkingMausoleumBranch, renderNightForceBranch, renderInsectSwarmBranch, renderMadnessZoneBranch, renderAmbushBranch;
+  // 直接略過。Task 22加上真正的function宣告（function宣告會被hoist）時，可以直接刪除
+  // 這行var，不影響檔案其餘部分。
+  var renderAmbushBranch;
 
   function renderRandomEventOverlay() {
     var pt = nearbyRandomEvent;
@@ -6105,6 +6108,16 @@
     // 先收起——它只被renderGoddessStatueBranch()主動顯示，其餘分支render function
     // （埋もれ宝／隕石／聖甲蟲等）完全不會碰它，若不在這裡統一重置，「先靠近女神像點看到
     // 按鈕顯示，走開後靠近另一個分支點」會讓這顆按鈕（連同其綁定舊pt的onclick）殘留顯示。
+    // Task 21新增：#midnight-random-event-action／choice-a／choice-b三顆按鈕在不同分支間
+    // 共用同一組DOM（見site_src/midnight_page.py），彼此的文字（data-i18n初始套用的預設
+    // 「進行判定」「前往查看」「遠離」）可能被個別render function（例如発狂地帯塔1的
+    // 「離開」／「探索塔」、虫の大量発生知性の蟲を追う的「HP／FP」二選一）動態覆寫成
+    // 別的文字。因此每次重繪都先重置回三顆按鈕各自的預設i18n文字，再交給實際命中的分支
+    // render function視需要覆寫——否則「先靠近発狂地帯看到『離開』/『探索塔』，走開後靠近
+    // 隕石點」會讓隕石的『前往查看』/『遠離』按鈕殘留顯示成『離開』/『探索塔』。
+    el("midnight-random-event-action").textContent = window.I18N.t("midnight_random_event_action_button");
+    el("midnight-random-event-choice-a").textContent = window.I18N.t("midnight_random_event_choice_a_button");
+    el("midnight-random-event-choice-b").textContent = window.I18N.t("midnight_random_event_choice_b_button");
     el("midnight-scarab-banner").hidden = true;
     el("midnight-random-event-banner").hidden = true;
     el("midnight-random-event-goddess-break-action").hidden = true;
@@ -6362,6 +6375,533 @@
         pushPendingReward(p.tokenId, { kind: "rune", value: METEOR_REWARD_RUNES });
         pushPendingReward(p.tokenId, { kind: "potentialPower", value: METEOR_REWARD_POTENTIAL_STARS });
       });
+    });
+  }
+
+  // ============================================================================
+  // Task 21（設計文件§8.2）：歩く霊廟／夜の勢力／虫の大量発生／発狂地帯4個分支。
+  // 共用小工具：目前入座的玩家席位（跟handleBuriedTreasureCheckClick()既有的activeSlots
+  // 寫法一致，抽成具名函式供這4個分支重複使用）。這4個分支（除了夜の勢力有「進入戰鬥」
+  // 加入流程外）都沒有像strong_enemy那樣的participants加入步驟，規則書原文也是要求
+  // 「PCそれぞれ」個別行動或「協力N×PC人數」全員協力，因此協力判定的「PC人數」與「是否
+  // 全員嘗試過」都應該讀目前入座的席位，不是trig.participants（這幾個分支的
+  // trig.participants本來就一直是空物件）。
+  // ============================================================================
+  function currentlySeatedSlots() {
+    return Object.keys(players).filter(function (slot) {
+      return !!players[slot];
+    });
+  }
+
+  // ---- 歩く霊廟分支（event_rulebook.js:503-544）----
+  var MAUSOLEUM_CHECK_TARGET = 11; // event_rulebook.js:521「〈11|フィジカル〉」
+  var MAUSOLEUM_FAIL_HP_DAMAGE = 2 * BLOCK_SQUARE_COUNT_TO_RESOURCE_MULT; // 「HP損害：□□」，□換算率沿用既有BLOCK_SQUARE_COUNT_TO_RESOURCE_MULT（見computeMidnightSkillCost()同款換算）
+
+  function renderWalkingMausoleumBranch(pt, trig) {
+    var banner = el("midnight-random-event-banner");
+    banner.hidden = false;
+    el("midnight-random-event-choice-a").hidden = true;
+    el("midnight-random-event-choice-b").hidden = true;
+    el("midnight-random-event-text").textContent = window.I18N.t("midnight_random_event_mausoleum_desc");
+    var attempted = !!(trig.attempted && trig.attempted[mySlot]);
+    el("midnight-random-event-action").hidden = attempted;
+    el("midnight-random-event-action").onclick = function () {
+      handleMausoleumCheckClick(pt);
+    };
+    if (!attempted) el("midnight-random-event-result").textContent = "";
+  }
+
+  function handleMausoleumCheckClick(pt) {
+    if (!mySlot || isPaused()) return;
+    var trig = fieldTriggers[pt.id];
+    if (trig && trig.attempted && trig.attempted[mySlot]) return;
+    GameStorage.rtSet(gameId, "cloud", "fieldTrigger/" + pt.id + "/attempted/" + mySlot, true);
+    var c = characters[myTokenId];
+    var type = c && c.typeId ? window.PriTestCharacterTypes.get(c.typeId) : null;
+    var diceCount = type && type.checkValues ? type.checkValues.physical || 0 : 0;
+    var sum = 0;
+    for (var i = 0; i < diceCount; i++) sum += 1 + Math.floor(Math.random() * 6);
+    var success = sum >= MAUSOLEUM_CHECK_TARGET;
+    if (!success) spendSelfHp(MAUSOLEUM_FAIL_HP_DAMAGE);
+    // event_rulebook.js:529/538「自身が所持している武器の中から任意の1つ」與同じ物1つ
+    // を獲得——規則原文是玩家自行挑選要複製哪一把，但目前codebase沒有「挑選某個武器
+    // instance」這種選擇的既有UI/欄位（跟RELIC_CHOICE_CONFIG_BY_NAME那種挑「屬性/異常/
+    // 武器種類」的既有選擇機制量級不同），為了不另外發明第三套選擇架構（CLAUDE.md
+    // §11/§36），這裡簡化成從自身持有武器中隨機挑1把複製一份（成功／失敗皆會獲得，
+    // 只差在失敗多了HP損害）。
+    if (c && c.weaponIds && c.weaponIds.length) {
+      if (hasInventorySpace(c, "weapon")) {
+        var pickedId = c.weaponIds[Math.floor(Math.random() * c.weaponIds.length)];
+        c.weaponIds.push(pickedId);
+        GameStorage.rtSet(gameId, "cloud", "character/" + myTokenId, c);
+      } else {
+        showToast(window.I18N.t("midnight_inventory_full_note"));
+      }
+    }
+    el("midnight-random-event-result").textContent = window.I18N.t(
+      success ? "midnight_random_event_success_note" : "midnight_random_event_fail_note",
+      { sum: sum, target: MAUSOLEUM_CHECK_TARGET }
+    );
+  }
+
+  // ---- 夜の勢力分支（event_rulebook.js:545-593）----
+  // 「夜の勢力決定表」（event_rulebook.js:583-590）。1D＝2那一列規則書原文寫的是
+  // 「著大犬」，跟event_rulebook.js:585逐字一致——實際核對enemies_data_1~4.js後確認
+  // enemies_data_3.js:1936真正存在的敵人名稱就是「著大犬」（很可能是「巨大犬」的原始
+  // 誤植，但enemies_data_*.js的結構化資料本身就是照著這個「誤植」轉錄的），因此這裡使用
+  // 「著大犬」（跟資料庫實際存在的名稱一致，才能被resolveCombatEnemyMatch()正確比對到），
+  // 不是看起來比較「正常」但資料庫裡其實不存在的「巨大犬」。其餘5列名稱皆已逐一grep
+  // enemies_data_1~4.js確認存在且拼字完全一致。
+  var NIGHT_FORCE_TABLE = [
+    { faces: [1], nameJa: "ユビムシたち", level: 6, rounds: 3 },
+    { faces: [2], nameJa: "著大犬", level: 6, rounds: 3 },
+    { faces: [3], nameJa: "幽鬼の従者たち", level: 6, rounds: 2 },
+    { faces: [4], nameJa: "丘陵の飛竜", level: 5, rounds: 2 },
+    { faces: [5], nameJa: "ガーディアン・ゴーレム", level: 5, rounds: 2 },
+    { faces: [6], nameJa: "狂い火トロル", level: 3, rounds: 3 },
+  ];
+  var nightForceEnemyAssignAttempted = {}; // pointId -> true（本地節流：敵人指派只送一次transaction，同meteorEnemyAssignAttempted）
+  var nightForceRoundAdvanceAttempted = {}; // pointId -> 上次已處理過的completedRounds值，避免同一輪HP=0重複觸發
+
+  // 夜の勢力的敵人資訊/進入戰鬥/傷害流程完全重用既有的strong_enemy共用機制——
+  // encounterEnemyPoint()已經把「trig.enemyFamilyId存在的random_event點」視為跟
+  // nearbyStrongEnemy同等的戰鬥目標（見上方說明），renderStrongEnemyOverlay()／
+  // handleStrongEnemyEnterClick()／recomputeActiveEncounter()都會自動接手顯示敵人資訊、
+  // 進入戰鬥讀條、HP條與攻擊/戰技傷害計算，這裡只需要負責「決定敵人」與「n連戦進度」
+  // 本身，不重複實作一套敵人資訊UI。
+  function renderNightForceBranch(pt, trig) {
+    var banner = el("midnight-random-event-banner");
+    banner.hidden = false;
+    el("midnight-random-event-choice-a").hidden = true;
+    el("midnight-random-event-choice-b").hidden = true;
+    el("midnight-random-event-action").hidden = true;
+    el("midnight-random-event-result").textContent = "";
+    if (!trig.enemyFamilyId) {
+      el("midnight-random-event-text").textContent = window.I18N.t("midnight_random_event_night_force_desc");
+      rollAndAssignNightForceEnemy(pt);
+      return;
+    }
+    el("midnight-random-event-text").textContent = window.I18N.t("midnight_random_event_night_force_progress_note", {
+      completed: trig.completedRounds || 0,
+      required: trig.requiredRounds || 0,
+    });
+  }
+
+  function rollAndAssignNightForceEnemy(pt) {
+    if (nightForceEnemyAssignAttempted[pt.id] || (fieldTriggers[pt.id] && fieldTriggers[pt.id].enemyFamilyId)) return;
+    nightForceEnemyAssignAttempted[pt.id] = true;
+    var roll = 1 + Math.floor(Math.random() * 6);
+    var row = NIGHT_FORCE_TABLE.filter(function (r) {
+      return r.faces.indexOf(roll) !== -1;
+    })[0];
+    if (!row) return;
+    var GmFlow = window.PriTestNightGmFlow;
+    var match = GmFlow && GmFlow.resolveCombatEnemyMatch(row.nameJa);
+    if (!match) return; // 找不到就整體放棄，不硬湊（同rollAndAssignStrongEnemy()/renderMeteorBranch()既有精神）
+    GameStorage.rtTransaction(gameId, "cloud", "fieldTrigger/" + pt.id + "/enemyFamilyId", function (cur) {
+      return cur === null ? match.familyId : cur;
+    });
+    GameStorage.rtTransaction(gameId, "cloud", "fieldTrigger/" + pt.id + "/enemyId", function (cur) {
+      return cur === null ? match.enemy.id : cur;
+    });
+    GameStorage.rtTransaction(gameId, "cloud", "fieldTrigger/" + pt.id + "/level", function (cur) {
+      return cur === null ? row.level : cur;
+    });
+    GameStorage.rtTransaction(gameId, "cloud", "fieldTrigger/" + pt.id + "/requiredRounds", function (cur) {
+      return cur === null ? row.rounds : cur;
+    });
+    GameStorage.rtTransaction(gameId, "cloud", "fieldEnemyHp/" + pt.id, function (cur) {
+      return cur === null ? enemyRealHpMax({ enemyFamilyId: match.familyId, enemyId: match.enemy.id, level: row.level }) : cur;
+    });
+  }
+
+  // 每次偵掃描一次（掛在跟maybeGrantMeteorReward()同一個呼叫點，見updateNearbyChipPoint()）：
+  // 偵測目前敵人HP是否已歸零，若是則判斷「這是不是最後一輪」——不是就補血讓戰鬥無縫接
+  // 下一輪（event_rulebook.js:570「それぞれの戦闘の間にはインターバルがない」；受限於
+  // RTDB非同步延遲，實務上仍可能有短暫一格的「戰鬥結束」畫面閃爍，這是既有架構限制，
+  // 跟maybeGrantMeteorReward()/maybeGrantStrongEnemyReward()面對同一種HP=0偵測延遲問題），
+  // 是最後一輪則發放最終獎勵。
+  function maybeAdvanceNightForceRound(pt) {
+    var trig = fieldTriggers[pt.id];
+    if (!trig || trig.branchNameJa !== "夜の勢力" || !trig.enemyFamilyId) return;
+    var hp = fieldEnemyHp[pt.id];
+    if (hp === undefined || hp > 0) return;
+    var completedSoFar = trig.completedRounds || 0;
+    if (nightForceRoundAdvanceAttempted[pt.id] === completedSoFar) return; // 這一輪已經處理過
+    nightForceRoundAdvanceAttempted[pt.id] = completedSoFar;
+    var nextCompleted = completedSoFar + 1;
+    var requiredRounds = trig.requiredRounds || 1;
+    if (nextCompleted >= requiredRounds) {
+      GameStorage.rtTransaction(gameId, "cloud", "fieldTrigger/" + pt.id + "/completedRounds", function (cur) {
+        return cur === null || cur < requiredRounds ? nextCompleted : cur;
+      }).then(function (committed) {
+        if (committed !== nextCompleted) return; // 被別的裝置搶先處理過這一輪
+        // event_rulebook.js:563「ボス戦闘（撃破ルーン：7）」＋:579「潜在する力：★★」——
+        // 兩者是同一個「n回戦闘結束時」時機點的獎勵，都走pushPendingReward()（同
+        // maybeGrantMeteorReward()的理由：potentialPower只有pendingRewards抽選清單流程
+        // 認得，grantLootRewardEntryToCharacter()對它是no-op）。
+        Object.keys(trig.participants || {}).forEach(function (slot) {
+          var p = players[slot];
+          if (!p) return;
+          pushPendingReward(p.tokenId, { kind: "rune", value: 7 });
+          pushPendingReward(p.tokenId, { kind: "potentialPower", value: 2 });
+          // event_rulebook.js:579「PC全員のアーツの使用回数が回復し...」＋「夜の恩寵」：
+          // midnight改用時間冷卻（不是使用次數）追蹤技藝/技能，「アーツの使用回数が回復」
+          // 對應到讓技能冷卻立即歸零（_skillCooldownUntil，跟resetAbilityCooldowns()換日
+          // 重置時使用的欄位/寫法完全一致，只是這裡是對participants每個人各自的tokenId
+          // 寫入，不是只清自己）。「夜の恩寵」是設計文件§9-1定義的持久旗標
+          // （_nightBlessing），目前handleBlessingUseClick()/useCharacterAbility()尚未有
+          // 任何讀取這個旗標的判斷分支（沒有「跳過60秒冷卻改用祝福休息回復」的既有掛勾
+          // 點），因此這裡先只寫入旗標本身，不額外發明一套新的冷卻豁免機制——之後若要
+          // 真正讓「夜の恩寵」角色的技能改成靠祝福回復，應該在useCharacterAbility()/
+          // handleBlessingUseClick()那邊接上判斷，不在這裡多做。
+          GameStorage.rtSet(gameId, "cloud", "character/" + p.tokenId + "/_skillCooldownUntil", 0);
+          GameStorage.rtSet(gameId, "cloud", "character/" + p.tokenId + "/_nightBlessing", true);
+        });
+      });
+    } else {
+      GameStorage.rtTransaction(gameId, "cloud", "fieldTrigger/" + pt.id + "/completedRounds", function (cur) {
+        return cur === null || cur < nextCompleted ? nextCompleted : cur;
+      }).then(function (committed) {
+        if (committed !== nextCompleted) return; // 被別的裝置搶先處理過這一輪
+        GameStorage.rtSet(
+          gameId,
+          "cloud",
+          "fieldEnemyHp/" + pt.id,
+          enemyRealHpMax({ enemyFamilyId: trig.enemyFamilyId, enemyId: trig.enemyId, level: trig.level })
+        );
+      });
+    }
+  }
+
+  // ---- 虫の大量発生分支（event_rulebook.js:595-676）----
+  // 判定數值/流程資料統一讀window.PriTestMidnightRandomEvents.insectSwarmSteps
+  // （midnight_random_events.js，Task 19/20已核對過event_rulebook.js逐字轉錄），不在這裡
+  // 重複定義同一批規則數值。
+  var insectBountySelfApplied = {}; // pointId -> true（本地節流：討伐ボーナス的個人套用只做一次，見下方render函式尾端）
+
+  function renderInsectSwarmBranch(pt, trig) {
+    var steps = window.PriTestMidnightRandomEvents.insectSwarmSteps;
+    var banner = el("midnight-random-event-banner");
+    banner.hidden = false;
+    el("midnight-random-event-choice-a").hidden = true;
+    el("midnight-random-event-choice-b").hidden = true;
+    if (!trig.groundBugsOutcome) {
+      el("midnight-random-event-text").textContent = window.I18N.t("midnight_random_event_insect_ground_desc");
+      var groundAttempted = !!(trig.attempted && trig.attempted[mySlot]);
+      el("midnight-random-event-action").hidden = groundAttempted;
+      el("midnight-random-event-action").onclick = function () {
+        handleInsectGroundCheckClick(pt);
+      };
+      if (!groundAttempted) el("midnight-random-event-result").textContent = "";
+      maybeAdvanceInsectGroundStage(pt, trig);
+      return;
+    }
+    if (!trig.chaseOutcome) {
+      el("midnight-random-event-text").textContent = window.I18N.t("midnight_random_event_insect_chase_desc");
+      el("midnight-random-event-action").hidden = true;
+      var chaseAttempted = !!(trig.chaseAttempted && trig.chaseAttempted[mySlot]);
+      el("midnight-random-event-choice-a").hidden = chaseAttempted;
+      el("midnight-random-event-choice-a").textContent = window.I18N.t("midnight_random_event_insect_chase_physical_button");
+      el("midnight-random-event-choice-a").onclick = function () {
+        handleInsectChaseCheckClick(pt, "physical", steps.chaseBug.checkTarget);
+      };
+      el("midnight-random-event-choice-b").hidden = chaseAttempted;
+      el("midnight-random-event-choice-b").textContent = window.I18N.t("midnight_random_event_insect_chase_mental_button");
+      el("midnight-random-event-choice-b").onclick = function () {
+        handleInsectChaseCheckClick(pt, "mental", steps.chaseBug.checkTarget);
+      };
+      if (!chaseAttempted) el("midnight-random-event-result").textContent = "";
+      maybeAdvanceInsectChaseStage(pt, trig);
+      return;
+    }
+    el("midnight-random-event-action").hidden = true;
+    el("midnight-random-event-result").textContent = "";
+    el("midnight-random-event-text").textContent = window.I18N.t(
+      trig.chaseOutcome === "success" ? "midnight_random_event_insect_bounty_note" : "midnight_random_event_insect_fail_note"
+    );
+    // 討伐ボーナス（event_rulebook.js:658-660）：由每台裝置各自在自己畫面上偵測到
+    // chaseOutcome==="success"時各自套用一次（不是由某一台裝置迴圈trig.participants
+    // 逐一授予——這幾個分支的trig.participants本來就是空的，見correction #5同一個道理：
+    // 「地面の蟲たち」失敗損失的盧恩是記在自己角色物件的_insectSwarmLostRunes欄位，只有
+    // 自己的裝置能讀到並退還給自己）。
+    if (trig.chaseOutcome === "success" && !insectBountySelfApplied[pt.id]) {
+      insectBountySelfApplied[pt.id] = true;
+      var c = characters[myTokenId];
+      if (c) {
+        c.runes = (c.runes || 0) + (steps.bounty.runeReward || 0);
+        if (c._insectSwarmLostRunes) {
+          c.runes += c._insectSwarmLostRunes;
+          c._insectSwarmLostRunes = 0;
+        }
+        // 恩寵「知の集約」（event_rulebook.js:668-669）：跟_nightBlessing同一種「先寫入
+        // 持久旗標」的第一步做法（設計文件§9-1精神）——「戦闘終了時PC代表1人が1Dを振る」
+        // 這個觸發時機目前沒有既有掛勾點（不是本task範圍，見correction #3對_nightBlessing
+        // 的同一套判斷），因此這裡不額外發明新的戰鬥結束擲骰機制，只保留旗標供之後接上。
+        c._insectKnowledgeBlessing = true;
+        GameStorage.rtSet(gameId, "cloud", "character/" + myTokenId, c);
+      }
+    }
+  }
+
+  function handleInsectGroundCheckClick(pt) {
+    if (!mySlot || isPaused()) return;
+    var trig = fieldTriggers[pt.id];
+    if (trig && trig.attempted && trig.attempted[mySlot]) return;
+    var steps = window.PriTestMidnightRandomEvents.insectSwarmSteps.groundBugs;
+    GameStorage.rtSet(gameId, "cloud", "fieldTrigger/" + pt.id + "/attempted/" + mySlot, true);
+    var c = characters[myTokenId];
+    var type = c && c.typeId ? window.PriTestCharacterTypes.get(c.typeId) : null;
+    var diceCount = type && type.checkValues ? type.checkValues[steps.statKey] || 0 : 0;
+    var sum = 0;
+    for (var i = 0; i < diceCount; i++) sum += 1 + Math.floor(Math.random() * 6);
+    if (sum < steps.checkTarget && c) {
+      var lost = Math.min(c.runes || 0, steps.failRuneLoss);
+      c.runes = (c.runes || 0) - lost;
+      c._insectSwarmLostRunes = (c._insectSwarmLostRunes || 0) + lost;
+      GameStorage.rtSet(gameId, "cloud", "character/" + myTokenId, c);
+    }
+  }
+
+  // 全員（目前入座的席位）都嘗試過地面蟲判定後，無論成敗都前進到下一步
+  // （event_rulebook.js:617「成否を問わず...へ移る」）。放在render tick持續檢查（而不是
+  // 只在點擊當下檢查一次），才不會因為RTDB訂閱延遲讓「最後一個人剛好在自己畫面上看到
+  // 別人尚未同步到的attempted」而卡住不觸發（同maybeGrantMeteorReward()等既有做法，
+  // transaction本身冪等，重複呼叫無副作用）。
+  function maybeAdvanceInsectGroundStage(pt, trig) {
+    var seatedSlots = currentlySeatedSlots();
+    var attemptedMap = trig.attempted || {};
+    var allAttempted = seatedSlots.length > 0 && seatedSlots.every(function (slot) {
+      return !!attemptedMap[slot];
+    });
+    if (!allAttempted) return;
+    GameStorage.rtTransaction(gameId, "cloud", "fieldTrigger/" + pt.id + "/groundBugsOutcome", function (cur) {
+      return cur ? cur : "done";
+    });
+  }
+
+  function handleInsectChaseCheckClick(pt, statKey, checkTarget) {
+    if (!mySlot || isPaused()) return;
+    var trig = fieldTriggers[pt.id];
+    if (trig && trig.chaseAttempted && trig.chaseAttempted[mySlot]) return;
+    // event_rulebook.js:637「HP損害：□」を受けて〈フィジカル〉、或「FP損害：□」を受けて
+    // 〈メンタル〉——各1個□，換算率沿用既有BLOCK_SQUARE_COUNT_TO_RESOURCE_MULT。
+    if (statKey === "physical") spendSelfHp(BLOCK_SQUARE_COUNT_TO_RESOURCE_MULT);
+    else spendFp(BLOCK_SQUARE_COUNT_TO_RESOURCE_MULT); // spendFp()已有「不足時回傳false、不扣」的既有防呆
+    var c = characters[myTokenId];
+    var type = c && c.typeId ? window.PriTestCharacterTypes.get(c.typeId) : null;
+    var diceCount = type && type.checkValues ? type.checkValues[statKey] || 0 : 0;
+    var sum = 0;
+    for (var i = 0; i < diceCount; i++) sum += 1 + Math.floor(Math.random() * 6);
+    var success = sum >= checkTarget;
+    GameStorage.rtSet(gameId, "cloud", "fieldTrigger/" + pt.id + "/chaseAttempted/" + mySlot, true);
+    GameStorage.rtSet(gameId, "cloud", "fieldTrigger/" + pt.id + "/chaseResults/" + mySlot, success);
+  }
+
+  // 全員都嘗試過追蟲判定後，依「PCの半数以上が成功すれば」（event_rulebook.js:645）比對
+  // 多數決，寫入chaseOutcome。同maybeAdvanceInsectGroundStage()，放在render tick持續檢查。
+  function maybeAdvanceInsectChaseStage(pt, trig) {
+    var seatedSlots = currentlySeatedSlots();
+    var attemptedMap = trig.chaseAttempted || {};
+    var allAttempted = seatedSlots.length > 0 && seatedSlots.every(function (slot) {
+      return !!attemptedMap[slot];
+    });
+    if (!allAttempted) return;
+    var results = trig.chaseResults || {};
+    var successCount = 0;
+    seatedSlots.forEach(function (slot) {
+      if (results[slot]) successCount++;
+    });
+    var outcome = successCount * 2 >= seatedSlots.length ? "success" : "fail";
+    GameStorage.rtTransaction(gameId, "cloud", "fieldTrigger/" + pt.id + "/chaseOutcome", function (cur) {
+      return cur ? cur : outcome;
+    });
+  }
+
+  // ---- 発狂地帯分支（event_rulebook.js:678-768）----
+  // 判定數值/流程資料統一讀window.PriTestMidnightRandomEvents.madnessZoneSteps
+  // （madFire1／tower2／tower3三段的checkTarget/statKey/successMadness/failMadness/
+  // checks，Task 19/20已核對過event_rulebook.js逐字轉錄），不在這裡重複定義同一批數值。
+  // 唯一例外：event_rulebook.js:709「すぐにでもここで離れてもいい（突破判定が必要...）」
+  // 這裡的「突破判定」，逐字核對後確認就是引用同分支頂層event_rulebook.js:685
+  // 「〈協力11×PC人数|メンタル〉」這個公式（madnessZoneSteps沒有另外收錄這組數值，因為
+  // 它屬於頂層突破判定欄位，不是巢狀行為判定），這裡直接沿用同一份公式，不是自行發明。
+  var MADNESS_TOWER1_LEAVE_CHECK_TARGET_PER_PC = 11; // event_rulebook.js:685
+  var MADNESS_TOWER1_LEAVE_STAT_KEY = "mental";
+  var madnessTower3LocalApplied = {}; // pointId -> true（本地節流：塔3個人發狂蓄積/潛力獎勵只套用一次，見correction #5）
+
+  function renderMadnessZoneBranch(pt, trig) {
+    var steps = window.PriTestMidnightRandomEvents.madnessZoneSteps;
+    var banner = el("midnight-random-event-banner");
+    banner.hidden = false;
+    el("midnight-random-event-choice-a").hidden = true;
+    el("midnight-random-event-choice-b").hidden = true;
+    el("midnight-random-event-action").hidden = true;
+    el("midnight-random-event-result").textContent = "";
+    var stage = trig.madnessStage || "madFire";
+    if (stage === "madFire") {
+      el("midnight-random-event-text").textContent = window.I18N.t("midnight_random_event_madness_fire_desc");
+      var attempted = !!(trig.attempted && trig.attempted[mySlot]);
+      el("midnight-random-event-action").hidden = attempted;
+      el("midnight-random-event-action").onclick = function () {
+        handleMadnessCheckClick(pt, "madFire", steps.madFire1);
+      };
+      maybeAdvanceMadnessStage(pt, trig, "madFire", "attempted", "tower1");
+    } else if (stage === "tower1") {
+      el("midnight-random-event-text").textContent = window.I18N.t("midnight_random_event_madness_tower1_desc");
+      el("midnight-random-event-choice-a").hidden = false;
+      el("midnight-random-event-choice-a").textContent = window.I18N.t("midnight_random_event_madness_leave_button");
+      el("midnight-random-event-choice-a").onclick = function () {
+        handleMadnessTower1LeaveClick(pt);
+      };
+      el("midnight-random-event-choice-b").hidden = false;
+      el("midnight-random-event-choice-b").textContent = window.I18N.t("midnight_random_event_madness_explore_button");
+      el("midnight-random-event-choice-b").onclick = function () {
+        GameStorage.rtTransaction(gameId, "cloud", "fieldTrigger/" + pt.id + "/madnessStage", function (cur) {
+          return cur === "tower1" ? "tower2" : cur;
+        });
+      };
+    } else if (stage === "tower2") {
+      el("midnight-random-event-text").textContent = window.I18N.t("midnight_random_event_madness_tower2_desc");
+      var attempted2 = !!(trig.tower2Attempted && trig.tower2Attempted[mySlot]);
+      el("midnight-random-event-action").hidden = attempted2;
+      el("midnight-random-event-action").onclick = function () {
+        handleMadnessCheckClick(pt, "tower2", steps.tower2);
+      };
+      maybeAdvanceMadnessStage(pt, trig, "tower2", "tower2Attempted", "tower3");
+    } else if (stage === "tower3") {
+      el("midnight-random-event-text").textContent = window.I18N.t("midnight_random_event_madness_tower3_desc");
+      el("midnight-random-event-action").hidden = !!trig.tower3Outcome;
+      el("midnight-random-event-action").onclick = function () {
+        handleMadnessTower3Click(pt);
+      };
+    } else {
+      var doneKey = !trig.tower3Outcome
+        ? "midnight_random_event_madness_done_note"
+        : trig.tower3Outcome === "success2plus"
+        ? "midnight_random_event_madness_success2_note"
+        : trig.tower3Outcome === "success1"
+        ? "midnight_random_event_madness_success1_note"
+        : "midnight_random_event_madness_allfail_note";
+      el("midnight-random-event-text").textContent = window.I18N.t(doneKey);
+    }
+    // 塔3個人蓄積/獎勵：跟虫の大量発生的討伐ボーナス同一種設計（correction #5）——每台
+    // 裝置各自在自己畫面上偵測到tower3Outcome才第一次套用，發狂蓄積只影響本地端自己
+    // （recordReceivedAttributeAccum()本來就是module-scope local變數，不吃tokenId）。
+    if (trig.tower3Outcome && !madnessTower3LocalApplied[pt.id]) {
+      madnessTower3LocalApplied[pt.id] = true;
+      var madnessDiceCount = trig.tower3Outcome === "success2plus" ? 2 : 3; // success2plus:発狂2D／success1・allFail:発狂3D
+      var madnessSum = 0;
+      for (var i = 0; i < madnessDiceCount; i++) madnessSum += 1 + Math.floor(Math.random() * 6);
+      recordReceivedAttributeAccum("発狂", madnessSum);
+      if (trig.tower3Outcome !== "allFail") {
+        // event_rulebook.js:746/755「潜在する力：★★」を2個——potentialPower只有
+        // pendingRewards抽選清單流程認得，走pushPendingReward()（同maybeGrantMeteorReward()
+        // 既有理由）。
+        pushPendingReward(myTokenId, { kind: "potentialPower", value: 2 });
+      }
+      // allFail（event_rulebook.js:764）：「タイムロス:1」midnight沒有對應資源，依既有
+      // 簡化原則不套用（同§5全踏破效果的既有處理，見handleMadnessTower3Click()附近註解）。
+    }
+  }
+
+  // madFire／tower2共用：〈checkTarget|任意の判定値〉——玩家可自由選擇任一判定值，目前
+  // codebase沒有對應的選擇UI（不像女神像/埋もれ宝等固定用單一判定值），簡化為取自身
+  // luck/physical/mental三者最高值（等同玩家會選的最佳判定，比固定優先順序取值更合理）。
+  // 成功/失敗後的発狂蓄積骰數(2D/3D)加總即為
+  // recordReceivedAttributeAccum()的amount參數（不是骰子顆數本身，見correction #5）。
+  function handleMadnessCheckClick(pt, stage, stepConfig) {
+    if (!mySlot || isPaused()) return;
+    var attemptField = stage === "madFire" ? "attempted" : "tower2Attempted";
+    var trig = fieldTriggers[pt.id];
+    if (trig && trig[attemptField] && trig[attemptField][mySlot]) return;
+    GameStorage.rtSet(gameId, "cloud", "fieldTrigger/" + pt.id + "/" + attemptField + "/" + mySlot, true);
+    var c = characters[myTokenId];
+    var type = c && c.typeId ? window.PriTestCharacterTypes.get(c.typeId) : null;
+    var cv = (type && type.checkValues) || {};
+    var diceCount = Math.max(cv.physical || 0, cv.mental || 0, cv.luck || 0);
+    var sum = 0;
+    for (var i = 0; i < diceCount; i++) sum += 1 + Math.floor(Math.random() * 6);
+    var success = sum >= stepConfig.checkTarget;
+    var madnessDiceCount = success ? 2 : 3;
+    var madnessSum = 0;
+    for (var j = 0; j < madnessDiceCount; j++) madnessSum += 1 + Math.floor(Math.random() * 6);
+    recordReceivedAttributeAccum("発狂", madnessSum);
+  }
+
+  // madFire／tower2皆為「全員都嘗試過才前進」（event_rulebook.js:699/727「成否に関わらず
+  // 次へ進む」），跟maybeAdvanceInsectGroundStage()同一種render tick持續檢查寫法。
+  function maybeAdvanceMadnessStage(pt, trig, stage, attemptField, nextStage) {
+    var seatedSlots = currentlySeatedSlots();
+    var attemptedMap = trig[attemptField] || {};
+    var allAttempted = seatedSlots.length > 0 && seatedSlots.every(function (slot) {
+      return !!attemptedMap[slot];
+    });
+    if (!allAttempted) return;
+    GameStorage.rtTransaction(gameId, "cloud", "fieldTrigger/" + pt.id + "/madnessStage", function (cur) {
+      return cur === stage ? nextStage : cur;
+    });
+  }
+
+  // 塔1「離開」：event_rulebook.js:709「突破判定が必要」引用頂層event_rulebook.js:685
+  // 〈協力11×PC人数|メンタル〉這組協力判定（不是brief原本猜測的個人〈12|任意の判定値〉——
+  // 逐字核對後這裡才是規則書真正指定的判定，見上方MADNESS_TOWER1_LEAVE_CHECK_TARGET_PER_PC
+  // 註解）。成功→事件結束；失敗→除一般失敗效果外回到「狂い火」（madnessStage設回
+  // "madFire"、清空attempted讓全員重新嘗試，同時清空tower2Attempted讓下一輪的塔2判定
+  // 也重新來過）。
+  function handleMadnessTower1LeaveClick(pt) {
+    if (!mySlot || isPaused()) return;
+    var trig = fieldTriggers[pt.id];
+    if (!trig || trig.madnessStage !== "tower1") return;
+    var seatedSlots = currentlySeatedSlots();
+    var participantsMap = {};
+    seatedSlots.forEach(function (slot) {
+      participantsMap[slot] = true;
+    });
+    var target = MADNESS_TOWER1_LEAVE_CHECK_TARGET_PER_PC * seatedSlots.length;
+    var sum = teamCheckSum({ participants: participantsMap }, MADNESS_TOWER1_LEAVE_STAT_KEY);
+    var success = sum >= target;
+    GameStorage.rtTransaction(gameId, "cloud", "fieldTrigger/" + pt.id + "/madnessStage", function (cur) {
+      return cur === "tower1" ? (success ? "ended" : "madFire") : cur;
+    });
+    if (!success) {
+      GameStorage.rtSet(gameId, "cloud", "fieldTrigger/" + pt.id + "/attempted", null);
+      GameStorage.rtSet(gameId, "cloud", "fieldTrigger/" + pt.id + "/tower2Attempted", null);
+    }
+    el("midnight-random-event-result").textContent = window.I18N.t(
+      success ? "midnight_random_event_success_note" : "midnight_random_event_fail_note",
+      { sum: sum, target: target }
+    );
+  }
+
+  // 塔3（event_rulebook.js:737）：依序做3次協力判定(運試し/體能/精神，各11×PC人數)，
+  // 記錄成功次數決定outcome，寫入tower3Outcome共享事實。個人層級的発狂蓄積/潛力獎勵
+  // 改由renderMadnessZoneBranch()每台裝置各自偵測套用（見上方correction #5），這裡只
+  // 負責寫入共享的判定結果本身。
+  function handleMadnessTower3Click(pt) {
+    if (!mySlot || isPaused()) return;
+    var trig = fieldTriggers[pt.id];
+    if (!trig || trig.tower3Outcome) return;
+    var steps = window.PriTestMidnightRandomEvents.madnessZoneSteps.tower3;
+    var seatedSlots = currentlySeatedSlots();
+    var participantsMap = {};
+    seatedSlots.forEach(function (slot) {
+      participantsMap[slot] = true;
+    });
+    var wrapped = { participants: participantsMap };
+    var successCount = 0;
+    (steps.checks || []).forEach(function (check) {
+      var target = check.target * seatedSlots.length;
+      if (teamCheckSum(wrapped, check.stat) >= target) successCount++;
+    });
+    var outcome = successCount >= 2 ? "success2plus" : successCount === 1 ? "success1" : "allFail";
+    GameStorage.rtTransaction(gameId, "cloud", "fieldTrigger/" + pt.id, function (cur) {
+      if (!cur || cur.tower3Outcome) return cur;
+      var out = {};
+      for (var k in cur) out[k] = cur[k];
+      out.tower3Outcome = outcome;
+      out.madnessStage = "ended";
+      return out;
     });
   }
 
