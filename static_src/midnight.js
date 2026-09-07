@@ -6252,31 +6252,57 @@
     selectedRewardId = null;
   }
 
-  // potentialPower（得意武器／附帶效果擇一，對應使用者追加需求）：兩邊各自抽選一次，
-  // 選定其中一邊才真正commit——commitPotentialPowerWeapon／commitAttachedEffectChoice
-  // 都是character_drawer.js既有純函式，直接對characters[myTokenId]操作。2026-09-06三次
-  // 優化（使用者明確規格「抽選完一次後，按鈕不再可按下（非活性化）」）：拿掉原本「兩邊
-  // 各自可重抽」的設計，抽過一次後對應按鈕disable，不能再重新抽。
+  // potentialPower（得意武器／附帶效果二選一，對應設計文件§3.3「雙抽同時揭示」）：
+  // 2026-09-07改版——原本是兩邊各自獨立「抽選」按鈕＋各自「選擇這個」；現在改成單一
+  // 「抽選」按鈕同時抽兩邊（potentialPowerDrawWeapon／rollPotentialPowerAttachedEffect
+  // 都是character_drawer.js既有純函式，一次呼叫即拿到完整結果，不需要事先lock按鈕），
+  // 揭示後並排顯示兩張結果卡，玩家點其中一張的「選擇這個」才真正commit
+  // （commitPotentialPowerWeapon／commitAttachedEffectChoice），另一張直接捨棄
+  // （不呼叫任何commit，等同消失）。
+  // resolvedEffect的candidates fallback（effect: null時取candidates[0]）沿用舊版邏輯：
+  // rollPotentialPowerAttachedEffect擲到已習得過的效果時，回傳的.effect會是null，改用
+  // .candidates（同一block內未習得的候補，或全24種未習得候補）代替。
   function renderPotentialPowerRewardDetail(id, entry, detail) {
-    if (!potentialPowerDraftById[id]) potentialPowerDraftById[id] = { weapon: null, effect: null };
     var draft = potentialPowerDraftById[id];
     var CD = window.PriTestCharacterDrawer;
 
-    var weaponSection = document.createElement("div");
-    var weaponBtn = document.createElement("button");
-    weaponBtn.type = "button";
-    weaponBtn.textContent = window.I18N.t("midnight_reward_potential_draw_weapon_button");
-    weaponBtn.disabled = !!draft.weapon;
-    weaponBtn.addEventListener("click", function () {
-      var c = characters[myTokenId];
-      if (c) draft.weapon = CD.potentialPowerDrawWeapon(c, entry.value || 1);
-      renderRewardDetail(id, entry);
-    });
-    weaponSection.appendChild(weaponBtn);
+    if (!draft) {
+      var drawBtn = document.createElement("button");
+      drawBtn.type = "button";
+      drawBtn.textContent = window.I18N.t("midnight_reward_draw_button");
+      drawBtn.addEventListener("click", function () {
+        var c = characters[myTokenId];
+        if (!c) return;
+        potentialPowerDraftById[id] = {
+          weapon: CD.potentialPowerDrawWeapon(c, entry.value || 1),
+          effect: CD.rollPotentialPowerAttachedEffect(c),
+        };
+        renderRewardDetail(id, entry);
+      });
+      detail.appendChild(drawBtn);
+      return;
+    }
+
+    var note = document.createElement("p");
+    note.className = "warning-text";
+    note.textContent = window.I18N.t("midnight_reward_potential_choose_note");
+    detail.appendChild(note);
+
+    function finishPick() {
+      GameStorage.rtSet(gameId, "cloud", "character/" + myTokenId, characters[myTokenId]);
+      GameStorage.rtSet(gameId, "cloud", "pendingRewards/" + myTokenId + "/" + id + "/resolved", true);
+      delete potentialPowerDraftById[id];
+      selectedRewardId = null;
+    }
+
+    var row = document.createElement("div");
+    row.className = "wb-row";
+
     if (draft.weapon && draft.weapon.item) {
+      var weaponCard = document.createElement("div");
       var weaponLabel = document.createElement("p");
       weaponLabel.textContent = window.PriTestWeapons.localizedText(draft.weapon.item.name);
-      weaponSection.appendChild(weaponLabel);
+      weaponCard.appendChild(weaponLabel);
       var chooseWeaponBtn = document.createElement("button");
       chooseWeaponBtn.type = "button";
       chooseWeaponBtn.textContent = window.I18N.t("midnight_reward_potential_choose_button");
@@ -6284,34 +6310,21 @@
         var c = characters[myTokenId];
         if (!c) return;
         CD.commitPotentialPowerWeapon(c, draft.weapon);
-        GameStorage.rtSet(gameId, "cloud", "character/" + myTokenId, c);
-        GameStorage.rtSet(gameId, "cloud", "pendingRewards/" + myTokenId + "/" + id + "/resolved", true);
-        delete potentialPowerDraftById[id];
-        selectedRewardId = null;
+        finishPick();
       });
-      weaponSection.appendChild(chooseWeaponBtn);
+      weaponCard.appendChild(chooseWeaponBtn);
+      row.appendChild(weaponCard);
     }
-    detail.appendChild(weaponSection);
 
-    var effectSection = document.createElement("div");
-    var effectBtn = document.createElement("button");
-    effectBtn.type = "button";
-    effectBtn.textContent = window.I18N.t("midnight_reward_potential_draw_effect_button");
-    effectBtn.disabled = !!draft.effect;
-    effectBtn.addEventListener("click", function () {
-      var c = characters[myTokenId];
-      if (c) draft.effect = CD.rollPotentialPowerAttachedEffect(c);
-      renderRewardDetail(id, entry);
-    });
-    effectSection.appendChild(effectBtn);
     var resolvedEffect = draft.effect && (draft.effect.effect || (draft.effect.candidates && draft.effect.candidates[0]));
     if (resolvedEffect) {
+      var effectCard = document.createElement("div");
       var effectLabel = document.createElement("p");
       effectLabel.textContent =
         window.PriTestCharacterTypes.localizedText(resolvedEffect.name) +
         window.I18N.t("colon_separator") +
         window.PriTestCharacterTypes.localizedText(resolvedEffect.body || {});
-      effectSection.appendChild(effectLabel);
+      effectCard.appendChild(effectLabel);
       var chooseEffectBtn = document.createElement("button");
       chooseEffectBtn.type = "button";
       chooseEffectBtn.textContent = window.I18N.t("midnight_reward_potential_choose_button");
@@ -6319,14 +6332,13 @@
         var c = characters[myTokenId];
         if (!c) return;
         CD.commitAttachedEffectChoice(c, resolvedEffect);
-        GameStorage.rtSet(gameId, "cloud", "character/" + myTokenId, c);
-        GameStorage.rtSet(gameId, "cloud", "pendingRewards/" + myTokenId + "/" + id + "/resolved", true);
-        delete potentialPowerDraftById[id];
-        selectedRewardId = null;
+        finishPick();
       });
-      effectSection.appendChild(chooseEffectBtn);
+      effectCard.appendChild(chooseEffectBtn);
+      row.appendChild(effectCard);
     }
-    detail.appendChild(effectSection);
+
+    detail.appendChild(row);
   }
 
   // 2026-09-06三次優化（使用者明確規格「選擇後 按下抽選後 抽完該物品顯示其資訊...下方有

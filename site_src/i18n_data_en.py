@@ -1507,6 +1507,7 @@ STRINGS_EN: dict[str, str] = {
     "midnight_reward_potential_draw_weapon_button": "Draw favored weapon",
     "midnight_reward_potential_draw_effect_button": "Draw attached effect",
     "midnight_reward_potential_choose_button": "Choose this",
+    "midnight_reward_potential_choose_note": "Pick one of the two results below to keep. The other will be discarded.",
     "midnight_test_mode_label": "Test mode (show damage info and tunable multipliers on the right)",
     "midnight_lobby_night_boss_label": "Night Lord",
     "midnight_lobby_night_boss_random_option": "Random",

@@ -1507,6 +1507,7 @@ STRINGS_ZH: dict[str, str] = {
     "midnight_reward_potential_draw_weapon_button": "抽選得意武器",
     "midnight_reward_potential_draw_effect_button": "抽選附帶效果",
     "midnight_reward_potential_choose_button": "選擇這個",
+    "midnight_reward_potential_choose_note": "請從下方兩項結果中選擇一項獲得，未選擇的一方將直接捨棄。",
     "midnight_test_mode_label": "測試模式（顯示右側傷害資訊與可調倍率）",
     "midnight_lobby_night_boss_label": "夜王",
     "midnight_lobby_night_boss_random_option": "隨機決定",

@@ -1507,6 +1507,7 @@ STRINGS_JA: dict[str, str] = {
     "midnight_reward_potential_draw_weapon_button": "得意武器を抽選",
     "midnight_reward_potential_draw_effect_button": "付帯効果を抽選",
     "midnight_reward_potential_choose_button": "これを選ぶ",
+    "midnight_reward_potential_choose_note": "以下の2つの結果からどちらか1つを選んで獲得すること。選ばなかった方はそのまま破棄される。",
     "midnight_test_mode_label": "テストモード（右側にダメージ情報と調整用スライダーを表示）",
     "midnight_lobby_night_boss_label": "夜の王",
     "midnight_lobby_night_boss_random_option": "ランダム決定",
