@@ -1680,6 +1680,93 @@ git commit -m "feat(midnight): GM判斷類獎勵(hpDamage/tieredChoice/diceHandC
 
 ---
 
+### Task 14b: `renderSharedRewardList` — 共享獎勵池的玩家端 UI（設計文件§3.2，補齊Task 1遺留缺口）
+
+**背景**：Task 1 的 brief 曾承諾「Produces: `renderSharedRewardList(pointId, containerEl)`」，但 Task 1
+實際的 7 個步驟從未真正實作它。Task 14 是第一個真正呼叫 `pushSharedReward()` 的地方（`perPerson:false`
+的樓層獎勵、隨機事件的埋藏寶物等未來任務也會用同一套），這代表現在 `fieldTrigger/{id}/sharedRewards`
+已經會被寫入真實資料，但完全沒有畫面能顯示/領取——`claimSharedReward()` 函式本身存在且可用，只是
+沒有任何按鈕呼叫它。這個任務補上這塊玩家端 UI。
+
+**Files:**
+- Modify: `static_src/midnight.js`
+
+**Interfaces:**
+- Consumes: `fieldTriggers`（現有module-level變數，`onFieldTriggersReceived()`更新，Task 1已定義的
+  `claimSharedReward(pointId, rewardId)`，既有的`renderRewardModal()`/`el()`/`myTokenId`）。
+- Produces: `collectUnresolvedSharedRewards()`，並修改`renderRewardModal()`使其一併渲染共享池項目。
+
+- [ ] **Step 1: 讀取現況，確認確切的擴充點**
+
+在 `static_src/midnight.js` 找到現有 `renderRewardModal()`（渲染`pendingRewards[myTokenId]`個人
+獎勵清單的既有函式）與 `onFieldTriggersReceived(value)`（現在只做`fieldTriggers = value || {};`，
+沒有觸發任何重繪）。確認`renderRewardModal()`目前的自動彈出邏輯（`unresolvedIds.length`／
+`rewardModalDismissed`）與清單/detail渲染的確切現況（此函式先前任務可能已經有小幅調整，
+以實際讀到的程式碼為準，不要假設本文件下方的程式碼片段行號完全吻合）。
+
+- [ ] **Step 2: 新增`collectUnresolvedSharedRewards()`**
+
+```js
+// 掃描所有fieldTriggers，收集尚未被任何人領取(沒有resolvedBy)的sharedRewards項目
+// （設計文件§3.2：教會/隨機事件埋藏寶物等固定數量獎勵的共享池，先搶先贏）。
+function collectUnresolvedSharedRewards() {
+  var out = [];
+  Object.keys(fieldTriggers).forEach(function (pointId) {
+    var trig = fieldTriggers[pointId];
+    var shared = trig && trig.sharedRewards;
+    if (!shared) return;
+    Object.keys(shared).forEach(function (rewardId) {
+      var entry = shared[rewardId];
+      if (entry && !entry.resolvedBy) {
+        out.push({ pointId: pointId, rewardId: rewardId, entry: entry });
+      }
+    });
+  });
+  return out;
+}
+```
+
+- [ ] **Step 3: 擴充`renderRewardModal()`一併顯示共享池項目**
+
+在既有的個人`pendingRewards`清單渲染邏輯基礎上，額外渲染`collectUnresolvedSharedRewards()`的
+結果——每筆用一個獨立的`<li>`/按鈕呈現，文字用`rewardEntryLabel(entry)`（既有函式，沿用）＋
+黃字後綴`window.I18N.t("midnight_reward_shared_note")`（新增i18n key，「共有獎勵，非全員獲得」，
+若這個key在先前任務已經加過則直接沿用不要重複）。按鈕點擊時直接呼叫
+`claimSharedReward(pointId, rewardId)`（不需要像個人清單那樣先選取再顯示detail——共享池項目
+是「看到就能直接領」，沒有二選一之類需要detail面板的情境，這跟個人清單`rewardEntryLabel`+
+`renderRewardDetail`兩層渲染的既有模式不同，故意設計成更簡單的單層按鈕）。
+
+決定「彈窗要不要自動彈出」的條件（既有`unresolvedIds.length || rewardModalDismissed`判斷）也
+要把共享池項目算進去——玩家附近有共享獎勵可領時，彈窗也應該自動出現，不能只看個人清單。
+
+- [ ] **Step 4: 讓`onFieldTriggersReceived()`觸發重繪**
+
+`fieldTriggers`更新時（其他玩家領走共享獎勵、或新的共享獎勵被推入）畫面要跟著更新（已被領走
+的項目要從清單消失，新推入的要出現）。在`onFieldTriggersReceived(value)`裡加上
+`fieldTriggers = value || {}; renderRewardModal();`（確認現有函式呼叫順序不會因此出錯——例如
+`renderRewardModal()`若依賴其他在`onFieldTriggersReceived`當下還沒被設定的模組變數，需要調整
+呼叫時機或改成安全的防禦性判斷）。
+
+- [ ] **Step 5: `node --check`**
+
+Run: `node --check static_src/midnight.js`
+
+- [ ] **Step 6: 程式碼追蹤驗證（沒有瀏覽器）**
+
+確認：(a) `collectUnresolvedSharedRewards()`正確排除已有`resolvedBy`的項目；(b) 兩個玩家「同時」
+看到同一筆共享獎勵時，UI呈現一致（都看得到、都能按），但`claimSharedReward()`既有的
+first-writer-wins transaction保證只有一人真正領到；(c) 個人清單與共享清單同時都有未解決項目時，
+兩者都會顯示、不會互相覆蓋。
+
+- [ ] **Step 7: Commit**
+
+```bash
+git add static_src/midnight.js
+git commit -m "feat(midnight): 補上共享獎勵池的玩家端UI(renderSharedRewardList，補齊Task1遺留缺口)"
+```
+
+---
+
 ### Task 15: `bargainReveal` modal + 4 concrete deal effect mappings (design §3.6, §9-2)
 
 **Files:**
