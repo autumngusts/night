@@ -669,6 +669,11 @@
   //   fullClearRewardGrantedBy }
   var fieldProgress = {}; // 來自RTDB，見onFieldProgressReceived
   var nearbyFieldPoint = null; // 目前在FIELD_TRIGGER_RADIUS範圍內的地圖點（sorcerer型別除外）
+  // 中途加入（設計文件§1.4）：附近有fieldTrigger、但自己尚未在participants裡的地圖點，
+  // 且已經過了邀請階段（status!=="inviting"，邀請階段有自己的「加入」流程，見
+  // handleAcceptFieldInviteClick）。由updateNearbyFieldPoint()逐frame判斷，見
+  // handleLateJoinFieldClick／renderFieldOverlay()的「參加探索」按鈕。
+  var nearbyLateJoinPoint = null;
   var nearbyCastlePoint = null; // 目前是否站在王城castleZone範圍內，見updateNearbyCastle()
   var CASTLE_POINT_ID = "castle_j"; // 王城合成點的固定id，跟一般地圖點的隨機id分開，方便辨識
   var activeEncounter = null; // 目前在範圍內、我是參與者、已解決分歧且敵人仍存活的地圖點——非null時攻擊/戰技要打這個點的敵人，不是共用標靶
@@ -3979,6 +3984,7 @@
   function updateNearbyFieldPoint() {
     if (!mySlot || !localPos || autoFly) {
       nearbyFieldPoint = null;
+      nearbyLateJoinPoint = null;
       recomputeActiveEncounter();
       renderFieldOverlay();
       return;
@@ -3996,6 +4002,17 @@
       maybeSetFieldVoteDeadline(found);
       maybeResolveFieldVote(found);
       maybeGrantFieldTileRewardOnClear(found);
+    }
+    // 中途加入判斷（設計文件§1.4）：只在「已經過了邀請階段」（status!=="inviting"，
+    // 邀請階段沿用既有handleAcceptFieldInviteClick「加入」流程，不重複顯示這個按鈕）
+    // 且自己尚未在participants裡時才成立，涵蓋投票中(active)與已解決(resolved，戰鬥中
+    // 或已結束)兩種情況。
+    nearbyLateJoinPoint = null;
+    if (found) {
+      var trig0 = fieldTriggers[found.id];
+      if (trig0 && trig0.status !== "inviting" && (!trig0.participants || !trig0.participants[mySlot])) {
+        nearbyLateJoinPoint = found;
+      }
     }
     recomputeActiveEncounter();
     renderFieldOverlay();
@@ -4216,6 +4233,23 @@
     var trig = fieldTriggers[pt.id];
     if (!trig || trig.status !== "inviting" || !trig.participants || !trig.participants[mySlot]) return;
     GameStorage.rtSet(gameId, "cloud", "fieldTrigger/" + pt.id + "/inviteDeadline", Date.now());
+  }
+
+  // 中途加入（設計文件§1.4）：按下「參加探索」後，等待FIELD_LATE_JOIN_WAIT_MS（會合動畫的
+  // 意象時間）才真正把自己寫進participants，不是點下去立刻生效——這段等待純粹是本地UI節奏，
+  // 不需要transaction（跟handleAcceptFieldInviteClick同理，重複寫true本來就幂等）。只寫入
+  // participants本身，不重新觸發inviting/typewriter/vote這些既有機制：trig.status此時已經是
+  // active或resolved，maybeAdvanceFieldInvite／maybeStartFieldTypewriter等函式的status guard
+  // 本來就不會因為participants多了一人而重跑。
+  var lateJoinTimer = null;
+  function handleLateJoinFieldClick(pt) {
+    if (!mySlot || isPaused() || lateJoinTimer) return;
+    el("midnight-field-late-join-loading").hidden = false;
+    lateJoinTimer = setTimeout(function () {
+      lateJoinTimer = null;
+      el("midnight-field-late-join-loading").hidden = true;
+      GameStorage.rtSet(gameId, "cloud", "fieldTrigger/" + pt.id + "/participants/" + mySlot, true);
+    }, FIELD_LATE_JOIN_WAIT_MS);
   }
 
   // 邀請時限一到，任何看得到這個點的裝置都可以把狀態從inviting轉成active（不論當時
@@ -6747,6 +6781,15 @@
     // 這裡先統一預設收合，避免切換到其他狀態/離開範圍時殘留上一次的內容。
     var inviteStatusBox = el("midnight-field-invite-status");
     inviteStatusBox.hidden = true;
+    // 中途加入按鈕（設計文件§1.4）：獨立於下方pt/trig狀態分支之外決定顯示與否，直接依
+    // nearbyLateJoinPoint（已在updateNearbyFieldPoint()排除status==="inviting"與自己已是
+    // participant的情況）——這樣即使下面的分支因為trig.status==="inviting"或!pt而提早
+    // return，這顆按鈕的顯示狀態仍然每frame都會被正確更新，不會殘留上一個地圖點的狀態。
+    var lateJoinBtn = el("midnight-field-late-join-prompt");
+    lateJoinBtn.hidden = !nearbyLateJoinPoint;
+    if (nearbyLateJoinPoint) {
+      lateJoinBtn.onclick = function () { handleLateJoinFieldClick(nearbyLateJoinPoint); };
+    }
     if (!pt) {
       enterPrompt.hidden = true;
       invitePrompt.hidden = true;

@@ -111,6 +111,14 @@ BODY = """    <div class="midnight-wrap">
           <button type="button" id="btn-midnight-field-enter" data-i18n="midnight_field_enter_button"></button>
         </div>
 
+        <!-- 中途加入（2026-09-07新增，design§1.4）：跟上面3個互斥區塊獨立，不受pt/trig狀態
+             分支影響——靠近一個「已經過了邀請階段（投票中或已解決）、但自己還不是participants」
+             的地圖點時就會顯示，跟其他區塊同時存在也沒關係（例如同時看到banner）。按下後等待
+             FIELD_LATE_JOIN_WAIT_MS才真正寫入participants，見static/midnight.jsの
+             handleLateJoinFieldClick()／renderFieldOverlay()。 -->
+        <button type="button" id="midnight-field-late-join-prompt" hidden data-i18n="midnight_field_late_join_button"></button>
+        <div id="midnight-field-late-join-loading" hidden data-i18n="midnight_field_late_join_loading_note"></div>
+
         <div id="midnight-field-invite-prompt" hidden>
           <p id="midnight-field-invite-text"></p>
           <p id="midnight-field-invite-timer"></p>

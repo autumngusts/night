@@ -1371,6 +1371,8 @@ STRINGS_ZH: dict[str, str] = {
     "midnight_field_no_combat_note": "這次平安通過，沒有遇到需要戰鬥的敵人。",
     "midnight_field_floor_progress_label": "樓層 {current}/{total}",
     "midnight_field_fully_explored_note": "此地已全部樓層踏破。",
+    "midnight_field_late_join_button": "參加探索",
+    "midnight_field_late_join_loading_note": "準備會合中…",
     "midnight_spirit_bird_use_button": "使用靈鳥",
     "midnight_day_phase_label": "第{day}天／{phase}",
     "midnight_phase_grace": "開放中",
