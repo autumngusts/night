@@ -1366,6 +1366,7 @@ STRINGS_ZH: dict[str, str] = {
     "midnight_field_force_enter_button": "立即進入",
     "midnight_field_vote_timer_label": "剩餘{seconds}秒，逾時將由系統決定",
     "midnight_field_vote_progress_label": "已選擇 {voted}/{total} 人",
+    "midnight_field_vote_count_label": "（{count}票）",
     "midnight_field_encounter_cleared_note": "敵人已被擊退。",
     "midnight_field_no_combat_note": "這次平安通過，沒有遇到需要戰鬥的敵人。",
     "midnight_field_floor_progress_label": "樓層 {current}/{total}",

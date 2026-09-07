@@ -1366,6 +1366,7 @@ STRINGS_EN: dict[str, str] = {
     "midnight_field_force_enter_button": "Enter Now",
     "midnight_field_vote_timer_label": "{seconds}s left, the system will decide if time runs out",
     "midnight_field_vote_progress_label": "{voted}/{total} voted",
+    "midnight_field_vote_count_label": "({count} votes)",
     "midnight_field_encounter_cleared_note": "The enemy has been driven off.",
     "midnight_field_no_combat_note": "You passed through safely -- no enemy encountered.",
     "midnight_field_floor_progress_label": "Floor {current}/{total}",

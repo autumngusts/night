@@ -6916,7 +6916,7 @@
         }).length;
         var btn = document.createElement("button");
         btn.type = "button";
-        btn.textContent = label + " (" + voteCount + "票)" + (myVote === i ? " ✓" : "");
+        btn.textContent = label + window.I18N.t("midnight_field_vote_count_label", { count: voteCount }) + (myVote === i ? " ✓" : "");
         btn.disabled = !mySlot || isPaused();
         btn.addEventListener("click", function () {
           GameStorage.rtSet(gameId, "cloud", "fieldTrigger/" + pt.id + "/votes/" + mySlot, i);
