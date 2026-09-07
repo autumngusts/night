@@ -1534,4 +1534,10 @@ STRINGS_ZH: dict[str, str] = {
     "midnight_test_mult_enemy_guard": "敵人防禦價值倍率",
     "midnight_test_pc_atk_defense": "玩家攻擊力：{atk}／防禦價值：{defense}",
     "midnight_test_enemy_guard_value": "敵人防禦價值：{value}",
+    "midnight_bargain_title": "取引",
+    "midnight_bargain_good_label": "良好效果",
+    "midnight_bargain_bad_label": "不良效果",
+    "midnight_bargain_choose_button": "選擇這項",
+    "midnight_bargain_manual_note": "（無法自動套用，請自行對照文字處理）",
+    "midnight_bargain_close_button": "關閉",
 }

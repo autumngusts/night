@@ -71,6 +71,13 @@
   // 使用，不重新發明第二套HP欄位）。----
   var STAMINA_MAX = 100;
   var STAMINA_REGEN_PER_SEC = 5; // 2026-09-05 HUD優化：使用者明確要求從2改成5
+  // Task 15新增：取引「死を遠ざけたい」良好效果／「状態異常に強くなりたい」不良效果會分別
+  // 把本地端玩家的體力回復速率改成6／秒或4／秒（見下方BARGAIN_DEAL_EFFECTS）。midnight只
+  // 追蹤本地端自己的體力（見上方STAMINA_MAX區塊註解「不透過RTDB同步」），因此不需要per
+  // character欄位，只需要一個可被取引效果覆寫的module-level變數，取代原本updateStamina()
+  // 直接讀STAMINA_REGEN_PER_SEC常數的寫死值。未套用任何取引效果時預設值與
+  // STAMINA_REGEN_PER_SEC完全相同，不影響既有行為。
+  var myStaminaRegenPerSec = STAMINA_REGEN_PER_SEC;
   var ATTACK_COMBO_WINDOW_MS = 1000; // 連擊判定窗口
   var STAMINA_COST_DODGE = 10;
   // 2026-09-05武器資料真正接入：一般攻擊/戰技/魔術祈禱/防禦的傷害與體力/FP/HP消耗，
@@ -397,9 +404,15 @@
   // 加總後的RPG量表數字（character_drawer.jsのnewCharacter()／applyLevelUpResourceBonus()），
   // 另外疊加塔利斯曼/遺物/附加效果的totalFlatMaxStatBonus（既有三套bonus系統，CLAUDE.md §12），
   // 跟現有FP上限公式（selfFpMax()）採同一套疊加方式。角色未知（尚未載入）時退回基礎100。
+  // Task 15新增：c._bargainMaxHpBonus是取引「全力で戦いたい」良好效果的「自身最大HP：+□」
+  // （設計文件§9-2換算為midnight數值+10），一次性疊加（見BARGAIN_DEAL_EFFECTS），不像
+  // totalFlatMaxStatBonus那樣是既有三套bonus系統（CLAUDE.md §12）的一部分，因此不透過該
+  // helper計算、直接加在最外層——跟rulebook原文「最大HP：+□」是flat加成（不是×10乘法對象）
+  // 一致，只有既有hp.max/totalFlatMaxStatBonus那組才會被×10。未套用此取引效果時
+  // （c._bargainMaxHpBonus為0/undefined）回傳值與修改前完全相同。
   function selfArenaHpMax(c) {
     if (!c || !c.hp) return 100;
-    return 100 + (c.hp.max + CharacterDrawer.totalFlatMaxStatBonus(c, "hp")) * 10;
+    return 100 + (c.hp.max + CharacterDrawer.totalFlatMaxStatBonus(c, "hp")) * 10 + (c._bargainMaxHpBonus || 0);
   }
   function selfArenaHp() {
     var max = selfArenaHpMax(characters[myTokenId]);
@@ -1515,6 +1528,7 @@
     el("btn-midnight-weapon-reroll-use").addEventListener("click", handleWeaponRerollUseClick);
     el("btn-midnight-weapon-reroll-apply").addEventListener("click", handleWeaponRerollApplyClick);
     el("btn-midnight-weapon-reroll-keep-leave").addEventListener("click", handleWeaponRerollKeepAndLeaveClick);
+    el("btn-midnight-bargain-close").addEventListener("click", closeBargainModal);
     el("btn-midnight-toggle-menu").addEventListener("click", function () {
       var panel = el("midnight-menu-panel");
       panel.hidden = !panel.hidden;
@@ -1652,13 +1666,20 @@
   // 用單一聚合HP池，不做規則書原本的多列HP（1〜3體）UI——多列HP本身只是「顯示方式」，
   // 擊敗夜之王所需的總傷害量不變；唯一因此無法忠實呈現的是gladius分裂形態「傷害÷3同時
   // 套用到3個個體、任一個體歸零就轉回合體」的細節，見pickAndResolveBossAction()註解。
+  // Task 15新增：meta.day3BossHpBonusRaw是取引「全力で戦いたい」不良效果的「夜の王のすべての
+  // HPライン：+□□」（設計文件§9-2換算為midnight數值+20，多名PC各自套用此不良效果時用
+  // rtTransaction累積加總，見BARGAIN_DEAL_EFFECTS）。rulebook原文是「未乘上倍率的HP+20」，
+  // 因此加在×10乘法之前的box總和上（跟一般hpBoxes格數同一個乘法基準），不是加在最終結果
+  // 之後。未套用此取引效果時（meta.day3BossHpBonusRaw為0/undefined）計算結果與修改前完全
+  // 相同。
   function bossHpMax(bossId) {
     var boss = bossRulebookData(bossId);
     var total = 0;
     (boss && boss.hpBoxes ? boss.hpBoxes : []).forEach(function (n) {
       total += n || 0;
     });
-    return Math.round((total || FIELD_ENEMY_HP_FALLBACK) * 10 * testMult("enemyHpMult"));
+    var totalWithBargainBonus = (total || FIELD_ENEMY_HP_FALLBACK) + ((meta && meta.day3BossHpBonusRaw) || 0);
+    return Math.round(totalWithBargainBonus * 10 * testMult("enemyHpMult"));
   }
 
   function recordGuardReductionForPoint(pointId, symbol) {
@@ -3127,7 +3148,7 @@
   // 每影格回復體力：長按防禦中不回復（使用者規則），觀戰者/暫停中也不回復。
   function updateStamina(dtSec) {
     if (!mySlot || isPaused() || blockHolding) return;
-    stamina.current = Math.min(stamina.max, stamina.current + STAMINA_REGEN_PER_SEC * dtSec);
+    stamina.current = Math.min(stamina.max, stamina.current + myStaminaRegenPerSec * dtSec);
   }
 
   // ============================================================================
@@ -5289,6 +5310,34 @@
       return cur === null ? Date.now() : cur;
     });
     GameStorage.rtSet(gameId, "cloud", "meta/pause", null);
+    applyPendingDay3HpBonuses();
+  }
+
+  // 取引「後に大成したい」良好效果的c._pendingDay3HpBonus（設計文件§9-2「打贏Day2夜之強敵、
+  // 進入Day3時+30 HP」）：進入Day3的當下一次性套用到demoStat（現在HP），套用後清除欄位，
+  // 見BARGAIN_DEAL_EFFECTS。所有已佔用席位的裝置都會呼叫maybeTriggerDay3FromReady()
+  // （每台各自的day3TriggerAttempted只擋住「同一台裝置」重複呼叫），因此對每個tokenId另外
+  // 用day3HpBonusAppliedAt/{tokenId}做「cur===null才是第一個寫入」的idempotent guard——
+  // 跟meta/day2StartAt／meta/day3StartAt同一套first-writer-wins pattern，靠transaction()
+  // 衝突時會用最新伺服器值重跑updateFn的既有Firebase行為，確保只有恰好一台裝置的wonRace
+  // 閉包旗標在「最終真正commit那次呼叫」為true，避免多台裝置各自加總造成HP重複疊加。
+  function applyPendingDay3HpBonuses() {
+    Object.keys(characters).forEach(function (tokenId) {
+      var c = characters[tokenId];
+      var bonus = c && c._pendingDay3HpBonus;
+      if (!bonus) return;
+      var wonRace = false;
+      GameStorage.rtTransaction(gameId, "cloud", "day3HpBonusAppliedAt/" + tokenId, function (cur) {
+        wonRace = cur === null;
+        return cur === null ? Date.now() : cur;
+      }).then(function () {
+        if (!wonRace) return;
+        GameStorage.rtTransaction(gameId, "cloud", "demoStat/" + tokenId, function (cur) {
+          return (cur === null ? selfArenaHpMax(c) : cur) + bonus;
+        });
+        GameStorage.rtSet(gameId, "cloud", "character/" + tokenId + "/_pendingDay3HpBonus", null);
+      });
+    });
   }
 
   // 上方資訊欄的祝福/商人/離去/準備區塊render（2026-09-06三次優化，使用者明確規格拆成
@@ -6190,6 +6239,150 @@
     return JUDGMENT_REWARD_KINDS.indexOf(entry.kind) !== -1;
   }
 
+  // ---- 取引（bargainReveal）4個已知deal的midnight數值換算（設計文件§3.6/§9-2，Task 15新增）：
+  // key用deal.label的ja原文去掉最前面「N｜」編號前綴（見bargainDealMatchKey()），不用目前
+  // 顯示語言的文字，避免zh/en介面下對不到——實際資料見fields_data_4.jsの「取引に応じる」
+  // tier，6個deal只有下面4個有結構化數值換算，其餘2個（「〇〇に優れた体になりたい」的
+  // 判定值/威力補正、「聖杯瓶が欲しい」的聖杯瓶使用回數／□）刻意不處理，留給GM/玩家依
+  // manual_note文字自行處理（CLAUDE.md §19「□不得自行發明數值」——這2個deal雖然文字裡也有
+  // □，但目前沒有可疊加的對應欄位可以掛勾，不猜測套用位置）。applyGood/applyBad回傳true
+  // 代表已結構化套用完畢，回傳false代表無法結構化、只留文字讓renderBargainDealList()附加
+  // midnight_bargain_manual_note提示。----
+  var BARGAIN_DEAL_EFFECTS = {
+    // 2｜後に大成したい
+    "後に大成したい": {
+      applyGood: function (c) {
+        // 「夜の王との戦闘で2ターン目のアクションフェイズ開始時...最大HP：+□□□」：
+        // midnight沒有追蹤「戰鬥內第幾回合」這麼細的state，改用進入Day3當下一次性套用
+        // （見maybeTriggerDay3FromReady()/applyPendingDay3HpBonuses()掛勾點，這是設計文件
+        // §9-2既定的簡化，不是這裡自行猜測）。
+        c._pendingDay3HpBonus = (c._pendingDay3HpBonus || 0) + 30;
+        return true;
+      },
+      applyBad: function () {
+        // 「最大FP：-□」立即扣FP（本地端資源，只影響自己，不透過RTDB同步）；
+        // 「最大加護：-□」的「加護」midnight無對應資源，略過、不猜測套用位置。
+        fp.current = Math.max(0, fp.current - 10);
+        return true;
+      },
+    },
+    // 3｜全力で戦いたい
+    "全力で戦いたい": {
+      applyGood: function (c) {
+        // 「自身を「最大HP：+□」」供selfArenaHpMax()疊加；「任意の威力補正：+5」midnight
+        // 沒有對應的可疊加威力補正欄位（不是既有三套bonus系統的一部分，見CLAUDE.md §12），
+        // 這部分留給GM/玩家依manual_note自行處理，不影響這裡applyGood回傳true（HP+10這部分
+        // 確實已結構化套用）。
+        c._bargainMaxHpBonus = (c._bargainMaxHpBonus || 0) + 10;
+        return true;
+      },
+      applyBad: function () {
+        // 「夜の王のすべてのHPライン：+□□」（未乘上倍率+20，見bossHpMax()掛勾點）：
+        // 多名PC各自選到這個deal的bad時累積加總，用rtTransaction。
+        GameStorage.rtTransaction(gameId, "cloud", "meta/day3BossHpBonusRaw", function (cur) {
+          return (cur || 0) + 20;
+        });
+        return true;
+      },
+    },
+  };
+  // 6｜死を遠ざけたい：良好效果＝防禦階段開始獲得體力骰1個 → 換算為體力回復速率5→6/秒
+  // （§9-2既定換算，見myStaminaRegenPerSec）。這個deal沒有對應的已知不良效果數值換算
+  // （「自身最大HP：-□（最低值1）」暫不結構化），applyBad固定回傳false。
+  var BARGAIN_STAMINA_GOOD_KEY = "死を遠ざけたい";
+  // 5｜状態異常に強くなりたい：不良效果＝行動/額外階段體力骰出目自動變更為⚀ → 換算為體力
+  // 回復速率5→4/秒。良好效果（異常狀態最大蓄積值+1）暫不結構化，applyGood固定回傳false。
+  var BARGAIN_STAMINA_BAD_KEY = "状態異常に強くなりたい";
+  BARGAIN_DEAL_EFFECTS[BARGAIN_STAMINA_GOOD_KEY] = {
+    applyGood: function () {
+      myStaminaRegenPerSec = 6;
+      return true;
+    },
+    applyBad: function () {
+      return false;
+    },
+  };
+  BARGAIN_DEAL_EFFECTS[BARGAIN_STAMINA_BAD_KEY] = {
+    applyGood: function () {
+      return false;
+    },
+    applyBad: function () {
+      myStaminaRegenPerSec = 4;
+      return true;
+    },
+  };
+
+  // deal比對key：一律用deal.label的ja原文（不受目前UI顯示語言影響），去掉最前面「N｜」
+  // 編號前綴。例如「2｜後に大成したい」比對key為「後に大成したい」。
+  function bargainDealMatchKey(deal) {
+    var raw = (deal && deal.label && deal.label.ja) || "";
+    var sepIdx = raw.indexOf("｜");
+    return sepIdx === -1 ? raw : raw.slice(sepIdx + 1);
+  }
+
+  // 通用取引揭曉modal（設計文件§3.6，Task 15新增；資料形狀跟Task 25「調律の魔物」相同，
+  // 供其重用同一套engine，見brief）。pt/trig目前未在render本體內使用，維持相同signature是
+  // 為了保留呼叫端的觸發格資訊，供未來擴充（例如記錄是哪個地圖點觸發的取引）時不需要改
+  // 這裡的介面。
+  function openBargainRevealModal(pt, trig, entry) {
+    var deals = (entry && entry.deals) || [];
+    renderBargainDealList(pt, trig, deals);
+    el("midnight-bargain-modal").hidden = false;
+  }
+
+  function closeBargainModal() {
+    el("midnight-bargain-modal").hidden = true;
+  }
+
+  function renderBargainDealList(pt, trig, deals) {
+    var listEl = el("midnight-bargain-deal-list");
+    listEl.innerHTML = "";
+    var Fields = window.PriTestFields;
+    deals.forEach(function (deal) {
+      var card = document.createElement("div");
+      card.className = "midnight-bargain-deal-card";
+      var title = document.createElement("p");
+      title.textContent =
+        Fields.localizedText(deal.label) + "　" + window.I18N.t("midnight_bargain_good_label") + "：" + Fields.localizedText(deal.good);
+      card.appendChild(title);
+      var badLine = document.createElement("p");
+      badLine.className = "warning-text";
+      badLine.hidden = true;
+      card.appendChild(badLine);
+      var btn = document.createElement("button");
+      btn.type = "button";
+      btn.textContent = window.I18N.t("midnight_bargain_choose_button");
+      btn.addEventListener("click", function () {
+        badLine.textContent = window.I18N.t("midnight_bargain_bad_label") + "：" + Fields.localizedText(deal.bad);
+        badLine.hidden = false;
+        btn.disabled = true;
+        var c = characters[myTokenId];
+        if (!c) return;
+        var effects = BARGAIN_DEAL_EFFECTS[bargainDealMatchKey(deal)];
+        var goodApplied = !!(effects && effects.applyGood(c));
+        var badApplied = !!(effects && effects.applyBad(c));
+        c._lastTileRewardNote = {
+          text:
+            Fields.localizedText(deal.label) +
+            "／" +
+            window.I18N.t("midnight_bargain_good_label") +
+            "：" +
+            Fields.localizedText(deal.good) +
+            (goodApplied ? "" : window.I18N.t("midnight_bargain_manual_note")) +
+            "／" +
+            window.I18N.t("midnight_bargain_bad_label") +
+            "：" +
+            Fields.localizedText(deal.bad) +
+            (badApplied ? "" : window.I18N.t("midnight_bargain_manual_note")),
+          at: Date.now(),
+        };
+        GameStorage.rtSet(gameId, "cloud", "character/" + myTokenId, c);
+      });
+      card.appendChild(btn);
+      listEl.appendChild(card);
+    });
+  }
+
   function maybeGrantFieldTileReward(pt, trig, floor) {
     if (fieldTileRewardAttempted[pt.id]) return;
     fieldTileRewardAttempted[pt.id] = true;
@@ -6244,8 +6437,14 @@
       });
     }
     if (bargainEntries.length) {
-      // Task 15尚未落地：openBargainRevealModal()目前不存在，先不呼叫，避免ReferenceError。
-      // bargainEntries本身在這裡先保留(不消耗)，等Task 15接上手動UI再處理。
+      // 取引是玩家個人選擇的手動UI（設計文件§3.6），不是自動套用類獎勵，因此不透過
+      // tileRewardGrantedBy搶鎖——每個participant各自在自己的裝置上開啟自己的取引視窗、
+      // 選擇自己要的deal，applyGood/applyBad只改自己的角色欄位／本地端資源（見
+      // BARGAIN_DEAL_EFFECTS），不會有多裝置重複套用的問題。實際資料（fields_data_4.js）
+      // 目前每個floor reward只有1筆bargainReveal entry，這裡只處理第一筆。
+      if (trig.participants && trig.participants[mySlot]) {
+        openBargainRevealModal(pt, trig, bargainEntries[0]);
+      }
     }
   }
 

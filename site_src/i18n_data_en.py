@@ -1534,4 +1534,10 @@ STRINGS_EN: dict[str, str] = {
     "midnight_test_mult_enemy_guard": "Enemy guard value multiplier",
     "midnight_test_pc_atk_defense": "Player attack: {atk} / Defense value: {defense}",
     "midnight_test_enemy_guard_value": "Enemy guard value: {value}",
+    "midnight_bargain_title": "Bargain",
+    "midnight_bargain_good_label": "Good effect",
+    "midnight_bargain_bad_label": "Bad effect",
+    "midnight_bargain_choose_button": "Choose this",
+    "midnight_bargain_manual_note": " (cannot be auto-applied - handle it manually per the text)",
+    "midnight_bargain_close_button": "Close",
 }

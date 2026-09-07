@@ -1534,4 +1534,10 @@ STRINGS_JA: dict[str, str] = {
     "midnight_test_mult_enemy_guard": "エネミー防御価値倍率",
     "midnight_test_pc_atk_defense": "PC攻撃力：{atk}／防御価値：{defense}",
     "midnight_test_enemy_guard_value": "エネミー防御価値：{value}",
+    "midnight_bargain_title": "取引",
+    "midnight_bargain_good_label": "良い効果",
+    "midnight_bargain_bad_label": "悪い効果",
+    "midnight_bargain_choose_button": "これを選ぶ",
+    "midnight_bargain_manual_note": "（自動反映できません。文言を見てご自身で処理してください）",
+    "midnight_bargain_close_button": "閉じる",
 }

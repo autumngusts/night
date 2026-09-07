@@ -768,6 +768,20 @@ BODY = """    <div class="midnight-wrap">
           </div>
         </div>
 
+        <!-- 取引（bargainReveal）視窗（設計文件§3.6/§9-2，Task 15新增）：跟#midnight-merchant-modal
+             同款絕對定位＋置中版型（見style.css）。每個participant各自在自己的裝置上開啟、各自
+             選擇自己要的deal——不是party-wide單一選擇，因此不透過tileRewardGrantedBy搶鎖，見
+             static/midnight.jsのmaybeGrantFieldTileReward()內的呼叫處與openBargainRevealModal()／
+             renderBargainDealList()。選項清單完全由JS依entry.deals動態產生於
+             #midnight-bargain-deal-list，這裡只留空容器＋標題＋關閉鈕。 -->
+        <div id="midnight-bargain-modal" hidden>
+          <div id="midnight-bargain-box">
+            <h3 data-i18n="midnight_bargain_title"></h3>
+            <div id="midnight-bargain-deal-list"></div>
+            <button type="button" id="btn-midnight-bargain-close" data-i18n="midnight_bargain_close_button"></button>
+          </div>
+        </div>
+
         <!-- 角色屬性管理面板（2026-09-05新增，2026-09-06改版：使用者明確規格的順序——
              （類型名）等級／HP／FP→武器(6格)→消耗品(4格)→裝飾品(2格)→可發動技能→技藝→
              被動能力→遺物效果→附帶效果→威力補正→得意武器→判定值，右側detail拉滿版高，
