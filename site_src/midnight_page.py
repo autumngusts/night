@@ -704,6 +704,7 @@ BODY = """    <div class="midnight-wrap">
             <div id="midnight-merchant-consumable-list"></div>
             <p id="midnight-merchant-consumable-result"></p>
             <h4 data-i18n="midnight_merchant_forge_title"></h4>
+            <p id="midnight-merchant-forge-stone-note"></p>
             <div id="midnight-merchant-forge-list"></div>
             <p id="midnight-merchant-forge-result"></p>
             <button type="button" id="btn-midnight-merchant-close" data-i18n="midnight_merchant_close_button"></button>

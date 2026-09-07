@@ -5650,12 +5650,32 @@
     "item_throwing_dagger",
   ];
 
-  // 鍛造台（稀有度強化）費用：docs/scenario_flow_rules.md §9／event_rulebook.jsの
-  // merchantチット原文只提到「鍛冶台も使わせてもらえそうだ」，148頁的實際費用沒有轉錄
-  // 進這個repo，因此不是規則書確認的數字。暫時比照同一個商人籌碼裡唯一有確認數字的
-  // 「裝備品購入：盧恩1」訂為同額佔位值（同ATTACK_BASE_DAMAGE等常數的既有慣例），
-  // 之後有正式頁面數字時應直接取代這個常數。
-  var MERCHANT_FORGE_COST_RUNES = 1;
+  // 鍛造台（稀有度強化）費用（設計文件§6，Task 17）：改為消耗鍛造石（item_smithing_stone）
+  // 而不是盧恩——C→U消耗1個，U→R消耗2個。鍛造石是noStackLimit道具，堆疊時共用同一格
+  // consumables[]（見consumables.jsのitem_smithing_stone／上方applyReward()的
+  // entry.kind==="smithingStone"分支同款寫法），因此「持有幾個」要讀該單一instance的
+  // usesRemaining，而不是算instance數量。
+  function smithingStoneCount(c) {
+    var inst = c && (c.consumables || []).filter(function (i) { return i.itemId === "item_smithing_stone"; })[0];
+    return inst ? inst.usesRemaining || 0 : 0;
+  }
+
+  function consumeSmithingStones(c, n) {
+    var inst = (c.consumables || []).filter(function (i) { return i.itemId === "item_smithing_stone"; })[0];
+    if (!inst || inst.usesRemaining < n) return false;
+    inst.usesRemaining -= n;
+    if (inst.usesRemaining <= 0) {
+      c.consumables = c.consumables.filter(function (i) { return i !== inst; });
+    }
+    return true;
+  }
+
+  var FORGE_COST_C_TO_U = 1;
+  var FORGE_COST_U_TO_R = 2;
+
+  function forgeCostForRarity(rarity) {
+    return rarity === "C" ? FORGE_COST_C_TO_U : rarity === "U" ? FORGE_COST_U_TO_R : null;
+  }
 
   // 進入讀取條共用小工具（2026-09-06新增，見docs/scenario_flow_rules.md §9「進入」
   // 統一比照板塊卡牌既有的FIELD_ENTER_WAIT_MS=0.5秒讀取節奏，讓商人/祝福這類籌碼也有
@@ -5784,14 +5804,16 @@
   // character_drawer.js既有的upgradeWeaponRarity/canUpgradeWeaponRarity（C→U→R，早在
   // 該檔案裡就是專為「商人チットイベント『鍛造台』」準備的helper，先前只是一直沒有UI
   // 接上去），不是另外發明第二套稀有度規則。列出玩家自己持有的每把武器，可強化的顯示
-  // 「強化」按鈕（消耗MERCHANT_FORGE_COST_RUNES），已達最高（R／L）則顯示已達上限的
-  // 停用文字。----
+  // 「強化」按鈕（消耗forgeCostForRarity()對應的鍛造石數量，C→U:1、U→R:2，設計文件§6，
+  // Task 17改為消耗鍛造石而非盧恩），已達最高（R／L）則顯示已達上限的停用文字。----
   function renderMerchantForgeList() {
     var container = el("midnight-merchant-forge-list");
     container.innerHTML = "";
     var c = characters[myTokenId];
+    var heldStones = smithingStoneCount(c);
+    el("midnight-merchant-forge-stone-note").textContent = window.I18N.t("midnight_merchant_forge_stone_note", { count: heldStones });
     // 使用者明確規格：「擁有鍛造石的人才能對商人鐵匠進行動作」。
-    if (!characterHasConsumable(c, "item_smithing_stone")) {
+    if (!heldStones) {
       container.textContent = window.I18N.t("midnight_merchant_forge_need_stone_note");
       return;
     }
@@ -5813,12 +5835,13 @@
         btn.textContent = window.I18N.t("midnight_merchant_forge_max_note", { name: name, rarity: rarity });
         btn.disabled = true;
       } else {
+        var cost = forgeCostForRarity(rarity);
         btn.textContent = window.I18N.t("midnight_merchant_forge_weapon_button", {
           name: name,
           rarity: rarity,
-          cost: MERCHANT_FORGE_COST_RUNES,
+          cost: cost,
         });
-        btn.disabled = (c.runes || 0) < MERCHANT_FORGE_COST_RUNES;
+        btn.disabled = heldStones < cost;
         btn.addEventListener("click", function () {
           handleMerchantForgeWeapon(weaponId);
         });
@@ -5829,17 +5852,17 @@
 
   function handleMerchantForgeWeapon(weaponId) {
     var c = characters[myTokenId];
-    if (!c || (c.runes || 0) < MERCHANT_FORGE_COST_RUNES || !characterHasConsumable(c, "item_smithing_stone")) return;
     var CD = window.PriTestCharacterDrawer;
+    var rarity = CD.getEffectiveWeaponRarity(c, weaponId);
+    var cost = forgeCostForRarity(rarity);
+    if (!c || !cost || !consumeSmithingStones(c, cost)) return;
     if (!CD.upgradeWeaponRarity(c, weaponId)) return;
-    c.runes -= MERCHANT_FORGE_COST_RUNES;
     GameStorage.rtSet(gameId, "cloud", "character/" + myTokenId, c);
     var weapon = window.PriTestWeapons.get(baseCatalogId(weaponId));
     el("midnight-merchant-forge-result").textContent = window.I18N.t("midnight_merchant_forge_result", {
       name: weapon ? window.PriTestWeapons.localizedText(weapon.name) : weaponId,
       rarity: CD.getEffectiveWeaponRarity(c, weaponId),
     });
-    renderMerchantRuneNote();
     renderMerchantForgeList();
   }
 
