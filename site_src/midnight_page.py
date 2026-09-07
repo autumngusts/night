@@ -192,6 +192,19 @@ BODY = """    <div class="midnight-wrap">
           <p id="midnight-scarab-result"></p>
         </div>
 
+        <!-- 隨機事件籌碼其餘8個分支通用banner（Task 20新增，設計文件§8.1-8.2）：聖甲蟲
+             繼續沿用上面的#midnight-scarab-banner（renderScarabBranch()原樣呼叫既有
+             renderScarabOverlay()）；本task實作女神像／埋もれ宝／隕石3個分支，歩く霊廟／
+             夜の勢力／虫の大量発生／発狂地帯／襲撃留給Task 21/22沿用同一組DOM。見
+             static/midnight.js的renderRandomEventOverlay()。 -->
+        <div id="midnight-random-event-banner" hidden>
+          <p id="midnight-random-event-text"></p>
+          <button type="button" id="midnight-random-event-action" data-i18n="midnight_random_event_action_button"></button>
+          <button type="button" id="midnight-random-event-choice-a" data-i18n="midnight_random_event_choice_a_button" hidden></button>
+          <button type="button" id="midnight-random-event-choice-b" data-i18n="midnight_random_event_choice_b_button" hidden></button>
+          <p id="midnight-random-event-result"></p>
+        </div>
+
         <!-- 敵人攻擊（2026-09-05新增）：只有「同一板塊、同一籌碼事件」（activeEncounter）
              內、被指定為攻擊目標的那個玩家自己的畫面才會顯示——不是全體參與者共用的畫面
              （使用者明確規格：警示圖示閃爍0.5秒後才進行攻擊，攻擊特效為刀光劍影或爪痕）。

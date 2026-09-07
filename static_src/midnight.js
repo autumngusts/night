@@ -328,6 +328,15 @@
   var TERRIFYING_STRONG_ENEMY_REWARD_RUNES = 12;
   var TERRIFYING_STRONG_ENEMY_REWARD_POTENTIAL_STARS = 3;
 
+  // ---- 隨機事件「隕石」分支撃破獎勵（Task 20新增，數值取自event_rulebook.js:491/496
+  // 「撃破ルーン：8 + L補正」「潜在する力：★★★★」）：「+L補正」全專案沒有通用的
+  // resolver（grep確認：只有強敵決定表自己行內編碼的levelBonus，是不同機制），依CLAUDE.md
+  // §19僅授予確定的基礎值8，不猜測correction項——已知簡化，不是算錯數字，比照「時間損耗」
+  // 略過的既有做法（見parseAllFloorEffectRuneAmount()旁註解）。----
+  var METEOR_REWARD_RUNES = 8;
+  var METEOR_REWARD_POTENTIAL_STARS = 4;
+  var METEOR_ENEMY_LEVEL = 8; // event_rulebook.js:492「降る星の成獣（232頁）／Lv.8」，固定值，沒有"+L補正"
+
   // ---- 標點（ping）----
   var PING_DISPLAY_MS = 6000; // 標點顯示幾毫秒後自動消失（本地渲染端判斷，不刪RTDB資料）
   var LONG_PRESS_MS = 500; // 長按判定門檻
@@ -738,6 +747,10 @@
   var nearbyRandomEvent = null; // 目前在使用範圍內的隨機事件（聖甲蟲）地點
   var strongEnemyRollAttempted = {}; // pointId -> true（本地節流：強敵決定表只送一次transaction）
   var strongEnemyRewardAttempted = {}; // pointId -> true（本地節流：擊殺獎勵只送一次transaction）
+  // ---- Task 20新增：隨機事件籌碼（設計文件§8.1-8.2）本地節流旗標 ----
+  var randomEventRollAttempted = {}; // pointId -> true（本地節流：隨機事件決定表只送一次transaction）
+  var meteorEnemyAssignAttempted = {}; // pointId -> true（本地節流：隕石王戰敵人指派只送一次transaction）
+  var meteorRewardAttempted = {}; // pointId -> true（本地節流：隕石撃破獎勵只送一次transaction）
   // Task 18新增：2日目「⑧恐るべき強敵」點位決定的本地節流旗標（跟day3TriggerAttempted等
   // 同一套pattern）——每台裝置只嘗試送一次meta/terrifyingStrongEnemyPointId transaction，
   // 見maybeAssignTerrifyingStrongEnemyPoint()說明（該函式掛在updateAutoDayAdvance()裡，
@@ -4356,12 +4369,27 @@
     renderFieldOverlay();
   }
 
-  // activeEncounter：field卡牌點跟strong_enemy籌碼點共用同一套fieldTriggers/{pointId}
-  // 與fieldEnemyHp/{pointId} shape（見規劃紀錄「強敵/scarab 戰鬥的 RTDB 狀態機」），
-  // 因此抽成一個共用步驟，接受nearbyFieldPoint、nearbyStrongEnemy或nearbyCastlePoint
-  // 其中之一。
+  // Task 20新增：隨機事件「隕石」分支的王戰（renderMeteorBranch()指派match後）跟
+  // strong_enemy籌碼共用同一套fieldTrigger/fieldEnemyHp shape與「上方資訊欄＋進入戰鬥」UI
+  // （renderStrongEnemyOverlay()／handleStrongEnemyEnterClick()／下方recomputeActiveEncounter()），
+  // 這裡統一決定「目前是哪一個籌碼點在提供這場戰鬥」，優先權維持跟原本nearbyStrongEnemy
+  // 完全一樣（只是多接受一個候選來源），避免每個呼叫端各自重複判斷順序。隨機事件其餘
+  // 8個分支（女神像/埋もれ宝等）沒有enemyFamilyId，天然不會被這裡誤判成戰鬥點。
+  function encounterEnemyPoint() {
+    if (nearbyStrongEnemy) return nearbyStrongEnemy;
+    if (nearbyRandomEvent) {
+      var t = fieldTriggers[nearbyRandomEvent.id];
+      if (t && t.enemyFamilyId) return nearbyRandomEvent;
+    }
+    return null;
+  }
+
+  // activeEncounter：field卡牌點跟strong_enemy籌碼點（含隕石王戰，見encounterEnemyPoint()）
+  // 共用同一套fieldTriggers/{pointId}與fieldEnemyHp/{pointId} shape（見規劃紀錄「強敵/scarab
+  // 戰鬥的 RTDB 狀態機」），因此抽成一個共用步驟，接受nearbyFieldPoint、encounterEnemyPoint()
+  // 或nearbyCastlePoint其中之一。
   function recomputeActiveEncounter() {
-    var candidate = nearbyFieldPoint || nearbyStrongEnemy || nearbyCastlePoint || nearbyFinalCircleBoss || nearbyDay3Boss;
+    var candidate = nearbyFieldPoint || encounterEnemyPoint() || nearbyCastlePoint || nearbyFinalCircleBoss || nearbyDay3Boss;
     var wasActive = !!activeEncounter;
     if (!candidate) {
       activeEncounter = null;
@@ -4882,7 +4910,7 @@
       closeBlessingModal();
       recomputeActiveEncounter();
       renderStrongEnemyOverlay();
-      renderScarabOverlay();
+      renderRandomEventOverlay();
       return;
     }
     var merchant = null;
@@ -4920,11 +4948,21 @@
       rollAndAssignStrongEnemy(strongEnemy);
       maybeGrantStrongEnemyReward(strongEnemy);
     }
+
+    // Task 20新增：隨機事件籌碼（設計文件§8.1-8.2）——先決定分支（rollAndAssignRandomEvent），
+    // 隕石分支撃破後的獎勵判定（maybeGrantMeteorReward）比照上面strongEnemy同一套「每偵
+    // 掃描一次」節奏。encounterEnemyPoint()（下方recomputeActiveEncounter()用到）需要
+    // nearbyStrongEnemy跟nearbyRandomEvent都已經是這一輪最新值，因此recomputeActiveEncounter()/
+    // renderStrongEnemyOverlay()挪到兩者都指派完之後才呼叫。
+    nearbyRandomEvent = randomEvent;
+    if (randomEvent) {
+      rollAndAssignRandomEvent(randomEvent);
+      maybeGrantMeteorReward(randomEvent);
+    }
+
     recomputeActiveEncounter();
     renderStrongEnemyOverlay();
-
-    nearbyRandomEvent = randomEvent;
-    renderScarabOverlay();
+    renderRandomEventOverlay();
   }
 
   // ---- 強敵籌碼：靠近後用event_rulebook.js既有「強敵決定表」（跟night_gm_flow.js完全
@@ -4969,10 +5007,11 @@
   }
 
   function handleStrongEnemyEnterClick() {
-    if (!mySlot || isPaused() || !nearbyStrongEnemy) return;
-    var trig = fieldTriggers[nearbyStrongEnemy.id];
+    var pt = encounterEnemyPoint(); // Task 20：也接受隕石王戰（見encounterEnemyPoint()說明）
+    if (!mySlot || isPaused() || !pt) return;
+    var trig = fieldTriggers[pt.id];
     if (!trig || trig.status !== "resolved") return;
-    GameStorage.rtSet(gameId, "cloud", "fieldTrigger/" + nearbyStrongEnemy.id + "/participants/" + mySlot, true);
+    GameStorage.rtSet(gameId, "cloud", "fieldTrigger/" + pt.id + "/participants/" + mySlot, true);
   }
 
   // ============================================================================
@@ -5632,7 +5671,7 @@
 
   function renderStrongEnemyOverlay() {
     var banner = el("midnight-strong-enemy-banner");
-    var pt = nearbyStrongEnemy;
+    var pt = encounterEnemyPoint(); // Task 20：也接受隕石王戰（見encounterEnemyPoint()說明）
     var trig = pt && fieldTriggers[pt.id];
     if (!pt || !trig || !trig.enemyFamilyId) {
       banner.hidden = true;
@@ -6005,6 +6044,283 @@
     };
     if (success) pushPendingReward(myTokenId, { kind: "talisman" });
     renderScarabOverlay();
+  }
+
+  // ============================================================================
+  // Task 20（設計文件§8.1-8.2）：隨機事件決定機制＋4個分支（聖甲蟲替換／女神像／
+  // 埋もれ宝／隕石）。其餘5個分支（歩く霊廟／夜の勢力／虫の大量発生／発狂地帯／襲撃）
+  // 留給Task 21/22，這裡先只放dispatch table的key、renderer名稱先用var宣告佔位
+  // （見下方renderRandomEventOverlay()前的說明，避免RENDERERS物件字面量在建構當下
+  // 對尚未宣告的識別字丟出ReferenceError）。
+  // ============================================================================
+
+  // 隨機事件籌碼決定（設計文件§8.1）：跟rollAndAssignStrongEnemy()同款first-writer-wins
+  // transaction寫法，天然支援多裝置同時靠近時只有一次真正決定。「霊鷹の止まり木」依規格
+  // 直接替換成「スカラベ」分支（沿用同一套聖甲蟲判定，不走場地移動機制）。
+  function rollAndAssignRandomEvent(pt) {
+    if (randomEventRollAttempted[pt.id] || fieldTriggers[pt.id]) return;
+    randomEventRollAttempted[pt.id] = true;
+    var GmFlow = window.PriTestNightGmFlow;
+    var Scenarios = window.PriTestScenarios;
+    var chip = findEventChip("random_event");
+    var table = chip && chip.extraTables && chip.extraTables[0];
+    var scenarioId = resolveNightBossScenarioId();
+    var scenarioNumber = scenarioId && Scenarios ? Scenarios.numberForId(scenarioId) : null;
+    if (!GmFlow || !table) return;
+    var rolled = GmFlow.rollRandomEventTable(table, scenarioNumber);
+    if (!rolled) return;
+    // rollRandomEventTable()實際回傳{entry, rowIndex, die1, die2, rollLog}，entry是{ja,zh}
+    // 雙語物件（見night_gm_flow.js:1667-1692確認）——不是{name:...}。表格原文條目（例如
+    // 「隕石（次頁）※シナリオ1、2、7、8のときのみ。それ以外の場合は振り直し。」）夾帶
+    // 頁碼參照與「※劇本限定」註記，不是乾淨的分支名稱，因此用「從第一個全形（截斷」取出
+    // 乾淨名稱（分支名稱本身不含「（」，逐行核對過event_rulebook.js:1237-1268十行原文）。
+    var branchName = ((rolled.entry && rolled.entry.ja) || "").split("（")[0];
+    if (branchName === "霊鷹の止まり木") branchName = "スカラベ"; // 設計規格：直接替換，不走場地移動機制
+    // 決定表本行寫「蟻の大量発生」，但event_rulebook.js:595實際分支本文標題是「虫の大量発生」
+    // （同一頁328/322頁內容，規則書決定表條目名稱與分支自身.name欄位不一致）——這裡統一
+    // 改成後者，讓下方renderRandomEventOverlay()的RENDERERS查表鍵（Task 21以「虫の大量発生」
+    // 為key）能真正命中。
+    if (branchName === "蟻の大量発生") branchName = "虫の大量発生";
+    GameStorage.rtTransaction(gameId, "cloud", "fieldTrigger/" + pt.id, function (cur) {
+      if (cur !== null) return cur;
+      return { status: "resolved", branchNameJa: branchName, participants: {}, resolvedAt: Date.now() };
+    });
+  }
+
+  // Task 21/22尚未定義的分支render function：先用var宣告佔位（值為undefined）。JS對「引用
+  // 未宣告的識別字」跟「引用值為undefined的已宣告識別字」是兩回事——前者在下面RENDERERS
+  // 物件字面量建構當下就會丟出ReferenceError（等於每次呼叫renderRandomEventOverlay()都會
+  // 整個崩潰，連スカラベ／女神像等已完成的分支也會被拖累），後者只是查表後renderer為falsy、
+  // 直接略過。Task 21/22加上真正的function宣告（function宣告會被hoist）時，可以直接刪除
+  // 這幾行var，不影響檔案其餘部分。
+  var renderWalkingMausoleumBranch, renderNightForceBranch, renderInsectSwarmBranch, renderMadnessZoneBranch, renderAmbushBranch;
+
+  function renderRandomEventOverlay() {
+    var pt = nearbyRandomEvent;
+    var trig = pt && fieldTriggers[pt.id];
+    // 每次重繪先把「聖甲蟲」跟「其餘8分支通用」兩個banner都收起來，才由實際命中的分支
+    // render function決定顯示哪一個——兩者是各自獨立的DOM id（見site_src/midnight_page.py），
+    // 不會互相自動隱藏，否則「先靠近A分支點看到banner，走開後靠近B分支點」會有banner
+    // 殘留沒收起來的問題。
+    el("midnight-scarab-banner").hidden = true;
+    el("midnight-random-event-banner").hidden = true;
+    if (!pt || !trig || !trig.branchNameJa) return;
+    var RENDERERS = {
+      "スカラベ": renderScarabBranch,
+      "女神像": renderGoddessStatueBranch,
+      "埋もれ宝": renderBuriedTreasureBranch,
+      "隕石": renderMeteorBranch,
+      "歩く霊廟": renderWalkingMausoleumBranch, // Task 21
+      "夜の勢力": renderNightForceBranch, // Task 21
+      "虫の大量発生": renderInsectSwarmBranch, // Task 21
+      "発狂地帯": renderMadnessZoneBranch, // Task 21
+      "襲撃": renderAmbushBranch, // Task 22
+    };
+    var renderer = RENDERERS[trig.branchNameJa];
+    if (renderer) renderer(pt, trig);
+  }
+
+  function renderScarabBranch(pt, trig) {
+    // 沿用現有renderScarabOverlay()／handleScarabCheckClick()全部邏輯，原樣呼叫，不修改。
+    renderScarabOverlay();
+  }
+
+  // ---- 女神像分支（event_rulebook.js:400-441）----
+  var GODDESS_STATUE_CHECK_TARGET = 10; // event_rulebook.js:418「〈10｜メンタル〉」
+  // 追跡者／無頼漢／守護者／執行者（含各自暗黑/黎明變體）typeId，見character_types.js
+  // 實際核對過的清單（grep "id: \"tracker|ruffian|guardian|executor"）。
+  var GODDESS_STATUE_RESTRICTED_TYPE_IDS = ["tracker", "tracker_dark", "ruffian", "ruffian_dark", "guardian", "guardian_dawn", "executor", "executor_dark"];
+
+  function renderGoddessStatueBranch(pt, trig) {
+    var banner = el("midnight-random-event-banner");
+    banner.hidden = false;
+    el("midnight-random-event-choice-a").hidden = true;
+    el("midnight-random-event-choice-b").hidden = true;
+    el("midnight-random-event-text").textContent = window.I18N.t("midnight_random_event_goddess_desc");
+    var attempted = !!(trig.attempted && trig.attempted[mySlot]);
+    el("midnight-random-event-action").hidden = attempted;
+    el("midnight-random-event-action").onclick = function () {
+      handleGoddessStatueCheckClick(pt);
+    };
+    if (!attempted) el("midnight-random-event-result").textContent = "";
+  }
+
+  function handleGoddessStatueCheckClick(pt) {
+    if (!mySlot || isPaused()) return;
+    var trig = fieldTriggers[pt.id];
+    if (trig && trig.attempted && trig.attempted[mySlot]) return;
+    GameStorage.rtSet(gameId, "cloud", "fieldTrigger/" + pt.id + "/attempted/" + mySlot, true);
+    // event_rulebook.js:418「FP損害：■」——■數值規則書未標示，依CLAUDE.md §19不自行發明，
+    // 不在這裡自動扣除任何FP，交由GM依規則書原文處理（描述文字midnight_random_event_goddess_desc
+    // 已保留這段提示）。
+    var c = characters[myTokenId];
+    var type = c && c.typeId ? window.PriTestCharacterTypes.get(c.typeId) : null;
+    var diceCount = type && type.checkValues ? type.checkValues.mental || 0 : 0;
+    var sum = 0;
+    for (var i = 0; i < diceCount; i++) sum += 1 + Math.floor(Math.random() * 6);
+    var success = sum >= GODDESS_STATUE_CHECK_TARGET;
+    el("midnight-random-event-result").textContent = window.I18N.t(success ? "midnight_random_event_success_note" : "midnight_random_event_fail_note", {
+      sum: sum,
+      target: GODDESS_STATUE_CHECK_TARGET,
+    });
+    if (success && c && GODDESS_STATUE_RESTRICTED_TYPE_IDS.indexOf(c.typeId) !== -1) {
+      // event_rulebook.js:426-427：判定成功、且PC為指定4職業(含變體)之一，消費技藝破壞
+      // 女神像後獲得「鍊石」3個——這是單一PC的個人動作，不是trig.participants群體踏破
+      // 獎勵，因此不走pushPerPlayerReward()（那只是fieldProgress後補領取ledger的紀錄，
+      // 本身不會立即套用任何東西給任何角色，見下方grantTileLootToParticipants()呼叫端
+      // 既有註解），改直接重用grantTileLootToParticipants()既有的「授予＋toast note＋
+      // 背包已滿訊息」完整邏輯，participants只放自己這一個席位。另外，
+      // grantLootRewardEntryToCharacter()的"consumable"分支只認itemId對應的namedItem.uses
+      // （固定授予1個、忽略value欄位），無法表達「×3」，正確的kind是"smithingStone"
+      // （見該函式"stoneswordKey"/"smithingStone"分支，value才真的會被疊加進usesRemaining）。
+      var soloParticipants = {};
+      soloParticipants[mySlot] = true;
+      grantTileLootToParticipants({ participants: soloParticipants }, [{ kind: "smithingStone", value: 3, perPerson: true }]);
+    }
+  }
+
+  // ---- 埋もれ宝分支（event_rulebook.js:442-464）----
+  var BURIED_TREASURE_CHECK_TARGET_PER_PC = 12; // event_rulebook.js:452「〈協力12×PC人數｜運試し〉」
+
+  // Task 21引入通用「協力判定」helper（teamCheckSum(trig, statKey)）前的最小版本：依
+  // trig.participants加總每個參與者角色對應checkValues的擲骰。埋もれ宝分支本身沒有
+  // 「進入」／「加入」步驟（不像strong_enemy/隕石王戰需要先按進入戰鬥），因此呼叫端
+  // （見下方handleBuriedTreasureCheckClick()）改傳「目前入座的全部玩家席位」而不是
+  // trig.participants本身（trig.participants對這個分支永遠是空的，直接傳trig會讓
+  // 「PC人數」變成0、判定變成必定成功——不是規則書原意）。
+  function teamCheckSum(trig, statKey) {
+    var sum = 0;
+    participantSlots(trig).forEach(function (slot) {
+      var p = players[slot];
+      var c = p && characters[p.tokenId];
+      var type = c && c.typeId ? window.PriTestCharacterTypes.get(c.typeId) : null;
+      var diceCount = type && type.checkValues ? type.checkValues[statKey] || 0 : 0;
+      for (var i = 0; i < diceCount; i++) sum += 1 + Math.floor(Math.random() * 6);
+    });
+    return sum;
+  }
+
+  function renderBuriedTreasureBranch(pt, trig) {
+    var banner = el("midnight-random-event-banner");
+    banner.hidden = false;
+    el("midnight-random-event-choice-a").hidden = true;
+    el("midnight-random-event-choice-b").hidden = true;
+    el("midnight-random-event-text").textContent = window.I18N.t("midnight_random_event_buried_treasure_desc");
+    el("midnight-random-event-action").hidden = !!trig.resolvedOutcome;
+    el("midnight-random-event-action").onclick = function () {
+      handleBuriedTreasureCheckClick(pt);
+    };
+    el("midnight-random-event-result").textContent = trig.resolvedOutcome
+      ? window.I18N.t(trig.resolvedOutcome === "success" ? "midnight_random_event_treasure_success_note" : "midnight_random_event_treasure_fail_note")
+      : "";
+  }
+
+  function handleBuriedTreasureCheckClick(pt) {
+    if (!mySlot || isPaused()) return;
+    var trig = fieldTriggers[pt.id];
+    if (!trig || trig.resolvedOutcome) return;
+    // 「PC人數」讀全場目前入座的玩家席位數，不是trig.participants（本分支沒有像
+    // strong_enemy/隕石王戰那樣「按下進入戰鬥」的加入步驟，規則書原文本身也沒有要求玩家
+    // 先加入才能參與這個一次性協力判定，見event_rulebook.js:452）。Task 21若之後引入真正
+    // 通用的協力判定helper，這裡的PC人數來源可能需要一併對齊。
+    var activeSlots = Object.keys(players).filter(function (slot) {
+      return !!players[slot];
+    });
+    var participantsMap = {};
+    activeSlots.forEach(function (slot) {
+      participantsMap[slot] = true;
+    });
+    var target = BURIED_TREASURE_CHECK_TARGET_PER_PC * activeSlots.length;
+    var sum = teamCheckSum({ participants: participantsMap }, "luck");
+    GameStorage.rtTransaction(gameId, "cloud", "fieldTrigger/" + pt.id, function (cur) {
+      if (!cur || cur.resolvedOutcome) return cur;
+      var out = {};
+      for (var k in cur) out[k] = cur[k];
+      out.resolvedOutcome = sum >= target ? "success" : "fail";
+      return out;
+    }).then(function () {
+      if (sum >= target) {
+        // event_rulebook.js:458「次の表を見て1Dを3回振り、それぞれの出目に沿った
+        // アイテムを1つずつ、合計3個得る」——PC達（隊伍）共享，不是個人專屬，走
+        // pushSharedReward()共享池先搶先贏（同其餘固定共享獎勵的既有做法）。
+        window.PriTestMidnightRandomEvents.rollChestTableThreeTimes().forEach(function (row) {
+          pushSharedReward(pt.id, { kind: row.kind, value: row.value, perPerson: false });
+        });
+      }
+    });
+  }
+
+  // ---- 隕石分支（event_rulebook.js:467-499）----
+  function renderMeteorBranch(pt, trig) {
+    // 描寫「→隕石」／遠離二選一（event_rulebook.js:477原文兩個選項）：這是單一玩家可
+    // 自行決定的探索性選擇，不是需要多人協商的§1.3板塊分歧投票，因此沿用簡單的「選項A/
+    // 選項B」按鈕做法，不套用投票機制。
+    var banner = el("midnight-random-event-banner");
+    banner.hidden = false;
+    el("midnight-random-event-action").hidden = true;
+    el("midnight-random-event-text").textContent = window.I18N.t("midnight_random_event_meteor_desc");
+    if (!trig.meteorChoice) {
+      el("midnight-random-event-choice-a").hidden = false;
+      el("midnight-random-event-choice-a").onclick = function () {
+        GameStorage.rtSet(gameId, "cloud", "fieldTrigger/" + pt.id + "/meteorChoice", "go");
+      };
+      el("midnight-random-event-choice-b").hidden = false;
+      el("midnight-random-event-choice-b").onclick = function () {
+        GameStorage.rtSet(gameId, "cloud", "fieldTrigger/" + pt.id + "/meteorChoice", "flee");
+      };
+      el("midnight-random-event-result").textContent = "";
+      return;
+    }
+    el("midnight-random-event-choice-a").hidden = true;
+    el("midnight-random-event-choice-b").hidden = true;
+    el("midnight-random-event-result").textContent = window.I18N.t(
+      trig.meteorChoice === "go" ? "midnight_random_event_meteor_go_note" : "midnight_random_event_meteor_flee_note"
+    );
+    if (trig.meteorChoice !== "go" || trig.enemyFamilyId || meteorEnemyAssignAttempted[pt.id]) return;
+    meteorEnemyAssignAttempted[pt.id] = true;
+    var GmFlow = window.PriTestNightGmFlow;
+    var match = GmFlow && GmFlow.resolveCombatEnemyMatch("降る星の成獣");
+    if (!match) return; // 找不到就整體放棄，不硬湊（同rollAndAssignStrongEnemy()既有精神）
+    GameStorage.rtTransaction(gameId, "cloud", "fieldTrigger/" + pt.id + "/enemyFamilyId", function (cur) {
+      return cur === null ? match.familyId : cur;
+    });
+    GameStorage.rtTransaction(gameId, "cloud", "fieldTrigger/" + pt.id + "/enemyId", function (cur) {
+      return cur === null ? match.enemy.id : cur;
+    });
+    GameStorage.rtTransaction(gameId, "cloud", "fieldTrigger/" + pt.id + "/level", function (cur) {
+      return cur === null ? METEOR_ENEMY_LEVEL : cur;
+    });
+    GameStorage.rtTransaction(gameId, "cloud", "fieldEnemyHp/" + pt.id, function (cur) {
+      return cur === null ? enemyRealHpMax({ enemyFamilyId: match.familyId, enemyId: match.enemy.id, level: METEOR_ENEMY_LEVEL }) : cur;
+    });
+  }
+
+  // 擊殺偵測與獎勵：跟maybeGrantStrongEnemyReward()同一套first-writer-wins transaction
+  // 保證只有一台裝置實際push獎勵，push對象是participants內所有玩家（進入戰鬥時由
+  // handleStrongEnemyEnterClick()／encounterEnemyPoint()通用流程寫入，見上方）。
+  function maybeGrantMeteorReward(pt) {
+    if (!pt || meteorRewardAttempted[pt.id]) return;
+    var trig = fieldTriggers[pt.id];
+    if (!trig || trig.branchNameJa !== "隕石" || !trig.enemyFamilyId) return;
+    var hp = fieldEnemyHp[pt.id];
+    if (hp === undefined || hp > 0) return;
+    meteorRewardAttempted[pt.id] = true;
+    GameStorage.rtTransaction(gameId, "cloud", "fieldTrigger/" + pt.id + "/rewardGrantedBy", function (cur) {
+      return cur === null ? myTokenId : cur;
+    }).then(function (committed) {
+      if (committed !== myTokenId) return;
+      Object.keys(trig.participants || {}).forEach(function (slot) {
+        var p = players[slot];
+        if (!p) return;
+        // "potentialPower"這個kind目前只有pendingRewards抽選清單流程
+        // （computeRewardDraw()）認得，grantLootRewardEntryToCharacter()本身對它是no-op
+        // （見該函式尾端註解），所以這裡必須跟maybeGrantStrongEnemyReward()一樣走
+        // pushPendingReward()逐一個別授予、而不是pushPerPlayerReward()（那只是
+        // fieldProgress後補領取ledger，本身不會立即套用任何東西）。
+        pushPendingReward(p.tokenId, { kind: "rune", value: METEOR_REWARD_RUNES });
+        pushPendingReward(p.tokenId, { kind: "potentialPower", value: METEOR_REWARD_POTENTIAL_STARS });
+      });
+    });
   }
 
   // ---- 板塊(卡牌)獎勵——開啟並執行：讀該floor.reward，用night_floor_breakthrough.js
