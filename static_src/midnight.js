@@ -6061,19 +6061,169 @@
     });
   }
 
+  // 複製自night_floor_breakthrough.js:250(純函式，該檔案雖有載入本頁extra_scripts，但這個
+  // 函式本身沒有export，見window.PriTestNightFloorBreakthrough的物件字面量，故在此複製一份)，
+  // GM判斷類diceHandChoice獎勵用。演算法與night.js板塊踏破的12骰牌型判定完全相同（辨識同一份
+  // 規則書），跟Task 9的midnight_puzzles.jsのjudgeDiceHand(values)是完全不同的函式（那個是
+  // 塔解謎專用固定表，簽章也不同：只吃values、不吃entry），刻意取名為judgeDiceHandEntry以
+  // 避免混淆。
+  function judgeDiceHandEntry(entry, values) {
+    var counts = [0, 0, 0, 0, 0, 0, 0];
+    values.forEach(function (v) {
+      counts[v]++;
+    });
+    var maxCount = Math.max(counts[1], counts[2], counts[3], counts[4], counts[5], counts[6]);
+    var lowCount = counts[1] + counts[2] + counts[3];
+    var highCount = counts[4] + counts[5] + counts[6];
+    var isStraight = counts[1] > 0 && counts[2] > 0 && counts[3] > 0 && counts[4] > 0 && counts[5] > 0 && counts[6] > 0;
+    var matchedId = null;
+    if (maxCount >= 7) matchedId = "sevenDice";
+    else if (lowCount === 0) matchedId = "large";
+    else if (highCount === 0) matchedId = "small";
+    else if (isStraight) matchedId = "straight";
+    return (entry.hands || []).filter(function (h) {
+      return h.id === matchedId;
+    })[0] || null;
+  }
+
+  // tieredChoiceのtier.labelとfieldChoiceLabelsFor()解析出的「(→XXX)」投票標籤是兩種不同
+  // 粒度的文字（實際資料範例，見fields_data_3.js）：
+  //   (→スカラベ) ←→ tier.label「スカラベ（分岐ポイント2以上）」（label在後面多了補充說明）
+  //   (→瓦礫をあさる) ←→ tier.label「瓦礫をあさる」（完全相同）
+  // 因此不能直接用===比對整個字串（label是C(ja,zh)物件也不能直接比對物件），改成取
+  // localizedText後、括號前的部份跟voteChoiceLabel比對。night_floor_breakthrough.jsの
+  // matchTieredChoiceTierIndex()是同一規則書概念下的比對，但它沒有export、且是比對「跨樓層
+  // 累積的routeLabels陣列」（night.js單機流程專用），這裡只需要比對「這一層§1.3投票判定出的
+  // 單一標籤」，用較簡單的前綴比對即可，不重新複製整套演算法。
+  function tieredChoiceTierMatchesVoteLabel(tierLabel, voteChoiceLabel) {
+    if (!voteChoiceLabel) return false;
+    var text = window.PriTestFields.localizedText(tierLabel || "");
+    if (!text) return false;
+    if (text === voteChoiceLabel) return true;
+    var head = text.split(/[（(]/)[0];
+    return head === voteChoiceLabel;
+  }
+
+  // GM判斷類獎勵自動套用（設計文件§3.6，Task 14；bargainReveal留給Task 15的手動UI，不在這裡
+  // 處理，呼叫端已先篩掉）。voteChoiceLabel＝這一層§1.3投票判定出的選項標籤(tieredChoice
+  // 比對用)，可能為null(這一層沒有選項，或選項文字跟tier.label對不上——保守起見不猜測，
+  // 直接略過該entry的獎勵，不硬選一個tier)。遞迴處理tier/hand內層的子reward：實際資料中
+  // tier.rewards常混合戰利品與其他判斷類entry（例如fields_data_3.js「嫌な予感・成功1回」
+  // 同時有hpDamage跟note兩筆），因此resolveJudgmentRewardEntries必須對子陣列再呼叫自己一次。
+  function resolveJudgmentRewardEntries(entries, trig, voteChoiceLabel) {
+    var lootOut = [];
+    (entries || []).forEach(function (entry) {
+      if (entry.kind === "hpDamage") {
+        // note文字常描述「行為判定失敗時」「ランダム2人」等條件，這些條件App無法自動判斷
+        // （不是真正的機率/擲骰資料），因此統一比照brief既定設計：隨機挑1名參與者套用固定
+        // 傷害值，note純粹留作GM/玩家自行理解情境用，不逐一解析每種條件文字。
+        var slots = participantSlots(trig);
+        if (slots.length) {
+          var pickedSlot = slots[Math.floor(Math.random() * slots.length)];
+          var tokenId = players[pickedSlot] && players[pickedSlot].tokenId;
+          if (tokenId) {
+            GameStorage.rtTransaction(gameId, "cloud", "demoStat/" + tokenId, function (cur) {
+              var max = selfArenaHpMax(characters[tokenId]);
+              var current = cur === null ? max : cur;
+              return Math.max(0, current - (entry.value || 0));
+            });
+          }
+        }
+      } else if (entry.kind === "tieredChoice") {
+        var tier = (entry.tiers || []).filter(function (t) {
+          return tieredChoiceTierMatchesVoteLabel(t.label, voteChoiceLabel);
+        })[0];
+        if (tier) lootOut = lootOut.concat(resolveJudgmentRewardEntries(tier.rewards, trig, voteChoiceLabel));
+      } else if (entry.kind === "diceHandChoice") {
+        var diceCount = entry.diceCount || 12;
+        var values = [];
+        for (var i = 0; i < diceCount; i++) values.push(1 + Math.floor(Math.random() * 6));
+        var hand = judgeDiceHandEntry(entry, values);
+        if (hand) lootOut = lootOut.concat(resolveJudgmentRewardEntries(hand.rewards, trig, voteChoiceLabel));
+      } else if (entry.kind === "note") {
+        Object.keys(trig.participants || {}).forEach(function (slot) {
+          var p = players[slot];
+          var c = p && characters[p.tokenId];
+          if (!c) return;
+          c._lastTileRewardNote = { text: window.PriTestFields.localizedText(entry.note), at: Date.now() };
+          GameStorage.rtSet(gameId, "cloud", "character/" + p.tokenId, c);
+        });
+      } else {
+        lootOut.push(entry); // 戰利品類直接回傳，交給呼叫端跟現有戰利品entries合併處理
+      }
+    });
+    return lootOut;
+  }
+
+  // GM判斷類kind清單（設計文件§3.6）：hpDamage/tieredChoice/diceHandChoice/note這4種交給
+  // resolveJudgmentRewardEntries()自動套用；bargainReveal留給Task 15的openBargainRevealModal
+  // 手動處理，這裡只負責篩出來、暫不消耗。戰利品類kind清單刻意不在這裡重複定義第二份——
+  // night_floor_breakthrough.jsのLOOT_REWARD_KINDS/isLootRewardEntry已經是本頁載入的模組
+  // （見site_src/midnight_page.pyのextra_scripts，night_floor_breakthrough.js確實有列入，
+  // 跟本任務brief原先假設的「未載入」不同——已重新確認），下面繼續沿用它，不建立衝突的
+  // 第二份清單。
+  var JUDGMENT_REWARD_KINDS = ["hpDamage", "tieredChoice", "diceHandChoice", "bargainReveal", "note"];
+  function isJudgmentRewardEntryLocal(entry) {
+    return JUDGMENT_REWARD_KINDS.indexOf(entry.kind) !== -1;
+  }
+
   function maybeGrantFieldTileReward(pt, trig, floor) {
     if (fieldTileRewardAttempted[pt.id]) return;
     fieldTileRewardAttempted[pt.id] = true;
     var FloorBreakthrough = window.PriTestNightFloorBreakthrough;
     var reward = (floor && floor.reward) || [];
     var lootEntries = FloorBreakthrough ? reward.filter(FloorBreakthrough.isLootRewardEntry) : [];
-    if (!lootEntries.length) return;
-    GameStorage.rtTransaction(gameId, "cloud", "fieldTrigger/" + pt.id + "/tileRewardGrantedBy", function (cur) {
-      return cur === null ? myTokenId : cur;
-    }).then(function (committed) {
-      if (committed !== myTokenId) return;
-      grantTileLootToParticipants(trig, lootEntries);
+    var judgmentEntries = reward.filter(isJudgmentRewardEntryLocal);
+    var autoJudgmentEntries = judgmentEntries.filter(function (e) {
+      return e.kind !== "bargainReveal";
     });
+    var bargainEntries = judgmentEntries.filter(function (e) {
+      return e.kind === "bargainReveal";
+    });
+    if (lootEntries.length || autoJudgmentEntries.length) {
+      // resolveJudgmentRewardEntries()有副作用(hpDamage的demoStat扣血/diceHandChoice的
+      // 擲骰/note寫入角色欄位)，必須放在tileRewardGrantedBy transaction「本裝置搶到鎖」
+      // 之後才執行——每個participant各自的裝置都會呼叫到這個函式，若在transaction外先
+      // 計算，會變成每台裝置各自獨立扣血/擲骰/寫note（重複套用），而不是只有搶到鎖的
+      // 那一台裝置執行一次。lootEntries本身不受影響(既有行為)，但judgment類獎勵的隨機性
+      // 副作用必須跟著lock走。
+      GameStorage.rtTransaction(gameId, "cloud", "fieldTrigger/" + pt.id + "/tileRewardGrantedBy", function (cur) {
+        return cur === null ? myTokenId : cur;
+      }).then(function (committed) {
+        if (committed !== myTokenId) return;
+        // 這一層§1.3投票判定出的選項標籤（trig.choiceIndex由maybeResolveFieldVote寫入），
+        // 供tieredChoice比對用；沒有投過票(choiceIndex非數字)則維持null。
+        var voteLabel = null;
+        if (typeof trig.choiceIndex === "number") {
+          var labels = fieldChoiceLabelsFor(pt, trig);
+          voteLabel = labels[trig.choiceIndex] || null;
+        }
+        var resolvedLoot = autoJudgmentEntries.length ? resolveJudgmentRewardEntries(autoJudgmentEntries, trig, voteLabel) : [];
+        var allLoot = lootEntries.concat(resolvedLoot);
+        if (!allLoot.length) return;
+        // perPerson/固定共享的分流（設計文件§1.5/§3.2，Task 1已建好pushPerPlayerReward/
+        // pushSharedReward基礎設施但尚未接上任何呼叫路徑，見task-7-report.md「已知限制」——
+        // 這裡是接上的地方）。perPerson維持原本「每個participant各自即時拿到一份」的行為
+        // （grantTileLootToParticipants），並額外記一份到後補領取ledger；shared則不即時
+        // 授予，改為推進fieldTrigger/{id}/sharedRewards、由任一參與者之後自行按claim
+        // （claimSharedReward，first-writer-wins）。
+        var perPerson = allLoot.filter(isPerPersonRewardEntry);
+        var shared = allLoot.filter(function (e) {
+          return !isPerPersonRewardEntry(e);
+        });
+        if (perPerson.length) {
+          grantTileLootToParticipants(trig, perPerson);
+          pushPerPlayerReward(pt.id, perPerson);
+        }
+        shared.forEach(function (e) {
+          pushSharedReward(pt.id, e);
+        });
+      });
+    }
+    if (bargainEntries.length) {
+      // Task 15尚未落地：openBargainRevealModal()目前不存在，先不呼叫，避免ReferenceError。
+      // bargainEntries本身在這裡先保留(不消耗)，等Task 15接上手動UI再處理。
+    }
   }
 
   function maybeGrantFieldTileRewardOnClear(pt) {
