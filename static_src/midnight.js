@@ -3925,13 +3925,53 @@
     return data ? window.PriTestFields.localizedText(data.name) : "";
   }
 
+  // 劇本連動分歧（設計文件§2.1-2.2）：用卡牌本名比對，不用rank——同一個rank在不同劇本可能
+  // 對應完全不同板塊類型（例：劇本1 day2 pos5是rank"J"但name是"砦（隨機）"，"J"在基礎地圖
+  // 固定代表堡壘）。全程只比對.zh欄位，不經localizedText()（遊戲邏輯不該受玩家個人UI語言影響——
+  // 否則同一個game state，中文UI玩家跟日文UI玩家會各自算出不同的分歧結果）。
+  function scenarioVariantCandidatesForCard(scenarioId, card) {
+    var Scenarios = window.PriTestScenarios;
+    if (!Scenarios) return [];
+    var scenario = Scenarios.list().filter(function (s) { return s.id === scenarioId; })[0];
+    if (!scenario) return [];
+    var data = fieldCardData(card);
+    var baseName = data ? data.name.zh : "";
+    if (!baseName) return [];
+    var out = [];
+    ["day1", "day2"].forEach(function (dayKey) {
+      (scenario[dayKey] || []).forEach(function (slot) {
+        if (slot.name && slot.name.zh && slot.name.zh.indexOf(baseName) === 0) out.push(slot);
+      });
+    });
+    return out;
+  }
+
+  function matchBranchIndexByName(branches, nameHintZh) {
+    for (var i = 0; i < branches.length; i++) {
+      if (branches[i].name && branches[i].name.zh === nameHintZh) return i;
+    }
+    return null;
+  }
+
   // 這個點本次要用哪個分歧變體（例如「大教會(1)」／「大教會(2)」／「大教會（炎）」…）：
-  // 規則書原本是依劇本/花色查varianceTable決定，這裡沒有「劇本」「花色」這些概念，改用
-  // fieldSeededIndex()決定性挑一個——不是玩家投票的對象（使用者這次的規格是「分歧點」
-  // 指樓層敘述裡的「(→XXX)」選擇，見下方fieldChoiceLabelsFor()，不是變體本身）。
+  // 優先依目前劇本（resolveNightBossScenarioId()）的day1/day2卡牌配置表比對出「這張卡在這個
+  // 劇本裡實際叫什麼名字」，再用該名字去配對這張卡本身的branches——這樣同一劇本、同一張卡在
+  // 不同地點抽到的敘述會盡量貼近規則書表定內容，而不是純亂數。查無劇本資料／比對不到對應
+  // branch時（例如自訂劇本、或該名字在branches清單裡沒有對應項目）才退回fieldSeededIndex()
+  // 純亂數——不是玩家投票的對象（使用者這次的規格是「分歧點」指樓層敘述裡的「(→XXX)」選擇，
+  // 見下方fieldChoiceLabelsFor()，不是變體本身）。
   function pickFieldBranchIndex(pt) {
     var branches = fieldCardBranches(pt.card);
-    return branches.length ? fieldSeededIndex(pt.id + ":branch", branches.length) : 0;
+    if (!branches.length) return 0;
+    var scenarioId = resolveNightBossScenarioId();
+    var candidates = scenarioId ? scenarioVariantCandidatesForCard(scenarioId, pt.card) : [];
+    if (candidates.length) {
+      // 同一張卡不同地點都需要重抽：用pt.id當seed key，不共用同一個結果。
+      var picked = candidates[fieldSeededIndex(pt.id + ":scenario_variant", candidates.length)];
+      var resolvedIndex = matchBranchIndexByName(branches, picked.name.zh);
+      if (resolvedIndex !== null) return resolvedIndex;
+    }
+    return fieldSeededIndex(pt.id + ":branch", branches.length); // 找不到劇本資料/比對失敗：退回純隨機
   }
 
   // 樓層裡負責敘述場景的那一行：規則書固定用【描写／描寫】標籤（見fields_data_*.js的
