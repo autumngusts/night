@@ -936,6 +936,7 @@ def build_midnight_html() -> str:
             "night_floor_breakthrough.js",
             "night_gm_flow.js",
             "midnight_puzzles.js",
+            "midnight_random_events.js",
             "midnight_map.js",
             "midnight.js",
         ),
