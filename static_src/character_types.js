@@ -17,6 +17,10 @@
         ja: "追跡者の大剣（161頁）　追跡者の小盾（182頁）",
       },
       startingWeaponId: "greatsword_pursuer",
+      // 2026-09-08修正：startingEquipment文字本來就列了「追蹤者的小盾」，但startingWeaponId
+      // 只給了大劍，導致實際建角色/入場時左手從未真正裝備小盾（見newCharacter()／
+      // static/midnight.jsの equippedWeaponIdL/R自動裝備邏輯）。
+      startingShieldId: "small_shield_pursuer",
       abilities: [
         {
           id: "sixth_sense",
@@ -217,6 +221,9 @@
         ja: "守護者の斧槍（176頁）　守護者の大盾（182頁）",
       },
       startingWeaponId: "halberd_guardian",
+      // 2026-09-08修正：跟tracker同一種缺口，startingEquipment文字列了「守護者的大盾」但
+      // 從未真正被裝備，見上面tracker的註解說明。
+      startingShieldId: "large_shield_guardian",
       abilities: [
         {
           id: "high_guard",
@@ -2120,6 +2127,7 @@
         ja: "追跡者の大剣（161頁）　追跡者の小盾（182頁）",
       },
       startingWeaponId: "greatsword_pursuer",
+      startingShieldId: "small_shield_pursuer", // 見基礎型tracker同一處註解
       abilities: [
         {
           id: "sixth_sense",
@@ -2336,6 +2344,7 @@
         ja: "守護者の斧槍（176頁）　守護者の大盾（182頁）",
       },
       startingWeaponId: "halberd_guardian",
+      startingShieldId: "large_shield_guardian", // 見基礎型guardian同一處註解
       abilities: [
         {
           id: "high_guard",

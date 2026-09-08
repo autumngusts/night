@@ -4440,20 +4440,27 @@ button {
   border-top: 1px solid rgba(255, 255, 255, 0.2);
 }
 
-/* 2026-09-06優化：進入戰鬥提示／夜之強敵系統倒數／祝福/商人/準備（見
-   static/midnight.jsのrenderEnterBattlePrompt()／renderFinalCircleCountdown()／
-   renderFinalCircleRewardsHud()），統一放在#midnight-hud-top-left最上面，跟隊友血量卡
-   同一個文件流、有內容才佔位。 */
-#midnight-enter-battle-prompt,
+/* 2026-09-06優化：祝福/商人/準備（見static/midnight.jsのrenderFinalCircleRewardsHud()），
+   統一放在#midnight-hud-top-left最上面，跟隊友血量卡同一個文件流、有內容才佔位。 */
 #midnight-hud-merchant-row,
 #midnight-hud-ready-final-row {
   margin-bottom: 0.35rem;
 }
 
+/* 2026-09-08：進入戰鬥提示／夜之強敵系統倒數讀條搬到#midnight-hud-top-right（使用者
+   明確要求「進入戰鬥，下一天的讀條不放在左上玩家資訊，放在右上的導覽框」）。該容器是
+   flex column＋align-items:flex-end，子元素預設會shrink-to-fit，這裡給固定寬度讓讀條
+   不會被壓成按鈕寬度。 */
+#midnight-enter-battle-prompt {
+  width: 200px;
+  max-width: 55vw;
+}
+
 #midnight-final-circle-countdown {
-  margin: 0 0 0.35rem;
+  margin: 0;
   color: #ffd76a;
   font-weight: bold;
+  text-align: right;
 }
 
 #btn-midnight-hud-blessing {
@@ -4753,6 +4760,123 @@ button {
   display: block;
   background: rgba(4, 6, 12, 0.22);
   pointer-events: auto;
+}
+
+/* 2026-09-08新增：Day3夜之王開場動畫，見static/midnight.jsのupdateDay3BossIntroOverlay()。
+   全螢幕遮罩+置中內容，跟#midnight-intro-overlay同一量級的z-index，但兩者時間點不同時
+   （session intro只在day1開局播一次，這個只在day3王遭遇時播一次），不會疊在一起。 */
+#midnight-day3-boss-intro-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1900;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.6rem;
+  background: rgba(4, 6, 12, 0.88);
+  color: #f0f0f0;
+  text-align: center;
+  padding: 1.5rem;
+  box-sizing: border-box;
+}
+
+#midnight-day3-boss-intro-image {
+  max-width: 60vw;
+  max-height: 40vh;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+}
+
+#midnight-day3-boss-intro-name {
+  font-size: 1.3rem;
+  font-weight: bold;
+  letter-spacing: 0.05em;
+  margin: 0;
+}
+
+#midnight-day3-boss-intro-text {
+  max-width: 480px;
+  font-size: 0.85rem;
+  line-height: 1.6;
+  opacity: 0.9;
+  white-space: pre-line;
+  margin: 0;
+}
+
+/* 3秒後才顯示（見JS），慢速閃爍直到玩家按[進入戰鬥]正式開始戰鬥為止。 */
+#midnight-day3-boss-intro-star {
+  font-size: 1.6rem;
+  color: #ffd54a;
+  animation: midnight-day3-boss-star-twinkle 2.2s ease-in-out infinite;
+}
+
+@keyframes midnight-day3-boss-star-twinkle {
+  0%,
+  100% {
+    opacity: 0.25;
+    transform: scale(0.9);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.15);
+  }
+}
+
+/* 2026-09-08新增：瀕死狀態自身提示，見static/midnight.jsのrenderNearDeathStatus()。
+   固定在畫面上方置中，紅色警示色調，不擋住角色資訊／選單按鈕（那兩顆在#midnight-hud-
+   top-right，z-index跟這裡不衝突，且這個banner本身沒有pointer-events:none以外的攔截）。 */
+#midnight-near-death-status {
+  position: fixed;
+  top: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 1500;
+  background: rgba(90, 10, 10, 0.9);
+  border: 1px solid rgba(255, 120, 120, 0.6);
+  border-radius: 6px;
+  padding: 0.5rem 0.9rem;
+  color: #ffe0e0;
+  font-weight: bold;
+  text-align: center;
+  pointer-events: none;
+  animation: midnight-near-death-pulse 1.6s ease-in-out infinite;
+}
+
+@keyframes midnight-near-death-pulse {
+  0%,
+  100% {
+    opacity: 0.85;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+#midnight-game-failure-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 2100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.8);
+}
+
+#midnight-game-failure-box {
+  background: #1a1d24;
+  border: 1px solid rgba(255, 120, 120, 0.6);
+  border-radius: 8px;
+  padding: 1.2rem;
+  max-width: 420px;
+  width: 88%;
+  color: #f0f0f0;
+  text-align: center;
+}
+
+#midnight-game-failure-box h3 {
+  color: #ff8080;
+  margin-top: 0;
 }
 
 #midnight-intro-bird-wrap {
@@ -5346,6 +5470,75 @@ button {
   text-align: center;
 }
 
+/* #midnight-scarab-banner目前不在上面的固定定位群組裡（既有缺口，非本次修改範圍），
+   但折疊按鈕仍需要一個positioned ancestor才能正確貼齊右上角。 */
+#midnight-scarab-banner {
+  position: relative;
+}
+
+/* 2026-09-08新增：上方地點卡牌／籌碼banner折疊功能（使用者明確要求「右上有一個'-'可以
+   暫時折疊單條線，同時在右上盧恩左邊出現展開鈕可以再次打開，有按鈕能按時兩者都閃黃光」），
+   見static/midnight.jsのupdateTopBannerCollapseUI()。這組banner同時間只會顯示一個，
+   折疊/展開共用同一個全域旗標，不需要分別記錄是哪一個。 */
+.midnight-top-banner-collapse-btn {
+  position: absolute;
+  top: 0.3rem;
+  right: 0.4rem;
+  width: 1.5rem;
+  height: 1.5rem;
+  padding: 0;
+  line-height: 1;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.15);
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  color: #f0f0f0;
+  cursor: pointer;
+}
+
+/* 折疊時：不用display:none（那樣會整個消失，使用者要求保留一條「折疊橫條」提示還有
+   內容），改用限制高度＋overflow:hidden，只留最上面一小截（含折疊按鈕本身那一行）。 */
+html.midnight-top-banner-collapsed #midnight-field-enter-prompt,
+html.midnight-top-banner-collapsed #midnight-field-invite-prompt,
+html.midnight-top-banner-collapsed #midnight-field-banner,
+html.midnight-top-banner-collapsed #midnight-field-late-join-prompt,
+html.midnight-top-banner-collapsed #midnight-field-late-claim-prompt,
+html.midnight-top-banner-collapsed #midnight-strong-enemy-banner,
+html.midnight-top-banner-collapsed #midnight-scarab-banner {
+  max-height: 1.9rem;
+  overflow: hidden;
+}
+
+/* 展開鈕：放在#midnight-hud-top-right裡、盧恩顯示的左邊（見midnight_page.py），需要用
+   橫向flex row包住兩者，否則會被外層#midnight-hud-top-right的flex-direction:column
+   排成上下疊。 */
+#midnight-hud-top-right-rune-row {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+#btn-midnight-top-banner-reopen {
+  width: 1.6rem;
+  height: 1.6rem;
+  padding: 0;
+  line-height: 1;
+  border-radius: 4px;
+}
+
+@keyframes midnight-flash-yellow {
+  0%,
+  100% {
+    box-shadow: none;
+  }
+  50% {
+    box-shadow: 0 0 10px 3px #ffd54a;
+  }
+}
+
+.midnight-flash-yellow {
+  animation: midnight-flash-yellow 1s ease-in-out infinite;
+}
+
 #midnight-field-enter-name,
 #midnight-field-banner-name,
 #midnight-strong-enemy-name {
@@ -5557,6 +5750,39 @@ button {
   }
 }
 
+/* 2026-09-08新增：消耗品丟擲動畫，見static/midnight.jsのtriggerConsumableThrowEffect()。
+   道具圖示（emoji文字）從畫面下方飛向敵人圖片正中央，顏色（文字陰影＋濾鏡）由
+   --throw-color決定，跟命中刀光共用同一套屬性顏色表（enemyHitColorFromEffects()）。 */
+#midnight-consumable-throw-effect {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  font-size: 2.2rem;
+  line-height: 1;
+  pointer-events: none;
+  opacity: 0;
+  filter: drop-shadow(0 0 6px var(--throw-color, #ffffff));
+}
+
+#midnight-consumable-throw-effect.midnight-consumable-throw-effect-play {
+  animation: midnight-consumable-throw-fly 0.5s ease-in;
+}
+
+@keyframes midnight-consumable-throw-fly {
+  0% {
+    opacity: 1;
+    transform: translate(-50%, 220%) scale(0.7) rotate(-25deg);
+  }
+  80% {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1.05) rotate(15deg);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(1.2) rotate(20deg);
+  }
+}
+
 /* 強敵籌碼的靠近提示圖片（2026-09-06使用者明確要求「碰觸地圖上的強敵等等敵人時顯示的
    敵人資訊圖片放小1/4倍」）：原本跟#midnight-field-encounter-image共用420px規則，改成
    單獨縮小成105px（420÷4）。進入戰鬥後（已是participant）改由static/midnight.jsの
@@ -5572,6 +5798,65 @@ button {
 #midnight-field-encounter-name {
   margin: 0.2rem 0 0;
   font-weight: bold;
+}
+
+/* 2026-09-08新增：等待房角色詳細資訊視窗，使用者明確要求「按下該角色右邊彈出視窗」，
+   固定貼在畫面右側，內容重用characters.js圖鑑既有結構（見midnight_page.py說明）。
+   小螢幕（手機直向）沒有足夠寬度貼右邊，改成貼在畫面底部的抽屜，避免蓋住角色選單。 */
+#midnight-lobby-character-detail {
+  position: fixed;
+  top: 50%;
+  right: 0.6rem;
+  transform: translateY(-50%);
+  z-index: 650;
+  width: 300px;
+  max-width: 90vw;
+  max-height: 82vh;
+  overflow-y: auto;
+  background: rgba(10, 12, 18, 0.94);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 8px;
+  padding: 0.8rem;
+  color: #f0f0f0;
+  text-align: left;
+}
+
+#midnight-lobby-character-detail img {
+  display: block;
+  width: 100%;
+  border-radius: 6px;
+  margin-bottom: 0.5rem;
+}
+
+#midnight-lobby-character-detail-name {
+  font-weight: bold;
+  font-size: 1rem;
+  margin: 0 0 0.4rem;
+}
+
+#midnight-lobby-character-detail-stats {
+  white-space: pre-line;
+  font-size: 0.8rem;
+  margin: 0 0 0.5rem;
+}
+
+#midnight-lobby-character-detail h4 {
+  font-size: 0.82rem;
+  margin: 0.5rem 0 0.2rem;
+}
+
+@media (max-width: 600px) {
+  #midnight-lobby-character-detail {
+    top: auto;
+    bottom: 0;
+    right: 0;
+    left: 0;
+    transform: none;
+    width: 100%;
+    max-width: 100%;
+    max-height: 60vh;
+    border-radius: 8px 8px 0 0;
+  }
 }
 
 /* ---- 等待房／玩家面板 ---- */
@@ -5675,6 +5960,30 @@ button {
 
 .midnight-slot-card button {
   flex-shrink: 0;
+}
+
+/* 2026-09-08：接管按鈕平常收起，改由這顆「⋯」開關展開（見renderOccupiedSlotCard()），
+   縮小成方形圖示按鈕，避免手機端隊友資訊列表被撐開。 */
+.midnight-slot-menu-toggle {
+  width: 1.4rem;
+  height: 1.4rem;
+  padding: 0 !important;
+  line-height: 1;
+  border-radius: 4px;
+}
+
+/* 「指定」復歸傷害目標按鈕（2026-09-08新增，見renderOccupiedSlotCard()／
+   toggleRevivalDesignate()）：指定中時反白提示，一般攻擊按鈕文字不變靠JS切換。 */
+.midnight-slot-designate-btn {
+  background: rgba(255, 213, 74, 0.18);
+  border-color: #ffd54a;
+  color: #ffd54a;
+}
+
+.midnight-slot-designate-btn.midnight-slot-designate-active {
+  background: #ffd54a;
+  color: #1a1200;
+  font-weight: bold;
 }
 
 #midnight-lobby-join-form {

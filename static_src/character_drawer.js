@@ -6050,7 +6050,15 @@
       dicePool: [],
       learnedRelicEffects: [],
       learnedAttachedEffects: [],
-      weaponIds: type && type.startingWeaponId ? [type.startingWeaponId] : [],
+      // 2026-09-08修正：部分角色類型（追蹤者/守護者）的startingEquipment文字同時列了武器
+      // 與盾（見character_types.js對應註解），startingShieldId有值時一併放進weaponIds，
+      // 慣例是[0]＝右手主武器、[1]＝左手盾（見static/midnight.jsの equippedWeaponIdL/R
+      // 自動裝備邏輯，night.js側的角色卡「入場」自動裝備邏輯同樣讀這個陣列順序）。
+      weaponIds: type
+        ? [type.startingWeaponId, type.startingShieldId].filter(function (id) {
+            return !!id;
+          })
+        : [],
       weaponRandomSkills: {},
       weaponNotes: {},
       weaponExtraSkills: {},
@@ -6821,16 +6829,19 @@
       // 自動的に装備済み扱いにする（#5：GMの手動裝備操作を省略する）。
       if (c.entered) {
         var type = c.typeId ? CharacterTypes.get(c.typeId) : null;
-        var startingId = type && type.startingWeaponId;
-        if (
-          startingId &&
-          (c.weaponIds || []).indexOf(startingId) !== -1 &&
-          (c.equippedWeaponIds || []).indexOf(startingId) === -1 &&
-          (c.equippedWeaponIds || []).length < MAX_EQUIPPED_WEAPONS
-        ) {
-          if (!c.equippedWeaponIds) c.equippedWeaponIds = [];
-          c.equippedWeaponIds.push(startingId);
-        }
+        // 2026-09-08修正：一併自動裝備startingShieldId（追蹤者/守護者等有盾的類型），
+        // 原本只處理startingWeaponId，盾從未被自動裝備過（見character_types.js對應註解）。
+        [type && type.startingWeaponId, type && type.startingShieldId].forEach(function (startingId) {
+          if (
+            startingId &&
+            (c.weaponIds || []).indexOf(startingId) !== -1 &&
+            (c.equippedWeaponIds || []).indexOf(startingId) === -1 &&
+            (c.equippedWeaponIds || []).length < MAX_EQUIPPED_WEAPONS
+          ) {
+            if (!c.equippedWeaponIds) c.equippedWeaponIds = [];
+            c.equippedWeaponIds.push(startingId);
+          }
+        });
       }
     });
     bindFieldSave("char-hp-value", function (c, el) {

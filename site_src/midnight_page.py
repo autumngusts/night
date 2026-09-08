@@ -65,9 +65,28 @@ BODY = """    <div class="midnight-wrap">
           </div>
           <p class="threat-ref-body" data-i18n="midnight_lobby_passcode_hint"></p>
         </div>
+        <!-- 角色詳細資訊視窗（2026-09-08使用者明確要求「選擇角色時，按下該角色右邊彈出視窗，
+             顯示放大圖片與角色詳細資訊(HP/FP/威力補正/技能招式技藝/得意武器/初始裝備/判定值)」）：
+             直接重用characters.js圖鑑既有的CharacterDrawer.buildTypeStatLines()／
+             renderAbilitySections()（readOnly模式），見static/midnight.jsの
+             renderLobbyCharacterDetail()。 -->
+        <div id="midnight-lobby-character-detail" hidden>
+          <button type="button" id="btn-midnight-lobby-character-detail-close" class="midnight-modal-close-x">&times;</button>
+          <img id="midnight-lobby-character-detail-image" alt="">
+          <p id="midnight-lobby-character-detail-name"></p>
+          <p id="midnight-lobby-character-detail-stats"></p>
+          <div>
+            <h4 data-i18n="cv_active_skills_title"></h4>
+            <div id="midnight-lobby-character-detail-active"></div>
+          </div>
+          <div>
+            <h4 data-i18n="cv_passives_title"></h4>
+            <div id="midnight-lobby-character-detail-passive"></div>
+          </div>
+        </div>
         <div class="wb-row" id="midnight-lobby-ready-row">
           <button type="button" id="btn-midnight-lobby-ready" hidden></button>
-          <button type="button" id="btn-midnight-lobby-leave" data-i18n="midnight_lobby_leave_button" hidden></button>
+          <button type="button" id="btn-midnight-lobby-leave" class="danger-btn" data-i18n="midnight_lobby_leave_button" hidden></button>
         </div>
         <p id="midnight-lobby-countdown" hidden></p>
         <p id="midnight-lobby-spectator-note" class="threat-ref-body" data-i18n="midnight_lobby_spectator_note" hidden></p>
@@ -91,10 +110,31 @@ BODY = """    <div class="midnight-wrap">
             <option value="full" data-i18n="midnight_lobby_map_variant_full" disabled></option>
           </select>
         </div>
+        <!-- 難度（2026-09-08使用者明確規格「標準模式：流浪祝福3次，耗盡後遊戲失敗並詢問
+             是否切換阿罵模式；阿罵模式：流浪祝福無限，永不結束遊戲」）：寫入meta.difficulty，
+             跟夜王/地圖同一套「開局前才能改」模式，見static/midnight.jsのrenderLobbySettings()／
+             handleDifficultySelectChange()／瀕死系統（tryConsumeWanderingBlessing()等）。 -->
+        <div class="wb-row" id="midnight-lobby-difficulty-row">
+          <label data-i18n="midnight_lobby_difficulty_label"></label>
+          <select id="midnight-lobby-difficulty-select">
+            <option value="standard" data-i18n="midnight_difficulty_standard"></option>
+            <option value="unlimited" data-i18n="midnight_difficulty_unlimited"></option>
+          </select>
+        </div>
         <div class="wb-row">
           <label>
             <input type="checkbox" id="midnight-lobby-test-mode-checkbox">
             <span data-i18n="midnight_test_mode_label"></span>
+          </label>
+        </div>
+        <!-- Debug模式（2026-09-08使用者明確要求「debug模式下可以調整盧恩、獲得指定武器、
+             設定個別戰技魔術祈禱、回復滿FP、復歸並回復滿HP、快速通過魔術師塔」）：跟測試
+             模式同一套「meta.debugMode房間共用開關」模式，見static/midnight.jsの
+             renderDebugPanel()。所有操作只作用在「自己目前操作的角色」，不是給別人用的。 -->
+        <div class="wb-row">
+          <label>
+            <input type="checkbox" id="midnight-lobby-debug-mode-checkbox">
+            <span data-i18n="midnight_debug_mode_label"></span>
           </label>
         </div>
       </div>
@@ -107,6 +147,7 @@ BODY = """    <div class="midnight-wrap">
              （進入提示／邀請提示／正式進入後的banner），放在整個#midnight-map-area最
              上面，搭配CSS position:fixed固定在畫面最上方。 -->
         <div id="midnight-field-enter-prompt" hidden>
+          <button type="button" class="midnight-top-banner-collapse-btn" aria-label="collapse">－</button>
           <p id="midnight-field-enter-name"></p>
           <button type="button" id="btn-midnight-field-enter" data-i18n="midnight_field_enter_button"></button>
         </div>
@@ -121,6 +162,7 @@ BODY = """    <div class="midnight-wrap">
              寫入participants，見static/midnight.jsのhandleLateJoinFieldClick()／
              renderFieldOverlay()。 -->
         <div id="midnight-field-late-join-prompt" hidden>
+          <button type="button" class="midnight-top-banner-collapse-btn" aria-label="collapse">－</button>
           <button type="button" id="btn-midnight-field-late-join" data-i18n="midnight_field_late_join_button"></button>
           <div id="midnight-field-late-join-loading" hidden data-i18n="midnight_field_late_join_loading_note"></div>
         </div>
@@ -133,17 +175,20 @@ BODY = """    <div class="midnight-wrap">
              等待FIELD_LATE_JOIN_WAIT_MS才真正呼叫對應的claim函式，見static/midnight.jsの
              handleLateClaimClick()／renderFieldOverlay()。 -->
         <div id="midnight-field-late-claim-prompt" hidden>
+          <button type="button" class="midnight-top-banner-collapse-btn" aria-label="collapse">－</button>
           <button type="button" id="btn-midnight-field-late-claim" data-i18n="midnight_field_late_claim_button"></button>
           <div id="midnight-field-late-claim-loading" hidden data-i18n="midnight_field_late_join_loading_note"></div>
         </div>
 
         <div id="midnight-field-invite-prompt" hidden>
+          <button type="button" class="midnight-top-banner-collapse-btn" aria-label="collapse">－</button>
           <p id="midnight-field-invite-text"></p>
           <p id="midnight-field-invite-timer"></p>
           <button type="button" id="btn-midnight-field-invite-accept" data-i18n="midnight_field_invite_accept_button"></button>
         </div>
 
         <div id="midnight-field-banner" hidden>
+          <button type="button" class="midnight-top-banner-collapse-btn" aria-label="collapse">－</button>
           <p id="midnight-field-banner-name"></p>
           <!-- 進入讀取條（2026-09-06新增）：正式進入後的0.5秒等待（FIELD_ENTER_WAIT_MS）
                期間顯示，取代原本的空白等待，見static/midnight.jsのrenderFieldOverlay()。 -->
@@ -171,6 +216,7 @@ BODY = """    <div class="midnight-wrap">
              玩家自行決定是否按「進入戰鬥」（不像地圖點卡牌事件需要邀請/投票共識）。見
              static/midnight.js的updateNearbyChipPoint()／renderStrongEnemyOverlay()。 -->
         <div id="midnight-strong-enemy-banner" hidden>
+          <button type="button" class="midnight-top-banner-collapse-btn" aria-label="collapse">－</button>
           <p id="midnight-strong-enemy-name"></p>
           <!-- 種類／體型／弱點（若有）：2026-09-06使用者明確要求，見static/midnight.jsの
                renderStrongEnemyOverlay()。 -->
@@ -183,6 +229,7 @@ BODY = """    <div class="midnight-wrap">
              「スカラベ／聖甲蟲」分支的描寫文字，玩家選精神/運氣/體能其中一項投骰判定。見
              static/midnight.js的renderScarabOverlay()。 -->
         <div id="midnight-scarab-banner" hidden>
+          <button type="button" class="midnight-top-banner-collapse-btn" aria-label="collapse">－</button>
           <p id="midnight-scarab-text"></p>
           <div id="midnight-scarab-stat-picker">
             <button type="button" id="btn-midnight-scarab-mental" data-i18n="midnight_scarab_stat_mental"></button>
@@ -284,6 +331,38 @@ BODY = """    <div class="midnight-wrap">
           <p id="midnight-intro-note" data-i18n="midnight_intro_note"></p>
         </div>
 
+        <!-- Day3夜之王開場動畫（2026-09-08使用者明確要求「開場動畫中下方文字敘述也補上該
+             夜王的前言敘述(與night的自動開場一樣文本)，同時3秒後在開始位置慢速閃星星直到
+             正式開始」）：進入day3王戰遭遇（activeEncounter.id===day3Boss）後、玩家尚未按
+             [進入戰鬥]確認前顯示一次（每台裝置本地判斷，不同步），見static/midnight.jsの
+             updateDay3BossIntroOverlay()。前言敘述讀night_boss_rulebook.jsのboss.intro
+             欄位——目前規則書轉錄尚未包含這段文字（P.240-249待補），沒有資料時這段文字
+             直接隱藏，不自行編造內容。 -->
+        <div id="midnight-day3-boss-intro-overlay" hidden>
+          <img id="midnight-day3-boss-intro-image" alt="" hidden>
+          <p id="midnight-day3-boss-intro-name"></p>
+          <p id="midnight-day3-boss-intro-text" hidden></p>
+          <span id="midnight-day3-boss-intro-star" hidden>✦</span>
+        </div>
+
+        <!-- 瀕死狀態自身提示（2026-09-08新增，見static/midnight.jsのupdateNearDeathState()／
+             renderNearDeathStatus()）：期間無法移動/使用物品，僅能查看角色資訊與開啟選單
+             （這兩個入口本身不受這個banner影響，仍可正常點擊），純顯示倒數與復歸進度。 -->
+        <div id="midnight-near-death-status" hidden>
+          <p id="midnight-near-death-status-text"></p>
+        </div>
+
+        <!-- 遊戲失敗彈窗（2026-09-08新增，見switchToUnlimitedMode()）：標準模式流浪祝福
+             耗盡後、有人瀕死逾時未能復歸時，全員都看到這個彈窗，任何一人按下確認即可切換
+             阿罵模式並讓全員瀕死角色一次復活繼續遊戲。 -->
+        <div id="midnight-game-failure-modal" hidden>
+          <div id="midnight-game-failure-box">
+            <h3 data-i18n="midnight_game_failure_title"></h3>
+            <p data-i18n="midnight_game_failure_body"></p>
+            <button type="button" id="btn-midnight-game-failure-confirm" class="danger-btn" data-i18n="midnight_game_failure_confirm_button"></button>
+          </div>
+        </div>
+
         <!-- ==================================================================
              固定角落HUD（2026-09-05 HUD全面重排）：取代原本文件流排列的
              #midnight-char-panel／#midnight-combat-panel／#midnight-players-panel，
@@ -295,16 +374,6 @@ BODY = """    <div class="midnight-wrap">
         <!-- 左上：自己的HP/FP/體力＋聖杯瓶剩餘數＋隊友血量（renderOccupiedSlotCard()
              既有函式輸出，容器換成這裡，函式邏輯不變）。 -->
         <div id="midnight-hud-top-left">
-          <!-- 進入戰鬥（2026-09-06優化，使用者明確規格「若因為離開過再次進入戰鬥或參加
-               別人的戰鬥，都須先按下上方資訊欄的進入戰鬥，接著需要讀條3秒後才正式進入
-               戰鬥畫面」）：見static/midnight.jsのrenderEnterBattlePrompt()／
-               handleEnterBattleClick()／updateBattleEnterLoading()。 -->
-          <div id="midnight-enter-battle-prompt" hidden>
-            <button type="button" id="btn-midnight-enter-battle" data-i18n="midnight_enter_battle_button"></button>
-            <div id="midnight-enter-battle-loading-bar" class="midnight-loading-track" hidden>
-              <span id="midnight-enter-battle-loading-fill" class="midnight-loading-fill"></span>
-            </div>
-          </div>
           <!-- 暫停後繼續遊戲的倒數＋讀取條（2026-09-06三次優化，使用者明確規格「暫停遊戲後
                的繼續遊戲，需要再上方資訊欄中顯示倒數與讀取條」）：跟原本
                #midnight-pause-overlay的全螢幕文字倒數並存（那個繼續擋操作），這裡額外在
@@ -317,17 +386,13 @@ BODY = """    <div class="midnight-wrap">
               <span id="midnight-resume-countdown-fill" class="midnight-loading-fill"></span>
             </div>
           </div>
-          <!-- 第一天/第二天夜之強敵系統倒數（2026-09-06優化，使用者明確規格「系統自動
-               倒數讀條10s」）：純顯示，玩家不用也不能操作，見
-               static/midnight.jsのrenderFinalCircleCountdown()。 -->
-          <p id="midnight-final-circle-countdown" hidden></p>
           <!-- 第一天夜之強敵戰後（2026-09-06三次優化，使用者明確規格「第一天夜之強敵戰鬥
                結束後，總計時10秒後才正式開始第二天倒計時，能選的只有祝福與離去」）：只有
                祝福＋離去，沒有商人。離去純本地端關閉這個區塊，見
                static/midnight.jsのhandleDay1RewardsLeaveClick()。 -->
           <div id="midnight-hud-day1-rewards-row" hidden>
             <button type="button" id="btn-midnight-hud-blessing-day1" data-i18n="midnight_hud_blessing_button"></button>
-            <button type="button" id="btn-midnight-hud-day1-leave" data-i18n="midnight_hud_leave_button"></button>
+            <button type="button" id="btn-midnight-hud-day1-leave" class="danger-btn" data-i18n="midnight_hud_leave_button"></button>
           </div>
           <!-- 第二天夜之強敵戰後（2026-09-06三次優化，使用者明確規格「第二天戰鬥結束後，
                沒有總計時，能選的有祝福商人與離去，接著才是按準備進入第三天」）：祝福／
@@ -336,7 +401,7 @@ BODY = """    <div class="midnight-wrap">
           <button type="button" id="btn-midnight-hud-blessing" data-i18n="midnight_hud_blessing_button" hidden></button>
           <div id="midnight-hud-merchant-row" hidden>
             <button type="button" id="btn-midnight-open-merchant-hud" data-i18n="midnight_hud_merchant_button"></button>
-            <button type="button" id="btn-midnight-hud-day2-leave" data-i18n="midnight_hud_leave_button"></button>
+            <button type="button" id="btn-midnight-hud-day2-leave" class="danger-btn" data-i18n="midnight_hud_leave_button"></button>
           </div>
           <div id="midnight-hud-ready-final-row" hidden>
             <button type="button" id="btn-midnight-ready-final-boss"></button>
@@ -380,10 +445,30 @@ BODY = """    <div class="midnight-wrap">
              #midnight-menu-panel也跟著搬到這裡同層級（見下方），不再巢狀在地圖modal
              裡，否則地圖收合時選單面板會被地圖modal的hidden邏輯連坐隱藏。 -->
         <div id="midnight-hud-top-right">
-          <span class="midnight-rune-value">
-            <span data-i18n="midnight_stat_rune_label"></span>
-            <span id="midnight-self-rune-value">0</span>
-          </span>
+          <div id="midnight-hud-top-right-rune-row">
+            <!-- 上方地點卡牌／籌碼banner折疊後的展開鈕（2026-09-08使用者明確要求放在盧恩
+                 顯示左邊），見static/midnight.jsのupdateTopBannerCollapseUI()。 -->
+            <button type="button" id="btn-midnight-top-banner-reopen" aria-label="reopen" hidden>▶</button>
+            <span class="midnight-rune-value">
+              <span data-i18n="midnight_stat_rune_label"></span>
+              <span id="midnight-self-rune-value">0</span>
+            </span>
+          </div>
+          <!-- 流浪祝福剩餘格數（2026-09-08新增，見static/midnight.jsのrenderWanderingBlessingHud()）：
+               標準模式顯示剩餘格數，阿罵模式顯示「無限」。 -->
+          <span id="midnight-wandering-blessing-value" class="midnight-rune-value"></span>
+          <!-- 進入戰鬥／下一天讀條（2026-09-08使用者明確要求「進入戰鬥，下一天的讀條不放
+               在左上玩家資訊，放在右上的導覽框」，原本在#midnight-hud-top-left，函式邏輯
+               不變，只是容器換到這裡）：見static/midnight.jsのrenderEnterBattlePrompt()／
+               handleEnterBattleClick()／updateBattleEnterLoading()／
+               renderFinalCircleCountdown()。 -->
+          <div id="midnight-enter-battle-prompt" hidden>
+            <button type="button" id="btn-midnight-enter-battle" data-i18n="midnight_enter_battle_button"></button>
+            <div id="midnight-enter-battle-loading-bar" class="midnight-loading-track" hidden>
+              <span id="midnight-enter-battle-loading-fill" class="midnight-loading-fill"></span>
+            </div>
+          </div>
+          <p id="midnight-final-circle-countdown" hidden></p>
           <!-- 小地圖（2026-09-06使用者明確要求「戰鬥中小地圖顯示在地圖按鈕左邊,尺寸為原
                地圖的1/10倍」）：跟#btn-midnight-map-icon同一列,只在戰鬥中（activeEncounter
                存在）且地圖收合時顯示——地圖展開時本身就看得到全圖,不需要小地圖。內容直接
@@ -439,10 +524,40 @@ BODY = """    <div class="midnight-wrap">
               <span id="midnight-test-slider-enemy-guard-value"></span>
             </div>
           </div>
+
+          <!-- Debug面板（2026-09-08新增）：跟測試模式面板同一套顯示邏輯（meta.debugMode
+               控制顯示），所有操作只作用在自己目前操作的角色，見static/midnight.jsの
+               renderDebugPanel()。「設定個別戰技魔術祈禱」重用既有鍛造台重骰UI（不是另外
+               發明一套挑選機制），這裡只是給自己灌免費重骰次數再開啟鍛造台。 -->
+          <div id="midnight-debug-panel" hidden>
+            <h3 data-i18n="midnight_debug_panel_title"></h3>
+            <div class="wb-row">
+              <label data-i18n="midnight_debug_rune_label"></label>
+              <input type="number" id="midnight-debug-rune-input" class="midnight-test-number-input" min="0" step="1" value="0">
+              <button type="button" id="btn-midnight-debug-set-rune" data-i18n="midnight_debug_apply_button"></button>
+            </div>
+            <div class="wb-row">
+              <label data-i18n="midnight_debug_weapon_label"></label>
+              <select id="midnight-debug-weapon-select"></select>
+              <button type="button" id="btn-midnight-debug-grant-weapon" data-i18n="midnight_debug_apply_button"></button>
+            </div>
+            <div class="wb-row">
+              <button type="button" id="btn-midnight-debug-reroll-credits" data-i18n="midnight_debug_reroll_credits_button"></button>
+            </div>
+            <div class="wb-row">
+              <button type="button" id="btn-midnight-debug-full-fp" data-i18n="midnight_debug_full_fp_button"></button>
+            </div>
+            <div class="wb-row">
+              <button type="button" id="btn-midnight-debug-revive-full-hp" data-i18n="midnight_debug_revive_full_hp_button"></button>
+            </div>
+            <div class="wb-row">
+              <button type="button" id="btn-midnight-debug-skip-tower" data-i18n="midnight_debug_skip_tower_button"></button>
+            </div>
+          </div>
         </div>
 
         <div id="midnight-menu-panel" hidden>
-          <button type="button" id="btn-midnight-pause-game" data-i18n="midnight_pause_button"></button>
+          <button type="button" id="btn-midnight-pause-game" class="danger-btn" data-i18n="midnight_pause_button"></button>
           <button type="button" id="btn-midnight-resume-game" data-i18n="midnight_resume_button" hidden></button>
         </div>
 
@@ -523,6 +638,11 @@ BODY = """    <div class="midnight-wrap">
             <div id="midnight-field-encounter-image-wrap">
               <img id="midnight-field-encounter-image" alt="">
               <div id="midnight-enemy-hit-effect" hidden></div>
+              <!-- 消耗品丟擲動畫（2026-09-08使用者明確要求「使用消耗品時...對敵人丟出火焰壺、
+                   飛刀、調香瓶等等動畫，顏色改以屬性的顏色」）：見static/midnight.jsの
+                   triggerConsumableThrowEffect()，圖示與顏色依道具決定，只在丟擲類/對敵人
+                   噴霧類消耗品觸發，自身/全體PC用的道具不觸發。 -->
+              <div id="midnight-consumable-throw-effect" hidden></div>
             </div>
             <p id="midnight-field-encounter-name"></p>
           </div>

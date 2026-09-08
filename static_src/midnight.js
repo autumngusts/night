@@ -244,6 +244,7 @@
   // 三組demo佔位常數已移除，一次攻擊事件固定只有1次命中判定（hitCount=1）。
   var ATTACK_EFFECT_DISPLAY_MS = 400; // 刀光特效顯示時間，純視覺用
   var ENEMY_HIT_EFFECT_DISPLAY_MS = 300; // 玩家命中敵人的刀光特效顯示時間，純視覺用，跟上面敵人打玩家的特效各自獨立
+  var CONSUMABLE_THROW_EFFECT_DISPLAY_MS = 500; // 消耗品丟擲動畫顯示時間，需與style.cssのmidnight-consumable-throw-fly動畫時長一致
   var FP_BASE = 10; // 使用者明確規格：FP基礎10，疊加方式與HP相同（見selfFpMax()）
   var FLASK_MAX_DEFAULT = 3;
   var FLASK_HEAL_AMOUNT = 30;
@@ -397,6 +398,26 @@
   var countdownTriggerAttempted = false; // 避免每個影格都重複送出開始倒數的transaction
   var sessionStartTriggerAttempted = false;
   var resumeFinalizeAttempted = false;
+  // 2026-09-08使用者明確要求「隊友資訊等平常不顯示接管，按下選單才切換顯示」：每個席位
+  // 各自一個開關，預設不顯示接管按鈕，只有點了該卡片的「⋯」才展開；純本地端UI狀態，
+  // 不需要同步到RTDB。
+  var takeoverMenuOpenSlots = {};
+  // 2026-09-08使用者明確要求「上方打字機資訊欄右上有一個'-'可以暫時折疊單條線，同時
+  // 在右上盧恩左邊出現展開鈕可以再次打開，有按鈕能按時兩者都閃黃光」：這裡指的是
+  // #midnight-field-enter-prompt／#midnight-field-invite-prompt／#midnight-field-banner／
+  // #midnight-field-late-join-prompt／#midnight-field-late-claim-prompt／
+  // #midnight-strong-enemy-banner／#midnight-scarab-banner這組固定在畫面最上方、
+  // 互斥顯示（同時間只有一個會出現）的地點卡牌／籌碼banner。純本地端UI狀態，不同步。
+  var topBannerCollapsed = false;
+  var TOP_BANNER_IDS = [
+    "midnight-field-enter-prompt",
+    "midnight-field-invite-prompt",
+    "midnight-field-banner",
+    "midnight-field-late-join-prompt",
+    "midnight-field-late-claim-prompt",
+    "midnight-strong-enemy-banner",
+    "midnight-scarab-banner",
+  ];
 
   var gameId = null;
   var myTokenId = null;
@@ -507,10 +528,21 @@
     if (bossSelect && document.activeElement !== bossSelect) bossSelect.value = (meta && meta.nightBossId) || "";
     var mapSelect = el("midnight-lobby-map-variant-select");
     if (mapSelect && document.activeElement !== mapSelect) mapSelect.value = (meta && meta.mapVariant) || "basic";
+    var difficultySelect = el("midnight-lobby-difficulty-select");
+    if (difficultySelect && document.activeElement !== difficultySelect) {
+      difficultySelect.value = (meta && meta.difficulty) || "standard";
+    }
   }
 
   function handleNightBossSelectChange() {
     GameStorage.rtSet(gameId, "cloud", "meta/nightBossId", el("midnight-lobby-night-boss-select").value);
+  }
+
+  // 難度（2026-09-08新增，見midnight_page.pyの#midnight-lobby-difficulty-row說明）：跟夜王/
+  // 地圖同一套「同一場遊戲所有人共用」模式，開局後理論上還能改，但實務上只在等待房顯示
+  // 這個下拉選單（跟夜王/地圖UI一致），不特別鎖定。
+  function handleDifficultySelectChange() {
+    GameStorage.rtSet(gameId, "cloud", "meta/difficulty", el("midnight-lobby-difficulty-select").value);
   }
 
   function handleMapVariantSelectChange() {
@@ -600,6 +632,102 @@
       lastEnemyGuardEl.textContent = window.I18N.t("midnight_test_enemy_guard_value", { value: guardValText });
     }
   }
+
+  // =====================================================================
+  // Debug面板（2026-09-08新增，使用者明確規格：「debug模式下可以調整盧恩,獲得指定武器,
+  // 設定個別戰技魔術祈禱,回復滿FP,復歸並回復滿HP,快速通過魔術師塔」）：跟測試模式同一套
+  // meta.debugMode房間共用開關模式（見handleTestModeToggle()/renderTestPanel()），所有
+  // 操作只作用在「自己目前操作的角色」（myTokenId），不是給GM調整別人角色的工具。
+  // =====================================================================
+  function handleDebugModeToggle() {
+    var checked = el("midnight-lobby-debug-mode-checkbox").checked;
+    GameStorage.rtSet(gameId, "cloud", "meta/debugMode", checked);
+  }
+
+  var debugWeaponSelectPopulated = false;
+  function populateDebugWeaponSelect() {
+    var select = el("midnight-debug-weapon-select");
+    if (!select || debugWeaponSelectPopulated || !window.PriTestWeapons) return;
+    debugWeaponSelectPopulated = true;
+    window.PriTestWeapons.list().forEach(function (w) {
+      var o = document.createElement("option");
+      o.value = w.id;
+      o.textContent = window.PriTestWeapons.localizedText(w.name) + "（" + w.category + "）";
+      select.appendChild(o);
+    });
+  }
+
+  function renderDebugPanel() {
+    var enabled = !!(meta && meta.debugMode);
+    var checkbox = el("midnight-lobby-debug-mode-checkbox");
+    if (checkbox) checkbox.checked = enabled;
+    var panel = el("midnight-debug-panel");
+    if (!panel) return;
+    panel.hidden = !enabled;
+    if (!enabled) return;
+    populateDebugWeaponSelect();
+  }
+
+  // 調整盧恩：直接set成輸入框裡的數字（不是加減），對象固定是自己目前操作的角色。
+  function handleDebugSetRune() {
+    if (!myTokenId) return;
+    var v = Math.max(0, Math.round(parseFloat(el("midnight-debug-rune-input").value) || 0));
+    GameStorage.rtSet(gameId, "cloud", "character/" + myTokenId + "/runes", v);
+  }
+
+  // 獲得指定武器：直接push進weaponIds（跟merchant鍛造既有寫入路徑一致，不重新發明）。
+  function handleDebugGrantWeapon() {
+    if (!myTokenId) return;
+    var weaponId = el("midnight-debug-weapon-select").value;
+    if (!weaponId) return;
+    GameStorage.rtTransaction(gameId, "cloud", "character/" + myTokenId + "/weaponIds", function (cur) {
+      var list = (cur || []).slice();
+      list.push(weaponId);
+      return list;
+    });
+  }
+
+  // 設定個別戰技/魔術/祈禱：規則書本身的武器技能是「category對應隨機表」抽選，沒有讓玩家
+  // 直接指定任意一個結果的既有機制——與其另外發明第二套「自由選擇」picker，這裡重用既有
+  // 鍛造台重骰UI（openWeaponRerollModal），灌5次免費重骰額度讓debug使用者自行開鍛造台
+  // 重骰到滿意的結果為止（見docs：CLAUDE.md §11「優先重用現有helper」）。
+  function handleDebugGrantRerollCredits() {
+    if (!myTokenId) return;
+    var c = characters[myTokenId];
+    // 樂觀更新本地鏡像（跟cycleEquippedWeapon()同樣的既有慣例）：RTDB回傳前先讓
+    // openWeaponRerollModal()的credits>0判斷讀得到新值，避免round-trip delay導致
+    // 第一次點擊時modal因為讀到舊值(0)而不開。
+    if (c) c._weaponRerollCredits = (c._weaponRerollCredits || 0) + 5;
+    GameStorage.rtTransaction(gameId, "cloud", "character/" + myTokenId + "/_weaponRerollCredits", function (cur) {
+      return (cur || 0) + 5;
+    });
+    openWeaponRerollModal();
+  }
+
+  function handleDebugFullFp() {
+    fp.current = fp.max;
+  }
+
+  // 復歸並回復滿HP：若自己正在瀕死中先清空nearDeath，否則單純直接回滿血（不受平常
+  // 「隊友復歸傷害只回一半」限制，這是debug強制操作）。
+  function handleDebugReviveFullHp() {
+    if (!myTokenId) return;
+    var c = characters[myTokenId];
+    if (c && c.nearDeath && c.nearDeath.active) {
+      GameStorage.rtSet(gameId, "cloud", "character/" + myTokenId + "/nearDeath", null);
+      finishRevive(myTokenId, true);
+    } else {
+      GameStorage.rtSet(gameId, "cloud", "demoStat/" + myTokenId, selfArenaHpMax(c));
+    }
+  }
+
+  // 快速通過魔術師塔：直接呼叫既有解謎成功的處理函式（handleTowerPuzzleResult），跳過
+  // 實際答題，獎勵流程（12骰牌型獎勵等）完全比照正常解謎成功路徑，不另外簡化。
+  function handleDebugSkipTower() {
+    if (!nearbyTower || towerSolved[nearbyTower.id]) return;
+    handleTowerPuzzleResult(nearbyTower, true);
+  }
+
   var remotePings = {}; // tokenId -> { x, y, name, createdAt }（來自RTDB）
   // tokenId -> 完整CharacterDrawer.newCharacter()同形狀角色物件（含runes），外加midnight
   // 原本就有的flaskCount/flaskMax欄位（沿用原本命名，只是併到同一個RTDB物件底下，不是
@@ -669,6 +797,7 @@
   var myIncomingAttack = null;
   var attackEffectTimer = null;
   var enemyHitEffectTimer = null;
+  var consumableThrowEffectTimer = null;
   var nearbyTower = null; // 目前在使用範圍內的魔術師塔地點（map.points中type==="sorcerer"者）
   // 地圖點卡牌事件狀態（見上方FIELD_*常數註解）：
   // fieldTriggers[pointId] = {
@@ -782,6 +911,10 @@
   var lastPosPushTime = 0;
   var lastPushedPos = null;
   var lastDamageTickTime = 0;
+  // 2026-09-08使用者明確規格「待在夜雨縮圈範圍外隨時間越扣越多HP：10秒內1s:1點，11~20秒
+  // 1s:2點，21~30秒1s:4點，30秒後1s:8點」：null＝目前在圈內（或剛進遊戲還沒判定過），
+  // 否則是「這一段連續待在圈外」開始的時間戳，一旦回到圈內就重置，重新出去要重新計時。
+  var outsideCircleSinceMs = null;
   var lastDayPhaseKey = null; // 偵測phase切換用（day+phase字串），切換時重新render HUD文字
   var canvas = null;
   var ctx = null;
@@ -1011,9 +1144,12 @@
     // equippedWeaponIdL/R不再是undefined，這段guard自然不會重複執行。
     if (mine && mine.equippedWeaponIdL === undefined && mine.equippedWeaponIdR === undefined && mine.weaponIds && mine.weaponIds.length) {
       var startingWeaponId = mine.weaponIds[0];
-      mine.equippedWeaponIdL = startingWeaponId;
+      // 2026-09-08修正：weaponIds[1]（追蹤者/守護者等有startingShieldId的類型才會有）是
+      // 左手盾，右手固定放主武器；沒有第二件裝備的類型維持原行為（左右手都放同一把）。
+      var startingShieldId = mine.weaponIds.length > 1 ? mine.weaponIds[1] : startingWeaponId;
+      mine.equippedWeaponIdL = startingShieldId;
       mine.equippedWeaponIdR = startingWeaponId;
-      GameStorage.rtSet(gameId, "cloud", "character/" + myTokenId + "/equippedWeaponIdL", startingWeaponId);
+      GameStorage.rtSet(gameId, "cloud", "character/" + myTokenId + "/equippedWeaponIdL", startingShieldId);
       GameStorage.rtSet(gameId, "cloud", "character/" + myTokenId + "/equippedWeaponIdR", startingWeaponId);
       syncEquippedWeaponIds(mine);
     }
@@ -1193,6 +1329,7 @@
     if (!pendingJoinSlot || players[pendingJoinSlot]) {
       form.hidden = true;
       pendingJoinSlot = null;
+      el("midnight-lobby-character-detail").hidden = true;
     }
   }
 
@@ -1223,6 +1360,31 @@
     hpTrack.appendChild(hpFill);
     card.appendChild(hpTrack);
 
+    // 瀕死警示（2026-09-08新增，使用者明確規格「瀕死狀態的玩家圖示中閃爍黃色警示、當可以
+    // 對其復歸傷害時顯示一個指定可按下」）：card本身每次render都是全新建立的元素
+    // （renderLobby()／renderPlayersPanel()的innerHTML=""重繪），不需要額外remove。
+    var nd = characters[p.tokenId] && characters[p.tokenId].nearDeath;
+    if (nd && nd.active) {
+      card.classList.add("midnight-flash-yellow");
+      if (p.tokenId !== myTokenId && isRevivalDamageEligible(p.tokenId)) {
+        var designating = revivalDesignateTargetTokenId === p.tokenId;
+        var designateBtn = document.createElement("button");
+        designateBtn.type = "button";
+        designateBtn.className = "midnight-slot-designate-btn" + (designating ? " midnight-slot-designate-active" : "");
+        designateBtn.textContent = window.I18N.t(
+          designating ? "midnight_near_death_cancel_designate_button" : "midnight_near_death_designate_button"
+        );
+        designateBtn.addEventListener("click", function (tokenIdForToggle) {
+          return function () {
+            toggleRevivalDesignate(tokenIdForToggle);
+            renderLobby();
+            renderPlayersPanel();
+          };
+        }(p.tokenId));
+        card.appendChild(designateBtn);
+      }
+    }
+
     // 攻擊／技能使用提示（見broadcastCombatActionBubble()說明）：掛在血量條右邊，
     // 自己/隊友共用同一個渲染路徑——只顯示combatActionEvents裡這個tokenId還在
     // COMBAT_ACTION_BUBBLE_MS內的最新兩筆（舊的在上、新的在下），逾時的單純不畫
@@ -1244,13 +1406,30 @@
     }
 
     if (p.tokenId !== myTokenId) {
-      var takeoverBtn = document.createElement("button");
-      takeoverBtn.type = "button";
-      takeoverBtn.textContent = window.I18N.t("midnight_takeover_button");
-      takeoverBtn.addEventListener("click", function () {
-        handleTakeover(slot);
-      });
-      card.appendChild(takeoverBtn);
+      // 接管按鈕平常收起，改由「⋯」開關展開，避免手機端隊友資訊列表被一堆按鈕塞滿。
+      var menuToggleBtn = document.createElement("button");
+      menuToggleBtn.type = "button";
+      menuToggleBtn.className = "midnight-slot-menu-toggle";
+      menuToggleBtn.textContent = "⋯";
+      menuToggleBtn.setAttribute("aria-label", window.I18N.t("midnight_takeover_button"));
+      menuToggleBtn.addEventListener("click", function (slotForToggle) {
+        return function () {
+          takeoverMenuOpenSlots[slotForToggle] = !takeoverMenuOpenSlots[slotForToggle];
+          renderLobby();
+          renderPlayersPanel();
+        };
+      }(slot));
+      card.appendChild(menuToggleBtn);
+
+      if (takeoverMenuOpenSlots[slot]) {
+        var takeoverBtn = document.createElement("button");
+        takeoverBtn.type = "button";
+        takeoverBtn.textContent = window.I18N.t("midnight_takeover_button");
+        takeoverBtn.addEventListener("click", function () {
+          handleTakeover(slot);
+        });
+        card.appendChild(takeoverBtn);
+      }
     }
   }
 
@@ -1308,9 +1487,34 @@
       wrap.addEventListener("click", function () {
         selectedCharacterId = c.id;
         renderCharacterPicker();
+        renderLobbyCharacterDetail(c.id);
       });
       picker.appendChild(wrap);
     });
+  }
+
+  // 角色詳細資訊視窗（2026-09-08新增，見midnight_page.pyの#midnight-lobby-character-detail
+  // 說明）：CHARACTER_PRESETS的id跟character_types.js的typeId同名，直接查得到type。
+  function renderLobbyCharacterDetail(characterId) {
+    var panel = el("midnight-lobby-character-detail");
+    if (!panel) return;
+    var type = window.PriTestCharacterTypes.get(characterId);
+    if (!type) return;
+    var preset = findCharacterPreset(characterId);
+    panel.hidden = false;
+    var img = el("midnight-lobby-character-detail-image");
+    img.src = characterImagePath(preset.image);
+    img.alt = window.I18N.t(preset.nameKey);
+    el("midnight-lobby-character-detail-name").textContent = window.I18N.t(preset.nameKey);
+    el("midnight-lobby-character-detail-stats").textContent = CharacterDrawer.buildTypeStatLines(type, true).join("\n");
+    CharacterDrawer.renderAbilitySections(
+      null,
+      type,
+      el("midnight-lobby-character-detail-active"),
+      el("midnight-lobby-character-detail-passive"),
+      false,
+      true
+    );
   }
 
   // 加入席位用transaction()（不是rtSet）：避免兩台裝置幾乎同時點同一個空位的「加入」，
@@ -1334,6 +1538,7 @@
       if (committed && committed.tokenId === myTokenId) {
         mySlot = slot;
         form.hidden = true;
+        el("midnight-lobby-character-detail").hidden = true;
       } else {
         window.alert(window.I18N.t("midnight_lobby_slot_taken_note")); // 搶輸了，該格已被別人佔用
         renderLobby();
@@ -1567,12 +1772,36 @@
     });
     el("btn-midnight-pause-game").addEventListener("click", handlePauseGame);
     el("btn-midnight-resume-game").addEventListener("click", handleResumeGame);
+    // 上方地點卡牌／籌碼banner折疊：每個banner各自有一顆同款「－」按鈕，共用同一個
+    // click handler（同一時間只會有一個banner顯示，不需要區分是哪一顆按的）。
+    Array.prototype.forEach.call(document.querySelectorAll(".midnight-top-banner-collapse-btn"), function (btn) {
+      btn.addEventListener("click", function () {
+        topBannerCollapsed = true;
+        updateTopBannerCollapseUI();
+      });
+    });
+    el("btn-midnight-top-banner-reopen").addEventListener("click", function () {
+      topBannerCollapsed = false;
+      updateTopBannerCollapseUI();
+    });
     el("btn-midnight-lobby-join").addEventListener("click", handleLobbyJoin);
+    el("btn-midnight-lobby-character-detail-close").addEventListener("click", function () {
+      el("midnight-lobby-character-detail").hidden = true;
+    });
     el("btn-midnight-lobby-ready").addEventListener("click", handleLobbyReadyToggle);
     el("btn-midnight-lobby-leave").addEventListener("click", handleLobbyLeave);
     el("midnight-lobby-night-boss-select").addEventListener("change", handleNightBossSelectChange);
     el("midnight-lobby-map-variant-select").addEventListener("change", handleMapVariantSelectChange);
+    el("midnight-lobby-difficulty-select").addEventListener("change", handleDifficultySelectChange);
+    el("btn-midnight-game-failure-confirm").addEventListener("click", switchToUnlimitedMode);
     el("midnight-lobby-test-mode-checkbox").addEventListener("change", handleTestModeToggle);
+    el("midnight-lobby-debug-mode-checkbox").addEventListener("change", handleDebugModeToggle);
+    el("btn-midnight-debug-set-rune").addEventListener("click", handleDebugSetRune);
+    el("btn-midnight-debug-grant-weapon").addEventListener("click", handleDebugGrantWeapon);
+    el("btn-midnight-debug-reroll-credits").addEventListener("click", handleDebugGrantRerollCredits);
+    el("btn-midnight-debug-full-fp").addEventListener("click", handleDebugFullFp);
+    el("btn-midnight-debug-revive-full-hp").addEventListener("click", handleDebugReviveFullHp);
+    el("btn-midnight-debug-skip-tower").addEventListener("click", handleDebugSkipTower);
     bindTestSliderInput("midnight-test-slider-enemy-hp", "midnight-test-number-enemy-hp", "enemyHpMult", 0.2, 100);
     bindTestSliderInput("midnight-test-slider-enemy-atk", "midnight-test-number-enemy-atk", "enemyAtkMult", 0, 20);
     bindTestSliderInput("midnight-test-slider-pc-dmg", "midnight-test-number-pc-dmg", "pcDmgMult", 0.2, 100);
@@ -1817,6 +2046,10 @@
   // hit2Symbol/symbol），2026-09-06新增，用來累積敵人本體的Guard削り值（見
   // recordGuardReductionForPoint()），跟雜兵/敵人本體傷害分配是兩件獨立的事。
   function damageCombatTarget(amount, symbol) {
+    // 「指定」復歸傷害轉換（2026-09-08新增，見isRevivalDamageEligible()說明）：轉換成功
+    // 就完全不對敵人造成傷害，也不記錄Guard Reduction／敵視——這筆攻擊已經變成救援，不是
+    // 打敵人的攻擊。
+    if (tryApplyDesignatedRevivalDamage(amount)) return;
     if (activeEncounter) {
       var pointId = activeEncounter.id;
       if (symbol) recordGuardReductionForPoint(pointId, symbol);
@@ -1972,7 +2205,7 @@
   // 弓/弩/投擲武器等——第3擊仍沿用1Hit數值，使用者已確認）。體力消耗＝骰子點數×2
   // （DICE_COUNT_TO_STAMINA_MULT，使用者明確規格）。
   function handleAttackClick(side) {
-    if (!mySlot || isPaused()) return;
+    if (!mySlot || isPaused() || isSelfDowned()) return;
     var info = computeSideAttackInfo(side);
     if (!info) return;
     var cs = comboState[side];
@@ -2078,7 +2311,7 @@
   }
 
   function startAttackHold(side) {
-    if (!mySlot || isPaused()) return;
+    if (!mySlot || isPaused() || isSelfDowned()) return;
     attackHoldState[side] = Date.now();
   }
 
@@ -2138,7 +2371,7 @@
   // 消耗解析沿用武器戰技/魔術祈禱同一套computeMidnightSkillCost（本文「消耗：①①」→
   // 骰子點數×2體力），跟castWeaponSkillEntry()同一套資源檢查/扣除模式。
   function useSpecialAttack(side, entry) {
-    if (!mySlot || isPaused()) return;
+    if (!mySlot || isPaused() || isSelfDowned()) return;
     attackSpecialMenuOpen[side] = false;
     renderAttackSpecialMenu(side);
     var c = characters[myTokenId];
@@ -2222,7 +2455,7 @@
   // 體力/FP都足夠才真正扣款（避免體力扣了才發現FP不夠、且已扣的體力沒有回滾機制的問題），
   // HP消耗（HP■×10）沒有事先檢查門檻——比照「代價類」技能允許扣到低血，不額外發明限制。
   function castWeaponSkillEntry(entry) {
-    if (!mySlot || isPaused()) return;
+    if (!mySlot || isPaused() || isSelfDowned()) return;
     var c = characters[myTokenId];
     if (!c) return;
     var bodyText = Weapons.localizedText(entry.body);
@@ -2251,6 +2484,8 @@
     GameStorage.rtTransaction(gameId, "cloud", "demoStat/" + myTokenId, function (cur) {
       var next = (cur === null ? maxHp : cur) - amount;
       return next < 0 ? 0 : next;
+    }).then(function (result) {
+      if (result === 0) maybeTriggerNearDeath(myTokenId);
     });
   }
 
@@ -2352,7 +2587,7 @@
   }
 
   function useCharacterAbility(kind) {
-    if (!mySlot || isPaused()) return;
+    if (!mySlot || isPaused() || isSelfDowned()) return;
     var found = characterAbilityEntry(kind);
     if (!found.c || !found.ability) return;
     // 2026-09-06數值真正接入：技藝/技能不再用「使用次數」（_artUsesRemaining/
@@ -3044,6 +3279,10 @@
   // （MIDNIGHT_CONSUMABLE_TIMED_OR_UNRESOLVED旗標）。applyLevel2＝hasCarriedKnowledge(c)。
   function applyMidnightConsumableEffect(c, itemId) {
     var applyLevel2 = hasCarriedKnowledge(c);
+    // 丟擲/噴霧動畫（2026-09-08新增）：跟下面的數值套用分支無關，只要是對敵人使用的
+    // 丟擲類消耗品就播放，MIDNIGHT_CONSUMABLE_TIMED_OR_UNRESOLVED項目（如投擲短劍／
+    // 扇投暗器／火炎壺）沒有對應的數值分支，但一樣需要動畫回饋。
+    triggerConsumableThrowEffect(itemId);
     if (itemId === "item_shard_of_starlight") {
       // night.js:7737「applyLevel2 ? 6 : 3」。
       fp.current = Math.min(fp.max, fp.current + (applyLevel2 ? 6 : 3));
@@ -3055,14 +3294,12 @@
       if (otherTokenId) healCharacterHp(otherTokenId, hpAmount);
     } else if (itemId === "item_azure_throwing_knife") {
       damageCombatTarget(2); // 這個項目本文沒有等級2效果（night.js:7802-7803無applyLevel2分支）
-      triggerEnemyHitEffect(null); // 純物理投擲武器，沒有屬性標記，顯示無屬性（白色）刀光
     } else if (itemId === "item_bone_poison_dart") {
       // 「毒：1D」：2026-08-24使用者裁定，沒有額外擲骰指示時Xd視為固定值X（見docs/
       // enemy_damage_rules.md §1.1）。等級2額外造成【總合傷害：15】（night.js:7808-7809）。
       recordAttributeAccum("猛毒", 1);
       if (applyLevel2) {
         damageCombatTarget(15);
-        triggerEnemyHitEffect(enemyHitColorFromEffects([{ label: "毒" }])); // 毒鏢主題色（綠）
       }
     } else if (itemId === "item_perfume_spark_aroma") {
       // night.js:7875「1 + (applyLevel2 ? 2 : 0)」＝1或3。
@@ -3079,7 +3316,7 @@
   // 使用」道具，見規劃紀錄設計取捨——要更換快速道具，從角色面板的消耗品清單按「設為
   // 快速使用」，見renderCharacterSheet()）。
   function handleUseQuickConsumableClick() {
-    if (!mySlot || isPaused()) return;
+    if (!mySlot || isPaused() || isSelfDowned()) return;
     var c = characters[myTokenId];
     var inst = c && c.consumables && c.consumables[0];
     if (!inst) return;
@@ -3149,7 +3386,7 @@
   // 沒裝備」。c[field]===undefined（角色剛建立、還沒手動切換過）時比照舊行為預設顯示/使用
   // ids[0]；一旦玩家循環切到""，就是明確選擇空手，不會再自動回退成ids[0]。
   function cycleEquippedWeapon(side) {
-    if (!mySlot || isPaused()) return;
+    if (!mySlot || isPaused() || isSelfDowned()) return;
     var c = characters[myTokenId];
     var ids = (c && c.weaponIds) || [];
     var field = side === "L" ? "equippedWeaponIdL" : "equippedWeaponIdR";
@@ -3618,6 +3855,8 @@
       GameStorage.rtTransaction(gameId, "cloud", "demoStat/" + myTokenId, function (cur) {
         var next = (cur === null ? maxHp : cur) - damage;
         return next < 0 ? 0 : next;
+      }).then(function (result) {
+        if (result === 0) maybeTriggerNearDeath(myTokenId);
       });
     }
     // 敵人屬性攻擊（2026-09-06角色能力真正接入・不撓前置工程新增，使用者明確規格）：只在
@@ -3710,6 +3949,43 @@
     }, ENEMY_HIT_EFFECT_DISPLAY_MS);
   }
 
+  // 消耗品丟擲動畫對照表（2026-09-08使用者明確要求「使用消耗品時...對敵人丟出火焰壺、
+  // 飛刀、調香瓶等等動畫，顏色改以屬性的顏色」）：icon純粹是文字emoji（不是圖片素材），
+  // element對到ENEMY_HIT_ELEMENT_COLOR_RULES同一份顏色表（null＝物理/無屬性＝白色）。
+  // 只列出「對象：敵人」的丟擲/噴霧類消耗品——item_perfume_iron_pot_spray（對象：自身）、
+  // item_perfume_uplifting_aroma（對象：全體PC）不是丟給敵人的，不列在這裡。
+  // item_throwing_pot的「X屬性」依取得場地而定（■，見consumables.jsのbody），沒有標示
+  // 時規則書本身寫死預設「投擲壺(炎)」，這裡的預設色沿用該規則書預設值，不是自行發明。
+  var MIDNIGHT_CONSUMABLE_THROW_STYLE = {
+    item_throwing_dagger: { icon: "🗡️", element: null },
+    item_azure_throwing_knife: { icon: "🗡️", element: null },
+    item_bone_poison_dart: { icon: "🏹", element: "毒" },
+    item_folding_shuriken: { icon: "✳️", element: null },
+    item_throwing_pot: { icon: "🏺", element: "炎" },
+    item_perfume_acid_spray: { icon: "💨", element: null },
+    item_perfume_spark_aroma: { icon: "💨", element: "炎" },
+    item_perfume_poison_spray: { icon: "💨", element: "毒" },
+  };
+
+  function triggerConsumableThrowEffect(itemId) {
+    var style = MIDNIGHT_CONSUMABLE_THROW_STYLE[itemId];
+    if (!style || !activeEncounter) return;
+    var effectEl = el("midnight-consumable-throw-effect");
+    if (!effectEl) return;
+    var color = style.element ? enemyHitColorFromEffects([{ label: style.element }]) : ENEMY_HIT_NO_ELEMENT_COLOR;
+    effectEl.textContent = style.icon;
+    effectEl.style.setProperty("--throw-color", color);
+    effectEl.hidden = false;
+    effectEl.classList.remove("midnight-consumable-throw-effect-play");
+    void effectEl.offsetWidth; // 強制reflow，讓連續使用時animation能重新播放
+    effectEl.classList.add("midnight-consumable-throw-effect-play");
+    if (consumableThrowEffectTimer) clearTimeout(consumableThrowEffectTimer);
+    consumableThrowEffectTimer = setTimeout(function () {
+      effectEl.hidden = true;
+      triggerEnemyHitEffect(color); // 丟擲物落地＝命中，銜接既有命中刀光特效
+    }, CONSUMABLE_THROW_EFFECT_DISPLAY_MS);
+  }
+
   // 警示圖示：只在phase==="warn"（攻擊發動前0.5秒）顯示，CSS負責閃爍動畫本身。
   // 2026-09-06數值真正接入新增：同時顯示這一招的招式名稱（使用者明確規格）。
   function renderEnemyAttackOverlay() {
@@ -3797,7 +4073,7 @@
   }
 
   function handleAcceptTowerInviteClick(pt) {
-    if (!mySlot || isPaused()) return;
+    if (!mySlot || isPaused() || isSelfDowned()) return;
     var invite = towerInvites[pt.id];
     if (!invite || invite.status !== "inviting") return;
     GameStorage.rtSet(gameId, "cloud", "towerInvites/" + pt.id + "/participants/" + mySlot, true);
@@ -4573,7 +4849,7 @@
   // 附近玩家在邀請時限內按下「加入」：直接把自己這個席位寫進participants，不需要
   // transaction（重複寫true本來就是幂等的，兩人同時按也不會互相蓋掉彼此）。
   function handleAcceptFieldInviteClick(pt) {
-    if (!mySlot || isPaused()) return;
+    if (!mySlot || isPaused() || isSelfDowned()) return;
     var trig = fieldTriggers[pt.id];
     if (!trig || trig.status !== "inviting") return;
     GameStorage.rtSet(gameId, "cloud", "fieldTrigger/" + pt.id + "/participants/" + mySlot, true);
@@ -5280,6 +5556,53 @@
     if (trig) maybeResetBossFormOnDefeat(trig, hp);
   }
 
+  // ---- Day3夜之王開場動畫（2026-09-08新增，見midnight_page.pyの
+  // #midnight-day3-boss-intro-overlay說明）----
+  var day3BossIntroShown = false; // 本地端（不同步）：這台裝置這場遊戲是否已經播過一次
+  var day3BossIntroStartAt = null;
+  var DAY3_BOSS_INTRO_STAR_DELAY_MS = 3000;
+
+  function updateDay3BossIntroOverlay(now) {
+    var overlay = el("midnight-day3-boss-intro-overlay");
+    if (!overlay) return;
+    var trig = fieldTriggers[DAY3_BOSS_POINT_ID];
+    // 注意：recomputeActiveEncounter()在還沒按[進入戰鬥]確認前，activeEncounter其實是
+    // null、candidate暫存在pendingBattleReentry（confirmedEncounterIds真正變true的當下
+    // activeEncounter才會變成候選對象）——所以這裡要看pendingBattleReentry，不是
+    // activeEncounter，否則這個條件永遠不會成立。玩家按下[進入戰鬥]確認後
+    // （pendingBattleReentry變回null）視為「正式開始」，遮罩就該讓路給實際戰鬥畫面。
+    var shouldShow = !!(pendingBattleReentry && pendingBattleReentry.id === DAY3_BOSS_POINT_ID && trig);
+    if (shouldShow && !day3BossIntroShown) {
+      day3BossIntroShown = true;
+      day3BossIntroStartAt = now;
+      var bossInfo = bossRulebookData(trig.enemyId);
+      var bossName = bossInfo ? window.PriTestEnemies.localizedText(bossInfo.name) : trig.enemyId;
+      var NightBosses = window.PriTestNightBosses;
+      var bossPortrait = NightBosses ? NightBosses.get(trig.enemyId) : null;
+      var imgEl = el("midnight-day3-boss-intro-image");
+      if (bossPortrait) {
+        imgEl.src = NightBosses.imagePath(bossPortrait, "../static/");
+        imgEl.hidden = false;
+      } else {
+        imgEl.hidden = true;
+      }
+      el("midnight-day3-boss-intro-name").textContent = bossName;
+      // 前言敘述：night_boss_rulebook.js目前沒有intro欄位資料（規則書該段文字尚未轉錄），
+      // 有資料才顯示，沒有就整行隱藏——不自行編造夜之王的台詞。
+      var introText = bossInfo && bossInfo.intro ? window.PriTestEnemies.localizedText(bossInfo.intro) : "";
+      var introEl = el("midnight-day3-boss-intro-text");
+      introEl.textContent = introText;
+      introEl.hidden = !introText;
+      el("midnight-day3-boss-intro-star").hidden = true;
+    }
+    if (!shouldShow) {
+      overlay.hidden = true;
+      return;
+    }
+    overlay.hidden = false;
+    el("midnight-day3-boss-intro-star").hidden = now - day3BossIntroStartAt < DAY3_BOSS_INTRO_STAR_DELAY_MS;
+  }
+
   // 上方資訊欄的系統倒數提示（「系統自動倒數讀條10s」，使用者明確規格），跟
   // #midnight-enter-battle-prompt是各自獨立的提示（這裡沒有按鈕，純粹顯示倒數，玩家
   // 不需要也不能操作）。
@@ -5296,6 +5619,43 @@
     if (!show) return;
     var remain = Math.max(0, Math.ceil((startAt + FINAL_CIRCLE_BOSS_COUNTDOWN_MS - now) / 1000));
     wrap.textContent = window.I18N.t("midnight_final_circle_boss_countdown_note", { seconds: remain });
+  }
+
+  // ---- 上方地點卡牌／籌碼banner的折疊（2026-09-08新增，見topBannerCollapsed說明） ----
+  function findActiveTopBanner() {
+    for (var i = 0; i < TOP_BANNER_IDS.length; i++) {
+      var bannerEl = el(TOP_BANNER_IDS[i]);
+      if (bannerEl && !bannerEl.hidden) return bannerEl;
+    }
+    return null;
+  }
+
+  // 用offsetParent判斷button是否真的可見可按（hidden屬性或祖先hidden都會讓offsetParent
+  // 變成null），即使外層banner目前正被CSS折疊成一條窄橫條（overflow:hidden，不是display:
+  // none）也不影響判斷，因為折疊用的是max-height/overflow，不是display:none。
+  function bannerHasActionableButton(bannerEl) {
+    if (!bannerEl || bannerEl.hidden) return false;
+    var buttons = bannerEl.querySelectorAll("button");
+    for (var i = 0; i < buttons.length; i++) {
+      if (buttons[i].classList.contains("midnight-top-banner-collapse-btn")) continue;
+      if (buttons[i].offsetParent !== null) return true;
+    }
+    return false;
+  }
+
+  function updateTopBannerCollapseUI() {
+    var activeBanner = findActiveTopBanner();
+    var collapsedNow = topBannerCollapsed && !!activeBanner;
+    document.documentElement.classList.toggle("midnight-top-banner-collapsed", collapsedNow);
+    var reopenBtn = el("btn-midnight-top-banner-reopen");
+    if (!reopenBtn) return;
+    reopenBtn.hidden = !collapsedNow;
+    var shouldFlash = collapsedNow && bannerHasActionableButton(activeBanner);
+    reopenBtn.classList.toggle("midnight-flash-yellow", shouldFlash);
+    TOP_BANNER_IDS.forEach(function (id) {
+      var bannerEl = el(id);
+      if (bannerEl) bannerEl.classList.toggle("midnight-flash-yellow", bannerEl === activeBanner && shouldFlash);
+    });
   }
 
   // ---- 擊退第一天夜之強敵後20秒自動開啟第二天（使用者明確規格「擊退敵人後系統讀條20s
@@ -6464,7 +6824,7 @@
   }
 
   function handleGoddessStatueCheckClick(pt) {
-    if (!mySlot || isPaused()) return;
+    if (!mySlot || isPaused() || isSelfDowned()) return;
     var trig = fieldTriggers[pt.id];
     if (trig && trig.attempted && trig.attempted[mySlot]) return;
     GameStorage.rtSet(gameId, "cloud", "fieldTrigger/" + pt.id + "/attempted/" + mySlot, true);
@@ -6492,7 +6852,7 @@
   }
 
   function handleGoddessStatueBreakClick(pt) {
-    if (!mySlot || isPaused()) return;
+    if (!mySlot || isPaused() || isSelfDowned()) return;
     var trig = fieldTriggers[pt.id];
     if (!trig || !trig.goddessSucceeded) return;
     var c = characters[myTokenId];
@@ -6555,7 +6915,7 @@
   }
 
   function handleBuriedTreasureCheckClick(pt) {
-    if (!mySlot || isPaused()) return;
+    if (!mySlot || isPaused() || isSelfDowned()) return;
     var trig = fieldTriggers[pt.id];
     if (!trig || trig.resolvedOutcome) return;
     // 「PC人數」讀全場目前入座的玩家席位數，不是trig.participants（本分支沒有像
@@ -6696,7 +7056,7 @@
   }
 
   function handleMausoleumCheckClick(pt) {
-    if (!mySlot || isPaused()) return;
+    if (!mySlot || isPaused() || isSelfDowned()) return;
     var trig = fieldTriggers[pt.id];
     if (trig && trig.attempted && trig.attempted[mySlot]) return;
     GameStorage.rtSet(gameId, "cloud", "fieldTrigger/" + pt.id + "/attempted/" + mySlot, true);
@@ -6940,7 +7300,7 @@
   }
 
   function handleInsectGroundCheckClick(pt) {
-    if (!mySlot || isPaused()) return;
+    if (!mySlot || isPaused() || isSelfDowned()) return;
     var trig = fieldTriggers[pt.id];
     if (trig && trig.attempted && trig.attempted[mySlot]) return;
     var steps = window.PriTestMidnightRandomEvents.insectSwarmSteps.groundBugs;
@@ -6978,7 +7338,7 @@
   }
 
   function handleInsectChaseCheckClick(pt, statKey, checkTarget) {
-    if (!mySlot || isPaused()) return;
+    if (!mySlot || isPaused() || isSelfDowned()) return;
     var trig = fieldTriggers[pt.id];
     if (trig && trig.chaseAttempted && trig.chaseAttempted[mySlot]) return;
     // event_rulebook.js:637「HP損害：□」を受けて〈フィジカル〉、或「FP損害：□」を受けて
@@ -7118,7 +7478,7 @@
   // 成功/失敗後的発狂蓄積骰數(2D/3D)加總即為
   // recordReceivedAttributeAccum()的amount參數（不是骰子顆數本身，見correction #5）。
   function handleMadnessCheckClick(pt, stage, stepConfig) {
-    if (!mySlot || isPaused()) return;
+    if (!mySlot || isPaused() || isSelfDowned()) return;
     var attemptField = stage === "madFire" ? "attempted" : "tower2Attempted";
     var trig = fieldTriggers[pt.id];
     if (trig && trig[attemptField] && trig[attemptField][mySlot]) return;
@@ -7166,7 +7526,7 @@
   // "madFire"、清空attempted讓全員重新嘗試，同時清空tower2Attempted讓下一輪的塔2判定
   // 也重新來過）。
   function handleMadnessTower1LeaveClick(pt) {
-    if (!mySlot || isPaused()) return;
+    if (!mySlot || isPaused() || isSelfDowned()) return;
     var trig = fieldTriggers[pt.id];
     if (!trig || trig.madnessStage !== "tower1") return;
     var seatedSlots = currentlySeatedSlots();
@@ -7195,7 +7555,7 @@
   // 改由renderMadnessZoneBranch()每台裝置各自偵測套用（見上方correction #5），這裡只
   // 負責寫入共享的判定結果本身。
   function handleMadnessTower3Click(pt) {
-    if (!mySlot || isPaused()) return;
+    if (!mySlot || isPaused() || isSelfDowned()) return;
     var trig = fieldTriggers[pt.id];
     if (!trig || trig.tower3Outcome) return;
     var steps = window.PriTestMidnightRandomEvents.madnessZoneSteps.tower3;
@@ -7510,6 +7870,8 @@
               var max = selfArenaHpMax(characters[tokenId]);
               var current = cur === null ? max : cur;
               return Math.max(0, current - (entry.value || 0));
+            }).then(function (result) {
+              if (result === 0) maybeTriggerNearDeath(tokenId);
             });
           }
         }
@@ -9557,7 +9919,7 @@
   }
 
   function placePingAtClient(clientX, clientY) {
-    if (!mySlot || isPaused()) return; // 觀戰者／暫停中不能操作
+    if (!mySlot || isPaused() || isSelfDowned()) return; // 觀戰者／暫停中不能操作
     var rect = canvas.getBoundingClientRect();
     var scaleX = canvas.width / rect.width;
     var scaleY = canvas.height / rect.height;
@@ -9692,7 +10054,7 @@
     // （之前2026-09-05的修正誤把這個規則當成bug修掉了，這裡改回來）。
     // 開局10秒進場動畫期間（見introActive()）同樣不能移動，使用者明確規格「遊戲開始有
     // 10秒的動畫時間，期間不能移動操作」。
-    if (!mySlot || isPaused() || !mapExpanded || introActive(now)) return;
+    if (!mySlot || isPaused() || !mapExpanded || introActive(now) || isSelfDowned()) return;
     // 2026-09-06使用者回報bug「開啟商人仍能帶著亂跑」：商人／祝福視窗開啟中禁止移動，
     // 跟tower puzzle/character sheet等其他全螢幕modal理應一致（這兩個視窗原本沒有這個
     // 判斷，導致玩家能一邊看著商人視窗一邊移動離開，商人視窗卻沒有跟著關閉）。
@@ -9849,6 +10211,330 @@
     return !!(meta.pause && meta.pause.pausedAt);
   }
 
+  // 瀕死中無法移動／使用任何物品或技能（2026-09-08使用者明確規格「期間無法移動與使用
+  // 任何物品，僅能查看角色資訊與開啟選單」），見updateNearDeathState()等近死系統函式。
+  function isSelfDowned() {
+    var c = characters[myTokenId];
+    return !!(c && c.nearDeath && c.nearDeath.active);
+  }
+
+  // =====================================================================
+  // 瀕死／復歸／流浪祝福（2026-09-08新增，使用者明確規格，midnight原本完全沒有這套
+  // 機制——玩家HP降到0之前只是卡在0沒有任何後續）。跟night.js的3顆20/30/40復歸圓鈕不同，
+  // midnight是即時制，這裡簡化成「單一累計復歸傷害總量」，見nearDeathRequiredValue()。
+  //
+  // character/{tokenId}/nearDeath＝null（未瀕死）或
+  //   { active, downedAt, deadlineAt, progress, required, timedOut? }
+  // character/{tokenId}/revivalCount＝這場遊戲已完成復歸的次數（決定下次瀕死所需總量）。
+  // meta.difficulty＝"standard"（預設，流浪祝福3次）｜"unlimited"（阿罵模式，無限且
+  //   永不觸發遊戲失敗）。meta.wanderingBlessingUsed＝標準模式已消耗的流浪祝福格數。
+  // meta.gameFailurePending＝true時，全員彈出視窗詢問是否切換阿罵模式（見
+  // switchToUnlimitedMode()），此時所有瀕死角色維持鎖定，不會自動復歸。
+  // =====================================================================
+  var NEAR_DEATH_TIMEOUT_MS = 15000; // 倒地15秒內未能復歸就強制復歸
+  var NEAR_DEATH_DAMAGE_PAUSE_MS = 1000; // 使用者明確規格「受到攻擊後1s內能停止倒地時間計時」：
+  // 每次受到復歸傷害，倒數期限至少往後延1秒（不會縮短，只確保命中當下不會剛好逾時）。
+  var NEAR_DEATH_REVIVAL_PROXIMITY_RADIUS = 1.5; // 不在同一場戰鬥時，靠近多近才能施放復歸傷害（沿用SPIRIT_BIRD_ACTIVATE_RADIUS同量級）
+  var WANDERING_BLESSING_STANDARD_COUNT = 3; // 標準模式的流浪祝福總格數
+
+  function nearDeathRequiredValue(tokenId) {
+    var count = (characters[tokenId] && characters[tokenId].revivalCount) || 0;
+    return count >= 2 ? 120 : count === 1 ? 90 : 60;
+  }
+
+  // HP降到0時觸發：任何裝置偵測到都可以安全呼叫（transaction本身保證只有第一次真正生效，
+  // 已經在瀕死中的話直接維持原值，不重複觸發）。
+  function maybeTriggerNearDeath(tokenId) {
+    var c = characters[tokenId];
+    if (!c) return;
+    var required = nearDeathRequiredValue(tokenId);
+    GameStorage.rtTransaction(gameId, "cloud", "character/" + tokenId + "/nearDeath", function (cur) {
+      if (cur && cur.active) return cur;
+      var now = Date.now();
+      return { active: true, downedAt: now, deadlineAt: now + NEAR_DEATH_TIMEOUT_MS, progress: 0, required: required };
+    });
+  }
+
+  // 找最靠近的祝福點（縮圈期間只考慮圈內的），沒有的話回中心點——使用者明確規格「復活
+  // 地點為當下最靠近祝福的地點，若身處縮圈外則復活在圈內的祝福，若圈內無祝福則為中心
+  // 點」。Day3沒有地圖/圈的概念，不會呼叫這裡（見finishRevive()的day!==3判斷）。
+  function computeReviveSpawnPos(phaseInfo) {
+    var blessingPoints = (map && map.points ? map.points : [])
+      .filter(function (pt) {
+        return pt.type === "blessing";
+      })
+      .map(function (pt) {
+        return { x: pt.x + 0.5, y: pt.y + 0.5 };
+      })
+      .filter(function (p) {
+        var dx = p.x - phaseInfo.center.x;
+        var dy = p.y - phaseInfo.center.y;
+        return Math.sqrt(dx * dx + dy * dy) <= phaseInfo.radius;
+      });
+    if (!blessingPoints.length) return { x: phaseInfo.center.x, y: phaseInfo.center.y };
+    var origin = localPos || phaseInfo.center;
+    var best = blessingPoints[0];
+    var bestDistSq = Infinity;
+    blessingPoints.forEach(function (p) {
+      var dx = p.x - origin.x;
+      var dy = p.y - origin.y;
+      var d = dx * dx + dy * dy;
+      if (d < bestDistSq) {
+        bestDistSq = d;
+        best = p;
+      }
+    });
+    return best;
+  }
+
+  // 復歸完成（不管是逾時強制復歸還是隊友救起）：revivalCount+1（影響下次瀕死所需總量），
+  // fullHeal=true（逾時強制復歸）回滿血＋消耗流浪祝福已在呼叫端處理＋自己傳送到最近祝福點；
+  // fullHeal=false（隊友復歸傷害救起）只回一半HP，不移動位置，不消耗流浪祝福（使用者明確
+  // 規格「若有受到其他玩家的復歸傷害...直到都是0則能再起繼續，但血量回復一半」）。
+  function finishRevive(tokenId, fullHeal) {
+    GameStorage.rtTransaction(gameId, "cloud", "character/" + tokenId + "/revivalCount", function (cur) {
+      return (cur || 0) + 1;
+    });
+    var maxHp = selfArenaHpMax(characters[tokenId]);
+    if (fullHeal) {
+      GameStorage.rtSet(gameId, "cloud", "demoStat/" + tokenId, maxHp);
+      if (tokenId === myTokenId) {
+        var phaseInfo = currentPhaseInfo(Date.now());
+        if (phaseInfo.day !== 3) {
+          localPos = computeReviveSpawnPos(phaseInfo);
+          maybePushPosition(Date.now());
+        }
+      }
+    } else {
+      GameStorage.rtSet(gameId, "cloud", "demoStat/" + tokenId, Math.round(maxHp / 2));
+    }
+    if (revivalDesignateTargetTokenId === tokenId) revivalDesignateTargetTokenId = null;
+  }
+
+  // 標準模式：消耗1格流浪祝福，回傳是否真的還有格數可扣（closure旗標反映transaction最後
+  // 一次真正commit的判斷，重試時會用最新的cur重新判斷，結果可靠）。阿罵模式視為無限，
+  // 一律回傳true（消耗但不真的清空）。
+  function tryConsumeWanderingBlessing() {
+    if (meta && meta.difficulty === "unlimited") return Promise.resolve(true);
+    var consumed = false;
+    return GameStorage.rtTransaction(gameId, "cloud", "meta/wanderingBlessingUsed", function (cur) {
+      var used = cur || 0;
+      if (used >= WANDERING_BLESSING_STANDARD_COUNT) {
+        consumed = false;
+        return cur;
+      }
+      consumed = true;
+      return used + 1;
+    }).then(function () {
+      return consumed;
+    });
+  }
+
+  // 倒地15秒逾時：只有自己的裝置會判斷自己的倒數（見updateNearDeathState()），transaction
+  // 把nearDeath.timedOut標成true當作「這次逾時我搶到了」的閘門，避免同一輪逾時被重複處理。
+  function forceReviveOnTimeout(tokenId) {
+    var wonRace = false;
+    GameStorage.rtTransaction(gameId, "cloud", "character/" + tokenId + "/nearDeath", function (cur) {
+      if (!cur || !cur.active || cur.timedOut || Date.now() < cur.deadlineAt) {
+        wonRace = false;
+        return cur;
+      }
+      wonRace = true;
+      var next = {};
+      for (var k in cur) next[k] = cur[k];
+      next.timedOut = true;
+      return next;
+    }).then(function () {
+      if (!wonRace) return;
+      tryConsumeWanderingBlessing().then(function (consumed) {
+        if (consumed) {
+          GameStorage.rtSet(gameId, "cloud", "character/" + tokenId + "/nearDeath", null);
+          finishRevive(tokenId, true);
+        } else {
+          // 流浪祝福已耗盡：不復歸，維持瀕死鎖定，改觸發遊戲失敗暫停，等全員看到彈窗
+          // 決定是否切換阿罵模式（見switchToUnlimitedMode()），不自行猜測要不要繼續。
+          GameStorage.rtSet(gameId, "cloud", "meta/gameFailurePending", true);
+        }
+      });
+    });
+  }
+
+  // 每幀檢查自己是否已經瀕死逾時——只判斷自己（myTokenId），不用管別人，因為每個瀕死角色
+  // 的15秒倒數都是由該角色自己的裝置負責偵測（跟其他「靠近/移動」判斷同一種本地端偵測
+  // 慣例）。
+  function updateNearDeathState(now) {
+    if (!myTokenId) return;
+    var c = characters[myTokenId];
+    var nd = c && c.nearDeath;
+    if (!nd || !nd.active || nd.timedOut) return;
+    if (now >= nd.deadlineAt) forceReviveOnTimeout(myTokenId);
+  }
+
+  // 「指定」：本地端狀態，不同步——把自己接下來的一般攻擊都轉成對這名瀕死隊友的復歸傷害，
+  // 直到取消指定或對象已經不再需要復歸為止（見tryApplyDesignatedRevivalDamage()）。
+  var revivalDesignateTargetTokenId = null;
+
+  function slotForTokenId(tokenId) {
+    var slots = Object.keys(players || {});
+    for (var i = 0; i < slots.length; i++) {
+      if (players[slots[i]] && players[slots[i]].tokenId === tokenId) return slots[i];
+    }
+    return null;
+  }
+
+  // 復歸傷害施放資格（使用者明確規格）：跟瀕死者同一場戰鬥（該場fieldTrigger的participants
+  // 包含對方的席位）可以直接施放；不在戰鬥中的話，需要在地圖上靠近對方。
+  function isRevivalDamageEligible(targetTokenId) {
+    var c = characters[targetTokenId];
+    if (!c || !c.nearDeath || !c.nearDeath.active) return false;
+    if (activeEncounter) {
+      var trig = fieldTriggers[activeEncounter.id];
+      var targetSlot = slotForTokenId(targetTokenId);
+      if (trig && targetSlot && trig.participants && trig.participants[targetSlot]) return true;
+    }
+    var targetPos = targetTokenId === myTokenId ? localPos : remoteTokens[targetTokenId];
+    if (!targetPos || !localPos) return false;
+    var dx = localPos.x - targetPos.x;
+    var dy = localPos.y - targetPos.y;
+    return Math.sqrt(dx * dx + dy * dy) <= NEAR_DEATH_REVIVAL_PROXIMITY_RADIUS;
+  }
+
+  function toggleRevivalDesignate(targetTokenId) {
+    revivalDesignateTargetTokenId = revivalDesignateTargetTokenId === targetTokenId ? null : targetTokenId;
+  }
+
+  // 對瀕死隊友累加復歸傷害進度，滿足需求量時完成復歸（見finishRevive(，false)＝只回半血、
+  // 不消耗流浪祝福）。用cur.active=false當作「這次是我完成的」閘門，避免併發的另一筆復歸
+  // 傷害重複觸發完成。
+  function applyRevivalProgress(targetTokenId, amount) {
+    if (amount <= 0) return;
+    var completed = false;
+    GameStorage.rtTransaction(gameId, "cloud", "character/" + targetTokenId + "/nearDeath", function (cur) {
+      if (!cur || !cur.active) {
+        completed = false;
+        return cur;
+      }
+      var next = {};
+      for (var k in cur) next[k] = cur[k];
+      next.progress = (cur.progress || 0) + amount;
+      next.deadlineAt = Math.max(cur.deadlineAt, Date.now() + NEAR_DEATH_DAMAGE_PAUSE_MS);
+      if (next.progress >= cur.required) {
+        next.active = false;
+        completed = true;
+      } else {
+        completed = false;
+      }
+      return next;
+    }).then(function () {
+      if (!completed) return;
+      GameStorage.rtSet(gameId, "cloud", "character/" + targetTokenId + "/nearDeath", null);
+      finishRevive(targetTokenId, false);
+    });
+  }
+
+  // 一般攻擊在「指定」模式下轉換成復歸傷害（使用者明確規格「其他攻擊則傷害除以2來累積」），
+  // 從damageCombatTarget()最前面攔截，攔截成功就完全不對敵人造成傷害。
+  function tryApplyDesignatedRevivalDamage(amount) {
+    var targetId = revivalDesignateTargetTokenId;
+    if (!targetId || !isRevivalDamageEligible(targetId)) return false;
+    applyRevivalProgress(targetId, Math.floor(amount / 2));
+    return true;
+  }
+
+  // 技能/招式文字本身寫明「復歸傷害：N」的（使用者明確規格「即使沒有指定玩家，仍可以
+  // 一般傷害對敵人造成傷害同時使用復歸傷害」）：直接累加原值N，不必指定、也不影響對敵人
+  // 的傷害——呼叫端在算完一般傷害之後另外呼叫這裡。目前character_types.js等資料尚未有
+  // 任何招式使用這個文字（這套機制是這次才新增的），先備妥解析/施放邏輯，之後規則資料
+  // 補上「復歸傷害：N」文字時可以直接接上，不需要另外設計。
+  function parseFixedRevivalDamageValue(text) {
+    var m = /復[帰歸](?:ダメージ|傷害)[：:]\s*(\d+)/.exec(text || "");
+    return m ? parseInt(m[1], 10) : null;
+  }
+
+  function firstEligibleDownedAllyTokenId() {
+    if (revivalDesignateTargetTokenId && isRevivalDamageEligible(revivalDesignateTargetTokenId)) return revivalDesignateTargetTokenId;
+    var slots = Object.keys(players || {});
+    for (var i = 0; i < slots.length; i++) {
+      var p = players[slots[i]];
+      if (p && p.tokenId && isRevivalDamageEligible(p.tokenId)) return p.tokenId;
+    }
+    return null;
+  }
+
+  function maybeApplySkillRevivalDamage(bodyText) {
+    var fixed = parseFixedRevivalDamageValue(bodyText);
+    if (fixed === null) return;
+    var targetId = firstEligibleDownedAllyTokenId();
+    if (targetId) applyRevivalProgress(targetId, fixed);
+  }
+
+  // 標準模式流浪祝福耗盡後（meta.gameFailurePending），任何一名玩家按下確認即可切換成
+  // 阿罵模式並讓全員瀕死角色立刻復歸（使用者明確規格「跳出視窗是否轉為阿罵模式，則全員
+  // 一次救起繼續遊戲」）。用meta.gameFailurePending本身的transaction（true→false）當作
+  // 「誰先按到算誰的」閘門，避免多人同時按下導致重複復歸/重複+1 revivalCount。
+  function switchToUnlimitedMode() {
+    var wonRace = false;
+    GameStorage.rtTransaction(gameId, "cloud", "meta/gameFailurePending", function (cur) {
+      if (!cur) {
+        wonRace = false;
+        return cur;
+      }
+      wonRace = true;
+      return false;
+    }).then(function () {
+      if (!wonRace) return;
+      GameStorage.rtSet(gameId, "cloud", "meta/difficulty", "unlimited");
+      Object.keys(characters).forEach(function (tokenId) {
+        var c = characters[tokenId];
+        if (c && c.nearDeath && c.nearDeath.active) {
+          GameStorage.rtSet(gameId, "cloud", "character/" + tokenId + "/nearDeath", null);
+          finishRevive(tokenId, true);
+        }
+      });
+    });
+  }
+
+  // 自己瀕死中的狀態提示（倒數＋復歸進度），見#midnight-near-death-statusのCSS/HTML說明。
+  function renderNearDeathStatus(now) {
+    var wrap = el("midnight-near-death-status");
+    if (!wrap) return;
+    var c = characters[myTokenId];
+    var nd = c && c.nearDeath;
+    if (!nd || !nd.active) {
+      wrap.hidden = true;
+      return;
+    }
+    wrap.hidden = false;
+    var remainSec = Math.max(0, Math.ceil((nd.deadlineAt - now) / 1000));
+    el("midnight-near-death-status-text").textContent = window.I18N.t("midnight_near_death_status_note", {
+      remain: remainSec,
+      progress: nd.progress || 0,
+      required: nd.required,
+    });
+  }
+
+  // 右上導覽框的流浪祝福剩餘格數（阿罵模式顯示「無限」）。
+  function renderWanderingBlessingHud() {
+    var el2 = el("midnight-wandering-blessing-value");
+    if (!el2 || !meta) return;
+    if (meta.difficulty === "unlimited") {
+      el2.textContent = window.I18N.t("midnight_wandering_blessing_unlimited_note");
+      return;
+    }
+    var remain = Math.max(0, WANDERING_BLESSING_STANDARD_COUNT - (meta.wanderingBlessingUsed || 0));
+    el2.textContent =
+      window.I18N.t("midnight_wandering_blessing_label") +
+      window.I18N.t("colon_separator") +
+      window.I18N.t("midnight_wandering_blessing_value", { remain: remain, total: WANDERING_BLESSING_STANDARD_COUNT });
+  }
+
+  // 遊戲失敗彈窗：meta.gameFailurePending為true時全員都看得到，見switchToUnlimitedMode()。
+  function updateGameFailureModal() {
+    var modal = el("midnight-game-failure-modal");
+    if (!modal || !meta) return;
+    modal.hidden = !meta.gameFailurePending;
+  }
+
   // 開局10秒進場動畫（2026-09-06優化，使用者明確規格「遊戲開始有10秒的動畫時間，期間
   // 不能移動操作：用動畫演出一隻略大的靈鷹載著入場腳色以漩渦飛行後10秒，最終停在大家的
   // 起始地點後正式開始，期間地圖慢慢從全透明到不透明」）：直接以meta.sessionStartAt為
@@ -9965,19 +10651,35 @@
   // ---- 縮圈扣血：本地每秒判定一次自己是否在圈外，若是則透過transaction()對自己的
   // demoStat做原子扣血。這是「持續傷害縮圈」規則的也直接沿用
   // 跟共享標靶攻擊按鈕相同的transaction()機制。day3（與地圖無關）不扣血。----
+  // 圈外每秒扣血量：連續在圈外的時間越久，每次tick扣的點數越多（見outsideCircleSinceMs
+  // 說明的使用者明確規格）。
+  function circleDamagePerTick(elapsedOutsideSec) {
+    if (elapsedOutsideSec <= 10) return 1;
+    if (elapsedOutsideSec <= 20) return 2;
+    if (elapsedOutsideSec <= 30) return 4;
+    return 8;
+  }
+
   function maybeApplyCircleDamage(now, phaseInfo) {
     if (!mySlot || !localPos) return; // 觀戰者沒有角色，不扣血
     if (phaseInfo.day === 3 || isPaused()) return;
-    if (now - lastDamageTickTime < DAMAGE_TICK_MS) return;
-    lastDamageTickTime = now;
     var dx = localPos.x - phaseInfo.center.x;
     var dy = localPos.y - phaseInfo.center.y;
     var dist = Math.sqrt(dx * dx + dy * dy);
-    if (dist <= phaseInfo.radius) return;
+    if (dist <= phaseInfo.radius) {
+      outsideCircleSinceMs = null; // 回到圈內：連續在外時間重置，下次出去重新從1點/秒起算
+      return;
+    }
+    if (outsideCircleSinceMs === null) outsideCircleSinceMs = now;
+    if (now - lastDamageTickTime < DAMAGE_TICK_MS) return;
+    lastDamageTickTime = now;
+    var dmg = circleDamagePerTick((now - outsideCircleSinceMs) / 1000);
     var maxHp = mySelfHpMaxFallback();
     GameStorage.rtTransaction(gameId, "cloud", "demoStat/" + myTokenId, function (cur) {
-      var next = (cur === null ? maxHp : cur) - 1;
+      var next = (cur === null ? maxHp : cur) - dmg;
       return next < 0 ? 0 : next;
+    }).then(function (result) {
+      if (result === 0) maybeTriggerNearDeath(myTokenId);
     });
   }
 
@@ -10296,8 +10998,14 @@
   function drawSpiritBirdMarker(bird) {
     var px = (bird.x + 0.5) * CELL;
     var py = (bird.y + 0.5) * CELL;
-    var s = CELL * 0.5;
+    // 2026-09-08使用者明確要求「靈鷹圖示可以再大，主要高度要明顯」：原本s=CELL*0.5時
+    // 翼展寬約1.15*CELL但縱向只有約0.45*CELL，明顯比籌碼圖示（chipSize=CELL*1.6）扁小。
+    // 這裡整體放大並額外拉高縱向比例，讓外觀更接近籌碼的視覺量級。
+    var s = CELL * 0.85;
     ctx.save();
+    ctx.translate(px, py);
+    ctx.scale(1, 1.45);
+    ctx.translate(-px, -py);
     ctx.fillStyle = "rgba(160, 220, 255, 0.9)";
     ctx.strokeStyle = "#0c3a52";
     ctx.lineWidth = 1;
@@ -10476,10 +11184,12 @@
     updateMovement(dtSec, now);
     updateFinalCircleBoss(now);
     updateDay3Boss();
+    updateDay3BossIntroOverlay(now);
     updateNearbyBird();
     updateNearbyTower();
     updateNearbyFieldPoint();
     updateNearbyChipPoint();
+    updateTopBannerCollapseUI();
     updateNearbyCastle();
     updateNearbyGroundItem();
     updateEnemyAttack(now);
@@ -10493,6 +11203,10 @@
     maybePushPosition(now);
     var phaseInfo = currentPhaseInfo(now);
     maybeApplyCircleDamage(now, phaseInfo);
+    updateNearDeathState(now);
+    renderNearDeathStatus(now);
+    renderWanderingBlessingHud();
+    updateGameFailureModal();
     updateAutoDayAdvance(now);
     maybeTriggerDay3FromReady();
     render(now, phaseInfo);
@@ -10500,6 +11214,7 @@
     renderCombatPanel();
     renderCharacterActionButtons();
     renderTestPanel();
+    renderDebugPanel();
     renderLobbySettings();
     renderFinalCircleRewardsHud(now);
     // 第三天（夜之王決戰）與地圖無關，直接自動收合地圖——每個裝置各自根據共享的
