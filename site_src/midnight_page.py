@@ -309,53 +309,6 @@ BODY = """    <div class="midnight-wrap">
         <!-- 左上：自己的HP/FP/體力＋聖杯瓶剩餘數＋隊友血量（renderOccupiedSlotCard()
              既有函式輸出，容器換成這裡，函式邏輯不變）。 -->
         <div id="midnight-hud-top-left">
-          <!-- 進入戰鬥（2026-09-06優化，使用者明確規格「若因為離開過再次進入戰鬥或參加
-               別人的戰鬥，都須先按下上方資訊欄的進入戰鬥，接著需要讀條3秒後才正式進入
-               戰鬥畫面」）：見static/midnight.jsのrenderEnterBattlePrompt()／
-               handleEnterBattleClick()／updateBattleEnterLoading()。 -->
-          <div id="midnight-enter-battle-prompt" hidden>
-            <button type="button" id="btn-midnight-enter-battle" data-i18n="midnight_enter_battle_button"></button>
-            <div id="midnight-enter-battle-loading-bar" class="midnight-loading-track" hidden>
-              <span id="midnight-enter-battle-loading-fill" class="midnight-loading-fill"></span>
-            </div>
-          </div>
-          <!-- 暫停後繼續遊戲的倒數＋讀取條（2026-09-06三次優化，使用者明確規格「暫停遊戲後
-               的繼續遊戲，需要再上方資訊欄中顯示倒數與讀取條」）：跟原本
-               #midnight-pause-overlay的全螢幕文字倒數並存（那個繼續擋操作），這裡額外在
-               資訊欄提供視覺化讀取條。讀取條時長對齊RESUME_COUNTDOWN_MS=3秒，跟「進入戰鬥」
-               讀取條一樣用JS逐幀算style.width（不套用寫死0.5秒的.midnight-loading-fill-animate
-               CSS動畫），見static/midnight.jsのupdateResumeCountdownHud()。 -->
-          <div id="midnight-resume-countdown-row" hidden>
-            <p id="midnight-resume-countdown-text"></p>
-            <div id="midnight-resume-countdown-bar" class="midnight-loading-track">
-              <span id="midnight-resume-countdown-fill" class="midnight-loading-fill"></span>
-            </div>
-          </div>
-          <!-- 第一天/第二天夜之強敵系統倒數（2026-09-06優化，使用者明確規格「系統自動
-               倒數讀條10s」）：純顯示，玩家不用也不能操作，見
-               static/midnight.jsのrenderFinalCircleCountdown()。 -->
-          <p id="midnight-final-circle-countdown" hidden></p>
-          <!-- 第一天夜之強敵戰後（2026-09-06三次優化，使用者明確規格「第一天夜之強敵戰鬥
-               結束後，總計時10秒後才正式開始第二天倒計時，能選的只有祝福與離去」）：只有
-               祝福＋離去，沒有商人。離去純本地端關閉這個區塊，見
-               static/midnight.jsのhandleDay1RewardsLeaveClick()。 -->
-          <div id="midnight-hud-day1-rewards-row" hidden>
-            <button type="button" id="btn-midnight-hud-blessing-day1" data-i18n="midnight_hud_blessing_button"></button>
-            <button type="button" id="btn-midnight-hud-day1-leave" data-i18n="midnight_hud_leave_button"></button>
-          </div>
-          <!-- 第二天夜之強敵戰後（2026-09-06三次優化，使用者明確規格「第二天戰鬥結束後，
-               沒有總計時，能選的有祝福商人與離去，接著才是按準備進入第三天」）：祝福／
-               商人／離去為一組，離去只關閉這一組本地顯示，不影響下方獨立的「準備」列，見
-               static/midnight.jsのrenderFinalCircleRewardsHud()。 -->
-          <button type="button" id="btn-midnight-hud-blessing" data-i18n="midnight_hud_blessing_button" hidden></button>
-          <div id="midnight-hud-merchant-row" hidden>
-            <button type="button" id="btn-midnight-open-merchant-hud" data-i18n="midnight_hud_merchant_button"></button>
-            <button type="button" id="btn-midnight-hud-day2-leave" data-i18n="midnight_hud_leave_button"></button>
-          </div>
-          <div id="midnight-hud-ready-final-row" hidden>
-            <button type="button" id="btn-midnight-ready-final-boss"></button>
-            <span id="midnight-ready-final-note"></span>
-          </div>
           <div class="midnight-bar-row">
             <span class="midnight-bar-label" data-i18n="midnight_stat_hp_label"></span>
             <span class="midnight-bar-track"><span class="midnight-bar-fill midnight-bar-hp" id="midnight-self-hp-fill"></span></span>
@@ -394,6 +347,58 @@ BODY = """    <div class="midnight-wrap">
              #midnight-menu-panel也跟著搬到這裡同層級（見下方），不再巢狀在地圖modal
              裡，否則地圖收合時選單面板會被地圖modal的hidden邏輯連坐隱藏。 -->
         <div id="midnight-hud-top-right">
+          <!-- 進入戰鬥（2026-09-06優化，使用者明確規格「若因為離開過再次進入戰鬥或參加
+               別人的戰鬥，都須先按下上方資訊欄的進入戰鬥，接著需要讀條3秒後才正式進入
+               戰鬥畫面」）：見static/midnight.jsのrenderEnterBattlePrompt()／
+               handleEnterBattleClick()／updateBattleEnterLoading()。2026-09-09由左上
+               搬到右上，使用者明確規格。 -->
+          <div id="midnight-enter-battle-prompt" hidden>
+            <button type="button" id="btn-midnight-enter-battle" data-i18n="midnight_enter_battle_button"></button>
+            <div id="midnight-enter-battle-loading-bar" class="midnight-loading-track" hidden>
+              <span id="midnight-enter-battle-loading-fill" class="midnight-loading-fill"></span>
+            </div>
+          </div>
+          <!-- 暫停後繼續遊戲的倒數＋讀取條（2026-09-06三次優化，使用者明確規格「暫停遊戲後
+               的繼續遊戲，需要再上方資訊欄中顯示倒數與讀取條」）：跟原本
+               #midnight-pause-overlay的全螢幕文字倒數並存（那個繼續擋操作），這裡額外在
+               資訊欄提供視覺化讀取條。讀取條時長對齊RESUME_COUNTDOWN_MS=3秒，跟「進入戰鬥」
+               讀取條一樣用JS逐幀算style.width（不套用寫死0.5秒的.midnight-loading-fill-animate
+               CSS動畫），見static/midnight.jsのupdateResumeCountdownHud()。2026-09-09由
+               左上搬到右上，使用者明確規格。 -->
+          <div id="midnight-resume-countdown-row" hidden>
+            <p id="midnight-resume-countdown-text"></p>
+            <div id="midnight-resume-countdown-bar" class="midnight-loading-track">
+              <span id="midnight-resume-countdown-fill" class="midnight-loading-fill"></span>
+            </div>
+          </div>
+          <!-- 第一天/第二天夜之強敵系統倒數（2026-09-06優化，使用者明確規格「系統自動
+               倒數讀條10s」）：純顯示，玩家不用也不能操作，見
+               static/midnight.jsのrenderFinalCircleCountdown()。2026-09-09由左上搬到
+               右上，使用者明確規格。 -->
+          <p id="midnight-final-circle-countdown" hidden></p>
+          <!-- 第一天夜之強敵戰後（2026-09-06三次優化，使用者明確規格「第一天夜之強敵戰鬥
+               結束後，總計時10秒後才正式開始第二天倒計時，能選的只有祝福與離去」）：只有
+               祝福＋離去，沒有商人。離去純本地端關閉這個區塊，見
+               static/midnight.jsのhandleDay1RewardsLeaveClick()。2026-09-09由左上搬到
+               右上，使用者明確規格。 -->
+          <div id="midnight-hud-day1-rewards-row" hidden>
+            <button type="button" id="btn-midnight-hud-blessing-day1" data-i18n="midnight_hud_blessing_button"></button>
+            <button type="button" id="btn-midnight-hud-day1-leave" data-i18n="midnight_hud_leave_button"></button>
+          </div>
+          <!-- 第二天夜之強敵戰後（2026-09-06三次優化，使用者明確規格「第二天戰鬥結束後，
+               沒有總計時，能選的有祝福商人與離去，接著才是按準備進入第三天」）：祝福／
+               商人／離去為一組，離去只關閉這一組本地顯示，不影響下方獨立的「準備」列，見
+               static/midnight.jsのrenderFinalCircleRewardsHud()。2026-09-09由左上搬到
+               右上，使用者明確規格。 -->
+          <button type="button" id="btn-midnight-hud-blessing" data-i18n="midnight_hud_blessing_button" hidden></button>
+          <div id="midnight-hud-merchant-row" hidden>
+            <button type="button" id="btn-midnight-open-merchant-hud" data-i18n="midnight_hud_merchant_button"></button>
+            <button type="button" id="btn-midnight-hud-day2-leave" data-i18n="midnight_hud_leave_button"></button>
+          </div>
+          <div id="midnight-hud-ready-final-row" hidden>
+            <button type="button" id="btn-midnight-ready-final-boss"></button>
+            <span id="midnight-ready-final-note"></span>
+          </div>
           <span class="midnight-rune-value">
             <span data-i18n="midnight_stat_rune_label"></span>
             <span id="midnight-self-rune-value">0</span>
