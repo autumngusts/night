@@ -5346,6 +5346,31 @@ button {
   text-align: center;
 }
 
+/* 上方資訊欄折疊（2026-09-09新增，使用者明確規格）：折疊時把banner壓成一條薄線，
+   z-index降到低於#midnight-hud-top-left/right（500），讓HUD角落面板疊在上面；
+   展開時完全恢復原本樣式（不覆寫position/z-index，交回上面共用選擇器群組的預設值）。 */
+#midnight-field-banner.midnight-field-overlay-collapsed,
+#midnight-field-late-claim-prompt.midnight-field-overlay-collapsed {
+  z-index: 400;
+  padding: 0.15rem 0.6rem;
+  max-width: 200px;
+}
+
+#midnight-field-banner.midnight-field-overlay-collapsed > *:not(#btn-midnight-hud-collapse),
+#midnight-field-late-claim-prompt.midnight-field-overlay-collapsed > * {
+  display: none;
+}
+
+#midnight-field-banner.midnight-field-overlay-collapsed #btn-midnight-hud-collapse {
+  display: none;
+}
+
+#btn-midnight-hud-collapse {
+  float: right;
+  margin-left: 0.4rem;
+  line-height: 1;
+}
+
 #midnight-field-enter-name,
 #midnight-field-banner-name,
 #midnight-strong-enemy-name {

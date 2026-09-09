@@ -524,10 +524,24 @@
   // 「持有gameId即可存取」的權限模型一致，CLAUDE.md §38，不做額外的房主限定）。----
   var lastPcDamageInfo = null; // {amount, at}，本地only，供測試面板顯示
   var lastEnemyDamageInfo = null; // {amount, at}，本地only
+  var testConsoleOpen = false; // 本地only：測試主控台面板開關，不透過meta.testMode控制常駐顯示
 
+  // 測試模式密碼閘門（2026-09-09新增，使用者明確規格：「按下測試模式按鍵需要輸入密碼
+  // nightnight」）：只有「開啟」需要密碼，關閉不用。答錯/取消時checkbox要復原成未勾選，
+  // 否則畫面會顯示已勾選但meta.testMode其實沒被寫入true，造成UI與實際狀態不一致。
   function handleTestModeToggle() {
-    var checked = el("midnight-lobby-test-mode-checkbox").checked;
-    GameStorage.rtSet(gameId, "cloud", "meta/testMode", checked);
+    var checkbox = el("midnight-lobby-test-mode-checkbox");
+    var checked = checkbox.checked;
+    if (!checked) {
+      GameStorage.rtSet(gameId, "cloud", "meta/testMode", false);
+      return;
+    }
+    var input = window.prompt(window.I18N.t("midnight_test_mode_password_prompt"));
+    if (input !== "nightnight") {
+      checkbox.checked = false;
+      return;
+    }
+    GameStorage.rtSet(gameId, "cloud", "meta/testMode", true);
   }
 
   // 2026-09-06優化：滑桿改成可搭配數字輸入框直接輸入（使用者明確規格「可以直接輸入數字」），
@@ -549,10 +563,13 @@
     var enabled = !!(meta && meta.testMode);
     var checkbox = el("midnight-lobby-test-mode-checkbox");
     if (checkbox) checkbox.checked = enabled;
+    var openBtn = el("btn-midnight-open-test-console");
+    if (openBtn) openBtn.hidden = !enabled;
+    if (!enabled) testConsoleOpen = false; // 測試模式被關掉時，順便收掉還開著的主控台
     var panel = el("midnight-test-panel");
     if (!panel) return;
-    panel.hidden = !enabled;
-    if (!enabled) return;
+    panel.hidden = !(enabled && testConsoleOpen);
+    if (!enabled || !testConsoleOpen) return;
     [
       ["midnight-test-slider-enemy-hp", "midnight-test-number-enemy-hp", "enemyHpMult"],
       ["midnight-test-slider-enemy-atk", "midnight-test-number-enemy-atk", "enemyAtkMult"],
@@ -693,6 +710,7 @@
   //   一個first-writer-wins guard欄位，見maybeAdvanceFieldProgressAfterFloorClear）,
   //   fullClearRewardGrantedBy }
   var fieldProgress = {}; // 來自RTDB，見onFieldProgressReceived
+  var fieldOverlayCollapsed = false; // 本地only：上方資訊欄banner群組折疊狀態
   var nearbyFieldPoint = null; // 目前在FIELD_TRIGGER_RADIUS範圍內的地圖點（sorcerer型別除外）
   // 中途加入（設計文件§1.4）：附近有fieldTrigger、但自己尚未在participants裡的地圖點，
   // 且已經過了邀請階段（status!=="inviting"，邀請階段有自己的「加入」流程，見
@@ -1573,6 +1591,21 @@
     el("midnight-lobby-night-boss-select").addEventListener("change", handleNightBossSelectChange);
     el("midnight-lobby-map-variant-select").addEventListener("change", handleMapVariantSelectChange);
     el("midnight-lobby-test-mode-checkbox").addEventListener("change", handleTestModeToggle);
+    el("btn-midnight-open-test-console").addEventListener("click", function () {
+      testConsoleOpen = true;
+      renderTestPanel();
+    });
+    el("btn-midnight-test-panel-close").addEventListener("click", function () {
+      testConsoleOpen = false;
+      renderTestPanel();
+    });
+    el("btn-midnight-test-force-shrink").addEventListener("click", handleForceShrinkClick);
+    el("btn-midnight-hud-collapse").addEventListener("click", function () {
+      setFieldOverlayCollapsed(true);
+    });
+    el("btn-midnight-hud-expand").addEventListener("click", function () {
+      setFieldOverlayCollapsed(false);
+    });
     bindTestSliderInput("midnight-test-slider-enemy-hp", "midnight-test-number-enemy-hp", "enemyHpMult", 0.2, 100);
     bindTestSliderInput("midnight-test-slider-enemy-atk", "midnight-test-number-enemy-atk", "enemyAtkMult", 0, 20);
     bindTestSliderInput("midnight-test-slider-pc-dmg", "midnight-test-number-pc-dmg", "pcDmgMult", 0.2, 100);
@@ -9030,11 +9063,23 @@
   // （顯示邀請框＋倒數＋「加入」）③其餘情況若我是參與者才顯示banner（正式進入0.5秒後
   // 開始打字機，播完才顯示投票/結果）。不在事件內的人（既沒發起也沒在時限內加入）在
   // 邀請結束後這裡什麼都不顯示——不參與卡牌板塊的任何事情與戰鬥（使用者明確規格）。
+  // 折疊/展開上方資訊欄（2026-09-09新增）：只切換本地旗標＋重繪，renderFieldOverlay()
+  // 每影格都會被updateNearbyFieldPoint()呼叫，下一影格就會套用最新的class/按鈕狀態。
+  function setFieldOverlayCollapsed(collapsed) {
+    fieldOverlayCollapsed = collapsed;
+    renderFieldOverlay();
+    var expandBtn = el("btn-midnight-hud-expand");
+    if (expandBtn) expandBtn.hidden = !collapsed;
+  }
+
   function renderFieldOverlay() {
     var pt = nearbyFieldPoint || nearbyCastlePoint;
     var enterPrompt = el("midnight-field-enter-prompt");
     var invitePrompt = el("midnight-field-invite-prompt");
     var banner = el("midnight-field-banner");
+    banner.classList.toggle("midnight-field-overlay-collapsed", fieldOverlayCollapsed);
+    var lateClaimBoxForCollapse = el("midnight-field-late-claim-prompt");
+    if (lateClaimBoxForCollapse) lateClaimBoxForCollapse.classList.toggle("midnight-field-overlay-collapsed", fieldOverlayCollapsed);
     // 已加入者的「已加入名單／立即進入」框（2026-09-07新增）：只有邀請中且自己已是
     // participants時才顯示（見下方trig.status==="inviting" && amParticipant分支），
     // 這裡先統一預設收合，避免切換到其他狀態/離開範圍時殘留上一次的內容。
@@ -9362,6 +9407,10 @@
       max = 20;
     }
     setBar("midnight-enemy-hp-fill", "midnight-enemy-hp-value", hp, max);
+    // 敵人HP數值只在測試模式顯示（2026-09-09新增，使用者明確規格），非測試模式只留
+    // 血量條本身——不修改setBar()本體，因為它也共用給自己的HP/FP/體力條，不能連坐隱藏。
+    var enemyHpValueEl = el("midnight-enemy-hp-value");
+    if (enemyHpValueEl && !(meta && meta.testMode)) enemyHpValueEl.textContent = "";
     // 敵人HP掛在畫面中間下方，只在真正「碰到敵人進入戰鬥」（活躍的地圖點/強敵遭遇戰）
     // 時顯示——使用者明確規格，。
     var hudBottomCenter = el("midnight-hud-bottom-center");
@@ -9960,6 +10009,21 @@
     GameStorage.rtSet(gameId, "cloud", "fieldEnemyHp/" + DAY3_BOSS_POINT_ID, null);
     GameStorage.rtSet(gameId, "cloud", "attributeAccum/" + DAY3_BOSS_POINT_ID, null);
     day3BossRollAttempted = false;
+  }
+
+  // 立即縮圈（2026-09-09新增，測試主控台專用）：不新增第二套計時系統，直接把目前這一天
+  // 的StartAt往回撥PHASE_TOTAL_MS（跟computeDayStage()既有的時間衍生公式一致），讓
+  // currentPhaseInfo()下一影格就算出這一天的最終半徑（stage:"done"/"waitingForDay2/3"）。
+  // day3沒有地圖/縮圈可言，直接no-op。
+  function handleForceShrinkClick() {
+    if (!meta || !meta.testMode) return;
+    if (meta.day3StartAt) return;
+    var now = Date.now();
+    if (meta.day2StartAt) {
+      GameStorage.rtSet(gameId, "cloud", "meta/day2StartAt", now - PHASE_TOTAL_MS);
+    } else {
+      GameStorage.rtSet(gameId, "cloud", "meta/sessionStartAt", now - PHASE_TOTAL_MS);
+    }
   }
 
   // ---- 縮圈扣血：本地每秒判定一次自己是否在圈外，若是則透過transaction()對自己的

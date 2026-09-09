@@ -144,6 +144,7 @@ BODY = """    <div class="midnight-wrap">
         </div>
 
         <div id="midnight-field-banner" hidden>
+          <button type="button" id="btn-midnight-hud-collapse" aria-label="collapse">&#9654;</button>
           <p id="midnight-field-banner-name"></p>
           <!-- 進入讀取條（2026-09-06新增）：正式進入後的0.5秒等待（FIELD_ENTER_WAIT_MS）
                期間顯示，取代原本的空白等待，見static/midnight.jsのrenderFieldOverlay()。 -->
@@ -390,6 +391,9 @@ BODY = """    <div class="midnight-wrap">
                把#midnight-canvas目前畫好的內容整張縮小畫上去（見static/midnight.jsの
                render()結尾),不重畫一次地圖邏輯。 -->
           <div id="midnight-map-icon-row">
+            <!-- 折疊後的展開入口（2026-09-09新增）：放在地圖按鈕左側、盧恩數值下方，
+                 只在banner群組折疊中才顯示，見static/midnight.jsのrenderFieldOverlay()。 -->
+            <button type="button" id="btn-midnight-hud-expand" aria-label="expand" hidden>&#9664;</button>
             <canvas id="midnight-minimap-canvas" hidden></canvas>
             <button type="button" id="btn-midnight-map-icon" data-i18n="midnight_map_icon_label"></button>
           </div>
@@ -405,8 +409,16 @@ BODY = """    <div class="midnight-wrap">
                且align-items:flex-end讓它跟按鈕群一樣切齊右邊，徹底解決疊字問題。由
                meta.testMode控制顯示，meta.testTuning四個倍率透過RTDB同步。見
                static/midnight.js的renderTestPanel()/handleTestSliderInput()。 -->
+          <!-- 測試主控台入口（2026-09-09改版）：只在meta.testMode為true時才顯示，取代
+               原本「測試模式一開就常駐顯示整塊面板」的作法，見static/midnight.jsの
+               renderTestPanel()。 -->
+          <button type="button" id="btn-midnight-open-test-console" data-i18n="midnight_test_console_open_button" hidden></button>
+
           <div id="midnight-test-panel" hidden>
-            <h3 data-i18n="midnight_test_panel_title"></h3>
+            <div class="wb-row">
+              <h3 data-i18n="midnight_test_panel_title"></h3>
+              <button type="button" id="btn-midnight-test-panel-close">×</button>
+            </div>
             <p id="midnight-test-panel-last-pc"></p>
             <p id="midnight-test-panel-last-pc-defense"></p>
             <p id="midnight-test-panel-last-enemy"></p>
@@ -438,6 +450,8 @@ BODY = """    <div class="midnight-wrap">
               <input type="number" id="midnight-test-number-enemy-guard" class="midnight-test-number-input" min="0" max="10" step="0.1" value="1">
               <span id="midnight-test-slider-enemy-guard-value"></span>
             </div>
+            <!-- 立即縮圈（Task 3新增） -->
+            <button type="button" id="btn-midnight-test-force-shrink" data-i18n="midnight_test_force_shrink_button"></button>
           </div>
         </div>
 
