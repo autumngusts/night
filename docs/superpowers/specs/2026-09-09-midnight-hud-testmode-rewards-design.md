@@ -171,6 +171,8 @@ GM判斷類報酬（`hpDamage`/`tieredChoice`/`diceHandChoice`/`note`）透過`r
 
 `computeRewardDraw()`（`midnight.js:7902`）需要新增對`stoneswordKey`／`smithingStone`／`weaponSkillReroll`三種kind的處理（目前只有`rune`/`chaliceBonus`/`talisman`/`weapon`/`consumable`），比照`grantLootRewardEntryToCharacter()`裡對應的既有邏輯搬過來（非抽選、固定數量直接apply，沿用`rune`/`chaliceBonus`同款「直接顯示確認/丟棄按鈕」模式，不需要`needsDrawStep`）。
 
+> **實作備註（2026-09-09）**：實作階段搜尋`grantLootRewardEntryToCharacter()`全部呼叫端後，發現本節原先只列出3處，實際還有2處遺漏、同樣需要一併修正：(1) `claimLatePerPlayerRewards()`（跟`claimLateFieldTriggerRewards()`是一對針對不同ledger的姊妹函式，先前只改了其中一個）；(2) `handleTowerDiceConfirm()`（魔術師塔12骰牌型解謎獎勵，屬於這次設計文件調查時遺漏的另一條直接授予+toast路徑）。兩者已依相同原則改為推進`pendingRewards`。修正後`grantLootRewardEntryToCharacter()`本身已無任何呼叫端，整個函式已移除，各kind邏輯搬入`computeRewardDraw()`。
+
 ### 4.4 GM判斷類報酬併入`pendingRewards`
 
 `resolveJudgmentRewardEntries()`（`midnight.js:7497`）修改：
