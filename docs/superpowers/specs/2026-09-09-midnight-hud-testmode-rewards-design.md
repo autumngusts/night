@@ -10,9 +10,9 @@
 
 1. 測試模式整合＋密碼閘門
 2. 上方資訊欄（field banner群組）折疊排版與HUD疊層順序
-3. 最後一層「進入樓層」邀請閃爍消失bug
+3. 最後一層「進入樓層」邀請閃爍消失bug＋新增遭遇戰鬥前識別資訊/5秒準備流程
 4. 獎勵清單分類再編＋GM判斷類報酬併入清單
-5. HUD顯示資訊盤點（純文件，無程式變更）
+5. HUD顯示資訊盤點＋6個區塊由左上搬到右上
 
 已核對的既有機制／資料（避免重複發明）：
 
@@ -68,14 +68,15 @@
 
 - 新增折疊狀態旗標（本地only，不需要跨裝置同步，比照`mapExpanded`同類純UI旗標寫法），套用一個新class（例如 `.midnight-field-overlay-collapsed`）到上述共用選擇器群組的父容器或個別元素上。
 - 折疊時的樣式：文字/內容維持在DOM中但視覺上壓成一條薄線（大幅降低`padding`/`font-size`，內容用`text-overflow:ellipsis`或直接隱藏內文只留一條色線），並將這組z-index降到低於500（例如400），讓HUD左上/右上角落面板轉為疊在其上方。
-- 新增折疊/展開按鈕：新增 `#btn-midnight-hud-collapse`（放在banner群組本身內，例如banner右上角），文字/圖示切換為「▶收合」「◀展開」。折疊後顯示的「◀」按鈕沿用同一顆按鈕、只是換文字/位置固定在原banner的左側細條上。
-- 額外補上雙擊（dblclick）事件監聽，加在共用選擇器群組的容器上，效果與按鈕相同（互為另一個入口，不是取代按鈕）。
+- 新增折疊按鈕 `#btn-midnight-hud-collapse`：放在banner群組本身內（例如banner右上角），展開狀態顯示「▶」圖示，點擊後執行收合效果（banner群組變薄線），同時這顆按鈕本身從banner上消失（薄線上不殘留任何按鈕）。
+- 展開（「◀」效果）的入口改放到`#midnight-hud-top-right`：位置在盧恩數值下方、地圖圖示按鈕（`#btn-midnight-map-icon`）左側，屬於`#midnight-hud-top-right`既有flex column文件流中的新節點（跟測試面板同款「插入既有flex流、不用寫死offset」的作法，見`midnight_page.py:399-407`註解說明的既有教訓）。折疊時才顯示這顆「◀」，展開時隱藏。
+- 不再使用dblclick／文字本身雙擊觸發折疊（已確認舊功能不存在，也不採用雙擊入口），純粹以上述兩顆按鈕（banner上的▶、HUD右上的◀）作為收合/展開的唯一入口。
 
 ### 2.3 驗證方式
 
-1. `generate.py`建置後，實際靠近地圖上的點觸發banner顯示。
-2. 點擊收合按鈕／雙擊背景文字，確認變成薄線、且此時HUD左上角血條/右上角選單按鈕清晰可點擊（原本可能被банner疊住的情境）。
-3. 點擊「◀」展開，確認恢復原本banner外觀與資訊。
+1. `generate.py`建置後，實際靠近地圖上的點觸發banner顯示，確認banner右上角有「▶」按鈕。
+2. 點擊「▶」，確認banner群組變成薄線、「▶」按鈕本身消失，且HUD左上角血條/右上角選單按鈕清晰可點擊（原本可能被banner疊住的情境）。
+3. 確認`#midnight-hud-top-right`盧恩下方、地圖按鈕左側出現「◀」按鈕，點擊後banner恢復原本外觀與資訊，「◀」按鈕消失。
 
 ---
 
@@ -116,6 +117,24 @@ if (!nearbyLateJoinPoint && progress0 && !fieldEnterAttempted[found.id]) {
 1. 建立測試遊戲，用Playwright或人工操作把某個板塊打到只剩最後一層（`fieldProgress/{id}/floorIndex`＝`floorCount-1`）。
 2. 靠近該點按「進入」，確認邀請banner／讀取條正常顯示且不再閃爍消失，能正常走完打字機/投票流程進入最後一層戰鬥。
 3. 確認正常情況下（非最後一層、無`progress0`）行為不受影響。
+
+### 3.4（新增需求）遭遇戰鬥前，先顯示識別資訊＋5秒讀條＋「準備進入戰鬥」
+
+現況：`recomputeActiveEncounter()`（`midnight.js:4411`）對「第一次遭遇、且當下已經是participant」的情況會直接跳過任何等待，`confirmedEncounterIds[id]`立刻設true、`activeEncounter`立刻成立；`frame()`裡緊接著`if (activeEncounter && mapExpanded) setMapExpanded(false);`（`midnight.js:10510`）也會在下一影格立刻關閉地圖。只有「離開後重新進入／加入別人已在打的戰鬥」這種re-entry情境，才會走`pendingBattleReentry`／`battleEnteringUntil`（`BATTLE_ENTER_LOADING_MS`＝3秒）既有的讀條流程（`midnight.js:4463-4503`）。
+
+強敵籌碼（`renderStrongEnemyOverlay()`，`midnight.js:5699`）已經有「種類／體型／弱點」資訊顯示的既有邏輯，可以直接參考複用；一般板塊樓層遭遇的敵人、夜之強敵（`nearbyFinalCircleBoss`）、夜王（`nearbyDay3Boss`）則需要各自確認其現有名稱來源後比照補上同款欄位（不新增第二套敵人資料查詢邏輯，一律沿用`window.PriTestEnemies.get()`／既有夜王資料）。
+
+變更內容：把`recomputeActiveEncounter()`裡「第一次遭遇即直接confirmedEncounterIds=true」的分支，改成統一先進入跟`pendingBattleReentry`同一套（可共用或另開一個並行的`pendingBattlePrep`本地旗標）的準備狀態，時長5秒（不是既有re-entry用的3秒，兩者分開設定，不互相干擾既有re-entry行為），準備期間：
+- 對應這個遭遇類型的banner（強敵沿用`#midnight-strong-enemy-banner`；一般敵人/夜之強敵/夜王各自沿用/新增對應顯示區塊）顯示名稱＋種類＋體型等識別資訊。
+- 顯示5秒讀取條，讀滿後文字切換為「準備進入戰鬥」（新增i18n key）。
+- 這段期間`mapExpanded`維持原狀不強制關閉——只有等這個準備流程跑完、`activeEncounter`真正被設定之後，既有的`if (activeEncounter && mapExpanded) setMapExpanded(false)`才會如常觸發關閉地圖、進入戰鬥畫面。
+
+範圍：僅套用在「遭遇敵人、強敵、夜之強敵、夜王」這4種會進入戰鬥的encounter candidate（`encounterEnemyPoint()`／`nearbyFieldPoint`且已解析出`enemyFamilyId`／`nearbyFinalCircleBoss`／`nearbyDay3Boss`），不影響不含戰鬥的板塊事件（商人、祝福、聖甲蟲判定等）。既有的re-entry讀條（`pendingBattleReentry`，3秒）維持不變，不合併成同一套，避免re-entry情境下也被迫多顯示一次識別資訊（那種情境玩家通常已經看過這個敵人）。
+
+驗證方式：
+1. 靠近一個尚未挑戰過的強敵籌碼並加入，確認banner先顯示名稱/種類/體型5秒、跑完顯示「準備進入戰鬥」，地圖在這5秒內仍是展開狀態、可移動，讀完才自動收合地圖進入戰鬥。
+2. 對一般板塊敵人遭遇／夜之強敵／夜王重複上述驗證。
+3. 確認re-entry（離開後重新靠近同一場戰鬥）流程外觀與時長不受影響，仍是原本3秒按鈕式讀條。
 
 ---
 
@@ -176,12 +195,13 @@ GM判斷類報酬（`hpDamage`/`tieredChoice`/`diceHandChoice`/`note`）透過`r
 
 ---
 
-## 5. HUD顯示資訊盤點（`#midnight-hud-top-left`／`#midnight-hud-top-right`）
+## 5. HUD顯示資訊盤點＋6個區塊搬移到右上
 
-本節純粹列出目前程式碼中，這兩個固定角落面板實際會顯示的資訊，供使用者參考，不涉及本次程式修改。
+### 5.1 盤點（現況）
 
-### 5.1 `#midnight-hud-top-left`（左上）
+目前程式碼中，`#midnight-hud-top-left`／`#midnight-hud-top-right`這兩個固定角落面板實際會顯示的資訊：
 
+`#midnight-hud-top-left`（左上，`midnight_page.py:297-373`）：
 - 進入戰鬥提示按鈕＋3秒讀取條（`#midnight-enter-battle-prompt`，離開戰鬥後再進入時顯示）
 - 暫停後繼續遊戲的3秒讀取條（`#midnight-resume-countdown-row`）
 - Day1/Day2夜之強敵倒數（`#midnight-final-circle-countdown`，純顯示不可操作）
@@ -193,11 +213,31 @@ GM判斷類報酬（`hpDamage`/`tieredChoice`/`diceHandChoice`/`note`）透過`r
 - 隊友（其他玩家）血量卡片（`#midnight-players-panel-slots`）
 - 附近掉落物簡易資訊＋拾取按鈕（`#midnight-ground-item-prompt`）
 
-### 5.2 `#midnight-hud-top-right`（右上）
-
+`#midnight-hud-top-right`（右上，`midnight_page.py:382-413`）：
 - 自己的盧恩數值（`#midnight-self-rune-value`）
 - 小地圖（戰鬥中且地圖收合時顯示，`#midnight-minimap-canvas`）
 - 地圖圖示按鈕（展開/收合全螢幕地圖，`#btn-midnight-map-icon`）
 - 角色面板開啟按鈕（`#btn-midnight-open-character-sheet`，可習得遺物效果時會黃光提示）
 - 選單開啟按鈕（`#btn-midnight-toggle-menu`）
 - 測試模式面板（`#midnight-test-panel`，僅`meta.testMode`為true時顯示；本次改為需另外點擊才展開，見§1）
+- （新增，見§2）折疊banner後顯示的「◀」展開按鈕
+
+### 5.2 變更內容：以下6個區塊從左上搬到右上
+
+使用者確認以下6個區塊（目前在`#midnight-hud-top-left`內）改放進`#midnight-hud-top-right`：
+
+- `#midnight-enter-battle-prompt`（進入戰鬥提示＋3秒讀取條）
+- `#midnight-resume-countdown-row`（暫停後繼續遊戲3秒讀取條）
+- `#midnight-final-circle-countdown`（Day1/Day2夜之強敵倒數）
+- `#midnight-hud-day1-rewards-row`（Day1夜之強敵戰後祝福／離去列）
+- Day2夜之強敵戰後祝福／商人／離去列（`#btn-midnight-hud-blessing`／`#midnight-hud-merchant-row`）
+- `#midnight-hud-ready-final-row`（準備進入最終王戰列）
+
+做法：在`site_src/midnight_page.py`中把這6個區塊的HTML區塊從`#midnight-hud-top-left`剪下、貼到`#midnight-hud-top-right`內（放在既有內容之後或依畫面配置調整順序）。這些區塊對應的JS渲染函式（`renderEnterBattlePrompt()`／`updateResumeCountdownHud()`／`renderFinalCircleCountdown()`／`renderFinalCircleRewardsHud()`等）都是透過`el(id)`存取，不依賴DOM父層路徑，搬動後邏輯不需要改動；`style.css`若有針對`#midnight-hud-top-left`子元素的專屬選擇器（例如`.midnight-bar-row`等），需要確認搬到`#midnight-hud-top-right`（`align-items:flex-end`的flex column）後版面是否跑掉，必要時補上或調整置右對齊的樣式微調。
+
+`#midnight-hud-top-left`搬移後只剩：自己HP／FP／體力數值條、聖杯瓶剩餘數、隊友血量卡片、附近掉落物提示。
+
+### 5.3 驗證方式
+
+1. `generate.py`建置後，實際觸發上述6種情境（進入戰鬥提示、暫停繼續讀條、Day1/2強敵倒數、Day1/2戰後選項列、準備進入王戰列），確認畫面上這些元件改顯示在右上角、樣式無跑版，且原本的操作/倒數邏輯不受影響。
+2. 確認左上角HUD只剩血量/FP/體力/聖杯瓶/隊友卡片/掉落物提示。
