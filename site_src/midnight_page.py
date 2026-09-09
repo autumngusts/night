@@ -945,7 +945,12 @@ BODY = """    <div class="midnight-wrap">
           <div id="midnight-reward-box">
             <h3 data-i18n="midnight_reward_title"></h3>
             <div id="midnight-reward-split">
-              <ul id="midnight-reward-list"></ul>
+              <div id="midnight-reward-list-wrap">
+                <h4 data-i18n="midnight_reward_shared_section_title"></h4>
+                <ul id="midnight-reward-list-shared"></ul>
+                <h4 data-i18n="midnight_reward_section_title"></h4>
+                <ul id="midnight-reward-list-personal"></ul>
+              </div>
               <div id="midnight-reward-detail"></div>
             </div>
             <button type="button" id="btn-midnight-reward-close" data-i18n="midnight_reward_close_button"></button>

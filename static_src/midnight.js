@@ -4031,7 +4031,8 @@
   // window.PriTestCharacterDrawer.drawWeaponFromCategory()（本檔案這次新增，見
   // character_drawer.js，category固定不隨機、其餘完全複用merchantDrawWeapon同一套
   // pickWeaponByRoll/lookupRarityBySum規則與weaponId格式）單獨處理；其餘武器/塔利斯曼/
-  // 消耗品沿用既有grantLootRewardEntryToCharacter()一套發獎邏輯，不另建第二套。
+  // 消耗品改推進pendingRewards佇列（2026-09-09改版，見handleTowerDiceConfirm()），
+  // 統一由玩家開獎勵清單抽選/確認取得，不再走grantLootRewardEntryToCharacter()直接授予。
   var TOWER_DICE_HAND_REWARDS = {
     sevenDice: [
       { kind: "staffStar", value: 2 },
@@ -4121,9 +4122,11 @@
     var rewardSpecs = TOWER_DICE_HAND_REWARDS[handId] || TOWER_DICE_HAND_REWARDS.default;
     var c = characters[myTokenId];
     if (!c) return;
+    // 2026-09-09改版：staffStar維持立即抽選武器（跟merchantDrawWeapon同款「抽選前先判斷
+    // 空間」的既有慣例，抽選本身有副作用不能延後），其餘kind改推進pendingRewards佇列，
+    // 統一由玩家自己開獎勵清單抽選/確認取得，不再背景直接授予+toast。
     var labels = [];
     var anyFull = false;
-    var entries = [];
     rewardSpecs.forEach(function (spec) {
       if (spec.kind === "staffStar") {
         // merchantDrawWeapon同様、hasInventorySpace判定は「抽選する前」に行う――抽選自体は
@@ -4136,17 +4139,12 @@
         var drawn = window.PriTestCharacterDrawer.drawWeaponFromCategory(c, "staff", spec.value);
         if (drawn) labels.push(window.PriTestWeapons.localizedText(drawn.item.name));
       } else if (spec.kind === "weaponStar") {
-        entries.push({ kind: "weaponStar", value: spec.value });
+        pushPendingReward(myTokenId, { kind: "weaponStar", value: spec.value });
       } else if (spec.kind === "talisman") {
-        entries.push({ kind: "talisman" });
+        pushPendingReward(myTokenId, { kind: "talisman" });
       } else if (spec.kind === "consumable") {
-        for (var i = 0; i < spec.count; i++) entries.push({ kind: "consumable", itemId: spec.itemId });
+        for (var i = 0; i < spec.count; i++) pushPendingReward(myTokenId, { kind: "consumable", itemId: spec.itemId });
       }
-    });
-    entries.forEach(function (entry) {
-      var label = grantLootRewardEntryToCharacter(c, entry);
-      if (label) labels.push(label);
-      else if (entry.kind === "weaponStar" || entry.kind === "talisman" || entry.kind === "consumable") anyFull = true;
     });
     GameStorage.rtSet(gameId, "cloud", "character/" + myTokenId, c);
     el("midnight-tower-dice-hand-modal").hidden = true;
@@ -4745,19 +4743,11 @@
       if (committed !== true) return; // 這次沒有真正搶到(committed===null，代表已經領過)
       var trig = fieldTriggers[pointId] || {};
       var ledger = trig.perPlayerRewards || {};
-      var c = characters[myTokenId];
-      if (!c) return;
-      var labels = [];
       Object.keys(ledger).forEach(function (seq) {
         (ledger[seq].entries || []).forEach(function (entry) {
-          var label = grantLootRewardEntryToCharacter(c, entry);
-          if (label) labels.push(label);
+          pushPendingReward(myTokenId, entry);
         });
       });
-      if (labels.length) {
-        c._lastTileRewardNote = { text: window.I18N.t("midnight_reward_toast_prefix") + labels.join("、"), at: Date.now() };
-      }
-      GameStorage.rtSet(gameId, "cloud", "character/" + myTokenId, c);
     });
   }
 
@@ -6344,8 +6334,8 @@
         if (trig.ambushEnemyNameJa === "調律の魔物") {
           // event_rulebook.js:981-982「潜在する力：★★」＝2個★，跟fields_data_4.js:2216-2219
           // 已結構化的同一份固定卡牌獎勵一致（武器附加「発狂／-5」的文字性質同weaponStar的
-          // attributeTag，grantLootRewardEntryToCharacter()本來就不吃potentialPower的
-          // attributeTag，同既有簡化，不重新發明）。
+          // attributeTag，potentialPower既有的抽選流程本來就不吃這個attributeTag，
+          // 同既有簡化，不重新發明）。
           pushPendingReward(p.tokenId, { kind: "potentialPower", value: 2 });
         }
         var c = characters[p.tokenId];
@@ -6615,11 +6605,11 @@
     }).then(function (committed) {
       if (committed !== myTokenId) return;
       // 這是單一PC的個人動作（消費自己的技藝），不是trig.participants群體踏破獎勵，
-      // 因此沿用既有做法：直接重用grantTileLootToParticipants()既有的「授予＋toast note＋
-      // 背包已滿訊息」完整邏輯，participants只放觸發者自己這一個席位。
-      // grantLootRewardEntryToCharacter()的"consumable"分支只認itemId對應的namedItem.uses
-      // （固定授予1個、忽略value欄位），無法表達「×3」，正確的kind是"smithingStone"
-      // （見該函式"stoneswordKey"/"smithingStone"分支，value才真的會被疊加進usesRemaining）。
+      // 因此沿用既有做法：直接重用grantTileLootToParticipants()既有的「推進pendingRewards」
+      // 邏輯，participants只放觸發者自己這一個席位。
+      // "consumable"kind在computeRewardDraw()裡只認itemId對應的固定品項（忽略value欄位），
+      // 無法表達「×3」，正確的kind是"smithingStone"（見該函式"stoneswordKey"/"smithingStone"
+      // 分支，value才真的會被疊加進usesRemaining）。
       var soloParticipants = {};
       soloParticipants[mySlot] = true;
       grantTileLootToParticipants({ participants: soloParticipants }, [{ kind: "smithingStone", value: 3, perPerson: true }]);
@@ -6759,11 +6749,11 @@
       Object.keys(trig.participants || {}).forEach(function (slot) {
         var p = players[slot];
         if (!p) return;
-        // "potentialPower"這個kind目前只有pendingRewards抽選清單流程
-        // （computeRewardDraw()）認得，grantLootRewardEntryToCharacter()本身對它是no-op
-        // （見該函式尾端註解），所以這裡必須跟maybeGrantStrongEnemyReward()一樣走
-        // pushPendingReward()逐一個別授予、而不是pushPerPlayerReward()（那只是
-        // fieldProgress後補領取ledger，本身不會立即套用任何東西）。
+        // "potentialPower"這個kind目前只有pendingRewards抽選清單流程認得（見
+        // renderPotentialPowerRewardDetail()，不是computeRewardDraw()的一般draft流程），
+        // 所以這裡必須跟maybeGrantStrongEnemyReward()一樣走pushPendingReward()逐一個別
+        // 授予、而不是pushPerPlayerReward()（那只是fieldProgress後補領取ledger，本身
+        // 不會立即套用任何東西）。
         pushPendingReward(p.tokenId, { kind: "rune", value: METEOR_REWARD_RUNES });
         pushPendingReward(p.tokenId, { kind: "potentialPower", value: METEOR_REWARD_POTENTIAL_STARS });
       });
@@ -6940,7 +6930,7 @@
         // event_rulebook.js:563「ボス戦闘（撃破ルーン：7）」＋:579「潜在する力：★★」——
         // 兩者是同一個「n回戦闘結束時」時機點的獎勵，都走pushPendingReward()（同
         // maybeGrantMeteorReward()的理由：potentialPower只有pendingRewards抽選清單流程
-        // 認得，grantLootRewardEntryToCharacter()對它是no-op）。
+        // 認得，見renderPotentialPowerRewardDetail()）。
         Object.keys(trig.participants || {}).forEach(function (slot) {
           var p = players[slot];
           if (!p) return;
@@ -7331,121 +7321,19 @@
 
   // ---- 板塊(卡牌)獎勵——開啟並執行：讀該floor.reward，用night_floor_breakthrough.js
   // 既有isLootRewardEntry()篩出戰利品entry（純函式，不依賴night.js的Core.state），
-  // 逐筆授予後直接顯示toast，不像擊殺敵人獎勵需要另開分割視窗。----
-  function grantLootRewardEntryToCharacter(c, entry) {
-    var CD = window.PriTestCharacterDrawer;
-    if (entry.kind === "rune") {
-      c.runes = (c.runes || 0) + (entry.value || 0);
-      return window.I18N.t("midnight_reward_label_rune", { value: entry.value || 0 });
-    }
-    if (entry.kind === "weaponStar") {
-      if (!hasInventorySpace(c, "weapon")) return null; // 已滿：略過（同下方既有「不阻塞其餘品項」精神）
-      var result = CD.merchantDrawWeapon(c, entry.value || 1);
-      if (!result) return null;
-      return window.PriTestWeapons.localizedText(result.item.name);
-    }
-    if (entry.kind === "consumable") {
-      if (!hasInventorySpace(c, "consumable")) return null;
-      var Consumables = window.PriTestConsumables;
-      c.consumables = c.consumables || [];
-      if (entry.itemId) {
-        var namedItem = Consumables.get(entry.itemId);
-        var instId = CD.makeConsumableInstanceId(entry.itemId, c);
-        c.consumables.push({ id: instId, itemId: entry.itemId, usesRemaining: (namedItem && namedItem.uses) || 1 });
-        return namedItem ? Consumables.localizedText(namedItem.name) : entry.itemId;
-      }
-      var pool = Consumables.list();
-      if (!pool.length) return null;
-      var picked = pool[Math.floor(Math.random() * pool.length)];
-      var pickedInstId = CD.makeConsumableInstanceId(picked.id, c);
-      c.consumables.push({ id: pickedInstId, itemId: picked.id, usesRemaining: picked.uses || 1 });
-      return Consumables.localizedText(picked.name);
-    }
-    if (entry.kind === "talisman") {
-      if (!hasInventorySpace(c, "talisman")) return null;
-      var Talismans = window.PriTestTalismans;
-      var talismanPool = Talismans.list();
-      if (!talismanPool.length) return null;
-      var pickedTalisman = talismanPool[Math.floor(Math.random() * talismanPool.length)];
-      c.talismanIds = c.talismanIds || [];
-      c.talismanIds.push(pickedTalisman.id);
-      return Talismans.localizedText(pickedTalisman.name);
-    }
-    // 2026-09-06使用者明確要求「K（教會）過程中會取得聖杯瓶，讓聖杯瓶使用上限增加」：
-    // fields_data_4.js card_k（教會）樓層1的reward本來就有{kind:"chaliceBonus", value:1}
-    // 這筆（規則書原文「PC全員は「聖杯瓶の使用回数：+1」を獲得」），只是midnight角色物件
-    // 原本沒有對應處理、被上面這段舊註解刻意略過。這裡補上：flaskMax/flaskCount各自
-    // +value，等同拿到新的聖杯瓶充能同時直接補滿（跟遊戲裡「拿到聖杯瓶」的既有體感一致）。
-    if (entry.kind === "chaliceBonus") {
-      var bonus = entry.value || 0;
-      c.flaskMax = (c.flaskMax || FLASK_MAX_DEFAULT) + bonus;
-      c.flaskCount = (c.flaskCount || 0) + bonus;
-      return window.I18N.t("midnight_reward_label_chalice_bonus", { value: bonus });
-    }
-    if (entry.kind === "stoneswordKey" || entry.kind === "smithingStone") {
-      var itemId = entry.kind === "stoneswordKey" ? "item_stonesword_key" : "item_smithing_stone";
-      var value = entry.value || 1;
-      c.consumables = c.consumables || [];
-      var existing = c.consumables.filter(function (inst) { return inst.itemId === itemId; })[0];
-      if (existing) {
-        existing.usesRemaining = (existing.usesRemaining || 0) + value;
-      } else {
-        if (!hasInventorySpace(c, "consumable")) return null; // 已滿：略過（同上方既有「不阻塞其餘品項」精神）
-        var instId = CD.makeConsumableInstanceId(itemId, c);
-        c.consumables.push({ id: instId, itemId: itemId, usesRemaining: value });
-      }
-      var itemData = window.PriTestConsumables.get(itemId);
-      return itemData ? window.PriTestConsumables.localizedText(itemData.name) : itemId;
-    }
-    // 戰技重抽券（設計文件§3.5，Task 13）：perPerson:true一次性使用權，不即時套用任何
-    // 戰技變更，只累加c._weaponRerollCredits點數，實際重抽/套用交由角色面板的鍛造台UI
-    // （openWeaponRerollModal()/handleWeaponRerollApplyClick()）處理，見上方
-    // isPerPersonRewardEntry()/grantTileLootToParticipants()呼叫路徑。
-    if (entry.kind === "weaponSkillReroll") {
-      c._weaponRerollCredits = (c._weaponRerollCredits || 0) + (entry.value || 1);
-      return window.I18N.t("midnight_reward_label_weapon_skill_reroll", { value: entry.value || 1 });
-    }
-    // 其餘loot kind（potentialPower）
-    // midnight角色物件目前沒有對應欄位，本次milestone先略過，不阻塞其餘品項的授予
-    // （不是bug，是已知範圍限制，見規劃紀錄）。
-    return null;
-  }
+  // 逐筆推進pendingRewards佇列，統一由玩家自己開獎勵清單抽選/確認取得（2026-09-09改版，
+  // 設計文件§4.3）。原本這裡的grantLootRewardEntryToCharacter()直接授予+toast路徑已無
+  // 呼叫端，整個移除，各kind的實際套用邏輯搬到computeRewardDraw()。----
 
-  // 背包已滿（設計文件§3.1）：grantLootRewardEntryToCharacter()對weaponStar/consumable/
-  // talisman/stoneswordKey/smithingStone五種kind會在hasInventorySpace(c,"consumable"/
-  // "weapon")判定已滿時回傳null（見上方該函式；stoneswordKey/smithingStone在角色
-  // 尚未持有該道具、需要新開一格consumable slot時才會走到滿的判斷，已持有同名道具則是
-  // 疊加usesRemaining、不受inventory上限影響），本來這裡只看labels是否為空、滿了就整包
-  // 靜默略過、玩家完全不知道漏拿了東西。現在額外記一個anyFull旗標，只要有任一筆因為背包
-  // 滿而被略過，就把midnight_inventory_full_note這句既有i18n提示文字接在通知後面一起
-  // 顯示（不是新增規則數值，純粹是「讓玩家知道」）。
-  // 注意：只比對這五種kind——其餘kind（如目前尚未實作角色欄位的potentialPower／
-  // weaponSkillReroll）回傳null是「功能範圍限制」而非「背包已滿」，不能誤判成滿了。
+  // 背包已滿的提示改由renderRewardDetail()既有的hasInventorySpace()判斷在玩家實際按
+  // 「確認」那一刻擋下並提示（2026-09-09改版），不在推進pendingRewards時預判。
   function grantTileLootToParticipants(trig, lootEntries) {
     Object.keys(trig.participants || {}).forEach(function (slot) {
       var p = players[slot];
       if (!p) return;
-      var c = characters[p.tokenId];
-      if (!c) return;
-      var labels = [];
-      var anyFull = false;
       lootEntries.forEach(function (entry) {
-        var label = grantLootRewardEntryToCharacter(c, entry);
-        if (label) labels.push(label);
-        else if (
-          entry.kind === "weaponStar" ||
-          entry.kind === "talisman" ||
-          entry.kind === "consumable" ||
-          entry.kind === "stoneswordKey" ||
-          entry.kind === "smithingStone"
-        )
-          anyFull = true;
+        pushPendingReward(p.tokenId, entry);
       });
-      var text = labels.length ? window.I18N.t("midnight_reward_toast_prefix") + labels.join("、") : "";
-      if (anyFull) text = text + (text ? "　" : "") + window.I18N.t("midnight_inventory_full_note");
-      if (!text) return;
-      c._lastTileRewardNote = { text: text, at: Date.now() };
-      GameStorage.rtSet(gameId, "cloud", "character/" + p.tokenId, c);
     });
   }
 
@@ -7482,26 +7370,14 @@
       if (committed !== true) return; // 這次沒有真正搶到(committed===null，代表已經領過)
       var progress = fieldProgress[pointId] || {};
       var ledger = progress.perPlayerRewards || {};
-      var c = characters[myTokenId];
-      if (!c) return;
-      var labels = [];
+      // 2026-09-09改版：所有entry統一推進pendingRewards（不再對chaliceBonus以外的kind
+      // 走grantLootRewardEntryToCharacter()直接套用+toast），跟grantTileLootToParticipants()
+      // /claimLateFieldTriggerRewards()保持一致，見設計文件§4.3。
       Object.keys(ledger).forEach(function (seq) {
         (ledger[seq].entries || []).forEach(function (entry) {
-          // chaliceBonus改走個人待領取清單（設計文件§5，Task 16）：跟上方
-          // maybeGrantFieldTileReward()的即時授予路徑保持一致，後補領取者也不應該
-          // 繞過獎勵清單直接套用，因此改成推進pendingRewards、由玩家自己按「領取」。
-          if (entry.kind === "chaliceBonus") {
-            pushPendingReward(myTokenId, { kind: entry.kind, value: entry.value });
-            return;
-          }
-          var label = grantLootRewardEntryToCharacter(c, entry);
-          if (label) labels.push(label);
+          pushPendingReward(myTokenId, entry);
         });
       });
-      if (labels.length) {
-        c._lastTileRewardNote = { text: window.I18N.t("midnight_reward_toast_prefix") + labels.join("、"), at: Date.now() };
-      }
-      GameStorage.rtSet(gameId, "cloud", "character/" + myTokenId, c);
     });
   }
 
@@ -7523,13 +7399,8 @@
       if (committed !== myTokenId) return; // 被別人搶先領走
       var trig = fieldTriggers[pointId];
       var entry = trig && trig.sharedRewards && trig.sharedRewards[rewardId];
-      var c = characters[myTokenId];
-      if (!entry || !c) return;
-      var label = grantLootRewardEntryToCharacter(c, entry);
-      if (label) {
-        c._lastTileRewardNote = { text: window.I18N.t("midnight_reward_toast_prefix") + label, at: Date.now() };
-      }
-      GameStorage.rtSet(gameId, "cloud", "character/" + myTokenId, c);
+      if (!entry) return;
+      pushPendingReward(myTokenId, entry);
     });
   }
 
@@ -7607,18 +7478,15 @@
     (entries || []).forEach(function (entry) {
       if (entry.kind === "hpDamage") {
         // note文字常描述「行為判定失敗時」「ランダム2人」等條件，這些條件App無法自動判斷
-        // （不是真正的機率/擲骰資料），因此統一比照brief既定設計：隨機挑1名參與者套用固定
-        // 傷害值，note純粹留作GM/玩家自行理解情境用，不逐一解析每種條件文字。
+        // （不是真正的機率/擲骰資料），因此統一比照既定設計：隨機挑1名參與者，但2026-09-09
+        // 改為不再直接扣血，改推進該玩家的pendingRewards佇列（設計文件§4.4），由玩家自己
+        // 開獎勵清單按「確認」時才真正扣血（見computeRewardDraw()的hpDamage分支）。
         var slots = participantSlots(trig);
         if (slots.length) {
           var pickedSlot = slots[Math.floor(Math.random() * slots.length)];
           var tokenId = players[pickedSlot] && players[pickedSlot].tokenId;
           if (tokenId) {
-            GameStorage.rtTransaction(gameId, "cloud", "demoStat/" + tokenId, function (cur) {
-              var max = selfArenaHpMax(characters[tokenId]);
-              var current = cur === null ? max : cur;
-              return Math.max(0, current - (entry.value || 0));
-            });
+            pushPendingReward(tokenId, { kind: "hpDamage", value: entry.value || 0 });
           }
         }
       } else if (entry.kind === "tieredChoice") {
@@ -7633,12 +7501,12 @@
         var hand = judgeDiceHandEntry(entry, values);
         if (hand) lootOut = lootOut.concat(resolveJudgmentRewardEntries(hand.rewards, trig, voteChoiceLabel));
       } else if (entry.kind === "note") {
+        // 2026-09-09改版：不再直接寫_lastTileRewardNote背景toast，改推進每個參加者的
+        // pendingRewards佇列（設計文件§4.4），開獎勵清單才看得到文字內容。
         Object.keys(trig.participants || {}).forEach(function (slot) {
           var p = players[slot];
-          var c = p && characters[p.tokenId];
-          if (!c) return;
-          c._lastTileRewardNote = { text: window.PriTestFields.localizedText(entry.note), at: Date.now() };
-          GameStorage.rtSet(gameId, "cloud", "character/" + p.tokenId, c);
+          if (!p) return;
+          pushPendingReward(p.tokenId, { kind: "note", text: window.PriTestFields.localizedText(entry.note) });
         });
       } else {
         lootOut.push(entry); // 戰利品類直接回傳，交給呼叫端跟現有戰利品entries合併處理
@@ -8030,6 +7898,51 @@
         },
       };
     }
+    if (entry.kind === "stoneswordKey" || entry.kind === "smithingStone") {
+      var itemId = entry.kind === "stoneswordKey" ? "item_stonesword_key" : "item_smithing_stone";
+      var value2 = entry.value || 1;
+      var itemData = window.PriTestConsumables.get(itemId);
+      return {
+        label: (itemData ? window.PriTestConsumables.localizedText(itemData.name) : itemId) + " x" + value2,
+        apply: function (c) {
+          c.consumables = c.consumables || [];
+          var existing = c.consumables.filter(function (inst) { return inst.itemId === itemId; })[0];
+          if (existing) {
+            existing.usesRemaining = (existing.usesRemaining || 0) + value2;
+          } else {
+            var instId = window.PriTestCharacterDrawer.makeConsumableInstanceId(itemId, c);
+            c.consumables.push({ id: instId, itemId: itemId, usesRemaining: value2 });
+          }
+        },
+      };
+    }
+    if (entry.kind === "weaponSkillReroll") {
+      var rerollValue = entry.value || 1;
+      return {
+        label: window.I18N.t("midnight_reward_label_weapon_skill_reroll", { value: rerollValue }),
+        apply: function (c) {
+          c._weaponRerollCredits = (c._weaponRerollCredits || 0) + rerollValue;
+        },
+      };
+    }
+    if (entry.kind === "hpDamage") {
+      return {
+        label: window.I18N.t("midnight_reward_label_hp_damage", { value: entry.value || 0 }),
+        apply: function (c) {
+          var max = selfArenaHpMax(c);
+          GameStorage.rtTransaction(gameId, "cloud", "demoStat/" + myTokenId, function (cur) {
+            var current = cur === null ? max : cur;
+            return Math.max(0, current - (entry.value || 0));
+          });
+        },
+      };
+    }
+    if (entry.kind === "note") {
+      return {
+        label: entry.text || "",
+        apply: function () {},
+      };
+    }
     if (entry.kind === "talisman") {
       var Talismans = window.PriTestTalismans;
       var pool = Talismans.list();
@@ -8286,8 +8199,10 @@
       return;
     }
     modal.hidden = false;
-    var listEl = el("midnight-reward-list");
-    listEl.innerHTML = "";
+    var personalListEl = el("midnight-reward-list-personal");
+    var sharedListEl = el("midnight-reward-list-shared");
+    personalListEl.innerHTML = "";
+    sharedListEl.innerHTML = "";
     unresolvedIds.forEach(function (id) {
       var entry = list[id];
       var li = document.createElement("li");
@@ -8299,7 +8214,7 @@
         renderRewardDetail(id, entry);
       });
       li.appendChild(btn);
-      listEl.appendChild(li);
+      personalListEl.appendChild(li);
     });
     // 共享池項目：獨立的<li>/按鈕，附黃字「共有獎勵，非全員獲得」提示，點擊直接
     // claimSharedReward(pointId, rewardId)——不經過個人清單的selectedRewardId/
@@ -8318,7 +8233,7 @@
       note.className = "warning-text";
       note.textContent = window.I18N.t("midnight_reward_shared_note");
       li.appendChild(note);
-      listEl.appendChild(li);
+      sharedListEl.appendChild(li);
     });
     if (!unresolvedIds.length) {
       // 個人清單目前沒有未解決項目(可能只有共享池項目)：清空detail面板，避免殘留上一次
@@ -8735,8 +8650,8 @@
   }
 
   // 鍛造台開啟按鈕（角色面板武器格下方，設計文件§3.5）：文字帶剩餘可重抽次數，
-  // c._weaponRerollCredits為0（含未設定）時disabled。這個button是grantLootRewardEntryToCharacter()
-  // 給的weaponSkillReroll點數唯一的消費入口。
+  // c._weaponRerollCredits為0（含未設定）時disabled。這個button是computeRewardDraw()
+  // 的weaponSkillReroll kind給的點數唯一的消費入口。
   function renderWeaponRerollOpenButton(c) {
     var btn = el("btn-midnight-open-weapon-reroll");
     if (!btn) return;
