@@ -741,6 +741,9 @@
   var pendingBattleReentry = null;
   var battleEnteringUntil = null;
   var BATTLE_ENTER_LOADING_MS = 3000; // 使用者明確規格「接著需要讀條3秒後才正式進入戰鬥畫面」
+  var BATTLE_PREP_DURATION_MS = 5000; // 使用者明確規格：識別資訊+讀條共5秒
+  var battlePrepCandidate = null; // 目前正在跑5秒準備流程的encounter candidate
+  var battlePrepUntil = null; // 準備流程結束時間戳；null代表沒有正在準備
   var fieldEnterAttempted = {}; // pointId -> true（本地節流：按下「進入」的transaction只送一次）
   var fieldInviteResolveAttempted = {}; // pointId -> true（本地節流：inviting→active的transaction只送一次）
   var fieldTypewriterStartedFor = {}; // pointId -> true（本地旗標：這個點的打字機動畫只啟動一次）
@@ -4359,7 +4362,12 @@
       // 跟nearbyLateJoinPoint互斥：若「參加探索」這一刻已經成立，代表還有進行中的內容
       // 更優先，先不顯示領取獎勵——ledger本身不會過期，等中途加入不再適用（trig被清空
       // 進入下一層、或已全清如上面排除的情況）時再靠近仍能領到，不會遺失獎勵。
-      if (!nearbyLateJoinPoint && progress0) {
+      // fix(2026-09-09)：剛按下[進入]的當下，本地fieldTriggers快取可能還沒反映
+      // handleEnterFieldPointClick()剛寫入的trig（RTDB監聽回填有延遲），這段窗口內
+      // trig0會被誤判成null、neverJoined0誤判成true，導致late-claim-prompt跟banner
+      // 搶同一個固定位置閃爍。用既有的fieldEnterAttempted[pt.id]（本來就代表「我剛按過
+      // 這個點的進入」）排除這個窗口。
+      if (!nearbyLateJoinPoint && progress0 && !fieldEnterAttempted[found.id]) {
         var alreadyClaimed0 = progress0.claimedBy && progress0.claimedBy[myTokenId];
         var neverJoined0 = !(trig0 && trig0.participants && trig0.participants[mySlot]);
         if (neverJoined0 && !alreadyClaimed0) {
@@ -4477,8 +4485,16 @@
     // 多此一舉再按一次；否則（重新靠近、或原本不是participant想加入別人的戰鬥）要先
     // 經過下面的[進入戰鬥]確認流程，見handleEnterBattleClick()／updateBattleEnterLoading()。
     var amParticipant = !!(trig.participants && trig.participants[mySlot]);
+    // 2026-09-09新增：第一次遭遇（confirmedEncounterIds尚未設定過）時，不再直接
+    // confirmedEncounterIds=true，改先跑5秒識別資訊準備流程（updateBattlePrep()），
+    // 讓地圖不會瞬間收合。re-entry（confirmedEncounterIds已經設過、這次是重新靠近）
+    // 維持原有的pendingBattleReentry 3秒讀條流程，不受影響。
     if (confirmedEncounterIds[candidate.id] === undefined && amParticipant) {
-      confirmedEncounterIds[candidate.id] = true;
+      if (!battlePrepCandidate || battlePrepCandidate.id !== candidate.id) {
+        battlePrepCandidate = candidate;
+        battlePrepUntil = Date.now() + BATTLE_PREP_DURATION_MS;
+      }
+      return;
     }
     if (confirmedEncounterIds[candidate.id]) {
       pendingBattleReentry = null;
@@ -4491,6 +4507,65 @@
     }
     activeEncounter = null;
     if (wasActive) onEncounterEnded();
+  }
+
+  // 遭遇戰鬥前置準備（2026-09-09新增）：5秒跑完後才把battlePrepCandidate正式提升成
+  // confirmedEncounterIds/activeEncounter，讓recomputeActiveEncounter()下一影格接手
+  // 既有流程（含frame()裡「activeEncounter存在就setMapExpanded(false)」的既有邏輯，
+  // 這裡完全不重複那段收合地圖的程式碼）。
+  function updateBattlePrep(now) {
+    if (!battlePrepCandidate) return;
+    // 離開範圍/敵人已死/已經是participant以外的原因喪失候選資格時作廢，避免殘留。
+    var currentEnemyPoint = encounterEnemyPoint();
+    var stillValid = (currentEnemyPoint && currentEnemyPoint.id === battlePrepCandidate.id) ||
+      (nearbyFieldPoint && nearbyFieldPoint.id === battlePrepCandidate.id) ||
+      (nearbyFinalCircleBoss && nearbyFinalCircleBoss.id === battlePrepCandidate.id) ||
+      (nearbyDay3Boss && nearbyDay3Boss.id === battlePrepCandidate.id);
+    if (!stillValid) {
+      battlePrepCandidate = null;
+      battlePrepUntil = null;
+      return;
+    }
+    if (now < battlePrepUntil) return;
+    confirmedEncounterIds[battlePrepCandidate.id] = true;
+    battlePrepCandidate = null;
+    battlePrepUntil = null;
+    recomputeActiveEncounter();
+  }
+
+  // 識別資訊來源沿用renderFieldEncounterPanel()同一套資料查詢（window.PriTestEnemies.get()／
+  // bossRulebookData()），不新增第二套敵人資料解析。
+  function battlePrepIdentityText(trig) {
+    if (!trig) return { name: "", detail: "" };
+    if (trig.enemyFamilyId === BOSS_ENEMY_FAMILY_SENTINEL) {
+      var bossInfo = bossRulebookData(trig.enemyId);
+      return { name: bossInfo ? window.PriTestEnemies.localizedText(bossInfo.name) : trig.enemyId, detail: "" };
+    }
+    var data = trig.enemyFamilyId && window.PriTestEnemies ? window.PriTestEnemies.get(trig.enemyFamilyId, trig.enemyId) : null;
+    if (!data) return { name: "", detail: "" };
+    var parts = [];
+    parts.push(window.I18N.t("midnight_strong_enemy_kind_label", { kind: window.PriTestEnemies.localizedText(data.familyName) }));
+    if (data.enemy.size) parts.push(window.I18N.t("midnight_strong_enemy_size_label", { size: data.enemy.size }));
+    return { name: window.PriTestEnemies.localizedText(data.enemy.name), detail: parts.join("　") };
+  }
+
+  function renderBattlePrepBanner(now) {
+    var box = el("midnight-battle-prep-banner");
+    if (!box) return;
+    if (!battlePrepCandidate) {
+      box.hidden = true;
+      return;
+    }
+    box.hidden = false;
+    var trig = fieldTriggers[battlePrepCandidate.id];
+    var identity = battlePrepIdentityText(trig);
+    el("midnight-battle-prep-name").textContent = identity.name;
+    el("midnight-battle-prep-detail").textContent = identity.detail;
+    var elapsed = BATTLE_PREP_DURATION_MS - Math.max(0, battlePrepUntil - now);
+    var pct = Math.max(0, Math.min(100, (elapsed / BATTLE_PREP_DURATION_MS) * 100));
+    el("midnight-battle-prep-loading-fill").style.width = pct + "%";
+    el("midnight-battle-prep-status").textContent =
+      pct >= 100 ? window.I18N.t("midnight_battle_prep_ready_note") : "";
   }
 
   // 按下上方資訊欄的[進入戰鬥]：開始BATTLE_ENTER_LOADING_MS讀取，讀取完才真正標記為
@@ -9152,6 +9227,7 @@
         // 原本「0.5秒讀取→打字機」那段既有流程，不需要另外收尾。
         invitePrompt.hidden = true;
         banner.hidden = false;
+        el("midnight-field-late-claim-prompt").hidden = true; // fix(2026-09-09)：同上，邀請倒數期間也要排除
         el("midnight-field-banner-name").textContent = locationName;
         el("midnight-field-narrative-text").textContent = "";
         el("midnight-field-vote-panel").hidden = true;
@@ -9193,6 +9269,7 @@
     }
 
     banner.hidden = false;
+    el("midnight-field-late-claim-prompt").hidden = true; // fix(2026-09-09)：banner顯示時強制排除late-claim-prompt同時出現，作為第二層保險
     var bannerFloorLabel = window.I18N.t("midnight_field_floor_progress_label", {
       current: (trig.floorIndex || 0) + 1,
       total: fieldFloorCountForCard(pt.card),
@@ -10548,7 +10625,9 @@
     updateNearbyGroundItem();
     updateEnemyAttack(now);
     updateBattleEnterLoading(now);
+    updateBattlePrep(now);
     renderEnterBattlePrompt();
+    renderBattlePrepBanner(now);
     renderFinalCircleCountdown(now);
     updateStamina(dtSec);
     updateSorceryHold(now);

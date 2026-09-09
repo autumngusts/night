@@ -5330,7 +5330,8 @@ button {
 #midnight-field-banner,
 #midnight-field-late-join-prompt,
 #midnight-field-late-claim-prompt,
-#midnight-strong-enemy-banner {
+#midnight-strong-enemy-banner,
+#midnight-battle-prep-banner {
   position: fixed;
   top: 8px;
   left: 50%;

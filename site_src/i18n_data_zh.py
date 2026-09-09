@@ -1571,6 +1571,7 @@ STRINGS_ZH: dict[str, str] = {
     "midnight_lobby_map_variant_basic": "基本版",
     "midnight_lobby_map_variant_full": "完整版（尚未開放）",
     "midnight_test_mode_password_prompt": "請輸入密碼以開啟測試模式",
+    "midnight_battle_prep_ready_note": "準備進入戰鬥",
     "midnight_test_console_open_button": "測試主控台",
     "midnight_test_force_shrink_button": "立即縮圈",
     "midnight_test_panel_title": "測試模式",

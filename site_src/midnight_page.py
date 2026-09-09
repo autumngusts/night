@@ -180,6 +180,19 @@ BODY = """    <div class="midnight-wrap">
           <button type="button" id="btn-midnight-strong-enemy-enter" data-i18n="midnight_strong_enemy_enter_button"></button>
         </div>
 
+        <!-- 遭遇戰鬥前置準備（2026-09-09新增，使用者明確規格）：敵人/強敵/夜之強敵/夜王
+             這4種會進入戰鬥的encounter，第一次遭遇時先顯示識別資訊5秒、讀完顯示「準備
+             進入戰鬥」，這段期間地圖不會被強制收合。見static/midnight.jsの
+             updateBattlePrep()/renderBattlePrepBanner()。 -->
+        <div id="midnight-battle-prep-banner" hidden>
+          <p id="midnight-battle-prep-name"></p>
+          <p id="midnight-battle-prep-detail"></p>
+          <div class="midnight-loading-track">
+            <span id="midnight-battle-prep-loading-fill" class="midnight-loading-fill"></span>
+          </div>
+          <p id="midnight-battle-prep-status"></p>
+        </div>
+
         <!-- 隨機事件籌碼（聖甲蟲，2026-09-05新增）：顯示event_rulebook.jsのrandom_eventチット
              「スカラベ／聖甲蟲」分支的描寫文字，玩家選精神/運氣/體能其中一項投骰判定。見
              static/midnight.js的renderScarabOverlay()。 -->

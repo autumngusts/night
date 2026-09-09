@@ -1571,6 +1571,7 @@ STRINGS_EN: dict[str, str] = {
     "midnight_lobby_map_variant_basic": "Basic",
     "midnight_lobby_map_variant_full": "Full (not yet available)",
     "midnight_test_mode_password_prompt": "Enter password to enable test mode",
+    "midnight_battle_prep_ready_note": "Preparing for battle",
     "midnight_test_console_open_button": "Test Console",
     "midnight_test_force_shrink_button": "Force Shrink Circle",
     "midnight_test_panel_title": "Test Mode",

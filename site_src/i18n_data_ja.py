@@ -1571,6 +1571,7 @@ STRINGS_JA: dict[str, str] = {
     "midnight_lobby_map_variant_basic": "基本版",
     "midnight_lobby_map_variant_full": "完全版（未実装）",
     "midnight_test_mode_password_prompt": "テストモードを有効にするにはパスワードを入力してください",
+    "midnight_battle_prep_ready_note": "戦闘準備完了",
     "midnight_test_console_open_button": "テストコンソール",
     "midnight_test_force_shrink_button": "即座に円を縮小",
     "midnight_test_panel_title": "テストモード",
