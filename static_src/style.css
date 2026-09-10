@@ -4786,12 +4786,53 @@ html.midnight-hud-above-banner #midnight-hud-top-right {
   max-width: 46vw;
 }
 
-#midnight-hud-bottom-right button {
+/* 2026-09-10使用者明確要求「右下hud的按鈕長度等等進入戰鬥後就以算完，不能因為增加文字
+   而拉長後，更動按鍵配置位置」：原本按鈕寬度完全由文字撐開，而文字在戰鬥中會變動——
+   攻擊鍵在連段第3擊時從「攻擊」變「Hit」、戰技鍵會變成「戰技(武器戰技名)」、技藝/技能
+   鍵原本還會附加「(12s)」冷卻秒數——每次變動都讓按鈕變寬/變窄，整排flex-wrap跟著重排，
+   玩家正要按的按鈕會跑掉位置。
+   這裡把寬度固定下來（5.6rem，容得下「戰技」「迴避」「防禦」這類2~3字＋圖示的常見情況），
+   文字超出時用單行省略號，完整內容留在title供hover查看。冷卻秒數則改成不佔文字空間的
+   圓形計時盤（見下方.midnight-cooldown-dial與midnight.jsのapplyCooldownDial()），因此
+   固定寬度不會讓冷卻資訊消失。 */
+#midnight-hud-bottom-right button,
+#midnight-hud-bottom-left-actions button {
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 0.15rem;
   position: relative;
+  width: 5.6rem;
+  box-sizing: border-box;
+}
+
+/* 按鈕內的文字span：單行、超出省略。刻意排除.midnight-action-flash——那是絕對定位在
+   按鈕「上方」（bottom:100%）的浮動提示（[成功迴避]/[受到傷害]，見showActionFlash()），
+   套上max-width/overflow會被按鈕寬度裁掉。按鈕本身也刻意不設overflow:hidden，同樣是
+   為了不裁掉這個浮出按鈕外的提示。 */
+#midnight-hud-bottom-right button > span:not(.midnight-action-flash),
+#midnight-hud-bottom-left-actions button > span:not(.midnight-action-flash) {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 圓形冷卻計時盤（2026-09-10使用者明確要求「要倒數而恢復使用次數的按鍵，使用圓形背景
+   計時：淡色開始順時針轉一圈恢復成原本顏色」）：--mn-cd是「已經過的百分比」，由
+   static/midnight.jsのapplyCooldownDial()逐幀寫入inline style。
+   conic-gradient從0deg（12點鐘方向）順時針掃，已經過的區段是透明（＝露出按鈕原本的
+   底色），尚未經過的區段蓋上一層淡色遮罩——因此視覺上是「淡色從整圈開始，順時針一格
+   一格褪去，轉完一圈就完全恢復成原本顏色」。
+   放在::before而不是background，才不會蓋掉按鈕自己的背景色（例如迴避/防禦的草綠色）；
+   pointer-events:none確保這層不吃點擊。 */
+.midnight-cooldown-dial::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  border-radius: inherit;
+  background: conic-gradient(from 0deg, transparent 0 var(--mn-cd, 0%), rgba(190, 210, 240, 0.62) var(--mn-cd, 0%) 100%);
 }
 
 /* 2026-09-10使用者明確要求「迴避與防禦按鍵背景色改為草綠色」：這兩顆是「反應」類動作
@@ -5240,17 +5281,22 @@ html.midnight-hud-above-banner #midnight-hud-top-right {
   background: #9a6fd8;
 }
 
-/* 瀕死玩家的復歸進度條（2026-09-08使用者明確規格「同步顯示其復歸條進度於hp血條中，並
-   使用淺藍色」）：取代該玩家原本的紅色HP條，見static/midnight.jsのrenderOccupiedSlotCard()。 */
+/* 瀕死玩家的復歸（拯救值）進度條（2026-09-08使用者明確規格「同步顯示其復歸條進度於hp
+   血條中」）：取代該玩家原本的紅色HP條，見static/midnight.jsのrenderOccupiedSlotCard()。
+   2026-09-10使用者回報「暗色模式下可能不清楚，換其他顏色」：原本的淡藍#8fd6f5在深色HUD
+   底（rgba(10,12,18,0.72)）上偏灰、又跟FP藍(#4a8fd8)／施法紫(#b98af0)容易混淆。改成高
+   飽和的青色＋外發光，讓它在一排血條裡一眼就分得出來是「這個人正在瀕死、還差多少才能
+   救起」，數值文字同色。 */
 .midnight-bar-revival {
-  background: #8fd6f5;
+  background: #29e0ff;
+  box-shadow: 0 0 6px rgba(41, 224, 255, 0.85);
 }
 
 .midnight-slot-hp-value {
   flex-shrink: 0;
   font-size: 0.62rem;
   font-variant-numeric: tabular-nums;
-  color: #8fd6f5;
+  color: #29e0ff;
 }
 
 /* 聖杯瓶讀取條／戰技B施法讀條（2026-09-05 HUD優化新增），見midnight.jsの
@@ -5827,7 +5873,8 @@ html.midnight-hud-above-banner #midnight-hud-top-right {
 #midnight-field-late-join-prompt,
 #midnight-field-late-claim-prompt,
 #midnight-strong-enemy-banner,
-#midnight-battle-prep-banner {
+#midnight-battle-prep-banner,
+#midnight-rewards-lock-banner {
   position: fixed;
   top: 8px;
   left: 50%;
@@ -5883,7 +5930,8 @@ html.midnight-top-banner-collapsed #midnight-field-late-join-prompt,
 html.midnight-top-banner-collapsed #midnight-field-late-claim-prompt,
 html.midnight-top-banner-collapsed #midnight-strong-enemy-banner,
 html.midnight-top-banner-collapsed #midnight-scarab-banner,
-html.midnight-top-banner-collapsed #midnight-battle-prep-banner {
+html.midnight-top-banner-collapsed #midnight-battle-prep-banner,
+html.midnight-top-banner-collapsed #midnight-rewards-lock-banner {
   max-height: 1.9rem;
   overflow: hidden;
   z-index: 400;
@@ -6011,7 +6059,10 @@ html.midnight-top-banner-collapsed .midnight-top-banner-collapse-btn {
 }
 
 /* 招式名稱（2026-09-06數值真正接入新增，使用者明確規格：「閃爍驚嘆號時也顯示招式
-   名稱」）：疊在警示圖示正下方，跟::after同一個閃爍節奏，不需要另外的JS計時器。 */
+   名稱」）：疊在警示圖示正下方。
+   2026-09-10使用者明確要求「敵人的出招提示，招式名稱不閃爍」：拿掉原本跟⚠圖示共用的
+   incoming-attack-warning-flash動畫——招式名稱是要「讀」的資訊，閃爍反而讓人來不及看清；
+   ⚠圖示本身的閃爍保留（那是要吸引注意的警示），兩者分開處理。 */
 #midnight-incoming-attack-name {
   position: absolute;
   margin-top: calc(14vh + 60px);
@@ -6022,7 +6073,6 @@ html.midnight-top-banner-collapsed .midnight-top-banner-collapse-btn {
   font-size: 0.85rem;
   font-weight: bold;
   white-space: nowrap;
-  animation: incoming-attack-warning-flash 0.4s ease-in-out 1 forwards;
 }
 
 @keyframes incoming-attack-warning-flash {
@@ -6043,13 +6093,38 @@ html.midnight-top-banner-collapsed .midnight-top-banner-collapse-btn {
 }
 
 /* 攻擊特效：2026-09-06數值真正接入，使用者明確要求取消野獸撕咬動畫，固定只用刀光
-   （見static/midnight.jsのtriggerAttackEffect()），原本的爪痕樣式已移除。 */
-#midnight-attack-effect.midnight-attack-effect-slash::after {
+   （見static/midnight.jsのtriggerAttackEffect()），原本的爪痕樣式已移除。
+   2026-09-10使用者明確要求「來自敵人的刀光多定義不同方向的刀光，讓每次閃的位置都不同」：
+   原本只有單一寫死的115deg漸層，每次攻擊看起來完全一樣。改成6種變體（角度＋刀光帶在
+   畫面上的落點各不相同），由static/midnight.jsのtriggerAttackEffect()每次隨機挑一種
+   掛上對應的class。共用的部分（定位/淡出動畫）留在下面這條基底規則，各變體只覆寫
+   background的漸層角度與色停位置，不重複整段。 */
+#midnight-attack-effect[class*="midnight-attack-effect-slash"]::after {
   content: "";
   position: absolute;
   inset: 0;
   animation: midnight-attack-effect-fade 0.4s ease-out both;
   background: linear-gradient(115deg, transparent 42%, rgba(255, 255, 255, 0.85) 48%, rgba(255, 255, 255, 0.85) 52%, transparent 58%);
+}
+
+#midnight-attack-effect.midnight-attack-effect-slash-2::after {
+  background: linear-gradient(65deg, transparent 26%, rgba(255, 255, 255, 0.85) 32%, rgba(255, 255, 255, 0.85) 36%, transparent 42%);
+}
+
+#midnight-attack-effect.midnight-attack-effect-slash-3::after {
+  background: linear-gradient(155deg, transparent 58%, rgba(255, 255, 255, 0.85) 64%, rgba(255, 255, 255, 0.85) 68%, transparent 74%);
+}
+
+#midnight-attack-effect.midnight-attack-effect-slash-4::after {
+  background: linear-gradient(25deg, transparent 55%, rgba(255, 255, 255, 0.85) 61%, rgba(255, 255, 255, 0.85) 65%, transparent 71%);
+}
+
+#midnight-attack-effect.midnight-attack-effect-slash-5::after {
+  background: linear-gradient(200deg, transparent 34%, rgba(255, 255, 255, 0.85) 40%, rgba(255, 255, 255, 0.85) 44%, transparent 50%);
+}
+
+#midnight-attack-effect.midnight-attack-effect-slash-6::after {
+  background: linear-gradient(90deg, transparent 62%, rgba(255, 255, 255, 0.85) 68%, rgba(255, 255, 255, 0.85) 72%, transparent 78%);
 }
 
 @keyframes midnight-attack-effect-fade {
@@ -6259,9 +6334,14 @@ html.midnight-top-banner-collapsed .midnight-top-banner-collapse-btn {
     gap: 0.25rem;
   }
 
-  #midnight-hud-bottom-right button {
+  /* 固定寬度（見桌面版同選擇器的2026-09-10說明）在窄畫面要縮小，否則
+     #midnight-hud-bottom-left-actions（max-width:44vw）一列只放得下一顆按鈕，整欄會拉得
+     很高。4.6rem搭配0.68rem字級，在360px寬的手機上仍能一列兩顆。 */
+  #midnight-hud-bottom-right button,
+  #midnight-hud-bottom-left-actions button {
     font-size: 0.68rem;
     padding: 0.3rem;
+    width: 4.6rem;
   }
 
   #midnight-hud-bottom-left,

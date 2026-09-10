@@ -10,7 +10,9 @@
     "test:weapon_combat": "node weapon_combat_check.js",
     "test:character_ability": "node character_ability_check.js",
     "test:ui_layout_fixes": "node ui_layout_fixes_check.js",
-    "test:optimize_2026_09_10": "node optimize_2026_09_10_check.js"
+    "test:optimize_2026_09_10": "node optimize_2026_09_10_check.js",
+    "test:optimize_2026_09_10b": "node optimize_2026_09_10b_check.js",
+    "test:day3_boss_priority": "node day3_boss_priority_check.js"
   },
   "devDependencies": {
     "firebase-tools": "^15.29.0",

@@ -1334,6 +1334,8 @@ STRINGS_JA: dict[str, str] = {
     "midnight_hud_blessing_button": "祝福を使う",
     "midnight_hud_merchant_button": "商人",
     "midnight_hud_leave_button": "立ち去る",
+    "midnight_rewards_lock_note": "立ち去ってから行動を開始できる……",
+    "midnight_reward_kind_attached_effect": "付帯効果",
     "midnight_ready_final_boss_ready_button": "夜の王戦に準備完了",
     "midnight_ready_final_boss_unready_button": "準備を取り消す",
     "midnight_ready_final_boss_count_note": "準備完了：{ready}/{total}",

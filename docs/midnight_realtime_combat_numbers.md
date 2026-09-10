@@ -522,3 +522,171 @@ midnight.js 的 `renderPotentialPowerRewardDetail()` 本來就是把 `entry.valu
   只需先 `python generate.py`）：驗證 `floorRewardEntryToTurnRewards()` 對 `potentialPower`
   （★數，不可拆）／`weaponSkillReroll`（次數，要拆）／`weaponStar`（★數，正規化成 `weapon`）／
   `consumable`（個數，要拆）四種 value 語意的處理，避免這次的修正未來被改回去。
+
+---
+
+## 13. 2026-09-10 第二批優化：瀕死鎖定／按鈕版位／圓形冷卻／夜之強敵獎勵／連續攻擊
+
+使用者明確要求的 8 個項目。
+
+### 13.1 瀕死狀態下鎖住所有動作按鍵
+
+各 handler 本來就有 `isSelfDowned()` 守衛（點下去靜默無效），但按鈕視覺上仍是可按的。
+新增 `canActNow()`（`mySlot && !isPaused() && !isSelfDowned()`）作為所有動作類按鈕 `disabled`
+的共同條件，涵蓋左右手攻擊／戰技／魔術祈禱／迴避／防禦／特殊防禦／高防禦／元素操控／
+角色技藝與技能／聖杯瓶／消耗品／左右手換武器／逃離戰鬥。
+角色視窗與選單按鈕**刻意不鎖**——使用者原始規格是「期間無法移動與使用任何物品，
+僅能查看角色資訊與開啟選單」。
+
+### 13.2 右下／左下 HUD 按鈕寬度固定
+
+原本按鈕寬度完全由文字撐開，而文字在戰鬥中會變動（攻擊鍵連段第 3 擊變「Hit」、戰技鍵變成
+「戰技(武器戰技名)」、技藝/技能鍵附加「(12s)」），每次變動都讓整排 `flex-wrap` 重排，
+玩家正要按的按鈕會跑位。改成固定寬度（桌面 5.6rem／窄畫面 4.6rem）＋文字單行省略號。
+`.midnight-action-flash`（浮在按鈕上方的[成功迴避]/[受到傷害]提示）刻意排除在省略規則外，
+按鈕本身也不設 `overflow:hidden`，否則那個提示會被裁掉。
+
+### 13.3 冷卻改用圓形背景計時盤
+
+`abilityLabelWithCooldown()`（把「(12s)」接在按鈕文字後面）移除，改成
+`applyCooldownDial(btn, c, cooldownField, totalMs)`：掛上 `.midnight-cooldown-dial` 並逐幀寫入
+CSS 變數 `--mn-cd`（已經過的百分比）。CSS 用 `conic-gradient` 從 12 點鐘方向順時針掃，
+已經過的區段透明（露出按鈕原本底色）、未經過的區段蓋一層淡色 —— 視覺上是「淡色順時針褪去、
+轉完一圈恢復原本顏色」。放在 `::before` 而非 `background`，才不會蓋掉按鈕自己的背景色
+（例如迴避／防禦的草綠色）。冷卻總長度用 `abilityCooldownTotalMs()`，跟
+`useCharacterAbility()` 算 `baseCooldownMs` 是同一行判斷，不重複定義。
+
+### 13.4 夜之強敵：使用祝福開窗、擊破獎勵
+
+**使用祝福**：HUD 的 `handleHudBlessingUseClick()` 原本只做 `applyBlessingRestore()` ＋開放升級
+額度＋toast，沒有開任何視窗——但升級用的等級±列住在 `#midnight-blessing-modal` 裡，而地圖籌碼版
+的祝福視窗只有靠近祝福籌碼時才打得開，等於玩家拿到升級額度卻找不到地方用。補上
+`openBlessingModal(true)`（新增 `allowWithoutChip` 參數跳過 `nearbyBlessing` 守衛），跟籌碼版走
+同一個視窗、同一套升級流程。
+
+**擊破獎勵**：在此之前夜之強敵（`finalCircleDay1`／`finalCircleDay2`）擊破後**完全沒有任何獎勵**
+——`maybeGrantStrongEnemyReward()` 只掛在 strong_enemy 籌碼的掃描路徑上，這條全域判定的戰鬥
+從來沒接上獎勵。新增 `maybeGrantFinalCircleBossReward()`，獎勵直接讀
+`fields_data_1.js` 的 `a_golden`（黃金樹之帳）對應 branch 的樓層 `reward` 陣列，不另外編數字：
+
+| | 獎勵 |
+| --- | --- |
+| 第 1 天 | 附帶效果×1 ＋ 擊破盧恩 10 |
+| 第 2 天 | 附帶效果×1 ＋ 擊破盧恩 15 ＋ 石劍鑰匙×1 |
+
+發放沿用 `maybeGrantStrongEnemyReward()` 同一套 first-writer-wins transaction
+（`fieldTrigger/{id}/rewardGrantedBy`），push 對象是 participants 內所有玩家。
+**呼叫位置**：必須放在 `updateFinalCircleBoss()` 那道「trig 已 resolved 就 return」的早期
+return 之前，否則有席位的玩家永遠執行不到。
+
+資料裡的「附帶效果×1」原本是 `kind:"note"`、本文寫「請使用潛在之力視窗的附帶效果抽選功能處理」
+——那是給回合制 GM 看的指示，midnight 沒有 GM。使用者明確選擇「新增獎勵 kind，直接抽附帶效果」，
+因此新增 `kind:"attachedEffect"`（`renderAttachedEffectRewardDetail()`），完全重用
+`CharacterDrawer.rollPotentialPowerAttachedEffect()` ／ `commitAttachedEffectChoice()` 這兩支既有
+helper，不新增第三套附帶效果抽選機制（CLAUDE.md §26）。判斷哪一筆 note 要轉成 attachedEffect
+是用「本文含『付帯効果』／『附帶效果』」，不是寫死索引。
+
+### 13.5 敵人連續攻擊、刀光方向、招式名稱
+
+**連續命中**：2026-09-06 曾把 `hitCount` 寫死成 1（見 §1.2）。使用者 2026-09-10 明確要求恢復，
+並指定兩組機率：
+
+| 敵人 | 1 下 | 2 下 | 3 下 |
+| --- | --- | --- | --- |
+| 一般敵人 | 60% | 40% | — |
+| 強敵／封牢／特殊強敵／夜之強敵／夜之王 | 50% | 30% | 20% |
+
+分組判斷在 `isEliteEncounterPoint()`，全部用既有識別方式，不新增資料欄位：夜之王＝
+`DAY3_BOSS_POINT_ID`；夜之強敵＝`finalCircleDay1/2`；強敵／封牢＝`pt.type`（`strong_enemy`／
+`evergaol`）；特殊強敵＝既有的 `meta.terrifyingStrongEnemyPointId`（Day2「⑧恐るべき強敵」）；
+另外把隨機事件「隕石」分支的王戰（`random_event` 且已指派 `enemyFamilyId`）也算進上位敵人——
+它走的是跟強敵完全相同的戰鬥流程。
+每一下各自有一個反應窗口，沿用早已存在但閒置的 `ENEMY_ATTACK_HIT_WINDOW_MS`（2.0／2.5／3.0 秒）。
+
+**每一下的傷害**（使用者明確規格）：首擊全額，第 2 下以後每下半額
+（`ENEMY_ATTACK_FOLLOWUP_HIT_DAMAGE_MULT = 0.5`），乘在「÷10 換算成即時制傷害」之後、
+測試模式倍率之前，維持既有計算鏈順序不變。
+
+**刀光方向**：原本只有單一寫死的 115deg 漸層，每次攻擊看起來完全一樣。改成 6 種變體
+（角度＋落點各異），`triggerAttackEffect()` 每次隨機挑一種。純視覺、不影響判定，因此用本地
+`Math.random()`，不同玩家看到的角度不同不會造成規則不一致。
+
+**招式名稱不閃爍**：`#midnight-incoming-attack-name` 移除跟 ⚠ 圖示共用的閃爍 animation——
+招式名稱是要「讀」的資訊，閃爍讓人來不及看清；⚠ 圖示本身的閃爍保留。
+
+### 13.6 戰鬥中仍可打開角色視窗
+
+`closeHudPanelsIfNightBossCombat()` 原本也會呼叫 `closeCharacterSheetModal()`，而該函式是由
+`recomputeActiveEncounter()` **每影格**呼叫的，等於夜王／夜之強敵戰鬥期間角色視窗一打開就立刻
+被關掉、完全無法查看裝備。改成只收起選單面板（那是暫停／流浪祝福等會打斷戰鬥節奏的操作入口）。
+
+### 13.7 瀕死拯救值條配色
+
+原本的淡藍 `#8fd6f5` 在深色 HUD 底（`rgba(10,12,18,0.72)`）上偏灰，又跟 FP 藍 `#4a8fd8`／
+施法紫 `#b98af0` 容易混淆（使用者回報「暗色模式下可能不清楚」）。改成高飽和青色 `#29e0ff`
+＋外發光，數值文字同色。倒扣顯示（`required - progress`，從滿條扣到 0＝可以再起）維持不變。
+
+### 13.8 夜之強敵戰後的行動鎖定提示
+
+Day1／Day2 夜之強敵擊退後的祝福／商人／離去區塊還開著時，地圖移動本來就已經被鎖住
+（`rewardsMovementLocked()`，2026-09-08 既有行為），但畫面上沒有任何說明。新增
+`#midnight-rewards-lock-banner`（「離去後才能開始行動……」），顯示條件直接沿用
+`rewardsMovementLocked()`，兩者永遠一致，不會出現「banner 說被鎖住但其實能動」的落差。
+跟其他上方 banner 同一組固定定位／折疊行為（已加入 `TOP_BANNER_IDS`）。
+
+### 13.9 回歸測試
+
+`tools/midnight_check/optimize_2026_09_10b_check.js`（`npm run test:optimize_2026_09_10b`）：
+31 個斷言，涵蓋上述 8 項。其中連續命中的機率分布用新增的測試用 debug hook
+（`_debugPickEnemyAttackHitCount` ／ `_debugIsEliteEncounterPoint`，沿用 `_debugTakeover` 等既有
+慣例）各取樣 4000 次驗證，因為那段邏輯平常包在 `rtTransaction` 的 updater 裡、每 2~4 秒才跑
+一次，靠實際遊玩取樣根本測不出分布。
+
+**測試撰寫上的已知陷阱**：驗證「夜王級戰鬥」時要用 `finalCircleDay1` 而不是 `day3Boss`。
+`updateFinalCircleBoss()` 對 `finalCircleDay*` 不需要任何座標接近判定（stage 是 waitingForDay2
+且 trig resolved 就會設 `nearbyFinalCircleBoss`），而 `day3Boss` 那條路徑會跟
+`recomputeActiveEncounter()` 的候選優先序（`nearbyFieldPoint` 排在 `nearbyDay3Boss` 之前）互相
+干擾，實測會隨地圖種子／出生點不同而時好時壞。`activeEncounterIsNightBoss()` 是依「點 id」
+判斷（`day3Boss` 或 `finalCircleDay*`），所以兩者走的是同一條程式碼路徑，驗證效力相同。
+
+---
+
+## 14. 2026-09-10 修復：Day3 夜之王戰鬥偶發卡關（根因：遭遇候選優先序）
+
+**現象**（使用者回報）：Day3 王戰開始時，玩家人若剛好停在地圖上某個板塊點旁邊，王戰就開不
+起來——`activeEncounter` 一直是那個板塊點，永遠不會變成 `day3Boss`。是否發生取決於地圖種子
+與玩家當下位置，因此表現成「時好時壞」的偶發卡關（本專案的回歸測試也曾因此隨機 SKIP）。
+
+**根因**：`recomputeActiveEncounter()` 的候選優先序原本是
+
+```js
+var candidate = nearbyFieldPoint || encounterEnemyPoint() || nearbyCastlePoint || nearbyFinalCircleBoss || nearbyDay3Boss;
+```
+
+夜之王排在最後。只要腳邊有任何一個板塊點／籌碼點／王城範圍，它就一直贏得候選權，
+`nearbyDay3Boss` 永遠輪不到。
+
+**修正**（兩半）：
+
+1. **候選優先序**：把 `nearbyDay3Boss` 提到最前面。它只在「`meta.day3StartAt` 已設定、王還
+   活著、自己有席位」時才非 null（見 `updateDay3Boss()`），因此提前不影響其他任何時期。
+   **刻意只提夜之王、不動 `nearbyFinalCircleBoss` 的位置**：夜之強敵有一條明確的既有規則
+   「縮圈完後，仍在卡牌樓層探索的不受進入夜之強敵影響，直到該名也正式進入夜之強敵戰鬥」
+   （見 `slotsInsideFinalCircle()` 說明），而「地圖點排在夜之強敵前面」正是實現那條規則的
+   機制，改動會破壞它。Day3 沒有對應的規則——王戰一開始就是全員的。
+
+2. **防止意外**（使用者原話「先修防止意外」）：王戰進行中，`updateNearbyFieldPoint()` 與
+   `updateNearbyCastle()` 不再把板塊點／王城認定為 nearby（走跟「觀戰者／靈鳥飛行中」相同的
+   既有清空分支，不另寫一套）。只做第 1 點的話，上方資訊欄仍會在王戰中繼續跳出板塊「進入」
+   按鈕，玩家一按就會在最終王戰裡開啟一層樓層探索（邀請→打字機→投票→指派敵人的完整流程）。
+   Day3 本來就沒有板塊探索的概念（既有程式已這樣認定，見 `finishRevive()` 的
+   `phaseInfo.day !== 3` 判斷）。
+
+**順帶修正的測試盲點**：`_debugState()` 原本只匯出 `recomputeActiveEncounter()` 5 個候選來源
+中的 3 個（缺 `nearbyCastlePoint`／`nearbyFinalCircleBoss`／`nearbyDay3Boss`）。先前寫的回歸
+測試讀這些欄位時拿到的永遠是 `undefined`，相關斷言等於空轉。三個欄位都已補上匯出。
+
+**回歸測試**：`tools/midnight_check/day3_boss_priority_check.js`
+（`npm run test:day3_boss_priority`），7 個斷言。測試刻意先用 `walkNear()` 把角色走到板塊點
+旁邊（＝重現當初會卡住的前提）才開啟王戰，並額外驗證上述第 1 點沒有把夜之強敵的既有規則
+一起改壞（站在板塊點旁時不會被強制拉進夜之強敵戰鬥）。

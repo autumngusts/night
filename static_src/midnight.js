@@ -250,11 +250,20 @@
   var ENEMY_ATTACK_INTERVAL_MAX_MS = 4000;
   var ENEMY_ATTACK_WARN_MS = 500; // 使用者明確規格：警示圖示閃爍0.5秒後才開始攻擊
   var ENEMY_ATTACK_HIT_WINDOW_MS = [2000, 2500, 3000]; // 反應時限（單次攻擊事件固定用第0段＝2秒）
-  // 2026-09-06數值真正接入：不再用demo佔位機率決定打誰/打幾下，改成先從敵人實際
+  // 2026-09-06數值真正接入：不再用demo佔位機率決定打誰，改成先從敵人實際
   // 「アクション決定表」（enemy.actions[]）抽出一招，依該招敘述判斷是個別傷害（1人）
-  // 還是亂戰傷害（1~3人），見pickEnemyAction()/resolveEnemyActionOutcome()。因此
-  // 舊有的ENEMY_ATTACK_TARGET_WEIGHT_*／ENEMY_ATTACK_HIT_COUNT_WEIGHTS／ENEMY_ATTACK_DAMAGE
-  // 三組demo佔位常數已移除，一次攻擊事件固定只有1次命中判定（hitCount=1）。
+  // 還是亂戰傷害（1~3人），見pickEnemyAction()/resolveEnemyActionOutcome()。舊有的
+  // ENEMY_ATTACK_TARGET_WEIGHT_*／ENEMY_ATTACK_DAMAGE兩組demo佔位常數已移除。
+  //
+  // 2026-09-10使用者明確規格，連續命中判定（hitCount）依敵人「等級」分成兩組機率：
+  //   - 一般敵人（非強敵、非封牢、非特殊強敵、非夜之強敵、非夜之王）：1下60%／2下40%
+  //   - 上述以外（強敵/封牢/特殊強敵/夜之強敵/夜之王）：1下50%／2下30%／3下20%
+  // 每一下各自有一個反應窗口（ENEMY_ATTACK_HIT_WINDOW_MS依序2.0/2.5/3.0秒），這套分段
+  // 基礎設施2026-09-06把hitCount寫死成1之後就一直閒置著，這次直接沿用、不重寫。
+  // 傷害分配（使用者明確規格「首擊全額，後續每下半額」）見ENEMY_ATTACK_FOLLOWUP_HIT_DAMAGE_MULT。
+  var ENEMY_ATTACK_HIT_COUNT_WEIGHTS_NORMAL = [0.6, 0.4];
+  var ENEMY_ATTACK_HIT_COUNT_WEIGHTS_ELITE = [0.5, 0.3, 0.2];
+  var ENEMY_ATTACK_FOLLOWUP_HIT_DAMAGE_MULT = 0.5; // 第2下以後每下的傷害倍率（首擊為1）
   var ATTACK_EFFECT_DISPLAY_MS = 400; // 刀光特效顯示時間，純視覺用
   var ENEMY_HIT_EFFECT_DISPLAY_MS = 300; // 玩家命中敵人的刀光特效顯示時間，純視覺用，跟上面敵人打玩家的特效各自獨立
   var CONSUMABLE_THROW_EFFECT_DISPLAY_MS = 500; // 消耗品丟擲動畫顯示時間，需與style.cssのmidnight-consumable-throw-fly動畫時長一致
@@ -440,6 +449,7 @@
     "midnight-strong-enemy-banner",
     "midnight-scarab-banner",
     "midnight-battle-prep-banner", // 2026-09-09新增（戰鬥前置準備banner），同一組互斥顯示
+    "midnight-rewards-lock-banner", // 2026-09-10新增（夜之強敵戰後「離去後才能開始行動」提示）
   ];
 
   var gameId = null;
@@ -3325,21 +3335,49 @@
   // 參照可能因onCharactersReceived而換掉，用簡單粗暴的每影格重設避免漏更新）。
   // 冷卻中的按鈕文字：本體名稱後面加「（N秒）」倒數，跟本文其餘資源不足時disable的既有
   // pattern一致，不需要另外的視覺元件。
-  function abilityLabelWithCooldown(name, c, cooldownField) {
+  // 2026-09-10使用者明確規格「要倒數而恢復使用次數的按鍵，使用圓形背景計時：淡色開始
+  // 順時針轉一圈恢復成原本顏色」＋「右下hud的按鈕長度進入戰鬥後就已算完，不能因為增加
+  // 文字而拉長後更動按鍵配置位置」：原本的abilityLabelWithCooldown()把「(12s)」直接接在
+  // 按鈕文字後面，冷卻期間文字變長→按鈕變寬→整排flex-wrap重排，正是使用者回報的問題。
+  // 改成兩段：
+  //   - 文字永遠只有招式名稱（不再隨冷卻改變長度），見renderCharacterActionButtons()。
+  //   - 冷卻進度改用CSS conic-gradient圓形背景呈現，透過--mn-cd這個CSS變數逐幀寫入
+  //     「已經過的百分比」，淡色從12點鐘方向順時針掃一圈後恢復原本配色（見style.css的
+  //     .midnight-cooldown-dial）。JS只寫百分比，配色/動畫全部留在CSS。
+  // 沒有冷卻或已結束時移除class＋變數，讓按鈕回到完全沒有這層背景的原狀。
+  function applyCooldownDial(btn, c, cooldownField, totalMs) {
+    if (!btn) return;
     var until = (c && c[cooldownField]) || 0;
-    var remain = Math.ceil((until - Date.now()) / 1000);
-    return remain > 0 ? name + window.I18N.t("midnight_ability_cooldown_suffix", { seconds: remain }) : name;
+    var remain = until - Date.now();
+    if (remain <= 0 || !totalMs) {
+      btn.classList.remove("midnight-cooldown-dial");
+      btn.style.removeProperty("--mn-cd");
+      return;
+    }
+    var elapsedPct = Math.max(0, Math.min(100, ((totalMs - remain) / totalMs) * 100));
+    btn.classList.add("midnight-cooldown-dial");
+    btn.style.setProperty("--mn-cd", elapsedPct + "%");
+  }
+
+  // 這個ability實際的冷卻總長度（跟useCharacterAbility()算baseCooldownMs同一行判斷，
+  // 不重複定義第二套規則）：圓形計時盤需要「總長度」才能算出已經過的百分比。
+  function abilityCooldownTotalMs(ability, kind) {
+    if (!ability) return 0;
+    return MIDNIGHT_ABILITY_COOLDOWN_OVERRIDE_MS[ability.id] || (kind === "art" ? ART_COOLDOWN_MS : SKILL_COOLDOWN_MS);
   }
 
   function renderCharacterActionButtons() {
+    var actable = canActNow(); // 瀕死中角色專屬技藝/技能/特殊防禦一律鎖住，見canActNow()
     var found = characterAbilityEntry("art");
     var artBtn = el("btn-midnight-art");
     artBtn.hidden = !found.ability;
     if (found.ability) {
       var artName = window.PriTestCharacterTypes.localizedText(found.ability.name);
       var artCooldownUntil = (found.c && found.c._artCooldownUntil) || 0;
-      el("midnight-art-label").textContent = abilityLabelWithCooldown(artName, found.c, "_artCooldownUntil");
-      artBtn.disabled = Date.now() < artCooldownUntil && !((found.c && found.c._powerResonanceCredits) > 0);
+      // 文字固定只有招式名稱（不再附加「(12s)」造成按鈕寬度變動），冷卻改用圓形計時盤。
+      el("midnight-art-label").textContent = artName;
+      applyCooldownDial(artBtn, found.c, "_artCooldownUntil", abilityCooldownTotalMs(found.ability, "art"));
+      artBtn.disabled = !actable || (Date.now() < artCooldownUntil && !((found.c && found.c._powerResonanceCredits) > 0));
     }
     var foundSkill = characterAbilityEntry("skill");
     var skillBtn = el("btn-midnight-character-skill");
@@ -3351,8 +3389,9 @@
     if (foundSkill.ability && !skillBtn.hidden) {
       var skillName = window.PriTestCharacterTypes.localizedText(foundSkill.ability.name);
       var skillCooldownUntil = (foundSkill.c && foundSkill.c._skillCooldownUntil) || 0;
-      el("midnight-character-skill-label").textContent = abilityLabelWithCooldown(skillName, foundSkill.c, "_skillCooldownUntil");
-      skillBtn.disabled = Date.now() < skillCooldownUntil;
+      el("midnight-character-skill-label").textContent = skillName;
+      applyCooldownDial(skillBtn, foundSkill.c, "_skillCooldownUntil", abilityCooldownTotalMs(foundSkill.ability, "skill"));
+      skillBtn.disabled = !actable || Date.now() < skillCooldownUntil;
     }
 
     // 特殊防禦按鈕（2026-09-05角色能力真正接入新增）：第六感／遺物效果額外防禦選項，見
@@ -3367,6 +3406,7 @@
       var label =
         specialOption.kind === "yoto" ? CharacterTypes.localizedText(specialOption.ability.name) : CharacterTypes.localizedText(specialOption.entry.name);
       el("midnight-defense-special-label").textContent = label;
+      specialBtn.disabled = !actable;
     }
 
     // 高防禦切換鈕（2026-09-05角色能力真正接入新增）：見handleHighGuardToggleClick()。
@@ -3376,6 +3416,7 @@
     if (hgAbility) {
       highGuardBtn.textContent = window.PriTestCharacterTypes.localizedText(hgAbility.name) + (c && c._highGuardActive ? " ✓" : "");
       highGuardBtn.classList.toggle("midnight-sheet-variant-active", !!(c && c._highGuardActive));
+      highGuardBtn.disabled = !actable;
     }
 
     // 元素操控按鈕（2026-09-05角色能力真正接入新增）：見handleElementalControlClick()。
@@ -3385,6 +3426,7 @@
     if (ecAbility) {
       elementalControlBtn.textContent =
         window.PriTestCharacterTypes.localizedText(ecAbility.name) + "(" + (c && c.elementalMarks ? c.elementalMarks : 0) + "/" + ELEMENTAL_MARKS_MAX + ")";
+      elementalControlBtn.disabled = !actable;
     }
   }
 
@@ -4192,6 +4234,32 @@
     return weights.length - 1;
   }
 
+  // 這場遭遇算不算「上位敵人」（決定連續命中次數的機率表，見ENEMY_ATTACK_HIT_COUNT_WEIGHTS_*）：
+  // 使用者明確列舉的五類——強敵籌碼／封牢（evergaol）／特殊強敵／夜之強敵／夜之王。
+  // 判斷全部用既有的既定識別方式，不新增資料欄位：
+  //   - 夜之王：固定id DAY3_BOSS_POINT_ID（見該常數說明）。
+  //   - 夜之強敵：rollAndAssignFinalCircleBoss()寫入的固定id "finalCircleDay1"／"finalCircleDay2"。
+  //   - 強敵籌碼／封牢：地圖點自己的type（見NON_FIELD_POINT_TYPES／handleFieldEnterClick()）。
+  //   - 特殊強敵：Day2「⑧恐るべき強敵」——既有的meta.terrifyingStrongEnemyPointId
+  //     （同一個欄位已經在maybeGrantStrongEnemyReward()用來給高倍獎勵，語意一致）。
+  //   - 隨機事件「隕石」分支的王戰：資料上沒有type可分，但它是貨真價實的王戰（走跟強敵
+  //     完全相同的上方資訊欄＋[進入戰鬥]流程，見encounterEnemyPoint()），因此以
+  //     「random_event且已指派enemyFamilyId」認定為上位敵人。
+  function isEliteEncounterPoint(pt, trig) {
+    if (!pt) return false;
+    if (pt.id === DAY3_BOSS_POINT_ID) return true;
+    if (pt.id === "finalCircleDay1" || pt.id === "finalCircleDay2") return true;
+    if (pt.type === "strong_enemy" || pt.type === "evergaol") return true;
+    if (meta && meta.terrifyingStrongEnemyPointId === pt.id) return true;
+    if (pt.type === "random_event" && trig && trig.enemyFamilyId) return true;
+    return false;
+  }
+
+  function pickEnemyAttackHitCount(pt, trig) {
+    var weights = isEliteEncounterPoint(pt, trig) ? ENEMY_ATTACK_HIT_COUNT_WEIGHTS_ELITE : ENEMY_ATTACK_HIT_COUNT_WEIGHTS_NORMAL;
+    return pickWeightedIndex(Math.random(), weights) + 1;
+  }
+
   // 敵視目標：目前對這隻敵人造成最多累積傷害的參與者。沒有人造成過傷害（damageBySlot
   // 是空的）時回傳null，代表這次還不能用「敵視」這個機率層（見maybeStartEnemyAttack）。
   function aggroHolderSlot(trig) {
@@ -4397,7 +4465,8 @@
         out.enemyAttack = {
           attackId: pt.id + ":" + Date.now(),
           targetSlots: bossOutcome ? bossOutcome.targetSlots : [],
-          hitCount: 1,
+          // 夜之王一定落在上位敵人那組機率（1~3下），見pickEnemyAttackHitCount()。
+          hitCount: pickEnemyAttackHitCount(pt, cur),
           warnAt: Date.now(),
           actionName: bossOutcome ? bossOutcome.actionName : null,
           actionMod: bossOutcome ? bossOutcome.actionMod : null,
@@ -4445,7 +4514,7 @@
       out.enemyAttack = {
         attackId: pt.id + ":" + Date.now(),
         targetSlots: targetSlots,
-        hitCount: 1, // 一次攻擊事件已經對應規則書「一招」，不再有demo佔位的連續多段命中
+        hitCount: pickEnemyAttackHitCount(pt, cur), // 依敵人等級分兩組機率，見該函式說明
         warnAt: Date.now(),
         actionName: action ? action.name : null,
         actionMod: action ? action.mod : null, // 供resolveMyIncomingHit解析這一招實際附帶的屬性
@@ -4600,7 +4669,11 @@
       // 都會停止使用」）：迴避/特殊防禦完全化解不算「受到傷害」，只有真的進入這裡（完全
       // 命中／防禦部分減傷）才取消聖杯瓶讀取，跟其他動作共用同一個取消函式。
       cancelFlaskReadingForOtherAction();
-      var rawDamage = Math.round(((st.dmgAmount || 0) / 10) * testMult("enemyAtkMult"));
+      // 連續命中（2026-09-10，見ENEMY_ATTACK_HIT_COUNT_WEIGHTS_*）：使用者明確規格
+      // 「首擊全額，後續每下半額」——st.hitIndex是0-based，第0下全額、之後每下×0.5。
+      // 乘在「÷10換算成即時制傷害」之後、測試模式倍率之前，維持既有計算鏈的順序不變。
+      var hitMult = st.hitIndex > 0 ? ENEMY_ATTACK_FOLLOWUP_HIT_DAMAGE_MULT : 1;
+      var rawDamage = Math.round(((st.dmgAmount || 0) / 10) * hitMult * testMult("enemyAtkMult"));
       var damage = kind === "block" ? Math.round(rawDamage * (1 - blockPct / 100)) : rawDamage;
       // 無賴漢「逆襲」暫時自身減傷（見activeTempGuardPct()說明）：跟block百分比是分開的
       // 疊加來源，即使這次kind===hit（沒有按防禦）也套用。
@@ -4666,9 +4739,22 @@
   // 攻擊特效：2026-09-06數值真正接入，使用者明確要求取消野獸撕咬動畫，固定只用刀光，
   // 純視覺、跟命中結果無關——敵人這一下本來就會「打出來」，玩家迴避/防禦成功與否只
   // 影響有沒有真的扣血。
+  // 2026-09-10使用者明確要求「來自敵人的刀光多定義不同方向的刀光，讓每次閃的位置都不同」：
+  // 6種變體class（角度／落點各異，實際漸層定義見style.css），每次攻擊隨機挑一種。純視覺，
+  // 不影響任何判定，因此用本地Math.random()即可，不需要同步到其他裝置——每個玩家看到的
+  // 刀光角度不同並不會造成規則上的不一致。
+  var ENEMY_SLASH_EFFECT_CLASSES = [
+    "midnight-attack-effect-slash",
+    "midnight-attack-effect-slash-2",
+    "midnight-attack-effect-slash-3",
+    "midnight-attack-effect-slash-4",
+    "midnight-attack-effect-slash-5",
+    "midnight-attack-effect-slash-6",
+  ];
+
   function triggerAttackEffect() {
     var effectEl = el("midnight-attack-effect");
-    effectEl.className = "midnight-attack-effect-slash";
+    effectEl.className = ENEMY_SLASH_EFFECT_CLASSES[Math.floor(Math.random() * ENEMY_SLASH_EFFECT_CLASSES.length)];
     effectEl.hidden = false;
     if (attackEffectTimer) clearTimeout(attackEffectTimer);
     attackEffectTimer = setTimeout(function () {
@@ -5396,7 +5482,12 @@
   }
 
   function updateNearbyFieldPoint() {
-    if (!mySlot || !localPos || autoFly) {
+    // day3BossFightActive()（2026-09-10新增，同一次「Day3王戰卡關」修正的第二半）：
+    // 上面的候選優先序修正已經確保王戰一定開得起來，但如果這裡仍把腳邊的板塊點認定成
+    // nearbyFieldPoint，上方資訊欄就會在王戰進行中繼續跳出「進入」按鈕——玩家一按就會在
+    // 最終王戰中開啟一層樓層探索（邀請→打字機→投票→指派敵人的完整流程）。Day3沒有板塊
+    // 探索的概念，直接走跟「觀戰者/靈鳥飛行中」相同的既有清空分支，不另外寫一套。
+    if (!mySlot || !localPos || autoFly || day3BossFightActive()) {
       if (nearbySmithingVillage) resetWeaponRerollCreditsOnLeaveVillage();
       nearbyFieldPoint = null;
       nearbySmithingVillage = null;
@@ -5541,7 +5632,9 @@
   // maybeGrantFieldTileRewardOnClear——這些函式只讀pt.id/pt.card，不需要為王城另外
   // 寫一套）。
   function updateNearbyCastle() {
-    if (!mySlot || !localPos || autoFly) {
+    // day3BossFightActive()：理由同updateNearbyFieldPoint()——王城（J卡）也是板塊卡牌
+    // 探索的入口，Day3王戰進行中不該還能踏進去開一層。
+    if (!mySlot || !localPos || autoFly || day3BossFightActive()) {
       nearbyCastlePoint = null;
       recomputeActiveEncounter();
       renderFieldOverlay();
@@ -5581,8 +5674,25 @@
   // 共用同一套fieldTriggers/{pointId}與fieldEnemyHp/{pointId} shape（見規劃紀錄「強敵/scarab
   // 戰鬥的 RTDB 狀態機」），因此抽成一個共用步驟，接受nearbyFieldPoint、encounterEnemyPoint()
   // 或nearbyCastlePoint其中之一。
+  // Day3夜之王戰鬥進行中（meta.day3StartAt已設、王還活著、自己有席位）——見updateDay3Boss()。
+  // 這是規則書「PC全員」必須一起面對的最終戰，而且Day3本身沒有「在地圖上探索板塊」的概念
+  // （既有程式已經這樣認定，見finishRevive()的phaseInfo.day!==3判斷）。
+  function day3BossFightActive() {
+    return !!nearbyDay3Boss;
+  }
+
   function recomputeActiveEncounter() {
-    var candidate = nearbyFieldPoint || encounterEnemyPoint() || nearbyCastlePoint || nearbyFinalCircleBoss || nearbyDay3Boss;
+    // 2026-09-10使用者回報「Day3王戰時站在地圖點旁邊會進不了王戰」：候選優先序原本是
+    // nearbyFieldPoint → 籌碼 → 王城 → 夜之強敵 → 夜之王，夜之王排在最後。Day3開始時
+    // 玩家人若剛好停在任何一個板塊點/籌碼點/王城範圍內，那個點會一直贏得候選權，
+    // nearbyDay3Boss永遠輪不到，王戰就此卡住不會開始（實際發生機率取決於地圖種子與
+    // 玩家當下位置，因此是時好時壞的偶發卡關）。這裡把夜之王提到最前面。
+    //
+    // 刻意只提夜之王、不動nearbyFinalCircleBoss的位置：夜之強敵有一條明確的既有規則
+    // 「縮圈完後，仍在卡牌樓層探索的不受進入夜之強敵影響，直到該名也正式進入夜之強敵
+    // 戰鬥」（見slotsInsideFinalCircle()說明），而「地圖點排在夜之強敵前面」正是實現
+    // 那條規則的機制，改動會破壞它。Day3沒有對應的規則——王戰一開始就是全員的。
+    var candidate = nearbyDay3Boss || nearbyFieldPoint || encounterEnemyPoint() || nearbyCastlePoint || nearbyFinalCircleBoss;
     var wasActive = !!activeEncounter;
     if (!candidate) {
       activeEncounter = null;
@@ -5789,7 +5899,11 @@
       menuPanel.hidden = true;
       renderPlayersPanel();
     }
-    closeCharacterSheetModal();
+    // 2026-09-10使用者明確要求「戰鬥中仍可打開角色視窗查看裝備」：原本這裡也會呼叫
+    // closeCharacterSheetModal()，而本函式是由recomputeActiveEncounter()每影格呼叫的，
+    // 等於夜王戰鬥期間角色視窗一打開就立刻被關掉、完全無法查看裝備。改成只收起選單面板
+    // （那是暫停/流浪祝福等會打斷戰鬥節奏的操作入口），角色視窗維持可開。角色視窗本身是
+    // 唯讀查看＋裝備/丟棄操作，不影響戰鬥判定的正確性。
   }
 
   // 逃離戰鬥（2026-09-06使用者明確要求「在敵人資訊中右上方有逃離戰鬥按鈕」）：見上方
@@ -6482,6 +6596,9 @@
     }
     var pointId = "finalCircleDay" + dayIndex;
     var trig = fieldTriggers[pointId];
+    // 擊破獎勵必須放在下面那道早期return之前：戰鬥一旦被指派，trig.status就是"resolved"，
+    // 有席位的玩家會走進那個if直接return，放在函式尾端的呼叫永遠不會執行到。
+    maybeGrantFinalCircleBossReward(dayIndex, pointId);
     // nearbyFinalCircleBoss只給有席位的真正玩家（跟其他updateNearby*()一致，觀戰者沒有
     // 角色，不該收到[進入戰鬥]之類的提示），但下面「偵測任一玩家是否在圈內」的倒數觸發
     // 邏輯不限定mySlot——任何裝置（含觀戰者）都能幫忙偵測、寫入共享倒數，多一台裝置
@@ -6504,6 +6621,76 @@
       finalCircleRollAttempted[pointId] = true;
       rollAndAssignFinalCircleBoss(dayIndex, pointId, phaseInfo);
     }
+  }
+
+  // ---- 夜之強敵擊破獎勵（2026-09-10使用者明確要求「打贏夜之強敵參照黃金樹之帳的獎勵來
+  // 一樣給予玩家」）----
+  // 在此之前，夜之強敵（finalCircleDay1／finalCircleDay2）擊破後完全沒有任何獎勵——
+  // maybeGrantStrongEnemyReward()只掛在strong_enemy籌碼的掃描路徑上，這條全域判定的
+  // 戰鬥從來沒有接上獎勵。
+  //
+  // 獎勵來源刻意不另外編一份數字，直接讀fields_data_1.jsのa_goldenカード
+  // （「黄金樹の帳」）第dayIndex個branch的樓層reward陣列——那就是規則書為這兩場戰鬥
+  // 定義的獎勵本體：
+  //   第1天：附帶効果×1 ＋ 撃破ルーン10
+  //   第2天：附帶効果×1 ＋ 撃破ルーン15 ＋ 石劍鑰匙×1
+  // （資料若之後修訂，這裡會自動跟著變動，不需要改程式。）
+  // 資料裡的「附帶効果×1」原本是kind:"note"，本文寫「請使用潛在之力視窗的付帶效果抽選
+  // 功能處理」——那是給回合制GM看的指示，midnight沒有GM。使用者明確選擇「新增獎勵kind，
+  // 直接抽附帶效果」，因此這裡把該筆note改送成新的kind:"attachedEffect"（見
+  // computeRewardDraw()／renderAttachedEffectRewardDetail()），玩家在獎勵清單按抽選就
+  // 真的拿得到。判斷方式用「note本文含『付帯効果』／『附帶效果』」，不是寫死索引，
+  // 資料增減其他note時不會誤判。
+  var finalCircleRewardAttempted = {}; // pointId -> true（本地節流，跟strongEnemyRewardAttempted同款）
+
+  function goldenTreeFloorRewardEntries(dayIndex) {
+    var Fields = window.PriTestFields;
+    var card = Fields && Fields.get(GOLDEN_TREE_CARD_ID);
+    var branch = card && card.branches && card.branches[dayIndex - 1];
+    var floor = branch && branch.floors && branch.floors[0];
+    return (floor && floor.reward) || [];
+  }
+
+  function goldenTreeRewardEntryToPending(entry) {
+    if (entry.kind === "note") {
+      var text = window.PriTestFields.localizedText(entry.note || {});
+      var jaText = (entry.note && entry.note.ja) || "";
+      if (/付帯効果/.test(jaText) || /附帶效果/.test(text)) return { kind: "attachedEffect", value: 1 };
+      return { kind: "note", text: text };
+    }
+    // rune／stoneswordKey等既有kind原樣沿用pendingRewards既有處理（computeRewardDraw），
+    // 只做淺拷貝避免把resolved等執行期欄位寫回fields_data_1.js的模組層級共用物件
+    // （跟pushSharedReward()／樓層獎勵既有做法一致）。
+    var copy = {};
+    for (var k in entry) {
+      if (k === "note") continue; // note是雙語物件、不是pendingRewards認得的欄位，這裡不帶過去
+      copy[k] = entry[k];
+    }
+    return copy;
+  }
+
+  function maybeGrantFinalCircleBossReward(dayIndex, pointId) {
+    if (finalCircleRewardAttempted[pointId]) return;
+    if (!finalCircleBossDefeated(dayIndex)) return;
+    var trig = fieldTriggers[pointId];
+    if (!trig) return;
+    finalCircleRewardAttempted[pointId] = true;
+    var entries = goldenTreeFloorRewardEntries(dayIndex);
+    if (!entries.length) return;
+    // first-writer-wins：跟maybeGrantStrongEnemyReward()完全同一套transaction手法，保證
+    // 只有一台裝置真的push，但push對象是participants內「所有」玩家。
+    GameStorage.rtTransaction(gameId, "cloud", "fieldTrigger/" + pointId + "/rewardGrantedBy", function (cur) {
+      return cur === null ? myTokenId : cur;
+    }).then(function (committed) {
+      if (committed !== myTokenId) return;
+      Object.keys(trig.participants || {}).forEach(function (slot) {
+        var p = players[slot];
+        if (!p) return;
+        entries.forEach(function (entry) {
+          pushPendingReward(p.tokenId, goldenTreeRewardEntryToPending(entry));
+        });
+      });
+    });
   }
 
   // ---- Day3「夜之王」戰鬥（2026-09-06三次優化，完整版）：套用房間設定選好的夜王
@@ -6844,6 +7031,14 @@
     var c = characters[myTokenId];
     if (c) renderCharacterSheetLevelRow(c, window.PriTestCharacterDrawer);
     showToast(window.I18N.t("midnight_blessing_claim_note"));
+    // 2026-09-10使用者明確要求「結束夜之強敵戰鬥出現的使用祝福，按下後可以打開祝福視窗，
+    // 讓玩家可以升級」：升級的等級±列（#midnight-character-sheet-level-row）住在
+    // #midnight-blessing-modal裡（2026-09-06從角色面板搬過去的既有版位），而這顆HUD按鈕
+    // 原本只做applyBlessingRestore()＋開放升級額度、沒有開任何視窗——等於玩家拿到了升級
+    // 額度卻找不到地方用（地圖籌碼版的祝福視窗只有靠近祝福籌碼時才打得開）。這裡補上開窗，
+    // 跟地圖籌碼版的handleBlessingEnterClick()走完全同一個openBlessingModal()（傳入
+    // allowWithoutChip，因為這裡沒有對應的地圖祝福籌碼）。
+    openBlessingModal(true);
   }
 
   // Day1／Day2夜之強敵戰後HUD區塊的本地端「離去」旗標（2026-09-06三次優化，使用者明確
@@ -6927,6 +7122,15 @@
     return day1Available || day2Available;
   }
 
+  // 2026-09-10使用者明確要求「結束夜之強敵戰鬥時，在上面banner顯示：離去後才能開始行動……」：
+  // 顯示條件直接沿用rewardsMovementLocked()——它就是「現在因為祝福/商人/離去區塊還開著而
+  // 不能移動」的既有判斷，兩者永遠一致，不會出現「banner說被鎖住但其實能動」的落差。
+  function renderRewardsLockBanner(now) {
+    var banner = el("midnight-rewards-lock-banner");
+    if (!banner) return;
+    banner.hidden = !rewardsMovementLocked(now);
+  }
+
   // 上方資訊欄的祝福/商人/離去/準備區塊render（2026-09-06三次優化，使用者明確規格拆成
   // Day1／Day2兩個各自獨立的時間點）：
   //   - Day1區塊（祝福＋離去，沒有商人）：第一天夜之強敵擊退後開放，直到本地端按下離去
@@ -6988,8 +7192,12 @@
     }, FIELD_ENTER_WAIT_MS);
   }
 
-  function openBlessingModal() {
-    if (!nearbyBlessing) return;
+  // allowWithoutChip：2026-09-10新增。地圖籌碼版（handleBlessingEnterClick）必須真的站在
+  // 祝福籌碼旁才能開窗，因此預設保留原本的nearbyBlessing守衛；夜之強敵戰後HUD的
+  // 「使用祝福」（handleHudBlessingUseClick）沒有對應的地圖籌碼，需要跳過這道守衛。
+  // 兩者開的是同一個視窗、同一套升級流程，不另外做第二個祝福視窗。
+  function openBlessingModal(allowWithoutChip) {
+    if (!nearbyBlessing && !allowWithoutChip) return;
     el("midnight-blessing-result").textContent = "";
     el("midnight-blessing-modal").hidden = false;
     // 2026-09-06使用者明確要求「領取祝福後再跳出角色目前的等級與盧恩，可以去做+號升級」：
@@ -9486,6 +9694,7 @@
   function rewardEntryLabel(entry) {
     if (entry.kind === "rune") return window.I18N.t("midnight_reward_kind_rune");
     if (entry.kind === "potentialPower") return window.I18N.t("midnight_reward_kind_potential_power");
+    if (entry.kind === "attachedEffect") return window.I18N.t("midnight_reward_kind_attached_effect");
     if (entry.kind === "talisman") return window.I18N.t("midnight_reward_kind_talisman");
     // 2026-09-10修正（使用者回報「潛在之力目前寫錯成WeaponStar了？」）：fields_data_*.js／
     // TOWER_DICE_HAND_REWARDS的武器獎勵用的kind是"weaponStar"（value＝★數＝決定稀有度的
@@ -9751,6 +9960,72 @@
     detail.appendChild(row);
   }
 
+  // attachedEffect（附帶效果單獨1個，2026-09-10新增）：黃金樹之帳的夜之強敵擊破獎勵
+  // 「PCはそれぞれ「付帯効果」を獲得」用（見maybeGrantFinalCircleBossReward()）。
+  // 跟potentialPower的差別只在「沒有得意武器那一半」——規則書這裡直接給附帶效果，不是
+  // 二選一。因此完全重用CharacterDrawer既有的同兩支helper（rollPotentialPowerAttachedEffect
+  // 抽選／commitAttachedEffectChoice確定），不新增第三套附帶效果抽選機制（CLAUDE.md §26）。
+  // resolvedEffect的candidates fallback理由同renderPotentialPowerRewardDetail()。
+  var attachedEffectDraftById = {};
+
+  function renderAttachedEffectRewardDetail(id, entry, detail) {
+    var CD = window.PriTestCharacterDrawer;
+    var draft = attachedEffectDraftById[id];
+
+    if (!draft) {
+      var drawBtn = document.createElement("button");
+      drawBtn.type = "button";
+      drawBtn.textContent = window.I18N.t("midnight_reward_draw_button");
+      drawBtn.addEventListener("click", function () {
+        var c = characters[myTokenId];
+        if (!c) return;
+        attachedEffectDraftById[id] = CD.rollPotentialPowerAttachedEffect(c);
+        renderRewardDetail(id, entry);
+      });
+      detail.appendChild(drawBtn);
+      return;
+    }
+
+    var resolvedEffect = draft.effect || (draft.candidates && draft.candidates[0]);
+    if (!resolvedEffect) {
+      // 24種附帶效果全部習得完（理論上極罕見）：不硬塞一個重複的，如實顯示抽不到並提供
+      // 「丟棄」讓玩家把這筆獎勵結掉，沿用既有的discardRewardEntry()。
+      var emptyP = document.createElement("p");
+      emptyP.textContent = window.I18N.t("midnight_reward_draw_empty");
+      detail.appendChild(emptyP);
+      var discardBtn = document.createElement("button");
+      discardBtn.type = "button";
+      discardBtn.textContent = window.I18N.t("midnight_reward_discard_button");
+      discardBtn.addEventListener("click", function () {
+        delete attachedEffectDraftById[id];
+        discardRewardEntry(id);
+      });
+      detail.appendChild(discardBtn);
+      return;
+    }
+
+    var effectP = document.createElement("p");
+    effectP.textContent =
+      window.PriTestCharacterTypes.localizedText(resolvedEffect.name) +
+      window.I18N.t("colon_separator") +
+      mnText(window.PriTestCharacterTypes.localizedText(resolvedEffect.body || {}), window.PriTestCharacterTypes.localizedText(resolvedEffect.name));
+    detail.appendChild(effectP);
+
+    var confirmBtn = document.createElement("button");
+    confirmBtn.type = "button";
+    confirmBtn.textContent = window.I18N.t("midnight_reward_confirm_button");
+    confirmBtn.addEventListener("click", function () {
+      var c = characters[myTokenId];
+      if (!c) return;
+      CD.commitAttachedEffectChoice(c, resolvedEffect);
+      GameStorage.rtSet(gameId, "cloud", "character/" + myTokenId, c);
+      GameStorage.rtSet(gameId, "cloud", "pendingRewards/" + myTokenId + "/" + id + "/resolved", true);
+      delete attachedEffectDraftById[id];
+      selectedRewardId = null;
+    });
+    detail.appendChild(confirmBtn);
+  }
+
   // 2026-09-06三次優化（使用者明確規格「選擇後 按下抽選後 抽完該物品顯示其資訊...下方有
   // 取得及丟棄」／「抽選完一次後，按鈕不再可按下（非活性化）」）：weapon/consumable/
   // talisman三種kind改成兩段式——先顯示「抽選」按鈕（尚未有rewardDraftById[id]時），
@@ -9763,6 +10038,10 @@
     detail.innerHTML = "";
     if (entry.kind === "potentialPower") {
       renderPotentialPowerRewardDetail(id, entry, detail);
+      return;
+    }
+    if (entry.kind === "attachedEffect") {
+      renderAttachedEffectRewardDetail(id, entry, detail);
       return;
     }
     var needsDrawStep = entry.kind === "weapon" || entry.kind === "weaponStar" || entry.kind === "consumable" || entry.kind === "talisman";
@@ -11079,7 +11358,8 @@
       count: res.flaskCount,
       max: res.flaskMax || FLASK_MAX_DEFAULT,
     });
-    el("btn-midnight-use-flask").disabled = res.flaskCount <= 0 || flaskReadingUntil !== null;
+    // canActNow()（含瀕死判斷，見該函式說明）：瀕死中聖杯瓶/道具/換武器全部鎖住。
+    el("btn-midnight-use-flask").disabled = !canActNow() || res.flaskCount <= 0 || flaskReadingUntil !== null;
     renderFlaskReadBar();
     renderSorceryCastBars();
     renderQuickActionCards();
@@ -11117,8 +11397,12 @@
   function renderQuickActionCards() {
     var c = characters[myTokenId];
     var ids = (c && c.weaponIds) || [];
+    var actable = canActNow();
     renderWeaponCard("midnight-weapon-left-label", c && c.equippedWeaponIdL, ids);
     renderWeaponCard("midnight-weapon-right-label", c && c.equippedWeaponIdR, ids);
+    // 換武器也算「動作」，瀕死中一併鎖住（見canActNow()說明）。
+    el("btn-midnight-weapon-left").disabled = !actable;
+    el("btn-midnight-weapon-right").disabled = !actable;
     var inst = c && c.consumables && c.consumables[0];
     var consumableLabel = el("midnight-consumable-label");
     if (consumableLabel) {
@@ -11130,7 +11414,7 @@
           (item ? window.PriTestConsumables.localizedText(item.name) : inst.itemId) + " x" + inst.usesRemaining;
       }
     }
-    el("btn-midnight-use-consumable").disabled = !inst;
+    el("btn-midnight-use-consumable").disabled = !actable || !inst;
   }
 
   function renderWeaponCard(labelId, weaponId, ids) {
@@ -11154,7 +11438,12 @@
     var usingEncounter = !!activeEncounter;
     // 夜之強敵／夜王戰鬥中不能逃離（見handleFleeBattleClick()上方說明），按鈕直接隱藏。
     var fleeBtn = el("btn-midnight-flee-battle");
-    if (fleeBtn) fleeBtn.hidden = activeEncounterIsNightBoss();
+    if (fleeBtn) {
+      fleeBtn.hidden = activeEncounterIsNightBoss();
+      // 瀕死中不能逃離戰鬥（使用者明確規格）：handleFleeBattleClick()本來就有守衛，
+      // 這裡讓按鈕本身也直接反白，見canActNow()說明。
+      fleeBtn.disabled = !canActNow();
+    }
     var hp, max;
     if (usingEncounter) {
       max = enemyRealHpMax(fieldTriggers[activeEncounter.id]);
@@ -11173,7 +11462,7 @@
     // 時顯示——使用者明確規格，。
     var hudBottomCenter = el("midnight-hud-bottom-center");
     if (hudBottomCenter) hudBottomCenter.hidden = !usingEncounter;
-    var canAct = !!mySlot && !isPaused();
+    var canAct = canActNow();
     renderSideCombatButtons("L");
     renderSideCombatButtons("R");
     var artEntry = weaponArtEntry();
@@ -11205,7 +11494,7 @@
   // 左右手一般攻擊／魔術祈禱按鈕的顯示/啟用狀態（見computeSideAttackInfo／
   // weaponSpellEntries／SORCERY_BUTTON_DEFS）。
   function renderSideCombatButtons(side) {
-    var canAct = !!mySlot && !isPaused();
+    var canAct = canActNow();
     var atkBtn = el(side === "L" ? "btn-midnight-attack-left" : "btn-midnight-attack-shared-target");
     var atkLabelEl = el(side === "L" ? "midnight-attack-left-label" : "midnight-attack-shared-target-label");
     var sideDefs = SORCERY_BUTTON_DEFS.filter(function (def) {
@@ -11683,6 +11972,16 @@
   function isSelfDowned() {
     var c = characters[myTokenId];
     return !!(c && c.nearDeath && c.nearDeath.active);
+  }
+
+  // 2026-09-10使用者明確規格「瀕死狀態下不能使用任何下方按鍵、聖杯、道具、換武器、左右手
+  // 任何動作，以及不能逃離戰鬥」：各handler本來就有isSelfDowned()守衛（點下去靜默無效），
+  // 但按鈕視覺上仍是可按的，玩家會以為是bug。統一抽出這個「現在能不能操作」判斷，讓所有
+  // 動作類按鈕的disabled都走同一個條件，畫面直接反映鎖定狀態。
+  // 注意：這只涵蓋「動作」——角色視窗、選單、地圖檢視等純檢視操作不受限（使用者原始規格
+  // 「僅能查看角色資訊與開啟選單」）。
+  function canActNow() {
+    return !!mySlot && !isPaused() && !isSelfDowned();
   }
 
   // =====================================================================
@@ -12922,6 +13221,7 @@
     renderDebugPanel();
     renderLobbySettings();
     renderFinalCircleRewardsHud(now);
+    renderRewardsLockBanner(now);
     // 第三天（夜之王決戰）與地圖無關，直接自動收合地圖——每個裝置各自根據共享的
     // meta.day3StartAt判斷，不需要額外同步「誰收合了」這個UI狀態。
     if (phaseInfo.day === 3 && mapExpanded) setMapExpanded(false);
@@ -13186,6 +13486,16 @@
     _debugFieldFloorCount: function (pt) {
       return fieldFloorCountForCard(pt);
     },
+    // 純測試用（同_debugTakeover／_debugFieldFloorCount，不對外公開文件化）：把敵人連續
+    // 命中次數的抽選（pickEnemyAttackHitCount，見該函式與ENEMY_ATTACK_HIT_COUNT_WEIGHTS_*）
+    // 開放給回歸測試取樣機率分布——這段邏輯平常包在rtTransaction的updater裡、每2~4秒才
+    // 跑一次，靠實際遊玩取樣需要數分鐘，測不出分布是否正確。
+    _debugPickEnemyAttackHitCount: function (pt, trig) {
+      return pickEnemyAttackHitCount(pt, trig);
+    },
+    _debugIsEliteEncounterPoint: function (pt, trig) {
+      return isEliteEncounterPoint(pt, trig);
+    },
     _debugState: function () {
       return {
         gameId: gameId,
@@ -13219,6 +13529,13 @@
         receivedAttributeAccum: receivedAttributeAccum,
         fieldProgress: fieldProgress,
         nearbyFieldPoint: nearbyFieldPoint,
+        // 2026-09-10補上：recomputeActiveEncounter()的候選來源共有5個，但這裡原本只匯出
+        // nearbyFieldPoint／nearbyStrongEnemy／nearbyRandomEvent三個，缺了王城與兩個
+        // Boss。回歸測試要驗證「候選優先序」就必須看得到全部5個——先前寫測試時誤以為
+        // 讀得到，實際上讀到的永遠是undefined，斷言等於空轉。
+        nearbyCastlePoint: nearbyCastlePoint,
+        nearbyFinalCircleBoss: nearbyFinalCircleBoss,
+        nearbyDay3Boss: nearbyDay3Boss,
         activeEncounter: activeEncounter,
         myIncomingAttack: myIncomingAttack,
         nearbyStrongEnemy: nearbyStrongEnemy,

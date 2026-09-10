@@ -1334,6 +1334,8 @@ STRINGS_ZH: dict[str, str] = {
     "midnight_hud_blessing_button": "使用祝福",
     "midnight_hud_merchant_button": "商人",
     "midnight_hud_leave_button": "離去",
+    "midnight_rewards_lock_note": "離去後才能開始行動……",
+    "midnight_reward_kind_attached_effect": "附帶效果",
     "midnight_ready_final_boss_ready_button": "準備開始夜王戰鬥",
     "midnight_ready_final_boss_unready_button": "取消準備",
     "midnight_ready_final_boss_count_note": "已準備：{ready}/{total}",

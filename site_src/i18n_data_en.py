@@ -1334,6 +1334,8 @@ STRINGS_EN: dict[str, str] = {
     "midnight_hud_blessing_button": "Use Blessing",
     "midnight_hud_merchant_button": "Merchant",
     "midnight_hud_leave_button": "Leave",
+    "midnight_rewards_lock_note": "You can act after leaving...",
+    "midnight_reward_kind_attached_effect": "Attached Effect",
     "midnight_ready_final_boss_ready_button": "Ready for Night Lord",
     "midnight_ready_final_boss_unready_button": "Cancel Ready",
     "midnight_ready_final_boss_count_note": "Ready: {ready}/{total}",

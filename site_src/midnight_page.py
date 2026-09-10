@@ -269,6 +269,17 @@ BODY = """    <div class="midnight-wrap">
           <p id="midnight-battle-prep-status"></p>
         </div>
 
+        <!-- 夜之強敵戰後的行動鎖定提示（2026-09-10使用者明確要求「結束夜之強敵戰鬥時，
+             在上面banner顯示：離去後才能開始行動……」）：Day1／Day2夜之強敵擊退後的
+             祝福／商人／離去區塊還開著時，地圖移動本來就已經被鎖住
+             （static/midnight.jsのrewardsMovementLocked()，2026-09-08既有行為），但畫面
+             上沒有任何說明，玩家會以為卡住了。這裡只是把既有的鎖定狀態明講出來，不改變
+             鎖定規則本身。跟其他上方banner同一組固定定位/折疊行為（見TOP_BANNER_IDS）。 -->
+        <div id="midnight-rewards-lock-banner" hidden>
+          <button type="button" class="midnight-top-banner-collapse-btn" aria-label="collapse">&#9654;</button>
+          <p id="midnight-rewards-lock-note" data-i18n="midnight_rewards_lock_note"></p>
+        </div>
+
         <!-- 隨機事件籌碼（聖甲蟲，2026-09-05新增）：顯示event_rulebook.jsのrandom_eventチット
              「スカラベ／聖甲蟲」分支的描寫文字，玩家選精神/運氣/體能其中一項投骰判定。見
              static/midnight.js的renderScarabOverlay()。 -->
