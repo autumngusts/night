@@ -793,3 +793,24 @@ HP 歸零的流程是「`demoStat` transaction commit →`.then()`→`maybeTrigg
 `tools/midnight_check/optimize_2026_09_10c_check.js`（`npm run test:optimize_2026_09_10c`）：
 13 個斷言，涵蓋上述 §15.1／§15.3／§15.4。其中傷害倍率是端對端驗證——先把共用標靶
 （`demoStat/sharedTarget`，初始只有 20）改成 100000，再比對 toast 顯示值與實際扣血量。
+
+---
+
+## 16. 2026-09-11：遺物效果「2Hit攻擊的達人」接上攻擊消耗（冷卻10秒版）
+
+使用者明確規格：規則書的「此效果1個階段中僅能發揮1次」＝即時制的**冷卻 10 秒**
+（`TWO_HIT_MASTERY_COOLDOWN_MS`）。
+
+- 消耗覆寫值沿用 `CharacterDrawer.findTwoHitMasteryOverride()`（既有純函式），
+  該 helper 這次新增回傳 `hitType`，因為鐵眼「2Hit攻擊的達人（弓）」效果名寫 2Hit、
+  本文改的卻是 1Hit 消耗。night.js 只用 `value`／`label`，行為不變。
+- 發動條件：對應 hit 類型 ＋ 冷卻結束 ＋ **換算後更便宜**。最後一項是即時制專屬的取捨：
+  規則書的消耗是骰子出目組合（換一種付法），midnight 直接把出目總和 ×2 當體力，
+  換算後鐵眼（弓）與淑女（短劍）兩條反而更貴，無條件套用會讓有益的遺物變成懲罰。
+  詳細理由與逐筆對照見 `docs/midnight_relic_effects_audit.md` §4.3。
+- 冷卻存在 `character/{tokenId}/_twoHitMasteryCooldownUntil`（比照 `_skillCooldownUntil`），
+  發動時 `showToast()` 提示效果名與變更後的消耗表記。
+- 回歸測試：`tools/midnight_check/relic_two_hit_mastery_check.js`
+  （`npm run test:relic_two_hit_mastery`），4 個斷言。
+- 附帶產出：`docs/midnight_relic_effects_gaps_by_type.md`（依角色類型列出 245 筆尚未接上的
+  遺物效果，供後續規劃），產生器 `tools/midnight_check/relic_effect_gaps_table.js`。

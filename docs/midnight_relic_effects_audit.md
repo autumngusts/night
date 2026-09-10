@@ -123,18 +123,36 @@ midnight 的長按攻擊選單（`availableSpecialAttackEntries()`）**只接受
 **建議**：需要的話擴充 `BODY_OVERRIDES`，讓玩家在角色視窗就看得出哪些效果在即時制無效，
 而不是預設全部沉默失效。
 
-### 4.3 攻擊消耗變更（22 筆）— 需要使用者決定
+### 4.3 攻擊消耗變更（22 筆）— **2026-09-11 已實作**
 
 「2Hit攻擊的達人（大劍）＝將『大劍』的2Hit攻擊消耗變更為『45』」這類效果，
 `character_drawer.js` 已有現成的 `findTwoHitMasteryOverride(c, category)`，night.js 也
-已接上（`night.js:4484`），但 midnight 的 `computeSideAttackInfo()` 只用
+已接上（`night.js:4484`），但 midnight 的 `computeSideAttackInfo()` 原本只用
 `parseAttackCost()`，完全沒有查這個 override。
 
-**沒有直接補上的原因**：部分條目的規則本文附帶「此效果1個階段中僅能發揮1次」，
-night.js 用 `c._twoHitMasteryUsedThisPhase` ＋ GM 手動切換來實作。即時制沒有階段，
-若直接無條件套用等於把「1階段1次的折扣」變成「永久折扣」——這是規則變更，
-依 CLAUDE.md §42.4 不自行決定。**需要使用者指定即時制下的等價限制**
-（例如冷卻 N 秒、或直接視為永久生效）後才實作。
+**使用者 2026-09-11 明確規格**：規則書的「此效果1個階段中僅能發揮1次」＝即時制的
+**冷卻 10 秒**。已依此實作（見 §5 與 `midnight.js` 的 `twoHitMasteryPoints()`）。
+
+實作時遇到的一個換算問題，處理方式一併記錄於此：規則書的「消耗」是骰子出目組合
+（例：②③＝手上有 2 跟 3 這兩顆骰子就能支付），回合制的 night.js 因此把它做成
+**GM 可切換的「另一種付法」**，因為在骰池裡「用哪幾顆骰子」比「總點數多寡」更重要。
+midnight 沒有骰池，出目總和直接 ×2 換算成體力，這個「另一種付法」就退化成單純的點數比較。
+逐筆換算後，13 筆中有 2 筆反而更貴：
+
+| 效果 | 對象 | 基本消耗 | 覆寫後 |
+| --- | --- | --- | --- |
+| 鐵眼「2Hit攻擊的達人（弓）」 | 1Hit | ③＝3 點 | 「23」＝5 點（更貴） |
+| 淑女「2Hit攻擊的達人（短劍）」 | 2Hit | ①①＝2 點 | 「6」＝6 點（更貴） |
+
+規則書把這個遺物寫成好處（淑女那條原文是「**可**將…變更為」），若無條件套用會變成
+「習得有益的遺物反而多扣體力」。因此實作上採「**只有換算後更便宜時才發動**」，
+變貴時視為不發動、也不消耗冷卻。**這是即時制換算下的取捨，不是規則書本身的但書**；
+若之後確認要無條件套用，只需拿掉 `twoHitMasteryPoints()` 裡 `mastery.value < basePoints`
+那一行比較。
+
+另外，復仇者「2Hit攻擊的達人（復仇者的咒爪）」的本文指的是**特定武器名**而不是武器分類，
+`findTwoHitMasteryOverride()` 是以分類名比對，因此這一條在 night.js 與 midnight 都不會
+發揮——這是既有的上游限制，本次沒有一併處理。
 
 ### 4.4 角色技藝／技能強化（15 筆）
 
@@ -166,6 +184,18 @@ night.js 用 `c._twoHitMasteryUsedThisPhase` ＋ GM 手動切換來實作。即�
 
 兩者都是「規則書寫明的無條件被動 ＋ 既有 helper 已經寫好解析」的情況，
 沒有新增任何自行推測的數值。
+
+### 2026-09-11 追加：2Hit攻擊的達人（22 筆中實際可發揮的 13 筆）
+
+| 項目 | 內容 |
+| --- | --- |
+| 使用者規格 | 規則書「此效果1個階段中僅能發揮1次」＝**冷卻 10 秒**（`TWO_HIT_MASTERY_COOLDOWN_MS`） |
+| 消耗覆寫 | 沿用 `CharacterDrawer.findTwoHitMasteryOverride()`，不重新解析規則本文 |
+| 1Hit／2Hit 的判別 | 該 helper 新增回傳 `hitType`（鐵眼「2Hit攻擊的達人（弓）」效果名是 2Hit 但本文改的是 1Hit 消耗）。night.js 只用 `value`／`label`，行為不變 |
+| 發動條件 | 對應的 hit 類型 ＋ 冷卻結束 ＋ 換算後更便宜（理由見 §4.3） |
+| 冷卻儲存 | `character/{tokenId}/_twoHitMasteryCooldownUntil`，比照既有的 `_skillCooldownUntil` |
+| 提示 | 發動時 `showToast()` 顯示效果名與變更後的消耗表記 |
+| 回歸測試 | `tools/midnight_check/relic_two_hit_mastery_check.js`（`npm run test:relic_two_hit_mastery`），4 個斷言 |
 
 ---
 

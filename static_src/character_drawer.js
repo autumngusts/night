@@ -873,6 +873,8 @@
     var categoryZh = category.name && category.name.zh;
     var categoryJa = category.name && category.name.ja;
     var found = null;
+    var hitType = "hit2";
+    var foundName = null;
     (type.relicEffectGroups || []).forEach(function (g, gi) {
       g.effects.forEach(function (e, ei) {
         if (found || e.kind !== "Passive") return;
@@ -884,12 +886,18 @@
         var bodyJa = (e.body && e.body.ja) || "";
         var valueMatch = null;
         if (categoryZh) {
-          valueMatch = new RegExp("「" + escapeRegExpLiteral(categoryZh) + "」的\\d?Hit(?:攻擊)?消耗變更為「(\\d+)」").exec(bodyZh);
+          valueMatch = new RegExp("「" + escapeRegExpLiteral(categoryZh) + "」的(\\d?)Hit(?:攻擊)?消耗變更為「(\\d+)」").exec(bodyZh);
         }
         if (!valueMatch && categoryJa) {
-          valueMatch = new RegExp("「" + escapeRegExpLiteral(categoryJa) + "」の\\d?Hit(?:アタック)?のコストを「(\\d+)」に変更").exec(bodyJa);
+          valueMatch = new RegExp("「" + escapeRegExpLiteral(categoryJa) + "」の(\\d?)Hit(?:アタック)?のコストを「(\\d+)」に変更").exec(bodyJa);
         }
         if (valueMatch) {
+          // 2026-09-11追加：本文が「1Hit攻擊消耗」なのか「2Hit攻擊消耗」なのかを返す
+          // （鐵眼「2Hit攻擊的達人（弓）」は効果名が2Hitでも本文は1Hitコストの変更）。
+          // night.js は hit2 のときだけこの関数を呼ぶので挙動は変わらない。midnight.js は
+          // 1Hit/2Hit のどちらに適用すべきかをこの値で判定する。
+          hitType = valueMatch[1] === "1" ? "hit1" : "hit2";
+          valueMatch = [valueMatch[0], valueMatch[2]];
           // 使用者確認：本文の「23」「12」等は10進数の値ではなく、他の武器カテゴリの基本2Hit
           // コスト（①①／②②／③③のように丸数字を2個並べる表記）と同じ「1桁ずつが丸数字1個分」の
           // 表記が、丸数字グリフ無しでそのまま書き起こされたもの。「23」＝②③＝出目合計2+3=5、
@@ -898,7 +906,8 @@
           var digitSum = valueMatch[1].split("").reduce(function (sum, ch) {
             return sum + (parseInt(ch, 10) || 0);
           }, 0);
-          found = { value: digitSum, label: valueMatch[1] };
+          foundName = CharacterTypes.localizedText(e.name);
+          found = { value: digitSum, label: valueMatch[1], hitType: hitType, name: foundName };
         }
       });
     });

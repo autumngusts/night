@@ -2539,7 +2539,41 @@
     }
     var cost = CharacterDrawer.parseAttackCost(Weapons.localizedText(category.basicStats.attackCost));
     if (!cost) return null;
-    return { weaponId: weaponId, dmg: dmg, cost: cost };
+    // 遺物效果「2Hit攻擊的達人（武器種類）」（2026-09-11補實作，見twoHitMasteryPoints()說明）：
+    // 沿用CharacterDrawer既有的findTwoHitMasteryOverride()，不在這裡重新解析規則本文。
+    var mastery = CharacterDrawer.findTwoHitMasteryOverride ? CharacterDrawer.findTwoHitMasteryOverride(c, category) : null;
+    return { weaponId: weaponId, dmg: dmg, cost: cost, mastery: mastery };
+  }
+
+  // ---- 遺物效果「2Hit攻擊的達人（武器種類）」（2026-09-11 使用者明確規格：
+  // 規則書「此效果1個階段中僅能發揮1次」＝即時制的「冷卻10秒」）----
+  //
+  // 規則書的消耗是骰子出目組合（例：②③＝手上有2跟3這兩顆骰子就能支付），回合制那邊
+  // night.js 把它做成 GM 可切換的「另一種付法」（見night.js:4484的masteryOverride），
+  // 因為在骰池裡「用哪幾顆骰子」比「總點數多寡」更重要。midnight 沒有骰池，出目總和
+  // 直接×2換算成體力（DICE_COUNT_TO_STAMINA_MULT），因此這個「另一種付法」在即時制
+  // 會退化成單純的點數比較。實測既有資料後，13筆中有2筆換算後反而更貴：
+  //   鐵眼「2Hit攻擊的達人（弓）」＝1Hit消耗③(3點)→「23」(5點)
+  //   淑女「2Hit攻擊的達人（短劍）」＝2Hit消耗①①(2點)→「6」(6點)
+  // 規則書把這個遺物寫成好處（淑女那條原文甚至是「**可**將…變更為」），若無條件套用，
+  // 這兩個角色會因為習得有益的遺物反而多扣體力——那不是規則原意。因此這裡的判斷是
+  // 「只有在換算後更便宜時才發動」，變貴的情況視為不發動（不扣冷卻）。
+  // 這是即時制換算下的取捨，不是規則書本身有這條但書；若之後確認要無條件套用，
+  // 只需要拿掉下面那行 override < base 的比較。
+  var TWO_HIT_MASTERY_COOLDOWN_MS = 10000;
+
+  function twoHitMasteryReady(c, now) {
+    return !c || !c._twoHitMasteryCooldownUntil || c._twoHitMasteryCooldownUntil <= now;
+  }
+
+  // 回傳這次攻擊實際要支付的骰子點數，並在遺物效果實際發動時回報（呼叫端負責扣冷卻）。
+  function twoHitMasteryPoints(c, info, useHit2, basePoints, now) {
+    var mastery = info && info.mastery;
+    if (!mastery) return null;
+    if (mastery.hitType !== (useHit2 ? "hit2" : "hit1")) return null;
+    if (!twoHitMasteryReady(c, now)) return null;
+    if (!(mastery.value < basePoints)) return null; // 見上方說明：變貴時不發動
+    return { points: mastery.value, name: mastery.name, label: mastery.label };
   }
 
   // 普通攻擊3連段（左右手各自獨立）：1秒判定窗口內連續點擊才算連段，超過窗口未點擊則從
@@ -2590,13 +2624,22 @@
     }
     var info = computeSideAttackInfo(side);
     if (!info) return;
+    var c = characters[myTokenId];
     var cs = comboState[side];
     var now = Date.now();
     if (now - cs.lastHitAt > ATTACK_COMBO_WINDOW_MS) cs.hitIndex = 0;
     var isThirdHit = cs.hitIndex === 2;
     var useHit2 = isThirdHit && info.dmg.hit2Damage !== null && !!info.cost.hit2;
     var points = diceCostPoints(useHit2 ? info.cost.hit2 : info.cost.hit1);
+    // 遺物效果「2Hit攻擊的達人」：見twoHitMasteryPoints()說明。冷卻只在真正發動時才起算。
+    var masteryHit = twoHitMasteryPoints(c, info, useHit2, points, now);
+    if (masteryHit) points = masteryHit.points;
     if (!spendStamina(points * DICE_COUNT_TO_STAMINA_MULT)) return;
+    if (masteryHit) {
+      c._twoHitMasteryCooldownUntil = now + TWO_HIT_MASTERY_COOLDOWN_MS;
+      GameStorage.rtSet(gameId, "cloud", "character/" + myTokenId + "/_twoHitMasteryCooldownUntil", c._twoHitMasteryCooldownUntil);
+      showToast(masteryHit.name + window.I18N.t("colon_separator") + window.I18N.t("midnight_two_hit_mastery_toast", { cost: masteryHit.label }));
+    }
     cancelFlaskReadingForOtherAction();
     cs.lastHitAt = now;
     cs.hitIndex = isThirdHit ? 0 : cs.hitIndex + 1;
