@@ -38,6 +38,13 @@
 // 標籤，qPoint留null，由buildPointRequests()裡的hazard點位邏輯在該地圖的HAZARD_ROWS
 // 範圍內用placePoints()既有的rejection sampling自由決定位置（不是自己另外發明一個座標）。
 //
+// qNames（2026-09-10新增，使用者規格「Q卡牌有三張」）：每張地圖對應fields_data_4.jsの
+// card_q「地變」卡3個分歧的.zh名稱（見midnight.jsのpickFieldBranchIndex()如何用
+// pt.hazardQName比對出正確分歧，完整重現該分歧的intro/specialRule/樓層/王戰內容，
+// 不是另外發明Q板塊內容）。地圖上會生成3個type:"hazard_q"的點，各自對應qNames其中一個
+// 名稱；cassel／ice的qNames[0]（標註圖上★那個，最深/山頂）固定放在qPoint，其餘2個跟
+// kasan／red全部3個一樣，在hazardZone範圍內自由放置。
+//
 // specialRule：對應docs記載的4種地變特殊規則id，實際效果套用邏輯在midnight.js
 // （見applyMapSpecialRuleTick()），這裡只記錄「這張地圖用哪一種」。
 (function () {
@@ -891,6 +898,11 @@
       { id: "f_right2", x: 35, y: 38, toX: 35, toY: 15, controlX: 43, controlY: 26 },
     ],
     qPoint: { x: 9, y: 40 }, // 使用者規格「Q點必配置Q板塊」，標註圖上有明確Q文字標籤
+    // 2026-09-10新增：這張地圖的Q板塊(地變)有3張，對應fields_data_4.js card_q裡
+    // 「隠れ都ノクラテオ」3個分歧的.zh名稱（見midnight.jsのpickFieldBranchIndex()如何用
+    // pt.hazardQName比對出正確分歧）。第一個(最深處)是使用者規格「Q點必配置」的那張，
+    // 固定在qPoint；其餘2張由placeHazardZonePoints()在hazardZone範圍內自由放置。
+    qNames: ["隱藏都市諾克拉特歐(最深處)", "隱藏都市諾克拉特歐(市街地)", "隱藏都市諾克拉特歐(玄關口)"],
     specialRule: "cassel_hidden_city",
   };
 
@@ -919,6 +931,8 @@
       { id: "f_bottom", x: 25, y: 36, toX: 35, toY: 15, controlX: 30, controlY: 26 },
     ],
     qPoint: { x: 16, y: 13 }, // 使用者規格「Q點必配置Q板塊」，標註圖上有明確Q文字標籤
+    // 2026-09-10新增：同cassel，3張Q對應card_q「山嶺」3個分歧，第一個(山頂)固定在qPoint。
+    qNames: ["山嶺(山頂)", "山嶺(半山腰)", "山嶺(山麓)"],
     specialRule: "ice_blizzard",
   };
 
@@ -951,6 +965,9 @@
       { id: "f_right2", x: 35, y: 38, toX: 36, toY: 16, controlX: 43, controlY: 27 },
     ],
     qPoint: null, // 標註圖上沒有畫Q文字標籤，由buildPointRequests()在HAZARD_ROWS範圍內自由決定位置
+    // 2026-09-10新增：kasan沒有標註★固定Q座標，3張Q（對應card_q「火口」3個分歧）全部由
+    // placeHazardZonePoints()在hazardZone範圍內自由放置，順序無特殊意義。
+    qNames: ["火山口(上層)", "火山口(空洞內)", "火山口(最深處)"],
     specialRule: "kasan_lava",
   };
 
@@ -982,6 +999,9 @@
       { id: "f_left2", x: 26, y: 37, toX: 14, toY: 24, controlX: 19, controlY: 32 },
     ],
     qPoint: null, // 標註圖上沒有畫Q文字標籤，由buildPointRequests()在HAZARD_ROWS範圍內自由決定位置
+    // 2026-09-10新增：red同kasan，沒有★固定座標，3張Q（對應card_q「腐れ森」3個分歧）
+    // 全部自由放置。
+    qNames: ["潰爛森林(1)", "潰爛森林(2)", "潰爛森林(3)"],
     specialRule: "red_miasma",
   };
 
@@ -1018,6 +1038,7 @@
       forcedDay2EndId: v.forcedDay2EndId || null,
       spiritBirdLinks: v.spiritBirdLinks,
       qPoint: v.qPoint || null,
+      qNames: v.qNames || null,
       specialRule: v.specialRule || null,
     };
   }

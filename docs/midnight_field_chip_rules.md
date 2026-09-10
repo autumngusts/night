@@ -456,19 +456,37 @@ N 個分歧變體，隨機挑一個」處理——這是即時制版本刻意的
 - **Day2終點強制指定**（使用者規格「第二天的終點以下有所不同」）：`assignDayPlan()` 新增
   `forcedDay2EndId` 參數，4張新地圖各自指定一個必須當Day2終點的Z候選（cassel：中心靠左下；
   ice／red：各自橘線範圍內那個Z；kasan：上方橘線範圍內那個Z）。
-- **橘線特殊事件範圍（hazardZone）**：使用者規格「在各自特殊橘線範圍內不放入其他板塊籌碼，
-  但另外出現卡牌數字：4,5,Q,可怖強敵,祝福×2」。`placeHazardZonePoints()` 在這個範圍內額外
-  放置卡4／卡5／強敵（三者標記 `hazardMember:true`）／Q（`type:"hazard_q"`）／祝福×2，
-  是疊加在一般2~7地點需求之上（不是取代），因此這4張地圖的4/5卡牌各會有3個。cassel／ice
-  的標註圖上有明確畫Q文字座標，直接採用；kasan／red沒有畫，由程式在範圍內自由決定位置。
-  一般點位（`pointEligible`）已經扣掉這個範圍，不會跟一般籌碼重疊生成。
-- **Q板塊開放判定**（使用者規格「在沒攻略完4,5,可怖強敵三選二以前，進入Q時會顯示訊息
-  『你沒資格阿　先挑戰同區域的地方啊』」）：`hazardQUnlocked()` 檢查地圖上3個
-  `hazardMember` 點裡有幾個 `isPointCleared()`，未滿2個時 `rollAndAssignStrongEnemy()`
-  直接不查表、顯示一次toast。Q本身沒有對應的 `fields_data` 卡牌內容可用（規則書沒有這張卡
-  的實際地名/敘述），因此重用既有的「強敵籌碼」查表＋戰鬥pipeline（`event_rulebook.js`
-  的 strong_enemy 決定表），不是另外發明卡牌內容——這是已知的範圍限縮，不是bug。「進入
-  時間5s」由既有通用的5秒遭遇準備流程（`updateBattlePrep()`）自然滿足，沒有另外做一套。
+- **橘線特殊事件範圍（hazardZone）**（2026-09-10使用者更新規格：「生成板塊更改為額外生成
+  4,可怖強敵，兩者只要其一通過即可開始Q，另外還有祝福x2」）：`placeHazardZonePoints()`
+  在這個範圍內額外放置卡4／強敵（兩者標記 `hazardMember:true`）／Q（`type:"hazard_q"`，
+  共3個）／祝福×2，是疊加在一般2~7地點需求之上（不是取代），因此這4張地圖的4卡牌會有3個。
+  舊規格的「5」已依使用者指示移除，不再額外生成。cassel／ice的標註圖上有明確畫Q文字座標
+  （對應各自 `qNames[0]`，即下面Q板塊內容一節的★分歧），直接採用；其餘Q（含kasan／red
+  全部3個，因為這兩張沒有任何標註）由程式在範圍內自由決定位置。一般點位（`pointEligible`）
+  已經扣掉這個範圍，不會跟一般籌碼重疊生成。
+- **Q板塊開放判定**（2026-09-10使用者更新規格，從「三選二」放寬成「二選一」）：
+  `hazardQUnlocked()` 檢查地圖上2個 `hazardMember` 點（4／強敵）裡有幾個 `isPointCleared()`，
+  未滿1個時 `updateNearbyFieldPoint()` 直接不把該點納入 `nearbyFieldPoint`（沒有「進入」
+  按鍵），顯示一次toast。「進入時間5s」由既有通用的5秒遭遇準備流程（`updateBattlePrep()`）
+  自然滿足，沒有另外做一套。
+- **Q板塊內容**（2026-09-10使用者明確規格「Q的板塊資訊參照night的Q來執行」＋「完整重現，
+  並且生成地變是有三張Q的板塊」）：`fields_data_4.js` 本來就有 `card_q`（「地變」，
+  `cardLabel:"Q"`）的完整規則資料，含cassel/ice/kasan/red四個地區各3個分歧（intro敘述／
+  `specialRule`／樓層／王戰），只是先前一直沒有被引用。這次把Q從「強敵籌碼」特例
+  （`NON_FIELD_POINT_TYPES` 排除項）改成跟一般2~10/K地點完全同一套
+  `fieldCardData()`/`updateNearbyFieldPoint()` pipeline，不再是套用 `event_rulebook.js`
+  強敵決定表隨機roll一隻敵人：
+  - `midnight_map_variants.js` 每個地圖META新增 `qNames`（3個zh分歧名稱，對應
+    `card_q.branches[*].name.zh`）；cassel/ice的 `qNames[0]`（★）固定在標註圖上的
+    `qPoint`，其餘由 `placeHazardZonePoints()` 自由放置，各自附上 `hazardQName`。
+  - `pickFieldBranchIndex()` 新增：若 `pt.hazardQName` 存在，直接用
+    `matchBranchIndexByName()` 比對出對應分歧，不落入一般卡牌的劇本比對/亂數退回邏輯。
+  - `fieldFloorCountForCard()` 改吃 `pt`（原本只吃 `card`）：`card_q` 卡面雖有
+    `floorCount:4` 欄位，但那只是「山嶺(山頂)」分歧的樓層數，其餘11個分歧樓層陣列長度
+    實際是3——Q改用「已指定分歧」的實際 `floors.length`，避免3層的分歧被誤判成有第4層
+    可踏破，一般卡牌不受影響（仍優先讀card.floorCount）。
+  - 樓層敘述、「(→XXX)」分歧選擇、敵人名稱解析（含指定王戰，如ice山頂的「山嶺の氷竜
+    ／Lv.15」）、獎勵發放，全部沿用一般地點既有pipeline，不是另外寫一套。
 - **王城（J）**：cassel這張地圖的標註圖上沒有畫王城橘線範圍（`CASTLE_ROWS`全0），
   `mapHasCastle()` 判斷為空時整個不畫J堡壘圖示，避免在地圖正中央（`computeMaskCentroid()`
   對全0遮罩的退回值）出現一個看起來能用、實際上點了沒反應的假圖示。
@@ -484,11 +502,13 @@ N 個分歧變體，隨機挑一個」處理——這是即時制版本刻意的
 |---|---|---|---|
 | cassel | `cassel_hidden_city` | 「迷惘的隱藏都市」：每隨機30~60秒縮圈時間-5秒 | 完整實作（`maybeApplyCasselTimeLoss()`，直接把當天StartAt往前撥5秒，跟測試主控台既有的「立即縮圈」同一種手法） |
 | red | `red_miasma` | 「朱紅腐敗的瘴氣」：每30秒PC全員累積「腐敗：1D」，且不會像一般異常那樣達閾值後歸零 | 完整實作（`maybeApplyRedMiasmaTick()`，本地only直接疊加`receivedAttributeAccum`，刻意不透過會在閾值觸發後歸零的`recordReceivedAttributeAccum()`共用函式，因為規格明確要求「不會解除」） |
-| ice | `ice_blizzard` | 「暴風雪的視野」：戰鬥中每隨機30~45秒5秒內無法攻擊/使用技能；「凍寒的暴風雪」：凍傷非戰鬥時也累積且戰鬥結束不重置 | 只實作前半段（`isIceBlizzardBlinded()`，已掛在攻擊/戰技/技藝/技能/特殊攻擊等所有輸出手段上）。後半段（凍傷非戰鬥累積）規則書沒有標示蓄積速率數字，依CLAUDE.md §19不自行發明，**未實作**，已知簡化 |
+| ice | `ice_blizzard` | 「暴風雪的視野」：戰鬥中每隨機30~45秒5秒內無法攻擊/使用技能；「凍寒的暴風雪」：凍傷非戰鬥時也累積且戰鬥結束不重置 | 兩段都已實作。前半段`isIceBlizzardBlinded()`，已掛在攻擊/戰技/技藝/技能/特殊攻擊等所有輸出手段上。後半段2026-09-10新增`maybeApplyIceFrostbiteTick()`：規則書沒有標示蓄積速率數字，依使用者指示「以及red的腐敗」比照`maybeApplyRedMiasmaTick()`同一套機制（每30秒PC全員累積「凍傷：1D」，本地only疊加`receivedAttributeAccum`不歸零），跟只在戰鬥中(activeEncounter)才計時的前半段不同，這是地圖全域效果 |
 | kasan | `kasan_lava` | 「熔岩」：每次樓層踏破，PC全員無條件承受「HP損害：■」 | 只顯示提醒toast（`midnight_kasan_lava_floor_note`），不自動扣血——■是規則書未標示數值的占位符，依CLAUDE.md §19交由GM/玩家自行判斷，不自行發明數字 |
 
 ---
 
-*本文件依 2026-09-07 當下的 `static_src/midnight.js`／`midnight_map.js`／`fields_data_1~4.js`／
-`event_rulebook.js`／`night_gm_flow.js` 程式內容整理，若之後相關程式有修改，應同步檢查本文件
-是否仍準確。§11 為 2026-09-10 新增章節。*
+*本文件依 2026-09-10 當下的 `static_src/midnight.js`／`midnight_map.js`／
+`midnight_map_variants.js`／`fields_data_1~4.js`／`event_rulebook.js`／`night_gm_flow.js`
+程式內容整理，若之後相關程式有修改，應同步檢查本文件是否仍準確。§11 為 2026-09-10 新增
+章節，同日內另有一次更新：Q板塊內容改走一般地點pipeline（含3張Q／card_q完整重現）、
+hazard開放判定放寬為「4/強敵二選一」（移除5）、ice凍傷非戰鬥累積補上實作。*

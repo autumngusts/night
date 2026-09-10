@@ -5196,10 +5196,24 @@
   // 是2，但floors陣列仍列出4個）。這裡不支援freeFloorOrder的「任意順序」彈性，一律照
   // 陣列順序（0,1,2...）走到floorCount為止即視為全踏破——是已知的簡化（跟本檔案其他
   // 「本次milestone明確排除」的範圍限縮同精神），不是算錯數字。
-  function fieldFloorCountForCard(card) {
+  // Q（card_q「地變」）的varianceNote明確寫「此場地的內容會依劇本而變化，此外請留意各
+  // 場地的樓層數不同」——card_q本身雖有floorCount:4欄位，但那是分歧之一（山嶺(山頂)）
+  // 的樓層數，其餘11個分歧實際只有3層（潰爛森林/火山口/隱藏都市各分歧樓層陣列長度
+  // 都是3，見fields_data_4.js），不能對Q套用固定的卡面floorCount，否則3層的分歧會被
+  // 誤判成還有第4層可踏破。因此Q改用「已指定分歧」（pt.hazardQName配對出的branchIndex，
+  // 有進度時用progress.branchIndex，跟maybeAdvanceFieldInvite()同一套快取邏輯）的
+  // 實際floors.length，其餘一般卡牌不受影響，維持原本card.floorCount優先的既有行為。
+  function fieldFloorCountForCard(pt) {
+    var card = pt.card;
     var data = fieldCardData(card);
-    if (data && typeof data.floorCount === "number") return data.floorCount;
     var branches = fieldCardBranches(card);
+    if (card === "Q") {
+      var progress = fieldProgress[pt.id];
+      var branchIndex = progress && typeof progress.branchIndex === "number" ? progress.branchIndex : pickFieldBranchIndex(pt);
+      var branch = branches[branchIndex];
+      if (branch && branch.floors && branch.floors.length) return branch.floors.length;
+    }
+    if (data && typeof data.floorCount === "number") return data.floorCount;
     return (branches[0] && branches[0].floors && branches[0].floors.length) || 1;
   }
 
@@ -5246,6 +5260,14 @@
   function pickFieldBranchIndex(pt) {
     var branches = fieldCardBranches(pt.card);
     if (!branches.length) return 0;
+    // Q板塊（地變，2026-09-10新增）：分歧不是靠劇本配置表或亂數決定，而是
+    // placeHazardZonePoints()放點當下就已經指定好這個點對應card_q哪個分歧（見
+    // midnight_map_variants.jsのqNames／pt.hazardQName），直接用名稱比對，不落入下面
+    // 一般卡牌的劇本比對/亂數退回邏輯。
+    if (pt.hazardQName) {
+      var qIndex = matchBranchIndexByName(branches, pt.hazardQName);
+      if (qIndex !== null) return qIndex;
+    }
     var scenarioId = resolveNightBossScenarioId();
     var candidates = scenarioId ? scenarioVariantCandidatesForCard(scenarioId, pt.card) : [];
     if (candidates.length) {
@@ -5321,7 +5343,13 @@
   // 「進入」流程誤判。2026-09-06修正：漏排除blessing，導致靠近祝福籌碼時
   // #midnight-field-enter-prompt跟#midnight-blessing-prompt同時觸發，形成使用者回報的
   // 「祝福畫面有兩個進入」重複顯示。
-  var NON_FIELD_POINT_TYPES = { sorcerer: true, merchant: true, strong_enemy: true, random_event: true, blessing: true, hazard_q: true };
+  // 2026-09-10：hazard_q（Q／地變）從這裡移除——使用者規格「Q的板塊資訊參照night的Q來
+  // 執行」，改成跟一般2~10/K地點走同一套fieldCardData()/updateNearbyFieldPoint()
+  // pipeline（見pickFieldBranchIndex()如何用pt.hazardQName指定分歧、fieldFloorCountForCard()
+  // 如何依分歧實際樓層數而非card_q卡面層數判斷全踏破），不再套用強敵決定表隨機roll一隻
+  // 敵人（見hazardQUnlocked()/updateNearbyFieldPoint()裡的開放判定閘門，取代原本
+  // rollAndAssignStrongEnemy()裡的特例分支）。
+  var NON_FIELD_POINT_TYPES = { sorcerer: true, merchant: true, strong_enemy: true, random_event: true, blessing: true };
 
   // 2026-09-08新增：離開鍛造村範圍時把c._weaponRerollCredits歸0（使用者明確規格「在離開
   // 鍛造村範圍後 直接歸0無法使用」）——只在「原本在村內、這次真的離開了」的轉換瞬間執行
@@ -5346,11 +5374,26 @@
       return;
     }
     var found = null;
+    var lockedHazardQNearby = false;
     map.points.forEach(function (pt) {
       if (found || NON_FIELD_POINT_TYPES[pt.type]) return;
       var dist = Math.hypot(localPos.x - (pt.x + 0.5), localPos.y - (pt.y + 0.5));
-      if (dist <= FIELD_TRIGGER_RADIUS) found = pt;
+      if (dist > FIELD_TRIGGER_RADIUS) return;
+      // Q板塊開放判定（使用者明確規格「在4/可怖強敵兩者其一通過以前，進入Q時會顯示訊息
+      // 『你沒資格阿　先挑戰同區域的地方啊』」）：未解鎖時整個不當成found（沒有「進入」
+      // 按鍵），只顯示一次提示——跟其餘一般地點共用同一個FIELD_TRIGGER_RADIUS/found機制，
+      // 不是另外發明第二套判定。
+      if (pt.type === "hazard_q" && !hazardQUnlocked()) {
+        lockedHazardQNearby = true;
+        if (!hazardQLockedToastShown[pt.id]) {
+          hazardQLockedToastShown[pt.id] = true;
+          showToast(window.I18N.t("midnight_hazard_q_locked_toast"));
+        }
+        return;
+      }
+      found = pt;
     });
+    if (!lockedHazardQNearby) hazardQLockedToastShown = {};
     nearbyFieldPoint = found;
     var foundVillage = found && found.card === "8" ? found : null;
     if (!foundVillage && nearbySmithingVillage) resetWeaponRerollCreditsOnLeaveVillage();
@@ -6147,7 +6190,7 @@
       var dist = Math.hypot(localPos.x - (pt.x + 0.5), localPos.y - (pt.y + 0.5));
       if (dist > FIELD_TRIGGER_RADIUS) return;
       if (pt.type === "merchant" && !merchant) merchant = pt;
-      else if ((pt.type === "strong_enemy" || pt.type === "hazard_q") && !strongEnemy) strongEnemy = pt;
+      else if (pt.type === "strong_enemy" && !strongEnemy) strongEnemy = pt;
       else if (pt.type === "random_event" && !randomEvent) randomEvent = pt;
       // 2026-09-06使用者明確要求「使用祝福後能再次使用」：拿掉!blessingClaimed[pt.id]
       // 條件，不再因為曾經有人領取過就從此不再顯示。
@@ -6170,9 +6213,6 @@
     if (blessing) el("midnight-blessing-prompt-name").textContent = window.I18N.t("midnight_blessing_title");
 
     nearbyStrongEnemy = strongEnemy;
-    // Q板塊未解鎖時離開範圍要重置提示旗標，這樣下次靠近（不管是重新走過來還是解鎖後
-    // 回來）都能再次評估要不要顯示提示，見rollAndAssignStrongEnemy()的hazard_q分支。
-    if (!strongEnemy || strongEnemy.type !== "hazard_q") hazardQLockedToastShown = {};
     if (strongEnemy) {
       rollAndAssignStrongEnemy(strongEnemy);
       maybeGrantStrongEnemyReward(strongEnemy);
@@ -6204,31 +6244,23 @@
   // ---- 強敵籌碼：靠近後用event_rulebook.js既有「強敵決定表」（跟night_gm_flow.js完全
   // 相同的解析邏輯）決定敵人，直接生成一個status:"resolved"的fieldTrigger物件，天然
   // 重用既有戰鬥/攻擊排程（見規劃紀錄「強敵/scarab 戰鬥的 RTDB 狀態機」）。----
-  // Q板塊開放判定（使用者明確規格「在各自特殊橘線範圍內...在沒攻略完4,5,可怖強敵三選二
-  // 以前 進入Q時會顯示訊息...直到最後剩下Q才能進入該板塊」）：hazardMember是
-  // placeHazardZonePoints()對橘線範圍內的卡4/卡5/強敵三個點標記的旗標，只要其中至少2個
-  // isPointCleared()就算解鎖。不限定哪2個（規格是「三選二」，不是指定必須是哪兩個）。
+  // Q板塊開放判定（2026-09-10使用者更新規格：「額外生成4,可怖強敵，兩者只要其一通過即可
+  // 開始Q」，從舊規格「三選二」放寬成「二選一」）：hazardMember是placeHazardZonePoints()
+  // 對橘線範圍內的卡4/強敵兩個點標記的旗標，只要其中至少1個isPointCleared()就算解鎖。
+  // 實際的「未解鎖時顯示提示、不能進入」閘門在updateNearbyFieldPoint()（Q板塊已改走一般
+  // 地點的fieldCardData() pipeline，不再是strong_enemy籌碼特例，見NON_FIELD_POINT_TYPES
+  // 說明）。
   var hazardQLockedToastShown = {};
   function hazardQUnlocked() {
     var members = map.points.filter(function (p) {
       return p.hazardMember;
     });
     var clearedCount = members.filter(isPointCleared).length;
-    return clearedCount >= 2;
+    return clearedCount >= 1;
   }
 
   function rollAndAssignStrongEnemy(pt) {
     if (strongEnemyRollAttempted[pt.id] || fieldTriggers[pt.id]) return;
-    // Q板塊在解鎖前完全不查表指派敵人（維持trig不存在，跟strong_enemy一般點「還沒靠近過」
-    // 的畫面狀態一樣），只顯示一次提示訊息，不設strongEnemyRollAttempted——解鎖後下一次
-    // proximity掃描會自然重新判斷並正常往下查表。
-    if (pt.type === "hazard_q" && !hazardQUnlocked()) {
-      if (!hazardQLockedToastShown[pt.id]) {
-        hazardQLockedToastShown[pt.id] = true;
-        showToast(window.I18N.t("midnight_hazard_q_locked_toast"));
-      }
-      return;
-    }
     strongEnemyRollAttempted[pt.id] = true;
     var GmFlow = window.PriTestNightGmFlow;
     var chip = findEventChip("strong_enemy");
@@ -9236,7 +9268,7 @@
     if (map && map.specialRule === "kasan_lava") {
       showToast(window.I18N.t("midnight_kasan_lava_floor_note"));
     }
-    var floorCount = fieldFloorCountForCard(pt.card);
+    var floorCount = fieldFloorCountForCard(pt);
     var nextFloorIndex = floorIndex + 1;
     var cleared = nextFloorIndex >= floorCount;
     GameStorage.rtTransaction(gameId, "cloud", "fieldProgress/" + pt.id + "/advancedBy" + floorIndex, function (cur) {
@@ -10680,7 +10712,7 @@
         el("midnight-field-enter-name").textContent = locationName + "（" + window.I18N.t("midnight_field_fully_explored_note") + "）";
         el("btn-midnight-field-enter").hidden = true;
       } else {
-        var floorCount = fieldFloorCountForCard(pt.card);
+        var floorCount = fieldFloorCountForCard(pt);
         var floorLabel = progress
           ? "（" + window.I18N.t("midnight_field_floor_progress_label", { current: (progress.floorIndex || 0) + 1, total: floorCount }) + "）"
           : "";
@@ -10751,7 +10783,7 @@
     el("midnight-field-late-claim-prompt").hidden = true; // fix(2026-09-09)：banner顯示時強制排除late-claim-prompt同時出現，作為第二層保險
     var bannerFloorLabel = window.I18N.t("midnight_field_floor_progress_label", {
       current: (trig.floorIndex || 0) + 1,
-      total: fieldFloorCountForCard(pt.card),
+      total: fieldFloorCountForCard(pt),
     });
     el("midnight-field-banner-name").textContent = locationName + "（" + bannerFloorLabel + "）";
 
@@ -12107,9 +12139,7 @@
   // 「暴風雪的視野」（ice）：使用者明確規格「戰鬥時，此場地內每隨機30~45秒，不能對敵人
   // 進行『攻擊』與『使用技能』5秒」。只在真的站在遇敵點（activeEncounter）時才計時/生效，
   // 離開戰鬥後計時停止（下次進入戰鬥重新開始算，不是背景持續跑）——「戰鬥時」是規則
-  // 明確的觸發前提，不是地圖全域效果。「凍傷即使非戰鬥時也會累積且戰鬥結束不重置」這部分
-  // 因為規則書沒有標示蓄積速率數字，依CLAUDE.md §19不自行發明，這次沒有實作（已知簡化，
-  // 不是bug，見docs新增章節說明）。
+  // 明確的觸發前提，不是地圖全域效果。
   function isIceBlizzardBlinded(now) {
     return !!(map && map.specialRule === "ice_blizzard" && now < iceBlizzardBlindUntil);
   }
@@ -12129,11 +12159,40 @@
     showToast(window.I18N.t("midnight_ice_blizzard_blind_note"));
   }
 
+  var iceFrostbiteNextTickAt = null;
+  var ICE_FROSTBITE_INTERVAL_MS = RED_MIASMA_INTERVAL_MS; // 使用者2026-09-10指示「以及red的腐敗」＝比照red_miasma同一套頻率/機制實作
+
+  // 「凍寒的暴風雪」（ice）：規則書原文只寫「非戰鬥時にも『凍傷』が蓄積し、戦闘が終了
+  // しても『凍傷』蓄積値が残る」，沒有標示蓄積速率數字（CLAUDE.md §19不自行發明）。
+  // 2026-09-10使用者指示「地變特殊規則：非戰鬥也蓄積凍傷 以及red的腐敗」——把這句話
+  // 理解為「比照red瘴氣腐敗(maybeApplyRedMiasmaTick)同一套機制/頻率」實作：每
+  // RED_MIASMA_INTERVAL_MS(30秒)累積「凍傷：1D」，不透過會在跨閾值時歸零的
+  // recordReceivedAttributeAccum()（規格明確要求「戰鬥結束也不重置」，跟一般異常「達到
+  // 閾值觸發效果後歸零」不同），本地only直接疊加receivedAttributeAccum，原理與範圍限縮
+  // 跟maybeApplyRedMiasmaTick()完全對稱。跟原本只在activeEncounter時才計時的
+  // 「暴風雪的視野」(maybeApplyIceBlizzardTick)不同，這裡是地圖全域效果，只要目前地圖是
+  // ice_blizzard就持續累積，不限戰鬥中。
+  function maybeApplyIceFrostbiteTick(now) {
+    if (!mySlot) return;
+    if (iceFrostbiteNextTickAt === null) {
+      iceFrostbiteNextTickAt = now + ICE_FROSTBITE_INTERVAL_MS;
+      return;
+    }
+    if (now < iceFrostbiteNextTickAt) return;
+    iceFrostbiteNextTickAt = now + ICE_FROSTBITE_INTERVAL_MS;
+    var roll = 1 + Math.floor(Math.random() * 6);
+    receivedAttributeAccum["凍傷"] = (receivedAttributeAccum["凍傷"] || 0) + roll;
+    renderAttributeAccumNote();
+  }
+
   function applyMapSpecialRuleTick(now, phaseInfo) {
     if (!map || !map.specialRule) return;
     if (map.specialRule === "cassel_hidden_city") maybeApplyCasselTimeLoss(now, phaseInfo);
     else if (map.specialRule === "red_miasma") maybeApplyRedMiasmaTick(now);
-    else if (map.specialRule === "ice_blizzard") maybeApplyIceBlizzardTick(now);
+    else if (map.specialRule === "ice_blizzard") {
+      maybeApplyIceBlizzardTick(now);
+      maybeApplyIceFrostbiteTick(now);
+    }
   }
 
   function render(now, phaseInfo) {
@@ -12253,14 +12312,14 @@
   function isPointCleared(pt) {
     if (pt.type === "sorcerer") return !!towerSolved[pt.id];
     if (pt.type === "merchant" || pt.type === "blessing" || pt.type === "random_event") return false;
-    if (pt.type === "strong_enemy" || pt.type === "hazard_q") {
+    if (pt.type === "strong_enemy") {
       var trig = fieldTriggers[pt.id];
       return !!(trig && trig.enemyFamilyId && fieldEnemyHp[pt.id] <= 0);
     }
-    // 一般地點卡（2~10/K/J）：「攻破」＝全樓層踏破（fieldProgress.cleared），不是單一
+    // 一般地點卡（2~10/K/J／Q）：「攻破」＝全樓層踏破（fieldProgress.cleared），不是單一
     // 樓層resolved就算——套用night規則書「全フロア踏破」才算完全攻破的概念（見
     // maybeAdvanceFieldProgressAfterFloorClear），跟strong_enemy籌碼（單層、擊殺即完成）
-    // 的判定分開。
+    // 的判定分開。Q板塊2026-09-10改走這條一般分支（見NON_FIELD_POINT_TYPES說明）。
     return !!(fieldProgress[pt.id] && fieldProgress[pt.id].cleared);
   }
 

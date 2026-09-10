@@ -6240,6 +6240,59 @@ html.midnight-top-banner-collapsed .midnight-top-banner-collapse-btn {
   margin: 0.75rem 0;
 }
 
+/* 2026-09-10使用者明確規格「創立圓桌(房間)後 原本的加入為三條加入區塊 更改UI為圓桌狀
+   加入在三個方向可以按等同現在的加入方式」：只改「創立房間」等待畫面(#midnight-lobby-slots)
+   的視覺排版，不影響戰鬥中左上角隊伍面板(#midnight-players-panel-slots／
+   #midnight-hud-top-left .midnight-slot-card)——兩者共用同一份.midnight-slot-card/
+   renderOccupiedSlotCard()既有DOM結構與加入按鈕邏輯(static/midnight.jsのrenderLobby()/
+   showJoinForm())完全不變，只是這裡用更高特異度的#midnight-lobby-slots覆寫掉上面
+   flex-column版面，改成3張卡片用position:absolute排列在一個圓桌圖案的3個方向(上／
+   左下／右下)，點擊/加入行為跟改版前完全相同。 */
+#midnight-lobby-slots {
+  position: relative;
+  display: block;
+  width: 100%;
+  max-width: 360px;
+  min-height: 250px;
+  margin: 1.5rem auto;
+}
+
+#midnight-lobby-slots::before {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 130px;
+  height: 130px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 40% 35%, #4a3521 0%, #241a10 75%);
+  border: 3px solid #6b4a2a;
+  box-shadow: inset 0 0 18px rgba(0, 0, 0, 0.6), 0 2px 8px rgba(0, 0, 0, 0.4);
+}
+
+#midnight-lobby-slots .midnight-slot-card {
+  position: absolute;
+  width: 158px;
+  margin: 0;
+}
+
+#midnight-lobby-slots .midnight-slot-card:nth-child(1) {
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+#midnight-lobby-slots .midnight-slot-card:nth-child(2) {
+  bottom: 0;
+  left: 0;
+}
+
+#midnight-lobby-slots .midnight-slot-card:nth-child(3) {
+  bottom: 0;
+  right: 0;
+}
+
 /* 2026-09-08使用者明確規格「左上隊伍資訊每個人為兩排：第一排名稱與腳色，第二排血量」：
    card本身改成column排列，兩排各自是.midnight-slot-row（見static/midnight.jsの
    renderOccupiedSlotCard()）。 */

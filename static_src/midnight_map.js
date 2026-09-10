@@ -508,7 +508,7 @@
     var zCandidates = variant ? variant.zCandidates : Z_CANDIDATES;
     var spiritBirdLinks = variant ? variant.spiritBirdLinks : SPIRIT_BIRD_LINKS;
 
-    var points = placePoints(grid, pointEligible, w, h, rand, hazardZone, variant && variant.qPoint);
+    var points = placePoints(grid, pointEligible, w, h, rand, hazardZone, variant && variant.qPoint, variant && variant.qNames);
     var dayPlan = assignDayPlan(rand, aCandidates, zCandidates, variant && variant.forcedDay2EndId);
     return {
       seed: seed,
@@ -537,7 +537,7 @@
   // 放置，成功後其餘需求（包含剩下11個與其他類型）才照正常流程（不限定範圍、檢查
   // 同類型間距）放置——這樣2~7類地點總數維持規格要求的12個，且保證其中一定有一個在
   // 開始地點附近，而不是隨機生成完才檢查、失敗了還要重試整個流程。
-  function placePoints(grid, pointEligible, w, h, rand, hazardZone, qPoint) {
+  function placePoints(grid, pointEligible, w, h, rand, hazardZone, qPoint, qNames) {
     var out = [];
     var guard = 0;
 
@@ -581,28 +581,33 @@
     });
 
     placeChurchSectorSpread(grid, pointEligible, w, h, rand, out);
-    placeHazardZonePoints(grid, hazardZone, w, h, rand, out, qPoint);
+    placeHazardZonePoints(grid, hazardZone, w, h, rand, out, qPoint, qNames);
 
     return out;
   }
 
-  // 「完整版」4張新地圖的特殊橘線範圍（使用者明確規格：「在各自特殊橘線範圍內不放入其他
-  // 板塊籌碼 但另外出現卡牌數字: 4,5,Q,可怖強敵,祝福×2」）：這幾個點只在hazardZone遮罩
-  // 範圍內生成（不是pointEligible，那份資料已經扣掉hazardZone，一般點自然不會落在裡面，
-  // 見midnight_map_variants.jsのELIGIBLE_ROWS說明），額外疊加在一般點位需求之上（不是
-  // 取代原本2~7類地點各2個裡的4/5），因此地圖上4/5卡牌各會有3個（原本2個＋這裡1個）。
-  // hazardZone為null（origin基礎地圖／這4張以外的地圖）時整個no-op。
-  //   4／5：沿用既有fields_data card_4／card_5內容，跟一般2~7地點走同一套結構化樓層
-  //     pipeline，只是座標被限制在橘線範圍內——不是另外發明新卡牌內容。
+  // 「完整版」4張新地圖的特殊橘線範圍（2026-09-10使用者更新規格：「生成板塊更改為
+  // 額外生成4,可怖強敵，兩者只要其一通過即可開始Q，另外還有祝福x2」）：這幾個點只在
+  // hazardZone遮罩範圍內生成（不是pointEligible，那份資料已經扣掉hazardZone，一般點
+  // 自然不會落在裡面，見midnight_map_variants.jsのELIGIBLE_ROWS說明），額外疊加在一般
+  // 點位需求之上（不是取代原本2~7類地點各2個裡的4），因此地圖上4卡牌會有3個（原本2個＋
+  // 這裡1個）。hazardZone為null（origin基礎地圖／這4張以外的地圖）時整個no-op。
+  //   4：沿用既有fields_data card_4內容，跟一般2~7地點走同一套結構化樓層pipeline，只是
+  //     座標被限制在橘線範圍內——不是另外發明新卡牌內容。舊規格的「5」已依使用者指示
+  //     移除，不再額外生成。
   //   strong_enemy（可怖強敵）：沿用一般強敵籌碼既有的event_rulebook.js決定表/戰鬥pipeline，
   //     只是額外標記hazardMember:true供midnight.js的Q板塊開放判定讀取。
-  //   Q：新的板塊類型（type:"hazard_q"），cassel／ice兩張圖標註圖上有畫明確的Q文字座標
-  //     （見qPoint參數），直接採用；kasan／red沒有畫，在橘線範圍內用跟其他籌碼一樣的
-  //     rejection sampling自由決定。實際的開放判定／戰鬥pipeline在midnight.js
-  //     （見maybeRollHazardQEnemy()/handleHazardQEnterClick()），這裡只負責放點。
+  //   Q（地變，共3張）：使用者規格「Q卡牌有三張」——對應qNames的3個分歧名稱各生成一個
+  //     type:"hazard_q"的點，card固定是"Q"（跟一般2~10/K地點同一套fieldCardData()
+  //     pipeline，見midnight.jsのNON_FIELD_POINT_TYPES已不含hazard_q），pt.hazardQName
+  //     記錄這個點對應哪個分歧，供pickFieldBranchIndex()指定選取（不是隨機/依劇本比對）。
+  //     cassel／ice兩張圖標註圖上有畫明確的Q文字座標（qPoint，對應qNames[0]）直接採用；
+  //     其餘2個名稱（含kasan／red全部3個，因為這兩張沒有標註任何固定Q座標）在橘線範圍內
+  //     用跟其他籌碼一樣的rejection sampling自由決定。開放判定／戰鬥pipeline在
+  //     midnight.js（見hazardQUnlocked()/updateNearbyFieldPoint()），這裡只負責放點。
   //   祝福×2：沿用一般blessing點的既有邏輯，只是座標限制在橘線範圍內。
   var HAZARD_POINT_MIN_DIST = 3;
-  function placeHazardZonePoints(grid, hazardZone, w, h, rand, out, qPoint) {
+  function placeHazardZonePoints(grid, hazardZone, w, h, rand, out, qPoint, qNames) {
     if (!hazardZone) return;
 
     function tryPlaceInHazard(card, type, extra) {
@@ -630,13 +635,14 @@
       }
     }
 
-    if (qPoint) {
-      out.push({ id: "pt" + out.length, card: "Q", type: "hazard_q", x: qPoint.x, y: qPoint.y });
-    } else {
-      tryPlaceInHazard("Q", "hazard_q");
-    }
+    (qNames || []).forEach(function (name, idx) {
+      if (idx === 0 && qPoint) {
+        out.push({ id: "pt" + out.length, card: "Q", type: "hazard_q", x: qPoint.x, y: qPoint.y, hazardQName: name });
+      } else {
+        tryPlaceInHazard("Q", "hazard_q", { hazardQName: name });
+      }
+    });
     tryPlaceInHazard("4", "4", { hazardMember: true });
-    tryPlaceInHazard("5", "5", { hazardMember: true });
     tryPlaceInHazard("strong_enemy", "strong_enemy", { hazardMember: true });
     tryPlaceInHazard("blessing", "blessing");
     tryPlaceInHazard("blessing", "blessing");
