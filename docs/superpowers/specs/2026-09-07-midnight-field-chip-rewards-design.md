@@ -116,6 +116,20 @@ function isPerPersonRewardEntry(entry) {
 REWARD_RUNES` 等）視為 `perPerson:true`（規則書原文本來就是「PC 各自獲得」），同樣寫入
 對應點位的 `perPlayerRewards` ledger。
 
+**參與紀錄（2026-09-10 實作修正）**：`perPlayerRewards/{seq}/directSlots` 原本兼任「誰已經
+直接領過、不算後補」的判斷依據，但它是 `pushPerPlayerReward()` 的副產品——該函式在
+「這一層沒有任何 perPerson 獎勵」時直接 return，而實際資料裡這種樓層佔多數
+（178 個樓層中 60 個以上的 `reward` 只有 `tieredChoice`／`hpDamage`／`note`，或根本沒有
+`reward`）。樓層推進時 `fieldTrigger` 會被清空，於是原本的參與者被誤判成「延遲入場」、
+跳出後補領獎提示（使用者 2026-09-10 回報）。修正方式：
+`maybeAdvanceFieldProgressAfterFloorClear()` 在每一層踏破時**無條件**把
+`trig.participants` 寫進 `fieldProgress/{pointId}/participatedSlots/{slot} = true`
+（沿用同一個 `fieldProgress` ledger 節點、同樣 `slot -> true` 形狀，不另建第二套追蹤機制），
+`updateNearbyFieldPoint()` 的 eligibility 判斷優先查它，`directSlots` 迴圈保留作為舊存檔的
+相容路徑。跟 `claimedBy` 一樣是「整個點一次性」的粗粒度（參與過任何一層就不再顯示後補
+領獎），這是刻意維持既有粒度——per-floor 粒度需要同時把 `claimedBy` 改成 per-floor，否則
+會變成「參與過第1層的人按後補領獎時把第1層獎勵再領一次」。
+
 **領取機制**：
 - 玩家靠近「自己從未加入過、但這個點已有 `fieldTrigger`/`fieldProgress` 記錄」的一次性內容時
   （不論目前是否已全清），顯示 `[領取獎勵]` 按鈕。

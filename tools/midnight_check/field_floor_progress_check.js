@@ -87,15 +87,24 @@ async function runOneFloorCycle(page, gameId, pt, results, label) {
 
   // 進入
   await page.waitForFunction(() => !document.getElementById("btn-midnight-field-enter").hidden, { timeout: 5000 });
+  // 2026-09-10新增：2026-09-08/09的獎勵清單改版後，樓層踏破會自動彈出#midnight-reward-modal，
+  // 它是全螢幕遮罩、會攔截「進入」按鈕的點擊。這裡先關掉（等同玩家按「關閉」），
+  // 獎勵清單本身的內容驗證交給field_late_claim_check.js／reward相關腳本。
+  await page.evaluate(() => {
+    const m = document.getElementById("midnight-reward-modal");
+    const close = document.getElementById("btn-midnight-reward-close");
+    if (m && !m.hidden && close) close.click();
+  });
   await page.click("#btn-midnight-field-enter");
-  // 邀請時限3秒 -> active
+  // 邀請時限 -> active（2026-09-10修正：FIELD_INVITE_TIME_LIMIT_MS已於2026-09-07由3秒
+  // 改為10秒，這裡原本的8秒timeout必定來不及，是腳本本身過期，不是被測程式的問題）
   await page.waitForFunction(
     (pointId) => {
       const t = (window.PriTestMidnight._debugState().fieldTriggers || {})[pointId];
       return t && t.status !== "inviting";
     },
     pt.id,
-    { timeout: 8000 }
+    { timeout: 20000 }
   );
   // 打字機播完（用內部旗標判斷，不用Playwright的可視性判斷——面板在敵人存活、尚未有
   // 結果文字時內容是空的，viewport上會是0大小，Playwright的:not([hidden])可視性等待
@@ -213,9 +222,17 @@ async function runOneFloorCycle(page, gameId, pt, results, label) {
       (tokenId) => window.PriTestMidnight._debugState().pendingRewards[tokenId] || {},
       state0.myTokenId
     );
-    const runeReward = Object.values(rewardsAfterClear).find((r) => r.kind === "rune");
-    assert(!!runeReward, "全踏破後獎勵清單有rune項目（card_2的allFloorEffect「盧恩：2」）", results);
-    assert(!runeReward || runeReward.value === 2, "全踏破盧恩獎勵數值正確（實際:" + (runeReward && runeReward.value) + "，預期2）", results);
+    // 2026-09-10修正：2026-09-08/09獎勵清單改版後，樓層戰利品（含各層自己的「盧恩：N」）
+    // 也統一走pendingRewards，所以清單裡通常不只一筆rune。原本用find()取第一筆再比對
+    // value===2，會隨機取到樓層戰利品的盧恩（例如3）而誤報——改成「清單裡存在一筆
+    // value===2的rune」（card_2的allFloorEffect「盧恩：2」），是腳本過期，不是程式算錯。
+    const runeRewards = Object.values(rewardsAfterClear).filter((r) => r.kind === "rune");
+    assert(runeRewards.length > 0, "全踏破後獎勵清單有rune項目（card_2的allFloorEffect「盧恩：2」）", results);
+    assert(
+      runeRewards.some((r) => r.value === 2),
+      "全踏破盧恩獎勵數值正確（清單裡的rune值:" + JSON.stringify(runeRewards.map((r) => r.value)) + "，預期含2）",
+      results
+    );
 
     console.log("=== 祝福全回復（2026-09-06改版：進入→0.5秒讀取條→疊層視窗→視窗內按「使用」才回復，不再是prompt按鈕直接觸發） ===");
     // 由於祝福籌碼是隨機佈點，這裡改用直接呼叫handleBlessingEnterClick()同款邏輯的
@@ -233,6 +250,12 @@ async function runOneFloorCycle(page, gameId, pt, results, label) {
         );
         await page.waitForTimeout(300);
         await page.waitForSelector("#midnight-blessing-prompt:not([hidden])", { timeout: 5000 });
+        // 同上：獎勵清單彈窗會攔截點擊，先關掉再操作祝福籌碼。
+        await page.evaluate(() => {
+          const m = document.getElementById("midnight-reward-modal");
+          const close = document.getElementById("btn-midnight-reward-close");
+          if (m && !m.hidden && close) close.click();
+        });
         await page.click("#btn-midnight-blessing-claim"); // 「進入」：先播0.5秒讀取條
         await page.waitForSelector("#midnight-blessing-modal:not([hidden])", { timeout: 2000 });
         await page.click("#btn-midnight-blessing-use"); // 視窗內「使用祝福」才真正回復

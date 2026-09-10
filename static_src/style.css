@@ -4476,11 +4476,23 @@ button {
   color: #f0f0f0;
 }
 
+/* 2026-09-10使用者回報「戰鬥進行中時左上/右上HUD會被樓層資訊欄等其他HUD蓋住」：上方
+   置中的板塊/樓層資訊欄群組（#midnight-field-banner等，z-index:600）跟被指定為攻擊目標
+   時的全螢幕警示/攻擊特效（#midnight-incoming-attack-warning／#midnight-attack-effect，
+   同樣600）都比原本的HUD四角面板（500）高，在手機等窄畫面上資訊欄寬度（92%，最大480px）
+   會直接壓在左上隊友血條與右上角色/選單按鈕上面。這裡把「左上/右上」兩塊拉高到620：
+   - 高於上方資訊欄與攻擊特效（600）→ 戰鬥中HUD一定看得到、按得到。
+   - 仍低於所有真正的彈窗/遮罩（#midnight-lobby-character-detail 650、tower/merchant/
+     blessing/bargain/character-sheet/reward modal 700、weapon-reroll 750、dice-overlay
+     900、intro/結算overlay 1500~2100）→ 這些「開啟後本來就該擋住其他操作」的視窗不會
+     反被HUD戳穿。
+   - 折疊時資訊欄本身降到400（見html.midnight-top-banner-collapsed規則）的既有行為不變。
+   左下/右下/下方置中維持500：它們跟上方資訊欄在版面上不重疊，沒有這個問題。 */
 #midnight-hud-top-left {
   position: fixed;
   top: 0.6rem;
   left: 0.6rem;
-  z-index: 500;
+  z-index: 620;
   width: 220px;
   max-width: 42vw;
 }
@@ -4620,11 +4632,12 @@ button {
   padding: 0.1rem 0.3rem;
 }
 
+/* z-index:620 的理由見上方#midnight-hud-top-left的說明（同一次修正，兩塊必須同高）。 */
 #midnight-hud-top-right {
   position: fixed;
   top: 0.6rem;
   right: 0.6rem;
-  z-index: 500;
+  z-index: 620;
   display: flex;
   flex-direction: column;
   align-items: flex-end;
@@ -6483,11 +6496,14 @@ html.midnight-top-banner-collapsed .midnight-top-banner-collapse-btn {
    #midnight-hud-top-right同層級（見midnight_page.py說明），改成固定定位貼在按鈕列
    下方，這樣不管地圖是展開還是收合都能看到/操作（跟按鈕本身的可見性一致），z-index
    跟#midnight-hud-top-right一樣高，確保地圖展開時（z-index 50）不會被蓋住。 */
+/* 2026-09-10：#midnight-hud-top-right拉高到620時，這塊「貼在右上按鈕列正下方」的選單
+   面板必須跟著一起拉高（上方註解本來就寫明「z-index跟#midnight-hud-top-right一樣高」），
+   否則展開選單會被上方置中的板塊資訊欄（600）蓋住半截。 */
 #midnight-menu-panel {
   position: fixed;
   top: 2.6rem;
   right: 0.6rem;
-  z-index: 500;
+  z-index: 620;
   display: flex;
   align-items: center;
   flex-wrap: wrap;

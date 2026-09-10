@@ -147,11 +147,20 @@ depth≤1 為止的巢狀內文）裡的敵人引用文字，跟 `night_gm_flow.
 }
 ```
 
-`fieldFloorCountForCard()` 優先讀卡片本身的 `floorCount`（而非 `branches[0].floors.length`），
-因為極少數卡（例如規則書「水辺の大教会」有「任意順序踏破 4 層中的 2 層即算全踏破」的
-`freeFloorOrder` 特例）`floorCount` 跟 `floors.length` 不同。**midnight.js 不支援
-`freeFloorOrder` 的任意順序彈性**，一律照陣列順序 0,1,2...走到 `floorCount` 為止才算全踏破，
-是已知的簡化（不是算錯數字）。
+`fieldFloorCountForCard()` 取「卡面 `floorCount`」與「這個點實際採用的那個分歧的
+`floors.length`」兩者的**較小值**（2026-09-10 修正，原本只有 Q 用分歧長度、其餘卡牌一律
+相信卡面 `floorCount`）：
+
+- **分歧比卡面長**：例如規則書「水辺の大教会」的 `freeFloorOrder` 特例（`floorCount:2` 但
+  `floors` 有 4 層，「任意順序踏破 4 層中的 2 層即算全踏破」）→ 取 `floorCount`。
+  **midnight.js 不支援 `freeFloorOrder` 的任意順序彈性**，一律照陣列順序 0,1,2... 走到
+  `floorCount` 為止才算全踏破，是已知的簡化（不是算錯數字）。
+- **分歧比卡面短**：例如 `card_6`（坑道，`floorCount:2`）的分歧「倒下的大結晶（大空洞）」
+  只有 1 層，以及 `card_q` 多數分歧只有 3 層（卡面 4）→ 取分歧實際長度。若沿用卡面
+  `floorCount`，踏破最後一層後 `cleared` 會被判成 false、畫面出現「2/2」還能按「進入」，
+  但 `fieldFloorForTrig()` 取到 `undefined`，該地圖點會永久卡死進不去（2026-09-10 使用者
+  回報的 bug，已修正）。`maybeAssignFieldEnemy()`／`maybeGrantFieldTileRewardOnClear()`
+  另外保留「取不到樓層資料時照樣推進進度」的自癒分支，供修正前就已存進 RTDB 的舊進度收尾。
 
 ### 3.1 範例（示範用，非窮舉）
 
@@ -484,7 +493,9 @@ N 個分歧變體，隨機挑一個」處理——這是即時制版本刻意的
   - `fieldFloorCountForCard()` 改吃 `pt`（原本只吃 `card`）：`card_q` 卡面雖有
     `floorCount:4` 欄位，但那只是「山嶺(山頂)」分歧的樓層數，其餘11個分歧樓層陣列長度
     實際是3——Q改用「已指定分歧」的實際 `floors.length`，避免3層的分歧被誤判成有第4層
-    可踏破，一般卡牌不受影響（仍優先讀card.floorCount）。
+    可踏破。**2026-09-10 後續修正**：這個「用分歧實際長度」的處理已改為對所有卡牌通用
+    （取 min(卡面floorCount, 分歧floors長度)），因為一般卡牌也有同樣問題的資料
+    （`card_6` 的「倒下的大結晶（大空洞）」），詳見 §3。
   - 樓層敘述、「(→XXX)」分歧選擇、敵人名稱解析（含指定王戰，如ice山頂的「山嶺の氷竜
     ／Lv.15」）、獎勵發放，全部沿用一般地點既有pipeline，不是另外寫一套。
 - **王城（J）**：cassel這張地圖的標註圖上沒有畫王城橘線範圍（`CASTLE_ROWS`全0），

@@ -5203,17 +5203,31 @@
   // 誤判成還有第4層可踏破。因此Q改用「已指定分歧」（pt.hazardQName配對出的branchIndex，
   // 有進度時用progress.branchIndex，跟maybeAdvanceFieldInvite()同一套快取邏輯）的
   // 實際floors.length，其餘一般卡牌不受影響，維持原本card.floorCount優先的既有行為。
+  // fix(2026-09-10)：原本只有Q走「依已指定分歧的實際floors.length」，其餘卡牌一律相信
+  // card.floorCount——但實際資料裡一般卡牌也有「分歧的floors陣列比卡面floorCount短」的
+  // 案例（fields_data_2.js card_6「坑道」floorCount:2，但branch「倒下的大結晶（大空洞）」
+  // 只有1層），會造成使用者回報的「進入下一層卡住」：踏破第0層後floorIndex推進到1、
+  // cleared判定成false（1<2），畫面顯示「2/2」可以再進入，但fieldFloorForTrig()取
+  // branch.floors[1]是undefined，maybeAssignFieldEnemy()的`if (!floor) return`直接靜默
+  // 放棄，樓層永遠不會再推進，這個地圖點就永久卡死。
+  // 修正方式：一律取「卡面floorCount」與「這個點實際採用的分歧floors長度」兩者的較小值。
+  //   - 分歧比卡面短（card_6 branch3）：改用實際長度，不會產生打不到的幽靈樓層。
+  //   - 分歧比卡面長（規則書freeFloorOrder特例，如水辺の大教会 floorCount:2 / floors:4）：
+  //     仍取floorCount，維持既有「照順序走到floorCount就算全踏破」的已知簡化不變。
+  // Q維持原本「直接用分歧實際長度」的語意（card_q的分歧長度1/3/4都不大於卡面4，取min的
+  // 結果與原本完全相同，只是寫在同一段共用邏輯裡，不再是特例分支）。
   function fieldFloorCountForCard(pt) {
     var card = pt.card;
     var data = fieldCardData(card);
     var branches = fieldCardBranches(card);
-    if (card === "Q") {
-      var progress = fieldProgress[pt.id];
-      var branchIndex = progress && typeof progress.branchIndex === "number" ? progress.branchIndex : pickFieldBranchIndex(pt);
-      var branch = branches[branchIndex];
-      if (branch && branch.floors && branch.floors.length) return branch.floors.length;
-    }
-    if (data && typeof data.floorCount === "number") return data.floorCount;
+    var progress = fieldProgress[pt.id];
+    var branchIndex = progress && typeof progress.branchIndex === "number" ? progress.branchIndex : pickFieldBranchIndex(pt);
+    var branch = branches[branchIndex];
+    var branchFloorCount = branch && branch.floors && branch.floors.length ? branch.floors.length : 0;
+    var cardFloorCount = data && typeof data.floorCount === "number" ? data.floorCount : 0;
+    if (branchFloorCount && cardFloorCount) return Math.min(cardFloorCount, branchFloorCount);
+    if (branchFloorCount) return branchFloorCount;
+    if (cardFloorCount) return cardFloorCount;
     return (branches[0] && branches[0].floors && branches[0].floors.length) || 1;
   }
 
@@ -5450,6 +5464,15 @@
         // 只要自己出現在任一筆ledger紀錄的directSlots裡，代表這份獎勵早就直接發放過，
         // 不該再被當成「從未加入、需要後補領獎」，否則會彈出late-claim-prompt讓玩家把同一
         // 份戰利品重複領取一次。
+        // fix(2026-09-10)：directSlots只有「這一層剛好發過perPerson獎勵」時才存在
+        // （pushPerPlayerReward()在entries為空時直接return），實際資料裡大量樓層的
+        // reward只有tieredChoice/hpDamage/note或根本沒有reward，因此光靠directSlots
+        // 會漏掉大部分參與紀錄。改為優先查maybeAdvanceFieldProgressAfterFloorClear()
+        // 無條件寫入的participatedSlots（同一個fieldProgress節點、同樣slot->true形狀），
+        // directSlots的迴圈保留作為舊存檔的相容路徑。
+        if (neverJoined0 && mySlot && progress0.participatedSlots && progress0.participatedSlots[mySlot]) {
+          neverJoined0 = false;
+        }
         if (neverJoined0 && mySlot && progress0.perPlayerRewards) {
           for (var prSeq in progress0.perPlayerRewards) {
             var prEntry = progress0.perPlayerRewards[prSeq];
@@ -6084,7 +6107,16 @@
     var trig = fieldTriggers[pt.id];
     if (!trig) return;
     var floor = fieldFloorForTrig(pt, trig);
-    if (!floor) return;
+    if (!floor) {
+      // fix(2026-09-10)：原本這裡只是`return`，資料上取不到這一層（分歧floors陣列比
+      // 卡面floorCount短，見fieldFloorCountForCard()說明）時就永久卡住、沒有任何提示。
+      // fieldFloorCountForCard()的min()修正已經讓新遊戲不會走到這裡，這條分支是給
+      // 「修正前就已經存進RTDB的舊進度」用的自癒路徑：把樓層當成已經走完往下推進，
+      // maybeAdvanceFieldProgressAfterFloorClear()會依修正後的floorCount正確標記cleared。
+      // 不自行發明樓層內容或獎勵（規則書沒有這一層＝真的沒有這一層）。
+      maybeAdvanceFieldProgressAfterFloorClear(pt, trig);
+      return;
+    }
     var labels = fieldChoiceLabelsFor(pt, trig);
     var label = labels[choiceIndex];
     var lines = label ? collectLinesForChoice(floor, label) : floor.lines;
@@ -9218,7 +9250,9 @@
     var hp = fieldEnemyHp[pt.id];
     if (hp === undefined || hp > 0) return;
     var floor = fieldFloorForTrig(pt, trig);
-    if (!floor) return;
+    // fix(2026-09-10)：同maybeAssignFieldEnemy()，floor取不到時不再靜默return（那會讓
+    // 敵人已經打倒、樓層卻永遠不推進），改為照樣推進進度；maybeGrantFieldTileReward()
+    // 本身已能接受floor為null（reward視為空陣列，不會發明獎勵）。
     maybeGrantFieldTileReward(pt, trig, floor);
     maybeAdvanceFieldProgressAfterFloorClear(pt, trig);
   }
@@ -9247,6 +9281,10 @@
     delete fieldInviteResolveAttempted[id];
     delete fieldTypewriterStartedFor[id];
     delete fieldTypewriterDoneFor[id];
+    // fix(2026-09-10)：原本漏了這一個。清空trigger、下一層重新進入時若殘留上一層的
+    // 播完時間戳，maybeResolveFieldVote()的「自動選擇前停3秒」（FIELD_AUTO_SELECT_DELAY_MS）
+    // 判斷式會因為doneAt早就過期而立即成立，新樓層敘述一播完就瞬間跳過，玩家來不及讀。
+    delete fieldTypewriterDoneAt[id];
     delete fieldVoteDeadlineSetAttempted[id];
     delete fieldVoteResolveAttempted[id];
     delete fieldEnemyAssignAttempted[id];
@@ -9275,6 +9313,20 @@
       return cur === null ? myTokenId : cur;
     }).then(function (committed) {
       if (committed !== myTokenId) return; // 搶輸了，這一層的推進已經由別的裝置負責
+      // fix(2026-09-10)：把「這一層實際參加到最後的席位」無條件記進fieldProgress。
+      // 原本這份紀錄只是pushPerPlayerReward()的directSlots副產品，而該函式在
+      // perPerson獎勵為0筆時會直接return（見該函式）——實際資料裡「這一層沒有任何
+      // perPerson戰利品」非常常見（178個樓層中有60個以上的reward只有tieredChoice／
+      // hpDamage／note，或根本沒有reward），於是這些樓層踏破後完全沒有留下參與紀錄。
+      // 樓層推進時fieldTrigger會被maybeClearFieldTriggerAfterRewardGate()整個清空，
+      // updateNearbyFieldPoint()便再也查不到「我其實是這一層的participant」，把原本的
+      // 參與者誤判成「延遲入場、需要後補領獎」，跳出late-claim提示（使用者回報現象①）。
+      // 這裡沿用既有的fieldProgress ledger節點（跟directSlots同樣是slot->true的形狀），
+      // 不另外發明第二套追蹤機制，且不受fieldTrigger清空影響。
+      Object.keys(trig.participants || {}).forEach(function (slot) {
+        if (!trig.participants[slot]) return;
+        GameStorage.rtSet(gameId, "cloud", "fieldProgress/" + pt.id + "/participatedSlots/" + slot, true);
+      });
       GameStorage.rtSet(gameId, "cloud", "fieldProgress/" + pt.id + "/branchIndex", trig.branchIndex);
       GameStorage.rtSet(gameId, "cloud", "fieldProgress/" + pt.id + "/floorIndex", nextFloorIndex);
       GameStorage.rtSet(gameId, "cloud", "fieldProgress/" + pt.id + "/cleared", cleared);
@@ -9324,7 +9376,21 @@
     var trig = fieldTriggers[pt.id];
     var progress = fieldProgress[pt.id];
     if (!trig || !progress || progress.cleared) return;
-    if ((progress.floorIndex || 0) <= (trig.floorIndex || 0)) return;
+    // fix(2026-09-10)：使用者回報「按下『進入下一層』後無法真正進入、卡在該樓層」的直接
+    // 成因。handleEnterFieldPointClick()建立的新trigger是
+    // {status:"inviting", ...}，**沒有floorIndex欄位**（floorIndex要等
+    // maybeAdvanceFieldInvite()邀請時限結束才從fieldProgress補上）。原本的判斷式用
+    // `trig.floorIndex || 0`把它當成0，於是「progress.floorIndex(1) > 0」立刻成立，
+    // 這個每幀輪詢的函式會在玩家按下「進入」的下一幀就把剛建立的邀請trigger整個清掉
+    // ——而且順帶resetFieldPointLocalFlags()把fieldEnterAttempted也清掉，所以按鈕看起來
+    // 還能再按，但每按一次都在10秒邀請時限走完之前被抹掉，樓層永遠進不去。
+    // 這個函式的用途只有一個：清掉「已經完成、進度已經推進過」的那個舊trigger，因此
+    // 加上兩道明確的條件——①必須已經是resolved（樓層跑完的trigger一定是resolved，見
+    // maybeAssignFieldEnemy()／maybeGrantFieldTileRewardOnClear()兩個唯一呼叫
+    // maybeAdvanceFieldProgressAfterFloorClear()的地方）②floorIndex必須真的存在，
+    // 不用「|| 0」把「還沒決定樓層」誤當成第0層。
+    if (trig.status !== "resolved" || typeof trig.floorIndex !== "number") return;
+    if ((progress.floorIndex || 0) <= trig.floorIndex) return;
     if (!fieldRewardGateOpen(pt)) return;
     resetFieldPointLocalFlags(pt.id);
     GameStorage.rtSet(gameId, "cloud", "fieldTrigger/" + pt.id, null);
@@ -13026,6 +13092,13 @@
       if (!p) return false;
       performTakeover(slot, p);
       return true;
+    },
+    // 純測試用（同_debugTakeover，不對外公開文件化）：把fieldFloorCountForCard()這個
+    // 純查詢函式暴露出來，讓回歸腳本可以不必真的走到每一個地圖點，就能驗證「卡面
+    // floorCount」與「這個點實際採用的分歧floors長度」不會再算出打不到的幽靈樓層
+    // （見tools/midnight_check/field_late_claim_check.js的②）。不做任何state mutation。
+    _debugFieldFloorCount: function (pt) {
+      return fieldFloorCountForCard(pt);
     },
     _debugState: function () {
       return {
