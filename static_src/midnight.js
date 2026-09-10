@@ -1070,6 +1070,19 @@
     return document.getElementById(id);
   }
 
+  // ---- 規則文本轉換（2026-09-10使用者明確規格「詳細資訊中的原本文本，盡量改換成應用在
+  // 本規則內能夠讀懂的文本」）：實際的轉換表在static/midnight_text_adapt.js（純字串函式，
+  // 見該檔開頭的完整說明）。這裡只是薄包裝，模組沒載入時原樣回傳，不讓詳細視窗整個壞掉。
+  //
+  // **只能用在「要顯示給玩家看的那一刻」**：computeMidnightSkillCost()／
+  // computeMidnightSkillDamage()／CharacterDrawer.parseActionCost()等解析函式吃的都是規則書
+  // 原文的既有pattern（「骰子消耗：3」「HP回復：□□」等），餵轉換後的字串進去會直接失配，
+  // 導致消耗/傷害算錯。因此所有呼叫端一律維持「原始字串給計算、mnText()只給textContent」。
+  function mnText(body, name) {
+    var Adapt = window.PriTestMidnightTextAdapt;
+    return Adapt ? Adapt.adapt(body, name) : body;
+  }
+
   // ---- 建立新測試場：產生gameId＋初始meta（地圖種子、三天縮圈時間軸起點），等寫入RTDB
   // 真正完成後才導向帶?game=的網址（讓建立者跟加入者走同一條初始化路徑，不用維護兩套
   // 邏輯）。----
@@ -1949,6 +1962,13 @@
     el("btn-midnight-top-banner-reopen").addEventListener("click", function () {
       topBannerCollapsed = false;
       updateTopBannerCollapseUI();
+    });
+    // 點左上角色HUD／右上導覽HUD時暫時蓋過上方樓層資訊banner（見bumpHudAboveBanner()）。
+    // 用capture階段的listener掛在整個角落容器上，而不是逐顆按鈕綁——這兩塊的內容（隊友
+    // 卡片、按鈕列、測試模式面板）都是JS動態重繪的，逐顆綁會在每次render後失效。
+    ["midnight-hud-top-left", "midnight-hud-top-right"].forEach(function (id) {
+      var hudEl = el(id);
+      if (hudEl) hudEl.addEventListener("pointerdown", bumpHudAboveBanner, true);
     });
     el("btn-midnight-hud-collapse").addEventListener("click", function () {
       hudInfoBarCollapsed = !hudInfoBarCollapsed;
@@ -3637,7 +3657,7 @@
     c._highGuardActive = true;
     GameStorage.rtSet(gameId, "cloud", "character/" + myTokenId + "/_highGuardActive", true);
     var CharacterTypes = window.PriTestCharacterTypes;
-    showToast(CharacterTypes.localizedText(ability.name) + "：" + CharacterTypes.localizedText(ability.body));
+    showToast(CharacterTypes.localizedText(ability.name) + "：" + mnText(CharacterTypes.localizedText(ability.body), CharacterTypes.localizedText(ability.name)));
   }
 
   // 鑑定眼（鐵之眼被動，2026-09-05角色能力真正接入新增）：公開目前遭遇敵人的科（family）
@@ -3721,7 +3741,7 @@
     GameStorage.rtSet(gameId, "cloud", "character/" + myTokenId + "/_elementalControlCooldownUntil", c._elementalControlCooldownUntil);
     fp.current = Math.min(fp.max, fp.current + 1);
     var CharacterTypes = window.PriTestCharacterTypes;
-    showToast(CharacterTypes.localizedText(ability.name) + "：" + CharacterTypes.localizedText(ability.body));
+    showToast(CharacterTypes.localizedText(ability.name) + "：" + mnText(CharacterTypes.localizedText(ability.body), CharacterTypes.localizedText(ability.name)));
   }
 
   // 2026-09-08使用者明確要求「鑑定眼公開敵人現在的HP價值5s,cd:60s」：原本沒有冷卻、
@@ -4021,7 +4041,7 @@
     // 商人鍛造台的持有檢查），不是點一下就耗用的消耗品，按快速使用鍵只顯示提示，不扣
     // usesRemaining——避免玩家誤按就把鑰匙用掉。
     if (item && item.noStackLimit) {
-      showToast(window.PriTestConsumables.localizedText(item.name) + "：" + window.PriTestConsumables.localizedText(item.body));
+      showToast(window.PriTestConsumables.localizedText(item.name) + "：" + mnText(window.PriTestConsumables.localizedText(item.body), window.PriTestConsumables.localizedText(item.name)));
       return;
     }
     cancelFlaskReadingForOtherAction();
@@ -4046,7 +4066,7 @@
       var suffix = autoApplied
         ? window.I18N.t("midnight_consumable_auto_applied_note")
         : window.I18N.t("midnight_consumable_manual_note");
-      showToast(window.PriTestConsumables.localizedText(item.name) + "：" + window.PriTestConsumables.localizedText(item.body) + suffix);
+      showToast(window.PriTestConsumables.localizedText(item.name) + "：" + mnText(window.PriTestConsumables.localizedText(item.body), window.PriTestConsumables.localizedText(item.name)) + suffix);
       // 2026-09-06使用者明確要求「使用技能魔術甚至消耗品也需要在腳色的使用資訊log中
       // 顯示出來」：跟一般攻擊/戰技/角色能力共用同一顆action bubble（見
       // broadcastCombatActionBubble()），不新增第二套顯示機制。
@@ -6686,6 +6706,31 @@
     return false;
   }
 
+  // ---- 上方樓層資訊banner vs 左上角色HUD／右上導覽HUD 的疊層優先權（2026-09-10使用者
+  // 明確規格「樓層資訊的banner平時高於左上角色與右上導覽的資訊；戰鬥時左上角色與右上導覽
+  // 才蓋過banner，且戰鬥結束、離開等等會回復正常；若點了左上角色hud或右上導覽的hud會暫時
+  // 蓋過上方樓層資訊banner，3秒後跳回」）。
+  //
+  // 實作方式沿用既有的html.midnight-top-banner-collapsed同一套「單一全域旗標→html class
+  // →CSS選擇器」慣例（見updateTopBannerCollapseUI()），不在JS裡逐個element寫inline
+  // z-index：實際的z-index數值全部留在style.css，這裡只負責決定class要不要掛上。
+  //
+  // 「戰鬥中」直接沿用activeEncounter（recomputeActiveEncounter()維護的既有狀態，非null
+  // ＝目前正在跟某個地圖點/籌碼點的敵人交戰），因此「戰鬥結束（敵人HP歸零）」「逃離/離開
+  // 觸發範圍」都會讓它變回null，不需要另外寫一套結束偵測。
+  var HUD_ABOVE_BANNER_TAP_MS = 3000; // 使用者明確規格：點過左上/右上HUD後暫時蓋過banner的秒數
+  var hudAboveBannerUntil = 0; // 0＝沒有進行中的暫時提升；否則是到期時間戳
+
+  function bumpHudAboveBanner() {
+    hudAboveBannerUntil = Date.now() + HUD_ABOVE_BANNER_TAP_MS;
+    updateHudStackingUI(Date.now());
+  }
+
+  function updateHudStackingUI(now) {
+    var above = !!activeEncounter || now < hudAboveBannerUntil;
+    document.documentElement.classList.toggle("midnight-hud-above-banner", above);
+  }
+
   function updateTopBannerCollapseUI() {
     var activeBanner = findActiveTopBanner();
     var collapsedNow = topBannerCollapsed && !!activeBanner;
@@ -8745,8 +8790,13 @@
     if (entry.kind === "chaliceBonus") return { value: entry.value || 0 };
     if (entry.kind === "weaponSkillReroll") return { value: entry.value || 1 };
     if (entry.kind === "stoneswordKey" || entry.kind === "smithingStone") return { value: entry.value || 1 };
-    if (entry.kind === "weaponStar") {
-      var weaponResult = window.PriTestCharacterDrawer.merchantDrawWeapon({ weaponIds: [] }, entry.value || 1);
+    if (entry.kind === "weapon" || entry.kind === "weaponStar") {
+      // 2026-09-10修正：原本一律走merchantDrawWeapon()（大分類完全隨機），忽略了資料裡
+      // 的categoryId（fields_data_*.js有不少「聖印」等指定大分類的武器獎勵）。改成跟
+      // computeRewardDraw()同一套判斷，共用CharacterDrawer既有的兩支helper。
+      var weaponResult = entry.categoryId
+        ? window.PriTestCharacterDrawer.drawWeaponFromCategory({ weaponIds: [] }, entry.categoryId, entry.value || 1)
+        : window.PriTestCharacterDrawer.merchantDrawWeapon({ weaponIds: [] }, entry.value || 1);
       return weaponResult ? { weaponId: weaponResult.weaponId } : {};
     }
     if (entry.kind === "talisman") {
@@ -8770,7 +8820,7 @@
     if (entry.kind === "rune") return window.I18N.t("midnight_reward_label_rune", { value: drawn.value || 0 });
     if (entry.kind === "chaliceBonus") return window.I18N.t("midnight_reward_label_chalice_bonus", { value: drawn.value || 0 });
     if (entry.kind === "weaponSkillReroll") return window.I18N.t("midnight_reward_label_weapon_skill_reroll", { value: drawn.value || 1 });
-    if (entry.kind === "weaponStar" && drawn.weaponId) {
+    if ((entry.kind === "weapon" || entry.kind === "weaponStar") && drawn.weaponId) {
       var w = window.PriTestWeapons.get(baseCatalogId(drawn.weaponId));
       return w ? window.PriTestWeapons.localizedText(w.name) : drawn.weaponId;
     }
@@ -8803,7 +8853,7 @@
       c.flaskCount = (c.flaskCount || 0) + bonus;
     } else if (entry.kind === "weaponSkillReroll") {
       c._weaponRerollCredits = (c._weaponRerollCredits || 0) + (drawn.value || 1);
-    } else if (entry.kind === "weaponStar" && drawn.weaponId) {
+    } else if ((entry.kind === "weapon" || entry.kind === "weaponStar") && drawn.weaponId) {
       c.weaponIds = c.weaponIds || [];
       c.weaponIds.push(drawn.weaponId);
     } else if (entry.kind === "talisman" && drawn.talismanId) {
@@ -9437,7 +9487,15 @@
     if (entry.kind === "rune") return window.I18N.t("midnight_reward_kind_rune");
     if (entry.kind === "potentialPower") return window.I18N.t("midnight_reward_kind_potential_power");
     if (entry.kind === "talisman") return window.I18N.t("midnight_reward_kind_talisman");
-    if (entry.kind === "weapon") return window.I18N.t("midnight_reward_kind_weapon");
+    // 2026-09-10修正（使用者回報「潛在之力目前寫錯成WeaponStar了？」）：fields_data_*.js／
+    // TOWER_DICE_HAND_REWARDS的武器獎勵用的kind是"weaponStar"（value＝★數＝決定稀有度的
+    // 骰子顆數），不是"weapon"。個人待領取清單這一條路徑（pushPendingReward→這裡）原本
+    // 只認得"weapon"，因此清單上直接顯示未翻譯的原始字串"weaponStar"，看起來像是「潛在
+    // 之力被寫成WeaponStar」。共享獎勵那條路徑（drawSharedRewardData()／
+    // sharedRewardDrawLabel()／applyDrawnSharedRewardToCharacter()）本來就有處理
+    // "weaponStar"，只有個人這條漏掉。這裡與下方computeRewardDraw()／renderRewardDetail()
+    // 一起補齊，比照night_floor_breakthrough.jsの「weaponStar＝武器、value是★數」既有定義。
+    if (entry.kind === "weapon" || entry.kind === "weaponStar") return window.I18N.t("midnight_reward_kind_weapon");
     if (entry.kind === "consumable") return window.I18N.t("midnight_reward_kind_consumable");
     if (entry.kind === "chaliceBonus") return window.I18N.t("midnight_reward_kind_chalice_bonus");
     return entry.kind;
@@ -9533,10 +9591,24 @@
         },
       };
     }
-    if (entry.kind === "weapon") {
+    // "weaponStar"是fields_data_*.js／TOWER_DICE_HAND_REWARDS實際使用的kind（見
+    // rewardEntryLabel()的2026-09-10修正說明），跟"weapon"完全同一種獎勵，差別只在
+    // weaponStar額外可能帶categoryId（指定大分類，例如聖印）與attributeTag（規則書
+    // 在武器上附註的屬性文字，例如「聖／-5」）。抽選規則不重新發明：categoryId有值時用
+    // CharacterDrawer.drawWeaponFromCategory()（塔謎題「杖」獎勵既有的同一支helper），
+    // 沒有就跟原本一樣用merchantDrawWeapon()。兩者都會直接push進傳入角色的weaponIds，
+    // 因此比照原本的既有做法傳入淺拷貝的暫時物件，真正的授予留到apply()。
+    if (entry.kind === "weapon" || entry.kind === "weaponStar") {
       var c0 = characters[myTokenId] || { weaponIds: [] };
-      var result = window.PriTestCharacterDrawer.merchantDrawWeapon({ weaponIds: (c0.weaponIds || []).slice() }, entry.value || 1);
+      var scratch = { weaponIds: (c0.weaponIds || []).slice() };
+      var stars = entry.value || 1;
+      var result = entry.categoryId
+        ? window.PriTestCharacterDrawer.drawWeaponFromCategory(scratch, entry.categoryId, stars)
+        : window.PriTestCharacterDrawer.merchantDrawWeapon(scratch, stars);
       if (!result) return { label: window.I18N.t("midnight_reward_draw_empty"), apply: function () {} };
+      // attributeTag是fields_data_*.js的C(ja,zh)雙語物件，沿用night.jsのhandleTurnRewardClaim
+      // 同一種PriTestFields.localizedText()解讀方式；沒有這個欄位時維持null，不硬湊。
+      var attributeTag = entry.attributeTag ? window.PriTestFields.localizedText(entry.attributeTag) : null;
       return {
         label: window.PriTestWeapons.localizedText(result.item.name),
         item: result.item,
@@ -9544,6 +9616,10 @@
         apply: function (c) {
           c.weaponIds = c.weaponIds || [];
           c.weaponIds.push(result.weaponId);
+          if (attributeTag) {
+            c.weaponAttributeTags = c.weaponAttributeTags || {};
+            c.weaponAttributeTags[result.weaponId] = attributeTag;
+          }
         },
       };
     }
@@ -9604,6 +9680,10 @@
         var c = characters[myTokenId];
         if (!c) return;
         potentialPowerDraftById[id] = {
+          // entry.valueは★數＝稀有度を決めるD6の個数（weaponStarと同じ意味）であって、
+          // 抽選回数ではない——2026-09-10使用者明確確認「『★2 稀有度』一次抽選」。
+          // 「1件＝1回分」だと誤解してvalue個の項目へ分割してはいけない（night.js側の
+          // 同じ誤りを同日修正済み、night_floor_breakthrough.jsのpotentialPower分岐参照）。
           weapon: CD.potentialPowerDrawWeapon(c, entry.value || 1),
           effect: CD.rollPotentialPowerAttachedEffect(c),
         };
@@ -9653,7 +9733,7 @@
       effectLabel.textContent =
         window.PriTestCharacterTypes.localizedText(resolvedEffect.name) +
         window.I18N.t("colon_separator") +
-        window.PriTestCharacterTypes.localizedText(resolvedEffect.body || {});
+        mnText(window.PriTestCharacterTypes.localizedText(resolvedEffect.body || {}), window.PriTestCharacterTypes.localizedText(resolvedEffect.name));
       effectCard.appendChild(effectLabel);
       var chooseEffectBtn = document.createElement("button");
       chooseEffectBtn.type = "button";
@@ -9685,7 +9765,7 @@
       renderPotentialPowerRewardDetail(id, entry, detail);
       return;
     }
-    var needsDrawStep = entry.kind === "weapon" || entry.kind === "consumable" || entry.kind === "talisman";
+    var needsDrawStep = entry.kind === "weapon" || entry.kind === "weaponStar" || entry.kind === "consumable" || entry.kind === "talisman";
     if (needsDrawStep && !rewardDraftById[id]) {
       var drawBtn = document.createElement("button");
       drawBtn.type = "button";
@@ -9699,7 +9779,7 @@
     }
     if (!rewardDraftById[id]) rewardDraftById[id] = computeRewardDraw(entry);
     var draft = rewardDraftById[id];
-    if (entry.kind === "weapon" && draft.weaponId) {
+    if ((entry.kind === "weapon" || entry.kind === "weaponStar") && draft.weaponId) {
       var c1 = characters[myTokenId];
       if (c1) renderWeaponSheetDetail(detail, c1, draft.weaponId, window.PriTestCharacterDrawer);
       else {
@@ -9714,14 +9794,16 @@
       if (draft.item && draft.item.body) {
         var bodyText = document.createElement("p");
         var Localizer = entry.kind === "talisman" ? window.PriTestTalismans : window.PriTestConsumables;
-        bodyText.textContent = Localizer.localizedText(draft.item.body);
+        bodyText.textContent = mnText(Localizer.localizedText(draft.item.body), draft.label);
         detail.appendChild(bodyText);
       }
     }
     // 持有量硬上限（2026-09-05角色面板優化新增）：weapon/consumable/talisman三種entry
     // 對應角色面板的6/4/2格上限，滿了就不給確認收下，提示先去角色面板丟棄騰出空間——
     // 獎勵本身仍留在待處理清單裡，之後騰出空間再回來點確認即可，不會憑空遺失。
-    var inventoryKind = needsDrawStep ? entry.kind : null;
+    // weaponStar跟weapon佔用同一個「武器」格位上限，先正規化再查（inventorySlotLimit()
+    // 只認得weapon/consumable/talisman三種kind）。
+    var inventoryKind = needsDrawStep ? (entry.kind === "weaponStar" ? "weapon" : entry.kind) : null;
     var c0 = characters[myTokenId];
     if (inventoryKind && c0 && !hasInventorySpace(c0, inventoryKind)) {
       // 設計文件§3.1「黃字提示取代靜默略過」：這裡本來就已經不給確認按鈕、彈窗不關閉，
@@ -10064,7 +10146,7 @@
     nameEl.textContent = CharacterTypes.localizedText(candidate.effect.name);
     card.appendChild(nameEl);
     var bodyEl = document.createElement("p");
-    bodyEl.textContent = CharacterTypes.localizedText(candidate.effect.body);
+    bodyEl.textContent = mnText(CharacterTypes.localizedText(candidate.effect.body), CharacterTypes.localizedText(candidate.effect.name));
     card.appendChild(bodyEl);
 
     var choiceConfig = CD.relicChoiceConfigForEffect(candidate.effect);
@@ -10476,7 +10558,7 @@
     if (body) {
       var bodyP = document.createElement("p");
       bodyP.className = "threat-ref-body";
-      bodyP.textContent = body;
+      bodyP.textContent = mnText(body, name);
       container.appendChild(bodyP);
     }
   }
@@ -10505,7 +10587,7 @@
     nameEl.appendChild(document.createTextNode(Weapons_.localizedText(w.name) + "（" + w.rarity + "）"));
     detail.appendChild(nameEl);
     var bodyEl = document.createElement("p");
-    bodyEl.textContent = Weapons_.localizedText(w.body || {});
+    bodyEl.textContent = mnText(Weapons_.localizedText(w.body || {}), Weapons_.localizedText(w.name));
     detail.appendChild(bodyEl);
 
     // [1Hit/2Hit傷害估算]：帶▲◆或屬性/異常附著技能時一併顯示（傳入accumEffects），
@@ -10538,7 +10620,8 @@
       category.twoHitBonus.forEach(function (bonus) {
         var bonusP = document.createElement("p");
         bonusP.className = "threat-ref-body";
-        bonusP.textContent = Weapons_.localizedText(bonus.name) + window.I18N.t("colon_separator") + Weapons_.localizedText(bonus.body);
+        bonusP.textContent =
+          Weapons_.localizedText(bonus.name) + window.I18N.t("colon_separator") + mnText(Weapons_.localizedText(bonus.body), Weapons_.localizedText(bonus.name));
         detail.appendChild(bonusP);
       });
     }
@@ -10592,7 +10675,7 @@
       resolvedSkillB.forEach(function (d) {
         var entryP = document.createElement("p");
         entryP.className = "threat-ref-body";
-        entryP.textContent = d.name + (d.body ? window.I18N.t("colon_separator") + d.body : "");
+        entryP.textContent = d.name + (d.body ? window.I18N.t("colon_separator") + mnText(d.body, d.name) : "");
         detail.appendChild(entryP);
       });
     }
@@ -10612,7 +10695,9 @@
       nameEl.textContent = name;
       detail.appendChild(nameEl);
       var bodyEl = document.createElement("p");
-      bodyEl.textContent = body;
+      // 規則文本轉換（見mnText()說明）：這個helper是角色視窗右側「技能／技藝／被動／遺物
+      // 效果／附帶效果／消耗品／裝飾品」全部唯讀規則說明的共同出口，套在這裡一次即可涵蓋。
+      bodyEl.textContent = mnText(body, name);
       detail.appendChild(bodyEl);
     }
 
@@ -12804,6 +12889,7 @@
     updateNearbyChipPoint();
     maybeResolveAllSharedRewardVotes();
     updateTopBannerCollapseUI();
+    updateHudStackingUI(now);
     updateNearbyCastle();
     updateNearbyGroundItem();
     updateEnemyAttack(now);

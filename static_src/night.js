@@ -11669,10 +11669,15 @@
     // 消耗品・護符は「value個」を1回の抽選でまとめて同じ結果を複数個付与する仕様だと、
     // 本来別々に抽選されるべきアイテムが全て同一のものになってしまう。そのため個数分を
     // それぞれ独立した項目（value:1）へ分割し、1件ずつ個別に抽選できるようにする（第2項）。
-    // 修正（ユーザー報告）：潛在之力／戦技再抽選も同じく「value回分」を1件にまとめると
-    // 獎勵清單から個別に確認・領取できなかったため、同じ分割方針を適用する（武器はvalueが
-    // 個数ではなく★數＝稀有度を表すため対象外のまま）。
-    if ((kind === "consumable" || kind === "talisman" || kind === "potentialPower" || kind === "weaponSkillReroll") && value > 1) {
+    // 修正（ユーザー報告）：戦技再抽選も同じく「value回分」を1件にまとめると獎勵清單から
+    // 個別に確認・領取できなかったため、同じ分割方針を適用する（武器はvalueが個数ではなく
+    // ★數＝稀有度を表すため対象外のまま）。
+    // 2026-09-10修正（使用者明確確認：「潛在之力★★」＝「★2 稀有度」一次抽選）：
+    // potentialPowerをこの分割対象から外した。potentialPowerのvalueはweaponStarと同じく
+    // ★數＝稀有度を決めるD6の個数であり、個数ではない——★2を★1×2件に分割すると
+    // openPotentialPowerModal()へ渡るstarCountが2から1へ落ち、稀有度の期待値が変わってしまう。
+    // 同じ理由でnight_floor_breakthrough.jsの自動獎勵側も同時に修正済み。
+    if ((kind === "consumable" || kind === "talisman" || kind === "weaponSkillReroll") && value > 1) {
       for (var i = 0; i < value; i++) {
         state.turnRewards.push({
           id: "tr" + Date.now() + Math.floor(Math.random() * 1000) + "_" + i,

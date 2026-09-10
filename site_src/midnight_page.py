@@ -371,10 +371,13 @@ BODY = """    <div class="midnight-wrap">
                （meta.resolvedNightBossId尚未解出/找不到對應bossId）時整段隱藏，不硬湊。
                見static/midnight.jsのrenderIntroOverlay()。 -->
           <p id="midnight-intro-boss-text" hidden></p>
+          <!-- 2026-09-10使用者明確要求「開始遊戲會順時針轉的舊鳥圖示，改成流程簡介會移動
+               的鳥並放大3倍」：原本的inline SVG剪影換成跟流程簡介示意畫布
+               (#midnight-flow-intro-demo-bird)完全相同的🦅字符，字級是那邊1.4rem的3倍
+               （見style.css）。飛行軌跡本身（順時針繞地圖外圈兩圈後降落）維持不變，由
+               static/midnight.jsのpositionIntroFlyers()逐幀寫入inline left/top。 -->
           <div id="midnight-intro-bird-wrap">
-            <svg id="midnight-intro-bird-svg" viewBox="0 0 100 60" aria-hidden="true">
-              <path d="M50 30 C40 10, 10 8, 0 20 C15 22, 30 28, 42 34 C30 34, 15 38, 2 46 C14 54, 42 50, 50 34 C58 50, 86 54, 98 46 C85 38, 70 34, 58 34 C70 28, 85 22, 100 20 C90 8, 60 10, 50 30 Z" />
-            </svg>
+            <span id="midnight-intro-bird-glyph" aria-hidden="true">&#129413;</span>
           </div>
           <span id="midnight-intro-party-dot-1" class="midnight-intro-party-dot"></span>
           <span id="midnight-intro-party-dot-2" class="midnight-intro-party-dot"></span>
@@ -1252,6 +1255,10 @@ def build_midnight_html() -> str:
             # 讀window.PriTestMidnightMapVariants，必須排在它之前。
             "midnight_map_variants.js",
             "midnight_map.js",
+            # 2026-09-10新增：規則文本轉換層（回合制用語→即時制說法），midnight.jsの
+            # mnText()會讀window.PriTestMidnightTextAdapt，必須排在它之前。純字串函式、
+            # 沒有其他相依，放這裡即可。
+            "midnight_text_adapt.js",
             "midnight.js",
         ),
     )

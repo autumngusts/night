@@ -74,6 +74,7 @@ def build_static_assets() -> None:
         "midnight_random_events.js",
         "midnight_map_variants.js",
         "midnight_map.js",
+        "midnight_text_adapt.js",
         "midnight.js",
     ):
         shutil.copy(STATIC_SRC_DIR / name, static_dist / name)

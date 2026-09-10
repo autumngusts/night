@@ -414,3 +414,111 @@ TypeError: Cannot read properties of undefined (reading 'localizedText')
 這兩個 hook 讓之後要在無頭/背景分頁環境重現類似「進到後期天數才會發生」的 bug 時，
 不需要真的等 10~20 分鐘的縮圈時間，可以直接改寫 `meta.day2StartAt`/`meta.day3StartAt`
 等欄位＋手動 tick 快速跳到想測試的階段。
+
+---
+
+## 12. 2026-09-10 優化：開場鳥圖示／banner 疊層／迴避防禦配色／weaponStar 獎勵／規則文本轉換
+
+本次涵蓋使用者明確要求的 5 個項目，其中第 4 項另外連帶修正了 `night.js`（回合制）側的
+同源錯誤。
+
+### 12.1 開場動畫的鳥改用流程簡介那隻🦅、放大 3 倍
+
+`site_src/midnight_page.py` 的 `#midnight-intro-bird-wrap` 內容從 inline SVG 剪影
+（`#midnight-intro-bird-svg`，已整組移除）換成 `#midnight-intro-bird-glyph`，內容是跟流程簡介
+示意畫布 `#midnight-flow-intro-demo-bird` 完全相同的 🦅 字符，`font-size: 4.2rem`
+＝那邊 `1.4rem` 的 3 倍。飛行軌跡（`positionIntroFlyers()` 逐幀寫入 inline `left/top`，
+順時針繞地圖外圈兩圈後降落到起始地點）完全不變。
+
+### 12.2 樓層資訊 banner 與左上／右上 HUD 的疊層優先權
+
+使用者明確規格：「banner 平時高於左上角色與右上導覽；戰鬥時左上／右上才蓋過 banner，戰鬥結束、
+離開等等會回復正常；若點了左上角色 HUD 或右上導覽 HUD 會暫時蓋過 banner，3 秒後跳回」。
+
+2026-09-10 稍早的修正是把 `#midnight-hud-top-left/right` 一律拉到 `z-index: 620`（高於 banner
+群組的 600），這次改成兩段式：
+
+- 平時：兩塊回到 `500`（跟其餘角落 HUD 同高）→ banner（600）在上。
+- 戰鬥中，或剛點過這兩塊 HUD 的 3 秒內：`midnight.js` 的 `updateHudStackingUI()` 在
+  `<html>` 掛上 `midnight-hud-above-banner`，CSS 才把兩塊拉到 620。
+
+實作沿用既有的 `html.midnight-top-banner-collapsed` 同一套「單一全域旗標 → html class →
+CSS 選擇器」慣例，z-index 數值全部留在 `style.css`，JS 不寫 inline z-index。
+「戰鬥中」直接讀既有的 `activeEncounter`（`recomputeActiveEncounter()` 維護），因此敵人被打倒、
+逃離、離開觸發範圍都會自動回復，不需要另外寫一套結束偵測。點擊偵測用 capture 階段的
+`pointerdown` 掛在角落容器上，不逐顆按鈕綁——那兩塊的內容是 JS 動態重繪的。
+
+`#midnight-menu-panel`（展開的導覽選單）刻意維持恆定 620：它只在玩家主動展開時顯示，
+展開期間不該因為 3 秒計時到期就被 banner 蓋掉半截。
+
+### 12.3 迴避／防禦按鈕改為草綠色
+
+`#btn-midnight-dodge` / `#btn-midnight-block` 背景 `#7cb342`、邊框 `#4e7a22`，停用狀態用同色系
+暗灰綠。這兩顆是「反應」類動作，跟同一排的攻擊／戰技／技藝（瀏覽器預設灰）區分開來，方便在
+受擊反應窗口（2 秒）內一眼找到。
+
+### 12.4 `weaponStar` 獎勵與 `potentialPower` 的 value 語意
+
+**midnight 側的 bug**：`fields_data_*.js` 與 `TOWER_DICE_HAND_REWARDS` 的武器獎勵用的 kind 是
+`"weaponStar"`，但個人待領取清單這條路徑（`pushPendingReward()` → `rewardEntryLabel()` /
+`computeRewardDraw()` / `renderRewardDetail()`）原本只認得 `"weapon"`，導致清單上直接顯示未翻譯的
+原始字串 `weaponStar`、按下抽選回傳空結果。共享獎勵那條路徑（`drawSharedRewardData()` 等）本來
+就有處理，只有個人這條漏掉。已補齊，並順帶修正兩條路徑都忽略 `entry.categoryId` 的問題
+（改用 `CharacterDrawer.drawWeaponFromCategory()`），`attributeTag` 也會寫進 `weaponAttributeTags`。
+
+**`potentialPower` 的 value 語意（連帶修正 night.js）**：使用者 2026-09-10 明確確認——
+「潛在之力★★」＝「★2 稀有度」**一次**抽選。`value` 是決定武器稀有度時要擲的 D6 顆數
+（跟 `weaponStar` 相同），**不是抽選次數**。
+
+`night_floor_breakthrough.js` 的 `buildFloorRewardTurnRewards()` 與 `night.js` 的
+`handleTurnRewardAdd()` 原本把 `potentialPower` 跟 `consumable`/`talisman`/`weaponSkillReroll`
+放在同一個「依 value 拆成 N 筆 value:1」的分支，等於把 ★2 降成兩次 ★1 抽選——傳給
+`CharacterDrawer.potentialPowerDrawWeapon(c, starCount)` 的 `starCount` 從 2 掉到 1，
+`lookupRarityBySum()` 的合計值分布改變、稀有度期望值下降。兩處都已改成「每人 1 筆、value 保持
+原值」。`weaponSkillReroll` 的 value 確實是「可再抽選的次數」，維持拆分不變。
+
+midnight.js 的 `renderPotentialPowerRewardDetail()` 本來就是把 `entry.value` 當 starCount 傳，
+語意正確，不需要改，只補上註解避免未來被「順手改回去」。
+
+### 12.5 規則文本轉換層（`static_src/midnight_text_adapt.js`）
+
+使用者明確規格：「詳細資訊中雖然是原本文本的詳細，但是本規則多數套用情況不同，故在文本中也
+盡量改換成應用在本規則內能夠讀懂的文本」。使用者另外確認了三個做法上的決定：
+
+1. **做法＝混合**：以術語轉換表覆蓋全部資料，再對少數「轉換後仍讀不懂」的條目做重點覆寫。
+   不在 `character_types.js` / `weapons_skills.js` / `consumables.js` / `talismans.js` 每一條
+   加 `midnightBody` 欄位（條目數以千計）。
+2. **不寫具體秒數**：即時制的持續時間／冷卻由 `midnight.js` 的常數決定，規則書本身沒有
+   「1 回合＝N 秒」的換算依據，因此一律改寫成非數值敘述（「接下來的一小段時間內」）。
+3. **只改顯示文字**：不動任何傷害／消耗／冷卻計算。
+
+模組內容分三層：
+
+- **術語轉換表**（zh / ja 各一套，en 走 ja fallback）：階段（行動／特殊／防禦／結束）、
+  回合、編隊（前衛／後衛）、體力骰等回合制用語換成即時制說法。
+- **補充圖例**：偵測到骰子消耗／使用次數／敵視／`■` 時，在本文最後補一行說明。換算依據全部
+  取自既有常數與本文件（骰子 1 個＝體力 2、`■` 1 個＝10、使用次數→時間冷卻、敵視＝累積傷害
+  最高者被優先鎖定），沒有發明新數值。
+- **重點覆寫**（`BODY_OVERRIDES`，依效果**名稱**比對，沿用 `RELIC_CHOICE_CONFIG_BY_NAME` 的
+  既有慣例——遺物效果的 id 是 `<typeId>-r<group>-<index>` 這種依角色類型產生的組合鍵，同一個
+  效果在不同角色類型下 id 並不相同）：目前 3 個「本規則結構上不成立」的被動——體力骰帶入、
+  防禦階段體力骰回復、回合中裝備變更免費——如實說明在本規則中不生效。
+
+套用位置：角色視窗右側詳細資訊（`appendNameBody()` 是技能／技藝／被動／遺物效果／附帶效果／
+消耗品／裝飾品的共同出口）、武器詳細（本文／連擊特典／戰技／戰技B）、獎勵抽選詳細、遺物習得
+候補、消耗品與技藝 toast。
+
+**重要限制**：`mnText()` 只能用在 `textContent` 賦值那一刻。`computeMidnightSkillCost()` /
+`computeMidnightSkillDamage()` / `CharacterDrawer.parseActionCost()` 等解析函式吃的是規則書原文
+的既有 pattern（「骰子消耗：3」「HP回復：□□」），餵轉換後的字串進去會直接失配、把消耗與傷害
+算錯。程式內註解已寫明這一點。
+
+### 12.6 回歸測試
+
+- `tools/midnight_check/optimize_2026_09_10_check.js`（`npm run test:optimize_2026_09_10`，
+  Firebase Local Emulator 版）：涵蓋上述 5 項共 27 個斷言，含端對端的「戰鬥中 HUD 蓋過 banner
+  → 敵人 HP 歸零後回復」與「weaponStar 抽選後武器真的進 `weaponIds`」。
+- `tools/night_check/reward_value_semantics_check.js`（純 node，不需要 Playwright／emulator，
+  只需先 `python generate.py`）：驗證 `floorRewardEntryToTurnRewards()` 對 `potentialPower`
+  （★數，不可拆）／`weaponSkillReroll`（次數，要拆）／`weaponStar`（★數，正規化成 `weapon`）／
+  `consumable`（個數，要拆）四種 value 語意的處理，避免這次的修正未來被改回去。

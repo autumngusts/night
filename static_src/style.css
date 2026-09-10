@@ -4480,21 +4480,33 @@ button {
    置中的板塊/樓層資訊欄群組（#midnight-field-banner等，z-index:600）跟被指定為攻擊目標
    時的全螢幕警示/攻擊特效（#midnight-incoming-attack-warning／#midnight-attack-effect，
    同樣600）都比原本的HUD四角面板（500）高，在手機等窄畫面上資訊欄寬度（92%，最大480px）
-   會直接壓在左上隊友血條與右上角色/選單按鈕上面。這裡把「左上/右上」兩塊拉高到620：
-   - 高於上方資訊欄與攻擊特效（600）→ 戰鬥中HUD一定看得到、按得到。
-   - 仍低於所有真正的彈窗/遮罩（#midnight-lobby-character-detail 650、tower/merchant/
-     blessing/bargain/character-sheet/reward modal 700、weapon-reroll 750、dice-overlay
-     900、intro/結算overlay 1500~2100）→ 這些「開啟後本來就該擋住其他操作」的視窗不會
-     反被HUD戳穿。
-   - 折疊時資訊欄本身降到400（見html.midnight-top-banner-collapsed規則）的既有行為不變。
+   會直接壓在左上隊友血條與右上角色/選單按鈕上面。
+
+   2026-09-10二次修正（使用者明確規格「樓層資訊的banner平時高於左上角色與右上導覽的資訊；
+   戰鬥時左上角色與右上導覽才蓋過banner，且戰鬥結束、離開等等會回復正常；若點了左上角色hud
+   或右上導覽的hud會暫時蓋過上方樓層資訊banner，3秒後跳回」）：把「一律620」改成兩段式——
+   - 平時：左上/右上維持跟其餘角落HUD相同的500，低於上方資訊欄（600）→ banner在上面。
+   - 戰鬥中（activeEncounter非null）或剛點過左上/右上HUD的3秒內：由static/midnight.jsの
+     updateHudStackingUI()掛上html.midnight-hud-above-banner，這兩塊才拉到620。
+   620這個值的理由不變：高於上方資訊欄與攻擊特效（600），仍低於所有真正的彈窗/遮罩
+   （#midnight-lobby-character-detail 650、tower/merchant/blessing/bargain/character-sheet/
+   reward modal 700、weapon-reroll 750、dice-overlay 900、intro/結算overlay 1500~2100），
+   這些「開啟後本來就該擋住其他操作」的視窗不會反被HUD戳穿。
+   折疊時資訊欄本身降到400（見html.midnight-top-banner-collapsed規則）的既有行為不變，
+   因此折疊狀態下不管有沒有加上這個class，HUD都在上面。
    左下/右下/下方置中維持500：它們跟上方資訊欄在版面上不重疊，沒有這個問題。 */
 #midnight-hud-top-left {
   position: fixed;
   top: 0.6rem;
   left: 0.6rem;
-  z-index: 620;
+  z-index: 500;
   width: 220px;
   max-width: 42vw;
+}
+
+html.midnight-hud-above-banner #midnight-hud-top-left,
+html.midnight-hud-above-banner #midnight-hud-top-right {
+  z-index: 620;
 }
 
 #midnight-hud-top-left .midnight-slot-card {
@@ -4632,12 +4644,13 @@ button {
   padding: 0.1rem 0.3rem;
 }
 
-/* z-index:620 的理由見上方#midnight-hud-top-left的說明（同一次修正，兩塊必須同高）。 */
+/* z-index的理由見上方#midnight-hud-top-left的說明（同一次修正，兩塊必須同高：平時500、
+   戰鬥中或剛點過HUD的3秒內由html.midnight-hud-above-banner拉到620）。 */
 #midnight-hud-top-right {
   position: fixed;
   top: 0.6rem;
   right: 0.6rem;
-  z-index: 620;
+  z-index: 500;
   display: flex;
   flex-direction: column;
   align-items: flex-end;
@@ -4779,6 +4792,25 @@ button {
   align-items: center;
   gap: 0.15rem;
   position: relative;
+}
+
+/* 2026-09-10使用者明確要求「迴避與防禦按鍵背景色改為草綠色」：這兩顆是「反應」類動作
+   （攻擊/戰技/技藝是主動輸出、聖杯瓶是回復），用草綠色跟同一排其餘按鈕的瀏覽器預設灰
+   區分開來，方便在受擊反應窗口（2秒）內一眼找到。停用狀態（體力不足／沒有可用盾牌，見
+   static/midnight.jsのrenderCharacterActionButtons()）改用同色系的暗灰綠，維持「這是同
+   一組按鈕、只是現在不能按」的視覺一致性。 */
+#btn-midnight-dodge,
+#btn-midnight-block {
+  background: #7cb342;
+  border: 1px solid #4e7a22;
+  color: #10200a;
+}
+
+#btn-midnight-dodge:disabled,
+#btn-midnight-block:disabled {
+  background: #4b5c3a;
+  border-color: #3a4630;
+  color: #9aa891;
 }
 
 /* 2026-09-06優化：迴避/防禦成功、受到傷害的浮動提示（見static/midnight.jsの
@@ -5020,15 +5052,19 @@ button {
   height: 6rem;
   transform: translate(-50%, -50%);
   pointer-events: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
-#midnight-intro-bird-svg {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: auto;
-  fill: #cfd6ff;
+/* 2026-09-10使用者明確要求「開始遊戲會順時針轉的舊鳥圖示，改成流程簡介會移動的鳥並放大
+   3倍」：改用跟#midnight-flow-intro-demo-bird同一個🦅字符，font-size＝那邊的1.4rem×3。
+   原本的#midnight-intro-bird-svg（inline SVG剪影＋fill色）整組移除。 */
+#midnight-intro-bird-glyph {
+  font-size: 4.2rem;
+  line-height: 1;
   opacity: 0.95;
+  filter: drop-shadow(0 0 8px rgba(207, 214, 255, 0.6));
 }
 
 .midnight-intro-party-dot {
@@ -6499,6 +6535,10 @@ html.midnight-top-banner-collapsed .midnight-top-banner-collapse-btn {
 /* 2026-09-10：#midnight-hud-top-right拉高到620時，這塊「貼在右上按鈕列正下方」的選單
    面板必須跟著一起拉高（上方註解本來就寫明「z-index跟#midnight-hud-top-right一樣高」），
    否則展開選單會被上方置中的板塊資訊欄（600）蓋住半截。 */
+/* 2026-09-10二次修正：#midnight-hud-top-right本體改成平時500、只在戰鬥中/剛點過HUD的
+   3秒內才拉到620（見上方說明），但這塊選單面板刻意維持恆定620——它只在玩家主動展開選單
+   時才顯示（renderMenuPanel()），展開期間一律該蓋過上方資訊欄，不能因為3秒計時到期就被
+   蓋掉半截選單。 */
 #midnight-menu-panel {
   position: fixed;
   top: 2.6rem;

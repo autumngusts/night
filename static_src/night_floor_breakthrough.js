@@ -586,16 +586,36 @@
       var total = entry.perParty ? entry.value * entered.length : entry.value;
       return [{ id: makeTurnRewardId(idSuffix), kind: entry.kind, targetCharacterId: null, value: total, claimed: false }];
     }
-    if (entry.kind === "potentialPower" || entry.kind === "weaponSkillReroll") {
-      // 修正（ユーザー報告）：valueが2以上（例：「潛在之力★★」）の場合、以前は1人につき
-      // 1件（value:2以上）にまとめていたため、獎勵清單上では1回分の抽選ウィザードの中で
-      // まとめて処理され、個別に確認・選択できなかった。consumable/talismanと同じ
-      // 「1件＝1回分」の方針に合わせ、1人あたりvalue個の独立した項目（value:1）に分割する。
-      var perPersonDraws = entry.value || 1;
+    if (entry.kind === "potentialPower") {
+      // 2026-09-10修正（使用者明確確認：「潛在之力★★」＝「★2 稀有度」一次抽選）：
+      // 舊版把potentialPowerもconsumable/talismanと同じ「1件＝1回分」方針で
+      // 1人あたりvalue個（value:1）へ分割していたが、これは誤り——potentialPowerの
+      // valueは**個数ではなく★數＝稀有度を決めるD6の個数**であり、weaponStarと同じ扱い。
+      // ★2を★1×2回に分割すると、CharacterDrawer.potentialPowerDrawWeapon(c, starCount)
+      // へ渡るstarCountが2から1へ落ち、lookupRarityBySum()の合計値分布が変わって
+      // 稀有度の期待値そのものが下がってしまう。1人につき1件、valueは原値のまま渡す。
       var objs = [];
       entered.forEach(function (c, i) {
+        objs.push({
+          id: makeTurnRewardId(idSuffix + "_" + i),
+          kind: entry.kind,
+          targetCharacterId: c.id,
+          value: entry.value || 1,
+          attributeTag: entry.attributeTag || null,
+          claimed: false,
+        });
+      });
+      return objs;
+    }
+    if (entry.kind === "weaponSkillReroll") {
+      // weaponSkillRerollのvalueは「再抽選できる回数」なので、consumable/talismanと同じく
+      // 1回分ずつ独立した項目へ分割する（獎勵清單から1回ずつ確認・領取できるようにするため。
+      // 上のpotentialPowerとは valueの意味が違うので、同じ分岐にまとめてはいけない）。
+      var perPersonDraws = entry.value || 1;
+      var rerollObjs = [];
+      entered.forEach(function (c, i) {
         for (var vi = 0; vi < perPersonDraws; vi++) {
-          objs.push({
+          rerollObjs.push({
             id: makeTurnRewardId(idSuffix + "_" + i + "_" + vi),
             kind: entry.kind,
             targetCharacterId: c.id,
@@ -605,7 +625,7 @@
           });
         }
       });
-      return objs;
+      return rerollObjs;
     }
     if (entry.kind === "weaponStar") {
       return [
