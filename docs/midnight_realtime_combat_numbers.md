@@ -297,3 +297,120 @@ generate.py→重整頁面」的迴圈縮短成「拖滑桿」。
    `RESUME_COUNTDOWN_MS` 算 `style.width` 百分比（不套用寫死 0.5 秒的
    `.midnight-loading-fill-animate`），跟原本的 `#midnight-pause-overlay` 全螢幕文字
    倒數並存。
+
+---
+
+## 9. 2026-09-10 新增：「L補」（等級補正）——即時制專屬換算，取代先前「無通用resolver」的簡化
+
+`fields_data_1~4.js`／`event_rulebook.js` 大量敵人等級／撃破ルーン標注都帶有「+L補正」
+「＋L補」後綴（例如「Lv.2+L補」「撃破ルーン：8 + L補正」）。先前因為全專案沒有通用的
+resolver，依 CLAUDE.md §19 一律略過不套用（見本文件先前版本 §1.2 註解、`midnight.js`
+`METEOR_ENEMY_LEVEL` 等常數旁的既有說明）。使用者這次提供了即時制專屬的明確換算公式，
+已改為真正套用（回合制 `night.js` 的 `fieldLevelCorrectionForSlot()`——依樓層在盤面的
+欄位位置決定——維持不變，是完全不同的兩套 L 補公式，各自服務各自的系統）：
+
+- **公式**：每次「開始縮圈」L 補 +1。第1天縮圈1次＝1、縮圈2次＝2；第2天縮圈1次＝3、
+  縮圈2次＝4；第2天結束後（含 Day3）維持 4，沒有更多縮圈可以推進。純函式
+  `currentLBonus(phaseInfo)`，直接由已經共享同步的 `meta.sessionStartAt`／
+  `meta.day2StartAt`／`meta.day3StartAt` 推出的 `phaseInfo.day`/`stage` 決定，不需要另外
+  用 RTDB 計數器，天生不會有多裝置競速累加的問題。
+- **套用範圍**：只套用在規則書文字本身確實標注「L補」的敵人/獎勵，不擴大套用到其他
+  敵人：一般板塊樓層敵人引用（`scanLinesForEnemyMatches`，沿用 `night_gm_flow.js`
+  `parseCombatEnemyRef()` 既有的 `needsLevelCorrection` 偵測）、強敵籌碼決定表
+  （`rollAndAssignStrongEnemy()`）、隨機事件「襲撃」分支的忌み鬼／兆し／調律の魔物
+  （`renderAmbushBossBranch()`）。隕石（メテオ）敵人本身等級固定 Lv.8 沒有 L補正，但
+  撃破ルーン文字有，因此只有 `maybeGrantMeteorReward()` 的盧恩數字套用、敵人等級不套用。
+  強敵籌碼自身的擊破獎勵（`STRONG_ENEMY_REWARD_RUNES`／`TERRIFYING_STRONG_ENEMY_REWARD_RUNES`）
+  跟調律の魔物的撃破ルーン（固定3）規則書文字都沒有「L補」字樣，維持不套用。
+- **凍結時機**：L 值在敵人指派當下（`fieldTrigger` 建立那一刻）算好、跟 `level` 一起
+  一次性寫入 `trig.lBonus`／`trig.level`，不是每影格重算——避免戰鬥途中剛好跨過縮圈
+  開始的時間點導致敵人數值中途變動。
+- **HP／Guard 效果**（使用者明確規格）：L 補正後的等級直接影響 `enemyRealHpMax()`
+  既有的「格數 × 100」公式（2026-09-08 已經從 ×10 改為 ×100，見上方 §1.1 舊註解／
+  `enemyRealHpMax()` 程式內註解，本文件標題雖仍留著舊版章節但程式碼已是 ×100）；另外
+  `currentGuardCountForTrig()` 把 `trig.lBonus` 直接加到目前 Guard Point 上，上限夾在
+  `guardMax`（該敵人 family 自己的 `guardCount` 上限，不會因為 L 補正而墊高上限本身），
+  效果是「更難把 Guard Point 打到低於原本上限」。
+
+---
+
+## 10. 2026-09-10 新增：夜王〔開場〕〔結局〕敘述接上開局動畫／勝利彈窗
+
+`static_src/worldview.js` 原本就有 10 個劇本各自的〔開場〕〔結局〕完整敘述文字（`night_king_1`
+〜`night_king_10` section），`night.js`（回合制）開局會自動播放〔開場〕
+（`night_gm_flow.js` 的 `maybeShowOpeningNarration()`），但一直沒有對應的〔結局〕播放時機、
+`midnight.js` 也完全沒有讀取這份資料——先前 `#midnight-day3-boss-intro-overlay`（Day3 王戰
+進場前的「前言敘述」欄位）雖然已經預留了 UI，卻是去讀 `night_boss_rulebook.js` 一個從未
+填過資料的 `boss.intro` 欄位，導致這段文字永遠隱藏。
+
+- **重構**：`night_gm_flow.js` 的 `extractOpeningText()` 內部改成用 label 文字（"オープニング"／
+  "エンディング"）比對取段落，不再用「第 N 個 label」這種位置索引——逐一核對後發現大多數
+  劇本在開場跟結局中間還夾了第三個 label「夜の王（3日目のボス戦闘）」（王戰場景描寫，不是
+  結局），位置索引會在多數劇本誤取到這段。新增 `extractEndingText()`／純函式版本
+  `resolveNightKingNarrationText(bossId, "opening"|"ending")` 並匯出給 `midnight.js` 直接呼叫
+  （不重新複製一份 worldview.js 解析邏輯，CLAUDE.md §10）。
+- **Day1 開局進場動畫**：`#midnight-intro-overlay` 新增 `#midnight-intro-boss-text`，在
+  `renderIntroBossText()`（進場動畫剛開始顯示的那一刻算一次，不是每影格）用
+  `bossIdForResolvedScenario(meta.resolvedNightBossId)` 換算出的 bossId 呼叫上述函式，顯示在
+  既有「靈鷹正載著眾人飛向夜之地圖……」文字上方。找不到資料時整段隱藏，不自行編造。
+- **Day3 王戰進場前言**（修正既有但從未生效的功能）：`updateDay3BossIntroOverlay()` 改成呼叫
+  `resolveNightKingNarrationText(trig.enemyId, "opening")`（`trig.enemyId` 對 day3Boss 而言
+  本來就是 bossId，見 `rollAndAssignDay3Boss()`），不再依賴不存在的 `boss.intro` 欄位。
+- **Day3 勝利彈窗**（全新功能）：`day3BossDefeated()` 是既有但先前完全沒有呼叫端的純函式，
+  新增 `updateGameVictoryModal()`／`#midnight-game-victory-modal`，擊敗後顯示對應劇本的
+  〔結局〕全文，關閉只是本地端旗標（`gameVictoryDismissed`，同 `day1RewardsDismissed` 既有
+  模式），不影響共享的 `fieldTrigger`/`fieldEnemyHp`。`handleRestartCycle()` 重置這個旗標。
+- **腳本載入**：`midnight_page.py` 的 `extra_scripts` 原本沒有 `worldview.js`（`night_gm_flow.js`
+  內部讀 `window.PriTestWorldview`，缺少這個腳本會讓整段功能靜默失敗、回傳 null），已補上，
+  順序排在 `night_gm_flow.js` 之前。
+- 10 個夜王的開場/結局文字長度落差很大（例如 nameless 開場超過 1000 字，其餘多數僅一兩百字），
+  相關容器（`#midnight-intro-boss-text`／`#midnight-day3-boss-intro-text`／
+  `#midnight-game-victory-text`）都加了 `max-height`+`overflow-y:auto`，避免長文字把版面撐爆。
+
+---
+
+## 11. 2026-09-10 修復：Day3 夜之王完全不會自動攻擊（根因：`<script>` 載入順序）
+
+使用者回報「進入夜王戰後，夜王沒有自動攻擊」，用瀏覽器實機重現後（見下方「除錯用debug hook」）
+在 console 抓到每次都會噴出的例外：
+
+```
+TypeError: Cannot read properties of undefined (reading 'localizedText')
+    at Object.rollEnemyAction (auto_gm.js:110:27)
+    at pickAndResolveBossAction (midnight.js:...)
+```
+
+**根因**：`auto_gm.js` 檔案頂部用 `var Enemies = window.PriTestEnemies;` 在模組載入當下
+（`<script>` 標籤執行的那一刻）就把值取一次快照，不是每次使用時才讀 `window.PriTestEnemies`。
+`site_src/midnight_page.py` 的 `extra_scripts` 把 `"auto_gm.js"` 排在
+`"enemies_data_1~4.js"`／`"enemies.js"` **之前**（`night_page.py` 的順序是正確的：`enemies.js`
+在 `auto_gm.js` 之前），導致 `auto_gm.js` 執行那一刻 `window.PriTestEnemies` 還不存在，
+`Enemies` 永遠是 `undefined`——不管後來 `enemies.js` 有沒有載入完成都救不回來（`var` 只在
+宣告當下賦值一次）。
+
+**為什麼表現成「完全不攻擊」而不是「偶爾出錯」**：`midnight.js` 的
+`maybeStartEnemyAttack()` 把整個選招/算傷害流程包在 `GameStorage.rtTransaction()` 的 updater
+函式裡，這個函式對 Day3 夜王一定會呼叫 `pickAndResolveBossAction()` → `AutoGm.rollEnemyAction()`
+→ `Enemies.localizedText(bossInfo.name)`，因此**每一次**都會拋出例外，transaction 的 promise
+變成 reject 而不是 resolve，導致 `.then(){ enemyAttackStartAttempted[pt.id] = false; }`
+永遠不會執行——本地節流旗標 `enemyAttackStartAttempted[pt.id]` 卡在 `true`，
+`maybeStartEnemyAttack()` 從此对這個地圖點直接提前 return，永遠不會再嘗試。10 隻夜王共用
+同一套 `pickAndResolveBossAction()`，因此這是全部 10 隻都會發生的系統性 bug，不是特定夜王
+的資料問題（先前用純靜態分析誤以為 gnoster/gnoster 缺少 `groupDamage`/`individualDamage`
+欄位的少數行可能是原因，實際核對後那些是規則書「■」placeholder 的既有正確設計，見 §1 舊
+註解，不是這次的真因）。
+
+**修復**：`midnight_page.py` 把 `"auto_gm.js"` 移到 `"enemies.js"` 之後，跟 `night_page.py`
+既有的正確順序一致。純腳本載入順序調整，沒有動任何戰鬥規則/數值。
+
+**除錯用 debug hook**（`window.PriTestMidnight`，見 `midnight.js` 該物件旁註解，Playwright
+測試專用、不對外公開文件化）：這次除錯過程中發現瀏覽器自動化工具驅動的分頁若不在前景
+（`document.hidden===true`），Chrome 會節流/暫停 `requestAnimationFrame`，導致 `frame()`
+幾乎不會被呼叫、遊戲卡在原地不動——這是測試環境的既有限制，不是遊戲本身的 bug。因此新增：
+- `_tick()`：手動呼叫一次 `frameInner(Date.now())`，繞過 rAF 節流直接推進一影格。
+- `_debugTakeover(slot)`：跳過 `window.prompt()` 密碼輸入直接接管席位（重構出
+  `performTakeover()` 供 `handleTakeover()`／這個debug hook共用，不重複邏輯）。
+
+這兩個 hook 讓之後要在無頭/背景分頁環境重現類似「進到後期天數才會發生」的 bug 時，
+不需要真的等 10~20 分鐘的縮圈時間，可以直接改寫 `meta.day2StartAt`/`meta.day3StartAt`
+等欄位＋手動 tick 快速跳到想測試的階段。

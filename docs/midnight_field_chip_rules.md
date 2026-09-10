@@ -437,6 +437,58 @@ N 個分歧變體，隨機挑一個」處理——這是即時制版本刻意的
 
 ---
 
+## 11. 2026-09-10 新增：「完整版」4張新地圖（cassel／ice／kasan／red）與地變特殊規則
+
+使用者提供4張新地圖原畫＋標註版（`photo/midnight/map_{cassel,ice,kasan,red}_annotated.png`），
+資料與生成邏輯獨立在新檔案 `static_src/midnight_map_variants.js`，`midnight_map.js` 的
+`generateMap(seed, mapVariantSetting)` 依 `meta.mapVariant`（房間設定「地圖」選單，"basic"|"full"）
+決定要不要套用。
+
+- **地圖選擇**：`mapVariantSetting==="full"` 時，用跟其餘地圖生成同一個 `mulberry32(mapSeed)`
+  序列的第一次 `rand()` 呼叫決定（`pickVariantId()`）：80% 機率均分抽出這4張新地圖其中一張
+  （各20%），其餘20%退回原版基礎地圖——使用者明確規格「選擇完整版則會有80%從中抽出一張」。
+- **地形資料來源**：紅線（可走邊界）／橘線（特殊事件範圍，見下）用跟原版
+  `FIXED_GRID_ROWS`/`CASTLE_ZONE_ROWS` 同一套 Python 影像處理方法論（顏色比對＋
+  binary_dilation／binary_fill_holes／binary_erosion＋取最大連通元件＋downsample成48格），
+  不是肉眼描格子。A／Z／F／Q座標則是肉眼讀取標註圖文字標籤位置換算，跟原版
+  `SPIRIT_BIRD_LINKS` 一樣屬於「第一輪肉眼描、日後可能需要修正」等級的精確度，尤其F的
+  來源/目的地配對是依曲線方向人工判斷。
+- **Day2終點強制指定**（使用者規格「第二天的終點以下有所不同」）：`assignDayPlan()` 新增
+  `forcedDay2EndId` 參數，4張新地圖各自指定一個必須當Day2終點的Z候選（cassel：中心靠左下；
+  ice／red：各自橘線範圍內那個Z；kasan：上方橘線範圍內那個Z）。
+- **橘線特殊事件範圍（hazardZone）**：使用者規格「在各自特殊橘線範圍內不放入其他板塊籌碼，
+  但另外出現卡牌數字：4,5,Q,可怖強敵,祝福×2」。`placeHazardZonePoints()` 在這個範圍內額外
+  放置卡4／卡5／強敵（三者標記 `hazardMember:true`）／Q（`type:"hazard_q"`）／祝福×2，
+  是疊加在一般2~7地點需求之上（不是取代），因此這4張地圖的4/5卡牌各會有3個。cassel／ice
+  的標註圖上有明確畫Q文字座標，直接採用；kasan／red沒有畫，由程式在範圍內自由決定位置。
+  一般點位（`pointEligible`）已經扣掉這個範圍，不會跟一般籌碼重疊生成。
+- **Q板塊開放判定**（使用者規格「在沒攻略完4,5,可怖強敵三選二以前，進入Q時會顯示訊息
+  『你沒資格阿　先挑戰同區域的地方啊』」）：`hazardQUnlocked()` 檢查地圖上3個
+  `hazardMember` 點裡有幾個 `isPointCleared()`，未滿2個時 `rollAndAssignStrongEnemy()`
+  直接不查表、顯示一次toast。Q本身沒有對應的 `fields_data` 卡牌內容可用（規則書沒有這張卡
+  的實際地名/敘述），因此重用既有的「強敵籌碼」查表＋戰鬥pipeline（`event_rulebook.js`
+  的 strong_enemy 決定表），不是另外發明卡牌內容——這是已知的範圍限縮，不是bug。「進入
+  時間5s」由既有通用的5秒遭遇準備流程（`updateBattlePrep()`）自然滿足，沒有另外做一套。
+- **王城（J）**：cassel這張地圖的標註圖上沒有畫王城橘線範圍（`CASTLE_ROWS`全0），
+  `mapHasCastle()` 判斷為空時整個不畫J堡壘圖示，避免在地圖正中央（`computeMaskCentroid()`
+  對全0遮罩的退回值）出現一個看起來能用、實際上點了沒反應的假圖示。
+- **地圖背景圖片**：`static_src/images/maps/map_{cassel,ice,kasan,red}.jpg`（複製自
+  `photo/midnight/` 同名非標註版），`MAP_BACKGROUND_IMAGES`／`currentMapImage()`依
+  `map.variantId` 切換要畫哪一張，不是套用濾鏡模擬。
+
+### 11.1 地變特殊規則（4種，各對應一張新地圖）
+
+實際效果邏輯集中在 `midnight.js` 的 `applyMapSpecialRuleTick()`（週期性效果）與個別掛勾點：
+
+| 地圖 | `specialRule` id | 規則 | 實作狀態 |
+|---|---|---|---|
+| cassel | `cassel_hidden_city` | 「迷惘的隱藏都市」：每隨機30~60秒縮圈時間-5秒 | 完整實作（`maybeApplyCasselTimeLoss()`，直接把當天StartAt往前撥5秒，跟測試主控台既有的「立即縮圈」同一種手法） |
+| red | `red_miasma` | 「朱紅腐敗的瘴氣」：每30秒PC全員累積「腐敗：1D」，且不會像一般異常那樣達閾值後歸零 | 完整實作（`maybeApplyRedMiasmaTick()`，本地only直接疊加`receivedAttributeAccum`，刻意不透過會在閾值觸發後歸零的`recordReceivedAttributeAccum()`共用函式，因為規格明確要求「不會解除」） |
+| ice | `ice_blizzard` | 「暴風雪的視野」：戰鬥中每隨機30~45秒5秒內無法攻擊/使用技能；「凍寒的暴風雪」：凍傷非戰鬥時也累積且戰鬥結束不重置 | 只實作前半段（`isIceBlizzardBlinded()`，已掛在攻擊/戰技/技藝/技能/特殊攻擊等所有輸出手段上）。後半段（凍傷非戰鬥累積）規則書沒有標示蓄積速率數字，依CLAUDE.md §19不自行發明，**未實作**，已知簡化 |
+| kasan | `kasan_lava` | 「熔岩」：每次樓層踏破，PC全員無條件承受「HP損害：■」 | 只顯示提醒toast（`midnight_kasan_lava_floor_note`），不自動扣血——■是規則書未標示數值的占位符，依CLAUDE.md §19交由GM/玩家自行判斷，不自行發明數字 |
+
+---
+
 *本文件依 2026-09-07 當下的 `static_src/midnight.js`／`midnight_map.js`／`fields_data_1~4.js`／
 `event_rulebook.js`／`night_gm_flow.js` 程式內容整理，若之後相關程式有修改，應同步檢查本文件
-是否仍準確。*
+是否仍準確。§11 為 2026-09-10 新增章節。*

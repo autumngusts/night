@@ -90,15 +90,15 @@ BODY = """    <div class="midnight-wrap">
         </div>
         <p id="midnight-lobby-countdown" hidden></p>
         <p id="midnight-lobby-spectator-note" class="threat-ref-body" data-i18n="midnight_lobby_spectator_note" hidden></p>
-        <!-- 房間設定（2026-09-06優化，使用者明確規格「一開始創立房間後，能選擇一些房間
-             設定：[夜王]第三天的最終夜王，night中的10隻夜王可選擇（同時會根據night中的
-             抽選表等等影響劇本的走向）；[地圖]基本版/完整版（目前完整版不能選）」）：
+        <!-- 房間設定（2026-09-06優化，2026-09-10「完整版」正式接入）：
              夜王清單直接重用static_src/scenarios.js既有的10個劇本（每個劇本對應一個
              bossId，跟night.js的night_king_1~10、night_gm_flow.jsの「夜の強敵決定表」
              查表用的劇本編號是同一份資料），不新增第二套劇本/夜王資料。寫入
-             meta.nightBossId（劇本id，空字串＝隨機決定）／meta.mapVariant（"basic"|"full"，
-             "full"目前disabled、僅先保留UI）。跟測試模式同一套「同一場遊戲所有人共用、
-             開局前才能改」的既定模式，見static/midnight.jsのrenderLobbySettings()。 -->
+             meta.nightBossId（劇本id，空字串＝隨機決定）／meta.mapVariant（"basic"|"full"）。
+             "full"：使用者提供4張新地圖原畫（見static/midnight_map_variants.js），開局那一刻
+             用meta.mapSeed決定性抽一張（80%機率），其餘20%退回基本版地形。跟測試模式同一套
+             「同一場遊戲所有人共用、開局前才能改」的既定模式，見static/midnight.jsの
+             renderLobbySettings()。 -->
         <div class="wb-row" id="midnight-lobby-night-boss-row">
           <label data-i18n="midnight_lobby_night_boss_label"></label>
           <select id="midnight-lobby-night-boss-select"></select>
@@ -107,7 +107,7 @@ BODY = """    <div class="midnight-wrap">
           <label data-i18n="midnight_lobby_map_variant_label"></label>
           <select id="midnight-lobby-map-variant-select">
             <option value="basic" data-i18n="midnight_lobby_map_variant_basic"></option>
-            <option value="full" data-i18n="midnight_lobby_map_variant_full" disabled></option>
+            <option value="full" data-i18n="midnight_lobby_map_variant_full"></option>
           </select>
         </div>
         <!-- 難度（2026-09-08使用者明確規格「標準模式：流浪祝福3次，耗盡後遊戲失敗並詢問
@@ -121,6 +121,13 @@ BODY = """    <div class="midnight-wrap">
             <option value="unlimited" data-i18n="midnight_difficulty_unlimited"></option>
           </select>
         </div>
+        <!-- 流程簡介（使用者明確規格「測試模式選項上面有『流程簡介』，打開後播放打字機
+             直到按下右上X」）：純本地端展示視窗，不涉及任何共享state，開關只影響自己這台
+             裝置的畫面，見static/midnight.jsのhandleFlowIntroOpenClick()/
+             handleFlowIntroCloseClick()。 -->
+        <div class="wb-row">
+          <button type="button" id="btn-midnight-flow-intro-open" data-i18n="midnight_flow_intro_open_button"></button>
+        </div>
         <!-- 測試模式（2026-09-09合併，使用者明確規格「測試模式與debug模式合併為一」）：
              原本private/main的獨立Debug模式（可調整盧恩/獲得武器/回滿FP/復歸回滿血/快速
              通過魔術師塔，見static/midnight.jsのrenderDebugPanel()）已併入這顆勾選框，
@@ -130,6 +137,29 @@ BODY = """    <div class="midnight-wrap">
             <input type="checkbox" id="midnight-lobby-test-mode-checkbox">
             <span data-i18n="midnight_test_mode_label"></span>
           </label>
+        </div>
+      </div>
+
+      <!-- 流程簡介視窗（見上方按鈕註解）：跟#midnight-character-sheet-modal同款
+           「全螢幕半透明黑＋置中卡片＋固定右上角關閉✕」既有慣例。左側是跟地圖同比例的
+           空白示意畫布（CSS動畫示範縮圈／靈鳥飛行／四角HUD位置標籤，純示意，不是真的
+           地圖canvas），右側是打字機播放的流程說明文字（static/midnight.jsの
+           handleFlowIntroOpenClick()呼叫night_gm_flow.jsの既有typewriteInto()）。 -->
+      <div id="midnight-flow-intro-modal" hidden>
+        <div id="midnight-flow-intro-box">
+          <button type="button" id="btn-midnight-flow-intro-close" class="midnight-modal-close-x">&times;</button>
+          <h3 data-i18n="midnight_flow_intro_title"></h3>
+          <div id="midnight-flow-intro-body">
+            <div id="midnight-flow-intro-demo">
+              <div id="midnight-flow-intro-demo-ring"></div>
+              <div id="midnight-flow-intro-demo-bird">🦅</div>
+              <span class="midnight-flow-intro-demo-label midnight-flow-intro-demo-label-tl" data-i18n="midnight_flow_intro_label_team"></span>
+              <span class="midnight-flow-intro-demo-label midnight-flow-intro-demo-label-tr" data-i18n="midnight_flow_intro_label_map_char"></span>
+              <span class="midnight-flow-intro-demo-label midnight-flow-intro-demo-label-br" data-i18n="midnight_flow_intro_label_action"></span>
+              <span class="midnight-flow-intro-demo-label midnight-flow-intro-demo-label-bl" data-i18n="midnight_flow_intro_label_item"></span>
+            </div>
+            <p id="midnight-flow-intro-text"></p>
+          </div>
         </div>
       </div>
 
@@ -334,6 +364,13 @@ BODY = """    <div class="midnight-wrap">
              left/top（沿地圖外圈順時針繞兩圈後收斂到起始地點），不是CSS keyframe，見
              renderIntroOverlay()。 -->
         <div id="midnight-intro-overlay" hidden>
+          <!-- 夜王〔開場〕敘述（使用者明確規格「原本顯示『靈鷹正載著眾人飛向夜之地圖』上面
+               一排再顯示該劇本的NIGHT中夜王的(開場)」）：文字來源跟night.js開局自動播放的
+               開場敘述完全相同的static/worldview.js資料（見static/night_gm_flow.jsの
+               resolveNightKingNarrationText()新增匯出），不是另外編的文字；找不到資料
+               （meta.resolvedNightBossId尚未解出/找不到對應bossId）時整段隱藏，不硬湊。
+               見static/midnight.jsのrenderIntroOverlay()。 -->
+          <p id="midnight-intro-boss-text" hidden></p>
           <div id="midnight-intro-bird-wrap">
             <svg id="midnight-intro-bird-svg" viewBox="0 0 100 60" aria-hidden="true">
               <path d="M50 30 C40 10, 10 8, 0 20 C15 22, 30 28, 42 34 C30 34, 15 38, 2 46 C14 54, 42 50, 50 34 C58 50, 86 54, 98 46 C85 38, 70 34, 58 34 C70 28, 85 22, 100 20 C90 8, 60 10, 50 30 Z" />
@@ -374,6 +411,19 @@ BODY = """    <div class="midnight-wrap">
             <h3 data-i18n="midnight_game_failure_title"></h3>
             <p data-i18n="midnight_game_failure_body"></p>
             <button type="button" id="btn-midnight-game-failure-confirm" class="danger-btn" data-i18n="midnight_game_failure_confirm_button"></button>
+          </div>
+        </div>
+
+        <!-- 遊戲勝利彈窗（使用者明確規格「遊戲第三天勝利後顯示(結局)」）：跟遊戲失敗彈窗
+             同款「全螢幕置中卡片」，文字來源跟開局〔開場〕同一份static/worldview.js資料
+             （見static/midnight.jsのupdateGameVictoryModal()/renderIntroBossText()同款用法），
+             只是取結局段落。關閉只是本地端旗標（同day1RewardsDismissed既有模式），不影響
+             fieldTrigger/fieldEnemyHp等共享戰鬥結果，讓玩家關閉後仍可留在畫面上自由查看。 -->
+        <div id="midnight-game-victory-modal" hidden>
+          <div id="midnight-game-victory-box">
+            <h3 data-i18n="midnight_game_victory_title"></h3>
+            <p id="midnight-game-victory-text"></p>
+            <button type="button" id="btn-midnight-game-victory-confirm" data-i18n="midnight_game_victory_confirm_button"></button>
           </div>
         </div>
 
@@ -1155,7 +1205,6 @@ def build_midnight_html() -> str:
             # 發明一套夜王招式解析規則。
             "night_boss_rulebook.js",
             "boss_auto_gm_data.js",
-            "auto_gm.js",
             "fields_data_1.js",
             "fields_data_2.js",
             "fields_data_3.js",
@@ -1166,6 +1215,18 @@ def build_midnight_html() -> str:
             "enemies_data_3.js",
             "enemies_data_4.js",
             "enemies.js",
+            # fix(2026-09-10)：auto_gm.jsの頂部で`var Enemies = window.PriTestEnemies;`と
+            # module-load時点の値をキャプチャしている（enemies.jsの前に置くと永遠にundefined
+            # のまま）。night_page.pyでは既にenemies.jsの後にauto_gm.jsを置いているが、
+            # midnight_page.pyだけ順序が逆（auto_gm.jsがenemies.jsより前）になっており、
+            # Day3夜王戦の毎回の攻撃決定（pickAndResolveBossAction→AutoGm.rollEnemyAction→
+            # Enemies.localizedText(bossInfo.name)）がTypeError（"Cannot read properties of
+            # undefined (reading 'localizedText')"）で必ず例外を投げ、RTDBのtransaction()が
+            # rejectしてenemyAttackStartAttempted[]のローカル節流フラグが二度とリセットされず、
+            # 「夜之王が一切自動攻撃しなくなる」既存バグの直接原因だった（ブラウザ実機で確認
+            # 済み、console.errorに上記スタックトレースが実際に出力されていた）。enemies.jsの
+            # 後に移動するだけで直る、データや戦闘ロジック側の問題ではない。
+            "auto_gm.js",
             # 2026-09-05追加：商人／強敵／隨機事件籌碼＋角色屬性管理＋獎勵清單系統。
             # 順序沿用site_src/night_page.pyの既存extra_scripts相對順序（依賴關係已在那邊
             # 驗證過，這裡直接照抄，不重新試錯）。
@@ -1180,9 +1241,16 @@ def build_midnight_html() -> str:
             "character_drawer.js",
             "event_rulebook.js",
             "night_floor_breakthrough.js",
+            # 2026-09-10追加：夜王〔開場〕〔結局〕敘述（見midnight_page.pyの
+            # #midnight-intro-boss-text／#midnight-game-victory-modal說明），night_gm_flow.js
+            # 的resolveNightKingNarrationText()內部讀window.PriTestWorldview，必須排在它之前。
+            "worldview.js",
             "night_gm_flow.js",
             "midnight_puzzles.js",
             "midnight_random_events.js",
+            # 2026-09-10新增：「完整版」4張新地圖資料，midnight_map.jsのgenerateMap()內部
+            # 讀window.PriTestMidnightMapVariants，必須排在它之前。
+            "midnight_map_variants.js",
             "midnight_map.js",
             "midnight.js",
         ),

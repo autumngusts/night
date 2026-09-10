@@ -506,8 +506,9 @@
   // meta.resolvedNightBossId：開局那一刻（跟sessionStartAt同一次transaction()）真正
   // 確定的劇本id——選了具體夜王就是那個id，選隨機則用meta.mapSeed（開局前就已經
   // 全裝置共享的種子）決定性挑一個，所有裝置算出同一個結果，不需要額外協調。
-  // meta.mapVariant目前只有"basic"生效，"full"選項UI層級disabled（見midnight_page.py），
-  // 保留欄位供未來「完整版：為其他所有地圖抽一張」實作時使用，不在這次範圍內。----
+  // meta.mapVariant："basic"固定用origin地形；"full"則在開局那一刻（見onMetaReceived()的
+  // variantMapGenerated處理）用meta.mapSeed決定性抽一張——使用者明確規格「選擇完整版則
+  // 會有80%從中抽出一張」，實際抽選機率邏輯在midnight_map_variants.jsのpickVariantId()。----
   function nightBossScenarioOptions() {
     var Scenarios = window.PriTestScenarios;
     if (!Scenarios) return [];
@@ -569,8 +570,7 @@
   }
 
   function handleMapVariantSelectChange() {
-    var v = el("midnight-lobby-map-variant-select").value;
-    GameStorage.rtSet(gameId, "cloud", "meta/mapVariant", v === "full" ? "basic" : v); // "full"選項本身已disabled，這裡是防呆
+    GameStorage.rtSet(gameId, "cloud", "meta/mapVariant", el("midnight-lobby-map-variant-select").value);
   }
 
   // ---- 測試模式（2026-09-06新增，使用者明確規格：「開始遊戲可以選擇測試模式，在右邊
@@ -597,6 +597,27 @@
       return;
     }
     GameStorage.rtSet(gameId, "cloud", "meta/testMode", true);
+  }
+
+  // 流程簡介視窗（使用者明確規格「打開後播放打字機直到按下右上X」）：純本地端展示，不寫
+  // 任何共享state，開/關只影響自己這台裝置畫面。用night_gm_flow.jsの既有typewriteInto()，
+  // 不另外寫第二套打字機邏輯（CLAUDE.md §10重用原則）。
+  function handleFlowIntroOpenClick() {
+    var modal = el("midnight-flow-intro-modal");
+    if (!modal) return;
+    modal.hidden = false;
+    var GmFlow = window.PriTestNightGmFlow;
+    var textEl = el("midnight-flow-intro-text");
+    if (GmFlow && textEl) {
+      GmFlow.typewriteInto(textEl, window.I18N.t("midnight_flow_intro_text"), { chunkSize: 3, intervalMs: 18 });
+    } else if (textEl) {
+      textEl.textContent = window.I18N.t("midnight_flow_intro_text");
+    }
+  }
+
+  function handleFlowIntroCloseClick() {
+    var modal = el("midnight-flow-intro-modal");
+    if (modal) modal.hidden = true;
   }
 
   // 2026-09-06優化：滑桿改成可搭配數字輸入框直接輸入（使用者明確規格「可以直接輸入數字」），
@@ -971,8 +992,28 @@
   // 畫面內容，render()結尾把主canvas整張縮小畫進來，不重複執行地圖繪製邏輯。
   var minimapCanvas = null;
   var minimapCtx = null;
-  var mapImage = new Image();
-  mapImage.src = "../static/images/maps/map_origin.jpg";
+  // 「完整版」4張新地圖各自的原畫背景（2026-09-10新增，見midnight_map_variants.js）：
+  // 跟origin地圖同一種畫法（render()直接把整張原畫畫成canvas背景，見下方
+  // MAP_BACKGROUND_IMAGES／currentMapImage()），不是額外疊加濾鏡或色調轉換模擬「這是
+  // 另一張地圖」，使用者已經提供這4張圖各自完整的原畫素材（static_src/images/maps/
+  // map_{cassel,ice,kasan,red}.jpg，複製自photo/midnight/同名非標註版）。
+  var MAP_BACKGROUND_IMAGES = {
+    basic: new Image(),
+    cassel: new Image(),
+    ice: new Image(),
+    kasan: new Image(),
+    red: new Image(),
+  };
+  MAP_BACKGROUND_IMAGES.basic.src = "../static/images/maps/map_origin.jpg";
+  MAP_BACKGROUND_IMAGES.cassel.src = "../static/images/maps/map_cassel.jpg";
+  MAP_BACKGROUND_IMAGES.ice.src = "../static/images/maps/map_ice.jpg";
+  MAP_BACKGROUND_IMAGES.kasan.src = "../static/images/maps/map_kasan.jpg";
+  MAP_BACKGROUND_IMAGES.red.src = "../static/images/maps/map_red.jpg";
+
+  function currentMapImage() {
+    var variantId = map && map.variantId;
+    return MAP_BACKGROUND_IMAGES[variantId] || MAP_BACKGROUND_IMAGES.basic;
+  }
 
   // 新籌碼點圖示（2026-09-05新增）：直接沿用night既有EVENT_CHIP_TYPES用的同一批圖檔
   // （static_src/images/icons/），不是另外畫的圖，見drawPointCard()。
@@ -1065,14 +1106,27 @@
   // 地圖」這段初始化只能跑一次（用isFirstTime擋住，不是靠meta是否為null判斷，因為meta
   // 在第一次之後就一直是truthy的）。畫面要顯示等待房還是地圖，則是每次收到meta都要
   // 重新判斷（見updateLobbyOrGameVisibility()），因為sessionStartAt可能是稍後才出現。
+  // fix：地圖選單（meta.mapVariant）是等待房內可隨時調整的設定，但原本這裡在「第一次收到
+  // meta」那一刻（通常是房主剛建立房間、都還沒機會選地圖之前）就用meta.mapVariant產生
+  // map，之後isFirstTime guard讓它終身不會重算——等於「完整版」選單就算選了也完全沒有
+  // 效果（地圖已經生成成basic了）。跟meta.resolvedNightBossId同一套既有模式（見
+  // maybeTriggerSessionStart()）：開局那一刻才是設定真正「鎖定」的時間點，這裡改成用
+  // variantMapGenerated旗標，在sessionStartAt真正出現的那一次額外重新產生一次map（讀
+  // 這時候meta.mapVariant的最終值），取代isFirstTime那次用basic產生的暫時版本——等待房
+  // 階段本來就只需要map.dayPlan.day1.start這類佔位資訊供角色出生點使用，不受影響。
+  var variantMapGenerated = false;
   function onMetaReceived(value) {
     if (!value) return;
     var isFirstTime = !meta;
     meta = value;
     if (isFirstTime) {
-      map = Map_.generateMap(meta.mapSeed);
+      map = Map_.generateMap(meta.mapSeed, "basic");
       el("midnight-start-screen").hidden = true;
       startLoop();
+    }
+    if (!variantMapGenerated && meta.sessionStartAt) {
+      variantMapGenerated = true;
+      map = Map_.generateMap(meta.mapSeed, meta.mapVariant);
     }
     updateLobbyOrGameVisibility();
   }
@@ -1758,6 +1812,13 @@
       window.alert(window.I18N.t("midnight_takeover_wrong_password"));
       return;
     }
+    performTakeover(slot, p);
+  }
+
+  // 2026-09-10除錯用抽出：接管席位的實際邏輯（原本全部塞在handleTakeover()裡），密碼驗證
+  // 通過後才呼叫——window.PriTestMidnight._debugTakeover()測試用途需要跳過window.prompt()
+  // （瀏覽器自動化工具會被原生prompt卡住），直接重用這段邏輯，不重新複製一份。
+  function performTakeover(slot, p) {
     var previousPos = remoteTokens[p.tokenId];
     var previousStat = demoStats[p.tokenId];
     var previousCharacter = characters[p.tokenId];
@@ -1903,7 +1964,10 @@
     el("midnight-lobby-map-variant-select").addEventListener("change", handleMapVariantSelectChange);
     el("midnight-lobby-difficulty-select").addEventListener("change", handleDifficultySelectChange);
     el("btn-midnight-game-failure-confirm").addEventListener("click", switchToUnlimitedMode);
+    el("btn-midnight-game-victory-confirm").addEventListener("click", handleGameVictoryConfirmClick);
     el("midnight-lobby-test-mode-checkbox").addEventListener("change", handleTestModeToggle);
+    el("btn-midnight-flow-intro-open").addEventListener("click", handleFlowIntroOpenClick);
+    el("btn-midnight-flow-intro-close").addEventListener("click", handleFlowIntroCloseClick);
     el("btn-midnight-open-test-console").addEventListener("click", function () {
       testConsoleOpen = true;
       renderTestPanel();
@@ -2004,13 +2068,20 @@
 
   // 目前的Guard Point（純函式，依trig快取的guardUnits/guardBrokenAt跟現在時間推算，
   // 不需要額外的「回復」寫入——回復純粹是「已經過了5秒」這個時間條件的自然結果）。
+  // L補（使用者明確規格）：這隻敵人若在指派當下有套用L補正（trig.lBonus，見
+  // maybeAssignFieldEnemy()/rollAndAssignStrongEnemy()/renderAmbushBossBranch()），直接把
+  // L值加到現在的Guard Point上，上限夾在guardMax（種族本身資料定義的防禦次數上限，
+  // 也是guardValueTable實際有列的最高count）——guardMax本身沒有被L補正墊高，效果是
+  // 「更難把Guard Point打到低於原本上限」，而不是讓Guard Point超過種族原本的資料範圍
+  // （避免guardValueForCount()查到guardValueTable沒有定義的count而回傳null）。
   function currentGuardCountForTrig(trig, guardMax) {
     if (!trig) return guardMax;
     var brokenAt = trig.guardBrokenAt || null;
     if (brokenAt) return Date.now() - brokenAt >= GUARD_BREAK_RECOVER_MS ? guardMax : 0;
     var units = trig.guardUnits || 0;
     var reduceBy = Math.floor(units / (GUARD_REDUCTION_THRESHOLD * 2));
-    return Math.max(0, guardMax - reduceBy);
+    var base = Math.max(0, guardMax - reduceBy);
+    return Math.min(guardMax, base + (trig.lBonus || 0));
   }
 
   // 玩家攻擊命中時，若這次傷害帶有▲/◆符號（computeWeaponDamage/computeMidnightSkillDamage
@@ -2456,7 +2527,7 @@
   }
 
   function handleAttackClick(side) {
-    if (!mySlot || isPaused() || isSelfDowned()) return;
+    if (!mySlot || isPaused() || isSelfDowned() || isIceBlizzardBlinded(Date.now())) return;
     if (beastFormActive(characters[myTokenId], Date.now())) {
       handleBeastAction(side === "L" ? "assault" : "roar");
       return;
@@ -2566,7 +2637,7 @@
   }
 
   function startAttackHold(side) {
-    if (!mySlot || isPaused() || isSelfDowned()) return;
+    if (!mySlot || isPaused() || isSelfDowned() || isIceBlizzardBlinded(Date.now())) return;
     attackHoldState[side] = Date.now();
   }
 
@@ -2626,7 +2697,7 @@
   // 消耗解析沿用武器戰技/魔術祈禱同一套computeMidnightSkillCost（本文「消耗：①①」→
   // 骰子點數×2體力），跟castWeaponSkillEntry()同一套資源檢查/扣除模式。
   function useSpecialAttack(side, entry) {
-    if (!mySlot || isPaused() || isSelfDowned()) return;
+    if (!mySlot || isPaused() || isSelfDowned() || isIceBlizzardBlinded(Date.now())) return;
     attackSpecialMenuOpen[side] = false;
     renderAttackSpecialMenu(side);
     var c = characters[myTokenId];
@@ -2710,7 +2781,7 @@
   // 體力/FP都足夠才真正扣款（避免體力扣了才發現FP不夠、且已扣的體力沒有回滾機制的問題），
   // HP消耗（HP■×10）沒有事先檢查門檻——比照「代價類」技能允許扣到低血，不額外發明限制。
   function castWeaponSkillEntry(entry) {
-    if (!mySlot || isPaused() || isSelfDowned()) return;
+    if (!mySlot || isPaused() || isSelfDowned() || isIceBlizzardBlinded(Date.now())) return;
     var c = characters[myTokenId];
     if (!c) return;
     var bodyText = Weapons.localizedText(entry.body);
@@ -3090,7 +3161,7 @@
   }
 
   function useCharacterAbility(kind) {
-    if (!mySlot || isPaused() || isSelfDowned()) return;
+    if (!mySlot || isPaused() || isSelfDowned() || isIceBlizzardBlinded(Date.now())) return;
     var found = characterAbilityEntry(kind);
     if (!found.c || !found.ability) return;
     if (!midnightAbilityPrecondition(found.ability.id, found.c)) return;
@@ -3396,7 +3467,7 @@
   }
 
   function startSkillBHold(key) {
-    if (!mySlot || isPaused() || sorceryHoldState[key]) return;
+    if (!mySlot || isPaused() || sorceryHoldState[key] || isIceBlizzardBlinded(Date.now())) return;
     var def = SORCERY_BUTTON_DEFS_BY_KEY[key];
     var entry = def && sorceryButtonEntry(def);
     if (!entry) return;
@@ -5250,7 +5321,7 @@
   // 「進入」流程誤判。2026-09-06修正：漏排除blessing，導致靠近祝福籌碼時
   // #midnight-field-enter-prompt跟#midnight-blessing-prompt同時觸發，形成使用者回報的
   // 「祝福畫面有兩個進入」重複顯示。
-  var NON_FIELD_POINT_TYPES = { sorcerer: true, merchant: true, strong_enemy: true, random_event: true, blessing: true };
+  var NON_FIELD_POINT_TYPES = { sorcerer: true, merchant: true, strong_enemy: true, random_event: true, blessing: true, hazard_q: true };
 
   // 2026-09-08新增：離開鍛造村範圍時把c._weaponRerollCredits歸0（使用者明確規格「在離開
   // 鍛造村範圍後 直接歸0無法使用」）——只在「原本在村內、這次真的離開了」的轉換瞬間執行
@@ -5329,6 +5400,22 @@
       if (!nearbyLateJoinPoint && progress0 && !fieldEnterAttempted[found.id]) {
         var alreadyClaimed0 = progress0.claimedBy && progress0.claimedBy[myTokenId];
         var neverJoined0 = !(trig0 && trig0.participants && trig0.participants[mySlot]);
+        // fix：trig0在樓層推進當下會被maybeClearFieldTriggerAfterRewardGate()清空成null，
+        // 這時neverJoined0單看trig0.participants一定誤判成true——即使自己其實是這一層的
+        // participant、早就透過grantTileLootToParticipants()/chaliceEntries直接拿到獎勵。
+        // 額外查pushPerPlayerReward()存的directSlots（見該函式說明，不受trig清空影響），
+        // 只要自己出現在任一筆ledger紀錄的directSlots裡，代表這份獎勵早就直接發放過，
+        // 不該再被當成「從未加入、需要後補領獎」，否則會彈出late-claim-prompt讓玩家把同一
+        // 份戰利品重複領取一次。
+        if (neverJoined0 && mySlot && progress0.perPlayerRewards) {
+          for (var prSeq in progress0.perPlayerRewards) {
+            var prEntry = progress0.perPlayerRewards[prSeq];
+            if (prEntry.directSlots && prEntry.directSlots[mySlot]) {
+              neverJoined0 = false;
+              break;
+            }
+          }
+        }
         if (neverJoined0 && !alreadyClaimed0) {
           nearbyLateClaimPoint = found;
         }
@@ -5935,7 +6022,13 @@
         var key = match.familyId + "|" + match.enemy.id;
         if (seen[key]) return;
         seen[key] = true;
-        matches.push({ familyId: match.familyId, enemy: match.enemy, mobRowCount: ref.mobRowCount || 0, level: ref.level || 1 });
+        matches.push({
+          familyId: match.familyId,
+          enemy: match.enemy,
+          mobRowCount: ref.mobRowCount || 0,
+          level: ref.level || 1,
+          needsLevelCorrection: !!ref.needsLevelCorrection, // L補：ref已經由GmFlow.parseCombatEnemyRef()偵測「」內文字含「L補」
+        });
       });
     });
     return matches;
@@ -5961,6 +6054,11 @@
     }
     fieldEnemyAssignAttempted[pt.id] = true;
     var picked = matches[fieldSeededIndex(pt.id + ":enemy", matches.length)];
+    // L補（見currentLBonus()說明）：這一行敵人引用文字本身標注「L補」才套用，在指派當下
+    // 一次算好、跟level一起凍結寫進trig（不是每幀重算），避免戰鬥途中跨過縮圈開始時間點
+    // 導致等級/HP/Guard中途變動。
+    var lBonus = picked.needsLevelCorrection ? currentLBonus(currentPhaseInfo(Date.now())) : 0;
+    var finalLevel = picked.level + lBonus;
     GameStorage.rtTransaction(gameId, "cloud", "fieldTrigger/" + pt.id + "/enemyFamilyId", function (cur) {
       return cur === null ? picked.familyId : cur;
     });
@@ -5971,10 +6069,15 @@
     // 強敵籌碼流程（rollAndAssignStrongEnemy()，同樣用"level"欄位名）一併存下來，
     // enemyRealHpMax()／敵人攻擊基準值都需要用等級查family.base對應行。
     GameStorage.rtTransaction(gameId, "cloud", "fieldTrigger/" + pt.id + "/level", function (cur) {
-      return cur === null ? picked.level : cur;
+      return cur === null ? finalLevel : cur;
     });
+    if (lBonus) {
+      GameStorage.rtTransaction(gameId, "cloud", "fieldTrigger/" + pt.id + "/lBonus", function (cur) {
+        return cur === null ? lBonus : cur;
+      });
+    }
     GameStorage.rtTransaction(gameId, "cloud", "fieldEnemyHp/" + pt.id, function (cur) {
-      return cur === null ? enemyRealHpMax({ enemyFamilyId: picked.familyId, enemyId: picked.enemy.id, level: picked.level }) : cur;
+      return cur === null ? enemyRealHpMax({ enemyFamilyId: picked.familyId, enemyId: picked.enemy.id, level: finalLevel }) : cur;
     });
     // 雜兵（2026-09-06死靈術前置工程新增，使用者明確規格）：血量＝樓層文字「+雜兵N」
     // 後綴的N×MOB_HP_PER_ROW，單一合併血量池。沒有「+雜兵」後綴（mobRowCount===0）就
@@ -6044,7 +6147,7 @@
       var dist = Math.hypot(localPos.x - (pt.x + 0.5), localPos.y - (pt.y + 0.5));
       if (dist > FIELD_TRIGGER_RADIUS) return;
       if (pt.type === "merchant" && !merchant) merchant = pt;
-      else if (pt.type === "strong_enemy" && !strongEnemy) strongEnemy = pt;
+      else if ((pt.type === "strong_enemy" || pt.type === "hazard_q") && !strongEnemy) strongEnemy = pt;
       else if (pt.type === "random_event" && !randomEvent) randomEvent = pt;
       // 2026-09-06使用者明確要求「使用祝福後能再次使用」：拿掉!blessingClaimed[pt.id]
       // 條件，不再因為曾經有人領取過就從此不再顯示。
@@ -6067,6 +6170,9 @@
     if (blessing) el("midnight-blessing-prompt-name").textContent = window.I18N.t("midnight_blessing_title");
 
     nearbyStrongEnemy = strongEnemy;
+    // Q板塊未解鎖時離開範圍要重置提示旗標，這樣下次靠近（不管是重新走過來還是解鎖後
+    // 回來）都能再次評估要不要顯示提示，見rollAndAssignStrongEnemy()的hazard_q分支。
+    if (!strongEnemy || strongEnemy.type !== "hazard_q") hazardQLockedToastShown = {};
     if (strongEnemy) {
       rollAndAssignStrongEnemy(strongEnemy);
       maybeGrantStrongEnemyReward(strongEnemy);
@@ -6098,8 +6204,31 @@
   // ---- 強敵籌碼：靠近後用event_rulebook.js既有「強敵決定表」（跟night_gm_flow.js完全
   // 相同的解析邏輯）決定敵人，直接生成一個status:"resolved"的fieldTrigger物件，天然
   // 重用既有戰鬥/攻擊排程（見規劃紀錄「強敵/scarab 戰鬥的 RTDB 狀態機」）。----
+  // Q板塊開放判定（使用者明確規格「在各自特殊橘線範圍內...在沒攻略完4,5,可怖強敵三選二
+  // 以前 進入Q時會顯示訊息...直到最後剩下Q才能進入該板塊」）：hazardMember是
+  // placeHazardZonePoints()對橘線範圍內的卡4/卡5/強敵三個點標記的旗標，只要其中至少2個
+  // isPointCleared()就算解鎖。不限定哪2個（規格是「三選二」，不是指定必須是哪兩個）。
+  var hazardQLockedToastShown = {};
+  function hazardQUnlocked() {
+    var members = map.points.filter(function (p) {
+      return p.hazardMember;
+    });
+    var clearedCount = members.filter(isPointCleared).length;
+    return clearedCount >= 2;
+  }
+
   function rollAndAssignStrongEnemy(pt) {
     if (strongEnemyRollAttempted[pt.id] || fieldTriggers[pt.id]) return;
+    // Q板塊在解鎖前完全不查表指派敵人（維持trig不存在，跟strong_enemy一般點「還沒靠近過」
+    // 的畫面狀態一樣），只顯示一次提示訊息，不設strongEnemyRollAttempted——解鎖後下一次
+    // proximity掃描會自然重新判斷並正常往下查表。
+    if (pt.type === "hazard_q" && !hazardQUnlocked()) {
+      if (!hazardQLockedToastShown[pt.id]) {
+        hazardQLockedToastShown[pt.id] = true;
+        showToast(window.I18N.t("midnight_hazard_q_locked_toast"));
+      }
+      return;
+    }
     strongEnemyRollAttempted[pt.id] = true;
     var GmFlow = window.PriTestNightGmFlow;
     var chip = findEventChip("strong_enemy");
@@ -6117,7 +6246,10 @@
       match = GmFlow.resolveCombatEnemyMatch(parsed.nameTokens[i]);
     }
     if (!match) return; // 找不到就整體放棄，不硬湊（CLAUDE.md §19同精神，不捏造規則結果）
-    var level = (parsed.level || 1) + (rolled.levelBonus || 0);
+    // L補：強敵決定表（event_rulebook.js「強敵決定表｜1日目(⑦⑧)／2日目(⑦)」跟「恐るべき
+    // 強敵決定表｜2日目(⑧)」）的每一列都標注「Lv.N + L補正」，見currentLBonus()說明。
+    var lBonus = L_BONUS_TEXT_RE.test((rolled.entry && rolled.entry.ja) || "") ? currentLBonus(currentPhaseInfo(Date.now())) : 0;
+    var level = (parsed.level || 1) + (rolled.levelBonus || 0) + lBonus;
     var now = Date.now();
     GameStorage.rtTransaction(gameId, "cloud", "fieldTrigger/" + pt.id, function (cur) {
       if (cur !== null) return cur;
@@ -6126,6 +6258,7 @@
         enemyFamilyId: match.familyId,
         enemyId: match.enemy.id,
         level: level,
+        lBonus: lBonus,
         participants: {},
         resolvedAt: now,
       };
@@ -6428,9 +6561,14 @@
         imgEl.hidden = true;
       }
       el("midnight-day3-boss-intro-name").textContent = bossName;
-      // 前言敘述：night_boss_rulebook.js目前沒有intro欄位資料（規則書該段文字尚未轉錄），
-      // 有資料才顯示，沒有就整行隱藏——不自行編造夜之王的台詞。
-      var introText = bossInfo && bossInfo.intro ? window.PriTestEnemies.localizedText(bossInfo.intro) : "";
+      // fix：前言敘述原本找night_boss_rulebook.jsのintro欄位，但該欄位從未轉錄過資料，
+      // 導致這段文字永遠隱藏。這段文字其實跟night.js開局自動播放的〔開場〕敘述是同一份
+      // static/worldview.js資料（HTML註解本來就寫「與night的自動開場一樣文本」），改用
+      // static/night_gm_flow.jsの既有resolveNightKingNarrationText()（見midnight.jsの
+      // renderIntroBossText()同款用法），trig.enemyId對day3Boss而言本來就是bossId
+      // （見rollAndAssignDay3Boss()）。找不到資料才隱藏，不自行編造。
+      var GmFlowForIntro = window.PriTestNightGmFlow;
+      var introText = GmFlowForIntro ? GmFlowForIntro.resolveNightKingNarrationText(trig.enemyId, "opening") || "" : "";
       var introEl = el("midnight-day3-boss-intro-text");
       introEl.textContent = introText;
       introEl.hidden = !introText;
@@ -7405,6 +7543,10 @@
     var GmFlow = window.PriTestNightGmFlow;
     var match = GmFlow && GmFlow.resolveCombatEnemyMatch(trig.ambushEnemyNameJa);
     if (!match) return; // 找不到就整體放棄，不硬湊（同rollAndAssignStrongEnemy()等既有精神）
+    // L補：忌み鬼(802)／兆し(842)／調律の魔物「戦いを仕掛ける」(976)三者的規則書文字都是
+    // 「Lv.6 + L補正」/「Lv.6＋L補」，見currentLBonus()說明。
+    var lBonus = currentLBonus(currentPhaseInfo(Date.now()));
+    var finalLevel = AMBUSH_BOSS_LEVEL + lBonus;
     // 同rollAndAssignNightForceEnemy()既有寫法：對整個fieldTrigger物件做單一atomic
     // transaction，避免enemyFamilyId/enemyId/level分開多次transaction可能交錯寫入的不一致組合。
     GameStorage.rtTransaction(gameId, "cloud", "fieldTrigger/" + pt.id, function (cur) {
@@ -7413,12 +7555,13 @@
       for (var k in cur) out[k] = cur[k];
       out.enemyFamilyId = match.familyId;
       out.enemyId = match.enemy.id;
-      out.level = AMBUSH_BOSS_LEVEL;
+      out.level = finalLevel;
+      out.lBonus = lBonus;
       return out;
     }).then(function () {
       GameStorage.rtTransaction(gameId, "cloud", "fieldEnemyHp/" + pt.id, function (cur) {
         return cur === null
-          ? enemyRealHpMax({ enemyFamilyId: match.familyId, enemyId: match.enemy.id, level: AMBUSH_BOSS_LEVEL })
+          ? enemyRealHpMax({ enemyFamilyId: match.familyId, enemyId: match.enemy.id, level: finalLevel })
           : cur;
       });
     });
@@ -7435,7 +7578,11 @@
     var hp = fieldEnemyHp[pt.id];
     if (hp === undefined || hp > 0) return;
     ambushRewardAttempted[pt.id] = true;
-    var runeValue = AMBUSH_BOSS_RUNE[trig.ambushEnemyNameJa] || 0;
+    // L補：忌み鬼(801)／兆し(841)的撃破ルーン文字是「6 + L補正」，調律の魔物(975)則明確
+    // 只寫「撃破ルーン：3」沒有L補正，三者共用trig.lBonus（指派敵人時已凍結，見
+    // renderAmbushBossBranch()）但只對前兩者加上去。
+    var runeBase = AMBUSH_BOSS_RUNE[trig.ambushEnemyNameJa] || 0;
+    var runeValue = runeBase && trig.ambushEnemyNameJa !== "調律の魔物" ? runeBase + (trig.lBonus || 0) : runeBase;
     GameStorage.rtTransaction(gameId, "cloud", "fieldTrigger/" + pt.id + "/rewardGrantedBy", function (cur) {
       return cur === null ? myTokenId : cur;
     }).then(function (committed) {
@@ -7855,6 +8002,11 @@
     var hp = fieldEnemyHp[pt.id];
     if (hp === undefined || hp > 0) return;
     meteorRewardAttempted[pt.id] = true;
+    // L補：event_rulebook.js:491「撃破ルーン：8 + L補正」——只有撃破ルーン有L補正，
+    // 敵人本身等級固定Lv.8無L補正（見上方METEOR_ENEMY_LEVEL註解），因此這裡單獨算，不
+    // 沿用trig.lBonus（那個欄位在其他分支代表「敵人本身有沒有被L補正加成」，meteor敵人
+    // 沒有，不能共用同一個判斷）。
+    var runeValue = METEOR_REWARD_RUNES + currentLBonus(currentPhaseInfo(Date.now()));
     GameStorage.rtTransaction(gameId, "cloud", "fieldTrigger/" + pt.id + "/rewardGrantedBy", function (cur) {
       return cur === null ? myTokenId : cur;
     }).then(function (committed) {
@@ -7867,7 +8019,7 @@
         // 所以這裡必須跟maybeGrantStrongEnemyReward()一樣走pushPendingReward()逐一個別
         // 授予、而不是pushPerPlayerReward()（那只是fieldProgress後補領取ledger，本身
         // 不會立即套用任何東西）。
-        pushPendingReward(p.tokenId, { kind: "rune", value: METEOR_REWARD_RUNES });
+        pushPendingReward(p.tokenId, { kind: "rune", value: runeValue });
         pushPendingReward(p.tokenId, { kind: "potentialPower", value: METEOR_REWARD_POTENTIAL_STARS });
       });
     });
@@ -8461,13 +8613,23 @@
   // 落後獎勵ledger（設計文件§1.5）：每次對trig.participants發放perPerson獎勵時，額外記一份
   // 到 fieldProgress/{pointId}/perPlayerRewards/{seq}，供之後才加入、原本不在participants裡
   // 的玩家後補領取。固定共享(perPerson:false)的獎勵不進這裡，見pushSharedReward()。
-  function pushPerPlayerReward(pointId, entries) {
+  // fix：directSlots記錄「這一份entries已經透過grantTileLootToParticipants()/chaliceEntries
+  // 迴圈直接授予過的席位」（=呼叫當下的trig.participants）。理由：這一層清掉後
+  // maybeClearFieldTriggerAfterRewardGate()會把fieldTrigger整個設為null，讓地圖點能重新
+  // 觸發「進入」流程給下一層用——但updateNearbyFieldPoint()判斷「要不要顯示後補領獎按鈕」
+  // 的neverJoined0原本只看「當下這個trig0.participants」，trig一旦被清空就等於永遠查不到
+  // 「這個人其實已經直接領過了」，導致原本的參與者（尤其是用[加入]而非發起「進入」的人，
+  // 從未設過fieldEnterAttempted）在floor推進的那一刻被誤判成「後補」，彈出後補領獎視窗，
+  // 按下去等於同一份獎勵重複領取一次（見claimLatePerPlayerRewards()）。把directSlots存進
+  // fieldProgress（不會隨fieldTrigger清空而消失），讓eligibility判斷能正確排除這些人。
+  function pushPerPlayerReward(pointId, entries, directSlots) {
     var perPersonEntries = entries.filter(isPerPersonRewardEntry);
     if (!perPersonEntries.length) return;
     var seq = "pr" + Date.now() + Math.floor(Math.random() * 100000);
     GameStorage.rtSet(gameId, "cloud", "fieldProgress/" + pointId + "/perPlayerRewards/" + seq, {
       entries: perPersonEntries,
       grantedAt: Date.now(),
+      directSlots: directSlots || {},
     });
   }
 
@@ -8999,7 +9161,7 @@
               if (p) pushPendingReward(p.tokenId, { kind: e.kind, value: e.value, sourcePointId: pt.id, sourceFloorIndex: trig.floorIndex || 0 });
             });
           });
-          pushPerPlayerReward(pt.id, perPerson);
+          pushPerPlayerReward(pt.id, perPerson, trig.participants);
         }
         shared.forEach(function (e) {
           pushSharedReward(pt.id, e);
@@ -9065,6 +9227,15 @@
     var key = pt.id + ":" + floorIndex;
     if (fieldFloorAdvanceAttempted[key]) return;
     fieldFloorAdvanceAttempted[key] = true;
+    // kasan地變特殊規則「熔岩」（使用者明確規格「此場地每次樓層踏破，PC全員自動無條件
+    // 承受『HP損害：■』」）：■數值規則書未標示，依CLAUDE.md §19不自行發明，只用toast
+    // 提醒在場玩家自行依規則書套用，不自動扣血。這裡跑在每個「靠近這個點的玩家」自己的
+    // 裝置上（跟fieldFloorAdvanceAttempted guard一樣，是「每個client各自跑一次」而不是
+    // 「只有transaction贏家跑一次」），因此每個在場玩家都會各自看到一次提醒，不需要另外
+    // 建立跨玩家廣播機制。
+    if (map && map.specialRule === "kasan_lava") {
+      showToast(window.I18N.t("midnight_kasan_lava_floor_note"));
+    }
     var floorCount = fieldFloorCountForCard(pt.card);
     var nextFloorIndex = floorIndex + 1;
     var cleared = nextFloorIndex >= floorCount;
@@ -11248,7 +11419,10 @@
       return;
     }
     var found = null;
-    Map_.SPIRIT_BIRD_LINKS.forEach(function (bird) {
+    // fix：SPIRIT_BIRD_LINKS改成每張地圖各自一份（見midnight_map_variants.js），改讀
+    // map.spiritBirdLinks（generateMap()已經依變體塞好，basic地圖等同原本的Map_.SPIRIT_BIRD_LINKS）
+    // 而不是固定讀Map_模組層級的origin專屬那份。
+    map.spiritBirdLinks.forEach(function (bird) {
       if (found) return;
       var dist = Math.hypot(localPos.x - (bird.x + 0.5), localPos.y - (bird.y + 0.5));
       if (dist <= SPIRIT_BIRD_ACTIVATE_RADIUS) found = bird;
@@ -11645,6 +11819,31 @@
     modal.hidden = !meta.gameFailurePending;
   }
 
+  // 遊戲勝利彈窗（使用者明確規格「遊戲第三天勝利後顯示(結局)」）：day3BossDefeated()是
+  // 既有但先前完全沒有呼叫端的純函式（純粹依fieldTrigger/fieldEnemyHp判斷，不需要額外的
+  // meta旗標）。關閉只是本地端旗標（gameVictoryDismissed，同day1RewardsDismissed既有模式），
+  // 不寫共享state，讓每位玩家自己決定何時關閉，不影響其他人畫面。
+  var gameVictoryDismissed = false;
+  function updateGameVictoryModal() {
+    var modal = el("midnight-game-victory-modal");
+    if (!modal) return;
+    var defeated = day3BossDefeated();
+    if (!defeated || gameVictoryDismissed) {
+      modal.hidden = true;
+      return;
+    }
+    modal.hidden = false;
+    var trig = fieldTriggers[DAY3_BOSS_POINT_ID];
+    var GmFlow = window.PriTestNightGmFlow;
+    var text = trig && GmFlow ? GmFlow.resolveNightKingNarrationText(trig.enemyId, "ending") : null;
+    el("midnight-game-victory-text").textContent = text || "";
+  }
+
+  function handleGameVictoryConfirmClick() {
+    gameVictoryDismissed = true;
+    el("midnight-game-victory-modal").hidden = true;
+  }
+
   // 開局10秒進場動畫（2026-09-06優化，使用者明確規格「遊戲開始有10秒的動畫時間，期間
   // 不能移動操作：用動畫演出一隻略大的靈鷹載著入場腳色以漩渦飛行後10秒，最終停在大家的
   // 起始地點後正式開始，期間地圖慢慢從全透明到不透明」）：直接以meta.sessionStartAt為
@@ -11728,6 +11927,34 @@
     return { day: dayIndex, stage: stage, center: s.center, radius: s.radius, finalCenter: s.finalCenter, finalRadius: s.finalRadius };
   }
 
+  // 「L補」（使用者明確規格，2026-09-10新增）：規則書多處敵人等級/撃破ルーン標注
+  // 「+L補正」／「+L補」（fields_data_1~4.js／event_rulebook.jsのstrong_enemy／襲撃
+  // 分支既有文字，例如「Lv.2+L補」「撃破ルーン：8 + L補正」），先前因為全專案沒有通用
+  // resolver、依CLAUDE.md §19不猜測數值而完全略過。使用者提供的即時制專屬換算：
+  // 「每次開始縮圈時L補+1」（第1天縮圈1次=1、縮圈2次=2、第2天縮圈1次=3、縮圈2次=4，
+  // 第2天結束後不再增加——沒有更多縮圈可以推進）。跟phaseInfo.stage一樣是純函式，
+  // 直接由現有共享的meta.sessionStartAt/day2StartAt/day3StartAt換算出的day/stage決定，
+  // 不需要另外用RTDB計數器或transaction累加（不會有多台裝置競速累加的問題，任何時間點
+  // 所有裝置算出來的L值天生一致）。只套用在規則書文字本身確實標注「+L補正」/「+L補」的
+  // 敵人/獎勵（scanLinesForEnemyMatches／rollAndAssignStrongEnemy／renderAmbushBossBranch／
+  // maybeGrantMeteorReward／maybeGrantAmbushReward），不擴大套用到其他沒有標注的敵人。
+  function currentLBonus(phaseInfo) {
+    if (!phaseInfo) return 0;
+    if (phaseInfo.day === 1) {
+      if (phaseInfo.stage === "grace") return 0;
+      if (phaseInfo.stage === "shrink1") return 1;
+      return 2; // hold／shrink2／waitingForDay2：第1天兩次縮圈都已開始過
+    }
+    if (phaseInfo.day === 2) {
+      if (phaseInfo.stage === "grace") return 2; // 承接第1天結束時的L
+      if (phaseInfo.stage === "shrink1") return 3;
+      return 4; // hold／shrink2／waitingForDay3
+    }
+    return 4; // day3：沿用第2天結束時的L，沒有更多縮圈可以推進
+  }
+
+  var L_BONUS_TEXT_RE = /L補/;
+
   // ---- 「重新」按鈕：寫進共享的meta，任何一台裝置按下就對所有裝置同時生效（跟其他meta
   // 欄位一樣透過RTDB訂閱同步）。第二天／第三天的推進已改為updateAutoDayAdvance()／
   // maybeTriggerDay3FromReady()全自動驅動（見上方「夜之強敵」區塊說明），不再需要手動
@@ -11756,6 +11983,7 @@
     GameStorage.rtSet(gameId, "cloud", "fieldEnemyHp/" + DAY3_BOSS_POINT_ID, null);
     GameStorage.rtSet(gameId, "cloud", "attributeAccum/" + DAY3_BOSS_POINT_ID, null);
     day3BossRollAttempted = false;
+    gameVictoryDismissed = false; // 重新開始一輪後，勝利彈窗的本地關閉旗標也要重置，否則下一輪擊敗夜王不會再顯示
   }
 
   // 立即縮圈（2026-09-09新增，測試主控台專用）：不新增第二套計時系統，直接把目前這一天
@@ -11808,6 +12036,106 @@
     });
   }
 
+  // ============================================================================
+  // 「完整版」4張新地圖的地變特殊規則（使用者明確規格，見docs/midnight_realtime_combat_numbers.md
+  // 新增章節）。map.specialRule由midnight_map.jsのgenerateMap()依抽中的地圖變體決定，
+  // 沒有變體（origin基礎地圖）時整段no-op。三種週期性效果（cassel/red/ice）各自獨立的
+  // 下一次觸發時間用本地變數保存（不需要跨玩家同步——縮圈時間損耗直接寫共享的
+  // meta.sessionStartAt/day2StartAt本身就會同步給所有人；腐敗蓄積跟視野阻礙都是「本地
+  // only、只有自己需要知道」的既有慣例，同receivedAttributeAccum/暴風雪視野鎖定同理）。
+  // kasan的熔岩規則掛在maybeAdvanceFieldProgressAfterFloorClear()（樓層踏破事件本身），
+  // 不是週期性，不在這裡處理。
+  // ============================================================================
+  var casselNextTimeLossAt = null;
+  var casselTimeLossAttempted = false;
+  var CASSEL_TIME_LOSS_MIN_MS = 30000;
+  var CASSEL_TIME_LOSS_MAX_MS = 60000;
+  var CASSEL_TIME_LOSS_AMOUNT_MS = 5000;
+
+  // 「迷惘的隱藏都市」（cassel）：使用者明確規格「此場地內每隨機30~60秒，縮圈時間-5秒」。
+  // 縮圈時間由currentPhaseInfo()依「now－該天StartAt」算出，因此「縮圈時間-5秒」等同讓
+  // 該天的StartAt往前撥5秒（跟測試主控台既有的handleForceShrinkClick()同一種手法，
+  // 不是另外發明新的計時欄位）。這個效果是「地圖本身」的規則、跟玩家在哪裡無關，所有人
+  // 共用同一份meta，因此任何一個裝置的transaction()寫入就對全場生效，不需要每個玩家
+  // 各自觸發。
+  function maybeApplyCasselTimeLoss(now, phaseInfo) {
+    if (phaseInfo.day === 3) return; // day3沒有縮圈可言
+    if (casselNextTimeLossAt === null) {
+      casselNextTimeLossAt = now + CASSEL_TIME_LOSS_MIN_MS + Math.random() * (CASSEL_TIME_LOSS_MAX_MS - CASSEL_TIME_LOSS_MIN_MS);
+      return;
+    }
+    if (now < casselNextTimeLossAt || casselTimeLossAttempted) return;
+    casselTimeLossAttempted = true;
+    var field = phaseInfo.day === 1 ? "sessionStartAt" : "day2StartAt";
+    GameStorage.rtTransaction(gameId, "cloud", "meta/" + field, function (cur) {
+      return cur === null ? cur : cur - CASSEL_TIME_LOSS_AMOUNT_MS;
+    }).then(function () {
+      casselTimeLossAttempted = false;
+      casselNextTimeLossAt = Date.now() + CASSEL_TIME_LOSS_MIN_MS + Math.random() * (CASSEL_TIME_LOSS_MAX_MS - CASSEL_TIME_LOSS_MIN_MS);
+    });
+  }
+
+  var redMiasmaNextTickAt = null;
+  var RED_MIASMA_INTERVAL_MS = 30000;
+
+  // 「朱紅腐敗的瘴氣」（red）：使用者明確規格「此場地內每30秒，PC全員累積『腐敗：1D
+  // （最低值0）』」「此場地的『腐敗』異常狀態不會解除，會持續累積」——後面這句是跟一般
+  // 異常狀態「達到閾值觸發效果後歸零」（見recordReceivedAttributeAccum()）不同的地方，
+  // 因此這裡刻意不透過那個共用函式（會在跨過閾值時把腐敗歸零、且會連動觸發不撓等其他
+  // 機制，不符合「不會解除」的規格），改直接對receivedAttributeAccum這個既有的「玩家
+  // 自身蓑積量」本地資料結構累加，不歸零。是本地only狀態（跟receivedAttributeAccum既有
+  // 設計一致，只有自己需要知道自己累積了多少），不需要跨玩家同步。
+  function maybeApplyRedMiasmaTick(now) {
+    if (!mySlot) return;
+    if (redMiasmaNextTickAt === null) {
+      redMiasmaNextTickAt = now + RED_MIASMA_INTERVAL_MS;
+      return;
+    }
+    if (now < redMiasmaNextTickAt) return;
+    redMiasmaNextTickAt = now + RED_MIASMA_INTERVAL_MS;
+    var roll = 1 + Math.floor(Math.random() * 6);
+    receivedAttributeAccum["腐敗"] = (receivedAttributeAccum["腐敗"] || 0) + roll;
+    renderAttributeAccumNote();
+  }
+
+  var iceBlizzardNextBlindAt = null;
+  var iceBlizzardBlindUntil = 0;
+  var ICE_BLIZZARD_BLIND_MIN_MS = 30000;
+  var ICE_BLIZZARD_BLIND_MAX_MS = 45000;
+  var ICE_BLIZZARD_BLIND_DURATION_MS = 5000;
+
+  // 「暴風雪的視野」（ice）：使用者明確規格「戰鬥時，此場地內每隨機30~45秒，不能對敵人
+  // 進行『攻擊』與『使用技能』5秒」。只在真的站在遇敵點（activeEncounter）時才計時/生效，
+  // 離開戰鬥後計時停止（下次進入戰鬥重新開始算，不是背景持續跑）——「戰鬥時」是規則
+  // 明確的觸發前提，不是地圖全域效果。「凍傷即使非戰鬥時也會累積且戰鬥結束不重置」這部分
+  // 因為規則書沒有標示蓄積速率數字，依CLAUDE.md §19不自行發明，這次沒有實作（已知簡化，
+  // 不是bug，見docs新增章節說明）。
+  function isIceBlizzardBlinded(now) {
+    return !!(map && map.specialRule === "ice_blizzard" && now < iceBlizzardBlindUntil);
+  }
+
+  function maybeApplyIceBlizzardTick(now) {
+    if (!activeEncounter) {
+      iceBlizzardNextBlindAt = null;
+      return;
+    }
+    if (iceBlizzardNextBlindAt === null) {
+      iceBlizzardNextBlindAt = now + ICE_BLIZZARD_BLIND_MIN_MS + Math.random() * (ICE_BLIZZARD_BLIND_MAX_MS - ICE_BLIZZARD_BLIND_MIN_MS);
+      return;
+    }
+    if (now < iceBlizzardNextBlindAt) return;
+    iceBlizzardBlindUntil = now + ICE_BLIZZARD_BLIND_DURATION_MS;
+    iceBlizzardNextBlindAt = now + ICE_BLIZZARD_BLIND_DURATION_MS + ICE_BLIZZARD_BLIND_MIN_MS + Math.random() * (ICE_BLIZZARD_BLIND_MAX_MS - ICE_BLIZZARD_BLIND_MIN_MS);
+    showToast(window.I18N.t("midnight_ice_blizzard_blind_note"));
+  }
+
+  function applyMapSpecialRuleTick(now, phaseInfo) {
+    if (!map || !map.specialRule) return;
+    if (map.specialRule === "cassel_hidden_city") maybeApplyCasselTimeLoss(now, phaseInfo);
+    else if (map.specialRule === "red_miasma") maybeApplyRedMiasmaTick(now);
+    else if (map.specialRule === "ice_blizzard") maybeApplyIceBlizzardTick(now);
+  }
+
   function render(now, phaseInfo) {
     var w = canvas.width;
     var h = canvas.height;
@@ -11818,6 +12146,7 @@
     // 註解），不再逐格畫wall/floor色塊——牆的可行走判定仍在map.grid，只是不視覺化，
     // 因為現在牆的形狀（陸地邊界＋王城）已經是原畫本身的視覺呈現。圖片非同步載入，
     // 載入完成前先顯示上面填的底色，避免出現破圖。
+    var mapImage = currentMapImage();
     if (mapImage.complete && mapImage.naturalWidth > 0) {
       ctx.drawImage(mapImage, 0, 0, w, h);
     }
@@ -11837,7 +12166,7 @@
     });
 
     // 靈鳥（F）圖示：畫一個小小的鳥型標記，讓玩家知道哪裡可以使用。
-    Map_.SPIRIT_BIRD_LINKS.forEach(drawSpiritBirdMarker);
+    map.spiritBirdLinks.forEach(drawSpiritBirdMarker);
 
     // 縮圈：圈外用深色遮罩＋下雨特效蓋住（drawOutsideCircleMask），圈的邊界再疊一條細線
     // 方便辨識。中心/半徑用sessionStartAt（或day2StartAt）換算出目前day/stage對應的
@@ -11924,7 +12253,7 @@
   function isPointCleared(pt) {
     if (pt.type === "sorcerer") return !!towerSolved[pt.id];
     if (pt.type === "merchant" || pt.type === "blessing" || pt.type === "random_event") return false;
-    if (pt.type === "strong_enemy") {
+    if (pt.type === "strong_enemy" || pt.type === "hazard_q") {
       var trig = fieldTriggers[pt.id];
       return !!(trig && trig.enemyFamilyId && fieldEnemyHp[pt.id] <= 0);
     }
@@ -12059,7 +12388,21 @@
   // 堡壘（J）：地圖中央castleZone固定範圍，不透過placePoints()隨機生成，見
   // midnight_map.jsのcomputeMaskCentroid()／generateMap()回傳的castleCenter。只有一個，
   // 固定畫在map.castleCenter，不用像其他籌碼一樣逐一forEach。
+  // fix：cassel這張「完整版」新地圖沒有畫王城橘線範圍（castleZone全0，見
+  // midnight_map_variants.jsのCASSEL_CASTLE_ROWS說明），computeMaskCentroid()對全0遮罩
+  // 會退回地圖正中央當佔位重心——如果不擋住，會在地圖正中央畫一個看起來能用、實際上
+  // isCastleZone()永遠回傳false（點了沒反應）的假J堡壘圖示，誤導玩家。用mapHasCastle()
+  // 判斷這張地圖的castleZone遮罩是不是真的有範圍，沒有就整個不畫。
+  function mapHasCastle() {
+    if (!map || !map.castleZone) return false;
+    for (var i = 0; i < map.castleZone.length; i++) {
+      if (map.castleZone[i] === 1) return true;
+    }
+    return false;
+  }
+
   function drawCastleMarker() {
+    if (!mapHasCastle()) return;
     var px = map.castleCenter.x * CELL;
     var py = map.castleCenter.y * CELL;
     drawCardShape(px, py, "J", Map_.FIELD_CARD_NAMES.J);
@@ -12284,7 +12627,25 @@
   // frame()從產生地圖那一刻就開始跑（見onMetaReceived），等待房階段也要跑，才能讓
   // 準備倒數／開局倒數即時更新畫面——但等待房階段不做移動/縮圈/傷害那一整套遊戲邏輯，
   // 只更新倒數文字並偵測「該不該正式開局了」。
+  // fix：frame()是驅動整個遊戲（移動/戰鬥/籌碼事件/獎勵清單...全部)的單一主迴圈，
+  // requestAnimationFrame(frame)只在函式最後呼叫一次——這代表只要中間任何一個update/
+  // render函式丟出例外（例如隨機事件分支查表時遇到未預期的資料形狀），整條呼叫鏈會直接
+  // 中斷、後面的requestAnimationFrame(frame)永遠不會執行，導致使用者回報的「經過籌碼事件
+  // 後完全卡住，需要重整才能恢復」（整個遊戲不是卡在某個特定狀態，而是整個影格迴圈已經
+  // 停止）。這裡加上try/catch＋finally，讓單一影格的例外只中止「這一影格」的處理並印到
+  // console供除錯，下一影格仍會照常排程，不會整個遊戲永久停擺。這不會改變任何遊戲規則或
+  // 判斷邏輯，純粹是主迴圈本身的容錯，跟CLAUDE.md「不猜規則數值」無關。
   function frame(ts) {
+    try {
+      frameInner(ts);
+    } catch (err) {
+      console.error("[midnight] frame() error, skipping this frame:", err);
+    } finally {
+      requestAnimationFrame(frame);
+    }
+  }
+
+  function frameInner(ts) {
     var now = Date.now();
     var dtSec = lastFrameTime === null ? 0 : Math.min((ts - lastFrameTime) / 1000, 0.1);
     lastFrameTime = ts;
@@ -12301,7 +12662,6 @@
         // 決定」這個固定選項都沒有），玩家自然完全無法選擇。
         renderLobbySettings();
       }
-      requestAnimationFrame(frame);
       return;
     }
 
@@ -12335,10 +12695,12 @@
     maybePushPosition(now);
     var phaseInfo = currentPhaseInfo(now);
     maybeApplyCircleDamage(now, phaseInfo);
+    applyMapSpecialRuleTick(now, phaseInfo);
     updateNearDeathState(now);
     renderNearDeathStatus(now);
     renderWanderingBlessingHud();
     updateGameFailureModal();
+    updateGameVictoryModal();
     updateAutoDayAdvance(now);
     maybeTriggerDay3FromReady();
     render(now, phaseInfo);
@@ -12374,7 +12736,6 @@
       lastDayPhaseKey = phaseKey;
       renderDayPhaseHud(phaseInfo);
     }
-    requestAnimationFrame(frame);
   }
 
   // 等待房倒數文字：countdownStartAt存在時顯示「N秒後開始」，N每影格重算。
@@ -12508,6 +12869,7 @@
     overlay.hidden = !active;
     var canvasEl = el("midnight-canvas");
     if (active) {
+      if (!introOverlayShown) renderIntroBossText();
       introOverlayShown = true;
       var progress = Math.max(0, Math.min(1, (now - meta.sessionStartAt) / INTRO_DURATION_MS));
       if (canvasEl) canvasEl.style.opacity = String(progress);
@@ -12516,6 +12878,19 @@
       introOverlayShown = false;
       if (canvasEl) canvasEl.style.opacity = "";
     }
+  }
+
+  // 夜王〔開場〕敘述：只在進場動畫「剛變成顯示中」那一刻算一次（不是每影格），文字本身
+  // 不會在遊戲過程中變動，沒必要每幀重算。找不到resolvedNightBossId對應的bossId或
+  // GmFlow/worldview資料時整段隱藏，不自行編造（同midnight-day3-boss-intro-text既有慣例）。
+  function renderIntroBossText() {
+    var el_ = el("midnight-intro-boss-text");
+    if (!el_) return;
+    var GmFlow = window.PriTestNightGmFlow;
+    var bossId = bossIdForResolvedScenario(meta && meta.resolvedNightBossId);
+    var text = GmFlow && bossId ? GmFlow.resolveNightKingNarrationText(bossId, "opening") : null;
+    el_.textContent = text || "";
+    el_.hidden = !text;
   }
 
   function startLoop() {
@@ -12578,6 +12953,21 @@
   // Playwright多裝置測試用の唯一存取窗口（見tools/field_card_sweep）：直接讀取內部
   // state比疊加DOM data屬性更可靠、也不會誤動到正式UI。不對外公開文件化，純測試用。
   window.PriTestMidnight = {
+    // 2026-09-10除錯用新增：背景分頁（document.hidden）時Chrome會節流/暫停
+    // requestAnimationFrame，導致frame()幾乎不會被呼叫、遊戲卡在原地不動——這不是遊戲
+    // 本身的bug，純粹是瀏覽器自動化測試環境的既有限制。手動呼叫這個函式可以繞過rAF直接
+    // 推進一次frameInner()，方便測試腳本在背景分頁時也能推進遊戲狀態。
+    _tick: function () {
+      frameInner(Date.now());
+    },
+    // 2026-09-10除錯用新增：跳過window.prompt()密碼輸入直接接管席位（同performTakeover()，
+    // 見handleTakeover()說明），純測試用，不對外公開文件化。
+    _debugTakeover: function (slot) {
+      var p = players[slot];
+      if (!p) return false;
+      performTakeover(slot, p);
+      return true;
+    },
     _debugState: function () {
       return {
         gameId: gameId,

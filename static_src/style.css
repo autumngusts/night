@@ -4871,8 +4871,14 @@ button {
   margin: 0;
 }
 
+/* fix：文字來源改接static/worldview.jsの完整開場敘述後（見midnight.jsの
+   updateDay3BossIntroOverlay()），長度可能到千字以上（例如nameless），原本沒有
+   max-height/overflow-y，在全螢幕flex置中容器裡會直接把星星圖示跟畫面邊界擠出可視範圍，
+   因此加上限高＋可捲動，短文字（其餘9隻夜王多半僅一兩百字）觀感不受影響。 */
 #midnight-day3-boss-intro-text {
   max-width: 480px;
+  max-height: 38vh;
+  overflow-y: auto;
   font-size: 0.85rem;
   line-height: 1.6;
   opacity: 0.9;
@@ -4955,6 +4961,44 @@ button {
   margin-top: 0;
 }
 
+/* 遊戲勝利彈窗：跟遊戲失敗彈窗同款版位/z-index，只是配色改成金色系（區別勝利/失敗），
+   文字（結局敘述）長度不一，加max-height/overflow-y比照#midnight-day3-boss-intro-text
+   同款理由。 */
+#midnight-game-victory-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 2100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.8);
+}
+
+#midnight-game-victory-box {
+  background: #1a1d24;
+  border: 1px solid rgba(255, 213, 74, 0.6);
+  border-radius: 8px;
+  padding: 1.2rem;
+  max-width: 480px;
+  width: 88%;
+  color: #f0f0f0;
+  text-align: center;
+}
+
+#midnight-game-victory-box h3 {
+  color: #ffd54a;
+  margin-top: 0;
+}
+
+#midnight-game-victory-text {
+  max-height: 42vh;
+  overflow-y: auto;
+  text-align: left;
+  white-space: pre-line;
+  font-size: 0.85rem;
+  line-height: 1.6;
+}
+
 #midnight-intro-bird-wrap {
   position: fixed;
   top: 50%;
@@ -4995,6 +5039,28 @@ button {
   color: #cfd6ff;
   font-size: 0.9rem;
   letter-spacing: 0.05em;
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.6);
+}
+
+/* 夜王〔開場〕敘述（見site_src/midnight_page.pyのHTML註解）：固定貼在畫面上緣一整排，
+   文字長度不一（最長的nameless開場文字超過1000字），10秒進場動畫時間內不夠打字機逐字
+   顯示完，因此直接整段顯示＋允許在窄版容器內捲動閱讀，不強行套用其餘既有打字機效果。 */
+#midnight-intro-boss-text {
+  position: absolute;
+  left: 50%;
+  top: 0.8rem;
+  transform: translateX(-50%);
+  width: min(90%, 640px);
+  max-height: 32vh;
+  overflow-y: auto;
+  margin: 0;
+  padding: 0.6rem 0.8rem;
+  background: rgba(10, 12, 18, 0.55);
+  border-radius: 6px;
+  color: #e8e8ec;
+  font-size: 0.78rem;
+  line-height: 1.5;
+  white-space: pre-line;
   text-shadow: 0 1px 4px rgba(0, 0, 0, 0.6);
 }
 
@@ -5168,25 +5234,41 @@ button {
 /* 2026-09-06使用者回報bug「敵人圖片放大到420px後，背景視窗框沒有跟著放大」：
    #midnight-field-encounter-image／#midnight-strong-enemy-image在別處已放大到
    max-width:420px（見下方該規則的說明註解），但這個容器仍停留在放大前的260px，
-   導致圖片溢出背景框。改成跟圖片一致的寬度＋足夠的max-width。 */
+   導致圖片溢出背景框。改成跟圖片一致的寬度＋足夠的max-width。
+   fix（使用者明確要求「敵人戰鬥視窗，放置於畫面中央，不被擋住其他操作按鈕」）：原本
+   bottom:0.6rem貼著畫面底緣，跟#midnight-hud-bottom-left／#midnight-hud-bottom-right
+   （攻擊/技能/防禦等按鈕，同樣固定在底部兩側）搶同一塊垂直空間——按鈕數量多或手機版
+   螢幕較窄時，這個panel的420px敵人圖片高度會直接把下方按鈕蓋住（使用者回報「可按按鍵
+   過多擋住敵人血量，又擋住左手與坐下卡牌操作」）。改成真正的畫面正中央（top:50%+
+   translate垂直置中），跟底部/左下角的操作按鈕群完全不共用垂直空間，才能同時滿足
+   「置中」與「不擋住其他按鈕」兩個規格。max-height+overflow-y是防止極窄的手機橫向
+   螢幕下敵人圖片仍撐爆版面的保險，不是主要修正手段。 */
 #midnight-hud-bottom-center {
   position: fixed;
   left: 50%;
-  bottom: 0.6rem;
-  transform: translateX(-50%);
+  top: 50%;
+  transform: translate(-50%, -50%);
   z-index: 500;
   width: 460px;
   max-width: 92vw;
+  max-height: 90vh;
+  overflow-y: auto;
   text-align: center;
 }
 
 /* 逃離戰鬥（2026-09-06使用者明確要求「在敵人資訊中右上方有逃離戰鬥按鈕」）：
    #midnight-hud-bottom-center本身已經是position:fixed，天生就是這顆按鈕的定位錨點，
-   不需要額外包一層容器。 */
+   不需要額外包一層容器。
+   fix：這顆按鈕跟後面DOM順序較晚的#midnight-field-encounter-image-wrap（敵人圖片，
+   position:relative，可能因為420px圖片+命中特效inset:-20%的溢出範圍疊到同一塊區域）
+   都沒有設z-index，預設堆疊順序下DOM較晚的圖片容器會蓋在按鈕上面，導致使用者回報的
+   「逃離戰鬥被圖片蓋住點不到」。這裡給按鈕明確更高的z-index，確保一律在最上層可點擊，
+   不需要改動HTML結構。 */
 #btn-midnight-flee-battle {
   position: absolute;
   top: 0.3rem;
   right: 0.3rem;
+  z-index: 5;
   font-size: 0.68rem;
   padding: 0.15rem 0.4rem;
   background: rgba(168, 20, 20, 0.75);
@@ -5461,6 +5543,152 @@ button {
   border: 1px solid rgba(255, 255, 255, 0.4);
   color: #f5f5f0;
   cursor: pointer;
+}
+
+/* 流程簡介視窗（見site_src/midnight_page.pyのHTML註解）：跟#midnight-character-sheet-modal
+   同款「全螢幕半透明黑＋置中卡片＋固定右上角關閉✕」，box改用左右兩欄（左示意畫布／右
+   打字機文字），示意畫布跟真實地圖比例無關，純粹用來示範縮圈/靈鳥/HUD四角配置的概念。 */
+#midnight-flow-intro-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.75);
+}
+
+#midnight-flow-intro-box {
+  position: relative;
+  background: #1a1d24;
+  border: 1px solid #555;
+  border-radius: 8px;
+  padding: 1rem;
+  max-width: 920px;
+  width: 94%;
+  height: 85vh;
+  color: #f0f0f0;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+}
+
+#midnight-flow-intro-box h3 {
+  margin: 0 2rem 0.5rem 0;
+}
+
+#midnight-flow-intro-body {
+  display: flex;
+  gap: 0.8rem;
+  flex: 1;
+  min-height: 0;
+}
+
+/* 示意畫布：跟地圖同樣是正方形的暗色空白區域，中央用CSS動畫循環播放「每30秒縮小一次」
+   的示意光環，四角疊上文字標籤說明真正遊戲畫面對應的HUD位置——純示意用途，不是真的地圖
+   canvas或可互動元件（CLAUDE.md §19精神：不確定的細節不硬做成看似真實的互動介面）。 */
+#midnight-flow-intro-demo {
+  position: relative;
+  flex: 1 1 42%;
+  min-width: 0;
+  aspect-ratio: 1 / 1;
+  max-height: 100%;
+  background: #0c0e13;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 6px;
+  overflow: hidden;
+  align-self: flex-start;
+}
+
+#midnight-flow-intro-demo-ring {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 90%;
+  height: 90%;
+  transform: translate(-50%, -50%);
+  border: 3px solid #ffd54a;
+  border-radius: 50%;
+  box-shadow: 0 0 12px rgba(255, 213, 74, 0.5);
+  animation: midnight-flow-intro-ring-shrink 30s linear infinite;
+}
+
+@keyframes midnight-flow-intro-ring-shrink {
+  0% {
+    width: 90%;
+    height: 90%;
+    opacity: 0.9;
+  }
+  70% {
+    width: 30%;
+    height: 30%;
+    opacity: 1;
+  }
+  100% {
+    width: 30%;
+    height: 30%;
+    opacity: 1;
+  }
+}
+
+#midnight-flow-intro-demo-bird {
+  position: absolute;
+  font-size: 1.4rem;
+  animation: midnight-flow-intro-bird-fly 6s ease-in-out infinite;
+}
+
+@keyframes midnight-flow-intro-bird-fly {
+  0% {
+    left: 5%;
+    top: 10%;
+  }
+  50% {
+    left: 70%;
+    top: 55%;
+  }
+  100% {
+    left: 5%;
+    top: 10%;
+  }
+}
+
+.midnight-flow-intro-demo-label {
+  position: absolute;
+  font-size: 0.62rem;
+  padding: 0.15rem 0.35rem;
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: 4px;
+  color: #f0f0f0;
+}
+
+.midnight-flow-intro-demo-label-tl {
+  left: 0.4rem;
+  top: 0.4rem;
+}
+
+.midnight-flow-intro-demo-label-tr {
+  right: 0.4rem;
+  top: 0.4rem;
+}
+
+.midnight-flow-intro-demo-label-br {
+  right: 0.4rem;
+  bottom: 0.4rem;
+}
+
+.midnight-flow-intro-demo-label-bl {
+  left: 0.4rem;
+  bottom: 0.4rem;
+}
+
+#midnight-flow-intro-text {
+  flex: 1 1 58%;
+  min-width: 0;
+  overflow-y: auto;
+  white-space: pre-line;
+  font-size: 0.82rem;
+  line-height: 1.5;
+  margin: 0;
 }
 
 .midnight-sheet-section {
@@ -5955,6 +6183,45 @@ html.midnight-top-banner-collapsed .midnight-top-banner-collapse-btn {
     max-width: 100%;
     max-height: 60vh;
     border-radius: 8px 8px 0 0;
+  }
+
+  /* 手機版寬度不足以左右並排示意畫布跟文字，改上下堆疊，畫布縮小成矮版橫幅。 */
+  #midnight-flow-intro-body {
+    flex-direction: column;
+  }
+
+  #midnight-flow-intro-demo {
+    flex: 0 0 auto;
+    width: 100%;
+    aspect-ratio: 16 / 9;
+  }
+
+  /* 手機版戰鬥HUD重新排版（使用者明確要求「手機版開啟時，可按按鍵過多擋住敵人血量，
+     又擋住左手與坐下卡牌操作」）：敵人戰鬥視窗本身已經改成畫面正中央（見上方
+     #midnight-hud-bottom-center的fix說明），不再跟底部按鈕搶垂直空間；這裡另外縮小
+     敵人圖片本身＋讓右下角按鈕群更緊湊，避免小螢幕上圖片/按鈕互相擠壓或超出可視範圍。 */
+  #midnight-field-encounter-image {
+    max-width: 45vw;
+    max-height: 45vw;
+  }
+
+  #midnight-hud-bottom-right {
+    max-width: 52vw;
+    gap: 0.25rem;
+  }
+
+  #midnight-hud-bottom-right button {
+    font-size: 0.68rem;
+    padding: 0.3rem;
+  }
+
+  #midnight-hud-bottom-left,
+  #midnight-hud-bottom-left-actions {
+    max-width: 44vw;
+  }
+
+  #midnight-hud-bottom-left {
+    grid-template-columns: repeat(3, 22vw);
   }
 }
 

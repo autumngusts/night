@@ -138,16 +138,23 @@
     return full.slice(0, FLOOR_NARRATION_BOARD_SUMMARY_MAX) + "…";
   }
 
-  // ---- 夜の王〔開場〕の取得（第11項） ----
-  function extractOpeningText(section) {
+  // ---- 夜の王〔開場〕〔結局〕の取得（第11項、2026-09-10擴充結局供midnight.js使用）----
+  // worldview.jsの各night_king_N section逐一核對後發現：大多數（除了night_king_1）在
+  // 「オープニング」跟「エンディング」中間還夾了第三個label「夜の王（3日目のボス戦闘）」
+  // （王戰場景的〔描寫〕文字，不是真正的劇情結局），部分後面還接著第四個label「遺物「XXX」」。
+  // 因此不能用「第N個label」這種位置索引取段落（原本以為固定兩段，位置1會在多數劇本裡誤取到
+  // 王戰場景描寫、不是真正結局——已修正），改成直接比對label本文的日文字串（"オープニング"／
+  // "エンディング"，10個劇本逐一核對過皆為這兩個固定字串，沒有用字差異），泛化成同一個掃描
+  // 函式，不為結局另外複製一份幾乎相同的迴圈（CLAUDE.md §10重用原則）。
+  function extractLabeledNarrationBlock(section, labelJa) {
     var blocks = section.blocks || [];
     var collecting = false;
     var parts = [];
     for (var i = 0; i < blocks.length; i++) {
       var b = blocks[i];
       if (b.kind === "label") {
-        if (collecting) break; // 次のlabel（通常はエンディング）に到達したら終了
-        collecting = true; // 最初のlabelがオープニング/開場ラベル自体
+        if (collecting) break; // 已經在收集目標段落時遇到下一個label（不論是什麼），代表這段結束了
+        if (b.body && b.body.ja === labelJa) collecting = true;
         continue;
       }
       if (collecting && b.kind === "text") {
@@ -157,19 +164,35 @@
     return parts.join("\n\n");
   }
 
-  function resolveOpeningNarrationText() {
-    var Core = window.PriTestNightCore;
+  function extractOpeningText(section) {
+    return extractLabeledNarrationBlock(section, "オープニング");
+  }
+
+  function extractEndingText(section) {
+    return extractLabeledNarrationBlock(section, "エンディング");
+  }
+
+  // 純函式版本（不依賴night.js專屬的Core.state）：直接傳bossId（scenarios.jsのbossId，跟
+  // BOSS_ID_TO_WORLDVIEW_ID同一份既有驗證過的對照表）跟phase（"opening"/"ending"），
+  // 供midnight.js直接呼叫（沿用跟rollStrongEnemyTable等同一批2026-09-06新增匯出的既有
+  // 「純函式部分額外匯出給midnight.js重用」慣例，見下方window.PriTestNightGmFlow）。
+  function resolveNightKingNarrationText(bossId, phase) {
     var Worldview = window.PriTestWorldview;
-    if (!Worldview) return null;
-    var scenario = Core.getScenario();
-    if (!scenario || !scenario.bossId) return null;
-    var worldviewId = BOSS_ID_TO_WORLDVIEW_ID[scenario.bossId];
+    if (!Worldview || !bossId) return null;
+    var worldviewId = BOSS_ID_TO_WORLDVIEW_ID[bossId];
     if (!worldviewId) return null;
     var section = Worldview.list().filter(function (s) {
       return s.id === worldviewId;
     })[0];
     if (!section) return null;
-    return extractOpeningText(section);
+    return phase === "ending" ? extractEndingText(section) : extractOpeningText(section);
+  }
+
+  function resolveOpeningNarrationText() {
+    var Core = window.PriTestNightCore;
+    var scenario = Core.getScenario();
+    if (!scenario || !scenario.bossId) return null;
+    return resolveNightKingNarrationText(scenario.bossId, "opening");
   }
 
   // ゲーム読み込み直後に1度だけ呼ばれる（night.js DOMContentLoaded、loadState()直後）。
@@ -5478,6 +5501,10 @@
     // 這幾個，不重新寫一套解析規則書格式的邏輯（CLAUDE.md §12：不在多處重複定義同一套規則）。
     resolveNightBossTableRow: resolveNightBossTableRow,
     rollNightBossEntry: rollNightBossEntry,
+    // 2026-09-10 midnight.js優化新增匯出：夜の王〔開場〕〔結局〕敘述純函式版本（見上方
+    // resolveNightKingNarrationText()說明），供midnight.js直接傳bossId取用，不重新複製一份
+    // worldview.jsの解析邏輯。
+    resolveNightKingNarrationText: resolveNightKingNarrationText,
     parseNightBossCellEntries: parseNightBossCellEntries,
     resolveFloorSkip: resolveFloorSkip,
     resolveEffectiveFloorCount: resolveEffectiveFloorCount,

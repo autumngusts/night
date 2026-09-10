@@ -72,6 +72,7 @@ def build_static_assets() -> None:
         "characters.js",
         "midnight_puzzles.js",
         "midnight_random_events.js",
+        "midnight_map_variants.js",
         "midnight_map.js",
         "midnight.js",
     ):
