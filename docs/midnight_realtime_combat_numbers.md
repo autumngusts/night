@@ -690,3 +690,106 @@ var candidate = nearbyFieldPoint || encounterEnemyPoint() || nearbyCastlePoint |
 （`npm run test:day3_boss_priority`），7 個斷言。測試刻意先用 `walkNear()` 把角色走到板塊點
 旁邊（＝重現當初會卡住的前提）才開啟王戰，並額外驗證上述第 1 點沒有把夜之強敵的既有規則
 一起改壞（站在板塊點旁時不會被強制拉進夜之強敵戰鬥）。
+
+---
+
+## 15. 2026-09-10 第三批優化：瀕死救起／獎勵共享分流／技能傷害倍率／武器戰技詳細
+
+使用者明確要求的 6 個項目。
+
+### 15.1 修復：瀕死被隊友救起（根因：席位面板不會因 `nearDeath` 重繪）
+
+**現象**：使用者回報「瀕死被救起時應該原地繼續、原本在戰鬥的仍留在戰鬥」。用兩台裝置
+實機重現後發現，真正的問題是**根本救不起來**——瀕死者的隊友畫面上完全不會出現
+⚠ 警示與 [指定] 按鈕。
+
+**根因**：瀕死狀態存在 `character/{tokenId}/nearDeath`，但畫這三樣東西的
+`renderOccupiedSlotCard()` 只由 `renderLobby()` ／ `renderPlayersPanel()` 呼叫，而
+`onCharactersReceived()` 原本沒有重繪席位面板（只重繪角色面板與角色視窗）。
+HP 歸零的流程是「`demoStat` transaction commit →`.then()`→`maybeTriggerNearDeath()`
+寫 `nearDeath`」兩筆分開且順序固定的寫入，因此 `onDemoStatsReceived()` 觸發的那次重繪
+**必定發生在 `nearDeath` 抵達之前**，之後除非剛好有別人受傷再觸發一次 `demoStat` 變動，
+否則按鈕永遠不會長出來。結果是瀕死者只能等 15 秒逾時強制復歸——那條路徑會消耗流浪祝福、
+把人傳送到最近的祝福點、也就脫離了原本的戰鬥，正好是使用者看到的現象。
+
+**修正**：`onCharactersReceived()` 補上 `renderPlayersPanel()`（未開局時走 `renderLobby()`，
+沿用 `onPlayersReceived()` 既有的分流寫法）。隊友復歸傷害救起的既有行為本身沒有問題
+（`finishRevive(tokenId, false)` 不移動位置、只回半血、不消耗流浪祝福），修好可見性後
+「原地繼續、仍在戰鬥」就自然成立，已用回歸測試驗證。
+
+### 15.2 獎勵分流：`perPerson` 依規則書原文逐筆稽核
+
+使用者明確指正：「規則書並不是每筆獎勵都 perPerson。寫『每人各獲得』就是 perPerson；
+『消耗品獲得 2 個』就是 false，三個人總共拿兩份」。
+
+- 稽核方式：`floor.lines` 就是規則書原文，對每筆 reward 取出含該獎勵關鍵字的「句」，
+  判斷關鍵字之前是否有配布語（それぞれ／各自／全員／1人につき／PC人数と同じ数）。
+  「全員」有配布（PC全員は〜を1つ獲得）與條件（行為判定に全員成功時のみ）兩種用法，
+  後者不計入。「そうするごとに」承接前一句的配布語（商人的「1人につき1回、ルーン1で鍛石1つ」）。
+- 盧恩與聖杯瓶使用回數沿用 `night.js` 既有分類
+  （`TURN_REWARD_ALL_TARGET_KINDS = ["chaliceBonus", "rune"]` ＝全體一律付與）固定為每人一份，
+  不靠文字判斷。
+- 結果：614 筆可分流獎勵中，48 筆與原本標記不符已修正（`fields_data_3/4.js`）。
+  `midnight.js` 的 `isPerPersonRewardEntry()` 也從「未標記＝每人一份」改為
+  「未標記＝依 kind 的既定值」（rune／chaliceBonus／potentialPower／attachedEffect 每人一份，
+  其餘實體物品為固定數量的共有物）。
+- `pushSharedReward()` 新增「個數語意的 kind（consumable／talisman／stoneswordKey／
+  smithingStone／weaponSkillReroll）依 value 拆成 N 筆」——不拆的話「消耗品 2 個」只會
+  產生 1 筆可投票項目、憑空少一份。`weaponStar`／`potentialPower` 的 value 是★數，
+  **絕對不拆**（見 §12.4 的同款教訓）。
+- 夜之強敵（黃金樹之帳）擊破獎勵 `maybeGrantFinalCircleBossReward()` 也改走同一套分流，
+  原本無條件對每個 participant 各發一份，等於把「石劍鑰匙×1」發成人數倍數。
+- 回歸測試：`tools/midnight_check/reward_perperson_check.js`（純 node，
+  `npm run test:reward_perperson`）重新用規則書原文算一次並比對資料，防止之後被改回去。
+
+### 15.3 戰技／魔術／祈禱 ×2、角色技藝／技能 ×3
+
+使用者明確規格，並指定「只在實際造成傷害時乘，顯示維持原值」。因此倍率不進
+`computeMidnightSkillDamage()` ／ `computeMidnightAbilityDamage()`（那兩支同時服務武器
+詳細資訊與 toast 顯示），只乘在呼叫 `damageCombatTarget()` 的那一行：
+
+| 倍率 | 常數 | 套用位置 |
+| --- | --- | --- |
+| ×2 | `WEAPON_SKILL_DAMAGE_MULT` | `castWeaponSkillEntry()`（戰技A／戰技B／杖・聖印的魔術祈禱共用這唯一入口） |
+| ×3 | `CHARACTER_ABILITY_DAMAGE_MULT` | `useCharacterAbility()`（`character_types.js` 的角色專屬技藝／技能） |
+
+**不套用**：一般攻擊、跳躍／衝刺特殊攻擊（習得型 Action 遺物，屬一般攻擊系）、消耗品、
+召喚靈體、坩堝諸相・獸的襲擊／咆哮（變身中取代一般攻擊鍵的固定值動作）。
+
+### 15.4 武器詳細資訊改為「依 weaponId 解析」，獎勵抽選也看得到戰技
+
+`renderWeaponSheetDetail()` 的〔戰技〕區塊原本用
+`CharacterDrawer.getEquippedWeaponSkillEntries(c)`——那支只掃 `c.equippedWeaponIds`，
+因此**獎勵剛抽到的新武器（尚未持有）與角色視窗裡未裝備的武器，戰技永遠是空的**，
+杖／聖印的魔術・祈禱也一樣看不到。新增 `weaponOwnSkillDisplays(c, weaponId, override)`
+改以 weaponId 解析武器自身的戰技（重用 `collectWeaponSkillRefs` ／ `weaponSkillSlotKey` ／
+`resolveRandomSkillDisplay` ／ `resolveWeaponSkillDisplay`，後兩支原本就有匯出，
+前兩支這次新增匯出），random 戰技枠未決定時顯示「戰技：尚未決定（可在鍛造台決定）」
+而不是靜默略過。
+
+連帶：
+- 共享獎勵池項目可以點選，右側顯示完整資訊（武器走同一支 `renderWeaponSheetDetail()`）。
+- 「潛在之力」的得意武器卡片從只顯示名稱改為完整武器資訊，並用抽到的 random 戰技
+  （`potentialPowerDrawWeapon()` 回傳的 `skillId`）當 override，讓玩家在按[選擇這個]
+  之前就看得到會拿到哪個戰技。
+- 獎勵清單左側選中的項目會高亮（`.midnight-reward-item-selected`，個人清單與共享池共用）。
+
+### 15.5 鍛造台顯示完整新舊戰技
+
+選定武器後的固定卡片改為附上完整武器資訊；新舊戰技比較欄從單一 `<p>` 的 textContent
+改成由 JS 組出的節點（名稱＋種類＋規則本文＋Action 類的估計傷害黃字，重用
+`appendWeaponSheetSkillEntry()`）。舊戰技為 null（該枠原本就沒決定過）時顯示「尚未決定」。
+
+### 15.6 遺物效果稽核
+
+見 `docs/midnight_relic_effects_audit.md`（本次新增）。結論：353 筆遺物效果中，
+目前在 midnight 真正會發動的約 88 筆。本批順帶補上兩個「規則書寫明的無條件被動 ＋
+既有 helper 已寫好解析」的缺漏：聖杯瓶回復量提升（`getFlaskHealBonus`）、
+學習能力（精神／運氣／體能）（`getCheckStatBonus`，7 處判定與角色視窗顯示共用新的
+`effectiveCheckDiceCount()`）。
+
+### 15.7 回歸測試
+
+`tools/midnight_check/optimize_2026_09_10c_check.js`（`npm run test:optimize_2026_09_10c`）：
+13 個斷言，涵蓋上述 §15.1／§15.3／§15.4。其中傷害倍率是端對端驗證——先把共用標靶
+（`demoStat/sharedTarget`，初始只有 20）改成 100000，再比對 toast 顯示值與實際扣血量。

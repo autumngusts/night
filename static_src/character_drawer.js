@@ -6958,6 +6958,12 @@
     SHIELD_GROUP_CATEGORY: SHIELD_GROUP_CATEGORY,
     weaponPreviewSkillNames: weaponPreviewSkillNames,
     getItemSkillRefs: getItemSkillRefs,
+    // 2026-09-10追加輸出（midnight.js的武器詳細資訊用）：getEquippedWeaponSkillEntries()
+    // 只掃c.equippedWeaponIds，因此「獎勵剛抽到、尚未持有／尚未裝備」的武器查不到任何
+    // 戰技。midnight.js需要「依weaponId解析這把武器自己的戰技（含random枠的保存鍵）」，
+    // 這兩支既有純函式正是為此存在，改為匯出重用，而不是在midnight.js複製一份規則。
+    collectWeaponSkillRefs: collectWeaponSkillRefs,
+    weaponSkillSlotKey: weaponSkillSlotKey,
     potentialPowerDrawWeapon: potentialPowerDrawWeapon,
     commitPotentialPowerWeapon: commitPotentialPowerWeapon,
     rollPotentialPowerAttachedEffect: rollPotentialPowerAttachedEffect,

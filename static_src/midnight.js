@@ -1281,6 +1281,19 @@
     }
     renderCharPanel();
     renderCharacterSheet();
+    // 2026-09-10修復（使用者回報「瀕死被救起時…」實際上是根本救不起來）：瀕死狀態存在
+    // character/{tokenId}/nearDeath，但顯示⚠警示／復歸倒扣條／隊友用的[指定]按鈕的
+    // renderOccupiedSlotCard()只由renderLobby()／renderPlayersPanel()呼叫，而這裡原本
+    // 沒有重繪席位面板。HP歸零的流程是「demoStat transaction commit →.then()→
+    // maybeTriggerNearDeath()寫nearDeath」，兩筆是分開的寫入且順序固定，因此
+    // onDemoStatsReceived()那次重繪一定發生在nearDeath抵達之前——結果是隊友畫面上
+    // 永遠不會長出[指定]按鈕（除非剛好有別人受傷觸發另一次demoStat變動），瀕死者
+    // 只能等15秒逾時強制復歸（會被傳送到最近祝福點、脫離戰鬥）。
+    // 補上這一行後，nearDeath的出現/progress累積/清除都會即時反映在席位卡片上。
+    // 重繪成本跟onDemoStatsReceived()既有的同一支呼叫相同（只重建3張卡片），
+    // lobby階段沿用onPlayersReceived()既有的「未開局就渲染lobby」分流寫法。
+    if (meta && meta.sessionStartAt) renderPlayersPanel();
+    else renderLobby();
   }
 
   function onTowerSolvedReceived(value) {
@@ -2309,6 +2322,19 @@
     return Object.keys(participants).length === 1;
   }
 
+  // 2026-09-10使用者明確規格「先將戰技魔法與祈禱 總傷害2倍，角色技能技藝的總傷害3倍」，
+  // 並明確選擇「只在實際造成傷害時×，顯示維持原值」——因此這兩個倍率**不**進
+  // computeMidnightSkillDamage()／computeMidnightAbilityDamage()（那兩支同時服務武器詳細
+  // 資訊、toast等顯示用途），而是只乘在呼叫damageCombatTarget()的那一行上。
+  // 套用範圍（刻意界定，未列入者維持原倍率）：
+  //   ×2＝castWeaponSkillEntry()——武器戰技（戰技A/戰技B）與杖/聖印的魔術・祈禱，
+  //        兩者共用這唯一一個施放入口。
+  //   ×3＝useCharacterAbility()——character_types.js的角色專屬〔技藝〕〔技能〕。
+  //   不套用：一般攻擊、跳躍/衝刺特殊攻擊（習得型Action遺物，屬一般攻擊系）、消耗品、
+  //        召喚靈體、坩堝諸相・獸的襲擊/咆哮（變身中取代一般攻擊鍵的固定值動作）。
+  var WEAPON_SKILL_DAMAGE_MULT = 2;
+  var CHARACTER_ABILITY_DAMAGE_MULT = 3;
+
   function damageCombatTarget(amount, symbol) {
     // 隱者「血魂之歌」（2026-09-08使用者明確要求「全體攻擊/戰技傷害提升*1.5倍」）：
     // party-wide時限buff（見applyMidnightAbilityPostEffect()寫入meta.bloodSongUntil），
@@ -2824,7 +2850,8 @@
     var dmgInfo = computeMidnightSkillDamage(c, entry.weaponId, bodyText);
     var name = Weapons.localizedText(entry.name);
     if (dmgInfo) {
-      damageCombatTarget(dmgInfo.value, dmgInfo.symbol);
+      // ×2：見WEAPON_SKILL_DAMAGE_MULT說明（只影響實際傷害，下面toast維持顯示原值）。
+      damageCombatTarget(Math.round(dmgInfo.value * WEAPON_SKILL_DAMAGE_MULT), dmgInfo.symbol);
       triggerEnemyHitEffect(weaponHitColor(entry.weaponId));
       showToast(name + "：" + (dmgInfo.symbol ? dmgInfo.value + " + " + dmgInfo.symbol : String(dmgInfo.value)));
     } else {
@@ -3233,7 +3260,8 @@
     var body = CharacterTypes.localizedText(found.ability.body);
     var dmgInfo = computeMidnightAbilityDamage(found.c, found.ability);
     if (dmgInfo) {
-      damageCombatTarget(dmgInfo.value, dmgInfo.symbol);
+      // ×3：見CHARACTER_ABILITY_DAMAGE_MULT說明（只影響實際傷害，下面toast維持顯示原值）。
+      damageCombatTarget(Math.round(dmgInfo.value * CHARACTER_ABILITY_DAMAGE_MULT), dmgInfo.symbol);
       // 角色專屬能力不綁定特定武器，沒有武器屬性技能的概念，固定顯示無屬性（白色）刀光。
       triggerEnemyHitEffect(null);
       showToast(name + "：" + (dmgInfo.symbol ? dmgInfo.value + " + " + dmgInfo.symbol : String(dmgInfo.value)));
@@ -3930,9 +3958,15 @@
     });
     var maxHp = mySelfHpMaxFallback();
     var beforeHp = null;
+    // 2026-09-10遺物效果稽核補實作：遺物效果「聖杯瓶回復量提升」在規則書是「回復量+□」，
+    // night.js早就有套用（night.js:7075，healAmount＝flaskHealAmount＋getFlaskHealBonus），
+    // midnight這邊卻固定回30、等於該效果完全不生效。□→即時制數值的換算沿用既有常數
+    // BLOCK_SQUARE_COUNT_TO_RESOURCE_MULT（＝10，跟FLASK_HEAL_AMOUNT本身的30＝規則書3□
+    // 同一套換算），不自行發明新數字。
+    var flaskHeal = FLASK_HEAL_AMOUNT + flaskHealBonusAmount(characters[myTokenId]);
     GameStorage.rtTransaction(gameId, "cloud", "demoStat/" + myTokenId, function (cur) {
       beforeHp = cur === null ? maxHp : cur;
-      var next = beforeHp + FLASK_HEAL_AMOUNT;
+      var next = beforeHp + flaskHeal;
       return next > maxHp ? maxHp : next;
     }).then(function (committedHp) {
       // 兆し的恩寵「融合する命」（event_rulebook.js:857-858，c._fusedLife旗標見
@@ -3946,6 +3980,14 @@
       if (c && c._fusedLife) fp.current = Math.min(fp.max, fp.current + healedAmount);
       shareHealWithPartyIfEmpathyActive(healedAmount);
     });
+  }
+
+  // 遺物效果「聖杯瓶回復量提升」的加成量（見commitFlaskHeal()說明）：習得幾次就+幾□，
+  // 直接用CharacterDrawer既有的getFlaskHealBonus()（純函式，回傳習得次數），這裡只負責
+  // □→即時制HP的換算。
+  function flaskHealBonusAmount(c) {
+    if (!c || !CharacterDrawer.getFlaskHealBonus) return 0;
+    return CharacterDrawer.getFlaskHealBonus(c) * BLOCK_SQUARE_COUNT_TO_RESOURCE_MULT;
   }
 
   // 學者「共感術」（2026-09-08使用者明確要求「之後自己的HP回復效果全體共享 10秒」）：
@@ -6683,11 +6725,21 @@
       return cur === null ? myTokenId : cur;
     }).then(function (committed) {
       if (committed !== myTokenId) return;
-      Object.keys(trig.participants || {}).forEach(function (slot) {
-        var p = players[slot];
-        if (!p) return;
-        entries.forEach(function (entry) {
-          pushPendingReward(p.tokenId, goldenTreeRewardEntryToPending(entry));
+      // 2026-09-10：改成跟樓層獎勵同一套perPerson/固定共享分流（見isPerPersonRewardEntry()）。
+      // 原本無條件對每個participant各push一份，等於把「石劍鑰匙×1」這種固定數量的獎勵
+      // 發成人數倍數。附帶效果／擊破盧恩仍是每人一份（規則書原文「PCはそれぞれ」）。
+      entries.forEach(function (entry) {
+        // 分流判斷用轉換後的pending（note→attachedEffect的kind變換必須先發生，否則
+        // 「附帶效果×1」會以原本的kind:"note"去查既定值表而落到共享池）。原始entry的
+        // 明確perPerson標記由goldenTreeRewardEntryToPending()的淺拷貝一併帶過來。
+        var pending = goldenTreeRewardEntryToPending(entry);
+        if (!isPerPersonRewardEntry(pending)) {
+          pushSharedReward(pointId, pending);
+          return;
+        }
+        Object.keys(trig.participants || {}).forEach(function (slot) {
+          var p = players[slot];
+          if (p) pushPendingReward(p.tokenId, pending);
         });
       });
     });
@@ -7720,8 +7772,7 @@
     if (trig && trig.attempted && trig.attempted[mySlot]) return;
     GameStorage.rtSet(gameId, "cloud", "fieldTrigger/" + pt.id + "/attempted/" + mySlot, true);
     var c = characters[myTokenId];
-    var type = c && c.typeId ? window.PriTestCharacterTypes.get(c.typeId) : null;
-    var diceCount = type && type.checkValues ? type.checkValues[statKey] || 0 : 0;
+    var diceCount = effectiveCheckDiceCount(c, statKey);
     var dice = [];
     for (var i = 0; i < diceCount; i++) dice.push(1 + Math.floor(Math.random() * 6));
     var sum = dice.reduce(function (a, b) {
@@ -8147,8 +8198,7 @@
     // 不在這裡自動扣除任何FP，交由GM依規則書原文處理（描述文字midnight_random_event_goddess_desc
     // 已保留這段提示）。
     var c = characters[myTokenId];
-    var type = c && c.typeId ? window.PriTestCharacterTypes.get(c.typeId) : null;
-    var diceCount = type && type.checkValues ? type.checkValues.mental || 0 : 0;
+    var diceCount = effectiveCheckDiceCount(c, "mental");
     var sum = 0;
     for (var i = 0; i < diceCount; i++) sum += 1 + Math.floor(Math.random() * 6);
     var success = sum >= GODDESS_STATUE_CHECK_TARGET;
@@ -8196,6 +8246,19 @@
   // ---- 埋もれ宝分支（event_rulebook.js:442-464）----
   var BURIED_TREASURE_CHECK_TARGET_PER_PC = 12; // event_rulebook.js:452「〈協力12×PC人數｜運試し〉」
 
+  // 判定骰數（2026-09-10遺物效果稽核補實作）：規則書遺物效果「學習能力（精神／運氣／
+  // 體能）」＝「將自身『精神：+1』」是加在**擲骰顆數**上，night.js側早就有對應處理
+  // （night_floor_breakthrough.jsのeffectiveCheckValue()／auto_gm.js），但midnight這邊
+  // 7處判定全部只讀type.checkValues，等於這個遺物效果在即時制完全不生效。
+  // 這裡完全重用CharacterDrawer.getCheckStatBonus()（既有純函式，解析遺物本文的+N），
+  // 不在midnight另外解析一次規則文字，計算方式與night.js一致（base + bonus，下限0）。
+  function effectiveCheckDiceCount(c, statKey) {
+    var type = c && c.typeId ? window.PriTestCharacterTypes.get(c.typeId) : null;
+    var base = type && type.checkValues && statKey ? type.checkValues[statKey] || 0 : 0;
+    var bonus = c && CharacterDrawer.getCheckStatBonus ? CharacterDrawer.getCheckStatBonus(c, statKey) : 0;
+    return Math.max(0, base + bonus);
+  }
+
   // Task 21引入通用「協力判定」helper（teamCheckSum(trig, statKey)）前的最小版本：依
   // trig.participants加總每個參與者角色對應checkValues的擲骰。埋もれ宝分支本身沒有
   // 「進入」／「加入」步驟（不像strong_enemy/隕石王戰需要先按進入戰鬥），因此呼叫端
@@ -8207,8 +8270,7 @@
     participantSlots(trig).forEach(function (slot) {
       var p = players[slot];
       var c = p && characters[p.tokenId];
-      var type = c && c.typeId ? window.PriTestCharacterTypes.get(c.typeId) : null;
-      var diceCount = type && type.checkValues ? type.checkValues[statKey] || 0 : 0;
+      var diceCount = effectiveCheckDiceCount(c, statKey);
       for (var i = 0; i < diceCount; i++) sum += 1 + Math.floor(Math.random() * 6);
     });
     return sum;
@@ -8381,8 +8443,7 @@
     if (trig && trig.attempted && trig.attempted[mySlot]) return;
     GameStorage.rtSet(gameId, "cloud", "fieldTrigger/" + pt.id + "/attempted/" + mySlot, true);
     var c = characters[myTokenId];
-    var type = c && c.typeId ? window.PriTestCharacterTypes.get(c.typeId) : null;
-    var diceCount = type && type.checkValues ? type.checkValues.physical || 0 : 0;
+    var diceCount = effectiveCheckDiceCount(c, "physical");
     var sum = 0;
     for (var i = 0; i < diceCount; i++) sum += 1 + Math.floor(Math.random() * 6);
     var success = sum >= MAUSOLEUM_CHECK_TARGET;
@@ -8626,8 +8687,7 @@
     var steps = window.PriTestMidnightRandomEvents.insectSwarmSteps.groundBugs;
     GameStorage.rtSet(gameId, "cloud", "fieldTrigger/" + pt.id + "/attempted/" + mySlot, true);
     var c = characters[myTokenId];
-    var type = c && c.typeId ? window.PriTestCharacterTypes.get(c.typeId) : null;
-    var diceCount = type && type.checkValues ? type.checkValues[steps.statKey] || 0 : 0;
+    var diceCount = effectiveCheckDiceCount(c, steps.statKey);
     var sum = 0;
     for (var i = 0; i < diceCount; i++) sum += 1 + Math.floor(Math.random() * 6);
     if (sum < steps.checkTarget && c) {
@@ -8666,8 +8726,7 @@
     if (statKey === "physical") spendSelfHp(BLOCK_SQUARE_COUNT_TO_RESOURCE_MULT);
     else spendFp(BLOCK_SQUARE_COUNT_TO_RESOURCE_MULT); // spendFp()已有「不足時回傳false、不扣」的既有防呆
     var c = characters[myTokenId];
-    var type = c && c.typeId ? window.PriTestCharacterTypes.get(c.typeId) : null;
-    var diceCount = type && type.checkValues ? type.checkValues[statKey] || 0 : 0;
+    var diceCount = effectiveCheckDiceCount(c, statKey);
     var sum = 0;
     for (var i = 0; i < diceCount; i++) sum += 1 + Math.floor(Math.random() * 6);
     var success = sum >= checkTarget;
@@ -8804,9 +8863,7 @@
     if (trig && trig[attemptField] && trig[attemptField][mySlot]) return;
     GameStorage.rtSet(gameId, "cloud", "fieldTrigger/" + pt.id + "/" + attemptField + "/" + mySlot, true);
     var c = characters[myTokenId];
-    var type = c && c.typeId ? window.PriTestCharacterTypes.get(c.typeId) : null;
-    var cv = (type && type.checkValues) || {};
-    var diceCount = Math.max(cv.physical || 0, cv.mental || 0, cv.luck || 0);
+    var diceCount = Math.max(effectiveCheckDiceCount(c, "physical"), effectiveCheckDiceCount(c, "mental"), effectiveCheckDiceCount(c, "luck"));
     var sum = 0;
     for (var i = 0; i < diceCount; i++) sum += 1 + Math.floor(Math.random() * 6);
     var success = sum >= stepConfig.checkTarget;
@@ -8921,10 +8978,24 @@
 
   var fieldTileRewardAttempted = {}; // pointId -> true（本地節流：板塊獎勵只送一次transaction）
 
-  // perPerson判斷（設計文件§1.5）：讀資料本體旗標，未標記或true都視為每人各自一份，
-  // 只有明確false才是固定共享（先搶先贏）——不依kind寫死，同一個kind不同板塊可能標記不同。
+  // perPerson判斷（設計文件§1.5，2026-09-10依使用者明確指正改版）：
+  // 舊版是「未標記＝每人各自一份」，而當時fields_data_*.js的138筆標記全部是true、其餘
+  // 未標記，等於所有樓層獎勵都按人數發放。使用者明確指正：「實際的規則書並不是每筆都
+  // perPerson。規則寫『每人各獲得』就是perPerson；『消耗品獲得2個』就是false，三個人
+  // 總共只拿兩份」。因此改成：
+  //   ①資料本體有明確的true/false就依資料（已依規則書原文逐筆稽核修正，見
+  //     docs/midnight_reward_share_rules.md與tools/midnight_check/reward_perperson_check.js）。
+  //   ②沒有標記時依kind的既定值——盧恩／聖杯瓶格數是night.js既有分類
+  //     TURN_REWARD_ALL_TARGET_KINDS的「全體一律付與」，潛在之力／附帶效果的規則書原文
+  //     幾乎全部寫「PCはそれぞれ〜を獲得」，這四種預設每人一份；其餘實體物品
+  //     （武器／消耗品／裝飾品／石劍鑰匙／鍛石／戰技重抽）預設是固定數量的共有物，
+  //     進共享池由玩家投票決定歸屬。
+  var DEFAULT_PER_PERSON_REWARD_KINDS = ["rune", "chaliceBonus", "potentialPower", "attachedEffect"];
+
   function isPerPersonRewardEntry(entry) {
-    return entry.perPerson !== false;
+    if (entry.perPerson === true) return true;
+    if (entry.perPerson === false) return false;
+    return DEFAULT_PER_PERSON_REWARD_KINDS.indexOf(entry.kind) !== -1;
   }
 
   // 落後獎勵ledger（設計文件§1.5）：每次對trig.participants發放perPerson獎勵時，額外記一份
@@ -8976,12 +9047,26 @@
   // 固定共享池（設計文件§3.2）：perPerson:false的獎勵走這裡，全部participants看到同一份，
   // 任一人按領取用transaction鎖定resolvedBy，first-writer-wins（同既有tileRewardGrantedBy
   // 手法）。
+  // 2026-09-10（使用者明確規格「消耗品獲得2個…就會是可能三個人總共拿兩份」）：value是
+  // 「個數」語意的kind，固定共享時要拆成N筆各自獨立揭示/投票的項目，玩家才可能一人拿一份；
+  // 不拆的話3個人只會有1筆可投票、規則書寫的2個其中1個會憑空消失。
+  // 哪些kind的value是「個數」沿用既有定義（見docs/midnight_realtime_combat_numbers.md §12.4／
+  // night_floor_breakthrough.js）：consumable／talisman／stoneswordKey／smithingStone／
+  // weaponSkillReroll是個數或次數；weaponStar／potentialPower的value是★數（稀有度骰子顆數），
+  // 絕對不能拆（拆了會把★2降成兩次★1，night.js曾犯過同一個錯，見同文件§12.4）。
+  var SHARED_REWARD_COUNT_KINDS = ["consumable", "talisman", "stoneswordKey", "smithingStone", "weaponSkillReroll"];
+
   function pushSharedReward(pointId, entry) {
-    var rewardId = "srw" + Date.now() + Math.floor(Math.random() * 100000);
-    var withFlag = {};
-    for (var k in entry) withFlag[k] = entry[k];
-    withFlag.resolved = false;
-    GameStorage.rtSet(gameId, "cloud", "fieldTrigger/" + pointId + "/sharedRewards/" + rewardId, withFlag);
+    var isCountKind = SHARED_REWARD_COUNT_KINDS.indexOf(entry.kind) !== -1;
+    var copies = isCountKind ? Math.max(1, entry.value || 1) : 1;
+    for (var i = 0; i < copies; i++) {
+      var rewardId = "srw" + Date.now() + "_" + i + "_" + Math.floor(Math.random() * 100000);
+      var withFlag = {};
+      for (var k in entry) withFlag[k] = entry[k];
+      if (isCountKind) withFlag.value = 1; // 拆開後每一筆都是1個
+      withFlag.resolved = false;
+      GameStorage.rtSet(gameId, "cloud", "fieldTrigger/" + pointId + "/sharedRewards/" + rewardId, withFlag);
+    }
   }
 
   // 2026-09-08使用者明確規格「樓層的獎勵獲得後 開啟獎勵清單 顯示每一個項目按下後會顯示
@@ -9686,6 +9771,11 @@
   // potentialPowerDraftById是本地only的抽選結果快取，避免每次RTDB更新重新渲染時
   // 重新抽一次（點進某個項目後結果應該固定，直到確認收下或關閉）。----
   var selectedRewardId = null;
+  // 2026-09-10新增（使用者明確要求「獎勵清單：選中的左側項目時，高亮其選項」＋「抽選的
+  // 物品也要詳細顯示其武器資訊」）：共享池項目也可以被選取並在右側detail顯示完整資訊，
+  // 跟個人清單的selectedRewardId互斥（選了其中一邊就清掉另一邊），共用同一個detail面板。
+  // 值是collectUnresolvedSharedRewards()同款的 pointId + ":" + rewardId。
+  var selectedSharedRewardKey = null;
   var rewardDraftById = {};
   var potentialPowerDraftById = {};
   var lastRewardIdsKey = "";
@@ -9919,9 +10009,19 @@
 
     if (draft.weapon && draft.weapon.item) {
       var weaponCard = document.createElement("div");
-      var weaponLabel = document.createElement("p");
-      weaponLabel.textContent = window.PriTestWeapons.localizedText(draft.weapon.item.name);
-      weaponCard.appendChild(weaponLabel);
+      // 2026-09-10（使用者明確要求「獎勵清單抽選的物品也要詳細顯示其武器資訊，其武器的
+      // 戰技魔術與祈禱」）：原本只顯示武器名稱一行，改成跟其餘武器獎勵同一套
+      // renderWeaponSheetDetail()。potentialPowerDrawWeapon()此時尚未寫入角色
+      // （要等玩家按[選擇這個]才commit），因此傳入catalog id與這次抽到的random戰技
+      // （draft.weapon.skillId）當作override，讓玩家選之前就看得到完整內容。
+      var cForWeapon = characters[myTokenId];
+      if (cForWeapon) {
+        renderWeaponSheetDetail(weaponCard, cForWeapon, draft.weapon.item.id, CD, draft.weapon.skillId);
+      } else {
+        var weaponLabel = document.createElement("p");
+        weaponLabel.textContent = window.PriTestWeapons.localizedText(draft.weapon.item.name);
+        weaponCard.appendChild(weaponLabel);
+      }
       var chooseWeaponBtn = document.createElement("button");
       chooseWeaponBtn.type = "button";
       chooseWeaponBtn.textContent = window.I18N.t("midnight_reward_potential_choose_button");
@@ -10148,9 +10248,13 @@
       var btn = document.createElement("button");
       btn.type = "button";
       btn.textContent = rewardEntryLabel(entry);
+      // 選取高亮（2026-09-10使用者明確要求）：沿用style.css新增的.midnight-reward-item-selected，
+      // 共享池項目用同一個class，兩邊視覺一致。
+      if (selectedRewardId === id) btn.className = "midnight-reward-item-selected";
       btn.addEventListener("click", function () {
         selectedRewardId = id;
-        renderRewardDetail(id, entry);
+        selectedSharedRewardKey = null;
+        renderRewardModal();
       });
       li.appendChild(btn);
       personalListEl.appendChild(li);
@@ -10166,8 +10270,18 @@
       var li = document.createElement("li");
       var entry = shared.entry;
       var drawn = entry.drawn;
-      var label = document.createElement("span");
+      var sharedKey = shared.pointId + ":" + shared.rewardId;
+      // 2026-09-10：標籤改成可點選的按鈕（跟個人清單同一種互動），按下後在右側detail
+      // 顯示這筆共享獎勵的完整資訊（武器沿用renderWeaponSheetDetail()）。
+      var label = document.createElement("button");
+      label.type = "button";
       label.textContent = drawn ? sharedRewardDrawLabel(entry, drawn) : rewardEntryLabel(entry);
+      if (selectedSharedRewardKey === sharedKey) label.className = "midnight-reward-item-selected";
+      label.addEventListener("click", function () {
+        selectedSharedRewardKey = sharedKey;
+        selectedRewardId = null;
+        renderRewardModal();
+      });
       li.appendChild(label);
       if (!drawn) {
         var revealBtn = document.createElement("button");
@@ -10209,6 +10323,20 @@
       }
       sharedListEl.appendChild(li);
     });
+    // 2026-09-10：detail面板由「個人清單獨佔」改成個人／共享二選一（見
+    // selectedSharedRewardKey說明）。選取的共享項目仍存在時優先顯示它；否則退回個人清單
+    // 的既有行為（沒有明確選取就自動選第一筆）。
+    var selectedShared = null;
+    if (selectedSharedRewardKey) {
+      sharedEntries.forEach(function (s) {
+        if (s.pointId + ":" + s.rewardId === selectedSharedRewardKey) selectedShared = s;
+      });
+      if (!selectedShared) selectedSharedRewardKey = null; // 已經被別人領走/解決
+    }
+    if (selectedShared) {
+      renderSharedRewardDetail(selectedShared);
+      return;
+    }
     if (!unresolvedIds.length) {
       // 個人清單目前沒有未解決項目(可能只有共享池項目)：清空detail面板，避免殘留上一次
       // 選取的個人獎勵detail內容。
@@ -10220,6 +10348,52 @@
       selectedRewardId = unresolvedIds[0];
     }
     renderRewardDetail(selectedRewardId, list[selectedRewardId]);
+  }
+
+  // 共享池項目的右側詳細資訊（2026-09-10新增，使用者明確要求「獎勵清單抽選的物品也要
+  // 詳細顯示其武器資訊，其武器的戰技魔術與祈禱」）：跟個人清單的renderRewardDetail()
+  // 是兩條不同的資料來源（共享池的抽選結果已經persist在entry.drawn，不是本地draft），
+  // 但顯示用的元件完全共用——武器一律走renderWeaponSheetDetail()（含稀有度色點/傷害估算/
+  // 威力補正/戰技/戰技B），裝飾品與消耗品顯示名稱＋效果本文。
+  // 尚未揭示（drawn為null）時只顯示種類文字與提示，不預先偷看抽選結果。
+  function renderSharedRewardDetail(shared) {
+    var detail = el("midnight-reward-detail");
+    detail.innerHTML = "";
+    var entry = shared.entry;
+    var drawn = entry.drawn;
+    var titleP = document.createElement("p");
+    titleP.textContent = sharedRewardDrawLabel(entry, drawn);
+    detail.appendChild(titleP);
+    if (!drawn) {
+      var note = document.createElement("p");
+      note.className = "warning-text";
+      note.textContent = window.I18N.t("midnight_reward_shared_note");
+      detail.appendChild(note);
+      return;
+    }
+    var c = characters[myTokenId];
+    if ((entry.kind === "weapon" || entry.kind === "weaponStar") && drawn.weaponId && c) {
+      renderWeaponSheetDetail(detail, c, drawn.weaponId, window.PriTestCharacterDrawer);
+      return;
+    }
+    if (entry.kind === "talisman" && drawn.talismanId) {
+      var t = window.PriTestTalismans.get(drawn.talismanId);
+      if (t && t.body) {
+        var tBody = document.createElement("p");
+        tBody.textContent = mnText(window.PriTestTalismans.localizedText(t.body), window.PriTestTalismans.localizedText(t.name));
+        detail.appendChild(tBody);
+      }
+      return;
+    }
+    var itemId = drawn.itemId || (entry.kind === "stoneswordKey" ? "item_stonesword_key" : entry.kind === "smithingStone" ? "item_smithing_stone" : null);
+    if (itemId) {
+      var item = window.PriTestConsumables.get(itemId);
+      if (item && item.body) {
+        var iBody = document.createElement("p");
+        iBody.textContent = mnText(window.PriTestConsumables.localizedText(item.body), window.PriTestConsumables.localizedText(item.name));
+        detail.appendChild(iBody);
+      }
+    }
   }
 
   function closeRewardModal() {
@@ -10551,12 +10725,14 @@
 
     // 判定值（checkValues：精神/運氣/體能，跟聖甲蟲判定共用同一份i18n key，見
     // handleScarabCheckClick()）。
+    // 2026-09-10：顯示值改用effectiveCheckDiceCount()，跟實際擲骰顆數同一個來源，
+    // 「學習能力（精神／運氣／體能）」遺物效果的+1會反映在畫面上（先前只顯示類型基本值）。
     var checkValues = type ? type.checkValues : null;
     el("midnight-character-sheet-checkvalues").textContent = checkValues
       ? window.I18N.t("midnight_character_sheet_checkvalues", {
-          mental: checkValues.mental || 0,
-          luck: checkValues.luck || 0,
-          physical: checkValues.physical || 0,
+          mental: effectiveCheckDiceCount(c, "mental"),
+          luck: effectiveCheckDiceCount(c, "luck"),
+          physical: effectiveCheckDiceCount(c, "physical"),
         })
       : "";
 
@@ -10686,11 +10862,6 @@
     return weaponId + ":" + slot;
   }
 
-  function weaponRerollSkillFullText(display) {
-    if (!display) return "";
-    return display.name + (display.kind ? "［" + display.kind + "］" : "") + (display.body ? "\n" + display.body : "");
-  }
-
   function renderWeaponRerollModal() {
     var CD = window.PriTestCharacterDrawer;
     var c = characters[myTokenId];
@@ -10731,9 +10902,15 @@
     }
 
     // 選定卡片「貼」在鍛造台下方（純UI呈現的高亮卡片，見設計文件§3.5步驟2）。
+    // 2026-09-10（使用者明確要求「鍛造台，抽選等等也為要詳細顯示新舊戰技」）：卡片內
+    // 除了武器名稱，再附上這把武器的完整資訊（renderWeaponSheetDetail()，含稀有度/傷害
+    // 估算/威力補正/現有戰技），玩家選枠時就能判斷這把武器值不值得花掉重抽次數。
     var pinned = document.createElement("div");
     pinned.className = "midnight-forge-pinned-weapon";
-    pinned.textContent = weaponRerollState.weaponName;
+    var pinnedName = document.createElement("p");
+    pinnedName.textContent = weaponRerollState.weaponName;
+    pinned.appendChild(pinnedName);
+    if (c) renderWeaponSheetDetail(pinned, c, weaponRerollState.weaponId, CD);
     listEl.appendChild(pinned);
 
     var hasResult = !!weaponRerollState.rerollResult;
@@ -10743,11 +10920,34 @@
     if (hasResult) {
       var oldDisplay = CD.resolveRandomSkillDisplay(weaponRerollState.rerollResult.oldSkillId);
       var newDisplay = CD.resolveRandomSkillDisplay(weaponRerollState.rerollResult.newSkillId);
-      // 2026-09-08使用者明確規格「使用時抽到的戰技需要完整顯示資訊」：從只顯示name改成
-      // name＋kind＋規則本文（body），跟角色面板技能清單detail同一份resolveRandomSkillDisplay()
-      // 資料，只是這裡直接塞進左右兩欄的<p>（white-space:pre-wrap，見style.css）。
-      el("midnight-weapon-reroll-compare-old").textContent = weaponRerollSkillFullText(oldDisplay);
-      el("midnight-weapon-reroll-compare-new").textContent = weaponRerollSkillFullText(newDisplay);
+      // 2026-09-08使用者明確規格「使用時抽到的戰技需要完整顯示資訊」＋2026-09-10「詳細
+      // 顯示新舊戰技」：名稱＋種類＋規則本文之外，Action類戰技再附上跟武器詳細資訊同一套
+      // 的估計傷害黃字（appendWeaponSheetSkillEntry()），讓新舊比較能直接比數值。
+      // 舊戰技可能是null（這個枠原本就還沒決定過），此時顯示「尚未決定」而不是空白。
+      var artInfoForge = CD.computeArtPower(c, weaponRerollState.weaponId);
+      var weaponForge = Weapons.get(baseCatalogId(weaponRerollState.weaponId));
+      var categoryForge = weaponForge && Weapons.getCategory(weaponForge.category);
+      var isSpellForge = !!(categoryForge && (categoryForge.id === "staff" || categoryForge.id === "sacred_seal"));
+      [
+        { el: el("midnight-weapon-reroll-compare-old"), display: oldDisplay },
+        { el: el("midnight-weapon-reroll-compare-new"), display: newDisplay },
+      ].forEach(function (col) {
+        col.el.innerHTML = "";
+        if (!col.display) {
+          var emptyP = document.createElement("p");
+          emptyP.textContent = window.I18N.t("midnight_weapon_reroll_undetermined_note");
+          col.el.appendChild(emptyP);
+          return;
+        }
+        appendWeaponSheetSkillEntry(
+          col.el,
+          col.display.name + (col.display.kind ? "［" + col.display.kind + "］" : ""),
+          col.display.body || "",
+          artInfoForge,
+          isSpellForge,
+          CD
+        );
+      });
     }
   }
 
@@ -10842,12 +11042,58 @@
     }
   }
 
+  // 2026-09-10新增（使用者明確要求「獎勵清單抽選的物品也要詳細顯示其武器資訊，其武器的
+  // 戰技魔術與祈禱」）：依weaponId解析「這把武器自己的戰技」，不要求該武器已被持有或裝備。
+  // 原本renderWeaponSheetDetail()的〔戰技〕區塊是用CD.getEquippedWeaponSkillEntries(c)
+  // （只掃c.equippedWeaponIds），因此獎勵剛抽到的新武器、以及角色視窗裡點選「未裝備」的
+  // 武器，戰技區塊永遠是空的——杖/聖印的魔術/祈禱也一樣看不到。
+  // 資料來源與規則判斷完全沿用character_drawer.js既有純函式（collectWeaponSkillRefs／
+  // weaponSkillSlotKey／resolveRandomSkillDisplay／resolveWeaponSkillDisplay），不在這裡
+  // 另外解析weapon.skills。
+  // random戰技枠：已決定（c.weaponRandomSkills有值）就顯示該戰技；尚未決定則回傳
+  // undetermined:true的條目，由呼叫端顯示「未決定」而不是靜默略過——玩家至少要看得出
+  // 「這把武器有一個戰技枠還沒決定」，這是既有UI完全沒有揭露的資訊。
+  // randomOverrideSkillId（可省略）：這把武器的random戰技枠「這次抽選已經決定、但還沒
+  // 寫進角色」時傳入（潛在之力的得意武器抽選就是這種狀態，見
+  // CharacterDrawer.potentialPowerDrawWeapon()回傳的skillId）——讓玩家在按下[選擇這個]
+  // 之前就看得到會拿到哪個戰技，而不是顯示「未決定」。
+  function weaponOwnSkillDisplays(c, weaponId, randomOverrideSkillId) {
+    var CD = window.PriTestCharacterDrawer;
+    var w = Weapons.get(baseCatalogId(weaponId));
+    if (!w) return [];
+    var category = Weapons.getCategory(w.category);
+    var out = [];
+    CD.collectWeaponSkillRefs(category, w).forEach(function (pair) {
+      if (pair.ref.kind === "random") {
+        var resolved =
+          (c && c.weaponRandomSkills && c.weaponRandomSkills[CD.weaponSkillSlotKey(weaponId, pair.slotKey)]) || randomOverrideSkillId || null;
+        if (!resolved) {
+          out.push({ name: window.I18N.t("midnight_weapon_random_skill_undetermined"), body: "", kind: null, undetermined: true });
+          return;
+        }
+        var display = CD.resolveRandomSkillDisplay(resolved);
+        if (display) out.push({ name: display.name, body: display.body, kind: display.kind, undetermined: false });
+        return;
+      }
+      var d = CD.resolveWeaponSkillDisplay(pair.ref);
+      if (d && (d.name || d.body)) out.push({ name: d.name, body: d.body, kind: d.kind, undetermined: false });
+    });
+    // 共通戰技（玩家後天附加在這把武器上的，例如塗脂/獎勵取得）沿用既有欄位，
+    // 跟getEquippedWeaponSkillEntries()一樣一併納入。
+    ((c && c.weaponExtraSkills && c.weaponExtraSkills[weaponId]) || []).forEach(function (ref) {
+      var d2 = CD.resolveWeaponSkillDisplay(ref);
+      if (d2 && (d2.name || d2.body)) out.push({ name: d2.name, body: d2.body, kind: d2.kind, undetermined: false });
+    });
+    return out;
+  }
+
   // 角色視窗武器詳細資訊（2026-09-06使用者明確規格大改版）：顯示順序統一為
   // 名稱（稀有度色點）→傷害估算黃字→威力補正→連擊特典→戰技→戰技B，比照night.js既有的
-  // renderWeaponCard()資料來源與判斷方式（category.twoHitBonus／getEquippedWeaponSkillEntries／
+  // renderWeaponCard()資料來源與判斷方式（category.twoHitBonus／weaponOwnSkillDisplays／
   // weaponAccumulationEffects／resolveWeaponSkillDisplay），不重新定義任何規則數值，
   // 只是換一種版面排列。
-  function renderWeaponSheetDetail(detail, c, weaponId, CD) {
+  // randomOverrideSkillId（可省略）：直接轉交給weaponOwnSkillDisplays()，見該函式說明。
+  function renderWeaponSheetDetail(detail, c, weaponId, CD, randomOverrideSkillId) {
     var Weapons_ = window.PriTestWeapons;
     var w = Weapons_.get(baseCatalogId(weaponId));
     if (!w) return;
@@ -10905,26 +11151,22 @@
       });
     }
 
-    // [戰技]：這把武器的Action類戰技（跟combat面板的weaponArtEntry()同一份資料，這裡
-    // 全部列出，不只取第一個），逐一附上估計傷害黃字＋本文。
-    var actionEntries = CD.getEquippedWeaponSkillEntries(c).filter(function (e) {
-      return e.weaponId === weaponId;
+    // [戰技]：這把武器的Action類戰技（杖/聖印則是魔術/祈禱），逐一附上估計傷害黃字＋本文。
+    // 2026-09-10改用weaponOwnSkillDisplays()（見該函式說明）：改成依weaponId解析武器自己的
+    // 戰技，未持有／未裝備的武器（獎勵剛抽到的那把）也看得到完整戰技，取代原本只查
+    // c.equippedWeaponIds的CD.getEquippedWeaponSkillEntries()。
+    var ownSkills = weaponOwnSkillDisplays(c, weaponId, randomOverrideSkillId);
+    var actionSkills = ownSkills.filter(function (d) {
+      return d.undetermined || d.kind === "Action";
     });
-    if (actionEntries.length) {
+    if (actionSkills.length) {
       var skillATitle = document.createElement("p");
       skillATitle.className = "boss-subheading";
       skillATitle.textContent = window.I18N.t("midnight_character_sheet_skill_a_label");
       detail.appendChild(skillATitle);
       var isSpellCategory = !!(category && (category.id === "staff" || category.id === "sacred_seal"));
-      actionEntries.forEach(function (entry) {
-        appendWeaponSheetSkillEntry(
-          detail,
-          Weapons_.localizedText(entry.name),
-          Weapons_.localizedText(entry.body),
-          artInfo,
-          isSpellCategory,
-          CD
-        );
+      actionSkills.forEach(function (d) {
+        appendWeaponSheetSkillEntry(detail, d.name, d.body, artInfo, isSpellCategory, CD);
       });
     }
 
@@ -10932,20 +11174,12 @@
     // （weaponExtraSkills）統一併成同一區塊（使用者明確規格「另外的戰技或是附著的
     // 共通戰技等等」）。"random"種類尚未擲骰決定的空槽直接跳過（沒有名稱/本文可顯示，
     // 跟weaponAccumulationEffects()既有做法一致，不發明尚未決定的內容）。
-    var skillBRefs = category && category.isShield ? (w.attachedEffect || []).concat(w.reverseArt || []) : (w.skills || []).slice();
-    skillBRefs = skillBRefs.filter(function (ref) {
-      return ref.kind !== "random";
+    // 排除kind==="Action"與未決定枠（已經在上面[戰技]區塊列過，例如一般武器/盾的逆位戰技
+    // 也可能是Action類），避免同一個技能在[戰技]跟[戰技B]重複出現兩次。2026-09-10跟上面的
+    // [戰技]區塊改用同一份weaponOwnSkillDisplays()結果，不再各自重新解析一次weapon.skills。
+    var resolvedSkillB = ownSkills.filter(function (d) {
+      return !d.undetermined && d.kind !== "Action" && (d.name || d.body);
     });
-    skillBRefs = skillBRefs.concat((c.weaponExtraSkills && c.weaponExtraSkills[weaponId]) || []);
-    // 排除kind==="Action"（已經在上面[戰技]區塊列過，例如一般武器/盾的逆位戰技也可能是
-    // Action類），避免同一個技能在[戰技]跟[戰技B]重複出現兩次。
-    var resolvedSkillB = skillBRefs
-      .map(function (ref) {
-        return CD.resolveWeaponSkillDisplay(ref);
-      })
-      .filter(function (d) {
-        return d && d.kind !== "Action" && (d.name || d.body);
-      });
     if (resolvedSkillB.length) {
       var skillBTitle = document.createElement("p");
       skillBTitle.className = "boss-subheading";

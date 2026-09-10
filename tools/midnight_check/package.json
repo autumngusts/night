@@ -12,7 +12,10 @@
     "test:ui_layout_fixes": "node ui_layout_fixes_check.js",
     "test:optimize_2026_09_10": "node optimize_2026_09_10_check.js",
     "test:optimize_2026_09_10b": "node optimize_2026_09_10b_check.js",
-    "test:day3_boss_priority": "node day3_boss_priority_check.js"
+    "test:day3_boss_priority": "node day3_boss_priority_check.js",
+    "test:optimize_2026_09_10c": "node optimize_2026_09_10c_check.js",
+    "test:reward_perperson": "node reward_perperson_check.js",
+    "audit:relic_effects": "node relic_effect_audit.js"
   },
   "devDependencies": {
     "firebase-tools": "^15.29.0",

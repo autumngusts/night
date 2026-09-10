@@ -1,0 +1,179 @@
+# midnight（即時制擴張版）遺物效果生效狀況稽核
+
+本文件整理 `static_src/character_types.js` 的**遺物效果**（`type.relicEffectGroups`）在
+`midnight.js`（即時制）中「會不會真的發動」，以及尚未接上的缺口。
+
+- 建立日期：2026-09-10（使用者要求「整理 midnight 中所有遺物效果會發動的效果」）
+- 資料範圍：20 個角色類型（10 種基本＋10 種暗黑／黎明變體），共 **353 筆**遺物效果
+  （Passive 302、Action 51）。
+- 調查方法：①以效果名稱（ja／zh）反查 `midnight.js` 原始碼；②以**呼叫可達性分析**
+  找出「midnight 直接或間接會執行到、且會讀取 `c.learnedRelicEffects` 的
+  `character_drawer.js` 函式」；③以規則本文的措辭分類剩餘項目。
+  分析腳本保存在 `tools/midnight_check/relic_effect_audit.js`（純 node，可重跑）。
+
+**重要限制**：本文件是「機制層級」的稽核，不是逐條 353 筆的逐一實測。
+第 2 節列出的路徑是實際核對過原始碼確認的；第 3 節的分類統計是依規則本文措辭自動歸類，
+個別條目仍可能歸錯類，實際修改某一條效果前請直接核對該條的規則本文與對應程式碼。
+
+---
+
+## 1. 結論摘要
+
+| 分類 | 筆數 | 在 midnight 會不會發動 |
+| --- | --- | --- |
+| ① midnight.js 直接以名稱判斷 | 51 | ✅ 會 |
+| ② 通用被動解析（威力補正／最大HP・FP／判定骰） | 37 | ✅ 會 |
+| ③ Action 類（僅跳躍／衝刺攻擊有發動入口） | 26 | ❌ 大多不會（見 §4.1） |
+| ④ 回合制概念（階段／回合／體力骰／前衛後衛／敵視） | 112 | ⚠ 規則上不適用即時制（見 §4.2） |
+| ⑤ 攻擊消耗變更（2Hit 攻擊的達人等） | 22 | ❌ 不會（見 §4.3） |
+| ⑥ 角色技藝／技能強化 | 15 | ❌ 不會（見 §4.4） |
+| ⑦ 防禦相關被動 | 6 | ❌ 不會 |
+| ⑧ 聖杯瓶相關 | 24 | 部分會（回復量提升已接上，其餘不會） |
+| ⑨ 傷害固定加成 | 5 | ❌ 不會 |
+| ⑩ 其他未分類 | 55 | ❌ 多數不會 |
+
+換句話說：**目前在 midnight 真正會發動的遺物效果約 88 筆（①＋②），佔全部 353 筆的四分之一。**
+
+---
+
+## 2. 目前確實會發動的 5 條路徑
+
+### 2.1 midnight.js 直接以名稱判斷
+
+`midnight.js` 只對 5 個效果名稱做了專屬處理（其餘同名條目分散在 20 個角色類型上，
+合計 51 筆）：
+
+| 效果名稱 | kind | midnight 生效位置 |
+| --- | --- | --- |
+| 跳躍攻擊 | Action | `availableSpecialAttackEntries()` ／ `handleAttackClick()`（長按攻擊鍵的特殊攻擊選單） |
+| 衝刺攻擊 | Action | 同上 |
+| 雙手持握的達人 | Passive | `currentGuardInfo()`（單手持武器也能取得防禦價值） |
+| 冰塊之棺 | Passive | `handleDodgeClick()` |
+| 聖杯瓶回復量提升 | Passive | `commitFlaskHeal()`（**2026-09-10 本次新增**，見 §5） |
+
+### 2.2 威力補正（`relicPowerModBonus` → `computeArtPower`）
+
+規則本文形如「將自身『力量』的威力補正設為『+5』」的 **15 筆**。
+`midnight.js` 的 `computeMidnightSkillDamage()` 與 `computeSideAttackInfo()` 都會呼叫
+`CharacterDrawer.computeArtPower()`，該函式內部呼叫 `relicPowerModBonus()`，
+因此這類效果會同時反映在一般攻擊、武器戰技、魔術／祈禱的傷害上。
+
+### 2.3 最大 HP／FP（`relicFlatMaxStatBonus` → `totalFlatMaxStatBonus`）
+
+規則本文含「最大HP」「最大FP」的 **11 筆**。midnight 的 `selfArenaHpMax()` ／ `selfFpMax()`
+都是「基礎值 +（角色上限 + `totalFlatMaxStatBonus()`）× 10」，該 helper 內部會加總
+裝飾品／遺物／附帶效果三套 bonus（CLAUDE.md §12），因此遺物的最大值加成有效。
+
+### 2.4 判定骰數（`getCheckStatBonus`）
+
+規則本文形如「將自身『精神：+1』」的**學習能力（精神／運氣／體能）**共 **11 筆**。
+**2026-09-10 本次新增**：先前 midnight 的 7 處判定（聖甲蟲／女神像／靈廟／蟲群／追逐／
+埋藏寶物協力判定／通用步驟判定）全部只讀 `type.checkValues`，這個遺物效果完全不生效。
+已改為共用 `effectiveCheckDiceCount(c, statKey)`（內部呼叫
+`CharacterDrawer.getCheckStatBonus()`，與 `night_floor_breakthrough.js` 的
+`effectiveCheckValue()` 同一套算法），角色視窗顯示的判定值也改用同一來源。
+
+### 2.5 武器傷害內建的遺物判斷（`computeWeaponDamage`）
+
+`CharacterDrawer.computeWeaponDamage()` 內部本身就會讀遺物效果（例如與武器種類連動的
+加成），midnight 的一般攻擊與武器詳細資訊都經過它，因此這部分沿用 night.js 的既有行為。
+
+---
+
+## 3. 呼叫可達性分析結果（機制層級的確定事實）
+
+`character_drawer.js` 中會讀取 `c.learnedRelicEffects` 的函式共 **29 個**。
+以 midnight 直接呼叫的 53 個 `CharacterDrawer.*` 為起點做傳遞閉包（可達 100 個函式）後：
+
+**midnight 執行得到（19 個）**：
+`relicPowerModBonus`、`relicFlatMaxStatBonus`、`computeWeaponDamage`、
+`findLearnedRelicEffectByName`、`findLearnedActionRelicByName`、
+`countLearnedActionRelicsByName`、`countLearnedRelicEffectsByName`、`getCheckStatBonus`、
+`getFlaskHealBonus`、`getSkillUsesBonus`、`getEquippedWeaponSkillEntries`、
+`attachedEffectAppliesTo`、`potentialPowerDrawWeapon`、`relicCandidateFor`、
+`relicAllUnlearned`、`relicEffectForKey`、`learnRelicEffect`、`renderAbilitySections`、
+`newCharacter`
+
+**midnight 完全執行不到（10 個）**：
+`findTwoHitMasteryOverride`、`getPassiveAggroBonus`、`getCombatSkillEntries`、
+`autoResolveWeaponDraw`、`handleRelicRoll`、`renderRelicSection`、`renderRelicCandidates`、
+`renderRelicLearnedList`、`renderRelicAllList`、`init`
+
+後 7 個是 night.js 的角色卡／戰鬥視窗 UI，midnight 有自己的對應介面，不算缺口。
+真正的缺口是前 3 個，見 §4.3／§4.5。
+
+---
+
+## 4. 尚未接上的缺口與原因
+
+### 4.1 Action 類遺物（26 筆）
+
+midnight 的長按攻擊選單（`availableSpecialAttackEntries()`）**只接受跳躍攻擊與衝刺攻擊
+兩個名稱**，其餘 Action 類遺物（蓄力攻擊、致命一擊等）沒有任何發動入口。
+補實作的方向應該是把該選單改成「列出所有已習得的 Action 類遺物」，
+但每個效果的消耗與傷害本文格式不一，需要逐一確認能否用既有的
+`computeMidnightSkillCost()` ／ `fixedSkillPowerValue()` 解析，**不宜一次全開**。
+
+### 4.2 回合制概念（112 筆，最大宗）
+
+例：「回合結束時，體力骰帶入1個」「防禦階段開始時體力骰回復」「前衛時…」。
+即時制沒有階段／回合／體力骰／前衛後衛，這些效果在規則結構上就不成立。
+`static_src/midnight_text_adapt.js` 已經對其中 3 個做了「本規則中不生效」的重點覆寫
+（`BODY_OVERRIDES`），其餘只做術語轉換。
+**建議**：需要的話擴充 `BODY_OVERRIDES`，讓玩家在角色視窗就看得出哪些效果在即時制無效，
+而不是預設全部沉默失效。
+
+### 4.3 攻擊消耗變更（22 筆）— 需要使用者決定
+
+「2Hit攻擊的達人（大劍）＝將『大劍』的2Hit攻擊消耗變更為『45』」這類效果，
+`character_drawer.js` 已有現成的 `findTwoHitMasteryOverride(c, category)`，night.js 也
+已接上（`night.js:4484`），但 midnight 的 `computeSideAttackInfo()` 只用
+`parseAttackCost()`，完全沒有查這個 override。
+
+**沒有直接補上的原因**：部分條目的規則本文附帶「此效果1個階段中僅能發揮1次」，
+night.js 用 `c._twoHitMasteryUsedThisPhase` ＋ GM 手動切換來實作。即時制沒有階段，
+若直接無條件套用等於把「1階段1次的折扣」變成「永久折扣」——這是規則變更，
+依 CLAUDE.md §42.4 不自行決定。**需要使用者指定即時制下的等價限制**
+（例如冷卻 N 秒、或直接視為永久生效）後才實作。
+
+### 4.4 角色技藝／技能強化（15 筆）
+
+例：「為技藝『襲擊之楔』對敵人的傷害追加『總合傷害：+50』與『火：3D』」。
+這類效果要在 `useCharacterAbility()` 的傷害結算點依「被強化的技藝名稱」加成。
+機制上可行（`computeMidnightAbilityDamage()` 已經是單一出口），
+但每條效果的加成內容不同（固定值／屬性蓄積／回復），需要逐條確認，屬於中等規模工作。
+
+### 4.5 敵視（`getPassiveAggroBonus`）
+
+規則書的敵視是回合制的固定值機制；midnight 的敵視是「對這隻敵人累積傷害最高者」
+（`fieldTrigger/{id}/damageBySlot`）。兩者刻度不同，把遺物的敵視加成折算成「傷害累積量」
+需要使用者指定換算率，不自行發明。
+
+### 4.6 聖杯瓶其他效果（24 筆中除回復量提升外）
+
+例：「聖杯瓶可回復FP」（改為回 FP 而非 HP）、「一口氣飲盡」（一次用掉多次數、回滿）。
+兩者都需要新的 UI 選擇（要回 HP 還是 FP／要不要一口氣喝），
+不是單純的數值加成，因此本次未實作。
+
+---
+
+## 5. 2026-09-10 本次已補實作的缺漏
+
+| 效果 | 先前狀況 | 修正 |
+| --- | --- | --- |
+| 聖杯瓶回復量提升（24 筆中的 8 筆） | midnight 固定回 30，完全不看遺物 | `commitFlaskHeal()` 改為 `FLASK_HEAL_AMOUNT + flaskHealBonusAmount(c)`，□→即時制數值沿用既有 `BLOCK_SQUARE_COUNT_TO_RESOURCE_MULT`（＝10），與 night.js `night.js:7075` 同一份 `getFlaskHealBonus()` |
+| 學習能力（精神／運氣／體能）（11 筆） | 7 處判定全部只讀 `type.checkValues`，加成無效 | 新增 `effectiveCheckDiceCount(c, statKey)`，全部 7 處與角色視窗顯示改用它，內部呼叫既有 `getCheckStatBonus()` |
+
+兩者都是「規則書寫明的無條件被動 ＋ 既有 helper 已經寫好解析」的情況，
+沒有新增任何自行推測的數值。
+
+---
+
+## 6. 後續建議優先序
+
+1. **§4.3 的 2Hit 攻擊的達人**：只差一個使用者決定（即時制的「1階段1次」等價限制），
+   決定後實作量很小（`computeSideAttackInfo()` 一處）。
+2. **§4.4 的技藝／技能強化**：影響玩家體感最大（直接加傷害），但要逐條確認。
+3. **§4.2 的回合制概念**：不需要改數值，只要擴充 `midnight_text_adapt.js` 的
+   `BODY_OVERRIDES`，讓玩家知道哪些效果在即時制不生效即可。
+4. **§4.1 的 Action 類遺物**：逐一確認消耗／傷害本文能否被既有 parser 解析。

@@ -1578,6 +1578,7 @@ STRINGS_EN: dict[str, str] = {
     "midnight_reward_label_hp_damage": "Take {value} damage",
     "midnight_weapon_reroll_open_button": "Forge (Skill Reroll) x{count}",
     "midnight_weapon_reroll_title": "Weapon Skill Reroll Forge",
+    "midnight_weapon_random_skill_undetermined": "Weapon art: not decided (decide it at the smithing table)",
     "midnight_weapon_reroll_undetermined_note": "(not decided)",
     "midnight_weapon_reroll_old_label": "Old skill: ",
     "midnight_weapon_reroll_new_label": "New skill: ",

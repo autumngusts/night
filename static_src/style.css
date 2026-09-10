@@ -4433,8 +4433,11 @@ button {
   font-size: 0.82rem;
 }
 
+/* 2026-09-10：新舊戰技欄位從單一<p>textContent改成由JS組出的節點（名稱＋估計傷害黃字＋
+   種類＋規則本文，見midnight.jsのappendWeaponSheetSkillEntry()），因此樣式改成套用在
+   欄位內所有段落上。white-space:pre-wrap維持不變（規則本文含換行）。 */
 .midnight-weapon-reroll-compare-col p {
-  margin: 0;
+  margin: 0 0 0.25rem;
   font-size: 0.75rem;
   white-space: pre-wrap;
 }
@@ -5608,6 +5611,15 @@ html.midnight-hud-above-banner #midnight-hud-top-right {
   margin: 0;
   padding: 0;
   list-style: none;
+}
+
+/* 獎勵清單「目前選取中」的高亮（2026-09-10使用者明確要求「選中的左側項目時，高亮其
+   選項」）：個人清單與共享池清單共用同一個class（見midnight.jsのrenderRewardModal()），
+   配色沿用本檔案既有的黃色強調（#ffd54a，同.midnight-forge-pinned-weapon），不新增色票。 */
+.midnight-reward-item-selected {
+  border: 1px solid #ffd54a;
+  background: rgba(255, 213, 74, 0.22);
+  font-weight: bold;
 }
 
 #midnight-reward-detail {

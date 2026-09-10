@@ -300,7 +300,7 @@
               ],
               reward: [
                 { kind: "potentialPower", perPerson: true, value: 2, note: C("（ボス戦闘撃破）", "（王戰擊破）") },
-                { kind: "talisman", value: 3, note: C("（ボス戦闘撃破）", "（王戰擊破）") },
+                { kind: "talisman", perPerson: true, value: 3, note: C("（ボス戦闘撃破）", "（王戰擊破）") },
                 { kind: "rune", value: 3, note: C("（撃破ルーン）", "（擊破盧恩）") },
               ],
             },
@@ -343,7 +343,7 @@
               // 「物資漁り」は先を急いでも良い任意選択のため、tieredChoiceへ統一。
               reward: [
                 { kind: "potentialPower", perPerson: true, value: 2, note: C("（ボス戦闘撃破）", "（王戰擊破）") },
-                { kind: "consumable", value: 1, note: C("（ボス戦闘撃破）", "（王戰擊破）") },
+                { kind: "consumable", perPerson: true, value: 1, note: C("（ボス戦闘撃破）", "（王戰擊破）") },
                 { kind: "rune", value: 4, note: C("（撃破ルーン）", "（擊破盧恩）") },
                 {
                   kind: "tieredChoice",
@@ -353,7 +353,7 @@
                       label: C("物資漁り", "搜刮物資"),
                       rewards: [
                         { kind: "weaponStar", value: 2 },
-                        { kind: "consumable", value: 2 },
+                        { kind: "consumable", perPerson: true, value: 2 },
                         {
                           kind: "note",
                           note: C("（行為判定失敗時は「タイムロス：1」も手動記録）", "（行為判定失敗時，也手動記錄「時間損耗：1」）"),
@@ -481,7 +481,7 @@
               // 「物資漁り」は先を急いでも良い任意選択のため、tieredChoiceへ統一。
               reward: [
                 { kind: "potentialPower", perPerson: true, value: 2, note: C("（ボス戦闘撃破）", "（王戰擊破）") },
-                { kind: "consumable", value: 1, note: C("（ボス戦闘撃破）", "（王戰擊破）") },
+                { kind: "consumable", perPerson: true, value: 1, note: C("（ボス戦闘撃破）", "（王戰擊破）") },
                 { kind: "rune", value: 3, note: C("（撃破ルーン）", "（擊破盧恩）") },
                 {
                   kind: "tieredChoice",
@@ -491,7 +491,7 @@
                       label: C("物資漁り", "搜刮物資"),
                       rewards: [
                         { kind: "weaponStar", value: 2 },
-                        { kind: "consumable", value: 2 },
+                        { kind: "consumable", perPerson: true, value: 2 },
                         {
                           kind: "note",
                           note: C(
@@ -543,7 +543,7 @@
               // 撃破ルーン+2は「行為判定に失敗している場合」のみ加算されるため、tieredChoiceへ分離。
               reward: [
                 { kind: "potentialPower", perPerson: true, value: 2, note: C("（ボス戦闘撃破）", "（王戰擊破）") },
-                { kind: "consumable", value: 1, note: C("（ボス戦闘撃破）", "（王戰擊破）") },
+                { kind: "consumable", perPerson: true, value: 1, note: C("（ボス戦闘撃破）", "（王戰擊破）") },
                 { kind: "rune", value: 3, note: C("（撃破ルーン）", "（擊破盧恩）") },
                 {
                   kind: "smithingStone",
@@ -598,7 +598,7 @@
               // 撃破ルーン+2は「行為判定に失敗している場合」のみ加算されるため、tieredChoiceへ分離。
               reward: [
                 { kind: "potentialPower", perPerson: true, value: 2, note: C("（ボス戦闘撃破）", "（王戰擊破）") },
-                { kind: "consumable", value: 1, note: C("（ボス戦闘撃破）", "（王戰擊破）") },
+                { kind: "consumable", perPerson: true, value: 1, note: C("（ボス戦闘撃破）", "（王戰擊破）") },
                 { kind: "rune", value: 3, note: C("（撃破ルーン）", "（擊破盧恩）") },
                 {
                   kind: "smithingStone",
@@ -653,7 +653,7 @@
               // 撃破ルーン+1は「行為判定に失敗している場合」のみ加算されるため、tieredChoiceへ分離。
               reward: [
                 { kind: "potentialPower", perPerson: true, value: 2, note: C("（ボス戦闘撃破）", "（王戰擊破）") },
-                { kind: "consumable", value: 1, note: C("（ボス戦闘撃破）", "（王戰擊破）") },
+                { kind: "consumable", perPerson: true, value: 1, note: C("（ボス戦闘撃破）", "（王戰擊破）") },
                 { kind: "rune", value: 3, note: C("（撃破ルーン）", "（擊破盧恩）") },
                 {
                   kind: "smithingStone",
@@ -1045,7 +1045,7 @@
                       rewards: [
                         { kind: "rune", value: 2 },
                         { kind: "weaponStar", value: 2 },
-                        { kind: "consumable", value: 2 },
+                        { kind: "consumable", perPerson: true, value: 2 },
                         {
                           kind: "talisman",
                           value: 1,
@@ -1057,7 +1057,7 @@
                 },
                 { kind: "potentialPower", perPerson: true, value: 3, note: C("（屋上・ボス戦闘撃破）", "（屋頂・王戰擊破）") },
                 { kind: "weaponStar", value: 2, note: C("（屋上・ボス戦闘撃破）", "（屋頂・王戰擊破）") },
-                { kind: "consumable", value: 1, note: C("（屋上・ボス戦闘撃破）", "（屋頂・王戰擊破）") },
+                { kind: "consumable", perPerson: true, value: 1, note: C("（屋上・ボス戦闘撃破）", "（屋頂・王戰擊破）") },
                 { kind: "rune", value: 6, note: C("（屋上・ボス戦闘撃破）", "（屋頂・王戰擊破）") },
               ],
             },
@@ -1100,7 +1100,7 @@
                       label: C("ボス戦闘（撃破）", "王戰（擊破）"),
                       rewards: [
                         { kind: "potentialPower", perPerson: true, value: 2 },
-                        { kind: "smithingStone", value: 1, perParty: true },
+                        { kind: "smithingStone", perPerson: true, value: 1, perParty: true },
                         { kind: "rune", value: 3 },
                       ],
                     },
@@ -1643,7 +1643,7 @@
               ],
               reward: [
                 { kind: "chaliceBonus", value: 1, note: C("（獲得）", "（獲得）") },
-                { kind: "consumable", value: 2, note: C("（獲得）", "（獲得）") },
+                { kind: "consumable", perPerson: true, value: 2, note: C("（獲得）", "（獲得）") },
                 {
                   kind: "tieredChoice",
                   tierLabel: C("フロア1決定（1D）", "決定樓層1（1D）"),
@@ -1652,7 +1652,7 @@
                       label: C("1＝埋まった女神像", "1＝埋沒的女神像"),
                       rewards: [
                         {
-                          kind: "smithingStone",
+                          kind: "smithingStone", perPerson: true,
                           value: 3,
                           note: C(
                             "（破壊成功時。追跡者/無頼漢/守護者/執行者のいずれか要）",
@@ -1665,7 +1665,7 @@
                       label: C("2・3＝瓦礫の山", "2、3＝瓦礫堆"),
                       rewards: [
                         { kind: "weaponStar", value: 1, categoryId: "staff", note: C("（行為判定成功時）", "（行為判定成功時）") },
-                        { kind: "consumable", value: 1, note: C("（行為判定成功時）", "（行為判定成功時）") },
+                        { kind: "consumable", perPerson: true, value: 1, note: C("（行為判定成功時）", "（行為判定成功時）") },
                       ],
                     },
                     {
@@ -1682,7 +1682,7 @@
                     {
                       label: C("6＝強敵の予感", "6＝強敵的預感"),
                       rewards: [
-                        { kind: "potentialPower", perPerson: true, value: 2, note: C("（ボス戦闘撃破）", "（王戰擊破）") },
+                        { kind: "potentialPower", perPerson: false, value: 2, note: C("（ボス戦闘撃破）", "（王戰擊破）") },
                         { kind: "rune", value: 8, note: C("（撃破ルーン）", "（擊破盧恩）") },
                       ],
                     },
@@ -1786,7 +1786,7 @@
               ],
               reward: [
                 { kind: "chaliceBonus", value: 1, note: C("（獲得）", "（獲得）") },
-                { kind: "consumable", value: 1, note: C("（獲得）", "（獲得）") },
+                { kind: "consumable", perPerson: true, value: 1, note: C("（獲得）", "（獲得）") },
                 { kind: "note", note: C("（「共鳴する結晶：+1」は別途手動記録）", "（「共鳴結晶：+1」需另行手動記錄）") },
               ],
             },
@@ -1816,7 +1816,7 @@
               ],
               reward: [
                 { kind: "chaliceBonus", value: 1, note: C("（獲得）", "（獲得）") },
-                { kind: "consumable", value: 2, note: C("（獲得）", "（獲得）") },
+                { kind: "consumable", perPerson: true, value: 2, note: C("（獲得）", "（獲得）") },
                 { kind: "note", note: C("（「共鳴する結晶：+1」は別途手動記録）", "（「共鳴結晶：+1」需另行手動記錄）") },
               ],
             },
@@ -1881,7 +1881,7 @@
               ],
               reward: [
                 { kind: "chaliceBonus", value: 1, note: C("（獲得）", "（獲得）") },
-                { kind: "consumable", value: 2, note: C("（獲得）", "（獲得）") },
+                { kind: "consumable", perPerson: true, value: 2, note: C("（獲得）", "（獲得）") },
               ],
             },
             {
@@ -2459,7 +2459,7 @@
                     },
                     {
                       label: C("先を目指す（行為判定成功時）", "朝前方前進（行為判定成功時）"),
-                      rewards: [{ kind: "talisman", value: 1 }],
+                      rewards: [{ kind: "talisman", perPerson: true, value: 1 }],
                     },
                     { label: C("先を目指す（行為判定失敗時）", "朝前方前進（行為判定失敗時）"), rewards: [] },
                   ],
@@ -3392,7 +3392,7 @@
                   tiers: [
                     {
                       label: C("岩場のきらめきを探る（行為判定成功時）", "探尋岩場的閃光（行為判定成功時）"),
-                      rewards: [{ kind: "consumable", value: 2 }],
+                      rewards: [{ kind: "consumable", perPerson: true, value: 2 }],
                     },
                     { label: C("岩場のきらめきを探る（行為判定失敗時）", "探尋岩場的閃光（行為判定失敗時）"), rewards: [] },
                     { label: C("地上で探索（フロア踏破）", "在地上探索（樓層踏破）"), rewards: [] },
@@ -3417,7 +3417,7 @@
                 { kind: "rune", value: 4, note: C("（ボス戦闘1撃破・撃破ルーン）", "（王戰1擊破・擊破盧恩）") },
                 { kind: "rune", value: 3, note: C("（ボス戦闘2撃破・撃破ルーン）", "（王戰2擊破・擊破盧恩）") },
                 { kind: "potentialPower", perPerson: true, value: 2, note: C("（ボス戦闘2撃破）", "（王戰2擊破）") },
-                { kind: "consumable", value: 1, note: C("（ボス戦闘2撃破）", "（王戰2擊破）") },
+                { kind: "consumable", perPerson: true, value: 1, note: C("（ボス戦闘2撃破）", "（王戰2擊破）") },
               ],
             },
           ],
@@ -3808,7 +3808,7 @@
                 ),
               ],
               reward: [
-                { kind: "potentialPower", perPerson: true, value: 3, note: C("（ボス戦闘撃破）", "（王戰擊破）") },
+                { kind: "potentialPower", perPerson: false, value: 3, note: C("（ボス戦闘撃破）", "（王戰擊破）") },
                 { kind: "rune", value: 15, note: C("（撃破ルーン）", "（擊破盧恩）") },
                 {
                   kind: "note",

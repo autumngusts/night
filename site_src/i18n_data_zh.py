@@ -1582,6 +1582,7 @@ STRINGS_ZH: dict[str, str] = {
     "midnight_reward_label_hp_damage": "受到{value}點傷害",
     "midnight_weapon_reroll_open_button": "鍛造台（戰技重抽）x{count}",
     "midnight_weapon_reroll_title": "戰技重抽鍛造台",
+    "midnight_weapon_random_skill_undetermined": "戰技：尚未決定（可在鍛造台決定）",
     "midnight_weapon_reroll_undetermined_note": "（尚未決定）",
     "midnight_weapon_reroll_old_label": "原戰技：",
     "midnight_weapon_reroll_new_label": "新戰技：",

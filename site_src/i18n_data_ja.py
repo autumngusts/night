@@ -1578,6 +1578,7 @@ STRINGS_JA: dict[str, str] = {
     "midnight_reward_label_hp_damage": "{value}ダメージを受ける",
     "midnight_weapon_reroll_open_button": "鍛造台（戦技再抽選）x{count}",
     "midnight_weapon_reroll_title": "戦技再抽選鍛造台",
+    "midnight_weapon_random_skill_undetermined": "戦技：未決定（鍛冶台で決定できます）",
     "midnight_weapon_reroll_undetermined_note": "（未決定）",
     "midnight_weapon_reroll_old_label": "元の戦技：",
     "midnight_weapon_reroll_new_label": "新しい戦技：",

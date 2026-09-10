@@ -138,7 +138,7 @@
               ],
               reward: [
                 { kind: "potentialPower", perPerson: true, value: 1, note: C("（ボス戦闘撃破）", "（王戰擊破）") },
-                { kind: "smithingStone", value: 2, perParty: true, note: C("（ボス戦闘撃破・PC1人につき2個）", "（王戰擊破・每位PC 2個）") },
+                { kind: "smithingStone", perPerson: true, value: 2, perParty: true, note: C("（ボス戦闘撃破・PC1人につき2個）", "（王戰擊破・每位PC 2個）") },
                 { kind: "rune", value: 3, note: C("（撃破ルーン）", "（擊破盧恩）") },
               ],
             },
@@ -188,7 +188,7 @@
               reward: [
                 { kind: "stoneswordKey", value: 1, note: C("（ボス戦闘撃破）", "（王戰擊破）") },
                 { kind: "potentialPower", perPerson: true, value: 1, note: C("（ボス戦闘撃破）", "（王戰擊破）") },
-                { kind: "smithingStone", value: 2, perParty: true, note: C("（ボス戦闘撃破・PC1人につき2個）", "（王戰擊破・每位PC 2個）") },
+                { kind: "smithingStone", perPerson: true, value: 2, perParty: true, note: C("（ボス戦闘撃破・PC1人につき2個）", "（王戰擊破・每位PC 2個）") },
                 { kind: "rune", value: 3, note: C("（撃破ルーン）", "（擊破盧恩）") },
               ],
             },
@@ -266,7 +266,7 @@
                 ),
               ],
               reward: [
-                { kind: "smithingStone", value: 1, perParty: true, note: C("（成功・失敗共通）", "（成功／失敗皆同）") },
+                { kind: "smithingStone", perPerson: true, value: 1, perParty: true, note: C("（成功・失敗共通）", "（成功／失敗皆同）") },
                 { kind: "note", note: C("（行為判定失敗時は「夜の脅威シート」のタイムロスを1つチェック）", "（行為判定失敗時，於「夜間威脅表」勾選1格時間損耗）") },
               ],
             },
@@ -302,7 +302,7 @@
               ],
               reward: [
                 { kind: "potentialPower", perPerson: true, value: 1, note: C("（ボス戦闘撃破）", "（王戰擊破）") },
-                { kind: "smithingStone", value: 1, perParty: true, note: C("（ボス戦闘撃破）", "（王戰擊破）") },
+                { kind: "smithingStone", perPerson: true, value: 1, perParty: true, note: C("（ボス戦闘撃破）", "（王戰擊破）") },
                 { kind: "rune", value: 3, note: C("（撃破ルーン）", "（擊破盧恩）") },
               ],
             },
@@ -544,9 +544,9 @@
                     {
                       label: C("瓦礫をあさる", "翻找瓦礫"),
                       rewards: [
-                        { kind: "stoneswordKey", value: 1 },
-                        { kind: "consumable", value: 1 },
-                        { kind: "consumable", itemId: "item_throwing_pot", attributeTag: C("猛毒", "猛毒") },
+                        { kind: "stoneswordKey", perPerson: true, value: 1 },
+                        { kind: "consumable", perPerson: true, value: 1 },
+                        { kind: "consumable", perPerson: true, itemId: "item_throwing_pot", attributeTag: C("猛毒", "猛毒") },
                       ],
                     },
                     {
@@ -692,8 +692,8 @@
                     {
                       label: C("瓦礫をあさる→ザコ戦闘（撃破）", "翻找瓦礫→雜兵戰鬥（擊破）"),
                       rewards: [
-                        { kind: "stoneswordKey", value: 1 },
-                        { kind: "consumable", value: 1 },
+                        { kind: "stoneswordKey", perPerson: true, value: 1 },
+                        { kind: "consumable", perPerson: true, value: 1 },
                         {
                           kind: "hpDamage",
                           value: 1,
@@ -706,8 +706,8 @@
                     {
                       label: C("瓦礫をあさる→野犬を避ける（フロア踏破）", "翻找瓦礫→避開野犬（樓層踏破）"),
                       rewards: [
-                        { kind: "stoneswordKey", value: 1 },
-                        { kind: "consumable", value: 1 },
+                        { kind: "stoneswordKey", perPerson: true, value: 1 },
+                        { kind: "consumable", perPerson: true, value: 1 },
                       ],
                     },
                     {
@@ -867,9 +867,9 @@
                     {
                       label: C("瓦礫をあさる→ザコ戦闘（撃破）", "翻找瓦礫→雜兵戰鬥（擊破）"),
                       rewards: [
-                        { kind: "stoneswordKey", value: 1 },
-                        { kind: "consumable", value: 1 },
-                        { kind: "consumable", itemId: "item_throwing_pot", attributeTag: C("凍傷", "凍傷") },
+                        { kind: "stoneswordKey", perPerson: true, value: 1 },
+                        { kind: "consumable", perPerson: true, value: 1 },
+                        { kind: "consumable", perPerson: true, itemId: "item_throwing_pot", attributeTag: C("凍傷", "凍傷") },
                         { kind: "rune", value: 1 },
                       ],
                     },
@@ -1013,9 +1013,9 @@
                     {
                       label: C("瓦礫をあさる→ザコ戦闘（撃破）", "翻找瓦礫→雜兵戰鬥（擊破）"),
                       rewards: [
-                        { kind: "stoneswordKey", value: 1 },
-                        { kind: "consumable", value: 1 },
-                        { kind: "consumable", itemId: "item_throwing_pot", attributeTag: C("睡眠", "睡眠") },
+                        { kind: "stoneswordKey", perPerson: true, value: 1 },
+                        { kind: "consumable", perPerson: true, value: 1 },
+                        { kind: "consumable", perPerson: true, itemId: "item_throwing_pot", attributeTag: C("睡眠", "睡眠") },
                         {
                           kind: "hpDamage",
                           value: 2,
@@ -1176,9 +1176,9 @@
                     {
                       label: C("瓦礫を物色→ザコ戦闘（撃破）", "搜尋瓦礫→雜兵戰鬥（擊破）"),
                       rewards: [
-                        { kind: "stoneswordKey", value: 1 },
-                        { kind: "consumable", value: 1 },
-                        { kind: "consumable", itemId: "item_throwing_pot", attributeTag: C("発狂", "發狂") },
+                        { kind: "stoneswordKey", perPerson: true, value: 1 },
+                        { kind: "consumable", perPerson: true, value: 1 },
+                        { kind: "consumable", perPerson: true, itemId: "item_throwing_pot", attributeTag: C("発狂", "發狂") },
                         { kind: "rune", value: 1 },
                       ],
                     },
@@ -1315,7 +1315,7 @@
               // 不同）。因此聖印保留為無條件的flat項目，僅將翻找瓦礫路線特有的部分（石劍鑰匙、
               // 杖、HP損害、擊破盧恩）納入tier化（fix round 1修正）。
               reward: [
-                { kind: "weaponStar", value: 1, categoryId: "sacred_seal" },
+                { kind: "weaponStar", perPerson: true, value: 1, categoryId: "sacred_seal" },
                 {
                   kind: "tieredChoice",
                   tierLabel: C("実際に進んだルート", "實際採取的路線"),
@@ -1323,8 +1323,8 @@
                     {
                       label: C("瓦礫をあさる→ザコ戦闘（撃破）", "翻找瓦礫→雜兵戰鬥（擊破）"),
                       rewards: [
-                        { kind: "stoneswordKey", value: 1 },
-                        { kind: "weaponStar", value: 1, categoryId: "staff" },
+                        { kind: "stoneswordKey", perPerson: true, value: 1 },
+                        { kind: "weaponStar", perPerson: true, value: 1, categoryId: "staff" },
                         { kind: "hpDamage", value: 1, note: C("（行為判定失敗時）", "（行為判定失敗時）") },
                         { kind: "rune", value: 1 },
                       ],
@@ -1530,7 +1530,7 @@
                   kind: "tieredChoice",
                   tierLabel: C("城壁へ登る", "登上城壁"),
                   tiers: [
-                    { label: C("実施した（過半数成功）", "有進行（過半數成功）"), rewards: [{ kind: "consumable", value: 1 }] },
+                    { label: C("実施した（過半数成功）", "有進行（過半數成功）"), rewards: [{ kind: "consumable", perPerson: true, value: 1 }] },
                     { label: C("実施した（過半数不成立）", "有進行（未達過半數成功）"), rewards: [] },
                     { label: C("実施しなかった", "未進行"), rewards: [] },
                   ],
@@ -1543,8 +1543,8 @@
                     {
                       label: C("実施した", "有進行"),
                       rewards: [
-                        { kind: "weaponStar", value: 1, categoryId: RANGED_GROUP_CATEGORY },
-                        { kind: "consumable", value: 1 },
+                        { kind: "weaponStar", perPerson: true, value: 1, categoryId: RANGED_GROUP_CATEGORY },
+                        { kind: "consumable", perPerson: true, value: 1 },
                       ],
                     },
                     { label: C("実施しなかった", "未進行"), rewards: [] },

@@ -1027,11 +1027,11 @@ BODY = """    <div class="midnight-wrap">
             <div id="midnight-weapon-reroll-compare" hidden>
               <div class="midnight-weapon-reroll-compare-col">
                 <h4 data-i18n="midnight_weapon_reroll_old_label"></h4>
-                <p id="midnight-weapon-reroll-compare-old"></p>
+                <div id="midnight-weapon-reroll-compare-old"></div>
               </div>
               <div class="midnight-weapon-reroll-compare-col">
                 <h4 data-i18n="midnight_weapon_reroll_new_label"></h4>
-                <p id="midnight-weapon-reroll-compare-new"></p>
+                <div id="midnight-weapon-reroll-compare-new"></div>
               </div>
             </div>
             <div class="wb-row">
