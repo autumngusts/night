@@ -1589,6 +1589,7 @@ STRINGS_JA: dict[str, str] = {
     "midnight_item_expand_toast": "アイテム効果拡大：仲間にも「{item}」を発揮",
     "midnight_item_expand_received_toast": "仲間の「{item}」の効果があなたにも発揮された",
     "midnight_reward_free_redraw_button": "無償再抽選（1日1回）",
+    "midnight_skill_variant_switch_button": "変化切替 {current}/{total}",
     "midnight_weapon_random_skill_undetermined": "戦技：未決定（鍛冶台で決定できます）",
     "midnight_weapon_reroll_undetermined_note": "（未決定）",
     "midnight_weapon_reroll_old_label": "元の戦技：",

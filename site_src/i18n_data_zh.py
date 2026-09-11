@@ -1593,6 +1593,7 @@ STRINGS_ZH: dict[str, str] = {
     "midnight_item_expand_toast": "道具效果擴大：同時對隊友發揮「{item}」",
     "midnight_item_expand_received_toast": "隊友的「{item}」效果對你也發揮了",
     "midnight_reward_free_redraw_button": "免費重抽（每日1次）",
+    "midnight_skill_variant_switch_button": "切換變體 {current}/{total}",
     "midnight_weapon_random_skill_undetermined": "戰技：尚未決定（可在鍛造台決定）",
     "midnight_weapon_reroll_undetermined_note": "（尚未決定）",
     "midnight_weapon_reroll_old_label": "原戰技：",

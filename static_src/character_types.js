@@ -3370,6 +3370,22 @@
                 zh: "可將夜渡技能「混成魔法」的效果變更為「聖潔燈火」。\n聖潔燈火：對自身與其他任意1名PC施加「HP回復：□□□」。",
                 ja: "夜渡りスキル「混成魔法」の効果を、「聖なる灯火」に変更してもよい。\n聖なる灯火：自身と他の任意のPC1人に「HP回復：□□□」を適用する。",
               },
+              // 2026-09-12補上variantEntry：隱者本體的4個混成魔法變體早就有這個欄位、
+              // 由learnedVariantEntries()接上角色面板的招式切換，只有黎明版的這兩個
+              // （聖潔燈火／雷擊之步）漏掉，導致習得後完全沒有發動入口。
+              // 內容比照隱者本體「聖光燈火」（同效果、同消耗），id也刻意共用——
+              // midnight.js的applyRelicAbilityPostEffect()已經有這個id的回復處理。
+              variantEntry: {
+                id: "hybrid_magic_holy_light",
+                slot: "skill",
+                kind: "Action",
+                name: { zh: "聖潔燈火", ja: "聖なる灯火", en: "Sacred Lamplight" },
+                body: {
+                  zh: "消耗：1\n對象：自身與其他任意1名PC\n\n效果\n・對自身與其他任意1名PC施加「HP回復：□□□」。",
+                  ja: "コスト：1\n対象：自身と他の任意のPC1人\n\n効果\n・自身と他の任意のPC1人に「HP回復：□□□」を適用する。",
+                  en: "Cost: 1\nTarget: Self and one other PC\n\nEffect: Applies [HP Recovery: 3] to self and one other PC.",
+                },
+              },
             },
             {
               kind: "Passive",
@@ -3471,6 +3487,19 @@
               body: {
                 zh: "可將夜渡技能「混成魔法」的效果變更為可用［Defense］使用的「雷擊之步」。\n雷擊之步：視為自身對亂戰傷害進行了「迴避」，不會受到亂戰傷害造成的HP損害（追加效果或個別傷害仍會受到）。",
                 ja: "夜渡りスキル「混成魔法」の効果を、［Defense］で使用できる「稲妻のステップ」に変更してもよい。\n稲妻のステップ：自身は乱戦ダメージに対して「回避」を行ったとして扱い、乱戦ダメージによるHP損害を受けない（追加効果や個別ダメージは受ける）。",
+              },
+              // 2026-09-12補上variantEntry（理由同上方「聖潔燈火」）。這一個是［Defense］型，
+              // learnedVariantEntries()會依kind:"Defense"歸到defense陣列，由
+              // availableSpecialDefenseOption()接成特殊防禦選項（成功即完全無效化）。
+              variantEntry: {
+                id: "hybrid_magic_lightning_step",
+                kind: "Defense",
+                name: { zh: "雷擊之步", ja: "稲妻のステップ", en: "Lightning Step" },
+                body: {
+                  zh: "消耗：1\n對象：自身\n\n效果\n・視為自身對亂戰傷害進行了「迴避」，不會受到亂戰傷害造成的HP損害。",
+                  ja: "コスト：1\n対象：自身\n\n効果\n・自身は乱戦ダメージに対して「回避」を行ったとして扱い、乱戦ダメージによるHP損害を受けない。",
+                  en: "Cost: 1\nTarget: Self\n\nEffect: Treated as having dodged the group damage; takes no HP damage from it.",
+                },
               },
             },
             {

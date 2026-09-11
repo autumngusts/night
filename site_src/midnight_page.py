@@ -875,6 +875,12 @@ BODY = """    <div class="midnight-wrap">
             <span class="midnight-icon-sword"></span>
             <span id="midnight-character-skill-label"></span>
           </button>
+          <!-- 技能變體快速切換（2026-09-12使用者明確規格「隱者的混成魔法按鈕旁邊多個切換
+               按鈕，可以更快速選得想要發動的變體(需學習該遺物效果才顯示)」）：按一下循環到
+               下一個已習得的變體，跟角色視窗裡的切換共用同一個 c._selectedSkillVariantIndex，
+               不是另一套狀態。沒有習得任何變體時自動隱藏。
+               見 static/midnight.js の renderSkillVariantSwitchButton()。 -->
+          <button type="button" id="btn-midnight-skill-variant" hidden></button>
           <!-- 高防禦（守護者被動，2026-09-05角色能力真正接入新增）：只在角色類型有此被動時
                顯示，見static/midnight.js的handleHighGuardToggleClick()。 -->
           <button type="button" id="btn-midnight-high-guard" hidden></button>

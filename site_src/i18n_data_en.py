@@ -1589,6 +1589,7 @@ STRINGS_EN: dict[str, str] = {
     "midnight_item_expand_toast": "Item effect expanded: “{item}” also applied to an ally",
     "midnight_item_expand_received_toast": "An ally’s “{item}” also took effect on you",
     "midnight_reward_free_redraw_button": "Free redraw (once per day)",
+    "midnight_skill_variant_switch_button": "Switch variant {current}/{total}",
     "midnight_weapon_random_skill_undetermined": "Weapon art: not decided (decide it at the smithing table)",
     "midnight_weapon_reroll_undetermined_note": "(not decided)",
     "midnight_weapon_reroll_old_label": "Old skill: ",

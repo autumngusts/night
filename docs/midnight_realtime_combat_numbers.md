@@ -891,3 +891,68 @@ HP 歸零的流程是「`demoStat` transaction commit →`.then()`→`maybeTrigg
 `tools/midnight_check/relic_batch_2026_09_11_check.js`（`npm run test:relic_batch_2026_09_11`）：
 18 個斷言，涵蓋體崩累積／加速倍率／持續時間／橫幅／停止攻擊／致命一擊全流程／最低傷害 1 點／
 體力上限 +10／聖杯瓶回 FP 開關。
+
+---
+
+## 18. 2026-09-12：剩餘遺物效果全數接入（未接上 25 → 0）
+
+使用者 2026-09-12 針對前一版缺口表逐條給了即時制對應規格，本批全部實作完成。
+`npm run audit:relic_gaps` 產生的缺口表現在是 **0 筆**（353 筆全部都有生效路徑）。
+
+### 18.1 A 組：異常狀態達成的歡喜（6 筆）
+
+跟已實作的「屬性達成的歡喜」是同一支 `maybeApplyAttributeJoyRelic()`，差別只在
+選擇欄位（`relicJoyAilmentChoice`）與回復量（□□＝20，屬性版是 □＝10）。
+兩者同時習得時各自用自己的選擇與回復量結算，去重用的 `joyTriggeredCount` key
+加上 `element` / `ailment` 前綴分開記。
+
+### 18.2 B 組（使用者指定的即時制對應）
+
+| 效果 | 即時制對應（使用者指定） | 實作位置 |
+| --- | --- | --- |
+| 連續攻擊時，產生總合傷害 | 10 秒內攻擊消耗 40/50/60/70 體力 → 總合傷害 +10/+20/+30/+40 | `comboBigDamageBonus()` → `relicAttackHitBonus()` |
+| 斧槍旋風 | 10 秒內斧槍 2Hit 兩次 → 對雜兵 ■ | `maybeApplyHalberdWhirlwind()` |
+| 技能強化（防禦支援） | 旋風後 10 秒內全體 PC 減傷 10% | `meta.partyDamageReduce*` → `resolveMyIncomingHit()` |
+| 盾構戰鬥的達人 | 刺突系＋盾時體力上限 +10 | `shieldFormationActive()` → `updateStamina()` |
+| 致命一擊後，消失身影 | 致命一擊後體力 +10、該擊不計敵視 | `suppressAggroOnce` → `damageCombatTarget()` |
+| 攻擊連續時，HP回復 | 10 秒內攻擊消耗 40 體力 → HP 回復 □ | `recordAttackForRelics()` |
+| 技能強化（敵人弱化） | 逆襲後，敵人**下一個攻擊動作**亂戰傷害 −120 | `fieldTrigger.nextGroupDamageReduceAmount` |
+| 技藝強化（堅陣） | 圖騰・史黛拉後 10 秒內全體 PC「HP價值 +20」 | `meta.partyGuardBonus*` → `currentGuardInfo()` |
+| 祈禱輔助強化火力提升 | 用祈禱時進入火力提升，時限由 10 秒延長為 **60 秒** | `maybeApplyPrayerFirepower()`（共用 `_relicAtkBuffUntil`） |
+
+`attackStaminaWindow` 改成純粹的 10 秒滑動視窗：現在有三個效果共用它
+（連續攻擊時FP回復／攻擊連續時HP回復／連續攻擊時產生總合傷害），任何一個觸發就清空
+會害其他兩個算錯，改用各自的「上次觸發時間」節流。
+
+### 18.3 C 組
+
+- 技能強化（血祭）／技藝強化（毒箭）：在 `applyRelicAbilityPostEffect()` 依 abilityId 追加屬性蓄積。
+- 技能強化（僅微無敵）：接成特殊防禦選項（`availableSpecialDefenseOption()` 的
+  `restageDefense` 分支）。規則書沒寫消耗，改成佔用「技能」冷卻，避免無限免費完全無敵。
+- 靈體消滅時 HP／FP 回復：`maybeApplySpiritDeathRelics()`。**已知限制**：midnight 目前
+  沒有任何會扣減靈體 HP 的路徑（靈體只會攻擊、不會被打），因此實際上只有「靈體 HP 已是 0
+  時被清除」才會觸發，邏輯先備妥。
+- 技藝強化（以自身HP交換回復）：原文是「**可任選**」，因此做成角色視窗的開關
+  （`_artHpExchangeMode`），開啟時使用不死行軍才會把自身 HP 設為 □ 並讓其他 PC 各回復 □×5。
+- 使用通用消耗品時HP回復：5 種通用消耗品使用後自身 HP +□。
+- 聖潔燈火／雷擊之步：這兩條在 `character_types.js` **缺 `variantEntry` 欄位**（隱者本體的
+  4 個變體都有），導致習得後沒有任何發動入口。已補上資料——聖潔燈火共用隱者本體
+  「聖光燈火」的 id（`hybrid_magic_holy_light`，`applyRelicAbilityPostEffect()` 已有處理），
+  雷擊之步是 `kind:"Defense"`，自動接到特殊防禦選項。
+- 防禦成功時，屬性蓄積無效：midnight 既有實作本來就只在「完全命中」時才累積屬性／異常，
+  防禦成功時本來就不會蓄積，此效果已被既有行為涵蓋（無需額外程式碼）。
+- 防禦反擊強化（斧槍）：改為「吃到防禦反擊折扣的那一擊，若揮的是斧槍則總合傷害 +15」
+  （見 §17 的更正）。
+
+### 18.4 混成魔法變體快速切換鈕
+
+使用者明確規格「混成魔法按鈕旁邊多個切換按鈕，可以更快速選得想要發動的變體（需學習
+該遺物效果才顯示）」。`#btn-midnight-skill-variant` 按一下循環到下一個已習得的變體，
+寫的是跟角色視窗完全相同的 `c._selectedSkillVariantIndex`，不是另一套狀態；
+沒有習得任何變體時自動隱藏。
+
+### 18.5 回歸測試
+
+`tools/midnight_check/relic_batch_2026_09_12_check.js`（`npm run test:relic_batch_2026_09_12`）：
+11 個斷言（異常狀態達成的歡喜的 HP/FP +20、盾構戰鬥的達人的體力上限、防禦支援與堅陣的
+party-wide 欄位、變體切換鈕的顯示/循環/隱藏）。
