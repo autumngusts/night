@@ -3115,6 +3115,9 @@
     cs.hitIndex = isThirdHit ? 0 : cs.hitIndex + 1;
     var damage = useHit2 ? info.dmg.hit2Damage : info.dmg.hit1Damage;
     var damageSymbol = useHit2 ? info.dmg.hit2Symbol : info.dmg.hit1Symbol;
+    // 防禦反擊強化（斧槍）：這一擊有吃到防禦反擊折扣、且揮的是斧槍時，反擊傷害+15
+    // （使用者2026-09-11指定），見guardCounterHalberdBonus()。
+    damage += guardCounterHalberdBonus(c, info.weaponId, !!discountPct);
     recordAttackForRelics(c, staminaCost, now);
     damageCombatTarget(damage, damageSymbol);
     // 雙手持握的削韌強化：2Hit額外帶一個▲（Guard削減），見twoHandGuardBreakSymbol()。
@@ -5648,10 +5651,13 @@
   //     扣血計算之前呼叫（本函式在showActionFlash那一段被呼叫，早於下方的damage transaction）。
   //   ・防禦反擊：規則書要「支付骰子消耗3對敵人造成1Hit傷害」，使用者2026-09-11改成
   //     「下一個攻擊消費體力-25%（可疊加）」——改存成角色欄位，由handleAttackClick()
-  //     的體力計算讀取（見guardCounterDiscountPct()）。斧槍版的「+15」在原規則是反擊
-  //     傷害加成，改成折扣制後沒有對應的數值出口，維持不生效（見
-  //     docs/midnight_relic_effects_audit.md 的已知限制）。
+  //     的體力計算讀取（見guardCounterDiscountPct()）。
+  //   ・防禦反擊強化（斧槍）：使用者2026-09-11再次明確指定「反擊傷害 +15」。折扣制下的
+  //     「反擊」＝那一次享受到折扣的攻擊，因此實作成「消耗掉防禦反擊折扣的那一擊，
+  //     若裝備斧槍則總合傷害 +15」（習得多個就疊加）。見guardCounterHalberdBonus()。
   var GUARD_COUNTER_DISCOUNT_PCT = 25;
+  var GUARD_COUNTER_HALBERD_BONUS = 15;
+  var HALBERD_CATEGORY_ID = "halberd";
 
   function applyGuardSuccessRelics() {
     var c = characters[myTokenId];
@@ -5674,6 +5680,16 @@
     if (!c || !c._guardCounterStacks) return;
     c._guardCounterStacks = 0;
     GameStorage.rtSet(gameId, "cloud", "character/" + myTokenId + "/_guardCounterStacks", 0);
+  }
+
+  // 「防禦反擊強化（斧槍）」的反擊傷害加成：只有「這一擊確實吃到防禦反擊折扣」且
+  // 這次用的武器是斧槍時才加（規則書的條件是「裝備『斧槍』時」，這裡取實際揮出的那把，
+  // 避免左右手一把斧槍一把別的時兩邊都拿到加成）。
+  function guardCounterHalberdBonus(c, weaponId, discountApplied) {
+    if (!discountApplied || !hasRelic(c, "guardCounterHalberd")) return 0;
+    var w = weaponId ? Weapons.get(baseCatalogId(weaponId)) : null;
+    if (!w || w.category !== HALBERD_CATEGORY_ID) return 0;
+    return countRelic(c, "guardCounterHalberd") * GUARD_COUNTER_HALBERD_BONUS;
   }
 
   function resolveMyIncomingHit(st, kind) {
