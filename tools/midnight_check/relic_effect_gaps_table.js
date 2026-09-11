@@ -33,6 +33,8 @@ function classify(e) {
   if (midnightSrc.indexOf(zh) !== -1 || (ja && midnightSrc.indexOf(ja) !== -1)) return "OK_direct";
   if (COVERED_BY_GENERIC.test(body)) return "OK_generic";
   if (zh.indexOf("2Hit攻擊的達人") === 0) return "OK_mastery";
+  if (e.variantEntry) return "OK_variant"; // learnedVariantEntries()：角色面板可切換的替代招式
+  if (zh === "發現力＋") return "OK_drawer"; // CharacterDrawer.potentialPowerDrawWeapon() 內建
   if (e.kind === "Action") return "G_action";
   if (TURN_BASED.test(body)) return "G_turn";
   if (zh.indexOf("技藝強化") !== -1 || zh.indexOf("技能強化") !== -1) return "G_ability";

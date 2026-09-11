@@ -1240,6 +1240,7 @@
   }
 
   var lastShownTileRewardAt = null; // 本地only：避免板塊獎勵toast在每次character/資料更新時重複跳出
+  var lastSharedItemEffectAt = null; // 本地only：同款，供「道具效果擴大」廣播的消耗品效果去重（見applyItemEffectExpand()）
 
   var fpInitialized = false; // 本地only：角色資料首次抵達時，把fp（本地端資源，不同步）
   // 從開頭的FP_BASE bootstrap值一次性灌滿到真正的selfFpMax(c)，避免顯示「10/40」這種
@@ -1253,6 +1254,16 @@
       fpInitialized = true;
       fp.max = selfFpMax(mine);
       fp.current = fp.max;
+    }
+    // 「道具效果擴大」廣播來的消耗品效果（見applyItemEffectExpand()）：由收到的這台裝置
+    // 自己套用，才能真的動到FP/體力/本地buff。用時間戳比對避免重複套用。
+    if (mine && mine._sharedItemEffect && mine._sharedItemEffect.itemId) {
+      if (lastSharedItemEffectAt !== null && mine._sharedItemEffect.at !== lastSharedItemEffectAt) {
+        applyMidnightConsumableEffect(mine, mine._sharedItemEffect.itemId);
+        var sharedItem = window.PriTestConsumables.get(mine._sharedItemEffect.itemId);
+        if (sharedItem) showToast(window.I18N.t("midnight_item_expand_received_toast", { item: window.PriTestConsumables.localizedText(sharedItem.name) }));
+      }
+      lastSharedItemEffectAt = mine._sharedItemEffect.at;
     }
     if (mine && mine._lastTileRewardNote) {
       if (lastShownTileRewardAt !== null && mine._lastTileRewardNote.at !== lastShownTileRewardAt) {
@@ -1934,6 +1945,8 @@
     });
     el("btn-midnight-strong-enemy-enter").addEventListener("click", handleStrongEnemyEnterClick);
     el("btn-midnight-flee-battle").addEventListener("click", handleFleeBattleClick);
+    el("btn-midnight-execution").addEventListener("click", handleExecutionClick);
+    el("btn-midnight-spirit-manage").addEventListener("click", handleSpiritManageClick);
     el("btn-midnight-blessing-claim").addEventListener("click", handleBlessingEnterClick);
     el("btn-midnight-blessing-use").addEventListener("click", handleBlessingUseClick);
     el("btn-midnight-blessing-close").addEventListener("click", closeBlessingModal);
@@ -2119,6 +2132,10 @@
   // （避免guardValueForCount()查到guardValueTable沒有定義的count而回傳null）。
   function currentGuardCountForTrig(trig, guardMax) {
     if (!trig) return guardMax;
+    // 體崩中（2026-09-11，使用者明確規格「此期間敵人的防禦次數皆以最低計算」）：
+    // Guard Point一律視為0，對應guardValueTable裡最低的HP價值＝減傷最少。
+    // 放在最前面，優先於guardBrokenAt與lBonus（體崩期間不受L補正墊高）。
+    if (staggerActiveForTrig(trig)) return 0;
     var brokenAt = trig.guardBrokenAt || null;
     if (brokenAt) return Date.now() - brokenAt >= GUARD_BREAK_RECOVER_MS ? guardMax : 0;
     var units = trig.guardUnits || 0;
@@ -2180,12 +2197,54 @@
     return Math.round(totalWithBargainBonus * 100 * testMult("enemyHpMult"));
   }
 
+  // ---- 敵人「體崩」狀態（2026-09-11新增，使用者明確規格）----
+  // 累積來源：跟Guard Point下降同一份▲◆單位（▲=1／◆=2），但另外存一份
+  // trig.staggerUnits——guardUnits會在破防5秒後被回復流程歸零，體崩累積不能跟著歸零，
+  // 所以是獨立欄位。累積滿STAGGER_THRESHOLD_UNITS（36單位＝6次Guard Point下降，使用者
+  // 明確選擇）就進入體崩：
+  //   ・持續STAGGER_DURATION_MS（3秒）
+  //   ・期間Guard Point一律以最低（0）計算 → HP價值最低 → 減傷最少（見
+  //     currentGuardCountForTrig()的stagger分支）
+  //   ・期間敵人不會發動任何攻擊（見maybeStartEnemyAttack()）
+  //   ・敵人圖片上方顯示綠底「體崩中！！」（見renderFieldEncounterPanel()）
+  // 加速：HP百分比「大於40%且小於60%」時累積×3（使用者明確規格，原則上一場戰鬥體崩1~2次）。
+  // staggerSeq：每次進入體崩就+1，供「致命一擊」判斷「同一次體崩只能有一名PC按一次」
+  // （見handleExecutionClick()），用序號而不是時間戳，避免多裝置時鐘差造成誤判。
+  var STAGGER_THRESHOLD_UNITS = 36;
+  var STAGGER_DURATION_MS = 3000;
+  var STAGGER_ACCEL_MULT = 3;
+  var STAGGER_ACCEL_HP_MIN_PCT = 40; // 大於40%
+  var STAGGER_ACCEL_HP_MAX_PCT = 60; // 且小於60%
+
+  function staggerActiveForTrig(trig, now) {
+    return !!(trig && trig.staggerUntil && (now || Date.now()) < trig.staggerUntil);
+  }
+
+  function activeEncounterStaggering(now) {
+    if (!activeEncounter) return false;
+    return staggerActiveForTrig(fieldTriggers[activeEncounter.id], now);
+  }
+
+  // 目前HP百分比（0~100）；HP尚未寫入時視為滿血。
+  function enemyHpPercent(pointId, trig) {
+    var max = enemyRealHpMax(trig);
+    if (!max) return 100;
+    var cur = fieldEnemyHp[pointId];
+    return ((cur === undefined ? max : cur) / max) * 100;
+  }
+
+  function staggerUnitsGain(pointId, trig, units) {
+    var pct = enemyHpPercent(pointId, trig);
+    return pct > STAGGER_ACCEL_HP_MIN_PCT && pct < STAGGER_ACCEL_HP_MAX_PCT ? units * STAGGER_ACCEL_MULT : units;
+  }
+
   function recordGuardReductionForPoint(pointId, symbol) {
     var units = symbol === "◆" ? 2 : symbol === "▲" ? 1 : 0;
     if (!units) return;
     var trig = fieldTriggers[pointId];
     var fam = guardDataForTrig(trig);
     if (!fam || typeof fam.guardCount !== "number") return;
+    var staggerGain = staggerUnitsGain(pointId, trig, units);
     GameStorage.rtTransaction(gameId, "cloud", "fieldTrigger/" + pointId, function (cur) {
       if (!cur) return cur;
       var out = {};
@@ -2206,8 +2265,303 @@
       out.guardUnits = u;
       out.guardBrokenAt = brokenAt;
       if (newGuard === 0) out.everGuardBroken = true;
+      // 體崩累積（見上方說明）：體崩進行中不再累積，避免3秒內把下一次也灌滿。
+      var now = Date.now();
+      if (!(out.staggerUntil && now < out.staggerUntil)) {
+        var su = (out.staggerUnits || 0) + staggerGain;
+        if (su >= STAGGER_THRESHOLD_UNITS) {
+          out.staggerUnits = 0;
+          out.staggerUntil = now + STAGGER_DURATION_MS;
+          out.staggerSeq = (out.staggerSeq || 0) + 1;
+          out.executionUsedSeq = null; // 新的一次體崩，致命一擊重新開放
+        } else {
+          out.staggerUnits = su;
+        }
+      }
       return out;
     });
+  }
+
+  // ============================================================================
+  // 遺物效果（Passive）共同套用層（2026-09-11新增）
+  // ============================================================================
+  // 這一層只負責「查角色有沒有習得某個遺物效果」與「把加成算成數字」，實際注入點分散在
+  // computeSideAttackInfo()／computeMidnightSkillDamage()／updateStamina()等既有計算處，
+  // 不另外建立平行的傷害管線（CLAUDE.md §41「優先重用既有 helper／state／pipeline」）。
+  // 名稱同時列 zh／ja 是因為 CharacterDrawer.findLearnedRelicEffectByName() 兩種都比對，
+  // 而同一個效果在暗黑／黎明變體的本文措辭可能略有不同、名稱則一致。
+  var RELIC = {
+    flaskFp: ["聖杯瓶可回復FP", "聖杯瓶でFP回復可能"],
+    flaskGulp: ["一口氣飲盡", "一気飲み"],
+    skillUsesPlus1: ["技能使用次數＋1", "スキル使用回数＋1"],
+    twoHandGuardBreak: ["雙手持握的削韌強化", "両手持ちのガード削り強化"],
+    elementAccumPlus1: ["屬性蓄積值＋1", "属性蓄積値＋1"],
+    elementJoy: ["屬性達成的歡喜", "属性達成の歓喜"],
+    staminaLowRegen: ["回合結束時，體力骰帶入1個", "ターン終了時、スタミナダイス1個持ち越し"],
+    staminaMaxPlus: ["防禦階段開始時體力骰回復", "ディフェンス開始時スタミナダイス回復"],
+    staminaComboRecover: ["連續攻擊時體力回復", "攻撃連続時、スタミナ回復"],
+    fpComboRecover: ["連續攻擊時FP回復", "攻撃連続時、FP回復"],
+    rearGuardTactics: ["後衛戰術", "後衛戦術"],
+    dualWieldMaster: ["雙刀持握的達人", "二刀持ちの達人"],
+    hp130: ["130傷害回復HP", "130ダメージでHP回復"],
+    fp130: ["130傷害回復FP", "130ダメージでFP回復"],
+    itemEffectExpand: ["道具效果擴大", "アイテム効果拡大"],
+    // 各角色專屬
+    artBurn: ["技藝強化（燃燒）", "アーツ強化（炎上）"],
+    skillFlameCloak: ["技能強化（纏火）", "スキル強化（炎の纏い）"],
+    skillTimeExtend: ["技能強化（延長時間）", "スキル強化（時間延長）"],
+    artHpRecover: ["技藝強化（HP回復）", "アーツ強化（HP回復）"],
+    guardCounterHalberd: ["防禦反擊強化（斧槍）", "ガードカウンター強化（斧槍）"],
+    guardHpRecover: ["防禦成功時HP回復", "ガード成功時、HP回復"],
+    guardAilmentImmune: ["防禦成功時異常狀態蓄積無效", "ガード成功時、状態異常蓄積無効"],
+    thrustCounterMaster: ["突刺反擊的達人", "刺突カウンターの達人"],
+    easilyTargeted: ["容易被盯上", "狙われやすい"],
+    guardCounter: ["防禦反擊", "ガードカウンター"],
+    hit1Boost: ["1Hit攻擊強化", "1Hitアタック強化"],
+    hit2Boost: ["2Hit攻擊強化", "2Hitアタック強化"],
+    skillPoisonBlade: ["技能強化（毒刃）", "スキル強化（毒刃）"],
+    skillDamageUp: ["技能強化（損害增加）", "スキル強化（損害増加）"],
+    artAtkUp: ["技藝強化（攻擊力提升）", "アーツ強化（攻撃力上昇）"],
+    daggerRestage: ["短劍重演", "短剣リステージ"],
+    freeReroll: ["回合中限1次裝備變更免費", "ターン中1回だけ装備変更無償"],
+    skillIntercept: ["技能強化（迎擊）", "スキル強化（迎撃）"],
+    familyBoost: ["家族強化", "ファミリー強化"],
+    familyCoop: ["家族共鬥", "ファミリー共闘"],
+    artSpiritFlame: ["技藝強化（靈炎爆發）", "アーツ強化（霊炎爆発）"],
+    abilityMagicGround: ["能力強化（魔術之地）", "アビリティ強化（魔術の地）"],
+    artBleedAtkUp: ["技藝強化（出血攻擊力強化）", "アーツ強化（出血攻撃力強化）"],
+    turnStep: ["轉身之步", "転身のステップ"],
+    holyVeil: ["聖幕", "聖なる帳"],
+    artHealingRoar: ["技藝強化（治癒咆哮）", "アーツ強化（癒しの咆哮）"],
+    artContinuousDamage: ["技藝強化（持續傷害）", "アーツ強化（継続ダメージ）"],
+    maxBlessingUp: ["最大加護提升", "最大加護上昇"],
+    greaseMaster: ["武器脂的達人", "武器脂の達人"],
+    skillAllySupport: ["技能強化（夥伴支援）", "スキル強化（仲間支援）"],
+    thrift: ["節約術", "節約術"],
+    artAtkBoost: ["技藝強化（攻擊力強化）", "アーツ強化（攻撃力強化）"],
+  };
+
+  function hasRelic(c, key) {
+    return !!(c && CharacterDrawer.findLearnedRelicEffectByName && CharacterDrawer.findLearnedRelicEffectByName(c, RELIC[key]));
+  }
+
+  function countRelic(c, key) {
+    return c && CharacterDrawer.countLearnedRelicEffectsByName ? CharacterDrawer.countLearnedRelicEffectsByName(c, RELIC[key]) : 0;
+  }
+
+  // 「技藝強化（攻擊力強化／攻擊力提升／出血攻擊力強化）」三個遺物的規則本文結構相同：
+  // 使用對應技藝後的一段時間內「攻擊 1Hit:+5／2Hit:+10、戰技・魔術・祈禱 +10」。
+  // 使用者2026-09-11把三者的持續時間都指定為10秒（原文是「直到階段結束」），因此共用
+  // 同一個角色欄位 _relicAtkBuffUntil，由 useCharacterAbility() 在對應技藝發動時寫入。
+  var RELIC_ATK_BUFF_MS = 10000;
+  var RELIC_ATK_BUFF_HIT1 = 5;
+  var RELIC_ATK_BUFF_HIT2 = 10;
+  var RELIC_ATK_BUFF_SKILL = 10;
+  // 技藝id → 對應的強化遺物key（習得該遺物時，使用該技藝才會掛上buff）
+  var RELIC_ATK_BUFF_BY_ABILITY = {
+    ominous_strike: "artAtkBoost", // 送葬人「不祥一擊」
+    finale: "artAtkUp", // 淑女「終曲」
+    song_of_blood_spirit: "artBleedAtkUp", // 隱者「血魂之歌」
+  };
+
+  function relicAtkBuffActive(c, now) {
+    return !!(c && c._relicAtkBuffUntil && c._relicAtkBuffUntil > (now || Date.now()));
+  }
+
+  // 同時裝備2把「相同類別」的近戰武器（雙刀持握的達人）。
+  function dualWieldSameCategory(c) {
+    if (!c || !c.equippedWeaponIdL || !c.equippedWeaponIdR) return false;
+    if (c.equippedWeaponIdL === c.equippedWeaponIdR) return false;
+    var wl = Weapons.get(baseCatalogId(c.equippedWeaponIdL));
+    var wr = Weapons.get(baseCatalogId(c.equippedWeaponIdR));
+    if (!wl || !wr || wl.category !== wr.category) return false;
+    var cat = Weapons.getCategory(wl.category);
+    return !!cat && !cat.isShield && !cat.isRanged && cat.id !== "staff" && cat.id !== "sacred_seal";
+  }
+
+  // 突刺反擊的達人的對象武器種類（規則書列舉）＋射擊武器。
+  var THRUST_COUNTER_CATEGORY_IDS = ["rapier", "heavy_rapier", "spear", "great_spear", "halberd"];
+
+  // 「攻擊過10次以上（敵視：1以上）」：midnight 的敵視＝對這隻敵人的累積傷害
+  // （fieldTrigger/{id}/damageBySlot），沒有「攻擊次數」欄位，因此改用自己這一場實際
+  // 攻擊過的次數（本地計數 attackCountThisEncounter，離開戰鬥即歸零，見onEncounterEnded()）。
+  // 「容易被盯上」＝視為已達成，直接回傳 true。
+  var THRUST_COUNTER_ATTACK_THRESHOLD = 10;
+
+  function thrustCounterActive(c) {
+    if (!hasRelic(c, "thrustCounterMaster")) return false;
+    if (hasRelic(c, "easilyTargeted")) return true;
+    return attackCountThisEncounter >= THRUST_COUNTER_ATTACK_THRESHOLD;
+  }
+
+  // 一般攻擊的遺物加成（回傳 {hit1, hit2}，單位是總合傷害）。weaponId 決定武器種類相關的
+  // 條件（後衛戰術＝射擊武器、突刺反擊的達人＝刺突系與射擊武器、武器脂的達人＝已塗脂）。
+  function relicAttackHitBonus(c, weaponId) {
+    var out = { hit1: 0, hit2: 0 };
+    if (!c) return out;
+    var weapon = weaponId ? Weapons.get(baseCatalogId(weaponId)) : null;
+    var category = weapon ? Weapons.getCategory(weapon.category) : null;
+    var isRanged = !!(category && category.isRanged);
+    function add(h1, h2) {
+      out.hit1 += h1;
+      out.hit2 += h2;
+    }
+    // 後衛戰術：規則書是「自身位於後衛時」，midnight 沒有前衛/後衛（既有簡化，見
+    // availableSpecialAttackEntries() 的同款說明），因此位置條件不套用，只保留武器條件。
+    if (isRanged && hasRelic(c, "rearGuardTactics")) add(5, 10);
+    if (dualWieldSameCategory(c) && hasRelic(c, "dualWieldMaster")) add(5, 10);
+    if (hasRelic(c, "familyCoop") && c.summonedSpirit && c.summonedSpirit.hp > 0) add(5, 10);
+    if (thrustCounterActive(c) && category && (isRanged || THRUST_COUNTER_CATEGORY_IDS.indexOf(category.id) !== -1)) add(5, 10);
+    if (hasRelic(c, "greaseMaster") && c._greaseWeaponId && c._greaseWeaponId === weaponId) add(5, 10);
+    if (relicAtkBuffActive(c)) add(RELIC_ATK_BUFF_HIT1, RELIC_ATK_BUFF_HIT2);
+    // 1Hit/2Hit 攻擊強化：只加在對應的那一段。1Hit 版在武器威力補正為「力量」時再+5。
+    if (hasRelic(c, "hit1Boost")) {
+      var artInfo = weaponId ? CharacterDrawer.computeArtPower(c, weaponId) : null;
+      var isStrength = !!(artInfo && /力量|筋力/.test(artInfo.powerModText || ""));
+      add(isStrength ? 10 : 5, 0);
+    }
+    if (hasRelic(c, "hit2Boost")) add(0, 5);
+    return out;
+  }
+
+  // 戰技／魔術／祈禱的遺物加成（總合傷害）。
+  function relicSkillDamageBonus(c) {
+    if (!c) return 0;
+    var total = 0;
+    if (hasRelic(c, "rearGuardTactics")) total += 5;
+    if (hasRelic(c, "familyCoop") && c.summonedSpirit && c.summonedSpirit.hp > 0) total += RELIC_ATK_BUFF_SKILL;
+    if (relicAtkBuffActive(c)) total += RELIC_ATK_BUFF_SKILL;
+    return total;
+  }
+
+  // 雙手持握的削韌強化：「僅在自身只裝備1把『威力補正：力量／平衡』的武器時，為2Hit攻擊
+  // 產生的傷害追加『+▲』」。▲在傷害文字裡是 Guard 削減記號（見 CLAUDE.md §18），因此
+  // 這裡不是加數值，而是讓 2Hit 命中多帶一個▲（recordGuardReductionForPoint 會收下）。
+  function twoHandGuardBreakSymbol(c, weaponId) {
+    if (!hasRelic(c, "twoHandGuardBreak")) return null;
+    if (!c.equippedWeaponIdL || !c.equippedWeaponIdR) return null;
+    if (c.equippedWeaponIdL !== c.equippedWeaponIdR) return null; // 只裝備1把（左右手同一把＝雙手持握）
+    var artInfo = weaponId ? CharacterDrawer.computeArtPower(c, weaponId) : null;
+    var label = (artInfo && artInfo.powerModText) || "";
+    return /力量|筋力|平衡|バランス/.test(label) ? "▲" : null;
+  }
+
+  // ---- 遺物效果「致命一擊」（2026-09-11新增，使用者明確規格）----
+  // 「該玩家習得後，當敵人體崩時敵人圖片中會出現致命一擊選項，按下即可造成傷害並消失。
+  //   敵人一次體崩狀態中，僅限一名玩家按下一次該按鈕，未習得的人不會出現該按鈕，
+  //   若未裝備近戰武器則無法使用。」
+  // 傷害沿用規則書原文【總合傷害：120】，習得2個時+20並在行動後對自身HP/FP各回復□
+  // （淑女版原文）。規則書的「消耗：豹子（3個）」是骰池特有的條件（同時出現3個相同出目），
+  // 即時制沒有骰池、使用者的規格也只寫「按下即可造成傷害」，因此不收體力費用——
+  // 限制改由「只有體崩中的3秒內、且整隊只能有一個人按一次」承擔。
+  var EXECUTION_RELIC_NAMES = ["致命一擊", "致命の一撃"];
+  var EXECUTION_RUNE_RELIC_NAMES = ["致命一擊獲得盧恩", "致命の一撃でルーン獲得"];
+  var EXECUTION_BASE_DAMAGE = 120;
+  var EXECUTION_MULTI_LEARN_BONUS = 20;
+
+  // 目前裝備的是不是近戰武器（跟availableSpecialAttackEntries()同一組判斷）。
+  function hasMeleeWeaponEquipped(c) {
+    if (!c) return false;
+    return ["R", "L"].some(function (side) {
+      var weaponId = c["equippedWeaponId" + side];
+      var weapon = weaponId ? Weapons.get(baseCatalogId(weaponId)) : null;
+      var category = weapon && Weapons.getCategory(weapon.category);
+      return !!category && !category.isShield && !category.isRanged && category.id !== "staff" && category.id !== "sacred_seal";
+    });
+  }
+
+  function executionRelicCount(c) {
+    return CharacterDrawer.countLearnedActionRelicsByName ? CharacterDrawer.countLearnedActionRelicsByName(c, EXECUTION_RELIC_NAMES) : 0;
+  }
+
+  // 這一刻自己能不能按致命一擊（按鈕顯示條件與點擊守衛共用同一份判斷）。
+  function executionAvailable(now) {
+    if (!mySlot || isPaused() || isSelfDowned() || !activeEncounter) return false;
+    var c = characters[myTokenId];
+    if (!c || !executionRelicCount(c) || !hasMeleeWeaponEquipped(c)) return false;
+    var trig = fieldTriggers[activeEncounter.id];
+    if (!staggerActiveForTrig(trig, now)) return false;
+    return (trig.executionUsedSeq || 0) !== (trig.staggerSeq || 0);
+  }
+
+  function handleExecutionClick() {
+    if (!executionAvailable(Date.now())) return;
+    var pointId = activeEncounter.id;
+    var trig = fieldTriggers[pointId];
+    var seq = trig.staggerSeq || 0;
+    var wonRace = false;
+    // first-writer-wins：同一次體崩只能有一個人成功（多人同時按下時，只有把
+    // executionUsedSeq從舊值改成seq的那一筆會commit）。
+    GameStorage.rtTransaction(gameId, "cloud", "fieldTrigger/" + pointId + "/executionUsedSeq", function (cur) {
+      if ((cur || 0) === seq) {
+        wonRace = false;
+        return cur;
+      }
+      wonRace = true;
+      return seq;
+    }).then(function () {
+      if (!wonRace) return;
+      var c = characters[myTokenId];
+      if (!c) return;
+      var count = executionRelicCount(c);
+      var damage = EXECUTION_BASE_DAMAGE + (count >= 2 ? EXECUTION_MULTI_LEARN_BONUS : 0);
+      damageCombatTarget(damage, null);
+      triggerEnemyHitEffect(null);
+      // 習得2個時：「此行動後，對自身施加「HP回復：□」與「FP回復：□」」（淑女版原文）。
+      if (count >= 2) {
+        healSelfHp(BLOCK_SQUARE_COUNT_TO_RESOURCE_MULT);
+        healSelfFp(BLOCK_SQUARE_COUNT_TO_RESOURCE_MULT);
+      }
+      showToast(window.I18N.t("midnight_execution_button") + window.I18N.t("colon_separator") + damage);
+      broadcastCombatActionBubble(window.I18N.t("midnight_execution_button"));
+      maybeGrantExecutionRunes(pointId);
+    });
+  }
+
+  // 遺物效果「致命一擊獲得盧恩」：「每次發動致命一擊，全體PC獲得盧恩：1。此效果1次戰鬥中
+  // 僅發揮1次（即使多名PC擁有此技能，也僅發揮1次）」。判斷「有沒有任何一位在場PC習得」
+  // ——不限定按下致命一擊的那個人自己有；戰鬥單位用fieldTrigger（一個地圖點＝一場戰鬥），
+  // 用transaction的first-writer-wins保證整場只發一次。
+  function maybeGrantExecutionRunes(pointId) {
+    var anyHolder = Object.keys(players || {}).some(function (slot) {
+      var p = players[slot];
+      var pc = p && characters[p.tokenId];
+      return !!(pc && CharacterDrawer.findLearnedRelicEffectByName(pc, EXECUTION_RUNE_RELIC_NAMES));
+    });
+    if (!anyHolder) return;
+    var wonRace = false;
+    GameStorage.rtTransaction(gameId, "cloud", "fieldTrigger/" + pointId + "/executionRuneGranted", function (cur) {
+      if (cur) {
+        wonRace = false;
+        return cur;
+      }
+      wonRace = true;
+      return true;
+    }).then(function () {
+      if (!wonRace) return;
+      Object.keys(players || {}).forEach(function (slot) {
+        var p = players[slot];
+        if (!p || !p.tokenId) return;
+        GameStorage.rtTransaction(gameId, "cloud", "character/" + p.tokenId + "/runes", function (cur) {
+          return (cur || 0) + 1;
+        });
+      });
+      showToast(window.I18N.t("midnight_execution_rune_toast"));
+    });
+  }
+
+  // 體崩橫幅與致命一擊按鈕（每影格呼叫，見frameInner()）。renderFieldEncounterPanel()有
+  // lastRenderedEncounterKey快取、只在換敵人時才重繪，不能把這種每影格會變的狀態放進去。
+  function renderStaggerOverlay(now) {
+    var banner = el("midnight-stagger-banner");
+    var btn = el("btn-midnight-execution");
+    if (!banner || !btn) return;
+    var staggering = activeEncounterStaggering(now);
+    banner.hidden = !staggering;
+    if (staggering) banner.textContent = window.I18N.t("midnight_stagger_banner");
+    var canExecute = executionAvailable(now);
+    btn.hidden = !canExecute;
+    if (canExecute) btn.textContent = window.I18N.t("midnight_execution_button");
   }
 
   // 敵人HP上限：實際hp格數x10（使用者明確規格），取代原本demo佔位固定值30。讀
@@ -2268,6 +2622,10 @@
       hpValueUsed = hpValue;
     }
     realDamage = Math.round(realDamage * testMult("pcDmgMult"));
+    // 2026-09-11使用者明確規格「敵人最低遭受傷害還是會扣1點血量（HP價值100時也有基本傷害）」：
+    // 減傷率100%或四捨五入後歸零時，至少扣1。原本amount就是0（例如無法解算威力的招式）時
+    // 不套用——那代表「這次本來就沒有傷害」，不是被減傷吃掉。
+    if (amount > 0 && realDamage < 1) realDamage = 1;
     lastPcDamageInfo = { amount: realDamage, rawAmount: amount, hpValue: hpValueUsed, at: Date.now() };
     // 擊破偵測（2026-09-08使用者明確要求「每擊破一個敵人加快cd」）：wasAlive在updater最後
     // 一次真正commit的那次呼叫中反映「扣血前是否還活著」，跟committed===0合起來判斷「這一擊
@@ -2335,6 +2693,16 @@
   var WEAPON_SKILL_DAMAGE_MULT = 2;
   var CHARACTER_ABILITY_DAMAGE_MULT = 3;
 
+  var BIG_HIT_RELIC_THRESHOLD = 130;
+
+  function maybeApplyBigHitRelicRecovery(amount) {
+    if (amount < BIG_HIT_RELIC_THRESHOLD) return;
+    var c = characters[myTokenId];
+    if (!c) return;
+    if (hasRelic(c, "hp130")) healSelfHp(BLOCK_SQUARE_COUNT_TO_RESOURCE_MULT);
+    if (hasRelic(c, "fp130")) healSelfFp(BLOCK_SQUARE_COUNT_TO_RESOURCE_MULT);
+  }
+
   function damageCombatTarget(amount, symbol) {
     // 隱者「血魂之歌」（2026-09-08使用者明確要求「全體攻擊/戰技傷害提升*1.5倍」）：
     // party-wide時限buff（見applyMidnightAbilityPostEffect()寫入meta.bloodSongUntil），
@@ -2346,6 +2714,10 @@
       maybeApplyBloodSongRegen();
     }
     if (soloModeActive()) amount = Math.round(amount * 2);
+    // 遺物效果「130傷害回復HP／FP」（2026-09-11）：「當自身單獨造成130以上的總合傷害時」。
+    // 規則書原文是「階段結束時施加回復」，即時制沒有階段，改成當下立即回復（使用者的
+    // 規格文字對HP版也是直接回復）。□→即時制數值沿用BLOCK_SQUARE_COUNT_TO_RESOURCE_MULT。
+    maybeApplyBigHitRelicRecovery(amount);
     // 「指定」復歸傷害轉換（2026-09-08新增，見isRevivalDamageEligible()說明）：轉換成功
     // 就完全不對敵人造成傷害，也不記錄Guard Reduction／敵視——這筆攻擊已經變成救援，不是
     // 打敵人的攻擊。
@@ -2418,8 +2790,41 @@
     return activeEncounter ? activeEncounter.id : "sharedTarget";
   }
 
+  // ---- 淑女「短劍重演」（2026-09-11使用者明確規格「自身以武器種類『短劍』在10秒內進行過
+  // 2次2Hit攻擊時，對敵人產生『HP損害：■』的效果」＝10）：2Hit攻擊時呼叫，本地端視窗計時。
+  var DAGGER_RESTAGE_WINDOW_MS = 10000;
+  var daggerHit2Times = [];
+
+  function maybeApplyDaggerRestage(c, weaponId, now) {
+    if (!hasRelic(c, "daggerRestage") || !activeEncounter) return;
+    var w = Weapons.get(baseCatalogId(weaponId));
+    if (!w || w.category !== "dagger") return;
+    daggerHit2Times.push(now);
+    daggerHit2Times = daggerHit2Times.filter(function (t) {
+      return now - t <= DAGGER_RESTAGE_WINDOW_MS;
+    });
+    if (daggerHit2Times.length < 2) return;
+    daggerHit2Times = []; // 達成後重新計算，避免每次2Hit都持續觸發
+    applyDamageToFieldEnemyHp(activeEncounter.id, BLOCK_SQUARE_COUNT_TO_RESOURCE_MULT);
+  }
+
+  // 「技能強化（損害增加）」已經對這場戰鬥的哪些屬性/異常觸發過（規則書是「每被施加
+  // 『一種』屬性損害或異常狀態」，因此同一種只算一次），離開戰鬥時清空。
+  var restageDamageUpApplied = {};
+
   function recordAttributeAccum(name, amount) {
     var targetKey = currentAttributeAccumTargetKey();
+    // 遺物效果「屬性蓄積值＋1」（2026-09-11）：習得時選定1種屬性，自身對敵人造成的
+    // 該屬性蓄積值+1。選擇結果存在角色的relicAccumElementChoice（CLAUDE.md §23-25的
+    // 既有欄位，由CharacterDrawer.learnRelicEffect()寫入）。
+    var cSelf = characters[myTokenId];
+    if (cSelf && hasRelic(cSelf, "elementAccumPlus1") && relicChoiceMatches(cSelf.relicAccumElementChoice, name)) amount += 1;
+    // 淑女「技能強化（損害增加）」（2026-09-11）：持有「重演」的角色，敵人每被施加一種
+    // 屬性/異常時，追加「HP損害：■」＝10。同一種屬性一場只算一次（見restageDamageUpApplied）。
+    if (cSelf && hasRelic(cSelf, "skillDamageUp") && activeEncounter && !restageDamageUpApplied[name]) {
+      restageDamageUpApplied[name] = true;
+      applyDamageToFieldEnemyHp(activeEncounter.id, BLOCK_SQUARE_COUNT_TO_RESOURCE_MULT);
+    }
     GameStorage.rtTransaction(gameId, "cloud", "attributeAccum/" + targetKey + "/" + name, function (cur) {
       return (cur || 0) + amount;
     }).then(function (committed) {
@@ -2427,8 +2832,56 @@
     });
   }
 
+  // 遺物選擇（RELIC_CHOICE_CONFIG_BY_NAME機制，CLAUDE.md §25）存的是zh或ja其中一種寫法，
+  // 而這裡拿到的屬性/異常名稱是ja（見ATTRIBUTE_STATUS_*_NAMES_JA），因此兩邊都比對。
+  function relicChoiceMatches(choice, name) {
+    if (!choice || !name) return false;
+    if (choice === name) return true;
+    var map = window.PriTestMidnightTextAdapt && window.PriTestMidnightTextAdapt.elementAliases;
+    if (map && map[choice]) return map[choice].indexOf(name) !== -1;
+    // 沒有別名表時退回「互為子字串」的寬鬆比對（例如「炎」vs「火炎」），
+    // 不做更聰明的猜測。
+    return choice.indexOf(name) !== -1 || name.indexOf(choice) !== -1;
+  }
+
+  // 遺物效果「屬性達成的歡喜」用的本地觀測（2026-09-11）：規則書是「每當對敵人的所選屬性
+  // 蓄積值達到最大時（**不論由哪位PC累積**），對自身施加HP回復□與FP回復□」。
+  // maybeTriggerAttributeAccum()只會在「造成這次蓄積的那台裝置」上跑，而且觸發還會用
+  // first-writer-wins搶鎖，因此不能掛在那裡——改成每台裝置各自訂閱attributeAccum的變化、
+  // 各自判斷自己有沒有跨過門檻，這樣每個持有此遺物的玩家都會各自回復。
+  var joyTriggeredCount = {}; // targetKey+":"+name -> 已處理到的觸發次數
+
   function onAttributeAccumReceived(value) {
     attributeAccum = value || {};
+    maybeApplyAttributeJoyRelic();
+  }
+
+  function maybeApplyAttributeJoyRelic() {
+    var c = characters[myTokenId];
+    if (!c || !hasRelic(c, "elementJoy")) return;
+    var choice = c.relicJoyElementChoice || c.relicJoyAilmentChoice;
+    if (!choice) return;
+    Object.keys(attributeAccum || {}).forEach(function (targetKey) {
+      var byName = attributeAccum[targetKey] || {};
+      Object.keys(byName).forEach(function (name) {
+        if (!relicChoiceMatches(choice, name)) return;
+        var key = targetKey + ":" + name;
+        var count = Math.floor((byName[name] || 0) / ATTRIBUTE_STATUS_THRESHOLD);
+        var prev = joyTriggeredCount[key];
+        // 初次看到這個key時只記錄基準（避免剛進場就把既有的蓄積量全部算成「剛達成」）。
+        if (prev === undefined) {
+          joyTriggeredCount[key] = count;
+          return;
+        }
+        if (count <= prev) {
+          joyTriggeredCount[key] = count; // 異常觸發後會歸零，基準跟著降回去
+          return;
+        }
+        joyTriggeredCount[key] = count;
+        healSelfHp(BLOCK_SQUARE_COUNT_TO_RESOURCE_MULT);
+        healSelfFp(BLOCK_SQUARE_COUNT_TO_RESOURCE_MULT);
+      });
+    });
   }
 
   // 蓄積值每跨過一次閾值＝一次觸發（屬性可超額累計、同一時間可能觸發多次；狀態異常則
@@ -2525,8 +2978,11 @@
     // 見CharacterDrawer.fightingSpiritFlatBonus()）。
     var unyieldingBonus = unyieldingHitBonus(c);
     var fightingSpiritBonus = CharacterDrawer.fightingSpiritFlatBonus(c, selfArenaHp());
-    var extraHitBonus = unyieldingBonus.hit1 + fightingSpiritBonus;
-    var extraHit2Bonus = unyieldingBonus.hit2 + fightingSpiritBonus;
+    // 2026-09-11：遺物效果的一般攻擊加成（後衛戰術／雙刀持握的達人／家族共鬥／突刺反擊的
+    // 達人／武器脂的達人／1Hit・2Hit攻擊強化／技藝強化的攻擊力buff），見relicAttackHitBonus()。
+    var relicHitBonus = relicAttackHitBonus(c, weaponId);
+    var extraHitBonus = unyieldingBonus.hit1 + fightingSpiritBonus + relicHitBonus.hit1;
+    var extraHit2Bonus = unyieldingBonus.hit2 + fightingSpiritBonus + relicHitBonus.hit2;
     if (extraHitBonus || extraHit2Bonus) {
       dmg = {
         hit1Damage: dmg.hit1Damage + extraHitBonus,
@@ -2611,6 +3067,14 @@
         damageCombatTarget(30, null);
         triggerEnemyHitEffect(null);
       }
+      // 執行者「技藝強化（治癒咆哮）」（2026-09-11）：「使用『咆哮』時，對任意1名PC施加
+      // 『HP回復：□□』」＝+20。midnight沒有目標選擇UI，對象取隊伍中第一位其他PC，
+      // 沒有其他PC時回自己（比照聖光燈火同款簡化）。
+      if (hasRelic(characters[myTokenId], "artHealingRoar")) {
+        var roarHeal = BLOCK_SQUARE_COUNT_TO_RESOURCE_MULT * 2;
+        if (firstOtherPcTokenId()) healOneOtherPc(roarHeal);
+        else healSelfHp(roarHeal);
+      }
       showToast(window.I18N.t("midnight_crucible_roar_button") + "：30");
       broadcastCombatActionBubble(window.I18N.t("midnight_crucible_roar_button"));
     }
@@ -2634,7 +3098,13 @@
     // 遺物效果「2Hit攻擊的達人」：見twoHitMasteryPoints()說明。冷卻只在真正發動時才起算。
     var masteryHit = twoHitMasteryPoints(c, info, useHit2, points, now);
     if (masteryHit) points = masteryHit.points;
-    if (!spendStamina(points * DICE_COUNT_TO_STAMINA_MULT)) return;
+    // 遺物效果「防禦反擊」：防禦成功後下一次攻擊的體力消耗-25%（可疊加），見
+    // applyGuardSuccessRelics()／guardCounterDiscountPct()。折扣用完即清空。
+    var staminaCost = points * DICE_COUNT_TO_STAMINA_MULT;
+    var discountPct = guardCounterDiscountPct(c);
+    if (discountPct) staminaCost = Math.max(0, Math.round(staminaCost * (1 - discountPct / 100)));
+    if (!spendStamina(staminaCost)) return;
+    if (discountPct) consumeGuardCounterDiscount(c);
     if (masteryHit) {
       c._twoHitMasteryCooldownUntil = now + TWO_HIT_MASTERY_COOLDOWN_MS;
       GameStorage.rtSet(gameId, "cloud", "character/" + myTokenId + "/_twoHitMasteryCooldownUntil", c._twoHitMasteryCooldownUntil);
@@ -2645,7 +3115,15 @@
     cs.hitIndex = isThirdHit ? 0 : cs.hitIndex + 1;
     var damage = useHit2 ? info.dmg.hit2Damage : info.dmg.hit1Damage;
     var damageSymbol = useHit2 ? info.dmg.hit2Symbol : info.dmg.hit1Symbol;
+    recordAttackForRelics(c, staminaCost, now);
     damageCombatTarget(damage, damageSymbol);
+    // 雙手持握的削韌強化：2Hit額外帶一個▲（Guard削減），見twoHandGuardBreakSymbol()。
+    // damageCombatTarget()的symbol只能帶一個，因此這裡另外補記一次Guard削減，不影響傷害。
+    if (useHit2 && activeEncounter) {
+      var extraGuardSymbol = twoHandGuardBreakSymbol(c, info.weaponId);
+      if (extraGuardSymbol) recordGuardReductionForPoint(activeEncounter.id, extraGuardSymbol);
+      maybeApplyDaggerRestage(c, info.weaponId, now); // 淑女「短劍重演」
+    }
     triggerEnemyHitEffect(weaponHitColor(info.weaponId));
     applyWeaponAttributeAccumOnHit(info.weaponId, useHit2);
     // 2026-09-06優化（使用者明確要求「戰鬥畫面中敵人血量下方不顯示連段」）：拿掉原本
@@ -2669,6 +3147,39 @@
   // docs/midnight_realtime_combat_numbers.md記載的Guard Point百分比減傷制同一種
   // 「即時制沒有的前提條件就不強加」的既定做法）。
   // ============================================================================
+  // 本場戰鬥的攻擊統計（2026-09-11遺物效果用，本地only、離開戰鬥歸零，見onEncounterEnded()）：
+  //   attackCountThisEncounter＝這場自己攻擊過幾次（突刺反擊的達人的「攻擊過10次以上」、
+  //     連續攻擊時體力回復的「每攻擊5次」）
+  //   attackStaminaWindow＝最近的攻擊體力消耗紀錄 [{at, cost}]（連續攻擊時FP回復的
+  //     「10秒內因攻擊消耗40體力」，使用者明確規格）
+  var attackCountThisEncounter = 0;
+  var attackStaminaWindow = [];
+  var ATTACK_STAMINA_RECOVER_EVERY = 5; // 每攻擊5次
+  var ATTACK_STAMINA_RECOVER_AMOUNT = 5; // 追加5體力
+  var ATTACK_FP_WINDOW_MS = 10000; // 10秒內
+  var ATTACK_FP_WINDOW_STAMINA = 40; // 消耗40體力
+
+  // 每次一般攻擊（含蓄力攻擊）後呼叫：累加統計並處理兩個「連續攻擊」系遺物效果。
+  function recordAttackForRelics(c, staminaCost, now) {
+    attackCountThisEncounter += 1;
+    if (hasRelic(c, "staminaComboRecover") && attackCountThisEncounter % ATTACK_STAMINA_RECOVER_EVERY === 0) {
+      stamina.current = Math.min(stamina.max, stamina.current + ATTACK_STAMINA_RECOVER_AMOUNT);
+    }
+    if (hasRelic(c, "fpComboRecover")) {
+      attackStaminaWindow.push({ at: now, cost: staminaCost });
+      attackStaminaWindow = attackStaminaWindow.filter(function (e) {
+        return now - e.at <= ATTACK_FP_WINDOW_MS;
+      });
+      var sum = attackStaminaWindow.reduce(function (a, e) {
+        return a + e.cost;
+      }, 0);
+      if (sum >= ATTACK_FP_WINDOW_STAMINA) {
+        attackStaminaWindow = []; // 達成後重新計算，避免每次攻擊都持續觸發
+        healSelfFp(BLOCK_SQUARE_COUNT_TO_RESOURCE_MULT);
+      }
+    }
+  }
+
   var ATTACK_SPECIAL_MENU_HOLD_MS = 400; // 長按超過此時間才顯示選單，跟戰技B的2秒蓄力長按用途不同（這裡只是「按住看選單」不是「蓄力施放」）
   var attackHoldState = { L: null, R: null }; // 按下攻擊鍵的時間戳，null＝目前沒按著
   var attackSpecialMenuOpen = { L: false, R: false };
@@ -2702,8 +3213,30 @@
         symbol: dmg.hit1Symbol,
       });
     }
+    // 蓄力攻擊（2026-09-11新增，使用者明確規格「同樣長按攻擊後可以切換攻擊方式以選得此項，
+    // 一般攻擊更改為蓄力攻擊，2Hit仍舊照舊。蓄力攻擊消耗骰子點數+1（＝體力+2）」）：
+    // 傷害沿用規則書原文「裝備中1把近戰武器的1Hit傷害+10」，習得2個以上再+10（鐵眼版原文）。
+    // 消耗在useSpecialAttack()裡另外處理（其餘特殊攻擊是解析本文的「消耗：」，蓄力攻擊的
+    // 本文寫的是「1Hit的消耗+1」這種相對值，沒辦法用同一個parser解，見該處說明）。
+    var chargeEffect = CharacterDrawer.findLearnedActionRelicByName(c, CHARGE_ATTACK_RELIC_NAMES);
+    if (chargeEffect) {
+      var chargeMultiBonus = CharacterDrawer.countLearnedActionRelicsByName(c, CHARGE_ATTACK_RELIC_NAMES) >= 2 ? 10 : 0;
+      out.push({
+        kind: "charge",
+        weaponId: weaponId,
+        effect: chargeEffect,
+        value: dmg.hit1Damage + CHARGE_ATTACK_DAMAGE_BONUS + chargeMultiBonus,
+        symbol: dmg.hit1Symbol,
+      });
+    }
     return out;
   }
+
+  // 蓄力攻擊：規則書「效果：對目標造成【總合傷害：裝備中1把近戰武器的1Hit傷害+10】」／
+  // 「消耗：1Hit的消耗+1」。使用者2026-09-11明確確認「骰子點數+1（即體力+2）」。
+  var CHARGE_ATTACK_RELIC_NAMES = ["蓄力攻擊", "タメ攻撃"];
+  var CHARGE_ATTACK_DAMAGE_BONUS = 10;
+  var CHARGE_ATTACK_EXTRA_DICE_POINTS = 1;
 
   function bindAttackHoldInput() {
     ["L", "R"].forEach(function (side) {
@@ -2784,7 +3317,7 @@
       var btn = document.createElement("button");
       btn.type = "button";
       btn.className = "midnight-attack-special-btn";
-      var name = window.I18N.t(entry.kind === "jump" ? "midnight_special_attack_jump_label" : "midnight_special_attack_dash_label");
+      var name = specialAttackLabel(entry.kind);
       btn.textContent = name + " " + CharacterDrawer.formatValueWithSymbol(entry.value, entry.symbol);
       btn.addEventListener("click", function () {
         useSpecialAttack(side, entry);
@@ -2803,6 +3336,18 @@
     if (!c) return;
     var bodyText = window.PriTestCharacterTypes.localizedText(entry.effect.body);
     var cost = computeMidnightSkillCost(bodyText);
+    // 蓄力攻擊的本文寫的是「1Hit的消耗+1」這種相對值，computeMidnightSkillCost()的
+    // parseActionCost()解不出絕對值（會得到0），因此這裡改成「這把武器的1Hit消耗＋1點」
+    // 自行組出來（使用者2026-09-11明確確認骰子點數+1＝體力+2）。
+    if (entry.kind === "charge") {
+      var chargeInfo = computeSideAttackInfo(side);
+      var basePoints = chargeInfo ? diceCostPoints(chargeInfo.cost.hit1) : 0;
+      cost = {
+        staminaCost: (basePoints + CHARGE_ATTACK_EXTRA_DICE_POINTS) * DICE_COUNT_TO_STAMINA_MULT,
+        fpCost: 0,
+        hpCost: 0,
+      };
+    }
     if (stamina.current < cost.staminaCost || fp.current < cost.fpCost) return;
     cancelFlaskReadingForOtherAction();
     if (cost.staminaCost) spendStamina(cost.staminaCost);
@@ -2810,8 +3355,16 @@
     if (cost.hpCost) spendSelfHp(cost.hpCost);
     damageCombatTarget(entry.value, entry.symbol);
     triggerEnemyHitEffect(weaponHitColor(entry.weaponId));
-    var name = window.I18N.t(entry.kind === "jump" ? "midnight_special_attack_jump_label" : "midnight_special_attack_dash_label");
-    broadcastCombatActionBubble(name);
+    // 蓄力攻擊也是「一般攻擊的替代」，因此比照handleAttackClick()一併觸發武器的屬性/
+    // 異常附著（1Hit相當）。跳躍/衝刺攻擊維持既有行為（原本就沒有觸發）。
+    if (entry.kind === "charge") applyWeaponAttributeAccumOnHit(entry.weaponId, false);
+    broadcastCombatActionBubble(specialAttackLabel(entry.kind));
+  }
+
+  function specialAttackLabel(kind) {
+    if (kind === "jump") return window.I18N.t("midnight_special_attack_jump_label");
+    if (kind === "charge") return window.I18N.t("midnight_special_attack_charge_label");
+    return window.I18N.t("midnight_special_attack_dash_label");
   }
 
   // 武器固有的屬性/狀態異常技能（weapons.js的elementSkillBody/statusSkillBody樣板：
@@ -2821,9 +3374,15 @@
   function applyWeaponAttributeAccumOnHit(weaponId, isHit2) {
     var c = characters[myTokenId];
     if (!c) return;
+    var base = isHit2 ? 2 : 1;
+    // 追蹤者「技能強化（纏火）」：使用爪擊後10秒內，「為該大劍追加『屬性｜火』」——
+    // 期間該大劍的一般攻擊比照武器本身的屬性技能累積火屬性（見applyRelicAbilityPostEffect()）。
+    if (c._flameCloakUntil && c._flameCloakUntil > Date.now()) {
+      var fw = Weapons.get(baseCatalogId(weaponId));
+      if (fw && fw.category === "greatsword") recordAttributeAccum("炎", base);
+    }
     var effects = CharacterDrawer.weaponAccumulationEffects(c, weaponId);
     if (!effects.length) return;
-    var base = isHit2 ? 2 : 1;
     effects.forEach(function (eff) {
       recordAttributeAccum(eff.label, base + eff.scorpionBonus);
     });
@@ -2835,9 +3394,13 @@
   // 規格：「戰技魔術祈禱本文的方塊格數x10，戰技有骰子點數消耗時，額外扣體力x2」）。
   function computeMidnightSkillCost(bodyText) {
     var cost = CharacterDrawer.parseActionCost(bodyText);
+    // 隱者「聖幕」（混成魔法變體，2026-09-11接上）：「10秒時間為止，自身使用戰技・祈禱・
+    // 魔術時不需要FP消耗」——見applyRelicAbilityPostEffect()寫入_noFpCostUntil。
+    var cSelf = characters[myTokenId];
+    var noFp = !!(cSelf && cSelf._noFpCostUntil && cSelf._noFpCostUntil > Date.now());
     return {
       staminaCost: diceCostPoints(cost) * DICE_COUNT_TO_STAMINA_MULT,
-      fpCost: cost.fpCost * BLOCK_SQUARE_COUNT_TO_RESOURCE_MULT,
+      fpCost: noFp ? 0 : cost.fpCost * BLOCK_SQUARE_COUNT_TO_RESOURCE_MULT,
       hpCost: cost.hpCost * BLOCK_SQUARE_COUNT_TO_RESOURCE_MULT,
     };
   }
@@ -2872,6 +3435,10 @@
       CharacterDrawer.talismanFlatSkillBonus(c, selfHp) +
       CharacterDrawer.fightingSpiritFlatBonus(c, selfHp) +
       unyieldingSkillBonus(c) +
+      relicSkillDamageBonus(c) + // 2026-09-11：後衛戰術／家族共鬥／技藝強化的攻擊力buff
+      // 隱者「能力強化（魔術之地）」：使用元素操控後10秒內，自身使用的**魔術**傷害+5
+      // （只有杖＝sorcery，不含祈禱/一般戰技），見applyRelicAbilityPostEffect()。
+      (skillDamageKind === "sorcery" && c._magicGroundUntil && c._magicGroundUntil > Date.now() ? 5 : 0) +
       (skillDamageKind ? CharacterDrawer.attachedSkillDamageBonus(c, skillDamageKind) : 0);
     return { value: result.value + flatBonus, symbol: result.symbol };
   }
@@ -2903,6 +3470,24 @@
       showToast(name + "：" + bodyText);
     }
     broadcastCombatActionBubble(name);
+  }
+
+  // 對自己回復HP／FP（2026-09-11抽出，供多個遺物效果共用：致命一擊2個、屬性達成的歡喜、
+  // 130傷害回復HP/FP、防禦成功時HP回復等。HP是共享的demoStat（用transaction避免併發覆寫），
+  // FP是本地端資源，直接改）。回復量已經是即時制數值（□→×10的換算在呼叫端做）。
+  function healSelfHp(amount) {
+    if (!amount || amount <= 0) return;
+    var maxHp = mySelfHpMaxFallback();
+    GameStorage.rtTransaction(gameId, "cloud", "demoStat/" + myTokenId, function (cur) {
+      var next = (cur === null ? maxHp : cur) + amount;
+      return next > maxHp ? maxHp : next;
+    });
+    shareHealWithPartyIfEmpathyActive(amount);
+  }
+
+  function healSelfFp(amount) {
+    if (!amount || amount <= 0) return;
+    fp.current = Math.min(fp.max, fp.current + amount);
   }
 
   function spendSelfHp(amount) {
@@ -2964,8 +3549,22 @@
     if (!dmg) return null;
     var selfHp = selfArenaHp();
     var flatBonus =
-      CharacterDrawer.talismanFlatSkillBonus(c, selfHp) + CharacterDrawer.fightingSpiritFlatBonus(c, selfHp) + unyieldingSkillBonus(c);
+      CharacterDrawer.talismanFlatSkillBonus(c, selfHp) +
+      CharacterDrawer.fightingSpiritFlatBonus(c, selfHp) +
+      unyieldingSkillBonus(c) +
+      relicAbilityDamageBonus(c, ability);
     return { value: dmg.value + flatBonus, symbol: dmg.symbol };
+  }
+
+  // 角色技藝／技能專屬的遺物加成（2026-09-11）：目前只有「技藝強化（燃燒）」對
+  // 襲擊之楔的「總合傷害：+50」是純數值加成（其餘技藝/技能強化的附加效果在
+  // applyRelicAbilityPostEffect() 處理）。
+  var ART_BURN_DAMAGE_BONUS = 50;
+
+  function relicAbilityDamageBonus(c, ability) {
+    if (!c || !ability) return 0;
+    if (ability.id === "assault_wedge" && hasRelic(c, "artBurn")) return ART_BURN_DAMAGE_BONUS;
+    return 0;
   }
 
   // 2026-09-08midnight優化：「圖騰・史黛拉」的傷害公式使用者明確要求改成「（戰鬥中人數
@@ -2989,8 +3588,150 @@
   // 規則書文字不同的「midnight限定」補充規則，見本次對話開頭「將本次midnight特殊改動套用
   // 至文本」）：統一在useCharacterAbility()傷害結算後呼叫，用RTDB時間戳實作，讀取端各自
   // 判斷「現在是否還在時限內」，不需要另外的到期清除transaction。
+  // ---- 遺物效果驅動的技藝／技能強化（2026-09-11新增）----
+  // 這些遺物的規則本文都是「使用技藝／技能X時，追加○○」，因此統一掛在
+  // applyMidnightAbilityPostEffect() 的最前面，依「這次用的是哪一招」分流。
+  // 傷害類的加成（例如技藝強化（燃燒）的「總合傷害+50」）在computeMidnightAbilityDamage()
+  // 處理，這裡只處理「傷害以外的附加效果」（屬性蓄積／回復／時限buff）。
+  var SKILL_INTERCEPT_COOLDOWN_CUT_MS = 10000; // 技能強化（迎擊）：使用者明確規格「冷卻減少10秒」
+  var SKILL_FLAME_CLOAK_MS = 10000; // 技能強化（纏火）：使用者明確規格「行動後10秒內」
+  var MAGIC_GROUND_MS = 10000; // 能力強化（魔術之地）：原文「直到10秒時間為止」
+  var NO_FP_COST_MS = 10000; // 聖幕：「10秒時間為止，使用戰技・祈禱・魔術時不需要FP消耗」
+
+  function applyRelicAbilityPostEffect(abilityId, c, now) {
+    if (!c) return;
+    // 技藝強化（攻擊力強化／攻擊力提升／出血攻擊力強化）：共用同一個10秒buff欄位，
+    // 見relicAtkBuffActive()／relicAttackHitBonus()／relicSkillDamageBonus()。
+    var buffKey = RELIC_ATK_BUFF_BY_ABILITY[abilityId];
+    if (buffKey && hasRelic(c, buffKey)) {
+      c._relicAtkBuffUntil = now + RELIC_ATK_BUFF_MS;
+      GameStorage.rtSet(gameId, "cloud", "character/" + myTokenId + "/_relicAtkBuffUntil", c._relicAtkBuffUntil);
+    }
+    if (abilityId === "assault_wedge" && hasRelic(c, "artBurn")) {
+      // 追蹤者・技藝強化（燃燒）：「為技藝『襲擊之楔』對敵人的傷害追加『總合傷害：+50』
+      // 與『火：3』」——+50在computeMidnightAbilityDamage()加，這裡只處理屬性蓄積。
+      recordAttributeAccum("炎", 3);
+    }
+    if (abilityId === "claw_shot" && hasRelic(c, "skillFlameCloak")) {
+      // 追蹤者・技能強化（纏火）：「僅限裝備中的『大劍』時才發動」。
+      var hasGreatsword = ["R", "L"].some(function (side) {
+        var wid = c["equippedWeaponId" + side];
+        var w = wid ? Weapons.get(baseCatalogId(wid)) : null;
+        return !!w && w.category === "greatsword";
+      });
+      if (hasGreatsword) {
+        recordAttributeAccum("炎", 1);
+        c._flameCloakUntil = now + SKILL_FLAME_CLOAK_MS;
+        GameStorage.rtSet(gameId, "cloud", "character/" + myTokenId + "/_flameCloakUntil", c._flameCloakUntil);
+      }
+    }
+    if (abilityId === "whirlwind" && hasRelic(c, "skillTimeExtend") && activeEncounter) {
+      // 守護者・技能強化（延長時間）：「使用旋風時，對雜兵追加『HP損害：+■』」＝+10。
+      var wPoint = activeEncounter.id;
+      if (fieldMobHp[wPoint] !== undefined && fieldMobHp[wPoint] > 0) damageFieldMobOnly(wPoint, BLOCK_SQUARE_COUNT_TO_RESOURCE_MULT);
+    }
+    if (abilityId === "marking" && activeEncounter) {
+      // 鐵眼・技能強化（延長時間）：「標記的效果持續時間多一倍」＝10秒→20秒。
+      if (hasRelic(c, "skillTimeExtend")) {
+        GameStorage.rtSet(gameId, "cloud", "fieldTrigger/" + activeEncounter.id + "/hpValueReduceUntil", now + 20000);
+      }
+      // 鐵眼・技能強化（毒刃）：「追加『劇毒：擲2個骰子取較小的出目1個』」。
+      if (hasRelic(c, "skillPoisonBlade")) {
+        var d1 = 1 + Math.floor(Math.random() * 6);
+        var d2 = 1 + Math.floor(Math.random() * 6);
+        recordAttributeAccum("猛毒", Math.min(d1, d2));
+      }
+    }
+    if (abilityId === "wings_of_salvation" && hasRelic(c, "artHpRecover")) {
+      // 守護者・技藝強化（HP回復）：「對全體PC施加『HP回復：將目前HP回復至最大值』」。
+      healAllPartyToFull();
+    }
+    if (abilityId === "totem_stella" && hasRelic(c, "artHpRecover")) {
+      // 無賴漢・技藝強化（HP回復）：「對全體PC施加『HP回復：□×5』」＝+50。
+      healAllPartyBy(BLOCK_SQUARE_COUNT_TO_RESOURCE_MULT * 5);
+    }
+    if (abilityId === "march_of_the_undying" && hasRelic(c, "artSpiritFlame")) {
+      // 復仇者・技藝強化（靈炎爆發）：「對敵人造成『火：2D』，並對召喚中的靈體
+      // 施加『HP回復：□×6』」＝+60。
+      recordAttributeAccum("炎", 1 + Math.floor(Math.random() * 6) + (1 + Math.floor(Math.random() * 6)));
+      if (c.summonedSpirit && c.summonedSpirit.hp > 0) {
+        c.summonedSpirit.hp = Math.min(c.summonedSpirit.maxHp, c.summonedSpirit.hp + BLOCK_SQUARE_COUNT_TO_RESOURCE_MULT * 6);
+        GameStorage.rtSet(gameId, "cloud", "character/" + myTokenId + "/summonedSpirit", c.summonedSpirit);
+      }
+    }
+    if (abilityId === "empathy" && hasRelic(c, "artContinuousDamage") && activeEncounter) {
+      // 學者・技藝強化（持續傷害）：「對雜兵追加造成『HP損害：■』」＝10。
+      // 原文另有「若該技藝對敵人造成傷害，則傷害+60」，但共感術本身對敵人沒有傷害
+      // （只有全體共享回復），沒有可加的對象，因此不套用（不自行發明一個傷害來源）。
+      var ePoint = activeEncounter.id;
+      if (fieldMobHp[ePoint] !== undefined && fieldMobHp[ePoint] > 0) damageFieldMobOnly(ePoint, BLOCK_SQUARE_COUNT_TO_RESOURCE_MULT);
+    }
+    if (abilityId === "elemental_control" && hasRelic(c, "abilityMagicGround")) {
+      // 隱者・能力強化（魔術之地）：「直到10秒時間為止，將自身使用的魔術傷害+5」。
+      c._magicGroundUntil = now + MAGIC_GROUND_MS;
+      GameStorage.rtSet(gameId, "cloud", "character/" + myTokenId + "/_magicGroundUntil", c._magicGroundUntil);
+    }
+    // 隱者「混成魔法」的4種變體（漩渦烈焰／聖光燈火／聖幕／冷氣風暴）本身已由既有的
+    // learnedVariantEntries()／角色面板切換接上（傷害由本文的【總合傷害：N】解析），
+    // 這裡補上它們「傷害以外」的部分。
+    if (abilityId === "hybrid_magic_vortex_flame") {
+      recordAttributeAccum("炎", 1 + Math.floor(Math.random() * 6)); // 火：1D
+      damageActiveMobIfAny(BLOCK_SQUARE_COUNT_TO_RESOURCE_MULT); // 對雜兵「HP損害：■」
+    } else if (abilityId === "hybrid_magic_frost_storm") {
+      recordAttributeAccum("凍傷", 2);
+      damageActiveMobIfAny(BLOCK_SQUARE_COUNT_TO_RESOURCE_MULT * 2); // 「HP損害：■■」
+    } else if (abilityId === "hybrid_magic_holy_light") {
+      // 「對自身與其他任意1名PC施加『HP回復：□□□』」＝各+30。其他PC以隊伍中第一位
+      // 非自己的在場玩家為對象（midnight沒有目標選擇UI，比照既有的簡化慣例）。
+      healSelfHp(BLOCK_SQUARE_COUNT_TO_RESOURCE_MULT * 3);
+      healOneOtherPc(BLOCK_SQUARE_COUNT_TO_RESOURCE_MULT * 3);
+    } else if (abilityId === "hybrid_magic_sacred_curtain") {
+      c._noFpCostUntil = now + NO_FP_COST_MS;
+      GameStorage.rtSet(gameId, "cloud", "character/" + myTokenId + "/_noFpCostUntil", c._noFpCostUntil);
+    }
+  }
+
+  // 對目前戰鬥點的雜兵造成傷害（沒有雜兵時什麼都不做），供上面幾個技能共用。
+  function damageActiveMobIfAny(amount) {
+    if (!activeEncounter) return;
+    var pointId = activeEncounter.id;
+    if (fieldMobHp[pointId] !== undefined && fieldMobHp[pointId] > 0) damageFieldMobOnly(pointId, amount);
+  }
+
+  // 全體PC回復（HP是共享的demoStat，用transaction逐一加）。
+  function healAllPartyBy(amount) {
+    Object.keys(players || {}).forEach(function (slot) {
+      var p = players[slot];
+      if (!p || !p.tokenId) return;
+      var maxHp = selfArenaHpMax(characters[p.tokenId]);
+      GameStorage.rtTransaction(gameId, "cloud", "demoStat/" + p.tokenId, function (cur) {
+        var next = (cur === null ? maxHp : cur) + amount;
+        return next > maxHp ? maxHp : next;
+      });
+    });
+  }
+
+  function healAllPartyToFull() {
+    Object.keys(players || {}).forEach(function (slot) {
+      var p = players[slot];
+      if (!p || !p.tokenId) return;
+      GameStorage.rtSet(gameId, "cloud", "demoStat/" + p.tokenId, selfArenaHpMax(characters[p.tokenId]));
+    });
+  }
+
+  function healOneOtherPc(amount) {
+    var tokenId = firstOtherPcTokenId();
+    if (!tokenId) return;
+    var maxHp = selfArenaHpMax(characters[tokenId]);
+    GameStorage.rtTransaction(gameId, "cloud", "demoStat/" + tokenId, function (cur) {
+      var next = (cur === null ? maxHp : cur) + amount;
+      return next > maxHp ? maxHp : next;
+    });
+  }
+
   function applyMidnightAbilityPostEffect(abilityId, c) {
     var now = Date.now();
+    applyRelicAbilityPostEffect(abilityId, c, now); // 2026-09-11遺物效果驅動的技藝/技能強化
     if (abilityId === "wings_of_salvation") {
       // 守護者・救世之翼：「隊友可以不受傷害持續10秒」——寫party-wide的meta欄位，見
       // resolveMyIncomingHit()裡對partyNoDamageActive()的判斷。
@@ -3066,6 +3807,13 @@
       // 見activeTempGuardPct()／selfDeathImmuneActive()。
       c._counterattackGuardUntil = now + 3000;
       GameStorage.rtSet(gameId, "cloud", "character/" + myTokenId + "/_counterattackGuardUntil", c._counterattackGuardUntil);
+      // 無賴漢「技能強化（迎擊）」（2026-09-11使用者明確規格「觸發夜渡技能『逆襲』的防禦
+      // 效果時，冷卻減少10秒」）：useCharacterAbility()在呼叫這裡之前已經寫好冷卻，
+      // 這裡直接把冷卻往前拉10秒（不會拉到過去，下限是現在）。
+      if (hasRelic(c, "skillIntercept")) {
+        c._skillCooldownUntil = Math.max(now, (c._skillCooldownUntil || now) - SKILL_INTERCEPT_COOLDOWN_CUT_MS);
+        GameStorage.rtSet(gameId, "cloud", "character/" + myTokenId + "/_skillCooldownUntil", c._skillCooldownUntil);
+      }
     } else if (abilityId === "whirlwind") {
       // 守護者・旋風：「對雜兵20點傷害」，原文只有■（不可自行發明數值），這裡的20是
       // 使用者這次明確給的midnight限定數字。「S/M敵人▲」原文本身沒有固定傷害數值，只
@@ -3106,9 +3854,12 @@
     spirit.nextAttackAt = now + SPIRIT_ATTACK_INTERVAL_MS;
     c.summonedSpirit = spirit;
     GameStorage.rtSet(gameId, "cloud", "character/" + myTokenId + "/summonedSpirit", spirit);
-    damageCombatTarget(spirit.dmg, null);
+    // 復仇者「家族強化」（2026-09-11）：「將自身召喚的『靈體』產生的傷害+10」。
+    damageCombatTarget(spirit.dmg + (hasRelic(c, "familyBoost") ? SPIRIT_FAMILY_BOOST_BONUS : 0), null);
     triggerEnemyHitEffect(null);
   }
+
+  var SPIRIT_FAMILY_BOOST_BONUS = 10;
 
   // 對雜兵單獨造成固定傷害，不像damageCombatTarget()那樣把溢出部分繼續打進敵人本體
   // （2026-09-08旋風新增，使用者明確規格是「對雜兵」的獨立傷害，不是一般攻擊的雜兵→敵人
@@ -3260,6 +4011,29 @@
     return true;
   }
 
+  // 遺物效果「技能使用次數＋1」的蓄積（2026-09-11）：技能冷卻跑完的那一刻，若蓄積數還沒
+  // 達到上限（＝習得幾個就幾個），就+1並重新起算一輪冷卻繼續蓄積。每影格呼叫（見frameInner）。
+  // 「初習得時須先跑冷卻流程」＝剛習得時蓄積數是0，要等一輪冷卻結束才會有第一個。
+  var lastSkillChargeTickAt = 0;
+
+  function updateSkillExtraCharges(now) {
+    if (!mySlot) return;
+    var c = characters[myTokenId];
+    if (!c) return;
+    var max = countRelic(c, "skillUsesPlus1");
+    if (!max) return;
+    if ((c._skillExtraCharges || 0) >= max) return;
+    var until = c._skillCooldownUntil || 0;
+    if (!until || now < until) return;
+    if (until === lastSkillChargeTickAt) return; // 同一輪冷卻只結算一次
+    lastSkillChargeTickAt = until;
+    c._skillExtraCharges = (c._skillExtraCharges || 0) + 1;
+    var nextUntil = now + SKILL_COOLDOWN_MS;
+    c._skillCooldownUntil = (c._skillExtraCharges || 0) >= max ? 0 : nextUntil;
+    GameStorage.rtSet(gameId, "cloud", "character/" + myTokenId + "/_skillExtraCharges", c._skillExtraCharges);
+    GameStorage.rtSet(gameId, "cloud", "character/" + myTokenId + "/_skillCooldownUntil", c._skillCooldownUntil);
+  }
+
   function useCharacterAbility(kind) {
     if (!mySlot || isPaused() || isSelfDowned() || isIceBlizzardBlinded(Date.now())) return;
     var found = characterAbilityEntry(kind);
@@ -3284,6 +4058,14 @@
         var nextCredits = found.c._powerResonanceCredits - 1;
         found.c._powerResonanceCredits = nextCredits;
         GameStorage.rtSet(gameId, "cloud", "character/" + myTokenId + "/_powerResonanceCredits", nextCredits);
+      } else if (kind === "skill" && (found.c._skillExtraCharges || 0) > 0) {
+        // 遺物效果「技能使用次數＋1」（2026-09-11使用者明確規格「技能可以多保持一個來
+        // 使用，初習得時須先跑冷卻流程，之後多蓄積一個可以使用機會」）：冷卻跑完時
+        // 蓄積1次（見updateSkillExtraCharges()），冷卻中可以用掉蓄積的次數。
+        // 沿用力量感應credit完全相同的旁路寫法，不新增第二套「次數」系統。
+        var nextCharges = found.c._skillExtraCharges - 1;
+        found.c._skillExtraCharges = nextCharges;
+        GameStorage.rtSet(gameId, "cloud", "character/" + myTokenId + "/_skillExtraCharges", nextCharges);
       } else {
         showToast(window.I18N.t("midnight_character_ability_cooldown_note", { seconds: Math.ceil((cooldownUntil - Date.now()) / 1000) }));
         return;
@@ -3499,6 +4281,33 @@
         window.PriTestCharacterTypes.localizedText(ecAbility.name) + "(" + (c && c.elementalMarks ? c.elementalMarks : 0) + "/" + ELEMENTAL_MARKS_MAX + ")";
       elementalControlBtn.disabled = !actable;
     }
+
+    renderSpiritManageButton(c, actable);
+  }
+
+  // 復仇者「靈體管理」按鈕（2026-09-11使用者明確規格）：只有目前有召喚中的靈體時才顯示，
+  // 文字是「靈體名稱(HP/最大HP)」，按下解散該靈體（規則書「一次只能召喚一隻」，解散後
+  // 就能重新召喚別種，見applyMidnightAbilityPostEffect()的spirit_summon分支）。
+  function renderSpiritManageButton(c, actable) {
+    var btn = el("btn-midnight-spirit-manage");
+    if (!btn) return;
+    var spirit = c && c.summonedSpirit;
+    btn.hidden = !spirit || !spirit.maxHp;
+    if (btn.hidden) return;
+    var def = null;
+    for (var i = 0; i < SPIRIT_SUMMON_TYPES.length; i++) {
+      if (SPIRIT_SUMMON_TYPES[i].kind === spirit.kind) def = SPIRIT_SUMMON_TYPES[i];
+    }
+    btn.textContent = (def ? window.I18N.t(def.nameKey) : spirit.kind) + "(" + Math.max(0, Math.round(spirit.hp)) + "/" + spirit.maxHp + ")";
+    btn.disabled = !actable;
+  }
+
+  function handleSpiritManageClick() {
+    var c = characters[myTokenId];
+    if (!mySlot || isPaused() || !c || !c.summonedSpirit) return;
+    c.summonedSpirit = null;
+    GameStorage.rtSet(gameId, "cloud", "character/" + myTokenId + "/summonedSpirit", null);
+    renderCharPanel();
   }
 
   // 扣FP：不足時回傳false、不扣，跟spendStamina()同一種寫法。
@@ -3558,9 +4367,38 @@
     var weapon = Weapons.get(baseCatalogId(weaponId));
     var category = weapon && Weapons.getCategory(weapon.category);
     if (!category || (category.id !== "staff" && category.id !== "sacred_seal")) return [];
-    return CharacterDrawer.getEquippedWeaponSkillEntries(c).filter(function (e) {
+    var entries = CharacterDrawer.getEquippedWeaponSkillEntries(c).filter(function (e) {
       return e.weaponId === weaponId;
     });
+    // 遺物效果「得意祈禱『雷之槍』／『燃燒吧！』」（2026-09-11）：「自身裝備中的聖印
+    // 可使用該祈禱」。祈禱本體是weapons_skills.js既有的prayer_*，這裡只是把它接到目前
+    // 裝備的聖印上（跟night.js的FAVORED_PRAYER_RELIC_MAP同一組對應，該表在
+    // character_drawer.js內部沒有匯出，因此這裡列同一份對應，不重新定義祈禱內容）。
+    if (category.id === "sacred_seal") {
+      FAVORED_PRAYER_RELICS.forEach(function (def) {
+        if (!hasRelicNames(c, def.names)) return;
+        var skill = Weapons.getSkill(def.skillId);
+        if (!skill) return;
+        if (
+          entries.some(function (e) {
+            return e.id === "wpn:" + weaponId + ":" + def.skillId;
+          })
+        )
+          return;
+        entries.push({ id: "wpn:" + weaponId + ":" + def.skillId, name: skill.name, body: skill.body, kind: skill.kind, weaponId: weaponId });
+      });
+    }
+    return entries;
+  }
+
+  var FAVORED_PRAYER_RELICS = [
+    { names: ["得意祈禱「雷之槍」", "得意祈祷「雷の槍」"], skillId: "prayer_lightning_spear" },
+    { names: ["得意祈禱「燃燒吧！」", "得意祈祷「火よ！」"], skillId: "prayer_fire_exclaim" },
+    { names: ["得意祈禱「獸爪」", "得意祈祷「獣爪」"], skillId: "prayer_beast_claw" },
+  ];
+
+  function hasRelicNames(c, names) {
+    return !!(c && CharacterDrawer.findLearnedRelicEffectByName && CharacterDrawer.findLearnedRelicEffectByName(c, names));
   }
 
   function sorceryButtonEntry(def) {
@@ -3975,6 +4813,8 @@
     if (!mySlot || isPaused() || flaskReadingUntil !== null) return;
     var res = characters[myTokenId];
     if (!res || res.flaskCount <= 0) return;
+    // 一口氣飲盡（開關開啟時）一次要用掉2次使用次數，剩1次時不能發動（見commitFlaskHeal()）。
+    if (res._flaskGulpMode && hasRelic(res, "flaskGulp") && res.flaskCount < 2) return;
     flaskReadingUntil = Date.now() + FLASK_READ_MS;
   }
 
@@ -3995,10 +4835,28 @@
   }
 
   function commitFlaskHeal() {
+    var cFlask = characters[myTokenId];
+    // 2026-09-11遺物效果（兩者都是角色視窗裡的開關，見appendRelicToggle()）：
+    //   一口氣飲盡：開啟時一次消耗2次使用次數，改成把HP回滿
+    //   聖杯瓶可回復FP：開啟時不回HP，改回同量的FP
+    // 兩個同時開啟時，「一口氣飲盡」的「回滿」對象跟著「可回復FP」變成FP回滿——
+    // 規則書沒有同時開啟的規定，這是本實作的取捨（回滿的對象跟著切換走）。
+    var gulpOn = !!(cFlask && cFlask._flaskGulpMode && hasRelic(cFlask, "flaskGulp"));
+    var fpMode = !!(cFlask && cFlask._flaskFpMode && hasRelic(cFlask, "flaskFp"));
+    var flaskUses = gulpOn ? 2 : 1;
     GameStorage.rtTransaction(gameId, "cloud", "character/" + myTokenId + "/flaskCount", function (cur) {
-      var next = (cur === null ? FLASK_MAX_DEFAULT : cur) - 1;
+      var next = (cur === null ? FLASK_MAX_DEFAULT : cur) - flaskUses;
       return next < 0 ? 0 : next;
     });
+    if (fpMode) {
+      healSelfFp(gulpOn ? fp.max : FLASK_HEAL_AMOUNT + flaskHealBonusAmount(cFlask));
+      return;
+    }
+    if (gulpOn) {
+      var fullHp = mySelfHpMaxFallback();
+      GameStorage.rtSet(gameId, "cloud", "demoStat/" + myTokenId, fullHp);
+      return;
+    }
     var maxHp = mySelfHpMaxFallback();
     var beforeHp = null;
     // 2026-09-10遺物效果稽核補實作：遺物效果「聖杯瓶回復量提升」在規則書是「回復量+□」，
@@ -4120,6 +4978,40 @@
 
   // 套用消耗品效果本體：可自動解算的分支直接套用數值，其餘一律只顯示規則原文
   // （MIDNIGHT_CONSUMABLE_TIMED_OR_UNRESOLVED旗標）。applyLevel2＝hasCarriedKnowledge(c)。
+  // ---- 學者「道具效果擴大」（2026-09-11）----
+  // 規則書：「自身使用消耗品『聖杯瓶／勇者的肉塊／龜首漬／星光碎片／苔玉』時，可對自身
+  // 以外的任意1名PC也發揮相同效果」。midnight沒有目標選擇UI，對象固定取隊伍中第一位其他PC
+  // （比照聖光燈火等既有簡化）。
+  // **已知限制**：這5項裡只有「勇者的肉塊」等會動到HP的部分能真的施加在別人身上——
+  // FP與體力骰、以及「直到階段結束的自身buff」在midnight都是**各自裝置的本地資源/旗標**
+  // （見fp／stamina／c._xxx欄位說明），無法從我的裝置寫進別人的本地狀態。因此這裡只
+  // 複製得了HP回復的部分，其餘維持只對自己生效，並在toast提示玩家手動處理，不假裝完整涵蓋。
+  var THRIFT_CHANCE = 0.2; // 學者「節約術」：使用者明確規格「20%機率」
+  var ITEM_EXPAND_TARGET_ITEM_IDS = [
+    "item_hero_meat_chunk",
+    "item_turtle_neck_pickle",
+    "item_shard_of_starlight",
+    "item_bitter_medicine", // 苔藥（使用者寫「苔玉」，consumables.js 裡的名稱是苔藥）
+  ];
+
+  function applyItemEffectExpand(c, itemId) {
+    if (ITEM_EXPAND_TARGET_ITEM_IDS.indexOf(itemId) === -1) return;
+    var otherTokenId = firstOtherPcTokenId();
+    if (!otherTokenId) return;
+    // 這些消耗品的效果有一部分是「對方裝置上的本地資源/旗標」（FP、體力、_xxxUntil buff），
+    // 我的裝置寫不進去，因此改成廣播一則指示給對方的角色節點，由**對方自己的裝置**在
+    // onCharactersReceived() 收到時套用同一支applyMidnightConsumableEffect()——
+    // 跟既有的_lastTileRewardNote（板塊獎勵toast）完全同一種「寫到對方角色上、對方自己
+    // 處理」的模式，效果因此能完整生效，不需要在這裡逐項重寫一份。
+    GameStorage.rtSet(gameId, "cloud", "character/" + otherTokenId + "/_sharedItemEffect", { itemId: itemId, at: Date.now() });
+    var item = window.PriTestConsumables.get(itemId);
+    showToast(
+      window.I18N.t("midnight_item_expand_toast", {
+        item: item ? window.PriTestConsumables.localizedText(item.name) : itemId,
+      })
+    );
+  }
+
   function applyMidnightConsumableEffect(c, itemId) {
     var applyLevel2 = hasCarriedKnowledge(c);
     // 丟擲/噴霧動畫（2026-09-08新增）：跟下面的數值套用分支無關，只要是對敵人使用的
@@ -4172,23 +5064,34 @@
       return;
     }
     cancelFlaskReadingForOtherAction();
-    GameStorage.rtTransaction(gameId, "cloud", "character/" + myTokenId + "/consumables", function (cur) {
-      var list = (cur || []).slice();
-      var idx = -1;
-      for (var i = 0; i < list.length; i++) {
-        if (list[i].id === inst.id) {
-          idx = i;
-          break;
+    // 學者「節約術」（2026-09-11使用者明確規格「使用消耗品時，20%機率，則將該消耗品的
+    // 使用次數回復○1個」）：等同「這次不扣使用次數」。機率在transaction外先擲，避免
+    // transaction重試時重複擲骰造成機率失真。
+    var thriftSaved = hasRelic(c, "thrift") && Math.random() < THRIFT_CHANCE;
+    if (!thriftSaved) {
+      GameStorage.rtTransaction(gameId, "cloud", "character/" + myTokenId + "/consumables", function (cur) {
+        var list = (cur || []).slice();
+        var idx = -1;
+        for (var i = 0; i < list.length; i++) {
+          if (list[i].id === inst.id) {
+            idx = i;
+            break;
+          }
         }
-      }
-      if (idx === -1) return cur;
-      var next = list[idx].usesRemaining - 1;
-      if (next <= 0) list.splice(idx, 1);
-      else list[idx] = { id: list[idx].id, itemId: list[idx].itemId, usesRemaining: next };
-      return list;
-    });
+        if (idx === -1) return cur;
+        var next = list[idx].usesRemaining - 1;
+        if (next <= 0) list.splice(idx, 1);
+        else list[idx] = { id: list[idx].id, itemId: list[idx].itemId, usesRemaining: next };
+        return list;
+      });
+    }
     if (item) {
       applyMidnightConsumableEffect(c, inst.itemId);
+      if (thriftSaved) showToast(window.I18N.t("midnight_thrift_toast"));
+      // 學者「道具效果擴大」（2026-09-11）：「使用消耗品『聖杯瓶／勇者的肉塊／龜首漬／
+      // 星光碎片／苔玉』時，可對自身以外的任意1名PC也發揮相同效果」——對象取隊伍中第一位
+      // 其他PC（midnight沒有目標選擇UI，比照聖光燈火等既有簡化）。
+      if (hasRelic(c, "itemEffectExpand")) applyItemEffectExpand(c, inst.itemId);
       var autoApplied = !MIDNIGHT_CONSUMABLE_TIMED_OR_UNRESOLVED[inst.itemId];
       var suffix = autoApplied
         ? window.I18N.t("midnight_consumable_auto_applied_note")
@@ -4276,8 +5179,20 @@
     // 疊加在既有回復速率之上，見applyMidnightAbilityPostEffect()寫入_tranceUntil。
     var c = characters[myTokenId];
     var extraRegenPerSec = c && c._tranceUntil && c._tranceUntil > Date.now() ? 2 : 0;
+    // 2026-09-11遺物效果（使用者明確規格的即時制對應）：
+    //   「防禦階段開始時體力骰回復」→ 體力上限+10（習得幾個就+幾個10）
+    //   「回合結束時，體力骰帶入1個」→ 體力在10%以下時，回復速度+2/秒
+    var maxBonus = countRelic(c, "staminaMaxPlus") * RELIC_STAMINA_MAX_BONUS;
+    stamina.max = STAMINA_MAX + maxBonus;
+    if (hasRelic(c, "staminaLowRegen") && stamina.current <= stamina.max * RELIC_STAMINA_LOW_PCT) {
+      extraRegenPerSec += RELIC_STAMINA_LOW_REGEN;
+    }
     stamina.current = Math.min(stamina.max, stamina.current + (myStaminaRegenPerSec + extraRegenPerSec) * dtSec);
   }
+
+  var RELIC_STAMINA_MAX_BONUS = 10;
+  var RELIC_STAMINA_LOW_PCT = 0.1;
+  var RELIC_STAMINA_LOW_REGEN = 2;
 
   // ============================================================================
   // 敵人攻擊（2026-09-05新增，見上方ENEMY_ATTACK_*常數區塊的設計決定與資料來源說明）。
@@ -4295,9 +5210,15 @@
   //   「我自己的HP要不要被扣」，不需要額外的RTDB回合制交握。
   // ============================================================================
 
+  // 遺物效果「轉身之步」（2026-09-11使用者明確規格「自身進行迴避時，判定窗口可以增加
+  // (+0.2s)」）：反應窗口本身是「這名玩家自己的裝置」在算的本地計時（見
+  // updateMyIncomingAttack()），因此直接加在這裡即可，不需要同步給其他玩家。
+  // 習得多個就疊加（跟其餘可疊加遺物同一慣例）。
+  var TURN_STEP_WINDOW_BONUS_MS = 200;
+
   function enemyAttackHitWindowMs(hitIndex) {
     var idx = Math.max(0, Math.min(hitIndex, ENEMY_ATTACK_HIT_WINDOW_MS.length - 1));
-    return ENEMY_ATTACK_HIT_WINDOW_MS[idx];
+    return ENEMY_ATTACK_HIT_WINDOW_MS[idx] + countRelic(characters[myTokenId], "turnStep") * TURN_STEP_WINDOW_BONUS_MS;
   }
 
   function enemyAttackTotalDurationMs(hitCount) {
@@ -4536,6 +5457,15 @@
         stunOut.nextAttackAt = cur.enemyStunnedUntil;
         return stunOut;
       }
+      // 體崩中（2026-09-11，使用者明確規格「此期間…不會進行任何攻擊」）：跟「終曲」的
+      // 禁閉同一種處理——把下一次攻擊排程延後到體崩結束，而不是靜默跳過，確保體崩結束後
+      // 仍會正常排下一次攻擊。
+      if (cur.staggerUntil && Date.now() < cur.staggerUntil) {
+        var stgOut = {};
+        for (var gk in cur) stgOut[gk] = cur[gk];
+        stgOut.nextAttackAt = cur.staggerUntil;
+        return stgOut;
+      }
       // 瀕死中的玩家不會被敵人指定為目標（2026-09-08使用者明確要求），見
       // targetableParticipantSlots()說明；夜王分支的目標選擇改在pickAndResolveBossAction()
       // 內部經由bossAutoGmBattleState()套用同一個篩選，這裡的slots只用在一般敵人分支。
@@ -4713,6 +5643,39 @@
   // 或體力不足以支付骰子成本×2時，防禦失敗、視同完全命中（kind改成"hit"）。special＝
   // 第六感／遺物效果額外防禦（見availableSpecialDefenseOption），資源不足時同樣降級為"hit"，
   // 成功則比照dodge完全無效化（不進入下面的HP損害transaction）。
+  // 防禦（block）成功時的遺物效果（2026-09-11）：
+  //   ・防禦成功時HP回復：「先對自身施加『HP回復：□』，之後再處理HP損害」——因此在
+  //     扣血計算之前呼叫（本函式在showActionFlash那一段被呼叫，早於下方的damage transaction）。
+  //   ・防禦反擊：規則書要「支付骰子消耗3對敵人造成1Hit傷害」，使用者2026-09-11改成
+  //     「下一個攻擊消費體力-25%（可疊加）」——改存成角色欄位，由handleAttackClick()
+  //     的體力計算讀取（見guardCounterDiscountPct()）。斧槍版的「+15」在原規則是反擊
+  //     傷害加成，改成折扣制後沒有對應的數值出口，維持不生效（見
+  //     docs/midnight_relic_effects_audit.md 的已知限制）。
+  var GUARD_COUNTER_DISCOUNT_PCT = 25;
+
+  function applyGuardSuccessRelics() {
+    var c = characters[myTokenId];
+    if (!c) return;
+    if (hasRelic(c, "guardHpRecover")) healSelfHp(BLOCK_SQUARE_COUNT_TO_RESOURCE_MULT);
+    if (hasRelic(c, "guardCounter") && hasMeleeWeaponEquipped(c)) {
+      var stacks = (c._guardCounterStacks || 0) + countRelic(c, "guardCounter");
+      c._guardCounterStacks = stacks;
+      GameStorage.rtSet(gameId, "cloud", "character/" + myTokenId + "/_guardCounterStacks", stacks);
+    }
+  }
+
+  // 下一次攻擊的體力折扣百分比（防禦反擊，可疊加，上限夾在100%以內避免變成免費/負值）。
+  function guardCounterDiscountPct(c) {
+    var stacks = (c && c._guardCounterStacks) || 0;
+    return Math.min(100, stacks * GUARD_COUNTER_DISCOUNT_PCT);
+  }
+
+  function consumeGuardCounterDiscount(c) {
+    if (!c || !c._guardCounterStacks) return;
+    c._guardCounterStacks = 0;
+    GameStorage.rtSet(gameId, "cloud", "character/" + myTokenId + "/_guardCounterStacks", 0);
+  }
+
   function resolveMyIncomingHit(st, kind) {
     var blockPct = 0;
     if (kind === "block") {
@@ -4738,6 +5701,7 @@
       showActionFlash("midnight-dodge-flash", window.I18N.t("midnight_dodge_success_flash"), "success");
     } else if (kind === "block") {
       showActionFlash("midnight-block-flash", window.I18N.t("midnight_block_success_flash"), "success");
+      applyGuardSuccessRelics();
     } else if (kind === "special") {
       showActionFlash("midnight-defense-special-flash", window.I18N.t("midnight_block_success_flash"), "success");
     } else {
@@ -5960,6 +6924,13 @@
     }
     receivedAttributeAccum = {};
     receivedAttributeAccumTriggeredCount = {};
+    // 2026-09-11新增遺物效果用的本場累計（突刺反擊的「攻擊過10次以上」／
+    // 連續攻擊時體力回復の5次計數／連續攻擊時FP回復の10秒內體力消耗累計）：
+    // 都是「一場戰鬥內」的概念，離開戰鬥就歸零。
+    attackCountThisEncounter = 0;
+    attackStaminaWindow = [];
+    restageDamageUpApplied = {};
+    daggerHit2Times = [];
   }
 
   // 夜之強敵（finalCircleDay1／finalCircleDay2）／夜王（day3Boss，見DAY3_BOSS_POINT_ID）
@@ -7821,7 +8792,7 @@
     var sum = dice.reduce(function (a, b) {
       return a + b;
     }, 0);
-    var success = sum >= SCARAB_CHECK_TARGET;
+    var success = checkSucceeded(c, sum, SCARAB_CHECK_TARGET);
     scarabResult = {
       pointId: pt.id,
       text: window.I18N.t(success ? "midnight_scarab_success_text" : "midnight_scarab_fail_text", {
@@ -8244,7 +9215,7 @@
     var diceCount = effectiveCheckDiceCount(c, "mental");
     var sum = 0;
     for (var i = 0; i < diceCount; i++) sum += 1 + Math.floor(Math.random() * 6);
-    var success = sum >= GODDESS_STATUE_CHECK_TARGET;
+    var success = checkSucceeded(c, sum, GODDESS_STATUE_CHECK_TARGET);
     el("midnight-random-event-result").textContent = window.I18N.t(success ? "midnight_random_event_success_note" : "midnight_random_event_fail_note", {
       sum: sum,
       target: GODDESS_STATUE_CHECK_TARGET,
@@ -8300,6 +9271,15 @@
     var base = type && type.checkValues && statKey ? type.checkValues[statKey] || 0 : 0;
     var bonus = c && CharacterDrawer.getCheckStatBonus ? CharacterDrawer.getCheckStatBonus(c, statKey) : 0;
     return Math.max(0, base + bonus);
+  }
+
+  // 學者「最大加護提升」（2026-09-11使用者明確規格「自身出現的判定皆為過關」）：
+  // 規則書原文是「將自身『最大加護：+□』」，而 midnight 沒有「加護」這個資源
+  // （只有 HP/FP/體力），因此使用者改指定為「自身的判定必定成功」。所有單人判定都
+  // 走這支 helper（協力判定 teamCheckSum() 是全隊加總、不是「自身的判定」，不套用）。
+  function checkSucceeded(c, sum, target) {
+    if (hasRelic(c, "maxBlessingUp")) return true;
+    return sum >= target;
   }
 
   // Task 21引入通用「協力判定」helper（teamCheckSum(trig, statKey)）前的最小版本：依
@@ -8489,7 +9469,7 @@
     var diceCount = effectiveCheckDiceCount(c, "physical");
     var sum = 0;
     for (var i = 0; i < diceCount; i++) sum += 1 + Math.floor(Math.random() * 6);
-    var success = sum >= MAUSOLEUM_CHECK_TARGET;
+    var success = checkSucceeded(c, sum, MAUSOLEUM_CHECK_TARGET);
     if (!success) spendSelfHp(MAUSOLEUM_FAIL_HP_DAMAGE);
     // event_rulebook.js:529/538「自身が所持している武器の中から任意の1つ」與同じ物1つ
     // を獲得——規則原文是玩家自行挑選要複製哪一把，但目前codebase沒有「挑選某個武器
@@ -8733,7 +9713,7 @@
     var diceCount = effectiveCheckDiceCount(c, steps.statKey);
     var sum = 0;
     for (var i = 0; i < diceCount; i++) sum += 1 + Math.floor(Math.random() * 6);
-    if (sum < steps.checkTarget && c) {
+    if (!checkSucceeded(c, sum, steps.checkTarget) && c) {
       var lost = Math.min(c.runes || 0, steps.failRuneLoss);
       c.runes = (c.runes || 0) - lost;
       c._insectSwarmLostRunes = (c._insectSwarmLostRunes || 0) + lost;
@@ -8772,7 +9752,7 @@
     var diceCount = effectiveCheckDiceCount(c, statKey);
     var sum = 0;
     for (var i = 0; i < diceCount; i++) sum += 1 + Math.floor(Math.random() * 6);
-    var success = sum >= checkTarget;
+    var success = checkSucceeded(c, sum, checkTarget);
     GameStorage.rtSet(gameId, "cloud", "fieldTrigger/" + pt.id + "/chaseAttempted/" + mySlot, true);
     GameStorage.rtSet(gameId, "cloud", "fieldTrigger/" + pt.id + "/chaseResults/" + mySlot, success);
   }
@@ -8909,7 +9889,7 @@
     var diceCount = Math.max(effectiveCheckDiceCount(c, "physical"), effectiveCheckDiceCount(c, "mental"), effectiveCheckDiceCount(c, "luck"));
     var sum = 0;
     for (var i = 0; i < diceCount; i++) sum += 1 + Math.floor(Math.random() * 6);
-    var success = sum >= stepConfig.checkTarget;
+    var success = checkSucceeded(c, sum, stepConfig.checkTarget);
     var madnessDiceCount = success ? 2 : 3;
     var madnessSum = 0;
     for (var j = 0; j < madnessDiceCount; j++) madnessSum += 1 + Math.floor(Math.random() * 6);
@@ -10237,6 +11217,24 @@
       detail.appendChild(fullNote);
       return;
     }
+    // 遺物效果「回合中限1次裝備變更免費」（2026-09-11使用者明確規格「每一天僅限1次，
+    // 可將武器/消耗品/裝飾品抽選 進行多一次抽選（捨棄前一次結果）」）：只在需要抽選的
+    // 三種kind上出現，按下就丟掉目前draft重抽一次，並記下今天已用（_freeRerollUsedDay）。
+    if (needsDrawStep && c0 && hasRelic(c0, "freeReroll")) {
+      var today = currentPhaseInfo(Date.now()).day;
+      if ((c0._freeRerollUsedDay || 0) !== today) {
+        var redrawBtn = document.createElement("button");
+        redrawBtn.type = "button";
+        redrawBtn.textContent = window.I18N.t("midnight_reward_free_redraw_button");
+        redrawBtn.addEventListener("click", function () {
+          c0._freeRerollUsedDay = today;
+          GameStorage.rtSet(gameId, "cloud", "character/" + myTokenId + "/_freeRerollUsedDay", today);
+          delete rewardDraftById[id];
+          renderRewardDetail(id, entry);
+        });
+        detail.appendChild(redrawBtn);
+      }
+    }
     var confirmBtn = document.createElement("button");
     confirmBtn.type = "button";
     confirmBtn.textContent = window.I18N.t("midnight_reward_confirm_button");
@@ -10645,36 +11643,64 @@
     bodyEl.textContent = mnText(CharacterTypes.localizedText(candidate.effect.body), CharacterTypes.localizedText(candidate.effect.name));
     card.appendChild(bodyEl);
 
+    // 2026-09-11改版（使用者明確規格「跳出另外的視窗讓玩家選擇屬性的按鈕 並且多一個
+    // 隨機按鈕由系統決定」）：原本是卡片內的<select>，改成按[習得]後彈出選擇視窗
+    // （openRelicChoiceModal()）。選項資料來源不變，仍是
+    // CharacterDrawer.relicChoiceConfigForEffect()（RELIC_CHOICE_CONFIG_BY_NAME）。
     var choiceConfig = CD.relicChoiceConfigForEffect(candidate.effect);
-    var choiceSelect = null;
-    if (choiceConfig) {
-      choiceSelect = document.createElement("select");
-      var randomOpt = document.createElement("option");
-      randomOpt.value = "-1";
-      randomOpt.textContent = window.I18N.t("relic_choice_random_option");
-      choiceSelect.appendChild(randomOpt);
-      choiceConfig.options.forEach(function (opt, idx) {
-        var o = document.createElement("option");
-        o.value = String(idx);
-        o.textContent = CharacterTypes.localizedText(opt);
-        choiceSelect.appendChild(o);
-      });
-      card.appendChild(choiceSelect);
-    }
 
     var learnBtn = document.createElement("button");
     learnBtn.type = "button";
     learnBtn.textContent = window.I18N.t("relic_learn_button");
     learnBtn.addEventListener("click", function () {
-      var pickedIdx = choiceSelect ? Number(choiceSelect.value) : -1;
-      var pickedOption = choiceConfig && pickedIdx >= 0 ? choiceConfig.options[pickedIdx] : null;
-      CD.learnRelicEffect(c, candidate, pickedOption);
-      GameStorage.rtSet(gameId, "cloud", "character/" + myTokenId, c);
-      midnightRelicRolledDice = null;
-      renderCharacterSheet();
+      if (choiceConfig) {
+        openRelicChoiceModal(candidate, choiceConfig, CD, CharacterTypes);
+        return;
+      }
+      commitRelicLearn(candidate, null, CD);
     });
     card.appendChild(learnBtn);
     container.appendChild(card);
+  }
+
+  function commitRelicLearn(candidate, pickedOption, CD) {
+    var c = characters[myTokenId];
+    if (!c) return;
+    CD.learnRelicEffect(c, candidate, pickedOption);
+    GameStorage.rtSet(gameId, "cloud", "character/" + myTokenId, c);
+    midnightRelicRolledDice = null;
+    renderCharacterSheet();
+  }
+
+  // 遺物效果的「習得時選擇1種屬性／異常／武器」視窗：每個選項一顆按鈕，外加一顆
+  // [隨機決定]（傳入null給CharacterDrawer.learnRelicEffect()，由它既有的
+  // assignRelicChoiceIfNeeded() 隨機指派，見 CLAUDE.md §24）。
+  function openRelicChoiceModal(candidate, choiceConfig, CD, CharacterTypes) {
+    var modal = el("midnight-relic-choice-modal");
+    if (!modal) return;
+    el("midnight-relic-choice-title").textContent = CharacterTypes.localizedText(candidate.effect.name);
+    var box = el("midnight-relic-choice-options");
+    box.innerHTML = "";
+    choiceConfig.options.forEach(function (opt) {
+      var btn = document.createElement("button");
+      btn.type = "button";
+      btn.textContent = CharacterTypes.localizedText(opt);
+      btn.addEventListener("click", function () {
+        modal.hidden = true;
+        commitRelicLearn(candidate, opt, CD);
+      });
+      box.appendChild(btn);
+    });
+    var randomBtn = document.createElement("button");
+    randomBtn.type = "button";
+    randomBtn.className = "midnight-relic-choice-random";
+    randomBtn.textContent = window.I18N.t("relic_choice_random_option");
+    randomBtn.addEventListener("click", function () {
+      modal.hidden = true;
+      commitRelicLearn(candidate, null, CD);
+    });
+    box.appendChild(randomBtn);
+    modal.hidden = false;
   }
 
   function renderMidnightRelicCandidates(c, type, CD, CharacterTypes) {
@@ -11240,6 +12266,41 @@
   // 右側detail：武器/消耗品/裝飾品是持有物，額外顯示【裝備】【丟棄】；技能/技藝/被動/
   // 遺物效果/附帶效果是唯讀規則說明，只顯示name+body（見計畫書「持有物 vs 規則說明」
   // 的區分）。
+  // 可切換型遺物效果（2026-09-11使用者明確規格）：效果名稱 → 角色物件上的開關欄位。
+  // 開啟時才改變既有行為，關閉（預設）時完全維持原本流程。
+  //   聖杯瓶可回復FP：聖杯瓶改成回FP而不是回HP
+  //   一口氣飲盡　　：聖杯瓶一次消耗2次使用次數，改為把HP回滿
+  var RELIC_TOGGLE_FIELDS = [
+    { key: "flaskFp", field: "_flaskFpMode" },
+    { key: "flaskGulp", field: "_flaskGulpMode" },
+  ];
+
+  function relicToggleFieldForEffect(effect) {
+    var nameZh = (effect.name && effect.name.zh) || "";
+    var nameJa = (effect.name && effect.name.ja) || "";
+    for (var i = 0; i < RELIC_TOGGLE_FIELDS.length; i++) {
+      var names = RELIC[RELIC_TOGGLE_FIELDS[i].key];
+      if (names.indexOf(nameZh) !== -1 || names.indexOf(nameJa) !== -1) return RELIC_TOGGLE_FIELDS[i].field;
+    }
+    return null;
+  }
+
+  function appendRelicToggle(detail, c, effect) {
+    var field = relicToggleFieldForEffect(effect);
+    if (!field || !c) return;
+    var on = !!c[field];
+    var btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "midnight-relic-toggle" + (on ? " midnight-relic-toggle-on" : "");
+    btn.textContent = window.I18N.t(on ? "midnight_relic_toggle_on" : "midnight_relic_toggle_off");
+    btn.addEventListener("click", function () {
+      c[field] = !c[field];
+      GameStorage.rtSet(gameId, "cloud", "character/" + myTokenId + "/" + field, c[field]);
+      renderCharacterSheet();
+    });
+    detail.appendChild(btn);
+  }
+
   function renderCharacterSheetDetail(c, type, CharacterTypes, CD) {
     var detail = el("midnight-character-sheet-detail");
     detail.innerHTML = "";
@@ -11317,6 +12378,10 @@
     } else if (sel.kind === "relic") {
       var effect = type ? CD.relicEffectForKey(type, sel.ref) : null;
       if (!effect) return;
+      // 2026-09-11：部分遺物效果是「玩家自己選要不要改變既有行為」的開關（使用者明確
+      // 規格「需要在角色視窗中此技能中的詳細來切換，詳細資訊中上方有切換開關」），
+      // 因此開關放在名稱/本文之前（上方），見appendRelicToggle()。
+      appendRelicToggle(detail, c, effect);
       appendNameBody(CharacterTypes.localizedText(effect.name), CharacterTypes.localizedText(effect.body));
     } else if (sel.kind === "attached") {
       var attached = CD.attachedEffectById(sel.ref);
@@ -13474,10 +14539,12 @@
     updateBattlePrep(now);
     renderEnterBattlePrompt();
     renderBattlePrepBanner(now);
+    renderStaggerOverlay(now); // 體崩橫幅／致命一擊按鈕（每影格變動，不能放進有快取的renderFieldEncounterPanel）
     renderFinalCircleCountdown(now);
     updateStamina(dtSec);
     updateSorceryHold(now);
     updateAttackHold(now);
+    updateSkillExtraCharges(now); // 遺物效果「技能使用次數＋1」的蓄積
     updateFlaskReading(now);
     maybePushPosition(now);
     var phaseInfo = currentPhaseInfo(now);
@@ -13772,6 +14839,20 @@
     },
     _debugIsEliteEncounterPoint: function (pt, trig) {
       return isEliteEncounterPoint(pt, trig);
+    },
+    // 純測試用（2026-09-11）：體崩累積平常只在「攻擊剛好帶▲/◆記號」時才發生，靠實際
+    // 遊玩很難穩定累到36單位，這裡直接開放累積入口給回歸測試。
+    _debugRecordGuardReduction: function (pointId, symbol) {
+      recordGuardReductionForPoint(pointId, symbol);
+    },
+    _debugStaggerConstants: function () {
+      return {
+        thresholdUnits: STAGGER_THRESHOLD_UNITS,
+        durationMs: STAGGER_DURATION_MS,
+        accelMult: STAGGER_ACCEL_MULT,
+        accelHpMinPct: STAGGER_ACCEL_HP_MIN_PCT,
+        accelHpMaxPct: STAGGER_ACCEL_HP_MAX_PCT,
+      };
     },
     _debugState: function () {
       return {

@@ -82,6 +82,12 @@ types.forEach((t) => {
       let k;
       if (directlyHandled(zh) || directlyHandled(ja)) k = "① midnight.js 直接判斷";
       else if (COVERED_BY_GENERIC.test(body)) k = "② 通用被動解析（威力補正／最大HP・FP／判定骰）";
+      // 2026-09-11 追加的既有管線：2Hit攻擊的達人（findTwoHitMasteryOverride）、
+      // variantEntry（learnedVariantEntries：混成魔法的4變體・妖刀解放・冰塊之棺等）、
+      // 發現力＋（CharacterDrawer.potentialPowerDrawWeapon 內部就有判斷）。
+      else if (zh.indexOf("2Hit攻擊的達人") === 0) k = "③ 2Hit攻擊的達人（消耗覆寫，冷卻10秒）";
+      else if (e.variantEntry) k = "③ variantEntry（角色面板可切換的替代招式）";
+      else if (zh === "發現力＋") k = "③ CharacterDrawer 內建（潛在之力稀有度骰+1）";
       else if (e.kind === "Action") k = "③ Action類（只有跳躍／衝刺有入口）";
       else if (TURN_BASED.test(body)) k = "④ 回合制概念（即時制不適用）";
       else if (zh.indexOf("2Hit攻擊的達人") !== -1 || zh.indexOf("1Hit攻擊") !== -1) k = "⑤ 攻擊消耗變更";

@@ -814,3 +814,80 @@ HP 歸零的流程是「`demoStat` transaction commit →`.then()`→`maybeTrigg
   （`npm run test:relic_two_hit_mastery`），4 個斷言。
 - 附帶產出：`docs/midnight_relic_effects_gaps_by_type.md`（依角色類型列出 245 筆尚未接上的
   遺物效果，供後續規劃），產生器 `tools/midnight_check/relic_effect_gaps_table.js`。
+
+---
+
+## 17. 2026-09-11 第二批：敵人體崩狀態／最低傷害／大批遺物效果接入
+
+### 17.1 敵人「體崩」狀態（新機制）
+
+使用者明確規格。累積來源沿用 Guard Point 下降用的同一組 ▲◆ 單位（▲=1／◆=2），但另存
+`fieldTrigger/{id}/staggerUnits`——`guardUnits` 會在破防 5 秒後被回復流程歸零，體崩累積
+不能跟著歸零。
+
+| 項目 | 值 | 出處 |
+| --- | --- | --- |
+| 閥值 | 36 單位（＝6 次 Guard Point 下降） | 使用者 2026-09-11 選定 |
+| 持續 | 3 秒（`STAGGER_DURATION_MS`） | 使用者明確規格 |
+| 加速 | HP 百分比 **大於 40%、小於 60%** 時累積 ×3 | 使用者明確規格 |
+| 效果 | Guard Point 一律以最低（0）計算＝減傷最少；期間敵人不發動任何攻擊 | 使用者明確規格 |
+| 顯示 | 敵人圖片上方綠底「體崩中！！」橫幅 | 使用者明確規格 |
+
+實作位置：`recordGuardReductionForPoint()`（累積與進入體崩）、`currentGuardCountForTrig()`
+（Guard 視為 0，優先於 `guardBrokenAt` 與 L 補正）、`maybeStartEnemyAttack()`
+（把 `nextAttackAt` 推遲到體崩結束，跟「終曲」的禁閉同一種處理，不是靜默跳過）、
+`renderStaggerOverlay()`（每影格渲染，不能放進有 `lastRenderedEncounterKey` 快取的
+`renderFieldEncounterPanel()`）。`staggerSeq` 每次進入體崩 +1，供致命一擊的
+「同一次體崩只能一個人按一次」判定使用。
+
+### 17.2 敵人最低遭受傷害 1 點
+
+`applyDamageToFieldEnemyHp()`：減傷率 100%（HP 價值 100）或四捨五入後歸零時，至少扣 1。
+原始 `amount` 本來就是 0（例如無法解算威力的招式）時不套用——那代表「這次本來就沒有傷害」，
+不是被減傷吃掉。
+
+### 17.3 遺物效果大批接入
+
+新增 `RELIC` 名稱表與 `hasRelic()` / `countRelic()` 查詢層，加成注入既有計算點
+（`computeSideAttackInfo()` / `computeMidnightSkillDamage()` / `computeCharacterAbilityDamage()` /
+`updateStamina()` / `commitFlaskHeal()` / `resolveMyIncomingHit()` / `recordAttributeAccum()` 等），
+不另建平行管線。重點如下：
+
+- **蓄力攻擊**：接進既有的長按攻擊選單（跟跳躍／衝刺同一條路徑）。傷害＝1Hit＋10
+  （習得 2 個以上再 +10），消耗＝該武器 1Hit 的骰子點數 **+1**（＝體力 +2，使用者確認）。
+- **致命一擊**：體崩中才出現在敵人圖片上，需習得＋裝備近戰武器，整隊同一次體崩只有一人
+  能按一次（`executionUsedSeq` first-writer-wins）。傷害 120（習得 2 個 +20 並回 HP/FP □）。
+  規則書的「消耗：豹子（3個）」是骰池專有條件，即時制沒有骰池、使用者規格也只寫「按下即
+  造成傷害」，因此不收費用。連動的「致命一擊獲得盧恩」＝全體 PC 盧恩 +1、一場戰鬥限一次。
+- **時限型技藝強化**：「技藝強化（攻擊力強化／攻擊力提升／出血攻擊力強化）」三者結構相同，
+  共用 `_relicAtkBuffUntil`（10 秒），效果為攻擊 1Hit+5／2Hit+10、戰技魔術祈禱 +10。
+- **體力系**：「防禦階段開始時體力骰回復」→ 體力上限 +10；「回合結束時體力骰帶入1個」→
+  體力 ≤10% 時回復 +2/秒；「連續攻擊時體力回復」→ 每攻擊 5 次 +5 體力；
+  「連續攻擊時FP回復」→ 10 秒內攻擊累計消耗 40 體力時 FP +10。
+- **開關型**：「聖杯瓶可回復FP」「一口氣飲盡」在角色視窗該效果的詳細資訊上方提供切換鈕
+  （`appendRelicToggle()`，寫入 `_flaskFpMode` / `_flaskGulpMode`）。
+- **選擇型**：「屬性蓄積值＋1」「屬性達成的歡喜」的習得選擇改為彈出視窗（每個選項一顆
+  按鈕＋一顆隨機），選項資料仍取自既有的 `RELIC_CHOICE_CONFIG_BY_NAME`。
+  「屬性達成的歡喜」的觸發改在 `onAttributeAccumReceived()` 各裝置各自判斷，才能符合
+  規則書「不論由哪位PC累積」。
+- **道具效果擴大**：對隊友的部分改用「寫一則指示到對方角色節點、由對方裝置自己套用」
+  （`_sharedItemEffect`，跟既有 `_lastTileRewardNote` 同一種模式），因為 FP／體力／
+  `_xxxUntil` buff 都是各自裝置的本地狀態，我的裝置寫不進去。
+- **判定必過**：「最大加護提升」依使用者規格改成「自身的判定必定成功」
+  （`checkSucceeded()`，只套用單人判定，協力判定不套用）。
+
+### 17.4 已知不套用（刻意）
+
+- **防禦成功時異常狀態蓄積無效**：midnight 的既有實作本來就只在「完全命中（kind==="hit"）」
+  時才累積屬性／異常，防禦成功時本來就不會蓄積，這個遺物等於已被既有行為涵蓋，沒有另外加碼。
+- **防禦反擊強化（斧槍）**：使用者把「防禦反擊」改成「下一次攻擊體力 -25%」的折扣制，
+  原規則的「反擊傷害 +15」在折扣制下沒有對應的數值出口，維持不生效。
+- **2Hit攻擊的達人（復仇者的咒爪）**：本文指的是特定**武器名**而非武器分類，而
+  `findTwoHitMasteryOverride()` 是以分類名比對，這條在 night.js 與 midnight 都不會發揮
+  （既有上游限制）。
+
+### 17.5 回歸測試
+
+`tools/midnight_check/relic_batch_2026_09_11_check.js`（`npm run test:relic_batch_2026_09_11`）：
+18 個斷言，涵蓋體崩累積／加速倍率／持續時間／橫幅／停止攻擊／致命一擊全流程／最低傷害 1 點／
+體力上限 +10／聖杯瓶回 FP 開關。

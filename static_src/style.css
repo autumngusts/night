@@ -6173,6 +6173,105 @@ html.midnight-top-banner-collapsed .midnight-top-banner-collapse-btn {
   display: inline-block;
 }
 
+/* 遺物效果的習得時選擇視窗（2026-09-11，見 midnight.js の openRelicChoiceModal()）：
+   沿用跟 #midnight-merchant-modal 同款的全螢幕覆蓋＋置中卡片版型。 */
+#midnight-relic-choice-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 900;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.6);
+}
+
+#midnight-relic-choice-box {
+  max-width: 420px;
+  padding: 1rem;
+  border-radius: 8px;
+  background: #171a22;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  text-align: center;
+}
+
+#midnight-relic-choice-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  justify-content: center;
+}
+
+.midnight-relic-choice-random {
+  background: rgba(255, 213, 74, 0.22);
+  border: 1px solid #ffd54a;
+}
+
+/* 可切換型遺物效果的開關（角色視窗右側詳細資訊上方，見 appendRelicToggle()）。 */
+.midnight-relic-toggle {
+  display: block;
+  margin: 0 0 0.4rem;
+  font-size: 0.78rem;
+}
+
+.midnight-relic-toggle-on {
+  background: rgba(76, 220, 110, 0.25);
+  border: 1px solid #4cdc6e;
+  font-weight: bold;
+}
+
+/* 敵人「體崩中！！」橫幅（2026-09-11使用者明確規格「敵人圖片上方顯示綠色背景」）：
+   疊在敵人圖片正上方，跟命中特效同一個position:relative容器。純顯示，不攔截點擊
+   （pointer-events:none），否則會擋到下面的致命一擊按鈕與圖片本身。 */
+#midnight-stagger-banner {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  z-index: 6;
+  pointer-events: none;
+  padding: 0.15rem 0.3rem;
+  text-align: center;
+  font-weight: bold;
+  font-size: 0.85rem;
+  color: #0b2a12;
+  background: rgba(76, 220, 110, 0.92);
+  border-radius: 4px;
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.4);
+  animation: midnight-stagger-pulse 0.6s ease-in-out infinite alternate;
+}
+
+@keyframes midnight-stagger-pulse {
+  from {
+    box-shadow: 0 0 0 rgba(76, 220, 110, 0);
+  }
+  to {
+    box-shadow: 0 0 12px rgba(76, 220, 110, 0.9);
+  }
+}
+
+/* 致命一擊（遺物效果）：只在體崩中且自身習得時出現在敵人圖片中央。 */
+#btn-midnight-execution {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 7;
+  padding: 0.35rem 0.7rem;
+  font-weight: bold;
+  font-size: 0.85rem;
+  color: #fff5f5;
+  background: rgba(178, 24, 24, 0.92);
+  border: 1px solid #ffb0b0;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+#btn-midnight-execution:disabled {
+  background: rgba(90, 60, 60, 0.8);
+  border-color: #6d5555;
+  cursor: default;
+}
+
 /* 玩家攻擊命中特效（2026-09-06使用者明確要求「玩家使用任何攻擊效果時,也在敵人的圖片上
    產生不同的刀光效果,且能根據屬性等等的更換顏色」）：疊在敵人圖片上的斜向刀光，顏色由
    static/midnight.jsのtriggerEnemyHitEffect()透過內聯style設定的--hit-color決定

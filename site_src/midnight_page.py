@@ -762,6 +762,12 @@ BODY = """    <div class="midnight-wrap">
                    triggerConsumableThrowEffect()，圖示與顏色依道具決定，只在丟擲類/對敵人
                    噴霧類消耗品觸發，自身/全體PC用的道具不觸發。 -->
               <div id="midnight-consumable-throw-effect" hidden></div>
+              <!-- 體崩狀態（2026-09-11使用者明確規格）：累積▲◆滿36單位後顯示3秒，
+                   期間敌人防禦以最低計算且不攻擊。「致命一擊」鈕只在體崩中、且自己習得
+                   該遺物效果、且這次體崩還沒有人按過時才顯示，見 static/midnight.js の
+                   renderStaggerOverlay()／handleExecutionClick()。 -->
+              <div id="midnight-stagger-banner" hidden></div>
+              <button type="button" id="btn-midnight-execution" hidden></button>
             </div>
             <p id="midnight-field-encounter-name"></p>
           </div>
@@ -875,6 +881,10 @@ BODY = """    <div class="midnight-wrap">
           <!-- 元素操控（隱者/隱者黎明被動，2026-09-05角色能力真正接入新增）：見
                static/midnight.js的handleElementalControlClick()。 -->
           <button type="button" id="btn-midnight-elemental-control" hidden></button>
+          <!-- 復仇者「靈體管理」鈕（2026-09-11使用者明確規格「擁有額外按鈕來管理自身
+               召出的靈體」）：顯示目前靈體名稱與HP，按下即解散（釋放後可以重新召喚別種）。
+               沒有靈體時自動隱藏，見 static/midnight.js の renderSpiritManageButton()。 -->
+          <button type="button" id="btn-midnight-spirit-manage" hidden></button>
         </div>
 
         <!-- 全螢幕地圖modal（2026-09-05 HUD優化改版；2026-09-06修正：先前塔／商人／祝福／
@@ -1017,6 +1027,17 @@ BODY = """    <div class="midnight-wrap">
              [保留並離開]在①②③都可見（唯一離開手段，二段式確認見
              handleWeaponRerollKeepAndLeaveClick()），可見性/文字切換全部由
              static/midnight.jsのrenderWeaponRerollModal()動態控制，這裡只放空容器。 -->
+        <!-- 遺物效果的「習得時選擇1種屬性／異常」選擇視窗（2026-09-11使用者明確規格
+             「跳出另外的視窗讓玩家選擇屬性的按鈕 並且多一個隨機按鈕由系統決定」）：
+             選項本身來自 CharacterDrawer.relicChoiceConfigForEffect()（RELIC_CHOICE_CONFIG_BY_NAME），
+             見 static/midnight.js の openRelicChoiceModal()。 -->
+        <div id="midnight-relic-choice-modal" hidden>
+          <div id="midnight-relic-choice-box">
+            <h3 id="midnight-relic-choice-title"></h3>
+            <div id="midnight-relic-choice-options"></div>
+          </div>
+        </div>
+
         <div id="midnight-weapon-reroll-modal" hidden>
           <div id="midnight-weapon-reroll-box">
             <h3 data-i18n="midnight_weapon_reroll_title"></h3>
