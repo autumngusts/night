@@ -2861,6 +2861,7 @@
   // 攻擊的分類（見 resolveEnemyActionOutcome()），玩家沒有這個傷害類別可以加成，
   // 因此只實作前半的雜兵傷害，不自行發明一個玩家版亂戰傷害（CLAUDE.md §19）。
   var HALBERD_WHIRLWIND_WINDOW_MS = 10000;
+  var HALBERD_WHIRLWIND_SELF_DAMAGE = 10; // 使用者2026-09-12明確規格的副作用「對自己造成傷害HP-10」
   var halberdHit2Times = [];
 
   function maybeApplyHalberdWhirlwind(c, weaponId, now) {
@@ -2874,6 +2875,10 @@
     if (halberdHit2Times.length < 2) return;
     halberdHit2Times = [];
     damageActiveMobIfAny(BLOCK_SQUARE_COUNT_TO_RESOURCE_MULT);
+    // 副作用（2026-09-12使用者明確規格「對自己造成傷害HP-10」）：走既有的spendSelfHp()，
+    // 因此HP歸零時一樣會正常觸發瀕死判定。
+    spendSelfHp(HALBERD_WHIRLWIND_SELF_DAMAGE);
+    showToast(window.I18N.t("midnight_halberd_whirlwind_toast", { damage: HALBERD_WHIRLWIND_SELF_DAMAGE }));
   }
 
   function recordAttributeAccum(name, amount) {
@@ -4543,6 +4548,32 @@
     if (hasRelic(c, "spiritDeathFp")) healSelfFp(BLOCK_SQUARE_COUNT_TO_RESOURCE_MULT * 2);
   }
 
+  // 靈體代受傷害（2026-09-12使用者明確規格）：有召喚中的靈體時，這次要扣的HP先扣靈體，
+  // 靈體HP歸零（陣亡）後溢出的部分才回傳給呼叫端扣自己。陣亡當下清掉summonedSpirit
+  // 並觸發「靈體消滅時HP/FP回復」兩個遺物效果（見maybeApplySpiritDeathRelics()）。
+  // 只套用在「受到敵人傷害」這條路徑（resolveMyIncomingHit）——技能的HP代價、圈外扣血
+  // 等自己造成的HP消耗不經過這裡，維持直接扣自己（規則書寫的是「受到傷害」）。
+  function absorbDamageWithSpirit(damage) {
+    if (damage <= 0) return damage;
+    var c = characters[myTokenId];
+    var spirit = c && c.summonedSpirit;
+    if (!spirit || !(spirit.hp > 0)) return damage;
+    var absorbed = Math.min(spirit.hp, damage);
+    spirit.hp -= absorbed;
+    var overflow = damage - absorbed;
+    if (spirit.hp > 0) {
+      c.summonedSpirit = spirit;
+      GameStorage.rtSet(gameId, "cloud", "character/" + myTokenId + "/summonedSpirit", spirit);
+      return overflow;
+    }
+    spirit.hp = 0;
+    maybeApplySpiritDeathRelics(c, spirit);
+    c.summonedSpirit = null;
+    GameStorage.rtSet(gameId, "cloud", "character/" + myTokenId + "/summonedSpirit", null);
+    showToast(window.I18N.t("midnight_spirit_destroyed_toast"));
+    return overflow;
+  }
+
   // 扣FP：不足時回傳false、不扣，跟spendStamina()同一種寫法。
   function spendFp(cost) {
     if (!mySlot || isPaused()) return false;
@@ -6043,6 +6074,11 @@
       // 守護者「救世之翼」的全隊暫時不受傷害（見partyNoDamageActive()說明）：完全無效化
       // 這次HP損害，比照迴避/特殊防禦的既有慣例，不進入下面的demoStat transaction。
       if (partyNoDamageActive()) damage = 0;
+      // 復仇者「召喚靈體」的護身效果（2026-09-12使用者明確規格「復仇者有靈體時，受到
+      // 傷害優先先扣除靈體，靈體陣亡後才開始扣復仇者」）：放在所有減傷都算完之後、
+      // 真正扣自己HP之前，回傳的是溢出到自己身上的部分。這同時讓「靈體消滅時HP/FP回復」
+      // 這兩個遺物效果真的有觸發路徑（先前midnight沒有任何會扣靈體HP的地方）。
+      damage = absorbDamageWithSpirit(damage);
       lastEnemyDamageInfo = { amount: damage, at: Date.now() };
       var maxHp = mySelfHpMaxFallback();
       // 第六感自動觸發（見sixthSenseSaveValue()說明）／不死行軍・逆襲的暫時瀕死免疫（見
@@ -15160,6 +15196,11 @@
     // 遊玩很難穩定累到36單位，這裡直接開放累積入口給回歸測試。
     _debugRecordGuardReduction: function (pointId, symbol) {
       recordGuardReductionForPoint(pointId, symbol);
+    },
+    // 純測試用（2026-09-12）：靈體代受傷害平常只在「敵人真的打中自己」時才發生
+    // （resolveMyIncomingHit()內部），靠實際戰鬥取樣時序不穩，這裡直接開放給回歸測試。
+    _debugAbsorbDamageWithSpirit: function (damage) {
+      return absorbDamageWithSpirit(damage);
     },
     _debugStaggerConstants: function () {
       return {

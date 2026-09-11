@@ -1594,6 +1594,8 @@ STRINGS_ZH: dict[str, str] = {
     "midnight_item_expand_received_toast": "隊友的「{item}」效果對你也發揮了",
     "midnight_reward_free_redraw_button": "免費重抽（每日1次）",
     "midnight_skill_variant_switch_button": "切換變體 {current}/{total}",
+    "midnight_spirit_destroyed_toast": "靈體代你承受傷害後消滅了",
+    "midnight_halberd_whirlwind_toast": "斧槍旋風：自身受到 {damage} 點傷害",
     "midnight_weapon_random_skill_undetermined": "戰技：尚未決定（可在鍛造台決定）",
     "midnight_weapon_reroll_undetermined_note": "（尚未決定）",
     "midnight_weapon_reroll_old_label": "原戰技：",

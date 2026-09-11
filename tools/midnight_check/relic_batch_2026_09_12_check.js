@@ -198,6 +198,35 @@ async function setTypeAndLearn(page, gameId, tokenId, typeId, names) {
       }
     }
 
+    // -------------------------------------------------------------------
+    console.log("=== 6. 靈體代受傷害（陣亡後才扣復仇者）＋靈體消滅時HP/FP回復 ===");
+    const okSpirit = await setTypeAndLearn(page, gameId, tokenId, "avenger_dark", ["靈體消滅時HP回復"]);
+    if (!okSpirit) {
+      console.log("  [SKIP] avenger_dark 沒有「靈體消滅時HP回復」");
+    } else {
+      // 直接 seed 一隻靈體（召喚流程本身不是這一項的驗證目標）
+      await rtSet(page, gameId, "character/" + tokenId + "/summonedSpirit", { kind: "helen", hp: 30, maxHp: 30, dmg: 10, nextAttackAt: Date.now() + 999999 });
+      await rtSet(page, gameId, "demoStat/" + tokenId, 100);
+      await page.waitForTimeout(1200);
+      // 第一次：傷害小於靈體HP → 只扣靈體，自己不動
+      const hpBefore = (await st(page)).demoStats[tokenId];
+      const absorbed = await page.evaluate(() => window.PriTestMidnight._debugAbsorbDamageWithSpirit(10));
+      await page.waitForTimeout(900);
+      let s1 = await st(page);
+      assert(absorbed === 0, `傷害10全部由靈體吸收（溢出${absorbed}）`, results);
+      assert(s1.characters[tokenId].summonedSpirit && s1.characters[tokenId].summonedSpirit.hp === 20, "靈體HP 30→20", results);
+      assert(s1.demoStats[tokenId] === hpBefore, "此時復仇者本人HP不變", results);
+      // 第二次：傷害超過靈體剩餘HP → 靈體陣亡、溢出的部分回傳給呼叫端
+      const overflow = await page.evaluate(() => window.PriTestMidnight._debugAbsorbDamageWithSpirit(35));
+      await page.waitForTimeout(1200);
+      let s2 = await st(page);
+      assert(overflow === 15, `靈體陣亡後溢出15點（實際${overflow}）`, results);
+      assert(!s2.characters[tokenId].summonedSpirit, "靈體陣亡後被清除", results);
+      // 「靈體消滅時HP回復」＝□□＝20（healSelfHp 走 RTDB transaction，這裡看 demoStat）
+      assert(s2.demoStats[tokenId] === hpBefore + 20, `靈體消滅時HP回復+20（${hpBefore}→${s2.demoStats[tokenId]}）`, results);
+      await rtSet(page, gameId, "character/" + tokenId + "/summonedSpirit", null);
+    }
+
     // 未習得任何變體的角色不該看到切換鈕
     await rtSet(page, gameId, "character/" + tokenId + "/learnedRelicEffects", []);
     await page.waitForTimeout(1200);

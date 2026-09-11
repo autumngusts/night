@@ -1590,6 +1590,8 @@ STRINGS_JA: dict[str, str] = {
     "midnight_item_expand_received_toast": "仲間の「{item}」の効果があなたにも発揮された",
     "midnight_reward_free_redraw_button": "無償再抽選（1日1回）",
     "midnight_skill_variant_switch_button": "変化切替 {current}/{total}",
+    "midnight_spirit_destroyed_toast": "霊体が身代わりとなって消滅した",
+    "midnight_halberd_whirlwind_toast": "斧槍のつむじ風：自身に {damage} ダメージ",
     "midnight_weapon_random_skill_undetermined": "戦技：未決定（鍛冶台で決定できます）",
     "midnight_weapon_reroll_undetermined_note": "（未決定）",
     "midnight_weapon_reroll_old_label": "元の戦技：",

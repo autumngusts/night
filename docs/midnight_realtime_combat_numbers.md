@@ -911,7 +911,7 @@ HP 歸零的流程是「`demoStat` transaction commit →`.then()`→`maybeTrigg
 | 效果 | 即時制對應（使用者指定） | 實作位置 |
 | --- | --- | --- |
 | 連續攻擊時，產生總合傷害 | 10 秒內攻擊消耗 40/50/60/70 體力 → 總合傷害 +10/+20/+30/+40 | `comboBigDamageBonus()` → `relicAttackHitBonus()` |
-| 斧槍旋風 | 10 秒內斧槍 2Hit 兩次 → 對雜兵 ■ | `maybeApplyHalberdWhirlwind()` |
+| 斧槍旋風 | 10 秒內斧槍 2Hit 兩次 → 對雜兵 ■，副作用自身 HP −10（2026-09-12 追加） | `maybeApplyHalberdWhirlwind()` |
 | 技能強化（防禦支援） | 旋風後 10 秒內全體 PC 減傷 10% | `meta.partyDamageReduce*` → `resolveMyIncomingHit()` |
 | 盾構戰鬥的達人 | 刺突系＋盾時體力上限 +10 | `shieldFormationActive()` → `updateStamina()` |
 | 致命一擊後，消失身影 | 致命一擊後體力 +10、該擊不計敵視 | `suppressAggroOnce` → `damageCombatTarget()` |
@@ -929,9 +929,12 @@ HP 歸零的流程是「`demoStat` transaction commit →`.then()`→`maybeTrigg
 - 技能強化（血祭）／技藝強化（毒箭）：在 `applyRelicAbilityPostEffect()` 依 abilityId 追加屬性蓄積。
 - 技能強化（僅微無敵）：接成特殊防禦選項（`availableSpecialDefenseOption()` 的
   `restageDefense` 分支）。規則書沒寫消耗，改成佔用「技能」冷卻，避免無限免費完全無敵。
-- 靈體消滅時 HP／FP 回復：`maybeApplySpiritDeathRelics()`。**已知限制**：midnight 目前
-  沒有任何會扣減靈體 HP 的路徑（靈體只會攻擊、不會被打），因此實際上只有「靈體 HP 已是 0
-  時被清除」才會觸發，邏輯先備妥。
+- 靈體消滅時 HP／FP 回復：`maybeApplySpiritDeathRelics()`。**2026-09-12 補上觸發路徑**：
+  使用者明確規格「復仇者有靈體時，受到傷害優先先扣除靈體，靈體陣亡後才開始扣復仇者」，
+  因此 `resolveMyIncomingHit()` 在所有減傷算完、真正扣自己 HP 之前呼叫
+  `absorbDamageWithSpirit()`——先扣靈體、溢出的部分才扣自己；靈體 HP 歸零當下清除靈體
+  並觸發這兩個遺物效果。只套用在「受到敵人傷害」這條路徑，技能的 HP 代價／圈外扣血等
+  自己造成的消耗不經過這裡（規則書寫的是「受到傷害」）。
 - 技藝強化（以自身HP交換回復）：原文是「**可任選**」，因此做成角色視窗的開關
   （`_artHpExchangeMode`），開啟時使用不死行軍才會把自身 HP 設為 □ 並讓其他 PC 各回復 □×5。
 - 使用通用消耗品時HP回復：5 種通用消耗品使用後自身 HP +□。
@@ -956,3 +959,25 @@ HP 歸零的流程是「`demoStat` transaction commit →`.then()`→`maybeTrigg
 `tools/midnight_check/relic_batch_2026_09_12_check.js`（`npm run test:relic_batch_2026_09_12`）：
 11 個斷言（異常狀態達成的歡喜的 HP/FP +20、盾構戰鬥的達人的體力上限、防禦支援與堅陣的
 party-wide 欄位、變體切換鈕的顯示/循環/隱藏）。
+
+---
+
+## 19. 2026-09-12 追加：靈體代受傷害／斧槍旋風副作用
+
+使用者明確規格的兩個追加調整：
+
+1. **靈體代受傷害**：復仇者有召喚中的靈體時，受到的傷害優先扣靈體 HP，靈體陣亡後溢出的
+   部分才扣復仇者本人。實作 `absorbDamageWithSpirit()`，呼叫點在 `resolveMyIncomingHit()`
+   裡「所有減傷（防禦百分比／逆襲・恍惚的暫時減傷／救世之翼／防禦支援）都算完之後、
+   真正扣 demoStat 之前」。靈體 HP 歸零當下清除 `summonedSpirit` 並觸發
+   「靈體消滅時 HP／FP 回復」兩個遺物效果（各 +□□＝20）。
+   只套用在「受到敵人傷害」這條路徑——技能的 HP 代價、圈外扣血等自己造成的 HP 消耗
+   不經過這裡（規則書寫的是「受到傷害」）。
+
+2. **斧槍旋風的副作用**：觸發時除了對雜兵造成 ■ 之外，對自己造成 HP −10
+   （`HALBERD_WHIRLWIND_SELF_DAMAGE`，走既有的 `spendSelfHp()`，因此 HP 歸零時會正常
+   觸發瀕死判定）。
+
+回歸測試：`relic_batch_2026_09_12_check.js` 增加到 17 個斷言，新增的 6 個涵蓋
+「傷害全由靈體吸收時本人 HP 不變」「靈體陣亡後正確回傳溢出量」「陣亡後靈體被清除」
+「靈體消滅時 HP 回復 +20」。測試用 debug hook：`_debugAbsorbDamageWithSpirit()`。
