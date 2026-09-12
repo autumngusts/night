@@ -364,6 +364,80 @@ async function joinLobby(page, passcode) {
     );
 
     // ------------------------------------------------------------------
+    // 項目 6：詳細資訊的文本縮減（2026-09-12 使用者明確規格「簡化 midnight 詳細資訊中
+    // 規則上沒套用的文字、縮減化，如『此規則不套用』、前後衛資訊等等去除」）。
+    // 直接對全部資料模組的規則本文跑 PriTestMidnightTextAdapt.adapt()，斷言：
+    //   ① 轉換後一條都不得殘留「編隊：／隊列：」欄位
+    //   ② 不得把本文刪成空字串，也不得留下「，。」「（）」「／）」「　　」這類碎屑
+    //   ③ 整體字數必須比規則書原文的「膨脹率」明顯下降（改版前 +52.6%）
+    // ------------------------------------------------------------------
+    console.log("=== 6 詳細資訊文本縮減 ===");
+    const adaptStats = await page.evaluate(() => {
+      const A = window.PriTestMidnightTextAdapt;
+      const W = window.PriTestWeapons;
+      const rows = [];
+      const pick = (o) => (o && window.PriTestConsumables.localizedText(o)) || "";
+      window.PriTestConsumables.list().forEach((i) => rows.push([pick(i.name), pick(i.body)]));
+      window.PriTestTalismans.list().forEach((i) => rows.push([pick(i.name), pick(i.body)]));
+      W.list().forEach((w) => {
+        const cat = W.getCategory(w.category);
+        ((cat && cat.innateSkills) || []).forEach((s) => rows.push([pick(s.name), pick(s.body)]));
+      });
+      window.PriTestCharacterTypes.list().forEach((t) => {
+        []
+          .concat(t.skills || [], t.arts || [], t.abilities || [])
+          .forEach((a) => rows.push([pick(a.name), pick(a.body)]));
+        (t.relicGroups || []).forEach((g) => (g.effects || []).forEach((e) => rows.push([pick(e.name), pick(e.body)])));
+      });
+      const used = rows.filter((r) => r[1]);
+      let orig = 0;
+      let out = 0;
+      const leftovers = [];
+      const debris = [];
+      used.forEach(([name, body]) => {
+        const got = A.adapt(body, name);
+        orig += body.length;
+        out += got.length;
+        if (/編隊：|隊列：/.test(got)) leftovers.push(name);
+        if (!String(got).trim() || /[，、]。|（）|／）|　　|。。/.test(got)) debris.push(name);
+      });
+      return { count: used.length, orig, out, leftovers, debris };
+    });
+    assert(adaptStats.count > 500, "掃到足夠多的規則本文（否則本項等於空轉）", { count: adaptStats.count });
+    assert(adaptStats.leftovers.length === 0, "轉換後沒有任何一條殘留「編隊：／隊列：」欄位", adaptStats.leftovers.slice(0, 8));
+    assert(adaptStats.debris.length === 0, "轉換後沒有被刪空的本文，也沒有留下標點／分隔符碎屑", adaptStats.debris.slice(0, 8));
+    const inflation = ((adaptStats.out - adaptStats.orig) / adaptStats.orig) * 100;
+    // 改版前是 +52.6%（編隊欄位被換成更長的說明句、四條補充圖例各 44～54 字）。
+    // 這裡留 25% 當上限：足以擋住「又把某個欄位改寫成長句」的回頭路，又不會因為日後多加
+    // 一兩條圖例就誤報。
+    assert(inflation < 25, `轉換後的總字數相對規則書原文的膨脹率 < 25%（實際 ${inflation.toFixed(1)}%，改版前為 +52.6%）`, {
+      orig: adaptStats.orig,
+      out: adaptStats.out,
+    });
+    // 逐條抽驗幾個代表性的轉換結果
+    const adaptSamples = await page.evaluate(() => {
+      const A = window.PriTestMidnightTextAdapt;
+      const C = window.PriTestConsumables;
+      const meat = C.get("item_hero_meat_chunk");
+      const W = window.PriTestWeapons;
+      const bash = W.getSkill("art_shield_bash");
+      const spear = W.getCategory("spear");
+      const backline = ((spear && spear.innateSkills) || []).filter((s) => s.id === "spear_backline_attack")[0];
+      return {
+        meat: A.adapt(C.localizedText(meat.body), C.localizedText(meat.name)),
+        bash: A.adapt(W.localizedText(bash.body), W.localizedText(bash.name)),
+        backline: backline ? A.adapt(W.localizedText(backline.body), W.localizedText(backline.name)) : "",
+      };
+    });
+    assert(adaptSamples.meat.indexOf("編隊") === -1 && adaptSamples.meat.indexOf("使用次數：○") === -1, "消耗品本文的編隊／使用次數欄位已移除", adaptSamples.meat);
+    assert(adaptSamples.bash.indexOf("短時間內內") === -1, "「1回合內」不再被轉成「短時間內內」疊字", adaptSamples.bash);
+    assert(
+      adaptSamples.backline.length > 0 && adaptSamples.backline.indexOf("後衛區域") === -1,
+      "只由前後衛敘述構成的「後衛可攻擊」改成一行說明，不會被刪成空白",
+      adaptSamples.backline
+    );
+
+    // ------------------------------------------------------------------
     // 項目 2-b／2-c／1-c：純 DOM／CSS
     // ------------------------------------------------------------------
     console.log("=== 2-b/2-c/1-c 版面與按鈕 ===");

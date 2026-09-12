@@ -456,6 +456,13 @@
   var FIELD_ENTER_WAIT_MS_CASTLE = 5000; // 2026-09-07優化新增：僅J（堡壘）適用
   var FIELD_LATE_JOIN_WAIT_MS = 2000; // 2026-09-07優化新增：中途加入/後補領獎的等待時間
   var FIELD_VOTE_TIME_LIMIT_MS = 10000; // 使用者明確規格：分歧意見不一致的等待時間10秒，逾時交給系統決定
+  // 共享池獎勵的「抽選／投票」無人動作保險（2026-09-12 板塊卡關修正新增，見
+  // maybeSetSharedRewardDeadlines()）。這是純粹的防卡死逾時、不是規則書數值：規則書沒有
+  // 規定領獎要在幾秒內完成，所以刻意取一個在正常遊玩中不會碰到的長度（一般玩家看到獎勵
+  // 清單彈出後幾秒內就會按完），只有「清單被關掉再也叫不出來」「參加者離線」這種真正卡住
+  // 的情況才會由系統自動收尾。刻意不沿用分歧投票的10秒——那個時限是規則書明確規定的
+  // 「意見不一致的等待時間」，語意不同，10秒對讀獎勵內容也太短。
+  var SHARED_REWARD_ACTION_TIMEOUT_MS = 45000;
   // 2026-09-06數值真正接入：敵人HP不再用demo佔位固定值30，改成「實際hp格數x10」
   // （見enemyRealHpMax()，讀enemies_data_*.jsのfamily.base[level-1].hp既有格數字串）。
   // 找不到資料（極少數缺漏或尚未指派敵人）時才退回這個保底值，避免顯示0/0。
@@ -3882,9 +3889,16 @@
       // 附帶効果「戰技/魔術/祈禱傷害+5」（attachedSkillDamageBonus）のkind判定に使う。
       if (category) skillDamageKind = category.id === "staff" ? "sorcery" : category.id === "sacred_seal" ? "incant" : "art";
     }
-    var result = isSpell ? CharacterDrawer.spellSkillPowerValue(bodyText, artPower) : CharacterDrawer.artSkillPowerValue(bodyText, artPower);
+    // 2026-09-12（使用者回報「血之斬擊好像沒有看到敵人扣血」）：
+    // 「威力：25＋神秘補正」這種「加算對象不是戰技威力、而是特定屬性的威力補正」的句型，
+    // 原本整條解算鏈都接不住（artSkillPowerValue 刻意回傳 null），敵人完全不會扣血。
+    // 這一支要排在最前面：spellSkillPowerValue() 的 regex 只看「威力：N」、不管後面接什麼，
+    // 若讓它先跑，杖/聖印上的同句型會被誤加成「戰技威力」而不是指定屬性的補正。
+    var result = CharacterDrawer.statCorrectionSkillPowerValue(bodyText, c, weaponId);
+    if (!result) result = isSpell ? CharacterDrawer.spellSkillPowerValue(bodyText, artPower) : CharacterDrawer.artSkillPowerValue(bodyText, artPower);
     if (!result) result = CharacterDrawer.fixedSkillPowerValue(bodyText);
     if (!result) result = CharacterDrawer.bareGuardSymbolSkillValue(bodyText);
+    if (!result) result = damagedPcCountSkillValue(bodyText);
     if (!result) return null;
     // 固定加成（跟night.jsのcomputeSkillDamage同一批，見night.js:5258-5266）：只有解算出
     // 基礎威力時才疊加，避免對無法計算的技能捏造數值（CLAUDE.md §19）。
@@ -6486,6 +6500,31 @@
   function pickEnemyAttackHitCount(pt, trig) {
     var weights = isEliteEncounterPoint(pt, trig) ? ENEMY_ATTACK_HIT_COUNT_WEIGHTS_ELITE : ENEMY_ATTACK_HIT_COUNT_WEIGHTS_NORMAL;
     return pickWeightedIndex(Math.random(), weights) + 1;
+  }
+
+  // 2026-09-12（使用者要求「檢查戰技是否都有正確套用效果，或是傷害」時查出的第3條）：
+  // 斧槍「軍旗之下」的傷害寫成「【總合傷害：（此階段中，曾造成過一次以上總合傷害的PC人數）
+  // ×20】」——整條解算鏈都沒有這種「依人數相乘」的句型，於是這招一直是 0 傷害、只 toast
+  // 規則原文。人數不需要新增追蹤機制：fieldTrigger/{id}/damageBySlot 本來就是為了敵視判定
+  // 而累積的「每個席位對這隻敵人造成的累積傷害」（見 aggroHolderSlot()），數其中大於 0 的
+  // 席位就是「曾造成過一次以上總合傷害的PC人數」。
+  // 【換算假設】規則書寫的是「此階段中」，midnight 沒有階段結構；這裡取「這一層的這場戰鬥
+  // 中」——damageBySlot 掛在 fieldTrigger 底下，本來就隨每一層的 trigger 一起建立與清空，
+  // 範圍天然等價，沿用本專案既有的「階段→即時制」換算通則，不另外發明計時範圍。
+  var DAMAGED_PC_COUNT_RE = /(?:総合ダメージ|總合傷害)[：:]\s*[（(][^）)]*PC[^）)]*[）)]\s*[×xX]\s*(\d+)/;
+
+  function damagedPcCountSkillValue(bodyText) {
+    var m = DAMAGED_PC_COUNT_RE.exec(String(bodyText || ""));
+    if (!m) return null;
+    var trig = activeEncounter ? fieldTriggers[activeEncounter.id] : null;
+    var damageBySlot = (trig && trig.damageBySlot) || {};
+    var count = 0;
+    Object.keys(damageBySlot).forEach(function (slot) {
+      if (damageBySlot[slot] > 0) count++;
+    });
+    // 還沒有人造成過傷害時，使用者自己這一擊就是第1個人（規則書的語意是「包含自己」——
+    // 這招本身也會造成總合傷害），因此下限取1，不會出現0傷害。
+    return { value: Math.max(1, count) * parseInt(m[1], 10), symbol: null };
   }
 
   // 敵視目標：目前對這隻敵人造成最多累積傷害的參與者。沒有人造成過傷害（damageBySlot
@@ -11585,21 +11624,45 @@
     var trig = fieldTriggers[pointId];
     var entry = trig && trig.sharedRewards && trig.sharedRewards[rewardId];
     if (!entry || entry.resolvedBy || !entry.drawn) return;
-    var participants = Object.keys(trig.participants || {});
+    // fix(2026-09-12)：使用者回報「多人遊戲下，1人進入板塊、打贏第一層領完獎勵後，banner
+    // 沒出現進入下層的選項，而是出現探索會合，卡死在第一層永遠無法探索下去」。
+    // 根因是這裡的「全員投完票才決定得主」**完全沒有時限**：
+    //   ① 獎勵清單是「有未解決獎勵就自動彈出」、沒有任何重新開啟的入口，而
+    //      rewardModalDismissed 只在 idsKey 變動時才重置——玩家一旦按了關閉、又沒有新獎勵
+    //      進來，就再也叫不出那顆［拿取］，那一票永遠投不出去。
+    //   ② 參加者中途離線／退出時，他那一票同樣永遠等不到。
+    // 只要有一票沒投出來：resolvedBy 永遠不寫 → fieldRewardGateOpen() 永遠 false →
+    // maybeClearFieldTriggerAfterRewardGate() 永遠不清空 fieldTrigger → 樓層永久卡死，
+    // 其他玩家靠近時看到的就一直是「參加探索／準備會合中…」。
+    // 分歧投票（maybeResolveFieldVote()）早就有 FIELD_VOTE_TIME_LIMIT_MS 的逾時 fallback，
+    // 只有共享池獎勵這條路徑漏掉；這裡沿用同一套「先用 transaction 定下 deadline、逾時就
+    // 照現有票數判定」的既有做法，不另外發明第二種機制。
+    // 席位篩選同時處理離席者：voters 只算「席位上還有玩家」的人，全部離席時退回原名單，
+    // 交給逾時 fallback 收尾（跟 fieldRewardGateOpen() 既有的 `if (!p) continue` 一致）。
+    var participants = participantSlots(trig);
     if (!participants.length) return;
+    var seated = participants.filter(function (slot) {
+      return !!players[slot];
+    });
+    var voters = seated.length ? seated : participants;
     var votes = entry.votes || {};
-    var allVoted = participants.every(function (slot) {
+    var allVoted = voters.every(function (slot) {
       return votes[slot] === "take" || votes[slot] === "pass";
     });
-    if (!allVoted) return;
-    sharedRewardResolveAttempted[key] = true;
-    var takers = participants.filter(function (slot) {
+    var timedOut = typeof entry.voteDeadline === "number" && Date.now() >= entry.voteDeadline;
+    if (!allVoted && !timedOut) return;
+    var takers = voters.filter(function (slot) {
       return votes[slot] === "take";
     });
-    var pool = takers.length ? takers : participants;
+    // 逾時時沒投票的人視為「不拿取」；一個人都沒投拿取時沿用既有規格「強制隨機指派給
+    // 某一位玩家」，指派對象優先取還在席位上的人，確保 winnerTokenId 一定解得出來。
+    var pool = takers.length ? takers : seated.length ? seated : participants;
     var winnerSlot = pool[fieldSeededIndex(key + ":winner", pool.length)];
     var winnerTokenId = players[winnerSlot] && players[winnerSlot].tokenId;
+    // winnerTokenId 解不出來時不要設下本地節流旗標——否則這台裝置就永久放棄這一筆，
+    // 等玩家重新連上線也不會再判定一次（原本的寫法把旗標設在這個檢查之前）。
     if (!winnerTokenId) return;
+    sharedRewardResolveAttempted[key] = true;
     GameStorage.rtSet(gameId, "cloud", "fieldTrigger/" + pointId + "/sharedRewards/" + rewardId + "/resolvedBy", winnerTokenId);
     if (winnerTokenId !== myTokenId) return;
     var c = characters[myTokenId];
@@ -11609,12 +11672,54 @@
     GameStorage.rtSet(gameId, "cloud", "character/" + myTokenId, c);
   }
 
+  // 共享池獎勵的「無人動作」保險（2026-09-12，跟上面 maybeResolveSharedRewardVote() 的
+  // 逾時 fallback 是同一次修正的兩半）：
+  //   ①還沒有人按［抽選］：先用 transaction 定下 revealDeadline，逾時就自動揭示。
+  //     不揭示就不會進入投票階段，同樣會把樓層卡死。
+  //   ②已揭示但還沒定下投票時限：同樣用 transaction 定下 voteDeadline。
+  // 兩者都沿用 maybeSetFieldVoteDeadline() 既有的「第一個抵達的裝置用 transaction 定起點、
+  // 其餘裝置看到非 null 就維持原值」寫法；時限長度用專屬的
+  // SHARED_REWARD_ACTION_TIMEOUT_MS（見該常數的說明，刻意不共用分歧投票的10秒）。
+  // 這個函式每幀對「所有」fieldTrigger 跑，不受玩家是否站在該點附近影響——參加者全部走開
+  // 甚至離線時也能自動收尾。
+  var sharedRewardDeadlineAttempted = {}; // pointId+":"+rewardId+":"+kind -> true（本地節流）
+
+  function maybeSetSharedRewardDeadlines(pointId, rewardId) {
+    var trig = fieldTriggers[pointId];
+    var entry = trig && trig.sharedRewards && trig.sharedRewards[rewardId];
+    if (!entry || entry.resolvedBy) return;
+    var base = "fieldTrigger/" + pointId + "/sharedRewards/" + rewardId + "/";
+    var now = Date.now();
+    if (!entry.drawn) {
+      var revealKey = pointId + ":" + rewardId + ":reveal";
+      if (typeof entry.revealDeadline !== "number") {
+        if (sharedRewardDeadlineAttempted[revealKey]) return;
+        sharedRewardDeadlineAttempted[revealKey] = true;
+        GameStorage.rtTransaction(gameId, "cloud", base + "revealDeadline", function (cur) {
+          return cur === null ? now + SHARED_REWARD_ACTION_TIMEOUT_MS : cur;
+        });
+        return;
+      }
+      if (now >= entry.revealDeadline) revealSharedReward(pointId, rewardId);
+      return;
+    }
+    if (typeof entry.voteDeadline !== "number") {
+      var voteKey = pointId + ":" + rewardId + ":vote";
+      if (sharedRewardDeadlineAttempted[voteKey]) return;
+      sharedRewardDeadlineAttempted[voteKey] = true;
+      GameStorage.rtTransaction(gameId, "cloud", base + "voteDeadline", function (cur) {
+        return cur === null ? now + SHARED_REWARD_ACTION_TIMEOUT_MS : cur;
+      });
+    }
+  }
+
   function maybeResolveAllSharedRewardVotes() {
     Object.keys(fieldTriggers).forEach(function (pointId) {
       var trig = fieldTriggers[pointId];
       var shared = trig && trig.sharedRewards;
       if (!shared) return;
       Object.keys(shared).forEach(function (rewardId) {
+        maybeSetSharedRewardDeadlines(pointId, rewardId);
         maybeResolveSharedRewardVote(pointId, rewardId);
       });
     });
@@ -12762,8 +12867,18 @@
           });
           li.appendChild(passBtn);
         } else {
-          var votedCount = Object.keys(entry.votes || {}).length;
-          var totalCount = Object.keys((trigForVote && trigForVote.participants) || {}).length;
+          // fix(2026-09-12)：同maybeResolveSharedRewardVote()的幽靈席位問題——RTDB會把
+          // {"1":true}這種整數鍵物件轉成[null,true]讀回來，直接數Object.keys()長度會把
+          // 索引0的null也算進去，等待文字顯示成「已投票 1/2」而實際只有1個人要投。
+          // 分母改用participantSlots()（過濾掉null/false）並排除已離席的玩家，跟真正的
+          // 判定條件一致；分子同樣只數有值的票。
+          var voteMap = entry.votes || {};
+          var votedCount = Object.keys(voteMap).filter(function (slot) {
+            return voteMap[slot] === "take" || voteMap[slot] === "pass";
+          }).length;
+          var totalCount = participantSlots(trigForVote).filter(function (slot) {
+            return !!players[slot];
+          }).length;
           var statusNote = document.createElement("span");
           statusNote.className = "warning-text";
           statusNote.textContent = myVote
@@ -16453,6 +16568,17 @@
       renderMerchantRuneNote();
       renderMerchantConsumableList();
       renderMerchantConsumableDetail();
+    },
+    // 共享池獎勵的「抽選→投票」兩顆按鈕（2026-09-12 板塊卡關修正的回歸測試用，見
+    // tools/midnight_check/field_multiplayer_floor_check.js）。獎勵清單彈窗是自動彈出的、
+    // 沒有固定的開啟按鈕，被關掉之後（rewardModalDismissed）測試就再也點不到那兩顆按鈕，
+    // 因此這裡直接把兩個既有 handler 開出來——走的是跟 UI 完全相同的函式，得主判定仍由
+    // 每幀輪詢的 maybeResolveAllSharedRewardVotes() 負責，不是測試自己算的。
+    _debugRevealSharedReward: function (pointId, rewardId) {
+      revealSharedReward(pointId, rewardId);
+    },
+    _debugVoteSharedReward: function (pointId, rewardId, choice) {
+      voteSharedReward(pointId, rewardId, choice);
     },
     _debugRewardEntryLabel: function (entry) {
       return rewardEntryLabel(entry);

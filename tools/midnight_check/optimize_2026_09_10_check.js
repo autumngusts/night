@@ -148,9 +148,19 @@ function zIndexOf(page, id) {
     assert(!!adaptOut, "window.PriTestMidnightTextAdapt已載入", results);
     if (adaptOut) {
       assert(!/結束階段/.test(adaptOut.phase) && /接下來的一小段時間/.test(adaptOut.phase), "「直到結束階段為止」已改寫成即時制說法", results);
-      assert(/無前衛／後衛之分/.test(adaptOut.formation) && !/1回合僅限/.test(adaptOut.formation), "「編隊：前衛時可使用」「1回合僅限1名PC」已改寫", results);
+      // 2026-09-12 規格變更後更新的期望值（舊值已過時，見 static_src/midnight_text_adapt.js
+      // 開頭的 2b 說明）：使用者明確要求「規則上沒套用的文字縮減化、前後衛資訊等等去除」，
+      // 因此「編隊：」欄位不再被改寫成「編隊：本規則無前衛／後衛之分，隨時可使用」這種比
+      // 原文更長的句子，而是整欄刪除——舊斷言找的 /無前衛／後衛之分/ 現在永遠不會出現。
+      assert(
+        !/編隊：/.test(adaptOut.formation) && !/前衛|後衛/.test(adaptOut.formation) && !/1回合僅限/.test(adaptOut.formation),
+        "「編隊：前衛時可使用」整欄刪除、「1回合僅限1名PC」已改寫",
+        results
+      );
       assert(/骰子1個＝體力2/.test(adaptOut.costLegend), "帶骰子消耗的本文會附上消耗換算補充說明", results);
-      assert(/不產生作用/.test(adaptOut.override), "重點覆寫生效（體力骰池類被動如實說明本規則中不生效）", results);
+      // 同上：重點覆寫的文案在 2026-09-12 從「…此效果在本規則中不產生作用。」（約 100 字的
+      // 長文）縮成一行「本規則不適用：…」，因此改找新的關鍵詞。
+      assert(/本規則不適用/.test(adaptOut.override), "重點覆寫生效（體力骰池類被動以一行說明本規則不適用）", results);
       assert(adaptOut.untouched === "對目標造成【總合傷害：120】。", "沒有回合制用語的本文維持原樣，不會被多餘改寫", results);
     }
     // 顯示端真的有接上轉換層（不是只有模組本身能跑）：角色視窗右側詳細資訊的共同出口。

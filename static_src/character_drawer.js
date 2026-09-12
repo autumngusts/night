@@ -4636,6 +4636,40 @@
     return null;
   }
 
+  // 2026-09-12（使用者回報「血之斬擊好像沒有看到敵人扣血」）：
+  // 「威力：25＋神秘補正」のように、加算対象が「戦技威力」ではなく**特定ステータス1種の
+  // 威力補正**である書式。上のartSkillPowerValue()はこの形を意図的にnullで返していた
+  // （＝威力が解算できない扱い→midnight側はダメージを与えず規則原文をtoastするだけ）ため、
+  // 該当する戦技（血の斬撃／血の斬撃（双剣））は敵のHPが一切減らなかった。
+  // 加算するのは稀有度補正を含まない「そのステータス分の威力補正」だけ——computeArtPower()の
+  // artPower（＝稀有度補正＋威力補正）とは意味が違うので、共用せず専用に積み上げる。
+  // 積み上げ方はcomputeArtPower()のpowerMod部分とまったく同じ（タイプのpowerMod＋タリスマン＋
+  // 遺物＋武器固有）で、新しい補正体系を発明しているわけではない。
+  function statPowerModValue(c, statKey, weaponId) {
+    if (!c || !statKey) return 0;
+    var type = c.typeId ? CharacterTypes.get(c.typeId) : null;
+    var weapon = weaponId ? Weapons.get(baseWeaponId(weaponId)) : null;
+    return (
+      (type && type.powerMod ? type.powerMod[statKey] || 0 : 0) +
+      talismanPowerModBonus(c, statKey) +
+      relicPowerModBonus(c, statKey) +
+      (weapon ? weaponInnatePowerModAdjustment(weapon, statKey) : 0)
+    );
+  }
+
+  // 「威力：N＋Xの威力補正」書式の解析。Xは POWER_MOD_STAT_MAP（筋力／技量／バランス／
+  // 知力／信仰／神秘…）で解決する。「戦技威力」はartSkillPowerValue()の担当なので除外。
+  var STAT_CORRECTION_POWER_RE = /威力[：:]\s*(-?\d+)\s*[+＋]\s*([^\s　＋+】]{1,4}?)補正/;
+  function statCorrectionSkillPowerValue(bodyText, c, weaponId) {
+    var t = String(bodyText || "");
+    var m = STAT_CORRECTION_POWER_RE.exec(t);
+    if (!m) return null;
+    if (/戦技威力|戰技威力/.test(m[2])) return null;
+    var statKey = resolvePowerModStatKey(m[2]);
+    if (!statKey) return null; // 未知の補正名は数字を捏造せずnull（従来どおりGM判断へ）
+    return { value: parseInt(m[1], 10) + statPowerModValue(c, statKey, weaponId), symbol: extractDamageSymbol(t) };
+  }
+
   // 杖・聖印の魔術／祈祷は、原文に「＋戦技威力」の明記が無くても「威力：N」の印字値に対して
   // 常に戦技威力（稀有度補正＋威力補正）が加算される前提で計算する（近接武器のアーツとは異なり、
   // 「威力：N」だけの記載しかない資料が大半のため、明記の有無を問わず加算するベストエフォート）。
@@ -7233,6 +7267,8 @@
     parseOncePerTurnRestriction: parseOncePerTurnRestriction,
     computeArtPower: computeArtPower,
     artSkillPowerValue: artSkillPowerValue,
+    statPowerModValue: statPowerModValue,
+    statCorrectionSkillPowerValue: statCorrectionSkillPowerValue,
     spellSkillPowerValue: spellSkillPowerValue,
     fixedSkillPowerValue: fixedSkillPowerValue,
     bareGuardSymbolSkillValue: bareGuardSymbolSkillValue,
