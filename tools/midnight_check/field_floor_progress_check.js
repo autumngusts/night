@@ -76,6 +76,42 @@ async function walkNear(page, targetX, targetY, radius, maxRounds) {
   return false;
 }
 
+// 2026-09-12追加：2026-09-08の獎勵改版で入った「獎勵閘門」への対応。
+// fieldRewardGateOpen()（midnight.js）は、その層で出た共享池獎勵（fieldTrigger.sharedRewards、
+// 全員投票で1人が獲得）と個人獎勵（pendingRewards）が**全部解決されるまで** fieldTrigger を
+// クリアしない＝次の層へ「進入」できない。この腳本の主題は樓層推進そのものなので、獎勵清單の
+// UI操作（揭示→投票→領取）は new_chips_check.js／field_late_claim_check.js に任せ、ここでは
+// 閘門を開けるために解決済みフラグを直接書き込む。旧版はこの処理が無く、その層に共享池獎勵が
+// 出たかどうか（＝地圖seed次第）で成否が変わるflakyな腳本になっていた。
+async function resolveFloorRewards(page, gameId, pointId) {
+  const pending = await page.evaluate(
+    (args) => {
+      const D = window.PriTestMidnight._debugState();
+      const trig = (D.fieldTriggers || {})[args.pointId] || {};
+      const shared = Object.keys(trig.sharedRewards || {}).filter((id) => !trig.sharedRewards[id].resolvedBy);
+      const mine = D.pendingRewards && D.pendingRewards[D.myTokenId] ? D.pendingRewards[D.myTokenId] : {};
+      const personal = Object.keys(mine).filter((id) => !mine[id].resolved && mine[id].sourcePointId === args.pointId);
+      return { shared, personal, tokenId: D.myTokenId };
+    },
+    { pointId }
+  );
+  if (!pending.shared.length && !pending.personal.length) return pending;
+  await page.evaluate(
+    (args) => {
+      const GS = window.PriTestGameStorage;
+      const jobs = [];
+      args.shared.forEach((id) =>
+        jobs.push(GS.rtSet(args.gameId, "cloud", "fieldTrigger/" + args.pointId + "/sharedRewards/" + id + "/resolvedBy", args.tokenId))
+      );
+      args.personal.forEach((id) => jobs.push(GS.rtSet(args.gameId, "cloud", "pendingRewards/" + args.tokenId + "/" + id + "/resolved", true)));
+      return Promise.all(jobs);
+    },
+    { gameId, pointId, shared: pending.shared, personal: pending.personal, tokenId: pending.tokenId }
+  );
+  await page.waitForTimeout(400);
+  return pending;
+}
+
 async function runOneFloorCycle(page, gameId, pt, results, label) {
   // 從第2層開始，呼叫這個函式時fieldProgress[pt.id]已經存在上一層留下的舊值（例如
   // floorIndex=1），下面所有等待條件都必須跟「進入這個函式當下的舊值」比較是否真的
@@ -153,15 +189,23 @@ async function runOneFloorCycle(page, gameId, pt, results, label) {
     console.log("    （這一層和平通過，無需戰鬥）");
   }
   // 等fieldProgress真的推進到比進入這個函式時更新的樓層（同樣要跟priorFloorIndex比較，
-  // 理由同上）。
+  // 理由同上）。8秒では足りないことがある（擊殺→戰利品→推進のRTDB往復が挟まる）ので
+  // 余裕を持たせ、途中で獎勵閘門（resolveFloorRewards）も開けておく。
+  const rewardsCleared = await resolveFloorRewards(page, gameId, pt.id);
+  if (rewardsCleared.shared.length || rewardsCleared.personal.length) {
+    console.log("    （" + label + "の獎勵閘門を開放：共享池" + rewardsCleared.shared.length + "件／個人" + rewardsCleared.personal.length + "件）");
+  }
   await page.waitForFunction(
     (args) => {
       const p = (window.PriTestMidnight._debugState().fieldProgress || {})[args.pointId];
       return !!p && typeof p.floorIndex === "number" && p.floorIndex > args.priorFloorIndex;
     },
     { pointId: pt.id, priorFloorIndex },
-    { timeout: 8000 }
+    { timeout: 20000 }
   );
+  // 推進後にもう一度：推進時に新しく積まれる戰利品（樓層踏破報酬）も解決しておかないと
+  // fieldTriggerがクリアされず、次の層へ「進入」できない。
+  await resolveFloorRewards(page, gameId, pt.id);
   return await page.evaluate((pointId) => (window.PriTestMidnight._debugState().fieldProgress || {})[pointId], pt.id);
 }
 
@@ -202,15 +246,29 @@ async function runOneFloorCycle(page, gameId, pt, results, label) {
     assert(afterFloor1.floorIndex === 1, "第1層結束後fieldProgress.floorIndex推進為1（實際:" + afterFloor1.floorIndex + "）", results);
     assert(afterFloor1.cleared === false, "第1層結束後cleared仍為false（floorCount=2，還有第2層）", results);
 
-    // 2026-09-12修正：runOneFloorCycle()はfieldProgressの推進を見て返るが、fieldTriggerを
-    // nullに戻すのは別のRTDB書き込み（resolve transactionの.then()の続き）なので、
-    // 返った直後に読むと「まだ残っている」ことがある（実測でflaky）。即座に読むのではなく
-    // 「数秒以内にクリアされるか」を待って判定する。
-    await page
-      .waitForFunction((pointId) => !(window.PriTestMidnight._debugState().fieldTriggers || {})[pointId], pt.id, { timeout: 8000 })
-      .catch(() => {});
+    // 2026-09-12修正：ここが見たいのは「次の樓層に進めるか」。旧版は「fieldTriggerがnull」で
+    // 判定していたが、これは実測でflakyだった——
+    //   ①fieldTriggerをnullへ戻すのはfieldProgress推進とは別のRTDB書き込み（resolve
+    //     transactionの.then()の続き）なので、runOneFloorCycle()から戻った直後はまだ残っている
+    //   ②玩家がその点の上に立ったままなので、クリアされた次の瞬間に「次の樓層」の
+    //     邀請triggerが新しく作られていることもある（この場合nullにはならないが、
+    //     次の樓層へ進めているので正常）
+    // よって判定は「進入鍵が押せる状態に戻った、もしくはfieldTriggerがクリアされた」に緩める。
+    const canProceed = await page
+      .waitForFunction(
+        (pointId) => {
+          const t = (window.PriTestMidnight._debugState().fieldTriggers || {})[pointId];
+          const btn = document.getElementById("btn-midnight-field-enter");
+          return !t || (btn && !btn.hidden);
+        },
+        pt.id,
+        { timeout: 10000 }
+      )
+      .then(() => true)
+      .catch(() => false);
     const trigAfterFloor1 = await page.evaluate((pointId) => (window.PriTestMidnight._debugState().fieldTriggers || {})[pointId], pt.id);
-    assert(!trigAfterFloor1, "第1層結束後fieldTrigger已清空，允許重新「進入」下一層", results);
+    console.log("  第1層結束後のfieldTrigger:", JSON.stringify(trigAfterFloor1 || null));
+    assert(canProceed, "第1層結束後可以繼續「進入」下一層（fieldTrigger已清空，或已進入下一層的邀請）", results);
 
     console.log("=== 第2層（同一個session、還在原地，重新按「進入」接續同一個branchIndex） ===");
     const beforeFloor2Rewards = await page.evaluate(
@@ -271,12 +329,15 @@ async function runOneFloorCycle(page, gameId, pt, results, label) {
         await page.click("#btn-midnight-blessing-use"); // 視窗內「使用祝福」才真正回復
         await page.waitForTimeout(300);
         const afterBless = await page.evaluate(() => window.PriTestMidnight._debugState());
-        // 2026-09-12修正：競技場HPの上限は固定100ではなく selfArenaHpMax()＝
+        // 2026-09-12修正：競技場HPの上限は固定100ではなく midnight.js の selfArenaHpMax()＝
         // 100 +（hp.max + 最大HP加成）×10 + 取引ボーナス（実測150など、角色類型/等級で変わる）。
-        // 期待値をハードコードせず、_debugStateが返す自分のHP上限と比べる。
+        // _debugState()はhpを公開していない（demoStatsとstaminaのみ）ので、同じ式を
+        // CharacterDrawerの公開APIで組み直して期待値にする（ハードコードしない）。
         const arenaHpMax = await page.evaluate(() => {
           const D = window.PriTestMidnight._debugState();
-          return D.hp ? D.hp.max : null;
+          const c = D.characters[D.myTokenId];
+          if (!c || !c.hp) return 100;
+          return 100 + (c.hp.max + window.PriTestCharacterDrawer.totalFlatMaxStatBonus(c, "hp")) * 10 + (c._bargainMaxHpBonus || 0);
         });
         assert(
           arenaHpMax !== null && afterBless.demoStats[afterBless.myTokenId] === arenaHpMax,
@@ -303,19 +364,39 @@ async function runOneFloorCycle(page, gameId, pt, results, label) {
       const merchantPt = await walkNearAny(page, merchantCandidates, 1.2, 250);
       if (merchantPt) {
         const beforeState = await page.evaluate(() => window.PriTestMidnight._debugState());
+        // 2026-09-12修正：鍛造台には「鍛造石（item_smithing_stone）を持っていること」という
+        // 門檻が後から入った（持っていないとリストの代わりに「需持有鍛造石才能使用鍛造台。」
+        // だけが出る。門檻そのものの検証は weapon_combat_check.js の検査9が担当）。
+        // ここで検証したいのは強化の扣款とweaponRarityOverrideなので、盧恩と一緒に鍛造石も渡す。
         await page.evaluate(
-          ({ gameId, tokenId }) => window.PriTestGameStorage.rtSet(gameId, "cloud", "character/" + tokenId + "/runes", 5),
+          ({ gameId, tokenId }) => {
+            const GS = window.PriTestGameStorage;
+            return Promise.all([
+              GS.rtSet(gameId, "cloud", "character/" + tokenId + "/runes", 5),
+              GS.rtSet(gameId, "cloud", "character/" + tokenId + "/consumables", [
+                { id: "forgetest1", itemId: "item_smithing_stone", usesRemaining: 3 },
+              ]),
+            ]);
+          },
           { gameId: beforeState.gameId, tokenId: beforeState.myTokenId }
         );
         await page.waitForTimeout(300);
         await page.waitForSelector("#midnight-merchant-prompt:not([hidden])", { timeout: 5000 });
-        await page.click("#btn-midnight-open-merchant");
+        await page.dispatchEvent("#btn-midnight-open-merchant", "click"); // 毎フレーム再描画されるHUD上のボタンはpage.click()がstable待ちで逾時する（CLAUDE.md §4.6）
         await page.waitForSelector("#midnight-merchant-modal:not([hidden])", { timeout: 5000 });
         const charBefore = await page.evaluate(() => {
           const s = window.PriTestMidnight._debugState();
           return s.characters[s.myTokenId];
         });
         assert((charBefore.weaponIds || []).length > 0, "角色一開始就有起始武器可供強化測試", results);
+        const forgeDom = await page.evaluate(() => {
+          const el = document.getElementById("midnight-merchant-forge-list");
+          if (!el) return "(#midnight-merchant-forge-list が無い)";
+          return Array.prototype.map
+            .call(el.querySelectorAll("button"), (b) => (b.textContent || "").replace(/\s+/g, " ").trim() + (b.disabled ? "[disabled]" : ""))
+            .join(" ／ ") || "(ボタン0個) html=" + el.innerHTML.replace(/\s+/g, " ").slice(0, 200);
+        });
+        console.log("  鍛造台のボタン:", forgeDom, " 盧恩=" + charBefore.runes + " 武器=" + JSON.stringify(charBefore.weaponIds));
         const forgeBtn = await page.$("#midnight-merchant-forge-list button:not([disabled])");
         assert(!!forgeBtn, "鍛造台清單有可點擊（未達上限）的強化按鈕", results);
         if (forgeBtn) {
@@ -325,7 +406,16 @@ async function runOneFloorCycle(page, gameId, pt, results, label) {
             const s = window.PriTestMidnight._debugState();
             return s.characters[s.myTokenId];
           });
-          assert(charAfter.runes === 4, "強化後扣款1盧恩（5→4）", results);
+          // 2026-09-12修正：強化のコストは盧恩ではなく鍛造石になった
+          // （handleMerchantForgeWeapon()→consumeSmithingStones()、ボタン文字も「消耗鍛造石N」）。
+          // 盧恩は減らないのが正しいので、鍛造石が減ったこと＋盧恩が変わらないことを見る。
+          const stonesBefore = (charBefore.consumables || []).reduce((n, e) => n + (e.itemId === "item_smithing_stone" ? e.usesRemaining || 0 : 0), 0);
+          const stonesAfter = (charAfter.consumables || []).reduce((n, e) => n + (e.itemId === "item_smithing_stone" ? e.usesRemaining || 0 : 0), 0);
+          assert(
+            stonesAfter === stonesBefore - 1 && charAfter.runes === charBefore.runes,
+            "強化消耗鍛造石1個、盧恩不變（鍛造石 " + stonesBefore + "→" + stonesAfter + "、盧恩 " + charBefore.runes + "→" + charAfter.runes + "）",
+            results
+          );
           assert(!!(charAfter.weaponRarityOverride && Object.keys(charAfter.weaponRarityOverride).length), "強化後character.weaponRarityOverride有紀錄", results);
           const resultText = await page.textContent("#midnight-merchant-forge-result");
           assert(!!resultText && resultText.length > 0, "強化後顯示結果文字", results);
