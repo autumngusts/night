@@ -7,14 +7,15 @@
 
   window.PriTestWeaponsData = [
     // 淑女（レディ）の初期武器。カタログに未登録だったため、他クラスの初期武器と同じ
-    // 「roll: "－（初始）"」パターンで追加（技能は規則書未確認のため空、後で判明次第補記）。
+    // 「roll: "－（初始）"」パターンで追加。装備品スキルは「魔力の短剣」と同じ
+    // （＝固有戦技「魔ダガーステップ」）と確認済み（2026-09-12）。
     {
       id: "dagger_lady_starter",
       category: "dagger",
       name: C("レディの短剣", "淑女的短劍"),
       rarity: "C",
       roll: "－（初始）",
-      skills: [],
+      skills: [{ kind: "innate", id: "dagger_step" }],
     },
     {
       id: "dagger_lady",
@@ -102,6 +103,18 @@
       rarity: "R",
       roll: "6",
       skills: [{ kind: "element", element: C("聖", "聖") }, { kind: "art", id: "art_death_blade" }],
+    },
+    // 短剣のL表は存在しない（カテゴリのnoteに規則書原文どおり「Rの表で再抽選、R⑥の黒名刃が出たら
+    // そのまま獲得」と記載済み）。他カテゴリと同じプレースホルダーを置くことで、抽選側が自動で
+    // R表へ切り替えられる（noteだけでは機械可読ではなく、簡化抽選が該当なしで止まっていた）。
+    {
+      id: "dagger_none_l",
+      category: "dagger",
+      name: C("（L表には該当武器なし）", "（L稀有度無對應武器）"),
+      rarity: "L",
+      roll: "－",
+      reroll: { rarity: "R" },
+      skills: [{ kind: "note", text: C("この表には存在しない。Rの表で再抽選する。", "此稀有度不存在此武器，改於R表重新抽選。") }],
     },
 
     // ▼直剣（straightsword）
@@ -367,6 +380,9 @@
       name: C("（Lで出目⑥）", "（L出目⑥）"),
       rarity: "L",
       roll: "6",
+      // reroll：規則書の「再抽選」指示を機械可読にしたフィールド（pickWeaponByRollWithReroll が使う）。
+      // これが無いと抽選側は「該当なし」で止まり、GMが手で振り直すしかない。
+      reroll: { rarity: "L" },
       skills: [{ kind: "note", text: C("Lで再抽選する。", "重新抽選L稀有度。") }],
     },
 
@@ -406,7 +422,11 @@
       roll: "1",
       skills: [
         { kind: "innate", id: "colossal_vengeance_grace" },
-        { kind: "art", id: "colossal_vow_of_vengeance" },
+        // colossal_vow_of_vengeance は weapons_categories.js の colossal.innateSkills 側に
+        // 定義されているため kind は "innate"。"art" にすると Weapons.getSkill()（=
+        // weapons_skills.js のみを参照）で引けず、getEquippedWeaponSkillEntries() が
+        // この1件を丸ごと捨ててしまう（招式が night/midnight 双方で消える）。
+        { kind: "innate", id: "colossal_vow_of_vengeance" },
       ],
     },
     {
@@ -418,7 +438,7 @@
       skills: [
         { kind: "element", element: C("魔", "魔") },
         { kind: "innate", id: "colossal_collapse_grace" },
-        { kind: "art", id: "colossal_collapse_wave" },
+        { kind: "innate", id: "colossal_collapse_wave" }, // innateSkills 側の定義（上記 colossal_vow_of_vengeance と同じ理由）
       ],
     },
     {
@@ -430,7 +450,7 @@
       skills: [
         { kind: "element", element: C("魔", "魔") },
         { kind: "innate", id: "colossal_starcrusher_grace" },
-        { kind: "art", id: "colossal_star_call" },
+        { kind: "innate", id: "colossal_star_call" }, // innateSkills 側の定義（同上）
       ],
     },
     {
@@ -442,7 +462,7 @@
       skills: [
         { kind: "element", element: C("魔", "魔") },
         { kind: "innate", id: "colossal_fate_of_death_grace" },
-        { kind: "art", id: "colossal_fate_of_death" },
+        { kind: "innate", id: "colossal_fate_of_death" }, // innateSkills 側の定義（同上）
       ],
     },
     {
@@ -451,6 +471,7 @@
       name: C("（Lで出目⑤〜⑥）", "（L出目⑤〜⑥）"),
       rarity: "L",
       roll: "5〜6",
+      reroll: { rarity: "L" },
       skills: [{ kind: "note", text: C("Lで再抽選する。", "重新抽選L稀有度。") }],
     },
 
@@ -490,6 +511,7 @@
       name: C("（L表には該当武器なし）", "（L稀有度無對應武器）"),
       rarity: "L",
       roll: "－",
+      reroll: { rarity: "R" },
       skills: [{ kind: "note", text: C("この表には存在しない。Rの表で再抽選する。", "此稀有度不存在此武器，改於R表重新抽選。") }],
     },
 
@@ -786,6 +808,7 @@
       name: C("（L表には該当武器なし）", "（L稀有度無對應武器）"),
       rarity: "L",
       roll: "－",
+      reroll: { rarity: "R" },
       skills: [{ kind: "note", text: C("この表には存在しない。Rの表で再抽選する。", "此稀有度不存在此武器，改於R表重新抽選。") }],
     },
 
@@ -947,6 +970,7 @@
       name: C("（L表には該当武器なし）", "（L稀有度無對應武器）"),
       rarity: "L",
       roll: "－",
+      reroll: { rarity: "R" },
       skills: [{ kind: "note", text: C("この表には存在しない。Rの表で再抽選する。", "此稀有度不存在此武器，改於R表重新抽選。") }],
     },
 
@@ -1436,6 +1460,7 @@
       name: C("（L表には該当武器なし）", "（L稀有度無對應武器）"),
       rarity: "L",
       roll: "－",
+      reroll: { rarity: "R" },
       skills: [{ kind: "note", text: C("この表には存在しない。Rの表で再抽選する。", "此稀有度不存在此武器，改於R表重新抽選。") }],
     },
 
@@ -1486,6 +1511,7 @@
       name: C("（L表には該当武器なし）", "（L稀有度無對應武器）"),
       rarity: "L",
       roll: "－",
+      reroll: { rarity: "R" },
       skills: [{ kind: "note", text: C("この表には存在しない。Rの表で再抽選する。", "此稀有度不存在此武器，改於R表重新抽選。") }],
     },
 
@@ -1638,6 +1664,7 @@
       name: C("（L表には該当武器なし）", "（L稀有度無對應武器）"),
       rarity: "L",
       roll: "－",
+      reroll: { rarity: "R" },
       skills: [{ kind: "note", text: C("この表には存在しない。Rの表で再抽選する。", "此稀有度不存在此武器，改於R表重新抽選。") }],
     },
 
@@ -1655,6 +1682,32 @@
     { id: "bow_pulley", category: "bow", name: C("滑車の弓", "滑輪弓"), rarity: "R", roll: "3〜4", skills: [{ kind: "random" }] },
     { id: "bow_serpent", category: "bow", name: C("蛇弓", "蛇弓"), rarity: "R", roll: "5", skills: [{ kind: "status", status: C("猛毒", "猛毒") }] },
     { id: "bow_erdtree", category: "bow", name: C("黄金樹の弓", "黃金樹之弓"), rarity: "R", roll: "6", skills: [{ kind: "element", element: C("聖", "聖") }] },
+    // U表の出目⑥は武器が無く「Uの表で再抽選、再度⑥なら出目⑤（角の弓）を獲得」（規則書確認済み・2026-09-12）。
+    // fallbackRoll がその「再度同じ出目に落ちたら取る出目」を表す。
+    {
+      id: "bow_u_reroll",
+      category: "bow",
+      name: C("（Uで出目⑥）", "（U出目⑥）"),
+      rarity: "U",
+      roll: "6",
+      reroll: { rarity: "U", fallbackRoll: 5 },
+      skills: [
+        {
+          kind: "note",
+          text: C("Uの表で再抽選する。再度⑥が出た場合は出目⑤（角の弓）を獲得する。", "於U表重新抽選。若再次擲出⑥，則獲得出目⑤（角弓）。"),
+        },
+      ],
+    },
+    // L表は存在せず「Uの表で再抽選」（規則書確認済み・2026-09-12）。
+    {
+      id: "bow_none_l",
+      category: "bow",
+      name: C("（L表には該当武器なし）", "（L稀有度無對應武器）"),
+      rarity: "L",
+      roll: "－",
+      reroll: { rarity: "U" },
+      skills: [{ kind: "note", text: C("この表には存在しない。Uの表で再抽選する。", "此稀有度不存在此武器，改於U表重新抽選。") }],
+    },
 
     // ▼大弓（greatbow）
     { id: "greatbow_greatbow", category: "greatbow", name: C("大弓", "大弓"), rarity: "C", roll: "－", skills: [{ kind: "art", id: "art_piercing_shot" }] },
@@ -1709,9 +1762,39 @@
       skills: [{ kind: "innate", id: "crossbow_kick" }, { kind: "note", text: C("武器威力40＋▲（他のクロスボウと異なる特殊な基礎値）", "武器威力40＋▲（與其他弩不同的特殊基礎值）") }],
     },
 
+    // L表は存在せず「Uの表で再抽選」（規則書確認済み・2026-09-12）。
+    {
+      id: "crossbow_none_l",
+      category: "crossbow",
+      name: C("（L表には該当武器なし）", "（L稀有度無對應武器）"),
+      rarity: "L",
+      roll: "－",
+      reroll: { rarity: "U" },
+      skills: [{ kind: "note", text: C("この表には存在しない。Uの表で再抽選する。", "此稀有度不存在此武器，改於U表重新抽選。") }],
+    },
+
     // ▼バリスタ（ballista）：種類決定表の写真により、装備品スキルは「なし」に修正（従来のキック付与は誤り）。
     { id: "ballista_handheld", category: "ballista", name: C("手持ちバリスタ", "手持式弩砲"), rarity: "U", roll: "－", skills: [] },
     { id: "ballista_pot_cannon", category: "ballista", name: C("壺大砲", "壺大砲"), rarity: "R", roll: "－", skills: [] },
+    // C表は存在せず「Rの表で再抽選」、L表は存在せず「Uの表で再抽選」（規則書確認済み・2026-09-12）。
+    {
+      id: "ballista_none_c",
+      category: "ballista",
+      name: C("（C表には該当武器なし）", "（C稀有度無對應武器）"),
+      rarity: "C",
+      roll: "－",
+      reroll: { rarity: "R" },
+      skills: [{ kind: "note", text: C("この表には存在しない。Rの表で再抽選する。", "此稀有度不存在此武器，改於R表重新抽選。") }],
+    },
+    {
+      id: "ballista_none_l",
+      category: "ballista",
+      name: C("（L表には該当武器なし）", "（L稀有度無對應武器）"),
+      rarity: "L",
+      roll: "－",
+      reroll: { rarity: "U" },
+      skills: [{ kind: "note", text: C("この表には存在しない。Uの表で再抽選する。", "此稀有度不存在此武器，改於U表重新抽選。") }],
+    },
 
     // ▼盾（shield）：種類決定表の写真により全面的に再構成（2026年7月訂正）。
     // attachedEffect＝付随効果／reverseArt＝逆手の戦技（ガード時戦技）。「蓄積無効｜X」「ガード時蓄積｜X」はnote扱い。
@@ -2204,6 +2287,37 @@
       reverseArt: [{ kind: "innate", id: "large_shield_flame_spit" }],
     },
 
+    // ▼盾のLレアリティ：小盾・中盾・大盾いずれもL表は存在せず「Rの表で再抽選」（規則書確認済み・2026-09-12）。
+    // プレースホルダーは他カテゴリと同じく skills:[{kind:"note"}] で置く（attachedEffect／reverseArt は
+    // 実際の盾にしか無い＝isNotePlaceholderWeapon() が skills を見るため、この形でないと占位と判定されない）。
+    {
+      id: "small_shield_none_l",
+      category: "small_shield",
+      name: C("（L表には該当盾なし）", "（L稀有度無對應盾）"),
+      rarity: "L",
+      roll: "－",
+      reroll: { rarity: "R" },
+      skills: [{ kind: "note", text: C("この表には存在しない。Rの表で再抽選する。", "此稀有度不存在此盾，改於R表重新抽選。") }],
+    },
+    {
+      id: "medium_shield_none_l",
+      category: "medium_shield",
+      name: C("（L表には該当盾なし）", "（L稀有度無對應盾）"),
+      rarity: "L",
+      roll: "－",
+      reroll: { rarity: "R" },
+      skills: [{ kind: "note", text: C("この表には存在しない。Rの表で再抽選する。", "此稀有度不存在此盾，改於R表重新抽選。") }],
+    },
+    {
+      id: "large_shield_none_l",
+      category: "large_shield",
+      name: C("（L表には該当盾なし）", "（L稀有度無對應盾）"),
+      rarity: "L",
+      roll: "－",
+      reroll: { rarity: "R" },
+      skills: [{ kind: "note", text: C("この表には存在しない。Rの表で再抽選する。", "此稀有度不存在此盾，改於R表重新抽選。") }],
+    },
+
     // ▼杖（staff）：種類決定表・固有魔術ページを撮影再確認して全17種を収録（2026年7月訂正）。
     // 装備品スキル欄は魔術（spell_*）を参照する。※ランダム魔術（A/B表）は random 扱い。
     {
@@ -2344,7 +2458,18 @@
     },
 
     // ▼聖印（sacred_seal）：種類決定表・固有祈祷ページを撮影再確認して全15種を収録（2026年7月訂正）。
-    // Lレアリティは規則書上「存在しない（Rの表で再抽選する）」と明記されているため未収録。
+    // Lレアリティは規則書上「存在しない（Rの表で再抽選する）」と明記されているため実武器は無いが、
+    // 他カテゴリ（刺剣・両刃剣・斧・斧槍・鎌・爪）と同じく kind:"note" のプレースホルダーを1件置く。
+    // これが無いと抽選UIの findNotePlaceholderWeapon() が何も見つけられず、GMに再抽選の指示が出ない。
+    {
+      id: "seal_none_l",
+      category: "sacred_seal",
+      name: C("（L表には該当聖印なし）", "（L稀有度無對應聖印）"),
+      rarity: "L",
+      roll: "－",
+      reroll: { rarity: "R" },
+      skills: [{ kind: "note", text: C("この表には存在しない。Rの表で再抽選する。", "此稀有度不存在此聖印，改於R表重新抽選。") }],
+    },
     {
       id: "seal_finger_start",
       category: "sacred_seal",

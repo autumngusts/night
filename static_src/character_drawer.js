@@ -1615,8 +1615,13 @@
     if (typeof resolvedValue === "string") {
       var resolved = Weapons.getSkill(resolvedValue);
       return resolved
-        ? { name: Weapons.localizedText(resolved.name), body: Weapons.localizedText(resolved.body), kind: resolved.kind }
-        : { name: resolvedValue, body: "", kind: null };
+        ? {
+            name: Weapons.localizedText(resolved.name),
+            body: Weapons.localizedText(resolved.body),
+            kind: resolved.kind,
+            kindLabel: resolved.kindLabel ? Weapons.localizedText(resolved.kindLabel) : null,
+          }
+        : { name: resolvedValue, body: "", kind: null, kindLabel: null };
     }
     return resolveWeaponSkillDisplay(resolvedValue);
   }
@@ -1756,15 +1761,21 @@
 
   // skill ref（weapon.skills／attachedEffect／reverseArt／共通戦技いずれも同じ形）から
   // 表示用の{name, body, kind}を求める。ランダム枠（kind:"random"）はここでは扱わない。
+  // kindLabel：規則書の格子見出し「（種類）｜（名称）」の種類部分（例：魔術「石掘り」、
+  // 祈禱「竜餐」）。2026-09-12 に weapons_skills.js へ追加した任意フィールドで、
+  // 持たない招式では undefined になる。詳細表示側でのみ「種類｜名称」と前置する
+  // （戦闘ボタン等の短い表示では名称のみを使う）。
   function resolveWeaponSkillDisplay(ref) {
     var body;
     var name;
     var kind = null;
+    var kindLabel = null;
     if (ref.kind === "art") {
       var art = Weapons.getSkill(ref.id);
       name = art ? Weapons.localizedText(art.name) : ref.id;
       body = art ? Weapons.localizedText(art.body) : "";
       kind = art ? art.kind : null;
+      kindLabel = art && art.kindLabel ? Weapons.localizedText(art.kindLabel) : null;
     } else if (ref.kind === "innate") {
       var innate = null;
       Weapons.categories().forEach(function (cat) {
@@ -1802,7 +1813,13 @@
       name = window.I18N.t("weapon_note_label");
       body = Weapons.localizedText(ref.text);
     }
-    return { name: name, body: body, kind: kind };
+    return { name: name, body: body, kind: kind, kindLabel: kindLabel };
+  }
+
+  // 詳細表示用：kindLabel があれば「種類｜名称」、無ければ名称のみ。
+  function weaponSkillDisplayTitle(display) {
+    if (!display) return "";
+    return display.kindLabel ? display.kindLabel + "｜" + display.name : display.name;
   }
 
   function renderWeaponSkillEntry(container, ref, weaponId, c, storageKey) {
@@ -2601,6 +2618,8 @@
       item: null,
       itemMissMessage: false,
       itemMissNote: null,
+      // 規則書の再抽選指示を辿った経過（pickWeaponByRollWithReroll の steps）。表示専用。
+      itemRerollSteps: [],
 
       skillTableLetter: null,
       skillDice: null,
@@ -2751,6 +2770,74 @@
     return null;
   }
 
+  // 指定した出目に該当する kind:"note" プレースホルダー（「L表には該当武器なし」「Lで出目⑥」等）を探す。
+  // roll に範囲があればその範囲で判定し、roll:"－" のものは稀有度まるごとのプレースホルダーとして扱う。
+  function findNotePlaceholderForRoll(categoryId, rarity, dieValue) {
+    var candidates = Weapons.list().filter(function (w) {
+      return w.category === categoryId && w.rarity === rarity && isNotePlaceholderWeapon(w);
+    });
+    var ranged = candidates.filter(function (w) {
+      var range = parseRollRange(w.roll);
+      return range && dieValue >= range[0] && dieValue <= range[1];
+    });
+    if (ranged.length) return ranged[0];
+    return (
+      candidates.filter(function (w) {
+        return !parseRollRange(w.roll);
+      })[0] || null
+    );
+  }
+
+  // 規則書の「この稀有度／出目には武器が無いので○の表で再抽選する」指示（データ側の reroll
+  // フィールド）に従って、落空したぶんを自動で振り直す。pickWeaponByRoll 自体は純粋な
+  // 「表を引くだけ」の関数に保ち、再抽選の手順だけをここに集約する（手動フロー・簡化抽選・
+  // 商人・場地報酬がすべて同じ規則で動くようにするため）。
+  // 戻り値：{ item, die, rarity, steps:[{die, rarity, note, fallbackRoll}] }。
+  // item が null なら規則書上も解決できない（GMが手で処理する）ケース。
+  // 再抽選の経過1件を表示用テキストにする。抽選ウィザード（renderWeaponRollField）と
+  // night側の潜在する力モーダル（night_potential_power.js）で同じ文面を使うため関数に切り出す。
+  function weaponRerollStepText(step) {
+    return window.I18N.t("weapon_roll_item_reroll_step", {
+      die: step.die,
+      rarity: step.rarity,
+      note: Weapons.localizedText(step.note),
+      next: window.I18N.t(step.fallbackRoll ? "weapon_roll_item_reroll_fallback" : "weapon_roll_item_reroll_next", {
+        rarity: step.nextRarity,
+        die: step.nextDie,
+        roll: step.fallbackRoll,
+      }),
+    });
+  }
+
+  var MAX_REROLL_STEPS = 6;
+  function pickWeaponByRollWithReroll(categoryId, rarity, dieValue) {
+    var curRarity = rarity;
+    var curDie = dieValue;
+    var steps = [];
+    for (var i = 0; i <= MAX_REROLL_STEPS; i++) {
+      var item = pickWeaponByRoll(categoryId, curRarity, curDie);
+      if (item && !isNotePlaceholderWeapon(item)) return { item: item, die: curDie, rarity: curRarity, steps: steps };
+      var placeholder = findNotePlaceholderForRoll(categoryId, curRarity, curDie);
+      var reroll = placeholder && placeholder.reroll;
+      if (!reroll) return { item: null, die: curDie, rarity: curRarity, steps: steps, placeholder: placeholder };
+      var step = { die: curDie, rarity: curRarity, note: placeholder.skills[0].text, fallbackRoll: null };
+      var nextRarity = reroll.rarity || curRarity;
+      var nextDie = rollD6();
+      // fallbackRoll：同じ表を振り直して再度同じプレースホルダーに落ちた場合、規則書が指定する
+      // 出目の武器をそのまま獲得する（例：弓のU表⑥→振り直して再度⑥なら出目⑤の角の弓）。
+      if (reroll.fallbackRoll && nextRarity === curRarity && findNotePlaceholderForRoll(categoryId, nextRarity, nextDie) === placeholder) {
+        step.fallbackRoll = reroll.fallbackRoll;
+        nextDie = reroll.fallbackRoll;
+      }
+      step.nextDie = nextDie;
+      step.nextRarity = nextRarity;
+      steps.push(step);
+      curRarity = nextRarity;
+      curDie = nextDie;
+    }
+    return { item: null, die: curDie, rarity: curRarity, steps: steps, placeholder: findNotePlaceholderForRoll(categoryId, curRarity, curDie) };
+  }
+
   // 商人イベント「装備品の購入」や樓層獲得の「武器：★N」報酬：カテゴリ・稀有度・アイテムを
   // 全てランダムに決定する簡易抽選（starCount省略時は★1固定＝稀有度決定に振る骰子は1個の
   // み。樓層獲得の「武器：★★」等、より高いレア度決定値を指定したい場合はstarCountを渡す）。
@@ -2773,9 +2860,14 @@
         }, 0)
       );
       itemDie = rollD6();
-      item = pickWeaponByRoll(categoryId, rarity, itemDie);
-      if (item && !isNotePlaceholderWeapon(item)) break;
-      item = null;
+      // 規則書の再抽選指示（reroll）をここでも通す。これが無いと「C表が存在しないバリスタ」等で
+      // 落空し、20回の再試行を無駄に消費した末に報酬そのものが消える。
+      var resolved = pickWeaponByRollWithReroll(categoryId, rarity, itemDie);
+      item = resolved.item;
+      if (item) {
+        rarity = resolved.rarity;
+        break;
+      }
     }
     if (!item) return null;
     if (!c.weaponIds) c.weaponIds = [];
@@ -2807,9 +2899,12 @@
         }, 0)
       );
       itemDie = rollD6();
-      item = pickWeaponByRoll(categoryId, rarity, itemDie);
-      if (item && !isNotePlaceholderWeapon(item)) break;
-      item = null;
+      var resolvedDraw = pickWeaponByRollWithReroll(categoryId, rarity, itemDie);
+      item = resolvedDraw.item;
+      if (item) {
+        rarity = resolvedDraw.rarity;
+        break;
+      }
     }
     if (!item) return null;
     if (!c.weaponIds) c.weaponIds = [];
@@ -2928,15 +3023,29 @@
     if (findLearnedRelicEffectByName(c, ["發現力＋", "発見力＋"])) {
       raritySum += 1;
     }
+    // タリスマン「銀聖甲蟲」（2026-09-12接入）：「自身が潜在能力を獲得する際、レアリティ
+    // 決定の出目に＋1する」＝遺物効果「發現力＋」と全く同じ加算。同じ場所に並べて足す
+    // （両方持っていれば+2、規則書に重複不可の記載は無い）。
+    if ((c.talismanIds || []).indexOf("talisman_silver_scarab") !== -1) {
+      raritySum += 1;
+    }
     var rarity = lookupRarityBySum(raritySum);
 
     var item = null,
-      itemDie = null;
+      itemDie = null,
+      ppRerollSteps = [];
     for (var attempt = 0; attempt < 20; attempt++) {
       itemDie = rollD6();
-      item = pickWeaponByRoll(categoryId, rarity, itemDie);
-      if (item && !isNotePlaceholderWeapon(item)) break;
-      item = null;
+      // 得意武器のカテゴリは固定なので、L表が存在しないカテゴリ（弓・クロスボウ・盾など）を
+      // 引いた場合は規則書の再抽選指示（reroll）に従って表を切り替える。従来はここで20回とも
+      // 落空し、潜在する力の武器枠そのものが消えていた。
+      var resolvedPp = pickWeaponByRollWithReroll(categoryId, rarity, itemDie);
+      if (resolvedPp.item) {
+        item = resolvedPp.item;
+        ppRerollSteps = resolvedPp.steps;
+        rarity = resolvedPp.rarity;
+        break;
+      }
     }
     if (!item) return null;
 
@@ -2952,6 +3061,7 @@
       raritySum: raritySum,
       rarity: rarity,
       itemDie: itemDie,
+      itemRerollSteps: ppRerollSteps,
       item: item,
       skillId: skillResolution ? skillResolution.skillId : null,
       skillDice: skillResolution ? skillResolution.dice : null,
@@ -3013,12 +3123,19 @@
     if (findLearnedRelicEffectByName(c, ["發現力＋", "発見力＋"])) raritySum += 1;
     var rarity = lookupRarityBySum(raritySum);
     var item = null,
-      itemDie = null;
+      itemDie = null,
+      rerollSteps = [];
     for (var attempt = 0; attempt < 20; attempt++) {
       itemDie = rollD6();
-      item = pickWeaponByRoll(categoryId, rarity, itemDie);
-      if (item && !isNotePlaceholderWeapon(item)) break;
-      item = null;
+      // 規則書の再抽選指示（reroll）を先に通す。稀有度が固定されたこのフローでは、再抽選指示を
+      // 無視すると「L表が存在しないカテゴリ」で20回振っても必ず落空し、簡化抽選が失敗していた。
+      var resolvedAuto = pickWeaponByRollWithReroll(categoryId, rarity, itemDie);
+      if (resolvedAuto.item) {
+        item = resolvedAuto.item;
+        rerollSteps = resolvedAuto.steps;
+        rarity = resolvedAuto.rarity;
+        break;
+      }
     }
     if (!item) return false;
     var category = Weapons.getCategory(categoryId);
@@ -3028,6 +3145,7 @@
     st.rarity = rarity;
     st.rarityConfirmed = true;
     st.itemDie = itemDie;
+    st.itemRerollSteps = rerollSteps;
     st.item = item;
     st.skillId = skillResolution ? skillResolution.skillId : null;
     st.skillDice = skillResolution ? skillResolution.dice : null;
@@ -3194,9 +3312,22 @@
     }
   }
 
+  // 抽選表の出目セル1つ（"3"／"1・2"（複数値）／"1〜2"（範囲））を解釈し、出た目が該当するか判定する。
+  // ここを単純な文字列一致や parseInt 一発で済ませると、規則書どおりに複数値・範囲で転記された行が
+  // 永久に抽選されない（実際に拳・爪の随機戦技表の"1〜2"と、聖印の随機祈祷表の"2／5・6"等が
+  // 抽選不能になっていた）。武器本体の出目解釈（parseRollRange）をそのまま再利用する。
+  function rollCellMatches(cell, die) {
+    return String(cell || "")
+      .split("・")
+      .some(function (part) {
+        var range = parseRollRange(part.trim());
+        return !!range && die >= range[0] && die <= range[1];
+      });
+  }
+
   function resolveSimpleTableRoll(category, d1) {
     var row = (category.randomSkillTable || []).filter(function (r) {
-      return String(r.roll) === String(d1);
+      return rollCellMatches(r.roll, d1);
     })[0];
     return row || null;
   }
@@ -3206,11 +3337,7 @@
       var row = table.rows[i];
       var parts = String(row.roll).split("／");
       if (parts.length !== 2) continue;
-      var leftVals = parts[0].split("・").map(function (s) {
-        return parseInt(s, 10);
-      });
-      var rightVal = parseInt(parts[1], 10);
-      if (leftVals.indexOf(d1) !== -1 && rightVal === d2) return row;
+      if (rollCellMatches(parts[0], d1) && rollCellMatches(parts[1], d2)) return row;
     }
     return null;
   }
@@ -3867,17 +3994,35 @@
   // タリスマン起因の、条件付き／射撃武器専用の固定アタックダメージ加算。
   // ・talisman_sword_scorpion_charm：現在HP＝最大HP時、アタックのダメージを「1Hit：+5／2Hit：+10」
   // ・talisman_longbow／talisman_hardbow：射撃武器の1Hit／2Hitダメージにそれぞれ+5
-  function talismanFlatHitBonus(c, weaponId, category) {
+  // 「現在HP＝□□□以下」の閾値。□1個＝1（CLAUDE.md §17）なので回合制は3。
+  // midnightはHP刻度が10倍（競技場HP＝100＋hp.max×10）のため、呼び出し側が
+  // hpOverride.lowHpThreshold（=30、2026-09-12ユーザー明示指定）を渡して上書きする。
+  var LOW_HP_TALISMAN_THRESHOLD = 3;
+
+  function lowHpThresholdOf(hp) {
+    return hp && hp.lowHpThreshold ? hp.lowHpThreshold : LOW_HP_TALISMAN_THRESHOLD;
+  }
+
+  // hpOverride（省略可）：talismanFlatSkillBonusと全く同じ理由・同じ引数パターン。
+  // 2026-09-12修正：以前はこの関数だけhpOverrideを受け取らずc.hpを直接読んでいたため、
+  // midnight（c.hpを一切書き換えず、実際のHPはdemoStatで持つ）では
+  // ・捧鬮之劍の「現在HP＝最大HP」が常に真（無条件で常時+5/+10）
+  // ・赤羽の七支刃の「現在HP≦3」が絶対に偽（永久に発動しない）
+  // という、どちらも規則と食い違う状態だった。呼び出し側（computeWeaponDamage）が
+  // 既に受け取っているhpOverrideをそのまま流すだけで両方とも正しくなる。
+  function talismanFlatHitBonus(c, weaponId, category, hpOverride) {
     var hit1 = 0,
       hit2 = 0;
+    var hp = hpOverride || c.hp;
+    var lowHpLimit = lowHpThresholdOf(hpOverride);
     var isRanged = category && RANGED_CATEGORY_IDS.indexOf(category.id) !== -1;
     (c.talismanIds || []).forEach(function (id) {
-      if (id === "talisman_sword_scorpion_charm" && c.hp && c.hp.current === c.hp.max) {
+      if (id === "talisman_sword_scorpion_charm" && hp && hp.current === hp.max) {
         hit1 += 5;
         hit2 += 10;
       }
       // 「□□□」は3マス＝HP3を表す（本タリスマンの表記に準拠したユーザー確認済みの値）。
-      if (id === "talisman_crimson_seven_edge" && c.hp && c.hp.current <= 3) {
+      if (id === "talisman_crimson_seven_edge" && hp && hp.current <= lowHpLimit) {
         hit1 += 5;
         hit2 += 5;
       }
@@ -3885,6 +4030,22 @@
       if (isRanged && id === "talisman_hardbow") hit2 += 5;
     });
     return { hit1: hit1, hit2: hit2 };
+  }
+
+  // タリスマンの「自身の『戦技／魔術／祈祷』ダメージを＋5する」（戰士之壺碎片／
+  // 魔術師球護符／信徒的誓布）。kindの分類はattachedSkillDamageBonusと全く同じ
+  // （"art"／"sorcery"／"incant"）で、呼び出し側も同じ場所に並べて加算する。
+  // 2026-09-12新規：この3条はどの計算経路にも載っておらず、これまで完全に無効だった。
+  var TALISMAN_SKILL_DAMAGE_IDS = {
+    art: "talisman_warrior_jar_shard",
+    sorcery: "talisman_sorcerer_orb",
+    incant: "talisman_believer_cloth",
+  };
+
+  function talismanSkillDamageBonus(c, kind) {
+    var id = TALISMAN_SKILL_DAMAGE_IDS[kind];
+    if (!id || !c) return 0;
+    return (c.talismanIds || []).indexOf(id) !== -1 ? 5 : 0;
   }
 
   // タリスマン起因の、条件付きの固定「戦技／魔術／祈祷」ダメージ加算（computeSkillDamage側で
@@ -3900,10 +4061,11 @@
   // 差し替えられるようにする）。
   function talismanFlatSkillBonus(c, hpOverride) {
     var hp = hpOverride || c.hp;
+    var lowHpLimit = lowHpThresholdOf(hpOverride);
     var bonus = 0;
     (c.talismanIds || []).forEach(function (id) {
       if (id === "talisman_sword_scorpion_charm" && hp && hp.current === hp.max) bonus += 5;
-      if (id === "talisman_crimson_seven_edge" && hp && hp.current <= 3) bonus += 5;
+      if (id === "talisman_crimson_seven_edge" && hp && hp.current <= lowHpLimit) bonus += 5;
     });
     return bonus;
   }
@@ -4282,7 +4444,7 @@
     if (categoryBonus.symbol) hit2Symbol = categoryBonus.symbol;
 
     var innateHitBonus = weaponInnateHitBonus(c, weaponId, weapon);
-    var talismanFlatBonus = talismanFlatHitBonus(c, weaponId, category);
+    var talismanFlatBonus = talismanFlatHitBonus(c, weaponId, category, hpOverride);
     var fightingSpiritBonus = fightingSpiritFlatBonus(c, hpOverride);
 
     // 遺物効果「雙手持握的削韌強化」：自身が「威力補正：力量／平衡」の武器を1つだけ装備している
@@ -4483,14 +4645,26 @@
   // ============================================================
   var CIRCLED_DIGIT_MAP = { "①": 1, "②": 2, "③": 3, "④": 4, "⑤": 5, "⑥": 6, "⑦": 7 };
 
-  function parseFpCost(text) {
-    var m = /FP[／\/]?(■+)/.exec(String(text || "")) || /FP(■+)/.exec(String(text || ""));
+  // 「FP■■■」（方塊列舉）と「FP■×4」「FP×3」（×N 表記）の両方を解する。
+  // ×N 表記は聖印の祈禱側で使われている（例：王たる回復「FP■×4」、黄金樹の護り「FP×3」、
+  // 黄金樹の回復「FP×4」）。2026-09-12 までは ×N を解さなかったため、これらの FP コストが
+  // 1 や 0（＝タダ）に誤解析されていた。「FP■■×4」のように方塊が複数なら個数×N で計算する。
+  // 空白は半角スペースのみ許す——全角スペース（　）は本文の欄区切りなので、そこを跨いで
+  // 後続の「□×5」等を拾ってしまわないようにする。
+  function parseSquareCost(text, label) {
+    var t = String(text || "");
+    var timesMatch = new RegExp(label + "[／\\/]?(■*) *[×x] *(\\d+)").exec(t);
+    if (timesMatch) return (timesMatch[1].length || 1) * (parseInt(timesMatch[2], 10) || 1);
+    var m = new RegExp(label + "[／\\/]?(■+)").exec(t);
     return m ? m[1].length : 0;
   }
 
+  function parseFpCost(text) {
+    return parseSquareCost(text, "FP");
+  }
+
   function parseHpCost(text) {
-    var m = /HP[／\/]?(■+)/.exec(String(text || "")) || /HP(■+)/.exec(String(text || ""));
-    return m ? m[1].length : 0;
+    return parseSquareCost(text, "HP");
   }
 
   // 「コスト：...」「消耗：...」の後ろにある、骰子コストのトークン部分（／FPや空白の手前まで）
@@ -5064,13 +5238,19 @@
       step2Btn.addEventListener("click", function () {
         var die = rollD6();
         st.itemDie = die;
-        var picked = pickWeaponByRoll(st.categoryId, st.rarity, die);
+        // 規則書の再抽選指示（「L表には該当なし→Rの表で再抽選」等）はここで自動的に辿る。
+        // 辿った経過は st.itemRerollSteps に残し、下で1行ずつGMに見せる。
+        var resolvedPick = pickWeaponByRollWithReroll(st.categoryId, st.rarity, die);
+        var picked = resolvedPick.item;
+        st.itemRerollSteps = resolvedPick.steps;
         if (!picked) {
           st.item = null;
           st.itemMissMessage = true;
-          var placeholder = findNotePlaceholderWeapon(st.categoryId, st.rarity);
+          var placeholder = resolvedPick.placeholder || findNotePlaceholderWeapon(st.categoryId, st.rarity);
           st.itemMissNote = placeholder ? Weapons.localizedText(placeholder.skills[0].text) : null;
         } else {
+          st.itemDie = resolvedPick.die;
+          st.rarity = resolvedPick.rarity;
           st.item = picked;
           st.itemMissMessage = false;
           st.itemMissNote = null;
@@ -5084,6 +5264,15 @@
         renderWeaponRollField();
       });
       panel.appendChild(step2Btn);
+
+      // 規則書どおりに再抽選した経過（「出目⑥：L表には該当なし→R表で再抽選（出目④）」等）。
+      // 手動フロー・簡化抽選のどちらで解決した場合も同じ形で表示する。
+      (st.itemRerollSteps || []).forEach(function (step) {
+        var stepP = document.createElement("p");
+        stepP.className = "threat-ref-body weapon-roll-result";
+        stepP.textContent = weaponRerollStepText(step);
+        panel.appendChild(stepP);
+      });
 
       if (st.itemMissMessage) {
         var missMsg = document.createElement("p");
@@ -6967,6 +7156,7 @@
     SHIELD_GROUP_CATEGORY: SHIELD_GROUP_CATEGORY,
     weaponPreviewSkillNames: weaponPreviewSkillNames,
     getItemSkillRefs: getItemSkillRefs,
+    weaponRerollStepText: weaponRerollStepText,
     // 2026-09-10追加輸出（midnight.js的武器詳細資訊用）：getEquippedWeaponSkillEntries()
     // 只掃c.equippedWeaponIds，因此「獎勵剛抽到、尚未持有／尚未裝備」的武器查不到任何
     // 戰技。midnight.js需要「依weaponId解析這把武器自己的戰技（含random枠的保存鍵）」，
@@ -6982,6 +7172,7 @@
     MAX_ATTACHED_EFFECTS: MAX_ATTACHED_EFFECTS,
     weaponSpecialEffectNotes: weaponSpecialEffectNotes,
     talismanFlatSkillBonus: talismanFlatSkillBonus,
+    talismanSkillDamageBonus: talismanSkillDamageBonus,
     attachedSkillDamageBonus: attachedSkillDamageBonus,
     talismanFlatMaxStatBonus: talismanFlatMaxStatBonus,
     totalFlatMaxStatBonus: totalFlatMaxStatBonus,
@@ -7002,5 +7193,6 @@
     bareGuardSymbolSkillValue: bareGuardSymbolSkillValue,
     formatValueWithSymbol: formatValueWithSymbol,
     resolveWeaponSkillDisplay: resolveWeaponSkillDisplay,
+    weaponSkillDisplayTitle: weaponSkillDisplayTitle,
   };
 })();

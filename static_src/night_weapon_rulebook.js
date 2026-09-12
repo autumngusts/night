@@ -47,7 +47,7 @@
       container.appendChild(block);
     });
 
-    [WR.acquisitionNote(), WR.rarityNote()].concat(WR.commonSkillNotes()).forEach(function (note) {
+    [WR.acquisitionNote(), WR.rarityNote(), WR.rerollNote()].concat(WR.commonSkillNotes()).forEach(function (note) {
       var block = document.createElement("div");
       block.className = "threat-ref-block";
       var h = document.createElement("h4");
@@ -98,9 +98,20 @@
         window.I18N.t("weapon_rarity_column_label"),
         window.I18N.t("weapon_roll_column_label"),
         window.I18N.t("weapon_name_column_label"),
+        window.I18N.t("weapon_note_column_label"),
       ];
+      // 備考欄：kind:"note" の記載（「L表には該当武器なし→Rの表で再抽選する」「武器威力40＋▲」等）を
+      // そのまま出す。これが無いと、再抽選のプレースホルダー行が名前だけの謎の行に見えてしまう。
       var rows = weapons.map(function (w) {
-        return [w.rarity, w.roll || "－", Weapons.localizedText(w.name)];
+        var noteTexts = (w.skills || [])
+          .concat(w.attachedEffect || [], w.reverseArt || [])
+          .filter(function (ref) {
+            return ref.kind === "note" && ref.text;
+          })
+          .map(function (ref) {
+            return Weapons.localizedText(ref.text);
+          });
+        return [w.rarity, w.roll || "－", Weapons.localizedText(w.name), noteTexts.join("／") || "－"];
       });
       block.appendChild(window.PriTestNightCore.buildBossTable(columns, rows, identity));
       container.appendChild(block);

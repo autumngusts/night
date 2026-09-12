@@ -18,6 +18,11 @@
     "test:relic_two_hit_mastery": "node relic_two_hit_mastery_check.js",
     "test:relic_batch_2026_09_11": "node relic_batch_2026_09_11_check.js",
     "test:relic_batch_2026_09_12": "node relic_batch_2026_09_12_check.js",
+    "test:consumable_talisman": "node consumable_talisman_check.js",
+    "test:consumable_talisman_runtime": "node consumable_talisman_runtime_check.js",
+    "test:spell_transcription": "node spell_transcription_check.js",
+    "check:draw_coverage": "node draw_table_coverage_check.js",
+    "audit:weapon_skills": "node weapon_skill_audit.js",
     "audit:relic_effects": "node relic_effect_audit.js",
     "audit:relic_gaps": "node relic_effect_gaps_table.js"
   },

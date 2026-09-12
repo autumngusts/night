@@ -268,6 +268,14 @@
         weapon: Weapons.localizedText(wr.item.name),
       });
       weaponCard.appendChild(weaponBody);
+      // 規則書の「この稀有度には該当武器なし→○の表で再抽選」を自動で辿った場合、その経過を
+      // GM／玩家に見せる（結果の武器だけ出すと、擲出的稀有度と獲得物が食い違って見える）。
+      (wr.itemRerollSteps || []).forEach(function (step) {
+        var rerollP = document.createElement("p");
+        rerollP.className = "threat-ref-body weapon-roll-note";
+        rerollP.textContent = CharacterDrawer.weaponRerollStepText(step);
+        weaponCard.appendChild(rerollP);
+      });
       var weaponDetails = document.createElement("details");
       weaponDetails.className = "ability-entry";
       var weaponSummary = document.createElement("summary");
