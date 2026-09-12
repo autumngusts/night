@@ -5279,6 +5279,13 @@ html.midnight-hud-above-banner #midnight-hud-top-right {
   background: #d8944a;
 }
 
+/* 雜兵血條（2026-09-12使用者明確要求「血量在敵人血量上排」，見static/midnight.jsの
+   renderFieldEncounterPanel()）：用比敵人橘色更暗一階的褐色，讓「上排是雜兵、下排才是
+   敵人本體」在視覺上有主從之分。 */
+.midnight-bar-mob {
+  background: #a56a33;
+}
+
 /* 復仇者「召喚靈體」血條（2026-09-08新增，見static/midnight.jsのrenderOccupiedSlotCard()）。 */
 .midnight-bar-spirit {
   background: #9a6fd8;

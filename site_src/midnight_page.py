@@ -476,8 +476,12 @@ BODY = """    <div class="midnight-wrap">
                #midnight-ground-item-prompt巢狀在地圖modal內部、地圖收合時完全看不到，
                這次搬到左上角HUD（跟隊友血量卡同一個固定面板），見static/midnight.jsの
                updateNearbyGroundItem()。 -->
+          <!-- 2026-09-12使用者明確要求「靠近的人在畫面左邊會彈出該詳細資訊」：名稱下方
+               再加一段規則本文（跟角色面板同樣經過midnight_text_adapt.js轉換），
+               見updateNearbyGroundItem()。 -->
           <div id="midnight-ground-item-prompt" hidden>
             <p id="midnight-ground-item-name"></p>
+            <p id="midnight-ground-item-body"></p>
             <button type="button" id="btn-midnight-pickup-ground-item" data-i18n="midnight_pickup_button"></button>
           </div>
         </div>
@@ -777,6 +781,16 @@ BODY = """    <div class="midnight-wrap">
                「敵人若有受到屬性傷害則在血條上方黃字標註」：搬到.midnight-enemy-hp-row
                上方（原本在下方），並改用黃字（見style.cssの#midnight-attribute-accum-note）。 -->
           <p id="midnight-attribute-accum-note"></p>
+          <!-- 雜兵血條（2026-09-12使用者明確要求「板塊中遇到敵人有寫雜兵時，產生其血量在
+               敵人血量上排，須先扣除雜兵」）：雜兵系統本身2026-09-06就存在
+               （fieldMobHp/{pointId}，攻擊先扣雜兵、溢出才打本體），這次只是把血量顯示
+               出來。沒有雜兵（fieldMobHp[pointId]===undefined）時整列隱藏，見
+               static/midnight.js的renderFieldEncounterPanel()。 -->
+          <div class="midnight-bar-row midnight-mob-hp-row" id="midnight-mob-hp-row" hidden>
+            <span class="midnight-bar-label" data-i18n="midnight_mob_hp_label"></span>
+            <span class="midnight-bar-track"><span class="midnight-bar-fill midnight-bar-mob" id="midnight-mob-hp-fill"></span></span>
+            <span class="midnight-bar-value" id="midnight-mob-hp-value"></span>
+          </div>
           <div class="midnight-bar-row midnight-enemy-hp-row">
             <span class="midnight-bar-label" data-i18n="midnight_enemy_hp_label"></span>
             <span class="midnight-bar-track"><span class="midnight-bar-fill midnight-bar-enemy" id="midnight-enemy-hp-fill"></span></span>

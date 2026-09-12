@@ -146,8 +146,12 @@
 
   // 「發狂」是「発狂」的zh表記，蓄積bucket統一用ja「発狂」當key（跟ATTRIBUTE_STATUS_
   // AILMENT_NAMES_JA既有清單一致），避免同一個異常因為文字語言不同被拆成兩個bucket。
+  // 「咒死」同理是ja「呪死」的zh表記（2026-09-12補：戰技本文解析
+  // parseSkillBodyAccums()會取到zh寫法，原本只正規化了發狂一種）。
+  var ATTRIBUTE_LABEL_ZH_TO_JA = { 發狂: "発狂", 咒死: "呪死" };
+
   function normalizeAttributeLabel(label) {
-    return label === "發狂" ? "発狂" : label;
+    return ATTRIBUTE_LABEL_ZH_TO_JA[label] || label;
   }
 
   // 2026-09-06數值真正接入時修正的既有bug：這裡原本掃描action.note，但實際核對
@@ -180,8 +184,52 @@
   var receivedAttributeAccum = {}; // name(已正規化為ja) -> number
   var receivedAttributeAccumTriggeredCount = {};
 
+  // ---- 護符的「承受蓄積」減免（2026-09-12接入，稽核表A組10條）----
+  // 規則書原文都是「自身無效化來自敵人的〜蓄積值」或「受到〜蓄積值時將其-1」，因此統一
+  // 作用在recordReceivedAttributeAccum()這個唯一入口：先算無效化（直接不記），再算-1。
+  // 名稱一律用已正規化的ja表記（normalizeAttributeLabel()的輸出），跟
+  // ATTRIBUTE_STATUS_AILMENT_NAMES_JA同一套字串。
+  var TALISMAN_NULLIFY_RECEIVED = {
+    talisman_sturdy_horn_charm: ["出血", "凍傷"],
+    talisman_immune_horn_charm: ["猛毒", "腐敗"],
+    talisman_sane_horn_charm: ["発狂", "睡眠"],
+    talisman_prince_of_death_pouch: ["呪死"],
+    talisman_dragoncrest_thunder: ["雷"],
+    talisman_dragoncrest_flame: ["炎"],
+    talisman_dragoncrest_magic: ["魔"],
+    talisman_dragoncrest_holy: ["聖"],
+  };
+  // 「受到蓄積值時將其-1」：斑色的角飾＝異常狀態、珍珠龍紋章＝屬性。
+  var TALISMAN_REDUCE_RECEIVED = {
+    talisman_dappled_horn_charm: "ailment",
+    talisman_dragoncrest_pearl: "element",
+  };
+
+  // 回傳這次實際要記入的蓄積值（0＝完全無效化）。
+  function talismanAdjustedReceivedAccum(name, amount) {
+    var ids = (characters[myTokenId] || {}).talismanIds || [];
+    if (!ids.length) return amount;
+    var nullified = false;
+    ids.forEach(function (id) {
+      var names = TALISMAN_NULLIFY_RECEIVED[id];
+      if (names && names.indexOf(name) !== -1) nullified = true;
+    });
+    if (nullified) return 0;
+    var isAilmentName = ATTRIBUTE_STATUS_AILMENT_NAMES_JA.indexOf(name) !== -1;
+    var reduce = 0;
+    ids.forEach(function (id) {
+      var kind = TALISMAN_REDUCE_RECEIVED[id];
+      if (!kind) return;
+      if (kind === "ailment" && isAilmentName) reduce += 1;
+      else if (kind === "element" && !isAilmentName) reduce += 1;
+    });
+    return Math.max(0, amount - reduce);
+  }
+
   function recordReceivedAttributeAccum(rawLabel, amount) {
     var name = normalizeAttributeLabel(rawLabel);
+    amount = talismanAdjustedReceivedAccum(name, amount);
+    if (amount <= 0) return;
     var next = (receivedAttributeAccum[name] || 0) + amount;
     receivedAttributeAccum[name] = next;
     var isAilment = ATTRIBUTE_STATUS_AILMENT_NAMES_JA.indexOf(name) !== -1;
@@ -337,6 +385,27 @@
   // 格子數＝night_gm_flow.js既有parseCombatEnemyRef()解析出的「+雜兵N」後綴N）。
   // 2026-09-08使用者明確規格「敵人血量增加10倍」（全部敵人類型都套用）：格子數×10再乘10＝×100。
   var MOB_HP_PER_ROW = 100;
+  // 規則書寫「對雜兵『HP損害：1』」時，在midnight要打掉多少HP（2026-09-12使用者明確確認：
+  // 「100（等於打掉1隻雜兵）」）。雜兵HP是格數×MOB_HP_PER_ROW的單一合併血量池，因此
+  // 「HP損害：1」＝消滅1格＝1×MOB_HP_PER_ROW。跟既有的「■＝10」換算
+  // （BLOCK_SQUARE_COUNT_TO_RESOURCE_MULT）是兩件事，不要混用。
+  var MOB_DAMAGE_PER_RULEBOOK_POINT = MOB_HP_PER_ROW;
+  // 持續回復（HoT）的預設持續時間（2026-09-12溫石改版使用者明確規格「在10秒內回血」）。
+  var HEAL_OVER_TIME_MS = 10000;
+  // 規則書寫「直到結束階段為止」的消耗品效果，在即時制的持續時間（2026-09-12使用者明確
+  // 規格：「『直到階段結束』原則為持續時間10秒內適用其效果」）。midnight沒有phase結構，
+  // 因此改用「發動時間＋這個毫秒數」的到期時間戳，跟既有的_flameCloakUntil／
+  // _magicGroundUntil等遺物buff完全同一種寫法（CLAUDE.md §21的phase reset在即時制的對應
+  // 做法就是「到期時間戳」，不需要另外維護一份reset清單）。
+  var CONSUMABLE_BUFF_MS = 10000;
+  // 調香瓶｜酸之噴霧「敵人發生的所有傷害-120」：midnight的敵人傷害是規則書數值÷10
+  // （見resolveMyIncomingHit()的「/ 10」與docs §1.2），因此規則書的-120在即時制＝-12。
+  // 這是既有換算的套用，不是自行發明的數值。
+  var ACID_SPRAY_DAMAGE_REDUCE = 120 / 10;
+  // 塗脂（武器脂）沒有屬性選擇UI時的預設屬性：沿用night.jsの投擲壺「フィールド未指定時は
+  // 自動的に炎」既有慣例（night.js:7825），不自行發明新的預設值。
+  var GREASE_DEFAULT_ELEMENT = { ja: "炎", zh: "炎" };
+  var GREASE_SHIELD_GUARD_BONUS_PCT = 10; // 規則書「盾によるガードのHP価値を+10（最大100）」
   var GUARD_BREAK_RECOVER_MS = 5000; // 使用者明確規格：Guard Point扣到0後，5秒後回復原本的Guard Point
   var GUARD_REDUCTION_THRESHOLD = 3; // 使用者明確規格：▲(0.5)/◆(1)每集滿3點，Guard Point-1
   var ART_COOLDOWN_MS = 180000; // 使用者明確規格：技藝冷卻180秒
@@ -481,10 +550,20 @@
     if (!c || !c.hp) return 100;
     return 100 + (c.hp.max + CharacterDrawer.totalFlatMaxStatBonus(c, "hp")) * 10 + (c._bargainMaxHpBonus || 0);
   }
+  // lowHpThreshold：護符「赤羽的七支刃」等「現在HP＝□□□以下」條件的門檻。規則書的
+  // □□□＝3是回合制HP刻度，midnight的競技場HP是它的10倍（100＋hp.max×10），因此
+  // 2026-09-12使用者明確指定改成30。CharacterDrawer那邊會讀這個欄位
+  // （lowHpThresholdOf()），night.js傳的{current,max}沒有這個欄位就沿用原本的3。
+  var LOW_HP_TALISMAN_THRESHOLD_MIDNIGHT = 30;
+
   function selfArenaHp() {
     var max = selfArenaHpMax(characters[myTokenId]);
     var current = demoStats[myTokenId];
-    return { current: current === undefined ? max : current, max: max };
+    return {
+      current: current === undefined ? max : current,
+      max: max,
+      lowHpThreshold: LOW_HP_TALISMAN_THRESHOLD_MIDNIGHT,
+    };
   }
   // demoStat/{myTokenId}的transaction() cur===null（尚未有任何紀錄）時的滿血預設值——
   // 這種情況下characters[myTokenId]理應已經是自己實際角色資料（不是剛加入的瞬間），
@@ -2534,7 +2613,12 @@
       var c = characters[myTokenId];
       if (!c) return;
       var count = executionRelicCount(c);
-      var damage = EXECUTION_BASE_DAMAGE + (count >= 2 ? EXECUTION_MULTI_LEARN_BONUS : 0);
+      // 2026-09-12接入護符（稽核表D組）：短劍的凶刃＝致命一擊傷害+15、青色的凶刃＝
+      // 發動時回復FP□、綠色的凶刃＝回復HP□（□＝1，換算成midnight的10，跟下面「習得2個
+      // 時HP/FP回復□」完全同一個換算，不另外發明數值）。
+      var executionTalismans = c.talismanIds || [];
+      var daggerBladeBonus = executionTalismans.indexOf("talisman_short_dancer_blade") !== -1 ? 15 : 0;
+      var damage = EXECUTION_BASE_DAMAGE + (count >= 2 ? EXECUTION_MULTI_LEARN_BONUS : 0) + daggerBladeBonus;
       // 淑女（黎明）「致命一擊後，消失身影」（2026-09-12使用者明確規格「發動致命一擊後
       // 體力恢復10、不計算此傷害的仇恨值」）：midnight的敵視＝對這隻敵人的累積傷害
       // （damageBySlot），因此「不計算仇恨」＝這一擊不計入damageBySlot，見
@@ -2552,6 +2636,8 @@
         healSelfHp(BLOCK_SQUARE_COUNT_TO_RESOURCE_MULT);
         healSelfFp(BLOCK_SQUARE_COUNT_TO_RESOURCE_MULT);
       }
+      if (executionTalismans.indexOf("talisman_green_dancer_blade") !== -1) healSelfHp(BLOCK_SQUARE_COUNT_TO_RESOURCE_MULT);
+      if (executionTalismans.indexOf("talisman_blue_dancer_blade") !== -1) healSelfFp(BLOCK_SQUARE_COUNT_TO_RESOURCE_MULT);
       showToast(window.I18N.t("midnight_execution_button") + window.I18N.t("colon_separator") + damage);
       broadcastCombatActionBubble(window.I18N.t("midnight_execution_button"));
       maybeGrantExecutionRunes(pointId);
@@ -2741,7 +2827,24 @@
     if (!c) return;
     if (hasRelic(c, "hp130")) healSelfHp(BLOCK_SQUARE_COUNT_TO_RESOURCE_MULT);
     if (hasRelic(c, "fp130")) healSelfFp(BLOCK_SQUARE_COUNT_TO_RESOURCE_MULT);
+    // 護符「掠奪的浮雕」（HP回復□）／「精靈之角」（FP回復□）（2026-09-12接入）：
+    // 觸發條件跟上面的遺物完全相同（總合傷害130以上），差別只在規則書寫「每回合限一次」
+    // ——使用者明確規格換算成「發動後冷卻30秒才能再次觸發」。兩個護符各自獨立計時。
+    var ids = c.talismanIds || [];
+    var now130 = Date.now();
+    if (ids.indexOf("talisman_pillage_cameo") !== -1 && now130 >= (c._pillageCameoReadyAt || 0)) {
+      c._pillageCameoReadyAt = now130 + BIG_HIT_TALISMAN_COOLDOWN_MS;
+      healSelfHp(BLOCK_SQUARE_COUNT_TO_RESOURCE_MULT);
+    }
+    if (ids.indexOf("talisman_spirit_horn") !== -1 && now130 >= (c._spiritHornReadyAt || 0)) {
+      c._spiritHornReadyAt = now130 + BIG_HIT_TALISMAN_COOLDOWN_MS;
+      healSelfFp(BLOCK_SQUARE_COUNT_TO_RESOURCE_MULT);
+    }
   }
+
+  // 掠奪的浮雕／精靈之角的「每回合限一次」在即時制的換算（2026-09-12使用者明確規格
+  // 「發動後需要冷卻30秒後才能再次開啟條件發動」）。
+  var BIG_HIT_TALISMAN_COOLDOWN_MS = 30000;
 
   function damageCombatTarget(amount, symbol) {
     // 隱者「血魂之歌」（2026-09-08使用者明確要求「全體攻擊/戰技傷害提升*1.5倍」）：
@@ -2923,6 +3026,38 @@
   function onAttributeAccumReceived(value) {
     attributeAccum = value || {};
     maybeApplyAttributeJoyRelic();
+    maybeApplyJoyTalismans();
+  }
+
+  // ---- 護符「血之君主的歡喜」／「廢散者的歡喜」（2026-09-12接入）----
+  // 規則原文：「任一名PC對敵人造成異常狀態『出血／腐敗』蓄積值時（即使耐性），
+  // 自身即獲得『HP回復：□』與『FP回復：□』」。
+  // 跟遺物的「〜達成的歡喜」（applyAttributeJoySpec）條件不同：那個是**蓄積跨過閾值**才觸發，
+  // 這兩個護符是**只要有造成蓄積值**就觸發（原文的「即使耐性」就是在強調不看有沒有發動）。
+  // 因此不共用joyTriggeredCount，另外追蹤原始蓄積值的「上升」。
+  // 「任一名PC」：attributeAccum是RTDB共享的蓄積值，任何人打出來大家都會收到這次更新，
+  // 所以在這裡判斷天然就涵蓋全隊，不需要額外廣播。
+  var JOY_TALISMAN_BY_AILMENT = { 出血: "talisman_blood_lord_joy", 腐敗: "talisman_rot_joy" };
+  var joyTalismanLastValue = {}; // targetKey + ":" + name -> 上次看到的蓄積值
+
+  function maybeApplyJoyTalismans() {
+    var c = characters[myTokenId];
+    if (!c) return;
+    var ids = c.talismanIds || [];
+    Object.keys(attributeAccum || {}).forEach(function (targetKey) {
+      var byName = attributeAccum[targetKey] || {};
+      Object.keys(JOY_TALISMAN_BY_AILMENT).forEach(function (name) {
+        var key = targetKey + ":" + name;
+        var cur = byName[name] || 0;
+        var prev = joyTalismanLastValue[key];
+        joyTalismanLastValue[key] = cur;
+        if (prev === undefined) return; // 初次看到只記基準，不當成「剛剛造成」
+        if (cur <= prev) return; // 沒有上升（含觸發後歸零）就不算造成蓄積
+        if (ids.indexOf(JOY_TALISMAN_BY_AILMENT[name]) === -1) return;
+        healSelfHp(BLOCK_SQUARE_COUNT_TO_RESOURCE_MULT);
+        healSelfFp(BLOCK_SQUARE_COUNT_TO_RESOURCE_MULT);
+      });
+    });
   }
 
   function maybeApplyAttributeJoyRelic() {
@@ -3064,8 +3199,31 @@
     // 2026-09-11：遺物效果的一般攻擊加成（後衛戰術／雙刀持握的達人／家族共鬥／突刺反擊的
     // 達人／武器脂的達人／1Hit・2Hit攻擊強化／技藝強化的攻擊力buff），見relicAttackHitBonus()。
     var relicHitBonus = relicAttackHitBonus(c, weaponId);
-    var extraHitBonus = unyieldingBonus.hit1 + fightingSpiritBonus + relicHitBonus.hit1;
-    var extraHit2Bonus = unyieldingBonus.hit2 + fightingSpiritBonus + relicHitBonus.hit2;
+    // 2026-09-12：消耗品的10秒攻擊buff（勇者的肉塊／調香瓶｜高揚之香），見
+    // consumableAttackHitBonus()。
+    var consumableHitBonus = consumableAttackHitBonus(c);
+    // 護符「大槌護符」（2026-09-12使用者明確要求「『2Hit特典：總合傷害+▲』套用」）：
+    // CharacterDrawerのtalisman2HitBonus()本來就解析得到這條，但回傳的是symbol「▲」
+    // 而不是數值，而midnight的symbol只拿去累積敵人削韌（recordGuardReductionForPoint()），
+    // 所以傷害部分一直沒有生效。依CLAUDE.md §18「主傷害欄的▲＝自身的威力補正」，
+    // 這裡把它換算成computeWeaponDamage()已經算好的artPower加進2Hit傷害。
+    // 削韌用的symbol保持不變（CLAUDE.md §18的既有使用者裁定：主傷害欄的▲同時計入削韌）。
+    // 條件跟talisman2HitBonus()完全相同：持有該護符、這把是「裝備狀態的近戰武器」
+    // （盾/射擊武器不算，盾在函式開頭已排除）。
+    var greathammerArtPower =
+      (c.talismanIds || []).indexOf("talisman_greathammer") !== -1 &&
+      !category.isRanged &&
+      (c.equippedWeaponIds || []).indexOf(weaponId) !== -1
+        ? dmg.artPower || 0
+        : 0;
+    var extraHitBonus = unyieldingBonus.hit1 + fightingSpiritBonus + relicHitBonus.hit1 + consumableHitBonus.hit1;
+    var extraHit2Bonus =
+      unyieldingBonus.hit2 +
+      fightingSpiritBonus +
+      relicHitBonus.hit2 +
+      consumableHitBonus.hit2 +
+      greathammerArtPower +
+      roarTwoHitBonus(c, weaponId); // 咆哮系戰技的10秒2Hit加成（見maybeApplyRoarArtBuff()）
     if (extraHitBonus || extraHit2Bonus) {
       dmg = {
         hit1Damage: dmg.hit1Damage + extraHitBonus,
@@ -3163,6 +3321,28 @@
     }
   }
 
+  // ---- 護符「神肌的襁褓」（2026-09-12接入）----
+  // 規則原文「自身同一回合執行2回2Hit時，自身『HP回復：□』」，使用者明確規格把「同一
+  // 回合」換算成「5秒內」。本地only的時間戳清單（只有自己需要知道自己打了幾次2Hit），
+  // 跟attackStaminaWindow等既有的「最近N秒視窗」統計同一種寫法。
+  var GOD_SKIN_SWADDLE_WINDOW_MS = 5000;
+  var twoHitTimestamps = [];
+
+  function maybeApplyGodSkinSwaddle(c, now) {
+    if (!c || (c.talismanIds || []).indexOf("talisman_god_skin_swaddle") === -1) {
+      twoHitTimestamps = [];
+      return;
+    }
+    twoHitTimestamps = twoHitTimestamps.filter(function (t) {
+      return now - t < GOD_SKIN_SWADDLE_WINDOW_MS;
+    });
+    twoHitTimestamps.push(now);
+    if (twoHitTimestamps.length >= 2) {
+      twoHitTimestamps = []; // 觸發後重新計數，避免第3、第4次連續觸發
+      healSelfHp(BLOCK_SQUARE_COUNT_TO_RESOURCE_MULT); // 「HP回復：□」＝10
+    }
+  }
+
   function handleAttackClick(side) {
     if (!mySlot || isPaused() || isSelfDowned() || isIceBlizzardBlinded(Date.now())) return;
     if (beastFormActive(characters[myTokenId], Date.now())) {
@@ -3201,6 +3381,11 @@
     // 防禦反擊強化（斧槍）：這一擊有吃到防禦反擊折扣、且揮的是斧槍時，反擊傷害+15
     // （使用者2026-09-11指定），見guardCounterHalberdBonus()。
     damage += guardCounterHalberdBonus(c, info.weaponId, !!discountPct);
+    // 2026-09-12接入護符「彎劍護符」（稽核表D組）：「自身遺物效果『防禦反擊』使用時
+    // 傷害＋15」。midnight的防禦反擊＝「防禦成功後下一擊的體力折扣」（見
+    // consumeGuardCounterDiscount()），因此「使用時」＝這一擊確實吃到了那個折扣，
+    // 判斷條件跟既有的防禦反擊強化（斧槍）完全相同，只是不限武器種類。
+    if (discountPct && (c.talismanIds || []).indexOf("talisman_curved_sword") !== -1) damage += 15;
     recordAttackForRelics(c, staminaCost, now);
     damageCombatTarget(damage, damageSymbol);
     // 雙手持握的削韌強化：2Hit額外帶一個▲（Guard削減），見twoHandGuardBreakSymbol()。
@@ -3210,6 +3395,7 @@
       if (extraGuardSymbol) recordGuardReductionForPoint(activeEncounter.id, extraGuardSymbol);
       maybeApplyDaggerRestage(c, info.weaponId, now); // 淑女「短劍重演」
       maybeApplyHalberdWhirlwind(c, info.weaponId, now); // 守護者（黎明）「斧槍旋風」
+      maybeApplyGodSkinSwaddle(c, now); // 護符「神肌的襁褓」（2026-09-12接入）
     }
     triggerEnemyHitEffect(weaponHitColor(info.weaponId));
     applyWeaponAttributeAccumOnHit(info.weaponId, useHit2);
@@ -3316,10 +3502,22 @@
     var dmg = CharacterDrawer.computeWeaponDamage(c, weaponId, selfArenaHp());
     if (!dmg) return [];
     var out = [];
+    // 2026-09-12接入護符（稽核表D組）：爪之護符＝跳躍攻擊傷害+10、斧之護符＝蓄力攻擊
+    // 傷害+10。規則書都寫「自身的遺物效果『〜』傷害『＋10』」，因此跟既有的附帶效果
+    // jump_atk_up／dash_atk_up完全同一個加算位置。
+    var talismanIdsForActions = c.talismanIds || [];
+    var clawTalismanBonus = talismanIdsForActions.indexOf("talisman_claw") !== -1 ? 10 : 0;
+    var axeTalismanBonus = talismanIdsForActions.indexOf("talisman_axe") !== -1 ? 10 : 0;
     var jumpEffect = CharacterDrawer.findLearnedActionRelicByName(c, ["跳躍攻擊", "ジャンプ攻撃"]);
     if (jumpEffect) {
       var jumpAtkUpBonus = (c.learnedAttachedEffects || []).indexOf("jump_atk_up") !== -1 ? 10 : 0;
-      out.push({ kind: "jump", weaponId: weaponId, effect: jumpEffect, value: dmg.hit1Damage + dmg.artPower + jumpAtkUpBonus, symbol: dmg.hit1Symbol });
+      out.push({
+        kind: "jump",
+        weaponId: weaponId,
+        effect: jumpEffect,
+        value: dmg.hit1Damage + dmg.artPower + jumpAtkUpBonus + clawTalismanBonus,
+        symbol: dmg.hit1Symbol,
+      });
     }
     var dashEffect = CharacterDrawer.findLearnedActionRelicByName(c, ["衝刺攻擊", "ダッシュ攻撃"]);
     if (dashEffect) {
@@ -3346,7 +3544,7 @@
         kind: "charge",
         weaponId: weaponId,
         effect: chargeEffect,
-        value: dmg.hit1Damage + CHARGE_ATTACK_DAMAGE_BONUS + chargeMultiBonus,
+        value: dmg.hit1Damage + CHARGE_ATTACK_DAMAGE_BONUS + chargeMultiBonus + axeTalismanBonus,
         symbol: dmg.hit1Symbol,
       });
     }
@@ -3502,6 +3700,10 @@
       var fw = Weapons.get(baseCatalogId(weaponId));
       if (fw && fw.category === "greatsword") recordAttributeAccum("炎", base);
     }
+    // 塗脂（武器脂）的10秒到期檢查：weaponAccumulationEffects()會讀c._greaseWeaponId／
+    // c._greaseElementRef合成一個臨時的「屬性｜X」，那邊沒有時間概念，因此先在這裡清掉
+    // 過期的塗脂（見expireGreaseIfNeeded()）。
+    expireGreaseIfNeeded(c);
     var effects = CharacterDrawer.weaponAccumulationEffects(c, weaponId);
     if (!effects.length) return;
     effects.forEach(function (eff) {
@@ -3513,17 +3715,73 @@
   // （見diceCostPoints()）換算體力×2；fpCost／hpCost（本文「FP■■」「HP■■」中■的
   // 個數，parseActionCost既有解析結果，不是自行發明的數字）換算FP/HP×10（使用者明確
   // 規格：「戰技魔術祈禱本文的方塊格數x10，戰技有骰子點數消耗時，額外扣體力x2」）。
-  function computeMidnightSkillCost(bodyText) {
+  // ---- 可切換的護符（2026-09-12使用者明確規格：「在腳色視窗可以點選該飾品來切換，
+  // 預設被撿起都是原始消耗」）----
+  // 卡利亞徽章／原輝石之刃／戈弗雷的肖像三條的規則原文都是「**可**將…」，是玩家每次
+  // 使用時的選擇權，不是常駐被動。midnight沒有「每次施放前跳出選擇」的流程，因此改成
+  // 角色視窗上的開關：關＝原始消耗（預設），開＝套用轉換。狀態存在角色物件的
+  // talismanToggles上（跟其他c.*欄位一樣會同步到RTDB），不另外發明第二套儲存。
+  var TOGGLEABLE_TALISMAN_IDS = ["talisman_carian_filigree", "talisman_primal_glintstone_blade", "talisman_godfreys_icon"];
+
+  function talismanToggleOn(c, talismanId) {
+    return !!(c && c.talismanToggles && c.talismanToggles[talismanId]);
+  }
+
+  function toggleTalismanSetting(talismanId) {
+    var c = characters[myTokenId];
+    if (!c) return;
+    c.talismanToggles = c.talismanToggles || {};
+    c.talismanToggles[talismanId] = !c.talismanToggles[talismanId];
+    GameStorage.rtSet(gameId, "cloud", "character/" + myTokenId + "/talismanToggles", c.talismanToggles);
+  }
+
+  // 這個武器的施法分類（"art"＝一般戰技／"sorcery"＝杖的魔術／"incant"＝聖印的祈禱），
+  // 跟computeMidnightSkillDamage()的skillDamageKind同一套分類，抽出來給消耗計算共用。
+  function skillKindOfWeapon(weaponId) {
+    if (!weaponId) return null;
+    var w = Weapons.get(baseCatalogId(weaponId));
+    var cat = w && Weapons.getCategory(w.category);
+    if (!cat) return null;
+    return cat.id === "staff" ? "sorcery" : cat.id === "sacred_seal" ? "incant" : "art";
+  }
+
+  // weaponId（可省略）：只有跟「魔術／祈禱」或「戰技」分類有關的4個護符會用到，
+  // 省略時這些護符一律不生效（維持原本的行為）。
+  function computeMidnightSkillCost(bodyText, weaponId) {
     var cost = CharacterDrawer.parseActionCost(bodyText);
     // 隱者「聖幕」（混成魔法變體，2026-09-11接上）：「10秒時間為止，自身使用戰技・祈禱・
     // 魔術時不需要FP消耗」——見applyRelicAbilityPostEffect()寫入_noFpCostUntil。
     var cSelf = characters[myTokenId];
     var noFp = !!(cSelf && cSelf._noFpCostUntil && cSelf._noFpCostUntil > Date.now());
-    return {
-      staminaCost: diceCostPoints(cost) * DICE_COUNT_TO_STAMINA_MULT,
-      fpCost: noFp ? 0 : cost.fpCost * BLOCK_SQUARE_COUNT_TO_RESOURCE_MULT,
-      hpCost: cost.hpCost * BLOCK_SQUARE_COUNT_TO_RESOURCE_MULT,
-    };
+    var staminaCost = diceCostPoints(cost) * DICE_COUNT_TO_STAMINA_MULT;
+    var fpCost = noFp ? 0 : cost.fpCost * BLOCK_SQUARE_COUNT_TO_RESOURCE_MULT;
+    var hpCost = cost.hpCost * BLOCK_SQUARE_COUNT_TO_RESOURCE_MULT;
+    var kind = skillKindOfWeapon(weaponId);
+    var ids = (cSelf && cSelf.talismanIds) || [];
+    var isSpell = kind === "sorcery" || kind === "incant";
+    if (kind) {
+      // 卡利亞徽章（戰技）／原輝石之刃（魔術・祈禱）：「FP cost可任意改為HP cost
+      // （無法分割變換）」＝整筆FP消耗搬到HP。
+      var carianOn = kind === "art" && ids.indexOf("talisman_carian_filigree") !== -1 && talismanToggleOn(cSelf, "talisman_carian_filigree");
+      var glintOn =
+        isSpell &&
+        ids.indexOf("talisman_primal_glintstone_blade") !== -1 &&
+        talismanToggleOn(cSelf, "talisman_primal_glintstone_blade");
+      if ((carianOn || glintOn) && fpCost) {
+        hpCost += fpCost;
+        fpCost = 0;
+      }
+      // 拉塔岡的肖像：2026-09-12使用者明確規格「魔術/祈禱 消耗的體力-1」（規則原文是
+      // 回合制的「消耗點數-1點」，使用者直接給了即時制的數值）。
+      if (isSpell && ids.indexOf("talisman_radagons_soreseal") !== -1) staminaCost = Math.max(0, staminaCost - 1);
+      // 戈弗雷的肖像：「可將消耗點數增加1顆1點，則傷害+10」——1顆1點＝
+      // 1×DICE_COUNT_TO_STAMINA_MULT體力（既有換算）。傷害+10在
+      // computeMidnightSkillDamage()同一個開關下加。
+      if (isSpell && ids.indexOf("talisman_godfreys_icon") !== -1 && talismanToggleOn(cSelf, "talisman_godfreys_icon")) {
+        staminaCost += DICE_COUNT_TO_STAMINA_MULT;
+      }
+    }
+    return { staminaCost: staminaCost, fpCost: fpCost, hpCost: hpCost };
   }
 
   // 戰技／魔術／祈禱傷害：沿用既有fallback鏈（跟night.js的computeSkillDamage同一套
@@ -3557,6 +3815,17 @@
       CharacterDrawer.fightingSpiritFlatBonus(c, selfHp) +
       unyieldingSkillBonus(c) +
       relicSkillDamageBonus(c) + // 2026-09-11：後衛戰術／家族共鬥／技藝強化的攻擊力buff
+      consumableSkillDamageBonus(c) + // 2026-09-12：勇者的肉塊／高揚之香的10秒「戰技傷害+5」
+      // 2026-09-12：護符「戰士之壺碎片／魔術師球護符／信徒的誓布」的「戰技／魔術／祈禱
+      // 傷害+5」（C組，先前完全沒有接入任何計算路徑）。
+      (skillDamageKind ? CharacterDrawer.talismanSkillDamageBonus(c, skillDamageKind) : 0) +
+      // 護符「戈弗雷的肖像」（2026-09-12接入）：開關打開時，魔術／祈禱多付1顆1點的體力
+      // （見computeMidnightSkillCost()同一個開關），換得傷害+10。
+      ((skillDamageKind === "sorcery" || skillDamageKind === "incant") &&
+      (c.talismanIds || []).indexOf("talisman_godfreys_icon") !== -1 &&
+      talismanToggleOn(c, "talisman_godfreys_icon")
+        ? 10
+        : 0) +
       // 隱者「能力強化（魔術之地）」：使用元素操控後10秒內，自身使用的**魔術**傷害+5
       // （只有杖＝sorcery，不含祈禱/一般戰技），見applyRelicAbilityPostEffect()。
       (skillDamageKind === "sorcery" && c._magicGroundUntil && c._magicGroundUntil > Date.now() ? 5 : 0) +
@@ -3574,8 +3843,173 @@
     if (!c || !hasRelic(c, "prayerFirepower")) return;
     var w = weaponId ? Weapons.get(baseCatalogId(weaponId)) : null;
     if (!w || w.category !== "sacred_seal") return; // 「使用祈禱時」＝用聖印施放
-    c._relicAtkBuffUntil = Date.now() + PRAYER_FIREPOWER_MS;
+    // 護符「古王護符」（2026-09-12接入）：「使用『魔術/祈禱』的『階段結束為止』可任意改為
+    // 『下一回合的結束階段為止』」＝持續時間延長一倍（使用者明確規格）。midnight目前
+    // 「由施放魔術／祈禱本身產生的持續時間」只有這一個（火力提升），因此只在這裡生效；
+    // 之後若再加入其他由咒文產生的時限buff，記得一併套用這個倍率。
+    var oldLordMult = (c.talismanIds || []).indexOf("talisman_old_lords_talisman") !== -1 ? 2 : 1;
+    c._relicAtkBuffUntil = Date.now() + PRAYER_FIREPOWER_MS * oldLordMult;
     GameStorage.rtSet(gameId, "cloud", "character/" + myTokenId + "/_relicAtkBuffUntil", c._relicAtkBuffUntil);
+  }
+
+  // ---- 護符「咆哮遺物勳章」與它所強化的3個戰技（2026-09-12接入）----
+  // 使用者明確規格：「本文中有些角色的技能技藝等等有強化效果的，持有此飾品即能觸發」。
+  // 全專案裡指名這個護符的規則本文共3條戰技（weapons_skills.jsのart_war_cry／
+  // art_savage_roar、weapons_categories.jsのgreat_weapon_kings_roar），句型都是：
+  //   「直到結束階段為止，此裝備2Hit攻擊的總合傷害『＋X』。若自身裝備護符『咆哮的勳章』，
+  //    總合傷害再『＋Y』。」
+  // 其中X／Y可能是數字、「▲」（＝自身威力補正，CLAUDE.md §18）或「＋5＋▲」的組合。
+  //
+  // 這個buff本身在midnight原本也沒有實作（castWeaponSkillEntry()只算傷害，不處理戰技帶來
+  // 的持續效果），因此這次是連同底層buff一起補上：先解析本文拿到X（與持有護符時的Y），
+  // 「直到結束階段」依使用者的通則換算成10秒（CONSUMABLE_BUFF_MS）。
+  // 解析而不是寫死3個id：之後規則資料修訂或新增同句型的戰技都會自動跟著生效。
+  var ROAR_TALISMAN_TEXT_RE = /咆哮のメダリオン|咆哮的勳章/;
+  var ROAR_BASE_RE = /2Hit(?:アタック|攻擊)[^「]*「([^」]+)」/;
+  var ROAR_EXTRA_RE = /(?:さらに|再)「([^」]+)」/;
+
+  // 把「＋5＋▲」這種片段換算成實際數值（▲／◆都以artPower計，跟CLAUDE.md §18一致）。
+  // 注意：規則本文的追加句常帶一段括號註記「（合計＋10＋▲）」，那是**總和的說明**而不是
+  // 另一筆加成，必須先切掉再解析，否則會把總和再加一次（實測會讓野蠻咆哮從+17變成+34）。
+  function parseRoarBonusFragment(fragment, artPower) {
+    if (!fragment) return 0;
+    fragment = String(fragment).split(/[（(]\s*(?:合計|合计)/)[0];
+    var total = 0;
+    var numMatch = fragment.match(/[＋+]\s*(\d+)/g) || [];
+    numMatch.forEach(function (m) {
+      total += parseInt(m.replace(/[＋+\s]/g, ""), 10) || 0;
+    });
+    if (/[▲◆]/.test(fragment)) total += artPower;
+    return total;
+  }
+
+  function maybeApplyRoarArtBuff(c, entry, bodyText) {
+    if (!ROAR_TALISMAN_TEXT_RE.test(bodyText || "")) return;
+    var artInfo = entry.weaponId ? CharacterDrawer.computeArtPower(c, entry.weaponId) : null;
+    var artPower = artInfo ? artInfo.artPower : 0;
+    var baseMatch = ROAR_BASE_RE.exec(bodyText);
+    var bonus = parseRoarBonusFragment(baseMatch && baseMatch[1], artPower);
+    if ((c.talismanIds || []).indexOf("talisman_roar_medallion") !== -1) {
+      var extraMatch = ROAR_EXTRA_RE.exec(bodyText);
+      bonus += parseRoarBonusFragment(extraMatch && extraMatch[1], artPower);
+    }
+    if (!bonus) return;
+    c._roarTwoHitUntil = Date.now() + CONSUMABLE_BUFF_MS;
+    c._roarTwoHitBonus = bonus;
+    c._roarTwoHitWeaponId = entry.weaponId; // 規則本文寫「此裝備品的2Hit攻擊」＝限定這把武器
+    showToast(window.I18N.t("midnight_roar_art_buff_toast", { value: bonus }));
+  }
+
+  // 目前生效中的「咆哮系戰技」2Hit加成（只對施放時那把武器有效，10秒後自動失效）。
+  function roarTwoHitBonus(c, weaponId) {
+    if (!c || !c._roarTwoHitUntil || c._roarTwoHitUntil <= Date.now()) return 0;
+    if (c._roarTwoHitWeaponId && c._roarTwoHitWeaponId !== weaponId) return 0;
+    return c._roarTwoHitBonus || 0;
+  }
+
+  // ============================================================================
+  // 戰技／魔術／祈禱本文的附帶效果（2026-09-12接入）
+  // ============================================================================
+  // castWeaponSkillEntry()原本只算主傷害（damageCombatTarget）與兩個特例buff，本文裡
+  // 已經寫明數值的其餘效果全部沒有套用：屬性/異常蓄積（如「魔：2」「炎：1D」）、
+  // HP/FP回復（「HP回復：□」）、雜兵HP損害（「HP損害：□」）、以及5條戰技的
+  // 「蓄積值：＋3」。這裡一次補上這幾類。
+  //
+  // 原則（CLAUDE.md §17-19）：只處理本文已寫明的可計算數值。■一律不碰，維持原本
+  // 「顯示規則原文交由GM處理」的行為；需要玩家選目標的（「自身與任選1名PC」）只套用到
+  // 自身，不自動替玩家選人，也不發明目標。
+  //
+  // 屬性/異常名稱：本文是用Weapons.localizedText()按目前語言取出的，所以zh與ja兩種
+  // 寫法都要認，再用normalizeAttributeLabel()正規化成ja當bucket key（跟敵人側的
+  // ENEMY_ATTACK_ATTRIBUTE_NAMES同一套處理方式）。
+  var SKILL_ACCUM_NAMES = ["炎", "雷", "聖", "魔", "猛毒", "腐敗", "出血", "凍傷", "発狂", "發狂", "睡眠", "呪死", "咒死"];
+
+  // 「魔：2」＝固定2／「炎：1D」＝擲1顆D6／「炎：2D」＝擲2顆／「魔：1D＋2」＝1顆＋2。
+  // 名稱後面必須緊跟冒號才算，因此「魔術」「屬性｜雷（154頁）」這類不會誤判。
+  function parseSkillBodyAccums(bodyText) {
+    var out = [];
+    if (!bodyText) return out;
+    var re = new RegExp("(" + SKILL_ACCUM_NAMES.join("|") + ")[：:]\\s*(\\d+)(D)?(?:\\s*[＋+]\\s*(\\d+))?", "g");
+    var m;
+    while ((m = re.exec(bodyText))) {
+      var num = parseInt(m[2], 10) || 0;
+      var value;
+      if (m[3]) {
+        value = 0;
+        for (var i = 0; i < num; i++) value += 1 + Math.floor(Math.random() * 6);
+        if (m[4]) value += parseInt(m[4], 10) || 0;
+      } else {
+        value = num;
+      }
+      if (value > 0) out.push({ label: normalizeAttributeLabel(m[1]), value: value });
+    }
+    return out;
+  }
+
+  // 「HP回復：□」「FP回復：□□」「HP回復：□×5」の□個数（×Nは個数をN倍）。
+  // CD.countHealSquaresは「□×5」形式に対応していないため、こちらで×Nまで見る。
+  function parseSkillBodyHealSquares(bodyText, label) {
+    if (!bodyText) return 0;
+    var m = new RegExp(label + "回復[：:]\\s*(□+)(?:\\s*[×x]\\s*(\\d+))?").exec(bodyText);
+    if (!m) return 0;
+    return m[1].length * (m[2] ? parseInt(m[2], 10) || 1 : 1);
+  }
+
+  // 「此裝備品持有技能「屬性／狀態異常｜X」的話，對敵人的該屬性與狀態異常「蓄積值：＋3」」
+  // （連續突刺／血之徵收／劍舞／亂擊／王朝劍技の5条）。どの属性/異常なのかは武器自身の
+  // element/status技能で決まるので、既存のCharacterDrawer.weaponAccumulationEffects()を
+  // そのまま使う（applyWeaponAttributeAccumOnHit()と同じ情報源。scorpionBonusの扱いも
+  // そちらと揃える）。
+  var SKILL_ACCUM_BONUS_RE = /「蓄積值[：:]\s*[＋+](\d+)」|「蓄積値[：:]\s*[＋+](\d+)」/;
+
+  function applyWeaponSkillBodyEffects(c, entry, bodyText) {
+    var notes = [];
+
+    // ① 本文に直接書かれた属性/状態異常の蓄積
+    parseSkillBodyAccums(bodyText).forEach(function (a) {
+      recordAttributeAccum(a.label, a.value);
+      notes.push(a.label + "+" + a.value);
+    });
+
+    // ② 「蓄積值：＋N」（武器自身の属性/異常技能に対する上乗せ）
+    var bonusMatch = SKILL_ACCUM_BONUS_RE.exec(bodyText || "");
+    if (bonusMatch) {
+      var bonus = parseInt(bonusMatch[1] || bonusMatch[2], 10) || 0;
+      if (bonus > 0 && entry.weaponId) {
+        expireGreaseIfNeeded(c);
+        CharacterDrawer.weaponAccumulationEffects(c, entry.weaponId).forEach(function (eff) {
+          recordAttributeAccum(eff.label, bonus + eff.scorpionBonus);
+          notes.push(eff.label + "+" + (bonus + eff.scorpionBonus));
+        });
+      }
+    }
+
+    // ③ HP／FP回復（□×10）。「對象：PC全員」だけは全体回復（曖昧さがない）、
+    //    「自身與任選1名PC」等は自身のみ——プレイヤーの代わりに対象を選ばない。
+    var healAll = /PC全員|PC全员/.test(bodyText || "");
+    var hpSquares = parseSkillBodyHealSquares(bodyText, "HP");
+    if (hpSquares) {
+      var hpAmount = hpSquares * BLOCK_SQUARE_COUNT_TO_RESOURCE_MULT;
+      if (healAll) healAllPartyBy(hpAmount);
+      else healSelfHp(hpAmount);
+      notes.push("HP+" + hpAmount);
+    }
+    var fpSquares = parseSkillBodyHealSquares(bodyText, "FP");
+    if (fpSquares) {
+      var fpAmount = fpSquares * BLOCK_SQUARE_COUNT_TO_RESOURCE_MULT;
+      healSelfFp(fpAmount);
+      notes.push("FP+" + fpAmount);
+    }
+
+    // ④ 雜兵への「HP損害：□」（□のみ。■はGM手動のまま）
+    var mobSquares = CharacterDrawer.countMobDamageSquares(bodyText);
+    if (mobSquares) {
+      var mobAmount = mobSquares * BLOCK_SQUARE_COUNT_TO_RESOURCE_MULT;
+      damageActiveMobIfAny(mobAmount);
+      notes.push(window.I18N.t("midnight_skill_mob_damage_note", { damage: mobAmount }));
+    }
+
+    return notes;
   }
 
   function castWeaponSkillEntry(entry) {
@@ -3583,7 +4017,7 @@
     var c = characters[myTokenId];
     if (!c) return;
     var bodyText = Weapons.localizedText(entry.body);
-    var cost = computeMidnightSkillCost(bodyText);
+    var cost = computeMidnightSkillCost(bodyText, entry.weaponId);
     if (stamina.current < cost.staminaCost || fp.current < cost.fpCost) return;
     cancelFlaskReadingForOtherAction();
     if (cost.staminaCost) spendStamina(cost.staminaCost);
@@ -3593,17 +4027,29 @@
     // 火力提升，原有10秒時間內的限制延長到1分鐘，攻擊+5/+10、戰技魔術祈禱+10」）：
     // 共用既有的_relicAtkBuffUntil（見relicAtkBuffActive()），只是時限改成60秒。
     maybeApplyPrayerFirepower(c, entry.weaponId);
+    // 咆哮系戰技（戰吼／野蠻咆哮／王的咆哮）的「2Hit總合傷害+X」10秒buff，以及護符
+    // 「咆哮遺物勳章」對它的追加強化，見maybeApplyRoarArtBuff()。
+    maybeApplyRoarArtBuff(c, entry, bodyText);
     var dmgInfo = computeMidnightSkillDamage(c, entry.weaponId, bodyText);
     var name = Weapons.localizedText(entry.name);
+    // 主傷害より先に本文の附帶效果（屬性/異常蓄積・HP/FP回復・雜兵□損害）を套用する
+    // ——蓄積がGuard/體崩の判定を動かす可能性があるため、順序はattack側
+    // （applyWeaponAttributeAccumOnHit→damage）と揃える。
+    var effectNotes = applyWeaponSkillBodyEffects(c, entry, bodyText);
     if (dmgInfo) {
       // ×2：見WEAPON_SKILL_DAMAGE_MULT說明（只影響實際傷害，下面toast維持顯示原值）。
       damageCombatTarget(Math.round(dmgInfo.value * WEAPON_SKILL_DAMAGE_MULT), dmgInfo.symbol);
       triggerEnemyHitEffect(weaponHitColor(entry.weaponId));
-      showToast(name + "：" + (dmgInfo.symbol ? dmgInfo.value + " + " + dmgInfo.symbol : String(dmgInfo.value)));
+      showToast(
+        name +
+          "：" +
+          (dmgInfo.symbol ? dmgInfo.value + " + " + dmgInfo.symbol : String(dmgInfo.value)) +
+          (effectNotes.length ? "（" + effectNotes.join("／") + "）" : "")
+      );
     } else {
       // 威力無法自動解算（■或未預期的本文格式）：不發明數值，顯示規則原文交由GM/玩家判斷
-      // （CLAUDE.md §19既有慣例）。
-      showToast(name + "：" + bodyText);
+      // （CLAUDE.md §19既有慣例）。套用得到的附帶效果仍然會先套用並附在後面。
+      showToast(name + "：" + bodyText + (effectNotes.length ? "（" + effectNotes.join("／") + "）" : ""));
     }
     broadcastCombatActionBubble(name);
   }
@@ -3640,17 +4086,11 @@
   // 一般武器（非杖/聖印/盾）固有的Action類戰技，直接重用
   // CharacterDrawer.getEquippedWeaponSkillEntries(c)（night.js既有函式，讀c.equippedWeaponIds，
   // 見syncEquippedWeaponIds）取得目前裝備武器的戰技清單。
+  // 〔戰技A〕鍵＝右手武器的第1個Action戰技。2026-09-12起改走weaponActionEntriesForSide()，
+  // 因此右手拿盾時也會顯示該盾的裏戰技（原本被category.isShield守衛擋掉，完全沒有入口）；
+  // 第2個以後的戰技與左手武器的戰技由戰技B／B1／B2負責（見sideSkillButtonEntries()）。
   function weaponArtEntry() {
-    var c = characters[myTokenId];
-    var weaponId = c && c.equippedWeaponIdR;
-    if (!c || !weaponId) return null;
-    var weapon = Weapons.get(baseCatalogId(weaponId));
-    var category = weapon && Weapons.getCategory(weapon.category);
-    if (!category || category.isShield || category.id === "staff" || category.id === "sacred_seal") return null;
-    var matches = CharacterDrawer.getEquippedWeaponSkillEntries(c).filter(function (e) {
-      return e.weaponId === weaponId;
-    });
-    return matches[0] || null;
+    return weaponActionEntriesForSide("R")[0] || null;
   }
 
   function handleSkillClick() {
@@ -4074,6 +4514,83 @@
 
   function partyGuardBonusPct() {
     return meta && meta.partyGuardBonusUntil && meta.partyGuardBonusUntil > Date.now() ? meta.partyGuardBonusPct || 0 : 0;
+  }
+
+  // ---- 消耗品的時限buff（2026-09-12新增）----
+  // 使用者明確規格：「『直到階段結束』原則為持續時間10秒內適用其效果」。這一組helper是
+  // 所有消耗品buff的**唯一讀取入口**，各計算點（攻擊/戰技/防禦/受傷）只呼叫這裡，
+  // 不各自去讀_xxxUntil欄位，避免同一個buff在不同地方判斷方式不一致。
+  //
+  // 「調香瓶｜高揚之香」的對象是「PC全員」，因此不寫在自己的角色物件上，而是比照既有的
+  // partyGuardBonusPct()／partyDamageReducePct()寫在meta（每台裝置各自判斷時限），
+  // 這樣隊友的裝置也讀得到。其餘都是「對象：自身」，寫在本地角色物件即可。
+  var PARTY_UPLIFT_MS = CONSUMABLE_BUFF_MS;
+
+  function partyUpliftLevel() {
+    return meta && meta.partyUpliftUntil && meta.partyUpliftUntil > Date.now() ? meta.partyUpliftLevel || 0 : 0;
+  }
+
+  // 消耗品造成的一般攻擊固定加成：規則書「アタックのダメージを1Hit：+5／2Hit：+10」。
+  // 勇者的肉塊與高揚之香是同一句話，兩者都吃到時分別加算（規則書只寫「此消耗品的效果
+  // 不重複」＝同一個消耗品不疊，不同消耗品沒有禁止疊加）。高揚之香的等級2是「將此消耗品
+  // 效果所增加的傷害量與HP價值2倍」。
+  function consumableAttackHitBonus(c) {
+    var hit1 = 0;
+    var hit2 = 0;
+    var now = Date.now();
+    if (c && c._heroMeatUntil && c._heroMeatUntil > now) {
+      hit1 += 5;
+      hit2 += 10;
+    }
+    var uplift = partyUpliftLevel();
+    if (uplift) {
+      hit1 += 5 * uplift;
+      hit2 += 10 * uplift;
+    }
+    return { hit1: hit1, hit2: hit2 };
+  }
+
+  // 同上的「戰技傷害+5」部分（規則書把戰技與アタック分開寫，因此另外一個函式，
+  // 比照CharacterDrawerのtalismanFlatHitBonus／talismanFlatSkillBonus的既有分法）。
+  function consumableSkillDamageBonus(c) {
+    var bonus = 0;
+    if (c && c._heroMeatUntil && c._heroMeatUntil > Date.now()) bonus += 5;
+    bonus += 5 * partyUpliftLevel();
+    return bonus;
+  }
+
+  // 消耗品造成的自身「HP價值」加成（midnight的PC防禦＝減傷率百分比，見currentGuardInfo()）：
+  // 酸之噴霧的等級2、塗脂（盾）、高揚之香三個來源。規則書都寫「最大值100」，
+  // 上限交由currentGuardInfo()的Math.min(100, ...)統一處理。
+  function consumableGuardBonusPct(c) {
+    var pct = 0;
+    var now = Date.now();
+    if (c && c._guardValueBonusUntil && c._guardValueBonusUntil > now) pct += c._guardValueBonusPct || 0;
+    pct += 10 * partyUpliftLevel();
+    return pct;
+  }
+
+  // 調香瓶｜鐵壺之香藥：「直到結束階段為止，對象不因傷害承受HP損害（仍受屬性損害或異常
+  // 狀態影響）」。回傳true時resolveMyIncomingHit()把這次HP損害歸零，但屬性/異常蓄積照舊
+  // ——這點跟守護者「救世之翼」的partyNoDamageActive()處理位置完全相同。
+  function ironPotImmuneActive(c) {
+    return !!(c && c._ironPotUntil && c._ironPotUntil > Date.now());
+  }
+
+  // 調香瓶｜酸之噴霧：「敵人發生的所有傷害-120」（即時制換算-12，見ACID_SPRAY_DAMAGE_REDUCE）。
+  function acidSprayDamageReduce(c) {
+    return c && c._acidSprayUntil && c._acidSprayUntil > Date.now() ? ACID_SPRAY_DAMAGE_REDUCE : 0;
+  }
+
+  // 塗脂（武器脂）到期清除：character_drawer.jsのweaponAccumulationEffects()讀的是
+  // c._greaseWeaponId／c._greaseElementRef這兩個欄位本身（那邊是回合制寫的，不認得時間戳），
+  // 因此由midnight這邊在每次要用到之前檢查到期並清掉，不去改character_drawer的既有介面。
+  function expireGreaseIfNeeded(c) {
+    if (!c || !c._greaseUntil) return;
+    if (c._greaseUntil > Date.now()) return;
+    c._greaseUntil = 0;
+    c._greaseWeaponId = null;
+    c._greaseElementRef = null;
   }
 
   // 隱者「血魂之歌」是否生效（見damageCombatTarget()的1.5倍疊乘、applyMidnightAbilityPostEffect()
@@ -4665,8 +5182,37 @@
     return !!(c && CharacterDrawer.findLearnedRelicEffectByName && CharacterDrawer.findLearnedRelicEffectByName(c, names));
   }
 
+  // 某一側裝備的武器的全部Action招式（2026-09-12補接：原本只有weaponArtEntry()看右手、
+  // 且只取第一個，因此①盾的裏戰技②左手武器的戰技③同一把武器的第2個以後的戰技三種
+  // 都沒有施放入口）。杖/聖印走weaponSpellEntries()那條（魔術/祈禱），這裡負責其餘
+  // 全部：一般武器的戰技，以及盾的attachedEffect/reverseArt——
+  // CharacterDrawer.getEquippedWeaponSkillEntries()本來就會一併處理盾
+  // （collectWeaponSkillRefs()對isShield讀attachedEffect+reverseArt），先前只是被
+  // weaponArtEntry()的category.isShield守衛擋掉而已，這裡不需要新的資料解析。
+  function weaponActionEntriesForSide(side) {
+    var c = characters[myTokenId];
+    var weaponId = c && c["equippedWeaponId" + side];
+    if (!c || !weaponId) return [];
+    var weapon = Weapons.get(baseCatalogId(weaponId));
+    var category = weapon && Weapons.getCategory(weapon.category);
+    if (!category || category.id === "staff" || category.id === "sacred_seal") return [];
+    return CharacterDrawer.getEquippedWeaponSkillEntries(c).filter(function (e) {
+      return e.weaponId === weaponId;
+    });
+  }
+
+  // 戰技B／B1／B2（每側3顆按鈕）實際要顯示的清單。杖/聖印時是魔術/祈禱；否則是這一側
+  // 武器的戰技。右手的第1個戰技已經在專用的〔戰技A〕鍵上（btn-midnight-skill，見
+  // weaponArtEntry()），因此右手這裡從第2個開始，避免同一個招式出現在兩顆按鈕上。
+  function sideSkillButtonEntries(side) {
+    var spells = weaponSpellEntries(side);
+    if (spells.length) return spells;
+    var arts = weaponActionEntriesForSide(side);
+    return side === "R" ? arts.slice(1) : arts;
+  }
+
   function sorceryButtonEntry(def) {
-    var entries = weaponSpellEntries(def.side);
+    var entries = sideSkillButtonEntries(def.side);
     if (def.slot === null) return entries.length === 1 ? entries[0] : null;
     return entries[def.slot] || null;
   }
@@ -4706,7 +5252,7 @@
     var def = SORCERY_BUTTON_DEFS_BY_KEY[key];
     var entry = def && sorceryButtonEntry(def);
     if (!entry) return;
-    var cost = computeMidnightSkillCost(Weapons.localizedText(entry.body));
+    var cost = computeMidnightSkillCost(Weapons.localizedText(entry.body), entry.weaponId);
     if (stamina.current < cost.staminaCost || fp.current < cost.fpCost) return;
     sorceryHoldState[key] = Date.now();
   }
@@ -5014,7 +5560,37 @@
   var DUAL_GRIP_MASTER_GUARD_DICE_COUNT = 2;
   var DUAL_GRIP_MASTER_GUARD_PCT = 60;
 
-  function currentGuardInfo() {
+  // ---- 護符的自身「HP價值」加成（2026-09-12接入，稽核表B組5條）----
+  // midnight的PC防禦＝減傷率百分比（見currentGuardInfo()），因此規則書的「HP價值+N」
+  // 直接當成百分比加成，跟守護者「高防禦」+10、堅陣的party +20同一個量級。
+  //
+  // 「僅第1次／第2次以後」的換算（即時制沒有「一次進行兩次防禦」這個回合制概念）：
+  // midnight最接近的對應物是「敵人一次攻擊裡的連續命中」（st.hitIndex，見
+  // ENEMY_ATTACK_HIT_COUNT_WEIGHTS_*），因此：
+  //   ・「僅最初1回」→ hitIndex===0 才加（龍印盾紋章／樹幽羽護符／捧鬮之盾）
+  //   ・「第2回以後」→ hitIndex>=1 才加（大盾護符）
+  // 這是即時制換算下的對應，不是規則書本身有這條，之後若要改判定基準改這裡即可。
+  function talismanGuardBonusPct(c, hitIndex) {
+    if (!c) return 0;
+    var ids = c.talismanIds || [];
+    if (!ids.length) return 0;
+    var first = !hitIndex; // hitIndex為undefined（非連擊情境）時視為第1次
+    var pct = 0;
+    if (first && ids.indexOf("talisman_dragon_shield_crest") !== -1) pct += 10;
+    if (first && ids.indexOf("talisman_arsenal_charm") !== -1) pct += 10;
+    if (!first && ids.indexOf("talisman_great_shield") !== -1) pct += 20;
+    var hp = selfArenaHp();
+    // 捧鬮之盾：規則本文寫「自身『HP價值：最大HP』時」，比照同組的捧鬮之劍
+    // （「現在HP＝最大HP」時攻擊加成）解讀為滿血條件。
+    if (first && ids.indexOf("talisman_shield_scorpion_charm") !== -1 && hp.current === hp.max) pct += 20;
+    // 青紫的七支刃：「現在HP＝□□□以下」＝midnight的30（見LOW_HP_TALISMAN_THRESHOLD_MIDNIGHT）。
+    if (ids.indexOf("talisman_indigo_seven_edge") !== -1 && hp.current <= LOW_HP_TALISMAN_THRESHOLD_MIDNIGHT) pct += 20;
+    return pct;
+  }
+
+  // hitIndex（可省略）：敵人這次攻擊的第幾下連擊（0-based），只有talismanGuardBonusPct()
+  // 的「僅第1次／第2次以後」條件會用到。
+  function currentGuardInfo(hitIndex) {
     var c = characters[myTokenId];
     if (!c) return null;
     var sides = ["L", "R"]
@@ -5040,7 +5616,13 @@
       var highGuardBonusPct = c._highGuardActive ? 10 : 0;
       // 無賴漢（暗黑）「技藝強化（堅陣）」：圖騰・史黛拉發動後10秒內全體PC「HP價值+20」
       // （2026-09-12使用者明確規格），見partyGuardBonusPct()。
-      return { costPoints: diceCostPoints(guardCost), pct: Math.min(100, pct + highGuardBonusPct + partyGuardBonusPct()), usedShield: true };
+      // 2026-09-12新增的另外兩個來源：消耗品的10秒HP價值buff（酸之噴霧Lv2／塗脂（盾）／
+      // 高揚之香，見consumableGuardBonusPct()）。
+      return {
+        costPoints: diceCostPoints(guardCost),
+        pct: Math.min(100, pct + highGuardBonusPct + partyGuardBonusPct() + consumableGuardBonusPct(c) + talismanGuardBonusPct(c, hitIndex)),
+        usedShield: true,
+      };
     }
     if (sides.length === 1 && CharacterDrawer.findLearnedRelicEffectByName(c, DUAL_GRIP_MASTER_RELIC_NAMES)) {
       return { costPoints: DUAL_GRIP_MASTER_GUARD_DICE_COUNT, pct: DUAL_GRIP_MASTER_GUARD_PCT, usedShield: false };
@@ -5171,7 +5753,11 @@
   // □→即時制HP的換算。
   function flaskHealBonusAmount(c) {
     if (!c || !CharacterDrawer.getFlaskHealBonus) return 0;
-    return CharacterDrawer.getFlaskHealBonus(c) * BLOCK_SQUARE_COUNT_TO_RESOURCE_MULT;
+    // 2026-09-12接入護符「緋色種子勳章」（自身使用的聖杯瓶「HP回復量＋□」）：□＝1
+    // （CLAUDE.md §17），換算成midnight刻度＝+10，跟遺物「聖杯瓶回復量提升」用同一個
+    // ×BLOCK_SQUARE_COUNT_TO_RESOURCE_MULT換算，不另外發明數值。
+    var seedMedallion = (c.talismanIds || []).indexOf("talisman_crimson_seed_medallion") !== -1 ? 1 : 0;
+    return (CharacterDrawer.getFlaskHealBonus(c) + seedMedallion) * BLOCK_SQUARE_COUNT_TO_RESOURCE_MULT;
   }
 
   // 學者「共感術」（2026-09-08使用者明確要求「之後自己的HP回復效果全體共享 10秒」）：
@@ -5211,18 +5797,12 @@
   //   - bitter_medicine（清除自身異常狀態蓄積）／throwing_dagger（▲）：分別依賴
   //     「PC自身承受的異常蓄積」「武器context的威力修正」，這兩套機制目前的
   //     attributeAccum系統只做了「PC→敵人」方向，還沒有對應資料可用。
-  var MIDNIGHT_CONSUMABLE_TIMED_OR_UNRESOLVED = {
-    item_hero_meat_chunk: true,
-    item_turtle_neck_pickle: true,
-    item_bitter_medicine: true,
-    item_grease: true,
-    item_throwing_dagger: true,
-    item_folding_shuriken: true,
-    item_throwing_pot: true,
-    item_perfume_acid_spray: true,
-    item_perfume_iron_pot_spray: true,
-    item_perfume_uplifting_aroma: true,
-  };
+  // 2026-09-12更新：使用者逐項給出了即時制的數值與詮釋（「直到階段結束」＝10秒、
+  // 體力骰→體力數值、1D→固定值、投擲壺屬性在取得時決定等），原本這10項全部改成真的
+  // 自動套用，因此這張表清空。保留這個變數與判斷，是為了之後若再出現「規則書本身就
+  // 沒有確定數值（■）」的新消耗品時，仍有既有的「只顯示規則原文」退路可用
+  // （CLAUDE.md §19）。
+  var MIDNIGHT_CONSUMABLE_TIMED_OR_UNRESOLVED = {};
 
   // 目前唯一在場的「其他PC」（依slot排序取第1個）：item_warming_stone用。midnight一次
   // 最多3人，多人在場時只自動選第1個找到的，沒有另外做選擇UI（這次milestone範圍取捨，
@@ -5234,6 +5814,70 @@
       if (slots[i] !== mySlot && p && p.tokenId) return p.tokenId;
     }
     return null;
+  }
+
+  // ---- 持續回復（HoT，2026-09-12新增）----
+  // 使用者明確規格：溫石改成「10秒內回血+20/+40」、憐憫的雫滴「HP10秒恢復1點絕對值」。
+  // midnight原本只有「按一下立刻回滿某個量」的healCharacterHp()，沒有任何隨時間滴血的
+  // 機制，因此這裡新增一份共用的ticker，之後同型效果都掛在這裡、不要各自再寫一套。
+  //
+  // 設計取捨：HoT清單是**發動者這台裝置的本地狀態**（跟stamina/fp同樣不同步），實際回血
+  // 走既有的healCharacterHp()（rtTransaction寫對方的demoStat），所以對象是隊友也沒問題。
+  // 代價是發動者中途離線的話剩餘的回復不會繼續——這跟既有「_sharedItemEffect由對方裝置
+  // 自己處理」不同，但HoT要逐格寫入、用廣播會產生大量RTDB寫入，取本地ticker比較合理。
+  // 每個entry：{ tokenId, perMs, remaining, lastAt, carry }。carry是尚未滿1點的小數殘留，
+  // 避免每幀四捨五入導致總回復量偏離規格值。
+  var healOverTimeEffects = [];
+
+  function startHealOverTime(tokenId, totalAmount, durationMs) {
+    if (!tokenId || totalAmount <= 0 || durationMs <= 0) return;
+    healOverTimeEffects.push({
+      tokenId: tokenId,
+      perMs: totalAmount / durationMs,
+      remaining: totalAmount,
+      lastAt: Date.now(),
+      carry: 0,
+    });
+  }
+
+  // 每影格呼叫（見frameInner()）：把經過時間換算成回復量，滿1點才真的寫入。
+  function tickHealOverTime() {
+    if (!healOverTimeEffects.length) return;
+    var now = Date.now();
+    healOverTimeEffects = healOverTimeEffects.filter(function (e) {
+      var dt = now - e.lastAt;
+      e.lastAt = now;
+      if (dt <= 0) return e.remaining > 0;
+      var gain = Math.min(e.remaining, e.perMs * dt);
+      e.remaining -= gain;
+      e.carry += gain;
+      var whole = Math.floor(e.carry);
+      if (whole > 0) {
+        e.carry -= whole;
+        healCharacterHp(e.tokenId, whole);
+      }
+      return e.remaining > 0.0001;
+    });
+  }
+
+  // 目前HP最少的「其他PC」（2026-09-12溫石改版使用者明確規格「其他血量最少PC」）。
+  // 跟既有的firstOtherPcTokenId()並存：那個是「沒有選擇UI時取第1個」的既有簡化，
+  // 這裡是規則書本身就指定了對象條件的情況。
+  function lowestHpOtherPcTokenId() {
+    var best = null;
+    var bestHp = Infinity;
+    Object.keys(players || {}).forEach(function (slot) {
+      var p = players[slot];
+      if (slot === mySlot || !p || !p.tokenId) return;
+      var maxHp = selfArenaHpMax(characters[p.tokenId]);
+      var cur = demoStats[p.tokenId];
+      var hp = cur === undefined ? maxHp : cur;
+      if (hp < bestHp) {
+        bestHp = hp;
+        best = p.tokenId;
+      }
+    });
+    return best;
   }
 
   function healCharacterHp(tokenId, amount) {
@@ -5304,39 +5948,193 @@
     );
   }
 
-  function applyMidnightConsumableEffect(c, itemId) {
-    var applyLevel2 = hasCarriedKnowledge(c);
+  // 規則書「最大HP+□□」「HP回復：□□」的□個數×BLOCK_SQUARE_COUNT_TO_RESOURCE_MULT
+  // （＝10，既有換算）。勇者的肉塊／龜首漬／苔藥的等級2都是同一句「最大HP：+□□」與
+  // 「HP回復效果：□□」，本文寫的是「直到戰鬥結束」而不是「直到階段結束」——midnight沒有
+  // 對應的「戰鬥結束」界線（探索中隨時可能開打），因此**只套用其中可以一次算完的
+  // 「HP回復：□□」＝+20**，「最大HP：+□□」不自行發明時限（留在toast的規則原文裡交給
+  // 玩家判斷，比照CLAUDE.md §19對■的既有處理原則）。
+  var CONSUMABLE_LEVEL2_HEAL = 2 * BLOCK_SQUARE_COUNT_TO_RESOURCE_MULT;
+
+  // 苔藥：「選擇對象累積的任1種異常狀態蓄積值，將該蓄積值歸0」。midnight沒有選擇UI，
+  // 取目前蓄積值最高的那一種（比照firstOtherPcTokenId()等既有「沒有picker就自動取最
+  // 合理的一個」慣例；蓄積最高＝最接近觸發，對玩家最有利也最符合使用時機）。
+  // 回傳被清掉的異常名稱，沒有任何異常蓄積時回傳null。
+  function clearHighestReceivedAilment() {
+    var best = null;
+    var bestVal = 0;
+    Object.keys(receivedAttributeAccum || {}).forEach(function (name) {
+      if (ATTRIBUTE_STATUS_AILMENT_NAMES_JA.indexOf(name) === -1) return;
+      var v = receivedAttributeAccum[name] || 0;
+      if (v > bestVal) {
+        bestVal = v;
+        best = name;
+      }
+    });
+    if (!best) return null;
+    receivedAttributeAccum[best] = 0;
+    receivedAttributeAccumTriggeredCount[best] = 0;
+    return best;
+  }
+
+  // 塗脂：規則書要玩家選「裝備中的武器或盾1個」。midnight沒有選擇UI，依既有簡化慣例
+  // 自動判斷——有裝備盾就塗盾（HP價值+10），否則塗一把近戰武器（追加「屬性｜炎」）。
+  // 回傳給呼叫端當toast用的說明key。
+  function applyGreaseAuto(c) {
+    var shieldId = null;
+    var meleeId = null;
+    ["R", "L"].forEach(function (side) {
+      var wid = c["equippedWeaponId" + side];
+      if (!wid) return;
+      var w = Weapons.get(baseCatalogId(wid));
+      var cat = w && Weapons.getCategory(w.category);
+      if (!cat) return;
+      if (cat.isShield) {
+        if (!shieldId) shieldId = wid;
+      } else if (!cat.isRanged && cat.id !== "staff" && cat.id !== "sacred_seal" && !meleeId) {
+        meleeId = wid;
+      }
+    });
+    var now = Date.now();
+    if (shieldId) {
+      c._greaseShieldId = shieldId;
+      c._guardValueBonusUntil = now + CONSUMABLE_BUFF_MS;
+      c._guardValueBonusPct = Math.max(c._guardValueBonusPct || 0, GREASE_SHIELD_GUARD_BONUS_PCT);
+      return "midnight_grease_shield_toast";
+    }
+    if (meleeId) {
+      c._greaseWeaponId = meleeId;
+      c._greaseElementRef = GREASE_DEFAULT_ELEMENT;
+      c._greaseUntil = now + CONSUMABLE_BUFF_MS;
+      return "midnight_grease_weapon_toast";
+    }
+    return "midnight_grease_none_toast";
+  }
+
+  // instanceId（可省略）：投擲壺的「X」是取得當下依場地決定的，記在
+  // c.consumableAttributeTags[instanceId]（跟night.js完全同一個欄位規約，見
+  // grantConsumableAttributeTag()）。沒有記錄時預設「炎」，同night.js:7825。
+  // 護符「友伴之壺」（2026-09-12接入）：「自身使用的消耗品『投擲武器／投擲壺』傷害+5」。
+  // 對象是丟出去砸人的實體投擲物，不含調香瓶類（規則書把調香瓶另外歸為「調香瓶系消耗品」，
+  // 見consumables.jsのDETERMINE_TABLE分組）。
+  var THROWN_WEAPON_ITEM_IDS = [
+    "item_throwing_dagger",
+    "item_azure_throwing_knife",
+    "item_bone_poison_dart",
+    "item_folding_shuriken",
+    "item_throwing_pot",
+  ];
+  // 護符「調香師的護符」（2026-09-12接入）：「使用調香瓶消耗品時，使用其等級2的效果」。
+  var PERFUME_ITEM_ID_PREFIX = "item_perfume_";
+
+  function companionJarBonus(c, itemId) {
+    if (THROWN_WEAPON_ITEM_IDS.indexOf(itemId) === -1) return 0;
+    return (c.talismanIds || []).indexOf("talisman_companion_jar") !== -1 ? 5 : 0;
+  }
+
+  function applyMidnightConsumableEffect(c, itemId, instanceId) {
+    // 等級2的判定來源有兩個：學者被動「博聞強識」（既有），以及2026-09-12接入的護符
+    // 「調香師的護符」（只對調香瓶類生效）。
+    var perfumerTalisman =
+      itemId.indexOf(PERFUME_ITEM_ID_PREFIX) === 0 && (c.talismanIds || []).indexOf("talisman_perfumers") !== -1;
+    var applyLevel2 = hasCarriedKnowledge(c) || perfumerTalisman;
+    var thrownBonus = companionJarBonus(c, itemId);
     // 丟擲/噴霧動畫（2026-09-08新增）：跟下面的數值套用分支無關，只要是對敵人使用的
     // 丟擲類消耗品就播放，MIDNIGHT_CONSUMABLE_TIMED_OR_UNRESOLVED項目（如投擲短劍／
     // 扇投暗器／火炎壺）沒有對應的數值分支，但一樣需要動畫回饋。
     triggerConsumableThrowEffect(itemId);
     if (itemId === "item_shard_of_starlight") {
-      // night.js:7737「applyLevel2 ? 6 : 3」。
-      fp.current = Math.min(fp.max, fp.current + (applyLevel2 ? 6 : 3));
+      // 2026-09-12使用者明確規格「最終值是 lv1/lv2：+30/+60」（原本是照抄night.js回合制的
+      // 3/6，在midnight的FP刻度（基礎10＋fp.max×10）下幾乎沒有感覺）。
+      fp.current = Math.min(fp.max, fp.current + (applyLevel2 ? 60 : 30));
     } else if (itemId === "item_warming_stone") {
-      // night.js:7782「(applyLevel2 ? 4 : 2)」，對象含自身＋其他1名PC。
-      var hpAmount = applyLevel2 ? 4 : 2;
-      healCharacterHp(myTokenId, hpAmount);
-      var otherTokenId = firstOtherPcTokenId();
-      if (otherTokenId) healCharacterHp(otherTokenId, hpAmount);
+      // 2026-09-12使用者明確規格「自身＋其他血量最少PC 在10秒內回血 +20/+40」：改成
+      // 10秒持續回復（HoT），見startHealOverTime()。對象從「隊伍第1位其他PC」改成
+      // 「目前HP最少的其他PC」（lowestHpOtherPcTokenId()）。
+      var hpAmount = applyLevel2 ? 40 : 20;
+      startHealOverTime(myTokenId, hpAmount, HEAL_OVER_TIME_MS);
+      var otherTokenId = lowestHpOtherPcTokenId();
+      if (otherTokenId) startHealOverTime(otherTokenId, hpAmount, HEAL_OVER_TIME_MS);
     } else if (itemId === "item_azure_throwing_knife") {
-      damageCombatTarget(2); // 這個項目本文沒有等級2效果（night.js:7802-7803無applyLevel2分支）
+      // 2026-09-12使用者明確規格「造成傷害 +20」（原本照抄night.js的「□□」＝2）。
+      damageCombatTarget(20 + thrownBonus); // 這個項目本文沒有等級2效果（night.js:7802-7803無applyLevel2分支）
     } else if (itemId === "item_bone_poison_dart") {
       // 「毒：1D」：2026-08-24使用者裁定，沒有額外擲骰指示時Xd視為固定值X（見docs/
       // enemy_damage_rules.md §1.1）。等級2額外造成【總合傷害：15】（night.js:7808-7809）。
       recordAttributeAccum("猛毒", 1);
       if (applyLevel2) {
-        damageCombatTarget(15);
+        damageCombatTarget(15 + thrownBonus);
       }
     } else if (itemId === "item_perfume_spark_aroma") {
       // night.js:7875「1 + (applyLevel2 ? 2 : 0)」＝1或3。
       recordAttributeAccum("炎", applyLevel2 ? 3 : 1);
+      // 2026-09-12使用者要求「『對雜兵 HP 損害 1』要實作」，並確認換算為「1＝打掉1格雜兵」
+      // ＝MOB_HP_PER_ROW（見MOB_DAMAGE_PER_RULEBOOK_POINT）。等級2是「再對雜兵HP損害1」
+      // ＝合計2格。
+      damageActiveMobIfAny(MOB_DAMAGE_PER_RULEBOOK_POINT * (applyLevel2 ? 2 : 1));
     } else if (itemId === "item_perfume_poison_spray") {
       // night.js:7892「1 + (applyLevel2 ? 2 : 0)」＝1或3。
       recordAttributeAccum("猛毒", applyLevel2 ? 3 : 1);
+      damageActiveMobIfAny(MOB_DAMAGE_PER_RULEBOOK_POINT * (applyLevel2 ? 2 : 1));
+    } else if (itemId === "item_turtle_neck_pickle") {
+      // 2026-09-12使用者明確規格「增加體力10」（規則書原文是「體力骰追加1個⚀」，
+      // 即時制沒有骰池，使用者直接給了即時制的數值）。
+      stamina.current = Math.min(stamina.max, stamina.current + 10);
+      if (applyLevel2) healSelfHp(CONSUMABLE_LEVEL2_HEAL);
+    } else if (itemId === "item_bitter_medicine") {
+      // 2026-09-12使用者要求實作：清除自身累積中的1種異常狀態蓄積值（見
+      // clearHighestReceivedAilment()的對象選擇說明）。
+      var clearedAilment = clearHighestReceivedAilment();
+      if (clearedAilment) showToast(window.I18N.t("midnight_bitter_medicine_toast", { label: clearedAilment }));
+      else showToast(window.I18N.t("midnight_bitter_medicine_none_toast"));
+      if (applyLevel2) healSelfHp(CONSUMABLE_LEVEL2_HEAL);
+    } else if (itemId === "item_folding_shuriken") {
+      // 2026-09-12使用者明確規格「對對象造成【總合傷害：10次1點hp】」＝10段，
+      // 每段的「1點」依使用者確認換算為10（跟蒼火的投擲刀2→20同一個×10刻度），合計100。
+      // 逐段呼叫damageCombatTarget()而不是一次打100：這樣雜兵→本體的溢出鏈、HP價值
+      // 減傷、最低傷害1點等既有規則都會逐段套用，跟「10段攻擊」的語意一致。
+      for (var si = 0; si < 10; si++) damageCombatTarget(BLOCK_SQUARE_COUNT_TO_RESOURCE_MULT + thrownBonus);
+      if (applyLevel2) damageCombatTarget(15);
+    } else if (itemId === "item_throwing_pot") {
+      // 2026-09-12使用者明確規格「取得此物品時即要根據場地而變化其附屬屬性」：屬性在
+      // 取得當下就寫進c.consumableAttributeTags[instanceId]（見grantConsumableAttributeTag()），
+      // 這裡只負責讀出來使用。「X：1D」的1D依2026-08-24既有裁定視為固定1
+      // （docs/enemy_damage_rules.md §1.1），跟骨毒投擲箭的處理一致。
+      var potLabel = (c.consumableAttributeTags && instanceId && c.consumableAttributeTags[instanceId]) || GREASE_DEFAULT_ELEMENT.ja;
+      recordAttributeAccum(potLabel, 1);
+      if (applyLevel2) damageCombatTarget(15 + thrownBonus);
+    } else if (itemId === "item_throwing_dagger") {
+      // 2026-09-12使用者明確規格「0威力的『▲』」：傷害0、但▲照樣計入敵人削韌
+      // （damageCombatTarget()的symbol參數就是削韌用，見recordGuardReductionForPoint()）。
+      damageCombatTarget(thrownBonus, "▲");
+      if (applyLevel2) damageCombatTarget(15 + thrownBonus);
+    } else if (itemId === "item_hero_meat_chunk") {
+      // 2026-09-12使用者明確規格「『直到階段結束』原則為持續時間10秒」：
+      // 攻擊1Hit+5／2Hit+10、戰技+5，見consumableAttackHitBonus()／consumableSkillDamageBonus()。
+      c._heroMeatUntil = Date.now() + CONSUMABLE_BUFF_MS;
+      if (applyLevel2) healSelfHp(CONSUMABLE_LEVEL2_HEAL);
+    } else if (itemId === "item_perfume_uplifting_aroma") {
+      // 對象是「PC全員」，因此寫在meta讓每台裝置各自判斷（比照partyGuardBonusPct()）。
+      // 等級2＝「將此消耗品效果所增加的傷害量與HP價值2倍」＝level 2。
+      var upliftLevel = applyLevel2 ? 2 : 1;
+      GameStorage.rtSet(gameId, "cloud", "meta/partyUpliftUntil", Date.now() + PARTY_UPLIFT_MS);
+      GameStorage.rtSet(gameId, "cloud", "meta/partyUpliftLevel", upliftLevel);
+    } else if (itemId === "item_perfume_acid_spray") {
+      c._acidSprayUntil = Date.now() + CONSUMABLE_BUFF_MS;
+      if (applyLevel2) {
+        // 等級2：「直到結束階段為止，以自身為對象『HP價值：+10』」。
+        c._guardValueBonusUntil = Date.now() + CONSUMABLE_BUFF_MS;
+        c._guardValueBonusPct = Math.max(c._guardValueBonusPct || 0, 10);
+      }
+    } else if (itemId === "item_perfume_iron_pot_spray") {
+      c._ironPotUntil = Date.now() + CONSUMABLE_BUFF_MS;
+      // 等級1的代價「下個行動階段開始時獲得的體力骰減少1個」：即時制沒有階段，換算成
+      // 「立刻少1顆骰子份的體力」＝DICE_COUNT_TO_STAMINA_MULT（既有的骰子→體力換算，
+      // 不是新發明的數字）。等級2依規則書省略這段代價。
+      if (!applyLevel2) stamina.current = Math.max(0, stamina.current - DICE_COUNT_TO_STAMINA_MULT);
+    } else if (itemId === "item_grease") {
+      showToast(window.I18N.t(applyGreaseAuto(c)));
     }
-    // 其餘（MIDNIGHT_CONSUMABLE_TIMED_OR_UNRESOLVED為true的項目）不套用任何數值，
-    // 交由呼叫端只顯示規則原文。
   }
 
   // 消耗品快速使用卡片（2026-09-05 HUD優化新增）：固定使用陣列第0筆（＝目前的「快速
@@ -5378,7 +6176,7 @@
       });
     }
     if (item) {
-      applyMidnightConsumableEffect(c, inst.itemId);
+      applyMidnightConsumableEffect(c, inst.itemId, inst.id);
       if (thriftSaved) showToast(window.I18N.t("midnight_thrift_toast"));
       // 學者「道具效果擴大」（2026-09-11）：「使用消耗品『聖杯瓶／勇者的肉塊／龜首漬／
       // 星光碎片／苔玉』時，可對自身以外的任意1名PC也發揮相同效果」——對象取隊伍中第一位
@@ -5484,12 +6282,40 @@
     // 守護者（黎明）「盾構戰鬥的達人」（2026-09-12使用者明確規格「刺突系＋盾時，體力上限+10」）：
     // 刺突系的定義沿用「突刺反擊的達人」同一份武器種類清單（THRUST_COUNTER_CATEGORY_IDS）。
     if (hasRelic(c, "shieldFormationMaster") && shieldFormationActive(c)) maxBonus += RELIC_STAMINA_MAX_BONUS;
-    stamina.max = STAMINA_MAX + maxBonus;
+    // 2026-09-12接入的4個體力系護符（使用者明確給定的即時制對應）：
+    //   綠龜護符／大山羊護符：體力條上限+10（原文都是「防禦階段開始時追加耐力骰」）
+    //   憐憫的雫滴：體力條上限-10（原文是「少擲一顆骰子換取HP回復」的取捨）
+    //   綠琥珀勳章：體力20以下時回復速度+1（原文是「行動階段結束時骰子為0則補1顆」）
+    var talismanIdsForStamina = (c && c.talismanIds) || [];
+    if (talismanIdsForStamina.indexOf("talisman_green_turtle") !== -1) maxBonus += RELIC_STAMINA_MAX_BONUS;
+    if (talismanIdsForStamina.indexOf("talisman_great_goat") !== -1) maxBonus += RELIC_STAMINA_MAX_BONUS;
+    if (talismanIdsForStamina.indexOf("talisman_dew_tear") !== -1) maxBonus -= RELIC_STAMINA_MAX_BONUS;
+    stamina.max = Math.max(10, STAMINA_MAX + maxBonus);
     if (hasRelic(c, "staminaLowRegen") && stamina.current <= stamina.max * RELIC_STAMINA_LOW_PCT) {
       extraRegenPerSec += RELIC_STAMINA_LOW_REGEN;
     }
+    if (talismanIdsForStamina.indexOf("talisman_green_amber_medallion") !== -1 && stamina.current <= TALISMAN_LOW_STAMINA_THRESHOLD) {
+      extraRegenPerSec += 1;
+    }
     stamina.current = Math.min(stamina.max, stamina.current + (myStaminaRegenPerSec + extraRegenPerSec) * dtSec);
+    // 憐憫的雫滴的另一半：「HP 10秒恢復1點絕對值」——用固定間隔的本地時間戳節流，
+    // 跟血魂之歌的BLOOD_SONG_REGEN_INTERVAL_MS完全同一種寫法。
+    if (talismanIdsForStamina.indexOf("talisman_dew_tear") !== -1) {
+      var nowDew = Date.now();
+      if (!dewTearLastHealAt) dewTearLastHealAt = nowDew;
+      else if (nowDew - dewTearLastHealAt >= DEW_TEAR_HEAL_INTERVAL_MS) {
+        dewTearLastHealAt = nowDew;
+        healSelfHp(1);
+      }
+    } else {
+      dewTearLastHealAt = 0;
+    }
   }
+
+  // 綠琥珀勳章的「體力條20以下」門檻與憐憫的雫滴的回血節奏（2026-09-12使用者明確規格）。
+  var TALISMAN_LOW_STAMINA_THRESHOLD = 20;
+  var DEW_TEAR_HEAL_INTERVAL_MS = 10000;
+  var dewTearLastHealAt = 0;
 
   // 「盾構戰鬥的達人」的條件：同時裝備刺突系（刺劍／重刺劍／槍／大槍／斧槍）與盾。
   function shieldFormationActive(c) {
@@ -6017,7 +6843,9 @@
   function resolveMyIncomingHit(st, kind) {
     var blockPct = 0;
     if (kind === "block") {
-      var guard = currentGuardInfo();
+      // 帶入st.hitIndex：護符的「僅第1次／第2次以後」HP價值加成需要知道這是連擊的第幾下
+      // （見talismanGuardBonusPct()）。
+      var guard = currentGuardInfo(st.hitIndex);
       if (!guard || !spendStamina(guard.costPoints * DICE_COUNT_TO_STAMINA_MULT)) {
         kind = "hit";
       } else {
@@ -6061,6 +6889,11 @@
       // 乘在「÷10換算成即時制傷害」之後、測試模式倍率之前，維持既有計算鏈的順序不變。
       var hitMult = st.hitIndex > 0 ? ENEMY_ATTACK_FOLLOWUP_HIT_DAMAGE_MULT : 1;
       var rawDamage = Math.round(((st.dmgAmount || 0) / 10) * hitMult * testMult("enemyAtkMult"));
+      // 調香瓶｜酸之噴霧（2026-09-12）：「直到結束階段為止，敵人發生的所有傷害-120」。
+      // 規則書明寫「對亂戰傷害而言，於依PC人數均分之前套用」＝在傷害的源頭扣，因此放在
+      // 防禦減傷百分比**之前**（先減絕對值再打折），不是最後才扣。
+      var acidReduce = acidSprayDamageReduce(characters[myTokenId]);
+      if (acidReduce) rawDamage = Math.max(0, rawDamage - acidReduce);
       var damage = kind === "block" ? Math.round(rawDamage * (1 - blockPct / 100)) : rawDamage;
       // 無賴漢「逆襲」暫時自身減傷（見activeTempGuardPct()說明）：跟block百分比是分開的
       // 疊加來源，即使這次kind===hit（沒有按防禦）也套用。
@@ -6074,6 +6907,10 @@
       // 守護者「救世之翼」的全隊暫時不受傷害（見partyNoDamageActive()說明）：完全無效化
       // 這次HP損害，比照迴避/特殊防禦的既有慣例，不進入下面的demoStat transaction。
       if (partyNoDamageActive()) damage = 0;
+      // 調香瓶｜鐵壺之香藥（2026-09-12）：「對象不因傷害承受HP損害（仍受屬性損害或異常
+      // 狀態影響）」——跟救世之翼同一個位置歸零HP損害，下方kind==="hit"的屬性/異常蓄積
+      // 區塊刻意不動，符合規則書括號內的但書。
+      if (ironPotImmuneActive(characters[myTokenId])) damage = 0;
       // 復仇者「召喚靈體」的護身效果（2026-09-12使用者明確規格「復仇者有靈體時，受到
       // 傷害優先先扣除靈體，靈體陣亡後才開始扣復仇者」）：放在所有減傷都算完之後、
       // 真正扣自己HP之前，回傳的是溢出到自己身上的部分。這同時讓「靈體消滅時HP/FP回復」
@@ -8102,10 +8939,21 @@
         }
         Object.keys(trig.participants || {}).forEach(function (slot) {
           var p = players[slot];
-          if (p) pushPendingReward(p.tokenId, pending);
+          if (p) pushPendingReward(p.tokenId, goldScarabAdjusted(p.tokenId, pending));
         });
       });
     });
+  }
+
+  // 護符「金聖甲蟲」（2026-09-12接入）：「擊破boss時，自身盧恩額外+1」。
+  // midnight裡符合「boss」的是夜之強敵（finalCircleDay1／Day2）與夜王——這兩場都是
+  // 全域判定的大型戰鬥，跟一般地圖點的強敵籌碼分屬不同層級（見updateFinalCircleBoss()／
+  // DAY3_BOSS_POINT_ID的說明）。因此只掛在夜之強敵的擊破獎勵上，不套用到強敵籌碼。
+  // 逐人判斷持有狀況（規則書原文也是「自身が獲得するルーン」）。
+  function goldScarabAdjusted(tokenId, pending) {
+    if (!pending || pending.kind !== "rune") return pending;
+    if (((characters[tokenId] || {}).talismanIds || []).indexOf("talisman_gold_scarab") === -1) return pending;
+    return { kind: "rune", value: (pending.value || 0) + 1 };
   }
 
   // ---- Day3「夜之王」戰鬥（2026-09-06三次優化，完整版）：套用房間設定選好的夜王
@@ -8695,6 +9543,36 @@
     return data.itemId || "";
   }
 
+  // 掉落物的規則本文（2026-09-12使用者明確要求「靠近的人在畫面左邊會彈出該詳細資訊」）：
+  // 沿用各資料模組既有的localizedText(body)，並比照角色面板套用mnText()的即時制文本轉換，
+  // 不另外寫一份說明文字。武器沒有單一body欄位（戰技/基本值分散在category與skills），
+  // 這裡顯示「種類＋稀有度」這種一行摘要就好，詳細仍在角色面板看（避免左上HUD被灌爆）。
+  function groundItemDetailText(data) {
+    if (!data) return "";
+    if (data.kind === "talisman") {
+      var t = window.PriTestTalismans.get(data.itemId);
+      return t ? mnText(window.PriTestTalismans.localizedText(t.body), window.PriTestTalismans.localizedText(t.name)) : "";
+    }
+    if (data.kind === "consumable") {
+      var item = window.PriTestConsumables.get(data.itemId);
+      if (!item) return "";
+      var body = mnText(window.PriTestConsumables.localizedText(item.body), window.PriTestConsumables.localizedText(item.name));
+      var uses = data.usesRemaining;
+      var head = uses ? window.I18N.t("midnight_ground_item_uses", { n: uses }) : "";
+      // 投擲壺等「取得場地決定屬性」的消耗品：把屬性標記也顯示出來，否則撿起來之前
+      // 看不出這一個是炎還是雷（見applyMidnightConsumableEffect()的item_throwing_pot分支）。
+      if (data.attributeTag) head = head ? head + "　" + data.attributeTag : data.attributeTag;
+      return head ? head + "　" + body : body;
+    }
+    if (data.kind === "weapon") {
+      var w = window.PriTestWeapons.get(baseCatalogId(data.itemId));
+      if (!w) return "";
+      var cat = window.PriTestWeapons.getCategory(w.category);
+      return cat ? window.PriTestWeapons.localizedText(cat.name) : "";
+    }
+    return "";
+  }
+
   function updateNearbyGroundItem() {
     if (!mySlot || !localPos || autoFly) {
       nearbyGroundItem = null;
@@ -8711,7 +9589,15 @@
     });
     nearbyGroundItem = found;
     el("midnight-ground-item-prompt").hidden = !found;
-    if (found) el("midnight-ground-item-name").textContent = groundItemDisplayName(found.data);
+    if (found) {
+      el("midnight-ground-item-name").textContent = groundItemDisplayName(found.data);
+      var bodyEl = el("midnight-ground-item-body");
+      if (bodyEl) {
+        var detail = groundItemDetailText(found.data);
+        bodyEl.textContent = detail;
+        bodyEl.hidden = !detail;
+      }
+    }
   }
 
   // 撿取也受6/4/2上限限制（使用者確認的硬上限規格）：滿了要先在角色面板丟棄才能撿。
@@ -8762,6 +9648,12 @@
         } else {
           var instId = window.PriTestCharacterDrawer.makeConsumableInstanceId(data.itemId, c2);
           c2.consumables = (c2.consumables || []).concat([{ id: instId, itemId: data.itemId, usesRemaining: pickedUses }]);
+          // 2026-09-12：接回丟棄時一起掉在地上的屬性標記（見dropInventoryItem()）。
+          if (data.attributeTag) {
+            c2.consumableAttributeTags = c2.consumableAttributeTags || {};
+            c2.consumableAttributeTags[instId] = data.attributeTag;
+            GameStorage.rtSet(gameId, "cloud", "character/" + myTokenId + "/consumableAttributeTags", c2.consumableAttributeTags);
+          }
         }
         GameStorage.rtSet(gameId, "cloud", "character/" + myTokenId + "/consumables", c2.consumables);
       }
@@ -10470,7 +11362,13 @@
       return pickedTalisman ? { talismanId: pickedTalisman.id } : {};
     }
     if (entry.kind === "consumable") {
-      if (entry.itemId) return { itemId: entry.itemId };
+      // 2026-09-12：指定品項的消耗品（例：投擲壺）可能附帶attributeTag（取得場地決定的
+      // 屬性），一併帶進drawn讓applyDrawnSharedRewardToCharacter()記到角色上。
+      if (entry.itemId) {
+        return entry.attributeTag
+          ? { itemId: entry.itemId, attributeTag: window.PriTestFields.localizedText(entry.attributeTag) }
+          : { itemId: entry.itemId };
+      }
       var consumablePool = window.PriTestConsumables.list();
       var pickedConsumable = consumablePool[Math.floor(Math.random() * consumablePool.length)];
       return pickedConsumable ? { itemId: pickedConsumable.id } : {};
@@ -10527,7 +11425,14 @@
     } else if (entry.kind === "consumable" && drawn.itemId) {
       var namedItem = window.PriTestConsumables.get(drawn.itemId);
       c.consumables = c.consumables || [];
-      c.consumables.push({ id: CD.makeConsumableInstanceId(drawn.itemId, c), itemId: drawn.itemId, usesRemaining: (namedItem && namedItem.uses) || 1 });
+      var namedInstId = CD.makeConsumableInstanceId(drawn.itemId, c);
+      c.consumables.push({ id: namedInstId, itemId: drawn.itemId, usesRemaining: (namedItem && namedItem.uses) || 1 });
+      // 2026-09-12：投擲壺等「取得場地決定屬性」的消耗品，把屬性記到角色上（見
+      // applyMidnightConsumableEffect()的item_throwing_pot分支）。
+      if (drawn.attributeTag) {
+        c.consumableAttributeTags = c.consumableAttributeTags || {};
+        c.consumableAttributeTags[namedInstId] = drawn.attributeTag;
+      }
     } else if (entry.kind === "stoneswordKey" || entry.kind === "smithingStone") {
       var fixedItemId2 = entry.kind === "stoneswordKey" ? "item_stonesword_key" : "item_smithing_stone";
       var value2 = drawn.value || 1;
@@ -11134,7 +12039,10 @@
       Object.keys(trig.participants || {}).forEach(function (slot) {
         var p = players[slot];
         if (!p) return;
-        pushPendingReward(p.tokenId, { kind: "rune", value: runeAmount });
+        // 2026-09-12接入護符「貪婪者的烙印」（使用者明確規格「板塊踏破全樓層時個人盧恩+1」）：
+        // 逐人判斷持有狀況，只有戴著的人多拿1（規則書原文也是「自身が獲得するルーン量」）。
+        var greedBonus = ((characters[p.tokenId] || {}).talismanIds || []).indexOf("talisman_greed") !== -1 ? 1 : 0;
+        pushPendingReward(p.tokenId, { kind: "rune", value: runeAmount + greedBonus });
       });
     });
   }
@@ -11297,7 +12205,14 @@
     if (entry.kind === "consumable") {
       var Consumables = window.PriTestConsumables;
       var itemPool = Consumables.list();
-      var pickedItem = itemPool[Math.floor(Math.random() * itemPool.length)];
+      // 2026-09-12修正：fields_data_*.js有「指定品項」的消耗品獎勵
+      // （例：{ kind:"consumable", itemId:"item_throwing_pot", attributeTag: C("雷","雷") }），
+      // 這條個人清單路徑原本無視entry.itemId一律隨機抽，指定品項永遠拿不到。
+      // 共享獎勵那條路徑（drawSharedRewardData()）本來就有判斷entry.itemId，這裡補齊。
+      var pickedItem = (entry.itemId && Consumables.get(entry.itemId)) || itemPool[Math.floor(Math.random() * itemPool.length)];
+      // 投擲壺的「X」：規則書在取得的場地上標明屬性（使用者明確規格「取得此物品時即要
+      // 根據場地而變化其附屬屬性」），沿用night.jsのc.consumableAttributeTags欄位規約。
+      var itemAttributeTag = entry.attributeTag ? window.PriTestFields.localizedText(entry.attributeTag) : null;
       return {
         label: Consumables.localizedText(pickedItem.name),
         item: pickedItem,
@@ -11305,6 +12220,10 @@
           var instId = window.PriTestCharacterDrawer.makeConsumableInstanceId(pickedItem.id, c);
           c.consumables = c.consumables || [];
           c.consumables.push({ id: instId, itemId: pickedItem.id, usesRemaining: pickedItem.uses || 1 });
+          if (itemAttributeTag) {
+            c.consumableAttributeTags = c.consumableAttributeTags || {};
+            c.consumableAttributeTags[instId] = itemAttributeTag;
+          }
         },
       };
     }
@@ -12490,17 +13409,17 @@
           return;
         }
         var display = CD.resolveRandomSkillDisplay(resolved);
-        if (display) out.push({ name: display.name, body: display.body, kind: display.kind, undetermined: false });
+        if (display) out.push({ name: display.name, body: display.body, kind: display.kind, kindLabel: display.kindLabel, undetermined: false });
         return;
       }
       var d = CD.resolveWeaponSkillDisplay(pair.ref);
-      if (d && (d.name || d.body)) out.push({ name: d.name, body: d.body, kind: d.kind, undetermined: false });
+      if (d && (d.name || d.body)) out.push({ name: d.name, body: d.body, kind: d.kind, kindLabel: d.kindLabel, undetermined: false });
     });
     // 共通戰技（玩家後天附加在這把武器上的，例如塗脂/獎勵取得）沿用既有欄位，
     // 跟getEquippedWeaponSkillEntries()一樣一併納入。
     ((c && c.weaponExtraSkills && c.weaponExtraSkills[weaponId]) || []).forEach(function (ref) {
       var d2 = CD.resolveWeaponSkillDisplay(ref);
-      if (d2 && (d2.name || d2.body)) out.push({ name: d2.name, body: d2.body, kind: d2.kind, undetermined: false });
+      if (d2 && (d2.name || d2.body)) out.push({ name: d2.name, body: d2.body, kind: d2.kind, kindLabel: d2.kindLabel, undetermined: false });
     });
     return out;
   }
@@ -12584,7 +13503,9 @@
       detail.appendChild(skillATitle);
       var isSpellCategory = !!(category && (category.id === "staff" || category.id === "sacred_seal"));
       actionSkills.forEach(function (d) {
-        appendWeaponSheetSkillEntry(detail, d.name, d.body, artInfo, isSpellCategory, CD);
+        // 2026-09-12：詳細資訊要連種類一起顯示（使用者明確要求），因此標題改用
+        // CD.weaponSkillDisplayTitle()＝「種類｜名稱」（無種類的招式維持只顯示名稱）。
+        appendWeaponSheetSkillEntry(detail, CD.weaponSkillDisplayTitle(d), d.body, artInfo, isSpellCategory, CD);
       });
     }
 
@@ -12606,7 +13527,8 @@
       resolvedSkillB.forEach(function (d) {
         var entryP = document.createElement("p");
         entryP.className = "threat-ref-body";
-        entryP.textContent = d.name + (d.body ? window.I18N.t("colon_separator") + mnText(d.body, d.name) : "");
+        var title = CD.weaponSkillDisplayTitle(d);
+        entryP.textContent = title + (d.body ? window.I18N.t("colon_separator") + mnText(d.body, d.name) : "");
         detail.appendChild(entryP);
       });
     }
@@ -12648,6 +13570,22 @@
     btn.addEventListener("click", function () {
       c[field] = !c[field];
       GameStorage.rtSet(gameId, "cloud", "character/" + myTokenId + "/" + field, c[field]);
+      renderCharacterSheet();
+    });
+    detail.appendChild(btn);
+  }
+
+  // 可切換護符的開關按鈕（2026-09-12）：跟appendRelicToggle()共用同一組class與i18n文案，
+  // 差別只在狀態存在c.talismanToggles而不是獨立的c._xxxMode欄位（見toggleTalismanSetting()）。
+  function appendTalismanToggle(detail, c, talismanId) {
+    if (!c) return;
+    var on = talismanToggleOn(c, talismanId);
+    var btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "midnight-relic-toggle" + (on ? " midnight-relic-toggle-on" : "");
+    btn.textContent = window.I18N.t(on ? "midnight_relic_toggle_on" : "midnight_relic_toggle_off");
+    btn.addEventListener("click", function () {
+      toggleTalismanSetting(talismanId);
       renderCharacterSheet();
     });
     detail.appendChild(btn);
@@ -12724,6 +13662,10 @@
       var t = window.PriTestTalismans.get(sel.ref);
       if (!t) return;
       appendNameBody(window.PriTestTalismans.localizedText(t.name), window.PriTestTalismans.localizedText(t.body || {}));
+      // 2026-09-12使用者明確規格：卡利亞徽章／原輝石之刃／戈弗雷的肖像「在腳色視窗可以
+      // 點選該飾品來切換，預設被撿起都是原始消耗」——沿用遺物效果既有的開關按鈕樣式與
+      // 文案（appendRelicToggle()），不另外發明第二種開關UI。
+      if (TOGGLEABLE_TALISMAN_IDS.indexOf(sel.ref) !== -1) appendTalismanToggle(detail, c, sel.ref);
       appendInventoryButtons("talisman", sel.ref);
     } else if (sel.kind === "skill" || sel.kind === "art" || sel.kind === "ability") {
       appendNameBody(CharacterTypes.localizedText(sel.ref.name), CharacterTypes.localizedText(sel.ref.body));
@@ -12763,10 +13705,14 @@
     c[field] = list;
     GameStorage.rtSet(gameId, "cloud", "character/" + myTokenId + "/" + field, list);
     var groundId = "gi" + Math.random().toString(16).slice(2) + Date.now().toString(16);
+    // 2026-09-12：丟棄的投擲壺要帶著它的屬性標記一起掉在地上，否則撿回來就變回預設「炎」。
+    var droppedAttributeTag = kind === "consumable" && c.consumableAttributeTags ? c.consumableAttributeTags[dropped.id] || null : null;
+    if (droppedAttributeTag) delete c.consumableAttributeTags[dropped.id];
     GameStorage.rtSet(gameId, "cloud", "groundItems/" + groundId, {
       kind: kind,
       itemId: kind === "consumable" ? dropped.itemId : dropped,
       usesRemaining: kind === "consumable" ? dropped.usesRemaining : null,
+      attributeTag: droppedAttributeTag,
       x: localPos.x,
       y: localPos.y,
       droppedBy: myTokenId,
@@ -13152,6 +14098,19 @@
     // 這裡只留一個條件。
     var showEnemyHpValue = !!(meta && meta.testMode);
     setBar("midnight-enemy-hp-fill", "midnight-enemy-hp-value", hp, max, !showEnemyHpValue);
+    // 雜兵血條（2026-09-12使用者明確要求「產生其血量在敵人血量上排，須先扣除雜兵」）：
+    // 雜兵HP的扣除邏輯2026-09-06就存在於damageCombatTarget()，這裡只補顯示。最大值＝
+    // fieldTrigger的mobRowCount×MOB_HP_PER_ROW（跟maybeAssignFieldEnemy()寫入時同一個
+    // 算式，不另外存一份max）。沒有雜兵或雜兵已歸零時整列隱藏。
+    var mobRow = el("midnight-mob-hp-row");
+    if (mobRow) {
+      var mobHp = usingEncounter ? fieldMobHp[activeEncounter.id] : undefined;
+      var mobTrig = usingEncounter ? fieldTriggers[activeEncounter.id] : null;
+      var mobMax = mobTrig && mobTrig.mobRowCount ? mobTrig.mobRowCount * MOB_HP_PER_ROW : 0;
+      var showMob = mobHp !== undefined && mobHp > 0 && mobMax > 0;
+      mobRow.hidden = !showMob;
+      if (showMob) setBar("midnight-mob-hp-fill", "midnight-mob-hp-value", mobHp, mobMax, !showEnemyHpValue);
+    }
     // 敵人HP掛在畫面中間下方，只在真正「碰到敵人進入戰鬥」（活躍的地圖點/強敵遭遇戰）
     // 時顯示——使用者明確規格，。
     var hudBottomCenter = el("midnight-hud-bottom-center");
@@ -13163,7 +14122,7 @@
     var artBtn = el("btn-midnight-skill");
     artBtn.hidden = !artEntry;
     if (artEntry) {
-      var artCost = computeMidnightSkillCost(Weapons.localizedText(artEntry.body));
+      var artCost = computeMidnightSkillCost(Weapons.localizedText(artEntry.body), artEntry.weaponId);
       artBtn.disabled = !canAct || stamina.current < artCost.staminaCost || fp.current < artCost.fpCost;
       // 2026-09-06使用者明確要求「[戰技]名稱需隨著右手武器跟換為[戰技(名稱)]」：
       // artEntry.name是這把武器實際的戰技名稱（跟角色視窗武器詳細資訊同一份資料）。
@@ -13222,7 +14181,9 @@
         }
       }
     }
-    var spells = weaponSpellEntries(side);
+    // 杖/聖印→魔術/祈禱；其餘武器（含盾）→該側武器的戰技。跟sorceryButtonEntry()共用
+    // 同一份清單，否則長按施放會打到跟畫面上顯示不同的招式。
+    var spells = sideSkillButtonEntries(side);
     var defs = SORCERY_BUTTON_DEFS.filter(function (def) {
       return def.side === side;
     });
@@ -13253,7 +14214,7 @@
     if (!entry) return;
     var labelEl = el(def.labelId);
     if (labelEl) labelEl.textContent = Weapons.localizedText(entry.name);
-    var cost = computeMidnightSkillCost(Weapons.localizedText(entry.body));
+    var cost = computeMidnightSkillCost(Weapons.localizedText(entry.body), entry.weaponId);
     btn.disabled = !canAct || stamina.current < cost.staminaCost || fp.current < cost.fpCost;
   }
 
@@ -14869,6 +15830,7 @@
     }
 
     maybeFinalizeResume(now);
+    tickHealOverTime(); // 2026-09-12新增：溫石等持續回復效果（見startHealOverTime()）
     updatePauseOverlay(now);
     updateResumeCountdownHud(now);
     renderIntroOverlay(now);
@@ -15210,6 +16172,68 @@
         accelHpMinPct: STAGGER_ACCEL_HP_MIN_PCT,
         accelHpMaxPct: STAGGER_ACCEL_HP_MAX_PCT,
       };
+    },
+    // ---- 2026-09-12 消耗品／裝飾品批次的回歸測試入口 ----
+    // 這一批效果散在攻擊/戰技/防禦/受傷/蓄積5條計算鏈上，光靠_debugState()讀不到「算出來
+    // 的數值」。跟既有的_debugRecordGuardReduction／_debugAbsorbDamageWithSpirit同樣的
+    // 用途與風格：把內部純函式開一個口給測試腳本呼叫，不改變正式流程。
+    // 見tools/midnight_check/consumable_talisman_runtime_check.js。
+    _debugSetTalismans: function (ids) {
+      var c = characters[myTokenId];
+      if (!c) return null;
+      c.talismanIds = (ids || []).slice();
+      GameStorage.rtSet(gameId, "cloud", "character/" + myTokenId + "/talismanIds", c.talismanIds);
+      return c.talismanIds;
+    },
+    _debugSetTalismanToggle: function (talismanId, on) {
+      var c = characters[myTokenId];
+      if (!c) return null;
+      c.talismanToggles = c.talismanToggles || {};
+      c.talismanToggles[talismanId] = !!on;
+      return c.talismanToggles;
+    },
+    _debugApplyConsumable: function (itemId, instanceId) {
+      var c = characters[myTokenId];
+      if (!c) return null;
+      applyMidnightConsumableEffect(c, itemId, instanceId);
+      return { stamina: stamina.current, fp: fp.current };
+    },
+    _debugSideAttackInfo: function (side) {
+      var info = computeSideAttackInfo(side);
+      return info ? { weaponId: info.weaponId, hit1: info.dmg.hit1Damage, hit2: info.dmg.hit2Damage, artPower: info.dmg.artPower } : null;
+    },
+    _debugSkillCost: function (bodyText, weaponId) {
+      return computeMidnightSkillCost(bodyText, weaponId);
+    },
+    _debugSkillDamage: function (weaponId, bodyText) {
+      return computeMidnightSkillDamage(characters[myTokenId], weaponId, bodyText);
+    },
+    _debugGuardInfo: function (hitIndex) {
+      return currentGuardInfo(hitIndex);
+    },
+    _debugRecordReceivedAccum: function (label, amount) {
+      recordReceivedAttributeAccum(label, amount);
+      return receivedAttributeAccum;
+    },
+    _debugConsumableBuffs: function () {
+      var c = characters[myTokenId];
+      return {
+        attack: consumableAttackHitBonus(c),
+        skill: consumableSkillDamageBonus(c),
+        guard: consumableGuardBonusPct(c),
+        ironPot: ironPotImmuneActive(c),
+        acid: acidSprayDamageReduce(c),
+        grease: { weaponId: c && c._greaseWeaponId, until: c && c._greaseUntil },
+      };
+    },
+    _debugRoarArtBuff: function (weaponId, bodyText) {
+      var c = characters[myTokenId];
+      if (!c) return null;
+      maybeApplyRoarArtBuff(c, { weaponId: weaponId }, bodyText);
+      return { bonus: roarTwoHitBonus(c, weaponId), until: c._roarTwoHitUntil };
+    },
+    _debugStaminaMax: function () {
+      return { current: stamina.current, max: stamina.max };
     },
     _debugState: function () {
       return {
