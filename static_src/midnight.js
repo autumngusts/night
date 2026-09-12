@@ -327,6 +327,13 @@
   var TALISMAN_SLOT_COUNT = 2;
   var GROUND_ITEM_PICKUP_RADIUS = 1.5; // 沿用TOWER_ACTIVATE_RADIUS同量級
 
+  // 2026-09-12使用者明確規格「消耗品欄一格最多堆疊6個，獲得時若會超過滿格，有其他格就
+  // 放置其他格，全滿就把剩餘數量丟至地上」：instance的usesRemaining在midnight一直就是
+  // 「還能用幾次」＝「還有幾個」（每次使用扣1，歸0就移除，見handleUseQuickConsumableClick()），
+  // 因此這裡不新增第二種資料結構，直接把usesRemaining當堆疊數量、加上每格6的上限。
+  // 石劍鑰匙／鍛造石（noStackLimit:true）維持既有的「無堆疊上限、共用同一格」規格。
+  var CONSUMABLE_STACK_MAX = 6;
+
   // 持有量是否還有空間可以再拿一個（kind: "weapon"|"consumable"|"talisman"）。消耗品
   // 用「不同itemId視為佔一格」計算（c.consumables是instance陣列，同一itemId可能疊加
   // usesRemaining，但規格是「4格消耗品欄」＝4種，不是4個instance——跟角色面板要顯示
@@ -345,9 +352,81 @@
     return Infinity;
   }
 
-  function hasInventorySpace(c, kind) {
+  // itemId省略時維持舊行為（只看格數）；有指定itemId的消耗品則改問「這個品項還能收幾個」，
+  // 因為已有同品項未滿6的堆疊時，即使4格都被佔滿仍然收得下（見consumableFreeCapacity()）。
+  function hasInventorySpace(c, kind, itemId, attributeTag) {
     if (!c) return false;
+    if (kind === "consumable" && itemId) return consumableFreeCapacity(c, itemId, attributeTag || null) > 0;
     return inventoryOccupiedCount(c, kind) < inventorySlotLimit(kind);
+  }
+
+  // 投擲壺等「取得場地決定屬性」的消耗品，其屬性記在c.consumableAttributeTags[instanceId]，
+  // 所以屬性不同的同一品項不能疊在同一格（疊了就分不出哪一個是炎、哪一個是雷）。
+  function consumableInstanceTag(c, inst) {
+    return (c && c.consumableAttributeTags && inst && c.consumableAttributeTags[inst.id]) || null;
+  }
+
+  function consumableStackMax(item) {
+    return item && item.noStackLimit ? Infinity : CONSUMABLE_STACK_MAX;
+  }
+
+  // 這個角色目前還能收下幾個指定品項（同屬性堆疊的剩餘空間＋空格數×每格上限）。
+  function consumableFreeCapacity(c, itemId, attributeTag) {
+    var item = window.PriTestConsumables.get(itemId);
+    var stackMax = consumableStackMax(item);
+    var list = (c && c.consumables) || [];
+    var tag = attributeTag || null;
+    var capacity = 0;
+    list.forEach(function (inst) {
+      if (inst.itemId !== itemId) return;
+      if (consumableInstanceTag(c, inst) !== tag) return;
+      if (stackMax === Infinity) capacity = Infinity;
+      else capacity += Math.max(0, stackMax - (inst.usesRemaining || 0));
+    });
+    if (capacity === Infinity) return Infinity;
+    var emptySlots = Math.max(0, CONSUMABLE_SLOT_COUNT - list.length);
+    if (emptySlots > 0 && stackMax === Infinity) return Infinity;
+    return capacity + emptySlots * stackMax;
+  }
+
+  // 「消耗品獲得時基本拿到2個」（2026-09-12使用者明確規格：「原本使用次數2的獲得2個各
+  // 使用1次，使用次數3的則獲得3個」）——因此獲得個數＝max(2, 規則書標示的使用次數)。
+  // 石劍鑰匙／鍛造石是持有即生效的鑰匙類道具、不是「用掉一次」的消耗品，維持1個。
+  function consumableAcquireCount(item) {
+    if (!item) return 1;
+    if (item.noStackLimit) return 1;
+    return Math.max(2, item.uses || 1);
+  }
+
+  // 把count個itemId放進角色消耗品欄：先疊進同品項同屬性且未滿的既有格，再開新格，
+  // 回傳放不下的剩餘數量（呼叫端負責丟到地上，見grantConsumablesToSelf()）。
+  function addConsumablesToCharacter(c, itemId, count, attributeTag) {
+    var item = window.PriTestConsumables.get(itemId);
+    var stackMax = consumableStackMax(item);
+    var tag = attributeTag || null;
+    var remain = Math.max(0, count || 0);
+    c.consumables = c.consumables || [];
+    for (var i = 0; i < c.consumables.length && remain > 0; i++) {
+      var inst = c.consumables[i];
+      if (inst.itemId !== itemId) continue;
+      if (consumableInstanceTag(c, inst) !== tag) continue;
+      var room = stackMax === Infinity ? remain : stackMax - (inst.usesRemaining || 0);
+      if (room <= 0) continue;
+      var put = Math.min(room, remain);
+      inst.usesRemaining = (inst.usesRemaining || 0) + put;
+      remain -= put;
+    }
+    while (remain > 0 && c.consumables.length < CONSUMABLE_SLOT_COUNT) {
+      var putNew = stackMax === Infinity ? remain : Math.min(stackMax, remain);
+      var instId = window.PriTestCharacterDrawer.makeConsumableInstanceId(itemId, c);
+      c.consumables.push({ id: instId, itemId: itemId, usesRemaining: putNew });
+      if (tag) {
+        c.consumableAttributeTags = c.consumableAttributeTags || {};
+        c.consumableAttributeTags[instId] = tag;
+      }
+      remain -= putNew;
+    }
+    return remain;
   }
 
   // ---- 地圖點卡牌事件（2026-09-05新增，2026-09-06依使用者更精確的規格改版）----
@@ -7477,7 +7556,13 @@
           return;
         }
         var drawn = window.PriTestCharacterDrawer.drawWeaponFromCategory(c, "staff", spec.value);
-        if (drawn) labels.push(window.PriTestWeapons.localizedText(drawn.item.name));
+        if (drawn) {
+          // 2026-09-12使用者明確規格「獎勵取得的武器、杖、聖印 持有的戰技魔術等 是當下
+          // 直接抽出，並非鍛造台再抽」：杖的random魔術枠在入手當下就決定。
+          var CDs = window.PriTestCharacterDrawer;
+          CDs.assignWeaponRandomSkill(c, drawn.weaponId, CDs.rollWeaponRandomSkill(drawn.weaponId));
+          labels.push(window.PriTestWeapons.localizedText(drawn.item.name));
+        }
       } else if (spec.kind === "weaponStar") {
         pushPendingReward(myTokenId, { kind: "weaponStar", value: spec.value });
       } else if (spec.kind === "talisman") {
@@ -9612,7 +9697,7 @@
     var c = characters[myTokenId];
     if (!c) return;
     var kind = nearbyGroundItem.data.kind;
-    if (!hasInventorySpace(c, kind)) {
+    if (!hasInventorySpace(c, kind, kind === "consumable" ? nearbyGroundItem.data.itemId : null, nearbyGroundItem.data.attributeTag)) {
       showToast(window.I18N.t("midnight_inventory_full_note"));
       return;
     }
@@ -9627,33 +9712,21 @@
       if (kind === "weapon") {
         c2.weaponIds = (c2.weaponIds || []).concat([data.itemId]);
         GameStorage.rtSet(gameId, "cloud", "character/" + myTokenId + "/weaponIds", c2.weaponIds);
+        // 2026-09-12：掉落時一起記在地上的random戰技（見dropInventoryItem()）跟著撿回來；
+        // 舊資料／從來沒解決過戰技枠的武器（randomSkillId為null）就在撿起的當下抽一次，
+        // 符合使用者規格「武器的戰技是當下直接抽出，並非鍛造台再抽」。
+        var CDp = window.PriTestCharacterDrawer;
+        CDp.assignWeaponRandomSkill(c2, data.itemId, data.randomSkillId || CDp.rollWeaponRandomSkill(data.itemId));
+        if (c2.weaponRandomSkills) GameStorage.rtSet(gameId, "cloud", "character/" + myTokenId + "/weaponRandomSkills", c2.weaponRandomSkills);
       } else if (kind === "talisman") {
         c2.talismanIds = (c2.talismanIds || []).concat([data.itemId]);
         GameStorage.rtSet(gameId, "cloud", "character/" + myTokenId + "/talismanIds", c2.talismanIds);
       } else if (kind === "consumable") {
-        var pickedItem = window.PriTestConsumables.get(data.itemId);
-        var pickedUses = data.usesRemaining || 1;
-        // 石劍鑰匙／鍛造石（noStackLimit:true）：跟現有同itemId的instance合併疊加
-        // usesRemaining，不佔用新的消耗品欄位（使用者明確規格「沒有堆疊限制」）；
-        // 一般消耗品維持既有行為，每次撿取都是獨立的新instance（各自佔1格）。
-        var existing =
-          pickedItem && pickedItem.noStackLimit
-            ? (c2.consumables || []).filter(function (inst) {
-                return inst.itemId === data.itemId;
-              })[0]
-            : null;
-        if (existing) {
-          existing.usesRemaining += pickedUses;
-          c2.consumables = c2.consumables.slice();
-        } else {
-          var instId = window.PriTestCharacterDrawer.makeConsumableInstanceId(data.itemId, c2);
-          c2.consumables = (c2.consumables || []).concat([{ id: instId, itemId: data.itemId, usesRemaining: pickedUses }]);
-          // 2026-09-12：接回丟棄時一起掉在地上的屬性標記（見dropInventoryItem()）。
-          if (data.attributeTag) {
-            c2.consumableAttributeTags = c2.consumableAttributeTags || {};
-            c2.consumableAttributeTags[instId] = data.attributeTag;
-            GameStorage.rtSet(gameId, "cloud", "character/" + myTokenId + "/consumableAttributeTags", c2.consumableAttributeTags);
-          }
+        // 2026-09-12：撿取改走跟其餘獲得路徑同一支grantConsumablesToSelf()——同品項同屬性
+        // 疊進既有格（上限6，石劍鑰匙／鍛造石無上限），疊不下的再丟回地上。
+        grantConsumablesToSelf(c2, data.itemId, data.usesRemaining || 1, data.attributeTag || null);
+        if (c2.consumableAttributeTags) {
+          GameStorage.rtSet(gameId, "cloud", "character/" + myTokenId + "/consumableAttributeTags", c2.consumableAttributeTags);
         }
         GameStorage.rtSet(gameId, "cloud", "character/" + myTokenId + "/consumables", c2.consumables);
       }
@@ -9826,8 +9899,10 @@
     el("midnight-merchant-weapon-result").textContent = "";
     el("midnight-merchant-consumable-result").textContent = "";
     el("midnight-merchant-forge-result").textContent = "";
+    merchantConsumablePickedId = null; // 每次重新開啟商人都回到「尚未選取任何消耗品」
     renderMerchantRuneNote();
     renderMerchantConsumableList();
+    renderMerchantConsumableDetail();
     renderMerchantForgeList();
     el("midnight-merchant-modal").hidden = false;
   }
@@ -9851,6 +9926,11 @@
     el("midnight-merchant-rune-note").textContent = window.I18N.t("midnight_merchant_rune_note", { runes: c ? c.runes : 0 });
   }
 
+  // 2026-09-12使用者明確規格「商人購買消耗品時，按下道具會先顯示其效果，再按［確定購買］
+  // 才會實際取得」：原本按下品項就直接扣盧恩買下去，改成兩段式——第一段只是選取並在
+  // #midnight-merchant-consumable-detail顯示名稱／獲得個數／規則本文，第二段才真的購買。
+  var merchantConsumablePickedId = null;
+
   function renderMerchantConsumableList() {
     var container = el("midnight-merchant-consumable-list");
     container.innerHTML = "";
@@ -9861,11 +9941,40 @@
       var btn = document.createElement("button");
       btn.type = "button";
       btn.textContent = Consumables.localizedText(item.name);
+      // 選取高亮沿用獎勵清單既有的.midnight-reward-item-selected，不新增第二種選取樣式。
+      if (merchantConsumablePickedId === id) btn.className = "midnight-reward-item-selected";
       btn.addEventListener("click", function () {
-        handleMerchantBuyConsumable(id);
+        merchantConsumablePickedId = id;
+        el("midnight-merchant-consumable-result").textContent = "";
+        renderMerchantConsumableList();
+        renderMerchantConsumableDetail();
       });
       container.appendChild(btn);
     });
+  }
+
+  function renderMerchantConsumableDetail() {
+    var detail = el("midnight-merchant-consumable-detail");
+    if (!detail) return;
+    detail.innerHTML = "";
+    var Consumables = window.PriTestConsumables;
+    var item = merchantConsumablePickedId ? Consumables.get(merchantConsumablePickedId) : null;
+    if (!item) return;
+    var name = Consumables.localizedText(item.name);
+    var titleEl = document.createElement("h4");
+    titleEl.textContent = name + " x" + consumableAcquireCount(item);
+    detail.appendChild(titleEl);
+    var bodyEl = document.createElement("p");
+    // mnText()＝角色視窗等唯讀規則說明共用的即時制文本轉換出口，這裡沿用同一支。
+    bodyEl.textContent = mnText(Consumables.localizedText(item.body || {}), name);
+    detail.appendChild(bodyEl);
+    var buyBtn = document.createElement("button");
+    buyBtn.type = "button";
+    buyBtn.textContent = window.I18N.t("midnight_merchant_consumable_buy_button");
+    buyBtn.addEventListener("click", function () {
+      handleMerchantBuyConsumable(merchantConsumablePickedId);
+    });
+    detail.appendChild(buyBtn);
   }
 
   function handleMerchantBuyWeapon() {
@@ -9877,6 +9986,9 @@
     }
     var result = window.PriTestCharacterDrawer.merchantDrawWeapon(c, 1);
     if (!result) return;
+    // 2026-09-12使用者明確規格「武器…持有的戰技魔術等 是當下直接抽出，並非鍛造台再抽」：
+    // 商人購買也一樣，入手當下就決定random戰技枠。
+    window.PriTestCharacterDrawer.assignWeaponRandomSkill(c, result.weaponId, window.PriTestCharacterDrawer.rollWeaponRandomSkill(result.weaponId));
     c.runes -= 1;
     GameStorage.rtSet(gameId, "cloud", "character/" + myTokenId, c);
     el("midnight-merchant-weapon-result").textContent = window.I18N.t("midnight_merchant_weapon_result", {
@@ -9891,18 +10003,20 @@
     if (!c || (c.runes || 0) < 1) return;
     var item = window.PriTestConsumables.get(itemId);
     if (!item) return;
-    if (!hasInventorySpace(c, "consumable")) {
+    if (!hasInventorySpace(c, "consumable", itemId)) {
       el("midnight-merchant-consumable-result").textContent = window.I18N.t("midnight_inventory_full_note");
       return;
     }
-    var instanceId = window.PriTestCharacterDrawer.makeConsumableInstanceId(itemId, c);
-    c.consumables = c.consumables || [];
-    c.consumables.push({ id: instanceId, itemId: itemId, usesRemaining: item.uses || 1 });
+    var buyCount = consumableAcquireCount(item);
+    grantConsumablesToSelf(c, itemId, buyCount, null);
     c.runes -= 1;
     GameStorage.rtSet(gameId, "cloud", "character/" + myTokenId, c);
     el("midnight-merchant-consumable-result").textContent = window.I18N.t("midnight_merchant_consumable_result", {
-      name: window.PriTestConsumables.localizedText(item.name),
+      name: window.PriTestConsumables.localizedText(item.name) + " x" + buyCount,
     });
+    merchantConsumablePickedId = null;
+    renderMerchantConsumableList();
+    renderMerchantConsumableDetail();
     renderMerchantRuneNote();
   }
 
@@ -11354,7 +11468,13 @@
       var weaponResult = entry.categoryId
         ? window.PriTestCharacterDrawer.drawWeaponFromCategory({ weaponIds: [] }, entry.categoryId, entry.value || 1)
         : window.PriTestCharacterDrawer.merchantDrawWeapon({ weaponIds: [] }, entry.value || 1);
-      return weaponResult ? { weaponId: weaponResult.weaponId } : {};
+      if (!weaponResult) return {};
+      // 2026-09-12使用者明確規格「獎勵取得的武器、杖、聖印 持有的戰技魔術等 是當下直接
+      // 抽出，並非鍛造台再抽」：random戰技枠在這一刻就抽好並存進drawn，所有人看到的揭示
+      // 結果（含戰技）一致，領到的人套用的也是同一個結果（見
+      // applyDrawnSharedRewardToCharacter()／renderSharedRewardDetail()）。
+      var sharedSkillId = window.PriTestCharacterDrawer.rollWeaponRandomSkill(weaponResult.weaponId);
+      return sharedSkillId ? { weaponId: weaponResult.weaponId, skillId: sharedSkillId } : { weaponId: weaponResult.weaponId };
     }
     if (entry.kind === "talisman") {
       var talismanPool = window.PriTestTalismans.list();
@@ -11419,27 +11539,20 @@
     } else if ((entry.kind === "weapon" || entry.kind === "weaponStar") && drawn.weaponId) {
       c.weaponIds = c.weaponIds || [];
       c.weaponIds.push(drawn.weaponId);
+      // 2026-09-12：揭示時就抽好的random戰技（見drawSharedRewardData()）跟著武器一起入手。
+      if (drawn.skillId) CD.assignWeaponRandomSkill(c, drawn.weaponId, drawn.skillId);
     } else if (entry.kind === "talisman" && drawn.talismanId) {
       c.talismanIds = c.talismanIds || [];
       c.talismanIds.push(drawn.talismanId);
     } else if (entry.kind === "consumable" && drawn.itemId) {
+      // 2026-09-12：獲得個數改由consumableAcquireCount()決定（基本2個），一格最多疊6個、
+      // 疊不下的丟到地上（見grantConsumablesToSelf()）。屬性標記（投擲壺的「X」）沿用
+      // c.consumableAttributeTags欄位規約，由grantConsumablesToSelf()一併寫入。
       var namedItem = window.PriTestConsumables.get(drawn.itemId);
-      c.consumables = c.consumables || [];
-      var namedInstId = CD.makeConsumableInstanceId(drawn.itemId, c);
-      c.consumables.push({ id: namedInstId, itemId: drawn.itemId, usesRemaining: (namedItem && namedItem.uses) || 1 });
-      // 2026-09-12：投擲壺等「取得場地決定屬性」的消耗品，把屬性記到角色上（見
-      // applyMidnightConsumableEffect()的item_throwing_pot分支）。
-      if (drawn.attributeTag) {
-        c.consumableAttributeTags = c.consumableAttributeTags || {};
-        c.consumableAttributeTags[namedInstId] = drawn.attributeTag;
-      }
+      grantConsumablesToSelf(c, drawn.itemId, consumableAcquireCount(namedItem), drawn.attributeTag || null);
     } else if (entry.kind === "stoneswordKey" || entry.kind === "smithingStone") {
       var fixedItemId2 = entry.kind === "stoneswordKey" ? "item_stonesword_key" : "item_smithing_stone";
-      var value2 = drawn.value || 1;
-      c.consumables = c.consumables || [];
-      var existing = c.consumables.filter(function (inst) { return inst.itemId === fixedItemId2; })[0];
-      if (existing) existing.usesRemaining = (existing.usesRemaining || 0) + value2;
-      else c.consumables.push({ id: CD.makeConsumableInstanceId(fixedItemId2, c), itemId: fixedItemId2, usesRemaining: value2 });
+      grantConsumablesToSelf(c, fixedItemId2, drawn.value || 1, null);
     }
   }
 
@@ -12077,7 +12190,22 @@
     if (entry.kind === "weapon" || entry.kind === "weaponStar") return window.I18N.t("midnight_reward_kind_weapon");
     if (entry.kind === "consumable") return window.I18N.t("midnight_reward_kind_consumable");
     if (entry.kind === "chaliceBonus") return window.I18N.t("midnight_reward_kind_chalice_bonus");
-    return entry.kind;
+    // 2026-09-12使用者回報「中文遊戲時 獎勵清單會出現英文名的問題」：以下這幾種kind先前
+    // 沒有分支，一路落到最後的`return entry.kind`，於是清單上直接顯示未翻譯的原始字串
+    // （"stoneswordKey"／"hpDamage"／"note"…）。石劍鑰匙／鍛造石直接用consumables.js既有的
+    // 雙語品名（不另外新增i18n key）；其餘沿用早就存在的label系列字串。
+    if (entry.kind === "stoneswordKey" || entry.kind === "smithingStone") {
+      var fixedId = entry.kind === "stoneswordKey" ? "item_stonesword_key" : "item_smithing_stone";
+      var fixedItem = window.PriTestConsumables.get(fixedId);
+      return (fixedItem ? window.PriTestConsumables.localizedText(fixedItem.name) : fixedId) + " x" + (entry.value || 1);
+    }
+    if (entry.kind === "weaponSkillReroll") return window.I18N.t("midnight_reward_label_weapon_skill_reroll", { value: entry.value || 1 });
+    if (entry.kind === "hpDamage") return window.I18N.t("midnight_reward_label_hp_damage", { value: entry.value || 0 });
+    if (entry.kind === "note") return entry.note ? window.PriTestFields.localizedText(entry.note) : window.I18N.t("midnight_reward_kind_note");
+    if (entry.kind === "tieredChoice") return window.I18N.t("midnight_reward_kind_tiered_choice");
+    if (entry.kind === "diceHandChoice") return window.I18N.t("midnight_reward_kind_dice_hand_choice");
+    if (entry.kind === "bargainReveal") return window.I18N.t("midnight_reward_kind_bargain_reveal");
+    return window.I18N.t("midnight_reward_kind_other");
   }
 
   // 2026-09-06三次優化（使用者明確規格「例如武器獎勵：選擇後 按下抽選後 抽完該物品顯示
@@ -12114,14 +12242,7 @@
       return {
         label: (itemData ? window.PriTestConsumables.localizedText(itemData.name) : itemId) + " x" + value2,
         apply: function (c) {
-          c.consumables = c.consumables || [];
-          var existing = c.consumables.filter(function (inst) { return inst.itemId === itemId; })[0];
-          if (existing) {
-            existing.usesRemaining = (existing.usesRemaining || 0) + value2;
-          } else {
-            var instId = window.PriTestCharacterDrawer.makeConsumableInstanceId(itemId, c);
-            c.consumables.push({ id: instId, itemId: itemId, usesRemaining: value2 });
-          }
+          grantConsumablesToSelf(c, itemId, value2, null);
         },
       };
     }
@@ -12152,8 +12273,10 @@
       };
     }
     if (entry.kind === "note") {
+      // 2026-09-12修正：fields_data_*.js的note獎勵欄位名稱是`note`（C(ja,zh)雙語物件），
+      // 不是`text`——原本讀entry.text永遠是undefined，清單上只會顯示一片空白。
       return {
-        label: entry.text || "",
+        label: entry.note ? window.PriTestFields.localizedText(entry.note) : entry.text || "",
         apply: function () {},
       };
     }
@@ -12188,13 +12311,20 @@
       // attributeTag是fields_data_*.js的C(ja,zh)雙語物件，沿用night.jsのhandleTurnRewardClaim
       // 同一種PriTestFields.localizedText()解讀方式；沒有這個欄位時維持null，不硬湊。
       var attributeTag = entry.attributeTag ? window.PriTestFields.localizedText(entry.attributeTag) : null;
+      // 2026-09-12使用者明確規格「獎勵取得的武器、杖、聖印 持有的戰技魔術等 是當下直接
+      // 抽出，並非鍛造台再抽」：按下[抽選]的這一刻就把random戰技枠一起抽掉，抽選結果面板
+      // （renderRewardDetail()）也用這個skillId當override顯示，玩家按[確認收下]之前就看得到
+      // 完整的戰技／魔術／祈禱內容。
+      var drawnSkillId = window.PriTestCharacterDrawer.rollWeaponRandomSkill(result.weaponId);
       return {
         label: window.PriTestWeapons.localizedText(result.item.name),
         item: result.item,
         weaponId: result.weaponId,
+        skillId: drawnSkillId,
         apply: function (c) {
           c.weaponIds = c.weaponIds || [];
           c.weaponIds.push(result.weaponId);
+          if (drawnSkillId) window.PriTestCharacterDrawer.assignWeaponRandomSkill(c, result.weaponId, drawnSkillId);
           if (attributeTag) {
             c.weaponAttributeTags = c.weaponAttributeTags || {};
             c.weaponAttributeTags[result.weaponId] = attributeTag;
@@ -12213,17 +12343,16 @@
       // 投擲壺的「X」：規則書在取得的場地上標明屬性（使用者明確規格「取得此物品時即要
       // 根據場地而變化其附屬屬性」），沿用night.jsのc.consumableAttributeTags欄位規約。
       var itemAttributeTag = entry.attributeTag ? window.PriTestFields.localizedText(entry.attributeTag) : null;
+      // 2026-09-12：獲得個數改由consumableAcquireCount()決定（基本2個），疊不下的丟到
+      // 地上，見grantConsumablesToSelf()。
+      var acquireCount = consumableAcquireCount(pickedItem);
       return {
-        label: Consumables.localizedText(pickedItem.name),
+        label: Consumables.localizedText(pickedItem.name) + " x" + acquireCount,
         item: pickedItem,
+        itemId: pickedItem.id,
+        attributeTag: itemAttributeTag,
         apply: function (c) {
-          var instId = window.PriTestCharacterDrawer.makeConsumableInstanceId(pickedItem.id, c);
-          c.consumables = c.consumables || [];
-          c.consumables.push({ id: instId, itemId: pickedItem.id, usesRemaining: pickedItem.uses || 1 });
-          if (itemAttributeTag) {
-            c.consumableAttributeTags = c.consumableAttributeTags || {};
-            c.consumableAttributeTags[instId] = itemAttributeTag;
-          }
+          grantConsumablesToSelf(c, pickedItem.id, acquireCount, itemAttributeTag);
         },
       };
     }
@@ -12266,6 +12395,7 @@
       var drawBtn = document.createElement("button");
       drawBtn.type = "button";
       drawBtn.textContent = window.I18N.t("midnight_reward_draw_button");
+      drawBtn.className = "midnight-draw-hint"; // 2026-09-12：抽選鍵微閃黃提示
       drawBtn.addEventListener("click", function () {
         var c = characters[myTokenId];
         if (!c) return;
@@ -12440,6 +12570,7 @@
       var drawBtn = document.createElement("button");
       drawBtn.type = "button";
       drawBtn.textContent = window.I18N.t("midnight_reward_draw_button");
+      drawBtn.className = "midnight-draw-hint"; // 2026-09-12：抽選鍵微閃黃提示（見共享池同款）
       drawBtn.addEventListener("click", function () {
         rewardDraftById[id] = computeRewardDraw(entry);
         renderRewardDetail(id, entry);
@@ -12451,7 +12582,9 @@
     var draft = rewardDraftById[id];
     if ((entry.kind === "weapon" || entry.kind === "weaponStar") && draft.weaponId) {
       var c1 = characters[myTokenId];
-      if (c1) renderWeaponSheetDetail(detail, c1, draft.weaponId, window.PriTestCharacterDrawer);
+      // 第5引數＝這次抽選當下決定的random戰技（見computeRewardDraw()的weapon分支）：此時
+      // 武器還沒寫進角色（要按[確認收下]才apply），所以要用override才顯示得出戰技內容。
+      if (c1) renderWeaponSheetDetail(detail, c1, draft.weaponId, window.PriTestCharacterDrawer, draft.skillId || null);
       else {
         var weaponFallback = document.createElement("p");
         weaponFallback.textContent = draft.label;
@@ -12464,7 +12597,10 @@
       if (draft.item && draft.item.body) {
         var bodyText = document.createElement("p");
         var Localizer = entry.kind === "talisman" ? window.PriTestTalismans : window.PriTestConsumables;
-        bodyText.textContent = mnText(Localizer.localizedText(draft.item.body), draft.label);
+        // mnText()的第2引數是「品名」，用於MidnightTextAdapt的逐字覆寫表精確比對——2026-09-12
+        // 起消耗品的draft.label會帶上「 x2」個數後綴，直接傳label會比對不到覆寫，因此改傳
+        // 乾淨的品名。
+        bodyText.textContent = mnText(Localizer.localizedText(draft.item.body), Localizer.localizedText(draft.item.name));
         detail.appendChild(bodyText);
       }
     }
@@ -12475,7 +12611,9 @@
     // 只認得weapon/consumable/talisman三種kind）。
     var inventoryKind = needsDrawStep ? (entry.kind === "weaponStar" ? "weapon" : entry.kind) : null;
     var c0 = characters[myTokenId];
-    if (inventoryKind && c0 && !hasInventorySpace(c0, inventoryKind)) {
+    // 2026-09-12：消耗品改問「這個品項還收得下嗎」（同品項未滿6的堆疊仍收得下，見
+    // consumableFreeCapacity()），不再只看4格是否被佔滿。
+    if (inventoryKind && c0 && !hasInventorySpace(c0, inventoryKind, draft.itemId || null, draft.attributeTag || null)) {
       // 設計文件§3.1「黃字提示取代靜默略過」：這裡本來就已經不給確認按鈕、彈窗不關閉，
       // 只差視覺上沒有標成警示色——補上.warning-text（本檔案目前唯一的黃字警示樣式，
       // 見style.css，供本次與之後同類黃字提示共用，不重複發明）。
@@ -12595,7 +12733,11 @@
       if (!drawn) {
         var revealBtn = document.createElement("button");
         revealBtn.type = "button";
-        revealBtn.textContent = window.I18N.t("midnight_reward_shared_reveal_button");
+        // 2026-09-12使用者明確規格「『揭示』改為『抽選』 抽選按鈕微閃黃提示」：文案改用跟
+        // 個人清單同一顆按鈕的既有字串（midnight_reward_draw_button＝「抽選」），並掛上
+        // .midnight-draw-hint（style.css新增的柔和黃色脈動，跟個人清單的抽選鍵共用）。
+        revealBtn.textContent = window.I18N.t("midnight_reward_draw_button");
+        revealBtn.className = "midnight-draw-hint";
         revealBtn.addEventListener("click", function () {
           revealSharedReward(shared.pointId, shared.rewardId);
         });
@@ -12682,7 +12824,9 @@
     }
     var c = characters[myTokenId];
     if ((entry.kind === "weapon" || entry.kind === "weaponStar") && drawn.weaponId && c) {
-      renderWeaponSheetDetail(detail, c, drawn.weaponId, window.PriTestCharacterDrawer);
+      // 2026-09-12：揭示時已經連random戰技一起抽好（drawn.skillId），這裡用override顯示，
+      // 讓所有人在投票前就看到完全相同的戰技內容。
+      renderWeaponSheetDetail(detail, c, drawn.weaponId, window.PriTestCharacterDrawer, drawn.skillId || null);
       return;
     }
     if (entry.kind === "talisman" && drawn.talismanId) {
@@ -13704,20 +13848,65 @@
     var dropped = list.splice(idx, 1)[0];
     c[field] = list;
     GameStorage.rtSet(gameId, "cloud", "character/" + myTokenId + "/" + field, list);
-    var groundId = "gi" + Math.random().toString(16).slice(2) + Date.now().toString(16);
     // 2026-09-12：丟棄的投擲壺要帶著它的屬性標記一起掉在地上，否則撿回來就變回預設「炎」。
     var droppedAttributeTag = kind === "consumable" && c.consumableAttributeTags ? c.consumableAttributeTags[dropped.id] || null : null;
     if (droppedAttributeTag) delete c.consumableAttributeTags[dropped.id];
-    GameStorage.rtSet(gameId, "cloud", "groundItems/" + groundId, {
+    // 2026-09-12（使用者明確規格「獎勵取得的武器…戰技…是當下直接抽出」）：武器的random
+    // 戰技枠既然在取得當下就決定了，丟棄時也要跟著掉在地上，否則撿起來的人會拿到一把
+    // 沒有戰技的武器、又被迫回去鍛造台重抽。沿用CD既有的weaponSkillSlotKey()儲存鍵。
+    var droppedRandomSkill = null;
+    if (kind === "weapon" && c.weaponRandomSkills) {
+      var CD0 = window.PriTestCharacterDrawer;
+      [null, "attached", "reverse"].forEach(function (slot) {
+        var key = CD0.weaponSkillSlotKey(dropped, slot);
+        if (c.weaponRandomSkills[key] && !droppedRandomSkill) droppedRandomSkill = c.weaponRandomSkills[key];
+        delete c.weaponRandomSkills[key];
+      });
+      GameStorage.rtSet(gameId, "cloud", "character/" + myTokenId + "/weaponRandomSkills", c.weaponRandomSkills);
+    }
+    putItemOnGround({
       kind: kind,
       itemId: kind === "consumable" ? dropped.itemId : dropped,
       usesRemaining: kind === "consumable" ? dropped.usesRemaining : null,
       attributeTag: droppedAttributeTag,
+      randomSkillId: droppedRandomSkill,
+    });
+  }
+
+  // 在自己目前座標建立一個掉落物（groundItems/{id}）。原本這段內嵌在dropInventoryItem()，
+  // 2026-09-12消耗品堆疊溢出也要丟到地上（見grantConsumablesToSelf()），抽出來共用。
+  function putItemOnGround(data) {
+    if (!mySlot || !localPos) return;
+    var groundId = "gi" + Math.random().toString(16).slice(2) + Date.now().toString(16);
+    GameStorage.rtSet(gameId, "cloud", "groundItems/" + groundId, {
+      kind: data.kind,
+      itemId: data.itemId,
+      usesRemaining: data.usesRemaining === undefined ? null : data.usesRemaining,
+      attributeTag: data.attributeTag || null,
+      randomSkillId: data.randomSkillId || null,
       x: localPos.x,
       y: localPos.y,
       droppedBy: myTokenId,
       createdAt: Date.now(),
     });
+  }
+
+  // 消耗品獲得的唯一出口（2026-09-12使用者明確規格「獲得時若會超過滿格，有其他格就放置
+  // 其他格，全滿就把剩餘數量丟至地上」）：疊不下的部分直接變成腳邊的掉落物，並用toast
+  // 告知，不再像舊版那樣整筆擋下來要玩家先去丟東西。
+  function grantConsumablesToSelf(c, itemId, count, attributeTag) {
+    var overflow = addConsumablesToCharacter(c, itemId, count, attributeTag);
+    if (overflow > 0) {
+      putItemOnGround({ kind: "consumable", itemId: itemId, usesRemaining: overflow, attributeTag: attributeTag });
+      var item = window.PriTestConsumables.get(itemId);
+      showToast(
+        window.I18N.t("midnight_consumable_overflow_note", {
+          name: item ? window.PriTestConsumables.localizedText(item.name) : itemId,
+          count: overflow,
+        })
+      );
+    }
+    return overflow;
   }
 
   // 畫面：三種互斥狀態——①還沒人觸發過（顯示地點名稱＋「進入」）②邀請中且我不是參與者
@@ -16234,6 +16423,46 @@
     },
     _debugStaminaMax: function () {
       return { current: stamina.current, max: stamina.max };
+    },
+    // 2026-09-12 midnight優化第4批（消耗品堆疊／獎勵清單翻譯／武器戰技當下抽出）回歸測試用，
+    // 見tools/midnight_check/optimize_2026_09_12_check.js。跟既有的_debugApplyConsumable／
+    // _debugSetTalismans同一種「呼叫內部函式並回傳結果」的測試入口，不新增第二套機制。
+    _debugConsumableAcquireCount: function (itemId) {
+      return consumableAcquireCount(window.PriTestConsumables.get(itemId));
+    },
+    _debugConsumableStackMax: function () {
+      return CONSUMABLE_STACK_MAX;
+    },
+    _debugGrantConsumable: function (itemId, count, attributeTag) {
+      var c = characters[myTokenId];
+      if (!c) return null;
+      var n = count === undefined || count === null ? consumableAcquireCount(window.PriTestConsumables.get(itemId)) : count;
+      var overflow = grantConsumablesToSelf(c, itemId, n, attributeTag || null);
+      GameStorage.rtSet(gameId, "cloud", "character/" + myTokenId, c);
+      // 回傳快照而不是c.consumables本身——直接回傳參考的話，同一個evaluate裡連續呼叫
+      // 好幾次時，先前回傳的物件會被後面的呼叫一起改掉，測試斷言看到的全是最終狀態。
+      var snapshot = (c.consumables || []).map(function (inst) {
+        return { id: inst.id, itemId: inst.itemId, usesRemaining: inst.usesRemaining };
+      });
+      return { overflow: overflow, consumables: snapshot, granted: n - overflow };
+    },
+    // 跳過openMerchantModal()的「要靠近商人籌碼」guard，只重繪商人視窗內容供測試操作
+    // 兩段式購買（按品項→顯示效果→［確定購買］）。
+    _debugOpenMerchant: function () {
+      merchantConsumablePickedId = null;
+      renderMerchantRuneNote();
+      renderMerchantConsumableList();
+      renderMerchantConsumableDetail();
+    },
+    _debugRewardEntryLabel: function (entry) {
+      return rewardEntryLabel(entry);
+    },
+    _debugComputeRewardDraw: function (entry) {
+      var draft = computeRewardDraw(entry);
+      return { label: draft.label, weaponId: draft.weaponId || null, skillId: draft.skillId || null, itemId: draft.itemId || null };
+    },
+    _debugDrawSharedRewardData: function (entry) {
+      return drawSharedRewardData(entry);
     },
     _debugState: function () {
       return {

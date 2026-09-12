@@ -1798,13 +1798,33 @@
 
     // ▼盾（shield）：種類決定表の写真により全面的に再構成（2026年7月訂正）。
     // attachedEffect＝付随効果／reverseArt＝逆手の戦技（ガード時戦技）。「蓄積無効｜X」「ガード時蓄積｜X」はnote扱い。
+    //
+    // 2026-09-12 使用者依規則書逐面核對後的訂正：原本的轉錄把 {kind:"random"} 塞滿了幾乎
+    // 每一面盾的「兩個」欄位（54 面盾裡有 45 個多餘的隨機枠），但規則書實際上是
+    // 「大部分的盾只有 1 個共通戰技 或 1 個隨機戰技，少部分才是 1 共通＋1 隨機」。
+    // 使用者提供的逐面分類（依骰目）：
+    //   小盾  共通×1：追跡者・C1・C5・C6・U3〜U6／隨機×1：C2〜C4・U1〜2／
+    //         兩隨機：R1／共通＋隨機：R2〜3・R4・R5・R6
+    //   中盾  共通×1：C4・U3／共通＋隨機：R2・R4・R5／其餘皆為隨機×1
+    //   大盾  共通×1：守護者・U1・U2・U5・R2〜R6／共通＋隨機：R1／其餘皆為隨機×1
+    // 這裡的「共通戰技」指的是這一面盾固定持有的那一項內容（固有戰技，或
+    // 「蓄積無効｜X」「ガード時蓄積｜X」「逆手の戦技ダメージ＋N」這類 note），
+    // 「隨機戰技」則是 {kind:"random"}＝從 category.randomSkillTable 的 6 個盾共通戰技抽 1。
+    // 刪除多餘隨機枠時的欄位歸屬（使用者明確指示）：只剩 1 個隨機枠的盾，該枠一律留在
+    // reverseArt（逆手戰技欄），attachedEffect 整個拿掉——randomSkillTable 那 6 項
+    // （無敵／格擋／聖域／盾擊／衝鋒盾擊／鐵壁之盾）全是 Defense/Action 的真正戰技，
+    // 屬於逆手戰技的內容；付随効果欄放的是蓄積無効｜X 這類被動。
+    // 唯一保留兩個隨機枠的是小盾 R1 調香師之盾（規則書就是兩隨機），因為
+    // weaponSkillSlotKey() 以「武器實例＋slot」為鍵，同一個 slot 放兩個隨機枠會共用同一
+    // 個儲存鍵而抽出同一個結果，必須分屬 attached／reverse 兩個 slot 才能各自保存。
+    // 小盾 R6 蜷局之盾維持「note（防禦時蓄積｜猛毒）＋固有戰技（毒蛇之噬咬）」不含隨機枠，
+    // 已經使用者當面確認為規則書原樣。
     {
       id: "small_shield_pursuer",
       category: "small_shield",
       name: C("追跡者の小盾", "追跡者的小盾"),
       rarity: "C",
       roll: "－",
-      attachedEffect: [{ kind: "random" }],
       reverseArt: [{ kind: "innate", id: "small_shield_reverse_parry" }],
     },
     {
@@ -1813,7 +1833,6 @@
       name: C("鉄鉢の木盾", "鐵缽木盾"),
       rarity: "C",
       roll: "1",
-      attachedEffect: [{ kind: "random" }],
       reverseArt: [{ kind: "note", text: C("逆手の戦技ダメージ＋10", "反手戰技傷害＋10") }],
     },
     {
@@ -1822,7 +1841,6 @@
       name: C("青白の木盾", "青白的木盾"),
       rarity: "C",
       roll: "2",
-      attachedEffect: [{ kind: "random" }],
       reverseArt: [{ kind: "random" }],
     },
     {
@@ -1831,7 +1849,6 @@
       name: C("聖句の木盾", "聖句木盾"),
       rarity: "C",
       roll: "3",
-      attachedEffect: [{ kind: "random" }],
       reverseArt: [{ kind: "random" }],
     },
     {
@@ -1840,7 +1857,6 @@
       name: C("赤茨の木盾", "赤茨木盾"),
       rarity: "C",
       roll: "4",
-      attachedEffect: [{ kind: "random" }],
       reverseArt: [{ kind: "random" }],
     },
     {
@@ -1849,7 +1865,6 @@
       name: C("首枷の盾", "首枷盾"),
       rarity: "C",
       roll: "5",
-      attachedEffect: [{ kind: "random" }],
       reverseArt: [{ kind: "note", text: C("蓄積無効｜呪死", "蓄積無效｜咒死") }],
     },
     {
@@ -1858,7 +1873,6 @@
       name: C("バックラー", "巴克勒盾"),
       rarity: "C",
       roll: "6",
-      attachedEffect: [{ kind: "random" }],
       reverseArt: [{ kind: "innate", id: "small_shield_reverse_parry" }],
     },
     {
@@ -1867,7 +1881,6 @@
       name: C("鉄の円盾", "鐵圓盾"),
       rarity: "U",
       roll: "1〜2",
-      attachedEffect: [{ kind: "random" }],
       reverseArt: [{ kind: "random" }],
     },
     {
@@ -1877,7 +1890,6 @@
       rarity: "U",
       roll: "3",
       attachedEffect: [{ kind: "note", text: C("蓄積無効｜聖", "蓄積無效｜聖") }],
-      reverseArt: [{ kind: "random" }],
     },
     {
       id: "small_shield_snake",
@@ -1886,7 +1898,6 @@
       rarity: "U",
       roll: "4",
       attachedEffect: [{ kind: "note", text: C("蓄積無効｜炎", "蓄積無效｜炎") }],
-      reverseArt: [{ kind: "random" }],
     },
     {
       id: "small_shield_frost_iron",
@@ -1895,7 +1906,6 @@
       rarity: "U",
       roll: "5",
       attachedEffect: [{ kind: "note", text: C("蓄積無効｜魔", "蓄積無效｜魔") }],
-      reverseArt: [{ kind: "random" }],
     },
     {
       id: "small_shield_crevice",
@@ -1904,7 +1914,6 @@
       rarity: "U",
       roll: "6",
       attachedEffect: [{ kind: "note", text: C("蓄積無効｜発狂", "蓄積無效｜發狂") }],
-      reverseArt: [{ kind: "random" }],
     },
     {
       id: "small_shield_incense",
@@ -1958,7 +1967,6 @@
       name: C("鷹紋のウッドシールド", "鷹紋木盾"),
       rarity: "C",
       roll: "1",
-      attachedEffect: [{ kind: "random" }],
       reverseArt: [{ kind: "random" }],
     },
     {
@@ -1967,7 +1975,6 @@
       name: C("炎紋のウッドシールド", "炎紋木盾"),
       rarity: "C",
       roll: "2",
-      attachedEffect: [{ kind: "random" }],
       reverseArt: [{ kind: "random" }],
     },
     {
@@ -1976,7 +1983,6 @@
       name: C("ラウンドシールド", "圓盾"),
       rarity: "C",
       roll: "3",
-      attachedEffect: [{ kind: "random" }],
       reverseArt: [{ kind: "random" }],
     },
     {
@@ -1986,7 +1992,6 @@
       rarity: "C",
       roll: "4",
       attachedEffect: [{ kind: "note", text: C("ガード時蓄積｜出血", "防禦時蓄積｜出血") }],
-      reverseArt: [{ kind: "random" }],
     },
     {
       id: "medium_shield_heater",
@@ -1994,7 +1999,6 @@
       name: C("ヒーターシールド", "熱盾"),
       rarity: "C",
       roll: "5",
-      attachedEffect: [{ kind: "random" }],
       reverseArt: [{ kind: "random" }],
     },
     {
@@ -2003,7 +2007,6 @@
       name: C("蝕紋のヒーターシールド", "蝕紋熱盾"),
       rarity: "C",
       roll: "6",
-      attachedEffect: [{ kind: "random" }],
       reverseArt: [{ kind: "random" }],
     },
     {
@@ -2012,7 +2015,6 @@
       name: C("太陽の都の盾", "太陽都之盾"),
       rarity: "U",
       roll: "1",
-      attachedEffect: [{ kind: "random" }],
       reverseArt: [{ kind: "random" }],
     },
     {
@@ -2021,7 +2023,6 @@
       name: C("ラージレザーシールド", "大皮盾"),
       rarity: "U",
       roll: "2",
-      attachedEffect: [{ kind: "random" }],
       reverseArt: [{ kind: "random" }],
     },
     {
@@ -2031,7 +2032,6 @@
       rarity: "U",
       roll: "3",
       attachedEffect: [{ kind: "note", text: C("蓄積無効｜凍傷", "蓄積無效｜凍傷") }],
-      reverseArt: [{ kind: "random" }],
     },
     {
       id: "medium_shield_kite",
@@ -2039,7 +2039,6 @@
       name: C("カイトシールド", "風箏盾"),
       rarity: "U",
       roll: "4",
-      attachedEffect: [{ kind: "random" }],
       reverseArt: [{ kind: "random" }],
     },
     {
@@ -2048,7 +2047,6 @@
       name: C("蝗のカイトシールド", "蝗蟲風箏盾"),
       rarity: "U",
       roll: "5",
-      attachedEffect: [{ kind: "random" }],
       reverseArt: [{ kind: "random" }],
     },
     {
@@ -2057,7 +2055,6 @@
       name: C("双鳥のカイトシールド", "雙鳥風箏盾"),
       rarity: "U",
       roll: "6",
-      attachedEffect: [{ kind: "random" }],
       reverseArt: [{ kind: "random" }],
     },
     {
@@ -2066,7 +2063,6 @@
       name: C("真鍮の盾", "黃銅盾"),
       rarity: "R",
       roll: "1",
-      attachedEffect: [{ kind: "random" }],
       reverseArt: [{ kind: "random" }],
     },
     {
@@ -2084,7 +2080,6 @@
       name: C("獣人の壺盾", "獸人壺盾"),
       rarity: "R",
       roll: "3",
-      attachedEffect: [{ kind: "random" }],
       reverseArt: [{ kind: "random" }],
     },
     {
@@ -2111,7 +2106,6 @@
       name: C("大亀の甲羅", "大龜的龜殼"),
       rarity: "R",
       roll: "6",
-      attachedEffect: [{ kind: "random" }],
       reverseArt: [{ kind: "random" }],
     },
 
@@ -2121,7 +2115,6 @@
       name: C("守護者の大盾", "守護者的大盾"),
       rarity: "C",
       roll: "－",
-      attachedEffect: [{ kind: "random" }],
       reverseArt: [{ kind: "note", text: C("逆手の戦技ダメージ＋5", "反手戰技傷害＋5") }],
     },
     {
@@ -2130,7 +2123,6 @@
       name: C("木の大盾", "木製大盾"),
       rarity: "C",
       roll: "1",
-      attachedEffect: [{ kind: "random" }],
       reverseArt: [{ kind: "random" }],
     },
     {
@@ -2139,7 +2131,6 @@
       name: C("君主軍の大盾", "君主軍大盾"),
       rarity: "C",
       roll: "2",
-      attachedEffect: [{ kind: "random" }],
       reverseArt: [{ kind: "random" }],
     },
     {
@@ -2148,7 +2139,6 @@
       name: C("城館のタワーシールド", "城館塔盾"),
       rarity: "C",
       roll: "3",
-      attachedEffect: [{ kind: "random" }],
       reverseArt: [{ kind: "random" }],
     },
     {
@@ -2157,7 +2147,6 @@
       name: C("交差樹のタワーシールド", "交叉樹塔盾"),
       rarity: "C",
       roll: "4",
-      attachedEffect: [{ kind: "random" }],
       reverseArt: [{ kind: "random" }],
     },
     {
@@ -2166,7 +2155,6 @@
       name: C("逆さ鷹のタワーシールド", "倒鷹塔盾"),
       rarity: "C",
       roll: "5",
-      attachedEffect: [{ kind: "random" }],
       reverseArt: [{ kind: "random" }],
     },
     {
@@ -2175,7 +2163,6 @@
       name: C("龍のタワーシールド", "龍之塔盾"),
       rarity: "C",
       roll: "6",
-      attachedEffect: [{ kind: "random" }],
       reverseArt: [{ kind: "random" }],
     },
     {
@@ -2185,7 +2172,6 @@
       rarity: "U",
       roll: "1",
       attachedEffect: [{ kind: "note", text: C("ガード時蓄積｜出血", "防禦時蓄積｜出血") }],
-      reverseArt: [{ kind: "random" }],
     },
     {
       id: "large_shield_sawtooth",
@@ -2193,7 +2179,6 @@
       name: C("鋸壁の盾", "鋸壁盾"),
       rarity: "U",
       roll: "2",
-      attachedEffect: [{ kind: "random" }],
       reverseArt: [{ kind: "note", text: C("逆手の戦技ダメージ＋10", "反手戰技傷害＋10") }],
     },
     {
@@ -2202,7 +2187,6 @@
       name: C("神聖画の盾", "聖畫盾"),
       rarity: "U",
       roll: "3",
-      attachedEffect: [{ kind: "random" }],
       reverseArt: [{ kind: "random" }],
     },
     {
@@ -2211,7 +2195,6 @@
       name: C("黄金の大盾", "黃金大盾"),
       rarity: "U",
       roll: "4",
-      attachedEffect: [{ kind: "random" }],
       reverseArt: [{ kind: "random" }],
     },
     {
@@ -2221,7 +2204,6 @@
       rarity: "U",
       roll: "5",
       attachedEffect: [{ kind: "note", text: C("蓄積無効｜聖", "蓄積無效｜聖") }],
-      reverseArt: [{ kind: "random" }],
     },
     {
       id: "large_shield_eaten_crest",
@@ -2229,7 +2211,6 @@
       name: C("蝕紋の大盾", "蝕紋大盾"),
       rarity: "U",
       roll: "6",
-      attachedEffect: [{ kind: "random" }],
       reverseArt: [{ kind: "random" }],
     },
     {
@@ -2248,7 +2229,6 @@
       rarity: "R",
       roll: "2",
       attachedEffect: [{ kind: "note", text: C("ガード時蓄積｜発狂", "防禦時蓄積｜發狂") }],
-      reverseArt: [{ kind: "random" }],
     },
     {
       id: "large_shield_golden_tree",
@@ -2256,7 +2236,6 @@
       name: C("黄金樹の大盾", "黃金樹的大盾"),
       rarity: "R",
       roll: "3",
-      attachedEffect: [{ kind: "random" }],
       reverseArt: [{ kind: "innate", id: "large_shield_golden_retribution" }],
     },
     {
@@ -2265,7 +2244,6 @@
       name: C("クラゲの盾", "水母盾"),
       rarity: "R",
       roll: "4",
-      attachedEffect: [{ kind: "random" }],
       reverseArt: [{ kind: "innate", id: "large_shield_contagious_fury" }],
     },
     {
@@ -2274,7 +2252,6 @@
       name: C("ガンメンの盾", "顏面盾"),
       rarity: "R",
       roll: "5",
-      attachedEffect: [{ kind: "random" }],
       reverseArt: [{ kind: "innate", id: "large_shield_flame_belch" }],
     },
     {
@@ -2283,7 +2260,6 @@
       name: C("単眼の盾", "單眼之盾"),
       rarity: "R",
       roll: "6",
-      attachedEffect: [{ kind: "random" }],
       reverseArt: [{ kind: "innate", id: "large_shield_flame_spit" }],
     },
 

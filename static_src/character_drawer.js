@@ -2985,6 +2985,49 @@
     c.weaponRandomSkills[weaponSkillSlotKey(weaponId, slot)] = skillId;
   }
 
+  // 2026-09-12使用者明確規格：「獎勵取得的武器、杖、聖印 持有的戰技魔術等 是當下直接抽出，
+  // 並非鍛造台再抽。鍛造台用途是：已經帶有戰技等武器可以在其抽出一技進行替換或保留」。
+  // merchantDrawWeapon()／drawWeaponFromCategory()原本刻意不抽戰技（見那兩支函式上方的
+  // 既有註解「入手後に個別で決定すればよい」），改由取得端在抽到武器的當下呼叫這一支。
+  // 抽選規則不重新發明，直接沿用resolveRandomSkillForItem()（＝升級抽武器／得意武器抽選
+  // 用的同一套1D6／2D6表）。純函式，不碰角色狀態；沒有random戰技枠的武器回傳null。
+  function rollWeaponRandomSkill(catalogId) {
+    var weapon = Weapons.get(baseWeaponId(catalogId));
+    if (!weapon) return null;
+    var category = Weapons.getCategory(weapon.category);
+    var resolution = resolveRandomSkillForItem(category, weapon);
+    return resolution && resolution.skillId ? resolution.skillId : null;
+  }
+
+  // 上面抽到的skillId寫進角色（該武器實例的random戰技枠）。已經有值的枠不覆寫（撿回
+  // 自己先前丟棄的武器等情況）。
+  // 2026-09-12盾牌資料訂正後：random枠2個的盾只剩小盾R1「調香師之盾」一件（規則書就是
+  // 「兩隨機戰技」，見weapons_data.js盾區塊的訂正說明）。傳入的skillId給第1個枠——那是
+  // 共享獎勵揭示時已經persist、所有人看到的同一個結果；第2個以後的枠在這裡各自獨立再抽
+  // 一次，否則兩個枠會拿到同一個戰技，等於把「兩隨機」退化成一隨機。
+  // （commitPotentialPowerWeapon()那條舊路徑仍是「同一結果套兩枠」，因為它的抽選流程
+  // 本來就只擲一次；那邊照規則書可以在鍛造台個別重抽，這裡不一併改動。）
+  function assignWeaponRandomSkill(c, weaponId, skillId) {
+    if (!skillId) return;
+    var weapon = Weapons.get(baseWeaponId(weaponId));
+    if (!weapon) return;
+    var category = Weapons.getCategory(weapon.category);
+    if (!c.weaponRandomSkills) c.weaponRandomSkills = {};
+    var assigned = 0;
+    collectWeaponSkillRefs(category, weapon).forEach(function (pair) {
+      if (pair.ref.kind !== "random") return;
+      var key = weaponSkillSlotKey(weaponId, pair.slotKey);
+      if (c.weaponRandomSkills[key]) return;
+      if (assigned === 0) {
+        c.weaponRandomSkills[key] = skillId;
+      } else {
+        var extra = resolveRandomSkillForItem(category, weapon);
+        c.weaponRandomSkills[key] = extra && extra.skillId ? extra.skillId : skillId;
+      }
+      assigned++;
+    });
+  }
+
   // ★の数だけレア度決定ダイスを振り、キャラクタータイプの「得意武器」表（favoredWeapons、
   // 1D6で3択のいずれかを決定）からカテゴリを絞り込む（「武器」が出た場合のみ全カテゴリから
   // 完全ランダム＝レベルアップ時の武器抽選と同じ規則）。ランダム戦技枠を持つ武器の場合は
@@ -7140,6 +7183,8 @@
     listRerollableWeaponSkillSlots: listRerollableWeaponSkillSlots,
     rerollWeaponSkill: rerollWeaponSkill,
     commitWeaponSkillReroll: commitWeaponSkillReroll,
+    rollWeaponRandomSkill: rollWeaponRandomSkill,
+    assignWeaponRandomSkill: assignWeaponRandomSkill,
     resolveRandomSkillDisplay: resolveRandomSkillDisplay,
     openWeaponRollInline: openWeaponRollInline,
     openTalismanRollInline: openTalismanRollInline,

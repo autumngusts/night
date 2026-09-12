@@ -1025,6 +1025,11 @@ BODY = """    <div class="midnight-wrap">
             </div>
             <p id="midnight-merchant-weapon-result"></p>
             <div id="midnight-merchant-consumable-list"></div>
+            <!-- 2026-09-12使用者明確規格「商人購買消耗品時，按下道具會先顯示其效果，再按
+                 ［確定購買］才會實際取得」：上方清單只負責選取，這個區塊由
+                 static/midnight.jsのrenderMerchantConsumableDetail()填入名稱／獲得個數／
+                 規則本文與［確定購買］按鈕。 -->
+            <div id="midnight-merchant-consumable-detail"></div>
             <p id="midnight-merchant-consumable-result"></p>
             <h4 data-i18n="midnight_merchant_forge_title"></h4>
             <p id="midnight-merchant-forge-stone-note"></p>

@@ -21,6 +21,7 @@
     "test:consumable_talisman": "node consumable_talisman_check.js",
     "test:consumable_talisman_runtime": "node consumable_talisman_runtime_check.js",
     "test:spell_transcription": "node spell_transcription_check.js",
+    "test:optimize_2026_09_12": "node optimize_2026_09_12_check.js",
     "check:draw_coverage": "node draw_table_coverage_check.js",
     "audit:weapon_skills": "node weapon_skill_audit.js",
     "audit:relic_effects": "node relic_effect_audit.js",

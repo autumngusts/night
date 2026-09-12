@@ -5610,12 +5610,21 @@ html.midnight-hud-above-banner #midnight-hud-top-right {
   text-align: left;
 }
 
-#midnight-reward-list {
+/* 2026-09-12修正：這組樣式原本掛在#midnight-reward-list，但獎勵清單在2026-09-08拆成
+   共享池／個人兩個<ul>（#midnight-reward-list-shared／-personal）包在
+   #midnight-reward-list-wrap裡之後，#midnight-reward-list這個id就不存在於DOM了，整組
+   樣式等於沒有生效（左欄沒有寬度配比、沒有捲動上限、<ul>還留著預設的項目符號與縮排）。
+   改掛到實際存在的容器上。 */
+#midnight-reward-list-wrap {
   flex: 1 1 55%;
   min-width: 0;
   max-height: 60vh;
   overflow-y: auto;
-  margin: 0;
+}
+
+#midnight-reward-list-shared,
+#midnight-reward-list-personal {
+  margin: 0 0 0.5rem;
   padding: 0;
   list-style: none;
 }
@@ -5638,6 +5647,72 @@ html.midnight-hud-above-banner #midnight-hud-top-right {
   border: 1px solid rgba(255, 255, 255, 0.15);
   border-radius: 6px;
   padding: 0.6rem;
+}
+
+/* 2026-09-12使用者明確要求「許多按鈕放一起要有padding」：獎勵清單的每一列同時擺得下
+   ［品名］［抽選］或［品名］［拿取］［不拿取］，原本這些button是裸貼在同一個<li>裡、
+   彼此完全沒有間距，窄畫面上會連成一整條難以分辨要按哪一顆；右側detail面板的
+   ［確認收下］［丟棄］［再抽一次］同理。這裡只補間距與換行，不動任何顏色/尺寸。 */
+#midnight-reward-list-shared li,
+#midnight-reward-list-personal li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem;
+  margin-bottom: 0.4rem;
+}
+
+#midnight-reward-detail button {
+  margin: 0.35rem 0.35rem 0 0;
+}
+
+/* 商人視窗的消耗品清單／［確定購買］區塊（2026-09-12兩段式購買新增，見
+   static/midnight.jsのrenderMerchantConsumableDetail()）：清單同樣是一排並列的按鈕，
+   比照上面的獎勵清單補上間距；detail卡片沿用#midnight-reward-detail同款底色/邊框，
+   不新增色票。 */
+#midnight-merchant-consumable-list,
+#midnight-merchant-forge-list {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.35rem;
+  margin: 0.4rem 0;
+}
+
+#midnight-merchant-consumable-detail:not(:empty) {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 6px;
+  padding: 0.6rem;
+  margin: 0.4rem 0;
+  text-align: left;
+}
+
+#midnight-merchant-consumable-detail h4 {
+  margin: 0 0 0.3rem;
+}
+
+#midnight-merchant-consumable-detail p {
+  margin: 0 0 0.5rem;
+  white-space: pre-line;
+}
+
+/* 「抽選」按鈕的微閃黃提示（2026-09-12使用者明確規格「『揭示』改為『抽選』 抽選按鈕微閃
+   黃提示」）：既有的.midnight-flash-yellow是給強提示用的（10px/3px擴散、1秒一次），
+   這裡要的是「微閃」，因此同一個色票(#ffd54a)下另做一組較淡、較慢的脈動。個人獎勵清單
+   與共享池的抽選鍵共用這一個class。 */
+@keyframes midnight-draw-hint-pulse {
+  0%,
+  100% {
+    box-shadow: none;
+  }
+  50% {
+    box-shadow: 0 0 6px 1px rgba(255, 213, 74, 0.7);
+  }
+}
+
+.midnight-draw-hint {
+  animation: midnight-draw-hint-pulse 1.6s ease-in-out infinite;
 }
 
 /* 固定右上角關閉✕（2026-09-06使用者明確要求「角色視窗固定右上方有關閉X按鈕」），
@@ -6455,11 +6530,28 @@ html.midnight-top-banner-collapsed .midnight-top-banner-collapse-btn {
   /* 固定寬度（見桌面版同選擇器的2026-09-10說明）在窄畫面要縮小，否則
      #midnight-hud-bottom-left-actions（max-width:44vw）一列只放得下一顆按鈕，整欄會拉得
      很高。4.6rem搭配0.68rem字級，在360px寬的手機上仍能一列兩顆。 */
+  /* 2026-09-12使用者明確規格「手機版的攻擊按鈕等：按鈕圖標的上下padding再縮小，一個按鈕
+     的整體大小可以再壓低高度」：垂直padding從0.3rem降到0.15rem、圖示與文字之間的gap從
+     0.15rem降到0.05rem、行高收緊，水平padding維持0.3rem（寬度仍由width:4.6rem決定，
+     不影響2026-09-10「戰鬥中按鈕不因文字變動而位移」的固定寬度設計）。 */
   #midnight-hud-bottom-right button,
   #midnight-hud-bottom-left-actions button {
     font-size: 0.68rem;
-    padding: 0.3rem;
+    padding: 0.15rem 0.3rem;
     width: 4.6rem;
+    gap: 0.05rem;
+    line-height: 1.15;
+  }
+
+  /* 圖示本身也縮一號（1.1rem→0.9rem），這是按鈕高度的另一半來源。 */
+  #midnight-hud-bottom-right button .midnight-icon-sword,
+  #midnight-hud-bottom-right button .midnight-icon-shield,
+  #midnight-hud-bottom-right button .midnight-icon-art,
+  #midnight-hud-bottom-left-actions button .midnight-icon-sword,
+  #midnight-hud-bottom-left-actions button .midnight-icon-shield,
+  #midnight-hud-bottom-left-actions button .midnight-icon-art {
+    width: 0.9rem;
+    height: 0.9rem;
   }
 
   #midnight-hud-bottom-left,
