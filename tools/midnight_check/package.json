@@ -28,7 +28,8 @@
     "audit:weapon_skills": "node weapon_skill_audit.js",
     "audit:relic_effects": "node relic_effect_audit.js",
     "audit:relic_gaps": "node relic_effect_gaps_table.js",
-    "test:hazard_q_locked_banner": "node hazard_q_locked_banner_check.js"
+    "test:hazard_q_locked_banner": "node hazard_q_locked_banner_check.js",
+    "test:ui_polish_2026_09_12": "node ui_polish_2026_09_12_check.js"
   },
   "devDependencies": {
     "firebase-tools": "^15.29.0",

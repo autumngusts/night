@@ -767,6 +767,16 @@ BODY = """    <div class="midnight-wrap">
             <div id="midnight-field-encounter-image-wrap">
               <img id="midnight-field-encounter-image" alt="">
               <div id="midnight-enemy-hit-effect" hidden></div>
+              <!-- 屬性／異常狀態命中特效（2026-09-12使用者明確要求「使用異常狀態招式時，
+                   對敵人的刀光四周產生特效，符合異常狀態的表示特效」）：跟上面那道刀光
+                   （#midnight-enemy-hit-effect）是兩層獨立的特效，刀光是一閃而過的斜向
+                   光帶，這一層是繞著敵人圖片四周擴散的屬性色光暈＋外框脈動。顏色由
+                   static/midnight.jsのtriggerEnemyAilmentEffect()依屬性/異常名稱寫入
+                   CSS變數--ailment-color（對照表見該檔的ATTRIBUTE_STATUS_VISUAL），
+                   符號則放在子元素#midnight-enemy-ailment-mark。 -->
+              <div id="midnight-enemy-ailment-effect" hidden>
+                <span id="midnight-enemy-ailment-mark"></span>
+              </div>
               <!-- 消耗品丟擲動畫（2026-09-08使用者明確要求「使用消耗品時...對敵人丟出火焰壺、
                    飛刀、調香瓶等等動畫，顏色改以屬性的顏色」）：見static/midnight.jsの
                    triggerConsumableThrowEffect()，圖示與顏色依道具決定，只在丟擲類/對敵人

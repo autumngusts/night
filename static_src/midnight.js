@@ -132,6 +132,31 @@
   var ATTRIBUTE_STATUS_THRESHOLD = 16;
   var ATTRIBUTE_STATUS_ELEMENT_NAMES_JA = ["魔", "炎", "雷", "聖"];
   var ATTRIBUTE_STATUS_AILMENT_NAMES_JA = ["猛毒", "腐敗", "出血", "凍傷", "発狂", "睡眠", "呪死"];
+  // 屬性／異常狀態的統一視覺（2026-09-12使用者明確要求「對敵人的屬性傷害異常狀態等顯示的
+  // 方式再美化」「使用異常狀態招式時，對敵人的刀光四周產生符合異常狀態的特效」）：
+  // 名稱就是上面那兩份既有清單的11種，這裡只補「顏色＋一個符號」的呈現資訊，不新增規則。
+  // 顏色沿用ENEMY_HIT_ELEMENT_COLOR_RULES既有的5種色票（炎/魔/毒/雷/聖），其餘6種異常
+  // 依同一組色感補齊。符號刻意選用單色幾何字元而非emoji——emoji在各平台字型差異大、
+  // 又會被彩色渲染蓋掉屬性色，跟本專案既有的.midnight-icon-*（mask-image單色圖示）
+  // 同一個呈現方針。
+  var ATTRIBUTE_STATUS_VISUAL = {
+    魔: { color: "#4d9dff", icon: "✦" },
+    炎: { color: "#ff5a40", icon: "✸" },
+    雷: { color: "#ffcf3d", icon: "⚡" },
+    聖: { color: "#fff6c2", icon: "✧" },
+    猛毒: { color: "#4ecb6b", icon: "☣" },
+    腐敗: { color: "#b8863a", icon: "❋" },
+    出血: { color: "#e03a4e", icon: "✚" },
+    凍傷: { color: "#7fd8ff", icon: "❄" },
+    発狂: { color: "#ffe08a", icon: "◉" },
+    睡眠: { color: "#9d8bff", icon: "☾" },
+    呪死: { color: "#c06bd8", icon: "☠" },
+  };
+  var ATTRIBUTE_STATUS_VISUAL_FALLBACK = { color: "#ffd54a", icon: "◆" };
+
+  function attributeStatusVisual(name) {
+    return ATTRIBUTE_STATUS_VISUAL[name] || ATTRIBUTE_STATUS_VISUAL_FALLBACK;
+  }
   var FLASK_READ_MS = 1000; // 聖杯瓶按下到確定使用的讀取時間，使用者明確規格（2026-09-06優化改為1.0秒）
 
   // ---- 敵人屬性攻擊（2026-09-06角色能力真正接入・不撓前置工程新增，使用者明確規格：
@@ -3072,6 +3097,9 @@
 
   function recordAttributeAccum(name, amount) {
     var targetKey = currentAttributeAccumTargetKey();
+    // 2026-09-12：屬性/異常命中特效。這裡是「PC對敵人施加蓄積」的唯一入口，掛在這裡就能
+    // 涵蓋一般攻擊的武器屬性、戰技本文的蓄積、消耗品與遺物加成所有路徑。
+    triggerEnemyAilmentEffect(name);
     // 遺物效果「屬性蓄積值＋1」（2026-09-11）：習得時選定1種屬性，自身對敵人造成的
     // 該屬性蓄積值+1。選擇結果存在角色的relicAccumElementChoice（CLAUDE.md §23-25的
     // 既有欄位，由CharacterDrawer.learnRelicEffect()寫入）。
@@ -3243,15 +3271,51 @@
   // 則在血條上方黃字標註 炎2・睡眠2 等等」：格式從「name:value」改成「name+value」（無冒號），
   // 多筆之間用「・」分隔（不是原本的雙空格），顏色改到CSS（見style.cssの
   // #midnight-attribute-accum-note）。
+  // 2026-09-12使用者明確要求「對敵人的屬性傷害異常狀態等顯示的方式再美化」：原本是一整行
+  // 黃字純文字（例「炎2・睡眠2」），所有屬性同一個顏色、看不出離觸發還有多遠。改成每一項
+  // 各自一枚色票徽章——依屬性/異常上色（見ATTRIBUTE_STATUS_VISUAL）、加上符號、並把
+  // 「目前值／門檻」一起顯示（門檻就是既有的ATTRIBUTE_STATUS_THRESHOLD，不是新規則），
+  // 底部再畫一條進度條讓玩家一眼看出快滿了沒有。
+  // 只在數值真的變動時重建DOM：這個函式每幀都會被renderCombatPanel()呼叫，每幀重建會讓
+  // 徽章的「數值上升」動畫永遠重播、也白費效能。
+  var lastAttributeAccumKey = null;
+
   function renderAttributeAccumNote() {
     var noteEl = el("midnight-attribute-accum-note");
     if (!noteEl) return;
     var data = attributeAccum[currentAttributeAccumTargetKey()] || {};
-    var parts = [];
-    ATTRIBUTE_STATUS_ELEMENT_NAMES_JA.concat(ATTRIBUTE_STATUS_AILMENT_NAMES_JA).forEach(function (name) {
-      if (data[name]) parts.push(name + data[name]);
+    var names = ATTRIBUTE_STATUS_ELEMENT_NAMES_JA.concat(ATTRIBUTE_STATUS_AILMENT_NAMES_JA).filter(function (name) {
+      return data[name];
     });
-    noteEl.textContent = parts.join("・");
+    var key = names
+      .map(function (name) {
+        return name + ":" + data[name];
+      })
+      .join(",");
+    if (key === lastAttributeAccumKey) return;
+    lastAttributeAccumKey = key;
+    noteEl.innerHTML = "";
+    names.forEach(function (name) {
+      var visual = attributeStatusVisual(name);
+      var value = data[name];
+      var chip = document.createElement("span");
+      chip.className = "midnight-accum-chip";
+      chip.style.setProperty("--accum-color", visual.color);
+      chip.style.setProperty("--accum-pct", Math.min(100, (value / ATTRIBUTE_STATUS_THRESHOLD) * 100) + "%");
+      var icon = document.createElement("span");
+      icon.className = "midnight-accum-chip-icon";
+      icon.textContent = visual.icon;
+      chip.appendChild(icon);
+      var label = document.createElement("span");
+      label.className = "midnight-accum-chip-label";
+      label.textContent = name;
+      chip.appendChild(label);
+      var num = document.createElement("span");
+      num.className = "midnight-accum-chip-value";
+      num.textContent = value + "/" + ATTRIBUTE_STATUS_THRESHOLD;
+      chip.appendChild(num);
+      noteEl.appendChild(chip);
+    });
   }
 
   // ============================================================================
@@ -5025,6 +5089,51 @@
     return MIDNIGHT_ABILITY_COOLDOWN_OVERRIDE_MS[ability.id] || (kind === "art" ? ART_COOLDOWN_MS : SKILL_COOLDOWN_MS);
   }
 
+  // ---- 戰鬥按鈕文字的來回跑馬燈（2026-09-12使用者明確要求「戰鬥按鈕文字敘述使用跑馬燈
+  // 來回跑，長文字會來回顯示」）----
+  // 底部HUD的按鈕在2026-09-10被固定成5.6rem寬（手機版4.6rem），避免戰鬥中文字變動造成整排
+  // 按鈕重排；代價是長名稱（魔術／祈禱名、「戰技(某某某某)」）一律被省略號截掉，玩家看不到
+  // 完整名稱。這裡在不動按鈕寬度的前提下，讓溢出的文字在按鈕內左右來回捲動。
+  //
+  // 做法：把文字包進一個內層<span>，外層span維持overflow:hidden當視窗，內層用CSS animation
+  // 的alternate方向在0 ↔ -(溢出寬度)之間來回平移。只有真的溢出時才掛上動畫class，沒溢出的
+  // 短文字完全不動（也不會有動畫造成的閃爍）。
+  // 位移量與動畫長度都寫進CSS變數，由這裡依實測的溢出寬度計算——捲動速度固定（每秒約
+  // MARQUEE_SPEED_PX_PER_SEC像素），文字愈長跑愈久，不會出現短文字飛快、長文字慢吞吞。
+  var MARQUEE_SPEED_PX_PER_SEC = 26;
+  var MARQUEE_MIN_DURATION_SEC = 2.4;
+
+  function setCombatButtonLabel(labelEl, text) {
+    if (!labelEl) return;
+    var inner = labelEl.firstElementChild;
+    // applyI18n()會對帶data-i18n的元素直接寫textContent（把內層span洗掉），因此每次都確認
+    // 內層還在不在，不在就重建——這樣i18n語言切換之後也會自動復原。
+    if (!inner || inner.className !== "midnight-marquee-inner") {
+      labelEl.textContent = "";
+      inner = document.createElement("span");
+      inner.className = "midnight-marquee-inner";
+      labelEl.appendChild(inner);
+    }
+    if (inner.textContent === text) return; // 文字沒變就不重新量測，避免每幀重置動畫
+    inner.textContent = text;
+    labelEl.title = text; // 完整內容仍留在title（沿用2026-09-10固定寬度時的既有做法）
+    // 量測要等瀏覽器算好版面；這裡是同步讀取offsetWidth，會強制一次reflow，但只在文字
+    // 真的變動時才發生（戰鬥中換武器/連段變Hit等），不是每幀。
+    var overflow = inner.offsetWidth - labelEl.clientWidth;
+    if (overflow > 1) {
+      labelEl.classList.add("midnight-marquee");
+      inner.style.setProperty("--mq-shift", "-" + overflow + "px");
+      inner.style.setProperty(
+        "--mq-duration",
+        Math.max(MARQUEE_MIN_DURATION_SEC, overflow / MARQUEE_SPEED_PX_PER_SEC).toFixed(2) + "s"
+      );
+    } else {
+      labelEl.classList.remove("midnight-marquee");
+      inner.style.removeProperty("--mq-shift");
+      inner.style.removeProperty("--mq-duration");
+    }
+  }
+
   // 技能變體快速切換鈕（2026-09-12使用者明確規格「混成魔法按鈕旁邊多個切換按鈕，可以
   // 更快速選得想要發動的變體（需學習該遺物效果才顯示）」）：按一下循環到下一個選項，
   // 寫的是跟角色視窗完全相同的 c._selectedSkillVariantIndex（見characterAbilityEntry()），
@@ -5062,7 +5171,7 @@
       var artName = window.PriTestCharacterTypes.localizedText(found.ability.name);
       var artCooldownUntil = (found.c && found.c._artCooldownUntil) || 0;
       // 文字固定只有招式名稱（不再附加「(12s)」造成按鈕寬度變動），冷卻改用圓形計時盤。
-      el("midnight-art-label").textContent = artName;
+      setCombatButtonLabel(el("midnight-art-label"), artName);
       applyCooldownDial(artBtn, found.c, "_artCooldownUntil", abilityCooldownTotalMs(found.ability, "art"));
       artBtn.disabled = !actable || (Date.now() < artCooldownUntil && !((found.c && found.c._powerResonanceCredits) > 0));
     }
@@ -5076,7 +5185,7 @@
     if (foundSkill.ability && !skillBtn.hidden) {
       var skillName = window.PriTestCharacterTypes.localizedText(foundSkill.ability.name);
       var skillCooldownUntil = (foundSkill.c && foundSkill.c._skillCooldownUntil) || 0;
-      el("midnight-character-skill-label").textContent = skillName;
+      setCombatButtonLabel(el("midnight-character-skill-label"), skillName);
       applyCooldownDial(skillBtn, foundSkill.c, "_skillCooldownUntil", abilityCooldownTotalMs(foundSkill.ability, "skill"));
       skillBtn.disabled = !actable || Date.now() < skillCooldownUntil;
     }
@@ -5093,7 +5202,7 @@
       var CharacterTypes = window.PriTestCharacterTypes;
       var label =
         specialOption.kind === "yoto" ? CharacterTypes.localizedText(specialOption.ability.name) : CharacterTypes.localizedText(specialOption.entry.name);
-      el("midnight-defense-special-label").textContent = label;
+      setCombatButtonLabel(el("midnight-defense-special-label"), label);
       specialBtn.disabled = !actable;
     }
 
@@ -7165,6 +7274,37 @@
     enemyHitEffectTimer = setTimeout(function () {
       effectEl.hidden = true;
     }, ENEMY_HIT_EFFECT_DISPLAY_MS);
+  }
+
+  // 屬性／異常狀態命中特效（2026-09-12使用者明確要求「使用異常狀態招式時，對敵人的刀光
+  // 四周產生特效，符合異常狀態的表示特效」）：跟triggerEnemyHitEffect()那道一閃而過的
+  // 斜向刀光是兩層獨立特效，這一層是繞著敵人圖片四周擴散的屬性色光暈＋外框脈動＋中央
+  // 浮起的屬性符號。顏色與符號直接取自ATTRIBUTE_STATUS_VISUAL（跟血條上方的蓄積徽章
+  // 同一份對照表，不另外定義第二組配色）。
+  // 觸發點放在recordAttributeAccum()——那是「PC對敵人施加任何屬性/異常蓄積」的唯一入口
+  // （一般攻擊的武器屬性、戰技本文的蓄積、消耗品、遺物加成全部經過它），因此不需要在
+  // 每一種招式各自呼叫一次。
+  var ENEMY_AILMENT_EFFECT_DISPLAY_MS = 700;
+  var enemyAilmentEffectTimer = null;
+
+  function triggerEnemyAilmentEffect(name) {
+    if (!activeEncounter) return; // 共用標靶demo沒有敵人圖片可疊，跟triggerEnemyHitEffect()同一個守衛
+    var effectEl = el("midnight-enemy-ailment-effect");
+    if (!effectEl) return;
+    var visual = attributeStatusVisual(name);
+    effectEl.style.setProperty("--ailment-color", visual.color);
+    var markEl = el("midnight-enemy-ailment-mark");
+    if (markEl) markEl.textContent = visual.icon;
+    effectEl.hidden = false;
+    // 重新觸發CSS animation（連續施加時上一次可能還沒播完）：同triggerEnemyHitEffect()的
+    // remove→強制reflow→add既有手法。
+    effectEl.classList.remove("midnight-enemy-ailment-effect-play");
+    void effectEl.offsetWidth;
+    effectEl.classList.add("midnight-enemy-ailment-effect-play");
+    if (enemyAilmentEffectTimer) clearTimeout(enemyAilmentEffectTimer);
+    enemyAilmentEffectTimer = setTimeout(function () {
+      effectEl.hidden = true;
+    }, ENEMY_AILMENT_EFFECT_DISPLAY_MS);
   }
 
   // 消耗品丟擲動畫對照表（2026-09-08使用者明確要求「使用消耗品時...對敵人丟出火焰壺、
@@ -14452,7 +14592,7 @@
       // 2026-09-06使用者明確要求「[戰技]名稱需隨著右手武器跟換為[戰技(名稱)]」：
       // artEntry.name是這把武器實際的戰技名稱（跟角色視窗武器詳細資訊同一份資料）。
       var artLabelEl = el("midnight-skill-a-label");
-      if (artLabelEl) artLabelEl.textContent = window.I18N.t("midnight_skill_a_button_named", { name: Weapons.localizedText(artEntry.name) });
+      if (artLabelEl) setCombatButtonLabel(artLabelEl, window.I18N.t("midnight_skill_a_button_named", { name: Weapons.localizedText(artEntry.name) }));
     }
     el("btn-midnight-dodge").disabled = !canAct || stamina.current < dodgeStaminaCost(characters[myTokenId]);
     el("btn-midnight-block").disabled = !canAct || !currentGuardInfo();
@@ -14486,7 +14626,7 @@
         atkBtn.disabled = !canAct || stamina.current < (side === "L" ? 3 : 1) * DICE_COUNT_TO_STAMINA_MULT;
       }
       if (atkLabelEl) {
-        atkLabelEl.textContent = window.I18N.t(side === "L" ? "midnight_crucible_assault_button" : "midnight_crucible_roar_button");
+        setCombatButtonLabel(atkLabelEl, window.I18N.t(side === "L" ? "midnight_crucible_assault_button" : "midnight_crucible_roar_button"));
       }
       sideDefs.forEach(hideSpellButton);
       return;
@@ -14500,9 +14640,12 @@
         var points = diceCostPoints(useHit2 ? atkInfo.cost.hit2 : atkInfo.cost.hit1);
         atkBtn.disabled = !canAct || stamina.current < points * DICE_COUNT_TO_STAMINA_MULT;
         if (atkLabelEl) {
-          atkLabelEl.textContent = attackButtonHitReady(side)
-            ? window.I18N.t("midnight_attack_hit_ready_button")
-            : window.I18N.t(side === "L" ? "midnight_attack_left_button" : "midnight_attack_target_button");
+          setCombatButtonLabel(
+            atkLabelEl,
+            attackButtonHitReady(side)
+              ? window.I18N.t("midnight_attack_hit_ready_button")
+              : window.I18N.t(side === "L" ? "midnight_attack_left_button" : "midnight_attack_target_button")
+          );
         }
       }
     }
@@ -14538,7 +14681,7 @@
     btn.hidden = !entry;
     if (!entry) return;
     var labelEl = el(def.labelId);
-    if (labelEl) labelEl.textContent = Weapons.localizedText(entry.name);
+    if (labelEl) setCombatButtonLabel(labelEl, Weapons.localizedText(entry.name));
     var cost = computeMidnightSkillCost(Weapons.localizedText(entry.body), entry.weaponId);
     btn.disabled = !canAct || stamina.current < cost.staminaCost || fp.current < cost.fpCost;
   }
@@ -16600,6 +16743,29 @@
     },
     _debugVoteSharedReward: function (pointId, rewardId, choice) {
       voteSharedReward(pointId, rewardId, choice);
+    },
+    // 2026-09-12 UI優化第5批（屬性蓄積徽章／戰鬥按鈕跑馬燈／異常狀態命中特效）的回歸
+    // 測試入口，見 tools/midnight_check/ui_polish_2026_09_12_check.js。
+    _debugAttributeAccumTargetKey: function () {
+      return currentAttributeAccumTargetKey();
+    },
+    _debugAttributeStatusThreshold: function () {
+      return ATTRIBUTE_STATUS_THRESHOLD;
+    },
+    _debugRenderAttributeAccumNote: function () {
+      lastAttributeAccumKey = null; // 強制重建，繞過「數值沒變就不重繪」的節流
+      renderAttributeAccumNote();
+    },
+    _debugSetCombatButtonLabel: function (labelEl, text) {
+      setCombatButtonLabel(labelEl, text);
+    },
+    _debugTriggerEnemyAilmentEffect: function (name) {
+      triggerEnemyAilmentEffect(name);
+    },
+    // 特效只在 activeEncounter 成立時才播（跟刀光同一個守衛）。測試不需要真的打一場，
+    // 用這支暫時塞一個假的遭遇物件進去，驗完再還原。
+    _debugSetActiveEncounterForFx: function (on) {
+      activeEncounter = on ? { id: "__fx_probe__" } : null;
     },
     _debugRewardEntryLabel: function (entry) {
       return rewardEntryLabel(entry);

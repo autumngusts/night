@@ -4821,6 +4821,43 @@ html.midnight-hud-above-banner #midnight-hud-top-right {
   white-space: nowrap;
 }
 
+/* 2026-09-12使用者明確要求「戰鬥按鈕文字敘述使用跑馬燈來回跑，長文字會來回顯示」：
+   上面那條規則把超出固定寬度的文字用省略號截掉（2026-09-10為了「戰鬥中按鈕不因文字變動
+   而位移」而固定寬度），長名稱（魔術／祈禱名、「戰技(某某某某)」）就永遠看不完整。
+   這裡在不動按鈕寬度的前提下，讓溢出的文字在按鈕內左右來回捲動：
+     外層span＝維持overflow:hidden的視窗（沿用上面那條規則，不需要改）
+     內層.midnight-marquee-inner＝實際承載文字、負責平移的元素
+   只有真的溢出時JS才會掛上.midnight-marquee（見midnight.jsのsetCombatButtonLabel()），
+   短文字完全不動、也不會因為動畫而閃爍。--mq-shift（位移量）與--mq-duration（依文字長度
+   換算的時間，速度固定）都由JS依實測寬度寫入。
+   alternate＋infinite＝跑到底之後原路跑回來，就是「來回跑」；兩端各停一下（keyframes的
+   0-12%與88-100%維持不動）避免看不清楚頭尾。 */
+.midnight-marquee-inner {
+  display: inline-block;
+  white-space: nowrap;
+}
+
+/* 有跑馬燈時外層不再用省略號——文字會自己跑完，截斷符號反而多餘。 */
+#midnight-hud-bottom-right button > span.midnight-marquee,
+#midnight-hud-bottom-left-actions button > span.midnight-marquee {
+  text-overflow: clip;
+}
+
+.midnight-marquee > .midnight-marquee-inner {
+  animation: midnight-marquee-bounce var(--mq-duration, 3s) ease-in-out infinite alternate;
+}
+
+@keyframes midnight-marquee-bounce {
+  0%,
+  12% {
+    transform: translateX(0);
+  }
+  88%,
+  100% {
+    transform: translateX(var(--mq-shift, 0px));
+  }
+}
+
 /* 圓形冷卻計時盤（2026-09-10使用者明確要求「要倒數而恢復使用次數的按鍵，使用圓形背景
    計時：淡色開始順時針轉一圈恢復成原本顏色」）：--mn-cd是「已經過的百分比」，由
    static/midnight.jsのapplyCooldownDial()逐幀寫入inline style。
@@ -5390,11 +5427,68 @@ html.midnight-hud-above-banner #midnight-hud-top-right {
 /* 屬性/狀態異常共同蓄積小型顯示（2026-09-05武器資料真正接入新增），見
    midnight.jsのrenderAttributeAccumNote()。2026-09-08使用者明確規格「敵人若有受到屬性
    傷害則在血條上方黃字標註」：改用黃字（跟其餘既有警示黃色#ffd54a同色）。 */
+/* 2026-09-12使用者明確要求「對敵人的屬性傷害異常狀態等顯示的方式再美化」：原本是一行
+   同色黃字（例「炎2・睡眠2」），改成每項一枚依屬性上色的徽章＋進度條，見
+   static/midnight.jsのrenderAttributeAccumNote()。--accum-color／--accum-pct由JS寫入。 */
 #midnight-attribute-accum-note {
-  margin: 0 0 0.15rem;
-  min-height: 1em;
-  font-size: 0.68rem;
-  color: #ffd54a;
+  margin: 0 0 0.2rem;
+  min-height: 1.35rem;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.25rem;
+}
+
+.midnight-accum-chip {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  padding: 0.1rem 0.38rem 0.22rem;
+  border: 1px solid var(--accum-color, #ffd54a);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08); /* color-mix不支援時的退路 */
+  background: color-mix(in srgb, var(--accum-color, #ffd54a) 18%, transparent);
+  color: var(--accum-color, #ffd54a);
+  font-size: 0.66rem;
+  line-height: 1.2;
+  overflow: hidden;
+  text-shadow: 0 0 4px rgba(0, 0, 0, 0.9);
+  animation: midnight-accum-chip-in 0.25s ease-out;
+}
+
+/* 底部的蓄積進度條：寬度＝目前值/門檻。用::after而不是多一層DOM，徽章本身已經是
+   overflow:hidden的圓角膠囊，直接貼在下緣即可。 */
+.midnight-accum-chip::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  height: 2px;
+  width: var(--accum-pct, 0%);
+  background: var(--accum-color, #ffd54a);
+  opacity: 0.9;
+}
+
+.midnight-accum-chip-icon {
+  font-size: 0.74rem;
+  line-height: 1;
+}
+
+.midnight-accum-chip-value {
+  font-weight: bold;
+  opacity: 0.95;
+}
+
+@keyframes midnight-accum-chip-in {
+  from {
+    transform: scale(0.72);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
 }
 
 .midnight-slot-hp {
@@ -5533,13 +5627,17 @@ html.midnight-hud-above-banner #midnight-hud-top-right {
    flex column＋固定height:85vh（原本是max-height，內容短時box會跟著縮小），
    #midnight-character-sheet-split設flex:1讓「清單／detail」兩欄永遠填滿box剩餘高度，
    使用者明確要求「右側的說明資訊拉長上下滿版」——detail不再只跟著自己內容高度顯示。 */
+/* 2026-09-12使用者明確要求「抽選視窗與腳色視窗，右邊詳細資訊side占比再拉長」：
+   box本身加寬（640→780px，仍受width:92%限制，窄螢幕不受影響），左右配比從
+   清單60%／詳細40%改成清單45%／詳細55%——詳細欄放的是武器戰技全文、遺物效果本文這類
+   長文字，原本比清單還窄，一直是整個面板最擠的地方。 */
 #midnight-character-sheet-box {
   position: relative;
   background: #1a1d24;
   border: 1px solid #555;
   border-radius: 8px;
   padding: 1rem;
-  max-width: 640px;
+  max-width: 780px;
   width: 92%;
   height: 85vh;
   color: #f0f0f0;
@@ -5556,19 +5654,93 @@ html.midnight-hud-above-banner #midnight-hud-top-right {
 }
 
 #midnight-character-sheet-list {
-  flex: 1 1 60%;
+  flex: 1 1 45%;
   min-width: 0;
   overflow-y: auto;
+  padding-right: 0.2rem;
 }
 
 #midnight-character-sheet-detail {
-  flex: 1 1 40%;
+  flex: 1 1 55%;
   min-width: 0;
   overflow-y: auto;
   background: rgba(255, 255, 255, 0.05);
   border: 1px solid rgba(255, 255, 255, 0.15);
   border-radius: 6px;
-  padding: 0.6rem;
+  padding: 0.7rem;
+}
+
+/* 2026-09-12使用者明確要求「遺物效果抽選時不超過畫面，保持在腳色視窗內顯示，要可以
+   滾輪往下看全部」：這一區塊是#midnight-character-sheet-box（flex column、固定
+   height:85vh）的直接子元素，原本沒有任何高度限制——候補效果一多就把整塊撐高，
+   下面的清單／詳細兩欄被擠掉，內容還會溢出視窗外看不到也捲不到。
+   改成自己可捲動，並限制最多佔畫面42vh，剩下的高度留給下方的split。 */
+#midnight-sheet-relic-learn-block {
+  flex: 0 1 auto;
+  max-height: 42vh;
+  overflow-y: auto;
+  padding: 0.5rem 0.6rem;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+/* 2026-09-12使用者明確要求「腳色視窗各個按鈕補上padding，遺物效果貼得過近問題」：
+   下面這幾個容器原本都是把<button>直接一顆接一顆append上去（見midnight.jsの
+   renderAbilityList()／renderSkillArtSlot()／renderMidnightRelicLearnSection()），
+   彼此完全沒有間距，遺物效果那一區尤其擠。這裡只補間距與內距，不動任何顏色/尺寸。 */
+#midnight-character-sheet-relic-candidates,
+#midnight-character-sheet-relic-dice,
+#midnight-character-sheet-skills,
+#midnight-character-sheet-arts,
+#midnight-character-sheet-abilities,
+#midnight-character-sheet-relics,
+#midnight-character-sheet-effects {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  align-items: flex-start;
+}
+
+#midnight-character-sheet-relic-candidates > *,
+#midnight-character-sheet-skills > button,
+#midnight-character-sheet-arts > button,
+#midnight-character-sheet-abilities > button,
+#midnight-character-sheet-relics > button,
+#midnight-character-sheet-effects > button {
+  padding: 0.3rem 0.5rem;
+  line-height: 1.3;
+}
+
+/* 遺物效果的候補卡片（習得前）：每一張各自佔滿一整列並拉開距離，不再跟隔壁黏在一起。 */
+#midnight-character-sheet-relic-candidates > * {
+  flex: 1 1 100%;
+  box-sizing: border-box;
+}
+
+#midnight-sheet-relic-learn-block > p,
+#midnight-sheet-relic-learn-block > h4 {
+  margin: 0.2rem 0 0.4rem;
+}
+
+#btn-midnight-sheet-relic-roll {
+  margin-bottom: 0.4rem;
+}
+
+/* 詳細欄裡的按鈕（裝備／設為快速使用／丟棄／遺物開關…）：彼此與上方本文都要有距離。 */
+#midnight-character-sheet-detail button {
+  margin: 0.35rem 0.35rem 0 0;
+  padding: 0.3rem 0.6rem;
+}
+
+#midnight-character-sheet-detail h4 {
+  margin: 0.2rem 0 0.3rem;
+}
+
+#midnight-character-sheet-detail p {
+  margin: 0 0 0.5rem;
+  line-height: 1.5;
+  white-space: pre-line;
 }
 
 /* 獎勵清單視窗（2026-09-06使用者回報bug「獎勵清單沒有顯示在最上層」）：這個modal原本
@@ -5588,12 +5760,14 @@ html.midnight-hud-above-banner #midnight-hud-top-right {
   background: rgba(0, 0, 0, 0.75);
 }
 
+/* 2026-09-12使用者明確要求「抽選視窗…右邊詳細資訊side占比再拉長」：box加寬
+   （560→720px），左右配比見下方 #midnight-reward-list-wrap／-detail。 */
 #midnight-reward-box {
   background: #1a1d24;
   border: 1px solid #555;
   border-radius: 8px;
   padding: 1rem;
-  max-width: 560px;
+  max-width: 720px;
   width: 92%;
   max-height: 85vh;
   color: #f0f0f0;
@@ -5616,7 +5790,7 @@ html.midnight-hud-above-banner #midnight-hud-top-right {
    樣式等於沒有生效（左欄沒有寬度配比、沒有捲動上限、<ul>還留著預設的項目符號與縮排）。
    改掛到實際存在的容器上。 */
 #midnight-reward-list-wrap {
-  flex: 1 1 55%;
+  flex: 1 1 40%;
   min-width: 0;
   max-height: 60vh;
   overflow-y: auto;
@@ -5639,14 +5813,14 @@ html.midnight-hud-above-banner #midnight-hud-top-right {
 }
 
 #midnight-reward-detail {
-  flex: 1 1 45%;
+  flex: 1 1 60%;
   min-width: 0;
   max-height: 60vh;
   overflow-y: auto;
   background: rgba(255, 255, 255, 0.05);
   border: 1px solid rgba(255, 255, 255, 0.15);
   border-radius: 6px;
-  padding: 0.6rem;
+  padding: 0.7rem;
 }
 
 /* 2026-09-12使用者明確要求「許多按鈕放一起要有padding」：獎勵清單的每一列同時擺得下
@@ -6391,6 +6565,71 @@ html.midnight-top-banner-collapsed .midnight-top-banner-collapse-btn {
   100% {
     opacity: 0;
     transform: translateX(25%);
+  }
+}
+
+/* 屬性／異常狀態命中特效（2026-09-12使用者明確要求「使用異常狀態招式時，對敵人的刀光
+   四周產生特效，符合異常狀態的表示特效」）：疊在敵人圖片上、比刀光更外圈的一層——
+   由內往外擴散的屬性色光暈＋外框脈動，中央再浮起一個屬性符號。顏色與符號由
+   static/midnight.jsのtriggerEnemyAilmentEffect()寫入（--ailment-color／子元素文字），
+   對照表跟血條上方的蓄積徽章共用同一份ATTRIBUTE_STATUS_VISUAL。
+   刻意跟#midnight-enemy-hit-effect分成兩個元素：刀光是0.3秒一閃而過的斜向光帶，這一層
+   是0.7秒的環狀擴散，兩者會同時播放（屬性攻擊命中時刀光也會是同色），疊在一起才是
+   使用者要的「刀光四周產生特效」。 */
+#midnight-enemy-ailment-effect {
+  position: absolute;
+  inset: -8%;
+  pointer-events: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  opacity: 0;
+  box-shadow: inset 0 0 18px 4px var(--ailment-color, #ffd54a), 0 0 14px 2px var(--ailment-color, #ffd54a);
+  background: radial-gradient(circle, transparent 52%, color-mix(in srgb, var(--ailment-color, #ffd54a) 32%, transparent) 78%, transparent 100%);
+}
+
+#midnight-enemy-ailment-effect.midnight-enemy-ailment-effect-play {
+  animation: midnight-enemy-ailment-burst 0.7s ease-out;
+}
+
+#midnight-enemy-ailment-mark {
+  font-size: 2rem;
+  line-height: 1;
+  color: var(--ailment-color, #ffd54a);
+  text-shadow: 0 0 8px var(--ailment-color, #ffd54a), 0 0 2px #000;
+}
+
+#midnight-enemy-ailment-effect.midnight-enemy-ailment-effect-play #midnight-enemy-ailment-mark {
+  animation: midnight-enemy-ailment-mark-rise 0.7s ease-out;
+}
+
+@keyframes midnight-enemy-ailment-burst {
+  0% {
+    opacity: 0;
+    transform: scale(0.7);
+  }
+  30% {
+    opacity: 0.95;
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.15);
+  }
+}
+
+@keyframes midnight-enemy-ailment-mark-rise {
+  0% {
+    opacity: 0;
+    transform: translateY(18%) scale(0.6);
+  }
+  35% {
+    opacity: 1;
+    transform: translateY(0) scale(1.1);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-32%) scale(1);
   }
 }
 
