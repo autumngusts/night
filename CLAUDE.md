@@ -234,6 +234,49 @@ Category 只包含：
 
 等規則 metadata。
 
+## 4.6 midnight 的 Playwright 測試一律用 `dispatchEvent`，不要用 `page.click`
+
+midnight 的 HUD 每一影格都會重繪，部分按鈕還帶有提示動畫（例如角色鍵的
+`midnight-character-icon-nudge`）。`page.click()` 會等待元素「可見、enabled 且**穩定**」，
+在這種持續移動／重繪的元素上會等到逾時：
+
+* 一般 HUD 按鈕：實測單次 `page.click()` 要花約 7 秒才成功。
+* 帶 nudge 動畫的按鈕（`#btn-midnight-open-character-sheet`）：**永遠**等不到 stable，30 秒逾時後整支腳本中斷。
+* 全螢幕遮罩（獎勵清單、祝福視窗等）開著時，也會攔截其他按鈕的點擊。
+
+因此測試要觸發 handler 時，一律使用：
+
+```js
+await page.dispatchEvent("#btn-xxx", "click");
+```
+
+需要長按（魔術／祈禱的 `SORCERY_CAST_HOLD_MS`）時用 `mousedown` / `mouseup`，
+需要 HUD 疊層切換時用 `pointerdown`（見 `optimize_2026_09_10_check.js`）。
+
+## 4.7 規格變更時必須同步更新對應的回歸測試
+
+`tools/midnight_check/` 的腳本會把當時的規格寫成期望值。2026-09-05〜09-12 之間有多次
+「使用者明確規格」變更，程式都照改了，但測試沒有一起更新，結果累積出一批假失敗
+（2026-09-12 一次性修正）。已知曾造成假失敗的變更：
+
+| 變更 | 對測試的影響 |
+| --- | --- |
+| `WEAPON_SKILL_DAMAGE_MULT = 2`／`CHARACTER_ABILITY_DAMAGE_MULT = 3` | 傷害期望值要乘上倍率（顯示值維持原值，只有實際傷害會乘） |
+| 敵人傷害改由招式 note 解析、算不出就 0 傷害 | 不能再用 `enemyId: "test"` 這種假敵人驗證傷害，要挑實資料中「所有招式都明寫個別傷害」的敵人 |
+| 升級改為「使用祝福後才能升級」，且 `+` 鍵搬進祝福視窗 | 要先觸發使用祝福，並在祝福視窗內操作 |
+| 混成魔法加上「消耗 3 屬性痕」門檻 | 要先把 `elementalMarks` 墊到 3，否則靜默不動作 |
+| 獎勵清單拆成共享池／個人兩個 `<ul>` | 選擇器改成 `#midnight-reward-list-personal` 等 |
+| 遭遇新增 5 秒「識別資訊準備」 | 等 `activeEncounter` 的 timeout 要大於 5 秒 |
+| HUD 疊層改為兩段式（平時 500／戰鬥中或點擊後 3 秒 620） | 不能斷言「HUD 一律高於資訊欄」；且手動加 class 無效（`updateHudStackingUI()` 每幀覆寫），要用真實觸發 |
+| 一般攻擊傷害改由武器資料計算（原本固定 1 點） | 期望值要用 `computeWeaponDamage()` 算，並先把共用標靶墊高避免被 floor 在 0 |
+
+撰寫測試時的原則：
+
+1. **期望值能從資料算出來就不要硬編**（傷害、減傷率、HP 上限都要從
+   `CharacterDrawer` / 武器資料 / `_debugState()` 讀回來算）。
+2. 修正過時的期望值時，在該處註解寫清楚「舊值為何過時、依據哪一條規格」。
+3. 跨越真實時間的數值比較要考慮上限 clamp 與資源回復，改用範圍檢查而非相等。
+
 ---
 
 # 5. 專案架構

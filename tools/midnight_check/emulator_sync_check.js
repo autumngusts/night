@@ -142,13 +142,35 @@ async function walkNear(page, targetX, targetY, radius, maxRounds) {
     assert(moved, "裝置A移動後，裝置B在1.3秒內看到接近的座標更新（容許lerp誤差）", results);
 
     console.log("=== 風險點3：併發扣血用transaction()不丟資料（連emulator） ===");
+    // 2026-09-12修正：multi_device_sync_check.jsの同じ検査と同様、2026-09-05の武器資料接入で
+    // 1回の攻撃ダメージは固定1点から装備武器のhit1Damageに変わった。既定値20のままだと
+    // 2撃で0に張り付いて「両方効いたか」を判別できないので、標靶を大きくし、期待値も
+    // 両裝置の装備武器から算出した合計にする。
+    await pageA.evaluate((gameId) => window.PriTestGameStorage.rtSet(gameId, "cloud", "demoStat/sharedTarget", 100000), stateA.gameId);
+    await pageA.waitForTimeout(400);
+    const hit1DamageOf = (page) =>
+      page.evaluate(() => {
+        const D = window.PriTestMidnight._debugState();
+        const c = D.characters[D.myTokenId];
+        const raw = c.equippedWeaponIdR || c.equippedWeaponIdL || (c.weaponIds || [])[0] || "";
+        const baseId = String(raw).split("::")[0];
+        if (!baseId) return 0;
+        return window.PriTestCharacterDrawer.computeWeaponDamage(c, baseId).hit1Damage;
+      });
+    const dmgA = await hit1DamageOf(pageA);
+    const dmgB = await hit1DamageOf(pageB);
     const beforeTarget = (await pageA.evaluate(() => window.PriTestMidnight._debugState().demoStats.sharedTarget)) || 20;
     await Promise.all([pageA.click("#btn-midnight-attack-shared-target"), pageB.click("#btn-midnight-attack-shared-target")]);
     await pageA.waitForTimeout(800);
     const afterA = (await pageA.evaluate(() => window.PriTestMidnight._debugState())).demoStats.sharedTarget;
     const afterB = (await pageB.evaluate(() => window.PriTestMidnight._debugState())).demoStats.sharedTarget;
+    console.log("  扣血前:", beforeTarget, "扣血後:", afterA, " A/Bの1Hit傷害:", dmgA + "/" + dmgB);
     assert(afterA === afterB, "兩裝置最終看到的共用標靶數值一致", results);
-    assert(afterA === beforeTarget - 2, "共用標靶正確減少2（兩次攻擊都生效）", results);
+    assert(
+      afterA === beforeTarget - (dmgA + dmgB),
+      "共用標靶正確減少兩裝置1Hit傷害的合計（" + dmgA + "+" + dmgB + "=" + (dmgA + dmgB) + "，兩次攻擊都生效），實際減少=" + (beforeTarget - afterA),
+      results
+    );
 
     console.log("=== 風險點4（2026-09-05新增）：敵人攻擊系統（連emulator，直接seed fieldTrigger） ===");
     // 略過邀請/打字機/投票這些既有且沒有變更過的UI流程，直接寫一個「已解決分歧、敵人
@@ -163,8 +185,29 @@ async function walkNear(page, targetX, targetY, radius, maxRounds) {
       if (!reached) {
         console.log("  [SKIP] 這個測試工具的直線走位沒能在固定佈局的牆壁間走到目標點附近，略過風險點4（非功能性失敗，見腳本頂端說明）");
       } else {
+        // 2026-09-12修正：enemyFamilyId/enemyIdを"test"というダミー値でseedすると
+        // PriTestEnemies.get()がnullを返して招式が引けず、2026-09-06仕様（「敵人傷害＝招式note
+        // から解析した値÷10」、解析できなければ数値を発明せず0ダメージ＝CLAUDE.md §19）により
+        // 扣血0になる。そのため下の「反應窗口逾時後正確扣血」が必ず落ちていた。
+        // weapon_combat_check.jsの検査8と同じく「全ての招式が個別ダメージを明記している敵」を
+        // 実データから選んでseedする（どの招式が抽かれてもdmgAmount>0になる）。
+        const enemyPick = await pageA.evaluate(() => {
+          const INDIVIDUAL_DAMAGE_RE = /個別(?:ダメージ|傷害)[:：]\+?(\d+)/; // midnight.js と同じ判定
+          const all = window.PriTestEnemies.allEnemies();
+          for (const rec of all) {
+            const actions = rec.enemy.actions || [];
+            if (!actions.length) continue;
+            const ok = actions.every((a) => {
+              const m = INDIVIDUAL_DAMAGE_RE.exec((a.note && a.note.ja) || "") || INDIVIDUAL_DAMAGE_RE.exec((a.note && a.note.zh) || "");
+              return !!m && parseInt(m[1], 10) > 0;
+            });
+            if (ok) return { familyId: rec.familyId, enemyId: rec.enemy.id };
+          }
+          return null;
+        });
+        console.log("  seed用の敵:", JSON.stringify(enemyPick));
         await pageA.evaluate(
-          ({ gameId, pointId }) => {
+          ({ gameId, pointId, enemyPick }) => {
             const participants = {};
             const slot = window.PriTestMidnight._debugState().mySlot;
             participants[slot] = true;
@@ -173,15 +216,18 @@ async function walkNear(page, targetX, targetY, radius, maxRounds) {
               participants: participants,
               branchIndex: 0,
               floorIndex: 0,
-              enemyFamilyId: "test",
-              enemyId: "test",
+              level: 1,
+              enemyFamilyId: enemyPick ? enemyPick.familyId : "test",
+              enemyId: enemyPick ? enemyPick.enemyId : "test",
             }).then(() => window.PriTestGameStorage.rtSet(gameId, "cloud", "fieldEnemyHp/" + pointId, 30));
           },
-          { gameId: stateA.gameId, pointId: pt.id }
+          { gameId: stateA.gameId, pointId: pt.id, enemyPick: enemyPick }
         );
+        // 2026-09-09に追加された「識別資訊準備」5秒（BATTLE_PREP_DURATION_MS）を通過しないと
+        // activeEncounterにならないため、5秒ぴったりでは間に合わない。
         await pageA.waitForFunction(
           () => window.PriTestMidnight._debugState().activeEncounter,
-          { timeout: 5000 }
+          { timeout: 15000 }
         ).catch(() => {});
         const encounterState = await pageA.evaluate(() => window.PriTestMidnight._debugState());
         assert(!!encounterState.activeEncounter, "直接seed的fieldTrigger讓玩家靠近時activeEncounter正確生效", results);

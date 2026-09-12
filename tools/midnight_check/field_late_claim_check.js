@@ -394,42 +394,86 @@ async function lateClaimVisible(page) {
     );
 
     // ---------------- ③ HUD 疊層順序 ----------------
-    console.log("\n=== ③ 左上/右上 HUD 必須疊在上方樓層資訊欄之上（桌機＋手機寬度各驗一次） ===");
+    // 2026-09-12修正：この段は2026-09-10の「一次修正」（HUDを一律620にして常にbannerより上に
+    // 置く）を前提に書かれていたが、同日の二次修正で使用者明確規格が
+    //   「樓層資訊のbannerは平時は左上角色/右上導覽より上。戰鬥中、または左上/右上HUDを
+    //    タップした直後3秒だけHUDがbannerを覆い、戰鬥終了/離脱で元に戻る」
+    // という二段式に変わった（style.cssの#midnight-hud-top-left周りの説明と
+    // midnight.jsのupdateHudStackingUI()／html.midnight-hud-above-bannerを参照）。
+    // つまり平時は HUD(500) < banner(600) が**正しい**ので、旧アサートは仕様どおりの状態を
+    // 失敗と報告していた。ここでは両方の状態を検証する：
+    //   平時         → banner が上（HUD < banner）
+    //   above-banner → HUD(620) が banner/攻撃警示(600)より上、ただしmodal(700)より下
+    // クラスの付け外しのトリガー自体（タップ→3秒→戻る、戰鬥中は維持）は
+    // optimize_2026_09_10_check.js が担当しているので、ここではCSSの数値関係だけを見る。
+    console.log("\n=== ③ 左上/右上 HUD と上方樓層資訊欄の二段式疊層（桌機＋手機寬度各驗一次） ===");
     for (const vp of [
       { width: 1280, height: 800, label: "桌機1280x800" },
       { width: 390, height: 844, label: "手機390x844" },
     ]) {
       await page.setViewportSize({ width: vp.width, height: vp.height });
       await page.waitForTimeout(400);
-      const z = await page.evaluate(() => {
-        const val = (id) => {
-          const e = document.getElementById(id);
-          if (!e) return null;
-          return parseInt(window.getComputedStyle(e).zIndex, 10);
-        };
-        return {
-          left: val("midnight-hud-top-left"),
-          right: val("midnight-hud-top-right"),
-          menu: val("midnight-menu-panel"),
-          banner: val("midnight-field-banner"),
-          enterPrompt: val("midnight-field-enter-prompt"),
-          attackWarn: val("midnight-incoming-attack-warning"),
-          rewardModal: val("midnight-reward-modal"),
-          charSheet: val("midnight-character-sheet-modal"),
-        };
-      });
-      console.log("    " + vp.label + " z-index: " + JSON.stringify(z));
-      assert(z.left > z.banner && z.right > z.banner, vp.label + "：左上/右上HUD z-index 高於樓層資訊欄", results);
-      assert(z.left > z.attackWarn && z.right > z.attackWarn, vp.label + "：左上/右上HUD z-index 高於戰鬥攻擊警示疊層", results);
-      assert(z.menu === z.right, vp.label + "：選單面板跟右上HUD同層（展開選單不會被資訊欄蓋住）", results);
+      const readZ = () =>
+        page.evaluate(() => {
+          const val = (id) => {
+            const e = document.getElementById(id);
+            if (!e) return null;
+            return parseInt(window.getComputedStyle(e).zIndex, 10);
+          };
+          return {
+            left: val("midnight-hud-top-left"),
+            right: val("midnight-hud-top-right"),
+            menu: val("midnight-menu-panel"),
+            banner: val("midnight-field-banner"),
+            enterPrompt: val("midnight-field-enter-prompt"),
+            attackWarn: val("midnight-incoming-attack-warning"),
+            rewardModal: val("midnight-reward-modal"),
+            charSheet: val("midnight-character-sheet-modal"),
+          };
+        });
+      // 平時（html.midnight-hud-above-banner無し）：bannerが上。
+      // classはupdateHudStackingUI()が毎フレーム貼り替えるので、テスト側でclassList.add/remove
+      // しても次のフレームで元に戻される（実測）。状態を作るには実際のトリガーを使う——
+      // 平時＝直前のタップから3秒以上経過、above-banner＝HUDをpointerdownした直後。
+      await page.waitForTimeout(3300);
+      const idleHasClass = await page.evaluate(() => document.documentElement.classList.contains("midnight-hud-above-banner"));
+      const zIdle = await readZ();
+      console.log("    " + vp.label + " 平時 z-index: " + JSON.stringify(zIdle) + " class=" + idleHasClass);
+      if (idleHasClass) {
+        // 戰鬥中はclassが貼られ続ける仕様（この検査は全踏破後なので通常ここには来ない）。
+        console.log("    [SKIP] " + vp.label + "：いまabove-banner状態が維持されている（戰鬥中？）ため平時判定は略過");
+      } else {
+        assert(
+          zIdle.left < zIdle.banner && zIdle.right < zIdle.banner,
+          vp.label + "：平時樓層資訊欄疊在左上/右上HUD之上（HUD " + zIdle.left + " < banner " + zIdle.banner + "）",
+          results
+        );
+      }
+      // above-banner狀態（HUDをタップした直後3秒／戰鬥中）：HUDが上
+      await page.dispatchEvent("#midnight-hud-top-left", "pointerdown");
+      await page.waitForTimeout(200);
+      const zAbove = await readZ();
+      console.log("    " + vp.label + " above-banner z-index: " + JSON.stringify(zAbove));
       assert(
-        z.left < z.rewardModal && z.left < z.charSheet,
+        zAbove.left > zAbove.banner && zAbove.right > zAbove.banner,
+        vp.label + "：above-banner狀態時左上/右上HUD 高於樓層資訊欄（HUD " + zAbove.left + " > banner " + zAbove.banner + "）",
+        results
+      );
+      assert(
+        zAbove.left > zAbove.attackWarn && zAbove.right > zAbove.attackWarn,
+        vp.label + "：above-banner狀態時左上/右上HUD 高於戰鬥攻擊警示疊層",
+        results
+      );
+      assert(zAbove.menu === zAbove.right, vp.label + "：選單面板跟above-banner狀態的右上HUD同層（展開選單不會被資訊欄蓋住）", results);
+      assert(
+        zAbove.left < zAbove.rewardModal && zAbove.left < zAbove.charSheet,
         vp.label + "：左上/右上HUD 仍低於獎勵清單／角色面板等彈窗（不會戳穿modal）",
         results
       );
-      // 實際命中測試：資訊欄（此時應該正顯示著剛全踏破的板塊banner）跟左上/右上HUD
-      // 真的有重疊的座標時，document.elementFromPoint()回傳的必須是HUD內部的元素，
-      // 不是被資訊欄蓋掉。沒有重疊（桌機寬度通常不會重疊）就SKIP，不硬造失敗。
+      // 實際命中測試：above-banner狀態（上で付けたclassのまま）で、資訊欄と左上/右上HUDが
+      // 実際に重なる座標において document.elementFromPoint() がHUD内部の要素を返すこと
+      // ——つまりCSSのz-indexが実際のヒットテストにも効いていることを確認する。
+      // 重なりが無い（桌機幅では多くの場合重ならない）ときはSKIPし、無理に失敗させない。
       const hit = await page.evaluate(() => {
         const banner = ["midnight-field-banner", "midnight-field-enter-prompt", "midnight-field-late-claim-prompt"]
           .map((id) => document.getElementById(id))
@@ -454,8 +498,10 @@ async function lateClaimVisible(page) {
       console.log("    " + vp.label + " 命中測試: " + JSON.stringify(hit));
       ["midnight-hud-top-left", "midnight-hud-top-right"].forEach((id) => {
         if (!hit || hit.skip || hit[id] === "no-overlap" || hit[id] === "hud未顯示") return;
-        assert(hit[id] === "hud-on-top", vp.label + "：" + id + " 與資訊欄重疊處實際命中的是HUD本身", results);
+        assert(hit[id] === "hud-on-top", vp.label + "：above-banner狀態時 " + id + " 與資訊欄重疊處實際命中的是HUD本身", results);
       });
+      // 次のviewportの「平時」判定は、ループ先頭の3.3秒待ちでclassが自然に期限切れするのを待つ
+      // （手動removeはupdateHudStackingUI()に上書きされるので意味が無い）。
     }
   } catch (err) {
     console.error("FATAL:", err);

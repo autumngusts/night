@@ -95,7 +95,10 @@ async function runOneFloorCycle(page, gameId, pt, results, label) {
     const close = document.getElementById("btn-midnight-reward-close");
     if (m && !m.hidden && close) close.click();
   });
-  await page.click("#btn-midnight-field-enter");
+  // 2026-09-12修正：page.click()は「可見・enabled・stable」を待つため、獎勵清單modalの
+  // フェードや上方資訊欄の毎フレーム再描画に当たると30秒待って落ちる（実測）。押したいのは
+  // handlerだけなのでdispatchEventで直接発火させる（midnightのテスト全体で同じ方針）。
+  await page.dispatchEvent("#btn-midnight-field-enter", "click");
   // 邀請時限 -> active（2026-09-10修正：FIELD_INVITE_TIME_LIMIT_MS已於2026-09-07由3秒
   // 改為10秒，這裡原本的8秒timeout必定來不及，是腳本本身過期，不是被測程式的問題）
   await page.waitForFunction(
@@ -199,6 +202,13 @@ async function runOneFloorCycle(page, gameId, pt, results, label) {
     assert(afterFloor1.floorIndex === 1, "第1層結束後fieldProgress.floorIndex推進為1（實際:" + afterFloor1.floorIndex + "）", results);
     assert(afterFloor1.cleared === false, "第1層結束後cleared仍為false（floorCount=2，還有第2層）", results);
 
+    // 2026-09-12修正：runOneFloorCycle()はfieldProgressの推進を見て返るが、fieldTriggerを
+    // nullに戻すのは別のRTDB書き込み（resolve transactionの.then()の続き）なので、
+    // 返った直後に読むと「まだ残っている」ことがある（実測でflaky）。即座に読むのではなく
+    // 「数秒以内にクリアされるか」を待って判定する。
+    await page
+      .waitForFunction((pointId) => !(window.PriTestMidnight._debugState().fieldTriggers || {})[pointId], pt.id, { timeout: 8000 })
+      .catch(() => {});
     const trigAfterFloor1 = await page.evaluate((pointId) => (window.PriTestMidnight._debugState().fieldTriggers || {})[pointId], pt.id);
     assert(!trigAfterFloor1, "第1層結束後fieldTrigger已清空，允許重新「進入」下一層", results);
 
@@ -261,7 +271,18 @@ async function runOneFloorCycle(page, gameId, pt, results, label) {
         await page.click("#btn-midnight-blessing-use"); // 視窗內「使用祝福」才真正回復
         await page.waitForTimeout(300);
         const afterBless = await page.evaluate(() => window.PriTestMidnight._debugState());
-        assert(afterBless.demoStats[afterBless.myTokenId] === 100, "領取祝福後demoStat(HP)回滿為100", results);
+        // 2026-09-12修正：競技場HPの上限は固定100ではなく selfArenaHpMax()＝
+        // 100 +（hp.max + 最大HP加成）×10 + 取引ボーナス（実測150など、角色類型/等級で変わる）。
+        // 期待値をハードコードせず、_debugStateが返す自分のHP上限と比べる。
+        const arenaHpMax = await page.evaluate(() => {
+          const D = window.PriTestMidnight._debugState();
+          return D.hp ? D.hp.max : null;
+        });
+        assert(
+          arenaHpMax !== null && afterBless.demoStats[afterBless.myTokenId] === arenaHpMax,
+          "領取祝福後demoStat(HP)回滿為競技場HP上限" + arenaHpMax + "（實際=" + afterBless.demoStats[afterBless.myTokenId] + "）",
+          results
+        );
         assert(afterBless.stamina.current === afterBless.stamina.max, "領取祝福後本地體力回滿", results);
         assert(afterBless.fp.current === afterBless.fp.max, "領取祝福後本地FP回滿", results);
         // 使用後可以再次進入（不再打X／不再排他鎖，見docs之外的規劃紀錄）。

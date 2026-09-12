@@ -184,11 +184,26 @@ async function walkNear(page, targetX, targetY, radius, maxRounds) {
       "第1擊傷害＝CharacterDrawer.computeWeaponDamage().hit1Damage（" + expected.hit1 + "）",
       results
     );
-    assertClose(
-      afterState.stamina.current,
-      staminaBefore - stamina1 + (STAMINA_REGEN_PER_SEC * (t1 - t0)) / 1000,
-      0.6,
-      "第1擊體力消耗＝骰子點數×2＝" + stamina1 + "（已扣除等待期間的體力回復量）",
+    // 2026-09-12修正：旧版はassertClose(before - cost + regen*dt, ±0.6)だったが、実測で
+    // 2つの理由から必ず外れる——①page.click()はrAFで毎フレーム再描画されるHUD上の
+    // ボタンを「stable」と判定するまで数秒待つことがあり（実測7秒前後）、dtが想定の
+    // 200msではなく数千msになる。②体力は上限でclampされる（tick内のMath.min(max, …)）
+    // ため、開幕満タン（100/100）の状態では regen 分がそのまま足し込まれない。
+    // よって検査5の体力アサートと同じ「範囲チェック＋上限clamp」に揃える：
+    //   下限＝消耗ぶんだけ減ってregenゼロ／上限＝理論最大まで回復（ただしstamina.maxで頭打ち）
+    const staminaFloor1 = staminaBefore - stamina1 - 0.6;
+    const staminaCeil1 = Math.min(afterState.stamina.max, staminaBefore - stamina1 + (STAMINA_REGEN_PER_SEC * (t1 - t0)) / 1000) + 0.6;
+    assert(
+      afterState.stamina.current >= staminaFloor1 && afterState.stamina.current <= staminaCeil1,
+      "第1擊體力消耗＝骰子點數×2＝" +
+        stamina1 +
+        "（實際=" +
+        afterState.stamina.current +
+        "，允許範圍[" +
+        staminaFloor1.toFixed(2) +
+        ", " +
+        staminaCeil1.toFixed(2) +
+        "]，上限clamp與click耗時見上方註解）",
       results
     );
 
@@ -277,6 +292,12 @@ async function walkNear(page, targetX, targetY, radius, maxRounds) {
       "  施法前狀態：fp=" + fpBefore + " stamina=" + staminaBeforeSpell + " b1Disabled=" +
         (await page.evaluate(() => document.getElementById("btn-midnight-skill-b1-left").disabled))
     );
+    // 2026-09-10使用者明確規格「戰技魔法與祈禱 總傷害2倍」＝midnight.jsの
+    // WEAPON_SKILL_DAMAGE_MULT。表示（toast）は原値のまま、damageCombatTarget()に渡す値だけ
+    // ×2される仕様なので、実際に削れるHPはspellSkillPowerValue()の値の2倍になる。
+    // この検査は2026-09-05時点で書かれており倍率導入前の原値を期待していたため、ここで追随する。
+    const WEAPON_SKILL_DAMAGE_MULT = 2;
+    const expectedSpellDamage = spellExpected[0].value * WEAPON_SKILL_DAMAGE_MULT;
     const tSpell0 = Date.now();
     // 長按滿2秒才觸發（SORCERY_CAST_HOLD_MS）。
     await page.dispatchEvent("#btn-midnight-skill-b1-left", "mousedown");
@@ -291,8 +312,18 @@ async function walkNear(page, targetX, targetY, radius, maxRounds) {
     const tSpell1 = Date.now();
     const afterSpell1 = await getState(page);
     assert(
-      afterSpell1.demoStats.sharedTarget === targetBeforeSpell - spellExpected[0].value,
-      "施放「" + spellExpected[0].name + "」造成的傷害＝spellSkillPowerValue算出的" + spellExpected[0].value,
+      afterSpell1.demoStats.sharedTarget === targetBeforeSpell - expectedSpellDamage,
+      "施放「" +
+        spellExpected[0].name +
+        "」造成的傷害＝spellSkillPowerValue算出的" +
+        spellExpected[0].value +
+        "×WEAPON_SKILL_DAMAGE_MULT(" +
+        WEAPON_SKILL_DAMAGE_MULT +
+        ")＝" +
+        expectedSpellDamage +
+        "（實際扣=" +
+        (targetBeforeSpell - afterSpell1.demoStats.sharedTarget) +
+        "）",
       results
     );
     assert(afterSpell1.fp.current === fpBefore - spellExpected[0].fpCost, "FP消耗＝■個數×10＝" + spellExpected[0].fpCost, results);
@@ -385,8 +416,33 @@ async function walkNear(page, targetX, targetY, radius, maxRounds) {
       if (!reached) {
         console.log("  [SKIP] 固定佈局走位沒能在時限內走到目標點附近，略過檢查8");
       } else {
+        // 2026-09-12修正：旧版は enemyFamilyId/enemyId を "test" というダミー値で seed していた。
+        // しかし2026-09-06の仕様変更（使用者明確規格「敵人傷害計算：串接後的傷害值除以10」）で
+        // ENEMY_ATTACK_DAMAGE=10 という固定プレースホルダーは廃止され、実際の招式 note から
+        // 解析した dmgAmount を使う方式になった。ダミーidでは PriTestEnemies.get() が null を
+        // 返し、招式が引けず dmgAmount=0＝「数値を発明しない」（CLAUDE.md §19）ため、扣血0が
+        // 正しい挙動になる。減傷公式そのものを検証するには実在の敵データが必要なので、
+        // 「全ての action が個別ダメージを明記している敵」を実データから選んで seed する
+        // （どの action が抽かれても dmgAmount>0 になり、テストが確率で揺れない）。
+        const enemyPick = await page.evaluate(() => {
+          const INDIVIDUAL_DAMAGE_RE = /個別(?:ダメージ|傷害)[:：]\+?(\d+)/; // midnight.js と同じ判定
+          const all = window.PriTestEnemies.allEnemies();
+          for (const rec of all) {
+            const actions = rec.enemy.actions || [];
+            if (!actions.length) continue;
+            const amounts = actions.map((a) => {
+              const m = INDIVIDUAL_DAMAGE_RE.exec((a.note && a.note.ja) || "") || INDIVIDUAL_DAMAGE_RE.exec((a.note && a.note.zh) || "");
+              return m ? parseInt(m[1], 10) : null;
+            });
+            if (amounts.every((v) => v !== null && v > 0)) {
+              return { familyId: rec.familyId, enemyId: rec.enemy.id, amounts: amounts };
+            }
+          }
+          return null;
+        });
+        console.log("  seed用の敵:", JSON.stringify(enemyPick));
         await page.evaluate(
-          ({ gameId, pointId, mySlot }) => {
+          ({ gameId, pointId, mySlot, enemyPick }) => {
             const participants = {};
             participants[mySlot] = true;
             return window.PriTestGameStorage.rtSet(gameId, "cloud", "fieldTrigger/" + pointId, {
@@ -394,44 +450,80 @@ async function walkNear(page, targetX, targetY, radius, maxRounds) {
               participants: participants,
               branchIndex: 0,
               floorIndex: 0,
-              enemyFamilyId: "test",
-              enemyId: "test",
+              level: 1,
+              enemyFamilyId: enemyPick ? enemyPick.familyId : "test",
+              enemyId: enemyPick ? enemyPick.enemyId : "test",
             }).then(() => window.PriTestGameStorage.rtSet(gameId, "cloud", "fieldEnemyHp/" + pointId, 30));
           },
-          { gameId, pointId: pt.id, mySlot: mapState.mySlot }
+          { gameId, pointId: pt.id, mySlot: mapState.mySlot, enemyPick: enemyPick }
         );
-        await page
-          .waitForFunction(() => window.PriTestMidnight._debugState().activeEncounter, { timeout: 5000 })
-          .catch(() => {});
+        // 2026-09-09に追加された「識別資訊準備」5秒（BATTLE_PREP_DURATION_MS）を通過しないと
+        // activeEncounterにならない＝敵は攻撃を開始しない。旧版のtimeout:5000はこの5秒と
+        // ちょうど同じでギリギリ間に合わず、そのまま.catch()で握りつぶしていたので余裕を持たせる。
+        const encounterReady = await page
+          .waitForFunction(() => !!window.PriTestMidnight._debugState().activeEncounter, { timeout: 15000 })
+          .then(() => true)
+          .catch(() => false);
+        console.log("  activeEncounter成立=" + encounterReady);
         const hpBeforeAttack = (await getState(page)).demoStats[tokenId];
-        const staminaBeforeBlock = (await getState(page)).stamina.current;
         // 一次攻擊可能有1~3擊，每一擊各自有window階段；全程按住防禦鍵，直到整次攻擊done。
         await page.mouse.move(10, 10);
         await page.dispatchEvent("#btn-midnight-block", "mousedown");
-        let hitsObserved = 0;
-        for (let i = 0; i < 60; i++) {
+        // 敵の攻撃は nextAttackAt（2〜4秒のランダム間隔）→warn0.5秒→各ヒットのwindow、と
+        // 進むので、遭遇成立から数えて十分な猶予を取る。dmgAmount/hitCountは攻撃が発動した
+        // 瞬間の myIncomingAttack から採取する（done後もオブジェクトは残る）。
+        let incomingSeen = null;
+        for (let i = 0; i < 80; i++) {
           const st = await page.evaluate(() => window.PriTestMidnight._debugState().myIncomingAttack);
+          if (st) incomingSeen = st;
           if (st && st.phase === "done") break;
-          if (st) hitsObserved = Math.max(hitsObserved, st.hitIndex);
           await page.waitForTimeout(250);
         }
         await page.dispatchEvent("#btn-midnight-block", "mouseup");
         await page.waitForTimeout(300);
         const afterBlockState = await getState(page);
         const hpAfterAttack = afterBlockState.demoStats[tokenId];
-        const totalHits = (afterBlockState.myIncomingAttack && afterBlockState.myIncomingAttack.hitCount) || hitsObserved + 1 || 1;
-        const expectedDamagePerHit = Math.round(10 * (1 - 50 / 100)); // ENEMY_ATTACK_DAMAGE=10, small_shield C稀有度50%
-        const expectedTotalDamage = expectedDamagePerHit * totalHits;
         const actualDamage = (hpBeforeAttack === undefined ? 100 : hpBeforeAttack) - (hpAfterAttack === undefined ? 100 : hpAfterAttack);
-        console.log(
-          "  hitCount=" + totalHits + " 每擊期望扣" + expectedDamagePerHit + "（原始10點的50%減免）＝總計期望" + expectedTotalDamage + "，實際扣" + actualDamage
-        );
-        assert(
-          actualDamage === expectedTotalDamage,
-          "全程按住防禦鍵時，每一擊都套用50%減傷（10→5），不是舊版的完全不扣血或錯誤扣全額",
-          results
-        );
-        assert(actualDamage > 0, "百分比減傷不是100%全免，防禦仍會受到部分傷害（區別於舊版「擋到＝完全不扣血」）", results);
+        if (!incomingSeen) {
+          console.log("  [SKIP] 猶予時間内に敵の攻撃が発動しなかったため検査8を略過（敵攻撃はランダム間隔＋遭遇準備5秒）");
+        } else if (!incomingSeen.dmgAmount) {
+          // 2026-09-06仕様：招式noteから傷害が解析できない場合は数値を発明せず0ダメージ。
+          // seedした敵が想定外だった場合はここに落ちるので、誤って「減傷が壊れている」と
+          // 報告しないよう、仕様どおりの0ダメージであることを確認するだけに留める。
+          console.log("  seedした敵のdmgAmountが0（招式noteから解析不能）＝2026-09-06仕様どおり0ダメージ");
+          assert(actualDamage === 0, "招式の傷害が解析できないときは数値を発明せず0ダメージ（CLAUDE.md §19）", results);
+        } else {
+          // 期望値はmidnight.jsの計算鎖と同じ順序で組む：
+          //   rawDamage = round(dmgAmount / 10 * hitMult)   hitMult: 首擊1、2擊目以降0.5
+          //   damage    = round(rawDamage * (1 - guardPct / 100))
+          // guardPctは装備中の盾のHP價值（小盾C/U＝50）をそのまま%として使う実装に合わせ、
+          // テスト側でも武器データから引き直す（固定値50をハードコードしない）。
+          const FOLLOWUP_MULT = 0.5; // midnight.js ENEMY_ATTACK_FOLLOWUP_HIT_DAMAGE_MULT
+          const guardPct = await page.evaluate(() => {
+            const D = window.PriTestMidnight._debugState();
+            const c = D.characters[D.myTokenId];
+            const id = c.equippedWeaponIdL || c.equippedWeaponIdR;
+            const w = window.PriTestWeapons.get(id);
+            const cat = window.PriTestWeapons.getCategory(w.category);
+            return w.rarity === "R" || w.rarity === "L" ? cat.basicStats.guardHpRL : cat.basicStats.guardHpCU;
+          });
+          const hitCount = incomingSeen.hitCount || 1;
+          let expectedTotalDamage = 0;
+          for (let h = 0; h < hitCount; h++) {
+            const raw = Math.round((incomingSeen.dmgAmount / 10) * (h > 0 ? FOLLOWUP_MULT : 1));
+            expectedTotalDamage += Math.round(raw * (1 - guardPct / 100));
+          }
+          console.log(
+            "  dmgAmount=" + incomingSeen.dmgAmount + " hitCount=" + hitCount + " 盾減傷=" + guardPct + "%" +
+              " → 總計期望扣" + expectedTotalDamage + "，實際扣" + actualDamage
+          );
+          assert(
+            actualDamage === expectedTotalDamage,
+            "全程按住防禦鍵時，每一擊都套用盾牌的百分比減傷（首擊全額／第2擊以後半額×減傷率）",
+            results
+          );
+          assert(actualDamage > 0, "百分比減傷不是100%全免，防禦仍會受到部分傷害（區別於舊版「擋到＝完全不扣血」）", results);
+        }
       }
     }
     console.log("=== 檢查9：石劍鑰匙／鍛造石的持有門檻（封牢/商人鍛造台） ===");

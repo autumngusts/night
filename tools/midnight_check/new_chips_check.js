@@ -194,8 +194,15 @@ async function walkNear(page, targetX, targetY, radius, maxRounds) {
           await page.waitForSelector("#midnight-reward-modal:not([hidden])", { timeout: 5000 });
           assert(true, "獎勵清單彈窗在有未解決獎勵時自動彈出", results);
 
+          // 2026-09-12修正：2026-09-08の共享池獎勵改版（使用者明確規格「共享池項目…全員投票後
+          // 抽出一人領取」）で、獎勵清單は #midnight-reward-list 単体から
+          // #midnight-reward-list-shared（共享池）と #midnight-reward-list-personal（個人）の
+          // 2つの<ul>に分割された。旧セレクタは存在しないため常に0件＝3項目まとめて落ちていた。
+          // この検査が見ているのは強敵擊殺の個人獎勵なのでpersonal側を見る（順序は
+          // unresolvedIds＝pendingRewardsのキー順なので、下のkindsのindexとの対応は維持される）。
           const runeBtnIndex = kinds.indexOf("rune");
-          const buttons = await page.$$("#midnight-reward-list button");
+          const buttons = await page.$$("#midnight-reward-list-personal button");
+          console.log("  個人獎勵清單のボタン数:", buttons.length, " kinds=" + JSON.stringify(kinds));
           assert(buttons.length >= 2, "獎勵清單左側列出至少2個項目", results);
           if (runeBtnIndex !== -1 && buttons[runeBtnIndex]) {
             await buttons[runeBtnIndex].click();
@@ -206,7 +213,7 @@ async function walkNear(page, targetX, targetY, radius, maxRounds) {
           }
 
           // potentialPower項目：抽選得意武器＋附帶效果，選擇武器那一邊。
-          const buttons2 = await page.$$("#midnight-reward-list button");
+          const buttons2 = await page.$$("#midnight-reward-list-personal button");
           if (buttons2[0]) {
             await buttons2[0].click();
             await page.waitForTimeout(200);
@@ -251,7 +258,7 @@ async function walkNear(page, targetX, targetY, radius, maxRounds) {
     }
 
     console.log("=== 角色屬性管理面板：唯讀顯示目前角色狀態 ===");
-    await page.click("#btn-midnight-open-character-sheet");
+    await page.dispatchEvent("#btn-midnight-open-character-sheet", "click"); // nudgeアニメーションでstable待ちが永久にタイムアウトするためdispatchEventで押す
     await page.waitForSelector("#midnight-character-sheet-modal:not([hidden])", { timeout: 5000 });
     const summary = await page.textContent("#midnight-character-sheet-summary");
     assert(!!summary && summary.length > 0, "角色面板顯示了摘要文字（名稱/等級/HP/FP）", results);
