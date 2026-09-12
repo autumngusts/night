@@ -1443,7 +1443,7 @@ STRINGS_JA: dict[str, str] = {
     "midnight_lobby_leave_button": "席を離れる",
     "midnight_strong_enemy_enter_button": "戦闘に入る",
     "midnight_strong_enemy_reveal_note": "強敵出現：{name}（Lv.{level}）",
-    "midnight_hazard_q_locked_toast": "お前にはまだ資格がない　先に同じ区域の場所に挑め",
+    "midnight_hazard_q_locked_note": "お前にはまだ資格がない　先に同じ区域の場所に挑め",
     "midnight_kasan_lava_floor_note": "溶岩地形：このフロアを踏破した後、PC全員は「HP損害：■」を受ける。数値は規則書を参照の上、各自判断すること",
     "midnight_ice_blizzard_blind_note": "吹雪で視界不良！5秒間、攻撃も技も使用できない",
     "midnight_strong_enemy_kind_label": "種類：{kind}",

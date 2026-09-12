@@ -27,7 +27,8 @@
     "check:draw_coverage": "node draw_table_coverage_check.js",
     "audit:weapon_skills": "node weapon_skill_audit.js",
     "audit:relic_effects": "node relic_effect_audit.js",
-    "audit:relic_gaps": "node relic_effect_gaps_table.js"
+    "audit:relic_gaps": "node relic_effect_gaps_table.js",
+    "test:hazard_q_locked_banner": "node hazard_q_locked_banner_check.js"
   },
   "devDependencies": {
     "firebase-tools": "^15.29.0",

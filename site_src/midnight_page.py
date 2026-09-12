@@ -173,6 +173,12 @@ BODY = """    <div class="midnight-wrap">
         <div id="midnight-field-enter-prompt" hidden>
           <button type="button" class="midnight-top-banner-collapse-btn" aria-label="collapse">&#9654;</button>
           <p id="midnight-field-enter-name"></p>
+          <!-- 2026-09-12使用者明確規格「進入Q板塊若出現還沒資格挑戰的『你沒資格…』文字，
+               要出現在樓層資訊的banner，不在背景上顯示」：原本是showToast()（畫面中央的
+               浮動提示，跟地圖背景疊在一起），改成這一行掛在上方資訊欄裡的黃字說明。
+               沿用本檔案既有的.warning-text黃字樣式（同#midnight-field-reward-gate-note），
+               由static/midnight.jsのrenderFieldOverlay()控制顯示與內容。 -->
+          <p id="midnight-field-enter-note" class="warning-text" hidden></p>
           <button type="button" id="btn-midnight-field-enter" data-i18n="midnight_field_enter_button"></button>
         </div>
 

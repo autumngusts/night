@@ -1443,7 +1443,7 @@ STRINGS_EN: dict[str, str] = {
     "midnight_lobby_leave_button": "Leave slot",
     "midnight_strong_enemy_enter_button": "Enter battle",
     "midnight_strong_enemy_reveal_note": "Strong enemy revealed: {name} (Lv.{level})",
-    "midnight_hazard_q_locked_toast": "You're not worthy yet - clear the other sites in this area first",
+    "midnight_hazard_q_locked_note": "You're not worthy yet - clear the other sites in this area first",
     "midnight_kasan_lava_floor_note": "Lava terrain: after clearing this floor, all PCs should take \"HP damage: box\" - check the rulebook for the actual amount",
     "midnight_ice_blizzard_blind_note": "Blizzard blinds you! Can't attack or use skills for 5 seconds",
     "midnight_strong_enemy_kind_label": "Type: {kind}",

@@ -130,12 +130,32 @@ async function walkNear(page, targetX, targetY, radius, maxRounds) {
         const consumableBtn = await page.$("#midnight-merchant-consumable-list button");
         assert(!!consumableBtn, "商人消耗品清單有渲染出按鈕", results);
         if (consumableBtn) {
+          // 2026-09-12：商人購買消耗品改成兩段式（使用者明確規格「按下道具會先顯示其效果，
+          // 再按［確定購買］才會實際取得」）。舊版腳本按一下品項就斷言已經扣款、已經入手，
+          // 那是改版前的行為——現在按品項只是預覽，必須再按 #midnight-merchant-consumable-detail
+          // 裡的［確定購買］才真的成交。
           await consumableBtn.click();
           await page.waitForTimeout(300);
+          const afterPick = await page.evaluate(() => window.PriTestMidnight._debugState());
+          const pickChar = afterPick.characters[afterPick.myTokenId];
+          assert(pickChar.runes === 4, "按下消耗品只是預覽效果，還沒扣盧恩（維持4）", results);
+          const detailText = await page.evaluate(() => {
+            const d = document.getElementById("midnight-merchant-consumable-detail");
+            return d ? d.textContent.trim() : "";
+          });
+          assert(detailText.length > 0, "預覽區顯示了該消耗品的效果本文", results);
+          await page.evaluate(() => {
+            const btn = document.querySelector("#midnight-merchant-consumable-detail button");
+            if (btn) btn.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+          });
+          await page.waitForTimeout(400);
           const afterConsumableBuy = await page.evaluate(() => window.PriTestMidnight._debugState());
           const myChar2 = afterConsumableBuy.characters[afterConsumableBuy.myTokenId];
-          assert(myChar2.consumables && myChar2.consumables.length === 1, "購買消耗品後character.consumables新增1個", results);
-          assert(myChar2.runes === 3, "購買消耗品再扣款1盧恩（4→3）", results);
+          // 2026-09-12：消耗品獲得改為「基本拿到2個」（見 midnight.js のconsumableAcquireCount()），
+          // 但同一品項會疊在同一格，所以佔用的格數仍然是1。
+          assert(myChar2.consumables && myChar2.consumables.length === 1, "按下［確定購買］後character.consumables新增1格", results);
+          assert(myChar2.consumables && myChar2.consumables[0].usesRemaining >= 2, "取得數量套用「基本2個」規則", results);
+          assert(myChar2.runes === 3, "按下［確定購買］才扣款1盧恩（4→3）", results);
         }
         await page.click("#btn-midnight-merchant-close");
       }

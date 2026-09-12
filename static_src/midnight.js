@@ -7857,26 +7857,22 @@
       return;
     }
     var found = null;
-    var lockedHazardQNearby = false;
     map.points.forEach(function (pt) {
       if (found || NON_FIELD_POINT_TYPES[pt.type]) return;
       var dist = Math.hypot(localPos.x - (pt.x + 0.5), localPos.y - (pt.y + 0.5));
       if (dist > FIELD_TRIGGER_RADIUS) return;
-      // Q板塊開放判定（使用者明確規格「在4/可怖強敵兩者其一通過以前，進入Q時會顯示訊息
-      // 『你沒資格阿　先挑戰同區域的地方啊』」）：未解鎖時整個不當成found（沒有「進入」
-      // 按鍵），只顯示一次提示——跟其餘一般地點共用同一個FIELD_TRIGGER_RADIUS/found機制，
-      // 不是另外發明第二套判定。
-      if (pt.type === "hazard_q" && !hazardQUnlocked()) {
-        lockedHazardQNearby = true;
-        if (!hazardQLockedToastShown[pt.id]) {
-          hazardQLockedToastShown[pt.id] = true;
-          showToast(window.I18N.t("midnight_hazard_q_locked_toast"));
-        }
-        return;
-      }
       found = pt;
     });
-    if (!lockedHazardQNearby) hazardQLockedToastShown = {};
+    // Q板塊開放判定（使用者明確規格「在4/可怖強敵兩者其一通過以前，進入Q時會顯示訊息
+    // 『你沒資格阿　先挑戰同區域的地方啊』」）：未解鎖時仍然算是nearbyFieldPoint，只是
+    // 上方資訊欄改顯示鎖定說明、不給「進入」按鍵（見renderFieldOverlay()）。
+    // 2026-09-12改版（使用者明確規格「文字要出現在樓層資訊的banner，不在背景上顯示」）：
+    // 原本的做法是「整個不當成found」＋showToast()一次性浮動提示——那行字疊在地圖背景上、
+    // 而且上方資訊欄什麼都不顯示，玩家靠近Q時看不出這個點是什麼、也不知道為什麼沒有按鍵。
+    // 改成照樣當成found之後，下面那批maybe*()全部是「沒有fieldTrigger就no-op」的既有
+    // guard，不會因此誤觸發流程；recomputeActiveEncounter()也要求trig有敵人才成立。
+    // 真正的進入閘門改由renderFieldOverlay()隱藏按鍵＋handleEnterFieldPointClick()的
+    // 防禦性檢查共同把關。
     nearbyFieldPoint = found;
     var foundVillage = found && found.card === "8" ? found : null;
     if (!foundVillage && nearbySmithingVillage) resetWeaponRerollCreditsOnLeaveVillage();
@@ -8306,6 +8302,13 @@
     if (!mySlot || isPaused() || activeEncounter || fieldTriggers[pt.id] || fieldEnterAttempted[pt.id]) return;
     var progress = fieldProgress[pt.id];
     if (progress && progress.cleared) return; // 已全踏破，沒有更多樓層可以探索
+    // 未解鎖的Q板塊（2026-09-12）：按鍵本來就被renderFieldOverlay()隱藏了，這裡是防禦性的
+    // 第二道閘門——這個點現在會正常成為nearbyFieldPoint（見updateNearbyFieldPoint()說明），
+    // 所以進入流程必須自己擋住，不能再靠「不當成found」來間接防止。
+    if (pt.type === "hazard_q" && !hazardQUnlocked()) {
+      showToast(window.I18N.t("midnight_hazard_q_locked_note"));
+      return;
+    }
     // 封牢（evergaol）：使用者明確規格「在擁有鑰匙的人才能對封牢進行動作」，只有持有
     // 石劍鑰匙的角色才能按「進入」。
     if (pt.type === "evergaol" && !characterHasConsumable(characters[myTokenId], "item_stonesword_key")) {
@@ -8782,7 +8785,6 @@
   // 實際的「未解鎖時顯示提示、不能進入」閘門在updateNearbyFieldPoint()（Q板塊已改走一般
   // 地點的fieldCardData() pipeline，不再是strong_enemy籌碼特例，見NON_FIELD_POINT_TYPES
   // 說明）。
-  var hazardQLockedToastShown = {};
   function hazardQUnlocked() {
     var members = map.points.filter(function (p) {
       return p.hazardMember;
@@ -14045,6 +14047,10 @@
     // 但獎勵清單還沒全部關閉」的分支才顯示，見fieldRewardGateOpen()。
     var rewardGateNote = el("midnight-field-reward-gate-note");
     if (rewardGateNote) rewardGateNote.hidden = true;
+    // 未解鎖Q板塊的黃字說明（2026-09-12新增）：同上，預設收起，只在下方「沒有trig且這個點
+    // 是未解鎖的Q」的分支才顯示，避免離開範圍/切到其他點時殘留上一次的內容。
+    var enterNoteDefault = el("midnight-field-enter-note");
+    if (enterNoteDefault) enterNoteDefault.hidden = true;
     // 中途加入按鈕（設計文件§1.4）：獨立於下方pt/trig狀態分支之外決定顯示與否，直接依
     // nearbyLateJoinPoint（已在updateNearbyFieldPoint()排除status==="inviting"與自己已是
     // participant的情況）——這樣即使下面的分支因為trig.status==="inviting"或!pt而提早
@@ -14080,7 +14086,22 @@
       enterPrompt.hidden = false;
       invitePrompt.hidden = true;
       banner.hidden = true;
-      if (progress && progress.cleared) {
+      // 2026-09-12使用者明確規格「進入Q板塊若出現還沒資格挑戰的『你沒資格…』文字，要出現
+      // 在樓層資訊的banner，不在背景上顯示」：原本在updateNearbyFieldPoint()用showToast()
+      // 浮在地圖背景上，而且那個點根本不會成為nearbyFieldPoint，所以上方資訊欄整個空白。
+      // 改成這一行黃字說明，跟「已探索完畢」「需要石劍鑰匙」同一個位置、同一種呈現方式。
+      var enterNote = el("midnight-field-enter-note");
+      var hazardQLocked = pt.type === "hazard_q" && !hazardQUnlocked();
+      if (enterNote) {
+        enterNote.hidden = !hazardQLocked;
+        if (hazardQLocked) enterNote.textContent = window.I18N.t("midnight_hazard_q_locked_note");
+      }
+      if (hazardQLocked) {
+        // 未解鎖的Q：只顯示地點名稱＋上面那行鎖定說明，不給「進入」按鍵（真正的閘門另見
+        // handleEnterFieldPointClick()的防禦性檢查）。
+        el("midnight-field-enter-name").textContent = locationName;
+        el("btn-midnight-field-enter").hidden = true;
+      } else if (progress && progress.cleared) {
         // 全樓層已踏破：不能再進入，只顯示地點名稱＋已探索完畢的提示，隱藏「進入」按鈕
         // （呼應night規則書「全フロア踏破」後即不可再探索同一フィールド）。
         el("midnight-field-enter-name").textContent = locationName + "（" + window.I18N.t("midnight_field_fully_explored_note") + "）";

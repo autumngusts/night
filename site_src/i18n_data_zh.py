@@ -1447,7 +1447,7 @@ STRINGS_ZH: dict[str, str] = {
     "midnight_lobby_leave_button": "離開席位",
     "midnight_strong_enemy_enter_button": "進入戰鬥",
     "midnight_strong_enemy_reveal_note": "強敵出現：{name}（Lv.{level}）",
-    "midnight_hazard_q_locked_toast": "你沒資格啊　先挑戰同區域的地方啊",
+    "midnight_hazard_q_locked_note": "你沒資格啊　先挑戰同區域的地方啊",
     "midnight_kasan_lava_floor_note": "熔岩地形：這一層踏破後，PC全員應承受「HP損害：■」，請自行依規則書判斷數值",
     "midnight_ice_blizzard_blind_note": "暴風雪肆虐視野！5秒內無法攻擊或使用技能",
     "midnight_strong_enemy_kind_label": "種類：{kind}",
