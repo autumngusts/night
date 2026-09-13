@@ -254,12 +254,16 @@
   function recordReceivedAttributeAccum(rawLabel, amount) {
     var name = normalizeAttributeLabel(rawLabel);
     amount = talismanAdjustedReceivedAccum(name, amount);
+    // 2026-09-13武器詞條的「○○耐性上昇」系：機率性完全不累積這一次，接在護符的
+    // 無效化/減免之後（兩者是各自獨立的來源，都通過才真的記進去）。
+    if (affixBlocksReceivedAccum(characters[myTokenId], name)) return;
     if (amount <= 0) return;
     var next = (receivedAttributeAccum[name] || 0) + amount;
     receivedAttributeAccum[name] = next;
     var isAilment = ATTRIBUTE_STATUS_AILMENT_NAMES_JA.indexOf(name) !== -1;
     var prevCount = receivedAttributeAccumTriggeredCount[name] || 0;
-    var newCount = Math.floor(next / ATTRIBUTE_STATUS_THRESHOLD);
+    // 2026-09-13武器詞條：全状態異常耐性を高める／低下會改變自身承受側的觸發門檻。
+    var newCount = Math.floor(next / receivedAccumThreshold(characters[myTokenId]));
     if (newCount <= prevCount) return;
     receivedAttributeAccumTriggeredCount[name] = newCount;
     for (var i = prevCount + 1; i <= newCount; i++) triggerUnyieldingStackIfApplicable();
@@ -307,6 +311,440 @@
   }
   function unyieldingSkillBonus(c) {
     return ((c && c._unyieldingStacks) || 0) * 10;
+  }
+
+  // ============================================================================
+  // 武器詞條（2026-09-13使用者明確規格，詞條資料本體見static_src/weapon_affixes.js）
+  // ============================================================================
+  // 規格重點與本實作的對應：
+  //   「在房間創立中可以選擇武器詞條開放」→ meta.weaponAffixes（RTDB共享，跟難度/夜王/
+  //     地圖同一套等待房設定，見handleWeaponAffixesToggle()）。
+  //   「在遊戲中內獲得的武器杖聖印等 都會帶有詞條（除了初始裝備的武器）」→ 詞條只在
+  //     grantAffixesForNewWeapon()被呼叫時產生，而那支只掛在「遊戲中取得武器」的路徑上
+  //     （獎勵清單／共享池／商人／地上撿拾／塔獎勵等），角色建立時的初始裝備不經過它。
+  //   「C稀有度的一條 其他的兩條詞條」→ affixCountForRarity()。
+  //   「抽選時一併抽出」→ 取得武器的同一個動作裡就擲定（跟既有的
+  //     assignWeaponRandomSkill()「入手當下就決定random戰技枠」同一個時機、同一批路徑）。
+  //   「第一條必定為有益效果 第二條60%機率為有益效果」→ rollWeaponAffixes()。
+  //   「當玩家的裝備欄持有時 基本無須裝備在手上也能發動詞條效果」→ 所有查詢都走
+  //     collectAffixValues()，掃的是c.weaponIds（整個裝備欄）而不是equippedWeaponIdL/R。
+  //     使用者另外明確選擇「一律生效，看動作不看載體」：像「射擊攻擊強化」這種綁動作的
+  //     詞條，條件看的是「這次動作是不是射擊」，不是「帶這條詞條的武器是不是弓」。
+  //
+  // 數值：使用者明確選擇「取得武器時一次擲定」，因此存的是已經擲好的實數
+  //   c.weaponAffixes[weaponId] = [{ id, value }]，value為null代表該詞條沒有可變數值。
+  // 疊加：同一條詞條出現在多把持有中的武器上時，數值相加（機率類同樣相加後再clamp到
+  //   0~100）。這是本實作的取捨——規格沒有寫多把同詞條時怎麼算，相加是最直觀、也跟本專案
+  //   既有的護符/遺物加成「各自獨立累加」一致（CLAUDE.md §12）。
+  var AFFIX_SECOND_GOOD_CHANCE = 0.6; // 使用者明確規格：第二條60%機率為有益效果
+
+  function Affixes() {
+    return window.PriTestWeaponAffixes || null;
+  }
+
+  function weaponAffixesEnabled() {
+    return !!(meta && meta.weaponAffixes);
+  }
+
+  function affixCountForRarity(rarity) {
+    return rarity === "C" ? 1 : 2; // 使用者明確規格：C稀有度1條，其餘2條
+  }
+
+  function randInt(min, max) {
+    return min + Math.floor(Math.random() * (max - min + 1));
+  }
+
+  function rollAffixValue(affix) {
+    if (!affix || !affix.range) return null;
+    return randInt(affix.range[0], affix.range[1]);
+  }
+
+  // 抽一條詞條：good決定從有益池還是有害池抽，exclude是已經抽到的id（同一把武器不重複）。
+  function pickAffix(good, exclude) {
+    var A = Affixes();
+    if (!A) return null;
+    var pool = A.listByGood(good).filter(function (a) {
+      return exclude.indexOf(a.id) === -1;
+    });
+    if (!pool.length) return null;
+    var affix = pool[Math.floor(Math.random() * pool.length)];
+    return { id: affix.id, value: rollAffixValue(affix) };
+  }
+
+  function rollWeaponAffixes(rarity) {
+    var count = affixCountForRarity(rarity);
+    var out = [];
+    var seen = [];
+    for (var i = 0; i < count; i++) {
+      // 第一條必定有益；第二條（以後）60%機率有益。
+      var good = i === 0 || Math.random() < AFFIX_SECOND_GOOD_CHANCE;
+      var picked = pickAffix(good, seen);
+      if (!picked) picked = pickAffix(!good, seen); // 該池抽乾（理論上不會發生）時退到另一池
+      if (!picked) break;
+      seen.push(picked.id);
+      out.push(picked);
+    }
+    return out;
+  }
+
+  // 遊戲中取得一把新武器時呼叫：房間沒開詞條、或這個weaponId已經有詞條（例如從地上撿回
+  // 自己剛丟掉的那把）時都不動作，不會重抽覆蓋掉原本的詞條。
+  // 回傳這次實際產生的詞條陣列（沒有產生時回傳null），呼叫端可用來決定要不要顯示提示。
+  function grantAffixesForNewWeapon(c, weaponId) {
+    if (!c || !weaponId || !weaponAffixesEnabled()) return null;
+    c.weaponAffixes = c.weaponAffixes || {};
+    if (c.weaponAffixes[weaponId]) return null;
+    var CD = window.PriTestCharacterDrawer;
+    // 稀有度用getEffectiveWeaponRarity()（含鍛造台強化後的實際稀有度），跟武器詳細欄
+    // 顯示的稀有度同一個來源，不直接讀catalog的w.rarity。
+    var rarity = CD && CD.getEffectiveWeaponRarity ? CD.getEffectiveWeaponRarity(c, weaponId) : null;
+    if (!rarity) {
+      var w = Weapons.get(baseCatalogId(weaponId));
+      rarity = (w && w.rarity) || "C";
+    }
+    var rolled = rollWeaponAffixes(rarity);
+    if (!rolled.length) return null;
+    c.weaponAffixes[weaponId] = rolled;
+    return rolled;
+  }
+
+  // 目前裝備欄（c.weaponIds，不是裝備在手上的那兩把）所有武器的詞條，攤平成一個陣列。
+  // 每個項目：{ weaponId, id, value, affix }（affix是weapon_affixes.js的定義本體）。
+  function characterAffixEntries(c) {
+    var A = Affixes();
+    if (!A || !c || !c.weaponAffixes) return [];
+    var out = [];
+    (c.weaponIds || []).forEach(function (weaponId) {
+      (c.weaponAffixes[weaponId] || []).forEach(function (entry) {
+        var affix = A.get(entry.id);
+        if (affix) out.push({ weaponId: weaponId, id: entry.id, value: entry.value, affix: affix });
+      });
+    });
+    return out;
+  }
+
+  // 某一條詞條目前的總生效值（多把武器帶同一條時相加）。沒有帶這條詞條時回傳0。
+  // phase 2的詞條一律回傳0——它們還沒接入效果，不能讓數值提前生效。
+  function affixTotal(c, affixId) {
+    var total = 0;
+    characterAffixEntries(c).forEach(function (e) {
+      if (e.id !== affixId || e.affix.phase !== 1) return;
+      total += typeof e.value === "number" ? e.value : 0;
+    });
+    return total;
+  }
+
+  // 機率類詞條：總機率（相加後clamp到0~100）大於隨機值時回傳true。
+  function affixChanceHit(c, affixId) {
+    var pct = affixTotal(c, affixId);
+    if (pct <= 0) return false;
+    return Math.random() * 100 < Math.min(100, pct);
+  }
+
+  // 多條詞條的百分比加總（例如「攻擊力+X%」有好幾條來源）：回傳的是倍率，1＝沒有變化。
+  // 有害詞條在資料上同樣寫正數（例「攻擊力-10%」的value是10），因此扣減的那幾條要由
+  // 呼叫端放進minusIds，不在這裡用good旗標猜方向——同一個kind底下有益/有害都有。
+  function affixPctMultiplier(c, plusIds, minusIds) {
+    var pct = 0;
+    (plusIds || []).forEach(function (id) {
+      pct += affixTotal(c, id);
+    });
+    (minusIds || []).forEach(function (id) {
+      pct -= affixTotal(c, id);
+    });
+    return Math.max(0, 1 + pct / 100);
+  }
+
+  // ---- 持續型詞條（HP持続回復／減少、HP未滿時累積猛毒／腐敗）----
+  // 使用者明確規格的間隔：回復每10秒、減少與蓄積每30秒，且蓄積「不限戰鬥中」，因此這裡
+  // 不看activeEncounter。節流用本地時間戳，跟既有的憐憫的雫滴（DEW_TEAR_HEAL_INTERVAL_MS）
+  // 與血魂之歌完全同一種寫法。
+  var AFFIX_REGEN_INTERVAL_MS = 10000;
+  var AFFIX_DRAIN_INTERVAL_MS = 30000;
+  var affixTickAt = {};
+
+  function affixTick(key, intervalMs, now) {
+    if (!affixTickAt[key]) {
+      affixTickAt[key] = now;
+      return false;
+    }
+    if (now - affixTickAt[key] < intervalMs) return false;
+    affixTickAt[key] = now;
+    return true;
+  }
+
+  function updateAffixOverTime(now) {
+    if (!mySlot || isPaused()) return;
+    var c = characters[myTokenId];
+    if (!c) return;
+    var regen = affixTotal(c, "hpRegen");
+    if (regen > 0 && affixTick("hpRegen", AFFIX_REGEN_INTERVAL_MS, now)) healSelfHp(regen);
+    var drain = affixTotal(c, "hpDrain");
+    if (drain > 0 && affixTick("hpDrain", AFFIX_DRAIN_INTERVAL_MS, now)) spendSelfHp(drain);
+    var hpNow = selfArenaHp();
+    if (hpNow.current >= hpNow.max) return;
+    var poison = affixTotal(c, "hpNotFullPoison");
+    if (poison > 0 && affixTick("hpNotFullPoison", AFFIX_DRAIN_INTERVAL_MS, now)) recordReceivedAttributeAccum("猛毒", poison);
+    var rot = affixTotal(c, "hpNotFullRot");
+    if (rot > 0 && affixTick("hpNotFullRot", AFFIX_DRAIN_INTERVAL_MS, now)) recordReceivedAttributeAccum("腐敗", rot);
+  }
+
+  // ---- 承受蓄積的抗性詞條 ----
+  // 「○○耐性上昇」系一律是「有N%機率不會累積」（使用者明確規格），因此掛在
+  // recordReceivedAttributeAccum()——那是自身承受蓄積的唯一入口，跟護符的無效化/減免
+  // （talismanAdjustedReceivedAccum()）同一層，不另外發明第二個攔截點。
+  var AFFIX_ACCUM_RESIST_BY_NAME = {
+    出血: "bleedResist",
+    睡眠: "sleepResist",
+    猛毒: "poisonResist",
+    腐敗: "rotResist",
+    発狂: "madnessResist",
+    呪死: "deathResist",
+    炎: "fireCutUp",
+  };
+
+  function affixBlocksReceivedAccum(c, name) {
+    var id = AFFIX_ACCUM_RESIST_BY_NAME[name];
+    return !!id && affixChanceHit(c, id);
+  }
+
+  // 自身承受蓄積的觸發門檻：全状態異常耐性を高める／すべての状態異常耐性低下。
+  // 只作用在「自己承受」這一側——使用者的說明是「更容易／更不容易受到」，打在敵人身上的
+  // 蓄積門檻（maybeTriggerAttributeAccum）不受影響。
+  function receivedAccumThreshold(c) {
+    var delta = affixTotal(c, "allAilmentResistUp") - affixTotal(c, "allAilmentResistDown");
+    return Math.max(1, ATTRIBUTE_STATUS_THRESHOLD + delta);
+  }
+
+  // ---- 傷害加成：依「這次動作是什麼」決定要套用哪幾條詞條 ----
+  // 使用者明確選擇「一律生效，看動作不看載體」：條件看的是這次動作的性質（射擊／雙持／
+  // 戰技／魔術…），不是帶著該詞條的那把武器本身是什麼。
+  // ctx可帶的旗標：{ ranged, charge, jump, art, sorcery, prayer, execution, guardCounter,
+  //                  twoHit, element(屬性名或null) }
+  function affixOutgoingDamageMult(c, ctx) {
+    if (!c || !weaponAffixesEnabled()) return 1;
+    ctx = ctx || {};
+    var pct = 0;
+    // 無條件：HP未滿／HP低下
+    var hp = selfArenaHp();
+    if (hp.current < hp.max) pct -= affixTotal(c, "hpNotFullAtkDown");
+    if (hp.current <= hp.max * 0.3) pct += affixTotal(c, "lowHpAtkUp");
+    // 雙持（左右手兩把不同武器）／雙手持握（左右手同一把）
+    var hasBoth = !!(c.equippedWeaponIdL && c.equippedWeaponIdR);
+    if (hasBoth && c.equippedWeaponIdL !== c.equippedWeaponIdR) pct += affixTotal(c, "dualWieldAtkUp");
+    if (hasBoth && c.equippedWeaponIdL === c.equippedWeaponIdR) pct += affixTotal(c, "twoHandAtkUp");
+    // 動作別
+    if (ctx.ranged) pct += affixTotal(c, "rangedAtkUp");
+    if (ctx.charge) pct += affixTotal(c, "chargeAtkUp");
+    if (ctx.jump) pct += affixTotal(c, "jumpAtkUp");
+    if (ctx.twoHit) pct += affixTotal(c, "finalHitUp");
+    if (ctx.art) pct += affixTotal(c, "weaponArtUp");
+    if (ctx.execution) pct += affixTotal(c, "executionUp");
+    if (ctx.guardCounter) pct += affixTotal(c, "guardCounterUp");
+    if (ctx.sorcery || ctx.prayer) {
+      pct += affixTotal(c, "spellUp");
+      if (ctx.sorcery) pct += affixTotal(c, "sorceryUp");
+      if (ctx.prayer) pct += affixTotal(c, "prayerUp");
+      // ガード成功時、魔術／祈祷強化：防禦成功後5秒內
+      if ((c._affixGuardSpellUntil || 0) > Date.now()) pct += affixTotal(c, "guardSpellUp");
+    }
+    // 屬性／物理
+    if (ctx.element) {
+      pct += affixTotal(c, "elementAtkUp");
+      if (ctx.element === "炎") pct += affixTotal(c, "fireAtkUp");
+      else if (ctx.element === "聖") pct += affixTotal(c, "holyAtkUp");
+      else if (ctx.element === "魔") pct += affixTotal(c, "magicAtkUp");
+      else if (ctx.element === "雷") pct += affixTotal(c, "lightningAtkUp");
+    } else {
+      pct += affixTotal(c, "physicalAtkUp");
+    }
+    return Math.max(0, 1 + pct / 100);
+  }
+
+  // ---- 受到傷害的加減：回傳倍率 ----
+  // ctx: { element(敵人這一擊的屬性名或null) }
+  function affixIncomingDamageMult(c, ctx) {
+    if (!c || !weaponAffixesEnabled()) return 1;
+    ctx = ctx || {};
+    var now = Date.now();
+    var pct = 0;
+    if ((c._affixDodgeUntil || 0) > now) pct += affixTotal(c, "dodgeDamageTakenUp");
+    // 状態異常による被ダメージ増加：自身目前帶有任何屬性/異常蓄積時
+    var hasAccum = Object.keys(receivedAttributeAccum || {}).some(function (k) {
+      return receivedAttributeAccum[k] > 0;
+    });
+    if (hasAccum) pct += affixTotal(c, "ailmentDamageTakenUp");
+    // 魔法詠唱中、カット率上昇：目前有任何一顆魔術/祈禱鍵在長按詠唱中
+    var casting = Object.keys(sorceryHoldState).length > 0;
+    if (casting) pct -= affixTotal(c, "castingGuardUp");
+    // 夜が深まるほど被ダメージ増加：使用者明確規格「第一次縮圈後+5%、第二次縮圈後+10%」
+    if (affixTotal(c, "nightDamageTakenUp") >= 0 && hasAffix(c, "nightDamageTakenUp")) {
+      var stage = currentPhaseInfo(now).stage;
+      if (stage === "shrink2" || stage === "waitingForDay2" || stage === "waitingForDay3") pct += 10;
+      else if (stage === "hold" || stage === "shrink1") pct += 5;
+    }
+    if (ctx.element) pct += affixTotal(c, "elementCutDown") - affixElementCut(c, ctx.element);
+    else pct += affixTotal(c, "physicalCutDown");
+    return Math.max(0, 1 + pct / 100);
+  }
+
+  // 屬性別的減傷（聖／魔／雷カット率上昇）。炎不在這裡——使用者給炎的規格是「15%機率不會
+  // 蓄積」（抗性），不是減傷，見AFFIX_ACCUM_RESIST_BY_NAME。
+  function affixElementCut(c, element) {
+    if (element === "聖") return affixTotal(c, "holyCutUp");
+    if (element === "魔") return affixTotal(c, "magicCutUp");
+    if (element === "雷") return affixTotal(c, "lightningCutUp");
+    return 0;
+  }
+
+  // 射擊武器：清單跟character_drawer.js的RANGED_CATEGORY_IDS同一組（那份沒有export，
+  // 這裡列一份同樣內容，跟MERCHANT_CONSUMABLE_IDS等既有的「純資料另存一份」慣例一致），
+  // 但刻意排除杖/聖印——規則上它們算射程武器，而詞條的「射撃攻撃強化／精密射撃」講的是
+  // 弓弩系的物理射擊，魔術/祈禱另有自己的強化詞條。
+  var AFFIX_RANGED_CATEGORY_IDS = ["bow", "greatbow", "crossbow", "ballista"];
+
+  function isRangedWeapon(weaponId) {
+    var w = weaponId ? Weapons.get(baseCatalogId(weaponId)) : null;
+    return !!w && AFFIX_RANGED_CATEGORY_IDS.indexOf(w.category) !== -1;
+  }
+
+  // 這把武器打出去的攻擊帶的屬性（炎／聖／魔／雷其中之一，沒有則null）：直接讀
+  // CharacterDrawer.weaponAccumulationEffects()——那是既有的「這把武器會附著什麼屬性/
+  // 異常」唯一來源（命中刀光顏色weaponHitColor()也是讀它），不另外解析weapon.skills。
+  // 異常狀態（出血/猛毒等）不算屬性，因此只取ATTRIBUTE_STATUS_ELEMENT_NAMES_JA裡的。
+  function weaponElementLabel(c, weaponId) {
+    if (!c || !weaponId) return null;
+    var effects = CharacterDrawer.weaponAccumulationEffects(c, weaponId) || [];
+    for (var i = 0; i < effects.length; i++) {
+      var nm = normalizeAttributeLabel(effects[i].label);
+      if (ATTRIBUTE_STATUS_ELEMENT_NAMES_JA.indexOf(nm) !== -1) return nm;
+    }
+    return null;
+  }
+
+  // 沒有可變數值的詞條（value為null）用affixTotal()判斷不出來，改用這支。
+  function hasAffix(c, affixId) {
+    return characterAffixEntries(c).some(function (e) {
+      return e.id === affixId && e.affix.phase === 1;
+    });
+  }
+
+  // ---- HP價值（防禦減免）的詞條加減 ----
+  // 這些全部是「HP價值+N／-N」的flat加減（使用者明確規格），疊在currentGuardInfo()算出來
+  // 的既有防禦價值上。條件式的那幾條各自檢查自己的觸發狀態。
+  function affixGuardValueBonus(c) {
+    if (!c || !weaponAffixesEnabled()) return 0;
+    var now = Date.now();
+    var bonus = affixTotal(c, "poiseUp");
+    var hp = selfArenaHp();
+    if (hp.current <= hp.max * 0.3) bonus += affixTotal(c, "lowHpGuardUp");
+    if (stamina.current <= stamina.max * 0.3) bonus -= affixTotal(c, "lowStaminaGuardDown");
+    if ((c._affixDodgeUntil || 0) > now) bonus -= affixTotal(c, "dodgeGuardDown");
+    if ((c._affixComboGuardUntil || 0) > now) bonus += affixTotal(c, "comboGuardUp");
+    if ((c._affixDamagedGuardUntil || 0) > now) bonus += affixTotal(c, "onDamagedGuardUp");
+    if ((c._affixGuardCutUntil || 0) > now) bonus += affixTotal(c, "guardCutUp");
+    if (flaskReadingUntil !== null) bonus -= affixTotal(c, "flaskGuardDown");
+    // 「タメ攻撃時、カット率上昇」的原文是「蓄力攻擊過程中」，但midnight的蓄力攻擊是
+    // 瞬發（useSpecialAttack()一次結算，沒有蓄力讀條那段「過程」可以對應），因此換算成
+    // 「使用蓄力攻擊後的短暫視窗內」，視窗長度比照2Hit那條的3秒。這是本實作的取捨，
+    // 不是規格另有規定。
+    if ((c._affixChargeGuardUntil || 0) > now) bonus += affixTotal(c, "chargeGuardUp");
+    return bonus;
+  }
+
+  // ---- 事件型詞條 ----
+  var AFFIX_GUARD_SPELL_WINDOW_MS = 5000; // 使用者明確規格：防禦成功後5秒內魔術/祈禱強化
+  var AFFIX_DODGE_WINDOW_MS = 5000; // 使用者明確規格：迴避後5秒內
+  var AFFIX_COMBO_GUARD_WINDOW_MS = 3000; // 使用者明確規格：2Hit攻擊後3秒內
+  var AFFIX_DAMAGED_GUARD_WINDOW_MS = 10000; // 使用者明確規格：受到傷害後10秒內
+  var AFFIX_GUARD_CUT_WINDOW_MS = 10000; // 「防禦成功時、HP價值增加」沒有寫時限，比照上面一條取10秒
+
+  function onAffixGuardSuccess() {
+    var c = characters[myTokenId];
+    if (!c || !weaponAffixesEnabled()) return;
+    var now = Date.now();
+    if (affixTotal(c, "guardSpellUp") > 0) c._affixGuardSpellUntil = now + AFFIX_GUARD_SPELL_WINDOW_MS;
+    if (affixTotal(c, "guardCutUp") > 0) c._affixGuardCutUntil = now + AFFIX_GUARD_CUT_WINDOW_MS;
+    var staminaBack = affixTotal(c, "guardStaminaUp");
+    if (staminaBack > 0) stamina.current = Math.min(stamina.max, stamina.current + staminaBack);
+    // ガードを崩す力上昇：機率對敵人追加一個▲破防
+    if (activeEncounter && affixChanceHit(c, "guardBreakChance")) recordGuardReductionForPoint(activeEncounter.id, "▲");
+  }
+
+  function onAffixDodge() {
+    var c = characters[myTokenId];
+    if (!c || !weaponAffixesEnabled()) return;
+    c._affixDodgeUntil = Date.now() + AFFIX_DODGE_WINDOW_MS;
+  }
+
+  function onAffixTwoHit() {
+    var c = characters[myTokenId];
+    if (!c || !weaponAffixesEnabled()) return;
+    if (affixTotal(c, "comboGuardUp") > 0) c._affixComboGuardUntil = Date.now() + AFFIX_COMBO_GUARD_WINDOW_MS;
+  }
+
+  function onAffixDamaged() {
+    var c = characters[myTokenId];
+    if (!c || !weaponAffixesEnabled()) return;
+    var fpBack = affixTotal(c, "onDamagedFp");
+    if (fpBack > 0) fp.current = Math.min(fp.max, fp.current + fpBack);
+    if (affixTotal(c, "onDamagedGuardUp") > 0) c._affixDamagedGuardUntil = Date.now() + AFFIX_DAMAGED_GUARD_WINDOW_MS;
+  }
+
+  function onAffixKill() {
+    var c = characters[myTokenId];
+    if (!c || !weaponAffixesEnabled()) return;
+    var fpBack = affixTotal(c, "onKillFp");
+    if (fpBack > 0) fp.current = Math.min(fp.max, fp.current + fpBack);
+    var hpBack = affixTotal(c, "onKillHp");
+    if (hpBack > 0) healSelfHp(hpBack);
+    var runeBonus = affixTotal(c, "onKillRune");
+    if (runeBonus > 0) {
+      c.runes = (c.runes || 0) + runeBonus;
+      GameStorage.rtSet(gameId, "cloud", "character/" + myTokenId + "/runes", c.runes);
+    }
+  }
+
+  function onAffixNearDeath(tokenId) {
+    if (tokenId !== myTokenId) return;
+    var c = characters[myTokenId];
+    if (!c || !weaponAffixesEnabled()) return;
+    var artPenaltySec = affixTotal(c, "nearDeathArtPenalty");
+    if (artPenaltySec > 0) {
+      c._artCooldownUntil = Math.max(Date.now(), c._artCooldownUntil || 0) + artPenaltySec * 1000;
+      GameStorage.rtSet(gameId, "cloud", "character/" + myTokenId + "/_artCooldownUntil", c._artCooldownUntil);
+    }
+    var hpPenalty = affixTotal(c, "nearDeathMaxHpDown");
+    if (hpPenalty > 0) {
+      c._affixNearDeathHpPenalty = (c._affixNearDeathHpPenalty || 0) + hpPenalty;
+      GameStorage.rtSet(gameId, "cloud", "character/" + myTokenId + "/_affixNearDeathHpPenalty", c._affixNearDeathHpPenalty);
+    }
+  }
+
+  // 蓄力攻擊時的屬性追加（聖／魔／雷，各50%機率蓄積+1）與射擊命中時的異常追加。
+  function onAffixChargeAttack() {
+    var c = characters[myTokenId];
+    if (!c || !weaponAffixesEnabled()) return;
+    if (affixTotal(c, "chargeGuardUp") > 0) c._affixChargeGuardUntil = Date.now() + AFFIX_COMBO_GUARD_WINDOW_MS;
+    if (!activeEncounter) return;
+    if (affixChanceHit(c, "chargeHolyAccum")) recordAttributeAccum("聖", 1);
+    if (affixChanceHit(c, "chargeMagicAccum")) recordAttributeAccum("魔", 1);
+    if (affixChanceHit(c, "chargeLightningAccum")) recordAttributeAccum("雷", 1);
+  }
+
+  var AFFIX_SHOT_ACCUM = [
+    ["shotBleed", "出血"],
+    ["shotPoison", "猛毒"],
+    ["shotRot", "腐敗"],
+    ["shotLightning", "雷"],
+  ];
+
+  function onAffixRangedHit() {
+    var c = characters[myTokenId];
+    if (!c || !weaponAffixesEnabled() || !activeEncounter) return;
+    AFFIX_SHOT_ACCUM.forEach(function (pair) {
+      if (affixChanceHit(c, pair[0])) recordAttributeAccum(pair[1], 1);
+    });
   }
 
   // ---- 敵人攻擊（2026-09-05再新增，只在「同一板塊、同一籌碼事件」下才同步，也就是
@@ -659,7 +1097,13 @@
   // （c._bargainMaxHpBonus為0/undefined）回傳值與修改前完全相同。
   function selfArenaHpMax(c) {
     if (!c || !c.hp) return 100;
-    return 100 + (c.hp.max + CharacterDrawer.totalFlatMaxStatBonus(c, "hp")) * 10 + (c._bargainMaxHpBonus || 0);
+    var base = 100 + (c.hp.max + CharacterDrawer.totalFlatMaxStatBonus(c, "hp")) * 10 + (c._bargainMaxHpBonus || 0);
+    // 2026-09-13武器詞條：最大HP上昇／低下／守護者の無念是flat加減，跟_bargainMaxHpBonus
+    // 同一層（不是×10的對象）。瀕死時、最大HP低下是累積型懲罰（每次進入瀕死再-10），
+    // 使用者明確規格「但不會扣到100以下」，因此下限夾在100。
+    var affixDelta =
+      affixTotal(c, "maxHpUp") + affixTotal(c, "guardianRegret") - affixTotal(c, "maxHpDown") - (c._affixNearDeathHpPenalty || 0);
+    return Math.max(100, base + affixDelta);
   }
   // lowHpThreshold：護符「赤羽的七支刃」等「現在HP＝□□□以下」條件的門檻。規則書的
   // □□□＝3是回合制HP刻度，midnight的競技場HP是它的10倍（100＋hp.max×10），因此
@@ -685,7 +1129,9 @@
   // FP基礎10，疊加方式與HP相同（使用者明確規格）。
   function selfFpMax(c) {
     if (!c || !c.fp) return FP_BASE;
-    return FP_BASE + (c.fp.max + CharacterDrawer.totalFlatMaxStatBonus(c, "fp")) * 10;
+    // 2026-09-13武器詞條：最大FP上昇／低下（flat，跟HP同一層，不是×10的對象）。
+    var affixDelta = affixTotal(c, "maxFpUp") - affixTotal(c, "maxFpDown");
+    return Math.max(1, FP_BASE + (c.fp.max + CharacterDrawer.totalFlatMaxStatBonus(c, "fp")) * 10 + affixDelta);
   }
 
   // 測試模式倍率（2026-09-06新增，見meta.testTuning／renderTestPanel()）：直接讀meta
@@ -756,6 +1202,8 @@
     if (difficultySelect && document.activeElement !== difficultySelect) {
       difficultySelect.value = (meta && meta.difficulty) || "standard";
     }
+    var affixCheckbox = el("midnight-lobby-weapon-affixes-checkbox");
+    if (affixCheckbox && document.activeElement !== affixCheckbox) affixCheckbox.checked = weaponAffixesEnabled();
   }
 
   function handleNightBossSelectChange() {
@@ -771,6 +1219,12 @@
 
   function handleMapVariantSelectChange() {
     GameStorage.rtSet(gameId, "cloud", "meta/mapVariant", el("midnight-lobby-map-variant-select").value);
+  }
+
+  // 武器詞條開放（2026-09-13使用者明確規格「在房間創立中 可以選擇武器詞條開放」）：跟
+  // 難度/夜王/地圖同一套「同一場遊戲所有人共用」的meta設定，見武器詞條區塊的說明。
+  function handleWeaponAffixesToggle() {
+    GameStorage.rtSet(gameId, "cloud", "meta/weaponAffixes", el("midnight-lobby-weapon-affixes-checkbox").checked);
   }
 
   // ---- 測試模式（2026-09-06新增，使用者明確規格：「開始遊戲可以選擇測試模式，在右邊
@@ -2219,6 +2673,7 @@
     el("midnight-lobby-night-boss-select").addEventListener("change", handleNightBossSelectChange);
     el("midnight-lobby-map-variant-select").addEventListener("change", handleMapVariantSelectChange);
     el("midnight-lobby-difficulty-select").addEventListener("change", handleDifficultySelectChange);
+    el("midnight-lobby-weapon-affixes-checkbox").addEventListener("change", handleWeaponAffixesToggle);
     el("btn-midnight-game-failure-confirm").addEventListener("click", switchToUnlimitedMode);
     el("btn-midnight-game-victory-confirm").addEventListener("click", handleGameVictoryConfirmClick);
     el("midnight-lobby-test-mode-checkbox").addEventListener("change", handleTestModeToggle);
@@ -2445,6 +2900,20 @@
     var fam = guardDataForTrig(trig);
     if (!fam || typeof fam.guardCount !== "number") return;
     var staggerGain = staggerUnitsGain(pointId, trig, units);
+    // 2026-09-13武器詞條：
+    //   体勢を崩す力上昇＝「使用帶有破防的攻擊時，機率再追加一個▲」→ units再+1。
+    //   二刀持ちの、体勢を崩す力上昇＝「雙持兩把不同武器時，體崩蓄積+N%」→ 只放大體崩
+    //     累積（staggerGain），不動Guard Count的削減量（units），因為規格講的是體崩。
+    var cAffix = characters[myTokenId];
+    if (affixChanceHit(cAffix, "staggerPowerUp")) {
+      units += 1;
+      staggerGain += staggerUnitsGain(pointId, trig, 1);
+    }
+    var dualStaggerPct =
+      cAffix && cAffix.equippedWeaponIdL && cAffix.equippedWeaponIdR && cAffix.equippedWeaponIdL !== cAffix.equippedWeaponIdR
+        ? affixTotal(cAffix, "dualWieldStaggerUp")
+        : 0;
+    if (dualStaggerPct) staggerGain = staggerGain * (1 + dualStaggerPct / 100);
     GameStorage.rtTransaction(gameId, "cloud", "fieldTrigger/" + pointId, function (cur) {
       if (!cur) return cur;
       var out = {};
@@ -2745,7 +3214,7 @@
       // suppressAggroOnce／damageCombatTarget()。
       var vanish = hasRelic(c, "executionVanish");
       if (vanish) suppressAggroOnce = true;
-      damageCombatTarget(damage, null);
+      damageCombatTarget(damage, null, { execution: true }); // 2026-09-13武器詞條：致命の一撃強化
       if (vanish) {
         suppressAggroOnce = false;
         stamina.current = Math.min(stamina.max, stamina.current + EXECUTION_VANISH_STAMINA);
@@ -2893,6 +3362,7 @@
   function grantKillCooldownReduction() {
     var c = characters[myTokenId];
     if (!c) return;
+    onAffixKill(); // 2026-09-13武器詞條：敵撃破時系3條（FP／HP／ルーン）
     var now = Date.now();
     if ((c._skillCooldownUntil || 0) > now) {
       c._skillCooldownUntil = Math.max(now, c._skillCooldownUntil - SKILL_COOLDOWN_KILL_REDUCTION_MS);
@@ -2966,7 +3436,11 @@
   // 「發動後需要冷卻30秒後才能再次開啟條件發動」）。
   var BIG_HIT_TALISMAN_COOLDOWN_MS = 30000;
 
-  function damageCombatTarget(amount, symbol) {
+  // ctx（2026-09-13新增，可省略）：這次動作的性質，供武器詞條的傷害加成判斷用
+  // （見affixOutgoingDamageMult()）。這裡是本模組唯一的傷害出口（見下方血魂之歌註解），
+  // 因此詞條倍率統一疊在這裡，不用逐一修改每個damage計算函式。
+  function damageCombatTarget(amount, symbol, ctx) {
+    amount = Math.round(amount * affixOutgoingDamageMult(characters[myTokenId], ctx));
     // 隱者「血魂之歌」（2026-09-08使用者明確要求「全體攻擊/戰技傷害提升*1.5倍」）：
     // party-wide時限buff（見applyMidnightAbilityPostEffect()寫入meta.bloodSongUntil），
     // 所有造成傷害的動作（普通攻擊/戰技/角色技能技藝）最終都會經過這裡，是唯一的傷害
@@ -3004,8 +3478,12 @@
       // 直接用累積傷害最高者當作demo佔位規則即可。
       // suppressAggroOnce：「致命一擊後，消失身影」用（見該常數說明）——這一擊不計入敵視。
       if (mySlot && !suppressAggroOnce) {
+        // 2026-09-13武器詞條「敵から狙われ難くなる」：使用者明確規格「自己的攻擊算入敵人
+        // 仇恨值的總和-15%」——只影響記進damageBySlot的量，實際造成的傷害不變。
+        var aggroCut = affixTotal(characters[myTokenId], "lowAggro");
+        var aggroAmount = aggroCut ? Math.round(amount * Math.max(0, 1 - aggroCut / 100)) : amount;
         GameStorage.rtTransaction(gameId, "cloud", "fieldTrigger/" + pointId + "/damageBySlot/" + mySlot, function (cur) {
-          return (cur || 0) + amount;
+          return (cur || 0) + aggroAmount;
         });
       }
       maybeApplyRestageBonus(amount);
@@ -3292,12 +3770,15 @@
   // 2026-09-13抽出：徽章本體的建構跟「哪一份資料」無關，PC→敵人（血條上方）與
   // 敵人→自己（左上HUD，見renderSelfAttributeAccumNote()）兩處共用同一份配色、門檻與
   // 進度條算法，不複製第二套。
-  function buildAccumChip(name, value) {
+  // threshold可省略（預設ATTRIBUTE_STATUS_THRESHOLD）：自身承受側會因為武器詞條
+  // 「全状態異常耐性を高める／低下」而改變門檻，顯示要跟實際判定同一個值。
+  function buildAccumChip(name, value, threshold) {
+    var th = threshold || ATTRIBUTE_STATUS_THRESHOLD;
     var visual = attributeStatusVisual(name);
     var chip = document.createElement("span");
     chip.className = "midnight-accum-chip";
     chip.style.setProperty("--accum-color", visual.color);
-    chip.style.setProperty("--accum-pct", Math.min(100, (value / ATTRIBUTE_STATUS_THRESHOLD) * 100) + "%");
+    chip.style.setProperty("--accum-pct", Math.min(100, (value / th) * 100) + "%");
     var icon = document.createElement("span");
     icon.className = "midnight-accum-chip-icon";
     icon.textContent = visual.icon;
@@ -3308,7 +3789,7 @@
     chip.appendChild(label);
     var num = document.createElement("span");
     num.className = "midnight-accum-chip-value";
-    num.textContent = value + "/" + ATTRIBUTE_STATUS_THRESHOLD;
+    num.textContent = value + "/" + th;
     chip.appendChild(num);
     return chip;
   }
@@ -3361,8 +3842,9 @@
     lastSelfAccumKey = key;
     noteEl.hidden = !names.length;
     noteEl.innerHTML = "";
+    var th = receivedAccumThreshold(characters[myTokenId]);
     names.forEach(function (name) {
-      noteEl.appendChild(buildAccumChip(name, data[name]));
+      noteEl.appendChild(buildAccumChip(name, data[name], th));
     });
   }
 
@@ -3585,7 +4067,26 @@
     // 判斷條件跟既有的防禦反擊強化（斧槍）完全相同，只是不限武器種類。
     if (discountPct && (c.talismanIds || []).indexOf("talisman_curved_sword") !== -1) damage += 15;
     recordAttackForRelics(c, staminaCost, now);
-    damageCombatTarget(damage, damageSymbol);
+    // 2026-09-13武器詞條「攻撃時、稀に攻撃がかすめる」：使用者明確規格「攻擊時3%~5%
+    // 不會造成任何傷害」。體力已經扣掉了（動作有做出來，只是沒打中），比照既有的
+    // 「資源先扣、結果後判定」慣例。
+    if (affixChanceHit(c, "attackGraze")) {
+      showToast(window.PriTestWeaponAffixes.localizedText(window.PriTestWeaponAffixes.get("attackGraze").name));
+      cs.lastHitAt = now;
+      return;
+    }
+    // 2026-09-13武器詞條：一般攻擊的動作性質——射擊武器、2Hit（連撃の最終攻撃強化）、
+    // 這把武器帶的屬性（炎/聖/魔/雷攻撃力上昇與物理攻撃力上昇二選一）。
+    damageCombatTarget(damage, damageSymbol, {
+      ranged: isRangedWeapon(info.weaponId),
+      twoHit: useHit2,
+      // midnight的「防禦反擊」＝防禦成功後吃到體力折扣的那一擊（見
+      // consumeGuardCounterDiscount()），跟既有的「防禦反擊強化（斧槍）」判斷條件相同。
+      guardCounter: !!discountPct,
+      element: weaponElementLabel(c, info.weaponId),
+    });
+    if (useHit2) onAffixTwoHit(); // 攻撃連続時、一度だけカット率上昇
+    if (isRangedWeapon(info.weaponId)) onAffixRangedHit(); // 精密射撃系4條
     // 雙手持握的削韌強化：2Hit額外帶一個▲（Guard削減），見twoHandGuardBreakSymbol()。
     // damageCombatTarget()的symbol只能帶一個，因此這裡另外補記一次Guard削減，不影響傷害。
     if (useHit2 && activeEncounter) {
@@ -3870,11 +4371,18 @@
     if (cost.staminaCost) spendStamina(cost.staminaCost);
     if (cost.fpCost) spendFp(cost.fpCost);
     if (cost.hpCost) spendSelfHp(cost.hpCost);
-    damageCombatTarget(entry.value, entry.symbol);
+    damageCombatTarget(entry.value, entry.symbol, {
+      charge: entry.kind === "charge",
+      jump: entry.kind === "jump",
+      element: weaponElementLabel(c, entry.weaponId),
+    });
     triggerEnemyHitEffect(weaponHitColor(entry.weaponId));
     // 蓄力攻擊也是「一般攻擊的替代」，因此比照handleAttackClick()一併觸發武器的屬性/
     // 異常附著（1Hit相當）。跳躍/衝刺攻擊維持既有行為（原本就沒有觸發）。
-    if (entry.kind === "charge") applyWeaponAttributeAccumOnHit(entry.weaponId, false);
+    if (entry.kind === "charge") {
+      applyWeaponAttributeAccumOnHit(entry.weaponId, false);
+      onAffixChargeAttack(); // 2026-09-13武器詞條：タメ攻撃時の聖／魔力／雷攻撃発生＋カット率上昇
+    }
     broadcastCombatActionBubble(specialAttackLabel(entry.kind));
   }
 
@@ -3945,7 +4453,17 @@
 
   // weaponId（可省略）：只有跟「魔術／祈禱」或「戰技」分類有關的4個護符會用到，
   // 省略時這些護符一律不生效（維持原本的行為）。
+  // 2026-09-13：回傳值的fpCost會套用武器詞條「魔術/祈祷、消費FP軽減」。放在這支共用的
+  // 成本計算出口，按鈕的可否按下（renderSpellButton）／長按開始（startSkillBHold）／實際
+  // 扣除（castWeaponSkillEntry）三處才會用到同一個數字，不會出現「按得下去卻扣不了」。
   function computeMidnightSkillCost(bodyText, weaponId) {
+    var cost0 = computeMidnightSkillCostRaw(bodyText, weaponId);
+    var cutPct = affixTotal(characters[myTokenId], "castFpDown");
+    if (!cutPct || !cost0.fpCost) return cost0;
+    return { staminaCost: cost0.staminaCost, fpCost: Math.max(0, Math.round(cost0.fpCost * (1 - cutPct / 100))), hpCost: cost0.hpCost };
+  }
+
+  function computeMidnightSkillCostRaw(bodyText, weaponId) {
     var cost = CharacterDrawer.parseActionCost(bodyText);
     // 隱者「聖幕」（混成魔法變體，2026-09-11接上）：「10秒時間為止，自身使用戰技・祈禱・
     // 魔術時不需要FP消耗」——見applyRelicAbilityPostEffect()寫入_noFpCostUntil。
@@ -4225,7 +4743,16 @@
     if (!c) return;
     var bodyText = Weapons.localizedText(entry.body);
     var cost = computeMidnightSkillCost(bodyText, entry.weaponId);
-    if (stamina.current < cost.staminaCost || fp.current < cost.fpCost) return;
+    if (stamina.current < cost.staminaCost) return;
+    // 2026-09-13武器詞條「FP不足による魔術/祈祷でFP回復」：FP不足時這一發空放——不扣資源、
+    // 不產生任何效果，只回復固定FP。沒有這條詞條時維持原本的「FP不足就完全不能放」。
+    if (fp.current < cost.fpCost) {
+      var emptyGain = affixTotal(c, "fpRecoverOnEmptyCast");
+      if (!emptyGain) return;
+      fp.current = Math.min(fp.max, fp.current + emptyGain);
+      showToast(Weapons.localizedText(entry.name) + window.I18N.t("colon_separator") + window.PriTestWeaponAffixes.describe(window.PriTestWeaponAffixes.get("fpRecoverOnEmptyCast"), emptyGain));
+      return;
+    }
     cancelFlaskReadingForOtherAction();
     if (cost.staminaCost) spendStamina(cost.staminaCost);
     if (cost.fpCost) spendFp(cost.fpCost);
@@ -4245,7 +4772,15 @@
     var effectNotes = applyWeaponSkillBodyEffects(c, entry, bodyText);
     if (dmgInfo) {
       // ×2：見WEAPON_SKILL_DAMAGE_MULT說明（只影響實際傷害，下面toast維持顯示原值）。
-      damageCombatTarget(Math.round(dmgInfo.value * WEAPON_SKILL_DAMAGE_MULT), dmgInfo.symbol);
+      // 2026-09-13武器詞條：這一招是武器戰技還是魔術／祈禱，用跟按鈕圖示同一份判斷
+      // （spellEntryIconClass()：杖＝魔術、聖印＝祈禱、其餘＝戰技），不另外分類一次。
+      var spellCls = spellEntryIconClass(entry);
+      damageCombatTarget(Math.round(dmgInfo.value * WEAPON_SKILL_DAMAGE_MULT), dmgInfo.symbol, {
+        art: spellCls === "midnight-icon-skill",
+        sorcery: spellCls === "midnight-icon-sorcery",
+        prayer: spellCls === "midnight-icon-prayer",
+        element: weaponElementLabel(c, entry.weaponId),
+      });
       triggerEnemyHitEffect(weaponHitColor(entry.weaponId));
       // 「若是對敵人傷害」才射彗星（2026-09-13使用者明確規格）：dmgInfo解不出來的招式
       // （■或未預期本文格式，走下面的else分支）不算對敵人傷害，不放特效。
@@ -4994,7 +5529,13 @@
         return;
       }
     } else {
-      var nextCooldownUntil = Date.now() + baseCooldownMs;
+      // 2026-09-13武器詞條「HP最大未満時、アーツゲージ蓄積鈍化」：規格是「cd延遲20%」。
+      // midnight沒有アーツゲージ這個資源，最接近的對應物就是技藝/技能的冷卻時間，
+      // 因此換算成冷卻時間延長該百分比（只在HP未達最大值時）。
+      var affixCdPct = 0;
+      var hpForCd = selfArenaHp();
+      if (hpForCd.current < hpForCd.max) affixCdPct = affixTotal(found.c, "hpNotFullArtSlow");
+      var nextCooldownUntil = Date.now() + Math.round(baseCooldownMs * (1 + affixCdPct / 100));
       found.c[cooldownField] = nextCooldownUntil;
       GameStorage.rtSet(gameId, "cloud", "character/" + myTokenId + "/" + cooldownField, nextCooldownUntil);
     }
@@ -5538,13 +6079,29 @@
     });
   }
 
+  // 2026-09-13武器詞條「魔術/祈祷、詠唱速度上昇」：規格是「詠唱速度增加10%」，換算成
+  // 長按所需時間縮短同百分比。所有讀SORCERY_CAST_HOLD_MS的地方（觸發判定與讀條進度）
+  // 都改讀這支，否則讀條會跟實際觸發時機對不上。
+  function sorceryCastHoldMs() {
+    var pct = affixTotal(characters[myTokenId], "castSpeedUp");
+    return Math.max(200, Math.round(SORCERY_CAST_HOLD_MS * Math.max(0, 1 - pct / 100)));
+  }
+
+  // 2026-09-13武器詞條「FP不足による魔術/祈祷でFP回復」：使用者明確規格「可以使用魔術
+  // 祈禱、不會發生效果，但可以恢復FP10點」。因此FP不足時仍允許長按/施放，實際結算時
+  // 走castWeaponSkillEntry()裡的空放分支。
+  function affixAllowsEmptyCast(c) {
+    return affixTotal(c, "fpRecoverOnEmptyCast") > 0;
+  }
+
   function startSkillBHold(key) {
     if (!mySlot || isPaused() || sorceryHoldState[key] || isIceBlizzardBlinded(Date.now())) return;
     var def = SORCERY_BUTTON_DEFS_BY_KEY[key];
     var entry = def && sorceryButtonEntry(def);
     if (!entry) return;
     var cost = computeMidnightSkillCost(Weapons.localizedText(entry.body), entry.weaponId);
-    if (stamina.current < cost.staminaCost || fp.current < cost.fpCost) return;
+    if (stamina.current < cost.staminaCost) return;
+    if (fp.current < cost.fpCost && !affixAllowsEmptyCast(characters[myTokenId])) return;
     sorceryHoldState[key] = Date.now();
   }
 
@@ -5555,7 +6112,7 @@
   // 長按滿SORCERY_CAST_HOLD_MS才真正觸發，跟戰技A共用castWeaponSkillEntry()。
   function updateSorceryHold(now) {
     Object.keys(sorceryHoldState).forEach(function (key) {
-      if (now - sorceryHoldState[key] < SORCERY_CAST_HOLD_MS) return;
+      if (now - sorceryHoldState[key] < sorceryCastHoldMs()) return;
       delete sorceryHoldState[key]; // 先清掉避免同一次長按重複觸發
       var def = SORCERY_BUTTON_DEFS_BY_KEY[key];
       var entry = def && sorceryButtonEntry(def);
@@ -5584,6 +6141,7 @@
     if (!spendStamina(dodgeStaminaCost(characters[myTokenId]))) return;
     cancelFlaskReadingForOtherAction();
     dodgePressedAt = Date.now();
+    onAffixDodge(); // 2026-09-13武器詞條：回避直後の被ダメージ増加／回避連続時、カット率低下
   }
 
   // 特殊防禦選項（2026-09-05角色能力真正接入新增，見CLAUDE.md §36）：第六感（追蹤者被動）
@@ -5909,14 +6467,27 @@
       // （2026-09-12使用者明確規格），見partyGuardBonusPct()。
       // 2026-09-12新增的另外兩個來源：消耗品的10秒HP價值buff（酸之噴霧Lv2／塗脂（盾）／
       // 高揚之香，見consumableGuardBonusPct()）。
+      // 2026-09-13武器詞條的「HP價值+N／-N」：midnight的PC防禦本來就是百分比減傷，
+      // 沿用上面那批護符加成（talismanGuardBonusPct()）同一種「HP價值N＝N個百分點」換算，
+      // 不另外發明第二套單位。
       return {
         costPoints: diceCostPoints(guardCost),
-        pct: Math.min(100, pct + highGuardBonusPct + partyGuardBonusPct() + consumableGuardBonusPct(c) + talismanGuardBonusPct(c, hitIndex)),
+        pct: Math.max(
+          0,
+          Math.min(
+            100,
+            pct + highGuardBonusPct + partyGuardBonusPct() + consumableGuardBonusPct(c) + talismanGuardBonusPct(c, hitIndex) + affixGuardValueBonus(c)
+          )
+        ),
         usedShield: true,
       };
     }
     if (sides.length === 1 && CharacterDrawer.findLearnedRelicEffectByName(c, DUAL_GRIP_MASTER_RELIC_NAMES)) {
-      return { costPoints: DUAL_GRIP_MASTER_GUARD_DICE_COUNT, pct: DUAL_GRIP_MASTER_GUARD_PCT, usedShield: false };
+      return {
+        costPoints: DUAL_GRIP_MASTER_GUARD_DICE_COUNT,
+        pct: Math.max(0, Math.min(100, DUAL_GRIP_MASTER_GUARD_PCT + affixGuardValueBonus(c))),
+        usedShield: false,
+      };
     }
     return null; // 沒有盾牌、也不符合雙手持握的達人條件→防禦鍵非活性化
   }
@@ -6039,6 +6610,10 @@
       var healedAmount = committedHp - beforeHp;
       if (healedAmount <= 0) return;
       if (c && c._fusedLife) fp.current = Math.min(fp.max, fp.current + healedAmount);
+      // 2026-09-13武器詞條「聖杯瓶の回復で、FPも回復」：跟上面的融合する命是各自獨立的
+      // 來源，兩者都有就都回。這條是固定量（不是跟著HP回復量走），依使用者規格。
+      var flaskFp = affixTotal(c, "flaskFpRecover");
+      if (flaskFp > 0) fp.current = Math.min(fp.max, fp.current + flaskFp);
       shareHealWithPartyIfEmpathyActive(healedAmount);
     });
   }
@@ -6052,7 +6627,10 @@
     // （CLAUDE.md §17），換算成midnight刻度＝+10，跟遺物「聖杯瓶回復量提升」用同一個
     // ×BLOCK_SQUARE_COUNT_TO_RESOURCE_MULT換算，不另外發明數值。
     var seedMedallion = (c.talismanIds || []).indexOf("talisman_crimson_seed_medallion") !== -1 ? 1 : 0;
-    return (CharacterDrawer.getFlaskHealBonus(c) + seedMedallion) * BLOCK_SQUARE_COUNT_TO_RESOURCE_MULT;
+    // 2026-09-13武器詞條「聖杯瓶の回復量上昇／低下」：使用者給的已經是即時制刻度的
+    // 絕對值（±10），不經過□→×10的換算，因此加在括號外面。
+    var affixDelta = affixTotal(c, "flaskHealUp") - affixTotal(c, "flaskHealDown");
+    return (CharacterDrawer.getFlaskHealBonus(c) + seedMedallion) * BLOCK_SQUARE_COUNT_TO_RESOURCE_MULT + affixDelta;
   }
 
   // 學者「共感術」（2026-09-08使用者明確要求「之後自己的HP回復效果全體共享 10秒」）：
@@ -6585,6 +7163,10 @@
     if (talismanIdsForStamina.indexOf("talisman_green_turtle") !== -1) maxBonus += RELIC_STAMINA_MAX_BONUS;
     if (talismanIdsForStamina.indexOf("talisman_great_goat") !== -1) maxBonus += RELIC_STAMINA_MAX_BONUS;
     if (talismanIdsForStamina.indexOf("talisman_dew_tear") !== -1) maxBonus -= RELIC_STAMINA_MAX_BONUS;
+    // 2026-09-13武器詞條：最大スタミナ上昇／低下／守護者の無念，跟上面那批護符/遺物加成
+    // 疊在同一個maxBonus上；スタミナ回復速度上昇則疊在extraRegenPerSec。
+    maxBonus += affixTotal(c, "maxStaminaUp") + affixTotal(c, "guardianRegret") - affixTotal(c, "maxStaminaDown");
+    extraRegenPerSec += affixTotal(c, "staminaRegenUp");
     stamina.max = Math.max(10, STAMINA_MAX + maxBonus);
     if (hasRelic(c, "staminaLowRegen") && stamina.current <= stamina.max * RELIC_STAMINA_LOW_PCT) {
       extraRegenPerSec += RELIC_STAMINA_LOW_REGEN;
@@ -7188,6 +7770,7 @@
     } else if (kind === "block") {
       showActionFlash("midnight-block-flash", window.I18N.t("midnight_block_success_flash"), "success");
       applyGuardSuccessRelics();
+      onAffixGuardSuccess(); // 2026-09-13武器詞條：ガード成功時系4條
     } else if (kind === "special") {
       showActionFlash("midnight-defense-special-flash", window.I18N.t("midnight_block_success_flash"), "success");
     } else {
@@ -7224,6 +7807,16 @@
       // 各自獨立的乘法層，不互相取代。
       var partyReducePct = partyDamageReducePct();
       if (partyReducePct) damage = Math.round(damage * (1 - partyReducePct / 100));
+      // 2026-09-13武器詞條的受傷加減（迴避後被傷害增加／異常狀態時被傷害增加／詠唱中減傷／
+      // 夜越深被傷害增加／屬性・物理減傷）：跟上面幾個減免一樣是各自獨立的乘法層。
+      // 這一擊的屬性取自該招式本身的mod欄位（跟下方套用屬性蓄積同一個解析來源，
+      // 不另外猜），沒有屬性就當物理。
+      var incomingElement = null;
+      parseElementalAttacksFromAction({ mod: st.actionMod }).forEach(function (a) {
+        var nm = normalizeAttributeLabel(a.label);
+        if (!incomingElement && ATTRIBUTE_STATUS_ELEMENT_NAMES_JA.indexOf(nm) !== -1) incomingElement = nm;
+      });
+      damage = Math.round(damage * affixIncomingDamageMult(characters[myTokenId], { element: incomingElement }));
       // 守護者「救世之翼」的全隊暫時不受傷害（見partyNoDamageActive()說明）：完全無效化
       // 這次HP損害，比照迴避/特殊防禦的既有慣例，不進入下面的demoStat transaction。
       if (partyNoDamageActive()) damage = 0;
@@ -7236,6 +7829,7 @@
       // 真正扣自己HP之前，回傳的是溢出到自己身上的部分。這同時讓「靈體消滅時HP/FP回復」
       // 這兩個遺物效果真的有觸發路徑（先前midnight沒有任何會扣靈體HP的地方）。
       damage = absorbDamageWithSpirit(damage);
+      if (damage > 0) onAffixDamaged(); // 2026-09-13武器詞條：被ダメージ時系2條
       lastEnemyDamageInfo = { amount: damage, at: Date.now() };
       var maxHp = mySelfHpMaxFallback();
       // 第六感自動觸發（見sixthSenseSaveValue()說明）／不死行軍・逆襲的暫時瀕死免疫（見
@@ -7869,6 +8463,7 @@
           // 直接抽出，並非鍛造台再抽」：杖的random魔術枠在入手當下就決定。
           var CDs = window.PriTestCharacterDrawer;
           CDs.assignWeaponRandomSkill(c, drawn.weaponId, CDs.rollWeaponRandomSkill(drawn.weaponId));
+          grantAffixesForNewWeapon(c, drawn.weaponId); // 2026-09-13武器詞條：跟random戰技同一個時機擲定
           labels.push(window.PriTestWeapons.localizedText(drawn.item.name));
         }
       } else if (spec.kind === "weaponStar") {
@@ -10041,6 +10636,15 @@
         var CDp = window.PriTestCharacterDrawer;
         CDp.assignWeaponRandomSkill(c2, data.itemId, data.randomSkillId || CDp.rollWeaponRandomSkill(data.itemId));
         if (c2.weaponRandomSkills) GameStorage.rtSet(gameId, "cloud", "character/" + myTokenId + "/weaponRandomSkills", c2.weaponRandomSkills);
+        // 2026-09-13武器詞條：地上那把原本帶的詞條跟著撿回來（見dropInventoryItem()）；
+        // 沒有紀錄的（例如遊戲中途才開啟詞條、或更早期掉在地上的武器）才在撿起的當下擲一次。
+        if (data.affixes) {
+          c2.weaponAffixes = c2.weaponAffixes || {};
+          c2.weaponAffixes[data.itemId] = data.affixes;
+        } else {
+          grantAffixesForNewWeapon(c2, data.itemId);
+        }
+        if (c2.weaponAffixes) GameStorage.rtSet(gameId, "cloud", "character/" + myTokenId + "/weaponAffixes", c2.weaponAffixes);
       } else if (kind === "talisman") {
         c2.talismanIds = (c2.talismanIds || []).concat([data.itemId]);
         GameStorage.rtSet(gameId, "cloud", "character/" + myTokenId + "/talismanIds", c2.talismanIds);
@@ -10312,6 +10916,7 @@
     // 2026-09-12使用者明確規格「武器…持有的戰技魔術等 是當下直接抽出，並非鍛造台再抽」：
     // 商人購買也一樣，入手當下就決定random戰技枠。
     window.PriTestCharacterDrawer.assignWeaponRandomSkill(c, result.weaponId, window.PriTestCharacterDrawer.rollWeaponRandomSkill(result.weaponId));
+    grantAffixesForNewWeapon(c, result.weaponId); // 2026-09-13武器詞條
     c.runes -= 1;
     GameStorage.rtSet(gameId, "cloud", "character/" + myTokenId, c);
     el("midnight-merchant-weapon-result").textContent = window.I18N.t("midnight_merchant_weapon_result", {
@@ -11864,6 +12469,7 @@
       c.weaponIds.push(drawn.weaponId);
       // 2026-09-12：揭示時就抽好的random戰技（見drawSharedRewardData()）跟著武器一起入手。
       if (drawn.skillId) CD.assignWeaponRandomSkill(c, drawn.weaponId, drawn.skillId);
+      grantAffixesForNewWeapon(c, drawn.weaponId); // 2026-09-13武器詞條
     } else if (entry.kind === "talisman" && drawn.talismanId) {
       c.talismanIds = c.talismanIds || [];
       c.talismanIds.push(drawn.talismanId);
@@ -12735,6 +13341,7 @@
           c.weaponIds = c.weaponIds || [];
           c.weaponIds.push(result.weaponId);
           if (drawnSkillId) window.PriTestCharacterDrawer.assignWeaponRandomSkill(c, result.weaponId, drawnSkillId);
+          grantAffixesForNewWeapon(c, result.weaponId); // 2026-09-13武器詞條
           if (attributeTag) {
             c.weaponAttributeTags = c.weaponAttributeTags || {};
             c.weaponAttributeTags[result.weaponId] = attributeTag;
@@ -13371,7 +13978,10 @@
   // 陣列，slotCount是硬上限，renderLabel(item)回傳格子上顯示的文字，onSelect(item)是
   // 點擊時要呼叫的selectCharacterSheetItem()包裝——不足slotCount的格子畫成空格佔位，
   // 讓玩家一眼看出還有幾格空間。
-  function renderInventorySlots(container, items, slotCount, kind, renderLabel) {
+  // renderBadge（2026-09-13新增，可省略）：回傳要疊在格子右下角的小徽章文字，null＝不加。
+  // 目前只有武器格用得到（武器詞條數，使用者明確規格的「卡片徽章」），做成可選參數而不是
+  // 在函式裡寫死kind==="weapon"，讓消耗品/護符之後要加別種徽章時不用再改這裡。
+  function renderInventorySlots(container, items, slotCount, kind, renderLabel, renderBadge) {
     container.innerHTML = "";
     for (var i = 0; i < slotCount; i++) {
       var slotEl = document.createElement("button");
@@ -13380,6 +13990,13 @@
       if (i < items.length) {
         var item = items[i];
         slotEl.textContent = renderLabel(item);
+        var badgeText = renderBadge ? renderBadge(item) : null;
+        if (badgeText) {
+          var badgeEl = document.createElement("span");
+          badgeEl.className = "midnight-sheet-slot-badge";
+          badgeEl.textContent = badgeText;
+          slotEl.appendChild(badgeEl);
+        }
         var isSelected =
           characterSheetSelection && characterSheetSelection.kind === kind && characterSheetSelection.ref === (item.id || item);
         if (isSelected) slotEl.classList.add("midnight-sheet-slot-selected");
@@ -13651,6 +14268,11 @@
     renderCharacterSheet();
   }
 
+  // 六項威力補正的統計key與顯示順序（2026-09-13）：跟character_drawer.js的
+  // POWER_MOD_STAT_MAP／buildTypeStatLines()是同一組stat key與同一個排列順序
+  // （力量／技巧／平衡／智力／信仰／神秘），也就是i18n key "stat_power_mod" 標籤上寫的順序。
+  var POWER_MOD_STAT_KEYS = ["strength", "dex", "balance", "intelligence", "faith", "arcane"];
+
   function renderCharacterSheet() {
     var modal = el("midnight-character-sheet-modal");
     if (!modal || modal.hidden) return;
@@ -13681,9 +14303,30 @@
         })
       : "";
 
-    // 威力補正：computeArtPower()需要指定一把實際武器（沒有「不含武器」的算法），這裡
-    // 用目前裝備中的武器（equippedWeaponIdL）當代表值；個別武器的威力補正另外在該武器
+    // 六項威力補正（2026-09-13使用者明確規格「腳色視窗中 要顯示全部威力補正數值
+    // 威力補正（力量／技巧／平衡／智力／信仰／神秘）」）：原本這裡只有下面那一個數字，
+    // 而且那個數字是「目前左手武器對應的那一項」，看不出其餘五項。
+    // 標籤與排列順序都沿用主遊戲角色卡既有的buildTypeStatLines()（i18n key: stat_power_mod，
+    // 順序＝力量／技巧／平衡／智力／信仰／神秘），不另外定義第二套。
+    // 數值用CharacterDrawer.statPowerModValue()而不是直接讀type.powerMod：那支helper是
+    // 「類型基本值＋護符＋遺物效果」的既有累加（跟computeArtPower()的powerMod部分同一套
+    // 算法），因此護符/遺物帶來的加成會反映在畫面上——跟上面判定值2026-09-10改用
+    // effectiveCheckDiceCount()的理由一致。刻意不傳weaponId：這裡是「角色整體」的補正，
+    // 武器固有的調整值屬於個別武器，點選該武器時在右側detail顯示。
+    el("midnight-character-sheet-power-mods").textContent = type
+      ? window.I18N.t("stat_power_mod") +
+        window.I18N.t("colon_separator") +
+        POWER_MOD_STAT_KEYS.map(function (statKey) {
+          return CD.statPowerModValue(c, statKey);
+        }).join("／")
+      : "";
+
+    // 戰技威力：computeArtPower()需要指定一把實際武器（沒有「不含武器」的算法），這裡
+    // 用目前裝備中的武器（equippedWeaponIdL）當代表值；個別武器的數值另外在該武器
     // 被點選時顯示在右側detail（見renderCharacterSheetDetail()的weapon分支）。
+    // 2026-09-13：這個值是「稀有度補正＋威力補正」＝戰技威力（見character_drawer.js
+    // 傷害計算區塊開頭的公式），跟上面那行六項威力補正是不同的量，因此文案改成明確的
+    // 「戰技威力（裝備中武器）」，不再跟威力補正同名。
     var artInfo = c.equippedWeaponIdL ? CD.computeArtPower(c, c.equippedWeaponIdL) : null;
     el("midnight-character-sheet-power").textContent = artInfo
       ? window.I18N.t("midnight_character_sheet_power", { value: artInfo.artPower })
@@ -13696,10 +14339,22 @@
     renderCharacterSheetLevelRow(c, CD);
     renderMidnightRelicLearnSection(c, type, CD, CharacterTypes);
 
-    renderInventorySlots(el("midnight-character-sheet-weapons"), c.weaponIds || [], WEAPON_SLOT_COUNT, "weapon", function (wid) {
-      var w = window.PriTestWeapons.get(baseCatalogId(wid));
-      return w ? window.PriTestWeapons.localizedText(w.name) : wid;
-    });
+    renderInventorySlots(
+      el("midnight-character-sheet-weapons"),
+      c.weaponIds || [],
+      WEAPON_SLOT_COUNT,
+      "weapon",
+      function (wid) {
+        var w = window.PriTestWeapons.get(baseCatalogId(wid));
+        return w ? window.PriTestWeapons.localizedText(w.name) : wid;
+      },
+      // 2026-09-13武器詞條徽章（使用者明確選擇的UI形式）：每一條詞條一枚◈，一眼看得出
+      // 這把武器帶了幾條。詳細內容在右側詳細欄（見renderWeaponSheetDetail()）。
+      function (wid) {
+        var list = (c.weaponAffixes && c.weaponAffixes[wid]) || [];
+        return list.length ? new Array(list.length + 1).join("◈") : null;
+      }
+    );
     renderWeaponRerollOpenButton(c);
     renderInventorySlots(el("midnight-character-sheet-consumables"), c.consumables || [], CONSUMABLE_SLOT_COUNT, "consumable", function (inst) {
       var item = window.PriTestConsumables.get(inst.itemId);
@@ -14080,6 +14735,35 @@
       detail.appendChild(powerP);
     }
 
+    // [詞條]（2026-09-13使用者明確規格的UI形式：「武器詳細欄＋卡片徽章」）：有益綠字、
+    // 有害紅字，數值是取得武器時就擲定的實數（見rollWeaponAffixes()）。phase 2的詞條
+    // 一樣列出來，但附註「效果尚未實作」，避免玩家誤以為已經在生效。
+    var affixList = (c.weaponAffixes && c.weaponAffixes[weaponId]) || [];
+    var AffixData = window.PriTestWeaponAffixes;
+    if (affixList.length && AffixData) {
+      var affixTitle = document.createElement("p");
+      affixTitle.className = "boss-subheading";
+      affixTitle.textContent = window.I18N.t("midnight_character_sheet_affix_label");
+      detail.appendChild(affixTitle);
+      affixList.forEach(function (entry) {
+        var affix = AffixData.get(entry.id);
+        if (!affix) return;
+        var row = document.createElement("p");
+        row.className = "midnight-affix-row " + (affix.good ? "midnight-affix-good" : "midnight-affix-bad");
+        var nameEl2 = document.createElement("span");
+        nameEl2.className = "midnight-affix-name";
+        nameEl2.textContent = AffixData.localizedText(affix.name);
+        row.appendChild(nameEl2);
+        var bodyEl2 = document.createElement("span");
+        bodyEl2.className = "midnight-affix-body";
+        bodyEl2.textContent =
+          AffixData.describe(affix, entry.value) +
+          (affix.phase === 1 ? "" : window.I18N.t("midnight_affix_pending_note"));
+        row.appendChild(bodyEl2);
+        detail.appendChild(row);
+      });
+    }
+
     // [連擊特典]：category.twoHitBonus規則書原文（部分武器種才有，例如大劍/斧槍系兩手
     // 持握時的2Hit加成說明），跟night.jsのrenderWeaponCard()同一份資料。
     if (category && category.twoHitBonus && category.twoHitBonus.length) {
@@ -14328,12 +15012,21 @@
       });
       GameStorage.rtSet(gameId, "cloud", "character/" + myTokenId + "/weaponRandomSkills", c.weaponRandomSkills);
     }
+    // 2026-09-13：武器詞條同理——取得當下就擲定了，丟棄時要跟著掉在地上，否則撿起來的人
+    // 會拿到一把沒有詞條的武器，或（更糟）在撿起的當下重抽出完全不同的詞條。
+    var droppedAffixes = null;
+    if (kind === "weapon" && c.weaponAffixes && c.weaponAffixes[dropped]) {
+      droppedAffixes = c.weaponAffixes[dropped];
+      delete c.weaponAffixes[dropped];
+      GameStorage.rtSet(gameId, "cloud", "character/" + myTokenId + "/weaponAffixes", c.weaponAffixes);
+    }
     putItemOnGround({
       kind: kind,
       itemId: kind === "consumable" ? dropped.itemId : dropped,
       usesRemaining: kind === "consumable" ? dropped.usesRemaining : null,
       attributeTag: droppedAttributeTag,
       randomSkillId: droppedRandomSkill,
+      affixes: droppedAffixes,
     });
   }
 
@@ -14723,7 +15416,7 @@
         fillEl.style.width = "0%";
         return;
       }
-      fillEl.style.width = Math.max(0, Math.min(100, ((Date.now() - startedAt) / SORCERY_CAST_HOLD_MS) * 100)) + "%";
+      fillEl.style.width = Math.max(0, Math.min(100, ((Date.now() - startedAt) / sorceryCastHoldMs()) * 100)) + "%";
     });
   }
 
@@ -15410,6 +16103,7 @@
   function maybeTriggerNearDeath(tokenId) {
     var c = characters[tokenId];
     if (!c) return;
+    onAffixNearDeath(tokenId); // 2026-09-13武器詞條：瀕死時系2條
     var required = nearDeathRequiredValue(tokenId);
     GameStorage.rtTransaction(gameId, "cloud", "character/" + tokenId + "/nearDeath", function (cur) {
       if (cur && cur.active) return cur;
@@ -15905,7 +16599,9 @@
     if (outsideCircleSinceMs === null) outsideCircleSinceMs = now;
     if (now - lastDamageTickTime < DAMAGE_TICK_MS) return;
     lastDamageTickTime = now;
-    var dmg = circleDamagePerTick((now - outsideCircleSinceMs) / 1000);
+    // 2026-09-13武器詞條「夜の雨の被ダメージ増加」：使用者明確規格「受到的夜雨傷害+2」，
+    // 是絕對值加成，疊在圈外持續傷害的每一跳上。
+    var dmg = circleDamagePerTick((now - outsideCircleSinceMs) / 1000) + affixTotal(characters[myTokenId], "nightRainDamageUp");
     var maxHp = mySelfHpMaxFallback();
     GameStorage.rtTransaction(gameId, "cloud", "demoStat/" + myTokenId, function (cur) {
       var next = (cur === null ? maxHp : cur) - dmg;
@@ -16602,6 +17298,7 @@
     updateAttackHold(now);
     updateSkillExtraCharges(now); // 遺物效果「技能使用次數＋1」的蓄積
     updateFlaskReading(now);
+    updateAffixOverTime(now); // 2026-09-13武器詞條：HP持続回復／減少、HP未滿時累積猛毒／腐敗
     maybePushPosition(now);
     var phaseInfo = currentPhaseInfo(now);
     maybeApplyCircleDamage(now, phaseInfo);
@@ -17087,6 +17784,46 @@
     },
     _debugRenderRewardModal: function () {
       renderRewardModal();
+    },
+    _debugRenderCharacterSheet: function () {
+      renderCharacterSheet();
+    },
+    // ---- 武器詞條（2026-09-13）測試入口，見tools/midnight_check/weapon_affix_check.js ----
+    _debugRollAffixes: function (rarity) {
+      return rollWeaponAffixes(rarity);
+    },
+    _debugGrantAffixes: function (weaponId) {
+      return grantAffixesForNewWeapon(characters[myTokenId], weaponId);
+    },
+    _debugCharacterAffixes: function () {
+      return (characters[myTokenId] || {}).weaponAffixes || {};
+    },
+    _debugAffixTotal: function (affixId) {
+      return affixTotal(characters[myTokenId], affixId);
+    },
+    _debugSelfHpMax: function () {
+      return selfArenaHpMax(characters[myTokenId]);
+    },
+    // list為null＝移除該武器的詞條（並把測試用的武器從裝備欄拿掉）。opts.equip預設false：
+    // 詞條「裝備欄持有即生效」的驗證需要「有這把武器、但沒有裝備在手上」的狀態。
+    _debugSetWeaponAffixes: function (weaponId, list, opts) {
+      var c = characters[myTokenId];
+      if (!c) return null;
+      c.weaponIds = c.weaponIds || [];
+      c.weaponAffixes = c.weaponAffixes || {};
+      if (!list) {
+        delete c.weaponAffixes[weaponId];
+        var idx = c.weaponIds.indexOf(weaponId);
+        if (idx !== -1 && weaponId.indexOf("::probe") !== -1) c.weaponIds.splice(idx, 1);
+        return null;
+      }
+      if (c.weaponIds.indexOf(weaponId) === -1) c.weaponIds.push(weaponId);
+      if (opts && opts.equip) c.equippedWeaponIdR = weaponId;
+      c.weaponAffixes[weaponId] = list;
+      return c.weaponAffixes[weaponId];
+    },
+    _debugSelectSheetItem: function (kind, ref) {
+      selectCharacterSheetItem(kind, ref);
     },
     _debugRewardEntryLabel: function (entry) {
       return rewardEntryLabel(entry);

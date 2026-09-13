@@ -6318,6 +6318,51 @@ html.midnight-banner-above-hud:not(.midnight-top-banner-collapsed) #midnight-rew
   opacity: 0.4;
 }
 
+/* 武器詞條徽章（2026-09-13使用者明確選擇的UI形式「武器詳細欄＋卡片徽章」）：一條詞條
+   一枚◈，疊在武器格右下角。格子本身是<button>、沒有position，這裡補上relative當定位
+   基準（.midnight-sheet-slot沒有overflow:hidden，徽章不會被裁掉）。 */
+.midnight-sheet-slot {
+  position: relative;
+}
+
+.midnight-sheet-slot-badge {
+  position: absolute;
+  right: 0.2rem;
+  bottom: 0.1rem;
+  font-size: 0.6rem;
+  letter-spacing: -0.05em;
+  color: #ffd54a;
+  pointer-events: none;
+}
+
+/* 武器詳細欄裡的詞條列：有益綠字、有害紅字（使用者明確規格），名稱粗體後接規則本文。 */
+.midnight-affix-row {
+  margin: 0.15rem 0;
+  font-size: 0.72rem;
+  line-height: 1.35;
+}
+
+.midnight-affix-name {
+  font-weight: bold;
+}
+
+.midnight-affix-name::before {
+  content: "◈ ";
+}
+
+.midnight-affix-body {
+  margin-left: 0.35rem;
+  opacity: 0.92;
+}
+
+.midnight-affix-good {
+  color: #7ee787;
+}
+
+.midnight-affix-bad {
+  color: #ff8a8a;
+}
+
 .midnight-sheet-slot-selected {
   border-color: #ffd54a;
   background: rgba(255, 213, 74, 0.18);

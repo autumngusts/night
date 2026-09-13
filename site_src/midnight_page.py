@@ -121,6 +121,18 @@ BODY = """    <div class="midnight-wrap">
             <option value="unlimited" data-i18n="midnight_difficulty_unlimited"></option>
           </select>
         </div>
+        <!-- 武器詞條開放（2026-09-13使用者明確規格「在房間創立中 可以選擇武器詞條開放；
+             開啟後 在遊戲中內獲得的武器杖聖印等 都會帶有詞條（除了初始裝備的武器）」）：
+             寫入meta.weaponAffixes，跟夜王/地圖/難度同一套「同一場遊戲所有人共用、開局前
+             設定」模式，見static/midnight.jsのrenderLobbySettings()／
+             handleWeaponAffixesToggle()／rollWeaponAffixes()。 -->
+        <div class="wb-row" id="midnight-lobby-weapon-affixes-row">
+          <label>
+            <input type="checkbox" id="midnight-lobby-weapon-affixes-checkbox">
+            <span data-i18n="midnight_lobby_weapon_affixes_label"></span>
+          </label>
+          <span class="hint" data-i18n="midnight_lobby_weapon_affixes_hint"></span>
+        </div>
         <!-- 流程簡介（使用者明確規格「測試模式選項上面有『流程簡介』，打開後播放打字機
              直到按下右上X」）：純本地端展示視窗，不涉及任何共享state，開關只影響自己這台
              裝置的畫面，見static/midnight.jsのhandleFlowIntroOpenClick()/
@@ -1261,6 +1273,13 @@ BODY = """    <div class="midnight-wrap">
                 </div>
                 <!-- 威力補正／得意武器／判定值（2026-09-06使用者明確要求移到清單後面，
                      等級升降改在#midnight-blessing-modal內，這裡不再放level-row）。 -->
+                <!-- 六項威力補正（2026-09-13使用者明確規格「腳色視窗中 要顯示全部威力
+                     補正數值 威力補正（力量／技巧／平衡／智力／信仰／神秘）」）：標籤直接
+                     重用主遊戲角色卡既有的stat_power_mod（見site_src/i18n_data_zh.py，
+                     文字就是使用者引用的那一行），不另外造一組字串；數值由
+                     static/midnight.jsのrenderCharacterSheet()透過
+                     CharacterDrawer.statPowerModValue()逐項算出。 -->
+                <p id="midnight-character-sheet-power-mods"></p>
                 <p id="midnight-character-sheet-power"></p>
                 <p id="midnight-character-sheet-favored"></p>
                 <p id="midnight-character-sheet-checkvalues"></p>
@@ -1386,6 +1405,10 @@ def build_midnight_html() -> str:
             # mnText()會讀window.PriTestMidnightTextAdapt，必須排在它之前。純字串函式、
             # 沒有其他相依，放這裡即可。
             "midnight_text_adapt.js",
+            # 2026-09-13新增：武器詞條的純參考資料（名稱／有益・有害分類／數值範圍／規則
+            # 本文），midnight.jsのrollWeaponAffixes()等會讀window.PriTestWeaponAffixes，
+            # 必須排在它之前。純資料模組、沒有其他相依。
+            "weapon_affixes.js",
             "midnight.js",
         ),
     )

@@ -457,6 +457,69 @@ async function joinLobby(page, passcode) {
     assert(selfAccumThreshold.labels.indexOf("炎") !== -1, "屬性徽章仍然留著", selfAccumThreshold);
 
     // ------------------------------------------------------------------
+    // ⑨ 角色視窗顯示全部六項威力補正
+    // 期望值不硬編：直接從 CharacterDrawer.statPowerModValue() 算回來比對，並額外
+    // 驗證「護符帶來的加成會反映到畫面上」（不是只印類型基本值）。
+    // ------------------------------------------------------------------
+    console.log("=== ⑨ 角色視窗六項威力補正 ===");
+    const powerMods = await page.evaluate(async () => {
+      const M = window.PriTestMidnight;
+      const CD = window.PriTestCharacterDrawer;
+      const D = M._debugState();
+      const c = D.characters[D.myTokenId];
+      const keys = ["strength", "dex", "balance", "intelligence", "faith", "arcane"];
+      M._debugSetTalismans([]);
+      document.getElementById("midnight-character-sheet-modal").hidden = false;
+      M._debugRenderCharacterSheet();
+      const line = document.getElementById("midnight-character-sheet-power-mods");
+      const base = {
+        text: line.textContent,
+        expected: keys.map((k) => CD.statPowerModValue(c, k)),
+        typeRaw: keys.map((k) => (window.PriTestCharacterTypes.get(c.typeId).powerMod[k] || 0)),
+        label: window.I18N.t("stat_power_mod"),
+      };
+      // 找一個真的會加威力補正的護符（本文含「威力補正」），驗證顯示值跟著變。
+      const T = window.PriTestTalismans;
+      const bonusTalisman = (T.list ? T.list() : []).filter((t) => /威力補正/.test(T.localizedText(t.body) || ""))[0];
+      let withTalisman = null;
+      if (bonusTalisman) {
+        M._debugSetTalismans([bonusTalisman.id]);
+        M._debugRenderCharacterSheet();
+        withTalisman = {
+          id: bonusTalisman.id,
+          text: line.textContent,
+          expected: keys.map((k) => CD.statPowerModValue(c, k)),
+        };
+        M._debugSetTalismans([]);
+        M._debugRenderCharacterSheet();
+      }
+      const artLine = document.getElementById("midnight-character-sheet-power").textContent;
+      document.getElementById("midnight-character-sheet-modal").hidden = true;
+      return { base, withTalisman, artLine };
+    });
+    assert(powerMods.base.text.indexOf(powerMods.base.label) === 0, "六項威力補正沿用主遊戲角色卡既有的標籤字串", powerMods.base);
+    assert(
+      powerMods.base.text.indexOf(powerMods.base.expected.join("／")) !== -1,
+      "六項數值與 CharacterDrawer.statPowerModValue() 一致，順序＝力量／技巧／平衡／智力／信仰／神秘",
+      powerMods.base
+    );
+    assert(powerMods.base.expected.length === 6, "確實是 6 項", powerMods.base);
+    if (powerMods.withTalisman) {
+      const changed = powerMods.withTalisman.expected.join("／") !== powerMods.base.expected.join("／");
+      assert(
+        powerMods.withTalisman.text.indexOf(powerMods.withTalisman.expected.join("／")) !== -1,
+        "戴上會加威力補正的護符後，顯示值跟著 statPowerModValue() 一起變（不是只印類型基本值）",
+        powerMods.withTalisman
+      );
+      assert(changed, "該護符確實改變了其中至少一項（測試前提）", { base: powerMods.base.expected, with: powerMods.withTalisman.expected });
+    }
+    assert(
+      powerMods.artLine.indexOf(powerMods.base.label) !== 0,
+      "原本那行改稱「戰技威力（裝備中武器）」，不再跟威力補正同名",
+      powerMods.artLine
+    );
+
+    // ------------------------------------------------------------------
     // 其他① 新敵人不繼承屬性／異常蓄積
     // 直接驗證「清空樓層 trigger 時會一起把該點的 attributeAccum 清掉」這條路徑：
     // 先在某個板塊點的 key 底下寫入蓄積，再跑一次踏破→清空流程，確認歸零。
