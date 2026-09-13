@@ -8419,6 +8419,7 @@
       return;
     }
     enterBtn.hidden = true;
+    var inviteBarRow = el("midnight-tower-invite-bar-row");
     if (invite.status === "inviting") {
       inviteWait.hidden = amParticipant;
       if (!amParticipant) {
@@ -8428,9 +8429,19 @@
           name: fieldLocationName(pt),
         });
       }
+      // 2026-09-13使用者明確要求「設定的等待時間中都在banner中讀條顯示」：邀請時限的倒數
+      // 讀條，參與者（含發起人）與受邀者都看得到——先前發起人在這10秒裡畫面上完全沒有
+      // 任何提示。剩餘時間由共享的inviteDeadline反推，每台裝置各自算，不需同步進度。
+      // 讀法跟板塊卡牌的#midnight-field-invite-fill完全相同。
+      inviteBarRow.hidden = false;
+      var towerRemainSec = Math.max(0, Math.ceil((invite.inviteDeadline - Date.now()) / 1000));
+      el("midnight-tower-invite-timer").textContent = window.I18N.t("midnight_field_invite_timer_label", { seconds: towerRemainSec });
+      el("midnight-tower-invite-fill").style.width =
+        Math.max(0, Math.min(100, ((invite.inviteDeadline - Date.now()) / FIELD_INVITE_TIME_LIMIT_MS) * 100)) + "%";
       return;
     }
     inviteWait.hidden = true;
+    inviteBarRow.hidden = true;
     if (invite.status === "active" && amParticipant && !towerSolved[pt.id] && !towerPuzzleStartedFor[pt.id] && !towerPuzzleDismissed[pt.id]) {
       startTowerPuzzle(pt); // 旗標改由startTowerPuzzle()在真的拿到題目之後才設，見該函式
     }
@@ -11437,6 +11448,33 @@
   // 隨機事件籌碼決定（設計文件§8.1）：跟rollAndAssignStrongEnemy()同款first-writer-wins
   // transaction寫法，天然支援多裝置同時靠近時只有一次真正決定。「霊鷹の止まり木」依規格
   // 直接替換成「スカラベ」分支（沿用同一套聖甲蟲判定，不走場地移動機制）。
+  // 決定表抽不出結果時，從表格原文列裡亂數挑一個乾淨的分支名稱（解析方式跟下方正常路徑
+  // 完全相同，不另外硬編一份分支清單）。表格本身也查不到時退回襲撃子表的分支名稱。
+  function randomEventFallbackBranchName(table) {
+    var rows = (table && table.rows) || [];
+    if (rows.length) {
+      var row = rows[Math.floor(Math.random() * rows.length)];
+      var name = (((row[1] || {}).ja) || "").split("（")[0];
+      if (name) return normalizeRandomEventBranchName(name);
+    }
+    var RandomEvents = window.PriTestMidnightRandomEvents;
+    var names = RandomEvents && RandomEvents.ambushBranchNames ? RandomEvents.ambushBranchNames() : [];
+    return names.length ? "襲撃" : null;
+  }
+
+  // 決定表條目名稱→實際分支名稱的兩處既有修正（見rollAndAssignRandomEvent()內的原始說明），
+  // 抽出來讓退回路徑也走同一套，避免退回時挑到查不到renderer的名稱。
+  function normalizeRandomEventBranchName(name) {
+    // 霊鷹の止まり木：設計規格直接替換成スカラベ，不走場地移動機制。
+    if (name === "霊鷹の止まり木") return "スカラベ";
+    // 決定表本行寫「蟻の大量発生」，但event_rulebook.js:595實際分支本文標題是「虫の大量発生」
+    // （同一頁328/322頁內容，規則書決定表條目名稱與分支自身.name欄位不一致）——這裡統一
+    // 改成後者，讓renderRandomEventOverlay()的RENDERERS查表鍵（Task 21以「虫の大量発生」
+    // 為key）能真正命中。
+    if (name === "蟻の大量発生") return "虫の大量発生";
+    return name;
+  }
+
   function rollAndAssignRandomEvent(pt) {
     if (randomEventRollAttempted[pt.id] || fieldTriggers[pt.id]) return;
     randomEventRollAttempted[pt.id] = true;
@@ -11446,21 +11484,30 @@
     var table = chip && chip.extraTables && chip.extraTables[0];
     var scenarioId = resolveNightBossScenarioId();
     var scenarioNumber = scenarioId && Scenarios ? Scenarios.numberForId(scenarioId) : null;
-    if (!GmFlow || !table) return;
-    var rolled = GmFlow.rollRandomEventTable(table, scenarioNumber);
-    if (!rolled) return;
+    // fix(2026-09-13)：使用者明確規格「檢查各劇本×各地圖都能成功決定一件，即使沒有在原本
+    // 規則設定之中，允許亂數決定一件隨機事件發生」。決定表本身有5列帶劇本限定
+    // （隕石／歩く霊廟／夜の勢力／蟻の大量発生／発狂地帯），劇本對不上就振り直し；30次都
+    // 不中（或籌碼資料整個查不到）時原本直接return，而randomEventRollAttempted已經設成
+    // true，於是這個籌碼點永遠不會再抽一次＝走過去什麼都沒發生。改為亂數退回。
+    var rolled = GmFlow && table ? GmFlow.rollRandomEventTable(table, scenarioNumber) : null;
+    if (!rolled) {
+      var fallbackName = randomEventFallbackBranchName(table);
+      if (!fallbackName) return; // 連分支名稱都湊不出來（理論上不會發生）
+      GameStorage.rtTransaction(gameId, "cloud", "fieldTrigger/" + pt.id, function (cur) {
+        if (cur !== null) return cur;
+        return { status: "resolved", branchNameJa: fallbackName, branchFallback: true, participants: {}, resolvedAt: Date.now() };
+      });
+      return;
+    }
     // rollRandomEventTable()實際回傳{entry, rowIndex, die1, die2, rollLog}，entry是{ja,zh}
     // 雙語物件（見night_gm_flow.js:1667-1692確認）——不是{name:...}。表格原文條目（例如
     // 「隕石（次頁）※シナリオ1、2、7、8のときのみ。それ以外の場合は振り直し。」）夾帶
     // 頁碼參照與「※劇本限定」註記，不是乾淨的分支名稱，因此用「從第一個全形（截斷」取出
     // 乾淨名稱（分支名稱本身不含「（」，逐行核對過event_rulebook.js:1237-1268十行原文）。
-    var branchName = ((rolled.entry && rolled.entry.ja) || "").split("（")[0];
-    if (branchName === "霊鷹の止まり木") branchName = "スカラベ"; // 設計規格：直接替換，不走場地移動機制
-    // 決定表本行寫「蟻の大量発生」，但event_rulebook.js:595實際分支本文標題是「虫の大量発生」
-    // （同一頁328/322頁內容，規則書決定表條目名稱與分支自身.name欄位不一致）——這裡統一
-    // 改成後者，讓下方renderRandomEventOverlay()的RENDERERS查表鍵（Task 21以「虫の大量発生」
-    // 為key）能真正命中。
-    if (branchName === "蟻の大量発生") branchName = "虫の大量発生";
+    var branchName = normalizeRandomEventBranchName(((rolled.entry && rolled.entry.ja) || "").split("（")[0]);
+    // （正規化細節見normalizeRandomEventBranchName()：霊鷹の止まり木→スカラベ是設計規格的
+    //   直接替換、不走場地移動機制；蟻の大量発生→虫の大量発生是規則書決定表條目名稱與分支
+    //   自身.name欄位不一致的既有修正。）
     GameStorage.rtTransaction(gameId, "cloud", "fieldTrigger/" + pt.id, function (cur) {
       if (cur !== null) return cur;
       return { status: "resolved", branchNameJa: branchName, participants: {}, resolvedAt: Date.now() };
@@ -11513,8 +11560,13 @@
       var scenarioId = resolveNightBossScenarioId();
       var Scenarios = window.PriTestScenarios;
       var scenarioNumber = scenarioId && Scenarios ? Scenarios.numberForId(scenarioId) : null;
+      // 2026-09-13：rollAmbushTable()在劇本限定抽不中時會亂數退回（劇本1／4／5與自訂劇本
+      // 完全不在這張表的任何一列裡，見該函式的完整說明），因此正常情況下不會是null。
       var rolled = window.PriTestMidnightRandomEvents.rollAmbushTable(scenarioNumber);
-      if (!rolled) return;
+      if (!rolled) {
+        delete ambushRollAttempted[pt.id]; // 沒抽到就把節流旗標放掉，下一影格還能再試
+        return;
+      }
       GameStorage.rtTransaction(gameId, "cloud", "fieldTrigger/" + pt.id + "/ambushEnemyNameJa", function (cur) {
         return cur === null ? rolled.nameJa : cur;
       });
@@ -11740,6 +11792,22 @@
     renderAmbushBossBranch(pt, trig);
   }
 
+  // 隨機事件10個分支的renderer對照表。2026-09-13從renderRandomEventOverlay()裡搬到模組層：
+  // 原本宣告在函式內、而函式開頭有「玩家不在籌碼點旁邊就直接return」的守衛，因此除了玩家
+  // 正好站在點旁邊之外都取不到這張表——退回邏輯與回歸測試都需要隨時讀得到它。函式宣告本來
+  // 就會hoist，放在這裡引用下方定義的render函式沒有問題。
+  var RANDOM_EVENT_RENDERERS = {
+    "スカラベ": renderScarabBranch,
+    "女神像": renderGoddessStatueBranch,
+    "埋もれ宝": renderBuriedTreasureBranch,
+    "隕石": renderMeteorBranch,
+    "歩く霊廟": renderWalkingMausoleumBranch, // Task 21
+    "夜の勢力": renderNightForceBranch, // Task 21
+    "虫の大量発生": renderInsectSwarmBranch, // Task 21
+    "発狂地帯": renderMadnessZoneBranch, // Task 21
+    "襲撃": renderAmbushBranch, // Task 22
+  };
+
   function renderRandomEventOverlay() {
     var pt = nearbyRandomEvent;
     var trig = pt && fieldTriggers[pt.id];
@@ -11769,18 +11837,19 @@
     el("midnight-tuning-demon-choice-leave").hidden = true;
     el("midnight-tuning-demon-choice-fight").hidden = true;
     if (!pt || !trig || !trig.branchNameJa) return;
-    var RENDERERS = {
-      "スカラベ": renderScarabBranch,
-      "女神像": renderGoddessStatueBranch,
-      "埋もれ宝": renderBuriedTreasureBranch,
-      "隕石": renderMeteorBranch,
-      "歩く霊廟": renderWalkingMausoleumBranch, // Task 21
-      "夜の勢力": renderNightForceBranch, // Task 21
-      "虫の大量発生": renderInsectSwarmBranch, // Task 21
-      "発狂地帯": renderMadnessZoneBranch, // Task 21
-      "襲撃": renderAmbushBranch, // Task 22
-    };
-    var renderer = RENDERERS[trig.branchNameJa];
+    var renderer = RANDOM_EVENT_RENDERERS[trig.branchNameJa];
+    // fix(2026-09-13)：查不到renderer時原本靜默什麼都不做（走過去沒反應）。依使用者規格
+    // 「即使沒有在原本規則設定之中，允許亂數決定一件隨機事件發生」，退回一個一定畫得出來
+    // 的分支——用pointId當seed的決定性亂數（同fieldSeededIndex()既有用法），所有裝置對
+    // 同一個點會選到同一個分支。也順便自癒「舊存檔裡存了現在查不到的branchNameJa」。
+    if (!renderer) {
+      var renderableNames = Object.keys(RANDOM_EVENT_RENDERERS);
+      var fallbackKey = renderableNames[fieldSeededIndex(pt.id + ":random_event_renderer_fallback", renderableNames.length)];
+      if (window.console && window.console.warn) {
+        window.console.warn("[midnight] 隨機事件分支無對應renderer，退回：" + trig.branchNameJa + " → " + fallbackKey);
+      }
+      renderer = RANDOM_EVENT_RENDERERS[fallbackKey];
+    }
     if (renderer) renderer(pt, trig);
   }
 
@@ -18293,6 +18362,24 @@
     },
     _debugRollFinalCircleBoss: function (dayIndex, pointId) {
       rollAndAssignFinalCircleBoss(dayIndex, pointId, currentPhaseInfo(Date.now()));
+    },
+    // ---- 2026-09-13 隨機事件必定決定一件／塔邀請讀條 測試入口 ----
+    _debugRollRandomEvent: function (pointId) {
+      delete randomEventRollAttempted[pointId];
+      rollAndAssignRandomEvent({ id: pointId });
+    },
+    _debugRandomEventRenderers: function () {
+      // RANDOM_EVENT_RENDERERS的鍵，測試用來確認「決定表抽得出來的每一個分支名稱都有
+      // 對應的renderer」。
+      return Object.keys(RANDOM_EVENT_RENDERERS);
+    },
+    _debugNormalizeRandomEventBranchName: function (name) {
+      return normalizeRandomEventBranchName(name);
+    },
+    _debugTowerInviteBar: function () {
+      var row = el("midnight-tower-invite-bar-row");
+      var fill = el("midnight-tower-invite-fill");
+      return { hidden: row ? row.hidden : null, width: fill ? fill.style.width : null, timer: el("midnight-tower-invite-timer").textContent };
     },
     // ---- 2026-09-13 魔術師塔（題目同步／關閉重開／暫停鎖／獎勵分列）測試入口 ----
     _debugEnsureTowerPuzzle: function (pointId) {

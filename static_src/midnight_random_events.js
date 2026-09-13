@@ -38,13 +38,31 @@
     { faces: [5], nameJa: "霧の裂け目", scenarios: [8, 9] },
     { faces: [6], nameJa: "安寧者たち", scenarios: [9] },
   ];
+  // fix(2026-09-13)：使用者回報「隨機事件有經過後沒有觸發任何事情的情況發生。檢查各劇本×
+  // 各地圖都能成功決定一件，即使沒有在原本規則設定之中，允許亂數決定一件隨機事件發生」。
+  // 這張表的6列各自有劇本限定，而上面的scenarios欄位逐列核對規則書後可以看出：
+  //   忌み鬼 2,3,9,10／兆し 3,7,9,10／調律の魔物 6,7,9,10／三つ首の獣 8,9／
+  //   霧の裂け目 8,9／安寧者たち 9
+  // **劇本1、4、5完全不在任何一列裡**，自訂劇本（scenarioNumber為null）同理。因此那些場次
+  // 只要隨機事件抽到「襲撃」（決定表第6列，機率1/6），這裡必定回傳null，midnight.js那邊
+  // ambushRollAttempted旗標又已經設成true，結果就是「走過去什麼都沒發生」且永遠不會重試。
+  // 依使用者指示改為：劇本限定抽不到時，無視限定亂數挑一列，並標記fallback讓呼叫端知道
+  // 這不是規則書表定結果。
   function rollAmbushTable(scenarioNumber) {
     for (var attempt = 0; attempt < 30; attempt++) {
       var roll = 1 + Math.floor(Math.random() * 6);
       var row = AMBUSH_TABLE.filter(function (r) { return r.faces.indexOf(roll) !== -1; })[0];
       if (row.scenarios.indexOf(scenarioNumber) !== -1) return { roll: roll, nameJa: row.nameJa };
     }
-    return null; // 30次都不符合劇本限定，放棄不硬湊
+    var fallbackRoll = 1 + Math.floor(Math.random() * 6);
+    var fallbackRow = AMBUSH_TABLE.filter(function (r) { return r.faces.indexOf(fallbackRoll) !== -1; })[0];
+    return { roll: fallbackRoll, nameJa: fallbackRow.nameJa, fallback: true };
+  }
+
+  // 隨機事件決定表本身抽不出結果時的退回用：這張表的所有分支名稱（不含劇本限定），
+  // 供midnight.js亂數挑一個，見該檔rollAndAssignRandomEvent()。
+  function ambushBranchNames() {
+    return AMBUSH_TABLE.map(function (r) { return r.nameJa; });
   }
 
   // ---- 虫の大量発生：多步驟資料（純敘述/判定描述，midnight.js負責流程與RTDB）----
@@ -87,6 +105,7 @@
     rollChestTable: rollChestTable,
     rollChestTableThreeTimes: rollChestTableThreeTimes,
     rollAmbushTable: rollAmbushTable,
+    ambushBranchNames: ambushBranchNames,
     insectSwarmSteps: INSECT_SWARM_STEPS,
     madnessZoneSteps: MADNESS_ZONE_STEPS,
   };

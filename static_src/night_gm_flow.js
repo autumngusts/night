@@ -5494,6 +5494,14 @@
     mergeParams: mergeParams,
     rollStrongEnemyTable: rollStrongEnemyTable,
     resolveStrongEnemyEntry: resolveStrongEnemyEntry,
+    // fix(2026-09-13)：midnight.jsのrollAndAssignRandomEvent()從2026-09-07就在呼叫
+    // GmFlow.rollRandomEventTable()，但這個函式**一直沒有被匯出**——所以那一行其實每次都丟
+    // TypeError（"rollRandomEventTable is not a function"）。midnight.jsのframe()有try/catch
+    // 容錯（見該處說明），例外被吞進console.error，而randomEventRollAttempted旗標在函式最
+    // 開頭就已經設成true，因此每個隨機事件籌碼點只會丟一次例外、之後永遠靜默不動作——這正是
+    // 使用者回報的「隨機事件有經過後沒有觸發任何事情」。這裡補上匯出即可，函式本身沒有問題
+    // （night.js內部一直有在用，見resolveRandomEventBranch()）。
+    rollRandomEventTable: rollRandomEventTable,
     // 2026-09-06 midnight.js優化新增匯出：這3個是「夜の強敵決定表」（劇本行×1日目/2日目列，
     // fields_data_1.jsのextraTables）本身的純函式解析/擲骰邏輯，不依賴night.jsのCore.state
     // （跟同檔案的resolveNightBossCombatLine()不同，那個依賴night.js專屬的gmFlow.walk等

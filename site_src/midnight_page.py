@@ -1057,9 +1057,21 @@ BODY = """    <div class="midnight-wrap">
              renderTowerOverlay()）。 -->
         <div id="midnight-tower-prompt" hidden>
           <button type="button" id="btn-midnight-tower-enter" data-i18n="midnight_tower_enter_button"></button>
+          <!-- 2026-09-13使用者明確要求「魔術師塔以及其他板塊進入等，設定的等待時間中都在
+               banner中讀條顯示」：邀請時限（FIELD_INVITE_TIME_LIMIT_MS）原本只有受邀者看得到
+               一行文字，**發起人自己完全看不到任何東西**（inviteWait.hidden = amParticipant），
+               等於盯著空白畫面等10秒。改成參與者也看得到倒數讀條，見
+               static/midnight.jsのrenderTowerOverlay()。讀條共用跟板塊卡牌同一種
+               .midnight-loading-track視覺元件。 -->
           <div id="midnight-tower-invite-wait" hidden>
             <p id="midnight-tower-invite-text"></p>
             <button type="button" id="btn-midnight-tower-invite-accept" data-i18n="midnight_field_invite_accept_button"></button>
+          </div>
+          <div id="midnight-tower-invite-bar-row" hidden>
+            <p id="midnight-tower-invite-timer"></p>
+            <div class="midnight-loading-track">
+              <span id="midnight-tower-invite-fill" class="midnight-loading-fill"></span>
+            </div>
           </div>
         </div>
 
