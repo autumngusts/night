@@ -97,16 +97,21 @@ async function setTypeAndLearn(page, gameId, tokenId, typeId, names) {
       await page.evaluate(() => {
         window.PriTestMidnight._debugState().fp.current = 1;
       });
-      // 先寫一個未達門檻的值建立基準，再跨過門檻（門檻 16，見 ATTRIBUTE_STATUS_THRESHOLD）
-      await rtSet(page, gameId, "attributeAccum/sharedTarget/猛毒", 1);
+      // 2026-09-13 規格變更後的驅動方式（舊值為何過時）：原本是「把 attributeAccum 從 1 寫到
+      // 16，靠訂閱端自己算 floor(蓄積/16) 有沒有進位」來判定達成。使用者當日明確規格
+      // 「計算過一次就扣除其數值，下一次重新計算成為 1/16」之後，蓄積值在觸發當下就會被
+      // 扣掉門檻（17→1），永遠不會停在 16，floor() 推算不再成立；達成與否改由共享的累計
+      // 觸發次數 attributeAccumTriggers/{targetKey}/{name} 表示（見 midnight.js 的
+      // maybeTriggerAttributeAccum()／applyAttributeJoySpec()）。這裡跟著改成驅動那個計數。
+      await rtSet(page, gameId, "attributeAccumTriggers/sharedTarget/猛毒", 0);
       await page.waitForTimeout(900);
       const beforeJoy = await st(page);
-      await rtSet(page, gameId, "attributeAccum/sharedTarget/猛毒", 16);
+      await rtSet(page, gameId, "attributeAccumTriggers/sharedTarget/猛毒", 1);
       await page.waitForTimeout(1200);
       const afterJoy = await st(page);
       assert(afterJoy.demoStats[tokenId] - beforeJoy.demoStats[tokenId] === 20, `達成時 HP +20（${beforeJoy.demoStats[tokenId]}→${afterJoy.demoStats[tokenId]}）`, results);
       assert(afterJoy.fp.current - beforeJoy.fp.current === 20, `達成時 FP +20（${beforeJoy.fp.current}→${afterJoy.fp.current}）`, results);
-      await rtSet(page, gameId, "attributeAccum/sharedTarget/猛毒", null);
+      await rtSet(page, gameId, "attributeAccumTriggers/sharedTarget/猛毒", null);
     }
 
     // -------------------------------------------------------------------

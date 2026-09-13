@@ -203,11 +203,10 @@
 
   // 玩家自身受到的屬性/異常蓄積：跟現有attributeAccum（PC→敵人方向）是分開的本地only
   // 狀態（不需要跨玩家同步，只有自己需要知道自己承受了多少），沿用同一套
-  // ATTRIBUTE_STATUS_THRESHOLD／異常觸發後歸零・屬性觸發後保留超額的規則
-  // （docs/enemy_damage_rules.md §7.3/§7.4，跟maybeTriggerAttributeAccum同一套規則，
+  // ATTRIBUTE_STATUS_THRESHOLD／異常觸發後歸零・屬性觸發後扣掉門檻值（超過的餘數持ち越し）
+  // 的規則（docs/enemy_damage_rules.md §7.3/§7.4，跟maybeTriggerAttributeAccum同一套規則，
   // 只是方向相反、只追蹤自己一人）。
   var receivedAttributeAccum = {}; // name(已正規化為ja) -> number
-  var receivedAttributeAccumTriggeredCount = {};
 
   // ---- 護符的「承受蓄積」減免（2026-09-12接入，稽核表A組10條）----
   // 規則書原文都是「自身無效化來自敵人的〜蓄積值」或「受到〜蓄積值時將其-1」，因此統一
@@ -261,16 +260,16 @@
     var next = (receivedAttributeAccum[name] || 0) + amount;
     receivedAttributeAccum[name] = next;
     var isAilment = ATTRIBUTE_STATUS_AILMENT_NAMES_JA.indexOf(name) !== -1;
-    var prevCount = receivedAttributeAccumTriggeredCount[name] || 0;
     // 2026-09-13武器詞條：全状態異常耐性を高める／低下會改變自身承受側的觸發門檻。
-    var newCount = Math.floor(next / receivedAccumThreshold(characters[myTokenId]));
-    if (newCount <= prevCount) return;
-    receivedAttributeAccumTriggeredCount[name] = newCount;
-    for (var i = prevCount + 1; i <= newCount; i++) triggerUnyieldingStackIfApplicable();
-    if (isAilment) {
-      receivedAttributeAccum[name] = 0;
-      receivedAttributeAccumTriggeredCount[name] = 0;
-    }
+    var threshold = receivedAccumThreshold(characters[myTokenId]);
+    var times = Math.floor(next / threshold);
+    if (times <= 0) return;
+    // 2026-09-13使用者明確規格（敵人側同一條，見maybeTriggerAttributeAccum()）：觸發過的
+    // 份額當下就從蓄積值扣掉，17/16→1/16，而不是一直掛著17讓畫面看不出已經觸發過。
+    // 異常維持docs §7.4「発動後は0に戻す」（超過分切り捨て），因此一次只算1發。
+    receivedAttributeAccum[name] = isAilment ? 0 : next - times * threshold;
+    var triggerTimes = isAilment ? 1 : times;
+    for (var i = 0; i < triggerTimes; i++) triggerUnyieldingStackIfApplicable();
   }
 
   // 不撓（執行者/執行者暗影被動，2026-09-06角色能力真正接入新增）：每當自身受到的屬性/
@@ -1680,9 +1679,12 @@
   // pointId，否則＝"sharedTarget"，跟damageCombatTarget()判斷「打誰」的邏輯一致。
   // attributeAccum[targetKey] = { [屬性或異常的ja名稱]: 目前蓄積值 }
   var attributeAccum = {};
-  // 已經觸發過的次數，避免RTDB同步延遲造成同一次跨越閾值被算兩次觸發（key＝
-  // targetKey+":"+name，值＝上次已處理到的「觸發次數」floor(蓄積/閾值)）。
-  var attributeAccumTriggeredCount = {};
+  // 累計觸發次數（RTDB attributeAccumTriggers/{targetKey}/{name}，只會往上加、不隨蓄積值
+  // 歸零而重置）。2026-09-13改版前這個數字是由各裝置自己用floor(蓄積/閾值)推算的本地
+  // 計數（attributeAccumTriggeredCount），但蓄積值現在會在觸發當下就被扣掉門檻值
+  // （見maybeTriggerAttributeAccum()），推算不出來了，因此改成由實際完成扣除的那台裝置
+  // 寫進共享state，需要知道「有沒有剛觸發」的功能（遺物「〜達成的歡喜」）改讀這裡。
+  var attributeAccumTriggers = {};
   var flaskReadingUntil = null; // 聖杯瓶讀取中的到期時間戳，null＝目前沒在讀取
   var dodgePressedAt = 0; // 最近一次成功迴避（有扣到體力）的時間戳，見handleDodgeClick／resolveMyIncomingHit
   // 特殊防禦（第六感／遺物效果額外防禦選項，2026-09-05角色能力真正接入新增）：跟dodgePressedAt
@@ -2425,6 +2427,18 @@
       warningBadge.className = "midnight-slot-warning-badge";
       warningBadge.textContent = "⚠";
       dot.appendChild(warningBadge);
+      // 倒地倒數圓盤（2026-09-13使用者明確要求「隊友瀕死時倒數的時限也要顯示在隊友資訊
+      // HUD，採用圓盤狀倒數方式」）：席位卡片只在資料變動時重繪，倒數必須逐幀更新，因此
+      // 這裡只建立空殼並用data-nd-token標記是誰的，實際的角度/秒數由每影格呼叫的
+      // updateNearDeathDials()寫入（同applyCooldownDial()「JS只寫百分比、配色留給CSS」
+      // 的既有慣例，見style.cssの.midnight-near-death-dial）。
+      var dial = document.createElement("span");
+      dial.className = "midnight-near-death-dial";
+      dial.setAttribute("data-nd-token", p.tokenId);
+      var dialValue = document.createElement("span");
+      dialValue.className = "midnight-near-death-dial-value";
+      dial.appendChild(dialValue);
+      row1.appendChild(dial);
       if (p.tokenId !== myTokenId && isRevivalDamageEligible(p.tokenId)) {
         var designating = revivalDesignateTargetTokenId === p.tokenId;
         var designateBtn = document.createElement("button");
@@ -3841,8 +3855,14 @@
 
   function onAttributeAccumReceived(value) {
     attributeAccum = value || {};
-    maybeApplyAttributeJoyRelic();
     maybeApplyJoyTalismans();
+  }
+
+  // 觸發次數的變化才是「剛剛跨過門檻」的唯一可靠訊號（蓄積值本身在觸發當下就被扣掉
+  // 門檻值，17→1，光看值看不出來曾經到過16）。
+  function onAttributeAccumTriggersReceived(value) {
+    attributeAccumTriggers = value || {};
+    maybeApplyAttributeJoyRelic();
   }
 
   // ---- 護符「血之君主的歡喜」／「廢散者的歡喜」（2026-09-12接入）----
@@ -3893,64 +3913,68 @@
     });
   }
 
+  // 2026-09-13改版：改讀共享的累計觸發次數attributeAccumTriggers（原本是自己用
+  // floor(蓄積值/閾值)推算，蓄積值現在觸發後會被扣掉門檻值，推算不出來了）。這個數字
+  // 只會往上加，不會像蓄積值那樣歸零，因此「count<=prev」只剩下「敵人換掉、計數被清空」
+  // 一種情況，照舊把基準拉回去即可。
   function applyAttributeJoySpec(spec) {
     var choice = spec.choice;
-    Object.keys(attributeAccum || {}).forEach(function (targetKey) {
-      var byName = attributeAccum[targetKey] || {};
+    Object.keys(attributeAccumTriggers || {}).forEach(function (targetKey) {
+      var byName = attributeAccumTriggers[targetKey] || {};
       Object.keys(byName).forEach(function (name) {
         if (!relicChoiceMatches(choice, name)) return;
         var key = spec.tag + ":" + targetKey + ":" + name;
-        var count = Math.floor((byName[name] || 0) / ATTRIBUTE_STATUS_THRESHOLD);
+        var count = byName[name] || 0;
         var prev = joyTriggeredCount[key];
-        // 初次看到這個key時只記錄基準（避免剛進場就把既有的蓄積量全部算成「剛達成」）。
+        // 初次看到這個key時只記錄基準（避免剛進場就把既有的觸發次數全部算成「剛達成」）。
         if (prev === undefined) {
           joyTriggeredCount[key] = count;
           return;
         }
         if (count <= prev) {
-          joyTriggeredCount[key] = count; // 異常觸發後會歸零，基準跟著降回去
+          joyTriggeredCount[key] = count; // 換敵人時計數被清空，基準跟著降回去
           return;
         }
+        var times = count - prev;
         joyTriggeredCount[key] = count;
-        healSelfHp(spec.amount);
-        healSelfFp(spec.amount);
+        for (var i = 0; i < times; i++) {
+          healSelfHp(spec.amount);
+          healSelfFp(spec.amount);
+        }
       });
     });
   }
 
-  // 蓄積值每跨過一次閾值＝一次觸發（屬性可超額累計、同一時間可能觸發多次；狀態異常則
-  // docs §7.4規定觸發後歸零、每回合只發揮一次——這裡簡化成「歸零後重新累積」，不额外做
-  // 回合鎖，因為midnight沒有night.js的回合/phase概念）。用RTDB
-  // attributeAccumTriggerClaims/{targetKey}/{name}/{觸發序號} 的first-writer-wins
-  // transaction（跟fieldProgress.advancedBy<N>同一種既有寫法）避免多名攻擊者的裝置
-  // 幾乎同時跨越閾值時重複觸發。
+  // 蓄積值每滿一次門檻＝一次觸發。
+  // 2026-09-13使用者明確規格「敵人中了屬性超過16、檢查是否有成功觸發其效果，但是敵人仍然
+  // 殘留17/16，計算過一次就扣除其數值，下一次重新計算成為1/16」：原本的做法是蓄積值一路
+  // 往上累加（17就一直顯示17/16），靠各裝置本地的floor(蓄積/閾值)差分判斷「又跨過一次」。
+  // 這種寫法有兩個問題——①畫面永遠停在17/16，玩家看不出「已經觸發過、現在重新累積中」；
+  // ②那個計數是本地的，別台裝置打上去的蓄積不會更新我的計數，異常觸發歸零後更會錯亂。
+  // 改成：觸發當下就把門檻值從共享蓄積值扣掉（17-16=1，docs §7.3「超過的部分原樣持ち越し」
+  // 的字面實作），並且**用這筆扣除的transaction本身當作併發閘門**——扣到的那台裝置才負責
+  // 施放效果，因此不再需要attributeAccumTriggerClaims那套搶鎖，也不需要本地計數。
+  // 狀態異常維持docs §7.4「発動後は0に戻す」（超過分切り捨て），因此一次只算1發。
   function maybeTriggerAttributeAccum(targetKey, name, total) {
     var isAilment = ATTRIBUTE_STATUS_AILMENT_NAMES_JA.indexOf(name) !== -1;
-    var key = targetKey + ":" + name;
-    var prevCount = attributeAccumTriggeredCount[key] || 0;
-    var newCount = Math.floor(total / ATTRIBUTE_STATUS_THRESHOLD);
-    if (newCount <= prevCount) return;
-    attributeAccumTriggeredCount[key] = newCount;
-    for (var i = prevCount + 1; i <= newCount; i++) triggerAttributeAccumEffect(targetKey, name, isAilment, i);
-    if (isAilment) {
-      // 狀態異常觸發後歸零（docs §7.4「発動後は0に戻す」），屬性則保留超額部分持續累計
-      // （docs §7.3，不歸零）。
-      GameStorage.rtSet(gameId, "cloud", "attributeAccum/" + targetKey + "/" + name, 0);
-      attributeAccumTriggeredCount[key] = 0;
-    }
-  }
-
-  function triggerAttributeAccumEffect(targetKey, name, isAilment, triggerIndex) {
-    GameStorage.rtTransaction(
-      gameId,
-      "cloud",
-      "attributeAccumTriggerClaims/" + targetKey + "/" + name + "/" + triggerIndex,
-      function (cur) {
-        return cur === null ? myTokenId : cur;
+    if (total < ATTRIBUTE_STATUS_THRESHOLD) return;
+    var consumed = 0;
+    GameStorage.rtTransaction(gameId, "cloud", "attributeAccum/" + targetKey + "/" + name, function (cur) {
+      var value = cur || 0;
+      var times = Math.floor(value / ATTRIBUTE_STATUS_THRESHOLD);
+      if (times <= 0) {
+        consumed = 0;
+        return cur; // 別台裝置已經先扣掉了，這次不算我的
       }
-    ).then(function (committed) {
-      if (committed !== myTokenId) return; // 搶輸了，這次觸發已經由別的裝置負責顯示
-      applyAttributeAccumEffect(name, targetKey);
+      consumed = isAilment ? 1 : times;
+      return isAilment ? 0 : value - times * ATTRIBUTE_STATUS_THRESHOLD;
+    }).then(function () {
+      if (consumed <= 0) return;
+      // 累計觸發次數（遺物「〜達成的歡喜」靠它判斷「剛剛達成」，見applyAttributeJoySpec()）。
+      GameStorage.rtTransaction(gameId, "cloud", "attributeAccumTriggers/" + targetKey + "/" + name, function (cur) {
+        return (cur || 0) + consumed;
+      });
+      for (var i = 0; i < consumed; i++) applyAttributeAccumEffect(name, targetKey);
     });
   }
 
@@ -7106,7 +7130,6 @@
     });
     if (!best) return null;
     receivedAttributeAccum[best] = 0;
-    receivedAttributeAccumTriggeredCount[best] = 0;
     return best;
   }
 
@@ -9504,7 +9527,6 @@
       GameStorage.rtSet(gameId, "cloud", "character/" + myTokenId + "/summonedSpirit", null);
     }
     receivedAttributeAccum = {};
-    receivedAttributeAccumTriggeredCount = {};
     // 2026-09-11新增遺物效果用的本場累計（突刺反擊的「攻擊過10次以上」／
     // 連續攻擊時體力回復の5次計數／連續攻擊時FP回復の10秒內體力消耗累計）：
     // 都是「一場戰鬥內」的概念，離開戰鬥就歸零。
@@ -9549,11 +9571,33 @@
   // 夜王戰鬥中無法逃離（activeEncounterIsNightBoss()，按鈕本身也會隱藏，見renderCombatPanel()）。
   function handleFleeBattleClick() {
     if (!mySlot || isPaused() || !activeEncounter || isSelfDowned() || activeEncounterIsNightBoss()) return;
-    fledEncounterIds[activeEncounter.id] = true;
+    leaveEncounterAsFled(activeEncounter.id);
+  }
+
+  // 「離開這場戰鬥」的共用處理（2026-09-13抽出）：主動按下[逃離戰鬥]與「瀕死逾時被流浪
+  // 祝福傳送到祝福點」（見finishRevive()）走同一條路徑。
+  // 2026-09-13使用者明確規格：「死亡後離開板塊、隊友打過敵人之後，該玩家還能在遠端領取
+  // 清單」是不對的，「玩家應為重新跑到板塊，仍在戰鬥則參與戰鬥，結束戰鬥則領取
+  // late-claim」。原本這裡只設本地的fledEncounterIds／confirmedEncounterIds，**沒有把自己
+  // 從trig.participants移除**——而獎勵發放（grantTileLootToParticipants()／
+  // maybeGrantStrongEnemyReward()等）與共享池投票資格全部看participants，因此人離開了、
+  // 獎勵照領。改成一併把自己從participants移除，後續就自然接上既有機制：
+  //   ・戰鬥還在進行 → 回到該點時顯示既有的[參加探索]/[進入戰鬥]，重新加入participants。
+  //   ・戰鬥已結束 → 因為不在participants裡而符合既有的後補領獎條件（見
+  //     updateNearbyFieldPoint()的neverJoined0判斷），回到該點才能領。
+  // 副作用（刻意）：共享池投票的分母（見maybeResolveSharedRewardVote()的voters）也會跟著
+  // 少一人，離開的人不再拖著整筆獎勵等他投票。
+  function leaveEncounterAsFled(encounterId) {
+    if (!encounterId) return;
+    fledEncounterIds[encounterId] = true;
     // 2026-09-06優化：逃離後也要清掉「已確認進入戰鬥」的本地紀錄，否則下次靠近時
     // recomputeActiveEncounter()會因為confirmedEncounterIds還是true而跳過[進入戰鬥]
     // 讀條，等同逃離沒有生效。
-    delete confirmedEncounterIds[activeEncounter.id];
+    delete confirmedEncounterIds[encounterId];
+    var trig = fieldTriggers[encounterId];
+    if (mySlot && trig && trig.participants && trig.participants[mySlot]) {
+      GameStorage.rtSet(gameId, "cloud", "fieldTrigger/" + encounterId + "/participants/" + mySlot, null);
+    }
     recomputeActiveEncounter();
     renderCombatPanel();
   }
@@ -10487,6 +10531,7 @@
     }).then(function () {
       GameStorage.rtSet(gameId, "cloud", "fieldEnemyHp/" + DAY3_BOSS_POINT_ID, bossHpMax(trig.enemyId));
       GameStorage.rtSet(gameId, "cloud", "attributeAccum/" + DAY3_BOSS_POINT_ID, null);
+      GameStorage.rtSet(gameId, "cloud", "attributeAccumTriggers/" + DAY3_BOSS_POINT_ID, null);
       day3FormResetAttempted = false;
     });
   }
@@ -13133,15 +13178,22 @@
   }
 
   // 掃描所有fieldTriggers，收集尚未被任何人領取(沒有resolvedBy)的sharedRewards項目
-  // （設計文件§3.2：教會/隨機事件埋藏寶物等固定數量獎勵的共享池，先搶先贏；Task 14b新增，
+  // （設計文件§3.2：教會/隨機事件埋藏寶物等固定數量獎勵的共享池；Task 14b新增，
   // 補齊Task 1遺留的玩家端UI缺口）。掃描全部fieldTriggers、不只自己目前所在的地圖點——
-  // 共享池是跨全場景玩家可見的，任何人都可能先看到、先領到。
+  // 同一場戰鬥的參加者可能已經走散，各自在地圖的不同位置收到同一份共享池。
+  // 2026-09-13（使用者回報「死亡離開板塊後還能在遠端領取清單」）：改成只收集「自己還在
+  // participants裡」的共享池。原本是無條件全部收集，於是已經離開那場戰鬥的人（逃離／
+  // 瀕死被傳送走，見leaveEncounterAsFled()）畫面上照樣會自動彈出獎勵清單——雖然2026-09-08
+  // 的投票制早就擋掉了他的[拿取]（isParticipant判斷，見renderRewardModal()），但清單本身
+  // 跳出來、[抽選]也按得下去，看起來就像人在遠端照樣領獎。資格判斷集中在這裡，
+  // renderRewardModal()那層的isParticipant維持不動（雙重保險）。
   function collectUnresolvedSharedRewards() {
     var out = [];
     Object.keys(fieldTriggers).forEach(function (pointId) {
       var trig = fieldTriggers[pointId];
       var shared = trig && trig.sharedRewards;
       if (!shared) return;
+      if (!mySlot || !trig.participants || !trig.participants[mySlot]) return;
       Object.keys(shared).forEach(function (rewardId) {
         var entry = shared[rewardId];
         if (entry && !entry.resolvedBy) {
@@ -13535,12 +13587,12 @@
     delete fieldEnemyAssignAttempted[id];
     delete fieldTileRewardAttempted[id];
     delete lastRenderedVoteKey[id];
-    // 2026-09-13：屬性/異常蓄積的「已觸發到第幾次」本地計數（key＝targetKey+":"+屬性名，
-    // 見maybeTriggerAttributeAccum()）也要一起清掉。RTDB那邊的蓄積值由呼叫端清成null
-    // （見maybeClearFieldTriggerAfterRewardGate()），但這個本地計數若殘留，下一層新敵人
-    // 從0重新累積時newCount會一直小於prevCount，門檻觸發整層都不會再發生。
-    Object.keys(attributeAccumTriggeredCount).forEach(function (key) {
-      if (key.indexOf(id + ":") === 0) delete attributeAccumTriggeredCount[key];
+    // 2026-09-13：遺物「〜達成的歡喜」的本地基準（key＝tag+":"+targetKey+":"+屬性名，見
+    // applyAttributeJoySpec()）也要一起清掉。RTDB那邊的蓄積值與累計觸發次數由呼叫端清成
+    // null（見maybeClearFieldTriggerAfterRewardGate()），本地基準若殘留，下一層新敵人的
+    // 觸發次數從0重新開始時會一直小於基準值，整層都不會再回復HP/FP。
+    Object.keys(joyTriggeredCount).forEach(function (key) {
+      if (key.indexOf(":" + id + ":") !== -1) delete joyTriggeredCount[key];
     });
     // 「重演（技能強化）」的本場一種只算一次紀錄同理：那是「這場戰鬥」的概念，換一層
     // ＝換一隻敵人，應該重新開始計算（onEncounterEnded()也做同一件事）。
@@ -13656,11 +13708,11 @@
     // （這個函式清掉trigger後，玩家再按一次［進入］就會建立下一層的trigger與敵人）。
     // 原本只清trigger跟HP、沒清蓄積，於是第2層的新敵人一登場就帶著第1層打上去的
     // 「炎7・出血5」等蓄積，甚至可能一被打就立刻跨過門檻觸發效果。
-    // 一併清掉attributeAccumTriggerClaims（那是「第N次觸發由誰負責顯示」的搶鎖紀錄，
-    // 留著會讓新敵人的第1次觸發被誤判成已經有人認領過），作法比照Day3夜王重開時的既有
-    // 清理（見handleRestartCycle()／day3重置處的同款rtSet(...,null)）。
+    // 一併清掉attributeAccumTriggers（累計觸發次數，留著會讓新敵人的第1次觸發被遺物
+    // 「〜達成的歡喜」誤判成「沒有增加」），作法比照Day3夜王重開時的既有清理
+    // （見handleRestartCycle()／day3重置處的同款rtSet(...,null)）。
     GameStorage.rtSet(gameId, "cloud", "attributeAccum/" + pt.id, null);
-    GameStorage.rtSet(gameId, "cloud", "attributeAccumTriggerClaims/" + pt.id, null);
+    GameStorage.rtSet(gameId, "cloud", "attributeAccumTriggers/" + pt.id, null);
   }
 
   // 「全フロア踏破効果」の盧恩部分：card.allFloorEffect原文（例："盧恩：2／時間損耗：1"）
@@ -16716,6 +16768,13 @@
       if (tokenId === myTokenId) {
         var phaseInfo = currentPhaseInfo(Date.now());
         if (phaseInfo.day !== 3) {
+          // 2026-09-13使用者明確規格「瀕死後自動復活後飛往祝福沒問題，但是當下在戰鬥時
+          // 需等於逃離戰鬥」：被傳送離開板塊等同放棄這場戰鬥，因此走跟[逃離戰鬥]完全
+          // 相同的處理（含把自己從participants移除，見leaveEncounterAsFled()說明），
+          // 之後要重新跑回該點才能繼續參戰或後補領獎。
+          // 順序：先離開再傳送——leaveEncounterAsFled()裡的recomputeActiveEncounter()
+          // 需要在「還站在原地」時判斷，傳送後的重新判定由下一影格的既有流程處理。
+          if (activeEncounter) leaveEncounterAsFled(activeEncounter.id);
           localPos = computeReviveSpawnPos(phaseInfo);
           maybePushPosition(Date.now());
         }
@@ -16928,6 +16987,33 @@
     });
   }
 
+  // 隊伍資訊HUD（席位卡片）上的倒地倒數圓盤，每影格更新（2026-09-13使用者明確要求「隊友
+  // 瀕死時倒數的時限也要顯示在隊友資訊HUD，採用圓盤狀倒數方式」）。
+  // --nd-pct＝「剩餘」的百分比（跟按鈕冷卻盤的--mn-cd是「已經過」相反：這裡是倒數，圓盤
+  // 要從整圈開始逐漸消失，歸零＝時間到），配色與甜甜圈造型全部留在style.css。
+  // 總長度固定用NEAR_DEATH_TIMEOUT_MS而不是deadlineAt-downedAt：受到復歸傷害時deadlineAt
+  // 會被往後推（NEAR_DEATH_DAMAGE_PAUSE_MS，見applyRevivalProgress()），用實際區間當分母
+  // 會讓圓盤在被救的過程中忽大忽小，改成固定分母＋上限夾住，視覺上就是「被打到時倒數
+  // 暫停/回補一點」。
+  function updateNearDeathDials(now) {
+    var nodes = document.querySelectorAll(".midnight-near-death-dial");
+    for (var i = 0; i < nodes.length; i++) {
+      var node = nodes[i];
+      var c = characters[node.getAttribute("data-nd-token")];
+      var nd = c && c.nearDeath;
+      if (!nd || !nd.active) {
+        node.hidden = true;
+        continue;
+      }
+      node.hidden = false;
+      var remainMs = Math.max(0, nd.deadlineAt - now);
+      var pct = Math.max(0, Math.min(100, (remainMs / NEAR_DEATH_TIMEOUT_MS) * 100));
+      node.style.setProperty("--nd-pct", pct + "%");
+      var valueEl = node.firstChild;
+      if (valueEl) valueEl.textContent = String(Math.ceil(remainMs / 1000));
+    }
+  }
+
   // 右上導覽框的流浪祝福剩餘格數（阿罵模式顯示「無限」）。
   function renderWanderingBlessingHud() {
     var el2 = el("midnight-wandering-blessing-value");
@@ -17113,6 +17199,7 @@
     GameStorage.rtSet(gameId, "cloud", "fieldTrigger/" + DAY3_BOSS_POINT_ID, null);
     GameStorage.rtSet(gameId, "cloud", "fieldEnemyHp/" + DAY3_BOSS_POINT_ID, null);
     GameStorage.rtSet(gameId, "cloud", "attributeAccum/" + DAY3_BOSS_POINT_ID, null);
+    GameStorage.rtSet(gameId, "cloud", "attributeAccumTriggers/" + DAY3_BOSS_POINT_ID, null);
     day3BossRollAttempted = false;
     gameVictoryDismissed = false; // 重新開始一輪後，勝利彈窗的本地關閉旗標也要重置，否則下一輪擊敗夜王不會再顯示
   }
@@ -17888,6 +17975,7 @@
     applyMapSpecialRuleTick(now, phaseInfo);
     updateNearDeathState(now);
     renderNearDeathStatus(now);
+    updateNearDeathDials(now);
     renderWanderingBlessingHud();
     updateGameFailureModal();
     updateGameVictoryModal();
@@ -18139,6 +18227,7 @@
     GameStorage.rtSubscribe(gameId, "cloud", "fieldMobHp", onFieldMobHpReceived);
     GameStorage.rtSubscribe(gameId, "cloud", "fieldProgress", onFieldProgressReceived);
     GameStorage.rtSubscribe(gameId, "cloud", "attributeAccum", onAttributeAccumReceived);
+    GameStorage.rtSubscribe(gameId, "cloud", "attributeAccumTriggers", onAttributeAccumTriggersReceived);
     GameStorage.rtSubscribe(gameId, "cloud", "pendingRewards", onPendingRewardsReceived);
     GameStorage.rtSubscribe(gameId, "cloud", "abilityUseEvents", onAbilityUseEventsReceived);
     GameStorage.rtSubscribe(gameId, "cloud", "combatActionEvents", onCombatActionEventsReceived);
@@ -18457,6 +18546,34 @@
       var fill = el(kind === "join" ? "midnight-field-late-join-fill" : "midnight-field-late-claim-fill");
       return fill ? fill.style.width : null;
     },
+    // ---- 2026-09-13 瀕死圓盤／蓄積扣除／復活＝逃離戰鬥 測試入口
+    // （見tools/midnight_check/near_death_and_accum_check.js）----
+    _debugRecordAttributeAccum: function (name, amount) {
+      recordAttributeAccum(name, amount);
+    },
+    _debugTriggerNearDeath: function (tokenId) {
+      maybeTriggerNearDeath(tokenId || myTokenId);
+    },
+    // 席位卡片上的倒地倒數圓盤：先逐幀更新一次，再把每一顆的狀態讀回來。
+    _debugNearDeathDials: function () {
+      updateNearDeathDials(Date.now());
+      var out = [];
+      var nodes = document.querySelectorAll(".midnight-near-death-dial");
+      for (var i = 0; i < nodes.length; i++) {
+        out.push({
+          tokenId: nodes[i].getAttribute("data-nd-token"),
+          hidden: !!nodes[i].hidden,
+          pct: nodes[i].style.getPropertyValue("--nd-pct"),
+          text: nodes[i].textContent,
+        });
+      }
+      return out;
+    },
+    _debugCollectSharedRewards: function () {
+      return collectUnresolvedSharedRewards().map(function (s) {
+        return s.pointId + ":" + s.rewardId;
+      });
+    },
     _debugRandomEnemyFallback: function (seedKey) {
       return randomEnemyMatchFallback(seedKey);
     },
@@ -18619,6 +18736,10 @@
         receivedAttributeAccum: receivedAttributeAccum,
         fieldProgress: fieldProgress,
         nearbyFieldPoint: nearbyFieldPoint,
+        // 2026-09-13補上：中途加入／後補領獎的候選點。回歸測試要驗證「離開戰鬥的人跑回來
+        // 之後看到的是哪一種提示」就必須讀得到這兩個（先前只能靠DOM的hidden間接判斷）。
+        nearbyLateJoinPoint: nearbyLateJoinPoint,
+        nearbyLateClaimPoint: nearbyLateClaimPoint,
         // 2026-09-10補上：recomputeActiveEncounter()的候選來源共有5個，但這裡原本只匯出
         // nearbyFieldPoint／nearbyStrongEnemy／nearbyRandomEvent三個，缺了王城與兩個
         // Boss。回歸測試要驗證「候選優先序」就必須看得到全部5個——先前寫測試時誤以為
@@ -18638,6 +18759,7 @@
         nearbyCastlePoint: nearbyCastlePoint,
         sorceryHoldState: sorceryHoldState,
         attributeAccum: attributeAccum,
+        attributeAccumTriggers: attributeAccumTriggers,
         flaskReadingUntil: flaskReadingUntil,
         fieldTypewriterDoneFor: fieldTypewriterDoneFor,
         fieldTypewriterStartedFor: fieldTypewriterStartedFor,

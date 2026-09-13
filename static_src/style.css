@@ -7356,6 +7356,46 @@ html.midnight-top-banner-collapsed .midnight-top-banner-collapse-btn {
   font-weight: bold;
 }
 
+/* 倒地倒數圓盤（2026-09-13使用者明確要求「隊友瀕死時倒數的時限也要顯示在隊友資訊HUD，
+   採用圓盤狀倒數方式」，見static/midnight.jsのrenderOccupiedSlotCard()／
+   updateNearDeathDials()）：
+   --nd-pct是「剩餘」百分比（跟按鈕冷卻盤的--mn-cd是「已經過」剛好相反），conic-gradient
+   從12點鐘方向順時針畫出剩餘的扇形，時間流逝就逐格消失。
+   ::before是中間的挖空（甜甜圈），顏色沿用HUD底色；秒數文字放在子元素並疊在挖空之上。
+   配色沿用瀕死系統既有的警示黃(#ffd54a，同⚠badge與「指定」按鈕)，讓「這一塊是瀕死相關
+   資訊」在一排血條裡維持同一組語意色。 */
+.midnight-near-death-dial {
+  position: relative;
+  flex-shrink: 0;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: conic-gradient(from 0deg, #ffd54a 0 var(--nd-pct, 100%), rgba(255, 213, 74, 0.16) var(--nd-pct, 100%) 100%);
+  box-shadow: 0 0 4px rgba(255, 213, 74, 0.5);
+}
+
+.midnight-near-death-dial::before {
+  content: "";
+  position: absolute;
+  inset: 3px;
+  border-radius: 50%;
+  background: rgba(10, 12, 18, 0.92);
+}
+
+.midnight-near-death-dial-value {
+  position: relative;
+  z-index: 1;
+  font-size: 0.6rem;
+  line-height: 1;
+  font-weight: bold;
+  font-variant-numeric: tabular-nums;
+  color: #ffd54a;
+  text-shadow: 0 0 2px #000;
+}
+
 #midnight-lobby-join-form {
   max-width: 360px;
   margin: 0.75rem auto;
