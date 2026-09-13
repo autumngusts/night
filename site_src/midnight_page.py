@@ -476,6 +476,13 @@ BODY = """    <div class="midnight-wrap">
           <div class="midnight-bar-row">
             <span id="midnight-flask-count"></span>
           </div>
+          <!-- 自身承受中的屬性／異常蓄積（2026-09-13使用者明確規格「若自己受到屬性與
+               狀態異常 其累積值顯示在左上hud的 聖杯瓶資訊與隊伍資訊之間」）：資料來源是
+               receivedAttributeAccum（本地only，見static/midnight.js該變數說明，跟打在
+               敵人身上的attributeAccum是相反方向的兩套資料）。徽章本體重用血條上方那組
+               .midnight-accum-chip（同一份ATTRIBUTE_STATUS_VISUAL配色與門檻），不另外
+               定義第二種樣式，見static/midnight.jsのrenderSelfAttributeAccumNote()。 -->
+          <div id="midnight-self-accum-note" hidden></div>
           <div id="midnight-players-panel-slots"></div>
           <!-- 掉落物簡易資訊（2026-09-06使用者明確要求「靠近掉落物時顯示簡易資訊在左側，
                延續隊友血量資訊下方，拾取按鈕也在其下方」）：原本
@@ -537,10 +544,25 @@ BODY = """    <div class="midnight-wrap">
             <button type="button" id="btn-midnight-ready-final-boss"></button>
             <span id="midnight-ready-final-note"></span>
           </div>
-          <span class="midnight-rune-value">
+          <span class="midnight-rune-value" id="midnight-self-rune-row">
             <span data-i18n="midnight_stat_rune_label"></span>
             <span id="midnight-self-rune-value">0</span>
           </span>
+          <!-- 觀察者模式徽章（2026-09-13使用者明確規格「觀察者模式時，右上不顯示盧恩，
+               替代顯示眼睛符號以及黃底『觀察者模式』」）：跟上面的盧恩列互斥顯示，由
+               static/midnight.jsのrenderSpectatorBadge()切換——觀戰者本來就沒有角色
+               資源，renderCharPanel()在!mySlot時直接return、盧恩數字永遠停在0，顯示
+               出來反而誤導。 -->
+          <span id="midnight-spectator-badge" hidden>
+            <span class="midnight-icon-eye"></span>
+            <span data-i18n="midnight_spectator_badge"></span>
+          </span>
+          <!-- 獎勵清單重新開啟鈕（2026-09-13）：獎勵清單原本只有「有新的未解決獎勵時
+               自動彈出」一條路徑，玩家按了關閉之後就再也叫不回來（見
+               static/midnight.jsのrenderRewardModal()／closeRewardModal()），共享池
+               獎勵的那一票因此永遠投不出去、其他人只能等逾時。這顆常駐入口只在
+               「還有未解決獎勵、而且清單目前被關著」時顯示。 -->
+          <button type="button" id="btn-midnight-reward-reopen" data-i18n="midnight_reward_reopen_button" hidden></button>
           <!-- 小地圖（2026-09-06使用者明確要求「戰鬥中小地圖顯示在地圖按鈕左邊,尺寸為原
                地圖的1/10倍」）：跟#btn-midnight-map-icon同一列,只在戰鬥中（activeEncounter
                存在）且地圖收合時顯示——地圖展開時本身就看得到全圖,不需要小地圖。內容直接
@@ -693,6 +715,11 @@ BODY = """    <div class="midnight-wrap">
         <!-- 左下：2x2四張卡片——上＝聖杯瓶、下＝消耗品、左/右＝武器。 -->
         <div id="midnight-hud-bottom-left">
           <button type="button" id="btn-midnight-use-flask" class="midnight-action-card midnight-action-card-flask">
+            <!-- 「使用中」浮標（2026-09-13使用者明確規格「使用聖杯瓶中，格子上方顯示
+                 使用中」）：沿用.midnight-action-flash既有的「絕對定位在按鈕格正上方
+                 （bottom:100%）」慣例，只是常駐到讀取結束而不是1秒後消失，見
+                 static/midnight.jsのrenderFlaskReadBar()。 -->
+            <span id="midnight-flask-using-badge" class="midnight-cell-badge" hidden></span>
             <span class="midnight-bar-track midnight-bar-track-sm"><span class="midnight-bar-fill midnight-bar-flask-read" id="midnight-flask-read-fill"></span></span>
             <span data-i18n="midnight_flask_use_button"></span>
           </button>
@@ -729,18 +756,25 @@ BODY = """    <div class="midnight-wrap">
               <span id="midnight-attack-left-label"></span>
             </button>
           </div>
+          <!-- 圖示改由static/midnight.jsのrenderSpellButton()動態指定（2026-09-13使用者
+               明確規格「戰技更改，魔法更改，祈禱更改」）：同一顆按鈕依裝備武器類別可能是
+               武器戰技／魔術／祈禱三種其中之一（見sideSkillButtonEntries()），因此不能像
+               一般攻擊那樣把class寫死在HTML裡。環繞星體浮標見renderSorceryCastBars()。 -->
           <button type="button" id="btn-midnight-skill-b-left">
-            <span class="midnight-icon-sword"></span>
+            <span id="midnight-skill-b-orbit-left" class="midnight-cell-orbit" hidden></span>
+            <span id="midnight-skill-b-icon-left" class="midnight-icon-skill"></span>
             <span class="midnight-bar-track midnight-bar-track-sm"><span class="midnight-bar-fill midnight-bar-sorcery-cast" id="midnight-skill-b-cast-fill-left"></span></span>
             <span id="midnight-skill-b-label-left"></span>
           </button>
           <button type="button" id="btn-midnight-skill-b1-left" hidden>
-            <span class="midnight-icon-sword"></span>
+            <span id="midnight-skill-b1-orbit-left" class="midnight-cell-orbit" hidden></span>
+            <span id="midnight-skill-b1-icon-left" class="midnight-icon-skill"></span>
             <span class="midnight-bar-track midnight-bar-track-sm"><span class="midnight-bar-fill midnight-bar-sorcery-cast" id="midnight-skill-b1-cast-fill-left"></span></span>
             <span id="midnight-skill-b1-label-left"></span>
           </button>
           <button type="button" id="btn-midnight-skill-b2-left" hidden>
-            <span class="midnight-icon-sword"></span>
+            <span id="midnight-skill-b2-orbit-left" class="midnight-cell-orbit" hidden></span>
+            <span id="midnight-skill-b2-icon-left" class="midnight-icon-skill"></span>
             <span class="midnight-bar-track midnight-bar-track-sm"><span class="midnight-bar-fill midnight-bar-sorcery-cast" id="midnight-skill-b2-cast-fill-left"></span></span>
             <span id="midnight-skill-b2-label-left"></span>
           </button>
@@ -839,24 +873,30 @@ BODY = """    <div class="midnight-wrap">
             </button>
           </div>
           <button type="button" id="btn-midnight-skill">
-            <span class="midnight-icon-sword"></span>
+            <!-- 2026-09-13使用者明確規格「戰技更改」：跟一般攻擊的劍圖示分家，改用
+                 武器戰技專屬的.midnight-icon-skill（劍＋衝擊波）。 -->
+            <span class="midnight-icon-skill"></span>
             <!-- 2026-09-06使用者明確要求「底層操作面板中[戰技]名稱需隨著右手武器跟換為
                  [戰技(名稱)]」：拿掉固定的data-i18n，改成static/midnight.jsのrenderCombatPanel()
                  依weaponArtEntry()動態填入，同一顆按鈕、同一份i18n模板字串。 -->
             <span id="midnight-skill-a-label" data-i18n="midnight_skill_a_button"></span>
           </button>
+          <!-- 圖示與環繞星體浮標見左手版本上方註解。 -->
           <button type="button" id="btn-midnight-skill-b">
-            <span class="midnight-icon-sword"></span>
+            <span id="midnight-skill-b-orbit" class="midnight-cell-orbit" hidden></span>
+            <span id="midnight-skill-b-icon" class="midnight-icon-skill"></span>
             <span class="midnight-bar-track midnight-bar-track-sm"><span class="midnight-bar-fill midnight-bar-sorcery-cast" id="midnight-skill-b-cast-fill"></span></span>
             <span id="midnight-skill-b-label"></span>
           </button>
           <button type="button" id="btn-midnight-skill-b1" hidden>
-            <span class="midnight-icon-sword"></span>
+            <span id="midnight-skill-b1-orbit" class="midnight-cell-orbit" hidden></span>
+            <span id="midnight-skill-b1-icon" class="midnight-icon-skill"></span>
             <span class="midnight-bar-track midnight-bar-track-sm"><span class="midnight-bar-fill midnight-bar-sorcery-cast" id="midnight-skill-b1-cast-fill"></span></span>
             <span id="midnight-skill-b1-label"></span>
           </button>
           <button type="button" id="btn-midnight-skill-b2" hidden>
-            <span class="midnight-icon-sword"></span>
+            <span id="midnight-skill-b2-orbit" class="midnight-cell-orbit" hidden></span>
+            <span id="midnight-skill-b2-icon" class="midnight-icon-skill"></span>
             <span class="midnight-bar-track midnight-bar-track-sm"><span class="midnight-bar-fill midnight-bar-sorcery-cast" id="midnight-skill-b2-cast-fill"></span></span>
             <span id="midnight-skill-b2-label"></span>
           </button>
@@ -877,6 +917,12 @@ BODY = """    <div class="midnight-wrap">
                正在防禦中」的視覺提示，不是施法進度。 -->
           <button type="button" id="btn-midnight-block">
             <span id="midnight-block-flash" class="midnight-action-flash" hidden></span>
+            <!-- 防禦中盾牌浮標（2026-09-13使用者明確規格「防禦按鈕按下時，格子上方顯示
+                 盾牌圖示」）：跟按鈕內那顆靜態盾圖示是兩回事——這一顆只在blockHolding
+                 期間浮在按鈕格正上方，見static/midnight.jsのrenderBlockGuardBar()。 -->
+            <span id="midnight-block-shield-badge" class="midnight-cell-badge midnight-cell-badge-shield" hidden>
+              <span class="midnight-icon-shield"></span>
+            </span>
             <span class="midnight-icon-shield"></span>
             <span class="midnight-bar-track midnight-bar-track-sm"><span class="midnight-bar-fill midnight-bar-sorcery-cast" id="midnight-block-guard-fill"></span></span>
             <span data-i18n="midnight_block_button"></span>
@@ -922,6 +968,14 @@ BODY = """    <div class="midnight-wrap">
                沒有靈體時自動隱藏，見 static/midnight.js の renderSpiritManageButton()。 -->
           <button type="button" id="btn-midnight-spirit-manage" hidden></button>
         </div>
+
+        <!-- 施法彗星（2026-09-13使用者明確規格「施法成功後若是對敵人傷害則彗星效果射到
+             敵人圖片中心」）：起點是剛才長按的那顆魔術／祈禱／戰技按鈕格、終點是
+             #midnight-field-encounter-image的中心，兩點都是螢幕座標，因此這個元素必須
+             position:fixed掛在按鈕與敵人圖片之外的同一層（沿用進場動畫
+             #midnight-intro-bird-wrap同款「JS算螢幕座標→寫style.left/top」的既有作法，
+             見static/midnight.jsのtriggerSpellCometEffect()）。 -->
+        <div id="midnight-spell-comet" hidden></div>
 
         <!-- 全螢幕地圖modal（2026-09-05 HUD優化改版；2026-09-06修正：先前塔／商人／祝福／
              角色面板／獎勵清單等彈窗誤植在這個地圖modal內部，導致地圖收合時完全看不到、

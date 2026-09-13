@@ -2155,6 +2155,7 @@
       handleScarabCheckClick("physical");
     });
     el("btn-midnight-reward-close").addEventListener("click", closeRewardModal);
+    el("btn-midnight-reward-reopen").addEventListener("click", handleRewardReopenClick);
     el("btn-midnight-open-character-sheet").addEventListener("click", openCharacterSheetModal);
     el("btn-midnight-character-sheet-close").addEventListener("click", closeCharacterSheetModal);
     el("btn-midnight-sheet-level-minus").addEventListener("click", function () {
@@ -2175,6 +2176,7 @@
       // 2026-09-08新增：交管按鈕的顯示與否跟這個選單開關狀態連動（見renderOccupiedSlotCard()），
       // 開關當下要立即重繪隊友卡片，不能等下一次其他事件觸發render才更新。
       renderPlayersPanel();
+      renderMenuToggleUI();
     });
     el("btn-midnight-pause-game").addEventListener("click", handlePauseGame);
     el("btn-midnight-resume-game").addEventListener("click", handleResumeGame);
@@ -2196,6 +2198,13 @@
     ["midnight-hud-top-left", "midnight-hud-top-right"].forEach(function (id) {
       var hudEl = el(id);
       if (hudEl) hudEl.addEventListener("pointerdown", bumpHudAboveBanner, true);
+    });
+    // 2026-09-13新增反向規則（見bumpBannerAboveHud()說明）：點上方樓層資訊banner／後補
+    // 領獎提示等，換成它們暫時蓋過左上/右上HUD。綁法跟上面完全一樣——這些banner的內容
+    // （按鈕、投票列）同樣是JS動態重繪的，掛在容器的capture階段才不會在重繪後失效。
+    TOP_BANNER_IDS.forEach(function (id) {
+      var bannerEl = el(id);
+      if (bannerEl) bannerEl.addEventListener("pointerdown", bumpBannerAboveHud, true);
     });
     el("btn-midnight-hud-collapse").addEventListener("click", function () {
       hudInfoBarCollapsed = !hudInfoBarCollapsed;
@@ -3280,41 +3289,80 @@
   // 徽章的「數值上升」動畫永遠重播、也白費效能。
   var lastAttributeAccumKey = null;
 
-  function renderAttributeAccumNote() {
-    var noteEl = el("midnight-attribute-accum-note");
-    if (!noteEl) return;
-    var data = attributeAccum[currentAttributeAccumTargetKey()] || {};
-    var names = ATTRIBUTE_STATUS_ELEMENT_NAMES_JA.concat(ATTRIBUTE_STATUS_AILMENT_NAMES_JA).filter(function (name) {
+  // 2026-09-13抽出：徽章本體的建構跟「哪一份資料」無關，PC→敵人（血條上方）與
+  // 敵人→自己（左上HUD，見renderSelfAttributeAccumNote()）兩處共用同一份配色、門檻與
+  // 進度條算法，不複製第二套。
+  function buildAccumChip(name, value) {
+    var visual = attributeStatusVisual(name);
+    var chip = document.createElement("span");
+    chip.className = "midnight-accum-chip";
+    chip.style.setProperty("--accum-color", visual.color);
+    chip.style.setProperty("--accum-pct", Math.min(100, (value / ATTRIBUTE_STATUS_THRESHOLD) * 100) + "%");
+    var icon = document.createElement("span");
+    icon.className = "midnight-accum-chip-icon";
+    icon.textContent = visual.icon;
+    chip.appendChild(icon);
+    var label = document.createElement("span");
+    label.className = "midnight-accum-chip-label";
+    label.textContent = name;
+    chip.appendChild(label);
+    var num = document.createElement("span");
+    num.className = "midnight-accum-chip-value";
+    num.textContent = value + "/" + ATTRIBUTE_STATUS_THRESHOLD;
+    chip.appendChild(num);
+    return chip;
+  }
+
+  // 目前有值（>0）的屬性/異常名稱，順序固定為「屬性→異常」，兩個顯示區共用。
+  function accumNamesWithValue(data) {
+    return ATTRIBUTE_STATUS_ELEMENT_NAMES_JA.concat(ATTRIBUTE_STATUS_AILMENT_NAMES_JA).filter(function (name) {
       return data[name];
     });
-    var key = names
+  }
+
+  function accumSignature(data, names) {
+    return names
       .map(function (name) {
         return name + ":" + data[name];
       })
       .join(",");
+  }
+
+  function renderAttributeAccumNote() {
+    var noteEl = el("midnight-attribute-accum-note");
+    if (!noteEl) return;
+    var data = attributeAccum[currentAttributeAccumTargetKey()] || {};
+    var names = accumNamesWithValue(data);
+    var key = accumSignature(data, names);
     if (key === lastAttributeAccumKey) return;
     lastAttributeAccumKey = key;
     noteEl.innerHTML = "";
     names.forEach(function (name) {
-      var visual = attributeStatusVisual(name);
-      var value = data[name];
-      var chip = document.createElement("span");
-      chip.className = "midnight-accum-chip";
-      chip.style.setProperty("--accum-color", visual.color);
-      chip.style.setProperty("--accum-pct", Math.min(100, (value / ATTRIBUTE_STATUS_THRESHOLD) * 100) + "%");
-      var icon = document.createElement("span");
-      icon.className = "midnight-accum-chip-icon";
-      icon.textContent = visual.icon;
-      chip.appendChild(icon);
-      var label = document.createElement("span");
-      label.className = "midnight-accum-chip-label";
-      label.textContent = name;
-      chip.appendChild(label);
-      var num = document.createElement("span");
-      num.className = "midnight-accum-chip-value";
-      num.textContent = value + "/" + ATTRIBUTE_STATUS_THRESHOLD;
-      chip.appendChild(num);
-      noteEl.appendChild(chip);
+      noteEl.appendChild(buildAccumChip(name, data[name]));
+    });
+  }
+
+  // 自身承受中的屬性／異常蓄積（2026-09-13使用者明確規格「若自己受到屬性與狀態異常
+  // 其累積值顯示在左上hud的 聖杯瓶資訊與隊伍資訊之間」）：資料是本地only的
+  // receivedAttributeAccum（見該變數說明），跟打在敵人身上的attributeAccum是相反方向的
+  // 兩套資料，共用同一組徽章與門檻。沒有任何蓄積時整塊隱藏（不像血條上方那塊要留
+  // min-height防跳動——左上HUD是縱向堆疊，空著會平白推開下面的隊友卡片）。
+  // 異常狀態跨過門檻後會被recordReceivedAttributeAccum()歸零，屬性則保留超額值繼續
+  // 累計（docs/enemy_damage_rules.md §7.3/§7.4），因此這裡顯示的消長是規則本身的行為。
+  var lastSelfAccumKey = null;
+
+  function renderSelfAttributeAccumNote() {
+    var noteEl = el("midnight-self-accum-note");
+    if (!noteEl) return;
+    var data = receivedAttributeAccum || {};
+    var names = accumNamesWithValue(data);
+    var key = accumSignature(data, names);
+    if (key === lastSelfAccumKey) return;
+    lastSelfAccumKey = key;
+    noteEl.hidden = !names.length;
+    noteEl.innerHTML = "";
+    names.forEach(function (name) {
+      noteEl.appendChild(buildAccumChip(name, data[name]));
     });
   }
 
@@ -4169,7 +4217,9 @@
     return notes;
   }
 
-  function castWeaponSkillEntry(entry) {
+  // sourceBtnId（2026-09-13新增，可省略）：長按詠唱的那一顆按鈕格id，用來當施法彗星的
+  // 起點（見triggerSpellCometEffect()）。戰技A等即時發動、非詠唱的入口不傳，就不放彗星。
+  function castWeaponSkillEntry(entry, sourceBtnId) {
     if (!mySlot || isPaused() || isSelfDowned() || isIceBlizzardBlinded(Date.now())) return;
     var c = characters[myTokenId];
     if (!c) return;
@@ -4197,6 +4247,9 @@
       // ×2：見WEAPON_SKILL_DAMAGE_MULT說明（只影響實際傷害，下面toast維持顯示原值）。
       damageCombatTarget(Math.round(dmgInfo.value * WEAPON_SKILL_DAMAGE_MULT), dmgInfo.symbol);
       triggerEnemyHitEffect(weaponHitColor(entry.weaponId));
+      // 「若是對敵人傷害」才射彗星（2026-09-13使用者明確規格）：dmgInfo解不出來的招式
+      // （■或未預期本文格式，走下面的else分支）不算對敵人傷害，不放特效。
+      if (sourceBtnId) triggerSpellCometEffect(sourceBtnId, weaponHitColor(entry.weaponId));
       showToast(
         name +
           "：" +
@@ -5307,10 +5360,40 @@
   // 區塊註解）。slot:null的按鈕只在該側「剛好只有1個固定魔術/祈禱」時使用；slot:0/1
   // 的按鈕只在「剛好有2個」時使用——renderSideCombatButtons()負責依實際武器資料切換
   // 顯示哪一組。
+  // 2026-09-13新增iconId／orbitId：同一顆按鈕依裝備武器類別可能是武器戰技／魔術／祈禱
+  // 其中之一，圖示要動態換（見renderSpellButton()）；orbitId是詠唱中浮在按鈕格正上方的
+  // 環繞星體（見renderSorceryCastBars()）。
   var SORCERY_BUTTON_DEFS = [
-    { key: "R", btnId: "btn-midnight-skill-b", side: "R", slot: null, labelId: "midnight-skill-b-label", fillId: "midnight-skill-b-cast-fill" },
-    { key: "R:0", btnId: "btn-midnight-skill-b1", side: "R", slot: 0, labelId: "midnight-skill-b1-label", fillId: "midnight-skill-b1-cast-fill" },
-    { key: "R:1", btnId: "btn-midnight-skill-b2", side: "R", slot: 1, labelId: "midnight-skill-b2-label", fillId: "midnight-skill-b2-cast-fill" },
+    {
+      key: "R",
+      btnId: "btn-midnight-skill-b",
+      side: "R",
+      slot: null,
+      labelId: "midnight-skill-b-label",
+      fillId: "midnight-skill-b-cast-fill",
+      iconId: "midnight-skill-b-icon",
+      orbitId: "midnight-skill-b-orbit",
+    },
+    {
+      key: "R:0",
+      btnId: "btn-midnight-skill-b1",
+      side: "R",
+      slot: 0,
+      labelId: "midnight-skill-b1-label",
+      fillId: "midnight-skill-b1-cast-fill",
+      iconId: "midnight-skill-b1-icon",
+      orbitId: "midnight-skill-b1-orbit",
+    },
+    {
+      key: "R:1",
+      btnId: "btn-midnight-skill-b2",
+      side: "R",
+      slot: 1,
+      labelId: "midnight-skill-b2-label",
+      fillId: "midnight-skill-b2-cast-fill",
+      iconId: "midnight-skill-b2-icon",
+      orbitId: "midnight-skill-b2-orbit",
+    },
     {
       key: "L",
       btnId: "btn-midnight-skill-b-left",
@@ -5318,6 +5401,8 @@
       slot: null,
       labelId: "midnight-skill-b-label-left",
       fillId: "midnight-skill-b-cast-fill-left",
+      iconId: "midnight-skill-b-icon-left",
+      orbitId: "midnight-skill-b-orbit-left",
     },
     {
       key: "L:0",
@@ -5326,6 +5411,8 @@
       slot: 0,
       labelId: "midnight-skill-b1-label-left",
       fillId: "midnight-skill-b1-cast-fill-left",
+      iconId: "midnight-skill-b1-icon-left",
+      orbitId: "midnight-skill-b1-orbit-left",
     },
     {
       key: "L:1",
@@ -5334,6 +5421,8 @@
       slot: 1,
       labelId: "midnight-skill-b2-label-left",
       fillId: "midnight-skill-b2-cast-fill-left",
+      iconId: "midnight-skill-b2-icon-left",
+      orbitId: "midnight-skill-b2-orbit-left",
     },
   ];
   var SORCERY_BUTTON_DEFS_BY_KEY = {};
@@ -5470,7 +5559,7 @@
       delete sorceryHoldState[key]; // 先清掉避免同一次長按重複觸發
       var def = SORCERY_BUTTON_DEFS_BY_KEY[key];
       var entry = def && sorceryButtonEntry(def);
-      if (entry) castWeaponSkillEntry(entry);
+      if (entry) castWeaponSkillEntry(entry, def.btnId);
     });
   }
 
@@ -5858,6 +5947,10 @@
   function renderBlockGuardBar() {
     var fillEl = el("midnight-block-guard-fill");
     if (fillEl) fillEl.style.width = blockHolding ? "100%" : "0%";
+    // 防禦中盾牌浮標（2026-09-13使用者明確規格「防禦按鈕按下時，格子上方顯示盾牌圖示」）：
+    // 跟讀條同一個blockHolding判斷，放開按鈕（endBlockHold）就一起消失。
+    var badge = el("midnight-block-shield-badge");
+    if (badge) badge.hidden = !blockHolding;
   }
 
   function startBlockHold() {
@@ -7274,6 +7367,42 @@
     enemyHitEffectTimer = setTimeout(function () {
       effectEl.hidden = true;
     }, ENEMY_HIT_EFFECT_DISPLAY_MS);
+  }
+
+  // 施法彗星（2026-09-13使用者明確規格「施法成功後若是對敵人傷害則彗星效果射到敵人圖片
+  // 中心」）：起點是剛才長按的那顆按鈕格中心、終點是敵人立繪中心，兩點都用
+  // getBoundingClientRect()取螢幕座標（跟進場動畫positionIntroFlyers()同一套作法），
+  // 位移量寫進CSS變數交給keyframe平移，JS不逐幀推動。
+  // 只在activeEncounter（真的有敵人圖片可以射）時觸發，共用標靶demo沒有圖片，跟
+  // triggerEnemyHitEffect()同一個守衛。
+  var SPELL_COMET_FLIGHT_MS = 420;
+  var spellCometTimer = null;
+
+  function triggerSpellCometEffect(fromBtnId, color) {
+    if (!activeEncounter) return;
+    var cometEl = el("midnight-spell-comet");
+    var fromEl = fromBtnId ? el(fromBtnId) : null;
+    var targetEl = el("midnight-field-encounter-image");
+    if (!cometEl || !fromEl || !targetEl || targetEl.hidden) return;
+    var fromRect = fromEl.getBoundingClientRect();
+    var toRect = targetEl.getBoundingClientRect();
+    if (!fromRect.width || !toRect.width) return;
+    var fromX = fromRect.left + fromRect.width / 2;
+    var fromY = fromRect.top + fromRect.height / 2;
+    cometEl.style.left = fromX + "px";
+    cometEl.style.top = fromY + "px";
+    cometEl.style.setProperty("--comet-dx", toRect.left + toRect.width / 2 - fromX + "px");
+    cometEl.style.setProperty("--comet-dy", toRect.top + toRect.height / 2 - fromY + "px");
+    cometEl.style.setProperty("--comet-color", color || ENEMY_HIT_NO_ELEMENT_COLOR);
+    cometEl.style.setProperty("--comet-ms", SPELL_COMET_FLIGHT_MS + "ms");
+    // 連續施法時重新播放動畫：同triggerEnemyHitEffect()的「先隱藏、強制reflow、再顯示」。
+    cometEl.hidden = true;
+    void cometEl.offsetWidth;
+    cometEl.hidden = false;
+    if (spellCometTimer) clearTimeout(spellCometTimer);
+    spellCometTimer = setTimeout(function () {
+      cometEl.hidden = true;
+    }, SPELL_COMET_FLIGHT_MS);
   }
 
   // 屬性／異常狀態命中特效（2026-09-12使用者明確要求「使用異常狀態招式時，對敵人的刀光
@@ -9442,9 +9571,22 @@
     updateHudStackingUI(Date.now());
   }
 
+  // 反向的暫時提升（2026-09-13使用者明確規格「除了按下左上右上hud會讓他們排序在上方，
+  // 按下樓層資訊banner、late-claim等 也會排序至上方」）：上面那條只做了「HUD蓋過banner」
+  // 單向，而戰鬥中activeEncounter會讓HUD一直贏，此時後補領獎提示等banner永遠被壓在下面。
+  // 這裡沿用完全相同的「時間戳→html class→CSS選擇器」慣例，共用同一個3秒常數，
+  // z-index數值一樣留在style.css（html.midnight-banner-above-hud）。
+  var bannerAboveHudUntil = 0;
+
+  function bumpBannerAboveHud() {
+    bannerAboveHudUntil = Date.now() + HUD_ABOVE_BANNER_TAP_MS;
+    updateHudStackingUI(Date.now());
+  }
+
   function updateHudStackingUI(now) {
     var above = !!activeEncounter || now < hudAboveBannerUntil;
     document.documentElement.classList.toggle("midnight-hud-above-banner", above);
+    document.documentElement.classList.toggle("midnight-banner-above-hud", now < bannerAboveHudUntil);
   }
 
   function updateTopBannerCollapseUI() {
@@ -12270,6 +12412,16 @@
     delete fieldEnemyAssignAttempted[id];
     delete fieldTileRewardAttempted[id];
     delete lastRenderedVoteKey[id];
+    // 2026-09-13：屬性/異常蓄積的「已觸發到第幾次」本地計數（key＝targetKey+":"+屬性名，
+    // 見maybeTriggerAttributeAccum()）也要一起清掉。RTDB那邊的蓄積值由呼叫端清成null
+    // （見maybeClearFieldTriggerAfterRewardGate()），但這個本地計數若殘留，下一層新敵人
+    // 從0重新累積時newCount會一直小於prevCount，門檻觸發整層都不會再發生。
+    Object.keys(attributeAccumTriggeredCount).forEach(function (key) {
+      if (key.indexOf(id + ":") === 0) delete attributeAccumTriggeredCount[key];
+    });
+    // 「重演（技能強化）」的本場一種只算一次紀錄同理：那是「這場戰鬥」的概念，換一層
+    // ＝換一隻敵人，應該重新開始計算（onEncounterEnded()也做同一件事）。
+    restageDamageUpApplied = {};
   }
 
   function maybeAdvanceFieldProgressAfterFloorClear(pt, trig) {
@@ -12375,6 +12527,17 @@
     resetFieldPointLocalFlags(pt.id);
     GameStorage.rtSet(gameId, "cloud", "fieldTrigger/" + pt.id, null);
     GameStorage.rtSet(gameId, "cloud", "fieldEnemyHp/" + pt.id, null);
+    // fix(2026-09-13)：使用者明確規格「新遇到的敵人不得繼承上一敵人的屬性與異常狀態」。
+    // 屬性/異常蓄積的key是currentAttributeAccumTargetKey()＝activeEncounter.id＝這個
+    // 地圖點的pointId（見該函式），而板塊的每一層都在**同一個pointId**重新開一隻新敵人
+    // （這個函式清掉trigger後，玩家再按一次［進入］就會建立下一層的trigger與敵人）。
+    // 原本只清trigger跟HP、沒清蓄積，於是第2層的新敵人一登場就帶著第1層打上去的
+    // 「炎7・出血5」等蓄積，甚至可能一被打就立刻跨過門檻觸發效果。
+    // 一併清掉attributeAccumTriggerClaims（那是「第N次觸發由誰負責顯示」的搶鎖紀錄，
+    // 留著會讓新敵人的第1次觸發被誤判成已經有人認領過），作法比照Day3夜王重開時的既有
+    // 清理（見handleRestartCycle()／day3重置處的同款rtSet(...,null)）。
+    GameStorage.rtSet(gameId, "cloud", "attributeAccum/" + pt.id, null);
+    GameStorage.rtSet(gameId, "cloud", "attributeAccumTriggerClaims/" + pt.id, null);
   }
 
   // 「全フロア踏破効果」の盧恩部分：card.allFloorEffect原文（例："盧恩：2／時間損耗：1"）
@@ -12914,9 +13077,15 @@
     // selectedRewardId/detail面板只服務個人清單——共享池項目走揭示→投票的流程（見下方），
     // 沒有這層detail面板。
     var sharedEntries = collectUnresolvedSharedRewards();
+    // fix(2026-09-13)：簽章加上「這一筆有沒有被揭示（drawn）」。原本只有pointId:rewardId，
+    // 因此「別人按下［抽選］揭示了品項、輪到我投票」這個狀態變化不會讓idsKey改變，先前
+    // 按過關閉的玩家就再也看不到那顆［拿取］——他那一票永遠投不出去，整筆共享獎勵只能
+    // 等SHARED_REWARD_ACTION_TIMEOUT_MS逾時才收尾，其他人也一起被卡住（使用者要求檢查的
+    // 「一個人按下關閉時是否會導致其他人獎勵清單受到影響」正是這條路徑）。加進簽章之後，
+    // 揭示的那一刻所有裝置都會自動重新彈出清單。
     var sharedKey = sharedEntries
       .map(function (s) {
-        return s.pointId + ":" + s.rewardId;
+        return s.pointId + ":" + s.rewardId + (s.entry.drawn ? ":drawn" : "");
       })
       .sort()
       .join(",");
@@ -13109,6 +13278,44 @@
   function closeRewardModal() {
     rewardModalDismissed = true;
     el("midnight-reward-modal").hidden = true;
+    renderRewardReopenButton();
+  }
+
+  // 獎勵清單重新開啟（2026-09-13）：rewardModalDismissed本身是本地變數，一個人關閉不會
+  // 直接改到別人的畫面；真正會影響全體的是「關掉之後再也叫不回來」——共享池獎勵要等全員
+  // 投票（見maybeResolveSharedRewardVote()），少一票就得等逾時，其他人跟著卡住。因此除了
+  // 上面那條「有人揭示就自動重新彈出」之外，再給一個常駐入口讓玩家隨時自己叫回來。
+  function handleRewardReopenClick() {
+    rewardModalDismissed = false;
+    renderRewardModal();
+    renderRewardReopenButton();
+  }
+
+  // 只在「清單目前被關著、而且真的還有未解決的獎勵」時顯示。輪到自己要投票（共享池已
+  // 揭示、自己是participant又還沒投）或個人清單有待處理項目時閃黃光，沿用既有的
+  // .midnight-flash-yellow（跟banner展開鈕同一組提示語彙）。
+  function renderRewardReopenButton() {
+    var btn = el("btn-midnight-reward-reopen");
+    if (!btn) return;
+    var list = pendingRewards[myTokenId] || {};
+    var personalPending = Object.keys(list).some(function (id) {
+      return !list[id].resolved;
+    });
+    var sharedEntries = collectUnresolvedSharedRewards();
+    if (!rewardModalDismissed || (!personalPending && !sharedEntries.length)) {
+      btn.hidden = true;
+      btn.classList.remove("midnight-flash-yellow");
+      return;
+    }
+    btn.hidden = false;
+    var waitingMyVote = sharedEntries.some(function (s) {
+      if (!s.entry.drawn || !mySlot) return false;
+      var trig = fieldTriggers[s.pointId];
+      if (!trig || !trig.participants || !trig.participants[mySlot]) return false;
+      var votes = s.entry.votes || {};
+      return votes[mySlot] !== "take" && votes[mySlot] !== "pass";
+    });
+    btn.classList.toggle("midnight-flash-yellow", personalPending || waitingMyVote);
   }
 
   // ---- 角色屬性管理面板：唯讀顯示characters[myTokenId]，不提供編輯（見規劃紀錄設計取捨）。----
@@ -14463,6 +14670,9 @@
       count: res.flaskCount,
       max: res.flaskMax || FLASK_MAX_DEFAULT,
     });
+    // 自身承受中的屬性／異常蓄積：位置就在聖杯瓶那一列與隊友卡片之間（2026-09-13使用者
+    // 明確規格），因此接在這裡渲染，不另外掛到frame()。
+    renderSelfAttributeAccumNote();
     // canActNow()（含瀕死判斷，見該函式說明）：瀕死中聖杯瓶/道具/換武器全部鎖住。
     el("btn-midnight-use-flask").disabled = !canActNow() || res.flaskCount <= 0 || flaskReadingUntil !== null;
     renderFlaskReadBar();
@@ -14474,6 +14684,14 @@
   // （style.css既有class，只是換一個fill顏色），沒有讀取中時寬度歸零。
   function renderFlaskReadBar() {
     var fillEl = el("midnight-flask-read-fill");
+    // 「使用中」浮標（2026-09-13使用者明確規格「使用聖杯瓶中，格子上方顯示使用中」）：
+    // 跟下面的讀取條同一個flaskReadingUntil判斷，讀取被其他動作中斷
+    // （cancelFlaskReadingForOtherAction()把它設回null）時會一起消失。
+    var badge = el("midnight-flask-using-badge");
+    if (badge) {
+      badge.hidden = flaskReadingUntil === null;
+      if (flaskReadingUntil !== null) badge.textContent = window.I18N.t("midnight_flask_using_badge");
+    }
     if (!fillEl) return;
     if (flaskReadingUntil === null) {
       fillEl.style.width = "0%";
@@ -14486,9 +14704,21 @@
   // 每顆魔術/祈禱按鈕各自獨立的長按讀條（左右手＋單一/雙按鈕共6顆，見SORCERY_BUTTON_DEFS）。
   function renderSorceryCastBars() {
     SORCERY_BUTTON_DEFS.forEach(function (def) {
+      var startedAt = sorceryHoldState[def.key];
+      // 詠唱中的環繞星體（2026-09-13使用者明確規格「魔術，祈禱等詠唱中，格子上方顯示小
+      // 環繞星體動畫」）：跟讀條同一個sorceryHoldState判斷，長按未滿SORCERY_CAST_HOLD_MS
+      // 就放開（endSkillBHold取消）時會一起消失。顏色沿用該武器的屬性色
+      // （weaponHitColor()，跟命中刀光/彗星同一份配色），沒有屬性時是白色。
+      var orbitEl = el(def.orbitId);
+      if (orbitEl) {
+        orbitEl.hidden = startedAt === undefined;
+        if (startedAt !== undefined) {
+          var entryForColor = sorceryButtonEntry(def);
+          orbitEl.style.setProperty("--orbit-color", weaponHitColor(entryForColor && entryForColor.weaponId));
+        }
+      }
       var fillEl = el(def.fillId);
       if (!fillEl) return;
-      var startedAt = sorceryHoldState[def.key];
       if (startedAt === undefined) {
         fillEl.style.width = "0%";
         return;
@@ -14674,12 +14904,32 @@
     if (btn) btn.hidden = true;
   }
 
+  // 這一顆按鈕現在承載的是武器戰技、魔術還是祈禱（2026-09-13使用者明確規格「戰技更改，
+  // 魔法更改，祈禱更改」）：判斷依據跟weaponSpellEntries()完全相同——杖（staff）＝魔術、
+  // 聖印（sacred_seal）＝祈禱，其餘武器的Action戰技＝戰技，不另外發明第二套分類。
+  var SPELL_ICON_CLASSES = ["midnight-icon-skill", "midnight-icon-sorcery", "midnight-icon-prayer"];
+
+  function spellEntryIconClass(entry) {
+    var weapon = entry && entry.weaponId ? Weapons.get(baseCatalogId(entry.weaponId)) : null;
+    var category = weapon ? Weapons.getCategory(weapon.category) : null;
+    if (category && category.id === "staff") return "midnight-icon-sorcery";
+    if (category && category.id === "sacred_seal") return "midnight-icon-prayer";
+    return "midnight-icon-skill";
+  }
+
   function renderSpellButton(def, entry, canAct) {
     if (!def) return;
     var btn = el(def.btnId);
     if (!btn) return;
     btn.hidden = !entry;
     if (!entry) return;
+    var iconEl = el(def.iconId);
+    if (iconEl) {
+      var wantClass = spellEntryIconClass(entry);
+      SPELL_ICON_CLASSES.forEach(function (cls) {
+        iconEl.classList.toggle(cls, cls === wantClass);
+      });
+    }
     var labelEl = el(def.labelId);
     if (labelEl) setCombatButtonLabel(labelEl, Weapons.localizedText(entry.name));
     var cost = computeMidnightSkillCost(Weapons.localizedText(entry.body), entry.weaponId);
@@ -14909,6 +15159,30 @@
     var type = c && c.typeId && CharacterTypes ? CharacterTypes.get(c.typeId) : null;
     var nudge = !!(c && type && CD && (c.learnedRelicEffects || []).length < CD.relicMaxLearnable(c.level));
     btn.classList.toggle("midnight-character-icon-nudge", nudge);
+  }
+
+  // 右上「選單」鍵在選單開啟中改成黃底（2026-09-13使用者明確規格「右上選單按下時更改為
+  // 黃底」）。直接以#midnight-menu-panel的hidden為真實狀態逐幀同步，不另外記一份布林
+  // 旗標——這個面板除了自己那顆toggle之外，還會被closeHudPanelsIfNightBossCombat()
+  // （進入夜之強敵/夜王戰鬥時強制收起）從別的地方關掉，記旗標會對不上。
+  function renderMenuToggleUI() {
+    var btn = el("btn-midnight-toggle-menu");
+    var panel = el("midnight-menu-panel");
+    if (!btn || !panel) return;
+    btn.classList.toggle("midnight-btn-active-yellow", !panel.hidden);
+  }
+
+  // 觀察者模式徽章（2026-09-13使用者明確規格「觀察者模式時，右上不顯示盧恩，替代顯示
+  // 眼睛符號以及黃底『觀察者模式』」）：觀戰＝沒有席位（!mySlot，見該變數說明）。
+  // 等待房階段（meta.sessionStartAt尚未設定）還沒有人正式入座，此時全員都是!mySlot，
+  // 顯示「觀察者模式」會誤導，因此限定在遊戲已開場之後。
+  function renderSpectatorBadge() {
+    var badge = el("midnight-spectator-badge");
+    var runeRow = el("midnight-self-rune-row");
+    if (!badge || !runeRow) return;
+    var spectating = !mySlot && !!(meta && meta.sessionStartAt);
+    badge.hidden = !spectating;
+    runeRow.hidden = spectating;
   }
 
   function tryMove(dx, dy) {
@@ -16368,6 +16642,9 @@
     }
     lastKnownDayForMapNudge = phaseInfo.day;
     renderCharacterIcon();
+    renderMenuToggleUI();
+    renderSpectatorBadge();
+    renderRewardReopenButton();
     var phaseKey = phaseInfo.day + ":" + phaseInfo.stage;
     if (phaseKey !== lastDayPhaseKey) {
       lastDayPhaseKey = phaseKey;
@@ -16766,6 +17043,50 @@
     // 用這支暫時塞一個假的遭遇物件進去，驗完再還原。
     _debugSetActiveEncounterForFx: function (on) {
       activeEncounter = on ? { id: "__fx_probe__" } : null;
+    },
+    // 2026-09-13 UI優化第6批的測試入口（見tools/midnight_check/ui_polish_2026_09_13_check.js）：
+    // 這一批的顯示條件都綁在「玩家正在長按／正在讀取」這種瞬時本地狀態上，用
+    // page.dispatchEvent沒辦法穩定維持住（CLAUDE.md §4.6），因此比照既有的
+    // _debugSetActiveEncounterForFx，直接提供設定狀態＋重繪的入口。
+    _debugSetFlaskReading: function (on) {
+      flaskReadingUntil = on ? Date.now() + FLASK_READ_MS : null;
+      renderFlaskReadBar();
+    },
+    _debugSetBlockHolding: function (on) {
+      blockHolding = !!on;
+      renderBlockGuardBar();
+    },
+    _debugSetSorceryHold: function (key, on) {
+      if (on) sorceryHoldState[key] = Date.now();
+      else delete sorceryHoldState[key];
+      renderSorceryCastBars();
+    },
+    _debugSpellIconClassForWeapon: function (weaponId) {
+      return spellEntryIconClass({ weaponId: weaponId });
+    },
+    _debugTriggerSpellComet: function (btnId, color) {
+      triggerSpellCometEffect(btnId, color);
+    },
+    _debugSetMySlot: function (slot) {
+      var prev = mySlot;
+      mySlot = slot;
+      renderSpectatorBadge();
+      return prev;
+    },
+    _debugRenderMenuToggleUI: function () {
+      renderMenuToggleUI();
+    },
+    _debugSetRewardModalDismissed: function (on) {
+      rewardModalDismissed = !!on;
+      renderRewardModal();
+      renderRewardReopenButton();
+      return rewardModalDismissed;
+    },
+    _debugRewardModalDismissed: function () {
+      return rewardModalDismissed;
+    },
+    _debugRenderRewardModal: function () {
+      renderRewardModal();
     },
     _debugRewardEntryLabel: function (entry) {
       return rewardEntryLabel(entry);
