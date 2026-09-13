@@ -828,6 +828,14 @@ BODY = """    <div class="midnight-wrap">
                    triggerConsumableThrowEffect()，圖示與顏色依道具決定，只在丟擲類/對敵人
                    噴霧類消耗品觸發，自身/全體PC用的道具不觸發。 -->
               <div id="midnight-consumable-throw-effect" hidden></div>
+              <!-- 武器詞條的追加攻擊特效（2026-09-13第2批）：蓄力攻擊的7種追擊（幻影／
+                   黑炎／睡眠霧／聖衝擊波／冰嵐／魔力彈／熔岩）與架盾3秒的3種（咒靈／
+                   燃燒／赤雷）共用這一層。跟上面的刀光／異常光暈／丟擲物是各自獨立的
+                   overlay，因此可以同時播放而不互相打斷。符號與顏色由
+                   static/midnight.jsのtriggerAffixRiderEffect()依詞條寫入。 -->
+              <div id="midnight-affix-rider-effect" hidden>
+                <span id="midnight-affix-rider-mark"></span>
+              </div>
               <!-- 體崩狀態（2026-09-11使用者明確規格）：累積▲◆滿36單位後顯示3秒，
                    期間敌人防禦以最低計算且不攻擊。「致命一擊」鈕只在體崩中、且自己習得
                    該遺物效果、且這次體崩還沒有人按過時才顯示，見 static/midnight.js の

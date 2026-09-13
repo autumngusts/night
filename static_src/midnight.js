@@ -535,7 +535,7 @@
     if (hasBoth && c.equippedWeaponIdL === c.equippedWeaponIdR) pct += affixTotal(c, "twoHandAtkUp");
     // 動作別
     if (ctx.ranged) pct += affixTotal(c, "rangedAtkUp");
-    if (ctx.charge) pct += affixTotal(c, "chargeAtkUp");
+    if (ctx.charge) pct += affixTotal(c, "chargeAtkUp") + affixTotal(c, "chargePhantom");
     if (ctx.jump) pct += affixTotal(c, "jumpAtkUp");
     if (ctx.twoHit) pct += affixTotal(c, "finalHitUp");
     if (ctx.art) pct += affixTotal(c, "weaponArtUp");
@@ -644,6 +644,7 @@
     if ((c._affixDamagedGuardUntil || 0) > now) bonus += affixTotal(c, "onDamagedGuardUp");
     if ((c._affixGuardCutUntil || 0) > now) bonus += affixTotal(c, "guardCutUp");
     if (flaskReadingUntil !== null) bonus -= affixTotal(c, "flaskGuardDown");
+    bonus += affixHolyGroundGuardBonus(); // 2026-09-13第2批：聖域展開期間全員HP價值+10
     // 「タメ攻撃時、カット率上昇」的原文是「蓄力攻擊過程中」，但midnight的蓄力攻擊是
     // 瞬發（useSpecialAttack()一次結算，沒有蓄力讀條那段「過程」可以對應），因此換算成
     // 「使用蓄力攻擊後的短暫視窗內」，視窗長度比照2Hit那條的3秒。這是本實作的取捨，
@@ -727,9 +728,154 @@
     if (!c || !weaponAffixesEnabled()) return;
     if (affixTotal(c, "chargeGuardUp") > 0) c._affixChargeGuardUntil = Date.now() + AFFIX_COMBO_GUARD_WINDOW_MS;
     if (!activeEncounter) return;
+    applyAffixChargeRiders(c); // 2026-09-13第2批：7種蓄力追擊特效
     if (affixChanceHit(c, "chargeHolyAccum")) recordAttributeAccum("聖", 1);
     if (affixChanceHit(c, "chargeMagicAccum")) recordAttributeAccum("魔", 1);
     if (affixChanceHit(c, "chargeLightningAccum")) recordAttributeAccum("雷", 1);
+  }
+
+  // ============================================================================
+  // 武器詞條 第2批（2026-09-13）：需要新特效／新機制的11條
+  // ============================================================================
+  // 共通的視覺元件：#midnight-affix-rider-effect（疊在敵人立繪上，見midnight_page.py）。
+  // 符號沿用ATTRIBUTE_STATUS_VISUAL同一套語彙（✦炎✸雷⚡等），沒有對應屬性的用專屬符號。
+  var AFFIX_RIDER_STYLE = {
+    chargePhantom: { icon: "☗", color: "#c9b7ff" },
+    chargeBlackFlame: { icon: "✸", color: "#6b3fa0" },
+    chargeSleepMist: { icon: "☾", color: "#9d8bff" },
+    chargeHolyWave: { icon: "✧", color: "#fff6c2" },
+    chargeIceStorm: { icon: "❄", color: "#7fd8ff" },
+    chargeMagicBolt: { icon: "✦", color: "#4d9dff" },
+    chargeLava: { icon: "✹", color: "#ff7a2f" },
+    walkCurseSpirit: { icon: "☠", color: "#c06bd8" },
+    walkBurn: { icon: "✸", color: "#ff5a40" },
+    walkRedLightning: { icon: "⚡", color: "#ff4d4d" },
+    holyGroundOnGuard: { icon: "✦", color: "#ffe9a8" },
+  };
+  var AFFIX_RIDER_EFFECT_MS = 650;
+  var affixRiderEffectTimer = null;
+
+  function triggerAffixRiderEffect(affixId) {
+    var style = AFFIX_RIDER_STYLE[affixId];
+    if (!style || !activeEncounter) return; // 共用標靶沒有敵人立繪可疊，同triggerEnemyHitEffect()的守衛
+    var effectEl = el("midnight-affix-rider-effect");
+    var markEl = el("midnight-affix-rider-mark");
+    if (!effectEl || !markEl) return;
+    markEl.textContent = style.icon;
+    effectEl.style.setProperty("--rider-color", style.color);
+    effectEl.hidden = false;
+    effectEl.classList.remove("midnight-affix-rider-play");
+    void effectEl.offsetWidth; // 強制reflow，連續觸發時動畫才會重播
+    effectEl.classList.add("midnight-affix-rider-play");
+    if (affixRiderEffectTimer) clearTimeout(affixRiderEffectTimer);
+    affixRiderEffectTimer = setTimeout(function () {
+      effectEl.hidden = true;
+    }, AFFIX_RIDER_EFFECT_MS);
+  }
+
+  // 「帶有威力補正○○的傷害」：直接用CharacterDrawer.statPowerModValue()——那是既有的
+  // 「某一項威力補正的實際值（類型基本值＋護符＋遺物）」helper，跟角色視窗顯示的六項
+  // 威力補正同一個來源。規則書式「威力：N＋○○補正」裡的○○補正就是這個數字，因此這裡
+  // 不自行乘任何倍率（CLAUDE.md §42.4：不發明規則書沒有的數值）。
+  function affixPowerModDamage(c, statKey) {
+    var CD = window.PriTestCharacterDrawer;
+    if (!CD || !CD.statPowerModValue) return 0;
+    return Math.max(0, CD.statPowerModValue(c, statKey));
+  }
+
+  // 蓄力攻擊的7種追擊。傷害型的三條規格都寫「帶有威力補正○○傷害」，因此傷害＝該項威力
+  // 補正值；蓄積型（睡眠霧）走recordAttributeAccum()；幻影的「傷害+5%」是乘在蓄力攻擊
+  // 本身的傷害上（見affixOutgoingDamageMult()的ctx.charge分支），這裡只負責放特效。
+  var AFFIX_CHARGE_RIDERS = [
+    { id: "chargeBlackFlame", stat: "intelligence" },
+    { id: "chargeHolyWave", stat: "faith" },
+    { id: "chargeIceStorm", stat: "arcane" },
+    { id: "chargeMagicBolt", stat: "intelligence" },
+    { id: "chargeLava", stat: "intelligence" },
+  ];
+
+  function applyAffixChargeRiders(c) {
+    if (!activeEncounter) return;
+    if (hasAffix(c, "chargePhantom")) triggerAffixRiderEffect("chargePhantom");
+    var sleep = affixTotal(c, "chargeSleepMist");
+    if (sleep > 0) {
+      recordAttributeAccum("睡眠", sleep);
+      triggerAffixRiderEffect("chargeSleepMist");
+    }
+    AFFIX_CHARGE_RIDERS.forEach(function (rider) {
+      if (!hasAffix(c, rider.id)) return;
+      var dmg = affixPowerModDamage(c, rider.stat);
+      if (dmg > 0) applyDamageToFieldEnemyHp(activeEncounter.id, dmg);
+      triggerAffixRiderEffect(rider.id);
+    });
+  }
+
+  // ---- 架起防禦持續3秒觸發的4條 ----
+  // 使用者規格：聖域＝「持續架起防禦3秒後展開」，冷卻20秒；三種周圍攻擊＝「架起防禦超過
+  // 3秒時」產生特效攻擊敵人，冷卻10秒。詞條名雖然是「歩きで（行進中）」，但使用者給的
+  // 即時制換算明寫是架盾3秒，這裡依使用者的規格實作（規格優先於原始詞條名）。
+  var AFFIX_GUARD_HOLD_TRIGGER_MS = 3000;
+  var AFFIX_WALK_COOLDOWN_MS = 10000;
+  var AFFIX_HOLY_GROUND_COOLDOWN_MS = 20000;
+  var AFFIX_HOLY_GROUND_DURATION_MS = 10000;
+  var AFFIX_HOLY_GROUND_HEAL = 20;
+  var AFFIX_HOLY_GROUND_GUARD_BONUS = 10;
+  var blockHoldStartedAt = null; // 目前這次長按防禦的起點；放開就歸null
+  var affixGuardHoldFiredAt = {}; // affixId -> 上次觸發時間戳（本地冷卻）
+
+  var AFFIX_WALK_ATTACKS = [
+    { id: "walkCurseSpirit", stat: "arcane" },
+    { id: "walkBurn", stat: "intelligence" },
+    { id: "walkRedLightning", stat: "intelligence" },
+  ];
+
+  function affixGuardHoldReady(affixId, cooldownMs, now) {
+    return now - (affixGuardHoldFiredAt[affixId] || 0) >= cooldownMs;
+  }
+
+  function updateAffixGuardHold(now) {
+    var c = characters[myTokenId];
+    if (!c || !weaponAffixesEnabled() || !blockHolding || blockHoldStartedAt === null) return;
+    if (now - blockHoldStartedAt < AFFIX_GUARD_HOLD_TRIGGER_MS) return;
+    AFFIX_WALK_ATTACKS.forEach(function (def) {
+      if (!hasAffix(c, def.id) || !activeEncounter) return;
+      if (!affixGuardHoldReady(def.id, AFFIX_WALK_COOLDOWN_MS, now)) return;
+      affixGuardHoldFiredAt[def.id] = now;
+      var dmg = affixPowerModDamage(c, def.stat);
+      if (dmg > 0) applyDamageToFieldEnemyHp(activeEncounter.id, dmg);
+      triggerAffixRiderEffect(def.id);
+    });
+    if (!hasAffix(c, "holyGroundOnGuard")) return;
+    if (!affixGuardHoldReady("holyGroundOnGuard", AFFIX_HOLY_GROUND_COOLDOWN_MS, now)) return;
+    affixGuardHoldFiredAt.holyGroundOnGuard = now;
+    triggerAffixRiderEffect("holyGroundOnGuard");
+    // 「戰鬥中全員」＝party-wide，因此寫在meta（每台裝置各自判斷時限），沿用既有的
+    // partyGuardBonusPct()／partyUpliftLevel()同一種寫法，隊友的裝置才讀得到。
+    // HP回復是一次性的全體回復（healAllPartyBy()是既有的全體回復入口）。
+    healAllPartyBy(AFFIX_HOLY_GROUND_HEAL);
+    GameStorage.rtSet(gameId, "cloud", "meta/affixHolyGroundUntil", now + AFFIX_HOLY_GROUND_DURATION_MS);
+    showToast(window.PriTestWeaponAffixes.localizedText(window.PriTestWeaponAffixes.get("holyGroundOnGuard").name));
+  }
+
+  function affixHolyGroundGuardBonus() {
+    return meta && meta.affixHolyGroundUntil && meta.affixHolyGroundUntil > Date.now() ? AFFIX_HOLY_GROUND_GUARD_BONUS : 0;
+  }
+
+  // ---- 魔術／祈禱產生的持續效果延長 ----
+  // midnight目前「由施放魔術／祈禱本身產生的持續時間」只有祈禱的火力提升一個
+  // （見maybeApplyPrayerFirepower()裡2026-09-12就寫下的同一段說明），因此這兩條詞條的
+  // 實際作用範圍也只有那一個buff。之後若再加入其他由咒文產生的時限buff，一併呼叫這支即可。
+  // 「発見力上昇（抽選時稀有度點數+1~2）」：加在抽選稀有度的骰子合計上（見
+  // character_drawer.jsのmerchantDrawWeapon()／drawWeaponFromCategory()新增的rarityBonus）。
+  // 抽選有時是對scratch角色物件做的（共享池的揭示、個人清單的抽選預覽），因此這裡一律
+  // 讀自己的角色，不是傳進去的那個scratch。
+  function affixDiscoveryBonus() {
+    return affixTotal(characters[myTokenId], "discoveryUp");
+  }
+
+  function affixSpellBuffExtraMs(c, isPrayer) {
+    var sec = affixTotal(c, "castDurationUp") + (isPrayer ? affixTotal(c, "prayerDurationUp") : 0);
+    return sec * 1000;
   }
 
   var AFFIX_SHOT_ACCUM = [
@@ -4571,7 +4717,9 @@
     // 「由施放魔術／祈禱本身產生的持續時間」只有這一個（火力提升），因此只在這裡生效；
     // 之後若再加入其他由咒文產生的時限buff，記得一併套用這個倍率。
     var oldLordMult = (c.talismanIds || []).indexOf("talisman_old_lords_talisman") !== -1 ? 2 : 1;
-    c._relicAtkBuffUntil = Date.now() + PRAYER_FIREPOWER_MS * oldLordMult;
+    // 2026-09-13武器詞條「魔術/祈祷の効果時間延長」「祈祷タメ強化」：兩條都是「延長N秒」，
+    // 疊在倍率之後（先照護符的倍率算出基礎時長，再加上詞條的固定秒數）。
+    c._relicAtkBuffUntil = Date.now() + PRAYER_FIREPOWER_MS * oldLordMult + affixSpellBuffExtraMs(c, true);
     GameStorage.rtSet(gameId, "cloud", "character/" + myTokenId + "/_relicAtkBuffUntil", c._relicAtkBuffUntil);
   }
 
@@ -6528,11 +6676,13 @@
     if (!mySlot || isPaused() || !currentGuardInfo()) return;
     cancelFlaskReadingForOtherAction();
     blockHolding = true;
+    blockHoldStartedAt = Date.now(); // 2026-09-13武器詞條：架盾持續3秒觸發的4條
     renderBlockGuardBar();
   }
 
   function endBlockHold() {
     blockHolding = false;
+    blockHoldStartedAt = null;
     renderBlockGuardBar();
   }
 
@@ -8457,7 +8607,7 @@
           anyFull = true;
           return;
         }
-        var drawn = window.PriTestCharacterDrawer.drawWeaponFromCategory(c, "staff", spec.value);
+        var drawn = window.PriTestCharacterDrawer.drawWeaponFromCategory(c, "staff", spec.value, affixDiscoveryBonus());
         if (drawn) {
           // 2026-09-12使用者明確規格「獎勵取得的武器、杖、聖印 持有的戰技魔術等 是當下
           // 直接抽出，並非鍛造台再抽」：杖的random魔術枠在入手當下就決定。
@@ -10911,7 +11061,7 @@
       el("midnight-merchant-weapon-result").textContent = window.I18N.t("midnight_inventory_full_note");
       return;
     }
-    var result = window.PriTestCharacterDrawer.merchantDrawWeapon(c, 1);
+    var result = window.PriTestCharacterDrawer.merchantDrawWeapon(c, 1, affixDiscoveryBonus());
     if (!result) return;
     // 2026-09-12使用者明確規格「武器…持有的戰技魔術等 是當下直接抽出，並非鍛造台再抽」：
     // 商人購買也一樣，入手當下就決定random戰技枠。
@@ -12394,8 +12544,8 @@
       // 的categoryId（fields_data_*.js有不少「聖印」等指定大分類的武器獎勵）。改成跟
       // computeRewardDraw()同一套判斷，共用CharacterDrawer既有的兩支helper。
       var weaponResult = entry.categoryId
-        ? window.PriTestCharacterDrawer.drawWeaponFromCategory({ weaponIds: [] }, entry.categoryId, entry.value || 1)
-        : window.PriTestCharacterDrawer.merchantDrawWeapon({ weaponIds: [] }, entry.value || 1);
+        ? window.PriTestCharacterDrawer.drawWeaponFromCategory({ weaponIds: [] }, entry.categoryId, entry.value || 1, affixDiscoveryBonus())
+        : window.PriTestCharacterDrawer.merchantDrawWeapon({ weaponIds: [] }, entry.value || 1, affixDiscoveryBonus());
       if (!weaponResult) return {};
       // 2026-09-12使用者明確規格「獎勵取得的武器、杖、聖印 持有的戰技魔術等 是當下直接
       // 抽出，並非鍛造台再抽」：random戰技枠在這一刻就抽好並存進drawn，所有人看到的揭示
@@ -13321,8 +13471,8 @@
       var scratch = { weaponIds: (c0.weaponIds || []).slice() };
       var stars = entry.value || 1;
       var result = entry.categoryId
-        ? window.PriTestCharacterDrawer.drawWeaponFromCategory(scratch, entry.categoryId, stars)
-        : window.PriTestCharacterDrawer.merchantDrawWeapon(scratch, stars);
+        ? window.PriTestCharacterDrawer.drawWeaponFromCategory(scratch, entry.categoryId, stars, affixDiscoveryBonus())
+        : window.PriTestCharacterDrawer.merchantDrawWeapon(scratch, stars, affixDiscoveryBonus());
       if (!result) return { label: window.I18N.t("midnight_reward_draw_empty"), apply: function () {} };
       // attributeTag是fields_data_*.js的C(ja,zh)雙語物件，沿用night.jsのhandleTurnRewardClaim
       // 同一種PriTestFields.localizedText()解讀方式；沒有這個欄位時維持null，不硬湊。
@@ -17299,6 +17449,7 @@
     updateSkillExtraCharges(now); // 遺物效果「技能使用次數＋1」的蓄積
     updateFlaskReading(now);
     updateAffixOverTime(now); // 2026-09-13武器詞條：HP持続回復／減少、HP未滿時累積猛毒／腐敗
+    updateAffixGuardHold(now); // 2026-09-13武器詞條第2批：架盾3秒的聖域展開與3種周圍攻擊
     maybePushPosition(now);
     var phaseInfo = currentPhaseInfo(now);
     maybeApplyCircleDamage(now, phaseInfo);
@@ -17824,6 +17975,40 @@
     },
     _debugSelectSheetItem: function (kind, ref) {
       selectCharacterSheetItem(kind, ref);
+    },
+    // ---- 武器詞條 第2批（2026-09-13）測試入口 ----
+    _debugAffixRiderDamage: function (statKey) {
+      return affixPowerModDamage(characters[myTokenId], statKey);
+    },
+    _debugTriggerAffixRider: function (affixId) {
+      triggerAffixRiderEffect(affixId);
+    },
+    // 直接把「已經架盾N毫秒」的狀態做出來再跑一次判定，不用真的按住3秒。
+    _debugRunAffixGuardHold: function (heldMs) {
+      var now = Date.now();
+      blockHolding = true;
+      blockHoldStartedAt = now - (heldMs || 0);
+      updateAffixGuardHold(now);
+      blockHolding = false;
+      blockHoldStartedAt = null;
+    },
+    _debugResetAffixGuardHoldCooldowns: function () {
+      affixGuardHoldFiredAt = {};
+    },
+    _debugAffixHolyGroundGuardBonus: function () {
+      return affixHolyGroundGuardBonus();
+    },
+    _debugAffixGuardValueBonus: function () {
+      return affixGuardValueBonus(characters[myTokenId]);
+    },
+    _debugAffixDiscoveryBonus: function () {
+      return affixDiscoveryBonus();
+    },
+    _debugAffixSpellBuffExtraMs: function (isPrayer) {
+      return affixSpellBuffExtraMs(characters[myTokenId], isPrayer);
+    },
+    _debugAffixOutgoingMult: function (ctx) {
+      return affixOutgoingDamageMult(characters[myTokenId], ctx);
     },
     _debugRewardEntryLabel: function (entry) {
       return rewardEntryLabel(entry);

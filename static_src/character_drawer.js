@@ -2845,10 +2845,14 @@
   // 戦技）とは異なり、GMが介入する選択ステップを持たない一発抽選。ランダム戦技枠が付く
   // 武器の場合、既存の武器カード（renderRandomSkillPicker）から入手後に個別で決定すればよい
   // ため、ここでは戦技抽選は行わない。
-  function merchantDrawWeapon(c, starCount) {
+  // rarityBonus（2026-09-13新増、省略可）：稀少度判定のダイス合計に加算する固定値。
+  // midnight側の武器詞条「発見力上昇（抽選時の稀少度ポイント+1~2）」用の注入点で、
+  // 呼び出し側が値を渡さなければ従来と完全に同じ挙動（night.js側は渡さない）。
+  function merchantDrawWeapon(c, starCount, rarityBonus) {
     var categories = Weapons.categories();
     if (!categories.length) return null;
     var stars = Math.max(1, Math.min(4, starCount || 1));
+    var bonus = rarityBonus || 0;
     var attempt, item, rarity, categoryId, rarityDice, itemDie;
     for (attempt = 0; attempt < 20; attempt++) {
       categoryId = categories[Math.floor(Math.random() * categories.length)].id;
@@ -2857,7 +2861,7 @@
       rarity = lookupRarityBySum(
         rarityDice.reduce(function (a, b) {
           return a + b;
-        }, 0)
+        }, bonus)
       );
       itemDie = rollD6();
       // 規則書の再抽選指示（reroll）をここでも通す。これが無いと「C表が存在しないバリスタ」等で
@@ -2887,8 +2891,10 @@
   // ランダムに選ばずに固定で渡す。pickWeaponByRoll/lookupRarityBySum/makeWeaponInstanceIdを
   // そのまま再利用し、抽選確率やweaponIdの形式を新たに発明しない。merchantDrawWeaponと同様、
   // 呼び出し時点でc.weaponIdsに新しいインスタンスidを直接pushしてから返す。
-  function drawWeaponFromCategory(c, categoryId, starCount) {
+  // rarityBonus：merchantDrawWeapon()と同じ（2026-09-13追加、省略可）。
+  function drawWeaponFromCategory(c, categoryId, starCount, rarityBonus) {
     var stars = Math.max(1, Math.min(4, starCount || 1));
+    var bonus = rarityBonus || 0;
     var attempt, item, rarity, rarityDice, itemDie;
     for (attempt = 0; attempt < 20; attempt++) {
       rarityDice = [];
@@ -2896,7 +2902,7 @@
       rarity = lookupRarityBySum(
         rarityDice.reduce(function (a, b) {
           return a + b;
-        }, 0)
+        }, bonus)
       );
       itemDie = rollD6();
       var resolvedDraw = pickWeaponByRollWithReroll(categoryId, rarity, itemDie);

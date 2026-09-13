@@ -6944,6 +6944,70 @@ html.midnight-top-banner-collapsed .midnight-top-banner-collapse-btn {
   }
 }
 
+/* 武器詞條的追加攻擊特效（2026-09-13第2批）：蓄力攻擊的7種追擊與架盾3秒的3種共用這一層。
+   跟上面的丟擲物特效（由下往上飛進來）不同，這一種是「在敵人身上直接綻開」——符號從中心
+   放大＋外圈光環擴散，符號與顏色由JS寫入 --rider-color。放在跟其他特效同一個
+   #midnight-field-encounter-image-wrap 裡，是各自獨立的overlay，可以同時播放。 */
+#midnight-affix-rider-effect {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+#midnight-affix-rider-effect.midnight-affix-rider-play::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 30%;
+  height: 30%;
+  margin: -15% 0 0 -15%;
+  border-radius: 50%;
+  border: 2px solid var(--rider-color, #ffffff);
+  animation: midnight-affix-rider-ring 0.65s ease-out forwards;
+}
+
+#midnight-affix-rider-mark {
+  font-size: 2.4rem;
+  line-height: 1;
+  opacity: 0;
+  color: var(--rider-color, #ffffff);
+  filter: drop-shadow(0 0 8px var(--rider-color, #ffffff));
+}
+
+#midnight-affix-rider-effect.midnight-affix-rider-play #midnight-affix-rider-mark {
+  animation: midnight-affix-rider-burst 0.65s ease-out forwards;
+}
+
+@keyframes midnight-affix-rider-burst {
+  0% {
+    opacity: 0;
+    transform: scale(0.35) rotate(-20deg);
+  }
+  35% {
+    opacity: 1;
+    transform: scale(1.25) rotate(5deg);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.6) rotate(10deg);
+  }
+}
+
+@keyframes midnight-affix-rider-ring {
+  0% {
+    opacity: 0.9;
+    transform: scale(0.4);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(3.2);
+  }
+}
+
 /* 強敵籌碼的靠近提示圖片（2026-09-06使用者明確要求「碰觸地圖上的強敵等等敵人時顯示的
    敵人資訊圖片放小1/4倍」）：原本跟#midnight-field-encounter-image共用420px規則，改成
    單獨縮小成105px（420÷4）。進入戰鬥後（已是participant）改由static/midnight.jsの

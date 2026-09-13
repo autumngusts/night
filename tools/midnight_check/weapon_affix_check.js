@@ -261,25 +261,137 @@ async function enableEmulatorFlag(page) {
     }
 
     // ------------------------------------------------------------------
-    // ⑦ 第2批尚未接入的詞條：會被抽到、會顯示，但數值不生效
+    // ⑦ 全部詞條都已接入（2026-09-13第2批交付後，phase 2應為0）
     // ------------------------------------------------------------------
-    console.log("=== ⑦ 第2批詞條標注 ===");
-    const pending = await page.evaluate(() => {
-      const M = window.PriTestMidnight;
+    console.log("=== ⑦ 接入狀態 ===");
+    const phases = await page.evaluate(() => {
       const A = window.PriTestWeaponAffixes;
-      const ph2 = A.list().filter((a) => a.phase === 2);
-      const withValue = ph2.filter((a) => a.range)[0];
-      if (!withValue) return { skipped: true, count: ph2.length };
-      const before = M._debugAffixTotal(withValue.id);
-      M._debugSetWeaponAffixes("greatsword_pursuer::probe4", [{ id: withValue.id, value: 99 }], { equip: false });
-      const after = M._debugAffixTotal(withValue.id);
-      M._debugSetWeaponAffixes("greatsword_pursuer::probe4", null);
-      return { count: ph2.length, id: withValue.id, before, after };
+      return { total: A.list().length, pending: A.list().filter((a) => a.phase === 2).map((a) => a.id) };
     });
-    assert(pending.count > 0, "有被標成第2批的詞條", pending);
-    if (!pending.skipped) {
-      assert(pending.after === 0 && pending.before === 0, "第2批詞條的數值不會提前生效（affixTotal 一律 0）", pending);
-    }
+    assert(phases.pending.length === 0, "所有詞條的效果都已接入（沒有標成第2批的殘留）", phases.pending);
+
+    // ------------------------------------------------------------------
+    // ⑧ 第2批：蓄力攻擊的7種追擊
+    // ------------------------------------------------------------------
+    console.log("=== ⑧ 蓄力追擊 ===");
+    const riders = await page.evaluate(() => {
+      const M = window.PriTestMidnight;
+      const CD = window.PriTestCharacterDrawer;
+      const D = M._debugState();
+      const c = D.characters[D.myTokenId];
+      // 幻影＝蓄力攻擊傷害+5%（乘在既有的蓄力攻擊傷害上）
+      M._debugSetWeaponAffixes("greatsword_pursuer::probeR1", [{ id: "chargePhantom", value: 5 }], { equip: false });
+      const chargeMult = M._debugAffixOutgoingMult({ charge: true });
+      const plainMult = M._debugAffixOutgoingMult({});
+      M._debugSetWeaponAffixes("greatsword_pursuer::probeR1", null);
+      // 傷害型追擊＝該項威力補正的實際值（跟角色視窗顯示的六項同一個來源）
+      const intel = M._debugAffixRiderDamage("intelligence");
+      const faith = M._debugAffixRiderDamage("faith");
+      const arcane = M._debugAffixRiderDamage("arcane");
+      return {
+        chargeMult,
+        plainMult,
+        intel,
+        faith,
+        arcane,
+        expectIntel: Math.max(0, CD.statPowerModValue(c, "intelligence")),
+        expectFaith: Math.max(0, CD.statPowerModValue(c, "faith")),
+      };
+    });
+    assert(
+      Math.abs(riders.chargeMult - (riders.plainMult + 0.05)) < 1e-9,
+      "幻影：蓄力攻擊傷害+5%，一般攻擊不受影響",
+      riders
+    );
+    assert(riders.intel === riders.expectIntel && riders.faith === riders.expectFaith, "威力補正型追擊的傷害＝該項威力補正實際值", riders);
+
+    const riderFx = await page.evaluate(() => {
+      const M = window.PriTestMidnight;
+      const fx = document.getElementById("midnight-affix-rider-effect");
+      const mark = document.getElementById("midnight-affix-rider-mark");
+      M._debugSetActiveEncounterForFx(false);
+      M._debugTriggerAffixRider("chargeBlackFlame");
+      const withoutEncounter = fx.hidden;
+      M._debugSetActiveEncounterForFx(true);
+      M._debugTriggerAffixRider("chargeBlackFlame");
+      const black = { hidden: fx.hidden, color: fx.style.getPropertyValue("--rider-color"), mark: mark.textContent };
+      M._debugTriggerAffixRider("chargeIceStorm");
+      const ice = { color: fx.style.getPropertyValue("--rider-color"), mark: mark.textContent };
+      const anim = getComputedStyle(mark).animationName;
+      M._debugSetActiveEncounterForFx(false);
+      return { withoutEncounter, black, ice, anim };
+    });
+    assert(riderFx.withoutEncounter, "不在戰鬥中時不放追擊特效（同刀光的守衛）", riderFx);
+    assert(!riderFx.black.hidden, "戰鬥中會放追擊特效", riderFx.black);
+    assert(riderFx.anim === "midnight-affix-rider-burst", "追擊特效的動畫確實生效", riderFx);
+    assert(riderFx.black.mark !== riderFx.ice.mark && riderFx.black.color !== riderFx.ice.color, "不同追擊用不同符號與顏色", riderFx);
+
+    // ------------------------------------------------------------------
+    // ⑨ 第2批：架盾3秒觸發的聖域展開
+    // ------------------------------------------------------------------
+    console.log("=== ⑨ 聖域展開 ===");
+    const holy = await page.evaluate(async () => {
+      const M = window.PriTestMidnight;
+      M._debugResetAffixGuardHoldCooldowns();
+      M._debugSetWeaponAffixes("greatsword_pursuer::probeR2", [{ id: "holyGroundOnGuard", value: null }], { equip: false });
+      // 只架了1秒：還不該觸發
+      M._debugRunAffixGuardHold(1000);
+      await new Promise((r) => setTimeout(r, 400));
+      const early = { until: M._debugState().meta.affixHolyGroundUntil || 0, bonus: M._debugAffixHolyGroundGuardBonus() };
+      // 架滿3秒：觸發
+      M._debugRunAffixGuardHold(3200);
+      await new Promise((r) => setTimeout(r, 800));
+      const fired = { until: M._debugState().meta.affixHolyGroundUntil || 0, bonus: M._debugAffixHolyGroundGuardBonus() };
+      const guardBonus = M._debugAffixGuardValueBonus();
+      M._debugSetWeaponAffixes("greatsword_pursuer::probeR2", null);
+      return { early, fired, guardBonus };
+    });
+    assert(holy.early.until === 0, "架盾未滿3秒不會展開聖域", holy.early);
+    assert(holy.fired.until > Date.now(), "架盾滿3秒後展開聖域，時限寫進 meta（全隊共享）", holy.fired);
+    assert(holy.fired.bonus === 10, "聖域期間 HP 價值 +10", holy.fired);
+    assert(holy.guardBonus >= 10, "該加成確實併進 affixGuardValueBonus()", holy.guardBonus);
+
+    // ------------------------------------------------------------------
+    // ⑩ 第2批：発見力上昇、魔術／祈禱效果時間延長
+    // ------------------------------------------------------------------
+    console.log("=== ⑩ 発見力／持續時間 ===");
+    const misc = await page.evaluate(() => {
+      const M = window.PriTestMidnight;
+      const base = { disc: M._debugAffixDiscoveryBonus(), prayer: M._debugAffixSpellBuffExtraMs(true), sorcery: M._debugAffixSpellBuffExtraMs(false) };
+      M._debugSetWeaponAffixes(
+        "greatsword_pursuer::probeR3",
+        [
+          { id: "discoveryUp", value: 2 },
+          { id: "prayerDurationUp", value: 4 },
+        ],
+        { equip: false }
+      );
+      const withAffix = {
+        disc: M._debugAffixDiscoveryBonus(),
+        prayer: M._debugAffixSpellBuffExtraMs(true),
+        sorcery: M._debugAffixSpellBuffExtraMs(false),
+      };
+      M._debugSetWeaponAffixes("greatsword_pursuer::probeR3", null);
+      return { base, withAffix };
+    });
+    assert(misc.base.disc === 0 && misc.withAffix.disc === 2, "発見力上昇反映成抽選稀有度點數的加成", misc);
+    assert(misc.withAffix.prayer === 4000, "祈祷タメ強化：祈禱產生的持續效果延長4秒", misc);
+    assert(misc.withAffix.sorcery === 0, "祈祷タメ強化只作用於祈禱，不作用於魔術", misc);
+
+    // 稀有度加成確實會推高抽選結果（統計驗證，不硬編單次結果）
+    const rarityShift = await page.evaluate(() => {
+      const CD = window.PriTestCharacterDrawer;
+      const count = (bonus) => {
+        let above = 0;
+        for (let i = 0; i < 300; i++) {
+          const r = CD.merchantDrawWeapon({ weaponIds: [] }, 1, bonus);
+          if (r && r.rarity !== "C") above += 1;
+        }
+        return above;
+      };
+      return { none: count(0), plus2: count(2) };
+    });
+    assert(rarityShift.plus2 > rarityShift.none, "稀有度點數加成真的提高了抽到C以上的比例", rarityShift);
 
     assert(pageErrors.length === 0, "整段流程沒有任何 pageerror", pageErrors.slice(0, 3));
 

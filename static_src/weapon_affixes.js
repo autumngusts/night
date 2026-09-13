@@ -17,9 +17,10 @@
 // 擲定並存起來**，之後永遠是那個值（見midnight.jsのrollWeaponAffixes()）。range為null
 // 代表這條詞條沒有可變數值。
 //
-// phase：1＝第1批就接入實際效果；2＝需要新建機制或新特效，留給第2批（使用者明確同意
-// 分2批交付）。phase 2的詞條一樣會被抽到、一樣會顯示在UI上，只是效果尚未生效——UI會
-// 標注「效果尚未實作」，不會讓玩家誤以為已經生效。
+// phase：1＝效果已接入；2＝尚未接入（UI照樣顯示，但會標注「效果尚未實作」，且
+// midnight.jsのaffixTotal()／hasAffix()一律當成沒有這條，不會讓數值提前生效）。
+// 2026-09-13第2批交付後全部101條都已接入，目前沒有phase 2的詞條；這個欄位保留給
+// 日後新增詞條時的同一套「先上資料與UI、效果之後再接」流程。
 //
 // kind：給midnight.js的效果接入用的分類標籤。同一個kind的詞條共用同一個注入點，避免
 // 每一條詞條各自寫一套判斷（CLAUDE.md §42.10「優先重用現有helper、generic pipeline」）。
@@ -89,19 +90,19 @@
     A("guardCutUp", "ガード成功時、カット率上昇", "防禦成功時減傷上升", true, "onGuardSuccess", [7, 15], "flat", "防禦成功後，HP價值+{v}。", 1),
     A("guardStaminaUp", "ガード成功時、強靭度上昇", "防禦成功時強韌上升", true, "onGuardSuccess", [1, 3], "flat", "防禦成功時，體力回復{v}。", 1),
     A("poiseUp", "強靭度上昇", "強韌度上升", true, "guardValue", [5, 10], "flat", "HP價值+{v}。", 1),
-    A("holyGroundOnGuard", "盾を構えていると、聖域を展開", "持續防禦展開聖域", true, "special", null, null, "持續架起防禦3秒後展開聖域：戰鬥中全員10秒內HP回復20、HP價值+10，冷卻20秒。", 2),
-    A("walkCurseSpirit", "歩きで、呪霊を放つ", "行進中放出咒靈", true, "special", null, null, "架起防禦超過3秒時，產生咒靈特效攻擊敵人，造成神秘威力補正的傷害，冷卻10秒。", 2),
-    A("walkBurn", "歩きで、周囲を激しく焼く", "行進中灼燒周圍", true, "special", null, null, "架起防禦超過3秒時，產生燃燒特效攻擊敵人，造成智力威力補正的傷害，冷卻10秒。", 2),
-    A("walkRedLightning", "歩きで、赤い落雷を周囲に呼ぶ", "行進中召來赤雷", true, "special", null, null, "架起防禦超過3秒時，產生落雷特效攻擊敵人，造成智力威力補正的傷害，冷卻10秒。", 2),
+    A("holyGroundOnGuard", "盾を構えていると、聖域を展開", "持續防禦展開聖域", true, "special", null, null, "持續架起防禦3秒後展開聖域：戰鬥中全員10秒內HP回復20、HP價值+10，冷卻20秒。", 1),
+    A("walkCurseSpirit", "歩きで、呪霊を放つ", "行進中放出咒靈", true, "special", null, null, "架起防禦超過3秒時，產生咒靈特效攻擊敵人，造成神秘威力補正的傷害，冷卻10秒。", 1),
+    A("walkBurn", "歩きで、周囲を激しく焼く", "行進中灼燒周圍", true, "special", null, null, "架起防禦超過3秒時，產生燃燒特效攻擊敵人，造成智力威力補正的傷害，冷卻10秒。", 1),
+    A("walkRedLightning", "歩きで、赤い落雷を周囲に呼ぶ", "行進中召來赤雷", true, "special", null, null, "架起防禦超過3秒時，產生落雷特效攻擊敵人，造成智力威力補正的傷害，冷卻10秒。", 1),
 
     // ---- 蓄力攻擊（タメ攻撃）系 ----
-    A("chargePhantom", "タメ攻撃で、幻影が攻撃", "蓄力攻擊召出幻影", true, "special", [5, 5], "pct", "蓄力攻擊時追加幻影攻擊特效，傷害+{v}%。", 2),
-    A("chargeBlackFlame", "タメ攻撃で、黒炎を撒く", "蓄力攻擊散布黑炎", true, "special", null, null, "蓄力攻擊時追加黑炎特效，造成智力威力補正的傷害。", 2),
-    A("chargeSleepMist", "タメ攻撃で、睡眠の霧を発生", "蓄力攻擊產生睡眠霧", true, "special", [1, 1], "flat", "蓄力攻擊時追加睡眠之霧特效，睡眠蓄積+{v}。", 2),
-    A("chargeHolyWave", "タメ攻撃で、聖衝撃波を発生", "蓄力攻擊產生聖衝擊波", true, "special", null, null, "蓄力攻擊時追加聖衝擊波特效，造成信仰威力補正的傷害。", 2),
-    A("chargeIceStorm", "タメ攻撃で、氷嵐を発生", "蓄力攻擊產生冰嵐", true, "special", null, null, "蓄力攻擊時追加冰嵐特效，造成神秘威力補正的傷害。", 2),
-    A("chargeMagicBolt", "タメ攻撃で、魔力弾が追撃", "蓄力攻擊追加魔力彈", true, "special", null, null, "蓄力攻擊時追加魔力彈特效，造成智力威力補正的傷害。", 2),
-    A("chargeLava", "タメ攻撃で、溶岩が発生", "蓄力攻擊產生熔岩", true, "special", null, null, "蓄力攻擊時追加熔岩特效，造成智力威力補正的傷害。", 2),
+    A("chargePhantom", "タメ攻撃で、幻影が攻撃", "蓄力攻擊召出幻影", true, "special", [5, 5], "pct", "蓄力攻擊時追加幻影攻擊特效，傷害+{v}%。", 1),
+    A("chargeBlackFlame", "タメ攻撃で、黒炎を撒く", "蓄力攻擊散布黑炎", true, "special", null, null, "蓄力攻擊時追加黑炎特效，造成智力威力補正的傷害。", 1),
+    A("chargeSleepMist", "タメ攻撃で、睡眠の霧を発生", "蓄力攻擊產生睡眠霧", true, "special", [1, 1], "flat", "蓄力攻擊時追加睡眠之霧特效，睡眠蓄積+{v}。", 1),
+    A("chargeHolyWave", "タメ攻撃で、聖衝撃波を発生", "蓄力攻擊產生聖衝擊波", true, "special", null, null, "蓄力攻擊時追加聖衝擊波特效，造成信仰威力補正的傷害。", 1),
+    A("chargeIceStorm", "タメ攻撃で、氷嵐を発生", "蓄力攻擊產生冰嵐", true, "special", null, null, "蓄力攻擊時追加冰嵐特效，造成神秘威力補正的傷害。", 1),
+    A("chargeMagicBolt", "タメ攻撃で、魔力弾が追撃", "蓄力攻擊追加魔力彈", true, "special", null, null, "蓄力攻擊時追加魔力彈特效，造成智力威力補正的傷害。", 1),
+    A("chargeLava", "タメ攻撃で、溶岩が発生", "蓄力攻擊產生熔岩", true, "special", null, null, "蓄力攻擊時追加熔岩特效，造成智力威力補正的傷害。", 1),
     A("chargeAtkUp", "タメ攻撃強化", "蓄力攻擊強化", true, "atkPct", [6, 12], "pct", "蓄力攻擊造成的傷害+{v}%。", 1),
     A("chargeGuardUp", "タメ攻撃時、カット率上昇", "蓄力攻擊時減傷上升", true, "guardValue", [20, 40], "flat", "蓄力攻擊過程中，HP價值+{v}。", 1),
     A("chargeHolyAccum", "タメ攻撃時、聖攻撃が発生", "蓄力攻擊附加聖屬性", true, "onCharge", [50, 50], "prob", "蓄力攻擊時，{v}%機率對敵人追加聖蓄積+1。", 1),
@@ -153,11 +154,11 @@
     // ---- 魔術／祈禱 ----
     A("castSpeedUp", "魔術/祈祷、詠唱速度上昇1", "魔術／祈禱詠唱速度上升", true, "castSpeed", [10, 10], "pct", "魔術／祈禱的詠唱時間-{v}%。", 1),
     A("castFpDown", "魔術/祈祷、消費FP軽減", "魔術／祈禱消耗FP減輕", true, "castFpCost", [10, 20], "pct", "魔術／祈禱消耗的FP-{v}%。", 1),
-    A("castDurationUp", "魔術/祈祷の効果時間延長", "魔術／祈禱效果時間延長", true, "buffDuration", [5, 5], "sec", "魔術／祈禱產生的持續效果延長{v}秒。", 2),
+    A("castDurationUp", "魔術/祈祷の効果時間延長", "魔術／祈禱效果時間延長", true, "buffDuration", [5, 5], "sec", "魔術／祈禱產生的持續效果延長{v}秒。", 1),
     A("spellUp", "魔術/祈祷強化", "魔術／祈禱強化", true, "atkPct", [10, 10], "pct", "魔術與祈禱造成的傷害+{v}%。", 1),
     A("sorceryUp", "魔術強化", "魔術強化", true, "atkPct", [5, 11], "pct", "魔術造成的傷害+{v}%。", 1),
     A("prayerUp", "祈祷強化", "祈禱強化", true, "atkPct", [5, 12], "pct", "祈禱造成的傷害+{v}%。", 1),
-    A("prayerDurationUp", "祈祷タメ強化", "祈禱蓄力強化", true, "buffDuration", [2, 5], "sec", "祈禱產生的持續效果延長{v}秒。", 2),
+    A("prayerDurationUp", "祈祷タメ強化", "祈禱蓄力強化", true, "buffDuration", [2, 5], "sec", "祈禱產生的持續效果延長{v}秒。", 1),
     A("castingGuardUp", "魔法詠唱中、カット率上昇", "詠唱中減傷上升", true, "damageTaken", [12, 24], "pct", "魔術／祈禱詠唱中，自身受到的傷害-{v}%。", 1),
     A("fpRecoverOnEmptyCast", "FP不足による魔術/祈祷でFP回復", "FP不足詠唱回復FP", true, "castNoFp", [10, 10], "flat", "FP不足時仍可施放魔術／祈禱：不產生效果，但回復FP{v}點。", 1),
 
@@ -189,7 +190,7 @@
 
     // ---- 其他 ----
     A("lowAggro", "敵から狙われ難くなる", "不易被敵人鎖定", true, "aggro", [15, 15], "pct", "自身計入敵人仇恨值的傷害總和-{v}%。", 1),
-    A("discoveryUp", "発見力上昇", "發現力上升", true, "discovery", [1, 2], "flat", "抽選時的稀有度點數+{v}。", 2),
+    A("discoveryUp", "発見力上昇", "發現力上升", true, "discovery", [1, 2], "flat", "抽選時的稀有度點數+{v}。", 1),
     A("nightDamageTakenUp", "夜が深まるほど被ダメージ増加", "夜越深受傷越重", false, "damageTaken", null, null, "第一次縮圈後自身受到的傷害+5%，第二次縮圈後+10%。", 1),
     A("nightRainDamageUp", "夜の雨の被ダメージ増加", "夜雨傷害增加", false, "nightRain", [2, 2], "flat", "自身受到的夜雨傷害+{v}。", 1),
   ];
