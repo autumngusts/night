@@ -1653,6 +1653,7 @@ STRINGS_ZH: dict[str, str] = {
     "midnight_affix_none_note": "這把武器沒有詞條。",
     "midnight_tower_paused_note": "遊戲暫停中，無法作答。繼續遊戲後才能再次猜測。",
     "midnight_reward_kind_weapon_category": "武器（{category}）",
+    "midnight_ability_locked_note": "等級{level}才能習得。",
     "midnight_lobby_difficulty_label": "難度",
     "midnight_difficulty_standard": "標準模式",
     "midnight_difficulty_unlimited": "阿罵模式",

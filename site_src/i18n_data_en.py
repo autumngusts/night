@@ -1649,6 +1649,7 @@ STRINGS_EN: dict[str, str] = {
     "midnight_affix_none_note": "This weapon has no affixes.",
     "midnight_tower_paused_note": "Game is paused - you can't answer until it resumes.",
     "midnight_reward_kind_weapon_category": "Weapon ({category})",
+    "midnight_ability_locked_note": "Learned at level {level}.",
     "midnight_lobby_difficulty_label": "Difficulty",
     "midnight_difficulty_standard": "Standard Mode",
     "midnight_difficulty_unlimited": "Unlimited Mode",

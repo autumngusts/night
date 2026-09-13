@@ -94,6 +94,17 @@ async function getState(page) {
     });
     assert(typeCheck.skillUses === undefined, "確認隱者skill[0]沒有uses欄位（本次要修正的既有缺陷前提）", results);
 
+    // fix(2026-09-13)：2026-09-13使用者明確規格「lv2才學到腳色招式、lv3才學到腳色技藝」
+    // ——Lv1 時技能/技藝按鈕會被藏起來、handler 也會擋下，以下所有技能/技藝檢查都會變成
+    // 「扣血 0」的假失敗。這裡把等級墊到剛好解鎖兩者的 Lv3（這些檢查要驗的是招式數值與
+    // 變體切換，跟等級本身無關）。下方「檢查5：升級」那一段另外自己把等級設回 1，
+    // 因此不能改上面共用的 setCharacterFields()。
+    await page.evaluate((ids) => window.PriTestGameStorage.rtSet(ids.gameId, "cloud", "character/" + ids.tokenId + "/level", 3), {
+      gameId: gameId,
+      tokenId: tokenId,
+    });
+    await page.waitForTimeout(500);
+
     console.log("=== 檢查1：角色技能（混成魔法）使用不再卡在「無剩餘次數」，傷害=fixedSkillPowerValue ===");
     // 先把共用標靶血量墊高（比照weapon_combat_check.js的既有寫法），避免傷害超過目前血量
     // 時被floor在0，導致單純的「before-after」減法斷言失真。
@@ -152,6 +163,15 @@ async function getState(page) {
     );
 
     console.log("=== 檢查2：角色面板等級提升（盧恩費用＝目前等級+1） ===");
+    // 檢查1把等級墊到 Lv3 解鎖技能/技藝（見該處說明），這一段要驗的是「從 Lv1 連升3級的
+    // 費用」，因此先設回 Lv1 與滿額盧恩，不受上面那次墊高影響。
+    await page.evaluate((ids) => {
+      const GS = window.PriTestGameStorage;
+      return GS.rtSet(ids.gameId, "cloud", "character/" + ids.tokenId + "/level", 1).then(() =>
+        GS.rtSet(ids.gameId, "cloud", "character/" + ids.tokenId + "/runes", 100)
+      );
+    }, { gameId: gameId, tokenId: tokenId });
+    await page.waitForTimeout(500);
     // 2026-09-06使用者明確要求「只有使用祝福後才能提升等級，不再在自己的角色卡中隨時升級」
     // ＝blessingLevelUpAvailableがfalseの間は「+」ボタンがdisabledのまま（title＝
     // midnight_level_up_needs_blessing_note）。この検査は2026-09-05時点の仕様で書かれており、

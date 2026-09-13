@@ -3692,7 +3692,11 @@
         // 2026-09-13武器詞條「敵から狙われ難くなる」：使用者明確規格「自己的攻擊算入敵人
         // 仇恨值的總和-15%」——只影響記進damageBySlot的量，實際造成的傷害不變。
         var aggroCut = affixTotal(characters[myTokenId], "lowAggro");
-        var aggroAmount = aggroCut ? Math.round(amount * Math.max(0, 1 - aggroCut / 100)) : amount;
+        // 2026-09-13：先套用「敵視：+1」類條文的加速倍率（×1.1／個來源），再套用詞條的
+        // 減量。兩者是不同方向的來源，各自獨立相乘。
+        var aggroAmount = Math.round(
+          amount * aggroAccumMultiplier(characters[myTokenId]) * Math.max(0, 1 - aggroCut / 100)
+        );
         GameStorage.rtTransaction(gameId, "cloud", "fieldTrigger/" + pointId + "/damageBySlot/" + mySlot, function (cur) {
           return (cur || 0) + aggroAmount;
         });
@@ -5628,6 +5632,39 @@
     return out;
   }
 
+  // ---- 等級相關的規格（2026-09-13使用者明確規格）----
+  // 升級的三選一輪替（character_drawer.jsのapplyLevelUpResourceBonus()）是
+  // Lv2/5/8/11/14→hp.max+1、Lv3/6/9/12/15→fp.max+1、Lv4/7/10/13→blessingSlots.max+1。
+  // 其中blessingSlots在midnight完全沒有用途（midnight的祝福走meta的流浪祝福格，不是角色的
+  // 加護格），等於那4次升級是空的。使用者明確指示「4, 7, 10, 13 改為升級體力 +5(終值)」：
+  // 這裡不動共用的applyLevelUpResourceBonus()（night.js回合制那邊blessingSlots是有用的，
+  // 改掉會破壞它），改成在midnight自己依等級算出體力加成，疊進updateStamina()的maxBonus。
+  // 「終值」＝直接就是midnight刻度的+5（不像hp.max/fp.max那樣要再×10）。
+  var LEVEL_STAMINA_BONUS_PER_STEP = 5;
+
+  function levelStaminaBonus(c) {
+    var level = (c && c.level) || 1;
+    var steps = 0;
+    for (var lv = 2; lv <= level; lv++) {
+      if ((lv - 2) % 3 === 2) steps += 1; // Lv4/7/10/13…（原本配給blessingSlots的那一格）
+    }
+    return steps * LEVEL_STAMINA_BONUS_PER_STEP;
+  }
+
+  // 角色專屬〔技能〕〔技藝〕的習得等級（2026-09-13使用者明確規格「lv2才學到腳色招式、
+  // lv3才學到腳色技藝」）。未達等級時按鈕不顯示、handler也擋下，角色視窗的清單則標注
+  // 還差幾級才學得到。
+  var CHARACTER_SKILL_UNLOCK_LEVEL = 2;
+  var CHARACTER_ART_UNLOCK_LEVEL = 3;
+
+  function abilityUnlockLevel(kind) {
+    return kind === "art" ? CHARACTER_ART_UNLOCK_LEVEL : CHARACTER_SKILL_UNLOCK_LEVEL;
+  }
+
+  function abilityUnlocked(c, kind) {
+    return ((c && c.level) || 1) >= abilityUnlockLevel(kind);
+  }
+
   function characterAbilityEntry(kind) {
     var c = characters[myTokenId];
     var type = c && c.typeId ? window.PriTestCharacterTypes.get(c.typeId) : null;
@@ -5709,6 +5746,12 @@
     if (!mySlot || isPaused() || isSelfDowned() || isIceBlizzardBlinded(Date.now())) return;
     var found = characterAbilityEntry(kind);
     if (!found.c || !found.ability) return;
+    // 2026-09-13使用者明確規格的習得等級（技能Lv2／技藝Lv3）：按鈕本身已經藏起來，
+    // 這裡再擋一次，避免鍵盤快捷或其他入口繞過（比照isSelfDowned()等既有守衛的做法）。
+    if (!abilityUnlocked(found.c, kind)) {
+      showToast(window.I18N.t("midnight_ability_locked_note", { level: abilityUnlockLevel(kind) }));
+      return;
+    }
     if (!midnightAbilityPrecondition(found.ability.id, found.c)) return;
     // 2026-09-06數值真正接入：技藝/技能不再用「使用次數」（_artUsesRemaining/
     // _skillUsesRemaining）限制，改用使用者明確規格的時間冷卻——技藝180秒
@@ -5973,8 +6016,9 @@
     var actable = canActNow(); // 瀕死中角色專屬技藝/技能/特殊防禦一律鎖住，見canActNow()
     var found = characterAbilityEntry("art");
     var artBtn = el("btn-midnight-art");
-    artBtn.hidden = !found.ability;
-    if (found.ability) {
+    // 2026-09-13使用者明確規格「lv3才學到腳色技藝」：未達等級視同還沒習得，按鈕不顯示。
+    artBtn.hidden = !found.ability || !abilityUnlocked(found.c, "art");
+    if (found.ability && !artBtn.hidden) {
       var artName = window.PriTestCharacterTypes.localizedText(found.ability.name);
       var artCooldownUntil = (found.c && found.c._artCooldownUntil) || 0;
       // 文字固定只有招式名稱（不再附加「(12s)」造成按鈕寬度變動），冷卻改用圓形計時盤。
@@ -5988,7 +6032,8 @@
     // 這幾個"Action／Defense"雙模式技能不同），2026-09-08改走特殊防禦按鈕流程（見
     // yotoAbilityFor()／availableSpecialDefenseOption()），這裡的一般技能按鈕不再顯示，
     // 避免玩家誤按（原本會扣60秒冷卻卻什麼都沒發生，因為body文字算不出傷害數值）。
-    skillBtn.hidden = !foundSkill.ability || foundSkill.ability.kind === "Defense";
+    // 2026-09-13使用者明確規格「lv2才學到腳色招式」：未達等級視同還沒習得，按鈕不顯示。
+    skillBtn.hidden = !foundSkill.ability || foundSkill.ability.kind === "Defense" || !abilityUnlocked(foundSkill.c, "skill");
     if (foundSkill.ability && !skillBtn.hidden) {
       var skillName = window.PriTestCharacterTypes.localizedText(foundSkill.ability.name);
       var skillCooldownUntil = (foundSkill.c && foundSkill.c._skillCooldownUntil) || 0;
@@ -7381,6 +7426,8 @@
     // 2026-09-13武器詞條：最大スタミナ上昇／低下／守護者の無念，跟上面那批護符/遺物加成
     // 疊在同一個maxBonus上；スタミナ回復速度上昇則疊在extraRegenPerSec。
     maxBonus += affixTotal(c, "maxStaminaUp") + affixTotal(c, "guardianRegret") - affixTotal(c, "maxStaminaDown");
+    // 2026-09-13使用者明確規格：Lv4/7/10/13的升級改為體力+5（見levelStaminaBonus()）。
+    maxBonus += levelStaminaBonus(c);
     extraRegenPerSec += affixTotal(c, "staminaRegenUp");
     stamina.max = Math.max(10, STAMINA_MAX + maxBonus);
     if (hasRelic(c, "staminaLowRegen") && stamina.current <= stamina.max * RELIC_STAMINA_LOW_PCT) {
@@ -7527,7 +7574,8 @@
   }
 
   // 敵視目標：目前對這隻敵人造成最多累積傷害的參與者。沒有人造成過傷害（damageBySlot
-  // 是空的）時回傳null，代表這次還不能用「敵視」這個機率層（見maybeStartEnemyAttack）。
+  // 是空的）時回傳null。2026-09-13起這支只剩「誰是最高者」的用途（供下方比例制加權用），
+  // 不再直接當成攻擊目標——見pickAggroWeightedSlot()。
   function aggroHolderSlot(trig) {
     var damageBySlot = (trig && trig.damageBySlot) || {};
     var best = null;
@@ -7539,6 +7587,51 @@
       }
     });
     return best;
+  }
+
+  // 比例制的敵視目標選擇（2026-09-13使用者明確規格「仇恨也不為最高的直接指定，而是採
+  // 比例制：造成的傷害依比例換算，給予機率去決定誰為目標，但最高者享有2倍的倍率計算之」）。
+  //   權重 = 該席位的累積傷害；累積傷害最高的那一位權重再×2
+  //   全部都是0（還沒有人打過）→ 退回等機率隨機，否則整場第一擊會選不出目標
+  // 已知後果（依使用者規格的字面實作，不自行加保底權重）：完全沒有造成過傷害的人權重為0，
+  // 在有人打過的情況下不會被單體攻擊選中。
+  var AGGRO_TOP_WEIGHT_MULT = 2;
+
+  function pickAggroWeightedSlot(trig, slots) {
+    if (!slots || !slots.length) return null;
+    var damageBySlot = (trig && trig.damageBySlot) || {};
+    var topSlot = aggroHolderSlot(trig);
+    var weights = slots.map(function (slot) {
+      var w = damageBySlot[slot] || 0;
+      return String(slot) === String(topSlot) ? w * AGGRO_TOP_WEIGHT_MULT : w;
+    });
+    var total = weights.reduce(function (a, b) {
+      return a + b;
+    }, 0);
+    if (total <= 0) return slots[Math.floor(Math.random() * slots.length)];
+    var roll = Math.random() * total;
+    for (var i = 0; i < slots.length; i++) {
+      roll -= weights[i];
+      if (roll < 0) return slots[i];
+    }
+    return slots[slots.length - 1];
+  }
+
+  // 「敵視：+1」類條文的累積倍率（2026-09-13使用者明確規格「『敵視：+1』這類條文，
+  // 累積速度為自己傷害數值×1.1倍計算到累積傷害中」）：每一個生效中的「敵視：+1」來源
+  // 各+0.1倍。midnight目前有兩個來源——
+  //   ・遺物效果「容易被盯上（狙われやすい）」本文就是「將自身『敵視：+1』。」（可重複習得，
+  //     因此用countRelic()數幾次）
+  //   ・守護者「高防禦」發動中：規則書原文是「追加『敵視：+1』與『高防禦狀態』」，
+  //     midnight用c._highGuardActive追蹤發動狀態
+  // 「敵視：-2」（淑女黎明「致命一擊後，消失身影」）已經有更強的既有處理——那一擊完全不
+  // 計入敵視（suppressAggroOnce，2026-09-12使用者明確規格），這裡不重複處理。
+  var AGGRO_PLUS_ONE_MULT_STEP = 0.1;
+
+  function aggroAccumMultiplier(c) {
+    if (!c) return 1;
+    var sources = countRelic(c, "easilyTargeted") + (c._highGuardActive ? 1 : 0);
+    return 1 + sources * AGGRO_PLUS_ONE_MULT_STEP;
   }
 
   // 敵人存活期間，沒有攻擊進行中也還沒排下一次攻擊時，排一個demo佔位的隨機等待時間
@@ -7671,11 +7764,21 @@
     } else if (row.individualDamage && row.individualDamage.length) {
       var entry = row.individualDamage[0];
       var idmg = AutoGm.computeIndividualDamage(entry, {}, 0);
-      var idxs = AutoGm.resolveTargets(entry.targetRule || row.targetRule, battleState, slots.length);
-      var pickIdx = idxs.length ? idxs[Math.floor(Math.random() * idxs.length)] : Math.floor(Math.random() * slots.length);
+      var rule = entry.targetRule || row.targetRule;
+      var idxs = AutoGm.resolveTargets(rule, battleState, slots.length);
+      var candidateSlots = (idxs.length ? idxs : slots.map(function (_, i) { return i; })).map(function (i) { return slots[i]; });
+      // 2026-09-13使用者明確規格「亂戰傷害基本不看仇恨；如果帶有會看敵視的才看仇恨，
+      // 仇恨也不為最高的直接指定，而是採比例制」：
+      //   ・這一招的targetRule本身有提到敵視（auto_gm.jsのaggroAtLeast1／aggroMax／
+      //     frontAggroMaxAll等）→ 在候選人裡依累積傷害加權隨機（最高者×2）
+      //   ・沒有提到敵視 → 維持等機率隨機，完全不看仇恨
+      var aggroAware = !!(rule && rule.kind && /aggro/i.test(rule.kind));
+      var pickedSlot = aggroAware
+        ? pickAggroWeightedSlot(trig, candidateSlots)
+        : candidateSlots[Math.floor(Math.random() * candidateSlots.length)];
       kind = "single";
       amount = idmg ? idmg.total : entry.amount || 0;
-      targetSlots = [slots[pickIdx]];
+      targetSlots = [pickedSlot];
     }
     if (!kind || !targetSlots.length) return null;
     return {
@@ -7788,11 +7891,10 @@
           targetSlots.push(pool.splice(Math.floor(Math.random() * pool.length), 1)[0]);
         }
       } else {
-        // 敵視持有者若剛好瀕死（已經不在篩選過的slots名單內），不能再被指定，退回隨機選一個
-        // 還能被打的參與者（見targetableParticipantSlots()說明）。
-        var aggroSlot = aggroHolderSlot(cur);
-        if (aggroSlot && slots.indexOf(aggroSlot) === -1) aggroSlot = null;
-        targetSlots = [aggroSlot || slots[Math.floor(Math.random() * slots.length)]];
+        // 2026-09-13使用者明確規格：個別傷害改為比例制——依各人累積傷害加權隨機，最高者
+        // 權重×2（見pickAggroWeightedSlot()）。slots已經排除瀕死中的玩家，因此不需要
+        // 再額外處理「敵視持有者剛好瀕死」的情況。
+        targetSlots = [pickAggroWeightedSlot(cur, slots)];
       }
       out.enemyAttack = {
         attackId: pt.id + ":" + Date.now(),
@@ -14478,6 +14580,15 @@
     container.innerHTML = "";
     var baseAbility = type ? (kind === "art" ? (type.arts || [])[0] : (type.skills || [])[0]) : null;
     if (!baseAbility) return;
+    // 2026-09-13使用者明確規格的習得等級（技能Lv2／技藝Lv3）：未達等級時清單只顯示
+    // 「Lv.N才能習得」，不列出招式本身——「還沒學到」在畫面上要看得出來，而不是按了沒反應。
+    if (!abilityUnlocked(c, kind)) {
+      var lockedEl = document.createElement("p");
+      lockedEl.className = "warning-text";
+      lockedEl.textContent = window.I18N.t("midnight_ability_locked_note", { level: abilityUnlockLevel(kind) });
+      container.appendChild(lockedEl);
+      return;
+    }
     var variants = learnedVariantEntries(c, type)[kind];
     var options = [baseAbility].concat(variants);
     var selectedField = kind === "art" ? "_selectedArtVariantIndex" : "_selectedSkillVariantIndex";
@@ -18375,6 +18486,40 @@
     },
     _debugNormalizeRandomEventBranchName: function (name) {
       return normalizeRandomEventBranchName(name);
+    },
+    // ---- 2026-09-13 升級規格／敵視比例制 測試入口 ----
+    _debugLevelStaminaBonus: function (level) {
+      return levelStaminaBonus({ level: level });
+    },
+    _debugAbilityUnlock: function (kind) {
+      return { level: abilityUnlockLevel(kind), unlocked: abilityUnlocked(characters[myTokenId], kind) };
+    },
+    _debugSetLevel: function (level) {
+      var c = characters[myTokenId];
+      if (!c) return null;
+      c.level = level;
+      renderCharacterActionButtons();
+      return c.level;
+    },
+    _debugAbilityButtonsHidden: function () {
+      return {
+        art: el("btn-midnight-art").hidden,
+        skill: el("btn-midnight-character-skill").hidden,
+      };
+    },
+    _debugAggroAccumMultiplier: function () {
+      return aggroAccumMultiplier(characters[myTokenId]);
+    },
+    _debugSetHighGuardActive: function (on) {
+      var c = characters[myTokenId];
+      if (c) c._highGuardActive = !!on;
+      return c ? !!c._highGuardActive : null;
+    },
+    _debugPickAggroWeightedSlot: function (damageBySlot, slots) {
+      return pickAggroWeightedSlot({ damageBySlot: damageBySlot }, slots);
+    },
+    _debugStaminaMaxNow: function () {
+      return stamina.max;
     },
     _debugTowerInviteBar: function () {
       var row = el("midnight-tower-invite-bar-row");

@@ -34,7 +34,8 @@
     "test:weapon_affix": "node weapon_affix_check.js",
     "test:fallback_and_wait": "node fallback_and_wait_check.js",
     "test:tower_sync": "node tower_sync_check.js",
-    "test:random_event_coverage": "node random_event_coverage_check.js"
+    "test:random_event_coverage": "node random_event_coverage_check.js",
+    "test:level_and_aggro": "node level_and_aggro_check.js"
   },
   "devDependencies": {
     "firebase-tools": "^15.29.0",
