@@ -1647,6 +1647,8 @@ STRINGS_JA: dict[str, str] = {
     "midnight_affix_slot_badge_title": "詞条 {count} 個",
     "midnight_affix_pending_note": "（効果は未実装、第2バッチ予定）",
     "midnight_affix_none_note": "この武器に詞条はありません。",
+    "midnight_tower_paused_note": "ゲーム一時停止中は解答できません。再開後にもう一度どうぞ。",
+    "midnight_reward_kind_weapon_category": "武器（{category}）",
     "midnight_lobby_difficulty_label": "難易度",
     "midnight_difficulty_standard": "標準モード",
     "midnight_difficulty_unlimited": "無制限モード",

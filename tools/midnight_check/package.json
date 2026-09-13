@@ -32,7 +32,8 @@
     "test:ui_polish_2026_09_12": "node ui_polish_2026_09_12_check.js",
     "test:ui_polish_2026_09_13": "node ui_polish_2026_09_13_check.js",
     "test:weapon_affix": "node weapon_affix_check.js",
-    "test:fallback_and_wait": "node fallback_and_wait_check.js"
+    "test:fallback_and_wait": "node fallback_and_wait_check.js",
+    "test:tower_sync": "node tower_sync_check.js"
   },
   "devDependencies": {
     "firebase-tools": "^15.29.0",

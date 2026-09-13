@@ -390,22 +390,50 @@
   // 遊戲中取得一把新武器時呼叫：房間沒開詞條、或這個weaponId已經有詞條（例如從地上撿回
   // 自己剛丟掉的那把）時都不動作，不會重抽覆蓋掉原本的詞條。
   // 回傳這次實際產生的詞條陣列（沒有產生時回傳null），呼叫端可用來決定要不要顯示提示。
-  function grantAffixesForNewWeapon(c, weaponId) {
-    if (!c || !weaponId || !weaponAffixesEnabled()) return null;
-    c.weaponAffixes = c.weaponAffixes || {};
-    if (c.weaponAffixes[weaponId]) return null;
+  // 只擲不存：獎勵清單按下［抽選］的當下就要把詞條擲出來顯示（2026-09-13使用者明確規格
+  // 「詞條模式下，獎勵清單中抽出武器杖與聖印就顯示其詞條了」），但那時武器還沒進角色
+  // 背包——跟既有的random戰技枠完全同一個時機與同一種處理（見computeRewardDraw()裡
+  // drawnSkillId的2026-09-12說明），因此把「擲」跟「寫進角色」拆成兩支。
+  // rarityHint（可省略）：抽選當下就已經決定好稀有度的路徑（潛在之力）直接傳進來，
+  // 不要回頭查catalog的基礎稀有度——那兩個值不一定一樣。
+  function rollAffixesForWeapon(c, weaponId, rarityHint) {
+    if (!weaponId || !weaponAffixesEnabled()) return null;
+    if (rarityHint) {
+      var rolledHinted = rollWeaponAffixes(rarityHint);
+      return rolledHinted.length ? rolledHinted : null;
+    }
     var CD = window.PriTestCharacterDrawer;
     // 稀有度用getEffectiveWeaponRarity()（含鍛造台強化後的實際稀有度），跟武器詳細欄
     // 顯示的稀有度同一個來源，不直接讀catalog的w.rarity。
-    var rarity = CD && CD.getEffectiveWeaponRarity ? CD.getEffectiveWeaponRarity(c, weaponId) : null;
+    var rarity = c && CD && CD.getEffectiveWeaponRarity ? CD.getEffectiveWeaponRarity(c, weaponId) : null;
     if (!rarity) {
       var w = Weapons.get(baseCatalogId(weaponId));
       rarity = (w && w.rarity) || "C";
     }
     var rolled = rollWeaponAffixes(rarity);
-    if (!rolled.length) return null;
+    return rolled.length ? rolled : null;
+  }
+
+  function grantAffixesForNewWeapon(c, weaponId) {
+    if (!c || !weaponId || !weaponAffixesEnabled()) return null;
+    c.weaponAffixes = c.weaponAffixes || {};
+    if (c.weaponAffixes[weaponId]) return null;
+    var rolled = rollAffixesForWeapon(c, weaponId);
+    if (!rolled) return null;
     c.weaponAffixes[weaponId] = rolled;
     return rolled;
+  }
+
+  // 獎勵清單／共享池在抽選當下就擲好的詞條，套用到真正入手的角色上。沒有先擲（例如關著
+  // 詞條模式、或舊資料）就退回現場擲一次，維持既有行為。
+  function applyDrawnAffixes(c, weaponId, drawnAffixes) {
+    if (!c || !weaponId) return;
+    if (!drawnAffixes) {
+      grantAffixesForNewWeapon(c, weaponId);
+      return;
+    }
+    c.weaponAffixes = c.weaponAffixes || {};
+    if (!c.weaponAffixes[weaponId]) c.weaponAffixes[weaponId] = drawnAffixes;
   }
 
   // 目前裝備欄（c.weaponIds，不是裝備在手上的那兩把）所有武器的詞條，攤平成一個陣列。
@@ -1611,6 +1639,10 @@
   var towerEnterAttempted = {}; // pointId -> true（本地節流，同fieldEnterAttempted）
   var towerInviteResolveAttempted = {}; // pointId -> true（本地節流，同fieldInviteResolveAttempted）
   var towerPuzzleStartedFor = {}; // pointId -> true（本地旗標：active後只自動開一次解謎modal）
+  // 2026-09-13：玩家自己按✕關掉解謎視窗（使用者明確規格「解謎中也可以先關閉離開此地」）。
+  // 只擋住「站在原地時一直重新彈出」，離開塔的範圍就會清掉（見updateNearbyTower()）。
+  var towerPuzzleDismissed = {};
+  var towerPuzzleEnsureAttempted = {}; // pointId -> true（本地節流：題目產生的transaction只送一次）
   // pointId -> { tokenId: timestamp, ... }（來自RTDB，見onBlessingClaimedReceived）。
   // 2026-09-06使用者明確要求「使用祝福後不會被打X、能再次使用」：這份資料只當作使用
   // 記錄留存（不再用來擋任何人重複領取），因此不影響isPointCleared()／
@@ -2106,7 +2138,25 @@
   }
 
   function onTowerSolvedReceived(value) {
+    var prev = towerSolved || {};
     towerSolved = value || {};
+    // 2026-09-13使用者明確規格「一人解得大家都解出」：原本解開的人只寫towerSolved，其餘
+    // 參與者的解謎視窗會一直開著、還能繼續作答（而且各自看到的是不同題目）。現在題目已經
+    // 同步（見ensureTowerPuzzle()），這裡再補上「別人解開時，我這邊也一起收尾」——關掉
+    // 視窗並發自己那一份12骰牌型獎勵（獎勵本來就是每人各一份，不是搶的，見
+    // startTowerDiceHandReward()的既有說明）。
+    Object.keys(towerSolved).forEach(function (pointId) {
+      if (prev[pointId] || !towerSolved[pointId]) return;
+      var invite = towerInvites[pointId];
+      var amParticipant = !!(mySlot && invite && invite.participants && invite.participants[mySlot]);
+      if (!amParticipant) return;
+      delete towerPuzzleState[pointId];
+      if (towerPuzzleStartedFor[pointId]) {
+        el("midnight-tower-puzzle-modal").hidden = true;
+        // 自己已經在解這題（視窗開過）才發獎——路過看到別人解開的人不算參與。
+        if (!towerDiceState[pointId]) startTowerDiceHandReward({ id: pointId });
+      }
+    });
   }
 
   function onTowerInvitesReceived(value) {
@@ -2724,6 +2774,13 @@
     });
     el("btn-midnight-tower-enter").addEventListener("click", function () {
       if (nearbyTower) handleTowerEnterClick(nearbyTower);
+    });
+    el("btn-midnight-tower-puzzle-close").addEventListener("click", function () {
+      // 2026-09-13：只收起本機視窗，題目留在RTDB。離開塔的範圍後再回來會重新彈出同一題
+      // （見updateNearbyTower()清旗標的地方）。
+      var pt = nearbyTower;
+      if (pt) towerPuzzleDismissed[pt.id] = true;
+      el("midnight-tower-puzzle-modal").hidden = true;
     });
     el("btn-midnight-tower-invite-accept").addEventListener("click", function () {
       if (nearbyTower) handleAcceptTowerInviteClick(nearbyTower);
@@ -8282,6 +8339,13 @@
       var dist = Math.hypot(localPos.x - (pt.x + 0.5), localPos.y - (pt.y + 0.5));
       if (dist <= TOWER_ACTIVATE_RADIUS) found = pt;
     });
+    // 2026-09-13使用者明確規格「解謎中也可以先關閉離開此地，回來後題目仍舊保持一致直到
+    // 解出」：離開塔的觸發半徑時清掉本地的「已開過／已關閉」旗標，再次靠近就會重新彈出
+    // ——題目本身存在RTDB（見ensureTowerPuzzle()），因此彈出來的一定是同一題。
+    if (!found && nearbyTower) {
+      delete towerPuzzleStartedFor[nearbyTower.id];
+      delete towerPuzzleDismissed[nearbyTower.id];
+    }
     nearbyTower = found;
     if (found) maybeAdvanceTowerInvite(found);
     renderTowerOverlay();
@@ -8367,9 +8431,8 @@
       return;
     }
     inviteWait.hidden = true;
-    if (invite.status === "active" && amParticipant && !towerSolved[pt.id] && !towerPuzzleStartedFor[pt.id]) {
-      towerPuzzleStartedFor[pt.id] = true;
-      startTowerPuzzle(pt);
+    if (invite.status === "active" && amParticipant && !towerSolved[pt.id] && !towerPuzzleStartedFor[pt.id] && !towerPuzzleDismissed[pt.id]) {
+      startTowerPuzzle(pt); // 旗標改由startTowerPuzzle()在真的拿到題目之後才設，見該函式
     }
   }
 
@@ -8377,9 +8440,33 @@
   // 提供的6種參數化謎題（純函式產生器，見midnight_puzzles.js），本檔只負責依puzzle.kind
   // 分派到對應renderer、呼叫check()判定答案。解謎成功後的獎勵改為12骰牌型抽獎
   // （設計文件§4.2，見Task 11新增的startTowerDiceHandReward()），不再是固定盧恩數。
+  // 2026-09-13使用者明確規格「魔術師塔題目要裝置同步，一人解得大家都解出；解謎中也可以
+  // 先關閉離開此地，回來後題目仍舊保持一致直到解出」。
+  // 原本是每台裝置各自呼叫Puzzles.generate()（內部用Math.random()），因此同一座塔在每個
+  // 玩家畫面上是**完全不同的題目**，而且離開再回來會重新產生一題。
+  // 改成把產生出來的題目用first-writer-wins的transaction寫進
+  // towerInvites/{pointId}/puzzle——towerInvites本來就已經是共享且有訂閱的節點
+  // （onTowerInvitesReceived），不需要新增第二個同步通道；解開之前不會被覆寫，所以離開
+  // 再回來拿到的也是同一題。
+  function ensureTowerPuzzle(pt) {
+    if (towerPuzzleEnsureAttempted[pt.id]) return;
+    towerPuzzleEnsureAttempted[pt.id] = true;
+    GameStorage.rtTransaction(gameId, "cloud", "towerInvites/" + pt.id + "/puzzle", function (cur) {
+      return cur === null ? window.PriTestMidnightPuzzles.generate() : cur;
+    });
+  }
+
   function startTowerPuzzle(pt) {
     if (towerSolved[pt.id]) return;
-    var puzzle = window.PriTestMidnightPuzzles.generate();
+    var invite = towerInvites[pt.id];
+    var puzzle = invite && invite.puzzle;
+    if (!puzzle) {
+      // 還沒有人寫進題目：送出transaction後先return，下一影格renderTowerOverlay()會再試
+      // 一次（towerPuzzleStartedFor這時還沒被設成true，見呼叫端）。
+      ensureTowerPuzzle(pt);
+      return;
+    }
+    towerPuzzleStartedFor[pt.id] = true;
     towerPuzzleState[pt.id] = { puzzle: puzzle, pointId: pt.id };
     renderTowerPuzzleModal(pt, puzzle);
   }
@@ -8422,6 +8509,7 @@
     btn.type = "button";
     btn.textContent = window.I18N.t("midnight_tower_submit_button");
     btn.addEventListener("click", function () {
+      if (towerAnswerBlocked()) return; // 2026-09-13：暫停中不能作答
       var result = window.PriTestMidnightPuzzles.check(puzzle.kind, puzzle, input.value);
       handleTowerPuzzleResult(pt, result.solved);
     });
@@ -8442,6 +8530,7 @@
     btn.type = "button";
     btn.textContent = window.I18N.t("midnight_tower_guess_button");
     btn.addEventListener("click", function () {
+      if (towerAnswerBlocked()) return; // 2026-09-13：暫停中不能作答
       var digits = String(input.value).split("").map(Number);
       if (digits.length !== 4 || digits.some(isNaN)) return;
       var result = window.PriTestMidnightPuzzles.check("numberGuess", puzzle, digits);
@@ -8477,6 +8566,7 @@
     btn.type = "button";
     btn.textContent = window.I18N.t("midnight_tower_submit_button");
     btn.addEventListener("click", function () {
+      if (towerAnswerBlocked()) return; // 2026-09-13：暫停中不能作答
       var result = window.PriTestMidnightPuzzles.check("logicElimination", puzzle, select.value);
       handleTowerPuzzleResult(pt, result.solved);
     });
@@ -8490,6 +8580,25 @@
   // 下每個參與者各自解自己的謎題、各自獲得一份12骰牌型獎勵，不是「搶到才有獎勵」，見
   // startTowerDiceHandReward()裡對myTokenId角色發獎的寫法，不需要靠transaction判斷唯一
   // solvedBy）。解謎失敗：只顯示「答案不對」提示，不關閉modal，讓玩家可以重新作答。
+  // 2026-09-13使用者明確規格「再進行解謎時，遊戲暫停時是無法進行繼續猜測的，直到遊戲
+  // 正常運行」：三種解謎renderer的作答鍵都走這支守衛，暫停中直接擋下並顯示說明。
+  // 同時每影格由renderTowerPuzzlePausedState()把按鈕停用/恢復，讓玩家看得出來為什麼按不動。
+  function towerAnswerBlocked() {
+    if (!isPaused()) return false;
+    el("midnight-tower-puzzle-paused-note").hidden = false;
+    return true;
+  }
+
+  function renderTowerPuzzlePausedState() {
+    var modal = el("midnight-tower-puzzle-modal");
+    if (!modal || modal.hidden) return;
+    var paused = isPaused();
+    el("midnight-tower-puzzle-paused-note").hidden = !paused;
+    Array.prototype.forEach.call(modal.querySelectorAll("#midnight-tower-puzzle-body button"), function (btn) {
+      btn.disabled = paused;
+    });
+  }
+
   function handleTowerPuzzleResult(pt, solved) {
     if (!solved) {
       el("midnight-tower-puzzle-wrong-note").hidden = false;
@@ -8599,31 +8708,18 @@
     if (!state) return;
     var handId = window.PriTestMidnightPuzzles.judgeDiceHand(state.dice);
     var rewardSpecs = TOWER_DICE_HAND_REWARDS[handId] || TOWER_DICE_HAND_REWARDS.default;
-    var c = characters[myTokenId];
-    if (!c) return;
-    // 2026-09-09改版：staffStar維持立即抽選武器（跟merchantDrawWeapon同款「抽選前先判斷
-    // 空間」的既有慣例，抽選本身有副作用不能延後），其餘kind改推進pendingRewards佇列，
-    // 統一由玩家自己開獎勵清單抽選/確認取得，不再背景直接授予+toast。
-    var labels = [];
-    var anyFull = false;
+    // 2026-09-09改版：所有kind都推進pendingRewards佇列，統一由玩家自己開獎勵清單抽選/
+    // 確認取得，不再背景直接授予+toast（2026-09-13把最後一個例外「杖」也併進來，見下方）。
     rewardSpecs.forEach(function (spec) {
       if (spec.kind === "staffStar") {
-        // merchantDrawWeapon同様、hasInventorySpace判定は「抽選する前」に行う――抽選自体は
-        // drawWeaponFromCategory内部でc.weaponIdsへ直接pushしてしまうため、抽選後に判定して
-        // 弾くと「実際には手に入っていないのにweaponIdsへ残る」不整合が起きる。
-        if (!hasInventorySpace(c, "weapon")) {
-          anyFull = true;
-          return;
-        }
-        var drawn = window.PriTestCharacterDrawer.drawWeaponFromCategory(c, "staff", spec.value, affixDiscoveryBonus());
-        if (drawn) {
-          // 2026-09-12使用者明確規格「獎勵取得的武器、杖、聖印 持有的戰技魔術等 是當下
-          // 直接抽出，並非鍛造台再抽」：杖的random魔術枠在入手當下就決定。
-          var CDs = window.PriTestCharacterDrawer;
-          CDs.assignWeaponRandomSkill(c, drawn.weaponId, CDs.rollWeaponRandomSkill(drawn.weaponId));
-          grantAffixesForNewWeapon(c, drawn.weaponId); // 2026-09-13武器詞條：跟random戰技同一個時機擲定
-          labels.push(window.PriTestWeapons.localizedText(drawn.item.name));
-        }
+        // fix(2026-09-13)：使用者回報「魔術師塔獲得的多項武器等等，在獎勵清單都要各別分出
+        // 一列再進行選擇（目前只看到一件武器，但是角色中拿到兩件）」。
+        // 原本「杖」是唯一**不經過獎勵清單**的品項：直接drawWeaponFromCategory()塞進
+        // c.weaponIds＋一行toast，因此玩家在清單上只看到weaponStar那一列，實際卻多了一把杖。
+        // 改成跟其餘品項一樣推進pendingRewards佇列，靠categoryId:"staff"指定大分類——
+        // computeRewardDraw()／drawSharedRewardData()早就支援categoryId（見該處說明），
+        // 不需要新增第二套抽選路徑，連帶「抽選前先判斷背包空間」也統一由清單流程負責。
+        pushPendingReward(myTokenId, { kind: "weaponStar", value: spec.value, categoryId: "staff" });
       } else if (spec.kind === "weaponStar") {
         pushPendingReward(myTokenId, { kind: "weaponStar", value: spec.value });
       } else if (spec.kind === "talisman") {
@@ -8632,11 +8728,7 @@
         for (var i = 0; i < spec.count; i++) pushPendingReward(myTokenId, { kind: "consumable", itemId: spec.itemId });
       }
     });
-    GameStorage.rtSet(gameId, "cloud", "character/" + myTokenId, c);
     el("midnight-tower-dice-hand-modal").hidden = true;
-    var toastText = labels.length ? window.I18N.t("midnight_reward_toast_prefix") + labels.join("、") : "";
-    if (anyFull) toastText = toastText + (toastText ? "　" : "") + window.I18N.t("midnight_inventory_full_note");
-    if (toastText) showToast(toastText);
     delete towerDiceState[pt.id];
   }
 
@@ -12650,7 +12742,13 @@
       // 結果（含戰技）一致，領到的人套用的也是同一個結果（見
       // applyDrawnSharedRewardToCharacter()／renderSharedRewardDetail()）。
       var sharedSkillId = window.PriTestCharacterDrawer.rollWeaponRandomSkill(weaponResult.weaponId);
-      return sharedSkillId ? { weaponId: weaponResult.weaponId, skillId: sharedSkillId } : { weaponId: weaponResult.weaponId };
+      // 2026-09-13武器詞條：跟random戰技同一個時機擲定並寫進drawn，所有人看到的揭示結果
+      // （含詞條）一致，領到的人套用的也是同一組。
+      var sharedAffixes = rollAffixesForWeapon(characters[myTokenId], weaponResult.weaponId);
+      var sharedOut = { weaponId: weaponResult.weaponId };
+      if (sharedSkillId) sharedOut.skillId = sharedSkillId;
+      if (sharedAffixes) sharedOut.affixes = sharedAffixes;
+      return sharedOut;
     }
     if (entry.kind === "talisman") {
       var talismanPool = window.PriTestTalismans.list();
@@ -12717,7 +12815,7 @@
       c.weaponIds.push(drawn.weaponId);
       // 2026-09-12：揭示時就抽好的random戰技（見drawSharedRewardData()）跟著武器一起入手。
       if (drawn.skillId) CD.assignWeaponRandomSkill(c, drawn.weaponId, drawn.skillId);
-      grantAffixesForNewWeapon(c, drawn.weaponId); // 2026-09-13武器詞條
+      applyDrawnAffixes(c, drawn.weaponId, drawn.affixes || null); // 2026-09-13武器詞條
     } else if (entry.kind === "talisman" && drawn.talismanId) {
       c.talismanIds = c.talismanIds || [];
       c.talismanIds.push(drawn.talismanId);
@@ -13451,7 +13549,15 @@
     // sharedRewardDrawLabel()／applyDrawnSharedRewardToCharacter()）本來就有處理
     // "weaponStar"，只有個人這條漏掉。這裡與下方computeRewardDraw()／renderRewardDetail()
     // 一起補齊，比照night_floor_breakthrough.jsの「weaponStar＝武器、value是★數」既有定義。
-    if (entry.kind === "weapon" || entry.kind === "weaponStar") return window.I18N.t("midnight_reward_kind_weapon");
+    if (entry.kind === "weapon" || entry.kind === "weaponStar") {
+      // 2026-09-13：指定大分類的武器獎勵（塔的「杖」、fields_data_*.js的「聖印」等）在
+      // 清單上標出分類，否則同一次獎勵裡的兩列武器看起來一模一樣、分不出哪一列是什麼。
+      var cat = entry.categoryId ? window.PriTestWeapons.getCategory(entry.categoryId) : null;
+      if (cat) {
+        return window.I18N.t("midnight_reward_kind_weapon_category", { category: window.PriTestWeapons.localizedText(cat.name) });
+      }
+      return window.I18N.t("midnight_reward_kind_weapon");
+    }
     if (entry.kind === "consumable") return window.I18N.t("midnight_reward_kind_consumable");
     if (entry.kind === "chaliceBonus") return window.I18N.t("midnight_reward_kind_chalice_bonus");
     // 2026-09-12使用者回報「中文遊戲時 獎勵清單會出現英文名的問題」：以下這幾種kind先前
@@ -13580,16 +13686,20 @@
       // （renderRewardDetail()）也用這個skillId當override顯示，玩家按[確認收下]之前就看得到
       // 完整的戰技／魔術／祈禱內容。
       var drawnSkillId = window.PriTestCharacterDrawer.rollWeaponRandomSkill(result.weaponId);
+      // 2026-09-13使用者明確規格「詞條模式下，獎勵清單中抽出武器杖與聖印就顯示其詞條了」：
+      // 跟上面的random戰技枠同一個時機擲定，玩家按［確認收下］之前就看得到完整詞條。
+      var drawnAffixes = rollAffixesForWeapon(c0, result.weaponId);
       return {
         label: window.PriTestWeapons.localizedText(result.item.name),
         item: result.item,
         weaponId: result.weaponId,
         skillId: drawnSkillId,
+        affixes: drawnAffixes,
         apply: function (c) {
           c.weaponIds = c.weaponIds || [];
           c.weaponIds.push(result.weaponId);
           if (drawnSkillId) window.PriTestCharacterDrawer.assignWeaponRandomSkill(c, result.weaponId, drawnSkillId);
-          grantAffixesForNewWeapon(c, result.weaponId); // 2026-09-13武器詞條
+          applyDrawnAffixes(c, result.weaponId, drawnAffixes); // 2026-09-13武器詞條：用抽選當下擲好的那一組
           if (attributeTag) {
             c.weaponAttributeTags = c.weaponAttributeTags || {};
             c.weaponAttributeTags[result.weaponId] = attributeTag;
@@ -13672,6 +13782,13 @@
           weapon: CD.potentialPowerDrawWeapon(c, entry.value || 1),
           effect: CD.rollPotentialPowerAttachedEffect(c),
         };
+        // 2026-09-13武器詞條：潛在之力的武器卡也在獎勵清單裡，同樣要在抽選當下就把詞條
+        // 擲好顯示。這條路徑的weaponId要等commitPotentialPowerWeapon()才產生，因此先擲、
+        // 存在draft，選定後再掛到回傳的instance id上（見下方選擇按鈕）。
+        var ppWeapon = potentialPowerDraftById[id].weapon;
+        if (ppWeapon && ppWeapon.item) {
+          potentialPowerDraftById[id].weaponAffixes = rollAffixesForWeapon(c, ppWeapon.item.id, ppWeapon.rarity || null);
+        }
         renderRewardDetail(id, entry);
       });
       detail.appendChild(drawBtn);
@@ -13702,7 +13819,7 @@
       // （draft.weapon.skillId）當作override，讓玩家選之前就看得到完整內容。
       var cForWeapon = characters[myTokenId];
       if (cForWeapon) {
-        renderWeaponSheetDetail(weaponCard, cForWeapon, draft.weapon.item.id, CD, draft.weapon.skillId);
+        renderWeaponSheetDetail(weaponCard, cForWeapon, draft.weapon.item.id, CD, draft.weapon.skillId, draft.weaponAffixes || null);
       } else {
         var weaponLabel = document.createElement("p");
         weaponLabel.textContent = window.PriTestWeapons.localizedText(draft.weapon.item.name);
@@ -13714,7 +13831,9 @@
       chooseWeaponBtn.addEventListener("click", function () {
         var c = characters[myTokenId];
         if (!c) return;
-        CD.commitPotentialPowerWeapon(c, draft.weapon);
+        var ppInstanceId = CD.commitPotentialPowerWeapon(c, draft.weapon);
+        // 2026-09-13武器詞條：把抽選當下擲好、玩家已經看過的那一組掛到真正的instance id上。
+        if (ppInstanceId) applyDrawnAffixes(c, ppInstanceId, draft.weaponAffixes || null);
         finishPick();
       });
       weaponCard.appendChild(chooseWeaponBtn);
@@ -13849,7 +13968,7 @@
       var c1 = characters[myTokenId];
       // 第5引數＝這次抽選當下決定的random戰技（見computeRewardDraw()的weapon分支）：此時
       // 武器還沒寫進角色（要按[確認收下]才apply），所以要用override才顯示得出戰技內容。
-      if (c1) renderWeaponSheetDetail(detail, c1, draft.weaponId, window.PriTestCharacterDrawer, draft.skillId || null);
+      if (c1) renderWeaponSheetDetail(detail, c1, draft.weaponId, window.PriTestCharacterDrawer, draft.skillId || null, draft.affixes || null);
       else {
         var weaponFallback = document.createElement("p");
         weaponFallback.textContent = draft.label;
@@ -14107,7 +14226,7 @@
     if ((entry.kind === "weapon" || entry.kind === "weaponStar") && drawn.weaponId && c) {
       // 2026-09-12：揭示時已經連random戰技一起抽好（drawn.skillId），這裡用override顯示，
       // 讓所有人在投票前就看到完全相同的戰技內容。
-      renderWeaponSheetDetail(detail, c, drawn.weaponId, window.PriTestCharacterDrawer, drawn.skillId || null);
+      renderWeaponSheetDetail(detail, c, drawn.weaponId, window.PriTestCharacterDrawer, drawn.skillId || null, drawn.affixes || null);
       return;
     }
     if (entry.kind === "talisman" && drawn.talismanId) {
@@ -14941,7 +15060,10 @@
   // weaponAccumulationEffects／resolveWeaponSkillDisplay），不重新定義任何規則數值，
   // 只是換一種版面排列。
   // randomOverrideSkillId（可省略）：直接轉交給weaponOwnSkillDisplays()，見該函式說明。
-  function renderWeaponSheetDetail(detail, c, weaponId, CD, randomOverrideSkillId) {
+  // affixOverride（2026-09-13新增，可省略）：獎勵清單／共享池在抽選當下就擲好、但還沒
+  // 寫進角色的詞條組。有傳就顯示它，沒傳才讀角色身上已經有的（跟randomOverrideSkillId
+  // 完全同一種「尚未入手也看得到完整內容」的既有作法）。
+  function renderWeaponSheetDetail(detail, c, weaponId, CD, randomOverrideSkillId, affixOverride) {
     var Weapons_ = window.PriTestWeapons;
     var w = Weapons_.get(baseCatalogId(weaponId));
     if (!w) return;
@@ -14986,7 +15108,7 @@
     // [詞條]（2026-09-13使用者明確規格的UI形式：「武器詳細欄＋卡片徽章」）：有益綠字、
     // 有害紅字，數值是取得武器時就擲定的實數（見rollWeaponAffixes()）。phase 2的詞條
     // 一樣列出來，但附註「效果尚未實作」，避免玩家誤以為已經在生效。
-    var affixList = (c.weaponAffixes && c.weaponAffixes[weaponId]) || [];
+    var affixList = affixOverride || (c.weaponAffixes && c.weaponAffixes[weaponId]) || [];
     var AffixData = window.PriTestWeaponAffixes;
     if (affixList.length && AffixData) {
       var affixTitle = document.createElement("p");
@@ -17579,6 +17701,7 @@
     updateAffixOverTime(now); // 2026-09-13武器詞條：HP持続回復／減少、HP未滿時累積猛毒／腐敗
     updateAffixGuardHold(now); // 2026-09-13武器詞條第2批：架盾3秒的聖域展開與3種周圍攻擊
     updateFieldWaitBars(); // 2026-09-13：中途加入／後補領獎的等待讀條
+    renderTowerPuzzlePausedState(); // 2026-09-13：暫停中停用解謎作答鍵
     maybePushPosition(now);
     var phaseInfo = currentPhaseInfo(now);
     maybeApplyCircleDamage(now, phaseInfo);
@@ -18171,12 +18294,62 @@
     _debugRollFinalCircleBoss: function (dayIndex, pointId) {
       rollAndAssignFinalCircleBoss(dayIndex, pointId, currentPhaseInfo(Date.now()));
     },
+    // ---- 2026-09-13 魔術師塔（題目同步／關閉重開／暫停鎖／獎勵分列）測試入口 ----
+    _debugEnsureTowerPuzzle: function (pointId) {
+      delete towerPuzzleEnsureAttempted[pointId];
+      ensureTowerPuzzle({ id: pointId });
+    },
+    _debugStartTowerPuzzle: function (pointId) {
+      delete towerPuzzleStartedFor[pointId];
+      delete towerPuzzleDismissed[pointId];
+      startTowerPuzzle({ id: pointId });
+      var st = towerPuzzleState[pointId];
+      return {
+        opened: !el("midnight-tower-puzzle-modal").hidden,
+        puzzle: st ? st.puzzle : null,
+      };
+    },
+    _debugCloseTowerPuzzle: function (pointId) {
+      towerPuzzleDismissed[pointId] = true;
+      el("midnight-tower-puzzle-modal").hidden = true;
+    },
+    _debugTowerPuzzlePausedState: function () {
+      renderTowerPuzzlePausedState();
+      var modal = el("midnight-tower-puzzle-modal");
+      var btns = modal.querySelectorAll("#midnight-tower-puzzle-body button");
+      return {
+        noteHidden: el("midnight-tower-puzzle-paused-note").hidden,
+        buttonCount: btns.length,
+        allDisabled: btns.length > 0 && Array.prototype.every.call(btns, function (b) { return b.disabled; }),
+        blocked: towerAnswerBlocked(),
+      };
+    },
+    _debugTowerDiceConfirm: function (pointId, dice) {
+      towerDiceState[pointId] = { dice: dice, rerolled: true };
+      handleTowerDiceConfirm({ id: pointId });
+    },
+    _debugTowerRewardSpecs: function (handId) {
+      return TOWER_DICE_HAND_REWARDS[handId] || TOWER_DICE_HAND_REWARDS.default;
+    },
+    _debugRenderWeaponSheetDetailWithAffixes: function (containerId, weaponId, affixes) {
+      var container = el(containerId);
+      if (!container) return null;
+      container.innerHTML = "";
+      renderWeaponSheetDetail(container, characters[myTokenId], weaponId, window.PriTestCharacterDrawer, null, affixes);
+      return container.querySelectorAll(".midnight-affix-row").length;
+    },
     _debugRewardEntryLabel: function (entry) {
       return rewardEntryLabel(entry);
     },
     _debugComputeRewardDraw: function (entry) {
       var draft = computeRewardDraw(entry);
-      return { label: draft.label, weaponId: draft.weaponId || null, skillId: draft.skillId || null, itemId: draft.itemId || null };
+      return {
+        label: draft.label,
+        weaponId: draft.weaponId || null,
+        skillId: draft.skillId || null,
+        itemId: draft.itemId || null,
+        affixes: draft.affixes || null,
+      };
     },
     _debugDrawSharedRewardData: function (entry) {
       return drawSharedRewardData(entry);

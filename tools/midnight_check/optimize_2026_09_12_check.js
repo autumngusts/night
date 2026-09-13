@@ -530,7 +530,12 @@ async function joinLobby(page, passcode) {
       const btn = document.getElementById("btn-midnight-skill");
       btn.hidden = false;
       const st = getComputedStyle(btn);
-      const icon = btn.querySelector(".midnight-icon-sword");
+      // fix(2026-09-13)：舊值 ".midnight-icon-sword" 已過時——同日「戰鬥按鈕等更改圖示，
+      // 一般攻擊要更改劍的圖示，戰技更改，魔法更改，祈禱更改」的使用者規格把四種按鈕的
+      // 圖示拆開，戰技鍵改用 .midnight-icon-skill，這個選擇器因此永遠抓不到元素、
+      // iconHeight 變成 null（NaN < 16 為 false）而假失敗。本項要驗的是「手機版圖示有縮小」，
+      // 跟是哪一種圖示無關，改成抓按鈕裡實際的那一顆圖示。
+      const icon = btn.querySelector('[class^="midnight-icon-"]');
       return {
         height: btn.getBoundingClientRect().height,
         paddingTop: st.paddingTop,

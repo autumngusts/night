@@ -1095,9 +1095,20 @@ BODY = """    <div class="midnight-wrap">
              box內容完全由JS依puzzle.kind動態產生，這裡只留空容器＋答錯提示。 -->
         <div id="midnight-tower-puzzle-modal" hidden>
           <div id="midnight-tower-puzzle-box">
-            <h3 data-i18n="midnight_puzzle_title"></h3>
+            <div class="wb-row">
+              <h3 data-i18n="midnight_puzzle_title"></h3>
+              <!-- 2026-09-13使用者明確規格「解謎中也可以先關閉離開此地，回來後題目仍舊
+                   保持一致直到解出」：題目本體已改存在RTDB（towerInvites/{id}/puzzle，
+                   見static/midnight.jsのensureTowerPuzzle()），關閉只是收起本機視窗，
+                   再次靠近按［進入］就會拿回同一題。 -->
+              <button type="button" id="btn-midnight-tower-puzzle-close" class="midnight-modal-close-x">&times;</button>
+            </div>
             <div id="midnight-tower-puzzle-body"></div>
             <p id="midnight-tower-puzzle-wrong-note" class="warning-text" hidden data-i18n="midnight_tower_wrong_note"></p>
+            <!-- 2026-09-13使用者明確規格「再進行解謎時，遊戲暫停時是無法進行繼續猜測的，
+                 直到遊戲正常運行」：暫停中作答鍵停用並顯示這行說明，見
+                 static/midnight.jsのrenderTowerPuzzlePausedState()。 -->
+            <p id="midnight-tower-puzzle-paused-note" class="warning-text" hidden data-i18n="midnight_tower_paused_note"></p>
           </div>
         </div>
 
