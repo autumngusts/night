@@ -1064,6 +1064,14 @@
   var FIELD_ENTER_WAIT_MS = 1000; // 2026-09-07優化：0.5秒→1秒（一般板塊：A/2~10/K/籌碼）
   var FIELD_ENTER_WAIT_MS_CASTLE = 5000; // 2026-09-07優化新增：僅J（堡壘）適用
   var FIELD_LATE_JOIN_WAIT_MS = 2000; // 2026-09-07優化新增：中途加入/後補領獎的等待時間
+
+  // fix(2026-09-13)：J（堡壘）的進入等待是5秒（FIELD_ENTER_WAIT_MS_CASTLE），但
+  // renderFieldOverlay()的讀條寫死用1秒的FIELD_ENTER_WAIT_MS——讀條1秒就跑完消失，
+  // 打字機卻要到第5秒才開始，中間4秒畫面上什麼都沒有，玩家以為卡住了。
+  // 抽成單一來源，讓「實際等待」跟「讀條長度」不可能再對不上。
+  function fieldEnterWaitMs(pt) {
+    return pt && pt.card === "J" ? FIELD_ENTER_WAIT_MS_CASTLE : FIELD_ENTER_WAIT_MS;
+  }
   var FIELD_VOTE_TIME_LIMIT_MS = 10000; // 使用者明確規格：分歧意見不一致的等待時間10秒，逾時交給系統決定
   // 共享池獎勵的「抽選／投票」無人動作保險（2026-09-12 板塊卡關修正新增，見
   // maybeSetSharedRewardDeadlines()）。這是純粹的防卡死逾時、不是規則書數值：規則書沒有
@@ -8655,6 +8663,54 @@
     return Math.floor(rand() * count);
   }
 
+  // ============================================================================
+  // 抽選查表失敗時的亂數退回（2026-09-13使用者明確規格）
+  // ============================================================================
+  // 使用者回報：「進入J堡壘等，如果劇本與地圖沒有相符的花色，會導致樓層無法判讀、王戰
+  // 選不出敵人等問題。若是花色等沒對上，仍舊亂數產生一個選擇，避免卡死無法進行下去。
+  // J以外皆檢查此行為。」
+  //
+  // 這**明確推翻**了這幾條路徑原本的作法。原本的註解寫的是「查不到就整體放棄，不硬湊
+  // （CLAUDE.md §19精神）——保留waitingForDayN stage，交由GM手動處理」，但實際後果是：
+  //   ・rollAndAssignFinalCircleBoss()查不到→夜之強敵永遠不會出現→縮圈跑完後卡在
+  //     waitingForDay2/3，第二天/第三天永遠不會開始。
+  //   ・rollAndAssignDay3Boss()查不到→Day3沒有任何敵人，遊戲無法結束。
+  //   ・rollAndAssignStrongEnemy()查不到→強敵籌碼點永遠停在未解決，該點無法通過。
+  // 即時制沒有GM可以介入（midnight是全自動的），「交給GM處理」等同於卡死。使用者權衡後
+  // 明確指示改成亂數退回，因此這裡改為：查表成功照舊用規則書結果，查不到才退回亂數。
+  //
+  // 退回一律用fieldSeededIndex()的決定性亂數（種子＝meta.mapSeed＋key），不是Math.random()
+  // ——同一場的所有裝置必須算出同一隻敵人，否則各人畫面上的敵人會不一樣。
+  // 每次退回都會showToast()＋console.warn，讓「這是退回結果、不是規則書表定內容」看得出來。
+  function warnAffixFallback(what, picked) {
+    if (window.console && window.console.warn) window.console.warn("[midnight] 抽選退回亂數：" + what + " → " + picked);
+  }
+
+  // 一般敵人的亂數退回：從enemies_data_1~4.js全部敵人裡決定性挑一隻，回傳形狀跟
+  // GmFlow.resolveCombatEnemyMatch()相同（{familyId, enemy}），呼叫端不需要分辨來源。
+  function randomEnemyMatchFallback(seedKey) {
+    var Enemies = window.PriTestEnemies;
+    var all = Enemies ? Enemies.allEnemies() : [];
+    if (!all.length) return null;
+    var picked = all[fieldSeededIndex(seedKey, all.length)];
+    warnAffixFallback(seedKey, picked.enemy.id);
+    return picked;
+  }
+
+  // 夜王的亂數退回：只從night_boss_rulebook.js真的有資料的夜王裡挑（挑到沒有規則書資料
+  // 的id等於沒解決問題）。
+  function randomNightBossIdFallback(seedKey) {
+    var Rulebook = window.PriTestBossRulebook;
+    var list = Rulebook && Rulebook.list ? Rulebook.list() : [];
+    var usable = list.filter(function (b) {
+      return b && b.id && Rulebook.get(b.id);
+    });
+    if (!usable.length) return null;
+    var picked = usable[fieldSeededIndex(seedKey, usable.length)];
+    warnAffixFallback(seedKey, picked.id);
+    return picked.id;
+  }
+
   // 地圖點的card（"2".."10"／"K"）對應到static_src/fields_data_1~4.js既有資料的id
   // （"card_2".."card_10"／"card_k"）——直接沿用既有規則資料的地點名稱/分歧名稱/分歧
   // 介紹文字/樓層敘述，不是自己另外編寫的。
@@ -9369,13 +9425,23 @@
   // participants本身，不重新觸發inviting/typewriter/vote這些既有機制：trig.status此時已經是
   // active或resolved，maybeAdvanceFieldInvite／maybeStartFieldTypewriter等函式的status guard
   // 本來就不會因為participants多了一人而重跑。
+  // 2026-09-13：中途加入／後補領獎的等待也要有讀條（使用者明確要求）。這兩段等待原本
+  // 只有一行文字提示，用setTimeout一次跳到結束。改成記下到期時間戳、由每影格的
+  // updateFieldWaitBars()畫進度——沿用「共享/本地時間戳＋每幀算寬度」的既有作法
+  // （同renderFieldOverlay()的進入讀條、updateBattleEnterLoading()），不新增計時器。
   var lateJoinTimer = null;
+  var lateJoinUntil = null;
+
   function handleLateJoinFieldClick(pt) {
     if (!mySlot || isPaused() || lateJoinTimer) return;
     el("midnight-field-late-join-loading").hidden = false;
+    el("midnight-field-late-join-bar").hidden = false;
+    lateJoinUntil = Date.now() + FIELD_LATE_JOIN_WAIT_MS;
     lateJoinTimer = setTimeout(function () {
       lateJoinTimer = null;
+      lateJoinUntil = null;
       el("midnight-field-late-join-loading").hidden = true;
+      el("midnight-field-late-join-bar").hidden = true;
       GameStorage.rtSet(gameId, "cloud", "fieldTrigger/" + pt.id + "/participants/" + mySlot, true);
     }, FIELD_LATE_JOIN_WAIT_MS);
   }
@@ -9386,12 +9452,35 @@
   // 隨機事件等沒有fieldProgress的一次性內容則改放在fieldTrigger/{id}/perPlayerRewards（見
   // 下方claimLateFieldTriggerRewards()），用fieldProgress[pt.id]是否存在判斷要分派到哪一種。
   var lateClaimTimer = null;
+  var lateClaimUntil = null;
+
+  // 每影格把兩條等待讀條的寬度算出來（見handleLateJoinFieldClick()的說明）。
+  function updateFieldWaitBars() {
+    [
+      { until: lateJoinUntil, fillId: "midnight-field-late-join-fill" },
+      { until: lateClaimUntil, fillId: "midnight-field-late-claim-fill" },
+    ].forEach(function (def) {
+      var fill = el(def.fillId);
+      if (!fill) return;
+      if (def.until === null) {
+        fill.style.width = "0%";
+        return;
+      }
+      var elapsed = FIELD_LATE_JOIN_WAIT_MS - (def.until - Date.now());
+      fill.style.width = Math.max(0, Math.min(100, (elapsed / FIELD_LATE_JOIN_WAIT_MS) * 100)) + "%";
+    });
+  }
+
   function handleLateClaimClick(pt) {
     if (!mySlot || isPaused() || lateClaimTimer) return;
     el("midnight-field-late-claim-loading").hidden = false;
+    el("midnight-field-late-claim-bar").hidden = false;
+    lateClaimUntil = Date.now() + FIELD_LATE_JOIN_WAIT_MS;
     lateClaimTimer = setTimeout(function () {
       lateClaimTimer = null;
+      lateClaimUntil = null;
       el("midnight-field-late-claim-loading").hidden = true;
+      el("midnight-field-late-claim-bar").hidden = true;
       if (fieldProgress[pt.id]) {
         claimLatePerPlayerRewards(pt.id);
       } else {
@@ -9457,8 +9546,7 @@
     if (!trig || trig.status === "inviting") return;
     if (!trig.participants || !trig.participants[mySlot]) return;
     if (fieldTypewriterStartedFor[pt.id]) return;
-    var waitMs = pt.card === "J" ? FIELD_ENTER_WAIT_MS_CASTLE : FIELD_ENTER_WAIT_MS;
-    if (Date.now() < trig.enterAt + waitMs) return;
+    if (Date.now() < trig.enterAt + fieldEnterWaitMs(pt)) return;
     fieldTypewriterStartedFor[pt.id] = true;
     var text = fieldNarrativeTextFor(pt, trig);
     window.PriTestNightGmFlow.typewriteInto(el("midnight-field-narrative-text"), text, {
@@ -9817,15 +9905,17 @@
     // 其餘2個點維持extraTables[0]（一般強敵決定表）。
     var isTerrifying = meta && meta.terrifyingStrongEnemyPointId === pt.id;
     var table = chip && chip.extraTables && chip.extraTables[isTerrifying ? 1 : 0];
-    if (!GmFlow || !table) return;
-    var rolled = GmFlow.rollStrongEnemyTable(table);
-    if (!rolled) return;
-    var parsed = GmFlow.extractLevelAndNameTokens((rolled.entry && rolled.entry.ja) || "");
+    // 2026-09-13使用者明確規格：查不到表／擲不出結果／名稱對不到敵人時，一律亂數退回，
+    // 不再整體放棄（見randomEnemyMatchFallback()開頭的完整說明）。原本的放棄會讓這個
+    // 強敵籌碼點永遠停在未解決，玩家怎麼靠近都沒反應。
+    var rolled = GmFlow && table ? GmFlow.rollStrongEnemyTable(table) : null;
+    var parsed = rolled ? GmFlow.extractLevelAndNameTokens((rolled.entry && rolled.entry.ja) || "") : { level: 0, nameTokens: [] };
     var match = null;
     for (var i = 0; i < parsed.nameTokens.length && !match; i++) {
       match = GmFlow.resolveCombatEnemyMatch(parsed.nameTokens[i]);
     }
-    if (!match) return; // 找不到就整體放棄，不硬湊（CLAUDE.md §19同精神，不捏造規則結果）
+    if (!match) match = randomEnemyMatchFallback(pt.id + ":strong_enemy_fallback");
+    if (!match) return; // 連敵人資料都載入失敗（理論上不會發生）：這時退不了，只能放棄
     // L補：強敵決定表（event_rulebook.js「強敵決定表｜1日目(⑦⑧)／2日目(⑦)」跟「恐るべき
     // 強敵決定表｜2日目(⑧)」）的每一列都標注「Lv.N + L補正」，見currentLBonus()說明。
     var lBonus = L_BONUS_TEXT_RE.test((rolled.entry && rolled.entry.ja) || "") ? currentLBonus(currentPhaseInfo(Date.now())) : 0;
@@ -9931,16 +10021,20 @@
     var scenarioId = resolveNightBossScenarioId();
     var scenarioNumber = scenarioId ? Scenarios.numberForId(scenarioId) : null;
     var row = card ? GmFlow.resolveNightBossTableRow(card, scenarioNumber) : null;
+    // 2026-09-13使用者明確規格：查不到劇本對應的表／擲不出結果／名稱對不到敵人時，
+    // 一律亂數退回（見randomEnemyMatchFallback()開頭的完整說明）。原本這三個放棄點會讓
+    // 縮圈跑完後永遠卡在waitingForDay2/3，第二天／第三天完全不會開始。
     var rolled = row ? GmFlow.rollNightBossEntry(row, dayIndex) : null;
-    if (!rolled) return;
-    var parsed = GmFlow.extractLevelAndNameTokens(rolled.ja || rolled.zh || "");
-    var nameTokens = parsed.nameTokens.length ? parsed.nameTokens : [rolled.ja, rolled.zh].filter(Boolean);
+    var parsed = rolled ? GmFlow.extractLevelAndNameTokens(rolled.ja || rolled.zh || "") : { level: 0, nameTokens: [] };
+    var nameTokens = parsed.nameTokens.length ? parsed.nameTokens : rolled ? [rolled.ja, rolled.zh].filter(Boolean) : [];
     var match = null;
     for (var i = 0; i < nameTokens.length && !match; i++) {
       match = GmFlow.resolveCombatEnemyMatch(nameTokens[i]);
     }
+    if (!match) match = randomEnemyMatchFallback(pointId + ":final_circle_fallback");
     if (!match) return;
-    var level = nightBossFixedLevel(card, dayIndex) || 1;
+    // 等級同理：查得到卡片資料就用規則書標注的固定等級，查不到才退回既有的預設1。
+    var level = nightBossFixedLevel(card, dayIndex) || (dayIndex === 1 ? 10 : 15);
     // 只把「當下實際在最終小圓內」的席位列為participant（見slotsInsideFinalCircle()說明），
     // 不再無條件用occupiedSlots()（全體）——理論上觸發這個函式時at least一人已經在圈內
     // （見updateFinalCircleBoss()的anyoneInside判斷），這裡至少會有一筆。
@@ -10133,7 +10227,11 @@
   function rollAndAssignDay3Boss() {
     if (!meta || !meta.day3StartAt || fieldTriggers[DAY3_BOSS_POINT_ID] || day3BossRollAttempted) return;
     var bossId = bossIdForResolvedScenario(meta.resolvedNightBossId);
-    if (!bossId || !bossRulebookData(bossId)) return;
+    // 2026-09-13使用者明確規格：劇本沒有對應的夜王資料（自訂劇本、或劇本與地圖對不上）時
+    // 亂數挑一隻**有規則書資料**的夜王，不再整體放棄——原本的放棄會讓Day3完全沒有敵人，
+    // 遊戲永遠打不完（見randomNightBossIdFallback()開頭的完整說明）。
+    if (!bossId || !bossRulebookData(bossId)) bossId = randomNightBossIdFallback("day3_boss_fallback");
+    if (!bossId) return; // 連夜王規則書都載入失敗（理論上不會發生）
     day3BossRollAttempted = true;
     var participants = {};
     occupiedSlots().forEach(function (slot) {
@@ -15353,6 +15451,13 @@
       var remainSec = Math.max(0, Math.ceil((trig.inviteDeadline - Date.now()) / 1000));
       el("midnight-field-invite-text").textContent = window.I18N.t("midnight_field_invite_text", { inviter: inviterName, name: locationName });
       el("midnight-field-invite-timer").textContent = window.I18N.t("midnight_field_invite_timer_label", { seconds: remainSec });
+      // 2026-09-13：邀請時限也畫成讀條（使用者明確要求「等待時間也要呈現讀條在資訊欄
+      // banner中」）。剩餘時間由共享的inviteDeadline反推，每台裝置各自算，不需同步進度。
+      var inviteFill = el("midnight-field-invite-fill");
+      if (inviteFill) {
+        var invitePct = Math.max(0, Math.min(100, ((trig.inviteDeadline - Date.now()) / FIELD_INVITE_TIME_LIMIT_MS) * 100));
+        inviteFill.style.width = invitePct + "%";
+      }
       el("btn-midnight-field-invite-accept").disabled = !mySlot || isPaused();
       return;
     }
@@ -15391,11 +15496,12 @@
     // 每影格重新呼叫（見frame()裡的updateNearbyFieldPoint()），直接用目前時間算寬度
     // 即可，不需要額外的計時器或動畫restart邏輯。
     var loadingBar = el("midnight-field-loading-bar");
-    if (Date.now() < trig.enterAt + FIELD_ENTER_WAIT_MS) {
+    var enterWaitMs = fieldEnterWaitMs(pt); // 見fieldEnterWaitMs()：J是5秒，其餘1秒
+    if (Date.now() < trig.enterAt + enterWaitMs) {
       el("midnight-field-narrative-text").textContent = "";
       el("midnight-field-vote-panel").hidden = true;
       loadingBar.hidden = false;
-      var loadingPct = Math.max(0, Math.min(100, ((Date.now() - trig.enterAt) / FIELD_ENTER_WAIT_MS) * 100));
+      var loadingPct = Math.max(0, Math.min(100, ((Date.now() - trig.enterAt) / enterWaitMs) * 100));
       el("midnight-field-loading-fill").style.width = loadingPct + "%";
       return;
     }
@@ -16709,19 +16815,41 @@
     gameVictoryDismissed = false; // 重新開始一輪後，勝利彈窗的本地關閉旗標也要重置，否則下一輪擊敗夜王不會再顯示
   }
 
-  // 立即縮圈（2026-09-09新增，測試主控台專用）：不新增第二套計時系統，直接把目前這一天
-  // 的StartAt往回撥PHASE_TOTAL_MS（跟computeDayStage()既有的時間衍生公式一致），讓
-  // currentPhaseInfo()下一影格就算出這一天的最終半徑（stage:"done"/"waitingForDay2/3"）。
-  // day3沒有地圖/縮圈可言，直接no-op。
+  // 立即縮圈（2026-09-09新增，測試主控台專用）：不新增第二套計時系統，直接改寫目前這一天
+  // 的StartAt（跟computeDayStage()既有的時間衍生公式一致），讓currentPhaseInfo()下一影格
+  // 就算出新的階段。day3沒有地圖/縮圈可言，直接no-op。
+  //
+  // fix(2026-09-13)：使用者回報「立即縮圈沒有立即產生下一階段的縮圈行為」。原本是一律
+  // 往回撥整個PHASE_TOTAL_MS，等於直接跳到這一天的**最末端**（stage:"done"→
+  // waitingForDay2/3），中間的shrink1／hold／shrink2三段全部被跳過——按鈕叫「立即縮圈」，
+  // 但實際上看不到任何縮圈動作，圈子瞬間就停在終點小圓了。
+  // 改成推進到**下一個階段邊界**：grace中→跳到shrink1開始（縮圈動畫真的會播）、
+  // shrink1中→跳到hold開始、hold中→跳到shrink2開始、shrink2中→跳到done。
+  // 要略過整天就連按幾次，每按一次推進一段。
+  var PHASE_BOUNDARIES_MS = [
+    PHASE_GRACE_MS, // grace結束＝shrink1開始
+    PHASE_GRACE_MS + PHASE_SHRINK1_MS, // shrink1結束＝hold開始
+    PHASE_GRACE_MS + PHASE_SHRINK1_MS + PHASE_HOLD_MS, // hold結束＝shrink2開始
+    PHASE_TOTAL_MS, // shrink2結束＝done（waitingForDayN）
+  ];
+
   function handleForceShrinkClick() {
     if (!meta || !meta.testMode) return;
     if (meta.day3StartAt) return;
-    var now = Date.now();
-    if (meta.day2StartAt) {
-      GameStorage.rtSet(gameId, "cloud", "meta/day2StartAt", now - PHASE_TOTAL_MS);
-    } else {
-      GameStorage.rtSet(gameId, "cloud", "meta/sessionStartAt", now - PHASE_TOTAL_MS);
+    // effectiveNow()（含暫停補償）才是currentPhaseInfo()實際拿來相減的時間基準，
+    // 用Date.now()在暫停中會算錯一個暫停時長。
+    var now = effectiveNow(Date.now());
+    var field = meta.day2StartAt ? "day2StartAt" : "sessionStartAt";
+    var startAt = meta.day2StartAt || meta.sessionStartAt;
+    var elapsed = Math.max(0, now - startAt);
+    var target = PHASE_TOTAL_MS;
+    for (var i = 0; i < PHASE_BOUNDARIES_MS.length; i++) {
+      if (elapsed < PHASE_BOUNDARIES_MS[i]) {
+        target = PHASE_BOUNDARIES_MS[i];
+        break;
+      }
     }
+    GameStorage.rtSet(gameId, "cloud", "meta/" + field, now - target);
   }
 
   // ---- 縮圈扣血：本地每秒判定一次自己是否在圈外，若是則透過transaction()對自己的
@@ -17450,6 +17578,7 @@
     updateFlaskReading(now);
     updateAffixOverTime(now); // 2026-09-13武器詞條：HP持続回復／減少、HP未滿時累積猛毒／腐敗
     updateAffixGuardHold(now); // 2026-09-13武器詞條第2批：架盾3秒的聖域展開與3種周圍攻擊
+    updateFieldWaitBars(); // 2026-09-13：中途加入／後補領獎的等待讀條
     maybePushPosition(now);
     var phaseInfo = currentPhaseInfo(now);
     maybeApplyCircleDamage(now, phaseInfo);
@@ -18009,6 +18138,38 @@
     },
     _debugAffixOutgoingMult: function (ctx) {
       return affixOutgoingDamageMult(characters[myTokenId], ctx);
+    },
+    // ---- 2026-09-13 第7批（立即縮圈／等待讀條／抽選亂數退回）測試入口 ----
+    _debugForceShrink: function () {
+      handleForceShrinkClick();
+    },
+    _debugFieldEnterWaitMs: function (card) {
+      return fieldEnterWaitMs({ card: card });
+    },
+    // 直接把「還剩remainMs」的等待狀態做出來再畫一次讀條，不用真的站到地圖點旁邊按按鈕。
+    _debugSetLateWaitProbe: function (kind, remainMs) {
+      if (kind === "join") lateJoinUntil = remainMs === null ? null : Date.now() + remainMs;
+      else lateClaimUntil = remainMs === null ? null : Date.now() + remainMs;
+      updateFieldWaitBars();
+      var fill = el(kind === "join" ? "midnight-field-late-join-fill" : "midnight-field-late-claim-fill");
+      return fill ? fill.style.width : null;
+    },
+    _debugRandomEnemyFallback: function (seedKey) {
+      return randomEnemyMatchFallback(seedKey);
+    },
+    _debugRandomNightBossFallback: function (seedKey) {
+      return randomNightBossIdFallback(seedKey);
+    },
+    _debugRollDay3Boss: function () {
+      day3BossRollAttempted = false;
+      rollAndAssignDay3Boss();
+    },
+    _debugRollStrongEnemy: function (pt) {
+      delete strongEnemyRollAttempted[pt.id];
+      rollAndAssignStrongEnemy(pt);
+    },
+    _debugRollFinalCircleBoss: function (dayIndex, pointId) {
+      rollAndAssignFinalCircleBoss(dayIndex, pointId, currentPhaseInfo(Date.now()));
     },
     _debugRewardEntryLabel: function (entry) {
       return rewardEntryLabel(entry);

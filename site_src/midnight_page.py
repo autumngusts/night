@@ -207,6 +207,12 @@ BODY = """    <div class="midnight-wrap">
           <button type="button" class="midnight-top-banner-collapse-btn" aria-label="collapse">&#9654;</button>
           <button type="button" id="btn-midnight-field-late-join" data-i18n="midnight_field_late_join_button"></button>
           <div id="midnight-field-late-join-loading" hidden data-i18n="midnight_field_late_join_loading_note"></div>
+          <!-- 2026-09-13使用者明確要求「進入樓層時設定的等待時間也要呈現讀條在資訊欄
+               banner中」：原本只有一行文字提示，看不出還要等多久。跟正式進入的
+               #midnight-field-loading-bar共用同一種.midnight-loading-track視覺元件。 -->
+          <div id="midnight-field-late-join-bar" class="midnight-loading-track" hidden>
+            <span id="midnight-field-late-join-fill" class="midnight-loading-fill"></span>
+          </div>
         </div>
 
         <!-- 後補領獎（2026-09-07新增，design§1.5）：跟上面的中途加入按鈕同款結構，獨立於
@@ -220,12 +226,21 @@ BODY = """    <div class="midnight-wrap">
           <button type="button" class="midnight-top-banner-collapse-btn" aria-label="collapse">&#9654;</button>
           <button type="button" id="btn-midnight-field-late-claim" data-i18n="midnight_field_late_claim_button"></button>
           <div id="midnight-field-late-claim-loading" hidden data-i18n="midnight_field_late_join_loading_note"></div>
+          <!-- 讀條同上（2026-09-13）。 -->
+          <div id="midnight-field-late-claim-bar" class="midnight-loading-track" hidden>
+            <span id="midnight-field-late-claim-fill" class="midnight-loading-fill"></span>
+          </div>
         </div>
 
         <div id="midnight-field-invite-prompt" hidden>
           <button type="button" class="midnight-top-banner-collapse-btn" aria-label="collapse">&#9654;</button>
           <p id="midnight-field-invite-text"></p>
           <p id="midnight-field-invite-timer"></p>
+          <!-- 邀請時限讀條（2026-09-13使用者明確要求，同上）：原本只有「剩N秒」的文字，
+               這裡補上跟其他等待共用的讀條，見static/midnight.jsのrenderFieldOverlay()。 -->
+          <div id="midnight-field-invite-bar" class="midnight-loading-track">
+            <span id="midnight-field-invite-fill" class="midnight-loading-fill"></span>
+          </div>
           <button type="button" id="btn-midnight-field-invite-accept" data-i18n="midnight_field_invite_accept_button"></button>
         </div>
 
