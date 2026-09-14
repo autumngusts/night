@@ -126,10 +126,14 @@
   var SORCERY_CAST_HOLD_MS = 2000;
 
   // ---- 屬性/狀態異常共同蓄積（2026-09-05武器資料真正接入新增，見docs/enemy_damage_rules.md
-  // §7）：使用者明確規格「拉長為需要2倍」，基本閾值8→16。弱點閾值（規則書6點）本計畫暫不
-  // 實作（midnight目前沒有把地圖敵人與enemies_data_*.js的弱點資料接起來的既有管道，不自行
-  // 發明弱點判定，全部敵人一律用基本閾值）。----
+  // §7）：使用者明確規格「拉長為需要2倍」，基本閾值8→16。
+  // 2026-09-14使用者明確規格「規則書的『弱點閾值 6』需要實作 終值為 12」：弱點閾值同樣
+  // ×2＝12，比照night.jsのATTRIBUTE_STATUS_WEAKNESS_THRESHOLD機制（night.js:1637），
+  // 只是midnight的兩個閾值都是規則書的兩倍。弱點資料來源見enemyWeaknessLabelsForTarget()。
   var ATTRIBUTE_STATUS_THRESHOLD = 16;
+  var ATTRIBUTE_STATUS_WEAKNESS_THRESHOLD = 12;
+  var ATTRIBUTE_STATUS_SLEEP_LABEL = "睡眠";
+  var ATTRIBUTE_STATUS_DEATH_CURSE_LABEL = "呪死";
   var ATTRIBUTE_STATUS_ELEMENT_NAMES_JA = ["魔", "炎", "雷", "聖"];
   var ATTRIBUTE_STATUS_AILMENT_NAMES_JA = ["猛毒", "腐敗", "出血", "凍傷", "発狂", "睡眠", "呪死"];
   // 屬性／異常狀態的統一視覺（2026-09-12使用者明確要求「對敵人的屬性傷害異常狀態等顯示的
@@ -173,7 +177,12 @@
   // AILMENT_NAMES_JA既有清單一致），避免同一個異常因為文字語言不同被拆成兩個bucket。
   // 「咒死」同理是ja「呪死」的zh表記（2026-09-12補：戰技本文解析
   // parseSkillBodyAccums()會取到zh寫法，原本只正規化了發狂一種）。
-  var ATTRIBUTE_LABEL_ZH_TO_JA = { 發狂: "発狂", 咒死: "呪死" };
+  // 2026-09-14弱點判定接入時補上「火」「劇毒」：夜之王的中文弱點欄位
+  // （night_boss_rulebook.js）用的是「火／劇毒」，而敵人卡與蓄積bucket用的是「炎／猛毒」，
+  // 不對映的話gnoster「火、腐敗、出血、凍傷」與edele「劇毒」的弱點閾值永遠不會命中。
+  // 這兩個字串不在SKILL_ACCUM_NAMES／ENEMY_ATTACK_ATTRIBUTE_NAMES裡，因此加進來不會
+  // 影響既有的本文蓄積解析（那兩條正規式根本擷取不到「火」「劇毒」）。
+  var ATTRIBUTE_LABEL_ZH_TO_JA = { 發狂: "発狂", 咒死: "呪死", 火: "炎", 劇毒: "猛毒" };
 
   function normalizeAttributeLabel(label) {
     return ATTRIBUTE_LABEL_ZH_TO_JA[label] || label;
@@ -269,7 +278,41 @@
     // 異常維持docs §7.4「発動後は0に戻す」（超過分切り捨て），因此一次只算1發。
     receivedAttributeAccum[name] = isAilment ? 0 : next - times * threshold;
     var triggerTimes = isAilment ? 1 : times;
-    for (var i = 0; i < triggerTimes; i++) triggerUnyieldingStackIfApplicable();
+    for (var i = 0; i < triggerTimes; i++) {
+      triggerUnyieldingStackIfApplicable();
+      applyReceivedAttributeAccumEffect(name, isAilment);
+    }
+  }
+
+  // ---- 自身承受側的蓄積觸發效果（2026-09-14使用者明確規格）----
+  // 規則書同樣是「HP損害：■／■■」，玩家側的即時制終值由使用者直接指定
+  // （玩家的■＝BLOCK_SQUARE_COUNT_TO_RESOURCE_MULT＝10，所以15~20／21~30就是■／■■的量級）：
+  //   屬性（魔炎雷聖）　→ 自身扣 15~20
+  //   異常（猛毒腐敗出血凍傷発狂）→ 自身扣 21~30
+  //   睡眠　→ 5秒內體力無法「自然」回復（攻擊/道具/技能的回復不受影響，見updateStamina()）
+  //   呪死　→ HP歸零並立即進入瀕死（比照night.jsのapplyAttributeStatusAilmentTriggerOnChar()）
+  // 扣血一律走既有的spendSelfHp()，因此HP歸零時本來就會呼叫maybeTriggerNearDeath()，
+  // 不需要在這裡另外處理瀕死判定。
+  var RECEIVED_TRIGGER_ELEMENT_DAMAGE = [15, 20];
+  var RECEIVED_TRIGGER_AILMENT_DAMAGE = [21, 30];
+  var SLEEP_STAMINA_REGEN_BLOCK_MS = 5000; // 使用者明確規格「玩家5秒內體力無法自然回復」
+  var staminaRegenBlockedUntil = 0;
+
+  function applyReceivedAttributeAccumEffect(name, isAilment) {
+    if (name === ATTRIBUTE_STATUS_DEATH_CURSE_LABEL) {
+      // 「玩家與敵人襲擊者種類 立即進入瀕死」——玩家側無種類條件，一律適用。
+      spendSelfHp(mySelfHpMaxFallback() + 9999);
+      showToast(window.I18N.t("midnight_self_accum_curse_note", { name: name }));
+      return;
+    }
+    if (name === ATTRIBUTE_STATUS_SLEEP_LABEL) {
+      staminaRegenBlockedUntil = Date.now() + SLEEP_STAMINA_REGEN_BLOCK_MS;
+      showToast(window.I18N.t("midnight_self_accum_sleep_note", { seconds: SLEEP_STAMINA_REGEN_BLOCK_MS / 1000 }));
+      return;
+    }
+    var damage = randIntInclusive(isAilment ? RECEIVED_TRIGGER_AILMENT_DAMAGE : RECEIVED_TRIGGER_ELEMENT_DAMAGE);
+    spendSelfHp(damage);
+    showToast(window.I18N.t("midnight_self_accum_damage_note", { name: name, damage: damage }));
   }
 
   // 不撓（執行者/執行者暗影被動，2026-09-06角色能力真正接入新增）：每當自身受到的屬性/
@@ -635,13 +678,121 @@
     return !!w && AFFIX_RANGED_CATEGORY_IDS.indexOf(w.category) !== -1;
   }
 
+  // ============================================================================
+  // 戰技本文的「この装備品にスキル『属性｜X』を追加する」（2026-09-14接入）
+  // ============================================================================
+  // 使用者明確規格「『追加スキル属性｜X』完全沒接入 需要接入 基本持續時間10s制」。
+  // 規則書原文一律是「エンドフェイズまで／フェイズ終了まで」，依專案既有通則換算成10秒
+  // （同CONSUMABLE_BUFF_MS／塗脂_greaseUntil的做法，見midnight的「直到階段結束＝10秒」慣例）。
+  //
+  // 儲存方式完全比照塗脂：純本地端、掛在角色物件上的到期時間戳，不寫RTDB——這是「我這把
+  // 武器接下來10秒打出去會附什麼屬性」的自身狀態，其他玩家不需要知道（跟_greaseWeaponId
+  // 同一個判斷）。到期不需要reset loop，時間戳本身就是即時制版本的phase reset（CLAUDE.md §21）。
+  //
+  // 解析對象只認規則書列舉的實際屬性/異常名稱，因此「属性／状態異常｜X（154頁）」這種
+  // 字面X的句型（連續突刺／劍舞／亂擊／血之徵收／宿念射擊等「蓄積值：＋3」條款）不會被誤判。
+  var TEMP_WEAPON_SKILL_MS = 10000;
+  var TEMP_ELEMENT_RE = /[属屬]性｜(魔|炎|雷|聖)/g;
+  var TEMP_STATUS_RE = /(?:状態異常|狀態異常|異常狀態)｜(猛毒|腐敗|出血|凍傷|発狂|發狂|睡眠|呪死|咒死)/g;
+
+  // 本文有沒有「弱点：X／弱點：X」這種限定句（目前只有死のフレア的呪死）。
+  // 有的話這一項只對「該屬性/異常剛好是弱點」的敵人生效，見midnightWeaponAccumEffects()。
+  function bodyRestrictsToWeakness(bodyText, label) {
+    if (!bodyText) return false;
+    var re = new RegExp("弱[点點][：:]\\s*(" + label + "|" + (label === "呪死" ? "咒死" : label === "発狂" ? "發狂" : label) + ")");
+    return re.test(bodyText);
+  }
+
+  function parseGrantedWeaponSkills(bodyText) {
+    var out = [];
+    if (!bodyText || bodyText.indexOf("追加") === -1) return out; // 「〜を追加する」以外の言及は拾わない
+    [
+      { re: TEMP_ELEMENT_RE, isElement: true },
+      { re: TEMP_STATUS_RE, isElement: false },
+    ].forEach(function (spec) {
+      var m;
+      spec.re.lastIndex = 0;
+      while ((m = spec.re.exec(bodyText))) {
+        var label = normalizeAttributeLabel(m[1]);
+        var already = out.some(function (o) {
+          return o.label === label;
+        });
+        if (already) continue;
+        out.push({ label: label, isElement: spec.isElement, onlyIfWeakness: bodyRestrictsToWeakness(bodyText, label) });
+      }
+    });
+    return out;
+  }
+
+  // 發動：把解析到的項目掛到「這一招所屬的那把裝備品」上，各自帶10秒到期時間戳。
+  // 同一把武器重複發動同一個屬性時只更新到期時間（規則書「この効果は重複しない」）。
+  //
+  // setTimeout(0)：規則書原文是「**このアクション後**、エンドフェイズまで〜を追加する」，
+  // 附著不該影響「產生這個附著的這一發」自己（否則這一發的命中屬性/刀光顏色會提前變色）。
+  // 延到下一個tick才真正掛上去，就是「このアクション後」的字面實作，也跟night.js
+  // のmoveOminousStrikeToFront()處理「這次動作結算完之後才生效」的既有寫法一致。
+  // 回傳值是解析結果（給toast附註用），不等於「已經生效」。
+  function grantTempWeaponSkills(c, weaponId, bodyText) {
+    if (!c || !weaponId) return [];
+    var granted = parseGrantedWeaponSkills(bodyText);
+    if (!granted.length) return [];
+    setTimeout(function () {
+      var until = Date.now() + TEMP_WEAPON_SKILL_MS;
+      if (!c._tempWeaponSkills) c._tempWeaponSkills = [];
+      granted.forEach(function (g) {
+        var existing = c._tempWeaponSkills.filter(function (t) {
+          return t.weaponId === weaponId && t.label === g.label;
+        })[0];
+        if (existing) {
+          existing.until = until;
+          existing.onlyIfWeakness = g.onlyIfWeakness;
+          return;
+        }
+        c._tempWeaponSkills.push({ weaponId: weaponId, label: g.label, isElement: g.isElement, onlyIfWeakness: g.onlyIfWeakness, until: until });
+      });
+    }, 0);
+    return granted;
+  }
+
+  // 目前仍生效的臨時技能（順便把過期項目清掉，比照expireGreaseIfNeeded()的做法）。
+  function activeTempWeaponSkills(c, weaponId) {
+    if (!c || !c._tempWeaponSkills || !c._tempWeaponSkills.length) return [];
+    var now = Date.now();
+    c._tempWeaponSkills = c._tempWeaponSkills.filter(function (t) {
+      return t.until > now;
+    });
+    return c._tempWeaponSkills.filter(function (t) {
+      return t.weaponId === weaponId;
+    });
+  }
+
+  // midnight版的「這把武器會附著什麼屬性/異常」：既有的武器本體技能＋塗脂
+  // （CharacterDrawer.weaponAccumulationEffects，night.js共用，不動它）再併上本檔的
+  // 10秒臨時技能。midnight內所有原本呼叫weaponAccumulationEffects()的地方都改走這裡。
+  function midnightWeaponAccumEffects(c, weaponId) {
+    var base = CharacterDrawer.weaponAccumulationEffects(c, weaponId) || [];
+    var temps = activeTempWeaponSkills(c, weaponId);
+    if (!temps.length) return base;
+    // 「弱点：X」限定項（死のフレア的呪死）：只有現在的目標確實以該項為弱點時才併入。
+    var weaknesses = null;
+    var out = base.slice();
+    temps.forEach(function (t) {
+      if (t.onlyIfWeakness) {
+        if (weaknesses === null) weaknesses = enemyWeaknessLabelsForTarget(currentAttributeAccumTargetKey());
+        if (weaknesses.indexOf(t.label) === -1) return;
+      }
+      out.push({ label: t.label, isElement: t.isElement, scorpionBonus: 0 });
+    });
+    return out;
+  }
+
   // 這把武器打出去的攻擊帶的屬性（炎／聖／魔／雷其中之一，沒有則null）：直接讀
-  // CharacterDrawer.weaponAccumulationEffects()——那是既有的「這把武器會附著什麼屬性/
+  // midnightWeaponAccumEffects()——那是既有的「這把武器會附著什麼屬性/
   // 異常」唯一來源（命中刀光顏色weaponHitColor()也是讀它），不另外解析weapon.skills。
   // 異常狀態（出血/猛毒等）不算屬性，因此只取ATTRIBUTE_STATUS_ELEMENT_NAMES_JA裡的。
   function weaponElementLabel(c, weaponId) {
     if (!c || !weaponId) return null;
-    var effects = CharacterDrawer.weaponAccumulationEffects(c, weaponId) || [];
+    var effects = midnightWeaponAccumEffects(c, weaponId) || [];
     for (var i = 0; i < effects.length; i++) {
       var nm = normalizeAttributeLabel(effects[i].label);
       if (ATTRIBUTE_STATUS_ELEMENT_NAMES_JA.indexOf(nm) !== -1) return nm;
@@ -3945,6 +4096,80 @@
     });
   }
 
+  // ============================================================================
+  // 敵人弱點／種類／體型（2026-09-14接入，使用者明確規格「規則書的『弱點閾值 6』需要實作
+  // 終值為 12」「『弱点：X』接入判定」「體型接上用途」）
+  // ============================================================================
+  // 資料來源全部是既有欄位，沒有新增任何規則資料：
+  //   一般敵人：enemy.special 內嵌的「〔弱点:炎＆猛毒〕」文字（既有的enemyWeaknessText()）、
+  //             family.name（「襲撃者（戦士系）」等）、enemy.size（"S"/"L"/"LL"）。
+  //   夜之王　：night_boss_rulebook.js 的 weakness 獨立欄位（例 C("竜※④、猛毒", …)）。
+  // 分割與正規化比照night.jsのenemyWeaknessLabels()（night.js:1655）：分隔符吃＆、，・，
+  // 再用normalizeAttributeLabel()把zh寫法（發狂／咒死）收斂成ja key，跟蓄積bucket同一套字串。
+  // 夜王的「竜※④」這種非屬性項目分割後留著無妨——它不會等於任何屬性/異常名，比對自然落空。
+  function enemyInfoForTargetKey(targetKey) {
+    if (!targetKey || targetKey === "sharedTarget") return null;
+    var trig = fieldTriggers[targetKey];
+    if (!trig || !trig.enemyFamilyId) return null;
+    if (trig.enemyFamilyId === BOSS_ENEMY_FAMILY_SENTINEL) {
+      var boss = bossRulebookData(trig.enemyId);
+      return boss ? { isBoss: true, boss: boss } : null;
+    }
+    var data = window.PriTestEnemies ? window.PriTestEnemies.get(trig.enemyFamilyId, trig.enemyId) : null;
+    return data ? { isBoss: false, familyName: data.familyName, enemy: data.enemy } : null;
+  }
+
+  // 分隔符除了night.js既有的「＆、,・」之外還要吃「／/」：實資料裡有
+  // 「猛毒／腐敗／睡眠」這種一格寫三項的寫法（ja/zh皆有），不切開的話這三項全部落空。
+  function splitWeaknessLabels(text) {
+    if (!text) return [];
+    return String(text)
+      .split(/[＆&、,・／/]/)
+      .map(function (s) {
+        return normalizeAttributeLabel(s.trim());
+      })
+      .filter(Boolean);
+  }
+
+  function enemyWeaknessLabelsForTarget(targetKey) {
+    var info = enemyInfoForTargetKey(targetKey);
+    if (!info) return [];
+    if (info.isBoss) {
+      return splitWeaknessLabels(window.PriTestEnemies ? window.PriTestEnemies.localizedText(info.boss.weakness) : "");
+    }
+    return splitWeaknessLabels(enemyWeaknessText(info.enemy));
+  }
+
+  // 對這個目標、這個屬性/異常而言的觸發門檻：命中弱點＝12，否則16。
+  function attributeAccumThresholdFor(targetKey, name) {
+    return enemyWeaknessLabelsForTarget(targetKey).indexOf(name) !== -1
+      ? ATTRIBUTE_STATUS_WEAKNESS_THRESHOLD
+      : ATTRIBUTE_STATUS_THRESHOLD;
+  }
+
+  // 「襲擊者」家系判定（呪死的適用對象，比照night.jsのenemyIsAttackerFamily()）：
+  // 家系名稱含「襲撃者／襲擊者」即成立（attacker_warrior／attacker_mage兩系）。
+  // 夜之王不屬於襲擊者家系，因此呪死對夜王無效——跟night.js的行為一致。
+  function targetIsAttackerFamily(targetKey) {
+    var info = enemyInfoForTargetKey(targetKey);
+    if (!info || info.isBoss || !info.familyName) return false;
+    var ja = info.familyName.ja || "";
+    var zh = info.familyName.zh || "";
+    return ja.indexOf("襲撃者") !== -1 || zh.indexOf("襲擊者") !== -1;
+  }
+
+  // 體型（enemies_data_*.jsの既有enemy.size欄位、"S"/"L"/"LL"）。夜之王沒有size欄位，
+  // 規則書也沒有給夜王標體型，因此回傳""＝不符合任何「サイズ：LL」條件。
+  function enemySizeForTargetKey(targetKey) {
+    var info = enemyInfoForTargetKey(targetKey);
+    if (!info || info.isBoss || !info.enemy) return "";
+    return info.enemy.size || "";
+  }
+
+  function currentTargetIsSizeLL() {
+    return enemySizeForTargetKey(currentAttributeAccumTargetKey()) === "LL";
+  }
+
   // 蓄積值每滿一次門檻＝一次觸發。
   // 2026-09-13使用者明確規格「敵人中了屬性超過16、檢查是否有成功觸發其效果，但是敵人仍然
   // 殘留17/16，計算過一次就扣除其數值，下一次重新計算成為1/16」：原本的做法是蓄積值一路
@@ -3957,17 +4182,19 @@
   // 狀態異常維持docs §7.4「発動後は0に戻す」（超過分切り捨て），因此一次只算1發。
   function maybeTriggerAttributeAccum(targetKey, name, total) {
     var isAilment = ATTRIBUTE_STATUS_AILMENT_NAMES_JA.indexOf(name) !== -1;
-    if (total < ATTRIBUTE_STATUS_THRESHOLD) return;
+    // 2026-09-14：門檻改為依目標的弱點決定（命中弱點12／否則16），見attributeAccumThresholdFor()。
+    var threshold = attributeAccumThresholdFor(targetKey, name);
+    if (total < threshold) return;
     var consumed = 0;
     GameStorage.rtTransaction(gameId, "cloud", "attributeAccum/" + targetKey + "/" + name, function (cur) {
       var value = cur || 0;
-      var times = Math.floor(value / ATTRIBUTE_STATUS_THRESHOLD);
+      var times = Math.floor(value / threshold);
       if (times <= 0) {
         consumed = 0;
         return cur; // 別台裝置已經先扣掉了，這次不算我的
       }
       consumed = isAilment ? 1 : times;
-      return isAilment ? 0 : value - times * ATTRIBUTE_STATUS_THRESHOLD;
+      return isAilment ? 0 : value - times * threshold;
     }).then(function () {
       if (consumed <= 0) return;
       // 累計觸發次數（遺物「〜達成的歡喜」靠它判斷「剛剛達成」，見applyAttributeJoySpec()）。
@@ -3978,18 +4205,79 @@
     });
   }
 
-  // docs/enemy_damage_rules.md §7.6：多數效果本身是「HP損害■」，不可自行發明數值
-  // （CLAUDE.md §19），只顯示規則原文交由GM/玩家判斷；唯一能自動化的是「呪死」——
-  // 規則書效果是「撃破（瀕死則立即撃破，否則持續到異常結束）」，midnight的敵人HP只有
-  // 單一數字、沒有瀕死/持續的概念，這裡對應成「直接把敵人HP歸零」。
+  // ---- 蓄積觸發效果（2026-09-14使用者明確規格，取代原本「只顯示規則原文交給GM」的佔位）----
+  // 規則書寫的是「HP損害：■／■■」，midnight的即時制終值由使用者直接指定，對應如下
+  // （敵人HP＝規則書格數×100，所以■≒100、■■≒200，指定值就是在這個量級上帶隨機）：
+  //   屬性（魔炎雷聖）　→ 敵人扣 51~100
+  //   異常（猛毒腐敗出血凍傷発狂）→ 敵人扣 151~200
+  //   睡眠　→ 敵人「體崩」＋下一次攻擊的亂戰傷害-300
+  //   呪死　→ 僅「襲擊者」家系立即進入瀕死（midnight敵人無瀕死概念＝HP歸零），其他種類無效
+  // 使用者明確選擇：這筆傷害**不走HP價值減傷**（是終值），因此直接寫fieldEnemyHp，
+  // 不經過applyDamageToFieldEnemyHp()。這跟night.jsのdamageEnemyHpForKey()直接扣HP格數、
+  // 不過Guard的行為一致。
+  var ATTRIBUTE_TRIGGER_ENEMY_ELEMENT_DAMAGE = [51, 100];
+  var ATTRIBUTE_TRIGGER_ENEMY_AILMENT_DAMAGE = [151, 200];
+  // 睡眠讓敵人下一次攻擊的亂戰傷害-300：規則書尺度（實際扣血在resolveMyIncomingHit()才÷10，
+  // 見midnight.js的rawDamage計算），跟既有的無賴漢「圖騰・史黛拉」300／學者「探求」180／
+  // 「敵人弱化」120完全同一個欄位與尺度，直接重用nextGroupDamageReduceAmount。
+  var ATTRIBUTE_TRIGGER_SLEEP_GROUP_DAMAGE_REDUCE = 300;
+
+  function randIntInclusive(range) {
+    return range[0] + Math.floor(Math.random() * (range[1] - range[0] + 1));
+  }
+
+  // 直接對目標扣血（不過HP價值減傷）。sharedTarget是練習用的共享標靶，沿用damageSharedTarget()。
+  function damageTargetKeyDirect(targetKey, amount) {
+    if (targetKey === "sharedTarget") {
+      damageSharedTarget(amount);
+      return;
+    }
+    GameStorage.rtTransaction(gameId, "cloud", "fieldEnemyHp/" + targetKey, function (cur) {
+      var next = (cur || 0) - amount;
+      return next < 0 ? 0 : next;
+    });
+  }
+
+  // 睡眠對敵人：體崩＋下次攻擊亂戰傷害-300。體崩直接寫既有的staggerUntil/staggerSeq
+  // （跟recordGuardReductionForPoint()裡累積滿STAGGER_THRESHOLD_UNITS時同一組欄位與
+  // 語意，含「新的一次體崩，致命一擊重新開放」的executionUsedSeq歸零）。
+  function applySleepTriggerOnEnemy(targetKey) {
+    if (targetKey === "sharedTarget") return;
+    GameStorage.rtTransaction(gameId, "cloud", "fieldTrigger/" + targetKey, function (cur) {
+      if (!cur) return cur;
+      var out = {};
+      for (var k in cur) out[k] = cur[k];
+      var now = Date.now();
+      out.staggerUnits = 0;
+      out.staggerUntil = now + STAGGER_DURATION_MS;
+      out.staggerSeq = (out.staggerSeq || 0) + 1;
+      out.executionUsedSeq = null;
+      out.nextGroupDamageReduceAmount = ATTRIBUTE_TRIGGER_SLEEP_GROUP_DAMAGE_REDUCE;
+      return out;
+    });
+  }
+
   function applyAttributeAccumEffect(name, targetKey) {
-    if (name === "呪死") {
-      if (targetKey === "sharedTarget") damageSharedTarget(9999);
-      else GameStorage.rtSet(gameId, "cloud", "fieldEnemyHp/" + targetKey, 0);
+    if (name === ATTRIBUTE_STATUS_DEATH_CURSE_LABEL) {
+      // 使用者明確規格「玩家與敵人襲擊者種類 立即進入瀕死 其他種類無效」。
+      if (!targetIsAttackerFamily(targetKey)) {
+        showToast(window.I18N.t("midnight_attribute_accum_curse_no_effect_note", { name: name }));
+        return;
+      }
+      GameStorage.rtSet(gameId, "cloud", "fieldEnemyHp/" + targetKey, 0);
       showToast(window.I18N.t("midnight_attribute_accum_curse_note", { name: name }));
       return;
     }
-    showToast(window.I18N.t("midnight_attribute_accum_trigger_note", { name: name }));
+    if (name === ATTRIBUTE_STATUS_SLEEP_LABEL) {
+      applySleepTriggerOnEnemy(targetKey);
+      showToast(window.I18N.t("midnight_attribute_accum_sleep_note", { name: name }));
+      return;
+    }
+    var isAilment = ATTRIBUTE_STATUS_AILMENT_NAMES_JA.indexOf(name) !== -1;
+    var damage = randIntInclusive(isAilment ? ATTRIBUTE_TRIGGER_ENEMY_AILMENT_DAMAGE : ATTRIBUTE_TRIGGER_ENEMY_ELEMENT_DAMAGE);
+    damageTargetKeyDirect(targetKey, damage);
+    triggerEnemyAilmentEffect(name);
+    showToast(window.I18N.t("midnight_attribute_accum_damage_note", { name: name, damage: damage }));
   }
 
   // 蓄積值小型顯示區塊（角色面板/戰鬥面板附近，見renderCombatPanel()呼叫）：只顯示目前
@@ -4051,14 +4339,17 @@
   function renderAttributeAccumNote() {
     var noteEl = el("midnight-attribute-accum-note");
     if (!noteEl) return;
-    var data = attributeAccum[currentAttributeAccumTargetKey()] || {};
+    var targetKey = currentAttributeAccumTargetKey();
+    var data = attributeAccum[targetKey] || {};
     var names = accumNamesWithValue(data);
-    var key = accumSignature(data, names);
+    // 2026-09-14：弱點閾值（12）接入後，同一隻敵人的不同屬性可能有不同門檻，因此簽章要把
+    // targetKey一起算進去——換敵人時門檻可能變了但數值恰好相同，只看數值會漏重繪。
+    var key = targetKey + "|" + accumSignature(data, names);
     if (key === lastAttributeAccumKey) return;
     lastAttributeAccumKey = key;
     noteEl.innerHTML = "";
     names.forEach(function (name) {
-      noteEl.appendChild(buildAccumChip(name, data[name]));
+      noteEl.appendChild(buildAccumChip(name, data[name], attributeAccumThresholdFor(targetKey, name)));
     });
   }
 
@@ -4649,7 +4940,7 @@
     // c._greaseElementRef合成一個臨時的「屬性｜X」，那邊沒有時間概念，因此先在這裡清掉
     // 過期的塗脂（見expireGreaseIfNeeded()）。
     expireGreaseIfNeeded(c);
-    var effects = CharacterDrawer.weaponAccumulationEffects(c, weaponId);
+    var effects = midnightWeaponAccumEffects(c, weaponId);
     if (!effects.length) return;
     effects.forEach(function (eff) {
       recordAttributeAccum(eff.label, base + eff.scorpionBonus);
@@ -4791,8 +5082,28 @@
       // 隱者「能力強化（魔術之地）」：使用元素操控後10秒內，自身使用的**魔術**傷害+5
       // （只有杖＝sorcery，不含祈禱/一般戰技），見applyRelicAbilityPostEffect()。
       (skillDamageKind === "sorcery" && c._magicGroundUntil && c._magicGroundUntil > Date.now() ? 5 : 0) +
-      (skillDamageKind ? CharacterDrawer.attachedSkillDamageBonus(c, skillDamageKind) : 0);
+      (skillDamageKind ? CharacterDrawer.attachedSkillDamageBonus(c, skillDamageKind) : 0) +
+      // 2026-09-14「體型接上用途」（使用者明確規格）：本文的「エネミーが『サイズ：LL』の
+      // 場合、ダメージを『＋N／＋▲』する」條款，只在目前目標的enemy.size真的是LL時加成。
+      sizeLLSkillBonus(bodyText, artPower);
     return { value: result.value + flatBonus, symbol: result.symbol };
+  }
+
+  // ---- 體型「サイズ：LL」加成（2026-09-14接入）----
+  // 目前規則資料裡有這個條款的是星雲系3條（art_nebula＋▲／flail_stardust＋15／
+  // spell_nebula＋15）。加成量可能是固定數字，也可能是「▲」＝自身威力補正（CLAUDE.md §18，
+  // 這裡直接用已經算好的artPower，跟其餘威力解析同一個來源）。
+  // 判定對象是目前的攻擊目標（currentAttributeAccumTargetKey()→fieldTrigger→enemy.size），
+  // 共享標靶與夜之王沒有體型資料，一律視為不符合，不自行發明體型。
+  var SIZE_LL_BONUS_RE = /(?:サイズ|體型|体型)[：:]\s*LL[」』]?[^。]*?[＋+]\s*(\d+|▲|◆)/;
+
+  function sizeLLSkillBonus(bodyText, artPower) {
+    if (!bodyText) return 0;
+    var m = SIZE_LL_BONUS_RE.exec(bodyText);
+    if (!m) return 0;
+    if (!currentTargetIsSizeLL()) return 0;
+    if (m[1] === "▲" || m[1] === "◆") return artPower || 0;
+    return parseInt(m[1], 10) || 0;
   }
 
   // 觸發一次戰技／魔術／祈禱（戰技A即時觸發／戰技B長按滿後觸發共用同一個函式）：先確認
@@ -4890,23 +5201,42 @@
 
   // 「魔：2」＝固定2／「炎：1D」＝擲1顆D6／「炎：2D」＝擲2顆／「魔：1D＋2」＝1顆＋2。
   // 名稱後面必須緊跟冒號才算，因此「魔術」「屬性｜雷（154頁）」這類不會誤判。
+  //
+  // 2026-09-14修正（稽核「其餘沒接上的效果」時發現的實際bug）：原本是對整份本文跑一次
+  // global regex，把所有「X：N」一律當成「對敵人的蓄積」。但狂火系3條祈禱
+  // （prayer_unbearable_frenzied_flame／prayer_rupturing_frenzied_flame／
+  // prayer_howl_of_shabriri）的本文是「…エネミーに…「発狂：2」を与える。**このアクション後、
+  // 自身に「発狂：2」を与える**。」——自傷的那一份被算到敵人頭上，結果敵人吃到雙份発狂，
+  // 玩家自己反而完全不累積。改成逐句判斷方向：句中出現「自身に／對自身」且沒有出現
+  // 「対象／エネミー／モブ／對敵人／對雜兵」時，該句的蓄積算在自己身上（toSelf）。
+  var ACCUM_SENTENCE_SELF_RE = /自身に|自身へ|[對对]自身/;
+  var ACCUM_SENTENCE_ENEMY_RE = /対象に|エネミーに|モブに|[對对]敵人|[對对]雜兵|[對对]象/;
+
   function parseSkillBodyAccums(bodyText) {
     var out = [];
     if (!bodyText) return out;
     var re = new RegExp("(" + SKILL_ACCUM_NAMES.join("|") + ")[：:]\\s*(\\d+)(D)?(?:\\s*[＋+]\\s*(\\d+))?", "g");
-    var m;
-    while ((m = re.exec(bodyText))) {
-      var num = parseInt(m[2], 10) || 0;
-      var value;
-      if (m[3]) {
-        value = 0;
-        for (var i = 0; i < num; i++) value += 1 + Math.floor(Math.random() * 6);
-        if (m[4]) value += parseInt(m[4], 10) || 0;
-      } else {
-        value = num;
+    // 「。」で文を切り、文ごとに向き先を判定する（読点「、」では切らない——
+    // 「自身に「発狂：2」を与え、エンドフェイズまで自身を「敵視：＋3」する。」のように
+    // 1文の中で読点が続く書き方があるため）。
+    bodyText.split("。").forEach(function (sentence) {
+      if (!sentence) return;
+      var toSelf = ACCUM_SENTENCE_SELF_RE.test(sentence) && !ACCUM_SENTENCE_ENEMY_RE.test(sentence);
+      var m;
+      re.lastIndex = 0;
+      while ((m = re.exec(sentence))) {
+        var num = parseInt(m[2], 10) || 0;
+        var value;
+        if (m[3]) {
+          value = 0;
+          for (var i = 0; i < num; i++) value += 1 + Math.floor(Math.random() * 6);
+          if (m[4]) value += parseInt(m[4], 10) || 0;
+        } else {
+          value = num;
+        }
+        if (value > 0) out.push({ label: normalizeAttributeLabel(m[1]), value: value, toSelf: toSelf });
       }
-      if (value > 0) out.push({ label: normalizeAttributeLabel(m[1]), value: value });
-    }
+    });
     return out;
   }
 
@@ -4929,8 +5259,17 @@
   function applyWeaponSkillBodyEffects(c, entry, bodyText) {
     var notes = [];
 
-    // ① 本文に直接書かれた属性/状態異常の蓄積
+    // ① 本文に直接書かれた属性/状態異常の蓄積。
+    //    a.toSelf＝「このアクション後、自身に『発狂：2』を与える」型の自傷（狂火系祈禱3条）。
+    //    自傷は敵人側のattributeAccumではなく、自身承受側のrecordReceivedAttributeAccum()へ
+    //    ——そちらを通すことで護符の無效化/減免・武器詞條の耐性・閾値到達時の効果
+    //    （HP損害／睡眠／呪死）まで既存の経路がそのまま適用される。
     parseSkillBodyAccums(bodyText).forEach(function (a) {
+      if (a.toSelf) {
+        recordReceivedAttributeAccum(a.label, a.value);
+        notes.push(window.I18N.t("midnight_skill_self_accum_note", { label: a.label, value: a.value }));
+        return;
+      }
       recordAttributeAccum(a.label, a.value);
       notes.push(a.label + "+" + a.value);
     });
@@ -4941,12 +5280,20 @@
       var bonus = parseInt(bonusMatch[1] || bonusMatch[2], 10) || 0;
       if (bonus > 0 && entry.weaponId) {
         expireGreaseIfNeeded(c);
-        CharacterDrawer.weaponAccumulationEffects(c, entry.weaponId).forEach(function (eff) {
+        midnightWeaponAccumEffects(c, entry.weaponId).forEach(function (eff) {
           recordAttributeAccum(eff.label, bonus + eff.scorpionBonus);
           notes.push(eff.label + "+" + (bonus + eff.scorpionBonus));
         });
       }
     }
+
+    // ②-b 「この装備品にスキル『属性｜X』を追加する」（2026-09-14接入，10秒制）。
+    //     「自身とPC1人」が選んだ武器へ追加する聖律共有も、midnightの既有慣例どおり
+    //     自分の分だけ套用する（プレイヤーの代わりに他人の武器を選ばない）。
+    var grantedTemps = grantTempWeaponSkills(c, entry.weaponId, bodyText);
+    grantedTemps.forEach(function (g) {
+      notes.push(window.I18N.t("midnight_temp_weapon_skill_note", { label: g.label, seconds: TEMP_WEAPON_SKILL_MS / 1000 }));
+    });
 
     // ③ HP／FP回復（□×10）。「對象：PC全員」だけは全体回復（曖昧さがない）、
     //    「自身與任選1名PC」等は自身のみ——プレイヤーの代わりに対象を選ばない。
@@ -7459,7 +7806,12 @@
     if (talismanIdsForStamina.indexOf("talisman_green_amber_medallion") !== -1 && stamina.current <= TALISMAN_LOW_STAMINA_THRESHOLD) {
       extraRegenPerSec += 1;
     }
-    stamina.current = Math.min(stamina.max, stamina.current + (myStaminaRegenPerSec + extraRegenPerSec) * dtSec);
+    // 2026-09-14「睡眠」蓄積觸發（使用者明確規格「玩家5秒內體力無法自然回復」）：只擋這條
+    // 每幀的自然回復，攻擊命中回復（ATTACK_STAMINA_RECOVER_AMOUNT）、消耗品、技藝回復等
+    // 主動來源不受影響——規格講的是「自然回復」。
+    if (Date.now() >= staminaRegenBlockedUntil) {
+      stamina.current = Math.min(stamina.max, stamina.current + (myStaminaRegenPerSec + extraRegenPerSec) * dtSec);
+    }
     // 憐憫的雫滴的另一半：「HP 10秒恢復1點絕對值」——用固定間隔的本地時間戳節流，
     // 跟血魂之歌的BLOOD_SONG_REGEN_INTERVAL_MS完全同一種寫法。
     if (talismanIdsForStamina.indexOf("talisman_dew_tear") !== -1) {
@@ -8280,7 +8632,7 @@
   function weaponHitColor(weaponId) {
     var c = characters[myTokenId];
     if (!c || !weaponId) return ENEMY_HIT_NO_ELEMENT_COLOR;
-    return enemyHitColorFromEffects(CharacterDrawer.weaponAccumulationEffects(c, weaponId));
+    return enemyHitColorFromEffects(midnightWeaponAccumEffects(c, weaponId));
   }
 
   // 玩家攻擊命中特效（2026-09-06使用者明確要求「玩家使用任何攻擊效果時,也在敵人的圖片
