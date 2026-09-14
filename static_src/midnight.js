@@ -8105,6 +8105,8 @@
     if (hasRelic(c, "staminaLowRegen") && stamina.current <= stamina.max * RELIC_STAMINA_LOW_PCT) {
       extraRegenPerSec += RELIC_STAMINA_LOW_REGEN;
     }
+    // 恩寵「獣の狩り」（2026-09-14）：跟上面那條低體力回復是各自獨立的來源，直接相加。
+    extraRegenPerSec += beastHuntRegenBonus(c);
     if (talismanIdsForStamina.indexOf("talisman_green_amber_medallion") !== -1 && stamina.current <= TALISMAN_LOW_STAMINA_THRESHOLD) {
       extraRegenPerSec += 1;
     }
@@ -8129,6 +8131,58 @@
   }
 
   // 綠琥珀勳章的「體力條20以下」門檻與憐憫的雫滴的回血節奏（2026-09-12使用者明確規格）。
+  // ============================================================================
+  // 恩寵（規則書142頁，2026-09-14新增）
+  // ============================================================================
+  // 使用者明確要求：「恩寵屬於特殊加成 與祝福不同 需要分清楚 恩寵多為隨機事件以及地變
+  // 地形Q所獲得的效果」。因此恩寵有**自己的持久容器** c.graces，跟地圖上的「祝福籌碼」
+  // （blessingClaimed／handleBlessingEnterClick，那是休息點機制）完全無關，也不沿用既有
+  // 那個命名混淆的 c._nightBlessing 旗標寫法。
+  //
+  // 儲存形狀刻意用物件map而不是陣列：授予恩寵時常常要一次寫給全隊，物件map可以用
+  // rtSet(character/<tokenId>/graces/<id>, true) 各自獨立寫入、天生冪等，不會有多台裝置
+  // 同時push陣列互相覆蓋的問題。
+  //
+  // 已知的其餘恩寵（夜の恩寵／知の集約／融合する命／祝福王の恩寵／大ルーンの虚像／
+  // 大空洞の恩寵／腐れ森の恩寵）目前仍是散落的既有旗標或未實作，這次不一併改寫，
+  // 之後要接時應該收斂到這個容器。
+  var GRACE_BEAST_HUNT = "beast_hunt"; // 「獣の狩り」（event_rulebook.js:1091-1092、三つ首の獣）
+
+  function hasGrace(c, graceId) {
+    return !!(c && c.graces && c.graces[graceId]);
+  }
+
+  function grantGraceToTokens(tokenIds, graceId) {
+    (tokenIds || []).forEach(function (tokenId) {
+      if (!tokenId) return;
+      GameStorage.rtSet(gameId, "cloud", "character/" + tokenId + "/graces/" + graceId, true);
+    });
+  }
+
+  // 「獣の狩り」的即時制換算（使用者明確規格：「體力20%以下時 +3/秒 持續5秒，
+  // 冷卻在觸發時間為60秒」）。規則書原文是「行動／額外階段開始時獲得的體力骰，其『□』
+  // 自動變更為『⚀』」＝每個階段開場拿到的體力點數變多；midnight的體力是連續條、沒有骰面，
+  // 因此由使用者直接指定成上面這組即時制數值（同學者「最大加護提升」的既有處理方式）。
+  // 冷卻**從觸發當下起算**60秒，所以實際節奏是「回5秒、鎖55秒」。
+  var GRACE_BEAST_HUNT_PCT = 0.2;
+  var GRACE_BEAST_HUNT_REGEN = 3;
+  var GRACE_BEAST_HUNT_DURATION_MS = 5000;
+  var GRACE_BEAST_HUNT_COOLDOWN_MS = 60000;
+  var beastHuntActiveUntil = 0;
+  var beastHuntCooldownUntil = 0;
+
+  // 回傳這一幀「獣の狩り」要額外加的每秒回復量（0＝沒生效）。順便負責觸發與冷卻的推進。
+  function beastHuntRegenBonus(c) {
+    if (!hasGrace(c, GRACE_BEAST_HUNT)) return 0;
+    var now = Date.now();
+    if (now >= beastHuntActiveUntil && now >= beastHuntCooldownUntil && stamina.current <= stamina.max * GRACE_BEAST_HUNT_PCT) {
+      beastHuntActiveUntil = now + GRACE_BEAST_HUNT_DURATION_MS;
+      beastHuntCooldownUntil = now + GRACE_BEAST_HUNT_COOLDOWN_MS;
+      showToast(window.I18N.t("midnight_grace_beast_hunt_toast", { regen: GRACE_BEAST_HUNT_REGEN, seconds: GRACE_BEAST_HUNT_DURATION_MS / 1000 }));
+    }
+    return now < beastHuntActiveUntil ? GRACE_BEAST_HUNT_REGEN : 0;
+  }
+
   var TALISMAN_LOW_STAMINA_THRESHOLD = 20;
   var DEW_TEAR_HEAL_INTERVAL_MS = 10000;
   var dewTearLastHealAt = 0;
@@ -12354,7 +12408,9 @@
     "霧の裂け目": { ja: "霧の裂け目", zh: "霧之裂縫" },
     "安寧者たち": { ja: "安寧者たち", zh: "安寧者們" },
   };
-  var AMBUSH_MANUAL_BRANCHES = { "三つ首の獣": true, "霧の裂け目": true, "安寧者たち": true };
+  // 2026-09-14：「三つ首の獣」已結構化（見renderThreeHeadedBeastBranch()），從手動分支移除。
+  // 剩下的霧の裂け目／安寧者たち仍維持「只顯示橫幅交給GM」。
+  var AMBUSH_MANUAL_BRANCHES = { "霧の裂け目": true, "安寧者たち": true };
   // 忌み鬼(event_rulebook.js:802)／兆し(:842)／調律の魔物「戦いを仕掛ける」分支(:976)皆為
   // 「Lv.6+L補正」，跳過+L補正（既有慣例，同METEOR_ENEMY_LEVEL不套用L補正的理由）。
   var AMBUSH_BOSS_LEVEL = 6;
@@ -12384,6 +12440,10 @@
     el("midnight-random-event-choice-b").hidden = true;
     if (trig.ambushEnemyNameJa === "調律の魔物") {
       renderTuningDemonBranch(pt, trig);
+      return;
+    }
+    if (trig.ambushEnemyNameJa === "三つ首の獣") {
+      renderThreeHeadedBeastBranch(pt, trig);
       return;
     }
     if (AMBUSH_MANUAL_BRANCHES[trig.ambushEnemyNameJa]) {
@@ -12487,6 +12547,170 @@
   // 三つ首の獣／霧の裂け目／安寧者たち：規則書為多階段分歧敘事，不建立第三套state machine
   // （見上方大段設計取捨註解），只顯示分支名稱＋交由GM/玩家依實體規則書桌上處理，並提供
   // 一個「確認」按鈕讓事件視為已處理（沿用trig單一欄位記錄狀態的既有寫法，同meteorChoice）。
+  // ============================================================================
+  // 襲撃｜三つ首の獣（event_rulebook.js:986-1095）2026-09-14接入
+  // ============================================================================
+  // 這一支跟同屬「襲撃」的忌み鬼／兆し／調律の魔物不同——它**完全不是王戰**，沒有敵人、
+  // 沒有撃破ルーン，整個分支就是兩輪〈協力11×PC人數〉判定。因此不走renderAmbushBossBranch()，
+  // 也不再留在AMBUSH_MANUAL_BRANCHES（那是「只顯示橫幅交給GM」的處理）。
+  //
+  // 規則書結構：
+  //   ①〔行為判定〕〈協力11×PC人數｜體能〉〈協力11×PC人數｜精神〉連續兩次，無論成敗都前進
+  //      成功2次：PC各自「ルーン：3」
+  //      成功1次：PC各自「ルーン：3」＋「HP損害：■■」
+  //      失敗2次：PC各自「ルーン：3」＋「HP損害：■×4」
+  //   ②〔狼の気配1〕二選一：逃亡／前往氣息處
+  //   ③〔狼の気配2〕再一次同樣的兩輪判定，無論成敗事件結束
+  //      成功2次：PC各自「ルーン：3」＋恩寵「獣の狩り」
+  //      成功1次：上記＋「HP損害：■」
+  //      失敗2次：上記＋「HP損害：■×4」
+  //
+  // 已知簡化（使用者明確選擇「二選一按鈕，跳過攀爬判定」）：規則書在②的兩個選項都要求
+  // 「移動至任意相鄰場地＋進行攀爬判定，失敗則承受一般懲罰」。midnight 是即時制自由走
+  // 地圖、完全沒有攀爬判定（全檔0命中），因此這一段簡化成單純的二選一：
+  // 「逃離」＝事件結束、「追上去」＝進入③，不自行發明一個替代判定。
+  var THREE_HEADED_BEAST_CHECK_TARGET_PER_PC = 11; // event_rulebook.js:1000「〈協力11×PCの数〉」
+  var THREE_HEADED_BEAST_CHECK_STATS = ["physical", "mental"]; // 〈…｜フィジカル〉〈…｜メンタル〉の順
+  // 各結果的規則原文：ルーン與HP損害的數值只寫在這裡，程式碼不另外硬編一次
+  // （同applyRulebookPcDamage()的既有做法，見RULEBOOK_PC_DAMAGE_TEXT）。
+  var THREE_HEADED_BEAST_OUTCOME_TEXT = {
+    // ①狼の気配1の前（event_rulebook.js:1005/1009/1015）
+    "1:2": "PCはそれぞれ「ルーン：3」を獲得する",
+    "1:1": "PCはそれぞれ「ルーン：3」を獲得して「HP損害：■■」を被る",
+    "1:0": "PCはそれぞれ「ルーン：3」を獲得して「HP損害：■×4」を被る",
+    // ③狼の気配2の後（event_rulebook.js:1066/1073/1082）
+    "2:2": "PCはそれぞれ「ルーン：3」と「獣の狩り」を獲得する",
+    "2:1": "PCはそれぞれ「ルーン：3」と「獣の狩り」を獲得して「HP損害：■」を被る",
+    "2:0": "PCはそれぞれ「ルーン：3」と「獣の狩り」を獲得して「HP損害：■×4」を被る",
+  };
+
+  function parseRulebookRunes(text) {
+    var m = /(?:ルーン|盧恩)[：:]\s*(\d+)/.exec(text || "");
+    return m ? parseInt(m[1], 10) || 0 : 0;
+  }
+
+  function grantRunesToTokens(tokenIds, amount) {
+    if (!amount) return;
+    (tokenIds || []).forEach(function (tokenId) {
+      if (!tokenId) return;
+      GameStorage.rtTransaction(gameId, "cloud", "character/" + tokenId + "/runes", function (cur) {
+        return (cur || 0) + amount;
+      });
+    });
+  }
+
+  // 目前在場（入座）的全部玩家席位與tokenId——三つ首の獣跟埋もれ宝一樣沒有「先加入」的
+  // 步驟，規則書的「PC人數」就是在場人數（見handleBuriedTreasureCheckClick()同一段說明）。
+  function seatedTokenIds() {
+    return Object.keys(players || {})
+      .map(function (slot) {
+        return players[slot] && players[slot].tokenId;
+      })
+      .filter(Boolean);
+  }
+
+  // 跑一輪「〈協力11×PC人數｜X〉〈協力11×PC人數｜Y〉連續兩次」，回傳成功次數（0〜2）。
+  function rollThreeHeadedBeastChecks() {
+    var activeSlots = Object.keys(players).filter(function (slot) {
+      return !!players[slot];
+    });
+    var participantsMap = {};
+    activeSlots.forEach(function (slot) {
+      participantsMap[slot] = true;
+    });
+    var target = THREE_HEADED_BEAST_CHECK_TARGET_PER_PC * Math.max(1, activeSlots.length);
+    var successes = 0;
+    THREE_HEADED_BEAST_CHECK_STATS.forEach(function (statKey) {
+      if (teamCheckSum({ participants: participantsMap }, statKey) >= target) successes += 1;
+    });
+    return successes;
+  }
+
+  // 結算一個階段：授予盧恩／恩寵／HP損害。只有搶到transaction的那台裝置會呼叫。
+  function applyThreeHeadedBeastOutcome(stage, successes) {
+    var text = THREE_HEADED_BEAST_OUTCOME_TEXT[stage + ":" + successes];
+    if (!text) return;
+    var tokenIds = seatedTokenIds();
+    grantRunesToTokens(tokenIds, parseRulebookRunes(text));
+    if (stage === 2) grantGraceToTokens(tokenIds, GRACE_BEAST_HUNT);
+    // HP損害：本文寫「PCはそれぞれ…を被る」，PC_DAMAGE_ALL_RE命中「それぞれ」→全隊套用。
+    applyRulebookPcDamage(text);
+  }
+
+  function handleThreeHeadedBeastCheckClick(pt, stage) {
+    if (!mySlot || isPaused() || isSelfDowned()) return;
+    var trig = fieldTriggers[pt.id];
+    if (!trig) return;
+    var doneKey = "wolfStage" + stage + "Successes";
+    if (trig[doneKey] !== undefined && trig[doneKey] !== null) return; // 這一輪已經結算過
+    var successes = rollThreeHeadedBeastChecks();
+    GameStorage.rtTransaction(gameId, "cloud", "fieldTrigger/" + pt.id, function (cur) {
+      if (!cur || (cur[doneKey] !== undefined && cur[doneKey] !== null)) return cur; // 別台先結算了
+      var out = {};
+      for (var k in cur) out[k] = cur[k];
+      out[doneKey] = successes;
+      out.wolfStage = stage === 1 ? "sign1" : "done";
+      return out;
+    }).then(function (committed) {
+      // 搶到的那台（committed後該欄位等於自己這次的值）負責施放效果，避免多台重複結算。
+      if (!committed || committed[doneKey] !== successes) return;
+      applyThreeHeadedBeastOutcome(stage, successes);
+    });
+  }
+
+  function renderThreeHeadedBeastBranch(pt, trig) {
+    var actionBtn = el("midnight-random-event-action");
+    var choiceA = el("midnight-random-event-choice-a");
+    var choiceB = el("midnight-random-event-choice-b");
+    var stage = trig.wolfStage || "check1";
+    var resultEl = el("midnight-random-event-result");
+    choiceA.hidden = true;
+    choiceB.hidden = true;
+
+    if (stage === "check1" || stage === "check2") {
+      var stageNo = stage === "check1" ? 1 : 2;
+      el("midnight-random-event-text").textContent = window.I18N.t(
+        stageNo === 1 ? "midnight_random_event_three_beast_desc" : "midnight_random_event_three_beast_sign2_desc"
+      );
+      actionBtn.hidden = false;
+      actionBtn.textContent = window.I18N.t("midnight_random_event_three_beast_check_button");
+      actionBtn.onclick = function () {
+        handleThreeHeadedBeastCheckClick(pt, stageNo);
+      };
+      resultEl.textContent = "";
+      return;
+    }
+
+    if (stage === "sign1") {
+      // 〔狼の気配1〕二選一。逃離＝事件結束；追上去＝進入第二輪判定。
+      el("midnight-random-event-text").textContent = window.I18N.t("midnight_random_event_three_beast_sign1_desc");
+      actionBtn.hidden = true;
+      choiceA.hidden = false;
+      choiceB.hidden = false;
+      choiceA.textContent = window.I18N.t("midnight_random_event_three_beast_flee_button");
+      choiceB.textContent = window.I18N.t("midnight_random_event_three_beast_chase_button");
+      choiceA.onclick = function () {
+        GameStorage.rtSet(gameId, "cloud", "fieldTrigger/" + pt.id + "/wolfStage", "done");
+      };
+      choiceB.onclick = function () {
+        GameStorage.rtSet(gameId, "cloud", "fieldTrigger/" + pt.id + "/wolfStage", "check2");
+      };
+      resultEl.textContent = threeHeadedBeastResultText(trig, 1);
+      return;
+    }
+
+    // done
+    el("midnight-random-event-text").textContent = window.I18N.t("midnight_random_event_three_beast_done_desc");
+    actionBtn.hidden = true;
+    resultEl.textContent = [threeHeadedBeastResultText(trig, 1), threeHeadedBeastResultText(trig, 2)].filter(Boolean).join(" ／ ");
+  }
+
+  function threeHeadedBeastResultText(trig, stage) {
+    var successes = trig["wolfStage" + stage + "Successes"];
+    if (successes === undefined || successes === null) return "";
+    return window.I18N.t("midnight_random_event_three_beast_result", { stage: stage, successes: successes });
+  }
+
   function renderAmbushManualBranch(pt, trig) {
     var Fields = window.PriTestFields;
     var label = AMBUSH_NAME_LABELS[trig.ambushEnemyNameJa] || { ja: trig.ambushEnemyNameJa, zh: trig.ambushEnemyNameJa };
