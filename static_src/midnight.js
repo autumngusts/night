@@ -5881,6 +5881,78 @@
   }
 
   // 全體PC回復（HP是共享的demoStat，用transaction逐一加）。
+  // ---- 規則書本文的「PC承受HP／FP損害」（2026-09-14接入，使用者明確要求「HP損傷也套用
+  // PC身上」）----
+  // 事件／場地本文寫的是「PC全員は「HP損害：■」を受ける」「「FP損害：■」を被る」這類句子。
+  // 原本 midnight 在 kasan_lava／女神像兩處只跳 toast 提醒、刻意不扣血，理由寫的是
+  // 「■數值規則書未標示，依CLAUDE.md §19不自行發明」——但本專案早就有既有的換算慣例
+  // 「■／□ 1格 ＝ HP/FP 10」（BLOCK_SQUARE_COUNT_TO_RESOURCE_MULT），使用者這次也再次
+  // 確認雜兵的「HP損害：■」要直接接。因此這裡改為實際套用，不再只是提示。
+  //
+  // 解析格式沿用既有的方塊語法：「HP損害：■■」＝2格、「HP損害：■×4」＝4格
+  // （×N的寫法跟parseSkillBodyHealSquares()處理「HP回復：□×5」完全一致）。
+  // 「PC全員／PC各自」時對全隊套用，否則只對自己——跟applyWeaponSkillBodyEffects()③
+  // 的healAll判斷同一套原則，不替玩家決定別人。
+  // 解析對象刻意是「規則書原文常數」而不是 I18N 的顯示字串：顯示字串會隨語系不同而改寫
+  // （實際踩到過——en 的 midnight_kasan_lava_floor_note 把「■」寫成 "box"，解析會整個落空），
+  // 規則原文常數則是語言無關的單一事實來源。
+  var RULEBOOK_PC_DAMAGE_TEXT = {
+    // kasan地變特殊規則「熔岩」：使用者明確規格「此場地每次樓層踏破，PC全員自動無條件承受」。
+    kasanLavaFloor: "PC全員は「HP損害：■」を受ける",
+    // event_rulebook.js:418 女神像：「任意のPCは「FP損害：■」を受けて〈10｜メンタル〉を行う」。
+    goddessStatue: "自身は「FP損害：■」を受ける",
+  };
+  var PC_DAMAGE_ALL_RE = /PC全員|PC全员|PC各自|それぞれ/;
+
+  // 「モブに「HP損害：■」」這種**對雜兵**的損害不是PC承受的傷害（那條走
+  // countMobDamageSquaresAll()／damageActiveMobIfAny()），因此先把雜兵子句整段拿掉再解析，
+  // 避免同一段文字裡雜兵與PC兩種損害被混為一談。
+  var MOB_DAMAGE_CLAUSE_RE = /(?:モブ|雜兵|杂兵)[^。]*?(?:HP|FP)損害[：:]\s*[■□]+(?:\s*[×x]\s*\d+)?/g;
+
+  function parseRulebookDamageSquares(text, label) {
+    if (!text) return 0;
+    var cleaned = String(text).replace(MOB_DAMAGE_CLAUSE_RE, "");
+    var m = new RegExp(label + "損害[：:]\\s*([■□]+)(?:\\s*[×x]\\s*(\\d+))?").exec(cleaned);
+    if (!m) return 0;
+    return m[1].length * (m[2] ? parseInt(m[2], 10) || 1 : 1);
+  }
+
+  // 對全隊扣HP（healAllPartyBy()的相反方向；歸零者照樣觸發瀕死判定）。
+  function damageAllPartyBy(amount) {
+    if (!amount || amount <= 0) return;
+    Object.keys(players || {}).forEach(function (slot) {
+      var p = players[slot];
+      if (!p || !p.tokenId) return;
+      var tokenId = p.tokenId;
+      GameStorage.rtTransaction(gameId, "cloud", "demoStat/" + tokenId, function (cur) {
+        var maxHp = selfArenaHpMax(characters[tokenId]);
+        var next = (cur === null ? maxHp : cur) - amount;
+        return next < 0 ? 0 : next;
+      }).then(function (result) {
+        if (result === 0) maybeTriggerNearDeath(tokenId);
+      });
+    });
+  }
+
+  // 套用一段規則書本文裡的PC損害，回傳實際套用的數值（供toast顯示）。
+  // FP是本地端資源（見fp變數說明），因此不論本文寫不寫「PC全員」都只能扣自己的——
+  // 這是midnight既有的架構限制，跟healSelfFp()／applyWeaponSkillBodyEffects()同樣處理。
+  function applyRulebookPcDamage(text) {
+    var hpSquares = parseRulebookDamageSquares(text, "HP");
+    var fpSquares = parseRulebookDamageSquares(text, "FP");
+    var out = { hp: 0, fp: 0 };
+    if (hpSquares) {
+      out.hp = hpSquares * BLOCK_SQUARE_COUNT_TO_RESOURCE_MULT;
+      if (PC_DAMAGE_ALL_RE.test(text)) damageAllPartyBy(out.hp);
+      else spendSelfHp(out.hp);
+    }
+    if (fpSquares) {
+      out.fp = fpSquares * BLOCK_SQUARE_COUNT_TO_RESOURCE_MULT;
+      fp.current = Math.max(0, fp.current - out.fp);
+    }
+    return out;
+  }
+
   function healAllPartyBy(amount) {
     Object.keys(players || {}).forEach(function (slot) {
       var p = players[slot];
@@ -12636,9 +12708,12 @@
     var trig = fieldTriggers[pt.id];
     if (trig && trig.attempted && trig.attempted[mySlot]) return;
     GameStorage.rtSet(gameId, "cloud", "fieldTrigger/" + pt.id + "/attempted/" + mySlot, true);
-    // event_rulebook.js:418「FP損害：■」——■數值規則書未標示，依CLAUDE.md §19不自行發明，
-    // 不在這裡自動扣除任何FP，交由GM依規則書原文處理（描述文字midnight_random_event_goddess_desc
-    // 已保留這段提示）。
+    // event_rulebook.js:418「FP損害：■」——2026-09-14使用者明確要求「HP損傷也套用PC身上」，
+    // 原本因為「■數值規則書未標示」不扣FP、只留提示，現在改為實際套用（■＝10，沿用既有的
+    // BLOCK_SQUARE_COUNT_TO_RESOURCE_MULT換算，不是自行發明的數值）。
+    // 一樣不在程式碼寫死數字，解析RULEBOOK_PC_DAMAGE_TEXT.goddessStatue這段規則原文；
+    // 判定是每位PC各自進行的（上面已有attempted/mySlot的一人一次防重），因此扣的是自己的FP。
+    applyRulebookPcDamage(RULEBOOK_PC_DAMAGE_TEXT.goddessStatue);
     var c = characters[myTokenId];
     var diceCount = effectiveCheckDiceCount(c, "mental");
     var sum = 0;
@@ -14194,13 +14269,22 @@
     if (fieldFloorAdvanceAttempted[key]) return;
     fieldFloorAdvanceAttempted[key] = true;
     // kasan地變特殊規則「熔岩」（使用者明確規格「此場地每次樓層踏破，PC全員自動無條件
-    // 承受『HP損害：■』」）：■數值規則書未標示，依CLAUDE.md §19不自行發明，只用toast
-    // 提醒在場玩家自行依規則書套用，不自動扣血。這裡跑在每個「靠近這個點的玩家」自己的
-    // 裝置上（跟fieldFloorAdvanceAttempted guard一樣，是「每個client各自跑一次」而不是
-    // 「只有transaction贏家跑一次」），因此每個在場玩家都會各自看到一次提醒，不需要另外
-    // 建立跨玩家廣播機制。
+    // 承受『HP損害：■』」）。
+    // 2026-09-14使用者明確要求「HP損傷也套用PC身上」：原本因為「■數值規則書未標示」只跳
+    // toast、不自動扣血，現在改為實際套用——■的換算本專案早有既有慣例（1格＝10，
+    // BLOCK_SQUARE_COUNT_TO_RESOURCE_MULT），不是自行發明的數值。
+    // 扣血本身用applyRulebookPcDamage()解析RULEBOOK_PC_DAMAGE_TEXT.kasanLavaFloor這段
+    // 規則原文常數，數值只寫在那段文字裡、不在程式碼裡另外寫死一次。
+    // 這裡跑在每個「靠近這個點的玩家」自己的裝置上（跟fieldFloorAdvanceAttempted guard
+    // 一樣，是「每個client各自跑一次」），而這一條是「PC全員」的全隊扣血，因此用
+    // transaction搶一次「這一層的熔岩傷害由誰結算」，避免在場N台裝置各扣一次＝扣N倍。
     if (map && map.specialRule === "kasan_lava") {
       showToast(window.I18N.t("midnight_kasan_lava_floor_note"));
+      GameStorage.rtTransaction(gameId, "cloud", "fieldProgress/" + pt.id + "/lavaDamage" + floorIndex, function (cur) {
+        return cur === null ? myTokenId : cur;
+      }).then(function (committed) {
+        if (committed === myTokenId) applyRulebookPcDamage(RULEBOOK_PC_DAMAGE_TEXT.kasanLavaFloor);
+      });
     }
     var floorCount = fieldFloorCountForCard(pt);
     var nextFloorIndex = floorIndex + 1;
