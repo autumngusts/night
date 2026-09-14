@@ -7542,7 +7542,7 @@
       var c = characters[myTokenId];
       var healedAmount = committedHp - beforeHp;
       if (healedAmount <= 0) return;
-      if (c && c._fusedLife) fp.current = Math.min(fp.max, fp.current + healedAmount);
+      if (hasGrace(c, GRACE_FUSED_LIFE)) fp.current = Math.min(fp.max, fp.current + healedAmount);
       // 2026-09-13武器詞條「聖杯瓶の回復で、FPも回復」：跟上面的融合する命是各自獨立的
       // 來源，兩者都有就都回。這條是固定量（不是跟著HP回復量走），依使用者規格。
       var flaskFp = affixTotal(c, "flaskFpRecover");
@@ -8143,13 +8143,39 @@
   // rtSet(character/<tokenId>/graces/<id>, true) 各自獨立寫入、天生冪等，不會有多台裝置
   // 同時push陣列互相覆蓋的問題。
   //
-  // 已知的其餘恩寵（夜の恩寵／知の集約／融合する命／祝福王の恩寵／大ルーンの虚像／
-  // 大空洞の恩寵／腐れ森の恩寵）目前仍是散落的既有旗標或未實作，這次不一併改寫，
-  // 之後要接時應該收斂到這個容器。
-  var GRACE_BEAST_HUNT = "beast_hunt"; // 「獣の狩り」（event_rulebook.js:1091-1092、三つ首の獣）
+  // 2026-09-14二次改版（使用者要求「這輪就一起收斂」）：全部10種恩寵集中登記在GRACES，
+  // 既有散落的旗標（_fusedLife／_nightBlessing／_insectKnowledgeBlessing）一併搬到
+  // c.graces，舊旗標只保留「讀取時相容」（見hasGrace()），不再有新的寫入點。
+  var GRACE_BEAST_HUNT = "beast_hunt";
+  var GRACE_COLD_MIRAGE = "cold_mirage";
+  var GRACE_WORLD_PEACE = "world_peace";
+  var GRACE_NIGHT = "night_grace";
+  var GRACE_FUSED_LIFE = "fused_life";
+  var GRACE_KNOWLEDGE = "knowledge";
+  var GRACE_BLESSING_KING = "blessing_king";
 
+  // 名稱與出處。legacyField＝改版前的舊旗標欄位名（只用於讀取相容，不再寫入）。
+  var GRACES = {
+    beast_hunt: { name: { ja: "獣の狩り", zh: "獸之狩獵" }, src: "event_rulebook.js:1091 三つ首の獣" },
+    cold_mirage: { name: { ja: "冷たい蜃気楼", zh: "冰冷的海市蜃樓" }, src: "event_rulebook.js:1178 霧の裂け目" },
+    world_peace: { name: { ja: "世界を安寧する力", zh: "使世界安寧之力" }, src: "event_rulebook.js:1227 安寧者たち" },
+    night_grace: { name: { ja: "夜の恩寵", zh: "夜之恩寵" }, src: "event_rulebook.js:579 夜の勢力", legacyField: "_nightBlessing" },
+    fused_life: { name: { ja: "融合する命", zh: "融合之命" }, src: "event_rulebook.js:857 襲撃・兆し", legacyField: "_fusedLife" },
+    knowledge: { name: { ja: "知の集約", zh: "知識的集約" }, src: "event_rulebook.js:668 虫の大量発生", legacyField: "_insectKnowledgeBlessing" },
+    blessing_king: { name: { ja: "祝福王の恩寵", zh: "祝福王的恩寵" }, src: "event_rulebook.js:826 襲撃・忌み鬼" },
+  };
+
+  function graceName(graceId) {
+    var g = GRACES[graceId];
+    return g ? window.PriTestFields.localizedText(g.name) : graceId;
+  }
+
+  // 舊旗標相容：改版前已經拿到恩寵的存檔，欄位還在角色物件的_xxx上，這裡一併認。
   function hasGrace(c, graceId) {
-    return !!(c && c.graces && c.graces[graceId]);
+    if (!c) return false;
+    if (c.graces && c.graces[graceId]) return true;
+    var legacy = GRACES[graceId] && GRACES[graceId].legacyField;
+    return !!(legacy && c[legacy]);
   }
 
   function grantGraceToTokens(tokenIds, graceId) {
@@ -8620,6 +8646,9 @@
         if (outcome.kind === "group") outcome.amount = Math.max(0, outcome.amount - nextWeaken);
         out.nextGroupDamageReduceAmount = null;
       }
+      // 安寧者たち的王戰補正（2026-09-14）：「每殘存1隻雜兵，亂戰傷害+(PC人數×60)」。
+      // 只影響亂戰傷害，且規則書註明對「夜の強敵」不發揮（判斷在該函式內）。
+      if (outcome.kind === "group") outcome.amount += peacefulOnesGroupDamageBonus(pt.id, cur);
       var targetSlots;
       if (outcome.kind === "group") {
         var count = Math.min(slots.length, Math.floor(Math.random() * 3) + 1);
@@ -10726,13 +10755,26 @@
     // 雜兵（2026-09-06死靈術前置工程新增，使用者明確規格）：血量＝樓層文字「+雜兵N」
     // 後綴的N×MOB_HP_PER_ROW，單一合併血量池。沒有「+雜兵」後綴（mobRowCount===0）就
     // 不建立fieldMobHp項目，damageCombatTarget()會判斷undefined＝沒有雜兵直接打敵人。
-    if (picked.mobRowCount > 0) {
+    // 安寧者たち的王戰補正「+モブ2」（2026-09-14，event_rulebook.js:1212）：該隨機事件把
+    // PC強制送來這個場地時，會在這個點的fieldTrigger寫下peacefulOnesBonusMobRows＝2
+    // （見handlePeacefulOnesMoveClick()）。規則書是「第一次發生王戰時」追加，因此只在這個
+    // 「建立這場戰鬥的雜兵」的初始化點加上去，之後同一個點的後續戰鬥不會重複套用。
+    // 也因此原本沒有雜兵（mobRowCount===0）的戰鬥，會因為這個補正而變成有2條雜兵。
+    var bonusMobRows = (fieldTriggers[pt.id] && fieldTriggers[pt.id].peacefulOnesBonusMobRows) || 0;
+    var totalMobRows = (picked.mobRowCount || 0) + bonusMobRows;
+    if (totalMobRows > 0) {
       GameStorage.rtTransaction(gameId, "cloud", "fieldTrigger/" + pt.id + "/mobRowCount", function (cur) {
-        return cur === null ? picked.mobRowCount : cur;
+        return cur === null ? totalMobRows : cur;
       });
       GameStorage.rtTransaction(gameId, "cloud", "fieldMobHp/" + pt.id, function (cur) {
-        return cur === null ? picked.mobRowCount * MOB_HP_PER_ROW : cur;
+        return cur === null ? totalMobRows * MOB_HP_PER_ROW : cur;
       });
+      // 補正的「+モブ2」用掉就清掉（符合規則書的「第一次發生王戰時」），但同時立起
+      // peacefulOnesActive——亂戰傷害加成與擊破獎勵要在這場戰鬥全程有效，不能跟著清掉。
+      if (bonusMobRows) {
+        GameStorage.rtSet(gameId, "cloud", "fieldTrigger/" + pt.id + "/peacefulOnesBonusMobRows", null);
+        GameStorage.rtSet(gameId, "cloud", "fieldTrigger/" + pt.id + "/peacefulOnesActive", true);
+      }
     }
   }
 
@@ -12408,9 +12450,10 @@
     "霧の裂け目": { ja: "霧の裂け目", zh: "霧之裂縫" },
     "安寧者たち": { ja: "安寧者たち", zh: "安寧者們" },
   };
-  // 2026-09-14：「三つ首の獣」已結構化（見renderThreeHeadedBeastBranch()），從手動分支移除。
-  // 剩下的霧の裂け目／安寧者たち仍維持「只顯示橫幅交給GM」。
-  var AMBUSH_MANUAL_BRANCHES = { "霧の裂け目": true, "安寧者たち": true };
+  // 2026-09-14：三つ首の獣／霧の裂け目／安寧者たち三支都已結構化，手動分支表因此清空。
+  // 保留這張表與renderAmbushManualBranch()是為了「未來新增的襲撃分支若暫時無法結構化」
+  // 仍有既有的降級路徑可用。
+  var AMBUSH_MANUAL_BRANCHES = {};
   // 忌み鬼(event_rulebook.js:802)／兆し(:842)／調律の魔物「戦いを仕掛ける」分支(:976)皆為
   // 「Lv.6+L補正」，跳過+L補正（既有慣例，同METEOR_ENEMY_LEVEL不套用L補正的理由）。
   var AMBUSH_BOSS_LEVEL = 6;
@@ -12444,6 +12487,14 @@
     }
     if (trig.ambushEnemyNameJa === "三つ首の獣") {
       renderThreeHeadedBeastBranch(pt, trig);
+      return;
+    }
+    if (trig.ambushEnemyNameJa === "霧の裂け目") {
+      renderMistRiftBranch(pt, trig);
+      return;
+    }
+    if (trig.ambushEnemyNameJa === "安寧者たち") {
+      renderPeacefulOnesBranch(pt, trig);
       return;
     }
     if (AMBUSH_MANUAL_BRANCHES[trig.ambushEnemyNameJa]) {
@@ -12530,13 +12581,16 @@
           // 已grep確認codebase沒有這個計數器，因此不自動套用「+(a×2)」，只留規則書原文交由
           // GM/玩家自行判斷（CLAUDE.md §19）。「夜に刻まれし癒えぬ傷」是PC死亡分支才會觸發的
           // 另一種結局，本函式只在hp<=0（真正撃破）時執行，不會誤觸發它。
+          // 2026-09-14：數值效果雖然仍交給GM，但「有沒有拿到這個恩寵」本身要記錄進容器
+          // （使用者要求恩寵集中管理），之後補上祝福休息計數器時就能直接讀。
+          grantGraceToTokens([p.tokenId], GRACE_BLESSING_KING);
           c._lastTileRewardNote = { text: window.I18N.t("midnight_random_event_ambush_imi_oni_grace_note"), at: Date.now() };
           GameStorage.rtSet(gameId, "cloud", "character/" + p.tokenId, c);
         } else if (trig.ambushEnemyNameJa === "兆し") {
           // event_rulebook.js:857-858「融合する命」：聖杯瓶回HP時FP同量回復——比其餘恩寵單純
           // （純加成、無條件分支），且commitFlaskHeal()的改動風險低，因此結構化為_fusedLife
           // 旗標（見commitFlaskHeal()新增的判斷）。
-          c._fusedLife = true;
+          grantGraceToTokens([p.tokenId], GRACE_FUSED_LIFE);
           c._lastTileRewardNote = { text: window.I18N.t("midnight_random_event_ambush_kizashi_grace_note"), at: Date.now() };
           GameStorage.rtSet(gameId, "cloud", "character/" + p.tokenId, c);
         }
@@ -12709,6 +12763,271 @@
     var successes = trig["wolfStage" + stage + "Successes"];
     if (successes === undefined || successes === null) return "";
     return window.I18N.t("midnight_random_event_three_beast_result", { stage: stage, successes: successes });
+  }
+
+  // ============================================================================
+  // 襲撃｜霧の裂け目（event_rulebook.js:1096-1182）2026-09-14接入
+  // ============================================================================
+  // 跟三つ首の獣一樣不是王戰。結構：
+  //   ①〔行為判定〕**PCはそれぞれ**〈11｜運試し〉〈11｜メンタル〉〈12｜運試し〉連續三次
+  //      （注意這一段是**各自**判定，不是協力——跟②不同）：
+  //      成功3回：無事／成功2回：該PC「HP損害：■」／成功1回：該PC「HP損害：■■■」／
+  //      失敗3回：「タイムロス：1」
+  //   ②〔行為判定〕〈協力11×PC人數｜運試し〉。無論成敗事件結束：
+  //      成功：PC全員「ルーン：5」＋恩寵「冷たい蜃気楼」
+  //      失敗：PC全員各自「HP損害：■■■」，之後同樣獲得「ルーン：5」＋恩寵
+  var MIST_RIFT_SOLO_CHECKS = [
+    { statKey: "luck", target: 11 }, // 〈11｜運試し〉
+    { statKey: "mental", target: 11 }, // 〈11｜メンタル〉
+    { statKey: "luck", target: 12 }, // 〈12｜運試し〉
+  ];
+  var MIST_RIFT_TEAM_CHECK_TARGET_PER_PC = 11; // 〈協力11×PCの数｜運試し〉
+  // 各結果的規則原文（數值只寫在這裡，同THREE_HEADED_BEAST_OUTCOME_TEXT的做法）。
+  // ①是「該PC自己承受」，因此本文刻意不含「それぞれ」——applyRulebookPcDamage()才會
+  // 走spendSelfHp()只扣自己，不會誤判成全隊。
+  var MIST_RIFT_SOLO_TEXT = {
+    3: "", // 成功3回：無事（event_rulebook.js:1115）
+    2: "成功2回のPCは「HP損害：■」を被る", // :1119
+    1: "成功1回のPCは「HP損害：■■■」を被る", // :1126
+    0: "", // 失敗3回：「タイムロス：1」＝midnight無對應資源，見下方說明
+  };
+  var MIST_RIFT_TEAM_TEXT = {
+    success: "PC全員は「ルーン：5」と「冷たい蜃気楼」を獲得", // :1160
+    fail: "PC全員はそれぞれ「HP損害：■■■」を被る。PC全員は「ルーン：5」と「冷たい蜃気楼」を獲得", // :1169
+  };
+
+  // 一位PC自己跑三連判定，回傳成功次數（0〜3）。
+  function rollMistRiftSoloChecks(c) {
+    var successes = 0;
+    MIST_RIFT_SOLO_CHECKS.forEach(function (spec) {
+      var diceCount = effectiveCheckDiceCount(c, spec.statKey);
+      var sum = 0;
+      for (var i = 0; i < diceCount; i++) sum += 1 + Math.floor(Math.random() * 6);
+      if (checkSucceeded(c, sum, spec.target)) successes += 1;
+    });
+    return successes;
+  }
+
+  function handleMistRiftSoloCheckClick(pt) {
+    if (!mySlot || isPaused() || isSelfDowned()) return;
+    var trig = fieldTriggers[pt.id];
+    if (!trig || (trig.mistSolo && trig.mistSolo[mySlot] !== undefined)) return; // 一人一次
+    var c = characters[myTokenId];
+    if (!c) return;
+    var successes = rollMistRiftSoloChecks(c);
+    GameStorage.rtSet(gameId, "cloud", "fieldTrigger/" + pt.id + "/mistSolo/" + mySlot, successes);
+    // ①是「該PC自己承受」，所以直接在自己的裝置上套用自己的結果，不走搶鎖。
+    applyRulebookPcDamage(MIST_RIFT_SOLO_TEXT[successes] || "");
+    if (successes === 0) {
+      // 「タイムロス：1」：midnight用縮圈計時取代night的天數/時間損耗，沒有這個資源
+      // （既有先例見event_rulebook.js:764那條同樣的タイムロス處理）。使用者已選定要改成
+      // 「縮圈提前」，但尚未指定秒數，因此這一版先只顯示提示、不動縮圈計時——拿到秒數
+      // 後在這裡接上即可，不需要改動其他地方。
+      showToast(window.I18N.t("midnight_random_event_mist_rift_timeloss_note"));
+    }
+  }
+
+  // 全員都跑完①之後才開放②（規則書「成否に関わらず、次へ進む」）。
+  function mistRiftSoloAllDone(trig) {
+    var seated = currentlySeatedSlots();
+    if (!seated.length) return false;
+    var map = trig.mistSolo || {};
+    return seated.every(function (slot) {
+      return map[slot] !== undefined && map[slot] !== null;
+    });
+  }
+
+  function handleMistRiftTeamCheckClick(pt) {
+    if (!mySlot || isPaused() || isSelfDowned()) return;
+    var trig = fieldTriggers[pt.id];
+    if (!trig || trig.mistTeamOutcome) return;
+    var activeSlots = Object.keys(players).filter(function (slot) {
+      return !!players[slot];
+    });
+    var participantsMap = {};
+    activeSlots.forEach(function (slot) {
+      participantsMap[slot] = true;
+    });
+    var target = MIST_RIFT_TEAM_CHECK_TARGET_PER_PC * Math.max(1, activeSlots.length);
+    var outcome = teamCheckSum({ participants: participantsMap }, "luck") >= target ? "success" : "fail";
+    GameStorage.rtTransaction(gameId, "cloud", "fieldTrigger/" + pt.id, function (cur) {
+      if (!cur || cur.mistTeamOutcome) return cur;
+      var out = {};
+      for (var k in cur) out[k] = cur[k];
+      out.mistTeamOutcome = outcome;
+      return out;
+    }).then(function (committed) {
+      if (!committed || committed.mistTeamOutcome !== outcome) return; // 別台先結算了
+      var text = MIST_RIFT_TEAM_TEXT[outcome];
+      var tokenIds = seatedTokenIds();
+      // 失敗時的「PC全員はそれぞれ『HP損害：■■■』」由applyRulebookPcDamage()的
+      // 「それぞれ」判斷走全隊；成功的本文沒有損害句，解析結果為0、不會扣血。
+      applyRulebookPcDamage(text);
+      grantRunesToTokens(tokenIds, parseRulebookRunes(text));
+      grantGraceToTokens(tokenIds, GRACE_COLD_MIRAGE); // 成功/失敗都拿得到（規則書兩條都寫了）
+    });
+  }
+
+  function renderMistRiftBranch(pt, trig) {
+    var actionBtn = el("midnight-random-event-action");
+    var resultEl = el("midnight-random-event-result");
+    el("midnight-random-event-choice-a").hidden = true;
+    el("midnight-random-event-choice-b").hidden = true;
+    var mySolo = trig.mistSolo && mySlot ? trig.mistSolo[mySlot] : undefined;
+    var soloDone = mySolo !== undefined && mySolo !== null;
+
+    if (trig.mistTeamOutcome) {
+      el("midnight-random-event-text").textContent = window.I18N.t("midnight_random_event_mist_rift_done_desc");
+      actionBtn.hidden = true;
+      resultEl.textContent = window.I18N.t(
+        trig.mistTeamOutcome === "success" ? "midnight_random_event_mist_rift_team_success" : "midnight_random_event_mist_rift_team_fail"
+      );
+      return;
+    }
+
+    if (!soloDone) {
+      el("midnight-random-event-text").textContent = window.I18N.t("midnight_random_event_mist_rift_desc");
+      actionBtn.hidden = false;
+      actionBtn.textContent = window.I18N.t("midnight_random_event_mist_rift_solo_button");
+      actionBtn.onclick = function () {
+        handleMistRiftSoloCheckClick(pt);
+      };
+      resultEl.textContent = "";
+      return;
+    }
+
+    // 自己跑完了，等其他人；全員跑完才開放第二段協力判定。
+    el("midnight-random-event-text").textContent = window.I18N.t("midnight_random_event_mist_rift_dragon_desc");
+    resultEl.textContent = window.I18N.t("midnight_random_event_mist_rift_solo_result", { successes: mySolo });
+    if (!mistRiftSoloAllDone(trig)) {
+      actionBtn.hidden = true;
+      return;
+    }
+    actionBtn.hidden = false;
+    actionBtn.textContent = window.I18N.t("midnight_random_event_mist_rift_team_button");
+    actionBtn.onclick = function () {
+      handleMistRiftTeamCheckClick(pt);
+    };
+  }
+
+  // ============================================================================
+  // 襲撃｜安寧者たち（event_rulebook.js:1183-1231）2026-09-14接入
+  // ============================================================================
+  // 結構：
+  //   〔損害〕強制把PC移動到「最近的、尚未全樓層踏破的 大教會／小砦／遺跡／鍛冶村／湖沼」
+  //          （規則書明寫「登攀判定は不要」，正好midnight本來就沒有攀爬判定）。
+  //          找不到符合條件的就退回「與目前場地相鄰的任意1個」。
+  //   〔王戰補正〕該場地第一次王戰：「+モブ2」；每殘存1隻雜兵，亂戰傷害「+(PC人數×60)」。
+  //          （規則書註明對「夜の強敵」不發揮）
+  //   擊破成功：PC各自「撃破ルーン：+5」＋恩寵「世界を安寧する力」
+  //
+  // 場地對應（fields_data_*.js的卡牌名稱 → midnight地圖點的card欄位，見midnight_map.js
+  // のbuildPointRequests()）：大教会=2／小砦=3／遺跡=5／湖沼=7／鍛冶村=8。
+  var PEACEFUL_ONES_TARGET_CARDS = ["2", "3", "5", "7", "8"];
+  var PEACEFUL_ONES_MOB_ROWS = 2; // 「+モブ2」
+  var PEACEFUL_ONES_GROUP_DAMAGE_PER_MOB_PER_PC = 60; // 「+(PC人数×60)」
+  var PEACEFUL_ONES_RUNE = 5; // 「撃破ルーン：+5」
+
+  function distanceBetween(a, b) {
+    var dx = a.x - b.x;
+    var dy = a.y - b.y;
+    return Math.sqrt(dx * dx + dy * dy);
+  }
+
+  // 挑出強制移動的目的地：先找「未全踏破的目標卡牌場地」中最近的一個，沒有就退回
+  // 距離最近的任意場地點（規則書的「忽略上述條件，從相鄰場地中隨機選1個」在midnight
+  // 沒有「相鄰」的圖論結構——地圖是連續座標——因此以「最近」代替，是已知簡化）。
+  function pickPeacefulOnesDestination(fromPt) {
+    var pts = (map && map.points) || [];
+    var candidates = pts.filter(function (p) {
+      if (p.id === fromPt.id) return false;
+      if (PEACEFUL_ONES_TARGET_CARDS.indexOf(String(p.card)) === -1) return false;
+      var progress = fieldProgress[p.id];
+      return !(progress && progress.cleared);
+    });
+    var pool = candidates.length ? candidates : pts.filter(function (p) {
+      return p.id !== fromPt.id;
+    });
+    if (!pool.length) return null;
+    var best = null;
+    var bestDist = Infinity;
+    pool.forEach(function (p) {
+      var d = distanceBetween(fromPt, p);
+      if (d < bestDist) {
+        bestDist = d;
+        best = p;
+      }
+    });
+    return best;
+  }
+
+  function handlePeacefulOnesMoveClick(pt) {
+    if (!mySlot || isPaused() || isSelfDowned()) return;
+    var trig = fieldTriggers[pt.id];
+    if (!trig || trig.peacefulDestId) return;
+    var dest = pickPeacefulOnesDestination(pt);
+    if (!dest) return;
+    GameStorage.rtTransaction(gameId, "cloud", "fieldTrigger/" + pt.id + "/peacefulDestId", function (cur) {
+      return cur === null ? dest.id : cur;
+    }).then(function (committed) {
+      if (committed !== dest.id) return; // 別台先決定目的地了，用他們的
+      // 「+モブ2」與亂戰傷害補正掛在目的地那個點的fieldTrigger上，由該點的第一次王戰讀取。
+      GameStorage.rtSet(gameId, "cloud", "fieldTrigger/" + dest.id + "/peacefulOnesBonusMobRows", PEACEFUL_ONES_MOB_ROWS);
+    });
+  }
+
+  // 強制移動本身：每位玩家各自把自己的token搬過去（localPos是本地即時座標，
+  // 只有自己能寫，見該變數說明）。用本地節流旗標確保一個目的地只搬一次。
+  var peacefulOnesMoved = {};
+
+  function maybeApplyPeacefulOnesMove(pt, trig) {
+    if (!trig.peacefulDestId || !mySlot || !localPos) return;
+    var key = pt.id + ":" + trig.peacefulDestId;
+    if (peacefulOnesMoved[key]) return;
+    var dest = ((map && map.points) || []).filter(function (p) {
+      return p.id === trig.peacefulDestId;
+    })[0];
+    if (!dest) return;
+    peacefulOnesMoved[key] = true;
+    localPos = { x: dest.x, y: dest.y };
+    maybePushPosition(Date.now());
+    showToast(window.I18N.t("midnight_random_event_peaceful_move_note"));
+  }
+
+  function renderPeacefulOnesBranch(pt, trig) {
+    var actionBtn = el("midnight-random-event-action");
+    el("midnight-random-event-choice-a").hidden = true;
+    el("midnight-random-event-choice-b").hidden = true;
+    if (!trig.peacefulDestId) {
+      el("midnight-random-event-text").textContent = window.I18N.t("midnight_random_event_peaceful_desc");
+      actionBtn.hidden = false;
+      actionBtn.textContent = window.I18N.t("midnight_random_event_peaceful_move_button");
+      actionBtn.onclick = function () {
+        handlePeacefulOnesMoveClick(pt);
+      };
+      el("midnight-random-event-result").textContent = "";
+      return;
+    }
+    maybeApplyPeacefulOnesMove(pt, trig);
+    el("midnight-random-event-text").textContent = window.I18N.t("midnight_random_event_peaceful_moved_desc");
+    actionBtn.hidden = true;
+    el("midnight-random-event-result").textContent = window.I18N.t("midnight_random_event_peaceful_boss_note", {
+      mobs: PEACEFUL_ONES_MOB_ROWS,
+      damage: PEACEFUL_ONES_GROUP_DAMAGE_PER_MOB_PER_PC,
+    });
+  }
+
+  // 亂戰傷害補正：「每殘存1隻雜兵，+(PC人數×60)」。midnight的雜兵是單一合併血量池
+  // （mobRowCount×MOB_HP_PER_ROW），使用者確認這場王戰會產生2條以上的雜兵條，因此
+  // 「殘存隻數」用剩餘血量換算回條數：ceil(fieldMobHp / MOB_HP_PER_ROW)。
+  // 規則書註明對「夜の強敵」不發揮——midnight的夜王走BOSS_ENEMY_FAMILY_SENTINEL，這裡排除。
+  function peacefulOnesGroupDamageBonus(pointId, trig) {
+    if (!trig || !trig.peacefulOnesActive) return 0;
+    if (trig.enemyFamilyId === BOSS_ENEMY_FAMILY_SENTINEL) return 0;
+    var mobHp = fieldMobHp[pointId] || 0;
+    if (mobHp <= 0) return 0;
+    var remainingMobs = Math.ceil(mobHp / MOB_HP_PER_ROW);
+    return remainingMobs * currentlySeatedSlots().length * PEACEFUL_ONES_GROUP_DAMAGE_PER_MOB_PER_PC;
   }
 
   function renderAmbushManualBranch(pt, trig) {
@@ -13340,7 +13659,7 @@
           // 真正讓「夜の恩寵」角色的技能改成靠祝福回復，應該在useCharacterAbility()/
           // handleBlessingUseClick()那邊接上判斷，不在這裡多做。
           GameStorage.rtSet(gameId, "cloud", "character/" + p.tokenId + "/_skillCooldownUntil", 0);
-          GameStorage.rtSet(gameId, "cloud", "character/" + p.tokenId + "/_nightBlessing", true);
+          grantGraceToTokens([p.tokenId], GRACE_NIGHT);
         });
       });
     } else {
@@ -13424,7 +13743,7 @@
         // 持久旗標」的第一步做法（設計文件§9-1精神）——「戦闘終了時PC代表1人が1Dを振る」
         // 這個觸發時機目前沒有既有掛勾點（不是本task範圍，見correction #3對_nightBlessing
         // 的同一套判斷），因此這裡不額外發明新的戰鬥結束擲骰機制，只保留旗標供之後接上。
-        c._insectKnowledgeBlessing = true;
+        grantGraceToTokens([myTokenId], GRACE_KNOWLEDGE);
         GameStorage.rtSet(gameId, "cloud", "character/" + myTokenId, c);
       }
     }
@@ -14339,9 +14658,28 @@
     });
   }
 
+  // 安寧者たち的擊破獎勵（event_rulebook.js:1218）：「撃破に成功した場合は、PCはそれぞれ
+  // 「撃破ルーン：+5」と「世界を安寧する力」を獲得する（イベント終了）」。
+  // 掛在場地樓層獎勵的同一個時機（＝這個點的戰鬥結束、獎勵發放時），用transaction搶一次
+  // 避免多台重複發。發完就把peacefulOnesActive清掉，事件到此結束。
+  function maybeGrantPeacefulOnesReward(pt, trig) {
+    if (!trig || !trig.peacefulOnesActive) return;
+    GameStorage.rtTransaction(gameId, "cloud", "fieldTrigger/" + pt.id + "/peacefulOnesRewardBy", function (cur) {
+      return cur === null ? myTokenId : cur;
+    }).then(function (committed) {
+      if (committed !== myTokenId) return;
+      var tokenIds = seatedTokenIds();
+      grantRunesToTokens(tokenIds, PEACEFUL_ONES_RUNE);
+      grantGraceToTokens(tokenIds, GRACE_WORLD_PEACE);
+      GameStorage.rtSet(gameId, "cloud", "fieldTrigger/" + pt.id + "/peacefulOnesActive", null);
+      showToast(window.I18N.t("midnight_random_event_peaceful_reward_note", { rune: PEACEFUL_ONES_RUNE, name: graceName(GRACE_WORLD_PEACE) }));
+    });
+  }
+
   function maybeGrantFieldTileReward(pt, trig, floor) {
     if (fieldTileRewardAttempted[pt.id]) return;
     fieldTileRewardAttempted[pt.id] = true;
+    maybeGrantPeacefulOnesReward(pt, trig);
     var FloorBreakthrough = window.PriTestNightFloorBreakthrough;
     var reward = (floor && floor.reward) || [];
     var lootEntries = FloorBreakthrough ? reward.filter(FloorBreakthrough.isLootRewardEntry) : [];
@@ -17607,15 +17945,62 @@
 
   // HP降到0時觸發：任何裝置偵測到都可以安全呼叫（transaction本身保證只有第一次真正生效，
   // 已經在瀕死中的話直接維持原值，不重複觸發）。
+  // 恩寵「冷たい蜃気楼」（event_rulebook.js:1178）：「自身將因HP損害・屬性損害・異常狀態
+  // 導致『現在HP：0』時，不會變為0而是變為『現在HP：□（1點）』，並失去此恩寵。」
+  // 使用者明確規格：midnight留10（規則書1點＝midnight 10的既有換算）。
+  // maybeTriggerNearDeath()是「HP歸零」的唯一漏斗（見該函式說明），因此攔在這裡就能涵蓋
+  // 一般傷害／自傷／蓄積觸發／場地傷害所有來源，不必逐一改每個扣血點。
+  var COLD_MIRAGE_SURVIVE_HP = 10;
+
+  // 恩寵「世界を安寧する力」（event_rulebook.js:1227）：「PC陷入瀕死時擲1D，出目⚀⚁則
+  // 該PC視為於防禦階段結束時被分配【復歸傷害120】而復歸。」midnight的瀕死是累計
+  // progress到required（60/90/120）就復歸，因此「被分配復歸傷害120」＝progress+120。
+  var WORLD_PEACE_REVIVE_DAMAGE = 120;
+  var WORLD_PEACE_REVIVE_ROLL_MAX = 2; // ⚀⚁
+
   function maybeTriggerNearDeath(tokenId) {
     var c = characters[tokenId];
     if (!c) return;
+    // 「冷たい蜃気楼」一次性免死：用恩寵欄位本身的transaction當併發閘門——搶到的那台
+    // （看到值還在、把它清掉）才負責把HP拉回10，其餘裝置看到已經是null就照常走瀕死。
+    if (hasGrace(c, GRACE_COLD_MIRAGE)) {
+      GameStorage.rtTransaction(gameId, "cloud", "character/" + tokenId + "/graces/" + GRACE_COLD_MIRAGE, function (cur) {
+        return cur ? null : cur;
+      }).then(function (committed) {
+        if (committed === null) {
+          if (c[GRACES[GRACE_COLD_MIRAGE].legacyField || "__none__"]) c[GRACES[GRACE_COLD_MIRAGE].legacyField] = false;
+          GameStorage.rtSet(gameId, "cloud", "demoStat/" + tokenId, COLD_MIRAGE_SURVIVE_HP);
+          if (tokenId === myTokenId) showToast(window.I18N.t("midnight_grace_cold_mirage_toast", { name: graceName(GRACE_COLD_MIRAGE), hp: COLD_MIRAGE_SURVIVE_HP }));
+          return;
+        }
+        enterNearDeath(tokenId);
+      });
+      return;
+    }
+    enterNearDeath(tokenId);
+  }
+
+  function enterNearDeath(tokenId) {
     onAffixNearDeath(tokenId); // 2026-09-13武器詞條：瀕死時系2條
     var required = nearDeathRequiredValue(tokenId);
     GameStorage.rtTransaction(gameId, "cloud", "character/" + tokenId + "/nearDeath", function (cur) {
       if (cur && cur.active) return cur;
       var now = Date.now();
       return { active: true, downedAt: now, deadlineAt: now + NEAR_DEATH_TIMEOUT_MS, progress: 0, required: required };
+    }).then(function (committed) {
+      // 恩寵「世界を安寧する力」：剛剛真正進入瀕死的那一次才擲骰（progress已經>0代表
+      // 是別的來源或重複呼叫，不重複判定）。只有倒下者自己的裝置擲，避免多台各擲一次。
+      if (tokenId !== myTokenId || !committed || !committed.active || committed.progress) return;
+      if (!hasGrace(characters[tokenId], GRACE_WORLD_PEACE)) return;
+      var roll = 1 + Math.floor(Math.random() * 6);
+      if (roll > WORLD_PEACE_REVIVE_ROLL_MAX) {
+        showToast(window.I18N.t("midnight_grace_world_peace_fail_toast", { name: graceName(GRACE_WORLD_PEACE), roll: roll }));
+        return;
+      }
+      showToast(window.I18N.t("midnight_grace_world_peace_toast", { name: graceName(GRACE_WORLD_PEACE), roll: roll, damage: WORLD_PEACE_REVIVE_DAMAGE }));
+      // 直接重用既有的復歸傷害累加入口（滿足required時會自動finishRevive），
+      // 不另外發明一套「自動復歸」流程。
+      applyRevivalProgress(tokenId, WORLD_PEACE_REVIVE_DAMAGE);
     });
   }
 
