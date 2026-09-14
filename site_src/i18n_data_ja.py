@@ -1354,7 +1354,7 @@ STRINGS_JA: dict[str, str] = {
     "midnight_temp_weapon_skill_note": "「{label}」付与 {seconds}秒",
     "midnight_skill_self_accum_note": "自身に「{label}」+{value}",
     "midnight_skill_two_hit_effect_note": "武器の属性を2Hit分発揮",
-    "midnight_skill_continuous_shot_note": "{seconds}秒間アタックが2Hitで発動（スタミナ{stamina}）",
+    "midnight_skill_continuous_shot_note": "{seconds}秒間2Hit（3連撃目）のコストがスタミナ{stamina}に低下",
     "midnight_skill_cost_change_note": "コスト「{cost}」に変更（{seconds}秒）",
     "midnight_skill_stamina_gain_note": "スタミナ+{value}",
     "midnight_skill_parry_stamina_note": "次の攻撃時スタミナ+{value}",

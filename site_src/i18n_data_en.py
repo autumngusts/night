@@ -1354,7 +1354,7 @@ STRINGS_EN: dict[str, str] = {
     "midnight_temp_weapon_skill_note": "\"{label}\" added for {seconds}s",
     "midnight_skill_self_accum_note": "self \"{label}\" +{value}",
     "midnight_skill_two_hit_effect_note": "weapon attribute applied as 2Hit",
-    "midnight_skill_continuous_shot_note": "attacks fire as 2Hit for {seconds}s (stamina {stamina})",
+    "midnight_skill_continuous_shot_note": "2Hit (3rd combo hit) costs {stamina} stamina for {seconds}s",
     "midnight_skill_cost_change_note": "cost changed to \"{cost}\" ({seconds}s)",
     "midnight_skill_stamina_gain_note": "stamina +{value}",
     "midnight_skill_parry_stamina_note": "stamina +{value} on next attack",

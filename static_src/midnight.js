@@ -4616,10 +4616,12 @@
     var now = Date.now();
     if (now - cs.lastHitAt > ATTACK_COMBO_WINDOW_MS) cs.hitIndex = 0;
     var isThirdHit = cs.hitIndex === 2;
-    // 連續射擊（2026-09-14）：生效中的10秒內，這把武器不必等連擊第三下就以2Hit發動，
-    // 且2Hit的骰子消耗改用戰技本文指定的值（弓：③③＝6點→②②＝4點）。
+    // 連續射擊（2026-09-14）：生效中的10秒內，這把武器的**2Hit（＝連擊第三下）**改用戰技
+    // 本文指定的骰子消耗（弓：③③＝6點→②②＝4點）。
+    // 2026-09-14使用者修正：2Hit的觸發條件不變——第一下、第二下仍照舊是1Hit，只有第三下
+    // 才套用這個折扣。這條效果只改「2Hit的消耗」，不會讓攻擊提前以2Hit發動。
     var shotOn = continuousShotActive(c, info.weaponId);
-    var useHit2 = (isThirdHit || shotOn) && info.dmg.hit2Damage !== null && !!info.cost.hit2;
+    var useHit2 = isThirdHit && info.dmg.hit2Damage !== null && !!info.cost.hit2;
     var points = diceCostPoints(useHit2 ? info.cost.hit2 : info.cost.hit1);
     if (useHit2 && shotOn && c._continuousShotHit2Points) points = c._continuousShotHit2Points;
     // 遺物效果「2Hit攻擊的達人」：見twoHitMasteryPoints()說明。冷卻只在真正發動時才起算。
@@ -5080,10 +5082,10 @@
   // 本文：「対象のこの装備品での2Hitアタックを「ダイスコスト：②②」に変更する」，
   // 是12條「このスキルは〜に変更される」以外的唯一例外——它改的不是自己，而是**該武器
   // 一般攻擊的2Hit消耗**，而且本文沒有寫時限。
-  // 使用者明確規格：「フェイズ終了まで → 10秒內 hit2 效果發生」，因此這10秒內：
-  //   ① 該武器的一般攻擊直接以2Hit發動（不必等連擊第三下，見handleAttackClick()の
-  //      isThirdHit；規則書的2Hit在midnight就是連擊第三下）
-  //   ② 這些2Hit的骰子消耗改用本文指定的「②②」＝4點＝體力8（弓原本③③＝6點＝體力12）
+  // 使用者明確規格：「フェイズ終了まで → 10秒內」，且（2026-09-14修正）**只有連擊第三下
+  // 的2Hit才套用**——第一下、第二下仍照舊是1Hit、消耗不變。也就是這10秒內，該武器的
+  // 2Hit骰子消耗改用本文指定的「②②」＝4點＝體力8（弓原本③③＝6點＝體力12），
+  // 2Hit的觸發條件（連擊第三下，見handleAttackClick()のisThirdHit）完全不變。
   // 消耗量不寫死，照樣把本文的字串交給parseActionCost()重算，跟上面12條同一個做法。
   var CONTINUOUS_SHOT_RE = /2Hit(?:アタック|攻擊)[^「]*「(?:ダイスコスト|骰子消耗)[：:]([^」]+)」/;
   var CONTINUOUS_SHOT_MS = 10000;

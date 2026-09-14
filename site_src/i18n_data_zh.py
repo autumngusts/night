@@ -1354,7 +1354,7 @@ STRINGS_ZH: dict[str, str] = {
     "midnight_temp_weapon_skill_note": "附加「{label}」{seconds}秒",
     "midnight_skill_self_accum_note": "自身承受「{label}」+{value}",
     "midnight_skill_two_hit_effect_note": "武器屬性發揮2Hit份",
-    "midnight_skill_continuous_shot_note": "{seconds}秒內攻擊以2Hit發動（體力{stamina}）",
+    "midnight_skill_continuous_shot_note": "{seconds}秒內2Hit（連擊第三下）消耗降為體力{stamina}",
     "midnight_skill_cost_change_note": "消耗變更為「{cost}」（{seconds}秒）",
     "midnight_skill_stamina_gain_note": "體力+{value}",
     "midnight_skill_parry_stamina_note": "下次攻擊時體力+{value}",
