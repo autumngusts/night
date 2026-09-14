@@ -12819,11 +12819,15 @@
     // ①是「該PC自己承受」，所以直接在自己的裝置上套用自己的結果，不走搶鎖。
     applyRulebookPcDamage(MIST_RIFT_SOLO_TEXT[successes] || "");
     if (successes === 0) {
-      // 「タイムロス：1」：midnight用縮圈計時取代night的天數/時間損耗，沒有這個資源
-      // （既有先例見event_rulebook.js:764那條同樣的タイムロス處理）。使用者已選定要改成
-      // 「縮圈提前」，但尚未指定秒數，因此這一版先只顯示提示、不動縮圈計時——拿到秒數
-      // 後在這裡接上即可，不需要改動其他地方。
-      showToast(window.I18N.t("midnight_random_event_mist_rift_timeloss_note"));
+      // 「タイムロス：1」（event_rulebook.js:1135「失敗3回のPCの数だけ被る」）：
+      // midnight用縮圈計時取代night的天數/時間損耗，使用者明確規格換算為
+      // 「縮圈提前20秒」，且依規則書是「每位失敗3次的PC各承受1次」——因此這裡放在
+      // 各自的判定結算裡，每個三連全敗的玩家各自推進一次，天然符合人數倍率。
+      if (advanceCircleTimerBy(TIME_LOSS_CIRCLE_ADVANCE_MS)) {
+        showToast(window.I18N.t("midnight_random_event_mist_rift_timeloss_note", { seconds: TIME_LOSS_CIRCLE_ADVANCE_MS / 1000 }));
+      } else {
+        showToast(window.I18N.t("midnight_random_event_mist_rift_timeloss_day3_note"));
+      }
     }
   }
 
@@ -18405,6 +18409,26 @@
   // （meta.day3StartAt已設定）回傳day:3、不畫圈，畫面只顯示提示文字並自動收合地圖
   // （見frame()）。所有elapsed計算都用effectiveNow()而不是原始now，暫停期間時間軸
   // 凍結不動。----
+  // ---- 「タイムロス」→ 縮圈提前（2026-09-14使用者明確規格「20s」）----
+  // night是回合制、タイムロス推進時間消耗表；midnight用縮圈計時取代那個軸（見
+  // maybeGrantFieldTileReward()附近對「全フロア踏破効果」タイムロス部分的既有說明）。
+  // 實作方式：把當天的起算時間戳往前挪N毫秒，等於「已經過的時間變多」＝縮圈提前到來。
+  // 這兩個時間戳本來就是全隊共享的唯一真實來源（currentPhaseInfo()直接讀它們算stage），
+  // 因此改它天生就同步給所有人，不需要另外廣播；用transaction避免多人同時推進時互相覆蓋。
+  // day3沒有地圖與縮圈（currentPhaseInfo()直接回day3），此時回傳false讓呼叫端改顯示說明。
+  var TIME_LOSS_CIRCLE_ADVANCE_MS = 20000;
+
+  function advanceCircleTimerBy(ms) {
+    if (!ms || ms <= 0) return false;
+    if (!meta || meta.day3StartAt) return false;
+    var key = meta.day2StartAt ? "meta/day2StartAt" : "meta/sessionStartAt";
+    if (!meta.day2StartAt && !meta.sessionStartAt) return false; // 還沒開始
+    GameStorage.rtTransaction(gameId, "cloud", key, function (cur) {
+      return cur ? cur - ms : cur;
+    });
+    return true;
+  }
+
   function currentPhaseInfo(rawNow) {
     var now = effectiveNow(rawNow);
     if (meta.day3StartAt) {
