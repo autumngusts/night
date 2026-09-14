@@ -4170,6 +4170,56 @@
     return enemySizeForTargetKey(currentAttributeAccumTargetKey()) === "LL";
   }
 
+  // ---- 特効：死に生きる者／竜／星の眷属（2026-09-14接入，使用者明確要求）----
+  // 武器的 kind:"special" 技能，規則書效果：「エネミーが『X』の場合、発生するダメージを
+  // 『1Hit：+5／2Hit：+10』する」。character_drawer.js 當初刻意不自動加算，理由寫在
+  // weaponSpecialEffectNotes()：「対象エネミーの種別を戦闘UI側で把握していない」——
+  // midnight 這次接上 enemyInfoForTargetKey() 之後就拿得到敵人本體了，因此可以真的判定。
+  //
+  // 判定依據是敵人 special 本文的標準標記（全部10隻對象敵人都有，格式完全一致）：
+  //   〔竜特効〕…このエネミーは「竜」として扱う／〔亡者特効〕…「死に生きる者」である／
+  //   〔隕鉄特効〕…「星の眷属」として扱う
+  // 因此只認「「<対象>」として扱う」與「「<対象>」である」兩種句型，不做寬鬆的字串包含
+  // （避免招式說明裡單純提到「竜」的敵人被誤判）。夜之王沒有這種標記，一律不符合。
+  var SPECIAL_EFFECT_HIT1_BONUS = 5;
+  var SPECIAL_EFFECT_HIT2_BONUS = 10;
+
+  function targetMatchesSpecialLabel(targetKey, label) {
+    var info = enemyInfoForTargetKey(targetKey);
+    if (!info || info.isBoss || !info.enemy) return false;
+    var special = info.enemy.special || {};
+    var texts = [special.ja || "", special.zh || ""];
+    var labels = [label.ja || "", label.zh || ""].filter(Boolean);
+    for (var i = 0; i < texts.length; i++) {
+      for (var j = 0; j < labels.length; j++) {
+        if (!labels[j]) continue;
+        if (texts[i].indexOf("「" + labels[j] + "」として扱う") !== -1) return true;
+        if (texts[i].indexOf("「" + labels[j] + "」である") !== -1) return true;
+        if (texts[i].indexOf("「" + labels[j] + "」（") !== -1 && texts[i].indexOf("特效") !== -1) return true;
+        if (texts[i].indexOf("視為「" + labels[j] + "」") !== -1) return true;
+        if (texts[i].indexOf("為「" + labels[j] + "」") !== -1) return true;
+      }
+    }
+    return false;
+  }
+
+  // 這把武器對目前目標生效的特効加成（沒有特効技能、或目標不符合種別時為0）。
+  // 只用於一般攻擊——規則書原文是「このスキルを持つ武器で**アタック**を行い…効果を発揮
+  // （戦技では発揮されない）」，因此戰技/魔術/祈禱不套用。
+  function weaponSpecialEffectBonus(weaponId, isHit2) {
+    if (!weaponId) return 0;
+    var weapon = Weapons.get(baseCatalogId(weaponId));
+    if (!weapon) return 0;
+    var targetKey = currentAttributeAccumTargetKey();
+    var bonus = 0;
+    (weapon.skills || []).forEach(function (ref) {
+      if (ref.kind !== "special" || !ref.target) return;
+      if (!targetMatchesSpecialLabel(targetKey, ref.target)) return;
+      bonus += isHit2 ? SPECIAL_EFFECT_HIT2_BONUS : SPECIAL_EFFECT_HIT1_BONUS;
+    });
+    return bonus;
+  }
+
   // 蓄積值每滿一次門檻＝一次觸發。
   // 2026-09-13使用者明確規格「敵人中了屬性超過16、檢查是否有成功觸發其效果，但是敵人仍然
   // 殘留17/16，計算過一次就扣除其數值，下一次重新計算成為1/16」：原本的做法是蓄積值一路
@@ -4566,8 +4616,12 @@
     var now = Date.now();
     if (now - cs.lastHitAt > ATTACK_COMBO_WINDOW_MS) cs.hitIndex = 0;
     var isThirdHit = cs.hitIndex === 2;
-    var useHit2 = isThirdHit && info.dmg.hit2Damage !== null && !!info.cost.hit2;
+    // 連續射擊（2026-09-14）：生效中的10秒內，這把武器不必等連擊第三下就以2Hit發動，
+    // 且2Hit的骰子消耗改用戰技本文指定的值（弓：③③＝6點→②②＝4點）。
+    var shotOn = continuousShotActive(c, info.weaponId);
+    var useHit2 = (isThirdHit || shotOn) && info.dmg.hit2Damage !== null && !!info.cost.hit2;
     var points = diceCostPoints(useHit2 ? info.cost.hit2 : info.cost.hit1);
+    if (useHit2 && shotOn && c._continuousShotHit2Points) points = c._continuousShotHit2Points;
     // 遺物效果「2Hit攻擊的達人」：見twoHitMasteryPoints()說明。冷卻只在真正發動時才起算。
     var masteryHit = twoHitMasteryPoints(c, info, useHit2, points, now);
     if (masteryHit) points = masteryHit.points;
@@ -4591,6 +4645,17 @@
     // 防禦反擊強化（斧槍）：這一擊有吃到防禦反擊折扣、且揮的是斧槍時，反擊傷害+15
     // （使用者2026-09-11指定），見guardCounterHalberdBonus()。
     damage += guardCounterHalberdBonus(c, info.weaponId, !!discountPct);
+    // 特効：死に生きる者／竜／星の眷属（2026-09-14接入）：目標種別符合時1Hit+5／2Hit+10。
+    // 只在一般攻擊加算（規則書：戦技では発揮されない），見weaponSpecialEffectBonus()。
+    var specialBonus = weaponSpecialEffectBonus(info.weaponId, useHit2);
+    if (specialBonus) damage += specialBonus;
+    // パリィ系「次のアクションフェイズ開始時のスタミナダイスを1個追加」（2026-09-14接入）：
+    // 使用者明確規格「原則防禦成功後下一個攻擊」＝把規則書的「下一個行動階段開始時」換算成
+    // 「防禦成功後的下一次攻擊時」，換算量沿用使用者給疾風步的同一條（耐力ダイス1個＝體力+1）。
+    if (c._parryStaminaBonus && c._parryStaminaBonus > 0) {
+      stamina.current = Math.min(stamina.max, stamina.current + c._parryStaminaBonus);
+      c._parryStaminaBonus = 0;
+    }
     // 2026-09-12接入護符「彎劍護符」（稽核表D組）：「自身遺物效果『防禦反擊』使用時
     // 傷害＋15」。midnight的防禦反擊＝「防禦成功後下一擊的體力折扣」（見
     // consumeGuardCounterDiscount()），因此「使用時」＝這一擊確實吃到了那個折扣，
@@ -4986,15 +5051,83 @@
   // 2026-09-13：回傳值的fpCost會套用武器詞條「魔術/祈祷、消費FP軽減」。放在這支共用的
   // 成本計算出口，按鈕的可否按下（renderSpellButton）／長按開始（startSkillBHold）／實際
   // 扣除（castWeaponSkillEntry）三處才會用到同一個數字，不會出現「按得下去卻扣不了」。
-  function computeMidnightSkillCost(bodyText, weaponId) {
-    var cost0 = computeMidnightSkillCostRaw(bodyText, weaponId);
+  // ---- 「このスキルは「コスト：X」に変更される」（2026-09-14接入）----
+  // 規則書共12條（9條「FPコスト不要になる」＋3條「ダイスコストのNが減少」），句型一致：
+  //   ja「このアクション後、フェイズ終了まで、このスキルは「コスト：②／FP■」に変更される」
+  //   zh「此動作後直到階段結束為止，此技能變更為「消耗：②／FP■」」
+  // 實作方式刻意不去算「少了幾點／免不免FP」——直接把本文寫出來的**變更後消耗字串**整段
+  // 交給既有的CharacterDrawer.parseActionCost()重新解析，兩種形狀用同一條路走完，也不會
+  // 因為自行推算而跟規則書原文有出入（CLAUDE.md §41「優先重用既有helper」）。
+  // 「フェイズ終了まで」依專案通則換算成10秒；作用對象是「這把武器上的這一招」，
+  // 因此key用weaponId+entryId（同一招裝在兩把武器上時各自計時）。
+  // art_continuous_shot（連續射擊）不走這裡——它改的是一般攻擊的2Hit消耗而不是自己，
+  // 句型也是「2Hitアタックを「ダイスコスト：②②」に変更する」，這條正規式不會命中。
+  var SKILL_COST_CHANGE_RE = /(?:このスキルは|此技能變更為)「((?:コスト|消耗)[：:][^」]+)」/;
+  var SKILL_COST_CHANGE_MS = 10000;
+
+  function skillCostChangeKey(weaponId, entryId) {
+    return String(weaponId || "") + "|" + String(entryId || "");
+  }
+
+  function activeSkillCostChangeText(c, weaponId, entryId) {
+    if (!c || !c._skillCostChanges || !entryId) return null;
+    var rec = c._skillCostChanges[skillCostChangeKey(weaponId, entryId)];
+    if (!rec || rec.until <= Date.now()) return null;
+    return rec.costText;
+  }
+
+  // ---- 連續射擊（art_continuous_shot、弓的隨機戰技表出目3）2026-09-14接入 ----
+  // 本文：「対象のこの装備品での2Hitアタックを「ダイスコスト：②②」に変更する」，
+  // 是12條「このスキルは〜に変更される」以外的唯一例外——它改的不是自己，而是**該武器
+  // 一般攻擊的2Hit消耗**，而且本文沒有寫時限。
+  // 使用者明確規格：「フェイズ終了まで → 10秒內 hit2 效果發生」，因此這10秒內：
+  //   ① 該武器的一般攻擊直接以2Hit發動（不必等連擊第三下，見handleAttackClick()の
+  //      isThirdHit；規則書的2Hit在midnight就是連擊第三下）
+  //   ② 這些2Hit的骰子消耗改用本文指定的「②②」＝4點＝體力8（弓原本③③＝6點＝體力12）
+  // 消耗量不寫死，照樣把本文的字串交給parseActionCost()重算，跟上面12條同一個做法。
+  var CONTINUOUS_SHOT_RE = /2Hit(?:アタック|攻擊)[^「]*「(?:ダイスコスト|骰子消耗)[：:]([^」]+)」/;
+  var CONTINUOUS_SHOT_MS = 10000;
+
+  function applyContinuousShotIfAny(c, entry, bodyText) {
+    if (!c || !entry || !entry.weaponId) return 0;
+    var m = CONTINUOUS_SHOT_RE.exec(bodyText || "");
+    if (!m) return 0;
+    var points = diceCostPoints(CharacterDrawer.parseActionCost("コスト：" + m[1]));
+    if (!points) return 0;
+    c._continuousShotUntil = Date.now() + CONTINUOUS_SHOT_MS;
+    c._continuousShotWeaponId = entry.weaponId;
+    c._continuousShotHit2Points = points;
+    return points;
+  }
+
+  // 這把武器現在是不是在「連續射擊」生效中（生效時一般攻擊一律以2Hit發動）。
+  function continuousShotActive(c, weaponId) {
+    return !!(c && c._continuousShotUntil && c._continuousShotUntil > Date.now() && c._continuousShotWeaponId === weaponId);
+  }
+
+  function applySkillCostChangeIfAny(c, entry, bodyText) {
+    if (!c || !entry || !entry.id) return null;
+    var m = SKILL_COST_CHANGE_RE.exec(bodyText || "");
+    if (!m) return null;
+    if (!c._skillCostChanges) c._skillCostChanges = {};
+    c._skillCostChanges[skillCostChangeKey(entry.weaponId, entry.id)] = {
+      costText: m[1],
+      until: Date.now() + SKILL_COST_CHANGE_MS,
+    };
+    return m[1];
+  }
+
+  function computeMidnightSkillCost(bodyText, weaponId, entryId) {
+    var cost0 = computeMidnightSkillCostRaw(bodyText, weaponId, entryId);
     var cutPct = affixTotal(characters[myTokenId], "castFpDown");
     if (!cutPct || !cost0.fpCost) return cost0;
     return { staminaCost: cost0.staminaCost, fpCost: Math.max(0, Math.round(cost0.fpCost * (1 - cutPct / 100))), hpCost: cost0.hpCost };
   }
 
-  function computeMidnightSkillCostRaw(bodyText, weaponId) {
-    var cost = CharacterDrawer.parseActionCost(bodyText);
+  function computeMidnightSkillCostRaw(bodyText, weaponId, entryId) {
+    // 變更後消耗生效中時，改用本文寫的那段新消耗字串解析（見SKILL_COST_CHANGE_RE說明）。
+    var changed = activeSkillCostChangeText(characters[myTokenId], weaponId, entryId);
+    var cost = CharacterDrawer.parseActionCost(changed || bodyText);
     // 隱者「聖幕」（混成魔法變體，2026-09-11接上）：「10秒時間為止，自身使用戰技・祈禱・
     // 魔術時不需要FP消耗」——見applyRelicAbilityPostEffect()寫入_noFpCostUntil。
     var cSelf = characters[myTokenId];
@@ -5312,15 +5445,110 @@
       notes.push("FP+" + fpAmount);
     }
 
-    // ④ 雜兵への「HP損害：□」（□のみ。■はGM手動のまま）
-    var mobSquares = CharacterDrawer.countMobDamageSquares(bodyText);
+    // ④ 雜兵への「HP損害：□／■」。
+    //    2026-09-14使用者明確規格「雜兵『HP損害：■』直接接」：原本只算白方塊□，■依
+    //    CLAUDE.md §19留給GM手動（雜兵損害的■佔了全部80條招式，等於幾乎都沒有效果）。
+    //    現在兩種方塊都算，換算一律沿用既有的1格＝10（BLOCK_SQUARE_COUNT_TO_RESOURCE_MULT）。
+    //    CharacterDrawer.countMobDamageSquares()是night.js共用的，不改它的語意，這裡另外算。
+    var mobSquares = countMobDamageSquaresAll(bodyText);
     if (mobSquares) {
       var mobAmount = mobSquares * BLOCK_SQUARE_COUNT_TO_RESOURCE_MULT;
       damageActiveMobIfAny(mobAmount);
       notes.push(window.I18N.t("midnight_skill_mob_damage_note", { damage: mobAmount }));
     }
 
+    // ⑤ 「2Hit分の効果を発揮する」（2026-09-14接入，3條：二連斬×2／嵐之刃）。
+    //    意思是「這一發戰技，讓武器自身的屬性／狀態異常技能比照2Hit發揮」＝蓄積2點。
+    //    midnight的2Hit就是連續攻擊的第三下（handleAttackClick()のisThirdHit），因此直接
+    //    重用applyWeaponAttributeAccumOnHit(weaponId, true)，不另外發明一套倍率。
+    if (TWO_HIT_EFFECT_RE.test(bodyText || "") && entry.weaponId) {
+      applyWeaponAttributeAccumOnHit(entry.weaponId, true);
+      notes.push(window.I18N.t("midnight_skill_two_hit_effect_note"));
+    }
+
+    // ⑥ 「耐力ダイスを1個増やす」（疾風步）／パリィ系「スタミナダイスを1個追加する」。
+    //    使用者明確規格：耐力骰1個＝體力+1。パリィ系的「次のアクションフェイズ開始時」
+    //    同樣換算成「防禦成功後的下一個攻擊時」（見handleAttackClick()的_parryStaminaBonus）。
+    var diceGain = parseStaminaDiceGain(bodyText);
+    if (diceGain) {
+      if (PARRY_NEXT_PHASE_RE.test(bodyText)) {
+        c._parryStaminaBonus = (c._parryStaminaBonus || 0) + diceGain;
+        notes.push(window.I18N.t("midnight_skill_parry_stamina_note", { value: diceGain }));
+      } else {
+        stamina.current = Math.min(stamina.max, stamina.current + diceGain);
+        notes.push(window.I18N.t("midnight_skill_stamina_gain_note", { value: diceGain }));
+      }
+    }
+
+    // ⑦ 「敵視：＋N」／「敵視：0」（2026-09-14接入，10秒制）。
+    //    使用者明確規格「+3 ＝ 攻擊的倍率乘算1.3x」，跟既有的遺物「容易被盯上」
+    //    每個來源×1.1（AGGRO_PLUS_ONE_MULT_STEP＝0.1）是同一條刻度，因此直接換算成
+    //    「追加N個來源」疊進既有的aggroAccumMultiplier()，不新增第二套仇恨系統。
+    //    「敵視：0」＝這段期間自己的攻擊完全不累積仇恨（倍率0）。
+    // ⑧ 「このスキルは「コスト：X」に変更される」（2026-09-14接入，10秒制）。
+    //    這裡設定的折扣從**下一發**才生效——castWeaponSkillEntry()是先算消耗、扣資源，
+    //    之後才呼叫本函式，正好對上規則書的「このアクション後」。
+    var changedCost = applySkillCostChangeIfAny(c, entry, bodyText);
+    if (changedCost) {
+      notes.push(window.I18N.t("midnight_skill_cost_change_note", { cost: changedCost, seconds: SKILL_COST_CHANGE_MS / 1000 }));
+    }
+
+    // ⑨ 連續射擊：10秒內該武器的一般攻擊一律以2Hit發動，且2Hit消耗改用本文指定值。
+    var shotPoints = applyContinuousShotIfAny(c, entry, bodyText);
+    if (shotPoints) {
+      notes.push(
+        window.I18N.t("midnight_skill_continuous_shot_note", {
+          stamina: shotPoints * DICE_COUNT_TO_STAMINA_MULT,
+          seconds: CONTINUOUS_SHOT_MS / 1000,
+        })
+      );
+    }
+
+    var aggroMatch = AGGRO_BODY_RE.exec(bodyText || "");
+    if (aggroMatch) {
+      var aggroNow = Date.now();
+      if (aggroMatch[1]) {
+        c._aggroBonusSteps = parseInt(aggroMatch[1], 10) || 0;
+        c._aggroBonusUntil = aggroNow + AGGRO_BODY_BUFF_MS;
+        notes.push(window.I18N.t("midnight_skill_aggro_up_note", { value: c._aggroBonusSteps, mult: (1 + c._aggroBonusSteps * AGGRO_PLUS_ONE_MULT_STEP).toFixed(1) }));
+      } else {
+        c._aggroZeroUntil = aggroNow + AGGRO_BODY_BUFF_MS;
+        notes.push(window.I18N.t("midnight_skill_aggro_zero_note", { seconds: AGGRO_BODY_BUFF_MS / 1000 }));
+      }
+    }
+
     return notes;
+  }
+
+  // 雜兵「HP損害：□／■」的方塊總數（兩種方塊都算，見applyWeaponSkillBodyEffects()④）。
+  function countMobDamageSquaresAll(text) {
+    if (!text) return 0;
+    var m = /(?:モブ|雜兵|杂兵)[^」]*?HP損害[：:]\s*([□■]+)/.exec(text);
+    return m ? m[1].length : 0;
+  }
+
+  var TWO_HIT_EFFECT_RE = /2Hit分の効果|2Hit份的效果/;
+  // 「耐力ダイスを1個増やす」「スタミナダイスを1個追加する」「增加一個耐力骰」「追加1個體力骰」
+  var STAMINA_DICE_GAIN_RES = [
+    /(?:耐力|スタミナ|體力|体力)ダイスを(\d+)個(?:増やす|追加)/,
+    /(?:增加|追加)\s*(\d+|一|１)\s*個?(?:耐力骰|體力骰)/,
+  ];
+  // パリィ系＝效果寫「次のアクションフェイズ開始時／下個行動階段開始時／下一回合開始」。
+  var PARRY_NEXT_PHASE_RE = /次の(?:アクションフェイズ|ターン)|下個行動階段|下一回合開始/;
+  // 「敵視：＋3」→捕獲群1有值；「敵視：0」→捕獲群1為undefined。
+  var AGGRO_BODY_RE = /敵視[：:]\s*(?:[＋+](\d+)|(0))/;
+  var AGGRO_BODY_BUFF_MS = 10000; // 「エンドフェイズまで」＝10秒（專案通則）
+
+  function parseStaminaDiceGain(bodyText) {
+    if (!bodyText) return 0;
+    for (var i = 0; i < STAMINA_DICE_GAIN_RES.length; i++) {
+      var m = STAMINA_DICE_GAIN_RES[i].exec(bodyText);
+      if (!m) continue;
+      var raw = m[1];
+      if (raw === "一" || raw === "１") return 1;
+      return parseInt(raw, 10) || 0;
+    }
+    return 0;
   }
 
   // sourceBtnId（2026-09-13新增，可省略）：長按詠唱的那一顆按鈕格id，用來當施法彗星的
@@ -5330,7 +5558,7 @@
     var c = characters[myTokenId];
     if (!c) return;
     var bodyText = Weapons.localizedText(entry.body);
-    var cost = computeMidnightSkillCost(bodyText, entry.weaponId);
+    var cost = computeMidnightSkillCost(bodyText, entry.weaponId, entry.id);
     if (stamina.current < cost.staminaCost) return;
     // 2026-09-13武器詞條「FP不足による魔術/祈祷でFP回復」：FP不足時這一發空放——不扣資源、
     // 不產生任何效果，只回復固定FP。沒有這條詞條時維持原本的「FP不足就完全不能放」。
@@ -6728,7 +6956,7 @@
     var def = SORCERY_BUTTON_DEFS_BY_KEY[key];
     var entry = def && sorceryButtonEntry(def);
     if (!entry) return;
-    var cost = computeMidnightSkillCost(Weapons.localizedText(entry.body), entry.weaponId);
+    var cost = computeMidnightSkillCost(Weapons.localizedText(entry.body), entry.weaponId, entry.id);
     if (stamina.current < cost.staminaCost) return;
     if (fp.current < cost.fpCost && !affixAllowsEmptyCast(characters[myTokenId])) return;
     sorceryHoldState[key] = Date.now();
@@ -8005,7 +8233,14 @@
 
   function aggroAccumMultiplier(c) {
     if (!c) return 1;
+    var now = Date.now();
+    // 2026-09-14：戰技本文「敵視：0」（暗殺之法）＝這10秒內自己的攻擊完全不累積仇恨。
+    // 排在最前面，優先於所有加成來源。
+    if (c._aggroZeroUntil && c._aggroZeroUntil > now) return 0;
     var sources = countRelic(c, "easilyTargeted") + (c._highGuardActive ? 1 : 0);
+    // 2026-09-14：戰技本文「敵視：＋N」（夏布利利的吶喊）＝追加N個來源，使用者明確規格
+    // 「+3 ＝ 倍率乘算1.3x」正好等於既有的每來源×0.1刻度。
+    if (c._aggroBonusUntil && c._aggroBonusUntil > now) sources += c._aggroBonusSteps || 0;
     return 1 + sources * AGGRO_PLUS_ONE_MULT_STEP;
   }
 
@@ -16472,7 +16707,7 @@
     var artBtn = el("btn-midnight-skill");
     artBtn.hidden = !artEntry;
     if (artEntry) {
-      var artCost = computeMidnightSkillCost(Weapons.localizedText(artEntry.body), artEntry.weaponId);
+      var artCost = computeMidnightSkillCost(Weapons.localizedText(artEntry.body), artEntry.weaponId, artEntry.id);
       artBtn.disabled = !canAct || stamina.current < artCost.staminaCost || fp.current < artCost.fpCost;
       // 2026-09-06使用者明確要求「[戰技]名稱需隨著右手武器跟換為[戰技(名稱)]」：
       // artEntry.name是這把武器實際的戰技名稱（跟角色視窗武器詳細資訊同一份資料）。
@@ -16587,7 +16822,7 @@
     }
     var labelEl = el(def.labelId);
     if (labelEl) setCombatButtonLabel(labelEl, Weapons.localizedText(entry.name));
-    var cost = computeMidnightSkillCost(Weapons.localizedText(entry.body), entry.weaponId);
+    var cost = computeMidnightSkillCost(Weapons.localizedText(entry.body), entry.weaponId, entry.id);
     btn.disabled = !canAct || stamina.current < cost.staminaCost || fp.current < cost.fpCost;
   }
 
