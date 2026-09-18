@@ -918,8 +918,27 @@
     return countLearnedRelicEffectsByName(c, ["聖杯瓶回復量提升", "聖杯瓶回復量アップ"]);
   }
 
-  function getSkillUsesBonus(c) {
-    return countLearnedRelicEffectsByName(c, ["技能使用次數＋1", "スキル使用回数＋1"]);
+  // entryを渡すと、そのentryが「アーツ」のときだけ恩寵「大ルーンの虚像」の
+  //「アーツ」を「最大使用回数：+1」（fields_data_3.js:2619）も乗る。
+  // entry無しの呼び出し（技能一覧など）は従来どおり遺物分だけ。
+  function isArtEntry(c, entry) {
+    if (!c || !entry || !entry.id) return false;
+    var type = c.typeId ? CharacterTypes.get(c.typeId) : null;
+    return !!(
+      type &&
+      (type.arts || []).some(function (a) {
+        return a.id === entry.id;
+      })
+    );
+  }
+
+  function getSkillUsesBonus(c, entry) {
+    var bonus = countLearnedRelicEffectsByName(c, ["技能使用次數＋1", "スキル使用回数＋1"]);
+    var Graces = window.PriTestGraces;
+    if (Graces && isArtEntry(c, entry) && Graces.has(c, "great_rune_mirage")) {
+      bonus += Graces.value("great_rune_mirage", "artsMaxUsesBonus") || 0;
+    }
+    return bonus;
   }
 
   function relicMaxLearnable(level) {
@@ -3979,9 +3998,19 @@
   //「その戦闘終了時まで」が成立せず、規則と実装の対応を決めてから接続する（値は graces.js に登録済み）。
   function graceFlatMaxStatBonus(c, statKey) {
     var Graces = window.PriTestGraces;
-    if (!Graces || !c || statKey !== "hp") return 0;
-    if (!Graces.has(c, "rotten_forest")) return 0;
-    return Graces.value("rotten_forest", "maxHpBonus") || 0;
+    if (!Graces || !c || (statKey !== "hp" && statKey !== "fp")) return 0;
+    var total = 0;
+    // 腐れ森の恩寵：シナリオ終了までの常時「最大HP：+□□」（+2格）。
+    if (statKey === "hp" && Graces.has(c, "rotten_forest")) {
+      total += Graces.value("rotten_forest", "maxHpBonus") || 0;
+    }
+    // 隠れ都の恩寵：「戦闘中に死亡し、蘇生した場合、その戦闘終了時まで」の
+    //「最大HP：+□」「最大FP：+□」（各+1格）。旗標 _hiddenCityRevivedBonusActive は
+    // 復帰の瞬間に立ち、戦闘終了で落ちる（night.js / midnight.js のそれぞれの復帰処理）。
+    if (c._hiddenCityRevivedBonusActive && Graces.has(c, "hidden_city")) {
+      total += Graces.value("hidden_city", statKey === "hp" ? "revivedMaxHpBonus" : "revivedMaxFpBonus") || 0;
+    }
+    return total;
   }
 
   function totalFlatMaxStatBonus(c, statKey) {
@@ -6536,7 +6565,7 @@
       plus.className = "level-btn";
       plus.textContent = "+";
 
-      var effectiveMax = entry.uses + getSkillUsesBonus(c);
+      var effectiveMax = entry.uses + getSkillUsesBonus(c, entry);
       function remaining() {
         var v = c.abilityUses && c.abilityUses[entry.id];
         return typeof v === "number" ? v : effectiveMax;

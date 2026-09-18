@@ -259,8 +259,16 @@
     return Math.max(0, amount - reduce);
   }
 
+  // 恩寵「腐れ森の恩寵」（graces.js rotten_forest／fields_data_4.js:2503）の「耐性：腐敗」：
+  //「『状態異常：腐敗』が蓄積せず、これによってHP損害を受けない」。蓄積そのものをここで
+  // 弾けば閾値判定もトリガーも走らないので、HP損害の側を別途止める必要はない。
+  function graceBlocksReceivedAccum(c, name) {
+    return name === "腐敗" && hasGrace(c, GRACE_ROTTEN_FOREST) && !!graceValue(GRACE_ROTTEN_FOREST, "rotImmune");
+  }
+
   function recordReceivedAttributeAccum(rawLabel, amount) {
     var name = normalizeAttributeLabel(rawLabel);
+    if (graceBlocksReceivedAccum(characters[myTokenId], name)) return;
     amount = talismanAdjustedReceivedAccum(name, amount);
     // 2026-09-13武器詞條的「○○耐性上昇」系：機率性完全不累積這一次，接在護符的
     // 無效化/減免之後（兩者是各自獨立的來源，都通過才真的記進去）。
@@ -270,7 +278,7 @@
     receivedAttributeAccum[name] = next;
     var isAilment = ATTRIBUTE_STATUS_AILMENT_NAMES_JA.indexOf(name) !== -1;
     // 2026-09-13武器詞條：全状態異常耐性を高める／低下會改變自身承受側的觸發門檻。
-    var threshold = receivedAccumThreshold(characters[myTokenId]);
+    var threshold = receivedAccumThreshold(characters[myTokenId], name);
     var times = Math.floor(next / threshold);
     if (times <= 0) return;
     // 2026-09-13使用者明確規格（敵人側同一條，見maybeTriggerAttributeAccum()）：觸發過的
@@ -311,6 +319,11 @@
       return;
     }
     var damage = randIntInclusive(isAilment ? RECEIVED_TRIGGER_AILMENT_DAMAGE : RECEIVED_TRIGGER_ELEMENT_DAMAGE);
+    // 恩寵「山嶺の恩寵」：「凍傷」発生時のHP損害を「□」＝1格軽減（midnight刻度10）。
+    if (name === "凍傷" && hasGrace(characters[myTokenId], GRACE_MOUNTAIN_PEAK)) {
+      damage = Math.max(0, damage - (graceValue(GRACE_MOUNTAIN_PEAK, "frostbiteDamageReduce") || 0));
+    }
+    if (damage <= 0) return;
     spendSelfHp(damage);
     showToast(window.I18N.t("midnight_self_accum_damage_note", { name: name, damage: damage }));
   }
@@ -581,8 +594,14 @@
   // 自身承受蓄積的觸發門檻：全状態異常耐性を高める／すべての状態異常耐性低下。
   // 只作用在「自己承受」這一側——使用者的說明是「更容易／更不容易受到」，打在敵人身上的
   // 蓄積門檻（maybeTriggerAttributeAccum）不受影響。
-  function receivedAccumThreshold(c) {
+  // nameを渡すと、その異常だけに効く恩寵の「蓄積最大値」加算も乗る。
+  // 山嶺の恩寵は「凍傷」の蓄積最大値を+4する（fields_data_4.js:2895）——武器詞條の
+  //「状態異常蓄積最大値＋1」（allAilmentResistUp）とまったく同じ意味の加算なので同じ式に足す。
+  function receivedAccumThreshold(c, name) {
     var delta = affixTotal(c, "allAilmentResistUp") - affixTotal(c, "allAilmentResistDown");
+    if (name === "凍傷" && hasGrace(c, GRACE_MOUNTAIN_PEAK)) {
+      delta += graceValue(GRACE_MOUNTAIN_PEAK, "frostbiteAccumMaxBonus") || 0;
+    }
     return Math.max(1, ATTRIBUTE_STATUS_THRESHOLD + delta);
   }
 
@@ -6277,6 +6296,12 @@
   var GRACE_KNOWLEDGE = "knowledge";
   var GRACE_BLESSING_KING = "blessing_king";
   var GRACE_UNHEALING_WOUND = "unhealing_wound";
+  // 場地卡（fields_data_*.js）由来。
+  var GRACE_ROTTEN_FOREST = "rotten_forest";
+  var GRACE_MOUNTAIN_PEAK = "mountain_peak";
+  var GRACE_GREAT_CAVERN = "great_cavern";
+  var GRACE_HIDDEN_CITY = "hidden_city";
+  var GRACE_GREAT_RUNE_MIRAGE = "great_rune_mirage";
 
   function hasGrace(c, graceId) {
     var Graces = window.PriTestGraces;
@@ -6562,6 +6587,40 @@
     GameStorage.rtSet(gameId, "cloud", "character/" + myTokenId + "/_skillCooldownUntil", c._skillCooldownUntil);
   }
 
+  // 恩寵「大ルーンの虚像」（fields_data_3.js:2619）：「アーツ」を「最大使用回数：+1」。
+  // 使用者明確規格（2026-09-18）「最大使用次數 就能累積最多2個來使用」＝冷卻で用意される
+  // 1回に加えて1回ぶんを貯めておける。遺物「技能使用次數＋1」の_skillExtraCharges
+  //（updateSkillExtraCharges／useCharacterAbility）とまったく同じ蓄積方式をアーツへ写す
+  // ——新しい「使用回数」システムを作らない（CLAUDE.md §41）。
+  //
+  // 規則書の但し書き「葬儀屋ではないPCは1ターンに1回しか使えない」はターン制の制約で、
+  // midnightにターンは無い。アーツ冷卻（ART_COOLDOWN_MS=180秒）が同じ役割を果たすため
+  // midnight側では追加の制限を設けない（night.js側では実際のターンで制限する）。
+  var lastArtChargeTickAt = 0;
+
+  function artExtraChargeMax(c) {
+    if (!hasGrace(c, GRACE_GREAT_RUNE_MIRAGE)) return 0;
+    return graceValue(GRACE_GREAT_RUNE_MIRAGE, "artsMaxUsesBonus") || 0;
+  }
+
+  function updateArtExtraCharges(now) {
+    if (!mySlot) return;
+    var c = characters[myTokenId];
+    if (!c) return;
+    var max = artExtraChargeMax(c);
+    if (!max) return;
+    if ((c._artExtraCharges || 0) >= max) return;
+    var until = c._artCooldownUntil || 0;
+    if (!until || now < until) return;
+    if (until === lastArtChargeTickAt) return; // 同一輪冷卻只結算一次
+    lastArtChargeTickAt = until;
+    c._artExtraCharges = (c._artExtraCharges || 0) + 1;
+    var nextUntil = now + ART_COOLDOWN_MS;
+    c._artCooldownUntil = (c._artExtraCharges || 0) >= max ? 0 : nextUntil;
+    GameStorage.rtSet(gameId, "cloud", "character/" + myTokenId + "/_artExtraCharges", c._artExtraCharges);
+    GameStorage.rtSet(gameId, "cloud", "character/" + myTokenId + "/_artCooldownUntil", c._artCooldownUntil);
+  }
+
   function useCharacterAbility(kind) {
     if (!mySlot || isPaused() || isSelfDowned() || isIceBlizzardBlinded(Date.now())) return;
     var found = characterAbilityEntry(kind);
@@ -6592,6 +6651,11 @@
         var nextCredits = found.c._powerResonanceCredits - 1;
         found.c._powerResonanceCredits = nextCredits;
         GameStorage.rtSet(gameId, "cloud", "character/" + myTokenId + "/_powerResonanceCredits", nextCredits);
+      } else if (kind === "art" && (found.c._artExtraCharges || 0) > 0) {
+        // 恩寵「大ルーンの虚像」で貯めておいたアーツ1回ぶん（見updateArtExtraCharges()）。
+        var nextArtCharges = found.c._artExtraCharges - 1;
+        found.c._artExtraCharges = nextArtCharges;
+        GameStorage.rtSet(gameId, "cloud", "character/" + myTokenId + "/_artExtraCharges", nextArtCharges);
       } else if (kind === "skill" && (found.c._skillExtraCharges || 0) > 0) {
         // 遺物效果「技能使用次數＋1」（2026-09-11使用者明確規格「技能可以多保持一個來
         // 使用，初習得時須先跑冷卻流程，之後多蓄積一個可以使用機會」）：冷卻跑完時
@@ -7658,6 +7722,16 @@
     GameStorage.rtTransaction(gameId, "cloud", "character/" + myTokenId + "/flaskCount", function (cur) {
       var next = (cur === null ? FLASK_MAX_DEFAULT : cur) - flaskUses;
       return next < 0 ? 0 : next;
+    }).then(function (committed) {
+      // 恩寵「大空洞の恩寵」（fields_data_4.js:3613）：「聖杯瓶の使用回数の残量が0になった
+      // 場合、即座に『アーツの使用回数』が1回分回復する」。midnightのアーツは2026-09-06に
+      //「使用回数」を廃止して時間冷卻へ移行済みなので、「1回分回復」＝冷卻を即時解除と読み替える
+      //（恩寵「夜の恩寵」のapplyNightBlessingGraceOnRest()と同じ既存の読み替え）。
+      if (committed !== 0) return;
+      if (!hasGrace(cFlask, GRACE_GREAT_CAVERN) || !graceValue(GRACE_GREAT_CAVERN, "artsRecoverOnFlaskEmpty")) return;
+      if (cFlask) cFlask._artCooldownUntil = 0;
+      GameStorage.rtSet(gameId, "cloud", "character/" + myTokenId + "/_artCooldownUntil", 0);
+      showToast(window.I18N.t("midnight_grace_great_cavern_note", { name: graceName(GRACE_GREAT_CAVERN) }));
     });
     if (fpMode) {
       healSelfFp(gulpOn ? fp.max : FLASK_HEAL_AMOUNT + flaskHealBonusAmount(cFlask));
@@ -10374,6 +10448,12 @@
     if (c && c._worldSerenityRevivedBonusActive) {
       c._worldSerenityRevivedBonusActive = false;
       GameStorage.rtSet(gameId, "cloud", "character/" + myTokenId + "/_worldSerenityRevivedBonusActive", false);
+    }
+    // 恩寵「隠れ都の恩寵」の蘇生後ボーナスも「その戦闘終了時まで」（使用者明確規格
+    //「只能到打贏戰鬥為止」）なので同じ時機で落とす。
+    if (c && c._hiddenCityRevivedBonusActive) {
+      c._hiddenCityRevivedBonusActive = false;
+      GameStorage.rtSet(gameId, "cloud", "character/" + myTokenId + "/_hiddenCityRevivedBonusActive", false);
     }
     // 復仇者「召喚靈體」：「戰鬥結束時自動消失」（見character_types.js原文），比照
     // 高防禦/不撓同一個清理時機。
@@ -18270,7 +18350,29 @@
   // fullHeal=true（逾時強制復歸）回滿血＋消耗流浪祝福已在呼叫端處理＋自己傳送到最近祝福點；
   // fullHeal=false（隊友復歸傷害救起）只回一半HP，不移動位置，不消耗流浪祝福（使用者明確
   // 規格「若有受到其他玩家的復歸傷害...直到都是0則能再起繼續，但血量回復一半」）。
+  // 恩寵「隠れ都の恩寵」（fields_data_4.js:3804）：「PCが戦闘中に死亡し、蘇生した場合、
+  // その戦闘終了時まで最大HP：+□／最大FP：+□。スキル、アーツの使用回数がすべて回復する」。
+  // 使用者明確規格（2026-09-18）「只能到打贏戰鬥為止」＝期限は戦闘終了まで、つまり
+  // 恩寵「世界を安寧する力」の復帰後強化とまったく同じ寿命なので、旗標の立て方も消し方も
+  // それに揃える（立てる＝復帰の瞬間、消す＝onEncounterEnded()）。
+  // 最大HP/FPの加算そのものは character_drawer.js の totalFlatMaxStatBonus() 側が
+  // この旗標を見て行う（midnightのselfArenaHpMax()/selfFpMax()が自動で×10する）。
+  function applyHiddenCityRevivalBonus(tokenId) {
+    var c = characters[tokenId];
+    if (!c || !hasGrace(c, GRACE_HIDDEN_CITY)) return;
+    c._hiddenCityRevivedBonusActive = true;
+    GameStorage.rtSet(gameId, "cloud", "character/" + tokenId + "/_hiddenCityRevivedBonusActive", true);
+    if (!graceValue(GRACE_HIDDEN_CITY, "revivedRestoreAllUses")) return;
+    // 「スキル、アーツの使用回数がすべて回復」＝midnightでは両方の冷卻を即時解除する。
+    c._artCooldownUntil = 0;
+    c._skillCooldownUntil = 0;
+    GameStorage.rtSet(gameId, "cloud", "character/" + tokenId + "/_artCooldownUntil", 0);
+    GameStorage.rtSet(gameId, "cloud", "character/" + tokenId + "/_skillCooldownUntil", 0);
+    if (tokenId === myTokenId) showToast(window.I18N.t("midnight_grace_hidden_city_note", { name: graceName(GRACE_HIDDEN_CITY) }));
+  }
+
   function finishRevive(tokenId, fullHeal) {
+    applyHiddenCityRevivalBonus(tokenId);
     GameStorage.rtTransaction(gameId, "cloud", "character/" + tokenId + "/revivalCount", function (cur) {
       return (cur || 0) + 1;
     });
@@ -18917,6 +19019,13 @@
   }
 
   function maybeApplyIceBlizzardTick(now) {
+    // 恩寵「山嶺の恩寵」：このフィールドの追加ルール「吹雪の視界」の効果が失われる
+    //（fields_data_4.js:2895）。既に目隠し中に獲得した場合もその場で解除する。
+    if (hasGrace(characters[myTokenId], GRACE_MOUNTAIN_PEAK) && graceValue(GRACE_MOUNTAIN_PEAK, "blizzardVisionImmune")) {
+      iceBlizzardNextBlindAt = null;
+      iceBlizzardBlindUntil = 0;
+      return;
+    }
     if (!activeEncounter) {
       iceBlizzardNextBlindAt = null;
       return;
@@ -19526,6 +19635,7 @@
     updateSorceryHold(now);
     updateAttackHold(now);
     updateSkillExtraCharges(now); // 遺物效果「技能使用次數＋1」的蓄積
+    updateArtExtraCharges(now); // 恩寵「大ルーンの虚像」的アーツ蓄積
     updateFlaskReading(now);
     updateAffixOverTime(now); // 2026-09-13武器詞條：HP持続回復／減少、HP未滿時累積猛毒／腐敗
     updateAffixGuardHold(now); // 2026-09-13武器詞條第2批：架盾3秒的聖域展開與3種周圍攻擊

@@ -129,5 +129,34 @@ console.log("[1:10 換算の一貫性]");
   ok(m === n * 10, id + "." + key + " midnight(" + m + ") = night(" + n + ") x10");
 });
 
+console.log("[呼び出し側との id 整合]");
+// midnight.js / night.js / character_drawer.js が使っている恩寵idが graces.js に実在するか。
+// id をリネームしたときや GRACE_* 定数を打ち間違えたときに、静かに「恩寵を持っていない」
+// 扱いになって効果が丸ごと死ぬのを防ぐ（value() も get() も未知idでは null を返すだけなので
+// 実行時エラーにならず気づけない）。
+const idSet = new Set(ids);
+const callers = [
+  ["static_src/midnight.js", /var GRACE_[A-Z_]+ = "([a-z_]+)"/g],
+  ["static_src/night.js", /Graces\.(?:has|value|get)\(\s*c\s*,\s*"([a-z_]+)"|Graces\.(?:value|get)\(\s*"([a-z_]+)"/g],
+  ["static_src/character_drawer.js", /Graces\.(?:has|value|get)\(\s*(?:c\s*,\s*)?"([a-z_]+)"/g],
+];
+// night.js/character_drawer.js の第1引数が文字列でないケース（has(c, "id")）も拾えるよう、
+// 素直に「引用符つきの既知id候補」を総当たりで数える方式も併用する。
+callers.forEach(([file, re]) => {
+  const src = fs.readFileSync(path.resolve(__dirname, "..", "..", file), "utf8");
+  const found = new Set();
+  let m;
+  while ((m = re.exec(src)) !== null) {
+    const id = m[1] || m[2];
+    if (id) found.add(id);
+  }
+  if (!found.size) {
+    ok(false, file + " から恩寵idを1つも抽出できなかった（正規表現が腐っている）");
+    return;
+  }
+  const unknown = [...found].filter((id) => !idSet.has(id));
+  ok(unknown.length === 0, file + " が使う恩寵id " + found.size + "件はすべて graces.js に実在" + (unknown.length ? "（未定義: " + unknown.join(", ") + "）" : ""));
+});
+
 console.log(fail === 0 ? "\n=== 全テスト通過 ===" : "\n=== 失敗 " + fail + " 件 ===");
 process.exit(fail === 0 ? 0 : 1);

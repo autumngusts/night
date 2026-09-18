@@ -226,6 +226,7 @@
   // 復歸完了：復歸次數+1、瀕死解除、骰子自動2顆、區域移動を後衛へ、HPを最大值の半分
   // （小數點以下切り捨て）まで回復する。
   function completeNearDeathRevival(c) {
+    applyHiddenCityRevivalBonus(c);
     c.revivalCount = (c.revivalCount || 0) + 1;
     c._nearDeath = false;
     c._nearDeathRevivalClicked = null;
@@ -239,7 +240,7 @@
       var art = type && type.arts && type.arts[0];
       if (art) {
         if (!c.abilityUses) c.abilityUses = {};
-        var usesBonusForRevive = CharacterDrawer.getSkillUsesBonus(c);
+        var usesBonusForRevive = CharacterDrawer.getSkillUsesBonus(c, art);
         var effectiveMaxForRevive = art.uses + usesBonusForRevive;
         var currentRemaining = typeof c.abilityUses[art.id] === "number" ? c.abilityUses[art.id] : effectiveMaxForRevive;
         c.abilityUses[art.id] = Math.min(effectiveMaxForRevive, currentRemaining + 1);
@@ -2186,7 +2187,15 @@
       c.hp.current = 0;
       addLogAndAutoGmLog("log_attribute_status_death_curse_trigger_char", { name: c.name });
     } else {
-      c.hp.current = Math.max(0, (c.hp.current || 0) - 2);
+      var ailmentDamage = 2;
+      // 恩寵「山嶺の恩寵」：「凍傷」発生時のHP損害を1格軽減し、さらに戦闘中なら
+      // 次のアクションフェイズのスタミナダイスに1個追加する予約を入れる。
+      if (label === "凍傷") {
+        ailmentDamage = Math.max(0, ailmentDamage - graceFrostbiteDamageReduce(c));
+        var GracesFrost = window.PriTestGraces;
+        if (GracesFrost && GracesFrost.has(c, "mountain_peak")) c._mountainPeakPendingDice = true;
+      }
+      c.hp.current = Math.max(0, (c.hp.current || 0) - ailmentDamage);
       addLogAndAutoGmLog("log_attribute_status_ailment_trigger_char", { name: c.name, label: label });
     }
     saveRosterCharacters();
@@ -2197,7 +2206,7 @@
   function processAttributeStatusCharTrigger(characterId, label) {
     var as = state.battle.attributeStatus;
     var key = characterId + "|" + label;
-    var threshold = ATTRIBUTE_STATUS_BASE_THRESHOLD;
+    var threshold = ATTRIBUTE_STATUS_BASE_THRESHOLD + graceAccumMaxBonus(graceCharacterById(characterId), label);
     if (isAttributeStatusElementLabel(label)) {
       var value = (as.received[characterId] && as.received[characterId][label]) || 0;
       var prevCount = as.charTriggerCount[key] || 0;
@@ -2293,6 +2302,7 @@
 
   function addReceivedAttributeStatus(characterId, label, value) {
     if (!value) return;
+    if (graceBlocksReceivedAilment(graceCharacterById(characterId), label)) return;
     if (!state.battle.attributeStatus) state.battle.attributeStatus = defaultBattleState().attributeStatus;
     var received = state.battle.attributeStatus.received;
     if (!received[characterId]) received[characterId] = {};
@@ -3665,6 +3675,91 @@
       converted++;
     }
     if (converted) addLog("log_grace_beast_hunt", { character: c.name, count: converted, from: from, to: to });
+  }
+
+  // 恩寵「山嶺の恩寵」：「凍傷」を発症した直後のアクションフェイズのスタミナダイスに
+  // 骰子を1個追加する（fields_data_4.js:2895。点数は使用者明確規格2026-09-18「骰子點數3」）。
+  // 発症時に旗標を立て（applyAttributeStatusAilmentTriggerOnChar）、次にアクション
+  // フェイズの骰子を振ったこの1回だけ消費する。ディフェンスフェイズは規則書の対象外。
+  function applyMountainPeakPendingDice(c) {
+    if (!c || !c._mountainPeakPendingDice) return;
+    c._mountainPeakPendingDice = false;
+    var Graces = window.PriTestGraces;
+    if (!Graces || !Graces.has(c, "mountain_peak")) return;
+    var face = Graces.value("mountain_peak", "staminaDiceFace", "night");
+    if (!face) return;
+    if (!c.dicePool) c.dicePool = [];
+    c.dicePool.push(face);
+    addLog("log_grace_mountain_peak_dice", { character: c.name, face: face });
+  }
+
+  // 恩寵「隠れ都の恩寵」（fields_data_4.js:3804）：蘇生した場合、その戦闘終了時まで
+  // 最大HP/FP+1格（character_drawer.js の totalFlatMaxStatBonus が旗標を見る）。
+  // さらに「スキル、アーツの使用回数がすべて回復する」——abilityUses を空にすると
+  // 各entryの残量が effectiveMax にフォールバックする＝満タン扱いになる
+  //（character_drawer.js の remaining() 参照）ので、それが「すべて回復」。
+  // 期限は使用者明確規格（2026-09-18）「只能到打贏戰鬥為止」＝戦闘終了まで。
+  function applyHiddenCityRevivalBonus(c) {
+    var Graces = window.PriTestGraces;
+    if (!Graces || !c || !Graces.has(c, "hidden_city")) return;
+    c._hiddenCityRevivedBonusActive = true;
+    if (!Graces.value("hidden_city", "revivedRestoreAllUses", "night")) return;
+    c.abilityUses = {};
+    addLog("log_grace_hidden_city_revive", { character: c.name });
+  }
+
+  // 恩寵「大空洞の恩寵」（fields_data_4.js:3613）：「聖杯瓶の使用回数の残量が0になった
+  // 場合、即座に『アーツの使用回数』が1回分回復する」。聖杯瓶を消費したあとに毎回呼び、
+  // 残量が0になった瞬間だけ発火する（0のまま何度呼んでも増えないよう旗標で制御）。
+  function applyGreatCavernOnFlaskEmpty(c) {
+    var Graces = window.PriTestGraces;
+    if (!Graces || !c || !Graces.has(c, "great_cavern")) return;
+    var total = (c.flaskBase ? c.flaskBase.current : 0) + (c.flaskExtra ? c.flaskExtra.current : 0);
+    if (total > 0) {
+      c._greatCavernFlaskEmptyDone = false;
+      return;
+    }
+    if (c._greatCavernFlaskEmptyDone) return;
+    c._greatCavernFlaskEmptyDone = true;
+    var amount = Graces.value("great_cavern", "artsRecoverOnFlaskEmpty", "night") || 0;
+    if (!amount) return;
+    var type = c.typeId ? CharacterTypes.get(c.typeId) : null;
+    var art = type && type.arts && type.arts[0];
+    if (!art) return;
+    if (!c.abilityUses) c.abilityUses = {};
+    var effectiveMax = art.uses + CharacterDrawer.getSkillUsesBonus(c, art);
+    var remaining = typeof c.abilityUses[art.id] === "number" ? c.abilityUses[art.id] : effectiveMax;
+    c.abilityUses[art.id] = Math.min(effectiveMax, remaining + amount);
+    addLog("log_grace_great_cavern_arts", { character: c.name, value: amount });
+  }
+
+  // 恩寵「腐れ森の恩寵」の「耐性：腐敗」（fields_data_4.js:2503）：「状態異常：腐敗」が
+  // 蓄積せず、これによってHP損害を受けない。蓄積そのものを弾けばトリガーも走らないので、
+  // HP損害の側を別途止める必要はない。
+  function graceBlocksReceivedAilment(c, label) {
+    var Graces = window.PriTestGraces;
+    if (!Graces || !c || label !== "腐敗") return false;
+    return Graces.has(c, "rotten_forest") && !!Graces.value("rotten_forest", "rotImmune", "night");
+  }
+
+  // 恩寵「山嶺の恩寵」：「凍傷」の蓄積最大値を「+4」（＝トリガー閾値が上がる＝なりにくい）。
+  function graceAccumMaxBonus(c, label) {
+    var Graces = window.PriTestGraces;
+    if (!Graces || !c || label !== "凍傷" || !Graces.has(c, "mountain_peak")) return 0;
+    return Graces.value("mountain_peak", "frostbiteAccumMaxBonus", "night") || 0;
+  }
+
+  // 恩寵「山嶺の恩寵」：「凍傷」の状態異常が発生した際のHP損害を「□」＝1格軽減。
+  function graceFrostbiteDamageReduce(c) {
+    var Graces = window.PriTestGraces;
+    if (!Graces || !c || !Graces.has(c, "mountain_peak")) return 0;
+    return Graces.value("mountain_peak", "frostbiteDamageReduce", "night") || 0;
+  }
+
+  function graceCharacterById(characterId) {
+    return rosterCharacters.filter(function (rc) {
+      return rc.id === characterId;
+    })[0];
   }
 
   // 恩寵管理UI（bag-drawer）：入場中の各PCについて、graces.js の恩寵一覧をチェックボックスで
@@ -7440,6 +7535,7 @@
       var dice = consumeCombatDice(c);
       if (c.flaskBase.current > 0) c.flaskBase.current -= 1;
       else c.flaskExtra.current -= 1;
+      applyGreatCavernOnFlaskEmpty(c);
       target.current = Math.min(target.max, target.current + healAmount);
       var flaskLines = [window.I18N.t("action_log_dice_used", { dice: dice.join("、") })];
       // 遺物効果「道具效果擴大」：自身以外任意1名PCにも同様の効果を発揮する（選んだ場合のみ）。
@@ -7485,6 +7581,7 @@
           remaining -= fromBase;
         }
         if (remaining > 0 && c.flaskExtra) c.flaskExtra.current = Math.max(0, c.flaskExtra.current - remaining);
+        applyGreatCavernOnFlaskEmpty(c);
         c.hp.current = c.hp.max;
         combatDiceSelection = [];
         flaskFpChoice = null;
@@ -10060,7 +10157,10 @@
       return;
     }
     // 恩寵「獣の狩り」（規則書の対象はアクション／エクストラフェイズのみ、ディフェンスは対象外）。
-    if (state.actionPhase !== "defense") applyBeastHuntToDicePool(c, rolled);
+    if (state.actionPhase !== "defense") {
+      applyBeastHuntToDicePool(c, rolled);
+      applyMountainPeakPendingDice(c);
+    }
     // 防禦骰が0個のキャラクターなど、「押したのに何も起きない」ように見えるケースがあるため、
     // 実際に振った数（0も含む）をアイコン脇に表示して知らせる。
     rosterDiceRollFeedback[c.id] = rolled;
@@ -12649,6 +12749,9 @@
       // 最後に救起された分が次の戦闘へ持ち越されないようにする。
       rosterCharacters.forEach(function (c) {
         c._worldSerenityRevivedBonusActive = false;
+        // 恩寵「隠れ都の恩寵」の蘇生後ボーナスも期限は同じ「戦闘終了まで」
+        //（使用者明確規格 2026-09-18「只能到打贏戰鬥為止」）。
+        c._hiddenCityRevivedBonusActive = false;
       });
       // 恩寵「知の集約」：戦闘終了時の1D判定（event_rulebook.js:668-669）。瀕死者の
       // 救起処理が終わった後＝この戦闘が完全に片付いた時点で1回だけ振る。
