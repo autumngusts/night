@@ -342,6 +342,7 @@ def build_characters_html() -> str:
             "weapon_rulebook.js",
             "talismans.js",
             "consumables.js",
+            "graces.js",
             "character_drawer.js",
             "characters.js",
         ),
