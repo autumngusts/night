@@ -146,6 +146,7 @@
     c.pendingActionBoxes = [];
     saveRosterCharacters();
     addLog("log_near_death_trigger", { character: c.name });
+    rollWorldSerenityOnNearDeath(c);
     // 使用者確認（2026-09-01）：流浪祝福自動化——非戰鬥中（state.actionPhase==="normal"）瀕死時，
     // 立即自動救起並消耗1格流浪祝福。戰鬥中瀕死不在這裡處理，見setActionPhaseのopts.combatEnd
     // 區塊：要等該場戰鬥擊倒敵人結束後，隊伍中若仍有瀕死者才一併自動救起、各消耗1格。
@@ -157,6 +158,49 @@
     }
   }
 
+  // 恩寵「世界を安寧する力」（graces.js world_serenity／event_rulebook.js:1227-1228）：
+  // 瀕死になったとき1Dし、出目⚀⚁なら「ディフェンスフェイズ終了時に【復帰ダメージ120】を
+  // 割り振られたこととして復帰する」。判定はここで即座に行い、実際の復帰はディフェンス
+  // フェイズ終了まで待つ（規則書どおり）ため旗標だけ立てる——見る側はsetActionPhase()。
+  function rollWorldSerenityOnNearDeath(c) {
+    var Graces = window.PriTestGraces;
+    if (!Graces || !Graces.has(c, "world_peace")) return;
+    var faces = Graces.value("world_peace", "selfRevivalFaces", "night") || [];
+    var roll = 1 + Math.floor(Math.random() * 6);
+    var success = faces.indexOf(roll) !== -1;
+    addLog("log_grace_world_serenity_roll", {
+      character: c.name,
+      roll: roll,
+      result: window.I18N.t(success ? "grace_roll_success" : "grace_roll_fail"),
+    });
+    if (!success) return;
+    c._worldSerenityPendingRevival = true;
+    saveRosterCharacters();
+  }
+
+  // ディフェンスフェイズ終了時に、上で成功した分を実際に復帰させる。復帰の中身は通常の
+  // 復帰と同一（completeNearDeathRevival）で、流浪祝福は消費しない——規則書は「復帰
+  // ダメージ120を割り振られたこととして復帰」＝他PCに救ってもらったのと同じ扱いのため。
+  function resolveWorldSerenityPendingRevivals() {
+    var pending = rosterCharacters.filter(function (c) {
+      return c._worldSerenityPendingRevival && c._nearDeath;
+    });
+    rosterCharacters.forEach(function (c) {
+      c._worldSerenityPendingRevival = false;
+    });
+    if (!pending.length) {
+      saveRosterCharacters();
+      return;
+    }
+    pending.forEach(function (c) {
+      completeNearDeathRevival(c);
+      addLog("log_grace_world_serenity_revive", {
+        character: c.name,
+        value: window.PriTestGraces.value("world_peace", "selfRevivalDamage", "night"),
+      });
+    });
+  }
+
   function handleNearDeathRevivalClick(c, idx) {
     if (!c._nearDeath) return;
     if (!c._nearDeathRevivalClicked) c._nearDeathRevivalClicked = [false, false, false];
@@ -166,6 +210,12 @@
       return v;
     });
     if (allClicked) {
+      // 恩寵「世界を安寧する力」の後半（event_rulebook.js:1227-1228）：「他のPCからの復帰
+      // ダメージによって復帰した場合」だけが対象なので、この経路（3つの復帰ボタンが全部
+      // 埋まった＝他PCに救われた）でのみ旗標を立てる。非戦闘時の自動救起・戦闘終了時の
+      // 流浪祝福による自動救起・恩寵自身の自力復帰は規則書の条件に当てはまらない。
+      var Graces = window.PriTestGraces;
+      if (Graces && Graces.has(c, "world_peace")) c._worldSerenityRevivedBonusActive = true;
       completeNearDeathRevival(c);
     } else {
       saveRosterCharacters();
@@ -336,6 +386,12 @@
   // 0に到達した瞬間だけ発火し、既に瀕死中なら何もしない。
   function checkNearDeathTrigger(c) {
     if ((c.hp && c.hp.current) <= 0 && !c._nearDeath) {
+      // 恩寵「冷たい蜃気楼」：HP0になる代わりに1で踏みとどまり、恩寵自体を失う。
+      // 成立した場合は瀕死に入らない（規則書どおり）。
+      if (applyColdMirageIfAvailable(c)) {
+        renderCharacterRoster();
+        return;
+      }
       triggerNearDeath(c);
       renderCharacterRoster();
     }
@@ -1047,6 +1103,10 @@
     stoneswordKey: "",
     stoneswordKeyCount: 0,
     grace: "",
+    // 恩寵「祝福王の恩寵」（graces.js flame_king）の「a」＝このシナリオ内で「祝福での休息」に
+    // 利用した祝福の数（event_rulebook.js:826-827、恩寵獲得後も祝福を利用するごとに増加）。
+    // 祝福チット単位で数える（同じチットで複数PCが休息しても1）。
+    graceBlessingRestCount: 0,
     battle: defaultBattleState(),
     dicePool: [],
     actionPhase: "normal", // "normal"|"combat"|"extra"|"defense"
@@ -1280,6 +1340,7 @@
       stoneswordKey: state.stoneswordKey,
       stoneswordKeyCount: state.stoneswordKeyCount,
       grace: state.grace,
+      graceBlessingRestCount: state.graceBlessingRestCount,
       battle: state.battle,
       dicePool: state.dicePool,
       actionPhase: state.actionPhase,
@@ -1369,6 +1430,7 @@
     state.stoneswordKey = snap.stoneswordKey;
     state.stoneswordKeyCount = snap.stoneswordKeyCount || 0;
     state.grace = snap.grace;
+    state.graceBlessingRestCount = snap.graceBlessingRestCount || 0;
     state.battle = snap.battle;
     state.dicePool = snap.dicePool;
     state.actionPhase = snap.actionPhase || "normal";
@@ -2364,6 +2426,7 @@
       state.stoneswordKey = typeof data.stoneswordKey === "string" ? data.stoneswordKey : "";
       state.stoneswordKeyCount = Number(data.stoneswordKeyCount) || 0;
       state.grace = typeof data.grace === "string" ? data.grace : "";
+      state.graceBlessingRestCount = Number(data.graceBlessingRestCount) || 0;
       state.battle = loadBattleState(data.battle);
       state.dicePool = loadDicePool(data.dicePool);
       state.actionPhase = ["normal", "combat", "extra", "defense"].indexOf(data.actionPhase) !== -1 ? data.actionPhase : "normal";
@@ -2721,6 +2784,7 @@
     state.stoneswordKey = "";
     state.stoneswordKeyCount = 0;
     state.grace = "";
+    state.graceBlessingRestCount = 0;
     state.battle = defaultBattleState();
     state.dicePool = [];
     state.actionPhase = "normal";
@@ -3522,6 +3586,184 @@
         cb.disabled = which === "extra" && i >= extraCount;
       }
     });
+  }
+
+  // ============================================================
+  // 恩寵（規則書142頁、graces.js）：night側の共通処理。
+  // 恩寵そのものの一覧・数値は graces.js が単一資料來源、ここは「night のどの state と
+  // 繋がるか」だけを持つ。
+  // ============================================================
+
+  // 恩寵「祝福王の恩寵」：選んだ威力補正1種に「+(aの2倍)」（event_rulebook.js:826-827）。
+  // a＝state.graceBlessingRestCount。実際の加算は character_drawer.js の
+  // graceFlameKingPowerModBonus() が角色の _graceFlameKingPowerModBonus を読んで行うため、
+  // ここはその数値の更新だけを担当する（祝福を使うたびに増える＝恩寵獲得後の休息も反映）。
+  function refreshFlameKingPowerModBonus() {
+    var Graces = window.PriTestGraces;
+    if (!Graces) return;
+    var per = Graces.value("blessing_king", "powerModPerBlessing", "night");
+    var cap = Graces.value("blessing_king", "powerModMax", "night");
+    var bonus = (state.graceBlessingRestCount || 0) * per;
+    if (cap !== null && bonus > cap) bonus = cap;
+    var changed = false;
+    rosterCharacters.forEach(function (c) {
+      if (!Graces.has(c, "blessing_king")) return;
+      if (c._graceFlameKingPowerModBonus === bonus) return;
+      c._graceFlameKingPowerModBonus = bonus;
+      changed = true;
+    });
+    if (changed) saveRosterCharacters();
+  }
+
+  // 恩寵「知の集約」：戦闘終了時にPC代表1人が1Dを振り、成功出目ならPCはそれぞれ
+  // 「ルーン：1」を追加獲得（event_rulebook.js:668-669、出目は使用者明確規格で6）。
+  // 戦闘終了＝setActionPhase()が"combat"以外へ移る瞬間（combatEnd）に1回だけ呼ぶ。
+  function resolveKnowledgeAggregationOnCombatEnd() {
+    var Graces = window.PriTestGraces;
+    if (!Graces) return;
+    var holders = rosterCharacters.filter(function (c) {
+      return c.entered && Graces.has(c, "knowledge");
+    });
+    if (!holders.length) return;
+    var faces = Graces.value("knowledge", "successFaces", "night") || [];
+    var reward = Graces.value("knowledge", "runeReward", "night") || 0;
+    // 「PC代表1人」が振る＝恩寵保持者が何人いても判定は1回だけ。
+    var roll = 1 + Math.floor(Math.random() * 6);
+    var success = faces.indexOf(roll) !== -1;
+    addLog("log_grace_knowledge_aggregation_roll", {
+      character: holders[0].name,
+      roll: roll,
+      result: window.I18N.t(success ? "grace_roll_success" : "grace_roll_fail"),
+    });
+    if (!success) return;
+    // 「PCはそれぞれ」＝恩寵保持者だけでなく入場中の全PCが獲得する（規則書原文）。
+    rosterCharacters.forEach(function (c) {
+      if (!c.entered) return;
+      c.runes = (c.runes || 0) + reward;
+    });
+    addLog("log_grace_knowledge_aggregation_reward", { value: reward });
+    saveRosterCharacters();
+    renderCharacterRoster();
+  }
+
+  // 恩寵「獣の狩り」：アクション／エクストラフェイズ開始時に獲得したスタミナダイスのうち
+  // 「點數2」を自動的に「點數5」へ変更する（event_rulebook.js:1091-1092、実際の点数は
+  // 使用者明確規格）。対象は「そのフェイズ開始時に獲得した」骰子だけなので、持ち越し骰
+  // （R4遺物効果）や既に池にある骰子は変換しない＝今振ったrolledCount個のみを見る。
+  // 「隊列決定前」＝syncDiceStatusToBattle()による前後衛判定より前に変換が済んでいる必要が
+  // あるため、擲骰直後（アニメーション表示前）に呼ぶ。ディフェンスフェイズは規則書の
+  // 対象外なので呼び出し側で除外する。
+  function applyBeastHuntToDicePool(c, rolledCount) {
+    var Graces = window.PriTestGraces;
+    if (!Graces || !Graces.has(c, "beast_hunt") || !rolledCount || !c.dicePool) return;
+    var from = Graces.value("beast_hunt", "diceFaceFrom", "night");
+    var to = Graces.value("beast_hunt", "diceFaceTo", "night");
+    var converted = 0;
+    for (var i = Math.max(0, c.dicePool.length - rolledCount); i < c.dicePool.length; i++) {
+      if (c.dicePool[i] !== from) continue;
+      c.dicePool[i] = to;
+      converted++;
+    }
+    if (converted) addLog("log_grace_beast_hunt", { character: c.name, count: converted, from: from, to: to });
+  }
+
+  // 恩寵管理UI（bag-drawer）：入場中の各PCについて、graces.js の恩寵一覧をチェックボックスで
+  // 付け外しする。規則書上の獲得契機がAppに実装済みのもの（隨機事件の忌み鬼戦）は自動で
+  // 付くが、未実装イベント由来の恩寵はここでGMが手動で付ける。付いた瞬間から各恩寵の
+  // 数値効果（威力補正・HP損害加算・擲骰変換など）が実際に効く。
+  function renderGraceCharacterList() {
+    var container = document.getElementById("grace-character-list");
+    if (!container) return;
+    var Graces = window.PriTestGraces;
+    container.innerHTML = "";
+    var entered = rosterCharacters.filter(function (c) {
+      return c.entered;
+    });
+    if (!entered.length) {
+      var empty = document.createElement("p");
+      empty.className = "threat-ref-body";
+      empty.textContent = window.I18N.t("event_chip_no_characters_note");
+      container.appendChild(empty);
+      return;
+    }
+    entered.forEach(function (c) {
+      var block = document.createElement("div");
+      block.className = "field-row-block";
+      var nameEl = document.createElement("strong");
+      nameEl.textContent = c.name;
+      block.appendChild(nameEl);
+      Graces.list().forEach(function (g) {
+        var label = document.createElement("label");
+        label.className = "wb-row";
+        var cb = document.createElement("input");
+        cb.type = "checkbox";
+        cb.checked = Graces.has(c, g.id);
+        cb.addEventListener("change", function () {
+          if (cb.checked) {
+            Graces.grant(c, g.id);
+            addLog("log_grace_granted", { character: c.name, grace: Graces.localizedText(g.name) });
+          } else {
+            Graces.revoke(c, g.id);
+            addLog("log_grace_revoked", { character: c.name, grace: Graces.localizedText(g.name) });
+          }
+          refreshFlameKingPowerModBonus();
+          saveRosterCharacters();
+          renderCharacterRoster();
+          renderGraceCharacterList();
+        });
+        label.appendChild(cb);
+        var text = document.createElement("span");
+        text.textContent = Graces.localizedText(g.name);
+        label.appendChild(text);
+        // 祝福王の恩寵だけは「獲得時に威力補正1種を選ぶ」規則（event_rulebook.js:826-827）が
+        // あるため、習得済みのときだけ選択用<select>を並べる（遺物効果の
+        // RELIC_CHOICE_CONFIG_BY_NAME と同じく、後から変更もできる）。
+        if (g.id === "blessing_king" && Graces.has(c, g.id)) {
+          var select = document.createElement("select");
+          (g.powerModOptions || []).forEach(function (opt) {
+            var o = document.createElement("option");
+            o.value = opt.statKey;
+            o.textContent = Graces.localizedText(opt.name);
+            if (c[g.choiceField] === opt.statKey) o.selected = true;
+            select.appendChild(o);
+          });
+          if (!c[g.choiceField]) c[g.choiceField] = select.value;
+          select.addEventListener("change", function () {
+            c[g.choiceField] = select.value;
+            saveRosterCharacters();
+            renderCharacterRoster();
+          });
+          label.appendChild(select);
+        }
+        block.appendChild(label);
+      });
+      container.appendChild(block);
+    });
+  }
+
+  // 恩寵「夜に刻まれし癒えぬ傷」（graces.js unhealing_wound／event_rulebook.js:817-818）：
+  // 「ダメージによってHP損害を受けるとき、その損害が『+■』されてしまう」。■の値は規則書に
+  // 無いため使用者明確規格（2026-09-15）の「額外扣HP10」＝midnight刻度を採用し、回合制の
+  // night側はその1/10（graces.js の1:10換算、既存のlowHpThresholdと同じ考え方）。
+  // 「HP損害を受けるとき」が条件なので、損害0（＝そもそも損害を受けていない）には乗せない。
+  function unhealingWoundExtraHpLoss(c, hpLoss) {
+    var Graces = window.PriTestGraces;
+    if (!Graces || hpLoss <= 0 || !Graces.has(c, "unhealing_wound")) return 0;
+    return Graces.value("unhealing_wound", "extraHpDamage", "night") || 0;
+  }
+
+  // 恩寵「冷たい蜃気楼」（graces.js cold_mirage／event_rulebook.js:1178-1179）：
+  // 「現在HP：0」になりそうなHP損害・属性損害・状態異常を適用された場合、0にならず
+  // 「現在HP：□（1点）」になり、代わりにこの恩寵を失う。HP0を検知する共通地点
+  // （checkNearDeathTrigger）に置くことで、どの経路で0になっても取りこぼさない。
+  function applyColdMirageIfAvailable(c) {
+    var Graces = window.PriTestGraces;
+    if (!Graces || !Graces.has(c, "cold_mirage")) return false;
+    c.hp.current = Graces.value("cold_mirage", "survivalHp", "night") || 1;
+    Graces.revoke(c, "cold_mirage");
+    saveRosterCharacters();
+    addLog("log_grace_cold_mirage_trigger", { character: c.name, value: c.hp.current });
+    return true;
   }
 
   function renderWanderingBlessingExtraCount() {
@@ -4549,6 +4791,7 @@
           var finaleHitBonus = finaleAttackBuffBonus(c);
           var ominousHitBonus = ominousStrikeHitBonus(c);
           var heroMeatBonus = heroMeatHitBonus(c);
+          var serenityHitBonus = worldSerenityHitBonus(c);
           var masteryBonus = hitAttackMasteryBonus(c, hitType, weapon, category);
           var consecutiveBonus = consecutiveAttackDamageBonus(c);
           var dmgValue =
@@ -4558,6 +4801,7 @@
             (hitType === "hit1" ? finaleHitBonus.hit1 : finaleHitBonus.hit2) +
             (hitType === "hit1" ? ominousHitBonus.hit1 : ominousHitBonus.hit2) +
             (hitType === "hit1" ? heroMeatBonus.hit1 : heroMeatBonus.hit2) +
+            (hitType === "hit1" ? serenityHitBonus.hit1 : serenityHitBonus.hit2) +
             masteryBonus +
             consecutiveBonus;
           var dmgSymbol = hitType === "hit1" ? damage.hit1Symbol : damage.hit2Symbol;
@@ -5116,6 +5360,24 @@
     return c._ominousStrikeBuffActive ? 10 : 0;
   }
 
+  // 恩寵「世界を安寧する力」（graces.js world_serenity／event_rulebook.js:1227-1228）の後半：
+  // 瀕死から「他のPCからの復帰ダメージ」で復帰したPCは、戦闘終了までアタック由来ダメージを
+  // 「1Hit：+5／2Hit：+10」、装備品スキル由来ダメージを「+5」する。上の
+  // finaleAttackBuffBonus等と同じ「旗標→ボーナス」パターン（旗標の解除はsetActionPhase()の
+  // combatEnd、＝規則書の「戦闘終了まで」）。
+  function worldSerenityHitBonus(c) {
+    if (!c._worldSerenityRevivedBonusActive) return { hit1: 0, hit2: 0 };
+    var Graces = window.PriTestGraces;
+    return {
+      hit1: Graces.value("world_peace", "revivedHit1Bonus", "night") || 0,
+      hit2: Graces.value("world_peace", "revivedHit2Bonus", "night") || 0,
+    };
+  }
+  function worldSerenitySkillBonus(c) {
+    if (!c._worldSerenityRevivedBonusActive) return 0;
+    return window.PriTestGraces.value("world_peace", "revivedSkillBonus", "night") || 0;
+  }
+
   // R1 遺物効果「能力強化（魔術之地）」：隱者「元素操控」で屬性痕へ✓が入った直後から
   // 「直到階段結束為止」自身の魔術ダメージ+5（重複しない＝フラグはbooleanのみ）。
   function elementalControlMagicBonus(c, skillDamageKind) {
@@ -5305,6 +5567,11 @@
       !!skillDamageKind && c._prayerFirepowerActive && CharacterDrawer.findLearnedRelicEffectByName(c, ["祈禱輔助強化火力提升", "祈祷補助強化火力アップ"])
         ? 10
         : 0;
+    // 恩寵「世界を安寧する力」で復帰したPCの「装備品スキルから発生するダメージ：+5」
+    // （event_rulebook.js:1227-1228）。「装備品スキル」＝武器由来の戰技/魔術/祈禱＝
+    // skillDamageKindを持つentryだけが対象で、角色固有のアーツ/技能には乗らない
+    // （rearTacticsBonus等、既に同じ条件判定を使っている既存ボーナスと同じ切り分け）。
+    var serenitySkillBonus = skillDamageKind ? worldSerenitySkillBonus(c) : 0;
     var flatBonus =
       talismanBonus +
       fightingSpiritBonus +
@@ -5313,6 +5580,7 @@
       finaleBonus +
       ominousBonus +
       heroMeatSkillBonusValue +
+      serenitySkillBonus +
       elementalControlBonus +
       attachedSkillBonus +
       yotoReleaseBonus +
@@ -9791,6 +10059,8 @@
     } else {
       return;
     }
+    // 恩寵「獣の狩り」（規則書の対象はアクション／エクストラフェイズのみ、ディフェンスは対象外）。
+    if (state.actionPhase !== "defense") applyBeastHuntToDicePool(c, rolled);
     // 防禦骰が0個のキャラクターなど、「押したのに何も起きない」ように見えるケースがあるため、
     // 実際に振った数（0も含む）をアイコン脇に表示して知らせる。
     rosterDiceRollFeedback[c.id] = rolled;
@@ -10655,6 +10925,10 @@
     groupValue += halberdWhirlwindBonus;
     var hpValue = hpValueInputEl ? Math.max(1, parseInt(hpValueInputEl.value, 10) || 1) : Math.max(1, (c.hpValue || 30) + physicalCutHpValueBonus(c));
     var hpLoss = Math.floor((groupValue + individual) / hpValue);
+    // 恩寵「夜に刻まれし癒えぬ傷」：HP損害に固定加算（下の完全無効化より前に足す＝
+    // 無効化が成立するときは加算分ごと0になる、規則書の「損害が+■される」の素直な順序）。
+    var unhealingWoundExtra = unhealingWoundExtraHpLoss(c, hpLoss);
+    hpLoss += unhealingWoundExtra;
     // 追跡者「第六感」／執行者「妖刀」等「本次傷害與異常狀態完全無效化」：HP損害を強制的に0にする
     // （屬性/異常蓄積はこの下で別途addReceivedAttributeStatusされるため、ここではHP損害のみ対象）。
     var fullNegateApplied = !!c._defenseFullNegateThisTurn;
@@ -10680,6 +10954,7 @@
       window.I18N.t("enemy_damage_col_hp_loss") +
       window.I18N.t("colon_separator") +
       hpLoss +
+      (unhealingWoundExtra ? window.I18N.t("grace_unhealing_wound_applied_suffix", { value: unhealingWoundExtra }) : "") +
       (fullNegateApplied ? window.I18N.t("defense_full_negate_applied_suffix") : "") +
       (floorToOneApplied ? window.I18N.t("defense_floor_to_one_applied_suffix") : "");
     addEnemyDamageBox(c, line);
@@ -12177,6 +12452,9 @@
     if (phase === "combat" || phase === "extra") {
       state.battle.fatalStrikeUsedThisRound = false;
     }
+    // 恩寵「世界を安寧する力」：瀕死時の1D成功分は「ディフェンスフェイズ終了時」に復帰する
+    // （event_rulebook.js:1227-1228）。＝ディフェンスフェイズから別のフェイズへ移るこの瞬間。
+    if (state.actionPhase === "defense" && phase !== "defense") resolveWorldSerenityPendingRevivals();
     state.actionPhase = phase;
     // 自動化GM 戰鬥自動化：本回合の「已完成」ボタン状態と細粒度階段（GM敘述提示用）は、
     // フェイズが切り替わるたびにクリアする（combat/extra/defenseへ入るたびに"awaitingRoll"
@@ -12366,6 +12644,15 @@
         saveState();
         renderGameFailedBanner();
       }
+      // 恩寵「世界を安寧する力」で復帰したPCのダメージ強化は「戦闘終了まで」が期限
+      // （event_rulebook.js:1227-1228）。上の瀕死自動救起より後に置くことで、この戦闘の
+      // 最後に救起された分が次の戦闘へ持ち越されないようにする。
+      rosterCharacters.forEach(function (c) {
+        c._worldSerenityRevivedBonusActive = false;
+      });
+      // 恩寵「知の集約」：戦闘終了時の1D判定（event_rulebook.js:668-669）。瀕死者の
+      // 救起処理が終わった後＝この戦闘が完全に片付いた時点で1回だけ振る。
+      resolveKnowledgeAggregationOnCombatEnd();
       // 使用者確認：「敵人傷害」執行紀錄（紅框）は戦闘が完全に終了した時点でも必ず消す
       // （通常戦闘・簡易戰鬥のどちらも setActionPhase("normal", { combatEnd: true }) を通る）。
       clearEnemyDamageActionBoxes();
@@ -12423,6 +12710,7 @@
   // 流浪祝福・鍛造石・石劍鑰匙・恩寵を、時間消耗表（#threat-drawer）から切り離した専用ドロワー。
   // 中身のrender関数（renderWanderingBlessing等）はidベースでDOMのどこにあっても動くため変更不要。
   function openBagDrawer() {
+    renderGraceCharacterList();
     document.getElementById("bag-drawer").classList.add("open");
   }
 
@@ -15033,6 +15321,9 @@
     saveState: saveState,
     saveRosterCharacters: saveRosterCharacters,
     renderCharacterRoster: renderCharacterRoster,
+    // 恩寵「祝福王の恩寵」：祝福チットを使った回数（state.graceBlessingRestCount）が増えたら
+    // 威力補正ボーナスを再計算する必要があるため、night_event_chips.js側から呼べるよう公開。
+    refreshFlameKingPowerModBonus: refreshFlameKingPowerModBonus,
     renderBoard: renderBoard,
     renderSlotEffect: renderSlotEffect,
     renderSmithingStoneCount: renderSmithingStoneCount,

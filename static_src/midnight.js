@@ -4476,12 +4476,16 @@
       (c.equippedWeaponIds || []).indexOf(weaponId) !== -1
         ? dmg.artPower || 0
         : 0;
-    var extraHitBonus = unyieldingBonus.hit1 + fightingSpiritBonus + relicHitBonus.hit1 + consumableHitBonus.hit1;
+    // 恩寵「世界を安寧する力」で復帰した後の攻擊強化（見worldSerenityHitBonus()）。
+    var serenityHitBonus = worldSerenityHitBonus(c);
+    var extraHitBonus =
+      unyieldingBonus.hit1 + fightingSpiritBonus + relicHitBonus.hit1 + consumableHitBonus.hit1 + serenityHitBonus.hit1;
     var extraHit2Bonus =
       unyieldingBonus.hit2 +
       fightingSpiritBonus +
       relicHitBonus.hit2 +
       consumableHitBonus.hit2 +
+      serenityHitBonus.hit2 +
       greathammerArtPower +
       roarTwoHitBonus(c, weaponId); // 咆哮系戰技的10秒2Hit加成（見maybeApplyRoarArtBuff()）
     if (extraHitBonus || extraHit2Bonus) {
@@ -5217,6 +5221,11 @@
       // 隱者「能力強化（魔術之地）」：使用元素操控後10秒內，自身使用的**魔術**傷害+5
       // （只有杖＝sorcery，不含祈禱/一般戰技），見applyRelicAbilityPostEffect()。
       (skillDamageKind === "sorcery" && c._magicGroundUntil && c._magicGroundUntil > Date.now() ? 5 : 0) +
+      // 恩寵「世界を安寧する力」で復帰した後の「装備品スキルから発生するダメージ：+5」
+      // （event_rulebook.js:1227-1228）。「装備品スキル」＝武器由来の戰技/魔術/祈禱＝
+      // skillDamageKindを持つ場合だけ（角色專屬技藝/技能は対象外、見
+      // computeMidnightAbilityDamage()側では加算しない）。
+      (skillDamageKind ? worldSerenitySkillBonus(c) : 0) +
       (skillDamageKind ? CharacterDrawer.attachedSkillDamageBonus(c, skillDamageKind) : 0) +
       // 2026-09-14「體型接上用途」（使用者明確規格）：本文的「エネミーが『サイズ：LL』の
       // 場合、ダメージを『＋N／＋▲』する」條款，只在目前目標的enemy.size真的是LL時加成。
@@ -6249,6 +6258,144 @@
       return Math.min(maxHp, current + 1);
     });
     fp.current = Math.min(fp.max, fp.current + 1);
+  }
+
+  // ============================================================
+  // 恩寵（規則書142頁）：恩寵本身的定義（id／名稱／數值）は graces.js が単一資料來源で、
+  // night.js も同じものを読む。ここに置くのは midnight 側のアクセス包裝と掛勾点だけ。
+  //
+  // 保存形状は物件map（character/{tokenId}/graces/{id} = true）。付与は id 単位の rtSet
+  // なので冪等で、複数裝置が同時に別々の恩寵を付けても互いを潰さない。ローカルの
+  // character 物件にも同時に反映しておく——付与直後に character 全体を rtSet する
+  // 呼び出し元（襲撃報酬など）があり、反映しないとその書き込みで消えてしまうため。
+  // ============================================================
+  var GRACE_BEAST_HUNT = "beast_hunt";
+  var GRACE_COLD_MIRAGE = "cold_mirage";
+  var GRACE_WORLD_PEACE = "world_peace";
+  var GRACE_NIGHT = "night_grace";
+  var GRACE_FUSED_LIFE = "fused_life";
+  var GRACE_KNOWLEDGE = "knowledge";
+  var GRACE_BLESSING_KING = "blessing_king";
+  var GRACE_UNHEALING_WOUND = "unhealing_wound";
+
+  function hasGrace(c, graceId) {
+    var Graces = window.PriTestGraces;
+    return !!(Graces && Graces.has(c, graceId));
+  }
+
+  function graceValue(graceId, key) {
+    var Graces = window.PriTestGraces;
+    return Graces ? Graces.value(graceId, key, "midnight") : null;
+  }
+
+  function graceName(graceId) {
+    var Graces = window.PriTestGraces;
+    var def = Graces ? Graces.get(graceId) : null;
+    return def ? Graces.localizedText(def.name) : graceId;
+  }
+
+  // 付與（tokenId は自分でも他人でもよい——襲擊獎勵は participants 全員に配る）。
+  function grantGraceToTokens(tokenIds, graceId) {
+    var Graces = window.PriTestGraces;
+    (tokenIds || []).forEach(function (tokenId) {
+      if (!tokenId) return;
+      if (Graces && characters[tokenId]) Graces.grant(characters[tokenId], graceId);
+      GameStorage.rtSet(gameId, "cloud", "character/" + tokenId + "/graces/" + graceId, true);
+    });
+  }
+
+  function grantGraceToToken(tokenId, graceId) {
+    grantGraceToTokens([tokenId], graceId);
+  }
+
+  function revokeGraceFromToken(tokenId, graceId) {
+    var Graces = window.PriTestGraces;
+    if (Graces && characters[tokenId]) Graces.revoke(characters[tokenId], graceId);
+    GameStorage.rtSet(gameId, "cloud", "character/" + tokenId + "/graces/" + graceId, null);
+  }
+
+  // 恩寵「祝福王の恩寵」（event_rulebook.js:826-827）的加成值。規則書原文是
+  // 「+(aの2倍)」、a＝本劇本內用於「祝福での休息」的祝福數；midnight 依使用者明確規格
+  // （2026-09-15）改為「每使用過不同地點的祝福，則威力補正+1，最多+10」。
+  // 「不同地點」直接數既有的 blessingClaimed（祝福點id → tokenId → 時間戳，見
+  // handleBlessingUseClick()），不新增計數器。實際加到威力補正上的是
+  // character_drawer.js 的 graceFlameKingPowerModBonus()，這裡只負責把算出來的值寫進
+  // 角色物件供它讀取。
+  function myClaimedBlessingPointCount() {
+    var count = 0;
+    Object.keys(blessingClaimed || {}).forEach(function (pointId) {
+      var claims = blessingClaimed[pointId];
+      if (claims && claims[myTokenId]) count++;
+    });
+    return count;
+  }
+
+  // 「祝福王の恩寵」獲得時に選ぶ威力補正1種。未選択のまま戦闘に入っても効果が死なないよう、
+  // 遺物の assignRelicChoiceIfNeeded()（character_drawer.js）と同じ方針でランダム既定値を
+  // 入れておく（玩家は後から変更可能）。既に選択済みなら上書きしない。
+  function assignFlameKingPowerModChoice(c) {
+    var Graces = window.PriTestGraces;
+    if (!c || !Graces) return;
+    var def = Graces.get("blessing_king");
+    if (!def || c[def.choiceField]) return;
+    var options = def.powerModOptions || [];
+    if (!options.length) return;
+    c[def.choiceField] = options[Math.floor(Math.random() * options.length)].statKey;
+  }
+
+  function refreshFlameKingPowerModBonus() {
+    var c = characters[myTokenId];
+    if (!hasGrace(c, GRACE_BLESSING_KING)) return;
+    var per = graceValue(GRACE_BLESSING_KING, "powerModPerBlessing") || 0;
+    var cap = graceValue(GRACE_BLESSING_KING, "powerModMax");
+    var bonus = myClaimedBlessingPointCount() * per;
+    if (cap !== null && cap !== undefined && bonus > cap) bonus = cap;
+    if (c._graceFlameKingPowerModBonus === bonus) return;
+    c._graceFlameKingPowerModBonus = bonus;
+    GameStorage.rtSet(gameId, "cloud", "character/" + myTokenId + "/_graceFlameKingPowerModBonus", bonus);
+  }
+
+  // 恩寵「世界を安寧する力」（graces.js world_serenity／event_rulebook.js:1227-1228）後半：
+  // 「他のPCからの復帰ダメージによって復帰したPC」は戦闘終了までアタック由来ダメージを
+  // 「1Hit：+5／2Hit：+10」、装備品スキル由来ダメージを「+5」する。旗標
+  // _worldSerenityRevivedBonusActive は finishRevive()（隊友救起經路）で立ち、遭遇終了時に
+  // 落とす（＝規則書の「戦闘終了まで」、見onEncounterEnded()）。
+  function worldSerenityHitBonus(c) {
+    if (!c || !c._worldSerenityRevivedBonusActive) return { hit1: 0, hit2: 0 };
+    return {
+      hit1: graceValue(GRACE_WORLD_PEACE, "revivedHit1Bonus") || 0,
+      hit2: graceValue(GRACE_WORLD_PEACE, "revivedHit2Bonus") || 0,
+    };
+  }
+
+  function worldSerenitySkillBonus(c) {
+    if (!c || !c._worldSerenityRevivedBonusActive) return 0;
+    return graceValue(GRACE_WORLD_PEACE, "revivedSkillBonus") || 0;
+  }
+
+  // 恩寵「世界を安寧する力」前半：瀕死になったとき1Dし、出目⚀⚁なら【復帰ダメージ120】を
+  // 割り振られたこととして復帰する。規則書は「ディフェンスフェイズ終了時」だが、midnightは
+  // フェイズの無い即時制なので瀕死成立の直後に適用する（既有の「回合制の時機點をmidnightで
+  // 最も近いタイミングへ読み替える」慣例）。復帰そのものは既有の applyRevivalProgress() に
+  // 120 を渡すだけ＝隊友に救われたのとまったく同じ経路を通る（新しい復帰機制を作らない）。
+  // 判定は本人の裝置だけで行う（複数裝置が同じ瀕死に対して重複して振らないため）。
+  function maybeApplyWorldSerenitySelfRevival(tokenId) {
+    if (tokenId !== myTokenId) return;
+    var c = characters[tokenId];
+    if (!hasGrace(c, GRACE_WORLD_PEACE)) return;
+    var faces = graceValue(GRACE_WORLD_PEACE, "selfRevivalFaces") || [];
+    var damage = graceValue(GRACE_WORLD_PEACE, "selfRevivalDamage") || 0;
+    var roll = 1 + Math.floor(Math.random() * 6);
+    var success = faces.indexOf(roll) !== -1;
+    showToast(
+      window.I18N.t(success ? "midnight_grace_world_peace_toast" : "midnight_grace_world_peace_fail_toast", {
+        name: graceName(GRACE_WORLD_PEACE),
+        roll: roll,
+        damage: damage,
+      })
+    );
+    if (!success) return;
+    applyRevivalProgress(tokenId, damage, { selfGrace: true });
   }
 
   // 全隊「瀕死免疫」是否生效（復仇者不死行軍），見maybeTriggerNearDeath()／
@@ -7534,10 +7681,11 @@
       var next = beforeHp + flaskHeal;
       return next > maxHp ? maxHp : next;
     }).then(function (committedHp) {
-      // 兆し的恩寵「融合する命」（event_rulebook.js:857-858，c._fusedLife旗標見
-      // maybeGrantAmbushReward()）：聖杯瓶回HP時FP同量回復。healedAmount取「這次實際回復
-      // 量」（已扣掉HP已滿溢出的部分），不是固定FLASK_HEAL_AMOUNT——單純加成、無條件分支，
-      // 風險低，因此結構化套用（不同於其餘「直到結束階段」類效果，這裡不需要phase reset）。
+      // 兆し的恩寵「融合する命」（event_rulebook.js:857-858，恩寵本身見graces.js
+      // fused_life、付與處見maybeGrantAmbushReward()）：聖杯瓶回HP時FP同量回復。
+      // healedAmount取「這次實際回復量」（已扣掉HP已滿溢出的部分），不是固定
+      // FLASK_HEAL_AMOUNT——單純加成、無條件分支，風險低，因此結構化套用
+      // （不同於其餘「直到結束階段」類效果，這裡不需要phase reset）。
       if (committedHp === null || beforeHp === null) return;
       var c = characters[myTokenId];
       var healedAmount = committedHp - beforeHp;
@@ -8113,6 +8261,8 @@
     // 2026-09-14「睡眠」蓄積觸發（使用者明確規格「玩家5秒內體力無法自然回復」）：只擋這條
     // 每幀的自然回復，攻擊命中回復（ATTACK_STAMINA_RECOVER_AMOUNT）、消耗品、技藝回復等
     // 主動來源不受影響——規格講的是「自然回復」。
+    // 恩寵「獣の狩り」は上の beastHuntRegenBonus() で extraRegenPerSec に載っている
+    // （使用者明確規格「體力20%以下時+3/秒、持續5秒、冷卻60秒」）。
     if (Date.now() >= staminaRegenBlockedUntil) {
       stamina.current = Math.min(stamina.max, stamina.current + (myStaminaRegenPerSec + extraRegenPerSec) * dtSec);
     }
@@ -8131,60 +8281,6 @@
   }
 
   // 綠琥珀勳章的「體力條20以下」門檻與憐憫的雫滴的回血節奏（2026-09-12使用者明確規格）。
-  // ============================================================================
-  // 恩寵（規則書142頁，2026-09-14新增）
-  // ============================================================================
-  // 使用者明確要求：「恩寵屬於特殊加成 與祝福不同 需要分清楚 恩寵多為隨機事件以及地變
-  // 地形Q所獲得的效果」。因此恩寵有**自己的持久容器** c.graces，跟地圖上的「祝福籌碼」
-  // （blessingClaimed／handleBlessingEnterClick，那是休息點機制）完全無關，也不沿用既有
-  // 那個命名混淆的 c._nightBlessing 旗標寫法。
-  //
-  // 儲存形狀刻意用物件map而不是陣列：授予恩寵時常常要一次寫給全隊，物件map可以用
-  // rtSet(character/<tokenId>/graces/<id>, true) 各自獨立寫入、天生冪等，不會有多台裝置
-  // 同時push陣列互相覆蓋的問題。
-  //
-  // 2026-09-14二次改版（使用者要求「這輪就一起收斂」）：全部10種恩寵集中登記在GRACES，
-  // 既有散落的旗標（_fusedLife／_nightBlessing／_insectKnowledgeBlessing）一併搬到
-  // c.graces，舊旗標只保留「讀取時相容」（見hasGrace()），不再有新的寫入點。
-  var GRACE_BEAST_HUNT = "beast_hunt";
-  var GRACE_COLD_MIRAGE = "cold_mirage";
-  var GRACE_WORLD_PEACE = "world_peace";
-  var GRACE_NIGHT = "night_grace";
-  var GRACE_FUSED_LIFE = "fused_life";
-  var GRACE_KNOWLEDGE = "knowledge";
-  var GRACE_BLESSING_KING = "blessing_king";
-
-  // 名稱與出處。legacyField＝改版前的舊旗標欄位名（只用於讀取相容，不再寫入）。
-  var GRACES = {
-    beast_hunt: { name: { ja: "獣の狩り", zh: "獸之狩獵" }, src: "event_rulebook.js:1091 三つ首の獣" },
-    cold_mirage: { name: { ja: "冷たい蜃気楼", zh: "冰冷的海市蜃樓" }, src: "event_rulebook.js:1178 霧の裂け目" },
-    world_peace: { name: { ja: "世界を安寧する力", zh: "使世界安寧之力" }, src: "event_rulebook.js:1227 安寧者たち" },
-    night_grace: { name: { ja: "夜の恩寵", zh: "夜之恩寵" }, src: "event_rulebook.js:579 夜の勢力", legacyField: "_nightBlessing" },
-    fused_life: { name: { ja: "融合する命", zh: "融合之命" }, src: "event_rulebook.js:857 襲撃・兆し", legacyField: "_fusedLife" },
-    knowledge: { name: { ja: "知の集約", zh: "知識的集約" }, src: "event_rulebook.js:668 虫の大量発生", legacyField: "_insectKnowledgeBlessing" },
-    blessing_king: { name: { ja: "祝福王の恩寵", zh: "祝福王的恩寵" }, src: "event_rulebook.js:826 襲撃・忌み鬼" },
-  };
-
-  function graceName(graceId) {
-    var g = GRACES[graceId];
-    return g ? window.PriTestFields.localizedText(g.name) : graceId;
-  }
-
-  // 舊旗標相容：改版前已經拿到恩寵的存檔，欄位還在角色物件的_xxx上，這裡一併認。
-  function hasGrace(c, graceId) {
-    if (!c) return false;
-    if (c.graces && c.graces[graceId]) return true;
-    var legacy = GRACES[graceId] && GRACES[graceId].legacyField;
-    return !!(legacy && c[legacy]);
-  }
-
-  function grantGraceToTokens(tokenIds, graceId) {
-    (tokenIds || []).forEach(function (tokenId) {
-      if (!tokenId) return;
-      GameStorage.rtSet(gameId, "cloud", "character/" + tokenId + "/graces/" + graceId, true);
-    });
-  }
-
   // 「獣の狩り」的即時制換算（使用者明確規格：「體力20%以下時 +3/秒 持續5秒，
   // 冷卻在觸發時間為60秒」）。規則書原文是「行動／額外階段開始時獲得的體力骰，其『□』
   // 自動變更為『⚀』」＝每個階段開場拿到的體力點數變多；midnight的體力是連續條、沒有骰面，
@@ -8913,6 +9009,14 @@
       // 真正扣自己HP之前，回傳的是溢出到自己身上的部分。這同時讓「靈體消滅時HP/FP回復」
       // 這兩個遺物效果真的有觸發路徑（先前midnight沒有任何會扣靈體HP的地方）。
       damage = absorbDamageWithSpirit(damage);
+      // 恩寵「夜に刻まれし癒えぬ傷」（graces.js unhealing_wound／event_rulebook.js:817-818
+      // 「ダメージによってHP損害を受けるとき、その損害が+■される」）：■的值規則書沒有給，
+      // 依使用者明確規格（2026-09-15）「受到傷害時，額外扣HP10」。加在所有減傷、靈體吸收
+      // 都算完之後——這是「實際承受的HP損害」本身的加算；損害為0（被完全化解/吸收）時
+      // 不加，符合原文的「受到HP損害時」條件。
+      if (damage > 0 && hasGrace(characters[myTokenId], GRACE_UNHEALING_WOUND)) {
+        damage += graceValue(GRACE_UNHEALING_WOUND, "extraHpDamage") || 0;
+      }
       if (damage > 0) onAffixDamaged(); // 2026-09-13武器詞條：被ダメージ時系2條
       lastEnemyDamageInfo = { amount: damage, at: Date.now() };
       var maxHp = mySelfHpMaxFallback();
@@ -8932,7 +9036,9 @@
             next = 1;
           } else {
             sixthSenseResult = sixthSenseSaveValue(characters[myTokenId], Date.now());
-            if (sixthSenseResult) next = sixthSenseResult.value;
+            if (sixthSenseResult) {
+              next = sixthSenseResult.value;
+            }
           }
         }
         return next < 0 ? 0 : next;
@@ -10262,6 +10368,12 @@
     if (c && c._unyieldingStacks) {
       c._unyieldingStacks = 0;
       GameStorage.rtSet(gameId, "cloud", "character/" + myTokenId + "/_unyieldingStacks", 0);
+    }
+    // 恩寵「世界を安寧する力」で復帰したPCのダメージ強化は「戦闘終了まで」
+    // （event_rulebook.js:1227-1228）＝高防禦/不撓とまったく同じ清理時機。
+    if (c && c._worldSerenityRevivedBonusActive) {
+      c._worldSerenityRevivedBonusActive = false;
+      GameStorage.rtSet(gameId, "cloud", "character/" + myTokenId + "/_worldSerenityRevivedBonusActive", false);
     }
     // 復仇者「召喚靈體」：「戰鬥結束時自動消失」（見character_types.js原文），比照
     // 高防禦/不撓同一個清理時機。
@@ -11762,6 +11874,12 @@
     var c = characters[myTokenId];
     if (c) renderCharacterSheetLevelRow(c, window.PriTestCharacterDrawer);
     GameStorage.rtSet(gameId, "cloud", "blessingClaimed/" + nearbyBlessing.id + "/" + myTokenId, Date.now());
+    // 恩寵「祝福王の恩寵」：這次使用讓「已使用過的不同祝福地點數」可能+1，立刻重算加成。
+    // 本地端先把這一筆補進 blessingClaimed（RTDB 的回聲要下一幀才會到），否則剛按下的
+    // 這一次會慢一拍才被算進去。
+    if (!blessingClaimed[nearbyBlessing.id]) blessingClaimed[nearbyBlessing.id] = {};
+    blessingClaimed[nearbyBlessing.id][myTokenId] = Date.now();
+    refreshFlameKingPowerModBonus();
     el("midnight-blessing-result").textContent = window.I18N.t("midnight_blessing_claim_note");
     showToast(window.I18N.t("midnight_blessing_claim_note"));
   }
@@ -11775,7 +11893,30 @@
     if (c) {
       GameStorage.rtSet(gameId, "cloud", "character/" + myTokenId + "/flaskCount", c.flaskMax || FLASK_MAX_DEFAULT);
     }
+    applyNightBlessingGraceOnRest(c);
     renderCharPanel();
+  }
+
+  // 恩寵「夜の恩寵」（graces.js night_blessing／event_rulebook.js:578-579「アーツの使用回数が
+  // 『祝福での休息』で回復するようになる」）。midnight 用時間冷卻而不是使用次數追蹤技藝/技能
+  // （見 useCharacterAbility()），因此依使用者明確規格（2026-09-15）對應為：
+  //   ・「跳過冷卻」＝把 _artCooldownUntil／_skillCooldownUntil 直接歸零。
+  //   ・「有增加使用次數過的話同時補充滿」＝遺物效果「技能使用次數＋1」蓄積的
+  //     _skillExtraCharges 一併補到上限（countRelic 的習得數＝上限，同
+  //     updateSkillExtraCharges()）。
+  // 寫法與 resetAbilityCooldowns()（換日重置）完全一致，不另開一套冷卻豁免機制。
+  function applyNightBlessingGraceOnRest(c) {
+    if (!hasGrace(c, GRACE_NIGHT)) return;
+    c._artCooldownUntil = 0;
+    c._skillCooldownUntil = 0;
+    GameStorage.rtSet(gameId, "cloud", "character/" + myTokenId + "/_artCooldownUntil", 0);
+    GameStorage.rtSet(gameId, "cloud", "character/" + myTokenId + "/_skillCooldownUntil", 0);
+    var maxCharges = countRelic(c, "skillUsesPlus1");
+    if (maxCharges && (c._skillExtraCharges || 0) < maxCharges) {
+      c._skillExtraCharges = maxCharges;
+      GameStorage.rtSet(gameId, "cloud", "character/" + myTokenId + "/_skillExtraCharges", maxCharges);
+    }
+    showToast(window.I18N.t("midnight_grace_night_blessing_rest_note"));
   }
 
   // ---- 丟棄物撿取（2026-09-05角色面板優化新增）：跟updateNearbyTower()同款proximity
@@ -11989,6 +12130,19 @@
         pushPendingReward(p.tokenId, { kind: "rune", value: runes });
         pushPendingReward(p.tokenId, { kind: "potentialPower", value: stars });
       });
+      pushKnowledgeDiceRewardForParticipants(trig);
+    });
+  }
+
+  // 恩寵「知の集約」（graces.js knowledge_aggregation／event_rulebook.js:668-669）：
+  // 「戦闘終了時」＝敵を撃破して報酬を配るこの瞬間に、恩寵を持つ参加者にだけ骰子エントリを
+  // 1つ配る（撃破1回につき1つ）。実際の擲骰と結果処理は獎勵清單側
+  // （renderKnowledgeDiceRewardDetail／startKnowledgeDiceRoll）で行う。
+  function pushKnowledgeDiceRewardForParticipants(trig) {
+    Object.keys((trig && trig.participants) || {}).forEach(function (slot) {
+      var p = players[slot];
+      if (!p || !hasGrace(characters[p.tokenId], GRACE_KNOWLEDGE)) return;
+      pushPendingReward(p.tokenId, { kind: "knowledgeDice" });
     });
   }
 
@@ -12577,19 +12731,23 @@
         var c = characters[p.tokenId];
         if (!c) return;
         if (trig.ambushEnemyNameJa === "忌み鬼") {
-          // event_rulebook.js:826-827「祝福王の恩寵」需要追蹤「本劇本內用於祝福休息的祝福數a」，
-          // 已grep確認codebase沒有這個計數器，因此不自動套用「+(a×2)」，只留規則書原文交由
-          // GM/玩家自行判斷（CLAUDE.md §19）。「夜に刻まれし癒えぬ傷」是PC死亡分支才會觸發的
-          // 另一種結局，本函式只在hp<=0（真正撃破）時執行，不會誤觸發它。
-          // 2026-09-14：數值效果雖然仍交給GM，但「有沒有拿到這個恩寵」本身要記錄進容器
-          // （使用者要求恩寵集中管理），之後補上祝福休息計數器時就能直接讀。
+          // event_rulebook.js:826-827「祝福王の恩寵」。2026-09-15使用者明確規格により、
+          // midnightでは「a×2」ではなく「使用済みの異なる祝福地点1つにつき威力補正+1、
+          // 最大+10」として実際に套用する（graces.js blessing_king／
+          // refreshFlameKingPowerModBonus()）。獲得時に選ぶ「威力補正1種」は、玩家が
+          // 角色視窗で変更できるようにしつつ、未選択のまま戦闘に入っても効果が死なないよう
+          // 遺物のassignRelicChoiceIfNeeded()と同じくランダム既定値を入れておく。
+          // 「夜に刻まれし癒えぬ傷」はPC死亡分支のほうの結局で、本函式はhp<=0（真正撃破）
+          // 時にしか走らないため、ここで誤って触れることはない。
           grantGraceToTokens([p.tokenId], GRACE_BLESSING_KING);
+          assignFlameKingPowerModChoice(c);
+          if (p.tokenId === myTokenId) refreshFlameKingPowerModBonus();
           c._lastTileRewardNote = { text: window.I18N.t("midnight_random_event_ambush_imi_oni_grace_note"), at: Date.now() };
           GameStorage.rtSet(gameId, "cloud", "character/" + p.tokenId, c);
         } else if (trig.ambushEnemyNameJa === "兆し") {
           // event_rulebook.js:857-858「融合する命」：聖杯瓶回HP時FP同量回復——比其餘恩寵單純
-          // （純加成、無條件分支），且commitFlaskHeal()的改動風險低，因此結構化為_fusedLife
-          // 旗標（見commitFlaskHeal()新增的判斷）。
+          // （純加成、無條件分支），且commitFlaskHeal()的改動風險低，因此結構化為恩寵旗標
+          // （見commitFlaskHeal()的hasGrace判斷）。
           grantGraceToTokens([p.tokenId], GRACE_FUSED_LIFE);
           c._lastTileRewardNote = { text: window.I18N.t("midnight_random_event_ambush_kizashi_grace_note"), at: Date.now() };
           GameStorage.rtSet(gameId, "cloud", "character/" + p.tokenId, c);
@@ -13473,6 +13631,7 @@
         // 不會立即套用任何東西）。
         pushPendingReward(p.tokenId, { kind: "rune", value: runeValue });
         pushPendingReward(p.tokenId, { kind: "potentialPower", value: METEOR_REWARD_POTENTIAL_STARS });
+        if (hasGrace(characters[p.tokenId], GRACE_KNOWLEDGE)) pushPendingReward(p.tokenId, { kind: "knowledgeDice" });
       });
     });
   }
@@ -13652,16 +13811,15 @@
           if (!p) return;
           pushPendingReward(p.tokenId, { kind: "rune", value: 7 });
           pushPendingReward(p.tokenId, { kind: "potentialPower", value: 2 });
+          if (hasGrace(characters[p.tokenId], GRACE_KNOWLEDGE)) pushPendingReward(p.tokenId, { kind: "knowledgeDice" });
           // event_rulebook.js:579「PC全員のアーツの使用回数が回復し...」＋「夜の恩寵」：
           // midnight改用時間冷卻（不是使用次數）追蹤技藝/技能，「アーツの使用回数が回復」
-          // 對應到讓技能冷卻立即歸零（_skillCooldownUntil，跟resetAbilityCooldowns()換日
-          // 重置時使用的欄位/寫法完全一致，只是這裡是對participants每個人各自的tokenId
-          // 寫入，不是只清自己）。「夜の恩寵」是設計文件§9-1定義的持久旗標
-          // （_nightBlessing），目前handleBlessingUseClick()/useCharacterAbility()尚未有
-          // 任何讀取這個旗標的判斷分支（沒有「跳過60秒冷卻改用祝福休息回復」的既有掛勾
-          // 點），因此這裡先只寫入旗標本身，不額外發明一套新的冷卻豁免機制——之後若要
-          // 真正讓「夜の恩寵」角色的技能改成靠祝福回復，應該在useCharacterAbility()/
-          // handleBlessingUseClick()那邊接上判斷，不在這裡多做。
+          // 對應到讓冷卻立即歸零（跟resetAbilityCooldowns()換日重置時使用的欄位/寫法完全
+          // 一致，只是這裡是對participants每個人各自的tokenId寫入，不是只清自己）。
+          // 「夜の恩寵」本身是持久恩寵，記進統一的c.graces（graces.js night_blessing）；
+          // 它的實際效果（祝福休息時跳過冷卻＋補滿蓄積次數）接在
+          // applyNightBlessingGraceOnRest()，不在這裡另外發明冷卻豁免機制。
+          GameStorage.rtSet(gameId, "cloud", "character/" + p.tokenId + "/_artCooldownUntil", 0);
           GameStorage.rtSet(gameId, "cloud", "character/" + p.tokenId + "/_skillCooldownUntil", 0);
           grantGraceToTokens([p.tokenId], GRACE_NIGHT);
         });
@@ -13743,10 +13901,10 @@
           c.runes += c._insectSwarmLostRunes;
           c._insectSwarmLostRunes = 0;
         }
-        // 恩寵「知の集約」（event_rulebook.js:668-669）：跟_nightBlessing同一種「先寫入
-        // 持久旗標」的第一步做法（設計文件§9-1精神）——「戦闘終了時PC代表1人が1Dを振る」
-        // 這個觸發時機目前沒有既有掛勾點（不是本task範圍，見correction #3對_nightBlessing
-        // 的同一套判斷），因此這裡不額外發明新的戰鬥結束擲骰機制，只保留旗標供之後接上。
+        // 恩寵「知の集約」（event_rulebook.js:668-669）：記進統一的c.graces
+        // （graces.js knowledge）。實際的「戦闘終了時に1Dを振る」は、撃破獎勵を
+        // 配るのと同じタイミングで獎勵清單へ骰子項目を送る形で接続済み
+        // （pushKnowledgeDiceRewardForParticipants()／renderKnowledgeDiceRewardDetail()）。
         grantGraceToTokens([myTokenId], GRACE_KNOWLEDGE);
         GameStorage.rtSet(gameId, "cloud", "character/" + myTokenId, c);
       }
@@ -14999,6 +15157,7 @@
   var rewardModalDismissed = false;
 
   function rewardEntryLabel(entry) {
+    if (entry.kind === "knowledgeDice") return window.I18N.t("midnight_reward_kind_knowledge_dice");
     if (entry.kind === "rune") return window.I18N.t("midnight_reward_kind_rune");
     if (entry.kind === "potentialPower") return window.I18N.t("midnight_reward_kind_potential_power");
     if (entry.kind === "attachedEffect") return window.I18N.t("midnight_reward_kind_attached_effect");
@@ -15214,6 +15373,71 @@
     selectedRewardId = null;
   }
 
+  // ---- 恩寵「知の集約」（graces.js knowledge_aggregation／event_rulebook.js:668-669）----
+  // 規則書は「戦闘終了時にPC代表1人が1Dを振り、成功出目ならPCはそれぞれルーン1を獲得」。
+  // midnightは使用者明確規格（2026-09-15）で「戰鬥擊破後，各自在自己獎勵清單perPerson
+  // 擲一顆骰子動畫，如果為6，顯示1秒後散去變成可領取盧恩1獎勵」＝代表1人ではなく各自が
+  // 自分の獎勵清單で振る形。判定に負けた場合はそのまま消える（散去）。
+  var KNOWLEDGE_DICE_SPIN_MS = 700; // 骰子アニメの長さ
+  var KNOWLEDGE_DICE_SPIN_TICK_MS = 60;
+  var KNOWLEDGE_DICE_SETTLE_MS = 1000; // 「顯示1秒後散去」
+  var DICE_FACE_CHARS = ["⚀", "⚁", "⚂", "⚃", "⚄", "⚅"];
+  var knowledgeDiceRollingIds = {}; // 同一筆獎勵の二重クリック防止（アニメ中）
+
+  function renderKnowledgeDiceRewardDetail(id, entry, detail) {
+    var note = document.createElement("p");
+    note.textContent = window.I18N.t("midnight_grace_knowledge_dice_note");
+    detail.appendChild(note);
+    var face = document.createElement("p");
+    face.className = "midnight-knowledge-dice-face";
+    face.textContent = DICE_FACE_CHARS[0];
+    detail.appendChild(face);
+    if (knowledgeDiceRollingIds[id]) return; // アニメ中は抽選鍵を出さない
+    var drawBtn = document.createElement("button");
+    drawBtn.type = "button";
+    drawBtn.className = "midnight-draw-hint";
+    drawBtn.textContent = window.I18N.t("midnight_reward_draw_button");
+    drawBtn.addEventListener("click", function () {
+      startKnowledgeDiceRoll(id, face, drawBtn);
+    });
+    detail.appendChild(drawBtn);
+  }
+
+  function startKnowledgeDiceRoll(id, faceEl, drawBtn) {
+    if (knowledgeDiceRollingIds[id]) return;
+    knowledgeDiceRollingIds[id] = true;
+    drawBtn.disabled = true;
+    var faces = graceValue(GRACE_KNOWLEDGE, "successFaces") || [];
+    var reward = graceValue(GRACE_KNOWLEDGE, "runeReward") || 0;
+    var roll = 1 + Math.floor(Math.random() * 6);
+    var spinTimer = setInterval(function () {
+      faceEl.textContent = DICE_FACE_CHARS[Math.floor(Math.random() * 6)];
+    }, KNOWLEDGE_DICE_SPIN_TICK_MS);
+    setTimeout(function () {
+      clearInterval(spinTimer);
+      faceEl.textContent = DICE_FACE_CHARS[roll - 1];
+      var success = faces.indexOf(roll) !== -1;
+      setTimeout(function () {
+        delete knowledgeDiceRollingIds[id];
+        if (success) {
+          // 「變成可領取盧恩1獎勵」：同じ待領取項目をそのままルーン獎勵へ書き換える
+          // （新しい報酬種別やUIを作らず、既存のrune獎勵フローへ合流させる）。
+          GameStorage.rtSet(gameId, "cloud", "pendingRewards/" + myTokenId + "/" + id, {
+            kind: "rune",
+            value: reward,
+            resolved: false,
+          });
+        } else {
+          // 「散去」＝このまま消える（獎勵としては何も残らない）。
+          GameStorage.rtSet(gameId, "cloud", "pendingRewards/" + myTokenId + "/" + id + "/resolved", true);
+          selectedRewardId = null;
+        }
+        delete rewardDraftById[id];
+        renderRewardModal();
+      }, KNOWLEDGE_DICE_SETTLE_MS);
+    }, KNOWLEDGE_DICE_SPIN_MS);
+  }
+
   // potentialPower（得意武器／附帶效果二選一，對應設計文件§3.3「雙抽同時揭示」）：
   // 2026-09-07改版——原本是兩邊各自獨立「抽選」按鈕＋各自「選擇這個」；現在改成單一
   // 「抽選」按鈕同時抽兩邊（potentialPowerDrawWeapon／rollPotentialPowerAttachedEffect
@@ -15403,6 +15627,10 @@
   function renderRewardDetail(id, entry) {
     var detail = el("midnight-reward-detail");
     detail.innerHTML = "";
+    if (entry.kind === "knowledgeDice") {
+      renderKnowledgeDiceRewardDetail(id, entry, detail);
+      return;
+    }
     if (entry.kind === "potentialPower") {
       renderPotentialPowerRewardDetail(id, entry, detail);
       return;
@@ -17968,13 +18196,16 @@
     // 「冷たい蜃気楼」一次性免死：用恩寵欄位本身的transaction當併發閘門——搶到的那台
     // （看到值還在、把它清掉）才負責把HP拉回10，其餘裝置看到已經是null就照常走瀕死。
     if (hasGrace(c, GRACE_COLD_MIRAGE)) {
+      // 踏みとどまるHPは graces.js の survivalHp（midnight刻度10）を単一資料來源にする。
+      var survivalHp = graceValue(GRACE_COLD_MIRAGE, "survivalHp") || COLD_MIRAGE_SURVIVE_HP;
       GameStorage.rtTransaction(gameId, "cloud", "character/" + tokenId + "/graces/" + GRACE_COLD_MIRAGE, function (cur) {
         return cur ? null : cur;
       }).then(function (committed) {
         if (committed === null) {
-          if (c[GRACES[GRACE_COLD_MIRAGE].legacyField || "__none__"]) c[GRACES[GRACE_COLD_MIRAGE].legacyField] = false;
-          GameStorage.rtSet(gameId, "cloud", "demoStat/" + tokenId, COLD_MIRAGE_SURVIVE_HP);
-          if (tokenId === myTokenId) showToast(window.I18N.t("midnight_grace_cold_mirage_toast", { name: graceName(GRACE_COLD_MIRAGE), hp: COLD_MIRAGE_SURVIVE_HP }));
+          // RTDB側はtransactionで消し済み。ローカル物件（舊旗標も含む）も落としておく。
+          if (window.PriTestGraces) window.PriTestGraces.revoke(c, GRACE_COLD_MIRAGE);
+          GameStorage.rtSet(gameId, "cloud", "demoStat/" + tokenId, survivalHp);
+          if (tokenId === myTokenId) showToast(window.I18N.t("midnight_grace_cold_mirage_toast", { name: graceName(GRACE_COLD_MIRAGE), hp: survivalHp }));
           return;
         }
         enterNearDeath(tokenId);
@@ -17987,24 +18218,19 @@
   function enterNearDeath(tokenId) {
     onAffixNearDeath(tokenId); // 2026-09-13武器詞條：瀕死時系2條
     var required = nearDeathRequiredValue(tokenId);
+    var entered = false;
     GameStorage.rtTransaction(gameId, "cloud", "character/" + tokenId + "/nearDeath", function (cur) {
-      if (cur && cur.active) return cur;
+      if (cur && cur.active) {
+        entered = false;
+        return cur;
+      }
+      entered = true;
       var now = Date.now();
       return { active: true, downedAt: now, deadlineAt: now + NEAR_DEATH_TIMEOUT_MS, progress: 0, required: required };
-    }).then(function (committed) {
-      // 恩寵「世界を安寧する力」：剛剛真正進入瀕死的那一次才擲骰（progress已經>0代表
-      // 是別的來源或重複呼叫，不重複判定）。只有倒下者自己的裝置擲，避免多台各擲一次。
-      if (tokenId !== myTokenId || !committed || !committed.active || committed.progress) return;
-      if (!hasGrace(characters[tokenId], GRACE_WORLD_PEACE)) return;
-      var roll = 1 + Math.floor(Math.random() * 6);
-      if (roll > WORLD_PEACE_REVIVE_ROLL_MAX) {
-        showToast(window.I18N.t("midnight_grace_world_peace_fail_toast", { name: graceName(GRACE_WORLD_PEACE), roll: roll }));
-        return;
-      }
-      showToast(window.I18N.t("midnight_grace_world_peace_toast", { name: graceName(GRACE_WORLD_PEACE), roll: roll, damage: WORLD_PEACE_REVIVE_DAMAGE }));
-      // 直接重用既有的復歸傷害累加入口（滿足required時會自動finishRevive），
-      // 不另外發明一套「自動復歸」流程。
-      applyRevivalProgress(tokenId, WORLD_PEACE_REVIVE_DAMAGE);
+    }).then(function () {
+      // 恩寵「世界を安寧する力」の自力復帰判定は、瀕死が実際に成立したこの1回だけ行う
+      // （既に瀕死中だった＝別の裝置が先に書き込んだ場合は振らない）。
+      if (entered) maybeApplyWorldSerenitySelfRevival(tokenId);
     });
   }
 
@@ -18090,6 +18316,23 @@
     });
   }
 
+  // 恩寵「夜に刻まれし癒えぬ傷」（graces.js unhealing_wound／event_rulebook.js:817-818）：
+  // 規則書では忌み鬼戦で「PCが死亡した場合」の分岐として与えられる恩寵。使用者明確規格
+  // （2026-09-15）「隨機事件的忌鬼戰中，如有一名玩家因為此戰鬥中瀕死死亡而扣除流浪祝福時，
+  // 敵人消失視為結束戰鬥而非擊破。該名玩家獲得唯一恩寵」。
+  // 「敵人消失」は trig.enemyFamilyId を消すことで表現する——HPを0にすると
+  // maybeGrantAmbushReward() が撃破報酬（＝祝福王の恩寵つき）を配ってしまい、
+  // 「視為結束戰鬥而非擊破」に真っ向から反するため。enemyFamilyIdが消えると
+  // recomputeActiveEncounter()のenemyAlive判定がfalseになり、その場の戦闘が普通に終わる。
+  function maybeApplyImiOniDeathBranch(tokenId) {
+    if (tokenId !== myTokenId || !activeEncounter) return;
+    var trig = fieldTriggers[activeEncounter.id];
+    if (!trig || trig.branchNameJa !== "襲撃" || trig.ambushEnemyNameJa !== "忌み鬼") return;
+    grantGraceToToken(tokenId, GRACE_UNHEALING_WOUND);
+    GameStorage.rtSet(gameId, "cloud", "fieldTrigger/" + activeEncounter.id + "/enemyFamilyId", null);
+    showToast(window.I18N.t("midnight_grace_unhealing_wound_note"));
+  }
+
   // 倒地15秒逾時：只有自己的裝置會判斷自己的倒數（見updateNearDeathState()），transaction
   // 把nearDeath.timedOut標成true當作「這次逾時我搶到了」的閘門，避免同一輪逾時被重複處理。
   function forceReviveOnTimeout(tokenId) {
@@ -18108,6 +18351,10 @@
       if (!wonRace) return;
       tryConsumeWanderingBlessing().then(function (consumed) {
         if (consumed) {
+          // 恩寵「夜に刻まれし癒えぬ傷」：忌み鬼戦でのPC死亡分支（見下方関数の説明）。
+          // finishRevive()は自分を戦場から引き剥がす（leaveEncounterAsFled）ので、
+          // activeEncounterがまだ生きているこの時点で判定する。
+          maybeApplyImiOniDeathBranch(tokenId);
           GameStorage.rtSet(gameId, "cloud", "character/" + tokenId + "/nearDeath", null);
           finishRevive(tokenId, true);
         } else {
@@ -18166,7 +18413,9 @@
   // 對瀕死隊友累加復歸傷害進度，滿足需求量時完成復歸（見finishRevive(，false)＝只回半血、
   // 不消耗流浪祝福）。用cur.active=false當作「這次是我完成的」閘門，避免併發的另一筆復歸
   // 傷害重複觸發完成。
-  function applyRevivalProgress(targetTokenId, amount) {
+  // opts.selfGrace＝恩寵「世界を安寧する力」による自力復帰。規則書の「他のPCからの復帰
+  // ダメージによって復帰した場合」のダメージ強化は自力復帰には乗らないため、その判別だけに使う。
+  function applyRevivalProgress(targetTokenId, amount, opts) {
     if (amount <= 0) return;
     var completed = false;
     GameStorage.rtTransaction(gameId, "cloud", "character/" + targetTokenId + "/nearDeath", function (cur) {
@@ -18188,6 +18437,13 @@
     }).then(function () {
       if (!completed) return;
       GameStorage.rtSet(gameId, "cloud", "character/" + targetTokenId + "/nearDeath", null);
+      // 恩寵「世界を安寧する力」後半（event_rulebook.js:1227-1228）：対象は「他のPCからの
+      // 復帰ダメージによって復帰した場合」だけ＝恩寵自身の自力復帰（opts.selfGrace）は除く。
+      if (!(opts && opts.selfGrace) && hasGrace(characters[targetTokenId], GRACE_WORLD_PEACE)) {
+        var revived = characters[targetTokenId];
+        revived._worldSerenityRevivedBonusActive = true;
+        GameStorage.rtSet(gameId, "cloud", "character/" + targetTokenId + "/_worldSerenityRevivedBonusActive", true);
+      }
       finishRevive(targetTokenId, false);
     });
   }

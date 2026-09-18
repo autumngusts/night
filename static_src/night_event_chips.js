@@ -118,9 +118,17 @@
   }
 
   function markEventChipUsed(idx) {
-    if (window.PriTestNightCore.state.eventChipsUsed[idx]) return;
-    window.PriTestNightCore.state.eventChipsUsed[idx] = true;
-    window.PriTestNightCore.saveState();
+    var core = window.PriTestNightCore;
+    if (core.state.eventChipsUsed[idx]) return;
+    core.state.eventChipsUsed[idx] = true;
+    // 恩寵「祝福王の恩寵」の「a」＝このシナリオ内で「祝福での休息」に利用した祝福の数
+    // （event_rulebook.js:826-827）。このガードの内側なので、同じ祝福チットで複数のPCが
+    // 休息しても1回しか数えない＝規則書の「祝福の数」と一致する。
+    if (core.state.eventChips[idx] === "blessing") {
+      core.state.graceBlessingRestCount = (core.state.graceBlessingRestCount || 0) + 1;
+      core.refreshFlameKingPowerModBonus();
+    }
+    core.saveState();
     window.PriTestNightCore.renderSlotEffect(idx);
   }
 
@@ -331,6 +339,27 @@
     }
   }
 
+  // 恩寵「夜の恩寵」（graces.js night_blessing／event_rulebook.js:578-579「アーツの使用回数が
+  // 『祝福での休息』で回復するようになる」）。アーツ（type.arts）の本文は元々
+  // 「使用次數：○（於當日結束時回復）」＝当日終了時にしか回復しない資源なので、祝福での
+  // 休息で回復するのはこの恩寵を持つPCだけ。技能（type.abilities）側は規則書の祝福チット
+  // （docs/scenario_flow_rules.md §9「夜渡りスキル回復」）どおり従来から無条件で回復する。
+  // 修正前はc.abilityUses={}でアーツ分も一緒に消していたため、恩寵の有無に関わらず常に
+  // 回復してしまい、この恩寵が何の意味も持たない状態だった。
+  function restoreAbilityUsesForBlessingRest(c) {
+    var Graces = window.PriTestGraces;
+    if (Graces && Graces.has(c, "night_grace")) {
+      c.abilityUses = {};
+      return;
+    }
+    var type = c.typeId ? window.PriTestCharacterTypes.get(c.typeId) : null;
+    var kept = {};
+    (type && type.arts ? type.arts : []).forEach(function (art) {
+      if (c.abilityUses && typeof c.abilityUses[art.id] === "number") kept[art.id] = c.abilityUses[art.id];
+    });
+    c.abilityUses = kept;
+  }
+
   // --- 祝福：入場中の各角色が個別に「使用」ボタンを押せる。HP/FP/加護/聖杯瓶/技能使用次數/
   // 死靈のHPを、それぞれの上限まで一括回復する。 ---
   function applyEventChipBlessingRest(c) {
@@ -339,7 +368,7 @@
     if (c.blessingSlots) c.blessingSlots.current = c.blessingSlots.max;
     if (c.flaskBase) c.flaskBase.current = c.flaskBase.max;
     if (c.flaskExtra) c.flaskExtra.current = c.flaskExtra.max;
-    c.abilityUses = {};
+    restoreAbilityUsesForBlessingRest(c);
     (c.deathSpirits || []).forEach(function (spirit) {
       spirit.hpCurrent = spirit.hpMax;
     });

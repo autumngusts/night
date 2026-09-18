@@ -3857,6 +3857,19 @@
     return total;
   }
 
+  // 恩寵「祝福王の恩寵」（graces.js flame_king／event_rulebook.js:826-827）：獲得時に選んだ
+  // 威力補正1種にだけボーナスが乗る。加算値そのもの（night＝祝福休息に使った祝福数×2／
+  // midnight＝使用済みの異なる祝福地点数、上限+10）は算出規則がモードごとに違うので
+  // night.js・midnight.js 側が c._graceFlameKingPowerModBonus に書き込み、ここは「選んだ
+  // 補正種別と一致するか」だけを見て素通しする（同じ規則を2箇所で持たない、CLAUDE.md §12）。
+  function graceFlameKingPowerModBonus(c, statKey) {
+    if (!statKey || !c || !c._graceFlameKingPowerModBonus) return 0;
+    var Graces = window.PriTestGraces;
+    if (!Graces || !Graces.has(c, "blessing_king")) return 0;
+    var def = Graces.get("blessing_king");
+    return c[def.choiceField] === statKey ? c._graceFlameKingPowerModBonus : 0;
+  }
+
   // 「自身の「最大HP」を「＋□」する」「將自身「最大HP：+□」」等から、指定したステータス
   // （hp/fp/blessing）の上限修正値を合計する。表記は「＋□」（空心正方形＝1個で+1、複数個
   // なら加算した個数分）と、「-2」のような具体的な符号付き数値の2パターンがあり
@@ -4415,6 +4428,7 @@
       (type && statKey && type.powerMod ? type.powerMod[statKey] || 0 : 0) +
       talismanPowerModBonus(c, statKey) +
       relicPowerModBonus(c, statKey) +
+      graceFlameKingPowerModBonus(c, statKey) +
       weaponInnatePowerModAdjustment(weapon, statKey);
     // powerModText（2026-09-06 midnight角色視窗武器詳細資訊改版新增，使用者明確要求
     // 「威力補正: 平衡(10)寫上根據甚麼加成的威力」）：附加回傳這把武器實際套用的威力補正
@@ -4659,6 +4673,7 @@
       (type && type.powerMod ? type.powerMod[statKey] || 0 : 0) +
       talismanPowerModBonus(c, statKey) +
       relicPowerModBonus(c, statKey) +
+      graceFlameKingPowerModBonus(c, statKey) +
       (weapon ? weaponInnatePowerModAdjustment(weapon, statKey) : 0)
     );
   }

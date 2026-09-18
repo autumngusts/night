@@ -801,6 +801,16 @@ BODY = """    <div class="night-header-row">
           </div>
         </div>
 
+        <!-- 恩寵（規則書142頁、static_src/graces.js）：獲得したPCごとにチェックを入れると
+             実際の数値効果がApp側で自動適用される。規則書上の獲得契機はイベント側で
+             自動付与されるものもあるが（隨機事件の忌み鬼戦など）、それ以外の未実装
+             イベント由来の恩寵はここでGMが手動で付け外しする。 -->
+        <div class="threat-ref-block">
+          <h3 data-i18n="grace_section_title"></h3>
+          <p class="threat-ref-body" data-i18n="grace_section_note"></p>
+          <div id="grace-character-list"></div>
+        </div>
+
         <div class="actions">
           <button id="btn-bag-drawer-close" type="button" class="primary-btn" data-i18n="close_button"></button>
         </div>
@@ -1239,6 +1249,7 @@ def build_night_html() -> str:
             "weapon_rulebook.js",
             "talismans.js",
             "consumables.js",
+            "graces.js",
             "character_drawer.js",
             "night_bosses.js",
             "night_boss_rulebook.js",
