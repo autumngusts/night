@@ -120,6 +120,72 @@
       revivedHit2Bonus: 10,
       revivedSkillBonus: 5,
     },
+    // ------------------------------------------------------------------
+    // ここから下は場地卡（fields_data_*.js）由来の恩寵。
+    // 随機事件由来のものと同じく本文に「恩寵については142頁」と明記されている。
+    // 規則書が値を「□」で伏せている箇所は、□ の個数がそのまま「格」数
+    //（既存前例：midnight.js lowHpThreshold の「規則書の□□□＝3」）。
+    // 使用者明確規格（2026-09-18）「一格子＝night 1格＝midnight 10HP」。
+    // 最大HP/最大FPの加算は「格」単位のまま持つ——midnight 側は
+    // selfArenaHpMax()／selfFpMax() が (hp.max + totalFlatMaxStatBonus) * 10 と
+    // すでに10倍しているため、ここで10倍すると二重になる。
+    // 一方ダメージ量そのものは刻度が違うので {night, midnight} で分ける。
+    // ------------------------------------------------------------------
+    {
+      // fields_data_4.js:2288 / 2503 / 2771（3つの場地に登場）「腐れ森の恩寵」：
+      // シナリオ終了まで「最大HP：+□□」＝+2格、さらに「耐性：腐敗」
+      //（「状態異常：腐敗」が蓄積せず、これによってHP損害を受けない）。
+      id: "rotten_forest",
+      name: C("腐れ森の恩寵", "潰爛森林的恩寵"),
+      src: "fields_data_4.js:2288/2503/2771 腐れ森",
+      maxHpBonus: 2,
+      rotImmune: true,
+    },
+    {
+      // fields_data_4.js:2895「山嶺の恩寵」：シナリオ終了まで「凍傷」の蓄積最大値を「+4」、
+      //「凍傷」発生時のHP損害を「□」＝1格軽減、戦闘中なら凍傷発症直後のアクションフェイズの
+      // スタミナダイスに骰子を追加（使用者明確規格 2026-09-18「骰子點數3」）、
+      // さらにこのフィールドの追加ルール「吹雪の視界」を無効化する。
+      id: "mountain_peak",
+      name: C("山嶺の恩寵", "山嶺的恩寵"),
+      src: "fields_data_4.js:2895 氷雪の山嶺",
+      frostbiteAccumMaxBonus: 4,
+      frostbiteDamageReduce: { night: 1, midnight: 10 },
+      staminaDiceFace: 3,
+      blizzardVisionImmune: true,
+    },
+    {
+      // fields_data_4.js:3613「大空洞の恩寵」：追加ルール「結晶の呪気」を無効化。
+      // 聖杯瓶の使用回数の残量が0になった場合、即座に「アーツの使用回数」が1回分回復する。
+      //（この恩寵だけは規則書に□が無く、最初から値が完全に書かれている）
+      id: "great_cavern",
+      name: C("大空洞の恩寵", "大空洞的恩寵"),
+      src: "fields_data_4.js:3613 大空洞",
+      crystalCurseImmune: true,
+      artsRecoverOnFlaskEmpty: 1,
+    },
+    {
+      // fields_data_4.js:3804「隠れ都の恩寵」：「さまよう祝福」の上限を+1。さらにシナリオ
+      // 終了まで「PCが戦闘中に死亡し、蘇生した場合、その戦闘終了時まで最大HP：+□／
+      // 最大FP：+□（各1格）。スキル、アーツの使用回数がすべて回復する」効果を得る。
+      id: "hidden_city",
+      name: C("隠れ都の恩寵", "隱藏都市的恩寵"),
+      src: "fields_data_4.js:3804 隠れ都ノクラテオ",
+      wanderingBlessingMaxBonus: 1,
+      revivedMaxHpBonus: 1,
+      revivedMaxFpBonus: 1,
+      revivedRestoreAllUses: true,
+    },
+    {
+      // fields_data_3.js:2618-2628「大ルーンの虚像」：「アーツ」を「最大使用回数：+1」する。
+      // ただし「葬儀屋」ではないPCは、それぞれ自身のアーツを1ターンの間に1回しか使用できない。
+      //（この恩寵も規則書に□が無い）
+      id: "great_rune_mirage",
+      name: C("大ルーンの虚像", "大盧恩的虛像"),
+      src: "fields_data_3.js:2619 大ルーンの虚像",
+      artsMaxUsesBonus: 1,
+      nonUndertakerOncePerTurn: true,
+    },
     {
       // event_rulebook.js:857-858「融合する命」：聖杯瓶でHPが回復するPCは、同じだけFPも
       // 回復する。（midnight.js commitFlaskHeal() 已實作，2026-09-15改走統一的恩寵欄位。）

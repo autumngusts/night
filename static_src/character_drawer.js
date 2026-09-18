@@ -3968,8 +3968,29 @@
   }
 
   // タリスマン／遺物効果／附帶効果の全ソースを合算した、実際に使える上限修正値。
+  // 恩寵（graces.js）由来の最大HP/FP加算。値は「格」単位のまま持つ——night は
+  // c.hp.max と同じ尺度、midnight は selfArenaHpMax()／selfFpMax() が
+  // (hp.max + totalFlatMaxStatBonus) * 10 とすでに10倍しているので、
+  // ここで値を変える必要は無い（使用者明確規格 2026-09-18「一格子＝night 1格＝midnight 10HP」）。
+  //
+  // 現時点で接続済みなのは「腐れ森の恩寵」の最大HP+2格だけ。
+  //「隠れ都の恩寵」の最大HP/FP+1格は「戦闘中に死亡し蓇生した場合」限定で、
+  // midnight ではその経路（finishRevive(fullHeal=true)）が仕様上「戦闘からの離脱」になるため
+  //「その戦闘終了時まで」が成立せず、規則と実装の対応を決めてから接続する（値は graces.js に登録済み）。
+  function graceFlatMaxStatBonus(c, statKey) {
+    var Graces = window.PriTestGraces;
+    if (!Graces || !c || statKey !== "hp") return 0;
+    if (!Graces.has(c, "rotten_forest")) return 0;
+    return Graces.value("rotten_forest", "maxHpBonus") || 0;
+  }
+
   function totalFlatMaxStatBonus(c, statKey) {
-    return talismanFlatMaxStatBonus(c, statKey) + relicFlatMaxStatBonus(c, statKey) + attachedFlatMaxStatBonus(c, statKey);
+    return (
+      talismanFlatMaxStatBonus(c, statKey) +
+      relicFlatMaxStatBonus(c, statKey) +
+      attachedFlatMaxStatBonus(c, statKey) +
+      graceFlatMaxStatBonus(c, statKey)
+    );
   }
 
   // 属性を強化する「毒蠍」系タリスマン（Hit数を問わず蓄積値+1）を、属性名（ja表記固定）から

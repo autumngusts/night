@@ -29,9 +29,9 @@ function ok(cond, label) {
   if (!cond) fail++;
 }
 
-console.log("[登録]");
+console.log("[登録：隨機事件由来 event_rulebook.js]");
 const ids = G.list().map((g) => g.id);
-const expected = [
+const fromEvents = [
   "night_grace", // event_rulebook.js:579 夜の勢力
   "knowledge", // event_rulebook.js:668 虫の大量発生
   "unhealing_wound", // event_rulebook.js:817 襲撃・忌み鬼（PC死亡分支）
@@ -41,8 +41,24 @@ const expected = [
   "world_peace", // event_rulebook.js:1227 安寧者たち
   "fused_life", // event_rulebook.js:857 襲撃・兆し
 ];
+fromEvents.forEach((id) => ok(ids.includes(id), "登録あり: " + id));
+
+console.log("[登録：場地卡由来 fields_data_*.js]");
+const fromFields = [
+  "rotten_forest", // fields_data_4.js:2288/2503/2771 腐れ森
+  "mountain_peak", // fields_data_4.js:2895 氷雪の山嶺
+  "great_cavern", // fields_data_4.js:3613 大空洞
+  "hidden_city", // fields_data_4.js:3804 隠れ都ノクラテオ
+  "great_rune_mirage", // fields_data_3.js:2619 大ルーンの虚像
+];
+fromFields.forEach((id) => ok(ids.includes(id), "登録あり: " + id));
+
+const expected = fromEvents.concat(fromFields);
 ok(ids.length === expected.length, "恩寵は" + expected.length + "種 (実際 " + ids.length + ")");
-expected.forEach((id) => ok(ids.includes(id), "登録あり: " + id));
+ok(
+  G.list().every((g) => g.src && /^(event_rulebook|fields_data_)/.test(g.src)),
+  "全恩寵が規則原文の出典(src)を持つ"
+);
 
 console.log("[保存形式]");
 const c = {};
@@ -80,6 +96,38 @@ ok(G.value("world_peace", "revivedSkillBonus", "midnight") === 5, "安寧 復帰
 ok(G.value("knowledge", "successFaces", "night").length === 1, "知の集約 成功出目1種");
 ok(G.value("beast_hunt", "diceFaceFrom", "night") === 2 && G.value("beast_hunt", "diceFaceTo", "night") === 5, "獣の狩り 2->5");
 ok(G.value("beast_hunt", "nope", "night") === null, "未定義キーは null");
+
+console.log("[場地卡由来の数値]");
+// 「□」の個数がそのまま格数（既存前例 midnight.js lowHpThreshold の「規則書の□□□＝3」）。
+// 最大HP/FPの加算は「格」単位のまま（midnight側で ×10 されるので二重に掛けない）。
+ok(G.value("rotten_forest", "maxHpBonus", "night") === 2, "腐れ森 最大HP+□□=+2格");
+ok(G.value("rotten_forest", "maxHpBonus", "midnight") === 2, "腐れ森 格数はモード非依存（midnight側で×10）");
+ok(G.value("rotten_forest", "rotImmune", "night") === true, "腐れ森 耐性:腐敗");
+ok(G.value("mountain_peak", "frostbiteAccumMaxBonus", "night") === 4, "山嶺 凍傷蓄積最大+4");
+ok(G.value("mountain_peak", "frostbiteDamageReduce", "night") === 1, "山嶺 凍傷HP損害軽減 night=1");
+ok(G.value("mountain_peak", "frostbiteDamageReduce", "midnight") === 10, "山嶺 凍傷HP損害軽減 midnight=10");
+ok(G.value("mountain_peak", "staminaDiceFace", "night") === 3, "山嶺 追加スタミナダイス=骰子點數3");
+ok(G.value("mountain_peak", "blizzardVisionImmune", "night") === true, "山嶺 吹雪の視界を無効化");
+ok(G.value("great_cavern", "artsRecoverOnFlaskEmpty", "night") === 1, "大空洞 聖杯瓶0でアーツ+1回復");
+ok(G.value("great_cavern", "crystalCurseImmune", "night") === true, "大空洞 結晶の呪気を無効化");
+ok(G.value("hidden_city", "wanderingBlessingMaxBonus", "night") === 1, "隠れ都 さまよう祝福の上限+1");
+ok(G.value("hidden_city", "revivedMaxHpBonus", "night") === 1, "隠れ都 蘇生後 最大HP+□=+1格");
+ok(G.value("hidden_city", "revivedMaxFpBonus", "night") === 1, "隠れ都 蘇生後 最大FP+□=+1格");
+ok(G.value("hidden_city", "revivedRestoreAllUses", "night") === true, "隠れ都 蘇生後 使用回数を全回復");
+ok(G.value("great_rune_mirage", "artsMaxUsesBonus", "night") === 1, "大ルーンの虚像 アーツ最大使用回数+1");
+ok(G.value("great_rune_mirage", "nonUndertakerOncePerTurn", "night") === true, "大ルーンの虚像 葬儀屋以外は1ターン1回");
+
+console.log("[1:10 換算の一貫性]");
+// ダメージ量そのものを持つ欄位は、すべて midnight = night × 10 になっていること。
+[
+  ["unhealing_wound", "extraHpDamage"],
+  ["cold_mirage", "survivalHp"],
+  ["mountain_peak", "frostbiteDamageReduce"],
+].forEach(([id, key]) => {
+  const n = G.value(id, key, "night");
+  const m = G.value(id, key, "midnight");
+  ok(m === n * 10, id + "." + key + " midnight(" + m + ") = night(" + n + ") x10");
+});
 
 console.log(fail === 0 ? "\n=== 全テスト通過 ===" : "\n=== 失敗 " + fail + " 件 ===");
 process.exit(fail === 0 ? 0 : 1);
