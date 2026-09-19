@@ -797,6 +797,13 @@ BODY = """    <div class="night-header-row">
             <label data-i18n="growing_presence_label"></label>
             <select id="growing-presence-select"></select>
           </div>
+          <!-- 「各フロアの〔描写〕を確認し終えると同時に」が契機の追加ルール
+               （状態異常の蓄積系・バリスタ射撃・増大する気配※2）をまとめて適用する。
+               GMが描写を読み終えたところで押す。同じフロアで二重には適用されない。 -->
+          <div class="field-row-block">
+            <button type="button" id="btn-apply-floor-field-rules" data-i18n="apply_floor_field_rules_button"></button>
+            <p class="threat-ref-body" id="floor-field-rules-note"></p>
+          </div>
         </div>
 
         <div class="threat-ref-block">

@@ -120,11 +120,12 @@ rules
   .forEach((r) => {
     ok(!!r.ailment, r.id + " に対象の状態異常が設定されている（" + r.ailment + "）");
   });
-// 行為判定を持つルールは target/stat が揃っていること。
+// 行為判定を持つルールは「能力」と「目標値（固定値 or ルール側の式）」が揃っていること。
 rules.forEach((r) => {
   const checks = r.checks || (r.check ? [r.check] : []);
   checks.forEach((c, i) => {
-    ok(typeof c.target === "number" && !!c.stat, r.id + " の判定" + (i + 1) + " は目標値と能力が揃っている");
+    const hasTarget = typeof c.target === "number" || !!r.targetFormula;
+    ok(hasTarget && !!c.stat, r.id + " の判定" + (i + 1) + " は目標値と能力が揃っている");
   });
 });
 
@@ -182,6 +183,60 @@ const ruleIds = new Set(rules.map((r) => r.id));
 const drawer = fs.readFileSync(path.resolve(root, "static_src/character_drawer.js"), "utf8");
 ok(/totalFlatMaxStatBonus[\s\S]{0,400}fieldRuleFlatMaxStatBonus\(c, statKey\)/.test(drawer), "totalFlatMaxStatBonus() が場地ルール分を合算している");
 ok(/_fieldRuleMaxHpDelta/.test(fs.readFileSync(path.resolve(root, "static_src/night.js"), "utf8")), "night.js が _fieldRuleMaxHpDelta を書き込んでいる");
+
+console.log("[⑧ 行為判定ヘルパとの結線]");
+// night.js の applyFloorDescriptionFieldRules() は、規則書の判定を
+// AutoGm.resolveSavingThrow() にそのまま投げる。stat がヘルパの期待するキー
+//（type.checkValues のキー）でないと、骰子数0で必ず失敗するのに例外は出ない——
+// だから実際にヘルパを動かして、判定が成立することまで確かめる。
+vm.runInContext(fs.readFileSync(path.resolve(root, "static_src/character_types.js"), "utf8"), sandbox, { filename: "character_types.js" });
+vm.runInContext(fs.readFileSync(path.resolve(root, "static_src/auto_gm.js"), "utf8"), sandbox, { filename: "auto_gm.js" });
+const AutoGm = sandbox.window.PriTestAutoGm;
+const CharacterTypes = sandbox.window.PriTestCharacterTypes;
+const VALID_STATS = ["luck", "physical", "mental"];
+ok(!!(AutoGm && AutoGm.resolveSavingThrow), "AutoGm.resolveSavingThrow が使える");
+
+const sampleTypeId = CharacterTypes.list ? CharacterTypes.list()[0].id : "tracker";
+const fakeRoster = [
+  { id: "a", name: "A", entered: true, typeId: sampleTypeId },
+  { id: "b", name: "B", entered: true, typeId: sampleTypeId },
+  { id: "c", name: "C", entered: false, typeId: sampleTypeId },
+];
+rules.forEach((r) => {
+  const checks = r.checks || (r.check ? [r.check] : []);
+  checks.forEach((chk) => {
+    ok(VALID_STATS.indexOf(chk.stat) !== -1, r.id + " の判定能力 " + chk.stat + " は checkValues のキー");
+    const type = CharacterTypes.get(sampleTypeId);
+    ok(typeof (type.checkValues || {})[chk.stat] === "number", r.id + " の " + chk.stat + " が実際のキャラ種別で引ける");
+    if (typeof chk.target !== "number") return; // 迷いの隠れ都は目標値が式（PC人数+8）
+    const res = AutoGm.resolveSavingThrow(
+      { stat: chk.stat, targetByCondition: [{ condition: { kind: "default" }, target: chk.target }] },
+      fakeRoster,
+      { aggro: {} },
+      CharacterTypes,
+      null
+    );
+    ok(res.length === 2, r.id + " の判定は入場中のPCだけ（2人）に対して行われる");
+    ok(
+      res.every((x) => x.target === chk.target && x.dice.length > 0 && typeof x.passed === "boolean"),
+      r.id + " の判定結果に目標値・出目・成否が揃っている"
+    );
+  });
+});
+// 蓄積系は成功・失敗どちらでも量が入る（規則書「成功すれば1を、失敗したら3を被る」）。
+rules
+  .filter((r) => r.kind === "ailmentAccum" && r.check)
+  .forEach((r) => {
+    ok(r.onSuccess > 0 && r.onFailure > r.onSuccess, r.id + " は成功" + r.onSuccess + " / 失敗" + r.onFailure);
+  });
+// 迷いの隠れ都だけは目標値が式なので、固定targetを持っていないことを明示的に確認する
+//（うっかり11を固定値として入れ直すと、PC人数が3人以外のとき規則と食い違う）。
+const LHC = FR.get("lost_hidden_city");
+ok(LHC.targetFormula === "partySize+8", "迷いの隠れ都の目標値は式 partySize+8");
+ok(
+  LHC.checks.every((c) => typeof c.target !== "number"),
+  "迷いの隠れ都の各判定に固定目標値が残っていない"
+);
 
 console.log(fail === 0 ? "\n=== 全テスト通過 ===" : "\n=== 失敗 " + fail + " 件 ===");
 process.exit(fail === 0 ? 0 : 1);

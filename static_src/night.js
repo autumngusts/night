@@ -1099,6 +1099,7 @@
     wanderingBlessingExtraCount: 0,
     resonantCrystalCount: 0, // 追加ルール「結晶の呪気」を緩和する「共鳴する結晶」の獲得数（GM手動）
     growingPresenceVariantId: null, // 追加ルール「増大する気配」決定表の確定結果（null＝未決定）
+    floorFieldRulesApplied: {}, // 追加ルールをフロア描写時に適用済みのキー（"スロット|フロア"）
     // 使用者確認（2026-09-01）：當「所有」流浪祝福格子（基本3格＋額外已取得格數）都被勾滿時，
     // 視同全滅、判定遊戲失敗，但遊戲不中斷——改為顯示這個旗標驅動的紅字通知，並繼續進行
     // （簡單模式）。一旦為true就不會再變回false（同一局遊戲內失敗狀態不可逆）。
@@ -1341,6 +1342,7 @@
       wanderingBlessingExtraCount: state.wanderingBlessingExtraCount,
       resonantCrystalCount: state.resonantCrystalCount,
       growingPresenceVariantId: state.growingPresenceVariantId,
+      floorFieldRulesApplied: state.floorFieldRulesApplied,
       gameFailedEasyMode: state.gameFailedEasyMode,
       rollEffects: state.rollEffects,
       smithingStone: state.smithingStone,
@@ -1433,6 +1435,7 @@
     state.wanderingBlessingExtraCount = snap.wanderingBlessingExtraCount || 0;
     state.resonantCrystalCount = snap.resonantCrystalCount || 0;
     state.growingPresenceVariantId = snap.growingPresenceVariantId || null;
+    state.floorFieldRulesApplied = snap.floorFieldRulesApplied || {};
     state.gameFailedEasyMode = !!snap.gameFailedEasyMode;
     state.rollEffects = snap.rollEffects;
     state.smithingStone = snap.smithingStone;
@@ -2444,6 +2447,7 @@
       state.wanderingBlessingExtraCount = Math.max(0, Math.min(3, Number(data.wanderingBlessingExtraCount) || 0));
       state.resonantCrystalCount = Math.max(0, Number(data.resonantCrystalCount) || 0);
       state.growingPresenceVariantId = data.growingPresenceVariantId || null;
+      state.floorFieldRulesApplied = data.floorFieldRulesApplied || {};
       state.gameFailedEasyMode = !!data.gameFailedEasyMode;
       state.rollEffects = loadRollEffects(data.rollEffects);
       state.smithingStone = typeof data.smithingStone === "string" ? data.smithingStone : "";
@@ -2804,6 +2808,7 @@
     state.wanderingBlessingExtraCount = 0;
     state.resonantCrystalCount = 0;
     state.growingPresenceVariantId = null;
+    state.floorFieldRulesApplied = {};
     state.gameFailedEasyMode = false;
     state.rollEffects = defaultRollEffects();
     state.smithingStone = "";
@@ -3859,6 +3864,150 @@
     if (v) addLog("log_field_rule_growing_presence", { effect: growingPresenceVariantLabel(v) });
   }
 
+  // ============================================================
+  // 「各フロアの〔描写〕を確認し終えると同時に」が契機の追加ルール
+  // ============================================================
+  // 状態異常の蓄積系8種（血病の風／眠りの丘／各種沼）・バリスタ射撃・
+  // 増大する気配※2 は、規則書の契機がすべてこの一点で共通している。だから
+  // 個別に実装せず、ここ1箇所でまとめて適用する（CLAUDE.md §41）。
+  //
+  // 判定は既存の AutoGm.resolveSavingThrow() をそのまま使う——「アローレイン」等で
+  // すでに使われている「規則書の運試し／フィジカル／メンタル判定をシステムが直接振り、
+  // 出目を公開して効果を適用する」のと同じ扱いに揃える（加護による重骰はしない）。
+  //
+  // 適用の起点はGMのボタン。walkの内部状態に割り込まずに済み、GMが描写を読み終えた
+  // 実際のタイミングで押せる。同じフロアで二度押しても効かないよう
+  // state.floorFieldRulesApplied にキー（スロット|フロア）を記録する。
+  function fieldRuleFloorKey() {
+    var walk = state.gmFlow && state.gmFlow.walk;
+    var floorIdx = walk && typeof walk.floorIndex === "number" ? walk.floorIndex : "-";
+    var branchIdx = walk && typeof walk.branchIndex === "number" ? walk.branchIndex : "-";
+    return String(state.focusedIndex) + "|" + branchIdx + "|" + floorIdx;
+  }
+
+  function rollFieldRuleCheck(stat, target) {
+    var AutoGm = window.PriTestAutoGm;
+    if (!AutoGm || !AutoGm.resolveSavingThrow) return [];
+    return AutoGm.resolveSavingThrow(
+      { stat: stat, targetByCondition: [{ condition: { kind: "default" }, target: target }] },
+      rosterCharacters,
+      state.battle,
+      window.PriTestCharacterTypes,
+      CharacterDrawer
+    );
+  }
+
+  function enteredCharacterByIndex(index) {
+    var entered = rosterCharacters.filter(function (c) {
+      return c.entered;
+    });
+    return entered[index] || null;
+  }
+
+  // 追加ルール由来のHP損害（バリスタ射撃／増大する気配※2の逆巻く）。
+  // 屬性/異常トリガーのHP減算とまったく同じ扱い（下限0・瀕死判定あり）にする。
+  function applyFieldRuleHpDelta(c, delta) {
+    if (!c || !delta) return;
+    var effMax = Math.max(0, (c.hp.max || 0) + CharacterDrawer.totalFlatMaxStatBonus(c, "hp"));
+    c.hp.current = Math.max(0, Math.min(effMax, (c.hp.current || 0) + delta));
+    if (delta < 0) checkNearDeathTrigger(c);
+  }
+
+  // 現在地で「フロア描写の直後」に適用すべき追加ルールのid一覧。
+  function floorDescriptionRuleIds() {
+    var FR = window.PriTestFieldRules;
+    if (!FR) return [];
+    return FR.detect(currentFieldSpecialRule()).filter(function (id) {
+      var r = FR.get(id);
+      if (!r) return false;
+      if (r.kind === "ailmentAccum" && r.check) return true; // 判定して蓄積する8種
+      if (r.kind === "checkDamage") return true; // バリスタ射撃
+      if (r.kind === "accumPlus") return !!growingPresenceVariant(); // 増大する気配※2（決定済みのときだけ）
+      return false;
+    });
+  }
+
+  function renderFloorFieldRulesNote() {
+    var btn = document.getElementById("btn-apply-floor-field-rules");
+    var note = document.getElementById("floor-field-rules-note");
+    if (!btn || !note) return;
+    var FR = window.PriTestFieldRules;
+    var ids = floorDescriptionRuleIds();
+    btn.hidden = ids.length === 0;
+    note.hidden = ids.length === 0;
+    if (!ids.length) return;
+    var names = ids.map(function (id) {
+      return FR.localizedText(FR.get(id).name);
+    });
+    var done = !!state.floorFieldRulesApplied[fieldRuleFloorKey()];
+    btn.disabled = done;
+    note.textContent = window.I18N.t(done ? "floor_field_rules_done_note" : "floor_field_rules_pending_note", {
+      rules: names.join("、"),
+    });
+  }
+
+  function applyFloorDescriptionFieldRules() {
+    var FR = window.PriTestFieldRules;
+    var ids = floorDescriptionRuleIds();
+    if (!FR || !ids.length) return;
+    var key = fieldRuleFloorKey();
+    if (state.floorFieldRulesApplied[key]) return;
+    state.floorFieldRulesApplied[key] = true;
+
+    ids.forEach(function (id) {
+      var r = FR.get(id);
+      var ruleName = FR.localizedText(r.name);
+      if (r.kind === "accumPlus") {
+        // 増大する気配※2：判定は無く、PC全員が「HP回復：□（渦巻く）」または
+        // 「HP損害：■（逆巻く）」を適用される。
+        var v = growingPresenceVariant();
+        if (!v) return;
+        var heal = FR.variantValue("growing_presence", v.id, "hpHeal", "night") || 0;
+        var dmg = FR.variantValue("growing_presence", v.id, "hpDamage", "night") || 0;
+        var delta = heal ? heal : -dmg;
+        if (!delta) return;
+        rosterCharacters.forEach(function (c) {
+          if (!c.entered) return;
+          applyFieldRuleHpDelta(c, delta);
+          addLog("log_field_rule_hp_delta", { rule: ruleName, character: c.name, value: Math.abs(delta) });
+        });
+        return;
+      }
+      var results = rollFieldRuleCheck(r.check.stat, r.check.target);
+      results.forEach(function (res) {
+        var c = enteredCharacterByIndex(res.index);
+        if (!c) return;
+        addLog("log_field_rule_check", {
+          rule: ruleName,
+          character: res.name,
+          dice: res.dice.join("、"),
+          sum: res.sum,
+          target: res.target,
+          stat: window.I18N.t("check_stat_" + r.check.stat),
+          result: window.I18N.t(res.passed ? "grace_roll_success" : "grace_roll_fail"),
+        });
+        if (r.kind === "ailmentAccum") {
+          // 成功／失敗のどちらでも蓄積する（規則書「成功すれば1を、失敗したら3を被る」）。
+          var amount = res.passed ? r.onSuccess : r.onFailure;
+          if (amount) addReceivedAttributeStatus(c.id, r.ailment, amount);
+          return;
+        }
+        // checkDamage（バリスタ射撃）：失敗したときだけHP損害。
+        if (res.passed) return;
+        var hp = FR.value(id, "hpDamageOnFailure", "night") || 0;
+        if (!hp) return;
+        applyFieldRuleHpDelta(c, -hp);
+        addLog("log_field_rule_hp_delta", { rule: ruleName, character: c.name, value: hp });
+      });
+    });
+
+    saveState();
+    saveRosterCharacters();
+    renderCharacterRoster();
+    renderAttributeStatusList();
+    renderFloorFieldRulesNote();
+  }
+
   function renderResonantCrystalCount() {
     var el = document.getElementById("resonant-crystal-count-label");
     if (!el) return;
@@ -4143,6 +4292,7 @@
     renderWanderingBlessingExtraCount();
     renderResonantCrystalCount();
     renderGrowingPresenceSelect();
+    renderFloorFieldRulesNote();
   }
 
   // 鍛石／石劍鑰匙は自由記述の入力欄を廃止し、＋－ボタンのみでカウントを直接編集する
@@ -15480,6 +15630,7 @@
     // この瞬間に最大HPを引き直す。ここは通常移動・登攀・靈脈チットの全経路が通る
     //（上のinvalidatePendingFloorSkipと同じ理由で1箇所で済む）。
     refreshFieldRuleMaxHp({ clampCurrent: true });
+    renderFloorFieldRulesNote();
     if (state.gmFlowEnabled) revealAdjacentSlots(toPos);
     renderBoard();
     saveState();
@@ -16289,6 +16440,9 @@
     });
     document.getElementById("btn-smithing-stone-plus").addEventListener("click", function () {
       adjustSmithingStoneCount(1);
+    });
+    document.getElementById("btn-apply-floor-field-rules").addEventListener("click", function () {
+      applyFloorDescriptionFieldRules();
     });
     document.getElementById("growing-presence-select").addEventListener("change", function (e) {
       handleGrowingPresenceChange(e.target.value);
