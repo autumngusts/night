@@ -599,6 +599,9 @@
   //「状態異常蓄積最大値＋1」（allAilmentResistUp）とまったく同じ意味の加算なので同じ式に足す。
   function receivedAccumThreshold(c, name) {
     var delta = affixTotal(c, "allAilmentResistUp") - affixTotal(c, "allAilmentResistDown");
+    // 「調律の魔物」取引5の良好效果「異常狀態最大蓄積值+1」（2026-09-19構造化）。
+    // 武器詞條の allAilmentResistUp と同じ意味なので同じ式に足す。
+    delta += (c && c._bargainAccumMaxBonus) || 0;
     if (name === "凍傷" && hasGrace(c, GRACE_MOUNTAIN_PEAK)) {
       delta += graceValue(GRACE_MOUNTAIN_PEAK, "frostbiteAccumMaxBonus") || 0;
     }
@@ -8005,10 +8008,12 @@
   // 規則書：「自身使用消耗品『聖杯瓶／勇者的肉塊／龜首漬／星光碎片／苔玉』時，可對自身
   // 以外的任意1名PC也發揮相同效果」。midnight沒有目標選擇UI，對象固定取隊伍中第一位其他PC
   // （比照聖光燈火等既有簡化）。
-  // **已知限制**：這5項裡只有「勇者的肉塊」等會動到HP的部分能真的施加在別人身上——
-  // FP與體力骰、以及「直到階段結束的自身buff」在midnight都是**各自裝置的本地資源/旗標**
-  // （見fp／stamina／c._xxx欄位說明），無法從我的裝置寫進別人的本地狀態。因此這裡只
-  // 複製得了HP回復的部分，其餘維持只對自己生效，並在toast提示玩家手動處理，不假裝完整涵蓋。
+  // FP・體力骰・「直到階段結束的自身buff」は各裝置のローカル資源/旗標なので、私の裝置から
+  // 相手のローカル状態へ直接は書けない——という制約は下の _sharedItemEffect 方式
+  //（相手の角色節點へ指示だけ書き、相手の裝置が自分で applyMidnightConsumableEffect() を
+  // 実行する）で解消済み。したがって5項とも完全に効く。
+  //（以前ここには「HP回復の部分しか複製できない」という但し書きがあったが、その方式に
+  //  切り替える前の記述だったので2026-09-19に実装状況を確認して削除した。）
   var THRIFT_CHANCE = 0.2; // 學者「節約術」：使用者明確規格「20%機率」
   // 「使用通用消耗品時HP回復」的對象（規則書列舉：勇者的肉塊／龜首漬／星光的碎片／
   // 苔玉／溫暖石；苔玉在 consumables.js 的名稱是「苔藥」）。
@@ -14888,24 +14893,31 @@
     },
   };
   // 6｜死を遠ざけたい：良好效果＝防禦階段開始獲得體力骰1個 → 換算為體力回復速率5→6/秒
-  // （§9-2既定換算，見myStaminaRegenPerSec）。這個deal沒有對應的已知不良效果數值換算
-  // （「自身最大HP：-□（最低值1）」暫不結構化），applyBad固定回傳false。
+  // （§9-2既定換算，見myStaminaRegenPerSec）。
+  // 不良效果「自身最大HP：-□（最低值1）」は2026-09-19に構造化した——□は1格なので
+  // midnight刻度で10（使用者明確規格「一格子＝night 1格＝midnight 10HP」）。「最低值1」は
+  // selfArenaHpMax() が既に下限100（＝night刻度の1格ぶん）で頭打ちにしているのでそちらに任せる。
   var BARGAIN_STAMINA_GOOD_KEY = "死を遠ざけたい";
+  var BARGAIN_MAX_HP_PENALTY = 10; // 「最大HP：-□」＝1格＝midnight 10
   // 5｜状態異常に強くなりたい：不良效果＝行動/額外階段體力骰出目自動變更為⚀ → 換算為體力
-  // 回復速率5→4/秒。良好效果（異常狀態最大蓄積值+1）暫不結構化，applyGood固定回傳false。
+  // 回復速率5→4/秒。良好效果「異常狀態最大蓄積值+1」も2026-09-19に構造化した——
+  // 武器詞條「allAilmentResistUp」とまったく同じ意味なので、同じ注入点
+  //（receivedAccumThreshold()）へ足す。新しい判定機構は作らない。
   var BARGAIN_STAMINA_BAD_KEY = "状態異常に強くなりたい";
   BARGAIN_DEAL_EFFECTS[BARGAIN_STAMINA_GOOD_KEY] = {
     applyGood: function () {
       myStaminaRegenPerSec = 6;
       return true;
     },
-    applyBad: function () {
-      return false;
+    applyBad: function (c) {
+      c._bargainMaxHpBonus = (c._bargainMaxHpBonus || 0) - BARGAIN_MAX_HP_PENALTY;
+      return true;
     },
   };
   BARGAIN_DEAL_EFFECTS[BARGAIN_STAMINA_BAD_KEY] = {
-    applyGood: function () {
-      return false;
+    applyGood: function (c) {
+      c._bargainAccumMaxBonus = (c._bargainAccumMaxBonus || 0) + 1;
+      return true;
     },
     applyBad: function () {
       myStaminaRegenPerSec = 4;
