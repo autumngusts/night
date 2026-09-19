@@ -197,7 +197,7 @@
       // event_rulebook.js:857-858「融合する命」：聖杯瓶でHPが回復するPCは、同じだけFPも
       // 回復する。（midnight.js commitFlaskHeal() 已實作，2026-09-15改走統一的恩寵欄位。）
       id: "fused_life",
-      name: C("融合する命", "融合之命"),
+      name: C("融合する命", "融合的生命"),
       src: "event_rulebook.js:857 襲撃・兆し",
       legacyField: "_fusedLife",
     },

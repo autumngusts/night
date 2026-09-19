@@ -158,6 +158,19 @@ callers.forEach(([file, re]) => {
   ok(unknown.length === 0, file + " が使う恩寵id " + found.size + "件はすべて graces.js に実在" + (unknown.length ? "（未定義: " + unknown.join(", ") + "）" : ""));
 });
 
+console.log("[名前が規則原文と一致するか]");
+// 恩寵の名稱は規則書本文（event_rulebook.js／fields_data_*.js）に「」付きで必ず出てくる。
+// ここがずれていても実行時エラーにはならず、ただ画面の表示が規則書と食い違うだけなので
+// 気づけない——実際、統合時に「融合する命」の中国語名が原文の「融合的生命」ではなく
+// 「融合之命」になっていたのを、この照合で見つけた（2026-09-19に修正）。
+const ruleText = ["event_rulebook.js", "fields_data_1.js", "fields_data_2.js", "fields_data_3.js", "fields_data_4.js"]
+  .map((f) => fs.readFileSync(path.resolve(__dirname, "..", "..", "static_src", f), "utf8"))
+  .join("\n");
+G.list().forEach((g) => {
+  ok(ruleText.indexOf("「" + g.name.ja + "」") !== -1, g.id + " の日本語名「" + g.name.ja + "」が規則原文にある");
+  ok(ruleText.indexOf("「" + g.name.zh + "」") !== -1, g.id + " の中国語名「" + g.name.zh + "」が規則原文にある");
+});
+
 console.log("[腐れ森の恩寵の獲得判定]");
 // fields_data_4.js:2268「PCの代表ひとりが1Dする。出目が『5以上』だった場合は獲得。
 // 『4以下』ならこのフロアには無く、このフィールド以外で発生したとき出目を『+2』（累積）」。
