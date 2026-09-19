@@ -11282,10 +11282,11 @@
   // 保護，避免多裝置同時偵測到「10秒到了」而重複抽選。查不到（例如選了沒有規則書編號的
   // 自訂劇本）就整體放棄，不硬湊（CLAUDE.md §19精神）——保留waitingForDayN stage，交由
   // GM手動處理。
-  // 已知簡化（尚未實作）：規則書extraNotes記載「劇本8、9」的2日目夜之強敵由1日目擲骰值
-  // 直接連動決定（不再重擲，見GmFlow.rollNightBossEntry()的forcedRoll參數／
-  // night_gm_flow.js的NIGHT_BOSS_LINKED_SCENARIOS），這裡day2固定重新擲一次1D，沒有
-  // 套用連動規則——影響範圍僅限劇本8、9，其餘8個劇本行為正確。
+  // 規則書extraNotes「※シナリオ8とシナリオ9の連動」（2026-09-19接入）：この2劇本だけは
+  // 2日目の夜之強敵を1日目の擲骰値そのままで決め、振り直さない。
+  // 1日目に実際に採用された出目を meta/nightBossRollDay1 に残し、2日目は GmFlow の
+  // forcedRoll へ渡す。判定用の劇本リストは night_gm_flow.js の
+  // NIGHT_BOSS_LINKED_SCENARIOS を参照する（[8,9]を2箇所に書かない）。
   function rollAndAssignFinalCircleBoss(dayIndex, pointId, phaseInfo) {
     if (fieldTriggers[pointId]) return;
     var GmFlow = window.PriTestNightGmFlow;
@@ -11299,7 +11300,15 @@
     // 2026-09-13使用者明確規格：查不到劇本對應的表／擲不出結果／名稱對不到敵人時，
     // 一律亂數退回（見randomEnemyMatchFallback()開頭的完整說明）。原本這三個放棄點會讓
     // 縮圈跑完後永遠卡在waitingForDay2/3，第二天／第三天完全不會開始。
-    var rolled = row ? GmFlow.rollNightBossEntry(row, dayIndex) : null;
+    // 劇本8・9の2日目は1日目の出目を流用する（振り直さない）。1日目の記録がまだ
+    // 届いていない場合だけは通常どおり振る——ここで止めると縮圈後に永久に待たされるため
+    // （既存の「查不到は亂數退回」と同じ、止めないことを優先する方針）。
+    var linkedScenarios = GmFlow.NIGHT_BOSS_LINKED_SCENARIOS || [];
+    var forcedRoll =
+      dayIndex === 2 && scenarioNumber && linkedScenarios.indexOf(scenarioNumber) !== -1 && meta && meta.nightBossRollDay1
+        ? meta.nightBossRollDay1
+        : undefined;
+    var rolled = row ? GmFlow.rollNightBossEntry(row, dayIndex, forcedRoll) : null;
     var parsed = rolled ? GmFlow.extractLevelAndNameTokens(rolled.ja || rolled.zh || "") : { level: 0, nameTokens: [] };
     var nameTokens = parsed.nameTokens.length ? parsed.nameTokens : rolled ? [rolled.ja, rolled.zh].filter(Boolean) : [];
     var match = null;
@@ -11328,7 +11337,15 @@
         participants: participants,
         resolvedAt: now,
       };
-    }).then(function () {
+    }).then(function (committed) {
+      // 1日目の出目を残す（劇本8・9の2日目連動用）。各裝置がそれぞれ別の出目を振っていて、
+      // 実際に採用されたのは上のtransactionに勝った裝置のぶんなので、勝った裝置だけが書く
+      // （resolvedAtが自分のnowと一致するかで判定。負けた側はcurがそのまま返る）。
+      if (dayIndex === 1 && rolled && committed && committed.resolvedAt === now) {
+        GameStorage.rtTransaction(gameId, "cloud", "meta/nightBossRollDay1", function (cur) {
+          return cur === null ? rolled.roll : cur;
+        });
+      }
       GameStorage.rtTransaction(gameId, "cloud", "fieldEnemyHp/" + pointId, function (cur) {
         return cur === null ? enemyRealHpMax({ enemyFamilyId: match.familyId, enemyId: match.enemy.id, level: level }) : cur;
       });

@@ -5515,6 +5515,10 @@
     // 這幾個，不重新寫一套解析規則書格式的邏輯（CLAUDE.md §12：不在多處重複定義同一套規則）。
     resolveNightBossTableRow: resolveNightBossTableRow,
     rollNightBossEntry: rollNightBossEntry,
+    // 規則書extraNotes「※シナリオ8とシナリオ9の連動」。midnight.js の
+    // rollAndAssignFinalCircleBoss() も同じ判定をするので、[8,9]を2箇所に
+    // 書かずここを単一資料來源にする（CLAUDE.md §12）。
+    NIGHT_BOSS_LINKED_SCENARIOS: NIGHT_BOSS_LINKED_SCENARIOS,
     // 2026-09-10 midnight.js優化新增匯出：夜の王〔開場〕〔結局〕敘述純函式版本（見上方
     // resolveNightKingNarrationText()說明），供midnight.js直接傳bossId取用，不重新複製一份
     // worldview.jsの解析邏輯。
