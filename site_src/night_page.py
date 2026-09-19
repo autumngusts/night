@@ -843,6 +843,14 @@ BODY = """    <div class="night-header-row">
           <div id="grace-character-list"></div>
         </div>
 
+        <div class="threat-ref-block">
+          <!-- 場地卡の報酬で得る「シナリオ終了まで続く個人の修正」。恩寵ではないが
+               扱いは同じで、チェックを入れた瞬間から数値効果が実際に効く。 -->
+          <h3 data-i18n="personal_modifier_section_title"></h3>
+          <p class="threat-ref-body" data-i18n="personal_modifier_section_note"></p>
+          <div id="personal-modifier-list"></div>
+        </div>
+
         <div class="actions">
           <button id="btn-bag-drawer-close" type="button" class="primary-btn" data-i18n="close_button"></button>
         </div>

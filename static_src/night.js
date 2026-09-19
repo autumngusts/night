@@ -2221,7 +2221,7 @@
   function processAttributeStatusCharTrigger(characterId, label) {
     var as = state.battle.attributeStatus;
     var key = characterId + "|" + label;
-    var threshold = ATTRIBUTE_STATUS_BASE_THRESHOLD + graceAccumMaxBonus(graceCharacterById(characterId), label);
+    var threshold = ATTRIBUTE_STATUS_BASE_THRESHOLD + accumMaxBonusFor(graceCharacterById(characterId), label);
     if (isAttributeStatusElementLabel(label)) {
       var value = (as.received[characterId] && as.received[characterId][label]) || 0;
       var prevCount = as.charTriggerCount[key] || 0;
@@ -4313,6 +4313,87 @@
   }
 
   // 恩寵「山嶺の恩寵」：「凍傷」の蓄積最大値を「+4」（＝トリガー閾値が上がる＝なりにくい）。
+  // ============================================================
+  // 場地卡の報酬による「シナリオ終了まで続く個人の修正」
+  // ============================================================
+  // 恩寵ではないが寿命と扱いは同じ（獲得したらシナリオ終了まで、PC個人につく）。
+  // 今のところ規則書にあるのは1件だけなので、専用モジュールは作らずここに表を置く。
+  // 増えたらこの配列に足すだけでUIにも効果にも反映される。
+  //   ailment/delta … その状態異常の「蓄積最大値」への加算（＝トリガー閾値が動く）。
+  //                    山嶺の恩寵の「凍傷+4」とまったく同じ注入点を共有する。
+  var PERSONAL_MODIFIERS = [
+    {
+      id: "madness_accum_max_down",
+      // fields_data_4.js:2207「シナリオ終了まで『発狂』の蓄積最大値-2」（「立ち去る」を選んだPC）
+      src: "fields_data_4.js:2207",
+      labelKey: "personal_modifier_madness_accum_max_down",
+      ailment: "発狂",
+      delta: -2,
+    },
+  ];
+
+  function personalAccumMaxBonus(c, label) {
+    if (!c || !c.personalModifiers) return 0;
+    var total = 0;
+    PERSONAL_MODIFIERS.forEach(function (m) {
+      if (m.ailment !== label) return;
+      if (c.personalModifiers[m.id]) total += m.delta;
+    });
+    return total;
+  }
+
+  // 恩寵由来と場地卡報酬由来をまとめた「蓄積最大値」の加算。
+  function accumMaxBonusFor(c, label) {
+    return graceAccumMaxBonus(c, label) + personalAccumMaxBonus(c, label);
+  }
+
+  function renderPersonalModifierList() {
+    var container = document.getElementById("personal-modifier-list");
+    if (!container) return;
+    container.innerHTML = "";
+    var entered = rosterCharacters.filter(function (c) {
+      return c.entered;
+    });
+    if (!entered.length) {
+      var empty = document.createElement("p");
+      empty.className = "threat-ref-body";
+      empty.textContent = window.I18N.t("event_chip_no_characters_note");
+      container.appendChild(empty);
+      return;
+    }
+    entered.forEach(function (c) {
+      var block = document.createElement("div");
+      block.className = "field-row-block";
+      var nameEl = document.createElement("strong");
+      nameEl.textContent = c.name;
+      block.appendChild(nameEl);
+      PERSONAL_MODIFIERS.forEach(function (m) {
+        var label = document.createElement("label");
+        label.className = "wb-row";
+        var cb = document.createElement("input");
+        cb.type = "checkbox";
+        cb.checked = !!(c.personalModifiers && c.personalModifiers[m.id]);
+        cb.addEventListener("change", function () {
+          if (!c.personalModifiers) c.personalModifiers = {};
+          if (cb.checked) c.personalModifiers[m.id] = true;
+          else delete c.personalModifiers[m.id];
+          addLog(cb.checked ? "log_personal_modifier_granted" : "log_personal_modifier_revoked", {
+            character: c.name,
+            modifier: window.I18N.t(m.labelKey),
+          });
+          saveRosterCharacters();
+          renderPersonalModifierList();
+        });
+        label.appendChild(cb);
+        var text = document.createElement("span");
+        text.textContent = window.I18N.t(m.labelKey);
+        label.appendChild(text);
+        block.appendChild(label);
+      });
+      container.appendChild(block);
+    });
+  }
+
   function graceAccumMaxBonus(c, label) {
     var Graces = window.PriTestGraces;
     if (!Graces || !c || label !== "凍傷" || !Graces.has(c, "mountain_peak")) return 0;
@@ -4407,6 +4488,7 @@
       });
       container.appendChild(block);
     });
+    renderPersonalModifierList();
   }
 
   // 恩寵「夜に刻まれし癒えぬ傷」（graces.js unhealing_wound／event_rulebook.js:817-818）：
