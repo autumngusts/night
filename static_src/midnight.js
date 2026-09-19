@@ -18250,6 +18250,25 @@
   var NEAR_DEATH_REVIVAL_PROXIMITY_RADIUS = 1.5; // 不在同一場戰鬥時，靠近多近才能施放復歸傷害（沿用SPIRIT_BIRD_ACTIVATE_RADIUS同量級）
   var WANDERING_BLESSING_STANDARD_COUNT = 3; // 標準模式的流浪祝福總格數
 
+  // 恩寵「隠れ都の恩寵」（fields_data_4.js:3804）：「さまよう祝福」の上限を+1する。
+  // 使用者明確規格（2026-09-19）「流浪祝福，night midnight 自動套用」。midnightの流浪祝福は
+  // meta（隊伍共有）の資源なので、入場中の誰か1人でも恩寵を持っていれば+1する
+  //（規則書では「PC全員が獲得」する恩寵なので、人数ぶん増えるものではない）。
+  function wanderingBlessingTotal() {
+    var bonus = 0;
+    var Graces = window.PriTestGraces;
+    if (Graces) {
+      var ids = Object.keys(characters || {});
+      for (var i = 0; i < ids.length; i++) {
+        if (Graces.has(characters[ids[i]], GRACE_HIDDEN_CITY)) {
+          bonus = graceValue(GRACE_HIDDEN_CITY, "wanderingBlessingMaxBonus") || 0;
+          break;
+        }
+      }
+    }
+    return WANDERING_BLESSING_STANDARD_COUNT + bonus;
+  }
+
   function nearDeathRequiredValue(tokenId) {
     var count = (characters[tokenId] && characters[tokenId].revivalCount) || 0;
     return count >= 2 ? 120 : count === 1 ? 90 : 60;
@@ -18407,7 +18426,7 @@
     var consumed = false;
     return GameStorage.rtTransaction(gameId, "cloud", "meta/wanderingBlessingUsed", function (cur) {
       var used = cur || 0;
-      if (used >= WANDERING_BLESSING_STANDARD_COUNT) {
+      if (used >= wanderingBlessingTotal()) {
         consumed = false;
         return cur;
       }
@@ -18666,11 +18685,12 @@
       el2.textContent = window.I18N.t("midnight_wandering_blessing_unlimited_note");
       return;
     }
-    var remain = Math.max(0, WANDERING_BLESSING_STANDARD_COUNT - (meta.wanderingBlessingUsed || 0));
+    var wbTotal = wanderingBlessingTotal();
+    var remain = Math.max(0, wbTotal - (meta.wanderingBlessingUsed || 0));
     el2.textContent =
       window.I18N.t("midnight_wandering_blessing_label") +
       window.I18N.t("colon_separator") +
-      window.I18N.t("midnight_wandering_blessing_value", { remain: remain, total: WANDERING_BLESSING_STANDARD_COUNT });
+      window.I18N.t("midnight_wandering_blessing_value", { remain: remain, total: wbTotal });
   }
 
   // 遊戲失敗彈窗：meta.gameFailurePending為true時全員都看得到，見switchToUnlimitedMode()。

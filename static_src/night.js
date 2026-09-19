@@ -3586,7 +3586,7 @@
   }
 
   function renderWanderingBlessing() {
-    var extraCount = Math.max(0, Math.min(3, state.wanderingBlessingExtraCount || 0));
+    var extraCount = Math.max(0, Math.min(3, (state.wanderingBlessingExtraCount || 0) + graceWanderingBlessingBonus()));
     ["base", "extra"].forEach(function (which) {
       for (var i = 0; i < 3; i++) {
         var cb = document.getElementById("wb-" + which + "-" + i);
@@ -3706,6 +3706,52 @@
     if (!Graces.value("hidden_city", "revivedRestoreAllUses", "night")) return;
     c.abilityUses = {};
     addLog("log_grace_hidden_city_revive", { character: c.name });
+  }
+
+  // entryがそのPCの「アーツ」かどうか（type.artsに含まれるか）。
+  function isArtEntryForGrace(c, entry) {
+    if (!c || !entry || !entry.id) return false;
+    var type = c.typeId ? CharacterTypes.get(c.typeId) : null;
+    return !!(
+      type &&
+      (type.arts || []).some(function (a) {
+        return a.id === entry.id;
+      })
+    );
+  }
+
+  // 恩寵「大ルーンの虚像」の但し書き（fields_data_3.js:2624-2627）：「葬儀屋」ではないPCは、
+  // それぞれ自身のアーツを1ターンの間に1回しか使用できない。使用者明確規格（2026-09-19）
+  //「night 一回合只能一回」＝「戰鬥→額外→防禦」で1回合（docs/combat_flow_rules.md）。
+  // 旗標 _artUsedThisRound は、setActionPhase()がcombatへ新規突入したとき＝新しい回合の
+  // 開始時に落とす（屬性異常の charRoundLocked とまったく同じ寿命）。
+  function graceArtOncePerRoundLocked(c, entry) {
+    var Graces = window.PriTestGraces;
+    if (!Graces || !c || !Graces.has(c, "great_rune_mirage")) return false;
+    if (!Graces.value("great_rune_mirage", "nonUndertakerOncePerTurn", "night")) return false;
+    if (!isArtEntryForGrace(c, entry)) return false;
+    var type = c.typeId ? CharacterTypes.get(c.typeId) : null;
+    var baseId = type ? type.id.replace(/_dark$|_dawn$/, "") : null;
+    if (baseId === "undertaker") return false; // 葬儀屋は但し書きの対象外
+    return !!c._artUsedThisRound;
+  }
+
+  function markArtUsedThisRound(c, entry) {
+    if (isArtEntryForGrace(c, entry)) c._artUsedThisRound = true;
+  }
+
+  // 恩寵「隠れ都の恩寵」（fields_data_4.js:3804）：「さまよう祝福」の上限を+1する。
+  // 使用者明確規格（2026-09-19）「流浪祝福，night midnight 自動套用」＝GMが手で数える
+  // のではなく、恩寵を持つPCが入場していれば自動で1枠開く。既存の
+  // state.wanderingBlessingExtraCount（GM手動、0〜3）とはこの関数の中で合算し、
+  // 「額外」チェックボックスの総数3枠を超えないようクランプする。
+  function graceWanderingBlessingBonus() {
+    var Graces = window.PriTestGraces;
+    if (!Graces) return 0;
+    var has = rosterCharacters.some(function (c) {
+      return c.entered && Graces.has(c, "hidden_city");
+    });
+    return has ? Graces.value("hidden_city", "wanderingBlessingMaxBonus", "night") || 0 : 0;
   }
 
   // 恩寵「大空洞の恩寵」（fields_data_4.js:3613）：「聖杯瓶の使用回数の残量が0になった
@@ -3881,7 +3927,7 @@
   // 不會再變回false（同一局遊戲內失敗狀態不可逆）。
   function recomputeGameFailedEasyMode() {
     if (state.gameFailedEasyMode) return;
-    var extraCount = Math.max(0, Math.min(3, state.wanderingBlessingExtraCount || 0));
+    var extraCount = Math.max(0, Math.min(3, (state.wanderingBlessingExtraCount || 0) + graceWanderingBlessingBonus()));
     var pool = 3 + extraCount;
     var checked = (state.wanderingBlessing.base || []).filter(Boolean).length;
     checked += (state.wanderingBlessing.extra || []).slice(0, extraCount).filter(Boolean).length;
@@ -3902,7 +3948,7 @@
   // 不做——即使已經處於gameFailedEasyMode，救起本身仍然照常發生（呼叫端負責），只是不會
   // 再消耗流浪祝福格子。
   function consumeNextWanderingBlessingSlot() {
-    var extraCount = Math.max(0, Math.min(3, state.wanderingBlessingExtraCount || 0));
+    var extraCount = Math.max(0, Math.min(3, (state.wanderingBlessingExtraCount || 0) + graceWanderingBlessingBonus()));
     var base = state.wanderingBlessing.base;
     for (var i = 0; i < base.length; i++) {
       if (!base[i]) {
@@ -5925,6 +5971,7 @@
           if (entry.uses && entry.id) {
             if (!c.abilityUses) c.abilityUses = {};
             c.abilityUses[entry.id] = Math.max(0, (remaining !== null ? remaining : effectiveMax) - 1);
+            markArtUsedThisRound(c, entry);
           }
         });
       } else if (isActive && entry.id === "eye_for_value") {
@@ -5958,6 +6005,7 @@
               if (entry.uses && entry.id) {
                 if (!c.abilityUses) c.abilityUses = {};
                 c.abilityUses[entry.id] = Math.max(0, (remaining !== null ? remaining : effectiveMax) - 1);
+            markArtUsedThisRound(c, entry);
               }
               var familyId = enemySelect.value.split("|")[0];
               var Enemies = window.PriTestEnemies;
@@ -6008,6 +6056,7 @@
             if (entry.uses && entry.id) {
               if (!c.abilityUses) c.abilityUses = {};
               c.abilityUses[entry.id] = Math.max(0, (remaining !== null ? remaining : effectiveMax) - 1);
+            markArtUsedThisRound(c, entry);
             }
             var restageLines = [window.I18N.t("action_log_dice_used", { dice: dice.join("、") })].concat(costLines);
             var restageDamageBoost = CharacterDrawer.findLearnedRelicEffectByName(c, ["技能強化（損害增加）", "スキル強化（損害増加）"]);
@@ -6031,6 +6080,7 @@
           if (entry.uses && entry.id) {
             if (!c.abilityUses) c.abilityUses = {};
             c.abilityUses[entry.id] = Math.max(0, (remaining !== null ? remaining : effectiveMax) - 1);
+            markArtUsedThisRound(c, entry);
           }
           // 淑女「終曲」と同じく、次の防禦フェイズを跨いで持続するbattle全体のフラグを立てる
           // （防禦フェイズを抜けたタイミングでリセットされる。setActionPhase参照）。
@@ -6272,6 +6322,7 @@
             if (entry.uses && entry.id) {
               if (!c.abilityUses) c.abilityUses = {};
               c.abilityUses[entry.id] = Math.max(0, (remaining !== null ? remaining : effectiveMax) - 1);
+            markArtUsedThisRound(c, entry);
             }
             var inquiryNote;
             if (inquiryChoice === "bonus_dice") {
@@ -6534,6 +6585,7 @@
           if (entry.uses && entry.id) {
             if (!c.abilityUses) c.abilityUses = {};
             c.abilityUses[entry.id] = Math.max(0, (remaining !== null ? remaining : effectiveMax) - 1);
+            markArtUsedThisRound(c, entry);
           }
           if (isOncePerTurn) {
             if (!c._entryUsedThisTurn) c._entryUsedThisTurn = {};
@@ -8707,6 +8759,8 @@
       var effectiveMax = entry.uses ? entry.uses + usesBonus : null;
       var remaining =
         effectiveMax !== null ? (typeof (c.abilityUses && c.abilityUses[entry.id]) === "number" ? c.abilityUses[entry.id] : effectiveMax) : null;
+      // 恩寵「大ルーンの虚像」：葬儀屋以外はこの回合すでにアーツを使っていれば残量0扱い。
+      if (remaining !== null && graceArtOncePerRoundLocked(c, entry)) remaining = 0;
       var btn = document.createElement("button");
       btn.type = "button";
       btn.className = "combat-attack-hit-btn";
@@ -12385,6 +12439,10 @@
     // 異常側の「今回合すでに發動した」ロックを解除する（屬性側は回合をまたいで蓄積を持ち越す）。
     if (phase === "combat" && state.actionPhase !== "combat") {
       resetAttributeStatusRoundLocks();
+      // 恩寵「大ルーンの虚像」の「1ターンに1回」も回合単位なので、同じ時機で解除する。
+      rosterCharacters.forEach(function (rc) {
+        rc._artUsedThisRound = false;
+      });
       // ガード回数はアクションフェイズ開始時に最大値まで回復する（docs/enemy_damage_rules.md
       // 5.5節）。stateには「現在値」だけを保持し、未設定＝最大値扱いにフォールバックする
       // 設計（enemyCurrentGuardCount）なので、新しい回合の開始時はここを空にするだけでよい。
