@@ -159,7 +159,9 @@
       frostbiteAccumMaxBonus: 4,
       frostbiteDamageReduce: { night: 1, midnight: 10 },
       staminaDiceFace: 3,
-      blizzardVisionImmune: true,
+      // 「吹雪の視界」を無効化する、という関係は field_rules.js の
+      // blizzard_vision.negatedByGraceId 側に一本化した（両側に書くと片方だけ直して
+      // 食い違うため）。ここには持たない。
     },
     {
       // fields_data_4.js:3613「大空洞の恩寵」：追加ルール「結晶の呪気」を無効化。
@@ -168,7 +170,8 @@
       id: "great_cavern",
       name: C("大空洞の恩寵", "大空洞的恩寵"),
       src: "fields_data_4.js:3613 大空洞",
-      crystalCurseImmune: true,
+      // 「結晶の呪気」を無効化する関係も同じく field_rules.js の
+      // crystal_curse.negatedByGraceId 側に一本化した。
       artsRecoverOnFlaskEmpty: 1,
     },
     {

@@ -3971,7 +3971,9 @@
   }
 
   function lostHiddenCityTarget() {
-    return enteredPartySize() + 8;
+    var FR = window.PriTestFieldRules;
+    var offset = (FR && FR.value("lost_hidden_city", "targetPartySizeOffset")) || 0;
+    return enteredPartySize() + offset;
   }
 
   function lostHiddenCityRequiredSuccesses() {
@@ -4206,9 +4208,14 @@
   // 角色の技能／技藝は規則書の列挙に無いので止めない。
   // 特殊攻撃（跳躍/衝刺/蓄力/致命）は既存実装がそもそも近接武器＝前衛限定なので、
   // 後衛では元から使えず、ここで追加の制限はいらない。
-  function blizzardVisionBlocksEnemyAction(c) {
+  // kind: "attack"（エネミーを対象とするアタック）／"skill"（武器由来の戦技・魔術・祈祷）。
+  // どちらを禁じるかは field_rules.js の backRowCannotAttack／backRowCannotUseSkill に従う
+  //（規則書が片方だけを禁じる追加ルールが出てきても、データだけで表現できるようにする）。
+  function blizzardVisionBlocksEnemyAction(c, kind) {
     var FR = window.PriTestFieldRules;
     if (!FR || !c || !currentFieldHasRule("blizzard_vision")) return false;
+    var flag = kind === "skill" ? "backRowCannotUseSkill" : "backRowCannotAttack";
+    if (!FR.value("blizzard_vision", flag)) return false;
     if (getCharacterBattlePosition(c) !== "back") return false;
     var Graces = window.PriTestGraces;
     var negateId = FR.value("blizzard_vision", "negatedByGraceId");
@@ -4614,7 +4621,8 @@
     var Graces = window.PriTestGraces;
     if (!Graces || !Graces.has(c, "cold_mirage")) return false;
     c.hp.current = Graces.value("cold_mirage", "survivalHp", "night") || 1;
-    Graces.revoke(c, "cold_mirage");
+    // 「代わりにこの恩寵を失う」かどうかは graces.js の consumedOnTrigger に従う。
+    if (Graces.value("cold_mirage", "consumedOnTrigger", "night")) Graces.revoke(c, "cold_mirage");
     saveRosterCharacters();
     addLog("log_grace_cold_mirage_trigger", { character: c.name, value: c.hp.current });
     return true;
@@ -5528,7 +5536,7 @@
       var charPos = getCharacterBattlePosition(c);
       var posOk = !posRestriction || posRestriction === charPos;
       // 追加ルール「吹雪の視界」：後衛は遠距離武器であってもアタックできない。
-      var blizzardBlockedAttack = blizzardVisionBlocksEnemyAction(c);
+      var blizzardBlockedAttack = blizzardVisionBlocksEnemyAction(c, "attack");
       if (blizzardBlockedAttack) posOk = false;
 
       var row = document.createElement("div");
@@ -6603,7 +6611,7 @@
       var charPos = getCharacterBattlePosition(c);
       var posOk = !posRestriction || posRestriction === charPos;
       // 追加ルール「吹雪の視界」：後衛は武器由来のスキル（戦技／魔術／祈祷）を使えない。
-      var blizzardBlockedSkill = weaponSkillEntries.indexOf(entry) !== -1 && blizzardVisionBlocksEnemyAction(c);
+      var blizzardBlockedSkill = weaponSkillEntries.indexOf(entry) !== -1 && blizzardVisionBlocksEnemyAction(c, "skill");
       if (blizzardBlockedSkill) posOk = false;
       if (blizzardBlockedSkill) appendBlizzardVisionLabel(row);
       if (posRestriction) {

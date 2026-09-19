@@ -6403,11 +6403,6 @@
     grantGraceToTokens([tokenId], graceId);
   }
 
-  function revokeGraceFromToken(tokenId, graceId) {
-    var Graces = window.PriTestGraces;
-    if (Graces && characters[tokenId]) Graces.revoke(characters[tokenId], graceId);
-    GameStorage.rtSet(gameId, "cloud", "character/" + tokenId + "/graces/" + graceId, null);
-  }
 
   // 恩寵「祝福王の恩寵」（event_rulebook.js:826-827）的加成值。規則書原文是
   // 「+(aの2倍)」、a＝本劇本內用於「祝福での休息」的祝福數；midnight 依使用者明確規格
@@ -18415,7 +18410,10 @@
       }).then(function (committed) {
         if (committed === null) {
           // RTDB側はtransactionで消し済み。ローカル物件（舊旗標も含む）も落としておく。
-          if (window.PriTestGraces) window.PriTestGraces.revoke(c, GRACE_COLD_MIRAGE);
+          // 「代わりにこの恩寵を失う」かどうかは graces.js の consumedOnTrigger に従う。
+          if (window.PriTestGraces && graceValue(GRACE_COLD_MIRAGE, "consumedOnTrigger")) {
+            window.PriTestGraces.revoke(c, GRACE_COLD_MIRAGE);
+          }
           GameStorage.rtSet(gameId, "cloud", "demoStat/" + tokenId, survivalHp);
           if (tokenId === myTokenId) showToast(window.I18N.t("midnight_grace_cold_mirage_toast", { name: graceName(GRACE_COLD_MIRAGE), hp: survivalHp }));
           return;
@@ -19154,7 +19152,9 @@
   function maybeApplyIceBlizzardTick(now) {
     // 恩寵「山嶺の恩寵」：このフィールドの追加ルール「吹雪の視界」の効果が失われる
     //（fields_data_4.js:2895）。既に目隠し中に獲得した場合もその場で解除する。
-    if (hasGrace(characters[myTokenId], GRACE_MOUNTAIN_PEAK) && graceValue(GRACE_MOUNTAIN_PEAK, "blizzardVisionImmune")) {
+    var FR = window.PriTestFieldRules;
+    var blizzardNegateGraceId = FR ? FR.value("blizzard_vision", "negatedByGraceId") : null;
+    if (blizzardNegateGraceId && hasGrace(characters[myTokenId], blizzardNegateGraceId)) {
       iceBlizzardNextBlindAt = null;
       iceBlizzardBlindUntil = 0;
       return;

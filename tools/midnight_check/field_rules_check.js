@@ -124,7 +124,7 @@ rules
 rules.forEach((r) => {
   const checks = r.checks || (r.check ? [r.check] : []);
   checks.forEach((c, i) => {
-    const hasTarget = typeof c.target === "number" || !!r.targetFormula;
+    const hasTarget = typeof c.target === "number" || typeof r.targetPartySizeOffset === "number";
     ok(hasTarget && !!c.stat, r.id + " の判定" + (i + 1) + " は目標値と能力が揃っている");
   });
 });
@@ -208,7 +208,7 @@ rules.forEach((r) => {
     ok(VALID_STATS.indexOf(chk.stat) !== -1, r.id + " の判定能力 " + chk.stat + " は checkValues のキー");
     const type = CharacterTypes.get(sampleTypeId);
     ok(typeof (type.checkValues || {})[chk.stat] === "number", r.id + " の " + chk.stat + " が実際のキャラ種別で引ける");
-    if (typeof chk.target !== "number") return; // 迷いの隠れ都は目標値が式（PC人数+8）
+    if (typeof chk.target !== "number") return; // 迷いの隠れ都は目標値がPC人数依存
     const res = AutoGm.resolveSavingThrow(
       { stat: chk.stat, targetByCondition: [{ condition: { kind: "default" }, target: chk.target }] },
       fakeRoster,
@@ -232,7 +232,7 @@ rules
 // 迷いの隠れ都だけは目標値が式なので、固定targetを持っていないことを明示的に確認する
 //（うっかり11を固定値として入れ直すと、PC人数が3人以外のとき規則と食い違う）。
 const LHC = FR.get("lost_hidden_city");
-ok(LHC.targetFormula === "partySize+8", "迷いの隠れ都の目標値は式 partySize+8");
+ok(LHC.targetPartySizeOffset === 8, "迷いの隠れ都の目標値は PC人数+8（加算値としてデータが持つ）");
 ok(
   LHC.checks.every((c) => typeof c.target !== "number"),
   "迷いの隠れ都の各判定に固定目標値が残っていない"
@@ -290,13 +290,17 @@ ok(
   "武器由来スキルを別に取り出している"
 );
 ok(
-  /weaponSkillEntries\.indexOf\(entry\) !== -1 && blizzardVisionBlocksEnemyAction\(c\)/.test(nightSrc),
+  /weaponSkillEntries\.indexOf\(entry\) !== -1 && blizzardVisionBlocksEnemyAction\(c, "skill"\)/.test(nightSrc),
   "スキル側は武器由来のentryだけを封じている（角色の技能／技藝は止めない）"
 );
-// 定義行（function 宣言）を除いた呼び出し回数＝アタックとスキルの2箇所。
+// アタック側とスキル側で、それぞれ対応する旗標を読ませていること。
 ok(
-  (nightSrc.match(/(?<!function )blizzardVisionBlocksEnemyAction\(c\)/g) || []).length === 2,
-  "アタックとスキルの2箇所で判定している"
+  /blizzardVisionBlocksEnemyAction\(c, "attack"\)/.test(nightSrc) && /blizzardVisionBlocksEnemyAction\(c, "skill"\)/.test(nightSrc),
+  "アタックとスキルを別々に判定している"
+);
+ok(
+  /kind === "skill" \? "backRowCannotUseSkill" : "backRowCannotAttack"/.test(nightSrc),
+  "禁止対象は field_rules.js の旗標から引いている"
 );
 
 console.log("[⑪ 迷いの隠れ都のタイムロス判定]");
@@ -317,7 +321,10 @@ ok(
 );
 // night.js 側：成功数はGM入力で、割り当ては自動化していないこと。
 ok(/lost-hidden-city-successes/.test(nightSrc), "成功した種類数はGM入力（割り当ては自動化しない）");
-ok(/function lostHiddenCityTarget/.test(nightSrc) && /enteredPartySize\(\) \+ 8/.test(nightSrc), "目標値をPC人数+8で算出している");
+ok(
+  /function lostHiddenCityTarget/.test(nightSrc) && /targetPartySizeOffset/.test(nightSrc),
+  "目標値はPC人数＋データの加算値で算出している（コードに8を直書きしない）"
+);
 ok(/successes >= required/.test(nightSrc), "必要成功数に達したらタイムロスを課さない");
 
 console.log(fail === 0 ? "\n=== 全テスト通過 ===" : "\n=== 失敗 " + fail + " 件 ===");

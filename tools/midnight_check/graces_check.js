@@ -98,6 +98,11 @@ ok(G.value("beast_hunt", "diceFaceFrom", "night") === 2 && G.value("beast_hunt",
 ok(G.value("beast_hunt", "nope", "night") === null, "未定義キーは null");
 
 console.log("[場地卡由来の数値]");
+// 無効化の関係を確かめるために field_rules.js も読み込む。
+vm.runInContext(fs.readFileSync(path.resolve(__dirname, "..", "..", "static_src", "field_rules.js"), "utf8"), sandbox, {
+  filename: "field_rules.js",
+});
+const FRforNegate = sandbox.window.PriTestFieldRules;
 // 「□」の個数がそのまま格数（既存前例 midnight.js lowHpThreshold の「規則書の□□□＝3」）。
 // 最大HP/FPの加算は「格」単位のまま（midnight側で ×10 されるので二重に掛けない）。
 ok(G.value("rotten_forest", "maxHpBonus", "night") === 2, "腐れ森 最大HP+□□=+2格");
@@ -107,9 +112,12 @@ ok(G.value("mountain_peak", "frostbiteAccumMaxBonus", "night") === 4, "山嶺 �
 ok(G.value("mountain_peak", "frostbiteDamageReduce", "night") === 1, "山嶺 凍傷HP損害軽減 night=1");
 ok(G.value("mountain_peak", "frostbiteDamageReduce", "midnight") === 10, "山嶺 凍傷HP損害軽減 midnight=10");
 ok(G.value("mountain_peak", "staminaDiceFace", "night") === 3, "山嶺 追加スタミナダイス=骰子點數3");
-ok(G.value("mountain_peak", "blizzardVisionImmune", "night") === true, "山嶺 吹雪の視界を無効化");
+// 「この恩寵がこの追加ルールを無効化する」という関係は field_rules.js の
+// negatedByGraceId 側に一本化してある（両側に旗標を置くと片方だけ直して食い違うため）。
+// ここでは恩寵側から見て、その宣言がちゃんと自分を指しているかを確かめる。
+ok(FRforNegate.value("blizzard_vision", "negatedByGraceId") === "mountain_peak", "山嶺 吹雪の視界を無効化");
 ok(G.value("great_cavern", "artsRecoverOnFlaskEmpty", "night") === 1, "大空洞 聖杯瓶0でアーツ+1回復");
-ok(G.value("great_cavern", "crystalCurseImmune", "night") === true, "大空洞 結晶の呪気を無効化");
+ok(FRforNegate.value("crystal_curse", "negatedByGraceId") === "great_cavern", "大空洞 結晶の呪気を無効化");
 ok(G.value("hidden_city", "wanderingBlessingMaxBonus", "night") === 1, "隠れ都 さまよう祝福の上限+1");
 ok(G.value("hidden_city", "revivedMaxHpBonus", "night") === 1, "隠れ都 蘇生後 最大HP+□=+1格");
 ok(G.value("hidden_city", "revivedMaxFpBonus", "night") === 1, "隠れ都 蘇生後 最大FP+□=+1格");

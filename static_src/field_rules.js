@@ -152,7 +152,9 @@
       kind: "ailmentAccum",
       ailment: "凍傷",
       check: null,
-      persistsAfterCombat: true,
+      // 「戦闘が終了しても蓄積値がなくならない」は kind:"ailmentAccum" の10種すべてに
+      // 共通する規則なので、個別の旗標は持たない（night.js の
+      // fieldRuleCarriedReceivedAccum() が kind で判定している）。
       clearsOnLeaveUnlessSameRule: true,
     },
 
@@ -270,8 +272,9 @@
       detect: "迷いの隠れ都",
       kind: "checkTimeLoss",
       // 原文の〈11｜…〉は「X＝PC人数+8」の例示（PC3人なら11）。固定値ではないので
-      // 目標値は式として持つ。
-      targetFormula: "partySize+8",
+      // 「PC人数への加算値」として持ち、night.js はこれを読んで目標値を組み立てる
+      //（式を文字列で持つと結局コード側に同じ式を書くことになり、二重管理になる）。
+      targetPartySizeOffset: 8,
       checks: [{ stat: "luck" }, { stat: "physical" }, { stat: "mental" }],
       // 成功数がこの閾値「未満」ならタイムロス。PC人数をキーに引く。
       requiredSuccesses: { 1: 1, 2: 1, 3: 2, 4: 3 },
