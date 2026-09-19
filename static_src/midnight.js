@@ -1277,6 +1277,53 @@
   // 的情況才會由系統自動收尾。刻意不沿用分歧投票的10秒——那個時限是規則書明確規定的
   // 「意見不一致的等待時間」，語意不同，10秒對讀獎勵內容也太短。
   var SHARED_REWARD_ACTION_TIMEOUT_MS = 45000;
+
+  // 隨機事件の「全員が判定し終えるまで次段へ進まない」ゲートの無人動作保険
+  // （2026-09-19）。共享池獎勵（maybeSetSharedRewardDeadlines／
+  // maybeResolveSharedRewardVote、2026-09-12）で確立した「transactionでdeadlineを
+  // 決め、逾時したら現状のまま先へ進める」をそのまま流用する。
+  //
+  // なぜ要るか：席は切断では解放されない（接手にはパスワードが要る、見performTakeover()）。
+  // currentlySeatedSlots() は players[slot] が真かどうかしか見ないので、参加者が1人
+  // 離線しただけで seatedSlots.every(...) が永久に false のままになり、その隨機事件は
+  // 次段へ進めなくなる——共享池獎勵で実際に報告された「板塊に卡死」とまったく同じ経路。
+  // 規則書に時限の規定は無いので、これは純粋な防卡死であり、通常の遊玩では踏まない長さ
+  // （SHARED_REWARD_ACTION_TIMEOUT_MSと同じ45秒）にしてある。
+  var STAGE_GATE_TIMEOUT_MS = SHARED_REWARD_ACTION_TIMEOUT_MS;
+
+  // 本地節流。共享池獎勵側は boolean だが、こちらは「同じ点を後で再訪して trig が
+  // 作り直されたとき、deadline が消えているのに本地旗標だけ立ったままで二度と
+  // 送り直さない」のを避けるため時刻で持つ（一定間隔で再送できる＝自己修復する）。
+  var stageGateDeadlineSentAt = {}; // pointId+"|"+gateKey -> 最後にtransactionを送った時刻
+  var STAGE_GATE_DEADLINE_RETRY_MS = 3000;
+
+  // 逾時したか。deadlineが未設定なら「最初に見た装置」がtransactionで決める
+  // （first-writer-wins、maybeSetFieldVoteDeadline()と同じ書き方）。
+  function stageGateTimedOut(pointId, gateKey) {
+    var trig = fieldTriggers[pointId];
+    if (!trig) return false;
+    var deadline = (trig.stageDeadlines || {})[gateKey];
+    if (typeof deadline !== "number") {
+      var localKey = pointId + "|" + gateKey;
+      var now = Date.now();
+      if (stageGateDeadlineSentAt[localKey] && now - stageGateDeadlineSentAt[localKey] < STAGE_GATE_DEADLINE_RETRY_MS) return false;
+      stageGateDeadlineSentAt[localKey] = now;
+      GameStorage.rtTransaction(gameId, "cloud", "fieldTrigger/" + pointId + "/stageDeadlines/" + gateKey, function (cur) {
+        return cur === null ? now + STAGE_GATE_TIMEOUT_MS : cur;
+      });
+      return false;
+    }
+    return Date.now() >= deadline;
+  }
+
+  // 同じゲートをもう一巡やり直す場合（発狂地帯の塔1離脱失敗など）に呼ぶ。
+  // 消さずに残すと、前の巡回で切れたdeadlineがそのまま効いて「待たずに即逾時」になる。
+  function clearStageGateDeadline(pointId, gateKey) {
+    delete stageGateDeadlineSentAt[pointId + "|" + gateKey];
+    var trig = fieldTriggers[pointId];
+    if (!trig || typeof (trig.stageDeadlines || {})[gateKey] !== "number") return;
+    GameStorage.rtSet(gameId, "cloud", "fieldTrigger/" + pointId + "/stageDeadlines/" + gateKey, null);
+  }
   // 2026-09-06數值真正接入：敵人HP不再用demo佔位固定值30，改成「實際hp格數x10」
   // （見enemyRealHpMax()，讀enemies_data_*.jsのfamily.base[level-1].hp既有格數字串）。
   // 找不到資料（極少數缺漏或尚未指派敵人）時才退回這個保底值，避免顯示0/0。
@@ -13070,13 +13117,17 @@
   }
 
   // 全員都跑完①之後才開放②（規則書「成否に関わらず、次へ進む」）。
-  function mistRiftSoloAllDone(trig) {
+  // 他の3つの隨機事件ゲートと違ってこれは描画側（②のボタンを出すかどうか）だが、
+  // 詰まり方は同じ——離線者が1人いると②のボタンが永久に出ない。同じ逾時で開放する。
+  function mistRiftSoloAllDone(pt, trig) {
     var seated = currentlySeatedSlots();
     if (!seated.length) return false;
     var map = trig.mistSolo || {};
-    return seated.every(function (slot) {
+    var allDone = seated.every(function (slot) {
       return map[slot] !== undefined && map[slot] !== null;
     });
+    if (allDone) return true;
+    return stageGateTimedOut(pt.id, "mistSolo");
   }
 
   function handleMistRiftTeamCheckClick(pt) {
@@ -13141,7 +13192,7 @@
     // 自己跑完了，等其他人；全員跑完才開放第二段協力判定。
     el("midnight-random-event-text").textContent = window.I18N.t("midnight_random_event_mist_rift_dragon_desc");
     resultEl.textContent = window.I18N.t("midnight_random_event_mist_rift_solo_result", { successes: mySolo });
-    if (!mistRiftSoloAllDone(trig)) {
+    if (!mistRiftSoloAllDone(pt, trig)) {
       actionBtn.hidden = true;
       return;
     }
@@ -14021,7 +14072,9 @@
     var allAttempted = seatedSlots.length > 0 && seatedSlots.every(function (slot) {
       return !!attemptedMap[slot];
     });
-    if (!allAttempted) return;
+    // 離線者がいると allAttempted が永久に false になるため、逾時したら現状のまま進める
+    // （規則書も「成否を問わず次へ移る」なので、未判定者がいても先へ進めて問題ない）。
+    if (!allAttempted && !stageGateTimedOut(pt.id, "insectGround")) return;
     insectGroundStageAdvanceAttempted[pt.id] = true; // 送出transaction前先設旗標，同maybeAdvanceNightForceRound()既有idiom
     GameStorage.rtTransaction(gameId, "cloud", "fieldTrigger/" + pt.id + "/groundBugsOutcome", function (cur) {
       return cur ? cur : "done";
@@ -14054,7 +14107,9 @@
     var allAttempted = seatedSlots.length > 0 && seatedSlots.every(function (slot) {
       return !!attemptedMap[slot];
     });
-    if (!allAttempted) return;
+    // 逾時時は未判定者を「成功していない」として数える（規則書の多數決は成功者数で
+    // 見るので、判定していない人は成功に数えない＝そのままで規則どおり）。
+    if (!allAttempted && !stageGateTimedOut(pt.id, "insectChase")) return;
     insectChaseStageAdvanceAttempted[pt.id] = true; // 送出transaction前先設旗標，同maybeAdvanceNightForceRound()既有idiom
     var results = trig.chaseResults || {};
     var successCount = 0;
@@ -14193,6 +14248,9 @@
       // attempted被清空（塔1離開失敗、回到madFire重來一輪，見上方欄位註解）：重置旗標，
       // 讓下一輪全員判定完成時仍能送出推進transaction。
       madnessStageAdvanceAttempted[key] = false;
+      // 前の巡回で切れたdeadlineを消しておく。残したままだと次の巡回が
+      // 「誰も判定していないのに即逾時」になってしまう。
+      clearStageGateDeadline(pt.id, "madness:" + stage);
       return;
     }
     if (madnessStageAdvanceAttempted[key]) return; // review指摘修正：已送過一次transaction，等RTDB回顯前不重送
@@ -14200,7 +14258,8 @@
     var allAttempted = seatedSlots.length > 0 && seatedSlots.every(function (slot) {
       return !!attemptedMap[slot];
     });
-    if (!allAttempted) return;
+    // 規則書は「成否に関わらず次へ進む」なので、逾時したら未判定者がいても進める。
+    if (!allAttempted && !stageGateTimedOut(pt.id, "madness:" + stage)) return;
     madnessStageAdvanceAttempted[key] = true; // 送出transaction前先設旗標，同maybeAdvanceNightForceRound()既有idiom
     GameStorage.rtTransaction(gameId, "cloud", "fieldTrigger/" + pt.id + "/madnessStage", function (cur) {
       return cur === stage ? nextStage : cur;
