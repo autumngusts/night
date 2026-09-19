@@ -356,7 +356,10 @@
                         { kind: "consumable", perPerson: true, value: 2 },
                         {
                           kind: "note",
-                          note: C("（行為判定失敗時は「タイムロス：1」も手動記録）", "（行為判定失敗時，也手動記錄「時間損耗：1」）"),
+                          note: C(
+                            "（行為判定に失敗した場合のみ「タイムロス：1」。成否はアプリが持たないのでGMが時間損耗軌道へ手動で記入）",
+                            "（僅在行為判定失敗時「時間損耗：1」。成敗結果App並未保存，請GM手動記入時間損耗軌道）"
+                          ),
                         },
                       ],
                     },
@@ -1046,11 +1049,8 @@
                         { kind: "rune", value: 2 },
                         { kind: "weaponStar", value: 2 },
                         { kind: "consumable", perPerson: true, value: 2 },
-                        {
-                          kind: "talisman",
-                          value: 1,
-                          note: C("（「タイムロス：1」も手動記録）", "（「時間損耗：1」也需手動記錄）"),
-                        },
+                        { kind: "talisman", value: 1 },
+                        { kind: "timeLoss", value: 1 },
                       ],
                     },
                   ],
@@ -1327,11 +1327,9 @@
                       rewards: [
                         {
                           kind: "note",
-                          note: C(
-                            "（PC1人ランダムに一度死亡して復帰、「タイムロス：1」を手動記録）",
-                            "（隨機1名PC視為死亡1次後復歸，手動記錄「時間損耗：1」）"
-                          ),
+                          note: C("（PC1人ランダムに一度死亡して復帰。復帰の処理はGMが手動で行う）", "（隨機1名PC視為死亡1次後復歸。復歸處理由GM手動進行）"),
                         },
+                        { kind: "timeLoss", value: 1 },
                       ],
                     },
                   ],

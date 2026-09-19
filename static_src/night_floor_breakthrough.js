@@ -41,6 +41,15 @@
   // index === "start"/"end"（盤外の板塊）の場合は、そのまま役割で決まる
   // （出發地點＝a_start、終點＝a_golden。スート比較は板塊にのみ必要な曖昧さで、
   // 起點/終點自体は役割が固定なので不要）。
+  // 「タイムロス：N」の付与。addTimeLoss は威脅効果／夜雨の段が新たに進んだときの
+  // 公告文字を返すので、その場で表示まで行う（防禦階段開始時の自動付与と同じ扱い）。
+  function applyTimeLossReward(value) {
+    var Core = window.PriTestNightCore;
+    if (!Core || !Core.addTimeLoss || !value) return;
+    var messages = Core.addTimeLoss(value) || [];
+    if (messages.length && Core.showThreatBroadcast) Core.showThreatBroadcast(messages);
+  }
+
   function resolveFieldEntryForSlot(index) {
     var Fields = window.PriTestFields;
     if (index === "start" || index === "end") {
@@ -479,6 +488,14 @@
       markAutoResolved(floorKey, entryIndex);
       return true;
     }
+    // 「タイムロス：N」：hpDamageと違って対象を選ぶ必要がない隊伍全体の即時効果。
+    // 受け取り待ちの報酬（turnReward）ではなくその場で確定するので、こちらの経路に置く。
+    if (entry.kind === "timeLoss") {
+      applyTimeLossReward(entry.value);
+      window.PriTestNightLog("log_floor_reward_time_loss", { value: entry.value });
+      markAutoResolved(floorKey, entryIndex);
+      return true;
+    }
     if (entry.kind === "tieredChoice") {
       var routeLabels = (window.PriTestNightCore.state.gmFlow && window.PriTestNightCore.state.gmFlow.pendingFloorEndRouteLabels) || [];
       var autoTierIndex = matchTieredChoiceTierIndex(entry.tiers, routeLabels);
@@ -907,6 +924,34 @@
         select.appendChild(o);
       });
       return select;
+    }
+
+    if (entry.kind === "timeLoss") {
+      var tlRow = document.createElement("div");
+      tlRow.className = "wb-row";
+      var tlLabel = document.createElement("span");
+      tlLabel.className = "threat-ref-body";
+      tlLabel.textContent = window.I18N.t("floor_reward_time_loss_label", { value: entry.value }) + noteText;
+      tlRow.appendChild(tlLabel);
+      var tlBtn = document.createElement("button");
+      tlBtn.type = "button";
+      tlBtn.textContent = window.I18N.t("floor_reward_apply_time_loss_button");
+      if (isAlreadyObtained()) {
+        tlBtn.disabled = true;
+        tlBtn.classList.add("field-reward-obtained");
+      }
+      tlBtn.addEventListener("click", function () {
+        applyTimeLossReward(entry.value);
+        window.PriTestNightLog("log_floor_reward_time_loss", { value: entry.value });
+        window.PriTestNightCore.markFloorRewardObtained(
+          tlBtn,
+          window.I18N.t("log_floor_reward_time_loss", { value: entry.value }),
+          obtainedStateKey()
+        );
+      });
+      tlRow.appendChild(tlBtn);
+      container.appendChild(tlRow);
+      return;
     }
 
     if (entry.kind === "hpDamage") {

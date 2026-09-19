@@ -16133,6 +16133,10 @@
     buildEncounterSummaryText: buildEncounterSummaryText,
     buildBossTable: buildBossTable,
     markFloorRewardObtained: markFloorRewardObtained,
+    // 場地卡の報酬 kind:"timeLoss"（night_floor_breakthrough.js）から呼ぶ。
+    // 威脅効果／夜雨の段が進んだときの公告文字も一緒に出せるよう showThreatBroadcast も公開する。
+    addTimeLoss: addTimeLoss,
+    showThreatBroadcast: showThreatBroadcast,
     // 「フロア踏破するごとに」が契機の追加ルール（溶岩／朱い腐敗の瘴気）を
     // night_gm_flow.js の踏破確定処理から呼べるよう公開する。
     applyFieldRulesOnFloorCleared: applyFieldRulesOnFloorCleared,
