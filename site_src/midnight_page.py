@@ -1434,6 +1434,7 @@ def build_midnight_html() -> str:
             "talismans.js",
             "consumables.js",
             "graces.js",
+            "field_rules.js",
             "character_drawer.js",
             "event_rulebook.js",
             "night_floor_breakthrough.js",

@@ -1250,6 +1250,7 @@ def build_night_html() -> str:
             "talismans.js",
             "consumables.js",
             "graces.js",
+            "field_rules.js",
             "character_drawer.js",
             "night_bosses.js",
             "night_boss_rulebook.js",

@@ -343,6 +343,7 @@ def build_characters_html() -> str:
             "talismans.js",
             "consumables.js",
             "graces.js",
+            "field_rules.js",
             "character_drawer.js",
             "characters.js",
         ),
