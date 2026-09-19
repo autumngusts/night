@@ -79,6 +79,8 @@ STRINGS_JA: dict[str, str] = {
     "floor_field_rules_done_note": "このフロアでは適用済み：{rules}",
     "log_field_rule_check": "追加ルール「{rule}」：{character} の{stat}判定 出目 {dice}（計{sum}／目標{target}）→ {result}。",
     "log_field_rule_hp_delta": "追加ルール「{rule}」：{character} のHPが {value} 変動した。",
+    "log_field_rule_floor_accum": "追加ルール「{rule}」：フロア踏破により {character} に「{label}：{value}」が蓄積した。",
+    "log_field_rule_accum_cleared": "フィールドを移動したため、追加ルール由来の蓄積（{labels}）がクリアされた。",
     "growing_presence_undecided": "未決定",
     "growing_presence_accum_option": "「{label}」の蓄積 +1",
     "growing_presence_heal_option": "「癒し」の力が渦巻く（HP回復）",

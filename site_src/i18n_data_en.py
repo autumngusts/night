@@ -79,6 +79,8 @@ STRINGS_EN: dict[str, str] = {
     "floor_field_rules_done_note": "Already applied on this floor: {rules}",
     "log_field_rule_check": "Field rule \"{rule}\": {character}'s {stat} check rolled {dice} (total {sum} / target {target}) - {result}.",
     "log_field_rule_hp_delta": "Field rule \"{rule}\": {character}'s HP changed by {value}.",
+    "log_field_rule_floor_accum": "Field rule \"{rule}\": clearing the floor gave {character} \"{label}: {value}\".",
+    "log_field_rule_accum_cleared": "Moving to another field cleared the field-rule buildup ({labels}).",
     "growing_presence_undecided": "Undecided",
     "growing_presence_accum_option": "\"{label}\" buildup +1",
     "growing_presence_heal_option": "Healing power swirls (HP recovery)",

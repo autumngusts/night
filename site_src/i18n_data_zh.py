@@ -79,6 +79,8 @@ STRINGS_ZH: dict[str, str] = {
     "floor_field_rules_done_note": "此樓層已套用：{rules}",
     "log_field_rule_check": "追加規則「{rule}」：{character} 的{stat}判定 出目 {dice}（合計{sum}／目標{target}）→ {result}。",
     "log_field_rule_hp_delta": "追加規則「{rule}」：{character} 的HP變動 {value}。",
+    "log_field_rule_floor_accum": "追加規則「{rule}」：因樓層踏破，{character} 累積了「{label}：{value}」。",
+    "log_field_rule_accum_cleared": "因移動場地，追加規則造成的累積（{labels}）已清除。",
     "growing_presence_undecided": "未決定",
     "growing_presence_accum_option": "「{label}」累積 +1",
     "growing_presence_heal_option": "「治癒」之力渦巻（HP回復）",

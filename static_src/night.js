@@ -1100,6 +1100,7 @@
     resonantCrystalCount: 0, // 追加ルール「結晶の呪気」を緩和する「共鳴する結晶」の獲得数（GM手動）
     growingPresenceVariantId: null, // 追加ルール「増大する気配」決定表の確定結果（null＝未決定）
     floorFieldRulesApplied: {}, // 追加ルールをフロア描写時に適用済みのキー（"スロット|フロア"）
+    floorClearedFieldRulesApplied: {}, // 追加ルールをフロア踏破時に適用済みのキー
     // 使用者確認（2026-09-01）：當「所有」流浪祝福格子（基本3格＋額外已取得格數）都被勾滿時，
     // 視同全滅、判定遊戲失敗，但遊戲不中斷——改為顯示這個旗標驅動的紅字通知，並繼續進行
     // （簡單模式）。一旦為true就不會再變回false（同一局遊戲內失敗狀態不可逆）。
@@ -1343,6 +1344,7 @@
       resonantCrystalCount: state.resonantCrystalCount,
       growingPresenceVariantId: state.growingPresenceVariantId,
       floorFieldRulesApplied: state.floorFieldRulesApplied,
+      floorClearedFieldRulesApplied: state.floorClearedFieldRulesApplied,
       gameFailedEasyMode: state.gameFailedEasyMode,
       rollEffects: state.rollEffects,
       smithingStone: state.smithingStone,
@@ -1436,6 +1438,7 @@
     state.resonantCrystalCount = snap.resonantCrystalCount || 0;
     state.growingPresenceVariantId = snap.growingPresenceVariantId || null;
     state.floorFieldRulesApplied = snap.floorFieldRulesApplied || {};
+    state.floorClearedFieldRulesApplied = snap.floorClearedFieldRulesApplied || {};
     state.gameFailedEasyMode = !!snap.gameFailedEasyMode;
     state.rollEffects = snap.rollEffects;
     state.smithingStone = snap.smithingStone;
@@ -2448,6 +2451,7 @@
       state.resonantCrystalCount = Math.max(0, Number(data.resonantCrystalCount) || 0);
       state.growingPresenceVariantId = data.growingPresenceVariantId || null;
       state.floorFieldRulesApplied = data.floorFieldRulesApplied || {};
+      state.floorClearedFieldRulesApplied = data.floorClearedFieldRulesApplied || {};
       state.gameFailedEasyMode = !!data.gameFailedEasyMode;
       state.rollEffects = loadRollEffects(data.rollEffects);
       state.smithingStone = typeof data.smithingStone === "string" ? data.smithingStone : "";
@@ -2809,6 +2813,7 @@
     state.resonantCrystalCount = 0;
     state.growingPresenceVariantId = null;
     state.floorFieldRulesApplied = {};
+    state.floorClearedFieldRulesApplied = {};
     state.gameFailedEasyMode = false;
     state.rollEffects = defaultRollEffects();
     state.smithingStone = "";
@@ -3735,15 +3740,16 @@
   // 規則原文は fields_data_*.js の branch.specialRule が単一資料來源。ここは
   //「今いるフィールドにどの追加ルールが効いているか」を引くだけ。
   // ============================================================
-  function currentFieldSpecialRule() {
+  function fieldSpecialRuleForSlot(idx) {
     var FB = window.PriTestNightFloorBreakthrough;
-    if (!FB || state.focusedIndex === null || state.focusedIndex === undefined) return null;
-    var card = FB.resolveFieldEntryForSlot(state.focusedIndex);
+    if (!FB || idx === null || idx === undefined) return null;
+    var card = FB.resolveFieldEntryForSlot(idx);
     if (!card || !card.branches) return null;
     // specialRule は branch 単位。GMフローで分岐が確定していればその分岐を優先し、
     // 未確定なら最初に specialRule を持つ分岐を見る（同一カードの分岐は同じ追加ルール）。
     var walk = state.gmFlow && state.gmFlow.walk;
     if (
+      idx === state.focusedIndex &&
       walk &&
       typeof walk.branchIndex === "number" &&
       card.branches[walk.branchIndex] &&
@@ -3755,6 +3761,22 @@
       if (card.branches[i].specialRule) return card.branches[i].specialRule;
     }
     return null;
+  }
+
+  function currentFieldSpecialRule() {
+    return fieldSpecialRuleForSlot(state.focusedIndex);
+  }
+
+  // 指定スロットの追加ルールのうち「状態異常を溜め続ける」系の対象異常名を集める。
+  function fieldRuleAilmentsForSlot(idx) {
+    var FR = window.PriTestFieldRules;
+    var out = {};
+    if (!FR) return out;
+    FR.detect(fieldSpecialRuleForSlot(idx)).forEach(function (id) {
+      var r = FR.get(id);
+      if (r && r.kind === "ailmentAccum" && r.ailment) out[r.ailment] = id;
+    });
+    return out;
   }
 
   function currentFieldHasRule(ruleId) {
@@ -4006,6 +4028,97 @@
     renderCharacterRoster();
     renderAttributeStatusList();
     renderFloorFieldRulesNote();
+  }
+
+  // 戦闘終了時の全消去（setActionPhaseのcombatEnd）から守る蓄積を抜き出す。
+  // 現在地の追加ルールが対象にしている異常だけが対象。
+  function fieldRuleCarriedReceivedAccum() {
+    var as = state.battle.attributeStatus;
+    if (!as || !as.received) return {};
+    var labels = fieldRuleAilmentsForSlot(state.focusedIndex);
+    var out = {};
+    Object.keys(as.received).forEach(function (cid) {
+      Object.keys(as.received[cid] || {}).forEach(function (label) {
+        if (!labels[label]) return;
+        if (!out[cid]) out[cid] = {};
+        out[cid][label] = as.received[cid][label];
+      });
+    });
+    return out;
+  }
+
+  // フィールドを離れるときの解除（規則書）：
+  //  ・蓄積系8種 …「このフィールドから別のフィールドへ移動する」とクリア（無条件）
+  //  ・朱い腐敗の瘴気／凍てつく吹雪 …「移動先に同じルールが無ければ解除」
+  // 蓄積の「効果が発揮されたらクリア」のほうは既存の processAttributeStatusCharTrigger が
+  // すでに0へ戻しているので、ここでは移動時だけを扱う。
+  function clearFieldRuleAccumOnLeave(fromPos, toPos) {
+    var FR = window.PriTestFieldRules;
+    var as = state.battle && state.battle.attributeStatus;
+    if (!FR || !as || !as.received || fromPos === toPos) return;
+    var fromLabels = fieldRuleAilmentsForSlot(fromPos);
+    var toLabels = fieldRuleAilmentsForSlot(toPos);
+    var cleared = [];
+    Object.keys(fromLabels).forEach(function (label) {
+      var r = FR.get(fromLabels[label]);
+      // 移動先にも同じ追加ルールがあるなら、そのルールは解除しない指定のものだけ残す。
+      if (r && r.clearsOnLeaveUnlessSameRule && toLabels[label] === fromLabels[label]) return;
+      Object.keys(as.received).forEach(function (cid) {
+        if (!as.received[cid] || !as.received[cid][label]) return;
+        as.received[cid][label] = 0;
+        if (cleared.indexOf(label) === -1) cleared.push(label);
+      });
+    });
+    if (!cleared.length) return;
+    // 「今回合すでに發動した」ロックも一緒に解除しないと、クリア後に溜め直しても
+    // 発動しないまま残ってしまう。
+    as.charRoundLocked = {};
+    as.charTriggerCount = {};
+    addLog("log_field_rule_accum_cleared", { labels: cleared.join("、") });
+    saveState();
+    renderAttributeStatusList();
+  }
+
+  // 「フロア踏破するごとに」が契機の追加ルール（溶岩／朱い腐敗の瘴気）。
+  // night_gm_flow.js の markFloorCleared()／markFreeFloorCleared() から呼ばれる。
+  // 同じフロアで二重に適用しないよう、スロット＋フロアのキーで記録する。
+  function applyFieldRulesOnFloorCleared(slotIndex, floorKey) {
+    var FR = window.PriTestFieldRules;
+    if (!FR) return;
+    var key = String(slotIndex) + "|" + floorKey;
+    if (state.floorClearedFieldRulesApplied[key]) return;
+    var ids = FR.detect(fieldSpecialRuleForSlot(slotIndex)).filter(function (id) {
+      var r = FR.get(id);
+      return r && (r.kind === "floorDamage" || (r.kind === "ailmentAccum" && r.onFloorCleared));
+    });
+    if (!ids.length) return;
+    state.floorClearedFieldRulesApplied[key] = true;
+    ids.forEach(function (id) {
+      var r = FR.get(id);
+      var ruleName = FR.localizedText(r.name);
+      rosterCharacters.forEach(function (c) {
+        if (!c.entered) return;
+        if (r.kind === "floorDamage") {
+          // 溶岩：「PC全員は無条件で『HP損害：■』を受ける」。判定は無い。
+          var hp = FR.value(id, "hpDamage", "night") || 0;
+          if (!hp) return;
+          applyFieldRuleHpDelta(c, -hp);
+          addLog("log_field_rule_hp_delta", { rule: ruleName, character: c.name, value: hp });
+          return;
+        }
+        // 朱い腐敗の瘴気：「PC全員に『腐敗：1D-1（最低値0）』が蓄積する」。
+        var spec = r.onFloorCleared;
+        var total = 0;
+        for (var i = 0; i < (spec.dice || 0); i++) total += 1 + Math.floor(Math.random() * 6);
+        var amount = Math.max(spec.min || 0, total + (spec.modifier || 0));
+        addLog("log_field_rule_floor_accum", { rule: ruleName, character: c.name, label: r.ailment, value: amount });
+        if (amount) addReceivedAttributeStatus(c.id, r.ailment, amount);
+      });
+    });
+    saveState();
+    saveRosterCharacters();
+    renderCharacterRoster();
+    renderAttributeStatusList();
   }
 
   function renderResonantCrystalCount() {
@@ -13139,7 +13252,12 @@
       clearEnemyDamageActionBoxes();
       // 戦闘終了時、敵人への屬性/異常蓄積・亂戰傷害修正値も残留させず全消去する
       // （次の戦闘で選ばれる敵人と無関係の古いデータが残り続けるのを防ぐ）。
+      // ただし追加ルール（field_rules.js）が効いているフィールドでは、その異常だけは
+      // 規則書が「戦闘が終了しても蓄積値がなくならない」と明記しているのでPC側の蓄積を
+      // 持ち越す（血病の風／眠りの丘／各種沼／朱い腐敗の瘴気／凍てつく吹雪はいずれも同文）。
+      var carriedFieldRuleAccum = fieldRuleCarriedReceivedAccum();
       state.battle.attributeStatus = defaultBattleState().attributeStatus;
+      state.battle.attributeStatus.received = carriedFieldRuleAccum;
       state.battle.enemyDmgOverride = {};
       // 使用者確認（再裁定）：戰鬥結束は一般HP行のみで判定するようになったため（項目1裁定の
       // 撤回）、雜兵HP（state.battle.mobHpRows）は戰鬥終了時点でHPが残っていても放置せず、
@@ -15625,6 +15743,7 @@
     if (window.PriTestNightGmFlow && typeof fromPos === "number" && fromPos !== toPos) {
       window.PriTestNightGmFlow.invalidatePendingFloorSkip(fromPos);
     }
+    clearFieldRuleAccumOnLeave(fromPos, toPos);
     state.focusedIndex = toPos;
     // 追加ルール「結晶の呪気」は「このフィールドに存在する限り」なので、移動が確定した
     // この瞬間に最大HPを引き直す。ここは通常移動・登攀・靈脈チットの全経路が通る
@@ -15821,6 +15940,9 @@
     buildEncounterSummaryText: buildEncounterSummaryText,
     buildBossTable: buildBossTable,
     markFloorRewardObtained: markFloorRewardObtained,
+    // 「フロア踏破するごとに」が契機の追加ルール（溶岩／朱い腐敗の瘴気）を
+    // night_gm_flow.js の踏破確定処理から呼べるよう公開する。
+    applyFieldRulesOnFloorCleared: applyFieldRulesOnFloorCleared,
     openItemDrawModal: openItemDrawModal,
     openWeaponSkillRerollModal: openWeaponSkillRerollModal,
     finalizeSlotMove: finalizeSlotMove,

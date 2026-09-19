@@ -621,6 +621,8 @@
       state.cardLevels[slotIndex] = clearedCount;
       if (Core.renderCardLevel) Core.renderCardLevel(slotIndex);
     }
+    // 路線自由カードの踏破も同じ契機（上のmarkFloorClearedと対）。
+    if (Core.applyFieldRulesOnFloorCleared) Core.applyFieldRulesOnFloorCleared(slotIndex, "p" + position);
     return arr;
   }
 
@@ -647,6 +649,10 @@
   function markFloorCleared(slotIndex, floorCount, floorIndex) {
     var arr = getFloorCleared(slotIndex, floorCount);
     if (floorIndex >= 0 && floorIndex < arr.length) arr[floorIndex] = true;
+    // 追加ルール「溶岩」「朱い腐敗の瘴気」は「フロア踏破するごとに」が契機
+    // （night.js 側で同じフロアの二重適用を防いでいる）。
+    var Core = window.PriTestNightCore;
+    if (Core && Core.applyFieldRulesOnFloorCleared) Core.applyFieldRulesOnFloorCleared(slotIndex, "f" + floorIndex);
     return arr;
   }
 

@@ -238,5 +238,40 @@ ok(
   "迷いの隠れ都の各判定に固定目標値が残っていない"
 );
 
+console.log("[⑨ フロア踏破契機と離脱時の解除]");
+// 溶岩：判定なしで「HP損害：■」＝1格。
+ok(FR.get("lava").kind === "floorDamage" && FR.value("lava", "hpDamage", "night") === 1, "溶岩はフロア踏破ごとにHP損害1格");
+ok(!FR.get("lava").check, "溶岩に行為判定は無い（無条件）");
+// 朱い腐敗の瘴気：「腐敗：1D-1（最低値0）」＝取りうる値は 0〜5。
+const CRM = FR.get("crimson_rot_miasma").onFloorCleared;
+ok(CRM.dice === 1 && CRM.modifier === -1 && CRM.min === 0, "朱い腐敗の瘴気は 1D-1（最低値0）");
+const outcomes = [1, 2, 3, 4, 5, 6].map((d) => Math.max(CRM.min, d + CRM.modifier));
+ok(outcomes[0] === 0 && outcomes[5] === 5, "出目1→0、出目6→5");
+ok(
+  outcomes.every((v) => v >= 0),
+  "最低値0を下回らない"
+);
+// 離脱時の解除条件：規則書で「移動先に同じルールが無ければ解除」と書かれているのは
+// 朱い腐敗の瘴気と凍てつく吹雪だけ。ほかの蓄積系は無条件でクリアされる。
+const condClear = rules
+  .filter((r) => r.clearsOnLeaveUnlessSameRule)
+  .map((r) => r.id)
+  .sort();
+ok(
+  JSON.stringify(condClear) === JSON.stringify(["crimson_rot_miasma", "freezing_blizzard"]),
+  "条件付き解除は朱い腐敗の瘴気／凍てつく吹雪のみ（実際: " + condClear.join(", ") + "）"
+);
+rules
+  .filter((r) => r.kind === "ailmentAccum" && r.check)
+  .forEach((r) => {
+    ok(!r.clearsOnLeaveUnlessSameRule, r.id + " は移動で無条件にクリアされる");
+  });
+// night.js が踏破フックを公開し、GMフローから呼ばれていること（外れても例外は出ない）。
+const nightSrc = fs.readFileSync(path.resolve(root, "static_src/night.js"), "utf8");
+const flowSrc = fs.readFileSync(path.resolve(root, "static_src/night_gm_flow.js"), "utf8");
+ok(/applyFieldRulesOnFloorCleared: applyFieldRulesOnFloorCleared/.test(nightSrc), "night.js が踏破フックを公開している");
+ok((flowSrc.match(/applyFieldRulesOnFloorCleared\(/g) || []).length === 2, "GMフローの踏破確定2箇所から呼ばれている");
+ok(/state\.battle\.attributeStatus\.received = carriedFieldRuleAccum/.test(nightSrc), "戦闘終了の全消去から追加ルール由来の蓄積を守っている");
+
 console.log(fail === 0 ? "\n=== 全テスト通過 ===" : "\n=== 失敗 " + fail + " 件 ===");
 process.exit(fail === 0 ? 0 : 1);
