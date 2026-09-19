@@ -207,9 +207,24 @@
       detect: "増大する気配",
       kind: "accumPlus",
       accumBonus: 1,
-      variants: [
-        { id: "swirl", name: C("渦巻く", "漩渦"), hpHeal: { night: 1, midnight: 10 } },
-        { id: "surge", name: C("逆巻く", "逆捲"), hpDamage: { night: 1, midnight: 10 } },
+      // 「増大する気配決定表」（fields_data_3.js:2337-2351）。ダイス2個で、片方の奇偶と
+      // もう片方の出目の組み合わせから1つだけ決まり、以後シナリオ終了まで変わらない。
+      // 表の文言そのものは fields_data 側が持つ（ここで再録しない）。持つのはアプリが
+      // 効果を適用するために要る値だけ：
+      //   note ※1 … accumLabel の属性/状態異常の蓄積が常に+1（1Hitでも2Hitでも+1）
+      //   note ※2 … フロア描写の直後、アクションフェイズ開始時にHP回復／HP損害
+      // accumLabel は表では「毒」と書かれているが、アプリ内の正式ラベルは「猛毒」。
+      decisionTable: [
+        { id: "flame", parity: "odd", faces: [1], note: "※1", accumLabel: "炎" },
+        { id: "holy", parity: "odd", faces: [2], note: "※1", accumLabel: "聖" },
+        { id: "magic", parity: "odd", faces: [3], note: "※1", accumLabel: "魔" },
+        { id: "lightning", parity: "odd", faces: [4], note: "※1", accumLabel: "雷" },
+        { id: "poison", parity: "odd", faces: [5], note: "※1", accumLabel: "猛毒" },
+        { id: "rot", parity: "odd", faces: [6], note: "※1", accumLabel: "腐敗" },
+        { id: "frostbite", parity: "even", faces: [1], note: "※1", accumLabel: "凍傷" },
+        { id: "bleed", parity: "even", faces: [2], note: "※1", accumLabel: "出血" },
+        { id: "heal_swirl", parity: "even", faces: [3, 4], note: "※2", hpHeal: { night: 1, midnight: 10 } },
+        { id: "heal_surge", parity: "even", faces: [5, 6], note: "※2", hpDamage: { night: 1, midnight: 10 } },
       ],
     },
 
@@ -309,9 +324,32 @@
     return v === undefined ? null : v;
   }
 
+  // 「増大する気配決定表」の1行を id で引く（決まった1つだけが有効）。
+  function variant(ruleId, variantId) {
+    var r = BY_ID[ruleId];
+    if (!r || !r.decisionTable || !variantId) return null;
+    for (var i = 0; i < r.decisionTable.length; i++) {
+      if (r.decisionTable[i].id === variantId) return r.decisionTable[i];
+    }
+    return null;
+  }
+
+  // モード別の数値をvariantから引く（value()のvariant版）。
+  function variantValue(ruleId, variantId, key, mode) {
+    var v = variant(ruleId, variantId);
+    if (!v) return null;
+    var x = v[key];
+    if (x && typeof x === "object" && !(x instanceof Array) && ("night" in x || "midnight" in x)) {
+      return x[mode === "midnight" ? "midnight" : "night"];
+    }
+    return x === undefined ? null : x;
+  }
+
   window.PriTestFieldRules = {
     list: list,
     get: get,
+    variant: variant,
+    variantValue: variantValue,
     detect: detect,
     has: has,
     value: value,

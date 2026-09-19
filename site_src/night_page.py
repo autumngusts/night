@@ -790,6 +790,13 @@ BODY = """    <div class="night-header-row">
             <span id="resonant-crystal-count-label" class="level-value"></span>
             <button type="button" class="level-btn" id="btn-resonant-crystal-plus">&plus;</button>
           </div>
+          <!-- 追加ルール「増大する気配」（static_src/field_rules.js growing_presence）は
+               「増大する気配決定表」で最初に1つ決め、以後シナリオ終了まで変わらない。
+               表そのものは場地卡の資料欄に出るので、ここではGMがその結果を選ぶだけ。 -->
+          <div class="field-row-block">
+            <label data-i18n="growing_presence_label"></label>
+            <select id="growing-presence-select"></select>
+          </div>
         </div>
 
         <div class="threat-ref-block">

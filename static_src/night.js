@@ -1098,6 +1098,7 @@
     // （基本3格＋這個數字），而不是永遠假設額外3格都已取得。
     wanderingBlessingExtraCount: 0,
     resonantCrystalCount: 0, // 追加ルール「結晶の呪気」を緩和する「共鳴する結晶」の獲得数（GM手動）
+    growingPresenceVariantId: null, // 追加ルール「増大する気配」決定表の確定結果（null＝未決定）
     // 使用者確認（2026-09-01）：當「所有」流浪祝福格子（基本3格＋額外已取得格數）都被勾滿時，
     // 視同全滅、判定遊戲失敗，但遊戲不中斷——改為顯示這個旗標驅動的紅字通知，並繼續進行
     // （簡單模式）。一旦為true就不會再變回false（同一局遊戲內失敗狀態不可逆）。
@@ -1339,6 +1340,7 @@
       wanderingBlessing: state.wanderingBlessing,
       wanderingBlessingExtraCount: state.wanderingBlessingExtraCount,
       resonantCrystalCount: state.resonantCrystalCount,
+      growingPresenceVariantId: state.growingPresenceVariantId,
       gameFailedEasyMode: state.gameFailedEasyMode,
       rollEffects: state.rollEffects,
       smithingStone: state.smithingStone,
@@ -1430,6 +1432,7 @@
     state.wanderingBlessing = snap.wanderingBlessing;
     state.wanderingBlessingExtraCount = snap.wanderingBlessingExtraCount || 0;
     state.resonantCrystalCount = snap.resonantCrystalCount || 0;
+    state.growingPresenceVariantId = snap.growingPresenceVariantId || null;
     state.gameFailedEasyMode = !!snap.gameFailedEasyMode;
     state.rollEffects = snap.rollEffects;
     state.smithingStone = snap.smithingStone;
@@ -2268,6 +2271,9 @@
         value += 1;
       }
     }
+    // 追加ルール「増大する気配」※1：敵側へ与える蓄積も対象（規則書「PC、エネミーから
+    // 発生する」）。上の遺物「屬性蓄積值＋1」とは独立した別の加算源なので素直に足す。
+    value += growingPresenceAccumBonus(label);
     var key = characterId + "|" + enemyKey + "|" + label;
     var as = state.battle.attributeStatus;
     as.dealt[key] = (as.dealt[key] || 0) + value;
@@ -2309,6 +2315,7 @@
   function addReceivedAttributeStatus(characterId, label, value) {
     if (!value) return;
     if (graceBlocksReceivedAilment(graceCharacterById(characterId), label)) return;
+    value += growingPresenceAccumBonus(label); // 追加ルール「増大する気配」※1
     if (!state.battle.attributeStatus) state.battle.attributeStatus = defaultBattleState().attributeStatus;
     var received = state.battle.attributeStatus.received;
     if (!received[characterId]) received[characterId] = {};
@@ -2436,6 +2443,7 @@
       state.wanderingBlessing = loadWanderingBlessing(data.wanderingBlessing);
       state.wanderingBlessingExtraCount = Math.max(0, Math.min(3, Number(data.wanderingBlessingExtraCount) || 0));
       state.resonantCrystalCount = Math.max(0, Number(data.resonantCrystalCount) || 0);
+      state.growingPresenceVariantId = data.growingPresenceVariantId || null;
       state.gameFailedEasyMode = !!data.gameFailedEasyMode;
       state.rollEffects = loadRollEffects(data.rollEffects);
       state.smithingStone = typeof data.smithingStone === "string" ? data.smithingStone : "";
@@ -2795,6 +2803,7 @@
     state.wanderingBlessing = defaultWanderingBlessing();
     state.wanderingBlessingExtraCount = 0;
     state.resonantCrystalCount = 0;
+    state.growingPresenceVariantId = null;
     state.gameFailedEasyMode = false;
     state.rollEffects = defaultRollEffects();
     state.smithingStone = "";
@@ -3790,6 +3799,66 @@
     if (changed && opts && opts.clampCurrent) saveRosterCharacters();
   }
 
+  // 追加ルール「増大する気配」（field_rules.js growing_presence／fields_data_3.js:2552）：
+  //「このフィールドに存在する間、常に下記の効果が発揮される。どの効果が発揮されるかは、
+  // 最初に決定し、以後、シナリオ終了まで変化はない。」——「増大する気配決定表」
+  //（fields_data_3.js:2337、ダイス2個）の結果をGMがここで選び、シナリオ全体で保持する。
+  //
+  // ※1：決まった属性／状態異常が蓄積するとき、通常より1多く蓄積する。
+  //      規則書は「PC、エネミーから発生する〜が蓄積するとき」なので、PCが受ける側
+  //     （addReceivedAttributeStatus）と敵に与える側（recordAttributeStatusDealt）の両方。
+  //     「1Hitでも2Hitでも蓄積する値は+1」なので、蓄積を記録するこの1箇所で足せばよく、
+  //      Hit数ぶん重ねてはいけない。
+  // ※2（フロア描写の直後にHP回復／HP損害）は、状態異常蓄積系の追加ルールとまったく
+  //     同じ「フロアの〔描写〕を確認し終えた直後」が契機なので、そちらと同じ回に接続する。
+  function growingPresenceVariant() {
+    var FR = window.PriTestFieldRules;
+    if (!FR || !state.growingPresenceVariantId) return null;
+    if (!currentFieldHasRule("growing_presence")) return null;
+    return FR.variant("growing_presence", state.growingPresenceVariantId);
+  }
+
+  function growingPresenceAccumBonus(label) {
+    var v = growingPresenceVariant();
+    if (!v || !v.accumLabel || v.accumLabel !== label) return 0;
+    return window.PriTestFieldRules.value("growing_presence", "accumBonus") || 0;
+  }
+
+  // 決定表の各行の表示名。※1は対象の属性/状態異常名そのもの、※2はi18nの文言を使う
+  //（表の原文は fields_data 側が持っているので、ここでは再録しない）。
+  function growingPresenceVariantLabel(v) {
+    if (v.accumLabel) return window.I18N.t("growing_presence_accum_option", { label: v.accumLabel });
+    return window.I18N.t(v.hpHeal ? "growing_presence_heal_option" : "growing_presence_damage_option");
+  }
+
+  function renderGrowingPresenceSelect() {
+    var el = document.getElementById("growing-presence-select");
+    if (!el) return;
+    var FR = window.PriTestFieldRules;
+    var table = (FR && FR.get("growing_presence").decisionTable) || [];
+    el.innerHTML = "";
+    var none = document.createElement("option");
+    none.value = "";
+    none.textContent = window.I18N.t("growing_presence_undecided");
+    el.appendChild(none);
+    table.forEach(function (v) {
+      var o = document.createElement("option");
+      o.value = v.id;
+      o.textContent = v.note + " " + growingPresenceVariantLabel(v);
+      if (state.growingPresenceVariantId === v.id) o.selected = true;
+      el.appendChild(o);
+    });
+  }
+
+  function handleGrowingPresenceChange(value) {
+    state.growingPresenceVariantId = value || null;
+    saveState();
+    renderGrowingPresenceSelect();
+    var FR = window.PriTestFieldRules;
+    var v = FR && FR.variant("growing_presence", state.growingPresenceVariantId);
+    if (v) addLog("log_field_rule_growing_presence", { effect: growingPresenceVariantLabel(v) });
+  }
+
   function renderResonantCrystalCount() {
     var el = document.getElementById("resonant-crystal-count-label");
     if (!el) return;
@@ -4073,6 +4142,7 @@
     renderSmithingStoneCount();
     renderWanderingBlessingExtraCount();
     renderResonantCrystalCount();
+    renderGrowingPresenceSelect();
   }
 
   // 鍛石／石劍鑰匙は自由記述の入力欄を廃止し、＋－ボタンのみでカウントを直接編集する
@@ -16219,6 +16289,9 @@
     });
     document.getElementById("btn-smithing-stone-plus").addEventListener("click", function () {
       adjustSmithingStoneCount(1);
+    });
+    document.getElementById("growing-presence-select").addEventListener("change", function (e) {
+      handleGrowingPresenceChange(e.target.value);
     });
     document.getElementById("btn-resonant-crystal-minus").addEventListener("click", function () {
       adjustResonantCrystalCount(-1);

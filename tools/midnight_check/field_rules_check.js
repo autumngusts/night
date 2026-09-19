@@ -86,7 +86,31 @@ hpKeys.forEach(([id, key]) => {
   const m = FR.value(id, key, "midnight");
   ok(m === n * 10, id + "." + key + " midnight(" + m + ") = night(" + n + ") x10");
 });
-FR.get("growing_presence").variants.forEach((v) => {
+// 「増大する気配決定表」：ダイス2個（奇偶 × 出目1-6）で10行、重複も抜けも無いこと。
+const GP = FR.get("growing_presence").decisionTable;
+ok(GP.length === 10, "増大する気配決定表は10行（実際 " + GP.length + "）");
+const covered = new Set();
+GP.forEach((v) => v.faces.forEach((f) => covered.add(v.parity + ":" + f)));
+ok(covered.size === 12, "奇偶×出目1-6の12通りをすべて覆う（実際 " + covered.size + "）");
+const dup = [];
+const seenFace = new Set();
+GP.forEach((v) =>
+  v.faces.forEach((f) => {
+    const k = v.parity + ":" + f;
+    if (seenFace.has(k)) dup.push(k);
+    seenFace.add(k);
+  })
+);
+ok(dup.length === 0, "同じ出目に2つの効果が割り当たっていない" + (dup.length ? "（重複: " + dup.join(", ") + "）" : ""));
+ok(GP.filter((v) => v.note === "※1").length === 8, "※1（蓄積+1）は8行");
+ok(GP.filter((v) => v.note === "※2").length === 2, "※2（HP回復／HP損害）は2行");
+// ※1 の対象名は night/midnight で実際に使われている正式ラベルであること
+//（表の「毒」→アプリの「猛毒」のような表記ゆれを取りこぼさないため）。
+const VALID_LABELS = ["炎", "聖", "魔", "雷", "猛毒", "腐敗", "凍傷", "出血", "発狂", "睡眠", "呪死"];
+GP.filter((v) => v.accumLabel).forEach((v) => {
+  ok(VALID_LABELS.indexOf(v.accumLabel) !== -1, "※1 の対象「" + v.accumLabel + "」は正式な属性/状態異常ラベル");
+});
+GP.filter((v) => v.hpHeal || v.hpDamage).forEach((v) => {
   const amt = v.hpHeal || v.hpDamage;
   ok(amt.midnight === amt.night * 10, "growing_presence." + v.id + " も 1:10 換算");
 });
