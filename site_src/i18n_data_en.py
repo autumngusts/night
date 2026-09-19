@@ -72,6 +72,8 @@ STRINGS_EN: dict[str, str] = {
     "wandering_blessing_base_label": "Base x3",
     "wandering_blessing_extra_label": "Extra",
     "wandering_blessing_extra_count_label": "Extra slots (from Grace)",
+    "resonant_crystal_label": "Resonant Crystal",
+    "log_field_rule_crystal_curse": "Field rule \"Crystal Curse\": {character}'s max HP dropped, lowering current HP to {value}.",
     "game_failed_easy_mode_banner": "Already failed — continuing in Easy Mode",
     "smithing_stone_label": "Smithing Stone",
     "stonesword_key_label": "Stonesword Key",

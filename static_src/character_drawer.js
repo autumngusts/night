@@ -4013,12 +4013,21 @@
     return total;
   }
 
+  // 場地卡の追加ルール（field_rules.js）由来の最大HP増減。現在地のカードから算出するのは
+  // night.js 側の仕事（_fieldRuleMaxHpDelta に書き込む）で、ここは素通しするだけ——
+  // 恩寵「祝福王」の _graceFlameKingPowerModBonus とまったく同じ分担。
+  function fieldRuleFlatMaxStatBonus(c, statKey) {
+    if (!c || statKey !== "hp") return 0;
+    return c._fieldRuleMaxHpDelta || 0;
+  }
+
   function totalFlatMaxStatBonus(c, statKey) {
     return (
       talismanFlatMaxStatBonus(c, statKey) +
       relicFlatMaxStatBonus(c, statKey) +
       attachedFlatMaxStatBonus(c, statKey) +
-      graceFlatMaxStatBonus(c, statKey)
+      graceFlatMaxStatBonus(c, statKey) +
+      fieldRuleFlatMaxStatBonus(c, statKey)
     );
   }
 

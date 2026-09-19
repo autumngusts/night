@@ -72,6 +72,8 @@ STRINGS_ZH: dict[str, str] = {
     "wandering_blessing_base_label": "基本 3 次",
     "wandering_blessing_extra_label": "追加",
     "wandering_blessing_extra_count_label": "額外格數（恩寵取得）",
+    "resonant_crystal_label": "共鳴結晶",
+    "log_field_rule_crystal_curse": "追加規則「結晶的呪氣」：{character} 的最大HP降低，現在HP下降至 {value}。",
     "game_failed_easy_mode_banner": "因為已失敗，開啟簡單模式",
     "smithing_stone_label": "鍛造石",
     "stonesword_key_label": "石劍鑰匙",

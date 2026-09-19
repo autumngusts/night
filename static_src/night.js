@@ -447,6 +447,9 @@
   var rosterWeaponCollapsed = {};
 
   function renderCharacterRoster() {
+    // 追加ルール「結晶の呪気」の最大HP減衰は現在地に依存するので、名簿を描く直前に
+    // 引き直しておく（現在HPの切り下げは伴わない＝描画は副作用を持たない）。
+    refreshFieldRuleMaxHp();
     var tbody = document.getElementById("character-roster-tbody");
     var skillsWrap = document.getElementById("character-roster-skills");
     tbody.innerHTML = "";
@@ -1094,6 +1097,7 @@
     // 三個checkbox），用來讓自動判定知道「所有流浪祝福格子」的真正上限是幾格
     // （基本3格＋這個數字），而不是永遠假設額外3格都已取得。
     wanderingBlessingExtraCount: 0,
+    resonantCrystalCount: 0, // 追加ルール「結晶の呪気」を緩和する「共鳴する結晶」の獲得数（GM手動）
     // 使用者確認（2026-09-01）：當「所有」流浪祝福格子（基本3格＋額外已取得格數）都被勾滿時，
     // 視同全滅、判定遊戲失敗，但遊戲不中斷——改為顯示這個旗標驅動的紅字通知，並繼續進行
     // （簡單模式）。一旦為true就不會再變回false（同一局遊戲內失敗狀態不可逆）。
@@ -1334,6 +1338,7 @@
       timeLoss: state.timeLoss,
       wanderingBlessing: state.wanderingBlessing,
       wanderingBlessingExtraCount: state.wanderingBlessingExtraCount,
+      resonantCrystalCount: state.resonantCrystalCount,
       gameFailedEasyMode: state.gameFailedEasyMode,
       rollEffects: state.rollEffects,
       smithingStone: state.smithingStone,
@@ -1424,6 +1429,7 @@
     state.timeLoss = snap.timeLoss;
     state.wanderingBlessing = snap.wanderingBlessing;
     state.wanderingBlessingExtraCount = snap.wanderingBlessingExtraCount || 0;
+    state.resonantCrystalCount = snap.resonantCrystalCount || 0;
     state.gameFailedEasyMode = !!snap.gameFailedEasyMode;
     state.rollEffects = snap.rollEffects;
     state.smithingStone = snap.smithingStone;
@@ -2429,6 +2435,7 @@
       };
       state.wanderingBlessing = loadWanderingBlessing(data.wanderingBlessing);
       state.wanderingBlessingExtraCount = Math.max(0, Math.min(3, Number(data.wanderingBlessingExtraCount) || 0));
+      state.resonantCrystalCount = Math.max(0, Number(data.resonantCrystalCount) || 0);
       state.gameFailedEasyMode = !!data.gameFailedEasyMode;
       state.rollEffects = loadRollEffects(data.rollEffects);
       state.smithingStone = typeof data.smithingStone === "string" ? data.smithingStone : "";
@@ -2787,6 +2794,7 @@
     state.timeLoss = defaultTimeLoss();
     state.wanderingBlessing = defaultWanderingBlessing();
     state.wanderingBlessingExtraCount = 0;
+    state.resonantCrystalCount = 0;
     state.gameFailedEasyMode = false;
     state.rollEffects = defaultRollEffects();
     state.smithingStone = "";
@@ -3708,6 +3716,94 @@
     addLog("log_grace_hidden_city_revive", { character: c.name });
   }
 
+  // ============================================================
+  // 場地卡の「追加ルール」（static_src/field_rules.js）
+  // 規則原文は fields_data_*.js の branch.specialRule が単一資料來源。ここは
+  //「今いるフィールドにどの追加ルールが効いているか」を引くだけ。
+  // ============================================================
+  function currentFieldSpecialRule() {
+    var FB = window.PriTestNightFloorBreakthrough;
+    if (!FB || state.focusedIndex === null || state.focusedIndex === undefined) return null;
+    var card = FB.resolveFieldEntryForSlot(state.focusedIndex);
+    if (!card || !card.branches) return null;
+    // specialRule は branch 単位。GMフローで分岐が確定していればその分岐を優先し、
+    // 未確定なら最初に specialRule を持つ分岐を見る（同一カードの分岐は同じ追加ルール）。
+    var walk = state.gmFlow && state.gmFlow.walk;
+    if (
+      walk &&
+      typeof walk.branchIndex === "number" &&
+      card.branches[walk.branchIndex] &&
+      card.branches[walk.branchIndex].specialRule
+    ) {
+      return card.branches[walk.branchIndex].specialRule;
+    }
+    for (var i = 0; i < card.branches.length; i++) {
+      if (card.branches[i].specialRule) return card.branches[i].specialRule;
+    }
+    return null;
+  }
+
+  function currentFieldHasRule(ruleId) {
+    var FR = window.PriTestFieldRules;
+    return !!FR && FR.has(currentFieldSpecialRule(), ruleId);
+  }
+
+  // 追加ルール「結晶の呪気」（field_rules.js crystal_curse／fields_data_3.js:2552 ほか）：
+  //「このフィールドに存在する限り、PCは『最大HP：-3』となり、現在HPもそれにならう
+  //（下限1）。フィールドから出たとき、最大値は戻るが現在値は戻らない。
+  //『共鳴する結晶：+1』ごとに、この最大HP減衰の効果は1緩和される。
+  //『大空洞の恩寵』を獲得しているとき、この追加ルールは無効になる。」
+  //
+  // 最大値そのものは character_drawer.js の totalFlatMaxStatBonus() が
+  // _fieldRuleMaxHpDelta を読んで合算する（＝表示も入力上限も自動で追従する）。
+  // 現在HPの切り下げは「最大値は戻るが現在値は戻らない」という規則があるため、
+  // 描画のたびではなく実際に値が変わった瞬間（opts.clampCurrent）だけ行う。
+  function refreshFieldRuleMaxHp(opts) {
+    var FR = window.PriTestFieldRules;
+    if (!FR) return;
+    var Graces = window.PriTestGraces;
+    var active = currentFieldHasRule("crystal_curse");
+    var negateGraceId = FR.value("crystal_curse", "negatedByGraceId");
+    var decay = -(FR.value("crystal_curse", "maxHpDelta") || 0); // 規則書の -3 → 減衰量3
+    var per = FR.value("crystal_curse", "easedPerCounter") || 0;
+    var minStat = FR.value("crystal_curse", "minStat") || 1;
+    var counter = Math.max(0, state.resonantCrystalCount || 0);
+    var changed = false;
+    rosterCharacters.forEach(function (c) {
+      var delta = 0;
+      var negated = !!(Graces && negateGraceId && Graces.has(c, negateGraceId));
+      if (active && c.entered && !negated) {
+        var eased = Math.max(0, decay - counter * per);
+        // 「最大HPの下限は1」：hp.max をそれ未満にしてしまう分までは引かない。
+        delta = -Math.min(eased, Math.max(0, (c.hp.max || 0) - minStat));
+      }
+      if ((c._fieldRuleMaxHpDelta || 0) === delta) return;
+      c._fieldRuleMaxHpDelta = delta;
+      changed = true;
+      if (!(opts && opts.clampCurrent)) return;
+      var effMax = Math.max(minStat, (c.hp.max || 0) + CharacterDrawer.totalFlatMaxStatBonus(c, "hp"));
+      if ((c.hp.current || 0) > effMax) {
+        c.hp.current = effMax;
+        addLog("log_field_rule_crystal_curse", { character: c.name, value: effMax });
+      }
+    });
+    if (changed && opts && opts.clampCurrent) saveRosterCharacters();
+  }
+
+  function renderResonantCrystalCount() {
+    var el = document.getElementById("resonant-crystal-count-label");
+    if (!el) return;
+    el.textContent = String(state.resonantCrystalCount || 0);
+  }
+
+  function adjustResonantCrystalCount(delta) {
+    state.resonantCrystalCount = Math.max(0, (state.resonantCrystalCount || 0) + delta);
+    saveState();
+    renderResonantCrystalCount();
+    refreshFieldRuleMaxHp({ clampCurrent: true });
+    renderCharacterRoster();
+  }
+
   // entryがそのPCの「アーツ」かどうか（type.artsに含まれるか）。
   function isArtEntryForGrace(c, entry) {
     if (!c || !entry || !entry.id) return false;
@@ -3848,6 +3944,9 @@
             addLog("log_grace_revoked", { character: c.name, grace: Graces.localizedText(g.name) });
           }
           refreshFlameKingPowerModBonus();
+          // 「大空洞の恩寵」は追加ルール「結晶の呪気」を無効化するので、恩寵の増減で
+          // 最大HPも引き直す。
+          refreshFieldRuleMaxHp({ clampCurrent: true });
           saveRosterCharacters();
           renderCharacterRoster();
           renderGraceCharacterList();
@@ -3973,6 +4072,7 @@
     renderStoneswordKeyCount();
     renderSmithingStoneCount();
     renderWanderingBlessingExtraCount();
+    renderResonantCrystalCount();
   }
 
   // 鍛石／石劍鑰匙は自由記述の入力欄を廃止し、＋－ボタンのみでカウントを直接編集する
@@ -15306,6 +15406,10 @@
       window.PriTestNightGmFlow.invalidatePendingFloorSkip(fromPos);
     }
     state.focusedIndex = toPos;
+    // 追加ルール「結晶の呪気」は「このフィールドに存在する限り」なので、移動が確定した
+    // この瞬間に最大HPを引き直す。ここは通常移動・登攀・靈脈チットの全経路が通る
+    //（上のinvalidatePendingFloorSkipと同じ理由で1箇所で済む）。
+    refreshFieldRuleMaxHp({ clampCurrent: true });
     if (state.gmFlowEnabled) revealAdjacentSlots(toPos);
     renderBoard();
     saveState();
@@ -16115,6 +16219,12 @@
     });
     document.getElementById("btn-smithing-stone-plus").addEventListener("click", function () {
       adjustSmithingStoneCount(1);
+    });
+    document.getElementById("btn-resonant-crystal-minus").addEventListener("click", function () {
+      adjustResonantCrystalCount(-1);
+    });
+    document.getElementById("btn-resonant-crystal-plus").addEventListener("click", function () {
+      adjustResonantCrystalCount(1);
     });
     document.getElementById("btn-wb-extra-count-minus").addEventListener("click", function () {
       adjustWanderingBlessingExtraCount(-1);

@@ -780,6 +780,16 @@ BODY = """    <div class="night-header-row">
             <span id="wb-extra-count-label" class="level-value"></span>
             <button type="button" class="level-btn" id="btn-wb-extra-count-plus">&plus;</button>
           </div>
+          <!-- 追加ルール「結晶の呪気」（static_src/field_rules.js crystal_curse）で使う
+               「共鳴する結晶」の獲得数。規則書では場地卡のフロア報酬として増えるが、
+               その付与自体はまだ自動化されていないのでGMがここで数える。数が増えるほど
+               最大HP減衰が緩和される。 -->
+          <div class="field-row-block">
+            <label data-i18n="resonant_crystal_label"></label>
+            <button type="button" class="level-btn" id="btn-resonant-crystal-minus">&minus;</button>
+            <span id="resonant-crystal-count-label" class="level-value"></span>
+            <button type="button" class="level-btn" id="btn-resonant-crystal-plus">&plus;</button>
+          </div>
         </div>
 
         <div class="threat-ref-block">

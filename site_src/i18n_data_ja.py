@@ -72,6 +72,8 @@ STRINGS_JA: dict[str, str] = {
     "wandering_blessing_base_label": "基本3回",
     "wandering_blessing_extra_label": "追加分",
     "wandering_blessing_extra_count_label": "追加枠数（恩寵で獲得）",
+    "resonant_crystal_label": "共鳴する結晶",
+    "log_field_rule_crystal_curse": "追加ルール「結晶の呪気」：{character} の最大HPが低下し、現在HPが {value} まで下がった。",
     "game_failed_easy_mode_banner": "既に失敗しているため、簡単モードで進行中",
     "smithing_stone_label": "鍛石",
     "stonesword_key_label": "石剣の鍵",

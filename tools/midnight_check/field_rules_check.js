@@ -114,5 +114,50 @@ rules
     ok(!!G.get(r.negatedByGraceId), r.id + " を無効化する恩寵 " + r.negatedByGraceId + " が graces.js に実在");
   });
 
+console.log("[⑥ 結晶の呪気の減衰量]");
+// night.js の refreshFieldRuleMaxHp() が使う式：
+//   減衰 = max(0, decay - 共鳴する結晶 × easedPerCounter)
+//   実際に引く量 = min(減衰, hp.max - minStat)   ← 「最大HPの下限は1」
+// データ側がこの式で意図どおりの値になるかを、代表的な入力で確かめる。
+const CC = FR.get("crystal_curse");
+const decay = -CC.maxHpDelta;
+const per = CC.easedPerCounter;
+const minStat = CC.minStat;
+ok(decay === 3, "減衰量は3（規則書「最大HP：-3」）");
+ok(per === 1, "「共鳴する結晶：+1」ごとに1緩和");
+function appliedDelta(counter, hpMax) {
+  const eased = Math.max(0, decay - counter * per);
+  return -Math.min(eased, Math.max(0, hpMax - minStat));
+}
+ok(appliedDelta(0, 10) === -3, "結晶0 / 最大HP10 → -3");
+ok(appliedDelta(1, 10) === -2, "結晶1 / 最大HP10 → -2");
+ok(appliedDelta(3, 10) === 0, "結晶3 / 最大HP10 → 0（完全に緩和）");
+ok(appliedDelta(5, 10) === 0, "結晶5 / 最大HP10 → 0（マイナスにならない）");
+ok(appliedDelta(0, 2) === -1, "最大HP2 → -1 まで（下限1を割らない）");
+ok(appliedDelta(0, 1) === 0, "最大HP1 → 0（すでに下限）");
+
+console.log("[⑦ 呼び出し側との id 整合]");
+// night.js / midnight.js が使う追加ルールidが field_rules.js に実在するか。
+// 未知idでも例外にならず静かに「そのルールは無い」扱いになるので、目視では気づけない。
+const ruleIds = new Set(rules.map((r) => r.id));
+[
+  ["static_src/night.js", /(?:currentFieldHasRule|FieldRules\.(?:has|get|value))\(\s*(?:[A-Za-z_.\[\]]+\s*,\s*)?"([a-z_]+)"/g],
+  ["static_src/character_drawer.js", /FieldRules\.(?:has|get|value)\(\s*(?:[A-Za-z_.\[\]]+\s*,\s*)?"([a-z_]+)"/g],
+].forEach(([file, re]) => {
+  const src = fs.readFileSync(path.resolve(root, file), "utf8");
+  const found = new Set();
+  let m;
+  while ((m = re.exec(src)) !== null) found.add(m[1]);
+  const unknown = [...found].filter((id) => !ruleIds.has(id));
+  ok(
+    unknown.length === 0,
+    file + " が使う追加ルールid " + found.size + "件はすべて field_rules.js に実在" + (unknown.length ? "（未定義: " + unknown.join(", ") + "）" : "")
+  );
+});
+// 最大HPの合算経路が外れていないか（外れると減衰が丸ごと効かなくなるが例外は出ない）。
+const drawer = fs.readFileSync(path.resolve(root, "static_src/character_drawer.js"), "utf8");
+ok(/totalFlatMaxStatBonus[\s\S]{0,400}fieldRuleFlatMaxStatBonus\(c, statKey\)/.test(drawer), "totalFlatMaxStatBonus() が場地ルール分を合算している");
+ok(/_fieldRuleMaxHpDelta/.test(fs.readFileSync(path.resolve(root, "static_src/night.js"), "utf8")), "night.js が _fieldRuleMaxHpDelta を書き込んでいる");
+
 console.log(fail === 0 ? "\n=== 全テスト通過 ===" : "\n=== 失敗 " + fail + " 件 ===");
 process.exit(fail === 0 ? 0 : 1);
