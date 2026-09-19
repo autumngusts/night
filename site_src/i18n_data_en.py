@@ -81,6 +81,7 @@ STRINGS_EN: dict[str, str] = {
     "log_field_rule_hp_delta": "Field rule \"{rule}\": {character}'s HP changed by {value}.",
     "log_field_rule_floor_accum": "Field rule \"{rule}\": clearing the floor gave {character} \"{label}: {value}\".",
     "log_field_rule_accum_cleared": "Moving to another field cleared the field-rule buildup ({labels}).",
+    "combat_blizzard_vision_blocked_label": "Blizzard Vision: back row cannot",
     "growing_presence_undecided": "Undecided",
     "growing_presence_accum_option": "\"{label}\" buildup +1",
     "growing_presence_heal_option": "Healing power swirls (HP recovery)",

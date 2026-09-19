@@ -4121,6 +4121,33 @@
     renderAttributeStatusList();
   }
 
+  // 追加ルール「吹雪の視界」（field_rules.js blizzard_vision／fields_data_4.js:2795）：
+  //「戦闘時、『後衛』に存在するキャラクターは狙いを定められないので、エネミーを対象とする
+  //『アタック』と『スキル（戦技／魔術／祈祷）の使用』を行えない。」
+  // 恩寵「山嶺の恩寵」を持つPCはこの追加ルール自体が無効（graces.js mountain_peak
+  //  blizzardVisionImmune／field_rules.js negatedByGraceId）。
+  //
+  // 対象は「エネミーを対象とする」アタックと**武器由来の**スキル（戦技/魔術/祈祷）だけ。
+  // 角色の技能／技藝は規則書の列挙に無いので止めない。
+  // 特殊攻撃（跳躍/衝刺/蓄力/致命）は既存実装がそもそも近接武器＝前衛限定なので、
+  // 後衛では元から使えず、ここで追加の制限はいらない。
+  function blizzardVisionBlocksEnemyAction(c) {
+    var FR = window.PriTestFieldRules;
+    if (!FR || !c || !currentFieldHasRule("blizzard_vision")) return false;
+    if (getCharacterBattlePosition(c) !== "back") return false;
+    var Graces = window.PriTestGraces;
+    var negateId = FR.value("blizzard_vision", "negatedByGraceId");
+    if (Graces && negateId && Graces.has(c, negateId)) return false;
+    return true;
+  }
+
+  function appendBlizzardVisionLabel(row) {
+    var el = document.createElement("span");
+    el.className = "ability-uses-label";
+    el.textContent = window.I18N.t("combat_blizzard_vision_blocked_label");
+    row.appendChild(el);
+  }
+
   function renderResonantCrystalCount() {
     var el = document.getElementById("resonant-crystal-count-label");
     if (!el) return;
@@ -5242,6 +5269,9 @@
       var posRestriction = category.isRanged ? null : "front";
       var charPos = getCharacterBattlePosition(c);
       var posOk = !posRestriction || posRestriction === charPos;
+      // 追加ルール「吹雪の視界」：後衛は遠距離武器であってもアタックできない。
+      var blizzardBlockedAttack = blizzardVisionBlocksEnemyAction(c);
+      if (blizzardBlockedAttack) posOk = false;
 
       var row = document.createElement("div");
       row.className = "combat-attack-weapon-row";
@@ -5269,6 +5299,7 @@
         });
         row.appendChild(posEl);
       }
+      if (blizzardBlockedAttack) appendBlizzardVisionLabel(row);
 
       // クロスボウ／バリスタ等、2Hitの概念を持たない武器種はdamage.hit2Damageがnullになる
       // （CharacterDrawer.computeWeaponDamage参照）ため、2Hitボタン自体を出さない。
@@ -6171,7 +6202,11 @@
 
   function renderCombatSkillAction(c, content) {
     var type = c.typeId ? CharacterTypes.get(c.typeId) : null;
-    var entries = (type ? CharacterDrawer.getCombatSkillEntries(c, type) : []).concat(CharacterDrawer.getEquippedWeaponSkillEntries(c));
+    // 追加ルール「吹雪の視界」は「スキル（戦技／魔術／祈祷）」＝武器由来のものだけが対象で、
+    // 角色の技能／技藝は規則書の列挙に含まれない。そこで武器由来の entry を別に取っておき、
+    // 下の描画ループでオブジェクト同一性で見分ける（idの衝突に左右されない）。
+    var weaponSkillEntries = CharacterDrawer.getEquippedWeaponSkillEntries(c);
+    var entries = (type ? CharacterDrawer.getCombatSkillEntries(c, type) : []).concat(weaponSkillEntries);
     // 淑女「重演」：kind:"Passive"のため通常はgetCombatSkillEntriesのPassive除外に引っかかるが、
     // 実際は行動階段／特殊階段終了時に任意発動できる夜渡技能のため、IDで直接拾って戦闘スキル
     // 一覧に加える（鑑定眼と同じくskillタブは戦闘・額外どちらのフェイズでも共通表示のため、
@@ -6309,6 +6344,10 @@
       var posRestriction = CharacterDrawer.parsePositionRestriction(body);
       var charPos = getCharacterBattlePosition(c);
       var posOk = !posRestriction || posRestriction === charPos;
+      // 追加ルール「吹雪の視界」：後衛は武器由来のスキル（戦技／魔術／祈祷）を使えない。
+      var blizzardBlockedSkill = weaponSkillEntries.indexOf(entry) !== -1 && blizzardVisionBlocksEnemyAction(c);
+      if (blizzardBlockedSkill) posOk = false;
+      if (blizzardBlockedSkill) appendBlizzardVisionLabel(row);
       if (posRestriction) {
         var posEl = document.createElement("span");
         posEl.className = "ability-uses-label";

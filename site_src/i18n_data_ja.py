@@ -81,6 +81,7 @@ STRINGS_JA: dict[str, str] = {
     "log_field_rule_hp_delta": "追加ルール「{rule}」：{character} のHPが {value} 変動した。",
     "log_field_rule_floor_accum": "追加ルール「{rule}」：フロア踏破により {character} に「{label}：{value}」が蓄積した。",
     "log_field_rule_accum_cleared": "フィールドを移動したため、追加ルール由来の蓄積（{labels}）がクリアされた。",
+    "combat_blizzard_vision_blocked_label": "吹雪の視界：後衛は不可",
     "growing_presence_undecided": "未決定",
     "growing_presence_accum_option": "「{label}」の蓄積 +1",
     "growing_presence_heal_option": "「癒し」の力が渦巻く（HP回復）",

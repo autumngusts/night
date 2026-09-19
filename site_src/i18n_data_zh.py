@@ -81,6 +81,7 @@ STRINGS_ZH: dict[str, str] = {
     "log_field_rule_hp_delta": "追加規則「{rule}」：{character} 的HP變動 {value}。",
     "log_field_rule_floor_accum": "追加規則「{rule}」：因樓層踏破，{character} 累積了「{label}：{value}」。",
     "log_field_rule_accum_cleared": "因移動場地，追加規則造成的累積（{labels}）已清除。",
+    "combat_blizzard_vision_blocked_label": "暴風雪的視野：後衛不可",
     "growing_presence_undecided": "未決定",
     "growing_presence_accum_option": "「{label}」累積 +1",
     "growing_presence_heal_option": "「治癒」之力渦巻（HP回復）",

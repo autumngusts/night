@@ -273,5 +273,31 @@ ok(/applyFieldRulesOnFloorCleared: applyFieldRulesOnFloorCleared/.test(nightSrc)
 ok((flowSrc.match(/applyFieldRulesOnFloorCleared\(/g) || []).length === 2, "GMフローの踏破確定2箇所から呼ばれている");
 ok(/state\.battle\.attributeStatus\.received = carriedFieldRuleAccum/.test(nightSrc), "戦闘終了の全消去から追加ルール由来の蓄積を守っている");
 
+console.log("[⑩ 吹雪の視界の接線]");
+// 規則書が禁じるのは「エネミーを対象とする『アタック』と『スキル（戦技／魔術／祈祷）の
+// 使用』」だけ。角色の技能／技藝まで止めてしまうと規則より厳しくなるので、武器由来の
+// entry だけを見分けていることを静的に確かめる（実行時は例外を出さず静かに効くため）。
+const BV = FR.get("blizzard_vision");
+ok(BV.backRowCannotAttack === true && BV.backRowCannotUseSkill === true, "吹雪の視界は後衛のアタックとスキルを禁じる");
+ok(BV.negatedByGraceId === "mountain_peak", "山嶺の恩寵で無効化される");
+ok(/function blizzardVisionBlocksEnemyAction/.test(nightSrc), "night.js に判定関数がある");
+ok(
+  /getCharacterBattlePosition\(c\) !== "back"/.test(nightSrc),
+  "後衛のときだけ効く（前衛は対象外）"
+);
+ok(
+  /var weaponSkillEntries = CharacterDrawer\.getEquippedWeaponSkillEntries\(c\)/.test(nightSrc),
+  "武器由来スキルを別に取り出している"
+);
+ok(
+  /weaponSkillEntries\.indexOf\(entry\) !== -1 && blizzardVisionBlocksEnemyAction\(c\)/.test(nightSrc),
+  "スキル側は武器由来のentryだけを封じている（角色の技能／技藝は止めない）"
+);
+// 定義行（function 宣言）を除いた呼び出し回数＝アタックとスキルの2箇所。
+ok(
+  (nightSrc.match(/(?<!function )blizzardVisionBlocksEnemyAction\(c\)/g) || []).length === 2,
+  "アタックとスキルの2箇所で判定している"
+);
+
 console.log(fail === 0 ? "\n=== 全テスト通過 ===" : "\n=== 失敗 " + fail + " 件 ===");
 process.exit(fail === 0 ? 0 : 1);
