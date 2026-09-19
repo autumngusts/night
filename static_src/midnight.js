@@ -1334,8 +1334,10 @@
   var MOB_HP_PER_ROW = 100;
   // 規則書寫「對雜兵『HP損害：1』」時，在midnight要打掉多少HP（2026-09-12使用者明確確認：
   // 「100（等於打掉1隻雜兵）」）。雜兵HP是格數×MOB_HP_PER_ROW的單一合併血量池，因此
-  // 「HP損害：1」＝消滅1格＝1×MOB_HP_PER_ROW。跟既有的「■＝10」換算
-  // （BLOCK_SQUARE_COUNT_TO_RESOURCE_MULT）是兩件事，不要混用。
+  // 「HP損害：1」＝消滅1格＝1×MOB_HP_PER_ROW。
+  // 2026-09-19使用者明確規格「雜兵直接100點傷害」：規則書が「■」で書いていても意味は
+  // 同じ「1点」なので、雜兵へのHP損害は方塊表記でもこちらを使う（PC側の資源で使う
+  // BLOCK_SQUARE_COUNT_TO_RESOURCE_MULT＝10とは別物。混同すると1/10になる）。
   var MOB_DAMAGE_PER_RULEBOOK_POINT = MOB_HP_PER_ROW;
   // 持續回復（HoT）的預設持續時間（2026-09-12溫石改版使用者明確規格「在10秒內回血」）。
   var HEAL_OVER_TIME_MS = 10000;
@@ -4004,12 +4006,21 @@
   // 規則書：「1次階段中『以斧槍進行2次以上2Hit攻擊』或『發揮遺物效果蓄力攻擊』時發揮效果。
   // ・對雜兵造成『HP損害：■』，將自身產生的亂戰傷害『+10』。」
   // 即時制對應：「1次階段」比照短劍重演改成10秒滑動視窗。
-  // **已知限制**：後半的「自身產生的亂戰傷害+10」在 midnight 沒有對應——亂戰傷害是敵人
-  // 攻擊的分類（見 resolveEnemyActionOutcome()），玩家沒有這個傷害類別可以加成，
-  // 因此只實作前半的雜兵傷害，不自行發明一個玩家版亂戰傷害（CLAUDE.md §19）。
+  // 後半の「自身產生的亂戰傷害+10」は、亂戰傷害が敵の攻撃分類（見 resolveEnemyActionOutcome()）
+  // であって玩家側に対応する傷害種別が無い。2026-09-19使用者明確規格「自己受到的傷害+10」
+  // により、これを「発動後しばらく自分が受けるHP損害が+10される」と読み替えて実装する。
+  // 持続は前半と同じく「1次階段」＝HALBERD_WHIRLWIND_WINDOW_MS（10秒）を流用する
+  // ——この効果自身がすでに「1次階段」をその窓で表しているので、新しい長さを発明しない。
   var HALBERD_WHIRLWIND_WINDOW_MS = 10000;
   var HALBERD_WHIRLWIND_SELF_DAMAGE = 10; // 使用者2026-09-12明確規格的副作用「對自己造成傷害HP-10」
+  var HALBERD_WHIRLWIND_DAMAGE_TAKEN_UP = 10; // 使用者2026-09-19明確規格「自己受到的傷害+10」
+  var halberdWhirlwindDamageUpUntil = 0;
   var halberdHit2Times = [];
+
+  // 発動中なら、受けるHP損害への定額加算を返す（恩寵「癒えぬ傷」と同じ層で足す）。
+  function halberdWhirlwindDamageTakenBonus() {
+    return Date.now() < halberdWhirlwindDamageUpUntil ? HALBERD_WHIRLWIND_DAMAGE_TAKEN_UP : 0;
+  }
 
   function maybeApplyHalberdWhirlwind(c, weaponId, now) {
     if (!hasRelic(c, "halberdWhirlwind") || !activeEncounter) return;
@@ -4021,7 +4032,9 @@
     });
     if (halberdHit2Times.length < 2) return;
     halberdHit2Times = [];
-    damageActiveMobIfAny(BLOCK_SQUARE_COUNT_TO_RESOURCE_MULT);
+    damageActiveMobIfAny(MOB_DAMAGE_PER_RULEBOOK_POINT);
+    // 後半：この先「1次階段」ぶんのあいだ、自分が受けるHP損害が+10される。
+    halberdWhirlwindDamageUpUntil = now + HALBERD_WHIRLWIND_WINDOW_MS;
     // 副作用（2026-09-12使用者明確規格「對自己造成傷害HP-10」）：走既有的spendSelfHp()，
     // 因此HP歸零時一樣會正常觸發瀕死判定。
     spendSelfHp(HALBERD_WHIRLWIND_SELF_DAMAGE);
@@ -5525,11 +5538,18 @@
     // ④ 雜兵への「HP損害：□／■」。
     //    2026-09-14使用者明確規格「雜兵『HP損害：■』直接接」：原本只算白方塊□，■依
     //    CLAUDE.md §19留給GM手動（雜兵損害的■佔了全部80條招式，等於幾乎都沒有效果）。
-    //    現在兩種方塊都算，換算一律沿用既有的1格＝10（BLOCK_SQUARE_COUNT_TO_RESOURCE_MULT）。
+    //    現在兩種方塊都算。
+    //
+    //    2026-09-19使用者明確規格「雜兵直接100點傷害」：換算は1格＝10
+    //    （BLOCK_SQUARE_COUNT_TO_RESOURCE_MULT）ではなく MOB_DAMAGE_PER_RULEBOOK_POINT
+    //    ＝100を使う。規則書で「■」は「1点」の書き方そのものなので、数字で
+    //    「對雜兵『HP損害：1』」と書かれた場合（既に100換算、見damageActiveMobIfAny()の
+    //    呼び出し側）と同じ意味であり、10で換算すると同じ規則が1/10になってしまっていた
+    //    ——1格＝雜兵1体ぶんのHPなので、本来なら1体消し飛ぶ招式がかすり傷で終わっていた。
     //    CharacterDrawer.countMobDamageSquares()是night.js共用的，不改它的語意，這裡另外算。
     var mobSquares = countMobDamageSquaresAll(bodyText);
     if (mobSquares) {
-      var mobAmount = mobSquares * BLOCK_SQUARE_COUNT_TO_RESOURCE_MULT;
+      var mobAmount = mobSquares * MOB_DAMAGE_PER_RULEBOOK_POINT;
       damageActiveMobIfAny(mobAmount);
       notes.push(window.I18N.t("midnight_skill_mob_damage_note", { damage: mobAmount }));
     }
@@ -7040,10 +7060,11 @@
 
   // 復仇者（暗黑）「靈體消滅時HP回復／FP回復」（2026-09-12）：規則書的觸發條件是
   // 「靈體的HP歸零而消滅時」，回復量各「□□」＝20。
-  // **已知限制**：midnight 目前沒有任何會扣減靈體HP的路徑（敵人不會攻擊靈體，見
-  // updateSummonedSpirit()——靈體只會攻擊、不會被打），因此這個觸發實際上只有在
-  // 「靈體HP已經是0時被清除」才會發生。邏輯先備妥，之後若加入靈體受傷就會自動生效，
-  // 比照parseFixedRevivalDamageValue()「先備妥、資料補上就接得起來」的既有慣例。
+  // 2026-09-12に absorbDamageWithSpirit()（すぐ下）が入り、敵の攻撃を受けたとき
+  // 「先に靈體のHPを削り、溢れた分だけ本体が受ける」経路ができたので、この回復は
+  // 実際に発火する（使用者明確規格「敵人攻擊後，有打到復仇者的話會先扣到靈體」）。
+  // 上の「扣減靈體HPの路徑が無い」という但し書きはその実装より前の記述だったので削除した
+  // （2026-09-19に実装状況を確認）。
   function maybeApplySpiritDeathRelics(c, spirit) {
     if (!c || !spirit || spirit.hp > 0) return;
     if (hasRelic(c, "spiritDeathHp")) healSelfHp(BLOCK_SQUARE_COUNT_TO_RESOURCE_MULT * 2);
@@ -9138,6 +9159,10 @@
       if (damage > 0 && hasGrace(characters[myTokenId], GRACE_UNHEALING_WOUND)) {
         damage += graceValue(GRACE_UNHEALING_WOUND, "extraHpDamage") || 0;
       }
+      // 守護者（黎明）「斧槍旋風」後半（2026-09-19使用者明確規格「自己受到的傷害+10」）：
+      // 恩寵「癒えぬ傷」とまったく同じ層＝すべての減傷と靈體吸收が済んだあとの
+      // 「実際に受けるHP損害」への定額加算。損害0のときは加えない。
+      if (damage > 0) damage += halberdWhirlwindDamageTakenBonus();
       if (damage > 0) onAffixDamaged(); // 2026-09-13武器詞條：被ダメージ時系2條
       lastEnemyDamageInfo = { amount: damage, at: Date.now() };
       var maxHp = mySelfHpMaxFallback();
