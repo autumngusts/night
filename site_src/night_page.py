@@ -849,6 +849,13 @@ BODY = """    <div class="night-header-row">
           <h3 data-i18n="personal_modifier_section_title"></h3>
           <p class="threat-ref-body" data-i18n="personal_modifier_section_note"></p>
           <div id="personal-modifier-list"></div>
+          <!-- 「腐れ森の恩寵を求めて」（fields_data_4.js:2268 ほか）：PC代表1人が1D。
+               5以上で恩寵獲得、4以下なら別のフィールドで振るときの出目に+2（累積）。
+               このイベントを持つフィールドにいるときだけ出る。 -->
+          <div class="field-row-block" id="rotten-forest-seek-block">
+            <button type="button" id="btn-rotten-forest-seek" data-i18n="rotten_forest_seek_button"></button>
+            <p class="threat-ref-body" id="rotten-forest-seek-note"></p>
+          </div>
         </div>
 
         <div class="actions">

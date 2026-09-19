@@ -158,5 +158,18 @@ callers.forEach(([file, re]) => {
   ok(unknown.length === 0, file + " が使う恩寵id " + found.size + "件はすべて graces.js に実在" + (unknown.length ? "（未定義: " + unknown.join(", ") + "）" : ""));
 });
 
+console.log("[腐れ森の恩寵の獲得判定]");
+// fields_data_4.js:2268「PCの代表ひとりが1Dする。出目が『5以上』だった場合は獲得。
+// 『4以下』ならこのフロアには無く、このフィールド以外で発生したとき出目を『+2』（累積）」。
+const ACQ = G.value("rotten_forest", "acquisition", "night");
+ok(!!ACQ, "rotten_forest に獲得手順が登録されている");
+ok(ACQ.dice === 1 && ACQ.target === 5, "1D で 5以上なら獲得");
+ok(ACQ.bonusPerFailedFieldElsewhere === 2, "失敗した他フィールド1つにつき +2");
+// night.js 側：累積は「他のフィールドでの失敗」だけを数えること（同じ場所で振り直さない）。
+const nightSrc = fs.readFileSync(path.resolve(__dirname, "..", "..", "static_src", "night.js"), "utf8");
+ok(/function rottenForestSeekBonus/.test(nightSrc), "累積ボーナスの算出がある");
+ok(/if \(slot !== here\) bonus \+= step/.test(nightSrc), "今いるフィールドでの失敗は加算しない");
+ok(/if \(\(state\.rottenForestSeekFailedSlots \|\| \{\}\)\[here\]\) return;/.test(nightSrc), "同じフィールドで振り直せない");
+
 console.log(fail === 0 ? "\n=== 全テスト通過 ===" : "\n=== 失敗 " + fail + " 件 ===");
 process.exit(fail === 0 ? 0 : 1);

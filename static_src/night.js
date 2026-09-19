@@ -1101,6 +1101,7 @@
     growingPresenceVariantId: null, // 追加ルール「増大する気配」決定表の確定結果（null＝未決定）
     floorFieldRulesApplied: {}, // 追加ルールをフロア描写時に適用済みのキー（"スロット|フロア"）
     floorClearedFieldRulesApplied: {}, // 追加ルールをフロア踏破時に適用済みのキー
+    rottenForestSeekFailedSlots: {}, // 「腐れ森の恩寵を求めて」に失敗したフィールド（スロット）の集合
     // 使用者確認（2026-09-01）：當「所有」流浪祝福格子（基本3格＋額外已取得格數）都被勾滿時，
     // 視同全滅、判定遊戲失敗，但遊戲不中斷——改為顯示這個旗標驅動的紅字通知，並繼續進行
     // （簡單模式）。一旦為true就不會再變回false（同一局遊戲內失敗狀態不可逆）。
@@ -1345,6 +1346,7 @@
       growingPresenceVariantId: state.growingPresenceVariantId,
       floorFieldRulesApplied: state.floorFieldRulesApplied,
       floorClearedFieldRulesApplied: state.floorClearedFieldRulesApplied,
+      rottenForestSeekFailedSlots: state.rottenForestSeekFailedSlots,
       gameFailedEasyMode: state.gameFailedEasyMode,
       rollEffects: state.rollEffects,
       smithingStone: state.smithingStone,
@@ -1439,6 +1441,7 @@
     state.growingPresenceVariantId = snap.growingPresenceVariantId || null;
     state.floorFieldRulesApplied = snap.floorFieldRulesApplied || {};
     state.floorClearedFieldRulesApplied = snap.floorClearedFieldRulesApplied || {};
+    state.rottenForestSeekFailedSlots = snap.rottenForestSeekFailedSlots || {};
     state.gameFailedEasyMode = !!snap.gameFailedEasyMode;
     state.rollEffects = snap.rollEffects;
     state.smithingStone = snap.smithingStone;
@@ -2452,6 +2455,7 @@
       state.growingPresenceVariantId = data.growingPresenceVariantId || null;
       state.floorFieldRulesApplied = data.floorFieldRulesApplied || {};
       state.floorClearedFieldRulesApplied = data.floorClearedFieldRulesApplied || {};
+      state.rottenForestSeekFailedSlots = data.rottenForestSeekFailedSlots || {};
       state.gameFailedEasyMode = !!data.gameFailedEasyMode;
       state.rollEffects = loadRollEffects(data.rollEffects);
       state.smithingStone = typeof data.smithingStone === "string" ? data.smithingStone : "";
@@ -2814,6 +2818,7 @@
     state.growingPresenceVariantId = null;
     state.floorFieldRulesApplied = {};
     state.floorClearedFieldRulesApplied = {};
+    state.rottenForestSeekFailedSlots = {};
     state.gameFailedEasyMode = false;
     state.rollEffects = defaultRollEffects();
     state.smithingStone = "";
@@ -4218,6 +4223,105 @@
     row.appendChild(el);
   }
 
+  // ============================================================
+  // 「腐れ森の恩寵を求めて」（fields_data_4.js:2268/2492/2760）
+  // ============================================================
+  // 「PCの代表ひとりが1Dする。出目が『5以上』だった場合は『腐れ森の恩寵』を得る。
+  //  出目が『4以下』だった場合、このフロアには『腐れ森の恩寵』はなく、このフィールド
+  //  以外で『腐れ森の恩寵を求めて』が発生したとき、そのときの1Dの出目を『+2』する。
+  //  この効果は累積する。」
+  // 判定値は graces.js の rotten_forest.acquisition が単一資料來源。
+  //
+  // 「このフィールド以外で」なので、失敗したフィールド（スロット）を覚えておき、
+  // 今いるフィールド以外での失敗の数だけ+2を乗せる。
+  function cardTextContains(needle) {
+    var FB = window.PriTestNightFloorBreakthrough;
+    if (!FB || state.focusedIndex === null || state.focusedIndex === undefined) return false;
+    var card = FB.resolveFieldEntryForSlot(state.focusedIndex);
+    if (!card || !card.branches) return false;
+    for (var b = 0; b < card.branches.length; b++) {
+      var floors = card.branches[b].floors || [];
+      for (var f = 0; f < floors.length; f++) {
+        var lines = floors[f].lines || [];
+        for (var l = 0; l < lines.length; l++) {
+          var t = lines[l].text && lines[l].text.ja;
+          if (t && t.indexOf(needle) !== -1) return true;
+        }
+      }
+    }
+    return false;
+  }
+
+  function rottenForestSeekBonus() {
+    var Graces = window.PriTestGraces;
+    var per = (Graces && Graces.value("rotten_forest", "acquisition", "night")) || null;
+    var step = per ? per.bonusPerFailedFieldElsewhere || 0 : 0;
+    var here = String(state.focusedIndex);
+    var failed = state.rottenForestSeekFailedSlots || {};
+    var bonus = 0;
+    Object.keys(failed).forEach(function (slot) {
+      if (slot !== here) bonus += step;
+    });
+    return bonus;
+  }
+
+  function renderRottenForestSeek() {
+    var block = document.getElementById("rotten-forest-seek-block");
+    var note = document.getElementById("rotten-forest-seek-note");
+    if (!block || !note) return;
+    var active = cardTextContains("腐れ森の恩寵を求めて");
+    block.hidden = !active;
+    if (!active) return;
+    var Graces = window.PriTestGraces;
+    var acq = (Graces && Graces.value("rotten_forest", "acquisition", "night")) || { target: 5 };
+    var done = !!(state.rottenForestSeekFailedSlots || {})[String(state.focusedIndex)];
+    var btn = document.getElementById("btn-rotten-forest-seek");
+    if (btn) btn.disabled = done;
+    note.textContent = window.I18N.t(done ? "rotten_forest_seek_failed_note" : "rotten_forest_seek_note", {
+      target: acq.target,
+      bonus: rottenForestSeekBonus(),
+    });
+  }
+
+  function rollRottenForestSeek() {
+    var Graces = window.PriTestGraces;
+    if (!Graces) return;
+    var acq = Graces.value("rotten_forest", "acquisition", "night") || { dice: 1, target: 5 };
+    var here = String(state.focusedIndex);
+    if ((state.rottenForestSeekFailedSlots || {})[here]) return; // 同じフィールドで振り直さない
+    var roll = 0;
+    for (var i = 0; i < (acq.dice || 1); i++) roll += 1 + Math.floor(Math.random() * 6);
+    var bonus = rottenForestSeekBonus();
+    var total = roll + bonus;
+    var success = total >= acq.target;
+    addLog("log_rotten_forest_seek", {
+      roll: roll,
+      bonus: bonus,
+      total: total,
+      target: acq.target,
+      result: window.I18N.t(success ? "grace_roll_success" : "grace_roll_fail"),
+    });
+    if (success) {
+      // 恩寵の効果本文は「PC全員は〜」なので、入場中の全PCへ付与する。
+      rosterCharacters.forEach(function (c) {
+        if (!c.entered) return;
+        if (Graces.grant(c, "rotten_forest")) {
+          addLog("log_grace_granted", { character: c.name, grace: Graces.localizedText(Graces.get("rotten_forest").name) });
+        }
+      });
+      saveRosterCharacters();
+      // 最大HP+2格がすぐ効くよう引き直す。
+      refreshFieldRuleMaxHp({ clampCurrent: true });
+      renderCharacterRoster();
+      renderGraceCharacterList();
+    } else {
+      if (!state.rottenForestSeekFailedSlots) state.rottenForestSeekFailedSlots = {};
+      state.rottenForestSeekFailedSlots[here] = true;
+    }
+    saveState();
+    renderRottenForestSeek();
+  }
+
   function renderResonantCrystalCount() {
     var el = document.getElementById("resonant-crystal-count-label");
     if (!el) return;
@@ -4586,6 +4690,7 @@
     renderGrowingPresenceSelect();
     renderFloorFieldRulesNote();
     renderLostHiddenCity();
+    renderRottenForestSeek();
   }
 
   // 鍛石／石劍鑰匙は自由記述の入力欄を廃止し、＋－ボタンのみでカウントを直接編集する
@@ -15943,6 +16048,7 @@
     refreshFieldRuleMaxHp({ clampCurrent: true });
     renderFloorFieldRulesNote();
     renderLostHiddenCity();
+    renderRottenForestSeek();
     if (state.gmFlowEnabled) revealAdjacentSlots(toPos);
     renderBoard();
     saveState();
@@ -16759,6 +16865,9 @@
     });
     document.getElementById("btn-smithing-stone-plus").addEventListener("click", function () {
       adjustSmithingStoneCount(1);
+    });
+    document.getElementById("btn-rotten-forest-seek").addEventListener("click", function () {
+      rollRottenForestSeek();
     });
     document.getElementById("btn-apply-floor-field-rules").addEventListener("click", function () {
       applyFloorDescriptionFieldRules();
