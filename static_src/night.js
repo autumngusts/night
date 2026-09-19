@@ -3945,7 +3945,59 @@
       if (r.kind === "ailmentAccum" && r.check) return true; // 判定して蓄積する8種
       if (r.kind === "checkDamage") return true; // バリスタ射撃
       if (r.kind === "accumPlus") return !!growingPresenceVariant(); // 増大する気配※2（決定済みのときだけ）
+      if (r.kind === "checkTimeLoss") return true; // 迷いの隠れ都
       return false;
+    });
+  }
+
+  // 追加ルール「迷いの隠れ都」（field_rules.js lost_hidden_city／fields_data_4.js:3949）。
+  // 「GMが新たなフロアの〔描写〕を読み上げるたびに、PC全員で〈X｜運試し〉〈X｜フィジカル〉
+  //  〈X｜メンタル〉を行う。PCは最低1種、1人が2〜3種行ってもよい。誰も実行していない種は
+  //  自動的に失敗。PC1〜2人：1種でも成功すればペナルティなし。PC3〜4人：合計『PC人数-1』種
+  //  以上成功でペナルティなし。そうでなければ『タイムロス』蓄積。」
+  //
+  // 「誰が何種やるか」はPC側の選択なのでアプリでは割り当てない（使用者選択 2026-09-19）。
+  // GMは成功した種類数だけ入れ、タイムロスの要否だけをアプリが判定する。
+  // 目標値Xは固定値ではなく「PC人数+8」（原文の〈11｜…〉は3人時の例示）。
+  function enteredPartySize() {
+    return rosterCharacters.filter(function (c) {
+      return c.entered;
+    }).length;
+  }
+
+  function lostHiddenCityTarget() {
+    return enteredPartySize() + 8;
+  }
+
+  function lostHiddenCityRequiredSuccesses() {
+    var FR = window.PriTestFieldRules;
+    var table = (FR && FR.value("lost_hidden_city", "requiredSuccesses")) || {};
+    var size = enteredPartySize();
+    if (table[size] !== undefined) return table[size];
+    // 表に無い人数（想定外）でも規則の考え方（1〜2人は1種、それ以上はPC人数-1）で埋める。
+    return size <= 2 ? 1 : Math.max(1, size - 1);
+  }
+
+  function renderLostHiddenCity() {
+    var block = document.getElementById("lost-hidden-city-block");
+    var sel = document.getElementById("lost-hidden-city-successes");
+    var note = document.getElementById("lost-hidden-city-note");
+    if (!block || !sel || !note) return;
+    var active = currentFieldHasRule("lost_hidden_city");
+    block.hidden = !active;
+    if (!active) return;
+    if (!sel.options.length) {
+      for (var i = 0; i <= 3; i++) {
+        var o = document.createElement("option");
+        o.value = String(i);
+        o.textContent = String(i);
+        sel.appendChild(o);
+      }
+    }
+    note.textContent = window.I18N.t("lost_hidden_city_note", {
+      target: lostHiddenCityTarget(),
+      required: lostHiddenCityRequiredSuccesses(),
+      party: enteredPartySize(),
     });
   }
 
@@ -3993,6 +4045,24 @@
           applyFieldRuleHpDelta(c, delta);
           addLog("log_field_rule_hp_delta", { rule: ruleName, character: c.name, value: Math.abs(delta) });
         });
+        return;
+      }
+      if (r.kind === "checkTimeLoss") {
+        // 成功した種類数はGM入力。必要成功数に満たなければタイムロスを蓄積する。
+        var sel = document.getElementById("lost-hidden-city-successes");
+        var successes = sel ? parseInt(sel.value, 10) || 0 : 0;
+        var required = lostHiddenCityRequiredSuccesses();
+        addLog("log_field_rule_time_loss_check", {
+          rule: ruleName,
+          successes: successes,
+          required: required,
+          target: lostHiddenCityTarget(),
+        });
+        if (successes >= required) return;
+        var loss = FR.value(id, "timeLossOnFailure") || 0;
+        if (!loss) return;
+        var tlMessages = addTimeLoss(loss) || [];
+        if (tlMessages.length) showThreatBroadcast(tlMessages);
         return;
       }
       var results = rollFieldRuleCheck(r.check.stat, r.check.target);
@@ -4433,6 +4503,7 @@
     renderResonantCrystalCount();
     renderGrowingPresenceSelect();
     renderFloorFieldRulesNote();
+    renderLostHiddenCity();
   }
 
   // 鍛石／石劍鑰匙は自由記述の入力欄を廃止し、＋－ボタンのみでカウントを直接編集する
@@ -15789,6 +15860,7 @@
     //（上のinvalidatePendingFloorSkipと同じ理由で1箇所で済む）。
     refreshFieldRuleMaxHp({ clampCurrent: true });
     renderFloorFieldRulesNote();
+    renderLostHiddenCity();
     if (state.gmFlowEnabled) revealAdjacentSlots(toPos);
     renderBoard();
     saveState();

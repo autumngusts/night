@@ -299,5 +299,26 @@ ok(
   "アタックとスキルの2箇所で判定している"
 );
 
+console.log("[⑪ 迷いの隠れ都のタイムロス判定]");
+// 規則書：PC1〜2人は1種でも成功すればペナルティなし、PC3〜4人は「PC人数-1」種以上。
+// 目標値は固定ではなく X＝PC人数+8。
+const REQ = LHC.requiredSuccesses;
+ok(REQ[1] === 1 && REQ[2] === 1, "PC1〜2人は1種でよい");
+ok(REQ[3] === 2 && REQ[4] === 3, "PC3〜4人は「PC人数-1」種");
+[1, 2, 3, 4].forEach((size) => {
+  const expected = size <= 2 ? 1 : size - 1;
+  ok(REQ[size] === expected, "PC" + size + "人 → 必要成功数 " + expected + "（目標値は " + (size + 8) + "）");
+});
+ok(LHC.timeLossOnFailure === 1, "満たさなければタイムロス1");
+ok(LHC.checks.length === 3, "判定は3種（運試し／フィジカル／メンタル）");
+ok(
+  LHC.checks.map((c) => c.stat).join(",") === "luck,physical,mental",
+  "3種の内訳が規則書どおり"
+);
+// night.js 側：成功数はGM入力で、割り当ては自動化していないこと。
+ok(/lost-hidden-city-successes/.test(nightSrc), "成功した種類数はGM入力（割り当ては自動化しない）");
+ok(/function lostHiddenCityTarget/.test(nightSrc) && /enteredPartySize\(\) \+ 8/.test(nightSrc), "目標値をPC人数+8で算出している");
+ok(/successes >= required/.test(nightSrc), "必要成功数に達したらタイムロスを課さない");
+
 console.log(fail === 0 ? "\n=== 全テスト通過 ===" : "\n=== 失敗 " + fail + " 件 ===");
 process.exit(fail === 0 ? 0 : 1);

@@ -800,6 +800,14 @@ BODY = """    <div class="night-header-row">
           <!-- 「各フロアの〔描写〕を確認し終えると同時に」が契機の追加ルール
                （状態異常の蓄積系・バリスタ射撃・増大する気配※2）をまとめて適用する。
                GMが描写を読み終えたところで押す。同じフロアで二重には適用されない。 -->
+          <!-- 追加ルール「迷いの隠れ都」：3種の行為判定を誰が何種行うかはPC側の選択なので
+               アプリでは割り当てない。GMが「成功した種類数」だけ入れ、タイムロスの要否を
+               アプリが判定する（目標値X＝PC人数+8、必要成功数もPC人数で変わる）。 -->
+          <div class="field-row-block" id="lost-hidden-city-block">
+            <label data-i18n="lost_hidden_city_label"></label>
+            <select id="lost-hidden-city-successes"></select>
+            <p class="threat-ref-body" id="lost-hidden-city-note"></p>
+          </div>
           <div class="field-row-block">
             <button type="button" id="btn-apply-floor-field-rules" data-i18n="apply_floor_field_rules_button"></button>
             <p class="threat-ref-body" id="floor-field-rules-note"></p>
