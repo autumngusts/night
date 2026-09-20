@@ -7291,6 +7291,10 @@
     drawWeaponFromCategory: drawWeaponFromCategory,
     presetWeaponRollForReward: presetWeaponRollForReward,
     makeConsumableInstanceId: makeConsumableInstanceId,
+    // 2026-09-20追加輸出（midnight.js「歩く霊廟」武器複製用）：複製要拿枝番付きの
+    // instance id，不能直接push同一個id（random戰技／詞條的儲存鍵會共用、丟一把兩把都沒了）。
+    makeWeaponInstanceId: makeWeaponInstanceId,
+    baseWeaponId: baseWeaponId,
     INVENTORY_MAX: INVENTORY_MAX,
     inventoryCount: inventoryCount,
     resolveInventoryOverflow: resolveInventoryOverflow,

@@ -40,7 +40,8 @@
     "test:graces": "node graces_check.js",
     "test:field_rules": "node field_rules_check.js",
     "test:flow_gates": "node flow_gates_check.js",
-    "test:night_boss_link": "node night_boss_link_check.js"
+    "test:night_boss_link": "node night_boss_link_check.js",
+    "test:review_2026_09_20": "node review_2026_09_20_check.js"
   },
   "devDependencies": {
     "firebase-tools": "^15.29.0",

@@ -266,13 +266,23 @@
     return name === "腐敗" && hasGrace(c, GRACE_ROTTEN_FOREST) && !!graceValue(GRACE_ROTTEN_FOREST, "rotImmune");
   }
 
-  function recordReceivedAttributeAccum(rawLabel, amount) {
-    var name = normalizeAttributeLabel(rawLabel);
-    if (graceBlocksReceivedAccum(characters[myTokenId], name)) return;
+  // 自身承受蓄積的前置過濾鏈（恩寵免疫→護符無效化/減免→武器詞條耐性），回傳實際要記入的
+  // 量（0＝這次不累積）。2026-09-20審查M17修正：抽成獨立函式，讓red/ice地圖的週期蓄積
+  // （maybeApplyRedMiasmaTick()／maybeApplyIceFrostbiteTick()）也走同一條過濾——它們原本
+  // 為了避開「跨閾值歸零」而直接寫receivedAttributeAccum，連帶繞過了腐れ森の恩寵的
+  // rotImmune與護符的無效化。
+  function filterReceivedAccumAmount(name, amount) {
+    if (graceBlocksReceivedAccum(characters[myTokenId], name)) return 0;
     amount = talismanAdjustedReceivedAccum(name, amount);
     // 2026-09-13武器詞條的「○○耐性上昇」系：機率性完全不累積這一次，接在護符的
     // 無效化/減免之後（兩者是各自獨立的來源，都通過才真的記進去）。
-    if (affixBlocksReceivedAccum(characters[myTokenId], name)) return;
+    if (affixBlocksReceivedAccum(characters[myTokenId], name)) return 0;
+    return amount > 0 ? amount : 0;
+  }
+
+  function recordReceivedAttributeAccum(rawLabel, amount) {
+    var name = normalizeAttributeLabel(rawLabel);
+    amount = filterReceivedAccumAmount(name, amount);
     if (amount <= 0) return;
     var next = (receivedAttributeAccum[name] || 0) + amount;
     receivedAttributeAccum[name] = next;
@@ -2216,10 +2226,38 @@
   // 這時候meta.mapVariant的最終值），取代isFirstTime那次用basic產生的暫時版本——等待房
   // 階段本來就只需要map.dayPlan.day1.start這類佔位資訊供角色出生點使用，不受影響。
   var variantMapGenerated = false;
+  // 2026-09-20審查L6修正：暫停只凍結縮圈時間軸（effectiveNow()），角色身上所有
+  // 「_xxxUntil／_xxxReadyAt／冷卻」都是Date.now()絕對時間戳，暫停期間180秒技藝冷卻照跑、
+  // 10秒buff照樣過期。不改每個讀取點（數十處），改在「暫停真正結束」（meta.pause.totalPausedMs
+  // 增加）那一刻，把自己角色上所有時間戳型欄位往後平移暫停時長；每台裝置只處理自己的
+  // 角色（本地欄位＋RTDB子路徑同步，隊友幫我歸零過的冷卻也在自己這裡平移）。
+  // 判斷依據是欄位名稱結尾（Until／ReadyAt／At）且值是「看起來像未來時間戳」的數字，
+  // 已過期的（<= pausedAt）不動——它們本來就該過期。
+  var lastSeenTotalPausedMs = null;
+  var PAUSE_SHIFT_FIELD_RE = /^_.*(Until|ReadyAt)$/;
+
+  function shiftMyTimestampsAfterPause(pausedAt, deltaMs) {
+    var c = characters[myTokenId];
+    if (!c || !deltaMs || deltaMs <= 0) return;
+    for (var k in c) {
+      if (!PAUSE_SHIFT_FIELD_RE.test(k)) continue;
+      var v = c[k];
+      if (typeof v !== "number" || v <= pausedAt) continue;
+      c[k] = v + deltaMs;
+      GameStorage.rtSet(gameId, "cloud", "character/" + myTokenId + "/" + k, c[k]);
+    }
+  }
+
   function onMetaReceived(value) {
     if (!value) return;
     var isFirstTime = !meta;
+    var prevPause = meta && meta.pause;
     meta = value;
+    var totalPaused = (meta.pause && meta.pause.totalPausedMs) || 0;
+    if (lastSeenTotalPausedMs !== null && totalPaused > lastSeenTotalPausedMs && prevPause && prevPause.pausedAt) {
+      shiftMyTimestampsAfterPause(prevPause.pausedAt, totalPaused - lastSeenTotalPausedMs);
+    }
+    lastSeenTotalPausedMs = totalPaused;
     if (isFirstTime) {
       map = Map_.generateMap(meta.mapSeed, "basic");
       el("midnight-start-screen").hidden = true;
@@ -2325,8 +2363,25 @@
   // 看起來像沒滿血、實際上只是還沒同步過的誤導畫面（demoStat/HP走RTDB transaction()
   // 初始化已經是滿血，FP純本地端則需要在這裡補一次）。
 
+  // 2026-09-20審查H1修正：自己的角色物件上有一整批「純本地、從不寫上RTDB」的buff欄位
+  // （_heroMeatUntil／_greaseWeaponId／_tempWeaponSkills／_continuousShot*／_roarTwoHit*／
+  // _aggroBonus*／_affix*Until…全部是_開頭）。原本這裡整份把characters換成新快照，於是
+  // **任何**character/子路徑寫入（自己的consumables transaction、冷卻rtSet、隊友發盧恩／
+  // 恩寵）都會讓這些欄位瞬間消失——實測「勇者的肉塊」按下後50ms buff就被洗掉，消耗品
+  // 次數卻已扣。修法：對myTokenId把舊物件上「_開頭且新快照沒有」的鍵原樣搬回來；
+  // 新快照有的鍵（例如隊友幫我歸零的_artCooldownUntil）仍以快照為準。
+  function mergeLocalOnlyCharacterFields(prev, next) {
+    if (!prev || !next || prev === next) return next;
+    for (var k in prev) {
+      if (k.charAt(0) === "_" && next[k] === undefined && prev.hasOwnProperty(k)) next[k] = prev[k];
+    }
+    return next;
+  }
+
   function onCharactersReceived(value) {
+    var prevMine = characters[myTokenId];
     characters = value || {};
+    if (characters[myTokenId]) mergeLocalOnlyCharacterFields(prevMine, characters[myTokenId]);
     var mine = characters[myTokenId];
     if (mine && !fpInitialized) {
       fpInitialized = true;
@@ -2996,6 +3051,18 @@
         "character/" + myTokenId,
         previousCharacter === undefined ? newCharacterForSlot(slot) : previousCharacter
       );
+      // 2026-09-20審查M2修正：pendingRewards是以tokenId為key，原本只搬demoStat/character，
+      // 舊token底下還沒領的獎勵清單在接管後就消失了。把舊token的清單整份併入新token
+      // （新token若已有清單則保留兩邊），再清掉舊的。
+      var previousPending = p.tokenId && p.tokenId !== myTokenId ? pendingRewards[p.tokenId] : null;
+      if (previousPending) {
+        var mergedPending = {};
+        var k;
+        for (k in pendingRewards[myTokenId] || {}) mergedPending[k] = pendingRewards[myTokenId][k];
+        for (k in previousPending) mergedPending[k] = previousPending[k];
+        GameStorage.rtSet(gameId, "cloud", "pendingRewards/" + myTokenId, mergedPending);
+        GameStorage.rtSet(gameId, "cloud", "pendingRewards/" + p.tokenId, null);
+      }
       renderLobby();
       renderPlayersPanel();
     });
@@ -3271,8 +3338,19 @@
     if (brokenAt) return Date.now() - brokenAt >= GUARD_BREAK_RECOVER_MS ? guardMax : 0;
     var units = trig.guardUnits || 0;
     var reduceBy = Math.floor(units / (GUARD_REDUCTION_THRESHOLD * 2));
-    var base = Math.max(0, guardMax - reduceBy);
-    return Math.min(guardMax, base + (trig.lBonus || 0));
+    return effectiveGuardCount(guardMax, reduceBy, trig.lBonus);
+  }
+
+  // Guard Point的顯示值與破防判定共用的公式（2026-09-20審查M1修正）：原本顯示用
+  // 「min(guardMax, max(0, guardMax−reduceBy)+lBonus)」、破防判定（recordGuardReductionForPoint()
+  // 的transaction）卻用「guardMax−reduceBy」完全沒算lBonus——累到基準值就破防，顯示值從
+  // lBonus直接跳0，「L補正讓Guard Point更難打到0」實際上不成立。統一成
+  // clamp(guardMax + lBonus − reduceBy, 0, guardMax)：起始仍是guardMax（不超過種族資料的
+  // 上限），但要多打lBonus段才會歸零。
+  function effectiveGuardCount(guardMax, reduceBy, lBonus) {
+    var v = guardMax + (lBonus || 0) - reduceBy;
+    if (v > guardMax) v = guardMax;
+    return v < 0 ? 0 : v;
   }
 
   // 玩家攻擊命中時，若這次傷害帶有▲/◆符號（computeWeaponDamage/computeMidnightSkillDamage
@@ -3402,7 +3480,7 @@
       }
       u += units;
       var reduceBy = Math.floor(u / (GUARD_REDUCTION_THRESHOLD * 2));
-      var newGuard = Math.max(0, fam.guardCount - reduceBy);
+      var newGuard = effectiveGuardCount(fam.guardCount, reduceBy, cur.lBonus); // 2026-09-20審查M1：跟顯示同一個公式（含L補正）
       if (newGuard === 0 && !brokenAt) brokenAt = Date.now();
       // everGuardBroken：跟guardBrokenAt不同，這個欄位一旦true就永遠不會被回復流程清掉
       // （回復只清guardBrokenAt/guardUnits），供夜之王「行動激化」機制使用——規則書原文
@@ -4013,8 +4091,10 @@
     if (!c || !hasRestage || !activeEncounter) return;
     var prevAccum = c._restageAccumDamage || 0;
     var nextAccum = prevAccum + amount;
+    // 2026-09-20審查L3修正：累積量只有自己這台會讀，不再每一擊rtSet上RTDB（原本每擊一筆
+    // 寫入，而且每筆都會觸發一次character快照回流）。純本地欄位由onCharactersReceived()
+    // 的_欄位合併保住。
     c._restageAccumDamage = nextAccum;
-    GameStorage.rtSet(gameId, "cloud", "character/" + myTokenId + "/_restageAccumDamage", nextAccum);
     if (Math.floor(nextAccum / 30) <= Math.floor(prevAccum / 30)) return; // 沒有跨過新的30倍數門檻
     if (Date.now() < (c._restageCooldownUntil || 0)) return;
     c._restageCooldownUntil = Date.now() + 60000;
@@ -5501,12 +5581,19 @@
       var toSelf = ACCUM_SENTENCE_SELF_RE.test(sentence) && !ACCUM_SENTENCE_ENEMY_RE.test(sentence);
       var m;
       re.lastIndex = 0;
+      // 「XD」表記：docs/enemy_damage_rules.md §1.1使用者裁定——本文沒有另外寫「振る」時，
+      // 「雷:2D」跟「雷:2」同義（固定2）。2026-09-20審查L1修正：原本這裡擲骰、消耗品側卻
+      // 視為固定值，同一份規則兩種讀法；統一為固定值，只有句子裡明寫「振」才真的擲。
+      var rollsDice = /振/.test(sentence);
       while ((m = re.exec(sentence))) {
         var num = parseInt(m[2], 10) || 0;
         var value;
         if (m[3]) {
-          value = 0;
-          for (var i = 0; i < num; i++) value += 1 + Math.floor(Math.random() * 6);
+          value = num;
+          if (rollsDice) {
+            value = 0;
+            for (var i = 0; i < num; i++) value += 1 + Math.floor(Math.random() * 6);
+          }
           if (m[4]) value += parseInt(m[4], 10) || 0;
         } else {
           value = num;
@@ -5957,9 +6044,11 @@
       });
     }
     if (abilityId === "whirlwind" && hasRelic(c, "skillTimeExtend") && activeEncounter) {
-      // 守護者・技能強化（延長時間）：「使用旋風時，對雜兵追加『HP損害：+■』」＝+10。
+      // 守護者・技能強化（延長時間）：「使用旋風時，對雜兵追加『HP損害：+■』」。
+      // 2026-09-20審查M4修正：雜兵的■一律走MOB_DAMAGE_PER_RULEBOOK_POINT（v0.28.0只改了
+      // 戰技本文路徑，這裡跟下面3處還留在PC刻度的10，同一條規則相差10倍）。
       var wPoint = activeEncounter.id;
-      if (fieldMobHp[wPoint] !== undefined && fieldMobHp[wPoint] > 0) damageFieldMobOnly(wPoint, BLOCK_SQUARE_COUNT_TO_RESOURCE_MULT);
+      if (fieldMobHp[wPoint] !== undefined && fieldMobHp[wPoint] > 0) damageFieldMobOnly(wPoint, MOB_DAMAGE_PER_RULEBOOK_POINT);
     }
     if (abilityId === "marking" && activeEncounter) {
       // 鐵眼・技能強化（延長時間）：「標記的效果持續時間多一倍」＝10秒→20秒。
@@ -5983,19 +6072,20 @@
     }
     if (abilityId === "march_of_the_undying" && hasRelic(c, "artSpiritFlame")) {
       // 復仇者・技藝強化（靈炎爆發）：「對敵人造成『火：2D』，並對召喚中的靈體
-      // 施加『HP回復：□×6』」＝+60。
-      recordAttributeAccum("炎", 1 + Math.floor(Math.random() * 6) + (1 + Math.floor(Math.random() * 6)));
+      // 施加『HP回復：□×6』」＝+60。「火：2D」依docs/enemy_damage_rules.md §1.1使用者裁定
+      // 視為固定2（2026-09-20審查L1修正，同漩渦烈焰）。
+      recordAttributeAccum("炎", 2);
       if (c.summonedSpirit && c.summonedSpirit.hp > 0) {
         c.summonedSpirit.hp = Math.min(c.summonedSpirit.maxHp, c.summonedSpirit.hp + BLOCK_SQUARE_COUNT_TO_RESOURCE_MULT * 6);
         GameStorage.rtSet(gameId, "cloud", "character/" + myTokenId + "/summonedSpirit", c.summonedSpirit);
       }
     }
     if (abilityId === "empathy" && hasRelic(c, "artContinuousDamage") && activeEncounter) {
-      // 學者・技藝強化（持續傷害）：「對雜兵追加造成『HP損害：■』」＝10。
+      // 學者・技藝強化（持續傷害）：「對雜兵追加造成『HP損害：■』」（雜兵刻度，見M4修正）。
       // 原文另有「若該技藝對敵人造成傷害，則傷害+60」，但共感術本身對敵人沒有傷害
       // （只有全體共享回復），沒有可加的對象，因此不套用（不自行發明一個傷害來源）。
       var ePoint = activeEncounter.id;
-      if (fieldMobHp[ePoint] !== undefined && fieldMobHp[ePoint] > 0) damageFieldMobOnly(ePoint, BLOCK_SQUARE_COUNT_TO_RESOURCE_MULT);
+      if (fieldMobHp[ePoint] !== undefined && fieldMobHp[ePoint] > 0) damageFieldMobOnly(ePoint, MOB_DAMAGE_PER_RULEBOOK_POINT);
     }
     if (abilityId === "elemental_control" && hasRelic(c, "abilityMagicGround")) {
       // 隱者・能力強化（魔術之地）：「直到10秒時間為止，將自身使用的魔術傷害+5」。
@@ -6006,11 +6096,13 @@
     // learnedVariantEntries()／角色面板切換接上（傷害由本文的【總合傷害：N】解析），
     // 這裡補上它們「傷害以外」的部分。
     if (abilityId === "hybrid_magic_vortex_flame") {
-      recordAttributeAccum("炎", 1 + Math.floor(Math.random() * 6)); // 火：1D
-      damageActiveMobIfAny(BLOCK_SQUARE_COUNT_TO_RESOURCE_MULT); // 對雜兵「HP損害：■」
+      // 「火：1D」：docs/enemy_damage_rules.md §1.1使用者裁定「XD」＝固定X（本文沒有另外
+      // 寫「振る」），2026-09-20審查L1修正，跟消耗品側的既有處理對齊，不再擲骰。
+      recordAttributeAccum("炎", 1);
+      damageActiveMobIfAny(MOB_DAMAGE_PER_RULEBOOK_POINT); // 對雜兵「HP損害：■」（雜兵刻度，見M4修正）
     } else if (abilityId === "hybrid_magic_frost_storm") {
       recordAttributeAccum("凍傷", 2);
-      damageActiveMobIfAny(BLOCK_SQUARE_COUNT_TO_RESOURCE_MULT * 2); // 「HP損害：■■」
+      damageActiveMobIfAny(MOB_DAMAGE_PER_RULEBOOK_POINT * 2); // 「HP損害：■■」（雜兵刻度，見M4修正）
     } else if (abilityId === "hybrid_magic_holy_light") {
       // 「對自身與其他任意1名PC施加『HP回復：□□□』」＝各+30。其他PC以隊伍中第一位
       // 非自己的在場玩家為對象（midnight沒有目標選擇UI，比照既有的簡化慣例）。
@@ -6218,13 +6310,14 @@
         GameStorage.rtSet(gameId, "cloud", "character/" + myTokenId + "/_skillCooldownUntil", c._skillCooldownUntil);
       }
     } else if (abilityId === "whirlwind") {
-      // 守護者・旋風：「對雜兵20點傷害」，原文只有■（不可自行發明數值），這裡的20是
-      // 使用者這次明確給的midnight限定數字。「S/M敵人▲」原文本身沒有固定傷害數值，只
-      // 影響Guard削り值，見recordGuardReductionForPoint()——跟一般攻擊/戰技命中時同一套
-      // 累積規則（▲=0.5、◆=1，每滿3點Guard Point-1）。
+      // 守護者・旋風：原文「對雜兵『HP損害：■』」。早期使用者給的midnight限定數字是20，
+      // 早於雜兵HP×10改版；2026-09-20使用者明確確認改為跟其餘雜兵■同一刻度
+      // （MOB_DAMAGE_PER_RULEBOOK_POINT＝100，見M4修正）。「S/M敵人▲」原文本身沒有固定
+      // 傷害數值，只影響Guard削り值，見recordGuardReductionForPoint()——跟一般攻擊/戰技
+      // 命中時同一套累積規則（▲=0.5、◆=1，每滿3點Guard Point-1）。
       if (activeEncounter) {
         var pointId = activeEncounter.id;
-        if (fieldMobHp[pointId] !== undefined && fieldMobHp[pointId] > 0) damageFieldMobOnly(pointId, 20);
+        if (fieldMobHp[pointId] !== undefined && fieldMobHp[pointId] > 0) damageFieldMobOnly(pointId, MOB_DAMAGE_PER_RULEBOOK_POINT);
         var trig = fieldTriggers[pointId];
         var enemyData =
           trig && trig.enemyFamilyId && trig.enemyFamilyId !== BOSS_ENEMY_FAMILY_SENTINEL
@@ -6383,9 +6476,12 @@
     return !!(meta && meta.bloodSongUntil && meta.bloodSongUntil > Date.now());
   }
 
-  // 血魂之歌「攻擊後HP/FP各回復□，每次間隔2秒」：□依CLAUDE.md §17視為+1，節流用本地
-  // 時間戳（不需要跨玩家同步，每個玩家各自的攻擊各自觸發各自的回復）。
+  // 血魂之歌「攻擊後HP/FP各回復□，每次間隔2秒」：□是1格，midnight的PC資源刻度1格＝
+  // BLOCK_SQUARE_COUNT_TO_RESOURCE_MULT（10，全檔其他□都是這個換算）。2026-09-20審查M5
+  // 修正：原本寫成+1（CLAUDE.md §17的回合制刻度），在200+HP的即時制刻度下完全無感。
+  // 節流用本地時間戳（不需要跨玩家同步，每個玩家各自的攻擊各自觸發各自的回復）。
   var BLOOD_SONG_REGEN_INTERVAL_MS = 2000;
+  var BLOOD_SONG_REGEN_AMOUNT = BLOCK_SQUARE_COUNT_TO_RESOURCE_MULT;
   var lastBloodSongRegenAt = 0;
 
   function maybeApplyBloodSongRegen() {
@@ -6395,9 +6491,9 @@
     var maxHp = mySelfHpMaxFallback();
     GameStorage.rtTransaction(gameId, "cloud", "demoStat/" + myTokenId, function (cur) {
       var current = cur === null ? maxHp : cur;
-      return Math.min(maxHp, current + 1);
+      return Math.min(maxHp, current + BLOOD_SONG_REGEN_AMOUNT);
     });
-    fp.current = Math.min(fp.max, fp.current + 1);
+    fp.current = Math.min(fp.max, fp.current + BLOOD_SONG_REGEN_AMOUNT);
   }
 
   // ============================================================
@@ -9265,14 +9361,20 @@
         }
       });
     }
-    // 敵人屬性攻擊（2026-09-06角色能力真正接入・不撓前置工程新增，使用者明確規格）：只在
-    // 完全命中（kind==="hit"，未被迴避/防禦/特殊防禦化解）時套用，比照迴避/防禦連同追加
-    // 效果一併無效化的既有慣例。這次攻擊已經是規則書「アクション決定表」抽出的唯一一招
-    // （見maybeStartEnemyAttack()），直接解析這一招本身的mod欄位（見
-    // parseElementalAttacksFromAction()），不再是「掃全部actions[]再隨機挑一個」的demo
-    // 佔位做法；一招可能同時附帶多個屬性/異常，全部套用。
-    if (kind === "hit") {
+    // 敵人屬性攻擊（2026-09-06角色能力真正接入・不撓前置工程新增）：這次攻擊已經是規則書
+    // 「アクション決定表」抽出的唯一一招（見maybeStartEnemyAttack()），直接解析這一招本身的
+    // mod欄位（見parseElementalAttacksFromAction()）；一招可能同時附帶多個屬性/異常，全部套用。
+    // 2026-09-20使用者明確規格「防禦也是會受到屬性異常」（審查L2）：原本只在完全命中
+    // （kind==="hit"）時套用，防禦成功一律免疫，於是遺物「ガード成功時、状態異常蓄積無効」／
+    // 「ガード成功時、属性蓄積無効」形同人人免費擁有。現在防禦（block）成功時也承受蓄積，
+    // 只有持有對應遺物的人免除該類（異常狀態／屬性）；迴避與特殊防禦維持完全化解，不動。
+    if (kind === "hit" || kind === "block") {
+      var cAccum = characters[myTokenId];
+      var blockAilmentImmune = kind === "block" && hasRelic(cAccum, "guardAilmentImmune");
+      var blockElementImmune = kind === "block" && hasRelic(cAccum, "guardElementImmune");
       parseElementalAttacksFromAction({ mod: st.actionMod }).forEach(function (a) {
+        var isAilmentAccum = ATTRIBUTE_STATUS_AILMENT_NAMES_JA.indexOf(normalizeAttributeLabel(a.label)) !== -1;
+        if (isAilmentAccum ? blockAilmentImmune : blockElementImmune) return;
         recordReceivedAttributeAccum(a.label, a.value);
       });
     }
@@ -10603,7 +10705,13 @@
       c.summonedSpirit = null;
       GameStorage.rtSet(gameId, "cloud", "character/" + myTokenId + "/summonedSpirit", null);
     }
-    receivedAttributeAccum = {};
+    // 2026-09-20審查M18修正：red「朱紅腐敗的瘴氣」的腐敗、ice「凍寒的暴風雪」的凍傷是
+    // 地圖規則明寫「戰鬥結束也不重置／持續累積」（見maybeApplyRedMiasmaTick()／
+    // maybeApplyIceFrostbiteTick()），戰鬥結束清空自身蓄積時要把這兩個留下來。
+    var keptAccum = {};
+    if (map && map.specialRule === "red_miasma" && receivedAttributeAccum["腐敗"]) keptAccum["腐敗"] = receivedAttributeAccum["腐敗"];
+    if (map && map.specialRule === "ice_blizzard" && receivedAttributeAccum["凍傷"]) keptAccum["凍傷"] = receivedAttributeAccum["凍傷"];
+    receivedAttributeAccum = keptAccum;
     // 2026-09-11新增遺物效果用的本場累計（突刺反擊的「攻擊過10次以上」／
     // 連續攻擊時體力回復の5次計數／連續攻擊時FP回復の10秒內體力消耗累計）：
     // 都是「一場戰鬥內」的概念，離開戰鬥就歸零。
@@ -11283,10 +11391,19 @@
         participants: {},
         resolvedAt: now,
       };
-    }).then(function () {
-      GameStorage.rtTransaction(gameId, "cloud", "fieldEnemyHp/" + pt.id, function (cur) {
-        return cur === null ? enemyRealHpMax({ enemyFamilyId: match.familyId, enemyId: match.enemy.id, level: level }) : cur;
-      });
+    }).then(function (committed) {
+      // 2026-09-20審查M6修正：HP初始化改用transaction回傳的贏家trigger（committed）算，
+      // 不用本機自己擲到的match/level——搶輸的裝置若先寫HP，會跟實際指派的敵人對不上。
+      initFieldEnemyHpFromTrigger(pt.id, committed);
+    });
+  }
+
+  // 依「實際寫進RTDB的trigger」初始化該點的敵人HP（first-writer-wins）。三個rollAndAssign*
+  // 共用：每台裝置各自擲表、只有一台的結果會被採用，HP必須依採用的那份算。
+  function initFieldEnemyHpFromTrigger(pointId, trig) {
+    if (!trig || !trig.enemyFamilyId) return;
+    GameStorage.rtTransaction(gameId, "cloud", "fieldEnemyHp/" + pointId, function (cur) {
+      return cur === null ? enemyRealHpMax({ enemyFamilyId: trig.enemyFamilyId, enemyId: trig.enemyId, level: trig.level }) : cur;
     });
   }
 
@@ -11422,9 +11539,7 @@
           return cur === null ? rolled.roll : cur;
         });
       }
-      GameStorage.rtTransaction(gameId, "cloud", "fieldEnemyHp/" + pointId, function (cur) {
-        return cur === null ? enemyRealHpMax({ enemyFamilyId: match.familyId, enemyId: match.enemy.id, level: level }) : cur;
-      });
+      initFieldEnemyHpFromTrigger(pointId, committed); // 2026-09-20審查M6修正：依贏家trigger算HP
     });
   }
 
@@ -11637,21 +11752,26 @@
     if (hp === undefined || hp > 0) return;
     if (day3FormResetAttempted) return;
     day3FormResetAttempted = true;
+    // 2026-09-20審查M7修正：只有transaction真正把形態切成split的那台（formSwapBy===自己）
+    // 才重灌HP／清蓄積。原本輸家的.then()也照做，鏡像順序不同時會把第二形態已經打掉的
+    // 傷害洗回滿血。
     GameStorage.rtTransaction(gameId, "cloud", "fieldTrigger/" + DAY3_BOSS_POINT_ID, function (cur) {
       if (!cur || cur.bossForm === "split") return cur;
       var out = {};
       for (var k in cur) out[k] = cur[k];
       out.bossForm = "split";
+      out.formSwapBy = myTokenId;
       out.guardUnits = 0;
       out.guardBrokenAt = null;
       out.everGuardBroken = false;
       out.damageBySlot = null;
       return out;
-    }).then(function () {
+    }).then(function (committed) {
+      day3FormResetAttempted = false;
+      if (!committed || committed.formSwapBy !== myTokenId) return;
       GameStorage.rtSet(gameId, "cloud", "fieldEnemyHp/" + DAY3_BOSS_POINT_ID, bossHpMax(trig.enemyId));
       GameStorage.rtSet(gameId, "cloud", "attributeAccum/" + DAY3_BOSS_POINT_ID, null);
       GameStorage.rtSet(gameId, "cloud", "attributeAccumTriggers/" + DAY3_BOSS_POINT_ID, null);
-      day3FormResetAttempted = false;
     });
   }
 
@@ -12357,21 +12477,26 @@
       var c2 = characters[myTokenId];
       if (!c2) return;
       if (kind === "weapon") {
-        c2.weaponIds = (c2.weaponIds || []).concat([data.itemId]);
+        // 2026-09-20審查修正（同歩く霊廟L4，使用者確認一併處理）：地上那把的id可能跟自己
+        // 已持有的某把撞名（同catalog、或別人丟掉的"xxx::2"枝番），直接concat會讓random
+        // 戰技／詞條的儲存鍵共用。改用CharacterDrawer既有的枝番機制依自己目前的持有狀況
+        // 重新編id；戰技／詞條再依新id寫入。
+        var CDp = window.PriTestCharacterDrawer;
+        var pickedWeaponId = CDp.makeWeaponInstanceId(CDp.baseWeaponId(data.itemId), c2);
+        c2.weaponIds = (c2.weaponIds || []).concat([pickedWeaponId]);
         GameStorage.rtSet(gameId, "cloud", "character/" + myTokenId + "/weaponIds", c2.weaponIds);
         // 2026-09-12：掉落時一起記在地上的random戰技（見dropInventoryItem()）跟著撿回來；
         // 舊資料／從來沒解決過戰技枠的武器（randomSkillId為null）就在撿起的當下抽一次，
         // 符合使用者規格「武器的戰技是當下直接抽出，並非鍛造台再抽」。
-        var CDp = window.PriTestCharacterDrawer;
-        CDp.assignWeaponRandomSkill(c2, data.itemId, data.randomSkillId || CDp.rollWeaponRandomSkill(data.itemId));
+        CDp.assignWeaponRandomSkill(c2, pickedWeaponId, data.randomSkillId || CDp.rollWeaponRandomSkill(pickedWeaponId));
         if (c2.weaponRandomSkills) GameStorage.rtSet(gameId, "cloud", "character/" + myTokenId + "/weaponRandomSkills", c2.weaponRandomSkills);
         // 2026-09-13武器詞條：地上那把原本帶的詞條跟著撿回來（見dropInventoryItem()）；
         // 沒有紀錄的（例如遊戲中途才開啟詞條、或更早期掉在地上的武器）才在撿起的當下擲一次。
         if (data.affixes) {
           c2.weaponAffixes = c2.weaponAffixes || {};
-          c2.weaponAffixes[data.itemId] = data.affixes;
+          c2.weaponAffixes[pickedWeaponId] = data.affixes;
         } else {
-          grantAffixesForNewWeapon(c2, data.itemId);
+          grantAffixesForNewWeapon(c2, pickedWeaponId);
         }
         if (c2.weaponAffixes) GameStorage.rtSet(gameId, "cloud", "character/" + myTokenId + "/weaponAffixes", c2.weaponAffixes);
       } else if (kind === "talisman") {
@@ -13072,18 +13197,26 @@
           // 遺物のassignRelicChoiceIfNeeded()と同じくランダム既定値を入れておく。
           // 「夜に刻まれし癒えぬ傷」はPC死亡分支のほうの結局で、本函式はhp<=0（真正撃破）
           // 時にしか走らないため、ここで誤って触れることはない。
+          // 2026-09-20審查H2修正：這裡對**其他玩家**的角色只寫子路徑（恩寵已由
+          // grantGraceToTokens()寫graces/{id}），不再rtSet整個character/{tokenId}——
+          // c是「我這台對該玩家的快照」，整份覆寫會把對方同時寫入的裝備切換／冷卻／
+          // 消耗品／盧恩／nearDeath全部用舊值蓋回去。
           grantGraceToTokens([p.tokenId], GRACE_BLESSING_KING);
           assignFlameKingPowerModChoice(c);
+          var flameKingDef = window.PriTestGraces && window.PriTestGraces.get("blessing_king");
+          if (flameKingDef && flameKingDef.choiceField && c[flameKingDef.choiceField]) {
+            GameStorage.rtSet(gameId, "cloud", "character/" + p.tokenId + "/" + flameKingDef.choiceField, c[flameKingDef.choiceField]);
+          }
           if (p.tokenId === myTokenId) refreshFlameKingPowerModBonus();
           c._lastTileRewardNote = { text: window.I18N.t("midnight_random_event_ambush_imi_oni_grace_note"), at: Date.now() };
-          GameStorage.rtSet(gameId, "cloud", "character/" + p.tokenId, c);
+          GameStorage.rtSet(gameId, "cloud", "character/" + p.tokenId + "/_lastTileRewardNote", c._lastTileRewardNote);
         } else if (trig.ambushEnemyNameJa === "兆し") {
           // event_rulebook.js:857-858「融合する命」：聖杯瓶回HP時FP同量回復——比其餘恩寵單純
           // （純加成、無條件分支），且commitFlaskHeal()的改動風險低，因此結構化為恩寵旗標
           // （見commitFlaskHeal()的hasGrace判斷）。
           grantGraceToTokens([p.tokenId], GRACE_FUSED_LIFE);
           c._lastTileRewardNote = { text: window.I18N.t("midnight_random_event_ambush_kizashi_grace_note"), at: Date.now() };
-          GameStorage.rtSet(gameId, "cloud", "character/" + p.tokenId, c);
+          GameStorage.rtSet(gameId, "cloud", "character/" + p.tokenId + "/_lastTileRewardNote", c._lastTileRewardNote);
         }
       });
     });
@@ -13189,16 +13322,21 @@
     var doneKey = "wolfStage" + stage + "Successes";
     if (trig[doneKey] !== undefined && trig[doneKey] !== null) return; // 這一輪已經結算過
     var successes = rollThreeHeadedBeastChecks();
+    // 2026-09-20審查M10修正：贏家改用同一個transaction裡寫入的tokenId（<doneKey>By）判定，
+    // 不再比對結果值——兩台同時按、剛好擲出相同成功次數時，結果值比對會讓兩台都以為
+    // 自己贏了而重複發盧恩／扣血。
+    var byKey = doneKey + "By";
     GameStorage.rtTransaction(gameId, "cloud", "fieldTrigger/" + pt.id, function (cur) {
       if (!cur || (cur[doneKey] !== undefined && cur[doneKey] !== null)) return cur; // 別台先結算了
       var out = {};
       for (var k in cur) out[k] = cur[k];
       out[doneKey] = successes;
+      out[byKey] = myTokenId;
       out.wolfStage = stage === 1 ? "sign1" : "done";
       return out;
     }).then(function (committed) {
-      // 搶到的那台（committed後該欄位等於自己這次的值）負責施放效果，避免多台重複結算。
-      if (!committed || committed[doneKey] !== successes) return;
+      // 搶到的那台（committed後By欄位等於自己）負責施放效果，避免多台重複結算。
+      if (!committed || committed[byKey] !== myTokenId) return;
       applyThreeHeadedBeastOutcome(stage, successes);
     });
   }
@@ -13349,14 +13487,16 @@
     });
     var target = MIST_RIFT_TEAM_CHECK_TARGET_PER_PC * Math.max(1, activeSlots.length);
     var outcome = teamCheckSum({ participants: participantsMap }, "luck") >= target ? "success" : "fail";
+    // 2026-09-20審查M10修正：同三つ首の獣，贏家用transaction內寫入的tokenId判定，不比對結果值。
     GameStorage.rtTransaction(gameId, "cloud", "fieldTrigger/" + pt.id, function (cur) {
       if (!cur || cur.mistTeamOutcome) return cur;
       var out = {};
       for (var k in cur) out[k] = cur[k];
       out.mistTeamOutcome = outcome;
+      out.mistTeamBy = myTokenId;
       return out;
     }).then(function (committed) {
-      if (!committed || committed.mistTeamOutcome !== outcome) return; // 別台先結算了
+      if (!committed || committed.mistTeamBy !== myTokenId) return; // 別台先結算了
       var text = MIST_RIFT_TEAM_TEXT[outcome];
       var tokenIds = seatedTokenIds();
       // 失敗時的「PC全員はそれぞれ『HP損害：■■■』」由applyRulebookPcDamage()的
@@ -13876,13 +14016,17 @@
     });
     var target = BURIED_TREASURE_CHECK_TARGET_PER_PC * activeSlots.length;
     var sum = teamCheckSum({ participants: participantsMap }, "luck");
+    // 2026-09-20審查M10修正：原本.then()完全沒有贏家判定，兩台同時判定成功時共享池會多
+    // 進3件。改為在同一個transaction內寫resolvedBy，只有贏家推進共享池。
     GameStorage.rtTransaction(gameId, "cloud", "fieldTrigger/" + pt.id, function (cur) {
       if (!cur || cur.resolvedOutcome) return cur;
       var out = {};
       for (var k in cur) out[k] = cur[k];
       out.resolvedOutcome = sum >= target ? "success" : "fail";
+      out.resolvedBy = myTokenId;
       return out;
-    }).then(function () {
+    }).then(function (committed) {
+      if (!committed || committed.resolvedBy !== myTokenId) return; // 別台先結算了
       if (sum >= target) {
         // event_rulebook.js:458「次の表を見て1Dを3回振り、それぞれの出目に沿った
         // アイテムを1つずつ、合計3個得る」——PC達（隊伍）共享，不是個人專屬，走
@@ -14025,9 +14169,26 @@
     // 只差在失敗多了HP損害）。
     if (c && c.weaponIds && c.weaponIds.length) {
       if (hasInventorySpace(c, "weapon")) {
+        // 2026-09-20審查L4修正：原本直接push同一個instance id，random戰技／詞條的儲存鍵會
+        // 跟原本那把共用，丟掉一把兩把都沒了。改用CharacterDrawer既有的枝番機制
+        // （makeWeaponInstanceId()，同merchantDrawWeapon()等取得路徑）產生新id，並把
+        // 原本那把的random戰技／詞條原樣複製過去（「同じ物1つ」＝一模一樣的一把）。
+        var CDm = window.PriTestCharacterDrawer;
         var pickedId = c.weaponIds[Math.floor(Math.random() * c.weaponIds.length)];
-        c.weaponIds.push(pickedId);
-        GameStorage.rtSet(gameId, "cloud", "character/" + myTokenId, c);
+        var copyId = CDm.makeWeaponInstanceId(CDm.baseWeaponId(pickedId), c);
+        c.weaponIds.push(copyId);
+        GameStorage.rtSet(gameId, "cloud", "character/" + myTokenId + "/weaponIds", c.weaponIds);
+        if (c.weaponRandomSkills) {
+          [null, "attached", "reverse"].forEach(function (slot) {
+            var fromKey = CDm.weaponSkillSlotKey(pickedId, slot);
+            if (c.weaponRandomSkills[fromKey]) c.weaponRandomSkills[CDm.weaponSkillSlotKey(copyId, slot)] = c.weaponRandomSkills[fromKey];
+          });
+          GameStorage.rtSet(gameId, "cloud", "character/" + myTokenId + "/weaponRandomSkills", c.weaponRandomSkills);
+        }
+        if (c.weaponAffixes && c.weaponAffixes[pickedId]) {
+          c.weaponAffixes[copyId] = JSON.parse(JSON.stringify(c.weaponAffixes[pickedId]));
+          GameStorage.rtSet(gameId, "cloud", "character/" + myTokenId + "/weaponAffixes", c.weaponAffixes);
+        }
       } else {
         showToast(window.I18N.t("midnight_inventory_full_note"));
       }
@@ -14111,10 +14272,8 @@
       out.level = row.level;
       out.requiredRounds = row.rounds;
       return out;
-    }).then(function () {
-      GameStorage.rtTransaction(gameId, "cloud", "fieldEnemyHp/" + pt.id, function (cur) {
-        return cur === null ? enemyRealHpMax({ enemyFamilyId: match.familyId, enemyId: match.enemy.id, level: row.level }) : cur;
-      });
+    }).then(function (committed) {
+      initFieldEnemyHpFromTrigger(pt.id, committed); // 2026-09-20審查M6修正：依贏家trigger算HP
     });
   }
 
@@ -14130,15 +14289,22 @@
     var hp = fieldEnemyHp[pt.id];
     if (hp === undefined || hp > 0) return;
     var completedSoFar = trig.completedRounds || 0;
+    var requiredRounds = trig.requiredRounds || 1;
+    if (completedSoFar >= requiredRounds) return; // 最終輪已經結算過（HP停在0是正常狀態）
     if (nightForceRoundAdvanceAttempted[pt.id] === completedSoFar) return; // 這一輪已經處理過
     nightForceRoundAdvanceAttempted[pt.id] = completedSoFar;
     var nextCompleted = completedSoFar + 1;
-    var requiredRounds = trig.requiredRounds || 1;
-    if (nextCompleted >= requiredRounds) {
-      GameStorage.rtTransaction(gameId, "cloud", "fieldTrigger/" + pt.id + "/completedRounds", function (cur) {
-        return cur === null || cur < requiredRounds ? nextCompleted : cur;
-      }).then(function (committed) {
-        if (committed !== nextCompleted) return; // 被別的裝置搶先處理過這一輪
+    // 2026-09-20審查H3修正：原本用「completedRounds transaction的回傳值 === nextCompleted」
+    // 判贏家，但搶輸的裝置在transaction裡看到cur已經等於nextCompleted、原樣回傳，回傳值
+    // 一樣是nextCompleted——每台裝置都以為自己贏了，最終輪每台都發一次獎（2~3倍盧恩／
+    // 潛力），中間輪每台都rtSet HP=max（慢的那台會在下一輪開打後把HP洗回滿）。改用
+    // tokenId鎖（roundAdvancedBy/<n>，同rewardGrantedBy的first-writer-wins寫法）。
+    GameStorage.rtTransaction(gameId, "cloud", "fieldTrigger/" + pt.id + "/roundAdvancedBy/" + nextCompleted, function (cur) {
+      return cur === null ? myTokenId : cur;
+    }).then(function (committed) {
+      if (committed !== myTokenId) return; // 被別的裝置搶先處理過這一輪
+      if (nextCompleted >= requiredRounds) {
+        GameStorage.rtSet(gameId, "cloud", "fieldTrigger/" + pt.id + "/completedRounds", nextCompleted);
         // event_rulebook.js:563「ボス戦闘（撃破ルーン：7）」＋:579「潜在する力：★★」——
         // 兩者是同一個「n回戦闘結束時」時機點的獎勵，都走pushPendingReward()（同
         // maybeGrantMeteorReward()的理由：potentialPower只有pendingRewards抽選清單流程
@@ -14160,20 +14326,19 @@
           GameStorage.rtSet(gameId, "cloud", "character/" + p.tokenId + "/_skillCooldownUntil", 0);
           grantGraceToTokens([p.tokenId], GRACE_NIGHT);
         });
-      });
-    } else {
-      GameStorage.rtTransaction(gameId, "cloud", "fieldTrigger/" + pt.id + "/completedRounds", function (cur) {
-        return cur === null || cur < nextCompleted ? nextCompleted : cur;
-      }).then(function (committed) {
-        if (committed !== nextCompleted) return; // 被別的裝置搶先處理過這一輪
+      } else {
+        // 中間輪：**先**回滿HP、**再**寫completedRounds（同一個client的寫入RTDB保證依序送達）。
+        // 順序反過來的話，第三台裝置會有一瞬間看到「completedRounds已經+1、HP還是0」，
+        // 誤以為下一輪也打完了而再推進一輪。
         GameStorage.rtSet(
           gameId,
           "cloud",
           "fieldEnemyHp/" + pt.id,
           enemyRealHpMax({ enemyFamilyId: trig.enemyFamilyId, enemyId: trig.enemyId, level: trig.level })
         );
-      });
-    }
+        GameStorage.rtSet(gameId, "cloud", "fieldTrigger/" + pt.id + "/completedRounds", nextCompleted);
+      }
+    });
   }
 
   // ---- 虫の大量発生分支（event_rulebook.js:595-676）----
@@ -14830,20 +14995,33 @@
     });
     // 逾時時沒投票的人視為「不拿取」；一個人都沒投拿取時沿用既有規格「強制隨機指派給
     // 某一位玩家」，指派對象優先取還在席位上的人，確保 winnerTokenId 一定解得出來。
-    var pool = takers.length ? takers : seated.length ? seated : participants;
+    // 2026-09-20審查M14修正：實際入手只在得主自己的裝置執行，抽到離線者物品就直接消失
+    // ——候選名單先過濾presence（slotOnline()），全部離線才退回原名單（同readyGateSlots()
+    // 的保守寫法）。
+    var onlineOnly = function (slots) {
+      var online = slots.filter(slotOnline);
+      return online.length ? online : slots;
+    };
+    var pool = takers.length ? onlineOnly(takers) : seated.length ? onlineOnly(seated) : participants;
     var winnerSlot = pool[fieldSeededIndex(key + ":winner", pool.length)];
     var winnerTokenId = players[winnerSlot] && players[winnerSlot].tokenId;
     // winnerTokenId 解不出來時不要設下本地節流旗標——否則這台裝置就永久放棄這一筆，
     // 等玩家重新連上線也不會再判定一次（原本的寫法把旗標設在這個檢查之前）。
     if (!winnerTokenId) return;
     sharedRewardResolveAttempted[key] = true;
-    GameStorage.rtSet(gameId, "cloud", "fieldTrigger/" + pointId + "/sharedRewards/" + rewardId + "/resolvedBy", winnerTokenId);
-    if (winnerTokenId !== myTokenId) return;
-    var c = characters[myTokenId];
-    if (!c) return;
-    applyDrawnSharedRewardToCharacter(c, entry, entry.drawn);
-    c._lastTileRewardNote = { text: window.I18N.t("midnight_reward_toast_prefix") + sharedRewardDrawLabel(entry, entry.drawn), at: Date.now() };
-    GameStorage.rtSet(gameId, "cloud", "character/" + myTokenId, c);
+    // 2026-09-20審查M14修正：得主由各裝置各自算出（pool依各自看到的players/presence可能
+    // 不同），原本直接rtSet resolvedBy會互相覆蓋、且每台都拿自己算的得主去比對。改用
+    // transaction first-writer-wins，以RTDB實際落地的得主為準。
+    GameStorage.rtTransaction(gameId, "cloud", "fieldTrigger/" + pointId + "/sharedRewards/" + rewardId + "/resolvedBy", function (cur) {
+      return cur === null ? winnerTokenId : cur;
+    }).then(function (committed) {
+      if (committed !== myTokenId) return;
+      var c = characters[myTokenId];
+      if (!c) return;
+      applyDrawnSharedRewardToCharacter(c, entry, entry.drawn);
+      c._lastTileRewardNote = { text: window.I18N.t("midnight_reward_toast_prefix") + sharedRewardDrawLabel(entry, entry.drawn), at: Date.now() };
+      GameStorage.rtSet(gameId, "cloud", "character/" + myTokenId, c);
+    });
   }
 
   // 共享池獎勵的「無人動作」保險（2026-09-12，跟上面 maybeResolveSharedRewardVote() 的
@@ -15232,7 +15410,10 @@
         }
         var resolvedLoot = autoJudgmentEntries.length ? resolveJudgmentRewardEntries(autoJudgmentEntries, trig, voteLabel) : [];
         var allLoot = lootEntries.concat(resolvedLoot);
-        if (!allLoot.length) return;
+        if (!allLoot.length) {
+          markTileRewardsPosted(pt.id);
+          return;
+        }
         // perPerson/固定共享的分流（設計文件§1.5/§3.2，Task 1已建好pushPerPlayerReward/
         // pushSharedReward基礎設施但尚未接上任何呼叫路徑，見task-7-report.md「已知限制」——
         // 這裡是接上的地方）。perPerson維持原本「每個participant各自即時拿到一份」的行為
@@ -15275,6 +15456,7 @@
         shared.forEach(function (e) {
           pushSharedReward(pt.id, e);
         });
+        markTileRewardsPosted(pt.id);
       });
     }
     if (bargainEntries.length) {
@@ -15287,6 +15469,24 @@
         openBargainRevealModal(pt, trig, bargainEntries[0]);
       }
     }
+  }
+
+  // 2026-09-20審查M15修正：tileRewardGrantedBy（發獎鎖）跟advancedBy<N>（推進鎖）是兩把
+  // 獨立的鎖，可能由不同裝置贏得。發獎贏家的pushSharedReward()/pushPendingReward()是一連串
+  // fire-and-forget寫入，在它們落地之前，第三台裝置可能已經看到「進度推進＋gate open
+  // （因為sharedRewards還是空的）」而把fieldTrigger清成null——共享池隨後寫進一個沒有
+  // status的殘骸trigger，這個點從此既進不去（fieldTriggers[pt.id]存在）也清不掉（清理
+  // 要求status==="resolved"），永久卡死。修法：發獎贏家在所有push之後**最後**寫一個
+  // tileRewardsPosted旗標（同一client的寫入依序送達，旗標到＝獎勵一定已經到），清理端
+  // 看到有人搶了發獎鎖就必須等這個旗標（贏家中途離線的話由stageGateTimedOut()逾時放行）。
+  function markTileRewardsPosted(pointId) {
+    GameStorage.rtSet(gameId, "cloud", "fieldTrigger/" + pointId + "/tileRewardsPosted", true);
+  }
+
+  function tileRewardsSettled(pt, trig) {
+    if (!trig.tileRewardGrantedBy) return true; // 這一層沒有需要搶鎖發放的獎勵
+    if (trig.tileRewardsPosted) return true;
+    return stageGateTimedOut(pt.id, "tileRewardsPosted");
   }
 
   function maybeGrantFieldTileRewardOnClear(pt) {
@@ -15440,6 +15640,14 @@
     var trig = fieldTriggers[pt.id];
     var progress = fieldProgress[pt.id];
     if (!trig || !progress || progress.cleared) return;
+    // 2026-09-20審查M15：舊版留下的殘骸（沒有status、只有sharedRewards等落地較晚的欄位）——
+    // 這種trigger既不能進入也不會被下面的status==="resolved"條件清掉，直接視為殘骸清除。
+    // 只在「進度已經超過這個殘骸能對應的樓層」時才動手，這是它唯一可能的生成路徑。
+    if (!trig.status && !trig.participants && !trig.enemyFamilyId) {
+      resetFieldPointLocalFlags(pt.id);
+      GameStorage.rtSet(gameId, "cloud", "fieldTrigger/" + pt.id, null);
+      return;
+    }
     // fix(2026-09-10)：使用者回報「按下『進入下一層』後無法真正進入、卡在該樓層」的直接
     // 成因。handleEnterFieldPointClick()建立的新trigger是
     // {status:"inviting", ...}，**沒有floorIndex欄位**（floorIndex要等
@@ -15455,6 +15663,7 @@
     // 不用「|| 0」把「還沒決定樓層」誤當成第0層。
     if (trig.status !== "resolved" || typeof trig.floorIndex !== "number") return;
     if ((progress.floorIndex || 0) <= trig.floorIndex) return;
+    if (!tileRewardsSettled(pt, trig)) return; // 2026-09-20審查M15：發獎贏家的獎勵還沒全部落地
     if (!fieldRewardGateOpen(pt)) return;
     resetFieldPointLocalFlags(pt.id);
     GameStorage.rtSet(gameId, "cloud", "fieldTrigger/" + pt.id, null);
@@ -17470,6 +17679,7 @@
       usesRemaining: data.usesRemaining === undefined ? null : data.usesRemaining,
       attributeTag: data.attributeTag || null,
       randomSkillId: data.randomSkillId || null,
+      affixes: data.affixes || null, // 2026-09-20審查M11修正：原本漏寫，丟棄再撿起的武器詞條一律被重抽
       x: localPos.x,
       y: localPos.y,
       droppedBy: myTokenId,
@@ -18577,10 +18787,17 @@
     if (hasGrace(c, GRACE_COLD_MIRAGE)) {
       // 踏みとどまるHPは graces.js の survivalHp（midnight刻度10）を単一資料來源にする。
       var survivalHp = graceValue(GRACE_COLD_MIRAGE, "survivalHp") || COLD_MIRAGE_SURVIVE_HP;
+      // 2026-09-20審查L5修正：原本用「committed === null」當贏家，但rtTransaction()對
+      // 「值本來就是null（別台已經消耗掉）」跟「這次真的把它清成null」都回傳null——恩寵
+      // 已消耗後仍可能把HP拉回10。改用updateFn內的閉包旗標記錄「最後一次執行時看到的值
+      // 還在」（同enterNearDeath()的entered旗標寫法；transaction重試時每次都會重新賦值，
+      // 最終commit的那一次才算數）。
+      var consumedNow = false;
       GameStorage.rtTransaction(gameId, "cloud", "character/" + tokenId + "/graces/" + GRACE_COLD_MIRAGE, function (cur) {
+        consumedNow = !!cur;
         return cur ? null : cur;
-      }).then(function (committed) {
-        if (committed === null) {
+      }).then(function () {
+        if (consumedNow) {
           // RTDB側はtransactionで消し済み。ローカル物件（舊旗標も含む）も落としておく。
           // 「代わりにこの恩寵を失う」かどうかは graces.js の consumedOnTrigger に従う。
           if (window.PriTestGraces && graceValue(GRACE_COLD_MIRAGE, "consumedOnTrigger")) {
@@ -19255,32 +19472,50 @@
   // kasan的熔岩規則掛在maybeAdvanceFieldProgressAfterFloorClear()（樓層踏破事件本身），
   // 不是週期性，不在這裡處理。
   // ============================================================================
-  var casselNextTimeLossAt = null;
   var casselTimeLossAttempted = false;
   var CASSEL_TIME_LOSS_MIN_MS = 30000;
   var CASSEL_TIME_LOSS_MAX_MS = 60000;
   var CASSEL_TIME_LOSS_AMOUNT_MS = 5000;
 
+  function casselRollNextAt(now) {
+    return now + CASSEL_TIME_LOSS_MIN_MS + Math.random() * (CASSEL_TIME_LOSS_MAX_MS - CASSEL_TIME_LOSS_MIN_MS);
+  }
+
   // 「迷惘的隱藏都市」（cassel）：使用者明確規格「此場地內每隨機30~60秒，縮圈時間-5秒」。
   // 縮圈時間由currentPhaseInfo()依「now－該天StartAt」算出，因此「縮圈時間-5秒」等同讓
   // 該天的StartAt往前撥5秒（跟測試主控台既有的handleForceShrinkClick()同一種手法，
-  // 不是另外發明新的計時欄位）。這個效果是「地圖本身」的規則、跟玩家在哪裡無關，所有人
-  // 共用同一份meta，因此任何一個裝置的transaction()寫入就對全場生效，不需要每個玩家
-  // 各自觸發。
+  // 不是另外發明新的計時欄位）。這個效果是「地圖本身」的規則、跟玩家在哪裡無關。
+  // 2026-09-20審查M16修正：原本「下一次觸發時間」是每台裝置各自的本地亂數，每台到點都
+  // 各自扣一次，人數愈多頻率愈高（跟上面註解宣稱的「不需要每個玩家各自觸發」相反）。
+  // 改成共享時程meta.casselTimeLoss={nextAt, by}：第一台裝置用transaction定下nextAt，
+  // 到點時用transaction「cur.nextAt===我看到的nextAt才換成新的nextAt＋by=我」搶一次，
+  // 只有by===自己的那台真的扣StartAt。全場每30~60秒只扣一次，跟人數無關。
   function maybeApplyCasselTimeLoss(now, phaseInfo) {
     if (phaseInfo.day === 3) return; // day3沒有縮圈可言
-    if (casselNextTimeLossAt === null) {
-      casselNextTimeLossAt = now + CASSEL_TIME_LOSS_MIN_MS + Math.random() * (CASSEL_TIME_LOSS_MAX_MS - CASSEL_TIME_LOSS_MIN_MS);
+    if (!meta || casselTimeLossAttempted) return;
+    var sched = meta.casselTimeLoss;
+    if (!sched || typeof sched.nextAt !== "number") {
+      casselTimeLossAttempted = true;
+      GameStorage.rtTransaction(gameId, "cloud", "meta/casselTimeLoss", function (cur) {
+        return cur && typeof cur.nextAt === "number" ? cur : { nextAt: casselRollNextAt(now), by: null };
+      }).then(function () {
+        casselTimeLossAttempted = false;
+      });
       return;
     }
-    if (now < casselNextTimeLossAt || casselTimeLossAttempted) return;
+    if (now < sched.nextAt) return;
     casselTimeLossAttempted = true;
+    var dueAt = sched.nextAt;
     var field = phaseInfo.day === 1 ? "sessionStartAt" : "day2StartAt";
-    GameStorage.rtTransaction(gameId, "cloud", "meta/" + field, function (cur) {
-      return cur === null ? cur : cur - CASSEL_TIME_LOSS_AMOUNT_MS;
-    }).then(function () {
+    GameStorage.rtTransaction(gameId, "cloud", "meta/casselTimeLoss", function (cur) {
+      if (!cur || cur.nextAt !== dueAt) return cur; // 別台已經接手這一次
+      return { nextAt: casselRollNextAt(Date.now()), by: myTokenId };
+    }).then(function (committed) {
       casselTimeLossAttempted = false;
-      casselNextTimeLossAt = Date.now() + CASSEL_TIME_LOSS_MIN_MS + Math.random() * (CASSEL_TIME_LOSS_MAX_MS - CASSEL_TIME_LOSS_MIN_MS);
+      if (!committed || committed.by !== myTokenId || committed.nextAt === dueAt) return;
+      GameStorage.rtTransaction(gameId, "cloud", "meta/" + field, function (cur) {
+        return cur === null ? cur : cur - CASSEL_TIME_LOSS_AMOUNT_MS;
+      });
     });
   }
 
@@ -19302,7 +19537,10 @@
     }
     if (now < redMiasmaNextTickAt) return;
     redMiasmaNextTickAt = now + RED_MIASMA_INTERVAL_MS;
-    var roll = 1 + Math.floor(Math.random() * 6);
+    // 2026-09-20審查M17修正：經過同一條前置過濾鏈（恩寵免疫／護符無效化／詞條耐性），
+    // 只是仍不透過recordReceivedAttributeAccum()的閾值歸零。
+    var roll = filterReceivedAccumAmount("腐敗", 1 + Math.floor(Math.random() * 6));
+    if (roll <= 0) return;
     receivedAttributeAccum["腐敗"] = (receivedAttributeAccum["腐敗"] || 0) + roll;
     renderAttributeAccumNote();
   }
@@ -19366,7 +19604,9 @@
     }
     if (now < iceFrostbiteNextTickAt) return;
     iceFrostbiteNextTickAt = now + ICE_FROSTBITE_INTERVAL_MS;
-    var roll = 1 + Math.floor(Math.random() * 6);
+    // 2026-09-20審查M17修正：同maybeApplyRedMiasmaTick()，走同一條前置過濾鏈。
+    var roll = filterReceivedAccumAmount("凍傷", 1 + Math.floor(Math.random() * 6));
+    if (roll <= 0) return;
     receivedAttributeAccum["凍傷"] = (receivedAttributeAccum["凍傷"] || 0) + roll;
     renderAttributeAccumNote();
   }
@@ -20683,6 +20923,57 @@
     },
     _debugDrawSharedRewardData: function (entry) {
       return drawSharedRewardData(entry);
+    },
+    // 2026-09-20審查修正的回歸測試入口（tools/midnight_check/review_2026_09_20_check.js）。
+    _debugEffectiveGuardCount: function (guardMax, reduceBy, lBonus) {
+      return effectiveGuardCount(guardMax, reduceBy, lBonus);
+    },
+    _debugFilterReceivedAccumAmount: function (name, amount) {
+      return filterReceivedAccumAmount(name, amount);
+    },
+    _debugParseSkillBodyAccums: function (text) {
+      return parseSkillBodyAccums(text);
+    },
+    _debugOnEncounterEnded: function () {
+      onEncounterEnded();
+    },
+    _debugSetMapSpecialRule: function (rule) {
+      if (map) map.specialRule = rule || null;
+    },
+    _debugBloodSongRegenAmount: function () {
+      return BLOOD_SONG_REGEN_AMOUNT;
+    },
+    _debugShiftMyTimestampsAfterPause: function (pausedAt, deltaMs) {
+      shiftMyTimestampsAfterPause(pausedAt, deltaMs);
+    },
+    _debugPutItemOnGround: function (data) {
+      putItemOnGround(data);
+    },
+    _debugMausoleumCopy: function (pointId) {
+      handleMausoleumCheckClick({ id: pointId });
+    },
+    _debugMaybeAdvanceNightForceRound: function (pointId) {
+      maybeAdvanceNightForceRound({ id: pointId });
+    },
+    // 對自己送一擊「傷害0、只帶mod屬性文字」的敵人攻擊並以kind結算，回傳最終採用的kind
+    // （block可能因沒有防具/體力不足被降級成hit，測試要知道）。
+    _debugResolveIncomingHit: function (kind, actionModJa) {
+      var now = Date.now();
+      var st = {
+        pointId: activeEncounter ? activeEncounter.id : "sharedTarget",
+        hitIndex: 0,
+        hitCount: 1,
+        phase: "window",
+        windowStartAt: now,
+        phaseEndAt: now + 1000,
+        actionMod: { ja: actionModJa },
+        dmgKind: null,
+        dmgAmount: 0,
+      };
+      var guard = kind === "block" ? currentGuardInfo(0) : null;
+      var effectiveKind = kind === "block" && !guard ? "hit" : kind;
+      resolveMyIncomingHit(st, kind);
+      return effectiveKind;
     },
     _debugState: function () {
       return {
