@@ -19,6 +19,8 @@
 //   L6  暫停結束後 _xxxUntil 平移
 //   M2  接管席位搬 pendingRewards
 //   H3  夜の勢力：兩台同時偵測 HP=0，最終輪獎勵只發一次
+//   第3輪（2026-09-20殘留檢查）：共享池得主依落地的 resolvedBy 入手／枝番 id 不撞號／
+//        graces 逐子鍵同步
 // ============================================================================
 
 const { chromium } = require("playwright");
@@ -479,6 +481,76 @@ const waitFor = (page, fn, arg, timeout) => page.waitForFunction(fn, arg, { time
     assert(h3b.a === 1 && h3b.rounds === 1, "H3：最終輪結算後再偵測不會重複發獎", h3b);
 
     // ======================================================================
+    // ======================================================================
+    console.log("\n=== 第3輪①：共享池得主的 resolvedBy 由別台先寫下，得主仍要入手 ===");
+    // 模擬「裝置A的 transaction 先落地、裝置B（得主）還沒跑到自己的 transaction」：直接把
+    // resolvedBy=tokenB 寫進 RTDB。修正前 B 端 maybeResolveSharedRewardVote() 看到
+    // entry.resolvedBy 就 return，永遠不會入手；修正後由 maybeGrantSharedRewardToWinner()
+    // 每幀依落地的 resolvedBy 入手並寫 granted。
+    const sharedPtId = "test_shared_" + Date.now();
+    const runesBeforeShared = await pageB.evaluate(() => {
+      const s = window.PriTestMidnight._debugState();
+      return s.characters[s.myTokenId].runes || 0;
+    });
+    const runesBeforeSharedA = await pageA.evaluate(() => {
+      const s = window.PriTestMidnight._debugState();
+      return s.characters[s.myTokenId].runes || 0;
+    });
+    const sharedTrig = { status: "resolved", participants, resolvedAt: Date.now(), sharedRewards: {} };
+    sharedTrig.sharedRewards.r1 = { kind: "rune", value: 5, drawn: { value: 5 }, resolvedBy: tokenB };
+    await rtSet(pageA, "fieldTrigger/" + sharedPtId, sharedTrig);
+    await waitFor(pageB, (id) => {
+      const t = window.PriTestMidnight._debugState().fieldTriggers[id];
+      return !!(t && t.sharedRewards && t.sharedRewards.r1 && t.sharedRewards.r1.granted);
+    }, sharedPtId).catch(() => {});
+    await pageB.waitForTimeout(600);
+    const shared1 = await pageB.evaluate(([id, before]) => {
+      const s = window.PriTestMidnight._debugState();
+      const e = ((s.fieldTriggers[id] || {}).sharedRewards || {}).r1 || {};
+      return { granted: !!e.granted, runesDelta: (s.characters[s.myTokenId].runes || 0) - before };
+    }, [sharedPtId, runesBeforeShared]);
+    assert(shared1.granted && shared1.runesDelta === 5, "第3輪①：得主B依落地的 resolvedBy 入手（盧恩+5）並寫 granted", shared1);
+    const shared1a = await pageA.evaluate((before) => {
+      const s = window.PriTestMidnight._debugState();
+      return (s.characters[s.myTokenId].runes || 0) - before;
+    }, runesBeforeSharedA);
+    assert(shared1a === 0, "第3輪①：非得主A不入手", shared1a);
+    // 再過幾幀不會重複入手（granted 擋住）
+    await pageB.waitForTimeout(600);
+    const shared1b = await pageB.evaluate((before) => {
+      const s = window.PriTestMidnight._debugState();
+      return (s.characters[s.myTokenId].runes || 0) - before;
+    }, runesBeforeShared);
+    assert(shared1b === 5, "第3輪①：granted 後不重複入手", shared1b);
+
+    // ======================================================================
+    console.log("\n=== 第3輪②：枝番 id 取最小未使用號、不撞既有 ::N ===");
+    const inst = await pageA.evaluate(() => {
+      const CD = window.PriTestCharacterDrawer;
+      return {
+        onlyBranch: CD.makeWeaponInstanceId("w", { weaponIds: ["w::2"] }), // 沒有 base → 用 base
+        gap: CD.makeWeaponInstanceId("w", { weaponIds: ["w", "w::3"] }), // ::2 空著 → ::2
+        next: CD.makeWeaponInstanceId("w", { weaponIds: ["w", "w::2"] }), // → ::3
+        consumableGap: CD.makeConsumableInstanceId("p", { consumables: [{ id: "p::2", itemId: "p" }] }), // 用完 p、剩 p::2 → p
+      };
+    });
+    assert(inst.onlyBranch === "w" && inst.gap === "w::2" && inst.next === "w::3" && inst.consumableGap === "p", "第3輪②：makeWeaponInstanceId／makeConsumableInstanceId 不撞號", inst);
+
+    // ======================================================================
+    console.log("\n=== 第3輪③：syncMyCharacterChanges() 對 graces 只寫變動子鍵 ===");
+    const gracesSync = await pageA.evaluate(() => {
+      const M = window.PriTestMidnight;
+      const s = M._debugState();
+      const c = s.characters[s.myTokenId];
+      const before = M._debugSnapshotMyCharacter();
+      c.graces = c.graces || {};
+      c.graces.test_grace_sync = true;
+      M._debugSyncMyCharacterChanges(before);
+      const after = M._debugState().characters[s.myTokenId];
+      return { has: !!(after.graces && after.graces.test_grace_sync), keys: Object.keys(after.graces || {}) };
+    });
+    assert(gracesSync.has, "第3輪③：新增的 grace 子鍵有寫上 RTDB", gracesSync);
+
     console.log("\n=== M2：接管席位搬 pendingRewards ===");
     await rtSet(pageA, "pendingRewards/" + tokenB + "/rwtest1", { kind: "rune", value: 3, resolved: false });
     await waitFor(pageA, (t) => {

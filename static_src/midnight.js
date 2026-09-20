@@ -916,7 +916,12 @@
     var runeBonus = affixTotal(c, "onKillRune");
     if (runeBonus > 0) {
       c.runes = (c.runes || 0) + runeBonus;
-      GameStorage.rtSet(gameId, "cloud", "character/" + myTokenId + "/runes", c.runes);
+      // 2026-09-20第3輪修正：同審查R1，盧恩走transaction累加差額，不用rtSet整值覆寫——
+      // 擊殺當下隊友常常同時在發擊破盧恩（grantRunesToTokens()的transaction），整值覆寫會
+      // 把對方剛加的量蓋掉。
+      GameStorage.rtTransaction(gameId, "cloud", "character/" + myTokenId + "/runes", function (cur) {
+        return (cur || 0) + runeBonus;
+      });
     }
   }
 
@@ -2453,6 +2458,21 @@
         if (!delta) return;
         GameStorage.rtTransaction(gameId, "cloud", "character/" + myTokenId + "/runes", function (cur) {
           return (cur || 0) + delta;
+        });
+        return;
+      }
+      if (key === "graces") {
+        // 2026-09-20第3輪修正：graces是隊友也會對我逐子鍵寫入的節點（grantGraceToTokens()），
+        // 整個物件寫回會把「快照時本地還沒收到的隊友寫入」蓋掉；只寫真的變動的子鍵。
+        var prevGraces = before.graces !== undefined ? JSON.parse(before.graces) || {} : {};
+        var nowGraces = c.graces || {};
+        var graceKeys = {};
+        var gk;
+        for (gk in prevGraces) graceKeys[gk] = true;
+        for (gk in nowGraces) graceKeys[gk] = true;
+        Object.keys(graceKeys).forEach(function (graceId) {
+          if (JSON.stringify(prevGraces[graceId]) === JSON.stringify(nowGraces[graceId])) return;
+          GameStorage.rtSet(gameId, "cloud", "character/" + myTokenId + "/graces/" + graceId, nowGraces[graceId] === undefined ? null : nowGraces[graceId]);
         });
         return;
       }
@@ -15110,17 +15130,40 @@
     // 2026-09-20審查M14修正：得主由各裝置各自算出（pool依各自看到的players/presence可能
     // 不同），原本直接rtSet resolvedBy會互相覆蓋、且每台都拿自己算的得主去比對。改用
     // transaction first-writer-wins，以RTDB實際落地的得主為準。
-    GameStorage.rtTransaction(gameId, "cloud", "fieldTrigger/" + pointId + "/sharedRewards/" + rewardId + "/resolvedBy", function (cur) {
-      return cur === null ? winnerTokenId : cur;
-    }).then(function (committed) {
-      if (committed !== myTokenId) return;
-      var c = characters[myTokenId];
-      if (!c) return;
-      var before = snapshotMyCharacter();
-      applyDrawnSharedRewardToCharacter(c, entry, entry.drawn);
-      c._lastTileRewardNote = { text: window.I18N.t("midnight_reward_toast_prefix") + sharedRewardDrawLabel(entry, entry.drawn), at: Date.now() };
-      syncMyCharacterChanges(before); // 2026-09-20審查R1
-    });
+    // 2026-09-20第3輪修正：這裡**只**決定得主，不在.then()裡入手——入手改由
+    // maybeGrantSharedRewardToWinner()每幀依「RTDB落地的resolvedBy===自己」判斷。原本寫在
+    // .then()裡的話，函式開頭的「entry.resolvedBy已存在就return」會讓「別台的resolvedBy比
+    // 自己的transaction先送達」的得主永遠跑不到自己的transaction，獎勵直接消失；transaction
+    // 因網路失敗回null時也同樣卡死（旗標已設、沒有重送）。updater一定回非null，因此null＝
+    // 失敗，用resetAttemptFlagOnFailure()讓下一幀重送。
+    resetAttemptFlagOnFailure(
+      sharedRewardResolveAttempted,
+      key,
+      GameStorage.rtTransaction(gameId, "cloud", "fieldTrigger/" + pointId + "/sharedRewards/" + rewardId + "/resolvedBy", function (cur) {
+        return cur === null ? winnerTokenId : cur;
+      })
+    );
+  }
+
+  // 共享池得主的實際入手（2026-09-20第3輪修正，見maybeResolveSharedRewardVote()的說明）：
+  // 只看RTDB落地的resolvedBy，跟「誰寫下resolvedBy」無關。granted旗標由得主自己寫，
+  // 用來擋重複入手（同一session內另有本地旗標擋RTDB回流前的重入）。
+  var sharedRewardGrantAttempted = {}; // pointId+":"+rewardId -> true（本地節流）
+
+  function maybeGrantSharedRewardToWinner(pointId, rewardId) {
+    var key = pointId + ":" + rewardId;
+    if (sharedRewardGrantAttempted[key]) return;
+    var trig = fieldTriggers[pointId];
+    var entry = trig && trig.sharedRewards && trig.sharedRewards[rewardId];
+    if (!entry || !entry.drawn || entry.resolvedBy !== myTokenId || entry.granted) return;
+    var c = characters[myTokenId];
+    if (!c) return;
+    sharedRewardGrantAttempted[key] = true;
+    var before = snapshotMyCharacter();
+    applyDrawnSharedRewardToCharacter(c, entry, entry.drawn);
+    c._lastTileRewardNote = { text: window.I18N.t("midnight_reward_toast_prefix") + sharedRewardDrawLabel(entry, entry.drawn), at: Date.now() };
+    syncMyCharacterChanges(before); // 2026-09-20審查R1
+    GameStorage.rtSet(gameId, "cloud", "fieldTrigger/" + pointId + "/sharedRewards/" + rewardId + "/granted", true);
   }
 
   // 共享池獎勵的「無人動作」保險（2026-09-12，跟上面 maybeResolveSharedRewardVote() 的
@@ -15172,6 +15215,7 @@
       Object.keys(shared).forEach(function (rewardId) {
         maybeSetSharedRewardDeadlines(pointId, rewardId);
         maybeResolveSharedRewardVote(pointId, rewardId);
+        maybeGrantSharedRewardToWinner(pointId, rewardId);
       });
     });
   }

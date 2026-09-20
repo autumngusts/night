@@ -3460,19 +3460,27 @@
     return idx === -1 ? weaponId : weaponId.slice(0, idx);
   }
 
+  // 2026-09-20修正：枝番は「同catalogの所持数+1」ではなく「未使用の最小枝番」を採る。
+  // 所持数方式だと sword／sword::2 を持った状態で sword を捨てた（消耗品なら使い切った）後、
+  // 次に同catalogを得たときにまた ::2 が振られ、既存の sword::2 とidが衝突する
+  // （weaponRandomSkills／weaponAffixes／consumableAttributeTags の保存鍵が共有されてしまう）。
+  function makeInstanceIdFromUsed(catalogId, usedIds) {
+    if (usedIds.indexOf(catalogId) === -1) return catalogId;
+    var n = 2;
+    while (usedIds.indexOf(catalogId + "::" + n) !== -1) n++;
+    return catalogId + "::" + n;
+  }
+
   function makeWeaponInstanceId(catalogId, target) {
-    var existing = (target.weaponIds || []).filter(function (id) {
-      return id === catalogId || id.indexOf(catalogId + "::") === 0;
-    });
-    return existing.length === 0 ? catalogId : catalogId + "::" + (existing.length + 1);
+    return makeInstanceIdFromUsed(catalogId, target.weaponIds || []);
   }
 
   // 消耗品も同一種類を複数枠（インスタンス）持てるため、武器と同じ枝番方式でインスタンスidを作る。
   function makeConsumableInstanceId(catalogId, target) {
-    var existing = (target.consumables || []).filter(function (inst) {
-      return inst.itemId === catalogId;
+    var usedIds = (target.consumables || []).map(function (inst) {
+      return inst.id;
     });
-    return existing.length === 0 ? catalogId : catalogId + "::" + (existing.length + 1);
+    return makeInstanceIdFromUsed(catalogId, usedIds);
   }
 
   function findConsumableInstance(c, instanceId) {

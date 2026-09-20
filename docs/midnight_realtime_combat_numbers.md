@@ -1011,6 +1011,11 @@ party-wide 欄位、變體切換鈕的顯示/循環/隱藏）。
   對自己的角色一律以本地值為準。白名單以外的 `_` 欄位（`_lastTileRewardNote`、
   `_artCooldownUntil`、`_weaponRerollPending`…）維持「快照為準」，遠端設 null 會正常反映。
 - 純本地欄位不會跨重新整理持久（它們本來就是 10 秒級 buff）。
+- `graces` 是隊友也會對我逐子鍵寫入的節點（`grantGraceToTokens()`），`syncMyCharacterChanges()`
+  對它也只寫變動的子鍵，不整個物件寫回（第 3 輪殘留檢查）。
+- 武器／消耗品的枝番 id（`makeWeaponInstanceId()`／`makeConsumableInstanceId()`）改為
+  「最小未使用的 `::N`」：原本「同 catalog 所持數＋1」在丟棄／用完中間一把之後會再編出
+  已存在的 `::2`，戰技／詞條／投擲壺屬性標籤的儲存鍵互相覆蓋（第 3 輪殘留檢查）。
 
 ### 20.2 多裝置贏家判定的統一寫法（H3／M7／M10／M14／M16）
 
@@ -1018,6 +1023,14 @@ party-wide 欄位、變體切換鈕的顯示/循環/隱藏）。
 `…By/<n>` tokenId 鎖），`.then(committed)` 只認 `committed.…By === myTokenId`。
 `rtTransaction()` 對「中止」與「值為 null」都回 null，因此要靠 updateFn 內的閉包旗標
 （`enterNearDeath()` 的 `entered`、冷たい蜃気楼的 `consumedNow`）才能區分。
+
+**例外——「贏家要做的事」不能只放在自己的 `.then()` 裡**（第 3 輪殘留檢查）：共享池
+得主的入手若寫在 `resolvedBy` transaction 的 `.then()`，而函式開頭又有「`entry.resolvedBy`
+已存在就 return」，那麼「別台的 `resolvedBy` 比自己的 transaction 先送達」的得主永遠跑不到
+自己的 transaction，獎勵直接消失。因此拆成兩段：`maybeResolveSharedRewardVote()` 只決定
+得主（transaction 失敗時 `resetAttemptFlagOnFailure()` 重送）；`maybeGrantSharedRewardToWinner()`
+每幀依 RTDB 落地的 `resolvedBy === myTokenId && !granted` 入手並寫 `granted`。
+規則：**贏家判定看落地值，不看「誰寫下落地值」**。
 
 ### 20.3 已知限制（審查後刻意保留）
 
@@ -1036,6 +1049,7 @@ party-wide 欄位、變體切換鈕的顯示/循環/隱藏）。
 ### 20.4 回歸測試
 
 `tools/midnight_check/review_2026_09_20_check.js`（`npm run test:review_2026_09_20`，需 emulator）
-31 個斷言，涵蓋 H1／R1 實機（隊友子路徑寫入不洗掉 buff、runes 差額 transaction）、H3 兩台
+36 個斷言，涵蓋 H1／R1 實機（隊友子路徑寫入不洗掉 buff、runes 差額 transaction）、H3 兩台
 同時偵測只發一次獎、M2 接管搬清單、L2 防禦承受蓄積與遺物免除、L4／撿取／共享池／個人清單
-的枝番 id、個人清單 drawn persist、M17／M18／M1／M5／L1／L5／L6／R5。
+的枝番 id、個人清單 drawn persist、M17／M18／M1／M5／L1／L5／L6／R5，以及第 3 輪的
+共享池得主依落地 `resolvedBy` 入手、枝番 id 不撞號、`graces` 逐子鍵同步。
