@@ -520,6 +520,10 @@ BODY = """    <div class="midnight-wrap">
                再加一段規則本文（跟角色面板同樣經過midnight_text_adapt.js轉換），
                見updateNearbyGroundItem()。 -->
           <div id="midnight-ground-item-prompt" hidden>
+            <!-- 2026-09-20使用者明確要求「掉落物品若有多項，在資訊欄的下方顯示不同分頁來
+                 切換」：分頁列由renderGroundItemTabs()動態產生（範圍內掉落物數量事先不
+                 固定，無法像規則書分頁那樣預先寫死按鈕），只有1項時保持hidden。 -->
+            <div id="midnight-ground-item-tabs" class="ground-item-tabs" hidden></div>
             <p id="midnight-ground-item-name"></p>
             <p id="midnight-ground-item-body"></p>
             <button type="button" id="btn-midnight-pickup-ground-item" data-i18n="midnight_pickup_button"></button>

@@ -1881,7 +1881,9 @@
   // usesRemaining, x, y, droppedBy, createdAt}（來自RTDB，見onGroundItemsReceived／
   // dropInventoryItem()／handlePickupGroundItem()）。任何人靠近都能撿，不限丟棄者本人。
   var groundItems = {};
-  var nearbyGroundItem = null; // { id, data } 目前在拾取範圍內、尚未被撿走的掉落物
+  var nearbyGroundItem = null; // { id, data } 目前分頁選取中的掉落物（拾取按鈕作用對象）
+  var nearbyGroundItems = []; // 2026-09-20新增：拾取範圍內全部掉落物（分頁用，取代原本只認第一筆）
+  var selectedGroundItemId = null; // 目前分頁選取的掉落物id
   var stamina = { current: STAMINA_MAX, max: STAMINA_MAX }; // 本地端資源，不同步（見上方常數區塊註解）
   var fp = { current: FP_BASE, max: FP_BASE }; // 本地端資源、不同步，理由同stamina；不自動回復。角色載入後由renderCombatPanel()改成selfFpMax(c)
   // 一般攻擊連段計數，左右手各自獨立（2026-09-05左右手雙獨立武器欄新增，使用者明確規格：
@@ -2036,8 +2038,30 @@
   var nearbyFinalCircleBoss = null;
   var finalCircleRollAttempted = {}; // dayIndex -> true（本地節流，同strongEnemyRollAttempted）
   var finalCircleDayAdvanceAttempted = {}; // dayIndex -> true（本地節流：自動換日的transaction只送一次）
+  // 2026-09-20防卡死：上面這批「本地節流旗標」都是「設旗標→送transaction→等RTDB回寫後
+  // 由訂閱資料自然讓guard成立」的一次性寫法，但GameStorage.rtTransaction()出錯時會吞掉
+  // 錯誤、resolve成null，旗標卻已經設了——這台裝置從此再也不重送，單人遊玩時該點就永遠
+  // 卡住（多人時要靠別台裝置碰巧補送）。這個helper接在transaction的Promise後面，回傳null
+  // 就把旗標清掉，讓下一影格的guard重新評估、可以再送一次。只用在「updateFn成功時一定
+  // 回傳非null值」的呼叫端，null才能當作失敗訊號（maybeStartEnemyAttack()原本就在.then
+  // 裡自行重置，不經過這裡）。
+  function resetAttemptFlagOnFailure(flags, key, promise) {
+    return promise.then(function (result) {
+      if (result === null) delete flags[key];
+      return result;
+    });
+  }
+
   var lastAutoDayForCooldownReset = 1; // 偵測「天數真的變了」才resetAbilityCooldowns()，每個裝置各自偵測，見updateAutoDayAdvance()
   var readyFinalBoss = {}; // slot -> true（來自RTDB，第二天夜之強敵擊破後的「準備開始夜王戰鬥」，見handleReadyFinalBossToggle()）
+  // 在線狀態（2026-09-20新增）：tokenId -> true（來自RTDB presence/，每台裝置進場時用
+  // GameStorage.rtSetWithOnDisconnect()寫入自己的tokenId，連線斷掉由伺服器端自動移除）。
+  // 用途：席位不會因斷線釋放（接管要密碼，見performTakeover()），「全部已佔用席位都要
+  // 按準備」這種全員閘門會因為一個離線的席位永遠過不去（跟2026-09-19 STAGE_GATE的
+  // 問題同源）。以tokenId而不是slot為key，是因為接管席位後新舊兩個client的onDisconnect
+  // 若都指向presence/{slot}，舊client斷線時會把新client的在線狀態一起刪掉。
+  var presence = {};
+  var presenceLoaded = false; // 訂閱第一次回值前不知道有沒有presence資料，這段期間退回「全部席位都算在線」
   var scarabResult = null; // { pointId, statKey, dice, sum, target, success } 本次聖甲蟲判定結果（本地only，顯示用）
   var pendingRewards = {}; // tokenId -> [{id, kind, value, resolved}]（來自RTDB，見onPendingRewardsReceived）
   var keysDown = {};
@@ -2988,6 +3012,11 @@
     document.addEventListener("keyup", function (e) {
       keysDown[e.key.toLowerCase()] = false;
     });
+    // 2026-09-20：按著方向鍵時alt-tab、或彈出window.prompt()（接管席位密碼等）會讓
+    // keyup永遠收不到，角色會一直跑到再按一次同一個鍵為止；視窗失焦時直接清空按鍵狀態。
+    window.addEventListener("blur", function () {
+      keysDown = {};
+    });
     el("btn-midnight-enter-battle").addEventListener("click", handleEnterBattleClick);
     bindAttackHoldInput();
     el("btn-midnight-skill").addEventListener("click", handleSkillClick);
@@ -3800,7 +3829,29 @@
       var next = before - realDamage;
       return next < 0 ? 0 : next;
     }).then(function (committed) {
-      if (wasAlive && committed === 0) grantKillCooldownReduction();
+      if (wasAlive && committed === 0) {
+        grantKillCooldownReduction();
+        clearEnemyAttackOnKill(pointId);
+      }
+    });
+  }
+
+  // 2026-09-20新增（使用者反映「擊倒敵人瞬間結束敵人的判定，例如攻擊時強制中斷，不會對
+  // 玩家造成傷害」）：擊破那一刻（HP transaction commit到0）就把trig.enemyAttack從共享
+  // 狀態清掉，而不是只靠各client事後用recomputeActiveEncounter()/fieldEnemyHp鏡像值去
+  // 推斷「敵人已死」——RTDB transaction commit（真正的擊倒時間點）跟各client讀到
+  // fieldEnemyHp鏡像值更新之間存在非零延遲（跨玩家網路延遲、甚至同一玩家自己補刀時
+  // transaction回呼的非同步延遲），這段空窗內若某玩家的myIncomingAttack剛好處於
+  // "window"反應窗口且逾時未按迴避/防禦，仍會照常判定命中造成傷害。這裡是源頭修正；
+  // updateMyIncomingAttack()另有本地端的第二道防護（見該函式內fieldEnemyHp檢查）。
+  function clearEnemyAttackOnKill(pointId) {
+    GameStorage.rtTransaction(gameId, "cloud", "fieldTrigger/" + pointId, function (cur) {
+      if (!cur || !cur.enemyAttack) return cur;
+      var out = {};
+      for (var k in cur) out[k] = cur[k];
+      out.enemyAttack = null;
+      out.nextAttackAt = null; // 已擊破，不再排下一次攻擊
+      return out;
     });
   }
 
@@ -8342,9 +8393,19 @@
   // night.js既有欄位），不是midnight自己的equippedWeaponIdL/R——兩者原本互不相通。每次
   // 左右手裝備變動時同步寫回equippedWeaponIds，讓這些既有函式能正確運作，不用另外複製
   // 一份判斷邏輯。
+  // 2026-09-20修正：原本只filter掉falsy值，不會去重。左右手選成同一把武器id（本專案代表
+  // 「兩手持一把武器」的既有操作方式，見cycleEquippedWeapon()）時，equippedWeaponIds會變成
+  // 長度2的["劍A","劍A"]，導致①getEquippedWeaponSkillEntries()把該武器的戰技各push兩份，
+  // weaponArtEntry()/sideSkillButtonEntries()分別取到不同副本，讓同一個戰技同時顯示在
+  // 「戰技A（順發）」與「戰技B（蓄力）」兩個按鈕（使用者反映的bug，其技能仍應以右手武器
+  // 為準，只出現一次）；②character_drawer.js裡以equippedWeaponIds.length===1判斷「兩手持
+  // 握」的邏輯（soloEquipped等，如「雙手持握的達人」）也因陣列長度變成2而被誤判失效。
+  // 去重後兩手持一把武器時陣列長度回到1，兩個問題同源修正，不影響「左右手各裝不同武器」
+  // 的既有雙持流程（id本來就不同，不會被去重影響）。
   function syncEquippedWeaponIds(c) {
-    var ids = [c.equippedWeaponIdL, c.equippedWeaponIdR].filter(function (id) {
-      return !!id;
+    var ids = [];
+    [c.equippedWeaponIdL, c.equippedWeaponIdR].forEach(function (id) {
+      if (id && ids.indexOf(id) === -1) ids.push(id);
     });
     c.equippedWeaponIds = ids;
     GameStorage.rtSet(gameId, "cloud", "character/" + myTokenId + "/equippedWeaponIds", ids);
@@ -8645,10 +8706,10 @@
     }
     if (nextAttackScheduleAttempted[pt.id]) return;
     nextAttackScheduleAttempted[pt.id] = true;
-    GameStorage.rtTransaction(gameId, "cloud", "fieldTrigger/" + pt.id + "/nextAttackAt", function (cur) {
+    resetAttemptFlagOnFailure(nextAttackScheduleAttempted, pt.id, GameStorage.rtTransaction(gameId, "cloud", "fieldTrigger/" + pt.id + "/nextAttackAt", function (cur) {
       if (cur !== null) return cur;
       return Date.now() + ENEMY_ATTACK_INTERVAL_MIN_MS + Math.floor(Math.random() * (ENEMY_ATTACK_INTERVAL_MAX_MS - ENEMY_ATTACK_INTERVAL_MIN_MS));
-    });
+    }));
   }
 
   // roll範圍轉成加權寬度：規則書行動決定表有1D6（"1"~"6"）也有2D6（"1~2"、"9~10"等
@@ -8985,6 +9046,14 @@
       return;
     }
     if (st.phase !== "window") return;
+    // 2026-09-20新增：本地端第二道防護（見clearEnemyAttackOnKill()說明的延遲空窗問題）——
+    // 敵人在RTDB上已經擊破（fieldEnemyHp鏡像值<=0），但trig.enemyAttack的清除還沒同步到
+    // 這個client時，不該讓逾時判定成命中；直接清掉本地狀態，視同這次攻擊作廢。
+    var enemyHpNow = fieldEnemyHp[st.pointId];
+    if (enemyHpNow !== undefined && enemyHpNow <= 0) {
+      myIncomingAttack = null;
+      return;
+    }
     // 使用者明確規格：2秒內按下迴避或防禦才算成功回應——迴避看dodgePressedAt是否落在
     // 這次窗口開始之後（避免沿用窗口開啟前、上一擊留下的舊按鍵紀錄）；防禦看目前是否
     // 正長按著（blockHolding），成功防禦要另外扣體力，體力不足則視同沒擋到。
@@ -9482,7 +9551,7 @@
     if (!mySlot || isPaused() || activeEncounter || towerSolved[pt.id] || towerInvites[pt.id] || towerEnterAttempted[pt.id]) return;
     towerEnterAttempted[pt.id] = true;
     var now = Date.now();
-    GameStorage.rtTransaction(gameId, "cloud", "towerInvites/" + pt.id, function (cur) {
+    resetAttemptFlagOnFailure(towerEnterAttempted, pt.id, GameStorage.rtTransaction(gameId, "cloud", "towerInvites/" + pt.id, function (cur) {
       if (cur !== null) return cur;
       var participants = {};
       participants[mySlot] = true;
@@ -9493,7 +9562,7 @@
         inviteDeadline: now + FIELD_INVITE_TIME_LIMIT_MS,
         participants: participants,
       };
-    });
+    }));
   }
 
   function handleAcceptTowerInviteClick(pt) {
@@ -9508,7 +9577,7 @@
     if (!invite || invite.status !== "inviting" || towerInviteResolveAttempted[pt.id]) return;
     if (Date.now() < invite.inviteDeadline) return;
     towerInviteResolveAttempted[pt.id] = true;
-    GameStorage.rtTransaction(gameId, "cloud", "towerInvites/" + pt.id, function (cur) {
+    resetAttemptFlagOnFailure(towerInviteResolveAttempted, pt.id, GameStorage.rtTransaction(gameId, "cloud", "towerInvites/" + pt.id, function (cur) {
       if (!cur || cur.status !== "inviting") return cur;
       return {
         status: "active",
@@ -9517,7 +9586,7 @@
         inviteDeadline: cur.inviteDeadline,
         participants: cur.participants || {},
       };
-    });
+    }));
   }
 
   // 邀請結束、狀態轉active後，對「所有參與者」（不只是發起人）自動開一次解謎modal——
@@ -9583,9 +9652,9 @@
   function ensureTowerPuzzle(pt) {
     if (towerPuzzleEnsureAttempted[pt.id]) return;
     towerPuzzleEnsureAttempted[pt.id] = true;
-    GameStorage.rtTransaction(gameId, "cloud", "towerInvites/" + pt.id + "/puzzle", function (cur) {
+    resetAttemptFlagOnFailure(towerPuzzleEnsureAttempted, pt.id, GameStorage.rtTransaction(gameId, "cloud", "towerInvites/" + pt.id + "/puzzle", function (cur) {
       return cur === null ? window.PriTestMidnightPuzzles.generate() : cur;
-    });
+    }));
   }
 
   function startTowerPuzzle(pt) {
@@ -10644,7 +10713,7 @@
     }
     fieldEnterAttempted[pt.id] = true;
     var now = Date.now();
-    GameStorage.rtTransaction(gameId, "cloud", "fieldTrigger/" + pt.id, function (cur) {
+    resetAttemptFlagOnFailure(fieldEnterAttempted, pt.id, GameStorage.rtTransaction(gameId, "cloud", "fieldTrigger/" + pt.id, function (cur) {
       if (cur !== null) return cur;
       var participants = {};
       participants[mySlot] = true;
@@ -10655,7 +10724,7 @@
         inviteDeadline: now + FIELD_INVITE_TIME_LIMIT_MS,
         participants: participants,
       };
-    });
+    }));
   }
 
   // 附近玩家在邀請時限內按下「加入」：直接把自己這個席位寫進participants，不需要
@@ -10779,7 +10848,7 @@
     var progress = fieldProgress[pt.id];
     var branchIndex = progress && typeof progress.branchIndex === "number" ? progress.branchIndex : pickFieldBranchIndex(pt);
     var floorIndex = (progress && progress.floorIndex) || 0;
-    GameStorage.rtTransaction(gameId, "cloud", "fieldTrigger/" + pt.id, function (cur) {
+    resetAttemptFlagOnFailure(fieldInviteResolveAttempted, pt.id, GameStorage.rtTransaction(gameId, "cloud", "fieldTrigger/" + pt.id, function (cur) {
       if (!cur || cur.status !== "inviting") return cur;
       return {
         status: "active",
@@ -10791,7 +10860,7 @@
         branchIndex: branchIndex,
         floorIndex: floorIndex,
       };
-    });
+    }));
   }
 
   // 正式進入後，參與者各自的裝置在enterAt+0.5秒時才開始播打字機（各裝置各自本地計時，
@@ -10804,6 +10873,17 @@
     if (!trig.participants || !trig.participants[mySlot]) return;
     if (fieldTypewriterStartedFor[pt.id]) return;
     if (Date.now() < trig.enterAt + fieldEnterWaitMs(pt)) return;
+    // 2026-09-20防卡死：typewriteInto()對同一個元素重新呼叫時會stopTypewriter()中止前一個
+    // 動畫、但**不會呼叫前一個的onDone**。A點敘述較長、玩家在播完前走去B點按「進入」
+    // （含「立即進入」縮短邀請時限）時，A的fieldTypewriterDoneFor永遠不會成立→
+    // maybeSetFieldVoteDeadline()／maybeResolveFieldVote()對A永遠早退，A在本機永久卡在
+    // 「敘述中」（只有重整才會因fieldTypewriterStartedFor清空而恢復）。這裡在啟動新的
+    // 打字機之前，把其他「已啟動但未播完」的點直接視為播完（跟onDone做同樣的事）。
+    Object.keys(fieldTypewriterStartedFor).forEach(function (otherId) {
+      if (otherId === pt.id || !fieldTypewriterStartedFor[otherId] || fieldTypewriterDoneFor[otherId]) return;
+      fieldTypewriterDoneFor[otherId] = true;
+      fieldTypewriterDoneAt[otherId] = Date.now();
+    });
     fieldTypewriterStartedFor[pt.id] = true;
     var text = fieldNarrativeTextFor(pt, trig);
     window.PriTestNightGmFlow.typewriteInto(el("midnight-field-narrative-text"), text, {
@@ -10824,9 +10904,9 @@
     if (!fieldTypewriterDoneFor[pt.id] || fieldVoteDeadlineSetAttempted[pt.id]) return;
     fieldVoteDeadlineSetAttempted[pt.id] = true;
     var now = Date.now();
-    GameStorage.rtTransaction(gameId, "cloud", "fieldTrigger/" + pt.id + "/voteDeadline", function (cur) {
+    resetAttemptFlagOnFailure(fieldVoteDeadlineSetAttempted, pt.id, GameStorage.rtTransaction(gameId, "cloud", "fieldTrigger/" + pt.id + "/voteDeadline", function (cur) {
       return cur === null ? now + FIELD_VOTE_TIME_LIMIT_MS : cur;
-    });
+    }));
   }
 
   // 只有「目前在同一卡牌事件的參與者」（trig.participants）需要選擇同一項才確定，不是
@@ -10870,7 +10950,7 @@
       }
     }
     fieldVoteResolveAttempted[pt.id] = true;
-    GameStorage.rtTransaction(gameId, "cloud", "fieldTrigger/" + pt.id, function (cur) {
+    resetAttemptFlagOnFailure(fieldVoteResolveAttempted, pt.id, GameStorage.rtTransaction(gameId, "cloud", "fieldTrigger/" + pt.id, function (cur) {
       if (!cur || cur.status !== "active") return cur;
       var out = {};
       for (var k in cur) out[k] = cur[k]; // ES5：不用Object.assign，手動合成（跟night_gm_flow.js的mergeParams同樣手法）
@@ -10878,7 +10958,8 @@
       out.choiceIndex = choiceIndex;
       out.resolvedAt = Date.now();
       return out;
-    }).then(function () {
+    })).then(function (result) {
+      if (result === null) return; // transaction失敗：旗標已由resetAttemptFlagOnFailure()清掉，下一影格重送，不要在trigger還沒resolved時就指派敵人
       maybeAssignFieldEnemy(pt, choiceIndex);
     });
   }
@@ -11744,10 +11825,17 @@
   function updateAutoDayAdvance(now) {
     if (!meta) return;
     if (!meta.day2StartAt) {
-      if (finalCircleBossDefeated(1) && !meta.finalCircleDay1DefeatedAt) {
-        GameStorage.rtTransaction(gameId, "cloud", "meta/finalCircleDay1DefeatedAt", function (cur) {
-          return cur === null ? Date.now() : cur;
-        });
+      // 2026-09-20：加本地節流（原本沒有，每影格重送同一個transaction直到meta回寫），
+      // 失敗時由resetAttemptFlagOnFailure()清旗標重送。
+      if (finalCircleBossDefeated(1) && !meta.finalCircleDay1DefeatedAt && !finalCircleDayAdvanceAttempted.day1DefeatedAt) {
+        finalCircleDayAdvanceAttempted.day1DefeatedAt = true;
+        resetAttemptFlagOnFailure(
+          finalCircleDayAdvanceAttempted,
+          "day1DefeatedAt",
+          GameStorage.rtTransaction(gameId, "cloud", "meta/finalCircleDay1DefeatedAt", function (cur) {
+            return cur === null ? Date.now() : cur;
+          })
+        );
       }
       if (
         meta.finalCircleDay1DefeatedAt &&
@@ -11871,12 +11959,37 @@
     readyFinalBoss = value || {};
   }
 
+  function onPresenceReceived(value) {
+    presence = value || {};
+    presenceLoaded = true;
+  }
+
+  // 席位上的玩家目前是否在線（見presence說明）。presence資料還沒到、或整份是空的（例如
+  // 舊版client建立的遊戲、或自己的寫入還沒回來）時退回true——這時沒有可靠依據，維持原本
+  // 「全部已佔用席位」的判定，不會比修正前更嚴格。
+  function slotOnline(slot) {
+    if (!presenceLoaded || !Object.keys(presence).length) return true;
+    var p = players[slot];
+    return !!(p && p.tokenId && presence[p.tokenId]);
+  }
+
+  // 「準備開始夜王戰鬥」閘門要數的席位：已佔用且在線。全部離線（理論上不可能，自己至少
+  // 在線）時退回全部已佔用席位，跟maybeResolveSharedRewardVote()的seated/participants
+  // fallback同一種保守寫法。
+  function readyGateSlots() {
+    var all = occupiedSlots();
+    var online = all.filter(slotOnline);
+    return online.length ? online : all;
+  }
+
   // 全部已佔用席位都準備後，任一裝置transaction()寫入day3StartAt（跟maybeTriggerSessionStart
   // 同一套first-writer-wins模式）。
   var day3TriggerAttempted = false;
   function maybeTriggerDay3FromReady() {
     if (!meta || meta.day3StartAt || !meta.day2StartAt || !finalCircleBossDefeated(2)) return;
-    var slots = occupiedSlots();
+    // 2026-09-20防卡死：只數在線的席位（見readyGateSlots()／presence說明），離線的席位
+    // 不再擋住全員準備閘門；該玩家重新連上時會直接進入已經開始的Day3。
+    var slots = readyGateSlots();
     if (!slots.length || !slots.every(function (slot) { return !!readyFinalBoss[slot]; })) return;
     if (day3TriggerAttempted) return;
     day3TriggerAttempted = true;
@@ -11960,7 +12073,7 @@
     var merchantAvailable = finalCircleBossDefeated(2) && phaseInfo.day < 3;
     if (readyWrap) readyWrap.hidden = !merchantAvailable;
     if (merchantAvailable) {
-      var slots = occupiedSlots();
+      var slots = readyGateSlots(); // 跟maybeTriggerDay3FromReady()同一份名單，顯示的「已準備/總數」才會跟實際閘門一致
       var readyCount = slots.filter(function (slot) { return !!readyFinalBoss[slot]; }).length;
       var readyBtn = el("btn-midnight-ready-final-boss");
       if (readyBtn) {
@@ -12141,31 +12254,82 @@
     return "";
   }
 
+  // 2026-09-20使用者明確要求「掉落物品若有多項，在資訊欄的下方顯示不同分頁來切換」：原本
+  // 只取範圍內第一筆（found就return），其餘物品完全看不到；改成收集範圍內全部物品，用
+  // selectedGroundItemId記住目前分頁選取，供renderGroundItemTabs()／下方name/body/
+  // handlePickupGroundItem()共用同一筆「目前選取中」的資料（nearbyGroundItem）。
   function updateNearbyGroundItem() {
     if (!mySlot || !localPos || autoFly) {
       nearbyGroundItem = null;
+      nearbyGroundItems = [];
+      selectedGroundItemId = null;
       el("midnight-ground-item-prompt").hidden = true;
       return;
     }
-    var found = null;
+    var found = [];
     Object.keys(groundItems).forEach(function (id) {
-      if (found) return;
       var item = groundItems[id];
       if (item.pickedUpBy) return;
       var dist = Math.hypot(localPos.x - item.x, localPos.y - item.y);
-      if (dist <= GROUND_ITEM_PICKUP_RADIUS) found = { id: id, data: item };
+      if (dist <= GROUND_ITEM_PICKUP_RADIUS) found.push({ id: id, data: item });
     });
-    nearbyGroundItem = found;
-    el("midnight-ground-item-prompt").hidden = !found;
-    if (found) {
-      el("midnight-ground-item-name").textContent = groundItemDisplayName(found.data);
-      var bodyEl = el("midnight-ground-item-body");
-      if (bodyEl) {
-        var detail = groundItemDetailText(found.data);
-        bodyEl.textContent = detail;
-        bodyEl.hidden = !detail;
-      }
+    nearbyGroundItems = found;
+    el("midnight-ground-item-prompt").hidden = !found.length;
+    if (!found.length) {
+      nearbyGroundItem = null;
+      selectedGroundItemId = null;
+      renderGroundItemTabs(found);
+      return;
     }
+    // 選取的分頁如果已經離開範圍／被撿走，退回第一筆，避免卡在一個不存在的選取id上。
+    if (!selectedGroundItemId || !found.some(function (f) { return f.id === selectedGroundItemId; })) {
+      selectedGroundItemId = found[0].id;
+    }
+    nearbyGroundItem = found.filter(function (f) { return f.id === selectedGroundItemId; })[0] || found[0];
+    renderGroundItemTabs(found);
+    el("midnight-ground-item-name").textContent = groundItemDisplayName(nearbyGroundItem.data);
+    var bodyEl = el("midnight-ground-item-body");
+    if (bodyEl) {
+      var detail = groundItemDetailText(nearbyGroundItem.data);
+      bodyEl.textContent = detail;
+      bodyEl.hidden = !detail;
+    }
+  }
+
+  // 分頁列渲染：沿用night.jsの.rulebook-tab-btn同款視覺（見style.css），但用獨立class
+  // （.ground-item-tab-btn）避免跟規則書/紀錄抽屜的分頁切換互相干擾（同一慣例見
+  // night.jsのswitchLogDrawerTab()註解「クラス名は別にして意図せず互いのタブ切替に
+  // 巻き込まれないように」）。只有0或1項時不顯示分頁列，沒有切換的必要。
+  // 每影格從updateNearbyGroundItem()呼叫，跟renderAttributeAccumNote()同款用簽章key快取：
+  // 沒快取時每影格都innerHTML=""重建按鈕，mousedown落在舊節點、mouseup落在新節點，
+  // click事件會派發到兩者的共同祖先（容器）而不是按鈕本身，分頁根本按不動。
+  var lastGroundItemTabsKey = null;
+
+  function renderGroundItemTabs(found) {
+    var tabsEl = el("midnight-ground-item-tabs");
+    if (!tabsEl) return;
+    if (found.length <= 1) {
+      tabsEl.hidden = true;
+      lastGroundItemTabsKey = null;
+      return;
+    }
+    var key =
+      found.map(function (f) { return f.id; }).join("|") + "#" + selectedGroundItemId + "#" + window.I18N.getLang();
+    if (key === lastGroundItemTabsKey) return;
+    lastGroundItemTabsKey = key;
+    tabsEl.innerHTML = "";
+    tabsEl.hidden = false;
+    found.forEach(function (f) {
+      var btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "ground-item-tab-btn" + (f.id === selectedGroundItemId ? " active" : "");
+      btn.textContent = groundItemDisplayName(f.data);
+      btn.addEventListener("click", function () {
+        selectedGroundItemId = f.id;
+        updateNearbyGroundItem();
+      });
+      tabsEl.appendChild(btn);
+    });
   }
 
   // 撿取也受6/4/2上限限制（使用者確認的硬上限規格）：滿了要先在角色面板丟棄才能撿。
@@ -14467,6 +14631,11 @@
   // weaponSkillReroll是個數或次數；weaponStar／potentialPower的value是★數（稀有度骰子顆數），
   // 絕對不能拆（拆了會把★2降成兩次★1，night.js曾犯過同一個錯，見同文件§12.4）。
   var SHARED_REWARD_COUNT_KINDS = ["consumable", "talisman", "stoneswordKey", "smithingStone", "weaponSkillReroll"];
+  // 2026-09-20使用者明確規格「有些道具抽選選出鑰匙不太合理，如果獎勵本來就有鑰匙則跳過抽的
+  // 階段直接顯示名稱與拿取」：這幾種kind在drawSharedRewardData()裡本來就是固定值分支（不是
+  // 從候選池亂數挑），跟個人清單renderRewardDetail()的needsDrawStep排除清單同一份，不應該
+  // 再讓玩家多按一次「抽選」。
+  var SHARED_REWARD_FIXED_KINDS = ["rune", "chaliceBonus", "stoneswordKey", "smithingStone", "weaponSkillReroll"];
 
   function pushSharedReward(pointId, entry) {
     var isCountKind = SHARED_REWARD_COUNT_KINDS.indexOf(entry.kind) !== -1;
@@ -14477,6 +14646,9 @@
       for (var k in entry) withFlag[k] = entry[k];
       if (isCountKind) withFlag.value = 1; // 拆開後每一筆都是1個
       withFlag.resolved = false;
+      // 固定值kind一開始就把drawn算好寫入，所有人看到的直接是「已揭示」狀態，UI跳過
+      // 「抽選」按鈕、直接進入拿取／不拿取。
+      if (SHARED_REWARD_FIXED_KINDS.indexOf(withFlag.kind) !== -1) withFlag.drawn = drawSharedRewardData(withFlag);
       GameStorage.rtSet(gameId, "cloud", "fieldTrigger/" + pointId + "/sharedRewards/" + rewardId, withFlag);
     }
   }
@@ -20026,6 +20198,10 @@
     GameStorage.rtSubscribe(gameId, "cloud", "towerInvites", onTowerInvitesReceived);
     GameStorage.rtSubscribe(gameId, "cloud", "blessingClaimed", onBlessingClaimedReceived);
     GameStorage.rtSubscribe(gameId, "cloud", "readyFinalBoss", onReadyFinalBossReceived);
+    GameStorage.rtSubscribe(gameId, "cloud", "presence", onPresenceReceived);
+    // 在線狀態登記（見presence說明）：以tokenId為key，觀戰者也會寫但沒有席位、不影響任何
+    // 閘門；斷線時伺服器端自動移除、重連時SDK層自動再登記。
+    GameStorage.rtSetWithOnDisconnect(gameId, "cloud", "presence/" + myTokenId, true);
     GameStorage.rtSubscribe(gameId, "cloud", "groundItems", onGroundItemsReceived);
     GameStorage.rtSubscribe(gameId, "cloud", "fieldTrigger", onFieldTriggersReceived);
     GameStorage.rtSubscribe(gameId, "cloud", "fieldEnemyHp", onFieldEnemyHpReceived);
@@ -20522,6 +20698,8 @@
         autoFly: autoFly,
         phaseInfo: meta && map && meta.sessionStartAt ? currentPhaseInfo(Date.now()) : null,
         players: players,
+        presence: presence,
+        readyFinalBoss: readyFinalBoss,
         mySlot: mySlot,
         stamina: stamina,
         comboState: comboState,
@@ -20533,6 +20711,7 @@
         nearbyBlessing: nearbyBlessing,
         groundItems: groundItems,
         nearbyGroundItem: nearbyGroundItem,
+        nearbyGroundItems: nearbyGroundItems,
         nearbyTower: nearbyTower,
         towerPuzzleState: towerPuzzleState,
         fieldTriggers: fieldTriggers,

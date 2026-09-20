@@ -1527,7 +1527,8 @@ button {
 }
 
 .rulebook-tab-btn,
-.log-drawer-tab-btn {
+.log-drawer-tab-btn,
+.ground-item-tab-btn {
   border: 1px solid #bbb;
   background: none;
   border-radius: 999px;
@@ -1537,10 +1538,20 @@ button {
 }
 
 .rulebook-tab-btn.active,
-.log-drawer-tab-btn.active {
+.log-drawer-tab-btn.active,
+.ground-item-tab-btn.active {
   background: #2d6cdf;
   border-color: #2d6cdf;
   color: #fff;
+}
+
+/* 掉落物資訊欄分頁列（2026-09-20新增，見midnight.jsのrenderGroundItemTabs()）：跟
+   .rulebook-tab-btn共用視覺，但獨立class避免互相干擾（同既有慣例）。 */
+.ground-item-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  margin-bottom: 0.4rem;
 }
 
 .rulebook-tab-panel,
