@@ -992,3 +992,50 @@ party-wide 欄位、變體切換鈕的顯示/循環/隱藏）。
 回歸測試：`relic_batch_2026_09_12_check.js` 增加到 17 個斷言，新增的 6 個涵蓋
 「傷害全由靈體吸收時本人 HP 不變」「靈體陣亡後正確回傳溢出量」「陣亡後靈體被清除」
 「靈體消滅時 HP 回復 +20」。測試用 debug hook：`_debugAbsorbDamageWithSpirit()`。
+
+---
+
+## 20. 2026-09-20 審查修正：多裝置競態／角色同步模型／規則對齊
+
+兩輪程式碼審查（H1〜L8、R1〜R7）後的修正，細節見 `git log` v0.34.0／v0.35.0 與
+`static_src/midnight.js` 內以「2026-09-20審查」開頭的註解。這裡只記架構層面的結論與已知限制。
+
+### 20.1 角色資料同步模型（H1／R1／R3）
+
+- `character/{tokenId}` **不再整份覆寫**。每個修改角色的 handler 改成
+  「`snapshotMyCharacter()` → 改本地物件 → `syncMyCharacterChanges(before)`」：只把真的
+  變動的頂層欄位各自寫子路徑，`runes` 走 transaction 累加差額（隊友發盧恩與自己花盧恩
+  不再互相覆蓋）。
+- 純本地欄位白名單 `LOCAL_ONLY_CHARACTER_FIELD_RE`（勇者的肉塊／塗脂／咆哮／連續射擊／
+  敵視／詞條事件視窗等短時效 buff 與冷卻）：**不寫 RTDB**，且 `onCharactersReceived()`
+  對自己的角色一律以本地值為準。白名單以外的 `_` 欄位（`_lastTileRewardNote`、
+  `_artCooldownUntil`、`_weaponRerollPending`…）維持「快照為準」，遠端設 null 會正常反映。
+- 純本地欄位不會跨重新整理持久（它們本來就是 10 秒級 buff）。
+
+### 20.2 多裝置贏家判定的統一寫法（H3／M7／M10／M14／M16）
+
+「用結果值比對誰贏」一律改為：在同一個 transaction 內寫 `…By = myTokenId`（或獨立的
+`…By/<n>` tokenId 鎖），`.then(committed)` 只認 `committed.…By === myTokenId`。
+`rtTransaction()` 對「中止」與「值為 null」都回 null，因此要靠 updateFn 內的閉包旗標
+（`enterNearDeath()` 的 `entered`、冷たい蜃気楼的 `consumedNow`）才能區分。
+
+### 20.3 已知限制（審查後刻意保留）
+
+- **暫停期間的計時**（R4）：只平移自己角色上的 `_*Until／_*ReadyAt`、`_tempWeaponSkills[].until`、
+  `_skillCostChanges[].until` 與少數本地 module 級計時；fieldTrigger 上的 `staggerUntil`／
+  `nextAttackAt`、meta 上的 party-wide `bloodSongUntil` 等不平移（見 `shiftMyTimestampsAfterPause()` 註解）。
+- **魔術師塔題目含答案存在 RTDB**（`towerInvites/{id}/puzzle.answer`）：任何人開 devtools
+  就看得到。示範用途可接受，未做伺服器端驗證。
+- **每幀成本**：`renderCombatPanel()`／`renderSideCombatButtons()` 每幀呼叫
+  `computeMidnightSkillCost()`＋`affixTotal()` 數次（O(武器×詞條)），目前沒有量測到問題，
+  之後若詞條數大增可用「裝備／詞條簽章沒變就快取」的既有 pattern。
+- **RTDB 整數鍵轉陣列**：`players`／`participants`／`votes` 以 "1"~"3" 為 key 會被讀成
+  `[null, …]`，各處都用 `participantSlots()`／`if (!p)` 過濾；新增以 slot 為 key 的節點
+  時要沿用同樣的過濾。
+
+### 20.4 回歸測試
+
+`tools/midnight_check/review_2026_09_20_check.js`（`npm run test:review_2026_09_20`，需 emulator）
+31 個斷言，涵蓋 H1／R1 實機（隊友子路徑寫入不洗掉 buff、runes 差額 transaction）、H3 兩台
+同時偵測只發一次獎、M2 接管搬清單、L2 防禦承受蓄積與遺物免除、L4／撿取／共享池／個人清單
+的枝番 id、個人清單 drawn persist、M17／M18／M1／M5／L1／L5／L6／R5。

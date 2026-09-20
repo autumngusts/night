@@ -126,6 +126,86 @@ const waitFor = (page, fn, arg, timeout) => page.waitForFunction(fn, arg, { time
     assert(true, "H1：快照裡有的 _ 欄位（隊友歸零的冷卻）以快照為準");
 
     // ======================================================================
+    console.log("\n=== R1：整份覆寫改為子路徑差異同步（runes走transaction、純本地欄位不上RTDB） ===");
+    await rtSet(pageA, "character/" + tokenA + "/runes", 10);
+    await waitFor(pageA, () => {
+      const s = window.PriTestMidnight._debugState();
+      return s.characters[s.myTokenId].runes === 10;
+    });
+    // A 本地扣 3 盧恩＋改 talismanIds＋設純本地 buff，B 同時對 A 的 runes 做 +5 transaction
+    const r1 = await Promise.all([
+      pageA.evaluate(() => {
+        const M = window.PriTestMidnight;
+        const s = M._debugState();
+        const c = s.characters[s.myTokenId];
+        const before = M._debugSnapshotMyCharacter();
+        c.runes -= 3;
+        c.talismanIds = ["talisman_greed"];
+        c._heroMeatUntil = Date.now() + 99999;
+        M._debugSyncMyCharacterChanges(before);
+        return true;
+      }),
+      pageB.evaluate((t) => {
+        const s = window.PriTestMidnight._debugState();
+        return window.PriTestGameStorage.rtTransaction(s.gameId, "cloud", "character/" + t + "/runes", (cur) => (cur || 0) + 5);
+      }, tokenA),
+    ]);
+    void r1;
+    await waitFor(pageA, () => {
+      const s = window.PriTestMidnight._debugState();
+      return s.characters[s.myTokenId].runes === 12;
+    });
+    const r1Raw = await pageA.evaluate(async () => {
+      const s = window.PriTestMidnight._debugState();
+      const snap = await window.firebase.database().ref("games/" + s.gameId + "/rtState/character/" + s.myTokenId).once("value");
+      const v = snap.val() || {};
+      return { runes: v.runes, talismanIds: v.talismanIds, hasHeroMeat: v._heroMeatUntil !== undefined, localHeroMeat: s.characters[s.myTokenId]._heroMeatUntil > Date.now() };
+    });
+    assert(r1Raw.runes === 12, "R1：A 扣3 與 B 加5 同時發生，RTDB runes＝10−3+5＝12（不互相覆蓋）", r1Raw);
+    assert(Array.isArray(r1Raw.talismanIds) && r1Raw.talismanIds[0] === "talisman_greed", "R1：變動的欄位（talismanIds）有寫上去", r1Raw);
+    assert(!r1Raw.hasHeroMeat && r1Raw.localHeroMeat, "R1：純本地 _heroMeatUntil 沒被推上 RTDB、本地仍在", r1Raw);
+    await pageA.evaluate(() => window.PriTestMidnight._debugSetTalismans([]));
+
+    // ======================================================================
+    console.log("\n=== 個人獎勵清單：抽選結果 persist、確認時重新編枝番 id ===");
+    const rwId = "rwdraw" + Date.now();
+    await rtSet(pageA, "pendingRewards/" + tokenA + "/" + rwId, { kind: "weapon", value: 1, resolved: false });
+    await waitFor(pageA, ([t, id]) => !!((window.PriTestMidnight._debugState().pendingRewards || {})[t] || {})[id], [tokenA, rwId]);
+    const drawn = await pageA.evaluate((id) => {
+      const s = window.PriTestMidnight._debugState();
+      return window.PriTestMidnight._debugDrawPersonalReward(id, s.pendingRewards[s.myTokenId][id]);
+    }, rwId);
+    assert(drawn && drawn.weaponId && drawn.weaponId.indexOf("::") === -1, "抽選：drawn 有 catalog weaponId（無枝番）", drawn);
+    await waitFor(pageA, ([t, id]) => {
+      const e = ((window.PriTestMidnight._debugState().pendingRewards || {})[t] || {})[id];
+      return !!(e && e.drawn && e.drawn.weaponId);
+    }, [tokenA, rwId]);
+    const rebuilt = await pageA.evaluate((id) => {
+      const s = window.PriTestMidnight._debugState();
+      const e = s.pendingRewards[s.myTokenId][id];
+      return window.PriTestMidnight._debugDraftFromDrawn(e, e.drawn);
+    }, rwId);
+    assert(rebuilt.weaponId === drawn.weaponId && rebuilt.skillId === (drawn.skillId || null), "重新整理後可從 pendingRewards/{id}/drawn 還原同一結果", { drawn, rebuilt });
+    // 先讓自己持有同 catalog 的一把，再確認收下 → 應拿到 "::2" 而不是撞 id
+    const confirmRes = await pageA.evaluate(([id, base]) => {
+      const M = window.PriTestMidnight;
+      const s = M._debugState();
+      const c = s.characters[s.myTokenId];
+      if (c.weaponIds.indexOf(base) === -1) c.weaponIds.push(base);
+      const before = c.weaponIds.slice();
+      M._debugConfirmRewardEntry(id);
+      const added = c.weaponIds.filter((w) => before.indexOf(w) === -1);
+      const dup = c.weaponIds.filter((w, i) => c.weaponIds.indexOf(w) !== i);
+      return { added, dup };
+    }, [rwId, drawn.weaponId]);
+    assert(confirmRes.added.length === 1 && confirmRes.added[0].indexOf("::") !== -1 && confirmRes.dup.length === 0, "確認收下時依持有狀況編枝番 id、不撞名", confirmRes);
+
+    // ======================================================================
+    console.log("\n=== R5：発狂地帯「発狂：2D／3D」＝固定 2／3 ===");
+    const r5 = await pageA.evaluate(() => [window.PriTestMidnight._debugMadnessFixedAccum(2), window.PriTestMidnight._debugMadnessFixedAccum(3)]);
+    assert(r5[0] === 2 && r5[1] === 3, "R5：XD 視為固定 X", r5);
+
+    // ======================================================================
     console.log("\n=== M1：effectiveGuardCount ===");
     const g = await pageA.evaluate(() => {
       const M = window.PriTestMidnight;

@@ -384,17 +384,20 @@ async function walkNear(page, targetX, targetY, radius, maxRounds) {
     const bleedAccum = (accumState.attributeAccum && accumState.attributeAccum.sharedTarget && accumState.attributeAccum.sharedTarget["出血"]) || 0;
     // 注意：狀態異常觸發後會歸零（docs/enemy_damage_rules.md §7.4「発動後は0に戻す」，見
     // maybeTriggerAttributeAccum），12次攻擊剛好等於1倍閾值，所以這裡讀到0是正確行為
-    // （已觸發過一次並歸零），不是沒有累積到——真正的訊號是下面的attributeAccumTriggerClaims。
-    console.log("  出血蓄積值（讀取當下）＝" + bleedAccum + "（若已觸發過一次，狀態異常會自動歸零，見下方claim檢查）");
-    const claimed = await page.evaluate(
+    // （已觸發過一次並歸零），不是沒有累積到——真正的訊號是下面的attributeAccumTriggers。
+    // 2026-09-20（審查R7）：期望值更新——2026-09-13起搶鎖機制attributeAccumTriggerClaims已
+    // 移除，改由「扣除蓄積的transaction本身」當閘門，並把累計觸發次數寫進
+    // attributeAccumTriggers/<target>/<name>（數字），見maybeTriggerAttributeAccum()。
+    console.log("  出血蓄積值（讀取當下）＝" + bleedAccum + "（若已觸發過一次，狀態異常會自動歸零，見下方觸發次數檢查）");
+    const triggered = await page.evaluate(
       (gameId) =>
         new Promise((resolve) => {
-          window.PriTestGameStorage.rtSubscribe(gameId, "cloud", "attributeAccumTriggerClaims/sharedTarget/出血/1", (v) => resolve(v));
+          window.PriTestGameStorage.rtSubscribe(gameId, "cloud", "attributeAccumTriggers/sharedTarget/出血", (v) => resolve(v));
           setTimeout(() => resolve(null), 1500);
         }),
       gameId
     );
-    assert(!!claimed, "第1次跨越閾值時，attributeAccumTriggerClaims/sharedTarget/出血/1有first-writer-wins的觸發記錄", results);
+    assert(typeof triggered === "number" && triggered >= 1, "第1次跨越閾值時，attributeAccumTriggers/sharedTarget/出血累計到>=1次觸發", results);
 
     console.log("=== 檢查8：盾牌防禦的百分比減傷實際套用到敵人命中傷害上（端對端） ===");
     // 沿用emulator_sync_check.js風險點4的手法：跳過邀請/打字機/投票，直接seed一個

@@ -764,11 +764,15 @@
   // 延到下一個tick才真正掛上去，就是「このアクション後」的字面實作，也跟night.js
   // のmoveOminousStrikeToFront()處理「這次動作結算完之後才生效」的既有寫法一致。
   // 回傳值是解析結果（給toast附註用），不等於「已經生效」。
-  function grantTempWeaponSkills(c, weaponId, bodyText) {
-    if (!c || !weaponId) return [];
+  function grantTempWeaponSkills(c0, weaponId, bodyText) {
+    if (!c0 || !weaponId) return [];
     var granted = parseGrantedWeaponSkills(bodyText);
     if (!granted.length) return [];
     setTimeout(function () {
+      // 2026-09-20審查R2修正：timeout內重新取characters[myTokenId]，不用閉包抓的舊物件——
+      // 同一tick內若有character/子路徑寫入（例如祈禱火力提升的_relicAtkBuffUntil），快照先到、
+      // characters[myTokenId]已經換成新物件，掛在舊物件上的_tempWeaponSkills誰也讀不到。
+      var c = characters[myTokenId] || c0;
       var until = Date.now() + TEMP_WEAPON_SKILL_MS;
       if (!c._tempWeaponSkills) c._tempWeaponSkills = [];
       granted.forEach(function (g) {
@@ -2231,10 +2235,22 @@
   // 10秒buff照樣過期。不改每個讀取點（數十處），改在「暫停真正結束」（meta.pause.totalPausedMs
   // 增加）那一刻，把自己角色上所有時間戳型欄位往後平移暫停時長；每台裝置只處理自己的
   // 角色（本地欄位＋RTDB子路徑同步，隊友幫我歸零過的冷卻也在自己這裡平移）。
-  // 判斷依據是欄位名稱結尾（Until／ReadyAt／At）且值是「看起來像未來時間戳」的數字，
+  // 判斷依據是欄位名稱結尾（Until／ReadyAt）且值是「看起來像未來時間戳」的數字，
   // 已過期的（<= pausedAt）不動——它們本來就該過期。
+  //
+  // 範圍（審查R4，已知簡化）：只平移「自己角色物件上的頂層時間戳」＋幾個本地module級
+  // 計時（_tempWeaponSkills[].until／_skillCostChanges[].until／staminaRegenBlockedUntil／
+  // halberdWhirlwindDamageUpUntil／beastHuntActiveUntil／iceBlizzardBlindUntil）。**不**平移的：
+  // fieldTrigger上的staggerUntil／nextAttackAt／enemyStunnedUntil／hpValueReduceUntil（共享
+  // 節點，暫停中敵人本來就不會出招，恢復後照舊排程）、meta上的bloodSongUntil／
+  // partyNoDamageUntil／affixHolyGroundUntil（party-wide，多台同時平移會重複加）、
+  // affixTickAt等純節流用時間戳。這些在暫停期間會照樣過期，是接受的範圍限制。
   var lastSeenTotalPausedMs = null;
   var PAUSE_SHIFT_FIELD_RE = /^_.*(Until|ReadyAt)$/;
+
+  function shiftFutureTimestamp(v, pausedAt, deltaMs) {
+    return typeof v === "number" && v > pausedAt ? v + deltaMs : v;
+  }
 
   function shiftMyTimestampsAfterPause(pausedAt, deltaMs) {
     var c = characters[myTokenId];
@@ -2244,8 +2260,21 @@
       var v = c[k];
       if (typeof v !== "number" || v <= pausedAt) continue;
       c[k] = v + deltaMs;
-      GameStorage.rtSet(gameId, "cloud", "character/" + myTokenId + "/" + k, c[k]);
+      // 純本地欄位不寫RTDB（白名單，見isLocalOnlyCharacterField()）；其餘同步欄位寫子路徑。
+      if (!isLocalOnlyCharacterField(k)) GameStorage.rtSet(gameId, "cloud", "character/" + myTokenId + "/" + k, c[k]);
     }
+    (c._tempWeaponSkills || []).forEach(function (t) {
+      t.until = shiftFutureTimestamp(t.until, pausedAt, deltaMs);
+    });
+    var costChanges = c._skillCostChanges || {};
+    for (var ck in costChanges) {
+      if (costChanges[ck]) costChanges[ck].until = shiftFutureTimestamp(costChanges[ck].until, pausedAt, deltaMs);
+    }
+    staminaRegenBlockedUntil = shiftFutureTimestamp(staminaRegenBlockedUntil, pausedAt, deltaMs);
+    halberdWhirlwindDamageUpUntil = shiftFutureTimestamp(halberdWhirlwindDamageUpUntil, pausedAt, deltaMs);
+    beastHuntActiveUntil = shiftFutureTimestamp(beastHuntActiveUntil, pausedAt, deltaMs);
+    beastHuntCooldownUntil = shiftFutureTimestamp(beastHuntCooldownUntil, pausedAt, deltaMs);
+    iceBlizzardBlindUntil = shiftFutureTimestamp(iceBlizzardBlindUntil, pausedAt, deltaMs);
   }
 
   function onMetaReceived(value) {
@@ -2370,12 +2399,65 @@
   // 恩寵）都會讓這些欄位瞬間消失——實測「勇者的肉塊」按下後50ms buff就被洗掉，消耗品
   // 次數卻已扣。修法：對myTokenId把舊物件上「_開頭且新快照沒有」的鍵原樣搬回來；
   // 新快照有的鍵（例如隊友幫我歸零的_artCooldownUntil）仍以快照為準。
+  // 2026-09-20審查R3修正：改為明確白名單（而不是「任何_開頭且快照沒有的鍵」）——後者會把
+  // 遠端刻意設成null的_欄位（例如_pendingDay3HpBonus）從舊物件復活。白名單內的欄位一律
+  // 「本地優先」：短時效buff／冷卻，只有自己這台會讀，也不需要跨重新整理持久。
+  var LOCAL_ONLY_CHARACTER_FIELD_RE =
+    /^_(heroMeatUntil|acidSprayUntil|ironPotUntil|guardValueBonus|grease|tempWeaponSkills|skillCostChanges|continuousShot|roarTwoHit|aggroBonus|aggroZeroUntil|affix\w*Until|parryStaminaBonus|spiritHornReadyAt|pillageCameoReadyAt|restageAccumDamage)/;
+
+  function isLocalOnlyCharacterField(key) {
+    return LOCAL_ONLY_CHARACTER_FIELD_RE.test(key);
+  }
+
   function mergeLocalOnlyCharacterFields(prev, next) {
     if (!prev || !next || prev === next) return next;
     for (var k in prev) {
-      if (k.charAt(0) === "_" && next[k] === undefined && prev.hasOwnProperty(k)) next[k] = prev[k];
+      if (prev.hasOwnProperty(k) && isLocalOnlyCharacterField(k)) next[k] = prev[k];
     }
     return next;
+  }
+
+  // 2026-09-20審查R1修正：取代原本14處「rtSet("character/"+myTokenId, c)整份覆寫」——
+  // 整份覆寫會（1）把隊友同時對我子路徑寫入的runes／graces用舊快照蓋掉、（2）把純本地的
+  // _欄位一起推上RTDB。改成「事前拍一份快照、事後只把真的變動的頂層欄位各自寫子路徑」：
+  //   ・runes改走transaction累加差額（隊友發盧恩跟我自己花盧恩不再互相覆蓋）
+  //   ・白名單內的純本地欄位一律不寫
+  //   ・被刪掉的欄位寫null
+  // 用法：var before = snapshotMyCharacter(); ...改c...; syncMyCharacterChanges(before);
+  function snapshotMyCharacter() {
+    var c = characters[myTokenId];
+    if (!c) return null;
+    var out = {};
+    for (var k in c) {
+      if (!c.hasOwnProperty(k) || isLocalOnlyCharacterField(k)) continue;
+      out[k] = JSON.stringify(c[k]);
+    }
+    return out;
+  }
+
+  function syncMyCharacterChanges(before) {
+    var c = characters[myTokenId];
+    if (!c) return;
+    before = before || {};
+    var keys = {};
+    var k;
+    for (k in before) keys[k] = true;
+    for (k in c) if (c.hasOwnProperty(k)) keys[k] = true;
+    Object.keys(keys).forEach(function (key) {
+      if (isLocalOnlyCharacterField(key)) return;
+      var nowJson = c[key] === undefined ? undefined : JSON.stringify(c[key]);
+      if (nowJson === before[key]) return;
+      if (key === "runes") {
+        var prevRunes = before.runes !== undefined ? JSON.parse(before.runes) || 0 : 0;
+        var delta = (c.runes || 0) - prevRunes;
+        if (!delta) return;
+        GameStorage.rtTransaction(gameId, "cloud", "character/" + myTokenId + "/runes", function (cur) {
+          return (cur || 0) + delta;
+        });
+        return;
+      }
+      GameStorage.rtSet(gameId, "cloud", "character/" + myTokenId + "/" + key, c[key] === undefined ? null : c[key]);
+    });
   }
 
   function onCharactersReceived(value) {
@@ -12778,6 +12860,7 @@
       el("midnight-merchant-weapon-result").textContent = window.I18N.t("midnight_inventory_full_note");
       return;
     }
+    var before = snapshotMyCharacter();
     var result = window.PriTestCharacterDrawer.merchantDrawWeapon(c, 1, affixDiscoveryBonus());
     if (!result) return;
     // 2026-09-12使用者明確規格「武器…持有的戰技魔術等 是當下直接抽出，並非鍛造台再抽」：
@@ -12785,7 +12868,7 @@
     window.PriTestCharacterDrawer.assignWeaponRandomSkill(c, result.weaponId, window.PriTestCharacterDrawer.rollWeaponRandomSkill(result.weaponId));
     grantAffixesForNewWeapon(c, result.weaponId); // 2026-09-13武器詞條
     c.runes -= 1;
-    GameStorage.rtSet(gameId, "cloud", "character/" + myTokenId, c);
+    syncMyCharacterChanges(before); // 2026-09-20審查R1：只寫變動的子路徑
     el("midnight-merchant-weapon-result").textContent = window.I18N.t("midnight_merchant_weapon_result", {
       name: window.PriTestWeapons.localizedText(result.item.name),
       rarity: result.rarity,
@@ -12802,10 +12885,11 @@
       el("midnight-merchant-consumable-result").textContent = window.I18N.t("midnight_inventory_full_note");
       return;
     }
+    var before = snapshotMyCharacter();
     var buyCount = consumableAcquireCount(item);
     grantConsumablesToSelf(c, itemId, buyCount, null);
     c.runes -= 1;
-    GameStorage.rtSet(gameId, "cloud", "character/" + myTokenId, c);
+    syncMyCharacterChanges(before); // 2026-09-20審查R1
     el("midnight-merchant-consumable-result").textContent = window.I18N.t("midnight_merchant_consumable_result", {
       name: window.PriTestConsumables.localizedText(item.name) + " x" + buyCount,
     });
@@ -12871,9 +12955,10 @@
     var CD = window.PriTestCharacterDrawer;
     var rarity = CD.getEffectiveWeaponRarity(c, weaponId);
     var cost = forgeCostForRarity(rarity);
+    var before = snapshotMyCharacter();
     if (!cost || !consumeSmithingStones(c, cost)) return;
     if (!CD.upgradeWeaponRarity(c, weaponId)) return;
-    GameStorage.rtSet(gameId, "cloud", "character/" + myTokenId, c);
+    syncMyCharacterChanges(before); // 2026-09-20審查R1
     var weapon = window.PriTestWeapons.get(baseCatalogId(weaponId));
     el("midnight-merchant-forge-result").textContent = window.I18N.t("midnight_merchant_forge_result", {
       name: weapon ? window.PriTestWeapons.localizedText(weapon.name) : weaponId,
@@ -14299,9 +14384,15 @@
     // 一樣是nextCompleted——每台裝置都以為自己贏了，最終輪每台都發一次獎（2~3倍盧恩／
     // 潛力），中間輪每台都rtSet HP=max（慢的那台會在下一輪開打後把HP洗回滿）。改用
     // tokenId鎖（roundAdvancedBy/<n>，同rewardGrantedBy的first-writer-wins寫法）。
-    GameStorage.rtTransaction(gameId, "cloud", "fieldTrigger/" + pt.id + "/roundAdvancedBy/" + nextCompleted, function (cur) {
-      return cur === null ? myTokenId : cur;
-    }).then(function (committed) {
+    // 鎖的updater一定回非null，因此transaction回null＝失敗（網路／權限），用
+    // resetAttemptFlagOnFailure()把本地一次性旗標清掉讓下一幀重送，否則單人遊玩時這一輪會卡死。
+    resetAttemptFlagOnFailure(
+      nightForceRoundAdvanceAttempted,
+      pt.id,
+      GameStorage.rtTransaction(gameId, "cloud", "fieldTrigger/" + pt.id + "/roundAdvancedBy/" + nextCompleted, function (cur) {
+        return cur === null ? myTokenId : cur;
+      })
+    ).then(function (committed) {
       if (committed !== myTokenId) return; // 被別的裝置搶先處理過這一輪
       if (nextCompleted >= requiredRounds) {
         GameStorage.rtSet(gameId, "cloud", "fieldTrigger/" + pt.id + "/completedRounds", nextCompleted);
@@ -14398,6 +14489,7 @@
       insectBountySelfApplied[pt.id] = true;
       var c = characters[myTokenId];
       if (c) {
+        var beforeBounty = snapshotMyCharacter();
         c.runes = (c.runes || 0) + (steps.bounty.runeReward || 0);
         if (c._insectSwarmLostRunes) {
           c.runes += c._insectSwarmLostRunes;
@@ -14408,7 +14500,7 @@
         // 配るのと同じタイミングで獎勵清單へ骰子項目を送る形で接続済み
         // （pushKnowledgeDiceRewardForParticipants()／renderKnowledgeDiceRewardDetail()）。
         grantGraceToTokens([myTokenId], GRACE_KNOWLEDGE);
-        GameStorage.rtSet(gameId, "cloud", "character/" + myTokenId, c);
+        syncMyCharacterChanges(beforeBounty); // 2026-09-20審查R1
       }
     }
   }
@@ -14424,10 +14516,11 @@
     var sum = 0;
     for (var i = 0; i < diceCount; i++) sum += 1 + Math.floor(Math.random() * 6);
     if (!checkSucceeded(c, sum, steps.checkTarget) && c) {
+      var beforeLoss = snapshotMyCharacter();
       var lost = Math.min(c.runes || 0, steps.failRuneLoss);
       c.runes = (c.runes || 0) - lost;
       c._insectSwarmLostRunes = (c._insectSwarmLostRunes || 0) + lost;
-      GameStorage.rtSet(gameId, "cloud", "character/" + myTokenId, c);
+      syncMyCharacterChanges(beforeLoss); // 2026-09-20審查R1
     }
   }
 
@@ -14573,10 +14666,10 @@
     // （recordReceivedAttributeAccum()本來就是module-scope local變數，不吃tokenId）。
     if (trig.tower3Outcome && !madnessTower3LocalApplied[pt.id]) {
       madnessTower3LocalApplied[pt.id] = true;
-      var madnessDiceCount = trig.tower3Outcome === "success2plus" ? 2 : 3; // success2plus:発狂2D／success1・allFail:発狂3D
-      var madnessSum = 0;
-      for (var i = 0; i < madnessDiceCount; i++) madnessSum += 1 + Math.floor(Math.random() * 6);
-      recordReceivedAttributeAccum("発狂", madnessSum);
+      // success2plus:発狂2D／success1・allFail:発狂3D。2026-09-20審查R5修正：依docs/enemy_damage_rules.md
+      // §1.1使用者裁定，「XD」在本文沒有另外寫「振る」時＝固定X（event_rulebook.js:746/755/764
+      // 原文都沒有擲骰指示），跟漩渦烈焰／靈炎爆發同一次修正對齊，不再擲成2d6／3d6。
+      recordReceivedAttributeAccum("発狂", madnessFixedAccum(trig.tower3Outcome === "success2plus" ? 2 : 3));
       if (trig.tower3Outcome !== "allFail") {
         // event_rulebook.js:746/755「潜在する力：★★」を2個——potentialPower只有
         // pendingRewards抽選清單流程認得，走pushPendingReward()（同maybeGrantMeteorReward()
@@ -14591,8 +14684,13 @@
   // madFire／tower2共用：〈checkTarget|任意の判定値〉——玩家可自由選擇任一判定值，目前
   // codebase沒有對應的選擇UI（不像女神像/埋もれ宝等固定用單一判定值），簡化為取自身
   // luck/physical/mental三者最高值（等同玩家會選的最佳判定，比固定優先順序取值更合理）。
-  // 成功/失敗後的発狂蓄積骰數(2D/3D)加總即為
-  // recordReceivedAttributeAccum()的amount參數（不是骰子顆數本身，見correction #5）。
+  // 成功/失敗後的「発狂：2D／3D」：2026-09-20審查R5修正，依docs/enemy_damage_rules.md §1.1
+  // 使用者裁定「XD」＝固定X（event_rulebook.js:702/703/730/731原文沒有「振る」），
+  // 不再擲骰加總（原本擲2d6／3d6，平均7／10.5，以自身門檻16來看兩次判定就可能觸發）。
+  function madnessFixedAccum(n) {
+    return n;
+  }
+
   function handleMadnessCheckClick(pt, stage, stepConfig) {
     if (!mySlot || isPaused() || isSelfDowned()) return;
     var attemptField = stage === "madFire" ? "attempted" : "tower2Attempted";
@@ -14604,10 +14702,7 @@
     var sum = 0;
     for (var i = 0; i < diceCount; i++) sum += 1 + Math.floor(Math.random() * 6);
     var success = checkSucceeded(c, sum, stepConfig.checkTarget);
-    var madnessDiceCount = success ? 2 : 3;
-    var madnessSum = 0;
-    for (var j = 0; j < madnessDiceCount; j++) madnessSum += 1 + Math.floor(Math.random() * 6);
-    recordReceivedAttributeAccum("発狂", madnessSum);
+    recordReceivedAttributeAccum("発狂", madnessFixedAccum(success ? 2 : 3));
   }
 
   // madFire／tower2皆為「全員都嘗試過才前進」（event_rulebook.js:699/727「成否に関わらず
@@ -14914,11 +15009,14 @@
     } else if (entry.kind === "weaponSkillReroll") {
       c._weaponRerollCredits = (c._weaponRerollCredits || 0) + (drawn.value || 1);
     } else if ((entry.kind === "weapon" || entry.kind === "weaponStar") && drawn.weaponId) {
+      // 2026-09-20審查修正（同L4）：得主可能已持有同catalog的武器，入手時用枝番機制重新編id，
+      // 不直接push drawn.weaponId（那是用空scratch算出來的catalog id）。
+      var sharedInstanceId = CD.makeWeaponInstanceId(CD.baseWeaponId(drawn.weaponId), c);
       c.weaponIds = c.weaponIds || [];
-      c.weaponIds.push(drawn.weaponId);
+      c.weaponIds.push(sharedInstanceId);
       // 2026-09-12：揭示時就抽好的random戰技（見drawSharedRewardData()）跟著武器一起入手。
-      if (drawn.skillId) CD.assignWeaponRandomSkill(c, drawn.weaponId, drawn.skillId);
-      applyDrawnAffixes(c, drawn.weaponId, drawn.affixes || null); // 2026-09-13武器詞條
+      if (drawn.skillId) CD.assignWeaponRandomSkill(c, sharedInstanceId, drawn.skillId);
+      applyDrawnAffixes(c, sharedInstanceId, drawn.affixes || null); // 2026-09-13武器詞條
     } else if (entry.kind === "talisman" && drawn.talismanId) {
       c.talismanIds = c.talismanIds || [];
       c.talismanIds.push(drawn.talismanId);
@@ -15018,9 +15116,10 @@
       if (committed !== myTokenId) return;
       var c = characters[myTokenId];
       if (!c) return;
+      var before = snapshotMyCharacter();
       applyDrawnSharedRewardToCharacter(c, entry, entry.drawn);
       c._lastTileRewardNote = { text: window.I18N.t("midnight_reward_toast_prefix") + sharedRewardDrawLabel(entry, entry.drawn), at: Date.now() };
-      GameStorage.rtSet(gameId, "cloud", "character/" + myTokenId, c);
+      syncMyCharacterChanges(before); // 2026-09-20審查R1
     });
   }
 
@@ -15333,6 +15432,7 @@
         btn.disabled = true;
         var c = characters[myTokenId];
         if (!c) return;
+        var before = snapshotMyCharacter();
         var effects = BARGAIN_DEAL_EFFECTS[bargainDealMatchKey(deal)];
         var goodApplied = !!(effects && effects.applyGood(c));
         var badApplied = !!(effects && effects.applyBad(c));
@@ -15351,7 +15451,7 @@
             (badApplied ? "" : window.I18N.t("midnight_bargain_manual_note")),
           at: Date.now(),
         };
-        GameStorage.rtSet(gameId, "cloud", "character/" + myTokenId, c);
+        syncMyCharacterChanges(before); // 2026-09-20審查R1
       });
       card.appendChild(btn);
       listEl.appendChild(card);
@@ -15840,74 +15940,72 @@
         apply: function () {},
       };
     }
-    if (entry.kind === "talisman") {
-      var Talismans = window.PriTestTalismans;
-      var pool = Talismans.list();
-      var pickedTalisman = pool[Math.floor(Math.random() * pool.length)];
-      return {
-        label: Talismans.localizedText(pickedTalisman.name),
-        item: pickedTalisman,
-        apply: function (c) {
-          c.talismanIds = c.talismanIds || [];
-          c.talismanIds.push(pickedTalisman.id);
-        },
-      };
+    // weapon／weaponStar／talisman／consumable（需要「抽選」的三種kind）：2026-09-20審查修正——
+    // 抽選結果改成先產生「可序列化的drawn」（跟共享池drawSharedRewardData()同一支，武器的
+    // categoryId／random戰技／詞條、指定品項消耗品都已在那裡處理），再由draftFromDrawn()
+    // 組成含apply()的draft。這樣①drawn能寫進pendingRewards/{id}/drawn，重新整理不會消失
+    // 也不能「不喜歡就重整重抽」；②apply()在確認當下才用makeWeaponInstanceId()編枝番id，
+    // 抽選到確認之間又從共享池拿到同catalog武器也不會撞id。
+    if (entry.kind === "weapon" || entry.kind === "weaponStar" || entry.kind === "talisman" || entry.kind === "consumable") {
+      return draftFromDrawn(entry, drawSharedRewardData(entry));
     }
-    // "weaponStar"是fields_data_*.js／TOWER_DICE_HAND_REWARDS實際使用的kind（見
-    // rewardEntryLabel()的2026-09-10修正說明），跟"weapon"完全同一種獎勵，差別只在
-    // weaponStar額外可能帶categoryId（指定大分類，例如聖印）與attributeTag（規則書
-    // 在武器上附註的屬性文字，例如「聖／-5」）。抽選規則不重新發明：categoryId有值時用
-    // CharacterDrawer.drawWeaponFromCategory()（塔謎題「杖」獎勵既有的同一支helper），
-    // 沒有就跟原本一樣用merchantDrawWeapon()。兩者都會直接push進傳入角色的weaponIds，
-    // 因此比照原本的既有做法傳入淺拷貝的暫時物件，真正的授予留到apply()。
-    if (entry.kind === "weapon" || entry.kind === "weaponStar") {
-      var c0 = characters[myTokenId] || { weaponIds: [] };
-      var scratch = { weaponIds: (c0.weaponIds || []).slice() };
-      var stars = entry.value || 1;
-      var result = entry.categoryId
-        ? window.PriTestCharacterDrawer.drawWeaponFromCategory(scratch, entry.categoryId, stars, affixDiscoveryBonus())
-        : window.PriTestCharacterDrawer.merchantDrawWeapon(scratch, stars, affixDiscoveryBonus());
-      if (!result) return { label: window.I18N.t("midnight_reward_draw_empty"), apply: function () {} };
+    return { label: window.I18N.t("midnight_reward_draw_empty"), apply: function () {} };
+  }
+
+  // 把可序列化的抽選結果（drawn，見drawSharedRewardData()）組成renderRewardDetail()／
+  // confirmRewardEntry()需要的draft形狀（label／item／weaponId／skillId／affixes／apply）。
+  function draftFromDrawn(entry, drawn) {
+    var empty = { label: window.I18N.t("midnight_reward_draw_empty"), apply: function () {}, drawn: drawn || null };
+    if (!drawn) return empty;
+    var CD = window.PriTestCharacterDrawer;
+    if ((entry.kind === "weapon" || entry.kind === "weaponStar") && drawn.weaponId) {
+      var weapon = window.PriTestWeapons.get(baseCatalogId(drawn.weaponId));
+      if (!weapon) return empty;
       // attributeTag是fields_data_*.js的C(ja,zh)雙語物件，沿用night.jsのhandleTurnRewardClaim
       // 同一種PriTestFields.localizedText()解讀方式；沒有這個欄位時維持null，不硬湊。
       var attributeTag = entry.attributeTag ? window.PriTestFields.localizedText(entry.attributeTag) : null;
-      // 2026-09-12使用者明確規格「獎勵取得的武器、杖、聖印 持有的戰技魔術等 是當下直接
-      // 抽出，並非鍛造台再抽」：按下[抽選]的這一刻就把random戰技枠一起抽掉，抽選結果面板
-      // （renderRewardDetail()）也用這個skillId當override顯示，玩家按[確認收下]之前就看得到
-      // 完整的戰技／魔術／祈禱內容。
-      var drawnSkillId = window.PriTestCharacterDrawer.rollWeaponRandomSkill(result.weaponId);
-      // 2026-09-13使用者明確規格「詞條模式下，獎勵清單中抽出武器杖與聖印就顯示其詞條了」：
-      // 跟上面的random戰技枠同一個時機擲定，玩家按［確認收下］之前就看得到完整詞條。
-      var drawnAffixes = rollAffixesForWeapon(c0, result.weaponId);
       return {
-        label: window.PriTestWeapons.localizedText(result.item.name),
-        item: result.item,
-        weaponId: result.weaponId,
-        skillId: drawnSkillId,
-        affixes: drawnAffixes,
+        label: window.PriTestWeapons.localizedText(weapon.name),
+        item: weapon,
+        weaponId: drawn.weaponId,
+        skillId: drawn.skillId || null,
+        affixes: drawn.affixes || null,
+        drawn: drawn,
         apply: function (c) {
+          // 枝番id在確認當下依目前持有狀況編（見上方說明），戰技／詞條掛到這個新id上。
+          var instanceId = CD.makeWeaponInstanceId(CD.baseWeaponId(drawn.weaponId), c);
           c.weaponIds = c.weaponIds || [];
-          c.weaponIds.push(result.weaponId);
-          if (drawnSkillId) window.PriTestCharacterDrawer.assignWeaponRandomSkill(c, result.weaponId, drawnSkillId);
-          applyDrawnAffixes(c, result.weaponId, drawnAffixes); // 2026-09-13武器詞條：用抽選當下擲好的那一組
+          c.weaponIds.push(instanceId);
+          if (drawn.skillId) CD.assignWeaponRandomSkill(c, instanceId, drawn.skillId);
+          applyDrawnAffixes(c, instanceId, drawn.affixes || null); // 2026-09-13武器詞條：用抽選當下擲好的那一組
           if (attributeTag) {
             c.weaponAttributeTags = c.weaponAttributeTags || {};
-            c.weaponAttributeTags[result.weaponId] = attributeTag;
+            c.weaponAttributeTags[instanceId] = attributeTag;
           }
         },
       };
     }
-    if (entry.kind === "consumable") {
+    if (entry.kind === "talisman" && drawn.talismanId) {
+      var Talismans = window.PriTestTalismans;
+      var talisman = Talismans.get(drawn.talismanId);
+      if (!talisman) return empty;
+      return {
+        label: Talismans.localizedText(talisman.name),
+        item: talisman,
+        drawn: drawn,
+        apply: function (c) {
+          c.talismanIds = c.talismanIds || [];
+          c.talismanIds.push(talisman.id);
+        },
+      };
+    }
+    if (entry.kind === "consumable" && drawn.itemId) {
       var Consumables = window.PriTestConsumables;
-      var itemPool = Consumables.list();
-      // 2026-09-12修正：fields_data_*.js有「指定品項」的消耗品獎勵
-      // （例：{ kind:"consumable", itemId:"item_throwing_pot", attributeTag: C("雷","雷") }），
-      // 這條個人清單路徑原本無視entry.itemId一律隨機抽，指定品項永遠拿不到。
-      // 共享獎勵那條路徑（drawSharedRewardData()）本來就有判斷entry.itemId，這裡補齊。
-      var pickedItem = (entry.itemId && Consumables.get(entry.itemId)) || itemPool[Math.floor(Math.random() * itemPool.length)];
+      var pickedItem = Consumables.get(drawn.itemId);
+      if (!pickedItem) return empty;
       // 投擲壺的「X」：規則書在取得的場地上標明屬性（使用者明確規格「取得此物品時即要
       // 根據場地而變化其附屬屬性」），沿用night.jsのc.consumableAttributeTags欄位規約。
-      var itemAttributeTag = entry.attributeTag ? window.PriTestFields.localizedText(entry.attributeTag) : null;
+      var itemAttributeTag = drawn.attributeTag || (entry.attributeTag ? window.PriTestFields.localizedText(entry.attributeTag) : null);
       // 2026-09-12：獲得個數改由consumableAcquireCount()決定（基本2個），疊不下的丟到
       // 地上，見grantConsumablesToSelf()。
       var acquireCount = consumableAcquireCount(pickedItem);
@@ -15916,19 +16014,30 @@
         item: pickedItem,
         itemId: pickedItem.id,
         attributeTag: itemAttributeTag,
+        drawn: drawn,
         apply: function (c) {
           grantConsumablesToSelf(c, pickedItem.id, acquireCount, itemAttributeTag);
         },
       };
     }
-    return { label: window.I18N.t("midnight_reward_draw_empty"), apply: function () {} };
+    return empty;
+  }
+
+  // 個人清單的「抽選」：算出draft並把可序列化的drawn寫進pendingRewards/{id}/drawn
+  // （見renderRewardDetail()的說明）。
+  function drawPersonalReward(id, entry) {
+    var draft = computeRewardDraw(entry);
+    rewardDraftById[id] = draft;
+    if (draft.drawn) GameStorage.rtSet(gameId, "cloud", "pendingRewards/" + myTokenId + "/" + id + "/drawn", draft.drawn);
+    return draft;
   }
 
   function confirmRewardEntry(id, draft) {
     var c = characters[myTokenId];
     if (!c) return;
+    var before = snapshotMyCharacter();
     draft.apply(c);
-    GameStorage.rtSet(gameId, "cloud", "character/" + myTokenId, c);
+    syncMyCharacterChanges(before); // 2026-09-20審查R1
     GameStorage.rtSet(gameId, "cloud", "pendingRewards/" + myTokenId + "/" + id + "/resolved", true);
     delete rewardDraftById[id];
     selectedRewardId = null;
@@ -16055,8 +16164,8 @@
     note.textContent = window.I18N.t("midnight_reward_potential_choose_note");
     detail.appendChild(note);
 
-    function finishPick() {
-      GameStorage.rtSet(gameId, "cloud", "character/" + myTokenId, characters[myTokenId]);
+    function finishPick(before) {
+      syncMyCharacterChanges(before); // 2026-09-20審查R1
       GameStorage.rtSet(gameId, "cloud", "pendingRewards/" + myTokenId + "/" + id + "/resolved", true);
       delete potentialPowerDraftById[id];
       selectedRewardId = null;
@@ -16086,10 +16195,11 @@
       chooseWeaponBtn.addEventListener("click", function () {
         var c = characters[myTokenId];
         if (!c) return;
+        var before = snapshotMyCharacter();
         var ppInstanceId = CD.commitPotentialPowerWeapon(c, draft.weapon);
         // 2026-09-13武器詞條：把抽選當下擲好、玩家已經看過的那一組掛到真正的instance id上。
         if (ppInstanceId) applyDrawnAffixes(c, ppInstanceId, draft.weaponAffixes || null);
-        finishPick();
+        finishPick(before);
       });
       weaponCard.appendChild(chooseWeaponBtn);
       row.appendChild(weaponCard);
@@ -16110,8 +16220,9 @@
       chooseEffectBtn.addEventListener("click", function () {
         var c = characters[myTokenId];
         if (!c) return;
+        var before = snapshotMyCharacter();
         CD.commitAttachedEffectChoice(c, resolvedEffect);
-        finishPick();
+        finishPick(before);
       });
       effectCard.appendChild(chooseEffectBtn);
       row.appendChild(effectCard);
@@ -16177,8 +16288,9 @@
     confirmBtn.addEventListener("click", function () {
       var c = characters[myTokenId];
       if (!c) return;
+      var before = snapshotMyCharacter();
       CD.commitAttachedEffectChoice(c, resolvedEffect);
-      GameStorage.rtSet(gameId, "cloud", "character/" + myTokenId, c);
+      syncMyCharacterChanges(before); // 2026-09-20審查R1
       GameStorage.rtSet(gameId, "cloud", "pendingRewards/" + myTokenId + "/" + id + "/resolved", true);
       delete attachedEffectDraftById[id];
       selectedRewardId = null;
@@ -16209,13 +16321,16 @@
       return;
     }
     var needsDrawStep = entry.kind === "weapon" || entry.kind === "weaponStar" || entry.kind === "consumable" || entry.kind === "talisman";
+    // 2026-09-20審查修正：個人清單的抽選結果也persist到pendingRewards/{id}/drawn（共享池早就
+    // 這樣做）。重新整理後從entry.drawn還原，抽到的結果不會消失、也堵掉「不喜歡就重整重抽」。
+    if (needsDrawStep && !rewardDraftById[id] && entry.drawn) rewardDraftById[id] = draftFromDrawn(entry, entry.drawn);
     if (needsDrawStep && !rewardDraftById[id]) {
       var drawBtn = document.createElement("button");
       drawBtn.type = "button";
       drawBtn.textContent = window.I18N.t("midnight_reward_draw_button");
       drawBtn.className = "midnight-draw-hint"; // 2026-09-12：抽選鍵微閃黃提示（見共享池同款）
       drawBtn.addEventListener("click", function () {
-        rewardDraftById[id] = computeRewardDraw(entry);
+        drawPersonalReward(id, entry);
         renderRewardDetail(id, entry);
       });
       detail.appendChild(drawBtn);
@@ -16278,7 +16393,7 @@
         redrawBtn.addEventListener("click", function () {
           c0._freeRerollUsedDay = today;
           GameStorage.rtSet(gameId, "cloud", "character/" + myTokenId + "/_freeRerollUsedDay", today);
-          delete rewardDraftById[id];
+          drawPersonalReward(id, entry); // 重抽並覆寫persist的drawn（不能只delete，否則會從entry.drawn還原舊結果）
           renderRewardDetail(id, entry);
         });
         detail.appendChild(redrawBtn);
@@ -16739,6 +16854,7 @@
       showToast(window.I18N.t("midnight_level_up_needs_blessing_note"));
       return;
     }
+    var before = snapshotMyCharacter();
     var result = CD.tryLevelUp(c, delta);
     if (!result.ok) {
       if (result.reason === "insufficient_runes") {
@@ -16750,7 +16866,7 @@
     // blessingLevelUpAvailable設回false，讓玩家可以連續點「+」直到盧恩不足（renderCharacterSheetLevelRow
     // 的insufficientRunes判斷會自然disable按鈕）。
     midnightRelicRolledDice = null; // 等級變動會影響relicMaxLearnable()上限，清掉避免殘留候選跟新上限對不上
-    GameStorage.rtSet(gameId, "cloud", "character/" + myTokenId, c);
+    syncMyCharacterChanges(before); // 2026-09-20審查R1（level／hp.max等子路徑＋runes差額transaction）
     renderCharacterSheet();
     // 同openBlessingModal()的說明：+/-現在只會出現在#midnight-blessing-modal裡，
     // renderCharacterSheet()在角色面板沒開時會提早return、不會更新level-row，這裡要
@@ -16794,8 +16910,9 @@
   function commitRelicLearn(candidate, pickedOption, CD) {
     var c = characters[myTokenId];
     if (!c) return;
+    var before = snapshotMyCharacter();
     CD.learnRelicEffect(c, candidate, pickedOption);
-    GameStorage.rtSet(gameId, "cloud", "character/" + myTokenId, c);
+    syncMyCharacterChanges(before); // 2026-09-20審查R1
     midnightRelicRolledDice = null;
     renderCharacterSheet();
   }
@@ -17217,6 +17334,7 @@
     if (!weaponRerollState || !weaponRerollState.rerollResult) return;
     var c = characters[myTokenId];
     if (!c) return;
+    var before = snapshotMyCharacter();
     window.PriTestCharacterDrawer.commitWeaponSkillReroll(
       c,
       weaponRerollState.weaponId,
@@ -17226,7 +17344,7 @@
     c._weaponRerollCredits = Math.max(0, (c._weaponRerollCredits || 0) - 1);
     var pendingKey = weaponRerollPendingKey(weaponRerollState.weaponId, weaponRerollState.slot);
     if (c._weaponRerollPending) delete c._weaponRerollPending[pendingKey];
-    GameStorage.rtSet(gameId, "cloud", "character/" + myTokenId, c);
+    syncMyCharacterChanges(before); // 2026-09-20審查R1
     closeWeaponRerollModal();
     renderCharacterSheet();
   }
@@ -18273,7 +18391,11 @@
     var labelEl = el(def.labelId);
     if (labelEl) setCombatButtonLabel(labelEl, Weapons.localizedText(entry.name));
     var cost = computeMidnightSkillCost(Weapons.localizedText(entry.body), entry.weaponId, entry.id);
-    btn.disabled = !canAct || stamina.current < cost.staminaCost || fp.current < cost.fpCost;
+    // 2026-09-20審查R6修正：詞條「FP不足による魔術/祈祷でFP回復」的空放路徑（startSkillBHold()
+    // 的affixAllowsEmptyCast()）需要FP不足時按鈕仍按得下去——disabled的按鈕收不到mousedown，
+    // 原本這條詞條永遠觸發不了。判斷跟startSkillBHold()同一條。
+    var fpShort = fp.current < cost.fpCost && !affixAllowsEmptyCast(characters[myTokenId]);
+    btn.disabled = !canAct || stamina.current < cost.staminaCost || fpShort;
   }
 
   // 敵人圖片/名稱：直接讀static_src/enemies_data_1~4.js既有資料（window.PriTestEnemies），
@@ -20583,8 +20705,9 @@
       var c = characters[myTokenId];
       if (!c) return null;
       var n = count === undefined || count === null ? consumableAcquireCount(window.PriTestConsumables.get(itemId)) : count;
+      var before = snapshotMyCharacter();
       var overflow = grantConsumablesToSelf(c, itemId, n, attributeTag || null);
-      GameStorage.rtSet(gameId, "cloud", "character/" + myTokenId, c);
+      syncMyCharacterChanges(before);
       // 回傳快照而不是c.consumables本身——直接回傳參考的話，同一個evaluate裡連續呼叫
       // 好幾次時，先前回傳的物件會被後面的呼叫一起改掉，測試斷言看到的全是最終狀態。
       var snapshot = (c.consumables || []).map(function (inst) {
@@ -20954,6 +21077,30 @@
     },
     _debugMaybeAdvanceNightForceRound: function (pointId) {
       maybeAdvanceNightForceRound({ id: pointId });
+    },
+    _debugSnapshotMyCharacter: function () {
+      return snapshotMyCharacter();
+    },
+    _debugSyncMyCharacterChanges: function (before) {
+      syncMyCharacterChanges(before);
+    },
+    _debugDraftFromDrawn: function (entry, drawn) {
+      var draft = draftFromDrawn(entry, drawn);
+      return { label: draft.label, weaponId: draft.weaponId || null, skillId: draft.skillId || null, itemId: draft.itemId || null };
+    },
+    _debugDrawPersonalReward: function (id, entry) {
+      var draft = drawPersonalReward(id, entry);
+      return draft.drawn || null;
+    },
+    _debugConfirmRewardEntry: function (id) {
+      var entry = (pendingRewards[myTokenId] || {})[id];
+      if (!entry) return false;
+      if (!rewardDraftById[id]) rewardDraftById[id] = entry.drawn ? draftFromDrawn(entry, entry.drawn) : computeRewardDraw(entry);
+      confirmRewardEntry(id, rewardDraftById[id]);
+      return true;
+    },
+    _debugMadnessFixedAccum: function (n) {
+      return madnessFixedAccum(n);
     },
     // 對自己送一擊「傷害0、只帶mod屬性文字」的敵人攻擊並以kind結算，回傳最終採用的kind
     // （block可能因沒有防具/體力不足被降級成hit，測試要知道）。
