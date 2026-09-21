@@ -29,6 +29,10 @@
   // window.*命名空間，因此無法沿用——這裡只重用character_drawer.js真正exported出來的部分。
   var Weapons = window.PriTestWeapons;
   var CharacterDrawer = window.PriTestCharacterDrawer;
+  // 2026-09-21新增：防禦反擊型招式的反擊效果（純判定層，不讀遊戲狀態）。
+  // 見 static_src/enemy_counter_rules.js 與設計文件
+  // docs/superpowers/specs/2026-09-21-midnight-enemy-counter-design.md
+  var CounterRules = window.PriTestEnemyCounterRules;
 
   var GRID = Map_.GRID_SIZE;
   var CELL = Map_.CELL_PX;
@@ -3957,10 +3961,55 @@
           return (cur || 0) + aggroAmount;
         });
       }
+      // 對防禦反擊型招式（ガードカウンター等）出手會誘發反擊。放在敵視累積之後判定；
+      // suppressAggroOnce 的時候「有出手」這件事並沒有改變，所以刻意擺在 if (mySlot)
+      // 區塊外面無條件通過。
+      maybeTriggerEnemyCounter(pointId);
       maybeApplyRestageBonus(amount);
       return;
     }
     damageSharedTarget(amount);
+  }
+
+  // 防禦反擊型招式的反擊（設計文件 §5.3）。敵人使出ガードカウンター等招式之後
+  // COUNTER_WINDOW_MS（2 秒）以內，這名玩家若對牠打進傷害，就會以原招式一半的傷害
+  // 被反擊 1~2 下。
+  //
+  // 不寫回 RTDB：enemyAttack 只有一格，多人同時誘發會互相蓋掉，也會弄壞
+  // maybeFinishEnemyAttack() 的壽命計算與 nextAttackAt 的排程。既有設計本來就是
+  // 「命中結果由各自的裝置決定」（myIncomingAttack 是本地狀態），這裡沿用同一套流儀。
+  //
+  // 反擊不經過 damageCombatTarget()，所以「反擊誘發反擊」的無限迴圈在結構上不可能發生
+  // （不是靠旗標擋下來的）。
+  var counterConsumedAttackId = null; // 「這一招我已經被反擊過了」——一招式對自己只反擊一次
+  function maybeTriggerEnemyCounter(pointId) {
+    if (!spriteModeEnabled()) return; // 只有勾選點陣圖戰鬥模式的房間才生效（使用者明確規格）
+    if (!CounterRules) return;
+    var trig = fieldTriggers[pointId];
+    var atk = trig && trig.enemyAttack;
+    if (!atk || !atk.attackId) return;
+    if (!CounterRules.isCounterAction(atk.actionName)) return;
+    var now = Date.now();
+    if (now >= (atk.warnAt || 0) + CounterRules.COUNTER_WINDOW_MS) return; // 誘發窗口已經過了
+    if (counterConsumedAttackId === atk.attackId) return;
+    counterConsumedAttackId = atk.attackId;
+    // 反擊優先：就算有進行中的一般攻擊也直接覆寫、把它中斷（使用者明確規格）。
+    // attackId 是 pointId+":"+timestamp，必定唯一，下一次攻擊會自然換掉。
+    myIncomingAttack = {
+      pointId: pointId,
+      attackId: atk.attackId,
+      isCounter: true,
+      hitIndex: 0,
+      hitCount: CounterRules.pickCounterHitCount(Math.random()),
+      phase: "warn",
+      windowStartAt: null,
+      phaseEndAt: now + ENEMY_ATTACK_WARN_MS,
+      actionName: atk.actionName,
+      actionMod: atk.actionMod,
+      actionNote: atk.actionNote,
+      dmgKind: atk.dmgKind,
+      dmgAmount: CounterRules.counterDamage(atk.dmgAmount),
+    };
   }
 
   // 淑女「重演」（2026-09-08使用者明確要求「被動無法主動點選、非活性化，每對敵人造成30點
@@ -8518,6 +8567,18 @@
     return ENEMY_ATTACK_HIT_WINDOW_MS[idx] + countRelic(characters[myTokenId], "turnStep") * TURN_STEP_WINDOW_BONUS_MS;
   }
 
+  // 反應窗口的長度。一般攻擊是 2.0/2.5/3.0 秒（ENEMY_ATTACK_HIT_WINDOW_MS），
+  // 防禦反擊型招式的反擊（st.isCounter）固定 1 秒＝「快速反擊」的表現。
+  // 窗口長度在 updateMyIncomingAttack() 與 resolveMyIncomingHit() 兩個地方各算一次，
+  // 一定要都走這個函式（只改一邊會變成「第1下1秒、第2下2秒」）。
+  // turnStep 遺物的加成兩條路徑都照樣疊上去。
+  function incomingHitWindowMs(st) {
+    if (st && st.isCounter) {
+      return CounterRules.COUNTER_REACTION_WINDOW_MS + countRelic(characters[myTokenId], "turnStep") * TURN_STEP_WINDOW_BONUS_MS;
+    }
+    return enemyAttackHitWindowMs(st ? st.hitIndex : 0);
+  }
+
   function enemyAttackTotalDurationMs(hitCount) {
     var total = ENEMY_ATTACK_WARN_MS;
     for (var i = 0; i < hitCount; i++) total += enemyAttackHitWindowMs(i);
@@ -8971,6 +9032,22 @@
   // 每一下命中都重新進入window）。不是目標，或攻擊已經換了一次（attackId不同）時，
   // 清掉舊的本地狀態。
   function updateMyIncomingAttack(pt, trig, now) {
+    // 反擊（maybeTriggerEnemyCounter 組出來的本地狀態）在 RTDB 上沒有實體，所以不能讓
+    // 下面的 targeted 判定／attackId 比對碰到它——碰到就會在 targetSlots 沒有自己的
+    // 那一瞬間被清掉。這裡只負責推進位相。
+    if (myIncomingAttack && myIncomingAttack.isCounter) {
+      var curAtk = trig.enemyAttack;
+      // 誘發來源的攻擊還活在 RTDB 上的期間就一直抱著反擊狀態。重點是反擊跑到
+      // phase:"done" 之後也照樣抱著——一放手，下面的初始化就會跑，讓反擊中斷掉的原攻擊
+      // 用同一個 attackId 復活（違反使用者明確規格「反擊優先」）。
+      if (myIncomingAttack.pointId === pt.id && curAtk && curAtk.attackId === myIncomingAttack.attackId) {
+        advanceIncomingAttackPhase(myIncomingAttack, now);
+        return;
+      }
+      // 攻擊換人／消失／不同的地圖點 → 反擊狀態任務結束。設回 null 讓後面交給一般路徑
+      // （不在這裡釋放的話，之後的攻擊會永遠登錄不進來）。
+      myIncomingAttack = null;
+    }
     var atk = trig.enemyAttack;
     var targeted = !!(atk && mySlot && atk.targetSlots && atk.targetSlots.indexOf(mySlot) !== -1);
     if (!targeted) {
@@ -8994,12 +9071,16 @@
       };
       return;
     }
-    var st = myIncomingAttack;
+    advanceIncomingAttackPhase(myIncomingAttack, now);
+  }
+
+  // 把 warn→window→（命中判定）的位相推進一段。一般攻擊與反擊共用。
+  function advanceIncomingAttackPhase(st, now) {
     if (st.phase === "warn") {
       if (now >= st.phaseEndAt) {
         st.phase = "window";
         st.windowStartAt = now;
-        st.phaseEndAt = now + enemyAttackHitWindowMs(st.hitIndex);
+        st.phaseEndAt = now + incomingHitWindowMs(st);
         triggerAttackEffect(); // 使用者規格：進行攻擊時顯示刀光劍影／爪痕特效
       }
       return;
@@ -9236,7 +9317,7 @@
     }
     st.phase = "window";
     st.windowStartAt = Date.now();
-    st.phaseEndAt = st.windowStartAt + enemyAttackHitWindowMs(st.hitIndex);
+    st.phaseEndAt = st.windowStartAt + incomingHitWindowMs(st);
     triggerAttackEffect();
   }
 
@@ -9431,6 +9512,9 @@
     if (showing) {
       var nameEl = el("midnight-incoming-attack-name");
       var name = myIncomingAttack.actionName ? window.PriTestEnemies.localizedText(myIncomingAttack.actionName) : "";
+      // 反擊（對防禦反擊型招式出手而誘發的 1~2 下）只顯示招式名的話會跟一般攻擊分不出來，
+      // 所以加前綴。反應窗口也只有平常的一半（1 秒），這個前綴同時也是「要比平常快」的提示。
+      if (myIncomingAttack.isCounter) name = window.I18N.t("midnight_incoming_counter_prefix") + name;
       if (nameEl) nameEl.textContent = name;
       // Day3夜之王專屬：顯示這一招規則書原文note（見pickAndResolveBossAction()），一般
       // 敵人的攻擊沒有這個欄位，元素維持隱藏。

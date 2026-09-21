@@ -1738,6 +1738,7 @@ STRINGS_EN: dict[str, str] = {
     "midnight_test_force_shrink_button": "Force Shrink Circle",
     "midnight_lobby_weapon_affixes_label": "Enable weapon affixes",
     "midnight_lobby_weapon_affixes_hint": "Weapons/staves/seals found in-game gain affixes (starting gear excluded). 1 for C rarity, 2 otherwise.",
+    "midnight_incoming_counter_prefix": "Counter!",
     "midnight_lobby_sprite_mode_label": "Pixel-sprite battle mode",
     "midnight_lobby_sprite_mode_hint": "When checked, enemies are shown as pixel-sprite animations; unchecked keeps the original illustration-based battle.",
     "midnight_character_sheet_affix_label": "Affixes",

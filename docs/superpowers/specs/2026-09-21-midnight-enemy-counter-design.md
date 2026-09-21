@@ -41,7 +41,17 @@
 
 ## 3. 對象招式的判定
 
-用招式名關鍵字 `/カウンター|パリィ/` 判定，命中上表 4 名共 6 筆。
+用招式名關鍵字 `/カウンター|パリィ|弾き/` 判定，命中上表 4 名共 6 筆。
+
+`弾き` 是招架的和語，不加進關鍵字就撈不到 `弾き＆妖刀解放`。刻意寫成 `弾き` 而不是 `弾`，
+是為了不把「魔力弾」「重力弾」「爆発光弾」等彈丸系招式掃進來——全 549 筆裡 `/弾き/`
+只命中 `弾き＆妖刀解放` 這 1 筆（產生器的動畫關鍵字表用的是 `/弾/`，那是動畫分類，
+與這裡無關，見下文）。
+
+**傳入的不是字串**：`enemies_data_*.js` 的 `action.name` 是
+`{ ja: "ガードカウンター", zh: "格擋反擊" }` 這種多語物件，`enemyAttack.actionName`
+也原封不動載這個形狀（見 `maybeStartEnemyAttack()`）。`isCounterAction()` 因此以 `ja`
+為準判定，同時也接受直接傳字串。把這裡當成字串處理會讓反擊永遠不發動。
 
 補標時使用者對其他含防禦語彙的招式都明確給了攻擊動畫
 （`盾撃`→single、`突撃指令＆防御態勢`→thrust、`時間差攻撃＆黄金の返報`→single、
@@ -146,10 +156,20 @@ maybeTriggerEnemyCounter(pointId)
 `COUNTER_REACTION_WINDOW_MS`，否則回 `enemyAttackHitWindowMs(st.hitIndex)`；
 既有的 `turnStep` 遺物加成兩條路徑都照樣疊上去。
 
-1. **`updateMyIncomingAttack()` 開頭**（midnight.js:8973）：
+1. **`updateMyIncomingAttack()` 開頭**：
    `if (myIncomingAttack && myIncomingAttack.isCounter) { ...走反擊分支... }`
    —— 跳過 `targeted` 判斷與 `attackId` 比對。現行行為是「我不在 `targetSlots` 裡就把
    `myIncomingAttack` 清掉」，而反擊在 RTDB 上沒有實體，不擋就會被誤清。
+
+   **反擊狀態的釋放**是這一段最容易寫錯的地方，兩個方向都會出事：
+   - 反擊跑完（`phase: "done"`）就把 `myIncomingAttack` 設回 `null` → 下面的初始化立刻
+     用同一個 `attackId` 把**被反擊中斷掉的原攻擊復活**，違反「反擊優先」。
+   - 永遠抱著不放 → 之後所有攻擊都被開頭這個分支攔截，玩家再也不會被攻擊。
+
+   正解是**以誘發來源的攻擊是否還活著為準**：`trig.enemyAttack` 仍存在且 `attackId`
+   相同（且同一個地圖點）就繼續抱著（`phase: "done"` 之後也照樣抱著，原攻擊就此作廢）；
+   一旦 RTDB 上的攻擊被 `maybeFinishEnemyAttack()` 清掉或換成新的 `attackId`，
+   就把 `myIncomingAttack` 設回 `null` 並讓流程落到既有的一般路徑。
 2. **`updateMyIncomingAttack()` 的 warn→window 轉換**（midnight.js:9004）：
    改呼叫 `incomingHitWindowMs(st)`。
 3. **`resolveMyIncomingHit()` 的下一擊排程**（midnight.js:9239）：
@@ -183,8 +203,13 @@ maybeTriggerEnemyCounter(pointId)
   `時間差攻撃＆黄金の返報`／`薙ぎ払い＆防御態勢` **不**命中。
 - `counterDamage()`：偶數、奇數（`Math.round` 的進位方向）、0。
 - `pickCounterHitCount()`：`0`→1、`0.499`→1、`0.5`→2、`0.999`→2。
-- `incomingHitWindowMs()`：`isCounter` 時三個 `hitIndex` 都回 1000ms；非 `isCounter`
-  時仍回 2000/2500/3000ms（防止 §5.4 只改一處的迴歸）。
+- `isCounterAction()` 直接吃 `action.name` 多語物件（實際執行時傳進來的形狀），
+  確認 6 筆命中；並斷言 `{ zh: ... }`（缺 `ja`）與 `{}` 回 `false`。
+- 結線的靜態斷言：`enemyAttackHitWindowMs(st.hitIndex)` 的直呼已完全消失、
+  `incomingHitWindowMs(st)` 出現 3 次（定義 1＋呼叫 2）、`enemyAttackHitWindowMs(`
+  出現 3 次（定義 1＋`incomingHitWindowMs` 內 1＋`enemyAttackTotalDurationMs` 內 1；
+  最後這個算的是 RTDB 上 `enemyAttack` 的壽命，反擊不寫 RTDB，故維持原樣）。
+  這一組就是防止 §5.4「只改一處」迴歸的網子。
 
 ### 7.2 迴歸
 

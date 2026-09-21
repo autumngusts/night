@@ -1738,6 +1738,7 @@ STRINGS_JA: dict[str, str] = {
     "midnight_test_force_shrink_button": "即座に円を縮小",
     "midnight_lobby_weapon_affixes_label": "武器詞条を有効化",
     "midnight_lobby_weapon_affixes_hint": "有効にすると、ゲーム中に入手した武器／杖／聖印に詞条が付く（初期装備は除く）。C稀少度は1つ、それ以外は2つ。",
+    "midnight_incoming_counter_prefix": "反撃！",
     "midnight_lobby_sprite_mode_label": "ドット絵戦闘モード",
     "midnight_lobby_sprite_mode_hint": "チェックすると敵をドット絵アニメーションで表示。未チェックなら従来のイラスト戦闘のまま。",
     "midnight_character_sheet_affix_label": "詞条",

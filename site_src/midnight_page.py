@@ -1481,6 +1481,11 @@ def build_midnight_html() -> str:
             "enemy_sprite_registry.js",
             "enemy_action_anim_map.js",
             "midnight_sprite.js",
+            # 2026-09-21新增：防禦反擊型招式的反擊效果（純判定層）。midnight.js の
+            # maybeTriggerEnemyCounter()／incomingHitWindowMs() 會讀
+            # window.PriTestEnemyCounterRules，必須排在 midnight.js 之前。
+            # 純函式模組、沒有其他相依。
+            "enemy_counter_rules.js",
             "midnight.js",
         ),
     )
