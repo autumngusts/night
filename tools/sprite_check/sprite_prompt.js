@@ -6,6 +6,9 @@
 //   node tools/sprite_check/sprite_prompt.js --format=short       # 1組1行（preamble を貼ったあと流す）
 //   node tools/sprite_check/sprite_prompt.js --format=json        # 自前スクリプト/API から回す用
 //
+//   node tools/sprite_check/sprite_prompt.js --format=anim-preamble  # 名鑑が返ってきた会話の軌道修正（1回）
+//   node tools/sprite_check/sprite_prompt.js --format=anim           # 1体1行の動畫表リクエスト
+//
 // prompt の骨格を1箇所に集約することで、60組の画風が散らからないようにする（spec §11）。
 //
 // ChatGPT のような会話型サービスに流すなら preamble + short の2段構えを推奨する。
@@ -149,16 +152,64 @@ const PREAMBLE =
   "  <filename> — subject: <what the creature is>\n" +
   "Reply with only the image for that sheet. Keep the style identical to the contract above.";
 
+// ---- 動畫表のやり直し用（2026-09-21）----
+// 実際に起きた失敗：「sprite sheet」と頼んだら 6 欄×8 列のアニメーション表ではなく、
+// 171 体の別々のキャラを並べた「名鑑」が 1 枚返ってきた。絵柄自体は良いのに、
+// どのセルも別キャラ・単一ポーズなので動畫としては 1 コマも使えない。
+//
+// 同じ会話セッションが生きているなら、そこが最大の武器になる：既に描いた造形を
+// 参照させられるので、画風も造形も説明し直さずに済む。この preamble はその前提で
+// 「何を取り違えたか」だけを正し、以降は 1 体ずつの動畫表を要求する形に切り替える。
+//
+// 実測で分かった不備をそのまま禁止事項に落としてある（名鑑になる／背景が不透明／
+// セル寸法が不揃い／個体ごとに大きさが変わる）。抽象的に「正しく作って」と言っても
+// 同じ失敗を繰り返すので、起きた失敗を名指しする。
+const ANIM_PREAMBLE =
+  "The sheet you just produced is a ROSTER — many different creatures, one pose each. " +
+  "That is not what I need, and I should have been clearer. Keep the art style and the " +
+  "character designs exactly as they are; only the sheet layout has to change.\n\n" +
+  "From now on, each request is the ANIMATION SHEET for ONE creature.\n\n" +
+  "Hard requirements for every sheet from here on:\n" +
+  "1. ONE creature only. All 48 cells show the SAME creature — never a lineup of " +
+  "different creatures. Reuse the design you already drew for it in the roster.\n" +
+  "2. Exactly 6 columns x 8 rows of identical SQUARE cells, evenly spaced.\n" +
+  "3. Each ROW is one action, read left to right as 6 consecutive animation frames:\n" +
+  "   " +
+  ROWS.replace("row order: ", "") +
+  "\n" +
+  "4. The creature keeps the same scale and the same ground baseline in every cell. " +
+  "Only the pose changes between frames.\n" +
+  "5. Fully transparent background, alpha 0. No mottled backdrop, no gradient, no " +
+  "coloured haze behind the creature — the previous image had one baked in.\n" +
+  "6. No text, no labels, no cell borders, no grid lines, no drop shadow on the ground.\n\n" +
+  "Reply with only the image. I will send one creature per message, as:\n" +
+  "  <filename> — <creature>";
+
 if (format === "json") {
   // 自前のスクリプトや API から回すとき用。style / rows / preamble を分けて持たせるので、
   // 「毎回 style を足す」も「preamble を 1 回だけ流して短い行を 60 回」もどちらも組める。
   console.log(
     JSON.stringify(
-      { style: STYLE, rows: ROWS, preamble: PREAMBLE, count: entries.length, sheets: entries },
+      {
+        style: STYLE,
+        rows: ROWS,
+        preamble: PREAMBLE,
+        animPreamble: ANIM_PREAMBLE,
+        count: entries.length,
+        sheets: entries,
+      },
       null,
       2
     )
   );
+} else if (format === "anim-preamble") {
+  // 名鑑が返ってきた会話に投げて、動畫表モードに切り替えるぶん。1 回だけ。
+  console.log(ANIM_PREAMBLE);
+} else if (format === "anim") {
+  // anim-preamble のあと、1 体 1 行で流すぶん。
+  entries.forEach(function (e) {
+    console.log(e.file + " — " + e.subject);
+  });
 } else if (format === "preamble") {
   // ChatGPT などの会話型サービスに最初の 1 回だけ貼るぶん。
   console.log(PREAMBLE);
