@@ -58,6 +58,82 @@ for (let i = 3; i < D.length; i += 4) {
 const cw = W / SRC_COLS;
 const chh = H / SRC_ROWS;
 
+// ---- 隣行からの滲みを落とす ----
+// 生成物は 1 体が行の高さに収まりきらず、上下の行へわずかに はみ出していることがある。
+// 切り出すとその破片が「自分のセルの上端に張り付いた謎の影」として残る。
+// 連結成分を取り、「端に張り付いていて、かつ端の近くだけに収まっている」ものを落とす。
+//
+// 大きさだけで判定すると外れる。実測（boss_edele 行1）では
+//   本体   9093 px（94.8%）y=42-180  ← 上端に接しない
+//   滲み    422 px（ 4.4%）y=0-10    ← 上端に接し、上端付近だけに収まる
+// で、滲みは 4~5% と「小さい」の閾値に入れづらい。一方で位置は明確に分かれる。
+// だから主判定は位置（端から BLEED_BAND 以内に収まっているか）にして、
+// 大きさは「本体を絶対に消さない」ための保険として併用する。
+//
+// 吐息や剣閃のような本体から離れた大きなエフェクトは、縦に広がるので band に収まらず残る。
+const BLEED_BAND = 0.22;      // セル高に対する、端からの帯の厚み
+const BLEED_MAX_RATIO = 0.20; // 本体を消さないための上限（本体は 90% 超）
+let bleedDropped = 0;
+
+function dropBleed(c, r) {
+  const x0 = Math.round(c * cw), x1 = Math.round((c + 1) * cw) - 1;
+  const y0 = Math.round(r * chh), y1 = Math.round((r + 1) * chh) - 1;
+  const cwid = x1 - x0 + 1, chei = y1 - y0 + 1;
+  const seen = new Uint8Array(cwid * chei);
+  let total = 0;
+  for (let y = y0; y <= y1; y++) {
+    for (let x = x0; x <= x1; x++) if (D[(y * W + x) * 4 + 3] >= T) total++;
+  }
+  if (!total) return;
+  const stack = [];
+  for (let sy = 0; sy < chei; sy++) {
+    for (let sx = 0; sx < cwid; sx++) {
+      const si = sy * cwid + sx;
+      if (seen[si]) continue;
+      if (D[((y0 + sy) * W + x0 + sx) * 4 + 3] < T) { seen[si] = 1; continue; }
+      // 幅優先で 1 成分を集める
+      const comp = [];
+      let touchesTop = false, touchesBottom = false;
+      let minY = chei, maxY = -1;
+      stack.length = 0;
+      stack.push(si);
+      seen[si] = 1;
+      while (stack.length) {
+        const i = stack.pop();
+        const px = i % cwid, py = (i / cwid) | 0;
+        comp.push(i);
+        if (py === 0) touchesTop = true;
+        if (py === chei - 1) touchesBottom = true;
+        if (py < minY) minY = py;
+        if (py > maxY) maxY = py;
+        for (let d = 0; d < 4; d++) {
+          const nx = px + (d === 0 ? 1 : d === 1 ? -1 : 0);
+          const ny = py + (d === 2 ? 1 : d === 3 ? -1 : 0);
+          if (nx < 0 || ny < 0 || nx >= cwid || ny >= chei) continue;
+          const ni = ny * cwid + nx;
+          if (seen[ni]) continue;
+          seen[ni] = 1;
+          if (D[((y0 + ny) * W + x0 + nx) * 4 + 3] >= T) stack.push(ni);
+        }
+      }
+      const band = chei * BLEED_BAND;
+      const stuckTop = touchesTop && maxY <= band;
+      const stuckBottom = touchesBottom && minY >= chei - 1 - band;
+      if ((stuckTop || stuckBottom) && comp.length < total * BLEED_MAX_RATIO) {
+        comp.forEach(function (i) {
+          const px = i % cwid, py = (i / cwid) | 0;
+          D[((y0 + py) * W + x0 + px) * 4 + 3] = 0;
+        });
+        bleedDropped += comp.length;
+      }
+    }
+  }
+}
+
+for (let r = 0; r < DST_ROWS; r++) {
+  for (let c = 0; c < DST_COLS; c++) dropBleed(c, r);
+}
+
 // ---- 各セルの実際の描画範囲 ----
 function bboxOf(c, r) {
   const x0 = Math.round(c * cw), x1 = Math.round((c + 1) * cw) - 1;
@@ -132,6 +208,9 @@ if (SRC_COLS > DST_COLS) {
 }
 console.log("最大の絵   : " + maxSide + "px → セル " + cell + "x" + cell + "（占有 " + (maxSide / cell * 100).toFixed(0) + "%）");
 console.log("接地       : 各セル下端から " + (cell - GROUND) + "px 上で揃えた");
+if (bleedDropped) {
+  console.log("隣行の滲み : " + bleedDropped + " px を除去（セル端に接した小さい連結成分）");
+}
 console.log("出力       : " + OW + "x" + OH + " -> " + path.relative(ROOT, dest));
 if (clipped) {
   console.log("");
