@@ -43,7 +43,7 @@ ok(P.backgroundPosition("thrust", 1, 128) === "-128px -384px", "thrust(row3) 第
 // fallback 契約そのもの（available:false → null → 静止画のまま）は変わっていない。
 console.log("[fallback 契約]");
 ok(
-  P.sheetFileFor("dog_wolf", "wild_dogs", false) === null,
+  P.sheetFileFor("dragon", "hill_wyvern", false) === null,
   "未産出の family は null（静止画に落ちる）"
 );
 ok(P.sheetFileFor("no_such_family", "no_such_enemy", false) === null, "未登録も null");
@@ -78,6 +78,37 @@ ok(
   (mnSrc.match(/if \(!\(\w+ && window\.PriTestMidnightSprite\.showSprite\(/g) || []).length === 2,
   "両分支とも showSprite() の失敗時だけ showStatic() に落ちる形（成功時に <img> を触らない）"
 );
+
+// 未產出の敵に產出済みの sheet を代役として充てる（使用者明確規格
+// 「剩餘還沒配對的會先隨機抽取一張點陣圖」）。ここで一番大事なのは「同じ敵なら常に
+// 同じ代役」であること——sheetFileFor は毎影格呼ばれるので、乱数だと 1 影格ごとに
+// 別の生き物に化ける。ハッシュ由来であることを繰り返し呼んで確かめる。
+console.log("[未產出への代役]");
+const sub1 = P.sheetFileOrSubstitute("dragon", "hill_wyvern", false);
+ok(typeof sub1 === "string", "未產出の family にも代役が返る");
+ok(
+  P.sheetFileOrSubstitute("dragon", "hill_wyvern", false) === sub1 &&
+    P.sheetFileOrSubstitute("dragon", "hill_wyvern", false) === sub1,
+  "何度呼んでも同じ代役（乱数ではない＝影格ごとに化けない）"
+);
+ok(
+  P.sheetFileOrSubstitute(null, "caligo", true) === P.sheetFileOrSubstitute(null, "caligo", true),
+  "未產出の夜王でも代役が安定する"
+);
+ok(
+  P.sheetFileOrSubstitute(null, "gladius", true) === P.sheetFileFor(null, "gladius", true),
+  "產出済みなら代役ではなく自分の sheet を返す"
+);
+ok(
+  P.sheetFileOrSubstitute("no_such_family", "no_such_enemy", false) === null,
+  "登録すら無い相手には代役も返さない（sheetId が引けないため）"
+);
+// 代役は必ず「實在する產出済み sheet」でなければならない。存在しない檔名を返すと 404。
+const availFiles = {};
+sandbox.window.PriTestEnemySpriteRegistry.listSheets().forEach(function (s) {
+  if (s.available) availFiles[s.file] = true;
+});
+ok(!!availFiles[sub1], "代役は available:true の sheet から選ばれている");
 
 console.log(fail === 0 ? "\nすべてOK" : "\n" + fail + " 件 FAIL");
 process.exit(fail === 0 ? 0 : 1);
