@@ -10,9 +10,13 @@ function decode(file) {
   const depth = b[24];
   const ctype = b[25];
   const interlace = b[28];
-  if (depth !== 8 || ctype !== 6 || interlace !== 0) {
-    throw new Error("only 8bit RGBA non-interlaced supported (got depth=" + depth + " ctype=" + ctype + ")");
+  // ctype 6 = RGBA、2 = RGB（アルファ無し）。生成サービスは後者を返すことがあり、
+  // その場合「透過」は市松模様として画素に焼き込まれている。読めないと判別もできないので
+  // どちらも受ける。RGB は読み込み時に alpha=255 を足して RGBA に揃える。
+  if (depth !== 8 || (ctype !== 6 && ctype !== 2) || interlace !== 0) {
+    throw new Error("only 8bit RGB/RGBA non-interlaced supported (got depth=" + depth + " ctype=" + ctype + ")");
   }
+  const srcBpp = ctype === 6 ? 4 : 3;
   let off = 8;
   const idat = [];
   while (off < b.length - 8) {
@@ -23,7 +27,7 @@ function decode(file) {
     off += 12 + len;
   }
   const raw = zlib.inflateSync(Buffer.concat(idat));
-  const bpp = 4;
+  const bpp = srcBpp;
   const stride = w * bpp;
   const px = Buffer.alloc(h * stride);
   let p = 0;
@@ -49,7 +53,17 @@ function decode(file) {
       cur[x] = v & 0xff;
     }
   }
-  return { width: w, height: h, data: px };
+  if (srcBpp === 4) return { width: w, height: h, data: px, hadAlpha: true };
+  // RGB → RGBA（alpha は全て 255）。呼び出し側が「元からアルファが無かった」ことを
+  // 判別できるよう hadAlpha を返す。
+  const rgba = Buffer.alloc(w * h * 4);
+  for (let i = 0, j = 0; i < w * h; i++, j += 3) {
+    rgba[i * 4] = px[j];
+    rgba[i * 4 + 1] = px[j + 1];
+    rgba[i * 4 + 2] = px[j + 2];
+    rgba[i * 4 + 3] = 255;
+  }
+  return { width: w, height: h, data: rgba, hadAlpha: false };
 }
 
 const CRC_TABLE = (function () {

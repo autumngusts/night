@@ -185,8 +185,11 @@ const ANIM_PREAMBLE =
   "\n" +
   "4. The creature keeps the same scale and the same ground baseline in every cell. " +
   "Only the pose changes between frames.\n" +
-  "5. Fully transparent background, alpha 0. No mottled backdrop, no gradient, no " +
-  "coloured haze behind the creature — the previous image had one baked in.\n" +
+  "5. Save as a 32-bit PNG with a REAL alpha channel (PNG colour type 6, RGBA). The " +
+  "background must be alpha 0 — actually empty, not painted. Do NOT draw a grey-and-white " +
+  "checkerboard: one attempt came back as a 24-bit PNG (colour type 2, no alpha at all) " +
+  "with the checkerboard baked in as real pixels, which puts a grey grid on screen in game. " +
+  "No mottled backdrop, no gradient, no coloured haze either.\n" +
   "6. No text, no labels, no cell borders, no grid lines, no drop shadow on the ground.\n\n" +
   "Reply with only the image. I will send one creature per message, as:\n" +
   "  <filename> — <creature>";
