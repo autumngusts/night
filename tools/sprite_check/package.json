@@ -1,0 +1,9 @@
+{
+  "name": "pritest-sprite-check",
+  "private": true,
+  "version": "1.0.0",
+  "description": "敵人 sprite 動畫層的資料檢查與產出工具，見 docs/superpowers/specs/2026-09-21-midnight-sprite-combat-design.md。",
+  "scripts": {
+    "test:anim": "node sprite_anim_check.js"
+  }
+}
