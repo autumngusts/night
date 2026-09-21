@@ -7581,6 +7581,12 @@ html.midnight-top-banner-collapsed .midnight-top-banner-collapse-btn {
     max-height: 45vw;
   }
 
+  /* 敵人 sprite 舞台（2026-09-21）：跟上面的靜止畫同尺寸，兩者換手時框不會跳動。
+     舞台的寬度是自己的、不依賴 <img> 是否在流內，理由見桌機版同選擇器的說明。 */
+  #midnight-enemy-sprite-stage {
+    width: 45vw;
+  }
+
   #midnight-hud-bottom-right {
     max-width: 52vw;
     gap: 0.25rem;
@@ -8742,4 +8748,19 @@ html.midnight-top-banner-collapsed .midnight-top-banner-collapse-btn {
 
 #btn-midnight-skill-variant-next {
   right: 0;
+}
+
+/* 敵人 sprite 舞台（2026-09-21）：用 background-position 從 sheet 切出1幀。
+   圖片還沒產出的期間一直維持 hidden，看到的仍是既有的 #midnight-field-encounter-image。
+   寬度不能用100%：父層 #midnight-field-encounter-image-wrap 是 inline-block，寬度是由
+   子元素撐出來的，而 sprite 顯示時 <img> 會被藏起來——這時 100% 會算成 0，舞台變成
+   0×0，連帶 midnight_sprite.js 的 cellPx（讀 offsetWidth）也會退回寫死的128，
+   background-size 就跟實際尺寸脫節。所以這裡給明確寬度，數值比照同一張圖既有的
+   #midnight-field-encounter-image（桌機420px、手機版45vw，見該選擇器的說明）。 */
+#midnight-enemy-sprite-stage {
+  width: 420px;
+  max-width: 100%;
+  aspect-ratio: 1 / 1;
+  background-repeat: no-repeat;
+  image-rendering: pixelated;
 }

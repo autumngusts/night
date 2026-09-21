@@ -1746,6 +1746,8 @@ STRINGS_JA: dict[str, str] = {
     "midnight_yoto_charges_short_note": "妖刀蓄積が足りません（必要 {need}／現在 {have}）",
     "midnight_lobby_weapon_affixes_label": "武器詞条を有効化",
     "midnight_lobby_weapon_affixes_hint": "有効にすると、ゲーム中に入手した武器／杖／聖印に詞条が付く（初期装備は除く）。C稀少度は1つ、それ以外は2つ。",
+    "midnight_lobby_sprite_mode_label": "ドット絵戦闘モード",
+    "midnight_lobby_sprite_mode_hint": "チェックすると敵をドット絵アニメーションで表示。未チェックなら従来のイラスト戦闘のまま。",
     "midnight_character_sheet_affix_label": "詞条",
     "midnight_affix_slot_badge_title": "詞条 {count} 個",
     "midnight_affix_pending_note": "（効果は未実装、第2バッチ予定）",

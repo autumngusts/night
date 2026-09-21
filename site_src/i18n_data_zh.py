@@ -1750,6 +1750,8 @@ STRINGS_ZH: dict[str, str] = {
     "midnight_yoto_charges_short_note": "妖刀蓄積不足（需要 {need}，目前 {have}）",
     "midnight_lobby_weapon_affixes_label": "武器詞條開放",
     "midnight_lobby_weapon_affixes_hint": "開啟後，遊戲中獲得的武器／杖／聖印都會帶詞條（初始裝備除外）。C稀有度1條，其餘2條。",
+    "midnight_lobby_sprite_mode_label": "點陣圖戰鬥模式",
+    "midnight_lobby_sprite_mode_hint": "勾選後敵人改用點陣圖動畫顯示；未勾選維持原有的插圖戰鬥。",
     "midnight_character_sheet_affix_label": "詞條",
     "midnight_affix_slot_badge_title": "詞條 {count} 條",
     "midnight_affix_pending_note": "（效果尚未實作，待第2批）",

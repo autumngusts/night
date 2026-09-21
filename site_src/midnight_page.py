@@ -133,6 +133,20 @@ BODY = """    <div class="midnight-wrap">
           </label>
           <span class="hint" data-i18n="midnight_lobby_weapon_affixes_hint"></span>
         </div>
+        <!-- 點陣圖戰鬥模式（2026-09-21使用者明確規格「需要在等待房勾選才生效，沒勾選就是
+             原有的戰鬥模式（敵人顯示規則書靜態插圖）」）：寫入meta.spriteMode，跟夜王/地圖/
+             難度/武器詞條同一套「同一場遊戲所有人共用、開局前設定」模式，見
+             static/midnight.jsのrenderLobbySettings()／handleSpriteModeToggle()／
+             renderFieldEncounterPanel()。現況：敵人sprite圖片目前一張都還沒生成
+             （enemy_sprite_registry.jsのavailable全部false），所以不論這顆開關有沒有勾選，
+             畫面都還是維持原本的靜態插圖——這顆開關是為之後圖片產出時預先鋪好的切換點。 -->
+        <div class="wb-row" id="midnight-lobby-sprite-mode-row">
+          <label>
+            <input type="checkbox" id="midnight-lobby-sprite-mode-checkbox">
+            <span data-i18n="midnight_lobby_sprite_mode_label"></span>
+          </label>
+          <span class="hint" data-i18n="midnight_lobby_sprite_mode_hint"></span>
+        </div>
         <!-- 流程簡介（使用者明確規格「測試模式選項上面有『流程簡介』，打開後播放打字機
              直到按下右上X」）：純本地端展示視窗，不涉及任何共享state，開關只影響自己這台
              裝置的畫面，見static/midnight.jsのhandleFlowIntroOpenClick()/
@@ -1537,6 +1551,16 @@ def build_midnight_html() -> str:
             # 本文），midnight.jsのrollWeaponAffixes()等會讀window.PriTestWeaponAffixes，
             # 必須排在它之前。純資料模組、沒有其他相依。
             "weapon_affixes.js",
+            # 2026-09-21新增：敵人 sprite 動畫層。enemy_sprite_data.js（動作時間軸）與
+            # enemy_sprite_registry.js（sheet 登錄表）會在 midnight_sprite.js 載入模組的
+            # 當下就被讀取，所以一定要排在它前面（auto_gm.js 踩過同一個坑的既有教訓，
+            # 見設計文件與本檔 auto_gm.js 附近的註解）。
+            # 圖片還沒產出的期間，registry 的 available 全部是 false，
+            # 會直接 fallback 到既有的靜止畫（設計文件 §4）。
+            "enemy_sprite_data.js",
+            "enemy_sprite_registry.js",
+            "enemy_action_anim_map.js",
+            "midnight_sprite.js",
             "midnight.js",
         ),
     )

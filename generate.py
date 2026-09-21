@@ -78,6 +78,10 @@ def build_static_assets() -> None:
         "midnight_map.js",
         "midnight_text_adapt.js",
         "weapon_affixes.js",
+        "enemy_sprite_data.js",
+        "enemy_sprite_registry.js",
+        "enemy_action_anim_map.js",
+        "midnight_sprite.js",
         "midnight.js",
     ):
         shutil.copy(STATIC_SRC_DIR / name, static_dist / name)

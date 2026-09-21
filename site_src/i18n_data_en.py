@@ -1746,6 +1746,8 @@ STRINGS_EN: dict[str, str] = {
     "midnight_yoto_charges_short_note": "Not enough Yoto charge (need {need}, have {have})",
     "midnight_lobby_weapon_affixes_label": "Enable weapon affixes",
     "midnight_lobby_weapon_affixes_hint": "Weapons/staves/seals found in-game gain affixes (starting gear excluded). 1 for C rarity, 2 otherwise.",
+    "midnight_lobby_sprite_mode_label": "Pixel-sprite battle mode",
+    "midnight_lobby_sprite_mode_hint": "When checked, enemies are shown as pixel-sprite animations; unchecked keeps the original illustration-based battle.",
     "midnight_character_sheet_affix_label": "Affixes",
     "midnight_affix_slot_badge_title": "{count} affix(es)",
     "midnight_affix_pending_note": "(effect not implemented yet - batch 2)",

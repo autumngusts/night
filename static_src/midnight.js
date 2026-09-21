@@ -438,6 +438,15 @@
     return !!(meta && meta.weaponAffixes);
   }
 
+  // 點陣圖戰鬥模式（2026-09-21使用者明確規格「需要在等待房勾選才生效，沒勾選就是原有的
+  // 戰鬥模式（敵人顯示規則書靜態插圖）」）：跟武器詞條開放同一套「同一場遊戲所有人共用、
+  // 開局前設定」的meta.spriteMode，見renderLobbySettings()／handleSpriteModeToggle()／
+  // renderFieldEncounterPanel()。判斷只能放在這個呼叫端——renderer（midnight_sprite.js）
+  // 依三層解耦約束不得讀取任何遊戲狀態，見midnight_sprite.jsの既有註解。
+  function spriteModeEnabled() {
+    return !!(meta && meta.spriteMode);
+  }
+
   function affixCountForRarity(rarity) {
     return rarity === "C" ? 1 : 2; // 使用者明確規格：C稀有度1條，其餘2條
   }
@@ -1671,6 +1680,10 @@
     var testModeCheckbox = el("midnight-lobby-test-mode-checkbox");
     if (testModeCheckbox && document.activeElement !== testModeCheckbox) testModeCheckbox.checked = !!(meta && meta.testMode);
     renderPhaseTimingInputs(!!(meta && meta.testMode));
+    var spriteModeCheckbox = el("midnight-lobby-sprite-mode-checkbox");
+    if (spriteModeCheckbox && document.activeElement !== spriteModeCheckbox) {
+      spriteModeCheckbox.checked = spriteModeEnabled();
+    }
   }
 
   function handleNightBossSelectChange() {
@@ -1692,6 +1705,12 @@
   // 難度/夜王/地圖同一套「同一場遊戲所有人共用」的meta設定，見武器詞條區塊的說明。
   function handleWeaponAffixesToggle() {
     GameStorage.rtSet(gameId, "cloud", "meta/weaponAffixes", el("midnight-lobby-weapon-affixes-checkbox").checked);
+  }
+
+  // 點陣圖戰鬥模式開關（2026-09-21新增）：跟武器詞條開放同一套寫法，寫入meta.spriteMode，
+  // 見spriteModeEnabled()／renderFieldEncounterPanel()。
+  function handleSpriteModeToggle() {
+    GameStorage.rtSet(gameId, "cloud", "meta/spriteMode", el("midnight-lobby-sprite-mode-checkbox").checked);
   }
 
   // ---- 測試模式（2026-09-06新增，使用者明確規格：「開始遊戲可以選擇測試模式，在右邊
@@ -3420,6 +3439,7 @@
     el("midnight-lobby-map-variant-select").addEventListener("change", handleMapVariantSelectChange);
     el("midnight-lobby-difficulty-select").addEventListener("change", handleDifficultySelectChange);
     el("midnight-lobby-weapon-affixes-checkbox").addEventListener("change", handleWeaponAffixesToggle);
+    el("midnight-lobby-sprite-mode-checkbox").addEventListener("change", handleSpriteModeToggle);
     el("btn-midnight-game-failure-confirm").addEventListener("click", switchToUnlimitedMode);
     el("btn-midnight-game-victory-confirm").addEventListener("click", handleGameVictoryConfirmClick);
     el("midnight-lobby-test-mode-checkbox").addEventListener("change", handleTestModeToggle);
@@ -19510,6 +19530,10 @@
       return;
     }
     box.hidden = false;
+    // 2026-09-21：sprite 舞台延後 mount（元素要等 encounter 面板打開之後才存在）。
+    if (window.PriTestMidnightSprite) {
+      window.PriTestMidnightSprite.mount(el("midnight-field-encounter-image-wrap"));
+    }
     var trig = fieldTriggers[activeEncounter.id] || {};
     eyeBtn.hidden = !eyeAbility || !trig.enemyFamilyId;
     if (eyeAbility) eyeBtn.textContent = window.PriTestCharacterTypes.localizedText(eyeAbility.name);
@@ -19533,6 +19557,22 @@
       } else {
         imgEl.hidden = true;
       }
+      // 2026-09-21：sprite 已產出就顯示 sprite，未產出就照舊用靜止畫
+      // （設計文件 §4 的 fallback 契約）。判定側完全不變。
+      // <img> 的可見性由這裡決定、不交給 renderer：只有 sprite 真的顯示出來
+      // （showSprite() 回傳 true）才把它藏起來；否則維持上面那段既有邏輯的結果，
+      // 免得把「nameless 沒有立繪所以刻意藏起來」的判斷覆蓋掉。
+      // 點陣圖戰鬥模式（2026-09-21新增，使用者明確規格「需要在等待房勾選才生效」）：
+      // 未勾選spriteModeEnabled()時直接視同沒有sheet，走既有的showStatic()路徑，
+      // 不影響上面nameless（名冊無立繪）的既有隱藏邏輯。
+      var bossSheet = window.PriTestMidnightSprite && spriteModeEnabled()
+        ? window.PriTestMidnightSprite.sheetFileFor(null, trig.enemyId, true)
+        : null;
+      if (bossSheet && window.PriTestMidnightSprite.showSprite(bossSheet, "../static/")) {
+        imgEl.hidden = true;
+      } else if (window.PriTestMidnightSprite) {
+        window.PriTestMidnightSprite.showStatic();
+      }
       imgEl.alt = bossName;
       el("midnight-field-encounter-name").textContent = bossName;
       return;
@@ -19543,6 +19583,17 @@
     el("midnight-field-encounter-image").hidden = false;
     el("midnight-field-encounter-image").src = window.PriTestEnemies.imagePath(data.enemy, "../static/");
     el("midnight-field-encounter-image").alt = name;
+    // 2026-09-21：同上。available:false 期間一定會落到 showStatic() 這一側，
+    // 上面剛設好的 hidden=false 就這樣保留，畫面跟改動前完全一樣。
+    // 點陣圖戰鬥模式：同上，未勾選spriteModeEnabled()時直接視同沒有sheet。
+    var sheet = window.PriTestMidnightSprite && spriteModeEnabled()
+      ? window.PriTestMidnightSprite.sheetFileFor(trig.enemyFamilyId, trig.enemyId, false)
+      : null;
+    if (sheet && window.PriTestMidnightSprite.showSprite(sheet, "../static/")) {
+      el("midnight-field-encounter-image").hidden = true;
+    } else if (window.PriTestMidnightSprite) {
+      window.PriTestMidnightSprite.showStatic();
+    }
     el("midnight-field-encounter-name").textContent = name;
   }
 
@@ -21403,6 +21454,7 @@
     renderEnterBattlePrompt();
     renderBattlePrepBanner(now);
     renderStaggerOverlay(now); // 體崩橫幅／致命一擊按鈕（每影格變動，不能放進有快取的renderFieldEncounterPanel）
+    if (window.PriTestMidnightSprite) window.PriTestMidnightSprite.tick(now);
     renderFinalCircleCountdown(now);
     updateStamina(dtSec);
     updateSorceryHold(now);
