@@ -150,6 +150,23 @@ BODY = """    <div class="midnight-wrap">
             <span data-i18n="midnight_test_mode_label"></span>
           </label>
         </div>
+        <!-- 縮圈時間點（2026-09-21使用者明確規格「創立房間時 開啟測試模式時 可由GM來調整縮圈
+             兩個的時間點 預設 8 + 5」）：只在測試模式勾選後顯示，寫入meta.phaseTiming
+             （{graceMin, holdMin}，分鐘，允許小數），只在meta.testMode為true時生效——關掉測試
+             模式即回到預設8＋5。見static/midnight.jsのhandlePhaseTimingInput()／
+             renderPhaseTimingInputs()／phaseGraceMs()。 -->
+        <div class="wb-row" id="midnight-lobby-phase-timing-row" hidden>
+          <label data-i18n="midnight_lobby_phase_timing_label"></label>
+          <span class="midnight-lobby-phase-timing-field">
+            <span data-i18n="midnight_lobby_phase_grace_label"></span>
+            <input type="number" id="midnight-lobby-phase-grace-input" class="midnight-test-number-input" min="0" step="any">
+          </span>
+          <span class="midnight-lobby-phase-timing-field">
+            <span data-i18n="midnight_lobby_phase_hold_label"></span>
+            <input type="number" id="midnight-lobby-phase-hold-input" class="midnight-test-number-input" min="0" step="any">
+          </span>
+          <span class="hint" data-i18n="midnight_lobby_phase_timing_hint"></span>
+        </div>
       </div>
 
       <!-- 流程簡介視窗（見上方按鈕註解）：跟#midnight-character-sheet-modal同款
@@ -318,6 +335,9 @@ BODY = """    <div class="midnight-wrap">
              static/midnight.js的renderScarabOverlay()。 -->
         <div id="midnight-scarab-banner" hidden>
           <button type="button" class="midnight-top-banner-collapse-btn" aria-label="collapse">&#9654;</button>
+          <!-- 事件名稱列（2026-09-21，跟#midnight-field-banner-name同款），見static/midnight.jsの
+               renderScarabBranch()。 -->
+          <p id="midnight-scarab-name"></p>
           <p id="midnight-scarab-text"></p>
           <div id="midnight-scarab-stat-picker">
             <button type="button" id="btn-midnight-scarab-mental" data-i18n="midnight_scarab_stat_mental"></button>
@@ -339,7 +359,14 @@ BODY = """    <div class="midnight-wrap">
              戦いを仕掛ける）需要額外3顆專用按鈕（見下方midnight-tuning-demon-choice-*，
              Task 22新增），因為3個選項需要同時並列顯示，不是像其餘分支那樣的2選1。見
              static/midnight.js的renderRandomEventOverlay()／renderTuningDemonBranch()。 -->
+        <!-- 2026-09-21使用者明確規格「隨機事件所碰到的事件 如同一般板塊處理 會出現banner來顯示
+             狀況以及抽取等內容」：這個banner（跟上面的聖甲蟲banner）原本沒有套用固定置頂樣式，
+             實際遊玩中被全螢幕地圖面板蓋住看不到。改成跟#midnight-field-banner同一組固定置頂／
+             折疊／疊層規則（style.css選擇器群組＋static/midnight.jsのTOP_BANNER_IDS），最上面
+             補一列事件名稱。 -->
         <div id="midnight-random-event-banner" hidden>
+          <button type="button" class="midnight-top-banner-collapse-btn" aria-label="collapse">&#9654;</button>
+          <p id="midnight-random-event-name"></p>
           <p id="midnight-random-event-text"></p>
           <button type="button" id="midnight-random-event-action" data-i18n="midnight_random_event_action_button"></button>
           <button type="button" id="midnight-random-event-choice-a" data-i18n="midnight_random_event_choice_a_button" hidden></button>
@@ -760,9 +787,24 @@ BODY = """    <div class="midnight-wrap">
           <button type="button" id="btn-midnight-weapon-right" class="midnight-action-card midnight-action-card-weapon">
             <span id="midnight-weapon-right-label"></span>
           </button>
-          <button type="button" id="btn-midnight-use-consumable" class="midnight-action-card midnight-action-card-consumable">
-            <span id="midnight-consumable-label"></span>
-          </button>
+          <!-- 消耗品卡片＋左右切換（2026-09-21使用者明確規格「左下的操作盤中 消耗品要有左右
+               按鈕來切換所選的道具」）：HTML不允許button巢狀button，因此外包一層佔同一個
+               grid-area的容器，兩顆◀▶絕對定位貼在卡片左右邊緣。目前選取第幾格由
+               static/midnight.jsのquickConsumableIndex（純本地）決定，見cycleQuickConsumable()／
+               renderQuickActionCards()。 -->
+          <div id="midnight-consumable-wrap">
+            <button type="button" id="btn-midnight-use-consumable" class="midnight-action-card midnight-action-card-consumable">
+              <span id="midnight-consumable-label"></span>
+              <span id="midnight-consumable-index" hidden></span>
+            </button>
+            <button type="button" id="btn-midnight-consumable-prev" class="midnight-consumable-cycle-btn" aria-label="prev">&#9664;</button>
+            <button type="button" id="btn-midnight-consumable-next" class="midnight-consumable-cycle-btn" aria-label="next">&#9654;</button>
+            <!-- 消耗品使用時的格子外粒子層（2026-09-21使用者逐項規格：星光的碎片「格子外產生
+                 水晶體破碎動畫」、苔藥／溫石「治癒動畫」、塗脂屬性符號）：疊在卡片正中央、
+                 不攔截點擊，粒子由static/midnight.jsのspawnConsumableCardParticles()動態
+                 產生並自行移除。 -->
+            <div id="midnight-consumable-fx" aria-hidden="true"></div>
+          </div>
         </div>
 
         <!-- 左手一般攻擊／魔術祈禱（2026-09-05武器資料真正接入新增，使用者明確規格：
@@ -847,6 +889,12 @@ BODY = """    <div class="midnight-wrap">
                    triggerConsumableThrowEffect()，圖示與顏色依道具決定，只在丟擲類/對敵人
                    噴霧類消耗品觸發，自身/全體PC用的道具不觸發。 -->
               <div id="midnight-consumable-throw-effect" hidden></div>
+              <!-- 瓶壺類投擲物落地的屬性爆裂（2026-09-21使用者確認「投擲壺屬性爆裂」「毒物
+                   投擲效果」）：跟上面的丟擲物、屬性光暈各自獨立，見static/midnight.jsの
+                   triggerThrowBurstEffect()。 -->
+              <div id="midnight-throw-burst" hidden>
+                <span id="midnight-throw-burst-mark"></span>
+              </div>
               <!-- 武器詞條的追加攻擊特效（2026-09-13第2批）：蓄力攻擊的7種追擊（幻影／
                    黑炎／睡眠霧／聖衝擊波／冰嵐／魔力彈／熔岩）與架盾3秒的3種（咒靈／
                    燃燒／赤雷）共用這一層。跟上面的刀光／異常光暈／丟擲物是各自獨立的
