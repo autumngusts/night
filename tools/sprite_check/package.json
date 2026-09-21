@@ -6,6 +6,8 @@
   "scripts": {
     "test:anim": "node sprite_anim_check.js",
     "gen:action_map": "node sprite_action_map_gen.js --write",
-    "test:action_map": "node sprite_action_map_check.js"
+    "test:action_map": "node sprite_action_map_check.js",
+    "gen:registry": "node sprite_registry_gen.js --write",
+    "test:registry": "node sprite_registry_check.js"
   }
 }
