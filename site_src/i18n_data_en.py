@@ -1710,6 +1710,7 @@ STRINGS_EN: dict[str, str] = {
     "midnight_reward_free_redraw_button": "Free redraw (once per day)",
     "midnight_skill_variant_switch_button": "Switch variant {current}/{total}",
     "midnight_spirit_destroyed_toast": "Your spirit took the hit and was destroyed",
+    "midnight_spirit_no_hp_note": "That spirit has 0 HP; rest at a blessing or wait for the next day before summoning it",
     "midnight_halberd_whirlwind_toast": "Halberd whirlwind: {damage} self damage",
     "midnight_skill_mob_damage_note": "Mobs -{damage}",
     "midnight_weapon_random_skill_undetermined": "Weapon art: not decided (decide it at the smithing table)",

@@ -1714,6 +1714,7 @@ STRINGS_ZH: dict[str, str] = {
     "midnight_reward_free_redraw_button": "免費重抽（每日1次）",
     "midnight_skill_variant_switch_button": "切換變體 {current}/{total}",
     "midnight_spirit_destroyed_toast": "靈體代你承受傷害後消滅了",
+    "midnight_spirit_no_hp_note": "該靈體HP為0，需經祝福休息或換日回復後才能召喚",
     "midnight_halberd_whirlwind_toast": "斧槍旋風：自身受到 {damage} 點傷害",
     "midnight_skill_mob_damage_note": "雜兵 -{damage}",
     "midnight_weapon_random_skill_undetermined": "戰技：尚未決定（可在鍛造台決定）",

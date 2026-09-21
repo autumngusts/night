@@ -1710,6 +1710,7 @@ STRINGS_JA: dict[str, str] = {
     "midnight_reward_free_redraw_button": "無償再抽選（1日1回）",
     "midnight_skill_variant_switch_button": "変化切替 {current}/{total}",
     "midnight_spirit_destroyed_toast": "霊体が身代わりとなって消滅した",
+    "midnight_spirit_no_hp_note": "その霊体はHPが0です。祝福での休息か日替わりで回復するまで召喚できません",
     "midnight_halberd_whirlwind_toast": "斧槍のつむじ風：自身に {damage} ダメージ",
     "midnight_skill_mob_damage_note": "モブ -{damage}",
     "midnight_weapon_random_skill_undetermined": "戦技：未決定（鍛冶台で決定できます）",

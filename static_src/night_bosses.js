@@ -11,6 +11,10 @@
     { id: "libra", title: "Libra", subtitle: "Creature of Night", image: "libra.jpg" },
     { id: "edele", title: "Edele", subtitle: "Baron of Night", image: "edele.jpg" },
     { id: "stragedes", title: "Stragedes", subtitle: "Rebellion of Night", image: "stragedes.jpg" },
+    // 2026-09-21補上第10隻：劇本10「夜之側影」（scenarios.js night_aspect）的夜王，
+    // night_boss_rulebook.js／boss_auto_gm_data.js／night_gm_flow.js的id「nameless」早已存在，
+    // 只差這裡的名簿與圖片（使用者提供photo/nameless.png，縮成700px的jpg）。
+    { id: "nameless", title: "Nameless", subtitle: "Night Aspect", image: "nameless.jpg" },
   ];
 
   function list() {

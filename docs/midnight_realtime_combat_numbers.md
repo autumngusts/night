@@ -1053,3 +1053,58 @@ party-wide 欄位、變體切換鈕的顯示/循環/隱藏）。
 同時偵測只發一次獎、M2 接管搬清單、L2 防禦承受蓄積與遺物免除、L4／撿取／共享池／個人清單
 的枝番 id、個人清單 drawn persist、M17／M18／M1／M5／L1／L5／L6／R5，以及第 3 輪的
 共享池得主依落地 `resolvedBy` 入手、枝番 id 不撞號、`graces` 逐子鍵同步。
+
+## 21. 2026-09-21：升級時現在值同步增加／復仇者靈體 HP 刻度
+
+### 21.1 升級（降級）時上限與現在值同步
+
+使用者明確規格「角色因升級提升的 HP、FP、耐力，為先加上限再加現有數值（例：100/110 升級後
+110/120）」。`CharacterDrawer.tryLevelUp()` 只動 `c.hp/fp` 的 RPG 刻度（max 與 current 同加 1），
+但 midnight 的競技場現在值是另一套（HP＝RTDB `demoStat`、FP／體力＝本地 `fp`／`stamina`），
+原本只有上限跟著 `selfArenaHpMax()`／`selfFpMax()`／`levelStaminaBonus()` 變大、現在值不動。
+
+`handleMidnightLevelDelta()` 現在先記下升級前的三個上限，升級後由
+`applyLevelResourceDeltaToCurrent()` 把差額同樣加到現在值：
+
+| 升級格 | 上限變化 | 現在值變化 |
+|---|---|---|
+| Lv2/5/8/11/14（HP） | `selfArenaHpMax` +10 | `demoStat` +10（transaction，夾在 1〜新上限） |
+| Lv3/6/9/12/15（FP） | `selfFpMax` +10 | `fp.current` +10（夾在 0〜新上限） |
+| Lv4/7/10/13（體力） | `levelStaminaBonus` +5 | `stamina.current` +5（夾在 0〜新上限） |
+
+降級（修正誤按）同額扣回。HP 走 `demoStat` transaction 但**不經過**共感術的回復分享
+（升級不是回復效果）。
+
+### 21.2 復仇者靈體 HP＝格×10
+
+使用者明確規格「復仇者的靈體血量只有 ■×10」：靈體規則上被視為 1 名 PC（「敵視：0」的 PC），
+HP 刻度與 PC 相同用「格×10」（`SPIRIT_HP_PER_ROW = 10`），不套用雜兵／敵人的
+`MOB_HP_PER_ROW`（×100，2026-09-08 敵人血量 10 倍化時被一併帶到了靈體上）。
+海倫 20／弗雷德里克 50／賽巴斯汀 60。死靈術的死靈（`DEATH_SPIRIT_HP`）是另一套，未動。
+
+**靈體 HP 跨戰鬥保存**（同日使用者明確規格「結束戰鬥不會補滿、結束戰鬥後的靈體 HP 保持；
+休息祝福時只能補上限的一半 HP；新的一天則直接補滿三隻 HP」，對應規則書「戦闘終了時に現在HPを
+維持したまま自動的に姿を消し…『祝福での休息／夜の強敵撃破後の追加処理』でのみ現在HPが回復」）：
+
+- `c.spiritHpByKind = { helen, frederik, sebastian }`（RTDB `character/{token}/spiritHpByKind`），
+  沒有紀錄＝滿血。召喚時 `storedSpiritHp()` 取現在 HP，不再每次滿血。
+- 靈體 HP 每次變動（代受傷害、靈炎爆發回復）與消失（戰鬥結束 `onEncounterEnded()`、被另一隻
+  取代、手動解散、陣亡）都經 `persistSpiritHp()`／`dismissSummonedSpirit()` 寫回。
+- 陣亡＝0 也保留：HP 0 的靈體在回復前不能召喚（三選一選單該鈕 disabled、
+  `handleSpiritChoiceClick()` 在扣 FP 前擋下並 toast `midnight_spirit_no_hp_note`）。選單每次
+  開啟重建，顯示「現在/上限」。
+- 祝福休息（`maybeRestoreSpiritHpForBlessing(c, key)` → `restoreSpiritHpOnBlessing()`）：三隻各
+  +上限/2，不超過上限（海倫 +10、弗雷德里克 +25、賽巴斯汀 +30）。**同一個祝福只回復一次靈體**
+  （使用者明確規格）：`c.spiritBlessingRestored[key]` 記錄，key＝地圖祝福籌碼的 `pt.id`、
+  夜之強敵戰後 HUD 的「使用祝福」為 `"hud_day<N>"`（每天一次）。HP／FP／體力照舊每次回滿，
+  只有靈體受這個門檻限制。
+- 換日（`updateAutoDayAdvance()` 偵測到天數變化 → `restoreSpiritHpOnNewDay()`）：清掉紀錄＝三隻補滿。
+- 「夜之強敵擊破後的追加處理」規則書也列為回復時機，midnight 目前沒有對應的追加處理流程，
+  未接（換日補滿實際上緊接在夜之強敵擊破之後，效果相近）。
+
+### 21.3 回歸測試
+
+`tools/midnight_check/levelup_spirit_2026_09_21_check.js`（`npm run test:levelup_spirit_2026_09_21`，
+需 emulator）28 個斷言：Lv1→2 HP 110/150→120/160、Lv2→3 FP +10/+10、Lv3→4 體力 +5/+5、
+Lv4→3 體力同額扣回、三隻靈體 HP 20/50/60；靈體受傷→戰鬥結束保持 20→再召喚 20/50→陣亡 0
+→不能召喚→祝福 +上限/2（不超上限）→同一祝福再用不回復→另一祝福再回復→換日補滿→選單顯示現在/上限；第 10 隻夜王 nameless 名簿與圖片。

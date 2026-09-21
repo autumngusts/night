@@ -6290,6 +6290,7 @@
       if (c.summonedSpirit && c.summonedSpirit.hp > 0) {
         c.summonedSpirit.hp = Math.min(c.summonedSpirit.maxHp, c.summonedSpirit.hp + BLOCK_SQUARE_COUNT_TO_RESOURCE_MULT * 6);
         GameStorage.rtSet(gameId, "cloud", "character/" + myTokenId + "/summonedSpirit", c.summonedSpirit);
+        persistSpiritHp(c, c.summonedSpirit.kind, c.summonedSpirit.hp); // 2026-09-21跨戰鬥保存
       }
     }
     if (abilityId === "empathy" && hasRelic(c, "artContinuousDamage") && activeEncounter) {
@@ -6505,9 +6506,12 @@
         if (SPIRIT_SUMMON_TYPES[ci].kind === spiritSummonChoiceKind) nextDef = SPIRIT_SUMMON_TYPES[ci];
       }
       spiritSummonChoiceKind = null;
-      var maxHp = nextDef.maxHpRows * MOB_HP_PER_ROW;
+      // 被取代的靈體「現在HPはそのまま」：先寫回spiritHpByKind再換人（見dismissSummonedSpirit()）。
+      if (c.summonedSpirit) dismissSummonedSpirit(c);
+      var maxHp = nextDef.maxHpRows * SPIRIT_HP_PER_ROW;
       var level = c.level || 1;
-      c.summonedSpirit = { kind: nextDef.kind, hp: maxHp, maxHp: maxHp, dmg: nextDef.dmgBase + level * 5, nextAttackAt: now + SPIRIT_ATTACK_INTERVAL_MS };
+      // 現在HP取跨戰鬥保存的值（沒有紀錄＝滿血），不是每次召喚都滿血。
+      c.summonedSpirit = { kind: nextDef.kind, hp: storedSpiritHp(c, nextDef.kind), maxHp: maxHp, dmg: nextDef.dmgBase + level * 5, nextAttackAt: now + SPIRIT_ATTACK_INTERVAL_MS };
       GameStorage.rtSet(gameId, "cloud", "character/" + myTokenId + "/summonedSpirit", c.summonedSpirit);
       showToast(window.I18N.t(nextDef.nameKey) + window.I18N.t("midnight_spirit_summon_note"));
     } else if (abilityId === "crucible_aspect_beast") {
@@ -6996,12 +7000,16 @@
   }
 
   // 復仇者「召喚靈體」（2026-09-08使用者明確要求，見數值出處character_types.js原文「海倫／
-  // 弗雷德里克／賽巴斯汀」三隻靈體的最大HP／發生傷害）：格數換算HP沿用MOB_HP_PER_ROW
-  // 同一套「格數×10」慣例。dmg是固定基底＋PC等級×5，弗雷德里克原文另有「+▲」（威力補正）
+  // 弗雷德里克／賽巴斯汀」三隻靈體的最大HP／發生傷害）：格數換算HP＝格數×SPIRIT_HP_PER_ROW。
+  // 2026-09-21使用者明確規格「復仇者的靈體血量只有■×10」：靈體規則上被當成1名PC
+  // （「敵視：0」的PC），跟PC的HP刻度一樣是「格×10」，不套用雜兵／敵人的MOB_HP_PER_ROW
+  // （×100，2026-09-08敵人血量10倍化時被一併帶到了）。海倫20／弗雷德里克50／賽巴斯汀60。
+  // dmg是固定基底＋PC等級×5，弗雷德里克原文另有「+▲」（威力補正）
   // 這裡略過（▲需要角色目前狀態才能算，靈體不是PC本人，不硬套一個角色的▲，已知簡化）。
   // glyph：2026-09-21使用者明確規格「給予不同的靈體形狀與名稱 產生在此按鈕的上方 存活時持續
   // 存在」——三隻各自的符號（海倫＝盾形、弗雷德里克＝劍形、賽巴斯汀＝獸形），見
   // renderSpiritBadge()。
+  var SPIRIT_HP_PER_ROW = 10;
   var SPIRIT_SUMMON_TYPES = [
     { kind: "helen", nameKey: "midnight_spirit_helen_name", maxHpRows: 2, dmgBase: 15, glyph: "⛨" },
     { kind: "frederik", nameKey: "midnight_spirit_frederik_name", maxHpRows: 5, dmgBase: 5, glyph: "🗡" },
@@ -7009,6 +7017,74 @@
   ];
   var spiritSummonChoiceKind = null; // 三選一選單選到的種類，施放時消費（見applyMidnightAbilityPostEffect）
   var spiritChoiceMenuOpen = false;
+
+  // ---- 靈體HP的跨戰鬥保存（2026-09-21使用者明確規格「結束戰鬥不會補滿、結束戰鬥後的靈體HP
+  // 保持；休息祝福時只能補上限的一半HP；新的一天則直接補滿三隻HP」，對應規則書原文「霊体は
+  // 戦闘終了時に現在HPを維持したまま自動的に姿を消し…『祝福での休息／夜の強敵撃破後の追加
+  // 処理』でのみ現在HPが回復する」）----
+  // c.spiritHpByKind = { helen: n, frederik: n, sebastian: n }（RTDB character/{token}/spiritHpByKind），
+  // 沒有紀錄＝滿血。召喚時從這裡取現在HP；靈體HP每次變動／消失（戰鬥結束、被取代、陣亡、
+  // 手動解散）都寫回，因此「陣亡＝0」也會留下來，HP為0的靈體在回復前不能再召喚。
+  function spiritDefByKind(kind) {
+    for (var i = 0; i < SPIRIT_SUMMON_TYPES.length; i++) {
+      if (SPIRIT_SUMMON_TYPES[i].kind === kind) return SPIRIT_SUMMON_TYPES[i];
+    }
+    return null;
+  }
+
+  function spiritMaxHpFor(kind) {
+    var def = spiritDefByKind(kind);
+    return def ? def.maxHpRows * SPIRIT_HP_PER_ROW : 0;
+  }
+
+  function storedSpiritHp(c, kind) {
+    var max = spiritMaxHpFor(kind);
+    var stored = c && c.spiritHpByKind && typeof c.spiritHpByKind[kind] === "number" ? c.spiritHpByKind[kind] : max;
+    return Math.max(0, Math.min(max, stored));
+  }
+
+  function persistSpiritHp(c, kind, hp) {
+    if (!c || !kind) return;
+    var clamped = Math.max(0, Math.min(spiritMaxHpFor(kind), hp));
+    c.spiritHpByKind = c.spiritHpByKind || {};
+    c.spiritHpByKind[kind] = clamped;
+    GameStorage.rtSet(gameId, "cloud", "character/" + myTokenId + "/spiritHpByKind/" + kind, clamped);
+  }
+
+  // 召喚中的靈體從戰鬥移除（戰鬥結束／被另一隻取代／手動解散／陣亡）：先把現在HP寫回
+  // spiritHpByKind，再清掉summonedSpirit。陣亡時hp已是0，順便觸發「靈體消滅時HP/FP回復」。
+  function dismissSummonedSpirit(c) {
+    var spirit = c && c.summonedSpirit;
+    if (!spirit) return;
+    persistSpiritHp(c, spirit.kind, spirit.hp);
+    maybeApplySpiritDeathRelics(c, spirit);
+    c.summonedSpirit = null;
+    GameStorage.rtSet(gameId, "cloud", "character/" + myTokenId + "/summonedSpirit", null);
+  }
+
+  // 休息祝福：三隻各回復「上限的一半」（不超過上限）；召喚中的那隻同步。
+  function restoreSpiritHpOnBlessing(c) {
+    if (!c) return;
+    SPIRIT_SUMMON_TYPES.forEach(function (def) {
+      var max = def.maxHpRows * SPIRIT_HP_PER_ROW;
+      persistSpiritHp(c, def.kind, storedSpiritHp(c, def.kind) + max / 2);
+    });
+    if (c.summonedSpirit) {
+      c.summonedSpirit.hp = storedSpiritHp(c, c.summonedSpirit.kind);
+      GameStorage.rtSet(gameId, "cloud", "character/" + myTokenId + "/summonedSpirit", c.summonedSpirit);
+    }
+  }
+
+  // 新的一天：三隻直接補滿（清掉紀錄＝滿血）。
+  function restoreSpiritHpOnNewDay(c) {
+    if (!c || !c.spiritHpByKind) return;
+    c.spiritHpByKind = null;
+    GameStorage.rtSet(gameId, "cloud", "character/" + myTokenId + "/spiritHpByKind", null);
+    if (c.summonedSpirit) {
+      c.summonedSpirit.hp = c.summonedSpirit.maxHp;
+      GameStorage.rtSet(gameId, "cloud", "character/" + myTokenId + "/summonedSpirit", c.summonedSpirit);
+    }
+  }
 
   function spiritSummonAbilitySelected() {
     var found = characterAbilityEntry("skill");
@@ -7026,6 +7102,11 @@
   }
 
   function handleSpiritChoiceClick(kind) {
+    // HP為0（陣亡後尚未於祝福休息／換日回復）的靈體不能召喚：在扣FP之前就擋下。
+    if (storedSpiritHp(characters[myTokenId], kind) <= 0) {
+      showToast(window.I18N.t("midnight_spirit_no_hp_note"));
+      return;
+    }
     spiritSummonChoiceKind = kind;
     spiritChoiceMenuOpen = false;
     renderSpiritChoiceMenu();
@@ -7038,18 +7119,23 @@
     var show = spiritChoiceMenuOpen && spiritSummonAbilitySelected();
     menu.hidden = !show;
     if (!show) return;
-    if (!menu.childNodes.length) {
-      SPIRIT_SUMMON_TYPES.forEach(function (def) {
-        var btn = document.createElement("button");
-        btn.type = "button";
-        btn.className = "midnight-attack-special-btn";
-        btn.textContent = def.glyph + " " + window.I18N.t(def.nameKey) + "（HP" + def.maxHpRows * MOB_HP_PER_ROW + "）";
-        btn.addEventListener("click", function () {
-          handleSpiritChoiceClick(def.kind);
-        });
-        menu.appendChild(btn);
+    // 每次開啟都重建：按鈕要顯示「保存中的現在HP／上限」（跨戰鬥保持，見storedSpiritHp()），
+    // HP為0的靈體按鈕disabled。
+    menu.textContent = "";
+    var c = characters[myTokenId];
+    SPIRIT_SUMMON_TYPES.forEach(function (def) {
+      var btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "midnight-attack-special-btn";
+      var max = def.maxHpRows * SPIRIT_HP_PER_ROW;
+      var cur = storedSpiritHp(c, def.kind);
+      btn.textContent = def.glyph + " " + window.I18N.t(def.nameKey) + "（HP" + Math.round(cur) + "/" + max + "）";
+      btn.disabled = cur <= 0;
+      btn.addEventListener("click", function () {
+        handleSpiritChoiceClick(def.kind);
       });
-    }
+      menu.appendChild(btn);
+    });
   }
 
   // 技能鍵上方的靈體浮標：存活時持續顯示「符號 名稱 HP」。
@@ -7547,9 +7633,7 @@
   function handleSpiritManageClick() {
     var c = characters[myTokenId];
     if (!mySlot || isPaused() || !c || !c.summonedSpirit) return;
-    maybeApplySpiritDeathRelics(c, c.summonedSpirit);
-    c.summonedSpirit = null;
-    GameStorage.rtSet(gameId, "cloud", "character/" + myTokenId + "/summonedSpirit", null);
+    dismissSummonedSpirit(c); // 現在HP寫回spiritHpByKind（2026-09-21跨戰鬥保存）
     renderCharPanel();
   }
 
@@ -7582,12 +7666,11 @@
     if (spirit.hp > 0) {
       c.summonedSpirit = spirit;
       GameStorage.rtSet(gameId, "cloud", "character/" + myTokenId + "/summonedSpirit", spirit);
+      persistSpiritHp(c, spirit.kind, spirit.hp); // 2026-09-21跨戰鬥保存：每次變動都寫回
       return overflow;
     }
     spirit.hp = 0;
-    maybeApplySpiritDeathRelics(c, spirit);
-    c.summonedSpirit = null;
-    GameStorage.rtSet(gameId, "cloud", "character/" + myTokenId + "/summonedSpirit", null);
+    dismissSummonedSpirit(c); // 陣亡：hp=0寫回spiritHpByKind＋觸發「靈體消滅時HP/FP回復」
     showToast(window.I18N.t("midnight_spirit_destroyed_toast"));
     return overflow;
   }
@@ -11587,11 +11670,9 @@
     }
     // 復仇者「召喚靈體」：「戰鬥結束時自動消失」（見character_types.js原文），比照
     // 高防禦/不撓同一個清理時機。
-    if (c && c.summonedSpirit) {
-      maybeApplySpiritDeathRelics(c, c.summonedSpirit); // 「靈體消滅時HP/FP回復」（hp已歸零時才生效）
-      c.summonedSpirit = null;
-      GameStorage.rtSet(gameId, "cloud", "character/" + myTokenId + "/summonedSpirit", null);
-    }
+    // 2026-09-21使用者明確規格「結束戰鬥不會補滿、結束戰鬥後的靈體HP保持」：消失前把現在HP
+    // 寫回spiritHpByKind，下次召喚從那個值開始（見dismissSummonedSpirit()）。
+    if (c && c.summonedSpirit) dismissSummonedSpirit(c);
     // 2026-09-20審查M18修正：red「朱紅腐敗的瘴氣」的腐敗、ice「凍寒的暴風雪」的凍傷是
     // 地圖規則明寫「戰鬥結束也不重置／持續累積」（見maybeApplyRedMiasmaTick()／
     // maybeApplyIceFrostbiteTick()），戰鬥結束清空自身蓄積時要把這兩個留下來。
@@ -12919,6 +13000,8 @@
     if (phaseInfo.day !== lastAutoDayForCooldownReset) {
       lastAutoDayForCooldownReset = phaseInfo.day;
       resetAbilityCooldowns();
+      // 2026-09-21使用者明確規格「新的一天則直接補滿三隻HP」（復仇者靈體，見restoreSpiritHpOnNewDay()）。
+      restoreSpiritHpOnNewDay(characters[myTokenId]);
     }
     maybeAssignTerrifyingStrongEnemyPoint();
   }
@@ -12982,6 +13065,7 @@
   function handleHudBlessingUseClick() {
     if (!mySlot || isPaused() || !finalCircleBossDefeated(1)) return;
     applyBlessingRestore();
+    maybeRestoreSpiritHpForBlessing(characters[myTokenId], "hud_day" + currentPhaseInfo(Date.now()).day); // 同一個祝福只回復一次靈體
     blessingLevelUpAvailable = true;
     renderCharacterSheet();
     var c = characters[myTokenId];
@@ -13215,6 +13299,7 @@
   function handleBlessingUseClick() {
     if (!mySlot || isPaused() || !nearbyBlessing) return;
     applyBlessingRestore();
+    maybeRestoreSpiritHpForBlessing(characters[myTokenId], nearbyBlessing.id); // 同一個祝福只回復一次靈體
     blessingLevelUpAvailable = true;
     renderCharacterSheet();
     // 同openBlessingModal()的說明：這個視窗裡的等級/盧恩/+號升級不能只靠
@@ -13243,6 +13328,21 @@
     }
     applyNightBlessingGraceOnRest(c);
     renderCharPanel();
+  }
+
+  // 靈體的祝福回復（2026-09-21使用者明確規格「休息祝福時只能補上限的一半HP」＋「同一個祝福
+  // 只能回復一次靈體」）：跟applyBlessingRestore()的HP/FP/體力「可重複回滿」分開，用
+  // c.spiritBlessingRestored[blessingKey]（RTDB character/{token}/spiritBlessingRestored/{key}）
+  // 記住這個祝福已經回復過靈體。blessingKey＝地圖祝福籌碼的pt.id；夜之強敵戰後HUD的
+  // 「使用祝福」沒有籌碼id，用"hud_day<N>"（每天一次）。換日會把三隻補滿，紀錄不需要清。
+  function maybeRestoreSpiritHpForBlessing(c, blessingKey) {
+    if (!c || !blessingKey) return false;
+    if (c.spiritBlessingRestored && c.spiritBlessingRestored[blessingKey]) return false;
+    c.spiritBlessingRestored = c.spiritBlessingRestored || {};
+    c.spiritBlessingRestored[blessingKey] = true;
+    GameStorage.rtSet(gameId, "cloud", "character/" + myTokenId + "/spiritBlessingRestored/" + blessingKey, true);
+    restoreSpiritHpOnBlessing(c);
+    return true;
   }
 
   // 恩寵「夜の恩寵」（graces.js night_blessing／event_rulebook.js:578-579「アーツの使用回数が
@@ -17796,6 +17896,30 @@
     plusBtn.title = blessingLevelUpAvailable ? "" : window.I18N.t("midnight_level_up_needs_blessing_note");
   }
 
+  // 升級／降級後把「上限的變化量」同樣套到現在值（見handleMidnightLevelDelta()的說明）。
+  // HP走demoStat transaction（跟healSelfHp()同款、但不經過共感術分享，升級不是回復效果），
+  // FP／體力直接改本地資源；三者都夾在新上限內。
+  function applyLevelResourceDeltaToCurrent(c, hpMaxBefore, fpMaxBefore, staminaBonusBefore) {
+    var hpDelta = selfArenaHpMax(c) - hpMaxBefore;
+    var fpDelta = selfFpMax(c) - fpMaxBefore;
+    var staminaDelta = levelStaminaBonus(c) - staminaBonusBefore;
+    if (hpDelta) {
+      var newHpMax = selfArenaHpMax(c);
+      GameStorage.rtTransaction(gameId, "cloud", "demoStat/" + myTokenId, function (cur) {
+        var next = (cur === null ? newHpMax : cur) + hpDelta;
+        return Math.max(1, Math.min(newHpMax, next));
+      });
+    }
+    if (fpDelta) {
+      fp.max = selfFpMax(c);
+      fp.current = Math.max(0, Math.min(fp.max, fp.current + fpDelta));
+    }
+    if (staminaDelta) {
+      stamina.max = Math.max(10, stamina.max + staminaDelta); // updateStamina()下一幀會重算，這裡先對齊讓clamp正確
+      stamina.current = Math.max(0, Math.min(stamina.max, stamina.current + staminaDelta));
+    }
+  }
+
   function handleMidnightLevelDelta(delta) {
     var c = characters[myTokenId];
     var CD = window.PriTestCharacterDrawer;
@@ -17805,6 +17929,14 @@
       return;
     }
     var before = snapshotMyCharacter();
+    // 2026-09-21使用者明確規格「角色因升級提升的HP／FP／耐力，為先加上限再加現有數值
+    // （例：100/110 升級後 110/120）」：tryLevelUp()只動c.hp/fp的RPG刻度（max與current同加1），
+    // midnight的競技場現在值是另一套（HP＝RTDB demoStat、FP／體力＝本地fp／stamina），原本
+    // 只有上限跟著selfArenaHpMax()／selfFpMax()／levelStaminaBonus()變大、現在值不動。
+    // 這裡先記下升級前的三個上限，升級後把差額同樣加到現在值（降級則同額扣回、不低於1／0）。
+    var hpMaxBefore = selfArenaHpMax(c);
+    var fpMaxBefore = selfFpMax(c);
+    var staminaBonusBefore = levelStaminaBonus(c);
     var result = CD.tryLevelUp(c, delta);
     if (!result.ok) {
       if (result.reason === "insufficient_runes") {
@@ -17812,6 +17944,7 @@
       }
       return;
     }
+    applyLevelResourceDeltaToCurrent(c, hpMaxBefore, fpMaxBefore, staminaBonusBefore);
     // 2026-09-06使用者明確要求「使用祝福後能持續升級直到不足盧恩，而非一次」：不再於此把
     // blessingLevelUpAvailable設回false，讓玩家可以連續點「+」直到盧恩不足（renderCharacterSheetLevelRow
     // 的insufficientRunes判斷會自然disable按鈕）。
@@ -22163,6 +22296,17 @@
     _debugOnEncounterEnded: function () {
       onEncounterEnded();
     },
+    // 2026-09-21 靈體HP跨戰鬥保存的測試入口（tools/midnight_check/levelup_spirit_2026_09_21_check.js）
+    _debugApplyBlessingRestore: function (blessingKey) {
+      applyBlessingRestore();
+      return maybeRestoreSpiritHpForBlessing(characters[myTokenId], blessingKey || "debug");
+    },
+    _debugRestoreSpiritHpOnNewDay: function () {
+      restoreSpiritHpOnNewDay(characters[myTokenId]);
+    },
+    _debugStoredSpiritHp: function (kind) {
+      return storedSpiritHp(characters[myTokenId], kind);
+    },
     _debugSetMapSpecialRule: function (rule) {
       if (map) map.specialRule = rule || null;
     },
@@ -22242,6 +22386,19 @@
       delete fieldEnemyAssignAttempted[pointId];
       maybeAssignFieldEnemy(pt, choiceIndex || 0);
       return true;
+    },
+    // 升級／降級（略過「須先使用祝福」門檻），測升級時上限與現在值同步增加。
+    _debugLevelDelta: function (delta) {
+      blessingLevelUpAvailable = true;
+      handleMidnightLevelDelta(delta);
+    },
+    _debugSelfArenaHpMax: function () {
+      return selfArenaHpMax(characters[myTokenId]);
+    },
+    _debugSpiritSummonTypes: function () {
+      return SPIRIT_SUMMON_TYPES.map(function (d) {
+        return { kind: d.kind, maxHp: d.maxHpRows * SPIRIT_HP_PER_ROW, dmgBase: d.dmgBase };
+      });
     },
     // 直接觸發「進入」handler（不看距離），測封牢的鑰匙門檻與扣除。
     _debugEnterFieldPoint: function (pointId) {

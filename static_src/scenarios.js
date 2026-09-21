@@ -277,8 +277,8 @@
       id: "night_aspect",
       name: { zh: "夜之側影", ja: "夜を衆る者", en: "Night Aspect" },
       bossName: { zh: "夜之輪廓、夜之奧梅雷斯", ja: "夜の輪郭、夜のオメレス", en: "Night's Outline, Night Aspect Omerus" },
-      // night_boss_rulebook.jsのid（"nameless"）と対応。ただしnight_bosses.js（管理画面の
-      // 選択肢・画像）には現時点でnameless用の画像/エントリが無い（要素材追加、別途対応）。
+      // night_boss_rulebook.jsのid（"nameless"）と対応。night_bosses.js（管理画面の選択肢・
+      // 画像）のエントリは2026-09-21に追加済み。
       bossId: "nameless",
       relicName: { zh: "王之夜", ja: "王の夜", en: "Night of the King" },
       start: { suit: "S", rank: "A" },
