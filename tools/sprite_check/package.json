@@ -9,6 +9,9 @@
     "test:action_map": "node sprite_action_map_check.js",
     "gen:registry": "node sprite_registry_gen.js --write",
     "test:registry": "node sprite_registry_check.js",
-    "gen:prompt": "node sprite_prompt.js"
+    "gen:prompt": "node sprite_prompt.js",
+    "verify": "node sprite_verify.js",
+    "pack": "node sprite_pack.js --write",
+    "test:verify": "node sprite_verify_check.js"
   }
 }
