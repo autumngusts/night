@@ -1712,15 +1712,24 @@
     if (status.textContent !== text) status.textContent = text;
   }
 
-  // 戰鬥模擬用的敵人：從enemies_data_1~4.js全部敵人裡挑「每一招都算得出傷害」的
-  // （resolveEnemyActionOutcome()能解析成個別傷害或亂戰傷害），否則敵人出招時0傷害，
-  // 迴避有沒有成功根本看不出差別（CLAUDE.md §19：解析不到就不發明數值，所以只能挑
-  // 資料完整的敵人）。這裡用Math.random()而不是fieldSeededIndex()：結果只在按下按鈕的
-  // 這台裝置決定一次、寫進meta.battleSim後全員共用，不需要跨裝置決定性。
+  // 戰鬥模擬用的敵人（2026-09-22使用者明確規格「必須產生有聯結點陣圖敵人的戰鬥 不可為沒有
+  // 點陣圖連結的」）：只從「登錄表有對應sheet且該sheet已產出（available:true）」的敵人裡挑
+  // ——sheetFileFor()就是renderFieldEncounterPanel()決定要不要疊sprite的同一條判定，這裡
+  // 直接重用，保證挑到的敵人進戰鬥一定會顯示點陣圖動畫。在這批裡再優先挑「每一招都算得出
+  // 傷害」的（resolveEnemyActionOutcome()能解析成個別傷害或亂戰傷害），否則敵人出招時
+  // 0傷害，迴避有沒有成功根本看不出差別（CLAUDE.md §19：解析不到就不發明數值）。
+  // 一隻都沒有（sheet全部未產出）就回傳null，呼叫端alert說明、不寫入meta。
+  // 這裡用Math.random()而不是fieldSeededIndex()：結果只在按下按鈕的這台裝置決定一次、
+  // 寫進meta.battleSim後全員共用，不需要跨裝置決定性。
   function pickBattleSimEnemy() {
     var Enemies = window.PriTestEnemies;
+    var Sprite = window.PriTestMidnightSprite;
     var all = Enemies ? Enemies.allEnemies() : [];
-    var usable = all.filter(function (rec) {
+    var withSprite = all.filter(function (rec) {
+      return !!(Sprite && Sprite.sheetFileFor(rec.familyId, rec.enemy.id, false));
+    });
+    if (!withSprite.length) return null;
+    var usable = withSprite.filter(function (rec) {
       var actions = rec.enemy.actions || [];
       if (!actions.length) return false;
       return actions.every(function (a) {
@@ -1729,9 +1738,12 @@
         return INDIVIDUAL_DAMAGE_RE.test(noteJa) || INDIVIDUAL_DAMAGE_RE.test(noteZh) || GROUP_DAMAGE_RE.test(noteJa) || GROUP_DAMAGE_RE.test(noteZh);
       });
     });
-    var pool = usable.length ? usable : all;
-    if (!pool.length) return null;
+    var pool = usable.length ? usable : withSprite;
     return pool[Math.floor(Math.random() * pool.length)];
+  }
+
+  function battleSimEnabled() {
+    return !!(meta && meta.battleSim && meta.battleSim.enemyFamilyId);
   }
 
   // 使用者明確規格「需要輸入nightnight密碼」：只有「開啟」需要密碼，取消不用（跟測試模式
@@ -1744,7 +1756,10 @@
     var input = window.prompt(window.I18N.t("midnight_lobby_battle_sim_password_prompt"));
     if (input !== LOBBY_TEST_PASSWORD) return;
     var picked = pickBattleSimEnemy();
-    if (!picked) return;
+    if (!picked) {
+      window.alert(window.I18N.t("midnight_lobby_battle_sim_no_sprite_alert"));
+      return;
+    }
     GameStorage.rtSet(gameId, "cloud", "meta/battleSim", {
       enemyFamilyId: picked.familyId,
       enemyId: picked.enemy.id,
@@ -2487,7 +2502,9 @@
     el("midnight-hud").hidden = !started;
     if (started && !gameViewInitialized) {
       gameViewInitialized = true;
-      setMapExpanded(true);
+      // 戰鬥模擬房（2026-09-22使用者明確規格「地圖也不會展開」）：開局維持收合狀態，
+      // 直接進戰鬥畫面；一般房間照舊展開地圖。
+      setMapExpanded(!battleSimEnabled());
       if (mySlot) {
         var rand = Math.random;
         var spawn = findWalkableSpawnNear(map.dayPlan.day1.start, rand);
@@ -20771,6 +20788,10 @@
   // 不應該共用同一個旗標，見renderIntroOverlay()對#midnight-pause-overlay完全不觸碰）。
   var INTRO_DURATION_MS = 10000;
   function introActive(now) {
+    // 戰鬥模擬房（2026-09-22使用者明確規格「模擬戰鬥不會產生一開始的靈鳥飛行說明」）：
+    // 完全不播進場動畫，開局直接進入識別資訊準備→戰鬥。其餘所有introActive()的呼叫端
+    // （移動鎖定、canvas淡入、覆蓋層）都自然跟著關閉。
+    if (battleSimEnabled()) return false;
     return !!(meta && meta.sessionStartAt && now - meta.sessionStartAt < INTRO_DURATION_MS);
   }
 
