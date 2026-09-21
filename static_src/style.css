@@ -4290,7 +4290,8 @@ button {
 }
 
 #midnight-merchant-prompt-name,
-#midnight-blessing-prompt-name {
+#midnight-blessing-prompt-name,
+#midnight-tower-prompt-name {
   margin: 0 0 0.3rem;
   font-weight: bold;
 }

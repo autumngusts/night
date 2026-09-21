@@ -52,6 +52,13 @@ BODY = """    <div class="midnight-wrap">
       </div>
 
       <div id="midnight-lobby" hidden>
+        <!-- 流程簡介（使用者明確規格「測試模式選項上面有『流程簡介』，打開後播放打字機
+             直到按下右上X」；2026-09-22改為「放置在圓桌的上方」＝等待房最上方、円卓標題之前）：
+             純本地端展示視窗，不涉及任何共享state，開關只影響自己這台裝置的畫面，見
+             static/midnight.jsのhandleFlowIntroOpenClick()/handleFlowIntroCloseClick()。 -->
+        <div class="wb-row">
+          <button type="button" id="btn-midnight-flow-intro-open" data-i18n="midnight_flow_intro_open_button"></button>
+        </div>
         <h2 data-i18n="midnight_lobby_title"></h2>
         <div id="midnight-lobby-slots"></div>
         <div id="midnight-lobby-join-form" hidden>
@@ -158,13 +165,6 @@ BODY = """    <div class="midnight-wrap">
         <div class="wb-row" id="midnight-lobby-battle-sim-row">
           <button type="button" id="btn-midnight-lobby-battle-sim"></button>
           <span class="hint" id="midnight-lobby-battle-sim-status"></span>
-        </div>
-        <!-- 流程簡介（使用者明確規格「測試模式選項上面有『流程簡介』，打開後播放打字機
-             直到按下右上X」）：純本地端展示視窗，不涉及任何共享state，開關只影響自己這台
-             裝置的畫面，見static/midnight.jsのhandleFlowIntroOpenClick()/
-             handleFlowIntroCloseClick()。 -->
-        <div class="wb-row">
-          <button type="button" id="btn-midnight-flow-intro-open" data-i18n="midnight_flow_intro_open_button"></button>
         </div>
         <!-- 測試模式（2026-09-09合併，使用者明確規格「測試模式與debug模式合併為一」）：
              原本private/main的獨立Debug模式（可調整盧恩/獲得武器/回滿FP/復歸回滿血/快速
@@ -1167,6 +1167,10 @@ BODY = """    <div class="midnight-wrap">
              #midnight-tower-puzzle-modal自動彈出（見static/midnight.js的
              renderTowerOverlay()）。 -->
         <div id="midnight-tower-prompt" hidden>
+          <!-- 2026-09-22使用者明確規格「魔術師塔 banner有讀條的地方 上方也要顯示『魔術師塔』文字
+               標示此板塊」：比照商人／祝福籌碼的名稱列，進入鍵與邀請讀條兩種狀態都顯示，內容
+               由fieldLocationName(pt)取fields_data_4.js card_10的名稱（不硬編）。 -->
+          <p id="midnight-tower-prompt-name"></p>
           <button type="button" id="btn-midnight-tower-enter" data-i18n="midnight_tower_enter_button"></button>
           <!-- 2026-09-13使用者明確要求「魔術師塔以及其他板塊進入等，設定的等待時間中都在
                banner中讀條顯示」：邀請時限（FIELD_INVITE_TIME_LIMIT_MS）原本只有受邀者看得到

@@ -11054,6 +11054,10 @@
       return;
     }
     promptEl.hidden = false;
+    // 2026-09-22使用者明確規格「banner有讀條的地方 上方也要顯示『魔術師塔』文字標示此板塊」：
+    // 名稱列在進入鍵／邀請讀條兩種狀態都顯示，來源同邀請文字用的fieldLocationName()。
+    var towerNameEl = el("midnight-tower-prompt-name");
+    if (towerNameEl) towerNameEl.textContent = fieldLocationName(pt);
     var invite = towerInvites[pt.id];
     var amParticipant = !!(invite && invite.participants && invite.participants[mySlot]);
     if (!invite) {
