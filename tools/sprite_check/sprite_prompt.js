@@ -1,9 +1,16 @@
 // 各 sheet の生成 prompt を出力する（画像生成そのものは専案外の外部サービスで行う）。
 //
-//   node tools/sprite_check/sprite_prompt.js                 # 全60組
-//   node tools/sprite_check/sprite_prompt.js family_dragon_a # 指定の1組だけ
+//   node tools/sprite_check/sprite_prompt.js                      # 全60組（1組で完結する長い prompt）
+//   node tools/sprite_check/sprite_prompt.js family_dragon_a      # 指定の1組だけ
+//   node tools/sprite_check/sprite_prompt.js --format=preamble    # 画風契約（会話の最初に1回だけ貼る）
+//   node tools/sprite_check/sprite_prompt.js --format=short       # 1組1行（preamble を貼ったあと流す）
+//   node tools/sprite_check/sprite_prompt.js --format=json        # 自前スクリプト/API から回す用
 //
 // prompt の骨格を1箇所に集約することで、60組の画風が散らからないようにする（spec §11）。
+//
+// ChatGPT のような会話型サービスに流すなら preamble + short の2段構えを推奨する。
+// 画風契約を会話の先頭で1回だけ確定させたほうが、60組ぶん毎回貼り直すより一貫性が出るし、
+// 貼る量も桁違いに少ない。single-shot の API なら従来の長い prompt（既定）をそのまま使う。
 const fs = require("fs");
 const path = require("path");
 const vm = require("vm");
@@ -67,19 +74,19 @@ function membersOf(sheetId) {
   return out;
 }
 
-const only = process.argv[2];
-R.listSheets().forEach(function (s) {
-  if (only && s.id !== only) return;
-  console.log("=== " + s.id + " -> " + s.file + " ===");
+// 1 組ぶんの素材を組み立てる。出力形式はあとで選ぶだけにして、内容はここ 1 箇所に集約する。
+function entryOf(s) {
   if (s.id.indexOf("boss_") === 0) {
-    console.log(STYLE + ", " + ROWS);
-    console.log(
-      'subject: Elden Ring Nightreign night lord "' +
+    return {
+      id: s.id,
+      file: s.file,
+      kind: "boss",
+      subject:
+        'Elden Ring Nightreign night lord "' +
         s.id.replace("boss_", "") +
-        '", boss scale, imposing silhouette'
-    );
-    console.log("");
-    return;
+        '", boss scale, imposing silhouette',
+      members: [],
+    };
   }
   const members = membersOf(s.id);
   const fam = FAMILIES.filter(function (f) {
@@ -89,9 +96,11 @@ R.listSheets().forEach(function (s) {
   members.forEach(function (e) {
     sizes[e.size] = true;
   });
-  console.log(STYLE + ", " + ROWS);
-  console.log(
-    "subject: " +
+  return {
+    id: s.id,
+    file: s.file,
+    kind: "family",
+    subject:
       (fam ? fam.name.ja + " / " + fam.name.zh : s.id) +
       ", size class " +
       Object.keys(sizes).join("+") +
@@ -104,7 +113,66 @@ R.listSheets().forEach(function (s) {
         .join("、") +
       " (" +
       members.length +
-      " enemies share this sheet)"
+      " enemies share this sheet)",
+    members: members.map(function (e) {
+      return e.name.ja;
+    }),
+  };
+}
+
+const args = process.argv.slice(2);
+const fmtArg = args.filter(function (a) {
+  return a.indexOf("--format=") === 0;
+})[0];
+const format = fmtArg ? fmtArg.split("=")[1] : "full";
+const only = args.filter(function (a) {
+  return a.indexOf("--") !== 0;
+})[0];
+
+const entries = R.listSheets()
+  .filter(function (s) {
+    return !only || s.id === only;
+  })
+  .map(entryOf);
+
+const PREAMBLE =
+  "You are generating a set of " +
+  R.listSheets().length +
+  " sprite sheets for one game. Every sheet MUST share the exact same art style, " +
+  "line weight, palette and cell layout — treat the following as a fixed contract " +
+  "for the whole session, and apply it to every sheet I ask for afterwards " +
+  "without me repeating it.\n\n" +
+  STYLE +
+  ", " +
+  ROWS +
+  "\n\nI will then send one short line per sheet, in the form:\n" +
+  "  <filename> — subject: <what the creature is>\n" +
+  "Reply with only the image for that sheet. Keep the style identical to the contract above.";
+
+if (format === "json") {
+  // 自前のスクリプトや API から回すとき用。style / rows / preamble を分けて持たせるので、
+  // 「毎回 style を足す」も「preamble を 1 回だけ流して短い行を 60 回」もどちらも組める。
+  console.log(
+    JSON.stringify(
+      { style: STYLE, rows: ROWS, preamble: PREAMBLE, count: entries.length, sheets: entries },
+      null,
+      2
+    )
   );
-  console.log("");
-});
+} else if (format === "preamble") {
+  // ChatGPT などの会話型サービスに最初の 1 回だけ貼るぶん。
+  console.log(PREAMBLE);
+} else if (format === "short") {
+  // preamble を貼ったあと、1 組 1 行で流すぶん。
+  entries.forEach(function (e) {
+    console.log(e.file + " — subject: " + e.subject);
+  });
+} else {
+  // 従来どおり、1 組で完結する長い prompt（1 回きりの生成や単発の作り直し向け）。
+  entries.forEach(function (e) {
+    console.log("=== " + e.id + " -> " + e.file + " ===");
+    console.log(STYLE + ", " + ROWS);
+    console.log("subject: " + e.subject);
+    console.log("");
+  });
+}
