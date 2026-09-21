@@ -27,7 +27,7 @@
     { id: "family_formless_other_b", file: "family_formless_other_b.png", available: false },
     { id: "family_attacker_mage_a", file: "family_attacker_mage_a.png", available: false },
     { id: "family_attacker_mage_b", file: "family_attacker_mage_b.png", available: false },
-    { id: "family_soldier_knight_a", file: "family_soldier_knight_a.png", available: false },
+    { id: "family_soldier_knight_a", file: "family_soldier_knight_a.png", available: true },
     { id: "family_soldier_knight_b", file: "family_soldier_knight_b.png", available: false },
     { id: "family_dog_wolf_a", file: "family_dog_wolf_a.png", available: false },
     { id: "family_dog_wolf_b", file: "family_dog_wolf_b.png", available: false },

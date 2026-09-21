@@ -18,6 +18,10 @@
 //   ⑤ 敵人攻擊排程照既有 pipeline 跑起來（nextAttackAt → enemyAttack）
 //   ⑥ 逃離後不會卡死：候選重新出現時走既有的［進入戰鬥］讀條流程重新加入
 //   ⑦ 再按一次按鈕（取消）→ meta.battleSim 清空（取消不需要密碼）
+//   ⑧（2026-09-22 第2批）抽中的敵人必須有已產出的 sprite sheet（registry available:true）
+//   ⑨（同上）開局不播靈鳥進場動畫、地圖維持收合
+//   ⑩（同上）勾選點陣圖戰鬥模式後，戰鬥中 sprite 舞台真的顯示、idle 循環在動、敵人出招時
+//      切到對應攻擊動畫、被打時 hurt、HP 歸零時 death（hold 在最後一幀）
 // ============================================================================
 
 const { chromium } = require("playwright");
@@ -52,6 +56,13 @@ async function joinLobby(page, passcode) {
 const waitFor = (page, fn, arg, timeout) => page.waitForFunction(fn, arg, { timeout: timeout || META_WAIT_MS });
 const state = (page) => page.evaluate(() => window.PriTestMidnight._debugState());
 
+// 一般攻擊鍵綁的是 mousedown/mouseup（長按會開特殊攻擊選單），CLAUDE.md §4.6：用 dispatchEvent。
+async function tapAttack(page) {
+  await page.dispatchEvent("#btn-midnight-attack-shared-target", "mousedown");
+  await page.waitForTimeout(60);
+  await page.dispatchEvent("#btn-midnight-attack-shared-target", "mouseup");
+}
+
 // 按下按鈕會跳 window.prompt：一次性掛 dialog handler 回答指定內容（null＝取消）。
 async function clickBattleSim(page, answer) {
   page.once("dialog", async (dialog) => {
@@ -79,6 +90,10 @@ async function clickBattleSim(page, answer) {
     await waitFor(pageB, () => window.PriTestMidnight && window.PriTestMidnight._debugState().meta);
     await joinLobby(pageA, "1234");
     await joinLobby(pageB, "5678");
+    // 點陣圖戰鬥模式（動畫顯示的前提，使用者明確規格「需要在等待房勾選才生效」）
+    await pageA.check("#midnight-lobby-sprite-mode-checkbox");
+    await waitFor(pageA, () => window.PriTestMidnight._debugState().meta.spriteMode === true);
+    await waitFor(pageB, () => window.PriTestMidnight._debugState().meta.spriteMode === true);
 
     console.log("=== ① 密碼錯誤／取消都不會寫入 meta.battleSim ===");
     const hintBefore = await pageA.textContent("#midnight-lobby-battle-sim-status");
@@ -113,6 +128,17 @@ async function clickBattleSim(page, answer) {
     }, sim);
     assert(enemyOk.exists, "抽中的敵人存在於 enemies_data", enemyOk);
     assert(enemyOk.allParse, "抽中的敵人每一招都能算出傷害（迴避才看得出差別）", enemyOk);
+    console.log("=== ⑧ 抽中的敵人必須有已產出的 sprite sheet ===");
+    const sheetInfo = await pageA.evaluate((s) => {
+      const R = window.PriTestEnemySpriteRegistry;
+      const id = R.sheetIdForEnemy(s.enemyFamilyId, s.enemyId);
+      const sheet = id ? R.getSheet(id) : null;
+      return { id, available: !!(sheet && sheet.available), file: sheet && sheet.file, sheetFileFor: window.PriTestMidnightSprite.sheetFileFor(s.enemyFamilyId, s.enemyId, false) };
+    }, sim);
+    assert(!!sheetInfo.id && sheetInfo.available, "登錄表有對應 sheet 且 available:true", sheetInfo);
+    assert(sheetInfo.sheetFileFor === sheetInfo.file, "sheetFileFor() 會回傳該 sheet 檔名（＝戰鬥中會疊 sprite）", sheetInfo);
+    const sheetHttp = await pageA.evaluate((f) => fetch("../static/images/sprites/" + f).then((r) => r.status), sheetInfo.file);
+    assert(sheetHttp === 200, "sheet 圖檔已隨 generate.py 複製到 dist（HTTP 200）", sheetHttp);
     await waitFor(pageA, () => document.querySelector("#btn-midnight-lobby-battle-sim").textContent === "取消戰鬥模擬");
     const statusAfter = await pageA.textContent("#midnight-lobby-battle-sim-status");
     assert(statusAfter.indexOf(enemyOk.name) !== -1 && statusAfter.indexOf("Lv.1") !== -1, "狀態列顯示敵人名稱與等級", statusAfter);
@@ -128,6 +154,18 @@ async function clickBattleSim(page, answer) {
     await pageB.click("#btn-midnight-lobby-ready");
     await waitFor(pageA, () => window.PriTestMidnight._debugState().meta.sessionStartAt);
     await waitFor(pageB, () => window.PriTestMidnight._debugState().meta.sessionStartAt);
+    console.log("=== ⑨ 不播靈鳥進場動畫、地圖不展開 ===");
+    await pageA.waitForTimeout(700); // 讓幾個影格跑過去（一般房間此時 intro overlay 已顯示、地圖已展開）
+    const openState = await pageA.evaluate(() => ({
+      introHidden: document.querySelector("#midnight-intro-overlay").hidden,
+      mapPanelHidden: document.querySelector("#midnight-map-panel").hidden,
+      mapExpanded: window.PriTestMidnight._debugState().mapExpanded,
+      canvasOpacity: document.querySelector("#midnight-canvas").style.opacity,
+      sinceStart: Date.now() - window.PriTestMidnight._debugState().meta.sessionStartAt,
+    }));
+    assert(openState.introHidden && openState.sinceStart < 10000, "開局 10 秒內 intro overlay 仍是隱藏（沒有靈鳥飛行說明）", openState);
+    assert(!openState.mapExpanded && openState.mapPanelHidden, "地圖沒有展開（mapExpanded=false、地圖面板隱藏）", openState);
+    assert(openState.canvasOpacity === "", "canvas 沒有套進場淡入", openState);
     await waitFor(pageA, () => {
       const s = window.PriTestMidnight._debugState();
       return !!(s.fieldTriggers.battleSim && typeof s.fieldEnemyHp.battleSim === "number");
@@ -145,6 +183,70 @@ async function clickBattleSim(page, answer) {
     const panelShown = await pageA.evaluate(() => !document.querySelector("#midnight-field-encounter").hidden);
     const shownName = await pageA.textContent("#midnight-field-encounter-name");
     assert(panelShown && shownName === enemyOk.name, "遭遇面板顯示抽中的敵人名稱", shownName);
+
+    console.log("=== ⑩ sprite 舞台顯示且動畫真的在跑 ===");
+    const stage0 = await pageA.evaluate(() => {
+      const st = document.querySelector("#midnight-enemy-sprite-stage");
+      if (!st) return null;
+      return { hidden: st.hidden, bg: st.style.backgroundImage, w: st.offsetWidth, h: st.offsetHeight, anim: window.PriTestMidnightSprite.currentAnimId() };
+    });
+    assert(!!stage0 && !stage0.hidden, "#midnight-enemy-sprite-stage 已 mount 且顯示", stage0);
+    assert(!!stage0 && stage0.bg.indexOf(sheetInfo.file) !== -1, "舞台 background-image 指向該 sheet", stage0);
+    assert(!!stage0 && stage0.w > 0 && stage0.h === stage0.w, "舞台有實際尺寸且為正方形（cellPx 推算成立）", stage0);
+    assert(!!stage0 && stage0.anim === "idle", "初始播放 idle", stage0);
+    const imgOk = await pageA.evaluate((f) => new Promise((res) => { const im = new Image(); im.onload = () => res({ w: im.naturalWidth, h: im.naturalHeight }); im.onerror = () => res(null); im.src = "../static/images/sprites/" + f; }), sheetInfo.file);
+    assert(!!imgOk && imgOk.w === (imgOk.h / 8) * 6, "sheet 圖片可被瀏覽器解碼且為 6×8 格", imgOk);
+    // idle 6 幀 × 200ms：1.5 秒內 background-position 至少要換過 3 種值
+    const idlePositions = await pageA.evaluate(() => new Promise((res) => {
+      const seen = {};
+      const st = document.querySelector("#midnight-enemy-sprite-stage");
+      const t = setInterval(() => { seen[st.style.backgroundPosition] = true; }, 30);
+      setTimeout(() => { clearInterval(t); res(Object.keys(seen)); }, 1500);
+    }));
+    assert(idlePositions.length >= 3, "idle 循環中 background-position 持續變化（" + idlePositions.length + " 種）", idlePositions);
+    // 敵人出招 → 攻擊動畫。攻擊間隔 2~4 秒、動畫約 1 秒，連續採樣 12 秒收集出現過的 animId。
+    const animsSeen = await pageA.evaluate(() => new Promise((res) => {
+      const seen = {};
+      const t = setInterval(() => { seen[window.PriTestMidnightSprite.currentAnimId()] = true; }, 25);
+      setTimeout(() => { clearInterval(t); res(Object.keys(seen)); }, 12000);
+    }));
+    const ATTACK_ANIMS = ["line", "area", "thrust", "slam", "single"];
+    assert(animsSeen.some((a) => ATTACK_ANIMS.indexOf(a) !== -1), "敵人出招期間播放了攻擊動畫（" + animsSeen.join("/") + "）", animsSeen);
+    const atkAnim = (await state(pageA)).fieldTriggers.battleSim.enemyAttack;
+    if (atkAnim) {
+      const expectedAnim = await pageA.evaluate((a) => window.PriTestEnemyActionAnimMap.resolve(a.actionName, a.dmgKind), atkAnim);
+      assert(animsSeen.indexOf(expectedAnim) !== -1, "最近一招對照表解出的動畫（" + expectedAnim + "）確實播過", animsSeen);
+    }
+    // 玩家攻擊 → hurt（只在 idle 時插入）。先等 idle 再打。
+    await waitFor(pageA, () => window.PriTestMidnightSprite.currentAnimId() === "idle", null, 8000);
+    const hpBeforeHit = (await state(pageA)).fieldEnemyHp.battleSim;
+    await tapAttack(pageA); // 一般攻擊是 mousedown→mouseup（bindAttackHoldInput()），不是 click
+    const hurtSeen = await pageA.evaluate(() => new Promise((res) => {
+      const seen = {};
+      const t = setInterval(() => { seen[window.PriTestMidnightSprite.currentAnimId()] = true; }, 15);
+      setTimeout(() => { clearInterval(t); res(Object.keys(seen)); }, 1500);
+    }));
+    await waitFor(pageA, (hp) => window.PriTestMidnight._debugState().fieldEnemyHp.battleSim < hp, hpBeforeHit, 5000);
+    assert(hurtSeen.indexOf("hurt") !== -1, "玩家命中後播放 hurt（" + hurtSeen.join("/") + "）", hurtSeen);
+    // HP 墊到 1 再打一擊 → death 並 hold 在最後一幀
+    await pageA.evaluate((gameId) => window.PriTestGameStorage.rtSet(gameId, "cloud", "fieldEnemyHp/battleSim", 1), sA.gameId);
+    await waitFor(pageA, () => window.PriTestMidnight._debugState().fieldEnemyHp.battleSim === 1);
+    await waitFor(pageA, () => window.PriTestMidnightSprite.currentAnimId() === "idle", null, 8000);
+    await tapAttack(pageA); // 一般攻擊是 mousedown→mouseup（bindAttackHoldInput()），不是 click
+    await waitFor(pageA, () => window.PriTestMidnightSprite.currentAnimId() === "death", null, 5000);
+    await pageA.waitForTimeout(1300); // death 6 幀 × 160ms ＝ 960ms，之後 hold
+    const deathState = await pageA.evaluate(() => ({ anim: window.PriTestMidnightSprite.currentAnimId(), pos: document.querySelector("#midnight-enemy-sprite-stage").style.backgroundPosition, hp: window.PriTestMidnight._debugState().fieldEnemyHp.battleSim }));
+    assert(deathState.hp === 0 && deathState.anim === "death", "HP 歸零後播放 death 並 hold（不回 idle）", deathState);
+    // 敵人死亡後遭遇面板會收起、舞台 offsetWidth 變 0，不能再用 backgroundPosition() 反算；
+    // 直接從實際值反推格寬：x 必須是 5 格（frame 5）、y 必須是 7 格（row 7）。
+    const posM = /^-(\d+)px -(\d+)px$/.exec(deathState.pos) || [];
+    const cellFromX = posM[1] ? parseInt(posM[1], 10) / 5 : NaN;
+    const cellFromY = posM[2] ? parseInt(posM[2], 10) / 7 : NaN;
+    assert(cellFromX > 0 && cellFromX === cellFromY, "death hold 在最後一幀（row 7, frame 5，格寬 " + cellFromX + "px）", deathState.pos);
+    // 死亡後 activeEncounter 結束；後續 ⑤⑥ 需要活著的敵人，把 HP 回滿並重新進入。
+    await pageA.evaluate((args) => window.PriTestGameStorage.rtSet(args.gameId, "cloud", "fieldEnemyHp/battleSim", args.hp), { gameId: sA.gameId, hp: expectedHp });
+    await waitFor(pageA, () => (window.PriTestMidnight._debugState().activeEncounter || {}).id === "battleSim", null, 15000);
+    await waitFor(pageB, () => (window.PriTestMidnight._debugState().activeEncounter || {}).id === "battleSim", null, 15000);
 
     console.log("=== ⑤ 敵人攻擊排程沿用既有 pipeline ===");
     await waitFor(pageA, () => !!(window.PriTestMidnight._debugState().fieldTriggers.battleSim || {}).nextAttackAt, null, 8000).catch(() => {});

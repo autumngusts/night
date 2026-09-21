@@ -10,6 +10,7 @@
     "gen:registry": "node sprite_registry_gen.js --write",
     "test:registry": "node sprite_registry_check.js",
     "gen:prompt": "node sprite_prompt.js",
+    "gen:placeholder": "node sprite_placeholder_gen.js",
     "verify": "node sprite_verify.js",
     "pack": "node sprite_pack.js --write",
     "test:verify": "node sprite_verify_check.js"

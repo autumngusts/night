@@ -77,12 +77,24 @@ BOSSES.forEach(function (id) {
   ok(!!R.sheetIdForBoss(id), "夜王登録あり: " + id);
 });
 
-console.log("[本階段は全て未産出]");
+// 2026-09-22 まで「全 sheet が available:false」を断言していたが、等待房の戦闘シミュレーション
+// （midnight.js の pickBattleSimEnemy()）が available:true の sheet を必要とするため、占位 sheet
+// （tools/sprite_check/sprite_placeholder_gen.js）を1枚産出して true にした。以後は
+// 「available の値がディスク上の画像の有無と一致している」ことを検査する（sprite_pack.js の
+// 結果が登録表に正しく反映されているかの検査）。
+console.log("[available とディスクの一致]");
+const SPRITE_DIR = path.join(ROOT, "static_src", "images", "sprites");
+const V = require("./sprite_verify.js");
+R.listSheets().forEach(function (s) {
+  const file = path.join(SPRITE_DIR, s.file);
+  const onDisk = fs.existsSync(file) && V.verifyFile(file).ok;
+  ok(s.available === onDisk, s.id + ": available=" + s.available + " ／ 合格画像" + (onDisk ? "あり" : "なし"));
+});
 ok(
-  R.listSheets().every(function (s) {
-    return s.available === false;
+  R.listSheets().some(function (s) {
+    return s.available === true;
   }),
-  "全 sheet が available:false（画像がまだ無いので fallback に落ちる）"
+  "少なくとも1枚は available:true（戦闘シミュレーションが敵を選べる）"
 );
 
 console.log(fail === 0 ? "\nすべてOK" : "\n" + fail + " 件 FAIL");
