@@ -172,7 +172,13 @@ const ANIM_PREAMBLE =
   "Hard requirements for every sheet from here on:\n" +
   "1. ONE creature only. All 48 cells show the SAME creature — never a lineup of " +
   "different creatures. Reuse the design you already drew for it in the roster.\n" +
-  "2. Exactly 6 columns x 8 rows of identical SQUARE cells, evenly spaced.\n" +
+  "2. Canvas exactly 1536 x 2048 pixels: 6 columns x 8 rows of 256x256 SQUARE cells, " +
+  "evenly spaced. Exactly 6 columns, not 7. The last attempt came back 7 wide at " +
+  "1536x1024, which makes each cell 219x128 instead of square.\n" +
+  "2b. Leave margin inside every cell. The creature AND its effects together should " +
+  "occupy about 80% of the cell and must not touch the cell edges. In the last attempt " +
+  "46 of the 48 cells ran into the row above or below, so breath, dust and sweep " +
+  "effects were cut off at the boundary.\n" +
   "3. Each ROW is one action, read left to right as 6 consecutive animation frames:\n" +
   "   " +
   ROWS.replace("row order: ", "") +
