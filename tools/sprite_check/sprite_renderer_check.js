@@ -46,5 +46,31 @@ ok(
 ok(P.sheetFileFor("no_such_family", "no_such_enemy", false) === null, "未登録も null");
 ok(P.sheetFileFor(null, "maris", true) === null, "夜王も available:false なので null");
 
+// 2026-09-21 使用者明確規格「背景仍舊顯示元圖片，產生的點陣圖敵人顯示在圖片的頂層」。
+// 疊放是 CSS 與呼叫端的分工，DOM 驗證需要 Playwright，所以這裡用靜態檢查擔保。
+console.log("[插圖の上に重ねる契約]");
+const css = fs.readFileSync(path.join(ROOT, "static_src", "style.css"), "utf8");
+const stageRule = (css.split("#midnight-enemy-sprite-stage {")[1] || "").split("}")[0];
+ok(stageRule.indexOf("position: absolute") !== -1, "舞台は position:absolute（插圖の上に重なる）");
+ok(stageRule.indexOf("pointer-events: none") !== -1, "舞台は pointer-events:none（下のクリックを塞がない）");
+ok(
+  stageRule.indexOf("aspect-ratio: 1 / 1") !== -1,
+  "舞台は正方形（syncCellPx が offsetWidth を縦横兼用するため）"
+);
+ok(stageRule.indexOf("z-index") === -1, "z-index は付けない（DOM 順で 插圖 < 舞台 < 命中特效 になる）");
+
+// 呼び出し側：sprite が出ても <img> を隠さない形になっているか。
+// 夜王分支の nameless（名冊に立繪なし）用の imgEl.hidden = true は残すべき別物なので、
+// 「隠す行が無いこと」ではなく「新しい呼び出し形になっていること」を正として検査する。
+const mnSrc = fs.readFileSync(path.join(ROOT, "static_src", "midnight.js"), "utf8");
+ok(
+  mnSrc.indexOf('el("midnight-field-encounter-image").hidden = true;') === -1,
+  "一般敵分支で <img> を隠す行が消えている（插圖は背景として残す）"
+);
+ok(
+  (mnSrc.match(/if \(!\(\w+ && window\.PriTestMidnightSprite\.showSprite\(/g) || []).length === 2,
+  "両分支とも showSprite() の失敗時だけ showStatic() に落ちる形（成功時に <img> を触らない）"
+);
+
 console.log(fail === 0 ? "\nすべてOK" : "\n" + fail + " 件 FAIL");
 process.exit(fail === 0 ? 0 : 1);

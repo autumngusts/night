@@ -7103,12 +7103,6 @@ html.midnight-top-banner-collapsed .midnight-top-banner-collapse-btn {
     max-height: 45vw;
   }
 
-  /* 敵人 sprite 舞台（2026-09-21）：跟上面的靜止畫同尺寸，兩者換手時框不會跳動。
-     舞台的寬度是自己的、不依賴 <img> 是否在流內，理由見桌機版同選擇器的說明。 */
-  #midnight-enemy-sprite-stage {
-    width: 45vw;
-  }
-
   #midnight-hud-bottom-right {
     max-width: 52vw;
     gap: 0.25rem;
@@ -7498,16 +7492,31 @@ html.midnight-top-banner-collapsed .midnight-top-banner-collapse-btn {
 }
 
 /* 敵人 sprite 舞台（2026-09-21）：用 background-position 從 sheet 切出1幀。
-   圖片還沒產出的期間一直維持 hidden，看到的仍是既有的 #midnight-field-encounter-image。
-   寬度不能用100%：父層 #midnight-field-encounter-image-wrap 是 inline-block，寬度是由
-   子元素撐出來的，而 sprite 顯示時 <img> 會被藏起來——這時 100% 會算成 0，舞台變成
-   0×0，連帶 midnight_sprite.js 的 cellPx（讀 offsetWidth）也會退回寫死的128，
-   background-size 就跟實際尺寸脫節。所以這裡給明確寬度，數值比照同一張圖既有的
-   #midnight-field-encounter-image（桌機420px、手機版45vw，見該選擇器的說明）。 */
+   2026-09-21 使用者明確規格改版：sprite 不再取代原插圖，而是「背景仍舊顯示元圖片，
+   產生的點陣圖敵人顯示在圖片的頂層」。因此改成 position:absolute 疊在 <img> 正上方。
+
+   不需要 z-index：父層 #midnight-field-encounter-image-wrap 裡的 DOM 順序是
+   舞台（mount() 插在 firstChild）→ <img> → #midnight-enemy-hit-effect →
+   #midnight-enemy-ailment-effect。<img> 沒有定位、舞台有，所以舞台一定畫在圖片之上；
+   兩個特效同樣有定位且 DOM 在後面，所以仍然畫在舞台之上——刀光與屬性光暈本來就該蓋在
+   敵人身上，這個堆疊順序剛好就是要的，不用額外指定 z-index。
+
+   寬度改回 100%：舊版寫死 420px 是因為 sprite 顯示時 <img> 會被藏起來，inline-block
+   的父層寬度會算成 0。現在 <img> 一直留著當背景，父層寬度恆等於圖片的實際渲染寬度，
+   100% 才是對的——順便解掉舊版「舞台固定 420px 而非跟著圖片縮放」的已知落差，
+   手機版也不必再另外指定 45vw（已移除該段）。
+   aspect-ratio 維持 1/1：sheet 的單格是正方形，midnight_sprite.js 的 syncCellPx()
+   用 offsetWidth 同時當寬與高，舞台不是正方形的話切幀就會歪掉。
+
+   pointer-events:none：舞台純粹是表現層，不能擋住底下/周圍的點擊（例如逃離戰鬥）。 */
 #midnight-enemy-sprite-stage {
-  width: 420px;
-  max-width: 100%;
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 100%;
   aspect-ratio: 1 / 1;
   background-repeat: no-repeat;
   image-rendering: pixelated;
+  pointer-events: none;
 }

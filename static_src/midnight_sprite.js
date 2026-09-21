@@ -45,8 +45,11 @@
   // DOM 所有權：這個模組只擁有自己建立的 #midnight-enemy-sprite-stage，絕不去動
   // #midnight-field-encounter-image（那是 midnight.js 的）。夜王分支對名冊裡沒有立繪的
   // 敵人（nameless，劇本10専用）是刻意把 <img> 藏起來的，這裡若順手翻它的 hidden，
-  // 就會把前一隻敵人殘留的 src 或空 src 露出來。img 的可見性一律交給呼叫端決定，
-  // 所以 showSprite() 用回傳值告訴呼叫端「舞台真的顯示出來了」。
+  // 就會把前一隻敵人殘留的 src 或空 src 露出來。img 的可見性一律交給呼叫端決定。
+  //
+  // 2026-09-21 使用者明確規格改版：sprite 不再取代插圖，而是「背景仍舊顯示元圖片，
+  // 產生的點陣圖敵人顯示在圖片的頂層」。舞台用 position:absolute 疊在 <img> 正上方
+  // （堆疊順序見 style.css 同選擇器的說明），所以呼叫端在 sprite 顯示時也不再去藏 <img>。
 
   function mount(wrapEl) {
     if (!wrapEl || stageEl) return;
@@ -72,8 +75,9 @@
     stageEl.style.backgroundSize = S.SHEET_COLS * cellPx + "px " + S.SHEET_ROWS * cellPx + "px";
   }
 
-  // 回傳 true＝sprite 舞台已顯示（呼叫端應該把靜止畫的 <img> 藏起來）；
-  // 回傳 false＝顯示不了（例如 stageEl 還沒 mount），呼叫端要維持既有的靜止畫狀態。
+  // 回傳 true＝sprite 舞台已顯示（疊在插圖之上）；
+  // 回傳 false＝顯示不了（例如 stageEl 還沒 mount），呼叫端要改叫 showStatic() 收掉舞台。
+  // 不論回傳什麼，呼叫端都不該去動 <img> 的 hidden——插圖一律留著當背景。
   function showSprite(sheetFile, staticPrefix) {
     if (!stageEl) return false;
     stageEl.style.backgroundImage =

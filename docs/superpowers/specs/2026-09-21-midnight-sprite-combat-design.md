@@ -70,6 +70,28 @@ enemyAttack 產生 → ⚠ 閃爍 0.5 秒（ENEMY_ATTACK_WARN_MS）
 - sprite 尚未產出時遊戲照常運作（走 fallback），管線不會阻塞玩法開發。
 - 日後若要整批替換美術風格，判定與規則一行都不用改。
 
+### 4.1 sprite 與原插圖的疊放（2026-09-21 使用者明確規格改版）
+
+初版是「sprite 取代原插圖」（顯示 sprite 時把 `<img>` 藏起來）。改為**兩者並存**：
+
+> 背景仍舊顯示元圖片，產生的點陣圖敵人顯示在圖片的頂層。
+
+- `#midnight-enemy-sprite-stage` 改成 `position: absolute` 疊在 `<img>` 正上方，
+  `width: 100%` ＋ `aspect-ratio: 1 / 1`，跟著插圖的實際渲染寬度縮放。
+- **不指定 `z-index`**：`#midnight-field-encounter-image-wrap` 裡的 DOM 順序本來就是
+  舞台（`mount()` 插在 `firstChild`）→ `<img>` → `#midnight-enemy-hit-effect` →
+  `#midnight-enemy-ailment-effect`。`<img>` 沒有定位、舞台有定位，所以舞台必定畫在插圖
+  之上；兩個特效同樣有定位且 DOM 在後面，所以仍畫在舞台之上——刀光與屬性光暈本來就
+  應該蓋在敵人身上，這個堆疊順序剛好就是要的。
+- 舞台加 `pointer-events: none`，純表現層不攔截點擊（例如逃離戰鬥按鈕）。
+- 呼叫端（`renderFieldEncounterPanel()`）在 sprite 顯示成功時**不再動 `<img>.hidden`**。
+  夜王分支對 nameless（名冊無立繪）刻意隱藏 `<img>` 的既有邏輯保持不變——那種情況下
+  畫面上就只會有 sprite。
+- 副作用：舊版把舞台寫死 420px 是因為「sprite 顯示時 `<img>` 被藏起來，inline-block
+  父層寬度會算成 0」。插圖既然一直留著，這個理由消失，改用 `100%` 同時解掉舊版
+  「舞台固定 420px 而非跟著圖片縮放」的已知落差（FINAL 輪 parked 的 minor），
+  手機版也不再需要另外指定 45vw。
+
 ## 5. 素材規格
 
 ### 5.1 組數

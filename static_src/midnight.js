@@ -18042,20 +18042,18 @@
       } else {
         imgEl.hidden = true;
       }
-      // 2026-09-21：sprite 已產出就顯示 sprite，未產出就照舊用靜止畫
+      // 2026-09-21：sprite 已產出就疊上 sprite，未產出就只有靜止畫
       // （設計文件 §4 的 fallback 契約）。判定側完全不變。
-      // <img> 的可見性由這裡決定、不交給 renderer：只有 sprite 真的顯示出來
-      // （showSprite() 回傳 true）才把它藏起來；否則維持上面那段既有邏輯的結果，
-      // 免得把「nameless 沒有立繪所以刻意藏起來」的判斷覆蓋掉。
+      // 2026-09-21 使用者明確規格改版：sprite 不再取代插圖——「背景仍舊顯示元圖片，
+      // 產生的點陣圖敵人顯示在圖片的頂層」。所以這裡不再動 imgEl.hidden，<img> 一律
+      // 維持上面那段既有邏輯的結果（nameless 沒有立繪時仍然是藏起來的，此時畫面上
+      // 只會有 sprite）。疊放順序由 CSS 的定位決定，見 style.css 同選擇器的說明。
       // 點陣圖戰鬥模式（2026-09-21新增，使用者明確規格「需要在等待房勾選才生效」）：
-      // 未勾選spriteModeEnabled()時直接視同沒有sheet，走既有的showStatic()路徑，
-      // 不影響上面nameless（名冊無立繪）的既有隱藏邏輯。
+      // 未勾選spriteModeEnabled()時直接視同沒有sheet，走既有的showStatic()路徑。
       var bossSheet = window.PriTestMidnightSprite && spriteModeEnabled()
         ? window.PriTestMidnightSprite.sheetFileFor(null, trig.enemyId, true)
         : null;
-      if (bossSheet && window.PriTestMidnightSprite.showSprite(bossSheet, "../static/")) {
-        imgEl.hidden = true;
-      } else if (window.PriTestMidnightSprite) {
+      if (!(bossSheet && window.PriTestMidnightSprite.showSprite(bossSheet, "../static/")) && window.PriTestMidnightSprite) {
         window.PriTestMidnightSprite.showStatic();
       }
       imgEl.alt = bossName;
@@ -18070,13 +18068,12 @@
     el("midnight-field-encounter-image").alt = name;
     // 2026-09-21：同上。available:false 期間一定會落到 showStatic() 這一側，
     // 上面剛設好的 hidden=false 就這樣保留，畫面跟改動前完全一樣。
+    // 2026-09-21 使用者明確規格改版：sprite 疊在插圖之上，不再把插圖藏起來。
     // 點陣圖戰鬥模式：同上，未勾選spriteModeEnabled()時直接視同沒有sheet。
     var sheet = window.PriTestMidnightSprite && spriteModeEnabled()
       ? window.PriTestMidnightSprite.sheetFileFor(trig.enemyFamilyId, trig.enemyId, false)
       : null;
-    if (sheet && window.PriTestMidnightSprite.showSprite(sheet, "../static/")) {
-      el("midnight-field-encounter-image").hidden = true;
-    } else if (window.PriTestMidnightSprite) {
+    if (!(sheet && window.PriTestMidnightSprite.showSprite(sheet, "../static/")) && window.PriTestMidnightSprite) {
       window.PriTestMidnightSprite.showStatic();
     }
     el("midnight-field-encounter-name").textContent = name;
