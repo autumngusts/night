@@ -17911,6 +17911,10 @@
       return;
     }
     box.hidden = false;
+    // 2026-09-21：sprite 舞台を遅延 mount（要素は encounter パネルが開いて初めて存在する）。
+    if (window.PriTestMidnightSprite) {
+      window.PriTestMidnightSprite.mount(el("midnight-field-encounter-image-wrap"));
+    }
     var trig = fieldTriggers[activeEncounter.id] || {};
     eyeBtn.hidden = !eyeAbility || !trig.enemyFamilyId;
     if (eyeAbility) eyeBtn.textContent = window.PriTestCharacterTypes.localizedText(eyeAbility.name);
@@ -17934,6 +17938,13 @@
       } else {
         imgEl.hidden = true;
       }
+      // 2026-09-21：sprite が産出済みならそちらを表示、未産出なら従来どおり静止画
+      // （設計文件 §4 の fallback 契約）。判定側は一切変わらない。
+      var bossSheet = window.PriTestMidnightSprite
+        ? window.PriTestMidnightSprite.sheetFileFor(null, trig.enemyId, true)
+        : null;
+      if (bossSheet) window.PriTestMidnightSprite.showSprite(bossSheet, "../static/");
+      else if (window.PriTestMidnightSprite) window.PriTestMidnightSprite.showStatic();
       imgEl.alt = bossName;
       el("midnight-field-encounter-name").textContent = bossName;
       return;
@@ -17944,6 +17955,12 @@
     el("midnight-field-encounter-image").hidden = false;
     el("midnight-field-encounter-image").src = window.PriTestEnemies.imagePath(data.enemy, "../static/");
     el("midnight-field-encounter-image").alt = name;
+    // 2026-09-21：同上。available:false のうちは必ず showStatic() 側に落ちる。
+    var sheet = window.PriTestMidnightSprite
+      ? window.PriTestMidnightSprite.sheetFileFor(trig.enemyFamilyId, trig.enemyId, false)
+      : null;
+    if (sheet) window.PriTestMidnightSprite.showSprite(sheet, "../static/");
+    else if (window.PriTestMidnightSprite) window.PriTestMidnightSprite.showStatic();
     el("midnight-field-encounter-name").textContent = name;
   }
 
@@ -19763,6 +19780,7 @@
     renderEnterBattlePrompt();
     renderBattlePrepBanner(now);
     renderStaggerOverlay(now); // 體崩橫幅／致命一擊按鈕（每影格變動，不能放進有快取的renderFieldEncounterPanel）
+    if (window.PriTestMidnightSprite) window.PriTestMidnightSprite.tick(now);
     renderFinalCircleCountdown(now);
     updateStamina(dtSec);
     updateSorceryHold(now);

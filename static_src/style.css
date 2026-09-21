@@ -7490,3 +7490,12 @@ html.midnight-top-banner-collapsed .midnight-top-banner-collapse-btn {
   font-size: 1.4rem;
   text-align: center;
 }
+
+/* 敵人 sprite 舞台（2026-09-21）。sheet から background-position で1幀を切り出す。
+   画像未産出のうちは hidden のままで、既存の #midnight-field-encounter-image が見える。 */
+#midnight-enemy-sprite-stage {
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  background-repeat: no-repeat;
+  image-rendering: pixelated;
+}
