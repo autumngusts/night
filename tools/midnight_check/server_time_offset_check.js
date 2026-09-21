@@ -87,9 +87,16 @@ ok(
   "warnAt の書き込み 2 箇所（夜王分支／一般分支）とも serverNow() 経由"
 );
 ok(mn.indexOf("warnAt: Date.now(),") === -1, "素の Date.now() で warnAt を書いている箇所はない");
+// 呼び出し箇所の「数」で縛ると、正当な読み出しが増えるたびに落ちる脆いテストになる
+// （実際 sprite 動畫の startAt で 1 箇所増えた）。守りたいのは数ではなく
+// 「換算を迂回した生読みが無いこと」なので、下の 2 本がその本体。
 ok(
-  (mn.match(/enemyAttackWarnAtLocal\(atk\)/g) || []).length === 4,
-  "enemyAttackWarnAtLocal は定義1＋読み出し3（反擊誘発窗口／攻擊の寿命／warn 位相の終わり）"
+  mn.indexOf("function enemyAttackWarnAtLocal(atk)") !== -1,
+  "enemyAttackWarnAtLocal() が定義されている"
+);
+ok(
+  (mn.match(/enemyAttackWarnAtLocal\(atk\)/g) || []).length >= 4,
+  "読み出し側が最低 3 箇所ある（反擊誘発窗口／攻擊の寿命／warn 位相の終わり／sprite 動畫の startAt）"
 );
 ok(
   (mn.match(/atk\.warnAt/g) || []).length === 2,

@@ -76,5 +76,36 @@ ok(M.resolve("存在しない招式名", "group") === "area", "未登録 + 亂�
 ok(M.resolve("存在しない招式名", "single") === "single", "未登録 + 個別傷害 -> single");
 ok(M.resolve(null, null) === "single", "招式名なし -> single");
 
+// 実行時に渡ってくるのは文字列ではなく action.name の多語物件（enemyAttack.actionName）。
+// ここを取り違えると BY_NAME["[object Object]"] を引いて必ず dmgKind の既定値に落ち、
+// 426 件の対照表と 203 件の補標がまるごと死ぬ——見た目は動くので気づきにくい。
+console.log("[多語物件をそのまま引ける]");
+ok(M.resolve({ ja: "叩きつけ", zh: "砸擊" }, "single") === "slam", "{ja,zh} -> ja で slam を引く");
+ok(M.resolve({ ja: "落雷" }, "single") === "slam", "補標した 203 件も物件で引ける（落雷 -> slam）");
+ok(M.resolve({ zh: "只有中文" }, "group") === "area", "ja が無い物件は既定値へ");
+ok(M.resolve({}, "single") === "single", "空物件は既定値へ");
+
+// 対照表を実際に引いている呼び出し端があるか。ここが無い間は showSprite() の idle が
+// ループするだけで、補標も対照表も実行時には何も起きていなかった（2026-09-21 に結線）。
+console.log("[midnight.js から実際に引かれている]");
+const mnSrc = fs.readFileSync(path.join(ROOT, "static_src", "midnight.js"), "utf8");
+ok(
+  mnSrc.indexOf("AnimMap.resolve(atk.actionName, atk.dmgKind)") !== -1,
+  "attack 動畫が招式名から引かれている"
+);
+ok(
+  mnSrc.indexOf("maybePlayEnemyAttackAnim(trig);") !== -1,
+  "毎フレームの観測側から呼ばれている（発動した端だけでなく全端で鳴る）"
+);
+ok(
+  mnSrc.indexOf("enemyAttackWarnAtLocal(atk))") !== -1,
+  "startAt に時鐘偏移を換算した起点を渡している（§8.2）"
+);
+ok(
+  mnSrc.indexOf('playEnemySpriteAnim("death", true)') !== -1 &&
+    mnSrc.indexOf('playEnemySpriteAnim("hurt", false)') !== -1,
+  "受擊/死亡も結線されている（死亡だけ force で割り込む）"
+);
+
 console.log(fail === 0 ? "\nすべてOK" : "\n" + fail + " 件 FAIL");
 process.exit(fail === 0 ? 0 : 1);

@@ -432,8 +432,13 @@
     "黒炎発火": "area"
   };
 
+  // actionName 可以直接吃 enemies_data_*.js 的 action.name——實際資料是
+  // { ja: "叩きつけ", zh: "砸擊" } 這種多語物件，enemyAttack.actionName 也是這個形狀。
+  // 當成字串處理的話 BY_NAME[物件] 會去查 "[object Object]"，永遠落到 dmgKind 預設，
+  // 整張對照表就形同虛設。所以以 ja 為鍵，同時也接受直接傳字串。
   function resolve(actionName, dmgKind) {
-    if (actionName && BY_NAME[actionName]) return BY_NAME[actionName];
+    var key = actionName && typeof actionName === "object" ? actionName.ja : actionName;
+    if (key && BY_NAME[key]) return BY_NAME[key];
     if (dmgKind === "group") return "area";
     return "single";
   }

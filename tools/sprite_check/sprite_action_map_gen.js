@@ -314,8 +314,13 @@ const out =
   "  var BY_NAME = {\n" +
   lines.join(",\n") +
   "\n  };\n\n" +
+  "  // actionName 可以直接吃 enemies_data_*.js 的 action.name——實際資料是\n" +
+  '  // { ja: "叩きつけ", zh: "砸擊" } 這種多語物件，enemyAttack.actionName 也是這個形狀。\n' +
+  '  // 當成字串處理的話 BY_NAME[物件] 會去查 "[object Object]"，永遠落到 dmgKind 預設，\n' +
+  "  // 整張對照表就形同虛設。所以以 ja 為鍵，同時也接受直接傳字串。\n" +
   "  function resolve(actionName, dmgKind) {\n" +
-  "    if (actionName && BY_NAME[actionName]) return BY_NAME[actionName];\n" +
+  '    var key = actionName && typeof actionName === "object" ? actionName.ja : actionName;\n' +
+  "    if (key && BY_NAME[key]) return BY_NAME[key];\n" +
   '    if (dmgKind === "group") return "area";\n' +
   '    return "single";\n' +
   "  }\n\n" +

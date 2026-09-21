@@ -3825,6 +3825,10 @@
       return next < 0 ? 0 : next;
     }).then(function (committed) {
       if (wasAlive && committed === 0) grantKillCooldownReduction();
+      // sprite の受擊／死亡モーション（2026-09-21）。擊破の判定はすでにここにあるので
+      // 相乗りする。死亡は force=true で攻擊モーションにも割り込む。
+      if (wasAlive && committed === 0) playEnemySpriteAnim("death", true);
+      else if (committed > 0) playEnemySpriteAnim("hurt", false);
     });
   }
 
@@ -9543,6 +9547,40 @@
   // 每影格驅動：不在activeEncounter內（沒站在遇敵點旁、沒解決分歧、或敵人已死）時，
   // 清掉本地殘留狀態並直接return——這個機制完全依附在既有的「同一板塊、同一籌碼事件」
   // 遇敵範圍判定上（使用者明確規格）。
+  // ---- sprite 動畫の再生指示（2026-09-21）----
+  // 設計文件 §7.2 の對照表（enemy_action_anim_map.js、203 筆の人工補標込み）を実際に
+  // 引くのはここ。ここが無い間は showSprite() が流す idle が延々ループするだけで、
+  // 對照表も補標も實行時には一切効いていなかった。
+  //
+  // 「發動した端」ではなく「觀測した全端」で鳴らすのが要点：enemyAttack を RTDB に
+  // 書くのは transaction に勝った 1 端だけなので、書き込み側に置くと他の人の画面では
+  // 敵が棒立ちになる。attackId が変わったのを見て鳴らせば全員そろう。
+  //
+  // startAt に enemyAttackWarnAtLocal() を渡すのが §8.2 の時鐘偏移對策そのもの——
+  // 各端が自分の本機時刻に換算した同一の起点を使うので、動畫の位相が端末間でそろう。
+  // playAnim(animId, startAt) が startAt を取る設計になっているのはこのため。
+  var lastAnimatedAttackId = null;
+  function maybePlayEnemyAttackAnim(trig) {
+    var S = window.PriTestMidnightSprite;
+    var AnimMap = window.PriTestEnemyActionAnimMap;
+    if (!S || !AnimMap) return;
+    var atk = trig && trig.enemyAttack;
+    if (!atk || !atk.attackId) return;
+    if (lastAnimatedAttackId === atk.attackId) return;
+    lastAnimatedAttackId = atk.attackId;
+    S.playAnim(AnimMap.resolve(atk.actionName, atk.dmgKind), enemyAttackWarnAtLocal(atk));
+  }
+
+  // 敵が被彈した／倒れたときの動畫。攻擊モーションの最中は hurt で上書きしない——
+  // 攻擊モーションは階段3で命中タイミングの予告そのものになるので、殴るたびに潰れると
+  // 予告として成立しなくなる。死亡だけは何を再生中でも最優先で割り込む。
+  function playEnemySpriteAnim(animId, force) {
+    var S = window.PriTestMidnightSprite;
+    if (!S || !S.currentAnimId) return;
+    if (!force && S.currentAnimId() !== "idle") return;
+    S.playAnim(animId, Date.now());
+  }
+
   function updateEnemyAttack(now) {
     if (!activeEncounter || isPaused()) {
       myIncomingAttack = null;
@@ -9553,6 +9591,7 @@
     var trig = fieldTriggers[pt.id] || {};
     ensureNextAttackScheduled(pt, trig);
     maybeStartEnemyAttack(pt, trig, now);
+    maybePlayEnemyAttackAnim(trig);
     maybeFinishEnemyAttack(pt, trig, now);
     updateMyIncomingAttack(pt, trig, now);
     renderEnemyAttackOverlay();

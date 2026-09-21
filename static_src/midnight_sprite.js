@@ -88,6 +88,13 @@
     return true;
   }
 
+  // 今どの動畫を再生中か。呼び出し端が「受擊で攻擊モーションを中斷してよいか」を
+  // 判断するために要る——攻擊モーションは階段3で命中タイミングの予告そのものになるので、
+  // プレイヤーが殴るたびに hurt で潰れると予告として機能しなくなる。
+  function currentAnimId() {
+    return current ? current.animId : null;
+  }
+
   function playAnim(animId, startAt) {
     if (!S.getAnim(animId)) return;
     current = { animId: animId, startAt: startAt };
@@ -112,6 +119,7 @@
     showStatic: showStatic,
     showSprite: showSprite,
     playAnim: playAnim,
+    currentAnimId: currentAnimId,
     tick: tick
   };
 })();
