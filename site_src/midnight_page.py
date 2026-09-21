@@ -147,6 +147,18 @@ BODY = """    <div class="midnight-wrap">
           </label>
           <span class="hint" data-i18n="midnight_lobby_sprite_mode_hint"></span>
         </div>
+        <!-- 產生戰鬥模擬（2026-09-22使用者明確規格「在創立房間新增一個產生戰鬥模擬 需要輸入
+             nightnight密碼 如此可以測試戰鬥點陣圖的動畫效果 閃避方式」）：開啟需密碼（跟測試
+             模式同一個閘門，見static/midnight.jsのhandleBattleSimToggle()），寫入
+             meta.battleSim（{enemyFamilyId, enemyId, level}），跟其他房間設定同一套「同一場
+             遊戲所有人共用、開局前設定」模式。開局後由updateBattleSim()比照夜之強敵
+             （finalCircleDayN）的虛擬遭遇點寫法，建立固定id "battleSim" 的fieldTrigger，
+             全員直接走既有的識別資訊準備→戰鬥流程，不另建第二套戰鬥。按鈕文字／狀態列由
+             renderLobbySettings()依meta.battleSim即時改寫（已設定時按鈕變成「取消」）。 -->
+        <div class="wb-row" id="midnight-lobby-battle-sim-row">
+          <button type="button" id="btn-midnight-lobby-battle-sim"></button>
+          <span class="hint" id="midnight-lobby-battle-sim-status"></span>
+        </div>
         <!-- 流程簡介（使用者明確規格「測試模式選項上面有『流程簡介』，打開後播放打字機
              直到按下右上X」）：純本地端展示視窗，不涉及任何共享state，開關只影響自己這台
              裝置的畫面，見static/midnight.jsのhandleFlowIntroOpenClick()/

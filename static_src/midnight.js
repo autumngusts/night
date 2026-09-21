@@ -1688,6 +1688,68 @@
     if (spriteModeCheckbox && document.activeElement !== spriteModeCheckbox) {
       spriteModeCheckbox.checked = spriteModeEnabled();
     }
+    renderBattleSimRow();
+  }
+
+  // 產生戰鬥模擬（2026-09-22，見midnight_page.pyの#midnight-lobby-battle-sim-row說明）：
+  // 按鈕文字依meta.battleSim切換「產生／取消」，狀態列顯示抽中的敵人名稱與等級。
+  // 每影格都會被renderLobbySettings()呼叫，因此只在文字真的變了才寫DOM。
+  function renderBattleSimRow() {
+    var btn = el("btn-midnight-lobby-battle-sim");
+    var status = el("midnight-lobby-battle-sim-status");
+    if (!btn || !status) return;
+    var sim = meta && meta.battleSim;
+    var label = window.I18N.t(sim ? "midnight_lobby_battle_sim_cancel_button" : "midnight_lobby_battle_sim_button");
+    var text;
+    if (sim && sim.enemyFamilyId) {
+      var data = window.PriTestEnemies ? window.PriTestEnemies.get(sim.enemyFamilyId, sim.enemyId) : null;
+      var name = data ? window.PriTestEnemies.localizedText(data.enemy.name) : sim.enemyId;
+      text = window.I18N.t("midnight_lobby_battle_sim_status", { name: name, level: sim.level || 1 });
+    } else {
+      text = window.I18N.t("midnight_lobby_battle_sim_hint");
+    }
+    if (btn.textContent !== label) btn.textContent = label;
+    if (status.textContent !== text) status.textContent = text;
+  }
+
+  // 戰鬥模擬用的敵人：從enemies_data_1~4.js全部敵人裡挑「每一招都算得出傷害」的
+  // （resolveEnemyActionOutcome()能解析成個別傷害或亂戰傷害），否則敵人出招時0傷害，
+  // 迴避有沒有成功根本看不出差別（CLAUDE.md §19：解析不到就不發明數值，所以只能挑
+  // 資料完整的敵人）。這裡用Math.random()而不是fieldSeededIndex()：結果只在按下按鈕的
+  // 這台裝置決定一次、寫進meta.battleSim後全員共用，不需要跨裝置決定性。
+  function pickBattleSimEnemy() {
+    var Enemies = window.PriTestEnemies;
+    var all = Enemies ? Enemies.allEnemies() : [];
+    var usable = all.filter(function (rec) {
+      var actions = rec.enemy.actions || [];
+      if (!actions.length) return false;
+      return actions.every(function (a) {
+        var noteJa = (a.note && a.note.ja) || "";
+        var noteZh = (a.note && a.note.zh) || "";
+        return INDIVIDUAL_DAMAGE_RE.test(noteJa) || INDIVIDUAL_DAMAGE_RE.test(noteZh) || GROUP_DAMAGE_RE.test(noteJa) || GROUP_DAMAGE_RE.test(noteZh);
+      });
+    });
+    var pool = usable.length ? usable : all;
+    if (!pool.length) return null;
+    return pool[Math.floor(Math.random() * pool.length)];
+  }
+
+  // 使用者明確規格「需要輸入nightnight密碼」：只有「開啟」需要密碼，取消不用（跟測試模式
+  // 同一套規則，見handleTestModeToggle()）。
+  function handleBattleSimToggle() {
+    if (meta && meta.battleSim) {
+      GameStorage.rtSet(gameId, "cloud", "meta/battleSim", null);
+      return;
+    }
+    var input = window.prompt(window.I18N.t("midnight_lobby_battle_sim_password_prompt"));
+    if (input !== LOBBY_TEST_PASSWORD) return;
+    var picked = pickBattleSimEnemy();
+    if (!picked) return;
+    GameStorage.rtSet(gameId, "cloud", "meta/battleSim", {
+      enemyFamilyId: picked.familyId,
+      enemyId: picked.enemy.id,
+      level: BATTLE_SIM_ENEMY_LEVEL,
+    });
   }
 
   function handleNightBossSelectChange() {
@@ -1728,6 +1790,8 @@
   // 測試模式密碼閘門（2026-09-09新增，使用者明確規格：「按下測試模式按鍵需要輸入密碼
   // nightnight」）：只有「開啟」需要密碼，關閉不用。答錯/取消時checkbox要復原成未勾選，
   // 否則畫面會顯示已勾選但meta.testMode其實沒被寫入true，造成UI與實際狀態不一致。
+  // 2026-09-22：密碼抽成常數，戰鬥模擬（handleBattleSimToggle()）共用同一個閘門。
+  var LOBBY_TEST_PASSWORD = "nightnight";
   function handleTestModeToggle() {
     var checkbox = el("midnight-lobby-test-mode-checkbox");
     var checked = checkbox.checked;
@@ -1736,7 +1800,7 @@
       return;
     }
     var input = window.prompt(window.I18N.t("midnight_test_mode_password_prompt"));
-    if (input !== "nightnight") {
+    if (input !== LOBBY_TEST_PASSWORD) {
       checkbox.checked = false;
       return;
     }
@@ -2152,6 +2216,17 @@
   var nearbyFinalCircleBoss = null;
   var finalCircleRollAttempted = {}; // dayIndex -> true（本地節流，同strongEnemyRollAttempted）
   var finalCircleDayAdvanceAttempted = {}; // dayIndex -> true（本地節流：自動換日的transaction只送一次）
+  // 戰鬥模擬（2026-09-22使用者明確規格「在創立房間新增一個產生戰鬥模擬 需要輸入nightnight
+  // 密碼 如此可以測試戰鬥點陣圖的動畫效果 閃避方式」）：等待房按下按鈕後寫入meta.battleSim
+  // （見handleBattleSimToggle()），開局後比照夜之強敵finalCircleDayN的「虛擬遭遇點」寫法
+  // ——fieldTrigger/fieldEnemyHp的id固定為BATTLE_SIM_POINT_ID，不對應任何地圖點，
+  // participants一開始就是全部已佔用席位，玩家不必走到任何地方就直接進入既有的識別資訊
+  // 準備→戰鬥流程（敵人攻擊排程／迴避／sprite動畫全部是既有pipeline，這裡不另寫戰鬥）。
+  // 見updateBattleSim()。
+  var BATTLE_SIM_POINT_ID = "battleSim";
+  var BATTLE_SIM_ENEMY_LEVEL = 1; // 模擬用固定等級（enemyRealHpMax()／亂戰傷害基準值都查family.base的這一行）
+  var nearbyBattleSim = null;
+  var battleSimAssignAttempted = {}; // BATTLE_SIM_POINT_ID -> true（本地節流，同finalCircleRollAttempted；用物件是為了套resetAttemptFlagOnFailure()）
   // 2026-09-20防卡死：上面這批「本地節流旗標」都是「設旗標→送transaction→等RTDB回寫後
   // 由訂閱資料自然讓guard成立」的一次性寫法，但GameStorage.rtTransaction()出錯時會吞掉
   // 錯誤、resolve成null，旗標卻已經設了——這台裝置從此再也不重送，單人遊玩時該點就永遠
@@ -3444,6 +3519,7 @@
     el("midnight-lobby-difficulty-select").addEventListener("change", handleDifficultySelectChange);
     el("midnight-lobby-weapon-affixes-checkbox").addEventListener("change", handleWeaponAffixesToggle);
     el("midnight-lobby-sprite-mode-checkbox").addEventListener("change", handleSpriteModeToggle);
+    el("btn-midnight-lobby-battle-sim").addEventListener("click", handleBattleSimToggle);
     el("btn-midnight-game-failure-confirm").addEventListener("click", switchToUnlimitedMode);
     el("btn-midnight-game-victory-confirm").addEventListener("click", handleGameVictoryConfirmClick);
     el("midnight-lobby-test-mode-checkbox").addEventListener("change", handleTestModeToggle);
@@ -11638,7 +11714,9 @@
     // 「縮圈完後，仍在卡牌樓層探索的不受進入夜之強敵影響，直到該名也正式進入夜之強敵
     // 戰鬥」（見slotsInsideFinalCircle()說明），而「地圖點排在夜之強敵前面」正是實現
     // 那條規則的機制，改動會破壞它。Day3沒有對應的規則——王戰一開始就是全員的。
-    var candidate = nearbyDay3Boss || nearbyFieldPoint || encounterEnemyPoint() || nearbyCastlePoint || nearbyFinalCircleBoss;
+    // 戰鬥模擬（nearbyBattleSim，2026-09-22）排在夜之王之後、地圖點之前：它是測試房專用的
+    // 虛擬遭遇，開局就該立刻開打，不能被出生點旁邊碰巧有的地圖點搶走候選權。
+    var candidate = nearbyDay3Boss || nearbyBattleSim || nearbyFieldPoint || encounterEnemyPoint() || nearbyCastlePoint || nearbyFinalCircleBoss;
     var wasActive = !!activeEncounter;
     if (!candidate) {
       activeEncounter = null;
@@ -11709,7 +11787,8 @@
     var stillValid = (currentEnemyPoint && currentEnemyPoint.id === battlePrepCandidate.id) ||
       (nearbyFieldPoint && nearbyFieldPoint.id === battlePrepCandidate.id) ||
       (nearbyFinalCircleBoss && nearbyFinalCircleBoss.id === battlePrepCandidate.id) ||
-      (nearbyDay3Boss && nearbyDay3Boss.id === battlePrepCandidate.id);
+      (nearbyDay3Boss && nearbyDay3Boss.id === battlePrepCandidate.id) ||
+      (nearbyBattleSim && nearbyBattleSim.id === battlePrepCandidate.id);
     if (!stillValid) {
       battlePrepCandidate = null;
       battlePrepUntil = null;
@@ -12764,6 +12843,57 @@
       finalCircleRollAttempted[pointId] = true;
       rollAndAssignFinalCircleBoss(dayIndex, pointId, phaseInfo);
     }
+  }
+
+  // 戰鬥模擬（見BATTLE_SIM_POINT_ID說明）每影格：
+  //   1. meta.battleSim有設定但fieldTrigger還沒建立 → 任一裝置用transaction()建立
+  //      （first-writer-wins，敵人／等級直接用meta裡的值，各裝置算出的內容一致）。
+  //   2. trigger已建立且自己有席位 → 把虛擬點餵給recomputeActiveEncounter()的候選清單。
+  //      x/y用自己目前位置，因為這個點不在地圖上、也沒有任何呼叫端需要它的座標。
+  // 逃離後（fledEncounterIds）先讓候選消失一影格：recomputeActiveEncounter()在「沒有任何
+  // 候選」時才會清掉fledEncounterIds／confirmedEncounterIds，下一影格候選回來時因為已經
+  // 不是participant，自然走既有的pendingBattleReentry→［進入戰鬥］讀條流程重新加入，
+  // 不會把人卡在「永遠逃離中」。
+  function updateBattleSim() {
+    var sim = meta && meta.battleSim;
+    if (!sim || !sim.enemyFamilyId) {
+      nearbyBattleSim = null;
+      return;
+    }
+    var trig = fieldTriggers[BATTLE_SIM_POINT_ID];
+    if (!trig) {
+      nearbyBattleSim = null;
+      if (battleSimAssignAttempted[BATTLE_SIM_POINT_ID]) return;
+      battleSimAssignAttempted[BATTLE_SIM_POINT_ID] = true;
+      var participants = {};
+      occupiedSlots().forEach(function (slot) {
+        participants[slot] = true;
+      });
+      resetAttemptFlagOnFailure(
+        battleSimAssignAttempted,
+        BATTLE_SIM_POINT_ID,
+        GameStorage.rtTransaction(gameId, "cloud", "fieldTrigger/" + BATTLE_SIM_POINT_ID, function (cur) {
+          if (cur !== null) return cur;
+          return {
+            status: "resolved",
+            enemyFamilyId: sim.enemyFamilyId,
+            enemyId: sim.enemyId,
+            level: sim.level || BATTLE_SIM_ENEMY_LEVEL,
+            participants: participants,
+            resolvedAt: Date.now(),
+          };
+        }).then(function (committed) {
+          initFieldEnemyHpFromTrigger(BATTLE_SIM_POINT_ID, committed);
+          return committed;
+        })
+      );
+      return;
+    }
+    if (!mySlot || autoFly || trig.status !== "resolved" || fledEncounterIds[BATTLE_SIM_POINT_ID]) {
+      nearbyBattleSim = null;
+      return;
+    }
+    nearbyBattleSim = { id: BATTLE_SIM_POINT_ID, x: localPos ? localPos.x : 0, y: localPos ? localPos.y : 0 };
   }
 
   // ---- 夜之強敵擊破獎勵（2026-09-10使用者明確要求「打贏夜之強敵參照黃金樹之帳的獎勵來
@@ -21570,6 +21700,7 @@
     renderIntroOverlay(now);
     updateMovement(dtSec, now);
     updateFinalCircleBoss(now);
+    updateBattleSim(); // 2026-09-22：戰鬥模擬的虛擬遭遇點，要在updateNearbyChipPoint()→recomputeActiveEncounter()之前算好
     updateDay3Boss();
     updateDay3BossIntroOverlay(now);
     updateNearbyBird();
@@ -22174,6 +22305,11 @@
     _debugTriggerEnemyAilmentEffect: function (name) {
       triggerEnemyAilmentEffect(name);
     },
+    // 2026-09-22 戰鬥模擬回歸測試用（tools/midnight_check/battle_sim_check.js）：期望的敵人
+    // HP 上限從資料算出來、不硬編（CLAUDE.md §4.7 原則）。
+    _debugEnemyRealHpMax: function (trig) {
+      return enemyRealHpMax(trig);
+    },
     // 特效只在 activeEncounter 成立時才播（跟刀光同一個守衛）。測試不需要真的打一場，
     // 用這支暫時塞一個假的遭遇物件進去，驗完再還原。
     _debugSetActiveEncounterForFx: function (on) {
@@ -22476,6 +22612,13 @@
     _debugFilterReceivedAccumAmount: function (name, amount) {
       return filterReceivedAccumAmount(name, amount);
     },
+    // 2026-09-21：直接施放某一側的魔術／祈禱（跳過長按），測本文蓄積是否套用到敵人。
+    _debugCastSideSpell: function (side, slot) {
+      var entry = sideSkillButtonEntries(side)[slot || 0];
+      if (!entry) return null;
+      castWeaponSkillEntry(entry);
+      return { id: entry.id, weaponId: entry.weaponId, body: Weapons.localizedText(entry.body) };
+    },
     _debugParseSkillBodyAccums: function (text) {
       return parseSkillBodyAccums(text);
     },
@@ -22677,6 +22820,7 @@
         nearbyCastlePoint: nearbyCastlePoint,
         nearbyFinalCircleBoss: nearbyFinalCircleBoss,
         nearbyDay3Boss: nearbyDay3Boss,
+        nearbyBattleSim: nearbyBattleSim, // 2026-09-22：戰鬥模擬的虛擬遭遇點
         activeEncounter: activeEncounter,
         myIncomingAttack: myIncomingAttack,
         nearbyStrongEnemy: nearbyStrongEnemy,
