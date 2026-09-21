@@ -11,6 +11,8 @@ const path = require("path");
 const vm = require("vm");
 
 const ROOT = path.resolve(__dirname, "..", "..");
+const WRITE = process.argv.indexOf("--write") !== -1;
+const REGISTRY_PATH = path.join(ROOT, "static_src", "enemy_sprite_registry.js");
 const sandbox = { window: {}, console };
 vm.createContext(sandbox);
 ["1", "2", "3", "4"].forEach(function (n) {
@@ -62,35 +64,68 @@ function variantFor(fam, enemy, index) {
   return index < Math.ceil(fam.enemies.length / 2) ? "a" : "b";
 }
 
+// 讀入現行的登錄表。available 是「圖片是否已產出」＝驗收的成果，只為了調整分組而重跑
+// 產生器時若把它們一律寫成 false，已驗收的實績會無聲歸零，所以逐 sheet 沿用既有的值；
+// 只有登錄表還不存在（第一次產生）時才從 false 開始。
+// 順便把現行的分配讀出來，供預覽時計算「有幾筆分配會變動」。
+function loadExisting() {
+  if (!fs.existsSync(REGISTRY_PATH)) return null;
+  const box = { window: {}, console };
+  vm.createContext(box);
+  vm.runInContext(fs.readFileSync(REGISTRY_PATH, "utf8"), box, {
+    filename: "enemy_sprite_registry.js"
+  });
+  const reg = box.window.PriTestEnemySpriteRegistry;
+  if (!reg || typeof reg.listSheets !== "function") return null;
+  const available = {};
+  reg.listSheets().forEach(function (s) {
+    available[s.id] = !!s.available;
+  });
+  return { available: available, sheetIdForEnemy: reg.sheetIdForEnemy };
+}
+
+const EXISTING = loadExisting();
+
+function availableFor(sheetId) {
+  if (!EXISTING) return false;
+  return !!EXISTING.available[sheetId];
+}
+
 const assign = [];
+let changedAssign = 0;
 FAMILIES.forEach(function (f) {
   f.enemies.forEach(function (e, i) {
-    assign.push(
-      '    "' + f.id + "/" + e.id + '": "family_' + f.id + "_" + variantFor(f, e, i) + '"'
-    );
+    const sheetId = "family_" + f.id + "_" + variantFor(f, e, i);
+    assign.push('    "' + f.id + "/" + e.id + '": "' + sheetId + '"');
+    if (EXISTING && EXISTING.sheetIdForEnemy(f.id, e.id) !== sheetId) changedAssign++;
   });
 });
 
 const sheets = [];
+let keptAvailable = 0;
+function pushSheet(id) {
+  const av = availableFor(id);
+  if (av) keptAvailable++;
+  sheets.push('    { id: "' + id + '", file: "' + id + '.png", available: ' + av + " }");
+}
 FAMILIES.forEach(function (f) {
   ["a", "b"].forEach(function (v) {
-    sheets.push(
-      '    { id: "family_' + f.id + "_" + v + '", file: "family_' + f.id + "_" + v + '.png", available: false }'
-    );
+    pushSheet("family_" + f.id + "_" + v);
   });
 });
 BOSSES.forEach(function (b) {
-  sheets.push('    { id: "boss_' + b + '", file: "boss_' + b + '.png", available: false }');
+  pushSheet("boss_" + b);
 });
 
 const out =
   "(function () {\n" +
-  "  // sprite sheet の登録表。\n" +
-  "  // 自動生成: node tools/sprite_check/sprite_registry_gen.js --write\n" +
-  "  // 手で直さないこと——割当を変えるときは生成器の OVERRIDES を直して再生成する。\n" +
+  "  // sprite sheet 的登錄表。\n" +
+  "  // 自動產生: node tools/sprite_check/sprite_registry_gen.js --write\n" +
+  "  // 不要手動修改——要改分配就去改產生器的 OVERRIDES 再重新產生。\n" +
   "  //\n" +
-  "  // available は「画像が産出済みか」。false の間、midnight_sprite.js は既存の静止画に\n" +
-  "  // fallback する（spec §4）。画像を入れたら sprite_pack.js が true に書き換える。\n" +
+  "  // available 是「圖片是否已產出」。false 期間 midnight_sprite.js 會 fallback 到既有的\n" +
+  "  // 靜止畫（spec §4）。圖片放進來之後由 sprite_pack.js 改寫成 true；重新產生登錄表時\n" +
+  "  // 產生器會逐 sheet 沿用這裡既有的值，不會把已驗收的成果歸零。\n" +
   "  var SHEETS = [\n" +
   sheets.join(",\n") +
   "\n  ];\n\n" +
@@ -113,11 +148,29 @@ const out =
   "  };\n" +
   "})();\n";
 
-fs.writeFileSync(path.join(ROOT, "static_src", "enemy_sprite_registry.js"), out, "utf8");
+if (!WRITE) {
+  console.log(
+    "プレビュー（sheet " +
+      sheets.length +
+      " 組／敵 " +
+      assign.length +
+      " 隻／割当の変更 " +
+      (EXISTING ? changedAssign + " 筆" : "—（登録表なし・初回生成）") +
+      "／available:true を維持 " +
+      keptAvailable +
+      " 組）。"
+  );
+  console.log("書き出すには --write を付けてください。");
+  process.exit(0);
+}
+
+fs.writeFileSync(REGISTRY_PATH, out, "utf8");
 console.log(
   "static_src/enemy_sprite_registry.js を書き出しました（sheet " +
     sheets.length +
     " 組／敵 " +
     assign.length +
-    " 隻）。"
+    " 隻／available:true を維持 " +
+    keptAvailable +
+    " 組）。"
 );

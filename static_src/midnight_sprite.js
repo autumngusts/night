@@ -1,18 +1,17 @@
 (function () {
-  // midnight（即時制）の敵 sprite 表現層。
+  // midnight（即時制）的敵人 sprite 表現層。
   // 設計文件：docs/superpowers/specs/2026-09-21-midnight-sprite-combat-design.md
   //
-  // 判定層とは完全に分離している（spec §4）——ここは「今どの幀を見せるか」しか知らず、
-  // 命中判定には一切関与しない。逆に判定層は enemy_sprite_data.js の hitFrame だけを
-  // 読み、画像には触らない。だから画像が1枚も無くてもゲームは成立する。
+  // 跟判定層完全分離（spec §4）——這裡只知道「現在該顯示哪一幀」，完全不參與命中判定；
+  // 反過來判定層只讀 enemy_sprite_data.js 的 hitFrame，不碰圖片。所以就算一張圖都還沒
+  // 產出，遊戲照樣成立。
   //
-  // sheet からの切り出しは CSS の background-position で行う（切り出し済みファイルは
-  // 作らない）。cellPx は表示枠の実寸から算出する。
+  // 從 sheet 切出單幀是靠 CSS 的 background-position（不另外產出切好的檔案），所以
+  // cellPx 必須由顯示框的實際寬度推算、不能寫死：桌機與手機的框寬不同，但共用同一張 sheet。
   var S = window.PriTestEnemySprite;
   var R = window.PriTestEnemySpriteRegistry;
 
   var stageEl = null;
-  var imgEl = null;
   var current = null; // { animId: string, startAt: number }
   var cellPx = 0;
 
@@ -40,12 +39,17 @@
     return -(frameIndex * px) + "px " + -(a.row * px) + "px";
   }
 
-  // ---- 以下は DOM 操作。純函式部分（上）と違い check スクリプトでは検証できない
-  // （Playwright が要る）。手動確認の手順は計画の Task 6 Step 6 を参照。----
+  // ---- 以下是 DOM 操作。跟上面的純函式不同，check 腳本驗不到（要 Playwright），
+  // 手動確認步驟見計畫的 Task 6 Step 6。----
+  //
+  // DOM 所有權：這個模組只擁有自己建立的 #midnight-enemy-sprite-stage，絕不去動
+  // #midnight-field-encounter-image（那是 midnight.js 的）。夜王分支對名冊裡沒有立繪的
+  // 敵人（nameless，劇本10専用）是刻意把 <img> 藏起來的，這裡若順手翻它的 hidden，
+  // 就會把前一隻敵人殘留的 src 或空 src 露出來。img 的可見性一律交給呼叫端決定，
+  // 所以 showSprite() 用回傳值告訴呼叫端「舞台真的顯示出來了」。
 
   function mount(wrapEl) {
     if (!wrapEl || stageEl) return;
-    imgEl = wrapEl.querySelector("#midnight-field-encounter-image");
     stageEl = wrapEl.ownerDocument.createElement("div");
     stageEl.id = "midnight-enemy-sprite-stage";
     stageEl.hidden = true;
@@ -54,20 +58,30 @@
 
   function showStatic() {
     if (stageEl) stageEl.hidden = true;
-    if (imgEl) imgEl.hidden = false;
     current = null;
   }
 
-  function showSprite(sheetFile, staticPrefix) {
+  // sheet 是橫6幀 × 縱8動作，以顯示框的一邊當作1格的實際尺寸。
+  // 視窗縮放／手機轉向後框寬會變，所以要能重算；但 backgroundSize 只在寬度真的變了
+  // 才寫回 DOM，避免每一影格都觸發樣式重算。
+  function syncCellPx() {
     if (!stageEl) return;
+    var px = stageEl.offsetWidth || 128;
+    if (px === cellPx) return;
+    cellPx = px;
+    stageEl.style.backgroundSize = S.SHEET_COLS * cellPx + "px " + S.SHEET_ROWS * cellPx + "px";
+  }
+
+  // 回傳 true＝sprite 舞台已顯示（呼叫端應該把靜止畫的 <img> 藏起來）；
+  // 回傳 false＝顯示不了（例如 stageEl 還沒 mount），呼叫端要維持既有的靜止畫狀態。
+  function showSprite(sheetFile, staticPrefix) {
+    if (!stageEl) return false;
     stageEl.style.backgroundImage =
       "url(" + (staticPrefix || "../static/") + "images/sprites/" + sheetFile + ")";
     stageEl.hidden = false;
-    if (imgEl) imgEl.hidden = true;
-    // sheet は横6幀 × 縦8動作。表示枠の一辺を1格の実寸として扱う。
-    cellPx = stageEl.offsetWidth || 128;
-    stageEl.style.backgroundSize = S.SHEET_COLS * cellPx + "px " + S.SHEET_ROWS * cellPx + "px";
+    syncCellPx();
     playAnim("idle", Date.now());
+    return true;
   }
 
   function playAnim(animId, startAt) {
@@ -77,6 +91,7 @@
 
   function tick(now) {
     if (!stageEl || stageEl.hidden || !current) return;
+    syncCellPx();
     var idx = frameIndexAt(current.animId, now - current.startAt);
     if (idx === null) {
       playAnim("idle", now);

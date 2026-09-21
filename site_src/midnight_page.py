@@ -1457,12 +1457,12 @@ def build_midnight_html() -> str:
             # 本文），midnight.jsのrollWeaponAffixes()等會讀window.PriTestWeaponAffixes，
             # 必須排在它之前。純資料模組、沒有其他相依。
             "weapon_affixes.js",
-            # 2026-09-21新增：敵人 sprite 動畫層。enemy_sprite_data.js（動作時間軸）と
-            # enemy_sprite_registry.js（sheet 登録表）は midnight_sprite.js が module-load
-            # 時点で読むので、必ずその前に置く（auto_gm.js で同じ罠を踏んだ既存の教訓、
-            # 設計文件と midnight_page.py の auto_gm.js 周りの註解を参照）。
-            # 画像が未産出のうちは registry の available が全て false で、
-            # 既存の静止画にそのまま fallback する（設計文件 §4）。
+            # 2026-09-21新增：敵人 sprite 動畫層。enemy_sprite_data.js（動作時間軸）與
+            # enemy_sprite_registry.js（sheet 登錄表）會在 midnight_sprite.js 載入模組的
+            # 當下就被讀取，所以一定要排在它前面（auto_gm.js 踩過同一個坑的既有教訓，
+            # 見設計文件與本檔 auto_gm.js 附近的註解）。
+            # 圖片還沒產出的期間，registry 的 available 全部是 false，
+            # 會直接 fallback 到既有的靜止畫（設計文件 §4）。
             "enemy_sprite_data.js",
             "enemy_sprite_registry.js",
             "enemy_action_anim_map.js",

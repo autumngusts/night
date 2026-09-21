@@ -17911,7 +17911,7 @@
       return;
     }
     box.hidden = false;
-    // 2026-09-21：sprite 舞台を遅延 mount（要素は encounter パネルが開いて初めて存在する）。
+    // 2026-09-21：sprite 舞台延後 mount（元素要等 encounter 面板打開之後才存在）。
     if (window.PriTestMidnightSprite) {
       window.PriTestMidnightSprite.mount(el("midnight-field-encounter-image-wrap"));
     }
@@ -17938,13 +17938,19 @@
       } else {
         imgEl.hidden = true;
       }
-      // 2026-09-21：sprite が産出済みならそちらを表示、未産出なら従来どおり静止画
-      // （設計文件 §4 の fallback 契約）。判定側は一切変わらない。
+      // 2026-09-21：sprite 已產出就顯示 sprite，未產出就照舊用靜止畫
+      // （設計文件 §4 的 fallback 契約）。判定側完全不變。
+      // <img> 的可見性由這裡決定、不交給 renderer：只有 sprite 真的顯示出來
+      // （showSprite() 回傳 true）才把它藏起來；否則維持上面那段既有邏輯的結果，
+      // 免得把「nameless 沒有立繪所以刻意藏起來」的判斷覆蓋掉。
       var bossSheet = window.PriTestMidnightSprite
         ? window.PriTestMidnightSprite.sheetFileFor(null, trig.enemyId, true)
         : null;
-      if (bossSheet) window.PriTestMidnightSprite.showSprite(bossSheet, "../static/");
-      else if (window.PriTestMidnightSprite) window.PriTestMidnightSprite.showStatic();
+      if (bossSheet && window.PriTestMidnightSprite.showSprite(bossSheet, "../static/")) {
+        imgEl.hidden = true;
+      } else if (window.PriTestMidnightSprite) {
+        window.PriTestMidnightSprite.showStatic();
+      }
       imgEl.alt = bossName;
       el("midnight-field-encounter-name").textContent = bossName;
       return;
@@ -17955,12 +17961,16 @@
     el("midnight-field-encounter-image").hidden = false;
     el("midnight-field-encounter-image").src = window.PriTestEnemies.imagePath(data.enemy, "../static/");
     el("midnight-field-encounter-image").alt = name;
-    // 2026-09-21：同上。available:false のうちは必ず showStatic() 側に落ちる。
+    // 2026-09-21：同上。available:false 期間一定會落到 showStatic() 這一側，
+    // 上面剛設好的 hidden=false 就這樣保留，畫面跟改動前完全一樣。
     var sheet = window.PriTestMidnightSprite
       ? window.PriTestMidnightSprite.sheetFileFor(trig.enemyFamilyId, trig.enemyId, false)
       : null;
-    if (sheet) window.PriTestMidnightSprite.showSprite(sheet, "../static/");
-    else if (window.PriTestMidnightSprite) window.PriTestMidnightSprite.showStatic();
+    if (sheet && window.PriTestMidnightSprite.showSprite(sheet, "../static/")) {
+      el("midnight-field-encounter-image").hidden = true;
+    } else if (window.PriTestMidnightSprite) {
+      window.PriTestMidnightSprite.showStatic();
+    }
     el("midnight-field-encounter-name").textContent = name;
   }
 

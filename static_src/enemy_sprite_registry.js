@@ -1,10 +1,11 @@
 (function () {
-  // sprite sheet の登録表。
-  // 自動生成: node tools/sprite_check/sprite_registry_gen.js --write
-  // 手で直さないこと——割当を変えるときは生成器の OVERRIDES を直して再生成する。
+  // sprite sheet 的登錄表。
+  // 自動產生: node tools/sprite_check/sprite_registry_gen.js --write
+  // 不要手動修改——要改分配就去改產生器的 OVERRIDES 再重新產生。
   //
-  // available は「画像が産出済みか」。false の間、midnight_sprite.js は既存の静止画に
-  // fallback する（spec §4）。画像を入れたら sprite_pack.js が true に書き換える。
+  // available 是「圖片是否已產出」。false 期間 midnight_sprite.js 會 fallback 到既有的
+  // 靜止畫（spec §4）。圖片放進來之後由 sprite_pack.js 改寫成 true；重新產生登錄表時
+  // 產生器會逐 sheet 沿用這裡既有的值，不會把已驗收的成果歸零。
   var SHEETS = [
     { id: "family_dragon_a", file: "family_dragon_a.png", available: false },
     { id: "family_dragon_b", file: "family_dragon_b.png", available: false },

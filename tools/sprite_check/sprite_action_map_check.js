@@ -71,7 +71,9 @@ ok(nonAttack.length === 0, "待機/受擊/死亡が対照表に現れない" + (
 
 console.log("[既定値への退避]");
 ok(M.resolve("存在しない招式名", "group") === "area", "未登録 + 亂戰傷害 -> area");
-ok(M.resolve("存在しない招式名", "individual") === "single", "未登録 + 個別傷害 -> single");
+// dmgKind 就是 midnight.js 的 resolveEnemyActionOutcome() 實際回傳的值＝
+// "single"（個別傷害）／"group"（亂戰傷害）／null 三種，沒有 "individual" 這個值。
+ok(M.resolve("存在しない招式名", "single") === "single", "未登録 + 個別傷害 -> single");
 ok(M.resolve(null, null) === "single", "招式名なし -> single");
 
 console.log(fail === 0 ? "\nすべてOK" : "\n" + fail + " 件 FAIL");

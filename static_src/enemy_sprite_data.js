@@ -2,13 +2,13 @@
   // 敵人 sprite 的動作時間軸定義。
   // 設計文件：docs/superpowers/specs/2026-09-21-midnight-sprite-combat-design.md
   //
-  // 8 動作 × 6 幀の sheet を、横6幀 × 縦8動作 で並べる（spec §5.3）。row がそのまま
-  // sheet の縦位置になるので、ここの row を変えると既存の sheet 画像が全部ずれる。
+  // 8 動作 × 6 幀的 sheet，排成橫6幀 × 縱8動作（spec §5.3）。row 直接就是這個動作在
+  // sheet 上的縱向位置，所以動到這裡的 row，既有的 sheet 圖片會全部錯位。
   //
-  // frameMs × hitFrame ＝ 前搖（プレイヤーが招を読む時間）。使用者明確規格で
-  // 0.4~0.7 秒の範囲が指定されているが、各動作への配分は暫定値で、階段2で実図が
-  // 入ってから体感に合わせて校正する（spec §12）。tools/sprite_check/sprite_anim_check.js
-  // が範囲を強制しているので、校正時もこの区間から外れることはない。
+  // frameMs × hitFrame ＝ 前搖（玩家讀招的時間）。使用者明確規格指定 0.4~0.7 秒這個
+  // 區間，但各動作之間怎麼分配目前是暫定值，要等階段2實圖進來後再照體感校正
+  // （spec §12）。tools/sprite_check/sprite_anim_check.js 會強制檢查這個區間，
+  // 所以校正時也不會不小心跑出界。
   var SHEET_COLS = 6;
   var SHEET_ROWS = 8;
 

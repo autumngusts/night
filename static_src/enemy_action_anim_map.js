@@ -1,8 +1,8 @@
 (function () {
-  // 招式名 → 動畫 id の対照表。
-  // 自動生成: node tools/sprite_check/sprite_action_map_gen.js --write
-  // 手で直さないこと——直すときは生成器の KEYWORDS / OVERRIDES を直して再生成する。
-  // ここに無い招式は resolve() が dmgKind から既定値に退避するので、穴は空かない（spec §7.2）。
+  // 招式名 → 動畫 id 的對照表。
+  // 自動產生: node tools/sprite_check/sprite_action_map_gen.js --write
+  // 不要手動修改——要改就去改產生器的 KEYWORDS / OVERRIDES 再重新產生。
+  // 這裡沒有的招式，resolve() 會依 dmgKind 退到既定值，所以不會開天窗（spec §7.2）。
   var BY_NAME = {
     "つるはし殴り": "single",
     "のしかかり": "slam",
