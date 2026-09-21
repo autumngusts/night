@@ -481,7 +481,9 @@ git commit -m "feat(sprite): 招式から動畫を引く対照表と生成器"
   - `getSheet(sheetId)` → `{ id, file, available }`，查不到回 `null`
   - `listSheets()` → 全部 60 組的陣列
 
-**切分規則（spec §5.2）：** 系統內 size 有落差者依體型切大／小（`LL`/`L` 歸 `a`，`M`/`S` 歸 `b`）；系統內 size 全部相同者，依 `enemies` 陣列順序前半 `a`、後半 `b`。此為機械化的初始分配，要改就改生成器裡的 `OVERRIDES`。
+**切分規則（spec §5.2）：** 系統內 size 跨越大小兩桶者，依體型切（`LL`/`L` 歸 `a`，`M`/`S` 歸 `b`）；否則（size 全部相同，或雖有落差但全部落在同一桶，例如只有 `L` 與 `LL`）依 `enemies` 陣列順序前半 `a`、後半 `b`。
+
+「全部落在同一桶」這個分支是必要的：若只判斷「size 有無落差」就套體型切，`L`＋`LL` 這類系統會讓全部敵人落到 `a`、`b` 空掉，實測 25 個系統中有 6 個會踩到（岩獸・靈獸系、死鳥・大鴉系、接木系、犬・狼系、騎兵系、巨像・少女人偶系）。此為機械化的初始分配，個別要調整就用生成器裡的 `OVERRIDES`（預設為空）。
 
 - [ ] **Step 1: 寫失敗的檢查腳本**
 
@@ -631,7 +633,18 @@ function variantFor(fam, enemy, index) {
   fam.enemies.forEach(function (e) {
     sizes[e.size] = true;
   });
-  if (Object.keys(sizes).length > 1) return BIG[enemy.size] ? "a" : "b";
+  const sizeKeys = Object.keys(sizes);
+  // size に落差があっても、その落差が BIG／SMALL の同じ桶の中で起きている場合
+  //（例：L と LL しか無い系統）、体型で切ると全員が同じ変体に落ちて片方が空になる。
+  // 空の変体は sheet を1枚無駄にするうえ check も落ちるので、その場合は体型切りを
+  // 諦めて下の配列順の半分割にフォールバックする。
+  if (sizeKeys.length > 1) {
+    const variants = {};
+    sizeKeys.forEach(function (sz) {
+      variants[BIG[sz] ? "a" : "b"] = true;
+    });
+    if (Object.keys(variants).length > 1) return BIG[enemy.size] ? "a" : "b";
+  }
   return index < Math.ceil(fam.enemies.length / 2) ? "a" : "b";
 }
 
