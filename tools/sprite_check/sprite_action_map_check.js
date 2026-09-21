@@ -93,13 +93,17 @@ ok(
   mnSrc.indexOf("AnimMap.resolve(atk.actionName, atk.dmgKind)") !== -1,
   "attack 動畫が招式名から引かれている"
 );
+// 2026-09-22（v0.40.0）迴避時機判定の改版で、呼び出しは now 付きになり、startAt は
+// 「warnAt と同時」から「各下の T(k)−0.1s」（spriteHitAt()）に変わった。spriteHitAt() の
+// 起点は引き続き enemyAttackWarnAtLocal()（§8.2 の時鐘偏移換算）なので契約は維持されている。
 ok(
-  mnSrc.indexOf("maybePlayEnemyAttackAnim(trig);") !== -1,
+  mnSrc.indexOf("maybePlayEnemyAttackAnim(trig, now);") !== -1,
   "毎フレームの観測側から呼ばれている（発動した端だけでなく全端で鳴る）"
 );
 ok(
-  mnSrc.indexOf("enemyAttackWarnAtLocal(atk))") !== -1,
-  "startAt に時鐘偏移を換算した起点を渡している（§8.2）"
+  mnSrc.indexOf("spriteHitAt(atk, k) - SPRITE_DODGE_ANIM_LEAD_MS") !== -1 &&
+    /function spriteHitAt\(atk, hitIndex\) \{\s*var t = enemyAttackWarnAtLocal\(atk\)/.test(mnSrc),
+  "startAt は T(k)−0.1s（spriteHitAt）で、その起点は時鐘偏移を換算した enemyAttackWarnAtLocal（§8.2）"
 );
 ok(
   mnSrc.indexOf('playEnemySpriteAnim("death", true)') !== -1 &&
