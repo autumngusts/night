@@ -95,10 +95,41 @@ function encode(file, w, h, px) {
   ihdr.writeUInt32BE(h, 4);
   ihdr[8] = 8;
   ihdr[9] = 6;
-  const raw = Buffer.alloc(h * (w * 4 + 1));
+  // 適応フィルタ。全行 filter 0（None）で書くと写真的な画像は圧縮が効かない。
+  // PNG 標準の heuristic（各フィルタを試して絶対値和が最小のものを選ぶ）で 2~4 割縮む。
+  const stride = w * 4;
+  const raw = Buffer.alloc(h * (stride + 1));
+  const bpp = 4;
+  const cand = [Buffer.alloc(stride), Buffer.alloc(stride), Buffer.alloc(stride), Buffer.alloc(stride), Buffer.alloc(stride)];
   for (let y = 0; y < h; y++) {
-    raw[y * (w * 4 + 1)] = 0;
-    px.copy(raw, y * (w * 4 + 1) + 1, y * w * 4, (y + 1) * w * 4);
+    const cur = px.subarray(y * stride, (y + 1) * stride);
+    const prev = y > 0 ? px.subarray((y - 1) * stride, y * stride) : null;
+    let best = 0, bestSum = Infinity;
+    for (let f = 0; f < 5; f++) {
+      const o = cand[f];
+      let sum = 0;
+      for (let x = 0; x < stride; x++) {
+        const a = x >= bpp ? cur[x - bpp] : 0;
+        const b = prev ? prev[x] : 0;
+        const c = prev && x >= bpp ? prev[x - bpp] : 0;
+        let v;
+        if (f === 0) v = cur[x];
+        else if (f === 1) v = cur[x] - a;
+        else if (f === 2) v = cur[x] - b;
+        else if (f === 3) v = cur[x] - ((a + b) >> 1);
+        else {
+          const pp = a + b - c;
+          const pa = Math.abs(pp - a), pb = Math.abs(pp - b), pc = Math.abs(pp - c);
+          v = cur[x] - (pa <= pb && pa <= pc ? a : pb <= pc ? b : c);
+        }
+        v &= 0xff;
+        o[x] = v;
+        sum += v < 128 ? v : 256 - v;
+      }
+      if (sum < bestSum) { bestSum = sum; best = f; }
+    }
+    raw[y * (stride + 1)] = best;
+    cand[best].copy(raw, y * (stride + 1) + 1);
   }
   fs.writeFileSync(
     file,
