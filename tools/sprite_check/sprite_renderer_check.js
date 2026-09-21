@@ -38,13 +38,20 @@ ok(P.backgroundPosition("idle", 0, 128) === "0px 0px", "idle 第0幀は 0px 0px"
 ok(P.backgroundPosition("idle", 2, 128) === "-256px 0px", "idle 第2幀は -256px 0px");
 ok(P.backgroundPosition("thrust", 1, 128) === "-128px -384px", "thrust(row3) 第1幀は -128px -384px");
 
+// 階段1 では「まだ 1 枚も無い」前提で dragon/maris を null 判定の材料に使っていたが、
+// その 2 つは実素材が入ったので材料として使えない。まだ産出していない sheet を選び直す。
+// fallback 契約そのもの（available:false → null → 静止画のまま）は変わっていない。
 console.log("[fallback 契約]");
 ok(
-  P.sheetFileFor("dragon", "great_earth_dragon", false) === null,
-  "available:false なので null（静止画に落ちる）"
+  P.sheetFileFor("dog_wolf", "wild_dogs", false) === null,
+  "未産出の family は null（静止画に落ちる）"
 );
 ok(P.sheetFileFor("no_such_family", "no_such_enemy", false) === null, "未登録も null");
-ok(P.sheetFileFor(null, "maris", true) === null, "夜王も available:false なので null");
+ok(P.sheetFileFor(null, "caligo", true) === null, "未産出の夜王も null");
+ok(
+  typeof P.sheetFileFor(null, "gladius", true) === "string",
+  "産出済みの夜王は檔名を返す（fallback しない）"
+);
 
 // 2026-09-21 使用者明確規格「背景仍舊顯示元圖片，產生的點陣圖敵人顯示在圖片的頂層」。
 // 疊放是 CSS 與呼叫端的分工，DOM 驗證需要 Playwright，所以這裡用靜態檢查擔保。

@@ -77,13 +77,31 @@ BOSSES.forEach(function (id) {
   ok(!!R.sheetIdForBoss(id), "夜王登録あり: " + id);
 });
 
-console.log("[本階段は全て未産出]");
+// 階段1 の時点では「全 sheet が available:false」を固定で検査していたが、実素材が
+// 入り始めた以上その断言は成立しない。代わりに、available と実ファイルが食い違って
+// いないことを見る——これは素材が増えても成立し続ける不変条件。
+// available:true なのに PNG が無ければ戰鬥画面で画像が出ない（404）。
+// PNG があるのに available:false なら、せっかく作った素材が使われない。
+console.log("[available と実ファイルの整合]");
+const fsMod = require("fs");
+const pathMod = require("path");
+const SPRITE_DIR = pathMod.join(ROOT, "static_src", "images", "sprites");
+const missing = [];
+const unregistered = [];
+R.listSheets().forEach(function (s) {
+  const exists = fsMod.existsSync(pathMod.join(SPRITE_DIR, s.file));
+  if (s.available && !exists) missing.push(s.id);
+  if (!s.available && exists) unregistered.push(s.id);
+});
+ok(missing.length === 0, "available:true の sheet は PNG が実在する" + (missing.length ? " / 欠落: " + missing.join("、") : ""));
 ok(
-  R.listSheets().every(function (s) {
-    return s.available === false;
-  }),
-  "全 sheet が available:false（画像がまだ無いので fallback に落ちる）"
+  unregistered.length === 0,
+  "PNG がある sheet は available:true になっている" + (unregistered.length ? " / 未反映: " + unregistered.join("、") : "")
 );
+const avail = R.listSheets().filter(function (s) {
+  return s.available;
+});
+console.log("  --   産出済み " + avail.length + " / " + R.listSheets().length + " 組");
 
 console.log(fail === 0 ? "\nすべてOK" : "\n" + fail + " 件 FAIL");
 process.exit(fail === 0 ? 0 : 1);
