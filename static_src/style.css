@@ -7968,3 +7968,778 @@ html.midnight-top-banner-collapsed .midnight-top-banner-collapse-btn {
   font-size: 1.4rem;
   text-align: center;
 }
+
+/* ============================================================================
+   角色能力特效（2026-09-21使用者逐項規格，見docs/midnight_character_abilities.md、
+   static/midnight.jsのtriggerEnemyFx()／triggerScreenFx()／triggerButtonFx()／
+   updateAbilityVisuals()）。全部pointer-events:none、純視覺。
+   ============================================================================ */
+/* ---- 疊在敵人立繪上的一次性特效容器 ---- */
+.midnight-enemy-fx {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 5;
+  overflow: visible;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.midnight-enemy-fx-part {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  display: block;
+}
+
+.midnight-enemy-fx-mark {
+  font-size: 3.2rem;
+  line-height: 1;
+  color: var(--fx-color, #ffffff);
+  text-shadow: 0 0 12px var(--fx-color, #ffffff), 0 0 2px #000;
+}
+
+/* 追蹤者・爪擊：三道斜向爪痕依序劃過。 */
+.midnight-enemy-fx-claw .midnight-enemy-fx-part {
+  width: 6px;
+  height: 120%;
+  margin: -60% 0 0 -3px;
+  border-radius: 3px;
+  background: linear-gradient(180deg, transparent 0%, #ff6a6a 20%, #ffffff 50%, #ff6a6a 80%, transparent 100%);
+  box-shadow: 0 0 10px #ff4040;
+  transform-origin: 50% 0;
+  opacity: 0;
+  animation: midnight-fx-claw 0.5s ease-out forwards;
+  animation-delay: calc(var(--i) * 0.08s);
+}
+
+@keyframes midnight-fx-claw {
+  0% {
+    opacity: 0;
+    transform: rotate(-25deg) translateX(calc((var(--i) - 1) * 28px)) scaleY(0);
+  }
+  35% {
+    opacity: 1;
+    transform: rotate(-25deg) translateX(calc((var(--i) - 1) * 28px)) scaleY(1);
+  }
+  100% {
+    opacity: 0;
+    transform: rotate(-25deg) translateX(calc((var(--i) - 1) * 28px)) scaleY(1);
+  }
+}
+
+/* 追蹤者・襲擊之楔：大爆炸——中央閃光＋10顆火星四散。 */
+.midnight-enemy-fx-explosion::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 40%;
+  height: 40%;
+  margin: -20% 0 0 -20%;
+  border-radius: 50%;
+  background: radial-gradient(circle, #fff8d0 0%, #ffb340 35%, #ff5a20 60%, transparent 72%);
+  animation: midnight-fx-explosion-core 0.9s ease-out forwards;
+}
+
+.midnight-enemy-fx-explosion .midnight-enemy-fx-part {
+  width: 10px;
+  height: 10px;
+  margin: -5px 0 0 -5px;
+  border-radius: 50%;
+  background: #ffb340;
+  box-shadow: 0 0 8px #ff6a20;
+  animation: midnight-fx-explosion-spark 0.85s ease-out forwards;
+  --angle: calc(var(--i) * (360deg / var(--n)));
+}
+
+@keyframes midnight-fx-explosion-core {
+  0% {
+    opacity: 0;
+    transform: scale(0.2);
+  }
+  25% {
+    opacity: 1;
+    transform: scale(1.4);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(3);
+  }
+}
+
+@keyframes midnight-fx-explosion-spark {
+  0% {
+    opacity: 1;
+    transform: rotate(var(--angle)) translateX(0) scale(1.2);
+  }
+  100% {
+    opacity: 0;
+    transform: rotate(var(--angle)) translateX(180px) scale(0.3);
+  }
+}
+
+/* 守護者・旋風：三圈虛線圓環旋轉擴散。 */
+.midnight-enemy-fx-whirlwind .midnight-enemy-fx-part {
+  width: 40%;
+  height: 40%;
+  margin: -20% 0 0 -20%;
+  border-radius: 50%;
+  border: 3px dashed rgba(200, 240, 255, 0.9);
+  box-shadow: 0 0 10px rgba(120, 200, 255, 0.7);
+  animation: midnight-fx-whirl 1s linear forwards;
+  animation-delay: calc(var(--i) * 0.15s);
+  opacity: 0;
+}
+
+@keyframes midnight-fx-whirl {
+  0% {
+    opacity: 0;
+    transform: rotate(0deg) scale(0.4);
+  }
+  30% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: rotate(540deg) scale(2.4);
+  }
+}
+
+/* 鐵眼・一擊必殺：七支箭從外圈旋入集中到敵人中心。 */
+.midnight-enemy-fx-arrows .midnight-enemy-fx-part {
+  width: 70px;
+  height: 3px;
+  margin: -1px 0 0 -35px;
+  background: linear-gradient(90deg, transparent 0%, #d0f0ff 40%, #ffffff 100%);
+  box-shadow: 0 0 6px #7fd8ff;
+  --angle: calc(var(--i) * (360deg / var(--n)));
+  animation: midnight-fx-arrow-in 0.7s ease-in forwards;
+  animation-delay: calc(var(--i) * 0.05s);
+  opacity: 0;
+}
+
+@keyframes midnight-fx-arrow-in {
+  0% {
+    opacity: 0;
+    transform: rotate(var(--angle)) translateX(-260px);
+  }
+  20% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: rotate(var(--angle)) translateX(0);
+  }
+}
+
+/* 無賴漢・圖騰・史黛拉：敵人立繪上浮現圖騰，2秒後漸淡。 */
+.midnight-enemy-fx-totem .midnight-enemy-fx-mark {
+  font-size: 5rem;
+  color: #ffd27a;
+  text-shadow: 0 0 18px #ff9a2a, 0 0 4px #000;
+  animation: midnight-fx-totem 2.6s ease-out forwards;
+}
+
+@keyframes midnight-fx-totem {
+  0% {
+    opacity: 0;
+    transform: translateY(30px) scale(0.6);
+  }
+  15% {
+    opacity: 1;
+    transform: translateY(0) scale(1.05);
+  }
+  77% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-10px) scale(1.1);
+  }
+}
+
+/* 學者・探求：敵人立繪背景的下降箭頭。 */
+.midnight-enemy-fx-arrowsDown {
+  z-index: 0;
+}
+
+.midnight-enemy-fx-arrowsDown .midnight-enemy-fx-part {
+  width: 16px;
+  height: 16px;
+  margin: -8px 0 0 -8px;
+  background-color: #9fd3ff;
+  opacity: 0;
+  mask-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><path d='M12 20l-6-6h4V4h4v10h4l-6 6z'/></svg>");
+  -webkit-mask-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><path d='M12 20l-6-6h4V4h4v10h4l-6 6z'/></svg>");
+  mask-repeat: no-repeat;
+  -webkit-mask-repeat: no-repeat;
+  mask-size: contain;
+  -webkit-mask-size: contain;
+  animation: midnight-fx-arrow-down 0.85s ease-in forwards;
+  animation-delay: calc(var(--i) * 0.06s);
+  --x: calc((var(--i) - 2.5) * 34px);
+}
+
+@keyframes midnight-fx-arrow-down {
+  0% {
+    opacity: 0;
+    transform: translate(var(--x), -140px);
+  }
+  30% {
+    opacity: 0.9;
+  }
+  100% {
+    opacity: 0;
+    transform: translate(var(--x), 120px);
+  }
+}
+
+/* 送葬人・不祥一擊／妖刀解放：突刺——一道細長光刃從左下刺入中心後閃白。 */
+.midnight-enemy-fx-thrust .midnight-enemy-fx-part {
+  width: 60%;
+  height: 8px;
+  margin: -4px 0 0 -30%;
+  border-radius: 4px;
+  background: linear-gradient(90deg, transparent 0%, #c9b3ff 30%, #ffffff 100%);
+  box-shadow: 0 0 14px #b48cff;
+  transform-origin: 100% 50%;
+  animation: midnight-fx-thrust 0.7s ease-out forwards;
+}
+
+@keyframes midnight-fx-thrust {
+  0% {
+    opacity: 0;
+    transform: rotate(30deg) translateX(-160px) scaleX(0.3);
+  }
+  40% {
+    opacity: 1;
+    transform: rotate(30deg) translateX(0) scaleX(1);
+  }
+  60% {
+    opacity: 1;
+    transform: rotate(30deg) translateX(0) scaleX(1.3);
+  }
+  100% {
+    opacity: 0;
+    transform: rotate(30deg) translateX(20px) scaleX(1.3);
+  }
+}
+
+/* 隱者・混成魔法（含變體）：屬性色爆裂——圓環＋中央屬性符號（顏色由--fx-color）。 */
+.midnight-enemy-fx-element::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 45%;
+  height: 45%;
+  margin: -22.5% 0 0 -22.5%;
+  border-radius: 50%;
+  border: 3px solid var(--fx-color, #ffffff);
+  box-shadow: 0 0 20px 4px var(--fx-color, #ffffff), inset 0 0 26px 6px var(--fx-color, #ffffff);
+  animation: midnight-throw-burst 0.8s ease-out forwards;
+}
+
+.midnight-enemy-fx-element .midnight-enemy-fx-mark {
+  animation: midnight-fx-mark-pop 0.8s ease-out forwards;
+}
+
+@keyframes midnight-fx-mark-pop {
+  0% {
+    opacity: 0;
+    transform: scale(0.4);
+  }
+  35% {
+    opacity: 1;
+    transform: scale(1.2);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.6);
+  }
+}
+
+/* 淑女・重演：敵人立繪殘影（複製的<img>往右滑出淡化）。 */
+.midnight-enemy-afterimage {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  pointer-events: none;
+  z-index: 4;
+  opacity: 0.6;
+  filter: hue-rotate(200deg) brightness(1.4);
+  animation: midnight-fx-afterimage 0.7s ease-out forwards;
+}
+
+@keyframes midnight-fx-afterimage {
+  0% {
+    opacity: 0.6;
+    transform: translateX(0) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translateX(46px) scale(1.06);
+  }
+}
+
+/* 鐵眼・標記：持續期間敵人立繪右上角的標記符號（脈動）。 */
+#midnight-enemy-mark {
+  position: absolute;
+  right: 4%;
+  top: 4%;
+  z-index: 6;
+  pointer-events: none;
+  font-size: 2rem;
+  line-height: 1;
+  color: #ff5a5a;
+  text-shadow: 0 0 10px #ff2020, 0 0 2px #000;
+  animation: midnight-fx-mark-pulse 1s ease-in-out infinite alternate;
+}
+
+@keyframes midnight-fx-mark-pulse {
+  from {
+    transform: scale(0.9);
+    opacity: 0.7;
+  }
+  to {
+    transform: scale(1.15);
+    opacity: 1;
+  }
+}
+
+/* ---- 全畫面特效 ---- */
+#midnight-screen-fx-once,
+#midnight-screen-fx {
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+  pointer-events: none;
+}
+
+/* 追蹤者・第六感：瞬間甦生——白金閃光由中心炸開。 */
+#midnight-screen-fx-once.midnight-screen-fx-revive::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle, rgba(255, 250, 220, 0.95) 0%, rgba(255, 213, 74, 0.5) 30%, transparent 65%);
+  animation: midnight-fx-revive 1.2s ease-out forwards;
+}
+
+@keyframes midnight-fx-revive {
+  0% {
+    opacity: 0;
+    transform: scale(0.2);
+  }
+  20% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.8);
+  }
+}
+
+/* 守護者・救世之翼：畫面兩側展開的雙翼（純CSS羽形漸層）＋神聖金光。 */
+#midnight-screen-fx-once.midnight-screen-fx-wings::before,
+#midnight-screen-fx-once.midnight-screen-fx-wings::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  width: 46vw;
+  height: 60vh;
+  margin-top: -30vh;
+  background: radial-gradient(ellipse at 0% 50%, rgba(255, 250, 230, 0.95) 0%, rgba(255, 230, 150, 0.6) 35%, transparent 70%);
+  clip-path: polygon(0% 50%, 30% 10%, 60% 0%, 100% 12%, 80% 30%, 100% 42%, 78% 52%, 100% 66%, 76% 72%, 90% 88%, 40% 100%, 15% 80%);
+  opacity: 0;
+  animation: midnight-fx-wing 1.5s ease-out forwards;
+}
+
+#midnight-screen-fx-once.midnight-screen-fx-wings::before {
+  right: 50%;
+  transform-origin: 50% 50%; /* 在自己的盒子內鏡射（以右緣鏡射會整片翻到右邊跟右翼重疊） */
+  transform: scaleX(-1);
+}
+
+#midnight-screen-fx-once.midnight-screen-fx-wings::after {
+  left: 50%;
+  transform-origin: 0% 50%;
+}
+
+@keyframes midnight-fx-wing {
+  0% {
+    opacity: 0;
+    scale: 0.2 0.6;
+  }
+  30% {
+    opacity: 1;
+    scale: 1 1;
+  }
+  75% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    scale: 1.15 1.1;
+  }
+}
+
+/* 無賴漢・逆襲：戰吼——畫面震動＋紅色聲波圓環。 */
+#midnight-screen-fx-once.midnight-screen-fx-warcry {
+  animation: midnight-fx-shake 0.5s ease-out;
+}
+
+#midnight-screen-fx-once.midnight-screen-fx-warcry::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 20vmin;
+  height: 20vmin;
+  margin: -10vmin 0 0 -10vmin;
+  border-radius: 50%;
+  border: 6px solid rgba(255, 90, 60, 0.9);
+  box-shadow: 0 0 30px rgba(255, 90, 60, 0.8);
+  animation: midnight-fx-warcry-ring 0.7s ease-out forwards;
+}
+
+@keyframes midnight-fx-warcry-ring {
+  0% {
+    opacity: 1;
+    transform: scale(0.3);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(6);
+  }
+}
+
+@keyframes midnight-fx-shake {
+  0%,
+  100% {
+    transform: translate(0, 0);
+  }
+  20% {
+    transform: translate(-6px, 4px);
+  }
+  40% {
+    transform: translate(6px, -4px);
+  }
+  60% {
+    transform: translate(-4px, -3px);
+  }
+  80% {
+    transform: translate(4px, 3px);
+  }
+}
+
+/* 隱者・聖光燈火：柔和金光；聖幕：從上而下的淡藍布幕。 */
+#midnight-screen-fx-once.midnight-screen-fx-holy::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at 50% 40%, rgba(255, 246, 194, 0.7) 0%, transparent 60%);
+  animation: midnight-fx-fade-inout 0.9s ease-out forwards;
+}
+
+#midnight-screen-fx-once.midnight-screen-fx-curtain::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(160, 210, 255, 0.55) 0%, rgba(160, 210, 255, 0.2) 60%, transparent 100%);
+  transform-origin: 50% 0;
+  animation: midnight-fx-curtain 1s ease-out forwards;
+}
+
+@keyframes midnight-fx-curtain {
+  0% {
+    opacity: 0;
+    transform: scaleY(0);
+  }
+  40% {
+    opacity: 1;
+    transform: scaleY(1);
+  }
+  100% {
+    opacity: 0;
+    transform: scaleY(1);
+  }
+}
+
+@keyframes midnight-fx-fade-inout {
+  0% {
+    opacity: 0;
+  }
+  35% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+/* 淑女・終曲：全畫面幻霧（持續，隨enemyStunnedUntil）——兩層飄動的霧氣。 */
+#midnight-screen-fx.midnight-screen-fx-mist::before,
+#midnight-screen-fx.midnight-screen-fx-mist::after {
+  content: "";
+  position: absolute;
+  inset: -20%;
+  background: radial-gradient(ellipse at 30% 40%, rgba(220, 225, 240, 0.35) 0%, transparent 50%), radial-gradient(ellipse at 70% 65%, rgba(200, 210, 235, 0.3) 0%, transparent 55%);
+  animation: midnight-fx-mist 6s ease-in-out infinite alternate;
+}
+
+#midnight-screen-fx.midnight-screen-fx-mist::after {
+  animation-duration: 8s;
+  animation-direction: alternate-reverse;
+  opacity: 0.7;
+}
+
+@keyframes midnight-fx-mist {
+  from {
+    transform: translate(-4%, -2%) scale(1);
+  }
+  to {
+    transform: translate(4%, 3%) scale(1.15);
+  }
+}
+
+/* 復仇者・不死行軍：幻靈——畫面邊緣淡藍幽光脈動＋上飄的靈魂光點。 */
+#midnight-screen-fx.midnight-screen-fx-phantom::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  box-shadow: inset 0 0 120px 30px rgba(120, 170, 255, 0.45);
+  animation: midnight-fx-fade-pulse 1.6s ease-in-out infinite alternate;
+}
+
+#midnight-screen-fx.midnight-screen-fx-phantom::after {
+  content: "✦ ✧ ✦ ✧ ✦ ✧ ✦";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -2rem;
+  text-align: center;
+  letter-spacing: 12vw;
+  font-size: 1.4rem;
+  color: rgba(180, 210, 255, 0.85);
+  text-shadow: 0 0 10px #7fa8ff;
+  animation: midnight-fx-souls-rise 4s linear infinite;
+}
+
+@keyframes midnight-fx-fade-pulse {
+  from {
+    opacity: 0.5;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes midnight-fx-souls-rise {
+  0% {
+    transform: translateY(0);
+    opacity: 0;
+  }
+  20% {
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(-110vh);
+    opacity: 0;
+  }
+}
+
+/* ---- 按鈕一次性特效 ---- */
+.midnight-btnfx-rise,
+.midnight-btnfx-star,
+.midnight-btnfx-yoto {
+  isolation: isolate;
+}
+
+.midnight-btnfx-rise::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  pointer-events: none;
+  background-color: #ffb340;
+  opacity: 0.5;
+  mask-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><path d='M12 4l6 6h-4v8h-4v-8H6l6-6z'/></svg>");
+  -webkit-mask-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><path d='M12 4l6 6h-4v8h-4v-8H6l6-6z'/></svg>");
+  mask-repeat: repeat;
+  -webkit-mask-repeat: repeat;
+  mask-size: 14px 14px;
+  -webkit-mask-size: 14px 14px;
+  animation: midnight-rise-mask 0.5s linear 3;
+}
+
+/* 隱者・元素操控：吸收時按鈕四周的星體旋轉散開。 */
+.midnight-btnfx-star::after {
+  content: "✦ ✧ ✦ ✧";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 6rem;
+  margin-left: -3rem;
+  text-align: center;
+  letter-spacing: 0.6rem;
+  color: #9fd3ff;
+  text-shadow: 0 0 8px #4d9dff;
+  pointer-events: none;
+  animation: midnight-btnfx-star 0.9s ease-out forwards;
+}
+
+@keyframes midnight-btnfx-star {
+  0% {
+    opacity: 0;
+    transform: translateY(-50%) rotate(0deg) scale(0.4);
+  }
+  30% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-50%) rotate(180deg) scale(1.6);
+  }
+}
+
+/* 執行者・妖刀防禦成功：按鈕背景紫白閃光。 */
+.midnight-btnfx-yoto {
+  animation: midnight-btnfx-yoto 0.8s ease-out;
+}
+
+@keyframes midnight-btnfx-yoto {
+  0% {
+    box-shadow: 0 0 0 0 rgba(200, 160, 255, 1);
+    filter: brightness(2.2);
+  }
+  100% {
+    box-shadow: 0 0 22px 10px rgba(200, 160, 255, 0);
+    filter: brightness(1);
+  }
+}
+
+/* ---- 持續型能力視覺 ---- */
+/* 執行者・坩堝之獸：襲擊／咆哮鍵背景持續閃光（紅金交替）。 */
+.midnight-buff-beast {
+  animation: midnight-buff-beast 0.8s ease-in-out infinite alternate;
+}
+
+@keyframes midnight-buff-beast {
+  from {
+    box-shadow: inset 0 0 8px 2px rgba(255, 120, 40, 0.6);
+    background-color: rgba(120, 30, 10, 0.75);
+  }
+  to {
+    box-shadow: inset 0 0 16px 5px rgba(255, 200, 80, 0.95);
+    background-color: rgba(180, 70, 20, 0.85);
+  }
+}
+
+/* 隱者・血魂之歌：所有操作鍵背景血紅粒子上升。 */
+.midnight-buff-bloodsong > button,
+.midnight-buff-bloodsong .midnight-attack-wrap > button,
+.midnight-buff-bloodsong .midnight-action-card {
+  --buff-color: #ff3b3b;
+  isolation: isolate;
+}
+
+.midnight-buff-bloodsong > button::before,
+.midnight-buff-bloodsong .midnight-attack-wrap > button::before,
+.midnight-buff-bloodsong .midnight-action-card::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  pointer-events: none;
+  background-color: #ff3b3b;
+  opacity: 0.35;
+  mask-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><circle cx='12' cy='12' r='3'/><path d='M12 4c-1 3 1 4 0 6-1-2-3-3 0-6z'/></svg>");
+  -webkit-mask-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><circle cx='12' cy='12' r='3'/><path d='M12 4c-1 3 1 4 0 6-1-2-3-3 0-6z'/></svg>");
+  mask-repeat: repeat;
+  -webkit-mask-repeat: repeat;
+  mask-size: 16px 16px;
+  -webkit-mask-size: 16px 16px;
+  animation: midnight-rise-mask 1.4s linear infinite;
+}
+
+/* 學者・共感術：聖杯瓶鍵背景閃黃光。 */
+.midnight-buff-empathy {
+  animation: midnight-flash-yellow 1s ease-in-out infinite;
+  border-color: #ffd54a;
+}
+
+/* 送葬人・恍惚：自身資源條持續增強特效（發亮脈動）。 */
+.midnight-bar-fill.midnight-buff-trance {
+  animation: midnight-buff-trance 0.6s ease-in-out infinite alternate;
+}
+
+@keyframes midnight-buff-trance {
+  from {
+    filter: brightness(1.2);
+    box-shadow: 0 0 4px 1px rgba(255, 255, 255, 0.5);
+  }
+  to {
+    filter: brightness(2);
+    box-shadow: 0 0 12px 4px rgba(200, 160, 255, 0.9);
+  }
+}
+
+/* 復仇者・靈體浮標（技能鍵上方，存活時常駐）與三選一選單。 */
+.midnight-spirit-badge {
+  color: #bfe0ff;
+  border-color: rgba(159, 211, 255, 0.7);
+  font-size: 0.68rem;
+  animation: midnight-fx-fade-pulse 1.6s ease-in-out infinite alternate;
+}
+
+#midnight-spirit-choice-menu {
+  bottom: calc(100% + 1.6rem);
+  left: auto;
+  right: 0;
+  transform: none; /* 技能鍵靠畫面右緣，置中會讓選單一半跑出畫面外，改成右對齊 */
+}
+
+/* 選單內的按鈕不吃「右下所有button固定5.6rem寬」規則，依文字撐開。 */
+#midnight-hud-bottom-right .midnight-attack-special-menu button {
+  width: auto;
+  min-width: 5.6rem;
+  white-space: nowrap;
+  background: rgba(10, 12, 18, 0.95);
+}
+
+/* 隱者・混成魔法◀▶（技能鍵兩側，跟消耗品卡片同款）。放在#midnight-hud-bottom-right裡會被
+   「所有button固定5.6rem寬」規則命中，這裡用更高特異度覆寫回窄鍵。 */
+#midnight-hud-bottom-right .midnight-skill-variant-arrow {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 0.9rem;
+  min-width: 0;
+  padding: 0;
+  line-height: 1;
+  font-size: 0.5rem;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  color: #f0f0f0;
+  cursor: pointer;
+  z-index: 2;
+  display: block;
+}
+
+#btn-midnight-skill-variant-prev {
+  left: 0;
+}
+
+#btn-midnight-skill-variant-next {
+  right: 0;
+}

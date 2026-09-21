@@ -42,7 +42,8 @@
     "test:flow_gates": "node flow_gates_check.js",
     "test:night_boss_link": "node night_boss_link_check.js",
     "test:review_2026_09_20": "node review_2026_09_20_check.js",
-    "test:feature_2026_09_21": "node feature_2026_09_21_check.js"
+    "test:feature_2026_09_21": "node feature_2026_09_21_check.js",
+    "test:ability_2026_09_21": "node ability_2026_09_21_check.js"
   },
   "devDependencies": {
     "firebase-tools": "^15.29.0",

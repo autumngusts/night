@@ -1745,6 +1745,7 @@ STRINGS_ZH: dict[str, str] = {
     "midnight_lobby_phase_hold_label": "中繼暫停（分）",
     "midnight_lobby_phase_timing_hint": "預設 8 + 5。只在測試模式生效，第1／2天共用；縮圈本身的速度不變。",
     "midnight_inventory_full_dropped_note": "持有量已達上限，物品掉在腳邊。",
+    "midnight_yoto_charges_short_note": "妖刀蓄積不足（需要 {need}，目前 {have}）",
     "midnight_lobby_weapon_affixes_label": "武器詞條開放",
     "midnight_lobby_weapon_affixes_hint": "開啟後，遊戲中獲得的武器／杖／聖印都會帶詞條（初始裝備除外）。C稀有度1條，其餘2條。",
     "midnight_character_sheet_affix_label": "詞條",

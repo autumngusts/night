@@ -1741,6 +1741,7 @@ STRINGS_EN: dict[str, str] = {
     "midnight_lobby_phase_hold_label": "Mid hold (min)",
     "midnight_lobby_phase_timing_hint": "Default 8 + 5. Test mode only, shared by day 1/2; shrink speed itself is unchanged.",
     "midnight_inventory_full_dropped_note": "Inventory is full; the item was dropped at your feet.",
+    "midnight_yoto_charges_short_note": "Not enough Yoto charge (need {need}, have {have})",
     "midnight_lobby_weapon_affixes_label": "Enable weapon affixes",
     "midnight_lobby_weapon_affixes_hint": "Weapons/staves/seals found in-game gain affixes (starting gear excluded). 1 for C rarity, 2 otherwise.",
     "midnight_character_sheet_affix_label": "Affixes",

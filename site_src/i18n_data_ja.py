@@ -1741,6 +1741,7 @@ STRINGS_JA: dict[str, str] = {
     "midnight_lobby_phase_hold_label": "中継停止（分）",
     "midnight_lobby_phase_timing_hint": "既定は 8 + 5。テストモード時のみ有効、1日目／2日目共通。縮小速度自体は変わりません。",
     "midnight_inventory_full_dropped_note": "所持上限に達したため、足元に落としました。",
+    "midnight_yoto_charges_short_note": "妖刀蓄積が足りません（必要 {need}／現在 {have}）",
     "midnight_lobby_weapon_affixes_label": "武器詞条を有効化",
     "midnight_lobby_weapon_affixes_hint": "有効にすると、ゲーム中に入手した武器／杖／聖印に詞条が付く（初期装備は除く）。C稀少度は1つ、それ以外は2つ。",
     "midnight_character_sheet_affix_label": "詞条",

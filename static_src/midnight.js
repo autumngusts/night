@@ -386,6 +386,10 @@
     var next = (c._unyieldingStacks || 0) + 1;
     c._unyieldingStacks = next;
     GameStorage.rtSet(gameId, "cloud", "character/" + myTokenId + "/_unyieldingStacks", next);
+    // 2026-09-21：產生效果時，有加成的按鈕（攻擊／戰技）背景上升特效（1.5秒）。
+    ATTACK_SKILL_BUTTON_IDS_R.concat(ATTACK_SKILL_BUTTON_IDS_L, ["btn-midnight-character-skill", "btn-midnight-art"]).forEach(function (id) {
+      triggerButtonFx(id, "rise");
+    });
     var CharacterTypes = window.PriTestCharacterTypes;
     var ability = type.abilities[0];
     showToast(CharacterTypes.localizedText(ability.name) + "：" + window.I18N.t("midnight_unyielding_stack_note", { count: next }));
@@ -3269,7 +3273,12 @@
     bindSkillBHoldInput();
     el("btn-midnight-dodge").addEventListener("click", handleDodgeClick);
     bindBlockHoldInput();
-    el("btn-midnight-defense-special").addEventListener("click", handleSpecialDefenseClick);
+    el("btn-midnight-defense-special").addEventListener("click", function () {
+      handleSpecialDefenseClick(0);
+    });
+    el("btn-midnight-defense-special-2").addEventListener("click", function () {
+      handleSpecialDefenseClick(1);
+    });
     el("btn-midnight-high-guard").addEventListener("click", handleHighGuardToggleClick);
     el("btn-midnight-eye-for-value").addEventListener("click", handleEyeForValueClick);
     el("btn-midnight-elemental-control").addEventListener("click", handleElementalControlClick);
@@ -3320,7 +3329,15 @@
     el("btn-midnight-flee-battle").addEventListener("click", handleFleeBattleClick);
     el("btn-midnight-execution").addEventListener("click", handleExecutionClick);
     el("btn-midnight-spirit-manage").addEventListener("click", handleSpiritManageClick);
-    el("btn-midnight-skill-variant").addEventListener("click", handleSkillVariantSwitchClick);
+    el("btn-midnight-skill-variant").addEventListener("click", function () {
+      handleSkillVariantSwitchClick(1);
+    });
+    el("btn-midnight-skill-variant-prev").addEventListener("click", function () {
+      handleSkillVariantSwitchClick(-1);
+    });
+    el("btn-midnight-skill-variant-next").addEventListener("click", function () {
+      handleSkillVariantSwitchClick(1);
+    });
     el("btn-midnight-blessing-claim").addEventListener("click", handleBlessingEnterClick);
     el("btn-midnight-blessing-use").addEventListener("click", handleBlessingUseClick);
     el("btn-midnight-blessing-close").addEventListener("click", closeBlessingModal);
@@ -4293,6 +4310,7 @@
     c._restageCooldownUntil = Date.now() + 60000;
     GameStorage.rtSet(gameId, "cloud", "character/" + myTokenId + "/_restageCooldownUntil", c._restageCooldownUntil);
     applyDamageToFieldEnemyHp(activeEncounter.id, 10);
+    triggerEnemyAfterimage(); // 2026-09-21：發生額外扣傷害時的殘影特效
     var CharacterTypes = window.PriTestCharacterTypes;
     var ability = type.skills[0];
     showToast(CharacterTypes.localizedText(ability.name) + "：+10");
@@ -6305,6 +6323,24 @@
     } else if (abilityId === "hybrid_magic_sacred_curtain") {
       c._noFpCostUntil = now + NO_FP_COST_MS;
       GameStorage.rtSet(gameId, "cloud", "character/" + myTokenId + "/_noFpCostUntil", c._noFpCostUntil);
+    } else if (abilityId === "hybrid_magic_lightning_sweep") {
+      // 2026-09-21使用者確認「黎明三變體的雷／火／魔蓄積一起套用」：「雷：1D」＝固定1
+      // （docs/enemy_damage_rules.md §1.1裁定）、「對雜兵HP損害：■」。
+      recordAttributeAccum("雷", 1);
+      damageActiveMobIfAny(MOB_DAMAGE_PER_RULEBOOK_POINT);
+    } else if (abilityId === "hybrid_magic_lightning_chariot") {
+      recordAttributeAccum("炎", 3);
+      recordAttributeAccum("雷", 3);
+    } else if (abilityId === "hybrid_magic_gravity_burst") {
+      recordAttributeAccum("魔", 1);
+      damageActiveMobIfAny(MOB_DAMAGE_PER_RULEBOOK_POINT * 2);
+    }
+    if (YOTO_RELEASE_COST[abilityId]) {
+      // 妖刀解放・攻／癒：消耗妖刀蓄積（門檻已在midnightAbilityPrecondition()確認）；
+      // 癒另外「對自身施加HP回復：□×5」＝+50。
+      c._yotoCharges = Math.max(0, (c._yotoCharges || 0) - YOTO_RELEASE_COST[abilityId]);
+      GameStorage.rtSet(gameId, "cloud", "character/" + myTokenId + "/_yotoCharges", c._yotoCharges);
+      if (abilityId === "yoto_release_heal_action") healSelfHp(BLOCK_SQUARE_COUNT_TO_RESOURCE_MULT * 5);
     }
   }
 
@@ -6453,8 +6489,9 @@
       }
     } else if (abilityId === "spirit_summon") {
       // 復仇者・召喚靈體：「一次只能召喚一隻」——重新召喚直接取代既有的summonedSpirit。
-      // 已知簡化：原文「海倫/弗雷德里克/賽巴斯汀三選一」沒有另外新增專屬選單UI，改成
-      // 每次按下依SPIRIT_SUMMON_TYPES順序輪流召喚下一種（見下方索引計算），不是自由選擇。
+      // 2026-09-21使用者明確規格「要能選擇三者之一」：技能鍵改成先開三選一選單
+      // （renderSpiritChoiceMenu()），選了才真正施放，選到的種類放在spiritSummonChoiceKind；
+      // 沒有選擇（例如測試入口直接呼叫）時退回舊行為：依順序輪到下一種。
       var prevKind = c.summonedSpirit && c.summonedSpirit.kind;
       var prevIndex = -1;
       for (var si = 0; si < SPIRIT_SUMMON_TYPES.length; si++) {
@@ -6464,6 +6501,10 @@
         }
       }
       var nextDef = SPIRIT_SUMMON_TYPES[(prevIndex + 1 + SPIRIT_SUMMON_TYPES.length) % SPIRIT_SUMMON_TYPES.length];
+      for (var ci = 0; ci < SPIRIT_SUMMON_TYPES.length; ci++) {
+        if (SPIRIT_SUMMON_TYPES[ci].kind === spiritSummonChoiceKind) nextDef = SPIRIT_SUMMON_TYPES[ci];
+      }
+      spiritSummonChoiceKind = null;
       var maxHp = nextDef.maxHpRows * MOB_HP_PER_ROW;
       var level = c.level || 1;
       c.summonedSpirit = { kind: nextDef.kind, hp: maxHp, maxHp: maxHp, dmg: nextDef.dmgBase + level * 5, nextAttackAt: now + SPIRIT_ATTACK_INTERVAL_MS };
@@ -6524,6 +6565,10 @@
       // 隱者・混成魔法：消耗3點屬性痕（門檻已在midnightAbilityPrecondition()確認過）。
       c.elementalMarks = Math.max(0, (c.elementalMarks || 0) - 3);
       GameStorage.rtSet(gameId, "cloud", "character/" + myTokenId + "/elementalMarks", c.elementalMarks);
+      // 2026-09-21使用者確認套用本文「任意屬性1種：2」：midnight沒有屬性選擇UI，取目標身上
+      // 目前蓄積最高的屬性（＝元素操控吸收來源，最接近觸發）；目標沒有任何屬性蓄積時退回
+      // 「魔」（隱者本職魔術屬性）。
+      recordAttributeAccum(hybridMagicElementName(), 2);
     } else if (abilityId === "song_of_blood_spirit") {
       // 隱者・血魂之歌：「全體攻擊/戰技傷害提升*1.5倍...此狀態持續10秒」，party-wide，見
       // bloodSongActive()／damageCombatTarget()的疊乘、maybeApplyBloodSongRegen()的回復。
@@ -6687,6 +6732,7 @@
       var current = cur === null ? maxHp : cur;
       return Math.min(maxHp, current + BLOOD_SONG_REGEN_AMOUNT);
     });
+    shareHealWithPartyIfEmpathyActive(BLOOD_SONG_REGEN_AMOUNT); // 2026-09-21：共感術共享其他回復來源
     fp.current = Math.min(fp.max, fp.current + BLOOD_SONG_REGEN_AMOUNT);
   }
 
@@ -6938,16 +6984,88 @@
     whirlwind: 10000,
     spirit_summon: 10000,
   };
+  // 2026-09-21使用者明確規格「旋風…黎明為冷卻20s」：依角色類型id再覆寫一層。
+  var MIDNIGHT_ABILITY_COOLDOWN_OVERRIDE_BY_TYPE_MS = {
+    guardian_dawn: { whirlwind: 20000 },
+  };
+
+  function abilityBaseCooldownMs(c, abilityId, kind) {
+    var byType = c && c.typeId && MIDNIGHT_ABILITY_COOLDOWN_OVERRIDE_BY_TYPE_MS[c.typeId];
+    if (byType && byType[abilityId]) return byType[abilityId];
+    return MIDNIGHT_ABILITY_COOLDOWN_OVERRIDE_MS[abilityId] || (kind === "art" ? ART_COOLDOWN_MS : SKILL_COOLDOWN_MS);
+  }
 
   // 復仇者「召喚靈體」（2026-09-08使用者明確要求，見數值出處character_types.js原文「海倫／
   // 弗雷德里克／賽巴斯汀」三隻靈體的最大HP／發生傷害）：格數換算HP沿用MOB_HP_PER_ROW
   // 同一套「格數×10」慣例。dmg是固定基底＋PC等級×5，弗雷德里克原文另有「+▲」（威力補正）
   // 這裡略過（▲需要角色目前狀態才能算，靈體不是PC本人，不硬套一個角色的▲，已知簡化）。
+  // glyph：2026-09-21使用者明確規格「給予不同的靈體形狀與名稱 產生在此按鈕的上方 存活時持續
+  // 存在」——三隻各自的符號（海倫＝盾形、弗雷德里克＝劍形、賽巴斯汀＝獸形），見
+  // renderSpiritBadge()。
   var SPIRIT_SUMMON_TYPES = [
-    { kind: "helen", nameKey: "midnight_spirit_helen_name", maxHpRows: 2, dmgBase: 15 },
-    { kind: "frederik", nameKey: "midnight_spirit_frederik_name", maxHpRows: 5, dmgBase: 5 },
-    { kind: "sebastian", nameKey: "midnight_spirit_sebastian_name", maxHpRows: 6, dmgBase: 10 },
+    { kind: "helen", nameKey: "midnight_spirit_helen_name", maxHpRows: 2, dmgBase: 15, glyph: "⛨" },
+    { kind: "frederik", nameKey: "midnight_spirit_frederik_name", maxHpRows: 5, dmgBase: 5, glyph: "🗡" },
+    { kind: "sebastian", nameKey: "midnight_spirit_sebastian_name", maxHpRows: 6, dmgBase: 10, glyph: "🐺" },
   ];
+  var spiritSummonChoiceKind = null; // 三選一選單選到的種類，施放時消費（見applyMidnightAbilityPostEffect）
+  var spiritChoiceMenuOpen = false;
+
+  function spiritSummonAbilitySelected() {
+    var found = characterAbilityEntry("skill");
+    return !!(found.ability && found.ability.id === "spirit_summon");
+  }
+
+  // 技能鍵按下：復仇者的「召喚靈體」先開三選一選單，其餘技能照舊直接施放。
+  function handleCharacterSkillClick() {
+    if (spiritSummonAbilitySelected()) {
+      spiritChoiceMenuOpen = !spiritChoiceMenuOpen;
+      renderSpiritChoiceMenu();
+      return;
+    }
+    useCharacterAbility("skill");
+  }
+
+  function handleSpiritChoiceClick(kind) {
+    spiritSummonChoiceKind = kind;
+    spiritChoiceMenuOpen = false;
+    renderSpiritChoiceMenu();
+    useCharacterAbility("skill");
+  }
+
+  function renderSpiritChoiceMenu() {
+    var menu = el("midnight-spirit-choice-menu");
+    if (!menu) return;
+    var show = spiritChoiceMenuOpen && spiritSummonAbilitySelected();
+    menu.hidden = !show;
+    if (!show) return;
+    if (!menu.childNodes.length) {
+      SPIRIT_SUMMON_TYPES.forEach(function (def) {
+        var btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "midnight-attack-special-btn";
+        btn.textContent = def.glyph + " " + window.I18N.t(def.nameKey) + "（HP" + def.maxHpRows * MOB_HP_PER_ROW + "）";
+        btn.addEventListener("click", function () {
+          handleSpiritChoiceClick(def.kind);
+        });
+        menu.appendChild(btn);
+      });
+    }
+  }
+
+  // 技能鍵上方的靈體浮標：存活時持續顯示「符號 名稱 HP」。
+  function renderSpiritBadge(c) {
+    var badge = el("midnight-spirit-badge");
+    if (!badge) return;
+    var spirit = c && c.summonedSpirit;
+    var alive = !!(spirit && spirit.maxHp && spirit.hp > 0);
+    badge.hidden = !alive;
+    if (!alive) return;
+    var def = null;
+    for (var i = 0; i < SPIRIT_SUMMON_TYPES.length; i++) {
+      if (SPIRIT_SUMMON_TYPES[i].kind === spirit.kind) def = SPIRIT_SUMMON_TYPES[i];
+    }
+    badge.textContent = (def ? def.glyph + " " + window.I18N.t(def.nameKey) : spirit.kind) + " " + Math.max(0, Math.round(spirit.hp)) + "/" + spirit.maxHp;
+  }
   var SPIRIT_ATTACK_INTERVAL_MS = 6000; // 使用者明確規格「攻擊頻率較敵人慢兩倍」，敵人排程約2~4秒（見ENEMY_ATTACK_INTERVAL_MIN/MAX_MS），這裡固定用兩倍的平均值
 
   // 這批技藝/技能的body文字本來就寫了「復歸傷害：N」（見parseFixedRevivalDamageValue()），
@@ -6960,13 +7078,25 @@
     wings_of_salvation: true, // 守護者・救世之翼
     one_shot: true, // 鐵眼・一擊必殺
     totem_stella: true, // 無賴漢・圖騰・史黛拉
+    march_of_the_undying: true, // 復仇者・不死行軍（2026-09-21使用者確認加入白名單：全體【復歸傷害：120】）
   };
 
   // 隱者「混成魔法」的使用門檻（2026-09-08使用者明確要求「消耗3屬性痕」，本文原有
   // 「消去『屬性痕』的『3個』」文字但原本從未真的檢查/消耗elementalMarks）：門檻不足時
   // 靜默不動作，比照handleElementalControlClick()「屬性痕已滿」等既有前置檢查風格。
+  // 2026-09-21使用者確認「執行者妖刀蓄積：解放・攻／癒檢查也消耗」：蓄積由妖刀防禦成功時
+  // +1（見resolveMyIncomingHit()）、上限YOTO_CHARGES_MAX；解放・攻需要1、解放・癒需要2，
+  // 不足時toast提示不動作，消耗在applyRelicAbilityPostEffect()。
+  var YOTO_CHARGES_MAX = 2;
+  var YOTO_RELEASE_COST = { yoto_release_action: 1, yoto_release_heal_action: 2 };
+
   function midnightAbilityPrecondition(abilityId, c) {
     if (abilityId === "hybrid_magic") return (c.elementalMarks || 0) >= 3;
+    if (YOTO_RELEASE_COST[abilityId]) {
+      if ((c._yotoCharges || 0) >= YOTO_RELEASE_COST[abilityId]) return true;
+      showToast(window.I18N.t("midnight_yoto_charges_short_note", { need: YOTO_RELEASE_COST[abilityId], have: c._yotoCharges || 0 }));
+      return false;
+    }
     return true;
   }
 
@@ -7046,7 +7176,7 @@
     var cooldownField = kind === "art" ? "_artCooldownUntil" : "_skillCooldownUntil";
     var cooldownUntil = found.c[cooldownField] || 0;
     var abilityId = found.ability.id;
-    var baseCooldownMs = MIDNIGHT_ABILITY_COOLDOWN_OVERRIDE_MS[abilityId] || (kind === "art" ? ART_COOLDOWN_MS : SKILL_COOLDOWN_MS);
+    var baseCooldownMs = abilityBaseCooldownMs(found.c, abilityId, kind);
     if (Date.now() < cooldownUntil) {
       // 力量感應（送葬人被動，2026-09-05角色能力真正接入新增）：其他PC使用技藝時累積的
       // credit可以不受冷卻限制地使用自己的技藝——見broadcastArtUseEvent／
@@ -7093,20 +7223,24 @@
     var CharacterTypes = window.PriTestCharacterTypes;
     var name = CharacterTypes.localizedText(found.ability.name);
     var body = CharacterTypes.localizedText(found.ability.body);
-    var dmgInfo = computeMidnightAbilityDamage(found.c, found.ability);
+    // 2026-09-21使用者確認「坩堝諸相・獸：襲擊與咆哮是不同攻擊按鈕，剛變身不產生傷害」：
+    // 本文第一個【總合傷害：60】其實是變身後「襲擊」的數值，發動當下不解析成傷害。
+    var dmgInfo = abilityId === "crucible_aspect_beast" ? null : computeMidnightAbilityDamage(found.c, found.ability);
+    if (abilityId === "crucible_aspect_beast") showToast(name + "：" + body);
     if (dmgInfo) {
       // ×3：見CHARACTER_ABILITY_DAMAGE_MULT說明（只影響實際傷害，下面toast維持顯示原值）。
       damageCombatTarget(Math.round(dmgInfo.value * CHARACTER_ABILITY_DAMAGE_MULT), dmgInfo.symbol);
       // 角色專屬能力不綁定特定武器，沒有武器屬性技能的概念，固定顯示無屬性（白色）刀光。
       triggerEnemyHitEffect(null);
       showToast(name + "：" + (dmgInfo.symbol ? dmgInfo.value + " + " + dmgInfo.symbol : String(dmgInfo.value)));
-    } else {
+    } else if (abilityId !== "crucible_aspect_beast") {
       // 威力無法自動解算（■或未預期的本文格式）：不發明數值，顯示規則原文交由GM/玩家判斷
       // （CLAUDE.md §19既有慣例，比照castWeaponSkillEntry的同款fallback）。
       showToast(name + "：" + body);
     }
     if (MIDNIGHT_ABILITY_AUTO_REVIVAL_IDS[abilityId]) maybeApplySkillRevivalDamage(body);
     applyMidnightAbilityPostEffect(abilityId, found.c);
+    triggerAbilityFx(abilityId, found.c); // 2026-09-21：各角色技能／技藝的專屬特效
     broadcastCombatActionBubble(name);
   }
 
@@ -7189,10 +7323,6 @@
     useCharacterAbility("art");
   }
 
-  function handleCharacterSkillClick() {
-    useCharacterAbility("skill");
-  }
-
   // 依角色類型是否有arts/skills決定按鈕顯示與否＋文字，每影格呼叫（跟renderCombatPanel
   // 同量級的cheap DOM更新，角色類型不會在對局中途變動，但characters[myTokenId]物件
   // 參照可能因onCharactersReceived而換掉，用簡單粗暴的每影格重設避免漏更新）。
@@ -7226,7 +7356,7 @@
   // 不重複定義第二套規則）：圓形計時盤需要「總長度」才能算出已經過的百分比。
   function abilityCooldownTotalMs(ability, kind) {
     if (!ability) return 0;
-    return MIDNIGHT_ABILITY_COOLDOWN_OVERRIDE_MS[ability.id] || (kind === "art" ? ART_COOLDOWN_MS : SKILL_COOLDOWN_MS);
+    return abilityBaseCooldownMs(characters[myTokenId], ability.id, kind);
   }
 
   // ---- 戰鬥按鈕文字的來回跑馬燈（2026-09-12使用者明確要求「戰鬥按鈕文字敘述使用跑馬燈
@@ -7289,13 +7419,27 @@
     btn.disabled = !actable;
   }
 
-  function handleSkillVariantSwitchClick() {
+  // 2026-09-21使用者明確規格「混成魔法 可以左右選擇要使用的魔法效果」：技能鍵兩側的◀▶
+  // （跟消耗品卡片同款），delta＝±1；原本的「切換變體」單鍵維持（＝▶）。
+  function renderSkillVariantArrows(foundSkill, actable) {
+    var variants = (foundSkill && foundSkill.variants) || [];
+    var show = variants.length > 0 && !!foundSkill.ability && !el("btn-midnight-character-skill").hidden;
+    ["btn-midnight-skill-variant-prev", "btn-midnight-skill-variant-next"].forEach(function (id) {
+      var btn = el(id);
+      if (!btn) return;
+      btn.hidden = !show;
+      btn.disabled = !actable;
+    });
+  }
+
+  function handleSkillVariantSwitchClick(delta) {
     var c = characters[myTokenId];
     if (!mySlot || isPaused() || !c) return;
     var found = characterAbilityEntry("skill");
     var total = (found.variants || []).length + 1;
     if (total <= 1) return;
-    c._selectedSkillVariantIndex = ((c._selectedSkillVariantIndex || 0) + 1) % total;
+    var step = typeof delta === "number" ? delta : 1;
+    c._selectedSkillVariantIndex = ((c._selectedSkillVariantIndex || 0) + step + total) % total;
     GameStorage.rtSet(gameId, "cloud", "character/" + myTokenId + "/_selectedSkillVariantIndex", c._selectedSkillVariantIndex);
     renderCharPanel();
     var next = characterAbilityEntry("skill");
@@ -7337,16 +7481,25 @@
     // availableSpecialDefenseOption()。
     var c = characters[myTokenId];
     var type = c && c.typeId ? window.PriTestCharacterTypes.get(c.typeId) : null;
-    var specialOption = availableSpecialDefenseOption(c, type);
-    var specialBtn = el("btn-midnight-defense-special");
-    specialBtn.hidden = !specialOption;
-    if (specialOption) {
-      var CharacterTypes = window.PriTestCharacterTypes;
-      var label =
-        specialOption.kind === "yoto" ? CharacterTypes.localizedText(specialOption.ability.name) : CharacterTypes.localizedText(specialOption.entry.name);
-      setCombatButtonLabel(el("midnight-defense-special-label"), label);
-      specialBtn.disabled = !actable;
-    }
+    var specialOptions = availableSpecialDefenseOptions(c, type);
+    var beastNow = beastFormActive(c, Date.now()); // 2026-09-21：坩堝之獸變身中防禦類按鈕全部隱藏
+    [
+      ["btn-midnight-defense-special", "midnight-defense-special-label", specialOptions[0]],
+      ["btn-midnight-defense-special-2", "midnight-defense-special-2-label", specialOptions[1]],
+    ].forEach(function (def) {
+      var specialBtn = el(def[0]);
+      if (!specialBtn) return;
+      var specialOption = def[2];
+      specialBtn.hidden = !specialOption || beastNow;
+      if (specialOption) {
+        var CharacterTypes = window.PriTestCharacterTypes;
+        var label = specialOption.kind === "relicVariant" ? CharacterTypes.localizedText(specialOption.entry.name) : CharacterTypes.localizedText(specialOption.ability.name);
+        // 妖刀本體：名稱後附「蓄積 N/2」（2026-09-21妖刀蓄積）。
+        if (specialOption.kind === "yoto") label += " " + ((c && c._yotoCharges) || 0) + "/" + YOTO_CHARGES_MAX;
+        setCombatButtonLabel(el(def[1]), label);
+        specialBtn.disabled = !actable;
+      }
+    });
 
     // 高防禦切換鈕（2026-09-05角色能力真正接入新增）：見handleHighGuardToggleClick()。
     var highGuardBtn = el("btn-midnight-high-guard");
@@ -7369,6 +7522,9 @@
     }
 
     renderSpiritManageButton(c, actable);
+    renderSpiritBadge(c);
+    renderSpiritChoiceMenu();
+    renderSkillVariantArrows(foundSkill, actable);
   }
 
   // 復仇者「靈體管理」按鈕（2026-09-11使用者明確規格）：只有目前有召喚中的靈體時才顯示，
@@ -7717,21 +7873,38 @@
   }
   var YOTO_DEFENSE_DICE_COUNT = 2; // 對應本文「消耗：豹子（2個）」，簡化成固定2點骰子成本
 
-  function availableSpecialDefenseOption(c, type) {
-    if (!c || !type) return null;
+  // 2026-09-21使用者確認「妖刀解放附帶的防禦變體要輪到」：改成回傳**全部**可用選項的陣列
+  // （妖刀本體→遺物防禦變體→重演防禦），右下用兩顆特殊防禦鍵各自對應第1／第2個選項
+  // （見renderCharacterActionButtons()／handleSpecialDefenseClick(index)）。
+  function availableSpecialDefenseOptions(c, type) {
+    var out = [];
+    if (!c || !type) return out;
     var yoto = yotoAbilityFor(type);
-    if (yoto) return { kind: "yoto", ability: yoto };
-    var variant = learnedVariantEntries(c, type).defense[0];
-    if (variant) return { kind: "relicVariant", entry: variant };
+    if (yoto) out.push({ kind: "yoto", ability: yoto });
+    learnedVariantEntries(c, type).defense.forEach(function (variant) {
+      out.push({ kind: "relicVariant", entry: variant });
+    });
     // 淑女（黎明）「技能強化（僅微無敵）」（2026-09-12）：「夜渡技能『重演』可作為
     // ［Defense］代替『迴避』執行。若如此，完全無效化施加給自身的一次傷害」。
     // midnight的特殊防禦成功本來就是完全無效化（見resolveMyIncomingHit()的
     // kind==="special"分支），所以只要把它列為可用選項即可。代價：規則書沒有寫消耗，
     // 這裡改成佔用「技能」的冷卻（等同用掉一次重演），避免變成無限免費完全無敵。
     if (hasRelic(c, "skillBriefInvincible") && (type.skills || [])[0] && (type.skills || [])[0].id === "restage") {
-      return { kind: "restageDefense", ability: type.skills[0] };
+      out.push({ kind: "restageDefense", ability: type.skills[0] });
     }
-    return null;
+    return out;
+  }
+
+  function availableSpecialDefenseOption(c, type) {
+    return availableSpecialDefenseOptions(c, type)[0] || null;
+  }
+
+  // 這次按下的是第幾顆特殊防禦鍵（0＝主鍵、1＝第二顆），resolveMyIncomingHit()依此取選項。
+  var specialDefensePressedIndex = 0;
+
+  function pressedSpecialDefenseOption(c, type) {
+    var options = availableSpecialDefenseOptions(c, type);
+    return options[specialDefensePressedIndex] || options[0] || null;
   }
 
   // 實際扣資源（遺物變體依本文「消耗：N」骰子成本換算體力，跟一般戰技同一套
@@ -7794,12 +7967,15 @@
     GameStorage.rtSet(gameId, "cloud", "character/" + myTokenId + "/_sixthSenseCooldownUntil", c._sixthSenseCooldownUntil);
     GameStorage.rtSet(gameId, "cloud", "character/" + myTokenId + "/_sixthSenseGraceUntil", c._sixthSenseGraceUntil);
     showToast(window.PriTestCharacterTypes.localizedText(saveInfo.ability.name) + "：" + window.I18N.t("midnight_sixth_sense_trigger_note"));
+    triggerScreenFx("revive", 1200); // 2026-09-21：全畫面瞬間甦生動畫
   }
 
-  function handleSpecialDefenseClick() {
+  function handleSpecialDefenseClick(index) {
     var c = characters[myTokenId];
     var type = c && c.typeId ? window.PriTestCharacterTypes.get(c.typeId) : null;
-    if (!mySlot || isPaused() || !availableSpecialDefenseOption(c, type)) return;
+    var idx = typeof index === "number" ? index : 0;
+    if (!mySlot || isPaused() || !availableSpecialDefenseOptions(c, type)[idx]) return;
+    specialDefensePressedIndex = idx;
     specialDefensePressedAt = Date.now();
   }
 
@@ -7893,6 +8069,22 @@
     });
   }
 
+  // 混成魔法本體「任意屬性1種」的自動選擇（見applyMidnightAbilityPostEffect()的說明）。
+  var HYBRID_MAGIC_DEFAULT_ELEMENT = "魔";
+  function hybridMagicElementName() {
+    var data = attributeAccum[currentAttributeAccumTargetKey()] || {};
+    var best = null;
+    var bestVal = 0;
+    Object.keys(data).forEach(function (name) {
+      if (ATTRIBUTE_STATUS_AILMENT_NAMES_JA.indexOf(name) !== -1) return;
+      if (data[name] > bestVal) {
+        bestVal = data[name];
+        best = name;
+      }
+    });
+    return best || HYBRID_MAGIC_DEFAULT_ELEMENT;
+  }
+
   // 2026-09-08使用者明確要求「元素操控cd:3s」：取代原本沒有冷卻、只受FP/屬性痕上限限制
   // 的節奏，避免蓄積屬性痕過快。獨立的_elementalControlCooldownUntil欄位，跟技能/技藝的
   // 通用冷卻（_skillCooldownUntil/_artCooldownUntil）分開，因為元素操控是Lv1「ability」
@@ -7915,7 +8107,10 @@
     GameStorage.rtSet(gameId, "cloud", "character/" + myTokenId + "/elementalMarks", c.elementalMarks);
     c._elementalControlCooldownUntil = Date.now() + ELEMENTAL_CONTROL_COOLDOWN_MS;
     GameStorage.rtSet(gameId, "cloud", "character/" + myTokenId + "/_elementalControlCooldownUntil", c._elementalControlCooldownUntil);
-    fp.current = Math.min(fp.max, fp.current + 1);
+    // 2026-09-21使用者確認「FP回復：□」＝midnight刻度 +10（BLOCK_SQUARE_COUNT_TO_RESOURCE_MULT），
+    // 原本寫成回合制刻度的+1。
+    fp.current = Math.min(fp.max, fp.current + BLOCK_SQUARE_COUNT_TO_RESOURCE_MULT);
+    triggerButtonFx("btn-midnight-elemental-control", "star"); // 2026-09-21：吸收時的星體特效
     var CharacterTypes = window.PriTestCharacterTypes;
     showToast(CharacterTypes.localizedText(ability.name) + "：" + mnText(CharacterTypes.localizedText(ability.body), CharacterTypes.localizedText(ability.name)));
   }
@@ -8338,6 +8533,8 @@
       var next = (cur === null ? maxHp : cur) + amount;
       return next > maxHp ? maxHp : next;
     });
+    // 2026-09-21使用者確認「共感術：其他回復來源也共享」：自己的持續回復（溫石等）也走共享。
+    if (tokenId === myTokenId) shareHealWithPartyIfEmpathyActive(amount);
   }
 
   // 博聞強識（學者被動，2026-09-06角色能力真正接入新增）：使用者確認「消耗品在原本night
@@ -9495,11 +9692,13 @@
         blockPct = guard.pct;
       }
     }
+    var specialOptionUsed = null;
     if (kind === "special") {
       var c = characters[myTokenId];
       var type = c && c.typeId ? window.PriTestCharacterTypes.get(c.typeId) : null;
-      var option = availableSpecialDefenseOption(c, type);
+      var option = pressedSpecialDefenseOption(c, type);
       if (!option || !trySpendSpecialDefenseCost(c, option)) kind = "hit";
+      else specialOptionUsed = option;
     }
     // 2026-09-06優化（使用者明確規格「因迴避或防禦而成功擋下敵人攻擊時，在其按鈕上方
     // 顯示[成功迴避][成功防禦]1秒後消失，反之受到傷害則在上面顯示紅字[受到傷害]」）：
@@ -9513,7 +9712,16 @@
       applyGuardSuccessRelics();
       onAffixGuardSuccess(); // 2026-09-13武器詞條：ガード成功時系4條
     } else if (kind === "special") {
-      showActionFlash("midnight-defense-special-flash", window.I18N.t("midnight_block_success_flash"), "success");
+      showActionFlash(specialDefensePressedIndex === 1 ? "midnight-defense-special-2-flash" : "midnight-defense-special-flash", window.I18N.t("midnight_block_success_flash"), "success");
+      if (specialOptionUsed && specialOptionUsed.kind === "yoto") {
+        // 2026-09-21：妖刀防禦成功→妖刀蓄積+1（上限2）＋按鈕背景閃光特效。
+        var yc = characters[myTokenId];
+        if (yc) {
+          yc._yotoCharges = Math.min(YOTO_CHARGES_MAX, (yc._yotoCharges || 0) + 1);
+          GameStorage.rtSet(gameId, "cloud", "character/" + myTokenId + "/_yotoCharges", yc._yotoCharges);
+        }
+        triggerButtonFx("btn-midnight-defense-special", "yoto");
+      }
     } else {
       showActionFlash("midnight-dodge-flash", window.I18N.t("midnight_damage_taken_flash"), "damage");
       showActionFlash("midnight-block-flash", window.I18N.t("midnight_damage_taken_flash"), "damage");
@@ -9993,6 +10201,176 @@
       spawnConsumableCardParticles("element", attributeStatusVisual(greaseTagForFx).icon);
     } else if (itemId === "item_perfume_acid_spray" || itemId === "item_perfume_iron_pot_spray") {
       playConsumableCardClass("midnight-card-shield-play", 1000);
+    }
+  }
+
+
+  // ============================================================================
+  // 角色能力特效（2026-09-21使用者逐項規格，見docs/midnight_character_abilities.md）
+  // ============================================================================
+  // 三種容器，全部純視覺、不碰任何state：
+  //   triggerEnemyFx(kind, opts)：疊在敵人立繪上的一次性特效（爪擊／爆炸／旋風／箭雨／圖騰／
+  //       下降箭頭／突刺／屬性爆裂），DOM節點動態建立、播完自行移除，可同時多個。
+  //   triggerScreenFx(kind, ms)：全畫面一次性特效（甦生／神聖雙翼／戰吼／聖光／聖幕）。
+  //   triggerButtonFx(id, kind)：某顆按鈕的一次性背景特效（上升／星體／妖刀閃光）。
+  // 持續型（標記符號／獸化閃光／血魂／共感／恍惚／幻靈／幻霧／力量感應提示）在
+  // updateAbilityVisuals()每幀依既有時間戳掛class，到期自動消失。
+  var ENEMY_FX_DEFS = {
+    claw: { ms: 800, parts: 3 },
+    explosion: { ms: 900, parts: 10 },
+    whirlwind: { ms: 1000, parts: 3 },
+    arrows: { ms: 900, parts: 7 },
+    totem: { ms: 2600, parts: 0 }, // 使用者明確規格「2秒後漸淡」
+    arrowsDown: { ms: 900, parts: 6 },
+    thrust: { ms: 700, parts: 1 },
+    element: { ms: 800, parts: 0 },
+  };
+
+  function triggerEnemyFx(kind, opts) {
+    if (!activeEncounter) return;
+    var wrap = el("midnight-field-encounter-image-wrap");
+    var def = ENEMY_FX_DEFS[kind];
+    if (!wrap || !def) return;
+    var node = document.createElement("div");
+    node.className = "midnight-enemy-fx midnight-enemy-fx-" + kind;
+    if (opts && opts.color) node.style.setProperty("--fx-color", opts.color);
+    if (opts && opts.symbol) {
+      var mark = document.createElement("span");
+      mark.className = "midnight-enemy-fx-mark";
+      mark.textContent = opts.symbol;
+      node.appendChild(mark);
+    }
+    for (var i = 0; i < def.parts; i++) {
+      var part = document.createElement("span");
+      part.className = "midnight-enemy-fx-part";
+      part.style.setProperty("--i", String(i));
+      part.style.setProperty("--n", String(def.parts));
+      node.appendChild(part);
+    }
+    wrap.appendChild(node);
+    setTimeout(function () {
+      if (node.parentNode) node.parentNode.removeChild(node);
+    }, def.ms);
+  }
+
+  // 淑女「重演」：敵人立繪的殘影——複製一份<img>往側邊滑出並淡化。
+  function triggerEnemyAfterimage() {
+    if (!activeEncounter) return;
+    var wrap = el("midnight-field-encounter-image-wrap");
+    var img = el("midnight-field-encounter-image");
+    if (!wrap || !img || !img.src) return;
+    var ghost = img.cloneNode(false);
+    ghost.removeAttribute("id");
+    ghost.className = "midnight-enemy-afterimage";
+    wrap.appendChild(ghost);
+    setTimeout(function () {
+      if (ghost.parentNode) ghost.parentNode.removeChild(ghost);
+    }, 700);
+  }
+
+  var SCREEN_FX_DEFAULT_MS = { revive: 1200, wings: 1500, warcry: 700, holy: 900, curtain: 1000 };
+  var screenFxTimers = {};
+
+  function triggerScreenFx(kind, ms) {
+    var layer = el("midnight-screen-fx-once");
+    if (!layer) return;
+    var cls = "midnight-screen-fx-" + kind;
+    layer.hidden = false;
+    layer.classList.remove(cls);
+    void layer.offsetWidth;
+    layer.classList.add(cls);
+    if (screenFxTimers[kind]) clearTimeout(screenFxTimers[kind]);
+    screenFxTimers[kind] = setTimeout(function () {
+      layer.classList.remove(cls);
+      if (!layer.className.replace("midnight-screen-fx-once", "").trim()) layer.hidden = true;
+    }, ms || SCREEN_FX_DEFAULT_MS[kind] || 900);
+  }
+
+  var BUTTON_FX_MS = { rise: 1500, star: 900, yoto: 800, heal: 900 };
+  function triggerButtonFx(id, kind) {
+    var btn = el(id);
+    if (!btn) return;
+    var cls = "midnight-btnfx-" + kind;
+    btn.classList.remove(cls);
+    void btn.offsetWidth;
+    btn.classList.add(cls);
+    setTimeout(function () {
+      btn.classList.remove(cls);
+    }, BUTTON_FX_MS[kind] || 900);
+  }
+
+  // 技能／技藝施放當下的專屬特效（useCharacterAbility()傷害結算後呼叫）。
+  var HYBRID_VARIANT_ELEMENT = {
+    hybrid_magic_vortex_flame: ["炎"],
+    hybrid_magic_frost_storm: ["凍傷"],
+    hybrid_magic_lightning_sweep: ["雷"],
+    hybrid_magic_lightning_chariot: ["炎", "雷"],
+    hybrid_magic_gravity_burst: ["魔"],
+  };
+
+  function triggerAbilityFx(abilityId, c) {
+    if (abilityId === "claw_shot") triggerEnemyFx("claw");
+    else if (abilityId === "assault_wedge") triggerEnemyFx("explosion");
+    else if (abilityId === "whirlwind") triggerEnemyFx("whirlwind");
+    else if (abilityId === "wings_of_salvation") triggerScreenFx("wings");
+    else if (abilityId === "one_shot") triggerEnemyFx("arrows");
+    else if (abilityId === "counterattack") triggerScreenFx("warcry");
+    else if (abilityId === "totem_stella") triggerEnemyFx("totem", { symbol: "🗿" });
+    else if (abilityId === "inquiry") triggerEnemyFx("arrowsDown");
+    else if (abilityId === "ominous_strike") triggerEnemyFx("thrust");
+    else if (abilityId === "hybrid_magic_holy_light") triggerScreenFx("holy");
+    else if (abilityId === "hybrid_magic_sacred_curtain") triggerScreenFx("curtain");
+    else if (abilityId === "hybrid_magic" || HYBRID_VARIANT_ELEMENT[abilityId]) {
+      var names = HYBRID_VARIANT_ELEMENT[abilityId] || [hybridMagicElementName()];
+      names.forEach(function (name, idx) {
+        var visual = attributeStatusVisual(name);
+        setTimeout(function () {
+          triggerEnemyFx("element", { color: visual.color, symbol: visual.icon });
+        }, idx * 180);
+      });
+    } else if (abilityId === "yoto_release_action" || abilityId === "yoto_release_heal_action") triggerEnemyFx("thrust");
+  }
+
+  // 持續型能力視覺（每幀，見frameInner()）。
+  function updateAbilityVisuals(now) {
+    var c = characters[myTokenId];
+    var trig = activeEncounter ? fieldTriggers[activeEncounter.id] : null;
+    // 鐵眼「標記」：持續時間內敵人立繪上有標記符號。
+    var markEl = el("midnight-enemy-mark");
+    if (markEl) markEl.hidden = !(trig && trig.hpValueReduceUntil && trig.hpValueReduceUntil > now);
+    // 執行者「坩堝諸相・獸」：變身中襲擊／咆哮鍵背景持續閃光。
+    var beast = beastFormActive(c, now);
+    setClassOnIds(["btn-midnight-attack-shared-target", "btn-midnight-attack-left"], "midnight-buff-beast", beast);
+    // 隱者「血魂之歌」：所有操作鍵背景血魂特效。
+    var blood = bloodSongActive();
+    ["midnight-hud-bottom-right", "midnight-hud-bottom-left-actions", "midnight-hud-bottom-left"].forEach(function (id) {
+      var panel = el(id);
+      if (panel) panel.classList.toggle("midnight-buff-bloodsong", blood);
+    });
+    // 學者「共感術」：發動中聖杯瓶鍵背景閃黃光。
+    var empathy = !!(c && c._empathyShareUntil && c._empathyShareUntil > now);
+    var flaskBtn = el("btn-midnight-use-flask");
+    if (flaskBtn) flaskBtn.classList.toggle("midnight-buff-empathy", empathy);
+    // 送葬人「力量感應」：可無視冷卻施放時，技藝鍵閃黃光提示。
+    var artBtn = el("btn-midnight-art");
+    if (artBtn) {
+      var resonance = !!(c && (c._powerResonanceCredits || 0) > 0 && (c._artCooldownUntil || 0) > now);
+      artBtn.classList.toggle("midnight-flash-yellow", resonance);
+    }
+    // 送葬人「恍惚」：自身資源條持續增強特效。
+    var trance = !!(c && c._tranceUntil && c._tranceUntil > now);
+    setClassOnIds(["midnight-self-hp-fill", "midnight-self-fp-fill", "midnight-self-stamina-fill"], "midnight-buff-trance", trance);
+    // 守護者「高防禦」：開啟中按鈕背景盾牌。
+    var hgBtn = el("btn-midnight-high-guard");
+    if (hgBtn) hgBtn.classList.toggle("midnight-buff-shield", !!(c && c._highGuardActive));
+    // 全畫面持續特效：淑女「終曲」幻霧（敵人停手期間、自己在該場戰鬥中）／復仇者「不死行軍」幻靈。
+    var layer = el("midnight-screen-fx");
+    if (layer) {
+      var mist = !!(trig && trig.enemyStunnedUntil && trig.enemyStunnedUntil > now);
+      var phantom = reviveImmuneActive();
+      layer.classList.toggle("midnight-screen-fx-mist", mist);
+      layer.classList.toggle("midnight-screen-fx-phantom", phantom);
+      layer.hidden = !(mist || phantom);
     }
   }
 
@@ -18788,6 +19166,12 @@
     }
     el("btn-midnight-dodge").disabled = !canAct || stamina.current < dodgeStaminaCost(characters[myTokenId]);
     el("btn-midnight-block").disabled = !canAct || !currentGuardInfo();
+    // 2026-09-21使用者明確規格「坩堝諸相・獸…其他戰技魔術等暫時不顯示 防禦也暫時不顯示」：
+    // 魔術／祈禱鍵已由renderSideCombatButtons()隱藏，這裡補上武器戰技鍵與迴避／防禦鍵。
+    var beastHide = beastFormActive(characters[myTokenId], Date.now());
+    if (beastHide) artBtn.hidden = true;
+    el("btn-midnight-dodge").hidden = beastHide;
+    el("btn-midnight-block").hidden = beastHide;
     renderAttributeAccumNote();
     renderFieldEncounterPanel(usingEncounter);
   }
@@ -20840,6 +21224,7 @@
     renderCombatPanel();
     renderCharacterActionButtons();
     updateConsumableBuffVisuals(now); // 2026-09-21：持續型消耗品的常駐視覺（依_xxxUntil自動到期）
+    updateAbilityVisuals(now); // 2026-09-21：角色能力的持續型視覺（標記／獸化／血魂／共感／恍惚等）
     renderTestPanel();
     renderDebugPanel();
     renderLobbySettings();
@@ -21207,6 +21592,125 @@
     },
     _debugUpdateConsumableBuffVisuals: function () {
       updateConsumableBuffVisuals(Date.now());
+    },
+    // ---- 2026-09-21 角色能力批次（特效／妖刀蓄積／混成魔法屬性／靈體三選一）測試入口，
+    // 見tools/midnight_check/ability_2026_09_21_check.js ----
+    _debugUseCharacterAbility: function (kind) {
+      useCharacterAbility(kind);
+    },
+    _debugSetTypeAndLevel: function (typeId, level) {
+      var c = characters[myTokenId];
+      if (!c) return null;
+      var before = snapshotMyCharacter();
+      c.typeId = typeId;
+      c.level = level;
+      c.learnedRelicEffects = [];
+      c._selectedSkillVariantIndex = 0;
+      c._selectedArtVariantIndex = 0;
+      c._artCooldownUntil = 0;
+      c._skillCooldownUntil = 0;
+      syncMyCharacterChanges(before);
+      renderCharacterActionButtons();
+      return { typeId: c.typeId, level: c.level };
+    },
+    _debugResetMyAbilityCooldowns: function () {
+      var c = characters[myTokenId];
+      if (!c) return;
+      c._artCooldownUntil = 0;
+      c._skillCooldownUntil = 0;
+      c._elementalControlCooldownUntil = 0;
+      // 也寫回RTDB：否則上一次使用寫出去的冷卻值回流時會把本地的0蓋回去（快照裡有的鍵以快照為準）。
+      GameStorage.rtSet(gameId, "cloud", "character/" + myTokenId + "/_artCooldownUntil", 0);
+      GameStorage.rtSet(gameId, "cloud", "character/" + myTokenId + "/_skillCooldownUntil", 0);
+    },
+    // 依變體id（variantEntry.id／variantEntry.action.id）習得對應遺物效果，回傳key。
+    _debugLearnRelicByVariantId: function (variantId) {
+      var c = characters[myTokenId];
+      var type = c && c.typeId ? window.PriTestCharacterTypes.get(c.typeId) : null;
+      if (!c || !type) return null;
+      var CD = window.PriTestCharacterDrawer;
+      var key = null;
+      (type.relicEffectGroups || []).forEach(function (g, gi) {
+        (g.effects || []).forEach(function (e, ei) {
+          var v = e.variantEntry;
+          if (!v) return;
+          var ids = [v.id, v.action && v.action.id, v.defense && v.defense.id];
+          if (ids.indexOf(variantId) !== -1 && !key) key = CD.relicEffectKey(type.id, gi, ei);
+        });
+      });
+      if (!key) return null;
+      var before = snapshotMyCharacter();
+      c.learnedRelicEffects = (c.learnedRelicEffects || []).concat([key]);
+      syncMyCharacterChanges(before);
+      renderCharacterActionButtons();
+      return key;
+    },
+    _debugSetSkillVariantIndex: function (i) {
+      var c = characters[myTokenId];
+      if (!c) return;
+      c._selectedSkillVariantIndex = i;
+      // 跟handleSkillVariantSwitchClick()一樣寫回RTDB：這個欄位在角色建立時就存在於快照裡，
+      // 只改本地的話下一次快照回流會把它蓋回去。
+      GameStorage.rtSet(gameId, "cloud", "character/" + myTokenId + "/_selectedSkillVariantIndex", i);
+    },
+    _debugCharacterAbilityEntry: function (kind) {
+      var found = characterAbilityEntry(kind);
+      var c = characters[myTokenId];
+      return {
+        abilityId: found.ability ? found.ability.id : null,
+        variants: (found.variants || []).map(function (v) { return v.id; }),
+        selected: c ? c._selectedSkillVariantIndex : null,
+        learned: c ? c.learnedRelicEffects : null,
+        skillCd: c ? c._skillCooldownUntil : null,
+        marks: c ? c.elementalMarks : null,
+        yoto: c ? c._yotoCharges : null,
+      };
+    },
+    _debugSpecialDefenseOptions: function () {
+      var c = characters[myTokenId];
+      var type = c && c.typeId ? window.PriTestCharacterTypes.get(c.typeId) : null;
+      return availableSpecialDefenseOptions(c, type).map(function (o) {
+        return o.kind + ":" + (o.entry ? o.entry.id : o.ability.id);
+      });
+    },
+    _debugSetSpecialDefensePressedIndex: function (i) {
+      specialDefensePressedIndex = i;
+    },
+    _debugSpiritChoice: function (kind) {
+      handleSpiritChoiceClick(kind);
+    },
+    _debugClickCharacterSkill: function () {
+      handleCharacterSkillClick();
+    },
+    _debugUpdateAbilityVisuals: function () {
+      renderCharacterActionButtons();
+      updateAbilityVisuals(Date.now());
+    },
+    _debugTriggerScreenFx: function (kind, ms) {
+      triggerScreenFx(kind, ms);
+    },
+    _debugTriggerAbilityFx: function (abilityId) {
+      triggerAbilityFx(abilityId, characters[myTokenId]);
+    },
+    _debugAbilityBaseCooldown: function (abilityId, kind) {
+      return abilityBaseCooldownMs(characters[myTokenId], abilityId, kind);
+    },
+    _debugAutoRevivalIds: function () {
+      return Object.keys(MIDNIGHT_ABILITY_AUTO_REVIVAL_IDS);
+    },
+    _debugSetElementalMarks: function (n) {
+      var c = characters[myTokenId];
+      if (c) c.elementalMarks = n;
+    },
+    _debugSetFp: function (v) {
+      fp.current = v;
+      return fp.current;
+    },
+    _debugClickElementalControl: function () {
+      handleElementalControlClick();
+    },
+    _debugHighGuardToggle: function () {
+      handleHighGuardToggleClick();
     },
     _debugRoarArtBuff: function (weaponId, bodyText) {
       var c = characters[myTokenId];

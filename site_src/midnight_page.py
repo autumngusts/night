@@ -425,6 +425,12 @@ BODY = """    <div class="midnight-wrap">
              的showToast()。 -->
         <div id="midnight-toast" hidden></div>
 
+        <!-- 全畫面能力特效（2026-09-21）：-once＝一次性（第六感甦生／救世之翼／戰吼／聖光／聖幕，
+             見triggerScreenFx()）；另一個＝持續型（終曲幻霧／不死行軍幻靈，updateAbilityVisuals()
+             每幀依時間戳切換）。都不攔截點擊。 -->
+        <div id="midnight-screen-fx-once" hidden></div>
+        <div id="midnight-screen-fx" hidden></div>
+
         <!-- 開局10秒進場動畫（2026-09-06優化，2026-09-06二次修正使用者明確規格「不要完全
              覆蓋其動畫演出頁面，仍舊要逐漸顯現出地圖，靈鷹圖示與所有人在地圖外順時針繞兩圈
              後，定位在開始地點並開始」）：半透明疊層，pointer-events蓋住底下所有操作（配合
@@ -895,6 +901,10 @@ BODY = """    <div class="midnight-wrap">
               <div id="midnight-throw-burst" hidden>
                 <span id="midnight-throw-burst-mark"></span>
               </div>
+              <!-- 鐵眼「標記」持續期間的標記符號（2026-09-21），見static/midnight.jsの
+                   updateAbilityVisuals()；角色技能／技藝的一次性特效（爪擊／爆炸／旋風等）
+                   由triggerEnemyFx()動態建立在同一個容器內。 -->
+              <div id="midnight-enemy-mark" hidden>◎</div>
               <!-- 武器詞條的追加攻擊特效（2026-09-13第2批）：蓄力攻擊的7種追擊（幻影／
                    黑炎／睡眠霧／聖衝擊波／冰嵐／魔力彈／熔岩）與架盾3秒的3種（咒靈／
                    燃燒／赤雷）共用這一層。跟上面的刀光／異常光暈／丟擲物是各自獨立的
@@ -1022,6 +1032,14 @@ BODY = """    <div class="midnight-wrap">
             <span class="midnight-icon-shield"></span>
             <span id="midnight-defense-special-label"></span>
           </button>
+          <!-- 第二顆特殊防禦鍵（2026-09-21使用者確認「妖刀解放附帶的防禦變體要輪到」）：
+               availableSpecialDefenseOptions()回傳的第2個選項（例：執行者＝妖刀本體＋解放的
+               HP價值60防禦），見renderCharacterActionButtons()。 -->
+          <button type="button" id="btn-midnight-defense-special-2" hidden>
+            <span id="midnight-defense-special-2-flash" class="midnight-action-flash" hidden></span>
+            <span class="midnight-icon-shield"></span>
+            <span id="midnight-defense-special-2-label"></span>
+          </button>
           <!-- 角色專屬〔技藝〕〔技能〕（2026-09-05戰鬥優化新增）：對應
                character_types.js的type.arts[0]／type.skills[0]，文字直接讀該ability的
                本地化名稱，跟上面通用武器戰技demo（btn-midnight-skill/skill-b）是不同
@@ -1034,10 +1052,20 @@ BODY = """    <div class="midnight-wrap">
             <span class="midnight-icon-art"></span>
             <span id="midnight-art-label"></span>
           </button>
-          <button type="button" id="btn-midnight-character-skill" hidden>
-            <span class="midnight-icon-sword"></span>
-            <span id="midnight-character-skill-label"></span>
-          </button>
+          <!-- 角色技能鍵外包一層（2026-09-21）：復仇者「召喚靈體」的三選一選單、存活靈體浮標、
+               隱者「混成魔法」的◀▶變體切換都要貼在這顆鍵旁邊，HTML不允許button巢狀button，
+               沿用.midnight-attack-wrap同款作法。見static/midnight.jsのrenderSpiritChoiceMenu()／
+               renderSpiritBadge()／renderSkillVariantArrows()。 -->
+          <div id="midnight-character-skill-wrap" class="midnight-attack-wrap">
+            <div id="midnight-spirit-choice-menu" class="midnight-attack-special-menu" hidden></div>
+            <span id="midnight-spirit-badge" class="midnight-cell-badge midnight-spirit-badge" hidden></span>
+            <button type="button" id="btn-midnight-character-skill" hidden>
+              <span class="midnight-icon-sword"></span>
+              <span id="midnight-character-skill-label"></span>
+            </button>
+            <button type="button" id="btn-midnight-skill-variant-prev" class="midnight-skill-variant-arrow" aria-label="prev" hidden>&#9664;</button>
+            <button type="button" id="btn-midnight-skill-variant-next" class="midnight-skill-variant-arrow" aria-label="next" hidden>&#9654;</button>
+          </div>
           <!-- 技能變體快速切換（2026-09-12使用者明確規格「隱者的混成魔法按鈕旁邊多個切換
                按鈕，可以更快速選得想要發動的變體(需學習該遺物效果才顯示)」）：按一下循環到
                下一個已習得的變體，跟角色視窗裡的切換共用同一個 c._selectedSkillVariantIndex，
