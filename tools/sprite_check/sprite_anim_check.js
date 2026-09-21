@@ -62,5 +62,10 @@ console.log("[非攻擊動作]");
 ok(S.getAnim("idle").loop === true, "idle はループ");
 ok(S.getAnim("death").hold === true, "death は最終幀で停止");
 
+console.log("[動畫總時長]");
+ok(S.animTotalMs("thrust") === 840, "thrust の總時長 " + S.animTotalMs("thrust") + "ms === 840");
+ok(S.animTotalMs("idle") === 1200, "idle の總時長 " + S.animTotalMs("idle") + "ms === 1200");
+ok(S.animTotalMs("nonexistent") === 0, "存在しないアニメーション nonexistent は 0 を回す");
+
 console.log(fail === 0 ? "\nすべてOK" : "\n" + fail + " 件 FAIL");
 process.exit(fail === 0 ? 0 : 1);
