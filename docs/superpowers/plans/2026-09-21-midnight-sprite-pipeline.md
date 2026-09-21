@@ -730,7 +730,7 @@ git commit -m "feat(sprite): sheet 登録表と生成器"
 - Modify: `tools/sprite_check/package.json`
 
 **Interfaces:**
-- Consumes: Task 1 的 `PriTestEnemySprite`、Task 3 的 `PriTestEnemySpriteRegistry`、`enemies_data_1~4.js`。
+- Consumes: Task 3 的 `PriTestEnemySpriteRegistry`、`enemies_data_1~4.js`（本任務不需要動作時間軸，故不載入 `enemy_sprite_data.js`）。
 - Produces: 僅 CLI 輸出（給人貼到外部生成服務的文字），無執行期介面。
 
 本任務的產出是文字，沒有可自動驗證的行為，驗收方式為**目視確認 60 段輸出齊全**（Step 3 的 `grep -c` 會把「齊不齊」變成可驗證的數字）。
@@ -790,9 +790,11 @@ vm.createContext(sandbox);
   const p = path.join(ROOT, "static_src", "enemies_data_" + n + ".js");
   vm.runInContext(fs.readFileSync(p, "utf8"), sandbox, { filename: "enemies_data_" + n + ".js" });
 });
-["enemy_sprite_data.js", "enemy_sprite_registry.js"].forEach(function (f) {
-  vm.runInContext(fs.readFileSync(path.join(ROOT, "static_src", f), "utf8"), sandbox, { filename: f });
-});
+vm.runInContext(
+  fs.readFileSync(path.join(ROOT, "static_src", "enemy_sprite_registry.js"), "utf8"),
+  sandbox,
+  { filename: "enemy_sprite_registry.js" }
+);
 const FAMILIES = [].concat(
   sandbox.window.PriTestEnemiesData1,
   sandbox.window.PriTestEnemiesData2,
