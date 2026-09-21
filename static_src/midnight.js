@@ -1728,6 +1728,7 @@
       var data = window.PriTestEnemies ? window.PriTestEnemies.get(sim.enemyFamilyId, sim.enemyId) : null;
       var name = data ? window.PriTestEnemies.localizedText(data.enemy.name) : sim.enemyId;
       text = window.I18N.t("midnight_lobby_battle_sim_status", { name: name, level: sim.level || 1 });
+      preloadEncounterSheet(sim); // 等待房就先載，開局直接開戰時 sprite 不會晚出現
     } else {
       text = window.I18N.t("midnight_lobby_battle_sim_hint");
     }
@@ -1767,6 +1768,25 @@
 
   function battleSimEnabled() {
     return !!(meta && meta.battleSim && meta.battleSim.enemyFamilyId);
+  }
+
+  // 這場遭遇該用哪一張 sprite sheet（含未產出時的代役），null＝不顯示 sprite（非點陣圖房、
+  // 沒有敵人、模組未載入）。renderFieldEncounterPanel()／preloadEncounterSheet()／
+  // 死亡小視窗三處共用同一條判定，不各自複製。
+  function encounterSheetFile(trig) {
+    var Sprite = window.PriTestMidnightSprite;
+    if (!Sprite || !spriteModeEnabled() || !trig || !trig.enemyFamilyId) return null;
+    var isBoss = trig.enemyFamilyId === BOSS_ENEMY_FAMILY_SENTINEL;
+    return Sprite.sheetFileOrSubstitute(isBoss ? null : trig.enemyFamilyId, trig.enemyId, isBoss);
+  }
+
+  // 預載（2026-09-22使用者明確規格「實際遊戲內模式也要確實的出現而不要晚出現」）：
+  // 遭遇一成為候選（recomputeActiveEncounter()，之後至少還有5秒識別資訊準備或3秒進入讀條）
+  // 就先把 sheet 抓進快取，正式進戰鬥時 showSprite() 直接命中快取、不會空一段。
+  // 同一檔名只載一次（midnight_sprite.js 內部去重）。
+  function preloadEncounterSheet(trig) {
+    var file = encounterSheetFile(trig);
+    if (file) window.PriTestMidnightSprite.preload(file, "../static/");
   }
 
   // 使用者明確規格「需要輸入nightnight密碼」：只有「開啟」需要密碼，取消不用（跟測試模式
@@ -2799,8 +2819,30 @@
     renderRewardModal();
   }
 
+  // 敵人 HP 歸零→右上角死亡小視窗（2026-09-22使用者明確規格「不影響內容情況下 在右上角縮小
+  // 比較小的視窗播放死亡動畫」）：戰鬥面板在 HP 0 的同一影格就會收掉，主舞台的 death 誰都
+  // 看不到，改在這裡觀測「自己正在打的那場遭遇（activeEncounter）從 >0 變成 <=0」，用
+  // 這場的 sheet 在右上 HUD 欄位最後一格開一個獨立小舞台播 death。所有正在這場戰鬥裡的
+  // 裝置都會收到同一份 HP 鏡像，因此全員都看得到（不像受擊只有出手的人看得到）。
+  var lastKnownEnemyHp = {}; // pointId -> number（跟 lastKnownMobHp 同款：判斷「剛好從>0變成<=0」）
+  function maybeShowEnemyDeathPopup(prevHp, nextHp) {
+    var Sprite = window.PriTestMidnightSprite;
+    if (!Sprite || !activeEncounter) return;
+    var id = activeEncounter.id;
+    var prev = prevHp[id];
+    var next = nextHp[id];
+    if (!(prev !== undefined && prev > 0 && next !== undefined && next <= 0)) return;
+    var file = encounterSheetFile(fieldTriggers[id]);
+    if (!file) return;
+    Sprite.mountDeathPopup(el("midnight-hud-top-right"));
+    Sprite.playDeathPopup(file, "../static/", Date.now());
+  }
+
   function onFieldEnemyHpReceived(value) {
-    fieldEnemyHp = value || {};
+    var next = value || {};
+    maybeShowEnemyDeathPopup(lastKnownEnemyHp, next);
+    lastKnownEnemyHp = next;
+    fieldEnemyHp = next;
     renderCombatPanel();
   }
 
@@ -4261,10 +4303,12 @@
         grantKillCooldownReduction();
         clearEnemyAttackOnKill(pointId);
       }
-      // sprite の受擊／死亡モーション（2026-09-21）。擊破の判定はすでにここにあるので
-      // 相乗りする。死亡は force=true で攻擊モーションにも割り込む。
-      if (wasAlive && committed === 0) playEnemySpriteAnim("death", true);
-      else if (committed > 0) playEnemySpriteAnim("hurt", false);
+      // sprite の受擊モーション（2026-09-21）。擊破の判定はすでにここにあるので相乗りする。
+      // 受擊は出手した本人だけに見えればよい（2026-09-22 使用者確認）。
+      // 死亡は 2026-09-22 から onFieldEnemyHpReceived() の HP 歸零觀測で右上の小視窗に
+      // 流す（見 maybeShowEnemyDeathPopup()）——戰鬥面板は HP 0 の同一影格で閉じるので、
+      // 主舞台で死亡を再生しても誰にも見えなかった。
+      if (committed > 0) playEnemySpriteAnim("hurt", false);
     });
   }
 
@@ -9923,7 +9967,24 @@
     var atk = trig.enemyAttack;
     var targeted = !!(atk && mySlot && atk.targetSlots && atk.targetSlots.indexOf(mySlot) !== -1);
     if (!targeted) {
-      if (myIncomingAttack && (!atk || atk.attackId !== myIncomingAttack.attackId)) myIncomingAttack = null;
+      if (myIncomingAttack) {
+        if (atk && atk.attackId !== myIncomingAttack.attackId) {
+          myIncomingAttack = null; // 已經換成另一次攻擊
+        } else if (!atk) {
+          // 攻擊在 RTDB 上已被收掉（maybeFinishEnemyAttack() 由任一台裝置依「它自己」算的
+          // 總時長清除，或擊破時 clearEnemyAttackOnKill()）。各裝置的窗口長度含自己的
+          // 「轉身之步」加成（每個 +0.2s），持有者的最後一下會比共享壽命晚關——原本這裡直接
+          // 設 null，等於把還沒結算的那一下丟掉。改成：自己還在反應窗口中就讓它照常結算完
+          // （按下→迴避／逾時→命中；敵人已死的情況 advanceIncomingAttackPhase() 內部會清掉），
+          // 結算到 done 才釋放。
+          if (myIncomingAttack.phase === "window") {
+            advanceIncomingAttackPhase(myIncomingAttack, now);
+            if (myIncomingAttack && myIncomingAttack.phase === "done") myIncomingAttack = null;
+          } else {
+            myIncomingAttack = null;
+          }
+        }
+      }
       return;
     }
     if (!myIncomingAttack || myIncomingAttack.attackId !== atk.attackId) {
@@ -11901,6 +11962,7 @@
       if (wasActive) onEncounterEnded();
       return;
     }
+    preloadEncounterSheet(trig); // 2026-09-22：候選一成立（進戰鬥前的準備/讀條期間）就預載 sheet
     // 2026-09-06優化（使用者明確規格「若因為離開過再次進入戰鬥或參加別人的戰鬥，都須先
     // 按下上方資訊欄的進入戰鬥，接著讀條3秒後才正式進入戰鬥畫面」）：本來就是participant
     // （邀請/投票時就加入）且第一次遇到這場已解決的遭遇時，直接視為「已在其中」，不用
@@ -19950,6 +20012,9 @@
       lastRenderedEncounterKey = null;
       eyeBtn.hidden = true;
       el("midnight-eye-for-value-note").textContent = "";
+      // 2026-09-22：面板收起時主舞台一併收掉，否則 tick() 會在 offsetWidth=0 的隱藏面板上
+      // 每影格空轉（退回 128px 反覆重算 backgroundSize）。下次進戰鬥由 showSprite() 重開。
+      if (window.PriTestMidnightSprite) window.PriTestMidnightSprite.showStatic();
       return;
     }
     box.hidden = false;
@@ -19992,9 +20057,7 @@
       // （使用者明確規格「剩餘還沒配對的會先隨機抽取一張點陣圖」）。60 組揃うまでの繋ぎで、
       // 素材が入ればその敵は自分の sheet に切り替わる。代役は sheetId のハッシュで決まるので
       // 同じ敵は常に同じ代役、かつ全端末で一致する（見 midnight_sprite.js）。
-      var bossSheet = window.PriTestMidnightSprite && spriteModeEnabled()
-        ? window.PriTestMidnightSprite.sheetFileOrSubstitute(null, trig.enemyId, true)
-        : null;
+      var bossSheet = encounterSheetFile(trig);
       if (!(bossSheet && window.PriTestMidnightSprite.showSprite(bossSheet, "../static/")) && window.PriTestMidnightSprite) {
         window.PriTestMidnightSprite.showStatic();
       }
@@ -20012,9 +20075,7 @@
     // 上面剛設好的 hidden=false 就這樣保留，畫面跟改動前完全一樣。
     // 2026-09-21 使用者明確規格改版：sprite 疊在插圖之上，不再把插圖藏起來。
     // 點陣圖戰鬥模式：同上，未勾選spriteModeEnabled()時直接視同沒有sheet。
-    var sheet = window.PriTestMidnightSprite && spriteModeEnabled()
-      ? window.PriTestMidnightSprite.sheetFileOrSubstitute(trig.enemyFamilyId, trig.enemyId, false)
-      : null;
+    var sheet = encounterSheetFile(trig);
     if (!(sheet && window.PriTestMidnightSprite.showSprite(sheet, "../static/")) && window.PriTestMidnightSprite) {
       window.PriTestMidnightSprite.showStatic();
     }

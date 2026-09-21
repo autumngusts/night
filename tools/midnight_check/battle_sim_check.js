@@ -21,7 +21,7 @@
 //   ⑧（2026-09-22 第2批）抽中的敵人必須有已產出的 sprite sheet（registry available:true）
 //   ⑨（同上）開局不播靈鳥進場動畫、地圖維持收合
 //   ⑩（同上）勾選點陣圖戰鬥模式後，戰鬥中 sprite 舞台真的顯示、idle 循環在動、敵人出招時
-//      切到對應攻擊動畫、被打時 hurt、HP 歸零時 death（hold 在最後一幀）
+//      切到對應攻擊動畫、被打時 hurt、HP 歸零時右上角小視窗播 death（hold 在最後一幀後自動隱藏）；sheet 已預載
 // ============================================================================
 
 const { chromium } = require("playwright");
@@ -228,21 +228,37 @@ async function clickBattleSim(page, answer) {
     }));
     await waitFor(pageA, (hp) => window.PriTestMidnight._debugState().fieldEnemyHp.battleSim < hp, hpBeforeHit, 5000);
     assert(hurtSeen.indexOf("hurt") !== -1, "玩家命中後播放 hurt（" + hurtSeen.join("/") + "）", hurtSeen);
-    // HP 墊到 1 再打一擊 → death 並 hold 在最後一幀
+    // HP 墊到 1 再打一擊 → 右上角死亡小視窗（2026-09-22 使用者明確規格「在右上角縮小比較小的
+    // 視窗播放死亡動畫」）：主舞台隨戰鬥面板一起收掉，death 改在 #midnight-enemy-death-popup
+    // 播放（掛在 #midnight-hud-top-right 最後一格），播完＋停留後自動隱藏。兩台裝置都看得到。
     await pageA.evaluate((gameId) => window.PriTestGameStorage.rtSet(gameId, "cloud", "fieldEnemyHp/battleSim", 1), sA.gameId);
     await waitFor(pageA, () => window.PriTestMidnight._debugState().fieldEnemyHp.battleSim === 1);
     await waitFor(pageA, () => window.PriTestMidnightSprite.currentAnimId() === "idle", null, 8000);
+    const preloadedBefore = await pageA.evaluate((f) => !!document.querySelector("#midnight-enemy-sprite-stage") && performance.getEntriesByType("resource").some((e) => e.name.indexOf("images/sprites/" + f) !== -1), sheetInfo.file);
+    assert(preloadedBefore, "sheet 在進戰鬥前已被預載（resource timing 有紀錄）", preloadedBefore);
     await tapAttack(pageA); // 一般攻擊是 mousedown→mouseup（bindAttackHoldInput()），不是 click
-    await waitFor(pageA, () => window.PriTestMidnightSprite.currentAnimId() === "death", null, 5000);
-    await pageA.waitForTimeout(1300); // death 6 幀 × 160ms ＝ 960ms，之後 hold
-    const deathState = await pageA.evaluate(() => ({ anim: window.PriTestMidnightSprite.currentAnimId(), pos: document.querySelector("#midnight-enemy-sprite-stage").style.backgroundPosition, hp: window.PriTestMidnight._debugState().fieldEnemyHp.battleSim }));
-    assert(deathState.hp === 0 && deathState.anim === "death", "HP 歸零後播放 death 並 hold（不回 idle）", deathState);
-    // 敵人死亡後遭遇面板會收起、舞台 offsetWidth 變 0，不能再用 backgroundPosition() 反算；
-    // 直接從實際值反推格寬：x 必須是 5 格（frame 5）、y 必須是 7 格（row 7）。
-    const posM = /^-(\d+)px -(\d+)px$/.exec(deathState.pos) || [];
+    const popupOk = (page) => waitFor(page, () => {
+      const p = document.querySelector("#midnight-enemy-death-popup");
+      return !!p && !p.hidden && p.offsetWidth > 0;
+    }, null, 5000);
+    await popupOk(pageA);
+    await popupOk(pageB);
+    const popupA = await pageA.evaluate(() => {
+      const p = document.querySelector("#midnight-enemy-death-popup");
+      const hud = document.querySelector("#midnight-hud-top-right");
+      return { bg: p.style.backgroundImage, w: p.offsetWidth, inHud: p.parentElement === hud && hud.lastElementChild === p, panelHidden: document.querySelector("#midnight-field-encounter").hidden, stageHidden: document.querySelector("#midnight-enemy-sprite-stage").hidden, hp: window.PriTestMidnight._debugState().fieldEnemyHp.battleSim };
+    });
+    assert(popupA.hp === 0 && popupA.bg.indexOf(sheetInfo.file) !== -1, "HP 歸零後右上角小視窗用同一張 sheet 播放", popupA);
+    assert(popupA.inHud && popupA.w > 0, "小視窗掛在 #midnight-hud-top-right 最後一格（不蓋內容）", popupA);
+    assert(popupA.panelHidden && popupA.stageHidden, "戰鬥面板與主舞台已收起（主舞台不再空轉）", popupA);
+    await pageA.waitForTimeout(1100); // death 6 幀 × 160ms ＝ 960ms → 之後 hold 在最後一幀
+    const holdPos = await pageA.evaluate(() => document.querySelector("#midnight-enemy-death-popup").style.backgroundPosition);
+    const posM = /^-(\d+)px -(\d+)px$/.exec(holdPos) || [];
     const cellFromX = posM[1] ? parseInt(posM[1], 10) / 5 : NaN;
     const cellFromY = posM[2] ? parseInt(posM[2], 10) / 7 : NaN;
-    assert(cellFromX > 0 && cellFromX === cellFromY, "death hold 在最後一幀（row 7, frame 5，格寬 " + cellFromX + "px）", deathState.pos);
+    assert(cellFromX > 0 && cellFromX === cellFromY, "小視窗 death hold 在最後一幀（row 7, frame 5，格寬 " + cellFromX + "px）", holdPos);
+    await waitFor(pageA, () => document.querySelector("#midnight-enemy-death-popup").hidden, null, 3000);
+    assert(true, "停留後小視窗自動隱藏");
     // 死亡後 activeEncounter 結束；後續 ⑤⑥ 需要活著的敵人，把 HP 回滿並重新進入。
     await pageA.evaluate((args) => window.PriTestGameStorage.rtSet(args.gameId, "cloud", "fieldEnemyHp/battleSim", args.hp), { gameId: sA.gameId, hp: expectedHp });
     await waitFor(pageA, () => (window.PriTestMidnight._debugState().activeEncounter || {}).id === "battleSim", null, 15000);

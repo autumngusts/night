@@ -8796,6 +8796,26 @@ html.midnight-top-banner-collapsed .midnight-top-banner-collapse-btn {
   width: 100%;
   aspect-ratio: 1 / 1;
   background-repeat: no-repeat;
-  image-rendering: pixelated;
+  /* 2026-09-22：正式圖是抗鋸齒手繪風（單格 232px，舞台約 420px 放大 1.8 倍），pixelated 會出現
+     鋸齒，改用瀏覽器預設的平滑縮放。 */
   pointer-events: none;
+}
+
+/* 敵人死亡小視窗（2026-09-22 使用者明確規格「不影響內容情況下 在右上角縮小比較小的視窗播放
+   死亡動畫」）：由 midnight_sprite.js 的 mountDeathPopup() 掛在 #midnight-hud-top-right（flex
+   column、靠右對齊）的最後一個子元素，自然排在盧恩／地圖／角色／選單之下，不蓋任何內容；
+   death 播完＋停留後由 JS 重新加上 hidden。切幀方式跟主舞台相同（background-position）。 */
+#midnight-enemy-death-popup {
+  width: 96px;
+  aspect-ratio: 1 / 1;
+  border-radius: 8px;
+  background-color: rgba(10, 12, 18, 0.55);
+  background-repeat: no-repeat;
+  pointer-events: none;
+}
+
+@media (max-width: 640px) {
+  #midnight-enemy-death-popup {
+    width: 72px;
+  }
 }

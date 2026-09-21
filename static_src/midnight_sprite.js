@@ -145,7 +145,66 @@
     current = { animId: animId, startAt: startAt };
   }
 
+  // ---- 死亡小視窗（2026-09-22 使用者明確規格「在右上角縮小比較小的視窗播放死亡動畫」）----
+  // 敵人 HP 歸零的同一影格，戰鬥面板就會被收掉（activeEncounter 變 null），主舞台上的
+  // death 動畫根本來不及被看到。改成擊破時在呼叫端指定的容器（右上 HUD 那一欄的最後一個
+  // 子元素，不蓋任何內容）開一個小舞台，獨立播完 death＋停留後自動隱藏。
+  // 跟主舞台完全獨立：各自有自己的 sheet／格寬／時間軸，主舞台被 showStatic() 收掉也不影響。
+  var deathEl = null;
+  var deathPlay = null; // { startAt, until }
+  var deathCellPx = 0;
+  var DEATH_POPUP_LINGER_MS = 700; // death 最後一幀（hold）多停這麼久再收掉
+
+  function mountDeathPopup(containerEl) {
+    if (!containerEl || deathEl) return;
+    deathEl = containerEl.ownerDocument.createElement("div");
+    deathEl.id = "midnight-enemy-death-popup";
+    deathEl.hidden = true;
+    containerEl.appendChild(deathEl);
+  }
+
+  function playDeathPopup(sheetFile, staticPrefix, now) {
+    if (!deathEl || !sheetFile) return false;
+    deathEl.style.backgroundImage =
+      "url(" + (staticPrefix || "../static/") + "images/sprites/" + sheetFile + ")";
+    deathEl.hidden = false;
+    deathCellPx = 0; // 強制重算 backgroundSize（元素剛從 hidden 變可見）
+    deathPlay = { startAt: now, until: now + S.animTotalMs("death") + DEATH_POPUP_LINGER_MS };
+    tickDeathPopup(now);
+    return true;
+  }
+
+  function tickDeathPopup(now) {
+    if (!deathEl || !deathPlay) return;
+    if (now >= deathPlay.until) {
+      deathEl.hidden = true;
+      deathPlay = null;
+      return;
+    }
+    var px = deathEl.offsetWidth || 96;
+    if (px !== deathCellPx) {
+      deathCellPx = px;
+      deathEl.style.backgroundSize = S.SHEET_COLS * px + "px " + S.SHEET_ROWS * px + "px";
+    }
+    var idx = frameIndexAt("death", now - deathPlay.startAt);
+    if (idx === null) idx = S.getAnim("death").frameCount - 1;
+    deathEl.style.backgroundPosition = backgroundPosition("death", idx, px);
+  }
+
+  // ---- 預載（2026-09-22 使用者明確規格「實際遊戲內模式也要確實的出現而不要晚出現」）----
+  // sheet 每張 1.4~2.4MB，showSprite() 才設 backgroundImage 的話，圖片載完前舞台是空的。
+  // 呼叫端在「遭遇成為候選」（識別資訊準備／進入戰鬥讀條）與等待房抽到模擬敵人時就先
+  // 預載；同一個檔名只會建立一次 Image 物件。
+  var preloaded = {};
+  function preload(sheetFile, staticPrefix) {
+    if (!sheetFile || preloaded[sheetFile]) return;
+    var img = new Image();
+    img.src = (staticPrefix || "../static/") + "images/sprites/" + sheetFile;
+    preloaded[sheetFile] = img; // 留住參考，避免被 GC 後瀏覽器又重新要求
+  }
+
   function tick(now) {
+    tickDeathPopup(now);
     if (!stageEl || stageEl.hidden || !current) return;
     syncCellPx();
     var idx = frameIndexAt(current.animId, now - current.startAt);
@@ -157,6 +216,9 @@
   }
 
   window.PriTestMidnightSprite = {
+    mountDeathPopup: mountDeathPopup,
+    playDeathPopup: playDeathPopup,
+    preload: preload,
     sheetFileFor: sheetFileFor,
     substituteSheetFile: substituteSheetFile,
     sheetFileOrSubstitute: sheetFileOrSubstitute,
