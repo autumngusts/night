@@ -123,13 +123,21 @@ enemyAttack 產生 → ⚠ 閃爍 0.5 秒（ENEMY_ATTACK_WARN_MS）
 
 沿用既有 `tools/`（`field_card_sweep`／`midnight_check`／`night_check`）的工具腳本慣例。
 
+工具一律是 **Node 腳本**，放在 `tools/sprite_check/`，以 `package.json` 的 npm scripts 註冊
+（`generate.py` 是專案裡唯一的 Python；`tools/` 既有的 `midnight_check`／`field_card_sweep`
+都是 Node）。**不新增任何 npm 相依。**
+
 | 工具 | 職責 |
 | --- | --- |
 | `tools/sprite_spec.md` | 規格本文 |
-| `tools/sprite_prompt.py` | 讀 `enemies_data_1~4.js`，依系統名稱／size／代表招式產生每組的生成 prompt |
-| `tools/sprite_verify.py` | 匯入檢查：尺寸、幀數、透明、色階、命名 |
-| `tools/sprite_pack.py` | 切幀、打包、產出 metadata |
-| `tools/sprite_action_map.py` | 招式關鍵字自動對應，並列出未命中的長尾名稱供人工補標 |
+| `sprite_prompt.js` | 讀 `enemies_data_1~4.js`，依系統名稱／size／代表招式產生每組的生成 prompt |
+| `sprite_registry_gen.js` | 產生 sheet 登錄表與 149 隻的歸屬 |
+| `sprite_action_map_gen.js` | 招式關鍵字自動對應，並列出未命中的長尾名稱供人工補標 |
+| `sprite_verify.js` | 匯入檢查：命名在登錄表內、合法 PNG、寬高可整除為 6×8 正方格 |
+| `sprite_pack.js` | 把通過驗收的 sheet 在登錄表標記為 `available: true` |
+
+**不切幀**：renderer 以 CSS `background-position` 直接從 sheet 取單幀，因此不產生切好的單幀
+檔，`sprite_pack.js` 只更新旗標。驗收只需讀 PNG 的 IHDR 取寬高，零相依即可完成。
 
 **圖片生成本身在專案外部執行**（開發環境沒有圖像生成能力）。管線的職責是讓產出物
 「進得來、驗得過、接得上」，並在缺圖時不影響遊戲運作。
