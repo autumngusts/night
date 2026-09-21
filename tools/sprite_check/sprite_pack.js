@@ -8,6 +8,7 @@
 // この工具がやるのは available フラグの更新だけ。
 const fs = require("fs");
 const path = require("path");
+const vm = require("vm");
 const V = require("./sprite_verify.js");
 
 const ROOT = path.resolve(__dirname, "..", "..");
@@ -20,16 +21,48 @@ const present = fs.existsSync(SPRITE_DIR)
     })
   : [];
 
+// 載入登錄表並取得預期筆數。此斷言防護無聲失敗：若登錄表格式變化
+// （例如改引號、增加欄位、改排版），regex 可能會匹配 0 筆，但檔案仍包含資料。
+// 沒有此檢查的話，工具會靜默印出「変更 0 件」，無法區分「真的沒圖片」與「格式不符」，
+// 使用者會完全沒有警告。此斷言確保格式不符時會明確失敗。
+function loadRegistry() {
+  const sandbox = { window: {}, console };
+  vm.createContext(sandbox);
+  vm.runInContext(
+    fs.readFileSync(path.join(ROOT, "static_src", "enemy_sprite_registry.js"), "utf8"),
+    sandbox,
+    { filename: "enemy_sprite_registry.js" }
+  );
+  return sandbox.window.PriTestEnemySpriteRegistry;
+}
+
+const R = loadRegistry();
+const expectedCount = R.listSheets().length;
+
 let src = fs.readFileSync(REG_PATH, "utf8");
 let changed = 0;
+let matchedCount = 0;
 src = src.replace(
   /\{ id: "([^"]+)", file: "([^"]+)", available: (true|false) \}/g,
   function (m, id, file, cur) {
+    matchedCount++;
     const next = present.indexOf(file) !== -1;
     if (String(next) !== cur) changed++;
     return '{ id: "' + id + '", file: "' + file + '", available: ' + next + " }";
   }
 );
+
+// 正規表示式が予期した件数と合致するか検証する。
+if (matchedCount !== expectedCount) {
+  console.error(
+    "エラー: 登録表の形式が不正です。\n" +
+    "  予期：" + expectedCount + " 件（listSheets() による），\n" +
+    "  実際：正規表現がマッチした " + matchedCount + " 件\n" +
+    "  登録表の形式が変わった可能性があります（引号・欄位・空白）。\n" +
+    "  sprite_pack.js の正規表現を現在の形式に合わせて更新してください。"
+  );
+  process.exit(1);
+}
 
 if (process.argv.indexOf("--write") === -1) {
   console.log("合格画像 " + present.length + " 枚 / 更新予定 " + changed + " 件（--write で書き込み）");
