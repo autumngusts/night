@@ -25,14 +25,8 @@ const FAMILIES = [].concat(
 );
 
 // "familyId/enemyId": "a" | "b"
-const OVERRIDES = {
-  "rock_spirit_beast/ancestral_spirit": "b",
-  "death_bird_raven/demon_prince": "b",
-  "grafted/royal_wraith": "b",
-  "dog_wolf/stray_dogs": "a",
-  "cavalry/dragon_tree_guard": "b",
-  "golem_maiden_puppet/molten_iron_demon": "b"
-};
+// 機制保留給未來真正的個別例外，但目前應為空
+const OVERRIDES = {};
 
 const BOSSES = [
   "maris", "fulghor", "harmonia", "gladius", "gnoster",
@@ -43,11 +37,28 @@ const BIG = { LL: true, L: true };
 function variantFor(fam, enemy, index) {
   const key = fam.id + "/" + enemy.id;
   if (OVERRIDES[key]) return OVERRIDES[key];
+
   const sizes = {};
   fam.enemies.forEach(function (e) {
     sizes[e.size] = true;
   });
-  if (Object.keys(sizes).length > 1) return BIG[enemy.size] ? "a" : "b";
+  const sizeKeys = Object.keys(sizes);
+
+  // 規則 1: 系統內 size 有落差時，依體型大小切分（LL/L→a，M/S→b）。
+  // 但僅當落差導致跨越 BIG 與 SMALL 兩個桶時才有效。
+  // 若所有 size 都落在同一個桶（例如都是 L/LL，或都是 M/S），
+  // 則依體型切只會產生單一變體、另一邊必空，違反規則 3（無空變體）。
+  // 此時退回規則 2（陣列順序對半切），保證兩邊都有員工。
+  if (sizeKeys.length > 1) {
+    var variants = {};
+    sizeKeys.forEach(function (s) {
+      variants[BIG[s] ? "a" : "b"] = true;
+    });
+    if (Object.keys(variants).length > 1) return BIG[enemy.size] ? "a" : "b";
+    // 否則所有 size 都在同一個桶，退回陣列順序對半切
+  }
+
+  // 規則 2: 系統內 size 全部相同時，依 enemies 陣列順序前半(a)、後半(b)
   return index < Math.ceil(fam.enemies.length / 2) ? "a" : "b";
 }
 
