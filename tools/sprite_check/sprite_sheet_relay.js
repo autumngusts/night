@@ -94,7 +94,9 @@ function dropBleed(c, r) {
       // 幅優先で 1 成分を集める
       const comp = [];
       let touchesTop = false, touchesBottom = false;
+      let touchesLeft = false, touchesRight = false;
       let minY = chei, maxY = -1;
+      let minX = cwid, maxX = -1;
       stack.length = 0;
       stack.push(si);
       seen[si] = 1;
@@ -104,8 +106,12 @@ function dropBleed(c, r) {
         comp.push(i);
         if (py === 0) touchesTop = true;
         if (py === chei - 1) touchesBottom = true;
+        if (px === 0) touchesLeft = true;
+        if (px === cwid - 1) touchesRight = true;
         if (py < minY) minY = py;
         if (py > maxY) maxY = py;
+        if (px < minX) minX = px;
+        if (px > maxX) maxX = px;
         for (let d = 0; d < 4; d++) {
           const nx = px + (d === 0 ? 1 : d === 1 ? -1 : 0);
           const ny = py + (d === 2 ? 1 : d === 3 ? -1 : 0);
@@ -116,10 +122,15 @@ function dropBleed(c, r) {
           if (D[((y0 + ny) * W + x0 + nx) * 4 + 3] >= T) stack.push(ni);
         }
       }
-      const band = chei * BLEED_BAND;
-      const stuckTop = touchesTop && maxY <= band;
-      const stuckBottom = touchesBottom && minY >= chei - 1 - band;
-      if ((stuckTop || stuckBottom) && comp.length < total * BLEED_MAX_RATIO) {
+      // 上下だけでなく左右も見る。隣の列からの食い込みも同じ形で残るため。
+      // 剣閃や薙ぎ払いの弧は横に長く伸びるので帯に収まらず、ここでは落ちない。
+      const bandY = chei * BLEED_BAND;
+      const bandX = cwid * BLEED_BAND;
+      const stuckTop = touchesTop && maxY <= bandY;
+      const stuckBottom = touchesBottom && minY >= chei - 1 - bandY;
+      const stuckLeft = touchesLeft && maxX <= bandX;
+      const stuckRight = touchesRight && minX >= cwid - 1 - bandX;
+      if ((stuckTop || stuckBottom || stuckLeft || stuckRight) && comp.length < total * BLEED_MAX_RATIO) {
         comp.forEach(function (i) {
           const px = i % cwid, py = (i / cwid) | 0;
           D[((y0 + py) * W + x0 + px) * 4 + 3] = 0;
