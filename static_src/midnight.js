@@ -3990,7 +3990,7 @@
     if (!atk || !atk.attackId) return;
     if (!CounterRules.isCounterAction(atk.actionName)) return;
     var now = Date.now();
-    if (now >= (atk.warnAt || 0) + CounterRules.COUNTER_WINDOW_MS) return; // 誘發窗口已經過了
+    if (now >= enemyAttackWarnAtLocal(atk) + CounterRules.COUNTER_WINDOW_MS) return; // 誘發窗口已經過了
     if (counterConsumedAttackId === atk.attackId) return;
     counterConsumedAttackId = atk.attackId;
     // 反擊優先：就算有進行中的一般攻擊也直接覆寫、把它中斷（使用者明確規格）。
@@ -8572,6 +8572,20 @@
   // 窗口長度在 updateMyIncomingAttack() 與 resolveMyIncomingHit() 兩個地方各算一次，
   // 一定要都走這個函式（只改一邊會變成「第1下1秒、第2下2秒」）。
   // turnStep 遺物的加成兩條路徑都照樣疊上去。
+  // 時鐘偏移對策（設計文件 §8.2）。enemyAttack.warnAt 是「發動的那一端」寫進 RTDB 的
+  // 共享時間戳，現在統一用 GameStorage.serverNow()（伺服器時刻）寫入。讀的一端要先換算
+  // 回自己的本機時刻，才能跟畫面迴圈的 now（Date.now() 基準）直接比較。
+  //
+  // 為什麼是「把對方的時刻換算成本機」而不是「把本機換算成伺服器」：反應窗口的推進
+  // （phaseEndAt／windowStartAt）全部是同一台裝置自己寫自己讀，維持本機時刻最單純；
+  // 需要跨裝置對齊的只有 warnAt 這一個起點，在入口換算一次就夠了。
+  //
+  // 還沒連上雲端／單機模式時 serverTimeOffset() 回 0，結果跟改動前完全一樣。
+  function enemyAttackWarnAtLocal(atk) {
+    var offset = GameStorage.serverTimeOffset ? GameStorage.serverTimeOffset() : 0;
+    return (atk && atk.warnAt ? atk.warnAt : 0) - offset;
+  }
+
   function incomingHitWindowMs(st) {
     if (st && st.isCounter) {
       return CounterRules.COUNTER_REACTION_WINDOW_MS + countRelic(characters[myTokenId], "turnStep") * TURN_STEP_WINDOW_BONUS_MS;
@@ -8928,7 +8942,7 @@
           targetSlots: bossOutcome ? bossOutcome.targetSlots : [],
           // 夜之王一定落在上位敵人那組機率（1~3下），見pickEnemyAttackHitCount()。
           hitCount: pickEnemyAttackHitCount(pt, cur),
-          warnAt: Date.now(),
+          warnAt: GameStorage.serverNow ? GameStorage.serverNow() : Date.now(), // 共享時間戳改用伺服器時刻（§8.2）
           actionName: bossOutcome ? bossOutcome.actionName : null,
           actionMod: bossOutcome ? bossOutcome.actionMod : null,
           actionNote: bossOutcome ? bossOutcome.actionNote : null,
@@ -8986,7 +9000,7 @@
         attackId: pt.id + ":" + Date.now(),
         targetSlots: targetSlots,
         hitCount: pickEnemyAttackHitCount(pt, cur), // 依敵人等級分兩組機率，見該函式說明
-        warnAt: Date.now(),
+        warnAt: GameStorage.serverNow ? GameStorage.serverNow() : Date.now(), // 共享時間戳改用伺服器時刻（§8.2）
         actionName: action ? action.name : null,
         actionMod: action ? action.mod : null, // 供resolveMyIncomingHit解析這一招實際附帶的屬性
         dmgKind: outcome.kind,
@@ -9015,7 +9029,7 @@
       enemyAttackFinishAttempted[pt.id] = null; // 已經被清掉了（不論是不是自己清的），重置給下一次攻擊用
       return;
     }
-    if (now < atk.warnAt + enemyAttackTotalDurationMs(atk.hitCount)) return;
+    if (now < enemyAttackWarnAtLocal(atk) + enemyAttackTotalDurationMs(atk.hitCount)) return;
     if (enemyAttackFinishAttempted[pt.id] === atk.attackId) return;
     enemyAttackFinishAttempted[pt.id] = atk.attackId;
     GameStorage.rtTransaction(gameId, "cloud", "fieldTrigger/" + pt.id, function (cur) {
@@ -9062,7 +9076,7 @@
         hitCount: atk.hitCount,
         phase: "warn",
         windowStartAt: null,
-        phaseEndAt: atk.warnAt + ENEMY_ATTACK_WARN_MS,
+        phaseEndAt: enemyAttackWarnAtLocal(atk) + ENEMY_ATTACK_WARN_MS,
         actionName: atk.actionName,
         actionMod: atk.actionMod,
         actionNote: atk.actionNote,

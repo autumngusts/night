@@ -79,6 +79,41 @@
 
   // storageMode==="cloud" のときだけSDKロード＋匿名認証を行い、完了を待てるPromiseを返す。
   // 2回目以降の呼び出しはキャッシュ済みPromiseを再利用する（多重初期化を防ぐ）。
+  // ---- 時鐘偏移對策（2026-09-21，設計文件 2026-09-21-midnight-sprite-combat-design §8.2）----
+  // 這個專案原本完全沒有處理時鐘偏移：共享的時間戳都是某一端的 Date.now()，其他端拿自己的
+  // Date.now() 去比。窗口有 2~3 秒時，端末間 200~300ms 的時鐘差無所謂；但階段3 的無敵幀只有
+  // 0.25 秒，時鐘偏移會直接造成「某位玩家怎麼按都躲不掉」。
+  //
+  // Firebase 的 /.info/serverTimeOffset 是「伺服器時刻 − 本機時刻」的估計值（ms），是 SDK
+  // 本地維護的特殊路徑，不在 games/ 底下、不算資料庫讀寫。訂閱之後：
+  //   serverNow()        寫共享時間戳時用（讓所有端寫出同一條時間軸）
+  //   serverTimeOffset() 讀共享時間戳時用（把對方的伺服器時刻換算回自己的本機時刻）
+  // 還沒連上/非 cloud 模式時 offset 是 0，serverNow() 就等於 Date.now()，行為跟改動前一致。
+  var serverTimeOffsetMs = 0;
+  var serverTimeOffsetBound = false;
+
+  function bindServerTimeOffset() {
+    if (serverTimeOffsetBound) return;
+    serverTimeOffsetBound = true;
+    try {
+      window.firebase.database().ref("/.info/serverTimeOffset").on("value", function (snap) {
+        var v = snap.val();
+        if (typeof v === "number" && isFinite(v)) serverTimeOffsetMs = v;
+      });
+    } catch (err) {
+      serverTimeOffsetBound = false;
+      console.error("PriTestGameStorage.bindServerTimeOffset failed", err);
+    }
+  }
+
+  function serverNow() {
+    return Date.now() + serverTimeOffsetMs;
+  }
+
+  function serverTimeOffset() {
+    return serverTimeOffsetMs;
+  }
+
   function ensureCloudReady(storageMode) {
     if (storageMode !== "cloud") return Promise.resolve(false);
     if (authReadyPromise) return authReadyPromise;
@@ -93,6 +128,11 @@
           window.firebase.auth().signInAnonymously().catch(reject);
         }, reject);
       });
+    }).then(function (ok) {
+      // 認證完成した時点で購読する。ここに置けば cloud を使う全ての入口が自動的に
+      // 補正を受けられる（呼び出し側が個別に呼ぶ必要がない）。
+      bindServerTimeOffset();
+      return ok;
     });
     return authReadyPromise;
   }
@@ -452,5 +492,7 @@
     rtSet: rtSet,
     rtSubscribe: rtSubscribe,
     rtTransaction: rtTransaction,
+    serverNow: serverNow,
+    serverTimeOffset: serverTimeOffset,
   };
 })();
