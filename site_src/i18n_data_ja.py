@@ -1372,6 +1372,7 @@ STRINGS_JA: dict[str, str] = {
     "midnight_consumable_auto_applied_note": "（数値を自動で適用しました）",
     "midnight_consumable_manual_note": "（効果はGM/プレイヤーがルールブックに従って判断してください。数値は自動適用されません）",
     "midnight_evergaol_need_key_note": "石剣の鍵が必要です",
+    "midnight_evergaol_key_consumed_note": "石剣の鍵を1つ消費しました",
     "midnight_field_reward_gate_note": "まだ報酬リストを閉じていない仲間がいます。全員が閉じるまで先に進めません",
     "midnight_map_icon_label": "地図",
     "midnight_map_close_button": "地図を閉じる",

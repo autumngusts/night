@@ -11719,7 +11719,19 @@
         inviteDeadline: now + FIELD_INVITE_TIME_LIMIT_MS,
         participants: participants,
       };
-    }));
+    })).then(function (committed) {
+      // 封牢扣鑰匙（2026-09-21使用者明確規格「進入封牢須扣除鑰匙」，規則書原文「PCの任意で
+      // 『石剣の鍵』を1つ消費してもよい」）：只有transaction真的以**自己**的邀請落地時才扣
+      // （別人先按、自己搶輸時committed.initiatedBy不是自己，不能白扣），由發起者扣1個，
+      // 加入者不需要鑰匙、也不扣。扣除走鍛造台同款的consumeKeyItems()＋snapshot/sync。
+      if (pt.type !== "evergaol" || !committed || committed.initiatedBy !== mySlot || committed.startedAt !== now) return;
+      var c = characters[myTokenId];
+      if (!c) return;
+      var before = snapshotMyCharacter();
+      if (!consumeKeyItems(c, "item_stonesword_key", 1)) return;
+      syncMyCharacterChanges(before);
+      showToast(window.I18N.t("midnight_evergaol_key_consumed_note"));
+    });
   }
 
   // 附近玩家在邀請時限內按下「加入」：直接把自己這個席位寫進participants，不需要
@@ -12011,28 +12023,58 @@
   // 「這個板塊會遇到哪隻敵人」用的是同一套解析，不是自己另外亂數選。每筆match額外帶
   // mobRowCount（2026-09-06死靈術前置工程新增，來自同一行GmFlow.parseCombatEnemyRef()
   // 既有解析出的「+雜兵N」後綴，不是另外自己猜的）。
-  function scanLinesForEnemyMatches(lines) {
+  // 2026-09-21（使用者回報「封牢使用鑰匙必須一定要產生一個敵人戰鬥，有些劇本配地圖會無法
+  // 產生隨機敵人」）：敵名bullet不是具體敵名、而是引用「卡片自身extraTables的決定表」時
+  // （「封牢エネミー決定表で決定したエネミー」／「下記の第1階層ボス決定表で決定したエネミー」
+  // ／J堡壘的「地下・屋上エネミー決定表」），原本parseCombatEnemyRef()把整句當敵名去查、
+  // 永遠查不到→matches為空→maybeAssignFieldEnemy()誤判成「和平通過」，直接發獎勵、沒有戰鬥。
+  // 這裡補上night_gm_flow.js既有的同一套處理（resolveEntryExtraTableCombatLine()：
+  // findExtraTableByBulletLine()找表→rollStrongEnemyTable()擲骰→解析條目），只是擲骰改用
+  // mapSeed衍生的決定性亂數——各裝置各自跑這段、再用三個獨立transaction寫入，必須擲出
+  // 同一隻。表擲出的條目名稱對不到敵人資料時，依2026-09-13「查不到就亂數退回」規格退回
+  // randomEnemyMatchFallback()（規則書明寫這裡會發生戰鬥，不能因為名稱對不上就變成和平通過）。
+  // cardData／seedKey省略時（沒有卡片資料可查表）行為與原本完全相同。
+  function scanLinesForEnemyMatches(lines, cardData, seedKey) {
     var GmFlow = window.PriTestNightGmFlow;
     var matches = [];
     var seen = {};
-    (lines || []).forEach(function (line) {
+    function pushMatch(match, ref, extraLevel) {
+      var key = match.familyId + "|" + match.enemy.id;
+      if (seen[key]) return;
+      seen[key] = true;
+      matches.push({
+        familyId: match.familyId,
+        enemy: match.enemy,
+        mobRowCount: ref.mobRowCount || 0,
+        level: (ref.level || 1) + (extraLevel || 0),
+        needsLevelCorrection: !!ref.needsLevelCorrection, // L補：ref已經由GmFlow.parseCombatEnemyRef()偵測「」內文字含「L補」
+      });
+    }
+    (lines || []).forEach(function (line, lineIndex) {
       var ja = (line.text && line.text.ja) || "";
       var zh = (line.text && line.text.zh) || "";
       if (!/「[^」]+」/.test(ja) && !/「[^」]+」/.test(zh)) return;
+      var table = cardData && GmFlow.findExtraTableByBulletLine ? GmFlow.findExtraTableByBulletLine(cardData, line) : null;
+      if (table) {
+        var rng = Map_.mulberry32(stringSeedFrom(String(meta.mapSeed), seedKey + ":extraTable:" + lineIndex));
+        var rolled = GmFlow.rollStrongEnemyTable(table, rng);
+        var entryJa = (rolled && rolled.entry && rolled.entry.ja) || "";
+        var entryZh = (rolled && rolled.entry && rolled.entry.zh) || "";
+        // 條目文字（例："亜人の女王&亜人の剣聖（221頁）／Lv.6+L補+モブ1※"）沒有「」，包一層
+        // 後交給parseCombatEnemyRef()，等級／L補／+モブN的解析跟具體敵名bullet同一套。
+        var tableRef = GmFlow.parseCombatEnemyRef({ text: { ja: "「" + entryJa + "」", zh: "「" + entryZh + "」" } });
+        var tableMatch = null;
+        for (var i = 0; i < tableRef.nameTokens.length && !tableMatch; i++) {
+          tableMatch = GmFlow.resolveCombatEnemyMatch(tableRef.nameTokens[i]);
+        }
+        if (!tableMatch) tableMatch = randomEnemyMatchFallback(seedKey + ":extraTable:" + lineIndex + ":fallback");
+        if (tableMatch) pushMatch(tableMatch, tableRef, rolled ? rolled.levelBonus : 0);
+        return;
+      }
       var ref = GmFlow.parseCombatEnemyRef(line);
       ref.nameTokens.forEach(function (token) {
         var match = GmFlow.resolveCombatEnemyMatch(token);
-        if (!match) return;
-        var key = match.familyId + "|" + match.enemy.id;
-        if (seen[key]) return;
-        seen[key] = true;
-        matches.push({
-          familyId: match.familyId,
-          enemy: match.enemy,
-          mobRowCount: ref.mobRowCount || 0,
-          level: ref.level || 1,
-          needsLevelCorrection: !!ref.needsLevelCorrection, // L補：ref已經由GmFlow.parseCombatEnemyRef()偵測「」內文字含「L補」
-        });
+        if (match) pushMatch(match, ref, 0);
       });
     });
     return matches;
@@ -12058,7 +12100,24 @@
     var labels = fieldChoiceLabelsFor(pt, trig);
     var label = labels[choiceIndex];
     var lines = label ? collectLinesForChoice(floor, label) : floor.lines;
-    var matches = scanLinesForEnemyMatches(lines);
+    var cardData = fieldCardData(pt.card);
+    var matches = scanLinesForEnemyMatches(lines, cardData, pt.id);
+    // 封牢（evergaol，2026-09-21使用者明確規格「使用鑰匙必須一定要產生一個敵人戰鬥」）：
+    // fields_data_3.js card_9的封牢分歧把「（→石剣の鍵を使う）」選項的巢狀內文（只有敘述
+    // 「…決定表で決定したエネミーとの戦闘が発生する（→ボス戦闘）」）跟實際的敵名bullet
+    // （depth1「ボス戦闘（撃破ルーン：3）」底下的「封牢エネミー決定表で決定したエネミー」）
+    // 拆成兩個同層區塊，collectLinesForChoice()只抓到前者，因此選中區塊裡永遠找不到敵人。
+    // 改成：選中區塊找不到就改掃整層（拿得到決定表引用那一行），整層還是找不到（資料缺表等
+    // 理論上不會發生的情況）就亂數退回一隻，總之封牢一定要有戰鬥、不得和平通過。
+    // 只限封牢：其他卡牌的「成功／失敗（→ザコ戦闘）」是條件式戰鬥，midnight沒有判定機制，
+    // 維持既有「選中區塊沒有敵人＝和平通過」的行為不動。
+    if (!matches.length && pt.type === "evergaol") {
+      matches = scanLinesForEnemyMatches(floor.lines, cardData, pt.id);
+      if (!matches.length) {
+        var evergaolFallback = randomEnemyMatchFallback(pt.id + ":evergaol_fallback");
+        if (evergaolFallback) matches = [{ familyId: evergaolFallback.familyId, enemy: evergaolFallback.enemy, mobRowCount: 0, level: 1, needsLevelCorrection: false }];
+      }
+    }
     if (!matches.length) {
       // 無敵人引用＝和平通過：獎勵清單(a)「開啟並執行」，見規劃紀錄第7節。
       maybeGrantFieldTileReward(pt, trig, floor);
@@ -13520,14 +13579,20 @@
     return inst ? inst.usesRemaining || 0 : 0;
   }
 
-  function consumeSmithingStones(c, n) {
-    var inst = (c.consumables || []).filter(function (i) { return i.itemId === "item_smithing_stone"; })[0];
+  // 鑰匙類道具（noStackLimit：石劍鑰匙／鍛造石）扣除n個：堆疊在單一instance的usesRemaining，
+  // 歸零就整格移除。2026-09-21從consumeSmithingStones()抽出通用版，封牢扣石劍鑰匙共用。
+  function consumeKeyItems(c, itemId, n) {
+    var inst = (c.consumables || []).filter(function (i) { return i.itemId === itemId; })[0];
     if (!inst || inst.usesRemaining < n) return false;
     inst.usesRemaining -= n;
     if (inst.usesRemaining <= 0) {
       c.consumables = c.consumables.filter(function (i) { return i !== inst; });
     }
     return true;
+  }
+
+  function consumeSmithingStones(c, n) {
+    return consumeKeyItems(c, "item_smithing_stone", n);
   }
 
   var FORGE_COST_C_TO_U = 1;
@@ -15786,7 +15851,16 @@
           ? { itemId: entry.itemId, attributeTag: window.PriTestFields.localizedText(entry.attributeTag) }
           : { itemId: entry.itemId };
       }
-      var consumablePool = window.PriTestConsumables.list();
+      // 2026-09-21使用者明確規格「直接取得固定鑰匙，但不能出現抽選後還是另一把鑰匙的選項」：
+      // consumables.js的list()含石劍鑰匙／鍛造石（noStackLimit:true的鑰匙類道具，2026-09-05
+      // 為了讓它們佔消耗品欄才加進同一份清單），規則書「消耗品決定表」（同檔DETERMINE_TABLE）
+      // 只有16種真正的消耗品、沒有這兩樣，因此隨機抽選的候選池要把它們排除——鑰匙只會以
+      // 固定的stoneswordKey／smithingStone獎勵kind出現（pushSharedReward()的
+      // SHARED_REWARD_FIXED_KINDS已跳過抽選、直接揭示）。個人清單的computeRewardDraw()也走
+      // 這一支，兩條路徑一併生效。
+      var consumablePool = window.PriTestConsumables.list().filter(function (item) {
+        return !item.noStackLimit;
+      });
       var pickedConsumable = consumablePool[Math.floor(Math.random() * consumablePool.length)];
       return pickedConsumable ? { itemId: pickedConsumable.id } : {};
     }
@@ -22156,6 +22230,34 @@
     _debugCycleQuickConsumable: function (delta) {
       cycleQuickConsumable(delta);
       return quickConsumableIndex;
+    },
+    // 2026-09-21 封牢／決定表敵人指派的測試入口（tools/midnight_check/evergaol_enemy_check.js）：
+    // 對已寫進RTDB、status:"resolved"且帶branchIndex/floorIndex的fieldTrigger直接跑
+    // maybeAssignFieldEnemy()，並先清掉本地節流旗標讓同一個點可以重複測不同分歧。
+    _debugAssignFieldEnemy: function (pointId, choiceIndex) {
+      var pt = map.points.filter(function (p) {
+        return p.id === pointId;
+      })[0];
+      if (!pt) return false;
+      delete fieldEnemyAssignAttempted[pointId];
+      maybeAssignFieldEnemy(pt, choiceIndex || 0);
+      return true;
+    },
+    // 直接觸發「進入」handler（不看距離），測封牢的鑰匙門檻與扣除。
+    _debugEnterFieldPoint: function (pointId) {
+      var pt = map.points.filter(function (p) {
+        return p.id === pointId;
+      })[0];
+      if (!pt) return false;
+      delete fieldEnterAttempted[pointId];
+      handleEnterFieldPointClick(pt);
+      return true;
+    },
+    _debugScanLinesForEnemyMatches: function (lines, cardId, seedKey) {
+      return scanLinesForEnemyMatches(lines, cardId ? window.PriTestFields.get(cardId) : null, seedKey || "debug");
+    },
+    _debugDrawSharedRewardData: function (entry) {
+      return drawSharedRewardData(entry);
     },
     _debugApplyDrawnSharedReward: function (entry, drawn) {
       var c = characters[myTokenId];

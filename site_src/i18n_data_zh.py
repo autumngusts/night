@@ -1372,6 +1372,7 @@ STRINGS_ZH: dict[str, str] = {
     "midnight_consumable_auto_applied_note": "（已自動套用數值）",
     "midnight_consumable_manual_note": "（效果請自行/交由GM依規則書判斷，未自動套用數值）",
     "midnight_evergaol_need_key_note": "需持有石劍鑰匙",
+    "midnight_evergaol_key_consumed_note": "已消耗石劍鑰匙 1 個",
     "midnight_field_reward_gate_note": "尚有隊友的獎勵清單還未關閉，需等待所有人關閉獎勵清單後才能繼續前進",
     "midnight_map_icon_label": "地圖",
     "midnight_map_close_button": "收合地圖",

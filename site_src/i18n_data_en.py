@@ -1372,6 +1372,7 @@ STRINGS_EN: dict[str, str] = {
     "midnight_consumable_auto_applied_note": " (value applied automatically)",
     "midnight_consumable_manual_note": " (effect not auto-applied; resolve with the GM per the rulebook)",
     "midnight_evergaol_need_key_note": "Stonesword key required",
+    "midnight_evergaol_key_consumed_note": "Consumed 1 Stonesword Key",
     "midnight_field_reward_gate_note": "Some teammates haven't closed their reward list yet. You can't proceed until everyone has closed it.",
     "midnight_map_icon_label": "Map",
     "midnight_map_close_button": "Close map",

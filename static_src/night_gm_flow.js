@@ -1657,12 +1657,17 @@
   // その場で振り直す（既存resolveTwoRollGridと同じ「今その場で正規の骰子を振る」方針、
   // 上限20回で打ち切り）。表の解析・解決に失敗した場合はnull（GMへのフォールバック、
   // 既存の"■"と同じ「捏造しない」方針）。
-  function rollStrongEnemyTable(table) {
+  // 2026-09-21：新增可選的rng參數（回傳[0,1)的函式，省略時維持Math.random）。midnight.js的
+  // 板塊樓層敵人指派是各裝置各自跑、再用三個獨立transaction寫enemyFamilyId／enemyId／level
+  // （見midnight.js maybeAssignFieldEnemy()），各裝置必須擲出同一個結果，因此需要傳入以
+  // mapSeed衍生的決定性亂數；night.js既有呼叫端不傳，行為完全不變。
+  function rollStrongEnemyTable(table, rng) {
+    var random = typeof rng === "function" ? rng : Math.random;
     var levelBonus = 0;
     var rollLog = [];
     for (var attempt = 0; attempt < 20; attempt++) {
-      var die1 = 1 + Math.floor(Math.random() * 6);
-      var die2 = 1 + Math.floor(Math.random() * 6);
+      var die1 = 1 + Math.floor(random() * 6);
+      var die2 = 1 + Math.floor(random() * 6);
       var matchedRow = null;
       for (var r = 0; r < table.rows.length; r++) {
         var cell = parseStrongEnemyDiceCell(table.rows[r][0] && table.rows[r][0].ja);
@@ -5500,6 +5505,10 @@
     mergeParams: mergeParams,
     rollStrongEnemyTable: rollStrongEnemyTable,
     resolveStrongEnemyEntry: resolveStrongEnemyEntry,
+    // 2026-09-21 midnight.js新增匯出：板塊樓層敵名bullet引用「卡片自身extraTables的決定表」
+    // （封牢エネミー決定表／第N階層ボス決定表／地下・屋上エネミー決定表）時，midnight.js的
+    // scanLinesForEnemyMatches()用同一支函式找表，不另外複製一份標題比對規則。
+    findExtraTableByBulletLine: findExtraTableByBulletLine,
     // fix(2026-09-13)：midnight.jsのrollAndAssignRandomEvent()從2026-09-07就在呼叫
     // GmFlow.rollRandomEventTable()，但這個函式**一直沒有被匯出**——所以那一行其實每次都丟
     // TypeError（"rollRandomEventTable is not a function"）。midnight.jsのframe()有try/catch
