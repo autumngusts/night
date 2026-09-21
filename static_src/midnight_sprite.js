@@ -31,10 +31,27 @@
   // Math.random() は使わない。毎フレーム呼ばれるので、乱数だと同じ敵が 1 影格ごとに
   // 別の生き物に化けてしまう。sheetId のハッシュで決めれば、同じ敵は常に同じ代役になり、
   // かつ全端末で一致する（RTDB に何も同期しなくてよい）。
-  function substituteSheetFile(key) {
+  //
+  // 2026-09-22 使用者明確規格「特別是區分敵人種類 若沒有連結的直接抽選其他敵人 boss另外
+  // 抽選其他夜王點陣圖」：代役只在同一種類裡挑——一般敵人（family_*）只從產出済みの
+  // family sheet 挑、夜王（boss_*）只從產出済みの boss sheet 挑，不會互相混用。
+  // 一般敵人再多一層優先：同系統的另一個變體（family_x_a ↔ family_x_b）若已產出，
+  // 優先當代役（同系統的外型最接近）；沒有才退到雜湊抽選。
+  var BOSS_SHEET_RE = /^boss_/;
+  var FAMILY_VARIANT_RE = /^(family_.+)_([ab])$/;
+
+  function siblingSheetId(sheetId) {
+    var m = FAMILY_VARIANT_RE.exec(sheetId || "");
+    if (!m) return null;
+    return m[1] + "_" + (m[2] === "a" ? "b" : "a");
+  }
+
+  function substituteSheetFile(key, isBoss) {
     if (!R || !key) return null;
+    var sibling = !isBoss ? R.getSheet(siblingSheetId(key)) : null;
+    if (sibling && sibling.available) return sibling.file;
     var avail = R.listSheets().filter(function (s) {
-      return s.available;
+      return s.available && BOSS_SHEET_RE.test(s.id) === !!isBoss;
     });
     if (!avail.length) return null;
     var h = 0;
@@ -49,7 +66,7 @@
     if (own) return own;
     if (!R) return null;
     var id = isBoss ? R.sheetIdForBoss(enemyId) : R.sheetIdForEnemy(familyId, enemyId);
-    return substituteSheetFile(id);
+    return substituteSheetFile(id, !!isBoss);
   }
 
   function frameIndexAt(animId, elapsedMs) {

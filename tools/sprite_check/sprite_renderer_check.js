@@ -110,5 +110,76 @@ sandbox.window.PriTestEnemySpriteRegistry.listSheets().forEach(function (s) {
 });
 ok(!!availFiles[sub1], "代役は available:true の sheet から選ばれている");
 
+// 2026-09-22 使用者明確規格「確認每個敵人都有連接 特別是區分敵人種類 若沒有連結的直接抽選
+// 其他敵人 boss另外抽選其他夜王點陣圖」：全 149 隻＋夜王 10 隻が必ず何かの sheet に解決し、
+// 一般敵の代役は family_* だけ、夜王の代役は boss_* だけから選ばれる。同系統の別変体が
+// 產出済みならそれを優先する。
+console.log("[全敵の連結と種類の分離]");
+["1", "2", "3", "4"].forEach(function (n) {
+  vm.runInContext(
+    fs.readFileSync(path.join(ROOT, "static_src", "enemies_data_" + n + ".js"), "utf8"),
+    sandbox,
+    { filename: "enemies_data_" + n + ".js" }
+  );
+});
+const FAMILIES = [].concat(
+  sandbox.window.PriTestEnemiesData1,
+  sandbox.window.PriTestEnemiesData2,
+  sandbox.window.PriTestEnemiesData3,
+  sandbox.window.PriTestEnemiesData4
+);
+const R = sandbox.window.PriTestEnemySpriteRegistry;
+let enemyTotal = 0;
+let unresolved = [];
+let mixed = [];
+let substituted = 0;
+FAMILIES.forEach(function (f) {
+  f.enemies.forEach(function (e) {
+    enemyTotal++;
+    const file = P.sheetFileOrSubstitute(f.id, e.id, false);
+    if (!file) unresolved.push(f.id + "/" + e.id);
+    else if (!/^family_/.test(file)) mixed.push(f.id + "/" + e.id + "→" + file);
+    if (file && !P.sheetFileFor(f.id, e.id, false)) substituted++;
+  });
+});
+ok(enemyTotal === 149 && unresolved.length === 0, "一般敵 149 隻すべてが sheet に解決" + (unresolved.length ? " / 未解決: " + unresolved.slice(0, 3).join("、") : ""));
+ok(mixed.length === 0, "一般敵の代役は family_* のみ（夜王 sheet を混ぜない）" + (mixed.length ? " / " + mixed[0] : ""));
+console.log("  --   一般敵：自分の sheet " + (enemyTotal - substituted) + " 隻／代役 " + substituted + " 隻");
+const BOSSES = ["maris", "fulghor", "harmonia", "gladius", "gnoster", "caligo", "libra", "edele", "stragedes", "nameless"];
+const bossUnresolved = [];
+const bossMixed = [];
+let bossSubstituted = 0;
+BOSSES.forEach(function (id) {
+  const file = P.sheetFileOrSubstitute(null, id, true);
+  if (!file) bossUnresolved.push(id);
+  else if (!/^boss_/.test(file)) bossMixed.push(id + "→" + file);
+  if (file && !P.sheetFileFor(null, id, true)) bossSubstituted++;
+});
+ok(bossUnresolved.length === 0, "夜王 10 隻すべてが sheet に解決" + (bossUnresolved.length ? " / " + bossUnresolved.join("、") : ""));
+ok(bossMixed.length === 0, "夜王の代役は boss_* のみ（一般敵 sheet を混ぜない）" + (bossMixed.length ? " / " + bossMixed[0] : ""));
+console.log("  --   夜王：自分の sheet " + (BOSSES.length - bossSubstituted) + " 隻／代役 " + bossSubstituted + " 隻");
+// 同系統の別変体優先：a/b の片方だけ產出済みの系統を実データから探して検査する（硬編しない）。
+let siblingCase = null;
+FAMILIES.forEach(function (f) {
+  if (siblingCase) return;
+  const a = R.getSheet("family_" + f.id + "_a");
+  const b = R.getSheet("family_" + f.id + "_b");
+  if (!a || !b || a.available === b.available) return;
+  const missingVariant = a.available ? "b" : "a";
+  const presentFile = (a.available ? a : b).file;
+  f.enemies.forEach(function (e) {
+    if (siblingCase) return;
+    if (R.sheetIdForEnemy(f.id, e.id) === "family_" + f.id + "_" + missingVariant) siblingCase = { familyId: f.id, enemyId: e.id, expect: presentFile };
+  });
+});
+if (siblingCase) {
+  ok(
+    P.sheetFileOrSubstitute(siblingCase.familyId, siblingCase.enemyId, false) === siblingCase.expect,
+    "同系統の別変体が產出済みならそれを代役にする（" + siblingCase.familyId + "/" + siblingCase.enemyId + " → " + siblingCase.expect + "）"
+  );
+} else {
+  console.log("  --   （a/b 片方だけ產出済みの系統が無いため、変体優先の検査は SKIP）");
+}
+
 console.log(fail === 0 ? "\nすべてOK" : "\n" + fail + " 件 FAIL");
 process.exit(fail === 0 ? 0 : 1);
