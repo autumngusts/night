@@ -81,7 +81,7 @@
         var opt = document.createElement("option");
         opt.value = b.id;
         // 選択肢が長すぎて管理画面のレイアウトを崩さないよう、英題(b.title)＋現在の表示言語の
-        // 名称のみに短縮する（b.titleは9体全て一意であることを確認済み）。
+        // 名称のみに短縮する（b.titleは10体全て一意であることを確認済み）。
         var label = b.title;
         var localized = BossRulebook ? BossRulebook.get(b.id) : null;
         if (localized && localized.name) {

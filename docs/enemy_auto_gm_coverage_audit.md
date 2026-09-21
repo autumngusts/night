@@ -18,9 +18,9 @@
 
 ## ① 夜王（Night Lords）
 
-`static_src/night_bosses.js`のロースターは9体：`maris`, `fulghor`, `harmonia`, `gladius`, `gnoster`, `caligo`, `libra`, `edele`, `stragedes`。
+`static_src/night_bosses.js`のロースターは10体：`maris`, `fulghor`, `harmonia`, `gladius`, `gnoster`, `caligo`, `libra`, `edele`, `stragedes`, `nameless`（2026-09-21追加）。
 
-`static_src/night_boss_rulebook.js`にはこれとは別に`nameless`（「夜の輪郭（第一形態）／夜の王、ナメレス（第二形態）」、580〜672行目）が存在し、`static_src/scenarios.js`の劇本10「night_aspect」の`bossId`が参照している。ただし`night_bosses.js`の画像ロースターには含まれておらず、対応する画像アセット（`static_src/images/bosses/nameless.jpg`）も存在しない（`photo/AFTER/boss/`配下に未整理の写真が10枚あり、10体目の候補である可能性はあるが画像切り出しは本プロジェクトの範囲外）。
+`static_src/night_boss_rulebook.js`にはこれとは別に`nameless`（「夜の輪郭（第一形態）／夜の王、ナメレス（第二形態）」、580〜672行目）が存在し、`static_src/scenarios.js`の劇本10「night_aspect」の`bossId`が参照している。2026-09-21に`night_bosses.js`の画像ロースターへ追加し、画像アセット（`static_src/images/bosses/nameless.jpg`、使用者提供の`photo/nameless.png`を700pxへ縮小）も配置済み。
 
 `boss_auto_gm_data.js`の構造化データは`night_bosses.js`のロースターに依存しないため、`nameless`の自動化GM対応自体はロースター修正なしで実施可能。ユーザー確認済み：**`nameless`を今回の夜王スコープに含める**（ロースター表示の欠落は別問題として今回は触れない）。
 

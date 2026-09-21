@@ -541,7 +541,7 @@ async function joinLobby(page, passcode) {
       if (!pt) return { skipped: true };
       // ① 上一隻敵人打出來的蓄積
       await GS.rtSet(D.gameId, "cloud", "attributeAccum/" + pt.id, { 炎: 12, 出血: 7 });
-      await GS.rtSet(D.gameId, "cloud", "attributeAccumTriggerClaims/" + pt.id, { 炎: { 1: D.myTokenId } });
+      await GS.rtSet(D.gameId, "cloud", "attributeAccumTriggers/" + pt.id, { 炎: 1 }); // 2026-09-20：舊的attributeAccumTriggerClaims已改為累計次數節點
       // ② 造出「第0層已 resolved、fieldProgress 已推進到第1層、沒有未領獎勵」的狀態，
       //    也就是 maybeClearFieldTriggerAfterRewardGate() 會出手清空的那個窗口
       await GS.rtSet(D.gameId, "cloud", "fieldTrigger/" + pt.id, {

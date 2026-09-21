@@ -18,12 +18,17 @@
 
 `enemyRealHpMax(trig)`：讀 `enemies_data_1~4.js` 該敵人 family 在其等級的 HP 格數字串
 （`family.base[level-1].hp`，例如 `"×4/×3"` 代表兩條 HP 行、共 7 格），加總所有 `×N` 得到
-「實際 hp 格數」，`×10` 就是即時制的真實 HP 上限（使用者明確規格）。25 個 family 全部都有
+「實際 hp 格數」，`×100` 就是即時制的真實 HP 上限（原本 `×10`；2026-09-08 使用者明確規格
+「敵人血量增加 10 倍」後改為 `×100`，全部敵人類型——雜兵／夜之強敵／夜王——都套用，程式見
+`enemyRealHpMax()`／`bossHpMax()` 內註解；2026-09-20 同步本文件）。25 個 family 全部都有
 這份資料（已用腳本逐一驗證無缺漏）。等級來源：一般地圖遇敵時從樓層敘述「XXX(頁)/Lv.N」解析
 （`maybeAssignFieldEnemy()` 新增寫入 `fieldTrigger/{id}/level`）；強敵籌碼沿用既有 `level` 欄位。
 找不到資料時退回 `FIELD_ENEMY_HP_FALLBACK = 30`（理論上不會發生）。
 
-雜兵 HP（`MOB_HP_PER_ROW = 10`，血量＝樓層文字「+雜兵N」的 N×10）維持不變，未在這次改版範圍內。
+雜兵 HP：`MOB_HP_PER_ROW = 100`，血量＝樓層文字「+雜兵N」的 N×100（原本 10，同上 2026-09-08
+「×10」改版一併調整）。規則書對雜兵寫的「HP損害：1」／「HP損害：■」在 midnight 一律等於
+`MOB_DAMAGE_PER_RULEBOOK_POINT = MOB_HP_PER_ROW`（100，＝打掉 1 隻）；這跟 PC 資源的 ■／□
+換算 `BLOCK_SQUARE_COUNT_TO_RESOURCE_MULT = 10` 是兩個不同的刻度，不能混用。
 
 ### 1.2 攻擊力：先選招，再判斷個別/群體，最後除以 10
 
@@ -49,8 +54,11 @@
 
 **傷害換算**：`finalDamage = round(amount / 10 × 測試模式敵人攻擊倍率)`，過防禦/迴避判定後扣血。
 
-**屬性/異常攻擊**：完全命中時，解析「這一招」`mod` 欄位裡的全部「屬性名:數值」標記（一招可能
-同時附帶多個），全部套用蓄積。這裡順便修正一個既有 bug：舊版程式碼掃描的是 `action.note`，但
+**屬性/異常攻擊**：完全命中（`hit`）**或防禦成功（`block`）**時，解析「這一招」`mod` 欄位裡的
+全部「屬性名:數值」標記（一招可能同時附帶多個），全部套用蓄積；迴避／特殊防禦仍完全化解。
+（2026-09-20 使用者明確規格「防禦也是會受到屬性異常」：原本只在完全命中時套用，防禦成功一律
+免疫，導致遺物「ガード成功時、状態異常蓄積無効」／「ガード成功時、属性蓄積無効」形同人人免費
+擁有；現在只有持有對應遺物者在防禦成功時免除該類蓄積，見 `resolveMyIncomingHit()`。）這裡順便修正一個既有 bug：舊版程式碼掃描的是 `action.note`，但
 實際資料裡「屬性:數值」標記寫在 `action.mod`，`note` 裡從未出現過這個格式，導致舊版屬性攻擊
 形同虛設（已用 grep 對照 `enemies_data_*.js` 驗證）。
 
@@ -257,7 +265,7 @@ generate.py→重整頁面」的迴圈縮短成「拖滑桿」。
      `"form_change_at_end_phase"` 就立即切換，不重灌 HP/Guard，即時制沒有階段可以等）；
      harmonia／stragedes／nameless（第一/第二形態）用 HP 歸零觸發（`maybeResetBossFormOnDefeat()`，
      切換形態時全回復 HP/Guard、清空屬性異常蓄積，只有第二形態 HP 歸零才是真正擊敗）。
-     所有夜王一律用**單一聚合 HP 池**（`hpBoxes` 加總×10）取代規則書原本的多列 HP UI——
+     所有夜王一律用**單一聚合 HP 池**（`hpBoxes` 加總×100，見 §1.1）取代規則書原本的多列 HP UI——
      這是唯一無法忠實呈現的細節僅限 gladius 分裂形態「傷害÷3同時套用到3個個體、任一
      個體歸零就轉回合體」，其餘 9 隻夜王的核心戰鬥迴圈（選招/傷害/Guard/形態轉換）完整
      忠實呈現。
@@ -326,11 +334,12 @@ resolver，依 CLAUDE.md §19 一律略過不套用（見本文件先前版本 �
   一次性寫入 `trig.lBonus`／`trig.level`，不是每影格重算——避免戰鬥途中剛好跨過縮圈
   開始的時間點導致敵人數值中途變動。
 - **HP／Guard 效果**（使用者明確規格）：L 補正後的等級直接影響 `enemyRealHpMax()`
-  既有的「格數 × 100」公式（2026-09-08 已經從 ×10 改為 ×100，見上方 §1.1 舊註解／
-  `enemyRealHpMax()` 程式內註解，本文件標題雖仍留著舊版章節但程式碼已是 ×100）；另外
-  `currentGuardCountForTrig()` 把 `trig.lBonus` 直接加到目前 Guard Point 上，上限夾在
+  既有的「格數 × 100」公式（見 §1.1）；另外 Guard Point 的顯示值（`currentGuardCountForTrig()`）
+  與破防判定（`recordGuardReductionForPoint()` 的 transaction）共用同一個公式
+  `effectiveGuardCount()`＝`clamp(guardMax + lBonus − reduceBy, 0, guardMax)`：起始仍是
   `guardMax`（該敵人 family 自己的 `guardCount` 上限，不會因為 L 補正而墊高上限本身），
-  效果是「更難把 Guard Point 打到低於原本上限」。
+  但要多累積 `lBonus` 段的 ▲◆ 才會歸零——效果是「更難把 Guard Point 打到 0」。
+  （2026-09-20 修正：原本破防判定沒有算 `lBonus`，顯示值會從 `lBonus` 直接跳 0。）
 
 ---
 
@@ -878,8 +887,9 @@ HP 歸零的流程是「`demoStat` transaction commit →`.then()`→`maybeTrigg
 
 ### 17.4 已知不套用（刻意）
 
-- **防禦成功時異常狀態蓄積無效**：midnight 的既有實作本來就只在「完全命中（kind==="hit"）」
-  時才累積屬性／異常，防禦成功時本來就不會蓄積，這個遺物等於已被既有行為涵蓋，沒有另外加碼。
+- ~~**防禦成功時異常狀態蓄積無效**：既有實作只在完全命中時累積，防禦成功本來就不蓄積~~
+  → 2026-09-20 已改為「防禦成功也承受蓄積，持有此遺物者免除異常狀態類」（見 §1.2 屬性/異常攻擊），
+  此遺物現在是真正生效的效果。
 - **防禦反擊強化（斧槍）**：使用者把「防禦反擊」改成「下一次攻擊體力 -25%」的折扣制，
   原規則的「反擊傷害 +15」在折扣制下沒有對應的數值出口，維持不生效。
 - **2Hit攻擊的達人（復仇者的咒爪）**：本文指的是特定**武器名**而非武器分類，而
@@ -942,8 +952,9 @@ HP 歸零的流程是「`demoStat` transaction commit →`.then()`→`maybeTrigg
   4 個變體都有），導致習得後沒有任何發動入口。已補上資料——聖潔燈火共用隱者本體
   「聖光燈火」的 id（`hybrid_magic_holy_light`，`applyRelicAbilityPostEffect()` 已有處理），
   雷擊之步是 `kind:"Defense"`，自動接到特殊防禦選項。
-- 防禦成功時，屬性蓄積無效：midnight 既有實作本來就只在「完全命中」時才累積屬性／異常，
-  防禦成功時本來就不會蓄積，此效果已被既有行為涵蓋（無需額外程式碼）。
+- 防禦成功時，屬性蓄積無效：2026-09-20 起防禦成功也承受蓄積（見 §1.2），持有此遺物者在
+  防禦成功時免除屬性類蓄積（異常狀態類由守護者的另一條遺物負責），`resolveMyIncomingHit()`
+  以 `RELIC.guardElementImmune` 判斷。
 - 防禦反擊強化（斧槍）：改為「吃到防禦反擊折扣的那一擊，若揮的是斧槍則總合傷害 +15」
   （見 §17 的更正）。
 
@@ -981,3 +992,119 @@ party-wide 欄位、變體切換鈕的顯示/循環/隱藏）。
 回歸測試：`relic_batch_2026_09_12_check.js` 增加到 17 個斷言，新增的 6 個涵蓋
 「傷害全由靈體吸收時本人 HP 不變」「靈體陣亡後正確回傳溢出量」「陣亡後靈體被清除」
 「靈體消滅時 HP 回復 +20」。測試用 debug hook：`_debugAbsorbDamageWithSpirit()`。
+
+---
+
+## 20. 2026-09-20 審查修正：多裝置競態／角色同步模型／規則對齊
+
+兩輪程式碼審查（H1〜L8、R1〜R7）後的修正，細節見 `git log` v0.34.0／v0.35.0 與
+`static_src/midnight.js` 內以「2026-09-20審查」開頭的註解。這裡只記架構層面的結論與已知限制。
+
+### 20.1 角色資料同步模型（H1／R1／R3）
+
+- `character/{tokenId}` **不再整份覆寫**。每個修改角色的 handler 改成
+  「`snapshotMyCharacter()` → 改本地物件 → `syncMyCharacterChanges(before)`」：只把真的
+  變動的頂層欄位各自寫子路徑，`runes` 走 transaction 累加差額（隊友發盧恩與自己花盧恩
+  不再互相覆蓋）。
+- 純本地欄位白名單 `LOCAL_ONLY_CHARACTER_FIELD_RE`（勇者的肉塊／塗脂／咆哮／連續射擊／
+  敵視／詞條事件視窗等短時效 buff 與冷卻）：**不寫 RTDB**，且 `onCharactersReceived()`
+  對自己的角色一律以本地值為準。白名單以外的 `_` 欄位（`_lastTileRewardNote`、
+  `_artCooldownUntil`、`_weaponRerollPending`…）維持「快照為準」，遠端設 null 會正常反映。
+- 純本地欄位不會跨重新整理持久（它們本來就是 10 秒級 buff）。
+- `graces` 是隊友也會對我逐子鍵寫入的節點（`grantGraceToTokens()`），`syncMyCharacterChanges()`
+  對它也只寫變動的子鍵，不整個物件寫回（第 3 輪殘留檢查）。
+- 武器／消耗品的枝番 id（`makeWeaponInstanceId()`／`makeConsumableInstanceId()`）改為
+  「最小未使用的 `::N`」：原本「同 catalog 所持數＋1」在丟棄／用完中間一把之後會再編出
+  已存在的 `::2`，戰技／詞條／投擲壺屬性標籤的儲存鍵互相覆蓋（第 3 輪殘留檢查）。
+
+### 20.2 多裝置贏家判定的統一寫法（H3／M7／M10／M14／M16）
+
+「用結果值比對誰贏」一律改為：在同一個 transaction 內寫 `…By = myTokenId`（或獨立的
+`…By/<n>` tokenId 鎖），`.then(committed)` 只認 `committed.…By === myTokenId`。
+`rtTransaction()` 對「中止」與「值為 null」都回 null，因此要靠 updateFn 內的閉包旗標
+（`enterNearDeath()` 的 `entered`、冷たい蜃気楼的 `consumedNow`）才能區分。
+
+**例外——「贏家要做的事」不能只放在自己的 `.then()` 裡**（第 3 輪殘留檢查）：共享池
+得主的入手若寫在 `resolvedBy` transaction 的 `.then()`，而函式開頭又有「`entry.resolvedBy`
+已存在就 return」，那麼「別台的 `resolvedBy` 比自己的 transaction 先送達」的得主永遠跑不到
+自己的 transaction，獎勵直接消失。因此拆成兩段：`maybeResolveSharedRewardVote()` 只決定
+得主（transaction 失敗時 `resetAttemptFlagOnFailure()` 重送）；`maybeGrantSharedRewardToWinner()`
+每幀依 RTDB 落地的 `resolvedBy === myTokenId && !granted` 入手並寫 `granted`。
+規則：**贏家判定看落地值，不看「誰寫下落地值」**。
+
+### 20.3 已知限制（審查後刻意保留）
+
+- **暫停期間的計時**（R4）：只平移自己角色上的 `_*Until／_*ReadyAt`、`_tempWeaponSkills[].until`、
+  `_skillCostChanges[].until` 與少數本地 module 級計時；fieldTrigger 上的 `staggerUntil`／
+  `nextAttackAt`、meta 上的 party-wide `bloodSongUntil` 等不平移（見 `shiftMyTimestampsAfterPause()` 註解）。
+- **魔術師塔題目含答案存在 RTDB**（`towerInvites/{id}/puzzle.answer`）：任何人開 devtools
+  就看得到。示範用途可接受，未做伺服器端驗證。
+- **每幀成本**：`renderCombatPanel()`／`renderSideCombatButtons()` 每幀呼叫
+  `computeMidnightSkillCost()`＋`affixTotal()` 數次（O(武器×詞條)），目前沒有量測到問題，
+  之後若詞條數大增可用「裝備／詞條簽章沒變就快取」的既有 pattern。
+- **RTDB 整數鍵轉陣列**：`players`／`participants`／`votes` 以 "1"~"3" 為 key 會被讀成
+  `[null, …]`，各處都用 `participantSlots()`／`if (!p)` 過濾；新增以 slot 為 key 的節點
+  時要沿用同樣的過濾。
+
+### 20.4 回歸測試
+
+`tools/midnight_check/review_2026_09_20_check.js`（`npm run test:review_2026_09_20`，需 emulator）
+36 個斷言，涵蓋 H1／R1 實機（隊友子路徑寫入不洗掉 buff、runes 差額 transaction）、H3 兩台
+同時偵測只發一次獎、M2 接管搬清單、L2 防禦承受蓄積與遺物免除、L4／撿取／共享池／個人清單
+的枝番 id、個人清單 drawn persist、M17／M18／M1／M5／L1／L5／L6／R5，以及第 3 輪的
+共享池得主依落地 `resolvedBy` 入手、枝番 id 不撞號、`graces` 逐子鍵同步。
+
+## 21. 2026-09-21：升級時現在值同步增加／復仇者靈體 HP 刻度
+
+### 21.1 升級（降級）時上限與現在值同步
+
+使用者明確規格「角色因升級提升的 HP、FP、耐力，為先加上限再加現有數值（例：100/110 升級後
+110/120）」。`CharacterDrawer.tryLevelUp()` 只動 `c.hp/fp` 的 RPG 刻度（max 與 current 同加 1），
+但 midnight 的競技場現在值是另一套（HP＝RTDB `demoStat`、FP／體力＝本地 `fp`／`stamina`），
+原本只有上限跟著 `selfArenaHpMax()`／`selfFpMax()`／`levelStaminaBonus()` 變大、現在值不動。
+
+`handleMidnightLevelDelta()` 現在先記下升級前的三個上限，升級後由
+`applyLevelResourceDeltaToCurrent()` 把差額同樣加到現在值：
+
+| 升級格 | 上限變化 | 現在值變化 |
+|---|---|---|
+| Lv2/5/8/11/14（HP） | `selfArenaHpMax` +10 | `demoStat` +10（transaction，夾在 1〜新上限） |
+| Lv3/6/9/12/15（FP） | `selfFpMax` +10 | `fp.current` +10（夾在 0〜新上限） |
+| Lv4/7/10/13（體力） | `levelStaminaBonus` +5 | `stamina.current` +5（夾在 0〜新上限） |
+
+降級（修正誤按）同額扣回。HP 走 `demoStat` transaction 但**不經過**共感術的回復分享
+（升級不是回復效果）。
+
+### 21.2 復仇者靈體 HP＝格×10
+
+使用者明確規格「復仇者的靈體血量只有 ■×10」：靈體規則上被視為 1 名 PC（「敵視：0」的 PC），
+HP 刻度與 PC 相同用「格×10」（`SPIRIT_HP_PER_ROW = 10`），不套用雜兵／敵人的
+`MOB_HP_PER_ROW`（×100，2026-09-08 敵人血量 10 倍化時被一併帶到了靈體上）。
+海倫 20／弗雷德里克 50／賽巴斯汀 60。死靈術的死靈（`DEATH_SPIRIT_HP`）是另一套，未動。
+
+**靈體 HP 跨戰鬥保存**（同日使用者明確規格「結束戰鬥不會補滿、結束戰鬥後的靈體 HP 保持；
+休息祝福時只能補上限的一半 HP；新的一天則直接補滿三隻 HP」，對應規則書「戦闘終了時に現在HPを
+維持したまま自動的に姿を消し…『祝福での休息／夜の強敵撃破後の追加処理』でのみ現在HPが回復」）：
+
+- `c.spiritHpByKind = { helen, frederik, sebastian }`（RTDB `character/{token}/spiritHpByKind`），
+  沒有紀錄＝滿血。召喚時 `storedSpiritHp()` 取現在 HP，不再每次滿血。
+- 靈體 HP 每次變動（代受傷害、靈炎爆發回復）與消失（戰鬥結束 `onEncounterEnded()`、被另一隻
+  取代、手動解散、陣亡）都經 `persistSpiritHp()`／`dismissSummonedSpirit()` 寫回。
+- 陣亡＝0 也保留：HP 0 的靈體在回復前不能召喚（三選一選單該鈕 disabled、
+  `handleSpiritChoiceClick()` 在扣 FP 前擋下並 toast `midnight_spirit_no_hp_note`）。選單每次
+  開啟重建，顯示「現在/上限」。
+- 祝福休息（`maybeRestoreSpiritHpForBlessing(c, key)` → `restoreSpiritHpOnBlessing()`）：三隻各
+  +上限/2，不超過上限（海倫 +10、弗雷德里克 +25、賽巴斯汀 +30）。**同一個祝福只回復一次靈體**
+  （使用者明確規格）：`c.spiritBlessingRestored[key]` 記錄，key＝地圖祝福籌碼的 `pt.id`、
+  夜之強敵戰後 HUD 的「使用祝福」為 `"hud_day<N>"`（每天一次）。HP／FP／體力照舊每次回滿，
+  只有靈體受這個門檻限制。
+- 換日（`updateAutoDayAdvance()` 偵測到天數變化 → `restoreSpiritHpOnNewDay()`）：清掉紀錄＝三隻補滿。
+- 「夜之強敵擊破後的追加處理」規則書也列為回復時機，midnight 目前沒有對應的追加處理流程，
+  未接（換日補滿實際上緊接在夜之強敵擊破之後，效果相近）。
+
+### 21.3 回歸測試
+
+`tools/midnight_check/levelup_spirit_2026_09_21_check.js`（`npm run test:levelup_spirit_2026_09_21`，
+需 emulator）28 個斷言：Lv1→2 HP 110/150→120/160、Lv2→3 FP +10/+10、Lv3→4 體力 +5/+5、
+Lv4→3 體力同額扣回、三隻靈體 HP 20/50/60；靈體受傷→戰鬥結束保持 20→再召喚 20/50→陣亡 0
+→不能召喚→祝福 +上限/2（不超上限）→同一祝福再用不回復→另一祝福再回復→換日補滿→選單顯示現在/上限；第 10 隻夜王 nameless 名簿與圖片。

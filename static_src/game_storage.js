@@ -294,6 +294,46 @@
       });
   }
 
+  // midnight在線狀態（presence，2026-09-20）：把value寫到subPath，並用RTDB內建的
+  // onDisconnect()註冊「這條連線斷掉時由伺服器端自動移除」——分頁關閉、網路中斷、裝置
+  // 休眠都會觸發，不需要client端心跳輪詢。onDisconnect註冊只會觸發一次，SDK重連後不會
+  // 自動再武裝，因此訂閱".info/connected"、每次重新連上都再註冊一次＋重寫value（Firebase
+  // 官方presence範例的標準寫法）。回傳解除函式（取消onDisconnect並主動移除value）。
+  function rtSetWithOnDisconnect(gameId, storageMode, subPath, value) {
+    if (storageMode !== "cloud" || !gameId) return function () {};
+    var refObj = null;
+    var connRef = null;
+    var listener = function (snap) {
+      if (!snap.val() || !refObj) return;
+      refObj
+        .onDisconnect()
+        .remove()
+        .then(function () {
+          return refObj.set(value);
+        })
+        .catch(function (err) {
+          console.error("PriTestGameStorage.rtSetWithOnDisconnect arm failed", err);
+        });
+    };
+    ensureCloudReady(storageMode)
+      .then(function () {
+        var db = window.firebase.database();
+        refObj = db.ref("games/" + gameId + "/rtState/" + subPath);
+        connRef = db.ref(".info/connected");
+        connRef.on("value", listener);
+      })
+      .catch(function (err) {
+        console.error("PriTestGameStorage.rtSetWithOnDisconnect failed", err);
+      });
+    return function stop() {
+      if (connRef) connRef.off("value", listener);
+      if (refObj) {
+        refObj.onDisconnect().cancel();
+        refObj.remove();
+      }
+    };
+  }
+
   function sendNightStatePush(payload, isRetry) {
     ensureCloudReady(payload.storageMode)
       .then(function () {
@@ -494,5 +534,6 @@
     rtTransaction: rtTransaction,
     serverNow: serverNow,
     serverTimeOffset: serverTimeOffset,
+    rtSetWithOnDisconnect: rtSetWithOnDisconnect,
   };
 })();

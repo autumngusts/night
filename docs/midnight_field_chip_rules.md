@@ -114,6 +114,16 @@ depth≤1 為止的巢狀內文）裡的敵人引用文字，跟 `night_gm_flow.
 
 - 找不到敵人引用＝這個分歧和平通過，不強行指派戰鬥。
 - 找到多個候選時用 `fieldSeededIndex(pt.id + ":enemy", ...)` 決定性挑一個。
+- **引用卡片自身 `extraTables` 決定表的 bullet**（2026-09-21 補上）：
+  「封牢エネミー決定表で決定したエネミー」「下記の第1階層ボス決定表で決定したエネミー」
+  「地下／屋上エネミー決定表で決定したエネミー」這類 bullet 不是具體敵名，原本永遠比對
+  不到、整層被誤判成和平通過。現在改用 `night_gm_flow.js` 既有的
+  `findExtraTableByBulletLine()` 找表、`rollStrongEnemyTable(table, rng)` 擲骰（rng 是
+  `meta.mapSeed` 衍生的決定性亂數，各裝置擲出同一隻），再用同一套 `parseCombatEnemyRef()`
+  解析條目的名稱／等級／L補／+雜兵N。條目名稱對不到敵人資料時退回
+  `randomEnemyMatchFallback()`（規則書明寫這裡會戰鬥，不能變成和平通過）。
+  受影響的卡：`card_9`（封牢／神殿）與 `card_j`（堡壘的地下／屋頂決定表）。
+  資料面的窮舉驗證見 `tools/midnight_check/extra_table_enemy_check.js`。
 - 若文字帶「+雜兵N」後綴，額外建立 `fieldMobHp/{pointId}` 雜兵血量池（`N × MOB_HP_PER_ROW(10)`）。
 - 敵人 HP 上限、等級、攻擊招式全部沿用 `docs/midnight_realtime_combat_numbers.md` 記載的
   即時制數值真正接入公式，不是佔位值。
@@ -194,7 +204,7 @@ reward: [{ kind: "chaliceBonus", value: 1 }, ...]
 |---|---|---|---|
 | `rune`（盧恩） | ✅ | ✅ | `c.runes += value` |
 | `weaponStar`（武器★） | ✅ | ✅ | `CharacterDrawer.merchantDrawWeapon(c, value)` 抽武器，背包滿則略過 |
-| `consumable`（消耗品） | ✅ | ✅ | 有指定 `itemId` 就給該項，否則從全部消耗品池隨機抽 1 個；背包滿則略過 |
+| `consumable`（消耗品） | ✅ | ✅ | 有指定 `itemId` 就給該項，否則從消耗品池隨機抽 1 個（2026-09-21 起排除 `noStackLimit:true` 的石劍鑰匙／鍛造石——規則書「消耗品決定表」只有 16 種真正的消耗品，鑰匙只會以固定的 `stoneswordKey`／`smithingStone` kind 出現）；背包滿則略過 |
 | `talisman`（裝飾品） | ✅ | ✅ | 從全部裝飾品池隨機抽 1 個；背包滿則略過 |
 | `chaliceBonus`（聖杯瓶上限） | ✅ | ✅ | `flaskMax`／`flaskCount` 各 +value |
 | `potentialPower`（潛在力量★） | ✅ | ❌ 略過 | 角色物件無對應欄位，本次 milestone 未接入 |
@@ -243,6 +253,22 @@ diceHandChoice），midnight.js 目前會直接靜默跳過，不會有任何提
 `characterHasConsumable(characters[myTokenId], "item_stonesword_key")`——沒有持有「石劍
 鑰匙」消耗品的角色按「進入」會被擋下並跳 toast 提示，不會建立 `fieldTrigger`。其餘樓層流程
 （分歧/選項/獎勵）跟一般板塊完全相同。
+
+**封牢一定會發生戰鬥**（2026-09-21 使用者明確規格「使用鑰匙必須一定要產生一個敵人戰鬥」）：
+`card_9` 封牢兩個分歧的樓層文字把「（→石剣の鍵を使う）」選項的巢狀內文與實際的敵名 bullet
+（depth 1「ボス戦闘（撃破ルーン：3）」底下的「封牢エネミー決定表で決定したエネミー」）拆成
+兩個同層區塊，`collectLinesForChoice()` 只抓得到前者，選中區塊裡永遠沒有敵人。因此
+`maybeAssignFieldEnemy()` 對 `type === "evergaol"` 多做兩層退回：選中區塊沒有敵人 → 改掃
+整層（拿得到決定表引用那一行）→ 整層仍沒有 → `randomEnemyMatchFallback()` 亂數一隻。
+這個退回**只限封牢**；其他卡牌「成功／失敗（→ザコ戦闘）」是條件式戰鬥，midnight 沒有對應
+判定機制，維持「選中區塊沒有敵人＝和平通過」不動。回歸測試：
+`tools/midnight_check/evergaol_enemy_check.js`（emulator）。
+
+**進入封牢扣 1 把石劍鑰匙**（2026-09-21 使用者明確規格，規則書「PCの任意で『石剣の鍵』を
+1つ消費してもよい」）：`handleEnterFieldPointClick()` 的 `fieldTrigger` transaction 確認是
+**自己**建立的邀請（`committed.initiatedBy === mySlot`）後，才對發起者呼叫
+`consumeKeyItems(c, "item_stonesword_key", 1)`（鍛造台扣鍛造石的同一支 helper）並
+`syncMyCharacterChanges()`；別人先按、自己搶輸時不扣。加入者（按「加入」）不需要鑰匙、也不扣。
 
 ### 6.2 魔術師塔（sorcerer，卡 10）
 
