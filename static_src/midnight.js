@@ -19832,8 +19832,12 @@
       // 只會有 sprite）。疊放順序由 CSS 的定位決定，見 style.css 同選擇器的說明。
       // 點陣圖戰鬥模式（2026-09-21新增，使用者明確規格「需要在等待房勾選才生效」）：
       // 未勾選spriteModeEnabled()時直接視同沒有sheet，走既有的showStatic()路徑。
+      // sheetFileOrSubstitute()：自分の sheet が未產出なら產出済みから 1 枚を代役に充てる
+      // （使用者明確規格「剩餘還沒配對的會先隨機抽取一張點陣圖」）。60 組揃うまでの繋ぎで、
+      // 素材が入ればその敵は自分の sheet に切り替わる。代役は sheetId のハッシュで決まるので
+      // 同じ敵は常に同じ代役、かつ全端末で一致する（見 midnight_sprite.js）。
       var bossSheet = window.PriTestMidnightSprite && spriteModeEnabled()
-        ? window.PriTestMidnightSprite.sheetFileFor(null, trig.enemyId, true)
+        ? window.PriTestMidnightSprite.sheetFileOrSubstitute(null, trig.enemyId, true)
         : null;
       if (!(bossSheet && window.PriTestMidnightSprite.showSprite(bossSheet, "../static/")) && window.PriTestMidnightSprite) {
         window.PriTestMidnightSprite.showStatic();
@@ -19853,7 +19857,7 @@
     // 2026-09-21 使用者明確規格改版：sprite 疊在插圖之上，不再把插圖藏起來。
     // 點陣圖戰鬥模式：同上，未勾選spriteModeEnabled()時直接視同沒有sheet。
     var sheet = window.PriTestMidnightSprite && spriteModeEnabled()
-      ? window.PriTestMidnightSprite.sheetFileFor(trig.enemyFamilyId, trig.enemyId, false)
+      ? window.PriTestMidnightSprite.sheetFileOrSubstitute(trig.enemyFamilyId, trig.enemyId, false)
       : null;
     if (!(sheet && window.PriTestMidnightSprite.showSprite(sheet, "../static/")) && window.PriTestMidnightSprite) {
       window.PriTestMidnightSprite.showStatic();

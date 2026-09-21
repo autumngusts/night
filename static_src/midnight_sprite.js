@@ -24,6 +24,34 @@
     return sheet.file;
   }
 
+  // 未產出の敵に、產出済みの sheet から 1 枚を割り当てる（使用者明確規格
+  // 「剩餘還沒配對的會先隨機抽取一張點陣圖」）。60 組が揃うまでの繋ぎで、
+  // 素材が入ったらその敵は自分の sheet に切り替わる。
+  //
+  // Math.random() は使わない。毎フレーム呼ばれるので、乱数だと同じ敵が 1 影格ごとに
+  // 別の生き物に化けてしまう。sheetId のハッシュで決めれば、同じ敵は常に同じ代役になり、
+  // かつ全端末で一致する（RTDB に何も同期しなくてよい）。
+  function substituteSheetFile(key) {
+    if (!R || !key) return null;
+    var avail = R.listSheets().filter(function (s) {
+      return s.available;
+    });
+    if (!avail.length) return null;
+    var h = 0;
+    for (var i = 0; i < key.length; i++) h = (h * 31 + key.charCodeAt(i)) >>> 0;
+    return avail[h % avail.length].file;
+  }
+
+  // 本来の sheet が無いときに代役を返す版。呼び出し端が「代役でもよい場面か」を
+  // 決められるよう、厳密版（sheetFileFor）とは別の関数にしてある。
+  function sheetFileOrSubstitute(familyId, enemyId, isBoss) {
+    var own = sheetFileFor(familyId, enemyId, isBoss);
+    if (own) return own;
+    if (!R) return null;
+    var id = isBoss ? R.sheetIdForBoss(enemyId) : R.sheetIdForEnemy(familyId, enemyId);
+    return substituteSheetFile(id);
+  }
+
   function frameIndexAt(animId, elapsedMs) {
     var a = S.getAnim(animId);
     if (!a || elapsedMs < 0) return null;
@@ -113,6 +141,8 @@
 
   window.PriTestMidnightSprite = {
     sheetFileFor: sheetFileFor,
+    substituteSheetFile: substituteSheetFile,
+    sheetFileOrSubstitute: sheetFileOrSubstitute,
     frameIndexAt: frameIndexAt,
     backgroundPosition: backgroundPosition,
     mount: mount,
