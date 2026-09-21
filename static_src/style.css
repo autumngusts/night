@@ -5033,6 +5033,31 @@ html.midnight-banner-above-hud:not(.midnight-top-banner-collapsed) #midnight-rew
   color: #ff5c5c;
 }
 
+/* 2026-09-22 點陣圖模式迴避成功度（Perfect／Great／Good／Bad）：跟「成功迴避」同時出現，
+   所以再往上疊一層（用id選，因為showActionFlash()每次都會重寫className）。 */
+#midnight-dodge-grade {
+  margin-bottom: 1.35rem;
+  font-size: 0.8rem;
+  letter-spacing: 0.04em;
+}
+
+.midnight-action-flash-grade-perfect {
+  color: #ffd54a;
+  text-shadow: 0 0 6px rgba(255, 213, 74, 0.8);
+}
+
+.midnight-action-flash-grade-great {
+  color: #7ee787;
+}
+
+.midnight-action-flash-grade-good {
+  color: #8ecbff;
+}
+
+.midnight-action-flash-grade-bad {
+  color: #c9a27a;
+}
+
 /* ---- 按鈕格正上方的狀態浮標（2026-09-13使用者明確規格「使用聖杯瓶中，格子上方顯示
    使用中」「魔術，祈禱等詠唱中，格子上方顯示小環繞星體動畫」「防禦按鈕按下時，格子
    上方顯示盾牌圖示」）。定位方式完全沿用上面.midnight-action-flash那組既有慣例

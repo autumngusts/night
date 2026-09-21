@@ -1029,7 +1029,12 @@ BODY = """    <div class="midnight-wrap">
                .midnight-action-flash子元素，見static/midnight.jsのshowActionFlash()／
                resolveMyIncomingHit()。data-i18n拿掉改放進子span，避免applyI18n()的
                el.textContent覆寫連同flash子元素一起清空。 -->
+          <!-- 點陣圖模式迴避成功度（2026-09-22使用者明確規格「閃避成功後 閃避上方另外顯示本次
+               成功度 100% = Perfect, 80~99% = Great, 60~80 = Good, 30 ~ 60 = Bad」）：跟
+               「成功迴避」是兩個獨立的浮動提示，這顆再往上疊一層（.midnight-dodge-grade），
+               見static/midnight.jsのshowDodgeGrade()。 -->
           <button type="button" id="btn-midnight-dodge">
+            <span id="midnight-dodge-grade" class="midnight-action-flash midnight-dodge-grade" hidden></span>
             <span id="midnight-dodge-flash" class="midnight-action-flash" hidden></span>
             <span data-i18n="midnight_dodge_button"></span>
           </button>
