@@ -1170,22 +1170,24 @@
   // 只在spriteModeEnabled()的房間生效，非點陣圖房維持上面2.0/2.5/3.0秒、窗口內按下＝100%
   // 無效化的舊規則。以T＝正式出招時刻（＝紅光0.5秒結束）為基準：
   //   ・T−0.1s：敵人sprite才從idle切成攻擊動畫（連擊每一下各重播一次，見maybePlayEnemyAttackAnim()）
-  //   ・[T−0.1s, T+0.2s] 按迴避 → 100%減傷（Perfect）
-  //   ・(T+0.2s, T+W]     減傷從100%線性降到30%（使用者確認採線性），W依第1/2/3下＝1.0/1.5/2.0秒
+  //   ・按下時刻依「T之後幾毫秒」落在哪一個時間帶決定成功度與減傷％（2026-09-22第2版，
+  //     使用者明確規格「判定嚴格度更改」）——時間帶固定、不隨窗口長度伸縮，帶內線性遞減：
+  //       [T−0.1s, T+0.3s]   Perfect 100%
+  //       (T+0.3s, T+0.5s]   Great   99→80%
+  //       (T+0.5s, T+0.75s]  Good    80→60%
+  //       (T+0.75s, T+W]     Bad     59→30%（W依第1/2/3下＝1.0/1.5/2.0秒）
   //   ・早於T−0.1s按 → 不算（維持「窗口開啟前的按鍵無效、體力照扣」）；完全沒按 → 全額受傷
   //   ・連擊：T(k+1)＝T(k)＋W(k)，紅光只在第1下前顯示
-  // 成功度分級（依減傷％）：100＝Perfect／80~99＝Great／60~79＝Good／30~59＝Bad，
-  // 顯示在迴避鍵上方（跟「成功迴避」並列，見showDodgeGrade()）。
+  // 成功度顯示在迴避鍵上方（跟「成功迴避」並列，見showDodgeGrade()）。
   var SPRITE_DODGE_ANIM_LEAD_MS = 100; // 攻擊動畫在T之前多久切換
   var SPRITE_DODGE_PERFECT_EARLY_MS = 100; // Perfect區間起點（T之前）＝反應窗口實際開啟點
-  var SPRITE_DODGE_PERFECT_LATE_MS = 200; // Perfect區間終點（T之後）
   var SPRITE_DODGE_WINDOW_MS = [1000, 1500, 2000]; // 第1/2/3下的反應窗口（T之後）
-  var SPRITE_DODGE_MIN_REDUCE_PCT = 30;
-  var SPRITE_DODGE_GRADE_THRESHOLDS = [
-    { min: 100, id: "perfect" },
-    { min: 80, id: "great" },
-    { min: 60, id: "good" },
-    { min: 0, id: "bad" },
+  // untilMs＝該帶終點（T之後的毫秒，含），null＝到窗口結束；from/to＝帶起點/終點的減傷％。
+  var SPRITE_DODGE_BANDS = [
+    { id: "perfect", untilMs: 300, from: 100, to: 100 },
+    { id: "great", untilMs: 500, from: 99, to: 80 },
+    { id: "good", untilMs: 750, from: 80, to: 60 },
+    { id: "bad", untilMs: null, from: 59, to: 30 },
   ];
   // 2026-09-06數值真正接入：不再用demo佔位機率決定打誰，改成先從敵人實際
   // 「アクション決定表」（enemy.actions[]）抽出一招，依該招敘述判斷是個別傷害（1人）
@@ -9388,22 +9390,23 @@
     return t;
   }
 
-  // 點陣圖戰鬥模式的迴避減傷％：Perfect區間內100，之後到窗口結束線性降到30。
+  // 點陣圖戰鬥模式的迴避判定：依按下時刻落在SPRITE_DODGE_BANDS哪一帶，回傳{grade, pct}。
+  // 帶內依時間線性從from遞減到to；最後一帶（bad）的終點＝這一下的窗口結束（st.phaseEndAt）。
   // pressedAt早於Perfect區間起點的情況呼叫端已經擋掉（那不算迴避），這裡不再處理。
-  function spriteDodgeReducePct(st, pressedAt) {
+  function spriteDodgeJudge(st, pressedAt) {
     var dt = pressedAt - st.hitAt;
-    if (dt <= SPRITE_DODGE_PERFECT_LATE_MS) return 100;
-    var decayStart = st.hitAt + SPRITE_DODGE_PERFECT_LATE_MS;
-    var span = Math.max(1, st.phaseEndAt - decayStart);
-    var t = Math.max(0, Math.min(1, (pressedAt - decayStart) / span));
-    return Math.round(100 - (100 - SPRITE_DODGE_MIN_REDUCE_PCT) * t);
-  }
-
-  function spriteDodgeGradeId(pct) {
-    for (var i = 0; i < SPRITE_DODGE_GRADE_THRESHOLDS.length; i++) {
-      if (pct >= SPRITE_DODGE_GRADE_THRESHOLDS[i].min) return SPRITE_DODGE_GRADE_THRESHOLDS[i].id;
+    var bandStart = -SPRITE_DODGE_PERFECT_EARLY_MS;
+    for (var i = 0; i < SPRITE_DODGE_BANDS.length; i++) {
+      var band = SPRITE_DODGE_BANDS[i];
+      var bandEnd = band.untilMs === null ? st.phaseEndAt - st.hitAt : band.untilMs;
+      if (dt <= bandEnd || i === SPRITE_DODGE_BANDS.length - 1) {
+        var span = Math.max(1, bandEnd - bandStart);
+        var t = Math.max(0, Math.min(1, (dt - bandStart) / span));
+        return { grade: band.id, pct: Math.round(band.from - (band.from - band.to) * t) };
+      }
+      bandStart = bandEnd;
     }
-    return "bad";
+    return { grade: "bad", pct: SPRITE_DODGE_BANDS[SPRITE_DODGE_BANDS.length - 1].to };
   }
 
   // 是否套用點陣圖模式的時機判定：反擊（isCounter，固定1秒的「快速反擊」、沒有對應動畫）
@@ -10088,8 +10091,9 @@
     // 減傷是獨立的一層乘法（設計文件§8.1）。兩種情況都顯示「成功迴避」＋成功度。
     var dodgeReducePct = null;
     if (kind === "dodge" && spriteDodgeTimingApplies(st)) {
-      dodgeReducePct = spriteDodgeReducePct(st, dodgePressedAt);
-      showDodgeGrade(dodgeReducePct);
+      var judge = spriteDodgeJudge(st, dodgePressedAt);
+      dodgeReducePct = judge.pct;
+      showDodgeGrade(judge.grade);
       if (dodgeReducePct < 100) kind = "dodgePartial";
     }
     if (kind === "dodge" || kind === "dodgePartial") {
@@ -10260,8 +10264,7 @@
   // 點陣圖模式迴避成功度（2026-09-22使用者明確規格「閃避成功後 閃避上方另外顯示本次成功度」）：
   // 跟「成功迴避」是兩個各自獨立的浮動提示（#midnight-dodge-grade疊在#midnight-dodge-flash
   // 上方一層），同樣1秒後消失；顏色依等級套class（見style.css）。
-  function showDodgeGrade(pct) {
-    var grade = spriteDodgeGradeId(pct);
+  function showDodgeGrade(grade) {
     showActionFlash("midnight-dodge-grade", window.I18N.t("midnight_dodge_grade_" + grade), "grade-" + grade);
   }
 
@@ -22472,11 +22475,8 @@
     _debugSpriteHitAt: function (atk, hitIndex) {
       return spriteHitAt(atk, hitIndex);
     },
-    _debugSpriteDodgeReducePct: function (st, pressedAt) {
-      return spriteDodgeReducePct(st, pressedAt);
-    },
-    _debugSpriteDodgeGradeId: function (pct) {
-      return spriteDodgeGradeId(pct);
+    _debugSpriteDodgeJudge: function (st, pressedAt) {
+      return spriteDodgeJudge(st, pressedAt);
     },
     _debugEnemyAttackHitWindowMs: function (hitIndex) {
       return enemyAttackHitWindowMs(hitIndex);

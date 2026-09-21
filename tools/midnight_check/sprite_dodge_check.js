@@ -9,9 +9,11 @@
 //
 // 使用者明確規格（2026-09-22）：
 //   ・紅光 0.5s 後為正式出招時刻 T；T−0.1s 才從 idle 切成攻擊動畫；連擊每一下重播
-//   ・[T−0.1s, T+0.2s] 按迴避＝100% 減傷；之後線性降到 30%（窗口結束時）
+//   ・（2026-09-22 第 2 版「判定嚴格度更改」）依按下時刻的時間帶判定，帶內線性遞減：
+//       [T−0.1, T+0.3] Perfect 100／(T+0.3, T+0.5] Great 99→80／(T+0.5, T+0.75] Good 80→60／
+//       (T+0.75, T+W] Bad 59→30
 //   ・窗口 1.0／1.5／2.0s（第 1／2／3 下）
-//   ・迴避後在迴避鍵上方另外顯示 Perfect（100）／Great（80~99）／Good（60~79）／Bad（30~59）
+//   ・迴避後在迴避鍵上方另外顯示 Perfect／Great／Good／Bad
 // 涵蓋項目：
 //   ① 純函式：窗口長度、減傷％線性衰減、分級門檻
 //   ② 實戰：紅光在 T 前顯示、T 後消失；動畫在 T(k)−0.1s 才切換且每一下各重播一次
@@ -97,16 +99,19 @@ async function waitAttackDone(page, attackId) {
     console.log("=== ① 純函式 ===");
     const win = await page.evaluate(() => [0, 1, 2].map((k) => window.PriTestMidnight._debugEnemyAttackHitWindowMs(k)));
     assert(win[0] === 1000 && win[1] === 1500 && win[2] === 2000, "點陣圖模式窗口 1.0／1.5／2.0s", win);
-    const pcts = await page.evaluate(() => {
-      const st = { hitAt: 10000, phaseEndAt: 11000 };
-      const f = (t) => window.PriTestMidnight._debugSpriteDodgeReducePct(st, t);
-      return { early: f(9900), atT: f(10000), late: f(10200), mid: f(10600), end: f(11000), over: f(11500) };
+    const J = await page.evaluate(() => {
+      const st = { hitAt: 10000, phaseEndAt: 11000 }; // W=1.0s
+      const f = (dt) => window.PriTestMidnight._debugSpriteDodgeJudge(st, 10000 + dt);
+      return { m100: f(-100), p0: f(0), p300: f(300), p301: f(301), p400: f(400), p500: f(500), p501: f(501), p625: f(625), p750: f(750), p751: f(751), p875: f(875), p1000: f(1000), p1500: f(1500) };
     });
-    assert(pcts.early === 100 && pcts.atT === 100 && pcts.late === 100, "[T−0.1, T+0.2] 一律 100%", pcts);
-    assert(pcts.mid === 65, "T+0.6（W=1.0）線性＝65%", pcts);
-    assert(pcts.end === 30 && pcts.over === 30, "窗口結束＝30%，之後夾在 30%", pcts);
-    const grades = await page.evaluate(() => [100, 99, 80, 79, 60, 59, 30].map((p) => window.PriTestMidnight._debugSpriteDodgeGradeId(p)));
-    assert(grades.join() === "perfect,great,great,good,good,bad,bad", "分級門檻 100/80/60", grades);
+    const g = (j) => j.grade + ":" + j.pct;
+    assert(g(J.m100) === "perfect:100" && g(J.p0) === "perfect:100" && g(J.p300) === "perfect:100", "[T−0.1, T+0.3] Perfect 100%", J);
+    assert(g(J.p301) === "great:99" && g(J.p400) === "great:90" && g(J.p500) === "great:80", "(T+0.3, T+0.5] Great 99→80（中點 90）", J);
+    assert(g(J.p501) === "good:80" && g(J.p625) === "good:70" && g(J.p750) === "good:60", "(T+0.5, T+0.75] Good 80→60（中點 70）", J);
+    assert(g(J.p751) === "bad:59" && g(J.p875) === "bad:45" && g(J.p1000) === "bad:30", "(T+0.75, T+W] Bad 59→30（W=1.0 中點 45）", J);
+    assert(g(J.p1500) === "bad:30", "窗口之後夾在 30%", J);
+    const J2 = await page.evaluate(() => window.PriTestMidnight._debugSpriteDodgeJudge({ hitAt: 10000, phaseEndAt: 12000 }, 10875));
+    assert(J2.grade === "bad" && J2.pct === 56, "時間帶不隨 W 伸縮：W=2.0 時 T+0.875 仍是 Bad（59→30 的 1/10 處＝56%）", J2);
 
     console.log("=== 開局進戰鬥（無開場動畫） ===");
     await page.click("#btn-midnight-lobby-ready");
@@ -147,7 +152,7 @@ async function waitAttackDone(page, attackId) {
     }
     await waitAttackDone(page, atk.attackId);
     const hpAfter1 = await hpOf();
-    assert(gradesSeen.every((g) => g.lag <= 200), "每一下都在 T+0.2s 內按到（Playwright 延遲）", gradesSeen);
+    assert(gradesSeen.every((g) => g.lag <= 300), "每一下都在 T+0.3s 內按到（Playwright 延遲）", gradesSeen);
     assert(gradesSeen.every((g) => g.grade === "Perfect"), "每一下的成功度都顯示 Perfect", gradesSeen);
     assert(gradesSeen.every((g) => g.flash === "成功迴避"), "「成功迴避」同時顯示", gradesSeen);
     assert(hpAfter1 === hpBefore1, "Perfect 迴避 HP 不減", { before: hpBefore1, after: hpAfter1 });
@@ -178,7 +183,7 @@ async function waitAttackDone(page, attackId) {
     const pressedLate = await dodgeAt(page, T2[0] + W0 - 150);
     await page.waitForTimeout(80);
     const lateGrade = await page.textContent("#midnight-dodge-grade");
-    const expectedPct = await page.evaluate((a) => window.PriTestMidnight._debugSpriteDodgeReducePct({ hitAt: a.hitAt, phaseEndAt: a.hitAt + a.w }, a.pressed), { hitAt: T2[0], w: W0, pressed: pressedLate });
+    const expectedPct = (await page.evaluate((a) => window.PriTestMidnight._debugSpriteDodgeJudge({ hitAt: a.hitAt, phaseEndAt: a.hitAt + a.w }, a.pressed), { hitAt: T2[0], w: W0, pressed: pressedLate })).pct;
     // 之後的連擊全部 Perfect 化解，只留下第 1 下的部分傷害
     for (let k = 1; k < hitCount; k++) {
       await page.evaluate(() => { const s = window.PriTestMidnight._debugState(); s.stamina.current = s.stamina.max; });
@@ -194,6 +199,29 @@ async function waitAttackDone(page, attackId) {
     assert(lateGrade === "Bad", "窗口尾端迴避顯示 Bad（減傷 " + expectedPct + "%）", { lateGrade, expectedPct, lag: pressedLate - T2[0] });
     assert(expectedPct >= 30 && expectedPct < 60, "尾端按下的減傷％落在 Bad 區間 30~59", expectedPct);
     assert(Math.abs(loss - expectedLoss) <= 1, "HP 扣除＝round(原始傷害 " + raw + " ×(1−" + expectedPct + "%))＝" + expectedLoss, { loss, hpBefore2, hpAfter2 });
+    console.log("=== ④b 第三次攻擊：T+0.6s 按＝Good、HP 依 Good 帶（80→60）扣 ===");
+    atk = await waitNextAttack(page, atk.attackId);
+    hitCount = atk.hitCount || 1;
+    const T3 = [];
+    for (let k = 0; k < hitCount; k++) T3.push(await hitAt(page, atk, k));
+    const hpBefore3 = await hpOf();
+    await page.evaluate(() => { const s = window.PriTestMidnight._debugState(); s.stamina.current = s.stamina.max; });
+    const pressedGood = await dodgeAt(page, T3[0] + 600);
+    await page.waitForTimeout(80);
+    const goodGrade = await page.textContent("#midnight-dodge-grade");
+    const goodJudge = await page.evaluate((a) => window.PriTestMidnight._debugSpriteDodgeJudge({ hitAt: a.hitAt, phaseEndAt: a.hitAt + a.w }, a.pressed), { hitAt: T3[0], w: W0, pressed: pressedGood });
+    for (let k = 1; k < hitCount; k++) {
+      await page.evaluate(() => { const s = window.PriTestMidnight._debugState(); s.stamina.current = s.stamina.max; });
+      await dodgeAt(page, T3[k] + 20);
+    }
+    await waitAttackDone(page, atk.attackId);
+    const hpAfter3 = await hpOf();
+    const raw3 = Math.round((atk.dmgAmount || 0) / 10);
+    const expectedLoss3 = Math.round(raw3 * (1 - goodJudge.pct / 100));
+    assert(goodGrade === "Good" && goodJudge.grade === "good", "T+0.6s 迴避顯示 Good（減傷 " + goodJudge.pct + "%，lag " + (pressedGood - T3[0]) + "ms）", { goodGrade, goodJudge });
+    assert(goodJudge.pct >= 60 && goodJudge.pct <= 80, "Good 帶的減傷％在 60~80", goodJudge.pct);
+    assert(Math.abs(hpBefore3 - hpAfter3 - expectedLoss3) <= 1, "HP 扣除＝round(" + raw3 + "×(1−" + goodJudge.pct + "%))＝" + expectedLoss3, { loss: hpBefore3 - hpAfter3 });
+
     console.log("=== ⑤ 連擊：等到 hitCount>=2 的招式，每一下動畫重播、每一下 Perfect ===");
     // 一般敵人 2 下機率 40%，最多等 10 次攻擊；等不到就標示 SKIP（機率性，不是功能失敗）。
     let multi = null;
