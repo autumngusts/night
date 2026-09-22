@@ -22,6 +22,13 @@
 //   ⑨（同上）開局不播靈鳥進場動畫、地圖維持收合
 //   ⑩（同上）勾選點陣圖戰鬥模式後，戰鬥中 sprite 舞台真的顯示、idle 循環在動、敵人出招時
 //      切到對應攻擊動畫、被打時 hurt、HP 歸零時右上角小視窗播 death（hold 在最後一幀後自動隱藏）；sheet 已預載
+//   ⑪（2026-09-22 第3批，使用者明確規格「可以指定打哪一隻以及甚麼敵人種類」）等待房兩個下拉：
+//      種類＝隨機／各系統／夜王，個體依種類重建、有專屬 sheet 的加註；指定夜王後 meta.battleSim
+//      帶 bossForm:"fused"／Lv.16／animCycle，兩台的下拉都回填並鎖定
+//   ⑫（同上「有個選項可以讓敵人連續播放不同動作的動畫」）開局後 trigger 帶 bossForm、HP＝bossHpMax、
+//      舞台用 boss sheet、8 個動作依序循環且面板標籤跟著變；關掉勾選後循環停止、標籤隱藏
+//   ⑬（2026-09-22 第4批「房間一開始不顯示戰鬥模擬至連續播放，需按下測試模式成功後才在本地顯示」）
+//      三列一開始隱藏；A 輸入密碼開測試模式後顯示；B 同步到 meta.testMode=true 仍隱藏；關掉再開要重輸密碼
 // ============================================================================
 
 const { chromium } = require("playwright");
@@ -72,6 +79,17 @@ async function clickBattleSim(page, answer) {
   await page.click("#btn-midnight-lobby-battle-sim");
 }
 
+// 2026-09-22 第4批（使用者明確規格「房間一開始不顯示戰鬥模擬至連續播放，需按下測試模式成功後
+// 才在本地顯示」）：戰鬥模擬三列包在 #midnight-lobby-test-tools，要這台裝置自己輸入測試模式
+// 密碼成功才顯示。用真的勾選框＋prompt 走一遍（rtSet meta/testMode 只會同步 meta、不會設本機旗標）。
+async function unlockTestMode(page) {
+  page.once("dialog", async (dialog) => {
+    await dialog.accept(PASSWORD);
+  });
+  await page.check("#midnight-lobby-test-mode-checkbox");
+  await waitFor(page, () => !document.querySelector("#midnight-lobby-test-tools").hidden);
+}
+
 (async () => {
   const browser = await chromium.launch();
   const pageA = await browser.newPage();
@@ -94,6 +112,22 @@ async function clickBattleSim(page, answer) {
     await pageA.check("#midnight-lobby-sprite-mode-checkbox");
     await waitFor(pageA, () => window.PriTestMidnight._debugState().meta.spriteMode === true);
     await waitFor(pageB, () => window.PriTestMidnight._debugState().meta.spriteMode === true);
+
+    console.log("=== ⑬ 戰鬥模擬三列只在本機輸入測試模式密碼後顯示 ===");
+    const toolsInit = await pageA.$eval("#midnight-lobby-test-tools", (e) => e.hidden);
+    assert(toolsInit === true, "房間一開始 #midnight-lobby-test-tools 隱藏", toolsInit);
+    await unlockTestMode(pageA);
+    assert(true, "裝置A輸入密碼開啟測試模式後三列顯示");
+    await waitFor(pageB, () => window.PriTestMidnight._debugState().meta.testMode === true);
+    await pageB.waitForTimeout(300);
+    const toolsB = await pageB.evaluate(() => ({ hidden: document.querySelector("#midnight-lobby-test-tools").hidden, unlocked: window.PriTestMidnight._debugState().testModeUnlockedLocally, testMode: window.PriTestMidnight._debugState().meta.testMode }));
+    assert(toolsB.hidden && !toolsB.unlocked && toolsB.testMode, "裝置B同步到 meta.testMode=true 但沒輸入過密碼 → 三列仍隱藏（本機才看得到）", toolsB);
+    // 關掉測試模式 → A 的三列也收起；再開一次（要再輸入密碼）→ 重新顯示
+    await pageA.uncheck("#midnight-lobby-test-mode-checkbox");
+    await waitFor(pageA, () => document.querySelector("#midnight-lobby-test-tools").hidden);
+    assert(true, "關掉測試模式後三列收起");
+    await unlockTestMode(pageA);
+    assert(true, "重新開啟測試模式（再輸入密碼）後三列重新顯示");
 
     console.log("=== ① 密碼錯誤／取消都不會寫入 meta.battleSim ===");
     const hintBefore = await pageA.textContent("#midnight-lobby-battle-sim-status");
@@ -188,7 +222,9 @@ async function clickBattleSim(page, answer) {
     const stage0 = await pageA.evaluate(() => {
       const st = document.querySelector("#midnight-enemy-sprite-stage");
       if (!st) return null;
-      return { hidden: st.hidden, bg: st.style.backgroundImage, w: st.offsetWidth, h: st.offsetHeight, anim: window.PriTestMidnightSprite.currentAnimId() };
+      // 2026-09-22（910f842 之後）：sheet 背景改貼在舞台內的 .midnight-sprite-face（橫長單格對應），舞台本身沒有 background
+      const face = st.querySelector(".midnight-sprite-face");
+      return { hidden: st.hidden, bg: face ? face.style.backgroundImage : "", w: st.offsetWidth, h: st.offsetHeight, anim: window.PriTestMidnightSprite.currentAnimId() };
     });
     assert(!!stage0 && !stage0.hidden, "#midnight-enemy-sprite-stage 已 mount 且顯示", stage0);
     assert(!!stage0 && stage0.bg.indexOf(sheetInfo.file) !== -1, "舞台 background-image 指向該 sheet", stage0);
@@ -199,8 +235,8 @@ async function clickBattleSim(page, answer) {
     // idle 6 幀 × 200ms：1.5 秒內 background-position 至少要換過 3 種值
     const idlePositions = await pageA.evaluate(() => new Promise((res) => {
       const seen = {};
-      const st = document.querySelector("#midnight-enemy-sprite-stage");
-      const t = setInterval(() => { seen[st.style.backgroundPosition] = true; }, 30);
+      const face = document.querySelector("#midnight-enemy-sprite-stage .midnight-sprite-face");
+      const t = setInterval(() => { seen[face.style.backgroundPosition] = true; }, 30);
       setTimeout(() => { clearInterval(t); res(Object.keys(seen)); }, 1500);
     }));
     assert(idlePositions.length >= 3, "idle 循環中 background-position 持續變化（" + idlePositions.length + " 種）", idlePositions);
@@ -246,13 +282,14 @@ async function clickBattleSim(page, answer) {
     const popupA = await pageA.evaluate(() => {
       const p = document.querySelector("#midnight-enemy-death-popup");
       const hud = document.querySelector("#midnight-hud-top-right");
-      return { bg: p.style.backgroundImage, w: p.offsetWidth, inHud: p.parentElement === hud && hud.lastElementChild === p, panelHidden: document.querySelector("#midnight-field-encounter").hidden, stageHidden: document.querySelector("#midnight-enemy-sprite-stage").hidden, hp: window.PriTestMidnight._debugState().fieldEnemyHp.battleSim };
+      const face = p.querySelector(".midnight-sprite-face"); // 同主舞台：背景在 face 上
+      return { bg: face ? face.style.backgroundImage : "", w: p.offsetWidth, inHud: p.parentElement === hud && hud.lastElementChild === p, panelHidden: document.querySelector("#midnight-field-encounter").hidden, stageHidden: document.querySelector("#midnight-enemy-sprite-stage").hidden, hp: window.PriTestMidnight._debugState().fieldEnemyHp.battleSim };
     });
     assert(popupA.hp === 0 && popupA.bg.indexOf(sheetInfo.file) !== -1, "HP 歸零後右上角小視窗用同一張 sheet 播放", popupA);
     assert(popupA.inHud && popupA.w > 0, "小視窗掛在 #midnight-hud-top-right 最後一格（不蓋內容）", popupA);
     assert(popupA.panelHidden && popupA.stageHidden, "戰鬥面板與主舞台已收起（主舞台不再空轉）", popupA);
     await pageA.waitForTimeout(1100); // death 6 幀 × 160ms ＝ 960ms → 之後 hold 在最後一幀
-    const holdPos = await pageA.evaluate(() => document.querySelector("#midnight-enemy-death-popup").style.backgroundPosition);
+    const holdPos = await pageA.evaluate(() => document.querySelector("#midnight-enemy-death-popup .midnight-sprite-face").style.backgroundPosition);
     const posM = /^-(\d+)px -(\d+)px$/.exec(holdPos) || [];
     const cellFromX = posM[1] ? parseInt(posM[1], 10) / 5 : NaN;
     const cellFromY = posM[2] ? parseInt(posM[2], 10) / 7 : NaN;
@@ -280,7 +317,11 @@ async function clickBattleSim(page, answer) {
       return !s.activeEncounter && !!(s.fieldTriggers.battleSim.participants || {})["2"] && !(s.fieldTriggers.battleSim.participants || {})["1"];
     });
     assert(true, "逃離後 activeEncounter 清空、自己從 participants 移除、對方仍在");
-    await waitFor(pageA, () => !document.querySelector("#midnight-enter-battle-prompt").hidden, null, 5000);
+    await waitFor(pageA, () => !document.querySelector("#midnight-enter-battle-prompt").hidden, null, 5000).catch(async (e) => {
+      const dbg = await pageA.evaluate(() => { const s = window.PriTestMidnight._debugState(); return { ae: s.activeEncounter, nbs: s.nearbyBattleSim, nfp: s.nearbyFieldPoint, nd3: s.nearbyDay3Boss, ncp: s.nearbyCastlePoint, nfcb: s.nearbyFinalCircleBoss, fled: s.fledEncounterIds, pend: s.pendingBattleReentry, trig: s.fieldTriggers.battleSim, hp: s.fieldEnemyHp.battleSim, mySlot: s.mySlot, autoFly: s.autoFly, keys: Object.keys(s) }; });
+      console.log("  [DEBUG ⑥] " + JSON.stringify(dbg));
+      throw e;
+    });
     assert(true, "上方資訊欄顯示既有的［進入戰鬥］提示（pendingBattleReentry）");
     await pageA.dispatchEvent("#btn-midnight-enter-battle", "click");
     await waitFor(pageA, () => (window.PriTestMidnight._debugState().activeEncounter || {}).id === "battleSim", null, 10000);
@@ -297,6 +338,123 @@ async function clickBattleSim(page, answer) {
     await waitFor(pageB, () => !window.PriTestMidnight._debugState().meta.battleSim);
     assert(!dialogOpened, "取消時沒有跳出密碼 prompt");
     assert(true, "meta.battleSim 已清空");
+
+    // ---- 第3批：另開一場乾淨的房間（trigger/battleSim 只在第一次建立，改指定對象要從等待房重來）----
+    console.log("=== ⑪ 指定敵人種類／個體（新房間） ===");
+    await pageA.goto(BASE + "/midnight/index.html", { waitUntil: "networkidle" });
+    await pageA.click("#btn-midnight-create");
+    await waitFor(pageA, () => window.PriTestMidnight && window.PriTestMidnight._debugState().meta);
+    const gameUrl2 = pageA.url();
+    await pageB.goto(gameUrl2, { waitUntil: "networkidle" });
+    await waitFor(pageB, () => window.PriTestMidnight && window.PriTestMidnight._debugState().meta);
+    await joinLobby(pageA, "1234");
+    await joinLobby(pageB, "5678");
+    await pageA.check("#midnight-lobby-sprite-mode-checkbox");
+    await waitFor(pageB, () => window.PriTestMidnight._debugState().meta.spriteMode === true);
+    await unlockTestMode(pageA); // 新房間＝新頁面，本機旗標歸零，要重新輸入密碼三列才顯示
+    const selInit = await pageA.evaluate(() => {
+      const kind = document.querySelector("#midnight-lobby-battle-sim-kind-select");
+      const enemy = document.querySelector("#midnight-lobby-battle-sim-enemy-select");
+      const values = Array.from(kind.options).map((o) => o.value);
+      return { kindCount: kind.options.length, families: window.PriTestEnemies.listFamilies().length, hasBoss: values.indexOf("night_boss") !== -1, first: values[0], enemyHidden: enemy.hidden, disabled: kind.disabled };
+    });
+    assert(selInit.first === "" && selInit.kindCount === selInit.families + 2 && selInit.hasBoss, "種類下拉＝隨機＋" + selInit.families + "個系統＋夜王", selInit);
+    assert(selInit.enemyHidden && !selInit.disabled, "種類為隨機時個體下拉隱藏、下拉未鎖定", selInit);
+    // 選一個系統：個體下拉重建成該系統的每一隻＋隨機，有專屬 sheet 的加註
+    await pageA.selectOption("#midnight-lobby-battle-sim-kind-select", "cavalry");
+    await pageA.waitForTimeout(200);
+    const selFam = await pageA.evaluate(() => {
+      const enemy = document.querySelector("#midnight-lobby-battle-sim-enemy-select");
+      const opts = Array.from(enemy.options).map((o) => ({ v: o.value, t: o.textContent }));
+      const fam = window.PriTestEnemies.allEnemies().filter((r) => r.familyId === "cavalry");
+      const own = (id) => !!window.PriTestMidnightSprite.sheetFileFor("cavalry", id, false);
+      const suffix = window.I18N.t("midnight_lobby_battle_sim_own_sprite_suffix");
+      const marksOk = opts.slice(1).every((o) => (o.t.indexOf(suffix) !== -1) === own(o.v));
+      return { hidden: enemy.hidden, count: opts.length, famCount: fam.length, first: opts[0].v, marksOk, sample: opts.slice(0, 3) };
+    });
+    assert(!selFam.hidden && selFam.count === selFam.famCount + 1 && selFam.first === "", "選系統後個體下拉＝隨機＋該系統 " + selFam.famCount + " 隻", selFam);
+    assert(selFam.marksOk, "有專屬 sheet 的個體才加註「專屬點陣圖」", selFam);
+    // 選夜王：個體下拉＝隨機＋10 隻夜王
+    await pageA.selectOption("#midnight-lobby-battle-sim-kind-select", "night_boss");
+    await pageA.waitForTimeout(200);
+    const selBoss = await pageA.evaluate(() => {
+      const enemy = document.querySelector("#midnight-lobby-battle-sim-enemy-select");
+      return { count: enemy.options.length, bosses: window.PriTestBossRulebook.list().length, hasGladius: Array.from(enemy.options).some((o) => o.value === "gladius") };
+    });
+    assert(selBoss.count === selBoss.bosses + 1 && selBoss.hasGladius, "選夜王後個體下拉＝隨機＋" + selBoss.bosses + " 隻夜王", selBoss);
+    await pageA.selectOption("#midnight-lobby-battle-sim-enemy-select", "gladius");
+    await pageA.check("#midnight-lobby-battle-sim-anim-cycle-checkbox");
+    await clickBattleSim(pageA, PASSWORD);
+    await waitFor(pageA, () => (window.PriTestMidnight._debugState().meta.battleSim || {}).enemyId === "gladius");
+    const simBoss = (await state(pageA)).meta.battleSim;
+    assert(simBoss.enemyFamilyId === "night_boss" && simBoss.bossForm === "fused" && simBoss.level === 16 && simBoss.animCycle === true, "meta.battleSim＝{night_boss, gladius, Lv.16, fused, animCycle:true}", simBoss);
+    const bossName = await pageA.evaluate(() => window.PriTestEnemies.localizedText(window.PriTestBossRulebook.get("gladius").name));
+    await waitFor(pageA, (n) => document.querySelector("#midnight-lobby-battle-sim-status").textContent.indexOf(n) !== -1, bossName);
+    assert(true, "狀態列顯示夜王名稱「" + bossName + "」");
+    await waitFor(pageB, () => (window.PriTestMidnight._debugState().meta.battleSim || {}).enemyId === "gladius");
+    await pageB.waitForTimeout(200);
+    const lockedB = await pageB.evaluate(() => {
+      const kind = document.querySelector("#midnight-lobby-battle-sim-kind-select");
+      const enemy = document.querySelector("#midnight-lobby-battle-sim-enemy-select");
+      const cb = document.querySelector("#midnight-lobby-battle-sim-anim-cycle-checkbox");
+      return { kind: kind.value, enemy: enemy.value, disabled: kind.disabled && enemy.disabled, cycle: cb.checked };
+    });
+    assert(lockedB.kind === "night_boss" && lockedB.enemy === "gladius" && lockedB.disabled && lockedB.cycle, "裝置B的下拉回填成夜王／gladius 並鎖定、勾選框同步", lockedB);
+
+    console.log("=== ⑫ 夜王模擬開戰＋8 個動作循環 ===");
+    await pageA.click("#btn-midnight-lobby-ready");
+    await pageB.click("#btn-midnight-lobby-ready");
+    await waitFor(pageA, () => window.PriTestMidnight._debugState().meta.sessionStartAt);
+    await waitFor(pageA, () => {
+      const s = window.PriTestMidnight._debugState();
+      return !!(s.fieldTriggers.battleSim && typeof s.fieldEnemyHp.battleSim === "number");
+    });
+    const sBoss = await state(pageA);
+    const trigBoss = sBoss.fieldTriggers.battleSim;
+    assert(trigBoss.enemyFamilyId === "night_boss" && trigBoss.enemyId === "gladius" && trigBoss.bossForm === "fused" && trigBoss.level === 16, "trigger 帶 bossForm:\"fused\"（跟 Day3 夜王同形）", trigBoss);
+    const bossHp = await pageA.evaluate((t) => window.PriTestMidnight._debugEnemyRealHpMax(t), trigBoss);
+    assert(sBoss.fieldEnemyHp.battleSim === bossHp && bossHp > 0, "HP 走夜王分流 bossHpMax()（" + bossHp + "）", sBoss.fieldEnemyHp.battleSim);
+    await waitFor(pageA, () => (window.PriTestMidnight._debugState().activeEncounter || {}).id === "battleSim", null, 15000);
+    const bossPanel = await pageA.evaluate(() => ({
+      name: document.querySelector("#midnight-field-encounter-name").textContent,
+      bg: document.querySelector("#midnight-enemy-sprite-stage .midnight-sprite-face").style.backgroundImage,
+      hidden: document.querySelector("#midnight-enemy-sprite-stage").hidden,
+    }));
+    assert(bossPanel.name === bossName && !bossPanel.hidden && bossPanel.bg.indexOf("boss_gladius.png") !== -1, "面板顯示夜王名稱、舞台用 boss_gladius.png", bossPanel);
+    // 一輪約 9.3 秒（idle 2 圈 2400 ＋ line 1020 ＋ area 900 ＋ thrust 840 ＋ slam 1050 ＋ single 900 ＋ hurt 540 ＋ death 960+700）；
+    // 採樣 11 秒，動作要照 listAnims() 順序出現、每一個都出現過，且標籤跟著動作走。
+    const cycleSeen = await pageA.evaluate(() => new Promise((res) => {
+      const order = [];
+      const labels = {};
+      let last = null;
+      const t = setInterval(() => {
+        const a = window.PriTestMidnightSprite.currentAnimId();
+        const lbl = document.querySelector("#midnight-battle-sim-anim-label");
+        if (a !== last) { order.push(a); last = a; }
+        if (lbl && !lbl.hidden) labels[a] = lbl.textContent;
+        // 攻擊／受擊事件確實有發生但沒有蓋掉循環：順便記錄期間有沒有 enemyAttack
+        }, 20);
+      setTimeout(() => { clearInterval(t); res({ order, labels, cycle: window.PriTestMidnight._debugState().battleSimAnimCycle }); }, 11000);
+    }));
+    const ANIM_ORDER = await pageA.evaluate(() => window.PriTestEnemySprite.listAnims().map((a) => a.id));
+    const seenAll = ANIM_ORDER.every((id) => cycleSeen.order.indexOf(id) !== -1);
+    assert(seenAll, "11 秒內 8 個動作全部播過（" + cycleSeen.order.join("→") + "）", cycleSeen.order);
+    // 順序檢查：把採樣到的序列對照 listAnims() 順序，相鄰兩個必須是循環中的「下一個」
+    const orderOk = cycleSeen.order.every((id, i) => i === 0 || ANIM_ORDER.indexOf(id) === (ANIM_ORDER.indexOf(cycleSeen.order[i - 1]) + 1) % ANIM_ORDER.length);
+    assert(orderOk, "動作嚴格依 listAnims() 順序循環，沒有被攻擊／受擊動畫插隊", cycleSeen.order);
+    assert(!!cycleSeen.cycle && typeof cycleSeen.cycle.index === "number", "_debugState().battleSimAnimCycle 有進度", cycleSeen.cycle);
+    const labelOk = ANIM_ORDER.every((id, i) => (cycleSeen.labels[id] || "").indexOf((i + 1) + "/" + ANIM_ORDER.length) !== -1 && (cycleSeen.labels[id] || "").indexOf(id) !== -1);
+    assert(labelOk, "面板標籤顯示「n/8」與動作 id，且跟播放中的動作一致", cycleSeen.labels);
+    // 關掉勾選（開局後等待房隱藏，handler 不看畫面）：循環停止、標籤隱藏、恢復由攻擊管線驅動
+    await pageB.evaluate(() => {
+      const cb = document.querySelector("#midnight-lobby-battle-sim-anim-cycle-checkbox");
+      cb.checked = false;
+      cb.dispatchEvent(new Event("change"));
+    });
+    await waitFor(pageA, () => window.PriTestMidnight._debugState().meta.battleSim.animCycle === false);
+    await pageA.waitForTimeout(300);
+    const cycleOff = await pageA.evaluate(() => ({ cycle: window.PriTestMidnight._debugState().battleSimAnimCycle, labelHidden: document.querySelector("#midnight-battle-sim-anim-label").hidden }));
+    assert(cycleOff.cycle === null && cycleOff.labelHidden, "關掉勾選後循環清空、標籤隱藏", cycleOff);
   } catch (e) {
     console.log("  [ERROR] " + (e && e.stack ? e.stack : e));
     results.push({ label: "腳本例外中止", pass: false });

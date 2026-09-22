@@ -162,9 +162,38 @@ BODY = """    <div class="midnight-wrap">
              （finalCircleDayN）的虛擬遭遇點寫法，建立固定id "battleSim" 的fieldTrigger，
              全員直接走既有的識別資訊準備→戰鬥流程，不另建第二套戰鬥。按鈕文字／狀態列由
              renderLobbySettings()依meta.battleSim即時改寫（已設定時按鈕變成「取消」）。 -->
+        <!-- 2026-09-22使用者明確規格「房間一開始不顯示戰鬥模擬至連續播放，需按下測試模式成功後
+             才在本地顯示……也為本地才能看到」：下面三列包在這個容器裡，只有「這台裝置自己輸入
+             測試模式密碼成功」（本機旗標testModeUnlockedLocally）且meta.testMode仍為true時才
+             顯示；其他裝置即使同步到meta.testMode=true也看不到。見static/midnight.jsの
+             renderLobbySettings()／handleTestModeToggle()。 -->
+        <div id="midnight-lobby-test-tools" hidden>
         <div class="wb-row" id="midnight-lobby-battle-sim-row">
           <button type="button" id="btn-midnight-lobby-battle-sim"></button>
           <span class="hint" id="midnight-lobby-battle-sim-status"></span>
+        </div>
+        <!-- 戰鬥模擬的敵人指定（2026-09-22使用者明確規格「戰鬥模擬點選後 可以指定打哪一隻以及
+             甚麼敵人種類」）：種類＝隨機／各敵人系統／夜王，個體＝隨機（該種類）／該種類的每一隻
+             （有專屬點陣圖的加註）。兩個下拉是本機輸入，按下「產生」時才連同勾選框一起讀進
+             meta.battleSim；已產生後由renderBattleSimRow()回填成meta裡的值並鎖定，取消才解鎖。
+             夜王走既有的night_boss sentinel（跟Day3夜王同一套fieldTrigger資料流），見
+             static/midnight.jsのpickBattleSimEnemy()／populateBattleSimSelects()。 -->
+        <div class="wb-row" id="midnight-lobby-battle-sim-pick-row">
+          <label data-i18n="midnight_lobby_battle_sim_kind_label"></label>
+          <select id="midnight-lobby-battle-sim-kind-select"></select>
+          <select id="midnight-lobby-battle-sim-enemy-select"></select>
+        </div>
+        <!-- 動作動畫連續播放（同上規格「還有個選項可以讓敵人連續播放不同動作的動畫 以此來確認
+             各動作有對應沒有失誤」）：寫入meta.battleSim.animCycle，戰鬥中敵人sprite依
+             enemy_sprite_data.jsの8個動作順序循環播放、面板標示目前動作，攻擊／受擊動畫不再
+             覆蓋（判定不受影響）。見static/midnight.jsのupdateBattleSimAnimCycle()。 -->
+        <div class="wb-row" id="midnight-lobby-battle-sim-anim-row">
+          <label>
+            <input type="checkbox" id="midnight-lobby-battle-sim-anim-cycle-checkbox">
+            <span data-i18n="midnight_lobby_battle_sim_anim_cycle_label"></span>
+          </label>
+          <span class="hint" data-i18n="midnight_lobby_battle_sim_anim_cycle_hint"></span>
+        </div>
         </div>
         <!-- 測試模式（2026-09-09合併，使用者明確規格「測試模式與debug模式合併為一」）：
              原本private/main的獨立Debug模式（可調整盧恩/獲得武器/回滿FP/復歸回滿血/快速
@@ -178,9 +207,10 @@ BODY = """    <div class="midnight-wrap">
         </div>
         <!-- 縮圈時間點（2026-09-21使用者明確規格「創立房間時 開啟測試模式時 可由GM來調整縮圈
              兩個的時間點 預設 8 + 5」）：只在測試模式勾選後顯示，寫入meta.phaseTiming
-             （{graceMin, holdMin}，分鐘，允許小數），只在meta.testMode為true時生效——關掉測試
-             模式即回到預設8＋5。見static/midnight.jsのhandlePhaseTimingInput()／
-             renderPhaseTimingInputs()／phaseGraceMs()。 -->
+             （{graceMin, holdMin}，分鐘，允許小數）。2026-09-22使用者明確規格「縮圈時間點可以
+             修改後儲存套用 即使關掉測試模式也是按照新設定之時間點」：寫入後就永久生效，不再
+             依meta.testMode切換（輸入框列本身仍只在測試模式下顯示）。見static/midnight.jsの
+             handlePhaseTimingInput()／renderPhaseTimingInputs()／phaseGraceMs()。 -->
         <div class="wb-row" id="midnight-lobby-phase-timing-row" hidden>
           <label data-i18n="midnight_lobby_phase_timing_label"></label>
           <span class="midnight-lobby-phase-timing-field">
@@ -947,6 +977,10 @@ BODY = """    <div class="midnight-wrap">
               <button type="button" id="btn-midnight-execution" hidden></button>
             </div>
             <p id="midnight-field-encounter-name"></p>
+            <!-- 戰鬥模擬「連續播放所有動作動畫」的目前動作標籤（2026-09-22），只在
+                 meta.battleSim.animCycle且正在戰鬥模擬中顯示，見static/midnight.jsの
+                 updateBattleSimAnimCycle()。 -->
+            <p id="midnight-battle-sim-anim-label" hidden></p>
           </div>
           <!-- 屬性/狀態異常共同蓄積小型顯示（2026-09-05武器資料真正接入新增，見
                static/midnight.js的renderAttributeAccumNote()），純文字列出目前
