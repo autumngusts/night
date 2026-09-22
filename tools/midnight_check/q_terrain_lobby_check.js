@@ -145,13 +145,18 @@ async function walkNear(page, targetX, targetY, radius, maxRounds) {
       console.log("  [SKIP] 固定佈局＋直線走位沒能走到Q板塊附近，略過檢查3/4（非功能性失敗）");
     } else {
       await page.waitForTimeout(600);
-      const lockedState = await page.evaluate(() => window.PriTestMidnight._debugState());
-      assert(lockedState.nearbyFieldPoint === null || lockedState.nearbyFieldPoint.type !== "hazard_q", "未解鎖時，靠近Q板塊不會把它視為nearbyFieldPoint（沒有「進入」按鍵）", results);
-      const toastText = await page.evaluate(() => {
-        const box = document.getElementById("midnight-toast");
-        return box && !box.hidden ? box.textContent : "";
+      // 2026-09-12 規格變更（使用者：「文字要出現在樓層資訊的banner，不在背景上顯示」）：
+      // 未解鎖的 Q 照樣是 nearbyFieldPoint，鎖定說明改顯示在上方資訊欄、不給「進入」按鍵，
+      // 不再用背景 toast。舊期望值（不視為 nearbyFieldPoint＋toast 有字）已過時，
+      // 詳細行為由 hazard_q_locked_banner_check.js 涵蓋，這裡只保留最小斷言。
+      const lockedView = await page.evaluate(() => {
+        const s = window.PriTestMidnight._debugState();
+        const note = document.getElementById("midnight-field-enter-note");
+        const btn = document.getElementById("btn-midnight-field-enter");
+        return { nearbyIsQ: !!(s.nearbyFieldPoint && s.nearbyFieldPoint.type === "hazard_q"), noteText: note && !note.hidden ? note.textContent : "", enterHidden: !btn || btn.hidden };
       });
-      assert(toastText.length > 0, "未解鎖時靠近Q板塊顯示了鎖定提示toast：「" + toastText + "」", results);
+      assert(lockedView.nearbyIsQ && lockedView.enterHidden, "未解鎖時，靠近Q板塊會成為nearbyFieldPoint但不給「進入」按鍵", results);
+      assert(lockedView.noteText.length > 0, "未解鎖時鎖定說明顯示在上方資訊欄：「" + lockedView.noteText + "」", results);
 
       console.log("=== 解鎖：直接對其中一個strong_enemy的hazardMember點seed「已擊破」狀態 ===");
       const memberPt = map.points.find((p) => p.hazardMember && p.type === "strong_enemy");
