@@ -5367,6 +5367,26 @@ html.midnight-banner-above-hud:not(.midnight-top-banner-collapsed) #midnight-rew
   background: rgba(0, 0, 0, 0.8);
 }
 
+/* 夜王の死亡動畫を流す枠（勝利彈窗の中央）。高さは midnight_sprite.js が 1 格の縦横比から
+   決めるので、ここでは幅と位置だけ。中の .midnight-sprite-face は position:absolute なので
+   この枠が position:relative である必要がある。 */
+/* 夜王の擊破演出そのもの。高さは JS が 1 格の縦横比から決める。中の面は position:absolute
+   なので、ここが position:relative でないと面が縦に積み上がって本文に被る。 */
+#midnight-boss-defeat-stage {
+  position: relative;
+  width: 100%;
+}
+
+#midnight-game-victory-sprite {
+  position: relative;
+  width: min(420px, 60vw);
+  margin: 4px auto 10px;
+}
+
+#midnight-game-victory-sprite:empty {
+  display: none;
+}
+
 #midnight-game-victory-box {
   background: #1a1d24;
   border: 1px solid rgba(255, 213, 74, 0.6);
@@ -8824,7 +8844,8 @@ html.midnight-top-banner-collapsed .midnight-top-banner-collapse-btn {
    sheet でも隣の行がはみ出して見えないようにするため。下端に貼るので、接地の位置は
    正方形セルのときと変わらない。 */
 #midnight-enemy-sprite-stage > .midnight-sprite-face,
-#midnight-enemy-death-popup > .midnight-sprite-face {
+#midnight-enemy-death-popup > .midnight-sprite-face,
+#midnight-boss-defeat-stage > .midnight-sprite-face {
   position: absolute;
   left: 0;
   right: 0;

@@ -1914,6 +1914,29 @@
   // 這場遭遇該用哪一張 sprite sheet（含未產出時的代役），null＝不顯示 sprite（非點陣圖房、
   // 沒有敵人、模組未載入）。renderFieldEncounterPanel()／preloadEncounterSheet()／
   // 死亡小視窗三處共用同一條判定，不各自複製。
+  // 形態ごとの「画面に出す体数」（2026-09-22 使用者明確規格）。
+  //   三頭犬 gladius：分裂したら「橫排產生三張（三隻各別單頭犬）」＝ 3 体。合体に戻れば 1 体。
+  //   harmonia の第二形態：招式で分身を呼び、総勢 9 体。
+  //   stragedes／nameless：形態変化は後台のみで、絵は第一形態のまま（体数も 1 のまま）。
+  // ここに無い夜王・一般敵は常に 1 体。
+  var BOSS_FORM_SPRITE_COUNT = {
+    gladius: { split: 3 },
+    harmonia: { split: 9 },
+  };
+
+  // 形態変化の最短持続時間（使用者明確規格「每次變化至少要持續30秒」）。
+  // gladius は「炎突進＆形態変化」を引くたびに形態が入れ替わるので、連続で引くと
+  // 数秒で 3 体→1 体→3 体と暴れる。直前の変化から 30 秒経つまでは形態を据え置く
+  // （招式そのものは通常どおり発動し、傷害も入る。変わらないのは見た目と形態だけ）。
+  var BOSS_FORM_MIN_HOLD_MS = 30000;
+
+  function encounterSpriteCount(trig) {
+    if (!trig || trig.enemyFamilyId !== BOSS_ENEMY_FAMILY_SENTINEL) return 1;
+    var byForm = BOSS_FORM_SPRITE_COUNT[trig.enemyId];
+    if (!byForm) return 1;
+    return byForm[trig.bossForm || "fused"] || 1;
+  }
+
   function encounterSheetFile(trig) {
     var Sprite = window.PriTestMidnightSprite;
     if (!Sprite || !spriteModeEnabled() || !trig || !trig.enemyFamilyId) return null;
@@ -3044,6 +3067,10 @@
     var prev = prevHp[id];
     var next = nextHp[id];
     if (!(prev !== undefined && prev > 0 && next !== undefined && next <= 0)) return;
+    // 夜王は右上に出さない（2026-09-22 使用者明確規格「擊破後不用再右上角播放死亡動畫：
+    // 打贏這個就是遊戲勝利故直接在中間展示動畫」）。勝利彈窗の中で大きく、ゆっくり流す
+    // ——updateGameVictoryModal() 側で playDefeat() を呼ぶ。
+    if (id === DAY3_BOSS_POINT_ID) return;
     var file = encounterSheetFile(fieldTriggers[id]);
     if (!file) return;
     Sprite.mountDeathPopup(el("midnight-hud-top-right"));
@@ -10069,8 +10096,16 @@
         // 的formFlip判斷（row.conditions含"form_change_at_end_phase"）。這個轉換不重灌
         // HP/Guard（跟harmonia類「HP歸零才轉換、順便全回復」是完全不同的機制，見
         // maybeResetBossFormOnDefeat()）。
+        // 2026-09-22 使用者明確規格「每次變化至少要持續30秒」：直前の変化から
+        // BOSS_FORM_MIN_HOLD_MS 経っていなければ形態は据え置く（招式は通常どおり発動する）。
+        // 変化した時刻は trig に持たせて全端で共有する——端ごとに持つと、見ている人に
+        // よって体数が違うという致命的なズレになる。
         if (bossOutcome && bossOutcome.formFlip) {
-          out.bossForm = out.bossForm === "split" ? "fused" : "split";
+          var lastFlipAt = cur.bossFormChangedAt || 0;
+          if (Date.now() - lastFlipAt >= BOSS_FORM_MIN_HOLD_MS) {
+            out.bossForm = out.bossForm === "split" ? "fused" : "split";
+            out.bossFormChangedAt = Date.now();
+          }
         }
         out.nextAttackAt = null;
         return out;
@@ -11206,7 +11241,10 @@
       var key = atk.attackId + ":" + k;
       if (lastAnimatedAttackHitKey === key) return;
       lastAnimatedAttackHitKey = key;
-      S.playAnim(AnimMap.resolve(atk.actionName, atk.dmgKind), startAt);
+      // 夜王は隻ごとの対照表を先に引く（招式名が一般敵と被ることがあるため、
+      // enemy_action_anim_map.js の BY_BOSS を優先させる）。
+      var animBossId = trig.enemyFamilyId === BOSS_ENEMY_FAMILY_SENTINEL ? trig.enemyId : null;
+      S.playAnim(AnimMap.resolve(atk.actionName, atk.dmgKind, animBossId), startAt);
       return;
     }
   }
@@ -20564,7 +20602,10 @@
       // 素材が入ればその敵は自分の sheet に切り替わる。代役は sheetId のハッシュで決まるので
       // 同じ敵は常に同じ代役、かつ全端末で一致する（見 midnight_sprite.js）。
       var bossSheet = encounterSheetFile(trig);
-      if (!(bossSheet && window.PriTestMidnightSprite.showSprite(bossSheet, "../static/")) && window.PriTestMidnightSprite) {
+      if (
+        !(bossSheet && window.PriTestMidnightSprite.showSprite(bossSheet, "../static/", encounterSpriteCount(trig))) &&
+        window.PriTestMidnightSprite
+      ) {
         window.PriTestMidnightSprite.showStatic();
       }
       imgEl.alt = bossName;
@@ -20582,7 +20623,10 @@
     // 2026-09-21 使用者明確規格改版：sprite 疊在插圖之上，不再把插圖藏起來。
     // 點陣圖戰鬥模式：同上，未勾選spriteModeEnabled()時直接視同沒有sheet。
     var sheet = encounterSheetFile(trig);
-    if (!(sheet && window.PriTestMidnightSprite.showSprite(sheet, "../static/")) && window.PriTestMidnightSprite) {
+    if (
+      !(sheet && window.PriTestMidnightSprite.showSprite(sheet, "../static/", encounterSpriteCount(trig))) &&
+      window.PriTestMidnightSprite
+    ) {
       window.PriTestMidnightSprite.showStatic();
     }
     el("midnight-field-encounter-name").textContent = name;
@@ -21466,15 +21510,32 @@
   // meta旗標）。關閉只是本地端旗標（gameVictoryDismissed，同day1RewardsDismissed既有模式），
   // 不寫共享state，讓每位玩家自己決定何時關閉，不影響其他人畫面。
   var gameVictoryDismissed = false;
+  var victoryDefeatShown = false; // 死亡動畫は彈窗が開いた最初の1回だけ頭から流す
   function updateGameVictoryModal() {
     var modal = el("midnight-game-victory-modal");
     if (!modal) return;
     var defeated = day3BossDefeated();
     if (!defeated || gameVictoryDismissed) {
       modal.hidden = true;
+      if (window.PriTestMidnightSprite && window.PriTestMidnightSprite.hideDefeat) {
+        window.PriTestMidnightSprite.hideDefeat();
+      }
       return;
     }
     modal.hidden = false;
+    // 中央（勝利彈窗の中）で夜王の死亡動畫を流す。点陣圖モードでないときや sheet が
+    // 未產出のときは何も出さない——彈窗そのものは従来どおり出る。
+    if (!victoryDefeatShown) {
+      var Sprite = window.PriTestMidnightSprite;
+      var bossTrig = fieldTriggers[DAY3_BOSS_POINT_ID];
+      var bossFile = encounterSheetFile(bossTrig);
+      if (Sprite && Sprite.playDefeat && bossFile) {
+        Sprite.mountDefeatStage(el("midnight-game-victory-sprite"));
+        if (Sprite.playDefeat(bossFile, "../static/", Date.now(), encounterSpriteCount(bossTrig))) {
+          victoryDefeatShown = true;
+        }
+      }
+    }
     var trig = fieldTriggers[DAY3_BOSS_POINT_ID];
     var GmFlow = window.PriTestNightGmFlow;
     var text = trig && GmFlow ? GmFlow.resolveNightKingNarrationText(trig.enemyId, "ending") : null;

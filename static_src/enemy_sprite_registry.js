@@ -68,9 +68,7 @@
     { id: "boss_libra", file: "boss_libra.png", available: true },
     { id: "boss_edele", file: "boss_edele.png", available: true },
     { id: "boss_stragedes", file: "boss_stragedes.png", available: true },
-    { id: "boss_stragedes_split", file: "boss_stragedes_split.png", available: false },
-    { id: "boss_nameless", file: "boss_nameless.png", available: true },
-    { id: "boss_nameless_split", file: "boss_nameless_split.png", available: false }
+    { id: "boss_nameless", file: "boss_nameless.png", available: true }
   ];
 
   var ENEMY_SHEET = {

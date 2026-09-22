@@ -432,16 +432,116 @@
     "黒炎発火": "area"
   };
 
+  // 夜の王は隻ごとの表。招式名が一般敵と被っても、こちらが優先される。
+  var BY_BOSS = {
+    "gladius": {
+      "噛みつき": "single",
+      "鎖剣振り回し": "area",
+      "炎のブレス": "area",
+      "炎突進＆形態変化": "thrust",
+      "3連噛みつき": "slam",
+      "炎連弾": "line"
+    },
+    "edele": {
+      "噛みつき": "single",
+      "突進": "thrust",
+      "拘束噛みつき": "single",
+      "雷噛みつき": "slam",
+      "地擦り雷光": "line",
+      "毒吐き": "area"
+    },
+    "gnoster": {
+      "押しつぶし＆毒牙の鱗粉": "area",
+      "連続挟み込み＆誘導弾": "line",
+      "瓦礫隆起＆掴み攻撃": "single",
+      "硬化＆魔力弾の雨": "line",
+      "叫び＆滞空": "slam",
+      "潜航＆毒液": "line",
+      "光の柱＆毒まき散らし": "area",
+      "合体突進": "thrust"
+    },
+    "maris": {
+      "回転突進＆滞空": "thrust",
+      "回転突進＆藻種の萌芽": "thrust",
+      "水しぶき＆魔力の泡": "line",
+      "水しぶき＆藻種の萌芽": "area",
+      "広範囲睡眠攻撃＆滞空": "slam",
+      "広範囲睡眠攻撃＆魔力の泡": "single",
+      "滞空＆魔力の泡＆藻種の萌芽": "line",
+      "渦潮": "area"
+    },
+    "libra": {
+      "錫杖振り回し": "area",
+      "転移＆錫杖薙ぎ払い": "area",
+      "発狂のつぶて＆発狂の種": "line",
+      "転移＆魔法陣展開＆発狂の種": "thrust",
+      "狂乱の雲": "single",
+      "結跏趺坐＆滞留魔法陣生成＆発狂の種": "line",
+      "両腕連続叩きつけ": "slam",
+      "逃れ得ぬ発狂の瞳＆発狂の種": "area"
+    },
+    "fulghor": {
+      "風起こし＆疾走": "line",
+      "両刃剣乱舞": "area",
+      "突進斬り上げ＆疾走": "thrust",
+      "追尾する光の雨": "single",
+      "聖槍爆発": "line",
+      "連続突進＆疾走": "thrust",
+      "腕乱舞": "area",
+      "腕叩きつけ": "slam"
+    },
+    "caligo": {
+      "尻尾叩きつけ＆氷霜": "slam",
+      "前方ブレス": "area",
+      "足元ブレス＆氷霜": "area",
+      "とびかかり＆氷霜": "line",
+      "氷嵐＆氷霜": "single",
+      "広範囲氷柱落とし": "slam",
+      "広範囲冷風＆氷霜": "line",
+      "空中連続突進": "thrust"
+    },
+    "harmonia": {
+      "個別攻撃＆散開": "area",
+      "集中攻撃": "thrust",
+      "聖槍の壁": "slam",
+      "掴み攻撃＆散開": "single",
+      "瞬間移動＆乱舞": "line",
+      "一斉射撃＆散開": "line"
+    },
+    "stragedes": {
+      "横薙ぎ連打": "area",
+      "腐敗飛散＆亡者召喚": "line",
+      "叩きつけ＆引き寄せ": "slam",
+      "腐敗地割れ＆亡者召喚": "single",
+      "柱張り付き＆突進": "thrust",
+      "腐敗散弾＆跳躍叩きつけ": "slam",
+      "咆哮＆腐敗噴出": "area",
+      "薙ぎ払い＆腐敗地割れ": "area"
+    },
+    "nameless": {
+      "直剣突き＆大剣薙ぎ払い": "thrust",
+      "2連斬り＆魔力の刃": "single",
+      "咆哮4連斬り": "area",
+      "とびかかり＆光波2連": "line",
+      "属性爆発＆浮遊": "slam",
+      "属性剣乱舞＆浮遊": "line"
+    }
+  };
+
   // actionName 可以直接吃 enemies_data_*.js 的 action.name——實際資料是
   // { ja: "叩きつけ", zh: "砸擊" } 這種多語物件，enemyAttack.actionName 也是這個形狀。
   // 當成字串處理的話 BY_NAME[物件] 會去查 "[object Object]"，永遠落到 dmgKind 預設，
   // 整張對照表就形同虛設。所以以 ja 為鍵，同時也接受直接傳字串。
-  function resolve(actionName, dmgKind) {
+  // 第3引数に夜王 id を渡すと、その夜王専用の表を先に引く。夜の王の招式は名前が
+  // 一般敵と被ることがあり（噛みつき・突進など）、共用の BY_NAME に混ぜると一般敵の
+  // 動畫まで巻き添えになるので、隻ごとに分けてある。
+  function resolve(actionName, dmgKind, bossId) {
     var key = actionName && typeof actionName === "object" ? actionName.ja : actionName;
+    if (key && bossId && BY_BOSS[bossId] && BY_BOSS[bossId][key]) return BY_BOSS[bossId][key];
     if (key && BY_NAME[key]) return BY_NAME[key];
     if (dmgKind === "group") return "area";
     return "single";
   }
 
-  window.PriTestEnemyActionAnimMap = { byName: BY_NAME, resolve: resolve };
+  window.PriTestEnemyActionAnimMap = { byName: BY_NAME, byBoss: BY_BOSS, resolve: resolve };
 })();

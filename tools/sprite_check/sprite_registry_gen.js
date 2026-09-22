@@ -56,9 +56,17 @@ const BOSS_AUTO_GM = (function () {
   return sb.window.PriTestBossAutoGmData;
 })();
 
+// 形態別 sheet を実際に持つ夜王（2026-09-22 使用者明確規格）。
+// formAware（＝戦闘ルール上は多形態）なのは gladius／harmonia／stragedes／nameless の
+// 4 隻だが、「其餘兩個夜王也沒有第二種點陣圖，發生型態變化只後台使用，前面仍使用同一
+// 點陣圖」との指示により、絵を別に持つのは gladius（合体⇄分裂）と harmonia（第二形態は
+// 分身 9 体）の 2 隻だけにする。stragedes／nameless は形態が変わっても第一形態の絵のまま。
+const BOSS_FORM_ART = { gladius: true, harmonia: true };
+
 function formSheetsFor(bossId) {
   const data = BOSS_AUTO_GM && BOSS_AUTO_GM.get ? BOSS_AUTO_GM.get(bossId) : null;
-  return data && data.formAware ? ["split"] : [];
+  if (!data || !data.formAware) return [];
+  return BOSS_FORM_ART[bossId] ? ["split"] : [];
 }
 const BIG = { LL: true, L: true };
 
