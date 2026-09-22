@@ -4723,6 +4723,36 @@ html.midnight-banner-above-hud:not(.midnight-top-banner-collapsed) #midnight-rew
   display: flex;
   align-items: center;
   gap: 0.35rem;
+  position: relative; /* 夜雨警示燈的定位基準（2026-09-22） */
+}
+
+/* 夜雨警示燈（2026-09-22，見midnight_page.py同id說明）：紅色圓燈＋外圈紅光脈動，疊在小地圖／
+   立繪左上角，pointer-events:none 不擋地圖按鈕。 */
+#midnight-rain-warning-light {
+  position: absolute;
+  left: -0.35rem;
+  top: -0.35rem;
+  width: 0.95rem;
+  height: 0.95rem;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 35%, #ff8a80, #d50000 70%);
+  border: 2px solid #fff;
+  box-shadow: 0 0 6px 2px rgba(255, 0, 0, 0.9);
+  animation: midnight-rain-warning-pulse 0.7s ease-in-out infinite;
+  pointer-events: none;
+  z-index: 3;
+}
+
+@keyframes midnight-rain-warning-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 4px 1px rgba(255, 0, 0, 0.6);
+    transform: scale(1);
+  }
+  50% {
+    box-shadow: 0 0 14px 6px rgba(255, 0, 0, 1);
+    transform: scale(1.25);
+  }
 }
 
 #midnight-minimap-canvas {
@@ -4903,6 +4933,22 @@ html.midnight-banner-above-hud:not(.midnight-top-banner-collapsed) #midnight-rew
   font-size: 0.48rem;
   line-height: 1;
   opacity: 0.75;
+}
+
+/* 消耗品剩餘數量徽章（2026-09-22，見midnight_page.py同id說明）：右下角、黃底黑字，明顯可讀。 */
+#midnight-consumable-count {
+  position: absolute;
+  right: 0.85rem;
+  bottom: 0.1rem;
+  padding: 0 0.28rem;
+  border-radius: 3px;
+  font-size: 0.62rem;
+  font-weight: bold;
+  line-height: 1.3;
+  color: #10200a;
+  background: #ffd54a;
+  border: 1px solid rgba(0, 0, 0, 0.35);
+  pointer-events: none;
 }
 
 #midnight-hud-bottom-right {
@@ -6955,6 +7001,35 @@ html.midnight-top-banner-collapsed .midnight-top-banner-collapse-btn {
   background: rgba(0, 0, 0, 0.6);
 }
 
+/* 稀有度→L 裝備選擇視窗（2026-09-22，見midnight_page.py同id說明）：同款覆蓋＋卡片，清單直排。 */
+#midnight-rarity-upgrade-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 910;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.6);
+}
+
+#midnight-rarity-upgrade-box {
+  position: relative;
+  width: 420px;
+  max-width: 94vw;
+  max-height: 85vh;
+  overflow-y: auto;
+  padding: 1rem;
+  background: rgba(10, 12, 18, 0.96);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 8px;
+}
+
+#midnight-rarity-upgrade-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
 #midnight-late-join-box {
   position: relative;
   width: 520px;
@@ -7634,6 +7709,10 @@ html.midnight-top-banner-collapsed .midnight-top-banner-collapse-btn {
 #midnight-field-encounter-name {
   margin: 0.2rem 0 0;
   font-weight: bold;
+  /* 2026-09-22：保險——舞台撐高容器（midnight_sprite.js syncWrapMinHeight()）之後名稱已在點陣圖
+     下方，這裡再把名稱抬到舞台之上，任何邊界情況都不會被 sprite 蓋住。 */
+  position: relative;
+  z-index: 6;
 }
 
 /* 戰鬥模擬「連續播放所有動作動畫」的目前動作標籤（2026-09-22，見midnight_page.py同id說明）：

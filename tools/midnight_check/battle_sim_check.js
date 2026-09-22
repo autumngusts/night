@@ -260,16 +260,21 @@ async function unlockTestMode(page) {
       const expectedAnim = await pageA.evaluate((a) => window.PriTestEnemyActionAnimMap.resolve(a.actionName, a.dmgKind), atkAnim);
       assert(animsSeen.indexOf(expectedAnim) !== -1, "最近一招對照表解出的動畫（" + expectedAnim + "）確實播過", animsSeen);
     }
-    // 玩家攻擊 → hurt（只在 idle 時插入）。先等 idle 再打。
-    await waitFor(pageA, () => window.PriTestMidnightSprite.currentAnimId() === "idle", null, 8000);
-    const hpBeforeHit = (await state(pageA)).fieldEnemyHp.battleSim;
-    await tapAttack(pageA); // 一般攻擊是 mousedown→mouseup（bindAttackHoldInput()），不是 click
-    const hurtSeen = await pageA.evaluate(() => new Promise((res) => {
-      const seen = {};
-      const t = setInterval(() => { seen[window.PriTestMidnightSprite.currentAnimId()] = true; }, 15);
-      setTimeout(() => { clearInterval(t); res(Object.keys(seen)); }, 1500);
-    }));
-    await waitFor(pageA, (hp) => window.PriTestMidnight._debugState().fieldEnemyHp.battleSim < hp, hpBeforeHit, 5000);
+    // 玩家攻擊 → hurt（只在 idle 時插入；敵人剛好在同一瞬間出招時攻擊動畫不會被 hurt 打斷，
+    // 這是設計，所以最多重試 3 次避免時序假失敗）。先等 idle 再打。
+    let hurtSeen = [];
+    let hpBeforeHit = null;
+    for (let attempt = 0; attempt < 3 && hurtSeen.indexOf("hurt") === -1; attempt++) {
+      await waitFor(pageA, () => window.PriTestMidnightSprite.currentAnimId() === "idle", null, 8000);
+      hpBeforeHit = (await state(pageA)).fieldEnemyHp.battleSim;
+      await tapAttack(pageA); // 一般攻擊是 mousedown→mouseup（bindAttackHoldInput()），不是 click
+      hurtSeen = await pageA.evaluate(() => new Promise((res) => {
+        const seen = {};
+        const t = setInterval(() => { seen[window.PriTestMidnightSprite.currentAnimId()] = true; }, 15);
+        setTimeout(() => { clearInterval(t); res(Object.keys(seen)); }, 1500);
+      }));
+      await waitFor(pageA, (hp) => window.PriTestMidnight._debugState().fieldEnemyHp.battleSim < hp, hpBeforeHit, 5000);
+    }
     assert(hurtSeen.indexOf("hurt") !== -1, "玩家命中後播放 hurt（" + hurtSeen.join("/") + "）", hurtSeen);
     // HP 墊到 1 再打一擊 → 右上角死亡小視窗（2026-09-22 使用者明確規格「在右上角縮小比較小的
     // 視窗播放死亡動畫」）：主舞台隨戰鬥面板一起收掉，death 改在 #midnight-enemy-death-popup
@@ -404,6 +409,48 @@ async function unlockTestMode(page) {
     await waitFor(pageA, (hp) => { const s = window.PriTestMidnight._debugState(); return s.demoStats[s.myTokenId] === hp - 10; }, hpBeforeReward, 3000).catch(() => {});
     const hpAfterReward = await pageA.evaluate(() => { const s = window.PriTestMidnight._debugState(); return s.demoStats[s.myTokenId]; });
     assert(hpAfterReward === hpBeforeReward - 10, "10 秒後系統自動扣 10 點 HP 並標記 resolved（" + hpBeforeReward + "→" + hpAfterReward + "）", { hpBeforeReward, hpAfterReward });
+    await pageA.evaluate(() => { const b = document.querySelector("#btn-midnight-reward-close"); if (b) b.click(); });
+
+    console.log("=== ⑯ 地變特殊獲得備註：稀有度→L 裝備選擇視窗／恩寵獲得；武器 6 把滿時潛在之力不能再選武器 ===");
+    // 2026-09-22 使用者明確規格（火山備註→local 視窗選武器、可暫時關閉再開；其他地變備註的實作效果）
+    const tokenA = (await state(pageA)).myTokenId;
+    await pageA.evaluate((args) => window.PriTestGameStorage.rtSet(args.gameId, "cloud", "pendingRewards/" + args.token + "/rarity_test", { kind: "note", text: "（可將武器／觸媒／盾牌其中1個稀有度提升至L）", noteJa: "（武器/触媒/盾のいずれか1つをレアリティ：Lへ上昇可能。個人紀錄へ手動反映）" }), { gameId: sA.gameId, token: tokenA });
+    await waitFor(pageA, () => !document.querySelector("#midnight-reward-modal").hidden && /稀有度 L/.test(document.querySelector("#midnight-reward-detail").textContent), null, 5000);
+    await pageA.evaluate(() => Array.from(document.querySelectorAll("#midnight-reward-detail button")).find((b) => /稀有度 L/.test(b.textContent)).click());
+    await waitFor(pageA, () => !document.querySelector("#midnight-rarity-upgrade-modal").hidden);
+    const rarityList = await pageA.evaluate(() => Array.from(document.querySelectorAll("#midnight-rarity-upgrade-list button")).map((b) => ({ t: b.textContent, d: b.disabled })));
+    assert(rarityList.length >= 1 && rarityList.some((b) => !b.d), "視窗列出自身裝備（" + rarityList.map((b) => b.t).join("／") + "）", rarityList);
+    // 先關閉：獎勵不消耗，清單裡仍在
+    await pageA.click("#btn-midnight-rarity-upgrade-close");
+    const stillPending = await pageA.evaluate(() => { const s = window.PriTestMidnight._debugState(); return !(s.pendingRewards[s.myTokenId].rarity_test || {}).resolved && document.querySelector("#midnight-rarity-upgrade-modal").hidden; });
+    assert(stillPending, "關閉視窗後備註仍未領取、可再點開", stillPending);
+    await pageA.evaluate(() => Array.from(document.querySelectorAll("#midnight-reward-detail button")).find((b) => /稀有度 L/.test(b.textContent)).click());
+    await waitFor(pageA, () => !document.querySelector("#midnight-rarity-upgrade-modal").hidden);
+    await pageA.evaluate(() => Array.from(document.querySelectorAll("#midnight-rarity-upgrade-list button")).find((b) => !b.disabled).click());
+    await waitFor(pageA, () => { const s = window.PriTestMidnight._debugState(); return !!(s.pendingRewards[s.myTokenId].rarity_test || {}).resolved; }, null, 5000);
+    const rarityAfter = await pageA.evaluate(() => { const s = window.PriTestMidnight._debugState(); const c = s.characters[s.myTokenId]; const ov = c.weaponRarityOverride || {}; return { modalHidden: document.querySelector("#midnight-rarity-upgrade-modal").hidden, l: Object.keys(ov).filter((k) => ov[k] === "L") }; });
+    assert(rarityAfter.modalHidden && rarityAfter.l.length === 1, "選定後該裝備 weaponRarityOverride=L、備註領取、視窗關閉", rarityAfter);
+    // 恩寵備註：山嶺の恩寵（無擲骰條件）→ 按下即獲得
+    await pageA.evaluate((args) => window.PriTestGameStorage.rtSet(args.gameId, "cloud", "pendingRewards/" + args.token + "/grace_test", { kind: "note", text: "（山頂到達時）獲得「山嶺的恩寵」", noteJa: "（山頂到達時）「山嶺の恩寵」を獲得。GM画面の恩寵欄でチェックすると効果が自動適用される" }), { gameId: sA.gameId, token: tokenA });
+    await waitFor(pageA, () => !document.querySelector("#midnight-reward-modal").hidden && /恩寵/.test(document.querySelector("#midnight-reward-detail").textContent), null, 5000);
+    await pageA.evaluate(() => Array.from(document.querySelectorAll("#midnight-reward-detail button")).find((b) => /獲得恩寵/.test(b.textContent)).click());
+    await waitFor(pageA, () => { const s = window.PriTestMidnight._debugState(); return !!(s.characters[s.myTokenId].graces || {}).mountain_peak; }, null, 5000);
+    assert(true, "恩寵備註按下後 character.graces.mountain_peak=true");
+    // 武器 6 把滿：潛在之力抽選後「選擇這個」武器鍵 disabled、顯示背包已滿
+    const sixIds = await pageA.evaluate(() => { const s = window.PriTestMidnight._debugState(); const c = s.characters[s.myTokenId]; const base = c.weaponIds[0]; const out = c.weaponIds.slice(); while (out.length < 6) out.push(base + "::x" + out.length); return out; });
+    await pageA.evaluate((args) => window.PriTestGameStorage.rtSet(args.gameId, "cloud", "character/" + args.token + "/weaponIds", args.ids), { gameId: sA.gameId, token: tokenA, ids: sixIds });
+    await waitFor(pageA, () => { const s = window.PriTestMidnight._debugState(); return s.characters[s.myTokenId].weaponIds.length === 6; });
+    await pageA.evaluate((args) => window.PriTestGameStorage.rtSet(args.gameId, "cloud", "pendingRewards/" + args.token + "/pp_test", { kind: "potentialPower", value: 1 }), { gameId: sA.gameId, token: tokenA });
+    await waitFor(pageA, () => !document.querySelector("#midnight-reward-modal").hidden && !!Array.from(document.querySelectorAll("#midnight-reward-detail button")).find((b) => b.textContent === "抽選"), null, 5000);
+    await pageA.evaluate(() => Array.from(document.querySelectorAll("#midnight-reward-detail button")).find((b) => b.textContent === "抽選").click());
+    await pageA.waitForTimeout(300);
+    const ppUi = await pageA.evaluate(() => {
+      const btns = Array.from(document.querySelectorAll("#midnight-reward-detail button"));
+      const choose = btns.filter((b) => /選擇這個/.test(b.textContent));
+      return { chooseCount: choose.length, firstDisabled: choose.length ? choose[0].disabled : null, fullNote: /已達上限/.test(document.querySelector("#midnight-reward-detail").textContent) };
+    });
+    assert(ppUi.chooseCount >= 1 && ppUi.firstDisabled === true && ppUi.fullNote, "武器 6 把時潛在之力的武器［選擇這個］disabled 並提示背包已滿（附帶效果仍可選）", ppUi);
+    await pageA.evaluate((args) => window.PriTestGameStorage.rtSet(args.gameId, "cloud", "pendingRewards/" + args.token + "/pp_test/resolved", true), { gameId: sA.gameId, token: tokenA });
     await pageA.evaluate(() => { const b = document.querySelector("#btn-midnight-reward-close"); if (b) b.click(); });
 
     console.log("=== ⑥ 逃離後不會卡死：候選重現並走［進入戰鬥］流程 ===");

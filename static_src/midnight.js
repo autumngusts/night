@@ -3968,6 +3968,7 @@
     });
     el("btn-midnight-lobby-join").addEventListener("click", handleLobbyJoin);
     el("btn-midnight-late-join-close").addEventListener("click", closeLateJoinModal);
+    el("btn-midnight-rarity-upgrade-close").addEventListener("click", closeRarityUpgradeModal);
     el("btn-midnight-lobby-character-detail-close").addEventListener("click", function () {
       el("midnight-lobby-character-detail").hidden = true;
     });
@@ -11667,7 +11668,7 @@
   // ============================================================================
 
   function updateNearbyTower() {
-    if (!mySlot || !localPos || autoFly) {
+    if (!mySlot || !localPos || autoFly || nightLordFightActive()) {
       nearbyTower = null;
       renderTowerOverlay();
       return;
@@ -12569,7 +12570,7 @@
     // nearbyFieldPoint，上方資訊欄就會在王戰進行中繼續跳出「進入」按鈕——玩家一按就會在
     // 最終王戰中開啟一層樓層探索（邀請→打字機→投票→指派敵人的完整流程）。Day3沒有板塊
     // 探索的概念，直接走跟「觀戰者/靈鳥飛行中」相同的既有清空分支，不另外寫一套。
-    if (!mySlot || !localPos || autoFly || day3BossFightActive()) {
+    if (!mySlot || !localPos || autoFly || nightLordFightActive()) {
       if (nearbySmithingVillage) resetWeaponRerollCreditsOnLeaveVillage();
       nearbyFieldPoint = null;
       nearbySmithingVillage = null;
@@ -12712,7 +12713,7 @@
   function updateNearbyCastle() {
     // day3BossFightActive()：理由同updateNearbyFieldPoint()——王城（J卡）也是板塊卡牌
     // 探索的入口，Day3王戰進行中不該還能踏進去開一層。
-    if (!mySlot || !localPos || autoFly || day3BossFightActive()) {
+    if (!mySlot || !localPos || autoFly || nightLordFightActive()) {
       nearbyCastlePoint = null;
       recomputeActiveEncounter();
       renderFieldOverlay();
@@ -12757,6 +12758,16 @@
   // （既有程式已經這樣認定，見finishRevive()的phaseInfo.day!==3判斷）。
   function day3BossFightActive() {
     return !!nearbyDay3Boss;
+  }
+
+  // 夜之強敵／夜王戰鬥開始後，板塊與籌碼事件一律不偵測（2026-09-22使用者明確規格「夜之強敵 夜王
+  // 戰鬥開始後 取消banner偵測任何的板塊與籌碼事件 尤其是祝福 不顯示在banner」）：Day3王戰沿用
+  // day3BossFightActive()（候選成立即算），第一／二天夜之強敵則看activeEncounter是不是
+  // finalCircleDayN（戰鬥真的開始後）。updateNearbyFieldPoint()／updateNearbyChipPoint()／
+  // updateNearbyCastle()／updateNearbyTower()都以此清空各自的nearby*，banner／提示自然不出現。
+  function nightLordFightActive() {
+    if (day3BossFightActive()) return true;
+    return !!(activeEncounter && /^finalCircleDay\d+$/.test(String(activeEncounter.id)));
   }
 
   function recomputeActiveEncounter() {
@@ -13618,7 +13629,8 @@
   // 每幀掃描這三型新籌碼點的proximity，跟updateNearbyFieldPoint()各自獨立（field卡牌
   // 已排除這三型，見NON_FIELD_POINT_TYPES）。
   function updateNearbyChipPoint() {
-    if (!mySlot || !localPos || autoFly) {
+    // nightLordFightActive()：夜之強敵／夜王戰鬥中不偵測任何籌碼事件（尤其祝福），見該函式說明。
+    if (!mySlot || !localPos || autoFly || nightLordFightActive()) {
       nearbyMerchant = null;
       nearbyStrongEnemy = null;
       nearbyRandomEvent = null;
@@ -17759,7 +17771,9 @@
         Object.keys(trig.participants || {}).forEach(function (slot) {
           var p = players[slot];
           if (!p) return;
-          pushPendingReward(p.tokenId, { kind: "note", text: window.PriTestFields.localizedText(entry.note) });
+          // noteJa（2026-09-22）：地變的「特殊獲得」備註要能在獎勵清單裡真的執行（稀有度→L的裝備
+          // 選擇／恩寵獲得），偵測用日文原文比對，跟顯示語言無關，見noteRewardEffect()。
+          pushPendingReward(p.tokenId, { kind: "note", text: window.PriTestFields.localizedText(entry.note), noteJa: (entry.note && entry.note.ja) || "" });
         });
       } else {
         lootOut.push(entry); // 戰利品類直接回傳，交給呼叫端跟現有戰利品entries合併處理
@@ -17950,6 +17964,33 @@
     });
   }
 
+  // 礦坑（卡6 坑道）的鍛造石保底（2026-09-22使用者明確規格「礦坑預設都要領取到至少一顆鍛造石，
+  // 但自動抽選沒有成功拿到任何一顆進入獎勵清單時 必定補充鍛造石perPerson一顆」）：這個點
+  // （整張板塊，跨樓層）還沒有任何鍛造石進過獎勵清單、而這一層結算出來的loot也沒有鍛造石時，
+  // 補一筆{smithingStone, perPerson:true, value:1}。已發過（記在fieldProgress/{id}/stoneGranted，
+  // 不隨fieldTrigger清層消失）就不再補，規則書本身有給的樓層照原樣。
+  var MINE_CARD = "6";
+  var mineStoneGuaranteeAttempted = {}; // pointId -> true（本地節流：stoneGranted只寫一次）
+
+  function mineSmithingStoneGuarantee(pt, loot) {
+    if (pt.card !== MINE_CARD) return [];
+    var hasStone = loot.some(function (e) {
+      return e.kind === "smithingStone";
+    });
+    var progress = fieldProgress[pt.id] || {};
+    if (hasStone) {
+      if (!progress.stoneGranted && !mineStoneGuaranteeAttempted[pt.id]) {
+        mineStoneGuaranteeAttempted[pt.id] = true;
+        GameStorage.rtSet(gameId, "cloud", "fieldProgress/" + pt.id + "/stoneGranted", true);
+      }
+      return [];
+    }
+    if (progress.stoneGranted || mineStoneGuaranteeAttempted[pt.id]) return [];
+    mineStoneGuaranteeAttempted[pt.id] = true;
+    GameStorage.rtSet(gameId, "cloud", "fieldProgress/" + pt.id + "/stoneGranted", true);
+    return [{ kind: "smithingStone", perPerson: true, value: 1 }];
+  }
+
   function maybeGrantFieldTileReward(pt, trig, floor) {
     if (fieldTileRewardAttempted[pt.id]) return;
     fieldTileRewardAttempted[pt.id] = true;
@@ -17984,6 +18025,7 @@
         }
         var resolvedLoot = autoJudgmentEntries.length ? resolveJudgmentRewardEntries(autoJudgmentEntries, trig, voteLabel) : [];
         var allLoot = lootEntries.concat(resolvedLoot);
+        allLoot = allLoot.concat(mineSmithingStoneGuarantee(pt, allLoot));
         if (!allLoot.length) {
           markTileRewardsPosted(pt.id);
           return;
@@ -18536,6 +18578,19 @@
   function confirmRewardEntry(id, draft) {
     var c = characters[myTokenId];
     if (!c) return;
+    // 2026-09-22：最後一道上限檢查。detail面板是在render時判斷滿格與否，按下［確認］的那一刻
+    // 持有狀況可能已經變了（同一時間另一筆獎勵剛入手、撿了地上的東西）；這裡再確認一次，
+    // 滿了就不套用、獎勵留在清單，並提示先騰出空間。
+    var list = pendingRewards[myTokenId] || {};
+    var entry = list[id];
+    if (entry) {
+      var invKind = entry.kind === "weapon" || entry.kind === "weaponStar" ? "weapon" : entry.kind === "consumable" || entry.kind === "talisman" ? entry.kind : null;
+      if (invKind && !hasInventorySpace(c, invKind, draft.itemId || null, draft.attributeTag || null)) {
+        showToast(window.I18N.t("midnight_inventory_full_note"));
+        renderRewardModal();
+        return;
+      }
+    }
     var before = snapshotMyCharacter();
     draft.apply(c);
     syncMyCharacterChanges(before); // 2026-09-20審查R1
@@ -18693,9 +18748,20 @@
       var chooseWeaponBtn = document.createElement("button");
       chooseWeaponBtn.type = "button";
       chooseWeaponBtn.textContent = window.I18N.t("midnight_reward_potential_choose_button");
+      // 2026-09-22使用者回報「身上已經有6把卻能再領一把」：這裡原本沒有檢查武器欄上限，是唯一
+      // 會把第7把push進weaponIds的路徑（角色視窗只畫6格，多出來的那把要等丟掉一把才「冒出來」）。
+      // 比照confirmRewardEntry()／商人購買：滿格時只給黃字提示、不給選武器（附帶效果仍可選）。
+      var weaponFullForPp = !hasInventorySpace(cForWeapon, "weapon");
+      if (weaponFullForPp) {
+        var ppFullNote = document.createElement("p");
+        ppFullNote.className = "warning-text";
+        ppFullNote.textContent = window.I18N.t("midnight_inventory_full_note");
+        weaponCard.appendChild(ppFullNote);
+        chooseWeaponBtn.disabled = true;
+      }
       chooseWeaponBtn.addEventListener("click", function () {
         var c = characters[myTokenId];
-        if (!c) return;
+        if (!c || !hasInventorySpace(c, "weapon")) return;
         var before = snapshotMyCharacter();
         var ppInstanceId = CD.commitPotentialPowerWeapon(c, draft.weapon);
         // 2026-09-13武器詞條：把抽選當下擲好、玩家已經看過的那一組掛到真正的instance id上。
@@ -18806,6 +18872,123 @@
   // ，已內建稀有度色點/傷害估算/戰技；消耗品/裝飾品新增顯示效果本文），並排「取得」
   // （既有confirmRewardEntry）與新增的「丟棄」（discardRewardEntry，只標記已處理、不套用
   // 效果）兩個按鈕。rune沒有「抽選」的必要（結果本來就是固定的value），維持原本直接顯示。
+  // ---- 地變「特殊獲得」備註的實際效果（2026-09-22使用者明確規格「火山的特殊獲得備註 可以升級一把
+  // 武器至L，領取後產生另外的local視窗可以選擇要敲打哪一把武器，可以暫時關閉，再次打開獎勵清單可以
+  // 再點開此備註；另外檢查其他地變時特殊的獲得備註的實作效果是否有效果」）----
+  // 備註（kind:"note"）原本只顯示文字、按［確認］就消失，規則書寫的效果全靠玩家手動。這裡依日文原文
+  // 辨識兩類可以由App代勞的備註：
+  //   ・rarityL：「レアリティ：Lへ上昇可能」（火山・溶岩土竜）→ 開裝備選擇視窗，選定後
+  //     c.weaponRarityOverride[id]="L"（跟鍛造台升級同一個欄位，computeArtPower()會讀）。
+  //   ・grace：文字裡出現graces.js某個恩寵的日文名（腐れ森／山嶺／大空洞／隠れ都）→ 按下即
+  //     grantGraceToTokens()；寫「1D5以上で獲得」的先擲1D、5以上才給。其他達成條件（山頂到達、
+  //     共鳴結晶3以上）是樓層本文的流程結果，領到這筆備註就代表走到了該結果，直接給。
+  // 其餘備註維持原樣（顯示文字、確認／丟棄）。
+  function noteRewardEffect(entry) {
+    var ja = entry && entry.noteJa ? String(entry.noteJa) : "";
+    if (!ja) return null;
+    if (/レアリティ[：:]L/.test(ja)) return { type: "rarityL" };
+    var Graces = window.PriTestGraces;
+    var list = Graces ? Graces.list() : [];
+    for (var i = 0; i < list.length; i++) {
+      var nameJa = list[i].name && list[i].name.ja;
+      if (nameJa && ja.indexOf(nameJa) !== -1) {
+        return { type: "grace", graceId: list[i].id, roll: /1D5以上/.test(ja) ? 5 : null };
+      }
+    }
+    return null;
+  }
+
+  function renderNoteRewardEffect(id, entry, detail, effect) {
+    var c = characters[myTokenId];
+    if (!c) return;
+    if (effect.type === "rarityL") {
+      var pickBtn = document.createElement("button");
+      pickBtn.type = "button";
+      pickBtn.className = "midnight-draw-hint";
+      pickBtn.textContent = window.I18N.t("midnight_reward_rarity_upgrade_button");
+      pickBtn.addEventListener("click", function () {
+        openRarityUpgradeModal(id);
+      });
+      detail.appendChild(pickBtn);
+      return;
+    }
+    if (effect.type === "grace") {
+      var name = graceName(effect.graceId);
+      var graceBtn = document.createElement("button");
+      graceBtn.type = "button";
+      graceBtn.className = "midnight-draw-hint";
+      graceBtn.textContent = effect.roll
+        ? window.I18N.t("midnight_reward_grace_roll_button", { name: name })
+        : window.I18N.t("midnight_reward_grace_claim_button", { name: name });
+      graceBtn.addEventListener("click", function () {
+        var granted = true;
+        if (effect.roll) {
+          var value = 1 + Math.floor(Math.random() * 6);
+          granted = value >= effect.roll;
+          showToast(window.I18N.t("midnight_reward_grace_roll_result", {
+            value: value,
+            result: window.I18N.t(granted ? "midnight_reward_grace_granted" : "midnight_reward_grace_not_granted", { name: name }),
+          }));
+        } else {
+          showToast(window.I18N.t("midnight_reward_grace_granted", { name: name }));
+        }
+        if (granted) grantGraceToTokens([myTokenId], effect.graceId);
+        GameStorage.rtSet(gameId, "cloud", "pendingRewards/" + myTokenId + "/" + id + "/resolved", true);
+        selectedRewardId = null;
+      });
+      detail.appendChild(graceBtn);
+    }
+  }
+
+  // 稀有度→L 的裝備選擇視窗（純本機；關閉不消耗獎勵，再開獎勵清單可再點）。列出自身全部持有裝備
+  // （武器／觸媒／盾都在weaponIds裡），已是L的顯示但不能選。
+  var rarityUpgradeRewardId = null;
+
+  function openRarityUpgradeModal(rewardId) {
+    var modal = el("midnight-rarity-upgrade-modal");
+    var listEl = el("midnight-rarity-upgrade-list");
+    var c = characters[myTokenId];
+    if (!modal || !listEl || !c) return;
+    rarityUpgradeRewardId = rewardId;
+    listEl.innerHTML = "";
+    var CD = window.PriTestCharacterDrawer;
+    (c.weaponIds || []).forEach(function (wid) {
+      var w = window.PriTestWeapons.get(baseCatalogId(wid));
+      if (!w) return;
+      var rarity = CD.getEffectiveWeaponRarity ? CD.getEffectiveWeaponRarity(c, wid) : w.rarity;
+      var btn = document.createElement("button");
+      btn.type = "button";
+      btn.textContent = window.PriTestWeapons.localizedText(w.name) + "（" + rarity + "）" + (rarity === "L" ? window.I18N.t("midnight_rarity_upgrade_already_l") : "");
+      btn.disabled = rarity === "L";
+      btn.addEventListener("click", function () {
+        commitRarityUpgrade(wid);
+      });
+      listEl.appendChild(btn);
+    });
+    modal.hidden = false;
+  }
+
+  function closeRarityUpgradeModal() {
+    var modal = el("midnight-rarity-upgrade-modal");
+    if (modal) modal.hidden = true;
+    rarityUpgradeRewardId = null;
+  }
+
+  function commitRarityUpgrade(weaponId) {
+    var c = characters[myTokenId];
+    var rewardId = rarityUpgradeRewardId;
+    if (!c || !rewardId) return;
+    var before = snapshotMyCharacter();
+    c.weaponRarityOverride = c.weaponRarityOverride || {};
+    c.weaponRarityOverride[weaponId] = "L";
+    syncMyCharacterChanges(before);
+    GameStorage.rtSet(gameId, "cloud", "pendingRewards/" + myTokenId + "/" + rewardId + "/resolved", true);
+    var w = window.PriTestWeapons.get(baseCatalogId(weaponId));
+    showToast(window.I18N.t("midnight_rarity_upgrade_done", { name: w ? window.PriTestWeapons.localizedText(w.name) : weaponId }));
+    selectedRewardId = null;
+    closeRarityUpgradeModal();
+  }
+
   function renderRewardDetail(id, entry) {
     var detail = el("midnight-reward-detail");
     detail.innerHTML = "";
@@ -18932,13 +19115,20 @@
         detail.appendChild(redrawBtn);
       }
     }
-    var confirmBtn = document.createElement("button");
-    confirmBtn.type = "button";
-    confirmBtn.textContent = window.I18N.t("midnight_reward_confirm_button");
-    confirmBtn.addEventListener("click", function () {
-      confirmRewardEntry(id, draft);
-    });
-    detail.appendChild(confirmBtn);
+    // 地變特殊獲得備註（2026-09-22，見noteRewardEffect()）：有可代勞的效果時，用效果按鈕取代［確認］
+    // （按了效果才算領取），［丟棄］照常保留。
+    var noteEffect = entry.kind === "note" ? noteRewardEffect(entry) : null;
+    if (noteEffect) {
+      renderNoteRewardEffect(id, entry, detail, noteEffect);
+    } else {
+      var confirmBtn = document.createElement("button");
+      confirmBtn.type = "button";
+      confirmBtn.textContent = window.I18N.t("midnight_reward_confirm_button");
+      confirmBtn.addEventListener("click", function () {
+        confirmRewardEntry(id, draft);
+      });
+      detail.appendChild(confirmBtn);
+    }
     var discardBtn = document.createElement("button");
     discardBtn.type = "button";
     discardBtn.textContent = window.I18N.t("midnight_reward_discard_button");
@@ -19257,7 +19447,10 @@
   // 在函式裡寫死kind==="weapon"，讓消耗品/護符之後要加別種徽章時不用再改這裡。
   function renderInventorySlots(container, items, slotCount, kind, renderLabel, renderBadge) {
     container.innerHTML = "";
-    for (var i = 0; i < slotCount; i++) {
+    // 2026-09-22：持有數若因舊資料超過格數，多出來的也要畫出來（原本只畫slotCount格，超出的那把
+    // 隱形、丟掉一把才冒出來），玩家才看得到並自行丟棄。上限本身仍由hasInventorySpace()把關。
+    var total = Math.max(slotCount, items.length);
+    for (var i = 0; i < total; i++) {
       var slotEl = document.createElement("button");
       slotEl.type = "button";
       slotEl.className = "midnight-sheet-slot";
@@ -20766,6 +20959,12 @@
     var consumableLabel = el("midnight-consumable-label");
     if (consumableLabel) {
       consumableLabel.textContent = inst ? consumableInstanceLabel(c, inst) : window.I18N.t("midnight_weapon_slot_empty");
+    }
+    // 剩餘數量徽章（2026-09-22，見midnight_page.py同id說明）：品名行會被截斷，數量另外常駐顯示。
+    var consumableCountEl = el("midnight-consumable-count");
+    if (consumableCountEl) {
+      consumableCountEl.hidden = !inst;
+      if (inst) consumableCountEl.textContent = "×" + (inst.usesRemaining || 0);
     }
     // 第N格／共M格的小字（多於1格時才顯示，讓玩家知道還有別的道具可以切）。
     var consumableIndexEl = el("midnight-consumable-index");
@@ -22526,6 +22725,13 @@
     var portraitShowing = renderBossPortraitHud();
     var showing = !!(activeEncounter && !mapExpanded) && !portraitShowing;
     minimapCanvas.hidden = !showing;
+    // 夜雨警示燈（2026-09-22，見midnight_page.py #midnight-rain-warning-light說明）：戰鬥中（小地圖或
+    // 夜王立繪顯示中）且自己正在圈外淋雨（maybeApplyCircleDamage()維護的outsideCircleSinceMs）才亮。
+    var rainLight = el("midnight-rain-warning-light");
+    if (rainLight) {
+      var raining = (showing || portraitShowing) && outsideCircleSinceMs !== null;
+      if (rainLight.hidden === raining) rainLight.hidden = !raining;
+    }
     if (!showing) return;
     minimapCtx.clearRect(0, 0, minimapCanvas.width, minimapCanvas.height);
     minimapCtx.drawImage(canvas, 0, 0, minimapCanvas.width, minimapCanvas.height);

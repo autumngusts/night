@@ -707,6 +707,10 @@ BODY = """    <div class="midnight-wrap">
                  尺寸與小地圖相同，見static/midnight.jsのrenderBossPortraitHud()。 -->
             <img id="midnight-boss-portrait-hud" alt="" hidden>
             <canvas id="midnight-minimap-canvas" hidden></canvas>
+            <!-- 夜雨警示燈（2026-09-22使用者明確規格「戰鬥中右上角地圖 若此時自身淋在夜雨當中 顯示明顯
+                 紅色警示燈」）：疊在小地圖／夜王立繪的角落，只在戰鬥中且自己在圈外（outsideCircleSinceMs
+                 有值）時顯示，見static/midnight.jsのrenderMinimap()。 -->
+            <span id="midnight-rain-warning-light" hidden></span>
             <button type="button" id="btn-midnight-map-icon" data-i18n="midnight_map_icon_label"></button>
           </div>
           <button type="button" id="btn-midnight-open-character-sheet" data-i18n="midnight_character_sheet_open_button"></button>
@@ -870,6 +874,10 @@ BODY = """    <div class="midnight-wrap">
             <button type="button" id="btn-midnight-use-consumable" class="midnight-action-card midnight-action-card-consumable">
               <span id="midnight-consumable-label"></span>
               <span id="midnight-consumable-index" hidden></span>
+              <!-- 剩餘數量（2026-09-22使用者明確規格「消耗品在左下角操作盤中 要顯示剩餘數量」）：
+                   品名那一行最多兩行會被截斷，「xN」常被吃掉，改成獨立的角落徽章，見
+                   static/midnight.jsのrenderQuickActionCards()。 -->
+              <span id="midnight-consumable-count" hidden></span>
             </button>
             <button type="button" id="btn-midnight-consumable-prev" class="midnight-consumable-cycle-btn" aria-label="prev">&#9664;</button>
             <button type="button" id="btn-midnight-consumable-next" class="midnight-consumable-cycle-btn" aria-label="next">&#9654;</button>
@@ -1371,6 +1379,18 @@ BODY = """    <div class="midnight-wrap">
              按「加入」時開啟；內容直接把等待房的#midnight-lobby-join-form與
              #midnight-lobby-character-detail兩個節點搬進來重用（不複製第二份表單），見
              static/midnight.jsのopenLateJoinModal()／handleLobbyJoin()／enterGameAsLateJoiner()。 -->
+        <!-- 稀有度→L 的裝備選擇視窗（2026-09-22使用者明確規格「火山的特殊獲得備註 可以升級一把武器至L
+             領取後產生另外的local視窗可以選擇要敲打哪一把武器 可以暫時關閉 再次打開獎勵清單可以再點開
+             此備註」）：純本機視窗，關閉不消耗獎勵，見static/midnight.jsのopenRarityUpgradeModal()。 -->
+        <div id="midnight-rarity-upgrade-modal" hidden>
+          <div id="midnight-rarity-upgrade-box">
+            <button type="button" id="btn-midnight-rarity-upgrade-close" class="midnight-modal-close-x">&times;</button>
+            <h3 data-i18n="midnight_rarity_upgrade_title"></h3>
+            <p class="threat-ref-body" data-i18n="midnight_rarity_upgrade_hint"></p>
+            <div id="midnight-rarity-upgrade-list"></div>
+          </div>
+        </div>
+
         <div id="midnight-late-join-modal" hidden>
           <div id="midnight-late-join-box">
             <button type="button" id="btn-midnight-late-join-close" class="midnight-modal-close-x">&times;</button>
