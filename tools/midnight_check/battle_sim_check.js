@@ -29,6 +29,9 @@
 //      舞台用 boss sheet、8 個動作依序循環且面板標籤跟著變；關掉勾選後循環停止、標籤隱藏
 //   ⑬（2026-09-22 第4批「房間一開始不顯示戰鬥模擬至連續播放，需按下測試模式成功後才在本地顯示」）
 //      三列一開始隱藏；A 輸入密碼開測試模式後顯示；B 同步到 meta.testMode=true 仍隱藏；關掉再開要重輸密碼
+//   ⑭（2026-09-22 第5批「在每次T的時間點時 畫面上開始計時 記錄我每次按下迴避後確切的花費時間」）
+//      戰鬥模擬中面板顯示迴避計時；自己被鎖定時建碼表、T 後正數跑動；按下（pointerdown→click）即停並
+//      記一筆「放開／按下／判定」；沒按則在換下一下時補記逾時
 // ============================================================================
 
 const { chromium } = require("playwright");
@@ -128,6 +131,9 @@ async function unlockTestMode(page) {
     assert(true, "關掉測試模式後三列收起");
     await unlockTestMode(pageA);
     assert(true, "重新開啟測試模式（再輸入密碼）後三列重新顯示");
+    // ⑭ 要等自己被鎖定好幾次攻擊：把敵人攻擊倍率歸零，避免中途被打到瀕死（瀕死中不會被鎖定、也按不了迴避）。
+    await pageA.evaluate((gameId) => window.PriTestGameStorage.rtSet(gameId, "cloud", "meta/testTuning/enemyAtkMult", 0), (await state(pageA)).gameId);
+    await waitFor(pageA, () => (window.PriTestMidnight._debugState().meta.testTuning || {}).enemyAtkMult === 0);
 
     console.log("=== ① 密碼錯誤／取消都不會寫入 meta.battleSim ===");
     const hintBefore = await pageA.textContent("#midnight-lobby-battle-sim-status");
@@ -308,6 +314,41 @@ async function unlockTestMode(page) {
     const atk = (await state(pageA)).fieldTriggers.battleSim.enemyAttack;
     assert(!!atk, "maybeStartEnemyAttack() 發動了一次攻擊", atk);
     if (atk) assert(atk.dmgAmount > 0, "這一招算得出傷害（dmgAmount>0）", atk);
+
+    console.log("=== ⑭ 戰鬥模擬迴避計時：T 起算、按下即停並記錄、沒按補記逾時 ===");
+    const timerBoxShown = await pageA.evaluate(() => {
+      const b = document.querySelector("#midnight-battle-sim-dodge-timer");
+      return { hidden: b.hidden, text: document.querySelector("#midnight-battle-sim-dodge-timer-now").textContent };
+    });
+    assert(!timerBoxShown.hidden && timerBoxShown.text.indexOf("迴避計時") === 0, "戰鬥模擬＋點陣圖模式下計時區塊顯示", timerBoxShown);
+    // 等到自己成為目標且這一下的碼表開始（目標是隨機的，可能要等好幾次攻擊）
+    await waitFor(pageA, () => !!window.PriTestMidnight._debugState().battleSimDodgeTimer, null, 40000);
+    const tmr0 = (await state(pageA)).battleSimDodgeTimer;
+    assert(tmr0.stoppedAt === null && typeof tmr0.hitAt === "number", "自己被鎖定時建立碼表（hitAt＝T、尚未停止）", tmr0);
+    // 等過 T 再 0.15 秒，模擬「按下→放開」：pointerdown 記按下、click 記放開並停錶
+    await pageA.waitForFunction((hitAt) => Date.now() >= hitAt + 150, tmr0.hitAt, { timeout: 10000 });
+    const runningText = await pageA.textContent("#midnight-battle-sim-dodge-timer-now");
+    assert(/T\+0\.\d{3}s/.test(runningText), "T 之後碼表顯示正數（" + runningText + "）", runningText);
+    await pageA.dispatchEvent("#btn-midnight-dodge", "pointerdown");
+    await pageA.waitForTimeout(80);
+    await pageA.dispatchEvent("#btn-midnight-dodge", "click");
+    await waitFor(pageA, () => (window.PriTestMidnight._debugState().battleSimDodgeLog || []).length >= 1, null, 3000);
+    const log1 = (await state(pageA)).battleSimDodgeLog[0];
+    const m1 = /放開 T\+(\d\.\d{3})s／按下 T\+(\d\.\d{3})s → (Perfect|Great|Good|Bad) (\d+)%/.exec(log1);
+    assert(!!m1 && log1.indexOf("第" + (tmr0.hitIndex + 1) + "下") !== -1, "第1筆紀錄含第幾下、放開／按下兩個時間與判定（" + log1 + "）", log1);
+    if (m1) {
+      const release = parseFloat(m1[1]);
+      const press = parseFloat(m1[2]);
+      assert(release >= 0.15 && release < 1.2 && press < release && release - press >= 0.05, "放開 ≥ T+0.15s、按下早於放開約 0.08s", { release, press });
+      const expectGrade = release <= 0.35 ? "Perfect" : release <= 0.5 ? "Great" : release <= 0.8 ? "Good" : "Bad";
+      assert(m1[3] === expectGrade, "判定等級與 SPRITE_DODGE_BANDS 一致（" + m1[3] + "）", { release, grade: m1[3] });
+    }
+    // 沒按的情況：等下一個碼表出現，放著不按直到它換掉，應補記「逾時」
+    await waitFor(pageA, (k) => { const t = window.PriTestMidnight._debugState().battleSimDodgeTimer; return !!t && t.key !== k; }, tmr0.key, 40000);
+    const tmr1 = (await state(pageA)).battleSimDodgeTimer;
+    await waitFor(pageA, (k) => { const t = window.PriTestMidnight._debugState().battleSimDodgeTimer; return !t || t.key !== k; }, tmr1.key, 15000);
+    const logTop = (await state(pageA)).battleSimDodgeLog[0];
+    assert(logTop.indexOf("未按（逾時") !== -1 && logTop.indexOf("第" + (tmr1.hitIndex + 1) + "下") !== -1, "沒按時補記逾時（" + logTop + "）", logTop);
 
     console.log("=== ⑥ 逃離後不會卡死：候選重現並走［進入戰鬥］流程 ===");
     // 真的按遭遇面板右上的［逃離戰鬥］（CLAUDE.md §4.6：HUD 每幀重繪，用 dispatchEvent）。
