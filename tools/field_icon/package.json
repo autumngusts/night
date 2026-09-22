@@ -1,0 +1,10 @@
+{
+  "name": "pritest-field-icon",
+  "private": true,
+  "version": "1.0.0",
+  "description": "板塊卡牌の地點圖示（去背＋暗藍色の裁切）の書き出しと檢査。原図は photo/midnight/field_icons/、出力は static_src/images/icons/fields/。",
+  "scripts": {
+    "cut": "node field_icon_cut.js",
+    "test": "node field_icon_check.js"
+  }
+}

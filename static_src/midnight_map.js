@@ -374,10 +374,11 @@
     // generateMap()回傳的castleCenter與midnight.js的drawCastleMarker()。名稱沿用
     // fields_data_4.js card_j的簡稱（「堡壘／地下堡壘」取前兩字），不是另外發明的。
     J: { zh: "堡壘", label: "堡" },
-    // Q（「完整版」4張新地圖特殊橘線範圍專屬板塊，見placeHazardZonePoints()）：規則書
-    // 沒有這張卡的實際地名/敘述內容可查（不是fields_data既有卡牌），因此只用中性、
-    // 直接描述機制本身的名稱，不編造劇情地名（CLAUDE.md §19精神）。
-    Q: { zh: "Q板塊", label: "Q" },
+    // Q（「完整版」4張新地圖特殊橘線範圍專屬板塊，見placeHazardZonePoints()）：名稱沿用
+    // fields_data_4.jsのcard_q（name: 地変／地變），跟J一樣直接引規則書資料，不自行命名。
+    // 2026-09-22修正：原本寫成中性的「Q板塊」，理由是「規則書沒有這張卡的地名」——但
+    // card_qは既にfields_data_4.jsにあり、名稱も書かれている（見落としだった）。
+    Q: { zh: "地變", label: "地" },
   };
 
   // 新籌碼點（非fields_data卡牌）的名稱表（2026-09-05籌碼優化新增）：commerce/強敵/

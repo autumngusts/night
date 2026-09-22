@@ -2320,6 +2320,48 @@
   CHIP_ICON_IMAGES.random_event.src = "../static/images/icons/random.png";
   CHIP_ICON_IMAGES.blessing.src = "../static/images/icons/blessing.png";
 
+  // 板塊卡牌の地點圖示（2026-09-22 使用者提供）：白い數字カードの代わりに、その地點の
+  // 絵をそのまま地圖に置く。去背と暗藍色の裁切は tools/field_icon/field_icon_cut.js で
+  // 済ませてあり、原図は photo/midnight/field_icons/ に残してある。
+  //
+  // 圖が無い札（7 湖沼／8 鍛造村／Q）は從來どおり數字カードのまま。欠けている分だけ
+  // fallback すればよく、12 種類そろうまで待つ必要はない（sprite sheet の available と
+  // 同じ考え方）。祝福は籌碼側の既存 icon をそのまま使うので、ここには入れない。
+  var FIELD_CARD_ICON_FILES = {
+    "2": "field_2.png",
+    "3": "field_3.png",
+    "4": "field_4.png",
+    "5": "field_5.png",
+    "6": "field_6.png",
+    "7": "field_7.png",
+    "8": "field_8.png",
+    "9": "field_9.png",
+    "10": "field_10.png",
+    J: "field_j.png",
+    K: "field_k.png",
+    Q: "field_q.png",
+  };
+
+  // 圖示は籌碼 icon（CELL*1.6）より一回り大きく描く（2026-09-22 使用者明確要求
+  // 「處理後板塊的圖示可以再放大1.5倍左右」）。籌碼側の大きさは変えないので、
+  // 倍率は圖示の分岐だけに掛ける。
+  var FIELD_CARD_ICON_SCALE = 1.5;
+  var FIELD_CARD_ICON_IMAGES = {};
+  for (var fieldIconCard in FIELD_CARD_ICON_FILES) {
+    if (!Object.prototype.hasOwnProperty.call(FIELD_CARD_ICON_FILES, fieldIconCard)) continue;
+    FIELD_CARD_ICON_IMAGES[fieldIconCard] = new Image();
+    FIELD_CARD_ICON_IMAGES[fieldIconCard].src =
+      "../static/images/icons/fields/" + FIELD_CARD_ICON_FILES[fieldIconCard];
+  }
+
+  // 讀み込み済みの圖示だけ返す。讀み込み前／失敗時は null を返して數字カードへ戻す
+  // ——地圖の描画は毎影格走るので、途中で圖が揃えば次の影格から圖示に切り替わる。
+  function fieldCardIcon(cardText) {
+    var img = FIELD_CARD_ICON_IMAGES[cardText];
+    if (!img || !img.complete || !img.naturalWidth) return null;
+    return img;
+  }
+
   // 角色頭像快取（2026-09-05地圖優化新增，供drawToken()當玩家圖示用，見
   // characterImageForId()）：依檔名快取，不是依characterId快取，因為同一張圖可能被
   // 多個角色共用CHARACTER_PRESETS內的image欄位（目前每個characterId各自對應唯一檔名，
@@ -21411,6 +21453,19 @@
     // drawPointCard()裡籌碼icon同樣的CELL*1.6正方形，不再用原本1.3x1.7的長方形。
     var cw = CELL * 1.6;
     var ch = CELL * 1.6;
+    var icon = fieldCardIcon(cardText);
+    if (icon) {
+      cw = ch = CELL * 1.6 * FIELD_CARD_ICON_SCALE;
+      // 圖示がある札は白いカードを描かず、圖示そのものを置く（2026-09-22 使用者明確
+      // 要求「替換目前midnight對應名稱的卡牌」）。大きさは籌碼 icon と同じ CELL*1.6 の
+      // 正方形、名稱ラベルの位置もカードのときと同じ——札が圖に変わっても地圖上で
+      // 読み取れる情報は変えない。
+      ctx.save();
+      ctx.drawImage(icon, px - cw / 2, py - ch / 2, cw, ch);
+      if (nameInfo) drawNameLabel(px, py + ch / 2 + 2, nameInfo.zh);
+      ctx.restore();
+      return;
+    }
     var isChurch = cardText === "K";
     ctx.save();
     ctx.fillStyle = isChurch ? "#f2e2b8" : "#f5f5f0";
