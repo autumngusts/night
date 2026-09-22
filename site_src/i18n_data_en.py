@@ -1745,7 +1745,7 @@ STRINGS_EN: dict[str, str] = {
     "midnight_lobby_phase_timing_label": "Circle timing (test)",
     "midnight_lobby_phase_grace_label": "Open phase (min)",
     "midnight_lobby_phase_hold_label": "Mid hold (min)",
-    "midnight_lobby_phase_timing_hint": "Default 8 + 5. Test mode only, shared by day 1/2; shrink speed itself is unchanged.",
+    "midnight_lobby_phase_timing_hint": "Default 8 + 5. Saved and applied immediately (kept even after test mode is turned off), shared by day 1/2; shrink speed itself is unchanged.",
     "midnight_inventory_full_dropped_note": "Inventory is full; the item was dropped at your feet.",
     "midnight_yoto_charges_short_note": "Not enough Yoto charge (need {need}, have {have})",
     "midnight_lobby_weapon_affixes_label": "Enable weapon affixes",

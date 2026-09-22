@@ -60,9 +60,11 @@
   // Day1／Day2的phase A／phase B共用同一組常數，因此四個縮圈階段全部套用這個結構。
   // 2026-09-21使用者明確規格「創立房間時 開啟測試模式時 可由GM來調整縮圈兩個的時間點
   // 預設 8 + 5」：grace／hold兩段改成可由meta.phaseTiming（{graceMin, holdMin}，等待房
-  // 測試模式區塊的輸入框寫入，見handlePhaseTimingInput()）覆寫，**只在meta.testMode為true時
-  // 生效**——關掉測試模式就回到預設8＋5，不會把測試值帶進正式場。shrink1／shrink2兩段
+  // 測試模式區塊的輸入框寫入，見handlePhaseTimingInput()）覆寫。shrink1／shrink2兩段
   // 維持常數（使用者只要求調整「兩個時間點」＝縮圈開始前的開放期與中繼暫停期）。
+  // 2026-09-22使用者明確規格「縮圈時間點可以修改後儲存套用 即使關掉測試模式也是按照新設定
+  // 之時間點」：原本「只在meta.testMode為true時生效、關掉就回到8＋5」的閘門拿掉，
+  // meta.phaseTiming一經寫入就永久生效；要回到預設得把輸入框改回8／5。
   // 讀取端一律走phaseGraceMs()／phaseHoldMs()／phaseTotalMs()，不再直接引用常數。
   var PHASE_GRACE_DEFAULT_MIN = 8;
   var PHASE_HOLD_DEFAULT_MIN = 5;
@@ -70,7 +72,7 @@
   var PHASE_SHRINK2_MS = 20000; // 2026-09-08確認「縮的速率不變」，維持原秒數
 
   function phaseTimingMinutes(key, defaultMin) {
-    if (!meta || !meta.testMode || !meta.phaseTiming) return defaultMin;
+    if (!meta || !meta.phaseTiming) return defaultMin;
     var v = meta.phaseTiming[key];
     return typeof v === "number" && v >= 0 ? v : defaultMin;
   }
@@ -1707,6 +1709,13 @@
     var testModeCheckbox = el("midnight-lobby-test-mode-checkbox");
     if (testModeCheckbox && document.activeElement !== testModeCheckbox) testModeCheckbox.checked = !!(meta && meta.testMode);
     renderPhaseTimingInputs(!!(meta && meta.testMode));
+    // 戰鬥模擬三列（2026-09-22使用者明確規格，見midnight_page.pyの#midnight-lobby-test-tools
+    // 說明）：本機輸入過密碼（testModeUnlockedLocally）且測試模式目前開著才顯示。
+    var testTools = el("midnight-lobby-test-tools");
+    if (testTools) {
+      var showTools = testModeUnlockedLocally && !!(meta && meta.testMode);
+      if (testTools.hidden === showTools) testTools.hidden = !showTools;
+    }
     var spriteModeCheckbox = el("midnight-lobby-sprite-mode-checkbox");
     if (spriteModeCheckbox && document.activeElement !== spriteModeCheckbox) {
       spriteModeCheckbox.checked = spriteModeEnabled();
@@ -1998,6 +2007,10 @@
   // 否則畫面會顯示已勾選但meta.testMode其實沒被寫入true，造成UI與實際狀態不一致。
   // 2026-09-22：密碼抽成常數，戰鬥模擬（handleBattleSimToggle()）共用同一個閘門。
   var LOBBY_TEST_PASSWORD = "nightnight";
+  // 2026-09-22使用者明確規格「需按下測試模式成功後才在本地顯示（戰鬥模擬三列）……也為本地
+  // 才能看到」：純本機旗標，只有這台裝置自己答對密碼才設true，不寫RTDB、不隨meta.testMode
+  // 同步——其他裝置就算看到meta.testMode=true也維持false。顯示端見renderLobbySettings()。
+  var testModeUnlockedLocally = false;
   function handleTestModeToggle() {
     var checkbox = el("midnight-lobby-test-mode-checkbox");
     var checked = checkbox.checked;
@@ -2010,13 +2023,15 @@
       checkbox.checked = false;
       return;
     }
+    testModeUnlockedLocally = true;
     GameStorage.rtSet(gameId, "cloud", "meta/testMode", true);
   }
 
   // 縮圈時間點（2026-09-21使用者明確規格「創立房間時 開啟測試模式時 可由GM來調整縮圈兩個的
   // 時間點 預設 8 + 5」）：等待房測試模式勾選後顯示的兩個分鐘數輸入框，寫入
   // meta.phaseTiming/{graceMin|holdMin}（跟夜王/地圖/難度同一套「同一場遊戲所有人共用」的
-  // meta設定）。實際讀取見phaseGraceMs()／phaseHoldMs()——只在meta.testMode時生效。
+  // meta設定）。實際讀取見phaseGraceMs()／phaseHoldMs()——2026-09-22起寫入即永久生效，
+  // 不再依meta.testMode切換（使用者明確規格「即使關掉測試模式也是按照新設定之時間點」）。
   // 允許小數（例如0.5分鐘＝30秒，方便測試），負數/非數字一律忽略不寫。
   function handlePhaseTimingInput(key, raw) {
     var v = parseFloat(raw);
@@ -23589,6 +23604,7 @@
         nearbyDay3Boss: nearbyDay3Boss,
         nearbyBattleSim: nearbyBattleSim, // 2026-09-22：戰鬥模擬的虛擬遭遇點
         battleSimAnimCycle: battleSimAnimCycle, // 2026-09-22：動作循環確認的本地進度（{index, startAt}）
+        testModeUnlockedLocally: testModeUnlockedLocally, // 2026-09-22：本機是否輸入過測試模式密碼（戰鬥模擬三列的顯示條件）
         activeEncounter: activeEncounter,
         myIncomingAttack: myIncomingAttack,
         nearbyStrongEnemy: nearbyStrongEnemy,

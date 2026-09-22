@@ -109,12 +109,15 @@ const waitFor = (page, fn, arg, timeout) => page.waitForFunction(fn, arg, { time
     await pageA.waitForTimeout(300);
     const negTiming = await pageA.evaluate(() => window.PriTestMidnight._debugState().meta.phaseTiming.graceMin);
     assert(negTiming === 0.5, "①：負數輸入被忽略，meta 維持 0.5", negTiming);
-    // 關掉測試模式→回預設
+    // 關掉測試模式→仍維持新設定（2026-09-22使用者明確規格「即使關掉測試模式也是按照新設定
+    // 之時間點」；舊期望「回到 8 + 5」已過時）。輸入框列本身仍隨測試模式隱藏。
     await rtSet(pageA, "meta/testMode", false);
-    await waitFor(pageA, () => window.PriTestMidnight._debugPhaseTiming().graceMs === 8 * 60000);
+    await waitFor(pageA, () => document.getElementById("midnight-lobby-phase-timing-row").hidden);
     const offTiming = await pageA.evaluate(() => window.PriTestMidnight._debugPhaseTiming());
-    assert(offTiming.holdMs === 5 * 60000, "①：關閉測試模式後回到 8 + 5（meta.phaseTiming 仍保留但不生效）", offTiming);
+    assert(offTiming.graceMs === 30000 && offTiming.holdMs === 15000, "①：關閉測試模式後仍套用 0.5 + 0.25（meta.phaseTiming 永久生效）", offTiming);
     await rtSet(pageA, "meta/phaseTiming", null);
+    await waitFor(pageA, () => window.PriTestMidnight._debugPhaseTiming().graceMs === 8 * 60000);
+    assert(true, "①：清掉 meta.phaseTiming 後回到預設 8 + 5");
 
     // ======================================================================
     console.log("\n=== 等待房：加入並準備，進入遊戲 ===");

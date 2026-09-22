@@ -1745,7 +1745,7 @@ STRINGS_JA: dict[str, str] = {
     "midnight_lobby_phase_timing_label": "縮小タイミング（テスト）",
     "midnight_lobby_phase_grace_label": "開放期間（分）",
     "midnight_lobby_phase_hold_label": "中継停止（分）",
-    "midnight_lobby_phase_timing_hint": "既定は 8 + 5。テストモード時のみ有効、1日目／2日目共通。縮小速度自体は変わりません。",
+    "midnight_lobby_phase_timing_hint": "既定は 8 + 5。変更は即保存・適用（テストモードを切っても新しい設定のまま）、1日目／2日目共通。縮小速度自体は変わりません。",
     "midnight_inventory_full_dropped_note": "所持上限に達したため、足元に落としました。",
     "midnight_yoto_charges_short_note": "妖刀蓄積が足りません（必要 {need}／現在 {have}）",
     "midnight_lobby_weapon_affixes_label": "武器詞条を有効化",

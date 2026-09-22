@@ -1749,7 +1749,7 @@ STRINGS_ZH: dict[str, str] = {
     "midnight_lobby_phase_timing_label": "縮圈時間點（測試）",
     "midnight_lobby_phase_grace_label": "開放期（分）",
     "midnight_lobby_phase_hold_label": "中繼暫停（分）",
-    "midnight_lobby_phase_timing_hint": "預設 8 + 5。只在測試模式生效，第1／2天共用；縮圈本身的速度不變。",
+    "midnight_lobby_phase_timing_hint": "預設 8 + 5。修改後立即儲存套用（關掉測試模式也維持新設定），第1／2天共用；縮圈本身的速度不變。",
     "midnight_inventory_full_dropped_note": "持有量已達上限，物品掉在腳邊。",
     "midnight_yoto_charges_short_note": "妖刀蓄積不足（需要 {need}，目前 {have}）",
     "midnight_lobby_weapon_affixes_label": "武器詞條開放",

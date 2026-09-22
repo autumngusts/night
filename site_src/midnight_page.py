@@ -162,6 +162,12 @@ BODY = """    <div class="midnight-wrap">
              （finalCircleDayN）的虛擬遭遇點寫法，建立固定id "battleSim" 的fieldTrigger，
              全員直接走既有的識別資訊準備→戰鬥流程，不另建第二套戰鬥。按鈕文字／狀態列由
              renderLobbySettings()依meta.battleSim即時改寫（已設定時按鈕變成「取消」）。 -->
+        <!-- 2026-09-22使用者明確規格「房間一開始不顯示戰鬥模擬至連續播放，需按下測試模式成功後
+             才在本地顯示……也為本地才能看到」：下面三列包在這個容器裡，只有「這台裝置自己輸入
+             測試模式密碼成功」（本機旗標testModeUnlockedLocally）且meta.testMode仍為true時才
+             顯示；其他裝置即使同步到meta.testMode=true也看不到。見static/midnight.jsの
+             renderLobbySettings()／handleTestModeToggle()。 -->
+        <div id="midnight-lobby-test-tools" hidden>
         <div class="wb-row" id="midnight-lobby-battle-sim-row">
           <button type="button" id="btn-midnight-lobby-battle-sim"></button>
           <span class="hint" id="midnight-lobby-battle-sim-status"></span>
@@ -188,6 +194,7 @@ BODY = """    <div class="midnight-wrap">
           </label>
           <span class="hint" data-i18n="midnight_lobby_battle_sim_anim_cycle_hint"></span>
         </div>
+        </div>
         <!-- 測試模式（2026-09-09合併，使用者明確規格「測試模式與debug模式合併為一」）：
              原本private/main的獨立Debug模式（可調整盧恩/獲得武器/回滿FP/復歸回滿血/快速
              通過魔術師塔，見static/midnight.jsのrenderDebugPanel()）已併入這顆勾選框，
@@ -200,9 +207,10 @@ BODY = """    <div class="midnight-wrap">
         </div>
         <!-- 縮圈時間點（2026-09-21使用者明確規格「創立房間時 開啟測試模式時 可由GM來調整縮圈
              兩個的時間點 預設 8 + 5」）：只在測試模式勾選後顯示，寫入meta.phaseTiming
-             （{graceMin, holdMin}，分鐘，允許小數），只在meta.testMode為true時生效——關掉測試
-             模式即回到預設8＋5。見static/midnight.jsのhandlePhaseTimingInput()／
-             renderPhaseTimingInputs()／phaseGraceMs()。 -->
+             （{graceMin, holdMin}，分鐘，允許小數）。2026-09-22使用者明確規格「縮圈時間點可以
+             修改後儲存套用 即使關掉測試模式也是按照新設定之時間點」：寫入後就永久生效，不再
+             依meta.testMode切換（輸入框列本身仍只在測試模式下顯示）。見static/midnight.jsの
+             handlePhaseTimingInput()／renderPhaseTimingInputs()／phaseGraceMs()。 -->
         <div class="wb-row" id="midnight-lobby-phase-timing-row" hidden>
           <label data-i18n="midnight_lobby_phase_timing_label"></label>
           <span class="midnight-lobby-phase-timing-field">

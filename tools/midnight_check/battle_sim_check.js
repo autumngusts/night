@@ -27,6 +27,8 @@
 //      帶 bossForm:"fused"／Lv.16／animCycle，兩台的下拉都回填並鎖定
 //   ⑫（同上「有個選項可以讓敵人連續播放不同動作的動畫」）開局後 trigger 帶 bossForm、HP＝bossHpMax、
 //      舞台用 boss sheet、8 個動作依序循環且面板標籤跟著變；關掉勾選後循環停止、標籤隱藏
+//   ⑬（2026-09-22 第4批「房間一開始不顯示戰鬥模擬至連續播放，需按下測試模式成功後才在本地顯示」）
+//      三列一開始隱藏；A 輸入密碼開測試模式後顯示；B 同步到 meta.testMode=true 仍隱藏；關掉再開要重輸密碼
 // ============================================================================
 
 const { chromium } = require("playwright");
@@ -77,6 +79,17 @@ async function clickBattleSim(page, answer) {
   await page.click("#btn-midnight-lobby-battle-sim");
 }
 
+// 2026-09-22 第4批（使用者明確規格「房間一開始不顯示戰鬥模擬至連續播放，需按下測試模式成功後
+// 才在本地顯示」）：戰鬥模擬三列包在 #midnight-lobby-test-tools，要這台裝置自己輸入測試模式
+// 密碼成功才顯示。用真的勾選框＋prompt 走一遍（rtSet meta/testMode 只會同步 meta、不會設本機旗標）。
+async function unlockTestMode(page) {
+  page.once("dialog", async (dialog) => {
+    await dialog.accept(PASSWORD);
+  });
+  await page.check("#midnight-lobby-test-mode-checkbox");
+  await waitFor(page, () => !document.querySelector("#midnight-lobby-test-tools").hidden);
+}
+
 (async () => {
   const browser = await chromium.launch();
   const pageA = await browser.newPage();
@@ -99,6 +112,22 @@ async function clickBattleSim(page, answer) {
     await pageA.check("#midnight-lobby-sprite-mode-checkbox");
     await waitFor(pageA, () => window.PriTestMidnight._debugState().meta.spriteMode === true);
     await waitFor(pageB, () => window.PriTestMidnight._debugState().meta.spriteMode === true);
+
+    console.log("=== ⑬ 戰鬥模擬三列只在本機輸入測試模式密碼後顯示 ===");
+    const toolsInit = await pageA.$eval("#midnight-lobby-test-tools", (e) => e.hidden);
+    assert(toolsInit === true, "房間一開始 #midnight-lobby-test-tools 隱藏", toolsInit);
+    await unlockTestMode(pageA);
+    assert(true, "裝置A輸入密碼開啟測試模式後三列顯示");
+    await waitFor(pageB, () => window.PriTestMidnight._debugState().meta.testMode === true);
+    await pageB.waitForTimeout(300);
+    const toolsB = await pageB.evaluate(() => ({ hidden: document.querySelector("#midnight-lobby-test-tools").hidden, unlocked: window.PriTestMidnight._debugState().testModeUnlockedLocally, testMode: window.PriTestMidnight._debugState().meta.testMode }));
+    assert(toolsB.hidden && !toolsB.unlocked && toolsB.testMode, "裝置B同步到 meta.testMode=true 但沒輸入過密碼 → 三列仍隱藏（本機才看得到）", toolsB);
+    // 關掉測試模式 → A 的三列也收起；再開一次（要再輸入密碼）→ 重新顯示
+    await pageA.uncheck("#midnight-lobby-test-mode-checkbox");
+    await waitFor(pageA, () => document.querySelector("#midnight-lobby-test-tools").hidden);
+    assert(true, "關掉測試模式後三列收起");
+    await unlockTestMode(pageA);
+    assert(true, "重新開啟測試模式（再輸入密碼）後三列重新顯示");
 
     console.log("=== ① 密碼錯誤／取消都不會寫入 meta.battleSim ===");
     const hintBefore = await pageA.textContent("#midnight-lobby-battle-sim-status");
@@ -322,6 +351,7 @@ async function clickBattleSim(page, answer) {
     await joinLobby(pageB, "5678");
     await pageA.check("#midnight-lobby-sprite-mode-checkbox");
     await waitFor(pageB, () => window.PriTestMidnight._debugState().meta.spriteMode === true);
+    await unlockTestMode(pageA); // 新房間＝新頁面，本機旗標歸零，要重新輸入密碼三列才顯示
     const selInit = await pageA.evaluate(() => {
       const kind = document.querySelector("#midnight-lobby-battle-sim-kind-select");
       const enemy = document.querySelector("#midnight-lobby-battle-sim-enemy-select");
