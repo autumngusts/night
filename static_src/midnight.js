@@ -2477,6 +2477,16 @@
   var battleSimAnimCycle = null;
   var BATTLE_SIM_ANIM_IDLE_LOOPS = 2; // idle是loop動畫，循環時播這麼多圈再換下一個
   var BATTLE_SIM_ANIM_HOLD_LINGER_MS = 700; // hold動畫（death）最後一幀多停這麼久再換下一個
+  // 戰鬥模擬的迴避計時（2026-09-22使用者明確規格「在每次T的時間點時 畫面上開始計時 記錄我
+  // 每次按下迴避後確切的花費時間」，見midnight_page.pyの#midnight-battle-sim-dodge-timer）：
+  // 純本機量測工具，不影響任何判定。timer＝目前這一下的碼表狀態、log＝最近幾筆紀錄。
+  // pointerDownAt另外記「按下」瞬間：迴避鍵綁的是click（放開才觸發），兩個時間一起記才看得出
+  // 「按住的時間」占了多少。
+  var battleSimDodgeTimer = null; // { key, hitIndex, hitAt, phaseEndAt, stoppedAt }
+  var battleSimDodgeLog = []; // 最新在前，最多BATTLE_SIM_DODGE_LOG_MAX筆
+  var battleSimDodgeLogCount = 0; // 累計編號（#n）
+  var battleSimDodgePointerDownAt = 0;
+  var BATTLE_SIM_DODGE_LOG_MAX = 8;
   var battleSimAssignAttempted = {}; // BATTLE_SIM_POINT_ID -> true（本地節流，同finalCircleRollAttempted；用物件是為了套resetAttemptFlagOnFailure()）
   // 2026-09-20防卡死：上面這批「本地節流旗標」都是「設旗標→送transaction→等RTDB回寫後
   // 由訂閱資料自然讓guard成立」的一次性寫法，但GameStorage.rtTransaction()出錯時會吞掉
@@ -3691,6 +3701,10 @@
     el("btn-midnight-skill").addEventListener("click", handleSkillClick);
     bindSkillBHoldInput();
     el("btn-midnight-dodge").addEventListener("click", handleDodgeClick);
+    // 戰鬥模擬迴避計時用：記「按下」瞬間（click是放開才觸發），只做量測，不進判定。
+    el("btn-midnight-dodge").addEventListener("pointerdown", function () {
+      battleSimDodgePointerDownAt = Date.now();
+    });
     bindBlockHoldInput();
     el("btn-midnight-defense-special").addEventListener("click", function () {
       handleSpecialDefenseClick(0);
@@ -8402,6 +8416,7 @@
     if (!spendStamina(dodgeStaminaCost(characters[myTokenId]))) return;
     cancelFlaskReadingForOtherAction();
     dodgePressedAt = Date.now();
+    recordBattleSimDodgePress(dodgePressedAt); // 戰鬥模擬的迴避計時（純量測）
     onAffixDodge(); // 2026-09-13武器詞條：回避直後の被ダメージ増加／回避連続時、カット率低下
   }
 
@@ -11313,6 +11328,110 @@
       if (labelEl.textContent !== text) labelEl.textContent = text;
       if (labelEl.hidden) labelEl.hidden = false;
     }
+  }
+
+  // ---- 戰鬥模擬的迴避計時（見BATTLE_SIM_DODGE_LOG_MAX旁的說明）----
+  // 顯示條件＝正在戰鬥模擬且點陣圖模式（T這個概念只有點陣圖模式的排程式時間軸才有，見
+  // scheduleSpriteHit()）。每一下（attackId:hitIndex）各開一個碼表：T之前顯示負值倒數、
+  // T之後正數累加，按下迴避（handleDodgeClick()→recordBattleSimDodgePress()）即停止；
+  // 這一下在沒按的情況下換到下一下／攻擊結束時，補記一筆「逾時」。
+  function battleSimDodgeTimerActive() {
+    return !!(activeEncounter && activeEncounter.id === BATTLE_SIM_POINT_ID && spriteModeEnabled());
+  }
+
+  function formatSignedSec(ms) {
+    var sec = Math.abs(ms) / 1000;
+    return (ms < 0 ? "−" : "+") + sec.toFixed(3);
+  }
+
+  function pushBattleSimDodgeLog(text) {
+    battleSimDodgeLog.unshift(text);
+    if (battleSimDodgeLog.length > BATTLE_SIM_DODGE_LOG_MAX) battleSimDodgeLog.length = BATTLE_SIM_DODGE_LOG_MAX;
+    renderBattleSimDodgeLog();
+  }
+
+  function renderBattleSimDodgeLog() {
+    var list = el("midnight-battle-sim-dodge-log");
+    if (!list) return;
+    while (list.firstChild) list.removeChild(list.firstChild);
+    battleSimDodgeLog.forEach(function (text) {
+      var li = document.createElement("li");
+      li.textContent = text;
+      list.appendChild(li);
+    });
+  }
+
+  // 按下迴避時記一筆：dt＝放開（click）相對T、down＝按下（pointerdown）相對T。判定結果直接
+  // 重用spriteDodgeJudge()——跟resolveMyIncomingHit()實際採用的是同一條函式，這裡顯示的
+  // 等級／％就是遊戲真的會給的值。早於T−0.1s的按鍵遊戲不算迴避（見advanceIncomingAttackPhase()），
+  // 這裡照樣記下來並標成「太早」，方便看到自己到底提前了多少。
+  function recordBattleSimDodgePress(pressedAt) {
+    var t = battleSimDodgeTimer;
+    if (!battleSimDodgeTimerActive() || !t || t.stoppedAt !== null) return;
+    var dt = pressedAt - t.hitAt;
+    var downDt = battleSimDodgePointerDownAt ? battleSimDodgePointerDownAt - t.hitAt : dt;
+    var result;
+    if (dt < -SPRITE_DODGE_PERFECT_EARLY_MS) {
+      // 太早的按鍵遊戲不採計，碼表也不停——之後在窗口內再按一次仍然算數、也要能記到。
+      result = window.I18N.t("midnight_battle_sim_dodge_log_early");
+    } else {
+      t.stoppedAt = pressedAt;
+      var judge = spriteDodgeJudge({ hitAt: t.hitAt, phaseEndAt: t.phaseEndAt }, pressedAt);
+      result = window.I18N.t("midnight_battle_sim_dodge_log_result", { grade: window.I18N.t("midnight_dodge_grade_" + judge.grade), pct: judge.pct });
+    }
+    battleSimDodgeLogCount += 1;
+    pushBattleSimDodgeLog(window.I18N.t("midnight_battle_sim_dodge_log_entry", {
+      n: battleSimDodgeLogCount,
+      hit: t.hitIndex + 1,
+      delta: formatSignedSec(dt),
+      down: formatSignedSec(downDt),
+      result: result,
+    }));
+  }
+
+  function updateBattleSimDodgeTimer(now) {
+    var box = el("midnight-battle-sim-dodge-timer");
+    var nowEl = el("midnight-battle-sim-dodge-timer-now");
+    if (!box || !nowEl) return;
+    if (!battleSimDodgeTimerActive()) {
+      if (!box.hidden) box.hidden = true;
+      battleSimDodgeTimer = null;
+      return;
+    }
+    if (box.hidden) {
+      box.hidden = false;
+      renderBattleSimDodgeLog();
+    }
+    var st = myIncomingAttack;
+    var hasT = !!(st && !st.isCounter && st.hitAt !== null && st.hitAt !== undefined && st.phase !== "done");
+    var key = hasT ? st.attackId + ":" + st.hitIndex : null;
+    if (battleSimDodgeTimer && battleSimDodgeTimer.key !== key) {
+      // 換到下一下／攻擊結束：上一下若從頭到尾沒按、且窗口已經跑完，補記逾時
+      // （敵人在窗口內被擊破的話窗口不會跑完，就不記）。
+      var prev = battleSimDodgeTimer;
+      if (prev.stoppedAt === null && now >= prev.phaseEndAt) {
+        battleSimDodgeLogCount += 1;
+        pushBattleSimDodgeLog(window.I18N.t("midnight_battle_sim_dodge_log_timeout", {
+          n: battleSimDodgeLogCount,
+          hit: prev.hitIndex + 1,
+          window: ((prev.phaseEndAt - prev.hitAt) / 1000).toFixed(1),
+        }));
+      }
+      battleSimDodgeTimer = null;
+    }
+    if (hasT && !battleSimDodgeTimer) {
+      battleSimDodgeTimer = { key: key, hitIndex: st.hitIndex, hitAt: st.hitAt, phaseEndAt: st.phaseEndAt, stoppedAt: null };
+    }
+    var text;
+    var t = battleSimDodgeTimer;
+    if (!t) {
+      text = window.I18N.t("midnight_battle_sim_dodge_timer_idle");
+    } else if (t.stoppedAt !== null) {
+      text = window.I18N.t("midnight_battle_sim_dodge_timer_stopped", { delta: formatSignedSec(t.stoppedAt - t.hitAt) });
+    } else {
+      text = window.I18N.t("midnight_battle_sim_dodge_timer_running", { delta: formatSignedSec(now - t.hitAt) });
+    }
+    if (nowEl.textContent !== text) nowEl.textContent = text;
   }
 
   function updateEnemyAttack(now) {
@@ -22525,6 +22644,7 @@
     renderBattlePrepBanner(now);
     renderStaggerOverlay(now); // 體崩橫幅／致命一擊按鈕（每影格變動，不能放進有快取的renderFieldEncounterPanel）
     updateBattleSimAnimCycle(now); // 戰鬥模擬的動作循環確認，要在tick()之前指定這一影格的動作
+    updateBattleSimDodgeTimer(now); // 戰鬥模擬的迴避計時（純量測顯示）
     if (window.PriTestMidnightSprite) window.PriTestMidnightSprite.tick(now);
     renderFinalCircleCountdown(now);
     updateStamina(dtSec);
@@ -23666,6 +23786,8 @@
         nearbyBattleSim: nearbyBattleSim, // 2026-09-22：戰鬥模擬的虛擬遭遇點
         battleSimAnimCycle: battleSimAnimCycle, // 2026-09-22：動作循環確認的本地進度（{index, startAt}）
         testModeUnlockedLocally: testModeUnlockedLocally, // 2026-09-22：本機是否輸入過測試模式密碼（戰鬥模擬三列的顯示條件）
+        battleSimDodgeTimer: battleSimDodgeTimer, // 2026-09-22：戰鬥模擬迴避計時的目前碼表
+        battleSimDodgeLog: battleSimDodgeLog.slice(), // 同上，最近幾筆紀錄文字
         activeEncounter: activeEncounter,
         myIncomingAttack: myIncomingAttack,
         nearbyStrongEnemy: nearbyStrongEnemy,

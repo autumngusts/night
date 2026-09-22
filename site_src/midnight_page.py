@@ -985,6 +985,14 @@ BODY = """    <div class="midnight-wrap">
                  meta.battleSim.animCycle且正在戰鬥模擬中顯示，見static/midnight.jsの
                  updateBattleSimAnimCycle()。 -->
             <p id="midnight-battle-sim-anim-label" hidden></p>
+            <!-- 戰鬥模擬的迴避計時（2026-09-22使用者明確規格「在每次T的時間點時 畫面上開始計時
+                 記錄我每次按下迴避後確切的花費時間」）：T之前倒數、T之後跑碼表，按下迴避即停止並
+                 寫入下方紀錄（放開click與按下pointerdown兩個時間都記）。純本機顯示，不影響判定，
+                 見static/midnight.jsのupdateBattleSimDodgeTimer()。 -->
+            <div id="midnight-battle-sim-dodge-timer" hidden>
+              <p id="midnight-battle-sim-dodge-timer-now"></p>
+              <ul id="midnight-battle-sim-dodge-log"></ul>
+            </div>
           </div>
           <!-- 屬性/狀態異常共同蓄積小型顯示（2026-09-05武器資料真正接入新增，見
                static/midnight.js的renderAttributeAccumNote()），純文字列出目前

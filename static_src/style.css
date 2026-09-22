@@ -7558,6 +7558,30 @@ html.midnight-top-banner-collapsed .midnight-top-banner-collapse-btn {
   font-variant-numeric: tabular-nums;
 }
 
+/* 戰鬥模擬的迴避計時（2026-09-22，見midnight_page.py同id說明）：碼表一行大字、下方紀錄小字，
+   tabular-nums 讓跑動中的數字不會左右抖。 */
+#midnight-battle-sim-dodge-timer {
+  margin: 0.2rem 0 0;
+  font-variant-numeric: tabular-nums;
+  text-align: left;
+}
+
+#midnight-battle-sim-dodge-timer-now {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: bold;
+  color: #ffd75e;
+}
+
+#midnight-battle-sim-dodge-log {
+  margin: 0.15rem 0 0;
+  padding-left: 1rem;
+  font-size: 0.75rem;
+  color: #d8d8d8;
+  max-height: 8.5rem;
+  overflow-y: auto;
+}
+
 /* 等待房戰鬥模擬的對象指定列：兩個下拉並排，手機寬度不夠時自動換行。 */
 #midnight-lobby-battle-sim-pick-row select {
   max-width: 14rem;
