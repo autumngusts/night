@@ -467,6 +467,10 @@ BODY = """    <div class="midnight-wrap">
              （使用者明確規格：警示圖示閃爍0.5秒後才進行攻擊，攻擊特效為刀光劍影或爪痕）。
              全螢幕固定疊層，跟#midnight-field-banner等同一組定位方式。見static/midnight.js
              的updateEnemyAttack()／renderEnemyAttackOverlay()。 -->
+        <!-- 地圖提示訊息（2026-09-22使用者明確規格「打過板塊地圖縮小時，此時當地圖閃黃時同時在
+             背景的頁面另外閃黃光一行訊息」）：跟右上地圖圖示的黃光（mapIconNudge）同進同出，
+             見static/midnight.jsのrenderMapIcon()。固定疊層、不擋點擊。 -->
+        <p id="midnight-map-nudge-message" class="midnight-flash-yellow" data-i18n="midnight_map_nudge_message" hidden></p>
         <div id="midnight-incoming-attack-warning" hidden>
           <span id="midnight-incoming-attack-name"></span>
           <!-- 2026-09-06三次優化：Day3夜之王招式附帶的規則書原文note（例如特殊能力的敘述
@@ -1083,7 +1087,11 @@ BODY = """    <div class="midnight-wrap">
                成功度 100% = Perfect, 80~99% = Great, 60~80 = Good, 30 ~ 60 = Bad」）：跟
                「成功迴避」是兩個獨立的浮動提示，這顆再往上疊一層（.midnight-dodge-grade），
                見static/midnight.jsのshowDodgeGrade()。 -->
+          <!-- 快捷鍵標示（2026-09-22使用者明確規格「迴避鍵 快捷鍵shift，防禦 快捷鍵G，在按鈕上也
+               標示其快捷鍵」）：.midnight-hotkey-badge貼在按鈕左上角，觸控裝置（沒有實體鍵盤）由
+               static/midnight.jsのinit隱藏。實際按鍵處理見handleCombatHotkeyDown()。 -->
           <button type="button" id="btn-midnight-dodge">
+            <span class="midnight-hotkey-badge">Shift</span>
             <span id="midnight-dodge-grade" class="midnight-action-flash midnight-dodge-grade" hidden></span>
             <span id="midnight-dodge-flash" class="midnight-action-flash" hidden></span>
             <span data-i18n="midnight_dodge_button"></span>
@@ -1094,6 +1102,7 @@ BODY = """    <div class="midnight-wrap">
                （見static/midnight.jsのstartBlockHold()／endBlockHold()），純粹當作「目前
                正在防禦中」的視覺提示，不是施法進度。 -->
           <button type="button" id="btn-midnight-block">
+            <span class="midnight-hotkey-badge">G</span>
             <span id="midnight-block-flash" class="midnight-action-flash" hidden></span>
             <!-- 防禦中盾牌浮標（2026-09-13使用者明確規格「防禦按鈕按下時，格子上方顯示
                  盾牌圖示」）：跟按鈕內那顆靜態盾圖示是兩回事——這一顆只在blockHolding

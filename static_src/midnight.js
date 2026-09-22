@@ -2585,8 +2585,10 @@
   // 圖が無い札（7 湖沼／8 鍛造村／Q）は從來どおり數字カードのまま。欠けている分だけ
   // fallback すればよく、12 種類そろうまで待つ必要はない（sprite sheet の available と
   // 同じ考え方）。祝福は籌碼側の既存 icon をそのまま使うので、ここには入れない。
+  // 2026-09-22 使用者明確規格「教會與大教會的圖示調換」：2（大教會）與 K（教會）的圖檔對調，
+  // 圖檔本身不改名（tools/field_icon 的產出對應維持原樣），只換這裡的對應。
   var FIELD_CARD_ICON_FILES = {
-    "2": "field_2.png",
+    "2": "field_k.png",
     "3": "field_3.png",
     "4": "field_4.png",
     "5": "field_5.png",
@@ -2596,7 +2598,7 @@
     "9": "field_9.png",
     "10": "field_10.png",
     J: "field_j.png",
-    K: "field_k.png",
+    K: "field_2.png",
     Q: "field_q.png",
   };
 
@@ -3805,14 +3807,17 @@
     document.addEventListener("keydown", function (e) {
       keysDown[e.key.toLowerCase()] = true;
       if (autoFly && isMovementKey(e.key)) autoFly = null; // 移動鍵會終止靈鳥自動飛行
+      handleCombatHotkeyDown(e);
     });
     document.addEventListener("keyup", function (e) {
       keysDown[e.key.toLowerCase()] = false;
+      handleCombatHotkeyUp(e);
     });
     // 2026-09-20：按著方向鍵時alt-tab、或彈出window.prompt()（接管席位密碼等）會讓
     // keyup永遠收不到，角色會一直跑到再按一次同一個鍵為止；視窗失焦時直接清空按鍵狀態。
     window.addEventListener("blur", function () {
       keysDown = {};
+      endBlockHold(); // G鍵長按防禦時失焦也收不到keyup，一併放開
     });
     el("btn-midnight-enter-battle").addEventListener("click", handleEnterBattleClick);
     bindAttackHoldInput();
@@ -8545,6 +8550,44 @@
     var now = Date.now();
     dodgePointerDownAt = now;
     performDodge(now);
+  }
+
+  // 戰鬥快捷鍵（2026-09-22使用者明確規格「迴避鍵 快捷鍵shift，防禦(限能夠使用) 快捷鍵G」）：
+  // 只在對應按鈕目前可用（沒被hidden／disabled，跟用滑鼠點得到的條件相同）時才生效——
+  // 防禦鍵的disabled本來就綁在currentGuardInfo()（沒有盾牌／達人資格時不能用），所以
+  // 「限能夠使用」自然成立。輸入框有焦點時不吃快捷鍵（等待房名稱／密碼、聊天等）。
+  // 迴避走跟pointerdown同一條performDodge()，判定時刻＝按下當下；之後清掉dodgePointerDownAt，
+  // 免得緊接著的滑鼠click被誤判成「同一次按鍵」而吞掉。
+  function hotkeyTargetIsTextInput(e) {
+    var t = e && e.target;
+    var tag = t && t.tagName ? t.tagName.toLowerCase() : "";
+    return tag === "input" || tag === "textarea" || tag === "select" || !!(t && t.isContentEditable);
+  }
+
+  function hotkeyButtonUsable(id) {
+    var btn = el(id);
+    return !!(btn && !btn.hidden && !btn.disabled && btn.offsetParent !== null);
+  }
+
+  function handleCombatHotkeyDown(e) {
+    if (!e || e.repeat || hotkeyTargetIsTextInput(e)) return;
+    if (e.key === "Shift") {
+      if (!hotkeyButtonUsable("btn-midnight-dodge")) return;
+      e.preventDefault();
+      performDodge(Date.now());
+      dodgePointerDownAt = 0;
+      return;
+    }
+    if (e.key === "g" || e.key === "G") {
+      if (!hotkeyButtonUsable("btn-midnight-block")) return;
+      e.preventDefault();
+      startBlockHold();
+    }
+  }
+
+  function handleCombatHotkeyUp(e) {
+    if (!e) return;
+    if (e.key === "g" || e.key === "G") endBlockHold();
   }
 
   // click：pointerdown已經處理過這次按鍵就只補記「放開」時刻給戰鬥模擬的紀錄；沒有pointerdown
@@ -13469,7 +13512,14 @@
     // 理論上不會發生的情況）就亂數退回一隻，總之封牢一定要有戰鬥、不得和平通過。
     // 只限封牢：其他卡牌的「成功／失敗（→ザコ戦闘）」是條件式戰鬥，midnight沒有判定機制，
     // 維持既有「選中區塊沒有敵人＝和平通過」的行為不動。
-    if (!matches.length && pt.type === "evergaol") {
+    // 2026-09-22使用者回報「有些劇本配地圖 走到堡壘J 仍有第一層抽不到王戰」並明確規格「檢查任何
+    // 劇本×地圖 在J都要有一個替代的路線可以抽選到」：選中的分歧選項本身就寫著「王戰／ボス戦闘」
+    // （規則書明寫這裡會發生王戰），卻掃不到任何敵人時，跟封牢同一套退回順序——先改掃整層
+    // （拿得到其他區塊的敵名／決定表引用＝替代路線），整層還是沒有就亂數退回一隻。這不是發明
+    // 戰鬥：選項標籤本身就是規則書的「王戰」，只是敵人解析失敗；沒有王戰標籤的選項維持
+    // 「找不到敵人＝和平通過」不動。
+    var bossChoice = !!label && /王戰|ボス戦闘|王战/.test(label);
+    if (!matches.length && (pt.type === "evergaol" || bossChoice)) {
       matches = scanLinesForEnemyMatches(floor.lines, cardData, pt.id);
       if (!matches.length) {
         var evergaolFallback = randomEnemyMatchFallback(pt.id + ":evergaol_fallback");
@@ -16174,6 +16224,59 @@
   // 原本宣告在函式內、而函式開頭有「玩家不在籌碼點旁邊就直接return」的守衛，因此除了玩家
   // 正好站在點旁邊之外都取不到這張表——退回邏輯與回歸測試都需要隨時讀得到它。函式宣告本來
   // 就會hoist，放在這裡引用下方定義的render函式沒有問題。
+  // 隨機事件「過完」的判定（2026-09-22使用者明確規格，見isPointCleared()）：每個分支的完成狀態欄位
+  // 各不相同，這裡逐一對照各render function實際用來「不再顯示可操作按鈕」的條件——
+  //   ・個人判定型（聖甲蟲／女神像／歩く霊廟）：自己（mySlot）已判定過＝對這台裝置而言已過完
+  //     （地圖是各裝置各自畫的，其他玩家還沒判定不影響自己的✕）；女神像另外要等「破壞」
+  //     的機會用掉（沒人成功／已有人領取／自己不是可破壞的職業）。
+  //   ・全隊一次性結算型（埋もれ宝／虫の大量発生／霧の裂け目／安寧者たち／三つ首の獣／発狂地帯）：
+  //     看trig上的結算欄位。
+  //   ・王戰型（隕石「前往查看」／夜の勢力／襲撃的忌み鬼・兆し・調律の魔物「戦いを仕掛ける」）：
+  //     敵人HP歸零；隕石選「遠離」、調律の魔物選「取引」「立ち去る」也算過完。
+  //   ・襲撃的manual分支：按過「確認」。
+  function randomEventDone(pt, trig) {
+    if (!trig || trig.status !== "resolved" || !trig.branchNameJa) return false;
+    var hp = fieldEnemyHp[pt.id];
+    var enemyDead = !!trig.enemyFamilyId && hp !== undefined && hp <= 0;
+    var myAttempted = !!(mySlot && trig.attempted && trig.attempted[mySlot]);
+    switch (trig.branchNameJa) {
+      case "スカラベ":
+      case "歩く霊廟":
+        return myAttempted;
+      case "女神像": {
+        var me = characters[myTokenId];
+        var canBreak = !!(trig.goddessSucceeded && !trig.statueRewardGrantedBy && me && GODDESS_STATUE_RESTRICTED_TYPE_IDS.indexOf(me.typeId) !== -1);
+        return myAttempted && !canBreak;
+      }
+      case "埋もれ宝":
+        return !!trig.resolvedOutcome;
+      case "隕石":
+        return trig.meteorChoice === "flee" || enemyDead;
+      case "夜の勢力":
+        return !!trig.enemyFamilyId && (trig.completedRounds || 0) >= (trig.requiredRounds || 1);
+      case "虫の大量発生":
+        return !!trig.chaseOutcome;
+      case "発狂地帯": {
+        var stage = trig.madnessStage || "madFire";
+        return stage !== "madFire" && stage !== "tower1" && stage !== "tower2" && stage !== "tower3";
+      }
+      case "襲撃": {
+        var name = trig.ambushEnemyNameJa;
+        if (!name) return false;
+        if (name === "三つ首の獣") return trig.wolfStage === "done";
+        if (name === "霧の裂け目") return !!trig.mistTeamOutcome;
+        if (name === "安寧者たち") return !!trig.peacefulDestId;
+        if (AMBUSH_MANUAL_BRANCHES[name]) return !!trig.ambushManualAcknowledged;
+        if (name === "調律の魔物") {
+          if (!trig.tuningDemonChoice) return false;
+          return trig.tuningDemonChoice !== "fight" || enemyDead;
+        }
+        return enemyDead;
+      }
+    }
+    return false;
+  }
+
   var RANDOM_EVENT_RENDERERS = {
     "スカラベ": renderScarabBranch,
     "女神像": renderGoddessStatueBranch,
@@ -18231,7 +18334,7 @@
       return (fixedItem ? window.PriTestConsumables.localizedText(fixedItem.name) : fixedId) + " x" + (entry.value || 1);
     }
     if (entry.kind === "weaponSkillReroll") return window.I18N.t("midnight_reward_label_weapon_skill_reroll", { value: entry.value || 1 });
-    if (entry.kind === "hpDamage") return window.I18N.t("midnight_reward_label_hp_damage", { value: entry.value || 0 });
+    if (entry.kind === "hpDamage") return window.I18N.t("midnight_reward_label_hp_damage", { value: rewardHpDamageAmount(entry) });
     if (entry.kind === "note") return entry.note ? window.PriTestFields.localizedText(entry.note) : window.I18N.t("midnight_reward_kind_note");
     if (entry.kind === "tieredChoice") return window.I18N.t("midnight_reward_kind_tiered_choice");
     if (entry.kind === "diceHandChoice") return window.I18N.t("midnight_reward_kind_dice_hand_choice");
@@ -18243,6 +18346,32 @@
   // 其資訊...」）：weapon/talisman/consumable三種kind額外把抽到的原始item/weaponId也
   // 放進回傳物件（不只是label字串），供renderRewardDetail()呼叫既有renderWeaponSheetDetail()
   // /顯示消耗品裝飾品效果本文用；rune沒有「物品資訊」可顯示，維持原樣。
+  // 獎勵清單的「固定扣除n點HP傷害」（fields_data_*.js的hpDamage entry，value是規則書的點數）
+  // 在midnight的實際扣血量（2026-09-22使用者明確規格「實際為x10點，即原本的扣1點HP為扣10點」）：
+  // 跟「■」「□」1個＝10的既有換算同一個刻度（BLOCK_SQUARE_COUNT_TO_RESOURCE_MULT）。
+  function rewardHpDamageAmount(entry) {
+    return (entry.value || 0) * BLOCK_SQUARE_COUNT_TO_RESOURCE_MULT;
+  }
+
+  // 同規格「檢視後 自動10秒後由系統幫忙領取」：hpDamage項目在右側詳細面板被顯示（＝檢視）
+  // 的那一刻起算10秒，時間到若仍未處理就由系統代按［確認］。每筆只排一次計時（以id為key）。
+  var REWARD_HP_DAMAGE_AUTO_CLAIM_MS = 10000;
+  var rewardHpDamageAutoClaimAt = {}; // rewardId -> 到期時間戳（本機only）
+  var rewardHpDamageAutoClaimTimers = {}; // rewardId -> setTimeout id
+
+  function scheduleRewardHpDamageAutoClaim(id, entry) {
+    if (rewardHpDamageAutoClaimTimers[id]) return;
+    rewardHpDamageAutoClaimAt[id] = Date.now() + REWARD_HP_DAMAGE_AUTO_CLAIM_MS;
+    rewardHpDamageAutoClaimTimers[id] = setTimeout(function () {
+      delete rewardHpDamageAutoClaimTimers[id];
+      var list = pendingRewards[myTokenId] || {};
+      var cur = list[id];
+      if (!cur || cur.resolved || cur.kind !== "hpDamage") return; // 已被玩家自己按掉／丟棄
+      if (!rewardDraftById[id]) rewardDraftById[id] = computeRewardDraw(cur);
+      confirmRewardEntry(id, rewardDraftById[id]);
+    }, REWARD_HP_DAMAGE_AUTO_CLAIM_MS);
+  }
+
   function computeRewardDraw(entry) {
     if (entry.kind === "rune") {
       var value = entry.value || 0;
@@ -18287,13 +18416,14 @@
       };
     }
     if (entry.kind === "hpDamage") {
+      var hpDamageValue = rewardHpDamageAmount(entry);
       return {
-        label: window.I18N.t("midnight_reward_label_hp_damage", { value: entry.value || 0 }),
+        label: window.I18N.t("midnight_reward_label_hp_damage", { value: hpDamageValue }),
         apply: function (c) {
           var max = selfArenaHpMax(c);
           GameStorage.rtTransaction(gameId, "cloud", "demoStat/" + myTokenId, function (cur) {
             var current = cur === null ? max : cur;
-            return Math.max(0, current - (entry.value || 0));
+            return Math.max(0, current - hpDamageValue);
           }).then(function (result) {
             // 2026-09-09合併私有分支的瀕死系統：延遲到玩家實際確認扣血的這一刻才判斷是否
             // 觸發瀕死，跟private/main原本在判定當下就檢查的時機點不同，但maybeTriggerNearDeath()
@@ -18709,6 +18839,26 @@
     }
     if (!rewardDraftById[id]) rewardDraftById[id] = computeRewardDraw(entry);
     var draft = rewardDraftById[id];
+    // 固定HP傷害（2026-09-22）：檢視即起算10秒，到時系統自動套用；面板上顯示倒數（每秒重繪一次
+    // 這一段文字就好，不必整個detail重畫）。
+    if (entry.kind === "hpDamage") {
+      scheduleRewardHpDamageAutoClaim(id, entry);
+      var autoNote = document.createElement("p");
+      autoNote.className = "warning-text";
+      var renderAutoNote = function () {
+        var left = Math.max(0, Math.ceil((rewardHpDamageAutoClaimAt[id] - Date.now()) / 1000));
+        autoNote.textContent = window.I18N.t("midnight_reward_hp_damage_auto_note", { seconds: left });
+      };
+      renderAutoNote();
+      var autoNoteTimer = setInterval(function () {
+        if (!autoNote.isConnected || !rewardHpDamageAutoClaimTimers[id]) {
+          clearInterval(autoNoteTimer);
+          return;
+        }
+        renderAutoNote();
+      }, 250);
+      detail.appendChild(autoNote);
+    }
     if ((entry.kind === "weapon" || entry.kind === "weaponStar") && draft.weaponId) {
       var c1 = characters[myTokenId];
       // 第5引數＝這次抽選當下決定的random戰技（見computeRewardDraw()的weapon分支）：此時
@@ -21103,7 +21253,13 @@
   function renderMapIcon() {
     var btn = el("btn-midnight-map-icon");
     if (!btn) return;
-    btn.classList.toggle("midnight-map-icon-nudge", mapIconNudge && !mapExpanded);
+    var nudging = mapIconNudge && !mapExpanded;
+    btn.classList.toggle("midnight-map-icon-nudge", nudging);
+    // 2026-09-22使用者明確規格「打過板塊地圖縮小時，此時當地圖閃黃時同時在背景的頁面另外閃黃光
+    // 一行訊息『右上角地圖可以點開繼續移動探索！！！』」：跟地圖圖示同一個nudge旗標／同一個
+    // 時機顯示與消失（玩家點開地圖即收），文字見i18n midnight_map_nudge_message。
+    var msg = el("midnight-map-nudge-message");
+    if (msg && msg.hidden === nudging) msg.hidden = !nudging;
   }
 
   // 角色按鈕黃光（2026-09-06三次優化，使用者明確規格「角色還有遺物效果可學習時，角色按鈕
@@ -22389,7 +22545,10 @@
   //     聖甲蟲各玩家各自判定成功/失敗），不畫X。
   function isPointCleared(pt) {
     if (pt.type === "sorcerer") return !!towerSolved[pt.id];
-    if (pt.type === "merchant" || pt.type === "blessing" || pt.type === "random_event") return false;
+    if (pt.type === "merchant" || pt.type === "blessing") return false;
+    // 2026-09-22使用者明確規格「隨機事件過完後 保持原本籌碼圖示 上面一樣打X來標示」：籌碼圖示
+    // 本身不換（drawPointCard()照畫），只在事件走完時疊✕，見randomEventDone()。
+    if (pt.type === "random_event") return randomEventDone(pt, fieldTriggers[pt.id]);
     if (pt.type === "strong_enemy") {
       var trig = fieldTriggers[pt.id];
       return !!(trig && trig.enemyFamilyId && fieldEnemyHp[pt.id] <= 0);
@@ -23089,6 +23248,9 @@
 
     if ("ontouchstart" in window || navigator.maxTouchPoints > 0) {
       el("midnight-mobile-joystick").hidden = false;
+      // 觸控裝置沒有實體鍵盤，快捷鍵標示（Shift／G）只會造成困惑，藏起來（2026-09-22）。
+      var hotkeyBadges = document.querySelectorAll(".midnight-hotkey-badge");
+      for (var hb = 0; hb < hotkeyBadges.length; hb++) hotkeyBadges[hb].hidden = true;
     }
 
     gameId = qsGameId();

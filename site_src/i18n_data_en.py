@@ -1701,6 +1701,8 @@ STRINGS_EN: dict[str, str] = {
     "midnight_reward_potential_choose_note": "Pick one of the two results below to keep. The other will be discarded.",
     "midnight_reward_label_weapon_skill_reroll": "Weapon Skill Reroll Ticket x{value}",
     "midnight_reward_label_hp_damage": "Take {value} damage",
+    "midnight_reward_hp_damage_auto_note": "Applied automatically in {seconds} s",
+    "midnight_map_nudge_message": "Open the map (top right) to keep moving and exploring!!!",
     "midnight_weapon_reroll_open_button": "Forge (Skill Reroll) x{count}",
     "midnight_weapon_reroll_title": "Weapon Skill Reroll Forge",
     "midnight_two_hit_mastery_toast": "cost changed to \"{cost}\" (10s cooldown)",

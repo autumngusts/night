@@ -5025,6 +5025,24 @@ html.midnight-banner-above-hud:not(.midnight-top-banner-collapsed) #midnight-rew
   color: #9aa891;
 }
 
+/* 快捷鍵標示（2026-09-22，見midnight_page.py迴避／防禦按鈕的說明）：貼在按鈕左上角的小鍵帽，
+   按鈕本身已是position:relative（浮動提示.midnight-action-flash靠它定位），不用另外設定。 */
+.midnight-hotkey-badge {
+  position: absolute;
+  top: 0.1rem;
+  left: 0.15rem;
+  padding: 0 0.28rem;
+  border-radius: 3px;
+  font-size: 0.58rem;
+  font-weight: bold;
+  line-height: 1.3;
+  letter-spacing: 0.02em;
+  color: #e8f0e0;
+  background: rgba(10, 12, 18, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.45);
+  pointer-events: none;
+}
+
 /* 2026-09-06優化：迴避/防禦成功、受到傷害的浮動提示（見static/midnight.jsの
    showActionFlash()），固定在按鈕正上方，1秒後由JS重新加上hidden。 */
 .midnight-action-flash {
@@ -6666,6 +6684,35 @@ html.midnight-top-banner-collapsed .midnight-top-banner-collapse-btn {
 
 .midnight-flash-yellow {
   animation: midnight-flash-yellow 1s ease-in-out infinite;
+}
+
+/* 地圖提示訊息（2026-09-22，見midnight_page.py同id說明）：畫面中央偏上的一行黃字，黃光脈動
+   沿用.midnight-flash-yellow；pointer-events:none讓它不擋住下面的按鈕。 */
+#midnight-map-nudge-message {
+  position: fixed;
+  top: 28%;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 560;
+  margin: 0;
+  padding: 0.35rem 0.9rem;
+  border-radius: 6px;
+  font-weight: bold;
+  font-size: 1.05rem;
+  color: #ffd54a;
+  background: rgba(10, 12, 18, 0.75);
+  border: 1px solid rgba(255, 213, 74, 0.8);
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+@media (max-width: 640px) {
+  #midnight-map-nudge-message {
+    font-size: 0.85rem;
+    white-space: normal;
+    max-width: 90vw;
+    text-align: center;
+  }
 }
 
 #midnight-field-enter-name,

@@ -1705,6 +1705,8 @@ STRINGS_ZH: dict[str, str] = {
     "midnight_reward_potential_choose_note": "請從下方兩項結果中選擇一項獲得，未選擇的一方將直接捨棄。",
     "midnight_reward_label_weapon_skill_reroll": "戰技重抽券×{value}",
     "midnight_reward_label_hp_damage": "受到{value}點傷害",
+    "midnight_reward_hp_damage_auto_note": "{seconds} 秒後由系統自動扣除",
+    "midnight_map_nudge_message": "右上角地圖可以點開繼續移動探索！！！",
     "midnight_weapon_reroll_open_button": "鍛造台（戰技重抽）x{count}",
     "midnight_weapon_reroll_title": "戰技重抽鍛造台",
     "midnight_two_hit_mastery_toast": "消耗變更為「{cost}」（冷却10秒）",

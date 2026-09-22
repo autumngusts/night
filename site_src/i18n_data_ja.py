@@ -1701,6 +1701,8 @@ STRINGS_JA: dict[str, str] = {
     "midnight_reward_potential_choose_note": "以下の2つの結果からどちらか1つを選んで獲得すること。選ばなかった方はそのまま破棄される。",
     "midnight_reward_label_weapon_skill_reroll": "戦技再抽選券×{value}",
     "midnight_reward_label_hp_damage": "{value}ダメージを受ける",
+    "midnight_reward_hp_damage_auto_note": "{seconds} 秒後にシステムが自動で適用します",
+    "midnight_map_nudge_message": "右上の地図を開いて移動・探索を続けよう！！！",
     "midnight_weapon_reroll_open_button": "鍛造台（戦技再抽選）x{count}",
     "midnight_weapon_reroll_title": "戦技再抽選鍛造台",
     "midnight_two_hit_mastery_toast": "コストを「{cost}」に変更（クールタイム10秒）",

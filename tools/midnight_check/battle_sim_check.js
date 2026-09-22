@@ -359,6 +359,52 @@ async function unlockTestMode(page) {
     await waitFor(pageA, (k) => { const t = window.PriTestMidnight._debugState().battleSimDodgeTimer; return !t || t.key !== k; }, tmr1.key, 15000);
     const logTop = (await state(pageA)).battleSimDodgeLog[0];
     assert(logTop.indexOf("未按（逾時") !== -1 && logTop.indexOf("第" + (tmr1.hitIndex + 1) + "下") !== -1, "沒按時補記逾時（" + logTop + "）", logTop);
+    // 2026-09-22 使用者明確規格「迴避鍵 快捷鍵shift，防禦(限能夠使用) 快捷鍵G，在按鈕上也標示其快捷鍵」
+    const badges = await pageA.evaluate(() => ({
+      dodge: (document.querySelector("#btn-midnight-dodge .midnight-hotkey-badge") || {}).textContent,
+      block: (document.querySelector("#btn-midnight-block .midnight-hotkey-badge") || {}).textContent,
+      dodgeHidden: (document.querySelector("#btn-midnight-dodge .midnight-hotkey-badge") || {}).hidden,
+    }));
+    assert(badges.dodge === "Shift" && badges.block === "G" && badges.dodgeHidden === false, "迴避／防禦按鈕上標示 Shift／G（非觸控裝置顯示）", badges);
+    await waitFor(pageA, (k) => { const t = window.PriTestMidnight._debugState().battleSimDodgeTimer; return !!t && t.key !== k && t.stoppedAt === null; }, tmr1.key, 40000);
+    const tmr2 = (await state(pageA)).battleSimDodgeTimer;
+    await pageA.waitForFunction((hitAt) => Date.now() >= hitAt + 100, tmr2.hitAt, { timeout: 10000 });
+    const logCountBefore = (await state(pageA)).battleSimDodgeLog.length;
+    await pageA.keyboard.down("Shift");
+    await pageA.keyboard.up("Shift");
+    await waitFor(pageA, (n) => (window.PriTestMidnight._debugState().battleSimDodgeLog || []).length > n || ((window.PriTestMidnight._debugState().battleSimDodgeTimer || {}).stoppedAt !== null), logCountBefore, 3000);
+    const hotkeyLog = (await state(pageA)).battleSimDodgeLog[0];
+    assert(/按下 T\+0\.\d{3}s/.test(hotkeyLog) && hotkeyLog.indexOf("第" + (tmr2.hitIndex + 1) + "下") !== -1, "Shift 鍵觸發迴避並記錄（" + hotkeyLog + "）", hotkeyLog);
+    // G 鍵：防禦鍵目前可用（有盾牌）才會進入防禦；沒有盾牌時 G 不動作
+    const blockUsable = await pageA.evaluate(() => { const b = document.querySelector("#btn-midnight-block"); return !b.hidden && !b.disabled; });
+    await pageA.keyboard.down("g");
+    await pageA.waitForTimeout(80);
+    const holdingG = (await state(pageA)).blockHolding;
+    await pageA.keyboard.up("g");
+    await pageA.waitForTimeout(80);
+    const releasedG = (await state(pageA)).blockHolding;
+    assert(holdingG === blockUsable && releasedG === false, "G 鍵按住＝防禦中（限防禦鍵可用時）、放開即結束（可用=" + blockUsable + "）", { holdingG, releasedG, blockUsable });
+
+    console.log("=== ⑮ 獎勵清單的固定 HP 傷害 ×10、檢視後 10 秒自動扣除 ===");
+    // 2026-09-22 使用者明確規格「獎勵清單的固定扣除n點hp傷害 實際為x10點……檢視後 自動10秒後由系統幫忙領取」
+    const hpBeforeReward = await pageA.evaluate(() => { const s = window.PriTestMidnight._debugState(); return s.demoStats[s.myTokenId]; });
+    await pageA.evaluate((gameId) => {
+      const s = window.PriTestMidnight._debugState();
+      return window.PriTestGameStorage.rtSet(gameId, "cloud", "pendingRewards/" + s.myTokenId + "/hpdmg_test", { kind: "hpDamage", value: 1 });
+    }, sA.gameId);
+    await waitFor(pageA, () => !document.querySelector("#midnight-reward-modal").hidden, null, 5000);
+    await pageA.waitForTimeout(300);
+    const rewardUi = await pageA.evaluate(() => ({
+      label: Array.from(document.querySelectorAll("#midnight-reward-list-personal button")).map((b) => b.textContent).join("|"),
+      detail: document.querySelector("#midnight-reward-detail").textContent,
+    }));
+    assert(rewardUi.label.indexOf("受到10點傷害") !== -1, "清單顯示 value 1 → 受到10點傷害", rewardUi);
+    assert(/(10|9) 秒後由系統自動扣除/.test(rewardUi.detail), "詳細面板顯示 10 秒倒數提示", rewardUi);
+    await waitFor(pageA, () => { const s = window.PriTestMidnight._debugState(); const r = (s.pendingRewards[s.myTokenId] || {}).hpdmg_test; return !!(r && r.resolved); }, null, 13000);
+    await waitFor(pageA, (hp) => { const s = window.PriTestMidnight._debugState(); return s.demoStats[s.myTokenId] === hp - 10; }, hpBeforeReward, 3000).catch(() => {});
+    const hpAfterReward = await pageA.evaluate(() => { const s = window.PriTestMidnight._debugState(); return s.demoStats[s.myTokenId]; });
+    assert(hpAfterReward === hpBeforeReward - 10, "10 秒後系統自動扣 10 點 HP 並標記 resolved（" + hpBeforeReward + "→" + hpAfterReward + "）", { hpBeforeReward, hpAfterReward });
+    await pageA.evaluate(() => { const b = document.querySelector("#btn-midnight-reward-close"); if (b) b.click(); });
 
     console.log("=== ⑥ 逃離後不會卡死：候選重現並走［進入戰鬥］流程 ===");
     // 真的按遭遇面板右上的［逃離戰鬥］（CLAUDE.md §4.6：HUD 每幀重繪，用 dispatchEvent）。
