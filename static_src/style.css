@@ -7529,6 +7529,20 @@ html.midnight-top-banner-collapsed .midnight-top-banner-collapse-btn {
   font-weight: bold;
 }
 
+/* 戰鬥模擬「連續播放所有動作動畫」的目前動作標籤（2026-09-22，見midnight_page.py同id說明）：
+   黃字小標，跟屬性蓄積註記同一種提示色，方便對照 sheet 的列。 */
+#midnight-battle-sim-anim-label {
+  margin: 0.15rem 0 0;
+  font-size: 0.8rem;
+  color: #ffd75e;
+  font-variant-numeric: tabular-nums;
+}
+
+/* 等待房戰鬥模擬的對象指定列：兩個下拉並排，手機寬度不夠時自動換行。 */
+#midnight-lobby-battle-sim-pick-row select {
+  max-width: 14rem;
+}
+
 /* 2026-09-08新增：等待房角色詳細資訊視窗，使用者明確要求「按下該角色右邊彈出視窗」，
    固定貼在畫面右側，內容重用characters.js圖鑑既有結構（見midnight_page.py說明）。
    小螢幕（手機直向）沒有足夠寬度貼右邊，改成貼在畫面底部的抽屜，避免蓋住角色選單。 */

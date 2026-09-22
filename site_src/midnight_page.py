@@ -166,6 +166,28 @@ BODY = """    <div class="midnight-wrap">
           <button type="button" id="btn-midnight-lobby-battle-sim"></button>
           <span class="hint" id="midnight-lobby-battle-sim-status"></span>
         </div>
+        <!-- 戰鬥模擬的敵人指定（2026-09-22使用者明確規格「戰鬥模擬點選後 可以指定打哪一隻以及
+             甚麼敵人種類」）：種類＝隨機／各敵人系統／夜王，個體＝隨機（該種類）／該種類的每一隻
+             （有專屬點陣圖的加註）。兩個下拉是本機輸入，按下「產生」時才連同勾選框一起讀進
+             meta.battleSim；已產生後由renderBattleSimRow()回填成meta裡的值並鎖定，取消才解鎖。
+             夜王走既有的night_boss sentinel（跟Day3夜王同一套fieldTrigger資料流），見
+             static/midnight.jsのpickBattleSimEnemy()／populateBattleSimSelects()。 -->
+        <div class="wb-row" id="midnight-lobby-battle-sim-pick-row">
+          <label data-i18n="midnight_lobby_battle_sim_kind_label"></label>
+          <select id="midnight-lobby-battle-sim-kind-select"></select>
+          <select id="midnight-lobby-battle-sim-enemy-select"></select>
+        </div>
+        <!-- 動作動畫連續播放（同上規格「還有個選項可以讓敵人連續播放不同動作的動畫 以此來確認
+             各動作有對應沒有失誤」）：寫入meta.battleSim.animCycle，戰鬥中敵人sprite依
+             enemy_sprite_data.jsの8個動作順序循環播放、面板標示目前動作，攻擊／受擊動畫不再
+             覆蓋（判定不受影響）。見static/midnight.jsのupdateBattleSimAnimCycle()。 -->
+        <div class="wb-row" id="midnight-lobby-battle-sim-anim-row">
+          <label>
+            <input type="checkbox" id="midnight-lobby-battle-sim-anim-cycle-checkbox">
+            <span data-i18n="midnight_lobby_battle_sim_anim_cycle_label"></span>
+          </label>
+          <span class="hint" data-i18n="midnight_lobby_battle_sim_anim_cycle_hint"></span>
+        </div>
         <!-- 測試模式（2026-09-09合併，使用者明確規格「測試模式與debug模式合併為一」）：
              原本private/main的獨立Debug模式（可調整盧恩/獲得武器/回滿FP/復歸回滿血/快速
              通過魔術師塔，見static/midnight.jsのrenderDebugPanel()）已併入這顆勾選框，
@@ -947,6 +969,10 @@ BODY = """    <div class="midnight-wrap">
               <button type="button" id="btn-midnight-execution" hidden></button>
             </div>
             <p id="midnight-field-encounter-name"></p>
+            <!-- 戰鬥模擬「連續播放所有動作動畫」的目前動作標籤（2026-09-22），只在
+                 meta.battleSim.animCycle且正在戰鬥模擬中顯示，見static/midnight.jsの
+                 updateBattleSimAnimCycle()。 -->
+            <p id="midnight-battle-sim-anim-label" hidden></p>
           </div>
           <!-- 屬性/狀態異常共同蓄積小型顯示（2026-09-05武器資料真正接入新增，見
                static/midnight.js的renderAttributeAccumNote()），純文字列出目前

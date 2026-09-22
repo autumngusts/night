@@ -1721,19 +1721,114 @@
     var btn = el("btn-midnight-lobby-battle-sim");
     var status = el("midnight-lobby-battle-sim-status");
     if (!btn || !status) return;
+    populateBattleSimSelects();
     var sim = meta && meta.battleSim;
     var label = window.I18N.t(sim ? "midnight_lobby_battle_sim_cancel_button" : "midnight_lobby_battle_sim_button");
     var text;
     if (sim && sim.enemyFamilyId) {
-      var data = window.PriTestEnemies ? window.PriTestEnemies.get(sim.enemyFamilyId, sim.enemyId) : null;
-      var name = data ? window.PriTestEnemies.localizedText(data.enemy.name) : sim.enemyId;
-      text = window.I18N.t("midnight_lobby_battle_sim_status", { name: name, level: sim.level || 1 });
+      text = window.I18N.t("midnight_lobby_battle_sim_status", { name: battleSimEnemyName(sim), level: sim.level || 1 });
       preloadEncounterSheet(sim); // 等待房就先載，開局直接開戰時 sprite 不會晚出現
     } else {
       text = window.I18N.t("midnight_lobby_battle_sim_hint");
     }
     if (btn.textContent !== label) btn.textContent = label;
     if (status.textContent !== text) status.textContent = text;
+    // 指定對象的兩個下拉（2026-09-22使用者明確規格「可以指定打哪一隻以及甚麼敵人種類」）：
+    // 已產生時回填成meta.battleSim的實際值並鎖定（其他裝置也看得到選了誰），未產生時
+    // 解鎖讓使用者操作；動作循環勾選框則跟其他meta勾選框同一套「非焦點時同步」寫法。
+    var kindSelect = el("midnight-lobby-battle-sim-kind-select");
+    var enemySelect = el("midnight-lobby-battle-sim-enemy-select");
+    var cycleCheckbox = el("midnight-lobby-battle-sim-anim-cycle-checkbox");
+    if (kindSelect && enemySelect) {
+      var locked = !!(sim && sim.enemyFamilyId);
+      kindSelect.disabled = locked;
+      enemySelect.disabled = locked;
+      if (locked) {
+        if (kindSelect.value !== sim.enemyFamilyId) kindSelect.value = sim.enemyFamilyId;
+        populateBattleSimEnemySelect(sim.enemyFamilyId);
+        if (enemySelect.value !== sim.enemyId) enemySelect.value = sim.enemyId;
+      } else if (document.activeElement !== kindSelect) {
+        populateBattleSimEnemySelect(kindSelect.value);
+      }
+    }
+    if (cycleCheckbox && document.activeElement !== cycleCheckbox && sim) {
+      cycleCheckbox.checked = !!sim.animCycle;
+    }
+  }
+
+  // 戰鬥模擬對象的顯示名稱：一般敵人讀enemies_data、夜王讀night_boss_rulebook（跟
+  // renderFieldEncounterPanel()的兩條分支同一份資料來源）。
+  function battleSimEnemyName(sim) {
+    if (!sim || !sim.enemyFamilyId) return "";
+    if (sim.enemyFamilyId === BOSS_ENEMY_FAMILY_SENTINEL) {
+      var boss = bossRulebookData(sim.enemyId);
+      return boss ? window.PriTestEnemies.localizedText(boss.name) : sim.enemyId;
+    }
+    var data = window.PriTestEnemies ? window.PriTestEnemies.get(sim.enemyFamilyId, sim.enemyId) : null;
+    return data ? window.PriTestEnemies.localizedText(data.enemy.name) : sim.enemyId;
+  }
+
+  // 種類下拉：""＝隨機（維持原本「只從有點陣圖的敵人抽」的行為）、各敵人系統（familyId）、
+  // 夜王（BOSS_ENEMY_FAMILY_SENTINEL）。跟populateNightBossSelect()一樣只在第一次populate。
+  function populateBattleSimSelects() {
+    var kindSelect = el("midnight-lobby-battle-sim-kind-select");
+    if (!kindSelect || kindSelect.options.length) return;
+    var Enemies = window.PriTestEnemies;
+    var randomOpt = document.createElement("option");
+    randomOpt.value = "";
+    randomOpt.textContent = window.I18N.t("midnight_lobby_battle_sim_kind_random");
+    kindSelect.appendChild(randomOpt);
+    (Enemies ? Enemies.listFamilies() : []).forEach(function (fam) {
+      var o = document.createElement("option");
+      o.value = fam.id;
+      o.textContent = Enemies.localizedText(fam.name);
+      kindSelect.appendChild(o);
+    });
+    if (window.PriTestBossRulebook) {
+      var bossOpt = document.createElement("option");
+      bossOpt.value = BOSS_ENEMY_FAMILY_SENTINEL;
+      bossOpt.textContent = window.I18N.t("midnight_lobby_battle_sim_kind_boss");
+      kindSelect.appendChild(bossOpt);
+    }
+    populateBattleSimEnemySelect(kindSelect.value);
+  }
+
+  // 個體下拉：依種類重建（""＝隨機（此種類）＋該種類的每一隻）。用data-kind記住目前建的是
+  // 哪個種類，每影格被renderBattleSimRow()呼叫時只在種類真的變了才重建，避免打斷操作中
+  // 的下拉選單。有專屬sheet（sheetFileFor()非null）的加註，沒有的進戰鬥會用代役sheet
+  // （sheetFileOrSubstitute()），仍然可以測。
+  function populateBattleSimEnemySelect(kind) {
+    var select = el("midnight-lobby-battle-sim-enemy-select");
+    if (!select || select.getAttribute("data-kind") === kind) return;
+    select.setAttribute("data-kind", kind);
+    while (select.firstChild) select.removeChild(select.firstChild);
+    var Sprite = window.PriTestMidnightSprite;
+    var suffix = window.I18N.t("midnight_lobby_battle_sim_own_sprite_suffix");
+    var randomOpt = document.createElement("option");
+    randomOpt.value = "";
+    randomOpt.textContent = window.I18N.t("midnight_lobby_battle_sim_enemy_random");
+    select.appendChild(randomOpt);
+    select.hidden = !kind;
+    if (!kind) return;
+    var isBoss = kind === BOSS_ENEMY_FAMILY_SENTINEL;
+    var rows = isBoss
+      ? (window.PriTestBossRulebook ? window.PriTestBossRulebook.list() : []).map(function (b) {
+          return { id: b.id, name: b.name };
+        })
+      : (window.PriTestEnemies ? window.PriTestEnemies.allEnemies() : [])
+          .filter(function (rec) {
+            return rec.familyId === kind;
+          })
+          .map(function (rec) {
+            return { id: rec.enemy.id, name: rec.enemy.name };
+          });
+    rows.forEach(function (row) {
+      var o = document.createElement("option");
+      o.value = row.id;
+      var own = !!(Sprite && Sprite.sheetFileFor(isBoss ? null : kind, row.id, isBoss));
+      o.textContent = window.PriTestEnemies.localizedText(row.name) + (own ? suffix : "");
+      select.appendChild(o);
+    });
   }
 
   // 戰鬥模擬用的敵人（2026-09-22使用者明確規格「必須產生有聯結點陣圖敵人的戰鬥 不可為沒有
@@ -1745,25 +1840,62 @@
   // 一隻都沒有（sheet全部未產出）就回傳null，呼叫端alert說明、不寫入meta。
   // 這裡用Math.random()而不是fieldSeededIndex()：結果只在按下按鈕的這台裝置決定一次、
   // 寫進meta.battleSim後全員共用，不需要跨裝置決定性。
-  function pickBattleSimEnemy() {
+  //
+  // 2026-09-22使用者明確規格「可以指定打哪一隻以及甚麼敵人種類」：多了kind／enemyId兩個
+  // 參數（等待房兩個下拉的值，""＝隨機）。
+  //   ・kind=""            → 原本的行為（全部有專屬sheet的一般敵人裡抽）
+  //   ・kind=familyId      → 只在該系統裡抽：優先有專屬sheet的，一隻都沒有就退回整個系統
+  //                          （進戰鬥用代役sheet，見sheetFileOrSubstitute()）
+  //   ・kind=night_boss    → 夜王：只從有專屬sheet的夜王裡抽
+  //   ・enemyId有值        → 直接指定那一隻，不再篩sheet（沒有專屬sheet就用代役）
+  // 回傳跟meta.battleSim同形的物件（{enemyFamilyId, enemyId, level[, bossForm]}）。夜王
+  // 比照rollAndAssignDay3Boss()：sentinel family、Lv.16、bossForm:"fused"，之後
+  // updateBattleSim()建出來的fieldTrigger跟Day3夜王同形，Guard／HP／選招全走既有分流。
+  function pickBattleSimEnemy(kind, enemyId) {
     var Enemies = window.PriTestEnemies;
     var Sprite = window.PriTestMidnightSprite;
+    if (kind === BOSS_ENEMY_FAMILY_SENTINEL) {
+      var bosses = window.PriTestBossRulebook ? window.PriTestBossRulebook.list() : [];
+      var bossPool = enemyId
+        ? bosses.filter(function (b) {
+            return b.id === enemyId;
+          })
+        : bosses.filter(function (b) {
+            return !!(Sprite && Sprite.sheetFileFor(null, b.id, true));
+          });
+      if (!bossPool.length) return null;
+      var boss = bossPool[Math.floor(Math.random() * bossPool.length)];
+      return { enemyFamilyId: BOSS_ENEMY_FAMILY_SENTINEL, enemyId: boss.id, level: BATTLE_SIM_BOSS_LEVEL, bossForm: "fused" };
+    }
     var all = Enemies ? Enemies.allEnemies() : [];
-    var withSprite = all.filter(function (rec) {
-      return !!(Sprite && Sprite.sheetFileFor(rec.familyId, rec.enemy.id, false));
-    });
-    if (!withSprite.length) return null;
-    var usable = withSprite.filter(function (rec) {
-      var actions = rec.enemy.actions || [];
-      if (!actions.length) return false;
-      return actions.every(function (a) {
-        var noteJa = (a.note && a.note.ja) || "";
-        var noteZh = (a.note && a.note.zh) || "";
-        return INDIVIDUAL_DAMAGE_RE.test(noteJa) || INDIVIDUAL_DAMAGE_RE.test(noteZh) || GROUP_DAMAGE_RE.test(noteJa) || GROUP_DAMAGE_RE.test(noteZh);
+    var picked;
+    if (kind && enemyId) {
+      picked = Enemies ? Enemies.get(kind, enemyId) : null;
+      if (!picked) return null;
+    } else {
+      var inKind = kind
+        ? all.filter(function (rec) {
+            return rec.familyId === kind;
+          })
+        : all;
+      var withSprite = inKind.filter(function (rec) {
+        return !!(Sprite && Sprite.sheetFileFor(rec.familyId, rec.enemy.id, false));
       });
-    });
-    var pool = usable.length ? usable : withSprite;
-    return pool[Math.floor(Math.random() * pool.length)];
+      var base = withSprite.length ? withSprite : kind ? inKind : [];
+      if (!base.length) return null;
+      var usable = base.filter(function (rec) {
+        var actions = rec.enemy.actions || [];
+        if (!actions.length) return false;
+        return actions.every(function (a) {
+          var noteJa = (a.note && a.note.ja) || "";
+          var noteZh = (a.note && a.note.zh) || "";
+          return INDIVIDUAL_DAMAGE_RE.test(noteJa) || INDIVIDUAL_DAMAGE_RE.test(noteZh) || GROUP_DAMAGE_RE.test(noteJa) || GROUP_DAMAGE_RE.test(noteZh);
+        });
+      });
+      var pool = usable.length ? usable : base;
+      picked = pool[Math.floor(Math.random() * pool.length)];
+    }
+    return { enemyFamilyId: picked.familyId, enemyId: picked.enemy.id, level: BATTLE_SIM_ENEMY_LEVEL };
   }
 
   function battleSimEnabled() {
@@ -1806,16 +1938,24 @@
     }
     var input = window.prompt(window.I18N.t("midnight_lobby_battle_sim_password_prompt"));
     if (input !== LOBBY_TEST_PASSWORD) return;
-    var picked = pickBattleSimEnemy();
+    var kindSelect = el("midnight-lobby-battle-sim-kind-select");
+    var enemySelect = el("midnight-lobby-battle-sim-enemy-select");
+    var cycleCheckbox = el("midnight-lobby-battle-sim-anim-cycle-checkbox");
+    var picked = pickBattleSimEnemy(kindSelect ? kindSelect.value : "", enemySelect ? enemySelect.value : "");
     if (!picked) {
       window.alert(window.I18N.t("midnight_lobby_battle_sim_no_sprite_alert"));
       return;
     }
-    GameStorage.rtSet(gameId, "cloud", "meta/battleSim", {
-      enemyFamilyId: picked.familyId,
-      enemyId: picked.enemy.id,
-      level: BATTLE_SIM_ENEMY_LEVEL,
-    });
+    picked.animCycle = !!(cycleCheckbox && cycleCheckbox.checked);
+    GameStorage.rtSet(gameId, "cloud", "meta/battleSim", picked);
+  }
+
+  // 「連續播放所有動作動畫」勾選框：已產生模擬時直接改meta.battleSim.animCycle（開局前後
+  // 都能切，戰鬥中回等待房頁籤不可行，但至少產生後仍可改）；尚未產生時值只留在本機，
+  // 按「產生」時才連同敵人一起寫入（handleBattleSimToggle()）。
+  function handleBattleSimAnimCycleToggle() {
+    if (!(meta && meta.battleSim && meta.battleSim.enemyFamilyId)) return;
+    GameStorage.rtSet(gameId, "cloud", "meta/battleSim/animCycle", el("midnight-lobby-battle-sim-anim-cycle-checkbox").checked);
   }
 
   function handleNightBossSelectChange() {
@@ -2291,7 +2431,14 @@
   // 見updateBattleSim()。
   var BATTLE_SIM_POINT_ID = "battleSim";
   var BATTLE_SIM_ENEMY_LEVEL = 1; // 模擬用固定等級（enemyRealHpMax()／亂戰傷害基準值都查family.base的這一行）
+  var BATTLE_SIM_BOSS_LEVEL = 16; // 夜王模擬時的等級，跟rollAndAssignDay3Boss()同值（夜王HP不查level，只影響出招次數分組）
   var nearbyBattleSim = null;
+  // 「連續播放所有動作動畫」（2026-09-22使用者明確規格，見midnight_page.pyの
+  // #midnight-lobby-battle-sim-anim-row說明）的本地播放進度：{ index, startAt }，
+  // index是enemy_sprite_data.jsのlistAnims()索引。純本機狀態（各裝置各自循環，不同步）。
+  var battleSimAnimCycle = null;
+  var BATTLE_SIM_ANIM_IDLE_LOOPS = 2; // idle是loop動畫，循環時播這麼多圈再換下一個
+  var BATTLE_SIM_ANIM_HOLD_LINGER_MS = 700; // hold動畫（death）最後一幀多停這麼久再換下一個
   var battleSimAssignAttempted = {}; // BATTLE_SIM_POINT_ID -> true（本地節流，同finalCircleRollAttempted；用物件是為了套resetAttemptFlagOnFailure()）
   // 2026-09-20防卡死：上面這批「本地節流旗標」都是「設旗標→送transaction→等RTDB回寫後
   // 由訂閱資料自然讓guard成立」的一次性寫法，但GameStorage.rtTransaction()出錯時會吞掉
@@ -3652,6 +3799,7 @@
     el("midnight-lobby-weapon-affixes-checkbox").addEventListener("change", handleWeaponAffixesToggle);
     el("midnight-lobby-sprite-mode-checkbox").addEventListener("change", handleSpriteModeToggle);
     el("btn-midnight-lobby-battle-sim").addEventListener("click", handleBattleSimToggle);
+    el("midnight-lobby-battle-sim-anim-cycle-checkbox").addEventListener("change", handleBattleSimAnimCycleToggle);
     el("btn-midnight-game-failure-confirm").addEventListener("click", switchToUnlimitedMode);
     el("btn-midnight-game-victory-confirm").addEventListener("click", handleGameVictoryConfirmClick);
     el("midnight-lobby-test-mode-checkbox").addEventListener("change", handleTestModeToggle);
@@ -11033,6 +11181,7 @@
     var S = window.PriTestMidnightSprite;
     var AnimMap = window.PriTestEnemyActionAnimMap;
     if (!S || !AnimMap) return;
+    if (battleSimAnimCycleActive()) return; // 動作循環確認中，舞台歸updateBattleSimAnimCycle()管（判定不受影響）
     var atk = trig && trig.enemyAttack;
     if (!atk || !atk.attackId) return;
     var hitCount = atk.hitCount || 1;
@@ -11053,8 +11202,64 @@
   function playEnemySpriteAnim(animId, force) {
     var S = window.PriTestMidnightSprite;
     if (!S || !S.currentAnimId) return;
+    if (battleSimAnimCycleActive()) return; // 同maybePlayEnemyAttackAnim()：循環確認中不被受擊／死亡打斷
     if (!force && S.currentAnimId() !== "idle") return;
     S.playAnim(animId, Date.now());
+  }
+
+  // ---- 戰鬥模擬「連續播放所有動作動畫」（2026-09-22使用者明確規格「有個選項可以讓敵人
+  // 連續播放不同動作的動畫 以此來確認各動作有對應沒有失誤」）----
+  // 只在「戰鬥模擬的遭遇正在進行」且meta.battleSim.animCycle時生效：依enemy_sprite_data.js
+  // のlistAnims()順序（idle→line→area→thrust→slam→single→hurt→death）逐一播放、循環，
+  // 面板上標示目前是第幾個動作／哪一列，讓人對照sheet確認每一列都畫對。
+  // 只接管「表現層」：maybePlayEnemyAttackAnim()／playEnemySpriteAnim()在這段期間不再
+  // 寫入舞台，但攻擊排程／反應窗口／命中判定完全照舊——這是刻意的，動畫確認不該改變
+  // 戰鬥數值；代價是循環中看不到「出招前0.1秒切攻擊動畫」的提示，說明文字已註明。
+  // 每個動作的停留時間直接從資料算（animTotalMs()），idle是loop所以播固定圈數、death是
+  // hold所以最後一幀多停一下，不另外硬編各動作秒數。
+  function battleSimAnimCycleActive() {
+    return !!(activeEncounter && activeEncounter.id === BATTLE_SIM_POINT_ID && meta && meta.battleSim && meta.battleSim.animCycle);
+  }
+
+  function battleSimAnimDurationMs(anim) {
+    var Data = window.PriTestEnemySprite;
+    var total = Data.animTotalMs(anim.id);
+    if (anim.loop) return total * BATTLE_SIM_ANIM_IDLE_LOOPS;
+    if (anim.hold) return total + BATTLE_SIM_ANIM_HOLD_LINGER_MS;
+    return total;
+  }
+
+  function updateBattleSimAnimCycle(now) {
+    var S = window.PriTestMidnightSprite;
+    var Data = window.PriTestEnemySprite;
+    var labelEl = el("midnight-battle-sim-anim-label");
+    if (!S || !Data || !battleSimAnimCycleActive() || !spriteModeEnabled()) {
+      battleSimAnimCycle = null;
+      if (labelEl && !labelEl.hidden) labelEl.hidden = true;
+      return;
+    }
+    var anims = Data.listAnims();
+    if (!anims.length) return;
+    if (!battleSimAnimCycle) battleSimAnimCycle = { index: 0, startAt: now };
+    var anim = anims[battleSimAnimCycle.index];
+    if (now - battleSimAnimCycle.startAt >= battleSimAnimDurationMs(anim)) {
+      battleSimAnimCycle = { index: (battleSimAnimCycle.index + 1) % anims.length, startAt: now };
+      anim = anims[battleSimAnimCycle.index];
+    }
+    // 舞台上不是這個動作就（重新）指定：涵蓋剛進戰鬥時showSprite()先流idle、以及非loop動畫
+    // 播完後tick()自動退回idle的情況。startAt沿用循環的起點，時間軸才不會每影格重置。
+    if (S.currentAnimId() !== anim.id) S.playAnim(anim.id, battleSimAnimCycle.startAt);
+    if (labelEl) {
+      var text = window.I18N.t("midnight_battle_sim_anim_label", {
+        index: battleSimAnimCycle.index + 1,
+        total: anims.length,
+        name: window.I18N.t("midnight_sprite_anim_" + anim.id),
+        id: anim.id,
+        row: anim.row + 1,
+      });
+      if (labelEl.textContent !== text) labelEl.textContent = text;
+      if (labelEl.hidden) labelEl.hidden = false;
+    }
   }
 
   function updateEnemyAttack(now) {
@@ -13373,7 +13578,7 @@
         BATTLE_SIM_POINT_ID,
         GameStorage.rtTransaction(gameId, "cloud", "fieldTrigger/" + BATTLE_SIM_POINT_ID, function (cur) {
           if (cur !== null) return cur;
-          return {
+          var trigOut = {
             status: "resolved",
             enemyFamilyId: sim.enemyFamilyId,
             enemyId: sim.enemyId,
@@ -13381,6 +13586,11 @@
             participants: participants,
             resolvedAt: Date.now(),
           };
+          // 夜王模擬（2026-09-22）：跟rollAndAssignDay3Boss()同形，bossForm是選招表
+          // （pickAndResolveBossAction()）與形態別sheet（encounterSheetFile()）都會讀的欄位。
+          // 只在有值時帶入——Firebase不接受undefined。
+          if (sim.bossForm) trigOut.bossForm = sim.bossForm;
+          return trigOut;
         }).then(function (committed) {
           initFieldEnemyHpFromTrigger(BATTLE_SIM_POINT_ID, committed);
           return committed;
@@ -22238,6 +22448,7 @@
     renderEnterBattlePrompt();
     renderBattlePrepBanner(now);
     renderStaggerOverlay(now); // 體崩橫幅／致命一擊按鈕（每影格變動，不能放進有快取的renderFieldEncounterPanel）
+    updateBattleSimAnimCycle(now); // 戰鬥模擬的動作循環確認，要在tick()之前指定這一影格的動作
     if (window.PriTestMidnightSprite) window.PriTestMidnightSprite.tick(now);
     renderFinalCircleCountdown(now);
     updateStamina(dtSec);
@@ -23377,6 +23588,7 @@
         nearbyFinalCircleBoss: nearbyFinalCircleBoss,
         nearbyDay3Boss: nearbyDay3Boss,
         nearbyBattleSim: nearbyBattleSim, // 2026-09-22：戰鬥模擬的虛擬遭遇點
+        battleSimAnimCycle: battleSimAnimCycle, // 2026-09-22：動作循環確認的本地進度（{index, startAt}）
         activeEncounter: activeEncounter,
         myIncomingAttack: myIncomingAttack,
         nearbyStrongEnemy: nearbyStrongEnemy,
