@@ -3,8 +3,13 @@
 //   node tools/sprite_check/sprite_verify.js
 //
 // static_src/images/sprites/ を走査し、登録表にある名前か・合法な PNG か・
-// 6x8 の正方格に割り切れる寸法かを確認する。画像ライブラリは使わず PNG の IHDR だけ読む
+// 6x8 に割り切れる寸法かを確認する。画像ライブラリは使わず PNG の IHDR だけ読む
 // （専案に npm 相依を足さないため、spec §6 の前提）。
+//
+// 2026-09-22：セルは正方形でなくてもよくなった（使用者明確規格「分裂形態不用正方形沒關係」）。
+// 表現層は画像の実寸から 1 格の縦横比を割り出して描くようになっている
+// （midnight_sprite.js の cellAspectOf()）。ただし極端に潰れた比は「6x8 で切る前提そのものが
+// 間違っている」合図なので、0.4~2.5 倍の外は失格にする。
 const fs = require("fs");
 const path = require("path");
 const vm = require("vm");
@@ -24,8 +29,21 @@ function readPngSize(buffer) {
   return { width: buffer.readUInt32BE(16), height: buffer.readUInt32BE(20) };
 }
 
-function isGridDivisible(width, height) {
-  return width % COLS === 0 && height % ROWS === 0 && width / COLS === height / ROWS;
+const ASPECT_MIN = 0.4;  // 1 格の 高さ÷幅 の下限
+const ASPECT_MAX = 2.5;  // 同上限
+
+function gridErrorOf(width, height) {
+  if (width % COLS !== 0 || height % ROWS !== 0) {
+    return "寸法 " + width + "x" + height + " が 6x8 に割り切れない";
+  }
+  const aspect = (height / ROWS) / (width / COLS);
+  if (aspect < ASPECT_MIN || aspect > ASPECT_MAX) {
+    return (
+      "1 格が " + (width / COLS) + "x" + (height / ROWS) +
+      "（縦横比 " + aspect.toFixed(2) + "）。6x8 の切り方そのものが違う可能性が高い"
+    );
+  }
+  return null;
 }
 
 function verifyFile(filePath) {
@@ -37,8 +55,9 @@ function verifyFile(filePath) {
     errors.push("読み込めない: " + e.message);
   }
   if (!errors.length && !size) errors.push("合法な PNG ではない");
-  if (size && !isGridDivisible(size.width, size.height)) {
-    errors.push("寸法 " + size.width + "x" + size.height + " が 6x8 の正方格に割り切れない");
+  if (size) {
+    const gridError = gridErrorOf(size.width, size.height);
+    if (gridError) errors.push(gridError);
   }
   return { ok: errors.length === 0, errors: errors, size: size };
 }
@@ -85,6 +104,6 @@ function main() {
   process.exit(fail === 0 ? 0 : 1);
 }
 
-module.exports = { readPngSize: readPngSize, isGridDivisible: isGridDivisible, verifyFile: verifyFile };
+module.exports = { readPngSize: readPngSize, gridErrorOf: gridErrorOf, verifyFile: verifyFile };
 
 if (require.main === module) main();

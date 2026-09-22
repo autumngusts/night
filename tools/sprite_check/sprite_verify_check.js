@@ -28,10 +28,16 @@ ok(V.readPngSize(Buffer.from("not a png at all, just text")) === null, "PNG で�
 ok(V.readPngSize(null) === null, "null なら null");
 
 console.log("[6x8 に割り切れるか]");
-ok(V.isGridDivisible(768, 1024), "768x1024 は 6x8 の正方格 (128x128)");
-ok(!V.isGridDivisible(770, 1024), "770x1024 は横が割り切れない");
-ok(!V.isGridDivisible(768, 1000), "768x1000 は縦が割り切れない");
-ok(!V.isGridDivisible(768, 800), "768x800 は割り切れるが正方形でない (128x100)");
+ok(!V.gridErrorOf(768, 1024), "768x1024 は 6x8 に割り切れる (128x128)");
+ok(!!V.gridErrorOf(770, 1024), "770x1024 は横が割り切れない");
+ok(!!V.gridErrorOf(768, 1002), "768x1002 は縦が割り切れない");
+// 2026-09-22：正方形でなくてもよくなった（使用者明確規格「分裂形態不用正方形沒關係」）。
+// 表現層が画像の実寸から縦横比を読むため（midnight_sprite.js の cellAspectOf()）。
+ok(!V.gridErrorOf(768, 800), "768x800 は割り切れれば通る（128x100 の横長セル）");
+ok(!V.gridErrorOf(1680, 1280), "1680x1280 は通る（280x160、gladius 分裂形態の実寸）");
+// ただし極端な比は「6x8 で切る前提そのものが違う」合図なので弾く。
+ok(!!V.gridErrorOf(768, 200), "768x200 は 1 格 128x25 で潰れすぎ（縦横比 0.20）");
+ok(!!V.gridErrorOf(768, 3000), "768x3000 は 1 格 128x375 で縦長すぎ（縦横比 2.93）");
 
 console.log(fail === 0 ? "\nすべてOK" : "\n" + fail + " 件 FAIL");
 process.exit(fail === 0 ? 0 : 1);
