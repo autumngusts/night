@@ -4,6 +4,7 @@
   "version": "1.0.0",
   "description": "midnight（即時制擴張版）多裝置同步回歸測試腳本，見 multi_device_sync_check.js 開頭的說明。",
   "scripts": {
+    "test:boss_action_table": "node boss_action_table_check.js",
     "test": "node multi_device_sync_check.js",
     "test:emulator": "node emulator_sync_check.js",
     "test:new_chips": "node new_chips_check.js",
