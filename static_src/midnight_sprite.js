@@ -12,7 +12,8 @@
   var R = window.PriTestEnemySpriteRegistry;
 
   var stageEl = null;
-  var stageFace = null;
+  var stageFaces = []; // 1 体につき 1 枚。分裂した夜王は横に並べる（gladius 3 体／harmonia 9 体）
+  var stageCount = 1;
   var current = null; // { animId: string, startAt: number }
   var cellPx = 0;      // 1 格の横幅（舞台の幅そのもの）
   var cellHPx = 0;     // 1 格の高さ。正方形の sheet では cellPx と同じ
@@ -124,9 +125,29 @@
     stageEl = wrapEl.ownerDocument.createElement("div");
     stageEl.id = "midnight-enemy-sprite-stage";
     stageEl.hidden = true;
-    stageFace = makeFace(wrapEl.ownerDocument);
-    stageEl.appendChild(stageFace);
+    stageFaces = [];
     wrapEl.insertBefore(stageEl, wrapEl.firstChild);
+    ensureFaces(1);
+  }
+
+  // 表示する体数を count 枚に揃える（2026-09-22 使用者明確規格：三頭犬は分裂すると
+  // 「橫排產生三張（三隻各別單頭犬）」、harmonia の第二形態は分身が総勢 9 体）。
+  //
+  // 1 体のときは従来どおり舞台いっぱいに 1 枚。複数のときは舞台の幅を頭数で割って
+  // 横一列に並べる——数が増えるほど 1 体は小さくなるが、「何体いるか」が一目で分かる
+  // ほうが戰鬥の情報として要る。接地は全員そろえる（下端合わせ）。
+  function ensureFaces(count) {
+    if (!stageEl) return;
+    var doc = stageEl.ownerDocument;
+    while (stageFaces.length < count) {
+      var face = makeFace(doc);
+      stageEl.appendChild(face);
+      stageFaces.push(face);
+    }
+    while (stageFaces.length > count) {
+      var extra = stageFaces.pop();
+      if (extra.parentNode) extra.parentNode.removeChild(extra);
+    }
   }
 
   function showStatic() {
@@ -138,24 +159,47 @@
   // 視窗縮放／手機轉向後框寬會變，所以要能重算；但 backgroundSize 只在寬度真的變了
   // 才寫回 DOM，避免每一影格都觸發樣式重算。
   function syncCellPx() {
-    if (!stageEl || !stageFace) return;
-    var px = stageEl.offsetWidth || 128;
+    if (!stageEl || !stageFaces.length) return;
+    var boxW = stageEl.offsetWidth || 128;
+    var n = stageFaces.length;
+    // 5 体までは横一列。それを超えると 1 体が細くなりすぎるので 2 段に組む
+    // （9 体なら後列 4＋前列 5）。後列は少し上げて中央へ寄せ、群れに見せる。
+    var cols = n <= 5 ? n : Math.ceil(n / 2);
+    var backCount = n - cols;
+    var px = Math.floor(boxW / cols);
     var aspect = cellAspectOf(currentSheet);
     if (px === cellPx && aspect === stageAspect) return;
     cellPx = px;
     stageAspect = aspect;
     cellHPx = Math.round(px * aspect);
-    stageFace.style.height = cellHPx + "px";
-    stageFace.style.backgroundSize = S.SHEET_COLS * cellPx + "px " + S.SHEET_ROWS * cellHPx + "px";
+    stageFaces.forEach(function (face, i) {
+      var isBack = i < backCount;
+      var col = isBack ? i : i - backCount;
+      var offset = isBack ? Math.round(px / 2) : 0;
+      face.style.left = col * px + offset + "px";
+      face.style.right = "auto";
+      face.style.width = px + "px";
+      face.style.height = cellHPx + "px";
+      face.style.bottom = (isBack ? Math.round(cellHPx * 0.45) : 0) + "px";
+      face.style.backgroundSize = S.SHEET_COLS * cellPx + "px " + S.SHEET_ROWS * cellHPx + "px";
+    });
   }
 
   // 回傳 true＝sprite 舞台已顯示（疊在插圖之上）；
   // 回傳 false＝顯示不了（例如 stageEl 還沒 mount），呼叫端要改叫 showStatic() 收掉舞台。
   // 不論回傳什麼，呼叫端都不該去動 <img> 的 hidden——插圖一律留著當背景。
-  function showSprite(sheetFile, staticPrefix) {
-    if (!stageEl || !stageFace) return false;
-    stageFace.style.backgroundImage =
-      "url(" + (staticPrefix || "../static/") + "images/sprites/" + sheetFile + ")";
+  function showSprite(sheetFile, staticPrefix, count) {
+    if (!stageEl) return false;
+    var n = Math.max(1, Math.min(12, Math.round(count || 1)));
+    if (n !== stageCount) {
+      stageCount = n;
+      cellPx = 0; // 頭数が変われば 1 体の幅も変わる
+    }
+    ensureFaces(n);
+    var url = "url(" + (staticPrefix || "../static/") + "images/sprites/" + sheetFile + ")";
+    stageFaces.forEach(function (face) {
+      face.style.backgroundImage = url;
+    });
     stageEl.hidden = false;
     currentSheet = sheetFile;
     preload(sheetFile, staticPrefix); // セルの縦横比を読むため、Image を必ず 1 つ持っておく
@@ -237,6 +281,95 @@
     deathFace.style.backgroundPosition = backgroundPosition("death", idx, px, deathCellH);
   }
 
+  // ---- 夜王を倒したときの中央演出（2026-09-22 使用者明確規格「擊破後不用再右上角播放
+  // 死亡動畫：打贏這個就是遊戲勝利故直接在中間展示動畫，且死亡動畫播放速度極慢」）----
+  //
+  // 右上の小視窗（playDeathPopup）は一般敵・強敵用。夜王は倒した時点でゲーム勝利なので、
+  // 勝利彈窗の中に大きく出す。彈窗は全画面の覆いなので、その中に置かないと隠れてしまう。
+  // 再生は DEFEAT_SLOW 倍だけ引き伸ばし、最後の幀で止めたままにする（自動では消さない
+  // ——プレイヤーが彈窗を閉じるまで見せる）。
+  var DEFEAT_SLOW = 6;
+  var defeatEl = null;
+  var defeatFaces = [];
+  var defeatPlay = null; // { startAt, sheet }
+  var defeatCellPx = 0;
+  var defeatCellH = 0;
+  var defeatAspect = 1;
+
+  function mountDefeatStage(containerEl) {
+    if (!containerEl) return;
+    if (defeatEl && defeatEl.parentNode === containerEl) return;
+    if (defeatEl && defeatEl.parentNode) defeatEl.parentNode.removeChild(defeatEl);
+    defeatEl = containerEl.ownerDocument.createElement("div");
+    defeatEl.id = "midnight-boss-defeat-stage";
+    defeatEl.hidden = true;
+    defeatFaces = [];
+    containerEl.appendChild(defeatEl);
+  }
+
+  function playDefeat(sheetFile, staticPrefix, now, count) {
+    if (!defeatEl || !sheetFile) return false;
+    var n = Math.max(1, Math.min(12, Math.round(count || 1)));
+    var doc = defeatEl.ownerDocument;
+    while (defeatFaces.length < n) {
+      var face = makeFace(doc);
+      defeatEl.appendChild(face);
+      defeatFaces.push(face);
+    }
+    while (defeatFaces.length > n) {
+      var extra = defeatFaces.pop();
+      if (extra.parentNode) extra.parentNode.removeChild(extra);
+    }
+    preload(sheetFile, staticPrefix);
+    var url = "url(" + (staticPrefix || "../static/") + "images/sprites/" + sheetFile + ")";
+    defeatFaces.forEach(function (f) {
+      f.style.backgroundImage = url;
+    });
+    defeatEl.hidden = false;
+    defeatCellPx = 0; // 強制的に測り直す
+    defeatPlay = { startAt: now, sheet: sheetFile };
+    tickDefeat(now);
+    return true;
+  }
+
+  function hideDefeat() {
+    if (defeatEl) defeatEl.hidden = true;
+    defeatPlay = null;
+  }
+
+  function tickDefeat(now) {
+    if (!defeatEl || defeatEl.hidden || !defeatPlay || !defeatFaces.length) return;
+    var n = defeatFaces.length;
+    var cols = n <= 5 ? n : Math.ceil(n / 2);
+    var backCount = n - cols;
+    var boxW = defeatEl.offsetWidth || 320;
+    var px = Math.floor(boxW / cols);
+    var aspect = cellAspectOf(defeatPlay.sheet);
+    if (px !== defeatCellPx || aspect !== defeatAspect) {
+      defeatCellPx = px;
+      defeatAspect = aspect;
+      defeatCellH = Math.round(px * aspect);
+      defeatEl.style.height = Math.round(defeatCellH * (n <= 5 ? 1 : 1.45)) + "px";
+      defeatFaces.forEach(function (face, i) {
+        var isBack = i < backCount;
+        var col = isBack ? i : i - backCount;
+        face.style.left = col * px + (isBack ? Math.round(px / 2) : 0) + "px";
+        face.style.right = "auto";
+        face.style.width = px + "px";
+        face.style.height = defeatCellH + "px";
+        face.style.bottom = (isBack ? Math.round(defeatCellH * 0.45) : 0) + "px";
+        face.style.backgroundSize = S.SHEET_COLS * px + "px " + S.SHEET_ROWS * defeatCellH + "px";
+      });
+    }
+    // 「極慢」：経過時間を DEFEAT_SLOW で割って幀を引く。最後の幀（death は hold）で止まる。
+    var idx = frameIndexAt("death", (now - defeatPlay.startAt) / DEFEAT_SLOW);
+    if (idx === null) idx = S.getAnim("death").frameCount - 1;
+    var pos = backgroundPosition("death", idx, defeatCellPx, defeatCellH);
+    defeatFaces.forEach(function (face) {
+      face.style.backgroundPosition = pos;
+    });
+  }
+
   // ---- 預載（2026-09-22 使用者明確規格「實際遊戲內模式也要確實的出現而不要晚出現」）----
   // sheet 每張 1.4~2.4MB，showSprite() 才設 backgroundImage 的話，圖片載完前舞台是空的。
   // 呼叫端在「遭遇成為候選」（識別資訊準備／進入戰鬥讀條）與等待房抽到模擬敵人時就先
@@ -265,6 +398,7 @@
 
   function tick(now) {
     tickDeathPopup(now);
+    tickDefeat(now);
     if (!stageEl || stageEl.hidden || !current) return;
     syncCellPx();
     var idx = frameIndexAt(current.animId, now - current.startAt);
@@ -272,12 +406,19 @@
       playAnim("idle", now);
       idx = 0;
     }
-    stageFace.style.backgroundPosition = backgroundPosition(current.animId, idx, cellPx, cellHPx);
+    var pos = backgroundPosition(current.animId, idx, cellPx, cellHPx);
+    stageFaces.forEach(function (face) {
+      face.style.backgroundPosition = pos;
+    });
   }
 
   window.PriTestMidnightSprite = {
     mountDeathPopup: mountDeathPopup,
     playDeathPopup: playDeathPopup,
+    mountDefeatStage: mountDefeatStage,
+    playDefeat: playDefeat,
+    hideDefeat: hideDefeat,
+    defeatSlowFactor: function () { return DEFEAT_SLOW; },
     preload: preload,
     cellAspectOf: cellAspectOf,
     sheetFileFor: sheetFileFor,
@@ -288,6 +429,7 @@
     mount: mount,
     showStatic: showStatic,
     showSprite: showSprite,
+    spriteCount: function () { return stageCount; },
     playAnim: playAnim,
     currentAnimId: currentAnimId,
     tick: tick

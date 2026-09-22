@@ -558,6 +558,10 @@ BODY = """    <div class="midnight-wrap">
         <div id="midnight-game-victory-modal" hidden>
           <div id="midnight-game-victory-box">
             <h3 data-i18n="midnight_game_victory_title"></h3>
+            <!-- 夜王の死亡動畫（2026-09-22 使用者明確規格「直接在中間展示動畫，且死亡動畫
+                 播放速度極慢」）：右上の小視窗ではなくここで大きく流す。中身は
+                 midnight_sprite.js の mountDefeatStage() が作る。 -->
+            <div id="midnight-game-victory-sprite"></div>
             <p id="midnight-game-victory-text"></p>
             <button type="button" id="btn-midnight-game-victory-confirm" data-i18n="midnight_game_victory_confirm_button"></button>
           </div>

@@ -87,8 +87,10 @@ ok(
   mnSrc.indexOf('el("midnight-field-encounter-image").hidden = true;') === -1,
   "一般敵分支で <img> を隠す行が消えている（插圖は背景として残す）"
 );
+// 条件式は複数行に分かれていることがある（体数の引数が増えて折り返した）ので、
+// 行頭の if まで含めずに「!(… showSprite(」の形だけを数える。
 ok(
-  (mnSrc.match(/if \(!\(\w+ && window\.PriTestMidnightSprite\.showSprite\(/g) || []).length === 2,
+  (mnSrc.match(/!\(\w+ && window\.PriTestMidnightSprite\.showSprite\(/g) || []).length === 2,
   "両分支とも showSprite() の失敗時だけ showStatic() に落ちる形（成功時に <img> を触らない）"
 );
 
@@ -96,6 +98,42 @@ ok(
 // 「剩餘還沒配對的會先隨機抽取一張點陣圖」）。ここで一番大事なのは「同じ敵なら常に
 // 同じ代役」であること——sheetFileFor は毎影格呼ばれるので、乱数だと 1 影格ごとに
 // 別の生き物に化ける。ハッシュ由来であることを繰り返し呼んで確かめる。
+// 体数（2026-09-22 使用者明確規格）：gladius の分裂は 3 体、harmonia の第二形態は 9 体、
+// それ以外は 1 体。形態変化には 30 秒の最短持続がある。
+console.log("[形態ごとの体数]");
+ok(/gladius: \{ split: 3 \}/.test(mnSrc), "gladius は分裂形態で 3 体");
+ok(/harmonia: \{ split: 9 \}/.test(mnSrc), "harmonia は第二形態で 9 体");
+ok(/BOSS_FORM_MIN_HOLD_MS = 30000/.test(mnSrc), "形態変化の最短持続は 30 秒");
+ok(
+  mnSrc.indexOf("Date.now() - lastFlipAt >= BOSS_FORM_MIN_HOLD_MS") !== -1,
+  "30 秒経つまでは形態を据え置く（招式自体は発動する）"
+);
+ok(
+  mnSrc.indexOf("encounterSpriteCount(trig)") !== -1,
+  "showSprite() に体数を渡している"
+);
+
+// 夜王の擊破演出（2026-09-22 使用者明確規格「擊破後不用再右上角播放死亡動畫：打贏這個就是
+// 遊戲勝利故直接在中間展示動畫，且死亡動畫播放速度極慢」）。
+console.log("[夜王の擊破演出]");
+const spSrc = fs.readFileSync(path.join(ROOT, "static_src", "midnight_sprite.js"), "utf8");
+ok(
+  mnSrc.indexOf("if (id === DAY3_BOSS_POINT_ID) return;") !== -1,
+  "夜王は右上の死亡小視窗に出さない"
+);
+ok(mnSrc.indexOf("Sprite.playDefeat(") !== -1, "勝利彈窗の中で死亡動畫を流す");
+ok(
+  mnSrc.indexOf('Sprite.mountDefeatStage(el("midnight-game-victory-sprite"))') !== -1,
+  "演出の入れ物は勝利彈窗の中（全画面の覆いの内側）"
+);
+ok(/var DEFEAT_SLOW = (\d+)/.test(spSrc) && +RegExp.$1 >= 4, "死亡動畫は 4 倍以上ゆっくり（実際 " + RegExp.$1 + " 倍）");
+ok(
+  spSrc.indexOf('frameIndexAt("death", (now - defeatPlay.startAt) / DEFEAT_SLOW)') !== -1,
+  "経過時間を割って幀を引いている（データ側の frameMs は触らない）"
+);
+const pageSrc = fs.readFileSync(path.join(ROOT, "site_src", "midnight_page.py"), "utf8");
+ok(pageSrc.indexOf('id="midnight-game-victory-sprite"') !== -1, "勝利彈窗に入れ物がある");
+
 console.log("[未產出への代役]");
 const sub1 = P.sheetFileOrSubstitute("dragon", "hill_wyvern", false);
 ok(typeof sub1 === "string", "未產出の family にも代役が返る");

@@ -24,6 +24,17 @@ const FAMILIES = [].concat(
   sandbox.window.PriTestEnemiesData4
 );
 
+// 夜の王の招式も対照表に入れる（2026-09-22）。
+// それまでこの生成器は enemies_data_* しか見ておらず、夜の王の 69 招はどれも表に無かった。
+// 実行時は resolve() が dmgKind で退くので、乱戦傷害＝area／個別傷害＝single の 2 種類しか
+// 再生されない＝ sheet に描いた直線・突刺・重砸の 3 行がほぼ死んでいた。
+vm.runInContext(
+  fs.readFileSync(path.join(ROOT, "static_src", "night_boss_rulebook.js"), "utf8"),
+  sandbox,
+  { filename: "night_boss_rulebook.js" }
+);
+const BOSSES = sandbox.window.PriTestBossRulebook.list();
+
 // キーワード表（spec §7.2）。上から順に判定し、最初に当たったものを採用する。
 const KEYWORDS = [
   { anim: "thrust", re: /突き|突進|刺し|貫/ },
@@ -253,6 +264,83 @@ function classify(name) {
   return null;
 }
 
+// 攻擊動作（待機・受擊・死亡は招式に割り当てない）。順番は enemy_sprite_data.js の row 順。
+const ATTACK_ANIMS = ["line", "area", "thrust", "slam", "single"];
+
+// 夜の王 1 隻ぶんの招式名を、表に出てくる順で取り出す。
+function bossMoveNames(boss) {
+  const cols = boss.actionColumns.map(function (c) {
+    return (c && (c.ja || c.zh)) || "";
+  });
+  let nameIdx = cols.indexOf("アクション名");
+  if (nameIdx === -1) nameIdx = boss.actionColumns.length - 3;
+  const out = [];
+  boss.actions.forEach(function (row) {
+    const cell = row[nameIdx];
+    const ja = cell && cell.ja ? cell.ja : "";
+    if (ja && ja !== "—" && out.indexOf(ja) === -1) out.push(ja);
+  });
+  return out;
+}
+
+// 夜の王ごとに独立した対照表を作る（2026-09-22）。
+//
+// 一般敵と同じ BY_NAME に混ぜると、「噛みつき」のように名前を共有している招式を
+// 動かしたとき一般敵の動畫まで変わってしまう。夜の王は 10 隻しかおらず、招式も
+// 各 5~8 招なので、隻ごとに持たせたほうが後から手で調整するときも楽。
+//
+// 埋め方（使用者明確規格「先分析第一波，安排相應動畫，剩下不好分的可以直接由還沒有
+// 被選中的動畫隨機挑選；這樣就能保持全部動畫都有機會登場」）：
+//   ① キーワード表／OVERRIDES で当たるものを先に決める
+//   ② まだ出番の無い動畫を、表に出てくる順で未決定の招式に配る
+//   ③ それでも余る動畫があれば、同じ動畫が 2 つ以上に付いている招式から 1 つ譲る
+// 乱数は使わない——生成時に決めて対照表へ焼き込むので、全端末で同じでなければならない。
+function buildBossMaps(classifyFn) {
+  const maps = {};
+  const report = [];
+  BOSSES.forEach(function (boss) {
+    const moves = bossMoveNames(boss);
+    const decided = {};
+    const used = {};
+    let byKeyword = 0;
+    moves.forEach(function (n) {
+      const anim = classifyFn(n);
+      if (anim) {
+        decided[n] = anim;
+        used[anim] = true;
+        byKeyword++;
+      }
+    });
+    const unused = ATTACK_ANIMS.filter(function (a) {
+      return !used[a];
+    });
+    let cycle = 0;
+    moves.forEach(function (n) {
+      if (decided[n]) return;
+      decided[n] = unused.length ? unused.shift() : ATTACK_ANIMS[cycle++ % ATTACK_ANIMS.length];
+    });
+    while (unused.length) {
+      const counts = {};
+      moves.forEach(function (n) {
+        counts[decided[n]] = (counts[decided[n]] || 0) + 1;
+      });
+      let donor = null;
+      for (let i = moves.length - 1; i >= 0; i--) {
+        if (counts[decided[moves[i]]] > 1) {
+          donor = moves[i];
+          break;
+        }
+      }
+      if (!donor) break;
+      if (classifyFn(donor)) byKeyword--;
+      decided[donor] = unused.shift();
+    }
+    maps[boss.id] = decided;
+    report.push({ boss: boss.id, moves: moves, decided: decided, byKeyword: byKeyword });
+  });
+  return { maps: maps, report: report };
+}
+
 const names = {};
 FAMILIES.forEach(function (f) {
   f.enemies.forEach(function (e) {
@@ -262,6 +350,9 @@ FAMILIES.forEach(function (f) {
     });
   });
 });
+
+// 夜の王は隻ごとの独立表（BY_BOSS）。一般敵の BY_NAME には混ぜない。
+const bossBuild = buildBossMaps(classify);
 
 const all = Object.keys(names).sort();
 const mapped = {};
@@ -282,6 +373,30 @@ const mappedRows = Object.keys(mapped).reduce(function (sum, n) {
 console.log("相異招式名: " + all.length + " / 総筆数: " + rows);
 console.log("対応済み: " + Object.keys(mapped).length + " 名 (" + mappedRows + " 筆)");
 console.log("未対応: " + unmapped.length + " 名 (" + (rows - mappedRows) + " 筆)");
+console.log("");
+console.log("[夜の王（隻ごとの独立表）]");
+bossBuild.report.forEach(function (r) {
+  const counts = {};
+  r.moves.forEach(function (n) {
+    counts[r.decided[n]] = (counts[r.decided[n]] || 0) + 1;
+  });
+  const missing = ATTACK_ANIMS.filter(function (a) {
+    return !counts[a];
+  });
+  console.log(
+    "  " + r.boss.padEnd(10) + " 招式 " + String(r.moves.length).padStart(2) +
+      "（キーワード " + r.byKeyword + " / 補充 " + (r.moves.length - r.byKeyword) + "）  " +
+      ATTACK_ANIMS.map(function (a) {
+        return a + "×" + (counts[a] || 0);
+      }).join(" ") +
+      (missing.length ? "  ← " + missing.join(",") + " が出番なし" : "")
+  );
+  if (process.argv.indexOf("--verbose") !== -1) {
+    r.moves.forEach(function (n) {
+      console.log("      " + r.decided[n].padEnd(7) + n);
+    });
+  }
+});
 
 if (process.argv.indexOf("--write") === -1) {
   console.log("\n[未対応の長尾（出現数の多い順）]");
@@ -305,6 +420,13 @@ const lines = all
     return '    "' + n + '": "' + mapped[n] + '"';
   });
 
+const bossLines = bossBuild.report.map(function (r) {
+  const inner = r.moves.map(function (n) {
+    return '      "' + n + '": "' + r.decided[n] + '"';
+  });
+  return '    "' + r.boss + '": {\n' + inner.join(",\n") + "\n    }";
+});
+
 const out =
   "(function () {\n" +
   "  // 招式名 → 動畫 id 的對照表。\n" +
@@ -314,17 +436,25 @@ const out =
   "  var BY_NAME = {\n" +
   lines.join(",\n") +
   "\n  };\n\n" +
+  "  // 夜の王は隻ごとの表。招式名が一般敵と被っても、こちらが優先される。\n" +
+  "  var BY_BOSS = {\n" +
+  bossLines.join(",\n") +
+  "\n  };\n\n" +
   "  // actionName 可以直接吃 enemies_data_*.js 的 action.name——實際資料是\n" +
   '  // { ja: "叩きつけ", zh: "砸擊" } 這種多語物件，enemyAttack.actionName 也是這個形狀。\n' +
   '  // 當成字串處理的話 BY_NAME[物件] 會去查 "[object Object]"，永遠落到 dmgKind 預設，\n' +
   "  // 整張對照表就形同虛設。所以以 ja 為鍵，同時也接受直接傳字串。\n" +
-  "  function resolve(actionName, dmgKind) {\n" +
+  "  // 第3引数に夜王 id を渡すと、その夜王専用の表を先に引く。夜の王の招式は名前が\n" +
+  "  // 一般敵と被ることがあり（噛みつき・突進など）、共用の BY_NAME に混ぜると一般敵の\n" +
+  "  // 動畫まで巻き添えになるので、隻ごとに分けてある。\n" +
+  "  function resolve(actionName, dmgKind, bossId) {\n" +
   '    var key = actionName && typeof actionName === "object" ? actionName.ja : actionName;\n' +
+  "    if (key && bossId && BY_BOSS[bossId] && BY_BOSS[bossId][key]) return BY_BOSS[bossId][key];\n" +
   "    if (key && BY_NAME[key]) return BY_NAME[key];\n" +
   '    if (dmgKind === "group") return "area";\n' +
   '    return "single";\n' +
   "  }\n\n" +
-  "  window.PriTestEnemyActionAnimMap = { byName: BY_NAME, resolve: resolve };\n" +
+  "  window.PriTestEnemyActionAnimMap = { byName: BY_NAME, byBoss: BY_BOSS, resolve: resolve };\n" +
   "})();\n";
 
 fs.writeFileSync(path.join(ROOT, "static_src", "enemy_action_anim_map.js"), out, "utf8");

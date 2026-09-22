@@ -87,11 +87,49 @@ ok(M.resolve({}, "single") === "single", "空物件は既定値へ");
 
 // 対照表を実際に引いている呼び出し端があるか。ここが無い間は showSprite() の idle が
 // ループするだけで、補標も対照表も実行時には何も起きていなかった（2026-09-21 に結線）。
+console.log("[夜王ごとの対照表]");
+// 夜の王は隻ごとの表（BY_BOSS）を持つ。招式名が一般敵と被っても、こちらが優先される。
+// 5 種類の攻擊動畫が全部登場することを見る（使用者明確規格「這樣就能保持全部動畫都有
+// 機會登場」）——1 隻の招式は 5~8 招あるので、全種類ぶんの枠は必ずある。
+const ATTACK_ANIMS = ["line", "area", "thrust", "slam", "single"];
+const bossSandbox = { window: {}, console: { log: function () {} } };
+vm.createContext(bossSandbox);
+vm.runInContext(
+  fs.readFileSync(path.join(ROOT, "static_src", "night_boss_rulebook.js"), "utf8"),
+  bossSandbox,
+  { filename: "night_boss_rulebook.js" }
+);
+const bosses = bossSandbox.window.PriTestBossRulebook.list();
+ok(!!M.byBoss, "BY_BOSS が公開されている");
+bosses.forEach(function (boss) {
+  const table = (M.byBoss || {})[boss.id];
+  const cols = boss.actionColumns.map(function (c) { return (c && (c.ja || c.zh)) || ""; });
+  let nameIdx = cols.indexOf("アクション名");
+  if (nameIdx === -1) nameIdx = boss.actionColumns.length - 3;
+  const moves = [];
+  boss.actions.forEach(function (row) {
+    const ja = row[nameIdx] && row[nameIdx].ja;
+    if (ja && ja !== "—" && moves.indexOf(ja) === -1) moves.push(ja);
+  });
+  const missing = moves.filter(function (n) { return !table || !table[n]; });
+  ok(missing.length === 0, boss.id + " の全 " + moves.length + " 招に動畫がある" + (missing.length ? "（欠け: " + missing.join("、") + "）" : ""));
+  const used = {};
+  moves.forEach(function (n) { if (table && table[n]) used[table[n]] = true; });
+  const unused = ATTACK_ANIMS.filter(function (a) { return !used[a]; });
+  ok(unused.length === 0, boss.id + " は 5 種類の攻擊動畫すべてに出番がある" + (unused.length ? "（出番なし: " + unused.join(",") + "）" : ""));
+  // 夜王専用の表が一般敵の表を壊していないこと（同名でも別の値を持てる）
+  moves.forEach(function (n) {
+    if (!table || !table[n]) return;
+    const viaBoss = M.resolve(n, "group", boss.id);
+    ok(viaBoss === table[n], boss.id + "／" + n + " は夜王表から引かれる（" + viaBoss + "）");
+  });
+});
+
 console.log("[midnight.js から実際に引かれている]");
 const mnSrc = fs.readFileSync(path.join(ROOT, "static_src", "midnight.js"), "utf8");
 ok(
-  mnSrc.indexOf("AnimMap.resolve(atk.actionName, atk.dmgKind)") !== -1,
-  "attack 動畫が招式名から引かれている"
+  mnSrc.indexOf("AnimMap.resolve(atk.actionName, atk.dmgKind, animBossId)") !== -1,
+  "attack 動畫が招式名（＋夜王 id）から引かれている"
 );
 // 2026-09-22（v0.40.0）迴避時機判定の改版で、呼び出しは now 付きになり、startAt は
 // 「warnAt と同時」から「各下の T(k)−0.1s」（spriteHitAt()）に変わった。spriteHitAt() の
