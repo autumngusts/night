@@ -1108,3 +1108,75 @@ HP 刻度與 PC 相同用「格×10」（`SPIRIT_HP_PER_ROW = 10`），不套用
 需 emulator）28 個斷言：Lv1→2 HP 110/150→120/160、Lv2→3 FP +10/+10、Lv3→4 體力 +5/+5、
 Lv4→3 體力同額扣回、三隻靈體 HP 20/50/60；靈體受傷→戰鬥結束保持 20→再召喚 20/50→陣亡 0
 →不能召喚→祝福 +上限/2（不超上限）→同一祝福再用不回復→另一祝福再回復→換日補滿→選單顯示現在/上限；第 10 隻夜王 nameless 名簿與圖片。
+
+## 22. 2026-09-22：夜王「有動畫但沒有攻擊」的根因與三招手動招式的接入
+
+### 22.1 症狀與根因
+
+使用者回報「有時候夜王有動畫但是沒有任何攻擊，沒有攻擊提示」。追下去是同一個結構性問題，
+不是偶發競態：
+
+`boss_auto_gm_data.js` 有三行只登錄出目、不登錄 `groupDamage`／`individualDamage`——因為規則書
+本身把這三招寫成「GM 手動裁決」：傷害是「HP損害：■」（■ 的數值規則書留白）、效果跨階段、
+或需要先擲運試才知道誰被打中。對 night.js（有 GM 的桌面）那是正確的設計。
+
+| 夜王 | 出目 | 招式 | 規則書為何沒有結構化 |
+| --- | --- | --- | --- |
+| gnoster | 5 | 叫び＆滞空 | 傷害是「HP損害：■×4／■×2」，■ 未定義 |
+| caligo | 6 | 広範囲氷柱落とし | 這個防禦階段不行動，下個階段才結算＋再抽一次（跨階段） |
+| caligo | 7 | 広範囲冷風＆氷霜 | 要每人先擲〈12／10｜運試し〉，失敗者才被打中 |
+
+midnight 沒有 GM。`pickAndResolveBossAction()` 解析不出 `kind` 就回傳 `null`，但呼叫端仍然寫入
+一筆 `enemyAttack`（`targetSlots: []`、`dmgAmount: 0`）。於是：
+
+- `maybePlayEnemyAttackAnim()` 只看 `trig.enemyAttack.attackId`，照常播攻擊動畫；
+- `updateMyIncomingAttack()` 的 `targeted` 對每個人都是 false，所以沒有紅光警示、沒有傷害；
+- `maybeFinishEnemyAttack()` 是時間制，時間到自己清掉——**不是卡死，是白白空轉一個攻擊週期**。
+
+出現頻率：gnoster 1/6；caligo 體崩前 1/6、體崩後（行動激化 1D＋2）2/6＝33%。
+
+### 22.2 對策（一）：不再寫入空的攻擊
+
+`maybeStartEnemyAttack()` 的夜王分支改成「`bossOutcome` 為 null 就不寫 `enemyAttack`」，只把
+`nextAttackAt` 推到 `BOSS_ACT_AGAIN_DELAY_MS`（1.2 秒）後重抽。這一層跟下面的手動表無關——
+日後任何新增／修改的行若又解析不出傷害，最壞情況是稍微延後一次出招，不會再出現
+「動畫有、攻擊沒有」。
+
+### 22.3 對策（二）：`BOSS_MANUAL_ACTIONS`（midnight 專用補完表）
+
+放在 `static_src/midnight.js`，**不動 `boss_auto_gm_data.js`**——那份資料跟 night.js 共用，
+那邊「交給 GM 判斷」才是正確行為，改共用資料等於奪走 GM 的裁量。
+
+`■` 的換算沿用既有刻度 `BLOCK_SQUARE_COUNT_TO_RESOURCE_MULT = 10`（使用者明確規格
+「■一個在 night 是一格，midnight 是 10」）。
+
+| 招式 | mode | midnight 的對應 |
+| --- | --- | --- |
+| gnoster 叫び＆滞空 | `hpLoss` | 敵視 1 以上＝HP −40，其餘＝HP −20；玩家按防禦所花的每 1 顆體力骰減輕 10 |
+| caligo 広範囲氷柱落とし | `charge` | 這一輪不攻擊（動畫照播＝蓄力／滯空）→ 下一次攻擊結算 420＋凍傷 2，結算後 1.2 秒立刻再抽一次（抽到自己就重抽，最多 8 次） |
+| caligo 広範囲冷風＆氷霜 | `luck` | 出招時把全員放進 `targetSlots`，著彈時每人在自己的端上擲一次運試（敵視 1 以上 12／其餘 10），**成功者完全免疫**，失敗者吃 300＋凍傷 3 |
+
+幾個刻意的判斷：
+
+- **HP損害不是「傷害」**：`resolveMyIncomingHit()` 裡 `st.hpLoss` 直接覆寫 `damage`，不經過
+  `÷10`、防禦％、暫時減傷、隊伍減傷、武器詞條那幾層乘法——規則書唯一承認的減免就是
+  「每消耗 1 個體力骰減輕■」。迴避／特殊防禦對它無效（進函式的第一行就降級成命中，
+  順便避免白花特殊防禦的成本）。但仍排在救世之翼／鐵壺（完全無效化）之前，那兩個是
+  「不受傷害」的強效果，讓它們也擋得住比較安全。
+- **運試在著彈時、由各自的端擲**：規則書是「先判定、失敗者才受傷」，而 `enemyAttack` 的結構是
+  出招當下就決定 `targetSlots`。與其改結構，不如把「目標」放寬成全員、把判定下放到接收側
+  （`st.luckCheck.bySlot[mySlot]` 帶著各自的目標值），一次攻擊只擲一次（`st.luckChecked`）。
+- **連擊固定 1 下**：三招都是規則書的「個別效果」一次份，`hitCount` 固定 1，不走
+  `pickEnemyAttackHitCount()` 的 1~3 下。
+- **凍傷／猛毒不另外實作**：note 原文裡的「凍傷：2D」「猛毒：1D」由既有的
+  `parseElementalAttacksFromAction()` 解析，跟其他招式同一條路。即時制沒有前衛／後衛，
+  規則書寫給後衛的效果一律視為全員（既有簡化，見 §7）。
+- **蓄力的跨階段狀態放 `fieldTrigger`**（`bossChargePending`／`bossChargeNoRepeat`），跟
+  `bossForm` 一樣全端共享——放本地會讓不同人看到不同的結算。
+
+### 22.4 回歸測試
+
+`tools/midnight_check/boss_action_table_check.js` 追加一節「出目のある行は必ず攻擊になる」：
+逐一檢查 10 隻夜王每個有出目的行，必須「有結構化傷害」或「在 `BOSS_MANUAL_ACTIONS` 裡」，
+兩者皆無就 FAIL 並指名該招式。表是直接從 `midnight.js` 原始碼解析出來的，所以改表就會反映。
+目前 10 隻全數通過，空振的行剛好就是上表那 3 行。

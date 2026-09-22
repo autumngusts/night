@@ -116,5 +116,43 @@ Rulebook.list().forEach(function (boss) {
   ok(missing.length === 0, boss.id + " の出目つき行は全て構造化されている" + (missing.length ? "（欠け: " + missing.join("、") + "）" : ""));
 });
 
+console.log("[出目のある行は必ず攻擊になる（midnight）]");
+// 2026-09-22 に見つかった症状「有時候夜王有動畫但是沒有任何攻擊」の再発防止。
+// 構造化テーブルに groupDamage も individualDamage も無い行（＝規則書が「HP損害：■」
+// などでGM手動に委ねている行）は、midnight では pickAndResolveBossAction() が null を
+// 返してしまう。midnight.js 側の BOSS_MANUAL_ACTIONS がその行を拾っていれば攻擊になる
+// ので、「構造化されている」か「手動表にある」かのどちらかを必ず満たすことを見る。
+const midnightSrc = fs.readFileSync(path.join(ROOT, "static_src", "midnight.js"), "utf8");
+const manualBlock = /var BOSS_MANUAL_ACTIONS = \{([\s\S]*?)\n  \};/.exec(midnightSrc);
+const manualKeys = manualBlock
+  ? (manualBlock[1].match(/"[^"]+\/[^"]+":/g) || []).map(function (k) {
+      return k.slice(1, -2);
+    })
+  : [];
+ok(manualKeys.length > 0, "midnight.js の BOSS_MANUAL_ACTIONS を読めた（" + manualKeys.length + " 件）");
+Rulebook.list().forEach(function (boss) {
+  const data = AutoGmData.get(boss.id);
+  if (!data) return;
+  const cols = boss.actionColumns.map(txt);
+  const nameIdx = cols.indexOf("アクション名");
+  const formAware = !!data.formAware;
+  const blank = [];
+  boss.actions.forEach(function (raw, i) {
+    const hasRoll = formAware ? !!parseRange(raw[0]) || !!parseRange(raw[1]) : !!parseRange(raw[0]);
+    if (!hasRoll) return;
+    const row = data.rows[i];
+    if (!row) return; // 欠けは上のチェックが報告する
+    const structured = !!row.groupDamage || !!(row.individualDamage && row.individualDamage.length);
+    if (structured) return;
+    if (manualKeys.indexOf(boss.id + "/" + txt(raw[nameIdx])) !== -1) return;
+    blank.push(txt(raw[nameIdx]));
+  });
+  ok(
+    blank.length === 0,
+    boss.id + " の出目つき行は全て攻擊として成立する" +
+      (blank.length ? "（空振り: " + blank.join("、") + " — BOSS_MANUAL_ACTIONS に追加が要る）" : "")
+  );
+});
+
 console.log(fail === 0 ? "\nすべてOK" : "\n" + fail + " 件 FAIL");
 process.exit(fail === 0 ? 0 : 1);

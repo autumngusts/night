@@ -9994,13 +9994,134 @@
   //     從既有資料確認的機制）一律不自動計算，只在renderEnemyAttackOverlay()額外顯示
   //     規則書原文note，交由玩家自行判斷（CLAUDE.md §19「■」處理方式）。
   // 找不到資料/選不出招時回傳null，呼叫端要能處理「這次抽不到招式」。
-  function pickAndResolveBossAction(bossId, trig) {
+  // ---- 規則書が「GM手動」に逃がしている夜王の招式を、即時制で成立させるための補完 ----
+  // （2026-09-22、使用者の調査依頼「有時候夜王有動畫但是沒有任何攻擊」の原因と対処）
+  //
+  // boss_auto_gm_data.js は、傷害が「HP損害：■」表記で数値が確定しないもの、ターンを
+  // またぐもの、運試しが要るものを構造化せず conditions にだけ残している（GM卓向けには
+  // 正しい判断）。midnight には GM がいないので、そのままだと pickAndResolveBossAction()
+  // が null を返し、動畫だけ流れて攻擊が来ない空振りの1サイクルになる。該当は3行：
+  //   gnoster 出目5「叫び＆滞空」／caligo 出目6「広範囲氷柱落とし」／出目7「広範囲冷風＆氷霜」
+  //
+  // ■の換算は既存の刻度そのまま（BLOCK_SQUARE_COUNT_TO_RESOURCE_MULT＝10、使用者明確規格
+  // 「■一個在night是一格，midnight是10」）。個別/亂戰傷害は受け側で÷10されるが、HP損害は
+  // もともと■建てなので÷10を通さず、そのまま引く（＝迴避/防禦％では消えない）。
+  // ここに置く理由：boss_auto_gm_data.js は night.js と共有していて、あちらは「GMが手で
+  // 裁く」のが正しい挙動。共有データを書き換えると night 側の裁量を奪ってしまう。
+  var BOSS_MANUAL_ACTIONS = {
+    // 「敵視：1以上」＝■×4、それ以外＝■×2。體力骰1個消費ごとに■軽減（＝ガードで
+    // 払った骰の数だけ軽減される。即時制には「消費してもよい」を問う場面が無いので、
+    // プレイヤーが実際に払うガードの骰数をそのまま軽減量に読み替える）。
+    "gnoster/叫び＆滞空": {
+      mode: "hpLoss",
+      aggroHpLoss: 4 * BLOCK_SQUARE_COUNT_TO_RESOURCE_MULT,
+      otherHpLoss: 2 * BLOCK_SQUARE_COUNT_TO_RESOURCE_MULT,
+      reliefPerDie: BLOCK_SQUARE_COUNT_TO_RESOURCE_MULT,
+    },
+    // 「このディフェンスフェイズでは行動しない。次の開始時に個別ダメージ420＋凍傷2Dを
+    // 与え、その後もう一度アクション決定を行う（同じ招式ならやり直し）」＝即時制では
+    // 「この回は蓄力だけ（動畫は流れるが攻擊しない）→ 次の攻擊で420を出し、その直後に
+    // すぐもう一度抽く」。使用者明確規格どおりの対応。
+    "caligo/広範囲氷柱落とし": { mode: "charge", damage: 420 },
+    // 「敵視：1以上」は〈12｜運試し〉、それ以外は〈10｜運試し〉。失敗者だけ個別ダメージ300
+    // ＋凍傷3。出招の時点では誰に当たるか決まらないので、targetSlots には全員を入れて
+    // おき、着弾時に各自の端末で自分の運試しを振る（受け側 resolveMyIncomingHit()）。
+    "caligo/広範囲冷風＆氷霜": { mode: "luck", aggroTarget: 12, otherTarget: 10, damage: 300 },
+  };
+
+  // 蓄力の結算直後に引き直すまでの間隔。規則書の「その後、ただちにアクション決定を行い
+  // それを実行する」を即時制で表すぶんの最小の間。
+  var BOSS_ACT_AGAIN_DELAY_MS = 1200;
+
+  function bossManualRuleFor(bossId, name) {
+    var ja = name && typeof name === "object" ? name.ja : name;
+    if (!ja) return null;
+    return BOSS_MANUAL_ACTIONS[bossId + "/" + ja] || null;
+  }
+
+  function bossSlotIsAggro(trig, slot) {
+    return ((trig && trig.damageBySlot && trig.damageBySlot[slot]) || 0) > 0;
+  }
+
+  // 手動招式を enemyAttack schema に落とす。どの mode も hitCount は 1 固定——規則書では
+  // どれも「個別効果」1回ぶんで、連擊の各ヒットごとに再適用される類のものではない。
+  function bossManualOutcome(rule, key, name, noteText, trig) {
+    var slots = targetableParticipantSlots(trig);
+    if (!slots.length) return null;
+    var out = {
+      actionName: name,
+      actionMod: noteText, // 凍傷/猛毒の蓄積は既存のnote解析（parseElementalAttacksFromAction）に任せる
+      actionNote: noteText,
+      formFlip: false,
+      hitCount: 1,
+    };
+    if (rule.mode === "hpLoss") {
+      var lossBySlot = {};
+      slots.forEach(function (slot) {
+        lossBySlot[slot] = bossSlotIsAggro(trig, slot) ? rule.aggroHpLoss : rule.otherHpLoss;
+      });
+      out.kind = "hpLoss";
+      out.amount = 0;
+      out.targetSlots = slots;
+      out.hpLoss = { bySlot: lossBySlot, reliefPerDie: rule.reliefPerDie };
+      return out;
+    }
+    if (rule.mode === "luck") {
+      var targetBySlot = {};
+      slots.forEach(function (slot) {
+        targetBySlot[slot] = bossSlotIsAggro(trig, slot) ? rule.aggroTarget : rule.otherTarget;
+      });
+      out.kind = "single";
+      out.amount = rule.damage;
+      out.targetSlots = slots;
+      out.luckCheck = { bySlot: targetBySlot };
+      return out;
+    }
+    if (rule.mode === "charge") {
+      out.kind = null;
+      out.amount = 0;
+      out.targetSlots = []; // この回は誰にも当たらない（＝蓄力／滯空。動畫だけ流れる）
+      out.chargeOnly = true;
+      out.chargePending = { key: key, actionName: name, actionNote: noteText };
+      return out;
+    }
+    return null;
+  }
+
+  // 前の回に蓄えた蓄力の結算。招式名/注釈は蓄力時に trig へ控えておいたものを使う
+  // （規則書を引き直さずに済むし、途中で形態が変わっても表示がぶれない）。
+  function bossChargeFollowUpOutcome(rule, pending, trig) {
+    var slots = targetableParticipantSlots(trig);
+    if (!slots.length) return null;
+    return {
+      actionName: pending.actionName || null,
+      actionMod: pending.actionNote || "",
+      actionNote: pending.actionNote || "",
+      kind: "single",
+      amount: rule.damage,
+      targetSlots: slots,
+      hitCount: 1,
+      formFlip: false,
+      actAgainSoon: true, // 結算の直後にもう一度抽く（規則書「その後、アクション決定を行い実行する」）
+    };
+  }
+
+  function pickAndResolveBossAction(bossId, trig, opts) {
     var AutoGm = window.PriTestAutoGm;
     if (!AutoGm) return null;
     var battleState = bossAutoGmBattleState(trig);
     var slots = battleState.slots;
     if (!slots.length) return null;
-    var rollResult = AutoGm.rollEnemyAction("boss|" + bossId, battleState);
+    // 規則書「このとき『広範囲氷柱落とし』になりそうな場合、アクション決定をやり直す」＝
+    // 蓄力の結算直後の引き直しでは同じ蓄力招式を弾く。無限に回らないよう回数で打ち切り、
+    // 打ち切ったらそのまま使う（他の行が引けない状況なら、それが正しい出目なので）。
+    var rollResult = null;
+    for (var tryI = 0; tryI < 8; tryI++) {
+      rollResult = AutoGm.rollEnemyAction("boss|" + bossId, battleState);
+      if (!rollResult || !rollResult.structuredRow) break;
+      var tryRule = bossManualRuleFor(bossId, rollResult.originalRow ? rollResult.originalRow.name : null);
+      if (!(opts && opts.skipCharge && tryRule && tryRule.mode === "charge")) break;
+    }
     if (!rollResult || !rollResult.structuredRow) return null;
     var row = rollResult.structuredRow;
     var name = rollResult.originalRow ? rollResult.originalRow.name : null;
@@ -10034,7 +10155,16 @@
       amount = idmg ? idmg.total : entry.amount || 0;
       targetSlots = [pickedSlot];
     }
-    if (!kind || !targetSlots.length) return null;
+    if (!kind || !targetSlots.length) {
+      // 構造化された傷害が無い行＝規則書がGM手動に委ねている行。上の手動表で埋められる
+      // なら埋める（埋められないものは従来どおり null＝このサイクルは攻擊しない）。
+      var manualRule = bossManualRuleFor(bossId, name);
+      if (!manualRule) return null;
+      var manual = bossManualOutcome(manualRule, bossId + "/" + (name && name.ja ? name.ja : name), name, noteText, trig);
+      if (!manual) return null;
+      manual.formFlip = (row.conditions || []).indexOf("form_change_at_end_phase") !== -1;
+      return manual;
+    }
     return {
       actionName: name,
       actionMod: noteText, // 供parseElementalAttacksFromAction()解析note文字中的「屬性:ND」標記（沿用texts[0]=action.mod的既有fallback行為，不需要另外改那個函式）
@@ -10093,19 +10223,44 @@
       if (isBoss) {
         // Day3夜之王：選招/算傷害/選目標整段交給pickAndResolveBossAction()（見該函式
         // 註解），這裡只負責把結果寫進跟一般敵人共用的enemyAttack schema。
-        var bossOutcome = pickAndResolveBossAction(cur.enemyId, cur);
+        // 前の回に蓄力（caligo「広範囲氷柱落とし」）していたら、抽き直さずにその結算から。
+        var pending = cur.bossChargePending;
+        var pendingRule = pending && pending.key ? BOSS_MANUAL_ACTIONS[pending.key] : null;
+        var bossOutcome =
+          pendingRule && pendingRule.mode === "charge"
+            ? bossChargeFollowUpOutcome(pendingRule, pending, cur)
+            : pickAndResolveBossAction(cur.enemyId, cur, { skipCharge: !!cur.bossChargeNoRepeat });
+        out.bossChargePending = null;
+        out.bossChargeNoRepeat = false;
+        if (!bossOutcome) {
+          // 招式が解決できなかった（表に無い／規則書でも数値が未確定）ときは、空の攻擊を
+          // 書き込まない。書き込むと targetSlots が空のまま動畫だけ流れ、警告も傷害も無い
+          // 「動畫はあるのに攻擊が来ない」1サイクルになる（2026-09-22 調査で判明した症状）。
+          // すぐ引き直す。
+          out.nextAttackAt = Date.now() + BOSS_ACT_AGAIN_DELAY_MS;
+          return out;
+        }
         out.enemyAttack = {
           attackId: pt.id + ":" + Date.now(),
-          targetSlots: bossOutcome ? bossOutcome.targetSlots : [],
+          targetSlots: bossOutcome.targetSlots,
           // 夜之王一定落在上位敵人那組機率（1~3下），見pickEnemyAttackHitCount()。
-          hitCount: pickEnemyAttackHitCount(pt, cur),
+          // 手動招式（規則書の「個別効果」1回ぶん）だけは連擊にせず1下固定。
+          hitCount: bossOutcome.hitCount || pickEnemyAttackHitCount(pt, cur),
           warnAt: GameStorage.serverNow ? GameStorage.serverNow() : Date.now(), // 共享時間戳改用伺服器時刻（§8.2）
-          actionName: bossOutcome ? bossOutcome.actionName : null,
-          actionMod: bossOutcome ? bossOutcome.actionMod : null,
-          actionNote: bossOutcome ? bossOutcome.actionNote : null,
-          dmgKind: bossOutcome ? bossOutcome.kind : null,
-          dmgAmount: bossOutcome ? bossOutcome.amount : 0,
+          actionName: bossOutcome.actionName,
+          actionMod: bossOutcome.actionMod,
+          actionNote: bossOutcome.actionNote,
+          dmgKind: bossOutcome.kind,
+          dmgAmount: bossOutcome.amount,
+          hpLoss: bossOutcome.hpLoss || null,
+          luckCheck: bossOutcome.luckCheck || null,
+          chargeOnly: !!bossOutcome.chargeOnly,
+          actAgainSoon: !!bossOutcome.actAgainSoon,
         };
+        // 蓄力した回：次の攻擊でこの招式を結算する。結算した回：その直後の抽き直しでは
+        // 同じ蓄力招式を弾く（規則書「やり直す」）。
+        if (bossOutcome.chargePending) out.bossChargePending = bossOutcome.chargePending;
+        if (bossOutcome.actAgainSoon) out.bossChargeNoRepeat = true;
         // gladius「形態変化」：轉換條件在動作本身（不是HP歸零），即時制沒有階段可以等，
         // 選出這一招的當下就直接切換（fused<->split），見pickAndResolveBossAction()
         // 的formFlip判斷（row.conditions含"form_change_at_end_phase"）。這個轉換不重灌
@@ -10202,7 +10357,11 @@
       var out = {};
       for (var k in cur) out[k] = cur[k];
       out.enemyAttack = null;
-      out.nextAttackAt = Date.now() + ENEMY_ATTACK_INTERVAL_MIN_MS + Math.floor(Math.random() * (ENEMY_ATTACK_INTERVAL_MAX_MS - ENEMY_ATTACK_INTERVAL_MIN_MS));
+      // 蓄力の結算（caligo「広範囲氷柱落とし」）の直後だけは、通常の間合いを置かずに
+      // すぐ次を抽く＝規則書「その後、このエネミーのアクション決定を行い、それを実行する」。
+      out.nextAttackAt = cur.enemyAttack.actAgainSoon
+        ? Date.now() + BOSS_ACT_AGAIN_DELAY_MS
+        : Date.now() + ENEMY_ATTACK_INTERVAL_MIN_MS + Math.floor(Math.random() * (ENEMY_ATTACK_INTERVAL_MAX_MS - ENEMY_ATTACK_INTERVAL_MIN_MS));
       return out;
     });
   }
@@ -10266,6 +10425,8 @@
         actionNote: atk.actionNote,
         dmgKind: atk.dmgKind,
         dmgAmount: atk.dmgAmount,
+        hpLoss: atk.hpLoss || null, // 夜王の「HP損害：■×N」（減傷を通さない・自分のぶんはbySlot）
+        luckCheck: atk.luckCheck || null, // 着弾時に自分で運試しを振る招式（失敗者だけ被弾）
       };
       // 點陣圖模式：整條時間軸在發動當下就排定（T(0)＝紅光結束、窗口從T−0.1s開啟），
       // 不走下面warn→window「到點才把now當窗口起點」的舊流程——舊流程的起點會跟影格對齊
@@ -10386,7 +10547,28 @@
   }
 
   function resolveMyIncomingHit(st, kind) {
+    // 夜王の「HP損害：■×N」（gnoster「叫び＆滞空」）：規則書が認めている軽減は
+    // 「體力骰を1個消費するごとに■」だけで、迴避も特殊防禦も効かない。ここで先に命中扱いへ
+    // 落としておけば、効かない特殊防禦のコストを無駄に払わせることもない。
+    if (st.hpLoss && kind !== "block") kind = "hit";
+    // 運試し付きの招式（caligo「広範囲冷風＆氷霜」）：誰に当たるかは出招時ではなく
+    // 着弾時に各自が決める。判定に成功した人はこの一撃を完全に免れる（規則書は
+    // 「失敗したPCに」ダメージと書いている）。判定は1回の攻擊につき1回だけ。
+    if (st.luckCheck && !st.luckChecked) {
+      st.luckChecked = true;
+      var luckChar = characters[myTokenId];
+      var luckTarget = (st.luckCheck.bySlot && mySlot && st.luckCheck.bySlot[mySlot]) || 0;
+      var luckDice = effectiveCheckDiceCount(luckChar, "luck");
+      var luckSum = 0;
+      for (var luckI = 0; luckI < luckDice; luckI++) luckSum += 1 + Math.floor(Math.random() * 6);
+      st.luckPassed = luckTarget > 0 && checkSucceeded(luckChar, luckSum, luckTarget);
+    }
+    if (st.luckCheck && st.luckPassed) {
+      showActionFlash("midnight-dodge-flash", window.I18N.t("midnight_dodge_success_flash"), "success");
+      return;
+    }
     var blockPct = 0;
+    var guardDiceSpent = 0; // HP損害の軽減量（■×消費した骰数）に使う
     if (kind === "block") {
       // 帶入st.hitIndex：護符的「僅第1次／第2次以後」HP價值加成需要知道這是連擊的第幾下
       // （見talismanGuardBonusPct()）。
@@ -10395,6 +10577,7 @@
         kind = "hit";
       } else {
         blockPct = guard.pct;
+        guardDiceSpent = guard.costPoints;
       }
     }
     var specialOptionUsed = null;
@@ -10485,6 +10668,14 @@
         if (!incomingElement && ATTRIBUTE_STATUS_ELEMENT_NAMES_JA.indexOf(nm) !== -1) incomingElement = nm;
       });
       damage = Math.round(damage * affixIncomingDamageMult(characters[myTokenId], { element: incomingElement }));
+      // 「HP損害」はダメージではないので、上のダメージ向けの層（防禦％・暫時減傷・隊伍
+      // 減傷・武器詞條）を一切通さない——規則書が認める軽減は「體力骰1個につき■」だけ。
+      // ここで置き換えるのは、下の救世之翼／鐵壺（＝完全無效化）より前。あちらは「傷害を
+      // 受けない」という強い効果なので、HP損害にも効かせるほうが安全側に倒せる。
+      if (st.hpLoss) {
+        var hpLossBase = (st.hpLoss.bySlot && mySlot && st.hpLoss.bySlot[mySlot]) || 0;
+        damage = Math.max(0, hpLossBase - guardDiceSpent * (st.hpLoss.reliefPerDie || 0));
+      }
       // 守護者「救世之翼」的全隊暫時不受傷害（見partyNoDamageActive()說明）：完全無效化
       // 這次HP損害，比照迴避/特殊防禦的既有慣例，不進入下面的demoStat transaction。
       if (partyNoDamageActive()) damage = 0;
