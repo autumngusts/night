@@ -147,24 +147,30 @@ function entryOf(s) {
   members.forEach(function (e) {
     sizes[e.size] = true;
   });
+  // 「この系統の代表 1 体」であることを毎回明示する（2026-09-22）。
+  // 以前は "representative members: A、B、C、D (11 enemies share this sheet)" とだけ書いて
+  // いたら、生成側が「系統の面々を並べた一覧」を返してきた——8 行それぞれが別のキャラで、
+  // 行＝動作になっていない。系統 sheet は 1 体が系統全体を代表する絵なので、
+  // 「並べるな、1 体だけ描け」を subject 自体に入れておく。
   return {
     id: s.id,
     file: s.file,
     kind: "family",
     subject:
+      "ONE single creature that represents the " +
       (fam ? fam.name.ja + " / " + fam.name.zh : s.id) +
-      ", size class " +
+      " group (size class " +
       Object.keys(sizes).join("+") +
-      ", representative members: " +
+      "), designed after these members: " +
       members
         .slice(0, 4)
         .map(function (e) {
           return e.name.ja;
         })
         .join("、") +
-      " (" +
+      ". Draw ONE creature only — this single sheet is reused for all " +
       members.length +
-      " enemies share this sheet)",
+      " enemies of the group, it is NOT a lineup of them",
     members: members.map(function (e) {
       return e.name.ja;
     }),
