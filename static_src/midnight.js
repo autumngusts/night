@@ -657,6 +657,9 @@
     if (name === "凍傷" && hasGrace(c, GRACE_MOUNTAIN_PEAK)) {
       delta += graceValue(GRACE_MOUNTAIN_PEAK, "frostbiteAccumMaxBonus") || 0;
     }
+    // 地變「調律の魔物・立ち去る」的備註「シナリオ終了まで『発狂』の蓄積最大値-2」（2026-09-22接上，
+    // 見noteRewardEffect()的madnessMax）：跟_bargainAccumMaxBonus同一種「同步到RTDB的持久修正」欄位。
+    if (name === "発狂") delta -= (c && c._madnessAccumMaxDebuff) || 0;
     return Math.max(1, ATTRIBUTE_STATUS_THRESHOLD + delta);
   }
 
@@ -1172,24 +1175,31 @@
   // 只在spriteModeEnabled()的房間生效，非點陣圖房維持上面2.0/2.5/3.0秒、窗口內按下＝100%
   // 無效化的舊規則。以T＝正式出招時刻（＝紅光0.5秒結束）為基準：
   //   ・T−0.1s：敵人sprite才從idle切成攻擊動畫（連擊每一下各重播一次，見maybePlayEnemyAttackAnim()）
-  //   ・按下時刻依「T之後幾毫秒」落在哪一個時間帶決定成功度與減傷％（2026-09-22第3版，
-  //     使用者明確規格「判定嚴格度更改」）——時間帶固定、不隨窗口長度伸縮，帶內線性遞減：
-  //       [T−0.1s, T+0.35s]  Perfect 100%
-  //       (T+0.35s, T+0.5s]  Great   99→90%
-  //       (T+0.5s, T+0.8s]   Good    89→60%
-  //       (T+0.8s, T+W]      Bad     59→30%（W依第1/2/3下＝1.0/1.5/2.0秒）
+  //   ・按下時刻依「T之後幾毫秒」落在哪一個時間帶決定成功度與減傷％（2026-09-22第4版，
+  //     使用者明確規格「T-0.1~T+0.4s Perfect／T+0.4s~T+0.65s Great 減傷80~95%／T+0.65s~T+0.9s
+  //     Good 減傷60~80%／T+0.9s~T+1.0s Bad 減傷50%，連續攻擊的第二三下也套用以上級距」）
+  //     ——時間帶固定、不隨窗口長度伸縮，帶內線性遞減：
+  //       [T−0.1s, T+0.4s]   Perfect 100%
+  //       (T+0.4s, T+0.65s]  Great   95→80%
+  //       (T+0.65s, T+0.9s]  Good    80→60%
+  //       (T+0.9s, T+W]      Bad     50%固定（W依第1/2/3下＝1.0/1.5/2.0秒；第1下剛好就是
+  //                          規格的T+0.9~T+1.0，第2/3下的窗口較長、Bad帶延伸到窗口結束——
+  //                          【換算假設】規格只寫到T+1.0，窗口長度沒有要求改變）
   //   ・早於T−0.1s按 → 不算（維持「窗口開啟前的按鍵無效、體力照扣」）；完全沒按 → 全額受傷
-  //   ・連擊：T(k+1)＝T(k)＋W(k)，紅光只在第1下前顯示
+  //   ・連擊：T(k+1)＝T(k)＋W(k)，紅光只在第1下前顯示；每一下各自在T(k)−0.1s重播動畫＋刀光、
+  //     各自套用上面同一組時間帶（Perfect/Great/Good的邊界固定，只有Bad的終點W隨第幾下變）
+  //   ・「按下時刻」＝迴避鍵的pointerdown（2026-09-22使用者明確規格「改成按下的時間」，見
+  //     dodgePointerDownAt）；戰鬥模擬的迴避計時（updateBattleSimDodgeTimer()）可量測每次的實際值
   // 成功度顯示在迴避鍵上方（跟「成功迴避」並列，見showDodgeGrade()）。
   var SPRITE_DODGE_ANIM_LEAD_MS = 100; // 攻擊動畫在T之前多久切換
   var SPRITE_DODGE_PERFECT_EARLY_MS = 100; // Perfect區間起點（T之前）＝反應窗口實際開啟點
   var SPRITE_DODGE_WINDOW_MS = [1000, 1500, 2000]; // 第1/2/3下的反應窗口（T之後）
   // untilMs＝該帶終點（T之後的毫秒，含），null＝到窗口結束；from/to＝帶起點/終點的減傷％。
   var SPRITE_DODGE_BANDS = [
-    { id: "perfect", untilMs: 350, from: 100, to: 100 },
-    { id: "great", untilMs: 500, from: 99, to: 90 },
-    { id: "good", untilMs: 800, from: 89, to: 60 },
-    { id: "bad", untilMs: null, from: 59, to: 30 },
+    { id: "perfect", untilMs: 400, from: 100, to: 100 },
+    { id: "great", untilMs: 650, from: 95, to: 80 },
+    { id: "good", untilMs: 900, from: 80, to: 60 },
+    { id: "bad", untilMs: null, from: 50, to: 50 },
   ];
   // 2026-09-06數值真正接入：不再用demo佔位機率決定打誰，改成先從敵人實際
   // 「アクション決定表」（enemy.actions[]）抽出一招，依該招敘述判斷是個別傷害（1人）
@@ -2333,6 +2343,12 @@
   var attributeAccumTriggers = {};
   var flaskReadingUntil = null; // 聖杯瓶讀取中的到期時間戳，null＝目前沒在讀取
   var dodgePressedAt = 0; // 最近一次成功迴避（有扣到體力）的時間戳，見handleDodgeClick／resolveMyIncomingHit
+  // 迴避鍵最近一次pointerdown的時間戳（2026-09-22使用者明確規格「按下當下即閃避」）：迴避在
+  // pointerdown當下就執行（performDodge()），這個值留給緊接著的click判斷「這次按鍵已經處理過」
+  // ——click距pointerdown在DODGE_PRESS_TO_RELEASE_MAX_MS內就略過，否則（沒有pointerdown、
+  // 例如鍵盤或程式dispatch的click）由click補執行。
+  var dodgePointerDownAt = 0;
+  var DODGE_PRESS_TO_RELEASE_MAX_MS = 2000;
   // 特殊防禦（第六感／遺物效果額外防禦選項，2026-09-05角色能力真正接入新增）：跟dodgePressedAt
   // 同一套時間戳判定模式，見handleSpecialDefenseClick／resolveMyIncomingHit。
   var specialDefensePressedAt = 0;
@@ -2480,12 +2496,11 @@
   // 戰鬥模擬的迴避計時（2026-09-22使用者明確規格「在每次T的時間點時 畫面上開始計時 記錄我
   // 每次按下迴避後確切的花費時間」，見midnight_page.pyの#midnight-battle-sim-dodge-timer）：
   // 純本機量測工具，不影響任何判定。timer＝目前這一下的碼表狀態、log＝最近幾筆紀錄。
-  // pointerDownAt另外記「按下」瞬間：迴避鍵綁的是click（放開才觸發），兩個時間一起記才看得出
-  // 「按住的時間」占了多少。
+  // 紀錄同時寫「按下」（pointerdown，＝判定採用的時刻）與「放開」（click）兩個時間，看得出
+  // 按住的時間占了多少。
   var battleSimDodgeTimer = null; // { key, hitIndex, hitAt, phaseEndAt, stoppedAt }
   var battleSimDodgeLog = []; // 最新在前，最多BATTLE_SIM_DODGE_LOG_MAX筆
   var battleSimDodgeLogCount = 0; // 累計編號（#n）
-  var battleSimDodgePointerDownAt = 0;
   var BATTLE_SIM_DODGE_LOG_MAX = 8;
   var battleSimAssignAttempted = {}; // BATTLE_SIM_POINT_ID -> true（本地節流，同finalCircleRollAttempted；用物件是為了套resetAttemptFlagOnFailure()）
   // 2026-09-20防卡死：上面這批「本地節流旗標」都是「設旗標→送transaction→等RTDB回寫後
@@ -2573,8 +2588,10 @@
   // 圖が無い札（7 湖沼／8 鍛造村／Q）は從來どおり數字カードのまま。欠けている分だけ
   // fallback すればよく、12 種類そろうまで待つ必要はない（sprite sheet の available と
   // 同じ考え方）。祝福は籌碼側の既存 icon をそのまま使うので、ここには入れない。
+  // 2026-09-22 使用者明確規格「教會與大教會的圖示調換」：2（大教會）與 K（教會）的圖檔對調，
+  // 圖檔本身不改名（tools/field_icon 的產出對應維持原樣），只換這裡的對應。
   var FIELD_CARD_ICON_FILES = {
-    "2": "field_2.png",
+    "2": "field_k.png",
     "3": "field_3.png",
     "4": "field_4.png",
     "5": "field_5.png",
@@ -2584,7 +2601,7 @@
     "9": "field_9.png",
     "10": "field_10.png",
     J: "field_j.png",
-    K: "field_k.png",
+    K: "field_2.png",
     Q: "field_q.png",
   };
 
@@ -3513,13 +3530,24 @@
       return cur === null ? entry : cur;
     }).then(function (committed) {
       pendingJoinSlot = null;
+      var started = !!(meta && meta.sessionStartAt);
       if (committed && committed.tokenId === myTokenId) {
         mySlot = slot;
         form.hidden = true;
         el("midnight-lobby-character-detail").hidden = true;
+        // 開局後從空位加入（2026-09-22，見openLateJoinModal()）：不用按準備，直接進場。
+        if (started) {
+          closeLateJoinModal();
+          enterGameAsLateJoiner(slot);
+        }
       } else {
         window.alert(window.I18N.t("midnight_lobby_slot_taken_note")); // 搶輸了，該格已被別人佔用
-        renderLobby();
+        if (started) {
+          closeLateJoinModal();
+          renderPlayersPanel();
+        } else {
+          renderLobby();
+        }
       }
     });
   }
@@ -3610,11 +3638,106 @@
       card.className = "midnight-slot-card" + (p ? "" : " midnight-slot-empty");
       if (!p) {
         card.textContent = window.I18N.t("midnight_lobby_slot_empty");
+        // 開局後從空位加入（2026-09-22使用者明確規格，見midnight_page.pyの#midnight-late-join-modal
+        // 說明）：只有「這台裝置沒有席位」（觀戰者）時顯示，跟等待房的加入鈕同一種寫法。
+        if (!mySlot) {
+          var joinBtn = document.createElement("button");
+          joinBtn.type = "button";
+          joinBtn.textContent = window.I18N.t("midnight_lobby_join_button");
+          joinBtn.addEventListener("click", function (slotForClick) {
+            return function () {
+              openLateJoinModal(slotForClick);
+            };
+          }(slot));
+          card.appendChild(joinBtn);
+        }
       } else {
         renderOccupiedSlotCard(card, slot, p);
       }
       container.appendChild(card);
     }
+    // 表單開著時該席位被別人搶走→收起視窗（跟renderLobby()同一條規則）。
+    if (pendingJoinSlot && players[pendingJoinSlot]) closeLateJoinModal();
+  }
+
+  // ---- 開局後從空位加入（2026-09-22）----
+  // 重用等待房的表單節點：開視窗時把#midnight-lobby-join-form／#midnight-lobby-character-detail
+  // 搬進#midnight-late-join-form-host（等待房在開局後已永久隱藏，不會再用到那兩個節點的原位置），
+  // 名稱／4位數密碼／職業選擇／角色詳細全部是既有流程，送出仍走handleLobbyJoin()。
+  function openLateJoinModal(slot) {
+    var modal = el("midnight-late-join-modal");
+    var host = el("midnight-late-join-form-host");
+    if (!modal || !host || mySlot || !meta || !meta.sessionStartAt) return;
+    host.appendChild(el("midnight-lobby-join-form"));
+    host.appendChild(el("midnight-lobby-character-detail"));
+    modal.hidden = false;
+    showJoinForm(slot);
+  }
+
+  function closeLateJoinModal() {
+    var modal = el("midnight-late-join-modal");
+    if (!modal || modal.hidden) return;
+    modal.hidden = true;
+    pendingJoinSlot = null;
+    el("midnight-lobby-join-form").hidden = true;
+    el("midnight-lobby-character-detail").hidden = true;
+  }
+
+  // 出生點：使用者明確規格「有其他玩家周遭的安全地帶」——在有位置資料的其他玩家裡，優先挑
+  // 「不在戰鬥中且在圈內」的那位當錨點（在戰鬥中＝該席位是某個仍存活遭遇的participant；
+  // 圈外＝會被夜雨扣血），再用既有的findWalkableSpawnNear()在錨點附近找可行走格。沒有任何
+  // 其他玩家位置時退回Day1起點（跟開局／接管同一個fallback）。
+  function lateJoinSpawnAnchor(now) {
+    var phaseInfo = meta && map && meta.sessionStartAt ? currentPhaseInfo(now) : null;
+    var best = null;
+    var bestScore = Infinity;
+    occupiedSlots().forEach(function (slot) {
+      var p = players[slot];
+      if (!p || slot === mySlot || !p.tokenId) return;
+      var pos = remoteTokens[p.tokenId];
+      if (!pos) return;
+      var score = 0;
+      if (slotInLiveEncounter(slot)) score += 2;
+      if (phaseInfo && phaseInfo.day !== 3 && phaseInfo.center && typeof phaseInfo.radius === "number") {
+        var dx = pos.x - phaseInfo.center.x;
+        var dy = pos.y - phaseInfo.center.y;
+        if (Math.sqrt(dx * dx + dy * dy) > phaseInfo.radius) score += 1;
+      }
+      if (score < bestScore) {
+        bestScore = score;
+        best = { x: pos.x, y: pos.y };
+      }
+    });
+    return best || map.dayPlan.day1.start;
+  }
+
+  function slotInLiveEncounter(slot) {
+    var ids = Object.keys(fieldTriggers);
+    for (var i = 0; i < ids.length; i++) {
+      var trig = fieldTriggers[ids[i]];
+      if (!trig || trig.status !== "resolved" || !trig.participants || !trig.participants[slot]) continue;
+      var hp = fieldEnemyHp[ids[i]];
+      if (hp === undefined || hp > 0) return true;
+    }
+    return false;
+  }
+
+  // 加入成功後的進場：比照updateLobbyOrGameVisibility()開局時對mySlot做的初始化（出生點／HP／
+  // Lv1新角色），只是出生點改成lateJoinSpawnAnchor()。位置推送／在線狀態／面板都是既有的
+  // 每影格邏輯，mySlot一有值就自然接上。
+  function enterGameAsLateJoiner(slot) {
+    var now = Date.now();
+    var spawn = findWalkableSpawnNear(lateJoinSpawnAnchor(now), Math.random);
+    localPos = { x: spawn.x, y: spawn.y };
+    var initialChar = newCharacterForSlot(slot);
+    GameStorage.rtTransaction(gameId, "cloud", "demoStat/" + myTokenId, function (cur) {
+      return cur === null ? selfArenaHpMax(initialChar) : cur;
+    });
+    GameStorage.rtTransaction(gameId, "cloud", "character/" + myTokenId, function (cur) {
+      return cur === null ? initialChar : cur;
+    });
+    setMapExpanded(true);
+    renderPlayersPanel();
   }
 
   // ---- 接管／斷線重連：任何人（包含觀戰者）輸入該席位的4位數密碼正確就能接手，把
@@ -3687,24 +3810,27 @@
     document.addEventListener("keydown", function (e) {
       keysDown[e.key.toLowerCase()] = true;
       if (autoFly && isMovementKey(e.key)) autoFly = null; // 移動鍵會終止靈鳥自動飛行
+      handleCombatHotkeyDown(e);
     });
     document.addEventListener("keyup", function (e) {
       keysDown[e.key.toLowerCase()] = false;
+      handleCombatHotkeyUp(e);
     });
     // 2026-09-20：按著方向鍵時alt-tab、或彈出window.prompt()（接管席位密碼等）會讓
     // keyup永遠收不到，角色會一直跑到再按一次同一個鍵為止；視窗失焦時直接清空按鍵狀態。
     window.addEventListener("blur", function () {
       keysDown = {};
+      endBlockHold(); // G鍵長按防禦時失焦也收不到keyup，一併放開
     });
     el("btn-midnight-enter-battle").addEventListener("click", handleEnterBattleClick);
     bindAttackHoldInput();
     el("btn-midnight-skill").addEventListener("click", handleSkillClick);
     bindSkillBHoldInput();
+    // 2026-09-22使用者明確規格「按下當下即閃避」：迴避在pointerdown當下就執行（扣體力、記判定
+    // 時刻）；click只在沒有對應的pointerdown（鍵盤Enter／程式dispatch的click）時補執行，
+    // 避免同一次按鍵執行兩次。見handleDodgePointerDown()／handleDodgeClick()。
+    el("btn-midnight-dodge").addEventListener("pointerdown", handleDodgePointerDown);
     el("btn-midnight-dodge").addEventListener("click", handleDodgeClick);
-    // 戰鬥模擬迴避計時用：記「按下」瞬間（click是放開才觸發），只做量測，不進判定。
-    el("btn-midnight-dodge").addEventListener("pointerdown", function () {
-      battleSimDodgePointerDownAt = Date.now();
-    });
     bindBlockHoldInput();
     el("btn-midnight-defense-special").addEventListener("click", function () {
       handleSpecialDefenseClick(0);
@@ -3844,6 +3970,8 @@
       el("midnight-hud").classList.toggle("midnight-hud-collapsed", hudInfoBarCollapsed);
     });
     el("btn-midnight-lobby-join").addEventListener("click", handleLobbyJoin);
+    el("btn-midnight-late-join-close").addEventListener("click", closeLateJoinModal);
+    el("btn-midnight-rarity-upgrade-close").addEventListener("click", closeRarityUpgradeModal);
     el("btn-midnight-lobby-character-detail-close").addEventListener("click", function () {
       el("midnight-lobby-character-detail").hidden = true;
     });
@@ -8411,13 +8539,72 @@
     return hasElegantFootwork ? Math.max(0, STAMINA_COST_DODGE - 2) : STAMINA_COST_DODGE;
   }
 
-  function handleDodgeClick() {
+  // 迴避的實際執行（2026-09-22使用者明確規格「按下當下即閃避」）：pointerdown當下就跑這裡。
+  // 按鈕disabled時瀏覽器不會派發pointerdown／click，所以不用另外檢查disabled。
+  function performDodge(pressedAt) {
     if (isSelfDowned()) return;
     if (!spendStamina(dodgeStaminaCost(characters[myTokenId]))) return;
     cancelFlaskReadingForOtherAction();
-    dodgePressedAt = Date.now();
-    recordBattleSimDodgePress(dodgePressedAt); // 戰鬥模擬的迴避計時（純量測）
+    dodgePressedAt = pressedAt;
+    recordBattleSimDodgePress(pressedAt); // 戰鬥模擬的迴避計時（純量測，放開時刻另由click補記）
     onAffixDodge(); // 2026-09-13武器詞條：回避直後の被ダメージ増加／回避連続時、カット率低下
+  }
+
+  function handleDodgePointerDown() {
+    var now = Date.now();
+    dodgePointerDownAt = now;
+    performDodge(now);
+  }
+
+  // 戰鬥快捷鍵（2026-09-22使用者明確規格「迴避鍵 快捷鍵shift，防禦(限能夠使用) 快捷鍵G」）：
+  // 只在對應按鈕目前可用（沒被hidden／disabled，跟用滑鼠點得到的條件相同）時才生效——
+  // 防禦鍵的disabled本來就綁在currentGuardInfo()（沒有盾牌／達人資格時不能用），所以
+  // 「限能夠使用」自然成立。輸入框有焦點時不吃快捷鍵（等待房名稱／密碼、聊天等）。
+  // 迴避走跟pointerdown同一條performDodge()，判定時刻＝按下當下；之後清掉dodgePointerDownAt，
+  // 免得緊接著的滑鼠click被誤判成「同一次按鍵」而吞掉。
+  function hotkeyTargetIsTextInput(e) {
+    var t = e && e.target;
+    var tag = t && t.tagName ? t.tagName.toLowerCase() : "";
+    return tag === "input" || tag === "textarea" || tag === "select" || !!(t && t.isContentEditable);
+  }
+
+  function hotkeyButtonUsable(id) {
+    var btn = el(id);
+    return !!(btn && !btn.hidden && !btn.disabled && btn.offsetParent !== null);
+  }
+
+  function handleCombatHotkeyDown(e) {
+    if (!e || e.repeat || hotkeyTargetIsTextInput(e)) return;
+    if (e.key === "Shift") {
+      if (!hotkeyButtonUsable("btn-midnight-dodge")) return;
+      e.preventDefault();
+      performDodge(Date.now());
+      dodgePointerDownAt = 0;
+      return;
+    }
+    if (e.key === "g" || e.key === "G") {
+      if (!hotkeyButtonUsable("btn-midnight-block")) return;
+      e.preventDefault();
+      startBlockHold();
+    }
+  }
+
+  function handleCombatHotkeyUp(e) {
+    if (!e) return;
+    if (e.key === "g" || e.key === "G") endBlockHold();
+  }
+
+  // click：pointerdown已經處理過這次按鍵就只補記「放開」時刻給戰鬥模擬的紀錄；沒有pointerdown
+  // （鍵盤／程式dispatch）才在這裡執行迴避。
+  function handleDodgeClick() {
+    var now = Date.now();
+    if (dodgePointerDownAt && now - dodgePointerDownAt <= DODGE_PRESS_TO_RELEASE_MAX_MS) {
+      noteBattleSimDodgeRelease(dodgePointerDownAt, now);
+      dodgePointerDownAt = 0;
+      return;
+    }
+    dodgePointerDownAt = 0;
+    performDodge(now);
   }
 
   // 特殊防禦選項（2026-09-05角色能力真正接入新增，見CLAUDE.md §36）：第六感（追蹤者被動）
@@ -11535,32 +11722,47 @@
     return (ms < 0 ? "−" : "+") + sec.toFixed(3);
   }
 
-  function pushBattleSimDodgeLog(text) {
-    battleSimDodgeLog.unshift(text);
+  // 紀錄項目：{ n, hit, pressedAt, releasedAt|null, hitAt, result|null（null＝逾時） }，
+  // 顯示文字由renderBattleSimDodgeLog()即時組出來（放開時刻是按下之後才補上的）。
+  function pushBattleSimDodgeLog(entry) {
+    battleSimDodgeLog.unshift(entry);
     if (battleSimDodgeLog.length > BATTLE_SIM_DODGE_LOG_MAX) battleSimDodgeLog.length = BATTLE_SIM_DODGE_LOG_MAX;
     renderBattleSimDodgeLog();
+  }
+
+  function battleSimDodgeLogText(entry) {
+    if (entry.result === null) {
+      return window.I18N.t("midnight_battle_sim_dodge_log_timeout", { n: entry.n, hit: entry.hit, window: entry.windowSec });
+    }
+    return window.I18N.t("midnight_battle_sim_dodge_log_entry", {
+      n: entry.n,
+      hit: entry.hit,
+      down: formatSignedSec(entry.pressedAt - entry.hitAt),
+      delta: entry.releasedAt === null ? "…" : formatSignedSec(entry.releasedAt - entry.hitAt),
+      result: entry.result,
+    });
   }
 
   function renderBattleSimDodgeLog() {
     var list = el("midnight-battle-sim-dodge-log");
     if (!list) return;
     while (list.firstChild) list.removeChild(list.firstChild);
-    battleSimDodgeLog.forEach(function (text) {
+    battleSimDodgeLog.forEach(function (entry) {
       var li = document.createElement("li");
-      li.textContent = text;
+      li.textContent = battleSimDodgeLogText(entry);
       list.appendChild(li);
     });
   }
 
-  // 按下迴避時記一筆：dt＝放開（click）相對T、down＝按下（pointerdown）相對T。判定結果直接
-  // 重用spriteDodgeJudge()——跟resolveMyIncomingHit()實際採用的是同一條函式，這裡顯示的
+  // 按下迴避時記一筆：pressedAt＝判定採用的時刻（pointerdown當下，見performDodge()）。判定結果
+  // 直接重用spriteDodgeJudge()——跟resolveMyIncomingHit()實際採用的是同一條函式，這裡顯示的
   // 等級／％就是遊戲真的會給的值。早於T−0.1s的按鍵遊戲不算迴避（見advanceIncomingAttackPhase()），
-  // 這裡照樣記下來並標成「太早」，方便看到自己到底提前了多少。
+  // 這裡照樣記下來並標成「太早」，方便看到自己到底提前了多少。放開時刻由click經
+  // noteBattleSimDodgeRelease()事後補上。
   function recordBattleSimDodgePress(pressedAt) {
     var t = battleSimDodgeTimer;
     if (!battleSimDodgeTimerActive() || !t || t.stoppedAt !== null) return;
     var dt = pressedAt - t.hitAt;
-    var downDt = battleSimDodgePointerDownAt ? battleSimDodgePointerDownAt - t.hitAt : dt;
     var result;
     if (dt < -SPRITE_DODGE_PERFECT_EARLY_MS) {
       // 太早的按鍵遊戲不採計，碼表也不停——之後在窗口內再按一次仍然算數、也要能記到。
@@ -11571,13 +11773,19 @@
       result = window.I18N.t("midnight_battle_sim_dodge_log_result", { grade: window.I18N.t("midnight_dodge_grade_" + judge.grade), pct: judge.pct });
     }
     battleSimDodgeLogCount += 1;
-    pushBattleSimDodgeLog(window.I18N.t("midnight_battle_sim_dodge_log_entry", {
-      n: battleSimDodgeLogCount,
-      hit: t.hitIndex + 1,
-      delta: formatSignedSec(dt),
-      down: formatSignedSec(downDt),
-      result: result,
-    }));
+    pushBattleSimDodgeLog({ n: battleSimDodgeLogCount, hit: t.hitIndex + 1, pressedAt: pressedAt, releasedAt: null, hitAt: t.hitAt, result: result });
+  }
+
+  // click（放開）時補上對應紀錄的放開時刻：找最新一筆「同一個按下時刻、尚未填放開」的項目。
+  function noteBattleSimDodgeRelease(pressedAt, releasedAt) {
+    for (var i = 0; i < battleSimDodgeLog.length; i++) {
+      var entry = battleSimDodgeLog[i];
+      if (entry.result !== null && entry.pressedAt === pressedAt && entry.releasedAt === null) {
+        entry.releasedAt = releasedAt;
+        renderBattleSimDodgeLog();
+        return;
+      }
+    }
   }
 
   function updateBattleSimDodgeTimer(now) {
@@ -11602,11 +11810,15 @@
       var prev = battleSimDodgeTimer;
       if (prev.stoppedAt === null && now >= prev.phaseEndAt) {
         battleSimDodgeLogCount += 1;
-        pushBattleSimDodgeLog(window.I18N.t("midnight_battle_sim_dodge_log_timeout", {
+        pushBattleSimDodgeLog({
           n: battleSimDodgeLogCount,
           hit: prev.hitIndex + 1,
-          window: ((prev.phaseEndAt - prev.hitAt) / 1000).toFixed(1),
-        }));
+          pressedAt: null,
+          releasedAt: null,
+          hitAt: prev.hitAt,
+          result: null,
+          windowSec: ((prev.phaseEndAt - prev.hitAt) / 1000).toFixed(1),
+        });
       }
       battleSimDodgeTimer = null;
     }
@@ -11650,7 +11862,7 @@
   // ============================================================================
 
   function updateNearbyTower() {
-    if (!mySlot || !localPos || autoFly) {
+    if (!mySlot || !localPos || autoFly || nightLordFightActive()) {
       nearbyTower = null;
       renderTowerOverlay();
       return;
@@ -12552,7 +12764,7 @@
     // nearbyFieldPoint，上方資訊欄就會在王戰進行中繼續跳出「進入」按鈕——玩家一按就會在
     // 最終王戰中開啟一層樓層探索（邀請→打字機→投票→指派敵人的完整流程）。Day3沒有板塊
     // 探索的概念，直接走跟「觀戰者/靈鳥飛行中」相同的既有清空分支，不另外寫一套。
-    if (!mySlot || !localPos || autoFly || day3BossFightActive()) {
+    if (!mySlot || !localPos || autoFly || nightLordFightActive()) {
       if (nearbySmithingVillage) resetWeaponRerollCreditsOnLeaveVillage();
       nearbyFieldPoint = null;
       nearbySmithingVillage = null;
@@ -12695,7 +12907,7 @@
   function updateNearbyCastle() {
     // day3BossFightActive()：理由同updateNearbyFieldPoint()——王城（J卡）也是板塊卡牌
     // 探索的入口，Day3王戰進行中不該還能踏進去開一層。
-    if (!mySlot || !localPos || autoFly || day3BossFightActive()) {
+    if (!mySlot || !localPos || autoFly || nightLordFightActive()) {
       nearbyCastlePoint = null;
       recomputeActiveEncounter();
       renderFieldOverlay();
@@ -12740,6 +12952,16 @@
   // （既有程式已經這樣認定，見finishRevive()的phaseInfo.day!==3判斷）。
   function day3BossFightActive() {
     return !!nearbyDay3Boss;
+  }
+
+  // 夜之強敵／夜王戰鬥開始後，板塊與籌碼事件一律不偵測（2026-09-22使用者明確規格「夜之強敵 夜王
+  // 戰鬥開始後 取消banner偵測任何的板塊與籌碼事件 尤其是祝福 不顯示在banner」）：Day3王戰沿用
+  // day3BossFightActive()（候選成立即算），第一／二天夜之強敵則看activeEncounter是不是
+  // finalCircleDayN（戰鬥真的開始後）。updateNearbyFieldPoint()／updateNearbyChipPoint()／
+  // updateNearbyCastle()／updateNearbyTower()都以此清空各自的nearby*，banner／提示自然不出現。
+  function nightLordFightActive() {
+    if (day3BossFightActive()) return true;
+    return !!(activeEncounter && /^finalCircleDay\d+$/.test(String(activeEncounter.id)));
   }
 
   function recomputeActiveEncounter() {
@@ -13495,7 +13717,14 @@
     // 理論上不會發生的情況）就亂數退回一隻，總之封牢一定要有戰鬥、不得和平通過。
     // 只限封牢：其他卡牌的「成功／失敗（→ザコ戦闘）」是條件式戰鬥，midnight沒有判定機制，
     // 維持既有「選中區塊沒有敵人＝和平通過」的行為不動。
-    if (!matches.length && pt.type === "evergaol") {
+    // 2026-09-22使用者回報「有些劇本配地圖 走到堡壘J 仍有第一層抽不到王戰」並明確規格「檢查任何
+    // 劇本×地圖 在J都要有一個替代的路線可以抽選到」：選中的分歧選項本身就寫著「王戰／ボス戦闘」
+    // （規則書明寫這裡會發生王戰），卻掃不到任何敵人時，跟封牢同一套退回順序——先改掃整層
+    // （拿得到其他區塊的敵名／決定表引用＝替代路線），整層還是沒有就亂數退回一隻。這不是發明
+    // 戰鬥：選項標籤本身就是規則書的「王戰」，只是敵人解析失敗；沒有王戰標籤的選項維持
+    // 「找不到敵人＝和平通過」不動。
+    var bossChoice = !!label && /王戰|ボス戦闘|王战/.test(label);
+    if (!matches.length && (pt.type === "evergaol" || bossChoice)) {
       matches = scanLinesForEnemyMatches(floor.lines, cardData, pt.id);
       if (!matches.length) {
         var evergaolFallback = randomEnemyMatchFallback(pt.id + ":evergaol_fallback");
@@ -13594,7 +13823,8 @@
   // 每幀掃描這三型新籌碼點的proximity，跟updateNearbyFieldPoint()各自獨立（field卡牌
   // 已排除這三型，見NON_FIELD_POINT_TYPES）。
   function updateNearbyChipPoint() {
-    if (!mySlot || !localPos || autoFly) {
+    // nightLordFightActive()：夜之強敵／夜王戰鬥中不偵測任何籌碼事件（尤其祝福），見該函式說明。
+    if (!mySlot || !localPos || autoFly || nightLordFightActive()) {
       nearbyMerchant = null;
       nearbyStrongEnemy = null;
       nearbyRandomEvent = null;
@@ -16200,6 +16430,59 @@
   // 原本宣告在函式內、而函式開頭有「玩家不在籌碼點旁邊就直接return」的守衛，因此除了玩家
   // 正好站在點旁邊之外都取不到這張表——退回邏輯與回歸測試都需要隨時讀得到它。函式宣告本來
   // 就會hoist，放在這裡引用下方定義的render函式沒有問題。
+  // 隨機事件「過完」的判定（2026-09-22使用者明確規格，見isPointCleared()）：每個分支的完成狀態欄位
+  // 各不相同，這裡逐一對照各render function實際用來「不再顯示可操作按鈕」的條件——
+  //   ・個人判定型（聖甲蟲／女神像／歩く霊廟）：自己（mySlot）已判定過＝對這台裝置而言已過完
+  //     （地圖是各裝置各自畫的，其他玩家還沒判定不影響自己的✕）；女神像另外要等「破壞」
+  //     的機會用掉（沒人成功／已有人領取／自己不是可破壞的職業）。
+  //   ・全隊一次性結算型（埋もれ宝／虫の大量発生／霧の裂け目／安寧者たち／三つ首の獣／発狂地帯）：
+  //     看trig上的結算欄位。
+  //   ・王戰型（隕石「前往查看」／夜の勢力／襲撃的忌み鬼・兆し・調律の魔物「戦いを仕掛ける」）：
+  //     敵人HP歸零；隕石選「遠離」、調律の魔物選「取引」「立ち去る」也算過完。
+  //   ・襲撃的manual分支：按過「確認」。
+  function randomEventDone(pt, trig) {
+    if (!trig || trig.status !== "resolved" || !trig.branchNameJa) return false;
+    var hp = fieldEnemyHp[pt.id];
+    var enemyDead = !!trig.enemyFamilyId && hp !== undefined && hp <= 0;
+    var myAttempted = !!(mySlot && trig.attempted && trig.attempted[mySlot]);
+    switch (trig.branchNameJa) {
+      case "スカラベ":
+      case "歩く霊廟":
+        return myAttempted;
+      case "女神像": {
+        var me = characters[myTokenId];
+        var canBreak = !!(trig.goddessSucceeded && !trig.statueRewardGrantedBy && me && GODDESS_STATUE_RESTRICTED_TYPE_IDS.indexOf(me.typeId) !== -1);
+        return myAttempted && !canBreak;
+      }
+      case "埋もれ宝":
+        return !!trig.resolvedOutcome;
+      case "隕石":
+        return trig.meteorChoice === "flee" || enemyDead;
+      case "夜の勢力":
+        return !!trig.enemyFamilyId && (trig.completedRounds || 0) >= (trig.requiredRounds || 1);
+      case "虫の大量発生":
+        return !!trig.chaseOutcome;
+      case "発狂地帯": {
+        var stage = trig.madnessStage || "madFire";
+        return stage !== "madFire" && stage !== "tower1" && stage !== "tower2" && stage !== "tower3";
+      }
+      case "襲撃": {
+        var name = trig.ambushEnemyNameJa;
+        if (!name) return false;
+        if (name === "三つ首の獣") return trig.wolfStage === "done";
+        if (name === "霧の裂け目") return !!trig.mistTeamOutcome;
+        if (name === "安寧者たち") return !!trig.peacefulDestId;
+        if (AMBUSH_MANUAL_BRANCHES[name]) return !!trig.ambushManualAcknowledged;
+        if (name === "調律の魔物") {
+          if (!trig.tuningDemonChoice) return false;
+          return trig.tuningDemonChoice !== "fight" || enemyDead;
+        }
+        return enemyDead;
+      }
+    }
+    return false;
+  }
+
   var RANDOM_EVENT_RENDERERS = {
     "スカラベ": renderScarabBranch,
     "女神像": renderGoddessStatueBranch,
@@ -16584,6 +16867,33 @@
     if (!attempted) el("midnight-random-event-result").textContent = "";
   }
 
+  // 複製一把自身持有的武器（歩く霊廟／隠された霊廟共用）。2026-09-20審查L4修正：不能直接push同一個
+  // instance id（random戰技／詞條的儲存鍵會跟原本那把共用，丟掉一把兩把都沒了），改用CharacterDrawer
+  // 既有的枝番機制（makeWeaponInstanceId()，同merchantDrawWeapon()等取得路徑）產生新id，並把原本
+  // 那把的random戰技／詞條原樣複製過去（「同じ物1つ」＝一模一樣的一把）。呼叫端先確認背包空間。
+  function copyWeaponInstance(c, pickedId) {
+    var CDm = window.PriTestCharacterDrawer;
+    var copyId = CDm.makeWeaponInstanceId(CDm.baseWeaponId(pickedId), c);
+    c.weaponIds.push(copyId);
+    GameStorage.rtSet(gameId, "cloud", "character/" + myTokenId + "/weaponIds", c.weaponIds);
+    if (c.weaponRandomSkills) {
+      [null, "attached", "reverse"].forEach(function (slot) {
+        var fromKey = CDm.weaponSkillSlotKey(pickedId, slot);
+        if (c.weaponRandomSkills[fromKey]) c.weaponRandomSkills[CDm.weaponSkillSlotKey(copyId, slot)] = c.weaponRandomSkills[fromKey];
+      });
+      GameStorage.rtSet(gameId, "cloud", "character/" + myTokenId + "/weaponRandomSkills", c.weaponRandomSkills);
+    }
+    if (c.weaponAffixes && c.weaponAffixes[pickedId]) {
+      c.weaponAffixes[copyId] = JSON.parse(JSON.stringify(c.weaponAffixes[pickedId]));
+      GameStorage.rtSet(gameId, "cloud", "character/" + myTokenId + "/weaponAffixes", c.weaponAffixes);
+    }
+    if (c.weaponRarityOverride && c.weaponRarityOverride[pickedId]) {
+      c.weaponRarityOverride[copyId] = c.weaponRarityOverride[pickedId];
+      GameStorage.rtSet(gameId, "cloud", "character/" + myTokenId + "/weaponRarityOverride", c.weaponRarityOverride);
+    }
+    return copyId;
+  }
+
   function handleMausoleumCheckClick(pt) {
     if (!mySlot || isPaused() || isSelfDowned()) return;
     var trig = fieldTriggers[pt.id];
@@ -16603,26 +16913,8 @@
     // 只差在失敗多了HP損害）。
     if (c && c.weaponIds && c.weaponIds.length) {
       if (hasInventorySpace(c, "weapon")) {
-        // 2026-09-20審查L4修正：原本直接push同一個instance id，random戰技／詞條的儲存鍵會
-        // 跟原本那把共用，丟掉一把兩把都沒了。改用CharacterDrawer既有的枝番機制
-        // （makeWeaponInstanceId()，同merchantDrawWeapon()等取得路徑）產生新id，並把
-        // 原本那把的random戰技／詞條原樣複製過去（「同じ物1つ」＝一模一樣的一把）。
-        var CDm = window.PriTestCharacterDrawer;
         var pickedId = c.weaponIds[Math.floor(Math.random() * c.weaponIds.length)];
-        var copyId = CDm.makeWeaponInstanceId(CDm.baseWeaponId(pickedId), c);
-        c.weaponIds.push(copyId);
-        GameStorage.rtSet(gameId, "cloud", "character/" + myTokenId + "/weaponIds", c.weaponIds);
-        if (c.weaponRandomSkills) {
-          [null, "attached", "reverse"].forEach(function (slot) {
-            var fromKey = CDm.weaponSkillSlotKey(pickedId, slot);
-            if (c.weaponRandomSkills[fromKey]) c.weaponRandomSkills[CDm.weaponSkillSlotKey(copyId, slot)] = c.weaponRandomSkills[fromKey];
-          });
-          GameStorage.rtSet(gameId, "cloud", "character/" + myTokenId + "/weaponRandomSkills", c.weaponRandomSkills);
-        }
-        if (c.weaponAffixes && c.weaponAffixes[pickedId]) {
-          c.weaponAffixes[copyId] = JSON.parse(JSON.stringify(c.weaponAffixes[pickedId]));
-          GameStorage.rtSet(gameId, "cloud", "character/" + myTokenId + "/weaponAffixes", c.weaponAffixes);
-        }
+        copyWeaponInstance(c, pickedId);
       } else {
         showToast(window.I18N.t("midnight_inventory_full_note"));
       }
@@ -17682,7 +17974,9 @@
         Object.keys(trig.participants || {}).forEach(function (slot) {
           var p = players[slot];
           if (!p) return;
-          pushPendingReward(p.tokenId, { kind: "note", text: window.PriTestFields.localizedText(entry.note) });
+          // noteJa（2026-09-22）：地變的「特殊獲得」備註要能在獎勵清單裡真的執行（稀有度→L的裝備
+          // 選擇／恩寵獲得），偵測用日文原文比對，跟顯示語言無關，見noteRewardEffect()。
+          pushPendingReward(p.tokenId, { kind: "note", text: window.PriTestFields.localizedText(entry.note), noteJa: (entry.note && entry.note.ja) || "" });
         });
       } else {
         lootOut.push(entry); // 戰利品類直接回傳，交給呼叫端跟現有戰利品entries合併處理
@@ -17873,6 +18167,33 @@
     });
   }
 
+  // 礦坑（卡6 坑道）的鍛造石保底（2026-09-22使用者明確規格「礦坑預設都要領取到至少一顆鍛造石，
+  // 但自動抽選沒有成功拿到任何一顆進入獎勵清單時 必定補充鍛造石perPerson一顆」）：這個點
+  // （整張板塊，跨樓層）還沒有任何鍛造石進過獎勵清單、而這一層結算出來的loot也沒有鍛造石時，
+  // 補一筆{smithingStone, perPerson:true, value:1}。已發過（記在fieldProgress/{id}/stoneGranted，
+  // 不隨fieldTrigger清層消失）就不再補，規則書本身有給的樓層照原樣。
+  var MINE_CARD = "6";
+  var mineStoneGuaranteeAttempted = {}; // pointId -> true（本地節流：stoneGranted只寫一次）
+
+  function mineSmithingStoneGuarantee(pt, loot) {
+    if (pt.card !== MINE_CARD) return [];
+    var hasStone = loot.some(function (e) {
+      return e.kind === "smithingStone";
+    });
+    var progress = fieldProgress[pt.id] || {};
+    if (hasStone) {
+      if (!progress.stoneGranted && !mineStoneGuaranteeAttempted[pt.id]) {
+        mineStoneGuaranteeAttempted[pt.id] = true;
+        GameStorage.rtSet(gameId, "cloud", "fieldProgress/" + pt.id + "/stoneGranted", true);
+      }
+      return [];
+    }
+    if (progress.stoneGranted || mineStoneGuaranteeAttempted[pt.id]) return [];
+    mineStoneGuaranteeAttempted[pt.id] = true;
+    GameStorage.rtSet(gameId, "cloud", "fieldProgress/" + pt.id + "/stoneGranted", true);
+    return [{ kind: "smithingStone", perPerson: true, value: 1 }];
+  }
+
   function maybeGrantFieldTileReward(pt, trig, floor) {
     if (fieldTileRewardAttempted[pt.id]) return;
     fieldTileRewardAttempted[pt.id] = true;
@@ -17907,6 +18228,7 @@
         }
         var resolvedLoot = autoJudgmentEntries.length ? resolveJudgmentRewardEntries(autoJudgmentEntries, trig, voteLabel) : [];
         var allLoot = lootEntries.concat(resolvedLoot);
+        allLoot = allLoot.concat(mineSmithingStoneGuarantee(pt, allLoot));
         if (!allLoot.length) {
           markTileRewardsPosted(pt.id);
           return;
@@ -18257,7 +18579,7 @@
       return (fixedItem ? window.PriTestConsumables.localizedText(fixedItem.name) : fixedId) + " x" + (entry.value || 1);
     }
     if (entry.kind === "weaponSkillReroll") return window.I18N.t("midnight_reward_label_weapon_skill_reroll", { value: entry.value || 1 });
-    if (entry.kind === "hpDamage") return window.I18N.t("midnight_reward_label_hp_damage", { value: entry.value || 0 });
+    if (entry.kind === "hpDamage") return window.I18N.t("midnight_reward_label_hp_damage", { value: rewardHpDamageAmount(entry) });
     if (entry.kind === "note") return entry.note ? window.PriTestFields.localizedText(entry.note) : window.I18N.t("midnight_reward_kind_note");
     if (entry.kind === "tieredChoice") return window.I18N.t("midnight_reward_kind_tiered_choice");
     if (entry.kind === "diceHandChoice") return window.I18N.t("midnight_reward_kind_dice_hand_choice");
@@ -18269,6 +18591,32 @@
   // 其資訊...」）：weapon/talisman/consumable三種kind額外把抽到的原始item/weaponId也
   // 放進回傳物件（不只是label字串），供renderRewardDetail()呼叫既有renderWeaponSheetDetail()
   // /顯示消耗品裝飾品效果本文用；rune沒有「物品資訊」可顯示，維持原樣。
+  // 獎勵清單的「固定扣除n點HP傷害」（fields_data_*.js的hpDamage entry，value是規則書的點數）
+  // 在midnight的實際扣血量（2026-09-22使用者明確規格「實際為x10點，即原本的扣1點HP為扣10點」）：
+  // 跟「■」「□」1個＝10的既有換算同一個刻度（BLOCK_SQUARE_COUNT_TO_RESOURCE_MULT）。
+  function rewardHpDamageAmount(entry) {
+    return (entry.value || 0) * BLOCK_SQUARE_COUNT_TO_RESOURCE_MULT;
+  }
+
+  // 同規格「檢視後 自動10秒後由系統幫忙領取」：hpDamage項目在右側詳細面板被顯示（＝檢視）
+  // 的那一刻起算10秒，時間到若仍未處理就由系統代按［確認］。每筆只排一次計時（以id為key）。
+  var REWARD_HP_DAMAGE_AUTO_CLAIM_MS = 10000;
+  var rewardHpDamageAutoClaimAt = {}; // rewardId -> 到期時間戳（本機only）
+  var rewardHpDamageAutoClaimTimers = {}; // rewardId -> setTimeout id
+
+  function scheduleRewardHpDamageAutoClaim(id, entry) {
+    if (rewardHpDamageAutoClaimTimers[id]) return;
+    rewardHpDamageAutoClaimAt[id] = Date.now() + REWARD_HP_DAMAGE_AUTO_CLAIM_MS;
+    rewardHpDamageAutoClaimTimers[id] = setTimeout(function () {
+      delete rewardHpDamageAutoClaimTimers[id];
+      var list = pendingRewards[myTokenId] || {};
+      var cur = list[id];
+      if (!cur || cur.resolved || cur.kind !== "hpDamage") return; // 已被玩家自己按掉／丟棄
+      if (!rewardDraftById[id]) rewardDraftById[id] = computeRewardDraw(cur);
+      confirmRewardEntry(id, rewardDraftById[id]);
+    }, REWARD_HP_DAMAGE_AUTO_CLAIM_MS);
+  }
+
   function computeRewardDraw(entry) {
     if (entry.kind === "rune") {
       var value = entry.value || 0;
@@ -18313,13 +18661,14 @@
       };
     }
     if (entry.kind === "hpDamage") {
+      var hpDamageValue = rewardHpDamageAmount(entry);
       return {
-        label: window.I18N.t("midnight_reward_label_hp_damage", { value: entry.value || 0 }),
+        label: window.I18N.t("midnight_reward_label_hp_damage", { value: hpDamageValue }),
         apply: function (c) {
           var max = selfArenaHpMax(c);
           GameStorage.rtTransaction(gameId, "cloud", "demoStat/" + myTokenId, function (cur) {
             var current = cur === null ? max : cur;
-            return Math.max(0, current - (entry.value || 0));
+            return Math.max(0, current - hpDamageValue);
           }).then(function (result) {
             // 2026-09-09合併私有分支的瀕死系統：延遲到玩家實際確認扣血的這一刻才判斷是否
             // 觸發瀕死，跟private/main原本在判定當下就檢查的時機點不同，但maybeTriggerNearDeath()
@@ -18432,6 +18781,19 @@
   function confirmRewardEntry(id, draft) {
     var c = characters[myTokenId];
     if (!c) return;
+    // 2026-09-22：最後一道上限檢查。detail面板是在render時判斷滿格與否，按下［確認］的那一刻
+    // 持有狀況可能已經變了（同一時間另一筆獎勵剛入手、撿了地上的東西）；這裡再確認一次，
+    // 滿了就不套用、獎勵留在清單，並提示先騰出空間。
+    var list = pendingRewards[myTokenId] || {};
+    var entry = list[id];
+    if (entry) {
+      var invKind = entry.kind === "weapon" || entry.kind === "weaponStar" ? "weapon" : entry.kind === "consumable" || entry.kind === "talisman" ? entry.kind : null;
+      if (invKind && !hasInventorySpace(c, invKind, draft.itemId || null, draft.attributeTag || null)) {
+        showToast(window.I18N.t("midnight_inventory_full_note"));
+        renderRewardModal();
+        return;
+      }
+    }
     var before = snapshotMyCharacter();
     draft.apply(c);
     syncMyCharacterChanges(before); // 2026-09-20審查R1
@@ -18589,9 +18951,20 @@
       var chooseWeaponBtn = document.createElement("button");
       chooseWeaponBtn.type = "button";
       chooseWeaponBtn.textContent = window.I18N.t("midnight_reward_potential_choose_button");
+      // 2026-09-22使用者回報「身上已經有6把卻能再領一把」：這裡原本沒有檢查武器欄上限，是唯一
+      // 會把第7把push進weaponIds的路徑（角色視窗只畫6格，多出來的那把要等丟掉一把才「冒出來」）。
+      // 比照confirmRewardEntry()／商人購買：滿格時只給黃字提示、不給選武器（附帶效果仍可選）。
+      var weaponFullForPp = !hasInventorySpace(cForWeapon, "weapon");
+      if (weaponFullForPp) {
+        var ppFullNote = document.createElement("p");
+        ppFullNote.className = "warning-text";
+        ppFullNote.textContent = window.I18N.t("midnight_inventory_full_note");
+        weaponCard.appendChild(ppFullNote);
+        chooseWeaponBtn.disabled = true;
+      }
       chooseWeaponBtn.addEventListener("click", function () {
         var c = characters[myTokenId];
-        if (!c) return;
+        if (!c || !hasInventorySpace(c, "weapon")) return;
         var before = snapshotMyCharacter();
         var ppInstanceId = CD.commitPotentialPowerWeapon(c, draft.weapon);
         // 2026-09-13武器詞條：把抽選當下擲好、玩家已經看過的那一組掛到真正的instance id上。
@@ -18702,6 +19075,213 @@
   // ，已內建稀有度色點/傷害估算/戰技；消耗品/裝飾品新增顯示效果本文），並排「取得」
   // （既有confirmRewardEntry）與新增的「丟棄」（discardRewardEntry，只標記已處理、不套用
   // 效果）兩個按鈕。rune沒有「抽選」的必要（結果本來就是固定的value），維持原本直接顯示。
+  // ---- 地變「特殊獲得」備註的實際效果（2026-09-22使用者明確規格「火山的特殊獲得備註 可以升級一把
+  // 武器至L，領取後產生另外的local視窗可以選擇要敲打哪一把武器，可以暫時關閉，再次打開獎勵清單可以
+  // 再點開此備註；另外檢查其他地變時特殊的獲得備註的實作效果是否有效果」，同日追加「實作並接上」）----
+  // 備註（kind:"note"）原本只顯示文字、按［確認］就消失，規則書寫的效果全靠玩家手動。這裡依日文原文
+  // 辨識可以由App代勞的備註（fields_data_4.js card_q 的 note 全部核對過）：
+  //   ・rarityL     ：「レアリティ：Lへ上昇可能」（火山・溶岩土竜）→ 開裝備選擇視窗，選定後
+  //                   c.weaponRarityOverride[id]="L"（跟鍛造台升級同一個欄位，computeArtPower()會讀）。
+  //   ・copyEquip   ：「装備品を1つ複製可能」（隠れ都・隠された霊廟）→ 同一個選擇視窗，選定後
+  //                   copyWeaponInstance()（跟歩く霊廟同一支）；背包滿時不能選。
+  //   ・grace       ：文字裡出現graces.js某個恩寵的日文名（腐れ森／山嶺／大空洞／隠れ都）→ 按下即
+  //                   grantGraceToTokens()；寫「1D5以上で獲得」的先擲1D、5以上才給。其他達成條件
+  //                   （山頂到達、共鳴結晶3以上）是樓層本文的流程結果，領到這筆備註就代表走到了該結果。
+  //   ・madnessMax  ：「『発狂』の蓄積最大値-2」（調律の魔物・立ち去る）→ c._madnessAccumMaxDebuff+=2，
+  //                   receivedAccumThreshold()對「発狂」扣掉（劇本結束＝這場遊戲結束，欄位隨角色同步）。
+  //   ・catalyst    ：「触媒：★★」→ 選「杖」或「聖印」後推進 {weaponStar, value:★數, categoryId}，
+  //                   走既有的獎勵清單抽選（跟魔術師塔的杖同一條路徑）。
+  //   ・merchantWeapon：「ルーン：1」→武器★／2→★★／3→★★★（隠れ都・部屋を探す・商人）→ 三顆購買鍵，
+  //                   扣盧恩後推進 {weaponStar, value}，一次購買就算領取（規則書「PC全員が購入できる」＝
+  //                   每人各一次）。
+  //   ・talismanPerPc：「『タリスマン』をPC人数と同じ数だけ獲得」→ 每位PC的清單各推進一筆{talisman}
+  //                   （PC人數分＝每人一個）。
+  // 其餘備註維持原樣（顯示文字、確認／丟棄）。
+  function noteRewardEffect(entry) {
+    var ja = entry && entry.noteJa ? String(entry.noteJa) : "";
+    if (!ja) return null;
+    if (/レアリティ[：:]L/.test(ja)) return { type: "rarityL" };
+    if (/装備品を1つ複製/.test(ja)) return { type: "copyEquip" };
+    if (/「発狂」の蓄積最大値-2/.test(ja)) return { type: "madnessMax", value: 2 };
+    var catalyst = /「触媒[：:](★+)」/.exec(ja);
+    if (catalyst) return { type: "catalyst", stars: catalyst[1].length };
+    if (/「ルーン：1」を消費するとPC全員が「武器：★」/.test(ja)) return { type: "merchantWeapon" };
+    if (/「タリスマン」をPC人数と同じ数だけ獲得/.test(ja)) return { type: "talismanPerPc" };
+    var Graces = window.PriTestGraces;
+    var list = Graces ? Graces.list() : [];
+    for (var i = 0; i < list.length; i++) {
+      var nameJa = list[i].name && list[i].name.ja;
+      if (nameJa && ja.indexOf(nameJa) !== -1) {
+        return { type: "grace", graceId: list[i].id, roll: /1D5以上/.test(ja) ? 5 : null };
+      }
+    }
+    return null;
+  }
+
+  function resolveNoteReward(id) {
+    GameStorage.rtSet(gameId, "cloud", "pendingRewards/" + myTokenId + "/" + id + "/resolved", true);
+    selectedRewardId = null;
+  }
+
+  function noteEffectButton(detail, label, onClick) {
+    var btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "midnight-draw-hint";
+    btn.textContent = label;
+    btn.addEventListener("click", onClick);
+    detail.appendChild(btn);
+    return btn;
+  }
+
+  function renderNoteRewardEffect(id, entry, detail, effect) {
+    var c = characters[myTokenId];
+    if (!c) return;
+    if (effect.type === "rarityL" || effect.type === "copyEquip") {
+      noteEffectButton(detail, window.I18N.t(effect.type === "rarityL" ? "midnight_reward_rarity_upgrade_button" : "midnight_reward_copy_equip_button"), function () {
+        openEquipmentPickModal(id, effect.type);
+      });
+      return;
+    }
+    if (effect.type === "grace") {
+      var name = graceName(effect.graceId);
+      noteEffectButton(
+        detail,
+        effect.roll ? window.I18N.t("midnight_reward_grace_roll_button", { name: name }) : window.I18N.t("midnight_reward_grace_claim_button", { name: name }),
+        function () {
+          var granted = true;
+          if (effect.roll) {
+            var value = 1 + Math.floor(Math.random() * 6);
+            granted = value >= effect.roll;
+            showToast(window.I18N.t("midnight_reward_grace_roll_result", {
+              value: value,
+              result: window.I18N.t(granted ? "midnight_reward_grace_granted" : "midnight_reward_grace_not_granted", { name: name }),
+            }));
+          } else {
+            showToast(window.I18N.t("midnight_reward_grace_granted", { name: name }));
+          }
+          if (granted) grantGraceToTokens([myTokenId], effect.graceId);
+          resolveNoteReward(id);
+        }
+      );
+      return;
+    }
+    if (effect.type === "madnessMax") {
+      noteEffectButton(detail, window.I18N.t("midnight_reward_madness_max_button", { value: effect.value }), function () {
+        var before = snapshotMyCharacter();
+        c._madnessAccumMaxDebuff = (c._madnessAccumMaxDebuff || 0) + effect.value;
+        syncMyCharacterChanges(before);
+        showToast(window.I18N.t("midnight_reward_madness_max_done", { value: effect.value }));
+        resolveNoteReward(id);
+      });
+      return;
+    }
+    if (effect.type === "catalyst") {
+      [["staff", "midnight_reward_catalyst_staff_button"], ["sacred_seal", "midnight_reward_catalyst_seal_button"]].forEach(function (opt) {
+        noteEffectButton(detail, window.I18N.t(opt[1], { stars: new Array(effect.stars + 1).join("★") }), function () {
+          pushPendingReward(myTokenId, { kind: "weaponStar", value: effect.stars, categoryId: opt[0] });
+          resolveNoteReward(id);
+        });
+      });
+      return;
+    }
+    if (effect.type === "merchantWeapon") {
+      var runeNote = document.createElement("p");
+      runeNote.className = "warning-text";
+      runeNote.textContent = window.I18N.t("midnight_reward_merchant_weapon_runes_note", { runes: c.runes || 0 });
+      detail.appendChild(runeNote);
+      [1, 2, 3].forEach(function (cost) {
+        var btn = noteEffectButton(detail, window.I18N.t("midnight_reward_merchant_weapon_buy_button", { stars: new Array(cost + 1).join("★"), cost: cost }), function () {
+          var cNow = characters[myTokenId];
+          if (!cNow || (cNow.runes || 0) < cost) return;
+          var before = snapshotMyCharacter();
+          cNow.runes -= cost;
+          syncMyCharacterChanges(before);
+          pushPendingReward(myTokenId, { kind: "weaponStar", value: cost });
+          resolveNoteReward(id);
+        });
+        btn.disabled = (c.runes || 0) < cost;
+      });
+      return;
+    }
+    if (effect.type === "talismanPerPc") {
+      noteEffectButton(detail, window.I18N.t("midnight_reward_talisman_per_pc_button"), function () {
+        pushPendingReward(myTokenId, { kind: "talisman" });
+        resolveNoteReward(id);
+      });
+    }
+  }
+
+  // 裝備選擇視窗（純本機；關閉不消耗獎勵，再開獎勵清單可再點）。mode：
+  //   "rarityL"   → 列出自身全部持有裝備（武器／觸媒／盾都在weaponIds裡），已是L的不能選；
+  //   "copyEquip" → 同一份清單，選定後複製一把（背包滿時全部不能選並提示）。
+  var equipmentPickState = null; // { rewardId, mode }
+
+  function openEquipmentPickModal(rewardId, mode) {
+    var modal = el("midnight-rarity-upgrade-modal");
+    var listEl = el("midnight-rarity-upgrade-list");
+    var titleEl = el("midnight-rarity-upgrade-title");
+    var hintEl = el("midnight-rarity-upgrade-hint");
+    var c = characters[myTokenId];
+    if (!modal || !listEl || !c) return;
+    equipmentPickState = { rewardId: rewardId, mode: mode };
+    if (titleEl) titleEl.textContent = window.I18N.t(mode === "copyEquip" ? "midnight_copy_equip_title" : "midnight_rarity_upgrade_title");
+    if (hintEl) hintEl.textContent = window.I18N.t(mode === "copyEquip" ? "midnight_copy_equip_hint" : "midnight_rarity_upgrade_hint");
+    listEl.innerHTML = "";
+    var CD = window.PriTestCharacterDrawer;
+    var copyBlocked = mode === "copyEquip" && !hasInventorySpace(c, "weapon");
+    if (copyBlocked) {
+      var fullNote = document.createElement("p");
+      fullNote.className = "warning-text";
+      fullNote.textContent = window.I18N.t("midnight_inventory_full_note");
+      listEl.appendChild(fullNote);
+    }
+    (c.weaponIds || []).forEach(function (wid) {
+      var w = window.PriTestWeapons.get(baseCatalogId(wid));
+      if (!w) return;
+      var rarity = CD.getEffectiveWeaponRarity ? CD.getEffectiveWeaponRarity(c, wid) : w.rarity;
+      var btn = document.createElement("button");
+      btn.type = "button";
+      var alreadyL = mode === "rarityL" && rarity === "L";
+      btn.textContent = window.PriTestWeapons.localizedText(w.name) + "（" + rarity + "）" + (alreadyL ? window.I18N.t("midnight_rarity_upgrade_already_l") : "");
+      btn.disabled = alreadyL || copyBlocked;
+      btn.addEventListener("click", function () {
+        commitEquipmentPick(wid);
+      });
+      listEl.appendChild(btn);
+    });
+    modal.hidden = false;
+  }
+
+  function closeRarityUpgradeModal() {
+    var modal = el("midnight-rarity-upgrade-modal");
+    if (modal) modal.hidden = true;
+    equipmentPickState = null;
+  }
+
+  function commitEquipmentPick(weaponId) {
+    var c = characters[myTokenId];
+    var st = equipmentPickState;
+    if (!c || !st) return;
+    var w = window.PriTestWeapons.get(baseCatalogId(weaponId));
+    var wName = w ? window.PriTestWeapons.localizedText(w.name) : weaponId;
+    var before = snapshotMyCharacter();
+    if (st.mode === "copyEquip") {
+      if (!hasInventorySpace(c, "weapon")) {
+        showToast(window.I18N.t("midnight_inventory_full_note"));
+        return;
+      }
+      copyWeaponInstance(c, weaponId);
+      showToast(window.I18N.t("midnight_copy_equip_done", { name: wName }));
+    } else {
+      c.weaponRarityOverride = c.weaponRarityOverride || {};
+      c.weaponRarityOverride[weaponId] = "L";
+      syncMyCharacterChanges(before);
+      showToast(window.I18N.t("midnight_rarity_upgrade_done", { name: wName }));
+    }
+    resolveNoteReward(st.rewardId);
+    closeRarityUpgradeModal();
+  }
+
   function renderRewardDetail(id, entry) {
     var detail = el("midnight-reward-detail");
     detail.innerHTML = "";
@@ -18735,6 +19315,26 @@
     }
     if (!rewardDraftById[id]) rewardDraftById[id] = computeRewardDraw(entry);
     var draft = rewardDraftById[id];
+    // 固定HP傷害（2026-09-22）：檢視即起算10秒，到時系統自動套用；面板上顯示倒數（每秒重繪一次
+    // 這一段文字就好，不必整個detail重畫）。
+    if (entry.kind === "hpDamage") {
+      scheduleRewardHpDamageAutoClaim(id, entry);
+      var autoNote = document.createElement("p");
+      autoNote.className = "warning-text";
+      var renderAutoNote = function () {
+        var left = Math.max(0, Math.ceil((rewardHpDamageAutoClaimAt[id] - Date.now()) / 1000));
+        autoNote.textContent = window.I18N.t("midnight_reward_hp_damage_auto_note", { seconds: left });
+      };
+      renderAutoNote();
+      var autoNoteTimer = setInterval(function () {
+        if (!autoNote.isConnected || !rewardHpDamageAutoClaimTimers[id]) {
+          clearInterval(autoNoteTimer);
+          return;
+        }
+        renderAutoNote();
+      }, 250);
+      detail.appendChild(autoNote);
+    }
     if ((entry.kind === "weapon" || entry.kind === "weaponStar") && draft.weaponId) {
       var c1 = characters[myTokenId];
       // 第5引數＝這次抽選當下決定的random戰技（見computeRewardDraw()的weapon分支）：此時
@@ -18808,13 +19408,20 @@
         detail.appendChild(redrawBtn);
       }
     }
-    var confirmBtn = document.createElement("button");
-    confirmBtn.type = "button";
-    confirmBtn.textContent = window.I18N.t("midnight_reward_confirm_button");
-    confirmBtn.addEventListener("click", function () {
-      confirmRewardEntry(id, draft);
-    });
-    detail.appendChild(confirmBtn);
+    // 地變特殊獲得備註（2026-09-22，見noteRewardEffect()）：有可代勞的效果時，用效果按鈕取代［確認］
+    // （按了效果才算領取），［丟棄］照常保留。
+    var noteEffect = entry.kind === "note" ? noteRewardEffect(entry) : null;
+    if (noteEffect) {
+      renderNoteRewardEffect(id, entry, detail, noteEffect);
+    } else {
+      var confirmBtn = document.createElement("button");
+      confirmBtn.type = "button";
+      confirmBtn.textContent = window.I18N.t("midnight_reward_confirm_button");
+      confirmBtn.addEventListener("click", function () {
+        confirmRewardEntry(id, draft);
+      });
+      detail.appendChild(confirmBtn);
+    }
     var discardBtn = document.createElement("button");
     discardBtn.type = "button";
     discardBtn.textContent = window.I18N.t("midnight_reward_discard_button");
@@ -19133,7 +19740,10 @@
   // 在函式裡寫死kind==="weapon"，讓消耗品/護符之後要加別種徽章時不用再改這裡。
   function renderInventorySlots(container, items, slotCount, kind, renderLabel, renderBadge) {
     container.innerHTML = "";
-    for (var i = 0; i < slotCount; i++) {
+    // 2026-09-22：持有數若因舊資料超過格數，多出來的也要畫出來（原本只畫slotCount格，超出的那把
+    // 隱形、丟掉一把才冒出來），玩家才看得到並自行丟棄。上限本身仍由hasInventorySpace()把關。
+    var total = Math.max(slotCount, items.length);
+    for (var i = 0; i < total; i++) {
       var slotEl = document.createElement("button");
       slotEl.type = "button";
       slotEl.className = "midnight-sheet-slot";
@@ -20643,6 +21253,12 @@
     if (consumableLabel) {
       consumableLabel.textContent = inst ? consumableInstanceLabel(c, inst) : window.I18N.t("midnight_weapon_slot_empty");
     }
+    // 剩餘數量徽章（2026-09-22，見midnight_page.py同id說明）：品名行會被截斷，數量另外常駐顯示。
+    var consumableCountEl = el("midnight-consumable-count");
+    if (consumableCountEl) {
+      consumableCountEl.hidden = !inst;
+      if (inst) consumableCountEl.textContent = "×" + (inst.usesRemaining || 0);
+    }
     // 第N格／共M格的小字（多於1格時才顯示，讓玩家知道還有別的道具可以切）。
     var consumableIndexEl = el("midnight-consumable-index");
     if (consumableIndexEl) {
@@ -20912,11 +21528,20 @@
       // 素材が入ればその敵は自分の sheet に切り替わる。代役は sheetId のハッシュで決まるので
       // 同じ敵は常に同じ代役、かつ全端末で一致する（見 midnight_sprite.js）。
       var bossSheet = encounterSheetFile(trig);
-      if (
-        !(bossSheet && window.PriTestMidnightSprite.showSprite(bossSheet, "../static/", encounterSpriteCount(trig))) &&
-        window.PriTestMidnightSprite
-      ) {
+      var bossSpriteShown = !!(bossSheet && window.PriTestMidnightSprite.showSprite(bossSheet, "../static/", encounterSpriteCount(trig)));
+      if (!bossSpriteShown && window.PriTestMidnightSprite) {
         window.PriTestMidnightSprite.showStatic();
+      }
+      // 2026-09-22使用者明確規格「使用點陣圖模式遊玩的話 就不顯示敵人插畫，最後夜王的插畫還是
+      // 放置右上取代小地圖位置」：sprite顯示中插畫改為看不見但保留佔位（visibility:hidden，
+      // 舞台寬度靠它撐住，見style.css #midnight-enemy-sprite-stage說明），立繪改交給右上的
+      // #midnight-boss-portrait-hud（renderMinimap()負責顯示切換）。
+      setIllustrationHidden(imgEl, bossSpriteShown);
+      var portraitHud = el("midnight-boss-portrait-hud");
+      if (portraitHud) {
+        if (bossPortrait) portraitHud.src = NightBosses.imagePath(bossPortrait, "../static/");
+        else portraitHud.removeAttribute("src");
+        portraitHud.alt = bossName;
       }
       imgEl.alt = bossName;
       el("midnight-field-encounter-name").textContent = bossName;
@@ -20933,13 +21558,37 @@
     // 2026-09-21 使用者明確規格改版：sprite 疊在插圖之上，不再把插圖藏起來。
     // 點陣圖戰鬥模式：同上，未勾選spriteModeEnabled()時直接視同沒有sheet。
     var sheet = encounterSheetFile(trig);
-    if (
-      !(sheet && window.PriTestMidnightSprite.showSprite(sheet, "../static/", encounterSpriteCount(trig))) &&
-      window.PriTestMidnightSprite
-    ) {
+    var spriteShown = !!(sheet && window.PriTestMidnightSprite.showSprite(sheet, "../static/", encounterSpriteCount(trig)));
+    if (!spriteShown && window.PriTestMidnightSprite) {
       window.PriTestMidnightSprite.showStatic();
     }
+    // 2026-09-22：點陣圖模式不顯示敵人插畫（同上方夜王分支的說明）。
+    setIllustrationHidden(el("midnight-field-encounter-image"), spriteShown);
     el("midnight-field-encounter-name").textContent = name;
+  }
+
+  // 插畫「看不見但保留佔位」的切換：class由style.css套visibility:hidden。
+  function setIllustrationHidden(imgEl, hidden) {
+    if (!imgEl) return;
+    imgEl.classList.toggle("midnight-illustration-off", !!hidden);
+  }
+
+  // 夜王立繪在右上取代小地圖（2026-09-22使用者明確規格，見renderFieldEncounterPanel()夜王分支）：
+  // 只在「點陣圖模式、正在跟夜王戰鬥、有立繪、地圖收合」時顯示，跟小地圖互斥；回傳true＝立繪
+  // 佔了小地圖的位置，renderMinimap()據此藏起小地圖。
+  function renderBossPortraitHud() {
+    var portrait = el("midnight-boss-portrait-hud");
+    if (!portrait) return false;
+    var trig = activeEncounter ? fieldTriggers[activeEncounter.id] : null;
+    var showing = !!(
+      spriteModeEnabled() &&
+      trig &&
+      trig.enemyFamilyId === BOSS_ENEMY_FAMILY_SENTINEL &&
+      portrait.getAttribute("src") &&
+      !mapExpanded
+    );
+    if (portrait.hidden === showing) portrait.hidden = !showing;
+    return showing;
   }
 
   // ---- 標點：電腦中鍵點擊立即標點；電腦左鍵/手機觸控長按（LONG_PRESS_MS）也標點。
@@ -21096,7 +21745,13 @@
   function renderMapIcon() {
     var btn = el("btn-midnight-map-icon");
     if (!btn) return;
-    btn.classList.toggle("midnight-map-icon-nudge", mapIconNudge && !mapExpanded);
+    var nudging = mapIconNudge && !mapExpanded;
+    btn.classList.toggle("midnight-map-icon-nudge", nudging);
+    // 2026-09-22使用者明確規格「打過板塊地圖縮小時，此時當地圖閃黃時同時在背景的頁面另外閃黃光
+    // 一行訊息『右上角地圖可以點開繼續移動探索！！！』」：跟地圖圖示同一個nudge旗標／同一個
+    // 時機顯示與消失（玩家點開地圖即收），文字見i18n midnight_map_nudge_message。
+    var msg = el("midnight-map-nudge-message");
+    if (msg && msg.hidden === nudging) msg.hidden = !nudging;
   }
 
   // 角色按鈕黃光（2026-09-06三次優化，使用者明確規格「角色還有遺物效果可學習時，角色按鈕
@@ -22359,8 +23014,17 @@
   // 地圖繪製邏輯（跟主canvas共用同一份畫面內容，drawImage()本身就會做縮放）。
   function renderMinimap() {
     if (!minimapCanvas) return;
-    var showing = !!(activeEncounter && !mapExpanded);
+    // 2026-09-22：夜王立繪佔用小地圖位置時（點陣圖模式的王戰）小地圖讓位，見renderBossPortraitHud()。
+    var portraitShowing = renderBossPortraitHud();
+    var showing = !!(activeEncounter && !mapExpanded) && !portraitShowing;
     minimapCanvas.hidden = !showing;
+    // 夜雨警示燈（2026-09-22，見midnight_page.py #midnight-rain-warning-light說明）：戰鬥中（小地圖或
+    // 夜王立繪顯示中）且自己正在圈外淋雨（maybeApplyCircleDamage()維護的outsideCircleSinceMs）才亮。
+    var rainLight = el("midnight-rain-warning-light");
+    if (rainLight) {
+      var raining = (showing || portraitShowing) && outsideCircleSinceMs !== null;
+      if (rainLight.hidden === raining) rainLight.hidden = !raining;
+    }
     if (!showing) return;
     minimapCtx.clearRect(0, 0, minimapCanvas.width, minimapCanvas.height);
     minimapCtx.drawImage(canvas, 0, 0, minimapCanvas.width, minimapCanvas.height);
@@ -22380,7 +23044,10 @@
   //     聖甲蟲各玩家各自判定成功/失敗），不畫X。
   function isPointCleared(pt) {
     if (pt.type === "sorcerer") return !!towerSolved[pt.id];
-    if (pt.type === "merchant" || pt.type === "blessing" || pt.type === "random_event") return false;
+    if (pt.type === "merchant" || pt.type === "blessing") return false;
+    // 2026-09-22使用者明確規格「隨機事件過完後 保持原本籌碼圖示 上面一樣打X來標示」：籌碼圖示
+    // 本身不換（drawPointCard()照畫），只在事件走完時疊✕，見randomEventDone()。
+    if (pt.type === "random_event") return randomEventDone(pt, fieldTriggers[pt.id]);
     if (pt.type === "strong_enemy") {
       var trig = fieldTriggers[pt.id];
       return !!(trig && trig.enemyFamilyId && fieldEnemyHp[pt.id] <= 0);
@@ -23071,9 +23738,18 @@
     minimapCtx = minimapCanvas.getContext("2d");
     minimapCanvas.width = Math.round((GRID * CELL) / 10);
     minimapCanvas.height = Math.round((GRID * CELL) / 10);
+    // 夜王立繪取代小地圖位置時（2026-09-22）尺寸跟小地圖一致，object-fit由style.css處理。
+    var bossPortraitHud = el("midnight-boss-portrait-hud");
+    if (bossPortraitHud) {
+      bossPortraitHud.style.width = minimapCanvas.width + "px";
+      bossPortraitHud.style.height = minimapCanvas.height + "px";
+    }
 
     if ("ontouchstart" in window || navigator.maxTouchPoints > 0) {
       el("midnight-mobile-joystick").hidden = false;
+      // 觸控裝置沒有實體鍵盤，快捷鍵標示（Shift／G）只會造成困惑，藏起來（2026-09-22）。
+      var hotkeyBadges = document.querySelectorAll(".midnight-hotkey-badge");
+      for (var hb = 0; hb < hotkeyBadges.length; hb++) hotkeyBadges[hb].hidden = true;
     }
 
     gameId = qsGameId();
@@ -23424,6 +24100,10 @@
     },
     // 2026-09-22 戰鬥模擬回歸測試用（tools/midnight_check/battle_sim_check.js）：期望的敵人
     // HP 上限從資料算出來、不硬編（CLAUDE.md §4.7 原則）。
+    // 2026-09-22：地變備註「発狂の蓄積最大値-2」的回歸測試用（見battle_sim_check.js ⑯）。
+    _debugReceivedAccumThreshold: function (name) {
+      return receivedAccumThreshold(characters[myTokenId], name);
+    },
     _debugEnemyRealHpMax: function (trig) {
       return enemyRealHpMax(trig);
     },
@@ -23978,7 +24658,7 @@
         battleSimAnimCycle: battleSimAnimCycle, // 2026-09-22：動作循環確認的本地進度（{index, startAt}）
         testModeUnlockedLocally: testModeUnlockedLocally, // 2026-09-22：本機是否輸入過測試模式密碼（戰鬥模擬三列的顯示條件）
         battleSimDodgeTimer: battleSimDodgeTimer, // 2026-09-22：戰鬥模擬迴避計時的目前碼表
-        battleSimDodgeLog: battleSimDodgeLog.slice(), // 同上，最近幾筆紀錄文字
+        battleSimDodgeLog: battleSimDodgeLog.map(battleSimDodgeLogText), // 同上，最近幾筆紀錄（顯示文字）
         activeEncounter: activeEncounter,
         myIncomingAttack: myIncomingAttack,
         nearbyStrongEnemy: nearbyStrongEnemy,

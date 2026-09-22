@@ -51,7 +51,8 @@
     "test:castle_variance": "node castle_variance_check.js",
     "test:levelup_spirit_2026_09_21": "node levelup_spirit_2026_09_21_check.js",
     "test:battle_sim": "node battle_sim_check.js",
-    "test:sprite_dodge": "node sprite_dodge_check.js"
+    "test:sprite_dodge": "node sprite_dodge_check.js",
+    "test:late_join": "node late_join_check.js"
   },
   "devDependencies": {
     "firebase-tools": "^15.29.0",

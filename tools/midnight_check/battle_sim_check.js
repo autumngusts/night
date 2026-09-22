@@ -237,7 +237,8 @@ async function unlockTestMode(page) {
     assert(!!stage0 && stage0.w > 0 && stage0.h === stage0.w, "舞台有實際尺寸且為正方形（cellPx 推算成立）", stage0);
     assert(!!stage0 && stage0.anim === "idle", "初始播放 idle", stage0);
     const imgOk = await pageA.evaluate((f) => new Promise((res) => { const im = new Image(); im.onload = () => res({ w: im.naturalWidth, h: im.naturalHeight }); im.onerror = () => res(null); im.src = "../static/images/sprites/" + f; }), sheetInfo.file);
-    assert(!!imgOk && imgOk.w === (imgOk.h / 8) * 6, "sheet 圖片可被瀏覽器解碼且為 6×8 格", imgOk);
+    // 910f842 之後 sheet 的單格可以不是正方形（橫長單格），只驗「能切成 6 欄 × 8 列」，不再要求 w/6 == h/8。
+    assert(!!imgOk && imgOk.w % 6 === 0 && imgOk.h % 8 === 0, "sheet 圖片可被瀏覽器解碼且能切成 6×8 格", imgOk);
     // idle 6 幀 × 200ms：1.5 秒內 background-position 至少要換過 3 種值
     const idlePositions = await pageA.evaluate(() => new Promise((res) => {
       const seen = {};
@@ -259,16 +260,21 @@ async function unlockTestMode(page) {
       const expectedAnim = await pageA.evaluate((a) => window.PriTestEnemyActionAnimMap.resolve(a.actionName, a.dmgKind), atkAnim);
       assert(animsSeen.indexOf(expectedAnim) !== -1, "最近一招對照表解出的動畫（" + expectedAnim + "）確實播過", animsSeen);
     }
-    // 玩家攻擊 → hurt（只在 idle 時插入）。先等 idle 再打。
-    await waitFor(pageA, () => window.PriTestMidnightSprite.currentAnimId() === "idle", null, 8000);
-    const hpBeforeHit = (await state(pageA)).fieldEnemyHp.battleSim;
-    await tapAttack(pageA); // 一般攻擊是 mousedown→mouseup（bindAttackHoldInput()），不是 click
-    const hurtSeen = await pageA.evaluate(() => new Promise((res) => {
-      const seen = {};
-      const t = setInterval(() => { seen[window.PriTestMidnightSprite.currentAnimId()] = true; }, 15);
-      setTimeout(() => { clearInterval(t); res(Object.keys(seen)); }, 1500);
-    }));
-    await waitFor(pageA, (hp) => window.PriTestMidnight._debugState().fieldEnemyHp.battleSim < hp, hpBeforeHit, 5000);
+    // 玩家攻擊 → hurt（只在 idle 時插入；敵人剛好在同一瞬間出招時攻擊動畫不會被 hurt 打斷，
+    // 這是設計，所以最多重試 3 次避免時序假失敗）。先等 idle 再打。
+    let hurtSeen = [];
+    let hpBeforeHit = null;
+    for (let attempt = 0; attempt < 3 && hurtSeen.indexOf("hurt") === -1; attempt++) {
+      await waitFor(pageA, () => window.PriTestMidnightSprite.currentAnimId() === "idle", null, 8000);
+      hpBeforeHit = (await state(pageA)).fieldEnemyHp.battleSim;
+      await tapAttack(pageA); // 一般攻擊是 mousedown→mouseup（bindAttackHoldInput()），不是 click
+      hurtSeen = await pageA.evaluate(() => new Promise((res) => {
+        const seen = {};
+        const t = setInterval(() => { seen[window.PriTestMidnightSprite.currentAnimId()] = true; }, 15);
+        setTimeout(() => { clearInterval(t); res(Object.keys(seen)); }, 1500);
+      }));
+      await waitFor(pageA, (hp) => window.PriTestMidnight._debugState().fieldEnemyHp.battleSim < hp, hpBeforeHit, 5000);
+    }
     assert(hurtSeen.indexOf("hurt") !== -1, "玩家命中後播放 hurt（" + hurtSeen.join("/") + "）", hurtSeen);
     // HP 墊到 1 再打一擊 → 右上角死亡小視窗（2026-09-22 使用者明確規格「在右上角縮小比較小的
     // 視窗播放死亡動畫」）：主舞台隨戰鬥面板一起收掉，death 改在 #midnight-enemy-death-popup
@@ -285,6 +291,8 @@ async function unlockTestMode(page) {
     }, null, 5000);
     await popupOk(pageA);
     await popupOk(pageB);
+    // 小視窗由 RTDB 回呼當下開啟，戰鬥面板／主舞台要到下一影格 recomputeActiveEncounter() 才收起，等一下再取樣。
+    await waitFor(pageA, () => document.querySelector("#midnight-field-encounter").hidden, null, 3000).catch(() => {});
     const popupA = await pageA.evaluate(() => {
       const p = document.querySelector("#midnight-enemy-death-popup");
       const hud = document.querySelector("#midnight-hud-top-right");
@@ -299,7 +307,9 @@ async function unlockTestMode(page) {
     const posM = /^-(\d+)px -(\d+)px$/.exec(holdPos) || [];
     const cellFromX = posM[1] ? parseInt(posM[1], 10) / 5 : NaN;
     const cellFromY = posM[2] ? parseInt(posM[2], 10) / 7 : NaN;
-    assert(cellFromX > 0 && cellFromX === cellFromY, "小視窗 death hold 在最後一幀（row 7, frame 5，格寬 " + cellFromX + "px）", holdPos);
+    // 910f842 之後單格可為非正方形：格高＝round(格寬×cellAspectOf(sheet))，跟 midnight_sprite.js 同一條換算。
+    const cellAspect = await pageA.evaluate((f) => window.PriTestMidnightSprite.cellAspectOf(f), sheetInfo.file);
+    assert(cellFromX > 0 && cellFromY === Math.round(cellFromX * cellAspect), "小視窗 death hold 在最後一幀（row 7, frame 5，格寬 " + cellFromX + "px、格高 " + cellFromY + "px）", { holdPos, cellAspect });
     await waitFor(pageA, () => document.querySelector("#midnight-enemy-death-popup").hidden, null, 3000);
     assert(true, "停留後小視窗自動隱藏");
     // 死亡後 activeEncounter 結束；後續 ⑤⑥ 需要活著的敵人，把 HP 回滿並重新進入。
@@ -329,26 +339,173 @@ async function unlockTestMode(page) {
     await pageA.waitForFunction((hitAt) => Date.now() >= hitAt + 150, tmr0.hitAt, { timeout: 10000 });
     const runningText = await pageA.textContent("#midnight-battle-sim-dodge-timer-now");
     assert(/T\+0\.\d{3}s/.test(runningText), "T 之後碼表顯示正數（" + runningText + "）", runningText);
+    // 2026-09-22 使用者明確規格「改成按下的時間」：按下（pointerdown）在 Perfect 帶內、
+    // 故意按住 0.4 秒再放開（click）——判定必須以按下為準＝Perfect；若以放開為準會落到 Good。
     await pageA.dispatchEvent("#btn-midnight-dodge", "pointerdown");
-    await pageA.waitForTimeout(80);
+    await pageA.waitForTimeout(400);
     await pageA.dispatchEvent("#btn-midnight-dodge", "click");
     await waitFor(pageA, () => (window.PriTestMidnight._debugState().battleSimDodgeLog || []).length >= 1, null, 3000);
     const log1 = (await state(pageA)).battleSimDodgeLog[0];
-    const m1 = /放開 T\+(\d\.\d{3})s／按下 T\+(\d\.\d{3})s → (Perfect|Great|Good|Bad) (\d+)%/.exec(log1);
-    assert(!!m1 && log1.indexOf("第" + (tmr0.hitIndex + 1) + "下") !== -1, "第1筆紀錄含第幾下、放開／按下兩個時間與判定（" + log1 + "）", log1);
+    const m1 = /按下 T\+(\d\.\d{3})s（放開 T\+(\d\.\d{3})s）→ (Perfect|Great|Good|Bad) (\d+)%/.exec(log1);
+    assert(!!m1 && log1.indexOf("第" + (tmr0.hitIndex + 1) + "下") !== -1, "第1筆紀錄含第幾下、按下／放開兩個時間與判定（" + log1 + "）", log1);
     if (m1) {
-      const release = parseFloat(m1[1]);
-      const press = parseFloat(m1[2]);
-      assert(release >= 0.15 && release < 1.2 && press < release && release - press >= 0.05, "放開 ≥ T+0.15s、按下早於放開約 0.08s", { release, press });
-      const expectGrade = release <= 0.35 ? "Perfect" : release <= 0.5 ? "Great" : release <= 0.8 ? "Good" : "Bad";
-      assert(m1[3] === expectGrade, "判定等級與 SPRITE_DODGE_BANDS 一致（" + m1[3] + "）", { release, grade: m1[3] });
+      const press = parseFloat(m1[1]);
+      const release = parseFloat(m1[2]);
+      assert(press >= 0.15 && press < 0.35 && release - press >= 0.35, "按下落在 Perfect 帶、放開比按下晚 ≥0.35s", { press, release });
+      assert(m1[3] === "Perfect" && m1[4] === "100", "判定以「按下」為準 → Perfect 100%（以放開為準會是 Good）", { press, release, grade: m1[3] });
     }
+    // 迴避成功度提示（實際判定的顯示）也必須是 Perfect
+    await waitFor(pageA, () => !document.querySelector("#midnight-dodge-grade").hidden, null, 2000).catch(() => {});
+    const gradeShown = await pageA.textContent("#midnight-dodge-grade");
+    assert(gradeShown === "Perfect", "迴避鍵上方的成功度提示＝Perfect（實際判定用了按下時刻）", gradeShown);
     // 沒按的情況：等下一個碼表出現，放著不按直到它換掉，應補記「逾時」
     await waitFor(pageA, (k) => { const t = window.PriTestMidnight._debugState().battleSimDodgeTimer; return !!t && t.key !== k; }, tmr0.key, 40000);
     const tmr1 = (await state(pageA)).battleSimDodgeTimer;
     await waitFor(pageA, (k) => { const t = window.PriTestMidnight._debugState().battleSimDodgeTimer; return !t || t.key !== k; }, tmr1.key, 15000);
     const logTop = (await state(pageA)).battleSimDodgeLog[0];
     assert(logTop.indexOf("未按（逾時") !== -1 && logTop.indexOf("第" + (tmr1.hitIndex + 1) + "下") !== -1, "沒按時補記逾時（" + logTop + "）", logTop);
+    // 2026-09-22 使用者明確規格「迴避鍵 快捷鍵shift，防禦(限能夠使用) 快捷鍵G，在按鈕上也標示其快捷鍵」
+    const badges = await pageA.evaluate(() => ({
+      dodge: (document.querySelector("#btn-midnight-dodge .midnight-hotkey-badge") || {}).textContent,
+      block: (document.querySelector("#btn-midnight-block .midnight-hotkey-badge") || {}).textContent,
+      dodgeHidden: (document.querySelector("#btn-midnight-dodge .midnight-hotkey-badge") || {}).hidden,
+    }));
+    assert(badges.dodge === "Shift" && badges.block === "G" && badges.dodgeHidden === false, "迴避／防禦按鈕上標示 Shift／G（非觸控裝置顯示）", badges);
+    await waitFor(pageA, (k) => { const t = window.PriTestMidnight._debugState().battleSimDodgeTimer; return !!t && t.key !== k && t.stoppedAt === null; }, tmr1.key, 40000);
+    const tmr2 = (await state(pageA)).battleSimDodgeTimer;
+    await pageA.waitForFunction((hitAt) => Date.now() >= hitAt + 100, tmr2.hitAt, { timeout: 10000 });
+    const logCountBefore = (await state(pageA)).battleSimDodgeLog.length;
+    await pageA.keyboard.down("Shift");
+    await pageA.keyboard.up("Shift");
+    await waitFor(pageA, (n) => (window.PriTestMidnight._debugState().battleSimDodgeLog || []).length > n || ((window.PriTestMidnight._debugState().battleSimDodgeTimer || {}).stoppedAt !== null), logCountBefore, 3000);
+    const hotkeyLog = (await state(pageA)).battleSimDodgeLog[0];
+    assert(/按下 T\+0\.\d{3}s/.test(hotkeyLog) && hotkeyLog.indexOf("第" + (tmr2.hitIndex + 1) + "下") !== -1, "Shift 鍵觸發迴避並記錄（" + hotkeyLog + "）", hotkeyLog);
+    // G 鍵：防禦鍵目前可用（有盾牌）才會進入防禦；沒有盾牌時 G 不動作
+    const blockUsable = await pageA.evaluate(() => { const b = document.querySelector("#btn-midnight-block"); return !b.hidden && !b.disabled; });
+    await pageA.keyboard.down("g");
+    await pageA.waitForTimeout(80);
+    const holdingG = (await state(pageA)).blockHolding;
+    await pageA.keyboard.up("g");
+    await pageA.waitForTimeout(80);
+    const releasedG = (await state(pageA)).blockHolding;
+    assert(holdingG === blockUsable && releasedG === false, "G 鍵按住＝防禦中（限防禦鍵可用時）、放開即結束（可用=" + blockUsable + "）", { holdingG, releasedG, blockUsable });
+
+    console.log("=== ⑮ 獎勵清單的固定 HP 傷害 ×10、檢視後 10 秒自動扣除 ===");
+    // 2026-09-22 使用者明確規格「獎勵清單的固定扣除n點hp傷害 實際為x10點……檢視後 自動10秒後由系統幫忙領取」
+    const hpBeforeReward = await pageA.evaluate(() => { const s = window.PriTestMidnight._debugState(); return s.demoStats[s.myTokenId]; });
+    await pageA.evaluate((gameId) => {
+      const s = window.PriTestMidnight._debugState();
+      return window.PriTestGameStorage.rtSet(gameId, "cloud", "pendingRewards/" + s.myTokenId + "/hpdmg_test", { kind: "hpDamage", value: 1 });
+    }, sA.gameId);
+    await waitFor(pageA, () => !document.querySelector("#midnight-reward-modal").hidden, null, 5000);
+    await pageA.waitForTimeout(300);
+    const rewardUi = await pageA.evaluate(() => ({
+      label: Array.from(document.querySelectorAll("#midnight-reward-list-personal button")).map((b) => b.textContent).join("|"),
+      detail: document.querySelector("#midnight-reward-detail").textContent,
+    }));
+    assert(rewardUi.label.indexOf("受到10點傷害") !== -1, "清單顯示 value 1 → 受到10點傷害", rewardUi);
+    assert(/(10|9) 秒後由系統自動扣除/.test(rewardUi.detail), "詳細面板顯示 10 秒倒數提示", rewardUi);
+    await waitFor(pageA, () => { const s = window.PriTestMidnight._debugState(); const r = (s.pendingRewards[s.myTokenId] || {}).hpdmg_test; return !!(r && r.resolved); }, null, 13000);
+    await waitFor(pageA, (hp) => { const s = window.PriTestMidnight._debugState(); return s.demoStats[s.myTokenId] === hp - 10; }, hpBeforeReward, 3000).catch(() => {});
+    const hpAfterReward = await pageA.evaluate(() => { const s = window.PriTestMidnight._debugState(); return s.demoStats[s.myTokenId]; });
+    assert(hpAfterReward === hpBeforeReward - 10, "10 秒後系統自動扣 10 點 HP 並標記 resolved（" + hpBeforeReward + "→" + hpAfterReward + "）", { hpBeforeReward, hpAfterReward });
+    await pageA.evaluate(() => { const b = document.querySelector("#btn-midnight-reward-close"); if (b) b.click(); });
+
+    console.log("=== ⑯ 地變特殊獲得備註：稀有度→L 裝備選擇視窗／恩寵獲得；武器 6 把滿時潛在之力不能再選武器 ===");
+    // 2026-09-22 使用者明確規格（火山備註→local 視窗選武器、可暫時關閉再開；其他地變備註的實作效果）
+    const tokenA = (await state(pageA)).myTokenId;
+    await pageA.evaluate((args) => window.PriTestGameStorage.rtSet(args.gameId, "cloud", "pendingRewards/" + args.token + "/rarity_test", { kind: "note", text: "（可將武器／觸媒／盾牌其中1個稀有度提升至L）", noteJa: "（武器/触媒/盾のいずれか1つをレアリティ：Lへ上昇可能。個人紀錄へ手動反映）" }), { gameId: sA.gameId, token: tokenA });
+    await waitFor(pageA, () => !document.querySelector("#midnight-reward-modal").hidden && /稀有度 L/.test(document.querySelector("#midnight-reward-detail").textContent), null, 5000);
+    await pageA.evaluate(() => Array.from(document.querySelectorAll("#midnight-reward-detail button")).find((b) => /稀有度 L/.test(b.textContent)).click());
+    await waitFor(pageA, () => !document.querySelector("#midnight-rarity-upgrade-modal").hidden);
+    const rarityList = await pageA.evaluate(() => Array.from(document.querySelectorAll("#midnight-rarity-upgrade-list button")).map((b) => ({ t: b.textContent, d: b.disabled })));
+    assert(rarityList.length >= 1 && rarityList.some((b) => !b.d), "視窗列出自身裝備（" + rarityList.map((b) => b.t).join("／") + "）", rarityList);
+    // 先關閉：獎勵不消耗，清單裡仍在
+    await pageA.click("#btn-midnight-rarity-upgrade-close");
+    const stillPending = await pageA.evaluate(() => { const s = window.PriTestMidnight._debugState(); return !(s.pendingRewards[s.myTokenId].rarity_test || {}).resolved && document.querySelector("#midnight-rarity-upgrade-modal").hidden; });
+    assert(stillPending, "關閉視窗後備註仍未領取、可再點開", stillPending);
+    await pageA.evaluate(() => Array.from(document.querySelectorAll("#midnight-reward-detail button")).find((b) => /稀有度 L/.test(b.textContent)).click());
+    await waitFor(pageA, () => !document.querySelector("#midnight-rarity-upgrade-modal").hidden);
+    await pageA.evaluate(() => Array.from(document.querySelectorAll("#midnight-rarity-upgrade-list button")).find((b) => !b.disabled).click());
+    await waitFor(pageA, () => { const s = window.PriTestMidnight._debugState(); return !!(s.pendingRewards[s.myTokenId].rarity_test || {}).resolved; }, null, 5000);
+    const rarityAfter = await pageA.evaluate(() => { const s = window.PriTestMidnight._debugState(); const c = s.characters[s.myTokenId]; const ov = c.weaponRarityOverride || {}; return { modalHidden: document.querySelector("#midnight-rarity-upgrade-modal").hidden, l: Object.keys(ov).filter((k) => ov[k] === "L") }; });
+    assert(rarityAfter.modalHidden && rarityAfter.l.length === 1, "選定後該裝備 weaponRarityOverride=L、備註領取、視窗關閉", rarityAfter);
+    // 恩寵備註：山嶺の恩寵（無擲骰條件）→ 按下即獲得
+    await pageA.evaluate((args) => window.PriTestGameStorage.rtSet(args.gameId, "cloud", "pendingRewards/" + args.token + "/grace_test", { kind: "note", text: "（山頂到達時）獲得「山嶺的恩寵」", noteJa: "（山頂到達時）「山嶺の恩寵」を獲得。GM画面の恩寵欄でチェックすると効果が自動適用される" }), { gameId: sA.gameId, token: tokenA });
+    await waitFor(pageA, () => !document.querySelector("#midnight-reward-modal").hidden && /恩寵/.test(document.querySelector("#midnight-reward-detail").textContent), null, 5000);
+    await pageA.evaluate(() => Array.from(document.querySelectorAll("#midnight-reward-detail button")).find((b) => /獲得恩寵/.test(b.textContent)).click());
+    await waitFor(pageA, () => { const s = window.PriTestMidnight._debugState(); return !!(s.characters[s.myTokenId].graces || {}).mountain_peak; }, null, 5000);
+    assert(true, "恩寵備註按下後 character.graces.mountain_peak=true");
+    // 其餘地變備註（2026-09-22「實作並接上」）：複製裝備／發狂上限−2／触媒★★／商人購買／護符 PC 人數分
+    const injectNote = (key, noteJa) => pageA.evaluate((args) => window.PriTestGameStorage.rtSet(args.gameId, "cloud", "pendingRewards/" + args.token + "/" + args.key, { kind: "note", text: args.key, noteJa: args.noteJa }), { gameId: sA.gameId, token: tokenA, key, noteJa });
+    const clickDetail = (re) => pageA.evaluate((src) => { const b = Array.from(document.querySelectorAll("#midnight-reward-detail button")).find((x) => new RegExp(src).test(x.textContent)); if (!b) return false; b.click(); return true; }, re.source);
+    const waitDetail = (re) => waitFor(pageA, (src) => !document.querySelector("#midnight-reward-modal").hidden && new RegExp(src).test(document.querySelector("#midnight-reward-detail").textContent), re.source, 5000);
+    const resolved = (key) => waitFor(pageA, (k) => { const s = window.PriTestMidnight._debugState(); return !!((s.pendingRewards[s.myTokenId] || {})[k] || {}).resolved; }, key, 5000);
+    // 複製裝備
+    const weaponCountBefore = await pageA.evaluate(() => { const s = window.PriTestMidnight._debugState(); return s.characters[s.myTokenId].weaponIds.length; });
+    await injectNote("copy_test", "（隠された霊廟。所持装備品を1つ複製可能。個人紀錄へ手動反映）");
+    await waitDetail(/複製的裝備/);
+    await clickDetail(/複製的裝備/);
+    await waitFor(pageA, () => !document.querySelector("#midnight-rarity-upgrade-modal").hidden);
+    const copyTitle = await pageA.textContent("#midnight-rarity-upgrade-title");
+    await pageA.evaluate(() => Array.from(document.querySelectorAll("#midnight-rarity-upgrade-list button")).find((b) => !b.disabled).click());
+    await resolved("copy_test");
+    const copyAfter = await pageA.evaluate(() => { const s = window.PriTestMidnight._debugState(); const ids = s.characters[s.myTokenId].weaponIds; return { n: ids.length, unique: new Set(ids).size, modalHidden: document.querySelector("#midnight-rarity-upgrade-modal").hidden }; });
+    assert(/複製/.test(copyTitle) && copyAfter.n === weaponCountBefore + 1 && copyAfter.unique === copyAfter.n && copyAfter.modalHidden, "複製裝備：視窗標題為複製、武器 +1 且 id 不重複（枝番）", { copyTitle, weaponCountBefore, copyAfter });
+    // 發狂最大蓄積值 −2
+    const madnessBefore = await pageA.evaluate(() => window.PriTestMidnight._debugReceivedAccumThreshold ? window.PriTestMidnight._debugReceivedAccumThreshold("発狂") : null);
+    await injectNote("madness_test", "（シナリオ終了まで「発狂」の蓄積最大値-2。GM画面の「個人の永続修正」でチェックすると自動適用される）");
+    await waitDetail(/發狂/);
+    await clickDetail(/發狂/);
+    await resolved("madness_test");
+    const madnessAfter = await pageA.evaluate(() => { const s = window.PriTestMidnight._debugState(); return { debuff: s.characters[s.myTokenId]._madnessAccumMaxDebuff, threshold: window.PriTestMidnight._debugReceivedAccumThreshold ? window.PriTestMidnight._debugReceivedAccumThreshold("発狂") : null }; });
+    assert(madnessAfter.debuff === 2 && (madnessBefore === null || madnessAfter.threshold === madnessBefore - 2), "發狂備註：_madnessAccumMaxDebuff=2、發狂門檻 −2（" + madnessBefore + "→" + madnessAfter.threshold + "）", { madnessBefore, madnessAfter });
+    // 触媒★★ → 選杖 → 清單多一筆 weaponStar(categoryId staff, value 2)
+    await injectNote("catalyst_test", "（「触媒：★★」1つ獲得。武器カタログに未対応のカテゴリのため個人紀錄へ手動反映）");
+    await waitDetail(/獲得杖/);
+    await clickDetail(/獲得杖/);
+    await resolved("catalyst_test");
+    const catalystReward = await pageA.evaluate(() => { const s = window.PriTestMidnight._debugState(); return Object.values(s.pendingRewards[s.myTokenId]).find((r) => r.kind === "weaponStar" && r.categoryId === "staff" && !r.resolved); });
+    assert(!!catalystReward && catalystReward.value === 2, "触媒★★：清單新增 weaponStar{categoryId:staff, value:2}", catalystReward);
+    // 清單會自動選第一筆未解決項目，先把剛推進來的抽選項目標記已處理，下一筆備註才會被選中
+    const clearUnresolved = () => pageA.evaluate((args) => { const s = window.PriTestMidnight._debugState(); const list = s.pendingRewards[s.myTokenId] || {}; return Promise.all(Object.keys(list).filter((k) => !list[k].resolved).map((k) => window.PriTestGameStorage.rtSet(args.gameId, "cloud", "pendingRewards/" + args.token + "/" + k + "/resolved", true))); }, { gameId: sA.gameId, token: tokenA });
+    await clearUnresolved();
+    // 商人購買：盧恩 5 → 買 ★★（盧恩 2）→ 剩 3、清單多一筆 weaponStar value 2
+    await pageA.evaluate((args) => window.PriTestGameStorage.rtSet(args.gameId, "cloud", "character/" + args.token + "/runes", 5), { gameId: sA.gameId, token: tokenA });
+    await waitFor(pageA, () => { const s = window.PriTestMidnight._debugState(); return s.characters[s.myTokenId].runes === 5; });
+    await injectNote("merchant_test", "ここでは商人（138頁）が利用できる。「ルーン：1」を消費するとPC全員が「武器：★」、「ルーン：2」を消費すると「武器：★★」、「ルーン：3」を消費すると「武器：★★★」を購入できる。");
+    await waitDetail(/購買武器/);
+    await clickDetail(/購買武器：★★（/);
+    await resolved("merchant_test");
+    await waitFor(pageA, () => { const s = window.PriTestMidnight._debugState(); return s.characters[s.myTokenId].runes === 3; }, null, 5000);
+    const merchantReward = await pageA.evaluate(() => { const s = window.PriTestMidnight._debugState(); return Object.values(s.pendingRewards[s.myTokenId]).filter((r) => r.kind === "weaponStar" && !r.categoryId && r.value === 2 && !r.resolved).length; });
+    assert(merchantReward === 1, "商人購買 ★★：盧恩 5→3、清單新增 weaponStar value 2", merchantReward);
+    await clearUnresolved();
+    // 護符 PC 人數分 → 自己清單多一筆 talisman
+    await injectNote("talisman_note_test", "（ボス戦闘撃破）「タリスマン」をPC人数と同じ数だけ獲得。GM判断でPC人数分を手動付与");
+    await waitDetail(/獲得護符/);
+    await clickDetail(/獲得護符/);
+    await resolved("talisman_note_test");
+    const talismanReward = await pageA.evaluate(() => { const s = window.PriTestMidnight._debugState(); return Object.values(s.pendingRewards[s.myTokenId]).filter((r) => r.kind === "talisman" && !r.resolved).length; });
+    assert(talismanReward >= 1, "護符備註：清單新增 talisman 抽選一筆", talismanReward);
+    // 清掉這些未抽選的獎勵，避免影響後面的潛在之力測試
+    await clearUnresolved();
+    // 武器 6 把滿：潛在之力抽選後「選擇這個」武器鍵 disabled、顯示背包已滿
+    const sixIds = await pageA.evaluate(() => { const s = window.PriTestMidnight._debugState(); const c = s.characters[s.myTokenId]; const base = c.weaponIds[0]; const out = c.weaponIds.slice(); while (out.length < 6) out.push(base + "::x" + out.length); return out; });
+    await pageA.evaluate((args) => window.PriTestGameStorage.rtSet(args.gameId, "cloud", "character/" + args.token + "/weaponIds", args.ids), { gameId: sA.gameId, token: tokenA, ids: sixIds });
+    await waitFor(pageA, () => { const s = window.PriTestMidnight._debugState(); return s.characters[s.myTokenId].weaponIds.length === 6; });
+    await pageA.evaluate((args) => window.PriTestGameStorage.rtSet(args.gameId, "cloud", "pendingRewards/" + args.token + "/pp_test", { kind: "potentialPower", value: 1 }), { gameId: sA.gameId, token: tokenA });
+    await waitFor(pageA, () => !document.querySelector("#midnight-reward-modal").hidden && !!Array.from(document.querySelectorAll("#midnight-reward-detail button")).find((b) => b.textContent === "抽選"), null, 5000);
+    await pageA.evaluate(() => Array.from(document.querySelectorAll("#midnight-reward-detail button")).find((b) => b.textContent === "抽選").click());
+    await pageA.waitForTimeout(300);
+    const ppUi = await pageA.evaluate(() => {
+      const btns = Array.from(document.querySelectorAll("#midnight-reward-detail button"));
+      const choose = btns.filter((b) => /選擇這個/.test(b.textContent));
+      return { chooseCount: choose.length, firstDisabled: choose.length ? choose[0].disabled : null, fullNote: /已達上限/.test(document.querySelector("#midnight-reward-detail").textContent) };
+    });
+    assert(ppUi.chooseCount >= 1 && ppUi.firstDisabled === true && ppUi.fullNote, "武器 6 把時潛在之力的武器［選擇這個］disabled 並提示背包已滿（附帶效果仍可選）", ppUi);
+    await pageA.evaluate((args) => window.PriTestGameStorage.rtSet(args.gameId, "cloud", "pendingRewards/" + args.token + "/pp_test/resolved", true), { gameId: sA.gameId, token: tokenA });
+    await pageA.evaluate(() => { const b = document.querySelector("#btn-midnight-reward-close"); if (b) b.click(); });
 
     console.log("=== ⑥ 逃離後不會卡死：候選重現並走［進入戰鬥］流程 ===");
     // 真的按遭遇面板右上的［逃離戰鬥］（CLAUDE.md §4.6：HUD 每幀重繪，用 dispatchEvent）。
@@ -462,6 +619,18 @@ async function unlockTestMode(page) {
       hidden: document.querySelector("#midnight-enemy-sprite-stage").hidden,
     }));
     assert(bossPanel.name === bossName && !bossPanel.hidden && bossPanel.bg.indexOf("boss_gladius.png") !== -1, "面板顯示夜王名稱、舞台用 boss_gladius.png", bossPanel);
+    // 2026-09-22 使用者明確規格「使用點陣圖模式遊玩的話 就不顯示敵人插畫，最後夜王的插畫還是放置右上取代小地圖位置」
+    // 立繪的顯示切換在 render()→renderMinimap() 那一幀才發生，等一下下再取樣。
+    await waitFor(pageA, () => !document.querySelector("#midnight-boss-portrait-hud").hidden, null, 3000).catch(() => {});
+    const bossIllu = await pageA.evaluate(() => {
+      const img = document.querySelector("#midnight-field-encounter-image");
+      const portrait = document.querySelector("#midnight-boss-portrait-hud");
+      const mini = document.querySelector("#midnight-minimap-canvas");
+      const cs = getComputedStyle(img);
+      return { off: img.classList.contains("midnight-illustration-off"), visibility: cs.visibility, w: img.offsetWidth, portraitHidden: portrait.hidden, portraitSrc: portrait.getAttribute("src") || "", portraitW: portrait.offsetWidth, miniHidden: mini.hidden, miniW: mini.width };
+    });
+    assert(bossIllu.off && bossIllu.visibility === "hidden" && bossIllu.w > 0, "點陣圖模式下敵人插畫看不見但保留佔位（舞台寬度不塌）", bossIllu);
+    assert(!bossIllu.portraitHidden && /gladius/i.test(bossIllu.portraitSrc) && bossIllu.portraitW === bossIllu.miniW && bossIllu.miniHidden, "夜王立繪顯示在右上、尺寸＝小地圖、小地圖讓位", bossIllu);
     // 一輪約 9.3 秒（idle 2 圈 2400 ＋ line 1020 ＋ area 900 ＋ thrust 840 ＋ slam 1050 ＋ single 900 ＋ hurt 540 ＋ death 960+700）；
     // 採樣 11 秒，動作要照 listAnims() 順序出現、每一個都出現過，且標籤跟著動作走。
     const cycleSeen = await pageA.evaluate(() => new Promise((res) => {

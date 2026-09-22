@@ -4723,12 +4723,58 @@ html.midnight-banner-above-hud:not(.midnight-top-banner-collapsed) #midnight-rew
   display: flex;
   align-items: center;
   gap: 0.35rem;
+  position: relative; /* 夜雨警示燈的定位基準（2026-09-22） */
+}
+
+/* 夜雨警示燈（2026-09-22，見midnight_page.py同id說明）：紅色圓燈＋外圈紅光脈動，疊在小地圖／
+   立繪左上角，pointer-events:none 不擋地圖按鈕。 */
+#midnight-rain-warning-light {
+  position: absolute;
+  left: -0.35rem;
+  top: -0.35rem;
+  width: 0.95rem;
+  height: 0.95rem;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 35%, #ff8a80, #d50000 70%);
+  border: 2px solid #fff;
+  box-shadow: 0 0 6px 2px rgba(255, 0, 0, 0.9);
+  animation: midnight-rain-warning-pulse 0.7s ease-in-out infinite;
+  pointer-events: none;
+  z-index: 3;
+}
+
+@keyframes midnight-rain-warning-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 4px 1px rgba(255, 0, 0, 0.6);
+    transform: scale(1);
+  }
+  50% {
+    box-shadow: 0 0 14px 6px rgba(255, 0, 0, 1);
+    transform: scale(1.25);
+  }
 }
 
 #midnight-minimap-canvas {
   border: 1px solid rgba(255, 255, 255, 0.35);
   border-radius: 4px;
   background: #0c0f14;
+}
+
+/* 夜王立繪取代小地圖位置（2026-09-22，見midnight_page.py同id說明）：跟小地圖同款外框，
+   寬高由JS設成小地圖尺寸，立繪比例不同時裁切填滿。 */
+#midnight-boss-portrait-hud {
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  border-radius: 4px;
+  background: #0c0f14;
+  object-fit: cover;
+}
+
+/* 點陣圖模式不顯示敵人插畫（2026-09-22使用者明確規格）：用visibility而不是hidden，
+   讓<img>繼續撐住#midnight-field-encounter-image-wrap的寬度（sprite舞台的寬度靠它算，
+   見#midnight-enemy-sprite-stage說明）。 */
+#midnight-field-encounter-image.midnight-illustration-off {
+  visibility: hidden;
 }
 
 /* 地圖右上關閉✕（2026-09-06使用者明確要求「直接放置在地圖圖片上的右上」）：疊在
@@ -4889,6 +4935,22 @@ html.midnight-banner-above-hud:not(.midnight-top-banner-collapsed) #midnight-rew
   opacity: 0.75;
 }
 
+/* 消耗品剩餘數量徽章（2026-09-22，見midnight_page.py同id說明）：右下角、黃底黑字，明顯可讀。 */
+#midnight-consumable-count {
+  position: absolute;
+  right: 0.85rem;
+  bottom: 0.1rem;
+  padding: 0 0.28rem;
+  border-radius: 3px;
+  font-size: 0.62rem;
+  font-weight: bold;
+  line-height: 1.3;
+  color: #10200a;
+  background: #ffd54a;
+  border: 1px solid rgba(0, 0, 0, 0.35);
+  pointer-events: none;
+}
+
 #midnight-hud-bottom-right {
   position: fixed;
   right: 0.6rem;
@@ -5007,6 +5069,24 @@ html.midnight-banner-above-hud:not(.midnight-top-banner-collapsed) #midnight-rew
   background: #4b5c3a;
   border-color: #3a4630;
   color: #9aa891;
+}
+
+/* 快捷鍵標示（2026-09-22，見midnight_page.py迴避／防禦按鈕的說明）：貼在按鈕左上角的小鍵帽，
+   按鈕本身已是position:relative（浮動提示.midnight-action-flash靠它定位），不用另外設定。 */
+.midnight-hotkey-badge {
+  position: absolute;
+  top: 0.1rem;
+  left: 0.15rem;
+  padding: 0 0.28rem;
+  border-radius: 3px;
+  font-size: 0.58rem;
+  font-weight: bold;
+  line-height: 1.3;
+  letter-spacing: 0.02em;
+  color: #e8f0e0;
+  background: rgba(10, 12, 18, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.45);
+  pointer-events: none;
 }
 
 /* 2026-09-06優化：迴避/防禦成功、受到傷害的浮動提示（見static/midnight.jsの
@@ -6652,6 +6732,35 @@ html.midnight-top-banner-collapsed .midnight-top-banner-collapse-btn {
   animation: midnight-flash-yellow 1s ease-in-out infinite;
 }
 
+/* 地圖提示訊息（2026-09-22，見midnight_page.py同id說明）：畫面中央偏上的一行黃字，黃光脈動
+   沿用.midnight-flash-yellow；pointer-events:none讓它不擋住下面的按鈕。 */
+#midnight-map-nudge-message {
+  position: fixed;
+  top: 28%;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 560;
+  margin: 0;
+  padding: 0.35rem 0.9rem;
+  border-radius: 6px;
+  font-weight: bold;
+  font-size: 1.05rem;
+  color: #ffd54a;
+  background: rgba(10, 12, 18, 0.75);
+  border: 1px solid rgba(255, 213, 74, 0.8);
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+@media (max-width: 640px) {
+  #midnight-map-nudge-message {
+    font-size: 0.85rem;
+    white-space: normal;
+    max-width: 90vw;
+    text-align: center;
+  }
+}
+
 #midnight-field-enter-name,
 #midnight-field-banner-name,
 #midnight-strong-enemy-name,
@@ -6878,6 +6987,59 @@ html.midnight-top-banner-collapsed .midnight-top-banner-collapse-btn {
   align-items: center;
   justify-content: center;
   background: rgba(0, 0, 0, 0.6);
+}
+
+/* 開局後從空位加入的視窗（2026-09-22，見midnight_page.py同id說明）：跟遺物選擇視窗同款的
+   全螢幕覆蓋＋置中卡片；搬進來的角色詳細面板本身是position:fixed，維持原本貼右側的版型。 */
+#midnight-late-join-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 900;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.6);
+}
+
+/* 稀有度→L 裝備選擇視窗（2026-09-22，見midnight_page.py同id說明）：同款覆蓋＋卡片，清單直排。 */
+#midnight-rarity-upgrade-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 910;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.6);
+}
+
+#midnight-rarity-upgrade-box {
+  position: relative;
+  width: 420px;
+  max-width: 94vw;
+  max-height: 85vh;
+  overflow-y: auto;
+  padding: 1rem;
+  background: rgba(10, 12, 18, 0.96);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 8px;
+}
+
+#midnight-rarity-upgrade-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+#midnight-late-join-box {
+  position: relative;
+  width: 520px;
+  max-width: 94vw;
+  max-height: 90vh;
+  overflow-y: auto;
+  padding: 1rem;
+  background: rgba(10, 12, 18, 0.96);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 8px;
 }
 
 #midnight-relic-choice-box {
@@ -7547,6 +7709,10 @@ html.midnight-top-banner-collapsed .midnight-top-banner-collapse-btn {
 #midnight-field-encounter-name {
   margin: 0.2rem 0 0;
   font-weight: bold;
+  /* 2026-09-22：保險——舞台撐高容器（midnight_sprite.js syncWrapMinHeight()）之後名稱已在點陣圖
+     下方，這裡再把名稱抬到舞台之上，任何邊界情況都不會被 sprite 蓋住。 */
+  position: relative;
+  z-index: 6;
 }
 
 /* 戰鬥模擬「連續播放所有動作動畫」的目前動作標籤（2026-09-22，見midnight_page.py同id說明）：

@@ -153,6 +153,7 @@
   function showStatic() {
     if (stageEl) stageEl.hidden = true;
     current = null;
+    syncWrapMinHeight(0); // 舞台收起就放掉撐高（見 syncCellPx() 說明）
   }
 
   // sheet 是橫6幀 × 縱8動作，以顯示框的一邊當作1格的實際尺寸。
@@ -183,6 +184,19 @@
       face.style.bottom = (isBack ? Math.round(cellHPx * 0.45) : 0) + "px";
       face.style.backgroundSize = S.SHEET_COLS * cellPx + "px " + S.SHEET_ROWS * cellHPx + "px";
     });
+    // 2026-09-22 使用者明確規格「點陣圖會蓋過敵人名稱，敵人名稱一定顯示在點陣圖之下」：
+    // 舞台是以插圖為中心的正方形（寬＝插圖寬），插圖是橫向時舞台會上下溢出、蓋到容器下方的
+    // 名稱。把容器撐到「舞台高度」與「最高的那一體（後列會再抬高 0.45 格）」之間較大者，
+    // 名稱就一定排在點陣圖下面。
+    var tallest = backCount ? cellHPx + Math.round(cellHPx * 0.45) : cellHPx;
+    syncWrapMinHeight(Math.max(stageEl.offsetHeight || boxW, tallest));
+  }
+
+  function syncWrapMinHeight(px) {
+    var wrap = stageEl && stageEl.parentElement;
+    if (!wrap) return;
+    var value = px ? px + "px" : "";
+    if (wrap.style.minHeight !== value) wrap.style.minHeight = value;
   }
 
   // 回傳 true＝sprite 舞台已顯示（疊在插圖之上）；

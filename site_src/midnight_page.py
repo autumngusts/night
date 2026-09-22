@@ -467,6 +467,10 @@ BODY = """    <div class="midnight-wrap">
              （使用者明確規格：警示圖示閃爍0.5秒後才進行攻擊，攻擊特效為刀光劍影或爪痕）。
              全螢幕固定疊層，跟#midnight-field-banner等同一組定位方式。見static/midnight.js
              的updateEnemyAttack()／renderEnemyAttackOverlay()。 -->
+        <!-- 地圖提示訊息（2026-09-22使用者明確規格「打過板塊地圖縮小時，此時當地圖閃黃時同時在
+             背景的頁面另外閃黃光一行訊息」）：跟右上地圖圖示的黃光（mapIconNudge）同進同出，
+             見static/midnight.jsのrenderMapIcon()。固定疊層、不擋點擊。 -->
+        <p id="midnight-map-nudge-message" class="midnight-flash-yellow" data-i18n="midnight_map_nudge_message" hidden></p>
         <div id="midnight-incoming-attack-warning" hidden>
           <span id="midnight-incoming-attack-name"></span>
           <!-- 2026-09-06三次優化：Day3夜之王招式附帶的規則書原文note（例如特殊能力的敘述
@@ -698,7 +702,15 @@ BODY = """    <div class="midnight-wrap">
                  原本的盧恩左邊；圖示也改用「◀」跟banner上「▶」收合鈕相對應），見
                  static/midnight.jsのupdateTopBannerCollapseUI()。 -->
             <button type="button" id="btn-midnight-top-banner-reopen" aria-label="reopen" hidden>&#9664;</button>
+            <!-- 夜王立繪（2026-09-22使用者明確規格「使用點陣圖模式遊玩的話 就不顯示敵人插畫，
+                 最後夜王的插畫還是放置右上取代小地圖位置」）：點陣圖模式的王戰中取代小地圖，
+                 尺寸與小地圖相同，見static/midnight.jsのrenderBossPortraitHud()。 -->
+            <img id="midnight-boss-portrait-hud" alt="" hidden>
             <canvas id="midnight-minimap-canvas" hidden></canvas>
+            <!-- 夜雨警示燈（2026-09-22使用者明確規格「戰鬥中右上角地圖 若此時自身淋在夜雨當中 顯示明顯
+                 紅色警示燈」）：疊在小地圖／夜王立繪的角落，只在戰鬥中且自己在圈外（outsideCircleSinceMs
+                 有值）時顯示，見static/midnight.jsのrenderMinimap()。 -->
+            <span id="midnight-rain-warning-light" hidden></span>
             <button type="button" id="btn-midnight-map-icon" data-i18n="midnight_map_icon_label"></button>
           </div>
           <button type="button" id="btn-midnight-open-character-sheet" data-i18n="midnight_character_sheet_open_button"></button>
@@ -862,6 +874,10 @@ BODY = """    <div class="midnight-wrap">
             <button type="button" id="btn-midnight-use-consumable" class="midnight-action-card midnight-action-card-consumable">
               <span id="midnight-consumable-label"></span>
               <span id="midnight-consumable-index" hidden></span>
+              <!-- 剩餘數量（2026-09-22使用者明確規格「消耗品在左下角操作盤中 要顯示剩餘數量」）：
+                   品名那一行最多兩行會被截斷，「xN」常被吃掉，改成獨立的角落徽章，見
+                   static/midnight.jsのrenderQuickActionCards()。 -->
+              <span id="midnight-consumable-count" hidden></span>
             </button>
             <button type="button" id="btn-midnight-consumable-prev" class="midnight-consumable-cycle-btn" aria-label="prev">&#9664;</button>
             <button type="button" id="btn-midnight-consumable-next" class="midnight-consumable-cycle-btn" aria-label="next">&#9654;</button>
@@ -1079,7 +1095,11 @@ BODY = """    <div class="midnight-wrap">
                成功度 100% = Perfect, 80~99% = Great, 60~80 = Good, 30 ~ 60 = Bad」）：跟
                「成功迴避」是兩個獨立的浮動提示，這顆再往上疊一層（.midnight-dodge-grade），
                見static/midnight.jsのshowDodgeGrade()。 -->
+          <!-- 快捷鍵標示（2026-09-22使用者明確規格「迴避鍵 快捷鍵shift，防禦 快捷鍵G，在按鈕上也
+               標示其快捷鍵」）：.midnight-hotkey-badge貼在按鈕左上角，觸控裝置（沒有實體鍵盤）由
+               static/midnight.jsのinit隱藏。實際按鍵處理見handleCombatHotkeyDown()。 -->
           <button type="button" id="btn-midnight-dodge">
+            <span class="midnight-hotkey-badge">Shift</span>
             <span id="midnight-dodge-grade" class="midnight-action-flash midnight-dodge-grade" hidden></span>
             <span id="midnight-dodge-flash" class="midnight-action-flash" hidden></span>
             <span data-i18n="midnight_dodge_button"></span>
@@ -1090,6 +1110,7 @@ BODY = """    <div class="midnight-wrap">
                （見static/midnight.jsのstartBlockHold()／endBlockHold()），純粹當作「目前
                正在防禦中」的視覺提示，不是施法進度。 -->
           <button type="button" id="btn-midnight-block">
+            <span class="midnight-hotkey-badge">G</span>
             <span id="midnight-block-flash" class="midnight-action-flash" hidden></span>
             <!-- 防禦中盾牌浮標（2026-09-13使用者明確規格「防禦按鈕按下時，格子上方顯示
                  盾牌圖示」）：跟按鈕內那顆靜態盾圖示是兩回事——這一顆只在blockHolding
@@ -1349,6 +1370,34 @@ BODY = """    <div class="midnight-wrap">
           <div id="midnight-relic-choice-box">
             <h3 id="midnight-relic-choice-title"></h3>
             <div id="midnight-relic-choice-options"></div>
+          </div>
+        </div>
+
+        <!-- 開局後從空位加入（2026-09-22使用者明確規格「非遊戲中的裝置 可以點(空位)的加入 並打開
+             選擇腳色頁面視窗來做選擇 仍舊要打名稱以及4位數字 在選擇職業 按下加入後即可同步進入
+             遊戲 出身地為有其他玩家周遭的安全地帶 仍為lv1開始」）：觀戰者在左上隊伍面板的空位
+             按「加入」時開啟；內容直接把等待房的#midnight-lobby-join-form與
+             #midnight-lobby-character-detail兩個節點搬進來重用（不複製第二份表單），見
+             static/midnight.jsのopenLateJoinModal()／handleLobbyJoin()／enterGameAsLateJoiner()。 -->
+        <!-- 稀有度→L 的裝備選擇視窗（2026-09-22使用者明確規格「火山的特殊獲得備註 可以升級一把武器至L
+             領取後產生另外的local視窗可以選擇要敲打哪一把武器 可以暫時關閉 再次打開獎勵清單可以再點開
+             此備註」）：純本機視窗，關閉不消耗獎勵，見static/midnight.jsのopenRarityUpgradeModal()。 -->
+        <div id="midnight-rarity-upgrade-modal" hidden>
+          <div id="midnight-rarity-upgrade-box">
+            <button type="button" id="btn-midnight-rarity-upgrade-close" class="midnight-modal-close-x">&times;</button>
+            <!-- 標題／說明由openEquipmentPickModal()依mode（稀有度→L／複製裝備）改寫 -->
+            <h3 id="midnight-rarity-upgrade-title" data-i18n="midnight_rarity_upgrade_title"></h3>
+            <p id="midnight-rarity-upgrade-hint" class="threat-ref-body" data-i18n="midnight_rarity_upgrade_hint"></p>
+            <div id="midnight-rarity-upgrade-list"></div>
+          </div>
+        </div>
+
+        <div id="midnight-late-join-modal" hidden>
+          <div id="midnight-late-join-box">
+            <button type="button" id="btn-midnight-late-join-close" class="midnight-modal-close-x">&times;</button>
+            <h3 data-i18n="midnight_late_join_title"></h3>
+            <p class="threat-ref-body" data-i18n="midnight_late_join_hint"></p>
+            <div id="midnight-late-join-form-host"></div>
           </div>
         </div>
 

@@ -394,8 +394,10 @@ function simulatePoint(pt, ctx) {
       const warnBefore = warnings.length;
       let matches = IN.scanLinesForEnemyMatches(lines, cardData, pt.id);
       let evergaolWholeFloor = false;
-      if (!matches.length && pt.type === "evergaol") {
-        // 跟 maybeAssignFieldEnemy() 的封牢退回順序相同：整層 → 亂數一隻
+      // 跟 maybeAssignFieldEnemy() 的退回順序相同：封牢、或選項本身寫著「王戰」（2026-09-22 使用者規格
+      // 「在J都要有一個替代的路線可以抽選到」）→ 整層 → 亂數一隻
+      const bossChoice = !!label && /王戰|ボス戦闘/.test(label);
+      if (!matches.length && (pt.type === "evergaol" || bossChoice)) {
         matches = IN.scanLinesForEnemyMatches(floor.lines, cardData, pt.id);
         evergaolWholeFloor = true;
         if (!matches.length) matches = [IN.randomEnemyMatchFallback(pt.id + ":evergaol_fallback")].filter(Boolean);
@@ -424,6 +426,12 @@ function simulatePoint(pt, ctx) {
     });
     frec.anyChoiceEmpty = anyChoiceEmpty;
     if (!anyChoiceEmpty) emptyPathPossible = false;
+    // 2026-09-22 使用者回報「有些劇本配地圖 走到堡壘J 仍有第一層抽不到王戰」：J 的第 1 層一定要有
+    // 至少一條能抽到敵人（王戰）的路線，否則列為嚴重問題（castle_no_boss）。
+    if (pt.card === "J" && fi === 0) {
+      const anyBoss = frec.choices.some((c) => c.enemies.length > 0);
+      if (!anyBoss) rec.issues.push({ kind: "castle_no_boss", text: "第 1 層「" + zh(floor.title) + "」沒有任何一條路線抽得到敵人（王戰）" });
+    }
   }
   // 花色變體：走到的樓層裡不可以有同 label 的不同花色版本；而且若分歧有花色變體且已決定花色，
   // 必須挑到該花色的版本（該花色沒有版本才允許亂數）。
@@ -529,7 +537,7 @@ function simulatePoint(pt, ctx) {
 // ============================================================================
 // 交叉迴圈
 // ============================================================================
-const SEVERE_KINDS = ["ghost_floor", "table_unresolved", "enemy_unmatched", "variance_mismatch", "scenario_branch_mismatch", "suit_duplicate", "suit_mismatch", "no_card_data"];
+const SEVERE_KINDS = ["ghost_floor", "table_unresolved", "enemy_unmatched", "variance_mismatch", "scenario_branch_mismatch", "suit_duplicate", "suit_mismatch", "no_card_data", "castle_no_boss"];
 const matrix = {}; // scenarioLabel -> variantId -> { severe: n, points: n }
 const detail = {}; // key: scenario|variant|card|branch|issueKind|text -> { count, sample }
 const jqOverview = {}; // scenarioLabel -> variantId -> { J: {desc: true}, Q: {desc: true} }
