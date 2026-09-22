@@ -1468,6 +1468,8 @@ STRINGS_JA: dict[str, str] = {
     "midnight_lobby_join_button": "参加",
     "midnight_lobby_passcode_hint": "再接続パスワード：4桁の数字。切断後の再接続や観戦からの引き継ぎに必要です。忘れないでください。",
     "midnight_lobby_spectator_note": "満員です（最大3人）。現在は観戦者として参加しています。",
+    "midnight_late_join_title": "途中参加",
+    "midnight_late_join_hint": "名前と4桁の暗証番号を入力し、職業を選んで「参加」を押すとすぐにゲームへ入ります（Lv.1、他のプレイヤー付近の安全地帯に出現）。",
     "midnight_lobby_ready_button": "準備完了",
     "midnight_lobby_unready_button": "準備解除",
     "midnight_lobby_countdown_text": "{seconds}秒後に開始",

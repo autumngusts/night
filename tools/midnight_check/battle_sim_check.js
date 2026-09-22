@@ -286,6 +286,8 @@ async function unlockTestMode(page) {
     }, null, 5000);
     await popupOk(pageA);
     await popupOk(pageB);
+    // 小視窗由 RTDB 回呼當下開啟，戰鬥面板／主舞台要到下一影格 recomputeActiveEncounter() 才收起，等一下再取樣。
+    await waitFor(pageA, () => document.querySelector("#midnight-field-encounter").hidden, null, 3000).catch(() => {});
     const popupA = await pageA.evaluate(() => {
       const p = document.querySelector("#midnight-enemy-death-popup");
       const hud = document.querySelector("#midnight-hud-top-right");
@@ -470,6 +472,18 @@ async function unlockTestMode(page) {
       hidden: document.querySelector("#midnight-enemy-sprite-stage").hidden,
     }));
     assert(bossPanel.name === bossName && !bossPanel.hidden && bossPanel.bg.indexOf("boss_gladius.png") !== -1, "面板顯示夜王名稱、舞台用 boss_gladius.png", bossPanel);
+    // 2026-09-22 使用者明確規格「使用點陣圖模式遊玩的話 就不顯示敵人插畫，最後夜王的插畫還是放置右上取代小地圖位置」
+    // 立繪的顯示切換在 render()→renderMinimap() 那一幀才發生，等一下下再取樣。
+    await waitFor(pageA, () => !document.querySelector("#midnight-boss-portrait-hud").hidden, null, 3000).catch(() => {});
+    const bossIllu = await pageA.evaluate(() => {
+      const img = document.querySelector("#midnight-field-encounter-image");
+      const portrait = document.querySelector("#midnight-boss-portrait-hud");
+      const mini = document.querySelector("#midnight-minimap-canvas");
+      const cs = getComputedStyle(img);
+      return { off: img.classList.contains("midnight-illustration-off"), visibility: cs.visibility, w: img.offsetWidth, portraitHidden: portrait.hidden, portraitSrc: portrait.getAttribute("src") || "", portraitW: portrait.offsetWidth, miniHidden: mini.hidden, miniW: mini.width };
+    });
+    assert(bossIllu.off && bossIllu.visibility === "hidden" && bossIllu.w > 0, "點陣圖模式下敵人插畫看不見但保留佔位（舞台寬度不塌）", bossIllu);
+    assert(!bossIllu.portraitHidden && /gladius/i.test(bossIllu.portraitSrc) && bossIllu.portraitW === bossIllu.miniW && bossIllu.miniHidden, "夜王立繪顯示在右上、尺寸＝小地圖、小地圖讓位", bossIllu);
     // 一輪約 9.3 秒（idle 2 圈 2400 ＋ line 1020 ＋ area 900 ＋ thrust 840 ＋ slam 1050 ＋ single 900 ＋ hurt 540 ＋ death 960+700）；
     // 採樣 11 秒，動作要照 listAnims() 順序出現、每一個都出現過，且標籤跟著動作走。
     const cycleSeen = await pageA.evaluate(() => new Promise((res) => {

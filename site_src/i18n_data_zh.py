@@ -1472,6 +1472,8 @@ STRINGS_ZH: dict[str, str] = {
     "midnight_lobby_join_button": "加入",
     "midnight_lobby_passcode_hint": "重連密碼：4個數字，之後斷線重連或觀戰接管時需要用到，請記住。",
     "midnight_lobby_spectator_note": "人數已滿（最多3人），你目前是觀戰身份。",
+    "midnight_late_join_title": "中途加入",
+    "midnight_late_join_hint": "輸入名稱與 4 位數密碼、選擇職業後按「加入」即可立即進入遊戲（Lv.1，出生在其他玩家附近的安全地帶）。",
     "midnight_lobby_ready_button": "準備",
     "midnight_lobby_unready_button": "取消準備",
     "midnight_lobby_countdown_text": "{seconds}秒後開始",

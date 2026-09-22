@@ -4731,6 +4731,22 @@ html.midnight-banner-above-hud:not(.midnight-top-banner-collapsed) #midnight-rew
   background: #0c0f14;
 }
 
+/* 夜王立繪取代小地圖位置（2026-09-22，見midnight_page.py同id說明）：跟小地圖同款外框，
+   寬高由JS設成小地圖尺寸，立繪比例不同時裁切填滿。 */
+#midnight-boss-portrait-hud {
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  border-radius: 4px;
+  background: #0c0f14;
+  object-fit: cover;
+}
+
+/* 點陣圖模式不顯示敵人插畫（2026-09-22使用者明確規格）：用visibility而不是hidden，
+   讓<img>繼續撐住#midnight-field-encounter-image-wrap的寬度（sprite舞台的寬度靠它算，
+   見#midnight-enemy-sprite-stage說明）。 */
+#midnight-field-encounter-image.midnight-illustration-off {
+  visibility: hidden;
+}
+
 /* 地圖右上關閉✕（2026-09-06使用者明確要求「直接放置在地圖圖片上的右上」）：疊在
    #midnight-canvas-wrap（position:relative）右上角，跟canvas本身綁在一起，不是HUD固定
    面板的一部分，見static/midnight.jsのsetMapExpanded()。用圓形✕跟其他文字按鈕做出
@@ -6878,6 +6894,30 @@ html.midnight-top-banner-collapsed .midnight-top-banner-collapse-btn {
   align-items: center;
   justify-content: center;
   background: rgba(0, 0, 0, 0.6);
+}
+
+/* 開局後從空位加入的視窗（2026-09-22，見midnight_page.py同id說明）：跟遺物選擇視窗同款的
+   全螢幕覆蓋＋置中卡片；搬進來的角色詳細面板本身是position:fixed，維持原本貼右側的版型。 */
+#midnight-late-join-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 900;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.6);
+}
+
+#midnight-late-join-box {
+  position: relative;
+  width: 520px;
+  max-width: 94vw;
+  max-height: 90vh;
+  overflow-y: auto;
+  padding: 1rem;
+  background: rgba(10, 12, 18, 0.96);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 8px;
 }
 
 #midnight-relic-choice-box {

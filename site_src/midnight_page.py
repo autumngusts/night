@@ -698,6 +698,10 @@ BODY = """    <div class="midnight-wrap">
                  原本的盧恩左邊；圖示也改用「◀」跟banner上「▶」收合鈕相對應），見
                  static/midnight.jsのupdateTopBannerCollapseUI()。 -->
             <button type="button" id="btn-midnight-top-banner-reopen" aria-label="reopen" hidden>&#9664;</button>
+            <!-- 夜王立繪（2026-09-22使用者明確規格「使用點陣圖模式遊玩的話 就不顯示敵人插畫，
+                 最後夜王的插畫還是放置右上取代小地圖位置」）：點陣圖模式的王戰中取代小地圖，
+                 尺寸與小地圖相同，見static/midnight.jsのrenderBossPortraitHud()。 -->
+            <img id="midnight-boss-portrait-hud" alt="" hidden>
             <canvas id="midnight-minimap-canvas" hidden></canvas>
             <button type="button" id="btn-midnight-map-icon" data-i18n="midnight_map_icon_label"></button>
           </div>
@@ -1349,6 +1353,21 @@ BODY = """    <div class="midnight-wrap">
           <div id="midnight-relic-choice-box">
             <h3 id="midnight-relic-choice-title"></h3>
             <div id="midnight-relic-choice-options"></div>
+          </div>
+        </div>
+
+        <!-- 開局後從空位加入（2026-09-22使用者明確規格「非遊戲中的裝置 可以點(空位)的加入 並打開
+             選擇腳色頁面視窗來做選擇 仍舊要打名稱以及4位數字 在選擇職業 按下加入後即可同步進入
+             遊戲 出身地為有其他玩家周遭的安全地帶 仍為lv1開始」）：觀戰者在左上隊伍面板的空位
+             按「加入」時開啟；內容直接把等待房的#midnight-lobby-join-form與
+             #midnight-lobby-character-detail兩個節點搬進來重用（不複製第二份表單），見
+             static/midnight.jsのopenLateJoinModal()／handleLobbyJoin()／enterGameAsLateJoiner()。 -->
+        <div id="midnight-late-join-modal" hidden>
+          <div id="midnight-late-join-box">
+            <button type="button" id="btn-midnight-late-join-close" class="midnight-modal-close-x">&times;</button>
+            <h3 data-i18n="midnight_late_join_title"></h3>
+            <p class="threat-ref-body" data-i18n="midnight_late_join_hint"></p>
+            <div id="midnight-late-join-form-host"></div>
           </div>
         </div>
 
