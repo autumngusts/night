@@ -1778,7 +1778,7 @@ STRINGS_JA: dict[str, str] = {
     "midnight_battle_sim_dodge_timer_idle": "回避タイマー：攻撃待ち（T＝発動時刻、斬撃エフェクトは T−0.1s）",
     "midnight_battle_sim_dodge_timer_running": "回避タイマー：T{delta}s",
     "midnight_battle_sim_dodge_timer_stopped": "回避タイマー：T{delta}s（押した）",
-    "midnight_battle_sim_dodge_log_entry": "#{n} {hit}段目　離す T{delta}s／押す T{down}s → {result}",
+    "midnight_battle_sim_dodge_log_entry": "#{n} {hit}段目　押す T{down}s（離す T{delta}s）→ {result}",
     "midnight_battle_sim_dodge_log_result": "{grade} {pct}%",
     "midnight_battle_sim_dodge_log_early": "早すぎ（回避扱いにならない）",
     "midnight_battle_sim_dodge_log_timeout": "#{n} {hit}段目　未入力（{window}s で時間切れ）",

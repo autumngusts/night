@@ -1179,7 +1179,10 @@
   //       (T+0.5s, T+0.8s]   Good    89→60%
   //       (T+0.8s, T+W]      Bad     59→30%（W依第1/2/3下＝1.0/1.5/2.0秒）
   //   ・早於T−0.1s按 → 不算（維持「窗口開啟前的按鍵無效、體力照扣」）；完全沒按 → 全額受傷
-  //   ・連擊：T(k+1)＝T(k)＋W(k)，紅光只在第1下前顯示
+  //   ・連擊：T(k+1)＝T(k)＋W(k)，紅光只在第1下前顯示；每一下各自在T(k)−0.1s重播動畫＋刀光、
+  //     各自套用上面同一組時間帶（Perfect/Great/Good的邊界固定，只有Bad的終點W隨第幾下變）
+  //   ・「按下時刻」＝迴避鍵的pointerdown（2026-09-22使用者明確規格「改成按下的時間」，見
+  //     dodgePointerDownAt）；戰鬥模擬的迴避計時（updateBattleSimDodgeTimer()）可量測每次的實際值
   // 成功度顯示在迴避鍵上方（跟「成功迴避」並列，見showDodgeGrade()）。
   var SPRITE_DODGE_ANIM_LEAD_MS = 100; // 攻擊動畫在T之前多久切換
   var SPRITE_DODGE_PERFECT_EARLY_MS = 100; // Perfect區間起點（T之前）＝反應窗口實際開啟點
@@ -2310,6 +2313,12 @@
   var attributeAccumTriggers = {};
   var flaskReadingUntil = null; // 聖杯瓶讀取中的到期時間戳，null＝目前沒在讀取
   var dodgePressedAt = 0; // 最近一次成功迴避（有扣到體力）的時間戳，見handleDodgeClick／resolveMyIncomingHit
+  // 迴避鍵最近一次pointerdown的時間戳（2026-09-22使用者明確規格「改成按下的時間」）：迴避鍵綁的
+  // click是放開才觸發，按住的時間會全部算進反應時間；改成判定時刻＝按下瞬間，click只負責執行。
+  // 按住超過DODGE_PRESS_TO_RELEASE_MAX_MS才放開（或沒有pointerdown、例如程式dispatch的click）
+  // 就退回用放開時刻。
+  var dodgePointerDownAt = 0;
+  var DODGE_PRESS_TO_RELEASE_MAX_MS = 2000;
   // 特殊防禦（第六感／遺物效果額外防禦選項，2026-09-05角色能力真正接入新增）：跟dodgePressedAt
   // 同一套時間戳判定模式，見handleSpecialDefenseClick／resolveMyIncomingHit。
   var specialDefensePressedAt = 0;
@@ -2457,12 +2466,11 @@
   // 戰鬥模擬的迴避計時（2026-09-22使用者明確規格「在每次T的時間點時 畫面上開始計時 記錄我
   // 每次按下迴避後確切的花費時間」，見midnight_page.pyの#midnight-battle-sim-dodge-timer）：
   // 純本機量測工具，不影響任何判定。timer＝目前這一下的碼表狀態、log＝最近幾筆紀錄。
-  // pointerDownAt另外記「按下」瞬間：迴避鍵綁的是click（放開才觸發），兩個時間一起記才看得出
-  // 「按住的時間」占了多少。
+  // 紀錄同時寫「按下」（pointerdown，＝判定採用的時刻）與「放開」（click）兩個時間，看得出
+  // 按住的時間占了多少。
   var battleSimDodgeTimer = null; // { key, hitIndex, hitAt, phaseEndAt, stoppedAt }
   var battleSimDodgeLog = []; // 最新在前，最多BATTLE_SIM_DODGE_LOG_MAX筆
   var battleSimDodgeLogCount = 0; // 累計編號（#n）
-  var battleSimDodgePointerDownAt = 0;
   var BATTLE_SIM_DODGE_LOG_MAX = 8;
   var battleSimAssignAttempted = {}; // BATTLE_SIM_POINT_ID -> true（本地節流，同finalCircleRollAttempted；用物件是為了套resetAttemptFlagOnFailure()）
   // 2026-09-20防卡死：上面這批「本地節流旗標」都是「設旗標→送transaction→等RTDB回寫後
@@ -3674,9 +3682,10 @@
     el("btn-midnight-skill").addEventListener("click", handleSkillClick);
     bindSkillBHoldInput();
     el("btn-midnight-dodge").addEventListener("click", handleDodgeClick);
-    // 戰鬥模擬迴避計時用：記「按下」瞬間（click是放開才觸發），只做量測，不進判定。
+    // 2026-09-22使用者明確規格「改成按下的時間」：迴避的判定時刻改用pointerdown（按下瞬間），
+    // click（放開）只負責真正執行動作（扣體力等），見handleDodgeClick()。
     el("btn-midnight-dodge").addEventListener("pointerdown", function () {
-      battleSimDodgePointerDownAt = Date.now();
+      dodgePointerDownAt = Date.now();
     });
     bindBlockHoldInput();
     el("btn-midnight-defense-special").addEventListener("click", function () {
@@ -8388,8 +8397,12 @@
     if (isSelfDowned()) return;
     if (!spendStamina(dodgeStaminaCost(characters[myTokenId]))) return;
     cancelFlaskReadingForOtherAction();
-    dodgePressedAt = Date.now();
-    recordBattleSimDodgePress(dodgePressedAt); // 戰鬥模擬的迴避計時（純量測）
+    // 判定時刻＝按下瞬間（見dodgePointerDownAt說明）；沒有對應的pointerdown或按太久就用放開時刻。
+    var releasedAt = Date.now();
+    var pressedAt = dodgePointerDownAt && releasedAt - dodgePointerDownAt <= DODGE_PRESS_TO_RELEASE_MAX_MS ? dodgePointerDownAt : releasedAt;
+    dodgePointerDownAt = 0;
+    dodgePressedAt = pressedAt;
+    recordBattleSimDodgePress(pressedAt, releasedAt); // 戰鬥模擬的迴避計時（純量測）
     onAffixDodge(); // 2026-09-13武器詞條：回避直後の被ダメージ増加／回避連続時、カット率低下
   }
 
@@ -11323,15 +11336,16 @@
     });
   }
 
-  // 按下迴避時記一筆：dt＝放開（click）相對T、down＝按下（pointerdown）相對T。判定結果直接
-  // 重用spriteDodgeJudge()——跟resolveMyIncomingHit()實際採用的是同一條函式，這裡顯示的
-  // 等級／％就是遊戲真的會給的值。早於T−0.1s的按鍵遊戲不算迴避（見advanceIncomingAttackPhase()），
-  // 這裡照樣記下來並標成「太早」，方便看到自己到底提前了多少。
-  function recordBattleSimDodgePress(pressedAt) {
+  // 按下迴避時記一筆：pressedAt＝判定採用的時刻（pointerdown，見handleDodgeClick()）、
+  // releasedAt＝放開（click）。判定結果直接重用spriteDodgeJudge()——跟resolveMyIncomingHit()
+  // 實際採用的是同一條函式，這裡顯示的等級／％就是遊戲真的會給的值。早於T−0.1s的按鍵遊戲
+  // 不算迴避（見advanceIncomingAttackPhase()），這裡照樣記下來並標成「太早」，方便看到自己
+  // 到底提前了多少。
+  function recordBattleSimDodgePress(pressedAt, releasedAt) {
     var t = battleSimDodgeTimer;
     if (!battleSimDodgeTimerActive() || !t || t.stoppedAt !== null) return;
     var dt = pressedAt - t.hitAt;
-    var downDt = battleSimDodgePointerDownAt ? battleSimDodgePointerDownAt - t.hitAt : dt;
+    var releaseDt = (releasedAt || pressedAt) - t.hitAt;
     var result;
     if (dt < -SPRITE_DODGE_PERFECT_EARLY_MS) {
       // 太早的按鍵遊戲不採計，碼表也不停——之後在窗口內再按一次仍然算數、也要能記到。
@@ -11345,8 +11359,8 @@
     pushBattleSimDodgeLog(window.I18N.t("midnight_battle_sim_dodge_log_entry", {
       n: battleSimDodgeLogCount,
       hit: t.hitIndex + 1,
-      delta: formatSignedSec(dt),
-      down: formatSignedSec(downDt),
+      down: formatSignedSec(dt),
+      delta: formatSignedSec(releaseDt),
       result: result,
     }));
   }

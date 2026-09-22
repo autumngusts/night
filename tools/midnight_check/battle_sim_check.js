@@ -237,7 +237,8 @@ async function unlockTestMode(page) {
     assert(!!stage0 && stage0.w > 0 && stage0.h === stage0.w, "舞台有實際尺寸且為正方形（cellPx 推算成立）", stage0);
     assert(!!stage0 && stage0.anim === "idle", "初始播放 idle", stage0);
     const imgOk = await pageA.evaluate((f) => new Promise((res) => { const im = new Image(); im.onload = () => res({ w: im.naturalWidth, h: im.naturalHeight }); im.onerror = () => res(null); im.src = "../static/images/sprites/" + f; }), sheetInfo.file);
-    assert(!!imgOk && imgOk.w === (imgOk.h / 8) * 6, "sheet 圖片可被瀏覽器解碼且為 6×8 格", imgOk);
+    // 910f842 之後 sheet 的單格可以不是正方形（橫長單格），只驗「能切成 6 欄 × 8 列」，不再要求 w/6 == h/8。
+    assert(!!imgOk && imgOk.w % 6 === 0 && imgOk.h % 8 === 0, "sheet 圖片可被瀏覽器解碼且能切成 6×8 格", imgOk);
     // idle 6 幀 × 200ms：1.5 秒內 background-position 至少要換過 3 種值
     const idlePositions = await pageA.evaluate(() => new Promise((res) => {
       const seen = {};
@@ -299,7 +300,9 @@ async function unlockTestMode(page) {
     const posM = /^-(\d+)px -(\d+)px$/.exec(holdPos) || [];
     const cellFromX = posM[1] ? parseInt(posM[1], 10) / 5 : NaN;
     const cellFromY = posM[2] ? parseInt(posM[2], 10) / 7 : NaN;
-    assert(cellFromX > 0 && cellFromX === cellFromY, "小視窗 death hold 在最後一幀（row 7, frame 5，格寬 " + cellFromX + "px）", holdPos);
+    // 910f842 之後單格可為非正方形：格高＝round(格寬×cellAspectOf(sheet))，跟 midnight_sprite.js 同一條換算。
+    const cellAspect = await pageA.evaluate((f) => window.PriTestMidnightSprite.cellAspectOf(f), sheetInfo.file);
+    assert(cellFromX > 0 && cellFromY === Math.round(cellFromX * cellAspect), "小視窗 death hold 在最後一幀（row 7, frame 5，格寬 " + cellFromX + "px、格高 " + cellFromY + "px）", { holdPos, cellAspect });
     await waitFor(pageA, () => document.querySelector("#midnight-enemy-death-popup").hidden, null, 3000);
     assert(true, "停留後小視窗自動隱藏");
     // 死亡後 activeEncounter 結束；後續 ⑤⑥ 需要活著的敵人，把 HP 回滿並重新進入。
@@ -329,20 +332,25 @@ async function unlockTestMode(page) {
     await pageA.waitForFunction((hitAt) => Date.now() >= hitAt + 150, tmr0.hitAt, { timeout: 10000 });
     const runningText = await pageA.textContent("#midnight-battle-sim-dodge-timer-now");
     assert(/T\+0\.\d{3}s/.test(runningText), "T 之後碼表顯示正數（" + runningText + "）", runningText);
+    // 2026-09-22 使用者明確規格「改成按下的時間」：按下（pointerdown）在 Perfect 帶內、
+    // 故意按住 0.4 秒再放開（click）——判定必須以按下為準＝Perfect；若以放開為準會落到 Good。
     await pageA.dispatchEvent("#btn-midnight-dodge", "pointerdown");
-    await pageA.waitForTimeout(80);
+    await pageA.waitForTimeout(400);
     await pageA.dispatchEvent("#btn-midnight-dodge", "click");
     await waitFor(pageA, () => (window.PriTestMidnight._debugState().battleSimDodgeLog || []).length >= 1, null, 3000);
     const log1 = (await state(pageA)).battleSimDodgeLog[0];
-    const m1 = /放開 T\+(\d\.\d{3})s／按下 T\+(\d\.\d{3})s → (Perfect|Great|Good|Bad) (\d+)%/.exec(log1);
-    assert(!!m1 && log1.indexOf("第" + (tmr0.hitIndex + 1) + "下") !== -1, "第1筆紀錄含第幾下、放開／按下兩個時間與判定（" + log1 + "）", log1);
+    const m1 = /按下 T\+(\d\.\d{3})s（放開 T\+(\d\.\d{3})s）→ (Perfect|Great|Good|Bad) (\d+)%/.exec(log1);
+    assert(!!m1 && log1.indexOf("第" + (tmr0.hitIndex + 1) + "下") !== -1, "第1筆紀錄含第幾下、按下／放開兩個時間與判定（" + log1 + "）", log1);
     if (m1) {
-      const release = parseFloat(m1[1]);
-      const press = parseFloat(m1[2]);
-      assert(release >= 0.15 && release < 1.2 && press < release && release - press >= 0.05, "放開 ≥ T+0.15s、按下早於放開約 0.08s", { release, press });
-      const expectGrade = release <= 0.35 ? "Perfect" : release <= 0.5 ? "Great" : release <= 0.8 ? "Good" : "Bad";
-      assert(m1[3] === expectGrade, "判定等級與 SPRITE_DODGE_BANDS 一致（" + m1[3] + "）", { release, grade: m1[3] });
+      const press = parseFloat(m1[1]);
+      const release = parseFloat(m1[2]);
+      assert(press >= 0.15 && press < 0.35 && release - press >= 0.35, "按下落在 Perfect 帶、放開比按下晚 ≥0.35s", { press, release });
+      assert(m1[3] === "Perfect" && m1[4] === "100", "判定以「按下」為準 → Perfect 100%（以放開為準會是 Good）", { press, release, grade: m1[3] });
     }
+    // 迴避成功度提示（實際判定的顯示）也必須是 Perfect
+    await waitFor(pageA, () => !document.querySelector("#midnight-dodge-grade").hidden, null, 2000).catch(() => {});
+    const gradeShown = await pageA.textContent("#midnight-dodge-grade");
+    assert(gradeShown === "Perfect", "迴避鍵上方的成功度提示＝Perfect（實際判定用了按下時刻）", gradeShown);
     // 沒按的情況：等下一個碼表出現，放著不按直到它換掉，應補記「逾時」
     await waitFor(pageA, (k) => { const t = window.PriTestMidnight._debugState().battleSimDodgeTimer; return !!t && t.key !== k; }, tmr0.key, 40000);
     const tmr1 = (await state(pageA)).battleSimDodgeTimer;

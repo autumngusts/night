@@ -1782,7 +1782,7 @@ STRINGS_ZH: dict[str, str] = {
     "midnight_battle_sim_dodge_timer_idle": "迴避計時：等待出招（T＝正式出招時刻、刀光在 T−0.1s）",
     "midnight_battle_sim_dodge_timer_running": "迴避計時：T{delta}s",
     "midnight_battle_sim_dodge_timer_stopped": "迴避計時：T{delta}s（已按下）",
-    "midnight_battle_sim_dodge_log_entry": "#{n} 第{hit}下　放開 T{delta}s／按下 T{down}s → {result}",
+    "midnight_battle_sim_dodge_log_entry": "#{n} 第{hit}下　按下 T{down}s（放開 T{delta}s）→ {result}",
     "midnight_battle_sim_dodge_log_result": "{grade} {pct}%",
     "midnight_battle_sim_dodge_log_early": "太早（不算迴避）",
     "midnight_battle_sim_dodge_log_timeout": "#{n} 第{hit}下　未按（逾時 {window}s）",

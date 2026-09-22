@@ -92,6 +92,11 @@ async function waitAttackDone(page, attackId) {
     await waitFor(page, () => !!window.PriTestMidnight._debugState().mySlot);
     await page.check("#midnight-lobby-sprite-mode-checkbox");
     await waitFor(page, () => window.PriTestMidnight._debugState().meta.spriteMode === true);
+    // 2026-09-22 v0.42.1 起戰鬥模擬三列包在 #midnight-lobby-test-tools，要這台裝置自己輸入
+    // 測試模式密碼成功才顯示（page.click 會等元素可見），所以先開測試模式。
+    page.once("dialog", (d) => d.accept("nightnight"));
+    await page.check("#midnight-lobby-test-mode-checkbox");
+    await waitFor(page, () => !document.querySelector("#midnight-lobby-test-tools").hidden);
     page.once("dialog", (d) => d.accept("nightnight"));
     await page.click("#btn-midnight-lobby-battle-sim");
     await waitFor(page, () => !!(window.PriTestMidnight._debugState().meta.battleSim || {}).enemyId);

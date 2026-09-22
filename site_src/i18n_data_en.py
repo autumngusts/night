@@ -1778,7 +1778,7 @@ STRINGS_EN: dict[str, str] = {
     "midnight_battle_sim_dodge_timer_idle": "Dodge timer: waiting for attack (T = strike time, slash effect at T−0.1s)",
     "midnight_battle_sim_dodge_timer_running": "Dodge timer: T{delta}s",
     "midnight_battle_sim_dodge_timer_stopped": "Dodge timer: T{delta}s (pressed)",
-    "midnight_battle_sim_dodge_log_entry": "#{n} hit {hit}: release T{delta}s / press T{down}s → {result}",
+    "midnight_battle_sim_dodge_log_entry": "#{n} hit {hit}: press T{down}s (release T{delta}s) → {result}",
     "midnight_battle_sim_dodge_log_result": "{grade} {pct}%",
     "midnight_battle_sim_dodge_log_early": "too early (not a dodge)",
     "midnight_battle_sim_dodge_log_timeout": "#{n} hit {hit}: no input (timed out at {window}s)",
