@@ -31,10 +31,27 @@
   // Math.random() は使わない。毎フレーム呼ばれるので、乱数だと同じ敵が 1 影格ごとに
   // 別の生き物に化けてしまう。sheetId のハッシュで決めれば、同じ敵は常に同じ代役になり、
   // かつ全端末で一致する（RTDB に何も同期しなくてよい）。
-  function substituteSheetFile(key) {
+  //
+  // 2026-09-22 使用者明確規格「特別是區分敵人種類 若沒有連結的直接抽選其他敵人 boss另外
+  // 抽選其他夜王點陣圖」：代役只在同一種類裡挑——一般敵人（family_*）只從產出済みの
+  // family sheet 挑、夜王（boss_*）只從產出済みの boss sheet 挑，不會互相混用。
+  // 一般敵人再多一層優先：同系統的另一個變體（family_x_a ↔ family_x_b）若已產出，
+  // 優先當代役（同系統的外型最接近）；沒有才退到雜湊抽選。
+  var BOSS_SHEET_RE = /^boss_/;
+  var FAMILY_VARIANT_RE = /^(family_.+)_([ab])$/;
+
+  function siblingSheetId(sheetId) {
+    var m = FAMILY_VARIANT_RE.exec(sheetId || "");
+    if (!m) return null;
+    return m[1] + "_" + (m[2] === "a" ? "b" : "a");
+  }
+
+  function substituteSheetFile(key, isBoss) {
     if (!R || !key) return null;
+    var sibling = !isBoss ? R.getSheet(siblingSheetId(key)) : null;
+    if (sibling && sibling.available) return sibling.file;
     var avail = R.listSheets().filter(function (s) {
-      return s.available;
+      return s.available && BOSS_SHEET_RE.test(s.id) === !!isBoss;
     });
     if (!avail.length) return null;
     var h = 0;
@@ -49,7 +66,7 @@
     if (own) return own;
     if (!R) return null;
     var id = isBoss ? R.sheetIdForBoss(enemyId) : R.sheetIdForEnemy(familyId, enemyId);
-    return substituteSheetFile(id);
+    return substituteSheetFile(id, !!isBoss);
   }
 
   function frameIndexAt(animId, elapsedMs) {
@@ -128,7 +145,66 @@
     current = { animId: animId, startAt: startAt };
   }
 
+  // ---- 死亡小視窗（2026-09-22 使用者明確規格「在右上角縮小比較小的視窗播放死亡動畫」）----
+  // 敵人 HP 歸零的同一影格，戰鬥面板就會被收掉（activeEncounter 變 null），主舞台上的
+  // death 動畫根本來不及被看到。改成擊破時在呼叫端指定的容器（右上 HUD 那一欄的最後一個
+  // 子元素，不蓋任何內容）開一個小舞台，獨立播完 death＋停留後自動隱藏。
+  // 跟主舞台完全獨立：各自有自己的 sheet／格寬／時間軸，主舞台被 showStatic() 收掉也不影響。
+  var deathEl = null;
+  var deathPlay = null; // { startAt, until }
+  var deathCellPx = 0;
+  var DEATH_POPUP_LINGER_MS = 700; // death 最後一幀（hold）多停這麼久再收掉
+
+  function mountDeathPopup(containerEl) {
+    if (!containerEl || deathEl) return;
+    deathEl = containerEl.ownerDocument.createElement("div");
+    deathEl.id = "midnight-enemy-death-popup";
+    deathEl.hidden = true;
+    containerEl.appendChild(deathEl);
+  }
+
+  function playDeathPopup(sheetFile, staticPrefix, now) {
+    if (!deathEl || !sheetFile) return false;
+    deathEl.style.backgroundImage =
+      "url(" + (staticPrefix || "../static/") + "images/sprites/" + sheetFile + ")";
+    deathEl.hidden = false;
+    deathCellPx = 0; // 強制重算 backgroundSize（元素剛從 hidden 變可見）
+    deathPlay = { startAt: now, until: now + S.animTotalMs("death") + DEATH_POPUP_LINGER_MS };
+    tickDeathPopup(now);
+    return true;
+  }
+
+  function tickDeathPopup(now) {
+    if (!deathEl || !deathPlay) return;
+    if (now >= deathPlay.until) {
+      deathEl.hidden = true;
+      deathPlay = null;
+      return;
+    }
+    var px = deathEl.offsetWidth || 96;
+    if (px !== deathCellPx) {
+      deathCellPx = px;
+      deathEl.style.backgroundSize = S.SHEET_COLS * px + "px " + S.SHEET_ROWS * px + "px";
+    }
+    var idx = frameIndexAt("death", now - deathPlay.startAt);
+    if (idx === null) idx = S.getAnim("death").frameCount - 1;
+    deathEl.style.backgroundPosition = backgroundPosition("death", idx, px);
+  }
+
+  // ---- 預載（2026-09-22 使用者明確規格「實際遊戲內模式也要確實的出現而不要晚出現」）----
+  // sheet 每張 1.4~2.4MB，showSprite() 才設 backgroundImage 的話，圖片載完前舞台是空的。
+  // 呼叫端在「遭遇成為候選」（識別資訊準備／進入戰鬥讀條）與等待房抽到模擬敵人時就先
+  // 預載；同一個檔名只會建立一次 Image 物件。
+  var preloaded = {};
+  function preload(sheetFile, staticPrefix) {
+    if (!sheetFile || preloaded[sheetFile]) return;
+    var img = new Image();
+    img.src = (staticPrefix || "../static/") + "images/sprites/" + sheetFile;
+    preloaded[sheetFile] = img; // 留住參考，避免被 GC 後瀏覽器又重新要求
+  }
+
   function tick(now) {
+    tickDeathPopup(now);
     if (!stageEl || stageEl.hidden || !current) return;
     syncCellPx();
     var idx = frameIndexAt(current.animId, now - current.startAt);
@@ -140,6 +216,9 @@
   }
 
   window.PriTestMidnightSprite = {
+    mountDeathPopup: mountDeathPopup,
+    playDeathPopup: playDeathPopup,
+    preload: preload,
     sheetFileFor: sheetFileFor,
     substituteSheetFile: substituteSheetFile,
     sheetFileOrSubstitute: sheetFileOrSubstitute,

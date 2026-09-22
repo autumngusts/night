@@ -4290,7 +4290,8 @@ button {
 }
 
 #midnight-merchant-prompt-name,
-#midnight-blessing-prompt-name {
+#midnight-blessing-prompt-name,
+#midnight-tower-prompt-name {
   margin: 0 0 0.3rem;
   font-weight: bold;
 }
@@ -5031,6 +5032,31 @@ html.midnight-banner-above-hud:not(.midnight-top-banner-collapsed) #midnight-rew
 
 .midnight-action-flash-damage {
   color: #ff5c5c;
+}
+
+/* 2026-09-22 點陣圖模式迴避成功度（Perfect／Great／Good／Bad）：跟「成功迴避」同時出現，
+   所以再往上疊一層（用id選，因為showActionFlash()每次都會重寫className）。 */
+#midnight-dodge-grade {
+  margin-bottom: 1.35rem;
+  font-size: 0.8rem;
+  letter-spacing: 0.04em;
+}
+
+.midnight-action-flash-grade-perfect {
+  color: #ffd54a;
+  text-shadow: 0 0 6px rgba(255, 213, 74, 0.8);
+}
+
+.midnight-action-flash-grade-great {
+  color: #7ee787;
+}
+
+.midnight-action-flash-grade-good {
+  color: #8ecbff;
+}
+
+.midnight-action-flash-grade-bad {
+  color: #c9a27a;
 }
 
 /* ---- 按鈕格正上方的狀態浮標（2026-09-13使用者明確規格「使用聖杯瓶中，格子上方顯示
@@ -8770,6 +8796,26 @@ html.midnight-top-banner-collapsed .midnight-top-banner-collapse-btn {
   width: 100%;
   aspect-ratio: 1 / 1;
   background-repeat: no-repeat;
-  image-rendering: pixelated;
+  /* 2026-09-22：正式圖是抗鋸齒手繪風（單格 232px，舞台約 420px 放大 1.8 倍），pixelated 會出現
+     鋸齒，改用瀏覽器預設的平滑縮放。 */
   pointer-events: none;
+}
+
+/* 敵人死亡小視窗（2026-09-22 使用者明確規格「不影響內容情況下 在右上角縮小比較小的視窗播放
+   死亡動畫」）：由 midnight_sprite.js 的 mountDeathPopup() 掛在 #midnight-hud-top-right（flex
+   column、靠右對齊）的最後一個子元素，自然排在盧恩／地圖／角色／選單之下，不蓋任何內容；
+   death 播完＋停留後由 JS 重新加上 hidden。切幀方式跟主舞台相同（background-position）。 */
+#midnight-enemy-death-popup {
+  width: 96px;
+  aspect-ratio: 1 / 1;
+  border-radius: 8px;
+  background-color: rgba(10, 12, 18, 0.55);
+  background-repeat: no-repeat;
+  pointer-events: none;
+}
+
+@media (max-width: 640px) {
+  #midnight-enemy-death-popup {
+    width: 72px;
+  }
 }

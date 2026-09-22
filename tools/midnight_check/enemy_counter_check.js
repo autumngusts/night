@@ -156,9 +156,11 @@ ok(
   (mn.match(/incomingHitWindowMs\(st\)/g) || []).length === 3,
   "incomingHitWindowMs(st) は定義1＋呼び出し2＝3箇所（片方だけ直すと1下目1秒/2下目2秒になる）"
 );
+// 2026-09-22：點陣圖模式の迴避時機判定で spriteHitAt()／scheduleSpriteHit()／_debugEnemyAttackHitWindowMs
+// の 3 箇所が増えた（3→6）。いずれも「窗口長さ」を一元的にここから取る設計はそのまま。
 ok(
-  (mn.match(/enemyAttackHitWindowMs\(/g) || []).length === 3,
-  "enemyAttackHitWindowMs() は定義1＋incomingHitWindowMs内1＋enemyAttackTotalDurationMs内1＝3箇所"
+  (mn.match(/enemyAttackHitWindowMs\(/g) || []).length === 6,
+  "enemyAttackHitWindowMs() は定義1＋incomingHitWindowMs内1＋enemyAttackTotalDurationMs内1＋spriteHitAt内1＋scheduleSpriteHit内1＋debug入口1＝6箇所"
 );
 ok(mn.indexOf("maybeTriggerEnemyCounter(pointId);") !== -1, "damageCombatTarget() から誘発判定を呼んでいる");
 ok(mn.indexOf("if (!spriteModeEnabled()) return;") !== -1, "spriteMode 未勾選なら発動しない閘門がある");

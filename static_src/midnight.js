@@ -1166,6 +1166,29 @@
   var ENEMY_ATTACK_INTERVAL_MAX_MS = 4000;
   var ENEMY_ATTACK_WARN_MS = 500; // 使用者明確規格：警示圖示閃爍0.5秒後才開始攻擊
   var ENEMY_ATTACK_HIT_WINDOW_MS = [2000, 2500, 3000]; // 反應時限（單次攻擊事件固定用第0段＝2秒）
+  // ---- 點陣圖戰鬥模式的迴避時機判定（2026-09-22使用者明確規格）----
+  // 只在spriteModeEnabled()的房間生效，非點陣圖房維持上面2.0/2.5/3.0秒、窗口內按下＝100%
+  // 無效化的舊規則。以T＝正式出招時刻（＝紅光0.5秒結束）為基準：
+  //   ・T−0.1s：敵人sprite才從idle切成攻擊動畫（連擊每一下各重播一次，見maybePlayEnemyAttackAnim()）
+  //   ・按下時刻依「T之後幾毫秒」落在哪一個時間帶決定成功度與減傷％（2026-09-22第3版，
+  //     使用者明確規格「判定嚴格度更改」）——時間帶固定、不隨窗口長度伸縮，帶內線性遞減：
+  //       [T−0.1s, T+0.35s]  Perfect 100%
+  //       (T+0.35s, T+0.5s]  Great   99→90%
+  //       (T+0.5s, T+0.8s]   Good    89→60%
+  //       (T+0.8s, T+W]      Bad     59→30%（W依第1/2/3下＝1.0/1.5/2.0秒）
+  //   ・早於T−0.1s按 → 不算（維持「窗口開啟前的按鍵無效、體力照扣」）；完全沒按 → 全額受傷
+  //   ・連擊：T(k+1)＝T(k)＋W(k)，紅光只在第1下前顯示
+  // 成功度顯示在迴避鍵上方（跟「成功迴避」並列，見showDodgeGrade()）。
+  var SPRITE_DODGE_ANIM_LEAD_MS = 100; // 攻擊動畫在T之前多久切換
+  var SPRITE_DODGE_PERFECT_EARLY_MS = 100; // Perfect區間起點（T之前）＝反應窗口實際開啟點
+  var SPRITE_DODGE_WINDOW_MS = [1000, 1500, 2000]; // 第1/2/3下的反應窗口（T之後）
+  // untilMs＝該帶終點（T之後的毫秒，含），null＝到窗口結束；from/to＝帶起點/終點的減傷％。
+  var SPRITE_DODGE_BANDS = [
+    { id: "perfect", untilMs: 350, from: 100, to: 100 },
+    { id: "great", untilMs: 500, from: 99, to: 90 },
+    { id: "good", untilMs: 800, from: 89, to: 60 },
+    { id: "bad", untilMs: null, from: 59, to: 30 },
+  ];
   // 2026-09-06數值真正接入：不再用demo佔位機率決定打誰，改成先從敵人實際
   // 「アクション決定表」（enemy.actions[]）抽出一招，依該招敘述判斷是個別傷害（1人）
   // 還是亂戰傷害（1~3人），見pickEnemyAction()/resolveEnemyActionOutcome()。舊有的
@@ -1705,6 +1728,7 @@
       var data = window.PriTestEnemies ? window.PriTestEnemies.get(sim.enemyFamilyId, sim.enemyId) : null;
       var name = data ? window.PriTestEnemies.localizedText(data.enemy.name) : sim.enemyId;
       text = window.I18N.t("midnight_lobby_battle_sim_status", { name: name, level: sim.level || 1 });
+      preloadEncounterSheet(sim); // 等待房就先載，開局直接開戰時 sprite 不會晚出現
     } else {
       text = window.I18N.t("midnight_lobby_battle_sim_hint");
     }
@@ -1744,6 +1768,25 @@
 
   function battleSimEnabled() {
     return !!(meta && meta.battleSim && meta.battleSim.enemyFamilyId);
+  }
+
+  // 這場遭遇該用哪一張 sprite sheet（含未產出時的代役），null＝不顯示 sprite（非點陣圖房、
+  // 沒有敵人、模組未載入）。renderFieldEncounterPanel()／preloadEncounterSheet()／
+  // 死亡小視窗三處共用同一條判定，不各自複製。
+  function encounterSheetFile(trig) {
+    var Sprite = window.PriTestMidnightSprite;
+    if (!Sprite || !spriteModeEnabled() || !trig || !trig.enemyFamilyId) return null;
+    var isBoss = trig.enemyFamilyId === BOSS_ENEMY_FAMILY_SENTINEL;
+    return Sprite.sheetFileOrSubstitute(isBoss ? null : trig.enemyFamilyId, trig.enemyId, isBoss);
+  }
+
+  // 預載（2026-09-22使用者明確規格「實際遊戲內模式也要確實的出現而不要晚出現」）：
+  // 遭遇一成為候選（recomputeActiveEncounter()，之後至少還有5秒識別資訊準備或3秒進入讀條）
+  // 就先把 sheet 抓進快取，正式進戰鬥時 showSprite() 直接命中快取、不會空一段。
+  // 同一檔名只載一次（midnight_sprite.js 內部去重）。
+  function preloadEncounterSheet(trig) {
+    var file = encounterSheetFile(trig);
+    if (file) window.PriTestMidnightSprite.preload(file, "../static/");
   }
 
   // 使用者明確規格「需要輸入nightnight密碼」：只有「開啟」需要密碼，取消不用（跟測試模式
@@ -2818,8 +2861,30 @@
     renderRewardModal();
   }
 
+  // 敵人 HP 歸零→右上角死亡小視窗（2026-09-22使用者明確規格「不影響內容情況下 在右上角縮小
+  // 比較小的視窗播放死亡動畫」）：戰鬥面板在 HP 0 的同一影格就會收掉，主舞台的 death 誰都
+  // 看不到，改在這裡觀測「自己正在打的那場遭遇（activeEncounter）從 >0 變成 <=0」，用
+  // 這場的 sheet 在右上 HUD 欄位最後一格開一個獨立小舞台播 death。所有正在這場戰鬥裡的
+  // 裝置都會收到同一份 HP 鏡像，因此全員都看得到（不像受擊只有出手的人看得到）。
+  var lastKnownEnemyHp = {}; // pointId -> number（跟 lastKnownMobHp 同款：判斷「剛好從>0變成<=0」）
+  function maybeShowEnemyDeathPopup(prevHp, nextHp) {
+    var Sprite = window.PriTestMidnightSprite;
+    if (!Sprite || !activeEncounter) return;
+    var id = activeEncounter.id;
+    var prev = prevHp[id];
+    var next = nextHp[id];
+    if (!(prev !== undefined && prev > 0 && next !== undefined && next <= 0)) return;
+    var file = encounterSheetFile(fieldTriggers[id]);
+    if (!file) return;
+    Sprite.mountDeathPopup(el("midnight-hud-top-right"));
+    Sprite.playDeathPopup(file, "../static/", Date.now());
+  }
+
   function onFieldEnemyHpReceived(value) {
-    fieldEnemyHp = value || {};
+    var next = value || {};
+    maybeShowEnemyDeathPopup(lastKnownEnemyHp, next);
+    lastKnownEnemyHp = next;
+    fieldEnemyHp = next;
     renderCombatPanel();
   }
 
@@ -4280,10 +4345,12 @@
         grantKillCooldownReduction();
         clearEnemyAttackOnKill(pointId);
       }
-      // sprite の受擊／死亡モーション（2026-09-21）。擊破の判定はすでにここにあるので
-      // 相乗りする。死亡は force=true で攻擊モーションにも割り込む。
-      if (wasAlive && committed === 0) playEnemySpriteAnim("death", true);
-      else if (committed > 0) playEnemySpriteAnim("hurt", false);
+      // sprite の受擊モーション（2026-09-21）。擊破の判定はすでにここにあるので相乗りする。
+      // 受擊は出手した本人だけに見えればよい（2026-09-22 使用者確認）。
+      // 死亡は 2026-09-22 から onFieldEnemyHpReceived() の HP 歸零觀測で右上の小視窗に
+      // 流す（見 maybeShowEnemyDeathPopup()）——戰鬥面板は HP 0 の同一影格で閉じるので、
+      // 主舞台で死亡を再生しても誰にも見えなかった。
+      if (committed > 0) playEnemySpriteAnim("hurt", false);
     });
   }
 
@@ -9393,8 +9460,55 @@
   var TURN_STEP_WINDOW_BONUS_MS = 200;
 
   function enemyAttackHitWindowMs(hitIndex) {
-    var idx = Math.max(0, Math.min(hitIndex, ENEMY_ATTACK_HIT_WINDOW_MS.length - 1));
-    return ENEMY_ATTACK_HIT_WINDOW_MS[idx] + countRelic(characters[myTokenId], "turnStep") * TURN_STEP_WINDOW_BONUS_MS;
+    // 點陣圖戰鬥模式改用1.0/1.5/2.0秒（見SPRITE_DODGE_WINDOW_MS說明）；轉身之步的加成兩種模式都疊。
+    var table = spriteModeEnabled() ? SPRITE_DODGE_WINDOW_MS : ENEMY_ATTACK_HIT_WINDOW_MS;
+    var idx = Math.max(0, Math.min(hitIndex, table.length - 1));
+    return table[idx] + countRelic(characters[myTokenId], "turnStep") * TURN_STEP_WINDOW_BONUS_MS;
+  }
+
+  // 點陣圖戰鬥模式：這次攻擊第k下（0-based）的正式出招時刻T(k)（本機時刻）。
+  // T(0)＝紅光結束；之後每一下＝上一下的窗口關閉時刻。動畫排程（maybePlayEnemyAttackAnim()）
+  // 與判定（updateMyIncomingAttack()）都從這裡取，同一台裝置上兩者必定對齊——窗口長度含
+  // 轉身之步這種「只有自己知道」的加成，所以刻意不用跨裝置共享的排程，各裝置自己算。
+  function spriteHitAt(atk, hitIndex) {
+    var t = enemyAttackWarnAtLocal(atk) + ENEMY_ATTACK_WARN_MS;
+    for (var i = 0; i < hitIndex; i++) t += enemyAttackHitWindowMs(i);
+    return t;
+  }
+
+  // 點陣圖戰鬥模式的迴避判定：依按下時刻落在SPRITE_DODGE_BANDS哪一帶，回傳{grade, pct}。
+  // 帶內依時間線性從from遞減到to；最後一帶（bad）的終點＝這一下的窗口結束（st.phaseEndAt）。
+  // pressedAt早於Perfect區間起點的情況呼叫端已經擋掉（那不算迴避），這裡不再處理。
+  function spriteDodgeJudge(st, pressedAt) {
+    var dt = pressedAt - st.hitAt;
+    var bandStart = -SPRITE_DODGE_PERFECT_EARLY_MS;
+    for (var i = 0; i < SPRITE_DODGE_BANDS.length; i++) {
+      var band = SPRITE_DODGE_BANDS[i];
+      var bandEnd = band.untilMs === null ? st.phaseEndAt - st.hitAt : band.untilMs;
+      if (dt <= bandEnd || i === SPRITE_DODGE_BANDS.length - 1) {
+        var span = Math.max(1, bandEnd - bandStart);
+        var t = Math.max(0, Math.min(1, (dt - bandStart) / span));
+        return { grade: band.id, pct: Math.round(band.from - (band.from - band.to) * t) };
+      }
+      bandStart = bandEnd;
+    }
+    return { grade: "bad", pct: SPRITE_DODGE_BANDS[SPRITE_DODGE_BANDS.length - 1].to };
+  }
+
+  // 是否套用點陣圖模式的時機判定：反擊（isCounter，固定1秒的「快速反擊」、沒有對應動畫）
+  // 維持舊規則不動。
+  function spriteDodgeTimingApplies(st) {
+    return spriteModeEnabled() && !!st && !st.isCounter;
+  }
+
+  // 點陣圖模式：把本地反應狀態切到第hitIndex下的排程（warn→window的切換點、或上一下結算後）。
+  // phase先設成"window"但要等now>=windowStartAt才真正開啟（advanceIncomingAttackPhase()會擋）。
+  function scheduleSpriteHit(st, atk, hitIndex) {
+    st.hitIndex = hitIndex;
+    st.hitAt = spriteHitAt(atk, hitIndex);
+    st.windowStartAt = st.hitAt - SPRITE_DODGE_PERFECT_EARLY_MS;
+    st.phaseEndAt = st.hitAt + enemyAttackHitWindowMs(hitIndex);
+    st.phase = "window";
   }
 
   // 反應窗口的長度。一般攻擊是 2.0/2.5/3.0 秒（ENEMY_ATTACK_HIT_WINDOW_MS），
@@ -9895,7 +10009,24 @@
     var atk = trig.enemyAttack;
     var targeted = !!(atk && mySlot && atk.targetSlots && atk.targetSlots.indexOf(mySlot) !== -1);
     if (!targeted) {
-      if (myIncomingAttack && (!atk || atk.attackId !== myIncomingAttack.attackId)) myIncomingAttack = null;
+      if (myIncomingAttack) {
+        if (atk && atk.attackId !== myIncomingAttack.attackId) {
+          myIncomingAttack = null; // 已經換成另一次攻擊
+        } else if (!atk) {
+          // 攻擊在 RTDB 上已被收掉（maybeFinishEnemyAttack() 由任一台裝置依「它自己」算的
+          // 總時長清除，或擊破時 clearEnemyAttackOnKill()）。各裝置的窗口長度含自己的
+          // 「轉身之步」加成（每個 +0.2s），持有者的最後一下會比共享壽命晚關——原本這裡直接
+          // 設 null，等於把還沒結算的那一下丟掉。改成：自己還在反應窗口中就讓它照常結算完
+          // （按下→迴避／逾時→命中；敵人已死的情況 advanceIncomingAttackPhase() 內部會清掉），
+          // 結算到 done 才釋放。
+          if (myIncomingAttack.phase === "window") {
+            advanceIncomingAttackPhase(myIncomingAttack, now);
+            if (myIncomingAttack && myIncomingAttack.phase === "done") myIncomingAttack = null;
+          } else {
+            myIncomingAttack = null;
+          }
+        }
+      }
       return;
     }
     if (!myIncomingAttack || myIncomingAttack.attackId !== atk.attackId) {
@@ -9907,12 +10038,18 @@
         phase: "warn",
         windowStartAt: null,
         phaseEndAt: enemyAttackWarnAtLocal(atk) + ENEMY_ATTACK_WARN_MS,
+        hitAt: null, // 點陣圖模式才用：這一下的正式出招時刻T（見scheduleSpriteHit()）
+        effectFired: false, // 點陣圖模式才用：這一下的刀光特效是否已播（窗口開啟那一刻播一次）
         actionName: atk.actionName,
         actionMod: atk.actionMod,
         actionNote: atk.actionNote,
         dmgKind: atk.dmgKind,
         dmgAmount: atk.dmgAmount,
       };
+      // 點陣圖模式：整條時間軸在發動當下就排定（T(0)＝紅光結束、窗口從T−0.1s開啟），
+      // 不走下面warn→window「到點才把now當窗口起點」的舊流程——舊流程的起點會跟影格對齊
+      // 誤差、也跟動畫排程（spriteHitAt()）對不上。紅光仍由renderEnemyAttackOverlay()顯示到T。
+      if (spriteDodgeTimingApplies(myIncomingAttack)) scheduleSpriteHit(myIncomingAttack, atk, 0);
       return;
     }
     advanceIncomingAttackPhase(myIncomingAttack, now);
@@ -9930,6 +10067,16 @@
       return;
     }
     if (st.phase !== "window") return;
+    // 點陣圖模式：窗口是預先排定的（scheduleSpriteHit()），還沒到開啟時刻就什麼都不做——
+    // 這段期間的迴避按鍵因為dodgePressedAt < windowStartAt，開啟後自然不會被算進去
+    // （＝「早於T−0.1s按不算」）。刀光在開啟那一刻播一次。
+    if (st.hitAt !== null && st.hitAt !== undefined) {
+      if (now < st.windowStartAt) return;
+      if (!st.effectFired) {
+        st.effectFired = true;
+        triggerAttackEffect();
+      }
+    }
     // 2026-09-20新增：本地端第二道防護（見clearEnemyAttackOnKill()說明的延遲空窗問題）——
     // 敵人在RTDB上已經擊破（fieldEnemyHp鏡像值<=0），但trig.enemyAttack的清除還沒同步到
     // 這個client時，不該讓逾時判定成命中；直接清掉本地狀態，視同這次攻擊作廢。
@@ -10042,7 +10189,17 @@
     // 上面兩段已經把資源不足的降級處理完，這裡的kind是最終結果。block雖然仍會造成
     // 部分傷害（見下方減傷計算），但規則上仍算「防禦成功」（跟kind==="hit"的完全命中
     // 區分），所以歸在成功那一組。
-    if (kind === "dodge") {
+    // 點陣圖模式的迴避時機判定（2026-09-22，見SPRITE_DODGE_*說明）：按下時刻決定減傷％，
+    // 100％＝跟舊規則一樣完全無效化；不滿100％改走下面的受傷路徑（kind→"dodgePartial"），
+    // 減傷是獨立的一層乘法（設計文件§8.1）。兩種情況都顯示「成功迴避」＋成功度。
+    var dodgeReducePct = null;
+    if (kind === "dodge" && spriteDodgeTimingApplies(st)) {
+      var judge = spriteDodgeJudge(st, dodgePressedAt);
+      dodgeReducePct = judge.pct;
+      showDodgeGrade(judge.grade);
+      if (dodgeReducePct < 100) kind = "dodgePartial";
+    }
+    if (kind === "dodge" || kind === "dodgePartial") {
       showActionFlash("midnight-dodge-flash", window.I18N.t("midnight_dodge_success_flash"), "success");
     } else if (kind === "block") {
       showActionFlash("midnight-block-flash", window.I18N.t("midnight_block_success_flash"), "success");
@@ -10068,10 +10225,11 @@
     // 「敵人傷害計算：串接後的傷害值除以10」，比照night.js既有的「乱戦/個別傷害÷HP價值」
     // 換算精神，這裡改用固定÷10簡化），再套用測試模式倍率。抽不到招式或算不出數值
     // （dmgKind為null）時視為0傷害，不發明數值（CLAUDE.md §19）。
-    if (kind === "hit" || kind === "block") {
+    if (kind === "hit" || kind === "block" || kind === "dodgePartial") {
       // 2026-09-06優化（使用者明確規格「使用聖杯瓶時間為1.0s，期間使用任何動作、受到傷害
       // 都會停止使用」）：迴避/特殊防禦完全化解不算「受到傷害」，只有真的進入這裡（完全
-      // 命中／防禦部分減傷）才取消聖杯瓶讀取，跟其他動作共用同一個取消函式。
+      // 命中／防禦部分減傷／點陣圖模式時機不準的迴避）才取消聖杯瓶讀取，跟其他動作共用
+      // 同一個取消函式。
       cancelFlaskReadingForOtherAction();
       // 連續命中（2026-09-10，見ENEMY_ATTACK_HIT_COUNT_WEIGHTS_*）：使用者明確規格
       // 「首擊全額，後續每下半額」——st.hitIndex是0-based，第0下全額、之後每下×0.5。
@@ -10084,6 +10242,9 @@
       var acidReduce = acidSprayDamageReduce(characters[myTokenId]);
       if (acidReduce) rawDamage = Math.max(0, rawDamage - acidReduce);
       var damage = kind === "block" ? Math.round(rawDamage * (1 - blockPct / 100)) : rawDamage;
+      // 點陣圖模式時機不準的迴避：依按下時刻算出的減傷％（30~99），跟block百分比同一個
+      // 位置、互斥（同一擊只會是dodgePartial或block其中之一）。
+      if (kind === "dodgePartial") damage = Math.round(rawDamage * (1 - dodgeReducePct / 100));
       // 無賴漢「逆襲」暫時自身減傷（見activeTempGuardPct()說明）：跟block百分比是分開的
       // 疊加來源，即使這次kind===hit（沒有按防禦）也套用。
       var tempGuardPct = activeTempGuardPct(characters[myTokenId], Date.now());
@@ -10167,7 +10328,9 @@
     // （kind==="hit"）時套用，防禦成功一律免疫，於是遺物「ガード成功時、状態異常蓄積無効」／
     // 「ガード成功時、属性蓄積無効」形同人人免費擁有。現在防禦（block）成功時也承受蓄積，
     // 只有持有對應遺物的人免除該類（異常狀態／屬性）；迴避與特殊防禦維持完全化解，不動。
-    if (kind === "hit" || kind === "block") {
+    // 點陣圖模式時機不準的迴避（dodgePartial）＝「有減傷的受傷」（設計文件§8.1「迴避失敗，
+    // 套用30%減傷後受傷」），屬性/異常蓄積比照完全命中承受。
+    if (kind === "hit" || kind === "block" || kind === "dodgePartial") {
       var cAccum = characters[myTokenId];
       var blockAilmentImmune = kind === "block" && hasRelic(cAccum, "guardAilmentImmune");
       var blockElementImmune = kind === "block" && hasRelic(cAccum, "guardElementImmune");
@@ -10184,10 +10347,28 @@
       st.phase = "done";
       return;
     }
+    // 點陣圖模式：下一下的T是預先排定的（T(k+1)＝T(k)＋W(k)），不是「結算當下立刻開窗」——
+    // 提早迴避成功的話，下一下要等到它的T−0.1s才開窗，動畫也在那時候重播。
+    if (spriteDodgeTimingApplies(st)) {
+      var trigNext = fieldTriggers[st.pointId];
+      var atkNext = trigNext && trigNext.enemyAttack;
+      if (atkNext && atkNext.attackId === st.attackId) {
+        scheduleSpriteHit(st, atkNext, st.hitIndex);
+        st.effectFired = false;
+        return;
+      }
+    }
     st.phase = "window";
     st.windowStartAt = Date.now();
     st.phaseEndAt = st.windowStartAt + incomingHitWindowMs(st);
     triggerAttackEffect();
+  }
+
+  // 點陣圖模式迴避成功度（2026-09-22使用者明確規格「閃避成功後 閃避上方另外顯示本次成功度」）：
+  // 跟「成功迴避」是兩個各自獨立的浮動提示（#midnight-dodge-grade疊在#midnight-dodge-flash
+  // 上方一層），同樣1秒後消失；顏色依等級套class（見style.css）。
+  function showDodgeGrade(grade) {
+    showActionFlash("midnight-dodge-grade", window.I18N.t("midnight_dodge_grade_" + grade), "grade-" + grade);
   }
 
   // 攻擊特效：2026-09-06數值真正接入，使用者明確要求取消野獸撕咬動畫，固定只用刀光，
@@ -10797,7 +10978,11 @@
   // 警示圖示：只在phase==="warn"（攻擊發動前0.5秒）顯示，CSS負責閃爍動畫本身。
   // 2026-09-06數值真正接入新增：同時顯示這一招的招式名稱（使用者明確規格）。
   function renderEnemyAttackOverlay() {
-    var showing = !!(myIncomingAttack && myIncomingAttack.phase === "warn");
+    var st = myIncomingAttack;
+    // 點陣圖模式的第1下：phase一開始就是"window"（排程式，見scheduleSpriteHit()），紅光改用
+    // 「還沒到T」判斷，讓警示維持完整0.5秒（窗口其實在T−0.1s就開了）。第2下以後不再閃紅光，
+    // 只靠動畫重播當提示（使用者明確規格）。
+    var showing = !!(st && (st.phase === "warn" || (st.phase === "window" && st.hitAt && st.hitIndex === 0 && Date.now() < st.hitAt)));
     el("midnight-incoming-attack-warning").hidden = !showing;
     if (showing) {
       var nameEl = el("midnight-incoming-attack-name");
@@ -10831,16 +11016,27 @@
   // startAt に enemyAttackWarnAtLocal() を渡すのが §8.2 の時鐘偏移對策そのもの——
   // 各端が自分の本機時刻に換算した同一の起点を使うので、動畫の位相が端末間でそろう。
   // playAnim(animId, startAt) が startAt を取る設計になっているのはこのため。
-  var lastAnimatedAttackId = null;
-  function maybePlayEnemyAttackAnim(trig) {
+  // 2026-09-22使用者明確規格改版：不再跟紅光同時切換，而是每一下的正式出招時刻T(k)之前
+  // SPRITE_DODGE_ANIM_LEAD_MS（0.1秒）才從idle切成攻擊動畫，連擊每一下各重播一次
+  // （「如果是連擊多次 動畫也需要重複播放」）。T(k)由spriteHitAt()算，跟判定用的是同一條
+  // 時間軸。lastAnimatedAttackHitKey記「attackId:k」避免同一下每影格重播。
+  var lastAnimatedAttackHitKey = null;
+  function maybePlayEnemyAttackAnim(trig, now) {
     var S = window.PriTestMidnightSprite;
     var AnimMap = window.PriTestEnemyActionAnimMap;
     if (!S || !AnimMap) return;
     var atk = trig && trig.enemyAttack;
     if (!atk || !atk.attackId) return;
-    if (lastAnimatedAttackId === atk.attackId) return;
-    lastAnimatedAttackId = atk.attackId;
-    S.playAnim(AnimMap.resolve(atk.actionName, atk.dmgKind), enemyAttackWarnAtLocal(atk));
+    var hitCount = atk.hitCount || 1;
+    for (var k = hitCount - 1; k >= 0; k--) {
+      var startAt = spriteHitAt(atk, k) - SPRITE_DODGE_ANIM_LEAD_MS;
+      if (now < startAt) continue;
+      var key = atk.attackId + ":" + k;
+      if (lastAnimatedAttackHitKey === key) return;
+      lastAnimatedAttackHitKey = key;
+      S.playAnim(AnimMap.resolve(atk.actionName, atk.dmgKind), startAt);
+      return;
+    }
   }
 
   // 敵が被彈した／倒れたときの動畫。攻擊モーションの最中は hurt で上書きしない——
@@ -10863,7 +11059,7 @@
     var trig = fieldTriggers[pt.id] || {};
     ensureNextAttackScheduled(pt, trig);
     maybeStartEnemyAttack(pt, trig, now);
-    maybePlayEnemyAttackAnim(trig);
+    maybePlayEnemyAttackAnim(trig, now);
     maybeFinishEnemyAttack(pt, trig, now);
     updateMyIncomingAttack(pt, trig, now);
     renderEnemyAttackOverlay();
@@ -10961,6 +11157,10 @@
       return;
     }
     promptEl.hidden = false;
+    // 2026-09-22使用者明確規格「banner有讀條的地方 上方也要顯示『魔術師塔』文字標示此板塊」：
+    // 名稱列在進入鍵／邀請讀條兩種狀態都顯示，來源同邀請文字用的fieldLocationName()。
+    var towerNameEl = el("midnight-tower-prompt-name");
+    if (towerNameEl) towerNameEl.textContent = fieldLocationName(pt);
     var invite = towerInvites[pt.id];
     var amParticipant = !!(invite && invite.participants && invite.participants[mySlot]);
     if (!invite) {
@@ -11804,6 +12004,7 @@
       if (wasActive) onEncounterEnded();
       return;
     }
+    preloadEncounterSheet(trig); // 2026-09-22：候選一成立（進戰鬥前的準備/讀條期間）就預載 sheet
     // 2026-09-06優化（使用者明確規格「若因為離開過再次進入戰鬥或參加別人的戰鬥，都須先
     // 按下上方資訊欄的進入戰鬥，接著讀條3秒後才正式進入戰鬥畫面」）：本來就是participant
     // （邀請/投票時就加入）且第一次遇到這場已解決的遭遇時，直接視為「已在其中」，不用
@@ -19853,6 +20054,9 @@
       lastRenderedEncounterKey = null;
       eyeBtn.hidden = true;
       el("midnight-eye-for-value-note").textContent = "";
+      // 2026-09-22：面板收起時主舞台一併收掉，否則 tick() 會在 offsetWidth=0 的隱藏面板上
+      // 每影格空轉（退回 128px 反覆重算 backgroundSize）。下次進戰鬥由 showSprite() 重開。
+      if (window.PriTestMidnightSprite) window.PriTestMidnightSprite.showStatic();
       return;
     }
     box.hidden = false;
@@ -19895,9 +20099,7 @@
       // （使用者明確規格「剩餘還沒配對的會先隨機抽取一張點陣圖」）。60 組揃うまでの繋ぎで、
       // 素材が入ればその敵は自分の sheet に切り替わる。代役は sheetId のハッシュで決まるので
       // 同じ敵は常に同じ代役、かつ全端末で一致する（見 midnight_sprite.js）。
-      var bossSheet = window.PriTestMidnightSprite && spriteModeEnabled()
-        ? window.PriTestMidnightSprite.sheetFileOrSubstitute(null, trig.enemyId, true)
-        : null;
+      var bossSheet = encounterSheetFile(trig);
       if (!(bossSheet && window.PriTestMidnightSprite.showSprite(bossSheet, "../static/")) && window.PriTestMidnightSprite) {
         window.PriTestMidnightSprite.showStatic();
       }
@@ -19915,9 +20117,7 @@
     // 上面剛設好的 hidden=false 就這樣保留，畫面跟改動前完全一樣。
     // 2026-09-21 使用者明確規格改版：sprite 疊在插圖之上，不再把插圖藏起來。
     // 點陣圖戰鬥模式：同上，未勾選spriteModeEnabled()時直接視同沒有sheet。
-    var sheet = window.PriTestMidnightSprite && spriteModeEnabled()
-      ? window.PriTestMidnightSprite.sheetFileOrSubstitute(trig.enemyFamilyId, trig.enemyId, false)
-      : null;
+    var sheet = encounterSheetFile(trig);
     if (!(sheet && window.PriTestMidnightSprite.showSprite(sheet, "../static/")) && window.PriTestMidnightSprite) {
       window.PriTestMidnightSprite.showStatic();
     }
@@ -22389,6 +22589,17 @@
     // HP 上限從資料算出來、不硬編（CLAUDE.md §4.7 原則）。
     _debugEnemyRealHpMax: function (trig) {
       return enemyRealHpMax(trig);
+    },
+    // 2026-09-22 點陣圖模式迴避時機判定的回歸測試入口（tools/midnight_check/sprite_dodge_check.js）：
+    // 純函式直接開出來，時間軸（T(k)）跟判定用的是同一份，測試不用自己重算。
+    _debugSpriteHitAt: function (atk, hitIndex) {
+      return spriteHitAt(atk, hitIndex);
+    },
+    _debugSpriteDodgeJudge: function (st, pressedAt) {
+      return spriteDodgeJudge(st, pressedAt);
+    },
+    _debugEnemyAttackHitWindowMs: function (hitIndex) {
+      return enemyAttackHitWindowMs(hitIndex);
     },
     // 特效只在 activeEncounter 成立時才播（跟刀光同一個守衛）。測試不需要真的打一場，
     // 用這支暫時塞一個假的遭遇物件進去，驗完再還原。

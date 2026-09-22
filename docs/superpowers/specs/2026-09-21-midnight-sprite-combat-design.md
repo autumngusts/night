@@ -254,6 +254,34 @@ enemyAttack 產生 → ⚠ 閃爍 0.5 秒（ENEMY_ATTACK_WARN_MS）
 迴避未覆蓋 hitFrame 時不視為已迴避，因此若玩家同時正長按防禦，該擊改走既有的防禦分支
 （百分比減傷），不與 30% 疊加。
 
+### 8.4 2026-09-22 使用者規格改版（取代 §8.1 的無敵幀設計，已實作）
+
+§8.1 的「無敵幀 0.25 秒覆蓋 hitFrame」未實作即被使用者的明確規格取代。實作見
+`midnight.js` 的 `SPRITE_DODGE_*` 常數群、`spriteHitAt()`／`scheduleSpriteHit()`／
+`spriteDodgeReducePct()`／`showDodgeGrade()`，只在 `meta.spriteMode` 的房間生效；
+非點陣圖房與反擊（`isCounter`）維持舊規則（2.0/2.5/3.0 秒、窗口內按下＝100%）。
+
+```
+warnAt ──紅光 0.5s──▶ T(0)（正式出招）
+   T(k)−0.1s        sprite 從 idle 切成攻擊動畫；連擊每一下各重播一次（maybePlayEnemyAttackAnim）
+   [T−0.1s, T+0.35s]  Perfect 100% 減傷
+   (T+0.35s, T+0.5s]  Great   99→90%（帶內線性）
+   (T+0.5s, T+0.8s]   Good    89→60%
+   (T+0.8s, T+W]      Bad     59→30%；W = 1.0／1.5／2.0s（第 1／2／3 下，＋轉身之步 0.2s）
+   （時間帶固定、不隨 W 伸縮；2026-09-22 第 3 版「判定嚴格度更改」，取代第 1 版
+   「T+0.2 後整段線性 100→30」與第 2 版「0.3／0.5／0.75、99→80／80→60」）
+   早於 T−0.1s 按    不算（體力照扣）；完全沒按 → 全額受傷
+   T(k+1) = T(k) + W(k)；紅光只在第 1 下前顯示
+```
+
+- 成功度顯示（迴避鍵上方、與「成功迴避」並列，1 秒後消失）：依按下時刻所在的時間帶決定
+  Perfect／Great／Good／Bad（`SPRITE_DODGE_BANDS`／`spriteDodgeJudge()`），不由減傷％反推。
+- 不滿 100% 的迴避走 `kind === "dodgePartial"`：減傷是獨立的一層乘法（放在 block 百分比同一位置、
+  互斥），屬性／異常蓄積比照命中承受（§8.1「迴避失敗＝受傷」的定義不變）。
+- 動畫排程與判定共用 `spriteHitAt()`，窗口長度含只有自己知道的遺物加成，因此各裝置自己算、
+  不新增 RTDB 欄位（§8.2 的原則不變）。動畫的 hitFrame 目前純屬演出，不參與判定。
+- 回歸測試：`tools/midnight_check/sprite_dodge_check.js`。
+
 ## 9. 方向性迴避
 
 - 迴避時依目前的移動輸入方向（WASD／搖桿）產生實際位移；無方向輸入時預設後退。

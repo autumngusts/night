@@ -93,18 +93,32 @@ ok(
   mnSrc.indexOf("AnimMap.resolve(atk.actionName, atk.dmgKind)") !== -1,
   "attack 動畫が招式名から引かれている"
 );
+// 2026-09-22（v0.40.0）迴避時機判定の改版で、呼び出しは now 付きになり、startAt は
+// 「warnAt と同時」から「各下の T(k)−0.1s」（spriteHitAt()）に変わった。spriteHitAt() の
+// 起点は引き続き enemyAttackWarnAtLocal()（§8.2 の時鐘偏移換算）なので契約は維持されている。
 ok(
-  mnSrc.indexOf("maybePlayEnemyAttackAnim(trig);") !== -1,
+  mnSrc.indexOf("maybePlayEnemyAttackAnim(trig, now);") !== -1,
   "毎フレームの観測側から呼ばれている（発動した端だけでなく全端で鳴る）"
 );
 ok(
-  mnSrc.indexOf("enemyAttackWarnAtLocal(atk))") !== -1,
-  "startAt に時鐘偏移を換算した起点を渡している（§8.2）"
+  mnSrc.indexOf("spriteHitAt(atk, k) - SPRITE_DODGE_ANIM_LEAD_MS") !== -1 &&
+    /function spriteHitAt\(atk, hitIndex\) \{\s*var t = enemyAttackWarnAtLocal\(atk\)/.test(mnSrc),
+  "startAt は T(k)−0.1s（spriteHitAt）で、その起点は時鐘偏移を換算した enemyAttackWarnAtLocal（§8.2）"
+);
+// 2026-09-22：死亡は主舞台ではなく右上の小視窗（playDeathPopup）で再生する。戰鬥面板が
+// HP 0 の同一影格で閉じるため、主舞台の death は誰にも見えなかった。受擊は出手した本人のみ。
+ok(
+  mnSrc.indexOf('playEnemySpriteAnim("hurt", false)') !== -1 &&
+    mnSrc.indexOf('playEnemySpriteAnim("death", true)') === -1,
+  "受擊は主舞台に結線、死亡は主舞台では再生しない"
 );
 ok(
-  mnSrc.indexOf('playEnemySpriteAnim("death", true)') !== -1 &&
-    mnSrc.indexOf('playEnemySpriteAnim("hurt", false)') !== -1,
-  "受擊/死亡も結線されている（死亡だけ force で割り込む）"
+  mnSrc.indexOf("Sprite.playDeathPopup(file") !== -1 && mnSrc.indexOf("function maybeShowEnemyDeathPopup") !== -1,
+  "死亡は HP 歸零の觀測（onFieldEnemyHpReceived）から右上の小視窗に流している"
+);
+ok(
+  mnSrc.indexOf("preloadEncounterSheet(trig); // 2026-09-22") !== -1,
+  "遭遇が候補になった時点で sheet を預載している（晚出現の對策）"
 );
 
 console.log(fail === 0 ? "\nすべてOK" : "\n" + fail + " 件 FAIL");
