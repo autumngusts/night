@@ -85,7 +85,7 @@ status: "resolved"（choiceIndex 確定）
       發放這一樓層的戰利品獎勵（maybeGrantFieldTileRewardOnClear）、推進樓層進度
 ```
 
-### 2.1 分歧「變體」的挑選（跟劇本無關，見 §10 詳細分析）
+### 2.1 分歧「變體」的挑選（**2026-09-22 起 J／Q 依劇本決定，見 §12**；其餘卡牌見 §9）
 
 `fields_data_*.js` 中每張卡的 `branches[]`（例如「大教會(1)」「大教會(2)」等變體版本）在規則書
 原文裡是依「劇本＋花色」查 `varianceTable` 決定的（見 `docs/scenario_flow_rules.md`）。但
@@ -413,9 +413,12 @@ midnight.js 實作（`handleBlessingEnterClick`／`applyBlessingRestore`／`hand
 
 ## 9. 夜王劇本選擇是否影響樓層的選擇項與獎勵？（結論）
 
+> **2026-09-22 更新**：本節結論對 **J（王城）與 Q（地變）已不再成立**——這兩張卡改依
+> `varianceTable` 以劇本（夜王）決定分歧與花色，見 §12。其餘卡牌（2〜10／K）維持本節描述。
+
 ### 結論
 
-**不影響。** 一般板塊卡牌（2~10、K、J、A、Z 出發地點/黃金樹之帳本身的「哪一天在哪」除外）的
+**不影響（2〜10／K）。** 一般板塊卡牌（2~10、K、J、A、Z 出發地點/黃金樹之帳本身的「哪一天在哪」除外）的
 樓層分歧變體挑選、樓層內「(→XXX)」選項投票、樓層戰利品獎勵、全踏破獎勵，全部只依賴
 `meta.mapSeed` 做決定性亂數挑選，**程式碼裡完全沒有讀取 `meta.nightBossId`／
 `meta.resolvedNightBossId` 來決定分歧、選項或獎勵**（見 §2.1 已說明：`pickFieldBranchIndex()`
@@ -543,6 +546,71 @@ N 個分歧變體，隨機挑一個」處理——這是即時制版本刻意的
 | kasan | `kasan_lava` | 「熔岩」：每次樓層踏破，PC全員無條件承受「HP損害：■」 | 只顯示提醒toast（`midnight_kasan_lava_floor_note`），不自動扣血——■是規則書未標示數值的占位符，依CLAUDE.md §19交由GM/玩家自行判斷，不自行發明數字 |
 
 ---
+
+## 12. 2026-09-22：劇本 × 地圖交叉測試與 J／Q 決定表修正
+
+使用者需求：「交叉測試所有劇本×地圖，那些板塊會卡死或是沒有對應的決定表來抽，避免沒有抽任何
+獎勵或是敵人而直接踏破地圖的可能性。原本地圖沒有 J 則可納入不計；否則決定表先以劇本對應的夜王
+來決定；地變則以地圖優先、再根據劇本；都沒有則直接抽選一個劇本的抽選表。」
+
+### 12.1 交叉測試工具
+
+`tools/midnight_check/scenario_map_cross_check.js`（`npm run check:scenario_map_cross`，純 node）：
+把 midnight 頁實際載入的全部模組載進 vm sandbox，注入 `midnight.js` 內部函式後，對
+**11 劇本（10 規則書劇本＋自訂）× 5 地圖變體（basic／cassel／ice／kasan／red）× N 種子**
+的每一個板塊點（2〜10／K／Q＋有 castleZone 的 J）照真實流程走完全部樓層（分歧→樓層→
+「(→XXX)」選項→敵人掃描→獎勵），回報：卡死（ghost_floor）、決定表找不到（table_unresolved）、
+規則書寫有敵人卻解析不出（enemy_unmatched）、J／Q 分歧或花色跟決定表不符（variance_mismatch）、
+同一層的花色變體被當成多層（suit_duplicate／suit_mismatch）。另有 emulator 版 end-to-end：
+`castle_variance_check.js`（劇本 1／5／8 真的進王城、確認第 1 層決定表擲出敵人）。
+
+修正前的實測結果（3795 個板塊點）發現三類問題，修正後 7590 個板塊點嚴重問題 0。
+
+### 12.2 修正 1：J（王城）分歧改依劇本 varianceTable（`resolveFieldVariant()`）
+
+原本 `scenarioVariantCandidatesForCard()` 用卡名「堡壘／地下堡壘」比對劇本卡牌名「砦（隨機）／
+西方地下砦」永遠對不上，J 一律亂數三選一（劇本 1〜7・10 會抽到地下砦、8・9 會抽到砦）。
+現在 J／Q 改讀卡片自身 `varianceTable`（重用 `night_gm_flow.js` 匯出的
+`parseScenarioColumnCell`／`suitCellMatches`／`normalizeBranchNameForMatch`）：
+
+| 情況 | 分歧 | 花色 |
+|---|---|---|
+| 劇本 1〜7・10 | 砦 | 該劇本 day1/day2 的 J 卡花色（例：劇本 1＝♣、5＝♠、7＝♥） |
+| 劇本 8 | ♥→西の地下砦／◇→東の地下砦（兩張都在劇本裡，用 mapSeed 決定性挑一張） | 該列花色 |
+| 劇本 9 | ♠→(黒陶)西の地下砦／♣→東の地下砦 | 該列花色 |
+| 自訂劇本／表中沒有此劇本 | 「直接抽選一個劇本的抽選表」＝從整張表的列決定性挑一列 | 該列花色 |
+| cassel（沒有王城） | 不畫 J、不判定（`mapHasCastle()`，既有） | — |
+
+Q（地變）：`pt.hazardQName`（地圖）優先 → 劇本 varianceTable → 任一劇本的表。目前 Q 只出現在
+4 張完整版地圖且一律有 `hazardQName`，後兩段是備援。2〜10／K 維持原本的劇本卡牌名稱比對，
+只修正了全形／半形括號不一致（「湖沼（毒）」vs「湖沼(毒)」）造成的無謂亂數退回。
+
+### 12.3 修正 2：同一層的花色變體合併（`fieldEffectiveFloors()`）
+
+規則書把「同一層依花色而不同」寫成同 `label`（フロア2）的多個 floors 項目（J 砦：(♥)(◇)(♣)
+正門広場／城壁の上；東の地下砦：(◇)(♣) 正面玄関；水辺の大教会：正面から（方塊）／（梅花））。
+原本 midnight 把它們當成連續樓層，砦 取 min(4, 8) 走到的是「谷底→(♥)正門→(◇)正門→(♣)正門」，
+**城壁の上、屋上（含屋上エネミー決定表）永遠走不到**。現在同 `label` 合併成一層，依 §12.2
+決定的花色挑版本；該花色沒有版本（劇本 5 的 ♠ 對 ♥◇♣ 三版）時，整個分歧改用同一個決定性退回
+花色（不會混成「(♣)正門→(◇)城壁」）。`fieldFloorCountForCard()`／`fieldFloorForTrig()` 都改讀
+合併後的清單，`trig.floorIndex` 語意跟著變成「合併後的第幾層」。
+
+### 12.4 修正 3：引用強敵籌碼決定表的敵名 bullet（`findEnemyDecisionTableForLine()`）
+
+`card_q`「腐れ森(1)」第 3 層「強敵との連戦」的「強敵決定表（319頁）」／「恐るべき強敵決定表
+（319頁）」、`card_k` 的「強敵決定表（319頁）で抽選」引用的是 `event_rulebook.js` 強敵籌碼的表，
+不在卡片自身 `extraTables`，原本整句被當成敵名去查→查不到→整層誤判成和平通過。現在卡片自身找
+不到時，bullet 行內文含「恐るべき強敵決定表」→ 強敵籌碼 `extraTables[1]`、含「強敵決定表」→
+`extraTables[0]`，跟 `rollAndAssignStrongEnemy()` 用同一份資料。
+
+### 12.5 交叉測試仍列為「備註」（非缺陷）的事項
+
+* `tier_unmatched`：`tieredChoice` 的 tier 標籤（「成功2次」「不祥的預感・成功1次」）對不上投票
+  標籤時該層不發戰利品——這些 tier 依規則書是判定結果，midnight 沒有對應判定，維持不猜。
+* `empty_tile`：「丘の上の大教会」「倒れた大結晶（大空洞）」「崩れた教会（大空洞）」存在規則書本文
+  就沒有敵人也沒有戰利品的路線（只有全踏破盧恩），不是漏抽。
+* `scenario_name_unmatched`：劇本卡牌名「◯◯（隨機）」「小砦（無印）」「教會（大空洞）」等需要
+  1D／花色子表才能決定的名稱，midnight 退回亂數分歧（等同擲骰），不在本次 J／Q 規格範圍。
 
 *本文件依 2026-09-10 當下的 `static_src/midnight.js`／`midnight_map.js`／
 `midnight_map_variants.js`／`fields_data_1~4.js`／`event_rulebook.js`／`night_gm_flow.js`

@@ -11611,14 +11611,17 @@
   //     仍取floorCount，維持既有「照順序走到floorCount就算全踏破」的已知簡化不變。
   // Q維持原本「直接用分歧實際長度」的語意（card_q的分歧長度1/3/4都不大於卡面4，取min的
   // 結果與原本完全相同，只是寫在同一段共用邏輯裡，不再是特例分支）。
+  // 2026-09-22（劇本×地圖交叉測試）：branch.floors.length改為fieldEffectiveFloors()的長度——
+  // 同一層的花色變體（J砦的「(♥)(◇)(♣) 正門広場」等，見該函式說明）合併成一層後再算。
+  // 原本直接數floors陣列會把砦的8個項目當成8層、取min(4, 8)後走到的是
+  // 「谷底→(♥)正門→(◇)正門→(♣)正門」，城壁の上／屋上（含屋上エネミー決定表）永遠走不到。
   function fieldFloorCountForCard(pt) {
     var card = pt.card;
     var data = fieldCardData(card);
     var branches = fieldCardBranches(card);
     var progress = fieldProgress[pt.id];
     var branchIndex = progress && typeof progress.branchIndex === "number" ? progress.branchIndex : pickFieldBranchIndex(pt);
-    var branch = branches[branchIndex];
-    var branchFloorCount = branch && branch.floors && branch.floors.length ? branch.floors.length : 0;
+    var branchFloorCount = fieldEffectiveFloors(pt, branchIndex).length;
     var cardFloorCount = data && typeof data.floorCount === "number" ? data.floorCount : 0;
     if (branchFloorCount && cardFloorCount) return Math.min(cardFloorCount, branchFloorCount);
     if (branchFloorCount) return branchFloorCount;
@@ -11652,11 +11655,176 @@
     return out;
   }
 
+  // 2026-09-22：括號全形／半形視為相同（scenarios.js寫「湖沼（毒）」「鍛造村（雷1）」，
+  // fields_data_*.js的分歧名寫「湖沼(毒)」「鍛造村(雷1)」——交叉測試發現這幾張卡因此一律
+  // 退回亂數分歧）。正規化重用night_gm_flow.js的normalizeBranchNameForMatch()。
   function matchBranchIndexByName(branches, nameHintZh) {
+    var GmFlow = window.PriTestNightGmFlow;
+    var norm = GmFlow && GmFlow.normalizeBranchNameForMatch ? GmFlow.normalizeBranchNameForMatch : function (s) { return String(s || ""); };
+    var target = norm(nameHintZh);
     for (var i = 0; i < branches.length; i++) {
-      if (branches[i].name && branches[i].name.zh === nameHintZh) return i;
+      if (branches[i].name && norm(branches[i].name.zh) === target) return i;
     }
     return null;
+  }
+
+  // ============================================================================
+  // J（砦／地下砦）・Q（地變）的「劇本×花色→內容」決定表（fields_data_4.js的varianceTable）
+  // ============================================================================
+  // 2026-09-22 劇本×地圖交叉測試（tools/midnight_check/scenario_map_cross_check.js）發現：
+  // 上面scenarioVariantCandidatesForCard()用卡名「堡壘／地下堡壘」去比對劇本卡牌名
+  // 「砦（隨機）／西方地下砦」永遠對不上，J一律退回亂數三選一——劇本1〜7・10會抽到地下砦、
+  // 劇本8・9會抽到砦，跟規則書varianceTable（劇本1〜7・10＝砦／8・9＝西・東の地下砦）不符。
+  // 使用者明確規格：「原本地圖沒有J則可納入不計（cassel，見mapHasCastle()）；否則決定表先以
+  // 劇本對應的夜王來決定；地變則以地圖優先、再根據劇本；都沒有則直接抽選一個劇本的抽選表」。
+  //
+  // 表格解析重用night_gm_flow.js既有的parseScenarioColumnCell()（劇本欄結合セル）／
+  // suitCellMatches()（花色記號比對）／normalizeBranchNameForMatch()（括號正規化），不另外
+  // 複製一份格式規則；差別只在night是「當場Math.random擲骰＋GM退回」，這裡改成mapSeed衍生
+  // 的決定性亂數（各裝置必須算出同一個分歧）且查不到就亂數退回（2026-09-13規格）。
+  var SUIT_CODE_TO_SYMBOL = { S: "♠", H: "♥", D: "◇", C: "♣" };
+  // 樓層標題以文字寫花色的實例（fields_data_1.js「正面から（方塊）」「正面から（梅花）」），
+  // 跟記號寫法（「(♥) 正門広場」「♠♥ 中央大広間」）一併視為花色標記。
+  var SUIT_CODE_TO_WORDS = { S: ["スペード", "黑桃"], H: ["ハート", "紅心"], D: ["ダイヤ", "方塊"], C: ["クラブ", "梅花"] };
+
+  function scenarioNumberForMeta() {
+    var Scenarios = window.PriTestScenarios;
+    var id = resolveNightBossScenarioId();
+    return id && Scenarios && Scenarios.numberForId ? Scenarios.numberForId(id) : null;
+  }
+
+  // card.varianceTable裡屬於這個劇本編號的列（空白劇本欄＝承接上一列的結合セル，跟
+  // night_gm_flow.js autoResolveBranch()同一套讀法）。scenarioNumber為null時回傳空陣列。
+  function varianceRowsForScenario(card, scenarioNumber) {
+    var GmFlow = window.PriTestNightGmFlow;
+    var table = card && card.varianceTable;
+    if (!table || !table.rows || scenarioNumber === null || !GmFlow || !GmFlow.parseScenarioColumnCell) return [];
+    var out = [];
+    var lastCellInfo = null;
+    table.rows.forEach(function (row) {
+      var cellInfo = GmFlow.parseScenarioColumnCell(row[0] && row[0].ja);
+      if (cellInfo.blank && lastCellInfo) cellInfo = lastCellInfo;
+      else if (!cellInfo.blank) lastCellInfo = cellInfo;
+      if (cellInfo.nums.indexOf(scenarioNumber) === -1) return;
+      out.push(row);
+    });
+    return out;
+  }
+
+  // 劇本day1/day2配置表裡這個rank（"J"／"Q"）的卡牌slot——J在劇本8・9各有兩張（西・東），
+  // 其餘劇本一張；midnight只有一座王城，多張時由呼叫端用決定性亂數挑一張。
+  function scenarioSlotsForRank(scenarioId, rank) {
+    var Scenarios = window.PriTestScenarios;
+    var scenario = scenarioId && Scenarios ? Scenarios.get(scenarioId) : null;
+    if (!scenario) return [];
+    var out = [];
+    ["day1", "day2"].forEach(function (dayKey) {
+      (scenario[dayKey] || []).forEach(function (slot) {
+        if (slot && slot.rank === rank) out.push(slot);
+      });
+    });
+    return out;
+  }
+
+  // varianceTable內容欄的文字（例："砦"／"西の地下砦"／"(黒陶)西の地下砦"／"火口(上層)"）
+  // 對應到branches[]的index。分歧名稱可能帶花色後綴（「西の地下砦（♠♥）」），比對時去掉；
+  // 內容欄前面的裝飾括號（「(黒陶)」）也去掉——跟night_gm_flow.js autoResolveBranch()最終
+  // fallback的處理相同。suitCode有值且分歧帶花色後綴時，要求花色相符。
+  function matchBranchIndexByVarianceContent(branches, contentJa, suitCode) {
+    var GmFlow = window.PriTestNightGmFlow;
+    var norm = GmFlow && GmFlow.normalizeBranchNameForMatch ? GmFlow.normalizeBranchNameForMatch : function (s) { return String(s || "").trim(); };
+    var target = norm(String(contentJa || "").trim().replace(/^[（(][^）)]*[）)]/, "").trim());
+    if (!target) return null;
+    var loose = null;
+    for (var i = 0; i < branches.length; i++) {
+      var nameJa = branches[i].name && branches[i].name.ja;
+      if (!nameJa) continue;
+      if (norm(nameJa) === target) return i;
+      var m = /^(.*?)[（(]([^）)]+)[）)]\s*$/.exec(nameJa);
+      if (!m || norm(m[1]) !== target) continue;
+      if (!suitCode || !GmFlow || !GmFlow.suitCellMatches || GmFlow.suitCellMatches(m[2], suitCode)) return i;
+      if (loose === null) loose = i;
+    }
+    return loose;
+  }
+
+  // 花色欄文字（"♠♥♦♣"／"♥"／"◇"）跟劇本slot花色代碼的交集：花色欄只有一個記號就直接用它，
+  // 多個記號時取劇本slot裡相符的那個，都對不上就null（樓層花色變體改走亂數，見
+  // fieldEffectiveFloors()）。
+  function suitCodeForVarianceRow(row, slotSuits) {
+    var GmFlow = window.PriTestNightGmFlow;
+    var suitText = String((row[1] && row[1].ja) || "").trim();
+    var symbols = suitText.match(/[♠♥♦◇♣]/g) || [];
+    var codes = [];
+    ["S", "H", "D", "C"].forEach(function (code) {
+      if (GmFlow && GmFlow.suitCellMatches && suitText && GmFlow.suitCellMatches(suitText, code)) codes.push(code);
+    });
+    if (symbols.length === 1 && codes.length === 1) return codes[0];
+    var fromSlot = (slotSuits || []).filter(function (s) {
+      return !suitText || codes.indexOf(s) !== -1;
+    });
+    if (fromSlot.length) return fromSlot[0];
+    return codes.length === 1 ? codes[0] : null;
+  }
+
+  // 這個點本次採用的分歧＋花色：{ branchIndex, suitCode }。suitCode（"S"/"H"/"D"/"C"或null）
+  // 供fieldEffectiveFloors()挑同一層的花色變體。結果只依賴mapSeed／pt.id／劇本，各裝置一致。
+  //   1. Q且地圖已指定分歧（pt.hazardQName，「完整版」4張地圖的橘線範圍Q）：地圖優先。
+  //   2. J／Q（卡片有varianceTable）：劇本編號查表→有列就決定性挑一列（劇本8的西・東）；
+  //      沒有列（Q在劇本1〜4沒有列、自訂劇本沒有編號）→「直接抽選一個劇本的抽選表」＝
+  //      從整張表的所有列裡決定性挑一列。內容對不到分歧才退回亂數分歧。
+  //   3. 其他卡牌：維持既有「劇本卡牌名稱比對」；花色取自比對到的那張劇本slot。
+  var fieldVariantCache = {};
+  function resolveFieldVariant(pt) {
+    var scenarioId = resolveNightBossScenarioId();
+    var cacheKey = pt.id + "|" + pt.card + "|" + (meta && meta.mapSeed) + "|" + scenarioId + "|" + (pt.hazardQName || "");
+    if (fieldVariantCache[cacheKey]) return fieldVariantCache[cacheKey];
+    var result = resolveFieldVariantUncached(pt, scenarioId);
+    fieldVariantCache[cacheKey] = result;
+    return result;
+  }
+
+  function resolveFieldVariantUncached(pt, scenarioId) {
+    var branches = fieldCardBranches(pt.card);
+    if (!branches.length) return { branchIndex: 0, suitCode: null };
+    var data = fieldCardData(pt.card);
+    var slots = scenarioSlotsForRank(scenarioId, String(pt.card).toUpperCase());
+    var slotSuits = slots.map(function (s) { return s.suit; });
+    if (pt.hazardQName) {
+      var qIndex = matchBranchIndexByName(branches, pt.hazardQName);
+      if (qIndex !== null) return { branchIndex: qIndex, suitCode: slotSuits[0] || null };
+    }
+    // 只有J／Q走varianceTable：這兩張的內容欄是單一分歧名（「砦」「西の地下砦」「火口(上層)」），
+    // 2〜7／K的內容欄是「1-2 大教会（1）／3-4 大教会（2）…」的1D子表或「－」佔位，midnight
+    // 沒有花色概念也沒有night的autoResolveBranch()那套多段解析，維持下面既有的劇本卡牌名稱比對。
+    var usesVarianceTable = (pt.card === "J" || pt.card === "Q") && data && data.varianceTable && data.varianceTable.rows && data.varianceTable.rows.length;
+    if (usesVarianceTable) {
+      var rows = varianceRowsForScenario(data, scenarioNumberForMeta());
+      var fromScenario = rows.length > 0;
+      if (!fromScenario) rows = data.varianceTable.rows.slice(); // 都沒有：直接抽選一個劇本的表
+      // 劇本8・9的J有兩列（♥西／◇東），且劇本slot也有兩張：先用slot花色縮小，再決定性挑一列
+      var suitFiltered = fromScenario && slotSuits.length
+        ? rows.filter(function (row) {
+            var GmFlow = window.PriTestNightGmFlow;
+            return slotSuits.some(function (code) { return GmFlow.suitCellMatches((row[1] && row[1].ja) || "", code); });
+          })
+        : [];
+      var pool = suitFiltered.length ? suitFiltered : rows;
+      var row = pool[fieldSeededIndex(pt.id + ":variance_row", pool.length)];
+      var suitCode = suitCodeForVarianceRow(row, fromScenario ? slotSuits : []);
+      var idx = matchBranchIndexByVarianceContent(branches, (row[2] && row[2].ja) || "", suitCode);
+      if (idx !== null) return { branchIndex: idx, suitCode: suitCode };
+      warnAffixFallback(pt.id + ":variance", (row[2] && row[2].ja) || "");
+      return { branchIndex: fieldSeededIndex(pt.id + ":branch", branches.length), suitCode: suitCode };
+    }
+    var candidates = scenarioId ? scenarioVariantCandidatesForCard(scenarioId, pt.card) : [];
+    if (candidates.length) {
+      // 同一張卡不同地點都需要重抽：用pt.id當seed key，不共用同一個結果。
+      var picked = candidates[fieldSeededIndex(pt.id + ":scenario_variant", candidates.length)];
+      var resolvedIndex = matchBranchIndexByName(branches, picked.name.zh);
+      if (resolvedIndex !== null) return { branchIndex: resolvedIndex, suitCode: picked.suit || null };
+    }
+    return { branchIndex: fieldSeededIndex(pt.id + ":branch", branches.length), suitCode: null }; // 找不到劇本資料/比對失敗：退回純隨機
   }
 
   // 這個點本次要用哪個分歧變體（例如「大教會(1)」／「大教會(2)」／「大教會（炎）」…）：
@@ -11665,27 +11833,68 @@
   // 不同地點抽到的敘述會盡量貼近規則書表定內容，而不是純亂數。查無劇本資料／比對不到對應
   // branch時（例如自訂劇本、或該名字在branches清單裡沒有對應項目）才退回fieldSeededIndex()
   // 純亂數——不是玩家投票的對象（使用者這次的規格是「分歧點」指樓層敘述裡的「(→XXX)」選擇，
-  // 見下方fieldChoiceLabelsFor()，不是變體本身）。
+  // 見下方fieldChoiceLabelsFor()，不是變體本身）。J／Q改走varianceTable，見resolveFieldVariant()。
   function pickFieldBranchIndex(pt) {
-    var branches = fieldCardBranches(pt.card);
-    if (!branches.length) return 0;
-    // Q板塊（地變，2026-09-10新增）：分歧不是靠劇本配置表或亂數決定，而是
-    // placeHazardZonePoints()放點當下就已經指定好這個點對應card_q哪個分歧（見
-    // midnight_map_variants.jsのqNames／pt.hazardQName），直接用名稱比對，不落入下面
-    // 一般卡牌的劇本比對/亂數退回邏輯。
-    if (pt.hazardQName) {
-      var qIndex = matchBranchIndexByName(branches, pt.hazardQName);
-      if (qIndex !== null) return qIndex;
-    }
-    var scenarioId = resolveNightBossScenarioId();
-    var candidates = scenarioId ? scenarioVariantCandidatesForCard(scenarioId, pt.card) : [];
-    if (candidates.length) {
-      // 同一張卡不同地點都需要重抽：用pt.id當seed key，不共用同一個結果。
-      var picked = candidates[fieldSeededIndex(pt.id + ":scenario_variant", candidates.length)];
-      var resolvedIndex = matchBranchIndexByName(branches, picked.name.zh);
-      if (resolvedIndex !== null) return resolvedIndex;
-    }
-    return fieldSeededIndex(pt.id + ":branch", branches.length); // 找不到劇本資料/比對失敗：退回純隨機
+    return resolveFieldVariant(pt).branchIndex;
+  }
+
+  // 樓層標題是否標了這個花色：記號（「(♥) 正門広場」「♠♥ 中央大広間」「♠♥♦♣ 屋上」）或
+  // 文字（「正面から（方塊）」）。標題完全沒有花色標記時回傳false（不是「不限花色」——那種
+  // 樓層本來就不會跟別的變體同label，不會走到這個判斷）。
+  function floorMatchesSuit(floor, suitCode) {
+    var GmFlow = window.PriTestNightGmFlow;
+    var ja = (floor.title && floor.title.ja) || "";
+    var zh = (floor.title && floor.title.zh) || "";
+    if (/[♠♥♦◇♣]/.test(ja) && GmFlow && GmFlow.suitCellMatches && GmFlow.suitCellMatches(ja, suitCode)) return true;
+    var words = SUIT_CODE_TO_WORDS[suitCode] || [];
+    return words.some(function (w) { return ja.indexOf(w) !== -1 || zh.indexOf(w) !== -1; });
+  }
+
+  // 分歧實際要走的樓層清單：規則書把「同一層依花色而不同」的內容寫成同label（フロア2）的
+  // 多個項目（J砦：(♥)(◇)(♣)正門広場／(♥)(◇)(♣)城壁の上、東の地下砦：(◇)(♣)正面玄関、
+  // 水辺の大教会：正面から（方塊）／（梅花）），night由GM依實際花色挑一個；midnight沒有GM，
+  // 改成：同label的項目合併成一層，用resolveFieldVariant()決定的花色挑變體，該花色沒有對應
+  // 變體（例：劇本5的J是♠，但正門広場只有♥◇♣三版）就決定性亂數挑一版——使用者規格
+  // 「都沒有則直接抽選」。只有一個項目的label原樣保留，因此沒有花色變體的卡牌結果跟原本
+  // branch.floors完全相同。
+  function fieldEffectiveFloors(pt, branchIndex) {
+    var branch = fieldCardBranches(pt.card)[branchIndex];
+    if (!branch) return [];
+    var floors = branch.floors || [];
+    var groups = [];
+    var byKey = {};
+    floors.forEach(function (floor, i) {
+      var key = floor.label && floor.label.ja ? floor.label.ja : "#" + i;
+      if (!byKey[key]) {
+        byKey[key] = { key: key, items: [] };
+        groups.push(byKey[key]);
+      }
+      byKey[key].items.push(floor);
+    });
+    if (groups.length === floors.length) return floors;
+    var suitCode = resolveFieldVariant(pt).suitCode;
+    // 劇本花色在這個分歧沒有任何變體（劇本5的J是♠，砦的正門広場／城壁の上只有♥◇♣三版）時，
+    // 整個分歧改用同一個退回花色，而不是每一層各自亂數——否則會走出「(♣)正門→(◇)城壁」這種
+    // 混花色的路線。退回花色從這個分歧變體實際出現過的花色裡決定性挑一個。
+    var availableCodes = [];
+    groups.forEach(function (g) {
+      if (g.items.length < 2) return;
+      ["S", "H", "D", "C"].forEach(function (code) {
+        if (availableCodes.indexOf(code) === -1 && g.items.some(function (f) { return floorMatchesSuit(f, code); })) availableCodes.push(code);
+      });
+    });
+    var primaryUsable = suitCode && groups.every(function (g) {
+      return g.items.length < 2 || g.items.some(function (f) { return floorMatchesSuit(f, suitCode); });
+    });
+    var effectiveCode = primaryUsable ? suitCode : availableCodes.length ? availableCodes[fieldSeededIndex(pt.id + ":suit_fallback", availableCodes.length)] : null;
+    return groups.map(function (g) {
+      if (g.items.length === 1) return g.items[0];
+      var matched = effectiveCode
+        ? g.items.filter(function (f) { return floorMatchesSuit(f, effectiveCode); })
+        : [];
+      if (matched.length) return matched[0];
+      return g.items[fieldSeededIndex(pt.id + ":floor_variant:" + g.key, g.items.length)];
+    });
   }
 
   // 樓層裡負責敘述場景的那一行：規則書固定用【描写／描寫】標籤（見fields_data_*.js的
@@ -11701,8 +11910,7 @@
   }
 
   function fieldFloorForTrig(pt, trig) {
-    var branch = fieldCardBranches(pt.card)[trig.branchIndex];
-    return branch ? (branch.floors || [])[trig.floorIndex || 0] : null;
+    return fieldEffectiveFloors(pt, trig.branchIndex)[trig.floorIndex || 0] || null;
   }
 
   function fieldNarrativeTextFor(pt, trig) {
@@ -12619,6 +12827,29 @@
   // 同一隻。表擲出的條目名稱對不到敵人資料時，依2026-09-13「查不到就亂數退回」規格退回
   // randomEnemyMatchFallback()（規則書明寫這裡會發生戰鬥，不能因為名稱對不上就變成和平通過）。
   // cardData／seedKey省略時（沒有卡片資料可查表）行為與原本完全相同。
+  // 敵名bullet引用的決定表：先找卡片自身的extraTables（GmFlow.findExtraTableByBulletLine()，
+  // 封牢／第N階層ボス／地下・屋上エネミー決定表），找不到再看是不是引用event_rulebook.js
+  // 強敵籌碼的「強敵決定表（319頁）」／「恐るべき強敵決定表（319頁）」——2026-09-22
+  // 劇本×地圖交叉測試發現：card_q「腐れ森(1)」第3層「強敵との連戦」的兩場王戰、card_k
+  // 「水辺の教会」的「強敵決定表（319頁）で抽選」都引用這兩張表，表不在卡片自身的
+  // extraTables，原本整句被當成敵名去查、查不到→整層誤判成和平通過（規則書明寫這裡
+  // 會戰鬥）。表本身跟強敵籌碼（rollAndAssignStrongEnemy()）用的是同一份資料。
+  // 只認bullet行（規則書把敵名寫成bullet），描寫行裡順帶提到決定表名不算。
+  function findEnemyDecisionTableForLine(cardData, line) {
+    var GmFlow = window.PriTestNightGmFlow;
+    var table = cardData && GmFlow && GmFlow.findExtraTableByBulletLine ? GmFlow.findExtraTableByBulletLine(cardData, line) : null;
+    if (table || !line.bullet) return table;
+    var ja = (line.text && line.text.ja) || "";
+    var zh = (line.text && line.text.zh) || "";
+    var inner = (/「([^」]*決定表[^」]*)」/.exec(ja) || /「([^」]*決定表[^」]*)」/.exec(zh) || [])[1] || "";
+    if (!inner) return null;
+    var chip = findEventChip("strong_enemy");
+    var tables = (chip && chip.extraTables) || [];
+    if (/恐るべき強敵決定表|可怖強敵決定表/.test(inner)) return tables[1] || null;
+    if (/強敵決定表/.test(inner)) return tables[0] || null;
+    return null;
+  }
+
   function scanLinesForEnemyMatches(lines, cardData, seedKey) {
     var GmFlow = window.PriTestNightGmFlow;
     var matches = [];
@@ -12639,7 +12870,7 @@
       var ja = (line.text && line.text.ja) || "";
       var zh = (line.text && line.text.zh) || "";
       if (!/「[^」]+」/.test(ja) && !/「[^」]+」/.test(zh)) return;
-      var table = cardData && GmFlow.findExtraTableByBulletLine ? GmFlow.findExtraTableByBulletLine(cardData, line) : null;
+      var table = findEnemyDecisionTableForLine(cardData, line);
       if (table) {
         var rng = Map_.mulberry32(stringSeedFrom(String(meta.mapSeed), seedKey + ":extraTable:" + lineIndex));
         var rolled = GmFlow.rollStrongEnemyTable(table, rng);
@@ -23040,6 +23271,32 @@
     },
     _debugScanLinesForEnemyMatches: function (lines, cardId, seedKey) {
       return scanLinesForEnemyMatches(lines, cardId ? window.PriTestFields.get(cardId) : null, seedKey || "debug");
+    },
+    // 2026-09-22 劇本×地圖交叉測試用：J／Q的分歧＋花色決定結果、花色變體合併後實際要走的樓層，
+    // 以及不看座標直接觸發王城「進入」（王城不是map.points裡的點，_debugEnterFieldPoint找不到）。
+    _debugResolveFieldVariant: function (pt) {
+      return resolveFieldVariant(pt);
+    },
+    _debugEffectiveFloorTitles: function (pt) {
+      return fieldEffectiveFloors(pt, resolveFieldVariant(pt).branchIndex).map(function (f) {
+        return window.PriTestFields.localizedText(f.title);
+      });
+    },
+    _debugCastlePoint: function () {
+      return { id: CASTLE_POINT_ID, card: "J", x: map.castleCenter.x, y: map.castleCenter.y };
+    },
+    _debugEnterCastle: function () {
+      if (!mapHasCastle()) return false;
+      var pt = { id: CASTLE_POINT_ID, card: "J", x: map.castleCenter.x, y: map.castleCenter.y };
+      delete fieldEnterAttempted[pt.id];
+      handleEnterFieldPointClick(pt);
+      return true;
+    },
+    // 直接把自己傳送到某座標（王城範圍在地圖中央、被牆包圍，直線走位走不進去）。
+    _debugSetLocalPos: function (x, y) {
+      if (!localPos) return false;
+      localPos = { x: x, y: y };
+      return true;
     },
     _debugDrawSharedRewardData: function (entry) {
       return drawSharedRewardData(entry);

@@ -5509,6 +5509,13 @@
     // （封牢エネミー決定表／第N階層ボス決定表／地下・屋上エネミー決定表）時，midnight.js的
     // scanLinesForEnemyMatches()用同一支函式找表，不另外複製一份標題比對規則。
     findExtraTableByBulletLine: findExtraTableByBulletLine,
+    // 2026-09-22 midnight.js新增匯出：J（砦／地下砦）・Q（地變）的varianceTable「劇本×花色→
+    // 內容」解析。midnight沒有night的盤面slot／dayNumber，無法直接用autoResolveBranch()，
+    // 但表格格式（劇本欄的結合セル・花色欄的記號比對・分歧名稱正規化）是同一套，這三個純
+    // 函式直接重用，不在midnight.js另外複製一份（CLAUDE.md §12）。
+    parseScenarioColumnCell: parseScenarioColumnCell,
+    suitCellMatches: suitCellMatches,
+    normalizeBranchNameForMatch: normalizeBranchNameForMatch,
     // fix(2026-09-13)：midnight.jsのrollAndAssignRandomEvent()從2026-09-07就在呼叫
     // GmFlow.rollRandomEventTable()，但這個函式**一直沒有被匯出**——所以那一行其實每次都丟
     // TypeError（"rollRandomEventTable is not a function"）。midnight.jsのframe()有try/catch
