@@ -1516,16 +1516,27 @@
   var PARTY_SIZE_DAMAGE_MULT = { 4: 0.5, 5: 0.4, 6: 0.3 };
   var READY_COUNTDOWN_MS = 5000;
 
-  // 目前已入座人數對應的「終傷」倍率：3人以下1、4人0.5、5人0.4、6人0.3。人數看players/的
-  // 已佔用席位（不看在線），跟規則「進行N人」的字面一致；套在applyDamageToFieldEnemyHp()／
-  // damageFieldMobOnly()玩家對敵人傷害的最後一步（跟測試模式倍率同一個位置）。
-  function partySizeDamageMult() {
-    var n = occupiedSlots().length;
-    return PARTY_SIZE_DAMAGE_MULT[n] || 1;
+  // 實際在玩的人數（2026-09-22使用者明確規格「終傷最後要看 隊伍資訊有接管的實際人數，
+  // 5人入場 欠2人接管 則視為3人遊戲」）：已佔用席位中，**目前真的有人在操作**的那些——
+  // 席位有tokenId（沒有＝被釋放、等別人用密碼接管）且該tokenId在線（presence，見slotOnline()）。
+  // presence資料還沒到時slotOnline()退回true，維持跟修正前一樣的保守行為。
+  function activePartySize() {
+    return occupiedSlots().filter(function (slot) {
+      var p = players[slot];
+      return !!(p && p.tokenId) && slotOnline(slot);
+    }).length;
   }
 
-  // 席位清單要畫幾格：基本3格；已佔用達3人以上時只多開1格空位（上限MAX_PLAYERS），
-  // 不一次攤開6個空格。等待房與進場後的隊伍面板共用。
+  // 「終傷」倍率：3人以下1、4人0.5、5人0.4、6人0.3。人數用activePartySize()（見上），
+  // 套在applyDamageToFieldEnemyHp()／damageFieldMobOnly()玩家對敵人傷害的最後一步
+  // （跟測試模式倍率同一個位置）。
+  function partySizeDamageMult() {
+    return PARTY_SIZE_DAMAGE_MULT[activePartySize()] || 1;
+  }
+
+  // 進場後隊伍面板的席位格數：基本3格；已佔用達3人以上時只多開1格空位（上限MAX_PLAYERS），
+  // 不一次攤開6個空格（使用者明確規格）。等待房不走這個函式——圓桌一律顯示全部6格，
+  // 讓人一眼看到還能加幾個人（2026-09-22使用者明確規格「圓桌旁邊再新增三個空位」）。
   function visibleSlotCount() {
     return Math.min(MAX_PLAYERS, Math.max(RECOMMENDED_PLAYERS, occupiedSlots().length + 1));
   }
@@ -3230,8 +3241,8 @@
   function renderLobby() {
     var container = el("midnight-lobby-slots");
     container.innerHTML = "";
-    var visibleSlots = visibleSlotCount(); // 2026-09-22：不一次攤開6格，見visibleSlotCount()
-    for (var i = 1; i <= visibleSlots; i++) {
+    // 2026-09-22使用者明確規格「圓桌旁邊再新增三個空位」：等待房一律顯示全部6格（原本3格）。
+    for (var i = 1; i <= MAX_PLAYERS; i++) {
       var slot = String(i);
       var p = players[slot];
       var card = document.createElement("div");
@@ -3257,16 +3268,8 @@
 
     var isFull = occupiedSlots().length >= MAX_PLAYERS;
     el("midnight-lobby-spectator-note").hidden = !(isFull && !mySlot);
-    // 目前人數超過建議人數時，顯示對應的終傷倍率（2026-09-22，見PARTY_SIZE_DAMAGE_MULT）。
-    var partyNow = occupiedSlots().length;
-    var partyCurrentEl = el("midnight-lobby-party-size-current");
-    if (partyCurrentEl) {
-      var overRecommended = partyNow > RECOMMENDED_PLAYERS;
-      partyCurrentEl.hidden = !overRecommended;
-      if (overRecommended) {
-        partyCurrentEl.textContent = window.I18N.t("midnight_lobby_party_size_current", { count: partyNow, mult: partySizeDamageMult() });
-      }
-    }
+    // 2026-09-22使用者明確規格「最終倍率不顯示在房間資訊內 只顯示建議人數3人」：等待房只留
+    // 「建議人數 3 人」這一行固定提示（#midnight-lobby-party-size-note），倍率不顯示。
 
     var readyBtn = el("btn-midnight-lobby-ready");
     var leaveBtn = el("btn-midnight-lobby-leave");
