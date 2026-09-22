@@ -100,16 +100,42 @@ function membersOf(sheetId) {
 }
 
 // 1 組ぶんの素材を組み立てる。出力形式はあとで選ぶだけにして、内容はここ 1 箇所に集約する。
+// 形態別 sheet（boss_<id>_<form>）の subject。id をそのまま流すと
+// 「night lord "gladius_split"」という存在しない夜王を頼むことになるので、
+// どの夜王のどの形態かを明示する。登錄表の BOSS_FORM_SHEETS と対で増える。
+const BOSS_FORM_SUBJECTS = {
+  boss_gladius_split:
+    'Elden Ring Nightreign night lord "gladius" in its SPLIT form — one of the three ' +
+    "smaller wolves the fused three-headed beast breaks apart into, each still carrying " +
+    "part of the broken body on its back. NOT the fused three-headed beast. Boss scale, " +
+    "leaner and faster-looking than the fused form",
+};
+
+// 形態別 sheet の subject。個別の説明があればそれを、無ければ「第二形態」として頼む。
+// id をそのまま流すと「night lord "harmonia_split"」という存在しない夜王を頼むことになる。
+function bossSubject(sheetId) {
+  if (BOSS_FORM_SUBJECTS[sheetId]) return BOSS_FORM_SUBJECTS[sheetId];
+  const form = /^boss_(.+)_split$/.exec(sheetId);
+  if (form) {
+    return (
+      'Elden Ring Nightreign night lord "' + form[1] + '" in its SECOND form — the shape it ' +
+      "changes into partway through the fight, visibly different from its first form. " +
+      "Boss scale, imposing silhouette"
+    );
+  }
+  return (
+    'Elden Ring Nightreign night lord "' + sheetId.replace("boss_", "") +
+    '", boss scale, imposing silhouette'
+  );
+}
+
 function entryOf(s) {
   if (s.id.indexOf("boss_") === 0) {
     return {
       id: s.id,
       file: s.file,
       kind: "boss",
-      subject:
-        'Elden Ring Nightreign night lord "' +
-        s.id.replace("boss_", "") +
-        '", boss scale, imposing silhouette',
+      subject: bossSubject(s.id),
       members: [],
     };
   }

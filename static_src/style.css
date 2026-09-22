@@ -8805,7 +8805,23 @@ html.midnight-top-banner-collapsed .midnight-top-banner-collapse-btn {
    死亡動畫」）：由 midnight_sprite.js 的 mountDeathPopup() 掛在 #midnight-hud-top-right（flex
    column、靠右對齊）的最後一個子元素，自然排在盧恩／地圖／角色／選單之下，不蓋任何內容；
    death 播完＋停留後由 JS 重新加上 hidden。切幀方式跟主舞台相同（background-position）。 */
+/* 1 格ぶんの面（2026-09-22）。舞台／小視窗は正方形のまま、実際に絵を貼るのはこの面で、
+   高さは JS が 1 格の高さに合わせる（midnight_sprite.js の syncCellPx()）。横長セルの
+   sheet でも隣の行がはみ出して見えないようにするため。下端に貼るので、接地の位置は
+   正方形セルのときと変わらない。 */
+#midnight-enemy-sprite-stage > .midnight-sprite-face,
+#midnight-enemy-death-popup > .midnight-sprite-face {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 100%;
+  background-repeat: no-repeat;
+  pointer-events: none;
+}
+
 #midnight-enemy-death-popup {
+  position: relative;
   width: 96px;
   aspect-ratio: 1 / 1;
   border-radius: 8px;

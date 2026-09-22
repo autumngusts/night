@@ -34,6 +34,32 @@ const BOSSES = [
   "maris", "fulghor", "harmonia", "gladius", "gnoster",
   "caligo", "libra", "edele", "stragedes", "nameless"
 ];
+// 形態ごとに別の sheet を持つ夜王（2026-09-22 使用者明確規格「確保有些敵人會有不同型態，
+// 產生兩種以上點陣圖」）。
+//
+// 一覧は手で並べない——boss_auto_gm_data.js の formAware をそのまま使う。あちらは
+// 「形態ごとに行動決定表が別」という戦闘ルール側の事実で、形態が変われば見た目も変わる。
+// 手で並べると、あとで formAware な夜王が増えたときに必ず片方だけ古くなる。
+//
+// 追加する sheet の接尾辞は state.battle.bossForm が取る値そのもの（"fused"／"split"）。
+// 既定の形態（fused）は boss_<id>.png のままなので、増えるのは "split" のぶんだけ。
+// 「split」は harmonia／nameless のように意味が「第二形態」でも同じ値を使う（絵が
+// 別物だという主張ではなく、単に登錄表の鍵を bossForm に揃えているだけ）。
+const BOSS_AUTO_GM = (function () {
+  const sb = { window: {}, console: { log: function () {}, warn: function () {}, error: function () {} } };
+  vm.createContext(sb);
+  vm.runInContext(
+    fs.readFileSync(path.join(ROOT, "static_src", "boss_auto_gm_data.js"), "utf8"),
+    sb,
+    { filename: "boss_auto_gm_data.js" }
+  );
+  return sb.window.PriTestBossAutoGmData;
+})();
+
+function formSheetsFor(bossId) {
+  const data = BOSS_AUTO_GM && BOSS_AUTO_GM.get ? BOSS_AUTO_GM.get(bossId) : null;
+  return data && data.formAware ? ["split"] : [];
+}
 const BIG = { LL: true, L: true };
 
 function variantFor(fam, enemy, index) {
@@ -115,6 +141,9 @@ FAMILIES.forEach(function (f) {
 });
 BOSSES.forEach(function (b) {
   pushSheet("boss_" + b);
+  formSheetsFor(b).forEach(function (form) {
+    pushSheet("boss_" + b + "_" + form);
+  });
 });
 
 const out =
@@ -137,8 +166,15 @@ const out =
   "    return (\n      SHEETS.filter(function (s) {\n        return s.id === sheetId;\n      })[0] || null\n    );\n  }\n\n" +
   "  function sheetIdForEnemy(familyId, enemyId) {\n" +
   '    return ENEMY_SHEET[familyId + "/" + enemyId] || null;\n  }\n\n' +
-  "  function sheetIdForBoss(bossId) {\n" +
+  "  // form（state.battle.bossForm と同じ文字列）を渡すと、その形態専用の sheet を優先する。\n" +
+  "  // 專用 sheet が未產出のときは既定の boss_<id> に戻す——代役（別の夜王の絵）を出すより、\n" +
+  "  // 同じ夜王の別形態の絵を出すほうが明らかに近い。\n" +
+  "  function sheetIdForBoss(bossId, form) {\n" +
   '    var id = "boss_" + bossId;\n' +
+  "    if (form) {\n" +
+  '      var formSheet = getSheet(id + "_" + form);\n' +
+  '      if (formSheet && formSheet.available) return id + "_" + form;\n' +
+  "    }\n" +
   "    return getSheet(id) ? id : null;\n  }\n\n" +
   "  window.PriTestEnemySpriteRegistry = {\n" +
   "    listSheets: listSheets,\n" +

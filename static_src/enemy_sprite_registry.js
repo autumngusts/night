@@ -60,13 +60,17 @@
     { id: "boss_maris", file: "boss_maris.png", available: true },
     { id: "boss_fulghor", file: "boss_fulghor.png", available: true },
     { id: "boss_harmonia", file: "boss_harmonia.png", available: true },
+    { id: "boss_harmonia_split", file: "boss_harmonia_split.png", available: false },
     { id: "boss_gladius", file: "boss_gladius.png", available: true },
+    { id: "boss_gladius_split", file: "boss_gladius_split.png", available: true },
     { id: "boss_gnoster", file: "boss_gnoster.png", available: true },
-    { id: "boss_caligo", file: "boss_caligo.png", available: false },
-    { id: "boss_libra", file: "boss_libra.png", available: false },
+    { id: "boss_caligo", file: "boss_caligo.png", available: true },
+    { id: "boss_libra", file: "boss_libra.png", available: true },
     { id: "boss_edele", file: "boss_edele.png", available: true },
     { id: "boss_stragedes", file: "boss_stragedes.png", available: true },
-    { id: "boss_nameless", file: "boss_nameless.png", available: false }
+    { id: "boss_stragedes_split", file: "boss_stragedes_split.png", available: false },
+    { id: "boss_nameless", file: "boss_nameless.png", available: true },
+    { id: "boss_nameless_split", file: "boss_nameless_split.png", available: false }
   ];
 
   var ENEMY_SHEET = {
@@ -237,8 +241,15 @@
     return ENEMY_SHEET[familyId + "/" + enemyId] || null;
   }
 
-  function sheetIdForBoss(bossId) {
+  // form（state.battle.bossForm と同じ文字列）を渡すと、その形態専用の sheet を優先する。
+  // 專用 sheet が未產出のときは既定の boss_<id> に戻す——代役（別の夜王の絵）を出すより、
+  // 同じ夜王の別形態の絵を出すほうが明らかに近い。
+  function sheetIdForBoss(bossId, form) {
     var id = "boss_" + bossId;
+    if (form) {
+      var formSheet = getSheet(id + "_" + form);
+      if (formSheet && formSheet.available) return id + "_" + form;
+    }
     return getSheet(id) ? id : null;
   }
 

@@ -47,7 +47,20 @@ ok(
   "未産出の family は null（静止画に落ちる）"
 );
 ok(P.sheetFileFor("no_such_family", "no_such_enemy", false) === null, "未登録も null");
-ok(P.sheetFileFor(null, "caligo", true) === null, "未産出の夜王も null");
+// 「まだ產出されていない夜王」は固定で書かない——素材が入るたびにこの行が落ちる
+// （実際 caligo を書いていて、caligo の sheet が入った日に落ちた）。登錄表から
+// available:false の夜王を 1 隻拾う。形態別 sheet（boss_x_split）は除く。
+var pendingBoss = sandbox.window.PriTestEnemySpriteRegistry.listSheets().filter(function (s) {
+  return /^boss_[a-z]+$/.test(s.id) && !s.available;
+})[0];
+if (pendingBoss) {
+  ok(
+    P.sheetFileFor(null, pendingBoss.id.replace("boss_", ""), true) === null,
+    "未産出の夜王も null（" + pendingBoss.id + "）"
+  );
+} else {
+  console.log("  --   夜王は全て產出済み（未産出時の fallback は確かめられない）");
+}
 ok(
   typeof P.sheetFileFor(null, "gladius", true) === "string",
   "産出済みの夜王は檔名を返す（fallback しない）"

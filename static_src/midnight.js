@@ -1777,7 +1777,15 @@
     var Sprite = window.PriTestMidnightSprite;
     if (!Sprite || !spriteModeEnabled() || !trig || !trig.enemyFamilyId) return null;
     var isBoss = trig.enemyFamilyId === BOSS_ENEMY_FAMILY_SENTINEL;
-    return Sprite.sheetFileOrSubstitute(isBoss ? null : trig.enemyFamilyId, trig.enemyId, isBoss);
+    // trig.bossForm（"fused"／"split"）も渡す：gladius のように形態で見た目が別物になる
+    // 夜王は、形態専用の sheet があればそちらを使う。專用 sheet が未產出なら登録表側が
+    // 既定の boss_<id> を返すので、ここでの分岐は要らない（見 enemy_sprite_registry.js）。
+    return Sprite.sheetFileOrSubstitute(
+      isBoss ? null : trig.enemyFamilyId,
+      trig.enemyId,
+      isBoss,
+      isBoss ? trig.bossForm : null
+    );
   }
 
   // 預載（2026-09-22使用者明確規格「實際遊戲內模式也要確實的出現而不要晚出現」）：

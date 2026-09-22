@@ -3,7 +3,7 @@
 //   node tools/sprite_check/sprite_registry_check.js
 //
 // 驗證 5 點（spec §5.1／§5.2）：
-//   ① sheet は 60 組（25 系統 × 2 ＋ 夜王 10）
+//   ① sheet は 64 組（25 系統 × 2 ＋ 夜王 10 ＋ 多形態の夜王 4 隻の第二形態）
 //   ② enemies_data の 149 隻すべてが、いずれかの sheet に帰属している
 //   ③ 各系統がちょうど 2 組を持ち、両方に最低 1 隻が割り当たっている（空の変体を作らない）
 //   ④ 夜王 10 隻が登録されている
@@ -39,7 +39,29 @@ function ok(cond, label) {
 }
 
 console.log("[組数]");
-ok(R.listSheets().length === 60, "sheet は60組 (実際 " + R.listSheets().length + ")");
+ok(R.listSheets().length === 64, "sheet は64組 (実際 " + R.listSheets().length + ")");
+// 形態別 sheet（2026-09-22）：gladius は合体形態と分裂形態で見た目が別物なので 2 枚持つ。
+// 專用 sheet が未產出のあいだは既定の boss_gladius に戻ること——ここを間違えると、
+// 分裂形態のときだけ別の夜王の代役が出る。
+ok(!!R.getSheet("boss_gladius_split"), "gladius の分裂形態 sheet が登録されている");
+ok(
+  R.sheetIdForBoss("gladius", "fused") === "boss_gladius",
+  "合体形態は boss_gladius (実際 " + R.sheetIdForBoss("gladius", "fused") + ")"
+);
+ok(
+  R.sheetIdForBoss("gladius", "split") ===
+    (R.getSheet("boss_gladius_split").available ? "boss_gladius_split" : "boss_gladius"),
+  "分裂形態は專用 sheet、未產出なら boss_gladius に戻る (実際 " + R.sheetIdForBoss("gladius", "split") + ")"
+);
+ok(R.sheetIdForBoss("maris", "split") === "boss_maris", "形態別 sheet の無い夜王は form を渡しても既定のまま");
+// 形態別 sheet の一覧は boss_auto_gm_data.js の formAware から生成される（手で並べない）。
+// 戦闘ルール側で多形態として構造化されている夜王が増えれば、sheet も自動で増える。
+["gladius", "harmonia", "stragedes", "nameless"].forEach(function (id) {
+  ok(!!R.getSheet("boss_" + id + "_split"), "多形態の夜王には第二形態 sheet がある: " + id);
+});
+["maris", "fulghor", "edele", "gnoster", "caligo", "libra"].forEach(function (id) {
+  ok(!R.getSheet("boss_" + id + "_split"), "単一形態の夜王には第二形態 sheet を作らない: " + id);
+});
 ok(FAMILIES.length === 25, "系統は25 (実際 " + FAMILIES.length + ")");
 
 console.log("[149隻の帰属]");
