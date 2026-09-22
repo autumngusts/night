@@ -657,6 +657,9 @@
     if (name === "凍傷" && hasGrace(c, GRACE_MOUNTAIN_PEAK)) {
       delta += graceValue(GRACE_MOUNTAIN_PEAK, "frostbiteAccumMaxBonus") || 0;
     }
+    // 地變「調律の魔物・立ち去る」的備註「シナリオ終了まで『発狂』の蓄積最大値-2」（2026-09-22接上，
+    // 見noteRewardEffect()的madnessMax）：跟_bargainAccumMaxBonus同一種「同步到RTDB的持久修正」欄位。
+    if (name === "発狂") delta -= (c && c._madnessAccumMaxDebuff) || 0;
     return Math.max(1, ATTRIBUTE_STATUS_THRESHOLD + delta);
   }
 
@@ -16673,6 +16676,33 @@
     if (!attempted) el("midnight-random-event-result").textContent = "";
   }
 
+  // 複製一把自身持有的武器（歩く霊廟／隠された霊廟共用）。2026-09-20審查L4修正：不能直接push同一個
+  // instance id（random戰技／詞條的儲存鍵會跟原本那把共用，丟掉一把兩把都沒了），改用CharacterDrawer
+  // 既有的枝番機制（makeWeaponInstanceId()，同merchantDrawWeapon()等取得路徑）產生新id，並把原本
+  // 那把的random戰技／詞條原樣複製過去（「同じ物1つ」＝一模一樣的一把）。呼叫端先確認背包空間。
+  function copyWeaponInstance(c, pickedId) {
+    var CDm = window.PriTestCharacterDrawer;
+    var copyId = CDm.makeWeaponInstanceId(CDm.baseWeaponId(pickedId), c);
+    c.weaponIds.push(copyId);
+    GameStorage.rtSet(gameId, "cloud", "character/" + myTokenId + "/weaponIds", c.weaponIds);
+    if (c.weaponRandomSkills) {
+      [null, "attached", "reverse"].forEach(function (slot) {
+        var fromKey = CDm.weaponSkillSlotKey(pickedId, slot);
+        if (c.weaponRandomSkills[fromKey]) c.weaponRandomSkills[CDm.weaponSkillSlotKey(copyId, slot)] = c.weaponRandomSkills[fromKey];
+      });
+      GameStorage.rtSet(gameId, "cloud", "character/" + myTokenId + "/weaponRandomSkills", c.weaponRandomSkills);
+    }
+    if (c.weaponAffixes && c.weaponAffixes[pickedId]) {
+      c.weaponAffixes[copyId] = JSON.parse(JSON.stringify(c.weaponAffixes[pickedId]));
+      GameStorage.rtSet(gameId, "cloud", "character/" + myTokenId + "/weaponAffixes", c.weaponAffixes);
+    }
+    if (c.weaponRarityOverride && c.weaponRarityOverride[pickedId]) {
+      c.weaponRarityOverride[copyId] = c.weaponRarityOverride[pickedId];
+      GameStorage.rtSet(gameId, "cloud", "character/" + myTokenId + "/weaponRarityOverride", c.weaponRarityOverride);
+    }
+    return copyId;
+  }
+
   function handleMausoleumCheckClick(pt) {
     if (!mySlot || isPaused() || isSelfDowned()) return;
     var trig = fieldTriggers[pt.id];
@@ -16692,26 +16722,8 @@
     // 只差在失敗多了HP損害）。
     if (c && c.weaponIds && c.weaponIds.length) {
       if (hasInventorySpace(c, "weapon")) {
-        // 2026-09-20審查L4修正：原本直接push同一個instance id，random戰技／詞條的儲存鍵會
-        // 跟原本那把共用，丟掉一把兩把都沒了。改用CharacterDrawer既有的枝番機制
-        // （makeWeaponInstanceId()，同merchantDrawWeapon()等取得路徑）產生新id，並把
-        // 原本那把的random戰技／詞條原樣複製過去（「同じ物1つ」＝一模一樣的一把）。
-        var CDm = window.PriTestCharacterDrawer;
         var pickedId = c.weaponIds[Math.floor(Math.random() * c.weaponIds.length)];
-        var copyId = CDm.makeWeaponInstanceId(CDm.baseWeaponId(pickedId), c);
-        c.weaponIds.push(copyId);
-        GameStorage.rtSet(gameId, "cloud", "character/" + myTokenId + "/weaponIds", c.weaponIds);
-        if (c.weaponRandomSkills) {
-          [null, "attached", "reverse"].forEach(function (slot) {
-            var fromKey = CDm.weaponSkillSlotKey(pickedId, slot);
-            if (c.weaponRandomSkills[fromKey]) c.weaponRandomSkills[CDm.weaponSkillSlotKey(copyId, slot)] = c.weaponRandomSkills[fromKey];
-          });
-          GameStorage.rtSet(gameId, "cloud", "character/" + myTokenId + "/weaponRandomSkills", c.weaponRandomSkills);
-        }
-        if (c.weaponAffixes && c.weaponAffixes[pickedId]) {
-          c.weaponAffixes[copyId] = JSON.parse(JSON.stringify(c.weaponAffixes[pickedId]));
-          GameStorage.rtSet(gameId, "cloud", "character/" + myTokenId + "/weaponAffixes", c.weaponAffixes);
-        }
+        copyWeaponInstance(c, pickedId);
       } else {
         showToast(window.I18N.t("midnight_inventory_full_note"));
       }
@@ -18874,19 +18886,36 @@
   // 效果）兩個按鈕。rune沒有「抽選」的必要（結果本來就是固定的value），維持原本直接顯示。
   // ---- 地變「特殊獲得」備註的實際效果（2026-09-22使用者明確規格「火山的特殊獲得備註 可以升級一把
   // 武器至L，領取後產生另外的local視窗可以選擇要敲打哪一把武器，可以暫時關閉，再次打開獎勵清單可以
-  // 再點開此備註；另外檢查其他地變時特殊的獲得備註的實作效果是否有效果」）----
+  // 再點開此備註；另外檢查其他地變時特殊的獲得備註的實作效果是否有效果」，同日追加「實作並接上」）----
   // 備註（kind:"note"）原本只顯示文字、按［確認］就消失，規則書寫的效果全靠玩家手動。這裡依日文原文
-  // 辨識兩類可以由App代勞的備註：
-  //   ・rarityL：「レアリティ：Lへ上昇可能」（火山・溶岩土竜）→ 開裝備選擇視窗，選定後
-  //     c.weaponRarityOverride[id]="L"（跟鍛造台升級同一個欄位，computeArtPower()會讀）。
-  //   ・grace：文字裡出現graces.js某個恩寵的日文名（腐れ森／山嶺／大空洞／隠れ都）→ 按下即
-  //     grantGraceToTokens()；寫「1D5以上で獲得」的先擲1D、5以上才給。其他達成條件（山頂到達、
-  //     共鳴結晶3以上）是樓層本文的流程結果，領到這筆備註就代表走到了該結果，直接給。
+  // 辨識可以由App代勞的備註（fields_data_4.js card_q 的 note 全部核對過）：
+  //   ・rarityL     ：「レアリティ：Lへ上昇可能」（火山・溶岩土竜）→ 開裝備選擇視窗，選定後
+  //                   c.weaponRarityOverride[id]="L"（跟鍛造台升級同一個欄位，computeArtPower()會讀）。
+  //   ・copyEquip   ：「装備品を1つ複製可能」（隠れ都・隠された霊廟）→ 同一個選擇視窗，選定後
+  //                   copyWeaponInstance()（跟歩く霊廟同一支）；背包滿時不能選。
+  //   ・grace       ：文字裡出現graces.js某個恩寵的日文名（腐れ森／山嶺／大空洞／隠れ都）→ 按下即
+  //                   grantGraceToTokens()；寫「1D5以上で獲得」的先擲1D、5以上才給。其他達成條件
+  //                   （山頂到達、共鳴結晶3以上）是樓層本文的流程結果，領到這筆備註就代表走到了該結果。
+  //   ・madnessMax  ：「『発狂』の蓄積最大値-2」（調律の魔物・立ち去る）→ c._madnessAccumMaxDebuff+=2，
+  //                   receivedAccumThreshold()對「発狂」扣掉（劇本結束＝這場遊戲結束，欄位隨角色同步）。
+  //   ・catalyst    ：「触媒：★★」→ 選「杖」或「聖印」後推進 {weaponStar, value:★數, categoryId}，
+  //                   走既有的獎勵清單抽選（跟魔術師塔的杖同一條路徑）。
+  //   ・merchantWeapon：「ルーン：1」→武器★／2→★★／3→★★★（隠れ都・部屋を探す・商人）→ 三顆購買鍵，
+  //                   扣盧恩後推進 {weaponStar, value}，一次購買就算領取（規則書「PC全員が購入できる」＝
+  //                   每人各一次）。
+  //   ・talismanPerPc：「『タリスマン』をPC人数と同じ数だけ獲得」→ 每位PC的清單各推進一筆{talisman}
+  //                   （PC人數分＝每人一個）。
   // 其餘備註維持原樣（顯示文字、確認／丟棄）。
   function noteRewardEffect(entry) {
     var ja = entry && entry.noteJa ? String(entry.noteJa) : "";
     if (!ja) return null;
     if (/レアリティ[：:]L/.test(ja)) return { type: "rarityL" };
+    if (/装備品を1つ複製/.test(ja)) return { type: "copyEquip" };
+    if (/「発狂」の蓄積最大値-2/.test(ja)) return { type: "madnessMax", value: 2 };
+    var catalyst = /「触媒[：:](★+)」/.exec(ja);
+    if (catalyst) return { type: "catalyst", stars: catalyst[1].length };
+    if (/「ルーン：1」を消費するとPC全員が「武器：★」/.test(ja)) return { type: "merchantWeapon" };
+    if (/「タリスマン」をPC人数と同じ数だけ獲得/.test(ja)) return { type: "talismanPerPc" };
     var Graces = window.PriTestGraces;
     var list = Graces ? Graces.list() : [];
     for (var i = 0; i < list.length; i++) {
@@ -18898,70 +18927,134 @@
     return null;
   }
 
+  function resolveNoteReward(id) {
+    GameStorage.rtSet(gameId, "cloud", "pendingRewards/" + myTokenId + "/" + id + "/resolved", true);
+    selectedRewardId = null;
+  }
+
+  function noteEffectButton(detail, label, onClick) {
+    var btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "midnight-draw-hint";
+    btn.textContent = label;
+    btn.addEventListener("click", onClick);
+    detail.appendChild(btn);
+    return btn;
+  }
+
   function renderNoteRewardEffect(id, entry, detail, effect) {
     var c = characters[myTokenId];
     if (!c) return;
-    if (effect.type === "rarityL") {
-      var pickBtn = document.createElement("button");
-      pickBtn.type = "button";
-      pickBtn.className = "midnight-draw-hint";
-      pickBtn.textContent = window.I18N.t("midnight_reward_rarity_upgrade_button");
-      pickBtn.addEventListener("click", function () {
-        openRarityUpgradeModal(id);
+    if (effect.type === "rarityL" || effect.type === "copyEquip") {
+      noteEffectButton(detail, window.I18N.t(effect.type === "rarityL" ? "midnight_reward_rarity_upgrade_button" : "midnight_reward_copy_equip_button"), function () {
+        openEquipmentPickModal(id, effect.type);
       });
-      detail.appendChild(pickBtn);
       return;
     }
     if (effect.type === "grace") {
       var name = graceName(effect.graceId);
-      var graceBtn = document.createElement("button");
-      graceBtn.type = "button";
-      graceBtn.className = "midnight-draw-hint";
-      graceBtn.textContent = effect.roll
-        ? window.I18N.t("midnight_reward_grace_roll_button", { name: name })
-        : window.I18N.t("midnight_reward_grace_claim_button", { name: name });
-      graceBtn.addEventListener("click", function () {
-        var granted = true;
-        if (effect.roll) {
-          var value = 1 + Math.floor(Math.random() * 6);
-          granted = value >= effect.roll;
-          showToast(window.I18N.t("midnight_reward_grace_roll_result", {
-            value: value,
-            result: window.I18N.t(granted ? "midnight_reward_grace_granted" : "midnight_reward_grace_not_granted", { name: name }),
-          }));
-        } else {
-          showToast(window.I18N.t("midnight_reward_grace_granted", { name: name }));
+      noteEffectButton(
+        detail,
+        effect.roll ? window.I18N.t("midnight_reward_grace_roll_button", { name: name }) : window.I18N.t("midnight_reward_grace_claim_button", { name: name }),
+        function () {
+          var granted = true;
+          if (effect.roll) {
+            var value = 1 + Math.floor(Math.random() * 6);
+            granted = value >= effect.roll;
+            showToast(window.I18N.t("midnight_reward_grace_roll_result", {
+              value: value,
+              result: window.I18N.t(granted ? "midnight_reward_grace_granted" : "midnight_reward_grace_not_granted", { name: name }),
+            }));
+          } else {
+            showToast(window.I18N.t("midnight_reward_grace_granted", { name: name }));
+          }
+          if (granted) grantGraceToTokens([myTokenId], effect.graceId);
+          resolveNoteReward(id);
         }
-        if (granted) grantGraceToTokens([myTokenId], effect.graceId);
-        GameStorage.rtSet(gameId, "cloud", "pendingRewards/" + myTokenId + "/" + id + "/resolved", true);
-        selectedRewardId = null;
+      );
+      return;
+    }
+    if (effect.type === "madnessMax") {
+      noteEffectButton(detail, window.I18N.t("midnight_reward_madness_max_button", { value: effect.value }), function () {
+        var before = snapshotMyCharacter();
+        c._madnessAccumMaxDebuff = (c._madnessAccumMaxDebuff || 0) + effect.value;
+        syncMyCharacterChanges(before);
+        showToast(window.I18N.t("midnight_reward_madness_max_done", { value: effect.value }));
+        resolveNoteReward(id);
       });
-      detail.appendChild(graceBtn);
+      return;
+    }
+    if (effect.type === "catalyst") {
+      [["staff", "midnight_reward_catalyst_staff_button"], ["sacred_seal", "midnight_reward_catalyst_seal_button"]].forEach(function (opt) {
+        noteEffectButton(detail, window.I18N.t(opt[1], { stars: new Array(effect.stars + 1).join("★") }), function () {
+          pushPendingReward(myTokenId, { kind: "weaponStar", value: effect.stars, categoryId: opt[0] });
+          resolveNoteReward(id);
+        });
+      });
+      return;
+    }
+    if (effect.type === "merchantWeapon") {
+      var runeNote = document.createElement("p");
+      runeNote.className = "warning-text";
+      runeNote.textContent = window.I18N.t("midnight_reward_merchant_weapon_runes_note", { runes: c.runes || 0 });
+      detail.appendChild(runeNote);
+      [1, 2, 3].forEach(function (cost) {
+        var btn = noteEffectButton(detail, window.I18N.t("midnight_reward_merchant_weapon_buy_button", { stars: new Array(cost + 1).join("★"), cost: cost }), function () {
+          var cNow = characters[myTokenId];
+          if (!cNow || (cNow.runes || 0) < cost) return;
+          var before = snapshotMyCharacter();
+          cNow.runes -= cost;
+          syncMyCharacterChanges(before);
+          pushPendingReward(myTokenId, { kind: "weaponStar", value: cost });
+          resolveNoteReward(id);
+        });
+        btn.disabled = (c.runes || 0) < cost;
+      });
+      return;
+    }
+    if (effect.type === "talismanPerPc") {
+      noteEffectButton(detail, window.I18N.t("midnight_reward_talisman_per_pc_button"), function () {
+        pushPendingReward(myTokenId, { kind: "talisman" });
+        resolveNoteReward(id);
+      });
     }
   }
 
-  // 稀有度→L 的裝備選擇視窗（純本機；關閉不消耗獎勵，再開獎勵清單可再點）。列出自身全部持有裝備
-  // （武器／觸媒／盾都在weaponIds裡），已是L的顯示但不能選。
-  var rarityUpgradeRewardId = null;
+  // 裝備選擇視窗（純本機；關閉不消耗獎勵，再開獎勵清單可再點）。mode：
+  //   "rarityL"   → 列出自身全部持有裝備（武器／觸媒／盾都在weaponIds裡），已是L的不能選；
+  //   "copyEquip" → 同一份清單，選定後複製一把（背包滿時全部不能選並提示）。
+  var equipmentPickState = null; // { rewardId, mode }
 
-  function openRarityUpgradeModal(rewardId) {
+  function openEquipmentPickModal(rewardId, mode) {
     var modal = el("midnight-rarity-upgrade-modal");
     var listEl = el("midnight-rarity-upgrade-list");
+    var titleEl = el("midnight-rarity-upgrade-title");
+    var hintEl = el("midnight-rarity-upgrade-hint");
     var c = characters[myTokenId];
     if (!modal || !listEl || !c) return;
-    rarityUpgradeRewardId = rewardId;
+    equipmentPickState = { rewardId: rewardId, mode: mode };
+    if (titleEl) titleEl.textContent = window.I18N.t(mode === "copyEquip" ? "midnight_copy_equip_title" : "midnight_rarity_upgrade_title");
+    if (hintEl) hintEl.textContent = window.I18N.t(mode === "copyEquip" ? "midnight_copy_equip_hint" : "midnight_rarity_upgrade_hint");
     listEl.innerHTML = "";
     var CD = window.PriTestCharacterDrawer;
+    var copyBlocked = mode === "copyEquip" && !hasInventorySpace(c, "weapon");
+    if (copyBlocked) {
+      var fullNote = document.createElement("p");
+      fullNote.className = "warning-text";
+      fullNote.textContent = window.I18N.t("midnight_inventory_full_note");
+      listEl.appendChild(fullNote);
+    }
     (c.weaponIds || []).forEach(function (wid) {
       var w = window.PriTestWeapons.get(baseCatalogId(wid));
       if (!w) return;
       var rarity = CD.getEffectiveWeaponRarity ? CD.getEffectiveWeaponRarity(c, wid) : w.rarity;
       var btn = document.createElement("button");
       btn.type = "button";
-      btn.textContent = window.PriTestWeapons.localizedText(w.name) + "（" + rarity + "）" + (rarity === "L" ? window.I18N.t("midnight_rarity_upgrade_already_l") : "");
-      btn.disabled = rarity === "L";
+      var alreadyL = mode === "rarityL" && rarity === "L";
+      btn.textContent = window.PriTestWeapons.localizedText(w.name) + "（" + rarity + "）" + (alreadyL ? window.I18N.t("midnight_rarity_upgrade_already_l") : "");
+      btn.disabled = alreadyL || copyBlocked;
       btn.addEventListener("click", function () {
-        commitRarityUpgrade(wid);
+        commitEquipmentPick(wid);
       });
       listEl.appendChild(btn);
     });
@@ -18971,21 +19064,30 @@
   function closeRarityUpgradeModal() {
     var modal = el("midnight-rarity-upgrade-modal");
     if (modal) modal.hidden = true;
-    rarityUpgradeRewardId = null;
+    equipmentPickState = null;
   }
 
-  function commitRarityUpgrade(weaponId) {
+  function commitEquipmentPick(weaponId) {
     var c = characters[myTokenId];
-    var rewardId = rarityUpgradeRewardId;
-    if (!c || !rewardId) return;
-    var before = snapshotMyCharacter();
-    c.weaponRarityOverride = c.weaponRarityOverride || {};
-    c.weaponRarityOverride[weaponId] = "L";
-    syncMyCharacterChanges(before);
-    GameStorage.rtSet(gameId, "cloud", "pendingRewards/" + myTokenId + "/" + rewardId + "/resolved", true);
+    var st = equipmentPickState;
+    if (!c || !st) return;
     var w = window.PriTestWeapons.get(baseCatalogId(weaponId));
-    showToast(window.I18N.t("midnight_rarity_upgrade_done", { name: w ? window.PriTestWeapons.localizedText(w.name) : weaponId }));
-    selectedRewardId = null;
+    var wName = w ? window.PriTestWeapons.localizedText(w.name) : weaponId;
+    var before = snapshotMyCharacter();
+    if (st.mode === "copyEquip") {
+      if (!hasInventorySpace(c, "weapon")) {
+        showToast(window.I18N.t("midnight_inventory_full_note"));
+        return;
+      }
+      copyWeaponInstance(c, weaponId);
+      showToast(window.I18N.t("midnight_copy_equip_done", { name: wName }));
+    } else {
+      c.weaponRarityOverride = c.weaponRarityOverride || {};
+      c.weaponRarityOverride[weaponId] = "L";
+      syncMyCharacterChanges(before);
+      showToast(window.I18N.t("midnight_rarity_upgrade_done", { name: wName }));
+    }
+    resolveNoteReward(st.rewardId);
     closeRarityUpgradeModal();
   }
 
@@ -23807,6 +23909,10 @@
     },
     // 2026-09-22 戰鬥模擬回歸測試用（tools/midnight_check/battle_sim_check.js）：期望的敵人
     // HP 上限從資料算出來、不硬編（CLAUDE.md §4.7 原則）。
+    // 2026-09-22：地變備註「発狂の蓄積最大値-2」的回歸測試用（見battle_sim_check.js ⑯）。
+    _debugReceivedAccumThreshold: function (name) {
+      return receivedAccumThreshold(characters[myTokenId], name);
+    },
     _debugEnemyRealHpMax: function (trig) {
       return enemyRealHpMax(trig);
     },

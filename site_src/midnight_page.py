@@ -1385,8 +1385,9 @@ BODY = """    <div class="midnight-wrap">
         <div id="midnight-rarity-upgrade-modal" hidden>
           <div id="midnight-rarity-upgrade-box">
             <button type="button" id="btn-midnight-rarity-upgrade-close" class="midnight-modal-close-x">&times;</button>
-            <h3 data-i18n="midnight_rarity_upgrade_title"></h3>
-            <p class="threat-ref-body" data-i18n="midnight_rarity_upgrade_hint"></p>
+            <!-- 標題／說明由openEquipmentPickModal()依mode（稀有度→L／複製裝備）改寫 -->
+            <h3 id="midnight-rarity-upgrade-title" data-i18n="midnight_rarity_upgrade_title"></h3>
+            <p id="midnight-rarity-upgrade-hint" class="threat-ref-body" data-i18n="midnight_rarity_upgrade_hint"></p>
             <div id="midnight-rarity-upgrade-list"></div>
           </div>
         </div>

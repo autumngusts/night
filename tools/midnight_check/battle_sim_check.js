@@ -436,6 +436,60 @@ async function unlockTestMode(page) {
     await pageA.evaluate(() => Array.from(document.querySelectorAll("#midnight-reward-detail button")).find((b) => /獲得恩寵/.test(b.textContent)).click());
     await waitFor(pageA, () => { const s = window.PriTestMidnight._debugState(); return !!(s.characters[s.myTokenId].graces || {}).mountain_peak; }, null, 5000);
     assert(true, "恩寵備註按下後 character.graces.mountain_peak=true");
+    // 其餘地變備註（2026-09-22「實作並接上」）：複製裝備／發狂上限−2／触媒★★／商人購買／護符 PC 人數分
+    const injectNote = (key, noteJa) => pageA.evaluate((args) => window.PriTestGameStorage.rtSet(args.gameId, "cloud", "pendingRewards/" + args.token + "/" + args.key, { kind: "note", text: args.key, noteJa: args.noteJa }), { gameId: sA.gameId, token: tokenA, key, noteJa });
+    const clickDetail = (re) => pageA.evaluate((src) => { const b = Array.from(document.querySelectorAll("#midnight-reward-detail button")).find((x) => new RegExp(src).test(x.textContent)); if (!b) return false; b.click(); return true; }, re.source);
+    const waitDetail = (re) => waitFor(pageA, (src) => !document.querySelector("#midnight-reward-modal").hidden && new RegExp(src).test(document.querySelector("#midnight-reward-detail").textContent), re.source, 5000);
+    const resolved = (key) => waitFor(pageA, (k) => { const s = window.PriTestMidnight._debugState(); return !!((s.pendingRewards[s.myTokenId] || {})[k] || {}).resolved; }, key, 5000);
+    // 複製裝備
+    const weaponCountBefore = await pageA.evaluate(() => { const s = window.PriTestMidnight._debugState(); return s.characters[s.myTokenId].weaponIds.length; });
+    await injectNote("copy_test", "（隠された霊廟。所持装備品を1つ複製可能。個人紀錄へ手動反映）");
+    await waitDetail(/複製的裝備/);
+    await clickDetail(/複製的裝備/);
+    await waitFor(pageA, () => !document.querySelector("#midnight-rarity-upgrade-modal").hidden);
+    const copyTitle = await pageA.textContent("#midnight-rarity-upgrade-title");
+    await pageA.evaluate(() => Array.from(document.querySelectorAll("#midnight-rarity-upgrade-list button")).find((b) => !b.disabled).click());
+    await resolved("copy_test");
+    const copyAfter = await pageA.evaluate(() => { const s = window.PriTestMidnight._debugState(); const ids = s.characters[s.myTokenId].weaponIds; return { n: ids.length, unique: new Set(ids).size, modalHidden: document.querySelector("#midnight-rarity-upgrade-modal").hidden }; });
+    assert(/複製/.test(copyTitle) && copyAfter.n === weaponCountBefore + 1 && copyAfter.unique === copyAfter.n && copyAfter.modalHidden, "複製裝備：視窗標題為複製、武器 +1 且 id 不重複（枝番）", { copyTitle, weaponCountBefore, copyAfter });
+    // 發狂最大蓄積值 −2
+    const madnessBefore = await pageA.evaluate(() => window.PriTestMidnight._debugReceivedAccumThreshold ? window.PriTestMidnight._debugReceivedAccumThreshold("発狂") : null);
+    await injectNote("madness_test", "（シナリオ終了まで「発狂」の蓄積最大値-2。GM画面の「個人の永続修正」でチェックすると自動適用される）");
+    await waitDetail(/發狂/);
+    await clickDetail(/發狂/);
+    await resolved("madness_test");
+    const madnessAfter = await pageA.evaluate(() => { const s = window.PriTestMidnight._debugState(); return { debuff: s.characters[s.myTokenId]._madnessAccumMaxDebuff, threshold: window.PriTestMidnight._debugReceivedAccumThreshold ? window.PriTestMidnight._debugReceivedAccumThreshold("発狂") : null }; });
+    assert(madnessAfter.debuff === 2 && (madnessBefore === null || madnessAfter.threshold === madnessBefore - 2), "發狂備註：_madnessAccumMaxDebuff=2、發狂門檻 −2（" + madnessBefore + "→" + madnessAfter.threshold + "）", { madnessBefore, madnessAfter });
+    // 触媒★★ → 選杖 → 清單多一筆 weaponStar(categoryId staff, value 2)
+    await injectNote("catalyst_test", "（「触媒：★★」1つ獲得。武器カタログに未対応のカテゴリのため個人紀錄へ手動反映）");
+    await waitDetail(/獲得杖/);
+    await clickDetail(/獲得杖/);
+    await resolved("catalyst_test");
+    const catalystReward = await pageA.evaluate(() => { const s = window.PriTestMidnight._debugState(); return Object.values(s.pendingRewards[s.myTokenId]).find((r) => r.kind === "weaponStar" && r.categoryId === "staff" && !r.resolved); });
+    assert(!!catalystReward && catalystReward.value === 2, "触媒★★：清單新增 weaponStar{categoryId:staff, value:2}", catalystReward);
+    // 清單會自動選第一筆未解決項目，先把剛推進來的抽選項目標記已處理，下一筆備註才會被選中
+    const clearUnresolved = () => pageA.evaluate((args) => { const s = window.PriTestMidnight._debugState(); const list = s.pendingRewards[s.myTokenId] || {}; return Promise.all(Object.keys(list).filter((k) => !list[k].resolved).map((k) => window.PriTestGameStorage.rtSet(args.gameId, "cloud", "pendingRewards/" + args.token + "/" + k + "/resolved", true))); }, { gameId: sA.gameId, token: tokenA });
+    await clearUnresolved();
+    // 商人購買：盧恩 5 → 買 ★★（盧恩 2）→ 剩 3、清單多一筆 weaponStar value 2
+    await pageA.evaluate((args) => window.PriTestGameStorage.rtSet(args.gameId, "cloud", "character/" + args.token + "/runes", 5), { gameId: sA.gameId, token: tokenA });
+    await waitFor(pageA, () => { const s = window.PriTestMidnight._debugState(); return s.characters[s.myTokenId].runes === 5; });
+    await injectNote("merchant_test", "ここでは商人（138頁）が利用できる。「ルーン：1」を消費するとPC全員が「武器：★」、「ルーン：2」を消費すると「武器：★★」、「ルーン：3」を消費すると「武器：★★★」を購入できる。");
+    await waitDetail(/購買武器/);
+    await clickDetail(/購買武器：★★（/);
+    await resolved("merchant_test");
+    await waitFor(pageA, () => { const s = window.PriTestMidnight._debugState(); return s.characters[s.myTokenId].runes === 3; }, null, 5000);
+    const merchantReward = await pageA.evaluate(() => { const s = window.PriTestMidnight._debugState(); return Object.values(s.pendingRewards[s.myTokenId]).filter((r) => r.kind === "weaponStar" && !r.categoryId && r.value === 2 && !r.resolved).length; });
+    assert(merchantReward === 1, "商人購買 ★★：盧恩 5→3、清單新增 weaponStar value 2", merchantReward);
+    await clearUnresolved();
+    // 護符 PC 人數分 → 自己清單多一筆 talisman
+    await injectNote("talisman_note_test", "（ボス戦闘撃破）「タリスマン」をPC人数と同じ数だけ獲得。GM判断でPC人数分を手動付与");
+    await waitDetail(/獲得護符/);
+    await clickDetail(/獲得護符/);
+    await resolved("talisman_note_test");
+    const talismanReward = await pageA.evaluate(() => { const s = window.PriTestMidnight._debugState(); return Object.values(s.pendingRewards[s.myTokenId]).filter((r) => r.kind === "talisman" && !r.resolved).length; });
+    assert(talismanReward >= 1, "護符備註：清單新增 talisman 抽選一筆", talismanReward);
+    // 清掉這些未抽選的獎勵，避免影響後面的潛在之力測試
+    await clearUnresolved();
     // 武器 6 把滿：潛在之力抽選後「選擇這個」武器鍵 disabled、顯示背包已滿
     const sixIds = await pageA.evaluate(() => { const s = window.PriTestMidnight._debugState(); const c = s.characters[s.myTokenId]; const base = c.weaponIds[0]; const out = c.weaponIds.slice(); while (out.length < 6) out.push(base + "::x" + out.length); return out; });
     await pageA.evaluate((args) => window.PriTestGameStorage.rtSet(args.gameId, "cloud", "character/" + args.token + "/weaponIds", args.ids), { gameId: sA.gameId, token: tokenA, ids: sixIds });
