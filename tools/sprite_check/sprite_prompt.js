@@ -8,6 +8,7 @@
 //
 //   node tools/sprite_check/sprite_prompt.js --format=anim-preamble  # 名鑑が返ってきた会話の軌道修正（1回）
 //   node tools/sprite_check/sprite_prompt.js --format=anim           # 1体1行の動畫表リクエスト
+//   node tools/sprite_check/sprite_prompt.js --format=frame-rule     # 「各行の1格目は前搖・招式圖なし」の追加指示（1回）
 //
 // prompt の骨格を1箇所に集約することで、60組の画風が散らからないようにする（spec §11）。
 //
@@ -66,6 +67,27 @@ const STYLE =
 const ROWS =
   "row order: 1 idle loop, 2 ranged straight attack, 3 wide area sweep, " +
   "4 forward thrust, 5 heavy overhead slam, 6 quick single strike, 7 hurt recoil, 8 death collapse";
+
+// 各行の 1 格目＝前搖（2026-09-21 使用者明確規格「各行的第一個要為前搖動作而不出現招式圖」）。
+//
+// 判定側の理由がある：enemy_sprite_data.js の hitFrame は 3~4 なので、0 格目は必ず前搖の
+// さなかにあたる。そこに斬撃光や飛び道具が既に描かれていると、プレイヤーには「もう当たった」
+// ように見えてしまい、spec §8.1 の「前搖 0.4~0.7 秒のあいだに読んで迴避を押す」という設計
+// そのものが成立しない。招式圖は 2 格目から出して 4~5 格目で最大になる、という時間配分を
+// prompt 側に書き下しておく。
+//
+// 攻擊でない 3 行（待機／受擊／死亡）にも同じ「1 格目は動き出す前」を適用する。行ごとに
+// 例外を作ると、生成側が「どの行が例外か」を取り違えて結局 1 格目に効果を描いてくる。
+const FRAME_RULE =
+  "first-frame rule for every row: the first (leftmost) cell is the WIND-UP only — " +
+  "the pose just before the action, with NO attack effect drawn in it: no slash arc, " +
+  "no weapon trail, no projectile, no beam, no muzzle flash, no magic circle or glow, " +
+  "no shockwave, no dust burst, no impact flash. The attack effect first appears in the " +
+  "SECOND cell and peaks around the fourth or fifth cell. On the idle row the first cell " +
+  "is the neutral resting pose; on the hurt and death rows it is the instant before the " +
+  "body reacts, still upright and undamaged. The player reads this first cell to decide " +
+  "whether to dodge, so its silhouette must telegraph which attack is coming while " +
+  "carrying no effect art at all";
 
 function membersOf(sheetId) {
   const out = [];
@@ -148,6 +170,8 @@ const PREAMBLE =
   STYLE +
   ", " +
   ROWS +
+  "\n\n" +
+  FRAME_RULE +
   "\n\nI will then send one short line per sheet, in the form:\n" +
   "  <filename> — subject: <what the creature is>\n" +
   "Reply with only the image for that sheet. Keep the style identical to the contract above.";
@@ -190,8 +214,35 @@ const ANIM_PREAMBLE =
   "checkerboard: one attempt came back as a 24-bit PNG (colour type 2, no alpha at all) " +
   "with the checkerboard baked in as real pixels, which puts a grey grid on screen in game. " +
   "No mottled backdrop, no gradient, no coloured haze either.\n" +
-  "6. No text, no labels, no cell borders, no grid lines, no drop shadow on the ground.\n\n" +
+  "6. No text, no labels, no cell borders, no grid lines, no drop shadow on the ground.\n" +
+  "7. " +
+  FRAME_RULE +
+  ".\n\n" +
   "Reply with only the image. I will send one creature per message, as:\n" +
+  "  <filename> — <creature>";
+
+// ---- 「各行の 1 格目は前搖」だけを追送するぶん（2026-09-21）----
+// 既に動畫表モードで回っている会話に、画風も造形も layout も触らずにこの 1 条だけを
+// 足すためのもの。ANIM_PREAMBLE を貼り直すと「名鑑になっている」という前提から
+// 始まってしまい、既に正しく回っている会話を混乱させる。
+const FRAME_PREAMBLE =
+  "One more rule for every animation sheet from here on. Everything else stays exactly " +
+  "as it is — art style, character designs, canvas size, cell layout, alpha channel.\n\n" +
+  "7. The FIRST cell of every row is the WIND-UP, and it must contain NO attack effect.\n" +
+  "   - The creature is loading the attack: weapon drawn back, weight shifted, mouth " +
+  "opening, magic gathering in the hands only.\n" +
+  "   - Draw nothing that is already the attack itself: no slash arc, no weapon trail, " +
+  "no projectile, no beam, no muzzle flash, no magic circle, no shockwave, no dust " +
+  "burst, no impact flash.\n" +
+  "   - The attack effect appears from the SECOND cell onward and peaks around the " +
+  "fourth or fifth cell.\n" +
+  "   - Idle row: the first cell is the neutral resting pose. Hurt and death rows: the " +
+  "first cell is the instant before the body reacts — still upright, no impact effect " +
+  "yet.\n\n" +
+  "Why this matters: in game the player watches that first cell to decide whether to " +
+  "dodge. If the effect is already on screen in cell 1, the attack reads as having " +
+  "already landed and there is nothing left to react to.\n\n" +
+  "Reply with only the image. I will keep sending one creature per message, as:\n" +
   "  <filename> — <creature>";
 
 if (format === "json") {
@@ -202,8 +253,10 @@ if (format === "json") {
       {
         style: STYLE,
         rows: ROWS,
+        frameRule: FRAME_RULE,
         preamble: PREAMBLE,
         animPreamble: ANIM_PREAMBLE,
+        framePreamble: FRAME_PREAMBLE,
         count: entries.length,
         sheets: entries,
       },
@@ -211,6 +264,9 @@ if (format === "json") {
       2
     )
   );
+} else if (format === "frame-rule") {
+  // 動畫表モードで回っている会話に、前搖の 1 条だけを追送するぶん。1 回だけ。
+  console.log(FRAME_PREAMBLE);
 } else if (format === "anim-preamble") {
   // 名鑑が返ってきた会話に投げて、動畫表モードに切り替えるぶん。1 回だけ。
   console.log(ANIM_PREAMBLE);
@@ -232,6 +288,7 @@ if (format === "json") {
   entries.forEach(function (e) {
     console.log("=== " + e.id + " -> " + e.file + " ===");
     console.log(STYLE + ", " + ROWS);
+    console.log(FRAME_RULE);
     console.log("subject: " + e.subject);
     console.log("");
   });
