@@ -1507,8 +1507,28 @@
   // 靈鳥）。斷線或重開頁面後，任何人（包含觀戰者）只要輸入該席位的密碼，就能把tokenId
   // 改成自己的、接手繼續操作——密碼本身也存在RTDB裡（沒有另外雜湊），這跟admin密碼
   // (games.js)一樣是低風險示範用途，不是正式帳號系統。
-  var MAX_PLAYERS = 3;
+  // 2026-09-22使用者明確規格「創立房間 特別提醒 建議人數3人；若進行4人 終傷x0.5、5人 x0.4、6人 x0.3；
+  // 進入遊戲後不會一次顯示六個空格，超過三個人只會一次最多多一格空格位置」：席位上限放寬到6，
+  // 建議人數維持3（等待房提示），第4人起套用PARTY_SIZE_DAMAGE_MULT（見partySizeDamageMult()），
+  // 席位清單只畫到「max(3, 已佔用+1)」格（見visibleSlotCount()）。
+  var MAX_PLAYERS = 6;
+  var RECOMMENDED_PLAYERS = 3;
+  var PARTY_SIZE_DAMAGE_MULT = { 4: 0.5, 5: 0.4, 6: 0.3 };
   var READY_COUNTDOWN_MS = 5000;
+
+  // 目前已入座人數對應的「終傷」倍率：3人以下1、4人0.5、5人0.4、6人0.3。人數看players/的
+  // 已佔用席位（不看在線），跟規則「進行N人」的字面一致；套在applyDamageToFieldEnemyHp()／
+  // damageFieldMobOnly()玩家對敵人傷害的最後一步（跟測試模式倍率同一個位置）。
+  function partySizeDamageMult() {
+    var n = occupiedSlots().length;
+    return PARTY_SIZE_DAMAGE_MULT[n] || 1;
+  }
+
+  // 席位清單要畫幾格：基本3格；已佔用達3人以上時只多開1格空位（上限MAX_PLAYERS），
+  // 不一次攤開6個空格。等待房與進場後的隊伍面板共用。
+  function visibleSlotCount() {
+    return Math.min(MAX_PLAYERS, Math.max(RECOMMENDED_PLAYERS, occupiedSlots().length + 1));
+  }
   var RESUME_COUNTDOWN_MS = 3000;
 
   // 角色選項直接沿用static_src/character_types.js既有的20個「night」角色（10個基礎＋
@@ -3210,7 +3230,8 @@
   function renderLobby() {
     var container = el("midnight-lobby-slots");
     container.innerHTML = "";
-    for (var i = 1; i <= MAX_PLAYERS; i++) {
+    var visibleSlots = visibleSlotCount(); // 2026-09-22：不一次攤開6格，見visibleSlotCount()
+    for (var i = 1; i <= visibleSlots; i++) {
       var slot = String(i);
       var p = players[slot];
       var card = document.createElement("div");
@@ -3236,6 +3257,16 @@
 
     var isFull = occupiedSlots().length >= MAX_PLAYERS;
     el("midnight-lobby-spectator-note").hidden = !(isFull && !mySlot);
+    // 目前人數超過建議人數時，顯示對應的終傷倍率（2026-09-22，見PARTY_SIZE_DAMAGE_MULT）。
+    var partyNow = occupiedSlots().length;
+    var partyCurrentEl = el("midnight-lobby-party-size-current");
+    if (partyCurrentEl) {
+      var overRecommended = partyNow > RECOMMENDED_PLAYERS;
+      partyCurrentEl.hidden = !overRecommended;
+      if (overRecommended) {
+        partyCurrentEl.textContent = window.I18N.t("midnight_lobby_party_size_current", { count: partyNow, mult: partySizeDamageMult() });
+      }
+    }
 
     var readyBtn = el("btn-midnight-lobby-ready");
     var leaveBtn = el("btn-midnight-lobby-leave");
@@ -3631,7 +3662,8 @@
     var container = el("midnight-players-panel-slots");
     if (!container) return;
     container.innerHTML = "";
-    for (var i = 1; i <= MAX_PLAYERS; i++) {
+    var visibleSlots = visibleSlotCount(); // 2026-09-22：進場後也只多開1格空位，見visibleSlotCount()
+    for (var i = 1; i <= visibleSlots; i++) {
       var slot = String(i);
       var p = players[slot];
       var card = document.createElement("div");
@@ -4665,6 +4697,8 @@
       hpValueUsed = hpValue;
     }
     realDamage = Math.round(realDamage * testMult("pcDmgMult"));
+    // 人數終傷倍率（2026-09-22，見PARTY_SIZE_DAMAGE_MULT）：4人×0.5／5人×0.4／6人×0.3，跟測試倍率同一步。
+    realDamage = Math.round(realDamage * partySizeDamageMult());
     // 2026-09-11使用者明確規格「敵人最低遭受傷害還是會扣1點血量（HP價值100時也有基本傷害）」：
     // 減傷率100%或四捨五入後歸零時，至少扣1。原本amount就是0（例如無法解算威力的招式）時
     // 不套用——那代表「這次本來就沒有傷害」，不是被減傷吃掉。
@@ -7220,10 +7254,14 @@
   // 溢出鏈）。沒有雜兵存活時呼叫端本來就不會叫用這個函式，這裡的cur<=0保底只是避免
   // transaction重試時的競態把已死雜兵扣成負數。
   function damageFieldMobOnly(pointId, amount) {
+    // 人數終傷倍率（2026-09-22，見partySizeDamageMult()）：雜兵也是玩家對敵人的傷害，同樣套用；
+    // 原本有傷害時至少扣1，避免倍率把小額傷害整個吃掉。
+    var scaled = Math.round(amount * partySizeDamageMult());
+    if (amount > 0 && scaled < 1) scaled = 1;
     GameStorage.rtTransaction(gameId, "cloud", "fieldMobHp/" + pointId, function (cur) {
       var current = cur === null ? 0 : cur;
       if (current <= 0) return cur;
-      var next = current - amount;
+      var next = current - scaled;
       return next < 0 ? 0 : next;
     });
   }
@@ -14191,9 +14229,25 @@
       );
       return;
     }
-    if (!mySlot || autoFly || trig.status !== "resolved" || fledEncounterIds[BATTLE_SIM_POINT_ID]) {
+    if (!mySlot || autoFly || trig.status !== "resolved") {
       nearbyBattleSim = null;
       return;
+    }
+    // 逃離戰鬥模擬（2026-09-22修正）：一般遭遇是「走出所有觸發範圍」才由recomputeActiveEncounter()清掉
+    // fled／confirmed記錄、再靠近才出現［進入戰鬥］；戰鬥模擬沒有地圖點可以走開，而出生點若剛好
+    // 落在某個板塊點的觸發半徑內，那個點會一直是候選、逃離狀態永遠清不掉、再也進不了戰鬥。
+    // 這裡把「逃離」視同「已經走開」：下一影格就清掉這個點的逃離／確認記錄，讓既有的
+    // ［進入戰鬥］讀條流程（自己已不在participants裡）自然接手。
+    // 要等「自己已從participants移除」真的從RTDB回來再放行，否則本地還看得到自己是participant的
+    // 那幾影格會被當成「第一次遭遇」直接走識別準備、不經［進入戰鬥］就回到戰鬥。
+    if (fledEncounterIds[BATTLE_SIM_POINT_ID]) {
+      if (trig.participants && trig.participants[mySlot]) {
+        nearbyBattleSim = null;
+        return;
+      }
+      delete fledEncounterIds[BATTLE_SIM_POINT_ID];
+      delete confirmedEncounterIds[BATTLE_SIM_POINT_ID];
+      if (pendingBattleReentry && pendingBattleReentry.id === BATTLE_SIM_POINT_ID) pendingBattleReentry = null;
     }
     nearbyBattleSim = { id: BATTLE_SIM_POINT_ID, x: localPos ? localPos.x : 0, y: localPos ? localPos.y : 0 };
   }
@@ -24101,6 +24155,9 @@
     // 2026-09-22 戰鬥模擬回歸測試用（tools/midnight_check/battle_sim_check.js）：期望的敵人
     // HP 上限從資料算出來、不硬編（CLAUDE.md §4.7 原則）。
     // 2026-09-22：地變備註「発狂の蓄積最大値-2」的回歸測試用（見battle_sim_check.js ⑯）。
+    _debugPartySizeDamageMult: function () {
+      return partySizeDamageMult();
+    },
     _debugReceivedAccumThreshold: function (name) {
       return receivedAccumThreshold(characters[myTokenId], name);
     },

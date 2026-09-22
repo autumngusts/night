@@ -60,6 +60,11 @@ BODY = """    <div class="midnight-wrap">
           <button type="button" id="btn-midnight-flow-intro-open" data-i18n="midnight_flow_intro_open_button"></button>
         </div>
         <h2 data-i18n="midnight_lobby_title"></h2>
+        <!-- 人數提醒（2026-09-22使用者明確規格「創立房間 特別提醒 建議人數3人；若進行4人 終傷x0.5、
+             5人 x0.4、6人 x0.3」）：固定提示＋目前人數對應倍率（超過3人時由renderLobby()改寫），
+             倍率本體見static/midnight.jsのPARTY_SIZE_DAMAGE_MULT／partySizeDamageMult()。 -->
+        <p id="midnight-lobby-party-size-note" class="warning-text" data-i18n="midnight_lobby_party_size_note"></p>
+        <p id="midnight-lobby-party-size-current" class="warning-text" hidden></p>
         <div id="midnight-lobby-slots"></div>
         <div id="midnight-lobby-join-form" hidden>
           <div class="wb-row">

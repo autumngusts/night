@@ -113,7 +113,8 @@ const state = (page) => page.evaluate(() => window.PriTestMidnight._debugState()
     await pageB.fill("#midnight-lobby-passcode-input", "5678");
     await pageB.click("#btn-midnight-lobby-join");
     await waitFor(pageB, () => window.PriTestMidnight._debugState().mySlot === "2");
-    await waitFor(pageB, () => document.querySelector("#midnight-late-join-modal").hidden);
+    // mySlot 是 RTDB 訂閱先回來就會設，localPos 要等 transaction 的 .then 跑 enterGameAsLateJoiner()，兩者差幾十毫秒
+    await waitFor(pageB, () => !!window.PriTestMidnight._debugState().localPos && document.querySelector("#midnight-late-join-modal").hidden);
     const sB = await state(pageB);
     const pB = sB.players["2"];
     assert(pB && pB.name === "LateB" && pB.passcode === "5678" && pB.tokenId === sB.myTokenId, "players/2 ＝ {LateB, 5678, 自己的 tokenId}", pB);

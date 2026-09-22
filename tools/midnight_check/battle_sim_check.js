@@ -135,6 +135,35 @@ async function unlockTestMode(page) {
     await pageA.evaluate((gameId) => window.PriTestGameStorage.rtSet(gameId, "cloud", "meta/testTuning/enemyAtkMult", 0), (await state(pageA)).gameId);
     await waitFor(pageA, () => (window.PriTestMidnight._debugState().meta.testTuning || {}).enemyAtkMult === 0);
 
+    console.log("=== ⑰ 人數上限 6／建議 3 人提示／4 人起終傷倍率／席位只多開一格 ===");
+    // 2026-09-22 使用者明確規格「創立房間 特別提醒 建議人數3人；4人 終傷x0.5、5人 x0.4、6人 x0.3；
+    // 進入遊戲後不會一次顯示六個空格，超過三個人只會一次最多多一格空格位置」
+    const lobby2 = await pageA.evaluate(() => ({
+      slots: document.querySelectorAll("#midnight-lobby-slots .midnight-slot-card").length,
+      note: document.querySelector("#midnight-lobby-party-size-note").textContent,
+      currentHidden: document.querySelector("#midnight-lobby-party-size-current").hidden,
+      mult: window.PriTestMidnight._debugPartySizeDamageMult(),
+    }));
+    assert(lobby2.slots === 3 && /建議人數 3 人/.test(lobby2.note) && lobby2.currentHidden && lobby2.mult === 1, "2 人時：3 格、固定提示顯示、無倍率提示、終傷 ×1", lobby2);
+    const gameId1 = (await state(pageA)).gameId;
+    const fakeSlot = (n) => pageA.evaluate((args) => window.PriTestGameStorage.rtSet(args.gameId, "cloud", "players/" + args.n, { name: "fake" + args.n, characterId: "tracker", passcode: "0000", tokenId: "fake" + args.n, ready: false }), { gameId: gameId1, n });
+    await fakeSlot(3);
+    await waitFor(pageA, () => document.querySelectorAll("#midnight-lobby-slots .midnight-slot-card").length === 4);
+    const lobby3 = await pageA.evaluate(() => ({ mult: window.PriTestMidnight._debugPartySizeDamageMult(), currentHidden: document.querySelector("#midnight-lobby-party-size-current").hidden }));
+    assert(lobby3.mult === 1 && lobby3.currentHidden, "3 人時：多開 1 格（共 4 格）、終傷 ×1", lobby3);
+    await fakeSlot(4);
+    await waitFor(pageA, () => document.querySelectorAll("#midnight-lobby-slots .midnight-slot-card").length === 5);
+    const lobby4 = await pageA.evaluate(() => ({ mult: window.PriTestMidnight._debugPartySizeDamageMult(), current: document.querySelector("#midnight-lobby-party-size-current").textContent, currentHidden: document.querySelector("#midnight-lobby-party-size-current").hidden }));
+    assert(lobby4.mult === 0.5 && !lobby4.currentHidden && /4 人.*0\.5/.test(lobby4.current), "4 人時：5 格、終傷 ×0.5、倍率提示顯示", lobby4);
+    await fakeSlot(5);
+    await fakeSlot(6);
+    await waitFor(pageA, () => window.PriTestMidnight._debugPartySizeDamageMult() === 0.3);
+    const lobby6 = await pageA.evaluate(() => ({ slots: document.querySelectorAll("#midnight-lobby-slots .midnight-slot-card").length, spectatorHidden: document.querySelector("#midnight-lobby-spectator-note").hidden }));
+    assert(lobby6.slots === 6, "6 人時：6 格（上限）、終傷 ×0.3", lobby6);
+    for (const n of [3, 4, 5, 6]) await pageA.evaluate((args) => window.PriTestGameStorage.rtSet(args.gameId, "cloud", "players/" + args.n, null), { gameId: gameId1, n });
+    await waitFor(pageA, () => document.querySelectorAll("#midnight-lobby-slots .midnight-slot-card").length === 3 && window.PriTestMidnight._debugPartySizeDamageMult() === 1);
+    assert(true, "假席位移除後回到 3 格、終傷 ×1");
+
     console.log("=== ① 密碼錯誤／取消都不會寫入 meta.battleSim ===");
     const hintBefore = await pageA.textContent("#midnight-lobby-battle-sim-status");
     const btnBefore = await pageA.textContent("#btn-midnight-lobby-battle-sim");
