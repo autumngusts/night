@@ -64,9 +64,20 @@ const STYLE =
   "character occupies roughly 80% of the cell height and is centred in its cell, " +
   "no text, no frame borders, no ground shadow, no background elements, no colour variation " +
   "between cells of the same sheet";
+// 2026-09-23 使用者明確規格で行 5（重砸）と行 6（單擊）の中身が確定した：
+//   重砸＝「跳起後重砸地面」＝跳び上がってから地面へ叩きつける（空中の影格が要る）
+//   單擊＝「遠程 shoot」＝遠距離への射撃（行 2 の直線と違い、1 体を狙う単発の弾）
+// 行 2（直線）と行 6（單擊）がどちらも遠距離になるので、prompt 側で「線に沿って伸びる
+// ブレス／ビーム」と「1 体を狙う単発の飛び道具」を書き分けておく。ここを曖昧にすると
+// 生成側が 2 行とも同じ絵にしてしまい、動畫の区別が付かなくなる。
 const ROWS =
-  "row order: 1 idle loop, 2 ranged straight attack, 3 wide area sweep, " +
-  "4 forward thrust, 5 heavy overhead slam, 6 quick single strike, 7 hurt recoil, 8 death collapse";
+  "row order: 1 idle loop, " +
+  "2 straight-line ranged attack — a beam, breath or wave that extends in a straight line away from the body, " +
+  "3 wide area sweep, " +
+  "4 forward thrust, " +
+  "5 leap upward and smash straight down into the ground — airborne in the middle cells, landing impact with cracked ground and dust burst in the last cells, " +
+  "6 single ranged shot at one distant target — the creature aims and fires ONE projectile (arrow, bolt, spit, thrown stone or focused magic dart), it does not step into melee, " +
+  "7 hurt recoil, 8 death collapse";
 
 // 各行の 1 格目＝前搖（2026-09-21 使用者明確規格「各行的第一個要為前搖動作而不出現招式圖」）。
 //
@@ -277,6 +288,29 @@ const FRAME_PREAMBLE =
   "Reply with only the image. I will keep sending one creature per message, as:\n" +
   "  <filename> — <creature>";
 
+// 行 5（重砸）／行 6（單擊）の中身だけを、既に回っている会話へ追送するぶん（2026-09-23）。
+// 画風も造形も canvas も触らない。ANIM_PREAMBLE を貼り直すと「名鑑になっている」前提から
+// 始まってしまうので、FRAME_PREAMBLE と同じく 1 条だけの短いものを別に用意する。
+const ROWS_PREAMBLE =
+  "A correction to what rows 5 and 6 mean. Everything else stays exactly as it is — " +
+  "art style, character designs, canvas size, cell layout, alpha channel, and the " +
+  "first-cell wind-up rule.\n\n" +
+  "Row 5 is NOT a plain overhead swing. The creature LEAPS UP and SMASHES STRAIGHT DOWN " +
+  "into the ground: cells 1-2 crouch and launch, cells 3-4 are airborne with the body " +
+  "clearly off the ground, cells 5-6 are the landing — the impact cracks the ground and " +
+  "throws up a dust burst.\n\n" +
+  "Row 6 is NOT a melee strike. It is a SINGLE RANGED SHOT at one distant target: the " +
+  "creature plants itself, aims, and fires ONE projectile — an arrow, bolt, spit, thrown " +
+  "stone or focused magic dart. It must not step forward into melee range.\n\n" +
+  "For contrast, row 2 stays the other kind of ranged attack: a beam, breath or wave " +
+  "that extends in a straight LINE away from the body and stays connected to it. " +
+  "Row 2 is a continuous line, row 6 is one separate projectile — they must not look " +
+  "like the same attack.\n\n" +
+  "So the eight rows are:\n  " +
+  ROWS.replace("row order: ", "") +
+  "\n\nReply with only the image. I will keep sending one creature per message, as:\n" +
+  "  <filename> — <creature>";
+
 if (format === "json") {
   // 自前のスクリプトや API から回すとき用。style / rows / preamble を分けて持たせるので、
   // 「毎回 style を足す」も「preamble を 1 回だけ流して短い行を 60 回」もどちらも組める。
@@ -289,6 +323,7 @@ if (format === "json") {
         preamble: PREAMBLE,
         animPreamble: ANIM_PREAMBLE,
         framePreamble: FRAME_PREAMBLE,
+        rowsPreamble: ROWS_PREAMBLE,
         count: entries.length,
         sheets: entries,
       },
@@ -296,6 +331,9 @@ if (format === "json") {
       2
     )
   );
+} else if (format === "rows") {
+  // 行 5／6 の中身だけを追送するぶん。1 回だけ。
+  console.log(ROWS_PREAMBLE);
 } else if (format === "frame-rule") {
   // 動畫表モードで回っている会話に、前搖の 1 条だけを追送するぶん。1 回だけ。
   console.log(FRAME_PREAMBLE);
