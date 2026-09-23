@@ -102,9 +102,19 @@ enemyAttack 產生 → ⚠ 閃爍 0.5 秒（ENEMY_ATTACK_WARN_MS）
 | 類別 | 組數 |
 | --- | --- |
 | 一般敵人 | 25 系統 × 2 變體 = 50 |
+| 個別敵人專屬（2026-09-23 追加） | 14 |
 | 夜王 | 10 |
 | 夜王的形態別（2026-09-22 追加） | 2（gladius 分裂／harmonia 第二形態） |
-| **合計** | **62** |
+| **合計** | **76** |
+
+**個別敵人專屬 sheet**（2026-09-23）：系統 sheet 是「一張代表整個系統」，但部分敵人
+已另外畫了自己的圖，此時用 `enemy_<familyId>_<enemyId>`。`sheetIdForEnemy()` 在專屬圖
+**已產出**時回傳它，否則退回系統 sheet——與 `sheetIdForBoss()` 的形態別同一個作法。
+系統 sheet 仍是該系統所有成員（含已有專屬圖者）的代役來源，因此成員一覽不從這裡扣除。
+
+只有在「系統 sheet 已經是別隻敵人的絵」時才開專屬 sheet。若該敵人是變體的唯一成員，
+或變體尚未產出，直接把絵放進系統 sheet——否則同一張絵會存兩份，而且系統 sheet 會變成
+沒有任何敵人引用的死檔。清單寫在 `sprite_registry_gen.js` 的 `ENEMY_OWN`。
 
 **形態別 sheet**（2026-09-22 使用者明確規格「確保有些敵人會有不同型態，產生兩種以上點陣圖」）：
 
@@ -159,7 +169,7 @@ enemyAttack 產生 → ⚠ 閃爍 0.5 秒（ENEMY_ATTACK_WARN_MS）
 | 第 1 格 | 每行最左格只畫前搖，不畫招式圖（見 §5.5） |
 | 朝向 | 一律繪製朝左，朝右以 CSS `scaleX(-1)` 翻轉 |
 | 背景 | 透明 PNG |
-| 命名 | `family_<familyId>_<a\|b>.png` ／ `boss_<bossId>.png` |
+| 命名 | `family_<familyId>_<a\|b>.png` ／ `enemy_<familyId>_<enemyId>.png` ／ `boss_<bossId>.png` |
 
 單格尺寸與色階由第一組實圖回頭校正後定案（見 §10 階段 2），規格文件 `tools/sprite_spec.md`
 為生成端與驗收端的共同依據。

@@ -14,6 +14,20 @@ vm.createContext(sandbox);
 ["enemy_sprite_data.js", "enemy_sprite_registry.js", "midnight_sprite.js"].forEach(function (f) {
   vm.runInContext(fs.readFileSync(path.join(ROOT, "static_src", f), "utf8"), sandbox, { filename: f });
 });
+["1", "2", "3", "4"].forEach(function (n) {
+  vm.runInContext(
+    fs.readFileSync(path.join(ROOT, "static_src", "enemies_data_" + n + ".js"), "utf8"),
+    sandbox,
+    { filename: "enemies_data_" + n + ".js" }
+  );
+});
+const FAMILIES = [].concat(
+  sandbox.window.PriTestEnemiesData1,
+  sandbox.window.PriTestEnemiesData2,
+  sandbox.window.PriTestEnemiesData3,
+  sandbox.window.PriTestEnemiesData4
+);
+const R = sandbox.window.PriTestEnemySpriteRegistry;
 const P = sandbox.window.PriTestMidnightSprite;
 let fail = 0;
 function ok(cond, label) {
@@ -41,11 +55,27 @@ ok(P.backgroundPosition("thrust", 1, 128) === "-128px -384px", "thrust(row3) 第
 // 階段1 では「まだ 1 枚も無い」前提で dragon/maris を null 判定の材料に使っていたが、
 // その 2 つは実素材が入ったので材料として使えない。まだ産出していない sheet を選び直す。
 // fallback 契約そのもの（available:false → null → 静止画のまま）は変わっていない。
+//
+// 2026-09-23：ここも固定で敵を書かない形に直した。dragon/hill_wyvern と書いていたら
+// family_dragon_b の絵が入った日に落ちた（夜王側で同じことが起きて直したのと同じ失敗）。
+// 未產出の sheet に解決する敵を実データから 1 隻拾う。
 console.log("[fallback 契約]");
-ok(
-  P.sheetFileFor("dragon", "hill_wyvern", false) === null,
-  "未産出の family は null（静止画に落ちる）"
-);
+var pendingEnemy = null;
+FAMILIES.forEach(function (f) {
+  f.enemies.forEach(function (e) {
+    if (pendingEnemy) return;
+    const s = R.getSheet(R.sheetIdForEnemy(f.id, e.id));
+    if (s && !s.available) pendingEnemy = { fam: f.id, id: e.id, sheet: s.id };
+  });
+});
+if (pendingEnemy) {
+  ok(
+    P.sheetFileFor(pendingEnemy.fam, pendingEnemy.id, false) === null,
+    "未産出の family は null（静止画に落ちる）（" + pendingEnemy.sheet + "）"
+  );
+} else {
+  console.log("  --   一般敵は全て產出済み（未産出時の fallback は確かめられない）");
+}
 ok(P.sheetFileFor("no_such_family", "no_such_enemy", false) === null, "未登録も null");
 // 「まだ產出されていない夜王」は固定で書かない——素材が入るたびにこの行が落ちる
 // （実際 caligo を書いていて、caligo の sheet が入った日に落ちた）。登錄表から
@@ -165,21 +195,8 @@ ok(!!availFiles[sub1], "代役は available:true の sheet から選ばれてい
 // 其他敵人 boss另外抽選其他夜王點陣圖」：全 149 隻＋夜王 10 隻が必ず何かの sheet に解決し、
 // 一般敵の代役は family_* だけ、夜王の代役は boss_* だけから選ばれる。同系統の別変体が
 // 產出済みならそれを優先する。
+// FAMILIES／R は冒頭で読み込んである（fallback 契約の材料を実データから選ぶため）。
 console.log("[全敵の連結と種類の分離]");
-["1", "2", "3", "4"].forEach(function (n) {
-  vm.runInContext(
-    fs.readFileSync(path.join(ROOT, "static_src", "enemies_data_" + n + ".js"), "utf8"),
-    sandbox,
-    { filename: "enemies_data_" + n + ".js" }
-  );
-});
-const FAMILIES = [].concat(
-  sandbox.window.PriTestEnemiesData1,
-  sandbox.window.PriTestEnemiesData2,
-  sandbox.window.PriTestEnemiesData3,
-  sandbox.window.PriTestEnemiesData4
-);
-const R = sandbox.window.PriTestEnemySpriteRegistry;
 let enemyTotal = 0;
 let unresolved = [];
 let mixed = [];
@@ -189,12 +206,14 @@ FAMILIES.forEach(function (f) {
     enemyTotal++;
     const file = P.sheetFileOrSubstitute(f.id, e.id, false);
     if (!file) unresolved.push(f.id + "/" + e.id);
-    else if (!/^family_/.test(file)) mixed.push(f.id + "/" + e.id + "→" + file);
+    // 一般敵に許されるのは family_*（系統の代表）と enemy_*（個別敵人專屬、2026-09-23）。
+    // 禁じたいのは夜王 sheet が混ざること。
+    else if (!/^(family|enemy)_/.test(file)) mixed.push(f.id + "/" + e.id + "→" + file);
     if (file && !P.sheetFileFor(f.id, e.id, false)) substituted++;
   });
 });
 ok(enemyTotal === 149 && unresolved.length === 0, "一般敵 149 隻すべてが sheet に解決" + (unresolved.length ? " / 未解決: " + unresolved.slice(0, 3).join("、") : ""));
-ok(mixed.length === 0, "一般敵の代役は family_* のみ（夜王 sheet を混ぜない）" + (mixed.length ? " / " + mixed[0] : ""));
+ok(mixed.length === 0, "一般敵の sheet は family_*／enemy_* のみ（夜王 sheet を混ぜない）" + (mixed.length ? " / " + mixed[0] : ""));
 console.log("  --   一般敵：自分の sheet " + (enemyTotal - substituted) + " 隻／代役 " + substituted + " 隻");
 const BOSSES = ["maris", "fulghor", "harmonia", "gladius", "gnoster", "caligo", "libra", "edele", "stragedes", "nameless"];
 const bossUnresolved = [];

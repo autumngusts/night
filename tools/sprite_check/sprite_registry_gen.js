@@ -30,6 +30,57 @@ const FAMILIES = [].concat(
 // 機制保留給未來真正的個別例外，但目前應為空
 const OVERRIDES = {};
 
+// 個別敵人專屬 sheet（2026-09-23 使用者提供的 22 張生成物）。
+//
+// 系統 sheet（family_<id>_a／_b）是「1 張代表整個系統」，同系統的其他敵人共用它。
+// 這裡列出的敵人則是「這一隻有自己的絵」，sheet id 為 enemy_<familyId>_<enemyId>。
+//
+// 未產出のあいだは系統 sheet に戻る（登錄表側の sheetIdForEnemy() が available まで見る）
+// ——夜王の形態別 sheet と同じ考え方で、絵が無い間に 404 を出さないため。
+//
+// ここに並べるのは「系統 sheet が既に別の敵の絵で埋まっている」場合だけにする。
+// その変体の唯一の成員だったり、変体がまだ未產出なら、専用 sheet を作らずに
+// 系統 sheet そのものへ絵を入れたほうがよい——同じ絵を 2 枚持つことになるし、
+// 系統 sheet が誰にも使われない死んだファイルになる。
+const ENEMY_OWN = [
+  "golem_maiden_puppet/guardian_golem",
+  "golem_maiden_puppet/kidnapper_maiden_puppets",
+  "cavalry/tree_guard_capital_cavalry",
+  "formless_other/miranda_flowers",
+  "undead/graveyard_shades",
+  "crustacean/big_crabs",
+  "demihuman_beastfolk_club/lion_hybrids",
+  "warrior_swordsman/stoneskin_kings",
+  "warrior_swordsman/divine_beast_warriors",
+  "warrior_swordsman/divine_bird_warrior",
+  "mage_messenger/oracle_envoys",
+  "crystal_puppet/crystal_people",
+  "rock_spirit_beast/golden_hippo",
+  "imp_watchdog_gargoyle/black_blade_kindred",
+  // 2026-09-23 第2バッチ
+  "cavalry/carian_royal_guard",
+  "troll_dragonkin_wormface/nox_dragonkin_soldier",
+  "rat_basilisk/finger_bugs",
+  "dragon/great_earth_dragon",
+  "dragon/gluttonous_dragon",
+  "strong_type/loathed_demon",
+  "strong_type/divine_skin_apostles",
+  "strong_type/blood_lord",
+  "soldier_knight/battlefield_veteran",
+  "soldier_knight/death_knight",
+  "soldier_knight/hound_knight",
+  "soldier_knight/bell_bearing_hunter",
+  "grafted/grafted_lord",
+  "rock_spirit_beast/dark_offspring",
+  "rock_spirit_beast/sacred_beast_lion_dance",
+  "rock_spirit_beast/falling_star_beast",
+  "big_dog_bear/old_lions"
+];
+
+function ownSheetIdFor(key) {
+  return "enemy_" + key.replace("/", "_");
+}
+
 const BOSSES = [
   "maris", "fulghor", "harmonia", "gladius", "gnoster",
   "caligo", "libra", "edele", "stragedes", "nameless"
@@ -115,7 +166,11 @@ function loadExisting() {
   reg.listSheets().forEach(function (s) {
     available[s.id] = !!s.available;
   });
-  return { available: available, sheetIdForEnemy: reg.sheetIdForEnemy };
+  return {
+    available: available,
+    sheetIdForEnemy: reg.sheetIdForEnemy,
+    familySheetIdForEnemy: reg.familySheetIdForEnemy
+  };
 }
 
 const EXISTING = loadExisting();
@@ -127,12 +182,34 @@ function availableFor(sheetId) {
 
 const assign = [];
 let changedAssign = 0;
+const knownKeys = {};
 FAMILIES.forEach(function (f) {
   f.enemies.forEach(function (e, i) {
+    const key = f.id + "/" + e.id;
+    knownKeys[key] = true;
     const sheetId = "family_" + f.id + "_" + variantFor(f, e, i);
-    assign.push('    "' + f.id + "/" + e.id + '": "' + sheetId + '"');
-    if (EXISTING && EXISTING.sheetIdForEnemy(f.id, e.id) !== sheetId) changedAssign++;
+    assign.push('    "' + key + '": "' + sheetId + '"');
+    // 比べる相手は「系統への割当」。sheetIdForEnemy() は專屬 sheet を優先して返すように
+    // なったので（2026-09-23）、そちらと比べると專屬 sheet を持つ敵が毎回「変更あり」に
+    // 数えられてしまう。familySheetIdForEnemy() が無いのは專屬 sheet 導入前の登錄表。
+    if (EXISTING) {
+      const prevFn = EXISTING.familySheetIdForEnemy || EXISTING.sheetIdForEnemy;
+      if (prevFn(f.id, e.id) !== sheetId) changedAssign++;
+    }
   });
+});
+
+// 綴り間違いをここで止める。登錄表に書けてしまうと、どの敵にも結び付かない sheet が
+// 1 枚増えるだけで、check も verify も通ってしまう（ファイル名は自分で決めた名前なので）。
+const unknownOwn = ENEMY_OWN.filter(function (k) {
+  return !knownKeys[k];
+});
+if (unknownOwn.length) {
+  console.error("ENEMY_OWN に enemies_data に無い鍵がある: " + unknownOwn.join("、"));
+  process.exit(1);
+}
+const own = ENEMY_OWN.map(function (k) {
+  return '    "' + k + '": "' + ownSheetIdFor(k) + '"';
 });
 
 const sheets = [];
@@ -146,6 +223,9 @@ FAMILIES.forEach(function (f) {
   ["a", "b"].forEach(function (v) {
     pushSheet("family_" + f.id + "_" + v);
   });
+});
+ENEMY_OWN.forEach(function (k) {
+  pushSheet(ownSheetIdFor(k));
 });
 BOSSES.forEach(function (b) {
   pushSheet("boss_" + b);
@@ -163,17 +243,34 @@ const out =
   "  // available 是「圖片是否已產出」。false 期間 midnight_sprite.js 會 fallback 到既有的\n" +
   "  // 靜止畫（spec §4）。圖片放進來之後由 sprite_pack.js 改寫成 true；重新產生登錄表時\n" +
   "  // 產生器會逐 sheet 沿用這裡既有的值，不會把已驗收的成果歸零。\n" +
+  "  //\n" +
+  "  // sheet は 3 種類：family_*（系統の代表 1 張）／enemy_*（個別敵人專屬）／boss_*（夜王）。\n" +
   "  var SHEETS = [\n" +
   sheets.join(",\n") +
   "\n  ];\n\n" +
   "  var ENEMY_SHEET = {\n" +
   assign.join(",\n") +
   "\n  };\n\n" +
+  "  // 自分だけの絵を持つ敵（2026-09-23）。系統 sheet は 1 張が系統全体を代表する絵なので、\n" +
+  "  // 個別に絵を起こした敵はこちらを優先する。available:false のあいだは系統 sheet に戻る。\n" +
+  "  var ENEMY_OWN_SHEET = {\n" +
+  own.join(",\n") +
+  "\n  };\n\n" +
   "  function listSheets() {\n    return SHEETS;\n  }\n\n" +
   "  function getSheet(sheetId) {\n" +
   "    return (\n      SHEETS.filter(function (s) {\n        return s.id === sheetId;\n      })[0] || null\n    );\n  }\n\n" +
-  "  function sheetIdForEnemy(familyId, enemyId) {\n" +
+  "  // 系統への割当だけを返す（專屬 sheet を見ない）。系統 sheet の成員一覧や、\n" +
+  "  // 「空の変体を作っていないか」の検査はこちらを使う。\n" +
+  "  function familySheetIdForEnemy(familyId, enemyId) {\n" +
   '    return ENEMY_SHEET[familyId + "/" + enemyId] || null;\n  }\n\n' +
+  "  // 表現層が使うのはこちら。專屬 sheet が產出済みならそれを、無ければ系統 sheet を返す。\n" +
+  "  function sheetIdForEnemy(familyId, enemyId) {\n" +
+  '    var own = ENEMY_OWN_SHEET[familyId + "/" + enemyId];\n' +
+  "    if (own) {\n" +
+  "      var ownSheet = getSheet(own);\n" +
+  "      if (ownSheet && ownSheet.available) return own;\n" +
+  "    }\n" +
+  "    return familySheetIdForEnemy(familyId, enemyId);\n  }\n\n" +
   "  // form（state.battle.bossForm と同じ文字列）を渡すと、その形態専用の sheet を優先する。\n" +
   "  // 專用 sheet が未產出のときは既定の boss_<id> に戻す——代役（別の夜王の絵）を出すより、\n" +
   "  // 同じ夜王の別形態の絵を出すほうが明らかに近い。\n" +
@@ -187,6 +284,7 @@ const out =
   "  window.PriTestEnemySpriteRegistry = {\n" +
   "    listSheets: listSheets,\n" +
   "    getSheet: getSheet,\n" +
+  "    familySheetIdForEnemy: familySheetIdForEnemy,\n" +
   "    sheetIdForEnemy: sheetIdForEnemy,\n" +
   "    sheetIdForBoss: sheetIdForBoss\n" +
   "  };\n" +

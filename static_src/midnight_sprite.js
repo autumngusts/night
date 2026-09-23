@@ -46,6 +46,11 @@
   // family sheet 挑、夜王（boss_*）只從產出済みの boss sheet 挑，不會互相混用。
   // 一般敵人再多一層優先：同系統的另一個變體（family_x_a ↔ family_x_b）若已產出，
   // 優先當代役（同系統的外型最接近）；沒有才退到雜湊抽選。
+  // 2026-09-23：個別敵人專屬 sheet（enemy_*）が加わった。代役を選ぶ側から見ると
+  // これも「一般敵の絵」なので、boss_* でなければ候補に入れる——BOSS_SHEET_RE の
+  // 否定でそのまま拾えるので、ここは足さない。
+  // なお sheetIdForEnemy() は專屬 sheet が未產出なら系統 sheet を返すので、ここへ
+  // 渡ってくる key は family_* のまま。同系統の別変体を優先する下の分岐は効き続ける。
   var BOSS_SHEET_RE = /^boss_/;
   var FAMILY_VARIANT_RE = /^(family_.+)_([ab])$/;
 

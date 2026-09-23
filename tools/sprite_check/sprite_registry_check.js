@@ -3,7 +3,7 @@
 //   node tools/sprite_check/sprite_registry_check.js
 //
 // 驗證 5 點（spec §5.1／§5.2）：
-//   ① sheet は 62 組（25 系統 × 2 ＋ 夜王 10 ＋ 絵を別に持つ多形態 2 隻の第二形態）
+//   ① sheet は 93 組（25 系統 × 2 ＋ 個別敵人專屬 31 ＋ 夜王 10 ＋ 絵を別に持つ多形態 2 隻の第二形態）
 //   ② enemies_data の 149 隻すべてが、いずれかの sheet に帰属している
 //   ③ 各系統がちょうど 2 組を持ち、両方に最低 1 隻が割り当たっている（空の変体を作らない）
 //   ④ 夜王 10 隻が登録されている
@@ -39,7 +39,10 @@ function ok(cond, label) {
 }
 
 console.log("[組数]");
-ok(R.listSheets().length === 62, "sheet は62組 (実際 " + R.listSheets().length + ")");
+// 2026-09-23：62 → 76 → 93。個別敵人專屬 sheet（enemy_*）を 31 組追加したぶん
+//（同日に 2 バッチ届いた：14 組＋17 組）。系統 sheet は「1 張が系統全体を代表する絵」
+// なので、自分の絵を起こした敵はそちらを優先する。旧値 62 は專屬 sheet 導入前の組数。
+ok(R.listSheets().length === 93, "sheet は93組 (実際 " + R.listSheets().length + ")");
 // 形態別 sheet（2026-09-22）：gladius は合体形態と分裂形態で見た目が別物なので 2 枚持つ。
 // 專用 sheet が未產出のあいだは既定の boss_gladius に戻ること——ここを間違えると、
 // 分裂形態のときだけ別の夜王の代役が出る。
@@ -76,17 +79,59 @@ ok(FAMILIES.length === 25, "系統は25 (実際 " + FAMILIES.length + ")");
 console.log("[149隻の帰属]");
 let enemyCount = 0;
 const orphan = [];
-const used = {};
+const used = {};   // 系統への割当（專屬 sheet を見ない）
+const ownOf = {};  // 專屬 sheet を持つ敵
 FAMILIES.forEach(function (f) {
   f.enemies.forEach(function (e) {
     enemyCount++;
     const sid = R.sheetIdForEnemy(f.id, e.id);
     if (!sid || !R.getSheet(sid)) orphan.push(f.id + "/" + e.id);
-    else used[sid] = (used[sid] || 0) + 1;
+    // 空の変体の検査（③）が見るのは「機械的な a／b 分けの結果」なので、
+    // 專屬 sheet に逃げたぶんを差し引いてはいけない。專屬 sheet はあくまで
+    // 上書きの層で、系統への割当そのものは残っている。
+    const fam = R.familySheetIdForEnemy(f.id, e.id);
+    if (fam) used[fam] = (used[fam] || 0) + 1;
+    if (sid && sid !== fam) ownOf[sid] = f.id + "/" + e.id;
   });
 });
 ok(enemyCount === 149, "敵は149隻 (実際 " + enemyCount + ")");
 ok(orphan.length === 0, "全149隻が sheet に帰属" + (orphan.length ? " / 例: " + orphan[0] : ""));
+
+// 個別敵人專屬 sheet（2026-09-23）。登錄表に enemy_* が 1 枚増えたのに、どの敵からも
+// 引かれていない——という取り違え（鍵の綴り間違い、系統 id の変更）をここで止める。
+// available:false のあいだは系統 sheet に戻るので、產出済みのぶんだけを見る。
+console.log("[個別敵人專屬 sheet]");
+const ownSheets = R.listSheets().filter(function (s) {
+  return s.id.indexOf("enemy_") === 0;
+});
+ok(ownSheets.length === 31, "專屬 sheet は31組 (実際 " + ownSheets.length + ")");
+const unlinked = ownSheets.filter(function (s) {
+  return s.available && !ownOf[s.id];
+});
+ok(
+  unlinked.length === 0,
+  "產出済みの專屬 sheet はすべてその敵から引かれている" +
+    (unlinked.length ? " / 未結線: " + unlinked.map(function (s) { return s.id; }).join("、") : "")
+);
+// 產出状況に応じた切り替え。sheet id は enemy_<familyId>_<enemyId> という規約なので、
+// 敵の側から期待値を組み立てられる（登錄表の中身を信じずに済む）。
+// available:true なら專屬 sheet、false なら系統 sheet——後者が戻らないと絵の無い
+// sheet を指したまま 404 になる（夜王の形態別 sheet と同じ落とし穴）。
+const wrongPick = [];
+FAMILIES.forEach(function (f) {
+  f.enemies.forEach(function (e) {
+    const expectOwn = "enemy_" + f.id + "_" + e.id;
+    const s = R.getSheet(expectOwn);
+    if (!s) return;
+    const want = s.available ? expectOwn : R.familySheetIdForEnemy(f.id, e.id);
+    if (R.sheetIdForEnemy(f.id, e.id) !== want) wrongPick.push(f.id + "/" + e.id);
+  });
+});
+ok(
+  wrongPick.length === 0,
+  "專屬 sheet は產出済みなら優先・未產出なら系統 sheet に戻る" +
+    (wrongPick.length ? " / 例: " + wrongPick[0] : "")
+);
 
 console.log("[空の変体がない]");
 const empty = [];

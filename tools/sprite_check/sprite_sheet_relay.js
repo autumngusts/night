@@ -43,6 +43,26 @@ const DROP_ROW = dropArg ? parseInt(dropArg.split("=")[1], 10) : -1;
 // 受擊/死亡）へ並べ直す。生成物の行が規格と違う順で返ってくることがある（fulghor は
 // 弓＝直線と突進＝突刺が入れ替わっていた）。余分な帯は書かなければ落ちるので、
 // --drop-row= の一般形でもある。
+// --row-bands=26-208,252-399,... : 行の境目を検出に任せず、8 本ぶんを直に指定する。
+// 2026-09-23 のバッチで、検出そのものが使えない生成物が 3 枚あった：
+//   ・獅子の混種たち … 行が 7 本しか描かれていない（8 本ぶんに割ると 1 行が刀先だけになる）
+//   ・祖霊／黄金カバ … 隣り合う行が接していて、投票では切れ目が見えない
+// こうなると --drop-row= も --row-order= も効かない（どちらも「検出できた帯」を選び直す
+// 道具なので、検出が壊れている時点で選択肢そのものが間違っている）。
+// 同じ範囲を 2 度書けば、その帯を 2 つの動作に使い回せる（描かれていない動作の穴埋め）。
+const bandsArg = flags.filter(function (a) { return a.indexOf("--row-bands=") === 0; })[0];
+const ROW_BANDS_ARG = bandsArg
+  ? bandsArg.split("=")[1].split(",").map(function (v) {
+      const p = v.split("-").map(function (n) { return parseInt(n, 10); });
+      return [p[0], p[1]];
+    })
+  : null;
+if (ROW_BANDS_ARG && (ROW_BANDS_ARG.length !== 8 || ROW_BANDS_ARG.some(function (b) {
+  return !(b[0] >= 0) || !(b[1] > b[0]);
+}))) {
+  console.error("--row-bands= は y0-y1 を 8 本、上から規格の行順に並べること");
+  process.exit(1);
+}
 const orderArg = flags.filter(function (a) { return a.indexOf("--row-order=") === 0; })[0];
 const ROW_ORDER = orderArg
   ? orderArg.split("=")[1].split(",").map(function (v) { return parseInt(v, 10); })
@@ -52,7 +72,10 @@ if (ROW_ORDER && ROW_ORDER.length !== 8) {
   process.exit(1);
 }
 if (!SRC || !SRC_COLS || !SRC_ROWS || !SHEET_ID) {
-  console.error("usage: node sprite_sheet_relay.js <src.png> <srcCols> <srcRows> <sheetId> [--rows=detect] [--cell=fit]");
+  console.error(
+    "usage: node sprite_sheet_relay.js <src.png> <srcCols> <srcRows> <sheetId> " +
+      "[--rows=detect] [--cols=detect] [--cell=fit] [--row-bands=y0-y1,...×8]"
+  );
   process.exit(1);
 }
 
@@ -256,7 +279,9 @@ function detectRowBands() {
 let ROW_BANDS = null;
 let droppedBand = null;
 let reordered = false;
-if (DETECT_ROWS) {
+if (ROW_BANDS_ARG) {
+  ROW_BANDS = ROW_BANDS_ARG;
+} else if (DETECT_ROWS) {
   ROW_BANDS = detectRowBands();
   if (ROW_BANDS && ROW_ORDER) {
     const picked = ROW_ORDER.map(function (i) { return ROW_BANDS[i]; });
