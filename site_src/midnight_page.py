@@ -909,7 +909,16 @@ BODY = """    <div class="midnight-wrap">
                static/midnight.jsのbindAttackHoldInput()／renderAttackSpecialMenu()。 -->
           <div id="midnight-attack-wrap-left" class="midnight-attack-wrap">
             <div id="midnight-attack-special-menu-left" class="midnight-attack-special-menu" hidden></div>
+            <!-- 2026-09-24 使用者明確規格：長按開選單改成鍵旁 ◀ ▶ 切換「已裝填」的攻擊方式
+                 （普通／跳躍／衝刺；蓄力不在清單裡，只能長按 1.0 秒打出）。整列在沒有習得
+                 任何特殊攻擊時整個隱藏，見 midnight.js 的 renderAttackModeSelector()。 -->
+            <div id="midnight-attack-mode-left" class="midnight-attack-mode-row" hidden>
+              <button type="button" id="btn-midnight-attack-mode-prev-left" class="midnight-attack-mode-arrow">◀</button>
+              <span id="midnight-attack-mode-label-left" class="midnight-attack-mode-label"></span>
+              <button type="button" id="btn-midnight-attack-mode-next-left" class="midnight-attack-mode-arrow">▶</button>
+            </div>
             <button type="button" id="btn-midnight-attack-left">
+              <span id="midnight-attack-charge-gauge-left" class="midnight-attack-charge-gauge" hidden></span>
               <span class="midnight-icon-sword"></span>
               <!-- 2026-09-06優化：拿掉固定的data-i18n，改成static/midnight.jsのrenderSideCombatButtons()
                    動態填入——下次攻擊會是2Hit時顯示[Hit]，否則顯示原本的攻擊文字。 -->
@@ -1036,6 +1045,11 @@ BODY = """    <div class="midnight-wrap">
             <span class="midnight-bar-track"><span class="midnight-bar-fill midnight-bar-enemy" id="midnight-enemy-hp-fill"></span></span>
             <span class="midnight-bar-value" id="midnight-enemy-hp-value"></span>
           </div>
+          <!-- 傷害飄字（2026-09-24 使用者明確規格「寫在敵人的血條下方貼右，只寫主要傷害，
+               裝置同步，一秒內若有再打出則繼續累加，1秒後沒有補傷害則消失重新計算，不寫0」）：
+               數值由 fieldEnemyHp 的變化量推得（見 midnight.js 的 accumulateEnemyDamageFloat）,
+               因此每台裝置看到的是同一個數字，不需要另外廣播。 -->
+          <div id="midnight-enemy-damage-float" hidden></div>
           <!-- 鑑定眼（鐵之眼被動，2026-09-05角色能力真正接入新增）：只在有activeEncounter
                （見trig.enemyFamilyId真實敵人資料）且角色類型有此被動時顯示，見
                static/midnight.js的handleEyeForValueClick()。 -->
@@ -1055,7 +1069,14 @@ BODY = """    <div class="midnight-wrap">
           <!-- 長按顯示特殊攻擊選單，見左手版本上方註解與static/midnight.jsのbindAttackHoldInput()。 -->
           <div id="midnight-attack-wrap-right" class="midnight-attack-wrap">
             <div id="midnight-attack-special-menu" class="midnight-attack-special-menu" hidden></div>
+            <!-- 見左手版本的說明（2026-09-24 攻擊方式切換列＋蓄力讀條）。 -->
+            <div id="midnight-attack-mode-right" class="midnight-attack-mode-row" hidden>
+              <button type="button" id="btn-midnight-attack-mode-prev-right" class="midnight-attack-mode-arrow">◀</button>
+              <span id="midnight-attack-mode-label-right" class="midnight-attack-mode-label"></span>
+              <button type="button" id="btn-midnight-attack-mode-next-right" class="midnight-attack-mode-arrow">▶</button>
+            </div>
             <button type="button" id="btn-midnight-attack-shared-target">
+              <span id="midnight-attack-charge-gauge-right" class="midnight-attack-charge-gauge" hidden></span>
               <span class="midnight-icon-sword"></span>
               <!-- 2026-09-06優化：拿掉固定的data-i18n，改成static/midnight.jsのrenderSideCombatButtons()
                    動態填入——下次攻擊會是2Hit時顯示[Hit]，否則顯示原本的攻擊文字。 -->

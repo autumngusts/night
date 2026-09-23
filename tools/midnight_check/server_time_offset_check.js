@@ -82,9 +82,21 @@ ok(GS.serverTimeOffset() === 0, "ensureCloudReady を通さなければ購読さ
 
 console.log("[midnight.js の結線]");
 const mn = fs.readFileSync(path.join(ROOT, "static_src", "midnight.js"), "utf8");
+// 2026-09-23：換算そのものは sharedNow()／sharedToLocal() に集約された（warnAt だけでなく
+// 邀請／投票／階段閘門の deadline も同じ対策を通すため）。以前ここは
+// `warnAt: GameStorage.serverNow ? ... : Date.now()` という書き方を 2 箇所ぶん literal で
+// 縛っていたが、その書き方自体が sharedNow() の中へ移ったので期待値を更新する。
 ok(
-  (mn.match(/warnAt: GameStorage\.serverNow \? GameStorage\.serverNow\(\) : Date\.now\(\)/g) || []).length === 2,
-  "warnAt の書き込み 2 箇所（夜王分支／一般分支）とも serverNow() 経由"
+  mn.indexOf("function sharedNow()") !== -1 && mn.indexOf("function sharedToLocal(ts)") !== -1,
+  "共有時間戳のヘルパ sharedNow()／sharedToLocal() が定義されている"
+);
+ok(
+  mn.indexOf("return GameStorage.serverNow ? GameStorage.serverNow() : Date.now();") !== -1,
+  "sharedNow() が serverNow() 経由（未接続なら Date.now() へフォールバック）"
+);
+ok(
+  (mn.match(/warnAt: sharedNow\(\),/g) || []).length === 2,
+  "warnAt の書き込み 2 箇所（夜王分支／一般分支）とも sharedNow() 経由"
 );
 ok(mn.indexOf("warnAt: Date.now(),") === -1, "素の Date.now() で warnAt を書いている箇所はない");
 // 呼び出し箇所の「数」で縛ると、正当な読み出しが増えるたびに落ちる脆いテストになる
@@ -105,6 +117,42 @@ ok(
 ok(
   mn.split("\n").filter(function (line) { return line.indexOf("atk.warnAt") !== -1; }).length === 1,
   "atk.warnAt を含む行は 1 行だけ＝換算を迂回した読み出しはない"
+);
+
+// ---- 2026-09-23 追加：邀請／投票／階段閘門の deadline も同じ対策の対象 ----
+// warnAt と同じで「片方だけ直す」と時鐘偏移ぶん丸ごとズレるので、書きと読みを両方縛る。
+// 守りたいのは「共有 deadline の生読み（Date.now() と直接比較）が残っていないこと」。
+console.log("[共有 deadline（邀請／投票／階段閘門）の結線]");
+const SHARED_DEADLINE_FIELDS = ["inviteDeadline", "voteDeadline", "revealDeadline", "enterAt", "startedAt"];
+// 「そのフィールドを読んでいるのに同じ行で sharedToLocal() を通していない」行を洗い出す。
+// 書き込み側（`xxx: now + …` / rtSet の第4引数 / transaction 内の代入）と、
+// 単なる存在チェック（typeof / truthy）はここでは対象外。
+const rawReads = [];
+mn.split("\n").forEach(function (line, i) {
+  const t = line.trim();
+  if (t.indexOf("//") === 0) return; // コメント行
+  if (t.indexOf("sharedToLocal") !== -1) return; // 換算済み
+  SHARED_DEADLINE_FIELDS.forEach(function (f) {
+    // `trig.xxx` / `invite.xxx` / `entry.xxx` という読み出しで、かつ Date.now() と同じ行に
+    // 現れる＝本機時刻と直接比較している、という形だけを拾う（誤検知を抑えるため）。
+    const re = new RegExp("\\b(trig|invite|entry|cur)\\." + f + "\\b");
+    if (re.test(line) && line.indexOf("Date.now()") !== -1) {
+      rawReads.push("L" + (i + 1) + "  " + t.slice(0, 110));
+    }
+  });
+});
+ok(rawReads.length === 0, "共有 deadline を Date.now() と直接比較している行はない" + (rawReads.length ? "\n        " + rawReads.join("\n        ") : ""));
+ok(
+  (mn.match(/var now = sharedNow\(\);/g) || []).length >= 3,
+  "邀請（塔／板塊）と投票時限の起点は sharedNow() で書いている"
+);
+ok(
+  mn.indexOf('"/inviteDeadline", sharedNow())') !== -1,
+  "「立即進入」の inviteDeadline 上書きも sharedNow() 経由"
+);
+ok(
+  mn.indexOf("return Date.now() >= sharedToLocal(deadline);") !== -1,
+  "階段閘門の逾時判定が sharedToLocal() を通している（stageGateTimedOut）"
 );
 
 console.log("[game_storage.js の結線]");

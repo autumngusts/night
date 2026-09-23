@@ -60,14 +60,36 @@
     return out;
   }
 
+  // 新字體／舊字體（異體字）正規化。
+  // 2026-08-23 已經踩過一次：enemies_data_3.js 的「竜のツリーガード」ja 側用新字體「竜」，
+  // 而 fields_data_4.js 的敵人引用用舊字體「龍」，search() 是純子字串比對所以對不上；當時的
+  // 修法是把敵人資料那一側改成「龍」。但那只修了那一組資料——2026-09-24 的籌碼交叉測試
+  // （tools/midnight_check/chip_coverage_check.js）發現 event_rulebook.js 的「可怖強敵決定表」
+  // 仍然寫新字體「竜のツリーガード」，於是第 2 天⑧點的可怖強敵有 1/12 機率解析失敗，
+  // 靜默退回 randomEnemyMatchFallback()＝從全部 149 隻裡亂數挑一隻，可能挑到雜魚。
+  //
+  // 逐份資料去統一字體治標不治本（規則書原文本來就兩種寫法都有，而且改原文等於竄改轉錄），
+  // 因此改在比對的唯一出入口做正規化：把已知的異體字摺疊成同一個字再比對。只收錄實際
+  // 出現過的對應，不做通用的漢字正規化（那會引入誤配）。
+  var KANJI_VARIANTS = { "竜": "龍" }; // 竜 → 龍
+
+  function foldVariants(text) {
+    var out = "";
+    for (var i = 0; i < text.length; i++) {
+      var ch = text.charAt(i);
+      out += KANJI_VARIANTS[ch] || ch;
+    }
+    return out;
+  }
+
   function search(query) {
-    var q = (query || "").trim().toLowerCase();
+    var q = foldVariants((query || "").trim().toLowerCase());
     if (!q) return [];
     return allEnemies().filter(function (row) {
       var n = row.enemy.name;
       return (
-        (n.ja && n.ja.toLowerCase().indexOf(q) !== -1) ||
-        (n.zh && n.zh.toLowerCase().indexOf(q) !== -1)
+        (n.ja && foldVariants(n.ja.toLowerCase()).indexOf(q) !== -1) ||
+        (n.zh && foldVariants(n.zh.toLowerCase()).indexOf(q) !== -1)
       );
     });
   }
@@ -102,6 +124,10 @@
     listFamilies: listFamilies,
     allEnemies: allEnemies,
     search: search,
+    // 名稱比對用的異體字正規化（見 KANJI_VARIANTS 說明）。night_gm_flow.js 的
+    // resolveCombatEnemyMatch() 在多筆命中時要做精確比對，那一步也必須經過同一個正規化，
+    // 否則「search 找得到、精確比對卻對不上」會退回 null。
+    foldNameVariants: foldVariants,
     get: get,
     getFamily: getFamily,
     imagePath: imagePath,

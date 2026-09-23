@@ -4972,8 +4972,10 @@ html.midnight-banner-above-hud:not(.midnight-top-banner-collapsed) #midnight-rew
    文字超出時用單行省略號，完整內容留在title供hover查看。冷卻秒數則改成不佔文字空間的
    圓形計時盤（見下方.midnight-cooldown-dial與midnight.jsのapplyCooldownDial()），因此
    固定寬度不會讓冷卻資訊消失。 */
-#midnight-hud-bottom-right button,
-#midnight-hud-bottom-left-actions button {
+/* 2026-09-24：攻擊方式切換的 ◀ ▶ 小鍵不套這組（它們是列內的小箭頭，不是 5.6rem 的
+   戰鬥主鍵），否則會被撐成跟攻擊鍵一樣大。 */
+#midnight-hud-bottom-right button:not(.midnight-attack-mode-arrow),
+#midnight-hud-bottom-left-actions button:not(.midnight-attack-mode-arrow) {
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -4990,8 +4992,10 @@ html.midnight-banner-above-hud:not(.midnight-top-banner-collapsed) #midnight-rew
 /* 2026-09-13：.midnight-cell-badge／.midnight-cell-orbit（防禦盾牌浮標、詠唱環繞星體）
    跟.midnight-action-flash是同一類「絕對定位浮在按鈕格正上方」的元素，同樣要排除，
    否則會被按鈕的固定寬度裁掉。 */
-#midnight-hud-bottom-right button > span:not(.midnight-action-flash):not(.midnight-cell-badge):not(.midnight-cell-orbit),
-#midnight-hud-bottom-left-actions button > span:not(.midnight-action-flash):not(.midnight-cell-badge):not(.midnight-cell-orbit) {
+/* 2026-09-24：.midnight-attack-charge-gauge 一併排除——它是絕對定位的蓄力讀條，
+   不是按鈕文字，套上 overflow/ellipsis 那組會讓它縮成一條看不見的線。 */
+#midnight-hud-bottom-right button > span:not(.midnight-action-flash):not(.midnight-cell-badge):not(.midnight-cell-orbit):not(.midnight-attack-charge-gauge),
+#midnight-hud-bottom-left-actions button > span:not(.midnight-action-flash):not(.midnight-cell-badge):not(.midnight-cell-orbit):not(.midnight-attack-charge-gauge) {
   max-width: 100%;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -9086,4 +9090,348 @@ html.midnight-top-banner-collapsed .midnight-top-banner-collapse-btn {
   #midnight-enemy-death-popup {
     width: 72px;
   }
+}
+
+/* ============================================================================
+   2026-09-24 戰鬥特效追加（使用者指定 7 項）
+   ============================================================================ */
+
+/* ① 傷害飄字：敵人血條下方、貼右。數值由 fieldEnemyHp 的變化量推得（每台裝置一致），
+   1 秒內持續累加、到期收掉，見 midnight.js 的 accumulateEnemyDamageFloat()。 */
+#midnight-enemy-damage-float {
+  text-align: right;
+  font-weight: 700;
+  font-size: 1.15rem;
+  line-height: 1.1;
+  color: #ffd54a;
+  text-shadow:
+    0 0 0.35rem rgba(0, 0, 0, 0.9),
+    0 0 0.9rem rgba(255, 170, 40, 0.55);
+  margin: -0.1rem 0 0.15rem 0;
+  min-height: 1.2em;
+  pointer-events: none;
+}
+
+/* 只在數字真的變動的那一幀重播（JS 會先 remove class＋強制 reflow 再 add）。 */
+#midnight-enemy-damage-float.midnight-damage-float-pop {
+  animation: midnight-damage-float-pop 0.32s ease-out;
+}
+
+@keyframes midnight-damage-float-pop {
+  0% {
+    transform: translateY(0.35rem) scale(1.35);
+    opacity: 0.55;
+  }
+  45% {
+    transform: translateY(0) scale(1.08);
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(0) scale(1);
+    opacity: 1;
+  }
+}
+
+/* ② 受擊震動：沿用既有的 midnight-fx-shake（先前只有無賴漢戰吼在用），
+   另外疊一層極短的紅色邊緣暈染，讓「被打到」跟「戰吼」在視覺上分得開。 */
+#midnight-screen-fx-once.midnight-screen-fx-hit {
+  animation: midnight-fx-shake 0.32s ease-out;
+}
+
+#midnight-screen-fx-once.midnight-screen-fx-hit::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse at center, transparent 55%, rgba(200, 30, 30, 0.42) 100%);
+  animation: midnight-fx-fade-inout 0.32s ease-out;
+}
+
+/* ⑦ 擊破收尾：白閃＋輕微放大。夜王不套（勝利彈窗另有慢動作演出）。 */
+#midnight-screen-fx-once.midnight-screen-fx-defeat::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at center, rgba(255, 255, 255, 0.85) 0%, transparent 62%);
+  animation: midnight-fx-defeat-flash 0.52s ease-out;
+}
+
+@keyframes midnight-fx-defeat-flash {
+  0% {
+    opacity: 0;
+    transform: scale(0.82);
+  }
+  18% {
+    opacity: 1;
+    transform: scale(1.04);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.12);
+  }
+}
+
+/* ④ 淑女「終曲」：體崩＝畫面白閃（比擊破短、不放大）。 */
+#midnight-screen-fx-once.midnight-screen-fx-flash::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: rgba(255, 255, 255, 0.72);
+  animation: midnight-fx-fade-inout 0.42s ease-out;
+}
+
+/* ④ 執行者「坩堝諸相・獸」：變身瞬間的紅閃（常駐的變身光另見 .midnight-buff-beast）。 */
+#midnight-screen-fx-once.midnight-screen-fx-beast::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse at center, rgba(190, 40, 30, 0.55) 0%, transparent 70%);
+  animation: midnight-fx-fade-inout 0.6s ease-out;
+}
+
+/* ④ 全隊席位卡片的一次性特效：不死行軍＝金色護盾、共感術＝治癒綠光。
+   class 由 updateAbilityVisuals() 的逐幀迴圈依到期時間戳套用（卡片會重繪，
+   直接 add 會被 className 覆寫洗掉）。 */
+.midnight-slot-card.midnight-cardfx-shield {
+  box-shadow:
+    0 0 0.5rem 0.1rem rgba(255, 214, 90, 0.85),
+    inset 0 0 0.7rem rgba(255, 214, 90, 0.45);
+  animation: midnight-cardfx-pulse 0.9s ease-out;
+}
+
+.midnight-slot-card.midnight-cardfx-heal {
+  box-shadow:
+    0 0 0.5rem 0.1rem rgba(110, 230, 150, 0.85),
+    inset 0 0 0.7rem rgba(110, 230, 150, 0.45);
+  animation: midnight-cardfx-pulse 0.9s ease-out;
+}
+
+@keyframes midnight-cardfx-pulse {
+  0% {
+    transform: scale(1);
+  }
+  30% {
+    transform: scale(1.045);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+/* ④ 鐵眼「標記」的落定動畫（常駐的 #midnight-enemy-mark 另外存在）。 */
+.midnight-enemy-fx-mark .midnight-enemy-fx-mark {
+  font-size: 2.4rem;
+}
+
+.midnight-enemy-fx-mark {
+  animation: midnight-fx-mark-drop 0.9s ease-out;
+}
+
+@keyframes midnight-fx-mark-drop {
+  0% {
+    transform: translateY(-60%) scale(2.1);
+    opacity: 0;
+  }
+  35% {
+    transform: translateY(0) scale(1);
+    opacity: 1;
+  }
+  80% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+/* ④ 送葬人「恍惚」：敵人立繪四周的霧氣。 */
+.midnight-enemy-fx-mist .midnight-enemy-fx-part {
+  position: absolute;
+  inset: 8%;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(190, 170, 220, 0.5) 0%, transparent 70%);
+  animation: midnight-fx-mist-drift 1s ease-out;
+  animation-delay: calc(var(--i) * 120ms);
+}
+
+@keyframes midnight-fx-mist-drift {
+  0% {
+    transform: translateY(20%) scale(0.7);
+    opacity: 0;
+  }
+  40% {
+    opacity: 0.9;
+  }
+  100% {
+    transform: translateY(-25%) scale(1.25);
+    opacity: 0;
+  }
+}
+
+/* ⑤ 命中刀光的變化型。基底 #midnight-enemy-hit-effect 的斜向漸層不動，
+   這裡只改角度／粗細／動畫，讓 2Hit・蓄力・跳躍・衝刺看得出差別。 */
+
+/* 2Hit：兩道**反向**刀光交叉（使用者明確規格）。基底那道照舊，::after 疊第二道反向的。 */
+#midnight-enemy-hit-effect.midnight-enemy-hit-cross::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    -115deg,
+    transparent 42%,
+    var(--hit-color, #ffffff) 48%,
+    var(--hit-color, #ffffff) 52%,
+    transparent 58%
+  );
+  animation: midnight-enemy-hit-slash-rev 0.3s ease-out 0.09s;
+  opacity: 0;
+}
+
+@keyframes midnight-enemy-hit-slash-rev {
+  0% {
+    opacity: 0;
+    transform: translateX(25%);
+  }
+  35% {
+    opacity: 0.95;
+  }
+  100% {
+    opacity: 0;
+    transform: translateX(-25%);
+  }
+}
+
+/* 蓄力：刀光加粗（漸層帶變寬）＋前置聚光。 */
+#midnight-enemy-hit-effect.midnight-enemy-hit-charge {
+  background: linear-gradient(
+    115deg,
+    transparent 34%,
+    var(--hit-color, #ffffff) 44%,
+    var(--hit-color, #ffffff) 56%,
+    transparent 66%
+  );
+}
+
+#midnight-enemy-hit-effect.midnight-enemy-hit-charge::after {
+  content: "";
+  position: absolute;
+  inset: 18%;
+  border-radius: 50%;
+  background: radial-gradient(circle, var(--hit-color, #fff) 0%, transparent 65%);
+  animation: midnight-fx-charge-gather 0.3s ease-in reverse;
+  opacity: 0;
+}
+
+@keyframes midnight-fx-charge-gather {
+  0% {
+    opacity: 0;
+    transform: scale(1.6);
+  }
+  100% {
+    opacity: 0.7;
+    transform: scale(0.6);
+  }
+}
+
+/* 跳躍：由上而下的斜角（角度翻成接近垂直）。 */
+#midnight-enemy-hit-effect.midnight-enemy-hit-jump {
+  background: linear-gradient(
+    172deg,
+    transparent 42%,
+    var(--hit-color, #ffffff) 48%,
+    var(--hit-color, #ffffff) 52%,
+    transparent 58%
+  );
+}
+
+#midnight-enemy-hit-effect.midnight-enemy-hit-jump.midnight-enemy-hit-effect-play {
+  animation: midnight-enemy-hit-slash-down 0.3s ease-out;
+}
+
+@keyframes midnight-enemy-hit-slash-down {
+  0% {
+    opacity: 0;
+    transform: translateY(-30%);
+  }
+  35% {
+    opacity: 0.95;
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(30%);
+  }
+}
+
+/* 衝刺：水平的長刀光。 */
+#midnight-enemy-hit-effect.midnight-enemy-hit-dash {
+  background: linear-gradient(
+    90deg,
+    transparent 30%,
+    var(--hit-color, #ffffff) 47%,
+    var(--hit-color, #ffffff) 53%,
+    transparent 70%
+  );
+}
+
+/* ⑥ 遠距武器的箭矢：跟施法彗星共用同一個元素與兩點插值，只是外觀與飛行時間不同。 */
+#midnight-spell-comet.midnight-spell-comet-arrow {
+  width: 1.4rem;
+  height: 0.18rem;
+  margin: -0.09rem 0 0 -0.7rem;
+  border-radius: 0.09rem;
+  background: linear-gradient(90deg, transparent 0%, var(--comet-color, #fff) 45%, var(--comet-color, #fff) 100%);
+  box-shadow: 0 0 0.45rem 0.08rem var(--comet-color, #fff);
+}
+
+/* ⑤-1 攻擊方式切換列＋蓄力讀條（2026-09-24 使用者明確規格改版）
+   舊版是長按 0.4 秒開特殊攻擊選單；新版改成鍵旁 ◀ ▶ 循環切換「已裝填」的攻擊方式，
+   蓄力則改成按住 1.0 秒打出（見 midnight.js 的 ATTACK_CHARGE_HOLD_MS）。 */
+.midnight-attack-mode-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.15rem;
+  margin-bottom: 0.15rem;
+  user-select: none;
+}
+
+.midnight-attack-mode-arrow {
+  min-width: 1.5rem;
+  padding: 0.05rem 0.2rem;
+  font-size: 0.85rem;
+  line-height: 1.2;
+  border-radius: 0.3rem;
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  background: rgba(0, 0, 0, 0.45);
+  color: #e8e8e8;
+}
+
+.midnight-attack-mode-label {
+  min-width: 4.2rem;
+  text-align: center;
+  font-size: 0.78rem;
+  color: #ffd54a;
+  text-shadow: 0 0 0.3rem rgba(0, 0, 0, 0.9);
+}
+
+/* 蓄力讀條：疊在攻擊鍵底部，由左往右填。--charge-pct 由 renderAttackChargeGauge() 寫入。
+   超過輕點門檻才會顯示，讓「按住但沒按滿＝取消」這條規則在畫面上看得出來。 */
+.midnight-attack-charge-gauge {
+  position: absolute;
+  left: 6%;
+  right: 6%;
+  bottom: 8%;
+  height: 0.22rem;
+  border-radius: 0.11rem;
+  background: rgba(255, 255, 255, 0.18);
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.midnight-attack-charge-gauge::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: var(--charge-pct, 0%);
+  background: linear-gradient(90deg, #ffb347, #ffe17d);
+  box-shadow: 0 0 0.4rem rgba(255, 200, 90, 0.9);
 }

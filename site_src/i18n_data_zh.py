@@ -1398,6 +1398,8 @@ STRINGS_ZH: dict[str, str] = {
     "midnight_dodge_grade_bad": "Bad",
     "midnight_block_success_flash": "成功防禦",
     "midnight_damage_taken_flash": "受到傷害",
+    # 2026-09-24：攻擊鍵旁 ◀ ▶ 切換列的「普通攻擊」標示。
+    "midnight_attack_mode_normal_label": "普通攻擊",
     "midnight_special_attack_jump_label": "跳躍攻擊",
     "midnight_special_attack_dash_label": "衝刺攻擊",
     "midnight_temp_weapon_skill_note": "附加「{label}」{seconds}秒",
@@ -1685,6 +1687,9 @@ STRINGS_ZH: dict[str, str] = {
     "midnight_reward_label_rune": "盧恩+{value}",
     "midnight_reward_label_chalice_bonus": "聖杯瓶使用次數+{value}",
     "midnight_reward_kind_rune": "盧恩",
+    # 恩寵「知識的集約」擊破後產生的擲骰獎勵（midnight.js の kind:"knowledgeDice"）。
+    # 2026-09-23補上：原本三種語言都沒有這個 key，清單上直接顯示原始 key 字串。
+    "midnight_reward_kind_knowledge_dice": "知識之骰",
     "midnight_reward_kind_potential_power": "潛在力量",
     "midnight_reward_kind_talisman": "護符",
     "midnight_reward_kind_weapon": "武器",

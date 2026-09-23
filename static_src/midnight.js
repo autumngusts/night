@@ -576,19 +576,9 @@
     return Math.random() * 100 < Math.min(100, pct);
   }
 
-  // 多條詞條的百分比加總（例如「攻擊力+X%」有好幾條來源）：回傳的是倍率，1＝沒有變化。
-  // 有害詞條在資料上同樣寫正數（例「攻擊力-10%」的value是10），因此扣減的那幾條要由
-  // 呼叫端放進minusIds，不在這裡用good旗標猜方向——同一個kind底下有益/有害都有。
-  function affixPctMultiplier(c, plusIds, minusIds) {
-    var pct = 0;
-    (plusIds || []).forEach(function (id) {
-      pct += affixTotal(c, id);
-    });
-    (minusIds || []).forEach(function (id) {
-      pct -= affixTotal(c, id);
-    });
-    return Math.max(0, 1 + pct / 100);
-  }
+  // （2026-09-23移除未使用的 affixPctMultiplier()：百分比加總實際上都寫在
+  // affixOutgoingDamageMult()／affixIncomingDamageMult() 等各自的函式裡逐條累加，
+  // 這個泛用版本從加入以來沒有任何呼叫端。）
 
   // ---- 持續型詞條（HP持続回復／減少、HP未滿時累積猛毒／腐敗）----
   // 使用者明確規格的間隔：回復每10秒、減少與蓄積每30秒，且蓄積「不限戰鬥中」，因此這裡
@@ -1098,6 +1088,7 @@
   }
 
   function updateAffixGuardHold(now) {
+    if (isPaused()) return; // 2026-09-23：暫停中仍按著防禦時，這些詞條原本照樣持續打敵人
     var c = characters[myTokenId];
     if (!c || !weaponAffixesEnabled() || !blockHolding || blockHoldStartedAt === null) return;
     if (now - blockHoldStartedAt < AFFIX_GUARD_HOLD_TRIGGER_MS) return;
@@ -1411,15 +1402,17 @@
     var deadline = (trig.stageDeadlines || {})[gateKey];
     if (typeof deadline !== "number") {
       var localKey = pointId + "|" + gateKey;
+      // 本地節流用的時刻是本機的（自己寫自己讀），寫進RTDB的deadline才是共享時間戳（§8.2）。
       var now = Date.now();
       if (stageGateDeadlineSentAt[localKey] && now - stageGateDeadlineSentAt[localKey] < STAGE_GATE_DEADLINE_RETRY_MS) return false;
       stageGateDeadlineSentAt[localKey] = now;
+      var sharedDeadline = sharedNow() + STAGE_GATE_TIMEOUT_MS;
       GameStorage.rtTransaction(gameId, "cloud", "fieldTrigger/" + pointId + "/stageDeadlines/" + gateKey, function (cur) {
-        return cur === null ? now + STAGE_GATE_TIMEOUT_MS : cur;
+        return cur === null ? sharedDeadline : cur;
       });
       return false;
     }
-    return Date.now() >= deadline;
+    return Date.now() >= sharedToLocal(deadline);
   }
 
   // 同じゲートをもう一巡やり直す場合（発狂地帯の塔1離脱失敗など）に呼ぶ。
@@ -2724,6 +2717,27 @@
     return document.getElementById(id);
   }
 
+  // ---- 共享時間戳（設計文件§8.2「時鐘偏移對策」的統一入口）----
+  // 「多台裝置都會讀的時間戳」一律用伺服器時刻寫入（sharedNow()），讀的一端先換算回自己的
+  // 本機時刻（sharedToLocal()）才能跟畫面迴圈的Date.now()直接比較。原本只有敵人攻擊的
+  // enemyAttack.warnAt走這套，邀請時限／投票時限／進場讀條／階段閘門逾時這一組deadline
+  // 仍然是「寫入端的Date.now()、讀取端各自的Date.now()」，裝置時鐘差多少，倒數顯示與
+  // 推進時機就差多少（2026-09-23整體稽核發現）。現在全部收斂到這兩個函式。
+  //
+  // 反過來，「同一台裝置自己寫自己讀」的時間戳（冷卻、buff到期、本地節流、打字機進度…）
+  // 維持本機時刻，不經過這裡——換算只在跨裝置的那一個欄位做一次最單純，這跟原本
+  // enemyAttackWarnAtLocal()的說明是同一條理由。
+  //
+  // 還沒連上雲端／單機模式時serverTimeOffset()回0，結果跟改動前完全一樣。
+  function sharedNow() {
+    return GameStorage.serverNow ? GameStorage.serverNow() : Date.now();
+  }
+
+  function sharedToLocal(ts) {
+    var offset = GameStorage.serverTimeOffset ? GameStorage.serverTimeOffset() : 0;
+    return typeof ts === "number" ? ts - offset : ts;
+  }
+
   // ---- 規則文本轉換（2026-09-10使用者明確規格「詳細資訊中的原本文本，盡量改換成應用在
   // 本規則內能夠讀懂的文本」）：實際的轉換表在static/midnight_text_adapt.js（純字串函式，
   // 見該檔開頭的完整說明）。這裡只是薄包裝，模組沒載入時原樣回傳，不讓詳細視窗整個壞掉。
@@ -2797,6 +2811,16 @@
   // 節點，暫停中敵人本來就不會出招，恢復後照舊排程）、meta上的bloodSongUntil／
   // partyNoDamageUntil／affixHolyGroundUntil（party-wide，多台同時平移會重複加）、
   // affixTickAt等純節流用時間戳。這些在暫停期間會照樣過期，是接受的範圍限制。
+  //
+  // 2026-09-23補上（整體稽核）：下面5個原本漏掉，而它們對應的每幀更新這次也各自補上了
+  // isPaused()閘門——只加閘門不平移的話，暫停期間倒數雖然停住，恢復的瞬間卻會因為
+  // 「到期時刻早就過了」而一次全部補發，等於把問題從「暫停中觸發」換成「恢復時立刻觸發」。
+  // 兩者必須成對：
+  //   nearDeath.deadlineAt        瀕死15秒倒數（updateNearDeathState）
+  //   summonedSpirit.nextAttackAt 靈體的下次攻擊時刻（updateSummonedSpirit）
+  //   flaskReadingUntil           聖杯瓶讀取完成時刻（updateFlaskReading）
+  //   sorceryHoldState[key]       長按詠唱的**起點**（updateSorceryHold，起點往後挪＝長按進度凍結）
+  //   blockHoldStartedAt／affixGuardHoldFiredAt[id]  架盾3秒詞條的起點與本地冷卻（updateAffixGuardHold）
   var lastSeenTotalPausedMs = null;
   var PAUSE_SHIFT_FIELD_RE = /^_.*(Until|ReadyAt)$/;
 
@@ -2827,6 +2851,26 @@
     beastHuntActiveUntil = shiftFutureTimestamp(beastHuntActiveUntil, pausedAt, deltaMs);
     beastHuntCooldownUntil = shiftFutureTimestamp(beastHuntCooldownUntil, pausedAt, deltaMs);
     iceBlizzardBlindUntil = shiftFutureTimestamp(iceBlizzardBlindUntil, pausedAt, deltaMs);
+    // 瀕死倒數（RTDB共享節點，但只有自己這台會判斷自己的deadlineAt，見updateNearDeathState()／
+    // forceReviveOnTimeout()，因此由自己平移＋寫回不會被別台重複加）。
+    if (c.nearDeath && c.nearDeath.active && typeof c.nearDeath.deadlineAt === "number" && c.nearDeath.deadlineAt > pausedAt) {
+      c.nearDeath.deadlineAt += deltaMs;
+      GameStorage.rtSet(gameId, "cloud", "character/" + myTokenId + "/nearDeath/deadlineAt", c.nearDeath.deadlineAt);
+    }
+    if (c.summonedSpirit && typeof c.summonedSpirit.nextAttackAt === "number" && c.summonedSpirit.nextAttackAt > pausedAt) {
+      c.summonedSpirit.nextAttackAt += deltaMs;
+      GameStorage.rtSet(gameId, "cloud", "character/" + myTokenId + "/summonedSpirit", c.summonedSpirit);
+    }
+    flaskReadingUntil = shiftFutureTimestamp(flaskReadingUntil, pausedAt, deltaMs);
+    // 長按類是「起點」而不是「到期時刻」，一樣往後挪deltaMs＝長按已累積的時間在暫停中凍結。
+    // 起點必然 <= pausedAt，因此不能套shiftFutureTimestamp()（它只挪未來的時間戳）。
+    Object.keys(sorceryHoldState).forEach(function (key) {
+      if (typeof sorceryHoldState[key] === "number") sorceryHoldState[key] += deltaMs;
+    });
+    if (typeof blockHoldStartedAt === "number") blockHoldStartedAt += deltaMs;
+    Object.keys(affixGuardHoldFiredAt).forEach(function (id) {
+      if (typeof affixGuardHoldFiredAt[id] === "number") affixGuardHoldFiredAt[id] += deltaMs;
+    });
   }
 
   function onMetaReceived(value) {
@@ -3154,6 +3198,10 @@
     // 夜王は右上に出さない（2026-09-22 使用者明確規格「擊破後不用再右上角播放死亡動畫：
     // 打贏這個就是遊戲勝利故直接在中間展示動畫」）。勝利彈窗の中で大きく、ゆっくり流す
     // ——updateGameVictoryModal() 側で playDefeat() を呼ぶ。
+    // 2026-09-24 追加：擊破的畫面級收尾。先前一般敵人擊破只有右上小視窗的 death 動畫，
+    // 主畫面完全沒有反應，「打死了」的實感很弱。這裡補一次白閃＋立繪縮放，夜王不套
+    // （它有勝利彈窗裡的慢動作 playDefeat()，兩個疊起來會互相打架）。
+    triggerScreenFx("defeat");
     if (id === DAY3_BOSS_POINT_ID) return;
     var file = encounterSheetFile(fieldTriggers[id]);
     if (!file) return;
@@ -3161,9 +3209,67 @@
     Sprite.playDeathPopup(file, "../static/", Date.now());
   }
 
+  // ---- 傷害飄字（2026-09-24 使用者明確規格）----
+  // 「寫在敵人的血條下方貼右，只寫主要傷害，裝置同步，一秒內若有再打出則繼續累加上去，
+  // 1秒後沒有補傷害則消失重新計算（不寫0）」。
+  //
+  // 數值刻意**不另外廣播**：直接取 fieldEnemyHp 的下降量。那份資料本來就是所有裝置都
+  // 訂閱的同一個 RTDB 節點，所以每台算出來的數字天生一致——比另外開一條 damage 廣播
+  // 少一次寫入，也不會有「傷害到了、飄字沒到」的不一致。
+  // 「只寫主要傷害」＝實際扣掉的 HP（已經過 HP 價值減傷），不是減傷前的原始值；雜兵那條
+  // 血量池是另一個節點，不算進來。
+  var DAMAGE_FLOAT_WINDOW_MS = 1000;
+  var damageFloat = null; // { pointId, total, until }
+
+  function accumulateEnemyDamageFloat(prevHp, nextHp) {
+    if (!activeEncounter) return;
+    var id = activeEncounter.id;
+    var prev = prevHp[id];
+    var next = nextHp[id];
+    if (prev === undefined || next === undefined) return;
+    var delta = prev - next;
+    if (delta <= 0) return; // 回血／初始化不顯示；0 也不寫（使用者明確規格）
+    var now = Date.now();
+    // 同一個點、還在 1 秒視窗內就累加；換點或視窗已過就重新起算。
+    if (damageFloat && damageFloat.pointId === id && now < damageFloat.until) {
+      damageFloat.total += delta;
+    } else {
+      damageFloat = { pointId: id, total: delta, until: 0 };
+    }
+    damageFloat.until = now + DAMAGE_FLOAT_WINDOW_MS;
+    damageFloat.bumpedAt = now;
+  }
+
+  // 每影格呼叫（見 frameInner）：到期就收掉。重播 pop 動畫只在數字真的變動的那一幀做，
+  // 否則每幀重設 class 會讓動畫永遠停在第一格。
+  var lastDamageFloatShown = null;
+
+  function renderEnemyDamageFloat(now) {
+    var elFloat = el("midnight-enemy-damage-float");
+    if (!elFloat) return;
+    if (!damageFloat || now >= damageFloat.until || !activeEncounter || damageFloat.pointId !== activeEncounter.id) {
+      if (damageFloat && now >= damageFloat.until) damageFloat = null;
+      if (!elFloat.hidden) {
+        elFloat.hidden = true;
+        elFloat.textContent = "";
+        lastDamageFloatShown = null;
+      }
+      return;
+    }
+    elFloat.hidden = false;
+    if (lastDamageFloatShown !== damageFloat.total) {
+      lastDamageFloatShown = damageFloat.total;
+      elFloat.textContent = String(damageFloat.total);
+      elFloat.classList.remove("midnight-damage-float-pop");
+      void elFloat.offsetWidth; // 強制 reflow 讓動畫重播（同 triggerEnemyHitEffect 的既有寫法）
+      elFloat.classList.add("midnight-damage-float-pop");
+    }
+  }
+
   function onFieldEnemyHpReceived(value) {
     var next = value || {};
     maybeShowEnemyDeathPopup(lastKnownEnemyHp, next);
+    accumulateEnemyDamageFloat(lastKnownEnemyHp, next);
     lastKnownEnemyHp = next;
     fieldEnemyHp = next;
     renderCombatPanel();
@@ -3888,6 +3994,7 @@
     });
     el("btn-midnight-enter-battle").addEventListener("click", handleEnterBattleClick);
     bindAttackHoldInput();
+    bindAttackModeSelector(); // 2026-09-24：攻擊方式的 ◀ ▶ 切換鍵
     el("btn-midnight-skill").addEventListener("click", handleSkillClick);
     bindSkillBHoldInput();
     // 2026-09-22使用者明確規格「按下當下即閃避」：迴避在pointerdown當下就執行（扣體力、記判定
@@ -5099,14 +5206,30 @@
     });
   }
 
-  // 遺物選擇（RELIC_CHOICE_CONFIG_BY_NAME機制，CLAUDE.md §25）存的是zh或ja其中一種寫法，
-  // 而這裡拿到的屬性/異常名稱是ja（見ATTRIBUTE_STATUS_*_NAMES_JA），因此兩邊都比對。
+  // 遺物選擇（RELIC_CHOICE_CONFIG_BY_NAME機制，CLAUDE.md §25）與這裡拿到的屬性/異常名稱
+  // （ja，見ATTRIBUTE_STATUS_*_NAMES_JA）比對。
+  //
+  // 2026-09-23修正（整體稽核）：這個函式原本假設choice是**字串**，但
+  // CharacterDrawer.assignRelicChoiceIfNeeded()實際存進角色欄位的是
+  // COMMON_SKILL_ELEMENT_OPTIONS／COMMON_SKILL_STATUS_OPTIONS的元素，也就是
+  // {ja:"炎", zh:"火"} 這種**物件**（見character_drawer.js:165-179／3351-3355，
+  // midnight這邊的openRelicChoiceModal()也是直接把該物件當pickedOption傳下去）。
+  // 於是：
+  //   choice === name        → 物件 vs 字串，永遠false
+  //   map                    → PriTestMidnightTextAdapt.elementAliases 從來沒有被匯出，永遠undefined
+  //   choice.indexOf(name)   → 物件沒有indexOf → **TypeError**
+  // 也就是說，只要角色習得了「屬性蓄積值＋1」或兩個「達成的歡喜」，recordAttributeAccum()
+  // 與maybeApplyJoyTalismans()每次都會在這裡拋例外，整條蓄積寫入被中斷。
+  // 改成正面處理{ja,zh}形狀（這正是上面那句「兩邊都比對」原本的意圖），並保留純字串的
+  // 舊資料路徑；不再引用不存在的elementAliases。
   function relicChoiceMatches(choice, name) {
     if (!choice || !name) return false;
+    // {ja, zh} 形狀：ja是規則書原文，直接對上這裡的name；zh是翻譯（例「炎」的zh是「火」），
+    // 一併比對以容納由zh側寫入的舊資料。
+    if (typeof choice === "object") return choice.ja === name || choice.zh === name;
+    if (typeof choice !== "string") return false;
     if (choice === name) return true;
-    var map = window.PriTestMidnightTextAdapt && window.PriTestMidnightTextAdapt.elementAliases;
-    if (map && map[choice]) return map[choice].indexOf(name) !== -1;
-    // 沒有別名表時退回「互為子字串」的寬鬆比對（例如「炎」vs「火炎」），
+    // 純字串的舊資料：退回「互為子字串」的寬鬆比對（例如「炎」vs「火炎」），
     // 不做更聰明的猜測。
     return choice.indexOf(name) !== -1 || name.indexOf(choice) !== -1;
   }
@@ -5400,8 +5523,14 @@
       return;
     }
     var scaled = scaleByPartySize(amount);
+    // 2026-09-23修正：原本寫 (cur || 0)，但這條路徑上 fieldEnemyHp 的 null 代表「還沒扣過血
+    // ＝滿血」，不是0——全檔其餘所有 fieldEnemyHp 的 transaction 都寫成
+    // `cur === null ? enemyRealHpMax(...) : cur`（見 applyDamageToFieldEnemyHp()／
+    // initFieldEnemyHpFromTrigger() 等）。照原本的寫法，只要在 HP 尚未初始化的空窗期打到，
+    // next 會是負數、被夾成0＝敵人直接歸零。這裡對齊既有慣例。
+    var max = enemyRealHpMax(fieldTriggers[targetKey]);
     GameStorage.rtTransaction(gameId, "cloud", "fieldEnemyHp/" + targetKey, function (cur) {
-      var next = (cur || 0) - scaled;
+      var next = (cur === null ? max : cur) - scaled;
       return next < 0 ? 0 : next;
     });
   }
@@ -5816,7 +5945,13 @@
       maybeApplyHalberdWhirlwind(c, info.weaponId, now); // 守護者（黎明）「斧槍旋風」
       maybeApplyGodSkinSwaddle(c, now); // 護符「神肌的襁褓」（2026-09-12接入）
     }
-    triggerEnemyHitEffect(weaponHitColor(info.weaponId));
+    // 2026-09-24：遠距武器先放一支飛行的箭，落點才出刀光——先前弓／投擲類打出去是
+    // 「敵人身上直接出現刀光」，中間沒有任何投射物。近戰維持原本的即時刀光。
+    if (isRangedWeapon(info.weaponId)) {
+      triggerSpellCometEffect(side === "L" ? "btn-midnight-attack-left" : "btn-midnight-attack-shared-target", weaponHitColor(info.weaponId), "arrow");
+    }
+    // 2026-09-24：2Hit 打出「兩道不同方向的刀光交叉」（使用者明確規格），一般 1Hit 維持單道。
+    triggerEnemyHitEffect(weaponHitColor(info.weaponId), useHit2 ? { variant: "cross" } : null);
     applyWeaponAttributeAccumOnHit(info.weaponId, useHit2);
     // 2026-09-06優化（使用者明確要求「戰鬥畫面中敵人血量下方不顯示連段」）：拿掉原本
     // 敵人HP下方的連段文字提示，改成攻擊按鈕本身在下次攻擊會是2Hit時顯示[Hit]
@@ -5906,9 +6041,28 @@
     return 0;
   }
 
-  var ATTACK_SPECIAL_MENU_HOLD_MS = 400; // 長按超過此時間才顯示選單，跟戰技B的2秒蓄力長按用途不同（這裡只是「按住看選單」不是「蓄力施放」）
+  // ---- 攻擊鍵的操作模型（2026-09-24 使用者明確規格改版）----
+  // 舊版：長按 0.4 秒開特殊攻擊選單（跳躍／衝刺／蓄力三選一），點選單項目施放；短按＝一般攻擊。
+  // 新版：
+  //   ・鍵旁 ◀ ▶ 循環切換「已裝填」的攻擊方式——普通／跳躍／衝刺。**蓄力不在清單裡**
+  //     （使用者明確選擇「不留，只能長按打出」）。
+  //   ・按住滿 ATTACK_CHARGE_HOLD_MS（0.5 秒）＝打出蓄力攻擊，在滿的那一刻就發動
+  //     （跟長按詠唱 updateSorceryHold() 同一種「到點即發」慣例，不必等放開）。
+  //   ・沒按滿就放開＝打出**目前裝填的那一種**（普通／跳躍／衝刺）。
+  //
+  // 2026-09-24 第二次修訂（使用者：「蓄力改為只需按0.5秒，沒有按滿一律是普通攻擊」）：
+  // 初版是 1.0 秒，而且中間有一段「超過輕點門檻但沒按滿＝取消，什麼都不做」。現在取消
+  // 那一段——只剩「按滿＝蓄力／沒按滿＝照常出手」兩種結果，也就不再需要輕點上限這個門檻。
+  // 「普通攻擊」在使用者的語境裡指的是「非蓄力的一般出手」，裝填著跳躍／衝刺時輕點就打
+  // 那一種（使用者確認），否則 ◀ ▶ 切換列會完全沒有作用。
+  var ATTACK_CHARGE_HOLD_MS = 500; // 使用者明確規格「蓄力改為只需按0.5秒」
+  // 讀條的顯示起點。純視覺：它已經不再決定任何行為（沒按滿一律照常出手），只是不想讓
+  // 每一次輕點都閃一下讀條，所以按住超過這個時間才畫出來。
+  var ATTACK_CHARGE_GAUGE_LEAD_MS = 150;
   var attackHoldState = { L: null, R: null }; // 按下攻擊鍵的時間戳，null＝目前沒按著
-  var attackSpecialMenuOpen = { L: false, R: false };
+  var attackChargeFired = { L: false, R: false }; // 這一次長按是否已經打出蓄力（避免按著不放連發）
+  // 已裝填的攻擊方式：null＝普通攻擊，其餘是 availableSpecialAttackEntries() 的 kind（jump／dash）。
+  var attackArmedKind = { L: null, R: null };
 
   // 該側目前裝備武器可用的跳躍攻擊/衝刺攻擊清單（沒有裝備近戰武器或都沒習得則為空陣列）。
   function availableSpecialAttackEntries(side) {
@@ -6006,61 +6160,140 @@
     });
   }
 
+  // 可切換的攻擊方式清單（普通＋已習得的跳躍／衝刺）。蓄力刻意排除，見上方說明。
+  function armedAttackOptions(side) {
+    var out = [{ kind: null }]; // 普通攻擊永遠在第一個
+    availableSpecialAttackEntries(side).forEach(function (entry) {
+      if (entry.kind !== "charge") out.push(entry);
+    });
+    return out;
+  }
+
+  function chargeAttackEntry(side) {
+    return (
+      availableSpecialAttackEntries(side).filter(function (e) {
+        return e.kind === "charge";
+      })[0] || null
+    );
+  }
+
+  // ◀ ▶：循環切換裝填中的攻擊方式。沿用快捷消耗品 cycleQuickConsumable() 的同一種
+  // 「索引循環＋夾回合法範圍」寫法，不另外發明第二套選擇機制。
+  function cycleArmedAttack(side, delta) {
+    if (!mySlot || isPaused()) return;
+    var options = armedAttackOptions(side);
+    if (options.length < 2) return;
+    var idx = 0;
+    for (var i = 0; i < options.length; i++) {
+      if (options[i].kind === attackArmedKind[side]) idx = i;
+    }
+    idx = (idx + delta + options.length) % options.length;
+    attackArmedKind[side] = options[idx].kind;
+    renderAttackModeSelector(side);
+  }
+
+  // 目前裝填的那一種真的打出去。null＝普通攻擊（走既有 handleAttackClick）。
+  function fireArmedAttack(side) {
+    var kind = attackArmedKind[side];
+    if (!kind) {
+      handleAttackClick(side);
+      return;
+    }
+    var entry = availableSpecialAttackEntries(side).filter(function (e) {
+      return e.kind === kind;
+    })[0];
+    if (!entry) {
+      // 換了武器／卸下遺物之後這個 kind 可能已經不可用，退回普通攻擊並把裝填歸位。
+      attackArmedKind[side] = null;
+      renderAttackModeSelector(side);
+      handleAttackClick(side);
+      return;
+    }
+    useSpecialAttack(side, entry);
+  }
+
   function startAttackHold(side) {
     if (!mySlot || isPaused() || isSelfDowned() || isIceBlizzardBlinded(Date.now())) return;
     attackHoldState[side] = Date.now();
+    attackChargeFired[side] = false;
   }
 
   function cancelAttackHold(side) {
     attackHoldState[side] = null;
+    attackChargeFired[side] = false;
+    renderAttackChargeGauge(side, 0);
   }
 
-  // 放開時：如果長按期間選單已經被updateAttackHold()開啟，這次放開只是關閉選單，不觸發
-  // 一般攻擊（避免長按看完選單、放開手時又不小心打出一發一般攻擊，浪費體力/連段）；
-  // 否則（單純點擊、或沒有任何特殊攻擊可顯示）視為一般攻擊。
+  // 放開時：蓄力已經在滿 0.5 秒那一刻自己打出去了就什麼都不做，否則一律打出裝填中的那一種。
   function endAttackHold(side) {
     var startedAt = attackHoldState[side];
     attackHoldState[side] = null;
+    renderAttackChargeGauge(side, 0);
     if (startedAt === null || startedAt === undefined) return;
-    if (attackSpecialMenuOpen[side]) {
-      attackSpecialMenuOpen[side] = false;
-      renderAttackSpecialMenu(side);
+    if (attackChargeFired[side]) {
+      attackChargeFired[side] = false;
       return;
     }
-    handleAttackClick(side);
+    fireArmedAttack(side);
   }
 
   function updateAttackHold(now) {
     ["L", "R"].forEach(function (side) {
       var startedAt = attackHoldState[side];
-      if (startedAt === null || startedAt === undefined || attackSpecialMenuOpen[side]) return;
-      if (now - startedAt < ATTACK_SPECIAL_MENU_HOLD_MS) return;
-      if (!availableSpecialAttackEntries(side).length) return; // 沒有任何習得的特殊攻擊，維持原本「按住不放最後放開＝一般攻擊」的行為
-      attackSpecialMenuOpen[side] = true;
-      renderAttackSpecialMenu(side);
+      if (startedAt === null || startedAt === undefined || attackChargeFired[side]) return;
+      var entry = chargeAttackEntry(side);
+      if (!entry) return; // 沒習得蓄力：不顯示讀條，也不會有「到點發動」，放開時照常出手
+      var heldMs = now - startedAt;
+      if (heldMs >= ATTACK_CHARGE_HOLD_MS) {
+        attackChargeFired[side] = true;
+        renderAttackChargeGauge(side, 0);
+        useSpecialAttack(side, entry);
+        return;
+      }
+      if (heldMs < ATTACK_CHARGE_GAUGE_LEAD_MS) return; // 太短的按壓不閃讀條
+      var span = ATTACK_CHARGE_HOLD_MS - ATTACK_CHARGE_GAUGE_LEAD_MS;
+      renderAttackChargeGauge(side, Math.max(0, Math.min(1, (heldMs - ATTACK_CHARGE_GAUGE_LEAD_MS) / span)));
     });
   }
 
-  function attackSpecialMenuElId(side) {
-    return side === "L" ? "midnight-attack-special-menu-left" : "midnight-attack-special-menu";
+  function renderAttackChargeGauge(side, pct) {
+    var gauge = el(side === "L" ? "midnight-attack-charge-gauge-left" : "midnight-attack-charge-gauge-right");
+    if (!gauge) return;
+    gauge.hidden = pct <= 0;
+    gauge.style.setProperty("--charge-pct", Math.round(pct * 100) + "%");
   }
 
-  function renderAttackSpecialMenu(side) {
-    var menuEl = el(attackSpecialMenuElId(side));
-    if (!menuEl) return;
-    var entries = attackSpecialMenuOpen[side] ? availableSpecialAttackEntries(side) : [];
-    menuEl.hidden = !entries.length;
-    menuEl.innerHTML = "";
-    entries.forEach(function (entry) {
-      var btn = document.createElement("button");
-      btn.type = "button";
-      btn.className = "midnight-attack-special-btn";
-      var name = specialAttackLabel(entry.kind);
-      btn.textContent = name + " " + CharacterDrawer.formatValueWithSymbol(entry.value, entry.symbol);
-      btn.addEventListener("click", function () {
-        useSpecialAttack(side, entry);
-      });
-      menuEl.appendChild(btn);
+  // 攻擊方式切換列：只有習得了跳躍／衝刺（＝清單超過 1 項）時才顯示整列。
+  function renderAttackModeSelector(side) {
+    var row = el(side === "L" ? "midnight-attack-mode-left" : "midnight-attack-mode-right");
+    var label = el(side === "L" ? "midnight-attack-mode-label-left" : "midnight-attack-mode-label-right");
+    if (!row || !label) return;
+    var options = armedAttackOptions(side);
+    row.hidden = options.length < 2;
+    if (row.hidden) {
+      if (attackArmedKind[side] !== null) attackArmedKind[side] = null; // 沒得選就一定是普通攻擊
+      return;
+    }
+    // 裝填中的 kind 已經不在清單裡（換武器／卸遺物）就歸位到普通攻擊。
+    var stillValid = options.some(function (o) {
+      return o.kind === attackArmedKind[side];
+    });
+    if (!stillValid) attackArmedKind[side] = null;
+    label.textContent = attackArmedKind[side]
+      ? specialAttackLabel(attackArmedKind[side])
+      : window.I18N.t("midnight_attack_mode_normal_label");
+  }
+
+  function bindAttackModeSelector() {
+    [
+      ["L", "btn-midnight-attack-mode-prev-left", "btn-midnight-attack-mode-next-left"],
+      ["R", "btn-midnight-attack-mode-prev-right", "btn-midnight-attack-mode-next-right"],
+    ].forEach(function (row) {
+      var side = row[0];
+      var prev = el(row[1]);
+      var next = el(row[2]);
+      if (prev) prev.addEventListener("click", function () { cycleArmedAttack(side, -1); });
+      if (next) next.addEventListener("click", function () { cycleArmedAttack(side, 1); });
     });
   }
 
@@ -6068,8 +6301,6 @@
   // 骰子點數×2體力），跟castWeaponSkillEntry()同一套資源檢查/扣除模式。
   function useSpecialAttack(side, entry) {
     if (!mySlot || isPaused() || isSelfDowned() || isIceBlizzardBlinded(Date.now())) return;
-    attackSpecialMenuOpen[side] = false;
-    renderAttackSpecialMenu(side);
     var c = characters[myTokenId];
     if (!c) return;
     var bodyText = window.PriTestCharacterTypes.localizedText(entry.effect.body);
@@ -6096,7 +6327,8 @@
       jump: entry.kind === "jump",
       element: weaponElementLabel(c, entry.weaponId),
     });
-    triggerEnemyHitEffect(weaponHitColor(entry.weaponId));
+    // 2026-09-24：蓄力／跳躍／衝刺各自的刀光變體（entry.kind 就是變體名）。
+    triggerEnemyHitEffect(weaponHitColor(entry.weaponId), { variant: entry.kind });
     // 蓄力攻擊也是「一般攻擊的替代」，因此比照handleAttackClick()一併觸發武器的屬性/
     // 異常附著（1Hit相當）。跳躍/衝刺攻擊維持既有行為（原本就沒有觸發）。
     if (entry.kind === "charge") {
@@ -7242,6 +7474,16 @@
         c._skillCooldownUntil = Math.max(now, (c._skillCooldownUntil || now) - SKILL_INTERCEPT_COOLDOWN_CUT_MS);
         GameStorage.rtSet(gameId, "cloud", "character/" + myTokenId + "/_skillCooldownUntil", c._skillCooldownUntil);
       }
+    } else if (abilityId === "claw_shot") {
+      // 追蹤者・爪擊（2026-09-23使用者明確規格「一起執行兩邊效果 對敵人扣guard也有主動
+      // 復歸傷害」）：本文的「為目標的總合傷害追加『+▲』」在 midnight 換算成 Guard 削減
+      // ——▲ 本身沒有固定傷害數值，它的意義是 Guard Reduction（CLAUDE.md §18 的
+      // 【追加効果】讀法，▲＝0.5、每滿3點Guard Point−1），跟守護者「旋風」對 S/M 敵人的
+      // 「▲」走完全同一個 recordGuardReductionForPoint()，不另外發明數值。
+      // 旋風有「體型 S/M」限制是因為它的本文明寫，爪擊本文沒有這個限制，因此不設體型閘門。
+      // 另一半的【復歸傷害：40】由 MIDNIGHT_ABILITY_AUTO_REVIVAL_IDS 白名單觸發
+      // （見該常數說明），兩邊在同一次使用中一起發生。
+      if (activeEncounter) recordGuardReductionForPoint(activeEncounter.id, "▲");
     } else if (abilityId === "whirlwind") {
       // 守護者・旋風：原文「對雜兵『HP損害：■』」。早期使用者給的midnight限定數字是20，
       // 早於雜兵HP×10改版；2026-09-20使用者明確確認改為跟其餘雜兵■同一刻度
@@ -7280,6 +7522,7 @@
   // 出招，離開戰鬥/靈體HP歸零就不再攻擊（但不自動清除，讓玩家還看得到靈體已陣亡的
   // 血條，直到encounter結束或重新召喚才清除，見onEncounterEnded()）。
   function updateSummonedSpirit(now) {
+    if (isPaused()) return; // 2026-09-23：暫停中靈體原本照樣每2秒打敵人（下次攻擊時刻由暫停平移補回）
     var c = characters[myTokenId];
     var spirit = c && c.summonedSpirit;
     if (!spirit || spirit.hp <= 0 || !activeEncounter) return;
@@ -7852,15 +8095,20 @@
 
   // 這批技藝/技能的body文字本來就寫了「復歸傷害：N」（見parseFixedRevivalDamageValue()），
   // 2026-09-08使用者明確要求這幾招「同時觸發...復歸的傷害」，因此在傷害結算後一併呼叫
-  // maybeApplySkillRevivalDamage()。刻意用白名單而不是套用到全部招式，因為「爪擊」
-  // （claw_shot）使用者明確要求「不改動」——它的body文字雖然也含「復歸ダメージ：40」，
-  // 但那是「任選發揮」的其中一種效果，不該無條件跟傷害同時觸發。
+  // maybeApplySkillRevivalDamage()。
+  // 2026-09-23使用者明確規格變更：「claw_shot 一起執行兩邊效果 對敵人扣guard也有主動
+  // 復歸傷害」——原本依 2026-09-08 的指示把爪擊排除在白名單外（本文是「可任選發揮
+  // 『總合傷害+▲』或『對任意1名PC施加復歸傷害:40』**其中一種**」，當時要求不改動），
+  // 現在改為兩邊同時發揮，因此加入白名單；▲ 那一半在 applyMidnightAbilityPostEffect()
+  // 的 claw_shot 分支換算成 Guard 削減（跟旋風「對S/M敵人▲」同一套
+  // recordGuardReductionForPoint()，不是另外發明一套數值）。
   var MIDNIGHT_ABILITY_AUTO_REVIVAL_IDS = {
     assault_wedge: true, // 追蹤者・襲擊之楔
     wings_of_salvation: true, // 守護者・救世之翼
     one_shot: true, // 鐵眼・一擊必殺
     totem_stella: true, // 無賴漢・圖騰・史黛拉
     march_of_the_undying: true, // 復仇者・不死行軍（2026-09-21使用者確認加入白名單：全體【復歸傷害：120】）
+    claw_shot: true, // 追蹤者・爪擊（2026-09-23使用者明確規格：兩邊效果一起執行）
   };
 
   // 隱者「混成魔法」的使用門檻（2026-09-08使用者明確要求「消耗3屬性痕」，本文原有
@@ -8246,7 +8494,7 @@
     var skillBtn = el("btn-midnight-character-skill");
     // 執行者「妖刀」kind純粹是"Defense"（沒有Action分支，跟marking／counterattack／trance
     // 這幾個"Action／Defense"雙模式技能不同），2026-09-08改走特殊防禦按鈕流程（見
-    // yotoAbilityFor()／availableSpecialDefenseOption()），這裡的一般技能按鈕不再顯示，
+    // yotoAbilityFor()／availableSpecialDefenseOptions()），這裡的一般技能按鈕不再顯示，
     // 避免玩家誤按（原本會扣60秒冷卻卻什麼都沒發生，因為body文字算不出傷害數值）。
     // 2026-09-13使用者明確規格「lv2才學到腳色招式」：未達等級視同還沒習得，按鈕不顯示。
     skillBtn.hidden = !foundSkill.ability || foundSkill.ability.kind === "Defense" || !abilityUnlocked(foundSkill.c, "skill");
@@ -8260,7 +8508,7 @@
     renderSkillVariantSwitchButton(foundSkill, actable);
 
     // 特殊防禦按鈕（2026-09-05角色能力真正接入新增）：第六感／遺物效果額外防禦選項，見
-    // availableSpecialDefenseOption()。
+    // availableSpecialDefenseOptions()。
     var c = characters[myTokenId];
     var type = c && c.typeId ? window.PriTestCharacterTypes.get(c.typeId) : null;
     var specialOptions = availableSpecialDefenseOptions(c, type);
@@ -8595,6 +8843,9 @@
 
   // 長按滿SORCERY_CAST_HOLD_MS才真正觸發，跟戰技A共用castWeaponSkillEntry()。
   function updateSorceryHold(now) {
+    // 2026-09-23：起點（pointerdown handler）本來就有isPaused()，但「長按進行中」漏掉，
+    // 暫停中長按照樣達標並發動。這裡擋住，長按起點由暫停平移往後挪＝進度凍結。
+    if (isPaused()) return;
     Object.keys(sorceryHoldState).forEach(function (key) {
       if (now - sorceryHoldState[key] < sorceryCastHoldMs()) return;
       delete sorceryHoldState[key]; // 先清掉避免同一次長按重複觸發
@@ -8734,9 +8985,8 @@
     return out;
   }
 
-  function availableSpecialDefenseOption(c, type) {
-    return availableSpecialDefenseOptions(c, type)[0] || null;
-  }
+  // （2026-09-23移除未使用的 availableSpecialDefenseOption()：特殊防禦鍵變成兩顆之後，
+  // 取選項一律走下方的 pressedSpecialDefenseOption()，這個「只取第1個」的單數版本已無呼叫端。）
 
   // 這次按下的是第幾顆特殊防禦鍵（0＝主鍵、1＝第二顆），resolveMyIncomingHit()依此取選項。
   var specialDefensePressedIndex = 0;
@@ -8750,7 +9000,7 @@
   // diceCostPoints×DICE_COUNT_TO_STAMINA_MULT公式；妖刀則是固定成本+使用成功後體力+5）。
   // 回傳是否扣款成功。
   function trySpendSpecialDefenseCost(c, option) {
-    // 「技能強化（僅微無敵）」：以技能冷卻為代價（見availableSpecialDefenseOption()說明）。
+    // 「技能強化（僅微無敵）」：以技能冷卻為代價（見availableSpecialDefenseOptions()說明）。
     if (option.kind === "restageDefense") {
       var now = Date.now();
       if ((c._skillCooldownUntil || 0) > now) return false;
@@ -9145,6 +9395,9 @@
 
   // 讀取到期才真正扣次數＋回血，回復量FLASK_HEAL_AMOUNT是佔位值（見常數區塊註解）。
   function updateFlaskReading(now) {
+    // 2026-09-23：起點（handleFlaskClick）本來就有isPaused()，但「進行中」漏掉，暫停中
+    // 讀取條照樣走完並結算回復。這裡擋住，到期時刻由暫停平移補回。
+    if (isPaused()) return;
     if (flaskReadingUntil === null || now < flaskReadingUntil) return;
     flaskReadingUntil = null;
     commitFlaskHeal();
@@ -9999,17 +10252,17 @@
   // 一定要都走這個函式（只改一邊會變成「第1下1秒、第2下2秒」）。
   // turnStep 遺物的加成兩條路徑都照樣疊上去。
   // 時鐘偏移對策（設計文件 §8.2）。enemyAttack.warnAt 是「發動的那一端」寫進 RTDB 的
-  // 共享時間戳，現在統一用 GameStorage.serverNow()（伺服器時刻）寫入。讀的一端要先換算
+  // 共享時間戳，用 sharedNow()（伺服器時刻）寫入。讀的一端要先用 sharedToLocal() 換算
   // 回自己的本機時刻，才能跟畫面迴圈的 now（Date.now() 基準）直接比較。
   //
   // 為什麼是「把對方的時刻換算成本機」而不是「把本機換算成伺服器」：反應窗口的推進
   // （phaseEndAt／windowStartAt）全部是同一台裝置自己寫自己讀，維持本機時刻最單純；
   // 需要跨裝置對齊的只有 warnAt 這一個起點，在入口換算一次就夠了。
   //
-  // 還沒連上雲端／單機模式時 serverTimeOffset() 回 0，結果跟改動前完全一樣。
+  // 2026-09-23：換算本身搬到共用的 sharedNow()／sharedToLocal()（見該處說明），邀請時限／
+  // 投票時限／階段閘門逾時那一組 deadline 也改走同一套，這個函式只剩「取出 warnAt」這件事。
   function enemyAttackWarnAtLocal(atk) {
-    var offset = GameStorage.serverTimeOffset ? GameStorage.serverTimeOffset() : 0;
-    return (atk && atk.warnAt ? atk.warnAt : 0) - offset;
+    return sharedToLocal(atk && atk.warnAt ? atk.warnAt : 0);
   }
 
   function incomingHitWindowMs(st) {
@@ -10515,7 +10768,7 @@
           // 夜之王一定落在上位敵人那組機率（1~3下），見pickEnemyAttackHitCount()。
           // 手動招式（規則書の「個別効果」1回ぶん）だけは連擊にせず1下固定。
           hitCount: bossOutcome.hitCount || pickEnemyAttackHitCount(pt, cur),
-          warnAt: GameStorage.serverNow ? GameStorage.serverNow() : Date.now(), // 共享時間戳改用伺服器時刻（§8.2）
+          warnAt: sharedNow(), // 共享時間戳用伺服器時刻（§8.2，見 sharedNow()）
           actionName: bossOutcome.actionName,
           actionMod: bossOutcome.actionMod,
           actionNote: bossOutcome.actionNote,
@@ -10589,7 +10842,7 @@
         attackId: pt.id + ":" + Date.now(),
         targetSlots: targetSlots,
         hitCount: pickEnemyAttackHitCount(pt, cur), // 依敵人等級分兩組機率，見該函式說明
-        warnAt: GameStorage.serverNow ? GameStorage.serverNow() : Date.now(), // 共享時間戳改用伺服器時刻（§8.2）
+        warnAt: sharedNow(), // 共享時間戳用伺服器時刻（§8.2，見 sharedNow()）
         actionName: action ? action.name : null,
         actionMod: action ? action.mod : null, // 供resolveMyIncomingHit解析這一招實際附帶的屬性
         dmgKind: outcome.kind,
@@ -10892,6 +11145,9 @@
     } else {
       showActionFlash("midnight-dodge-flash", window.I18N.t("midnight_damage_taken_flash"), "damage");
       showActionFlash("midnight-block-flash", window.I18N.t("midnight_damage_taken_flash"), "damage");
+      // 2026-09-24 追加：受擊時的全畫面震動。@keyframes midnight-fx-shake 本來就存在，
+      // 但先前只被無賴漢戰吼（screen-fx-warcry）用到，玩家真的被打到時畫面完全不動。
+      triggerScreenFx("hit");
     }
     // 2026-09-06數值真正接入：敵人攻擊傷害不再是固定的ENEMY_ATTACK_DAMAGE佔位值，改用
     // 這一招實際解析出的dmgAmount（見resolveEnemyActionOutcome()）÷10（使用者明確規格：
@@ -11114,11 +11370,26 @@
   // 玩家攻擊命中特效（2026-09-06使用者明確要求「玩家使用任何攻擊效果時,也在敵人的圖片
   // 上產生不同的刀光效果」）：只在真的站在有敵人圖片可疊加的遭遇（activeEncounter）時
   // 顯示，共用標靶demo（沒有encounter）沒有圖片可疊，直接跳過。
-  function triggerEnemyHitEffect(color) {
+  // opts.variant（2026-09-24 追加）：攻擊方式的差異化刀光。使用者明確規格
+  // 「變化增加特效，其中 2Hit 為一次兩不同方向刀光交叉」，並一併把蓄力／跳躍／衝刺
+  // 分開——在此之前這四種打出來都是同一道隨機斜角刀光，視覺上完全分不出來。
+  //   cross  2Hit：兩道反向刀光交叉
+  //   charge 蓄力：刀光加粗＋前置聚光
+  //   jump   跳躍：由上而下的斜角
+  //   dash   衝刺：水平突進的長刀光
+  var HIT_EFFECT_VARIANTS = { cross: 1, charge: 1, jump: 1, dash: 1 };
+
+  function triggerEnemyHitEffect(color, opts) {
     if (!activeEncounter) return;
     var effectEl = el("midnight-enemy-hit-effect");
     if (!effectEl) return;
     effectEl.style.setProperty("--hit-color", color || ENEMY_HIT_NO_ELEMENT_COLOR);
+    // 先清掉上一次的變體 class，再套這一次的（同一個元素重複使用）。
+    Object.keys(HIT_EFFECT_VARIANTS).forEach(function (v) {
+      effectEl.classList.remove("midnight-enemy-hit-" + v);
+    });
+    var variant = opts && opts.variant;
+    if (variant && HIT_EFFECT_VARIANTS[variant]) effectEl.classList.add("midnight-enemy-hit-" + variant);
     effectEl.hidden = false;
     // 重新觸發CSS animation（連續命中時，上一次的動畫可能還沒播完）：先移除play class、
     // 強制reflow，再加回去，讓瀏覽器把它當成全新的animation重新播放。
@@ -11137,10 +11408,15 @@
   // 位移量寫進CSS變數交給keyframe平移，JS不逐幀推動。
   // 只在activeEncounter（真的有敵人圖片可以射）時觸發，共用標靶demo沒有圖片，跟
   // triggerEnemyHitEffect()同一個守衛。
+  // 2026-09-24：投射物泛化。原本這條只給詠唱類（戰技B／魔術／祈禱，castWeaponSkillEntry
+  // 有傳 sourceBtnId 才放），弓與投擲類武器打出去是「敵人身上直接出現刀光」、中間完全
+  // 沒有飛行物。現在同一套兩點插值也給遠距武器用，只是換 kind（彗星／箭矢）——CSS 用
+  // .midnight-spell-comet-<kind> 區分外觀，飛行時間也各自給。
   var SPELL_COMET_FLIGHT_MS = 420;
+  var PROJECTILE_FLIGHT_MS = { comet: 420, arrow: 260 };
   var spellCometTimer = null;
 
-  function triggerSpellCometEffect(fromBtnId, color) {
+  function triggerSpellCometEffect(fromBtnId, color, kind) {
     if (!activeEncounter) return;
     var cometEl = el("midnight-spell-comet");
     var fromEl = fromBtnId ? el(fromBtnId) : null;
@@ -11156,7 +11432,14 @@
     cometEl.style.setProperty("--comet-dx", toRect.left + toRect.width / 2 - fromX + "px");
     cometEl.style.setProperty("--comet-dy", toRect.top + toRect.height / 2 - fromY + "px");
     cometEl.style.setProperty("--comet-color", color || ENEMY_HIT_NO_ELEMENT_COLOR);
-    cometEl.style.setProperty("--comet-ms", SPELL_COMET_FLIGHT_MS + "ms");
+    var flightKind = PROJECTILE_FLIGHT_MS[kind] ? kind : "comet";
+    var flightMs = PROJECTILE_FLIGHT_MS[flightKind];
+    cometEl.style.setProperty("--comet-ms", flightMs + "ms");
+    // 外觀依 kind 切換（彗星／箭矢），飛行軌跡與座標算法共用。
+    Object.keys(PROJECTILE_FLIGHT_MS).forEach(function (k) {
+      cometEl.classList.remove("midnight-spell-comet-" + k);
+    });
+    cometEl.classList.add("midnight-spell-comet-" + flightKind);
     // 連續施法時重新播放動畫：同triggerEnemyHitEffect()的「先隱藏、強制reflow、再顯示」。
     cometEl.hidden = true;
     void cometEl.offsetWidth;
@@ -11164,7 +11447,7 @@
     if (spellCometTimer) clearTimeout(spellCometTimer);
     spellCometTimer = setTimeout(function () {
       cometEl.hidden = true;
-    }, SPELL_COMET_FLIGHT_MS);
+    }, flightMs);
   }
 
   // 屬性／異常狀態命中特效（2026-09-12使用者明確要求「使用異常狀態招式時，對敵人的刀光
@@ -11423,6 +11706,10 @@
     arrowsDown: { ms: 900, parts: 6 },
     thrust: { ms: 700, parts: 1 },
     element: { ms: 800, parts: 0 },
+    // 2026-09-24 追加：標記落定（鐵眼）、霧氣（送葬人恍惚）、交叉刀光（2Hit）。
+    mark: { ms: 900, parts: 0 },
+    mist: { ms: 1000, parts: 4 },
+    cross: { ms: 620, parts: 2 },
   };
 
   function triggerEnemyFx(kind, opts) {
@@ -11467,7 +11754,8 @@
     }, 700);
   }
 
-  var SCREEN_FX_DEFAULT_MS = { revive: 1200, wings: 1500, warcry: 700, holy: 900, curtain: 1000 };
+  // hit／defeat／flash／beast 是 2026-09-24 追加的（受擊震動、擊破收尾、終曲白閃、變身紅閃）。
+  var SCREEN_FX_DEFAULT_MS = { revive: 1200, wings: 1500, warcry: 700, holy: 900, curtain: 1000, hit: 320, defeat: 520, flash: 420, beast: 600 };
   var screenFxTimers = {};
 
   function triggerScreenFx(kind, ms) {
@@ -11528,6 +11816,29 @@
         }, idx * 180);
       });
     } else if (abilityId === "yoto_release_action" || abilityId === "yoto_release_heal_action") triggerEnemyFx("thrust");
+    // ---- 2026-09-24 追加：原本沒有「發動瞬間」特效的 10 招 ----
+    // 這幾招有的已經有持續型視覺（見 updateAbilityVisuals：變身／血魂／共感／標記），
+    // 缺的是按下去那一刻的回饋。一律重用既有的 triggerEnemyFx／triggerScreenFx／
+    // triggerButtonFx／triggerEnemyAfterimage，不新增任何圖片資產。
+    else if (abilityId === "marking") triggerEnemyFx("mark", { symbol: "◎" });
+    else if (abilityId === "finale") triggerScreenFx("flash"); // 體崩＝畫面白閃
+    else if (abilityId === "restage") triggerEnemyAfterimage(); // 「重演」＝敵人殘影（函式本來就在，只是沒有呼叫點）
+    else if (abilityId === "march_of_the_undying") triggerPartyCardFx("shield"); // 全隊不死＝全席位卡片金光
+    else if (abilityId === "spirit_summon") triggerButtonFx("btn-midnight-character-skill", "rise");
+    else if (abilityId === "song_of_blood_spirit") triggerEnemyFx("element", { color: "#c0304a", symbol: "♬" });
+    else if (abilityId === "crucible_aspect_beast") triggerScreenFx("beast");
+    else if (abilityId === "yoto") triggerButtonFx("btn-midnight-character-skill", "yoto");
+    else if (abilityId === "empathy") triggerPartyCardFx("heal");
+    else if (abilityId === "trance") triggerEnemyFx("mist");
+  }
+
+  // 全席位卡片一次性特效（不死行軍的全隊不死、共感術的全隊共享回復）：只記到期時間戳，
+  // 實際套 class 交給 updateAbilityVisuals() 的逐幀卡片迴圈（見該處說明：卡片每次重繪都會
+  // 整個覆寫 className，在這裡直接 add 會被洗掉）。
+  var PARTY_CARD_FX_MS = 900;
+  var partyCardFxUntil = { shield: 0, heal: 0 };
+  function triggerPartyCardFx(kind) {
+    partyCardFxUntil[kind] = Date.now() + PARTY_CARD_FX_MS;
   }
 
   // 持續型能力視覺（每幀，見frameInner()）。
@@ -11648,11 +11959,18 @@
     if (sheetBtn) sheetBtn.classList.toggle("midnight-buff-iron", ironPot);
     // 席位卡片：治癒（溫石）／亮起（高揚之香）／鐵化（鐵壺，只有自己）
     var cards = document.querySelectorAll("#midnight-hud-top-left .midnight-slot-card[data-token-id]");
+    // 2026-09-24：不死行軍／共感術的一次性全隊卡片特效也在這裡套。刻意不在觸發時直接
+    // classList.add——席位卡片每次重繪都是 card.className = "midnight-slot-card…" 整個覆寫，
+    // 加上去的 class 會被洗掉；改成記一個到期時間戳，由這個逐幀迴圈套用就不怕重繪。
+    var cardFxShield = partyCardFxUntil.shield > now;
+    var cardFxHeal = partyCardFxUntil.heal > now;
     for (var i = 0; i < cards.length; i++) {
       var tokenId = cards[i].getAttribute("data-token-id");
       cards[i].classList.toggle("midnight-buff-heal", !!tokenId && healOverTimeActiveFor(tokenId, now));
       cards[i].classList.toggle("midnight-buff-uplift", uplift);
       cards[i].classList.toggle("midnight-buff-iron", ironPot && tokenId === myTokenId);
+      cards[i].classList.toggle("midnight-cardfx-shield", cardFxShield);
+      cards[i].classList.toggle("midnight-cardfx-heal", cardFxHeal);
     }
   }
 
@@ -11976,7 +12294,7 @@
     // 板塊互動（塔／祝福／商人／拾取／靈鳥飛行皆同一守衛）。
     if (!mySlot || isPaused() || activeEncounter || towerSolved[pt.id] || towerInvites[pt.id] || towerEnterAttempted[pt.id]) return;
     towerEnterAttempted[pt.id] = true;
-    var now = Date.now();
+    var now = sharedNow(); // startedAt／inviteDeadline是跨裝置讀的共享時間戳（§8.2）
     resetAttemptFlagOnFailure(towerEnterAttempted, pt.id, GameStorage.rtTransaction(gameId, "cloud", "towerInvites/" + pt.id, function (cur) {
       if (cur !== null) return cur;
       var participants = {};
@@ -12001,7 +12319,7 @@
   function maybeAdvanceTowerInvite(pt) {
     var invite = towerInvites[pt.id];
     if (!invite || invite.status !== "inviting" || towerInviteResolveAttempted[pt.id]) return;
-    if (Date.now() < invite.inviteDeadline) return;
+    if (Date.now() < sharedToLocal(invite.inviteDeadline)) return;
     towerInviteResolveAttempted[pt.id] = true;
     resetAttemptFlagOnFailure(towerInviteResolveAttempted, pt.id, GameStorage.rtTransaction(gameId, "cloud", "towerInvites/" + pt.id, function (cur) {
       if (!cur || cur.status !== "inviting") return cur;
@@ -12054,10 +12372,11 @@
       // 任何提示。剩餘時間由共享的inviteDeadline反推，每台裝置各自算，不需同步進度。
       // 讀法跟板塊卡牌的#midnight-field-invite-fill完全相同。
       inviteBarRow.hidden = false;
-      var towerRemainSec = Math.max(0, Math.ceil((invite.inviteDeadline - Date.now()) / 1000));
+      var towerDeadlineLocal = sharedToLocal(invite.inviteDeadline);
+      var towerRemainSec = Math.max(0, Math.ceil((towerDeadlineLocal - Date.now()) / 1000));
       el("midnight-tower-invite-timer").textContent = window.I18N.t("midnight_field_invite_timer_label", { seconds: towerRemainSec });
       el("midnight-tower-invite-fill").style.width =
-        Math.max(0, Math.min(100, ((invite.inviteDeadline - Date.now()) / FIELD_INVITE_TIME_LIMIT_MS) * 100)) + "%";
+        Math.max(0, Math.min(100, ((towerDeadlineLocal - Date.now()) / FIELD_INVITE_TIME_LIMIT_MS) * 100)) + "%";
       return;
     }
     inviteWait.hidden = true;
@@ -13372,7 +13691,7 @@
       return;
     }
     fieldEnterAttempted[pt.id] = true;
-    var now = Date.now();
+    var now = sharedNow(); // startedAt／inviteDeadline是跨裝置讀的共享時間戳（§8.2）
     resetAttemptFlagOnFailure(fieldEnterAttempted, pt.id, GameStorage.rtTransaction(gameId, "cloud", "fieldTrigger/" + pt.id, function (cur) {
       if (cur !== null) return cur;
       var participants = {};
@@ -13414,7 +13733,7 @@
   function handleForceEnterFieldClick(pt) {
     var trig = fieldTriggers[pt.id];
     if (!trig || trig.status !== "inviting" || !trig.participants || !trig.participants[mySlot]) return;
-    GameStorage.rtSet(gameId, "cloud", "fieldTrigger/" + pt.id + "/inviteDeadline", Date.now());
+    GameStorage.rtSet(gameId, "cloud", "fieldTrigger/" + pt.id + "/inviteDeadline", sharedNow());
   }
 
   // 中途加入（設計文件§1.4）：按下「參加探索」後，等待FIELD_LATE_JOIN_WAIT_MS（會合動畫的
@@ -13515,7 +13834,7 @@
   function maybeAdvanceFieldInvite(pt) {
     var trig = fieldTriggers[pt.id];
     if (!trig || trig.status !== "inviting" || fieldInviteResolveAttempted[pt.id]) return;
-    if (Date.now() < trig.inviteDeadline) return;
+    if (Date.now() < sharedToLocal(trig.inviteDeadline)) return;
     fieldInviteResolveAttempted[pt.id] = true;
     var progress = fieldProgress[pt.id];
     var branchIndex = progress && typeof progress.branchIndex === "number" ? progress.branchIndex : pickFieldBranchIndex(pt);
@@ -13544,7 +13863,7 @@
     if (!trig || trig.status === "inviting") return;
     if (!trig.participants || !trig.participants[mySlot]) return;
     if (fieldTypewriterStartedFor[pt.id]) return;
-    if (Date.now() < trig.enterAt + fieldEnterWaitMs(pt)) return;
+    if (Date.now() < sharedToLocal(trig.enterAt) + fieldEnterWaitMs(pt)) return;
     // 2026-09-20防卡死：typewriteInto()對同一個元素重新呼叫時會stopTypewriter()中止前一個
     // 動畫、但**不會呼叫前一個的onDone**。A點敘述較長、玩家在播完前走去B點按「進入」
     // （含「立即進入」縮短邀請時限）時，A的fieldTypewriterDoneFor永遠不會成立→
@@ -13575,7 +13894,7 @@
     if (!trig.participants || !trig.participants[mySlot]) return;
     if (!fieldTypewriterDoneFor[pt.id] || fieldVoteDeadlineSetAttempted[pt.id]) return;
     fieldVoteDeadlineSetAttempted[pt.id] = true;
-    var now = Date.now();
+    var now = sharedNow(); // voteDeadline是跨裝置讀的共享時間戳（§8.2）
     resetAttemptFlagOnFailure(fieldVoteDeadlineSetAttempted, pt.id, GameStorage.rtTransaction(gameId, "cloud", "fieldTrigger/" + pt.id + "/voteDeadline", function (cur) {
       return cur === null ? now + FIELD_VOTE_TIME_LIMIT_MS : cur;
     }));
@@ -13602,7 +13921,7 @@
     } else {
       var participants = participantSlots(trig);
       var votes = trig.votes || {};
-      var timedOut = now >= trig.voteDeadline;
+      var timedOut = now >= sharedToLocal(trig.voteDeadline); // now是本機時刻，deadline是共享時間戳
       var allVoted =
         participants.length > 0 &&
         participants.every(function (slot) {
@@ -17849,7 +18168,7 @@
     var allVoted = voters.every(function (slot) {
       return votes[slot] === "take" || votes[slot] === "pass";
     });
-    var timedOut = typeof entry.voteDeadline === "number" && Date.now() >= entry.voteDeadline;
+    var timedOut = typeof entry.voteDeadline === "number" && Date.now() >= sharedToLocal(entry.voteDeadline);
     if (!allVoted && !timedOut) return;
     var takers = voters.filter(function (slot) {
       return votes[slot] === "take";
@@ -17926,18 +18245,21 @@
     var entry = trig && trig.sharedRewards && trig.sharedRewards[rewardId];
     if (!entry || entry.resolvedBy) return;
     var base = "fieldTrigger/" + pointId + "/sharedRewards/" + rewardId + "/";
+    // 寫進RTDB的deadline用伺服器時刻（跨裝置讀，§8.2）；判斷「到了沒」用本機時刻，
+    // 兩者不能混用同一個變數。
     var now = Date.now();
+    var sharedDeadline = sharedNow() + SHARED_REWARD_ACTION_TIMEOUT_MS;
     if (!entry.drawn) {
       var revealKey = pointId + ":" + rewardId + ":reveal";
       if (typeof entry.revealDeadline !== "number") {
         if (sharedRewardDeadlineAttempted[revealKey]) return;
         sharedRewardDeadlineAttempted[revealKey] = true;
         GameStorage.rtTransaction(gameId, "cloud", base + "revealDeadline", function (cur) {
-          return cur === null ? now + SHARED_REWARD_ACTION_TIMEOUT_MS : cur;
+          return cur === null ? sharedDeadline : cur;
         });
         return;
       }
-      if (now >= entry.revealDeadline) revealSharedReward(pointId, rewardId);
+      if (now >= sharedToLocal(entry.revealDeadline)) revealSharedReward(pointId, rewardId);
       return;
     }
     if (typeof entry.voteDeadline !== "number") {
@@ -17945,7 +18267,7 @@
       if (sharedRewardDeadlineAttempted[voteKey]) return;
       sharedRewardDeadlineAttempted[voteKey] = true;
       GameStorage.rtTransaction(gameId, "cloud", base + "voteDeadline", function (cur) {
-        return cur === null ? now + SHARED_REWARD_ACTION_TIMEOUT_MS : cur;
+        return cur === null ? sharedDeadline : cur;
       });
     }
   }
@@ -21085,9 +21407,12 @@
         el("midnight-field-vote-panel").hidden = true;
         var inviteLoadingBar = el("midnight-field-loading-bar");
         inviteLoadingBar.hidden = false;
+        // startedAt／inviteDeadline都是共享時間戳，先換算回本機才能跟Date.now()相減（§8.2）。
+        var inviteStartLocal = sharedToLocal(trig.startedAt);
+        var inviteEndLocal = sharedToLocal(trig.inviteDeadline);
         var invitePct = Math.max(
           0,
-          Math.min(100, ((Date.now() - trig.startedAt) / (trig.inviteDeadline - trig.startedAt)) * 100)
+          Math.min(100, ((Date.now() - inviteStartLocal) / (inviteEndLocal - inviteStartLocal)) * 100)
         );
         el("midnight-field-loading-fill").style.width = invitePct + "%";
         // 已加入名單＋「立即進入」（2026-09-07新增，design§1.2）：只有自己已加入時才會
@@ -21106,14 +21431,15 @@
       banner.hidden = true;
       invitePrompt.hidden = false;
       var inviterName = (players[trig.initiatedBy] && players[trig.initiatedBy].name) || "";
-      var remainSec = Math.max(0, Math.ceil((trig.inviteDeadline - Date.now()) / 1000));
+      var inviteDeadlineLocal = sharedToLocal(trig.inviteDeadline);
+      var remainSec = Math.max(0, Math.ceil((inviteDeadlineLocal - Date.now()) / 1000));
       el("midnight-field-invite-text").textContent = window.I18N.t("midnight_field_invite_text", { inviter: inviterName, name: locationName });
       el("midnight-field-invite-timer").textContent = window.I18N.t("midnight_field_invite_timer_label", { seconds: remainSec });
       // 2026-09-13：邀請時限也畫成讀條（使用者明確要求「等待時間也要呈現讀條在資訊欄
       // banner中」）。剩餘時間由共享的inviteDeadline反推，每台裝置各自算，不需同步進度。
       var inviteFill = el("midnight-field-invite-fill");
       if (inviteFill) {
-        var invitePct = Math.max(0, Math.min(100, ((trig.inviteDeadline - Date.now()) / FIELD_INVITE_TIME_LIMIT_MS) * 100));
+        var invitePct = Math.max(0, Math.min(100, ((inviteDeadlineLocal - Date.now()) / FIELD_INVITE_TIME_LIMIT_MS) * 100));
         inviteFill.style.width = invitePct + "%";
       }
       el("btn-midnight-field-invite-accept").disabled = !mySlot || isPaused();
@@ -21155,11 +21481,12 @@
     // 即可，不需要額外的計時器或動畫restart邏輯。
     var loadingBar = el("midnight-field-loading-bar");
     var enterWaitMs = fieldEnterWaitMs(pt); // 見fieldEnterWaitMs()：J是5秒，其餘1秒
-    if (Date.now() < trig.enterAt + enterWaitMs) {
+    var enterAtLocal = sharedToLocal(trig.enterAt); // enterAt＝共享的inviteDeadline，先換算（§8.2）
+    if (Date.now() < enterAtLocal + enterWaitMs) {
       el("midnight-field-narrative-text").textContent = "";
       el("midnight-field-vote-panel").hidden = true;
       loadingBar.hidden = false;
-      var loadingPct = Math.max(0, Math.min(100, ((Date.now() - trig.enterAt) / enterWaitMs) * 100));
+      var loadingPct = Math.max(0, Math.min(100, ((Date.now() - enterAtLocal) / enterWaitMs) * 100));
       el("midnight-field-loading-fill").style.width = loadingPct + "%";
       return;
     }
@@ -21208,7 +21535,9 @@
     // 每影格更新沒關係（只是textContent），但選項按鈕本身只在票數真的變動時才重建
     // ——不然每影格（60Hz）都innerHTML=""再重新appendChild，不只是浪費，玩家點擊的
     // 那個瞬間按鈕也可能剛好被整組換掉、造成點擊落空。
-    var remainSec = trig.voteDeadline ? Math.max(0, Math.ceil((trig.voteDeadline - Date.now()) / 1000)) : Math.ceil(FIELD_VOTE_TIME_LIMIT_MS / 1000);
+    var remainSec = trig.voteDeadline
+      ? Math.max(0, Math.ceil((sharedToLocal(trig.voteDeadline) - Date.now()) / 1000))
+      : Math.ceil(FIELD_VOTE_TIME_LIMIT_MS / 1000);
     el("midnight-field-vote-timer").textContent = window.I18N.t("midnight_field_vote_timer_label", { seconds: remainSec });
     var votes = trig.votes || {};
     var myVote = mySlot ? votes[mySlot] : undefined;
@@ -21433,6 +21762,10 @@
     var canAct = canActNow();
     renderSideCombatButtons("L");
     renderSideCombatButtons("R");
+    // 2026-09-24：攻擊方式切換列。跟著攻擊鍵一起每幀更新——武器／遺物一變動，可切換的
+    // 清單就要跟著變（並在裝填中的那一種失效時自動歸位到普通攻擊）。
+    renderAttackModeSelector("L");
+    renderAttackModeSelector("R");
     var artEntry = weaponArtEntry();
     var artBtn = el("btn-midnight-skill");
     artBtn.hidden = !artEntry;
@@ -22358,7 +22691,12 @@
   // 每幀檢查自己是否已經瀕死逾時——只判斷自己（myTokenId），不用管別人，因為每個瀕死角色
   // 的15秒倒數都是由該角色自己的裝置負責偵測（跟其他「靠近/移動」判斷同一種本地端偵測
   // 慣例）。
+  // 2026-09-23修正：暫停中這個倒數原本照跑，但救援手段（隊友的攻擊→復歸傷害）全都被
+  // isPaused()擋住，等於「暫停超過剩餘秒數＝該玩家必定被強制復歸、消耗一次流浪祝福」。
+  // 暫停期間直接不推進，並在暫停結束時把deadlineAt往後平移暫停時長
+  // （見shiftMyTimestampsAfterPause()），這樣剩餘秒數在暫停前後完全一致。
   function updateNearDeathState(now) {
+    if (isPaused()) return;
     if (!myTokenId) return;
     var c = characters[myTokenId];
     var nd = c && c.nearDeath;
@@ -23599,6 +23937,7 @@
     renderEnterBattlePrompt();
     renderBattlePrepBanner(now);
     renderStaggerOverlay(now); // 體崩橫幅／致命一擊按鈕（每影格變動，不能放進有快取的renderFieldEncounterPanel）
+    renderEnemyDamageFloat(now); // 2026-09-24：敵人血條下方的傷害飄字（1秒內累加，到期收掉）
     updateBattleSimAnimCycle(now); // 戰鬥模擬的動作循環確認，要在tick()之前指定這一影格的動作
     updateBattleSimDodgeTimer(now); // 戰鬥模擬的迴避計時（純量測顯示）
     if (window.PriTestMidnightSprite) window.PriTestMidnightSprite.tick(now);
@@ -24109,6 +24448,34 @@
     },
     _debugAbilityBaseCooldown: function (abilityId, kind) {
       return abilityBaseCooldownMs(characters[myTokenId], abilityId, kind);
+    },
+    // 2026-09-23新增（tools/midnight_check/ability_damage_check.js）：逐招驗「本文解析出的
+    // 威力」跟「實際打出去的傷害」對不對得上，需要拿得到解析器的輸出本身。
+    // value是本文解算值（顯示用的原值，**不含**CHARACTER_ABILITY_DAMAGE_MULT，見該常數
+    // 說明「只在實際造成傷害時×，顯示維持原值」）；value為null代表這一招的威力無法自動
+    // 解算，走「顯示規則原文交給GM」那條路（CLAUDE.md §19）。
+    _debugAbilityDamageInfo: function (kind) {
+      var found = characterAbilityEntry(kind);
+      if (!found.c || !found.ability) return null;
+      // 坩堝諸相・獸：發動當下刻意不解析成傷害（本文第一個【總合傷害：60】其實是變身後
+      // 「襲擊」的數值），跟useCharacterAbility()同一個判斷，不要在測試裡另寫一份。
+      var info = found.ability.id === "crucible_aspect_beast" ? null : computeMidnightAbilityDamage(found.c, found.ability);
+      return {
+        abilityId: found.ability.id,
+        value: info ? info.value : null,
+        symbol: info ? info.symbol : null,
+        abilityMult: CHARACTER_ABILITY_DAMAGE_MULT,
+        soloMult: soloModeActive() ? 2 : 1,
+        outgoingMult: affixOutgoingDamageMult(found.c, null),
+        bloodSong: bloodSongActive(),
+      };
+    },
+    // applyDamageToFieldEnemyHp()每次被呼叫都會記下{amount, rawAmount, hpValue, at}。
+    // rawAmount＝還沒套敵人HP價值減傷的總傷害，正是要拿來跟上面的解析值比對的東西。
+    // 蓄積觸發傷害走的是damageTargetKeyDirect()、不經過這裡，所以讀這個欄位天生就不會
+    // 被蓄積干擾——這正是這支測試不用去清蓄積的原因。
+    _debugLastPcDamageInfo: function () {
+      return lastPcDamageInfo;
     },
     _debugAutoRevivalIds: function () {
       return Object.keys(MIDNIGHT_ABILITY_AUTO_REVIVAL_IDS);
@@ -24677,9 +25044,7 @@
       localPos = { x: x, y: y };
       return true;
     },
-    _debugDrawSharedRewardData: function (entry) {
-      return drawSharedRewardData(entry);
-    },
+    // （_debugDrawSharedRewardData 已在上方定義，2026-09-23移除此處的重複宣告）
     _debugApplyDrawnSharedReward: function (entry, drawn) {
       var c = characters[myTokenId];
       if (!c) return null;
@@ -24769,7 +25134,7 @@
         fp: fp,
         mapExpanded: mapExpanded,
         mapIconNudge: mapIconNudge,
-        nearbyCastlePoint: nearbyCastlePoint,
+        // （nearbyCastlePoint 已在上方的5個候選來源那一組列出，2026-09-23移除此處的重複宣告）
         sorceryHoldState: sorceryHoldState,
         attributeAccum: attributeAccum,
         attributeAccumTriggers: attributeAccumTriggers,
