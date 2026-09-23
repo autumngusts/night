@@ -27,8 +27,28 @@ const FAMILIES = [].concat(
 );
 
 // "familyId/enemyId": "a" | "b"
-// 機制保留給未來真正的個別例外，但目前應為空
-const OVERRIDES = {};
+// 系統内の a／b 分けだけを手で選び直す。體型や配列順から出る機械的な初期配分が
+// 絵と合っていないときに使う。
+//
+// 2026-09-23 使用者明確規格：トロル系の 3 隻を b へ。騎士トロル（a の絵）とは
+// 見た目の系統が違うため。
+const OVERRIDES = {
+  "troll_dragonkin_wormface/headless_trolls": "b",
+  "troll_dragonkin_wormface/mad_flame_troll": "b",
+  "troll_dragonkin_wormface/snowfield_trolls": "b"
+};
+
+// "familyId/enemyId": sheetId
+// 系統の a／b では表せない割当を、sheet id ごと直に指定する（2026-09-23 使用者明確規格）。
+// OVERRIDES が「自分の系統のどちらの変体か」を選ぶのに対し、こちらは系統の枠を越える：
+//   ・別の敵の專屬 sheet を共用する（暗黒の落とし子（枯れ）→ 暗黒の落とし子の絵。
+//     同じ個体の別状態なので、系統の代表図より本人の絵のほうが近い）
+//   ・別系統の sheet を使う（著大犬 → 騎士トロル系の絵）
+// 指定先は「產出済みかどうか」を問わず既存の sheet id でなければならない（末尾で検証）。
+const SHEET_OVERRIDES = {
+  "rock_spirit_beast/dark_offspring_withered": "enemy_rock_spirit_beast_dark_offspring",
+  "big_dog_bear/huge_dog": "family_troll_dragonkin_wormface_a"
+};
 
 // 個別敵人專屬 sheet（2026-09-23 使用者提供的 22 張生成物）。
 //
@@ -187,7 +207,7 @@ FAMILIES.forEach(function (f) {
   f.enemies.forEach(function (e, i) {
     const key = f.id + "/" + e.id;
     knownKeys[key] = true;
-    const sheetId = "family_" + f.id + "_" + variantFor(f, e, i);
+    const sheetId = SHEET_OVERRIDES[key] || "family_" + f.id + "_" + variantFor(f, e, i);
     assign.push('    "' + key + '": "' + sheetId + '"');
     // 比べる相手は「系統への割当」。sheetIdForEnemy() は專屬 sheet を優先して返すように
     // なったので（2026-09-23）、そちらと比べると專屬 sheet を持つ敵が毎回「変更あり」に
@@ -233,6 +253,26 @@ BOSSES.forEach(function (b) {
     pushSheet("boss_" + b + "_" + form);
   });
 });
+
+// SHEET_OVERRIDES の指定先が実在する sheet かを確かめる。存在しない id を書くと、
+// その敵は登錄表のどの sheet にも当たらず getSheet() が null を返す——戰鬥画面では
+// 代役すら出ず、静止画のまま黙って通る（sheetIdForEnemy が返す id を誰も検証しない）。
+const sheetIds = {};
+sheets.forEach(function (line) {
+  sheetIds[/\{ id: "([^"]+)"/.exec(line)[1]] = true;
+});
+const badOverride = Object.keys(SHEET_OVERRIDES).filter(function (k) {
+  return !knownKeys[k] || !sheetIds[SHEET_OVERRIDES[k]];
+});
+if (badOverride.length) {
+  badOverride.forEach(function (k) {
+    console.error(
+      "SHEET_OVERRIDES が不正: " + k + " -> " + SHEET_OVERRIDES[k] +
+        (knownKeys[k] ? "（指定先の sheet が存在しない）" : "（enemies_data に無い敵）")
+    );
+  });
+  process.exit(1);
+}
 
 const out =
   "(function () {\n" +
