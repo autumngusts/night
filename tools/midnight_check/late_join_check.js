@@ -17,6 +17,8 @@
 //   ⑤ 出生點在 A 附近（findWalkableSpawnNear 的 ±3 格內）、demoStat／character 建立、Lv.1
 //   ⑥ A 的隊伍面板看到 B；B 開始推送位置（tokens/）
 //   ⑦ 加入後 B 的空位不再有加入鈕（已有席位）
+//   ⑧（2026-09-23 修正）席位不是連號的：第 6 席有人、第 3~5 席空著時，那個人仍要出現在隊伍面板
+//      （否則看不到他的 HP，也沒有卡片可以按「接管」把斷線的席位救回來）；格數規則不變
 // ============================================================================
 
 const { chromium } = require("playwright");
@@ -142,6 +144,24 @@ const state = (page) => page.evaluate(() => window.PriTestMidnight._debugState()
     assert(seenByA.filter(Boolean).length === 1, "A 的隊伍面板顯示 LateB，且 A 收到 B 的位置（tokens/）", seenByA);
     const joinBtnsAfter = await pageB.evaluate(() => Array.from(document.querySelectorAll("#midnight-players-panel-slots .midnight-slot-empty")).filter((c) => c.querySelector("button")).length);
     assert(joinBtnsAfter === 0, "B 已有席位後，剩下的空位不再顯示加入鈕", joinBtnsAfter);
+
+    console.log("=== ⑧ 非連號席位也要畫出來（2026-09-23 修正） ===");
+    // v1.0.1 的 visibleSlotCount() 回傳「格數」，但 renderPlayersPanel() 拿它當**席位編號上限**
+    // 跑 1..count 的迴圈。席位不是連號的——等待房一律畫 6 格、每格都能加入，所以有人佔到第 6 席
+    // 而第 3~5 席還空著是常態。那種情況下編號大於格數的席位會整個不被渲染：看不到該玩家的 HP／
+    // 瀕死警示，他斷線後也沒有卡片可以按「接管」，等於永久失聯。
+    // 這裡直接寫一個第 6 席（已佔用，共 3 人 → 依規格應顯示 3 席＋1 個空位＝4 格）。
+    const gameId = (await state(pageA)).gameId;
+    await pageA.evaluate((args) => window.PriTestGameStorage.rtSet(args.gameId, "cloud", "players/6", { name: "Slot6", characterId: "tracker", passcode: "0000", tokenId: "fake6", ready: false }), { gameId });
+    await waitFor(pageA, () => !!window.PriTestMidnight._debugState().players["6"]);
+    await pageA.waitForTimeout(300);
+    const sparse = await pageA.evaluate(() => {
+      const cards = Array.from(document.querySelectorAll("#midnight-players-panel-slots .midnight-slot-card"));
+      return { count: cards.length, hasSlot6: cards.some((c) => c.textContent.indexOf("Slot6") !== -1), texts: cards.map((c) => c.textContent.trim().replace(/\s+/g, " ").slice(0, 20)) };
+    });
+    assert(sparse.hasSlot6, "第 6 席（第 3~5 席空著）仍出現在隊伍面板上", sparse);
+    assert(sparse.count === 4, "3 人入座 → 3 席＋1 個空位＝4 格（格數規則不變）", sparse);
+    await pageA.evaluate((args) => window.PriTestGameStorage.rtSet(args.gameId, "cloud", "players/6", null), { gameId });
   } catch (e) {
     console.log("  [ERROR] " + (e && e.stack ? e.stack : e));
     results.push({ label: "腳本例外中止", pass: false });

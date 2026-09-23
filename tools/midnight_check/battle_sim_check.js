@@ -32,6 +32,13 @@
 //   ⑭（2026-09-22 第5批「在每次T的時間點時 畫面上開始計時 記錄我每次按下迴避後確切的花費時間」）
 //      戰鬥模擬中面板顯示迴避計時；自己被鎖定時建碼表、T 後正數跑動；按下（pointerdown→click）即停並
 //      記一筆「放開／按下／判定」；沒按則在換下一下時補記逾時
+//   ⑮ 獎勵清單的固定 HP 傷害 ×10、檢視後 10 秒自動扣除
+//   ⑯ 地變特殊獲得備註（稀有度→L／恩寵／複製裝備／發狂上限−2／触媒／商人購買／護符／武器滿 6 把）
+//   ⑰（2026-09-22「圓桌旁邊再新增三個空位」「建議人數3人」「終傷依有接管的實際人數」）
+//      圓桌 6 格且**實際座標互不重疊**（全空位／混合已佔用／窄螢幕三種狀態，2026-09-23 補）；
+//      房間資訊只顯示建議人數；終傷倍率依 activePartySize() 走 1／0.5／0.4／0.3
+//   ⑱（2026-09-23 修正）一般攻擊打雜兵的主路徑（damageCombatTarget 直接扣 fieldMobHp）
+//      也要套終傷倍率：同一下普通攻擊在 4 人時的雜兵扣血量＝2 人時的一半
 // ============================================================================
 
 const { chromium } = require("playwright");
@@ -80,6 +87,27 @@ async function clickBattleSim(page, answer) {
     else await dialog.accept(answer);
   });
   await page.click("#btn-midnight-lobby-battle-sim");
+}
+
+// 2026-09-23：等待房圓桌 6 格的版面驗證。回傳互相重疊的卡片編號配對（空陣列＝正常）。
+// 只數「有幾張卡片」抓不到 v1.0.1 的 bug——CSS 只給 :nth-child(1)~(3) 三組絕對座標，第 4~6 張
+// 沒有任何 top/left，三張完全疊在同一個位置，卡片數量仍然是 6。
+async function lobbySlotOverlaps(page) {
+  return page.evaluate(() => {
+    const rects = Array.from(document.querySelectorAll("#midnight-lobby-slots .midnight-slot-card")).map((c, i) => {
+      const r = c.getBoundingClientRect();
+      return { n: i + 1, x: r.left, y: r.top, w: r.width, h: r.height };
+    });
+    const bad = [];
+    for (let i = 0; i < rects.length; i++) {
+      for (let j = i + 1; j < rects.length; j++) {
+        const a = rects[i];
+        const b = rects[j];
+        if (a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h) bad.push(a.n + "×" + b.n);
+      }
+    }
+    return bad;
+  });
 }
 
 // 2026-09-22 第4批（使用者明確規格「房間一開始不顯示戰鬥模擬至連續播放，需按下測試模式成功後
@@ -147,6 +175,9 @@ async function unlockTestMode(page) {
       mult: window.PriTestMidnight._debugPartySizeDamageMult(),
     }));
     assert(lobby2.slots === 6, "圓桌一律顯示 6 格（原 3 格＋新增 3 個空位）", lobby2);
+    // 2026-09-23 補：實際座標也要驗，見 lobbySlotOverlaps() 說明。
+    const overlapEmpty = await lobbySlotOverlaps(pageA);
+    assert(overlapEmpty.length === 0, "圓桌 6 格互不重疊（全空位）", overlapEmpty);
     assert(/建議人數 3 人/.test(lobby2.note) && !lobby2.hasMultText && !lobby2.hasCurrentEl, "房間資訊只顯示「建議人數 3 人」，不顯示倍率", lobby2);
     assert(lobby2.mult === 1, "2 人（皆有接管）：終傷 ×1", lobby2.mult);
     const gameId1 = (await state(pageA)).gameId;
@@ -159,6 +190,17 @@ async function unlockTestMode(page) {
     await pageA.waitForTimeout(300);
     const offlineCase = await pageA.evaluate(() => ({ occupied: Object.keys(window.PriTestMidnight._debugState().players).length, mult: window.PriTestMidnight._debugPartySizeDamageMult() }));
     assert(offlineCase.occupied === 5 && offlineCase.mult === 1, "5 人入場但 3 席欠接管（tokenId 空／離線）→ 視為 2 人、終傷 ×1", offlineCase);
+    // 2026-09-23 補：已佔用的卡片比空位卡片高（45px → 最高 110px），用固定 px 座標排版時
+    // 會在有人入座後往下撐、壓到下一列，所以混合狀態也要驗一次；窄螢幕同理。
+    const overlapMixed = await lobbySlotOverlaps(pageA);
+    assert(overlapMixed.length === 0, "圓桌 6 格互不重疊（混合已佔用／空位）", overlapMixed);
+    const viewportA = pageA.viewportSize();
+    await pageA.setViewportSize({ width: 390, height: 844 });
+    await pageA.waitForTimeout(200);
+    const overlapNarrow = await lobbySlotOverlaps(pageA);
+    assert(overlapNarrow.length === 0, "圓桌 6 格互不重疊（窄螢幕 390px）", overlapNarrow);
+    await pageA.setViewportSize(viewportA);
+    await pageA.waitForTimeout(200);
     // 讓第 3 席「被接管」：寫進 presence 並給 tokenId → 實際人數 3
     const onlineFake = (n) => pageA.evaluate((args) => Promise.all([
       window.PriTestGameStorage.rtSet(args.gameId, "cloud", "players/" + args.n + "/tokenId", "fake" + args.n),
@@ -374,6 +416,43 @@ async function unlockTestMode(page) {
     const atk = (await state(pageA)).fieldTriggers.battleSim.enemyAttack;
     assert(!!atk, "maybeStartEnemyAttack() 發動了一次攻擊", atk);
     if (atk) assert(atk.dmgAmount > 0, "這一招算得出傷害（dmgAmount>0）", atk);
+
+    console.log("=== ⑱ 一般攻擊打雜兵也要套終傷倍率（2026-09-23 修正） ===");
+    // v1.0.1 只在 applyDamageToFieldEnemyHp()／damageFieldMobOnly() 兩支加了人數倍率，但
+    // 一般攻擊／戰技打雜兵走的是 damageCombatTarget() 裡「直接扣 fieldMobHp」的那條主路徑，
+    // 完全沒套到，造成同一場戰鬥「打本體 ×0.5、打雜兵 ×1、旋風打雜兵又 ×0.5」三種行為互相矛盾。
+    // 做法：放一隻血很厚的雜兵擋在前面（打不死、也不會溢出到本體），量同一下普通攻擊在
+    // 2 人（×1）與 4 人（×0.5）下的扣血量。連擊第 1/2/3 下傷害不同，所以每次量測前都等超過
+    // ATTACK_COMBO_WINDOW_MS(1000ms) 讓連擊歸零，兩次都是「第 1 下」，順便等體力回滿。
+    const gameIdMob = (await state(pageA)).gameId;
+    const MOB_HP = 1000000;
+    async function measureMobHit() {
+      await pageA.evaluate((args) => window.PriTestGameStorage.rtSet(args.gameId, "cloud", "fieldMobHp/battleSim", args.hp), { gameId: gameIdMob, hp: MOB_HP });
+      await waitFor(pageA, (hp) => window.PriTestMidnight._debugState().fieldMobHp.battleSim === hp, MOB_HP);
+      await pageA.waitForTimeout(1400);
+      await tapAttack(pageA);
+      await waitFor(pageA, (hp) => window.PriTestMidnight._debugState().fieldMobHp.battleSim < hp, MOB_HP, 8000);
+      await pageA.waitForTimeout(200);
+      return MOB_HP - (await state(pageA)).fieldMobHp.battleSim;
+    }
+    const mobD1 = await measureMobHit();
+    assert(mobD1 > 0, "2 人（×1）：一般攻擊確實扣到雜兵 HP（" + mobD1 + "）", mobD1);
+    const onlineFakeMob = (n) => pageA.evaluate((args) => Promise.all([
+      window.PriTestGameStorage.rtSet(args.gameId, "cloud", "players/" + args.n, { name: "mob" + args.n, characterId: "tracker", passcode: "0000", tokenId: "mobfake" + args.n, ready: false }),
+      window.PriTestGameStorage.rtSet(args.gameId, "cloud", "presence/mobfake" + args.n, true),
+    ]), { gameId: gameIdMob, n });
+    await onlineFakeMob(3);
+    await onlineFakeMob(4);
+    await waitFor(pageA, () => window.PriTestMidnight._debugPartySizeDamageMult() === 0.5, null, 8000);
+    const mobD2 = await measureMobHit();
+    assert(mobD2 === Math.round(mobD1 * 0.5), "4 人（×0.5）：雜兵扣血量＝2 人時的一半（" + mobD1 + " → " + mobD2 + "）", { mobD1, mobD2 });
+    for (const n of [3, 4]) await pageA.evaluate((args) => Promise.all([
+      window.PriTestGameStorage.rtSet(args.gameId, "cloud", "players/" + args.n, null),
+      window.PriTestGameStorage.rtSet(args.gameId, "cloud", "presence/mobfake" + args.n, null),
+    ]), { gameId: gameIdMob, n });
+    await pageA.evaluate((args) => window.PriTestGameStorage.rtSet(args.gameId, "cloud", "fieldMobHp/battleSim", null), { gameId: gameIdMob });
+    await waitFor(pageA, () => window.PriTestMidnight._debugPartySizeDamageMult() === 1 && window.PriTestMidnight._debugState().fieldMobHp.battleSim === undefined);
+    assert(true, "量測用的假席位與雜兵已清除（不影響後續檢查）");
 
     console.log("=== ⑭ 戰鬥模擬迴避計時：T 起算、按下即停並記錄、沒按補記逾時 ===");
     const timerBoxShown = await pageA.evaluate(() => {

@@ -1501,16 +1501,16 @@
   var rainDrops = null; // 延遲到canvas尺寸確定後才初始化（見initRainDrops）
 
   // ---- 遊戲創建／等待房／斷線重連／接管 ----
-  // 一局遊戲最多3個玩家「席位」（players/1~3），每個席位有名稱／角色／4位數重連密碼／
-  // 目前控制此席位的tokenId／是否已準備。等待房裡先選好這些資訊、按下準備，全部已佔用
-  // 席位都準備後才開始5秒倒數。超過3人自動變成觀戰（沒有席位、不能移動/攻擊/標點/用
-  // 靈鳥）。斷線或重開頁面後，任何人（包含觀戰者）只要輸入該席位的密碼，就能把tokenId
-  // 改成自己的、接手繼續操作——密碼本身也存在RTDB裡（沒有另外雜湊），這跟admin密碼
-  // (games.js)一樣是低風險示範用途，不是正式帳號系統。
+  // 一局遊戲最多MAX_PLAYERS個玩家「席位」（players/1~6），每個席位有名稱／角色／4位數
+  // 重連密碼／目前控制此席位的tokenId／是否已準備。等待房裡先選好這些資訊、按下準備，
+  // 全部已佔用席位都準備後才開始5秒倒數。席位滿了之後進來的人自動變成觀戰（沒有席位、
+  // 不能移動/攻擊/標點/用靈鳥）。斷線或重開頁面後，任何人（包含觀戰者）只要輸入該席位的
+  // 密碼，就能把tokenId改成自己的、接手繼續操作——密碼本身也存在RTDB裡（沒有另外雜湊），
+  // 這跟admin密碼(games.js)一樣是低風險示範用途，不是正式帳號系統。
   // 2026-09-22使用者明確規格「創立房間 特別提醒 建議人數3人；若進行4人 終傷x0.5、5人 x0.4、6人 x0.3；
   // 進入遊戲後不會一次顯示六個空格，超過三個人只會一次最多多一格空格位置」：席位上限放寬到6，
   // 建議人數維持3（等待房提示），第4人起套用PARTY_SIZE_DAMAGE_MULT（見partySizeDamageMult()），
-  // 席位清單只畫到「max(3, 已佔用+1)」格（見visibleSlotCount()）。
+  // 席位清單只畫到「max(3, 已佔用+1)」格（見visibleSlotList()）。
   var MAX_PLAYERS = 6;
   var RECOMMENDED_PLAYERS = 3;
   var PARTY_SIZE_DAMAGE_MULT = { 4: 0.5, 5: 0.4, 6: 0.3 };
@@ -1527,18 +1527,44 @@
     }).length;
   }
 
-  // 「終傷」倍率：3人以下1、4人0.5、5人0.4、6人0.3。人數用activePartySize()（見上），
-  // 套在applyDamageToFieldEnemyHp()／damageFieldMobOnly()玩家對敵人傷害的最後一步
-  // （跟測試模式倍率同一個位置）。
+  // 「終傷」倍率：3人以下1、4人0.5、5人0.4、6人0.3。人數用activePartySize()（見上）。
+  // 套用位置＝所有「玩家打到敵人」的出口，跟測試模式倍率同一步：
+  //   applyDamageToFieldEnemyHp()／damageFieldMobOnly()／damageCombatTarget()的雜兵分支／
+  //   damageTargetKeyDirect()的敵人分支（蓄積觸發傷害，2026-09-23使用者明確規格「蓄積觸發
+  //   傷害也套用終傷」）。
+  // 練習用的共享標靶（demoStat/sharedTarget，見damageSharedTarget()）刻意不套——那不是敵人，
+  // 是拿來讀「這一招打出多少」的量測靶，套了會讓顯示值跟武器資料算出來的期望值對不起來。
   function partySizeDamageMult() {
     return PARTY_SIZE_DAMAGE_MULT[activePartySize()] || 1;
   }
 
-  // 進場後隊伍面板的席位格數：基本3格；已佔用達3人以上時只多開1格空位（上限MAX_PLAYERS），
-  // 不一次攤開6個空格（使用者明確規格）。等待房不走這個函式——圓桌一律顯示全部6格，
-  // 讓人一眼看到還能加幾個人（2026-09-22使用者明確規格「圓桌旁邊再新增三個空位」）。
-  function visibleSlotCount() {
-    return Math.min(MAX_PLAYERS, Math.max(RECOMMENDED_PLAYERS, occupiedSlots().length + 1));
+  // 套用終傷倍率的共用出口：原本有傷害時至少扣1，避免倍率把小額傷害整個吃掉
+  // （跟applyDamageToFieldEnemyHp()裡2026-09-11「最低扣1點」的規格同一條）。
+  function scaleByPartySize(amount) {
+    var scaled = Math.round(amount * partySizeDamageMult());
+    if (amount > 0 && scaled < 1) scaled = 1;
+    return scaled;
+  }
+
+  // 進場後隊伍面板要畫的席位編號清單。格數規則（使用者明確規格）：基本3格；已佔用達3人
+  // 以上時只多開1格空位（上限MAX_PLAYERS），不一次攤開6個空格。
+  // 2026-09-23修正：原本這裡只回傳「格數」，呼叫端拿它當**席位編號上限**跑1..count的迴圈。
+  // 但席位不是連號的——等待房一律畫6格、每格都能加入，所以有人佔到第6席而第4/5席還空著
+  // 是常態，那種情況下編號大於格數的席位會整個不被渲染：該玩家的HP／瀕死警示看不到，
+  // 他斷線後也沒有卡片可以按「接管」，等於永久失聯。因此改成回傳實際的席位編號清單，
+  // 已佔用席位一律納入，剩下的格數才拿編號最小的空位補滿。
+  // 等待房不走這個函式——圓桌一律顯示全部6格，讓人一眼看到還能加幾個人
+  // （2026-09-22使用者明確規格「圓桌旁邊再新增三個空位」）。
+  function visibleSlotList() {
+    var occupied = occupiedSlots();
+    var want = Math.min(MAX_PLAYERS, Math.max(RECOMMENDED_PLAYERS, occupied.length + 1));
+    var out = occupied.slice();
+    for (var i = 1; i <= MAX_PLAYERS && out.length < want; i++) {
+      if (!players[String(i)]) out.push(String(i));
+    }
+    return out.sort(function (a, b) {
+      return Number(a) - Number(b);
+    });
   }
   var RESUME_COUNTDOWN_MS = 3000;
 
@@ -3235,7 +3261,7 @@
     return out;
   }
 
-  // ---- 等待房畫面渲染：3個席位卡片（空位顯示「加入」表單觸發按鈕、已佔用顯示名稱＋
+  // ---- 等待房畫面渲染：MAX_PLAYERS個席位卡片（空位顯示「加入」表單觸發按鈕、已佔用顯示名稱＋
   // 準備狀態＋非本人時的「接管」按鈕）、我自己的準備/取消準備按鈕、倒數文字、滿員觀戰
   // 提示。----
   function renderLobby() {
@@ -3659,15 +3685,18 @@
     });
   }
 
-  // ---- 進場後的「玩家」面板：3個席位＋非本人時的「接管」按鈕（同一個UI元件邏輯也能
-  // 處理斷線重連——原本控制的裝置已經離線，密碼正確的話任何人都能接手）。----
+  // ---- 進場後的「玩家」面板：visibleSlotList()決定的席位＋非本人時的「接管」按鈕
+  // （同一個UI元件邏輯也能處理斷線重連——原本控制的裝置已經離線，密碼正確的話任何人
+  // 都能接手）。----
   function renderPlayersPanel() {
     var container = el("midnight-players-panel-slots");
     if (!container) return;
     container.innerHTML = "";
-    var visibleSlots = visibleSlotCount(); // 2026-09-22：進場後也只多開1格空位，見visibleSlotCount()
-    for (var i = 1; i <= visibleSlots; i++) {
-      var slot = String(i);
+    // 2026-09-22：進場後也只多開1格空位；2026-09-23：改用席位編號清單，非連號的已佔用
+    // 席位（例如1、6）也一定會被畫出來，見visibleSlotList()。
+    var visibleSlots = visibleSlotList();
+    for (var i = 0; i < visibleSlots.length; i++) {
+      var slot = visibleSlots[i];
       var p = players[slot];
       var card = document.createElement("div");
       card.className = "midnight-slot-card" + (p ? "" : " midnight-slot-empty");
@@ -4678,7 +4707,10 @@
   // 理論值（例如套用測試模式倍率後）夾在合理範圍，避免出現負傷害或减傷超過100%。
   // 找不到guard資料的敵人（理論上不會發生，25個family都有guardCount/guardValueTable）
   // 才退回直接扣原始amount（0%減傷）。
-  function applyDamageToFieldEnemyHp(pointId, amount) {
+  // opts.partySizeMultApplied（2026-09-23新增）：呼叫端傳進來的amount已經套過人數終傷倍率，
+  // 這裡就不要再乘一次。目前唯一的使用者是damageCombatTarget()「雜兵擋在前面、傷害溢出到
+  // 本體」的那條路徑——雜兵那一段已經先縮放過，溢出量自然也是縮放後的值。
+  function applyDamageToFieldEnemyHp(pointId, amount, opts) {
     var trig = fieldTriggers[pointId];
     var fam = guardDataForTrig(trig);
     var realDamage = amount;
@@ -4701,7 +4733,7 @@
     }
     realDamage = Math.round(realDamage * testMult("pcDmgMult"));
     // 人數終傷倍率（2026-09-22，見PARTY_SIZE_DAMAGE_MULT）：4人×0.5／5人×0.4／6人×0.3，跟測試倍率同一步。
-    realDamage = Math.round(realDamage * partySizeDamageMult());
+    if (!(opts && opts.partySizeMultApplied)) realDamage = Math.round(realDamage * partySizeDamageMult());
     // 2026-09-11使用者明確規格「敵人最低遭受傷害還是會扣1點血量（HP價值100時也有基本傷害）」：
     // 減傷率100%或四捨五入後歸零時，至少扣1。原本amount就是0（例如無法解算威力的招式）時
     // 不套用——那代表「這次本來就沒有傷害」，不是被減傷吃掉。
@@ -4857,13 +4889,19 @@
       if (symbol) recordGuardReductionForPoint(pointId, symbol);
       var mobHpBefore = fieldMobHp[pointId];
       if (mobHpBefore !== undefined && mobHpBefore > 0) {
+        // 人數終傷倍率（2026-09-23修正）：雜兵也是「玩家打到敵人」，跟damageFieldMobOnly()／
+        // applyDamageToFieldEnemyHp()一樣要套。原本這條主路徑直接用未縮放的amount扣雜兵HP，
+        // 造成同一場戰鬥裡「打本體×0.5、打雜兵×1、旋風打雜兵又×0.5」三種行為互相矛盾。
+        // 溢出到本體的部分已經是縮放後的值，所以帶partySizeMultApplied避免重複相乘
+        // （本體那邊的HP價值減傷仍照常套用）。
+        var mobDamage = scaleByPartySize(amount);
         GameStorage.rtTransaction(gameId, "cloud", "fieldMobHp/" + pointId, function (cur) {
           var current = cur === null ? 0 : cur;
-          var next = current - amount;
+          var next = current - mobDamage;
           return next < 0 ? 0 : next;
         });
-        var enemyOverflow = amount - mobHpBefore;
-        if (enemyOverflow > 0) applyDamageToFieldEnemyHp(pointId, enemyOverflow);
+        var enemyOverflow = mobDamage - mobHpBefore;
+        if (enemyOverflow > 0) applyDamageToFieldEnemyHp(pointId, enemyOverflow, { partySizeMultApplied: true });
       } else {
         applyDamageToFieldEnemyHp(pointId, amount);
       }
@@ -5353,13 +5391,17 @@
   }
 
   // 直接對目標扣血（不過HP價值減傷）。sharedTarget是練習用的共享標靶，沿用damageSharedTarget()。
+  // 2026-09-23使用者明確規格「蓄積觸發傷害也套用終傷」：這筆傷害雖然不走HP價值減傷（是終值），
+  // 人數終傷倍率仍然要套——它跟一般攻擊一樣是「玩家打到敵人」。共享標靶維持不套，見
+  // partySizeDamageMult()的說明。
   function damageTargetKeyDirect(targetKey, amount) {
     if (targetKey === "sharedTarget") {
       damageSharedTarget(amount);
       return;
     }
+    var scaled = scaleByPartySize(amount);
     GameStorage.rtTransaction(gameId, "cloud", "fieldEnemyHp/" + targetKey, function (cur) {
-      var next = (cur || 0) - amount;
+      var next = (cur || 0) - scaled;
       return next < 0 ? 0 : next;
     });
   }
@@ -7257,10 +7299,8 @@
   // 溢出鏈）。沒有雜兵存活時呼叫端本來就不會叫用這個函式，這裡的cur<=0保底只是避免
   // transaction重試時的競態把已死雜兵扣成負數。
   function damageFieldMobOnly(pointId, amount) {
-    // 人數終傷倍率（2026-09-22，見partySizeDamageMult()）：雜兵也是玩家對敵人的傷害，同樣套用；
-    // 原本有傷害時至少扣1，避免倍率把小額傷害整個吃掉。
-    var scaled = Math.round(amount * partySizeDamageMult());
-    if (amount > 0 && scaled < 1) scaled = 1;
+    // 人數終傷倍率（2026-09-22，見partySizeDamageMult()）：雜兵也是玩家對敵人的傷害，同樣套用。
+    var scaled = scaleByPartySize(amount);
     GameStorage.rtTransaction(gameId, "cloud", "fieldMobHp/" + pointId, function (cur) {
       var current = cur === null ? 0 : cur;
       if (current <= 0) return cur;
@@ -9233,9 +9273,10 @@
   // （CLAUDE.md §19）。
   var MIDNIGHT_CONSUMABLE_TIMED_OR_UNRESOLVED = {};
 
-  // 目前唯一在場的「其他PC」（依slot排序取第1個）：item_warming_stone用。midnight一次
-  // 最多3人，多人在場時只自動選第1個找到的，沒有另外做選擇UI（這次milestone範圍取捨，
-  // 之後若需要精確指定對象，可仿照角色面板既有的picker UI再擴充，不是這裡直接發明）。
+  // 目前在場的「其他PC」（依slot排序取第1個）：item_warming_stone用。多人在場時只自動選
+  // 第1個找到的，沒有另外做選擇UI（這次milestone範圍取捨，之後若需要精確指定對象，可仿照
+  // 角色面板既有的picker UI再擴充，不是這裡直接發明）。席位上限放寬到MAX_PLAYERS＝6人之後
+  // 這個「只取第1個」的取捨更容易被察覺，但行為本身沒有改變。
   function firstOtherPcTokenId() {
     var slots = Object.keys(players || {});
     for (var i = 0; i < slots.length; i++) {

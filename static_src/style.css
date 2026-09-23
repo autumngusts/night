@@ -7900,25 +7900,39 @@ html.midnight-top-banner-collapsed .midnight-top-banner-collapse-btn {
    #midnight-hud-top-left .midnight-slot-card)——兩者共用同一份.midnight-slot-card/
    renderOccupiedSlotCard()既有DOM結構與加入按鈕邏輯(static/midnight.jsのrenderLobby()/
    showJoinForm())完全不變，只是這裡用更高特異度的#midnight-lobby-slots覆寫掉上面
-   flex-column版面，改成3張卡片用position:absolute排列在一個圓桌圖案的3個方向(上／
-   左下／右下)，點擊/加入行為跟改版前完全相同。 */
+   flex-column版面，改成卡片用position:absolute排列在一個圓桌圖案的周圍，點擊/加入行為
+   跟改版前完全相同。
+
+   2026-09-23修正：席位上限放寬到6之後(static/midnight.jsのMAX_PLAYERS)，renderLobby()
+   已經改成畫6張卡片，但這裡只定義了:nth-child(1)~(3)三組絕對座標，第4~6張雖然也是
+   position:absolute卻沒有任何top/left，於是全部退回同一個靜態位置、三張完全重疊
+   (實測都落在top 473/left 460)。改成六方向配置：上／左上／右上／左下／右下／下。
+
+   這次同時把版面從position:absolute改成grid。原因是卡片高度會變：空位45px、已佔用
+   (名稱＋職業＋準備狀態＋接管鈕)最高到110px，用固定px的top/bottom座標排版時，只要有人
+   入座就會往下撐、壓到下一列(實測第1席入座後1×2、1×3重疊，窄螢幕再多出4×6、5×6)。
+   grid會依實際內容自動撐開每一列，不需要在CSS裡假設卡片高度。
+   圓桌圖案(::before)也直接當成grid item放在中間欄的第2~3列，那兩格沒有別的內容，
+   因此永遠不會跟卡片互相覆蓋。格數本身由renderLobby()控制(等待房一律6格)。 */
 #midnight-lobby-slots {
   position: relative;
-  display: block;
+  display: grid;
+  /* 中間欄同時決定上／下兩張卡片的寬度與圓桌直徑(::before佔88%)，取值讓三欄寬度接近一致 */
+  grid-template-columns: 1fr minmax(104px, 152px) 1fr;
+  gap: 0.6rem;
   width: 100%;
-  max-width: 360px;
-  min-height: 250px;
+  max-width: 460px;
   margin: 1.5rem auto;
 }
 
 #midnight-lobby-slots::before {
   content: "";
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  width: 130px;
-  height: 130px;
+  grid-column: 2;
+  grid-row: 2 / span 2;
+  justify-self: center;
+  align-self: center;
+  width: 88%;
+  aspect-ratio: 1 / 1;
   border-radius: 50%;
   background: radial-gradient(circle at 40% 35%, #4a3521 0%, #241a10 75%);
   border: 3px solid #6b4a2a;
@@ -7926,25 +7940,38 @@ html.midnight-top-banner-collapsed .midnight-top-banner-collapse-btn {
 }
 
 #midnight-lobby-slots .midnight-slot-card {
-  position: absolute;
-  width: 158px;
+  width: auto;
   margin: 0;
 }
 
 #midnight-lobby-slots .midnight-slot-card:nth-child(1) {
-  top: 0;
-  left: 50%;
-  transform: translateX(-50%);
+  grid-column: 2;
+  grid-row: 1;
 }
 
 #midnight-lobby-slots .midnight-slot-card:nth-child(2) {
-  bottom: 0;
-  left: 0;
+  grid-column: 1;
+  grid-row: 2;
 }
 
 #midnight-lobby-slots .midnight-slot-card:nth-child(3) {
-  bottom: 0;
-  right: 0;
+  grid-column: 3;
+  grid-row: 2;
+}
+
+#midnight-lobby-slots .midnight-slot-card:nth-child(4) {
+  grid-column: 1;
+  grid-row: 3;
+}
+
+#midnight-lobby-slots .midnight-slot-card:nth-child(5) {
+  grid-column: 3;
+  grid-row: 3;
+}
+
+#midnight-lobby-slots .midnight-slot-card:nth-child(6) {
+  grid-column: 2;
+  grid-row: 4;
 }
 
 /* 2026-09-08使用者明確規格「左上隊伍資訊每個人為兩排：第一排名稱與腳色，第二排血量」：
