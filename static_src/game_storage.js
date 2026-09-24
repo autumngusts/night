@@ -28,6 +28,19 @@
     }
   }
 
+  // emulator database port覆寫（測試用）：本機開發環境有時9000 port被其他程式佔用
+  // （例如IntelliJ IDEA），這時測試腳本會啟動在別的port（例如9010）並透過
+  // sessionStorage告知頁面要連去哪個port。正式環境／一般開發流程不會設定這個值，
+  // 此時維持原本固定的9000，行為完全不變。
+  function rtdbEmulatorPort() {
+    try {
+      var v = window.sessionStorage.getItem("pritestRtdbEmulatorPort");
+      var n = parseInt(v, 10);
+      if (v && isFinite(n) && String(n) === String(v)) return n;
+    } catch (e) {}
+    return 9000;
+  }
+
   function loadScript(src) {
     return new Promise(function (resolve, reject) {
       var s = document.createElement("script");
@@ -66,7 +79,7 @@
           // useEmulator()必須在這個app的auth()/database()第一次被實際使用之前呼叫——
           // ensureSdkLoaded()整個Promise鏈完成後才會有任何呼叫端去用它們，順序上沒問題。
           window.firebase.auth().useEmulator("http://127.0.0.1:9099");
-          window.firebase.database().useEmulator("127.0.0.1", 9000);
+          window.firebase.database().useEmulator("127.0.0.1", rtdbEmulatorPort());
           return;
         }
         if (window.PRITEST_APPCHECK_SITE_KEY && !appCheckActivated) {
@@ -334,6 +347,60 @@
     };
   }
 
+  // ---- 遺物記憶（2026-09-24，設計文件 docs/superpowers/specs/2026-09-24-relic-memory-design.md）----
+  // 跟 games/<gameId> 完全分開的頂層節點 relicMemories/<CODE>：玩家用 5 位記憶密碼跨房間保存
+  // 遺物記憶。只有 relicMemoryCodes/<CODE> 存在（管理者在 Console 匯入的 20 組序號）時規則才
+  // 放行讀寫，無效密碼會收到 PERMISSION_DENIED——呼叫端以 error==="denied" 判斷「密碼無效」。
+  // 一律走 cloud（不看 storageMode），因為這個資料本來就不屬於任何一局遊戲。
+  function relicMemoryErrorKind(err) {
+    var s = String((err && (err.code || err.message)) || "").toLowerCase();
+    return s.indexOf("permission") !== -1 ? "denied" : "network";
+  }
+
+  function relicMemoryRef(code, memId) {
+    var p = "relicMemories/" + code + (memId ? "/" + memId : "");
+    return window.firebase.database().ref(p);
+  }
+
+  function relicMemoryRead(code) {
+    return ensureCloudReady("cloud")
+      .then(function () {
+        return relicMemoryRef(code).once("value");
+      })
+      .then(function (snap) {
+        return { ok: true, value: snap.val() };
+      })
+      .catch(function (err) {
+        return { ok: false, error: relicMemoryErrorKind(err) };
+      });
+  }
+
+  function relicMemoryTransaction(code, updateFn) {
+    return ensureCloudReady("cloud")
+      .then(function () {
+        return relicMemoryRef(code).transaction(updateFn);
+      })
+      .then(function (result) {
+        return { ok: !!(result && result.committed), value: result ? result.snapshot.val() : null };
+      })
+      .catch(function (err) {
+        return { ok: false, error: relicMemoryErrorKind(err) };
+      });
+  }
+
+  function relicMemorySet(code, memId, value) {
+    return ensureCloudReady("cloud")
+      .then(function () {
+        return relicMemoryRef(code, memId).set(value);
+      })
+      .then(function () {
+        return { ok: true };
+      })
+      .catch(function (err) {
+        return { ok: false, error: relicMemoryErrorKind(err) };
+      });
+  }
+
   function sendNightStatePush(payload, isRetry) {
     ensureCloudReady(payload.storageMode)
       .then(function () {
@@ -535,5 +602,8 @@
     serverNow: serverNow,
     serverTimeOffset: serverTimeOffset,
     rtSetWithOnDisconnect: rtSetWithOnDisconnect,
+    relicMemoryRead: relicMemoryRead,
+    relicMemoryTransaction: relicMemoryTransaction,
+    relicMemorySet: relicMemorySet,
   };
 })();

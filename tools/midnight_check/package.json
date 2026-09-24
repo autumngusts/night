@@ -64,7 +64,8 @@
     "check:variant_kanji": "node variant_kanji_scan.js",
     "test:combat_fx": "node combat_fx_check.js",
     "test:relic_memory_unit": "node relic_memory_unit_check.js",
-    "test:relic_memory_drawer": "node relic_memory_drawer_check.js"
+    "test:relic_memory_drawer": "node relic_memory_drawer_check.js",
+    "test:relic_memory_emulator": "node relic_memory_emulator_check.js"
   },
   "devDependencies": {
     "firebase-tools": "^15.29.0",
