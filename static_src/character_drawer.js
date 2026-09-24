@@ -462,6 +462,38 @@
     return null;
   }
 
+  // 遺物記憶（2026-09-24）：「目前生效中的附帶效果」＝習得的learnedAttachedEffects＋
+  // midnight帶入的遺物記憶（c.relicMemoryLoadout[].effects）。可否重複計算由效果定義上的
+  // stackable旗標決定（使用者之後逐一指定，預設不可）：不可疊加者同id只留1個。
+  // 習得上限／置換／習得UI仍只看learnedAttachedEffects，這支只給「判定效果」的讀取點用。
+  function activeAttachedEffectIds(c) {
+    if (!c) return [];
+    var ids = (c.learnedAttachedEffects || []).slice();
+    (c.relicMemoryLoadout || []).forEach(function (mem) {
+      (mem && mem.effects ? mem.effects : []).forEach(function (id) {
+        ids.push(id);
+      });
+    });
+    var seen = {};
+    return ids.filter(function (id) {
+      var effect = attachedEffectById(id);
+      if (effect && effect.stackable === true) return true;
+      if (seen[id]) return false;
+      seen[id] = true;
+      return true;
+    });
+  }
+
+  function allAttachedEffectIds() {
+    var out = [];
+    ATTACHED_EFFECT_BLOCKS.forEach(function (block) {
+      block.forEach(function (e) {
+        out.push(e.id);
+      });
+    });
+    return out;
+  }
+
   function renderAttachedCandidateCard(container, effect, c) {
     var card = document.createElement("div");
     card.className = "relic-candidate-card";
@@ -734,7 +766,7 @@
         });
       });
     }
-    (c && c.learnedAttachedEffects ? c.learnedAttachedEffects : []).forEach(function (id) {
+    activeAttachedEffectIds(c).forEach(function (id) {
       var effect = attachedEffectById(id);
       if (!effect) return;
       var delta = parseAggroDelta(effect.body && effect.body.zh);
@@ -3986,7 +4018,7 @@
     var label = MAX_STAT_LABELS[statKey];
     if (!label) return 0;
     var total = 0;
-    (c.learnedAttachedEffects || []).forEach(function (id) {
+    activeAttachedEffectIds(c).forEach(function (id) {
       var effect = attachedEffectById(id);
       if (!effect) return;
       total += sumMaxStatDeltaFromText((effect.body && effect.body.ja) || (effect.body && effect.body.zh), label);
@@ -4207,7 +4239,7 @@
   function attachedSkillDamageBonus(c, kind) {
     var id = ATTACHED_SKILL_DAMAGE_IDS[kind];
     if (!id || !c) return 0;
-    return (c.learnedAttachedEffects || []).indexOf(id) !== -1 ? 5 : 0;
+    return activeAttachedEffectIds(c).indexOf(id) !== -1 ? 5 : 0;
   }
 
   // 無賴漢「鬥爭心」：現在HPが最大HPと異なる場合（1点以上減っている場合）、自身が発生する
@@ -4556,7 +4588,7 @@
 
     var attached1 = 0,
       attached2 = 0;
-    (c.learnedAttachedEffects || []).forEach(function (id) {
+    activeAttachedEffectIds(c).forEach(function (id) {
       var effect = attachedEffectById(id);
       if (!effect || !attachedEffectAppliesTo(effect, c, weaponId, weapon)) return;
       var bJa = extractHitBonus(effect.body && effect.body.ja);
@@ -7281,6 +7313,9 @@
     relicAllUnlearned: relicAllUnlearned,
     learnRelicEffect: learnRelicEffect,
     assignRelicChoiceIfNeeded: assignRelicChoiceIfNeeded,
+    activeAttachedEffectIds: activeAttachedEffectIds,
+    allAttachedEffectIds: allAttachedEffectIds,
+    assignAttachedResistChoiceIfNeeded: assignAttachedResistChoiceIfNeeded,
     relicChoiceConfigForEffect: relicChoiceConfigForEffect,
     LEVEL_CAP: LEVEL_CAP,
     applyLevelUpResourceBonus: applyLevelUpResourceBonus,

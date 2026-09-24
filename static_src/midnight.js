@@ -6083,7 +6083,7 @@
     var axeTalismanBonus = talismanIdsForActions.indexOf("talisman_axe") !== -1 ? 10 : 0;
     var jumpEffect = CharacterDrawer.findLearnedActionRelicByName(c, ["跳躍攻擊", "ジャンプ攻撃"]);
     if (jumpEffect) {
-      var jumpAtkUpBonus = (c.learnedAttachedEffects || []).indexOf("jump_atk_up") !== -1 ? 10 : 0;
+      var jumpAtkUpBonus = CharacterDrawer.activeAttachedEffectIds(c).indexOf("jump_atk_up") !== -1 ? 10 : 0;
       out.push({
         kind: "jump",
         weaponId: weaponId,
@@ -6095,7 +6095,7 @@
     var dashEffect = CharacterDrawer.findLearnedActionRelicByName(c, ["衝刺攻擊", "ダッシュ攻撃"]);
     if (dashEffect) {
       var isGreatSpear = category.id === "great_spear";
-      var dashAtkUpBonus = (c.learnedAttachedEffects || []).indexOf("dash_atk_up") !== -1 ? 10 : 0;
+      var dashAtkUpBonus = CharacterDrawer.activeAttachedEffectIds(c).indexOf("dash_atk_up") !== -1 ? 10 : 0;
       var dashMultiBonus = CharacterDrawer.countLearnedActionRelicsByName(c, ["衝刺攻擊", "ダッシュ攻撃"]) >= 2 ? 15 : 0;
       out.push({
         kind: "dash",
