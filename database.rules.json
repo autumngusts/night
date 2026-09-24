@@ -40,7 +40,7 @@
         ".write": "auth != null && root.child('relicMemoryCodes').child($code).exists()",
         ".validate": "$code.matches(/^[A-Z0-9]{5}$/)",
         "$memId": {
-          ".validate": "$memId.matches(/^m[0-9a-f]{16}$/) || $memId.matches(/^m[A-Za-z0-9]{1,20}$/)"
+          ".validate": "$memId.matches(/^m[0-9a-f]{16}$/)"
         }
       }
     }

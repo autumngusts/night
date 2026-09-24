@@ -53,25 +53,36 @@ async function enableEmulatorFlag(page) {
   }, EMU_PORT);
 }
 
+// 正式規則只允許 m+16位小寫hex（database.rules.json的$memId .validate），測試fixture一律
+// 用合法格式，不再用"mA"之類的短id（短id曾經是規則裡專門為測試開的例外，第一輪review後
+// 已收緊為只有正式格式，這裡的fixture跟著改，並新增一筆「不合法memId應該被拒絕」的斷言）。
+const VALID_MEM_ID = "m00000000000000a1";
+const INVALID_MEM_ID = "mBAD";
+
 async function storageSection(page) {
   console.log("=== 儲存 API ＋ 規則 ===");
   await adminPut("relicMemoryCodes", { [TEST_CODE]: true });
   await adminPut("relicMemories/" + TEST_CODE, null);
-  const r = await page.evaluate(async (code) => {
+  const r = await page.evaluate(async (args) => {
     const GS = window.PriTestGameStorage;
+    const code = args.code;
+    const memId = args.memId;
+    const badMemId = args.badMemId;
     const empty = await GS.relicMemoryRead(code);
     const bad = await GS.relicMemoryRead("ZZZZZ");
-    const tx = await GS.relicMemoryTransaction(code, (cur) => Object.assign({}, cur || {}, { mA: { memId: "mA", size: "s", effects: ["attack_dmg"], createdAt: 1, favorite: false, source: "start" } }));
-    const fav = await GS.relicMemorySet(code, "mA", { memId: "mA", size: "s", effects: ["attack_dmg"], createdAt: 1, favorite: true, source: "start" });
+    const tx = await GS.relicMemoryTransaction(code, (cur) => Object.assign({}, cur || {}, { [memId]: { memId: memId, size: "s", effects: ["attack_dmg"], createdAt: 1, favorite: false, source: "start" } }));
+    const fav = await GS.relicMemorySet(code, memId, { memId: memId, size: "s", effects: ["attack_dmg"], createdAt: 1, favorite: true, source: "start" });
     const after = await GS.relicMemoryRead(code);
-    const del = await GS.relicMemorySet(code, "mA", null);
+    const badMemIdSet = await GS.relicMemorySet(code, badMemId, { memId: badMemId, size: "s", effects: ["attack_dmg"], createdAt: 1, favorite: false, source: "start" });
+    const del = await GS.relicMemorySet(code, memId, null);
     const afterDel = await GS.relicMemoryRead(code);
-    return { empty, bad, tx, fav, after, del, afterDel };
-  }, TEST_CODE);
+    return { empty, bad, tx, fav, after, badMemIdSet, del, afterDel };
+  }, { code: TEST_CODE, memId: VALID_MEM_ID, badMemId: INVALID_MEM_ID });
   assert(r.empty.ok && r.empty.value === null, "有效密碼、尚無資料 → ok/null");
   assert(!r.bad.ok && r.bad.error === "denied", "未登錄密碼 → denied");
-  assert(r.tx.ok && r.tx.value && r.tx.value.mA, "transaction 寫入");
-  assert(r.fav.ok && r.after.value.mA.favorite === true, "relicMemorySet 更新最愛");
+  assert(r.tx.ok && r.tx.value && r.tx.value[VALID_MEM_ID], "transaction 寫入");
+  assert(r.fav.ok && r.after.value[VALID_MEM_ID].favorite === true, "relicMemorySet 更新最愛");
+  assert(!r.badMemIdSet.ok, "不合法memId（非m+16位hex）→ relicMemorySet ok:false");
   assert(r.del.ok && r.afterDel.value === null, "relicMemorySet(null) 刪除");
 }
 

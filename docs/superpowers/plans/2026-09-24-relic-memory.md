@@ -666,13 +666,13 @@ Expected: FAIL（`GS.relicMemoryRead is not a function`）
         ".write": "auth != null && root.child('relicMemoryCodes').child($code).exists()",
         ".validate": "$code.matches(/^[A-Z0-9]{5}$/)",
         "$memId": {
-          ".validate": "$memId.matches(/^m[0-9a-f]{16}$/) || $memId.matches(/^m[A-Za-z0-9]{1,20}$/)"
+          ".validate": "$memId.matches(/^m[0-9a-f]{16}$/)"
         }
       }
     }
 ```
 
-（`$memId` 第二個 pattern 允許測試用的 `mA` 等短 id；正式產生的一律是 `m`＋16 hex。）emulator 會在啟動時讀 `firebase.json` 指到的規則；改完規則需重啟 emulator。
+（`$memId` 只接受正式格式 `m`＋16位小寫hex；不額外放寬測試用短 id ——review第一輪發現「測試pattern是正式pattern的superset，正式格式檢查形同虛設」，因此改為單一嚴格pattern。測試 fixture 一律使用合法格式的 memId（例如 `m00000000000000a1`），並新增一筆「不合法 memId 應被拒絕」的斷言。）emulator 會在啟動時讀 `firebase.json` 指到的規則；改完規則需重啟 emulator（或用 owner token PUT `.settings/rules.json` 即時套用到執行中的 emulator）。
 
 - [ ] **Step 4：執行確認通過**
 
@@ -970,8 +970,8 @@ git commit -m "feat(midnight): 遺物記憶的遊戲中獲得（開局／里程�
 async function loadoutSection(browser) {
   console.log("=== 等待房帶入 ＋ 角色視窗 ===");
   await adminPut("relicMemories/" + TEST_CODE, {
-    mAAAAAAAAAAAAAAAA: { memId: "mAAAAAAAAAAAAAAAA", size: "m", effects: ["max_hp_up", "arts_dmg"], createdAt: 1, favorite: false, source: "tiles" },
-    mBBBBBBBBBBBBBBBB: { memId: "mBBBBBBBBBBBBBBBB", size: "s", effects: ["attack_dmg"], createdAt: 2, favorite: false, source: "start" },
+    m000000000000000a: { memId: "m000000000000000a", size: "m", effects: ["max_hp_up", "arts_dmg"], createdAt: 1, favorite: false, source: "tiles" },
+    m000000000000000b: { memId: "m000000000000000b", size: "s", effects: ["attack_dmg"], createdAt: 2, favorite: false, source: "start" },
   });
   const pageA = await browser.newPage();
   const pageB = await browser.newPage();
@@ -983,7 +983,7 @@ async function loadoutSection(browser) {
     await pageA.waitForSelector("#midnight-lobby-relic-memory-list input[type=checkbox]", { timeout: 8000 });
     const boxes = await pageA.$$("#midnight-lobby-relic-memory-list input[type=checkbox]");
     assert(boxes.length === 2, "讀取後列出 2 個記憶");
-    await pageA.dispatchEvent('#midnight-lobby-relic-memory-list input[data-mem-id="mAAAAAAAAAAAAAAAA"]', "click");
+    await pageA.dispatchEvent('#midnight-lobby-relic-memory-list input[data-mem-id="m000000000000000a"]', "click");
     await pageA.waitForFunction(() => {
       const d = window.PriTestMidnight._debugState();
       const p = d.players[d.mySlot];
@@ -1001,7 +1001,7 @@ async function loadoutSection(browser) {
       art: window.PriTestCharacterDrawer.attachedSkillDamageBonus(c, "art"),
     };
   });
-  assert(r.loadout.length === 1 && r.loadout[0].memId === "mAAAAAAAAAAAAAAAA", "開局後角色帶入選定記憶");
+  assert(r.loadout.length === 1 && r.loadout[0].memId === "m000000000000000a", "開局後角色帶入選定記憶");
   assert(r.art === 5, "帶入效果生效（戰技+5）");
   await pageA.dispatchEvent("#btn-midnight-open-character-sheet", "click");
   await pageA.waitForSelector("#midnight-character-sheet-relic-memories button", { timeout: 5000 });
