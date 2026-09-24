@@ -2967,12 +2967,14 @@
     // 遺物記憶（2026-09-24，設計文件§3／§4）：開局必得小×1（戰鬥模擬房不獲得）；
     // 等待房選好的帶入記憶（players/<slot>/relicMemoryLoadout）複製到角色上，效果由
     // CharacterDrawer.activeAttachedEffectIds()統一讀取。耐性類效果用既有的隨機選擇。
+    // fix round 1（2026-09-24）：earned/seen改集中放單一子節點c.relicMemory（對應RTDB
+    // character/<token>/relicMemory），避免跟consumables/cooldown等其他子路徑寫入共用
+    // 整個character/<token>做transaction時互相碰撞（見processMyRelicMemoryGrants說明）。
     var RM = window.PriTestMidnightRelicMemory;
     var CDr = window.PriTestCharacterDrawer;
-    c.relicMemoryEarned = [];
-    c.relicMemoryGrantSeen = {};
+    c.relicMemory = { earned: [], seen: {} };
     if (RM && !battleSimEnabled()) {
-      c.relicMemoryEarned.push(RM.newMemory("s", CDr.allAttachedEffectIds(), "start", Math.random, Date.now()));
+      c.relicMemory.earned.push(RM.newMemory("s", CDr.allAttachedEffectIds(), "start", Math.random, Date.now()));
     }
     c.relicMemoryLoadout = ((p && p.relicMemoryLoadout) || []).slice(0, RM ? RM.MAX_LOADOUT : 3);
     c.relicMemoryLoadout.forEach(function (mem) {
@@ -3916,9 +3918,8 @@
     var spawn = findWalkableSpawnNear(lateJoinSpawnAnchor(now), Math.random);
     localPos = { x: spawn.x, y: spawn.y };
     var initialChar = newCharacterForSlot(slot);
-    initialChar.relicMemoryGrantSeen = {};
     Object.keys((meta && meta.relicMemoryGrants) || {}).forEach(function (k) {
-      initialChar.relicMemoryGrantSeen[k] = true;
+      initialChar.relicMemory.seen[k] = true;
     });
     GameStorage.rtTransaction(gameId, "cloud", "demoStat/" + myTokenId, function (cur) {
       return cur === null ? selfArenaHpMax(initialChar) : cur;
@@ -22968,10 +22969,16 @@
     el("midnight-game-victory-modal").hidden = true;
   }
 
-  // ---- 遺物記憶：隊伍共通的獲得事件（2026-09-24，設計文件§3.1）----
+  // ---- 遺物記憶：隊伍共通的獲得事件（2026-09-24，設計文件§3.1；fix round 1改用單一子節點）----
   // meta/relicMemoryGrants/<key> 以 transaction first-writer-wins 追加（每個 key 只會寫一次）；
-  // 每台裝置只替自己的角色擲大小與效果，寫進 character/<token>/relicMemoryEarned，並在
-  // relicMemoryGrantSeen 標記已處理。relicMemoryGrantAttempted 只是本地節流。
+  // 每台裝置只替自己的角色擲大小與效果，寫進 character/<token>/relicMemory.earned，並在
+  // character/<token>/relicMemory.seen 標記已處理。relicMemoryGrantAttempted 只是本地節流。
+  // fix round 1（2026-09-24 review）：processMyRelicMemoryGrants()原本對整個
+  // character/<token>做transaction，跟consumables／冷卻等其他子路徑的一般rtSet同時發生時，
+  // Firebase SDK的set()會跟正在進行中的transaction()互相打架丟出「Error: set」，
+  // transaction失敗、發放被跳過（下一影格重試，戰鬥中密集寫入時可能長時間吃不到）。
+  // 改成只對character/<token>/relicMemory這一個專屬子節點做transaction，不再跟其他
+  // 子路徑寫入互相碰撞。
   var relicMemoryGrantAttempted = {};
   var relicMemoryProcessing = false;
 
@@ -23016,17 +23023,17 @@
     var c = myTokenId ? characters[myTokenId] : null;
     if (!RM || !c || !mySlot || relicMemoryProcessing) return;
     var grants = meta.relicMemoryGrants || {};
-    var seen = c.relicMemoryGrantSeen || {};
+    var seen = (c.relicMemory && c.relicMemory.seen) || {};
     var pending = Object.keys(grants).filter(function (k) {
       return !seen[k];
     });
     if (!pending.length) return;
     relicMemoryProcessing = true;
     var effectIds = window.PriTestCharacterDrawer.allAttachedEffectIds();
-    GameStorage.rtTransaction(gameId, "cloud", "character/" + myTokenId, function (cur) {
-      if (!cur) return cur;
-      var s = cur.relicMemoryGrantSeen || {};
-      var earned = (cur.relicMemoryEarned || []).slice();
+    GameStorage.rtTransaction(gameId, "cloud", "character/" + myTokenId + "/relicMemory", function (cur) {
+      var s = (cur && cur.seen) || {};
+      var earned = (cur && cur.earned) || [];
+      earned = earned.slice();
       Object.keys(grants).forEach(function (k) {
         if (s[k]) return;
         s[k] = true;
@@ -23034,9 +23041,7 @@
           earned.push(RM.newMemory(size, effectIds, grants[k].kind, Math.random, Date.now()));
         });
       });
-      cur.relicMemoryGrantSeen = s;
-      cur.relicMemoryEarned = earned;
-      return cur;
+      return { earned: earned, seen: s };
     }).then(function (after) {
       relicMemoryProcessing = false;
       if (after) showToast(window.I18N.t("midnight_relic_memory_gained_toast"));
@@ -23216,8 +23221,7 @@
       if (!tok) return;
       var RM = window.PriTestMidnightRelicMemory;
       var start = RM && !battleSimEnabled() ? [RM.newMemory("s", window.PriTestCharacterDrawer.allAttachedEffectIds(), "start", Math.random, Date.now())] : [];
-      GameStorage.rtSet(gameId, "cloud", "character/" + tok + "/relicMemoryEarned", start);
-      GameStorage.rtSet(gameId, "cloud", "character/" + tok + "/relicMemoryGrantSeen", null);
+      GameStorage.rtSet(gameId, "cloud", "character/" + tok + "/relicMemory", { earned: start, seen: null });
     });
   }
 
@@ -25184,8 +25188,8 @@
     _debugRelicMemory: function () {
       var c = myTokenId ? characters[myTokenId] : null;
       return {
-        earned: (c && c.relicMemoryEarned) || [],
-        seen: (c && c.relicMemoryGrantSeen) || {},
+        earned: (c && c.relicMemory && c.relicMemory.earned) || [],
+        seen: (c && c.relicMemory && c.relicMemory.seen) || {},
         loadout: (c && c.relicMemoryLoadout) || [],
         grants: (meta && meta.relicMemoryGrants) || {},
       };

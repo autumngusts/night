@@ -78,11 +78,26 @@ relicMemories/<CODE>/<memId>: {
 
 ### 3.1 同步方式
 
-- 隊伍層級：`meta.relicMemoryGrants` 為獲得事件清單 `[{ kind, at }]`，以 transaction 追加；每種事件以計數鍵（例如 `tiles:1`、`tiles:2`、`day1`）做 first-writer-wins，避免多台裝置重複追加。
-- 個人層級：每台裝置只處理自己的 `myTokenId`。對「尚未處理的事件」各自擲大小與效果，寫入 `character/<token>/relicMemoryEarned`（陣列），並記錄已處理到第幾筆 `relicMemoryGrantCursor`。
-- 中途加入：佔用席位當下把 cursor 設為當時的事件數，只取得之後的事件；「進入遊戲必得小 ×1」例外，全員都有。
+- 隊伍層級：`meta.relicMemoryGrants` 為以 grantKey 為鍵的物件 `{ <grantKey>: { kind, at } }`
+  （grantKey 例如 `tiles1`、`strong1`、`day1`、`day2`、`boss`），以 transaction 對單一 key 做
+  first-writer-wins 寫入，避免多台裝置重複追加同一個 key。
+- 個人層級：每台裝置只處理自己的 `myTokenId`。角色物件上用**單一子節點**
+  `character/<token>/relicMemory: { earned: Memory[], seen: { <grantKey>: true } }` 保存——
+  `earned` 是自己擲出的記憶清單，`seen` 是已經處理過的 grantKey 集合（取代原本規劃的數字游標
+  `relicMemoryGrantCursor`，因為 `meta.relicMemoryGrants` 本身是鍵值物件而非陣列，用 key 集合
+  比游標索引更直接）。對照 `meta.relicMemoryGrants` 找出尚未在 `seen` 裡的 key，各自擲大小與
+  效果後一次寫回。
+  - **fix round 1（2026-09-24 review）**：`earned`／`seen` 原本規劃各自是角色物件上的 top-level
+    欄位（`c.relicMemoryEarned`／`c.relicMemoryGrantSeen`），對整個 `character/<token>` 做
+    transaction。實測發現戰鬥中 consumables／冷卻等其他子路徑的一般 `rtSet()` 頻繁發生，
+    跟這個大範圍 transaction 同時作用在同一節點時 Firebase SDK 會丟出 `Error: set` 讓
+    transaction 失敗、發放被跳過。改成上述的單一子節點 `character/<token>/relicMemory`，
+    transaction 範圍縮小到不會再跟其他子路徑寫入互撞。
+- 中途加入：佔用席位當下把 `relicMemory.seen` 灌滿當時已存在的所有 grantKey，只取得之後的事件；
+  「進入遊戲必得小 ×1」例外，全員都有。
 - **戰鬥模擬房**（`battleSimEnabled()`）不產生獲得事件，但可以帶入記憶。
-- 重新開始一輪（`handleRestartCycle()`）時一併清空 `meta.relicMemoryGrants`，各角色的 earned／cursor 也重置。
+- 重新開始一輪（`handleRestartCycle()`）時一併清空 `meta.relicMemoryGrants`，各角色的
+  `character/<token>/relicMemory` 也重置為 `{ earned: [小×1（非戰鬥模擬房）], seen: {} }`。
 
 ## 4. 效果套用
 

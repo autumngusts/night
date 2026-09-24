@@ -704,7 +704,8 @@ git commit -m "feat(midnight): 遺物記憶的Firebase儲存API與安全規則"
 - Consumes：`PriTestMidnightRelicMemory.grantSizes/newMemory/milestoneGrantKeys/grantKindOfKey`、`CharacterDrawer.allAttachedEffectIds()`。
 - Produces：
   - RTDB `meta/relicMemoryGrants/<grantKey>: { kind, at }`（grantKey：`tiles1..`、`strong1..`、`day1`、`day2`、`boss`）
-  - 角色欄位 `c.relicMemoryEarned: Memory[]`、`c.relicMemoryGrantSeen: { <grantKey>: true }`
+  - 角色欄位 `c.relicMemory: { earned: Memory[], seen: { <grantKey>: true } }`（單一子節點，對應
+    RTDB `character/<token>/relicMemory`；fix round 1改為單一子節點，見下方 Step 3(c) 之後的更新說明）
   - `window.PriTestMidnight._debugRelicMemory() → { earned, seen, grants }`
 
 - [ ] **Step 1：寫失敗的檢查段**
@@ -789,10 +790,9 @@ Expected: FAIL（`_debugRelicMemory is not a function`）
     // CharacterDrawer.activeAttachedEffectIds()統一讀取。耐性類效果用既有的隨機選擇。
     var RM = window.PriTestMidnightRelicMemory;
     var CDr = window.PriTestCharacterDrawer;
-    c.relicMemoryEarned = [];
-    c.relicMemoryGrantSeen = {};
+    c.relicMemory = { earned: [], seen: {} };
     if (RM && !battleSimEnabled()) {
-      c.relicMemoryEarned.push(RM.newMemory("s", CDr.allAttachedEffectIds(), "start", Math.random, Date.now()));
+      c.relicMemory.earned.push(RM.newMemory("s", CDr.allAttachedEffectIds(), "start", Math.random, Date.now()));
     }
     c.relicMemoryLoadout = ((p && p.relicMemoryLoadout) || []).slice(0, RM ? RM.MAX_LOADOUT : 3);
     c.relicMemoryLoadout.forEach(function (mem) {
@@ -802,22 +802,24 @@ Expected: FAIL（`_debugRelicMemory is not a function`）
     });
 ```
 
+（fix round 1，2026-09-24 review：`c.relicMemoryEarned`／`c.relicMemoryGrantSeen` 兩個 top-level
+欄位改成單一子節點 `c.relicMemory = { earned, seen }`，原因見下方 Step 3(c) 之後的說明。）
+
 (b) `enterGameAsLateJoiner(slot)`：在建立 `initialChar` 後、transaction 前加入（中途加入只取之後的事件）：
 
 ```js
-    initialChar.relicMemoryGrantSeen = {};
     Object.keys((meta && meta.relicMemoryGrants) || {}).forEach(function (k) {
-      initialChar.relicMemoryGrantSeen[k] = true;
+      initialChar.relicMemory.seen[k] = true;
     });
 ```
 
 (c) 新增區塊（放在 `updateGameVictoryModal` 定義附近）：
 
 ```js
-  // ---- 遺物記憶：隊伍共通的獲得事件（2026-09-24，設計文件§3.1）----
+  // ---- 遺物記憶：隊伍共通的獲得事件（2026-09-24，設計文件§3.1；fix round 1改用單一子節點）----
   // meta/relicMemoryGrants/<key> 以 transaction first-writer-wins 追加（每個 key 只會寫一次）；
-  // 每台裝置只替自己的角色擲大小與效果，寫進 character/<token>/relicMemoryEarned，並在
-  // relicMemoryGrantSeen 標記已處理。relicMemoryGrantAttempted 只是本地節流。
+  // 每台裝置只替自己的角色擲大小與效果，寫進 character/<token>/relicMemory.earned，並在
+  // character/<token>/relicMemory.seen 標記已處理。relicMemoryGrantAttempted 只是本地節流。
   var relicMemoryGrantAttempted = {};
   var relicMemoryProcessing = false;
 
@@ -862,17 +864,17 @@ Expected: FAIL（`_debugRelicMemory is not a function`）
     var c = myTokenId ? characters[myTokenId] : null;
     if (!RM || !c || !mySlot || relicMemoryProcessing) return;
     var grants = meta.relicMemoryGrants || {};
-    var seen = c.relicMemoryGrantSeen || {};
+    var seen = (c.relicMemory && c.relicMemory.seen) || {};
     var pending = Object.keys(grants).filter(function (k) {
       return !seen[k];
     });
     if (!pending.length) return;
     relicMemoryProcessing = true;
     var effectIds = window.PriTestCharacterDrawer.allAttachedEffectIds();
-    GameStorage.rtTransaction(gameId, "cloud", "character/" + myTokenId, function (cur) {
-      if (!cur) return cur;
-      var s = cur.relicMemoryGrantSeen || {};
-      var earned = (cur.relicMemoryEarned || []).slice();
+    GameStorage.rtTransaction(gameId, "cloud", "character/" + myTokenId + "/relicMemory", function (cur) {
+      var s = (cur && cur.seen) || {};
+      var earned = (cur && cur.earned) || [];
+      earned = earned.slice();
       Object.keys(grants).forEach(function (k) {
         if (s[k]) return;
         s[k] = true;
@@ -880,9 +882,7 @@ Expected: FAIL（`_debugRelicMemory is not a function`）
           earned.push(RM.newMemory(size, effectIds, grants[k].kind, Math.random, Date.now()));
         });
       });
-      cur.relicMemoryGrantSeen = s;
-      cur.relicMemoryEarned = earned;
-      return cur;
+      return { earned: earned, seen: s };
     }).then(function (after) {
       relicMemoryProcessing = false;
       if (after) showToast(window.I18N.t("midnight_relic_memory_gained_toast"));
@@ -890,7 +890,15 @@ Expected: FAIL（`_debugRelicMemory is not a function`）
   }
 ```
 
-注意：transaction 整個 `character/<token>` 會重寫角色物件；若擔心與其他子路徑寫入互蓋，改為分兩個子路徑各自 transaction 會有「seen 已寫但 earned 沒寫」的不一致，因此維持整體 transaction（Firebase 會以伺服器最新值重試 updateFn）。`LOCAL_ONLY_CHARACTER_FIELD_RE` 的 `_` 開頭本地欄位不在 RTDB 上，不受影響。
+**fix round 1（2026-09-24 review，取代上面這段原本的說明）**：原本這裡讓 `processMyRelicMemoryGrants()`
+對整個 `character/<token>` 做 transaction，理由是「分兩個子路徑各自 transaction 會有 seen 已寫但
+earned 沒寫的不一致」。但 review 在 emulator 上重現出：`character/<token>` 底下還有 consumables／
+`_artCooldownUntil` 等其他子路徑，戰鬥中每秒都有好幾筆一般 `rtSet()` 在寫；當這些 `set()` 跟
+`transaction()` 同時作用在同一個節點時，Firebase SDK 會丟出 `Error: set`、transaction 直接失敗
+（下一影格重試，戰鬥密集時可能長時間吃不到，偏偏這正是強敵／夜王擊殺這類 grant 最常觸發的時候）。
+修法：改成只對 `character/<token>/relicMemory` 這一個專屬子節點做 transaction（`earned`／`seen`
+仍然綁在同一次 transaction 裡更新，維持原子性，只是範圍縮小到不會再跟其他子路徑寫入互撞）。
+`LOCAL_ONLY_CHARACTER_FIELD_RE` 的 `_` 開頭本地欄位不在 RTDB 上，不受影響。
 
 在 `frameInner()` 的 `updateGameVictoryModal();` 之後加：
 
@@ -909,10 +917,13 @@ Expected: FAIL（`_debugRelicMemory is not a function`）
       if (!tok) return;
       var RM = window.PriTestMidnightRelicMemory;
       var start = RM && !battleSimEnabled() ? [RM.newMemory("s", window.PriTestCharacterDrawer.allAttachedEffectIds(), "start", Math.random, Date.now())] : [];
-      GameStorage.rtSet(gameId, "cloud", "character/" + tok + "/relicMemoryEarned", start);
-      GameStorage.rtSet(gameId, "cloud", "character/" + tok + "/relicMemoryGrantSeen", null);
+      GameStorage.rtSet(gameId, "cloud", "character/" + tok + "/relicMemory", { earned: start, seen: null });
     });
 ```
+
+（fix round 1：兩個 `rtSet` 改成一個，寫到單一子節點 `character/<tok>/relicMemory`；`seen: null`
+在寫入時會被 RTDB 省略掉這個鍵，效果等同重設成空物件，讀回來時 `processMyRelicMemoryGrants()` 的
+`(cur && cur.seen) || {}` 會正確落到 `{}`。）
 
 （先 `grep -n "function occupiedSlots" static_src/midnight.js` 確認存在；players 席位上的 token 欄位名以 `players[slot].tokenId` 為準，先 grep 確認。）
 
@@ -923,8 +934,8 @@ Expected: FAIL（`_debugRelicMemory is not a function`）
     _debugRelicMemory: function () {
       var c = myTokenId ? characters[myTokenId] : null;
       return {
-        earned: (c && c.relicMemoryEarned) || [],
-        seen: (c && c.relicMemoryGrantSeen) || {},
+        earned: (c && c.relicMemory && c.relicMemory.earned) || [],
+        seen: (c && c.relicMemory && c.relicMemory.seen) || {},
         loadout: (c && c.relicMemoryLoadout) || [],
         grants: (meta && meta.relicMemoryGrants) || {},
       };
@@ -1524,7 +1535,7 @@ Expected: FAIL（找不到 `#btn-midnight-hud-abandon`）
     var c = characters[myTokenId];
     var list = el("midnight-relic-memory-settle-list");
     list.innerHTML = "";
-    ((c && c.relicMemoryEarned) || []).forEach(function (mem) {
+    ((c && c.relicMemory && c.relicMemory.earned) || []).forEach(function (mem) {
       var li = document.createElement("li");
       li.textContent = relicMemorySummaryText(mem);
       list.appendChild(li);
@@ -1548,7 +1559,7 @@ Expected: FAIL（找不到 `#btn-midnight-hud-abandon`）
       return;
     }
     var c = characters[myTokenId];
-    var earned = (c && c.relicMemoryEarned) || [];
+    var earned = (c && c.relicMemory && c.relicMemory.earned) || []; // fix round 1：欄位改在c.relicMemory子節點下
     if (!earned.length) return;
     btn.disabled = true;
     status.textContent = window.I18N.t("midnight_relic_memory_saving");

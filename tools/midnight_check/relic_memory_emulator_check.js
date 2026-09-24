@@ -141,6 +141,34 @@ async function grantSection(pageA, pageB) {
   await pageA.waitForTimeout(1500);
   const a2 = await pageA.evaluate(() => window.PriTestMidnight._debugRelicMemory());
   assert(a2.earned.length === 3, "同一 grantKey 不重複發放");
+
+  // fix round 1回歸（2026-09-24 review）：processMyRelicMemoryGrants()原本對整個
+  // character/<token>做transaction，跟同一節點底下consumables／冷卻等其他子路徑的一般
+  // rtSet()同時發生時，Firebase SDK的set()會讓transaction()丟出「Error: set」失敗、grant被
+  // 跳過（下一影格重試）。改成只對character/<token>/relicMemory這個專屬子節點transaction後，
+  // 兩者不應該再互相碰撞——同一次evaluate裡，一邊寫入新的grant key、一邊對兩位玩家各自的
+  // _artCooldownUntil（既有resetAbilityCooldowns()會用到的真實子路徑）連續rtSet幾次製造race，
+  // 驗證grant仍然在幾秒內正確套用（earned剛好+1，不因為transaction失敗而卡住）。
+  await pageA.evaluate((g) => {
+    var GS = window.PriTestGameStorage;
+    var tok = window.PriTestMidnight._debugState().myTokenId;
+    GS.rtSet(g, "cloud", "meta/relicMemoryGrants/tiles1", { kind: "tiles", at: Date.now() });
+    for (var i = 0; i < 5; i++) GS.rtSet(g, "cloud", "character/" + tok + "/_artCooldownUntil", Date.now() + i);
+  }, gid);
+  await pageB.evaluate((g) => {
+    var GS = window.PriTestGameStorage;
+    var tok = window.PriTestMidnight._debugState().myTokenId;
+    for (var i = 0; i < 5; i++) GS.rtSet(g, "cloud", "character/" + tok + "/_artCooldownUntil", Date.now() + i);
+  }, gid);
+  for (const p of [pageA, pageB]) {
+    await p.waitForFunction(() => window.PriTestMidnight._debugRelicMemory().earned.length === 4, { timeout: 8000 }).catch(() => {});
+  }
+  const raceA = await pageA.evaluate(() => window.PriTestMidnight._debugRelicMemory());
+  const raceB = await pageB.evaluate(() => window.PriTestMidnight._debugRelicMemory());
+  assert(
+    raceA.earned.length === 4 && raceB.earned.length === 4,
+    "跟其他子路徑rtSet同時race時，relicMemory transaction仍成功套用grant（fix round 1回歸）"
+  );
 }
 
 (async () => {
