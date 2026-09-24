@@ -570,6 +570,7 @@ BODY = """    <div class="midnight-wrap">
             <h3 data-i18n="midnight_game_failure_title"></h3>
             <p data-i18n="midnight_game_failure_body"></p>
             <button type="button" id="btn-midnight-game-failure-confirm" class="danger-btn" data-i18n="midnight_game_failure_confirm_button"></button>
+            <button type="button" id="btn-midnight-game-failure-abandon" class="danger-btn" data-i18n="midnight_abandon_button"></button>
           </div>
         </div>
 
@@ -587,6 +588,41 @@ BODY = """    <div class="midnight-wrap">
             <div id="midnight-game-victory-sprite"></div>
             <p id="midnight-game-victory-text"></p>
             <button type="button" id="btn-midnight-game-victory-confirm" data-i18n="midnight_game_victory_confirm_button"></button>
+          </div>
+        </div>
+
+        <!-- 放棄遊戲：提案前的本地確認 -->
+        <div id="midnight-abandon-confirm-modal" hidden>
+          <div class="midnight-relic-memory-box">
+            <p data-i18n="midnight_abandon_confirm_body"></p>
+            <div class="wb-row">
+              <button type="button" id="btn-midnight-abandon-confirm-yes" class="danger-btn" data-i18n="midnight_abandon_confirm_yes"></button>
+              <button type="button" id="btn-midnight-abandon-confirm-no" data-i18n="midnight_abandon_confirm_no"></button>
+            </div>
+          </div>
+        </div>
+        <!-- 放棄遊戲：全員投票（meta.abandonVote存在且自己尚未投票時顯示） -->
+        <div id="midnight-abandon-vote-modal" hidden>
+          <div class="midnight-relic-memory-box">
+            <p id="midnight-abandon-vote-text"></p>
+            <p id="midnight-abandon-vote-progress" class="threat-ref-body"></p>
+            <div class="wb-row">
+              <button type="button" id="btn-midnight-abandon-vote-yes" class="danger-btn" data-i18n="midnight_abandon_vote_yes"></button>
+              <button type="button" id="btn-midnight-abandon-vote-no" data-i18n="midnight_abandon_vote_no"></button>
+            </div>
+          </div>
+        </div>
+        <!-- 遺物記憶結算（設計文件§6.2）：勝利彈窗確認後或meta.gameAbandonedAt成立時顯示 -->
+        <div id="midnight-relic-memory-settle-modal" hidden>
+          <div class="midnight-relic-memory-box">
+            <h3 data-i18n="midnight_relic_memory_settle_title"></h3>
+            <ul id="midnight-relic-memory-settle-list"></ul>
+            <div class="wb-row">
+              <input type="text" id="midnight-relic-memory-settle-code-input" maxlength="5" autocomplete="off">
+              <button type="button" id="btn-midnight-relic-memory-settle-save" data-i18n="midnight_relic_memory_save_button"></button>
+            </div>
+            <p id="midnight-relic-memory-settle-status" class="threat-ref-body"></p>
+            <button type="button" id="btn-midnight-relic-memory-settle-close" data-i18n="midnight_relic_memory_settle_close_button"></button>
           </div>
         </div>
 
@@ -1625,6 +1661,9 @@ BODY = """    <div class="midnight-wrap">
                  準備），拿掉原本的手動[進入第二天]/[進入第三天]按鈕，見
                  static/midnight.jsのupdateAutoDayAdvance()／maybeTriggerDay3FromReady()。 -->
             <button type="button" id="btn-midnight-restart-cycle" data-i18n="midnight_restart_cycle_button" hidden></button>
+            <!-- 放棄遊戲（2026-09-24，遺物記憶設計文件§5）：全員同意制，見
+                 static/midnight.jsのhandleAbandonProposeClick()。 -->
+            <button type="button" id="btn-midnight-hud-abandon" class="danger-btn" data-i18n="midnight_abandon_button"></button>
           </div>
           <p class="threat-ref-body" data-i18n="midnight_controls_hint"></p>
         </div>

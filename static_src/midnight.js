@@ -4363,6 +4363,14 @@
     el("midnight-lobby-battle-sim-anim-cycle-checkbox").addEventListener("change", handleBattleSimAnimCycleToggle);
     el("btn-midnight-game-failure-confirm").addEventListener("click", switchToUnlimitedMode);
     el("btn-midnight-game-victory-confirm").addEventListener("click", handleGameVictoryConfirmClick);
+    el("btn-midnight-hud-abandon").addEventListener("click", handleAbandonProposeClick);
+    el("btn-midnight-game-failure-abandon").addEventListener("click", handleAbandonProposeClick);
+    el("btn-midnight-abandon-confirm-yes").addEventListener("click", handleAbandonConfirmYes);
+    el("btn-midnight-abandon-confirm-no").addEventListener("click", handleAbandonConfirmNo);
+    el("btn-midnight-abandon-vote-yes").addEventListener("click", function () { castAbandonVote(true); });
+    el("btn-midnight-abandon-vote-no").addEventListener("click", function () { castAbandonVote(false); });
+    el("btn-midnight-relic-memory-settle-save").addEventListener("click", handleRelicMemorySettleSave);
+    el("btn-midnight-relic-memory-settle-close").addEventListener("click", handleRelicMemorySettleClose);
     el("midnight-lobby-test-mode-checkbox").addEventListener("change", handleTestModeToggle);
     // 2026-09-21：測試模式下的縮圈時間點（開放期／中繼暫停，分鐘），見handlePhaseTimingInput()。
     el("midnight-lobby-phase-grace-input").addEventListener("input", function () {
@@ -23178,6 +23186,150 @@
   function handleGameVictoryConfirmClick() {
     gameVictoryDismissed = true;
     el("midnight-game-victory-modal").hidden = true;
+    openRelicMemorySettle();
+  }
+
+  // ---- 放棄遊戲（2026-09-24，遺物記憶設計文件§5）：全員同意制 ----
+  // 提案者寫 meta/abandonVote（transaction，已有進行中的投票就不覆蓋）並自動投同意；
+  // 每位已佔用席位的玩家看到投票彈窗。全員同意 → 任一裝置 transaction 寫 meta/gameAbandonedAt；
+  // 任一人反對 → 清除 abandonVote。判定每影格由 updateAbandonVote() 做。
+  function handleAbandonProposeClick() {
+    el("midnight-abandon-confirm-modal").hidden = false;
+  }
+
+  function handleAbandonConfirmNo() {
+    el("midnight-abandon-confirm-modal").hidden = true;
+  }
+
+  function handleAbandonConfirmYes() {
+    el("midnight-abandon-confirm-modal").hidden = true;
+    if (!mySlot) return;
+    var slot = mySlot;
+    GameStorage.rtTransaction(gameId, "cloud", "meta/abandonVote", function (cur) {
+      if (cur) return cur;
+      var votes = {};
+      votes[slot] = true;
+      return { proposedBy: slot, at: Date.now(), votes: votes };
+    });
+  }
+
+  function castAbandonVote(agree) {
+    if (!mySlot) return;
+    GameStorage.rtSet(gameId, "cloud", "meta/abandonVote/votes/" + mySlot, agree);
+  }
+
+  var abandonFinalizeAttempted = false;
+  function updateAbandonVote() {
+    var modal = el("midnight-abandon-vote-modal");
+    var vote = meta && meta.abandonVote;
+    if (!vote || meta.gameAbandonedAt) {
+      modal.hidden = true;
+      abandonFinalizeAttempted = false;
+      return;
+    }
+    var votes = vote.votes || {};
+    var slots = occupiedSlots();
+    var anyNo = slots.some(function (s) {
+      return votes[s] === false;
+    });
+    if (anyNo) {
+      GameStorage.rtTransaction(gameId, "cloud", "meta/abandonVote", function (cur) {
+        return cur && cur.at === vote.at ? null : cur;
+      });
+      modal.hidden = true;
+      return;
+    }
+    var yesCount = slots.filter(function (s) {
+      return votes[s] === true;
+    }).length;
+    if (slots.length > 0 && yesCount === slots.length && !abandonFinalizeAttempted) {
+      abandonFinalizeAttempted = true;
+      GameStorage.rtTransaction(gameId, "cloud", "meta/gameAbandonedAt", function (cur) {
+        return cur === null ? Date.now() : cur;
+      });
+    }
+    modal.hidden = !mySlot || votes[mySlot] !== undefined;
+    var proposer = players[vote.proposedBy];
+    el("midnight-abandon-vote-text").textContent = window.I18N.t("midnight_abandon_vote_text", {
+      name: proposer ? proposer.name : vote.proposedBy,
+    });
+    el("midnight-abandon-vote-progress").textContent = window.I18N.t("midnight_abandon_vote_progress", {
+      yes: yesCount,
+      total: slots.length,
+    });
+  }
+
+  // ---- 遺物記憶結算（2026-09-24，設計文件§6.2）----
+  var relicMemorySettleOpen = false; // 本地：已開過就不再自動開（關閉後不重開）
+  var relicMemorySettleDismissed = false;
+  var relicMemorySettleSaved = false;
+
+  function openRelicMemorySettle() {
+    if (relicMemorySettleOpen || relicMemorySettleDismissed || !mySlot) return;
+    relicMemorySettleOpen = true;
+    var c = characters[myTokenId];
+    var list = el("midnight-relic-memory-settle-list");
+    list.innerHTML = "";
+    ((c && c.relicMemory && c.relicMemory.earned) || []).forEach(function (mem) {
+      var li = document.createElement("li");
+      li.textContent = relicMemorySummaryText(mem);
+      list.appendChild(li);
+    });
+    var input = el("midnight-relic-memory-settle-code-input");
+    try {
+      if (!input.value) input.value = window.localStorage.getItem(RELIC_MEMORY_CODE_STORAGE_KEY) || "";
+    } catch (e) {}
+    el("midnight-relic-memory-settle-status").textContent = "";
+    el("btn-midnight-relic-memory-settle-save").disabled = relicMemorySettleSaved || !list.children.length;
+    el("midnight-relic-memory-settle-modal").hidden = false;
+  }
+
+  function handleRelicMemorySettleSave() {
+    var RM = window.PriTestMidnightRelicMemory;
+    var status = el("midnight-relic-memory-settle-status");
+    var btn = el("btn-midnight-relic-memory-settle-save");
+    var code = RM.normalizeCode(el("midnight-relic-memory-settle-code-input").value);
+    if (!RM.isValidCode(code)) {
+      status.textContent = window.I18N.t("midnight_relic_memory_error_format");
+      return;
+    }
+    var c = characters[myTokenId];
+    var earned = (c && c.relicMemory && c.relicMemory.earned) || []; // fix round 1：欄位改在c.relicMemory子節點下
+    if (!earned.length) return;
+    btn.disabled = true;
+    status.textContent = window.I18N.t("midnight_relic_memory_saving");
+    var summary = null;
+    GameStorage.relicMemoryTransaction(code, function (cur) {
+      summary = RM.mergeIntoStore(cur, earned, RM.MAX_STORED);
+      return summary.store;
+    }).then(function (res) {
+      if (!res.ok) {
+        btn.disabled = false;
+        status.textContent = window.I18N.t("midnight_relic_memory_error_" + (res.error || "network"));
+        return;
+      }
+      relicMemorySettleSaved = true;
+      try {
+        window.localStorage.setItem(RELIC_MEMORY_CODE_STORAGE_KEY, code);
+      } catch (e) {}
+      status.textContent = window.I18N.t("midnight_relic_memory_saved", {
+        added: summary.added,
+        discarded: summary.discarded,
+        rejected: summary.rejected,
+      });
+    });
+  }
+
+  function handleRelicMemorySettleClose() {
+    el("midnight-relic-memory-settle-modal").hidden = true;
+    relicMemorySettleOpen = false;
+    relicMemorySettleDismissed = true;
+    // 放棄遊戲後關閉＝離開這場遊戲，回到midnight起始畫面（不帶?game=）。
+    if (meta && meta.gameAbandonedAt) window.location.href = window.location.pathname;
+  }
+
+  function updateRelicMemorySettle() {
+    if (meta && meta.gameAbandonedAt) openRelicMemorySettle();
   }
 
   // ---- 遺物記憶：隊伍共通的獲得事件（2026-09-24，設計文件§3.1；fix round 1改用單一子節點）----
@@ -23434,6 +23586,9 @@
       var start = RM && !battleSimEnabled() ? [RM.newMemory("s", window.PriTestCharacterDrawer.allAttachedEffectIds(), "start", Math.random, Date.now())] : [];
       GameStorage.rtSet(gameId, "cloud", "character/" + tok + "/relicMemory", { earned: start, seen: null });
     });
+    relicMemorySettleOpen = false;
+    relicMemorySettleDismissed = false;
+    relicMemorySettleSaved = false;
   }
 
   // 立即縮圈（2026-09-09新增，測試主控台專用）：不新增第二套計時系統，直接改寫目前這一天
@@ -24284,6 +24439,8 @@
     updateGameFailureModal();
     updateGameVictoryModal();
     updateRelicMemoryGrants(); // 2026-09-24遺物記憶：隊伍共通獲得事件
+    updateAbandonVote();
+    updateRelicMemorySettle();
     updateAutoDayAdvance(now);
     maybeTriggerDay3FromReady();
     render(now, phaseInfo);

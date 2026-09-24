@@ -270,6 +270,49 @@ async function loadoutSection(browser) {
   await pageB.close();
 }
 
+// Task 6：放棄遊戲全員投票＋遺物記憶結算保存。
+async function abandonSection(browser) {
+  console.log("=== 放棄投票 ＋ 結算保存 ===");
+  await adminPut("relicMemories/" + TEST_CODE, null);
+  const pageA = await browser.newPage();
+  const pageB = await browser.newPage();
+  await enableEmulatorFlag(pageA);
+  await enableEmulatorFlag(pageB);
+  await createAndStart(pageA, pageB);
+
+  // 反對 → 取消
+  await pageA.dispatchEvent("#btn-midnight-hud-abandon", "click");
+  await pageA.dispatchEvent("#btn-midnight-abandon-confirm-yes", "click");
+  await pageB.waitForSelector("#midnight-abandon-vote-modal:not([hidden])", { timeout: 8000 });
+  await pageB.dispatchEvent("#btn-midnight-abandon-vote-no", "click");
+  await pageA.waitForFunction(() => !window.PriTestMidnight._debugState().meta.abandonVote, { timeout: 8000 });
+  assert(!(await pageA.evaluate(() => window.PriTestMidnight._debugState().meta.gameAbandonedAt)), "有人反對 → 投票取消、遊戲繼續");
+
+  // 全員同意 → 結算
+  await pageA.dispatchEvent("#btn-midnight-hud-abandon", "click");
+  await pageA.dispatchEvent("#btn-midnight-abandon-confirm-yes", "click");
+  await pageB.waitForSelector("#midnight-abandon-vote-modal:not([hidden])", { timeout: 8000 });
+  await pageB.dispatchEvent("#btn-midnight-abandon-vote-yes", "click");
+  for (const p of [pageA, pageB]) {
+    await p.waitForSelector("#midnight-relic-memory-settle-modal:not([hidden])", { timeout: 8000 });
+  }
+  const rows = await pageA.$$("#midnight-relic-memory-settle-list li");
+  assert(rows.length >= 1, "結算視窗列出本局獲得（至少開局小×1）");
+
+  await pageA.fill("#midnight-relic-memory-settle-code-input", TEST_CODE);
+  await pageA.dispatchEvent("#btn-midnight-relic-memory-settle-save", "click");
+  await pageA.waitForFunction(() => document.getElementById("btn-midnight-relic-memory-settle-save").disabled, { timeout: 8000 });
+  const stored = await pageA.evaluate((code) => window.PriTestGameStorage.relicMemoryRead(code), TEST_CODE);
+  assert(stored.ok && Object.keys(stored.value || {}).length === rows.length, "保存後 Firebase 件數＝本局獲得件數");
+
+  await pageB.fill("#midnight-relic-memory-settle-code-input", "ZZZZZ");
+  await pageB.dispatchEvent("#btn-midnight-relic-memory-settle-save", "click");
+  await pageB.waitForFunction(() => document.getElementById("midnight-relic-memory-settle-status").textContent.length > 0, { timeout: 8000 });
+  assert(!(await pageB.evaluate(() => document.getElementById("btn-midnight-relic-memory-settle-save").disabled)), "無效密碼 → 顯示錯誤、可再試");
+  await pageA.close();
+  await pageB.close();
+}
+
 (async () => {
   await pushRules();
   const browser = await chromium.launch();
@@ -283,7 +326,7 @@ async function loadoutSection(browser) {
     await createAndStart(pageA, pageB);
     await grantSection(pageA, pageB);
     await loadoutSection(browser);
-    // Task 6 在這裡往下加段落
+    await abandonSection(browser);
   } catch (e) {
     console.error(e);
     fails++;
