@@ -1488,6 +1488,7 @@ STRINGS_ZH: dict[str, str] = {
     "midnight_takeover_prompt": "輸入該玩家的重連密碼：",
     "midnight_takeover_wrong_password": "密碼錯誤，無法接管。",
     "midnight_takeover_self_note": "（你）",
+    "midnight_relic_memory_gained_toast": "獲得了遺物記憶",
     "midnight_menu_button": "選單",
     "midnight_pause_button": "暫停遊戲",
     "midnight_resume_button": "繼續遊戲",

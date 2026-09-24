@@ -1483,6 +1483,7 @@ STRINGS_EN: dict[str, str] = {
     "midnight_takeover_prompt": "Enter that player's reconnect password:",
     "midnight_takeover_wrong_password": "Wrong password, can't take over.",
     "midnight_takeover_self_note": "(you)",
+    "midnight_relic_memory_gained_toast": "Obtained a Relic Memory",
     "midnight_menu_button": "Menu",
     "midnight_pause_button": "Pause game",
     "midnight_resume_button": "Resume game",

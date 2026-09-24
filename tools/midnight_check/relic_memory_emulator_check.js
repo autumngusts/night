@@ -86,6 +86,63 @@ async function storageSection(page) {
   assert(r.del.ok && r.afterDel.value === null, "relicMemorySet(null) 刪除");
 }
 
+// 注意：等待房（尚未開局）的按鈕改用page.click()、不用dispatchEvent()——CLAUDE.md §4.6的
+// dispatchEvent建議是針對「開局後每影格重繪的HUD按鈕」（page.click()的stable檢查在持續
+// 重繪的元素上會逾時）。等待房沒有這個問題，既有的multi_device_sync_check.js／
+// late_join_check.js都用page.click()成功。實測發現這裡若改用dispatchEvent()，背景分頁
+// （pageB從未bringToFront）在「A剛加入、RTDB把players推播給B、B的onPlayersReceived
+// 觸發renderLobby()整段重建#midnight-lobby-slots」這個時間點附近呼叫，
+// 有時會在事件真正送達前元素已被替換掉，導致表單沒有顯示、後續page.fill()逾時
+// （in-page的element.click()或page.click()因為有內建的重試/actionability等待，不受影響）。
+async function joinLobby(page, passcode) {
+  await page.click("#midnight-lobby-slots .midnight-slot-empty button");
+  await page.fill("#midnight-lobby-passcode-input", passcode);
+  await page.click("#btn-midnight-lobby-join");
+  await page.waitForFunction(() => !!window.PriTestMidnight._debugState().mySlot, { timeout: META_WAIT_MS });
+}
+
+async function createAndStart(pageA, pageB, beforeReady) {
+  await pageA.goto(BASE + "/midnight/index.html", { waitUntil: "networkidle" });
+  await pageA.click("#btn-midnight-create");
+  await pageA.waitForFunction(() => window.PriTestMidnight && window.PriTestMidnight._debugState().meta, { timeout: META_WAIT_MS });
+  const url = pageA.url();
+  await pageB.goto(url, { waitUntil: "networkidle" });
+  await pageB.waitForFunction(() => window.PriTestMidnight && window.PriTestMidnight._debugState().meta, { timeout: META_WAIT_MS });
+  await joinLobby(pageA, "1234");
+  await joinLobby(pageB, "5678");
+  if (beforeReady) await beforeReady();
+  await pageA.click("#btn-midnight-lobby-ready");
+  await pageB.click("#btn-midnight-lobby-ready");
+  for (const p of [pageA, pageB]) {
+    await p.waitForFunction(() => {
+      const d = window.PriTestMidnight._debugState();
+      return d.meta.sessionStartAt && d.characters && d.characters[d.myTokenId];
+    }, { timeout: 25000 });
+  }
+  return url;
+}
+
+async function grantSection(pageA, pageB) {
+  console.log("=== 遊戲中獲得 ===");
+  const startA = await pageA.evaluate(() => window.PriTestMidnight._debugRelicMemory());
+  assert(startA.earned.length === 1 && startA.earned[0].size === "s" && startA.earned[0].source === "start", "開局小×1");
+  // 直接寫入 grant（里程碑判定本身由 milestoneGrantKeys 單元測試涵蓋）
+  const gid = await pageA.evaluate(() => window.PriTestMidnight._debugState().gameId);
+  await pageA.evaluate((g) => window.PriTestGameStorage.rtSet(g, "cloud", "meta/relicMemoryGrants/day2", { kind: "day2", at: Date.now() }), gid);
+  for (const p of [pageA, pageB]) {
+    await p.waitForFunction(() => window.PriTestMidnight._debugRelicMemory().earned.length === 3, { timeout: 8000 }).catch(() => {});
+  }
+  const a = await pageA.evaluate(() => window.PriTestMidnight._debugRelicMemory());
+  const b = await pageB.evaluate(() => window.PriTestMidnight._debugRelicMemory());
+  assert(a.earned.length === 3 && b.earned.length === 3, "day2 事件 → 兩人各 +2（中＋中/大）");
+  assert(a.earned[1].size === "m" && a.seen.day2 === true, "day2 第一個固定中、已標記 seen");
+  // 同一事件再寫一次不應重複發
+  await pageA.evaluate((g) => window.PriTestGameStorage.rtSet(g, "cloud", "meta/relicMemoryGrants/day2", { kind: "day2", at: Date.now() + 1 }), gid);
+  await pageA.waitForTimeout(1500);
+  const a2 = await pageA.evaluate(() => window.PriTestMidnight._debugRelicMemory());
+  assert(a2.earned.length === 3, "同一 grantKey 不重複發放");
+}
+
 (async () => {
   await pushRules();
   const browser = await chromium.launch();
@@ -94,7 +151,11 @@ async function storageSection(page) {
     await enableEmulatorFlag(pageA);
     await pageA.goto(BASE + "/midnight/index.html", { waitUntil: "networkidle" });
     await storageSection(pageA);
-    // Task 4〜6 在這裡往下加段落
+    const pageB = await browser.newPage();
+    await enableEmulatorFlag(pageB);
+    await createAndStart(pageA, pageB);
+    await grantSection(pageA, pageB);
+    // Task 5〜6 在這裡往下加段落
   } catch (e) {
     console.error(e);
     fails++;

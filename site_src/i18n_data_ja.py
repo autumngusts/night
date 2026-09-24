@@ -1483,6 +1483,7 @@ STRINGS_JA: dict[str, str] = {
     "midnight_takeover_prompt": "そのプレイヤーの再接続パスワードを入力：",
     "midnight_takeover_wrong_password": "パスワードが違います。引き継げません。",
     "midnight_takeover_self_note": "（あなた）",
+    "midnight_relic_memory_gained_toast": "遺物の記憶を獲得した",
     "midnight_menu_button": "メニュー",
     "midnight_pause_button": "ゲームを一時停止",
     "midnight_resume_button": "再開",

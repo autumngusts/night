@@ -2964,6 +2964,22 @@
     var c = window.PriTestCharacterDrawer.newCharacter(name, typeId);
     c.flaskCount = FLASK_MAX_DEFAULT;
     c.flaskMax = FLASK_MAX_DEFAULT;
+    // 遺物記憶（2026-09-24，設計文件§3／§4）：開局必得小×1（戰鬥模擬房不獲得）；
+    // 等待房選好的帶入記憶（players/<slot>/relicMemoryLoadout）複製到角色上，效果由
+    // CharacterDrawer.activeAttachedEffectIds()統一讀取。耐性類效果用既有的隨機選擇。
+    var RM = window.PriTestMidnightRelicMemory;
+    var CDr = window.PriTestCharacterDrawer;
+    c.relicMemoryEarned = [];
+    c.relicMemoryGrantSeen = {};
+    if (RM && !battleSimEnabled()) {
+      c.relicMemoryEarned.push(RM.newMemory("s", CDr.allAttachedEffectIds(), "start", Math.random, Date.now()));
+    }
+    c.relicMemoryLoadout = ((p && p.relicMemoryLoadout) || []).slice(0, RM ? RM.MAX_LOADOUT : 3);
+    c.relicMemoryLoadout.forEach(function (mem) {
+      (mem.effects || []).forEach(function (eid) {
+        CDr.assignAttachedResistChoiceIfNeeded(c, eid);
+      });
+    });
     return c;
   }
 
@@ -3900,6 +3916,10 @@
     var spawn = findWalkableSpawnNear(lateJoinSpawnAnchor(now), Math.random);
     localPos = { x: spawn.x, y: spawn.y };
     var initialChar = newCharacterForSlot(slot);
+    initialChar.relicMemoryGrantSeen = {};
+    Object.keys((meta && meta.relicMemoryGrants) || {}).forEach(function (k) {
+      initialChar.relicMemoryGrantSeen[k] = true;
+    });
     GameStorage.rtTransaction(gameId, "cloud", "demoStat/" + myTokenId, function (cur) {
       return cur === null ? selfArenaHpMax(initialChar) : cur;
     });
@@ -22948,6 +22968,81 @@
     el("midnight-game-victory-modal").hidden = true;
   }
 
+  // ---- 遺物記憶：隊伍共通的獲得事件（2026-09-24，設計文件§3.1）----
+  // meta/relicMemoryGrants/<key> 以 transaction first-writer-wins 追加（每個 key 只會寫一次）；
+  // 每台裝置只替自己的角色擲大小與效果，寫進 character/<token>/relicMemoryEarned，並在
+  // relicMemoryGrantSeen 標記已處理。relicMemoryGrantAttempted 只是本地節流。
+  var relicMemoryGrantAttempted = {};
+  var relicMemoryProcessing = false;
+
+  function countClearedTiles() {
+    return Object.keys(fieldProgress || {}).filter(function (pid) {
+      return fieldProgress[pid] && fieldProgress[pid].cleared === true;
+    }).length;
+  }
+
+  function countKilledStrongEnemies() {
+    return (map && map.points ? map.points : []).filter(function (pt) {
+      if (pt.type !== "strong_enemy") return false;
+      var trig = fieldTriggers[pt.id];
+      var hp = fieldEnemyHp[pt.id];
+      return !!trig && trig.status === "resolved" && hp !== undefined && hp <= 0;
+    }).length;
+  }
+
+  function tryAppendRelicMemoryGrant(key, kind) {
+    if (relicMemoryGrantAttempted[key]) return;
+    if (meta.relicMemoryGrants && meta.relicMemoryGrants[key]) return;
+    relicMemoryGrantAttempted[key] = true;
+    GameStorage.rtTransaction(gameId, "cloud", "meta/relicMemoryGrants/" + key, function (cur) {
+      return cur === null ? { kind: kind, at: Date.now() } : cur;
+    });
+  }
+
+  function updateRelicMemoryGrants() {
+    var RM = window.PriTestMidnightRelicMemory;
+    if (!RM || !meta || !meta.sessionStartAt || battleSimEnabled()) return;
+    RM.milestoneGrantKeys(countClearedTiles(), countKilledStrongEnemies()).forEach(function (key) {
+      tryAppendRelicMemoryGrant(key, RM.grantKindOfKey(key));
+    });
+    if (finalCircleBossDefeated(1)) tryAppendRelicMemoryGrant("day1", "day1");
+    if (finalCircleBossDefeated(2)) tryAppendRelicMemoryGrant("day2", "day2");
+    if (day3BossDefeated()) tryAppendRelicMemoryGrant("boss", "boss");
+    processMyRelicMemoryGrants();
+  }
+
+  function processMyRelicMemoryGrants() {
+    var RM = window.PriTestMidnightRelicMemory;
+    var c = myTokenId ? characters[myTokenId] : null;
+    if (!RM || !c || !mySlot || relicMemoryProcessing) return;
+    var grants = meta.relicMemoryGrants || {};
+    var seen = c.relicMemoryGrantSeen || {};
+    var pending = Object.keys(grants).filter(function (k) {
+      return !seen[k];
+    });
+    if (!pending.length) return;
+    relicMemoryProcessing = true;
+    var effectIds = window.PriTestCharacterDrawer.allAttachedEffectIds();
+    GameStorage.rtTransaction(gameId, "cloud", "character/" + myTokenId, function (cur) {
+      if (!cur) return cur;
+      var s = cur.relicMemoryGrantSeen || {};
+      var earned = (cur.relicMemoryEarned || []).slice();
+      Object.keys(grants).forEach(function (k) {
+        if (s[k]) return;
+        s[k] = true;
+        RM.grantSizes(grants[k].kind, Math.random).forEach(function (size) {
+          earned.push(RM.newMemory(size, effectIds, grants[k].kind, Math.random, Date.now()));
+        });
+      });
+      cur.relicMemoryGrantSeen = s;
+      cur.relicMemoryEarned = earned;
+      return cur;
+    }).then(function (after) {
+      relicMemoryProcessing = false;
+      if (after) showToast(window.I18N.t("midnight_relic_memory_gained_toast"));
+    });
+  }
+
   // 開局10秒進場動畫（2026-09-06優化，使用者明確規格「遊戲開始有10秒的動畫時間，期間
   // 不能移動操作：用動畫演出一隻略大的靈鷹載著入場腳色以漩渦飛行後10秒，最終停在大家的
   // 起始地點後正式開始，期間地圖慢慢從全透明到不透明」）：直接以meta.sessionStartAt為
@@ -23113,6 +23208,17 @@
     GameStorage.rtSet(gameId, "cloud", "attributeAccumTriggers/" + DAY3_BOSS_POINT_ID, null);
     day3BossRollAttempted = false;
     gameVictoryDismissed = false; // 重新開始一輪後，勝利彈窗的本地關閉旗標也要重置，否則下一輪擊敗夜王不會再顯示
+    // 遺物記憶：meta 整個覆寫已清掉 relicMemoryGrants；角色上的獲得紀錄也一併重置
+    // （重新開始一輪＝重新累積，開局小×1 重新發）。只有寫 players 內各席位的 token。
+    relicMemoryGrantAttempted = {};
+    occupiedSlots().forEach(function (slot) {
+      var tok = players[slot] && players[slot].tokenId;
+      if (!tok) return;
+      var RM = window.PriTestMidnightRelicMemory;
+      var start = RM && !battleSimEnabled() ? [RM.newMemory("s", window.PriTestCharacterDrawer.allAttachedEffectIds(), "start", Math.random, Date.now())] : [];
+      GameStorage.rtSet(gameId, "cloud", "character/" + tok + "/relicMemoryEarned", start);
+      GameStorage.rtSet(gameId, "cloud", "character/" + tok + "/relicMemoryGrantSeen", null);
+    });
   }
 
   // 立即縮圈（2026-09-09新增，測試主控台專用）：不新增第二套計時系統，直接改寫目前這一天
@@ -23962,6 +24068,7 @@
     renderWanderingBlessingHud();
     updateGameFailureModal();
     updateGameVictoryModal();
+    updateRelicMemoryGrants(); // 2026-09-24遺物記憶：隊伍共通獲得事件
     updateAutoDayAdvance(now);
     maybeTriggerDay3FromReady();
     render(now, phaseInfo);
@@ -25072,6 +25179,16 @@
       var effectiveKind = kind === "block" && !guard ? "hit" : kind;
       resolveMyIncomingHit(st, kind);
       return effectiveKind;
+    },
+    // 純測試用：遺物記憶目前狀態（見relic_memory_emulator_check.js）。
+    _debugRelicMemory: function () {
+      var c = myTokenId ? characters[myTokenId] : null;
+      return {
+        earned: (c && c.relicMemoryEarned) || [],
+        seen: (c && c.relicMemoryGrantSeen) || {},
+        loadout: (c && c.relicMemoryLoadout) || [],
+        grants: (meta && meta.relicMemoryGrants) || {},
+      };
     },
     _debugState: function () {
       return {
