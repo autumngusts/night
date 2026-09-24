@@ -3561,17 +3561,23 @@
     });
   }
 
+  // fix round 1（2026-09-24 review）：原本從本地快取的players[mySlot]算出新陣列再rtSet()
+  // 整值覆寫，兩次快速切換（第二次還沒收到第一次的RTDB回音）會讓後面那次蓋掉前面那次的
+  // 選擇（lost update）。改用rtTransaction()，永遠從Firebase當下真正的cur算增減，並在
+  // 重試時保持純函式（不讀外部myLobbyLoadout()）。
   function toggleLobbyRelicMemory(mem) {
-    if (!mySlot) return;
+    if (!mySlot || !gameId) return;
     var RM = window.PriTestMidnightRelicMemory;
-    var cur = myLobbyLoadout().slice();
-    var idx = -1;
-    cur.forEach(function (m, i) {
-      if (m.memId === mem.memId) idx = i;
+    GameStorage.rtTransaction(gameId, "cloud", "players/" + mySlot + "/relicMemoryLoadout", function (cur) {
+      var list = (cur || []).slice();
+      var idx = -1;
+      list.forEach(function (m, i) {
+        if (m && m.memId === mem.memId) idx = i;
+      });
+      if (idx !== -1) list.splice(idx, 1);
+      else if (list.length < RM.MAX_LOADOUT) list.push({ memId: mem.memId, size: mem.size, effects: mem.effects.slice() });
+      return list.length ? list : null;
     });
-    if (idx !== -1) cur.splice(idx, 1);
-    else if (cur.length < RM.MAX_LOADOUT) cur.push({ memId: mem.memId, size: mem.size, effects: mem.effects.slice() });
-    GameStorage.rtSet(gameId, "cloud", "players/" + mySlot + "/relicMemoryLoadout", cur.length ? cur : null);
   }
 
   function updateStoredRelicMemory(memId, value) {

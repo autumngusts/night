@@ -172,16 +172,29 @@ async function grantSection(pageA, pageB) {
 }
 
 // Task 5：等待房選擇帶入＋角色視窗「遺物記憶」列。
-// 固定寫入2個合法格式的記憶（m+16位小寫hex），在等待房開局前選其中1個帶入，驗證：
+// 固定寫入3個合法格式的記憶（m+16位小寫hex），在等待房開局前選其中1個帶入，驗證：
 // 1) 等待房讀取／勾選會即時反映到players/<slot>/relicMemoryLoadout；
-// 2) 開局後newCharacterForSlot()把選定的記憶複製到角色上，效果透過
+// 2) fix round 1回歸（2026-09-24 review）：快速連續切換兩個不同記憶（同一次evaluate內
+//    背靠背click，中間不await任何RTDB round-trip）不會遺失其中一個——
+//    toggleLobbyRelicMemory()原本從本地快取的players[mySlot]算出新陣列再rtSet()整值覆寫，
+//    這種情境下第二次切換送出時可能還沒收到第一次的RTDB回音，會用舊陣列蓋掉剛送出的
+//    第一次選擇（lost update）。改用GameStorage.rtTransaction()後，兩次切換都會各自從
+//    Firebase當下真正的cur算增減，兩個都應該保留下來；
+// 3) 開局後newCharacterForSlot()把選定的記憶複製到角色上，效果透過
 //    CharacterDrawer.activeAttachedEffectIds()生效（這裡用戰技傷害+5驗證）；
-// 3) 角色視窗消耗品之後的「遺物記憶」列可以點選、右側detail正確顯示效果說明。
+// 4) 角色視窗消耗品之後的「遺物記憶」列可以點選、右側detail正確顯示效果說明。
+//
+// 等待房（尚未開局）的按鈕/checkbox改用page.click()、不用dispatchEvent()——理由跟
+// joinLobby()註解一致：背景分頁在renderLobby()整段重建#midnight-lobby-slots附近呼叫
+// dispatchEvent()，有時會在事件真正送達前元素已被替換掉。快速連續切換的兩下例外：
+// 那裡刻意用page.evaluate()內的原生element.click()（見下方說明），因為要讓兩次點擊在
+// 同一個JS tick內背靠背送出、之間不能有任何await/round-trip，才能重現race。
 async function loadoutSection(browser) {
   console.log("=== 等待房帶入 ＋ 角色視窗 ===");
   await adminPut("relicMemories/" + TEST_CODE, {
     m000000000000000a: { memId: "m000000000000000a", size: "m", effects: ["max_hp_up", "arts_dmg"], createdAt: 1, favorite: false, source: "tiles" },
     m000000000000000b: { memId: "m000000000000000b", size: "s", effects: ["attack_dmg"], createdAt: 2, favorite: false, source: "start" },
+    m000000000000000c: { memId: "m000000000000000c", size: "s", effects: ["sorcery_dmg"], createdAt: 3, favorite: false, source: "start" },
   });
   const pageA = await browser.newPage();
   const pageB = await browser.newPage();
@@ -189,15 +202,50 @@ async function loadoutSection(browser) {
   await enableEmulatorFlag(pageB);
   await createAndStart(pageA, pageB, async () => {
     await pageA.fill("#midnight-lobby-relic-memory-code-input", TEST_CODE.toLowerCase());
-    await pageA.dispatchEvent("#btn-midnight-lobby-relic-memory-load", "click");
+    await pageA.click("#btn-midnight-lobby-relic-memory-load");
     await pageA.waitForSelector("#midnight-lobby-relic-memory-list input[type=checkbox]", { timeout: 8000 });
     const boxes = await pageA.$$("#midnight-lobby-relic-memory-list input[type=checkbox]");
-    assert(boxes.length === 2, "讀取後列出 2 個記憶");
-    await pageA.dispatchEvent('#midnight-lobby-relic-memory-list input[data-mem-id="m000000000000000a"]', "click");
+    assert(boxes.length === 3, "讀取後列出 3 個記憶");
+    await pageA.click('#midnight-lobby-relic-memory-list input[data-mem-id="m000000000000000a"]');
     await pageA.waitForFunction(() => {
       const d = window.PriTestMidnight._debugState();
       const p = d.players[d.mySlot];
       return p && p.relicMemoryLoadout && p.relicMemoryLoadout.length === 1;
+    }, { timeout: 5000 });
+
+    // fix round 1回歸：background頁不涉入這段（只有pageA在操作），在同一次page.evaluate()
+    // 裡對b／c兩個checkbox背靠背呼叫原生.click()（不是await分開送出的page.click()），
+    // 模擬「兩次切換幾乎同時發生、第二次送出時還沒收到第一次RTDB回音」的情境。
+    await pageA.evaluate(() => {
+      document.querySelector('#midnight-lobby-relic-memory-list input[data-mem-id="m000000000000000b"]').click();
+      document.querySelector('#midnight-lobby-relic-memory-list input[data-mem-id="m000000000000000c"]').click();
+    });
+    await pageA.waitForFunction(() => {
+      const d = window.PriTestMidnight._debugState();
+      const p = d.players[d.mySlot];
+      return p && p.relicMemoryLoadout && p.relicMemoryLoadout.length === 3;
+    }, { timeout: 5000 });
+    const afterDouble = await pageA.evaluate(() => {
+      const d = window.PriTestMidnight._debugState();
+      return d.players[d.mySlot].relicMemoryLoadout.map((m) => m.memId);
+    });
+    assert(
+      afterDouble.indexOf("m000000000000000a") !== -1 &&
+        afterDouble.indexOf("m000000000000000b") !== -1 &&
+        afterDouble.indexOf("m000000000000000c") !== -1,
+      "快速連續切換兩個不同記憶都成功寫入、沒有lost update（fix round 1回歸：toggleLobbyRelicMemory改用rtTransaction）"
+    );
+
+    // 還原成只選a，讓後面「開局後角色帶入選定記憶」等既有斷言維持原本預期——同樣用背靠背
+    // click()製造race，驗證反向（取消勾選）一樣不會漏掉其中一個。
+    await pageA.evaluate(() => {
+      document.querySelector('#midnight-lobby-relic-memory-list input[data-mem-id="m000000000000000b"]').click();
+      document.querySelector('#midnight-lobby-relic-memory-list input[data-mem-id="m000000000000000c"]').click();
+    });
+    await pageA.waitForFunction(() => {
+      const d = window.PriTestMidnight._debugState();
+      const p = d.players[d.mySlot];
+      return p && p.relicMemoryLoadout && p.relicMemoryLoadout.length === 1 && p.relicMemoryLoadout[0].memId === "m000000000000000a";
     }, { timeout: 5000 });
   });
   const r = await pageA.evaluate(() => {
