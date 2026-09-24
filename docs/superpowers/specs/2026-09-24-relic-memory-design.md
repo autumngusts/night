@@ -35,7 +35,7 @@ relicMemories/<CODE>/<memId>: {
 }
 ```
 
-- `memId`：`m` + 16 位 hex，客戶端產生。
+- `memId`：`m` + 16 位 hex，客戶端產生。`database.rules.json` 對 `$memId` 有嚴格 `.validate`：`^m[0-9a-f]{16}$`。
 - **上限 100 個**。保存時以 `relicMemories/<CODE>` 的 transaction 一次追加；超過 100 時，從 `favorite !== true` 中 `createdAt` 最舊者開始丟棄。若最愛已佔滿導致新記憶放不下，放不下的部分不存入，並在結算視窗顯示件數。
 - 保存不做逐個挑選：全部一起存，不需要的之後用編輯模式刪除。
 
@@ -49,7 +49,10 @@ relicMemories/<CODE>/<memId>: {
   "$code": {
     ".read":  "auth != null && root.child('relicMemoryCodes').child($code).exists()",
     ".write": "auth != null && root.child('relicMemoryCodes').child($code).exists()",
-    ".validate": "$code.matches(/^[A-Z0-9]{5}$/)"
+    ".validate": "$code.matches(/^[A-Z0-9]{5}$/)",
+    "$memId": {
+      ".validate": "$memId.matches(/^m[0-9a-f]{16}$/)"
+    }
   }
 }
 ```
@@ -111,7 +114,8 @@ relicMemories/<CODE>/<memId>: {
 
 - HUD 與遊戲失敗彈窗新增「放棄遊戲」按鈕。
 - 按下後寫入 `meta.abandonVote = { proposedBy, votes: { <token>: true|false } }`，所有已佔用席位的玩家看到投票彈窗（同意／反對）。
-- 全員同意 → transaction 寫入 `meta.gameAbandonedAt`，全員進入結算視窗，遊戲結束。
+- 需要同意的名單是**在線的已佔用席位**（`readyGateSlots()`：已佔用席位中先取在線者，全部離線時才退回全部已佔用席位），離線席位不計入、也不會卡住投票——跟夜之王 Day3 開始準備閘門（`maybeTriggerDay3FromReady()`）用同一套 presence-aware 名單。
+- 全員（`readyGateSlots()` 名單）同意 → transaction 寫入 `meta.gameAbandonedAt`，全員進入結算視窗，遊戲結束。
 - 任一人反對 → 清除 `meta.abandonVote`，遊戲繼續。
 - 提案者本人視為已同意。
 
@@ -135,7 +139,7 @@ relicMemories/<CODE>/<memId>: {
 - 自己的席位下方新增「記憶密碼」欄與「讀取」按鈕。
 - 讀取成功後顯示保存的記憶清單：可勾選最多 3 個（帶入）。
 - 「編輯模式」切換：每筆出現 ★（最愛切換）與刪除按鈕；刪除即時寫回 Firebase。
-- 選擇結果寫入 `character/<token>/relicMemorySelection`，開局時轉為 `relicMemoryLoadout`。密碼只存在本地（localStorage，便利用），不寫進遊戲 state。
+- 選擇結果寫入 `players/<slot>/relicMemoryLoadout`（`GameStorage.rtTransaction`；等待房階段角色物件尚未建立，因此掛在 slot 而不是 `character/<token>`），開局時由 `newCharacterForSlot()` 複製成 `c.relicMemoryLoadout`。密碼只存在本地（localStorage，便利用），不寫進遊戲 state。
 
 ## 7. i18n
 
