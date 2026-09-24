@@ -62,6 +62,78 @@ function verifyFile(filePath) {
   return { ok: errors.length === 0, errors: errors, size: size };
 }
 
+// 48 格の中身を見る（2026-09-23 追加）。寸法だけでは「行の切り方を間違えた sheet」が
+// 素通りする——実際に起きたのは、生成物が 7 行しか描かれていないのに 8 行へ割ってしまい、
+// 1 行ぶんが刀先だけの帯になった件（獅子の混種たち）。寸法は規格どおりなので verify は
+// 通り、登錄表にも入り、戦闘で「ほぼ空の受擊動畫」が流れて初めて気づく。
+//
+// 中位の格と比べて極端に薄い格を警告する。失格にはしない：死亡行の最終幀のように
+// 「本来ほとんど消えている格」は正当にありうるし、pack を止めると良品まで入らなくなる。
+// 判断は絵を見る人に返し、ここは「どの格を見ればよいか」を指すところまでをやる。
+//
+// **最終列（第6幀）だけが薄い**のは見逃す（2026-09-23）。遠程招式では「飛び道具だけが
+// 画面に残り、本体はもう写っていない」最終幀を生成側が普通に描いてくる——実測で
+// 忌み鬼・黄金樹の化身・鈴玉狩りの 3 枚が該当し、どれも元画像の時点でそう描かれていた。
+// ここで鳴らし続けると、本当に見たい「行の切り間違い」が警告の山に埋もれる。
+// 切り間違いは行ぜんたいが薄くなるので、行の中位でも判定して取りこぼさないようにする。
+const WEAK_RATIO = 0.25;
+
+function weakCellsOf(filePath) {
+  let img;
+  try {
+    img = require("./png.js").decode(filePath);
+  } catch (e) {
+    return null; // 復号できない形式（verifyFile 側で別途落ちる）
+  }
+  const cw = img.width / COLS;
+  const ch = img.height / ROWS;
+  if (cw % 1 || ch % 1) return null;
+  const ink = [];
+  for (let r = 0; r < ROWS; r++) {
+    for (let c = 0; c < COLS; c++) {
+      let n = 0;
+      for (let y = r * ch; y < (r + 1) * ch; y++) {
+        for (let x = c * cw; x < (c + 1) * cw; x++) {
+          if (img.data[(y * img.width + x) * 4 + 3] >= 128) n++;
+        }
+      }
+      ink.push({ n: n, r: r, c: c });
+    }
+  }
+  const median = ink
+    .map(function (v) {
+      return v.n;
+    })
+    .sort(function (a, b) {
+      return a - b;
+    })[Math.floor(ink.length / 2)];
+  if (!median) return null;
+  const out = [];
+  for (let r = 0; r < ROWS; r++) {
+    const row = ink.filter(function (v) {
+      return v.r === r;
+    });
+    const rowMedian = row
+      .map(function (v) {
+        return v.n;
+      })
+      .sort(function (a, b) {
+        return a - b;
+      })[Math.floor(COLS / 2)];
+    if (rowMedian < median * WEAK_RATIO) {
+      out.push("行" + r + "ぜんたい(" + Math.round((rowMedian / median) * 100) + "%)");
+      continue; // 行ごと薄いので、その中の格を個別に挙げても意味がない
+    }
+    row.forEach(function (v) {
+      if (v.c === COLS - 1) return; // 最終幀の飛び道具だけの格は正当
+      if (v.n < median * WEAK_RATIO) {
+        out.push("行" + v.r + "列" + v.c + "(" + Math.round((v.n / median) * 100) + "%)");
+      }
+    });
+  }
+  return out;
+}
+
 function loadRegistry() {
   const sandbox = { window: {}, console };
   vm.createContext(sandbox);
@@ -87,6 +159,7 @@ function main() {
     known[s.file] = s.id;
   });
   let fail = 0;
+  let warned = 0;
   files.forEach(function (f) {
     if (!known[f]) {
       console.log("  FAIL " + f + " は登録表にない名前");
@@ -94,13 +167,19 @@ function main() {
       return;
     }
     const r = verifyFile(path.join(SPRITE_DIR, f));
-    if (r.ok) console.log("  OK   " + f + " (" + r.size.width + "x" + r.size.height + ")");
-    else {
+    if (r.ok) {
+      console.log("  OK   " + f + " (" + r.size.width + "x" + r.size.height + ")");
+      const weak = weakCellsOf(path.join(SPRITE_DIR, f));
+      if (weak && weak.length) {
+        warned++;
+        console.log("  ⚠    " + f + " : 極端に薄い格 " + weak.join("、") + "（行の切り方を確かめること）");
+      }
+    } else {
       console.log("  FAIL " + f + " : " + r.errors.join(" / "));
       fail++;
     }
   });
-  console.log("\n" + files.length + " 枚中 " + (files.length - fail) + " 枚が合格");
+  console.log("\n" + files.length + " 枚中 " + (files.length - fail) + " 枚が合格" + (warned ? "（うち " + warned + " 枚に警告）" : ""));
   process.exit(fail === 0 ? 0 : 1);
 }
 

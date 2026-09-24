@@ -1222,9 +1222,13 @@
     var matches = Enemies.search(nameToken);
     if (matches.length === 1) return matches[0];
     if (matches.length > 1) {
+      // 精確比對也要走 Enemies 的異體字正規化（竜/龍 等），否則會出現「search 靠正規化
+      // 找得到、這一步用原字比對卻全部落空」而回 null（見 enemies.js 的 KANJI_VARIANTS）。
+      var fold = Enemies.foldNameVariants || function (t) { return t; };
+      var token = fold(nameToken);
       var exact = matches.filter(function (m) {
         var n = m.enemy.name;
-        return n && (n.ja === nameToken || n.zh === nameToken);
+        return n && ((n.ja && fold(n.ja) === token) || (n.zh && fold(n.zh) === token));
       });
       if (exact.length === 1) return exact[0];
     }

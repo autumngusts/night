@@ -95,8 +95,12 @@ console.log("[逾時ヘルパ自体の健全性]");
 ok(/function stageGateTimedOut\(pointId, gateKey\)/.test(src), "stageGateTimedOut() がある");
 ok(/function clearStageGateDeadline\(pointId, gateKey\)/.test(src), "clearStageGateDeadline() がある");
 // deadline は transaction で決めること（rtSet で上書きすると後から来た装置が延長してしまう）。
+// 2026-09-23：この deadline は跨裝置で読む共有時間戳なので、起点が Date.now() から
+// sharedNow()（伺服器時刻、§8.2）へ変わり、updater 内で使う変数名も now → sharedDeadline に
+// なった。縛りたいのは「transaction の first-writer-wins であること」なので、値の作り方には
+// 踏み込まず `cur === null ? <何か> : cur` の形だけを見る。
 ok(
-  /stageDeadlines\/" \+ gateKey, function \(cur\) \{\s*\n\s*return cur === null \? now \+ STAGE_GATE_TIMEOUT_MS : cur;/.test(src),
+  /stageDeadlines\/" \+ gateKey, function \(cur\) \{\s*\n\s*return cur === null \? \w+ : cur;/.test(src),
   "deadline は transaction の first-writer-wins で決めている"
 );
 // 本地節流は boolean ではなく時刻で持つこと（trig が作り直されたとき再送できる＝自己修復）。

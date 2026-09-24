@@ -1349,7 +1349,7 @@ STRINGS_ZH: dict[str, str] = {
     "project_midnight_name": "Midnight擴張",
     "project_midnight_desc": "即時制擴張版的地圖生成／即時移動／縮圈",
     "midnight_title": "Midnight 擴張",
-    "midnight_tech_demo_note": "這是擴張版，固定地圖佈局、卡牌隨機生成點位、即時移動同步與縮圈機制，戰鬥數值準備中。",
+    "midnight_tech_demo_note": "night擴張版, 固定黑夜君臨地圖布局 , 圖標隨機生成點位, 即時移動規劃路線, 在有限時間內縮圈機制, 戰鬥採即時戰鬥 , 對應採取有迴避與防禦, 管控體力與敵人進行戰鬥, 存活第一天第二天, 最終將降臨夜之王的試驗.",
     "midnight_create_button": "建立測試場",
     "midnight_creating_note": "建立中…",
     "midnight_join_hint": "或使用別人分享給你的連結（網址列帶有?game=）直接加入。",
@@ -1398,6 +1398,8 @@ STRINGS_ZH: dict[str, str] = {
     "midnight_dodge_grade_bad": "Bad",
     "midnight_block_success_flash": "成功防禦",
     "midnight_damage_taken_flash": "受到傷害",
+    # 2026-09-24：攻擊鍵旁 ◀ ▶ 切換列的「普通攻擊」標示。
+    "midnight_attack_mode_normal_label": "普通攻擊",
     "midnight_special_attack_jump_label": "跳躍攻擊",
     "midnight_special_attack_dash_label": "衝刺攻擊",
     "midnight_temp_weapon_skill_note": "附加「{label}」{seconds}秒",
@@ -1471,7 +1473,8 @@ STRINGS_ZH: dict[str, str] = {
     "midnight_lobby_title": "円卓（等待中）",
     "midnight_lobby_join_button": "加入",
     "midnight_lobby_passcode_hint": "重連密碼：4個數字，之後斷線重連或觀戰接管時需要用到，請記住。",
-    "midnight_lobby_spectator_note": "人數已滿（最多3人），你目前是觀戰身份。",
+    "midnight_lobby_spectator_note": "人數已滿（最多6人），你目前是觀戰身份。",
+    "midnight_lobby_party_size_note": "※ 建議人數 3 人。",
     "midnight_late_join_title": "中途加入",
     "midnight_late_join_hint": "輸入名稱與 4 位數密碼、選擇職業後按「加入」即可立即進入遊戲（Lv.1，出生在其他玩家附近的安全地帶）。",
     "midnight_lobby_ready_button": "準備",
@@ -1684,6 +1687,9 @@ STRINGS_ZH: dict[str, str] = {
     "midnight_reward_label_rune": "盧恩+{value}",
     "midnight_reward_label_chalice_bonus": "聖杯瓶使用次數+{value}",
     "midnight_reward_kind_rune": "盧恩",
+    # 恩寵「知識的集約」擊破後產生的擲骰獎勵（midnight.js の kind:"knowledgeDice"）。
+    # 2026-09-23補上：原本三種語言都沒有這個 key，清單上直接顯示原始 key 字串。
+    "midnight_reward_kind_knowledge_dice": "知識之骰",
     "midnight_reward_kind_potential_power": "潛在力量",
     "midnight_reward_kind_talisman": "護符",
     "midnight_reward_kind_weapon": "武器",

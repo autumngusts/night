@@ -1,6 +1,6 @@
 // 各 sheet の生成 prompt を出力する（画像生成そのものは専案外の外部サービスで行う）。
 //
-//   node tools/sprite_check/sprite_prompt.js                      # 全60組（1組で完結する長い prompt）
+//   node tools/sprite_check/sprite_prompt.js                      # 全組（1組で完結する長い prompt）
 //   node tools/sprite_check/sprite_prompt.js family_dragon_a      # 指定の1組だけ
 //   node tools/sprite_check/sprite_prompt.js --format=preamble    # 画風契約（会話の最初に1回だけ貼る）
 //   node tools/sprite_check/sprite_prompt.js --format=short       # 1組1行（preamble を貼ったあと流す）
@@ -100,11 +100,17 @@ const FRAME_RULE =
   "whether to dodge, so its silhouette must telegraph which attack is coming while " +
   "carrying no effect art at all";
 
+// 系統 sheet の成員一覧。專屬 sheet を持つ敵も数に入れる（familySheetIdForEnemy を使う）
+// ——系統 sheet は「專屬 sheet が無いときに立つ絵」なので、その敵が抜けた造形を頼むと
+// 代役として立ったときに似ていない絵になる。
 function membersOf(sheetId) {
   const out = [];
   FAMILIES.forEach(function (f) {
     f.enemies.forEach(function (e) {
-      if (R.sheetIdForEnemy(f.id, e.id) === sheetId) out.push(e);
+      const sid = R.familySheetIdForEnemy
+        ? R.familySheetIdForEnemy(f.id, e.id)
+        : R.sheetIdForEnemy(f.id, e.id);
+      if (sid === sheetId) out.push(e);
     });
   });
   return out;
@@ -140,7 +146,36 @@ function bossSubject(sheetId) {
   );
 }
 
+// 個別敵人專屬 sheet（enemy_<familyId>_<enemyId>、2026-09-23）の被写体。
+// 系統 sheet と違って「系統を代表する 1 体」ではなく、その敵そのものを頼む。
+// 鍵の切り出しは前方一致でしか決まらない（familyId も enemyId も _ を含む）ので、
+// 実データの組み合わせを総当たりして一致を探す。
+function ownEntryOf(s) {
+  var found = null;
+  FAMILIES.forEach(function (f) {
+    f.enemies.forEach(function (e) {
+      if ("enemy_" + f.id + "_" + e.id === s.id) found = { fam: f, enemy: e };
+    });
+  });
+  if (!found) {
+    return { id: s.id, file: s.file, kind: "enemy", subject: s.id, members: [] };
+  }
+  return {
+    id: s.id,
+    file: s.file,
+    kind: "enemy",
+    subject:
+      'Elden Ring Nightreign enemy "' + found.enemy.name.ja + '" (' +
+      found.enemy.name.zh + "), of the " + found.fam.name.ja + " group, size class " +
+      found.enemy.size +
+      ". Draw ONE creature only — this sheet belongs to this single enemy, " +
+      "it is NOT a lineup of the group",
+    members: [found.enemy.name.ja]
+  };
+}
+
 function entryOf(s) {
+  if (s.id.indexOf("enemy_") === 0) return ownEntryOf(s);
   if (s.id.indexOf("boss_") === 0) {
     return {
       id: s.id,

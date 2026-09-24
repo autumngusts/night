@@ -6,44 +6,46 @@
   // available 是「圖片是否已產出」。false 期間 midnight_sprite.js 會 fallback 到既有的
   // 靜止畫（spec §4）。圖片放進來之後由 sprite_pack.js 改寫成 true；重新產生登錄表時
   // 產生器會逐 sheet 沿用這裡既有的值，不會把已驗收的成果歸零。
+  //
+  // sheet は 3 種類：family_*（系統の代表 1 張）／enemy_*（個別敵人專屬）／boss_*（夜王）。
   var SHEETS = [
     { id: "family_dragon_a", file: "family_dragon_a.png", available: true },
-    { id: "family_dragon_b", file: "family_dragon_b.png", available: false },
-    { id: "family_tree_spirit_a", file: "family_tree_spirit_a.png", available: false },
+    { id: "family_dragon_b", file: "family_dragon_b.png", available: true },
+    { id: "family_tree_spirit_a", file: "family_tree_spirit_a.png", available: true },
     { id: "family_tree_spirit_b", file: "family_tree_spirit_b.png", available: true },
     { id: "family_rock_spirit_beast_a", file: "family_rock_spirit_beast_a.png", available: true },
-    { id: "family_rock_spirit_beast_b", file: "family_rock_spirit_beast_b.png", available: false },
+    { id: "family_rock_spirit_beast_b", file: "family_rock_spirit_beast_b.png", available: true },
     { id: "family_rat_basilisk_a", file: "family_rat_basilisk_a.png", available: true },
     { id: "family_rat_basilisk_b", file: "family_rat_basilisk_b.png", available: false },
     { id: "family_death_bird_raven_a", file: "family_death_bird_raven_a.png", available: true },
     { id: "family_death_bird_raven_b", file: "family_death_bird_raven_b.png", available: false },
     { id: "family_grafted_a", file: "family_grafted_a.png", available: true },
-    { id: "family_grafted_b", file: "family_grafted_b.png", available: false },
+    { id: "family_grafted_b", file: "family_grafted_b.png", available: true },
     { id: "family_crustacean_a", file: "family_crustacean_a.png", available: true },
     { id: "family_crustacean_b", file: "family_crustacean_b.png", available: false },
     { id: "family_attacker_warrior_a", file: "family_attacker_warrior_a.png", available: true },
     { id: "family_attacker_warrior_b", file: "family_attacker_warrior_b.png", available: false },
     { id: "family_formless_other_a", file: "family_formless_other_a.png", available: true },
-    { id: "family_formless_other_b", file: "family_formless_other_b.png", available: false },
+    { id: "family_formless_other_b", file: "family_formless_other_b.png", available: true },
     { id: "family_attacker_mage_a", file: "family_attacker_mage_a.png", available: true },
     { id: "family_attacker_mage_b", file: "family_attacker_mage_b.png", available: false },
     { id: "family_soldier_knight_a", file: "family_soldier_knight_a.png", available: true },
     { id: "family_soldier_knight_b", file: "family_soldier_knight_b.png", available: true },
     { id: "family_dog_wolf_a", file: "family_dog_wolf_a.png", available: true },
-    { id: "family_dog_wolf_b", file: "family_dog_wolf_b.png", available: false },
-    { id: "family_warrior_swordsman_a", file: "family_warrior_swordsman_a.png", available: false },
+    { id: "family_dog_wolf_b", file: "family_dog_wolf_b.png", available: true },
+    { id: "family_warrior_swordsman_a", file: "family_warrior_swordsman_a.png", available: true },
     { id: "family_warrior_swordsman_b", file: "family_warrior_swordsman_b.png", available: true },
     { id: "family_strong_type_a", file: "family_strong_type_a.png", available: true },
     { id: "family_strong_type_b", file: "family_strong_type_b.png", available: false },
     { id: "family_cavalry_a", file: "family_cavalry_a.png", available: true },
     { id: "family_cavalry_b", file: "family_cavalry_b.png", available: false },
-    { id: "family_demihuman_beastfolk_club_a", file: "family_demihuman_beastfolk_club_a.png", available: false },
+    { id: "family_demihuman_beastfolk_club_a", file: "family_demihuman_beastfolk_club_a.png", available: true },
     { id: "family_demihuman_beastfolk_club_b", file: "family_demihuman_beastfolk_club_b.png", available: true },
-    { id: "family_big_dog_bear_a", file: "family_big_dog_bear_a.png", available: false },
+    { id: "family_big_dog_bear_a", file: "family_big_dog_bear_a.png", available: true },
     { id: "family_big_dog_bear_b", file: "family_big_dog_bear_b.png", available: true },
-    { id: "family_undead_a", file: "family_undead_a.png", available: false },
+    { id: "family_undead_a", file: "family_undead_a.png", available: true },
     { id: "family_undead_b", file: "family_undead_b.png", available: true },
-    { id: "family_crystal_puppet_a", file: "family_crystal_puppet_a.png", available: false },
+    { id: "family_crystal_puppet_a", file: "family_crystal_puppet_a.png", available: true },
     { id: "family_crystal_puppet_b", file: "family_crystal_puppet_b.png", available: true },
     { id: "family_mage_messenger_a", file: "family_mage_messenger_a.png", available: true },
     { id: "family_mage_messenger_b", file: "family_mage_messenger_b.png", available: true },
@@ -57,6 +59,37 @@
     { id: "family_troll_dragonkin_wormface_b", file: "family_troll_dragonkin_wormface_b.png", available: true },
     { id: "family_page_lowly_soldier_a", file: "family_page_lowly_soldier_a.png", available: true },
     { id: "family_page_lowly_soldier_b", file: "family_page_lowly_soldier_b.png", available: false },
+    { id: "enemy_golem_maiden_puppet_guardian_golem", file: "enemy_golem_maiden_puppet_guardian_golem.png", available: true },
+    { id: "enemy_golem_maiden_puppet_kidnapper_maiden_puppets", file: "enemy_golem_maiden_puppet_kidnapper_maiden_puppets.png", available: true },
+    { id: "enemy_cavalry_tree_guard_capital_cavalry", file: "enemy_cavalry_tree_guard_capital_cavalry.png", available: true },
+    { id: "enemy_formless_other_miranda_flowers", file: "enemy_formless_other_miranda_flowers.png", available: true },
+    { id: "enemy_undead_graveyard_shades", file: "enemy_undead_graveyard_shades.png", available: true },
+    { id: "enemy_crustacean_big_crabs", file: "enemy_crustacean_big_crabs.png", available: true },
+    { id: "enemy_demihuman_beastfolk_club_lion_hybrids", file: "enemy_demihuman_beastfolk_club_lion_hybrids.png", available: true },
+    { id: "enemy_warrior_swordsman_stoneskin_kings", file: "enemy_warrior_swordsman_stoneskin_kings.png", available: true },
+    { id: "enemy_warrior_swordsman_divine_beast_warriors", file: "enemy_warrior_swordsman_divine_beast_warriors.png", available: true },
+    { id: "enemy_warrior_swordsman_divine_bird_warrior", file: "enemy_warrior_swordsman_divine_bird_warrior.png", available: true },
+    { id: "enemy_mage_messenger_oracle_envoys", file: "enemy_mage_messenger_oracle_envoys.png", available: true },
+    { id: "enemy_crystal_puppet_crystal_people", file: "enemy_crystal_puppet_crystal_people.png", available: true },
+    { id: "enemy_rock_spirit_beast_golden_hippo", file: "enemy_rock_spirit_beast_golden_hippo.png", available: true },
+    { id: "enemy_imp_watchdog_gargoyle_black_blade_kindred", file: "enemy_imp_watchdog_gargoyle_black_blade_kindred.png", available: true },
+    { id: "enemy_cavalry_carian_royal_guard", file: "enemy_cavalry_carian_royal_guard.png", available: true },
+    { id: "enemy_troll_dragonkin_wormface_nox_dragonkin_soldier", file: "enemy_troll_dragonkin_wormface_nox_dragonkin_soldier.png", available: true },
+    { id: "enemy_rat_basilisk_finger_bugs", file: "enemy_rat_basilisk_finger_bugs.png", available: true },
+    { id: "enemy_dragon_great_earth_dragon", file: "enemy_dragon_great_earth_dragon.png", available: true },
+    { id: "enemy_dragon_gluttonous_dragon", file: "enemy_dragon_gluttonous_dragon.png", available: true },
+    { id: "enemy_strong_type_loathed_demon", file: "enemy_strong_type_loathed_demon.png", available: true },
+    { id: "enemy_strong_type_divine_skin_apostles", file: "enemy_strong_type_divine_skin_apostles.png", available: true },
+    { id: "enemy_strong_type_blood_lord", file: "enemy_strong_type_blood_lord.png", available: true },
+    { id: "enemy_soldier_knight_battlefield_veteran", file: "enemy_soldier_knight_battlefield_veteran.png", available: true },
+    { id: "enemy_soldier_knight_death_knight", file: "enemy_soldier_knight_death_knight.png", available: true },
+    { id: "enemy_soldier_knight_hound_knight", file: "enemy_soldier_knight_hound_knight.png", available: true },
+    { id: "enemy_soldier_knight_bell_bearing_hunter", file: "enemy_soldier_knight_bell_bearing_hunter.png", available: true },
+    { id: "enemy_grafted_grafted_lord", file: "enemy_grafted_grafted_lord.png", available: true },
+    { id: "enemy_rock_spirit_beast_dark_offspring", file: "enemy_rock_spirit_beast_dark_offspring.png", available: true },
+    { id: "enemy_rock_spirit_beast_sacred_beast_lion_dance", file: "enemy_rock_spirit_beast_sacred_beast_lion_dance.png", available: true },
+    { id: "enemy_rock_spirit_beast_falling_star_beast", file: "enemy_rock_spirit_beast_falling_star_beast.png", available: true },
+    { id: "enemy_big_dog_bear_old_lions", file: "enemy_big_dog_bear_old_lions.png", available: true },
     { id: "boss_maris", file: "boss_maris.png", available: true },
     { id: "boss_fulghor", file: "boss_fulghor.png", available: true },
     { id: "boss_harmonia", file: "boss_harmonia.png", available: true },
@@ -84,7 +117,7 @@
     "rock_spirit_beast/sacred_beast_lion_dance": "family_rock_spirit_beast_a",
     "rock_spirit_beast/falling_star_beast": "family_rock_spirit_beast_a",
     "rock_spirit_beast/dark_offspring": "family_rock_spirit_beast_b",
-    "rock_spirit_beast/dark_offspring_withered": "family_rock_spirit_beast_b",
+    "rock_spirit_beast/dark_offspring_withered": "enemy_rock_spirit_beast_dark_offspring",
     "rock_spirit_beast/ancestral_spirit": "family_rock_spirit_beast_b",
     "rat_basilisk/big_rats": "family_rat_basilisk_a",
     "rat_basilisk/finger_bugs": "family_rat_basilisk_a",
@@ -176,7 +209,7 @@
     "demihuman_beastfolk_club/rot_kindred": "family_demihuman_beastfolk_club_b",
     "demihuman_beastfolk_club/demihuman_queen_swordmaster": "family_demihuman_beastfolk_club_a",
     "big_dog_bear/consort_red_wolf": "family_big_dog_bear_a",
-    "big_dog_bear/huge_dog": "family_big_dog_bear_a",
+    "big_dog_bear/huge_dog": "family_troll_dragonkin_wormface_a",
     "big_dog_bear/rune_bear": "family_big_dog_bear_b",
     "big_dog_bear/old_lions": "family_big_dog_bear_b",
     "undead/falling_hawk_corps": "family_undead_b",
@@ -212,15 +245,51 @@
     "imp_watchdog_gargoyle/grave_guardian_birds": "family_imp_watchdog_gargoyle_b",
     "imp_watchdog_gargoyle/hero_gargoyle": "family_imp_watchdog_gargoyle_a",
     "troll_dragonkin_wormface/knight_troll": "family_troll_dragonkin_wormface_a",
-    "troll_dragonkin_wormface/headless_trolls": "family_troll_dragonkin_wormface_a",
-    "troll_dragonkin_wormface/mad_flame_troll": "family_troll_dragonkin_wormface_a",
-    "troll_dragonkin_wormface/snowfield_trolls": "family_troll_dragonkin_wormface_a",
+    "troll_dragonkin_wormface/headless_trolls": "family_troll_dragonkin_wormface_b",
+    "troll_dragonkin_wormface/mad_flame_troll": "family_troll_dragonkin_wormface_b",
+    "troll_dragonkin_wormface/snowfield_trolls": "family_troll_dragonkin_wormface_b",
     "troll_dragonkin_wormface/troll": "family_troll_dragonkin_wormface_b",
     "troll_dragonkin_wormface/dragonkin_soldier": "family_troll_dragonkin_wormface_b",
     "troll_dragonkin_wormface/nox_dragonkin_soldier": "family_troll_dragonkin_wormface_b",
     "troll_dragonkin_wormface/worm_faces": "family_troll_dragonkin_wormface_b",
     "page_lowly_soldier/upper_pages": "family_page_lowly_soldier_a",
     "page_lowly_soldier/lowly_soldiers": "family_page_lowly_soldier_b"
+  };
+
+  // 自分だけの絵を持つ敵（2026-09-23）。系統 sheet は 1 張が系統全体を代表する絵なので、
+  // 個別に絵を起こした敵はこちらを優先する。available:false のあいだは系統 sheet に戻る。
+  var ENEMY_OWN_SHEET = {
+    "golem_maiden_puppet/guardian_golem": "enemy_golem_maiden_puppet_guardian_golem",
+    "golem_maiden_puppet/kidnapper_maiden_puppets": "enemy_golem_maiden_puppet_kidnapper_maiden_puppets",
+    "cavalry/tree_guard_capital_cavalry": "enemy_cavalry_tree_guard_capital_cavalry",
+    "formless_other/miranda_flowers": "enemy_formless_other_miranda_flowers",
+    "undead/graveyard_shades": "enemy_undead_graveyard_shades",
+    "crustacean/big_crabs": "enemy_crustacean_big_crabs",
+    "demihuman_beastfolk_club/lion_hybrids": "enemy_demihuman_beastfolk_club_lion_hybrids",
+    "warrior_swordsman/stoneskin_kings": "enemy_warrior_swordsman_stoneskin_kings",
+    "warrior_swordsman/divine_beast_warriors": "enemy_warrior_swordsman_divine_beast_warriors",
+    "warrior_swordsman/divine_bird_warrior": "enemy_warrior_swordsman_divine_bird_warrior",
+    "mage_messenger/oracle_envoys": "enemy_mage_messenger_oracle_envoys",
+    "crystal_puppet/crystal_people": "enemy_crystal_puppet_crystal_people",
+    "rock_spirit_beast/golden_hippo": "enemy_rock_spirit_beast_golden_hippo",
+    "imp_watchdog_gargoyle/black_blade_kindred": "enemy_imp_watchdog_gargoyle_black_blade_kindred",
+    "cavalry/carian_royal_guard": "enemy_cavalry_carian_royal_guard",
+    "troll_dragonkin_wormface/nox_dragonkin_soldier": "enemy_troll_dragonkin_wormface_nox_dragonkin_soldier",
+    "rat_basilisk/finger_bugs": "enemy_rat_basilisk_finger_bugs",
+    "dragon/great_earth_dragon": "enemy_dragon_great_earth_dragon",
+    "dragon/gluttonous_dragon": "enemy_dragon_gluttonous_dragon",
+    "strong_type/loathed_demon": "enemy_strong_type_loathed_demon",
+    "strong_type/divine_skin_apostles": "enemy_strong_type_divine_skin_apostles",
+    "strong_type/blood_lord": "enemy_strong_type_blood_lord",
+    "soldier_knight/battlefield_veteran": "enemy_soldier_knight_battlefield_veteran",
+    "soldier_knight/death_knight": "enemy_soldier_knight_death_knight",
+    "soldier_knight/hound_knight": "enemy_soldier_knight_hound_knight",
+    "soldier_knight/bell_bearing_hunter": "enemy_soldier_knight_bell_bearing_hunter",
+    "grafted/grafted_lord": "enemy_grafted_grafted_lord",
+    "rock_spirit_beast/dark_offspring": "enemy_rock_spirit_beast_dark_offspring",
+    "rock_spirit_beast/sacred_beast_lion_dance": "enemy_rock_spirit_beast_sacred_beast_lion_dance",
+    "rock_spirit_beast/falling_star_beast": "enemy_rock_spirit_beast_falling_star_beast",
+    "big_dog_bear/old_lions": "enemy_big_dog_bear_old_lions"
   };
 
   function listSheets() {
@@ -235,8 +304,20 @@
     );
   }
 
-  function sheetIdForEnemy(familyId, enemyId) {
+  // 系統への割当だけを返す（專屬 sheet を見ない）。系統 sheet の成員一覧や、
+  // 「空の変体を作っていないか」の検査はこちらを使う。
+  function familySheetIdForEnemy(familyId, enemyId) {
     return ENEMY_SHEET[familyId + "/" + enemyId] || null;
+  }
+
+  // 表現層が使うのはこちら。專屬 sheet が產出済みならそれを、無ければ系統 sheet を返す。
+  function sheetIdForEnemy(familyId, enemyId) {
+    var own = ENEMY_OWN_SHEET[familyId + "/" + enemyId];
+    if (own) {
+      var ownSheet = getSheet(own);
+      if (ownSheet && ownSheet.available) return own;
+    }
+    return familySheetIdForEnemy(familyId, enemyId);
   }
 
   // form（state.battle.bossForm と同じ文字列）を渡すと、その形態専用の sheet を優先する。
@@ -254,6 +335,7 @@
   window.PriTestEnemySpriteRegistry = {
     listSheets: listSheets,
     getSheet: getSheet,
+    familySheetIdForEnemy: familySheetIdForEnemy,
     sheetIdForEnemy: sheetIdForEnemy,
     sheetIdForBoss: sheetIdForBoss
   };

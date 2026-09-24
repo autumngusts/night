@@ -52,7 +52,17 @@
     "test:levelup_spirit_2026_09_21": "node levelup_spirit_2026_09_21_check.js",
     "test:battle_sim": "node battle_sim_check.js",
     "test:sprite_dodge": "node sprite_dodge_check.js",
-    "test:late_join": "node late_join_check.js"
+    "test:late_join": "node late_join_check.js",
+    "test:server_time_offset": "node server_time_offset_check.js",
+    "test:pause_and_choice": "node pause_and_choice_check.js",
+    "test:pause_flow": "node pause_flow_check.js",
+    "test:ability_matrix": "node ability_matrix_check.js",
+    "test:ability_damage": "node ability_damage_check.js",
+    "test:ability_effect": "node ability_effect_check.js",
+    "test:yoto_clawshot": "node yoto_clawshot_check.js",
+    "check:chip_coverage": "node chip_coverage_check.js",
+    "check:variant_kanji": "node variant_kanji_scan.js",
+    "test:combat_fx": "node combat_fx_check.js"
   },
   "devDependencies": {
     "firebase-tools": "^15.29.0",
