@@ -1689,6 +1689,10 @@ def build_midnight_html() -> str:
             # mnText()會讀window.PriTestMidnightTextAdapt，必須排在它之前。純字串函式、
             # 沒有其他相依，放這裡即可。
             "midnight_text_adapt.js",
+            # 2026-09-24新增：遺物記憶純函式層（見設計文件
+            # docs/superpowers/specs/2026-09-24-relic-memory-design.md），midnight.js 會讀
+            # window.PriTestMidnightRelicMemory，必須排在它之前。沒有其他相依。
+            "midnight_relic_memory.js",
             # 2026-09-13新增：武器詞條的純參考資料（名稱／有益・有害分類／數值範圍／規則
             # 本文），midnight.jsのrollWeaponAffixes()等會讀window.PriTestWeaponAffixes，
             # 必須排在它之前。純資料模組、沒有其他相依。

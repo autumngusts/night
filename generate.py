@@ -77,6 +77,7 @@ def build_static_assets() -> None:
         "midnight_map_variants.js",
         "midnight_map.js",
         "midnight_text_adapt.js",
+        "midnight_relic_memory.js",
         "weapon_affixes.js",
         "enemy_sprite_data.js",
         "enemy_sprite_registry.js",
