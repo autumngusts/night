@@ -610,6 +610,8 @@ BODY = """    <div class="midnight-wrap">
               <button type="button" id="btn-midnight-abandon-vote-yes" class="danger-btn" data-i18n="midnight_abandon_vote_yes"></button>
               <button type="button" id="btn-midnight-abandon-vote-no" data-i18n="midnight_abandon_vote_no"></button>
             </div>
+            <!-- final review I4：提案者可撤回（midnight.jsのhandleAbandonVoteWithdraw()） -->
+            <button type="button" id="btn-midnight-abandon-vote-withdraw" data-i18n="midnight_abandon_vote_withdraw" hidden></button>
           </div>
         </div>
         <!-- 遺物記憶結算（設計文件§6.2）：勝利彈窗確認後或meta.gameAbandonedAt成立時顯示 -->

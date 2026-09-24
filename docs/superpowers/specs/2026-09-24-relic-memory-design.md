@@ -100,7 +100,18 @@ relicMemories/<CODE>/<memId>: {
   「進入遊戲必得小 ×1」例外，全員都有。
 - **戰鬥模擬房**（`battleSimEnabled()`）不產生獲得事件，但可以帶入記憶。
 - 重新開始一輪（`handleRestartCycle()`）時一併清空 `meta.relicMemoryGrants`，各角色的
-  `character/<token>/relicMemory` 也重置為 `{ earned: [小×1（非戰鬥模擬房）], seen: {} }`。
+  `character/<token>/relicMemory` 也重置為 `{ earned: [小×1（非戰鬥模擬房）], seen: {} }`
+  （只寫本地已有 `character/<token>` 的席位，避免替還沒初始化角色的席位寫出只有 `relicMemory` 的殘缺節點）。
+- **重新開始一輪的基準**（final review 2026-09-24）：restart 不會清掉 `fieldProgress`、強敵的
+  `fieldTrigger`／`fieldEnemyHp`、`finalCircleDay1/2`，若直接用目前數量判定，新一輪第一影格就會把
+  tiles1..N／strong1..N／day1／day2 全部重發（可被刷）。因此 restart 寫入的新 meta 帶
+  `relicMemoryBaseline: { tiles, strong, day1, day2 }`（當下的踏破板塊數、強敵擊殺數、day1/day2 最終圈是否已擊敗），
+  判定改用 `RM.cycleGrantKeys(counts, baseline)`：里程碑用 `max(0, count − baseline)`，day1/day2 只在基準旗標
+  不是 `true` 時發；沒有基準＝0／false（第一輪）。夜之王（boss）不看基準——restart 本來就會清掉 day3 夜王節點。
+- restart 同時寫入 `meta.cycleStartedAt`（只有 restart 會寫）。其他裝置在 `onMetaReceived()` 看到它換值時呼叫
+  `resetRelicMemoryCycleLocalState()`，重置本地旗標（獲得節流、結算彈窗、放棄投票節流、勝利彈窗關閉旗標）並關閉結算彈窗；
+  按下 restart 的裝置直接呼叫同一個 helper。不用 `sessionStartAt` 換值判斷，因為時間損失（`advanceCircleTimerBy()`）
+  與測試用立即縮圈也會改寫 `meta/sessionStartAt`。
 
 ## 4. 效果套用
 
@@ -118,6 +129,11 @@ relicMemories/<CODE>/<memId>: {
 - 全員（`readyGateSlots()` 名單）同意 → transaction 寫入 `meta.gameAbandonedAt`，全員進入結算視窗，遊戲結束。
 - 任一人反對 → 清除 `meta.abandonVote`，遊戲繼續。
 - 提案者本人視為已同意。
+- 投票（加入自己的票）以 transaction 對整個 `meta.abandonVote` 進行，只有投票仍存在且有 `at` 時才寫入，避免投票剛被清掉時寫出沒有 `proposedBy`/`at` 的孤兒投票；缺少 `at` 的投票物件一律忽略（提案時可直接覆寫）。
+- **逾時**（final review 2026-09-24）：`ABANDON_VOTE_TIMEOUT_MS = 60000`。`Date.now() − vote.at` 超過時，任一裝置以 transaction（僅在 `cur.at === vote.at` 時）清除 `meta.abandonVote`（同一次投票只送一次），並顯示「放棄投票逾時，遊戲繼續」toast。進度列顯示剩餘秒數。
+- **不阻擋已投票者**：只有尚未投票的玩家看到阻擋式彈窗（同意／反對）；已投票者（含提案者）改為畫面上方不攔截點擊的小卡片（`.midnight-abandon-vote-passive`），不影響即時戰鬥。
+- **撤回**：提案者在投票期間可按「撤回提議」，以同一個 guarded transaction 清除投票。
+- 觀戰者（沒有席位）不顯示「放棄遊戲」按鈕。
 
 ## 6. UI
 
@@ -132,7 +148,8 @@ relicMemories/<CODE>/<memId>: {
 - 觸發：勝利彈窗按下確認後，或 `meta.gameAbandonedAt` 成立。
 - 內容：本局獲得的全部記憶（大小＋效果），記憶密碼輸入欄、保存按鈕、關閉按鈕。
 - 保存結果：成功件數、因上限丟棄的件數、因最愛佔滿未能存入的件數；密碼無效時顯示錯誤。
-- 保存成功後按鈕變為已保存，避免重複保存。
+- 保存成功後按鈕變為已保存（文字改為「已保存」並停用），避免重複保存。
+- 自己的角色資料尚未到達（reload 後）時不開啟，下一影格再試；開著時 earned 有變化就重建清單，保存的正是保存當下畫面顯示的清單。
 
 ### 6.3 等待房
 
@@ -140,6 +157,8 @@ relicMemories/<CODE>/<memId>: {
 - 讀取成功後顯示保存的記憶清單：可勾選最多 3 個（帶入）。
 - 「編輯模式」切換：每筆出現 ★（最愛切換）與刪除按鈕；刪除即時寫回 Firebase。
 - 選擇結果寫入 `players/<slot>/relicMemoryLoadout`（`GameStorage.rtTransaction`；等待房階段角色物件尚未建立，因此掛在 slot 而不是 `character/<token>`），開局時由 `newCharacterForSlot()` 複製成 `c.relicMemoryLoadout`。密碼只存在本地（localStorage，便利用），不寫進遊戲 state。
+- 已選但不在目前讀取的密碼資料裡的記憶（另一組密碼選的、接管席位繼承來的）列在清單最上方（勾選中，取消勾選即移除）；未讀取任何密碼時也會列出。
+- 兩個密碼輸入欄以 JS 設定 placeholder（`midnight_relic_memory_code_placeholder`）。
 
 ## 7. i18n
 

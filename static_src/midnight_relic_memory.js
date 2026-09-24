@@ -72,6 +72,24 @@
     return keys;
   }
 
+  // final review C1（2026-09-24）：重新開始一輪（handleRestartCycle）時，fieldProgress／強敵／
+  // day1・day2 最終圈的狀態不會被清掉，若直接用目前數量算，新一輪第一影格就會把 tiles1..N、
+  // strong1..N、day1、day2 全部重新發一次（可被刷）。restart 時在新 meta 記下
+  // relicMemoryBaseline（當下的數量與旗標），這裡只算「超出基準」的部分。
+  // counts：{ tiles, strong, day1, day2, boss }；baseline 缺少／欄位非數字＝0／false。
+  // boss 不看基準（day3 夜王節點在 restart 時本來就會被清掉）。
+  function cycleGrantKeys(counts, baseline) {
+    var c = counts || {};
+    var b = baseline || {};
+    var baseTiles = typeof b.tiles === "number" ? b.tiles : 0;
+    var baseStrong = typeof b.strong === "number" ? b.strong : 0;
+    var keys = milestoneGrantKeys(Math.max(0, (c.tiles || 0) - baseTiles), Math.max(0, (c.strong || 0) - baseStrong));
+    if (c.day1 && b.day1 !== true) keys.push("day1");
+    if (c.day2 && b.day2 !== true) keys.push("day2");
+    if (c.boss) keys.push("boss");
+    return keys;
+  }
+
   function grantKindOfKey(key) {
     return String(key).replace(/[0-9]+$/, function (m) {
       return /^day/.test(key) ? m : "";
@@ -139,6 +157,7 @@
     rollEffects: rollEffects,
     newMemory: newMemory,
     milestoneGrantKeys: milestoneGrantKeys,
+    cycleGrantKeys: cycleGrantKeys,
     grantKindOfKey: grantKindOfKey,
     mergeIntoStore: mergeIntoStore,
     sortedMemories: sortedMemories,

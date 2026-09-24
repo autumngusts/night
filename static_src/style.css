@@ -9460,3 +9460,12 @@ html.midnight-top-banner-collapsed .midnight-top-banner-collapse-btn {
 /* fix round 1：投票彈窗改成對全員都顯示（已投票者看文字/進度、按鈕隱藏），.wb-row本身有
    display:flex，跟瀏覽器預設的[hidden]{display:none}同specificity會被覆蓋，需明寫。 */
 #midnight-abandon-vote-buttons[hidden] { display: none; }
+/* final review I4（2026-09-24）：已投票者不應被全螢幕遮罩擋住即時戰鬥——背景透明且不攔截點擊，
+   卡片移到畫面上方（卡片本身仍可點，讓提案者按「撤回提議」）。未投票者維持阻擋式彈窗。 */
+#midnight-abandon-vote-modal.midnight-abandon-vote-passive {
+  pointer-events: none; background: transparent; align-items: flex-start; padding-top: 12px;
+}
+#midnight-abandon-vote-modal.midnight-abandon-vote-passive .midnight-relic-memory-box {
+  pointer-events: auto; padding: 8px 12px; box-shadow: 0 2px 10px rgba(0, 0, 0, 0.5);
+}
+#midnight-abandon-vote-modal.midnight-abandon-vote-passive .midnight-relic-memory-box p { margin: 4px 0; }

@@ -47,6 +47,15 @@ assert(JSON.stringify(RM.milestoneGrantKeys(7, 3)) === '["tiles1","tiles2","stro
 assert(RM.milestoneGrantKeys(2, 2).length === 0, "未滿 3 不發");
 assert(RM.grantKindOfKey("tiles3") === "tiles" && RM.grantKindOfKey("day2") === "day2", "grantKindOfKey");
 
+// final review C1（2026-09-24）：重新開始一輪時記錄基準（relicMemoryBaseline），里程碑只算
+// 「本輪新增」的部分，day1/day2 已在上一輪擊敗者不再發。boss 不受基準影響（節點本身會被清掉）。
+const cg = (counts, base) => JSON.stringify(RM.cycleGrantKeys(counts, base));
+assert(cg({ tiles: 7, strong: 3, day1: true, day2: false, boss: false }, null) === '["tiles1","tiles2","strong1","day1"]', "cycleGrantKeys 無基準＝原本行為");
+assert(cg({ tiles: 7, strong: 3, day1: true, day2: true, boss: false }, { tiles: 6, strong: 3, day1: true, day2: false }) === '["day2"]', "基準 tiles6/strong3/day1 → 只剩 day2");
+assert(cg({ tiles: 9, strong: 2, day1: false, day2: false, boss: true }, { tiles: 6, strong: 5 }) === '["tiles1","boss"]', "基準 tiles6 + 9 → tiles1；count<基準 → 0；boss 照發");
+assert(cg({ tiles: 3, strong: 3, day1: true, day2: true, boss: false }, { tiles: 3, strong: 3, day1: true, day2: true }) === "[]", "剛重新開始（count＝基準）→ 不重發任何 key");
+assert(cg({ tiles: 3, strong: 0 }, { tiles: "x" }) === '["tiles1"]', "基準欄位不是數字 → 視為 0");
+
 // 100 上限：放 99 舊（第 0 個是最愛）＋ 3 新 → 丟 2 個最舊非最愛
 const store = {};
 for (let i = 0; i < 99; i++) store["m" + String(i).padStart(16, "0")] = { memId: "m" + String(i).padStart(16, "0"), size: "s", effects: ["a"], createdAt: i, favorite: i === 0, source: "start" };

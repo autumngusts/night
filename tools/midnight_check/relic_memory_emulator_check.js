@@ -171,6 +171,56 @@ async function grantSection(pageA, pageB) {
   );
 }
 
+// final review C1／I2／I3（2026-09-24）：重新開始一輪的回歸。
+// 在已開局、已有 grants（day2／tiles1）的遊戲裡，墊出「3 個已踏破板塊＋day1 最終圈已擊敗」
+// 讓 tiles1／day1 真的由判定邏輯發出，再以 dispatchEvent 觸發 #btn-midnight-restart-cycle（handleRestartCycle）。
+// 修正前：fieldProgress／finalCircleDay1 不會被 restart 清掉，新一輪第一影格就重新發 tiles1／day1，
+// 兩人 earned 會 >1（且非按下 restart 的 B 裝置因為本地節流旗標沒重置，行為還不一致）。
+// 修正後：新 meta 帶 relicMemoryBaseline，兩人都只剩開局小×1。
+async function restartSection(pageA, pageB) {
+  console.log("=== 重新開始一輪（基準／各裝置本地旗標重置） ===");
+  const errors = [];
+  pageA.on("pageerror", (e) => errors.push("A:" + e.message));
+  pageB.on("pageerror", (e) => errors.push("B:" + e.message));
+  const gid = await pageA.evaluate(() => window.PriTestMidnight._debugState().gameId);
+  await pageA.evaluate((g) => {
+    const GS = window.PriTestGameStorage;
+    const d = window.PriTestMidnight._debugState();
+    const NON = { sorcerer: 1, merchant: 1, strong_enemy: 1, random_event: 1, blessing: 1 };
+    const pts = d.map.points.filter((p) => !NON[p.type]).slice(0, 3);
+    pts.forEach((p) => GS.rtSet(g, "cloud", "fieldProgress/" + p.id, { branchIndex: 0, floorIndex: 0, cleared: true }));
+    GS.rtSet(g, "cloud", "fieldTrigger/finalCircleDay1", { status: "resolved", participants: {} });
+    GS.rtSet(g, "cloud", "fieldEnemyHp/finalCircleDay1", 0);
+  }, gid);
+  for (const p of [pageA, pageB]) {
+    await p.waitForFunction(() => {
+      const r = window.PriTestMidnight._debugRelicMemory();
+      return r.grants.day1 && r.seen.day1 && r.grants.tiles1 && r.seen.tiles1;
+    }, { timeout: 10000 }).catch(() => {});
+  }
+  const pre = await pageB.evaluate(() => window.PriTestMidnight._debugRelicMemory());
+  assert(!!pre.grants.day1 && pre.earned.length > 1, "restart 前：day1 已由判定邏輯發出、earned > 1（前置條件）");
+  // 重新開始鍵平時只在 day3 顯示；dispatchEvent 不檢查可見性，直接觸發真正的 handler。
+  await pageA.dispatchEvent("#btn-midnight-restart-cycle", "click");
+  for (const p of [pageA, pageB]) {
+    await p.waitForFunction(() => {
+      const d = window.PriTestMidnight._debugState();
+      return d.meta.relicMemoryBaseline && window.PriTestMidnight._debugRelicMemory().earned.length === 1;
+    }, { timeout: 10000 }).catch(() => {});
+  }
+  await pageA.waitForTimeout(2500); // 讓幾個影格跑過，確認不會又被重發
+  for (const [label, p] of [["A", pageA], ["B", pageB]]) {
+    const r = await p.evaluate(() => {
+      const d = window.PriTestMidnight._debugState();
+      return { rm: window.PriTestMidnight._debugRelicMemory(), baseline: d.meta.relicMemoryBaseline || null };
+    });
+    assert(Object.keys(r.rm.grants).length === 0, label + "：restart 後 meta.relicMemoryGrants 為空（未被重發）");
+    assert(r.rm.earned.length === 1 && r.rm.earned[0].source === "start", label + "：restart 後 earned 只剩開局小×1");
+    assert(!!r.baseline && r.baseline.tiles >= 3 && r.baseline.day1 === true, label + "：meta.relicMemoryBaseline 記錄了 tiles/day1 基準");
+  }
+  assert(errors.length === 0, "restart 過程無 pageerror" + (errors.length ? "：" + errors.join(" | ") : ""));
+}
+
 // Task 5：等待房選擇帶入＋角色視窗「遺物記憶」列。
 // 固定寫入3個合法格式的記憶（m+16位小寫hex），在等待房開局前選其中1個帶入，驗證：
 // 1) 等待房讀取／勾選會即時反映到players/<slot>/relicMemoryLoadout；
@@ -308,13 +358,49 @@ async function abandonSection(browser) {
   await pageB.evaluate((g) => window.PriTestGameStorage.rtSet(g, "cloud", "meta/gameFailurePending", false), gid);
   await pageB.waitForFunction(() => document.getElementById("midnight-game-failure-modal").hidden === true, { timeout: 8000 });
 
+  // final review I4：投票逾時（60 秒）→ 任一裝置清除 abandonVote、遊戲繼續。
+  const slotA = await pageA.evaluate(() => window.PriTestMidnight._debugState().mySlot);
+  await pageA.evaluate((args) => window.PriTestGameStorage.rtSet(args.g, "cloud", "meta/abandonVote", {
+    proposedBy: args.slot, at: Date.now() - 61000, votes: { [args.slot]: true },
+  }), { g: gid, slot: slotA });
+  await pageA.waitForFunction(() => !!window.PriTestMidnight._debugState().meta.abandonVote, { timeout: 8000 }).catch(() => {});
+  await pageA.waitForFunction(() => !window.PriTestMidnight._debugState().meta.abandonVote, { timeout: 8000 }).catch(() => {});
+  const afterTimeout = await pageA.evaluate(() => window.PriTestMidnight._debugState().meta);
+  assert(!afterTimeout.abandonVote && !afterTimeout.gameAbandonedAt, "投票超過 60 秒 → abandonVote 被清除、gameAbandonedAt 未設定（I4 逾時）");
+
+  // final review M6：沒有進行中的投票時按同意 → 不可寫出沒有 proposedBy/at 的孤兒投票。
+  await pageB.dispatchEvent("#btn-midnight-abandon-vote-yes", "click");
+  await pageB.waitForTimeout(1500);
+  assert(!(await pageA.evaluate(() => window.PriTestMidnight._debugState().meta.abandonVote)), "無進行中投票時投同意 → meta.abandonVote 維持 null（M6 孤兒投票）");
+
   // 反對 → 取消
   await pageA.dispatchEvent("#btn-midnight-hud-abandon", "click");
   await pageA.dispatchEvent("#btn-midnight-abandon-confirm-yes", "click");
   await pageB.waitForSelector("#midnight-abandon-vote-modal:not([hidden])", { timeout: 8000 });
+  // final review I4：已投票者（提案者A）不被全螢幕遮罩擋住；尚未投票的B仍是阻擋式彈窗。
+  await pageA.waitForSelector("#midnight-abandon-vote-modal:not([hidden])", { timeout: 8000 });
+  const centerHit = async (p) => p.evaluate(() => {
+    const modal = document.getElementById("midnight-abandon-vote-modal");
+    const top = document.elementFromPoint(window.innerWidth / 2, window.innerHeight / 2);
+    return !!top && (top === modal || modal.contains(top));
+  });
+  assert(!(await centerHit(pageA)), "已投票者（A）畫面中央不被投票彈窗遮罩擋住（I4 非阻擋）");
+  assert(await centerHit(pageB), "尚未投票者（B）仍是阻擋式投票彈窗");
+  assert(await pageA.evaluate(() => !document.getElementById("btn-midnight-abandon-vote-withdraw").hidden), "提案者看得到「撤回提議」按鈕");
+  assert(await pageB.evaluate(() => document.getElementById("btn-midnight-abandon-vote-withdraw").hidden), "非提案者看不到「撤回提議」按鈕");
+  assert(/\d/.test(await pageA.textContent("#midnight-abandon-vote-progress")) && (await pageA.textContent("#midnight-abandon-vote-progress")).indexOf("{sec}") === -1, "進度列顯示剩餘秒數");
   await pageB.dispatchEvent("#btn-midnight-abandon-vote-no", "click");
   await pageA.waitForFunction(() => !window.PriTestMidnight._debugState().meta.abandonVote, { timeout: 8000 });
   assert(!(await pageA.evaluate(() => window.PriTestMidnight._debugState().meta.gameAbandonedAt)), "有人反對 → 投票取消、遊戲繼續");
+
+  // final review I4：提案者撤回
+  await pageA.dispatchEvent("#btn-midnight-hud-abandon", "click");
+  await pageA.dispatchEvent("#btn-midnight-abandon-confirm-yes", "click");
+  await pageA.waitForFunction(() => !!window.PriTestMidnight._debugState().meta.abandonVote, { timeout: 8000 });
+  await pageA.dispatchEvent("#btn-midnight-abandon-vote-withdraw", "click");
+  await pageA.waitForFunction(() => !window.PriTestMidnight._debugState().meta.abandonVote, { timeout: 8000 }).catch(() => {});
+  assert(!(await pageA.evaluate(() => window.PriTestMidnight._debugState().meta.abandonVote)), "提案者撤回 → abandonVote 清除");
+  await pageB.waitForFunction(() => document.getElementById("midnight-abandon-vote-modal").hidden, { timeout: 8000 }).catch(() => {});
 
   // 全員同意 → 結算
   await pageA.dispatchEvent("#btn-midnight-hud-abandon", "click");
@@ -330,6 +416,10 @@ async function abandonSection(browser) {
   await pageA.fill("#midnight-relic-memory-settle-code-input", TEST_CODE);
   await pageA.dispatchEvent("#btn-midnight-relic-memory-settle-save", "click");
   await pageA.waitForFunction(() => document.getElementById("btn-midnight-relic-memory-settle-save").disabled, { timeout: 8000 });
+  assert(
+    (await pageA.textContent("#btn-midnight-relic-memory-settle-save")) === (await pageA.evaluate(() => window.I18N.t("midnight_relic_memory_saved_button"))),
+    "保存成功後按鈕文字改為「已保存」（M9）"
+  );
   const stored = await pageA.evaluate((code) => window.PriTestGameStorage.relicMemoryRead(code), TEST_CODE);
   assert(stored.ok && Object.keys(stored.value || {}).length === rows.length, "保存後 Firebase 件數＝本局獲得件數");
 
@@ -353,6 +443,7 @@ async function abandonSection(browser) {
     await enableEmulatorFlag(pageB);
     await createAndStart(pageA, pageB);
     await grantSection(pageA, pageB);
+    await restartSection(pageA, pageB);
     await loadoutSection(browser);
     await abandonSection(browser);
   } catch (e) {

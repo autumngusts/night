@@ -2877,7 +2877,17 @@
     if (!value) return;
     var isFirstTime = !meta;
     var prevPause = meta && meta.pause;
+    var prevCycleStartedAt = meta ? meta.cycleStartedAt || null : null;
     meta = value;
+    // final review I2（2026-09-24）：偵測「有人按了重新開始一輪」，其餘裝置在這裡重置同一批
+    // 本地旗標（按下的那台在handleRestartCycle()自己重置），否則遺物記憶節流、結算、放棄投票、
+    // 勝利彈窗都會沿用上一輪的值。
+    // 注意：不能用「sessionStartAt換了值」當判斷——時間損失（advanceCircleTimerBy()）與測試用
+    // 立即縮圈（handleForceShrinkClick()）也會改寫meta/sessionStartAt，會誤觸發重置。改用只有
+    // handleRestartCycle()會寫的meta.cycleStartedAt；第一次收到meta（剛載入頁面）不算換輪。
+    if (!isFirstTime && meta.cycleStartedAt && meta.cycleStartedAt !== prevCycleStartedAt) {
+      resetRelicMemoryCycleLocalState();
+    }
     var totalPaused = (meta.pause && meta.pause.totalPausedMs) || 0;
     if (lastSeenTotalPausedMs !== null && totalPaused > lastSeenTotalPausedMs && prevPause && prevPause.pausedAt) {
       shiftMyTimestampsAfterPause(prevPause.pausedAt, totalPaused - lastSeenTotalPausedMs);
@@ -2976,7 +2986,7 @@
     if (RM && !battleSimEnabled()) {
       c.relicMemory.earned.push(RM.newMemory("s", CDr.allAttachedEffectIds(), "start", Math.random, Date.now()));
     }
-    c.relicMemoryLoadout = ((p && p.relicMemoryLoadout) || []).slice(0, RM ? RM.MAX_LOADOUT : 3);
+    c.relicMemoryLoadout = relicMemoryArray(p && p.relicMemoryLoadout).slice(0, RM ? RM.MAX_LOADOUT : 3);
     c.relicMemoryLoadout.forEach(function (mem) {
       (mem.effects || []).forEach(function (eid) {
         CDr.assignAttachedResistChoiceIfNeeded(c, eid);
@@ -3488,6 +3498,8 @@
     panel.hidden = !mySlot || !!(meta && meta.sessionStartAt);
     if (panel.hidden) return;
     var input = el("midnight-lobby-relic-memory-code-input");
+    // final review M12：沒有data-i18n-placeholder機制，直接用JS設定（切換語言後重繪也會更新）。
+    input.placeholder = window.I18N.t("midnight_relic_memory_code_placeholder");
     if (!input.value && !lobbyRelicMemoryCode) {
       try {
         input.value = window.localStorage.getItem(RELIC_MEMORY_CODE_STORAGE_KEY) || "";
@@ -3500,22 +3512,64 @@
     renderLobbyRelicMemoryList();
   }
 
+  // 規則不驗證記憶的形狀（既定取捨），client端一律略過沒有memId/size的項目、不丟例外。
+  function isUsableRelicMemory(m) {
+    return !!(m && typeof m === "object" && m.memId && m.size);
+  }
+
+  // RTDB的陣列可能以物件（數字key）形式回來，統一轉成陣列並略過不完整的項目。
+  function relicMemoryArray(value) {
+    var arr = Array.isArray(value)
+      ? value
+      : value && typeof value === "object"
+        ? Object.keys(value).map(function (k) {
+            return value[k];
+          })
+        : [];
+    return arr.filter(isUsableRelicMemory);
+  }
+
   function myLobbyLoadout() {
     var p = mySlot ? players[mySlot] : null;
-    return (p && p.relicMemoryLoadout) || [];
+    return relicMemoryArray(p && p.relicMemoryLoadout);
+  }
+
+  // final review M7：已選但不在目前讀取的密碼資料裡的記憶（另一組密碼選的、或接管席位時繼承
+  // 來的），原本完全看不到也取消不了，還會佔滿上限讓所有勾選框被停用。改成在清單最上方列出
+  // （勾選中；取消勾選即移除），未讀取任何密碼時也照樣列出。
+  function appendForeignLoadoutRow(list, mem) {
+    var row = document.createElement("label");
+    row.className = "midnight-relic-memory-row";
+    var box = document.createElement("input");
+    box.type = "checkbox";
+    box.setAttribute("data-mem-id", mem.memId);
+    box.checked = true;
+    box.addEventListener("click", function () {
+      toggleLobbyRelicMemory(mem);
+    });
+    row.appendChild(box);
+    var text = document.createElement("span");
+    text.textContent = relicMemorySummaryText(mem);
+    row.appendChild(text);
+    list.appendChild(row);
   }
 
   function renderLobbyRelicMemoryList() {
     var RM = window.PriTestMidnightRelicMemory;
     var list = el("midnight-lobby-relic-memory-list");
     list.innerHTML = "";
-    if (!lobbyRelicMemoryStore) return;
+    var loadout = myLobbyLoadout();
     var chosen = {};
-    myLobbyLoadout().forEach(function (m) {
+    loadout.forEach(function (m) {
       chosen[m.memId] = true;
     });
     var chosenCount = Object.keys(chosen).length;
-    RM.sortedMemories(lobbyRelicMemoryStore).forEach(function (mem) {
+    var store = lobbyRelicMemoryStore || {};
+    loadout.forEach(function (m) {
+      if (!isUsableRelicMemory(store[m.memId])) appendForeignLoadoutRow(list, m);
+    });
+    if (!lobbyRelicMemoryStore) return;
+    RM.sortedMemories(lobbyRelicMemoryStore).filter(isUsableRelicMemory).forEach(function (mem) {
       var row = document.createElement("label");
       row.className = "midnight-relic-memory-row";
       var box = document.createElement("input");
@@ -3566,16 +3620,16 @@
   // 選擇（lost update）。改用rtTransaction()，永遠從Firebase當下真正的cur算增減，並在
   // 重試時保持純函式（不讀外部myLobbyLoadout()）。
   function toggleLobbyRelicMemory(mem) {
-    if (!mySlot || !gameId) return;
+    if (!mySlot || !gameId || !isUsableRelicMemory(mem)) return;
     var RM = window.PriTestMidnightRelicMemory;
     GameStorage.rtTransaction(gameId, "cloud", "players/" + mySlot + "/relicMemoryLoadout", function (cur) {
-      var list = (cur || []).slice();
+      var list = relicMemoryArray(cur);
       var idx = -1;
       list.forEach(function (m, i) {
         if (m && m.memId === mem.memId) idx = i;
       });
       if (idx !== -1) list.splice(idx, 1);
-      else if (list.length < RM.MAX_LOADOUT) list.push({ memId: mem.memId, size: mem.size, effects: mem.effects.slice() });
+      else if (list.length < RM.MAX_LOADOUT) list.push({ memId: mem.memId, size: mem.size, effects: (mem.effects || []).slice() });
       return list.length ? list : null;
     });
   }
@@ -4369,6 +4423,7 @@
     el("btn-midnight-abandon-confirm-no").addEventListener("click", handleAbandonConfirmNo);
     el("btn-midnight-abandon-vote-yes").addEventListener("click", function () { castAbandonVote(true); });
     el("btn-midnight-abandon-vote-no").addEventListener("click", function () { castAbandonVote(false); });
+    el("btn-midnight-abandon-vote-withdraw").addEventListener("click", handleAbandonVoteWithdraw);
     el("btn-midnight-relic-memory-settle-save").addEventListener("click", handleRelicMemorySettleSave);
     el("btn-midnight-relic-memory-settle-close").addEventListener("click", handleRelicMemorySettleClose);
     el("midnight-lobby-test-mode-checkbox").addEventListener("change", handleTestModeToggle);
@@ -20801,7 +20856,7 @@
     // 遺物記憶（2026-09-24，設計文件§6.1）：只顯示帶入中的記憶，沒有帶入時整列隱藏。
     var memSection = el("midnight-character-sheet-relic-memory-section");
     var memBox = el("midnight-character-sheet-relic-memories");
-    var loadout = c.relicMemoryLoadout || [];
+    var loadout = relicMemoryArray(c.relicMemoryLoadout); // 略過格式不完整的項目，不丟例外
     memSection.hidden = loadout.length === 0;
     memBox.innerHTML = "";
     loadout.forEach(function (mem) {
@@ -21435,7 +21490,7 @@
       if (!attached) return;
       appendNameBody(CharacterTypes.localizedText(attached.name), CharacterTypes.localizedText(attached.body));
     } else if (sel.kind === "relicMemory") {
-      var mem = (c.relicMemoryLoadout || []).filter(function (m) {
+      var mem = relicMemoryArray(c.relicMemoryLoadout).filter(function (m) {
         return m.memId === sel.ref;
       })[0];
       if (!mem) return;
@@ -23206,17 +23261,51 @@
     if (!mySlot) return;
     var slot = mySlot;
     GameStorage.rtTransaction(gameId, "cloud", "meta/abandonVote", function (cur) {
-      if (cur) return cur;
+      if (cur && cur.at) return cur; // final review M6：沒有at的孤兒投票視同不存在，直接覆寫
       var votes = {};
       votes[slot] = true;
       return { proposedBy: slot, at: Date.now(), votes: votes };
     });
   }
 
+  // final review M6（2026-09-24）：原本rtSet(votes/<slot>)——投票剛被清掉時會寫出一個只有
+  // votes、沒有proposedBy/at的孤兒投票（畫面顯示「undefined 提議放棄」）。改成對整個
+  // meta/abandonVote做transaction，只有投票仍存在（且有at）時才加上自己的票。
   function castAbandonVote(agree) {
     if (!mySlot) return;
-    GameStorage.rtSet(gameId, "cloud", "meta/abandonVote/votes/" + mySlot, agree);
+    var slot = mySlot;
+    GameStorage.rtTransaction(gameId, "cloud", "meta/abandonVote", function (cur) {
+      if (!cur || !cur.at) return cur;
+      var votes = {};
+      Object.keys(cur.votes || {}).forEach(function (k) {
+        votes[k] = cur.votes[k];
+      });
+      votes[slot] = agree;
+      return { proposedBy: cur.proposedBy, at: cur.at, votes: votes };
+    });
   }
+
+  // 只清除「指定的那一次投票」（以vote.at識別），避免誤清掉之後新提出的投票。
+  // 逾時清除／提案者撤回／有人反對共用。
+  function clearAbandonVoteAt(at) {
+    GameStorage.rtTransaction(gameId, "cloud", "meta/abandonVote", function (cur) {
+      return cur && cur.at === at ? null : cur;
+    });
+  }
+
+  function handleAbandonVoteWithdraw() {
+    var vote = meta && meta.abandonVote;
+    if (!vote || !vote.at || !mySlot || vote.proposedBy !== mySlot) return;
+    clearAbandonVoteAt(vote.at);
+  }
+
+  // final review I4（2026-09-24）：投票彈窗原本是全螢幕阻擋式覆蓋、沒有逾時也不能撤回，
+  // 只要一位在線玩家不回應，全隊的即時戰鬥都被卡住。改成：
+  //   1) 超過ABANDON_VOTE_TIMEOUT_MS任一裝置清除投票（同一次投票只送一次＋toast）；
+  //   2) 已投票者改顯示不阻擋的小卡片（.midnight-abandon-vote-passive），只有未投票者是阻擋式；
+  //   3) 提案者可以撤回提議。
+  var ABANDON_VOTE_TIMEOUT_MS = 60000;
+  var abandonTimeoutAttemptedAt = null;
 
   // fix round 1（2026-09-24 review）：全員同意判定原本用occupiedSlots()，離線玩家的票永遠
   // undefined，投票會卡死。改用跟夜之王day3準備閘門同一套presence-aware readyGateSlots()
@@ -23231,11 +23320,25 @@
   function updateAbandonVote() {
     var modal = el("midnight-abandon-vote-modal");
     var buttons = el("midnight-abandon-vote-buttons");
+    // final review M12：觀戰者（沒有席位）不顯示放棄遊戲按鈕（反正也不能投票）。
+    el("btn-midnight-hud-abandon").hidden = !mySlot;
+    el("btn-midnight-game-failure-abandon").hidden = !mySlot;
     var vote = meta && meta.abandonVote;
-    if (!vote || meta.gameAbandonedAt) {
+    // final review M6：缺少at的投票物件（舊版rtSet留下的孤兒）一律忽略。
+    if (!vote || !vote.at || meta.gameAbandonedAt) {
       modal.hidden = true;
       abandonFinalizeAttempted = false;
       abandonCancelAttemptedAt = null;
+      return;
+    }
+    var remainMs = vote.at + ABANDON_VOTE_TIMEOUT_MS - Date.now();
+    if (remainMs <= 0) {
+      if (abandonTimeoutAttemptedAt !== vote.at) {
+        abandonTimeoutAttemptedAt = vote.at;
+        clearAbandonVoteAt(vote.at);
+        showToast(window.I18N.t("midnight_abandon_vote_timeout_toast"));
+      }
+      modal.hidden = true;
       return;
     }
     var votes = vote.votes || {};
@@ -23246,9 +23349,7 @@
     if (anyNo) {
       if (abandonCancelAttemptedAt !== vote.at) {
         abandonCancelAttemptedAt = vote.at;
-        GameStorage.rtTransaction(gameId, "cloud", "meta/abandonVote", function (cur) {
-          return cur && cur.at === vote.at ? null : cur;
-        });
+        clearAbandonVoteAt(vote.at);
       }
       modal.hidden = true;
       return;
@@ -23262,10 +23363,13 @@
         return cur === null ? Date.now() : cur;
       });
     }
-    // fix round 1：投票彈窗改成對全部已佔用席位持續顯示（不再是「投過票就整個關掉」）——
-    // 已投票者看得到文字／即時進度，只隱藏同意/反對按鈕；尚未投票者看得到按鈕。
+    // fix round 1：投票彈窗對全部已佔用席位持續顯示——已投票者看得到文字／即時進度，只隱藏
+    // 同意/反對按鈕；尚未投票者看得到按鈕。final review I4：已投票者改為不阻擋的小卡片。
+    var voted = !!(mySlot && votes[mySlot] !== undefined);
     modal.hidden = !mySlot;
-    buttons.hidden = !!(mySlot && votes[mySlot] !== undefined);
+    buttons.hidden = voted;
+    modal.classList.toggle("midnight-abandon-vote-passive", voted);
+    el("btn-midnight-abandon-vote-withdraw").hidden = !(mySlot && vote.proposedBy === mySlot);
     var proposer = players[vote.proposedBy];
     el("midnight-abandon-vote-text").textContent = window.I18N.t("midnight_abandon_vote_text", {
       name: proposer ? proposer.name : vote.proposedBy,
@@ -23273,6 +23377,7 @@
     el("midnight-abandon-vote-progress").textContent = window.I18N.t("midnight_abandon_vote_progress", {
       yes: yesCount,
       total: slots.length,
+      sec: Math.ceil(remainMs / 1000),
     });
   }
 
@@ -23280,6 +23385,10 @@
   var relicMemorySettleOpen = false; // 本地：已開過就不再自動開（關閉後不重開）
   var relicMemorySettleDismissed = false;
   var relicMemorySettleSaved = false;
+  var relicMemorySettleSaving = false;
+  // final review I5：目前結算清單渲染的是哪一版earned（長度＋最後一筆memId），每影格比對，
+  // 有變化才重建清單。
+  var relicMemorySettleRenderedKey = null;
   // fix round 1（2026-09-24 review，Minor）：結算彈窗可能因為「勝利彈窗確認」或「遊戲被判定
   // 放棄」兩種不同原因打開，關閉時的行為不一樣——放棄＝離開這場遊戲、勝利＝留在畫面上繼續看
   // （既有設計，跟遊戲勝利彈窗本身關閉行為一致）。原本用meta.gameAbandonedAt在關閉當下的
@@ -23287,52 +23396,87 @@
   // 但沒有明確禁止），關閉時就會誤觸發導頁。改成記住「當初是因為哪個原因打開」。
   var relicMemorySettleReason = null; // "abandon" | "victory" | null
 
-  function openRelicMemorySettle(reason) {
-    if (relicMemorySettleOpen || relicMemorySettleDismissed || !mySlot) return;
-    relicMemorySettleOpen = true;
-    relicMemorySettleReason = reason || null;
-    var c = characters[myTokenId];
+  // 本局獲得的記憶（略過格式不完整的項目：規則不驗證記憶形狀，client端要自保不丟例外）。
+  function myEarnedRelicMemories() {
+    var c = myTokenId ? characters[myTokenId] : null;
+    var earned = (c && c.relicMemory && c.relicMemory.earned) || [];
+    return earned.filter(function (m) {
+      return !!(m && m.memId && m.size);
+    });
+  }
+
+  function relicMemoryListKey(list) {
+    return list.length + ":" + (list.length ? list[list.length - 1].memId : "");
+  }
+
+  function updateRelicMemorySettleSaveButton(count) {
+    var btn = el("btn-midnight-relic-memory-settle-save");
+    btn.disabled = relicMemorySettleSaved || relicMemorySettleSaving || !count;
+    // final review M9：保存成功後按鈕改顯示「已保存」，狀態重置時還原原本文字。
+    btn.textContent = window.I18N.t(relicMemorySettleSaved ? "midnight_relic_memory_saved_button" : "midnight_relic_memory_save_button");
+  }
+
+  // 依目前的earned重建清單，回傳畫面上實際顯示的那份陣列（保存時用同一份，見下方）。
+  function renderRelicMemorySettleList() {
+    var earned = myEarnedRelicMemories();
     var list = el("midnight-relic-memory-settle-list");
     list.innerHTML = "";
-    ((c && c.relicMemory && c.relicMemory.earned) || []).forEach(function (mem) {
+    earned.forEach(function (mem) {
       var li = document.createElement("li");
       li.textContent = relicMemorySummaryText(mem);
       list.appendChild(li);
     });
+    relicMemorySettleRenderedKey = relicMemoryListKey(earned);
+    updateRelicMemorySettleSaveButton(earned.length);
+    return earned;
+  }
+
+  function openRelicMemorySettle(reason) {
+    if (relicMemorySettleOpen || relicMemorySettleDismissed || !mySlot) return;
+    // final review I5：reload後characters[myTokenId]可能還沒從RTDB到——此時不設任何旗標直接
+    // 返回，下一影格（updateRelicMemorySettle()）再試，避免開出一個空清單又永遠不刷新。
+    if (!myTokenId || !characters[myTokenId]) return;
+    relicMemorySettleOpen = true;
+    relicMemorySettleReason = reason || null;
     var input = el("midnight-relic-memory-settle-code-input");
+    // final review M12：沒有data-i18n-placeholder機制，直接用JS設定。
+    input.placeholder = window.I18N.t("midnight_relic_memory_code_placeholder");
     try {
       if (!input.value) input.value = window.localStorage.getItem(RELIC_MEMORY_CODE_STORAGE_KEY) || "";
     } catch (e) {}
     el("midnight-relic-memory-settle-status").textContent = "";
-    el("btn-midnight-relic-memory-settle-save").disabled = relicMemorySettleSaved || !list.children.length;
+    renderRelicMemorySettleList();
     el("midnight-relic-memory-settle-modal").hidden = false;
   }
 
   function handleRelicMemorySettleSave() {
     var RM = window.PriTestMidnightRelicMemory;
     var status = el("midnight-relic-memory-settle-status");
-    var btn = el("btn-midnight-relic-memory-settle-save");
     var code = RM.normalizeCode(el("midnight-relic-memory-settle-code-input").value);
     if (!RM.isValidCode(code)) {
       status.textContent = window.I18N.t("midnight_relic_memory_error_format");
       return;
     }
-    var c = characters[myTokenId];
-    var earned = (c && c.relicMemory && c.relicMemory.earned) || []; // fix round 1：欄位改在c.relicMemory子節點下
+    if (relicMemorySettleSaving || relicMemorySettleSaved) return;
+    // final review I5：保存前先重新渲染，保存的正是畫面上現在顯示的那份清單。
+    var earned = renderRelicMemorySettleList();
     if (!earned.length) return;
-    btn.disabled = true;
+    relicMemorySettleSaving = true;
+    updateRelicMemorySettleSaveButton(earned.length);
     status.textContent = window.I18N.t("midnight_relic_memory_saving");
     var summary = null;
     GameStorage.relicMemoryTransaction(code, function (cur) {
       summary = RM.mergeIntoStore(cur, earned, RM.MAX_STORED);
       return summary.store;
     }).then(function (res) {
+      relicMemorySettleSaving = false;
       if (!res.ok) {
-        btn.disabled = false;
+        updateRelicMemorySettleSaveButton(earned.length);
         status.textContent = window.I18N.t("midnight_relic_memory_error_" + (res.error || "network"));
         return;
       }
       relicMemorySettleSaved = true;
+      updateRelicMemorySettleSaveButton(earned.length);
       try {
         window.localStorage.setItem(RELIC_MEMORY_CODE_STORAGE_KEY, code);
       } catch (e) {}
@@ -23362,6 +23506,32 @@
 
   function updateRelicMemorySettle() {
     if (meta && meta.gameAbandonedAt) openRelicMemorySettle("abandon");
+    // final review I5：開著時若earned有變化（例如reload後資料陸續到、或最後一刻又獲得）就重建；
+    // 只比對長度＋最後一筆memId，沒變就不動DOM。保存中／已保存後不再改動清單。
+    if (relicMemorySettleOpen && !relicMemorySettleSaved && !relicMemorySettleSaving) {
+      if (relicMemoryListKey(myEarnedRelicMemories()) !== relicMemorySettleRenderedKey) renderRelicMemorySettleList();
+    }
+  }
+
+  // final review I2（2026-09-24）：「重新開始一輪」時要重置的本地旗標集中在這裡。按下的那台
+  // 在handleRestartCycle()呼叫；其他裝置在onMetaReceived()偵測到meta.cycleStartedAt換值時呼叫。
+  function resetRelicMemoryCycleLocalState() {
+    gameVictoryDismissed = false; // 否則下一輪擊敗夜王不會再顯示勝利彈窗
+    relicMemoryGrantAttempted = {};
+    relicMemorySettleOpen = false;
+    relicMemorySettleDismissed = false;
+    relicMemorySettleSaved = false;
+    relicMemorySettleSaving = false;
+    relicMemorySettleReason = null;
+    relicMemorySettleRenderedKey = null;
+    abandonFinalizeAttempted = false;
+    abandonCancelAttemptedAt = null;
+    abandonTimeoutAttemptedAt = null;
+    var settle = el("midnight-relic-memory-settle-modal");
+    if (settle) settle.hidden = true;
+    var status = el("midnight-relic-memory-settle-status");
+    if (status) status.textContent = "";
+    if (el("btn-midnight-relic-memory-settle-save")) updateRelicMemorySettleSaveButton(0);
   }
 
   // ---- 遺物記憶：隊伍共通的獲得事件（2026-09-24，設計文件§3.1；fix round 1改用單一子節點）----
@@ -23404,12 +23574,18 @@
   function updateRelicMemoryGrants() {
     var RM = window.PriTestMidnightRelicMemory;
     if (!RM || !meta || !meta.sessionStartAt || battleSimEnabled()) return;
-    RM.milestoneGrantKeys(countClearedTiles(), countKilledStrongEnemies()).forEach(function (key) {
+    // final review C1（2026-09-24）：扣掉重新開始一輪時記下的基準（meta.relicMemoryBaseline，
+    // 見handleRestartCycle()），否則上一輪留下的踏破板塊／強敵／day1・day2會在新一輪立刻重發。
+    var counts = {
+      tiles: countClearedTiles(),
+      strong: countKilledStrongEnemies(),
+      day1: finalCircleBossDefeated(1),
+      day2: finalCircleBossDefeated(2),
+      boss: day3BossDefeated(),
+    };
+    RM.cycleGrantKeys(counts, meta.relicMemoryBaseline).forEach(function (key) {
       tryAppendRelicMemoryGrant(key, RM.grantKindOfKey(key));
     });
-    if (finalCircleBossDefeated(1)) tryAppendRelicMemoryGrant("day1", "day1");
-    if (finalCircleBossDefeated(2)) tryAppendRelicMemoryGrant("day2", "day2");
-    if (day3BossDefeated()) tryAppendRelicMemoryGrant("boss", "boss");
     processMyRelicMemoryGrants();
   }
 
@@ -23425,21 +23601,29 @@
     if (!pending.length) return;
     relicMemoryProcessing = true;
     var effectIds = window.PriTestCharacterDrawer.allAttachedEffectIds();
+    // final review M8：transaction重試時要讀最新的meta.relicMemoryGrants（不是呼叫當下捕獲的
+    // grants），並記錄「最後一次執行（＝真正commit的那次）實際新增了幾個」，只有>0才toast。
+    var addedInLastRun = 0;
     GameStorage.rtTransaction(gameId, "cloud", "character/" + myTokenId + "/relicMemory", function (cur) {
-      var s = (cur && cur.seen) || {};
-      var earned = (cur && cur.earned) || [];
-      earned = earned.slice();
-      Object.keys(grants).forEach(function (k) {
+      var freshGrants = (meta && meta.relicMemoryGrants) || {};
+      var s = {};
+      Object.keys((cur && cur.seen) || {}).forEach(function (k) {
+        s[k] = cur.seen[k];
+      });
+      var earned = ((cur && cur.earned) || []).slice();
+      addedInLastRun = 0;
+      Object.keys(freshGrants).forEach(function (k) {
         if (s[k]) return;
         s[k] = true;
-        RM.grantSizes(grants[k].kind, Math.random).forEach(function (size) {
-          earned.push(RM.newMemory(size, effectIds, grants[k].kind, Math.random, Date.now()));
+        RM.grantSizes(freshGrants[k].kind, Math.random).forEach(function (size) {
+          earned.push(RM.newMemory(size, effectIds, freshGrants[k].kind, Math.random, Date.now()));
+          addedInLastRun++;
         });
       });
       return { earned: earned, seen: s };
     }).then(function (after) {
       relicMemoryProcessing = false;
-      if (after) showToast(window.I18N.t("midnight_relic_memory_gained_toast"));
+      if (after && addedInLastRun > 0) showToast(window.I18N.t("midnight_relic_memory_gained_toast"));
     });
   }
 
@@ -23594,10 +23778,22 @@
   }
 
   function handleRestartCycle() {
+    var restartAt = Date.now();
     GameStorage.rtSet(gameId, "cloud", "meta", {
       mapSeed: meta.mapSeed,
       createdAt: meta.createdAt,
-      sessionStartAt: Date.now(),
+      sessionStartAt: restartAt,
+      // final review I2：換輪標記，只有這裡會寫，其他裝置在onMetaReceived()據此重置本地旗標。
+      cycleStartedAt: restartAt,
+      // final review C1（2026-09-24）：fieldProgress／強敵的fieldTrigger・fieldEnemyHp／
+      // finalCircleDay1・2不會被這次restart清掉，記下當下數量當作新一輪的基準，
+      // updateRelicMemoryGrants()只發超出基準的部分（見RM.cycleGrantKeys()）。
+      relicMemoryBaseline: {
+        tiles: countClearedTiles(),
+        strong: countKilledStrongEnemies(),
+        day1: finalCircleBossDefeated(1),
+        day2: finalCircleBossDefeated(2),
+      },
     });
     // 2026-09-06三次優化：day3夜之王戰鬥沿用fieldTrigger/fieldEnemyHp/day3Boss（跟一般
     // 強敵籌碼共用同一套shape），這幾個節點不像meta.*那樣會隨上面整個覆寫而自動清空，
@@ -23607,21 +23803,22 @@
     GameStorage.rtSet(gameId, "cloud", "attributeAccum/" + DAY3_BOSS_POINT_ID, null);
     GameStorage.rtSet(gameId, "cloud", "attributeAccumTriggers/" + DAY3_BOSS_POINT_ID, null);
     day3BossRollAttempted = false;
-    gameVictoryDismissed = false; // 重新開始一輪後，勝利彈窗的本地關閉旗標也要重置，否則下一輪擊敗夜王不會再顯示
+    // final review I2：本地旗標（勝利彈窗關閉、遺物記憶節流／結算、放棄投票節流）統一由
+    // resetRelicMemoryCycleLocalState()重置；其他裝置則在onMetaReceived()偵測到
+    // meta.cycleStartedAt換成新值時呼叫同一個helper（不用sessionStartAt，理由見onMetaReceived()）。
+    resetRelicMemoryCycleLocalState();
     // 遺物記憶：meta 整個覆寫已清掉 relicMemoryGrants；角色上的獲得紀錄也一併重置
     // （重新開始一輪＝重新累積，開局小×1 重新發）。只有寫 players 內各席位的 token。
-    relicMemoryGrantAttempted = {};
     occupiedSlots().forEach(function (slot) {
       var tok = players[slot] && players[slot].tokenId;
-      if (!tok) return;
+      // final review I3：該席位還沒有character節點時不能只寫relicMemory子節點——否則節點
+      // 只剩relicMemory，updateLobbyOrGameVisibility()的「cur===null才初始化」會把它當成
+      // 已存在，角色永遠不會被初始化。
+      if (!tok || !characters[tok]) return;
       var RM = window.PriTestMidnightRelicMemory;
       var start = RM && !battleSimEnabled() ? [RM.newMemory("s", window.PriTestCharacterDrawer.allAttachedEffectIds(), "start", Math.random, Date.now())] : [];
       GameStorage.rtSet(gameId, "cloud", "character/" + tok + "/relicMemory", { earned: start, seen: null });
     });
-    relicMemorySettleOpen = false;
-    relicMemorySettleDismissed = false;
-    relicMemorySettleSaved = false;
-    relicMemorySettleReason = null;
   }
 
   // 立即縮圈（2026-09-09新增，測試主控台專用）：不新增第二套計時系統，直接改寫目前這一天
