@@ -3385,6 +3385,37 @@
     return out;
   }
 
+  // ---- 遺物記憶的顯示helper（等待房／角色視窗／結算視窗共用）----
+  function relicMemorySizeLabel(size) {
+    return window.I18N.t("midnight_relic_memory_size_" + size);
+  }
+
+  function relicMemorySummaryText(mem) {
+    var CD = window.PriTestCharacterDrawer;
+    var CT = window.PriTestCharacterTypes;
+    var names = (mem.effects || []).map(function (id) {
+      var e = CD.attachedEffectById(id);
+      return e ? CT.localizedText(e.name) : id;
+    });
+    return relicMemorySizeLabel(mem.size) + "｜" + names.join("／");
+  }
+
+  function renderRelicMemoryEffectDetail(container, mem) {
+    var CD = window.PriTestCharacterDrawer;
+    var CT = window.PriTestCharacterTypes;
+    var head = document.createElement("h4");
+    head.textContent = window.I18N.t("midnight_relic_memory_title") + "（" + relicMemorySizeLabel(mem.size) + "）";
+    container.appendChild(head);
+    (mem.effects || []).forEach(function (id) {
+      var e = CD.attachedEffectById(id);
+      if (!e) return;
+      var name = CT.localizedText(e.name);
+      var p = document.createElement("p");
+      p.textContent = name + "：" + mnText(CT.localizedText(e.body), name);
+      container.appendChild(p);
+    });
+  }
+
   // ---- 等待房畫面渲染：MAX_PLAYERS個席位卡片（空位顯示「加入」表單觸發按鈕、已佔用顯示名稱＋
   // 準備狀態＋非本人時的「接管」按鈕）、我自己的準備/取消準備按鈕、倒數文字、滿員觀戰
   // 提示。----
@@ -3442,6 +3473,152 @@
       pendingJoinSlot = null;
       el("midnight-lobby-character-detail").hidden = true;
     }
+    renderLobbyRelicMemoryPanel();
+  }
+
+  // ---- 遺物記憶：等待房面板（2026-09-24，設計文件§6.3）----
+  var RELIC_MEMORY_CODE_STORAGE_KEY = "pritest-midnight-relic-memory-code";
+  var lobbyRelicMemoryStore = null; // 讀取成功後的 relicMemories/<CODE> 快照
+  var lobbyRelicMemoryCode = null;
+  var lobbyRelicMemoryEditMode = false;
+
+  function renderLobbyRelicMemoryPanel() {
+    var panel = el("midnight-lobby-relic-memory");
+    if (!panel) return;
+    panel.hidden = !mySlot || !!(meta && meta.sessionStartAt);
+    if (panel.hidden) return;
+    var input = el("midnight-lobby-relic-memory-code-input");
+    if (!input.value && !lobbyRelicMemoryCode) {
+      try {
+        input.value = window.localStorage.getItem(RELIC_MEMORY_CODE_STORAGE_KEY) || "";
+      } catch (e) {}
+    }
+    el("btn-midnight-lobby-relic-memory-edit").hidden = !lobbyRelicMemoryStore;
+    el("btn-midnight-lobby-relic-memory-edit").textContent = window.I18N.t(
+      lobbyRelicMemoryEditMode ? "midnight_relic_memory_edit_done_button" : "midnight_relic_memory_edit_button"
+    );
+    renderLobbyRelicMemoryList();
+  }
+
+  function myLobbyLoadout() {
+    var p = mySlot ? players[mySlot] : null;
+    return (p && p.relicMemoryLoadout) || [];
+  }
+
+  function renderLobbyRelicMemoryList() {
+    var RM = window.PriTestMidnightRelicMemory;
+    var list = el("midnight-lobby-relic-memory-list");
+    list.innerHTML = "";
+    if (!lobbyRelicMemoryStore) return;
+    var chosen = {};
+    myLobbyLoadout().forEach(function (m) {
+      chosen[m.memId] = true;
+    });
+    var chosenCount = Object.keys(chosen).length;
+    RM.sortedMemories(lobbyRelicMemoryStore).forEach(function (mem) {
+      var row = document.createElement("label");
+      row.className = "midnight-relic-memory-row";
+      var box = document.createElement("input");
+      box.type = "checkbox";
+      box.setAttribute("data-mem-id", mem.memId);
+      box.checked = !!chosen[mem.memId];
+      box.disabled = !box.checked && chosenCount >= RM.MAX_LOADOUT;
+      box.addEventListener("click", function () {
+        toggleLobbyRelicMemory(mem);
+      });
+      row.appendChild(box);
+      var text = document.createElement("span");
+      text.textContent = (mem.favorite ? "★ " : "") + relicMemorySummaryText(mem);
+      row.appendChild(text);
+      if (lobbyRelicMemoryEditMode) {
+        var favBtn = document.createElement("button");
+        favBtn.type = "button";
+        favBtn.className = "midnight-relic-memory-fav";
+        favBtn.textContent = mem.favorite ? "★" : "☆";
+        favBtn.addEventListener("click", function (ev) {
+          ev.preventDefault();
+          // ES5：本專案不使用Object.assign，手動複製欄位再覆寫favorite。
+          var copy = {};
+          Object.keys(mem).forEach(function (k) {
+            copy[k] = mem[k];
+          });
+          copy.favorite = !mem.favorite;
+          updateStoredRelicMemory(mem.memId, copy);
+        });
+        row.appendChild(favBtn);
+        var delBtn = document.createElement("button");
+        delBtn.type = "button";
+        delBtn.className = "danger-btn midnight-relic-memory-del";
+        delBtn.textContent = window.I18N.t("midnight_relic_memory_delete_button");
+        delBtn.addEventListener("click", function (ev) {
+          ev.preventDefault();
+          if (chosen[mem.memId]) toggleLobbyRelicMemory(mem);
+          updateStoredRelicMemory(mem.memId, null);
+        });
+        row.appendChild(delBtn);
+      }
+      list.appendChild(row);
+    });
+  }
+
+  function toggleLobbyRelicMemory(mem) {
+    if (!mySlot) return;
+    var RM = window.PriTestMidnightRelicMemory;
+    var cur = myLobbyLoadout().slice();
+    var idx = -1;
+    cur.forEach(function (m, i) {
+      if (m.memId === mem.memId) idx = i;
+    });
+    if (idx !== -1) cur.splice(idx, 1);
+    else if (cur.length < RM.MAX_LOADOUT) cur.push({ memId: mem.memId, size: mem.size, effects: mem.effects.slice() });
+    GameStorage.rtSet(gameId, "cloud", "players/" + mySlot + "/relicMemoryLoadout", cur.length ? cur : null);
+  }
+
+  function updateStoredRelicMemory(memId, value) {
+    if (!lobbyRelicMemoryCode) return;
+    GameStorage.relicMemorySet(lobbyRelicMemoryCode, memId, value).then(function (res) {
+      if (!res.ok) {
+        el("midnight-lobby-relic-memory-status").textContent = window.I18N.t("midnight_relic_memory_error_" + res.error);
+        return;
+      }
+      if (value === null) delete lobbyRelicMemoryStore[memId];
+      else lobbyRelicMemoryStore[memId] = value;
+      renderLobbyRelicMemoryList();
+    });
+  }
+
+  function handleLobbyRelicMemoryLoad() {
+    var RM = window.PriTestMidnightRelicMemory;
+    var code = RM.normalizeCode(el("midnight-lobby-relic-memory-code-input").value);
+    var status = el("midnight-lobby-relic-memory-status");
+    if (!RM.isValidCode(code)) {
+      status.textContent = window.I18N.t("midnight_relic_memory_error_format");
+      return;
+    }
+    status.textContent = window.I18N.t("midnight_relic_memory_loading");
+    GameStorage.relicMemoryRead(code).then(function (res) {
+      if (!res.ok) {
+        status.textContent = window.I18N.t("midnight_relic_memory_error_" + res.error);
+        lobbyRelicMemoryStore = null;
+        renderLobbyRelicMemoryPanel();
+        return;
+      }
+      lobbyRelicMemoryCode = code;
+      lobbyRelicMemoryStore = res.value || {};
+      try {
+        window.localStorage.setItem(RELIC_MEMORY_CODE_STORAGE_KEY, code);
+      } catch (e) {}
+      status.textContent = window.I18N.t("midnight_relic_memory_loaded", {
+        count: Object.keys(lobbyRelicMemoryStore).length,
+        max: RM.MAX_LOADOUT,
+      });
+      renderLobbyRelicMemoryPanel();
+    });
+  }
+
+  function handleLobbyRelicMemoryEditToggle() {
+    lobbyRelicMemoryEditMode = !lobbyRelicMemoryEditMode;
+    renderLobbyRelicMemoryPanel();
   }
 
   // 2026-09-08使用者明確規格「左上隊伍資訊每個人為兩排：第一排名稱與腳色，第二排血量」：
@@ -4169,6 +4346,8 @@
     });
     el("btn-midnight-lobby-ready").addEventListener("click", handleLobbyReadyToggle);
     el("btn-midnight-lobby-leave").addEventListener("click", handleLobbyLeave);
+    el("btn-midnight-lobby-relic-memory-load").addEventListener("click", handleLobbyRelicMemoryLoad);
+    el("btn-midnight-lobby-relic-memory-edit").addEventListener("click", handleLobbyRelicMemoryEditToggle);
     el("midnight-lobby-night-boss-select").addEventListener("change", handleNightBossSelectChange);
     el("midnight-lobby-map-variant-select").addEventListener("change", handleMapVariantSelectChange);
     el("midnight-lobby-difficulty-select").addEventListener("change", handleDifficultySelectChange);
@@ -20604,6 +20783,26 @@
     renderInventorySlots(el("midnight-character-sheet-consumables"), c.consumables || [], CONSUMABLE_SLOT_COUNT, "consumable", function (inst) {
       return consumableInstanceLabel(c, inst);
     });
+
+    // 遺物記憶（2026-09-24，設計文件§6.1）：只顯示帶入中的記憶，沒有帶入時整列隱藏。
+    var memSection = el("midnight-character-sheet-relic-memory-section");
+    var memBox = el("midnight-character-sheet-relic-memories");
+    var loadout = c.relicMemoryLoadout || [];
+    memSection.hidden = loadout.length === 0;
+    memBox.innerHTML = "";
+    loadout.forEach(function (mem) {
+      var btn = document.createElement("button");
+      btn.type = "button";
+      btn.textContent = relicMemorySizeLabel(mem.size);
+      if (characterSheetSelection && characterSheetSelection.kind === "relicMemory" && characterSheetSelection.ref === mem.memId) {
+        btn.classList.add("midnight-sheet-slot-selected");
+      }
+      btn.addEventListener("click", function () {
+        selectCharacterSheetItem("relicMemory", mem.memId);
+      });
+      memBox.appendChild(btn);
+    });
+
     renderInventorySlots(el("midnight-character-sheet-talismans"), c.talismanIds || [], TALISMAN_SLOT_COUNT, "talisman", function (tid) {
       var t = window.PriTestTalismans.get(tid);
       return t ? window.PriTestTalismans.localizedText(t.name) : tid;
@@ -21221,6 +21420,12 @@
       var attached = CD.attachedEffectById(sel.ref);
       if (!attached) return;
       appendNameBody(CharacterTypes.localizedText(attached.name), CharacterTypes.localizedText(attached.body));
+    } else if (sel.kind === "relicMemory") {
+      var mem = (c.relicMemoryLoadout || []).filter(function (m) {
+        return m.memId === sel.ref;
+      })[0];
+      if (!mem) return;
+      renderRelicMemoryEffectDetail(detail, mem);
     }
   }
 

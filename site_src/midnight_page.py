@@ -100,6 +100,20 @@ BODY = """    <div class="midnight-wrap">
           <button type="button" id="btn-midnight-lobby-ready" hidden></button>
           <button type="button" id="btn-midnight-lobby-leave" class="danger-btn" data-i18n="midnight_lobby_leave_button" hidden></button>
         </div>
+        <!-- 遺物記憶（2026-09-24，設計文件§6.3）：只在自己有席位、尚未開局時顯示。
+             密碼只存在本地localStorage（便利用），選擇結果寫players/<slot>/relicMemoryLoadout，
+             開局時由newCharacterForSlot()複製到角色上。見static/midnight.jsの
+             renderLobbyRelicMemoryPanel()。 -->
+        <div id="midnight-lobby-relic-memory" hidden>
+          <h4 data-i18n="midnight_relic_memory_title"></h4>
+          <div class="wb-row">
+            <input type="text" id="midnight-lobby-relic-memory-code-input" maxlength="5" autocomplete="off">
+            <button type="button" id="btn-midnight-lobby-relic-memory-load" data-i18n="midnight_relic_memory_load_button"></button>
+            <button type="button" id="btn-midnight-lobby-relic-memory-edit" data-i18n="midnight_relic_memory_edit_button" hidden></button>
+          </div>
+          <p id="midnight-lobby-relic-memory-status" class="threat-ref-body"></p>
+          <div id="midnight-lobby-relic-memory-list"></div>
+        </div>
         <p id="midnight-lobby-countdown" hidden></p>
         <p id="midnight-lobby-spectator-note" class="threat-ref-body" data-i18n="midnight_lobby_spectator_note" hidden></p>
         <!-- 房間設定（2026-09-06優化，2026-09-10「完整版」正式接入）：
@@ -1528,6 +1542,10 @@ BODY = """    <div class="midnight-wrap">
                 <div class="midnight-sheet-section">
                   <h4 data-i18n="midnight_character_sheet_consumables_label"></h4>
                   <div id="midnight-character-sheet-consumables" class="midnight-sheet-slots"></div>
+                </div>
+                <div class="midnight-sheet-section" id="midnight-character-sheet-relic-memory-section" hidden>
+                  <h4 data-i18n="midnight_relic_memory_title"></h4>
+                  <div id="midnight-character-sheet-relic-memories" class="midnight-sheet-slots"></div>
                 </div>
                 <div class="midnight-sheet-section">
                   <h4 data-i18n="midnight_character_sheet_talismans_label"></h4>

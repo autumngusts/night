@@ -9435,3 +9435,11 @@ html.midnight-top-banner-collapsed .midnight-top-banner-collapse-btn {
   background: linear-gradient(90deg, #ffb347, #ffe17d);
   box-shadow: 0 0 0.4rem rgba(255, 200, 90, 0.9);
 }
+
+/* 遺物記憶（2026-09-24） */
+#midnight-lobby-relic-memory { margin-top: 12px; }
+#midnight-lobby-relic-memory-code-input { width: 7em; text-transform: uppercase; letter-spacing: 0.15em; }
+#midnight-lobby-relic-memory-list { max-height: 40vh; overflow-y: auto; }
+.midnight-relic-memory-row { display: flex; align-items: center; gap: 6px; padding: 4px 0; }
+.midnight-relic-memory-row span { flex: 1; }
+.midnight-relic-memory-fav, .midnight-relic-memory-del { flex: none; }

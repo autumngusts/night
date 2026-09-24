@@ -171,6 +171,57 @@ async function grantSection(pageA, pageB) {
   );
 }
 
+// Task 5：等待房選擇帶入＋角色視窗「遺物記憶」列。
+// 固定寫入2個合法格式的記憶（m+16位小寫hex），在等待房開局前選其中1個帶入，驗證：
+// 1) 等待房讀取／勾選會即時反映到players/<slot>/relicMemoryLoadout；
+// 2) 開局後newCharacterForSlot()把選定的記憶複製到角色上，效果透過
+//    CharacterDrawer.activeAttachedEffectIds()生效（這裡用戰技傷害+5驗證）；
+// 3) 角色視窗消耗品之後的「遺物記憶」列可以點選、右側detail正確顯示效果說明。
+async function loadoutSection(browser) {
+  console.log("=== 等待房帶入 ＋ 角色視窗 ===");
+  await adminPut("relicMemories/" + TEST_CODE, {
+    m000000000000000a: { memId: "m000000000000000a", size: "m", effects: ["max_hp_up", "arts_dmg"], createdAt: 1, favorite: false, source: "tiles" },
+    m000000000000000b: { memId: "m000000000000000b", size: "s", effects: ["attack_dmg"], createdAt: 2, favorite: false, source: "start" },
+  });
+  const pageA = await browser.newPage();
+  const pageB = await browser.newPage();
+  await enableEmulatorFlag(pageA);
+  await enableEmulatorFlag(pageB);
+  await createAndStart(pageA, pageB, async () => {
+    await pageA.fill("#midnight-lobby-relic-memory-code-input", TEST_CODE.toLowerCase());
+    await pageA.dispatchEvent("#btn-midnight-lobby-relic-memory-load", "click");
+    await pageA.waitForSelector("#midnight-lobby-relic-memory-list input[type=checkbox]", { timeout: 8000 });
+    const boxes = await pageA.$$("#midnight-lobby-relic-memory-list input[type=checkbox]");
+    assert(boxes.length === 2, "讀取後列出 2 個記憶");
+    await pageA.dispatchEvent('#midnight-lobby-relic-memory-list input[data-mem-id="m000000000000000a"]', "click");
+    await pageA.waitForFunction(() => {
+      const d = window.PriTestMidnight._debugState();
+      const p = d.players[d.mySlot];
+      return p && p.relicMemoryLoadout && p.relicMemoryLoadout.length === 1;
+    }, { timeout: 5000 });
+  });
+  const r = await pageA.evaluate(() => {
+    const d = window.PriTestMidnight._debugState();
+    const c = d.characters[d.myTokenId];
+    return {
+      loadout: window.PriTestMidnight._debugRelicMemory().loadout,
+      hpBonus: window.PriTestCharacterDrawer.attachedFlatMaxStatBonus
+        ? window.PriTestCharacterDrawer.attachedFlatMaxStatBonus(c, "hp")
+        : window.PriTestCharacterDrawer.totalFlatMaxStatBonus(c, "hp"),
+      art: window.PriTestCharacterDrawer.attachedSkillDamageBonus(c, "art"),
+    };
+  });
+  assert(r.loadout.length === 1 && r.loadout[0].memId === "m000000000000000a", "開局後角色帶入選定記憶");
+  assert(r.art === 5, "帶入效果生效（戰技+5）");
+  await pageA.dispatchEvent("#btn-midnight-open-character-sheet", "click");
+  await pageA.waitForSelector("#midnight-character-sheet-relic-memories button", { timeout: 5000 });
+  await pageA.dispatchEvent("#midnight-character-sheet-relic-memories button", "click");
+  const detail = await pageA.textContent("#midnight-character-sheet-detail");
+  assert(detail.indexOf("HP") !== -1 || detail.length > 10, "角色視窗點選記憶 → 右側顯示效果");
+  await pageA.close();
+  await pageB.close();
+}
+
 (async () => {
   await pushRules();
   const browser = await chromium.launch();
@@ -183,7 +234,8 @@ async function grantSection(pageA, pageB) {
     await enableEmulatorFlag(pageB);
     await createAndStart(pageA, pageB);
     await grantSection(pageA, pageB);
-    // Task 5〜6 在這裡往下加段落
+    await loadoutSection(browser);
+    // Task 6 在這裡往下加段落
   } catch (e) {
     console.error(e);
     fails++;
