@@ -1509,6 +1509,7 @@ STRINGS_EN: dict[str, str] = {
     "midnight_relic_memory_save_button": "Save to code",
     "midnight_relic_memory_saving": "Saving…",
     "midnight_relic_memory_saved": "Saved {added} (discarded {discarded} over limit, {rejected} not saved: favorites full)",
+    "midnight_relic_memory_already_saved": "Everything was already saved",
     "midnight_relic_memory_settle_close_button": "Close",
     "midnight_menu_button": "Menu",
     "midnight_pause_button": "Pause game",

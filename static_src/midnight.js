@@ -23186,7 +23186,7 @@
   function handleGameVictoryConfirmClick() {
     gameVictoryDismissed = true;
     el("midnight-game-victory-modal").hidden = true;
-    openRelicMemorySettle();
+    openRelicMemorySettle("victory");
   }
 
   // ---- 放棄遊戲（2026-09-24，遺物記憶設計文件§5）：全員同意制 ----
@@ -23218,24 +23218,38 @@
     GameStorage.rtSet(gameId, "cloud", "meta/abandonVote/votes/" + mySlot, agree);
   }
 
+  // fix round 1（2026-09-24 review）：全員同意判定原本用occupiedSlots()，離線玩家的票永遠
+  // undefined，投票會卡死。改用跟夜之王day3準備閘門同一套presence-aware readyGateSlots()
+  // （見上方maybeTriggerDay3FromReady()同款理由）：已佔用且在線的席位才需要投票，全部離線時
+  // 退回全部已佔用席位（保守fallback，理論上自己至少在線）。
   var abandonFinalizeAttempted = false;
+  // fix round 1：anyNo分支原本每影格都transaction一次，直到投票清除為止，浪費寫入。跟finalize
+  // 分支一樣加本地節流，記錄「已經嘗試取消的是哪一次投票（vote.at）」，同一次投票只送一次；
+  // 投票消失（meta.abandonVote變null）時連同abandonFinalizeAttempted一起重置，下一次全新提議
+  // （新的vote.at）自然可以再次取消/成立。
+  var abandonCancelAttemptedAt = null;
   function updateAbandonVote() {
     var modal = el("midnight-abandon-vote-modal");
+    var buttons = el("midnight-abandon-vote-buttons");
     var vote = meta && meta.abandonVote;
     if (!vote || meta.gameAbandonedAt) {
       modal.hidden = true;
       abandonFinalizeAttempted = false;
+      abandonCancelAttemptedAt = null;
       return;
     }
     var votes = vote.votes || {};
-    var slots = occupiedSlots();
+    var slots = readyGateSlots();
     var anyNo = slots.some(function (s) {
       return votes[s] === false;
     });
     if (anyNo) {
-      GameStorage.rtTransaction(gameId, "cloud", "meta/abandonVote", function (cur) {
-        return cur && cur.at === vote.at ? null : cur;
-      });
+      if (abandonCancelAttemptedAt !== vote.at) {
+        abandonCancelAttemptedAt = vote.at;
+        GameStorage.rtTransaction(gameId, "cloud", "meta/abandonVote", function (cur) {
+          return cur && cur.at === vote.at ? null : cur;
+        });
+      }
       modal.hidden = true;
       return;
     }
@@ -23248,7 +23262,10 @@
         return cur === null ? Date.now() : cur;
       });
     }
-    modal.hidden = !mySlot || votes[mySlot] !== undefined;
+    // fix round 1：投票彈窗改成對全部已佔用席位持續顯示（不再是「投過票就整個關掉」）——
+    // 已投票者看得到文字／即時進度，只隱藏同意/反對按鈕；尚未投票者看得到按鈕。
+    modal.hidden = !mySlot;
+    buttons.hidden = !!(mySlot && votes[mySlot] !== undefined);
     var proposer = players[vote.proposedBy];
     el("midnight-abandon-vote-text").textContent = window.I18N.t("midnight_abandon_vote_text", {
       name: proposer ? proposer.name : vote.proposedBy,
@@ -23263,10 +23280,17 @@
   var relicMemorySettleOpen = false; // 本地：已開過就不再自動開（關閉後不重開）
   var relicMemorySettleDismissed = false;
   var relicMemorySettleSaved = false;
+  // fix round 1（2026-09-24 review，Minor）：結算彈窗可能因為「勝利彈窗確認」或「遊戲被判定
+  // 放棄」兩種不同原因打開，關閉時的行為不一樣——放棄＝離開這場遊戲、勝利＝留在畫面上繼續看
+  // （既有設計，跟遊戲勝利彈窗本身關閉行為一致）。原本用meta.gameAbandonedAt在關閉當下的
+  // 狀態來判斷是否要導頁，如果結算彈窗是因為勝利而開、之後遊戲又被判定放棄（理論上不太會發生
+  // 但沒有明確禁止），關閉時就會誤觸發導頁。改成記住「當初是因為哪個原因打開」。
+  var relicMemorySettleReason = null; // "abandon" | "victory" | null
 
-  function openRelicMemorySettle() {
+  function openRelicMemorySettle(reason) {
     if (relicMemorySettleOpen || relicMemorySettleDismissed || !mySlot) return;
     relicMemorySettleOpen = true;
+    relicMemorySettleReason = reason || null;
     var c = characters[myTokenId];
     var list = el("midnight-relic-memory-settle-list");
     list.innerHTML = "";
@@ -23312,6 +23336,13 @@
       try {
         window.localStorage.setItem(RELIC_MEMORY_CODE_STORAGE_KEY, code);
       } catch (e) {}
+      // fix round 1（2026-09-24 review）：mergeIntoStore()現在對已存在的memId整筆略過，
+      // 因此reload後（本地旗標重置）重複按保存，這批記憶全部已存在時added/discarded/
+      // rejected皆為0——不能再顯示「已保存0個」這種誤導文字，改顯示「已經全部保存過了」。
+      if (summary.added === 0 && summary.discarded === 0 && summary.rejected === 0) {
+        status.textContent = window.I18N.t("midnight_relic_memory_already_saved");
+        return;
+      }
       status.textContent = window.I18N.t("midnight_relic_memory_saved", {
         added: summary.added,
         discarded: summary.discarded,
@@ -23324,12 +23355,13 @@
     el("midnight-relic-memory-settle-modal").hidden = true;
     relicMemorySettleOpen = false;
     relicMemorySettleDismissed = true;
-    // 放棄遊戲後關閉＝離開這場遊戲，回到midnight起始畫面（不帶?game=）。
-    if (meta && meta.gameAbandonedAt) window.location.href = window.location.pathname;
+    // 放棄遊戲後關閉＝離開這場遊戲，回到midnight起始畫面（不帶?game=）。只在結算彈窗本來就
+    // 是因為放棄而打開時才導頁——勝利彈窗打開的結算不應該被強制導頁（見上方欄位說明）。
+    if (relicMemorySettleReason === "abandon") window.location.href = window.location.pathname;
   }
 
   function updateRelicMemorySettle() {
-    if (meta && meta.gameAbandonedAt) openRelicMemorySettle();
+    if (meta && meta.gameAbandonedAt) openRelicMemorySettle("abandon");
   }
 
   // ---- 遺物記憶：隊伍共通的獲得事件（2026-09-24，設計文件§3.1；fix round 1改用單一子節點）----
@@ -23589,6 +23621,7 @@
     relicMemorySettleOpen = false;
     relicMemorySettleDismissed = false;
     relicMemorySettleSaved = false;
+    relicMemorySettleReason = null;
   }
 
   // 立即縮圈（2026-09-09新增，測試主控台專用）：不新增第二套計時系統，直接改寫目前這一天

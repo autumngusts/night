@@ -280,6 +280,34 @@ async function abandonSection(browser) {
   await enableEmulatorFlag(pageB);
   await createAndStart(pageA, pageB);
 
+  // fix round 1（2026-09-24 review）：z-index回歸——原本三個新彈窗z-index是2000，落在
+  // #midnight-game-failure-modal（不透明背景、z-index 2100）底下，導致從失敗彈窗按「放棄
+  // 遊戲」時，本地確認彈窗被失敗彈窗蓋住點不到。
+  // 注意：不能直接手動改DOM的.hidden——#midnight-game-failure-modal的顯示由
+  // updateGameFailureModal()每影格依meta.gameFailurePending覆寫（見static/midnight.js），
+  // 手動設的.hidden=false會在下一影格被真正的狀態蓋回去，測不到z-index問題（實測過會
+  // 誤判PASS）。改成透過GameStorage.rtSet()寫真正的meta.gameFailurePending＝true，
+  // 讓失敗彈窗用它原本的正常途徑顯示，再從它按放棄提議，用
+  // document.elementFromPoint()在確認彈窗「提議放棄」按鈕中心點檢查最上層元素確實是它
+  // （或被它包含），驗證疊放順序正確；驗證完用「取消」關掉確認彈窗，並把
+  // meta.gameFailurePending寫回false，避免影響後面的測試。用pageB操作，不干擾pageA
+  // 後續的投票/結算流程。
+  const gid = await pageB.evaluate(() => window.PriTestMidnight._debugState().gameId);
+  await pageB.evaluate((g) => window.PriTestGameStorage.rtSet(g, "cloud", "meta/gameFailurePending", true), gid);
+  await pageB.waitForSelector("#midnight-game-failure-modal:not([hidden])", { timeout: 8000 });
+  await pageB.dispatchEvent("#btn-midnight-game-failure-abandon", "click");
+  await pageB.waitForSelector("#midnight-abandon-confirm-modal:not([hidden])", { timeout: 8000 });
+  const onTop = await pageB.evaluate(() => {
+    const btn = document.getElementById("btn-midnight-abandon-confirm-yes");
+    const rect = btn.getBoundingClientRect();
+    const top = document.elementFromPoint(rect.left + rect.width / 2, rect.top + rect.height / 2);
+    return !!top && (top === btn || btn.contains(top));
+  });
+  assert(onTop, "失敗彈窗開著時從其放棄按鈕提議，確認彈窗仍蓋在最上層可點擊（z-index回歸）");
+  await pageB.dispatchEvent("#btn-midnight-abandon-confirm-no", "click");
+  await pageB.evaluate((g) => window.PriTestGameStorage.rtSet(g, "cloud", "meta/gameFailurePending", false), gid);
+  await pageB.waitForFunction(() => document.getElementById("midnight-game-failure-modal").hidden === true, { timeout: 8000 });
+
   // 反對 → 取消
   await pageA.dispatchEvent("#btn-midnight-hud-abandon", "click");
   await pageA.dispatchEvent("#btn-midnight-abandon-confirm-yes", "click");

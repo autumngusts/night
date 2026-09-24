@@ -9444,12 +9444,19 @@ html.midnight-top-banner-collapsed .midnight-top-banner-collapse-btn {
 .midnight-relic-memory-row span { flex: 1; }
 .midnight-relic-memory-fav, .midnight-relic-memory-del { flex: none; }
 
-/* 放棄遊戲投票＋遺物記憶結算彈窗（2026-09-24，設計文件§5／§6.2）：同款全螢幕覆蓋置中卡片。 */
+/* 放棄遊戲投票＋遺物記憶結算彈窗（2026-09-24，設計文件§5／§6.2）：同款全螢幕覆蓋置中卡片。
+   fix round 1（2026-09-24 review）：z-index本來是2000，落在#midnight-game-failure-modal／
+   #midnight-game-victory-modal（不透明背景、2100）底下，導致從失敗彈窗按放棄提議後，
+   確認彈窗被失敗彈窗的不透明背景蓋住點不到。這三個彈窗改成2200——高於2100的失敗/勝利
+   彈窗，但仍低於.reward-toast（4000，任何時候都要蓋在最上層的提示）。 */
 #midnight-abandon-confirm-modal, #midnight-abandon-vote-modal, #midnight-relic-memory-settle-modal {
-  position: fixed; inset: 0; z-index: 2000; display: flex; align-items: center; justify-content: center;
+  position: fixed; inset: 0; z-index: 2200; display: flex; align-items: center; justify-content: center;
   background: rgba(0, 0, 0, 0.6);
 }
 #midnight-abandon-confirm-modal[hidden], #midnight-abandon-vote-modal[hidden], #midnight-relic-memory-settle-modal[hidden] { display: none; }
 .midnight-relic-memory-box { background: var(--panel-bg, #1c1c22); color: inherit; padding: 16px; border-radius: 8px; max-width: min(520px, 92vw); max-height: 86vh; overflow-y: auto; }
 #midnight-relic-memory-settle-list { padding-left: 1.2em; }
 #midnight-relic-memory-settle-code-input { width: 7em; text-transform: uppercase; letter-spacing: 0.15em; }
+/* fix round 1：投票彈窗改成對全員都顯示（已投票者看文字/進度、按鈕隱藏），.wb-row本身有
+   display:flex，跟瀏覽器預設的[hidden]{display:none}同specificity會被覆蓋，需明寫。 */
+#midnight-abandon-vote-buttons[hidden] { display: none; }

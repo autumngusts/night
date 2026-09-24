@@ -57,6 +57,15 @@ assert(r.added === 3 && r.discarded === 2 && r.rejected === 0, "added 3 / discar
 assert(!!r.store["m0000000000000000"], "最愛（最舊）未被丟");
 assert(!r.store["m0000000000000001"] && !r.store["m0000000000000002"], "丟掉最舊的 2 個非最愛");
 
+// fix round 1（2026-09-24 review）：重複保存同一批已存在的memId不應該再次觸發容量判定，
+// 否則對一個已滿100的store重複保存，會誤丟棄跟這次保存無關的舊記憶（結算後reload、本地
+// 旗標重置、玩家又按一次保存鍵時會發生）。用剛剛合併完（已滿100）的r.store，再合併同一批
+// add（memId跟r.store裡的完全相同）→ 應該全部被略過，added/discarded/rejected皆為0，
+// store內容不變。
+const r3 = RM.mergeIntoStore(r.store, add, 100);
+assert(r3.added === 0 && r3.discarded === 0 && r3.rejected === 0, "重複保存同一批memId → added/discarded/rejected 皆 0");
+assert(JSON.stringify(Object.keys(r3.store).sort()) === JSON.stringify(Object.keys(r.store).sort()), "重複保存後 store 內容（key集合）不變");
+
 // 全部是最愛時新記憶放不下
 const favStore = {};
 for (let i = 0; i < 100; i++) favStore["f" + i] = { memId: "f" + i, size: "s", effects: ["a"], createdAt: i, favorite: true, source: "start" };

@@ -95,6 +95,11 @@
     var discarded = 0;
     var rejected = 0;
     newMems.forEach(function (m) {
+      // fix round 1（2026-09-24 review，task-6結算保存的重複保存回歸）：memId已經存在於
+      // store代表這筆記憶先前已經保存過（例如結算後reload、本地旗標重置導致重新按一次
+      // 保存鍵），必須整筆略過，不能被容量判定當成「新記憶」而擠掉別的已存記憶——否則
+      // 對一個已滿(cap)的store重複保存同一批memId，會誤丟棄跟這次保存完全無關的舊記憶。
+      if (next[m.memId]) return;
       var count = Object.keys(next).length;
       if (count >= cap) {
         var victims = toList(next)

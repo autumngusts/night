@@ -1514,6 +1514,7 @@ STRINGS_ZH: dict[str, str] = {
     "midnight_relic_memory_save_button": "存入記憶密碼",
     "midnight_relic_memory_saving": "保存中…",
     "midnight_relic_memory_saved": "已保存 {added} 個（因上限丟棄 {discarded} 個，最愛已滿未存入 {rejected} 個）",
+    "midnight_relic_memory_already_saved": "已經全部保存過了",
     "midnight_relic_memory_settle_close_button": "關閉",
     "midnight_menu_button": "選單",
     "midnight_pause_button": "暫停遊戲",

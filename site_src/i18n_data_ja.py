@@ -1509,6 +1509,7 @@ STRINGS_JA: dict[str, str] = {
     "midnight_relic_memory_save_button": "記憶パスワードに保存",
     "midnight_relic_memory_saving": "保存中…",
     "midnight_relic_memory_saved": "{added} 件保存しました（上限により {discarded} 件破棄、お気に入りで満杯のため {rejected} 件未保存）",
+    "midnight_relic_memory_already_saved": "すべて保存済みです",
     "midnight_relic_memory_settle_close_button": "閉じる",
     "midnight_menu_button": "メニュー",
     "midnight_pause_button": "ゲームを一時停止",

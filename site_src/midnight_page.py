@@ -606,7 +606,7 @@ BODY = """    <div class="midnight-wrap">
           <div class="midnight-relic-memory-box">
             <p id="midnight-abandon-vote-text"></p>
             <p id="midnight-abandon-vote-progress" class="threat-ref-body"></p>
-            <div class="wb-row">
+            <div id="midnight-abandon-vote-buttons" class="wb-row">
               <button type="button" id="btn-midnight-abandon-vote-yes" class="danger-btn" data-i18n="midnight_abandon_vote_yes"></button>
               <button type="button" id="btn-midnight-abandon-vote-no" data-i18n="midnight_abandon_vote_no"></button>
             </div>
