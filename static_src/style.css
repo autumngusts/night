@@ -5928,6 +5928,25 @@ html.midnight-banner-above-hud:not(.midnight-top-banner-collapsed) #midnight-rew
   min-width: 120px;
 }
 
+/* 2026-09-25使用者明確規格「真實血條要拉到戰鬥面板的右端」：敵人本體血條右側原本留著
+   .midnight-bar-value 的 min-width（3.2em）——數值只在測試模式才有內容，平時是一塊空白，
+   血條因此停在面板右端之前。改成數值疊在血條右端上（不佔位），血條延伸到面板右端。 */
+.midnight-enemy-hp-row {
+  position: relative;
+}
+
+.midnight-enemy-hp-row .midnight-bar-value {
+  position: absolute;
+  right: 0.3rem;
+  top: 50%;
+  transform: translateY(-50%);
+  min-width: 0;
+  font-size: 0.62rem;
+  line-height: 1;
+  text-shadow: 0 0 2px #000, 0 0 3px #000;
+  pointer-events: none;
+}
+
 /* 屬性/狀態異常共同蓄積小型顯示（2026-09-05武器資料真正接入新增），見
    midnight.jsのrenderAttributeAccumNote()。2026-09-08使用者明確規格「敵人若有受到屬性
    傷害則在血條上方黃字標註」：改用黃字（跟其餘既有警示黃色#ffd54a同色）。 */
@@ -9268,13 +9287,15 @@ html.midnight-top-banner-collapsed .midnight-top-banner-collapse-btn {
 #midnight-enemy-damage-float {
   text-align: right;
   font-weight: 700;
-  font-size: 1.15rem;
+  /* 2026-09-25使用者明確規格「傷害顯示的字體在小0.8倍」：1.15rem × 0.8。 */
+  font-size: 0.92rem;
   line-height: 1.1;
   color: #ffd54a;
   text-shadow:
     0 0 0.35rem rgba(0, 0, 0, 0.9),
     0 0 0.9rem rgba(255, 170, 40, 0.55);
-  margin: -0.1rem 0 0.15rem 0;
+  /* 2026-09-25使用者明確規格「不擋住真實血條」：原本 margin-top:-0.1rem 往上貼到血條，改為 0。 */
+  margin: 0 0 0.15rem 0;
   /* 2026-09-25使用者明確規格「不使用彈跳出而使血條等等變形。預留顯示空間，在上面跳出顯示傷害
      即可」：高度固定（height 而不只是 min-height），不論有沒有數字都佔同樣的空間；沒有數字時
      用 visibility 藏起來（.midnight-damage-float-idle），不改 display。 */

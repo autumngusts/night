@@ -149,6 +149,10 @@
         face.sheetFile = w.file;
         face.el.style.backgroundImage = "url(" + (staticPrefix || "../static/") + "images/sprites/" + w.file + ")";
         face.cellPx = 0; // 縦横比を測り直させる
+        // syncLayout() は舞台の寸法が変わらないと何もしないので、ここで stageW も戻さないと
+        // cellPx が 0 のまま残り、切幀の横オフセットが常に 0（＝各行の 1 幀目で止まる）になる
+        // （2026-09-25 修正：戰鬥中に角色類型が変わった面で実際に起きていた）。
+        stageW = 0;
         preload(w.file, staticPrefix);
       }
       next.push(face);
@@ -246,6 +250,8 @@
 
   function tick(now) {
     if (!stageEl || stageEl.hidden || !faces.length) return;
+    // まだ寸法の入っていない面があれば必ず測り直す（cellPx=0 のまま切幀すると 1 幀目で止まる）。
+    if (faces.some(function (f) { return !f.cellPx; })) stageW = 0;
     syncLayout();
     faces.forEach(function (face) {
       // 画像の読み込みが完了すると縦横比が 1 から実値に変わることがある。その影格で

@@ -221,7 +221,10 @@ node tools/sprite_check/sprite_sheet_relay.js clean/lady.png 6 10 player_lady   
 
 # 執行者だけは帯 9 に 技能＋技藝 がくっついて 1 本に見える（11 帯しか検出されない）ので
 # --row-bands= で 1194 のあたりを自分で割る
-node tools/sprite_check/sprite_sheet_relay.js clean/executor.png 6 10 player_executor --dst-rows=10 --cols=detect   --row-bands=15-133,173-241,271-383,434-484,507-618,634-746,879-969,986-1084,1098-1192,1196-1298
+# 2026-09-25 修正：旧値 15-133,173-241,... は帯を絵の上下端ぎりぎりに取っていて、迴避 1・6 幀目の
+# 立ち姿の頭が切れていた。帯の境目を行間の谷（ink≒0 の y）の中央に取り直した。
+# 帯 6（跳躍攻擊）と帯 11（遠程）は規格外なので帯の外に残してある。
+node tools/sprite_check/sprite_sheet_relay.js clean/executor.png 6 10 player_executor --dst-rows=10 --cols=detect   --row-bands=0-146,147-261,262-406,407-496,497-625,626-748,870-978,979-1091,1092-1194,1195-1303
 ```
 
 **復仇者は `--keep-inner` が要る。** この角色は白銀の衣で、`sprite_dechecker.js` の

@@ -344,6 +344,35 @@ async function createSpriteRoom(page, opts) {
     }, null, 3000).catch(() => {});
     assert((await myAnim(page)) === "idle", "瀕死が解けると idle へ戻る（hold したままにならない）", await myAnim(page));
 
+    console.log("=== ④-2 同じ面で sheet が変わっても切幀が進む ===");
+    // 2026-09-25 修正：setParty() が面の sheet を差し替えると cellPx を 0 に戻すのに、
+    // 舞台の寸法が同じだと syncLayout() が何もしないため cellPx=0 のまま残り、
+    // 横オフセットが常に 0（＝各行の 1 幀目で止まる）になっていた。
+    const swap = await page.evaluate(async () => {
+      const s = window.PriTestMidnight._debugState();
+      const c = s.characters[s.myTokenId];
+      const P = window.PriTestMidnightPlayerSprite;
+      const S = window.PriTestPlayerSprite;
+      const orig = c.typeId;
+      c.typeId = orig === "guardian" ? "scholar" : "guardian";
+      await new Promise((r) => setTimeout(r, 400));
+      const face = document.querySelector("#midnight-player-sprite-stage .midnight-player-sprite-face");
+      const a = S.getAnim("attack1");
+      // 3 幀目の途中から再生させる
+      P.playAnim(s.myTokenId, "attack1", Date.now() - a.frameMs * 3 - a.frameMs / 2, true);
+      await new Promise((r) => setTimeout(r, 40));
+      const pos = face.style.backgroundPosition;
+      const w = face.getBoundingClientRect().width;
+      c.typeId = orig;
+      return { pos: pos, w: w, file: face.style.backgroundImage };
+    });
+    const swapX = parseFloat(swap.pos);
+    assert(
+      swapX < -1 && Math.abs(Math.round(-swapX / swap.w) - 3) <= 1,
+      "sheet 差し替え後も backgroundPosition の横が進む（1 幀目で止まらない）",
+      swap
+    );
+
     console.log("=== ⑤ 兩裝置：全員橫排と他人の動作 ===");
     const pageB = await browser.newPage();
     pageB.on("pageerror", (e) => console.log("  [pageerror B] " + e.message));

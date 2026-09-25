@@ -158,6 +158,29 @@ const floatText = (page) =>
       return { below: fb.top >= rb.top, align: getComputedStyle(f).textAlign, sameParent: row.parentNode === f.parentNode };
     });
     assert(!!layout && layout.below, "飄字在敵人血條下方");
+
+    // 2026-09-25 使用者明確規格「傷害顯示的字體在小0.8倍，不擋住真實血條，真實血條要拉到戰鬥面板的右端」
+    const hpLayout = await page.evaluate(() => {
+      const panel = document.getElementById("midnight-hud-bottom-center");
+      const track = document.querySelector(".midnight-enemy-hp-row .midnight-bar-track");
+      const f = document.getElementById("midnight-enemy-damage-float");
+      const ps = getComputedStyle(panel);
+      const pb = panel.getBoundingClientRect();
+      const contentRight = pb.right - parseFloat(ps.paddingRight) - parseFloat(ps.borderRightWidth);
+      const tb = track.getBoundingClientRect();
+      const fb = f.getBoundingClientRect();
+      const rem = parseFloat(getComputedStyle(document.documentElement).fontSize);
+      return {
+        trackRight: tb.right,
+        trackBottom: tb.bottom,
+        contentRight: contentRight,
+        floatTop: fb.top,
+        floatFontRem: parseFloat(getComputedStyle(f).fontSize) / rem,
+      };
+    });
+    assert(Math.abs(hpLayout.floatFontRem - 1.15 * 0.8) < 0.01, "傷害字體＝舊值 1.15rem 的 0.8 倍", hpLayout.floatFontRem);
+    assert(Math.abs(hpLayout.trackRight - hpLayout.contentRight) <= 1, "敵人血條延伸到戰鬥面板右端", hpLayout);
+    assert(hpLayout.floatTop >= hpLayout.trackBottom - 0.5, "傷害數字不壓到血條上", hpLayout);
     assert(!!layout && layout.align === "right", "靠右對齊", "text-align=" + (layout && layout.align));
 
     console.log("  等 1.2 秒（超過累加視窗）…");

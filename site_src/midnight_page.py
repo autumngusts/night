@@ -920,7 +920,7 @@ BODY = """    <div class="midnight-wrap">
                HTML不允許button巢狀button，因此外包一層佔同一個grid-area的容器，兩顆◀▶
                絕對定位貼在卡片左右邊緣。目前選第幾格由static/midnight.jsのflaskSlotIndex
                （純本地）決定，見cycleFlaskSlot()／renderFlaskSlotCard()；沒有結晶雫時
-               只有1格，兩顆切換鍵直接disabled。 -->
+               只有1格，兩顆切換鍵直接隱藏（2026-09-25）。 -->
           <div id="midnight-flask-wrap">
           <button type="button" id="btn-midnight-use-flask" class="midnight-action-card midnight-action-card-flask">
             <!-- 「使用中」浮標（2026-09-13使用者明確規格「使用聖杯瓶中，格子上方顯示

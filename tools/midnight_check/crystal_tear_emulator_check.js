@@ -77,11 +77,12 @@ const assert = (c, l, d) => {
 
     console.log("");
     console.log("-- 操作盤 ◀▶ 切換 --");
-    const cycleEnabled = await page.evaluate(() => ({
-      prev: !document.getElementById("btn-midnight-flask-prev").disabled,
-      next: !document.getElementById("btn-midnight-flask-next").disabled,
-    }));
-    assert(cycleEnabled.prev && cycleEnabled.next, "有雫時兩顆切換鍵都可按", cycleEnabled);
+    const cycleEnabled = await page.evaluate(() => {
+      const p = document.getElementById("btn-midnight-flask-prev");
+      const n = document.getElementById("btn-midnight-flask-next");
+      return { prev: !p.disabled && !p.hidden, next: !n.disabled && !n.hidden };
+    });
+    assert(cycleEnabled.prev && cycleEnabled.next, "有雫時兩顆切換鍵都顯示且可按", cycleEnabled);
 
     const labelFlask = await page.textContent("#midnight-flask-label");
     await page.dispatchEvent("#btn-midnight-flask-next", "click");
@@ -142,6 +143,44 @@ const assert = (c, l, d) => {
     assert(st4.used === false, "回到祝福後可以再使用一次（使用者明確規格）", st4);
     const after2 = await page.evaluate(() => document.getElementById("btn-midnight-use-flask").disabled);
     assert(after2 === false, "使用鍵重新可按");
+
+    // 2026-09-25 使用者明確規格「使用聖杯瓶的按鈕，如果自身沒帶有任何結晶雫則不必顯示切換的作業按鈕」：
+    // 沒帶雫的房間，◀▶ 兩顆直接隱藏（舊版是 disabled 灰掉）。
+    console.log("");
+    console.log("-- 沒帶結晶雫時不顯示切換鍵 --");
+    const page2 = await browser.newPage();
+    page2.on("pageerror", (e) => {
+      console.log("  [pageerror 2] " + e.message);
+      fails++;
+    });
+    await page2.addInitScript((port) => {
+      try {
+        window.sessionStorage.setItem("pritestRtdbEmulator", "1");
+        if (port) window.sessionStorage.setItem("pritestRtdbEmulatorPort", port);
+      } catch (e) {
+        /* 忽略 */
+      }
+    }, process.env.PRITEST_EMU_PORT || "");
+    await page2.goto(BASE + "/midnight/index.html", { waitUntil: "networkidle" });
+    await page2.click("#btn-midnight-create");
+    await page2.waitForFunction(() => window.PriTestMidnight && window.PriTestMidnight._debugState().meta, { timeout: WAIT });
+    await page2.click("#midnight-lobby-slots .midnight-slot-empty button");
+    await page2.fill("#midnight-lobby-passcode-input", "1234");
+    await page2.click("#btn-midnight-lobby-join");
+    await page2.waitForFunction(() => !!window.PriTestMidnight._debugState().mySlot, { timeout: WAIT });
+    await page2.dispatchEvent("#btn-midnight-lobby-ready", "click");
+    await page2.waitForFunction(() => !!window.PriTestMidnight._debugState().meta.sessionStartAt, { timeout: WAIT });
+    await page2.waitForTimeout(1500);
+    const noTear = await page2.evaluate(() => ({
+      state: window.PriTestMidnight._debugCrystalTearState(),
+      prevHidden: document.getElementById("btn-midnight-flask-prev").hidden,
+      nextHidden: document.getElementById("btn-midnight-flask-next").hidden,
+      useVisible: !!document.getElementById("btn-midnight-use-flask").offsetParent,
+    }));
+    assert(noTear.state.slotCount === 1, "沒帶雫＝聖杯瓶卡片只有 1 格", noTear.state);
+    assert(noTear.prevHidden && noTear.nextHidden, "沒帶雫時 ◀▶ 兩顆都隱藏", noTear);
+    assert(noTear.useVisible, "聖杯瓶使用鍵本身照常顯示", noTear);
+    await page2.close();
   } catch (e) {
     console.log("  [FAIL] 例外：" + e.message);
     fails++;

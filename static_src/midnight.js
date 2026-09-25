@@ -24670,8 +24670,14 @@
     el("btn-midnight-use-flask").disabled = !canActNow() || !usable || flaskReadingUntil !== null;
     var prevBtn = el("btn-midnight-flask-prev");
     var nextBtn = el("btn-midnight-flask-next");
-    if (prevBtn) prevBtn.disabled = slotCount < 2;
-    if (nextBtn) nextBtn.disabled = slotCount < 2;
+    // 2026-09-25使用者明確規格「使用聖杯瓶的按鈕，如果自身沒帶有任何結晶雫則不必顯示切換的
+    // 作業按鈕」：只有1格時兩顆切換鍵直接隱藏（原本是disabled灰掉）。
+    var noSwitch = slotCount < 2;
+    [prevBtn, nextBtn].forEach(function (btn) {
+      if (!btn) return;
+      btn.disabled = noSwitch;
+      if (btn.hidden !== noSwitch) btn.hidden = noSwitch;
+    });
   }
 
   // 聖杯瓶讀取條：跟技能B施法讀條共用.midnight-bar-track/.midnight-bar-fill視覺元件

@@ -188,6 +188,57 @@ function bandsFromVotes(votes, ink, len, need, want, minSize) {
   return out;
 }
 
+// ---- 帯と帯のすき間を両側に配り直す（2026-09-25 修正）----
+// 行の境目は「6 列中の過半数が空いている y」で決めている。ところが 1 行の中で絵の高さが
+// 大きく違う行——迴避（両端の 2 幀は立ち姿、中の 4 幀は転がって低い）や死亡（1 幀目だけ
+// 立ち姿）——では、立ち姿の頭〜上半身がある高さでも他の 4 列が空いているので、そこが
+// 「境目」と判定されて帯から外れ、**立ち姿の上半身が切り落とされていた**（玩家 sheet 10 枚の
+// 迴避 1・6 幀目と死亡 1 幀目、実測）。--row-bands= で手で決めた帯も同じ切れ方をしていたが、
+// 手の帯は規格外の行をすき間に挟んで飛ばしていることがあるので自動では配らない——帯の値のほうを
+// 谷（ink≒0 の y）に合わせて書き直すこと（tools/sprite_spec.md の執行者のコマンドを参照）。
+//
+// 対処：帯そのものの検出はそのままにして、隣り合う帯の間のすき間を捨てずに両側へ配る。
+// 分け目はすき間の中で ink が最小の y（同じ最小値が続くならその区間の中央）。すき間に
+// 本当に何も無ければ結果は変わらず、上の行の足と下の行の頭が同居していれば谷で分かれる。
+// 先頭の帯は 0 から、最後の帯は H-1 まで伸ばす。
+function rowInkProfile() {
+  const ink = new Int32Array(H);
+  for (let y = 0; y < H; y++) {
+    let n = 0;
+    for (let x = 0; x < W; x++) if (D[(y * W + x) * 4 + 3] >= T) n++;
+    ink[y] = n;
+  }
+  return ink;
+}
+
+function spanBandsToValleys(bands, ink, len) {
+  if (!bands || !bands.length) return bands;
+  const out = bands.map(function (b) { return [b[0], b[1]]; });
+  for (let i = 0; i + 1 < out.length; i++) {
+    const lo = out[i][1] + 1;
+    const hi = out[i + 1][0] - 1;
+    if (hi < lo) continue;
+    let min = Infinity;
+    for (let y = lo; y <= hi; y++) if (ink[y] < min) min = ink[y];
+    // 最小値が続く最長区間の中央
+    let bestSt = lo, bestLen = 0, st = null;
+    for (let y = lo; y <= hi + 1; y++) {
+      const isMin = y <= hi && ink[y] === min;
+      if (isMin && st === null) st = y;
+      if (!isMin && st !== null) {
+        if (y - st > bestLen) { bestLen = y - st; bestSt = st; }
+        st = null;
+      }
+    }
+    const cut = bestSt + Math.floor(bestLen / 2);
+    out[i][1] = cut - 1;
+    out[i + 1][0] = cut;
+  }
+  out[0][0] = 0;
+  out[out.length - 1][1] = len - 1;
+  return out;
+}
+
 // その行の中だけで列の境目を探す。行ごとに絵の幅が違う（待機は細く、薙ぎ払いは横長）
 // ので、全行まとめてではなく行ごとに見る。
 function detectColBandsIn(y0, y1) {
@@ -295,9 +346,12 @@ let ROW_BANDS = null;
 let droppedBand = null;
 let reordered = false;
 if (ROW_BANDS_ARG) {
+  // 手で決めた帯はそのまま使う（すき間に規格外の行を挟んで飛ばしていることがあるので、
+  // 自動で配り直すとその行を隣へ取り込んでしまう。執行者の jump／ranged 行が実例）。
   ROW_BANDS = ROW_BANDS_ARG;
 } else if (DETECT_ROWS) {
-  ROW_BANDS = detectRowBands();
+  // 並べ替え／捨てる前（＝画像上の物理的な並び）のうちに、すき間を隣の帯へ配っておく。
+  ROW_BANDS = spanBandsToValleys(detectRowBands(), rowInkProfile(), H);
   if (ROW_BANDS && ROW_ORDER) {
     const picked = ROW_ORDER.map(function (i) { return ROW_BANDS[i]; });
     if (picked.some(function (b) { return !b; })) {
