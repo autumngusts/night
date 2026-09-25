@@ -675,15 +675,18 @@
     // 已從「魔の夜」「魔の暗き夜」兩顆的效果清單中移除，不在這裡補建——ジェスチャー 這個
     // 機制在 midnight 完全不存在（0 處）。
     //
-    // 這 4 條的 note 一律空字串、range 一律 null：memory.txt 對它們連名稱都沒收錄，
-    // 更沒有即時制換算說明，不得自行推定數值（CLAUDE.md §42.4）。
-    // stackable／use 同樣是 null：效果台帳（Artifact）逐條決定時這 4 條還不存在，
-    // 疊加與用途待使用者補。null 的 stackable 走 activeAttachedEffectIds() 的預設
-    // 「不可疊加」，null 的 use 不影響 drawableEffects()。
-    E("rm_item_effect_to_allies", "アイテムの効果が周囲の味方にも発動", "道具的效果也會對周圍的隊友發動", "", null, null, "special", null, "r"),
-    E("rm_melee_atk_up", "近接攻撃力上昇", "近戰攻擊力上升", "", null, null, "atkPct", null, "r"),
-    E("rm_weapon_skill_atk_up", "戦技攻撃力上昇", "戰技攻擊力上升", "", null, null, "atkPct", null, "r"),
-    E("rm_ailment_gauge_atk_up", "状態異常ゲージがある時、徐々に攻撃力上昇", "有狀態異常計量表時，攻擊力逐漸上升", "", null, null, "overTime", null, "r"),
+    // memory.txt 對這 4 條連名稱都沒收錄，換算說明是使用者 2026-09-25 補的（note 不是原文）：
+    //   ・アイテムの効果が周囲の味方にも発動：使用道具時 同一戰場的友軍獲得 20% 效果（固定值）
+    //   ・近接攻撃力上昇：近距離攻擊力上升 8~12%
+    //   ・戦技攻撃力上昇：戰技攻擊力上升 8~12%
+    //   ・状態異常ゲージがある時、徐々に攻撃力上昇：身負異常狀態時攻擊力上升 8~12%
+    //     （使用者的換算沒有「逐漸」，照換算一次到位）
+    // stackable 使用者沒有指定，維持 null（＝ activeAttachedEffectIds() 的預設「不可疊加」）。
+    // 它們仍是 relicOnly（只出現在固定配置遺物上），不進抽選池。
+    E("rm_item_effect_to_allies", "アイテムの効果が周囲の味方にも発動", "道具的效果也會對周圍的隊友發動", "使用道具時 同一戰場的友軍獲得20%效果", null, "adopt", "special", null, "r"),
+    E("rm_melee_atk_up", "近接攻撃力上昇", "近戰攻擊力上升", "近距離攻擊力上升8~12%", null, "adopt", "atkPct", null, "r", [8, 12, "pct"]),
+    E("rm_weapon_skill_atk_up", "戦技攻撃力上昇", "戰技攻擊力上升", "戰技攻擊力上升8~12%", null, "adopt", "atkPct", null, "r", [8, 12, "pct"]),
+    E("rm_ailment_gauge_atk_up", "状態異常ゲージがある時、徐々に攻撃力上昇", "有狀態異常計量表時，攻擊力逐漸上升", "身負異常狀態時攻擊力上升8~12%", null, "adopt", "overTime", null, "r", [8, 12, "pct"]),
   ];
 
   // --------------------------------------------------------------------------
@@ -1029,16 +1032,64 @@
   // 抽選時同一顆記憶內每組最多一條（midnight_relic_memory.js 的 rollEffects() opts.exclusiveGroup）；
   // 帶入多顆記憶時同組只有帶入順序的**第一條**發動（「只會發動前面一個的效果」，
   // 見 midnight.js 的 relicMemoryFirstGroupEffectId()）。不在組內的效果回 null。
+  //
+  // 2026-09-25 第 2 次補充（使用者明確規格「一顆記憶只會出現最多一條」）：再加三組，
+  //   ・全局里程碑（globalMilestone 7 條）
+  //   ・出擊時道具（startItem 22 條）
+  //   ・盧恩 3 條（致命の一撃でルーン取得／ショップ割引／自身と味方の取得ルーン増加）——
+  //     kind 是 special，所以用 id 指定。小砦那條（rm_milestone_fort_rune）屬於全局里程碑組。
+  // 「出撃時の武器」三類使用者這次分開列出，但前一次的規格是三類合為一組（「初始武器帶屬性
+  // 帶戰技 等等 一個遺物記憶只能抽到一條」），合為一組同時滿足「每類最多一條」，因此維持。
+  // 這三組只限制**抽選**；帶入時「同組只發動第一條」只套用在 startWeapon／crystalTear
+  // （那兩組是單一欄位的置換／持有，見 LOADOUT_FIRST_ONLY_GROUPS）。
   var EXCLUSIVE_GROUP_BY_KIND = {
     weaponInfusion: "startWeapon",
     grantWeaponSkill: "startWeapon",
     grantSpell: "startWeapon",
     startFlask: "crystalTear",
+    globalMilestone: "milestone",
+    startItem: "startItem",
   };
+  var EXCLUSIVE_GROUP_BY_ID = {
+    rm_critical_rune: "rune",
+    rm_shop_discount: "rune",
+    rm_party_rune_up: "rune",
+  };
+  var LOADOUT_FIRST_ONLY_GROUPS = { startWeapon: true, crystalTear: true };
 
   function exclusiveGroup(id) {
+    if (EXCLUSIVE_GROUP_BY_ID[id]) return EXCLUSIVE_GROUP_BY_ID[id];
     var e = effect(id);
     return (e && EXCLUSIVE_GROUP_BY_KIND[e.kind]) || null;
+  }
+
+  // 帶入多顆記憶時「同組只發動第一條」的組名；其餘回 null。
+  function loadoutFirstOnlyGroup(id) {
+    var g = exclusiveGroup(id);
+    return g && LOADOUT_FIRST_ONLY_GROUPS[g] ? g : null;
+  }
+
+  // 固定配置遺物的取得條件（使用者 2026-09-25 明確規格「擊破三頭犬必定另外獲得」，
+  // 其餘固定遺物比照）：midnight 判定得出的只有「以某劇本擊敗第 3 天夜王」這一種，
+  // 以劇本 id（meta.resolvedNightBossId）對應。「安寧者たち をクリア」＝以劇本 balancers
+  // 擊敗第 3 天夜王（midnight 的通關就是這一刻）。
+  // 對不上的 8 顆不發放：「常夜の王○○」6 顆（midnight 沒有常夜之王）與「マルギット撃破」
+  // （midnight 沒有這個敵人）。
+  var FIXED_RELIC_BY_SCENARIO = {
+    tricephalos: "relic_beast_night",
+    fissure_in_the_fog: "relic_mist_night",
+    augur: "relic_deepsea_night",
+    gaping_jaw: "relic_duke_night",
+    darkdrift_knight: "relic_hunter_night",
+    equilibrious_beast: "relic_magic_night",
+    sentient_pest: "relic_wisdom_night",
+    night_aspect: "relic_king_night",
+    dreglord: "relic_rubble_night",
+    balancers: "relic_peaceful_will",
+  };
+
+  function fixedRelicIdForScenario(scenarioId) {
+    return (scenarioId && FIXED_RELIC_BY_SCENARIO[scenarioId]) || null;
   }
 
   function badEffects() {
@@ -1140,6 +1191,9 @@
     drawableEffectIds: drawableEffectIds,
     isExclusiveEffect: isExclusiveEffect,
     exclusiveGroup: exclusiveGroup,
+    loadoutFirstOnlyGroup: loadoutFirstOnlyGroup,
+    FIXED_RELIC_BY_SCENARIO: FIXED_RELIC_BY_SCENARIO,
+    fixedRelicIdForScenario: fixedRelicIdForScenario,
     badEffects: badEffects,
     effectsForCharacter: effectsForCharacter,
     localizedText: T,

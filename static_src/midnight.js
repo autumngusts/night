@@ -246,6 +246,15 @@
   // 只是方向相反、只追蹤自己一人）。
   var receivedAttributeAccum = {}; // name(已正規化為ja) -> number
 
+  // 自身「身負異常狀態」＝7種異常中任一種的承受蓄積值>0（畫面上自身蓄積列有異常徽章）。
+  // midnight的異常是達到門檻瞬間觸發後歸零，沒有持續的「異常狀態」，因此以蓄積計量表為準
+  // （目錄原名「状態異常ゲージがある時」）。屬性（炎魔雷聖）不算異常。
+  function selfAilmentGaugeActive() {
+    return ATTRIBUTE_STATUS_AILMENT_NAMES_JA.some(function (name) {
+      return (receivedAttributeAccum[name] || 0) > 0;
+    });
+  }
+
   // ---- 護符的「承受蓄積」減免（2026-09-12接入，稽核表A組10條）----
   // 規則書原文都是「自身無效化來自敵人的〜蓄積值」或「受到〜蓄積值時將其-1」，因此統一
   // 作用在recordReceivedAttributeAccum()這個唯一入口：先算無效化（直接不記），再算-1。
@@ -779,6 +788,15 @@
     rm_guard_counter_hp_add: { key: "rmGuardCounterHpAdd", fixed: 3 }, // 目前HP的3%
     rm_on_damaged_rot_infuse: { key: "rmOnDamagedRotInfuse", fixed: 8 }, // 秒
     rm_low_hp_cut_up: { key: "rmLowHpCutUp" }, // 值由 range[6,12] 擲定
+    // 固定配置遺物上的 4 條（relicOnly，不進抽選池；使用者 2026-09-25 補換算）：
+    //   戦技攻撃力上昇 8~12% ＝ 詞條 weaponArtUp 同一件事，併進既有計算點（ctx.art）。
+    //   近接攻撃力上昇 8~12% ＝ 近距離攻擊（用武器、非遠程、非魔術／祈禱），affixOutgoingDamageMult()。
+    //   状態異常ゲージがある時 8~12% ＝ 身負異常狀態（自身任一異常蓄積值>0），同上。
+    //   アイテムの効果が周囲の味方にも発動 ＝ 同一戰場的友軍獲得 20% 效果，見 shareConsumableWithEncounterAllies()。
+    rm_weapon_skill_atk_up: "weaponArtUp",
+    rm_melee_atk_up: { key: "rmMeleeAtkUp" },
+    rm_ailment_gauge_atk_up: { key: "rmAilmentGaugeAtkUp" },
+    rm_item_effect_to_allies: { key: "rmItemEffectToAllies", fixed: 20 }, // %
   };
 
   // ---- 第6期第2批的常數（換算原文各自寫死）----
@@ -1311,9 +1329,80 @@
   }
 
   // 這條效果是否因互斥組「只發動第一條」而被壓掉（角色視窗標示用）。
+  // 2026-09-25：只看「帶入時同組只發動第一條」的組（startWeapon／crystalTear）。里程碑／出擊道具／
+  // 盧恩三組只限制抽選（一顆記憶內最多一條），帶入多顆時照各自的stackable處理。
   function relicMemoryEffectSuppressed(c, effectId) {
-    var group = relicMemoryExclusiveGroup(effectId);
+    var CAT = window.PriTestMidnightRelicMemoryCatalog;
+    var group = CAT && CAT.loadoutFirstOnlyGroup ? CAT.loadoutFirstOnlyGroup(effectId) : null;
     return !!group && relicMemoryFirstGroupEffectId(c, group) !== effectId;
+  }
+
+  // 不可疊加（stackable:false）的效果重複帶入時，這一條是否因為前面已經出現過而不發動
+  // （使用者2026-09-25明確規格：顯示「不可疊加，此條未發動」）。判定順序與實際計算一致：
+  // 習得的附帶效果（learnedAttachedEffects）在前，再依帶入順序（＝等待房勾選順序①②③）、
+  // 記憶內順序——跟relicMemoryBonusTotal()／CharacterDrawer.activeAttachedEffectIds()
+  // 「取第一次出現」同一個取捨。memId那顆裡有多條同id時看第一條。
+  function relicMemoryEffectDuplicated(c, memId, effectId) {
+    var CD = window.PriTestCharacterDrawer;
+    var RM = window.PriTestMidnightRelicMemory;
+    if (!c || !RM || !CD || CD.attachedEffectStackable(effectId)) return false;
+    if ((c.learnedAttachedEffects || []).indexOf(effectId) !== -1) return true;
+    var seenBefore = false;
+    var result = false;
+    var done = false;
+    relicMemoryArray(c.relicMemoryLoadout).forEach(function (mem) {
+      if (done) return;
+      var ids = RM.effectIdList(mem);
+      if (mem.memId === memId) {
+        result = seenBefore && ids.indexOf(effectId) !== -1;
+        done = true;
+        return;
+      }
+      if (ids.indexOf(effectId) !== -1) seenBefore = true;
+    });
+    return result;
+  }
+
+  // 「已接入計算」的遺物記憶效果id（各張注入表的聯集）。稽核測試與顯示「尚未實作」共用這一份。
+  function relicMemoryWiredIdList() {
+    var maps = relicMemoryWeaponCategoryMaps();
+    var CAT = window.PriTestMidnightRelicMemoryCatalog;
+    return Object.keys(RELIC_MEMORY_AFFIX_ALIAS)
+      .concat(Object.keys(maps.atk))
+      .concat(Object.keys(maps.hp))
+      .concat(Object.keys(maps.fp))
+      .concat(Object.keys(maps.find))
+      .concat(Object.keys(RM_INFUSION_LABELS))
+      .concat(Object.keys(RM_SKILL_SWAP_IDS))
+      .concat(CAT ? Object.keys(CAT.POWER_MOD_STAT_OF) : [])
+      .concat(CAT ? Object.keys(CAT.STAT_SWAPS) : [])
+      // 第6期（2026-09-25）：武器類別持有3把系的三張表也算接入來源。
+      .concat(Object.keys(maps.set3atk))
+      .concat(Object.keys(maps.set3hp))
+      .concat(Object.keys(maps.set3fp))
+      // 第5期（2026-09-25）：出撃時に持つ道具（對得上既有 consumables 的 18 條）。
+      .concat(Object.keys(RM_START_ITEMS))
+      // 第7期（2026-09-25）：結晶雫 21 條（細枝は機制不存在、d旗標排除，故不列）。
+      .concat(Object.keys(RM_CRYSTAL_TEARS));
+  }
+
+  // 已接入計算的效果id集合（_debugRelicMemoryWiredIds()同一份來源）。固定遺物上有4條沒有規格、
+  // 沒有接入（rm_item_effect_to_allies等），顯示時加註「尚未實作」，避免玩家誤以為生效。
+  var relicMemoryWiredIdCache = null;
+  function relicMemoryWiredIdSet() {
+    if (relicMemoryWiredIdCache) return relicMemoryWiredIdCache;
+    var set = {};
+    relicMemoryWiredIdList().forEach(function (id) {
+      set[id] = true;
+    });
+    relicMemoryWiredIdCache = set;
+    return set;
+  }
+
+  function relicMemoryEffectWired(effectId) {
+    var CD = window.PriTestCharacterDrawer;
+    if (CD && CD.attachedEffectById(effectId)) return true; // 舊記憶的24種附帶效果由CharacterDrawer計算
+    return !!relicMemoryWiredIdSet()[effectId];
   }
 
   function crystalTearDef(effectId) {
@@ -2223,6 +2312,13 @@
     if (!ctx.element && ctx.weaponId && ctx.weaponId === c._rmSwapAtkWeaponId && (c._rmSwapAtkUntil || 0) > rmNow) {
       pct += relicMemoryBonusTotal(c, "rmSwapPhysicalAtkUp");
     }
+    // 固定配置遺物「近接攻撃力上昇」：用武器、非遠程、非魔術／祈禱的攻擊（一般／蓄力／跳躍／戰技）。
+    // 遠程直接看武器（蓄力・跳躍的呼叫端沒有傳ctx.ranged）。
+    if (ctx.weaponId && !ctx.ranged && !isRangedWeapon(ctx.weaponId) && !ctx.sorcery && !ctx.prayer) {
+      pct += relicMemoryBonusTotal(c, "rmMeleeAtkUp");
+    }
+    // 固定配置遺物「状態異常ゲージがある時、攻撃力上昇」：身負異常狀態＝自身任一異常的蓄積值>0。
+    if (selfAilmentGaugeActive()) pct += relicMemoryBonusTotal(c, "rmAilmentGaugeAtkUp");
     // 動作別
     if (ctx.ranged) pct += affixTotal(c, "rangedAtkUp");
     if (ctx.charge) pct += affixTotal(c, "chargeAtkUp") + affixTotal(c, "chargePhantom");
@@ -4690,6 +4786,7 @@
   }
 
   var lastShownTileRewardAt = null; // 本地only：避免板塊獎勵toast在每次character/資料更新時重複跳出
+  var lastRmSharedItemEffectAt = null; // 本地only：遺物記憶的友軍道具分享去重（見shareConsumableWithEncounterAllies()）
   var lastSharedItemEffectAt = null; // 本地only：同款，供「道具效果擴大」廣播的消耗品效果去重（見applyItemEffectExpand()）
 
   var fpInitialized = false; // 本地only：角色資料首次抵達時，把fp（本地端資源，不同步）
@@ -4712,7 +4809,7 @@
     // 會先rtSet(crystalTearUsed)再設這兩個欄位，那個寫入的回流會立刻把characters整份換掉——
     // 實測不加白名單時，雫喝下去0.5秒後buff就消失、使用次數卻已經扣掉（跟上面「勇者的肉塊」
     // 完全同一個病灶）。
-    /^_(heroMeatUntil|acidSprayUntil|ironPotUntil|guardValueBonus|grease|crystalTear|tempWeaponSkills|skillCostChanges|continuousShot|roarTwoHit|aggroBonus|aggroZeroUntil|affix\w*Until|parryStaminaBonus|spiritHornReadyAt|pillageCameoReadyAt|restageAccumDamage)/;
+    /^_(heroMeatUntil|heroMeatScale|acidSprayUntil|acidSprayScale|ironPotUntil|ironPotScale|guardValueBonus|grease|crystalTear|tempWeaponSkills|skillCostChanges|continuousShot|roarTwoHit|aggroBonus|aggroZeroUntil|affix\w*Until|parryStaminaBonus|spiritHornReadyAt|pillageCameoReadyAt|restageAccumDamage)/;
 
   function isLocalOnlyCharacterField(key) {
     return LOCAL_ONLY_CHARACTER_FIELD_RE.test(key);
@@ -4803,6 +4900,26 @@
         if (sharedItem) showToast(window.I18N.t("midnight_item_expand_received_toast", { item: window.PriTestConsumables.localizedText(sharedItem.name) }));
       }
       lastSharedItemEffectAt = mine._sharedItemEffect.at;
+    }
+    // 固定配置遺物「アイテムの効果が周囲の味方にも発動」：友軍分享來的道具效果（見
+    // shareConsumableWithEncounterAllies()），同上用時間戳去重、第一次收到只建立基準。
+    var rmShared = mine && mine._rmSharedItemEffect;
+    if (rmShared && rmShared.itemId) {
+      if (lastRmSharedItemEffectAt !== null && rmShared.at !== lastRmSharedItemEffectAt) {
+        applyRelicMemorySharedItemEffect(mine, rmShared.itemId, typeof rmShared.scale === "number" ? rmShared.scale : 0.2, !!rmShared.level2);
+        var rmSharedItem = window.PriTestConsumables.get(rmShared.itemId);
+        if (rmSharedItem) {
+          showToast(
+            window.I18N.t("midnight_relic_memory_item_share_received_toast", {
+              item: window.PriTestConsumables.localizedText(rmSharedItem.name),
+              pct: Math.round((typeof rmShared.scale === "number" ? rmShared.scale : 0.2) * 100),
+            })
+          );
+        }
+      }
+      lastRmSharedItemEffectAt = rmShared.at;
+    } else if (mine && lastRmSharedItemEffectAt === null) {
+      lastRmSharedItemEffectAt = 0; // 還沒有任何分享紀錄：之後第一筆就是新的
     }
     if (mine && mine._lastTileRewardNote) {
       if (lastShownTileRewardAt !== null && mine._lastTileRewardNote.at !== lastShownTileRewardAt) {
@@ -5158,11 +5275,38 @@
     return RM ? RM.effectEntries(mem) : [];
   }
 
-  function relicMemorySummaryText(mem) {
+  // 固定配置遺物的名稱（mem.fixedId，見RM.newFixedMemory()）；一般記憶回""。
+  function relicMemoryFixedName(mem) {
+    var CAT = window.PriTestMidnightRelicMemoryCatalog;
+    var relic = mem && mem.fixedId && CAT ? CAT.fixedRelic(mem.fixedId) : null;
+    return relic ? CAT.localizedText(relic.name) : "";
+  }
+
+  function relicMemoryHeadLabel(mem) {
+    var fixedName = relicMemoryFixedName(mem);
+    return relicMemorySizeLabel(mem.size) + (fixedName ? "・" + fixedName : "");
+  }
+
+  // 每條效果後面加註未發動的原因：尚未實作／互斥組／不可疊加。等待房與角色視窗共用。
+  // c（可省略）：沒有傳時只看「尚未實作」（結算視窗、等待房未勾選的列）。
+  function relicMemoryEffectStatusNote(c, mem, entryId) {
+    if (!relicMemoryEffectWired(entryId)) return window.I18N.t("midnight_relic_memory_effect_unwired");
+    if (!c) return "";
+    if (relicMemoryEffectSuppressed(c, entryId)) return window.I18N.t("midnight_relic_memory_effect_suppressed");
+    if (relicMemoryEffectDuplicated(c, mem.memId, entryId)) return window.I18N.t("midnight_relic_memory_effect_duplicated");
+    return "";
+  }
+
+  function relicMemorySummaryText(mem, c) {
     var names = relicMemoryEntries(mem).map(function (entry) {
-      return relicMemoryEffectName(entry.id) + relicMemoryValueSuffix(entry.id, entry.value);
+      return relicMemoryEffectName(entry.id) + relicMemoryValueSuffix(entry.id, entry.value) + relicMemoryEffectStatusNote(c, mem, entry.id);
     });
-    return relicMemorySizeLabel(mem.size) + "｜" + names.join("／");
+    return relicMemoryHeadLabel(mem) + "｜" + names.join("／");
+  }
+
+  // 帶入順序的圈號（使用者2026-09-25明確規格「勾選時標註①②③」）；超出範圍回""。
+  function relicMemoryOrderMark(index) {
+    return ["①", "②", "③"][index] || "";
   }
 
   // c（可省略）：角色物件。有傳時，因互斥組「只發動第一條」而被壓掉的效果會加註「未發動」。
@@ -5170,7 +5314,7 @@
     var CD = window.PriTestCharacterDrawer;
     var CT = window.PriTestCharacterTypes;
     var head = document.createElement("h4");
-    head.textContent = window.I18N.t("midnight_relic_memory_title") + "（" + relicMemorySizeLabel(mem.size) + "）";
+    head.textContent = window.I18N.t("midnight_relic_memory_title") + "（" + relicMemoryHeadLabel(mem) + "）";
     container.appendChild(head);
     relicMemoryEntries(mem).forEach(function (entry) {
       var e = CD.attachedEffectById(entry.id);
@@ -5185,9 +5329,7 @@
         if (!ce) return;
         p.textContent = ce.note ? name + "：" + ce.note : name;
       }
-      if (c && relicMemoryEffectSuppressed(c, entry.id)) {
-        p.textContent += window.I18N.t("midnight_relic_memory_effect_suppressed");
-      }
+      p.textContent += relicMemoryEffectStatusNote(c, mem, entry.id);
       container.appendChild(p);
     });
   }
@@ -5303,7 +5445,7 @@
   // final review M7：已選但不在目前讀取的密碼資料裡的記憶（另一組密碼選的、或接管席位時繼承
   // 來的），原本完全看不到也取消不了，還會佔滿上限讓所有勾選框被停用。改成在清單最上方列出
   // （勾選中；取消勾選即移除），未讀取任何密碼時也照樣列出。
-  function appendForeignLoadoutRow(list, mem) {
+  function appendForeignLoadoutRow(list, mem, loadout) {
     var row = document.createElement("label");
     row.className = "midnight-relic-memory-row";
     var box = document.createElement("input");
@@ -5315,9 +5457,21 @@
     });
     row.appendChild(box);
     var text = document.createElement("span");
-    text.textContent = relicMemorySummaryText(mem);
+    text.textContent = lobbyRelicMemoryRowText(mem, loadout);
     row.appendChild(text);
     list.appendChild(row);
+  }
+
+  // 等待房一列的文字：勾選中的前面標①②③（＝帶入順序＝不可疊加時「誰先發動」的順序），
+  // 並用跟角色視窗同一個判斷加註未發動的效果。等待房階段角色物件還沒建立，以勾選清單代替
+  // （沒有learnedAttachedEffects，只比對記憶之間）。
+  function lobbyRelicMemoryRowText(mem, loadout) {
+    var order = -1;
+    loadout.forEach(function (m, i) {
+      if (m.memId === mem.memId) order = i;
+    });
+    if (order === -1) return relicMemorySummaryText(mem);
+    return relicMemoryOrderMark(order) + " " + relicMemorySummaryText(mem, { relicMemoryLoadout: loadout });
   }
 
   function renderLobbyRelicMemoryList() {
@@ -5332,7 +5486,7 @@
     var chosenCount = Object.keys(chosen).length;
     var store = lobbyRelicMemoryStore || {};
     loadout.forEach(function (m) {
-      if (!isUsableRelicMemory(store[m.memId])) appendForeignLoadoutRow(list, m);
+      if (!isUsableRelicMemory(store[m.memId])) appendForeignLoadoutRow(list, m, loadout);
     });
     if (!lobbyRelicMemoryStore) return;
     RM.sortedMemories(lobbyRelicMemoryStore).filter(isUsableRelicMemory).forEach(function (mem) {
@@ -5348,7 +5502,7 @@
       });
       row.appendChild(box);
       var text = document.createElement("span");
-      text.textContent = (mem.favorite ? "★ " : "") + relicMemorySummaryText(mem);
+      text.textContent = (mem.favorite ? "★ " : "") + lobbyRelicMemoryRowText(mem, loadout);
       row.appendChild(text);
       if (lobbyRelicMemoryEditMode) {
         var favBtn = document.createElement("button");
@@ -5398,13 +5552,15 @@
       // 2026-09-25：effects的每一項改成了{ id, value }物件，slice()只是淺拷貝——寫進
       // Firebase沒問題，但為了不讓等待房的選擇與來源記憶共用同一批物件參考，逐項複製。
       else if (list.length < RM.MAX_LOADOUT) {
-        list.push({
+        var picked = {
           memId: mem.memId,
           size: mem.size,
           effects: RM.effectEntries(mem).map(function (entry) {
             return typeof entry.value === "number" ? { id: entry.id, value: entry.value } : { id: entry.id };
           }),
-        });
+        };
+        if (mem.fixedId) picked.fixedId = mem.fixedId; // 固定配置遺物：顯示名稱用
+        list.push(picked);
       }
       return list.length ? list : null;
     });
@@ -9792,8 +9948,9 @@
     var hit2 = 0;
     var now = Date.now();
     if (c && c._heroMeatUntil && c._heroMeatUntil > now) {
-      hit1 += 5;
-      hit2 += 10;
+      var meatScale = consumableBuffScale(c, "_heroMeatScale");
+      hit1 += Math.round(5 * meatScale);
+      hit2 += Math.round(10 * meatScale);
     }
     var uplift = partyUpliftLevel();
     if (uplift) {
@@ -9807,7 +9964,7 @@
   // 比照CharacterDrawerのtalismanFlatHitBonus／talismanFlatSkillBonus的既有分法）。
   function consumableSkillDamageBonus(c) {
     var bonus = 0;
-    if (c && c._heroMeatUntil && c._heroMeatUntil > Date.now()) bonus += 5;
+    if (c && c._heroMeatUntil && c._heroMeatUntil > Date.now()) bonus += Math.round(5 * consumableBuffScale(c, "_heroMeatScale"));
     bonus += 5 * partyUpliftLevel();
     return bonus;
   }
@@ -9830,12 +9987,26 @@
   // 狀態影響）」。回傳true時resolveMyIncomingHit()把這次HP損害歸零，但屬性/異常蓄積照舊
   // ——這點跟守護者「救世之翼」的partyNoDamageActive()處理位置完全相同。
   function ironPotImmuneActive(c) {
-    return !!(c && c._ironPotUntil && c._ironPotUntil > Date.now());
+    return !!(c && c._ironPotUntil && c._ironPotUntil > Date.now()) && consumableBuffScale(c, "_ironPotScale") >= 1;
+  }
+
+  // 友軍分享來的鐵壺（固定配置遺物「アイテムの効果が周囲の味方にも発動」，20%效果）：
+  // 「不承受HP損害」的20%＝HP損害減少20%。回傳減少比例（0〜1）；自己用的完整版回0（由上面處理）。
+  function ironPotPartialCut(c) {
+    if (!(c && c._ironPotUntil && c._ironPotUntil > Date.now())) return 0;
+    var scale = consumableBuffScale(c, "_ironPotScale");
+    return scale < 1 ? scale : 0;
+  }
+
+  // 消耗品buff的效果比例：自己使用＝1；友軍分享（遺物記憶）＝0.2等。欄位不存在視為1。
+  function consumableBuffScale(c, field) {
+    var v = c && c[field];
+    return typeof v === "number" ? v : 1;
   }
 
   // 調香瓶｜酸之噴霧：「敵人發生的所有傷害-120」（即時制換算-12，見ACID_SPRAY_DAMAGE_REDUCE）。
   function acidSprayDamageReduce(c) {
-    return c && c._acidSprayUntil && c._acidSprayUntil > Date.now() ? ACID_SPRAY_DAMAGE_REDUCE : 0;
+    return c && c._acidSprayUntil && c._acidSprayUntil > Date.now() ? Math.round(ACID_SPRAY_DAMAGE_REDUCE * consumableBuffScale(c, "_acidSprayScale")) : 0;
   }
 
   // 塗脂（武器脂）到期清除：character_drawer.jsのweaponAccumulationEffects()讀的是
@@ -12081,6 +12252,86 @@
     return total;
   }
 
+  // ---- 固定配置遺物「アイテムの効果が周囲の味方にも発動」（使用者2026-09-25規格：使用道具時
+  // 同一戰場的友軍獲得20%效果）----
+  // 做法跟學者「道具效果擴大」（applyItemEffectExpand()）同一種模式：寫到對方角色節點上，
+  // 由**對方自己的裝置**套用（FP／體力／本地buff只有對方寫得進去）。另開欄位
+  // _rmSharedItemEffect，不跟_sharedItemEffect共用，避免兩者同時發生時互相覆蓋。
+  // 「同一戰場」＝目前遭遇的participants（不含自己）；不在戰鬥中就沒有對象。
+  // 「20%效果」只對**友軍自己受益**的道具定義（見applyRelicMemorySharedItemEffect()）：
+  // 攻擊敵人的道具（投擲類／噴霧的蓄積）不是「友軍獲得」的效果；高揚之香本來就是全隊效果；
+  // 塗脂是塗在使用者自己的武器上，這幾種不分享。
+  var RM_SHARED_ITEM_IDS = [
+    "item_shard_of_starlight",
+    "item_warming_stone",
+    "item_turtle_neck_pickle",
+    "item_bitter_medicine",
+    "item_hero_meat_chunk",
+    "item_perfume_acid_spray",
+    "item_perfume_iron_pot_spray",
+  ];
+
+  function consumableLevel2Active(c, itemId) {
+    var perfumerTalisman =
+      itemId.indexOf(PERFUME_ITEM_ID_PREFIX) === 0 && (c.talismanIds || []).indexOf("talisman_perfumers") !== -1;
+    return hasCarriedKnowledge(c) || perfumerTalisman;
+  }
+
+  function shareConsumableWithEncounterAllies(c, itemId) {
+    var pct = relicMemoryBonusTotal(c, "rmItemEffectToAllies");
+    if (pct <= 0 || !activeEncounter || RM_SHARED_ITEM_IDS.indexOf(itemId) === -1) return 0;
+    var payload = { itemId: itemId, at: Date.now(), scale: pct / 100, level2: consumableLevel2Active(c, itemId) };
+    var n = 0;
+    participantSlots(fieldTriggers[activeEncounter.id]).forEach(function (slot) {
+      var tokenId = players[slot] && players[slot].tokenId;
+      if (!tokenId || tokenId === myTokenId || !characters[tokenId]) return;
+      GameStorage.rtSet(gameId, "cloud", "character/" + tokenId + "/_rmSharedItemEffect", payload);
+      n++;
+    });
+    return n;
+  }
+
+  // 收到友軍分享的道具效果時，在自己的裝置上以scale（0.2）套用。數值一律×scale四捨五入；
+  // 等級2依使用者那邊的判定（payload.level2）。
+  //   星光の欠片：FP 30/60×scale　温石：自身10秒持續回復 20/40×scale（不再轉給第三人）
+  //   亀首の漬物：體力10×scale　苦薬：等級2的HP回復×scale（「清除1種異常蓄積」無法按比例，不套用）
+  //   勇者の肉塊：攻擊+5/+10、戰技+5 ×scale　酸の噴霧：敵傷害-12×scale、等級2 HP價值+10×scale
+  //   鉄壺の香薬：「不承受HP損害」×scale＝HP損害減少scale（代價的體力扣除不套用在友軍）
+  // buff類：自己已經有效果更強（scale較大）且仍在時效內的同一個buff時，不覆蓋。
+  function applyRelicMemorySharedItemEffect(c, itemId, scale, level2) {
+    var now = Date.now();
+    function amt(v) {
+      return Math.round(v * scale);
+    }
+    function setBuff(untilField, scaleField) {
+      if ((c[untilField] || 0) > now && consumableBuffScale(c, scaleField) > scale) return false;
+      c[untilField] = now + CONSUMABLE_BUFF_MS;
+      c[scaleField] = scale;
+      return true;
+    }
+    if (itemId === "item_shard_of_starlight") {
+      healSelfFp(amt(level2 ? 60 : 30));
+    } else if (itemId === "item_warming_stone") {
+      startHealOverTime(myTokenId, amt(level2 ? 40 : 20), HEAL_OVER_TIME_MS);
+    } else if (itemId === "item_turtle_neck_pickle") {
+      stamina.current = Math.min(stamina.max, stamina.current + amt(10));
+      if (level2) healSelfHp(amt(CONSUMABLE_LEVEL2_HEAL));
+    } else if (itemId === "item_bitter_medicine") {
+      if (level2) healSelfHp(amt(CONSUMABLE_LEVEL2_HEAL));
+    } else if (itemId === "item_hero_meat_chunk") {
+      setBuff("_heroMeatUntil", "_heroMeatScale");
+      if (level2) healSelfHp(amt(CONSUMABLE_LEVEL2_HEAL));
+    } else if (itemId === "item_perfume_acid_spray") {
+      setBuff("_acidSprayUntil", "_acidSprayScale");
+      if (level2) {
+        c._guardValueBonusUntil = Math.max(c._guardValueBonusUntil || 0, now + CONSUMABLE_BUFF_MS);
+        c._guardValueBonusPct = Math.max(c._guardValueBonusPct || 0, amt(10));
+      }
+    } else if (itemId === "item_perfume_iron_pot_spray") {
+      setBuff("_ironPotUntil", "_ironPotScale");
+    }
+  }
+
   function applyMidnightConsumableEffect(c, itemId, instanceId) {
     // 等級2的判定來源有兩個：學者被動「博聞強識」（既有），以及2026-09-12接入的護符
     // 「調香師的護符」（只對調香瓶類生效）。
@@ -12193,6 +12444,7 @@
       // 2026-09-12使用者明確規格「『直到階段結束』原則為持續時間10秒」：
       // 攻擊1Hit+5／2Hit+10、戰技+5，見consumableAttackHitBonus()／consumableSkillDamageBonus()。
       c._heroMeatUntil = Date.now() + rmConsumableBuffMs();
+      c._heroMeatScale = 1;
       if (applyLevel2) healSelfHp(CONSUMABLE_LEVEL2_HEAL);
     } else if (itemId === "item_perfume_uplifting_aroma") {
       // 對象是「PC全員」，因此寫在meta讓每台裝置各自判斷（比照partyGuardBonusPct()）。
@@ -12202,6 +12454,7 @@
       GameStorage.rtSet(gameId, "cloud", "meta/partyUpliftLevel", upliftLevel);
     } else if (itemId === "item_perfume_acid_spray") {
       c._acidSprayUntil = Date.now() + rmConsumableBuffMs();
+      c._acidSprayScale = 1;
       if (applyLevel2) {
         // 等級2：「直到結束階段為止，以自身為對象『HP價值：+10』」。
         c._guardValueBonusUntil = Date.now() + rmConsumableBuffMs();
@@ -12209,6 +12462,7 @@
       }
     } else if (itemId === "item_perfume_iron_pot_spray") {
       c._ironPotUntil = Date.now() + rmConsumableBuffMs();
+      c._ironPotScale = 1;
       // 等級1的代價「下個行動階段開始時獲得的體力骰減少1個」：即時制沒有階段，換算成
       // 「立刻少1顆骰子份的體力」＝DICE_COUNT_TO_STAMINA_MULT（既有的骰子→體力換算，
       // 不是新發明的數字）。等級2依規則書省略這段代價。
@@ -12284,6 +12538,8 @@
     }
     if (item) {
       applyMidnightConsumableEffect(c, inst.itemId, inst.id);
+      var rmSharedCount = shareConsumableWithEncounterAllies(c, inst.itemId);
+      if (rmSharedCount > 0) showToast(window.I18N.t("midnight_relic_memory_item_share_toast", { count: rmSharedCount }));
       if (thriftSaved) showToast(window.I18N.t("midnight_thrift_toast"));
       // 學者「道具效果擴大」（2026-09-11）：「使用消耗品『聖杯瓶／勇者的肉塊／龜首漬／
       // 星光碎片／苔玉』時，可對自身以外的任意1名PC也發揮相同效果」——對象取隊伍中第一位
@@ -13632,6 +13888,7 @@
       // 狀態影響）」——跟救世之翼同一個位置歸零HP損害，下方kind==="hit"的屬性/異常蓄積
       // 區塊刻意不動，符合規則書括號內的但書。
       if (ironPotImmuneActive(characters[myTokenId])) damage = 0;
+      else if (ironPotPartialCut(characters[myTokenId]) > 0) damage = Math.round(damage * (1 - ironPotPartialCut(characters[myTokenId])));
       // 復仇者「召喚靈體」的護身效果（2026-09-12使用者明確規格「復仇者有靈體時，受到
       // 傷害優先先扣除靈體，靈體陣亡後才開始扣復仇者」）：放在所有減傷都算完之後、
       // 真正扣自己HP之前，回傳的是溢出到自己身上的部分。這同時讓「靈體消滅時HP/FP回復」
@@ -23044,10 +23301,10 @@
     var loadout = relicMemoryArray(c.relicMemoryLoadout); // 略過格式不完整的項目，不丟例外
     memSection.hidden = loadout.length === 0;
     memBox.innerHTML = "";
-    loadout.forEach(function (mem) {
+    loadout.forEach(function (mem, memIndex) {
       var btn = document.createElement("button");
       btn.type = "button";
-      btn.textContent = relicMemorySizeLabel(mem.size);
+      btn.textContent = relicMemoryOrderMark(memIndex) + relicMemorySizeLabel(mem.size);
       if (characterSheetSelection && characterSheetSelection.kind === "relicMemory" && characterSheetSelection.ref === mem.memId) {
         btn.classList.add("midnight-sheet-slot-selected");
       }
@@ -25775,15 +26032,20 @@
       // fix round 1（2026-09-24 review）：mergeIntoStore()現在對已存在的memId整筆略過，
       // 因此reload後（本地旗標重置）重複按保存，這批記憶全部已存在時added/discarded/
       // rejected皆為0——不能再顯示「已保存0個」這種誤導文字，改顯示「已經全部保存過了」。
+      // 固定配置遺物已經有同一件時不存第二件（使用者2026-09-25明確規格），另外附一行說明。
+      var dupNote = summary.duplicateFixed
+        ? " " + window.I18N.t("midnight_relic_memory_fixed_duplicate", { count: summary.duplicateFixed })
+        : "";
       if (summary.added === 0 && summary.discarded === 0 && summary.rejected === 0) {
-        status.textContent = window.I18N.t("midnight_relic_memory_already_saved");
+        status.textContent = (summary.duplicateFixed ? "" : window.I18N.t("midnight_relic_memory_already_saved")) + dupNote;
         return;
       }
-      status.textContent = window.I18N.t("midnight_relic_memory_saved", {
-        added: summary.added,
-        discarded: summary.discarded,
-        rejected: summary.rejected,
-      });
+      status.textContent =
+        window.I18N.t("midnight_relic_memory_saved", {
+          added: summary.added,
+          discarded: summary.discarded,
+          rejected: summary.rejected,
+        }) + dupNote;
     });
   }
 
@@ -25886,12 +26148,18 @@
     }).length;
   }
 
-  function tryAppendRelicMemoryGrant(key, kind) {
+  // extra（可省略）：併進grant記錄的額外欄位（固定配置遺物的fixedId）。
+  function tryAppendRelicMemoryGrant(key, kind, extra) {
     if (relicMemoryGrantAttempted[key]) return;
     if (meta.relicMemoryGrants && meta.relicMemoryGrants[key]) return;
     relicMemoryGrantAttempted[key] = true;
     GameStorage.rtTransaction(gameId, "cloud", "meta/relicMemoryGrants/" + key, function (cur) {
-      return cur === null ? { kind: kind, at: Date.now() } : cur;
+      if (cur !== null) return cur;
+      var rec = { kind: kind, at: Date.now() };
+      Object.keys(extra || {}).forEach(function (k) {
+        rec[k] = extra[k];
+      });
+      return rec;
     });
   }
 
@@ -25910,6 +26178,11 @@
     RM.cycleGrantKeys(counts, meta.relicMemoryBaseline).forEach(function (key) {
       tryAppendRelicMemoryGrant(key, RM.grantKindOfKey(key));
     });
+    // 固定配置遺物（使用者2026-09-25明確規格「擊破三頭犬必定另外獲得」，其餘劇本比照）：
+    // 以該劇本擊敗第3天夜王時，全員另外各得一件。跟boss同樣不看基準（restart會清掉夜王節點）。
+    var CAT = window.PriTestMidnightRelicMemoryCatalog;
+    var fixedId = counts.boss && CAT && CAT.fixedRelicIdForScenario ? CAT.fixedRelicIdForScenario(meta.resolvedNightBossId) : null;
+    if (fixedId) tryAppendRelicMemoryGrant("fixed", "fixed", { fixedId: fixedId });
     processMyRelicMemoryGrants();
   }
 
@@ -25925,6 +26198,7 @@
     if (!pending.length) return;
     relicMemoryProcessing = true;
     var effectIds = relicMemoryDrawPool();
+    var CAT = window.PriTestMidnightRelicMemoryCatalog;
     // final review M8：transaction重試時要讀最新的meta.relicMemoryGrants（不是呼叫當下捕獲的
     // grants），並記錄「最後一次執行（＝真正commit的那次）實際新增了幾個」，只有>0才toast。
     var addedInLastRun = 0;
@@ -25939,6 +26213,14 @@
       Object.keys(freshGrants).forEach(function (k) {
         if (s[k]) return;
         s[k] = true;
+        if (freshGrants[k].kind === "fixed") {
+          var relic = CAT ? CAT.fixedRelic(freshGrants[k].fixedId) : null;
+          if (relic) {
+            earned.push(RM.newFixedMemory(relic, "fixed", Math.random, Date.now(), relicMemoryRollOpts()));
+            addedInLastRun++;
+          }
+          return;
+        }
         RM.grantSizes(freshGrants[k].kind, Math.random).forEach(function (size) {
           earned.push(RM.newMemory(size, effectIds, freshGrants[k].kind, Math.random, Date.now(), relicMemoryRollOpts()));
           addedInLastRun++;
@@ -28157,6 +28439,45 @@
       };
     },
 
+    // 純測試用：固定配置遺物「アイテムの効果が周囲の味方にも発動」的接收端——在自己的角色上
+    // 套用友軍分享來的道具效果，回傳套用後的buff實得值。
+    _debugRelicMemoryApplySharedItem: function (itemId, scale, level2) {
+      var c = characters[myTokenId];
+      if (!c) return null;
+      applyRelicMemorySharedItemEffect(c, itemId, scale, !!level2);
+      return {
+        fp: fp.current,
+        stamina: stamina.current,
+        attack: consumableAttackHitBonus(c),
+        skill: consumableSkillDamageBonus(c),
+        acid: acidSprayDamageReduce(c),
+        ironPotImmune: ironPotImmuneActive(c),
+        ironPotPartial: ironPotPartialCut(c),
+      };
+    },
+
+    // 純測試用：發送端。以「本地暫時的遭遇」（participants＝slots）呼叫
+    // shareConsumableWithEncounterAllies()，結束後還原——不寫任何假的fieldTrigger到RTDB，
+    // 避免觸發真的遭遇流程。回傳實際分享的人數。
+    _debugRelicMemoryShareItem: function (loadout, itemId, slots) {
+      var probeId = "__rmShareProbe";
+      var prevEncounter = activeEncounter;
+      var prevTrig = fieldTriggers[probeId];
+      var participants = {};
+      (slots || []).forEach(function (s) {
+        participants[s] = true;
+      });
+      fieldTriggers[probeId] = { participants: participants };
+      activeEncounter = { id: probeId };
+      try {
+        return shareConsumableWithEncounterAllies({ relicMemoryLoadout: loadout || [], talismanIds: [] }, itemId);
+      } finally {
+        activeEncounter = prevEncounter;
+        if (prevTrig === undefined) delete fieldTriggers[probeId];
+        else fieldTriggers[probeId] = prevTrig;
+      }
+    },
+
     // 純測試用：給一份帶入清單與攻擊ctx，回傳affixOutgoingDamageMult()算出來的倍率。
     _debugRelicMemoryOutgoingMult: function (loadout, ctx) {
       return affixOutgoingDamageMult({ relicMemoryLoadout: loadout || [] }, ctx || {});
@@ -28174,25 +28495,7 @@
     // 以及catalog上的能力值換算兩張表（第3期，威力補正在character_drawer.js接、
     // HP/FP/體力在本檔接，兩邊共用同一張表）。
     _debugRelicMemoryWiredIds: function () {
-      var maps = relicMemoryWeaponCategoryMaps();
-      var CAT = window.PriTestMidnightRelicMemoryCatalog;
-      return Object.keys(RELIC_MEMORY_AFFIX_ALIAS)
-        .concat(Object.keys(maps.atk))
-        .concat(Object.keys(maps.hp))
-        .concat(Object.keys(maps.fp))
-        .concat(Object.keys(maps.find))
-        .concat(Object.keys(RM_INFUSION_LABELS))
-        .concat(Object.keys(RM_SKILL_SWAP_IDS))
-        .concat(CAT ? Object.keys(CAT.POWER_MOD_STAT_OF) : [])
-        .concat(CAT ? Object.keys(CAT.STAT_SWAPS) : [])
-        // 第6期（2026-09-25）：武器類別持有3把系的三張表也算接入來源。
-        .concat(Object.keys(maps.set3atk))
-        .concat(Object.keys(maps.set3hp))
-        .concat(Object.keys(maps.set3fp))
-        // 第5期（2026-09-25）：出撃時に持つ道具（對得上既有 consumables 的 18 條）。
-        .concat(Object.keys(RM_START_ITEMS))
-        // 第7期（2026-09-25）：結晶雫 21 條（細枝は機制不存在、d旗標排除，故不列）。
-        .concat(Object.keys(RM_CRYSTAL_TEARS));
+      return relicMemoryWiredIdList();
     },
 
     // 純測試用：結晶雫（2026-09-25第7期，見 crystal_tear_check.js）。

@@ -212,9 +212,10 @@ assert(
 // 有 range 的總數：原始解析 82 ＋ 家族繼承的 23×3（atk／hp／fp）＋ 第 3 期補的 4 條＝ 155。
 // 補的 4 條是生命力／精神力／持久力／強靭度（使用者 2026-09-25 給的換算，設計文件 §10.14.1 A）。
 // set3_atk 與 find 是固定 10%，原始資料就沒有範圍，繼承後也不該有。
+// 2026-09-25：固定配置遺物的近接／戦技／異常計量表 3 條由使用者補了 8~12%（舊值 156）。
 assert(
-  CAT.EFFECTS.filter((e) => e.range).length === 82 + 23 * 3 + 5,
-  "有 range 的效果 156 條（82 原始解析 ＋ 69 繼承 ＋ 4 條能力值 ＋ HP低下時カット率）"
+  CAT.EFFECTS.filter((e) => e.range).length === 82 + 23 * 3 + 5 + 3,
+  "有 range 的效果 159 條（82 原始解析 ＋ 69 繼承 ＋ 4 條能力值 ＋ HP低下時カット率 ＋ 固定遺物 3 條）"
 );
 assert(
   inherited.filter((e) => e.range).length === 23 * 3,
@@ -396,12 +397,24 @@ assert(
   !CAT.FIXED_RELICS.some((r) => r.effects.some((x) => x.text.indexOf("ジェスチャー") >= 0)),
   "「ジェスチャー「あぐら」により、発狂が蓄積」已從固定遺物移除"
 );
-["rm_item_effect_to_allies", "rm_melee_atk_up", "rm_weapon_skill_atk_up", "rm_ailment_gauge_atk_up"].forEach((id) => {
+// 2026-09-25 使用者補了這 4 條的換算（舊期望：note 空、range null、use null——當時還沒有規格）。
+// stackable 使用者沒有指定，仍是 null（＝預設不可疊加）；仍是 relicOnly，不進抽選池。
+const FIXED_FX_SPEC = {
+  rm_item_effect_to_allies: null,
+  rm_melee_atk_up: [8, 12],
+  rm_weapon_skill_atk_up: [8, 12],
+  rm_ailment_gauge_atk_up: [8, 12],
+};
+Object.keys(FIXED_FX_SPEC).forEach((id) => {
   const e = CAT.effect(id);
   assert(!!e, "補建的效果 " + id + " 存在於 EFFECTS");
   if (!e) return;
-  assert(e.note === "" && e.range === null, id + "：note 空、range null（memory.txt 沒有換算說明，不自行推定）");
-  assert(e.stackable === null && e.use === null, id + "：stackable／use 為 null（台帳上還沒決定）");
+  const want = FIXED_FX_SPEC[id];
+  assert(
+    e.note !== "" && (want ? e.range && e.range[0] === want[0] && e.range[1] === want[1] && e.unit === "pct" : e.range === null),
+    id + "：有換算說明，range " + (want ? want.join("~") + "%" : "null（固定 20%，值在 alias 的 fixed）")
+  );
+  assert(e.use === "adopt" && e.stackable === null && e.relicOnly === true, id + "：use=adopt、stackable 未指定（null）、relicOnly");
 });
 assert(CAT.EFFECTS.length === 419, "EFFECTS 共 419 條（415 原始 ＋ 4 補建）");
 
@@ -533,6 +546,99 @@ assert(poolWithRange.length > 100, "池中有 range 的效果 " + poolWithRange.
     firstExclusive > 100 && rate < poolExclusiveRate / 2,
     "第 1 條是專用時，第 2 條的專用率 " + (rate * 100).toFixed(2) + "% 明顯低於整池的 " + (poolExclusiveRate * 100).toFixed(1) + "%"
   );
+})();
+
+// ---- 2026-09-25 第 2 次補充規格 ----
+console.log("");
+console.log("-- 同 id 不重複／互斥組（里程碑・出擊道具・盧恩） --");
+(function () {
+  // 傳入池本身有重複 id 也不會抽出兩條同 id。
+  const dupPool = ["a", "a", "a", "b", "c"];
+  let dupOk = true;
+  for (let t = 0; t < 2000; t++) {
+    const ids = RM.rollEffects("l", dupPool, Math.random);
+    if (new Set(ids).size !== ids.length) dupOk = false;
+  }
+  assert(dupOk, "池內有重複 id 時，同一顆記憶仍不會出現兩條同 id");
+
+  // 新的三組。盧恩是用 id 指定（kind 是 special），小砦那條屬於里程碑組。
+  assert(CAT.exclusiveGroup("rm_critical_rune") === "rune", "rm_critical_rune → rune 組");
+  assert(CAT.exclusiveGroup("rm_shop_discount") === "rune", "rm_shop_discount → rune 組");
+  assert(CAT.exclusiveGroup("rm_party_rune_up") === "rune", "rm_party_rune_up → rune 組");
+  assert(CAT.exclusiveGroup("rm_milestone_fort_rune") === "milestone", "rm_milestone_fort_rune → milestone 組");
+  const pool = CAT.drawableEffectIds();
+  const byGroup = {};
+  pool.forEach((id) => {
+    const g = CAT.exclusiveGroup(id);
+    if (g) byGroup[g] = (byGroup[g] || 0) + 1;
+  });
+  assert(byGroup.milestone === 7, "抽選池中全局里程碑組 7 條（實得 " + byGroup.milestone + "）");
+  assert(byGroup.startItem === 18, "抽選池中出擊時道具組 18 條（22 條中 4 條缺道具不抽，實得 " + byGroup.startItem + "）");
+  assert(byGroup.rune === 3, "抽選池中盧恩組 3 條（實得 " + byGroup.rune + "）");
+  assert(byGroup.crystalTear === 21, "抽選池中結晶雫組 21 條（實得 " + byGroup.crystalTear + "）");
+  assert(byGroup.startWeapon === 35, "抽選池中出擊時武器組 35 條＝屬性附加 7＋戰技置換 18＋魔術置換 10（實得 " + byGroup.startWeapon + "）");
+  // 帶入時「只發動第一條」只限 startWeapon／crystalTear。
+  assert(CAT.loadoutFirstOnlyGroup("rm_infuse_fire") === "startWeapon", "帶入時只發動第一條：startWeapon");
+  assert(CAT.loadoutFirstOnlyGroup("rm_milestone_tower_fp") === null, "里程碑組不做帶入時的只發動第一條");
+  assert(CAT.loadoutFirstOnlyGroup("rm_critical_rune") === null, "盧恩組不做帶入時的只發動第一條");
+
+  // 只留有組的效果＋少量無組效果，大量抽大記憶，任何組都不得出現兩條。
+  const grouped = pool.filter((id) => CAT.exclusiveGroup(id));
+  const small = grouped.concat(pool.filter((id) => !CAT.exclusiveGroup(id)).slice(0, 3));
+  const opts = { exclusiveGroup: CAT.exclusiveGroup, isExclusive: CAT.isExclusiveEffect };
+  let groupOk = true;
+  let bad = "";
+  for (let t = 0; t < 20000; t++) {
+    const ids = RM.rollEffects("l", small, Math.random, opts);
+    const seen = {};
+    ids.forEach((id) => {
+      const g = CAT.exclusiveGroup(id);
+      if (!g) return;
+      if (seen[g]) {
+        groupOk = false;
+        bad = ids.join(",");
+      }
+      seen[g] = true;
+    });
+  }
+  assert(groupOk, "大記憶 20000 顆：每一組最多一條" + (bad ? "（反例 " + bad + "）" : ""));
+})();
+
+console.log("");
+console.log("-- 固定配置遺物 --");
+(function () {
+  const rangeOf = (id) => (CAT.effect(id) || {}).range || null;
+  const beast = CAT.fixedRelic("relic_beast_night");
+  assert(CAT.fixedRelicIdForScenario("tricephalos") === "relic_beast_night", "三つ首の獣（tricephalos）→ 獣の夜");
+  assert(CAT.fixedRelicIdForScenario("balancers") === "relic_peaceful_will", "安寧者たち（balancers）→ 安寧者の遺志");
+  assert(CAT.fixedRelicIdForScenario("unknown") === null, "對不上的劇本 → null");
+  const mapped = Object.keys(CAT.FIXED_RELIC_BY_SCENARIO).map((k) => CAT.FIXED_RELIC_BY_SCENARIO[k]);
+  assert(mapped.every((id) => !!CAT.fixedRelic(id)), "劇本對應表的 10 個固定遺物 id 都存在（實得 " + mapped.length + " 個）");
+
+  const fm = RM.newFixedMemory(beast, "fixed", Math.random, 5000, { rangeOf: rangeOf });
+  assert(/^m[0-9a-f]{16}$/.test(fm.memId), "固定遺物 memId 格式");
+  assert(fm.fixedId === "relic_beast_night" && fm.favorite === true, "固定遺物帶 fixedId 且自動為最愛");
+  assert(fm.size === "m" && fm.effects.length === 2, "獣の夜 2 條效果 → 中");
+  assert(fm.effects.map((e) => e.id).join(",") === "rm_hit_stamina_regen,rm_infuse_fire", "效果是指定的（不抽選）");
+  // rm_hit_stamina_regen 是 high（強化版），range [1,2]、切點 1 → 必定擲 2。
+  let highOk = true;
+  for (let t = 0; t < 200; t++) {
+    const m = RM.newFixedMemory(beast, "fixed", Math.random, 5000, { rangeOf: rangeOf });
+    if (m.effects[0].value !== 2) highOk = false;
+    if ("value" in m.effects[1]) highOk = false; // rm_infuse_fire 沒有 range
+  }
+  assert(highOk, "強化版只擲後段（[1,2] 必定 2）；沒有 range 的不帶 value");
+
+  // 存入：已有同一件就不存第二件；新存入的一律是最愛。
+  const s1 = RM.mergeIntoStore({}, [Object.assign({}, fm, { favorite: false })], 100);
+  const only = Object.keys(s1.store).map((k) => s1.store[k]);
+  assert(s1.added === 1 && only[0].favorite === true, "第一次存入：存進去且被訂為最愛");
+  const fm2 = RM.newFixedMemory(beast, "fixed", Math.random, 6000, { rangeOf: rangeOf });
+  const s2 = RM.mergeIntoStore(s1.store, [fm2], 100);
+  assert(s2.added === 0 && s2.duplicateFixed === 1 && Object.keys(s2.store).length === 1, "已有同一件固定遺物 → 不存第二件（duplicateFixed=1）");
+  const mist = RM.newFixedMemory(CAT.fixedRelic("relic_mist_night"), "fixed", Math.random, 7000, { rangeOf: rangeOf });
+  const s3 = RM.mergeIntoStore(s2.store, [mist], 100);
+  assert(s3.added === 1 && s3.duplicateFixed === 0, "不同的固定遺物照常存入");
 })();
 
 console.log(fails ? "\n" + fails + " FAIL" : "\nALL PASS");

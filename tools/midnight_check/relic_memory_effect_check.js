@@ -38,10 +38,15 @@ const BASE = process.env.PRITEST_BASE_URL || "http://localhost:8791";
       "每一條 alias 的效果 id 都存在於目錄" + (notInCatalog.length ? "：" + notInCatalog.map((a) => a.effectId).join("、") : "")
     );
 
-    const notDrawable = audit.filter((a) => a.effectExists && !a.drawable);
+    // 2026-09-25：固定配置遺物上的 4 條（relicOnly）也接上了 alias。它們本來就只出現在固定遺物上、
+    // 不進抽選池，所以從「抽得到」這項排除（舊期望：alias 全部可抽選——當時 alias 只有抽選池的效果）。
+    const CAT_RELIC_ONLY = await page.evaluate(() =>
+      window.PriTestMidnightRelicMemoryCatalog.EFFECTS.filter((e) => e.relicOnly).map((e) => e.id)
+    );
+    const notDrawable = audit.filter((a) => a.effectExists && !a.drawable && CAT_RELIC_ONLY.indexOf(a.effectId) === -1);
     assert(
       notDrawable.length === 0,
-      "每一條 alias 的效果都抽得到（沒有被 bad／relicOnly／skip 排除）" +
+      "每一條 alias 的效果都抽得到（沒有被 bad／skip 排除；固定遺物專用的 relicOnly 除外）" +
         (notDrawable.length ? "：" + notDrawable.map((a) => a.effectId).join("、") : "")
     );
 
@@ -1233,9 +1238,12 @@ const BASE = process.env.PRITEST_BASE_URL || "http://localhost:8791";
           ? "\n        " + cov6Wrong.map((k) => k + "：期望 " + expect6[k][1] + "/" + expect6[k][0] + "，實得 " + (K[k] ? K[k].wired + "/" + K[k].total : "無")).join("\n        ")
           : "")
     );
-    const stillOpen = cov6.drawable - cov6.totalWired;
+    // 2026-09-25：已接入的 id 多了固定遺物專用的 4 條（不在抽選池），因此「仍僅顯示」改成直接數
+    // 抽選池中沒有接入的條數，不再用「池條數 − 已接條數」相減（舊寫法會變成 −4）。
+    const stillOpen = Object.keys(cov6.byKind).reduce((n, k) => n + cov6.byKind[k].missing.length, 0);
     console.log("    （抽選池中的目錄效果 " + cov6.drawable + " 條，已接 " + cov6.totalWired + " 條，仍僅顯示 " + stillOpen + " 條）");
-    assert(cov6.totalWired === 361, "累計已接 361 條（359 ＋ 2026-09-25 盧恩 2 條，實得 " + cov6.totalWired + "）");
+    // 舊值 361（359 ＋ 盧恩 2 條）；2026-09-25 固定配置遺物的 4 條接上 → 365。
+    assert(cov6.totalWired === 365, "累計已接 365 條（361 ＋ 固定遺物專用 4 條，實得 " + cov6.totalWired + "）");
     // 2026-09-25 第 7 期之前這裡是 24（結晶雫 22 ＋ 盧恩 2），第 7 期後 2；盧恩 2 條接上後歸零。
     assert(stillOpen === 0, "抽選池中已沒有只顯示文字的效果（實得 " + stillOpen + "）");
 
@@ -1323,6 +1331,58 @@ const BASE = process.env.PRITEST_BASE_URL || "http://localhost:8791";
     assert(last.infSecond.temps.length === 0, "第一條是戰技置換時，後面的屬性附加不發動");
     assert(last.tearPicked === "rm_start_leaden_hardtear", "結晶雫取帶入順序第一條（實得 " + last.tearPicked + "）");
 
+
+    // ------------------------------------------- 固定配置遺物的 4 條（2026-09-25 使用者補換算）
+    console.log("");
+    console.log("-- 固定配置遺物的 4 條 --");
+    const fx4 = await page.evaluate(() => {
+      const MN = window.PriTestMidnight;
+      const W = window.PriTestWeapons.list();
+      const melee = W.filter((w) => w.category && !/bow|crossbow|ballista|staff|seal|shield/.test(w.category))[0];
+      const bow = W.filter((w) => w.category === "bow")[0] || W.filter((w) => /bow/.test(w.category || ""))[0];
+      const mem = (id, value) => [{ memId: "mfx", size: "s", effects: [{ id: id, value: value }] }];
+      const m = (loadout, ctx) => MN._debugRelicMemoryOutgoingMult(loadout, ctx);
+      const r = {
+        meleeId: melee && melee.id,
+        bowId: bow && bow.id,
+        melee: m(mem("rm_melee_atk_up", 10), { weaponId: melee.id }) / m([], { weaponId: melee.id }),
+        meleeArt: m(mem("rm_melee_atk_up", 10), { weaponId: melee.id, art: true }) / m([], { weaponId: melee.id, art: true }),
+        meleeBow: bow ? m(mem("rm_melee_atk_up", 10), { weaponId: bow.id }) / m([], { weaponId: bow.id }) : null,
+        meleeSorcery: m(mem("rm_melee_atk_up", 10), { weaponId: melee.id, sorcery: true }) / m([], { weaponId: melee.id, sorcery: true }),
+        meleeNoWeapon: m(mem("rm_melee_atk_up", 10), {}) / m([], {}),
+        art: m(mem("rm_weapon_skill_atk_up", 9), { art: true }) / m([], { art: true }),
+        artPlain: m(mem("rm_weapon_skill_atk_up", 9), {}) / m([], {}),
+        gaugeBefore: m(mem("rm_ailment_gauge_atk_up", 11), {}) / m([], {}),
+      };
+      MN._debugRecordReceivedAccum("猛毒", 1);
+      r.gaugeAfter = m(mem("rm_ailment_gauge_atk_up", 11), {}) / m([], {});
+      MN._debugRecordReceivedAccum("炎", 0); // no-op（屬性不算異常，另外不測）
+      return r;
+    });
+    const near = (a, b) => Math.abs(a - b) < 1e-9;
+    assert(near(fx4.melee, 1.1), "近接攻撃力上昇 10%：近戰武器一般攻擊 ×1.10（實得 " + fx4.melee + "）");
+    assert(near(fx4.meleeArt, 1.1), "近接攻撃力上昇：近戰武器的戰技也算近距離 ×1.10（實得 " + fx4.meleeArt + "）");
+    assert(fx4.meleeBow === null || near(fx4.meleeBow, 1), "近接攻撃力上昇：弓（遠程）不加成（實得 " + fx4.meleeBow + "）");
+    assert(near(fx4.meleeSorcery, 1), "近接攻撃力上昇：魔術不加成（實得 " + fx4.meleeSorcery + "）");
+    assert(near(fx4.meleeNoWeapon, 1), "近接攻撃力上昇：非武器攻擊（道具等）不加成");
+    assert(near(fx4.art, 1.09), "戦技攻撃力上昇 9%：戰技 ×1.09（併進詞條 weaponArtUp，實得 " + fx4.art + "）");
+    assert(near(fx4.artPlain, 1), "戦技攻撃力上昇：一般攻擊不加成");
+    assert(near(fx4.gaugeBefore, 1), "異常計量表：自身沒有異常蓄積時不加成");
+    assert(near(fx4.gaugeAfter, 1.11), "異常計量表：自身猛毒蓄積 >0 後 ×1.11（實得 " + fx4.gaugeAfter + "）");
+
+    const catFx = await page.evaluate(() => {
+      const CAT = window.PriTestMidnightRelicMemoryCatalog;
+      const ids = ["rm_item_effect_to_allies", "rm_melee_atk_up", "rm_weapon_skill_atk_up", "rm_ailment_gauge_atk_up"];
+      const wired = {};
+      window.PriTestMidnight._debugRelicMemoryWiredIds().forEach((id) => (wired[id] = true));
+      return ids.map((id) => ({ id: id, wired: !!wired[id], range: CAT.effect(id).range, drawable: CAT.drawableEffectIds().indexOf(id) !== -1 }));
+    });
+    assert(catFx.every((e) => e.wired), "4 條全部接入（" + catFx.filter((e) => !e.wired).map((e) => e.id).join(",") + "）");
+    assert(catFx.every((e) => !e.drawable), "4 條仍只出現在固定遺物上（不進抽選池）");
+    assert(
+      catFx.filter((e) => e.range).every((e) => e.range[0] === 8 && e.range[1] === 12) && catFx.filter((e) => e.range).length === 3,
+      "近接／戦技／異常計量表 3 條的範圍是 8~12%"
+    );
   } finally {
     await browser.close();
   }

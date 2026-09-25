@@ -14,6 +14,7 @@ const EMU = "http://127.0.0.1:" + EMU_PORT;
 const NS = "elden-ring-nightreign-default-rtdb";
 const CODE = "FLOW1";
 const CODE2 = "FLOW2";
+const SEED_FIXED = "m00000000000000a1";
 const WAIT = 15000;
 
 let fails = 0;
@@ -97,10 +98,22 @@ async function game1(browser) {
   const url = await createAndStart(pageA, pageB);
   const gid = await pageA.evaluate(() => window.PriTestMidnight._debugState().gameId);
 
+  // 2026-09-25 固定配置遺物：劇本定為「三つ首の獣」→ 擊敗夜王時另外得「獣の夜」。
+  // DB 裡先放一件同樣的「獣の夜」（不同 memId），驗證「有相同物品則不儲存兩件」。
+  await adminPut("relicMemories/" + CODE + "/" + SEED_FIXED, {
+    memId: SEED_FIXED,
+    size: "m",
+    fixedId: "relic_beast_night",
+    effects: [{ id: "rm_hit_stamina_regen", value: 2 }, { id: "rm_infuse_fire" }],
+    createdAt: 1,
+    favorite: true,
+    source: "fixed",
+  });
   // 用真實判定來源墊出遊戲內容：踏破 3 個板塊、第一／二天夜之強敵、夜王（同 emulator_check 的 restartSection）。
   await pageA.evaluate((g) => {
     const GS = window.PriTestGameStorage;
     const d = window.PriTestMidnight._debugState();
+    GS.rtSet(g, "cloud", "meta/resolvedNightBossId", "tricephalos");
     const NON = { sorcerer: 1, merchant: 1, strong_enemy: 1, random_event: 1, blessing: 1 };
     d.map.points
       .filter((p) => !NON[p.type])
@@ -114,7 +127,7 @@ async function game1(browser) {
   for (const p of [pageA, pageB]) {
     await p.waitForFunction(() => {
       const r = window.PriTestMidnight._debugRelicMemory();
-      return ["tiles1", "day1", "day2", "boss"].every((k) => r.seen[k]);
+      return ["tiles1", "day1", "day2", "boss", "fixed"].every((k) => r.seen[k]);
     }, { timeout: WAIT });
   }
   const got = await pageA.evaluate(() => {
@@ -128,7 +141,10 @@ async function game1(browser) {
     const r = MN._debugRelicMemory();
     return {
       earned: r.earned,
-      bad: r.earned.flatMap((m) => (m.effects || []).map((e) => e.id).filter((id) => !drawable[id] || !wired[id] || CD.attachedEffectById(id))),
+      // 固定配置遺物的效果是指定的（含 relicOnly、不在抽選池），不列入這項檢查。
+      bad: r.earned
+        .filter((m) => !m.fixedId)
+        .flatMap((m) => (m.effects || []).map((e) => e.id).filter((id) => !drawable[id] || !wired[id] || CD.attachedEffectById(id))),
       groupDup: r.earned.filter((m) => {
         const seen = {};
         return (m.effects || []).some((e) => {
@@ -154,7 +170,12 @@ async function game1(browser) {
     "每顆記憶的效果條數＝大小（小1／中2／大3），memId 格式正確"
   );
   assert(got.bad.length === 0, "抽到的效果全部是遺物記憶目錄中已接入的效果、不含 24 種附帶效果（問題：" + got.bad.join(",") + "）");
-  assert(got.groupDup === 0, "同一顆記憶內，出撃時の武器／結晶雫各最多一條");
+  assert(got.groupDup === 0, "同一顆記憶內，每個互斥組（出擊武器／結晶雫／里程碑／出擊道具／盧恩）各最多一條");
+  const fixedGot = got.earned.filter((m) => m.fixedId);
+  assert(
+    fixedGot.length === 1 && fixedGot[0].fixedId === "relic_beast_night" && fixedGot[0].favorite === true && fixedGot[0].size === "m",
+    "三つ首の獣擊敗夜王 → 另外獲得固定遺物「獣の夜」×1（自動最愛）"
+  );
 
   // 勝利彈窗 → 結算
   await pageA.waitForSelector("#midnight-game-victory-modal:not([hidden])", { timeout: WAIT });
@@ -171,10 +192,16 @@ async function game1(browser) {
   assert(await pageA.evaluate(() => document.getElementById("btn-midnight-relic-memory-settle-save").disabled), "存入後保存按鈕停用");
   const stored = await adminGet("relicMemories/" + CODE);
   const storedIds = Object.keys(stored || {});
+  const normal = got.earned.filter((m) => !m.fixedId);
   assert(
-    storedIds.length === got.earned.length && got.earned.every((m) => stored[m.memId] && stored[m.memId].size === m.size),
-    "Firebase 存入件數＝本局獲得件數，內容一致（" + storedIds.length + "）"
+    storedIds.length === normal.length + 1 && normal.every((m) => stored[m.memId] && stored[m.memId].size === m.size),
+    "Firebase：一般記憶全部存入，內容一致（" + storedIds.length + "＝" + normal.length + "＋既有固定遺物 1）"
   );
+  const beasts = storedIds.filter((id) => stored[id].fixedId === "relic_beast_night");
+  assert(beasts.length === 1 && beasts[0] === SEED_FIXED, "已有「獣の夜」→ 不儲存第二件（DB 仍只有原本那件）");
+  const settleStatus = await pageA.evaluate(() => document.getElementById("midnight-relic-memory-settle-status").textContent);
+  const dupText = await pageA.evaluate(() => window.I18N.t("midnight_relic_memory_fixed_duplicate", { count: 1 }));
+  assert(settleStatus.indexOf(dupText) !== -1, "結算狀態顯示固定遺物未重複存入（" + settleStatus + "）");
 
   // reload：新分頁會換 tokenId、先變觀戰者，用席位密碼「接管」回原席位（既有設計，角色整份
   // 含 relicMemory.savedIds 會搬到新 token）。勝利彈窗再次出現，確認後結算不能再存（換序號也不行）。
@@ -216,9 +243,19 @@ async function game2(browser, prev) {
     favorite: false,
     source: "tiles",
   });
-  const total = prev.storedIds.length + 1;
-  const pick = [KNOWN, prev.storedIds[0], prev.storedIds[1]];
-  const extra = prev.storedIds[2];
+  // 2026-09-25：第二顆同樣帶「最大HP上昇」（stackable:false），驗證不可疊加的標示與①②③。
+  const KNOWN2 = "m00000000000000f2";
+  await adminPut("relicMemories/" + CODE + "/" + KNOWN2, {
+    memId: KNOWN2,
+    size: "m",
+    effects: [{ id: "rm_max_hp_up", value: 30 }, { id: "rm_max_fp_up", value: 10 }],
+    createdAt: Date.now() - 1000,
+    favorite: false,
+    source: "tiles",
+  });
+  const total = prev.storedIds.length + 2;
+  const pick = [KNOWN, KNOWN2, prev.storedIds[0]];
+  const extra = prev.storedIds[1];
   const pageA = await newPage(browser);
   const pageB = await newPage(browser);
   await createAndStart(pageA, pageB, async () => {
@@ -247,6 +284,18 @@ async function game2(browser, prev) {
       return d.players[d.mySlot].relicMemoryLoadout.length;
     });
     assert(n === 3, "最多只能選 3 個（第 4 個選不進去，實得 " + n + "）");
+    const lobby = await pageA.evaluate((ids) => {
+      const rowOf = (id) => document.querySelector('#midnight-lobby-relic-memory-list input[data-mem-id="' + id + '"]').parentNode.textContent;
+      return { rows: ids.map(rowOf), dup: window.I18N.t("midnight_relic_memory_effect_duplicated") };
+    }, pick);
+    assert(
+      lobby.rows[0].indexOf("①") === 0 && lobby.rows[1].indexOf("②") === 0 && lobby.rows[2].replace(/^★ /, "").indexOf("③") === 0,
+      "等待房依勾選順序標註①②③"
+    );
+    assert(lobby.rows[0].indexOf(lobby.dup) === -1, "①（先勾選）的最大HP上昇 沒有「不可疊加」標示");
+    assert(lobby.rows[1].indexOf("最大HP上昇（30）" + lobby.dup) !== -1 || lobby.rows[1].indexOf(lobby.dup) !== -1, "②的最大HP上昇 標示「不可疊加，此條未發動」（" + lobby.rows[1] + "）");
+    const secondDupCount = lobby.rows[1].split(lobby.dup).length - 1;
+    assert(secondDupCount === 1, "②只有重複的那一條被標示（最大FP上昇 不標，實得 " + secondDupCount + " 處）");
   });
   await pageA.waitForTimeout(1500);
   const r = await pageA.evaluate(() => {
@@ -272,12 +321,64 @@ async function game2(browser, prev) {
   assert(r.memIds.length === 3 && pick.every((id) => r.memIds.indexOf(id) !== -1), "開局後角色帶入的正是選的 3 個");
   assert(r.unwired.length === 0, "帶入的所有效果都有接入點（未接：" + r.unwired.join(",") + "）");
   assert(r.hpWith - r.hpWithout === 20, "已知記憶「最大HP上昇 20」→ HP 上限 +20（實得 " + (r.hpWith - r.hpWithout) + "）");
+  const both = await pageA.evaluate(() => {
+    const MN = window.PriTestMidnight;
+    const loadout = MN._debugRelicMemory().loadout.filter((m) => /^m00000000000000f[12]$/.test(m.memId));
+    return MN._debugRelicMemoryStats(loadout).hpMax - MN._debugRelicMemoryStats([]).hpMax;
+  });
+  assert(both === 20, "兩顆都帶最大HP上昇（20、30）→ 不可疊加，只算帶入順序第一顆的 20（實得 " + both + "）");
   assert(Math.abs(r.physMult / r.physBase - 1.05) < 1e-9, "已知記憶「物理攻撃力上昇 5%」→ 物理攻擊倍率 ×1.05（實得 " + r.physMult / r.physBase + "）");
 
   await pageA.dispatchEvent("#btn-midnight-open-character-sheet", "click");
   await pageA.waitForSelector("#midnight-character-sheet-relic-memories button", { timeout: WAIT });
   const slots = await pageA.$$("#midnight-character-sheet-relic-memories button");
   assert(slots.length === 3, "角色視窗顯示 3 格遺物記憶");
+  const slotTexts = await pageA.$$eval("#midnight-character-sheet-relic-memories button", (els) => els.map((e) => e.textContent));
+  assert(/^①/.test(slotTexts[0]) && /^②/.test(slotTexts[1]) && /^③/.test(slotTexts[2]), "角色視窗格子標註①②③（" + slotTexts.join(" ") + "）");
+  await pageA.dispatchEvent("#midnight-character-sheet-relic-memories button:nth-child(2)", "click");
+  await pageA.waitForTimeout(300);
+  const detail = await pageA.evaluate(() => ({
+    text: document.getElementById("midnight-character-sheet-detail").textContent,
+    dup: window.I18N.t("midnight_relic_memory_effect_duplicated"),
+  }));
+  assert(detail.text.indexOf(detail.dup) !== -1, "角色視窗②的詳細顯示「不可疊加，此條未發動」");
+
+  // ---- 固定配置遺物「アイテムの効果が周囲の味方にも発動」（2026-09-25）：A 用道具 → 同一戰場的 B 得 20% ----
+  console.log("  -- 道具效果分給同一戰場的友軍（20%）--");
+  const SHARE_MEM = [{ memId: "mshare", size: "s", effects: [{ id: "rm_item_effect_to_allies" }] }];
+  const slotsAB = [
+    await pageA.evaluate(() => window.PriTestMidnight._debugState().mySlot),
+    await pageB.evaluate(() => window.PriTestMidnight._debugState().mySlot),
+  ];
+  const shareCount = await pageA.evaluate(
+    (a) => window.PriTestMidnight._debugRelicMemoryShareItem(a.mem, "item_hero_meat_chunk", a.slots),
+    { mem: SHARE_MEM, slots: slotsAB }
+  );
+  assert(shareCount === 1, "A 使用勇者の肉塊 → 分享給同一戰場的 1 名隊友（不含自己，實得 " + shareCount + "）");
+  await pageB.waitForFunction(() => window.PriTestMidnight._debugConsumableBuffs().attack.hit1 > 0, { timeout: WAIT });
+  const meatB = await pageB.evaluate(() => window.PriTestMidnight._debugConsumableBuffs());
+  assert(
+    meatB.attack.hit1 === 1 && meatB.attack.hit2 === 2 && meatB.skill === 1,
+    "B 收到 20% 的勇者の肉塊：攻擊 +1／+2、戰技 +1（完整版 +5／+10／+5，實得 " + JSON.stringify(meatB.attack) + "／" + meatB.skill + "）"
+  );
+  await pageA.evaluate((a) => window.PriTestMidnight._debugRelicMemoryShareItem(a.mem, "item_perfume_acid_spray", a.slots), { mem: SHARE_MEM, slots: slotsAB });
+  await pageB.waitForFunction(() => window.PriTestMidnight._debugConsumableBuffs().acid > 0, { timeout: WAIT });
+  assert((await pageB.evaluate(() => window.PriTestMidnight._debugConsumableBuffs().acid)) === 2, "B 收到 20% 的酸の噴霧：敵傷害 −2（完整版 −12）");
+  const noMem = await pageA.evaluate((a) => window.PriTestMidnight._debugRelicMemoryShareItem([], "item_hero_meat_chunk", a.slots), { slots: slotsAB });
+  assert(noMem === 0, "沒帶這條遺物記憶時不分享");
+  const offensive = await pageA.evaluate((a) => window.PriTestMidnight._debugRelicMemoryShareItem(a.mem, "item_throwing_pot", a.slots), { mem: SHARE_MEM, slots: slotsAB });
+  assert(offensive === 0, "攻擊敵人的道具（投擲壺）不分享");
+  const soloShare = await pageA.evaluate((a) => window.PriTestMidnight._debugRelicMemoryShareItem(a.mem, "item_hero_meat_chunk", [a.slots[0]]), { mem: SHARE_MEM, slots: slotsAB });
+  assert(soloShare === 0, "戰場上只有自己時沒有分享對象");
+  // 鐵壺：20% 效果＝HP 損害減少 20%，不是完全免傷。
+  const ironB = await pageB.evaluate(() => window.PriTestMidnight._debugRelicMemoryApplySharedItem("item_perfume_iron_pot_spray", 0.2, false));
+  assert(ironB.ironPotImmune === false && Math.abs(ironB.ironPotPartial - 0.2) < 1e-9, "B 收到 20% 的鐵壺：不免傷，HP 損害 −20%");
+  // 自己用的完整版不會被友軍分享的 20% 蓋掉。
+  await pageB.evaluate(() => window.PriTestMidnight._debugApplyConsumable("item_hero_meat_chunk"));
+  await pageA.evaluate((a) => window.PriTestMidnight._debugRelicMemoryShareItem(a.mem, "item_hero_meat_chunk", a.slots), { mem: SHARE_MEM, slots: slotsAB });
+  await pageB.waitForTimeout(1500);
+  const fullB = await pageB.evaluate(() => window.PriTestMidnight._debugConsumableBuffs().attack);
+  assert(fullB.hit1 === 5 && fullB.hit2 === 10, "B 自己用了完整版勇者の肉塊後，再收到 20% 分享不會降級（實得 " + JSON.stringify(fullB) + "）");
   await pageA.close();
   await pageB.close();
 }

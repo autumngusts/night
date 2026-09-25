@@ -95,7 +95,11 @@
   function rollEffects(size, effectIds, rand, opts) {
     var isExclusive = (opts && opts.isExclusive) || null;
     var exclusiveGroup = (opts && opts.exclusiveGroup) || null;
-    var pool = effectIds.slice();
+    // 使用者 2026-09-25 明確規格「同一 id 不會出現兩個在同一遺物記憶中」：抽到的會從 pool
+    // 移除（下方 splice），這裡再把傳入池本身的重複 id 去掉，兩道保證。
+    var pool = effectIds.filter(function (id, i) {
+      return effectIds.indexOf(id) === i;
+    });
     var n = Math.min(SIZE_EFFECT_COUNT[size] || 1, pool.length);
     var out = [];
     var gotExclusive = false;
@@ -193,6 +197,30 @@
     };
   }
 
+  // 固定配置遺物（catalog 的 FIXED_RELICS，使用者 2026-09-25 明確規格「擊破三頭犬必定另外獲得
+  // 存入db 有相同物品則不儲存兩件 自動訂為最愛」）：效果是指定的、不抽選；有 range 的照樣擲值，
+  // 強化版（high）只擲後段（設計文件 §10.6.1）。fixedId 是「同一件」的判定鍵（見 mergeIntoStore）。
+  // size 依效果條數（2 條＝中、3 條＝大），只是顯示用的標籤。
+  // rand 的消耗順序：randomHex16 16 次 → 每條有 range 的效果 2 次（high 1 次）。
+  function newFixedMemory(relic, source, rand, now, opts) {
+    var rangeOf = (opts && opts.rangeOf) || null;
+    var list = (relic && relic.effects) || [];
+    return {
+      memId: "m" + randomHex16(rand),
+      size: list.length >= 3 ? "l" : list.length === 2 ? "m" : "s",
+      fixedId: relic.id,
+      effects: list.map(function (fx) {
+        var range = rangeOf ? rangeOf(fx.effectId) : null;
+        if (!range || typeof range[0] !== "number" || typeof range[1] !== "number") return { id: fx.effectId };
+        var value = rollRangeValue(range[0], range[1], rand, { high: fx.high === true });
+        return value === null ? { id: fx.effectId } : { id: fx.effectId, value: value };
+      }),
+      createdAt: now,
+      favorite: true,
+      source: source,
+    };
+  }
+
   function milestoneGrantKeys(tilesCleared, strongKilled) {
     var keys = [];
     var i;
@@ -225,6 +253,14 @@
     });
   }
 
+  function shallowCopy(o) {
+    var out = {};
+    Object.keys(o).forEach(function (k) {
+      out[k] = o[k];
+    });
+    return out;
+  }
+
   function toList(store) {
     return Object.keys(store || {}).map(function (k) {
       return store[k];
@@ -241,12 +277,25 @@
     var added = 0;
     var discarded = 0;
     var rejected = 0;
+    var duplicateFixed = 0;
     newMems.forEach(function (m) {
       // fix round 1（2026-09-24 review，task-6結算保存的重複保存回歸）：memId已經存在於
       // store代表這筆記憶先前已經保存過（例如結算後reload、本地旗標重置導致重新按一次
       // 保存鍵），必須整筆略過，不能被容量判定當成「新記憶」而擠掉別的已存記憶——否則
       // 對一個已滿(cap)的store重複保存同一批memId，會誤丟棄跟這次保存完全無關的舊記憶。
       if (next[m.memId]) return;
+      // 固定配置遺物：store 裡已經有同一件（fixedId 相同）就不存第二件（使用者 2026-09-25 明確規格）。
+      if (m.fixedId) {
+        var dup = toList(next).some(function (x) {
+          return x && x.fixedId === m.fixedId;
+        });
+        if (dup) {
+          duplicateFixed++;
+          return;
+        }
+        m = shallowCopy(m);
+        m.favorite = true; // 自動訂為最愛
+      }
       var count = Object.keys(next).length;
       if (count >= cap) {
         var victims = toList(next)
@@ -266,7 +315,7 @@
       next[m.memId] = m;
       added++;
     });
-    return { store: next, added: added, discarded: discarded, rejected: rejected };
+    return { store: next, added: added, discarded: discarded, rejected: rejected, duplicateFixed: duplicateFixed };
   }
 
   function sortedMemories(store) {
@@ -293,6 +342,7 @@
     effectEntries: effectEntries,
     effectIdList: effectIdList,
     newMemory: newMemory,
+    newFixedMemory: newFixedMemory,
     milestoneGrantKeys: milestoneGrantKeys,
     cycleGrantKeys: cycleGrantKeys,
     grantKindOfKey: grantKindOfKey,
