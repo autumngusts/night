@@ -370,6 +370,12 @@ async function game2(browser, prev) {
   assert(offensive === 0, "攻擊敵人的道具（投擲壺）不分享");
   const soloShare = await pageA.evaluate((a) => window.PriTestMidnight._debugRelicMemoryShareItem(a.mem, "item_hero_meat_chunk", [a.slots[0]]), { mem: SHARE_MEM, slots: slotsAB });
   assert(soloShare === 0, "戰場上只有自己時沒有分享對象");
+  // 苦薬：分享也是清除 1 種異常蓄積（使用者 2026-09-25 明確規格，不按比例）。
+  const accumBefore = await pageB.evaluate(() => window.PriTestMidnight._debugRecordReceivedAccum("猛毒", 1)["猛毒"]);
+  await pageA.evaluate((a) => window.PriTestMidnight._debugRelicMemoryShareItem(a.mem, "item_bitter_medicine", a.slots), { mem: SHARE_MEM, slots: slotsAB });
+  await pageB.waitForFunction(() => (window.PriTestMidnight._debugRecordReceivedAccum("猛毒", 0)["猛毒"] || 0) === 0, { timeout: WAIT });
+  assert(accumBefore > 0, "B 自身猛毒蓄積 > 0（前提，實得 " + accumBefore + "）");
+  assert(true, "B 收到 A 分享的苦薬 → 清除 1 種異常蓄積（猛毒歸 0）");
   // 鐵壺：20% 效果＝HP 損害減少 20%，不是完全免傷。
   const ironB = await pageB.evaluate(() => window.PriTestMidnight._debugRelicMemoryApplySharedItem("item_perfume_iron_pot_spray", 0.2, false));
   assert(ironB.ironPotImmune === false && Math.abs(ironB.ironPotPartial - 0.2) < 1e-9, "B 收到 20% 的鐵壺：不免傷，HP 損害 −20%");

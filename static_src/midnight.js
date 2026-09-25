@@ -12294,7 +12294,8 @@
   // 收到友軍分享的道具效果時，在自己的裝置上以scale（0.2）套用。數值一律×scale四捨五入；
   // 等級2依使用者那邊的判定（payload.level2）。
   //   星光の欠片：FP 30/60×scale　温石：自身10秒持續回復 20/40×scale（不再轉給第三人）
-  //   亀首の漬物：體力10×scale　苦薬：等級2的HP回復×scale（「清除1種異常蓄積」無法按比例，不套用）
+  //   亀首の漬物：體力10×scale
+  //   苦薬：同樣清除自身1種異常蓄積（使用者2026-09-25明確規格：分享也是清除1種，不按比例）；等級2的HP回復×scale
   //   勇者の肉塊：攻擊+5/+10、戰技+5 ×scale　酸の噴霧：敵傷害-12×scale、等級2 HP價值+10×scale
   //   鉄壺の香薬：「不承受HP損害」×scale＝HP損害減少scale（代價的體力扣除不套用在友軍）
   // buff類：自己已經有效果更強（scale較大）且仍在時效內的同一個buff時，不覆蓋。
@@ -12317,6 +12318,7 @@
       stamina.current = Math.min(stamina.max, stamina.current + amt(10));
       if (level2) healSelfHp(amt(CONSUMABLE_LEVEL2_HEAL));
     } else if (itemId === "item_bitter_medicine") {
+      clearOneReceivedAilmentWithFeedback();
       if (level2) healSelfHp(amt(CONSUMABLE_LEVEL2_HEAL));
     } else if (itemId === "item_hero_meat_chunk") {
       setBuff("_heroMeatUntil", "_heroMeatScale");
@@ -12330,6 +12332,21 @@
     } else if (itemId === "item_perfume_iron_pot_spray") {
       setBuff("_ironPotUntil", "_ironPotScale");
     }
+  }
+
+  // 苦薬的「清除自身1種異常蓄積」＋畫面回饋。自己使用與友軍分享（遺物記憶）共用這一支。
+  function clearOneReceivedAilmentWithFeedback() {
+    var clearedAilment = clearHighestReceivedAilment();
+    // 2026-09-21：自身蓄積列上該異常徽章「消散」（複製分身播淡出，原徽章下一幀由
+    // renderSelfAttributeAccumNote()正常移除）。
+    if (clearedAilment) {
+      var selfNoteEl = el("midnight-self-accum-note");
+      var chipEl = selfNoteEl ? selfNoteEl.querySelector('.midnight-accum-chip[data-accum-name="' + clearedAilment + '"]') : null;
+      dissolveElementClone(chipEl);
+    }
+    if (clearedAilment) showToast(window.I18N.t("midnight_bitter_medicine_toast", { label: clearedAilment }));
+    else showToast(window.I18N.t("midnight_bitter_medicine_none_toast"));
+    return clearedAilment;
   }
 
   function applyMidnightConsumableEffect(c, itemId, instanceId) {
@@ -12409,16 +12426,7 @@
     } else if (itemId === "item_bitter_medicine") {
       // 2026-09-12使用者要求實作：清除自身累積中的1種異常狀態蓄積值（見
       // clearHighestReceivedAilment()的對象選擇說明）。
-      var clearedAilment = clearHighestReceivedAilment();
-      // 2026-09-21：自身蓄積列上該異常徽章「消散」（複製分身播淡出，原徽章下一幀由
-      // renderSelfAttributeAccumNote()正常移除）。
-      if (clearedAilment) {
-        var selfNoteEl = el("midnight-self-accum-note");
-        var chipEl = selfNoteEl ? selfNoteEl.querySelector('.midnight-accum-chip[data-accum-name="' + clearedAilment + '"]') : null;
-        dissolveElementClone(chipEl);
-      }
-      if (clearedAilment) showToast(window.I18N.t("midnight_bitter_medicine_toast", { label: clearedAilment }));
-      else showToast(window.I18N.t("midnight_bitter_medicine_none_toast"));
+      clearOneReceivedAilmentWithFeedback();
       if (applyLevel2) healSelfHp(CONSUMABLE_LEVEL2_HEAL);
     } else if (itemId === "item_folding_shuriken") {
       // 2026-09-12使用者明確規格「對對象造成【總合傷害：10次1點hp】」＝10段，
