@@ -1484,6 +1484,12 @@ STRINGS_EN: dict[str, str] = {
     "midnight_takeover_wrong_password": "Wrong password, can't take over.",
     "midnight_takeover_self_note": "(you)",
     "midnight_relic_memory_gained_toast": "Obtained a Relic Memory",
+    "midnight_relic_memory_swap_infuse_toast": "Relic Memory: swapped weapon infused with {element} (5s)",
+    # 結晶雫（2026-09-25第7期，見 static_src/midnight.js 的 RM_CRYSTAL_TEARS）
+    "midnight_crystal_tear_title": "Crystal Tear",
+    "midnight_crystal_tear_remaining": "{count}/1 left",
+    "midnight_crystal_tear_use_toast": "Used \u201c{name}\u201d",
+    "midnight_crystal_tear_trigger_toast": "\u201c{name}\u201d triggered",
     "midnight_relic_memory_title": "Relic Memory",
     "midnight_relic_memory_size_s": "Small",
     "midnight_relic_memory_size_m": "Medium",

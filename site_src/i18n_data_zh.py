@@ -1489,6 +1489,12 @@ STRINGS_ZH: dict[str, str] = {
     "midnight_takeover_wrong_password": "密碼錯誤，無法接管。",
     "midnight_takeover_self_note": "（你）",
     "midnight_relic_memory_gained_toast": "獲得了遺物記憶",
+    "midnight_relic_memory_swap_infuse_toast": "遺物記憶：切換的武器附加「{element}」屬性（5 秒）",
+    # 結晶雫（2026-09-25第7期，見 static_src/midnight.js 的 RM_CRYSTAL_TEARS）
+    "midnight_crystal_tear_title": "結晶雫",
+    "midnight_crystal_tear_remaining": "剩餘 {count}/1",
+    "midnight_crystal_tear_use_toast": "使用了「{name}」",
+    "midnight_crystal_tear_trigger_toast": "「{name}」發動",
     "midnight_relic_memory_title": "遺物記憶",
     "midnight_relic_memory_size_s": "小",
     "midnight_relic_memory_size_m": "中",

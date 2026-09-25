@@ -907,6 +907,13 @@ BODY = """    <div class="midnight-wrap">
 
         <!-- 左下：2x2四張卡片——上＝聖杯瓶、下＝消耗品、左/右＝武器。 -->
         <div id="midnight-hud-bottom-left">
+          <!-- 聖杯瓶卡片＋左右切換（2026-09-25使用者明確規格「操作盤的聖杯瓶使用可以左右
+               切換聖杯瓶或是結晶雫」）：結構完全比照下面的#midnight-consumable-wrap——
+               HTML不允許button巢狀button，因此外包一層佔同一個grid-area的容器，兩顆◀▶
+               絕對定位貼在卡片左右邊緣。目前選第幾格由static/midnight.jsのflaskSlotIndex
+               （純本地）決定，見cycleFlaskSlot()／renderFlaskSlotCard()；沒有結晶雫時
+               只有1格，兩顆切換鍵直接disabled。 -->
+          <div id="midnight-flask-wrap">
           <button type="button" id="btn-midnight-use-flask" class="midnight-action-card midnight-action-card-flask">
             <!-- 「使用中」浮標（2026-09-13使用者明確規格「使用聖杯瓶中，格子上方顯示
                  使用中」）：沿用.midnight-action-flash既有的「絕對定位在按鈕格正上方
@@ -914,8 +921,14 @@ BODY = """    <div class="midnight-wrap">
                  static/midnight.jsのrenderFlaskReadBar()。 -->
             <span id="midnight-flask-using-badge" class="midnight-cell-badge" hidden></span>
             <span class="midnight-bar-track midnight-bar-track-sm"><span class="midnight-bar-fill midnight-bar-flask-read" id="midnight-flask-read-fill"></span></span>
-            <span data-i18n="midnight_flask_use_button"></span>
+            <!-- 品名（聖杯瓶／結晶雫名）由renderFlaskSlotCard()填，因此沒有data-i18n。 -->
+            <span id="midnight-flask-label"></span>
+            <span id="midnight-flask-slot-index" hidden></span>
+            <span id="midnight-flask-slot-count" hidden></span>
           </button>
+            <button type="button" id="btn-midnight-flask-prev" class="midnight-consumable-cycle-btn" aria-label="prev">&#9664;</button>
+            <button type="button" id="btn-midnight-flask-next" class="midnight-consumable-cycle-btn" aria-label="next">&#9654;</button>
+          </div>
           <button type="button" id="btn-midnight-weapon-left" class="midnight-action-card midnight-action-card-weapon">
             <span id="midnight-weapon-left-label"></span>
           </button>
@@ -1585,6 +1598,13 @@ BODY = """    <div class="midnight-wrap">
                   <h4 data-i18n="midnight_relic_memory_title"></h4>
                   <div id="midnight-character-sheet-relic-memories" class="midnight-sheet-slots"></div>
                 </div>
+                <!-- 結晶雫（2026-09-25使用者明確規格「在角色視窗如果擁有結晶雫則顯示該內容」）：
+                     來源是帶入的遺物記憶（見static/midnight.jsのapplyCrystalTearGrant()），
+                     只能持有一件，沒有時整列隱藏。 -->
+                <div class="midnight-sheet-section" id="midnight-character-sheet-crystal-tear-section" hidden>
+                  <h4 data-i18n="midnight_crystal_tear_title"></h4>
+                  <div id="midnight-character-sheet-crystal-tear"></div>
+                </div>
                 <div class="midnight-sheet-section">
                   <h4 data-i18n="midnight_character_sheet_talismans_label"></h4>
                   <div id="midnight-character-sheet-talismans" class="midnight-sheet-slots"></div>
@@ -1752,6 +1772,7 @@ def build_midnight_html() -> str:
             # docs/superpowers/specs/2026-09-24-relic-memory-design.md），midnight.js 會讀
             # window.PriTestMidnightRelicMemory，必須排在它之前。沒有其他相依。
             "midnight_relic_memory.js",
+            "midnight_relic_memory_catalog.js",
             # 2026-09-13新增：武器詞條的純參考資料（名稱／有益・有害分類／數值範圍／規則
             # 本文），midnight.jsのrollWeaponAffixes()等會讀window.PriTestWeaponAffixes，
             # 必須排在它之前。純資料模組、沒有其他相依。

@@ -466,22 +466,90 @@
   // midnight帶入的遺物記憶（c.relicMemoryLoadout[].effects）。可否重複計算由效果定義上的
   // stackable旗標決定（使用者之後逐一指定，預設不可）：不可疊加者同id只留1個。
   // 習得上限／置換／習得UI仍只看learnedAttachedEffects，這支只給「判定效果」的讀取點用。
+  //
+  // 2026-09-25（範圍接線）：mem.effects的每一項從純字串id換成了{ id, value }——value是
+  // 產生那顆記憶當下擲定的數值（設計文件§10.2）。舊格式（純字串）仍然存在於已保存到
+  // Firebase的記憶裡，所以這裡兩種都收。這支只回傳id清單，數值的實際套用由各計算點另外
+  // 處理；character_drawer.js刻意不依賴midnight_relic_memory.js（那支只在midnight頁面
+  // 載入，night頁面沒有），所以就地判型，不呼叫RM.effectIdList()。
+  function relicMemoryEffectId(entry) {
+    if (typeof entry === "string") return entry;
+    return entry && typeof entry === "object" && entry.id ? entry.id : null;
+  }
+
   function activeAttachedEffectIds(c) {
     if (!c) return [];
     var ids = (c.learnedAttachedEffects || []).slice();
     (c.relicMemoryLoadout || []).forEach(function (mem) {
-      (mem && mem.effects ? mem.effects : []).forEach(function (id) {
-        ids.push(id);
+      (mem && mem.effects ? mem.effects : []).forEach(function (entry) {
+        var id = relicMemoryEffectId(entry);
+        if (id) ids.push(id);
       });
     });
+    // 可否疊加：先看這 24 種附帶效果自己的 stackable，查不到再看遺物記憶目錄
+    // （midnight_relic_memory_catalog.js，2026-09-25 的池擴充之後記憶會抽到那邊的效果）。
+    // catalog 只在 midnight 頁面載入，night 頁面沒有，所以是可選查詢——查不到就走預設的
+    // 「不可疊加」，與擴充前的行為相同。
     var seen = {};
     return ids.filter(function (id) {
-      var effect = attachedEffectById(id);
-      if (effect && effect.stackable === true) return true;
+      if (attachedEffectStackable(id)) return true;
       if (seen[id]) return false;
       seen[id] = true;
       return true;
     });
+  }
+
+  function attachedEffectStackable(id) {
+    var effect = attachedEffectById(id);
+    if (effect) return effect.stackable === true;
+    var CAT = window.PriTestMidnightRelicMemoryCatalog;
+    var ce = CAT ? CAT.effect(id) : null;
+    return !!(ce && ce.stackable === true);
+  }
+
+  // 帶入的遺物記憶裡，目前生效中的效果（含擲定的數值）。跟 activeAttachedEffectIds() 是
+  // 同一套去重規則（stackable false 的同 id 只留第一次出現的那顆），差別只在這支保留
+  // value，給需要數值的計算點用（威力補正等）。midnight.js 那邊的 relicMemoryBonusTotal()
+  // 是同一個概念、但以 alias 的 bonus key 為單位，兩者刻意不互相依賴：character_drawer.js
+  // 不載入 midnight.js（night 頁面沒有 midnight.js）。
+  function relicMemoryActiveEntries(c) {
+    var out = [];
+    if (!c || !c.relicMemoryLoadout) return out;
+    var seen = {};
+    c.relicMemoryLoadout.forEach(function (mem) {
+      (mem && mem.effects ? mem.effects : []).forEach(function (entry) {
+        var id = relicMemoryEffectId(entry);
+        if (!id) return;
+        if (!attachedEffectStackable(id)) {
+          if (seen[id]) return;
+          seen[id] = true;
+        }
+        out.push({ id: id, value: entry && typeof entry === "object" && typeof entry.value === "number" ? entry.value : null });
+      });
+    });
+    return out;
+  }
+
+  // 遺物記憶的威力補正加減（第 3 期，2026-09-25／設計文件 §10.13.2 の 3）。兩種來源：
+  //   ・rm_stat_strength 等 6 條「筋力+1~+3」系：加的量是那顆記憶擲定的 value。
+  //   ・角色專用的能力值互換 20 條：固定值，來自 catalog 的 STAT_SWAPS[id].powerMod。
+  // 換算表放在 midnight_relic_memory_catalog.js（資料檔）而不是這裡，因為 midnight.js 的
+  // HP／FP／體力上限也要讀同一張表，見該檔的說明。catalog 只在 midnight 頁面載入，
+  // night 頁面沒有，因此是可選查詢——查不到一律回 0，行為與接入前完全相同。
+  function relicMemoryPowerModBonus(c, statKey) {
+    var CAT = window.PriTestMidnightRelicMemoryCatalog;
+    if (!CAT || !statKey || !c || !c.relicMemoryLoadout || !c.relicMemoryLoadout.length) return 0;
+    var total = 0;
+    relicMemoryActiveEntries(c).forEach(function (entry) {
+      if (CAT.powerModStatOf(entry.id) === statKey && typeof entry.value === "number") total += entry.value;
+      var swap = CAT.statSwap(entry.id);
+      if (swap && swap.powerMod && typeof swap.powerMod[statKey] === "number") total += swap.powerMod[statKey];
+    });
+    // 遺物記憶「遺跡の強敵を倒す度、神秘上昇」（第 6 期）：加成次數取決於 midnight 的地圖
+    // 狀態，這支檔案看不到，所以由 midnight.js 每影格把算好的值寫在角色物件的
+    // _rmMilestoneArcane 上（沒帶記憶時是 0），這裡只負責加進神秘那一項。
+    if (statKey === "arcane" && typeof c._rmMilestoneArcane === "number") total += c._rmMilestoneArcane;
+    return total;
   }
 
   function allAttachedEffectIds() {
@@ -1810,6 +1878,30 @@
     });
   }
 
+  // 遺物記憶「出撃時の武器の戦技を『X』にする」／「魔術を『X』にする」（第 4 期，
+  // 2026-09-25）：使用者明確指示「直接替換欄位不保持兩個戰技」，所以是**替換**，不是
+  // 既有的 c.weaponExtraSkills（追加）。替換對象是 c.relicMemorySkillSwap 指定的那一把
+  // 武器（＝出撃時の武器＝ weaponIds[0]，由 midnight.js 在開局時寫入）。
+  //
+  // 實作取捨（不是規格另有規定）：
+  //   ・只換**武器自己的第 1 個招式枠**。原文「戦技を『X』にする」是單數，換掉全部會讓
+  //     有兩個枠的武器平白少一個；換第 1 個既保住枠數，也確實只有一個 X。
+  //   ・盾（attachedEffect／reverseArt 枠）不換——那不是「戦技」，換掉會弄丟盾的附帶效果。
+  //   ・武器本來一個招式枠都沒有時，就把 X 當成它唯一的招式。這仍然是「只有一個」，
+  //     沒有違反使用者「不保持兩個戰技」的指示。
+  //   ・weaponExtraSkills（塗脂等後天附加）不受影響，那是另一套既有機制。
+  function weaponOwnSkillRefPairs(c, weaponId, category, weapon) {
+    var pairs = collectWeaponSkillRefs(category, weapon);
+    var swap = c && c.relicMemorySkillSwap;
+    if (!swap || !swap.skillId || swap.weaponId !== weaponId) return pairs;
+    if (category && category.isShield) return pairs;
+    var replacement = { ref: { kind: "art", id: swap.skillId }, slotKey: null };
+    if (!pairs.length) return [replacement];
+    var out = pairs.slice();
+    out[0] = replacement;
+    return out;
+  }
+
   // skill ref（weapon.skills／attachedEffect／reverseArt／共通戦技いずれも同じ形）から
   // 表示用の{name, body, kind}を求める。ランダム枠（kind:"random"）はここでは扱わない。
   // kindLabel：規則書の格子見出し「（種類）｜（名称）」の種類部分（例：魔術「石掘り」、
@@ -2899,14 +2991,56 @@
   // rarityBonus（2026-09-13新増、省略可）：稀少度判定のダイス合計に加算する固定値。
   // midnight側の武器詞条「発見力上昇（抽選時の稀少度ポイント+1~2）」用の注入点で、
   // 呼び出し側が値を渡さなければ従来と完全に同じ挙動（night.js側は渡さない）。
-  function merchantDrawWeapon(c, starCount, rarityBonus) {
+  // 大分類（武器種類）の抽選。categoryBonusが無ければ従来通りの均等ランダム。
+  //
+  // categoryBonus（2026-09-25追加、省略可）：{ categoryId: 確率の増分(0〜1) }。
+  // midnight側の遺物記憶「潜在する力から、○○を見つけやすくなる」32條用の注入点で、
+  // 使用者明確規格（2026-09-25）は**絶対値で+10ポイント**——32種均等なら3.125%が13.125%に
+  // なる、という意味。したがって「重みを掛ける」のではなく、対象カテゴリの確率を
+  // base+bonusに固定し、残りを他のカテゴリで山分けする。
+  // 呼び出し側が値を渡さなければ従来と完全に同じ挙動（night.js側は渡さない）。
+  function pickCategoryIdWithBonus(categories, categoryBonus) {
+    var n = categories.length;
+    if (!n) return null;
+    var base = 1 / n;
+    var probs = [];
+    var bonusSum = 0;
+    var boosted = 0;
+    for (var i = 0; i < n; i++) {
+      var b = categoryBonus ? Math.max(0, categoryBonus[categories[i].id] || 0) : 0;
+      if (b > 0) {
+        bonusSum += b;
+        boosted++;
+      }
+      probs.push(b);
+    }
+    if (!boosted) return categories[Math.floor(Math.random() * n)].id;
+    // 加算総量が大きすぎて他のカテゴリの取り分が負になる場合だけ縮める（実際には
+    // 3枠×10%＝30%が上限なので起きないが、将来効果が増えたときの保険）。
+    var maxBonus = 1 - boosted * base;
+    if (bonusSum > maxBonus) {
+      var scale = maxBonus > 0 ? maxBonus / bonusSum : 0;
+      for (var s = 0; s < n; s++) probs[s] *= scale;
+      bonusSum = maxBonus;
+    }
+    var restEach = boosted < n ? (1 - boosted * base - bonusSum) / (n - boosted) : 0;
+    var r = Math.random();
+    var acc = 0;
+    for (var j = 0; j < n; j++) {
+      acc += probs[j] > 0 ? base + probs[j] : restEach;
+      if (r < acc) return categories[j].id;
+    }
+    return categories[n - 1].id;
+  }
+
+  function merchantDrawWeapon(c, starCount, rarityBonus, categoryBonus) {
     var categories = Weapons.categories();
     if (!categories.length) return null;
     var stars = Math.max(1, Math.min(4, starCount || 1));
     var bonus = rarityBonus || 0;
     var attempt, item, rarity, categoryId, rarityDice, itemDie;
     for (attempt = 0; attempt < 20; attempt++) {
-      categoryId = categories[Math.floor(Math.random() * categories.length)].id;
+      categoryId = pickCategoryIdWithBonus(categories, categoryBonus);
       rarityDice = [];
       for (var i = 0; i < stars; i++) rarityDice.push(rollD6());
       rarity = lookupRarityBySum(
@@ -4528,6 +4662,7 @@
       talismanPowerModBonus(c, statKey) +
       relicPowerModBonus(c, statKey) +
       graceFlameKingPowerModBonus(c, statKey) +
+      relicMemoryPowerModBonus(c, statKey) +
       weaponInnatePowerModAdjustment(weapon, statKey);
     // powerModText（2026-09-06 midnight角色視窗武器詳細資訊改版新增，使用者明確要求
     // 「威力補正: 平衡(10)寫上根據甚麼加成的威力」）：附加回傳這把武器實際套用的威力補正
@@ -4773,6 +4908,7 @@
       talismanPowerModBonus(c, statKey) +
       relicPowerModBonus(c, statKey) +
       graceFlameKingPowerModBonus(c, statKey) +
+      relicMemoryPowerModBonus(c, statKey) +
       (weapon ? weaponInnatePowerModAdjustment(weapon, statKey) : 0)
     );
   }
@@ -6702,7 +6838,7 @@
       var weapon = Weapons.get(baseWeaponId(weaponId));
       if (!weapon) return;
       var category = Weapons.getCategory(weapon.category);
-      var skillRefPairs = collectWeaponSkillRefs(category, weapon).concat(
+      var skillRefPairs = weaponOwnSkillRefPairs(c, weaponId, category, weapon).concat(
         ((c.weaponExtraSkills && c.weaponExtraSkills[weaponId]) || []).map(function (ref) {
           return { ref: ref, slotKey: null };
         })
@@ -6728,6 +6864,10 @@
         if (!skill || skill.kind !== "Action") return;
         entries.push({
           id: "wpn:" + weaponId + ":" + actualRef.id,
+          // skillId（2026-09-25追加）：weapons_skills.js 上的招式 id。既有欄位一個都沒動，
+          // 只是把「這是哪一條招式」直接帶出來，免得呼叫端去拆 id 字串。遺物記憶的
+          // 「○○の魔術の威力を+」需要讀該招式的 kindLabel（魔術／祈禱的系統別）。
+          skillId: actualRef.id,
           name: skill.name,
           body: skill.body,
           kind: skill.kind,
@@ -6760,6 +6900,7 @@
         if (!skill || skill.kind !== "Action") return;
         entries.push({
           id: "favored_prayer:" + cfg.skillId,
+          skillId: cfg.skillId,
           name: skill.name,
           body: skill.body,
           kind: skill.kind,
@@ -7314,6 +7455,10 @@
     learnRelicEffect: learnRelicEffect,
     assignRelicChoiceIfNeeded: assignRelicChoiceIfNeeded,
     activeAttachedEffectIds: activeAttachedEffectIds,
+    relicMemoryEffectId: relicMemoryEffectId,
+    relicMemoryActiveEntries: relicMemoryActiveEntries,
+    relicMemoryPowerModBonus: relicMemoryPowerModBonus,
+    attachedEffectStackable: attachedEffectStackable,
     allAttachedEffectIds: allAttachedEffectIds,
     assignAttachedResistChoiceIfNeeded: assignAttachedResistChoiceIfNeeded,
     relicChoiceConfigForEffect: relicChoiceConfigForEffect,
@@ -7331,6 +7476,7 @@
     upgradeWeaponRarity: upgradeWeaponRarity,
     canUpgradeWeaponRarity: canUpgradeWeaponRarity,
     merchantDrawWeapon: merchantDrawWeapon,
+    pickCategoryIdWithBonus: pickCategoryIdWithBonus,
     drawWeaponFromCategory: drawWeaponFromCategory,
     presetWeaponRollForReward: presetWeaponRollForReward,
     makeConsumableInstanceId: makeConsumableInstanceId,
@@ -7368,6 +7514,7 @@
     // 戰技。midnight.js需要「依weaponId解析這把武器自己的戰技（含random枠的保存鍵）」，
     // 這兩支既有純函式正是為此存在，改為匯出重用，而不是在midnight.js複製一份規則。
     collectWeaponSkillRefs: collectWeaponSkillRefs,
+    weaponOwnSkillRefPairs: weaponOwnSkillRefPairs,
     weaponSkillSlotKey: weaponSkillSlotKey,
     potentialPowerDrawWeapon: potentialPowerDrawWeapon,
     commitPotentialPowerWeapon: commitPotentialPowerWeapon,

@@ -4856,13 +4856,69 @@ html.midnight-banner-above-hud:not(.midnight-top-banner-collapsed) #midnight-rew
   opacity: 0.45;
 }
 
-#btn-midnight-use-flask {
+/* 聖杯瓶卡片外層（2026-09-25：聖杯瓶／結晶雫的左右切換鍵）：接手原本卡片的grid-area，
+   結構與#midnight-consumable-wrap完全相同，只是這一格還要讓「使用中」浮標浮出卡片上緣，
+   因此overflow維持visible。 */
+#midnight-flask-wrap {
   grid-area: flask;
+  position: relative;
+  display: flex;
+}
+
+#btn-midnight-use-flask {
+  flex: 1;
+  width: 100%;
+  padding-left: 0.9rem;
+  padding-right: 0.9rem;
   /* 「使用中」浮標（#midnight-flask-using-badge）要浮出卡片外緣，因此這一格必須
      position:relative當定位基準、並解除.midnight-action-card的overflow:hidden，
      否則會被卡片邊界裁掉（2026-09-13）。 */
   position: relative;
   overflow: visible;
+}
+
+/* 結晶雫名最長 7 個字（「緋色渦の泡雫」），比「使用聖杯瓶」長：縮一級字並壓縮行距，
+   讓兩行剛好落在剩餘數徽章上方不被蓋住。 */
+#midnight-flask-label {
+  font-size: 0.55rem;
+  line-height: 1.05;
+  max-height: 2.2em;
+  overflow: hidden;
+}
+
+#btn-midnight-flask-prev {
+  left: 0;
+}
+
+#btn-midnight-flask-next {
+  right: 0;
+}
+
+/* 第N格／共M格與剩餘數徽章：位置與樣式沿用消耗品卡片那兩個（同一種卡片、同一種資訊）。 */
+#midnight-flask-slot-index {
+  position: absolute;
+  top: 0.1rem;
+  right: 0.9rem;
+  font-size: 0.48rem;
+  line-height: 1;
+  opacity: 0.75;
+}
+
+/* 結晶雫的剩餘次數：放**左上角**（消耗品卡片是放右下角）。聖杯瓶格只有 48px 高，
+   放右下角會壓在品名第二行上——左上角跟右上角的「第N/共M格」左右分開，兩個都不擋文字。 */
+#midnight-flask-slot-count {
+  position: absolute;
+  left: 0.85rem;
+  top: 0.1rem;
+  padding: 0 0.28rem;
+  border-radius: 3px;
+  font-size: 0.62rem;
+  font-weight: bold;
+  line-height: 1.3;
+  color: #10200a;
+  background: #ffd54a;
+  border: 1px solid rgba(0, 0, 0, 0.35);
+  pointer-events: none;
 }
 
 #btn-midnight-weapon-left {

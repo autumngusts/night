@@ -36,13 +36,86 @@
     return [];
   }
 
-  function rollEffects(size, effectIds, rand) {
+  // 範圍擲值（使用者明確規格 2026-09-24：「前80%內容機率80% 後20%機率20%」）。
+  // 把 [min, max] 依**長度**切成前 80%／後 20% 兩段，以 80%／20% 的機率選一段，再在該段
+  // 內均勻取一個整數。結果是同一個範圍裡越靠上限越難抽到——後 20% 的值合計只佔 20% 的
+  // 機率，這就是「效果越好的機率越低」（設計文件 §10.2）。
+  // 例：[10,30] 切點 26，80% 落在 10〜26、20% 落在 27〜30。
+  // 範圍來自 midnight_relic_memory_catalog.js 的 effect.range；range 為 null 的效果不擲。
+  //
+  // opts.high（使用者明確規格 2026-09-25）：固定遺物上的「強化版」效果（「致命の一撃強化+1」
+  // 對「致命の一撃強化」等 4 條 variant，見 catalog 的 FIXED_RELIC_EFFECT_ALIAS）改成
+  // **只擲後段**——不做 80%／20% 的段落選擇，直接在後 20% 區間內均勻取值，必定是高值。
+  // 使用者在「機率完全反轉／只擲後段／50-50」三個選項中選的是「只擲後段（必定高值）」。
+  // 注意這條路徑只消耗 1 次 rand()（沒有段落選擇那一擲），寫測試時要留意。
+  var RANGE_LOW_PORTION = 0.8; // 前段佔範圍長度的比例
+  var RANGE_LOW_CHANCE = 0.8; // 前段被選中的機率
+
+  function rollRangeValue(min, max, rand, opts) {
+    if (typeof min !== "number" || typeof max !== "number") return null;
+    if (max <= min) return min;
+    var split = Math.floor(min + (max - min) * RANGE_LOW_PORTION);
+    var lo = min;
+    var hi = split;
+    if (opts && opts.high === true) {
+      lo = split + 1;
+      hi = max;
+    } else if (rand() >= RANGE_LOW_CHANCE) {
+      lo = split + 1;
+      hi = max;
+    }
+    // 範圍太短切不出兩段時退回整段，避免擲出空區間。
+    if (hi < lo) {
+      lo = min;
+      hi = max;
+    }
+    return lo + Math.floor(rand() * (hi - lo + 1));
+  }
+
+  // 同一顆記憶內抽到第 2 條「角色專用」效果的機率（使用者明確規格 2026-09-24：
+  // 「拿到一條後 第二條拿到的機率10%」）。只有中（2 條）／大（3 條）記憶抽得到第二條，
+  // 小記憶不受影響。依設計文件 §10.3，專用效果本來就不限定該角色才能抽到，這個門檻只是
+  // 讓一顆記憶不容易被專用效果塞滿。
+  //
+  // 適用範圍（使用者 2026-09-25 明確指示「只限第二條」）：10% 門檻**只套用在第 2 條**。
+  // 原本的實作是每一條都套用同一個門檻（當時使用者的措辭只講到「第二條」），2026-09-25
+  // 使用者確認採窄讀法，改成只看 i === 1。
+  //
+  // 第 3 條（大記憶才有）另有一條**更強的規則**（使用者 2026-09-25 明確指示
+  // 「第三條必不為角色專用效果」）：不是機率門檻，是硬性排除——一律從非專用池抽，
+  // 跟第 1 條抽到什麼無關。原本第 3 條是「不受限制、從整池均勻抽」。
+  // 注意 rand 的消耗順序（見 newMemory() 的註解）：這條排除**不擲骰**，所以第 3 條仍然
+  // 只消耗 1 次 rand，受控亂數測試的序列不變。
+  var EXCLUSIVE_REPEAT_CHANCE = 0.1;
+  var EXCLUSIVE_THRESHOLD_INDEX = 1; // 第 2 條（索引 1）套用 10% 門檻
+  var EXCLUSIVE_FORBIDDEN_INDEX = 2; // 第 3 條（索引 2）一律不抽專用效果
+
+  // opts.isExclusive(id) → 該效果是不是角色專用。不傳就是舊行為（整池均勻抽）。
+  function rollEffects(size, effectIds, rand, opts) {
+    var isExclusive = (opts && opts.isExclusive) || null;
     var pool = effectIds.slice();
     var n = Math.min(SIZE_EFFECT_COUNT[size] || 1, pool.length);
     var out = [];
+    var gotExclusive = false;
     for (var i = 0; i < n; i++) {
-      var idx = Math.min(pool.length - 1, Math.floor(rand() * pool.length));
-      out.push(pool.splice(idx, 1)[0]);
+      var candidates = pool;
+      var excludeExclusive = false;
+      if (isExclusive) {
+        if (i === EXCLUSIVE_FORBIDDEN_INDEX) excludeExclusive = true;
+        else if (gotExclusive && i === EXCLUSIVE_THRESHOLD_INDEX && rand() >= EXCLUSIVE_REPEAT_CHANCE) excludeExclusive = true;
+      }
+      if (excludeExclusive) {
+        var plain = pool.filter(function (id) {
+          return !isExclusive(id);
+        });
+        // 非專用效果抽光時才退回整池，否則記憶會湊不滿該有的條數。
+        if (plain.length) candidates = plain;
+      }
+      var idx = Math.min(candidates.length - 1, Math.floor(rand() * candidates.length));
+      var picked = candidates[idx];
+      pool.splice(pool.indexOf(picked), 1);
+      out.push(picked);
+      if (isExclusive && isExclusive(picked)) gotExclusive = true;
     }
     return out;
   }
@@ -53,11 +126,52 @@
     return s;
   }
 
-  function newMemory(size, effectIds, source, rand, now) {
+  // 記憶內的一條效果，統一成 { id, value } 的形狀。
+  // value 是產生這顆記憶當下擲定的數值（設計文件 §10.2），之後永遠是這個值；
+  // 沒有 range 的效果不帶 value（Firebase RTDB 存 null 等同刪 key，所以乾脆不寫）。
+  //
+  // 舊格式相容：2026-09-25 之前產生、已經存在 Firebase 的記憶，effects 是純字串陣列。
+  // 所有讀取點都走 effectEntries()／effectIdList()，字串會被視為「沒有擲過值」的 { id }，
+  // 不需要資料遷移，也不會因此丟掉既有記憶。
+  function effectEntries(mem) {
+    var raw = (mem && mem.effects) || [];
+    var out = [];
+    for (var i = 0; i < raw.length; i++) {
+      var e = raw[i];
+      if (typeof e === "string") out.push({ id: e, value: null });
+      else if (e && typeof e === "object" && e.id) out.push({ id: e.id, value: typeof e.value === "number" ? e.value : null });
+    }
+    return out;
+  }
+
+  function effectIdList(mem) {
+    return effectEntries(mem).map(function (e) {
+      return e.id;
+    });
+  }
+
+  // opts.rangeOf(id) → 該效果的 [min, max]，沒有範圍時回傳 null／undefined。
+  // 不傳就不擲值（附帶效果那 24 種本來就沒有範圍），結果與舊版完全相同。
+  // opts.isExclusive 見 rollEffects()。
+  //
+  // rand 的消耗順序（用受控亂數寫測試時最容易踩的地方）：
+  //   1. rollEffects()：每條效果 1 次，第 2 條若套用專用門檻會多 1 次。
+  //   2. **randomHex16()：16 次**——memId 那一行排在 effects 前面，物件字面量由上到下
+  //      求值，所以這 16 次夾在「選效果」與「擲值」之間。
+  //   3. 每條有範圍的效果 2 次（rollRangeValue 的選段＋段內取值）。
+  // 受控序列少算中間那 16 次，就會循環取到錯位的值（2026-09-25 的全覆蓋檢查踩過）。
+  function newMemory(size, effectIds, source, rand, now, opts) {
+    var rangeOf = (opts && opts.rangeOf) || null;
+    var ids = rollEffects(size, effectIds, rand, opts);
     return {
       memId: "m" + randomHex16(rand),
       size: size,
-      effects: rollEffects(size, effectIds, rand),
+      effects: ids.map(function (id) {
+        var range = rangeOf ? rangeOf(id) : null;
+        if (!range || typeof range[0] !== "number" || typeof range[1] !== "number") return { id: id };
+        var value = rollRangeValue(range[0], range[1], rand);
+        return value === null ? { id: id } : { id: id, value: value };
+      }),
       createdAt: now,
       favorite: false,
       source: source,
@@ -155,6 +269,14 @@
     normalizeCode: normalizeCode,
     grantSizes: grantSizes,
     rollEffects: rollEffects,
+    rollRangeValue: rollRangeValue,
+    RANGE_LOW_PORTION: RANGE_LOW_PORTION,
+    RANGE_LOW_CHANCE: RANGE_LOW_CHANCE,
+    EXCLUSIVE_REPEAT_CHANCE: EXCLUSIVE_REPEAT_CHANCE,
+    EXCLUSIVE_THRESHOLD_INDEX: EXCLUSIVE_THRESHOLD_INDEX,
+    EXCLUSIVE_FORBIDDEN_INDEX: EXCLUSIVE_FORBIDDEN_INDEX,
+    effectEntries: effectEntries,
+    effectIdList: effectIdList,
     newMemory: newMemory,
     milestoneGrantKeys: milestoneGrantKeys,
     cycleGrantKeys: cycleGrantKeys,
