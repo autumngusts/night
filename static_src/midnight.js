@@ -4654,6 +4654,16 @@
       c.summonedSpirit.nextAttackAt += deltaMs;
       GameStorage.rtSet(gameId, "cloud", "character/" + myTokenId + "/summonedSpirit", c.summonedSpirit);
     }
+    if (c.deathSpirits && c.deathSpirits.length) {
+      var shiftedDeath = false;
+      c.deathSpirits.forEach(function (s) {
+        if (s && typeof s.nextAttackAt === "number" && s.nextAttackAt > pausedAt) {
+          s.nextAttackAt += deltaMs;
+          shiftedDeath = true;
+        }
+      });
+      if (shiftedDeath) GameStorage.rtSet(gameId, "cloud", "character/" + myTokenId + "/deathSpirits", c.deathSpirits);
+    }
     flaskReadingUntil = shiftFutureTimestamp(flaskReadingUntil, pausedAt, deltaMs);
     // 長按類是「起點」而不是「到期時刻」，一樣往後挪deltaMs＝長按已累積的時間在暫停中凍結。
     // 起點必然 <= pausedAt，因此不能套shiftFutureTimestamp()（它只挪未來的時間戳）。
@@ -5156,13 +5166,22 @@
     renderCombatPanel();
   }
 
-  // 死靈術（復仇者/復仇者暗影被動，2026-09-06角色能力真正接入新增）：雜兵HP歸零時，
-  // 持有此被動者各擲1個骰子，5/6成功即召喚死靈（hpCurrent/hpMax=3，比照night.js既有數值）
+  // 死靈術（復仇者/復仇者暗影被動，2026-09-06角色能力真正接入新增）：雜兵HP歸零時召喚死靈
   // 到c.deathSpirits。使用者確認的觸發條件是「打過雜兵血量」（即雜兵HP耗盡），跟night.js
   // 「每失去1行」的逐行觸發不同——midnight的雜兵是單一合併血量池（使用者明確規格），因此
   // 簡化成整個池歸零時觸發1次，不追蹤「行」的中間邊界。
-  var NECROMANCY_SUCCESS_ROLLS = [5, 6];
-  var DEATH_SPIRIT_HP = 3;
+  //
+  // 2026-09-25使用者明確規格「能力招魂為被動，雜兵死掉能自動多召喚一隻靈體」（midnight 專屬，
+  // 與規則書不同）：
+  //   ・**不擲骰**——規則書是 5/6 才成功，midnight 改為雜兵血池歸零必定召喚 1 隻。
+  //   ・死靈會**真的攻擊**：以前只是往 c.deathSpirits 塞一筆資料，沒有任何作用。規則書「HP 以外
+  //     與『海倫』靈體相同」「規則上與靈體相同處理」＝發生傷害 15＋等級×5、跟靈體一樣每
+  //     SPIRIT_ATTACK_INTERVAL_MS 自動攻擊一次（見updateSummonedSpirit()），遺物「家族強化」也適用。
+  //   ・HP：規則書「□□□」＝3 格，換算跟三隻靈體同一刻度（SPIRIT_HP_PER_ROW）。
+  //   ・不代受傷害：使用者明確規格「只有一隻代受」＝技能召喚的那一隻（absorbDamageWithSpirit()）。
+  //   ・不影響「召喚靈體」的那一隻、數量沒有上限；戰鬥結束時消失（onEncounterEnded()）。
+  var DEATH_SPIRIT_HP_ROWS = 3;
+  var DEATH_SPIRIT_DMG_BASE = 15; // ＝海倫（SPIRIT_SUMMON_TYPES 的 helen.dmgBase）
 
   function maybeRollNecromancyForSelf(pointId) {
     var c = characters[myTokenId];
@@ -5173,18 +5192,28 @@
         })[0]
       : null;
     if (!c || !ability) return;
-    var roll = 1 + Math.floor(Math.random() * 6);
-    var success = NECROMANCY_SUCCESS_ROLLS.indexOf(roll) !== -1;
     var CharacterTypes = window.PriTestCharacterTypes;
     var name = CharacterTypes.localizedText(ability.name);
-    if (success) {
-      var spirits = (c.deathSpirits || []).slice();
-      spirits.push({ id: "sp" + Date.now() + Math.floor(Math.random() * 1000), hpCurrent: DEATH_SPIRIT_HP, hpMax: DEATH_SPIRIT_HP });
-      c.deathSpirits = spirits;
-      GameStorage.rtSet(gameId, "cloud", "character/" + myTokenId + "/deathSpirits", spirits);
-    }
-    showToast(name + "：" + window.I18N.t(success ? "midnight_necromancy_success_note" : "midnight_necromancy_fail_note", { roll: roll }));
+    var maxHp = DEATH_SPIRIT_HP_ROWS * SPIRIT_HP_PER_ROW;
+    var spirits = (c.deathSpirits || []).slice();
+    spirits.push({
+      id: "sp" + Date.now() + Math.floor(Math.random() * 1000),
+      hp: maxHp,
+      maxHp: maxHp,
+      dmg: DEATH_SPIRIT_DMG_BASE + (c.level || 1) * 5,
+      nextAttackAt: Date.now() + SPIRIT_ATTACK_INTERVAL_MS,
+    });
+    c.deathSpirits = spirits;
+    GameStorage.rtSet(gameId, "cloud", "character/" + myTokenId + "/deathSpirits", spirits);
+    showToast(name + "：" + window.I18N.t("midnight_necromancy_summon_note"));
     applyRelicMemoryAbilityTrigger(c); // 2026-09-25遺物記憶：アビリティ発動時（復仇者＝死靈術）
+  }
+
+  // 召喚中且活著的死靈。
+  function aliveDeathSpirits(c) {
+    return ((c && c.deathSpirits) || []).filter(function (s) {
+      return s && s.hp > 0;
+    });
   }
 
   function onFieldProgressReceived(value) {
@@ -9908,6 +9937,7 @@
   function updateSummonedSpirit(now) {
     if (isPaused()) return; // 2026-09-23：暫停中靈體原本照樣每2秒打敵人（下次攻擊時刻由暫停平移補回）
     var c = characters[myTokenId];
+    updateDeathSpirits(c, now); // 2026-09-25：死靈術召喚的死靈也各自攻擊
     var spirit = c && c.summonedSpirit;
     if (!spirit || spirit.hp <= 0 || !activeEncounter) return;
     if (now < (spirit.nextAttackAt || 0)) return;
@@ -9920,6 +9950,22 @@
   }
 
   var SPIRIT_FAMILY_BOOST_BONUS = 10;
+
+  // 死靈的自動攻擊（2026-09-25，見maybeRollNecromancyForSelf()）：跟技能靈體同一個間隔、同一個
+  // 傷害入口；到點的死靈這一幀一起出手，陣列整筆寫回一次。
+  function updateDeathSpirits(c, now) {
+    if (!c || !activeEncounter || !c.deathSpirits || !c.deathSpirits.length) return;
+    var fired = 0;
+    c.deathSpirits.forEach(function (s) {
+      if (!s || !(s.hp > 0) || now < (s.nextAttackAt || 0)) return;
+      s.nextAttackAt = now + SPIRIT_ATTACK_INTERVAL_MS;
+      damageCombatTarget(s.dmg + (hasRelic(c, "familyBoost") ? SPIRIT_FAMILY_BOOST_BONUS : 0), null);
+      fired++;
+    });
+    if (!fired) return;
+    triggerEnemyHitEffect(null);
+    GameStorage.rtSet(gameId, "cloud", "character/" + myTokenId + "/deathSpirits", c.deathSpirits);
+  }
 
   // 對雜兵單獨造成固定傷害，不像damageCombatTarget()那樣把溢出部分繼續打進敵人本體
   // （2026-09-08旋風新增，使用者明確規格是「對雜兵」的獨立傷害，不是一般攻擊的雜兵→敵人
@@ -10462,10 +10508,20 @@
     var show = spiritChoiceMenuOpen && spiritSummonAbilitySelected();
     menu.hidden = !show;
     if (!show) return;
-    // 每次開啟都重建：按鈕要顯示「保存中的現在HP／上限」（跨戰鬥保持，見storedSpiritHp()），
-    // HP為0的靈體按鈕disabled。
-    menu.textContent = "";
+    // 按鈕要顯示「保存中的現在HP／上限」（跨戰鬥保持，見storedSpiritHp()），HP為0的靈體按鈕disabled。
+    //
+    // 2026-09-25修正（使用者回報「無法主動用召喚靈體來召喚」）：這個函式每一幀都會被呼叫
+    // （renderCharPanel()），以前每一幀都把按鈕整批砍掉重建。真人點擊從按下到放開通常跨好幾幀，
+    // 放開時手指底下已經是另一顆新按鈕，瀏覽器不會派發 click——選了靈體卻什麼都沒發生。
+    // （Playwright 的 mouse.click 是同一幀內按下＋放開，所以既有測試一直沒抓到。）
+    // 改成只有內容（名稱／HP／disabled）真的變了才重建。
     var c = characters[myTokenId];
+    var signature = SPIRIT_SUMMON_TYPES.map(function (def) {
+      return def.kind + ":" + Math.round(storedSpiritHp(c, def.kind));
+    }).join("|") + "|" + (window.I18N.getLang ? window.I18N.getLang() : "");
+    if (menu.getAttribute("data-signature") === signature && menu.childNodes.length) return;
+    menu.setAttribute("data-signature", signature);
+    menu.textContent = "";
     SPIRIT_SUMMON_TYPES.forEach(function (def) {
       var btn = document.createElement("button");
       btn.type = "button";
@@ -10487,13 +10543,21 @@
     if (!badge) return;
     var spirit = c && c.summonedSpirit;
     var alive = !!(spirit && spirit.maxHp && spirit.hp > 0);
-    badge.hidden = !alive;
-    if (!alive) return;
-    var def = null;
-    for (var i = 0; i < SPIRIT_SUMMON_TYPES.length; i++) {
-      if (SPIRIT_SUMMON_TYPES[i].kind === spirit.kind) def = SPIRIT_SUMMON_TYPES[i];
+    // 2026-09-25：死靈術召喚的死靈數量也掛在同一個浮標（「☠×N」），只有死靈時也顯示。
+    var deathCount = aliveDeathSpirits(c).length;
+    badge.hidden = !alive && !deathCount;
+    if (badge.hidden) return;
+    var parts = [];
+    if (alive) {
+      var def = null;
+      for (var i = 0; i < SPIRIT_SUMMON_TYPES.length; i++) {
+        if (SPIRIT_SUMMON_TYPES[i].kind === spirit.kind) def = SPIRIT_SUMMON_TYPES[i];
+      }
+      parts.push((def ? def.glyph + " " + window.I18N.t(def.nameKey) : spirit.kind) + " " + Math.max(0, Math.round(spirit.hp)) + "/" + spirit.maxHp);
     }
-    badge.textContent = (def ? def.glyph + " " + window.I18N.t(def.nameKey) : spirit.kind) + " " + Math.max(0, Math.round(spirit.hp)) + "/" + spirit.maxHp;
+    if (deathCount) parts.push(window.I18N.t("midnight_death_spirit_badge", { count: deathCount }));
+    var text = parts.join("　");
+    if (badge.textContent !== text) badge.textContent = text;
   }
   var SPIRIT_ATTACK_INTERVAL_MS = 6000; // 使用者明確規格「攻擊頻率較敵人慢兩倍」，敵人排程約2~4秒（見ENEMY_ATTACK_INTERVAL_MIN/MAX_MS），這裡固定用兩倍的平均值
 
@@ -11283,8 +11347,10 @@
   // 按鈕disabled時瀏覽器不會派發pointerdown／click，所以不用另外檢查disabled。
   function performDodge(pressedAt) {
     if (isSelfDowned()) return;
+    // 2026-09-25使用者明確規格「使用需要施法的攻擊時，例如法術以及聖杯瓶，按下閃避防禦包含
+    // 快捷鍵時會取消使用」：按下的當下就取消，不看體力夠不夠（體力不足、迴避沒成立也照樣中斷）。
+    cancelCastingForDefense();
     if (!spendStamina(dodgeStaminaCost(characters[myTokenId]))) return;
-    cancelFlaskReadingForOtherAction();
     dodgePressedAt = pressedAt;
     recordBattleSimDodgePress(pressedAt); // 戰鬥模擬的迴避計時（純量測，放開時刻另由click補記）
     playMySpriteAnim("dodge"); // 玩家 sprite：迴避の行（row1）
@@ -11774,7 +11840,7 @@
 
   function startBlockHold() {
     if (!mySlot || isPaused() || !currentGuardInfo()) return;
-    cancelFlaskReadingForOtherAction();
+    cancelCastingForDefense(); // 2026-09-25：防禦也中斷施法與聖杯瓶（見performDodge()）
     blockHolding = true;
     blockHoldStartedAt = Date.now(); // 2026-09-13武器詞條：架盾持續3秒觸發的4條
     renderBlockGuardBar();
@@ -11846,6 +11912,18 @@
   // （例如體力不足被擋下）也誤取消。
   function cancelFlaskReadingForOtherAction() {
     flaskReadingUntil = null;
+  }
+
+  // 迴避／防禦按下時的中斷（2026-09-25使用者明確規格「使用需要施法的攻擊時，例如法術以及聖杯瓶，
+  // 按下閃避防禦包含快捷鍵時會取消使用」）：聖杯瓶／結晶雫的讀取，以及魔術・祈禱的長按詠唱
+  // （sorceryHoldState，未滿時間前被清掉＝不消耗不觸發，跟放開取消同一個結果）一起中斷。
+  // 玩家手指還按在魔術鍵上也不會自己重新開始——詠唱只在pointerdown的startSkillBHold()起算。
+  // 快捷鍵（Shift／G）走的也是performDodge()／startBlockHold()，所以同樣會中斷。
+  function cancelCastingForDefense() {
+    cancelFlaskReadingForOtherAction();
+    Object.keys(sorceryHoldState).forEach(function (key) {
+      delete sorceryHoldState[key];
+    });
   }
 
   // 讀取到期才真正扣次數＋回血，回復量FLASK_HEAL_AMOUNT是佔位值（見常數區塊註解）。
@@ -16476,6 +16554,11 @@
     // 2026-09-21使用者明確規格「結束戰鬥不會補滿、結束戰鬥後的靈體HP保持」：消失前把現在HP
     // 寫回spiritHpByKind，下次召喚從那個值開始（見dismissSummonedSpirit()）。
     if (c && c.summonedSpirit) dismissSummonedSpirit(c);
+    // 死靈術的死靈：規則書「戰鬥結束時自動從劇本中移除」（跟靈體不同，不保存HP）。
+    if (c && c.deathSpirits && c.deathSpirits.length) {
+      c.deathSpirits = [];
+      GameStorage.rtSet(gameId, "cloud", "character/" + myTokenId + "/deathSpirits", null);
+    }
     // 2026-09-20審查M18修正：red「朱紅腐敗的瘴氣」的腐敗、ice「凍寒的暴風雪」的凍傷是
     // 地圖規則明寫「戰鬥結束也不重置／持續累積」（見maybeApplyRedMiasmaTick()／
     // maybeApplyIceFrostbiteTick()），戰鬥結束清空自身蓄積時要把這兩個留下來。
@@ -28185,6 +28268,22 @@
       if (on) sorceryHoldState[key] = Date.now();
       else delete sorceryHoldState[key];
       renderSorceryCastBars();
+    },
+    // 2026-09-25：死靈術（必定召喚＋自動攻擊）的回歸測試用。
+    _debugTriggerNecromancy: function () {
+      maybeRollNecromancyForSelf(activeEncounter ? activeEncounter.id : null);
+    },
+    _debugUpdateDeathSpirits: function (now) {
+      updateDeathSpirits(characters[myTokenId], now || Date.now());
+    },
+    // 2026-09-25：迴避／防禦中斷詠唱的回歸測試用（見cancelCastingForDefense()）。
+    _debugSorceryHoldKeys: function () {
+      return Object.keys(sorceryHoldState);
+    },
+    _debugSorceryButtonKeys: function () {
+      return SORCERY_BUTTON_DEFS.map(function (d) {
+        return d.key;
+      });
     },
     _debugSpellIconClassForWeapon: function (weaponId) {
       return spellEntryIconClass({ weaponId: weaponId });

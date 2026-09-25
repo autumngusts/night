@@ -237,7 +237,11 @@
       face.cellHPx = Math.round(faceW * face.aspect);
       // i=0 が帯のいちばん右＝敵人に近い側。奥（左）へ行くほど少しだけ小さく見せたいところ
       // だが、面ごとに幅を変えると接地線もずれるので、同寸のまま重ねるだけにしてある。
-      face.el.style.left = Math.max(0, Math.round(band - faceW - i * step)) + "px";
+      // 分離版面（2026-09-25 使用者明確規格「人物貼左邊」）：群ごと帯の左端に寄せる。
+      // 並び順は同じ（i=0＝自分がいちばん右＝敵人に近い側）。人数が多くて帯を埋めるときは
+      // 左寄せでも右寄せでも同じ位置になる。
+      var groupLeft = arena ? 0 : band - faceW - (n - 1) * step;
+      face.el.style.left = Math.max(0, Math.round(groupLeft + (n - 1 - i) * step)) + "px";
       face.el.style.right = "auto";
       face.el.style.width = faceW + "px";
       face.el.style.height = face.cellHPx + "px";

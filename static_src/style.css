@@ -9200,11 +9200,13 @@ html.midnight-top-banner-collapsed .midnight-top-banner-collapse-btn {
      ＝面板約 46%），剩下一點當間隔。仍在面板內，不會被 #midnight-hud-bottom-center 的
      overflow-x:hidden 切掉。
    - 刀光／屬性光暈／致命一擊等疊層都還在圖框裡，所以一律對準敵人，不會落在玩家身上。 */
+/* 2026-09-25 同日第三版（使用者明確規格「敵人點陣圖仍在戰鬥面板中心位置，人物貼左邊」）：
+   圖框改回面板正中央（寬 50%、左右 auto），玩家舞台從面板左緣開始。 */
 #midnight-field-encounter-image-wrap.midnight-sprite-arena {
   display: block;
-  width: 52%;
+  width: 50%;
   margin-left: auto;
-  margin-right: 0;
+  margin-right: auto;
   aspect-ratio: 1 / 1;
 }
 
@@ -9218,13 +9220,16 @@ html.midnight-top-banner-collapsed .midnight-top-banner-collapse-btn {
   transform: translateX(-50%);
 }
 
+/* 玩家舞台：左端＝面板內容的左緣（圖框寬 50% 置中 → 左側空間＝圖框寬的 50%，所以 left:-50%），
+   右端伸進敵人圖框 10%（敵人的 1 格左右本來就有留白，伸進去不會壓到敵人本體，玩家才有夠寬的帶）。
+   面在帶內靠左排（midnight_player_sprite.js 的 syncLayout()，使用者明確規格「人物貼左邊」）。 */
 #midnight-field-encounter-image-wrap.midnight-sprite-arena > #midnight-player-sprite-stage {
-  left: auto;
-  right: 100%;
+  left: -50%;
+  right: auto;
   top: auto;
   bottom: 0;
   transform: none;
-  width: 88%;
+  width: 60%;
   height: 100%;
   aspect-ratio: auto;
 }

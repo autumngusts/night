@@ -240,10 +240,38 @@ async function createSpriteRoom(page, opts) {
       document.getElementById("midnight-field-encounter-image-wrap").classList.contains("midnight-sprite-arena")
     );
     assert(arenaOn && L.arena, "點陣圖接手時は分離版面（.midnight-sprite-arena）", { arenaOn, arena: L.arena });
+    // 2026-09-25 同日第三版（使用者明確規格「敵人點陣圖仍在戰鬥面板中心位置，人物貼左邊」）：
+    // 第二版の「敵人舞台は右寄せ・玩家舞台はその左外側で重ならない」は過時。敵人は面板中央、
+    // 玩家舞台は面板の左端から始まり、敵人の 1 格の左 10% まで伸びる（敵人の格の留白ぶん）。
+    const panelBox = await page.evaluate(() => {
+      const p = document.getElementById("midnight-hud-bottom-center");
+      const ps = getComputedStyle(p);
+      const b = p.getBoundingClientRect();
+      return {
+        left: b.left + parseFloat(ps.paddingLeft) + parseFloat(ps.borderLeftWidth),
+        right: b.right - parseFloat(ps.paddingRight) - parseFloat(ps.borderRightWidth),
+      };
+    });
+    const panelMid = (panelBox.left + panelBox.right) / 2;
     assert(
-      rects.player.right <= rects.enemy.left + 1,
-      "玩家舞台は敵人舞台の左外側（重ならない）",
+      Math.abs(rects.enemy.left + rects.enemy.w / 2 - panelMid) <= 2,
+      "敵人舞台は戰鬥面板の中央",
+      { enemyMid: Math.round(rects.enemy.left + rects.enemy.w / 2), panelMid: Math.round(panelMid) }
+    );
+    assert(
+      Math.abs(rects.player.left - panelBox.left) <= 2,
+      "玩家舞台は面板の左端から始まる（人物貼左邊）",
+      { player: Math.round(rects.player.left), panel: Math.round(panelBox.left) }
+    );
+    assert(
+      rects.player.right <= rects.enemy.left + rects.enemy.w * 0.1 + 1,
+      "玩家舞台が敵人の 1 格に入り込むのは左 10% まで",
       { playerRight: Math.round(rects.player.right), enemyLeft: Math.round(rects.enemy.left) }
+    );
+    assert(
+      Math.abs(Math.min.apply(null, rects.faces.map((f) => f.left)) - rects.player.left) <= 1,
+      "面の群れは帯の左端に寄る",
+      rects.faces.map((f) => Math.round(f.left))
     );
     assert(
       rects.faces.every((f) => f.left >= rects.player.left - 1 && f.right <= rects.player.right + 1),
@@ -344,6 +372,70 @@ async function createSpriteRoom(page, opts) {
     }, null, 3000).catch(() => {});
     assert((await myAnim(page)) === "idle", "瀕死が解けると idle へ戻る（hold したままにならない）", await myAnim(page));
 
+    console.log("=== ④-3 迴避／防禦（含快捷鍵）で詠唱と聖杯瓶が中断される ===");
+    // 2026-09-25 使用者明確規格「使用需要施法的攻擊時，例如法術以及聖杯瓶，按下閃避防禦包含快捷鍵時會取消使用」
+    const flaskState = () =>
+      page.evaluate(() => {
+        const bar = document.getElementById("midnight-flask-read-fill");
+        return { width: parseFloat(bar.style.width) || 0, using: !document.getElementById("midnight-flask-using-badge").hidden };
+      });
+    // 聖杯瓶 → 迴避鍵
+    await refillStamina(page);
+    await page.dispatchEvent("#btn-midnight-use-flask", "click");
+    await page.waitForTimeout(150);
+    const fBefore = await flaskState();
+    await page.dispatchEvent("#btn-midnight-dodge", "pointerdown");
+    await page.waitForTimeout(120);
+    const fAfter = await flaskState();
+    assert(fBefore.width > 0 && fAfter.width === 0, "聖杯瓶讀取中に迴避を押すと読み取りが中断", { fBefore, fAfter });
+    await waitIdle(page);
+    // 聖杯瓶 → Shift（迴避の快捷鍵）
+    await refillStamina(page);
+    await page.dispatchEvent("#btn-midnight-use-flask", "click");
+    await page.waitForTimeout(150);
+    const fBefore2 = await flaskState();
+    await page.keyboard.down("Shift");
+    await page.keyboard.up("Shift");
+    await page.waitForTimeout(120);
+    const fAfter2 = await flaskState();
+    assert(fBefore2.width > 0 && fAfter2.width === 0, "快捷鍵 Shift でも聖杯瓶が中断", { fBefore2, fAfter2 });
+    // 防禦（G／防禦鍵）：盾か両手持ちで防禦できる角色のときだけ検査できる
+    const canBlock = await page.evaluate(() => {
+      const b = document.getElementById("btn-midnight-block");
+      return !!(b && !b.hidden && !b.disabled && b.offsetParent !== null);
+    });
+    if (canBlock) {
+      await page.dispatchEvent("#btn-midnight-use-flask", "click");
+      await page.waitForTimeout(150);
+      const fBefore3 = await flaskState();
+      await page.keyboard.down("g");
+      await page.waitForTimeout(120);
+      const fAfter3 = await flaskState();
+      await page.keyboard.up("g");
+      assert(fBefore3.width > 0 && fAfter3.width === 0, "快捷鍵 G（防禦）でも聖杯瓶が中断", { fBefore3, fAfter3 });
+    } else {
+      console.log("  （この角色は防禦鍵が使えないので G の検査は省略）");
+    }
+    // 魔術／祈禱の長按詠唱 → 迴避／Shift。長按は dispatchEvent では維持できない（CLAUDE.md §4.6）
+    // ので、既存の _debugSetSorceryHold() で「詠唱中」を作ってから押す。
+    for (const how of ["pointer", "shift"]) {
+      const before = await page.evaluate(() => {
+        const M = window.PriTestMidnight;
+        M._debugSetSorceryHold(M._debugSorceryButtonKeys()[0], true);
+        return M._debugSorceryHoldKeys().length;
+      });
+      await refillStamina(page);
+      if (how === "pointer") await page.dispatchEvent("#btn-midnight-dodge", "pointerdown");
+      else {
+        await page.keyboard.down("Shift");
+        await page.keyboard.up("Shift");
+      }
+      await page.waitForTimeout(80);
+      const after = await page.evaluate(() => window.PriTestMidnight._debugSorceryHoldKeys().length);
+      assert(before > 0 && after === 0, "魔術／祈禱の長按詠唱中に" + (how === "pointer" ? "迴避鍵" : "快捷鍵 Shift") + "で詠唱が中断", { before, after });
+      await waitIdle(page);
+    }
+
     console.log("=== ④-2 同じ面で sheet が変わっても切幀が進む ===");
     // 2026-09-25 修正：setParty() が面の sheet を差し替えると cellPx を 0 に戻すのに、
     // 舞台の寸法が同じだと syncLayout() が何もしないため cellPx=0 のまま残り、
@@ -411,8 +503,8 @@ async function createSpriteRoom(page, opts) {
     if (rectsA2 && rectsA2.faces.length === 2) {
       assert(
         rectsA2.faces[0].left > rectsA2.faces[1].left &&
-          rectsA2.faces.every((f) => f.right <= rectsA2.enemy.left + 1),
-        "先頭（自分）が敵人に近い側（右）、2 人目はその左。2 人とも敵人舞台より左",
+          rectsA2.faces.every((f) => f.right <= rectsA2.enemy.left + rectsA2.enemy.w * 0.1 + 2), // 面寬・間隔の Math.round で ~1px 出ることがある
+        "先頭（自分）が敵人に近い側（右）、2 人目はその左。2 人とも玩家の帯の中",
         rectsA2.faces.map((f) => Math.round(f.left))
       );
       assert(

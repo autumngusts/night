@@ -27,14 +27,18 @@ function assert(cond, label, detail) {
   console.log((cond ? "  [PASS] " : "  [FAIL] ") + label + (cond || detail === undefined ? "" : "　→ " + JSON.stringify(detail)));
 }
 
+// database emulator 的 port（9000 被 IntelliJ 等佔用時用 PRITEST_EMU_PORT 覆寫，同 relic_memory_emulator_check.js）
+const EMU_PORT = process.env.PRITEST_EMU_PORT || "9000";
+
 async function enableEmulatorFlag(page) {
-  await page.addInitScript(() => {
+  await page.addInitScript((port) => {
     try {
       window.sessionStorage.setItem("pritestRtdbEmulator", "1");
+      window.sessionStorage.setItem("pritestRtdbEmulatorPort", port);
     } catch (e) {
       /* 忽略 */
     }
-  });
+  }, EMU_PORT);
 }
 
 async function joinLobby(page, passcode) {
@@ -278,6 +282,103 @@ async function levelDeltaProbe(page, delta) {
       return out;
     });
     assert(menuProbe.hidden === false && menuProbe.labels.some((l) => l.indexOf("50/50") !== -1), "⑥：三選一選單顯示保存中的 HP／上限", menuProbe);
+
+    // ======================================================================
+    // 2026-09-25 使用者回報「無法主動用召喚靈體來召喚單一靈體」：選單按鈕以前每一幀都重建，
+    // 真人點擊（按下→放開跨好幾幀）放開時手指下已經是另一顆按鈕，click 不會觸發。
+    // Playwright 的 mouse.click 是同一幀內按下＋放開，所以這裡刻意「按住 150ms 再放開」。
+    console.log("\n=== ⑧ 召喚靈體：真人式點擊（按住再放開）也能召喚 ===");
+    await page.evaluate(() => {
+      const M = window.PriTestMidnight;
+      M._debugOnEncounterEnded();
+      M._debugSetActiveEncounterForFx(true);
+      const s = M._debugState();
+      s.fp.current = s.fp.max;
+    });
+    // 這支測試沒走完開場動畫，全螢幕的 #midnight-intro-overlay 會擋住真實滑鼠（dispatchEvent 不受影響），先收掉。
+    await page.evaluate(() => {
+      const o = document.getElementById("midnight-intro-overlay");
+      if (o) o.style.display = "none";
+    });
+    await resetCooldowns(page);
+    await page.dispatchEvent("#btn-midnight-character-skill", "click");
+    await page.waitForTimeout(200);
+    const stable = await page.evaluate(async () => {
+      const first = document.querySelector("#midnight-spirit-choice-menu button");
+      await new Promise((r) => setTimeout(r, 150));
+      return first === document.querySelector("#midnight-spirit-choice-menu button");
+    });
+    assert(stable, "⑧：選單開著時按鈕節點不會每一幀被換掉");
+    const target = await page.evaluate(() => {
+      const btns = Array.from(document.querySelectorAll("#midnight-spirit-choice-menu button"));
+      const b = btns.filter((x) => !x.disabled)[0];
+      if (!b) return null;
+      b.scrollIntoView({ block: "center" });
+      const r = b.getBoundingClientRect();
+      return { x: r.left + r.width / 2, y: r.top + r.height / 2, text: b.textContent };
+    });
+    if (target) {
+      await page.mouse.move(target.x, target.y);
+      await page.mouse.down();
+      await page.waitForTimeout(150);
+      await page.mouse.up();
+      await page.waitForTimeout(300);
+    }
+    const summoned = await page.evaluate(() => {
+      const s = window.PriTestMidnight._debugState();
+      return s.characters[s.myTokenId].summonedSpirit || null;
+    });
+    assert(!!target && !!summoned && summoned.hp > 0, "⑧：按住 150ms 再放開也能召喚出靈體", { target, summoned });
+
+    // ======================================================================
+    // 2026-09-25 使用者明確規格「能力招魂為被動，雜兵死掉能自動多召喚一隻靈體」：
+    // 不擲骰必定召喚死靈（HP 3 格、其餘＝海倫），會自動攻擊、不代受傷害、戰鬥結束消失。
+    console.log("\n=== ⑨ 死靈術：必定召喚、自動攻擊、不代受、戰鬥結束消失 ===");
+    const necro = await page.evaluate(() => {
+      const M = window.PriTestMidnight;
+      const s = M._debugState();
+      const c = s.characters[s.myTokenId];
+      const helen = M._debugSpiritSummonTypes().filter((d) => d.kind === "helen")[0];
+      for (let i = 0; i < 6; i++) M._debugTriggerNecromancy();
+      const list = (c.deathSpirits || []).map((d) => ({ hp: d.hp, maxHp: d.maxHp, dmg: d.dmg }));
+      return { list, level: c.level, helenMaxHp: helen.maxHp, helenRows: helen.maxHp / 2 };
+    });
+    // 期待値：HP＝3 格（海倫 2 格 → 1 格＝helen.maxHp/2）、傷害＝海倫的 15＋等級×5
+    const wantHp = necro.helenRows * 3;
+    assert(necro.list.length === 6, "⑨：6 次雜兵歸零 → 6 隻死靈（不擲骰、必定召喚、沒有上限）", necro.list.length);
+    assert(necro.list.every((d) => d.hp === wantHp && d.maxHp === wantHp), "⑨：死靈 HP＝3 格（" + wantHp + "）", necro.list[0]);
+    assert(necro.list.every((d) => d.dmg === 15 + necro.level * 5), "⑨：死靈傷害＝海倫的 15＋等級×5", necro.list[0]);
+    // 浮標由每幀的 renderCharPanel() 重繪，等它追上
+    await page.waitForFunction(() => document.getElementById("midnight-spirit-badge").textContent.indexOf("×6") !== -1, null, { timeout: 3000 }).catch(() => {});
+    const badgeText = await page.evaluate(() => document.getElementById("midnight-spirit-badge").textContent);
+    assert(badgeText.indexOf("×6") !== -1, "⑨：浮標顯示死靈數量", badgeText);
+    const attack = await page.evaluate(() => {
+      const M = window.PriTestMidnight;
+      const s = M._debugState();
+      const c = s.characters[s.myTokenId];
+      const before = c.deathSpirits.map((d) => d.nextAttackAt);
+      const now = Date.now() + 60000;
+      M._debugUpdateDeathSpirits(now);
+      return { before, after: c.deathSpirits.map((d) => d.nextAttackAt), now };
+    });
+    assert(attack.after.every((t) => t > attack.now), "⑨：到點的死靈全部出手（下次攻擊時刻往後排）", attack);
+    const absorb = await page.evaluate(() => {
+      const M = window.PriTestMidnight;
+      const s = M._debugState();
+      const c = s.characters[s.myTokenId];
+      const spiritHp = c.summonedSpirit ? c.summonedSpirit.hp : null;
+      const deathBefore = c.deathSpirits.map((d) => d.hp).join(",");
+      M._debugAbsorbDamageWithSpirit(5);
+      return { spiritBefore: spiritHp, spiritAfter: c.summonedSpirit ? c.summonedSpirit.hp : 0, deathBefore, deathAfter: c.deathSpirits.map((d) => d.hp).join(",") };
+    });
+    assert(absorb.deathBefore === absorb.deathAfter && absorb.spiritAfter < absorb.spiritBefore, "⑨：代受傷害的只有技能靈體（死靈 HP 不變）", absorb);
+    const ended = await page.evaluate(() => {
+      const M = window.PriTestMidnight;
+      M._debugOnEncounterEnded();
+      const s = M._debugState();
+      return (s.characters[s.myTokenId].deathSpirits || []).length;
+    });
+    assert(ended === 0, "⑨：戰鬥結束時死靈消失", ended);
 
     // ======================================================================
     console.log("\n=== ⑦ 第 10 隻夜王 nameless 名簿與圖片 ===");
