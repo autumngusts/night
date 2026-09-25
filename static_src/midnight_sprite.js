@@ -240,6 +240,48 @@
     current = { animId: animId, startAt: startAt };
   }
 
+  // ---- 敵人出招：前搖停格＋出招快播（2026-09-25 使用者明確規格「第一張前搖動作可以停到刀光
+  // 出現，接著後面的出招動作播放的更快，比現在更快1倍，在0.8秒內播到最後一格」）----
+  //
+  //   holdFrom ～ releaseAt：停在該行的第 1 格（前搖）。releaseAt＝刀光出現的時刻（呼叫端傳
+  //                          T(k)−0.1s，跟判定窗口開啟／triggerAttackEffect() 同一刻）。
+  //   releaseAt 之後      ：第 2 格起每格 attackReleaseFrameMs()（原本 frameMs 的一半，且整段
+  //                          不超過 ATTACK_RELEASE_MAX_MS），播完回 idle。
+  // 只改畫面：命中判定的時間軸（midnight.js 的 spriteHitAt()）完全不讀這裡。
+  var ATTACK_RELEASE_SPEEDUP = 2;
+  var ATTACK_RELEASE_MAX_MS = 800;
+
+  function attackReleaseFrameMs(animId) {
+    var a = S.getAnim(animId);
+    if (!a) return 0;
+    var rest = Math.max(1, a.frameCount - 1);
+    return Math.min(a.frameMs / ATTACK_RELEASE_SPEEDUP, ATTACK_RELEASE_MAX_MS / rest);
+  }
+
+  // 刀光出現後到播完最後一格為止的長度（呼叫端用來排連擊下一下的前搖起點）。
+  function attackReleaseTotalMs(animId) {
+    var a = S.getAnim(animId);
+    if (!a) return 0;
+    return attackReleaseFrameMs(animId) * (a.frameCount - 1);
+  }
+
+  function playAttackWindup(animId, holdFrom, releaseAt) {
+    if (!S.getAnim(animId)) return;
+    current = { animId: animId, startAt: holdFrom, releaseAt: releaseAt, releaseFrameMs: attackReleaseFrameMs(animId) };
+  }
+
+  // current の時間軸で今どの幀か（null＝播完、呼叫端が idle へ戻す）。
+  function currentFrameIndexAt(now) {
+    if (!current) return null;
+    if (typeof current.releaseAt === "number") {
+      if (now < current.releaseAt) return 0; // 前搖停格
+      var a = S.getAnim(current.animId);
+      var idx = 1 + Math.floor((now - current.releaseAt) / current.releaseFrameMs);
+      return idx >= a.frameCount ? null : idx;
+    }
+    return frameIndexAt(current.animId, now - current.startAt);
+  }
+
   // ---- 死亡小視窗（2026-09-22 使用者明確規格「在右上角縮小比較小的視窗播放死亡動畫」）----
   // 敵人 HP 歸零的同一影格，戰鬥面板就會被收掉（activeEncounter 變 null），主舞台上的
   // death 動畫根本來不及被看到。改成擊破時在呼叫端指定的容器（右上 HUD 那一欄的最後一個
@@ -483,7 +525,7 @@
     tickMinis(now);
     if (!stageEl || stageEl.hidden || !current) return;
     syncCellPx();
-    var idx = frameIndexAt(current.animId, now - current.startAt);
+    var idx = currentFrameIndexAt(now);
     if (idx === null) {
       playAnim("idle", now);
       idx = 0;
@@ -515,6 +557,10 @@
     showSprite: showSprite,
     spriteCount: function () { return stageCount; },
     playAnim: playAnim,
+    playAttackWindup: playAttackWindup,
+    attackReleaseFrameMs: attackReleaseFrameMs,
+    attackReleaseTotalMs: attackReleaseTotalMs,
+    currentFrameIndex: function (now) { return currentFrameIndexAt(now || Date.now()); },
     currentAnimId: currentAnimId,
     tick: tick
   };

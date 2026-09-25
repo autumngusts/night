@@ -2919,7 +2919,8 @@
   // ---- 點陣圖戰鬥模式的迴避時機判定（2026-09-22使用者明確規格）----
   // 只在spriteModeEnabled()的房間生效，非點陣圖房維持上面2.0/2.5/3.0秒、窗口內按下＝100%
   // 無效化的舊規則。以T＝正式出招時刻（＝紅光0.5秒結束）為基準：
-  //   ・T−0.1s：敵人sprite才從idle切成攻擊動畫（連擊每一下各重播一次，見maybePlayEnemyAttackAnim()）
+  //   ・T−0.1s：刀光；敵人sprite從前搖停格改為快播（2026-09-25改版：紅光期間就停在攻擊行第1格，
+  //     刀光後每格frameMs/2、0.8秒內播完；連擊每一下各重播一次，見maybePlayEnemyAttackAnim()）
   //   ・按下時刻依「T之後幾毫秒」落在哪一個時間帶決定成功度與減傷％（2026-09-22第4版，
   //     使用者明確規格「T-0.1~T+0.4s Perfect／T+0.4s~T+0.65s Great 減傷80~95%／T+0.65s~T+0.9s
   //     Good 減傷60~80%／T+0.9s~T+1.0s Bad 減傷50%，連續攻擊的第二三下也套用以上級距」）
@@ -14829,7 +14830,8 @@
   // 各端が自分の本機時刻に換算した同一の起点を使うので、動畫の位相が端末間でそろう。
   // playAnim(animId, startAt) が startAt を取る設計になっているのはこのため。
   // 2026-09-22使用者明確規格改版：不再跟紅光同時切換，而是每一下的正式出招時刻T(k)之前
-  // SPRITE_DODGE_ANIM_LEAD_MS（0.1秒）才從idle切成攻擊動畫，連擊每一下各重播一次
+  // SPRITE_DODGE_ANIM_LEAD_MS（0.1秒）才從idle切成攻擊動畫（2026-09-25起改為「前搖停格→刀光時快播」，
+  // 見下方說明），連擊每一下各重播一次
   // （「如果是連擊多次 動畫也需要重複播放」）。T(k)由spriteHitAt()算，跟判定用的是同一條
   // 時間軸。lastAnimatedAttackHitKey記「attackId:k」避免同一下每影格重播。
   var lastAnimatedAttackHitKey = null;
@@ -14841,16 +14843,29 @@
     var atk = trig && trig.enemyAttack;
     if (!atk || !atk.attackId) return;
     var hitCount = atk.hitCount || 1;
+    // 夜王は隻ごとの対照表を先に引く（招式名が一般敵と被ることがあるため、
+    // enemy_action_anim_map.js の BY_BOSS を優先させる）。
+    var animBossId = trig.enemyFamilyId === BOSS_ENEMY_FAMILY_SENTINEL ? trig.enemyId : null;
+    var animId = AnimMap.resolve(atk.actionName, atk.dmgKind, animBossId);
+    // 2026-09-25使用者明確規格「第一張前搖動作可以停到刀光出現，接著後面的出招動作播放的更快，
+    // 比現在更快1倍，在0.8秒內播到最後一格」：每一下都是「前搖停格 → 刀光出現時快播」
+    // （見midnight_sprite.jsのplayAttackWindup()）。
+    //   ・刀光出現＝T(k)−SPRITE_DODGE_ANIM_LEAD_MS（判定窗口開啟、triggerAttackEffect() 同一刻）。
+    //   ・前搖從何時開始停：第1下＝紅光警示一開始；第2下以後＝上一下快播完的那一刻
+    //     （中間若沒有空檔就直接接上）。
+    // 判定用的T(k)（spriteHitAt()）不變，只是動畫提早進入前搖。
     for (var k = hitCount - 1; k >= 0; k--) {
-      var startAt = spriteHitAt(atk, k) - SPRITE_DODGE_ANIM_LEAD_MS;
-      if (now < startAt) continue;
+      var releaseAt = spriteHitAt(atk, k) - SPRITE_DODGE_ANIM_LEAD_MS;
+      var holdFrom =
+        k === 0
+          ? enemyAttackWarnAtLocal(atk)
+          : spriteHitAt(atk, k - 1) - SPRITE_DODGE_ANIM_LEAD_MS + S.attackReleaseTotalMs(animId);
+      holdFrom = Math.min(holdFrom, releaseAt);
+      if (now < holdFrom) continue;
       var key = atk.attackId + ":" + k;
       if (lastAnimatedAttackHitKey === key) return;
       lastAnimatedAttackHitKey = key;
-      // 夜王は隻ごとの対照表を先に引く（招式名が一般敵と被ることがあるため、
-      // enemy_action_anim_map.js の BY_BOSS を優先させる）。
-      var animBossId = trig.enemyFamilyId === BOSS_ENEMY_FAMILY_SENTINEL ? trig.enemyId : null;
-      S.playAnim(AnimMap.resolve(atk.actionName, atk.dmgKind, animBossId), startAt);
+      S.playAttackWindup(animId, holdFrom, releaseAt);
       return;
     }
   }

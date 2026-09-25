@@ -342,7 +342,9 @@ enemyAttack 產生 → ⚠ 閃爍 0.5 秒（ENEMY_ATTACK_WARN_MS）
 
 ```
 warnAt ──紅光 0.5s──▶ T(0)（正式出招）
-   T(k)−0.1s        sprite 從 idle 切成攻擊動畫；連擊每一下各重播一次（maybePlayEnemyAttackAnim）
+   T(k)−0.1s        刀光。sprite 從前搖停格（第 1 格）改為快播：每格 frameMs/2、0.8 秒內播完；
+                    連擊每一下各重播一次（maybePlayEnemyAttackAnim → playAttackWindup）
+                    ※2026-09-25 改版：前搖從紅光開始（第 2 下以後從上一下快播完起）就停在第 1 格
    [T−0.1s, T+0.35s]  Perfect 100% 減傷
    (T+0.35s, T+0.5s]  Great   99→90%（帶內線性）
    (T+0.5s, T+0.8s]   Good    89→60%

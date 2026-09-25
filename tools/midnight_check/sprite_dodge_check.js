@@ -8,7 +8,10 @@
 //   4. PRITEST_BASE_URL=http://localhost:8931 node sprite_dodge_check.js
 //
 // 使用者明確規格（2026-09-22）：
-//   ・紅光 0.5s 後為正式出招時刻 T；T−0.1s 才從 idle 切成攻擊動畫；連擊每一下重播
+//   ・紅光 0.5s 後為正式出招時刻 T；連擊每一下重播
+//   ・2026-09-25 改版（使用者明確規格「第一張前搖動作可以停到刀光出現，接著後面的出招動作播放的更快，
+//     比現在更快1倍，在0.8秒內播到最後一格」）：舊斷言「T−0.1s 之前仍是 idle」「startAt＝T−0.1s」過時。
+//     現在紅光一開始就停在攻擊行第 1 格（前搖），T−0.1s（刀光）起以 frameMs/2 快播，0.8s 內播完。
 //   ・（2026-09-22 第 3 版「判定嚴格度更改」）依按下時刻的時間帶判定，帶內線性遞減：
 //       [T−0.1, T+0.4] Perfect 100／(T+0.4, T+0.65] Great 95→80／(T+0.65, T+0.9] Good 80→60／
 //       (T+0.9, T+W] Bad 50 固定（2026-09-22 第4版）
@@ -128,14 +131,16 @@ async function waitAttackDone(page, attackId) {
     await page.evaluate(() => {
       const S = window.PriTestMidnightSprite;
       window.__animCalls = [];
-      const orig = S.playAnim;
-      S.playAnim = function (id, at) {
-        window.__animCalls.push({ id, at, now: Date.now() });
+      // 攻擊動畫走 playAttackWindup(animId, holdFrom, releaseAt)（2026-09-25），被擊／死亡仍走 playAnim。
+      const orig = S.playAttackWindup;
+      S.playAttackWindup = function (id, holdFrom, releaseAt) {
+        window.__animCalls.push({ id, holdFrom, at: releaseAt, now: Date.now() });
         return orig.apply(this, arguments);
       };
       window.__samples = [];
       setInterval(() => {
-        window.__samples.push({ t: Date.now(), anim: S.currentAnimId(), warn: !document.querySelector("#midnight-incoming-attack-warning").hidden });
+        const now = Date.now();
+        window.__samples.push({ t: now, anim: S.currentAnimId(), frame: S.currentFrameIndex(now), warn: !document.querySelector("#midnight-incoming-attack-warning").hidden });
       }, 10);
     });
     const s0 = await state(page);
@@ -170,14 +175,37 @@ async function waitAttackDone(page, attackId) {
     const warnAfter = samples.filter((s) => s.t >= T[0] + 80 && s.t <= T[0] + 300);
     assert(warnBefore.length > 0 && warnBefore.every((s) => s.warn), "T 前 0.15~0.4s 紅光顯示中", warnBefore.length);
     assert(warnAfter.length > 0 && warnAfter.every((s) => !s.warn), "T 後紅光消失", warnAfter.length);
-    const idleBefore = samples.filter((s) => s.t >= T[0] - 400 && s.t <= T[0] - 150);
-    assert(idleBefore.every((s) => s.anim === "idle"), "T−0.1s 之前（紅光期間）sprite 仍是 idle", idleBefore.map((s) => s.anim));
+    // 前搖停格：紅光期間（T−0.4～T−0.15s）已經是攻擊動畫的第 1 格
+    const holdBefore = samples.filter((s) => s.t >= T[0] - 400 && s.t <= T[0] - 150);
+    assert(
+      holdBefore.length > 0 && holdBefore.every((s) => ATTACK_ANIMS.indexOf(s.anim) !== -1 && s.frame === 0),
+      "紅光期間停在攻擊動畫第 1 格（前搖）直到刀光",
+      holdBefore.map((s) => s.anim + "#" + s.frame)
+    );
     const attackAfter = samples.filter((s) => s.t >= T[0] + 30 && s.t <= T[0] + 250);
-    assert(attackAfter.length > 0 && attackAfter.every((s) => ATTACK_ANIMS.indexOf(s.anim) !== -1), "T 之後 sprite 已是攻擊動畫", attackAfter.map((s) => s.anim));
+    assert(
+      attackAfter.length > 0 && attackAfter.every((s) => ATTACK_ANIMS.indexOf(s.anim) !== -1 && s.frame >= 1),
+      "刀光（T−0.1s）之後離開前搖、往後播",
+      attackAfter.map((s) => s.anim + "#" + s.frame)
+    );
     const attackCalls = animCalls.filter((c) => ATTACK_ANIMS.indexOf(c.id) !== -1);
-    assert(attackCalls.length === hitCount, "攻擊動畫 playAnim 呼叫次數＝連擊下數（" + hitCount + "）", attackCalls);
-    const startOk = attackCalls.every((c, i) => Math.abs(c.at - (T[i] - 100)) <= 1 && c.now >= T[i] - 100 - 5);
-    assert(startOk, "每一下的動畫 startAt＝T(k)−0.1s，且不早於該時刻才呼叫", attackCalls.map((c, i) => ({ at: c.at - T[i], called: c.now - T[i] })));
+    assert(attackCalls.length === hitCount, "攻擊動畫呼叫次數＝連擊下數（" + hitCount + "）", attackCalls);
+    const startOk = attackCalls.every((c, i) => Math.abs(c.at - (T[i] - 100)) <= 1);
+    assert(startOk, "每一下的快播起點（刀光）＝T(k)−0.1s", attackCalls.map((c, i) => ({ at: c.at - T[i], called: c.now - T[i] })));
+    assert(Math.abs(attackCalls[0].holdFrom - (T[0] - 500)) <= 1, "第 1 下的前搖從紅光開始（T−0.5s）", attackCalls[0].holdFrom - T[0]);
+    // 快播：每格＝原本 frameMs 的一半（且 0.8 秒內播完），從資料算期望值
+    const speed = await page.evaluate((id) => {
+      const S = window.PriTestMidnightSprite;
+      const a = window.PriTestEnemySprite.getAnim(id);
+      return { frameMs: a.frameMs, frameCount: a.frameCount, fast: S.attackReleaseFrameMs(id), total: S.attackReleaseTotalMs(id) };
+    }, attackCalls[0].id);
+    assert(speed.fast <= speed.frameMs / 2 + 0.001 && speed.total <= 800, "出招快播：每格 ≤ 原本的一半、刀光後 0.8 秒內播到最後一格", speed);
+    if (hitCount === 1) {
+      const lastFrameSeen = samples.filter((s) => s.t >= T[0] - 100 && s.t <= T[0] - 100 + speed.total && s.frame === speed.frameCount - 1);
+      const backIdle = samples.filter((s) => s.t >= T[0] - 100 + speed.total + 60 && s.t <= T[0] - 100 + speed.total + 300);
+      assert(lastFrameSeen.length > 0, "刀光後 " + Math.round(speed.total) + "ms 內確實播到最後一格", lastFrameSeen.length);
+      assert(backIdle.length > 0 && backIdle.every((s) => s.anim === "idle"), "播完後回到 idle", backIdle.map((s) => s.anim));
+    }
 
     console.log("=== ④ 第二次攻擊：窗口尾端才按＝Bad、HP 依線性減傷扣 ===");
     atk = await waitNextAttack(page, atk.attackId);
@@ -267,7 +295,14 @@ async function waitAttackDone(page, attackId) {
       const callsM = (await page.evaluate(() => window.__animCalls.slice())).filter((c) => ATTACK_ANIMS.indexOf(c.id) !== -1);
       assert(Tm[1] - Tm[0] === win[0] && (hc < 3 || Tm[2] - Tm[1] === win[1]), "T(k+1)＝T(k)＋W(k)（1.0／1.5s）", Tm.map((t) => t - Tm[0]));
       assert(callsM.length === hc, "連擊 " + hc + " 下 → 攻擊動畫重播 " + hc + " 次", callsM);
-      assert(callsM.every((c, i) => Math.abs(c.at - (Tm[i] - 100)) <= 1), "每一下的重播 startAt＝T(k)−0.1s", callsM.map((c, i) => c.at - Tm[i]));
+      assert(callsM.every((c, i) => Math.abs(c.at - (Tm[i] - 100)) <= 1), "每一下的快播起點（刀光）＝T(k)−0.1s", callsM.map((c, i) => c.at - Tm[i]));
+      // 第 2 下以後：前搖接在上一下快播完之後（兩下之間空檔足夠時才會停格）
+      const relTotal = await page.evaluate((id) => window.PriTestMidnightSprite.attackReleaseTotalMs(id), callsM[0].id);
+      assert(
+        callsM.slice(1).every((c, i) => Math.abs(c.holdFrom - Math.min(Tm[i] - 100 + relTotal, Tm[i + 1] - 100)) <= 1),
+        "第 2 下以後的前搖起點＝上一下快播完的時刻",
+        callsM.map((c, i) => c.holdFrom - Tm[i])
+      );
       const samplesM = await page.evaluate(() => window.__samples.slice());
       // 重播由影格迴圈觸發（rAF 約 16ms 一格），T−0.1s 之後留 40ms 的影格容差再開始檢查。
       const restart = samplesM.filter((s) => s.t >= Tm[1] - 60 && s.t <= Tm[1] + 60);
