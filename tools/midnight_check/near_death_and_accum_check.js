@@ -188,7 +188,11 @@ function triggersOf(state, targetKey, name) {
       M._debugRecordReceivedAccum("出血", 17);
       return M._debugState().receivedAttributeAccum;
     });
-    assert(received["魔"] === 1, "自身承受側：屬性同樣扣掉門檻，17→1", received);
+    // 2026-09-26 規格變更（CLAUDE.md §4.7）：舊期望值是「自身承受側的屬性跟敵人側一樣扣掉
+    // 門檻、保留餘數（17→1）」。使用者 2026-09-26 明確規格「玩家自身的屬性及異常蓄積也同樣
+    // 滿了就觸發、歸零」，因此自身承受側不論屬性或異常，跨過門檻一律歸 0 重新累積。
+    // 敵人側（上方 sharedTarget 那幾條）維持「扣掉門檻保留餘數」，兩邊現在是不同規則。
+    assert(received["魔"] === 0, "自身承受側：屬性跨過門檻後歸 0（2026-09-26 規格）", received);
     assert(received["出血"] === 0, "自身承受側：異常維持歸零", received);
 
     // ================================================================

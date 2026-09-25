@@ -1366,3 +1366,136 @@ helper、不要為單一效果建立第三套架構」）：
 長按蓄力改版），用 `click` 派送時三個 handler 一個都不會跑，攻擊完全沒有發生——但畫面上
 看不出差別，很容易誤判成「功能壞了」。驗證攻擊相關流程時要先確認 handler 綁在哪個事件上，
 不能一律套 CLAUDE.md §4.6 的 `dispatchEvent(..., "click")`。
+
+---
+
+## 25. 2026-09-26 第三批：魔術師塔／地變地形／自身蓄積／戰後移動／武器種類／雙手持握／商人詞條／結束回大廳
+
+使用者一次提出 10 項。本節記錄其中 9 項的規格與實作，第 7 項（選的角色進遊戲後變成別的
+角色）無法重現，見 §25.10。
+
+### 25.1 魔術師塔：先後進入都能再次進入、破關一起拿獎勵
+
+- **再次進入**：`handleTowerEnterClick()` 原本只要 `towerInvites[pt.id]` 已存在就直接
+  `return`——錯過那 3 秒邀請時限（`FIELD_INVITE_TIME_LIMIT_MS`）的人就永遠進不去。改成
+  「這座塔已經有人開過而且還沒解出」時走**加入**分支：把自己寫進 `participants`、清掉本地的
+  `towerPuzzleDismissed` / `towerPuzzleStartedFor`，下一影格 `renderTowerOverlay()` 的
+  active 分支就會用 RTDB 裡那道同一題開啟解謎視窗。
+- **［進入］鍵的顯示**：active 狀態下只要還沒解出、而且自己目前沒在解題，就繼續顯示，
+  讓「沒參加到邀請」與「自己按過關閉」兩種情況都能再進來。
+- **同一題**：本來就已經由 `ensureTowerPuzzle()` 的 first-writer-wins transaction 寫在
+  `towerInvites/<id>/puzzle`（2026-09-13），這次沒有改動，只是再次進入走的是同一份資料。
+- **一起拿獎勵**：`onTowerSolvedReceived()` 的發獎條件從「這台裝置此刻正開著解謎視窗
+  （`towerPuzzleStartedFor`）」放寬成「是這座塔的 `participants`」。先前只要在別人解出的
+  那一刻剛好關掉視窗、或走出塔的觸發半徑（`updateNearbyTower()` 會清掉那個旗標），就拿不到
+  獎勵。`amParticipant` 的前置判斷已經把「路過沒進來的人」排除在外。
+
+### 25.2 地變地形：只有在特定地方才生效
+
+使用者明確規格：
+
+> 地變只有在特定地方才會造成特殊規則，現在在冰原地圖，在平地必然不會造成持續累積凍傷。
+> 且自身如果真的在地變地形中累積滿凍傷或腐敗等等，達到上限值會觸發效果並歸 0 重新累積。
+
+- 「地變地形」＝ `midnight_map.js` 的 **`hazardZone` 遮罩**（地圖上橘線圈起來那塊，Q 卡牌／
+  可怖強敵／4 板塊／祝福×2 都生成在裡面）。新增 `inHazardTerrain()` 判斷玩家目前的格子。
+- `maybeApplyIceFrostbiteTick()`（凍傷）與 `maybeApplyRedMiasmaTick()`（腐敗）加上這道
+  閘門；不在範圍內時連計時器都重置（`*NextTickAt = null`），走回地變再重新從完整一個間隔
+  開始算。
+- 兩者原本**刻意繞過** `recordReceivedAttributeAccum()`（2026-09-10 的理由是「戰鬥結束也不
+  重置」），因此永遠不會觸發效果、也不會歸零。現在改走那個唯一入口——它本來就含恩寵免疫／
+  護符無效化／詞條耐性的過濾鏈，所以不再另外呼叫 `filterReceivedAccumAmount()`。
+  「戰鬥結束後蓄積值仍保留」不受影響，那是 `onEncounterEnded()` 的 `keptAccum["凍傷"]` 負責的，
+  跟門檻觸發是兩回事。
+
+### 25.3 自身的屬性蓄積也「滿了就觸發並歸 0」
+
+`recordReceivedAttributeAccum()` 原本只有**異常**歸 0，**屬性**是扣掉門檻保留餘數
+（17/16 → 1/16，那是 2026-09-13 給**敵人側**的規則）。使用者 2026-09-26 明確規格
+「玩家自身的屬性及異常蓄積也同樣滿了就觸發、歸零」，因此自身承受側一律歸 0。
+敵人側（`maybeTriggerAttributeAccum()`）維持保留餘數——**兩邊現在是不同規則**，
+`near_death_and_accum_check.js` 的對應期望值已同步更新。
+
+### 25.4 第二天打倒夜之強敵後可以移動
+
+`rewardsMovementLocked()` 移除 day2 分支。2026-09-08 的「［離去］之前不能在地圖上移動」
+只保留給**第一天**：第一天戰後有 10 秒自動換日倒數（`FINAL_CIRCLE_BOSS_DAY_ADVANCE_MS`），
+鎖住移動是為了讓玩家在那段時間內把祝福／離去按完；第二天沒有倒數，換日由全員按下［準備］
+決定，所以沒有必要把人釘在原地。祝福／商人／離去區塊與 §24.3 的黃字提醒都照舊顯示。
+
+### 25.5 武器說明加上武器種類
+
+`renderWeaponSheetDetail()` 在名稱下方多一行「種類：○○」
+（i18n `midnight_character_sheet_weapon_category`）。資料來源就是既有的
+`weapons_categories.js` 的 `name`（C(ja,zh) 雙語物件），不另外定義一份種類名稱。
+
+### 25.6 左右手同一把武器＝雙手持握
+
+新增 `twoHandedGrip(c)`，判斷式沿用既有的同一條
+（`affixOutgoingDamageMult()` 的 `twoHandAtkUp`、`twoHandGuardBreakSymbol()` 都用
+`equippedWeaponIdL === equippedWeaponIdR`），不另外發明第二套定義；額外要求 id 本身有值，
+否則空手（`""`／`undefined`）兩邊也會相等而被誤判。成立時 `renderSideCombatButtons("L")`
+把左手的攻擊鍵與魔術／祈禱／戰技鍵整組隱藏、`renderAttackModeSelector("L")` 也收起切換列。
+右手側維持原樣——那才是這把武器實際的操作入口。
+
+### 25.7 商人武器詞條同一位玩家整場固定
+
+新增 `grantMerchantAffixesForWeapon()`：第一次向商人買武器時擲一組存進 `c.merchantAffixSet`，
+之後每一把商人武器都原封不動套用同一組（各自持有一份複本，不共用陣列實例）。
+稀有度不再決定商人武器的詞條條數——條數在第一次擲的當下就跟著那把的稀有度定下來了，
+這是「整場不變」的必然結果。**只影響商人這條購買路徑**；地上撿的、獎勵清單抽的、鍛造台的
+都維持既有的每把各自擲（`grantAffixesForNewWeapon()`）。
+
+### 25.8 遺物記憶「出撃時の武器」系要確實掛上
+
+`applyRelicMemoryWeaponInfusion()`（屬性／異常附加 7 條）與 `applyRelicMemorySkillSwap()`
+（戰技置換 30 條）原本掛在 `onCharactersReceived()` 裡那個「第一次裝備初始化」的一次性區塊。
+那個區塊的條件是 `equippedWeaponIdL/R` 都還是 `undefined`，一旦寫過就永遠不會再進去；
+而這兩支在 `hasRelicMemoryLoadout(c)` 為 false 時會靜默返回（且刻意不設一次性旗標，
+就是為了之後重試）。**RTDB 的回流時序只要讓「裝備初始化」早於「relicMemoryLoadout 抵達」
+一次，屬性／戰技就再也掛不上去。** 改成跟 `applyRelicMemoryStartItems()` 一樣每次 character
+回流都嘗試一次——兩支各自有 `relicMemoryInfusionApplied` / `relicMemorySkillSwapApplied`
+一次性旗標，不會重複套用。
+
+### 25.9 打完夜王、結算關閉後鎖定並回到大廳
+
+新增 `gameFinishedLocked()`＝「夜王已擊破 ＋ 遺物記憶結算視窗已關閉（勝利路徑）」。
+成立時 `canActNow()` 與 `updateMovement()` 都擋住（角色鎖定不可再操作），並顯示置中的
+`#midnight-game-finished-overlay`＋［回到大廳］（`window.location.href = pathname`，
+跟放棄遊戲路徑用的是同一行導頁寫法）。放棄遊戲的路徑本來就會在關閉時直接導頁，
+不會停在這個狀態；重新整理後會重新跑一次「勝利彈窗→結算視窗」，關掉之後又回到鎖定狀態，
+因此不需要把旗標同步到 RTDB。
+
+### 25.10 未修正：選的角色進遊戲後變成別的角色
+
+使用者回報「創立房間所選的角色進入遊戲後變成其他角色，特別是黎明與暗黑——選復仇者暗黑
+結果出現追跡者暗黑」。**這次沒有改動，因為查不到成因也重現不了**。已排除的可能：
+
+| 檢查項目 | 結果 |
+| --- | --- |
+| `CHARACTER_PRESETS` 的 20 個 id | 與 `character_types.js` 完全一致 |
+| 等待房挑選 → `players/<slot>.characterId` | 單人、雙人實測都正確（avenger_dark／scholar_dark） |
+| `characterId` → `c.typeId` | 一致；`typeId` 在遊戲中沒有任何寫入點（只有 debug hook） |
+| 席位卡／角色視窗顯示 | 正確（復仇者（暗黑）、復仇者的咒爪、死靈術） |
+| 等待房頭像 `c*_variant.jpg` | 20 張 md5 全不相同，`c6_variant.jpg` 確認是復仇者的畫 |
+| `player_sprite_registry.js` 的 20→10 對應 | 正確（變體共用素體 sheet 是既有設計） |
+| 選單重繪頻率 | `renderCharacterPicker()` 只在 `showJoinForm()` 與自身點擊時呼叫，不是每幀 |
+
+下次要查的話，需要使用者提供：是單人房還是多人房、有沒有重新整理過／用密碼接管過席位、
+「變成別的角色」是在哪個畫面看到的（席位卡／角色視窗／點陣圖）。
+
+### 25.11 回歸測試
+
+`tools/midnight_check/fix_batch_2026_09_26_check.js`（`npm run test:fix_batch_2026_09_26`，
+雙裝置＋模擬器）：32/32 通過，涵蓋 §25.1〜§25.7 與 §25.9。
+
+測試環境的兩個要點：
+- **②要驗地變就必須先挑到有 `hazardZone` 的地圖**。地圖是在 `sessionStartAt` 當下依
+  `meta.mapSeed` / `meta.mapVariant` 生成的，所以要在按下準備**之前**寫好；種子用
+  `generateMap(seed, "full")` 現場試算出第一個帶 `ice_blizzard` 或 `red_miasma` 的，
+  不硬編「已知好種子」（CLAUDE.md §4.7）。
+- **⑨要驗詞條就必須先開 `meta.weaponAffixes`**，否則 `weaponAffixesEnabled()` 為 false，
+  整段會靜默跳過。
+
+反向驗證：把 §25.1／§25.2／§25.3／§25.7 四處改回舊行為後重跑，32 項中有 7 項失敗且全部
+落在對應的斷言上，確認測試不是空轉。

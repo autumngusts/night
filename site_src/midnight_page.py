@@ -716,6 +716,14 @@ BODY = """    <div class="midnight-wrap">
                按鈕——兩顆共用同一個 handleEnterBattleClick()／同一條讀條狀態，不是第二套
                流程。夜之強敵／夜王戰鬥不顯示這顆（那兩種是全員一起的戰鬥，不是「別人的
                戰鬥」），見 static/midnight.js の renderEnterBattlePrompt()。 -->
+          <!-- 2026-09-26使用者明確規格「打完夜王結算完領完遺物記憶後 腳色變成鎖定狀態
+               畫面中間可以按下回到大廳 回到沒有 gameId 的 midnight 主畫面」：只在
+               gameFinishedLocked() 成立時顯示，見 static/midnight.js の
+               renderGameFinishedOverlay()。 -->
+          <div id="midnight-game-finished-overlay" hidden>
+            <p id="midnight-game-finished-note" data-i18n="midnight_game_finished_note"></p>
+            <button type="button" id="btn-midnight-return-to-lobby" data-i18n="midnight_return_to_lobby_button"></button>
+          </div>
           <div id="midnight-enter-battle-center" hidden>
             <button type="button" id="btn-midnight-enter-battle-center" data-i18n="midnight_enter_battle_button"></button>
             <div id="midnight-enter-battle-center-bar" class="midnight-loading-track" hidden>

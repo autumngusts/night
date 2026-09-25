@@ -9743,3 +9743,44 @@ html.midnight-top-banner-collapsed .midnight-top-banner-collapse-btn {
     opacity: 0.55;
   }
 }
+
+/* 這一局結束後的置中［回到大廳］（2026-09-26使用者明確規格「打完夜王結算完領完遺物記憶後
+   腳色變成鎖定狀態 畫面中間可以按下回到大廳 回到沒有 gameId 的 midnight 主畫面」）：
+   見 static/midnight.js の gameFinishedLocked()／renderGameFinishedOverlay()。
+   容器本身不吃點擊（pointer-events:none），只有按鈕吃，才不會整片蓋住底下的畫面；
+   角色的實際鎖定是由 canActNow()／updateMovement() 負責，不是靠這層遮罩。 */
+#midnight-game-finished-overlay {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 720;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 1.25rem 1.75rem;
+  border-radius: 0.75rem;
+  background: rgba(12, 10, 8, 0.88);
+  border: 1px solid rgba(255, 213, 74, 0.5);
+  pointer-events: none;
+  text-align: center;
+}
+
+#midnight-game-finished-note {
+  margin: 0;
+  color: #ffd54a;
+  font-weight: bold;
+}
+
+#btn-midnight-return-to-lobby {
+  pointer-events: auto;
+  padding: 0.75rem 2rem;
+  font-size: 1.05rem;
+  font-weight: bold;
+  color: #1a1200;
+  background: #ffd54a;
+  border: 2px solid #ffe79a;
+  border-radius: 0.5rem;
+  cursor: pointer;
+}

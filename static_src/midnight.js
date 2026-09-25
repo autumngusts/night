@@ -332,7 +332,10 @@
     // 2026-09-13使用者明確規格（敵人側同一條，見maybeTriggerAttributeAccum()）：觸發過的
     // 份額當下就從蓄積值扣掉，17/16→1/16，而不是一直掛著17讓畫面看不出已經觸發過。
     // 異常維持docs §7.4「発動後は0に戻す」（超過分切り捨て），因此一次只算1發。
-    receivedAttributeAccum[name] = isAilment ? 0 : next - times * threshold;
+    // 2026-09-26使用者明確規格「玩家自身的屬性及異常蓄積也同樣滿了就觸發、歸零」：
+    // 自身承受側不論屬性或異常，跨過門檻就觸發並歸0重新累積（先前只有異常歸0，屬性是
+    // 扣掉門檻保留餘數——那條是敵人側的規則，見maybeTriggerAttributeAccum()，不再共用）。
+    receivedAttributeAccum[name] = 0;
     var triggerTimes = isAilment ? 1 : times;
     for (var i = 0; i < triggerTimes; i++) {
       triggerUnyieldingStackIfApplicable();
@@ -539,6 +542,27 @@
     if (!rolled) return null;
     c.weaponAffixes[weaponId] = rolled;
     return rolled;
+  }
+
+  // 商人購買的武器詞條（2026-09-26使用者明確規格「於商人購買的武器抽選的詞條同一位玩家
+  // 都是固定，即使重複買武器，武器雖然不同，但是帶有的詞條整場遊戲不會變動」）：
+  // 第一次向商人買武器時擲一組，存進 c.merchantAffixSet，之後每一把商人武器都原封不動
+  // 套用同一組。稀有度不再決定商人武器的詞條條數——條數在第一次擲的當下就跟著那把的
+  // 稀有度定下來了，這是「整場不變」的必然結果（使用者的規格就是這麼寫的）。
+  // 只影響商人這條購買路徑；地上撿的、獎勵清單抽的、鍛造台的都維持既有的每把各自擲。
+  function grantMerchantAffixesForWeapon(c, weaponId) {
+    if (!c || !weaponId || !weaponAffixesEnabled()) return null;
+    c.weaponAffixes = c.weaponAffixes || {};
+    if (c.weaponAffixes[weaponId]) return null;
+    if (!c.merchantAffixSet) {
+      var rolled = rollAffixesForWeapon(c, weaponId);
+      if (!rolled) return null;
+      c.merchantAffixSet = rolled;
+    }
+    // 每把武器各自持有一份複本：詞條內容相同，但不共用同一個陣列實例，避免之後任何
+    // 針對單把武器的修改（例如未來的重抽）連帶改到其他把。
+    c.weaponAffixes[weaponId] = JSON.parse(JSON.stringify(c.merchantAffixSet));
+    return c.weaponAffixes[weaponId];
   }
 
   // 獎勵清單／共享池在抽選當下就擲好的詞條，套用到真正入手的角色上。沒有先擲（例如關著
@@ -5029,14 +5053,25 @@
       var startingShieldId = mine.weaponIds.length > 1 ? mine.weaponIds[1] : startingWeaponId;
       mine.equippedWeaponIdL = startingShieldId;
       mine.equippedWeaponIdR = startingWeaponId;
-      // 遺物記憶（2026-09-25第4期）「出撃時の武器に○を付加」7條：這裡是「出撃時の武器」
-      // 唯一確定下來的地方（startingWeaponId＝weaponIds[0]），所以附加也掛在這裡。
-      applyRelicMemoryWeaponInfusion(mine, startingWeaponId);
-      // 同上，「出撃時の武器の戦技を○にする」30條也在這裡決定（使用者明確指示是替換）。
-      applyRelicMemorySkillSwap(mine, startingWeaponId);
       GameStorage.rtSet(gameId, "cloud", "character/" + myTokenId + "/equippedWeaponIdL", startingShieldId);
       GameStorage.rtSet(gameId, "cloud", "character/" + myTokenId + "/equippedWeaponIdR", startingWeaponId);
       syncEquippedWeaponIds(mine);
+    }
+    // 遺物記憶（2026-09-25第4期）「出撃時の武器に○を付加」7條／（第4期）「出撃時の武器の
+    // 戦技を○にする」30條。「出撃時の武器」＝weaponIds[0]，跟上面裝備初始化用的
+    // startingWeaponId 是同一把。
+    //
+    // 2026-09-26修正（使用者明確規格「遺物記憶 帶有出擊時附有屬性異常或戰技替換的，要確實
+    // 把初始武器的屬性掛上、戰技確實掛上」）：這兩支原本掛在上面那個「第一次裝備初始化」的
+    // 一次性區塊裡面。那個區塊的條件是 equippedWeaponIdL/R 都還是 undefined，一旦寫過就
+    // 永遠不會再進去；而這兩支在 hasRelicMemoryLoadout(c) 為 false 時會靜默返回（且刻意
+    // 不設一次性旗標，就是為了之後重試）。RTDB 的回流時序只要讓「裝備初始化」早於
+    // 「relicMemoryLoadout 抵達」一次，屬性／戰技就再也掛不上去了。
+    // 改成跟 applyRelicMemoryStartItems() 一樣每次 character 回流都嘗試——兩支各自有
+    // relicMemoryInfusionApplied／relicMemorySkillSwapApplied 一次性旗標，不會重複套用。
+    if (mine && mine.weaponIds && mine.weaponIds.length) {
+      applyRelicMemoryWeaponInfusion(mine, mine.weaponIds[0]);
+      applyRelicMemorySkillSwap(mine, mine.weaponIds[0]);
     }
     // 遺物記憶（2026-09-25第5期）「出撃時に『◯◯』を持つ」：跟上面的裝備初始化分開判斷——
     // 那一段只在「還沒裝備過任何武器」時跑一次，reload 後不會再進去；發道具需要自己的
@@ -5079,11 +5114,13 @@
       var amParticipant = !!(mySlot && invite && invite.participants && invite.participants[mySlot]);
       if (!amParticipant) return;
       delete towerPuzzleState[pointId];
-      if (towerPuzzleStartedFor[pointId]) {
-        el("midnight-tower-puzzle-modal").hidden = true;
-        // 自己已經在解這題（視窗開過）才發獎——路過看到別人解開的人不算參與。
-        if (!towerDiceState[pointId]) startTowerDiceHandReward({ id: pointId });
-      }
+      if (towerPuzzleStartedFor[pointId]) el("midnight-tower-puzzle-modal").hidden = true;
+      // 2026-09-26使用者明確規格「已經破關要能一起拿到獎勵」：發獎條件從「這台裝置此刻
+      // 正開著解謎視窗（towerPuzzleStartedFor）」放寬成「是這座塔的參與者」。
+      // 先前只要在別人解出的那一刻剛好關掉視窗、或走出塔的範圍（updateNearbyTower()會清
+      // 掉那個旗標），就拿不到獎勵。participants才是「有沒有進來過」的真正依據，而
+      // amParticipant的前置判斷已經把路過沒進來的人排除在外。
+      if (!towerDiceState[pointId]) startTowerDiceHandReward({ id: pointId });
     });
   }
 
@@ -6479,6 +6516,7 @@
     el("btn-midnight-abandon-vote-withdraw").addEventListener("click", handleAbandonVoteWithdraw);
     el("btn-midnight-relic-memory-settle-save").addEventListener("click", handleRelicMemorySettleSave);
     el("btn-midnight-relic-memory-settle-close").addEventListener("click", handleRelicMemorySettleClose);
+    el("btn-midnight-return-to-lobby").addEventListener("click", handleReturnToLobbyClick);
     el("midnight-lobby-test-mode-checkbox").addEventListener("change", handleTestModeToggle);
     // 2026-09-21：測試模式下的縮圈時間點（開放期／中繼暫停，分鐘），見handlePhaseTimingInput()。
     el("midnight-lobby-phase-grace-input").addEventListener("input", function () {
@@ -8700,7 +8738,9 @@
     var label = el(side === "L" ? "midnight-attack-mode-label-left" : "midnight-attack-mode-label-right");
     if (!row || !label) return;
     var options = armedAttackOptions(side);
-    row.hidden = options.length < 2;
+    // 雙手持握時左手側整組按鍵都隱藏（見twoHandedGrip()），攻擊方式切換列也一起收掉，
+    // 否則會留下一列孤零零的 ◀ 普通攻擊 ▶。
+    row.hidden = options.length < 2 || (side === "L" && twoHandedGrip(characters[myTokenId]));
     if (row.hidden) {
       if (attackArmedKind[side] !== null) attackArmedKind[side] = null; // 沒得選就一定是普通攻擊
       return;
@@ -15345,7 +15385,18 @@
     // 2026-09-06三次優化（使用者明確規格「夜之強敵戰鬥中無法任何的參加其他板塊與籌碼」）：
     // activeEncounter存在＝目前正在跟某個地圖點的敵人戰鬥中，此時不能另外開啟其他籌碼/
     // 板塊互動（塔／祝福／商人／拾取／靈鳥飛行皆同一守衛）。
-    if (!mySlot || isPaused() || activeEncounter || towerSolved[pt.id] || towerInvites[pt.id] || towerEnterAttempted[pt.id]) return;
+    if (!mySlot || isPaused() || activeEncounter || towerSolved[pt.id] || towerEnterAttempted[pt.id]) return;
+    // 2026-09-26使用者明確規格「魔術師塔…先後進入都能再次進入」：這座塔已經有人開過
+    //（towerInvites已存在）而且還沒解出時，不再直接return，改成「加入這一場」——
+    // 把自己寫進participants、清掉本地的已關閉旗標，下一影格renderTowerOverlay()的
+    // active分支就會用RTDB裡那道**同一題**開啟解謎視窗（見ensureTowerPuzzle()）。
+    // 先前只有在邀請的3秒內按下［參加］才進得來，錯過就永遠進不去、也拿不到獎勵。
+    if (towerInvites[pt.id]) {
+      delete towerPuzzleDismissed[pt.id];
+      delete towerPuzzleStartedFor[pt.id];
+      GameStorage.rtSet(gameId, "cloud", "towerInvites/" + pt.id + "/participants/" + mySlot, true);
+      return;
+    }
     towerEnterAttempted[pt.id] = true;
     var now = sharedNow(); // startedAt／inviteDeadline是跨裝置讀的共享時間戳（§8.2）
     resetAttemptFlagOnFailure(towerEnterAttempted, pt.id, GameStorage.rtTransaction(gameId, "cloud", "towerInvites/" + pt.id, function (cur) {
@@ -15436,6 +15487,12 @@
     inviteBarRow.hidden = true;
     if (invite.status === "active" && amParticipant && !towerSolved[pt.id] && !towerPuzzleStartedFor[pt.id] && !towerPuzzleDismissed[pt.id]) {
       startTowerPuzzle(pt); // 旗標改由startTowerPuzzle()在真的拿到題目之後才設，見該函式
+    }
+    // 2026-09-26使用者明確規格「先後進入都能再次進入」：這一場已經開始（active）但自己
+    // 還沒在解題時（沒參加到邀請、或自己按過關閉），［進入］鍵要留著讓人再進來一次。
+    // 按下去走handleTowerEnterClick()的「加入既有邀請」分支。
+    if (invite.status === "active" && !towerSolved[pt.id] && !towerPuzzleStartedFor[pt.id]) {
+      enterBtn.hidden = false;
     }
   }
 
@@ -18309,8 +18366,13 @@
   function rewardsMovementLocked(now) {
     var phaseInfo = currentPhaseInfo(now);
     var day1Available = finalCircleBossDefeated(1) && !finalCircleBossDefeated(2) && !day1RewardsDismissed;
-    var day2Available = finalCircleBossDefeated(2) && phaseInfo.day < 3 && !day2RewardsDismissed;
-    return day1Available || day2Available;
+    // 2026-09-26使用者明確規格「第二天打倒強敵結束後 玩家們還可以在最小的縮圈範圍內移動，
+    // 可以去做物品丟棄撿取」：第二天戰後不再鎖住移動。2026-09-08的「[離去]之前不能在地圖上
+    // 移動」只保留給**第一天**——第一天戰後有10秒自動換日倒數（FINAL_CIRCLE_BOSS_DAY_ADVANCE_MS），
+    // 鎖住移動是為了讓玩家在那段時間內把祝福／離去按完；第二天沒有倒數，換日由全員按下
+    // ［準備］決定，所以沒有必要把人釘在原地。
+    // 祝福／商人／離去區塊本身、以及§24.3的黃字提醒都照舊顯示，只是不再連帶禁止移動。
+    return day1Available;
   }
 
   // 2026-09-10使用者明確要求「結束夜之強敵戰鬥時，在上面banner顯示：離去後才能開始行動……」：
@@ -18992,7 +19054,7 @@
     // 2026-09-12使用者明確規格「武器…持有的戰技魔術等 是當下直接抽出，並非鍛造台再抽」：
     // 商人購買也一樣，入手當下就決定random戰技枠。
     window.PriTestCharacterDrawer.assignWeaponRandomSkill(c, result.weaponId, window.PriTestCharacterDrawer.rollWeaponRandomSkill(result.weaponId));
-    grantAffixesForNewWeapon(c, result.weaponId); // 2026-09-13武器詞條
+    grantMerchantAffixesForWeapon(c, result.weaponId); // 2026-09-13武器詞條／2026-09-26商人詞條整場固定
     if (!relicMemoryShopFree(c)) c.runes -= 1; // 遺物記憶第6期：商店購買有機率免費
     syncMyCharacterChanges(before); // 2026-09-20審查R1：只寫變動的子路徑
     el("midnight-merchant-weapon-result").textContent = window.I18N.t("midnight_merchant_weapon_result", {
@@ -24152,6 +24214,17 @@
     }
     nameEl.appendChild(document.createTextNode(Weapons_.localizedText(w.name) + "（" + w.rarity + "）"));
     detail.appendChild(nameEl);
+
+    // [種類]（2026-09-26使用者明確規格「武器的說明內 除了 名稱與威力補正外 還要寫明他的
+    // 武器種類」）：資料來源就是既有的分類（weapons_categories.js的name，C(ja,zh)雙語物件），
+    // 不另外定義一份種類名稱。盾也照樣顯示（盾本身就是一種武器種類）。
+    if (category && category.name) {
+      var catP = document.createElement("p");
+      catP.className = "midnight-weapon-category-line";
+      catP.textContent = window.I18N.t("midnight_character_sheet_weapon_category", { category: Weapons_.localizedText(category.name) });
+      detail.appendChild(catP);
+    }
+
     var bodyEl = document.createElement("p");
     bodyEl.textContent = mnText(Weapons_.localizedText(w.body || {}), Weapons_.localizedText(w.name));
     detail.appendChild(bodyEl);
@@ -25088,6 +25161,16 @@
 
   // 左右手一般攻擊／魔術祈禱按鈕的顯示/啟用狀態（見computeSideAttackInfo／
   // weaponSpellEntries／SORCERY_BUTTON_DEFS）。
+  // 雙手持握（2026-09-26使用者明確規格「左右手拿相同id的武器時 自動視為雙手持握，
+  // 左手的操作盤不顯示攻擊戰技等按鍵」）：判斷式沿用既有的同一條
+  //（affixOutgoingDamageMult()的twoHandAtkUp、twoHandGuardBreakSymbol()都用
+  // equippedWeaponIdL === equippedWeaponIdR），不另外發明第二套「雙手持握」定義。
+  // 空手（""／undefined）時兩邊也會相等，因此額外要求id本身是有值的，否則空手狀態會
+  // 被誤判成雙手持握。
+  function twoHandedGrip(c) {
+    return !!(c && c.equippedWeaponIdL && c.equippedWeaponIdL === c.equippedWeaponIdR);
+  }
+
   function renderSideCombatButtons(side) {
     var canAct = canActNow();
     var atkBtn = el(side === "L" ? "btn-midnight-attack-left" : "btn-midnight-attack-shared-target");
@@ -25105,6 +25188,13 @@
       if (atkLabelEl) {
         setCombatButtonLabel(atkLabelEl, window.I18N.t(side === "L" ? "midnight_crucible_assault_button" : "midnight_crucible_roar_button"));
       }
+      sideDefs.forEach(hideSpellButton);
+      return;
+    }
+    // 雙手持握：左手側沒有獨立的攻擊／戰技（同一把武器用雙手握），整組按鍵隱藏。
+    // 右手側維持原樣——那才是這把武器實際的操作入口。
+    if (side === "L" && twoHandedGrip(characters[myTokenId])) {
+      if (atkBtn) atkBtn.hidden = true;
       sideDefs.forEach(hideSpellButton);
       return;
     }
@@ -25542,6 +25632,8 @@
     // 開局10秒進場動畫期間（見introActive()）同樣不能移動，使用者明確規格「遊戲開始有
     // 10秒的動畫時間，期間不能移動操作」。
     if (!mySlot || isPaused() || !mapExpanded || introActive(now) || isSelfDowned()) return;
+    // 這一局已經結束（見gameFinishedLocked()）：角色不再能操作，包含移動。
+    if (gameFinishedLocked()) return;
     // 2026-09-06使用者回報bug「開啟商人仍能帶著亂跑」：商人／祝福視窗開啟中禁止移動，
     // 跟tower puzzle/character sheet等其他全螢幕modal理應一致（這兩個視窗原本沒有這個
     // 判斷，導致玩家能一邊看著商人視窗一邊移動離開，商人視窗卻沒有跟著關閉）。
@@ -25719,8 +25811,18 @@
   // 動作類按鈕的disabled都走同一個條件，畫面直接反映鎖定狀態。
   // 注意：這只涵蓋「動作」——角色視窗、選單、地圖檢視等純檢視操作不受限（使用者原始規格
   // 「僅能查看角色資訊與開啟選單」）。
+  // 這一局是否已經結束（2026-09-26使用者明確規格「打完夜王結算完領完遺物記憶後，角色鎖定
+  // 不可再操作，畫面中間可以按下回到大廳，回到沒有 gameId 的 midnight 主畫面」）：
+  // 條件＝夜王已擊破 ＋ 遺物記憶結算視窗已經關掉（勝利路徑）。放棄遊戲的路徑
+  //（relicMemorySettleReason === "abandon"）本來就會在關閉時直接導頁，不會停在這個狀態。
+  // 重新整理後會重新跑一次「勝利彈窗→結算視窗」，結算關掉之後又會回到鎖定狀態，
+  // 不需要另外同步旗標到 RTDB。
+  function gameFinishedLocked() {
+    return !!(relicMemorySettleDismissed && relicMemorySettleReason === "victory" && day3BossDefeated());
+  }
+
   function canActNow() {
-    return !!mySlot && !isPaused() && !isSelfDowned();
+    return !!mySlot && !isPaused() && !isSelfDowned() && !gameFinishedLocked();
   }
 
   // =====================================================================
@@ -26546,6 +26648,19 @@
     });
   }
 
+  // ［回到大廳］（2026-09-26使用者明確規格）：回到沒有?game=的midnight主畫面。
+  // 跟放棄遊戲路徑用的是同一行導頁寫法，不另外發明第二種離開方式。
+  function handleReturnToLobbyClick() {
+    window.location.href = window.location.pathname;
+  }
+
+  // 結束後的置中［回到大廳］：只在gameFinishedLocked()成立時顯示。
+  function renderGameFinishedOverlay() {
+    var wrap = el("midnight-game-finished-overlay");
+    if (!wrap) return;
+    wrap.hidden = !gameFinishedLocked();
+  }
+
   function handleRelicMemorySettleClose() {
     el("midnight-relic-memory-settle-modal").hidden = true;
     relicMemorySettleOpen = false;
@@ -27064,17 +27179,19 @@
   // 設計一致，只有自己需要知道自己累積了多少），不需要跨玩家同步。
   function maybeApplyRedMiasmaTick(now) {
     if (!mySlot) return;
+    // 跟冰原凍傷完全同一條規則（2026-09-26使用者明確規格「地變只有在特定地方才會造成特殊
+    // 規則」、「累積滿…達到上限值會觸發效果並歸0重新累積」），見maybeApplyIceFrostbiteTick()。
+    if (!inHazardTerrain()) {
+      redMiasmaNextTickAt = null;
+      return;
+    }
     if (redMiasmaNextTickAt === null) {
       redMiasmaNextTickAt = now + RED_MIASMA_INTERVAL_MS;
       return;
     }
     if (now < redMiasmaNextTickAt) return;
     redMiasmaNextTickAt = now + RED_MIASMA_INTERVAL_MS;
-    // 2026-09-20審查M17修正：經過同一條前置過濾鏈（恩寵免疫／護符無效化／詞條耐性），
-    // 只是仍不透過recordReceivedAttributeAccum()的閾值歸零。
-    var roll = filterReceivedAccumAmount("腐敗", 1 + Math.floor(Math.random() * 6));
-    if (roll <= 0) return;
-    receivedAttributeAccum["腐敗"] = (receivedAttributeAccum["腐敗"] || 0) + roll;
+    recordReceivedAttributeAccum("腐敗", 1 + Math.floor(Math.random() * 6));
     renderAttributeAccumNote();
   }
 
@@ -27131,17 +27248,40 @@
   // ice_blizzard就持續累積，不限戰鬥中。
   function maybeApplyIceFrostbiteTick(now) {
     if (!mySlot) return;
+    // 2026-09-26使用者明確規格：只有真的站在地變地形裡才會持續累積，平地一律不累積。
+    // 不在地變範圍內時連計時器都重置，走回地變時重新從完整一個間隔開始算。
+    if (!inHazardTerrain()) {
+      iceFrostbiteNextTickAt = null;
+      return;
+    }
     if (iceFrostbiteNextTickAt === null) {
       iceFrostbiteNextTickAt = now + ICE_FROSTBITE_INTERVAL_MS;
       return;
     }
     if (now < iceFrostbiteNextTickAt) return;
     iceFrostbiteNextTickAt = now + ICE_FROSTBITE_INTERVAL_MS;
-    // 2026-09-20審查M17修正：同maybeApplyRedMiasmaTick()，走同一條前置過濾鏈。
-    var roll = filterReceivedAccumAmount("凍傷", 1 + Math.floor(Math.random() * 6));
-    if (roll <= 0) return;
-    receivedAttributeAccum["凍傷"] = (receivedAttributeAccum["凍傷"] || 0) + roll;
+    // 2026-09-26使用者明確規格「自身如果真的在地變地形中累積滿凍傷或腐敗等等，達到上限值
+    // 會觸發效果並歸0重新累積」：改走recordReceivedAttributeAccum()這個自身承受蓄積的唯一
+    // 入口（它已經包含恩寵免疫／護符無效化／詞條耐性的過濾鏈，因此不再另外呼叫
+    // filterReceivedAccumAmount()），跨過門檻就觸發效果並歸零。
+    // 「戰鬥結束後蓄積值仍保留」的既有規格不受影響——那是由onEncounterEnded()的
+    // keptAccum["凍傷"]負責，跟這裡的門檻觸發是兩回事。
+    recordReceivedAttributeAccum("凍傷", 1 + Math.floor(Math.random() * 6));
     renderAttributeAccumNote();
+  }
+
+  // 「地變地形」＝地圖上橘線圈起來的那塊區域（midnight_map.js的hazardZone遮罩，Q卡牌／
+  // 可怖強敵／4板塊／祝福×2都生成在這塊範圍裡）。
+  // 2026-09-26使用者明確規格「地變只有在特定地方才會造成特殊規則，現在在冰原地圖，在平地
+  // 必然不會造成持續累積凍傷」：持續累積型的地變特殊規則改成只在這塊範圍內生效。
+  // hazardZone為null（origin基礎地圖等沒有地變區的地圖）時一律回false——那些地圖本來就
+  // 不該有地變特殊規則。
+  function inHazardTerrain() {
+    if (!map || !map.hazardZone || !localPos) return false;
+    var x = Math.floor(localPos.x);
+    var y = Math.floor(localPos.y);
+    if (x < 0 || y < 0 || x >= map.width || y >= map.height) return false;
+    return map.hazardZone[y * map.width + x] === 1;
   }
 
   function applyMapSpecialRuleTick(now, phaseInfo) {
@@ -27736,6 +27876,7 @@
     updateBattleEnterLoading(now);
     updateBattlePrep(now);
     renderEnterBattlePrompt();
+    renderGameFinishedOverlay();
     renderBattlePrepBanner(now);
     renderStaggerOverlay(now); // 體崩橫幅／致命一擊按鈕（每影格變動，不能放進有快取的renderFieldEncounterPanel）
     renderEnemyDamageFloat(now); // 2026-09-24：敵人血條下方的傷害飄字（1秒內累加，到期收掉）
@@ -28133,6 +28274,51 @@
     },
     _debugGuardInfo: function (hitIndex) {
       return currentGuardInfo(hitIndex);
+    },
+    // ---- 2026-09-26 修正批次的測試入口（見 tools/midnight_check/fix_batch_2026_09_26_check.js）----
+    // 地變地形（hazardZone）判定與冰原凍傷／紅瘴氣腐敗的一次 tick。tick 本身每影格由
+    // applyMapSpecialRuleTick() 驅動，但間隔是 30 秒，測試等不起——直接開一個入口。
+    _debugInHazardTerrain: function () {
+      return inHazardTerrain();
+    },
+    _debugHazardZoneCell: function (x, y) {
+      if (!map || !map.hazardZone) return null;
+      var xi = Math.floor(x);
+      var yi = Math.floor(y);
+      if (xi < 0 || yi < 0 || xi >= map.width || yi >= map.height) return null;
+      return map.hazardZone[yi * map.width + xi];
+    },
+    _debugMapSpecialRuleTick: function () {
+      // 把下一次 tick 的時刻拉到現在，再跑一次 applyMapSpecialRuleTick()。
+      iceFrostbiteNextTickAt = 0;
+      redMiasmaNextTickAt = 0;
+      applyMapSpecialRuleTick(Date.now(), currentPhaseInfo(Date.now()));
+    },
+    _debugReceivedAccum: function () {
+      return receivedAttributeAccum;
+    },
+    // 商人武器詞條整場固定（見 grantMerchantAffixesForWeapon()）：直接對指定武器套用一次。
+    _debugGrantMerchantAffixes: function (weaponId) {
+      var c = characters[myTokenId];
+      if (!c) return null;
+      grantMerchantAffixesForWeapon(c, weaponId);
+      return { affixes: c.weaponAffixes && c.weaponAffixes[weaponId], set: c.merchantAffixSet };
+    },
+    _debugTwoHandedGrip: function () {
+      return twoHandedGrip(characters[myTokenId]);
+    },
+    _debugSetEquippedWeapons: function (l, r) {
+      var c = characters[myTokenId];
+      if (!c) return null;
+      c.equippedWeaponIdL = l;
+      c.equippedWeaponIdR = r;
+      GameStorage.rtSet(gameId, "cloud", "character/" + myTokenId + "/equippedWeaponIdL", l);
+      GameStorage.rtSet(gameId, "cloud", "character/" + myTokenId + "/equippedWeaponIdR", r);
+      renderCombatPanel();
+      return { l: c.equippedWeaponIdL, r: c.equippedWeaponIdR };
+    },
+    _debugGameFinishedLocked: function () {
+      return gameFinishedLocked();
     },
     _debugRecordReceivedAccum: function (label, amount) {
       recordReceivedAttributeAccum(label, amount);
