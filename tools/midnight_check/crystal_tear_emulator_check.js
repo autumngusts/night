@@ -36,13 +36,16 @@ const assert = (c, l, d) => {
   });
 
   try {
-    await page.addInitScript(() => {
+    // emulator 的 database port 可用 PRITEST_EMU_PORT 覆寫（同 relic_memory_emulator_check.js；
+    // 有些機器 9000 被其他程式佔用，emulator 改跑在別的 port）。
+    await page.addInitScript((port) => {
       try {
         window.sessionStorage.setItem("pritestRtdbEmulator", "1");
+        if (port) window.sessionStorage.setItem("pritestRtdbEmulatorPort", port);
       } catch (e) {
         /* 忽略 */
       }
-    });
+    }, process.env.PRITEST_EMU_PORT || "");
     await page.goto(BASE + "/midnight/index.html", { waitUntil: "networkidle" });
     await page.click("#btn-midnight-create");
     await page.waitForFunction(() => window.PriTestMidnight && window.PriTestMidnight._debugState().meta, { timeout: WAIT });

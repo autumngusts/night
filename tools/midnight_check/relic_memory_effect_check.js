@@ -600,7 +600,8 @@ const BASE = process.env.PRITEST_BASE_URL || "http://localhost:8791";
         return { id: id, label: label, isElement: isElement, temps: r.temps, onInfuseActive: r.onInfuseActive };
       });
 
-      // 兩種屬性一起帶 → 兩條都掛上。
+      // 兩種屬性一起帶 → 只有帶入順序第一條發動（2026-09-25 使用者明確規格「玩家裝備裝上
+      // 不同科的不可重複效果時 只會發動前面一個的效果」；舊期望值是兩條都掛上）。
       const two = MN._debugRelicMemoryInfusion(
         [
           { memId: "m1", size: "s", effects: [{ id: "rm_infuse_fire" }] },
@@ -645,7 +646,10 @@ const BASE = process.env.PRITEST_BASE_URL || "http://localhost:8791";
         (infWrong.length ? "\n        " + infWrong.map((r) => r.id + " → 期望 " + r.label + "，實得 " + JSON.stringify(r.temps)).join("\n        ") : "")
     );
     assert(inf.none.temps.length === 0, "沒帶記憶時不附加任何東西");
-    assert(inf.two.temps.length === 2, "炎＋出血一起帶 → 掛上 2 條（實得 " + inf.two.temps.length + "）");
+    assert(
+      inf.two.temps.length === 1 && inf.two.temps[0].label === "炎",
+      "炎＋出血一起帶 → 只發動第一條（炎）（實得 " + JSON.stringify(inf.two.temps) + "）"
+    );
     assert(inf.dup.temps.length === 1, "同一種帶兩顆 → 只掛 1 條，不疊加（實得 " + inf.dup.temps.length + "）");
     assert(inf.combo.onInfuseActive, "附加屬性後「属性攻撃力が付加された時」的視窗開啟");
     assert(
@@ -1207,13 +1211,14 @@ const BASE = process.env.PRITEST_BASE_URL || "http://localhost:8791";
 
     const K = cov6.byKind;
     const expect6 = {
-      special: [74, 73],
+      // 2026-09-25：rm_party_rune_up／rm_milestone_fort_rune 接上（舊值 special 73、globalMilestone 6）。
+      special: [74, 74],
       onGuardSuccess: [5, 5],
       onDamaged: [2, 2],
       aggro: [1, 1],
       flask: [2, 2],
       onWeaponSwap: [2, 2],
-      globalMilestone: [7, 6],
+      globalMilestone: [7, 7],
       nearDeath: [1, 1],
       startItem: [18, 18],
       // 2026-09-25 第 7 期：結晶雫 22 條中，21 條已接（RM_CRYSTAL_TEARS，見 crystal_tear_check.js）；
@@ -1230,10 +1235,93 @@ const BASE = process.env.PRITEST_BASE_URL || "http://localhost:8791";
     );
     const stillOpen = cov6.drawable - cov6.totalWired;
     console.log("    （抽選池中的目錄效果 " + cov6.drawable + " 條，已接 " + cov6.totalWired + " 條，仍僅顯示 " + stillOpen + " 條）");
-    assert(cov6.totalWired === 359, "累計已接 359 條（第 5 期 18 ＋ 第 6 期 94 ＋ 第 7 期結晶雫 21，實得 " + cov6.totalWired + "）");
-    // 2026-09-25 第 7 期之前這裡是 24（結晶雫 22 ＋ 盧恩 2）。結晶雫接上後只剩需要「踏破板塊時
-    // 發盧恩」這個 midnight 沒有的事件出口的 2 條（設計文件 §10.15.2）。
-    assert(stillOpen === 2, "仍僅顯示 2 條（需要踏破板塊發盧恩的 2 條，實得 " + stillOpen + "）");
+    assert(cov6.totalWired === 361, "累計已接 361 條（359 ＋ 2026-09-25 盧恩 2 條，實得 " + cov6.totalWired + "）");
+    // 2026-09-25 第 7 期之前這裡是 24（結晶雫 22 ＋ 盧恩 2），第 7 期後 2；盧恩 2 條接上後歸零。
+    assert(stillOpen === 0, "抽選池中已沒有只顯示文字的效果（實得 " + stillOpen + "）");
+
+    // ------------------------------------------- 最後 2 條盧恩效果＋互斥組（2026-09-25）
+    console.log("");
+    console.log("-- 盧恩 2 條＋互斥組 --");
+    const last = await page.evaluate(() => {
+      const MN = window.PriTestMidnight;
+      const CD = window.PriTestCharacterDrawer;
+      const CAT = window.PriTestMidnightRelicMemoryCatalog;
+      const mem = (memId, ids) => ({ memId: memId, size: "l", effects: ids.map((id) => ({ id: id })) });
+      const party = mem("m1", ["rm_party_rune_up"]);
+      const fort = mem("m2", ["rm_milestone_fort_rune"]);
+      const rune = {
+        none: MN._debugRelicMemoryRuneEffects([[], []], [], 0),
+        one: MN._debugRelicMemoryRuneEffects([[], [party]], [fort], 3),
+        // 多人帶／同一人帶兩顆：仍只 +1（stackable:false）；小砦同一人帶兩顆也只算一次。
+        many: MN._debugRelicMemoryRuneEffects([[party, mem("m3", ["rm_party_rune_up"])], [party]], [fort, mem("m4", ["rm_milestone_fort_rune"])], 2),
+      };
+      // 潛在之力的稀有度擲骰點數加成（character_drawer 的新 rarityBonus 參數）。
+      const typeId = window.PriTestCharacterTypes.list()[0].id;
+      const pp = [];
+      for (let i = 0; i < 30; i++) {
+        const r = CD.potentialPowerDrawWeapon({ typeId: typeId, learnedRelicEffects: [], talismanIds: [] }, 2, 3);
+        if (r) pp.push({ dice: r.rarityDice.reduce((a, b) => a + b, 0), sum: r.raritySum });
+      }
+      // 互斥組：整池大記憶抽 3000 顆，同一顆內每組最多一條。
+      const groupOf = (id) => CAT.exclusiveGroup(id);
+      let violations = 0;
+      let startWeaponSeen = 0;
+      let tearSeen = 0;
+      for (let i = 0; i < 3000; i++) {
+        const m = MN._debugNewRelicMemory("l");
+        const seen = {};
+        m.effects.forEach((e) => {
+          const g = groupOf(e.id);
+          if (!g) return;
+          if (g === "startWeapon") startWeaponSeen++;
+          if (g === "crystalTear") tearSeen++;
+          if (seen[g]) violations++;
+          seen[g] = true;
+        });
+      }
+      // 受控：池裡只剩同組效果時，才會退回同組（湊滿條數優先），這裡只驗組定義。
+      const groups = {
+        infuse: groupOf("rm_infuse_fire"),
+        skill: groupOf("rm_skillswap_endure"),
+        spell: groupOf("rm_spellswap_o_flame"),
+        tear: groupOf("rm_start_crimson_crystal_tear"),
+        plain: groupOf("rm_max_hp_up"),
+        attached: groupOf("attack_dmg"),
+      };
+      // 帶入多顆：同組只有第一條發動。
+      const ex1 = MN._debugRelicMemoryExclusiveGroups([mem("a", ["rm_skillswap_endure"]), mem("b", ["rm_infuse_fire", "rm_start_leaden_hardtear"]), mem("c", ["rm_start_crimson_crystal_tear"])]);
+      const swapFirst = MN._debugRelicMemorySkillSwap([mem("a", ["rm_infuse_fire"]), mem("b", ["rm_skillswap_endure"])]);
+      const infSecond = MN._debugRelicMemoryInfusion([mem("a", ["rm_skillswap_endure"]), mem("b", ["rm_infuse_fire"])], "wTest");
+      const tear = MN._debugCrystalTears([mem("a", ["rm_start_leaden_hardtear"]), mem("b", ["rm_start_crimson_crystal_tear"])]);
+      return { rune: rune, pp: pp, violations: violations, startWeaponSeen: startWeaponSeen, tearSeen: tearSeen, groups: groups, ex1: ex1, swapFirst: swapFirst, infSecond: infSecond, tearPicked: tear.picked };
+    });
+    assert(last.rune.none.partyBonus === 0 && last.rune.none.fortPer === 0, "沒帶記憶時盧恩加成 0");
+    assert(last.rune.one.partyBonus === 1, "參加者中有人帶「自身と味方の取得ルーン増加」→ 全踏破盧恩 +1");
+    assert(last.rune.many.partyBonus === 1, "多人帶／同一人帶兩顆 → 仍只 +1（實得 " + last.rune.many.partyBonus + "）");
+    assert(last.rune.one.fortCard === "3", "小砦對應場地卡 card_3");
+    assert(last.rune.one.fortPer === 1 && last.rune.one.fortDiscovery === 3, "小砦踏破 3 次 → 發現力 +3（實得 " + last.rune.one.fortDiscovery + "）");
+    assert(last.rune.many.fortPer === 1, "小砦效果帶兩顆不疊加（每次仍 +1）");
+    assert(
+      last.pp.length > 0 && last.pp.every((x) => x.sum === x.dice + 3),
+      "潛在之力：rarityBonus 3 → 稀有度點數 = 骰子合計 + 3（樣本 " + last.pp.length + "）"
+    );
+    assert(
+      last.groups.infuse === "startWeapon" && last.groups.skill === "startWeapon" && last.groups.spell === "startWeapon" &&
+        last.groups.tear === "crystalTear" && last.groups.plain === null && last.groups.attached === null,
+      "互斥組定義：屬性附加／戰技置換／魔術祈禱置換＝startWeapon、結晶雫＝crystalTear（實得 " + JSON.stringify(last.groups) + "）"
+    );
+    assert(
+      last.violations === 0 && last.startWeaponSeen > 0 && last.tearSeen > 0,
+      "大記憶 3000 顆：同一顆內同組最多一條（違反 " + last.violations + "，出現 startWeapon " + last.startWeaponSeen + "／結晶雫 " + last.tearSeen + "）"
+    );
+    assert(
+      last.ex1.startWeapon === "rm_skillswap_endure" && last.ex1.crystalTear === "rm_start_leaden_hardtear" &&
+        last.ex1.suppressed.join(",") === "rm_infuse_fire,rm_start_crimson_crystal_tear",
+      "帶入多顆：同組只發動第一條，其餘標為未發動（實得 " + JSON.stringify(last.ex1) + "）"
+    );
+    assert(last.swapFirst.swap === null, "第一條是屬性附加時，後面的戰技置換不發動");
+    assert(last.infSecond.temps.length === 0, "第一條是戰技置換時，後面的屬性附加不發動");
+    assert(last.tearPicked === "rm_start_leaden_hardtear", "結晶雫取帶入順序第一條（實得 " + last.tearPicked + "）");
 
   } finally {
     await browser.close();

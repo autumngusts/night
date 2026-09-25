@@ -1022,6 +1022,25 @@
     return !!(e && e.character);
   }
 
+  // 互斥組（使用者 2026-09-25 明確規格）：
+  //   ・「出撃時の武器」組：武器屬性／異常附加（weaponInfusion）、戰技置換（grantWeaponSkill）、
+  //     魔術／祈禱置換（grantSpell）——「初始武器帶屬性 帶戰技 等等 一個遺物記憶只能抽到一條」。
+  //   ・結晶雫組（startFlask）——「結晶雫 一個遺物記憶只能帶一條」。
+  // 抽選時同一顆記憶內每組最多一條（midnight_relic_memory.js 的 rollEffects() opts.exclusiveGroup）；
+  // 帶入多顆記憶時同組只有帶入順序的**第一條**發動（「只會發動前面一個的效果」，
+  // 見 midnight.js 的 relicMemoryFirstGroupEffectId()）。不在組內的效果回 null。
+  var EXCLUSIVE_GROUP_BY_KIND = {
+    weaponInfusion: "startWeapon",
+    grantWeaponSkill: "startWeapon",
+    grantSpell: "startWeapon",
+    startFlask: "crystalTear",
+  };
+
+  function exclusiveGroup(id) {
+    var e = effect(id);
+    return (e && EXCLUSIVE_GROUP_BY_KIND[e.kind]) || null;
+  }
+
   function badEffects() {
     return EFFECTS.filter(function (e) {
       return e.bad;
@@ -1120,6 +1139,7 @@
     drawableEffects: drawableEffects,
     drawableEffectIds: drawableEffectIds,
     isExclusiveEffect: isExclusiveEffect,
+    exclusiveGroup: exclusiveGroup,
     badEffects: badEffects,
     effectsForCharacter: effectsForCharacter,
     localizedText: T,

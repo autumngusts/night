@@ -2310,6 +2310,34 @@
     processAttributeStatusEnemyTrigger(enemyKey, label);
   }
 
+  // 附帶効果「疾跑時發生火焰」「步行時發生落雷」「一定時間後產生輝石」の「對敵人造成『炎／雷／魔：1D』」。
+  // 使用者2026-09-25明確規格：「系統直接決定骰面自動套用」——自動化GMのON/OFFに関係なく、
+  // 1D＝骰子1顆を直接擲って、その値を屬性蓄積として敵人へ与える。
+  // 攻撃対象の敵人がいない（作用先が無い）場合だけ、従来どおりログでGMに手動適用を促す。
+  // 対象は攻撃対象として選択中の敵人（combatAttackTargetEnemyKey）、無効なら選択肢の先頭。
+  function applyAttachedAutoAttribute(c, effectId, label, manualLogKey) {
+    var options = resolveSelectedEnemyOptions();
+    var target = options.filter(function (o) {
+      return o.key === combatAttackTargetEnemyKey;
+    })[0] || options[0];
+    if (!target) {
+      addLog(manualLogKey, { character: c.name });
+      return;
+    }
+    var roll = 1 + Math.floor(Math.random() * 6);
+    var effect = CharacterDrawer.attachedEffectById(effectId);
+    addLogAndAutoGmLog("log_attached_auto_attribute_applied", {
+      character: c.name,
+      effect: effect ? CharacterTypes.localizedText(effect.name) : effectId,
+      enemy: target.name,
+      label: label,
+      value: roll,
+    });
+    recordAttributeStatusDealt(c.id, target.key, label, roll);
+    saveState();
+    renderAttributeStatusList();
+  }
+
   // 隱者「元素操控」：対象の敵人が屬性傷害（火/雷/聖/魔のいずれか）を受けているかどうかを、
   // 実際に蓄積されているenemyAccumから判定する（範囲が不明で手動確認に頼るしかない他の
   // ゲート付き技能とは異なり、ここは既存データで正確に判定できる）。
@@ -4455,7 +4483,9 @@
 
   // 恩寵由来と場地卡報酬由来をまとめた「蓄積最大値」の加算。
   function accumMaxBonusFor(c, label) {
-    return graceAccumMaxBonus(c, label) + personalAccumMaxBonus(c, label);
+    // 附帶効果「狀態異常耐性」「屬性耐性」（2026-09-25使用者明確規格「night使用計算去讀」）：
+    // 選んだ異常／屬性の蓄積上限 +1（□×8→□×9）。
+    return graceAccumMaxBonus(c, label) + personalAccumMaxBonus(c, label) + CharacterDrawer.attachedResistAccumMaxBonus(c, label);
   }
 
   function renderPersonalModifierList() {
@@ -5912,7 +5942,7 @@
     // 附帶効果「疾跑時發生火焰」：後衛→前衛の移動action発動時、對敵人「火+1」（行動階段中1回のみ）。
     if (!c._sprintFireUsedThisPhase && (c.learnedAttachedEffects || []).indexOf("sprint_fire") !== -1) {
       c._sprintFireUsedThisPhase = true;
-      addLog("log_sprint_fire_trigger", { character: c.name });
+      applyAttachedAutoAttribute(c, "sprint_fire", "炎", "log_sprint_fire_trigger");
     }
     setTimeout(function () {
       var idx = battlePositionNames().indexOf(c.name);
@@ -6396,7 +6426,7 @@
     var ominousBonus = ominousStrikeSkillBonus(c);
     var heroMeatSkillBonusValue = heroMeatSkillBonus(c);
     var elementalControlBonus = elementalControlMagicBonus(c, skillDamageKind);
-    var attachedSkillBonus = skillDamageKind ? CharacterDrawer.attachedSkillDamageBonus(c, skillDamageKind) : 0;
+    var attachedSkillBonus = skillDamageKind ? CharacterDrawer.attachedSkillDamageBonus(c, skillDamageKind, entry.weaponId) : 0;
     // 執行者「妖刀（妖刀解放・攻）」：この遺物効果を2つ以上習得している場合、Action使用時の
     // ダメージに固定+25。
     var yotoReleaseBonus =
@@ -13318,12 +13348,12 @@
         if (!c.entered) return;
         var attached = c.learnedAttachedEffects || [];
         if (attached.indexOf("walk_lightning") !== -1 && getCharacterBattlePosition(c) === "front") {
-          addLog("log_walk_lightning_trigger", { character: c.name });
+          applyAttachedAutoAttribute(c, "walk_lightning", "雷", "log_walk_lightning_trigger");
         }
         var idxForAggro = battlePositionNames().indexOf(c.name);
         var aggroValue = idxForAggro !== -1 && idxForAggro < BATTLE_SLOT_COUNT ? state.battle.aggro[idxForAggro] || 0 : 0;
         if (attached.indexOf("time_gem") !== -1 && aggroValue >= 1) {
-          addLog("log_time_gem_trigger", { character: c.name });
+          applyAttachedAutoAttribute(c, "time_gem", "魔", "log_time_gem_trigger");
         }
       });
     }
@@ -14175,7 +14205,7 @@
         var map = received[c.id] || {};
         Object.keys(map).forEach(function (label) {
           if (!map[label]) return;
-          receivedParts.push(c.name + " " + label + map[label] + "/" + ATTRIBUTE_STATUS_BASE_THRESHOLD);
+          receivedParts.push(c.name + " " + label + map[label] + "/" + (ATTRIBUTE_STATUS_BASE_THRESHOLD + accumMaxBonusFor(c, label)));
         });
       });
     container.hidden = !dealtParts.length && !receivedParts.length;
@@ -14268,7 +14298,7 @@
       Object.keys(receivedMap).forEach(function (label) {
         var value = receivedMap[label];
         if (!value) return;
-        var threshold = ATTRIBUTE_STATUS_BASE_THRESHOLD;
+        var threshold = ATTRIBUTE_STATUS_BASE_THRESHOLD + accumMaxBonusFor(c, label);
         var chip = document.createElement("span");
         chip.className = "tag-chip";
         chip.textContent = label + "（" + value + "／" + threshold + "）";
@@ -16225,6 +16255,9 @@
   // not snapshots, so mutations made through this object are immediately visible here too.
   window.PriTestNightCore = {
     state: state,
+    // 純測試用（2026-09-25 基礎附帶效果，見 tools/night_check/attached_effects_night_check.js）。
+    _debugApplyAttachedAutoAttribute: applyAttachedAutoAttribute,
+    _debugAccumMaxBonusFor: accumMaxBonusFor,
     getRosterCharacters: function () { return rosterCharacters; },
     // ランダムイベント決定表の劇本限定行判定（night_gm_flow.jsのautoRollRandomEventChipIfNeeded）
     // 用：現在の副本id（game/scenarioは共にこのファイルのモジュール内closure変数のため未export、

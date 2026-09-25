@@ -91,21 +91,35 @@
   var EXCLUSIVE_FORBIDDEN_INDEX = 2; // 第 3 條（索引 2）一律不抽專用效果
 
   // opts.isExclusive(id) → 該效果是不是角色專用。不傳就是舊行為（整池均勻抽）。
+  // opts.exclusiveGroup(id) → 該效果所屬的互斥組名（不屬於任何組回 null）。不傳就不限制。
   function rollEffects(size, effectIds, rand, opts) {
     var isExclusive = (opts && opts.isExclusive) || null;
+    var exclusiveGroup = (opts && opts.exclusiveGroup) || null;
     var pool = effectIds.slice();
     var n = Math.min(SIZE_EFFECT_COUNT[size] || 1, pool.length);
     var out = [];
     var gotExclusive = false;
+    var usedGroups = {};
     for (var i = 0; i < n; i++) {
-      var candidates = pool;
+      var base = pool;
+      // 互斥組（使用者 2026-09-25 明確規格「初始武器帶屬性 帶戰技 等等 一個遺物記憶只能抽到一條」
+      // 「結晶雫 一個遺物記憶只能帶一條」）：同一顆記憶內，已抽到的組不再出現。
+      // 只是過濾候選，不擲骰，rand 的消耗順序不變。
+      if (exclusiveGroup) {
+        var ungrouped = pool.filter(function (id) {
+          var g = exclusiveGroup(id);
+          return !g || !usedGroups[g];
+        });
+        if (ungrouped.length) base = ungrouped;
+      }
+      var candidates = base;
       var excludeExclusive = false;
       if (isExclusive) {
         if (i === EXCLUSIVE_FORBIDDEN_INDEX) excludeExclusive = true;
         else if (gotExclusive && i === EXCLUSIVE_THRESHOLD_INDEX && rand() >= EXCLUSIVE_REPEAT_CHANCE) excludeExclusive = true;
       }
       if (excludeExclusive) {
-        var plain = pool.filter(function (id) {
+        var plain = base.filter(function (id) {
           return !isExclusive(id);
         });
         // 非專用效果抽光時才退回整池，否則記憶會湊不滿該有的條數。
@@ -116,6 +130,7 @@
       pool.splice(pool.indexOf(picked), 1);
       out.push(picked);
       if (isExclusive && isExclusive(picked)) gotExclusive = true;
+      if (exclusiveGroup && exclusiveGroup(picked)) usedGroups[exclusiveGroup(picked)] = true;
     }
     return out;
   }

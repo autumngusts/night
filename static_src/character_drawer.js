@@ -3226,7 +3226,9 @@
   // merchantDrawWeaponと異なり、この関数はまだ確定させず（weaponIdsへ追加しない）、
   // 結果だけを返す。「潜在する力」は「得意武器」と「付帯効果」を両方抽選してから、
   // PCがどちらを獲得するか選ぶ規則のため。
-  function potentialPowerDrawWeapon(c, starCount) {
+  // rarityBonus（2026-09-25追加、省略可）：稀有度擲骰點數的加算值。midnight 遺物記憶
+  // 「小砦の強敵を倒す度…発見力上昇」用；night.js 側不傳，行為與以前完全相同。
+  function potentialPowerDrawWeapon(c, starCount, rarityBonus) {
     var type = c.typeId ? CharacterTypes.get(c.typeId) : null;
     if (!type) return null;
     var favoredNames = CharacterTypes.localizedText(type.favoredWeapons)
@@ -3263,6 +3265,7 @@
     if ((c.talismanIds || []).indexOf("talisman_silver_scarab") !== -1) {
       raritySum += 1;
     }
+    raritySum += rarityBonus || 0;
     var rarity = lookupRarityBySum(raritySum);
 
     var item = null,
@@ -4370,10 +4373,48 @@
   // 判定して渡す："art"=杖／聖印以外の武器の戦技、"sorcery"=杖(魔術)、"incant"=聖印(祈祷)。
   var ATTACHED_SKILL_DAMAGE_IDS = { art: "arts_dmg", sorcery: "sorcery_dmg", incant: "incant_dmg" };
 
-  function attachedSkillDamageBonus(c, kind) {
+  // weaponId（2026-09-25追加、省略可）：附帶効果「雙手持握強化」「雙刀持握強化」本文後半の
+  // 「戰技傷害設為『+5』」（使用者2026-09-25明確規格「兩邊都接上」）。発動条件は本文前半と同じ
+  // （attachedEffectAppliesTo()＝1本だけ装備／同カテゴリ近戦2本装備）で、その判定に武器が要るため
+  // 呼び出し側が戦技の出所の武器を渡す。「戰技」なので kind==="art" のみ（魔術／祈祷は対象外）。
+  function attachedSkillDamageBonus(c, kind, weaponId) {
     var id = ATTACHED_SKILL_DAMAGE_IDS[kind];
     if (!id || !c) return 0;
-    return activeAttachedEffectIds(c).indexOf(id) !== -1 ? 5 : 0;
+    var active = activeAttachedEffectIds(c);
+    var bonus = active.indexOf(id) !== -1 ? 5 : 0;
+    if (kind === "art" && weaponId) {
+      var weapon = Weapons.get(baseWeaponId(weaponId));
+      ["two_hand_up", "dual_wield_up"].forEach(function (grip) {
+        if (active.indexOf(grip) === -1 || !weapon) return;
+        if (attachedEffectAppliesTo({ id: grip }, c, weaponId, weapon)) bonus += 5;
+      });
+    }
+    return bonus;
+  }
+
+  // 附帶効果「狀態異常耐性」「屬性耐性」（使用者2026-09-25明確規格：night は計算で読む、
+  // midnight はプレイヤーが選ぶ）：選んだ異常／屬性の蓄積上限を +1（「□×8」→「□×9」）。
+  // 選択は c.statusResistChoice／c.elementResistChoice（{ ja, zh }、assignAttachedResistChoiceIfNeeded
+  // が既定値を入れる）。label は night／midnight どちらの表記でも来るので ja・zh 両方と比べる。
+  function attachedResistAccumMaxBonus(c, label) {
+    if (!c || !label) return 0;
+    var active = activeAttachedEffectIds(c);
+    var bonus = 0;
+    [
+      ["status_resist", c.statusResistChoice],
+      ["element_resist", c.elementResistChoice],
+    ].forEach(function (pair) {
+      var choice = pair[1];
+      if (active.indexOf(pair[0]) === -1 || !choice) return;
+      if (choice.ja === label || choice.zh === label) bonus += 1;
+    });
+    return bonus;
+  }
+
+  function attachedResistOptions(effectId) {
+    if (effectId === "status_resist") return COMMON_SKILL_STATUS_OPTIONS;
+    if (effectId === "element_resist") return COMMON_SKILL_ELEMENT_OPTIONS;
+    return null;
   }
 
   // 無賴漢「鬥爭心」：現在HPが最大HPと異なる場合（1点以上減っている場合）、自身が発生する
@@ -7461,6 +7502,8 @@
     attachedEffectStackable: attachedEffectStackable,
     allAttachedEffectIds: allAttachedEffectIds,
     assignAttachedResistChoiceIfNeeded: assignAttachedResistChoiceIfNeeded,
+    attachedResistAccumMaxBonus: attachedResistAccumMaxBonus,
+    attachedResistOptions: attachedResistOptions,
     relicChoiceConfigForEffect: relicChoiceConfigForEffect,
     LEVEL_CAP: LEVEL_CAP,
     applyLevelUpResourceBonus: applyLevelUpResourceBonus,

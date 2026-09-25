@@ -1040,7 +1040,7 @@ midnight **沒有**艾爾登法環那 8 種能力值，只有 `POWER_MOD_STAT_MA
 其中 21 條已實作（§10.16），剩下的「細枝の割れ雫」依使用者指示「不能抽到 建檔」，
 加了 `d`（missingData）旗標由 `drawableEffects()` 排除，因此抽選池從 362 降為 **361** 條。
 
-### 10.15.2 需要「踏破板塊時發盧恩」的事件出口（2 條）
+### 10.15.2 需要「踏破板塊時發盧恩」的事件出口（2 條）—— 已解決，見 §10.17
 
 | 效果 | 換算 | 缺什麼 |
 | --- | --- | --- |
@@ -1170,3 +1170,102 @@ HTML 不允許 button 巢狀 button），兩顆 ◀▶ 絕對定位貼在左右�
 第 5／6 期的 `relic_memory_effect_check.js` 有三處期望值跟著改（CLAUDE.md §4.7）：
 `startFlask` 從 `[22, 0]` 改成 `[21, 21]`、`totalWired` 338 → 359、`stillOpen` 24 → 2，
 並把 `startFlask` 加進「已完成期別」清單。
+
+---
+
+## 10.17 最後 2 條盧恩效果＋互斥組（2026-09-25 完成）
+
+### 使用者明確規格（原文）
+
+> rm_milestone_fort_rune：小砦最後階完成擊倒敵人後, 盧恩+1 & 未來抽選潛在能力與稀有度時骰出的點數+1
+> rm_party_rune_up：板塊完成探索全踏破時 全隊的盧恩額外+1
+>
+> 初始武器帶屬性 帶戰技 等等 一個遺物記憶只能抽到一條
+> 結晶雫 一個遺物記憶只能帶一條
+> 玩家裝備裝上不同科的不可重複效果時 只會發動前面一個的效果
+
+### `rm_party_rune_up`
+
+- 注入點：`maybeGrantFieldFullClearReward()`——全踏破盧恩的唯一出口（護符「貪婪者的烙印」同一處），
+  只在搶到 `fullClearRewardGrantedBy` 的那台裝置執行，不會重複發。
+- 這個板塊的**參加者**中有人帶這條 → 全體參加者的全踏破盧恩各 +1（寫進同一筆 `pendingRewards` 的 rune）。
+- 多人帶／同一人帶多顆都只 +1（`stackable:false`，同「致命の一撃でルーン取得」的「任一在場 PC 有就發」）。
+- 觸發條件是「全踏破」本身，因此全踏破效果寫「盧恩：0」的板塊也照發 +1；貪婪者烙印維持原本「板塊沒有盧恩就不發」。
+
+### `rm_milestone_fort_rune`
+
+- 次數：`RM_MILESTONE_CARDS.rmMilestoneFortRune = "3"`（小砦＝card_3），跟其他 5 條里程碑同一套
+  （`fieldProgress[id].cleared` 的數量，誰踏破都算）。
+- 盧恩：`updateRelicMemoryFortRunes()` 每影格比對次數與角色的持久欄位 `relicMemoryFortRuneCount`，差額 × 1 發給自己
+  （`grantRunesToTokens()`＋toast）。第一次看到時只建立基準不補發（中途加入）；restart 不清 `fieldProgress`，次數不倒退，不會重發。
+- 發現力：`relicMemoryFortDiscoveryBonus()`＝每踏破一個小砦 +1。接在
+  - `affixDiscoveryBonus()`（詞條「発見力上昇」的既有出口：商人與獎勵清單的武器稀有度擲骰）；
+  - `CharacterDrawer.potentialPowerDrawWeapon(c, starCount, rarityBonus)`（新增可省略的第 3 參數，night.js 不傳、行為不變）。
+  注意：詞條「発見力上昇」本身**沒有**接到潛在之力（既有行為，這次未改）。
+
+### 互斥組
+
+- `midnight_relic_memory_catalog.js` 的 `exclusiveGroup(id)`：
+  `weaponInfusion`／`grantWeaponSkill`／`grantSpell` → `"startWeapon"`；`startFlask` → `"crystalTear"`；其餘 null。
+- 抽選：`rollEffects()` 的 `opts.exclusiveGroup`——同一顆記憶內已抽到的組不再出現（只過濾候選、不擲骰，
+  §10.12 的受控亂數序列不變）。
+- 帶入：`relicMemoryFirstGroupEffectId(c, group)`＝帶入順序（記憶順序→記憶內順序）第一條。
+  - 屬性附加：只有第一條是屬性附加時才附加那一種（原本會把所有不同屬性都附加上去）。
+  - 戰技／魔術置換：只有第一條是置換時才置換。
+  - 結晶雫：取第一條（原本就是）。
+- 角色視窗的記憶詳細中，被壓掉的效果加註「（同類效果只發動第一條，此條未發動）」。
+- 「出撃時の武器」三種**合為一組**是依使用者把「帶屬性 帶戰技 等等」並列的措辭判斷。
+
+### 驗證
+
+`relic_memory_effect_check.js` 新增「盧恩 2 條＋互斥組」一節，並依 CLAUDE.md §4.7 改了過時期望值：
+「炎＋出血一起帶 → 掛上 2 條」改為只發動第一條（炎）、`special` 73→74、`globalMilestone` 6→7、
+`totalWired` 359→361、`stillOpen` 2→0；`relic_memory_drawer_check.js` 的 opts 鍵加上 `exclusiveGroup`。
+
+## 10.18 抽選池只用目錄；24 種附帶效果移出（2026-09-25）
+
+使用者 2026-09-25 明確說明：`CharacterDrawer` 的 24 種附帶效果「是另外的遊戲中附帶效果，後面再補上缺漏；
+與遺物記憶的附帶效果互無關連」。§10.1 的「並存」原本被理解成兩池相接（24＋目錄），這裡更正為：
+
+- `relicMemoryDrawPool()`＝`Catalog.drawableEffectIds()`（361 條），**不含** 24 種附帶效果。
+- 已存在 Firebase、效果是那 24 種 id 的舊記憶不遷移，帶入時仍經 `activeAttachedEffectIds()` 照舊處理。
+- 24 種附帶效果在 midnight 的缺漏（多數只在 night.js 實作）屬於「遊戲中附帶效果」那套系統，之後另外補，
+  不在遺物記憶範圍。
+- `_debugRelicMemoryPool().attached` 改為「池裡混進幾種附帶效果」（應為 0）；`relic_memory_drawer_check.js`
+  依 CLAUDE.md §4.7 改期望值（舊：池＝24＋目錄、attached＝24）。
+
+## 10.19 結算存入後消失（避免重複存入）＋完整流程 E2E（2026-09-25）
+
+### 使用者明確規格
+
+> 遊戲結束時能按照遊戲內容派發遺物記憶 內容大小都以抽選好, 查看內容後可以輸入序號來存入,存入後消失.(避免重複存入)
+> 再次開啟其他遊戲輸入序號後能看到上次的記憶 選擇最大三種進入遊戲能使用效果成功
+
+### 存入後消失
+
+- 存入成功時把該批 memId 寫進 `character/<token>/relicMemory/savedIds/<memId>: true`（RTDB，reload／接管席位後仍在）。
+- `myEarnedRelicMemories()` 一律濾掉 `savedIds` 內的記憶：結算清單清空、保存按鈕停用、狀態顯示「已經全部保存過了」。
+  換另一組序號也存不進去（原本 `mergeIntoStore()` 只防同一組序號內重複）。
+- `processMyRelicMemoryGrants()` 的 transaction 會原樣保留 `savedIds`（否則被洗掉又能重存）。
+- 重新開始一輪時 `relicMemory` 整個重寫，`savedIds` 一併清掉（新一輪的記憶 memId 都是新的）。
+
+### 勝利路徑的結算重試（E2E 發現的既有 bug）
+
+reload（接管席位）後若在角色資料到達前就按下勝利確認，`openRelicMemorySettle()` 直接返回、勝利彈窗卻已關閉，
+結算視窗永遠不會出現。`updateRelicMemorySettle()` 原本只替「放棄」路徑每影格重試，現在勝利路徑
+（`gameVictoryDismissed && day3BossDefeated()`）也一樣重試。
+
+### 驗證：`tools/midnight_check/relic_memory_full_flow_check.js`（emulator）
+
+1. 第 1 場：以真實判定來源墊出遊戲內容（3 板塊踏破、第一／二天夜之強敵、夜王）→ 各來源的大小符合 §3 獲得表、
+   條數＝大小、效果全部是目錄中已接入者、同一顆內互斥組最多一條 → 勝利確認 → 結算列出全部 → 存入 → 清單消失、
+   Firebase 件數與內容一致 → reload＋接管 → 結算為空、不能再存、換序號也存不進去。
+2. 第 2 場：等待房輸入序號 → 列出上次存入的全部記憶 → 選 3 個（第 4 個選不進去）→ 開局後帶入的正是那 3 個、
+   所有效果都有接入點；另放一顆已知數值的記憶驗證 HP 上限 +20、物理攻擊 ×1.05 真的反映在計算點上。
+
+`crystal_tear_emulator_check.js` 補上 `PRITEST_EMU_PORT`（原本固定連 9000）。
+
+### 序號
+
+20 組正式序號以一次性腳本產生（字元集排除易混淆的 0/O/1/I/L），**不提交進 Git**，
+由管理者匯入正式環境 `relicMemoryCodes/<CODE>: true`（§2.1）。

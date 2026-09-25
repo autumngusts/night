@@ -1376,9 +1376,14 @@ element_resist
 assignAttachedResistChoiceIfNeeded
 ```
 
-這是較舊的 random-only pattern。
+這是較舊的 random-only pattern（習得時隨機給預設值）。
 
-它沒有 picker UI，因為目前不會阻塞其他功能。
+2026-09-25 起：
+
+* 效果已接上計算：`CharacterDrawer.attachedResistAccumMaxBonus(c, label)`＝選定的異常／屬性蓄積上限 +1，
+  night 在 `accumMaxBonusFor()`、midnight 在 `receivedAccumThreshold()` 讀取。
+* midnight 的角色視窗（附帶效果詳細）有 `<select>`（`appendAttachedResistPicker()`）讓玩家改選；
+  night 仍只有隨機預設值，沒有 picker UI。
 
 如果未來修改這部分：
 

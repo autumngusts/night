@@ -766,10 +766,15 @@
     rm_undertaker_incant_buff_atk: { key: "rmIncantBuffAtk", fixed: 6 },
     rm_undertaker_art_skill_reset: { key: "rmArtSkillReset", fixed: 1 },
     // 先前缺規格的 6 條（rm_glintstone_gravity_atk_up 依使用者指示改成不抽選，不在這裡）。
-    // rm_milestone_fort_rune／rm_party_rune_up 刻意**不列**：兩條都要在「踏破板塊的那一刻
-    // 發盧恩」，但 midnight 的 grantRunesToTokens() 同時服務多種來源、沒有「剛踏破」這個
-    // 事件出口；fort_rune 還要一個 midnight 沒有的「發現力（抽選時骰出的點數+1）」數值。
-    // alias 是「已接入」的唯一來源（稽核表會檢查），列上去會變成靜默失效。
+    // 最後 2 條（2026-09-25 使用者明確規格）：
+    //   rm_party_rune_up「板塊完成探索全踏破時 全隊的盧恩額外+1」——接在全踏破盧恩的唯一出口
+    //     maybeGrantFieldFullClearReward()（跟護符「貪婪者的烙印」同一處）。
+    //   rm_milestone_fort_rune「小砦最後階完成擊倒敵人後, 盧恩+1 & 未來抽選潛在能力與稀有度時
+    //     骰出的點數+1」——小砦（card_3）踏破次數走全域里程碑（RM_MILESTONE_CARDS）；
+    //     盧恩由 updateRelicMemoryFortRunes() 依次數差額發給自己，點數加成接 affixDiscoveryBonus()
+    //     與潛在之力的稀有度擲骰（relicMemoryFortDiscoveryBonus()）。
+    rm_party_rune_up: { key: "rmPartyRuneUp", fixed: 1 },
+    rm_milestone_fort_rune: { key: "rmMilestoneFortRune", fixed: 1 },
     rm_milestone_invader_atk: { key: "rmMilestoneInvaderAtk", fixed: 8 },
     rm_guard_counter_hp_add: { key: "rmGuardCounterHpAdd", fixed: 3 }, // 目前HP的3%
     rm_on_damaged_rot_infuse: { key: "rmOnDamagedRotInfuse", fixed: 8 }, // 秒
@@ -874,6 +879,7 @@
   // （card_2＝大教会、card_3＝小砦、card_4＝大野営地、card_5＝遺跡、card_9＝封牢／神殿、
   // card_10＝魔術師塔），所以直接比對card，不另外建一套場地分類。
   var RM_MILESTONE_CARDS = {
+    rmMilestoneFortRune: "3", // 小砦（盧恩+1＋發現力+1，2026-09-25）
     rmMilestoneCathedralHp: "2",
     rmMilestoneCampStamina: "4",
     rmMilestoneRuinsArcane: "5",
@@ -909,6 +915,48 @@
     var per = relicMemoryBonusTotal(c, key);
     if (per <= 0) return 0;
     return per * relicMemoryMilestoneCount(key);
+  }
+
+  // 「小砦の強敵を倒す度…発見力上昇」：抽選潛在能力與稀有度時骰出的點數＋（每踏破一個小砦+1）。
+  function relicMemoryFortDiscoveryBonus(c) {
+    return relicMemoryMilestoneTotal(c || characters[myTokenId], "rmMilestoneFortRune");
+  }
+
+  // 「小砦の強敵を倒す度、取得ルーン増加」：每踏破一個小砦，帶著這條的人自己盧恩+1。
+  // 次數是全域地圖狀態（同其他里程碑，誰踏破都算），因此每台裝置只替自己發：已發到第幾次記在
+  // 角色的持久欄位 relicMemoryFortRuneCount（RTDB），reload 不會重發、重新開始一輪也不會重發
+  // （restart 不清 fieldProgress，次數不會倒退）。第一次看到時（中途加入／舊存檔）只建立基準、
+  // 不補發既有的次數。
+  function updateRelicMemoryFortRunes() {
+    if (!mySlot || !myTokenId || battleSimEnabled()) return;
+    var c = characters[myTokenId];
+    if (!c || !hasRelicMemoryLoadout(c)) return;
+    var per = relicMemoryBonusTotal(c, "rmMilestoneFortRune");
+    if (per <= 0) return;
+    var count = relicMemoryMilestoneCount("rmMilestoneFortRune");
+    var granted = c.relicMemoryFortRuneCount;
+    if (typeof granted !== "number") {
+      c.relicMemoryFortRuneCount = count;
+      GameStorage.rtSet(gameId, "cloud", "character/" + myTokenId + "/relicMemoryFortRuneCount", count);
+      return;
+    }
+    if (count <= granted) return;
+    var amount = per * (count - granted);
+    c.relicMemoryFortRuneCount = count;
+    GameStorage.rtSet(gameId, "cloud", "character/" + myTokenId + "/relicMemoryFortRuneCount", count);
+    grantRunesToTokens([myTokenId], amount);
+    showToast(window.I18N.t("midnight_relic_memory_fort_rune_toast", { value: amount }));
+  }
+
+  // 「自身と味方の取得ルーン増加」：這一個板塊的參加者中有人帶著這條，全體參加者的全踏破
+  // 盧恩各+1。多人帶或同一人帶多顆都只+1（stackable:false；跟「致命の一撃でルーン取得」的
+  // 「任一在場PC有就發」同一種取捨）。
+  // chars：這個板塊參加者的角色物件清單。
+  function relicMemoryPartyRuneBonus(chars) {
+    for (var i = 0; i < chars.length; i++) {
+      if (chars[i] && relicMemoryBonusTotal(chars[i], "rmPartyRuneUp") > 0) return 1;
+    }
+    return 0;
   }
 
   // ---- 出撃時の武器の戦技／魔術／祈祷の置換（30條，第4期）----
@@ -987,21 +1035,11 @@
     var RM = window.PriTestMidnightRelicMemory;
     if (!RM || !hasRelicMemoryLoadout(c)) return;
     relicMemoryInfusionApplied = true;
-    var labels = [];
-    c.relicMemoryLoadout.forEach(function (mem) {
-      RM.effectEntries(mem).forEach(function (entry) {
-        var def = RM_INFUSION_LABELS[entry.id];
-        if (!def) return;
-        if (
-          labels.some(function (x) {
-            return x.label === def.label;
-          })
-        ) {
-          return; // 同一種屬性重複帶沒有意義（附加就是附加，不疊加）
-        }
-        labels.push(def);
-      });
-    });
+    // 使用者2026-09-25明確規格「裝上不同科的不可重複效果時 只會發動前面一個的效果」：
+    // 屬性附加／戰技置換／魔術祈禱置換同屬「出撃時の武器」組，整個帶入清單只有第一條發動。
+    // 第一條不是屬性附加（是置換）時，這裡什麼都不做。
+    var firstDef = RM_INFUSION_LABELS[relicMemoryFirstGroupEffectId(c, "startWeapon")];
+    var labels = firstDef ? [firstDef] : [];
     if (!labels.length) return;
     if (!c._tempWeaponSkills) c._tempWeaponSkills = [];
     labels.forEach(function (def) {
@@ -1046,13 +1084,8 @@
     var RM = window.PriTestMidnightRelicMemory;
     if (!RM || !hasRelicMemoryLoadout(c)) return;
     relicMemorySkillSwapApplied = true;
-    var skillId = null;
-    c.relicMemoryLoadout.forEach(function (mem) {
-      RM.effectEntries(mem).forEach(function (entry) {
-        if (skillId) return;
-        if (RM_SKILL_SWAP_IDS[entry.id]) skillId = RM_SKILL_SWAP_IDS[entry.id];
-      });
-    });
+    // 「出撃時の武器」組只發動第一條（見applyRelicMemoryWeaponInfusion()）：第一條是屬性附加時不置換。
+    var skillId = RM_SKILL_SWAP_IDS[relicMemoryFirstGroupEffectId(c, "startWeapon")] || null;
     if (!skillId) return;
     c.relicMemorySkillSwap = { weaponId: weaponId, skillId: skillId };
   }
@@ -1259,15 +1292,28 @@
   // 帶入的記憶裡第一條結晶雫效果（使用者明確規格「只能存在一件」）。掃描順序＝帶入順序，
   // 跟relicMemoryBonusTotal()對不可疊加效果「取第一次出現」的既有取捨一致。
   function crystalTearEffectIdFromLoadout(c) {
+    var id = relicMemoryFirstGroupEffectId(c, "crystalTear");
+    return id && RM_CRYSTAL_TEARS[id] ? id : "";
+  }
+
+  // 互斥組在帶入清單中（帶入順序、記憶內順序）第一條的效果id；沒有則回""。
+  // 使用者2026-09-25明確規格「玩家裝備裝上不同科的不可重複效果時 只會發動前面一個的效果」。
+  function relicMemoryFirstGroupEffectId(c, group) {
     var RM = window.PriTestMidnightRelicMemory;
     if (!c || !RM || !hasRelicMemoryLoadout(c)) return "";
     var found = "";
     c.relicMemoryLoadout.forEach(function (mem) {
       RM.effectEntries(mem).forEach(function (entry) {
-        if (!found && RM_CRYSTAL_TEARS[entry.id]) found = entry.id;
+        if (!found && relicMemoryExclusiveGroup(entry.id) === group) found = entry.id;
       });
     });
     return found;
+  }
+
+  // 這條效果是否因互斥組「只發動第一條」而被壓掉（角色視窗標示用）。
+  function relicMemoryEffectSuppressed(c, effectId) {
+    var group = relicMemoryExclusiveGroup(effectId);
+    return !!group && relicMemoryFirstGroupEffectId(c, group) !== effectId;
   }
 
   function crystalTearDef(effectId) {
@@ -1949,6 +1995,70 @@
   // ---- 遺物記憶的持續回復系（2026-09-25第2期，6條）----
   // 節流用跟updateAffixOverTime()同一支affixTick()，不另外發明第二套計時。
   // 間隔各條不同（見RM_OVER_TIME_INTERVAL_MS），所以逐條帶自己的間隔。
+  // ==========================================================================
+  // 基礎附帶效果（CharacterDrawer 的 24 種，learnedAttachedEffects）的 midnight 換算
+  // （2026-09-25 使用者明確規格；與遺物記憶無關）。讀取一律經 activeAttachedEffectIds()。
+  // ==========================================================================
+  var ATTACHED_OVER_TIME_MS = 30000; // hp_regen／fp_regen／sprint_fire／walk_lightning／time_gem 皆「每30秒」
+  var ATTACHED_REGEN_AMOUNT = 10; // 「每30秒回復HP10」「每30秒回復FP10」
+  var ATTACHED_GUARD_HEAL_RATIO = 0.5; // 防禦成功時HP回復：先扣傷害後再回覆該傷害的50%
+  var ATTACHED_GUARD_COUNTER_BONUS = 15; // 防禦反擊強化：遺物「防禦反擊」的傷害+15
+  var ATTACHED_CRIT_BONUS = 10; // 致命一擊強化：遺物「致命一擊」的傷害上限+10
+  var ATTACHED_AGGRO_STEP = 0.1; // 容易被盯上／不易被盯上：仇恨 ±10%
+  var ATTACHED_PHYS_CUT_PCT = 10; // 物理減傷+：對物理的HP價值+10（midnight的HP價值＝減傷%）
+  // 每30秒自動對敵人造成「屬性：1D」（直接擲一顆骰）的三條。
+  var ATTACHED_AUTO_ATTRIBUTE = [
+    { id: "sprint_fire", name: "炎" },
+    { id: "walk_lightning", name: "雷" },
+    { id: "time_gem", name: "魔", twoHitAggro: true }, // 「並且增加2hit仇恨」
+  ];
+
+  function hasAttachedEffect(c, id) {
+    return !!c && CharacterDrawer.activeAttachedEffectIds(c).indexOf(id) !== -1;
+  }
+
+  function updateAttachedEffectsOverTime(now) {
+    if (!mySlot || isPaused()) return;
+    var c = characters[myTokenId];
+    if (!c) return;
+    if (hasAttachedEffect(c, "hp_regen") && affixTick("attached:hp_regen", ATTACHED_OVER_TIME_MS, now)) healSelfHp(ATTACHED_REGEN_AMOUNT);
+    if (hasAttachedEffect(c, "fp_regen") && affixTick("attached:fp_regen", ATTACHED_OVER_TIME_MS, now)) healSelfFp(ATTACHED_REGEN_AMOUNT);
+    ATTACHED_AUTO_ATTRIBUTE.forEach(function (def) {
+      var key = "attached:" + def.id;
+      // 只在戰鬥中計時：沒有對象時清掉節流基準，進入戰鬥後滿30秒才第一次發動。
+      if (!hasAttachedEffect(c, def.id) || !activeEncounter) {
+        delete affixTickAt[key];
+        return;
+      }
+      if (!affixTick(key, ATTACHED_OVER_TIME_MS, now)) return;
+      var roll = 1 + Math.floor(Math.random() * 6);
+      recordAttributeAccum(def.name, roll);
+      if (def.twoHitAggro) addAttachedTwoHitAggro(c);
+      var effect = CharacterDrawer.attachedEffectById(def.id);
+      showToast(
+        window.I18N.t("midnight_attached_auto_attribute_toast", {
+          effect: effect ? CharacterTypes.localizedText(effect.name) : def.id,
+          label: def.name,
+          value: roll,
+        })
+      );
+    });
+  }
+
+  // 「一定時間後產生輝石」的「增加2hit仇恨」：把自己目前武器一次2Hit的傷害量（沒有2Hit的武器取1Hit）
+  // 記進這隻敵人的敵視累積（damageBySlot），套用與一般攻擊相同的敵視倍率，不實際造成傷害。
+  function addAttachedTwoHitAggro(c) {
+    if (!mySlot || !activeEncounter) return;
+    var info = computeSideAttackInfo("R") || computeSideAttackInfo("L");
+    if (!info || !info.dmg) return;
+    var base = info.dmg.hit2Damage !== null && info.dmg.hit2Damage !== undefined ? info.dmg.hit2Damage : info.dmg.hit1Damage;
+    var amount = Math.round((base || 0) * aggroAccumMultiplier(c));
+    if (amount <= 0) return;
+    GameStorage.rtTransaction(gameId, "cloud", "fieldTrigger/" + activeEncounter.id + "/damageBySlot/" + mySlot, function (cur) {
+      return (cur || 0) + amount;
+    });
+  }
+
   function updateRelicMemoryOverTime(now) {
     if (!mySlot || isPaused()) return;
     var c = characters[myTokenId];
@@ -2059,6 +2169,8 @@
     // 第7期結晶雫「斑彩色の硬雫」＝20秒內「屬性蓄積值上限+2」。使用者寫的是「屬性蓄積值」
     // 而不是某個特定異常，所以這裡不分name一律加（屬性魔炎雷聖與7種異常都算）。
     delta += crystalTearBuff(c, "accumMax");
+    // 附帶效果「狀態異常耐性」「屬性耐性」（2026-09-25）：玩家在角色視窗選的異常／屬性，蓄積上限+1。
+    delta += CharacterDrawer.attachedResistAccumMaxBonus(c, name);
     return Math.max(1, ATTRIBUTE_STATUS_THRESHOLD + delta);
   }
 
@@ -2638,7 +2750,8 @@
   // 抽選有時是對scratch角色物件做的（共享池的揭示、個人清單的抽選預覽），因此這裡一律
   // 讀自己的角色，不是傳進去的那個scratch。
   function affixDiscoveryBonus() {
-    return affixTotal(characters[myTokenId], "discoveryUp");
+    // 遺物記憶「小砦の強敵を倒す度…発見力上昇」（2026-09-25）跟詞條「発見力上昇」同一個出口。
+    return affixTotal(characters[myTokenId], "discoveryUp") + relicMemoryFortDiscoveryBonus();
   }
 
   // 遺物記憶（2026-09-25第2期）「潜在する力から、○○を見つけやすくなる」32條。
@@ -4992,26 +5105,29 @@
     return e && e.range ? e.range : null;
   }
 
-  // 抽選池（2026-09-25擴充，設計文件§10.1「並存」）：CharacterDrawer的24種附帶效果
-  // ＋遺物記憶目錄可抽選的369條。目錄不是取代那24種，是另一套效果池，所以兩邊接起來。
-  //
-  // 目錄那369條目前**只有名稱、本文與擲定的數值**——use: "adopt"的348條要接到midnight
-  // 既有注入點是另一件工程，還沒做。也就是說抽到目錄的效果現在不會改變任何計算，
-  // 角色視窗會照常顯示它的名稱與數值。24種附帶效果照舊完全生效。
+  // 抽選池＝遺物記憶目錄可抽選的效果（midnight_relic_memory_catalog.js 的 drawableEffectIds()）。
+  // 2026-09-25使用者明確說明：CharacterDrawer的24種附帶效果是「另外的遊戲中附帶效果」，
+  // 與遺物記憶互無關連，因此不再放進抽選池（原本§10.1「並存」被理解成兩池相接）。
+  // 已保存、效果是那24種id的舊記憶仍照舊經activeAttachedEffectIds()生效，不做資料遷移。
   function relicMemoryDrawPool() {
-    var ids = window.PriTestCharacterDrawer.allAttachedEffectIds();
     var CAT = window.PriTestMidnightRelicMemoryCatalog;
-    return CAT ? ids.concat(CAT.drawableEffectIds()) : ids;
+    return CAT ? CAT.drawableEffectIds() : [];
   }
 
-  // 角色專用效果的判定（rollEffects的10%門檻，設計文件§10.3）。24種附帶效果一律不是專用。
+  // 角色專用效果的判定（rollEffects的10%門檻，設計文件§10.3）。
   function relicMemoryIsExclusive(id) {
     var CAT = window.PriTestMidnightRelicMemoryCatalog;
     return CAT ? CAT.isExclusiveEffect(id) : false;
   }
 
+  // 互斥組（「出撃時の武器」組／結晶雫組，見catalog的exclusiveGroup()）。24種附帶效果不屬於任何組。
+  function relicMemoryExclusiveGroup(id) {
+    var CAT = window.PriTestMidnightRelicMemoryCatalog;
+    return CAT && CAT.exclusiveGroup ? CAT.exclusiveGroup(id) : null;
+  }
+
   function relicMemoryRollOpts() {
-    return { rangeOf: relicMemoryRangeOf, isExclusive: relicMemoryIsExclusive };
+    return { rangeOf: relicMemoryRangeOf, isExclusive: relicMemoryIsExclusive, exclusiveGroup: relicMemoryExclusiveGroup };
   }
 
   // 效果名稱：先查24種附帶效果，查不到再查catalog（固定遺物與之後擴充的池用的是後者）。
@@ -5049,7 +5165,8 @@
     return relicMemorySizeLabel(mem.size) + "｜" + names.join("／");
   }
 
-  function renderRelicMemoryEffectDetail(container, mem) {
+  // c（可省略）：角色物件。有傳時，因互斥組「只發動第一條」而被壓掉的效果會加註「未發動」。
+  function renderRelicMemoryEffectDetail(container, mem, c) {
     var CD = window.PriTestCharacterDrawer;
     var CT = window.PriTestCharacterTypes;
     var head = document.createElement("h4");
@@ -5067,6 +5184,9 @@
         var ce = CAT ? CAT.effect(entry.id) : null;
         if (!ce) return;
         p.textContent = ce.note ? name + "：" + ce.note : name;
+      }
+      if (c && relicMemoryEffectSuppressed(c, entry.id)) {
+        p.textContent += window.I18N.t("midnight_relic_memory_effect_suppressed");
       }
       container.appendChild(p);
     });
@@ -6646,6 +6766,9 @@
       var executionTalismans = c.talismanIds || [];
       var daggerBladeBonus = executionTalismans.indexOf("talisman_short_dancer_blade") !== -1 ? 15 : 0;
       var damage = EXECUTION_BASE_DAMAGE + (count >= 2 ? EXECUTION_MULTI_LEARN_BONUS : 0) + daggerBladeBonus;
+      // 附帶效果「致命一擊強化」（2026-09-25）：致命一擊傷害的上限值+10（midnight的致命一擊是固定值，
+      // 同night.js的做法直接+10）。
+      if (hasAttachedEffect(c, "crit_up")) damage += ATTACHED_CRIT_BONUS;
       // 淑女（黎明）「致命一擊後，消失身影」（2026-09-12使用者明確規格「發動致命一擊後
       // 體力恢復10、不計算此傷害的仇恨值」）：midnight的敵視＝對這隻敵人的累積傷害
       // （damageBySlot），因此「不計算仇恨」＝這一擊不計入damageBySlot，見
@@ -7907,6 +8030,8 @@
     // 防禦反擊強化（斧槍）：這一擊有吃到防禦反擊折扣、且揮的是斧槍時，反擊傷害+15
     // （使用者2026-09-11指定），見guardCounterHalberdBonus()。
     damage += guardCounterHalberdBonus(c, info.weaponId, !!discountPct);
+    // 附帶效果「防禦反擊強化」（2026-09-25）：遺物「防禦反擊」那一擊（吃到折扣的攻擊）傷害+15。
+    if (discountPct && hasAttachedEffect(c, "guard_counter_up")) damage += ATTACHED_GUARD_COUNTER_BONUS;
     // 特効：死に生きる者／竜／星の眷属（2026-09-14接入）：目標種別符合時1Hit+5／2Hit+10。
     // 只在一般攻擊加算（規則書：戦技では発揮されない），見weaponSpecialEffectBonus()。
     var specialBonus = weaponSpecialEffectBonus(info.weaponId, useHit2);
@@ -8617,7 +8742,7 @@
       // skillDamageKindを持つ場合だけ（角色專屬技藝/技能は対象外、見
       // computeMidnightAbilityDamage()側では加算しない）。
       (skillDamageKind ? worldSerenitySkillBonus(c) : 0) +
-      (skillDamageKind ? CharacterDrawer.attachedSkillDamageBonus(c, skillDamageKind) : 0) +
+      (skillDamageKind ? CharacterDrawer.attachedSkillDamageBonus(c, skillDamageKind, weaponId) : 0) +
       // 2026-09-14「體型接上用途」（使用者明確規格）：本文的「エネミーが『サイズ：LL』の
       // 場合、ダメージを『＋N／＋▲』する」條款，只在目前目標的enemy.size真的是LL時加成。
       sizeLLSkillBonus(bodyText, artPower);
@@ -12657,7 +12782,9 @@
     // 這條是+5%，不是整數倍，所以加在倍率上而不是塞進sources。blockHolding是本地端的
     // 「正長按著防禦」旗標（跟aggroAccumMultiplier()的唯一呼叫端同樣只用於自己）。
     var guardAggro = blockHolding ? relicMemoryBonusTotal(c, "rmGuardAggroUp") : 0;
-    return 1 + sources * AGGRO_PLUS_ONE_MULT_STEP + guardAggro / 100;
+    // 附帶效果「容易被盯上」／「不易被盯上」（2026-09-25）：常時仇恨 +10%／−10%。
+    var attachedAggro = (hasAttachedEffect(c, "easy_target") ? ATTACHED_AGGRO_STEP : 0) - (hasAttachedEffect(c, "hard_target") ? ATTACHED_AGGRO_STEP : 0);
+    return Math.max(0, 1 + sources * AGGRO_PLUS_ONE_MULT_STEP + guardAggro / 100 + attachedAggro);
   }
 
   // 敵人存活期間，沒有攻擊進行中也還沒排下一次攻擊時，排一個demo佔位的隨機等待時間
@@ -13485,6 +13612,11 @@
         if (!incomingElement && ATTRIBUTE_STATUS_ELEMENT_NAMES_JA.indexOf(nm) !== -1) incomingElement = nm;
       });
       damage = Math.round(damage * affixIncomingDamageMult(characters[myTokenId], { element: incomingElement }));
+      // 附帶效果「物理減傷+」（2026-09-25）：對物理攻擊的HP價值+10（＝減傷10%）。獨立一層，
+      // 不放進affixIncomingDamageMult()——那支受「武器詞條開關／帶入記憶」閘門控制，附帶效果不該受影響。
+      if (!incomingElement && hasAttachedEffect(characters[myTokenId], "phys_cut")) {
+        damage = Math.round(damage * (1 - ATTACHED_PHYS_CUT_PCT / 100));
+      }
       // 「HP損害」はダメージではないので、上のダメージ向けの層（防禦％・暫時減傷・隊伍
       // 減傷・武器詞條）を一切通さない——規則書が認める軽減は「體力骰1個につき■」だけ。
       // ここで置き換えるのは、下の救世之翼／鐵壺（＝完全無效化）より前。あちらは「傷害を
@@ -13549,6 +13681,11 @@
           applySixthSenseTrigger(sixthSenseResult);
         } else if (!immuneApplied && result === 0) {
           maybeTriggerNearDeath(myTokenId);
+        }
+        // 附帶效果「防禦成功時HP回復」（2026-09-25）：防禦成功時先扣傷害，再回覆該傷害的50%。
+        // 已經倒下（HP 0）時不回復——那一擊已經進入瀕死流程。
+        if (kind === "block" && damage > 0 && result > 0 && hasAttachedEffect(characters[myTokenId], "guard_hp_regen")) {
+          healSelfHp(Math.round(damage * ATTACHED_GUARD_HEAL_RATIO));
         }
       });
     }
@@ -21239,18 +21376,29 @@
     var data = fieldCardData(pt.card);
     var effectText = data && data.allFloorEffect ? window.PriTestFields.localizedText(data.allFloorEffect) : "";
     var runeAmount = parseAllFloorEffectRuneAmount(effectText);
-    if (!runeAmount) return;
+    var participantSlots = Object.keys(trig.participants || {}).filter(function (slot) {
+      return !!trig.participants[slot];
+    });
+    // 遺物記憶「自身と味方の取得ルーン増加」（2026-09-25使用者明確規格「板塊完成探索全踏破時
+    // 全隊的盧恩額外+1」）：規格的觸發條件是「全踏破」本身，所以全踏破效果寫盧恩：0的板塊也照發。
+    var partyBonus = relicMemoryPartyRuneBonus(
+      participantSlots.map(function (slot) {
+        return players[slot] ? characters[players[slot].tokenId] : null;
+      })
+    );
+    if (!runeAmount && !partyBonus) return;
     GameStorage.rtTransaction(gameId, "cloud", "fieldProgress/" + pt.id + "/fullClearRewardGrantedBy", function (cur) {
       return cur === null ? myTokenId : cur;
     }).then(function (committed) {
       if (committed !== myTokenId) return;
-      Object.keys(trig.participants || {}).forEach(function (slot) {
+      participantSlots.forEach(function (slot) {
         var p = players[slot];
         if (!p) return;
         // 2026-09-12接入護符「貪婪者的烙印」（使用者明確規格「板塊踏破全樓層時個人盧恩+1」）：
         // 逐人判斷持有狀況，只有戴著的人多拿1（規則書原文也是「自身が獲得するルーン量」）。
-        var greedBonus = ((characters[p.tokenId] || {}).talismanIds || []).indexOf("talisman_greed") !== -1 ? 1 : 0;
-        pushPendingReward(p.tokenId, { kind: "rune", value: runeAmount + greedBonus });
+        // 板塊本身沒有盧恩時維持原本「不發」的行為（貪婪者是加在既有盧恩上）。
+        var greedBonus = runeAmount && ((characters[p.tokenId] || {}).talismanIds || []).indexOf("talisman_greed") !== -1 ? 1 : 0;
+        pushPendingReward(p.tokenId, { kind: "rune", value: runeAmount + greedBonus + partyBonus });
       });
     });
   }
@@ -21627,7 +21775,8 @@
           // 抽選回数ではない——2026-09-10使用者明確確認「『★2 稀有度』一次抽選」。
           // 「1件＝1回分」だと誤解してvalue個の項目へ分割してはいけない（night.js側の
           // 同じ誤りを同日修正済み、night_floor_breakthrough.jsのpotentialPower分岐参照）。
-          weapon: CD.potentialPowerDrawWeapon(c, entry.value || 1),
+          // 遺物記憶「小砦の強敵を倒す度…発見力上昇」：潛在之力的稀有度擲骰點數+（2026-09-25）。
+          weapon: CD.potentialPowerDrawWeapon(c, entry.value || 1, relicMemoryFortDiscoveryBonus(c)),
           effect: CD.rollPotentialPowerAttachedEffect(c),
         };
         // 2026-09-13武器詞條：潛在之力的武器卡也在獎勵清單裡，同樣要在抽選當下就把詞條
@@ -23428,6 +23577,38 @@
     return null;
   }
 
+  // 附帶效果「狀態異常耐性」「屬性耐性」的對象選擇（2026-09-25使用者明確規格「讓玩家自己選」）。
+  // 沿用CLAUDE.md §24的既有做法：已習得效果的詳細裡放<select>，隨時可改。預設值由
+  // assignAttachedResistChoiceIfNeeded()在習得當下隨機決定，所以一定有值。只有自己的角色可改。
+  function appendAttachedResistPicker(detail, c, effectId) {
+    var CD = window.PriTestCharacterDrawer;
+    var options = CD.attachedResistOptions ? CD.attachedResistOptions(effectId) : null;
+    if (!options || !c || c !== characters[myTokenId]) return;
+    var field = effectId === "status_resist" ? "statusResistChoice" : "elementResistChoice";
+    CD.assignAttachedResistChoiceIfNeeded(c, effectId);
+    var current = c[field];
+    var label = document.createElement("label");
+    label.className = "midnight-attached-resist-picker";
+    label.textContent = window.I18N.t("midnight_attached_resist_pick_label") + " ";
+    var select = document.createElement("select");
+    options.forEach(function (opt, i) {
+      var o = document.createElement("option");
+      o.value = String(i);
+      o.textContent = CharacterTypes.localizedText(opt);
+      if (current && (current.ja === opt.ja || current.zh === opt.zh)) o.selected = true;
+      select.appendChild(o);
+    });
+    select.addEventListener("change", function () {
+      var picked = options[parseInt(select.value, 10)];
+      if (!picked) return;
+      c[field] = { ja: picked.ja, zh: picked.zh };
+      GameStorage.rtSet(gameId, "cloud", "character/" + myTokenId + "/" + field, c[field]);
+      renderCharacterSheet();
+    });
+    label.appendChild(select);
+    detail.appendChild(label);
+  }
+
   function appendRelicToggle(detail, c, effect) {
     var field = relicToggleFieldForEffect(effect);
     if (!field || !c) return;
@@ -23549,13 +23730,14 @@
     } else if (sel.kind === "attached") {
       var attached = CD.attachedEffectById(sel.ref);
       if (!attached) return;
+      appendAttachedResistPicker(detail, c, sel.ref);
       appendNameBody(CharacterTypes.localizedText(attached.name), CharacterTypes.localizedText(attached.body));
     } else if (sel.kind === "relicMemory") {
       var mem = relicMemoryArray(c.relicMemoryLoadout).filter(function (m) {
         return m.memId === sel.ref;
       })[0];
       if (!mem) return;
-      renderRelicMemoryEffectDetail(detail, mem);
+      renderRelicMemoryEffectDetail(detail, mem, c);
     }
   }
 
@@ -25002,6 +25184,10 @@
       GameStorage.rtSet(gameId, "cloud", "demoStat/" + tokenId, Math.round(maxHp / 2));
     }
     if (revivalDesignateTargetTokenId === tokenId) revivalDesignateTargetTokenId = null;
+    // 附帶效果「復歸時恢復技藝」（2026-09-25）：從瀕死復歸時回復技藝的使用次數1次份＝技藝冷卻歸零。
+    if (hasAttachedEffect(characters[tokenId], "arts_revive_regen")) {
+      GameStorage.rtSet(gameId, "cloud", "character/" + tokenId + "/_artCooldownUntil", 0);
+    }
   }
 
   // 標準模式：消耗1格流浪祝福，回傳是否真的還有格數可扣（closure旗標反映transaction最後
@@ -25486,13 +25672,23 @@
   // 但沒有明確禁止），關閉時就會誤觸發導頁。改成記住「當初是因為哪個原因打開」。
   var relicMemorySettleReason = null; // "abandon" | "victory" | null
 
-  // 本局獲得的記憶（略過格式不完整的項目：規則不驗證記憶形狀，client端要自保不丟例外）。
+  // 本局獲得、**尚未存入**的記憶（略過格式不完整的項目：規則不驗證記憶形狀，client端要自保不丟例外）。
+  // 2026-09-25使用者明確規格「存入後消失（避免重複存入）」：存入成功時把memId記進
+  // character/<token>/relicMemory/savedIds（RTDB，reload後仍有效），這裡一律濾掉——
+  // 換一組密碼再存一次也不行。
   function myEarnedRelicMemories() {
     var c = myTokenId ? characters[myTokenId] : null;
-    var earned = (c && c.relicMemory && c.relicMemory.earned) || [];
-    return earned.filter(function (m) {
-      return !!(m && m.memId && m.size);
+    var rm = (c && c.relicMemory) || {};
+    var saved = rm.savedIds || {};
+    return (rm.earned || []).filter(function (m) {
+      return !!(m && m.memId && m.size) && !saved[m.memId];
     });
+  }
+
+  function myRelicMemoriesAllSaved() {
+    var c = myTokenId ? characters[myTokenId] : null;
+    var rm = (c && c.relicMemory) || {};
+    return !!(rm.savedIds && Object.keys(rm.savedIds).length) && myEarnedRelicMemories().length === 0;
   }
 
   function relicMemoryListKey(list) {
@@ -25518,6 +25714,9 @@
     });
     relicMemorySettleRenderedKey = relicMemoryListKey(earned);
     updateRelicMemorySettleSaveButton(earned.length);
+    if (!earned.length && myRelicMemoriesAllSaved() && !relicMemorySettleSaving) {
+      el("midnight-relic-memory-settle-status").textContent = window.I18N.t("midnight_relic_memory_already_saved");
+    }
     return earned;
   }
 
@@ -25570,6 +25769,9 @@
       try {
         window.localStorage.setItem(RELIC_MEMORY_CODE_STORAGE_KEY, code);
       } catch (e) {}
+      // 存入後消失（使用者2026-09-25明確規格）：標記已存入的memId並清空畫面上的清單。
+      markRelicMemoriesSaved(earned);
+      el("midnight-relic-memory-settle-list").innerHTML = "";
       // fix round 1（2026-09-24 review）：mergeIntoStore()現在對已存在的memId整筆略過，
       // 因此reload後（本地旗標重置）重複按保存，這批記憶全部已存在時added/discarded/
       // rejected皆為0——不能再顯示「已保存0個」這種誤導文字，改顯示「已經全部保存過了」。
@@ -25585,6 +25787,17 @@
     });
   }
 
+  function markRelicMemoriesSaved(list) {
+    var c = myTokenId ? characters[myTokenId] : null;
+    if (!c) return;
+    if (!c.relicMemory) c.relicMemory = {};
+    if (!c.relicMemory.savedIds) c.relicMemory.savedIds = {};
+    list.forEach(function (m) {
+      c.relicMemory.savedIds[m.memId] = true;
+      GameStorage.rtSet(gameId, "cloud", "character/" + myTokenId + "/relicMemory/savedIds/" + m.memId, true);
+    });
+  }
+
   function handleRelicMemorySettleClose() {
     el("midnight-relic-memory-settle-modal").hidden = true;
     relicMemorySettleOpen = false;
@@ -25596,6 +25809,9 @@
 
   function updateRelicMemorySettle() {
     if (meta && meta.gameAbandonedAt) openRelicMemorySettle("abandon");
+    // 勝利路徑也要每影格重試（2026-09-25 E2E 發現）：reload 後在角色資料到達前就按下勝利確認，
+    // openRelicMemorySettle() 會直接返回，而勝利彈窗已關閉，結算視窗就永遠不會出現。
+    else if (gameVictoryDismissed && day3BossDefeated()) openRelicMemorySettle("victory");
     // final review I5：開著時若earned有變化（例如reload後資料陸續到、或最後一刻又獲得）就重建；
     // 只比對長度＋最後一筆memId，沒變就不動DOM。保存中／已保存後不再改動清單。
     if (relicMemorySettleOpen && !relicMemorySettleSaved && !relicMemorySettleSaving) {
@@ -25728,7 +25944,8 @@
           addedInLastRun++;
         });
       });
-      return { earned: earned, seen: s };
+      // savedIds（結算已存入的memId）要原樣保留，否則存入後又被發放transaction洗掉、可重複存入。
+      return { earned: earned, seen: s, savedIds: (cur && cur.savedIds) || null };
     }).then(function (after) {
       relicMemoryProcessing = false;
       if (after && addedInLastRun > 0) showToast(window.I18N.t("midnight_relic_memory_gained_toast"));
@@ -26728,6 +26945,7 @@
     maybeFinalizeResume(now);
     tickHealOverTime(); // 2026-09-12新增：溫石等持續回復效果（見startHealOverTime()）
     updateCrystalTear(now); // 2026-09-25第7期結晶雫：「HP20%以下時」的等觸發型＋時限到期收尾
+    updateRelicMemoryFortRunes(); // 2026-09-25遺物記憶：小砦踏破時自己盧恩+1
     updatePauseOverlay(now);
     updateResumeCountdownHud(now);
     renderIntroOverlay(now);
@@ -26765,6 +26983,7 @@
     updateFlaskReading(now);
     updateAffixOverTime(now); // 2026-09-13武器詞條：HP持続回復／減少、HP未滿時累積猛毒／腐敗
     updateRelicMemoryOverTime(now); // 2026-09-25遺物記憶第2期：持續回復系6條
+    updateAttachedEffectsOverTime(now); // 2026-09-25基礎附帶效果：每30秒的回復／自動屬性
     consumeRelicMemoryPartyHealEvents(now); // 同上：隊友擊破時的回復
     updateAffixGuardHold(now); // 2026-09-13武器詞條第2批：架盾3秒的聖域展開與3種周圍攻擊
     updateFieldWaitBars(); // 2026-09-13：中途加入／後補領獎的等待讀條
@@ -27877,7 +28096,8 @@
     },
     // 對自己送一擊「傷害0、只帶mod屬性文字」的敵人攻擊並以kind結算，回傳最終採用的kind
     // （block可能因沒有防具/體力不足被降級成hit，測試要知道）。
-    _debugResolveIncomingHit: function (kind, actionModJa) {
+    // dmgAmount（2026-09-25追加、省略可）：敵人招式的傷害量（規則書刻度，÷10後是midnight HP），預設0。
+    _debugResolveIncomingHit: function (kind, actionModJa, dmgAmount) {
       var now = Date.now();
       var st = {
         pointId: activeEncounter ? activeEncounter.id : "sharedTarget",
@@ -27888,7 +28108,7 @@
         phaseEndAt: now + 1000,
         actionMod: { ja: actionModJa },
         dmgKind: null,
-        dmgAmount: 0,
+        dmgAmount: dmgAmount || 0,
       };
       var guard = kind === "block" ? currentGuardInfo(0) : null;
       var effectiveKind = kind === "block" && !guard ? "hit" : kind;
@@ -28128,6 +28348,68 @@
       return relicMemoryConsumableAtkPct({ relicMemoryLoadout: loadout || [] }, itemId);
     },
 
+    // 純測試用：瀕死復歸的收尾（附帶效果「復歸時恢復技藝」用，2026-09-25）。
+    _debugFinishRevive: function (tokenId, fullHeal) {
+      finishRevive(tokenId || myTokenId, !!fullHeal);
+    },
+    // 純測試用：基礎附帶效果的 midnight 換算（2026-09-25）。c 是假角色（learnedAttachedEffects 等）。
+    _debugAttachedEffects: function (c, weaponId) {
+      var names = ["猛毒", "腐敗", "出血", "凍傷", "発狂", "睡眠", "呪死", "炎", "雷", "聖", "魔"];
+      var thresholds = {};
+      names.forEach(function (n) {
+        thresholds[n] = receivedAccumThreshold(c, n);
+      });
+      return {
+        thresholds: thresholds,
+        aggroMult: aggroAccumMultiplier(c),
+        artBonus: CharacterDrawer.attachedSkillDamageBonus(c, "art", weaponId || null),
+        sorceryBonus: CharacterDrawer.attachedSkillDamageBonus(c, "sorcery", weaponId || null),
+        consts: {
+          interval: ATTACHED_OVER_TIME_MS,
+          regen: ATTACHED_REGEN_AMOUNT,
+          guardHeal: ATTACHED_GUARD_HEAL_RATIO,
+          guardCounter: ATTACHED_GUARD_COUNTER_BONUS,
+          crit: ATTACHED_CRIT_BONUS,
+          physCut: ATTACHED_PHYS_CUT_PCT,
+          auto: ATTACHED_AUTO_ATTRIBUTE,
+        },
+      };
+    },
+
+    // 純測試用：最後 2 條盧恩效果（2026-09-25）。loadouts 是各參加者的帶入清單。
+    // fortCount＝模擬的小砦踏破次數。
+    _debugRelicMemoryRuneEffects: function (loadouts, fortLoadout, fortCount) {
+      var fortC = { relicMemoryLoadout: fortLoadout || [] };
+      var fortPer = relicMemoryBonusTotal(fortC, "rmMilestoneFortRune");
+      return {
+        partyBonus: relicMemoryPartyRuneBonus(
+          (loadouts || []).map(function (l) {
+            return { relicMemoryLoadout: l || [] };
+          })
+        ),
+        fortPer: fortPer,
+        fortCard: RM_MILESTONE_CARDS.rmMilestoneFortRune,
+        fortDiscovery: fortPer * (fortCount || 0),
+      };
+    },
+
+    // 純測試用：互斥組（2026-09-25）。回傳各組在帶入清單中實際發動的第一條，以及被壓掉的效果。
+    _debugRelicMemoryExclusiveGroups: function (loadout) {
+      var RM = window.PriTestMidnightRelicMemory;
+      var c = { relicMemoryLoadout: loadout || [] };
+      var suppressed = [];
+      (loadout || []).forEach(function (mem) {
+        RM.effectEntries(mem).forEach(function (entry) {
+          if (relicMemoryEffectSuppressed(c, entry.id)) suppressed.push(entry.id);
+        });
+      });
+      return {
+        startWeapon: relicMemoryFirstGroupEffectId(c, "startWeapon"),
+        crystalTear: relicMemoryFirstGroupEffectId(c, "crystalTear"),
+        suppressed: suppressed,
+      };
+    },
+
     // 純測試用：全域里程碑（5條）。counts 是「這種據點已經達成幾次」的模擬值。
     _debugRelicMemoryMilestone: function (loadout, key, count) {
       var c = { relicMemoryLoadout: loadout || [] };
@@ -28273,7 +28555,10 @@
       });
       return {
         size: pool.length,
-        attached: window.PriTestCharacterDrawer.allAttachedEffectIds().length,
+        // 池裡混進了幾種 CharacterDrawer 的附帶效果（2026-09-25 起應為 0，見 relicMemoryDrawPool()）。
+        attached: pool.filter(function (id) {
+          return !!window.PriTestCharacterDrawer.attachedEffectById(id);
+        }).length,
         withRange: withRange,
         exclusive: exclusive,
         sample: pool.slice(0, 3).concat(pool.slice(-3)),

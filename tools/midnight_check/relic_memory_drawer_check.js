@@ -88,15 +88,18 @@ const BASE = process.env.PRITEST_BASE_URL || "http://localhost:8791";
     // ---- 抽選池的擴充（2026-09-25，設計文件 10.1／10.9 第 6 點）----
     assert(r.catalogEffects === 419, "遺物記憶目錄共 419 條效果");
     assert(
-      r.pool.size === r.all + r.catalogDrawable,
-      "抽選池 = 24 種附帶效果 ＋ 目錄可抽選的 " + r.catalogDrawable + " 條 = " + r.pool.size
+      // 2026-09-25 使用者明確說明 24 種附帶效果與遺物記憶互無關連，池只剩目錄（舊期望值是 24 ＋ 目錄）。
+      r.pool.size === r.catalogDrawable,
+      "抽選池 = 目錄可抽選的 " + r.catalogDrawable + " 條（實得 " + r.pool.size + "）"
     );
-    assert(r.pool.attached === 24, "池裡 24 種附帶效果的部分沒有被取代（設計文件 10.1「並存」）");
+    assert(r.pool.attached === 0, "池裡不含 24 種附帶效果（實得 " + r.pool.attached + "）");
     assert(r.pool.withRange > 100, "池中 " + r.pool.withRange + " 條帶數值範圍（會擲值）");
     assert(r.pool.exclusive > 0, "池中 " + r.pool.exclusive + " 條角色專用效果（不排除，只壓第 2 條機率）");
     assert(
-      r.pool.opts.join(",") === "isExclusive,rangeOf",
-      "newMemory 的 opts 同時帶了 rangeOf 與 isExclusive（得到 " + r.pool.opts.join(",") + "）"
+      // 2026-09-25 使用者明確規格「初始武器帶屬性 帶戰技 等等／結晶雫 一個遺物記憶只能一條」
+      // 新增 exclusiveGroup（舊期望值只有 isExclusive,rangeOf）。
+      r.pool.opts.join(",") === "exclusiveGroup,isExclusive,rangeOf",
+      "newMemory 的 opts 帶了 exclusiveGroup／isExclusive／rangeOf（得到 " + r.pool.opts.join(",") + "）"
     );
 
     // ---- 目錄效果的 stackable 由 catalog 查（character_drawer 的可選查詢）----
