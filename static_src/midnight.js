@@ -3802,8 +3802,12 @@
   function preloadPartySheets() {
     var P = window.PriTestMidnightPlayerSprite;
     if (!P || !spriteModeEnabled()) return;
-    playerSpriteParty().forEach(function (m) {
-      var file = P.sheetFileForType(m.typeId);
+    // 輪替で後から出てくる人の分も先に読む（交代の瞬間に空白が出ないよう）ので、
+    // 出演者ではなく同房全員の角色類型を見る。
+    occupiedSlots().forEach(function (slot) {
+      var tokenId = players[slot] && players[slot].tokenId;
+      var c = tokenId ? characters[tokenId] : null;
+      var file = c && c.typeId ? P.sheetFileForType(c.typeId) : null;
       if (file) P.preload(file, "../static/");
     });
   }
@@ -4561,6 +4565,8 @@
     var initialMeta = {
       mapSeed: seed,
       createdAt: now,
+      // 2026-09-25使用者明確規格「創立房間，點陣圖預設開啟」：等待房仍可取消勾選。
+      spriteMode: true,
     };
     GameStorage.rtSet(newId, "cloud", "meta", initialMeta).then(function () {
       window.location.href = "?game=" + encodeURIComponent(newId);
@@ -5097,16 +5103,21 @@
   function renderEnemyDamageFloat(now) {
     var elFloat = el("midnight-enemy-damage-float");
     if (!elFloat) return;
+    // 2026-09-25使用者明確規格「跳出的對敵人傷害，不使用彈跳出而使血條等等變形。預留顯示空間，
+    // 在上面跳出顯示傷害即可」：這一列永遠佔著固定高度（不再切換 hidden＝display:none），
+    // 沒有數字時只是看不見（.midnight-damage-float-idle → visibility:hidden），所以數字出現／
+    // 消失都不會把血條與下方按鈕推來推去。面板本身是垂直置中的，高度一變整塊都會跳。
     if (!damageFloat || now >= damageFloat.until || !activeEncounter || damageFloat.pointId !== activeEncounter.id) {
       if (damageFloat && now >= damageFloat.until) damageFloat = null;
-      if (!elFloat.hidden) {
-        elFloat.hidden = true;
+      if (!elFloat.classList.contains("midnight-damage-float-idle")) {
+        elFloat.classList.add("midnight-damage-float-idle");
+        elFloat.classList.remove("midnight-damage-float-pop");
         elFloat.textContent = "";
         lastDamageFloatShown = null;
       }
       return;
     }
-    elFloat.hidden = false;
+    elFloat.classList.remove("midnight-damage-float-idle");
     if (lastDamageFloatShown !== damageFloat.total) {
       lastDamageFloatShown = damageFloat.total;
       elFloat.textContent = String(damageFloat.total);
@@ -14804,22 +14815,51 @@
     return !!(window.PriTestMidnightPlayerSprite && spriteModeEnabled());
   }
 
-  // 出演順：自分が先頭（＝敵人にいちばん近い位置）、あとは席順。
+  // 出演順：自分が先頭（＝敵人にいちばん近い位置＝いちばん右）、あとは席順。
   // 角色類型が未確定の席、sheet が未產出の類型は setParty() 側で落ちる。
-  function playerSpriteParty() {
+  //
+  // 2026-09-25使用者明確規格「多人遊戲時自己的角色排列在右邊，剩餘兩人位置，每30秒輪流輪替
+  // 正在進行的玩家」：自分以外は最多 PLAYER_SPRITE_OTHER_SLOTS 人。候補は「このエンカウントに
+  // 参加している（participants）他の玩家」——参加者情報がまだ無いときだけ従来どおり同房全員。
+  // 候補が枠より多いときは PLAYER_SPRITE_ROTATE_MS ごとに 1 人ずつずらして回す。時刻は
+  // 各端の Date.now() で決めるだけ（使用者明確規格「可以不用完全同步」）なので同期欄位は増やさない。
+  var PLAYER_SPRITE_OTHER_SLOTS = 2;
+  var PLAYER_SPRITE_ROTATE_MS = 30000;
+
+  function playerSpriteParty(now) {
     var out = [];
     var seen = {};
-    function push(tokenId) {
-      if (!tokenId || seen[tokenId]) return;
+    function eligible(tokenId) {
+      if (!tokenId || seen[tokenId]) return null;
       var c = characters[tokenId];
-      if (!c || !c.typeId) return;
+      if (!c || !c.typeId) return null;
+      return c;
+    }
+    function push(tokenId) {
+      var c = eligible(tokenId);
+      if (!c) return;
       seen[tokenId] = true;
       out.push({ key: tokenId, typeId: c.typeId });
     }
     push(myTokenId);
-    occupiedSlots().forEach(function (slot) {
-      push(players[slot] && players[slot].tokenId);
+    var trig = activeEncounter ? fieldTriggers[activeEncounter.id] : null;
+    var slots = trig && trig.participants ? participantSlots(trig) : [];
+    if (!slots.length) slots = occupiedSlots();
+    slots.sort(function (a, b) {
+      return Number(a) - Number(b);
     });
+    var others = [];
+    slots.forEach(function (slot) {
+      var tokenId = players[slot] && players[slot].tokenId;
+      if (tokenId && tokenId !== myTokenId && others.indexOf(tokenId) === -1 && eligible(tokenId)) others.push(tokenId);
+    });
+    if (others.length > PLAYER_SPRITE_OTHER_SLOTS) {
+      var offset = Math.floor((now || Date.now()) / PLAYER_SPRITE_ROTATE_MS) % others.length;
+      var picked = [];
+      for (var k = 0; k < PLAYER_SPRITE_OTHER_SLOTS; k++) picked.push(others[(offset + k) % others.length]);
+      others = picked;
+    }
+    others.forEach(push);
     return out;
   }
 
@@ -14844,14 +14884,42 @@
     if (!P || !P.mounted()) return; // 舞台は戰鬥面板の中なので、面板が開くまで出す先が無い
     if (!spriteModeEnabled() || !activeEncounter) {
       P.hide();
+      // 戰鬥の外で撃たれた動作・HP の変化は、次の戰鬥に入った瞬間に再生しない（出演 1 影格目から）。
+      playerSpriteKnown = {};
+      playerSpriteHpSeen = {};
+      playerSpriteDownSeen = {};
       return;
     }
-    var party = playerSpriteParty();
+    var party = playerSpriteParty(now);
+    // 輪替（playerSpriteParty() 說明）で舞台から外れた人は記録ごと忘れる。残しておくと、
+    // 30 秒後に戻ってきた影格で「外にいた間に撃った最後の動作」や「その間に減った HP」を
+    // 今起きたこととして再生してしまう。戻ってきたら下の「出演 1 影格目」扱いからやり直す。
+    var onStage = {};
+    party.forEach(function (m) {
+      onStage[m.key] = true;
+    });
+    Object.keys(playerSpriteKnown).forEach(function (tokenId) {
+      if (onStage[tokenId]) return;
+      delete playerSpriteKnown[tokenId];
+      delete playerSpriteHpSeen[tokenId];
+      delete playerSpriteDownSeen[tokenId];
+    });
     if (!P.setParty(party, "../static/")) return;
     party.forEach(function (m) {
       var tokenId = m.key;
       var c = characters[tokenId];
       var downed = !!(c && c.nearDeath && c.nearDeath.active);
+      // 出演 1 影格目（初登場／輪替で戻ってきた）：今の状態を控えるだけで何も鳴らさない。
+      // 瀕死中ならいきなり倒れた姿（death の最終幀）で出す。
+      if (!playerSpriteKnown[tokenId]) {
+        playerSpriteKnown[tokenId] = true;
+        var req0 = c && c._spriteAnim;
+        if (tokenId !== myTokenId) playerSpriteSeen[tokenId] = req0 && req0.n ? req0.n : 0;
+        playerSpriteDownSeen[tokenId] = downed;
+        if (demoStats[tokenId] !== undefined) playerSpriteHpSeen[tokenId] = demoStats[tokenId];
+        if (downed) P.playAnim(tokenId, "death", now - 600000, true);
+        return;
+      }
       var wasDowned = !!playerSpriteDownSeen[tokenId];
       playerSpriteDownSeen[tokenId] = downed;
       if (downed && !wasDowned) {
@@ -14873,15 +14941,10 @@
       // （RTDB から自分の書き込みが返ってきたぶんを二重に鳴らさない）。
       if (tokenId === myTokenId) return;
       var req = c && c._spriteAnim;
-      // 出演 1 影格目は「今の n」を控えるだけで鳴らさない。戰鬥に入る前に相手が最後に
-      // 撃った動作が RTDB に残っているので、鳴らすと入場の瞬間に過去の動作が再生される。
+      // 出演 1 影格目の「今の n」の控えは上の分岐でやり済み。戰鬥に入る前に相手が最後に
+      // 撃った動作が RTDB に残っているので、控えずに鳴らすと入場の瞬間に過去の動作が再生される。
       // **この控えは出演を知った時点でやる**（相手が最初に動いたときではない）——
       // 後者だと「この端が入ってから相手が撃った最初の 1 発」まで飲み込んでしまう。
-      if (!playerSpriteKnown[tokenId]) {
-        playerSpriteKnown[tokenId] = true;
-        playerSpriteSeen[tokenId] = req && req.n ? req.n : 0;
-        return;
-      }
       if (!req || !req.id || !req.n) return;
       if (playerSpriteSeen[tokenId] === req.n) return;
       playerSpriteSeen[tokenId] = req.n;
@@ -16332,6 +16395,7 @@
     var identity = battlePrepIdentityText(trig);
     el("midnight-battle-prep-name").textContent = identity.name;
     el("midnight-battle-prep-detail").textContent = identity.detail;
+    renderBannerSprite("midnight-battle-prep-sprite", trig); // 2026-09-25：點陣圖模式的敵人預覽
     var elapsed = BATTLE_PREP_DURATION_MS - Math.max(0, battlePrepUntil - now);
     var pct = Math.max(0, Math.min(100, (elapsed / BATTLE_PREP_DURATION_MS) * 100));
     el("midnight-battle-prep-loading-fill").style.width = pct + "%";
@@ -17684,7 +17748,10 @@
       var NightBosses = window.PriTestNightBosses;
       var bossPortrait = NightBosses ? NightBosses.get(trig.enemyId) : null;
       var imgEl = el("midnight-day3-boss-intro-image");
-      if (bossPortrait) {
+      // 2026-09-25使用者明確規格「不再遊戲內顯示任何圖片」：點陣圖模式改放夜王點陣圖，
+      // 立繪不出（見renderBannerSprite()）。
+      renderBannerSprite("midnight-day3-boss-intro-sprite", trig);
+      if (bossPortrait && !spriteModeEnabled()) {
         imgEl.src = NightBosses.imagePath(bossPortrait, "../static/");
         imgEl.hidden = false;
       } else {
@@ -18414,6 +18481,22 @@
     return m ? m[1] : "";
   }
 
+  // banner 用點陣圖（2026-09-25使用者明確規格「經過強敵籌碼等等，也在banner顯示點陣圖，
+  // 不再遊戲內顯示任何圖片」）：trig 有敵人且是點陣圖模式時，在 hostId 容器裡循環播放
+  // 該敵人的 idle；否則收起。sheet 的選法跟戰鬥面板同一條（encounterSheetFile()，含代役），
+  // 所以 banner 上看到的就是進戰鬥後會站在右側的那隻。回傳 true＝點陣圖有顯示。
+  function renderBannerSprite(hostId, trig) {
+    var host = el(hostId);
+    var Sprite = window.PriTestMidnightSprite;
+    if (!host || !Sprite || !Sprite.showMini) return false;
+    var file = trig ? encounterSheetFile(trig) : null;
+    if (!file) {
+      Sprite.hideMini(host);
+      return false;
+    }
+    return Sprite.showMini(host, file, "../static/");
+  }
+
   function renderStrongEnemyOverlay() {
     var banner = el("midnight-strong-enemy-banner");
     var pt = encounterEnemyPoint(); // Task 20：也接受隕石王戰（見encounterEnemyPoint()說明）
@@ -18446,8 +18529,11 @@
     // 放大顯示同一張敵人照片（見renderFieldEncounterPanel()），這裡改成只隱藏圖片本身
     // （名稱/種類/體型/弱點文字繼續保留在這個上方資訊欄）。
     var imageEl = el("midnight-strong-enemy-image");
-    imageEl.hidden = amParticipant;
-    if (data && !amParticipant) {
+    // 2026-09-25使用者明確規格「經過強敵籌碼等等，也在banner顯示點陣圖，不再遊戲內顯示任何
+    // 圖片」：點陣圖模式改放點陣圖、插圖一律不出（見renderBannerSprite()）。
+    renderBannerSprite("midnight-strong-enemy-sprite", amParticipant ? null : trig);
+    imageEl.hidden = amParticipant || spriteModeEnabled();
+    if (data && !imageEl.hidden) {
       imageEl.src = window.PriTestEnemies.imagePath(data.enemy, "../static/");
       imageEl.alt = name;
     }
@@ -24980,6 +25066,12 @@
   function setIllustrationHidden(imgEl, hidden) {
     if (!imgEl) return;
     imgEl.classList.toggle("midnight-illustration-off", !!hidden);
+    // 2026-09-25使用者明確規格「玩家的點陣圖與敵人點陣圖分離一些，玩家們的更靠左邊」：
+    // 點陣圖接手時圖框改成分離版面——敵人的正方形舞台靠右、玩家舞台在它的左外側
+    // （style.css .midnight-sprite-arena）。插畫不再需要撐寬度，直接不佔位。
+    var wrap = el("midnight-field-encounter-image-wrap");
+    if (wrap) wrap.classList.toggle("midnight-sprite-arena", !!hidden);
+    if (window.PriTestMidnightPlayerSprite) window.PriTestMidnightPlayerSprite.setArena(!!hidden);
   }
 
   // 夜王立繪在右上取代小地圖（2026-09-22使用者明確規格，見renderFieldEncounterPanel()夜王分支）：
@@ -24988,6 +25080,7 @@
   function renderBossPortraitHud() {
     var portrait = el("midnight-boss-portrait-hud");
     if (!portrait) return false;
+    // 2026-09-25使用者明確規格「夜王立繪保留在右上」：「不再遊戲內顯示任何圖片」的例外，維持原樣。
     var trig = activeEncounter ? fieldTriggers[activeEncounter.id] : null;
     var showing = !!(
       spriteModeEnabled() &&

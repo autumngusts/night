@@ -389,6 +389,68 @@
     });
   }
 
+  // ---- banner 用の迷你舞台（2026-09-25 使用者明確規格「經過強敵籌碼等等，也在banner顯示
+  // 點陣圖，不再遊戲內顯示任何圖片」）----
+  //
+  // 強敵籌碼／戰鬥前置準備／Day3 夜王開場など、戰鬥面板の外で敵を「紹介」する場所に
+  // idle を循環再生する小さな舞台を置く。主舞台・死亡小視窗・擊破演出とは完全に独立で、
+  // 各自が自分の sheet・格寬・時間軸を持つ（同時に複数出ていても互いに干渉しない）。
+  // 舞台は呼び出し端が用意した容器（空の div）の中に 1 枚の面を作るだけで、容器の
+  // 大きさ・位置は CSS（.midnight-sprite-mini）が決める。
+  var minis = []; // { host, face, sheet, startAt, px, cellH, aspect }
+
+  function findMini(hostEl) {
+    for (var i = 0; i < minis.length; i++) {
+      if (minis[i].host === hostEl) return minis[i];
+    }
+    return null;
+  }
+
+  // 同じ sheet のまま毎影格呼ばれても再生位置は保つ（sheet が変わったときだけ先頭から）。
+  function showMini(hostEl, sheetFile, staticPrefix) {
+    if (!hostEl || !sheetFile) return false;
+    var m = findMini(hostEl);
+    if (!m) {
+      var face = makeFace(hostEl.ownerDocument);
+      hostEl.appendChild(face);
+      m = { host: hostEl, face: face, sheet: null, startAt: 0, px: 0, cellH: 0, aspect: 1 };
+      minis.push(m);
+    }
+    if (m.sheet !== sheetFile) {
+      m.sheet = sheetFile;
+      m.startAt = Date.now();
+      m.px = 0;
+      m.face.style.backgroundImage =
+        "url(" + (staticPrefix || "../static/") + "images/sprites/" + sheetFile + ")";
+      preload(sheetFile, staticPrefix);
+    }
+    if (hostEl.hidden) hostEl.hidden = false;
+    return true;
+  }
+
+  function hideMini(hostEl) {
+    if (hostEl && !hostEl.hidden) hostEl.hidden = true;
+  }
+
+  function tickMinis(now) {
+    minis.forEach(function (m) {
+      if (m.host.hidden || !m.sheet) return;
+      var px = m.host.offsetWidth || 0;
+      if (!px) return; // 祖先が隠れている（banner 自体が hidden）
+      var aspect = cellAspectOf(m.sheet);
+      if (px !== m.px || aspect !== m.aspect) {
+        m.px = px;
+        m.aspect = aspect;
+        m.cellH = Math.round(px * aspect);
+        m.face.style.height = m.cellH + "px";
+        m.face.style.backgroundSize = S.SHEET_COLS * px + "px " + S.SHEET_ROWS * m.cellH + "px";
+      }
+      var idx = frameIndexAt("idle", now - m.startAt);
+      if (idx === null) idx = 0;
+      m.face.style.backgroundPosition = backgroundPosition("idle", idx, m.px, m.cellH);
+    });
+  }
+
   // ---- 預載（2026-09-22 使用者明確規格「實際遊戲內模式也要確實的出現而不要晚出現」）----
   // sheet 每張 1.4~2.4MB，showSprite() 才設 backgroundImage 的話，圖片載完前舞台是空的。
   // 呼叫端在「遭遇成為候選」（識別資訊準備／進入戰鬥讀條）與等待房抽到模擬敵人時就先
@@ -418,6 +480,7 @@
   function tick(now) {
     tickDeathPopup(now);
     tickDefeat(now);
+    tickMinis(now);
     if (!stageEl || stageEl.hidden || !current) return;
     syncCellPx();
     var idx = frameIndexAt(current.animId, now - current.startAt);
@@ -437,6 +500,8 @@
     mountDefeatStage: mountDefeatStage,
     playDefeat: playDefeat,
     hideDefeat: hideDefeat,
+    showMini: showMini,
+    hideMini: hideMini,
     defeatSlowFactor: function () { return DEFEAT_SLOW; },
     preload: preload,
     cellAspectOf: cellAspectOf,

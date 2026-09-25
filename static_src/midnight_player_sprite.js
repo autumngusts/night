@@ -32,9 +32,19 @@
   var FACE_STEP = 0.55;
   var MAX_FACES = 8;
 
+  // 分離版面（2026-09-25 使用者明確規格「玩家的點陣圖與敵人點陣圖分離一些，玩家們的更靠左邊」）：
+  // 點陣圖模式で敵人が出ているときは、呼び出し端が戰鬥圖框を「敵人の正方形舞台を右寄せ、
+  // 玩家舞台はその左外側」に組み替える（style.css の .midnight-sprite-arena）。このとき
+  // 玩家舞台そのものが玩家専用の帯なので、帯＝舞台の全幅、面の上限は舞台の高さ基準になる。
+  // ARENA_FACE_MAX_H：面の幅の上限（舞台の高さ比）。敵人の 1 格＝舞台の高さなので、
+  // 人間が竜と同じ大きさに見えないよう 6 割強に抑える。
+  var ARENA_FACE_MAX_H = 0.62;
+  var arena = false;
+
   var stageEl = null;
   var faces = []; // { key, el, sheetFile, animId, startAt, cellPx, cellHPx, aspect }
   var stageW = 0;
+  var stageH = 0;
 
   // 產出済みの sheet だけを返す（未產出なら null＝その角色は表示しない）。
   // 敵人側のような代役は立てない：他人の角色の絵が自分の立ち位置に出るのは、
@@ -163,6 +173,15 @@
     if (stageEl) stageEl.hidden = true;
   }
 
+  // 分離版面の切り替え（見 ARENA_FACE_MAX_H）。版面の形そのものは CSS 側で、ここは帯と
+  // 面の寸法の計算式だけを切り替える。
+  function setArena(on) {
+    on = !!on;
+    if (on === arena) return;
+    arena = on;
+    stageW = 0; // 計算し直させる
+  }
+
   // 動作を指示する。priority が今再生中のものより低ければ無視する
   // （player_sprite_data.js の priority、受擊は招式を割り込めるが死亡は何にも割り込まれない）。
   // force を立てると priority を無視して差し替える（同じ動作の再トリガ＝連打時に
@@ -191,18 +210,22 @@
   function syncLayout() {
     if (!stageEl || !faces.length) return;
     var boxW = stageEl.offsetWidth || 0;
+    var boxH = stageEl.offsetHeight || 0;
     // 戰鬥面板が開いた直後の数影格は、親（inline-block）の幅が敵人插圖の読み込み待ちで
     // まだ数十 px しかない。そのまま採寸すると全員が 24px の粒になって左端に重なり、
     // 幅が確定するまでその姿が見えてしまう。確定するまでは何も書かずに次の影格へ送る
     // （#midnight-field-encounter-image の最小表示幅は 140px なので 48 未満は必ず未確定）。
     if (boxW < 48) return;
-    if (boxW === stageW) return;
+    if (boxW === stageW && boxH === stageH) return;
     stageW = boxW;
+    stageH = boxH;
     var n = faces.length;
     // 帯（0 ～ GROUP_RIGHT）に n 人が FACE_STEP 刻みで重なって収まる最大の面幅。
     // 上限 FACE_MAX_RATIO を超えない範囲で、人数が増えるほど自動的に細くなる。
-    var band = boxW * GROUP_RIGHT;
-    var faceW = Math.max(24, Math.round(Math.min(boxW * FACE_MAX_RATIO, band / (1 + (n - 1) * FACE_STEP))));
+    // 分離版面では舞台全体が帯で、上限は舞台の高さ（＝敵人 1 格）基準。
+    var band = arena ? boxW : boxW * GROUP_RIGHT;
+    var faceMax = arena ? (boxH || boxW) * ARENA_FACE_MAX_H : boxW * FACE_MAX_RATIO;
+    var faceW = Math.max(24, Math.round(Math.min(faceMax, band / (1 + (n - 1) * FACE_STEP))));
     var step = Math.round(faceW * FACE_STEP);
     faces.forEach(function (face, i) {
       face.aspect = cellAspectOf(face.sheetFile);
@@ -242,6 +265,8 @@
     GROUP_RIGHT: GROUP_RIGHT,
     FACE_MAX_RATIO: FACE_MAX_RATIO,
     FACE_STEP: FACE_STEP,
+    ARENA_FACE_MAX_H: ARENA_FACE_MAX_H,
+    isArena: function () { return arena; },
     sheetFileForType: sheetFileForType,
     frameIndexAt: frameIndexAt,
     backgroundPosition: backgroundPosition,
@@ -251,6 +276,7 @@
     mounted: mounted,
     setParty: setParty,
     hide: hide,
+    setArena: setArena,
     playAnim: playAnim,
     currentAnimId: currentAnimId,
     faceCount: function () { return faces.length; },

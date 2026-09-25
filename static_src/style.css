@@ -7166,13 +7166,15 @@ html.midnight-top-banner-collapsed .midnight-top-banner-collapse-btn {
   }
 }
 
-/* 致命一擊（遺物效果）：只在體崩中且自身習得時出現在敵人圖片中央。 */
+/* 致命一擊（遺物效果）：只在體崩中且自身習得時出現在敵人圖片中央。
+   2026-09-25使用者明確規格「可以進行致命一擊時，其按鈕在敵人圖層頂層顯示」：z-index 拉到
+   圖框內所有層（點陣圖舞台、刀光／屬性光暈／技能特效 5、體崩橫幅 6、玩家舞台）之上。 */
 #btn-midnight-execution {
   position: absolute;
   left: 50%;
   top: 50%;
   transform: translate(-50%, -50%);
-  z-index: 7;
+  z-index: 40;
   padding: 0.35rem 0.7rem;
   font-weight: bold;
   font-size: 0.85rem;
@@ -9162,6 +9164,77 @@ html.midnight-top-banner-collapsed .midnight-top-banner-collapse-btn {
   width: 100%;
   aspect-ratio: 1 / 1;
   pointer-events: none;
+  /* 2026-09-25：明確建立 stacking context，面上的 z-index（出演順用）不會跑到圖框層級、
+     蓋過致命一擊按鈕等。 */
+  z-index: 1;
+}
+
+/* 分離版面（2026-09-25使用者明確規格「玩家的點陣圖與敵人點陣圖分離一些，玩家們的更靠左邊」）：
+   點陣圖接手時（midnight.js setIllustrationHidden() 掛上 .midnight-sprite-arena），圖框不再
+   貼合插畫，而是變成戰鬥面板裡靠右的正方形，只裝敵人；玩家舞台放到它的左外側
+   （right:100%），兩邊各自佔一塊、不再重疊。
+
+   - 圖框寬 52%、靠右（margin-left:auto）。敵人舞台（寬 100%、正方形）剛好填滿；底部貼齊
+     （bottom:0），分裂夜王的後排抬高部分往上長，由 midnight_sprite.js 的 syncWrapMinHeight()
+     撐高圖框。
+   - 玩家舞台高度＝圖框高度、底部對齊，所以兩邊站在同一條接地線上；寬 88%（圖框寬的 88%
+     ＝面板約 46%），剩下一點當間隔。仍在面板內，不會被 #midnight-hud-bottom-center 的
+     overflow-x:hidden 切掉。
+   - 刀光／屬性光暈／致命一擊等疊層都還在圖框裡，所以一律對準敵人，不會落在玩家身上。 */
+#midnight-field-encounter-image-wrap.midnight-sprite-arena {
+  display: block;
+  width: 52%;
+  margin-left: auto;
+  margin-right: 0;
+  aspect-ratio: 1 / 1;
+}
+
+#midnight-field-encounter-image-wrap.midnight-sprite-arena > #midnight-field-encounter-image {
+  display: none;
+}
+
+#midnight-field-encounter-image-wrap.midnight-sprite-arena > #midnight-enemy-sprite-stage {
+  top: auto;
+  bottom: 0;
+  transform: translateX(-50%);
+}
+
+#midnight-field-encounter-image-wrap.midnight-sprite-arena > #midnight-player-sprite-stage {
+  left: auto;
+  right: 100%;
+  top: auto;
+  bottom: 0;
+  transform: none;
+  width: 88%;
+  height: 100%;
+  aspect-ratio: auto;
+}
+
+/* banner 用點陣圖迷你舞台（2026-09-25使用者明確規格「經過強敵籌碼等等，也在banner顯示點陣圖，
+   不再遊戲內顯示任何圖片」）：強敵籌碼／戰鬥前置準備／Day3夜王開場，取代原本的插圖。
+   面由 midnight_sprite.js 的 showMini() 建立、tickMinis() 依容器寬度切幀。 */
+.midnight-sprite-mini {
+  position: relative;
+  width: 105px;
+  aspect-ratio: 1 / 1;
+  margin: 0.2rem auto;
+  pointer-events: none;
+}
+
+.midnight-sprite-mini[hidden] {
+  display: none;
+}
+
+.midnight-sprite-mini.midnight-sprite-mini-large {
+  width: min(240px, 50vw);
+}
+
+.midnight-sprite-mini > .midnight-sprite-face {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-repeat: no-repeat;
 }
 
 /* 面そのものの位置・寸法は JS が実測値から書き込む（midnight_player_sprite.js の
@@ -9202,26 +9275,32 @@ html.midnight-top-banner-collapsed .midnight-top-banner-collapse-btn {
     0 0 0.35rem rgba(0, 0, 0, 0.9),
     0 0 0.9rem rgba(255, 170, 40, 0.55);
   margin: -0.1rem 0 0.15rem 0;
-  min-height: 1.2em;
+  /* 2026-09-25使用者明確規格「不使用彈跳出而使血條等等變形。預留顯示空間，在上面跳出顯示傷害
+     即可」：高度固定（height 而不只是 min-height），不論有沒有數字都佔同樣的空間；沒有數字時
+     用 visibility 藏起來（.midnight-damage-float-idle），不改 display。 */
+  height: 1.3em;
+  overflow: visible;
+  white-space: nowrap;
   pointer-events: none;
 }
 
-/* 只在數字真的變動的那一幀重播（JS 會先 remove class＋強制 reflow 再 add）。 */
+#midnight-enemy-damage-float.midnight-damage-float-idle {
+  visibility: hidden;
+}
+
+/* 只在數字真的變動的那一幀重播（JS 會先 remove class＋強制 reflow 再 add）。
+   2026-09-25：拿掉放大彈跳（scale 1.35），改成在預留的那一列裡往上浮出，不溢出蓋到血條。 */
 #midnight-enemy-damage-float.midnight-damage-float-pop {
   animation: midnight-damage-float-pop 0.32s ease-out;
 }
 
 @keyframes midnight-damage-float-pop {
   0% {
-    transform: translateY(0.35rem) scale(1.35);
-    opacity: 0.55;
-  }
-  45% {
-    transform: translateY(0) scale(1.08);
-    opacity: 1;
+    transform: translateY(0.3rem);
+    opacity: 0.4;
   }
   100% {
-    transform: translateY(0) scale(1);
+    transform: translateY(0);
     opacity: 1;
   }
 }

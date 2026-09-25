@@ -27,12 +27,16 @@ function assert(cond, label, extra) {
   console.log((cond ? "  [PASS] " : "  [FAIL] ") + label + (extra ? "   " + extra : ""));
 }
 
+// database emulator 的 port（9000 被 IntelliJ 等佔用時用 PRITEST_EMU_PORT 覆寫，同 relic_memory_emulator_check.js）
+const EMU_PORT = process.env.PRITEST_EMU_PORT || "9000";
+
 async function enableEmulatorFlag(page) {
-  await page.addInitScript(() => {
+  await page.addInitScript((port) => {
     try {
       window.sessionStorage.setItem("pritestRtdbEmulator", "1");
+      window.sessionStorage.setItem("pritestRtdbEmulatorPort", port);
     } catch (e) {}
-  });
+  }, EMU_PORT);
 }
 
 const click = (page, sel) => page.dispatchEvent(sel, "click"); // CLAUDE.md §4.6
@@ -91,7 +95,9 @@ async function dealDamage(page, pointId, amount) {
 const floatText = (page) =>
   page.evaluate(() => {
     const e = document.getElementById("midnight-enemy-damage-float");
-    return e && !e.hidden ? e.textContent : null;
+    // 2026-09-25 規格「不使用彈跳出而使血條等等變形。預留顯示空間」：飄字はもう hidden を
+    // 切り替えない（常に高さを保つ）。見えているかは .midnight-damage-float-idle の有無で判定。
+    return e && !e.classList.contains("midnight-damage-float-idle") ? e.textContent : null;
   });
 
 (async () => {
@@ -115,7 +121,28 @@ const floatText = (page) =>
     console.log("\n=== ① 傷害飄字 ===");
     assert((await floatText(page)) === null, "尚未造成傷害時不顯示（不寫0）");
 
+    // 2026-09-25 規格「預留顯示空間」：數字出現前後，血條列的位置與面板高度都不變。
+    const hpRowBox = () =>
+      page.evaluate(() => {
+        const row = document.querySelector(".midnight-enemy-hp-row");
+        const panel = document.getElementById("midnight-hud-bottom-center");
+        const f = document.getElementById("midnight-enemy-damage-float");
+        return {
+          rowTop: row.getBoundingClientRect().top,
+          panelH: panel.getBoundingClientRect().height,
+          floatH: f.getBoundingClientRect().height,
+        };
+      });
+    const beforeBox = await hpRowBox();
+    assert(beforeBox.floatH > 0, "沒有數字時飄字列仍佔著高度（預留空間）", beforeBox);
+
     await dealDamage(page, enc.pointId, 120);
+    const afterBox = await hpRowBox();
+    assert(
+      Math.abs(afterBox.rowTop - beforeBox.rowTop) < 0.5 && Math.abs(afterBox.panelH - beforeBox.panelH) < 0.5,
+      "數字出現時血條與面板不跳動",
+      { before: beforeBox, after: afterBox }
+    );
     assert((await floatText(page)) === "120", "打出 120 後顯示 120", "text=" + (await floatText(page)));
 
     await dealDamage(page, enc.pointId, 35);
@@ -179,6 +206,10 @@ const floatText = (page) =>
           if (NAMES.indexOf(nm) !== -1 && c.learnedRelicEffects.indexOf(key) === -1) c.learnedRelicEffects.push(key);
         }
       }
+      // 2026-09-25：新房間改為預設點陣圖模式後，每次出手都會寫 character/<id>/_spriteAnim，
+      // RTDB 回傳的角色節點會覆蓋掉只改在記憶體裡的欄位（舊版這裡沒寫回，蓄力後切換列就消失，
+      // 造成「可以切回普通攻擊」的假失敗）。所以習得清單也要寫回 RTDB。
+      window.PriTestGameStorage.rtSet(s.gameId, "cloud", "character/" + s.myTokenId + "/learnedRelicEffects", c.learnedRelicEffects);
       return c.learnedRelicEffects.length;
     });
     await page.waitForTimeout(400);

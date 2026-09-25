@@ -378,6 +378,10 @@ BODY = """    <div class="midnight-wrap">
                renderStrongEnemyOverlay()。 -->
           <p id="midnight-strong-enemy-detail"></p>
           <img id="midnight-strong-enemy-image" alt="">
+          <!-- 點陣圖模式（2026-09-25使用者明確規格「經過強敵籌碼等等，也在banner顯示點陣圖，
+               不再遊戲內顯示任何圖片」）：以idle循環的點陣圖取代上面的插圖，見
+               static/midnight_sprite.jsのshowMini()／midnight.jsのrenderBannerSprite()。 -->
+          <div id="midnight-strong-enemy-sprite" class="midnight-sprite-mini" hidden></div>
           <button type="button" id="btn-midnight-strong-enemy-enter" data-i18n="midnight_strong_enemy_enter_button"></button>
         </div>
 
@@ -388,6 +392,8 @@ BODY = """    <div class="midnight-wrap">
         <div id="midnight-battle-prep-banner" hidden>
           <p id="midnight-battle-prep-name"></p>
           <p id="midnight-battle-prep-detail"></p>
+          <!-- 點陣圖模式的敵人預覽（2026-09-25，同#midnight-strong-enemy-sprite說明）。 -->
+          <div id="midnight-battle-prep-sprite" class="midnight-sprite-mini" hidden></div>
           <div class="midnight-loading-track">
             <span id="midnight-battle-prep-loading-fill" class="midnight-loading-fill"></span>
           </div>
@@ -550,6 +556,8 @@ BODY = """    <div class="midnight-wrap">
              直接隱藏，不自行編造內容。 -->
         <div id="midnight-day3-boss-intro-overlay" hidden>
           <img id="midnight-day3-boss-intro-image" alt="" hidden>
+          <!-- 點陣圖模式改顯示夜王點陣圖（2026-09-25，同#midnight-strong-enemy-sprite說明）。 -->
+          <div id="midnight-day3-boss-intro-sprite" class="midnight-sprite-mini midnight-sprite-mini-large" hidden></div>
           <p id="midnight-day3-boss-intro-name"></p>
           <p id="midnight-day3-boss-intro-text" hidden></p>
           <span id="midnight-day3-boss-intro-star" hidden>✦</span>
@@ -1114,7 +1122,10 @@ BODY = """    <div class="midnight-wrap">
                裝置同步，一秒內若有再打出則繼續累加，1秒後沒有補傷害則消失重新計算，不寫0」）：
                數值由 fieldEnemyHp 的變化量推得（見 midnight.js 的 accumulateEnemyDamageFloat）,
                因此每台裝置看到的是同一個數字，不需要另外廣播。 -->
-          <div id="midnight-enemy-damage-float" hidden></div>
+          <!-- 2026-09-25使用者明確規格「不使用彈跳出而使血條等等變形。預留顯示空間」：不用hidden
+               （display:none會讓面板高度跳動），改由.midnight-damage-float-idle（visibility:hidden）
+               保留固定高度。 -->
+          <div id="midnight-enemy-damage-float" class="midnight-damage-float-idle"></div>
           <!-- 鑑定眼（鐵之眼被動，2026-09-05角色能力真正接入新增）：只在有activeEncounter
                （見trig.enemyFamilyId真實敵人資料）且角色類型有此被動時顯示，見
                static/midnight.js的handleEyeForValueClick()。 -->

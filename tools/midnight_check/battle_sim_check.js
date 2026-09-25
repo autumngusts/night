@@ -750,15 +750,20 @@ async function unlockTestMode(page) {
     assert(bossPanel.name === bossName && !bossPanel.hidden && bossPanel.bg.indexOf("boss_gladius.png") !== -1, "面板顯示夜王名稱、舞台用 boss_gladius.png", bossPanel);
     // 2026-09-22 使用者明確規格「使用點陣圖模式遊玩的話 就不顯示敵人插畫，最後夜王的插畫還是放置右上取代小地圖位置」
     // 立繪的顯示切換在 render()→renderMinimap() 那一幀才發生，等一下下再取樣。
+    // 2026-09-25 規格變更（使用者明確規格「不再遊戲內顯示任何圖片」「玩家的點陣圖與敵人點陣圖分離一些」）：
+    //   ・舊斷言「插畫 visibility:hidden 但保留佔位（w>0）」已過時——分離版面（.midnight-sprite-arena）
+    //     的圖框自己有寬度，插畫改成 display:none，改成檢查「插畫不佔位、舞台寬度仍然不塌」。
+    //   ・夜王立繪維持在右上取代小地圖（同日使用者明確規格「夜王立繪保留在右上」，是上面那條的例外）。
     await waitFor(pageA, () => !document.querySelector("#midnight-boss-portrait-hud").hidden, null, 3000).catch(() => {});
     const bossIllu = await pageA.evaluate(() => {
       const img = document.querySelector("#midnight-field-encounter-image");
+      const wrap = document.querySelector("#midnight-field-encounter-image-wrap");
+      const stage = document.querySelector("#midnight-enemy-sprite-stage");
       const portrait = document.querySelector("#midnight-boss-portrait-hud");
       const mini = document.querySelector("#midnight-minimap-canvas");
-      const cs = getComputedStyle(img);
-      return { off: img.classList.contains("midnight-illustration-off"), visibility: cs.visibility, w: img.offsetWidth, portraitHidden: portrait.hidden, portraitSrc: portrait.getAttribute("src") || "", portraitW: portrait.offsetWidth, miniHidden: mini.hidden, miniW: mini.width };
+      return { off: img.classList.contains("midnight-illustration-off"), w: img.offsetWidth, arena: wrap.classList.contains("midnight-sprite-arena"), stageW: stage.offsetWidth, portraitHidden: portrait.hidden, portraitSrc: portrait.getAttribute("src") || "", portraitW: portrait.offsetWidth, miniHidden: mini.hidden, miniW: mini.width };
     });
-    assert(bossIllu.off && bossIllu.visibility === "hidden" && bossIllu.w > 0, "點陣圖模式下敵人插畫看不見但保留佔位（舞台寬度不塌）", bossIllu);
+    assert(bossIllu.off && bossIllu.w === 0 && bossIllu.arena && bossIllu.stageW > 100, "點陣圖模式下敵人插畫完全不出、分離版面的舞台寬度不塌", bossIllu);
     assert(!bossIllu.portraitHidden && /gladius/i.test(bossIllu.portraitSrc) && bossIllu.portraitW === bossIllu.miniW && bossIllu.miniHidden, "夜王立繪顯示在右上、尺寸＝小地圖、小地圖讓位", bossIllu);
     // 一輪約 9.3 秒（idle 2 圈 2400 ＋ line 1020 ＋ area 900 ＋ thrust 840 ＋ slam 1050 ＋ single 900 ＋ hurt 540 ＋ death 960+700）；
     // 採樣 11 秒，動作要照 listAnims() 順序出現、每一個都出現過，且標籤跟著動作走。

@@ -13,6 +13,14 @@
 //   ・「戰鬥時可以放入敵人的左側」＝ 玩家舞台整體位於敵人舞台的左邊。
 //   ・「同房全員橫排」＝ 房內每位玩家各佔一格，橫向排開，各自播各自的動作。
 //
+// 2026-09-25 規格變更（同日第二版，使用者明確規格）：
+//   ・「玩家的點陣圖與敵人點陣圖分離一些，玩家們的更靠左邊」＝ 圖框改成分離版面
+//     （.midnight-sprite-arena）：敵人舞台靠右、玩家舞台在它的左外側，兩者不再重疊。
+//     舊版斷言「玩家舞台矩形＝敵人舞台矩形」「面在舞台寬 × GROUP_RIGHT 的帯內」已過時。
+//   ・「多人遊戲時自己的角色排列在右邊，剩餘兩人位置，每30秒輪流輪替正在進行的玩家」
+//     ＝ 自分＋他の参加者最多 2 人、超過時 30 秒ごとに輪替（⑥）。
+//   ・「創立房間，點陣圖預設開啟」＝ 新房間の meta.spriteMode は最初から true。
+//
 // 涵蓋項目：
 //   ① 純資料／純函式：6×10 的行對應、10 種動作、frameIndexAt 的 loop／hold、
 //      backgroundPosition 的行位移、登錄表 20 類型→10 sheet 且全部 available。
@@ -20,6 +28,7 @@
 //   ③ 動作接線：迴避／一般攻擊／技藝 → 對應的 animId。
 //   ④ 受擊與死亡：HP 下降 → hurt；瀕死 → death 且 hold 在最終幀。
 //   ⑤ 兩裝置：兩人入座時雙方畫面都是 2 面橫排，且 B 的操作會在 A 的畫面播出來。
+//   ⑥ 四裝置：畫面上最多 3 面（自分＋2 人）、自分が最右、30 秒ごとに他の 2 人が輪替。
 //
 // 期望值一律從 player_sprite_data.js／登錄表／實測的 DOM 位置算出，不硬編
 // （CLAUDE.md §4.7 的原則）。點擊一律用 dispatchEvent（同 §4.6）。
@@ -41,14 +50,18 @@ function assert(cond, label, detail) {
 const waitFor = (page, fn, arg, timeout) => page.waitForFunction(fn, arg, { timeout: timeout || META_WAIT_MS });
 const state = (page) => page.evaluate(() => window.PriTestMidnight._debugState());
 
+// database emulator 的 port（9000 被 IntelliJ 等佔用時用 PRITEST_EMU_PORT 覆寫，同 relic_memory_emulator_check.js）
+const EMU_PORT = process.env.PRITEST_EMU_PORT || "9000";
+
 async function enableEmulator(page) {
-  await page.addInitScript(() => {
+  await page.addInitScript((port) => {
     try {
       window.sessionStorage.setItem("pritestRtdbEmulator", "1");
+      window.sessionStorage.setItem("pritestRtdbEmulatorPort", port);
     } catch (e) {
       /* 忽略 */
     }
-  });
+  }, EMU_PORT);
 }
 
 // 自分の面の現在の動作。key は tokenId。
@@ -106,7 +119,7 @@ async function createSpriteRoom(page, opts) {
   await page.fill("#midnight-lobby-passcode-input", "1234");
   await page.click("#btn-midnight-lobby-join");
   await waitFor(page, () => !!window.PriTestMidnight._debugState().mySlot);
-  await page.check("#midnight-lobby-sprite-mode-checkbox");
+  // 2026-09-25 規格「創立房間，點陣圖預設開啟」：勾選操作は不要になった（meta 作成時から true）。
   await waitFor(page, () => window.PriTestMidnight._debugState().meta.spriteMode === true);
   if (!opts || !opts.skipBattleSim) {
     // 戰鬥模擬の三列は測試模式を開かないと出てこない（sprite_dodge_check.js と同じ）。
@@ -216,23 +229,26 @@ async function createSpriteRoom(page, opts) {
     const rects = await stageRects(page);
     const L = await page.evaluate(() => {
       const P = window.PriTestMidnightPlayerSprite;
-      return { groupRight: P.GROUP_RIGHT, faceMax: P.FACE_MAX_RATIO, step: P.FACE_STEP };
+      return { arenaMax: P.ARENA_FACE_MAX_H, step: P.FACE_STEP, arena: P.isArena() };
     });
     assert(!!rects && rects.faces.length === 1, "單人房：玩家面は 1 面", rects && rects.faces.length);
     assert(!!rects.enemy, "敵人舞台も表示中（比較対象がある）", !!rects.enemy);
-    // 舞台の矩形は敵人舞台と同一（重ねてある）。左寄せは面の位置で作るので、
-    // 「左側にいる」は面の右端が帯の右端（舞台幅 × GROUP_RIGHT）を超えないことで見る。
-    // 插圖の外へ出さない理由は style.css の同じ選擇器のところ（祖先が overflow-x:hidden）。
-    assert(
-      Math.abs(rects.player.left - rects.enemy.left) <= 1 && Math.abs(rects.player.w - rects.enemy.w) <= 1,
-      "玩家舞台の矩形は敵人舞台と同一（接地線をそろえるため）",
-      { player: Math.round(rects.player.left), enemy: Math.round(rects.enemy.left) }
+    // 2026-09-25 規格「玩家的點陣圖與敵人點陣圖分離一些，玩家們的更靠左邊」：
+    // 舊版は「玩家舞台＝敵人舞台と同一矩形、帯 0~GROUP_RIGHT に左寄せ」だったが、
+    // 分離版面では玩家舞台が敵人舞台の左外側に丸ごと出る。
+    const arenaOn = await page.evaluate(() =>
+      document.getElementById("midnight-field-encounter-image-wrap").classList.contains("midnight-sprite-arena")
     );
-    const bandRight = rects.player.left + rects.player.w * L.groupRight;
+    assert(arenaOn && L.arena, "點陣圖接手時は分離版面（.midnight-sprite-arena）", { arenaOn, arena: L.arena });
     assert(
-      rects.faces.every((f) => f.right <= bandRight + 1),
-      "面はすべて舞台左側の帯（0~" + L.groupRight + "）に収まる＝敵人より左に立つ",
-      { faceRight: Math.round(rects.faces[0].right), bandRight: Math.round(bandRight) }
+      rects.player.right <= rects.enemy.left + 1,
+      "玩家舞台は敵人舞台の左外側（重ならない）",
+      { playerRight: Math.round(rects.player.right), enemyLeft: Math.round(rects.enemy.left) }
+    );
+    assert(
+      rects.faces.every((f) => f.left >= rects.player.left - 1 && f.right <= rects.player.right + 1),
+      "面はすべて玩家舞台の中＝敵人より左に立つ",
+      rects.faces.map((f) => [Math.round(f.left), Math.round(f.right)])
     );
     assert(
       rects.faces[0].left + rects.faces[0].w / 2 < rects.enemy.left + rects.enemy.w / 2,
@@ -244,13 +260,14 @@ async function createSpriteRoom(page, opts) {
       "玩家舞台と敵人舞台の下端（接地線）が一致",
       { player: Math.round(rects.player.bottom), enemy: Math.round(rects.enemy.bottom) }
     );
-    // 期待値は syncLayout() と同じ式から算出（硬編しない、CLAUDE.md §4.7）
-    const wantFaceW = (stageWidth, n) =>
-      Math.max(24, Math.round(Math.min(stageWidth * L.faceMax, (stageWidth * L.groupRight) / (1 + (n - 1) * L.step))));
+    // 期待値は syncLayout() と同じ式から算出（硬編しない、CLAUDE.md §4.7）。
+    // 分離版面：帯＝玩家舞台の全幅、上限＝舞台の高さ × ARENA_FACE_MAX_H。
+    const wantFaceW = (r, n) =>
+      Math.max(24, Math.round(Math.min(r.h * L.arenaMax, r.w / (1 + (n - 1) * L.step))));
     assert(
-      Math.abs(rects.faces[0].w - wantFaceW(rects.player.w, 1)) <= 2,
-      "1 面の幅＝上限 FACE_MAX_RATIO（" + L.faceMax + "）と帯に収まる幅の小さいほう",
-      { face: Math.round(rects.faces[0].w), want: wantFaceW(rects.player.w, 1) }
+      Math.abs(rects.faces[0].w - wantFaceW(rects.player, 1)) <= 2,
+      "1 面の幅＝上限（舞台高 × " + L.arenaMax + "）と帯に収まる幅の小さいほう",
+      { face: Math.round(rects.faces[0].w), want: wantFaceW(rects.player, 1) }
     );
     assert(
       Math.abs(rects.faces[0].bottom - rects.player.bottom) <= 2,
@@ -363,16 +380,16 @@ async function createSpriteRoom(page, opts) {
     await pageA2.waitForTimeout(120);
     const rectsA2 = await stageRects(pageA2);
     if (rectsA2 && rectsA2.faces.length === 2) {
-      const bandRight2 = rectsA2.player.left + rectsA2.player.w * L.groupRight;
       assert(
-        rectsA2.faces[0].left > rectsA2.faces[1].left && rectsA2.faces.every((f) => f.right <= bandRight2 + 1),
-        "先頭（自分）が敵人に近い側、2 人目はその左。2 人とも帯の中＝敵人より左",
+        rectsA2.faces[0].left > rectsA2.faces[1].left &&
+          rectsA2.faces.every((f) => f.right <= rectsA2.enemy.left + 1),
+        "先頭（自分）が敵人に近い側（右）、2 人目はその左。2 人とも敵人舞台より左",
         rectsA2.faces.map((f) => Math.round(f.left))
       );
       assert(
-        Math.abs(rectsA2.faces[0].w - wantFaceW(rectsA2.player.w, 2)) <= 2,
+        Math.abs(rectsA2.faces[0].w - wantFaceW(rectsA2.player, 2)) <= 2,
         "2 人のときは 1 面が帯に収まるぶんまで細くなる",
-        { face: Math.round(rectsA2.faces[0].w), want: wantFaceW(rectsA2.player.w, 2) }
+        { face: Math.round(rectsA2.faces[0].w), want: wantFaceW(rectsA2.player, 2) }
       );
       assert(
         Math.abs(rectsA2.faces[0].bottom - rectsA2.faces[1].bottom) <= 2,
@@ -393,6 +410,81 @@ async function createSpriteRoom(page, opts) {
       remoteOk = false;
     }
     assert(remoteOk, "B の迴避が A の画面でも B の面で再生される（_spriteAnim の通し番号同期）");
+    await pageA2.close();
+    await pageB.close();
+
+    console.log("=== ⑥ 四裝置：自分＋2 人、30 秒ごとに輪替 ===");
+    const pages4 = [];
+    for (let i = 0; i < 4; i++) {
+      const p = await browser.newPage();
+      p.on("pageerror", (e) => console.log("  [pageerror 4-" + i + "] " + e.message));
+      await enableEmulator(p);
+      pages4.push(p);
+    }
+    const url4 = await createSpriteRoom(pages4[0]);
+    for (let i = 1; i < 4; i++) {
+      await pages4[i].goto(url4, { waitUntil: "networkidle" });
+      await waitFor(pages4[i], () => window.PriTestMidnight && window.PriTestMidnight._debugState().meta);
+      await pages4[i].click("#midnight-lobby-slots .midnight-slot-empty button");
+      await pages4[i].fill("#midnight-lobby-passcode-input", String(2000 + i));
+      await pages4[i].click("#btn-midnight-lobby-join");
+      await waitFor(pages4[i], () => !!window.PriTestMidnight._debugState().mySlot);
+    }
+    for (let i = 0; i < 4; i++) await pages4[i].click("#btn-midnight-lobby-ready");
+    for (let i = 0; i < 4; i++) {
+      await waitFor(pages4[i], () => (window.PriTestMidnight._debugState().activeEncounter || {}).id === "battleSim", null, 40000);
+    }
+    const A4 = pages4[0];
+    await waitFor(A4, () => document.querySelectorAll("#midnight-player-sprite-stage .midnight-player-sprite-face").length === 3, null, 15000)
+      .catch(() => {});
+    // 期待値：他の 3 人（席順）を floor(now/30000) % 3 だけずらして先頭 2 人（playerSpriteParty() と同じ式）。
+    const cast = () =>
+      A4.evaluate(() => {
+        const s = window.PriTestMidnight._debugState();
+        const faces = Array.prototype.slice.call(document.querySelectorAll("#midnight-player-sprite-stage .midnight-player-sprite-face"));
+        const P = window.PriTestMidnightPlayerSprite;
+        return {
+          now: Date.now(),
+          count: P.faceCount(),
+          lefts: faces.map((f) => f.getBoundingClientRect().left),
+          myAnimKnown: P.currentAnimId(s.myTokenId) !== null,
+          others: Object.keys(s.players || {})
+            .sort((a, b) => Number(a) - Number(b))
+            .map((slot) => s.players[slot] && s.players[slot].tokenId)
+            .filter((t) => t && t !== s.myTokenId),
+          onStage: Object.keys(s.players || {})
+            .map((slot) => s.players[slot] && s.players[slot].tokenId)
+            .filter((t) => t && P.currentAnimId(t) !== null),
+          me: s.myTokenId,
+        };
+      });
+    const expectOthers = (c) => {
+      const off = Math.floor(c.now / 30000) % c.others.length;
+      return [c.others[off % c.others.length], c.others[(off + 1) % c.others.length]].sort();
+    };
+    const c1 = await cast();
+    assert(c1.count === 3, "4 人でも舞台に出るのは 3 面（自分＋2 人）", c1.count);
+    assert(c1.onStage.indexOf(c1.me) !== -1, "自分は常に出演", c1.onStage);
+    const shownOthers1 = c1.onStage.filter((t) => t !== c1.me).sort();
+    assert(JSON.stringify(shownOthers1) === JSON.stringify(expectOthers(c1)), "他の 2 人は 30 秒窓の輪替順どおり", {
+      shown: shownOthers1,
+      want: expectOthers(c1),
+    });
+    const lefts1 = c1.lefts;
+    assert(lefts1.length === 3 && lefts1[0] > lefts1[1] && lefts1[1] > lefts1[2], "自分（先頭）が最右、残りはその左へ", lefts1);
+    // 次の 30 秒境界をまたいでから、顔ぶれが入れ替わったかを見る
+    const waitMs = 30000 - (c1.now % 30000) + 800;
+    console.log("  次の輪替まで " + Math.round(waitMs / 1000) + " 秒待つ…");
+    await A4.waitForTimeout(waitMs);
+    const c2 = await cast();
+    const shownOthers2 = c2.onStage.filter((t) => t !== c2.me).sort();
+    assert(c2.count === 3, "輪替後も 3 面", c2.count);
+    assert(JSON.stringify(shownOthers2) === JSON.stringify(expectOthers(c2)), "30 秒後、他の 2 人が次の組に入れ替わる", {
+      shown: shownOthers2,
+      want: expectOthers(c2),
+    });
+    assert(JSON.stringify(shownOthers1) !== JSON.stringify(shownOthers2), "顔ぶれが実際に変わった", [shownOthers1, shownOthers2]);
+    for (const p of pages4) await p.close();
 
     console.log("");
     const failed = results.filter((r) => !r.pass);
