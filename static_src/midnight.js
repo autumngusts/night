@@ -3793,6 +3793,19 @@
   function preloadEncounterSheet(trig) {
     var file = encounterSheetFile(trig);
     if (file) window.PriTestMidnightSprite.preload(file, "../static/");
+    preloadPartySheets();
+  }
+
+  // 玩家角色の sheet も同じ機会に先に読む（2026-09-25）。敵人と同じく 1 枚 1MB 前後あり、
+  // 戰鬥面板が開いてから読み始めると、最初の 1 秒ほど左側が空になる。
+  // 同じファイル名は midnight_player_sprite.js 側で 1 回しか要求しない。
+  function preloadPartySheets() {
+    var P = window.PriTestMidnightPlayerSprite;
+    if (!P || !spriteModeEnabled()) return;
+    playerSpriteParty().forEach(function (m) {
+      var file = P.sheetFileForType(m.typeId);
+      if (file) P.preload(file, "../static/");
+    });
   }
 
   // 使用者明確規格「需要輸入nightnight密碼」：只有「開啟」需要密碼，取消不用（跟測試模式
@@ -6956,6 +6969,7 @@
       if (executionTalismans.indexOf("talisman_blue_dancer_blade") !== -1) healSelfFp(BLOCK_SQUARE_COUNT_TO_RESOURCE_MULT);
       showToast(window.I18N.t("midnight_execution_button") + window.I18N.t("colon_separator") + damage);
       broadcastCombatActionBubble(window.I18N.t("midnight_execution_button"));
+      playMySpriteAnim("critical"); // 玩家 sprite：致命一擊の行（row6）
       maybeGrantExecutionRunes(pointId);
     });
   }
@@ -8096,6 +8110,7 @@
       maybeApplySkillRevivalDamage("復帰ダメージ：60");
       showToast(window.I18N.t("midnight_crucible_assault_button") + "：60");
       broadcastCombatActionBubble(window.I18N.t("midnight_crucible_assault_button"));
+      playMySpriteAnim("attack1"); // 玩家 sprite：獣形態の突撃も攻擊の行で出す
     } else {
       var targetId = firstEligibleDownedAllyTokenId();
       if (targetId) {
@@ -8114,6 +8129,7 @@
       }
       showToast(window.I18N.t("midnight_crucible_roar_button") + "：30");
       broadcastCombatActionBubble(window.I18N.t("midnight_crucible_roar_button"));
+      playMySpriteAnim("ability"); // 玩家 sprite：咆哮は能力（被動）の行（row7）
     }
   }
 
@@ -8251,6 +8267,8 @@
     var atkWeapon = Weapons.get(baseCatalogId(info.weaponId));
     var atkName = atkWeapon ? Weapons.localizedText(atkWeapon.name) : window.I18N.t("midnight_attack_target_button");
     broadcastCombatActionBubble(atkName);
+    // 玩家 sprite（2026-09-25）：2Hit は row5、通常の 1Hit は row4。
+    playMySpriteAnim(useHit2 ? "attack2" : "attack1");
   }
 
   // ============================================================================
@@ -8654,6 +8672,10 @@
       onAffixChargeAttack(); // 2026-09-13武器詞條：タメ攻撃時の聖／魔力／雷攻撃発生＋カット率上昇
     }
     broadcastCombatActionBubble(specialAttackLabel(entry.kind));
+    // 玩家 sprite：蓄力は「2hit／蓄力」の row5、跳躍／衝刺は専用の行が無いので
+    // 通常攻擊の row4 を使う（sheet は 10 行で、跳躍攻擊の行は規格から外れている
+    // ——tools/sprite_spec.md「玩家操作角色 sheet」の 2026-09-24 第二版）。
+    playMySpriteAnim(entry.kind === "charge" ? "attack2" : "attack1");
   }
 
   function specialAttackLabel(kind) {
@@ -9339,6 +9361,7 @@
       showToast(name + "：" + bodyText + (effectNotes.length ? "（" + effectNotes.join("／") + "）" : ""));
     }
     broadcastCombatActionBubble(name);
+    playMySpriteAnim("skill"); // 玩家 sprite：武器戰技は技能の行（row8）
   }
 
   // 對自己回復HP／FP（2026-09-11抽出，供多個遺物效果共用：致命一擊2個、屬性達成的歡喜、
@@ -10645,6 +10668,7 @@
     applyRelicMemoryAbilityUse(found.c, kind); // 2026-09-25遺物記憶第6期：技能／技藝發動時
     triggerAbilityFx(abilityId, found.c); // 2026-09-21：各角色技能／技藝的專屬特效
     broadcastCombatActionBubble(name);
+    playMySpriteAnim(kind === "art" ? "arts" : "skill"); // 玩家 sprite：技藝 row9／技能 row8
   }
 
   // 力量感應（送葬人/送葬人黎明被動，2026-09-05角色能力真正接入新增）：任何PC使用技藝時，
@@ -11252,6 +11276,7 @@
     cancelFlaskReadingForOtherAction();
     dodgePressedAt = pressedAt;
     recordBattleSimDodgePress(pressedAt); // 戰鬥模擬的迴避計時（純量測，放開時刻另由click補記）
+    playMySpriteAnim("dodge"); // 玩家 sprite：迴避の行（row1）
     onAffixDodge(); // 2026-09-13武器詞條：回避直後の被ダメージ増加／回避連続時、カット率低下
   }
 
@@ -11440,6 +11465,9 @@
     if (!mySlot || isPaused() || !availableSpecialDefenseOptions(c, type)[idx]) return;
     specialDefensePressedIndex = idx;
     specialDefensePressedAt = Date.now();
+    // 玩家 sprite：特殊防禦は角色の能力（第六感／妖刀など）が出どころなので row7。
+    // 通常の防禦（架盾）には対応する行が無いので鳴らさない。
+    playMySpriteAnim("ability");
   }
 
   // 高防禦（守護者被動，2026-09-05角色能力真正接入新增）：開啟時支付「骰子消耗：1」
@@ -14747,6 +14775,118 @@
     if (battleSimAnimCycleActive()) return; // 同maybePlayEnemyAttackAnim()：循環確認中不被受擊／死亡打斷
     if (!force && S.currentAnimId() !== "idle") return;
     S.playAnim(animId, Date.now());
+  }
+
+  // ---- 玩家操作角色 sprite（2026-09-25 使用者明確規格「點陣圖模式，接入玩家使用的角色動作」
+  // 「戰鬥時可以放入敵人的左側」）----
+  //
+  // 上の敵人側とまったく同じ立場＝表現層だけ。命中・傷害・資源の結末は各 handler の中で
+  // すでに決まっていて、ここは「決まったことを絵にする」だけなので、ここが丸ごと失敗しても
+  // 遊戲の結果は 1 ミリも変わらない（設計文件 §4 の三層解耦）。
+  //
+  // 同期の設計（ここが玩家側でいちばん考えどころ）：
+  //   ・**受擊と死亡は同期しない。** HP（demoStats）と瀕死（characters[].nearDeath）は
+  //     すでに RTDB で全端に届いている。各端がその変化を見て自分で鳴らせば足りるので、
+  //     新しい欄位を足すのは書き込み量とズレる余地を増やすだけになる。
+  //   ・自発的な操作（攻擊／迴避／技能／技藝／致命一擊／能力）だけを
+  //     character/<tokenId>/_spriteAnim = { id, n } で配る。**時刻ではなく通し番号 n を
+  //     送る**のが肝：時刻を送ると端末間の時計ずれぶん位相がずれる（敵人側は
+  //     enemyAttackWarnAtLocal() で換算して回避している）。玩家の動畫は判定に使われないので、
+  //     n が変わったのを見た端がそれぞれ自分の now から再生すれば十分——開始が通信ぶん
+  //     前後するだけで、絵そのものは崩れない。
+  var playerSpriteSeq = 0;
+  var playerSpriteSeen = {}; // tokenId -> 最後に再生した _spriteAnim.n
+  var playerSpriteKnown = {}; // tokenId -> この端が一度でもこの人を出演させたか
+  var playerSpriteHpSeen = {}; // tokenId -> 直前の影格で見た HP（受擊の検出用）
+  var playerSpriteDownSeen = {}; // tokenId -> 直前の影格で見た瀕死フラグ
+
+  function playerSpriteReady() {
+    return !!(window.PriTestMidnightPlayerSprite && spriteModeEnabled());
+  }
+
+  // 出演順：自分が先頭（＝敵人にいちばん近い位置）、あとは席順。
+  // 角色類型が未確定の席、sheet が未產出の類型は setParty() 側で落ちる。
+  function playerSpriteParty() {
+    var out = [];
+    var seen = {};
+    function push(tokenId) {
+      if (!tokenId || seen[tokenId]) return;
+      var c = characters[tokenId];
+      if (!c || !c.typeId) return;
+      seen[tokenId] = true;
+      out.push({ key: tokenId, typeId: c.typeId });
+    }
+    push(myTokenId);
+    occupiedSlots().forEach(function (slot) {
+      push(players[slot] && players[slot].tokenId);
+    });
+    return out;
+  }
+
+  // 自分の操作を鳴らす＋全端へ配る。各 handler の「この動作は確定した」地点
+  // （既存の broadcastCombatActionBubble() と同じ場所）から呼ぶ。
+  function playMySpriteAnim(animId) {
+    if (!playerSpriteReady() || !myTokenId) return;
+    var P = window.PriTestMidnightPlayerSprite;
+    playerSpriteSeq++;
+    playerSpriteSeen[myTokenId] = playerSpriteSeq;
+    // 自分は往復を待たずに即再生（force：連打で同じ動作でも先頭から出し直す）。
+    P.playAnim(myTokenId, animId, Date.now(), true);
+    GameStorage.rtSet(gameId, "cloud", "character/" + myTokenId + "/_spriteAnim", {
+      id: animId,
+      n: playerSpriteSeq,
+    });
+  }
+
+  // 毎影格。出演者の増減、他人の操作、そして HP／瀕死からの受擊・死亡を拾う。
+  function updatePlayerSprites(now) {
+    var P = window.PriTestMidnightPlayerSprite;
+    if (!P || !P.mounted()) return; // 舞台は戰鬥面板の中なので、面板が開くまで出す先が無い
+    if (!spriteModeEnabled() || !activeEncounter) {
+      P.hide();
+      return;
+    }
+    var party = playerSpriteParty();
+    if (!P.setParty(party, "../static/")) return;
+    party.forEach(function (m) {
+      var tokenId = m.key;
+      var c = characters[tokenId];
+      var downed = !!(c && c.nearDeath && c.nearDeath.active);
+      var wasDowned = !!playerSpriteDownSeen[tokenId];
+      playerSpriteDownSeen[tokenId] = downed;
+      if (downed && !wasDowned) {
+        P.playAnim(tokenId, "death", now, true);
+        return;
+      }
+      if (!downed && wasDowned) {
+        // 死亡動畫は hold（最終幀で止まる）なので、蘇生しても自分では戻らない。
+        P.playAnim(tokenId, "idle", now, true);
+      }
+      // 受擊：HP が減った影格に鳴らす。回復・最大値の変動では鳴らさない。
+      var hp = demoStats[tokenId];
+      var prevHp = playerSpriteHpSeen[tokenId];
+      if (hp !== undefined) {
+        if (prevHp !== undefined && hp < prevHp && !downed) P.playAnim(tokenId, "hurt", now);
+        playerSpriteHpSeen[tokenId] = hp;
+      }
+      // 他人の自発操作。自分は playMySpriteAnim() で鳴らし済みなので飛ばす
+      // （RTDB から自分の書き込みが返ってきたぶんを二重に鳴らさない）。
+      if (tokenId === myTokenId) return;
+      var req = c && c._spriteAnim;
+      // 出演 1 影格目は「今の n」を控えるだけで鳴らさない。戰鬥に入る前に相手が最後に
+      // 撃った動作が RTDB に残っているので、鳴らすと入場の瞬間に過去の動作が再生される。
+      // **この控えは出演を知った時点でやる**（相手が最初に動いたときではない）——
+      // 後者だと「この端が入ってから相手が撃った最初の 1 発」まで飲み込んでしまう。
+      if (!playerSpriteKnown[tokenId]) {
+        playerSpriteKnown[tokenId] = true;
+        playerSpriteSeen[tokenId] = req && req.n ? req.n : 0;
+        return;
+      }
+      if (!req || !req.id || !req.n) return;
+      if (playerSpriteSeen[tokenId] === req.n) return;
+      playerSpriteSeen[tokenId] = req.n;
+      P.playAnim(tokenId, req.id, now, true);
+    });
   }
 
   // ---- 戰鬥模擬「連續播放所有動作動畫」（2026-09-22使用者明確規格「有個選項可以讓敵人
@@ -24748,12 +24888,18 @@
       // 2026-09-22：面板收起時主舞台一併收掉，否則 tick() 會在 offsetWidth=0 的隱藏面板上
       // 每影格空轉（退回 128px 反覆重算 backgroundSize）。下次進戰鬥由 showSprite() 重開。
       if (window.PriTestMidnightSprite) window.PriTestMidnightSprite.showStatic();
+      if (window.PriTestMidnightPlayerSprite) window.PriTestMidnightPlayerSprite.hide();
       return;
     }
     box.hidden = false;
     // 2026-09-21：sprite 舞台延後 mount（元素要等 encounter 面板打開之後才存在）。
     if (window.PriTestMidnightSprite) {
       window.PriTestMidnightSprite.mount(el("midnight-field-encounter-image-wrap"));
+    }
+    // 2026-09-25：玩家角色の舞台も同じ親に掛ける（敵人舞台の左外へ出る。位置決めは
+    // style.css の #midnight-player-sprite-stage）。出演者と再生は updatePlayerSprites()。
+    if (window.PriTestMidnightPlayerSprite) {
+      window.PriTestMidnightPlayerSprite.mount(el("midnight-field-encounter-image-wrap"));
     }
     var trig = fieldTriggers[activeEncounter.id] || {};
     eyeBtn.hidden = !eyeAbility || !trig.enemyFamilyId;
@@ -27264,6 +27410,8 @@
     updateBattleSimAnimCycle(now); // 戰鬥模擬的動作循環確認，要在tick()之前指定這一影格的動作
     updateBattleSimDodgeTimer(now); // 戰鬥模擬的迴避計時（純量測顯示）
     if (window.PriTestMidnightSprite) window.PriTestMidnightSprite.tick(now);
+    updatePlayerSprites(now); // 2026-09-25：玩家角色 sprite の出演者・受擊・死亡・他人の操作
+    if (window.PriTestMidnightPlayerSprite) window.PriTestMidnightPlayerSprite.tick(now);
     renderFinalCircleCountdown(now);
     updateStamina(dtSec);
     updateSorceryHold(now);

@@ -1787,6 +1787,15 @@ def build_midnight_html() -> str:
             "enemy_sprite_registry.js",
             "enemy_action_anim_map.js",
             "midnight_sprite.js",
+            # 2026-09-25新增：玩家操作角色的 sprite 動畫層（使用者明確規格「點陣圖模式，
+            # 接入玩家使用的角色動作」「戰鬥時可以放入敵人的左側」）。敵人版とは sheet の
+            # 行数（6x8 対 6x10）も出演者の持ち方も違うので別モジュール，理由は
+            # midnight_player_sprite.js の冒頭コメント。
+            # player_sprite_data.js（動作時間軸）と player_sprite_registry.js（sheet 登錄表）は
+            # midnight_player_sprite.js の読み込み時点で参照されるので，必ずその前に置く。
+            "player_sprite_data.js",
+            "player_sprite_registry.js",
+            "midnight_player_sprite.js",
             # 2026-09-21新增：防禦反擊型招式的反擊效果（純判定層）。midnight.js の
             # maybeTriggerEnemyCounter()／incomingHitWindowMs() 會讀
             # window.PriTestEnemyCounterRules，必須排在 midnight.js 之前。

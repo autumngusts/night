@@ -9122,7 +9122,8 @@ html.midnight-top-banner-collapsed .midnight-top-banner-collapse-btn {
    正方形セルのときと変わらない。 */
 #midnight-enemy-sprite-stage > .midnight-sprite-face,
 #midnight-enemy-death-popup > .midnight-sprite-face,
-#midnight-boss-defeat-stage > .midnight-sprite-face {
+#midnight-boss-defeat-stage > .midnight-sprite-face,
+#midnight-player-sprite-stage > .midnight-sprite-face {
   position: absolute;
   left: 0;
   right: 0;
@@ -9130,6 +9131,43 @@ html.midnight-top-banner-collapsed .midnight-top-banner-collapse-btn {
   height: 100%;
   background-repeat: no-repeat;
   pointer-events: none;
+}
+
+/* 玩家操作角色 sprite 舞台（2026-09-25 使用者明確規格「點陣圖模式，接入玩家使用的角色動作」
+   「戰鬥時可以放入敵人的左側」「同房全員橫排」）：同房のプレイヤー角色を戰鬥圖框の左寄りに
+   横一列で出す。
+
+   矩形は敵人舞台（#midnight-enemy-sprite-stage）と意図的に**まったく同じ**——幅 100%
+   （＝插圖の実寸幅）、aspect-ratio 1/1、縦中央ぞろえ。こうすると舞台の下端が敵人舞台の
+   下端と完全に一致し、面を bottom:0 に貼るだけで玩家と敵人が同じ接地線に立つ。別々に
+   高さを決めると插圖の縦横比が変わるたびに足元がずれる。実際に左へ寄せるのは面の位置で、
+   舞台幅の 0~58%（midnight_player_sprite.js の GROUP_RIGHT）の帯に右詰めで並べる。
+
+   **插圖の外（right:100%）には出せない**：祖先の #midnight-hud-bottom-center が
+   overflow-x:hidden なので、枠の外の面は丸ごと切り落とされる（初版はこれで、舞台の矩形は
+   正しく左に出ているのに画面には何も映らなかった）。左側とはいえ枠の内側に置くしかない。
+
+   絵の向き：玩家 sheet は**右向き**に描かれている（敵人 sheet は左向き）。玩家が左・敵人が
+   右に立つこの配置では、両者が自然に向かい合うので scaleX の反転は要らない。
+
+   重なり順：この舞台は DOM 上で敵人舞台より後ろにあるので、玩家は敵人の絵より手前に描かれる。
+   左寄りとはいえ敵人と少し重なるため、これが正しい前後関係になる。
+
+   pointer-events:none：表現層なので下の操作を一切邪魔しない（敵人舞台と同じ）。 */
+#midnight-player-sprite-stage {
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  pointer-events: none;
+}
+
+/* 面そのものの位置・寸法は JS が実測値から書き込む（midnight_player_sprite.js の
+   syncLayout()）。ここは重なり順のための stacking context だけ用意する。 */
+#midnight-player-sprite-stage > .midnight-player-sprite-face {
+  bottom: 0;
 }
 
 #midnight-enemy-death-popup {

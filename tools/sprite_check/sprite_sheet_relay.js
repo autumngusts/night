@@ -57,34 +57,49 @@ const ROW_BANDS_ARG = bandsArg
       return [p[0], p[1]];
     })
   : null;
-if (ROW_BANDS_ARG && (ROW_BANDS_ARG.length !== 8 || ROW_BANDS_ARG.some(function (b) {
+// 本数の検査は DST_ROWS が決まってから（--dst-rows= の宣言はこの下）。
+if (ROW_BANDS_ARG && ROW_BANDS_ARG.some(function (b) {
   return !(b[0] >= 0) || !(b[1] > b[0]);
-}))) {
-  console.error("--row-bands= は y0-y1 を 8 本、上から規格の行順に並べること");
+})) {
+  console.error("--row-bands= は y0-y1 の形で並べること");
   process.exit(1);
 }
 const orderArg = flags.filter(function (a) { return a.indexOf("--row-order=") === 0; })[0];
 const ROW_ORDER = orderArg
   ? orderArg.split("=")[1].split(",").map(function (v) { return parseInt(v, 10); })
   : null;
-if (ROW_ORDER && ROW_ORDER.length !== 8) {
-  console.error("--row-order= は 8 個の帯番号を並べること（受け取った値: " + ROW_ORDER.length + " 個）");
-  process.exit(1);
-}
 if (!SRC || !SRC_COLS || !SRC_ROWS || !SHEET_ID) {
   console.error(
     "usage: node sprite_sheet_relay.js <src.png> <srcCols> <srcRows> <sheetId> " +
-      "[--rows=detect] [--cols=detect] [--cell=fit] [--row-bands=y0-y1,...×8]"
+      "[--rows=detect] [--cols=detect] [--cell=fit] [--dst-rows=N] [--row-bands=y0-y1,...×N]"
   );
   process.exit(1);
 }
 
 const ROOT = path.resolve(__dirname, "..", "..");
 const DST_COLS = 6;
-const DST_ROWS = 8;
+// --dst-rows=10 : 出力の行数。既定 8 は敵人 sheet（enemy_sprite_data.js の 8 動作）。
+// 2026-09-25 追加：玩家操作角色 sheet は 6x10（tools/sprite_spec.md「玩家操作角色 sheet」）。
+// 行の意味そのものは資料層（player_sprite_data.js / enemy_sprite_data.js）が持っていて、
+// この道具は「何本の帯に切るか」しか知らない——だから行数だけ外から差し替えれば両対応できる。
+const dstRowsArg = flags.filter(function (a) { return a.indexOf("--dst-rows=") === 0; })[0];
+const DST_ROWS = dstRowsArg ? parseInt(dstRowsArg.split("=")[1], 10) : 8;
+if (!(DST_ROWS >= 2 && DST_ROWS <= 32)) {
+  console.error("--dst-rows= は 2~32 の整数（受け取った値: " + DST_ROWS + "）");
+  process.exit(1);
+}
 const OCCUPANCY = 0.8; // 規格：角色佔單格高度約 80%
 const T = 128; // 本体とみなす alpha
 const ALPHA_LO = 4, ALPHA_HI = 250; // 生成物の alpha は 0~4 / 245~254 に固まる
+
+if (ROW_BANDS_ARG && ROW_BANDS_ARG.length !== DST_ROWS) {
+  console.error("--row-bands= は " + DST_ROWS + " 本、上から規格の行順に並べること（受け取った値: " + ROW_BANDS_ARG.length + " 本）");
+  process.exit(1);
+}
+if (ROW_ORDER && ROW_ORDER.length !== DST_ROWS) {
+  console.error("--row-order= は " + DST_ROWS + " 個の帯番号を並べること（受け取った値: " + ROW_ORDER.length + " 個）");
+  process.exit(1);
+}
 
 if (SRC_ROWS !== DST_ROWS) {
   console.error("列（動作）の数は " + DST_ROWS + " でなければならない（受け取った値: " + SRC_ROWS + "）");

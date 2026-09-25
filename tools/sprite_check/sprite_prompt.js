@@ -10,6 +10,10 @@
 //   node tools/sprite_check/sprite_prompt.js --format=anim           # 1体1行の動畫表リクエスト
 //   node tools/sprite_check/sprite_prompt.js --format=frame-rule     # 「各行の1格目は前搖・招式圖なし」の追加指示（1回）
 //
+//   node tools/sprite_check/sprite_prompt.js --format=player-preamble # 玩家角色版の畫風契約（1回）
+//   node tools/sprite_check/sprite_prompt.js --format=player          # 玩家角色 1体1メッセージ
+//   ※ 玩家角色は 6×10（敵人は 6×8）。行の意味も別物なので、敵人版とは会話を分けること。
+//
 // prompt の骨格を1箇所に集約することで、60組の画風が散らからないようにする（spec §11）。
 //
 // ChatGPT のような会話型サービスに流すなら preamble + short の2段構えを推奨する。
@@ -38,6 +42,245 @@ const FAMILIES = [].concat(
   sandbox.window.PriTestEnemiesData4
 );
 const R = sandbox.window.PriTestEnemySpriteRegistry;
+
+// 玩家角色版（--format=player*）用。跟敵人資料同一個 sandbox，character_types.js 本身
+// 不碰 DOM，直接 run 就好。
+vm.runInContext(
+  fs.readFileSync(path.join(ROOT, "static_src", "character_types.js"), "utf8"),
+  sandbox,
+  { filename: "character_types.js" }
+);
+const CHARACTER_TYPES = sandbox.window.PriTestCharacterTypes.list();
+
+// 每個角色的「這一行該畫什麼」骨架。名稱全部從 character_types.js 讀，不在這裡另抄一份
+// ——武器／盾／被動／技能／技藝一改，prompt 就跟著改。視覺描寫（「凝聚爆炎大爆炸前方」
+// 這種）是美術判斷，不是資料能推出來的，因此留成 <...> 佔位，由人填。追蹤者已經有使用者
+// 給過的完整版本，直接當範本寫死在 PLAYER_ROW_ART 裡。
+// 注意：jump／ranged／guard 三個欄位是 13 行版留下的，10 行版不再輸出（見下方輸出段）。
+const PLAYER_ROW_ART = {
+  tracker: {
+    dodge: "tucks and rolls forward along the ground",
+    weapon: "a two-handed greatsword, with a small round shield on the off-hand",
+    jump: "leaps and brings the greatsword down",
+    execution: "a wide, showy horizontal finishing cut",
+    ability: "a forward aerial somersault trailing small yellow sparks",
+    skill: "hooked claws spring from the hand and stab forward",
+    art: "flame gathers in the hands and bursts into a large explosion in front",
+    ranged: "fires a red energy beam",
+    guard: "raises a small round shield and braces",
+  },
+  guardian: {
+    // 迴避是「墊步」而不是翻滾——守護者跟追蹤者在這一行是不同動作，這正是把 row 2 從
+    // 畫風契約裡拿掉、改成逐角色指定的原因。
+    dodge: "a short sliding step-dodge to the side, feet skimming the ground, never leaving it — this is NOT a roll",
+    // 使用者寫「大斧」；資料的起始裝備是「守護者的斧槍」（斧＋長柄）。兩邊都照顧到：
+    // 長柄大斧。若實圖偏離想像，改這一行即可。
+    weapon: "a heavy two-handed great axe on a long haft, with a large heavy shield on the off-hand",
+    jump: "leaps and brings the great axe down",
+    // 致命一擊是「直戳」而不是橫砍（同 row 2，逐角色不同）。
+    execution: "a decisive straight thrust driven forward with the great axe — a thrust, not a cut",
+    ability: "the shield glows and fills with steady energy, held up and radiating light",
+    skill: "swings the axe around the body to raise a whirlwind on all sides",
+    art: "beats a pair of wings, rises into the air and slams straight down into the ground",
+    ranged: "looses a volley of sharp feathers",
+    guard: "raises a large heavy shield and holds the block",
+  },
+  iron_eye: {
+    dodge: "tucks and rolls forward along the ground",
+    // 主武器是弓（起始裝備「鐵眼的弓」），短劍在得意武器裡也有列。13 行版時短劍要拿來畫
+    // 跳躍攻擊與防禦，但那兩行在 10 行版已經拿掉，現在沒有任何一行實際使用它（致命一擊
+    // 用的是箭矢本身）。仍留在腰間當剪影的一部分，讓各行外形一致。
+    weapon:
+      "a large bow as the main weapon — rows 5 and 6 are BOW SHOTS, not melee swings: " +
+      "row 5 draws and looses a single arrow, row 6 draws the bow fully, holds the charge " +
+      "and looses a heavier shot. A dagger is carried at the belt as part of the silhouette " +
+      "but is not drawn in any row of this sheet",
+    jump: "leaps and strikes downward with the dagger held overhead",
+    execution: "drives an arrow into the target by hand and rips it back out — a showy, close-range finisher",
+    ability: "a glowing eye sigil snaps open in the air, hawk-eye sight fixing on the enemy",
+    skill: "dashes forward and slaps a sniper's targeting mark onto the enemy",
+    art: "braces a great bow and looses one powerful shot straight ahead",
+    ranged: "spits out a glowing green orb of light",
+    guard: "raises the dagger to parry and holds the block",
+  },
+  lady: {
+    // row 2（迴避）與 row 9（能力）使用者寫的都是「華麗轉身」——資料上她的被動就叫
+    // 「華麗身法」(elegant_footwork)，兩者本來就是同一個動作。但同一張 sheet 上兩行畫成
+    // 一模一樣會浪費一整行，所以這裡把「能力」那一行加上殘影與微光當作強調版，動作本身
+    // 維持相同。若你要它們完全一致，把 ability 改成跟 dodge 同一句即可。
+    dodge: "an elegant pirouette sidestep, skirt and cape flaring as she spins past",
+    weapon: "a slim, elegant short sword (dagger class) held in one hand, long cape at the back",
+    jump: "leaps and strikes downward with the short sword raised overhead",
+    execution: "a rapid flurry of thrusts with the short sword — a showy finishing combo",
+    ability:
+      "the same elegant pirouette as row 2, but heightened: trailing afterimages of herself " +
+      "and a soft pale glow along the spin",
+    skill: "sweeps the cape wide in front of her",
+    art: "sweeps the cape and her own body fades toward transparency, becoming half see-through",
+    ranged: "sprays out a scatter of blue points of light",
+    guard: "raises the short sword edge-on to parry and holds the block",
+  },
+  ruffian: {
+    dodge: "tucks and rolls forward along the ground",
+    // 使用者寫「特大武器」（得意武器第一項就是特大武器）；起始裝備資料是「無賴漢的大斧」。
+    // 兩邊相容：一把巨大到要雙手扛的斧型特大武器。
+    // row 5 是橫揮、row 6 是高舉過頭砸下——兩者是**不同動作**，而契約的通則說 row 6 是
+    // 「跟 row 5 同一種動作、更慢更重」。逐角色指定要蓋過通則，所以在這裡寫明。
+    weapon:
+      "a colossal two-handed axe-type weapon, far too big for one hand — row 5 is a single " +
+      "horizontal swing, row 6 is NOT the same motion: he hoists it overhead and slams it " +
+      "straight down into the ground",
+    // row 7 也是砸下，但在空中——跟 row 6 的地面砸下要看得出差別。
+    jump: "leaps into the air and slams the colossal weapon down from above while still airborne",
+    execution: "grips the colossal weapon in both hands and hammers it forward into the target",
+    ability: "a white barrier expands outward around his body, then fades away",
+    skill: "roars and stamps a foot down onto the ground",
+    art:
+      "crouches, drives both hands into the ground, and a huge wall of rock erupts upward " +
+      "in front of him",
+    ranged: "throws a punch that sends a white whirlwind forward",
+    guard: "braces the colossal weapon across the body and holds the block — no shield",
+  },
+  avenger: {
+    dodge: "tucks and rolls forward along the ground",
+    // 使用者寫「白爪」＋「豎琴」。資料的起始裝備是「復仇者的咒爪」＋「指之聖印」——爪對得上，
+    // 但副手在資料上是聖印、使用者要的是豎琴。視覺以使用者為準，這裡照豎琴畫。
+    // row 5 單手揮、row 6 雙手揮，兩者是同一種動作的輕重版，符合契約通則。
+    weapon:
+      "a pair of pale white claws worn over the hands — row 5 is a single swipe with one " +
+      "clawed hand, row 6 is a heavier two-handed swipe with both. A harp is carried on the " +
+      "back and used for rows 9, 10 and 13",
+    jump: "leaps and slams both clawed hands down from above",
+    execution: "white light detonates outward from the chest",
+    // row 9（能力・死靈術）與 row 10（技能・召喚靈體）使用者寫的都是「撥動豎琴」。資料上
+    // 兩者都是召喚系（死靈術召的是雜兵死靈、召喚靈體召的是三隻靈體），主題一致是合理的，
+    // 但同一張 sheet 上兩行完全一樣會浪費一整行，因此依各自的規則書意義給不同的召喚結果。
+    // 要兩行完全相同的話，把這兩句寫成同一句即可。
+    ability:
+      "plucks the harp once — a faint wisp of a slain enemy's ghost rises beside the character",
+    skill:
+      "plucks the harp with a wide sweep — a larger summoned spirit silhouette forms in front",
+    art:
+      "clutches the head and screams, white smoke bursting outward from behind the body",
+    ranged:
+      "crouches, a golden sigil pattern appears in the air, then a golden orb bursts out of it",
+    guard: "raises the harp edge-on as a guard and holds the block",
+  },
+  hermit: {
+    // 迴避是瞬移，不是位移。契約的括號範例只列了翻滾／墊步／跳／衝刺，但那句本來就寫明
+    // 「I specify which one per character」，所以這裡直接把瞬移講清楚即可，不必改契約。
+    // 前搖規則的「body not yet displaced, whatever form the dodge takes」也涵蓋得到
+    // ——第 1 格是消失之前的那一瞬。
+    dodge:
+      "a teleport blink — vanishes in a flash of pale light and reappears a short distance " +
+      "away; this is NOT a roll and NOT a step, the body does not travel across the ground",
+    // 起始裝備是「隱者的杖」。row 5/6 是**法杖施法**，不是揮砍也不是射箭。
+    weapon:
+      "a long magic staff — rows 5 and 6 are STAFF CASTS, not melee swings and not bow " +
+      "shots: row 5 fires a bolt of blue light from the staff tip, row 6 is the heavier " +
+      "version and launches a purple meteor",
+    // 13 行版時「天空降下藍色雨片」是跳躍攻擊那行。改成 10 行後跳躍攻擊被拿掉，使用者把
+    // 這一行標成「跳躍攻擊/致命一擊」並沿用同一段描述，所以雨片改掛在 execution。
+    // 舊的致命一擊（法杖射出巨大藍色光柱）因此不再使用。
+    jump:
+      "leaps upward and blue shards rain down from the sky onto the ground in front — a " +
+      "falling projectile attack, NOT a melee downward strike",
+    // 落下型的範圍攻擊，不是舉法杖砸下——契約的通則是近身揮擊，這裡必須明確否定。
+    execution:
+      "raises the staff and blue shards rain down from the sky onto the ground in front — a " +
+      "falling area attack, NOT a melee strike",
+    ability: "blue star-motes are drawn inward from all around and absorbed into the body",
+    skill: "a five-coloured star orb gathers in the hands and bursts forward",
+    art:
+      "spins once in place while countless red branches grow outward from the body, a glowing " +
+      "totem sigil behind",
+    ranged: "red thorns stab upward out of the ground",
+    guard: "a blue barrier of light opens in front and is held",
+  },
+  executor: {
+    dodge: "a short sliding step-dodge to the side, feet skimming the ground — this is NOT a roll",
+    // 使用者 row 4/5/9/13 寫「打刀」、row 6 寫「太刀」。日文裡是兩種不同的刀，但這裡先當成
+    // 同一把（同一張 sheet 上換武器會讓剪影對不起來）。若真的要兩把，改這裡與 jump 那句。
+    // 起始裝備資料是「執行者的刀」，跟打刀相容。
+    weapon:
+      "a single katana (uchigatana) — row 5 is one clean draw-and-slash, row 6 is the same " +
+      "slash but the blade is wreathed in orange-yellow light",
+    jump: "leaps and brings the katana down in an overhead cut",
+    execution: "a flashy multi-hit katana combo — several fast cuts in succession",
+    // 能力（不撓）與技藝（坩堝諸相・獸＝變身）都用妖狐，但一個是狐靈出手、一個是自己變身，
+    // 兩行看得出差別。
+    ability: "a yellow fox spirit manifests and claws forward",
+    skill: "an iai draw-cut — the katana flashes orange-yellow as it leaves the scabbard",
+    art: "transforms into an orange-yellow fox spirit",
+    ranged: "fires a bolt of orange-yellow light",
+    guard: "raises the katana edge-on to parry and holds the block",
+  },
+  scholar: {
+    dodge: "a short sliding step-dodge to the side, feet skimming the ground — this is NOT a roll",
+    // 使用者寫「直劍」、資料是「學者的刺劍」（刺劍＝rapier 類）。所有動作都是戳刺，
+    // 兩者相容：細長的直身刺劍。
+    // row 5 一戳、row 6 連兩戳——同一種動作的加強版，符合契約通則，但「兩下」要寫明。
+    weapon:
+      "a slender straight thrusting sword (rapier class) — row 5 is a single forward thrust, " +
+      "row 6 is two fast thrusts in succession",
+    jump: "leaps and brings the thrusting sword down in an overhead cut",
+    // 眼鏡是這個角色的固定造型元素，rows 8/9/10/11 都用到它。四行的差別必須寫清楚，
+    // 否則會畫成四張幾乎一樣的圖。
+    execution:
+      "the glasses lenses flash, then a book is thrown open and fires a cannon of light forward",
+    ability: "the glasses lenses flash — nothing else, just the glint",
+    skill: "snaps the fingers and the glasses lenses flash at the same moment",
+    art:
+      "the glasses lenses flash and a large pocket-watch dial materialises behind the body",
+    ranged: "the thrusting sword fires a bolt of blue light from its tip",
+    guard: "raises the thrusting sword edge-on to parry and holds the block",
+  },
+  undertaker: {
+    dodge: "a short sliding step-dodge to the side, feet skimming the ground — this is NOT a roll",
+    // 使用者寫「棍棒」、資料是「送葬人的槌」（槌＝hammer/mace 類，得意武器也是槌・拳）。
+    // 兩者相容：一根粗重的棒槌。
+    // row 5 橫揮、row 6 向下揮——不同動作，要蓋過契約「row 6 是 row 5 的加重版」的通則。
+    weapon:
+      "a heavy blunt club / mace on a thick haft — row 5 is a horizontal swing, row 6 is NOT " +
+      "the same motion: an overhead downward swing",
+    // row 7 也是往下揮，但在空中——跟 row 6 的地面下揮要看得出差別。
+    jump: "leaps into the air and swings the club down from above while still airborne",
+    execution: "twirls the club in a showy flourish, then drives it forward into the target",
+    // row 9（能力）與 row 11（技藝）都用黑色翅膀，但一個只是展開、一個是展開後旋轉突進。
+    ability: "black wings spread open all around the body — the wings only, no attack",
+    skill: "dark-toned light flashes outward in all directions around the body",
+    art:
+      "spreads the black wings, then spins the whole body forward into a lunging thrust",
+    ranged: "a black star orb forms in the hand and is released forward",
+    guard: "braces the club across the body and holds the block",
+  },
+};
+
+function zhName(f) {
+  return (f && (f.zh || f.ja)) || "";
+}
+
+function playerEntries() {
+  const Weapons = sandbox.window.PriTestWeapons;
+  return CHARACTER_TYPES.map(function (t) {
+    const art = PLAYER_ROW_ART[t.id] || {};
+    // 武器：優先用 PLAYER_ROW_ART 裡人工寫的英文描述（prompt 是整份英文，貼給生成端才不會
+    // 中英混雜）。還沒寫的角色退回資料裡的中文起始裝備字串——那是「還沒填」的明顯記號，
+    // 比我自己把「追跡者の大剣（161頁）」翻成英文可靠（頁碼與正式譯名不該由我發明）。
+    const weaponName =
+      art.weapon || zhName(t.startingEquipment) || zhName(t.favoredWeapons) || "the character's signature weapon";
+    return {
+      id: t.id,
+      file: "player_" + t.id + ".png",
+      name: (t.name && t.name.en) || zhName(t.name),
+      weapon: weaponName,
+      ability: zhName(t.abilities && t.abilities[0] && t.abilities[0].name),
+      skill: zhName(t.skills && t.skills[0] && t.skills[0].name),
+      artName: zhName(t.arts && t.arts[0] && t.arts[0].name),
+      rows: art,
+    };
+  });
+}
 
 // 畫風骨架（2026-09-21 使用者提供參考圖後細化）。
 // 使用者給的參考圖是一隻持大鐮刀的羊頭惡魔：手繪感的抗鋸齒點陣圖、暗褐色描邊會在受光面
@@ -345,6 +588,96 @@ const ROWS_PREAMBLE =
   ROWS.replace("row order: ", "") +
   "\n\nReply with only the image. I will keep sending one creature per message, as:\n" +
   "  <filename> — <creature>";
+// ============================================================================
+// 玩家操作角色版（2026-09-24 使用者明確規格）
+// ============================================================================
+// 敵人 sheet 是 6×8、行的意義固定在 enemy_sprite_data.js 的 ANIMS。玩家角色不一樣：
+// 要畫的動作多得多（迴避、防禦、致命一擊、能力／技能／技藝各一行…），而且第 4 行之後
+// 每一行畫什麼是**逐角色不同**的——追蹤者的「技能」是爪擊、隱者的是混成魔法，圖完全兩回事。
+//
+// 使用者指定的行序（以追蹤者為例）：
+//   0 待機   1 翻滾   2 受擊   3 死亡
+//   4 1hit   5 2hit/蓄力   6 致命一擊
+//   7 能力   8 技能   9 技藝
+// 共 10 行。**每行維持 6 格、第 1 格是前搖**（使用者：「保持六排 第一排為出招前搖」），
+// 這一點跟敵人版完全相同，判定側的理由也一樣（見 FRAME_RULE 上方的說明）。
+//
+// 2026-09-24 第二版：初版是 13 行（多了 跳躍攻擊／遠程／防禦）。使用者重送追蹤者的行序時
+// 把那三行拿掉了，因此版面縮成 10 行。已寫好的那三行描述保留在 PLAYER_ROW_ART 裡
+// （jump／ranged／guard 三個欄位），目前不輸出——要加回來只需改 PLAYER_ROWS 與輸出那段，
+// 不用重問一次全部角色。順帶一提，這也降低了原本「13 行單張太高、生成端容易少畫一行」的風險。
+//
+// 畫風契約沿用敵人版一字不改，只有兩處必須換掉：
+//   ・張數與版面：6 columns x 8 rows → 6 columns x 10 rows。
+//   ・剪影那一句原文是 "oversized head, horns and weapon against slender limbs"，
+//     那是寫給怪物的；玩家角色是人型、沒有角，改成人型英雄的講法，其餘（配色、光源、
+//     描邊、朝向、佔格高度）全部照舊，這樣玩家與敵人站在同一個畫面上才不會像兩套素材。
+const PLAYER_STYLE = STYLE.replace("6 columns x 8 rows", "6 columns x 10 rows").replace(
+  "exaggerated readable silhouette: oversized head, horns and weapon against slender limbs",
+  "exaggerated readable silhouette: a lean humanoid hero — compact head and torso against " +
+    "long limbs and an oversized signature weapon, cape or coat hem exaggerated for motion"
+);
+
+// 2026-09-24 追記：row 2／5／6／8 原本在這裡寫死成「翻滾」「揮砍」「橫砍」，那是照
+// 第一個角色（追蹤者）寫的。實際逐角色不同：
+//   守護者的迴避是墊步、致命一擊是直戳；鐵眼的 1hit/2hit 是拉弓不是揮砍。
+// 契約裡寫死會讓生成端照契約覆蓋掉逐角色那一行的指定（弓兵被畫成拿弓砍人）。
+// 這幾行改成只描述「這一行的功能」，實際動作交給每則角色訊息指定。
+const PLAYER_ROWS =
+  "row order (10 rows, one action per row): " +
+  "1 idle loop, " +
+  "2 dodge — this character's own evasive move (a roll, a sliding step, a hop, a short dash, " +
+  "a teleport blink); I specify which one per character, " +
+  "3 hurt recoil, " +
+  "4 death collapse, " +
+  "5 light attack — one clean basic attack with this character's own weapon; it may be a " +
+  "swing, a thrust, a bow shot or a staff cast, I specify which per character, " +
+  "6 heavy / charged attack — the same weapon as row 5, slower and more powerful, with a " +
+  "longer wind-up and visible weight; I say per character if it is a different motion, " +
+  "7 execution finisher — the most dramatic finishing blow on the sheet; I specify per " +
+  "character whether it is a cut, a thrust or something else, " +
+  "8 passive ability, " +
+  "9 skill, " +
+  "10 art";
+
+// 前搖規則：敵人版列了 idle／hurt／death 三個「非攻擊」行的例外寫法，玩家版多了翻滾與
+// 防禦兩行，也一併寫清楚。不寫的話生成端會自己判斷哪幾行算例外，結果就是第 1 格照樣
+// 畫出滾到一半、盾已經舉起來的圖，前搖就不成立了。
+const PLAYER_FRAME_RULE =
+  FRAME_RULE.replace(
+    "On the idle row the first cell is the neutral resting pose; on the hurt and death " +
+      "rows it is the instant before the body reacts, still upright and undamaged.",
+    "On the idle row the first cell is the neutral resting pose. On the hurt and death rows " +
+      "it is the instant before the body reacts, still upright and undamaged. On the dodge " +
+      "row it is the instant before the character moves — weight still settled, feet still " +
+      "planted, body not yet displaced, whatever form the dodge takes."
+  ) +
+  ". Rows 8, 9 and 10 (passive ability, skill, art) are this character's signature moves: " +
+  "their first cell is the gathering pose — stance set, magic or energy only just forming " +
+  "in the hands — and the effect itself still appears from the second cell onward";
+
+const PLAYER_PREAMBLE =
+  "You are generating a set of " +
+  CHARACTER_TYPES.length +
+  " PLAYER-CHARACTER sprite sheets for one game. Every sheet MUST share the exact same " +
+  "art style, line weight, palette and cell layout — treat the following as a fixed " +
+  "contract for the whole session, and apply it to every sheet I ask for afterwards " +
+  "without me repeating it.\n\n" +
+  PLAYER_STYLE +
+  ", " +
+  PLAYER_ROWS +
+  "\n\n" +
+  PLAYER_FRAME_RULE +
+  ".\n\nOnly rows 1, 3 and 4 (idle, hurt, death) mean the same thing on every sheet. " +
+  "Rows 2 and 5-10 are character-specific: I will tell you, per character, how that " +
+  "character dodges, which weapon the attacks use, what the finisher looks like, and what " +
+  "the passive ability, skill and art look like. Draw exactly what that line says for those " +
+  "rows — do not fall back on a generic roll, a generic sword or a generic fireball.\n\n" +
+  "I will then send one message per character, in the form:\n" +
+  "  <filename> — subject: <who the character is>\n" +
+  "    2 dodge: <...>   5/6 weapon: <...>   7 execution: <...>\n" +
+  "    8 ability: <...>   9 skill: <...>   10 art: <...>\n" +
+  "Reply with only the image for that sheet. Keep the style identical to the contract above.";
 
 if (format === "json") {
   // 自前のスクリプトや API から回すとき用。style / rows / preamble を分けて持たせるので、
@@ -379,6 +712,27 @@ if (format === "json") {
   // anim-preamble のあと、1 体 1 行で流すぶん。
   entries.forEach(function (e) {
     console.log(e.file + " — " + e.subject);
+  });
+} else if (format === "player-preamble") {
+  // 玩家角色版的畫風契約。會話最初貼 1 次。
+  console.log(PLAYER_PREAMBLE);
+} else if (format === "player") {
+  // player-preamble 之後，1 角色 1 則訊息。rows 5-12 沒有填視覺描寫的角色會留 <...>，
+  // 那是刻意的：那幾行畫什麼是美術判斷，資料裡沒有答案，硬生成等於自己發明。
+  playerEntries().forEach(function (e) {
+    const r = e.rows;
+    const todo = "<...>";
+    // 10 行版：jump／ranged／guard 三個欄位仍保留在 PLAYER_ROW_ART 裡（第一版 13 行時寫好
+    // 的內容），但不再輸出——使用者重送行序時把那三行拿掉了。要加回來就把它們放回
+    // PLAYER_ROWS 與這裡，不必重問一次全部角色。
+    console.log(e.file + " — subject: " + e.name);
+    console.log("    2 dodge: " + (r.dodge || todo));
+    console.log("    5/6 weapon: " + e.weapon);
+    console.log("    7 execution: " + (r.execution || todo));
+    console.log("    8 ability(" + e.ability + "): " + (r.ability || todo));
+    console.log("    9 skill(" + e.skill + "): " + (r.skill || todo));
+    console.log("    10 art(" + e.artName + "): " + (r.art || todo));
+    console.log("");
   });
 } else if (format === "preamble") {
   // ChatGPT などの会話型サービスに最初の 1 回だけ貼るぶん。

@@ -17,7 +17,11 @@ const vm = require("vm");
 const ROOT = path.resolve(__dirname, "..", "..");
 const SPRITE_DIR = path.join(ROOT, "static_src", "images", "sprites");
 const COLS = 6;
+// 既定は敵人 sheet の 6x8。2026-09-25：玩家操作角色 sheet（6x10）が加わったので、
+// 行数はファイルごとに「どちらの登錄表に載っている名前か」で決める（rowsOf()）。
+// 欄は両方とも 6 なので COLS は共通のまま。
 const ROWS = 8;
+const PLAYER_ROWS = 10;
 
 function readPngSize(buffer) {
   if (!buffer || buffer.length < 24) return null;
@@ -32,21 +36,29 @@ function readPngSize(buffer) {
 const ASPECT_MIN = 0.4;  // 1 格の 高さ÷幅 の下限
 const ASPECT_MAX = 2.5;  // 同上限
 
-function gridErrorOf(width, height) {
-  if (width % COLS !== 0 || height % ROWS !== 0) {
-    return "寸法 " + width + "x" + height + " が 6x8 に割り切れない";
+function gridErrorOf(width, height, rows) {
+  const r = rows || ROWS;
+  const grid = "6x" + r;
+  if (width % COLS !== 0 || height % r !== 0) {
+    return "寸法 " + width + "x" + height + " が " + grid + " に割り切れない";
   }
-  const aspect = (height / ROWS) / (width / COLS);
+  const aspect = (height / r) / (width / COLS);
   if (aspect < ASPECT_MIN || aspect > ASPECT_MAX) {
     return (
-      "1 格が " + (width / COLS) + "x" + (height / ROWS) +
-      "（縦横比 " + aspect.toFixed(2) + "）。6x8 の切り方そのものが違う可能性が高い"
+      "1 格が " + (width / COLS) + "x" + (height / r) +
+      "（縦横比 " + aspect.toFixed(2) + "）。" + grid + " の切り方そのものが違う可能性が高い"
     );
   }
   return null;
 }
 
-function verifyFile(filePath) {
+// ファイル名から行数を決める。玩家 sheet は player_ 接頭辞（登錄表の id と同じ規則）。
+function rowsOf(file) {
+  return /^player_/.test(path.basename(file)) ? PLAYER_ROWS : ROWS;
+}
+
+function verifyFile(filePath, rows) {
+  const r = rows || rowsOf(filePath);
   const errors = [];
   let size = null;
   try {
@@ -56,7 +68,7 @@ function verifyFile(filePath) {
   }
   if (!errors.length && !size) errors.push("合法な PNG ではない");
   if (size) {
-    const gridError = gridErrorOf(size.width, size.height);
+    const gridError = gridErrorOf(size.width, size.height, r);
     if (gridError) errors.push(gridError);
   }
   return { ok: errors.length === 0, errors: errors, size: size };
@@ -78,7 +90,8 @@ function verifyFile(filePath) {
 // 切り間違いは行ぜんたいが薄くなるので、行の中位でも判定して取りこぼさないようにする。
 const WEAK_RATIO = 0.25;
 
-function weakCellsOf(filePath) {
+function weakCellsOf(filePath, rows) {
+  const ROWS = rows || rowsOf(filePath); // 以下の走査は全部この行数で回す
   let img;
   try {
     img = require("./png.js").decode(filePath);
@@ -134,19 +147,21 @@ function weakCellsOf(filePath) {
   return out;
 }
 
-function loadRegistry() {
+// 敵人・玩家の両方の登錄表を読む。走査対象のディレクトリは 1 つなので、
+// 「登錄表にない名前」の判定には両方の file 一覧が要る。
+function loadRegistries() {
   const sandbox = { window: {}, console };
   vm.createContext(sandbox);
-  vm.runInContext(
-    fs.readFileSync(path.join(ROOT, "static_src", "enemy_sprite_registry.js"), "utf8"),
-    sandbox,
-    { filename: "enemy_sprite_registry.js" }
-  );
-  return sandbox.window.PriTestEnemySpriteRegistry;
+  ["enemy_sprite_registry.js", "player_sprite_registry.js"].forEach(function (f) {
+    const p = path.join(ROOT, "static_src", f);
+    if (!fs.existsSync(p)) return;
+    vm.runInContext(fs.readFileSync(p, "utf8"), sandbox, { filename: f });
+  });
+  return [sandbox.window.PriTestEnemySpriteRegistry, sandbox.window.PriTestPlayerSpriteRegistry].filter(Boolean);
 }
 
 function main() {
-  const R = loadRegistry();
+  const registries = loadRegistries();
   if (!fs.existsSync(SPRITE_DIR)) {
     console.log("static_src/images/sprites/ がまだありません（画像0枚）。fallback で動作します。");
     process.exit(0);
@@ -155,8 +170,10 @@ function main() {
     return /\.png$/i.test(f);
   });
   const known = {};
-  R.listSheets().forEach(function (s) {
-    known[s.file] = s.id;
+  registries.forEach(function (R) {
+    R.listSheets().forEach(function (s) {
+      known[s.file] = s.id;
+    });
   });
   let fail = 0;
   let warned = 0;
@@ -166,10 +183,11 @@ function main() {
       fail++;
       return;
     }
-    const r = verifyFile(path.join(SPRITE_DIR, f));
+    const rows = rowsOf(f);
+    const r = verifyFile(path.join(SPRITE_DIR, f), rows);
     if (r.ok) {
-      console.log("  OK   " + f + " (" + r.size.width + "x" + r.size.height + ")");
-      const weak = weakCellsOf(path.join(SPRITE_DIR, f));
+      console.log("  OK   " + f + " (" + r.size.width + "x" + r.size.height + " / 6x" + rows + ")");
+      const weak = weakCellsOf(path.join(SPRITE_DIR, f), rows);
       if (weak && weak.length) {
         warned++;
         console.log("  ⚠    " + f + " : 極端に薄い格 " + weak.join("、") + "（行の切り方を確かめること）");
@@ -183,6 +201,6 @@ function main() {
   process.exit(fail === 0 ? 0 : 1);
 }
 
-module.exports = { readPngSize: readPngSize, gridErrorOf: gridErrorOf, verifyFile: verifyFile };
+module.exports = { readPngSize: readPngSize, gridErrorOf: gridErrorOf, verifyFile: verifyFile, rowsOf: rowsOf };
 
 if (require.main === module) main();

@@ -1,8 +1,10 @@
-# 敵人 sprite 規格
+# sprite 規格
+
+敵人（6×8）與玩家操作角色（6×10）兩套。行的意義不同，生成時**不要混在同一個會話**。
 
 設計文件：`docs/superpowers/specs/2026-09-21-midnight-sprite-combat-design.md`
 
-## sheet 佈局
+## sheet 佈局（敵人）
 
 - 橫 6 幀 × 縱 8 動作的單張 PNG
 - 縱向列順序（**不可更動**，與 `static_src/enemy_sprite_data.js` 的 `row` 一一對應）：
@@ -69,12 +71,65 @@
 一併餵給生成服務，60 組之間的同一性會穩定很多。文字描述能鎖住的只有大方向，
 線寬與色階這種細節還是靠圖對圖最準。
 
+## 玩家操作角色 sheet（2026-09-24 使用者明確規格）
+
+敵人 sheet 是 6×8、行的意義固定在 `enemy_sprite_data.js` 的 `ANIMS`。**玩家角色是另一套**，
+不要跟敵人版混在同一個會話裡生成。
+
+- 橫 **6** 幀（跟敵人版相同，第 1 格一樣是前搖）× 縱 **10** 動作
+- 縱向列順序（使用者指定，以追蹤者為例）：
+
+  | row | 意義 | 是否逐角色不同 |
+  | --- | --- | --- |
+  | 0 | 待機 | 否 |
+  | 1 | 迴避（翻滾／墊步／瞬移…） | **是** |
+  | 2 | 受擊 | 否 |
+  | 3 | 死亡 | 否 |
+  | 4 | 1hit（基本攻擊） | **是**（揮／刺／射／施法都有） |
+  | 5 | 2hit／蓄力 | **是**（不一定是 row 4 的加重版） |
+  | 6 | 致命一擊 | **是**（橫砍／直戳／連斬…） |
+  | 7 | 能力（被動） | **是** |
+  | 8 | 技能 | **是** |
+  | 9 | 技藝 | **是** |
+
+  2026-09-24 第二版：初版是 13 行（多了 跳躍攻擊／遠程／防禦）。使用者重送追蹤者行序時
+  把那三行拿掉，因此縮成 10 行。已寫好的那三行描述保留在 `sprite_prompt.js` 的
+  `PLAYER_ROW_ART`（`jump`／`ranged`／`guard` 欄位）但不再輸出，要加回來不必重問角色。
+
+- 畫風契約與敵人版**完全相同**（配色、光源、描邊、佔格高度），只有兩處必須換：
+  版面 `6 columns x 8 rows` → `6 columns x 10 rows`；剪影那一句原文是寫給怪物的
+  「oversized head, horns and weapon」，玩家角色是人型、沒有角，改成人型英雄的講法。
+  兩者站在同一個畫面上，其餘全部照舊才不會像兩套素材。
+
+- **朝向是唯一的例外（2026-09-25 實測）**：2026-09-24 產出的那一批玩家圖全部是**朝右**
+  （箭矢、火球、刀光都往右飛），跟敵人版的朝左相反。戰鬥畫面是「玩家在左、敵人在右」
+  （見下方 §接入），所以這個朝向剛好讓兩邊自然對望，`midnight_player_sprite.js` 因此
+  **不做 `scaleX(-1)` 翻轉**。若之後重新生成玩家圖，要嘛維持朝右，要嘛同時改渲染器——
+  兩者必須成對，否則角色會背對敵人。
+
+- prompt 產生：
+  ```
+  node tools/sprite_check/sprite_prompt.js --format=player-preamble   # 會話最初貼 1 次
+  node tools/sprite_check/sprite_prompt.js --format=player            # 1 角色 1 則訊息
+  ```
+  武器／盾／被動／技能／技藝的**名稱**由 `character_types.js` 讀出，不另抄一份；
+  「這一招畫成什麼樣子」是美術判斷、資料推不出來，因此留 `<...>` 佔位由人填，
+  填好的寫回 `sprite_prompt.js` 的 `PLAYER_ROW_ART`（追蹤者已有完整範本）。
+
+### 已知風險：多行單張
+
+敵人版只有 8 行就已經會遇到「行が 7 本しか描かれていない」（見下方疑難排解表）。玩家版
+10 行比它更高，仍要在切片時確認 `--row-bands`。初版的 13 行風險更大，縮到 10 行之後已經
+緩解不少，但第一批實圖回來時仍要先數行數再繼續。
+
 ## 命名
 
 - 一般敵人（系統的代表圖，同系統共用）：`family_<familyId>_a.png` ／ `family_<familyId>_b.png`
 - 個別敵人專屬圖：`enemy_<familyId>_<enemyId>.png`
 - 夜王：`boss_<bossId>.png`
-- 放置位置：`static_src/images/sprites/`
+- 玩家操作角色：`player_<typeId>.png`（`typeId` は `character_types.js` の id）
+- 放置位置：`static_src/images/sprites/`（敵人・玩家とも同じ場所。行数はファイル名の
+  `player_` 接頭辞で見分ける——`sprite_verify.js` の `rowsOf()`）
 
 ### 什麼時候該用 `enemy_*`（2026-09-23）
 
@@ -123,3 +178,72 @@ node tools/sprite_check/sprite_sheet_relay.js <src.png> 6 8 <sheetId> --rows=det
 **切り終わったら必ず `sprite_verify.js` の警告を見る。**「極端に薄い格」が出ていたら
 行の切り方を間違えている可能性が高い——寸法だけでは、刀先だけの帯を 1 行として
 切ってしまった sheet が素通りする。
+
+## 玩家 sheet の切り出し実績（2026-09-25、`photo/enemyPic/0924/`）
+
+登錄表は自動生成：
+
+```bash
+node tools/sprite_check/sprite_player_registry_gen.js --write   # static_src/player_sprite_registry.js
+node tools/sprite_check/sprite_verify.js                        # 6x10 として検査される
+node tools/sprite_check/sprite_pack.js --write                  # available を更新（敵人・玩家の両方）
+```
+
+切り出しは敵人版と同じ `sprite_sheet_relay.js` に **`--dst-rows=10`** を足すだけ。
+
+### 生成物が 2 バッチに分かれていた
+
+| バッチ | 寸法 | 1 格 | 行数 | 角色 |
+| --- | --- | --- | --- | --- |
+| A | 971×1620 | 162×162（正方） | **10**（規格どおり） | 追跡者・學者・守護者・鐵眼・無賴漢・隱者 |
+| B | 1086×1448 | 181×145 | **12** | 執行者・復仇者・淑女・葬儀 |
+
+B バッチの 12 行は、2026-09-24 第二版で削った 13 行版の名残で、規格の 10 行に
+**`jump`（跳躍攻擊）と `ranged`（遠程）が 1 本ずつ混ざっている**。帯の順序は
+
+```
+0 待機 / 1 迴避 / 2 受擊 / 3 死亡 / 4 1hit / 5 2hit /
+6 跳躍攻擊(規格外) / 7 致命一擊 / 8 能力 / 9 技能 / 10 技藝 / 11 遠程(規格外)
+```
+
+なので `--row-order=0,1,2,3,4,5,7,8,9,10` で 6 と 11 を落とす。
+
+実際に使ったコマンド（透明が市松として焼き込まれている ctype=2 の画像は先に
+`sprite_dechecker.js` を通す。鐵眼だけは最初からアルファ付きなので素通し）：
+
+```bash
+# A バッチ（偵測に任せて 10 帯。無賴漢・隱者は隣接行が 1 か所くっついているが自動分割で足りる）
+node tools/sprite_check/sprite_dechecker.js photo/enemyPic/0924/追跡者.png clean/tracker.png
+node tools/sprite_check/sprite_sheet_relay.js clean/tracker.png 6 10 player_tracker --dst-rows=10 --rows=detect --cols=detect
+
+# B バッチ（規格外の 2 行を落とす）
+node tools/sprite_check/sprite_sheet_relay.js clean/lady.png 6 10 player_lady   --dst-rows=10 --rows=detect --cols=detect --row-order=0,1,2,3,4,5,7,8,9,10
+
+# 執行者だけは帯 9 に 技能＋技藝 がくっついて 1 本に見える（11 帯しか検出されない）ので
+# --row-bands= で 1194 のあたりを自分で割る
+node tools/sprite_check/sprite_sheet_relay.js clean/executor.png 6 10 player_executor --dst-rows=10 --cols=detect   --row-bands=15-133,173-241,271-383,434-484,507-618,634-746,879-969,986-1084,1098-1192,1196-1298
+```
+
+**復仇者は `--keep-inner` が要る。** この角色は白銀の衣で、`sprite_dechecker.js` の
+「明るい無彩色＝市松」という判定が衣そのものを食う。`--keep-inner`（外周と繋がっていない
+明色は本体として残す）を付けても、まだ衣に半透明の抜けが残っている——B バッチのままで
+使うならここが既知の劣化点で、971×1620 で生成し直すのが本筋。
+
+## 玩家 sprite の接入先（2026-09-25）
+
+| 層 | ファイル |
+| --- | --- |
+| 資料（動作時間軸） | `static_src/player_sprite_data.js`（`window.PriTestPlayerSprite`） |
+| 登錄表 | `static_src/player_sprite_registry.js`（自動生成） |
+| 表現 | `static_src/midnight_player_sprite.js`（`window.PriTestMidnightPlayerSprite`） |
+| 接線 | `static_src/midnight.js` の `playMySpriteAnim()`／`updatePlayerSprites()` |
+| 版面 | `static_src/style.css` の `#midnight-player-sprite-stage` |
+| 回歸測試 | `tools/midnight_check/player_sprite_check.js` |
+
+- 表示は `meta.spriteMode`（點陣圖模式）の房間のみ、かつ戰鬥中（`activeEncounter`）のみ。
+- 同房全員を敵人插圖の**左寄り**に横排（使用者明確規格 2026-09-25）。插圖の枠の外には
+  出せない——祖先の `#midnight-hud-bottom-center` が `overflow-x: hidden` なので、
+  外へ出した面は丸ごと切り落とされる。
+- 動作の同期は `character/<tokenId>/_spriteAnim = { id, n }` の**通し番号**だけ。
+  受擊と死亡は同期しない（HP＝`demoStats` と `nearDeath` が既に全端に届いているので、
+  各端がその変化を見て鳴らす）。

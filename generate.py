@@ -84,6 +84,9 @@ def build_static_assets() -> None:
         "enemy_sprite_registry.js",
         "enemy_action_anim_map.js",
         "midnight_sprite.js",
+        "player_sprite_data.js",
+        "player_sprite_registry.js",
+        "midnight_player_sprite.js",
         "enemy_counter_rules.js",
         "midnight.js",
     ):
