@@ -68,7 +68,8 @@
     "test:relic_memory_emulator": "node relic_memory_emulator_check.js",
     "test:boss_rejoin": "node boss_rejoin_check.js",
     "test:fix_batch_2026_09_25": "node fix_batch_2026_09_25_check.js",
-    "test:fix_batch_2026_09_26": "node fix_batch_2026_09_26_check.js"
+    "test:fix_batch_2026_09_26": "node fix_batch_2026_09_26_check.js",
+    "test:ui_2026_09_26": "node ui_2026_09_26_check.js"
   },
   "devDependencies": {
     "firebase-tools": "^15.29.0",

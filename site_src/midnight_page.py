@@ -66,13 +66,18 @@ BODY = """    <div class="midnight-wrap">
              見static/midnight.jsのPARTY_SIZE_DAMAGE_MULT／activePartySize()／partySizeDamageMult()。 -->
         <p id="midnight-lobby-party-size-note" class="warning-text" data-i18n="midnight_lobby_party_size_note"></p>
         <div id="midnight-lobby-slots"></div>
+        <!-- 2026-09-26使用者明確規格「房間中 加入按下時 名稱,密碼,圖片選擇,遺物記憶的排列」：
+             欄位由上而下依序是名稱→密碼→圖片選擇，［加入］鈕留在最後（選完角色才按），
+             遺物記憶面板則往上搬到準備列之前（見下方#midnight-lobby-relic-memory）。 -->
         <div id="midnight-lobby-join-form" hidden>
           <div class="wb-row">
             <input type="text" id="midnight-lobby-name-input" maxlength="12">
           </div>
-          <div class="wb-row" id="midnight-lobby-character-picker"></div>
           <div class="wb-row">
             <input type="password" id="midnight-lobby-passcode-input" maxlength="4" inputmode="numeric" pattern="[0-9]{4}">
+          </div>
+          <div class="wb-row" id="midnight-lobby-character-picker"></div>
+          <div class="wb-row">
             <button type="button" id="btn-midnight-lobby-join" data-i18n="midnight_lobby_join_button"></button>
           </div>
           <p class="threat-ref-body" data-i18n="midnight_lobby_passcode_hint"></p>
@@ -96,10 +101,6 @@ BODY = """    <div class="midnight-wrap">
             <div id="midnight-lobby-character-detail-passive"></div>
           </div>
         </div>
-        <div class="wb-row" id="midnight-lobby-ready-row">
-          <button type="button" id="btn-midnight-lobby-ready" hidden></button>
-          <button type="button" id="btn-midnight-lobby-leave" class="danger-btn" data-i18n="midnight_lobby_leave_button" hidden></button>
-        </div>
         <!-- 遺物記憶（2026-09-24，設計文件§6.3）：只在自己有席位、尚未開局時顯示。
              密碼只存在本地localStorage（便利用），選擇結果寫players/<slot>/relicMemoryLoadout，
              開局時由newCharacterForSlot()複製到角色上。見static/midnight.jsの
@@ -113,6 +114,10 @@ BODY = """    <div class="midnight-wrap">
           </div>
           <p id="midnight-lobby-relic-memory-status" class="threat-ref-body"></p>
           <div id="midnight-lobby-relic-memory-list"></div>
+        </div>
+        <div class="wb-row" id="midnight-lobby-ready-row">
+          <button type="button" id="btn-midnight-lobby-ready" hidden></button>
+          <button type="button" id="btn-midnight-lobby-leave" class="danger-btn" data-i18n="midnight_lobby_leave_button" hidden></button>
         </div>
         <p id="midnight-lobby-countdown" hidden></p>
         <p id="midnight-lobby-spectator-note" class="threat-ref-body" data-i18n="midnight_lobby_spectator_note" hidden></p>
@@ -841,6 +846,22 @@ BODY = """    <div class="midnight-wrap">
 
           <button type="button" id="btn-midnight-toggle-menu" data-i18n="midnight_menu_button"></button>
 
+          <!-- 2026-09-26使用者明確規格「按下選單出現的暫停遊戲與流浪祝福資訊 在選單按鈕的
+               下方顯示」：原本是 position:fixed、top:2.6rem 疊在畫面右上，跟選單按鈕的實際
+               位置沒有關聯（按鈕上方還有小地圖列／角色鍵，面板常常跟它們錯開）。
+               改成直接排在選單按鈕後面、走 #midnight-hud-top-right 這個 flex column 的
+               一般文件流，就永遠貼在按鈕正下方。hidden 的切換邏輯完全不變。 -->
+          <div id="midnight-menu-panel" hidden>
+            <!-- 流浪祝福剩餘格數（2026-09-08新增，見static/midnight.jsのrenderWanderingBlessingHud()）：
+               標準模式顯示剩餘格數，阿罵模式顯示「無限」。2026-09-08使用者再次明確要求
+               「選單按下才顯示流浪祝福，平時不顯示」：搬進選單面板，跟著#midnight-menu-panel
+               本身的hidden切換自動顯示/隱藏，static/midnight.jsのrenderWanderingBlessingHud()
+               不需要另外控制hidden，只負責填textContent。 -->
+            <span id="midnight-wandering-blessing-value" class="midnight-rune-value"></span>
+            <button type="button" id="btn-midnight-pause-game" class="danger-btn" data-i18n="midnight_pause_button"></button>
+            <button type="button" id="btn-midnight-resume-game" data-i18n="midnight_resume_button" hidden></button>
+          </div>
+
           <!-- 測試模式面板（2026-09-06數值真正接入新增，使用者明確規格：「開始遊戲可以
                選擇測試模式，在右邊可以顯示敵我傷害資訊，甚至可以手動拉條來改變傷害值」）：
                改成#midnight-hud-top-right這個flex column的最後一個子元素（原本是獨立
@@ -927,16 +948,6 @@ BODY = """    <div class="midnight-wrap">
           </div>
         </div>
 
-        <div id="midnight-menu-panel" hidden>
-          <!-- 流浪祝福剩餘格數（2026-09-08新增，見static/midnight.jsのrenderWanderingBlessingHud()）：
-               標準模式顯示剩餘格數，阿罵模式顯示「無限」。2026-09-08使用者再次明確要求
-               「選單按下才顯示流浪祝福，平時不顯示」：搬進選單面板，跟著#midnight-menu-panel
-               本身的hidden切換自動顯示/隱藏，static/midnight.jsのrenderWanderingBlessingHud()
-               不需要另外控制hidden，只負責填textContent。 -->
-          <span id="midnight-wandering-blessing-value" class="midnight-rune-value"></span>
-          <button type="button" id="btn-midnight-pause-game" class="danger-btn" data-i18n="midnight_pause_button"></button>
-          <button type="button" id="btn-midnight-resume-game" data-i18n="midnight_resume_button" hidden></button>
-        </div>
 
         <!-- 左下：2x2四張卡片——上＝聖杯瓶、下＝消耗品、左/右＝武器。 -->
         <div id="midnight-hud-bottom-left">

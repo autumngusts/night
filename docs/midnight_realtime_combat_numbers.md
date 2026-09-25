@@ -1499,3 +1499,76 @@ helper、不要為單一效果建立第三套架構」）：
 
 反向驗證：把 §25.1／§25.2／§25.3／§25.7 四處改回舊行為後重跑，32 項中有 7 項失敗且全部
 落在對應的斷言上，確認測試不是空轉。
+
+---
+
+## 26. 2026-09-26 UI 批次：加入表單排列／白色芒星命中特效／三處版面位置
+
+使用者明確規格（5 項），全部是版面與視覺，沒有動到任何規則數值。
+
+### 26.1 加入表單的欄位排列
+
+> 房間中 加入按下時 名稱,密碼,圖片選擇,遺物記憶的排列
+
+`#midnight-lobby-join-form` 原本是 名稱 → **圖片選擇** → 密碼＋［加入］。改成
+名稱 → 密碼 → 圖片選擇 → ［加入］（按鈕獨立一列留在最後，選完角色才按），
+並把 `#midnight-lobby-relic-memory` 整塊從準備列**之後**搬到**之前**，
+四項的先後順序就完全照使用者寫的那一串。中途加入視窗（`openLateJoinModal()`）重用的是
+同一份表單節點，因此一併跟著改，不需要第二份。
+
+### 26.2 命中特效：斜向刀光 → 白色芒星
+
+> 玩家對敵人造成傷害時 戰鬥面板內的刀光特效 更改為白色芒星特效 再根據屬性套上顏色 紅色黃金色等等
+
+`#midnight-enemy-hit-effect` 的背景從單一 `linear-gradient(115deg, …)` 斜向光帶改成兩層：
+
+1. `radial-gradient` 的**白色中心芒**（恆為白，不吃屬性色）。
+2. `conic-gradient` 的**八道芒線**，顏色用既有的 `--hit-color`。
+
+「白色芒星 → 依屬性上色」是同一份樣式的兩種狀態，不需要第二套——無屬性時
+`--hit-color` 本來就是 `ENEMY_HIT_NO_ELEMENT_COLOR`（`#ffffff`），
+`triggerEnemyHitEffect()` 與 `weaponHitColor()` 都沒有改動。
+另外加 `mask: radial-gradient(...)` 讓芒線由中心往外淡出，否則 conic-gradient 會一路畫到
+方形邊角。播放動畫也從「橫掃」（translateX）換成「綻放」（scale ＋ 微旋轉）。
+
+2026-09-24 的四種攻擊方式變化型全部改寫成芒星版，**語意維持不變**：
+
+| 變化型 | 舊（刀光） | 新（芒星） |
+| --- | --- | --- |
+| 2Hit `cross` | 第二道反向刀光 | 第二顆芒星錯開 22.5°、晚 0.09 秒綻放（疊成 16 道芒線） |
+| 蓄力 `charge` | 漸層帶加粗 | 綻放得更大（前置聚光的 `::after` 不動） |
+| 跳躍 `jump` | 近垂直角度的刀光 | 由上而下砸落後才綻放 |
+| 衝刺 `dash` | 水平長刀光 | 從左側突進到中央才綻放 |
+
+### 26.3 「右上角地圖可以點開繼續移動探索」往上
+
+`#midnight-map-nudge-message` 的 `top` 由 `28%` 改成 `14%`。
+
+### 26.4 選單面板顯示在選單按鈕下方
+
+`#midnight-menu-panel`（暫停／繼續＋流浪祝福格數）原本是 `position: fixed; top: 2.6rem`，
+跟選單按鈕的實際位置沒有關聯——按鈕上方還有小地圖列與角色鍵，實測面板的上緣在 41.6px、
+而按鈕下緣在 177px，**面板其實出現在按鈕上方**。改成直接排在
+`#btn-midnight-toggle-menu` 後面、走 `#midnight-hud-top-right` 這個 flex column 的一般
+文件流，就永遠貼在按鈕正下方。`hidden` 的切換邏輯（含
+`closeHudPanelsIfNightBossCombat()`）完全不變。
+
+### 26.5 進入戰鬥按鈕
+
+- 置中那顆（`#midnight-enter-battle-center`，§24.4 新增）`top` 由 `50%` 改成 `30%`。
+- 右上角資訊欄那顆（`#btn-midnight-enter-battle`）套上跟置中版同一組黃底＋
+  `midnight-enter-battle-glow` 閃光（共用同一個 keyframes，不另外定義第二套動畫），
+  尺寸維持資訊欄的小尺寸。
+
+### 26.6 回歸測試
+
+`tools/midnight_check/ui_2026_09_26_check.js`（`npm run test:ui_2026_09_26`）：26/26 通過。
+
+這一批全是版面，所以斷言一律建立在**實際算出來的位置與 computed style** 上
+（`getBoundingClientRect()`／`getComputedStyle()`），不比對 CSS 原始碼字串——
+只改了 CSS 檔案文字但沒真的生效的情況才抓得到。屬性上色那條是把 `--hit-color` 換成金色後，
+再確認 computed 的 `background-image` 裡真的出現該顏色。
+
+反向驗證：`git stash` 掉整批改動後重跑，26 項中有 12 項失敗且涵蓋全部 5 個項目，
+舊值都在失敗訊息裡看得到（`linear-gradient(115deg…)`、`ratio: 0.28`、`position: fixed`、
+`ratio: 0.5`、`rgb(240, 240, 240)`、`animationName: none`）。

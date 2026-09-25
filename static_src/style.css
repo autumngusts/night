@@ -6815,7 +6815,9 @@ html.midnight-top-banner-collapsed .midnight-top-banner-collapse-btn {
    沿用.midnight-flash-yellow；pointer-events:none讓它不擋住下面的按鈕。 */
 #midnight-map-nudge-message {
   position: fixed;
-  top: 28%;
+  /* 2026-09-26使用者明確規格「『右上角地圖可以點開繼續移動探索』y位置改到往上多一些」：
+     28% → 14%，往上移到接近上方資訊欄的高度，不再壓在畫面中段。 */
+  top: 14%;
   left: 50%;
   transform: translateX(-50%);
   z-index: 560;
@@ -7220,33 +7222,57 @@ html.midnight-top-banner-collapsed .midnight-top-banner-collapse-btn {
   inset: -20%;
   pointer-events: none;
   overflow: hidden;
-  background: linear-gradient(
-    115deg,
-    transparent 42%,
-    var(--hit-color, #ffffff) 48%,
-    var(--hit-color, #ffffff) 52%,
-    transparent 58%
-  );
+  /* 2026-09-26使用者明確規格「戰鬥面板內的刀光特效 更改為白色芒星特效 再根據屬性套上顏色
+     紅色黃金色等等」：中心恆為白芒（radial 那層），八道芒線才吃 --hit-color——無屬性時
+     --hit-color 本來就是 #ffffff（midnight.js 的 ENEMY_HIT_NO_ELEMENT_COLOR），
+     因此「白色芒星 → 依屬性上色」是同一份樣式的兩種狀態，不需要第二套。
+     mask 讓芒線由中心往外淡出，否則 conic-gradient 會一路畫到方形邊角。 */
+  background:
+    radial-gradient(circle at 50% 50%, #ffffff 0%, #ffffff 5%, rgba(255, 255, 255, 0.85) 9%, transparent 20%),
+    conic-gradient(
+      from 0deg at 50% 50%,
+      var(--hit-color, #ffffff) 0deg 2.5deg,
+      transparent 2.5deg 42.5deg,
+      var(--hit-color, #ffffff) 42.5deg 47.5deg,
+      transparent 47.5deg 87.5deg,
+      var(--hit-color, #ffffff) 87.5deg 92.5deg,
+      transparent 92.5deg 132.5deg,
+      var(--hit-color, #ffffff) 132.5deg 137.5deg,
+      transparent 137.5deg 177.5deg,
+      var(--hit-color, #ffffff) 177.5deg 182.5deg,
+      transparent 182.5deg 222.5deg,
+      var(--hit-color, #ffffff) 222.5deg 227.5deg,
+      transparent 227.5deg 267.5deg,
+      var(--hit-color, #ffffff) 267.5deg 272.5deg,
+      transparent 272.5deg 312.5deg,
+      var(--hit-color, #ffffff) 312.5deg 317.5deg,
+      transparent 317.5deg 357.5deg,
+      var(--hit-color, #ffffff) 357.5deg 360deg
+    );
+  -webkit-mask: radial-gradient(circle at 50% 50%, #000 0%, #000 30%, rgba(0, 0, 0, 0.4) 50%, transparent 70%);
+  mask: radial-gradient(circle at 50% 50%, #000 0%, #000 30%, rgba(0, 0, 0, 0.4) 50%, transparent 70%);
   opacity: 0;
 }
 
 /* JS用classList.remove()+強制reflow+classList.add()重新觸發這個class來重播動畫
    （見static/midnight.jsのtriggerEnemyHitEffect()），連續命中時每次都能重新播放。 */
 #midnight-enemy-hit-effect.midnight-enemy-hit-effect-play {
-  animation: midnight-enemy-hit-slash 0.3s ease-out;
+  animation: midnight-enemy-hit-star 0.3s ease-out;
 }
 
-@keyframes midnight-enemy-hit-slash {
+/* 芒星是「綻放」不是「橫掃」：由小放大再淡出，並帶一點旋轉讓連續命中看得出是新的一發。 */
+@keyframes midnight-enemy-hit-star {
   0% {
     opacity: 0;
-    transform: translateX(-25%);
+    transform: scale(0.4) rotate(-14deg);
   }
-  35% {
-    opacity: 0.95;
+  30% {
+    opacity: 1;
+    transform: scale(1) rotate(0deg);
   }
   100% {
     opacity: 0;
-    transform: translateX(25%);
+    transform: scale(1.35) rotate(10deg);
   }
 }
 
@@ -8292,16 +8318,16 @@ html.midnight-top-banner-collapsed .midnight-top-banner-collapse-btn {
    3秒內才拉到620（見上方說明），但這塊選單面板刻意維持恆定620——它只在玩家主動展開選單
    時才顯示（renderMenuPanel()），展開期間一律該蓋過上方資訊欄，不能因為3秒計時到期就被
    蓋掉半截選單。 */
+/* 2026-09-26使用者明確規格「按下選單出現的暫停遊戲與流浪祝福資訊 在選單按鈕的下方顯示」：
+   拿掉 position:fixed／top／z-index，改走 #midnight-hud-top-right 的一般文件流，
+   直接排在 #btn-midnight-toggle-menu 後面（見 midnight_page.py 同一則說明）。 */
 #midnight-menu-panel {
-  position: fixed;
-  top: 2.6rem;
-  right: 0.6rem;
-  z-index: 620;
   display: flex;
   align-items: center;
   flex-wrap: wrap;
   gap: 0.5rem;
   justify-content: flex-end;
+  margin-top: 0.35rem;
 }
 
 /* 流浪祝福（2026-09-08：選單按下才顯示，見midnight_page.pyの#midnight-menu-panel說明）
@@ -9474,40 +9500,70 @@ html.midnight-top-banner-collapsed .midnight-top-banner-collapse-btn {
   content: "";
   position: absolute;
   inset: 0;
-  background: linear-gradient(
-    -115deg,
-    transparent 42%,
-    var(--hit-color, #ffffff) 48%,
-    var(--hit-color, #ffffff) 52%,
-    transparent 58%
-  );
-  animation: midnight-enemy-hit-slash-rev 0.3s ease-out 0.09s;
+  /* 2Hit（使用者明確規格「一次兩不同方向」）：芒星版＝第二顆錯開 22.5deg、晚 0.09 秒綻放，
+     兩顆疊起來就是 16 道芒線的交叉，語意跟原本的「兩道反向刀光」一致。 */
+  background:
+    radial-gradient(circle at 50% 50%, #ffffff 0%, #ffffff 5%, rgba(255, 255, 255, 0.85) 9%, transparent 20%),
+    conic-gradient(
+      from 0deg at 50% 50%,
+      var(--hit-color, #ffffff) 0deg 2.5deg,
+      transparent 2.5deg 42.5deg,
+      var(--hit-color, #ffffff) 42.5deg 47.5deg,
+      transparent 47.5deg 87.5deg,
+      var(--hit-color, #ffffff) 87.5deg 92.5deg,
+      transparent 92.5deg 132.5deg,
+      var(--hit-color, #ffffff) 132.5deg 137.5deg,
+      transparent 137.5deg 177.5deg,
+      var(--hit-color, #ffffff) 177.5deg 182.5deg,
+      transparent 182.5deg 222.5deg,
+      var(--hit-color, #ffffff) 222.5deg 227.5deg,
+      transparent 227.5deg 267.5deg,
+      var(--hit-color, #ffffff) 267.5deg 272.5deg,
+      transparent 272.5deg 312.5deg,
+      var(--hit-color, #ffffff) 312.5deg 317.5deg,
+      transparent 317.5deg 357.5deg,
+      var(--hit-color, #ffffff) 357.5deg 360deg
+    );
+  -webkit-mask: radial-gradient(circle at 50% 50%, #000 0%, #000 30%, rgba(0, 0, 0, 0.4) 50%, transparent 70%);
+  mask: radial-gradient(circle at 50% 50%, #000 0%, #000 30%, rgba(0, 0, 0, 0.4) 50%, transparent 70%);
+  animation: midnight-enemy-hit-star-rev 0.3s ease-out 0.09s;
   opacity: 0;
 }
 
-@keyframes midnight-enemy-hit-slash-rev {
+@keyframes midnight-enemy-hit-star-rev {
   0% {
     opacity: 0;
-    transform: translateX(25%);
+    transform: scale(0.4) rotate(36.5deg);
   }
-  35% {
-    opacity: 0.95;
+  30% {
+    opacity: 1;
+    transform: scale(0.9) rotate(22.5deg);
   }
   100% {
     opacity: 0;
-    transform: translateX(-25%);
+    transform: scale(1.2) rotate(12deg);
   }
 }
 
 /* 蓄力：刀光加粗（漸層帶變寬）＋前置聚光。 */
-#midnight-enemy-hit-effect.midnight-enemy-hit-charge {
-  background: linear-gradient(
-    115deg,
-    transparent 34%,
-    var(--hit-color, #ffffff) 44%,
-    var(--hit-color, #ffffff) 56%,
-    transparent 66%
-  );
+/* 蓄力：芒星版＝綻放得更大、亮度更高（前置聚光的 ::after 維持不變）。 */
+#midnight-enemy-hit-effect.midnight-enemy-hit-charge.midnight-enemy-hit-effect-play {
+  animation: midnight-enemy-hit-star-charge 0.34s ease-out;
+}
+
+@keyframes midnight-enemy-hit-star-charge {
+  0% {
+    opacity: 0;
+    transform: scale(0.35) rotate(-20deg);
+  }
+  30% {
+    opacity: 1;
+    transform: scale(1.3) rotate(0deg);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.75) rotate(14deg);
+  }
 }
 
 #midnight-enemy-hit-effect.midnight-enemy-hit-charge::after {
@@ -9532,43 +9588,44 @@ html.midnight-top-banner-collapsed .midnight-top-banner-collapse-btn {
 }
 
 /* 跳躍：由上而下的斜角（角度翻成接近垂直）。 */
-#midnight-enemy-hit-effect.midnight-enemy-hit-jump {
-  background: linear-gradient(
-    172deg,
-    transparent 42%,
-    var(--hit-color, #ffffff) 48%,
-    var(--hit-color, #ffffff) 52%,
-    transparent 58%
-  );
-}
-
+/* 跳躍：芒星版＝由上而下砸落後才綻放。 */
 #midnight-enemy-hit-effect.midnight-enemy-hit-jump.midnight-enemy-hit-effect-play {
-  animation: midnight-enemy-hit-slash-down 0.3s ease-out;
+  animation: midnight-enemy-hit-star-down 0.3s ease-out;
 }
 
-@keyframes midnight-enemy-hit-slash-down {
+@keyframes midnight-enemy-hit-star-down {
   0% {
     opacity: 0;
-    transform: translateY(-30%);
+    transform: translateY(-30%) scale(0.5);
   }
   35% {
-    opacity: 0.95;
+    opacity: 1;
+    transform: translateY(0%) scale(1);
   }
   100% {
     opacity: 0;
-    transform: translateY(30%);
+    transform: translateY(12%) scale(1.3);
   }
 }
 
-/* 衝刺：水平的長刀光。 */
-#midnight-enemy-hit-effect.midnight-enemy-hit-dash {
-  background: linear-gradient(
-    90deg,
-    transparent 30%,
-    var(--hit-color, #ffffff) 47%,
-    var(--hit-color, #ffffff) 53%,
-    transparent 70%
-  );
+/* 衝刺：芒星版＝從左側突進到中央才綻放（原本是水平長刀光）。 */
+#midnight-enemy-hit-effect.midnight-enemy-hit-dash.midnight-enemy-hit-effect-play {
+  animation: midnight-enemy-hit-star-dash 0.3s ease-out;
+}
+
+@keyframes midnight-enemy-hit-star-dash {
+  0% {
+    opacity: 0;
+    transform: translateX(-32%) scale(0.5);
+  }
+  35% {
+    opacity: 1;
+    transform: translateX(0%) scale(1.05);
+  }
+  100% {
+    opacity: 0;
+    transform: translateX(14%) scale(1.3);
+  }
 }
 
 /* ⑥ 遠距武器的箭矢：跟施法彗星共用同一個元素與兩點插值，只是外觀與飛行時間不同。 */
@@ -9676,7 +9733,9 @@ html.midnight-top-banner-collapsed .midnight-top-banner-collapse-btn {
    才不會擋住底下的地圖／戰鬥操作。z-index沿用HUD疊層的既有量級（見#midnight-hud-top-left）。 */
 #midnight-enter-battle-center {
   position: fixed;
-  top: 50%;
+  /* 2026-09-26使用者明確規格「進入戰鬥 按鈕 Y位置放置更上面」：50% → 30%，
+     從正中央往上移到畫面上三分之一，不再壓在敵人立繪／操作鍵的正中間。 */
+  top: 30%;
   left: 50%;
   transform: translate(-50%, -50%);
   z-index: 700;
@@ -9703,6 +9762,18 @@ html.midnight-top-banner-collapsed .midnight-top-banner-collapse-btn {
 #midnight-enter-battle-center .midnight-loading-track {
   pointer-events: auto;
   width: 12rem;
+}
+
+/* 2026-09-26使用者明確規格「右上角的進入戰鬥 也黃色閃光顯示」：右上角資訊欄那顆原本是
+   一般按鈕樣式，很容易被漏看。套上跟置中那顆同一組黃底＋閃光（同一個 keyframes，
+   不另外定義第二套動畫），只是尺寸維持資訊欄的小尺寸。 */
+#btn-midnight-enter-battle {
+  color: #1a1200;
+  background: #ffd54a;
+  border: 2px solid #ffe79a;
+  border-radius: 0.4rem;
+  font-weight: bold;
+  animation: midnight-enter-battle-glow 1s ease-in-out infinite;
 }
 
 @keyframes midnight-enter-battle-glow {
