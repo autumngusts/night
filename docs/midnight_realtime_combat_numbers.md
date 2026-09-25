@@ -1180,3 +1180,189 @@ midnight 沒有 GM。`pickAndResolveBossAction()` 解析不出 `kind` 就回傳 
 逐一檢查 10 隻夜王每個有出目的行，必須「有結構化傷害」或「在 `BOSS_MANUAL_ACTIONS` 裡」，
 兩者皆無就 FAIL 並指名該招式。表是直接從 `midnight.js` 原始碼解析出來的，所以改表就會反映。
 目前 10 隻全數通過，空振的行剛好就是上表那 3 行。
+
+---
+
+## 23. 2026-09-25：瀕死隊友救起／夜之強敵・夜王的「回到此戰鬥」
+
+使用者明確規格：
+
+> 救起同在戰鬥的瀕死隊友，該隊友也爬起回復半血，繼續這場戰鬥。
+> 在進行夜之強敵戰鬥與夜王要能回到此戰鬥。
+
+### 23.1 前半（救起→回半血→原地繼續）本來就成立
+
+`applyRevivalProgress()` 累積復歸傷害到 `nearDeath.required`（`nearDeathRequiredValue()`：
+第 1 次 60、第 2 次 90、第 3 次以後 120）後呼叫 `finishRevive(tokenId, false)`——
+`fullHeal=false` 這條路只把 `demoStat` 設成 `Math.round(selfArenaHpMax(c) / 2)`，
+**不移動位置、不消耗流浪祝福**，所以人留在原本那場戰鬥裡。施放資格
+`isRevivalDamageEligible()` 對「跟瀕死者同一場 `fieldTrigger` 的 `participants`」直接放行，
+夜之強敵（`finalCircleDayN`）與夜王（`day3Boss`）同樣是 `fieldTrigger`，因此席位卡片上的
+⚠ 與［指定］按鈕在王戰中也會出現。這一段這次沒有改動，只補上回歸測試把它鎖住。
+
+### 23.2 後半是真的有 bug：離開王戰後永遠回不去
+
+`recomputeActiveEncounter()` 清除 `fledEncounterIds`／`confirmedEncounterIds` 的唯一時機是
+**「完全沒有任何候選」**（＝走出所有觸發範圍）。但夜之強敵與夜王的候選是**位置無關**的：
+
+- `updateFinalCircleBoss()`：只要 `mySlot` 存在且 `trig.status === "resolved"`，
+  就無條件設定 `nearbyFinalCircleBoss`。
+- `updateDay3Boss()`：只要王還活著且 `mySlot` 存在，就無條件設定 `nearbyDay3Boss`。
+
+於是候選永遠不為 null，`recomputeActiveEncounter()` 永遠走「有候選但在 fled 清單裡」那條
+早期 return（連 `pendingBattleReentry` 都不會設），逃離旗標再也清不掉、上方資訊欄的
+［進入戰鬥］按鈕再也不會出現。
+
+實際會踩到的路徑：**夜之強敵戰鬥中瀕死 15 秒逾時** → `forceReviveOnTimeout()` 消耗一格
+流浪祝福 → `finishRevive(, true)` 把人傳送到最近的祝福點並呼叫 `leaveEncounterAsFled()`
+（2026-09-13 使用者明確規格「當下在戰鬥時需等於逃離戰鬥」）→ 從此再也回不到那場夜之強敵。
+夜王側 `finishRevive()` 有 `phaseInfo.day !== 3` 的保護所以不會自動離開，但只要離開就同樣
+回不去，因此一併修掉。
+
+### 23.3 修正：沿用戰鬥模擬 2026-09-22 已驗證的處理
+
+同一個問題 2026-09-22 已經在「戰鬥模擬」（`BATTLE_SIM_POINT_ID`，同樣是沒有地圖點可以
+走開的虛擬遭遇）上遇過並修好。這次把那段處理抽成共用 helper
+`consumeFledStateForPositionlessEncounter(pointId)`，三處共用（CLAUDE.md §42「優先重用現有
+helper、不要為單一效果建立第三套架構」）：
+
+1. 處於逃離狀態時，先等「自己已從 `trig.participants` 移除」真的從 RTDB 回來——這期間讓
+   自己的候選消失一影格。少了這道等待，本地還看得到自己是 participant 的那幾影格會被
+   `recomputeActiveEncounter()` 當成「第一次遭遇」，直接走 5 秒識別資訊準備、**不經
+   ［進入戰鬥］就回到戰鬥**。
+2. 之後清掉 `fledEncounterIds` / `confirmedEncounterIds`，讓既有的
+   `pendingBattleReentry` →［進入戰鬥］→ 3 秒讀條流程自然接手，重新寫回 `participants`。
+
+呼叫端：`updateBattleSim()`（改為呼叫共用 helper，行為不變）、`updateFinalCircleBoss()`、
+`updateDay3Boss()`。`finishRevive()`、流浪祝福的消耗規則、`isRevivalDamageEligible()` 都
+沒有改動。
+
+### 23.4 回歸測試
+
+`tools/midnight_check/boss_rejoin_check.js`（`npm run test:boss_rejoin`，雙裝置 ＋ 模擬器）：
+
+- ① 夜之強敵戰鬥中 B 瀕死 → A 看得到 ⚠ 與［指定］→ 累積到 `required` → B 的 HP 回到
+  **上限的一半**、`activeEncounter` 仍是同一場、且不列入 `fledEncounterIds`。
+- ② B 瀕死逾時被傳送離開 → 從 `participants` 移除（既有規格）→ 逃離旗標自行清除、
+  ［進入戰鬥］出現 → 按下後回到同一場戰鬥並重新列入 `participants`。
+- ③ 夜王側走同一條路徑。
+
+寫測試時踩到、值得記下的兩點：
+
+- **HP 上限不能用「瀕死前的現在 HP」反推**。把時間推到 `waitingForDay2` 之後，玩家若站在
+  縮圈外會持續被扣血，實測讀到 144／149 而不是上限 150。改為開放
+  `_debugArenaHpMax()`（內部就是 `finishRevive()` 用的 `selfArenaHpMax()`），
+  並把兩名玩家傳送到 `phaseInfo.finalCenter`（夜之強敵本來就在最終小圓裡打）。
+- **`finishRevive()` 清 `nearDeath` 與寫 `demoStat` 是兩筆分開的寫入**，後者晚一點才到。
+  在 `nearDeath` 一清除就讀 HP 會拿到復歸前的舊值，必須等 HP 本身到達期望值
+  （測試裡的 `waitForValue()`）。這跟 §15.1 記錄的「兩筆分開寫入、順序固定」是同一個性質
+  的坑。
+
+反向驗證：暫時停用 `updateFinalCircleBoss()`／`updateDay3Boss()` 兩處的新處理後重跑，
+24 項中有 7 項失敗且全部落在「重新加入」的斷言上（`fled:["finalCircleDay1"]`、
+`pendingBattleReentry:null`），確認這支測試真的鎖得住這個 bug。
+
+> **後續（同日）**：使用者實測回報「救起後被踢出戰鬥畫面／被傳送到祝福」，於是 §24.1 把
+> 夜之強敵／夜王戰鬥中的逾時復歸改成「原地站起、不離開戰鬥」。本節第 ② 項的回歸測試
+> 期望值已同步更新，離開後重新加入的驗證改用 `_debugLeaveEncounterAsFled()` 重現前提。
+
+---
+
+## 24. 2026-09-25 第二批：瀕死逾時不離開王戰／阿罵模式迴避／戰後黃字提醒／置中進入戰鬥／中途加入
+
+使用者明確規格（五項）：
+
+> 夜之強敵戰鬥中 救起瀕死的隊友，該隊友需要在同一場戰鬥站起繼續戰鬥。
+> 阿罵模式的迴避寬鬆度調整 Perfect~1.0s Great~2.0s 其餘都算沒閃避成功 但扣50%。
+> 結束夜晚戰鬥要進入下一回合 要黃字特別提醒 要先按完祝福按完離去 才能繼續進行。
+> 一般的進入別人戰鬥 進入戰鬥 按鈕另外閃黃光在畫面中央顯示。
+> 遊戲中途加入的玩家 現在bug無法獲得起始裝備 腳色視窗一片黑無法正常進行遊戲的問題 需要修正。
+
+### 24.1 瀕死逾時在王戰中不再被傳送出去
+
+隊友救起（`applyRevivalProgress()` → `finishRevive(, false)`）本來就是「原地回半血」，
+用雙裝置跑真實路徑（B 的 HP 歸零 → A 按［指定］→ A 用真實攻擊鍵）驗證確實會成功。
+使用者實際看到的是另一條路徑：**復歸傷害還沒補滿、15 秒倒數先到**，
+`updateNearDeathState()` → `forceReviveOnTimeout()` → 消耗一格流浪祝福 →
+`finishRevive(, true)` → `leaveEncounterAsFled()` ＋傳送到祝福點。
+從玩家視角就是「快被救起來了，結果被踢出戰鬥、傳走」。
+
+修正：`finishRevive()` 的 `fullHeal` 分支加上 `activeEncounterIsNightBoss()` 判斷——
+夜之強敵（`finalCircleDayN`）與夜王（`day3Boss`）戰鬥中不離開 `participants`、不傳送，
+原地站起繼續打。Day3 本來就因為 `phaseInfo.day !== 3` 不會傳送，這次把夜之強敵納入同一條規則。
+
+**刻意沒有改動的部分**（取字面窄讀，見 CLAUDE.md §42-4）：全回血、流浪祝福照樣消耗
+（那是倒數沒撐住的代價），以及**一般板塊戰鬥**維持 2026-09-13 的「當下在戰鬥時需等於
+逃離戰鬥」——那條規則牽動獎勵資格與後補領獎，由 `near_death_and_accum_check.js` 第③節
+繼續把關。
+
+### 24.2 阿罵模式的迴避寬鬆度
+
+`SPRITE_DODGE_BANDS_UNLIMITED` ／ `SPRITE_DODGE_WINDOW_MS_UNLIMITED`，由
+`spriteDodgeBands()` ／ `spriteDodgeWindowTable()` 依 `meta.difficulty === "unlimited"` 切換：
+
+| | 標準模式 | 阿罵模式 |
+| --- | --- | --- |
+| Perfect | T+400ms 以內（100%） | **T+1.0s 以內（100%）** |
+| Great | T+650ms 以內（95→80%） | **T+2.0s 以內（95→80%）** |
+| Good | T+900ms 以內（80→60%） | **不存在**（使用者只列了三段） |
+| 其餘 | 50% | 50% |
+| 第 1/2/3 下的反應窗口 | 1.0／1.5／2.0 秒 | **2.0／2.0／2.0 秒** |
+
+窗口必須一起放寬到 2.0 秒，否則第 1 下的窗口只有 1.0 秒、Great 帶永遠按不到
+（窗口長度同時決定這一下何時結算，見 `enemyAttackHitWindowMs()` ／ `spriteHitAt()`）。
+減傷百分比沿用標準版同名帶的值——使用者這次只調「時間寬鬆度」，沒有動百分比。
+**「完全沒按迴避」不在這條規格的範圍內**（那不是「迴避寬鬆度」），維持既有的
+「不算迴避、照原傷害」，不自行擴大解釋。
+
+### 24.3 夜晚戰鬥結束的黃字提醒
+
+`#midnight-hud-day1-rewards-note` ／ `#midnight-hud-day2-rewards-note`
+（i18n key `midnight_hud_rewards_gate_note`），顯示條件跟兩組戰後 HUD 區塊完全一致
+（`renderFinalCircleRewardsHud()`），按下［離去］後跟著區塊一起消失。
+「特別提醒」＝黃字（`#ffd54a`）＋和緩的明暗呼吸，讓它在一排按鈕裡不會被當成一般說明。
+這是**提醒**，不是新的硬性閘門——既有的流程本來就要按過［離去］才會收起該區塊。
+
+### 24.4 置中閃黃光的［進入戰鬥］
+
+`#midnight-enter-battle-center`。右上角原本那顆（2026-09-09 使用者指定的位置）維持不動，
+這是「另外」一顆：共用同一個 `handleEnterBattleClick()` 與同一條讀條狀態，不是第二套流程。
+只在「別人的戰鬥」時出現——`pendingReentryIsNormalBattle()` 排除 `day3Boss` 與
+`finalCircleDay*`，那兩種是全員一起的戰鬥，不是「進入別人的戰鬥」。
+
+### 24.5 中途加入拿不到起始裝備／角色視窗一片黑
+
+**根因**：`handleLobbyJoin()` 的 `players/<slot>` transaction 一 commit 就立刻呼叫
+`enterGameAsLateJoiner(slot)`，但 `newCharacterForSlot(slot)` 讀的是**本地** `players` 快照
+——那一刻它仍是 `undefined`（正因為該席位是空的才加得進去），RTDB 的監聽回流還沒到。
+於是 `typeId` 變成 `null`，`CharacterDrawer.newCharacter(name, null)` 回傳
+`hp:{current:0,max:0}`、沒有 `weaponIds` 的空角色：
+
+- 沒有起始裝備（`onCharactersReceived()` 的裝備初始化需要 `weaponIds.length`）。
+- 角色視窗渲染時直接噴 `Cannot read properties of undefined (reading 'current')`
+  ——這就是使用者說的「一片黑」。
+- 連點陣圖也不會出現（`playerSpriteParty()` 的 `eligible()` 要求 `c.typeId`）。
+
+而且那份壞角色是用 `cur === null ? initialChar : cur` 寫進 RTDB 的，之後**永遠不會被覆寫**。
+
+**修正**：把 transaction 真正 commit 的席位資料傳進去
+（`newCharacterForSlot(slot, entryOverride)`）。另外在 `onCharactersReceived()` 加一段
+一次性的自我修復，救回先前版本已經寫壞的角色：偵測到「自己的角色沒有 `typeId`、但席位上
+有 `characterId`」就用席位資料重建一次（保留已累積的盧恩與遺物記憶），並 toast 告知。
+這裡刻意整份覆寫 `character/<myTokenId>`——2026-09-20 審查 H2 禁止的是覆寫**別人**的角色
+（那是本機的舊快照），這裡寫的是自己、而且現有內容本來就是個空殼。
+
+### 24.6 回歸測試
+
+- `tools/midnight_check/fix_batch_2026_09_25_check.js`（`npm run test:fix_batch_2026_09_25`）
+  涵蓋 24.2〜24.5，34 項全數通過。反向驗證（把 24.5 的修正還原）時，第 ⑤ 節 6 項失敗，
+  並且真的重現了 `Cannot read properties of undefined (reading 'current')` 的 pageerror。
+- `tools/midnight_check/boss_rejoin_check.js` 的第 ② 節期望值依 24.1 同步更新
+  （CLAUDE.md §4.7），並新增 ②b 用 `_debugLeaveEncounterAsFled()` 重現「已經離開」的前提，
+  繼續把關 §23 的重新加入修正。30 項全數通過。
+
+寫測試時踩到、值得記下的一點：**`page.dispatchEvent(btn, "click")` 對一般攻擊鍵無效**。
+攻擊鍵是 `mousedown` 開始蓄力、`mouseup` 才真正出手（`bindAttackHoldInput()`，2026-09-24 的
+長按蓄力改版），用 `click` 派送時三個 handler 一個都不會跑，攻擊完全沒有發生——但畫面上
+看不出差別，很容易誤判成「功能壞了」。驗證攻擊相關流程時要先確認 handler 綁在哪個事件上，
+不能一律套 CLAUDE.md §4.6 的 `dispatchEvent(..., "click")`。

@@ -9668,3 +9668,78 @@ html.midnight-top-banner-collapsed .midnight-top-banner-collapse-btn {
   pointer-events: auto; padding: 8px 12px; box-shadow: 0 2px 10px rgba(0, 0, 0, 0.5);
 }
 #midnight-abandon-vote-modal.midnight-abandon-vote-passive .midnight-relic-memory-box p { margin: 4px 0; }
+
+/* 置中閃黃光的［進入戰鬥］（2026-09-25使用者明確規格「一般的進入別人戰鬥 進入戰鬥 按鈕
+   另外閃黃光在畫面中央顯示」）：右上角#midnight-enter-battle-prompt那顆維持原位不動，
+   這裡是「另外」一顆疊在畫面正中央的同功能按鈕（見static/midnight.jsの
+   renderEnterBattlePrompt()）。pointer-events只開在按鈕本身，外層容器不吃點擊，
+   才不會擋住底下的地圖／戰鬥操作。z-index沿用HUD疊層的既有量級（見#midnight-hud-top-left）。 */
+#midnight-enter-battle-center {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 700;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  pointer-events: none;
+}
+
+#btn-midnight-enter-battle-center {
+  pointer-events: auto;
+  padding: 0.9rem 2.2rem;
+  font-size: 1.15rem;
+  font-weight: bold;
+  color: #1a1200;
+  background: #ffd54a;
+  border: 2px solid #ffe79a;
+  border-radius: 0.5rem;
+  cursor: pointer;
+  animation: midnight-enter-battle-glow 1s ease-in-out infinite;
+}
+
+#midnight-enter-battle-center .midnight-loading-track {
+  pointer-events: auto;
+  width: 12rem;
+}
+
+@keyframes midnight-enter-battle-glow {
+  0%,
+  100% {
+    box-shadow: 0 0 0.6rem rgba(255, 213, 74, 0.55), 0 0 1.2rem rgba(255, 213, 74, 0.25);
+    filter: brightness(1);
+  }
+  50% {
+    box-shadow: 0 0 1.4rem rgba(255, 213, 74, 0.95), 0 0 2.8rem rgba(255, 213, 74, 0.6);
+    filter: brightness(1.15);
+  }
+}
+
+/* 夜晚戰鬥結束後的黃字提醒（2026-09-25使用者明確規格「結束夜晚戰鬥要進入下一回合 要黃字
+   特別提醒 要先按完祝福按完離去 才能繼續進行」）：顯示在兩組戰後HUD區塊
+   （#midnight-hud-day1-rewards-row／#midnight-hud-day2-rewards-row）的正上方，顯示條件
+   跟該組區塊一致，見static/midnight.jsのrenderFinalCircleRewardsHud()。
+   「特別提醒」＝除了黃字之外再加一段和緩的明暗呼吸，讓它在一排按鈕裡不會被當成一般說明。 */
+.midnight-hud-gate-note {
+  margin: 0 0 0.35rem;
+  max-width: 22rem;
+  text-align: right;
+  color: #ffd54a;
+  font-weight: bold;
+  font-size: 0.85rem;
+  line-height: 1.35;
+  text-shadow: 0 0 0.4rem rgba(255, 213, 74, 0.45);
+  animation: midnight-hud-gate-note-pulse 1.6s ease-in-out infinite;
+}
+
+@keyframes midnight-hud-gate-note-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.55;
+  }
+}

@@ -253,6 +253,25 @@ await page.dispatchEvent("#btn-xxx", "click");
 需要長按（魔術／祈禱的 `SORCERY_CAST_HOLD_MS`）時用 `mousedown` / `mouseup`，
 需要 HUD 疊層切換時用 `pointerdown`（見 `optimize_2026_09_10_check.js`）。
 
+## 4.6.1 攻擊鍵綁的是 `mousedown` / `mouseup`，不是 `click`
+
+§4.6 的「一律用 `dispatchEvent`」是對的，但**事件名稱要看 handler 實際綁在哪一個**。
+一般攻擊鍵（`#btn-midnight-attack-left` / `#btn-midnight-attack-shared-target`）自
+2026-09-24 的長按蓄力改版起，是 `mousedown` 開始蓄力、`mouseup` 才真正出手
+（`bindAttackHoldInput()`）。派送 `click` 時三個 handler 一個都不會跑，攻擊完全沒有發生，
+而畫面上看不出差別——2026-09-25 曾因此誤判「隊友復歸傷害壞掉」，實際上是測試沒打出任何攻擊。
+
+```js
+await page.dispatchEvent("#btn-midnight-attack-shared-target", "mousedown");
+await page.waitForTimeout(80);
+await page.dispatchEvent("#btn-midnight-attack-shared-target", "mouseup");
+```
+
+另外，`#btn-midnight-attack-left`（左手）在沒有裝備左手武器時是 `hidden` 的，
+右手鍵才是預設一定存在的那顆。
+
+---
+
 ## 4.7 規格變更時必須同步更新對應的回歸測試
 
 `tools/midnight_check/` 的腳本會把當時的規格寫成期望值。2026-09-05〜09-12 之間有多次

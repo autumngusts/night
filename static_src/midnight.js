@@ -2947,6 +2947,35 @@
     { id: "good", untilMs: 900, from: 80, to: 60 },
     { id: "bad", untilMs: null, from: 50, to: 50 },
   ];
+  // 阿罵模式（meta.difficulty==="unlimited"）的寬鬆版（2026-09-25使用者明確規格
+  // 「阿罵模式的迴避寬鬆度調整 Perfect~1.0s Great~2.0s 其餘都算沒閃避成功 但扣50%」）：
+  //   ・Perfect＝T之後1.0秒以內、Great＝2.0秒以內、之後一律50%減傷（＝原本的bad帶）。
+  //   ・標準版的good帶（80→60）在阿罵模式不存在——使用者只列了三段。
+  //   ・減傷％沿用標準版同名帶的數值，使用者這次只調「時間寬鬆度」，沒有動百分比。
+  // 反應窗口也要跟著放寬到2.0秒，否則第1下的窗口只有1.0秒、Great帶永遠按不到
+  //（窗口長度同時決定這一下何時結算，見enemyAttackHitWindowMs()／spriteHitAt()）。
+  // 「完全沒按迴避」不在這條規格的範圍內（那不是「迴避寬鬆度」），維持既有的「不算迴避、
+  // 照原傷害」——取字面窄讀，不自行擴大解釋。
+  var SPRITE_DODGE_WINDOW_MS_UNLIMITED = [2000, 2000, 2000];
+  var SPRITE_DODGE_BANDS_UNLIMITED = [
+    { id: "perfect", untilMs: 1000, from: 100, to: 100 },
+    { id: "great", untilMs: 2000, from: 95, to: 80 },
+    { id: "bad", untilMs: null, from: 50, to: 50 },
+  ];
+
+  // 阿罵模式＝流浪祝福無限、永不觸發遊戲失敗的難度（見tryConsumeWanderingBlessing()／
+  // switchToUnlimitedMode()）。迴避判定的寬鬆版也綁在同一個旗標上。
+  function unlimitedDifficulty() {
+    return !!(meta && meta.difficulty === "unlimited");
+  }
+
+  function spriteDodgeBands() {
+    return unlimitedDifficulty() ? SPRITE_DODGE_BANDS_UNLIMITED : SPRITE_DODGE_BANDS;
+  }
+
+  function spriteDodgeWindowTable() {
+    return unlimitedDifficulty() ? SPRITE_DODGE_WINDOW_MS_UNLIMITED : SPRITE_DODGE_WINDOW_MS;
+  }
   // 2026-09-06數值真正接入：不再用demo佔位機率決定打誰，改成先從敵人實際
   // 「アクション決定表」（enemy.actions[]）抽出一招，依該招敘述判斷是個別傷害（1人）
   // 還是亂戰傷害（1~3人），見pickEnemyAction()/resolveEnemyActionOutcome()。舊有的
@@ -4771,8 +4800,18 @@
   // potentialPowerDrawWeapon／rollPotentialPowerAttachedEffect等helper可以直接對這個
   // 物件操作，不用另外設計一套精簡欄位（見規劃紀錄）。flaskCount/flaskMax沿用midnight
   // 原本的命名，一併放進同一個物件（newCharacter()沒有這兩個欄位名稱）。
-  function newCharacterForSlot(slot) {
-    var p = players[slot];
+  // entryOverride＝「已經確定、但本地players快照還沒收到」的席位資料（見handleLobbyJoin()
+  // 的中途加入分支）。2026-09-25修正：中途加入時transaction一commit就會立刻呼叫這裡，
+  // 而players/{slot}的監聽回流還沒到——本地players[slot]仍是undefined（正因為該席位是空的
+  // 才加得進去），於是typeId變成null，newCharacter()回傳hp:{0,0}、沒有weaponIds的空角色。
+  // 症狀：中途加入的玩家拿不到起始裝備、角色視窗一片空白、點陣圖也不出現
+  // （playerSpriteParty()的eligible()要求c.typeId）。而且那份壞角色是用
+  // 「cur === null ? initialChar : cur」寫進RTDB的，之後永遠不會被修正。
+  // 本地端一次性旗標：修復「typeId為null的空角色」只嘗試一次（見onCharactersReceived()）。
+  var typelessCharacterRepairAttempted = false;
+
+  function newCharacterForSlot(slot, entryOverride) {
+    var p = entryOverride || players[slot];
     var typeId = p ? p.characterId : null;
     var name = p ? p.name : "";
     var c = window.PriTestCharacterDrawer.newCharacter(name, typeId);
@@ -4965,6 +5004,24 @@
     // 武器時，直接把顯示層一直以來的fallback值(ids[0])寫成真正的裝備狀態（等同呼叫一次
     // cycleEquippedWeapon()循環到ids[0]的最終結果），只需要一次性寫入即可，寫入後
     // equippedWeaponIdL/R不再是undefined，這段guard自然不會重複執行。
+    // 2026-09-25修復：先前版本的中途加入會把「typeId為null」的空角色寫進RTDB
+    //（見newCharacterForSlot()的說明）。那種角色沒有weaponIds，下面的起始裝備初始化永遠
+    // 跑不到，角色視窗一片空白、點陣圖也不出現，而且因為character/<token>已經非null，
+    // enterGameAsLateJoiner()的transaction不會再覆寫它——不主動修就永遠卡著。
+    // 席位資料players/<slot>.characterId才是玩家真正選過的類型，用它重建一次。
+    // 這裡刻意整份覆寫character/<myTokenId>（2026-09-20審查H2禁止的是「覆寫**別人**的角色」，
+    // 因為那是我這台的舊快照；這裡寫的是自己、而且現有內容本來就是個空殼）。
+    // 已累積的盧恩與遺物記憶保留下來，其餘沒有東西可留。
+    if (mine && !mine.typeId && mySlot && players[mySlot] && players[mySlot].characterId && !typelessCharacterRepairAttempted) {
+      typelessCharacterRepairAttempted = true;
+      var repaired = newCharacterForSlot(mySlot, players[mySlot]);
+      repaired.runes = mine.runes || 0;
+      if (mine.relicMemory) repaired.relicMemory = mine.relicMemory;
+      if (mine.relicMemoryLoadout) repaired.relicMemoryLoadout = mine.relicMemoryLoadout;
+      GameStorage.rtSet(gameId, "cloud", "character/" + myTokenId, repaired);
+      showToast(window.I18N.t("midnight_late_join_character_repaired_toast"));
+      return; // 重建後的角色會再次回流到這裡，接著才跑下面的起始裝備初始化
+    }
     if (mine && mine.equippedWeaponIdL === undefined && mine.equippedWeaponIdR === undefined && mine.weaponIds && mine.weaponIds.length) {
       var startingWeaponId = mine.weaponIds[0];
       // 2026-09-08修正：weaponIds[1]（追蹤者/守護者等有startingShieldId的類型才會有）是
@@ -5945,7 +6002,7 @@
         // 開局後從空位加入（2026-09-22，見openLateJoinModal()）：不用按準備，直接進場。
         if (started) {
           closeLateJoinModal();
-          enterGameAsLateJoiner(slot);
+          enterGameAsLateJoiner(slot, committed);
         }
       } else {
         window.alert(window.I18N.t("midnight_lobby_slot_taken_note")); // 搶輸了，該格已被別人佔用
@@ -6136,11 +6193,13 @@
   // 加入成功後的進場：比照updateLobbyOrGameVisibility()開局時對mySlot做的初始化（出生點／HP／
   // Lv1新角色），只是出生點改成lateJoinSpawnAnchor()。位置推送／在線狀態／面板都是既有的
   // 每影格邏輯，mySlot一有值就自然接上。
-  function enterGameAsLateJoiner(slot) {
+  // entry＝剛才transaction真正commit的席位資料（含characterId／name）。務必傳進來，
+  // 不能只靠本地players快照，見newCharacterForSlot()的說明。
+  function enterGameAsLateJoiner(slot, entry) {
     var now = Date.now();
     var spawn = findWalkableSpawnNear(lateJoinSpawnAnchor(now), Math.random);
     localPos = { x: spawn.x, y: spawn.y };
-    var initialChar = newCharacterForSlot(slot);
+    var initialChar = newCharacterForSlot(slot, entry);
     Object.keys((meta && meta.relicMemoryGrants) || {}).forEach(function (k) {
       initialChar.relicMemory.seen[k] = true;
     });
@@ -6306,6 +6365,7 @@
       var pt = nearbyFieldPoint || nearbyCastlePoint;
       if (pt) handleAcceptFieldInviteClick(pt);
     });
+    el("btn-midnight-enter-battle-center").addEventListener("click", handleEnterBattleClick);
     el("btn-midnight-strong-enemy-enter").addEventListener("click", handleStrongEnemyEnterClick);
     el("btn-midnight-flee-battle").addEventListener("click", handleFleeBattleClick);
     el("btn-midnight-execution").addEventListener("click", handleExecutionClick);
@@ -12946,7 +13006,7 @@
 
   function enemyAttackHitWindowMs(hitIndex) {
     // 點陣圖戰鬥模式改用1.0/1.5/2.0秒（見SPRITE_DODGE_WINDOW_MS說明）；轉身之步的加成兩種模式都疊。
-    var table = spriteModeEnabled() ? SPRITE_DODGE_WINDOW_MS : ENEMY_ATTACK_HIT_WINDOW_MS;
+    var table = spriteModeEnabled() ? spriteDodgeWindowTable() : ENEMY_ATTACK_HIT_WINDOW_MS;
     var idx = Math.max(0, Math.min(hitIndex, table.length - 1));
     return table[idx] + countRelic(characters[myTokenId], "turnStep") * TURN_STEP_WINDOW_BONUS_MS;
   }
@@ -12965,19 +13025,20 @@
   // 帶內依時間線性從from遞減到to；最後一帶（bad）的終點＝這一下的窗口結束（st.phaseEndAt）。
   // pressedAt早於Perfect區間起點的情況呼叫端已經擋掉（那不算迴避），這裡不再處理。
   function spriteDodgeJudge(st, pressedAt) {
+    var bands = spriteDodgeBands(); // 阿罵模式是寬鬆版，見SPRITE_DODGE_BANDS_UNLIMITED
     var dt = pressedAt - st.hitAt;
     var bandStart = -SPRITE_DODGE_PERFECT_EARLY_MS;
-    for (var i = 0; i < SPRITE_DODGE_BANDS.length; i++) {
-      var band = SPRITE_DODGE_BANDS[i];
+    for (var i = 0; i < bands.length; i++) {
+      var band = bands[i];
       var bandEnd = band.untilMs === null ? st.phaseEndAt - st.hitAt : band.untilMs;
-      if (dt <= bandEnd || i === SPRITE_DODGE_BANDS.length - 1) {
+      if (dt <= bandEnd || i === bands.length - 1) {
         var span = Math.max(1, bandEnd - bandStart);
         var t = Math.max(0, Math.min(1, (dt - bandStart) / span));
         return { grade: band.id, pct: Math.round(band.from - (band.from - band.to) * t) };
       }
       bandStart = bandEnd;
     }
-    return { grade: "bad", pct: SPRITE_DODGE_BANDS[SPRITE_DODGE_BANDS.length - 1].to };
+    return { grade: "bad", pct: bands[bands.length - 1].to };
   }
 
   // 是否套用點陣圖模式的時機判定：反擊（isCounter，固定1秒的「快速反擊」、沒有對應動畫）
@@ -16521,21 +16582,47 @@
   // 沒有候選對象時整塊隱藏；有候選但還沒按下時顯示按鈕；按下後顯示讀取條
   // （沿用.midnight-loading-track/.midnight-loading-fill既有樣式，跟field卡牌的
   // 進入讀取條同一套視覺元件）。
+  // 這個點是不是「別人的戰鬥」（＝一般遭遇），而不是全員一起的夜之強敵／夜王。
+  // 置中閃黃光的［進入戰鬥］只給前者，見renderEnterBattlePrompt()。
+  function pendingReentryIsNormalBattle() {
+    if (!pendingBattleReentry) return false;
+    var id = String(pendingBattleReentry.id);
+    return id !== DAY3_BOSS_POINT_ID && id.indexOf("finalCircleDay") !== 0;
+  }
+
   function renderEnterBattlePrompt() {
-    var wrap = el("midnight-enter-battle-prompt");
-    if (!wrap) return;
-    wrap.hidden = !pendingBattleReentry;
-    if (!pendingBattleReentry) return;
-    var btn = el("btn-midnight-enter-battle");
-    var bar = el("midnight-enter-battle-loading-bar");
-    var fill = el("midnight-enter-battle-loading-fill");
     var loading = battleEnteringUntil !== null;
-    if (btn) btn.hidden = loading;
-    if (bar) bar.hidden = !loading;
-    if (loading && fill) {
-      var elapsed = BATTLE_ENTER_LOADING_MS - (battleEnteringUntil - Date.now());
-      fill.style.width = Math.max(0, Math.min(100, (elapsed / BATTLE_ENTER_LOADING_MS) * 100)) + "%";
+    // 右上角資訊欄的原本那顆（2026-09-09使用者明確規格的位置，不動）。
+    var wrap = el("midnight-enter-battle-prompt");
+    if (wrap) {
+      wrap.hidden = !pendingBattleReentry;
+      if (pendingBattleReentry) {
+        var btn = el("btn-midnight-enter-battle");
+        var bar = el("midnight-enter-battle-loading-bar");
+        var fill = el("midnight-enter-battle-loading-fill");
+        if (btn) btn.hidden = loading;
+        if (bar) bar.hidden = !loading;
+        if (loading && fill) fill.style.width = enterBattleLoadingPct() + "%";
+      }
     }
+    // 2026-09-25使用者明確規格「一般的進入別人戰鬥 進入戰鬥 按鈕另外閃黃光在畫面中央顯示」：
+    // 「另外」＝跟右上角那顆並存的第二顆，共用同一個handler與同一條讀條狀態。
+    var centerWrap = el("midnight-enter-battle-center");
+    if (!centerWrap) return;
+    var showCenter = pendingReentryIsNormalBattle();
+    centerWrap.hidden = !showCenter;
+    if (!showCenter) return;
+    var cBtn = el("btn-midnight-enter-battle-center");
+    var cBar = el("midnight-enter-battle-center-bar");
+    var cFill = el("midnight-enter-battle-center-fill");
+    if (cBtn) cBtn.hidden = loading;
+    if (cBar) cBar.hidden = !loading;
+    if (loading && cFill) cFill.style.width = enterBattleLoadingPct() + "%";
+  }
+
+  function enterBattleLoadingPct() {
+    var elapsed = BATTLE_ENTER_LOADING_MS - (battleEnteringUntil - Date.now());
+    return Math.max(0, Math.min(100, (elapsed / BATTLE_ENTER_LOADING_MS) * 100));
   }
 
   // 遭遇結束時的清理（2026-09-05角色能力真正接入新增）：高防禦狀態（規則書「直到結束
@@ -16641,6 +16728,34 @@
   //     updateNearbyFieldPoint()的neverJoined0判斷），回到該點才能領。
   // 副作用（刻意）：共享池投票的分母（見maybeResolveSharedRewardVote()的voters）也會跟著
   // 少一人，離開的人不再拖著整筆獎勵等他投票。
+  // 「沒有地圖點可以走開」的虛擬遭遇（戰鬥模擬／夜之強敵finalCircleDayN／夜王day3Boss）
+  // 專用的「逃離後重新加入」處理（2026-09-25抽出共用，原本只有updateBattleSim()有）。
+  //
+  // 一般的地圖遭遇是靠「走出所有觸發範圍」讓recomputeActiveEncounter()在沒有候選時清掉
+  // fledEncounterIds／confirmedEncounterIds，再靠近時才重新出現[進入戰鬥]。但這三種遭遇的
+  // 候選是位置無關的——updateFinalCircleBoss()只要trig已resolved、updateDay3Boss()只要王
+  // 還活著，就無條件把候選餵給recomputeActiveEncounter()，候選永遠不會消失。於是
+  // recomputeActiveEncounter()永遠走「有候選但在fled清單裡」那條早期return（連
+  // pendingBattleReentry都不會設），逃離旗標再也清不掉、[進入戰鬥]再也不會出現。
+  //
+  // 實際會踩到的路徑：夜之強敵戰鬥中瀕死逾時→finishRevive(,true)把人傳送到祝福點並
+  // leaveEncounterAsFled()（2026-09-13使用者明確規格「當下在戰鬥時需等於逃離戰鬥」），
+  // 之後就永遠回不到那場夜之強敵戰鬥。使用者明確規格（2026-09-25）「在進行夜之強敵戰鬥
+  // 與夜王要能回到此戰鬥」。
+  //
+  // 回傳true＝這一影格呼叫端要先讓自己的候選消失：必須等「自己已從participants移除」
+  // 真的從RTDB回來再放行，否則本地還看得到自己是participant的那幾影格會被
+  // recomputeActiveEncounter()當成「第一次遭遇」直接走識別準備、不經[進入戰鬥]就回到戰鬥。
+  function consumeFledStateForPositionlessEncounter(pointId) {
+    if (!fledEncounterIds[pointId]) return false;
+    var trig = fieldTriggers[pointId];
+    if (trig && trig.participants && trig.participants[mySlot]) return true;
+    delete fledEncounterIds[pointId];
+    delete confirmedEncounterIds[pointId];
+    if (pendingBattleReentry && pendingBattleReentry.id === pointId) pendingBattleReentry = null;
+    return false;
+  }
+
   function leaveEncounterAsFled(encounterId) {
     if (!encounterId) return;
     fledEncounterIds[encounterId] = true;
@@ -17522,6 +17637,13 @@
     // 邏輯不限定mySlot——任何裝置（含觀戰者）都能幫忙偵測、寫入共享倒數，多一台裝置
     // 偵測只是提高可靠度，transaction()本身已經防止重複寫入。
     if (mySlot && trig && trig.status === "resolved") {
+      // 逃離（＝瀕死逾時被流浪祝福傳送離開）後要能重新按［進入戰鬥］回到這場夜之強敵：
+      // 這個候選是位置無關的，沒有這道處理就永遠卡在逃離狀態，見
+      // consumeFledStateForPositionlessEncounter()。
+      if (consumeFledStateForPositionlessEncounter(pointId)) {
+        nearbyFinalCircleBoss = null;
+        return;
+      }
       nearbyFinalCircleBoss = { id: pointId, x: phaseInfo.finalCenter.x, y: phaseInfo.finalCenter.y };
       return;
     }
@@ -17594,21 +17716,12 @@
       nearbyBattleSim = null;
       return;
     }
-    // 逃離戰鬥模擬（2026-09-22修正）：一般遭遇是「走出所有觸發範圍」才由recomputeActiveEncounter()清掉
-    // fled／confirmed記錄、再靠近才出現［進入戰鬥］；戰鬥模擬沒有地圖點可以走開，而出生點若剛好
-    // 落在某個板塊點的觸發半徑內，那個點會一直是候選、逃離狀態永遠清不掉、再也進不了戰鬥。
-    // 這裡把「逃離」視同「已經走開」：下一影格就清掉這個點的逃離／確認記錄，讓既有的
-    // ［進入戰鬥］讀條流程（自己已不在participants裡）自然接手。
-    // 要等「自己已從participants移除」真的從RTDB回來再放行，否則本地還看得到自己是participant的
-    // 那幾影格會被當成「第一次遭遇」直接走識別準備、不經［進入戰鬥］就回到戰鬥。
-    if (fledEncounterIds[BATTLE_SIM_POINT_ID]) {
-      if (trig.participants && trig.participants[mySlot]) {
-        nearbyBattleSim = null;
-        return;
-      }
-      delete fledEncounterIds[BATTLE_SIM_POINT_ID];
-      delete confirmedEncounterIds[BATTLE_SIM_POINT_ID];
-      if (pendingBattleReentry && pendingBattleReentry.id === BATTLE_SIM_POINT_ID) pendingBattleReentry = null;
+    // 逃離戰鬥模擬（2026-09-22修正）：戰鬥模擬沒有地圖點可以走開，「逃離」要視同「已經走開」
+    // 才能重新按［進入戰鬥］。2026-09-25抽成共用helper，夜之強敵／夜王也走同一條（見
+    // consumeFledStateForPositionlessEncounter()的完整說明）。
+    if (consumeFledStateForPositionlessEncounter(BATTLE_SIM_POINT_ID)) {
+      nearbyBattleSim = null;
+      return;
     }
     nearbyBattleSim = { id: BATTLE_SIM_POINT_ID, x: localPos ? localPos.x : 0, y: localPos ? localPos.y : 0 };
   }
@@ -17818,7 +17931,13 @@
     var trig = fieldTriggers[DAY3_BOSS_POINT_ID];
     var hp = fieldEnemyHp[DAY3_BOSS_POINT_ID];
     var alive = !!(trig && trig.status === "resolved" && (hp === undefined || hp > 0));
-    nearbyDay3Boss = mySlot && alive ? { id: DAY3_BOSS_POINT_ID, x: 0, y: 0 } : null;
+    // 夜王同樣是位置無關的候選，逃離後也要能重新按［進入戰鬥］回到王戰（見
+    // consumeFledStateForPositionlessEncounter()）。
+    if (mySlot && alive && consumeFledStateForPositionlessEncounter(DAY3_BOSS_POINT_ID)) {
+      nearbyDay3Boss = null;
+    } else {
+      nearbyDay3Boss = mySlot && alive ? { id: DAY3_BOSS_POINT_ID, x: 0, y: 0 } : null;
+    }
     if (trig) maybeResetBossFormOnDefeat(trig, hp);
   }
 
@@ -18217,6 +18336,11 @@
     // Day1／Day2兩組區塊同時疊在畫面上。
     var day1Available = finalCircleBossDefeated(1) && !finalCircleBossDefeated(2) && !day1RewardsDismissed;
     if (day1Wrap) day1Wrap.hidden = !day1Available;
+    // 2026-09-25使用者明確規格「結束夜晚戰鬥要進入下一回合 要黃字特別提醒 要先按完祝福
+    // 按完離去 才能繼續進行」：提醒的顯示條件跟該組區塊本身完全一致，區塊一關（按下離去）
+    // 提醒也跟著消失。
+    var day1Note = el("midnight-hud-day1-rewards-note");
+    if (day1Note) day1Note.hidden = !day1Available;
 
     var blessingBtn = el("btn-midnight-hud-blessing");
     var merchantWrap = el("midnight-hud-merchant-row");
@@ -18226,6 +18350,8 @@
     var day2Available = finalCircleBossDefeated(2) && phaseInfo.day < 3 && !day2RewardsDismissed;
     if (blessingBtn) blessingBtn.hidden = !day2Available;
     if (merchantWrap) merchantWrap.hidden = !day2Available;
+    var day2Note = el("midnight-hud-day2-rewards-note");
+    if (day2Note) day2Note.hidden = !day2Available;
     var readyWrap = el("midnight-hud-ready-final-row");
     var merchantAvailable = finalCircleBossDefeated(2) && phaseInfo.day < 3;
     if (readyWrap) readyWrap.hidden = !merchantAvailable;
@@ -25776,11 +25902,20 @@
       GameStorage.rtSet(gameId, "cloud", "demoStat/" + tokenId, maxHp);
       if (tokenId === myTokenId) {
         var phaseInfo = currentPhaseInfo(Date.now());
-        if (phaseInfo.day !== 3) {
+        // 2026-09-25使用者明確規格「夜之強敵戰鬥中 救起瀕死的隊友，該隊友需要在同一場戰鬥
+        // 站起繼續戰鬥」。使用者實測回報的症狀是「救起後被踢出戰鬥畫面／被傳送到祝福」——
+        // 那是隊友的復歸傷害還沒補滿、15秒倒數先到，走forceReviveOnTimeout()→這裡
+        // fullHeal=true的路徑造成的。夜之強敵／夜王是全員一起的戰鬥（沒有[逃離戰鬥]按鈕，
+        // 見handleFleeBattleClick()），被傳走等於這個人整場出局，因此這兩種戰鬥中改成
+        // 「原地站起、留在同一場戰鬥」：不離開participants、不移動位置。
+        // 全回血與流浪祝福的消耗都不變（那是倒數沒撐住的代價，使用者沒有要求更動）。
+        // Day3夜王本來就因為phaseInfo.day!==3而不會傳送，這次把夜之強敵一起納入同一條規則。
+        var inNightBossFight = activeEncounterIsNightBoss();
+        if (phaseInfo.day !== 3 && !inNightBossFight) {
           // 2026-09-13使用者明確規格「瀕死後自動復活後飛往祝福沒問題，但是當下在戰鬥時
           // 需等於逃離戰鬥」：被傳送離開板塊等同放棄這場戰鬥，因此走跟[逃離戰鬥]完全
           // 相同的處理（含把自己從participants移除，見leaveEncounterAsFled()說明），
-          // 之後要重新跑回該點才能繼續參戰或後補領獎。
+          // 之後要重新跑回該點才能繼續參戰或後補領獎。這條規則只適用於一般板塊戰鬥。
           // 順序：先離開再傳送——leaveEncounterAsFled()裡的recomputeActiveEncounter()
           // 需要在「還站在原地」時判斷，傳送後的重新判定由下一影格的既有流程處理。
           if (activeEncounter) leaveEncounterAsFled(activeEncounter.id);
@@ -28424,6 +28559,25 @@
     _debugTriggerNearDeath: function (tokenId) {
       maybeTriggerNearDeath(tokenId || myTokenId);
     },
+    // ---- 2026-09-25 瀕死救起／夜之強敵・夜王重新加入 測試入口
+    // （見tools/midnight_check/boss_rejoin_check.js）----
+    // 隊友的復歸傷害實際上是由一般攻擊轉換而來（見tryApplyDesignatedRevivalDamage()），
+    // 在回歸測試裡重現「指定→攻擊命中→傷害除以2」整條鏈太脆弱，這裡直接開放累積入口。
+    _debugApplyRevivalProgress: function (tokenId, amount) {
+      applyRevivalProgress(tokenId, amount);
+    },
+    // 復歸後の「HP上限の半分」を検証するためのHP上限。現在HPから逆算すると縮圈外の継続
+    // ダメージ等で簡単にズレるので、finishRevive()が実際に使うのと同じ経路を開ける
+    // （期望値をデータから算出する＝CLAUDE.md §4.7）。
+    _debugArenaHpMax: function (tokenId) {
+      return selfArenaHpMax(characters[tokenId || myTokenId]);
+    },
+    // 夜王戰鬥沒有任何正式操作可以離開（[逃離戰鬥]按鈕對夜之強敵／夜王一律隱藏，且
+    // finishRevive()在day3不做傳送），但「離開後要能回來」這條規格對兩種王戰都成立，
+    // 因此提供直接入口讓測試能驗證夜王側的重新加入流程。
+    _debugLeaveEncounterAsFled: function (encounterId) {
+      leaveEncounterAsFled(encounterId);
+    },
     // 席位卡片上的倒地倒數圓盤：先逐幀更新一次，再把每一顆的狀態讀回來。
     _debugNearDeathDials: function () {
       updateNearDeathDials(Date.now());
@@ -29318,6 +29472,11 @@
         battleSimDodgeTimer: battleSimDodgeTimer, // 2026-09-22：戰鬥模擬迴避計時的目前碼表
         battleSimDodgeLog: battleSimDodgeLog.map(battleSimDodgeLogText), // 同上，最近幾筆紀錄（顯示文字）
         activeEncounter: activeEncounter,
+        // 2026-09-25補上：「逃離夜之強敵／夜王後能不能重新按［進入戰鬥］回到這場戰鬥」
+        // 的回歸測試（boss_rejoin_check.js）必須直接讀到這兩個本地狀態——逃離旗標有沒有
+        // 被清掉、［進入戰鬥］的候選有沒有長出來，從DOM只能間接推測。
+        pendingBattleReentry: pendingBattleReentry,
+        fledEncounterIds: fledEncounterIds,
         myIncomingAttack: myIncomingAttack,
         nearbyStrongEnemy: nearbyStrongEnemy,
         nearbyMerchant: nearbyMerchant,

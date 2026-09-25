@@ -711,6 +711,17 @@ BODY = """    <div class="midnight-wrap">
               <span id="midnight-enter-battle-loading-fill" class="midnight-loading-fill"></span>
             </div>
           </div>
+          <!-- 2026-09-25使用者明確規格「一般的進入別人戰鬥 進入戰鬥 按鈕另外閃黃光在畫面
+               中央顯示」：右上角那顆太容易被漏看。這裡是「另外」一顆置中、閃黃光的同功能
+               按鈕——兩顆共用同一個 handleEnterBattleClick()／同一條讀條狀態，不是第二套
+               流程。夜之強敵／夜王戰鬥不顯示這顆（那兩種是全員一起的戰鬥，不是「別人的
+               戰鬥」），見 static/midnight.js の renderEnterBattlePrompt()。 -->
+          <div id="midnight-enter-battle-center" hidden>
+            <button type="button" id="btn-midnight-enter-battle-center" data-i18n="midnight_enter_battle_button"></button>
+            <div id="midnight-enter-battle-center-bar" class="midnight-loading-track" hidden>
+              <span id="midnight-enter-battle-center-fill" class="midnight-loading-fill"></span>
+            </div>
+          </div>
           <!-- 暫停後繼續遊戲的倒數＋讀取條（2026-09-06三次優化，使用者明確規格「暫停遊戲後
                的繼續遊戲，需要再上方資訊欄中顯示倒數與讀取條」）：跟原本
                #midnight-pause-overlay的全螢幕文字倒數並存（那個繼續擋操作），這裡額外在
@@ -796,6 +807,10 @@ BODY = """    <div class="midnight-wrap">
                「第一天夜之強敵戰鬥結束後，總計時10秒後才正式開始第二天倒計時，能選的
                只有祝福與離去」）：只有祝福＋離去，沒有商人。離去純本地端關閉這個區塊，見
                static/midnight.jsのhandleDay1RewardsLeaveClick()。 -->
+          <!-- 2026-09-25使用者明確規格「結束夜晚戰鬥要進入下一回合 要黃字特別提醒 要先按完
+               祝福按完離去 才能繼續進行」：黃字提醒掛在兩組戰後區塊的上方，顯示條件跟該組
+               區塊完全一致（見static/midnight.jsのrenderFinalCircleRewardsHud()）。 -->
+          <p id="midnight-hud-day1-rewards-note" class="midnight-hud-gate-note" data-i18n="midnight_hud_rewards_gate_note" hidden></p>
           <div id="midnight-hud-day1-rewards-row" hidden>
             <button type="button" id="btn-midnight-hud-blessing-day1" data-i18n="midnight_hud_blessing_button"></button>
             <button type="button" id="btn-midnight-hud-day1-leave" class="danger-btn" data-i18n="midnight_hud_leave_button"></button>
@@ -806,6 +821,8 @@ BODY = """    <div class="midnight-wrap">
                見static/midnight.jsのrenderFinalCircleRewardsHud()。外層
                #midnight-hud-day2-rewards-row純粹是排版用的橫向容器（見style.css），本身
                不控制hidden——祝福鈕／商人列各自的hidden邏輯不變。 -->
+          <!-- 見上方 day1 版本的同一則說明（2026-09-25 黃字提醒）。 -->
+          <p id="midnight-hud-day2-rewards-note" class="midnight-hud-gate-note" data-i18n="midnight_hud_rewards_gate_note" hidden></p>
           <div id="midnight-hud-day2-rewards-row">
             <button type="button" id="btn-midnight-hud-blessing" data-i18n="midnight_hud_blessing_button" hidden></button>
             <div id="midnight-hud-merchant-row" hidden>
