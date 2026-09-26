@@ -5882,7 +5882,8 @@ html.midnight-banner-above-hud:not(.midnight-top-banner-collapsed) #midnight-rew
   top: 50%;
   transform: translate(-50%, -50%);
   z-index: 500;
-  width: 460px;
+  /* 2026-09-26使用者明確規格「敵人的尺寸可以再放大多一些」：460→520px（敵人圖框同時50%→60%）。 */
+  width: 520px;
   max-width: 92vw;
   max-height: 90vh;
   overflow-y: auto;
@@ -6045,6 +6046,10 @@ html.midnight-banner-above-hud:not(.midnight-top-banner-collapsed) #midnight-rew
 }
 
 #midnight-tower-puzzle-box {
+  /* 2026-09-26使用者明確規格「暫時離開的✕放置在題目banner之中的右上」：沒有relative時
+     .midnight-modal-close-x（absolute）會對齊整個畫面右上角。 */
+  position: relative;
+  padding-right: 2.6rem;
   background: #1a1d24;
   border: 1px solid #555;
   border-radius: 8px;
@@ -7044,8 +7049,9 @@ html.midnight-top-banner-collapsed .midnight-top-banner-collapse-btn {
 
 /* 敵人圖片方格（2026-09-06使用者明確要求「敵人顯示視窗中放大目前的三倍」）：140px→420px。 */
 #midnight-field-encounter-image {
-  max-width: 420px;
-  max-height: 420px;
+  /* 2026-09-26：敵人放大（420→480，面板同步加寬到520px）。 */
+  max-width: 480px;
+  max-height: 480px;
   border-radius: 6px;
   border: 1px solid rgba(255, 255, 255, 0.25);
 }
@@ -7934,8 +7940,8 @@ html.midnight-top-banner-collapsed .midnight-top-banner-collapse-btn {
      #midnight-hud-bottom-center的fix說明），不再跟底部按鈕搶垂直空間；這裡另外縮小
      敵人圖片本身＋讓右下角按鈕群更緊湊，避免小螢幕上圖片/按鈕互相擠壓或超出可視範圍。 */
   #midnight-field-encounter-image {
-    max-width: 45vw;
-    max-height: 45vw;
+    max-width: 55vw;
+    max-height: 55vw;
   }
 
   #midnight-hud-bottom-right {
@@ -9228,9 +9234,11 @@ html.midnight-top-banner-collapsed .midnight-top-banner-collapse-btn {
    - 刀光／屬性光暈／致命一擊等疊層都還在圖框裡，所以一律對準敵人，不會落在玩家身上。 */
 /* 2026-09-25 同日第三版（使用者明確規格「敵人點陣圖仍在戰鬥面板中心位置，人物貼左邊」）：
    圖框改回面板正中央（寬 50%、左右 auto），玩家舞台從面板左緣開始。 */
+/* 2026-09-26使用者明確規格「敵人的尺寸可以再放大多一些」：圖框50%→60%（面板也加寬到520px，
+   敵人約230px→312px）。玩家舞台的left／width隨之換算，玩家帶的實寬維持差不多。 */
 #midnight-field-encounter-image-wrap.midnight-sprite-arena {
   display: block;
-  width: 50%;
+  width: 60%;
   margin-left: auto;
   margin-right: auto;
   aspect-ratio: 1 / 1;
@@ -9250,12 +9258,14 @@ html.midnight-top-banner-collapsed .midnight-top-banner-collapse-btn {
    右端伸進敵人圖框 10%（敵人的 1 格左右本來就有留白，伸進去不會壓到敵人本體，玩家才有夠寬的帶）。
    面在帶內靠左排（midnight_player_sprite.js 的 syncLayout()，使用者明確規格「人物貼左邊」）。 */
 #midnight-field-encounter-image-wrap.midnight-sprite-arena > #midnight-player-sprite-stage {
-  left: -50%;
+  /* 圖框寬W＝面板60%置中 → 左側空間＝面板20%＝W的33.33%；右端伸進圖框W的20%
+     （2026-09-26：原本10%，玩家點陣圖太小，多給一點帶寬；敵人的格子左側本來就有留白）。 */
+  left: -33.33%;
   right: auto;
   top: auto;
   bottom: 0;
   transform: none;
-  width: 60%;
+  width: 53.33%;
   height: 100%;
   aspect-ratio: auto;
 }
@@ -9667,6 +9677,86 @@ html.midnight-top-banner-collapsed .midnight-top-banner-collapse-btn {
   font-size: 0.78rem;
   color: #ffd54a;
   text-shadow: 0 0 0.3rem rgba(0, 0, 0, 0.9);
+}
+
+/* 連點卡死的防護（2026-09-26，見 midnight.js guardAgainstStuckDrag()）：midnight 頁面除了輸入框之外
+   不能選取文字、圖片不能拖曳，避免快速連點選到文字後觸發原生拖曳而卡住。 */
+.midnight-no-select body {
+  -webkit-user-select: none;
+  user-select: none;
+}
+.midnight-no-select input,
+.midnight-no-select textarea,
+.midnight-no-select select {
+  -webkit-user-select: text;
+  user-select: text;
+}
+.midnight-no-select img {
+  -webkit-user-drag: none;
+}
+
+/* 戰鬥面板的救援表示（2026-09-26）：外圈黃環＝倒數（15秒，從整圈開始消失），內圈紫色餅＝
+   剩餘需救的復歸量（從整圓往下扣）。兩個百分比由updateRescueOverlays()寫入。 */
+#midnight-rescue-row {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  margin-bottom: 4px;
+}
+#midnight-rescue-row[hidden] { display: none; }
+.midnight-rescue-overlay {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  pointer-events: auto;
+}
+.midnight-rescue-overlay-on-face {
+  position: absolute;
+  left: 50%;
+  /* 玩家sheet每格上方約3～4成是透明留白（站姿頭頂在格高0.28～0.45處），掛在格子頂端會離頭很遠。 */
+  bottom: 60%;
+  transform: translateX(-50%);
+  z-index: 20;
+}
+.midnight-rescue-name {
+  font-size: 0.7rem;
+  color: #fff;
+  text-shadow: 0 0 0.25rem rgba(0, 0, 0, 0.9);
+  white-space: nowrap;
+}
+.midnight-rescue-dial {
+  position: relative;
+  width: 2.6rem;
+  height: 2.6rem;
+  border-radius: 50%;
+  padding: 0.22rem;
+  box-sizing: border-box;
+  background: conic-gradient(#f2c230 var(--rescue-time-pct, 100%), rgba(0, 0, 0, 0.55) 0);
+  box-shadow: 0 0 0.4rem rgba(0, 0, 0, 0.8);
+}
+.midnight-rescue-dial-inner {
+  position: relative;
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  background: conic-gradient(#8a6cf5 var(--rescue-hp-pct, 100%), #1c1b24 0);
+  border: 2px solid #121118;
+  box-sizing: border-box;
+  overflow: hidden;
+}
+/* 紫色餅上的分隔線（對應附圖的扇形格） */
+.midnight-rescue-dial-inner::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: repeating-conic-gradient(#121118 0deg 4deg, transparent 4deg 72deg);
+}
+.midnight-rescue-designate-btn {
+  font-size: 0.7rem;
+  padding: 1px 6px;
 }
 
 /* 等待房：自己的席位卡可點擊修改名稱／角色／密碼（2026-09-26）。 */

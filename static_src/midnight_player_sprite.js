@@ -39,6 +39,13 @@
   // ARENA_FACE_MAX_H：面の幅の上限（舞台の高さ比）。敵人の 1 格＝舞台の高さなので、
   // 人間が竜と同じ大きさに見えないよう 6 割強に抑える。
   var ARENA_FACE_MAX_H = 0.62;
+  // 2026-09-26（使用者要求檢查玩家點陣圖的顯示）：實測分離版面下 2～3 人時每人只有 60～80px，
+  // 人物本身又只佔格子高度的一半左右，看起來只有敵人的 1/5。玩家 sheet 的站姿本體只佔格寬
+  // 中間約 40%（tools 實測 0.25～0.75），因此分離版面改用較密的間隔（0.4）、並容許最左邊那一面
+  // 的左側透明留白超出帶的左緣一點（ARENA_LEFT_BLEED，面寬比），把同一條帶換成更大的面。
+  // 攻擊影格會用到格寬 10%～90%，所以不再往左右裁切。
+  var ARENA_FACE_STEP = 0.4;
+  var ARENA_LEFT_BLEED = 0.1;
   var arena = false;
 
   var stageEl = null;
@@ -203,6 +210,13 @@
     return true;
   }
 
+  // 面の DOM（2026-09-26）：呼び出し端が頭上に救援表示などを掛けるための入口。
+  // ここは要素を返すだけで、何を掛けるか・いつ外すかは呼び出し端が決める（三層解耦）。
+  function faceElement(key) {
+    var face = findFace(key);
+    return face && stageEl && !stageEl.hidden ? face.el : null;
+  }
+
   function currentAnimId(key) {
     var face = findFace(key);
     return face ? face.animId : null;
@@ -229,8 +243,10 @@
     // 分離版面では舞台全体が帯で、上限は舞台の高さ（＝敵人 1 格）基準。
     var band = arena ? boxW : boxW * GROUP_RIGHT;
     var faceMax = arena ? (boxH || boxW) * ARENA_FACE_MAX_H : boxW * FACE_MAX_RATIO;
-    var faceW = Math.max(24, Math.round(Math.min(faceMax, band / (1 + (n - 1) * FACE_STEP))));
-    var step = Math.round(faceW * FACE_STEP);
+    var stepRatio = arena ? ARENA_FACE_STEP : FACE_STEP;
+    var bleed = arena ? ARENA_LEFT_BLEED : 0;
+    var faceW = Math.max(24, Math.round(Math.min(faceMax, band / (1 + (n - 1) * stepRatio - bleed))));
+    var step = Math.round(faceW * stepRatio);
     faces.forEach(function (face, i) {
       face.aspect = cellAspectOf(face.sheetFile);
       face.cellPx = faceW;
@@ -240,8 +256,8 @@
       // 分離版面（2026-09-25 使用者明確規格「人物貼左邊」）：群ごと帯の左端に寄せる。
       // 並び順は同じ（i=0＝自分がいちばん右＝敵人に近い側）。人数が多くて帯を埋めるときは
       // 左寄せでも右寄せでも同じ位置になる。
-      var groupLeft = arena ? 0 : band - faceW - (n - 1) * step;
-      face.el.style.left = Math.max(0, Math.round(groupLeft + (n - 1 - i) * step)) + "px";
+      var groupLeft = arena ? -Math.round(faceW * bleed) : band - faceW - (n - 1) * step;
+      face.el.style.left = Math.max(arena ? groupLeft : 0, Math.round(groupLeft + (n - 1 - i) * step)) + "px";
       face.el.style.right = "auto";
       face.el.style.width = faceW + "px";
       face.el.style.height = face.cellHPx + "px";
@@ -276,6 +292,8 @@
     FACE_MAX_RATIO: FACE_MAX_RATIO,
     FACE_STEP: FACE_STEP,
     ARENA_FACE_MAX_H: ARENA_FACE_MAX_H,
+    ARENA_FACE_STEP: ARENA_FACE_STEP,
+    ARENA_LEFT_BLEED: ARENA_LEFT_BLEED,
     isArena: function () { return arena; },
     sheetFileForType: sheetFileForType,
     frameIndexAt: frameIndexAt,
@@ -289,6 +307,7 @@
     setArena: setArena,
     playAnim: playAnim,
     currentAnimId: currentAnimId,
+    faceElement: faceElement,
     faceCount: function () { return faces.length; },
     tick: tick
   };

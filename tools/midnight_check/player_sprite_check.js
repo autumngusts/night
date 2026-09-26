@@ -229,7 +229,9 @@ async function createSpriteRoom(page, opts) {
     const rects = await stageRects(page);
     const L = await page.evaluate(() => {
       const P = window.PriTestMidnightPlayerSprite;
-      return { arenaMax: P.ARENA_FACE_MAX_H, step: P.FACE_STEP, arena: P.isArena() };
+      // 2026-09-26：分離版面改用 ARENA_FACE_STEP（0.4）＋最左一面的左側留白可超出帶（ARENA_LEFT_BLEED）。
+      // 舊版用的是 FACE_STEP（0.55）且不超出——使用者要求檢查玩家點陣圖時實測人物太小而調整。
+      return { arenaMax: P.ARENA_FACE_MAX_H, step: P.ARENA_FACE_STEP, bleed: P.ARENA_LEFT_BLEED, arena: P.isArena() };
     });
     assert(!!rects && rects.faces.length === 1, "單人房：玩家面は 1 面", rects && rects.faces.length);
     assert(!!rects.enemy, "敵人舞台も表示中（比較対象がある）", !!rects.enemy);
@@ -263,18 +265,20 @@ async function createSpriteRoom(page, opts) {
       "玩家舞台は面板の左端から始まる（人物貼左邊）",
       { player: Math.round(rects.player.left), panel: Math.round(panelBox.left) }
     );
+    // 2026-09-26：左 10%→20%（玩家點陣圖太小，多給帶寬；同日敵人圖框也從面板 50%→60%）。
     assert(
-      rects.player.right <= rects.enemy.left + rects.enemy.w * 0.1 + 1,
-      "玩家舞台が敵人の 1 格に入り込むのは左 10% まで",
+      rects.player.right <= rects.enemy.left + rects.enemy.w * 0.2 + 1,
+      "玩家舞台が敵人の 1 格に入り込むのは左 20% まで",
       { playerRight: Math.round(rects.player.right), enemyLeft: Math.round(rects.enemy.left) }
     );
+    // 2026-09-26：最左一面は左側の透明留白（面寬 × ARENA_LEFT_BLEED）ぶん帯の左端からはみ出す。
     assert(
-      Math.abs(Math.min.apply(null, rects.faces.map((f) => f.left)) - rects.player.left) <= 1,
-      "面の群れは帯の左端に寄る",
+      Math.abs(Math.min.apply(null, rects.faces.map((f) => f.left)) - (rects.player.left - Math.round(rects.faces[0].w * L.bleed))) <= 2,
+      "面の群れは帯の左端に寄る（左側留白ぶんだけはみ出す）",
       rects.faces.map((f) => Math.round(f.left))
     );
     assert(
-      rects.faces.every((f) => f.left >= rects.player.left - 1 && f.right <= rects.player.right + 1),
+      rects.faces.every((f) => f.left >= rects.player.left - f.w * L.bleed - 2 && f.right <= rects.player.right + 1),
       "面はすべて玩家舞台の中＝敵人より左に立つ",
       rects.faces.map((f) => [Math.round(f.left), Math.round(f.right)])
     );
@@ -291,7 +295,7 @@ async function createSpriteRoom(page, opts) {
     // 期待値は syncLayout() と同じ式から算出（硬編しない、CLAUDE.md §4.7）。
     // 分離版面：帯＝玩家舞台の全幅、上限＝舞台の高さ × ARENA_FACE_MAX_H。
     const wantFaceW = (r, n) =>
-      Math.max(24, Math.round(Math.min(r.h * L.arenaMax, r.w / (1 + (n - 1) * L.step))));
+      Math.max(24, Math.round(Math.min(r.h * L.arenaMax, r.w / (1 + (n - 1) * L.step - L.bleed))));
     assert(
       Math.abs(rects.faces[0].w - wantFaceW(rects.player, 1)) <= 2,
       "1 面の幅＝上限（舞台高 × " + L.arenaMax + "）と帯に収まる幅の小さいほう",
@@ -503,7 +507,7 @@ async function createSpriteRoom(page, opts) {
     if (rectsA2 && rectsA2.faces.length === 2) {
       assert(
         rectsA2.faces[0].left > rectsA2.faces[1].left &&
-          rectsA2.faces.every((f) => f.right <= rectsA2.enemy.left + rectsA2.enemy.w * 0.1 + 2), // 面寬・間隔の Math.round で ~1px 出ることがある
+          rectsA2.faces.every((f) => f.right <= rectsA2.enemy.left + rectsA2.enemy.w * 0.2 + 2), // 2026-09-26：10%→20%。面寬・間隔の Math.round で ~1px 出ることがある
         "先頭（自分）が敵人に近い側（右）、2 人目はその左。2 人とも玩家の帯の中",
         rectsA2.faces.map((f) => Math.round(f.left))
       );

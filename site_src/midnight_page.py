@@ -1086,6 +1086,9 @@ BODY = """    <div class="midnight-wrap">
                  圖片上產生不同的刀光效果...且能根據屬性更換顏色」）：疊在敵人圖片正上方
                  的獨立容器，顏色由static/midnight.jsのtriggerEnemyHitEffect()透過CSS
                  變數--hit-color即時指定，動畫定義見style.css。 -->
+            <!-- 救援列（2026-09-26）：瀕死隊友沒有點陣圖可以掛頭上時，救援圓盤＋［指定］顯示在這裡，
+                 見static/midnight.jsのupdateRescueOverlays()。 -->
+            <div id="midnight-rescue-row" hidden></div>
             <div id="midnight-field-encounter-image-wrap">
               <img id="midnight-field-encounter-image" alt="">
               <div id="midnight-enemy-hit-effect" hidden></div>

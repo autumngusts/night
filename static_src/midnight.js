@@ -4727,6 +4727,11 @@
     if (c.nearDeath && c.nearDeath.active && typeof c.nearDeath.deadlineAt === "number" && c.nearDeath.deadlineAt > pausedAt) {
       c.nearDeath.deadlineAt += deltaMs;
       GameStorage.rtSet(gameId, "cloud", "character/" + myTokenId + "/nearDeath/deadlineAt", c.nearDeath.deadlineAt);
+      // 救援凍結（2026-09-26）也一起平移，否則暫停期間凍結就過期了。
+      if (typeof c.nearDeath.pausedUntil === "number" && c.nearDeath.pausedUntil > pausedAt) {
+        c.nearDeath.pausedUntil += deltaMs;
+        GameStorage.rtSet(gameId, "cloud", "character/" + myTokenId + "/nearDeath/pausedUntil", c.nearDeath.pausedUntil);
+      }
     }
     if (c.summonedSpirit && typeof c.summonedSpirit.nextAttackAt === "number" && c.summonedSpirit.nextAttackAt > pausedAt) {
       c.summonedSpirit.nextAttackAt += deltaMs;
@@ -4812,8 +4817,12 @@
         GameStorage.rtTransaction(gameId, "cloud", "demoStat/" + myTokenId, function (cur) {
           return cur === null ? selfArenaHpMax(initialChar) : cur;
         });
+        // 2026-09-26修正（使用者回報「房間內選A、離開座位或更換後選B，進入遊戲隊伍資訊是B、
+        // 角色視窗卻是A」）：開局前只要有任何路徑先寫了character/<token>（例如舊版的等待房接管
+        // 會用當時席位的角色A建立角色），之後換成B，這裡「null才寫」就會把A留下來。
+        // 開局這一刻角色必須跟席位一致：類型或名稱不同就以席位為準重建。
         GameStorage.rtTransaction(gameId, "cloud", "character/" + myTokenId, function (cur) {
-          return cur === null ? initialChar : cur;
+          return isStaleCharacterForSeat(cur, initialChar) ? initialChar : cur;
         });
       }
     }
@@ -4858,6 +4867,12 @@
   // 本地端一次性旗標：修復「typeId為null的空角色」只嘗試一次（見onCharactersReceived()）。
   var typelessCharacterRepairAttempted = false;
 
+  // 進場時RTDB上已有的角色是否要以席位資料重建：沒有角色、或角色類型或名稱跟席位不同。
+  function isStaleCharacterForSeat(cur, seatChar) {
+    if (cur === null || cur === undefined) return true;
+    return !!(seatChar && seatChar.typeId && (cur.typeId !== seatChar.typeId || cur.name !== seatChar.name));
+  }
+
   function newCharacterForSlot(slot, entryOverride) {
     var p = entryOverride || players[slot];
     var typeId = p ? p.characterId : null;
@@ -4865,6 +4880,9 @@
     var c = window.PriTestCharacterDrawer.newCharacter(name, typeId);
     c.flaskCount = FLASK_MAX_DEFAULT;
     c.flaskMax = FLASK_MAX_DEFAULT;
+    // 進場補滿（2026-09-26，見maybeFillEntryResources()）：新角色一律false，補滿後改true。
+    // 刻意用false而不是省略——舊版建立的角色沒有這個欄位（undefined），不會在重新整理時被補滿。
+    c.entryResourcesFilled = false;
     // 遺物記憶（2026-09-24，設計文件§3／§4）：開局必得小×1（戰鬥模擬房不獲得）；
     // 等待房選好的帶入記憶（players/<slot>/relicMemoryLoadout）複製到角色上，效果由
     // CharacterDrawer.activeAttachedEffectIds()統一讀取。耐性類效果用既有的隨機選擇。
@@ -4885,6 +4903,32 @@
       });
     });
     return c;
+  }
+
+  // ---- 進場補滿（2026-09-26使用者明確規格「務必進入遊戲後 所有HP,FP,體力都為全滿」）----
+  // 開局時demoStat是用「剛建立的角色」算上限寫入的，但起始武器的詞條（最大HP上昇等）、遺物記憶
+  // 的出擊效果都是之後才掛上去，上限會再變大，結果一進場就不是滿的。這裡等角色資料穩定
+  // （起始裝備已初始化）後再等一小段，把HP／FP／體力一次補到當下的上限，並寫
+  // entryResourcesFilled=true，重新整理不會再補。
+  var ENTRY_FILL_DELAY_MS = 1500;
+  var entryFillScheduled = false;
+  var staminaFillPending = false; // 體力上限是updateStamina()每幀重算的，補滿要等它算完那一刻
+
+  function maybeFillEntryResources(mine) {
+    if (!mine || entryFillScheduled || mine.entryResourcesFilled !== false) return;
+    if (!meta || !meta.sessionStartAt || !mine.typeId || mine.equippedWeaponIdR === undefined) return;
+    entryFillScheduled = true;
+    setTimeout(function () {
+      var c = characters[myTokenId];
+      if (!c || c.entryResourcesFilled !== false) return;
+      var hpMax = selfArenaHpMax(c);
+      GameStorage.rtSet(gameId, "cloud", "demoStat/" + myTokenId, hpMax);
+      fp.max = selfFpMax(c);
+      fp.current = fp.max;
+      staminaFillPending = true;
+      c.entryResourcesFilled = true;
+      GameStorage.rtSet(gameId, "cloud", "character/" + myTokenId + "/entryResourcesFilled", true);
+    }, ENTRY_FILL_DELAY_MS);
   }
 
   function onTokensReceived(value) {
@@ -5101,6 +5145,7 @@
     // 那一段只在「還沒裝備過任何武器」時跑一次，reload 後不會再進去；發道具需要自己的
     // 持久旗標（c.relicMemoryStartItemsGranted）才不會重開頁面就再發一次。
     applyRelicMemoryStartItems(mine);
+    maybeFillEntryResources(mine);
     renderCharPanel();
     renderCharacterSheet();
     // 2026-09-21：獎勵清單的［確認收下］／滿格提示依持有量即時判斷（見renderRewardDetail()
@@ -6377,7 +6422,7 @@
       return cur === null ? selfArenaHpMax(initialChar) : cur;
     });
     GameStorage.rtTransaction(gameId, "cloud", "character/" + myTokenId, function (cur) {
-      return cur === null ? initialChar : cur;
+      return isStaleCharacterForSeat(cur, initialChar) ? initialChar : cur;
     });
     setMapExpanded(true);
     renderPlayersPanel();
@@ -6416,19 +6461,26 @@
       if (previousMySlot && previousMySlot !== slot) {
         GameStorage.rtSet(gameId, "cloud", "players/" + previousMySlot + "/tokenId", null);
       }
+      // 2026-09-26修正（使用者回報「房間內接管等等 血量會掉為100」）：開局前接管時，舊token
+      // 根本還沒有demoStat／角色（那兩份是開局當下才建立的），原本照樣寫入
+      // selfArenaHpMax(undefined)＝100，而開局的初始化是「null才寫」，於是100就留下來了
+      // （角色HP上限其實是140之類）。開局前只換tokenId，HP／角色交給開局初始化。
+      if (!meta || !meta.sessionStartAt) {
+        renderLobby();
+        renderPlayersPanel();
+        return;
+      }
       if (previousPos) {
         localPos = { x: previousPos.x, y: previousPos.y };
       } else if (!localPos) {
         var spawn = findWalkableSpawnNear(map.dayPlan.day1.start, Math.random);
         localPos = { x: spawn.x, y: spawn.y };
       }
-      GameStorage.rtSet(gameId, "cloud", "demoStat/" + myTokenId, previousStat === undefined ? selfArenaHpMax(previousCharacter) : previousStat);
-      GameStorage.rtSet(
-        gameId,
-        "cloud",
-        "character/" + myTokenId,
-        previousCharacter === undefined ? newCharacterForSlot(slot) : previousCharacter
-      );
+      // 舊token沒有角色（例如開局前就斷線、從沒進過場）時新建一份；HP沒有紀錄時用那份角色的真正上限，
+      // 不再退回selfArenaHpMax(undefined)＝100。新建的角色帶entryResourcesFilled:false，進場後補滿。
+      var takeoverCharacter = previousCharacter === undefined ? newCharacterForSlot(slot) : previousCharacter;
+      GameStorage.rtSet(gameId, "cloud", "demoStat/" + myTokenId, previousStat === undefined ? selfArenaHpMax(takeoverCharacter) : previousStat);
+      GameStorage.rtSet(gameId, "cloud", "character/" + myTokenId, takeoverCharacter);
       // 2026-09-20審查M2修正：pendingRewards是以tokenId為key，原本只搬demoStat/character，
       // 舊token底下還沒領的獎勵清單在接管後就消失了。把舊token的清單整份併入新token
       // （新token若已有清單則保留兩邊），再清掉舊的。
@@ -6449,6 +6501,45 @@
   // ---- 輸入：held-key連續移動（即時制常見手感——按住方向鍵，角色持續移動），
   // 而不是回合制常見的「點一下走一步」。加上電腦端中鍵/長按標點、手機端搖桿移動＋
   // 長按標點。----
+  // ---- 連點卡死的防護（2026-09-26使用者回報「畫面上隨意連點時，偶爾會觸發奇怪bug導致卡住：
+  // 鼠標變成輸入，不能按下畫面上的按鈕，不能按下取消，只能拖動scroll」）----
+  // 原因（Playwright實測重現前半段）：快速連點（雙擊／三擊）會選取到HUD上的文字，接著在選取
+  // 範圍上按下並移動，瀏覽器就開始原生的「拖曳選取文字」（dragstart）；<img>（敵人圖片等）
+  // 預設也能被拖曳。而HUD的隊伍資訊卡等每幀都會重繪（innerHTML），拖曳來源節點在拖曳途中
+  // 被刪掉，Chrome就可能卡在拖曳狀態——游標變樣、所有點擊都被拖曳吃掉，只剩捲動有反應。
+  // midnight頁面沒有任何拖放功能，因此整頁擋掉dragstart，並擋掉輸入框以外的文字選取
+  // （CSS .midnight-no-select 同時處理）。輸入框（名稱／密碼／分享連結／遺物記憶代碼等）照常可選。
+  function isTextEntryTarget(target) {
+    var node = target && target.nodeType === 3 ? target.parentNode : target;
+    if (!node || !node.closest) return false;
+    return !!node.closest("input, textarea, select, [contenteditable='true']");
+  }
+
+  function clearStraySelection() {
+    var sel = window.getSelection ? window.getSelection() : null;
+    if (!sel || !sel.rangeCount) return;
+    if (isTextEntryTarget(document.activeElement)) return;
+    sel.removeAllRanges();
+  }
+
+  function guardAgainstStuckDrag() {
+    document.documentElement.classList.add("midnight-no-select");
+    document.addEventListener(
+      "dragstart",
+      function (e) {
+        if (!isTextEntryTarget(e.target)) e.preventDefault();
+      },
+      true
+    );
+    document.addEventListener(
+      "selectstart",
+      function (e) {
+        if (!isTextEntryTarget(e.target)) e.preventDefault();
+      },
+      true
+    );
+  }
+
   function bindInput() {
     document.addEventListener("keydown", function (e) {
       keysDown[e.key.toLowerCase()] = true;
@@ -6464,7 +6555,9 @@
     window.addEventListener("blur", function () {
       keysDown = {};
       endBlockHold(); // G鍵長按防禦時失焦也收不到keyup，一併放開
+      clearStraySelection();
     });
+    guardAgainstStuckDrag();
     el("btn-midnight-enter-battle").addEventListener("click", handleEnterBattleClick);
     bindAttackHoldInput();
     bindAttackModeSelector(); // 2026-09-24：攻擊方式的 ◀ ▶ 切換鍵
@@ -7168,15 +7261,20 @@
     });
   }
 
+  // 2026-09-26使用者明確規格「midnight平衡模式中，每個玩家也都擁有致命一擊，當敵人體崩則每個人
+  // 都顯示致命一擊，一次體崩只有一位玩家能打出致命一擊」：平衡模式下沒習得也視為擁有1條。
+  // 「一次體崩只有一位」沿用既有的executionUsedSeq transaction（handleExecutionClick()）。
   function executionRelicCount(c) {
-    return CharacterDrawer.countLearnedActionRelicsByName ? CharacterDrawer.countLearnedActionRelicsByName(c, EXECUTION_RELIC_NAMES) : 0;
+    var learned = CharacterDrawer.countLearnedActionRelicsByName ? CharacterDrawer.countLearnedActionRelicsByName(c, EXECUTION_RELIC_NAMES) : 0;
+    return balanceModeEnabled() ? Math.max(1, learned) : learned;
   }
 
   // 這一刻自己能不能按致命一擊（按鈕顯示條件與點擊守衛共用同一份判斷）。
   function executionAvailable(now) {
     if (!mySlot || isPaused() || isSelfDowned() || !activeEncounter) return false;
     var c = characters[myTokenId];
-    if (!c || !executionRelicCount(c) || !hasMeleeWeaponEquipped(c)) return false;
+    // 平衡模式「每個人都顯示」：不看是否裝備近戰武器（一般模式維持原本的近戰限定）。
+    if (!c || !executionRelicCount(c) || (!balanceModeEnabled() && !hasMeleeWeaponEquipped(c))) return false;
     var trig = fieldTriggers[activeEncounter.id];
     if (!staggerActiveForTrig(trig, now)) return false;
     return (trig.executionUsedSeq || 0) !== (trig.staggerSeq || 0);
@@ -9592,7 +9690,17 @@
 
   // sourceBtnId（2026-09-13新增，可省略）：長按詠唱的那一顆按鈕格id，用來當施法彗星的
   // 起點（見triggerSpellCometEffect()）。戰技A等即時發動、非詠唱的入口不傳，就不放彗星。
+  // 2026-09-26：戰技／魔術／祈禱打在敵人身上的特效同步給同場隊友（見beginEnemyFxRelay()）。
   function castWeaponSkillEntry(entry, sourceBtnId) {
+    beginEnemyFxRelay();
+    try {
+      return castWeaponSkillEntryImpl(entry, sourceBtnId);
+    } finally {
+      flushEnemyFxRelay();
+    }
+  }
+
+  function castWeaponSkillEntryImpl(entry, sourceBtnId) {
     if (!mySlot || isPaused() || isSelfDowned() || isIceBlizzardBlinded(Date.now())) return;
     var c = characters[myTokenId];
     if (!c) return;
@@ -10930,7 +11038,17 @@
     GameStorage.rtSet(gameId, "cloud", "character/" + myTokenId + "/_artCooldownUntil", c._artCooldownUntil);
   }
 
+  // 2026-09-26：技能／技藝打在敵人身上的特效同步給同場隊友（見beginEnemyFxRelay()）。
   function useCharacterAbility(kind) {
+    beginEnemyFxRelay();
+    try {
+      return useCharacterAbilityImpl(kind);
+    } finally {
+      flushEnemyFxRelay();
+    }
+  }
+
+  function useCharacterAbilityImpl(kind) {
     if (!mySlot || isPaused() || isSelfDowned() || isIceBlizzardBlinded(Date.now())) return;
     var found = characterAbilityEntry(kind);
     if (!found.c || !found.ability) return;
@@ -13112,6 +13230,10 @@
     // 由 relicMemoryPowerModBonus() 讀。每影格覆寫一次，沒帶記憶時是0。
     c._rmMilestoneArcane = relicMemoryMilestoneTotal(c, "rmMilestoneRuinsArcane");
     stamina.max = Math.max(10, Math.round((STAMINA_MAX + maxBonus) * relicMemoryMaxStatMult(c, "rmMaxStaminaPct")));
+    if (staminaFillPending) {
+      staminaFillPending = false;
+      stamina.current = stamina.max; // 進場補滿（見maybeFillEntryResources()）
+    }
     if (hasRelic(c, "staminaLowRegen") && stamina.current <= stamina.max * RELIC_STAMINA_LOW_PCT) {
       extraRegenPerSec += RELIC_STAMINA_LOW_REGEN;
     }
@@ -14476,8 +14598,103 @@
   //   dash   衝刺：水平突進的長刀光
   var HIT_EFFECT_VARIANTS = { cross: 1, charge: 1, jump: 1, dash: 1 };
 
+  // ---- 敵人身上的特效同步（2026-09-26使用者明確規格「其他玩家打出的 技能 技藝，戰技與魔法
+  // 祈禱特效，也會在自己的戰鬥面板的敵人上顯示出來」）----
+  // 做法：技能／技藝（useCharacterAbility）與戰技／魔術／祈禱（castWeaponSkillEntry）執行期間，
+  // 把打在敵人身上的特效呼叫（刀光／彗星／屬性光暈／招式特效／殘影）記下來，寫到
+  // enemyFx/<自己的token>；同一場戰鬥的其他裝置收到後在自己的敵人上重播。一般攻擊不在範圍內。
+  //   ・畫面層的特效（全螢幕閃光、按鈕光、席位卡光）只屬於施放者自己，不同步。
+  //   ・特效參數在施放端就決定好（例如混成魔法的屬性色），接收端照單重播，不重新計算。
+  //   ・混成魔法等會用setTimeout錯開第二道特效，因此收集窗口延長ENEMY_FX_RELAY_TAIL_MS，
+  //     之後補到的另外送一筆（記下相對時間o，接收端照原本的間隔重播）。
+  //   ・彗星的起點：接收端換成施放者在戰鬥面板上的點陣圖，沒有就用他的席位卡。
+  var ENEMY_FX_RELAY_TAIL_MS = 450;
+  var ENEMY_FX_RELAY_MAX_AGE_MS = 3000; // 太舊的（例如重新整理後讀到的）不重播
+  var enemyFxRelay = null; // { start, list, tailTimer }
+  var enemyFxRelaySeq = 0;
+  var enemyFxReplaying = false;
+  var enemyFxSeen = {}; // tokenId -> 最後看過的 n
+
+  function beginEnemyFxRelay() {
+    if (!activeEncounter || !myTokenId) return;
+    if (enemyFxRelay && enemyFxRelay.tailTimer) clearTimeout(enemyFxRelay.tailTimer);
+    enemyFxRelay = { start: Date.now(), list: [], tailTimer: null, flushed: false };
+  }
+
+  function captureEnemyFx(type, args) {
+    if (!enemyFxRelay || enemyFxReplaying) return;
+    enemyFxRelay.list.push({ t: type, a: args, o: Date.now() - enemyFxRelay.start });
+    if (enemyFxRelay.flushed) sendEnemyFxRelay(enemyFxRelay);
+  }
+
+  function sendEnemyFxRelay(relay) {
+    if (!relay || !relay.list.length || !activeEncounter) return;
+    enemyFxRelaySeq += 1;
+    GameStorage.rtSet(gameId, "cloud", "enemyFx/" + myTokenId, {
+      n: enemyFxRelaySeq,
+      enc: activeEncounter.id,
+      at: sharedNow(),
+      list: JSON.parse(JSON.stringify(relay.list)), // 去掉undefined，RTDB不收
+    });
+    relay.list = [];
+  }
+
+  // 同步部分立刻送出；之後ENEMY_FX_RELAY_TAIL_MS內補到的（setTimeout錯開的第二道）一到就各自送出
+  // （見captureEnemyFx()的flushed分支），接收端的時間差就跟施放端差不多。
+  function flushEnemyFxRelay() {
+    var relay = enemyFxRelay;
+    if (!relay) return;
+    sendEnemyFxRelay(relay);
+    relay.flushed = true;
+    relay.tailTimer = setTimeout(function () {
+      if (enemyFxRelay === relay) enemyFxRelay = null;
+    }, ENEMY_FX_RELAY_TAIL_MS);
+  }
+
+  function onEnemyFxReceived(value) {
+    var all = value || {};
+    var now = Date.now();
+    Object.keys(all).forEach(function (tokenId) {
+      var ev = all[tokenId];
+      if (!ev || tokenId === myTokenId) return;
+      if (enemyFxSeen[tokenId] === ev.n) return;
+      enemyFxSeen[tokenId] = ev.n;
+      // 進場／重新整理時讀到的舊資料由下面的時間檢查擋掉（不能用「第一次看到就略過」——
+      // 隊友第一次施放時本來就沒有舊資料，那一發會被吞掉）。
+      if (!activeEncounter || ev.enc !== activeEncounter.id) return;
+      if (now - sharedToLocal(ev.at || 0) > ENEMY_FX_RELAY_MAX_AGE_MS) return;
+      var list = ev.list || [];
+      var t0 = list.length ? list[0].o || 0 : 0;
+      list.forEach(function (e) {
+        setTimeout(function () {
+          replayEnemyFx(tokenId, e);
+        }, Math.max(0, (e.o || 0) - t0));
+      });
+    });
+  }
+
+  function replayEnemyFx(tokenId, e) {
+    if (!activeEncounter || !e) return;
+    var a = e.a || [];
+    enemyFxReplaying = true;
+    try {
+      if (e.t === "hit") triggerEnemyHitEffect(a[0] || null, a[1] || null);
+      else if (e.t === "fx") triggerEnemyFx(a[0], a[1] || null);
+      else if (e.t === "ailment") triggerEnemyAilmentEffect(a[0]);
+      else if (e.t === "afterimage") triggerEnemyAfterimage();
+      else if (e.t === "comet") {
+        var P = window.PriTestMidnightPlayerSprite;
+        var fromEl = (P && P.faceElement ? P.faceElement(tokenId) : null) || document.querySelector('#midnight-players-panel-slots .midnight-slot-card[data-token-id="' + tokenId + '"]');
+        launchSpellComet(fromEl, a[0] || null, a[1] || null);
+      }
+    } finally {
+      enemyFxReplaying = false;
+    }
+  }
+
   function triggerEnemyHitEffect(color, opts) {
     if (!activeEncounter) return;
+    captureEnemyFx("hit", [color || null, opts || null]);
     var effectEl = el("midnight-enemy-hit-effect");
     if (!effectEl) return;
     effectEl.style.setProperty("--hit-color", color || ENEMY_HIT_NO_ELEMENT_COLOR);
@@ -14515,8 +14732,14 @@
 
   function triggerSpellCometEffect(fromBtnId, color, kind) {
     if (!activeEncounter) return;
+    captureEnemyFx("comet", [color || null, kind || null]);
+    launchSpellComet(fromBtnId ? el(fromBtnId) : null, color, kind);
+  }
+
+  // 起點改吃元素（2026-09-26）：隊友的彗星從他在戰鬥面板的點陣圖／席位卡飛出（見replayEnemyFx()）。
+  function launchSpellComet(fromEl, color, kind) {
+    if (!activeEncounter) return;
     var cometEl = el("midnight-spell-comet");
-    var fromEl = fromBtnId ? el(fromBtnId) : null;
     var targetEl = el("midnight-field-encounter-image");
     if (!cometEl || !fromEl || !targetEl || targetEl.hidden) return;
     var fromRect = fromEl.getBoundingClientRect();
@@ -14560,6 +14783,7 @@
 
   function triggerEnemyAilmentEffect(name) {
     if (!activeEncounter) return; // 共用標靶demo沒有敵人圖片可疊，跟triggerEnemyHitEffect()同一個守衛
+    captureEnemyFx("ailment", [name]);
     var effectEl = el("midnight-enemy-ailment-effect");
     if (!effectEl) return;
     var visual = attributeStatusVisual(name);
@@ -14811,6 +15035,7 @@
 
   function triggerEnemyFx(kind, opts) {
     if (!activeEncounter) return;
+    captureEnemyFx("fx", [kind, opts || null]);
     var wrap = el("midnight-field-encounter-image-wrap");
     var def = ENEMY_FX_DEFS[kind];
     if (!wrap || !def) return;
@@ -14839,6 +15064,7 @@
   // 淑女「重演」：敵人立繪的殘影——複製一份<img>往側邊滑出並淡化。
   function triggerEnemyAfterimage() {
     if (!activeEncounter) return;
+    captureEnemyFx("afterimage", []);
     var wrap = el("midnight-field-encounter-image-wrap");
     var img = el("midnight-field-encounter-image");
     if (!wrap || !img || !img.src) return;
@@ -15230,9 +15456,22 @@
       if (tokenId && tokenId !== myTokenId && others.indexOf(tokenId) === -1 && eligible(tokenId)) others.push(tokenId);
     });
     if (others.length > PLAYER_SPRITE_OTHER_SLOTS) {
-      var offset = Math.floor((now || Date.now()) / PLAYER_SPRITE_ROTATE_MS) % others.length;
-      var picked = [];
-      for (var k = 0; k < PLAYER_SPRITE_OTHER_SLOTS; k++) picked.push(others[(offset + k) % others.length]);
+      // 2026-09-26：瀕死中的隊友優先上台（頭上要掛救援圓盤，見updateRescueOverlays()），
+      // 剩下的名額才照原本的30秒輪替。
+      var downedOthers = others.filter(function (t) {
+        var dc = characters[t];
+        return !!(dc && dc.nearDeath && dc.nearDeath.active);
+      });
+      var restOthers = others.filter(function (t) {
+        return downedOthers.indexOf(t) === -1;
+      });
+      var picked = downedOthers.slice(0, PLAYER_SPRITE_OTHER_SLOTS);
+      if (restOthers.length) {
+        var offset = Math.floor((now || Date.now()) / PLAYER_SPRITE_ROTATE_MS) % restOthers.length;
+        for (var k = 0; picked.length < PLAYER_SPRITE_OTHER_SLOTS && k < restOthers.length; k++) {
+          picked.push(restOthers[(offset + k) % restOthers.length]);
+        }
+      }
       others = picked;
     }
     others.forEach(push);
@@ -26429,8 +26668,12 @@
   // switchToUnlimitedMode()），此時所有瀕死角色維持鎖定，不會自動復歸。
   // =====================================================================
   var NEAR_DEATH_TIMEOUT_MS = 15000; // 倒地15秒內未能復歸就強制復歸
-  var NEAR_DEATH_DAMAGE_PAUSE_MS = 1000; // 使用者明確規格「受到攻擊後1s內能停止倒地時間計時」：
-  // 每次受到復歸傷害，倒數期限至少往後延1秒（不會縮短，只確保命中當下不會剛好逾時）。
+  // 2026-09-26使用者明確規格「救援中攻擊３秒內暫停計時 超過３秒沒被攻擊過就繼續倒數15秒」
+  // （原本是「受到攻擊後1s內停止計時」）：每次受到復歸傷害，倒數凍結在命中當下的剩餘時間，
+  // 直到最後一次命中後3秒；之後從凍結的剩餘時間接著倒數。
+  // 資料：nearDeath.pausedUntil（凍結到何時）／pausedRemainMs（凍結的剩餘毫秒）；
+  // deadlineAt＝pausedUntil＋pausedRemainMs，逾時判斷（updateNearDeathState()）不必改。
+  var NEAR_DEATH_DAMAGE_PAUSE_MS = 3000;
   var NEAR_DEATH_REVIVAL_PROXIMITY_RADIUS = 1.5; // 不在同一場戰鬥時，靠近多近才能施放復歸傷害（沿用SPIRIT_BIRD_ACTIVATE_RADIUS同量級）
   var WANDERING_BLESSING_STANDARD_COUNT = 3; // 標準模式的流浪祝福總格數
 
@@ -26739,6 +26982,15 @@
     return Math.sqrt(dx * dx + dy * dy) <= NEAR_DEATH_REVIVAL_PROXIMITY_RADIUS;
   }
 
+  // 瀕死倒數的剩餘毫秒：救援凍結中（見NEAR_DEATH_DAMAGE_PAUSE_MS）回凍結值，否則照deadlineAt算。
+  function nearDeathRemainMs(nd, now) {
+    if (!nd) return 0;
+    if (typeof nd.pausedUntil === "number" && now < nd.pausedUntil && typeof nd.pausedRemainMs === "number") {
+      return Math.max(0, nd.pausedRemainMs);
+    }
+    return Math.max(0, (nd.deadlineAt || 0) - now);
+  }
+
   function toggleRevivalDesignate(targetTokenId) {
     revivalDesignateTargetTokenId = revivalDesignateTargetTokenId === targetTokenId ? null : targetTokenId;
   }
@@ -26759,7 +27011,11 @@
       var next = {};
       for (var k in cur) next[k] = cur[k];
       next.progress = (cur.progress || 0) + amount;
-      next.deadlineAt = Math.max(cur.deadlineAt, Date.now() + NEAR_DEATH_DAMAGE_PAUSE_MS);
+      var hitAt = Date.now();
+      var frozenRemain = nearDeathRemainMs(cur, hitAt);
+      next.pausedRemainMs = frozenRemain;
+      next.pausedUntil = hitAt + NEAR_DEATH_DAMAGE_PAUSE_MS;
+      next.deadlineAt = next.pausedUntil + frozenRemain;
       if (next.progress >= cur.required) {
         next.active = false;
         completed = true;
@@ -26854,7 +27110,7 @@
       return;
     }
     wrap.hidden = false;
-    var remainSec = Math.max(0, Math.ceil((nd.deadlineAt - now) / 1000));
+    var remainSec = Math.ceil(nearDeathRemainMs(nd, now) / 1000);
     el("midnight-near-death-status-text").textContent = window.I18N.t("midnight_near_death_status_note", {
       remain: remainSec,
       progress: nd.progress || 0,
@@ -26870,6 +27126,86 @@
   // 會被往後推（NEAR_DEATH_DAMAGE_PAUSE_MS，見applyRevivalProgress()），用實際區間當分母
   // 會讓圓盤在被救的過程中忽大忽小，改成固定分母＋上限夾住，視覺上就是「被打到時倒數
   // 暫停/回補一點」。
+  // ---- 戰鬥面板的救援表示（2026-09-26使用者明確規格）----
+  // 「戰鬥模式中 有隊友瀕死時 也在中間戰鬥面板中 該名腳色的頭上顯示可以『指定』隊友進行攻擊救援」
+  // 「救援的讀條：需要救起的血量為中間紫色 從全滿圓型的紫色開始往下扣、外圍環為倒數的時間
+  //  完整圓環開始消失15s」
+  // 掛的位置：點陣圖舞台上那名隊友的面（PriTestMidnightPlayerSprite.faceElement()）的頭上；
+  // 沒有面（沒勾點陣圖模式、該類型sheet未產出）時，放在戰鬥圖框上方的#midnight-rescue-row。
+  // 「指定」沿用席位卡的toggleRevivalDesignate()，兩邊是同一個本地狀態。
+  var rescueOverlayByToken = {}; // tokenId -> { el, dial, btn, label }
+
+  function buildRescueOverlay(tokenId) {
+    var wrap = document.createElement("div");
+    wrap.className = "midnight-rescue-overlay";
+    wrap.setAttribute("data-rescue-token", tokenId);
+    var label = document.createElement("span");
+    label.className = "midnight-rescue-name";
+    wrap.appendChild(label);
+    var dial = document.createElement("span");
+    dial.className = "midnight-rescue-dial";
+    var inner = document.createElement("span");
+    inner.className = "midnight-rescue-dial-inner";
+    dial.appendChild(inner);
+    wrap.appendChild(dial);
+    var btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "midnight-rescue-designate-btn";
+    btn.addEventListener("click", function (e) {
+      e.stopPropagation();
+      toggleRevivalDesignate(tokenId);
+      renderPlayersPanel();
+    });
+    wrap.appendChild(btn);
+    return { el: wrap, dial: dial, btn: btn, label: label };
+  }
+
+  function updateRescueOverlays(now) {
+    var wanted = {};
+    var row = el("midnight-rescue-row");
+    if (activeEncounter && mySlot) {
+      Object.keys(players || {}).forEach(function (slot) {
+        var p = players[slot];
+        if (!p || !p.tokenId || p.tokenId === myTokenId) return;
+        if (!isRevivalDamageEligible(p.tokenId)) return;
+        wanted[p.tokenId] = p;
+      });
+    }
+    var P = window.PriTestMidnightPlayerSprite;
+    Object.keys(rescueOverlayByToken).forEach(function (tokenId) {
+      if (wanted[tokenId]) return;
+      var o = rescueOverlayByToken[tokenId];
+      if (o.el.parentNode) o.el.parentNode.removeChild(o.el);
+      delete rescueOverlayByToken[tokenId];
+    });
+    var fallbackCount = 0;
+    Object.keys(wanted).forEach(function (tokenId) {
+      var o = rescueOverlayByToken[tokenId] || (rescueOverlayByToken[tokenId] = buildRescueOverlay(tokenId));
+      var face = P && P.faceElement ? P.faceElement(tokenId) : null;
+      var host = face || row;
+      if (!host) return;
+      if (o.el.parentNode !== host) host.appendChild(o.el);
+      o.el.classList.toggle("midnight-rescue-overlay-on-face", !!face);
+      if (!face) fallbackCount += 1;
+      var nd = characters[tokenId].nearDeath;
+      var required = nd.required || 1;
+      var hpPct = Math.max(0, Math.min(100, ((required - (nd.progress || 0)) / required) * 100));
+      var timePct = Math.max(0, Math.min(100, (nearDeathRemainMs(nd, now) / NEAR_DEATH_TIMEOUT_MS) * 100));
+      o.dial.style.setProperty("--rescue-hp-pct", hpPct.toFixed(1) + "%");
+      o.dial.style.setProperty("--rescue-time-pct", timePct.toFixed(1) + "%");
+      var name = wanted[tokenId].name || "";
+      if (o.label.textContent !== name) o.label.textContent = name;
+      var designating = revivalDesignateTargetTokenId === tokenId;
+      var btnText = window.I18N.t(designating ? "midnight_near_death_cancel_designate_button" : "midnight_near_death_designate_button");
+      if (o.btn.textContent !== btnText) o.btn.textContent = btnText;
+      o.btn.classList.toggle("midnight-slot-designate-active", designating);
+    });
+    if (row) {
+      var showRow = fallbackCount > 0;
+      if (row.hidden === showRow) row.hidden = !showRow;
+    }
+  }
+
   function updateNearDeathDials(now) {
     var nodes = document.querySelectorAll(".midnight-near-death-dial");
     for (var i = 0; i < nodes.length; i++) {
@@ -26881,7 +27217,7 @@
         continue;
       }
       node.hidden = false;
-      var remainMs = Math.max(0, nd.deadlineAt - now);
+      var remainMs = nearDeathRemainMs(nd, now);
       var pct = Math.max(0, Math.min(100, (remainMs / NEAR_DEATH_TIMEOUT_MS) * 100));
       node.style.setProperty("--nd-pct", pct + "%");
       var valueEl = node.firstChild;
@@ -28497,6 +28833,7 @@
     updateNearDeathState(now);
     renderNearDeathStatus(now);
     updateNearDeathDials(now);
+    updateRescueOverlays(now); // 2026-09-26：戰鬥面板裡瀕死隊友頭上的救援圓盤＋［指定］
     renderWanderingBlessingHud();
     updateGameFailureModal();
     updateGameVictoryModal();
@@ -28772,6 +29109,7 @@
     // 2026-09-25遺物記憶第2期：隊友擊破時的HP回復事件，跟上面同一套模式。
     GameStorage.rtSubscribe(gameId, "cloud", "relicMemoryPartyHealEvents", onRelicMemoryPartyHealEventsReceived);
     GameStorage.rtSubscribe(gameId, "cloud", "combatActionEvents", onCombatActionEventsReceived);
+    GameStorage.rtSubscribe(gameId, "cloud", "enemyFx", onEnemyFxReceived); // 2026-09-26：隊友招式特效同步
   });
 
   // Playwright多裝置測試用の唯一存取窗口（見tools/field_card_sweep）：直接讀取內部
