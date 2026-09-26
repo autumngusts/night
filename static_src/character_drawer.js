@@ -3228,9 +3228,12 @@
   // PCがどちらを獲得するか選ぶ規則のため。
   // rarityBonus（2026-09-25追加、省略可）：稀有度擲骰點數的加算值。midnight 遺物記憶
   // 「小砦の強敵を倒す度…発見力上昇」用；night.js 側不傳，行為與以前完全相同。
-  function potentialPowerDrawWeapon(c, starCount, rarityBonus) {
+  // forcedCategoryId（2026-09-26追加、省略可）：指定時跳過得意武器骰，直接從這個武器分類抽。
+  // midnight 平衡模式的潛在之力「第3把＝武器分類中的一項」用；night.js 側不傳。
+  function potentialPowerDrawWeapon(c, starCount, rarityBonus, forcedCategoryId) {
     var type = c.typeId ? CharacterTypes.get(c.typeId) : null;
     if (!type) return null;
+    if (forcedCategoryId) return potentialPowerDrawWeaponFromCategory(c, starCount, rarityBonus, forcedCategoryId, null, null);
     var favoredNames = CharacterTypes.localizedText(type.favoredWeapons)
       .split("・")
       .map(function (s) {
@@ -3247,7 +3250,11 @@
       categoryId = categories[Math.floor(Math.random() * categories.length)].id;
     }
     if (!categoryId) return null;
+    return potentialPowerDrawWeaponFromCategory(c, starCount, rarityBonus, categoryId, favoredDie, favoredName);
+  }
 
+  // potentialPowerDrawWeapon() 決定分類之後的後半段（稀有度骰→武器骰→隨機戰技）。
+  function potentialPowerDrawWeaponFromCategory(c, starCount, rarityBonus, categoryId, favoredDie, favoredName) {
     var stars = Math.max(1, Math.min(4, starCount || 1));
     var rarityDice = [];
     for (var i = 0; i < stars; i++) rarityDice.push(rollD6());

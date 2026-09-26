@@ -466,6 +466,19 @@
     return !!(meta && meta.spriteMode);
   }
 
+  // midnight平衡模式（2026-09-26使用者明確規格，等待房勾選，寫入meta.balanceMode）：
+  //   ・Lv1就擁有角色的能力／技能／技藝（abilityUnlocked()）。
+  //   ・一開始就擁有跳躍／衝刺／蓄力攻擊（midnightActionRelic()）與防禦反擊（防禦成功後1秒內
+  //     的攻擊視為防禦反擊，見applyGuardSuccessRelics()／guardCounterDiscountPct()）。
+  //   ・去除附帶效果的獲得方式：遺物效果改在Lv3,5,…,15各抽1次，第1顆骰5／6時改抽附帶效果，
+  //     抽到重複的組合一律重抽（rollBalanceRelicDraw()）；潛在之力改成3把武器三選一
+  //     （renderBalancePotentialPowerDetail()）；原本獲得附帶效果的獎勵改成抽1項可額外學習的
+  //     遺物效果（renderBonusRelicRewardDetail()）。
+  // 跟武器詞條／點陣圖模式同一套「同一場遊戲所有人共用、開局前設定」的meta設定。
+  function balanceModeEnabled() {
+    return !!(meta && meta.balanceMode);
+  }
+
   function affixCountForRarity(rarity) {
     return rarity === "C" ? 1 : 2; // 使用者明確規格：C稀有度1條，其餘2條
   }
@@ -3406,6 +3419,8 @@
   var mySlot = null; // 1~3：我目前控制的席位；null＝觀戰
   var selectedCharacterId = CHARACTER_PRESETS[0].id; // 等待房表單目前選的角色
   var pendingJoinSlot = null; // 目前正在填寫加入表單、鎖定要送出的目標席位（見renderLobby()的說明）
+  // 表單目前是「修改自己席位的資料」而不是加入空位（2026-09-26，見showLobbyEditForm()）。
+  var lobbyEditMode = false;
   var countdownTriggerAttempted = false; // 避免每個影格都重複送出開始倒數的transaction
   var sessionStartTriggerAttempted = false;
   var resumeFinalizeAttempted = false;
@@ -3607,6 +3622,10 @@
     var spriteModeCheckbox = el("midnight-lobby-sprite-mode-checkbox");
     if (spriteModeCheckbox && document.activeElement !== spriteModeCheckbox) {
       spriteModeCheckbox.checked = spriteModeEnabled();
+    }
+    var balanceModeCheckbox = el("midnight-lobby-balance-mode-checkbox");
+    if (balanceModeCheckbox && document.activeElement !== balanceModeCheckbox) {
+      balanceModeCheckbox.checked = balanceModeEnabled();
     }
     renderBattleSimRow();
   }
@@ -3920,6 +3939,11 @@
   // 見spriteModeEnabled()／renderFieldEncounterPanel()。
   function handleSpriteModeToggle() {
     GameStorage.rtSet(gameId, "cloud", "meta/spriteMode", el("midnight-lobby-sprite-mode-checkbox").checked);
+  }
+
+  // midnight平衡模式開關（2026-09-26）：見balanceModeEnabled()。
+  function handleBalanceModeToggle() {
+    GameStorage.rtSet(gameId, "cloud", "meta/balanceMode", el("midnight-lobby-balance-mode-checkbox").checked);
   }
 
   // ---- 測試模式（2026-09-06新增，使用者明確規格：「開始遊戲可以選擇測試模式，在右邊
@@ -4902,7 +4926,7 @@
     // 會先rtSet(crystalTearUsed)再設這兩個欄位，那個寫入的回流會立刻把characters整份換掉——
     // 實測不加白名單時，雫喝下去0.5秒後buff就消失、使用次數卻已經扣掉（跟上面「勇者的肉塊」
     // 完全同一個病灶）。
-    /^_(heroMeatUntil|heroMeatScale|acidSprayUntil|acidSprayScale|ironPotUntil|ironPotScale|guardValueBonus|grease|crystalTear|tempWeaponSkills|skillCostChanges|continuousShot|roarTwoHit|aggroBonus|aggroZeroUntil|affix\w*Until|parryStaminaBonus|spiritHornReadyAt|pillageCameoReadyAt|restageAccumDamage)/;
+    /^_(heroMeatUntil|heroMeatScale|acidSprayUntil|acidSprayScale|ironPotUntil|ironPotScale|guardValueBonus|grease|crystalTear|tempWeaponSkills|skillCostChanges|continuousShot|roarTwoHit|aggroBonus|aggroZeroUntil|affix\w*Until|parryStaminaBonus|guardCounterWindowUntil|spiritHornReadyAt|pillageCameoReadyAt|restageAccumDamage)/;
 
   function isLocalOnlyCharacterField(key) {
     return LOCAL_ONLY_CHARACTER_FIELD_RE.test(key);
@@ -5318,7 +5342,73 @@
 
   function onPendingRewardsReceived(value) {
     pendingRewards = value || {};
+    stampMissingPersonalRewardTimes();
     renderRewardModal();
+  }
+
+  // ---- 個人獎勵清單的自動消失（2026-09-26使用者明確規格「獎勵清單每一項獎勵等等 自動隔
+  // 300秒後直接消失」）----
+  // 起點＝pendingRewards/<token>/<id>/createdAt（伺服器時刻，pushPendingReward()寫入）。
+  // 舊資料、或被整筆覆寫而沒有createdAt的項目（例如恩寵「知の集約」成功後改寫成盧恩），
+  // 由擁有者這台在收到時補上「現在」，等於從那一刻重新起算。
+  // 逾時只標記resolved（跟［丟棄］前的舊行為相同，不掉到地上）。
+  // 例外：hpDamage（固定HP傷害）不適用——那是懲罰，讓它逾時消失等於免傷；它本來就有
+  // 「檢視即10秒自動套用」的機制。
+  // 共享池不在這裡處理：它已有「45秒未揭示自動揭示＋45秒未投票自動結算」的收尾（見
+  // maybeSetSharedRewardDeadlines()），一定比300秒早結束。
+  var PERSONAL_REWARD_EXPIRE_MS = 300000;
+  var personalRewardStampAttempted = {}; // id -> true（本地節流，避免回流前重複寫入）
+  var lastPersonalRewardExpireCheckAt = 0;
+
+  function stampMissingPersonalRewardTimes() {
+    if (!myTokenId) return;
+    var list = pendingRewards[myTokenId] || {};
+    Object.keys(list).forEach(function (id) {
+      var entry = list[id];
+      if (!entry || entry.resolved || typeof entry.createdAt === "number" || personalRewardStampAttempted[id]) return;
+      personalRewardStampAttempted[id] = true;
+      GameStorage.rtTransaction(gameId, "cloud", "pendingRewards/" + myTokenId + "/" + id + "/createdAt", function (cur) {
+        return cur === null ? sharedNow() : cur;
+      });
+    });
+  }
+
+  // 清單開著時每秒只改按鈕文字（不整個重繪，避免打斷正在看的detail）。
+  function refreshPersonalRewardCountdowns() {
+    var listEl = el("midnight-reward-list-personal");
+    if (!listEl) return;
+    var list = pendingRewards[myTokenId] || {};
+    Array.prototype.forEach.call(listEl.querySelectorAll("button[data-reward-id]"), function (btn) {
+      var entry = list[btn.getAttribute("data-reward-id")];
+      if (entry) btn.textContent = rewardEntryLabel(entry) + personalRewardRemainingLabel(entry);
+    });
+  }
+
+  function expireStalePersonalRewards(now) {
+    if (now - lastPersonalRewardExpireCheckAt < 1000) return;
+    lastPersonalRewardExpireCheckAt = now;
+    refreshPersonalRewardCountdowns();
+    var list = pendingRewards[myTokenId] || {};
+    Object.keys(list).forEach(function (id) {
+      var entry = list[id];
+      if (!entry || entry.resolved || entry.kind === "hpDamage" || typeof entry.createdAt !== "number") return;
+      if (now - sharedToLocal(entry.createdAt) < PERSONAL_REWARD_EXPIRE_MS) return;
+      entry.resolved = true; // 本地先標記，避免回流前的下一秒重複寫入
+      GameStorage.rtSet(gameId, "cloud", "pendingRewards/" + myTokenId + "/" + id + "/resolved", true);
+      delete rewardDraftById[id];
+      delete potentialPowerDraftById[id];
+      delete attachedEffectDraftById[id];
+      if (selectedRewardId === id) selectedRewardId = null;
+    });
+  }
+
+  // 清單上顯示的剩餘秒數（mm:ss）。沒有起點或不適用的回""。
+  function personalRewardRemainingLabel(entry) {
+    if (!entry || entry.kind === "hpDamage" || typeof entry.createdAt !== "number") return "";
+    var left = Math.max(0, Math.ceil((PERSONAL_REWARD_EXPIRE_MS - (Date.now() - sharedToLocal(entry.createdAt))) / 1000));
+    var mm = Math.floor(left / 60);
+    var ss = left % 60;
+    return "（" + mm + ":" + (ss < 10 ? "0" : "") + ss + "）";
   }
 
   // ---- players/{slot}訂閱：等待房畫面、進場後的玩家面板、開局倒數判斷、都靠這份資料。----
@@ -5534,9 +5624,11 @@
     // 才剛點「加入」要輸入名稱/密碼，畫面就會被別人的操作打斷、表單突然消失。只有在
     // 「我沒有正在填的表單」或「我要填的那個席位剛好被別人搶走了」才收起。
     var form = el("midnight-lobby-join-form");
-    if (!pendingJoinSlot || players[pendingJoinSlot]) {
+    var editingOwnSlot = lobbyEditMode && pendingJoinSlot && players[pendingJoinSlot] && players[pendingJoinSlot].tokenId === myTokenId;
+    if (!pendingJoinSlot || (players[pendingJoinSlot] && !editingOwnSlot)) {
       form.hidden = true;
       pendingJoinSlot = null;
+      lobbyEditMode = false;
       el("midnight-lobby-character-detail").hidden = true;
     }
     renderLobbyRelicMemoryPanel();
@@ -5769,6 +5861,17 @@
     // 2026-09-21：消耗品持續效果的席位卡片動畫（溫石治癒／高揚之香亮起／鐵壺鐵化）由
     // updateConsumableBuffVisuals()每幀依tokenId找卡片掛class，這裡只負責標記是誰的卡片。
     card.setAttribute("data-token-id", p.tokenId || "");
+    // 2026-09-26使用者明確規格「房間中 已經選擇完腳色後可以點下自己更改名稱 腳色 以及 密碼」：
+    // 只在開局前、而且是自己的席位時可點。開局後角色物件已經建立（newCharacterForSlot()），
+    // 再改角色類型會跟已建立的角色對不上，因此不開放。
+    if (p.tokenId === myTokenId && meta && !meta.sessionStartAt) {
+      card.classList.add("midnight-slot-card-editable");
+      card.title = window.I18N.t("midnight_lobby_edit_hint");
+      card.addEventListener("click", function (e) {
+        if (e.target && e.target.tagName === "BUTTON") return;
+        showLobbyEditForm(slot);
+      });
+    }
     var row1 = document.createElement("div");
     row1.className = "midnight-slot-row midnight-slot-row1";
     card.appendChild(row1);
@@ -5945,8 +6048,24 @@
     return window.I18N.t(findCharacterPreset(characterId).nameKey);
   }
 
+  // 修改自己席位的資料（2026-09-26）：重用加入表單，預填目前的名稱／密碼／角色，
+  // 送出時走handleLobbyJoin()的修改分支。
+  function showLobbyEditForm(slot) {
+    var p = players[slot];
+    if (!p || p.tokenId !== myTokenId || (meta && meta.sessionStartAt)) return;
+    showJoinForm(slot);
+    lobbyEditMode = true;
+    el("midnight-lobby-name-input").value = p.name || "";
+    el("midnight-lobby-passcode-input").value = p.passcode || "";
+    if (p.characterId) selectedCharacterId = p.characterId;
+    renderCharacterPicker();
+    el("btn-midnight-lobby-join").textContent = window.I18N.t("midnight_lobby_update_button");
+  }
+
   function showJoinForm(slot) {
     pendingJoinSlot = slot;
+    lobbyEditMode = false;
+    el("btn-midnight-lobby-join").textContent = window.I18N.t("midnight_lobby_join_button");
     var form = el("midnight-lobby-join-form");
     form.hidden = false;
     form.dataset.targetSlot = slot;
@@ -6024,6 +6143,20 @@
     var passcode = el("midnight-lobby-passcode-input").value.trim();
     if (!/^\d{4}$/.test(passcode)) {
       window.alert(window.I18N.t("midnight_lobby_passcode_hint"));
+      return;
+    }
+    if (lobbyEditMode) {
+      // 修改自己席位（2026-09-26）：只改名稱／角色／密碼三個子欄位，tokenId／ready／
+      // 遺物記憶帶入等其他欄位原樣保留。開局後不接受（見renderOccupiedSlotCard()的說明）。
+      if (slot !== mySlot || !players[slot] || players[slot].tokenId !== myTokenId || (meta && meta.sessionStartAt)) return;
+      var base = "players/" + slot + "/";
+      GameStorage.rtSet(gameId, "cloud", base + "name", name);
+      GameStorage.rtSet(gameId, "cloud", base + "characterId", selectedCharacterId);
+      GameStorage.rtSet(gameId, "cloud", base + "passcode", passcode);
+      lobbyEditMode = false;
+      pendingJoinSlot = null;
+      form.hidden = true;
+      el("midnight-lobby-character-detail").hidden = true;
       return;
     }
     var entry = { name: name, characterId: selectedCharacterId, passcode: passcode, tokenId: myTokenId, ready: false };
@@ -6503,6 +6636,7 @@
     el("midnight-lobby-difficulty-select").addEventListener("change", handleDifficultySelectChange);
     el("midnight-lobby-weapon-affixes-checkbox").addEventListener("change", handleWeaponAffixesToggle);
     el("midnight-lobby-sprite-mode-checkbox").addEventListener("change", handleSpriteModeToggle);
+    el("midnight-lobby-balance-mode-checkbox").addEventListener("change", handleBalanceModeToggle);
     el("btn-midnight-lobby-battle-sim").addEventListener("click", handleBattleSimToggle);
     el("midnight-lobby-battle-sim-anim-cycle-checkbox").addEventListener("change", handleBattleSimAnimCycleToggle);
     el("btn-midnight-game-failure-confirm").addEventListener("click", switchToUnlimitedMode);
@@ -8525,9 +8659,6 @@
   // 「普通攻擊」在使用者的語境裡指的是「非蓄力的一般出手」，裝填著跳躍／衝刺時輕點就打
   // 那一種（使用者確認），否則 ◀ ▶ 切換列會完全沒有作用。
   var ATTACK_CHARGE_HOLD_MS = 500; // 使用者明確規格「蓄力改為只需按0.5秒」
-  // 讀條的顯示起點。純視覺：它已經不再決定任何行為（沒按滿一律照常出手），只是不想讓
-  // 每一次輕點都閃一下讀條，所以按住超過這個時間才畫出來。
-  var ATTACK_CHARGE_GAUGE_LEAD_MS = 150;
   var attackHoldState = { L: null, R: null }; // 按下攻擊鍵的時間戳，null＝目前沒按著
   var attackChargeFired = { L: false, R: false }; // 這一次長按是否已經打出蓄力（避免按著不放連發）
   // 已裝填的攻擊方式：null＝普通攻擊，其餘是 availableSpecialAttackEntries() 的 kind（jump／dash）。
@@ -8550,7 +8681,7 @@
     var talismanIdsForActions = c.talismanIds || [];
     var clawTalismanBonus = talismanIdsForActions.indexOf("talisman_claw") !== -1 ? 10 : 0;
     var axeTalismanBonus = talismanIdsForActions.indexOf("talisman_axe") !== -1 ? 10 : 0;
-    var jumpEffect = CharacterDrawer.findLearnedActionRelicByName(c, ["跳躍攻擊", "ジャンプ攻撃"]);
+    var jumpEffect = midnightActionRelic(c, ["跳躍攻擊", "ジャンプ攻撃"]);
     if (jumpEffect) {
       var jumpAtkUpBonus = CharacterDrawer.activeAttachedEffectIds(c).indexOf("jump_atk_up") !== -1 ? 10 : 0;
       out.push({
@@ -8561,7 +8692,7 @@
         symbol: dmg.hit1Symbol,
       });
     }
-    var dashEffect = CharacterDrawer.findLearnedActionRelicByName(c, ["衝刺攻擊", "ダッシュ攻撃"]);
+    var dashEffect = midnightActionRelic(c, ["衝刺攻擊", "ダッシュ攻撃"]);
     if (dashEffect) {
       var isGreatSpear = category.id === "great_spear";
       var dashAtkUpBonus = CharacterDrawer.activeAttachedEffectIds(c).indexOf("dash_atk_up") !== -1 ? 10 : 0;
@@ -8579,7 +8710,7 @@
     // 傷害沿用規則書原文「裝備中1把近戰武器的1Hit傷害+10」，習得2個以上再+10（鐵眼版原文）。
     // 消耗在useSpecialAttack()裡另外處理（其餘特殊攻擊是解析本文的「消耗：」，蓄力攻擊的
     // 本文寫的是「1Hit的消耗+1」這種相對值，沒辦法用同一個parser解，見該處說明）。
-    var chargeEffect = CharacterDrawer.findLearnedActionRelicByName(c, CHARGE_ATTACK_RELIC_NAMES);
+    var chargeEffect = midnightActionRelic(c, CHARGE_ATTACK_RELIC_NAMES);
     if (chargeEffect) {
       var chargeMultiBonus = CharacterDrawer.countLearnedActionRelicsByName(c, CHARGE_ATTACK_RELIC_NAMES) >= 2 ? 10 : 0;
       out.push({
@@ -8596,6 +8727,32 @@
   // 蓄力攻擊：規則書「效果：對目標造成【總合傷害：裝備中1把近戰武器的1Hit傷害+10】」／
   // 「消耗：1Hit的消耗+1」。使用者2026-09-11明確確認「骰子點數+1（即體力+2）」。
   var CHARGE_ATTACK_RELIC_NAMES = ["蓄力攻擊", "タメ攻撃"];
+
+  // 跳躍／衝刺／蓄力攻擊的遺物效果本體：已習得就用習得的那一條；平衡模式下沒習得也視為擁有。
+  // 平衡模式借用的本文（消耗等）優先取自己角色類型的同名效果，自己類型的遺物表沒有這一條時
+  // （例如隱士沒有任何一條）再取其他類型的同名效果——同名效果的本文在各類型間相同，
+  // 不另外發明數值。「習得2個以上」的加成仍只看真正習得的數量（countLearnedActionRelicsByName）。
+  function midnightActionRelic(c, names) {
+    var learned = CharacterDrawer.findLearnedActionRelicByName(c, names);
+    if (learned || !balanceModeEnabled() || !c || !c.typeId) return learned;
+    return balanceActionRelicTemplate(c.typeId, names);
+  }
+
+  function balanceActionRelicTemplate(typeId, names) {
+    var CT = window.PriTestCharacterTypes;
+    var types = [CT.get(typeId)].concat(CT.list());
+    for (var ti = 0; ti < types.length; ti++) {
+      var groups = (types[ti] && types[ti].relicEffectGroups) || [];
+      for (var gi = 0; gi < groups.length; gi++) {
+        for (var ei = 0; ei < groups[gi].effects.length; ei++) {
+          var e = groups[gi].effects[ei];
+          if (e.kind !== "Action") continue;
+          if (names.indexOf(e.name && e.name.zh) !== -1 || names.indexOf(e.name && e.name.ja) !== -1) return e;
+        }
+      }
+    }
+    return null;
+  }
   var CHARGE_ATTACK_DAMAGE_BONUS = 10;
   var CHARGE_ATTACK_EXTRA_DICE_POINTS = 1;
 
@@ -8630,9 +8787,10 @@
   }
 
   // 可切換的攻擊方式清單（普通＋已習得的跳躍／衝刺）。蓄力刻意排除，見上方說明。
-  function armedAttackOptions(side) {
+  // precomputedEntries（可省略）：呼叫端已經算好的availableSpecialAttackEntries(side)，避免每幀重算兩次。
+  function armedAttackOptions(side, precomputedEntries) {
     var out = [{ kind: null }]; // 普通攻擊永遠在第一個
-    availableSpecialAttackEntries(side).forEach(function (entry) {
+    (precomputedEntries || availableSpecialAttackEntries(side)).forEach(function (entry) {
       if (entry.kind !== "charge") out.push(entry);
     });
     return out;
@@ -8719,16 +8877,21 @@
         useSpecialAttack(side, entry);
         return;
       }
-      if (heldMs < ATTACK_CHARGE_GAUGE_LEAD_MS) return; // 太短的按壓不閃讀條
-      var span = ATTACK_CHARGE_HOLD_MS - ATTACK_CHARGE_GAUGE_LEAD_MS;
-      renderAttackChargeGauge(side, Math.max(0, Math.min(1, (heldMs - ATTACK_CHARGE_GAUGE_LEAD_MS) / span)));
+      // 2026-09-26使用者明確規格「蓄力攻擊學習後 一般的攻擊按鍵有類似施法讀條」：比照魔術／祈禱
+      // 的長按讀條（renderSorceryCastBars()），按下的當下就從0開始填，不再等輕點門檻。
+      renderAttackChargeGauge(side, Math.max(0, Math.min(1, heldMs / ATTACK_CHARGE_HOLD_MS)));
     });
   }
+
+  // 這一側目前能不能蓄力（每幀由renderAttackModeSelector()更新）。能蓄力時讀條的底槽常駐顯示
+  // （跟魔術／祈禱鍵的讀條一樣），讓玩家一眼看得出「這顆攻擊鍵可以長按蓄力」。
+  var attackChargeAvailable = { L: false, R: false };
 
   function renderAttackChargeGauge(side, pct) {
     var gauge = el(side === "L" ? "midnight-attack-charge-gauge-left" : "midnight-attack-charge-gauge-right");
     if (!gauge) return;
-    gauge.hidden = pct <= 0;
+    var hide = !attackChargeAvailable[side] && pct <= 0;
+    if (gauge.hidden !== hide) gauge.hidden = hide;
     gauge.style.setProperty("--charge-pct", Math.round(pct * 100) + "%");
   }
 
@@ -8737,7 +8900,15 @@
     var row = el(side === "L" ? "midnight-attack-mode-left" : "midnight-attack-mode-right");
     var label = el(side === "L" ? "midnight-attack-mode-label-left" : "midnight-attack-mode-label-right");
     if (!row || !label) return;
-    var options = armedAttackOptions(side);
+    var entries = availableSpecialAttackEntries(side);
+    var chargeNow = entries.some(function (e) {
+      return e.kind === "charge";
+    });
+    if (chargeNow !== attackChargeAvailable[side]) {
+      attackChargeAvailable[side] = chargeNow;
+      if (!attackHoldState[side]) renderAttackChargeGauge(side, 0);
+    }
+    var options = armedAttackOptions(side, entries);
     // 雙手持握時左手側整組按鍵都隱藏（見twoHandedGrip()），攻擊方式切換列也一起收掉，
     // 否則會留下一列孤零零的 ◀ 普通攻擊 ▶。
     row.hidden = options.length < 2 || (side === "L" && twoHandedGrip(characters[myTokenId]));
@@ -10451,6 +10622,7 @@
   }
 
   function abilityUnlocked(c, kind) {
+    if (balanceModeEnabled()) return true; // 平衡模式：Lv1就擁有技能與技藝
     return ((c && c.level) || 1) >= abilityUnlockLevel(kind);
   }
 
@@ -13910,16 +14082,26 @@
       c._artCooldownUntil = Math.max(Date.now(), c._artCooldownUntil - rmGuardArtSec * 1000);
       GameStorage.rtSet(gameId, "cloud", "character/" + myTokenId + "/_artCooldownUntil", c._artCooldownUntil);
     }
-    if (hasRelic(c, "guardCounter") && hasMeleeWeaponEquipped(c)) {
-      var stacks = (c._guardCounterStacks || 0) + countRelic(c, "guardCounter");
+    // 平衡模式（2026-09-26使用者明確規格「防禦反擊(防禦成功後1秒內攻擊視為防禦反擊)」）：
+    // 沒習得也視為擁有1條，而且折扣只在防禦成功後1秒內有效（見guardCounterDiscountPct()）。
+    // 1秒視窗已過的舊層數不再累加——每次防禦成功都是一次新的反擊機會。
+    var balance = balanceModeEnabled();
+    var gcCount = countRelic(c, "guardCounter") + (balance ? 1 : 0);
+    if (gcCount > 0 && hasMeleeWeaponEquipped(c)) {
+      var windowOpen = (c._guardCounterWindowUntil || 0) > Date.now();
+      var stacks = (balance && !windowOpen ? 0 : c._guardCounterStacks || 0) + gcCount;
       c._guardCounterStacks = stacks;
+      if (balance) c._guardCounterWindowUntil = Date.now() + BALANCE_GUARD_COUNTER_WINDOW_MS;
       GameStorage.rtSet(gameId, "cloud", "character/" + myTokenId + "/_guardCounterStacks", stacks);
     }
   }
 
+  var BALANCE_GUARD_COUNTER_WINDOW_MS = 1000; // 平衡模式：防禦成功後1秒內（使用者明確規格）
+
   // 下一次攻擊的體力折扣百分比（防禦反擊，可疊加，上限夾在100%以內避免變成免費/負值）。
   function guardCounterDiscountPct(c) {
     var stacks = (c && c._guardCounterStacks) || 0;
+    if (stacks && balanceModeEnabled() && !((c._guardCounterWindowUntil || 0) > Date.now())) return 0; // 1秒視窗已過
     return Math.min(100, stacks * GUARD_COUNTER_DISCOUNT_PCT);
   }
 
@@ -18870,6 +19052,7 @@
   function pushPendingReward(tokenId, entry) {
     var rewardId = "rw" + Date.now() + Math.floor(Math.random() * 100000);
     entry.resolved = false;
+    entry.createdAt = sharedNow(); // 300秒自動消失的起點（見expireStalePersonalRewards()）
     GameStorage.rtSet(gameId, "cloud", "pendingRewards/" + tokenId + "/" + rewardId, entry);
   }
 
@@ -22198,7 +22381,10 @@
     if (entry.kind === "knowledgeDice") return window.I18N.t("midnight_reward_kind_knowledge_dice");
     if (entry.kind === "rune") return window.I18N.t("midnight_reward_kind_rune");
     if (entry.kind === "potentialPower") return window.I18N.t("midnight_reward_kind_potential_power");
-    if (entry.kind === "attachedEffect") return window.I18N.t("midnight_reward_kind_attached_effect");
+    if (entry.kind === "attachedEffect") {
+      // 平衡模式：附帶效果獎勵改成「額外學習1項遺物效果」（見renderBonusRelicRewardDetail()）。
+      return window.I18N.t(balanceModeEnabled() ? "midnight_reward_kind_bonus_relic" : "midnight_reward_kind_attached_effect");
+    }
     if (entry.kind === "talisman") return window.I18N.t("midnight_reward_kind_talisman");
     // 2026-09-10修正（使用者回報「潛在之力目前寫錯成WeaponStar了？」）：fields_data_*.js／
     // TOWER_DICE_HAND_REWARDS的武器獎勵用的kind是"weaponStar"（value＝★數＝決定稀有度的
@@ -22454,7 +22640,30 @@
 
   // 「丟棄」（2026-09-06三次優化新增，使用者明確規格「下方有取得及丟棄」）：只標記這筆
   // 獎勵已處理，不呼叫draft.apply()套用效果——跟confirmRewardEntry()對照，少了套用這一步。
+  // 2026-09-26使用者明確規格「獎勵清單抽選後 若按下丟棄放棄 會直接丟到地板上可供撿取」：
+  // 已經抽出實體物品（武器／消耗品／護符）的那一筆，丟棄時改成掉在自己腳邊（沿用角色面板
+  // 丟棄的同一支putItemOnGround()，戰技／詞條／屬性標記一併帶著），誰靠近都撿得到。
+  // 還沒抽選、或不是實體物品（盧恩、備註等）的維持原本「只標記已處理」。
+  function dropDiscardedRewardToGround(id) {
+    var draft = rewardDraftById[id];
+    var entry = (pendingRewards[myTokenId] || {})[id];
+    if (!draft || !entry) return;
+    if ((entry.kind === "weapon" || entry.kind === "weaponStar") && draft.weaponId) {
+      putItemOnGround({ kind: "weapon", itemId: draft.weaponId, randomSkillId: draft.skillId || null, affixes: draft.affixes || null });
+    } else if (entry.kind === "talisman" && draft.item && draft.item.id) {
+      putItemOnGround({ kind: "talisman", itemId: draft.item.id });
+    } else if (entry.kind === "consumable" && draft.itemId && draft.item) {
+      putItemOnGround({
+        kind: "consumable",
+        itemId: draft.itemId,
+        usesRemaining: consumableAcquireCount(draft.item),
+        attributeTag: draft.attributeTag || null,
+      });
+    }
+  }
+
   function discardRewardEntry(id) {
+    dropDiscardedRewardToGround(id);
     GameStorage.rtSet(gameId, "cloud", "pendingRewards/" + myTokenId + "/" + id + "/resolved", true);
     delete rewardDraftById[id];
     selectedRewardId = null;
@@ -22513,6 +22722,7 @@
             kind: "rune",
             value: reward,
             resolved: false,
+            createdAt: sharedNow(), // 變成新的盧恩獎勵：300秒自動消失從這裡重新起算
           });
         } else {
           // 「散去」＝このまま消える（獎勵としては何も残らない）。
@@ -22536,6 +22746,10 @@
   // rollPotentialPowerAttachedEffect擲到已習得過的效果時，回傳的.effect會是null，改用
   // .candidates（同一block內未習得的候補，或全24種未習得候補）代替。
   function renderPotentialPowerRewardDetail(id, entry, detail) {
+    if (balanceModeEnabled()) {
+      renderBalancePotentialPowerDetail(id, entry, detail);
+      return;
+    }
     var draft = potentialPowerDraftById[id];
     var CD = window.PriTestCharacterDrawer;
 
@@ -22661,6 +22875,10 @@
   var attachedEffectDraftById = {};
 
   function renderAttachedEffectRewardDetail(id, entry, detail) {
+    if (balanceModeEnabled()) {
+      renderBonusRelicRewardDetail(id, entry, detail);
+      return;
+    }
     var CD = window.PriTestCharacterDrawer;
     var draft = attachedEffectDraftById[id];
 
@@ -22717,6 +22935,180 @@
       selectedRewardId = null;
     });
     detail.appendChild(confirmBtn);
+  }
+
+  // ---- 平衡模式的潛在之力（2026-09-26使用者明確規格）----
+  // 「潛在之力抽選時 第二個不抽選附帶效果 改為 多抽兩樣 第1,2為得意武器 第3為武器分類中的
+  //  一項 產生分頁籤 讓玩家在三個選擇中選擇一項領取」
+  // 第1、2把＝CharacterDrawer.potentialPowerDrawWeapon()（得意武器骰，同一般模式），第3把＝從
+  // 全部武器分類隨機挑一個分類再抽（同一支、傳入forcedCategoryId）。★數與稀有度加成三把相同。
+  // 選定一把才寫進角色；［丟棄］把目前分頁那一把丟到腳邊（跟其他獎勵的丟棄同一條規格）。
+  function drawBalancePotentialPower(c, entry) {
+    var CD = window.PriTestCharacterDrawer;
+    var stars = entry.value || 1;
+    var bonus = relicMemoryFortDiscoveryBonus(c);
+    var categories = window.PriTestWeapons.categories();
+    var randomCategory = categories.length ? categories[Math.floor(Math.random() * categories.length)].id : null;
+    var picks = [
+      { tab: "favored", weapon: CD.potentialPowerDrawWeapon(c, stars, bonus) },
+      { tab: "favored", weapon: CD.potentialPowerDrawWeapon(c, stars, bonus) },
+      { tab: "random", weapon: randomCategory ? CD.potentialPowerDrawWeapon(c, stars, bonus, randomCategory) : null },
+    ].filter(function (pk) {
+      return pk.weapon && pk.weapon.item;
+    });
+    picks.forEach(function (pk) {
+      pk.affixes = rollAffixesForWeapon(c, pk.weapon.item.id, pk.weapon.rarity || null);
+    });
+    return { balance: true, picks: picks, tab: 0 };
+  }
+
+  function renderBalancePotentialPowerDetail(id, entry, detail) {
+    var CD = window.PriTestCharacterDrawer;
+    var draft = potentialPowerDraftById[id];
+    if (!draft || !draft.balance) {
+      var drawBtn = document.createElement("button");
+      drawBtn.type = "button";
+      drawBtn.textContent = window.I18N.t("midnight_reward_draw_button");
+      drawBtn.className = "midnight-draw-hint";
+      drawBtn.addEventListener("click", function () {
+        var c = characters[myTokenId];
+        if (!c) return;
+        potentialPowerDraftById[id] = drawBalancePotentialPower(c, entry);
+        renderRewardDetail(id, entry);
+      });
+      detail.appendChild(drawBtn);
+      return;
+    }
+
+    function finish(before) {
+      if (before) syncMyCharacterChanges(before);
+      GameStorage.rtSet(gameId, "cloud", "pendingRewards/" + myTokenId + "/" + id + "/resolved", true);
+      delete potentialPowerDraftById[id];
+      selectedRewardId = null;
+    }
+
+    if (!draft.picks.length) {
+      var emptyP = document.createElement("p");
+      emptyP.textContent = window.I18N.t("midnight_reward_draw_empty");
+      detail.appendChild(emptyP);
+      var closeBtn = document.createElement("button");
+      closeBtn.type = "button";
+      closeBtn.textContent = window.I18N.t("midnight_reward_confirm_button");
+      closeBtn.addEventListener("click", function () {
+        finish(null);
+      });
+      detail.appendChild(closeBtn);
+      return;
+    }
+
+    var note = document.createElement("p");
+    note.className = "warning-text";
+    note.textContent = window.I18N.t("midnight_balance_potential_choose_note");
+    detail.appendChild(note);
+
+    // 分頁籤：得意武器①／得意武器②／武器分類（沿用清單的選取高亮樣式）。
+    var tabs = document.createElement("div");
+    tabs.className = "wb-row midnight-balance-pp-tabs";
+    var favoredNo = 0;
+    draft.picks.forEach(function (pk, idx) {
+      var tabBtn = document.createElement("button");
+      tabBtn.type = "button";
+      var tabLabel =
+        pk.tab === "random"
+          ? window.I18N.t("midnight_balance_potential_tab_random")
+          : window.I18N.t("midnight_balance_potential_tab_favored", { n: ++favoredNo });
+      tabBtn.textContent = tabLabel + "：" + window.PriTestWeapons.localizedText(pk.weapon.item.name);
+      if (idx === draft.tab) tabBtn.className = "midnight-reward-item-selected";
+      tabBtn.addEventListener("click", function () {
+        draft.tab = idx;
+        renderRewardDetail(id, entry);
+      });
+      tabs.appendChild(tabBtn);
+    });
+    detail.appendChild(tabs);
+
+    var current = draft.picks[Math.min(draft.tab, draft.picks.length - 1)];
+    var card = document.createElement("div");
+    var c0 = characters[myTokenId];
+    if (c0) renderWeaponSheetDetail(card, c0, current.weapon.item.id, CD, current.weapon.skillId, current.affixes || null);
+    detail.appendChild(card);
+
+    var full = !hasInventorySpace(c0, "weapon");
+    if (full) {
+      var fullNote = document.createElement("p");
+      fullNote.className = "warning-text";
+      fullNote.textContent = window.I18N.t("midnight_inventory_full_note");
+      detail.appendChild(fullNote);
+    }
+    var chooseBtn = document.createElement("button");
+    chooseBtn.type = "button";
+    chooseBtn.textContent = window.I18N.t("midnight_reward_potential_choose_button");
+    chooseBtn.disabled = full;
+    chooseBtn.addEventListener("click", function () {
+      var c = characters[myTokenId];
+      if (!c || !hasInventorySpace(c, "weapon")) return;
+      var before = snapshotMyCharacter();
+      var instanceId = CD.commitPotentialPowerWeapon(c, current.weapon);
+      if (instanceId) applyDrawnAffixes(c, instanceId, current.affixes || null);
+      finish(before);
+    });
+    detail.appendChild(chooseBtn);
+    var discardBtn = document.createElement("button");
+    discardBtn.type = "button";
+    discardBtn.textContent = window.I18N.t("midnight_reward_discard_button");
+    discardBtn.addEventListener("click", function () {
+      putItemOnGround({ kind: "weapon", itemId: current.weapon.item.id, randomSkillId: current.weapon.skillId || null, affixes: current.affixes || null });
+      finish(null);
+    });
+    detail.appendChild(discardBtn);
+  }
+
+  // ---- 平衡模式的「額外學習1項遺物效果」獎勵（2026-09-26使用者明確規格「原本的打倒強敵等等
+  // 獲得抽選附帶效果的時候 改為抽一項遺物效果可以額外學習」）----
+  // 抽法跟角色視窗的平衡模式抽選完全相同（rollBalanceRelicDraw()：第1顆5／6改抽附帶效果、
+  // 重複就重抽），差別只在不佔用等級名額（commitBalanceDraw(..., false)）。
+  function renderBonusRelicRewardDetail(id, entry, detail) {
+    var draft = attachedEffectDraftById[id];
+    var noteP = document.createElement("p");
+    noteP.textContent = window.I18N.t("midnight_balance_bonus_relic_note");
+    detail.appendChild(noteP);
+    if (!draft || !draft.balanceDraw) {
+      var drawBtn = document.createElement("button");
+      drawBtn.type = "button";
+      drawBtn.textContent = window.I18N.t("midnight_reward_draw_button");
+      drawBtn.className = "midnight-draw-hint";
+      drawBtn.addEventListener("click", function () {
+        var c = characters[myTokenId];
+        if (!c) return;
+        attachedEffectDraftById[id] = { balanceDraw: rollBalanceRelicDraw(c) || { kind: "empty", dice: [] } };
+        renderRewardDetail(id, entry);
+      });
+      detail.appendChild(drawBtn);
+      return;
+    }
+    var draw = draft.balanceDraw;
+    function finish() {
+      GameStorage.rtSet(gameId, "cloud", "pendingRewards/" + myTokenId + "/" + id + "/resolved", true);
+      delete attachedEffectDraftById[id];
+      selectedRewardId = null;
+    }
+    if (draw.dice.length) {
+      var diceEl = document.createElement("div");
+      window.PriTestCharacterDrawer.renderDiceDisplay(diceEl, draw.dice);
+      detail.appendChild(diceEl);
+    }
+    renderBalanceDrawResult(detail, draw, characters[myTokenId], function (pickedOption) {
+      if (attachedEffectDraftById[id] !== draft) return;
+      if (!commitBalanceDraw(draw, pickedOption, false)) return;
+      finish();
+    });
+    if (draw.kind === "empty") {
+      var closeBtn = document.createElement("button");
+      closeBtn.type = "button";
+      closeBtn.textContent = window.I18N.t("midnight_reward_confirm_button");
+      closeBtn.addEventListener("click", finish);
+      detail.appendChild(closeBtn);
+    }
   }
 
   // 2026-09-06三次優化（使用者明確規格「選擇後 按下抽選後 抽完該物品顯示其資訊...下方有
@@ -23125,7 +23517,8 @@
       var li = document.createElement("li");
       var btn = document.createElement("button");
       btn.type = "button";
-      btn.textContent = rewardEntryLabel(entry);
+      btn.textContent = rewardEntryLabel(entry) + personalRewardRemainingLabel(entry);
+      btn.setAttribute("data-reward-id", id); // 剩餘秒數每秒更新用（見refreshPersonalRewardCountdowns()）
       // 選取高亮（2026-09-10使用者明確要求）：沿用style.css新增的.midnight-reward-item-selected，
       // 共享池項目用同一個class，兩邊視覺一致。
       if (selectedRewardId === id) btn.className = "midnight-reward-item-selected";
@@ -23580,7 +23973,9 @@
   // 可習得遺物效果候選卡：一張候選卡的DOM組裝＋「習得」按鈕（重用
   // CharacterDrawer.learnRelicEffect，跟character_drawer.js的renderRelicCandidateCard
   // 走同一套規則，只是DOM是midnight自己排版）。
-  function renderMidnightRelicCandidateCard(container, candidate, c, CD, CharacterTypes) {
+  // onCommit（可省略）：function(candidate, pickedOption)。預設是一般的commitRelicLearn()；
+  // 平衡模式的抽選（commitBalanceDraw()）與額外學習獎勵傳自己的收尾。
+  function renderMidnightRelicCandidateCard(container, candidate, c, CD, CharacterTypes, onCommit) {
     var card = document.createElement("div");
     card.className = "midnight-relic-candidate-card";
     var nameEl = document.createElement("p");
@@ -23601,10 +23996,11 @@
     learnBtn.textContent = window.I18N.t("relic_learn_button");
     learnBtn.addEventListener("click", function () {
       if (choiceConfig) {
-        openRelicChoiceModal(candidate, choiceConfig, CD, CharacterTypes);
+        openRelicChoiceModal(candidate, choiceConfig, CD, CharacterTypes, onCommit);
         return;
       }
-      commitRelicLearn(candidate, null, CD);
+      if (onCommit) onCommit(candidate, null);
+      else commitRelicLearn(candidate, null, CD);
     });
     card.appendChild(learnBtn);
     container.appendChild(card);
@@ -23623,7 +24019,11 @@
   // 遺物效果的「習得時選擇1種屬性／異常／武器」視窗：每個選項一顆按鈕，外加一顆
   // [隨機決定]（傳入null給CharacterDrawer.learnRelicEffect()，由它既有的
   // assignRelicChoiceIfNeeded() 隨機指派，見 CLAUDE.md §24）。
-  function openRelicChoiceModal(candidate, choiceConfig, CD, CharacterTypes) {
+  function openRelicChoiceModal(candidate, choiceConfig, CD, CharacterTypes, onCommit) {
+    var commit = function (opt) {
+      if (onCommit) onCommit(candidate, opt);
+      else commitRelicLearn(candidate, opt, CD);
+    };
     var modal = el("midnight-relic-choice-modal");
     if (!modal) return;
     el("midnight-relic-choice-title").textContent = CharacterTypes.localizedText(candidate.effect.name);
@@ -23635,7 +24035,7 @@
       btn.textContent = CharacterTypes.localizedText(opt);
       btn.addEventListener("click", function () {
         modal.hidden = true;
-        commitRelicLearn(candidate, opt, CD);
+        commit(opt);
       });
       box.appendChild(btn);
     });
@@ -23645,7 +24045,7 @@
     randomBtn.textContent = window.I18N.t("relic_choice_random_option");
     randomBtn.addEventListener("click", function () {
       modal.hidden = true;
-      commitRelicLearn(candidate, null, CD);
+      commit(null);
     });
     box.appendChild(randomBtn);
     modal.hidden = false;
@@ -23681,6 +24081,10 @@
   // （character_drawer.js的renderRelicSection）同一個顯示條件——只有還有名額
   // （learned < relicMaxLearnable(c.level)）時才顯示。
   function renderMidnightRelicLearnSection(c, type, CD, CharacterTypes) {
+    if (balanceModeEnabled()) {
+      renderBalanceRelicLearnSection(c, type, CD, CharacterTypes);
+      return;
+    }
     var block = el("midnight-sheet-relic-learn-block");
     var learned = (c.learnedRelicEffects || []).length;
     var maxLearnable = type ? CD.relicMaxLearnable(c.level) : 0;
@@ -23717,10 +24121,196 @@
     var c = characters[myTokenId];
     var CD = window.PriTestCharacterDrawer;
     if (!c || !c.typeId) return;
+    if (balanceModeEnabled()) {
+      handleBalanceRelicRoll(c);
+      return;
+    }
     if (midnightRelicRolledDice) return;
     if ((c.learnedRelicEffects || []).length >= CD.relicMaxLearnable(c.level)) return;
     midnightRelicRolledDice = { x: CD.rollD6(), y: CD.rollD6() };
     renderCharacterSheet();
+  }
+
+  // ---- 平衡模式的遺物效果抽選（2026-09-26使用者明確規格）----
+  // 「遺物效果抽選改為：lv 3,5,7,9,11,13,15才能學習 抽到第一個骰為5&6時去抽一個附帶效果能力,
+  //  抽到重覆有過的組合時不再自由任選 而是抽到產生新的可學習效果為止」
+  //   ・名額＝已達到的學習等級數（Lv3→1、Lv5→2…Lv15→7），已用次數記在c.balanceRelicDrawsUsed
+  //     （學到遺物效果或附帶效果都算用掉1次）。
+  //   ・2顆D6：第1顆＝群（1-2→A、3-4→B，沿用CharacterDrawer.relicCandidateFor()），第2顆＝群內位置。
+  //     第1顆是5／6時（原本的C群＝跳躍／衝刺／蓄力攻擊等，平衡模式一開始就擁有）改抽附帶效果
+  //     （CharacterDrawer.rollPotentialPowerAttachedEffect()，同一套24種、1D×2的表）。
+  //   ・不存在或已習得的組合、已習得的附帶效果：一律整組重抽，直到抽出新的可學習效果。
+  //     不再出現舊規則的「自由任選」，也不再出現正反兩種讀法的二選一。
+  var BALANCE_RELIC_LEVELS = [3, 5, 7, 9, 11, 13, 15];
+  var BALANCE_DRAW_MAX_ATTEMPTS = 500; // 防呆：所有效果都學完時不要無限迴圈
+  // 目前抽到、還沒學習的結果（本地only）。刻意不在開關角色視窗時清掉，避免「關掉重開＝重抽」。
+  var midnightBalanceDraw = null;
+
+  function balanceRelicSlots(c) {
+    var level = (c && c.level) || 1;
+    return BALANCE_RELIC_LEVELS.filter(function (lv) {
+      return level >= lv;
+    }).length;
+  }
+
+  function balanceRelicPending(c) {
+    return Math.max(0, balanceRelicSlots(c) - ((c && c.balanceRelicDrawsUsed) || 0));
+  }
+
+  // 角色鍵黃光等「還有沒有可學習的遺物效果」判斷的共用出口（一般模式／平衡模式）。
+  function relicLearnPendingCount(c, type, CD) {
+    if (!c || !type || !CD) return 0;
+    if (balanceModeEnabled()) return balanceRelicPending(c);
+    return Math.max(0, CD.relicMaxLearnable(c.level) - (c.learnedRelicEffects || []).length);
+  }
+
+  function rollBalanceAttachedEffect(c) {
+    var CD = window.PriTestCharacterDrawer;
+    for (var i = 0; i < BALANCE_DRAW_MAX_ATTEMPTS; i++) {
+      var r = CD.rollPotentialPowerAttachedEffect(c);
+      if (r.effect) return { dice: r.dice, effect: r.effect };
+      if (!r.candidates || !r.candidates.length) return null; // 24種全部學過
+    }
+    return null;
+  }
+
+  // 回傳 { kind:"relic", dice, candidate } ／ { kind:"attached", dice, attachedDice, effect, preview } ／ null。
+  function rollBalanceRelicDraw(c) {
+    var CD = window.PriTestCharacterDrawer;
+    var type = c && c.typeId ? window.PriTestCharacterTypes.get(c.typeId) : null;
+    if (!type) return null;
+    var attachedExhausted = false;
+    for (var i = 0; i < BALANCE_DRAW_MAX_ATTEMPTS; i++) {
+      var x = CD.rollD6();
+      var y = CD.rollD6();
+      if (x >= 5) {
+        if (attachedExhausted) continue;
+        var att = rollBalanceAttachedEffect(c);
+        if (!att) {
+          attachedExhausted = true;
+          continue;
+        }
+        // 附帶效果3格已滿時：先擲好會覆蓋哪一格（規則書的1-2／3-4／5-6），學習前就顯示給玩家看。
+        return { kind: "attached", dice: [x, y], attachedDice: att.dice, effect: att.effect, preview: CD.previewAttachedEffectSlot(c) };
+      }
+      var candidate = CD.relicCandidateFor(type, c, x, y);
+      if (candidate) return { kind: "relic", dice: [x, y], candidate: candidate };
+    }
+    return null;
+  }
+
+  // 真正學習。consumeLevelSlot＝是否用掉1次等級名額（獎勵的「額外學習」不用）。
+  function commitBalanceDraw(draw, pickedOption, consumeLevelSlot) {
+    var c = characters[myTokenId];
+    var CD = window.PriTestCharacterDrawer;
+    if (!c || !draw) return false;
+    var before = snapshotMyCharacter();
+    if (draw.kind === "relic") CD.learnRelicEffect(c, draw.candidate, pickedOption);
+    else CD.commitAttachedEffectChoice(c, draw.effect, draw.preview || null);
+    if (consumeLevelSlot) c.balanceRelicDrawsUsed = (c.balanceRelicDrawsUsed || 0) + 1;
+    syncMyCharacterChanges(before);
+    return true;
+  }
+
+  function handleBalanceRelicRoll(c) {
+    if (midnightBalanceDraw || balanceRelicPending(c) <= 0) return;
+    midnightBalanceDraw = rollBalanceRelicDraw(c) || { kind: "empty", dice: [] };
+    renderCharacterSheet();
+  }
+
+  // 抽選結果卡（角色視窗與獎勵清單共用）。onCommit(pickedOption)：按下［習得］後的收尾。
+  function renderBalanceDrawResult(container, draw, c, onCommit) {
+    var CD = window.PriTestCharacterDrawer;
+    var CT = window.PriTestCharacterTypes;
+    if (!draw || draw.kind === "empty") {
+      var emptyP = document.createElement("p");
+      emptyP.textContent = window.I18N.t("midnight_balance_draw_empty");
+      container.appendChild(emptyP);
+      return;
+    }
+    if (draw.kind === "relic") {
+      renderMidnightRelicCandidateCard(container, draw.candidate, c, CD, CT, function (candidate, pickedOption) {
+        onCommit(pickedOption);
+      });
+      return;
+    }
+    var card = document.createElement("div");
+    card.className = "midnight-relic-candidate-card";
+    var head = document.createElement("p");
+    head.className = "warning-text";
+    head.textContent = window.I18N.t("midnight_balance_draw_attached_note", { dice: draw.attachedDice.join("・") });
+    card.appendChild(head);
+    var nameEl = document.createElement("p");
+    nameEl.textContent = window.I18N.t("midnight_reward_kind_attached_effect") + window.I18N.t("colon_separator") + CT.localizedText(draw.effect.name);
+    card.appendChild(nameEl);
+    var bodyEl = document.createElement("p");
+    bodyEl.textContent = mnText(CT.localizedText(draw.effect.body || {}), CT.localizedText(draw.effect.name));
+    card.appendChild(bodyEl);
+    if (draw.preview && draw.preview.replacedId) {
+      var replaced = CD.attachedEffectById(draw.preview.replacedId);
+      var replaceNote = document.createElement("p");
+      replaceNote.className = "warning-text";
+      replaceNote.textContent = window.I18N.t("midnight_balance_draw_attached_replace_note", {
+        name: replaced ? CT.localizedText(replaced.name) : draw.preview.replacedId,
+      });
+      card.appendChild(replaceNote);
+    }
+    var learnBtn = document.createElement("button");
+    learnBtn.type = "button";
+    learnBtn.textContent = window.I18N.t("relic_learn_button");
+    learnBtn.addEventListener("click", function () {
+      onCommit(null);
+    });
+    card.appendChild(learnBtn);
+    container.appendChild(card);
+  }
+
+  function renderBalanceRelicLearnSection(c, type, CD, CharacterTypes) {
+    var block = el("midnight-sheet-relic-learn-block");
+    var slots = balanceRelicSlots(c);
+    var used = c.balanceRelicDrawsUsed || 0;
+    var pending = balanceRelicPending(c);
+    block.hidden = !type || (pending <= 0 && !midnightBalanceDraw);
+    if (block.hidden) return;
+    var progressEl = el("midnight-character-sheet-relic-progress");
+    progressEl.innerHTML = "";
+    progressEl.appendChild(document.createTextNode(window.I18N.t("midnight_balance_relic_progress", { used: used, max: slots })));
+    if (pending > 0) {
+      var badge = document.createElement("span");
+      badge.className = "relic-learnable-badge";
+      badge.textContent = window.I18N.t("relic_learnable_badge", { count: pending });
+      progressEl.appendChild(badge);
+    }
+    el("btn-midnight-sheet-relic-roll").disabled = pending <= 0 || !!midnightBalanceDraw;
+    var diceEl = el("midnight-character-sheet-relic-dice");
+    if (midnightBalanceDraw && midnightBalanceDraw.dice.length) CD.renderDiceDisplay(diceEl, midnightBalanceDraw.dice);
+    else diceEl.innerHTML = "";
+    var candidatesEl = el("midnight-character-sheet-relic-candidates");
+    candidatesEl.innerHTML = "";
+    if (!midnightBalanceDraw) return;
+    var draw = midnightBalanceDraw;
+    renderBalanceDrawResult(candidatesEl, draw, c, function (pickedOption) {
+      if (midnightBalanceDraw !== draw || balanceRelicPending(characters[myTokenId]) <= 0) return;
+      if (!commitBalanceDraw(draw, pickedOption, true)) return;
+      midnightBalanceDraw = null;
+      renderCharacterSheet();
+    });
+    if (draw.kind === "empty") {
+      // 全部學完（極罕見）：名額照樣用掉，避免角色鍵一直閃。
+      var skipBtn = document.createElement("button");
+      skipBtn.type = "button";
+      skipBtn.textContent = window.I18N.t("midnight_reward_confirm_button");
+      skipBtn.addEventListener("click", function () {
+        var cc = characters[myTokenId];
+        if (!cc) return;
+        var before = snapshotMyCharacter();
+        cc.balanceRelicDrawsUsed = (cc.balanceRelicDrawsUsed || 0) + 1;
+        syncMyCharacterChanges(before);
+        midnightBalanceDraw = null;
+        renderCharacterSheet();
+      });
+      candidatesEl.appendChild(skipBtn);
+    }
   }
 
   // 六項威力補正的統計key與顯示順序（2026-09-13）：跟character_drawer.js的
@@ -25587,7 +26177,7 @@
     var CD = window.PriTestCharacterDrawer;
     var CharacterTypes = window.PriTestCharacterTypes;
     var type = c && c.typeId && CharacterTypes ? CharacterTypes.get(c.typeId) : null;
-    var nudge = !!(c && type && CD && (c.learnedRelicEffects || []).length < CD.relicMaxLearnable(c.level));
+    var nudge = relicLearnPendingCount(c, type, CD) > 0; // 2026-09-26：平衡模式改看等級名額
     btn.classList.toggle("midnight-character-icon-nudge", nudge);
   }
 
@@ -27867,6 +28457,7 @@
     updateNearbyFieldPoint();
     updateNearbyChipPoint();
     maybeResolveAllSharedRewardVotes();
+    expireStalePersonalRewards(now); // 2026-09-26：個人獎勵300秒自動消失
     updateTopBannerCollapseUI();
     updateHudStackingUI(now);
     updateNearbyCastle();
@@ -28644,6 +29235,38 @@
     },
     _debugRewardModalDismissed: function () {
       return rewardModalDismissed;
+    },
+    // 2026-09-26：平衡模式／獎勵清單修正的回歸測試用。
+    _debugBalanceMode: function () {
+      return balanceModeEnabled();
+    },
+    _debugSpecialAttackKinds: function (side) {
+      return availableSpecialAttackEntries(side || "R").map(function (e) {
+        return e.kind;
+      });
+    },
+    _debugAbilityUnlocked: function (kind) {
+      return abilityUnlocked(characters[myTokenId], kind);
+    },
+    _debugApplyGuardSuccess: function () {
+      applyGuardSuccessRelics();
+      return guardCounterDiscountPct(characters[myTokenId]);
+    },
+    _debugGuardCounterDiscountPct: function () {
+      return guardCounterDiscountPct(characters[myTokenId]);
+    },
+    _debugBalanceRelicPending: function () {
+      return balanceRelicPending(characters[myTokenId]);
+    },
+    _debugRollBalanceRelicDraw: function () {
+      var d = rollBalanceRelicDraw(characters[myTokenId]);
+      return d ? { kind: d.kind, dice: d.dice, key: d.candidate ? d.candidate.key : null, effectId: d.effect ? d.effect.id : null } : null;
+    },
+    _debugPushPendingReward: function (entry) {
+      pushPendingReward(myTokenId, entry);
+    },
+    _debugPersonalRewardExpireMs: function () {
+      return PERSONAL_REWARD_EXPIRE_MS;
     },
     _debugRenderRewardModal: function () {
       renderRewardModal();

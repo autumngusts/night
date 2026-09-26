@@ -178,6 +178,16 @@ BODY = """    <div class="midnight-wrap">
           </label>
           <span class="hint" data-i18n="midnight_lobby_sprite_mode_hint"></span>
         </div>
+        <!-- midnight平衡模式（2026-09-26使用者明確規格「房間中 下方多一個可勾選的 midnight平衡模式」）：
+             寫入meta.balanceMode，跟武器詞條／點陣圖模式同一套「同一場遊戲所有人共用、開局前
+             設定」模式，見static/midnight.jsのbalanceModeEnabled()的規格說明。 -->
+        <div class="wb-row" id="midnight-lobby-balance-mode-row">
+          <label>
+            <input type="checkbox" id="midnight-lobby-balance-mode-checkbox">
+            <span data-i18n="midnight_lobby_balance_mode_label"></span>
+          </label>
+          <span class="hint" data-i18n="midnight_lobby_balance_mode_hint"></span>
+        </div>
         <!-- 產生戰鬥模擬（2026-09-22使用者明確規格「在創立房間新增一個產生戰鬥模擬 需要輸入
              nightnight密碼 如此可以測試戰鬥點陣圖的動畫效果 閃避方式」）：開啟需密碼（跟測試
              模式同一個閘門，見static/midnight.jsのhandleBattleSimToggle()），寫入

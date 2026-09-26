@@ -9669,8 +9669,15 @@ html.midnight-top-banner-collapsed .midnight-top-banner-collapse-btn {
   text-shadow: 0 0 0.3rem rgba(0, 0, 0, 0.9);
 }
 
+/* 等待房：自己的席位卡可點擊修改名稱／角色／密碼（2026-09-26）。 */
+.midnight-slot-card-editable { cursor: pointer; }
+.midnight-slot-card-editable:hover { outline: 1px dashed rgba(255, 213, 74, 0.7); }
+
+/* 平衡模式的潛在之力分頁籤（2026-09-26）：三把武器各一顆，選取中沿用.midnight-reward-item-selected。 */
+.midnight-balance-pp-tabs { flex-wrap: wrap; gap: 4px; }
+
 /* 蓄力讀條：疊在攻擊鍵底部，由左往右填。--charge-pct 由 renderAttackChargeGauge() 寫入。
-   超過輕點門檻才會顯示，讓「按住但沒按滿＝取消」這條規則在畫面上看得出來。 */
+   2026-09-26：比照魔術／祈禱鍵的讀條——能蓄力時底槽常駐顯示，按下當下就從0開始填。 */
 .midnight-attack-charge-gauge {
   position: absolute;
   left: 6%;
