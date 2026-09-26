@@ -9781,7 +9781,9 @@
       showToast(name + "：" + bodyText + (effectNotes.length ? "（" + effectNotes.join("／") + "）" : ""));
     }
     broadcastCombatActionBubble(name);
-    playMySpriteAnim("skill"); // 玩家 sprite：武器戰技は技能の行（row8）
+    // 玩家 sprite：武器戰技／魔術／祈禱改用致命一擊的行（row6）（2026-09-26使用者明確規格
+    // 「戰技魔術祈禱使用 6致命一擊的動作」；原本是技能的行 row8）。
+    playMySpriteAnim("critical");
   }
 
   // 對自己回復HP／FP（2026-09-11抽出，供多個遺物效果共用：致命一擊2個、屬性達成的歡喜、
