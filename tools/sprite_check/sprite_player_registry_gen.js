@@ -20,7 +20,29 @@ const REGISTRY_PATH = path.join(ROOT, "static_src", "player_sprite_registry.js")
 const WRITE = process.argv.indexOf("--write") !== -1;
 
 // 自分だけの絵を持つ派生類型。空のあいだは素体の sheet を共用する。
-const VARIANT_OWN = {};
+const VARIANT_OWN = {
+  // 2026-09-26：追蹤者（暗黑）的專屬 sheet（photo/enemyPic/0926/追跡者_暗黑.png，
+  // 切法見 tools/sprite_check/cells/player_tracker_dark.json）。
+  tracker_dark: true,
+  // 2026-09-26：守護者（黎明）（photo/enemyPic/0926/守護者_黎明.png，cells/player_guardian_dawn.json）。
+  guardian_dawn: true,
+  // 2026-09-26：淑女（黎明）（photo/enemyPic/0926/淑女_黎明.png，cells/player_lady_dawn.json）。
+  lady_dawn: true,
+  // 2026-09-26：鐵眼（暗黑）（photo/enemyPic/0926/鐵眼_暗黑.png，cells/player_iron_eye_dark.json）。
+  iron_eye_dark: true,
+  // 2026-09-26：無賴漢（暗黑）（photo/enemyPic/0926/無賴漢_暗黑.png，cells/player_ruffian_dark.json）。
+  ruffian_dark: true,
+  // 2026-09-26：送葬人（黎明）（photo/enemyPic/0926/葬儀屋_黎明.png，cells/player_undertaker_dawn.json）。
+  undertaker_dawn: true,
+  // 2026-09-26：執行者（暗黑）（photo/enemyPic/0926/執行者_暗黑.png，cells/player_executor_dark.json）。
+  executor_dark: true,
+  // 2026-09-26：學者（暗黑）（photo/enemyPic/0926/學者_暗黑.png，cells/player_scholar_dark.json）。
+  scholar_dark: true,
+  // 2026-09-26：復仇者（暗黑）（photo/enemyPic/0926/復仇者_暗黑.png，cells/player_avenger_dark.json）。
+  avenger_dark: true,
+  // 2026-09-26：隱者（黎明）（photo/enemyPic/0926/隱者_黎明.png，cells/player_hermit_dawn.json）。
+  hermit_dawn: true
+};
 
 function loadTypes() {
   const sandbox = { window: {}, console };

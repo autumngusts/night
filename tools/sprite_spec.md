@@ -250,3 +250,214 @@ node tools/sprite_check/sprite_sheet_relay.js clean/executor.png 6 10 player_exe
 - 動作の同期は `character/<tokenId>/_spriteAnim = { id, n }` の**通し番号**だけ。
   受擊と死亡は同期しない（HP＝`demoStats` と `nearDeath` が既に全端に届いているので、
   各端がその変化を見て鳴らす）。
+
+## 變體角色的專屬 sheet（2026-09-26，追蹤者（暗黑））
+
+素材：`photo/enemyPic/0926/追跡者_暗黑.png`（1024×1536、RGB）。跟 0924 批的形式完全不同：
+
+- 背景是**深藍黑實底**（約 6,13,15），不是市松 → `sprite_dechecker.js` 不適用
+- 左側 x<180 有「0 待機」之類的行號與說明文字，行與行之間有 1~2px 分隔線
+- 每行幀數不一（待機 6／1hit・2hit・致命一擊・技能 5／技藝 3 幀＋一整團爆炎），
+  刀光與揚塵把相鄰幀連成一塊 → `sprite_sheet_relay.js` 的偵測切不出 6 欄
+
+處理（兩支新工具）：
+
+```bash
+# 1. 剝暗底＋刪標籤＋刪分隔線（標籤只刪「整塊落在 x<180」的連通塊，連著本體的劍尖保留）
+node tools/sprite_check/sprite_debg_dark.js photo/enemyPic/0926/追跡者_暗黑.png clean/tracker_dark.png --label-x=180
+# 2. 依規格檔逐格切割（切點由人看圖決定）
+node tools/sprite_check/sprite_sheet_cells.js clean/tracker_dark.png tools/sprite_check/cells/player_tracker_dark.json
+```
+
+`cells/player_tracker_dark.json` 的決定：
+
+- 格子 240px：本體 sheet 的待機人物約佔格高 0.51~0.57，暗黑版待機高 131px → 240。
+  不照 relay「最大的絵決定格子」，否則爆炎會把格子撐大、人物在畫面上縮小一倍多。
+- 每行以原圖分隔線的 y 當地面，整行共用；不逐幀拉到地面（能力行的空翻要保持離地）。
+- 幀數不足的行，最後一幀重複（停格）。
+- 技藝行 4~6 幀：爆炎一團寬 440px，以 240px 視窗由左往右掃過（576／680／783 起），
+  呈現「爆炸往前方推進」。超出格子的部分裁掉。
+
+登錄：`sprite_player_registry_gen.js` 的 `VARIANT_OWN` 加 `tracker_dark: true` → 重新產生登錄表。
+其他 `_dark`／`_dawn` 變體仍共用素體 sheet。
+
+### 守護者（黎明）（2026-09-26）
+
+素材：`photo/enemyPic/0926/守護者_黎明.png`（1024×1536、RGB、暗底，形式同追蹤者（暗黑））。
+
+```bash
+node tools/sprite_check/sprite_debg_dark.js photo/enemyPic/0926/守護者_黎明.png clean/guardian_dawn.png --label-x=180 --soft-depth=3
+node tools/sprite_check/sprite_sheet_cells.js clean/guardian_dawn.png tools/sprite_check/cells/player_guardian_dawn.json
+```
+
+- **`--soft-depth=3` 是必要的**：盔甲是暗灰藍色，跟背景同屬冷色系，`WARM` 判定擋不住，
+  不限深度時整個身體被吃成半透明。
+- 原圖有 **11 行**（0~10）。行的對應（2026-09-26 使用者明確規格「7取消，8為能力，9為技能，10為技藝」）：
+
+  | sheet 行 | 意義 | 原圖行 |
+  | --- | --- | --- |
+  | 0~6 | 待機～致命一擊 | 0~6（照搬） |
+  | 7 | 能力 | 8（盾牌光芒擴散） |
+  | 8 | 技能 | 9（斧頭旋風） |
+  | 9 | 技藝 | 10（禁忌：張翼飛升後猛擊） |
+
+  原圖第 7 行（盾牌蓄力發光）不使用。
+- 格子 240px：技藝行（原圖 10）每幀高約 240px，224 會裁掉一大截；240 時待機佔格高 0.51，
+  剛好與本體守護者相同。技藝行下方沒有分隔線，地面取爆炎的底部 y=1515，前兩幀的飛升姿勢保持離地。
+- 第 0 行 6 幀，其餘 5 幀＋停格。
+
+### 淑女（黎明）（2026-09-26）
+
+素材：`photo/enemyPic/0926/淑女_黎明.png`（1224×1285、RGB、暗灰底 約 18,20,22，行間分隔線極淡）。
+
+```bash
+node tools/sprite_check/sprite_debg_dark.js photo/enemyPic/0926/淑女_黎明.png clean/lady_dawn.png \
+  --label-x=220 --flood=4 --soft-depth=2 --ghost=565-1223:1115-1284
+node tools/sprite_check/sprite_sheet_cells.js clean/lady_dawn.png tools/sprite_check/cells/player_lady_dawn.json
+```
+
+- **`--flood=4`**：本體是暗灰色，與背景的色差很小，預設 12 會把身體挖出洞。背景雜訊實測只有 0~3。
+- **`--label-x=220`**：技藝行的說明「自身下降實體的透明度」超出 x=200。
+- **`--ghost=`**：技藝行「揮動披風並且自身下降實體的透明度」的 3~6 幀是逐漸變透明的殘影。
+  一般處理會把它變成不透明的黑影，所以在該矩形內改成「色差＝不透明度」（色差 40 以上不透明）。
+- 格子 208px（待機佔格高約 0.53，與本體淑女 0.54 相近）。受擊行 5 幀＋停格，其餘 6 幀。
+- 2hit 行第 3 幀的刀光尾巴伸到 x≈745，切點放在 750（切在 680 會把刀光尾巴分到第 4 格）。
+
+### 鐵眼（暗黑）（2026-09-26）
+
+素材：`photo/enemyPic/0926/鐵眼_暗黑.png`（1024×1536、RGB、深藍底＋分隔線，形式同追蹤者（暗黑））。
+
+```bash
+node tools/sprite_check/sprite_debg_dark.js photo/enemyPic/0926/鐵眼_暗黑.png clean/iron_eye_dark.png \
+  --label-x=180 --soft-depth=3 --ghost-full=24 \
+  --ghost=700-1023:540-666 --ghost=720-1023:672-817 --ghost=780-1023:822-969 \
+  --ghost=300-1023:975-1133 --ghost=480-1023:1138-1275 --ghost=320-1023:1280-1535
+node tools/sprite_check/sprite_sheet_cells.js clean/iron_eye_dark.png tools/sprite_check/cells/player_iron_eye_dark.json
+```
+
+- 本體是暗灰褐色：不限 soft 深度時全身透底，所以 `--soft-depth=3`。
+- 但這樣一來鷹眼光暈、蓄力箭、射擊光束周圍的暗煙會變成大塊黑底 → 特效區域另外用 `--ghost=`
+  （色差＝不透明度）。區域內的本體也會跟著變淡，`--ghost-full=24`（預設 40）是兩者的折衷。
+- 格子 232px（待機佔格高約 0.59，與本體鐵眼 0.60 相同）。
+- 幀數：待機・受擊・死亡 6 幀，其餘 5 幀＋停格；技藝只有 2 幀＋一整道光束。
+- 1hit 第 5 幀（飛行中的箭）與 2hit 第 5 幀（命中的光圈）比格子寬，視窗取右側（保住箭頭與光圈）。
+- 技藝 3~6 幀：光束寬約 520px，以 232px 視窗由左往右掃過（499／596／690／785 起），呈現射擊往前推進。
+
+### 無賴漢（暗黑）（2026-09-26）
+
+素材：`photo/enemyPic/0926/無賴漢_暗黑.png`（1024×1536、RGB、深藍底＋分隔線）。
+
+```bash
+node tools/sprite_check/sprite_debg_dark.js photo/enemyPic/0926/無賴漢_暗黑.png clean/ruffian_dark.png --label-x=215 --soft-depth=3
+node tools/sprite_check/sprite_sheet_cells.js clean/ruffian_dark.png tools/sprite_check/cells/player_ruffian_dark.json
+```
+
+- 原圖有 **11 行**（0~6、「7」兩次、8、9），而且**標籤比圖往下錯一行**。依**圖的內容**對應：
+
+  | sheet 行 | 意義 | 原圖（上數第幾帶，0 始） | 圖的內容 |
+  | --- | --- | --- | --- |
+  | 0~6 | 待機～致命一擊 | 0~6 | 照搬 |
+  | —— | 不使用 | 7（標籤「7 能力」） | 高舉特大武器砸地（像跳躍攻擊的續招） |
+  | 7 | 能力 | 8（標籤「7 技能」） | 白色護盾展開後消散 |
+  | 8 | 技能 | 9（標籤「8 技藝」） | 吼叫腳踩地板、環狀衝擊 |
+  | 9 | 技藝 | 10（標籤「9 技藝」） | 蹲下炸出巨大岩壁 |
+
+- `--label-x=215`：「前方」「大」兩字在 x=200 附近與分隔線殘片相連，200 刪不掉。
+- 格子 208px（待機佔格高約 0.62，與本體無賴漢 0.62 相同）。
+- 技藝行下方沒有分隔線，地面取岩壁底部 y=1519。
+
+### 送葬人（黎明）（2026-09-26）
+
+素材：`photo/enemyPic/0926/葬儀屋_黎明.png`（971×1619、RGB、深藍灰底＋分隔線）。
+
+```bash
+node tools/sprite_check/sprite_debg_dark.js photo/enemyPic/0926/葬儀屋_黎明.png clean/undertaker_dawn.png --label-x=175 --dark-ink
+node tools/sprite_check/sprite_sheet_cells.js clean/undertaker_dawn.png tools/sprite_check/cells/player_undertaker_dawn.json
+```
+
+- 本體是白袍（暖色），預設設定即可。
+- **`--dark-ink`**：能力「四周展開黑色翅膀」、技藝「展開黑色翅膀旋轉刺向前方」的羽毛比背景（14,17,20）更暗，
+  色差只有 12~15，不加這個選項會被當成背景整片吃掉。加了之後，比背景暗的像素以
+  alpha＝1−亮度/背景亮度 還原成半透明的黑。分隔線上下 2px 不套用（線的陰影會變成細黑線）。
+- 格子 272px（待機佔格高 0.48，與本體送葬人 0.47 相同——本體這隻本來就畫得比較小）。全部 10 行都是 6 幀。
+- 致命一擊第 6 幀原圖就只有飛出去的棍棒（沒有人物），照原樣保留。
+
+### 執行者（暗黑）（2026-09-26）
+
+素材：`photo/enemyPic/0926/執行者_暗黑.png`（1024×1536、RGB、深藍底＋分隔線）。
+
+```bash
+node tools/sprite_check/sprite_debg_dark.js photo/enemyPic/0926/執行者_暗黑.png clean/executor_dark.png \
+  --label-x=180 --label-box=0-184:1170-1245 --soft-depth=3 --ghost-full=24 \
+  --ghost=560-1023:667-813 --ghost=250-1023:817-959 --ghost=255-1023:964-1115 \
+  --ghost=300-1023:1119-1259 --ghost=265-1023:1263-1432
+node tools/sprite_check/sprite_sheet_cells.js clean/executor_dark.png tools/sprite_check/cells/player_executor_dark.json
+```
+
+- **`--label-box=`**：技能行的說明「閃橘黃光居合斬」末尾（x≈184）緊貼第 1 幀人物（x≈186），
+  連通塊判定刪不掉，改用矩形直接清空。
+- 橘黃色的刀光、妖狐、變身火焰周圍的暗煙：比照鐵眼（暗黑）用 `--ghost=`＋`--ghost-full=24`。
+- 格子 264px（待機佔格高 0.50，與本體執行者相同）。技能行 5 幀＋停格，其餘 6 幀。
+- 致命一擊／能力行的第 1 格切點放在 256（人物右端 255）；262 會混入第 2 幀的刀光碎片。
+
+### 學者（暗黑）（2026-09-26）
+
+素材：`photo/enemyPic/0926/學者_暗黑.png`（1024×1536、RGB、深藍底＋分隔線）。
+
+```bash
+node tools/sprite_check/sprite_debg_dark.js photo/enemyPic/0926/學者_暗黑.png clean/scholar_dark.png \
+  --label-x=175 --label-box=0-163:1415-1432 --ghost-full=24 \
+  --ghost=400-1023:814-976 --ghost=300-1023:980-1132 --ghost=300-1023:1136-1280 --ghost=300-1023:1283-1535
+node tools/sprite_check/sprite_sheet_cells.js clean/scholar_dark.png tools/sprite_check/cells/player_scholar_dark.json
+```
+
+- 本體是暖色長袍，soft 深度不用限制（預設即可）。
+- `--label-box=`：技藝行的說明「身後產生懷錶圓盤」的「圓盤」與第 1 幀的劍尖相連。
+- 致命一擊～技藝的爆炸、閃光、懷錶圓盤周圍的暗煙用 `--ghost=`＋`--ghost-full=24`。
+- 格子 256px（待機佔格高 0.51，與本體學者 0.52 相同）。
+- 致命一擊：第 1〜2 幀之後是一整片寬約 610px 的爆炸（炎雷聖魔等塵暴），以 256px 視窗由左往右掃過
+  （409／535／655／768 起）。
+- 能力第 4 幀的書本伸進第 5 幀的爆炸裡，切點放在 765（747 會把書切掉一半）。
+- 能力、技能、技藝各 5 幀＋停格，其餘 6 幀。技藝行下方沒有分隔線，地面取第 1 幀腳底 y=1457。
+
+### 復仇者（暗黑）（2026-09-26）
+
+素材：`photo/enemyPic/0926/復仇者_暗黑.png`（1024×1536、RGB、偏青的深色底 約 1,12,13＋分隔線）。
+
+```bash
+node tools/sprite_check/sprite_debg_dark.js photo/enemyPic/0926/復仇者_暗黑.png clean/avenger_dark.png \
+  --label-x=190 --label-box=0-212:1399-1417 --soft-depth=3 --ghost-full=24 \
+  --ghost=300-1023:818-976 --ghost=300-1023:979-1132 --ghost=450-1023:1136-1295 --ghost=450-1023:1298-1461
+node tools/sprite_check/sprite_sheet_cells.js clean/avenger_dark.png tools/sprite_check/cells/player_avenger_dark.json
+```
+
+- 黑色長裙（約 22,22,23）與偏青的背景主要靠 R 通道區分（差約 20），預設 flood=12 就分得開；
+  裙子不是暖色，所以要 `--soft-depth=3`。
+- 黃金圖紋、豎琴光弦、白色煙霧用 `--ghost=`。光暈周圍仍留一圈暗色（與裙子色差相近，
+  再提高 `--ghost-full` 裙子會變透明），當作暗黑系的氣場保留。
+- `--label-box=`：技藝行說明末尾「色煙霧」與第 1 幀人物相連。
+- 翻滾行下方的分隔線（y 276〜277）比偵測到的線（274〜275）低一點、沒被清掉，而且與煙塵相連；
+  cells 的各行範圍取「線的下一行 +3 ～ 下一條線 −1」，把線排除在外。
+- 格子 240px（待機佔格高 0.55，與本體復仇者相同）。
+- 技藝：2 幀＋白色煙霧中的 2 個姿勢；煙霧中的第 1 個姿勢寬 334px，取以人物為中心的 240px 視窗。
+  第 4 格之後停格。翻滾、致命一擊、能力、技能 5 幀＋停格。
+
+### 隱者（黎明）（2026-09-26）
+
+素材：`photo/enemyPic/0926/隱者_黎明.png`（1024×1536、RGB、深色底＋分隔線）。
+
+```bash
+node tools/sprite_check/sprite_debg_dark.js photo/enemyPic/0926/隱者_黎明.png clean/hermit_dawn.png \
+  --label-x=170 --lines=56,149,270,323,402,532,666,810,813,952,1110,1269 \
+  --label-box=0-206:1203-1225 --label-box=0-205:1369-1387
+node tools/sprite_check/sprite_sheet_cells.js clean/hermit_dawn.png tools/sprite_check/cells/player_hermit_dawn.json
+```
+
+- **`--lines=` 是必要的**：藍紫色特效（順移殘影、藍光、隕石、藍色雨片、星痕）符合「偏藍的中間灰」，
+  自動偵測會把特效所在的整段 y 當成分隔線，清掉 40 萬 px。分隔線的 y 由「整列 B−R 平均值的局部峰」
+  找出（149〜1269），另外加上待機／受擊行穿過人物的淡色裝飾線（56、323）與 810 線的下緣（813）。
+- `--label-box=`：技能行「向前方」、技藝行「色枝斑」與人物／法杖相連。
+- 本體是暖色紅袍，soft 深度不限；藍紫特效的暗部自然成為半透明，不需要 `--ghost=`。
+- 格子 232px（待機佔格高 0.63，與本體隱者 0.64 相近）。
+- 1hit 最後的藍光飛彈、技藝最後的紅色技枝圖騰比格子寬，各取以飛彈頭／人物為中心的 232px 視窗。
+- 待機、受擊、死亡 6 幀；順移、1hit、2hit、致命一擊、能力、技能 5 幀＋停格；技藝 4 幀＋停格。

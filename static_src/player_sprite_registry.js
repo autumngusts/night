@@ -16,7 +16,17 @@
     { id: "player_hermit", file: "player_hermit.png", available: true },
     { id: "player_executor", file: "player_executor.png", available: true },
     { id: "player_scholar", file: "player_scholar.png", available: true },
-    { id: "player_undertaker", file: "player_undertaker.png", available: true }
+    { id: "player_undertaker", file: "player_undertaker.png", available: true },
+    { id: "player_tracker_dark", file: "player_tracker_dark.png", available: true },
+    { id: "player_guardian_dawn", file: "player_guardian_dawn.png", available: true },
+    { id: "player_iron_eye_dark", file: "player_iron_eye_dark.png", available: true },
+    { id: "player_lady_dawn", file: "player_lady_dawn.png", available: true },
+    { id: "player_ruffian_dark", file: "player_ruffian_dark.png", available: true },
+    { id: "player_avenger_dark", file: "player_avenger_dark.png", available: true },
+    { id: "player_hermit_dawn", file: "player_hermit_dawn.png", available: true },
+    { id: "player_executor_dark", file: "player_executor_dark.png", available: true },
+    { id: "player_scholar_dark", file: "player_scholar_dark.png", available: true },
+    { id: "player_undertaker_dawn", file: "player_undertaker_dawn.png", available: true }
   ];
 
   // 角色類型 id -> sheet id。暗黑／黎明の派生類型は素体と同じ sheet を共用する。
@@ -31,16 +41,16 @@
     "executor": "player_executor",
     "scholar": "player_scholar",
     "undertaker": "player_undertaker",
-    "tracker_dark": "player_tracker",
-    "guardian_dawn": "player_guardian",
-    "iron_eye_dark": "player_iron_eye",
-    "lady_dawn": "player_lady",
-    "ruffian_dark": "player_ruffian",
-    "avenger_dark": "player_avenger",
-    "hermit_dawn": "player_hermit",
-    "executor_dark": "player_executor",
-    "scholar_dark": "player_scholar",
-    "undertaker_dawn": "player_undertaker"
+    "tracker_dark": "player_tracker_dark",
+    "guardian_dawn": "player_guardian_dawn",
+    "iron_eye_dark": "player_iron_eye_dark",
+    "lady_dawn": "player_lady_dawn",
+    "ruffian_dark": "player_ruffian_dark",
+    "avenger_dark": "player_avenger_dark",
+    "hermit_dawn": "player_hermit_dawn",
+    "executor_dark": "player_executor_dark",
+    "scholar_dark": "player_scholar_dark",
+    "undertaker_dawn": "player_undertaker_dawn"
   };
 
   function listSheets() {
