@@ -134,6 +134,10 @@ BODY = """    <div class="midnight-wrap">
           <label data-i18n="midnight_lobby_night_boss_label"></label>
           <select id="midnight-lobby-night-boss-select"></select>
         </div>
+        <!-- 劇本王插畫（2026-09-26使用者明確規格「創立房間如果選擇夜王也會顯示此插畫在房間」）：
+             選了具體夜王才顯示（「隨機決定」時隱藏，避免提前暗示），見static/midnight.jsの
+             renderLobbyNightBossEmblem()。 -->
+        <img id="midnight-lobby-night-boss-emblem" alt="" hidden />
         <div class="wb-row" id="midnight-lobby-map-variant-row">
           <label data-i18n="midnight_lobby_map_variant_label"></label>
           <select id="midnight-lobby-map-variant-select">
@@ -687,6 +691,10 @@ BODY = """    <div class="midnight-wrap">
           <div class="midnight-bar-row">
             <span id="midnight-flask-count"></span>
           </div>
+          <!-- 自身buff圖示列（2026-09-26使用者明確規格）：持續時間內的加成每項一顆，攻擊能力上升類
+               用劍圖示、其餘用紅圖示，往右排列（間距2px）、滑鼠移上去只顯示加成名稱、到期即消失，
+               寬度不超過HP條右端（超過就換行）。見static/midnight.jsのrenderSelfBuffIcons()。 -->
+          <div id="midnight-self-buff-icons" hidden></div>
           <!-- 自身承受中的屬性／異常蓄積（2026-09-13使用者明確規格「若自己受到屬性與
                狀態異常 其累積值顯示在左上hud的 聖杯瓶資訊與隊伍資訊之間」）：資料來源是
                receivedAttributeAccum（本地only，見static/midnight.js該變數說明，跟打在
@@ -975,7 +983,11 @@ BODY = """    <div class="midnight-wrap">
                （純本地）決定，見cycleFlaskSlot()／renderFlaskSlotCard()；沒有結晶雫時
                只有1格，兩顆切換鍵直接隱藏（2026-09-25）。 -->
           <div id="midnight-flask-wrap">
+          <!-- 快捷鍵標示（2026-09-26使用者明確規格「操作盤上的左上角標示其快捷鍵，如迴避」）：
+               聖杯瓶Q／道具E／左手武器1／右手武器2，樣式同迴避鍵的.midnight-hotkey-badge，
+               按鍵處理見static/midnight.jsのhandleGeneralHotkeyDown()。 -->
           <button type="button" id="btn-midnight-use-flask" class="midnight-action-card midnight-action-card-flask">
+            <span class="midnight-hotkey-badge">Q</span>
             <!-- 「使用中」浮標（2026-09-13使用者明確規格「使用聖杯瓶中，格子上方顯示
                  使用中」）：沿用.midnight-action-flash既有的「絕對定位在按鈕格正上方
                  （bottom:100%）」慣例，只是常駐到讀取結束而不是1秒後消失，見
@@ -991,9 +1003,11 @@ BODY = """    <div class="midnight-wrap">
             <button type="button" id="btn-midnight-flask-next" class="midnight-consumable-cycle-btn" aria-label="next">&#9654;</button>
           </div>
           <button type="button" id="btn-midnight-weapon-left" class="midnight-action-card midnight-action-card-weapon">
+            <span class="midnight-hotkey-badge">1</span>
             <span id="midnight-weapon-left-label"></span>
           </button>
           <button type="button" id="btn-midnight-weapon-right" class="midnight-action-card midnight-action-card-weapon">
+            <span class="midnight-hotkey-badge">2</span>
             <span id="midnight-weapon-right-label"></span>
           </button>
           <!-- 消耗品卡片＋左右切換（2026-09-21使用者明確規格「左下的操作盤中 消耗品要有左右
@@ -1003,6 +1017,7 @@ BODY = """    <div class="midnight-wrap">
                renderQuickActionCards()。 -->
           <div id="midnight-consumable-wrap">
             <button type="button" id="btn-midnight-use-consumable" class="midnight-action-card midnight-action-card-consumable">
+              <span class="midnight-hotkey-badge">E</span>
               <span id="midnight-consumable-label"></span>
               <span id="midnight-consumable-index" hidden></span>
               <!-- 剩餘數量（2026-09-22使用者明確規格「消耗品在左下角操作盤中 要顯示剩餘數量」）：

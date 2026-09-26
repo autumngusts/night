@@ -3595,10 +3595,31 @@
     });
   }
 
+  // 劇本id → 夜王（night_bosses.js的名簿）：scenarios.js每個劇本都有固定的bossId。
+  function nightBossForScenarioId(scenarioId) {
+    var Scenarios = window.PriTestScenarios;
+    var Bosses = window.PriTestNightBosses;
+    var scenario = scenarioId && Scenarios ? Scenarios.get(scenarioId) : null;
+    return scenario && scenario.bossId && Bosses ? Bosses.get(scenario.bossId) : null;
+  }
+
+  // 等待房的劇本王插畫（2026-09-26）：跟下拉選單同一個來源（meta.nightBossId，全房間共用），
+  // 選「隨機決定」時不顯示。
+  function renderLobbyNightBossEmblem() {
+    var img = el("midnight-lobby-night-boss-emblem");
+    if (!img) return;
+    var boss = nightBossForScenarioId(meta && meta.nightBossId);
+    var src = boss ? window.PriTestNightBosses.emblemPath(boss) : null;
+    if (src && img.getAttribute("src") !== src) img.setAttribute("src", src);
+    if (boss) img.alt = img.title = boss.title;
+    if (img.hidden === !!src) img.hidden = !src;
+  }
+
   function renderLobbySettings() {
     populateNightBossSelect();
     var bossSelect = el("midnight-lobby-night-boss-select");
     if (bossSelect && document.activeElement !== bossSelect) bossSelect.value = (meta && meta.nightBossId) || "";
+    renderLobbyNightBossEmblem();
     var mapSelect = el("midnight-lobby-map-variant-select");
     if (mapSelect && document.activeElement !== mapSelect) mapSelect.value = (meta && meta.mapVariant) || "basic";
     var difficultySelect = el("midnight-lobby-difficulty-select");
@@ -4534,6 +4555,34 @@
     FIELD_CARD_ICON_IMAGES[fieldIconCard] = new Image();
     FIELD_CARD_ICON_IMAGES[fieldIconCard].src =
       "../static/images/icons/fields/" + FIELD_CARD_ICON_FILES[fieldIconCard];
+  }
+
+  // 屬性／異常圖示（2026-09-26使用者提供，切割後存在static_src/images/icons/status/，原圖在
+  // photo/midnight/status_icons/；咒死是依使用者規格「全黑帶骷髏頭」自製）。key＝分歧名括號裡的
+  // 屬性字（ja寫法，數字已去掉，例：「炎1」→「炎」；「湖沼(睡)」的「睡」＝睡眠）。
+  var STATUS_ICON_FILE_BY_TOKEN = {
+    魔: "magic",
+    炎: "fire",
+    雷: "lightning",
+    聖: "holy",
+    毒: "poison",
+    腐: "rot",
+    血: "bleed",
+    凍: "frost",
+    眠: "sleep",
+    睡: "sleep",
+    狂: "madness",
+    死: "deathblight",
+  };
+  var STATUS_ICON_IMAGES = {};
+  function statusIconImage(file) {
+    var img = STATUS_ICON_IMAGES[file];
+    if (!img) {
+      img = new Image();
+      img.src = "../static/images/icons/status/" + file + ".png";
+      STATUS_ICON_IMAGES[file] = img;
+    }
+    return img.complete && img.naturalWidth ? img : null;
   }
 
   // 讀み込み済みの圖示だけ返す。讀み込み前／失敗時は null を返して數字カードへ戻す
@@ -15266,6 +15315,150 @@
     for (var i = 0; i < ids.length; i++) {
       var node = el(ids[i]);
       if (node) node.classList.toggle(className, !!on);
+    }
+  }
+
+  // ---- 自身buff圖示列（2026-09-26使用者明確規格）----
+  // 左上狀態面板「聖杯瓶剩餘」下一行：持續時間內的加成每項一顆圖示，攻擊能力上升相關用劍圖示
+  // （attack:true），其餘用紅圖示；滑鼠移上去只顯示加成名稱（10字以內）；到期自動消失。
+  // 判定全部讀既有的_xxxUntil／meta時間戳／healOverTimeEffects，不另外維護第二份計時。
+  // name：消耗品直接讀consumables.js的品名（不重複定義），其餘用i18n midnight_buff_<key>。
+  // （_affixDodgeUntil是「迴避後受傷增加／防禦下降」的負面效果、_guardCounterWindowUntil是
+  //  1秒的疊層判定視窗，都不是加成，刻意不列入。）
+  var BUFF_ICON_SRC = {
+    attack: "../static/images/icons/status/buff_attack.png",
+    other: "../static/images/icons/status/buff_other.png",
+  };
+
+  function untilActive(field) {
+    return function (c, now) {
+      return !!(c && c[field] && c[field] > now);
+    };
+  }
+
+  var SELF_BUFF_DEFS = [
+    // ---- 攻擊能力上升（劍圖示）----
+    { key: "hero_meat", attack: true, item: "item_hero_meat_chunk", active: untilActive("_heroMeatUntil") },
+    {
+      key: "uplift",
+      attack: true,
+      item: "item_perfume_uplifting_aroma",
+      active: function () {
+        return partyUpliftLevel() > 0;
+      },
+    },
+    {
+      key: "grease",
+      attack: true,
+      active: function (c, now) {
+        return !!(c && c._greaseWeaponId && c._greaseUntil > now);
+      },
+    },
+    {
+      key: "temp_infuse",
+      attack: true,
+      active: function (c, now) {
+        return !!(c && (c._tempWeaponSkills || []).some(function (t) {
+          return t && t.until > now;
+        }));
+      },
+    },
+    { key: "relic_atk", attack: true, active: untilActive("_relicAtkBuffUntil") },
+    { key: "flame_cloak", attack: true, active: untilActive("_flameCloakUntil") },
+    { key: "roar_two_hit", attack: true, active: untilActive("_roarTwoHitUntil") },
+    { key: "magic_ground", attack: true, active: untilActive("_magicGroundUntil") },
+    { key: "continuous_shot", attack: true, active: untilActive("_continuousShotUntil") },
+    { key: "beast_form", attack: true, active: untilActive("_beastFormUntil") },
+    { key: "rm_two_hit_atk", attack: true, active: untilActive("_rmTwoHitAtkUntil") },
+    { key: "rm_swap_atk", attack: true, active: untilActive("_rmSwapAtkUntil") },
+    { key: "rm_on_damaged_atk", attack: true, active: untilActive("_rmOnDamagedUntil") },
+    { key: "rm_incant_atk", attack: true, active: untilActive("_rmIncantBuffUntil") },
+    { key: "rm_art_atk", attack: true, active: untilActive("_rmArtAtkUntil") },
+    { key: "rm_on_infuse_atk", attack: true, active: untilActive("_rmOnInfuseUntil") },
+    { key: "rm_art_burn", attack: true, active: untilActive("_rmArtBurnUntil") },
+    { key: "rm_art_link_dot", attack: true, active: untilActive("_rmArtLinkDotUntil") },
+    { key: "affix_guard_spell", attack: true, active: untilActive("_affixGuardSpellUntil") },
+    // ---- 其他加成（紅圖示）----
+    { key: "iron_pot", item: "item_perfume_iron_pot_spray", active: untilActive("_ironPotUntil") },
+    { key: "acid_spray", item: "item_perfume_acid_spray", active: untilActive("_acidSprayUntil") },
+    { key: "guard_value_up", active: untilActive("_guardValueBonusUntil") },
+    { key: "trance", active: untilActive("_tranceUntil") },
+    { key: "invincible", active: untilActive("_sixthSenseGraceUntil") },
+    { key: "empathy", active: untilActive("_empathyShareUntil") },
+    { key: "counterattack", active: untilActive("_counterattackGuardUntil") },
+    { key: "no_fp_cost", active: untilActive("_noFpCostUntil") },
+    { key: "aggro_up", active: untilActive("_aggroBonusUntil") },
+    { key: "aggro_zero", active: untilActive("_aggroZeroUntil") },
+    { key: "rm_revenge_heal", active: untilActive("_rmRevengeUntil") },
+    { key: "rm_marks_cut", active: untilActive("_rmMarksCutUntil") },
+    { key: "rm_art_party_regen", active: untilActive("_rmArtPartyRegenUntil") },
+    { key: "affix_guard_cut", active: untilActive("_affixGuardCutUntil") },
+    { key: "affix_damaged_guard", active: untilActive("_affixDamagedGuardUntil") },
+    { key: "affix_combo_guard", active: untilActive("_affixComboGuardUntil") },
+    { key: "affix_charge_guard", active: untilActive("_affixChargeGuardUntil") },
+    {
+      key: "blood_song",
+      active: function () {
+        return bloodSongActive();
+      },
+    },
+    {
+      key: "revive_immune",
+      active: function () {
+        return reviveImmuneActive();
+      },
+    },
+    {
+      key: "heal_over_time",
+      item: "item_warming_stone",
+      active: function (c, now) {
+        return healOverTimeEffects.some(function (e) {
+          return e.tokenId === myTokenId && e.until > now;
+        });
+      },
+    },
+  ];
+
+  function selfBuffName(def) {
+    var Consumables = window.PriTestConsumables;
+    var item = def.item && Consumables ? Consumables.get(def.item) : null;
+    if (item) return Consumables.localizedText(item.name);
+    return window.I18N.t("midnight_buff_" + def.key);
+  }
+
+  var lastSelfBuffKey = null;
+  function renderSelfBuffIcons(now) {
+    var box = el("midnight-self-buff-icons");
+    if (!box) return;
+    var c = mySlot ? characters[myTokenId] : null;
+    var active = SELF_BUFF_DEFS.filter(function (def) {
+      return !!c && def.active(c, now);
+    });
+    // 語言切換時也要重建（title 是依當下語言寫進去的）。
+    var key = document.documentElement.lang + "|" + active.map(function (d) {
+      return d.key;
+    }).join(",");
+    if (key !== lastSelfBuffKey) {
+      lastSelfBuffKey = key;
+      box.innerHTML = "";
+      active.forEach(function (def) {
+        var img = document.createElement("img");
+        img.className = "midnight-self-buff-icon";
+        img.src = def.attack ? BUFF_ICON_SRC.attack : BUFF_ICON_SRC.other;
+        img.alt = img.title = selfBuffName(def);
+        img.setAttribute("data-buff", def.key);
+        img.draggable = false;
+        box.appendChild(img);
+      });
+      box.hidden = active.length === 0;
+    }
+    if (!active.length) return;
+    // 寬度上限＝HP條（.midnight-bar-track）的右端：數值欄寬度會隨數字位數變動，每幀量一次。
+    var fill = el("midnight-self-hp-fill");
+    var track = fill && fill.parentNode;
+    if (track) {
+      var maxW = Math.floor(track.getBoundingClientRect().right - box.getBoundingClientRect().left);
+      if (maxW > 0 && box.style.maxWidth !== maxW + "px") box.style.maxWidth = maxW + "px";
     }
   }
 
@@ -28358,6 +28551,9 @@
       }
     }
 
+    // 劇本王插畫（2026-09-26）：畫在縮圈遮罩之後，圈外的暗色遮罩不會把它壓暗。
+    drawNightBossEmblem();
+
     // 標點（ping）：包含自己跟其他裝置的，只畫還沒過期的。
     Object.keys(remotePings).forEach(function (id) {
       var p = remotePings[id];
@@ -28407,6 +28603,67 @@
     if (!showing) return;
     minimapCtx.clearRect(0, 0, minimapCanvas.width, minimapCanvas.height);
     minimapCtx.drawImage(canvas, 0, 0, minimapCanvas.width, minimapCanvas.height);
+  }
+
+  // ---- 大地圖左下角的劇本王插畫（2026-09-26使用者明確規格「進入遊戲抽到夜王時，在大地圖的
+  // 左下角放置夜王插圖，大小不蓋過能走的範圍」）----
+  // 夜王＝開局確定的meta.resolvedNightBossId（隨機決定也已經抽好）。尺寸：從地圖左下角往外擴張
+  // 正方形，只要範圍內全是不可行走格（map.grid!==0；地點／靈鳥也都生成在可行走格上）就繼續擴，
+  // 取最大的那一個。每張地圖只算一次（依map物件快取），上限為地圖短邊的35%，避免空曠地圖畫太大。
+  var NIGHT_BOSS_EMBLEM_MAX_RATIO = 0.35;
+  var NIGHT_BOSS_EMBLEM_MIN_CELLS = 4;
+  var nightBossEmblemImages = {};
+  var nightBossEmblemCornerCache = { map: null, cells: 0 };
+
+  function nightBossEmblemCornerCells() {
+    if (nightBossEmblemCornerCache.map === map) return nightBossEmblemCornerCache.cells;
+    var maxCells = Math.floor(Math.min(map.width, map.height) * NIGHT_BOSS_EMBLEM_MAX_RATIO);
+    var cells = 0;
+    // 大小 n 的正方形＝x∈[0,n)、y∈[height-n,height)；從 n-1 擴到 n 時只要多檢查新的一列＋一欄。
+    for (var n = 1; n <= maxCells; n++) {
+      var ok = true;
+      var col = n - 1;
+      var row = map.height - n;
+      for (var i = 0; i < n && ok; i++) {
+        if (map.grid[(map.height - 1 - i) * map.width + col] === 0) ok = false; // 新的一欄
+        if (map.grid[row * map.width + i] === 0) ok = false; // 新的一列
+      }
+      if (!ok) break;
+      cells = n;
+    }
+    nightBossEmblemCornerCache = { map: map, cells: cells };
+    return cells;
+  }
+
+  function nightBossEmblemImage() {
+    var boss = nightBossForScenarioId(meta && meta.resolvedNightBossId);
+    var src = boss ? window.PriTestNightBosses.emblemPath(boss) : null;
+    if (!src) return null;
+    var img = nightBossEmblemImages[src];
+    if (!img) {
+      img = new Image();
+      img.src = src;
+      nightBossEmblemImages[src] = img;
+    }
+    return img.complete && img.naturalWidth ? img : null;
+  }
+
+  function drawNightBossEmblem() {
+    if (!map || !map.grid) return;
+    var img = nightBossEmblemImage();
+    if (!img) return;
+    var cells = nightBossEmblemCornerCells();
+    if (cells < NIGHT_BOSS_EMBLEM_MIN_CELLS) return;
+    var size = cells * CELL;
+    var y = map.height * CELL - size;
+    ctx.save();
+    ctx.globalAlpha = 0.92;
+    ctx.drawImage(img, 0, y, size, size);
+    ctx.globalAlpha = 1;
+    ctx.strokeStyle = "rgba(200, 210, 230, 0.55)";
+    ctx.lineWidth = 1;
+    ctx.strokeRect(0.5, y + 0.5, size - 1, size - 1);
+    ctx.restore();
   }
 
   // 地圖上的點畫成小張撲克牌（背景卡片＋牌面數字/K），對應midnight_map.js抽牌生成
@@ -28523,7 +28780,42 @@
       return;
     }
     drawCardShape(px, py, pt.card, Map_.FIELD_CARD_NAMES[pt.card]);
+    drawPointAttributeBadge(pt, px, py);
     if (isPointCleared(pt)) drawClearedMark(px, py, CELL * 0.85);
+  }
+
+  // 板塊的已知屬性（2026-09-26使用者明確規格「地圖上若已知遺跡或是湖泊等等的屬性時，例如
+  // 遺跡（毒），則在其板塊圖示的右下另外一小塊標上屬性異常圖示」）。「已知」＝這個板塊的分歧
+  // 已經決定並寫進共享狀態（有人進入過：fieldProgress／fieldTrigger的branchIndex）。
+  // 分歧在進入前不公開，所以不從resolveFieldVariant()預先算出來洩漏給玩家。
+  function knownPointAttributeFile(pt) {
+    var progress = fieldProgress[pt.id];
+    var trig = fieldTriggers[pt.id];
+    var idx = null;
+    if (progress && typeof progress.branchIndex === "number") idx = progress.branchIndex;
+    else if (trig && typeof trig.branchIndex === "number") idx = trig.branchIndex;
+    if (idx === null) return null;
+    var branch = fieldCardBranches(pt.card)[idx];
+    var nameJa = (branch && branch.name && branch.name.ja) || "";
+    var m = /[（(]([^（）()]+)[）)]\s*$/.exec(nameJa);
+    if (!m) return null;
+    var token = m[1].replace(/[0-9０-９]/g, "");
+    return STATUS_ICON_FILE_BY_TOKEN[token] || null;
+  }
+
+  function drawPointAttributeBadge(pt, px, py) {
+    var file = knownPointAttributeFile(pt);
+    var img = file ? statusIconImage(file) : null;
+    if (!img) return;
+    var cardSize = fieldCardIcon(pt.card) ? CELL * 1.6 * FIELD_CARD_ICON_SCALE : CELL * 1.6;
+    var s = Math.max(10, cardSize * 0.4);
+    var x = px + cardSize / 2 - s * 0.75;
+    var y = py + cardSize / 2 - s * 0.75;
+    ctx.save();
+    ctx.fillStyle = "rgba(0, 0, 0, 0.75)";
+    ctx.fillRect(x - 1, y - 1, s + 2, s + 2);
+    ctx.drawImage(img, x, y, s, s);
+    ctx.restore();
   }
 
   // 卡片本體（數字/K/J＋名稱標籤）：原本只有drawPointCard()在用，2026-09-05籌碼優化
@@ -28926,6 +29218,7 @@
     renderCombatPanel();
     renderCharacterActionButtons();
     updateConsumableBuffVisuals(now); // 2026-09-21：持續型消耗品的常駐視覺（依_xxxUntil自動到期）
+    renderSelfBuffIcons(now); // 2026-09-26：左上狀態面板的buff圖示列
     updateAbilityVisuals(now); // 2026-09-21：角色能力的持續型視覺（標記／獸化／血魂／共感／恍惚等）
     renderTestPanel();
     renderDebugPanel();

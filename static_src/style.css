@@ -4908,7 +4908,9 @@ html.midnight-banner-above-hud:not(.midnight-top-banner-collapsed) #midnight-rew
    放右下角會壓在品名第二行上——左上角跟右上角的「第N/共M格」左右分開，兩個都不擋文字。 */
 #midnight-flask-slot-count {
   position: absolute;
-  left: 0.85rem;
+  /* 2026-09-26：左上角先放快捷鍵Q的徽章（見下方.midnight-action-card .midnight-hotkey-badge），
+     剩餘次數往右挪到徽章後面。 */
+  left: 2rem;
   top: 0.1rem;
   padding: 0 0.28rem;
   border-radius: 3px;
@@ -4923,10 +4925,19 @@ html.midnight-banner-above-hud:not(.midnight-top-banner-collapsed) #midnight-rew
 
 #btn-midnight-weapon-left {
   grid-area: left;
+  position: relative; /* 快捷鍵徽章的定位基準（2026-09-26） */
 }
 
 #btn-midnight-weapon-right {
   grid-area: right;
+  position: relative;
+}
+
+/* 操作盤卡片的快捷鍵徽章（2026-09-26）：聖杯瓶／道具卡片最左側疊著寬0.8rem的◀切換鍵，
+   徽章往右避開，不被蓋住。 */
+#btn-midnight-use-flask .midnight-hotkey-badge,
+#btn-midnight-use-consumable .midnight-hotkey-badge {
+  left: 0.85rem;
 }
 
 /* 消耗品卡片外層（2026-09-21：左右切換鍵）：接手原本卡片的grid-area，卡片本身撐滿容器，
@@ -10114,4 +10125,41 @@ html.midnight-top-banner-collapsed .midnight-top-banner-collapse-btn {
   #midnight-weather-fx *::after {
     animation: none !important;
   }
+}
+
+/* 自身buff圖示列（2026-09-26使用者明確規格，見midnight_page.py #midnight-self-buff-icons說明）：
+   往右排列、間距2px，超過HP條右端就換行（max-width由midnight.jsのrenderSelfBuffIcons()量測設定）。 */
+#midnight-self-buff-icons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px;
+  margin-bottom: 0.25rem;
+}
+
+#midnight-self-buff-icons[hidden] {
+  display: none;
+}
+
+.midnight-self-buff-icon {
+  width: 18px;
+  height: 18px;
+  border-radius: 2px;
+  cursor: help;
+}
+
+/* 等待房的劇本王插畫（2026-09-26，見midnight_page.py #midnight-lobby-night-boss-emblem說明）。 */
+#midnight-lobby-night-boss-emblem {
+  display: block;
+  width: 160px;
+  height: 160px;
+  max-width: 45vw;
+  max-height: 45vw;
+  margin: 0.25rem 0 0.5rem;
+  border-radius: 8px;
+  border: 1px solid rgba(200, 210, 230, 0.45);
+  object-fit: cover;
+}
+
+#midnight-lobby-night-boss-emblem[hidden] {
+  display: none;
 }
