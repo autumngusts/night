@@ -94,7 +94,17 @@ const ENEMY_OWN = [
   "rock_spirit_beast/dark_offspring",
   "rock_spirit_beast/sacred_beast_lion_dance",
   "rock_spirit_beast/falling_star_beast",
-  "big_dog_bear/old_lions"
+  "big_dog_bear/old_lions",
+  // 2026-09-26 第3バッチ。無名の王は系統 sheet（family_cavalry_b）が未產出だったので、
+  // 專屬を作らずそちらへ直に入れた——上の注意書きのとおり、變體がまだ空なら
+  // 系統 sheet を埋めるほうが夜の騎兵・龍のツリーガードにも絵が行き渡る。
+  "strong_type/pumpkin_helm_madman",
+  "strong_type/purple_ogre_chief",
+  "warrior_swordsman/zamor_ancient_hero",
+  "warrior_swordsman/cursed_swordsman",
+  "troll_dragonkin_wormface/worm_faces",
+  "crustacean/duke_freydia",
+  "soldier_knight/lostland_knight"
 ];
 
 function ownSheetIdFor(key) {

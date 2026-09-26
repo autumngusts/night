@@ -3,7 +3,7 @@
 //   node tools/sprite_check/sprite_registry_check.js
 //
 // 驗證 5 點（spec §5.1／§5.2）：
-//   ① sheet は 93 組（25 系統 × 2 ＋ 個別敵人專屬 31 ＋ 夜王 10 ＋ 絵を別に持つ多形態 2 隻の第二形態）
+//   ① sheet は 100 組（25 系統 × 2 ＋ 個別敵人專屬 38 ＋ 夜王 10 ＋ 絵を別に持つ多形態 2 隻の第二形態）
 //   ② enemies_data の 149 隻すべてが、いずれかの sheet に帰属している
 //   ③ 各系統がちょうど 2 組を持ち、両方に最低 1 隻が割り当たっている（空の変体を作らない）
 //   ④ 夜王 10 隻が登録されている
@@ -42,7 +42,9 @@ console.log("[組数]");
 // 2026-09-23：62 → 76 → 93。個別敵人專屬 sheet（enemy_*）を 31 組追加したぶん
 //（同日に 2 バッチ届いた：14 組＋17 組）。系統 sheet は「1 張が系統全体を代表する絵」
 // なので、自分の絵を起こした敵はそちらを優先する。旧値 62 は專屬 sheet 導入前の組数。
-ok(R.listSheets().length === 93, "sheet は93組 (実際 " + R.listSheets().length + ")");
+// 2026-09-26：93 → 100。第3バッチの 8 枚のうち 7 枚が專屬 sheet（旧値 93 はこの追加前）。
+// 残る 1 枚（無名の王）は未產出だった系統 sheet family_cavalry_b を埋めたので組数は増えない。
+ok(R.listSheets().length === 100, "sheet は100組 (実際 " + R.listSheets().length + ")");
 // 形態別 sheet（2026-09-22）：gladius は合体形態と分裂形態で見た目が別物なので 2 枚持つ。
 // 專用 sheet が未產出のあいだは既定の boss_gladius に戻ること——ここを間違えると、
 // 分裂形態のときだけ別の夜王の代役が出る。
@@ -104,7 +106,8 @@ console.log("[個別敵人專屬 sheet]");
 const ownSheets = R.listSheets().filter(function (s) {
   return s.id.indexOf("enemy_") === 0;
 });
-ok(ownSheets.length === 31, "專屬 sheet は31組 (実際 " + ownSheets.length + ")");
+// 2026-09-26：31 → 38。第3バッチで專屬 sheet を 7 組追加した（旧値 31 は追加前の組数）。
+ok(ownSheets.length === 38, "專屬 sheet は38組 (実際 " + ownSheets.length + ")");
 const unlinked = ownSheets.filter(function (s) {
   return s.available && !ownOf[s.id];
 });

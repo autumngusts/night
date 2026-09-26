@@ -38,7 +38,7 @@
     { id: "family_strong_type_a", file: "family_strong_type_a.png", available: true },
     { id: "family_strong_type_b", file: "family_strong_type_b.png", available: false },
     { id: "family_cavalry_a", file: "family_cavalry_a.png", available: true },
-    { id: "family_cavalry_b", file: "family_cavalry_b.png", available: false },
+    { id: "family_cavalry_b", file: "family_cavalry_b.png", available: true },
     { id: "family_demihuman_beastfolk_club_a", file: "family_demihuman_beastfolk_club_a.png", available: true },
     { id: "family_demihuman_beastfolk_club_b", file: "family_demihuman_beastfolk_club_b.png", available: true },
     { id: "family_big_dog_bear_a", file: "family_big_dog_bear_a.png", available: true },
@@ -90,6 +90,13 @@
     { id: "enemy_rock_spirit_beast_sacred_beast_lion_dance", file: "enemy_rock_spirit_beast_sacred_beast_lion_dance.png", available: true },
     { id: "enemy_rock_spirit_beast_falling_star_beast", file: "enemy_rock_spirit_beast_falling_star_beast.png", available: true },
     { id: "enemy_big_dog_bear_old_lions", file: "enemy_big_dog_bear_old_lions.png", available: true },
+    { id: "enemy_strong_type_pumpkin_helm_madman", file: "enemy_strong_type_pumpkin_helm_madman.png", available: true },
+    { id: "enemy_strong_type_purple_ogre_chief", file: "enemy_strong_type_purple_ogre_chief.png", available: true },
+    { id: "enemy_warrior_swordsman_zamor_ancient_hero", file: "enemy_warrior_swordsman_zamor_ancient_hero.png", available: true },
+    { id: "enemy_warrior_swordsman_cursed_swordsman", file: "enemy_warrior_swordsman_cursed_swordsman.png", available: true },
+    { id: "enemy_troll_dragonkin_wormface_worm_faces", file: "enemy_troll_dragonkin_wormface_worm_faces.png", available: true },
+    { id: "enemy_crustacean_duke_freydia", file: "enemy_crustacean_duke_freydia.png", available: true },
+    { id: "enemy_soldier_knight_lostland_knight", file: "enemy_soldier_knight_lostland_knight.png", available: true },
     { id: "boss_maris", file: "boss_maris.png", available: true },
     { id: "boss_fulghor", file: "boss_fulghor.png", available: true },
     { id: "boss_harmonia", file: "boss_harmonia.png", available: true },
@@ -289,7 +296,14 @@
     "rock_spirit_beast/dark_offspring": "enemy_rock_spirit_beast_dark_offspring",
     "rock_spirit_beast/sacred_beast_lion_dance": "enemy_rock_spirit_beast_sacred_beast_lion_dance",
     "rock_spirit_beast/falling_star_beast": "enemy_rock_spirit_beast_falling_star_beast",
-    "big_dog_bear/old_lions": "enemy_big_dog_bear_old_lions"
+    "big_dog_bear/old_lions": "enemy_big_dog_bear_old_lions",
+    "strong_type/pumpkin_helm_madman": "enemy_strong_type_pumpkin_helm_madman",
+    "strong_type/purple_ogre_chief": "enemy_strong_type_purple_ogre_chief",
+    "warrior_swordsman/zamor_ancient_hero": "enemy_warrior_swordsman_zamor_ancient_hero",
+    "warrior_swordsman/cursed_swordsman": "enemy_warrior_swordsman_cursed_swordsman",
+    "troll_dragonkin_wormface/worm_faces": "enemy_troll_dragonkin_wormface_worm_faces",
+    "crustacean/duke_freydia": "enemy_crustacean_duke_freydia",
+    "soldier_knight/lostland_knight": "enemy_soldier_knight_lostland_knight"
   };
 
   function listSheets() {
