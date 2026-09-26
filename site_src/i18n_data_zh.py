@@ -1439,7 +1439,7 @@ STRINGS_ZH: dict[str, str] = {
     "midnight_tower_wrong_note": "答案不對，再試一次",
     "midnight_tower_dice_reroll_button": "指定任意骰子並重骰一次",
     "midnight_tower_dice_confirm_button": "確定牌型",
-    "midnight_controls_hint": "電腦：方向鍵或WASD移動，中鍵點擊或長按可標點；手機：拖曳畫面上的氣泡移動，長按可標點。圈外會持續扣血。",
+    "midnight_controls_hint": "電腦：方向鍵或WASD移動，中鍵點擊或長按可標點；手機：拖曳畫面上的氣泡移動，長按可標點。圈外會持續扣血。快捷鍵：M 地圖、C 角色視窗、Q 聖杯瓶、E 道具、1／2 左手／右手武器切換。",
     "midnight_default_player_name": "測試者",
     # 2026-09-08使用者明確規格「進入戰鬥或進入樓層 若下一個動作是邀請附近玩家時 以此顯示
     # 「進入樓層[發出邀請]」」：handleEnterFieldPointClick()按下後一律建立inviting狀態、

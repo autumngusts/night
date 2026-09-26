@@ -9952,3 +9952,166 @@ html.midnight-top-banner-collapsed .midnight-top-banner-collapse-btn {
   border-radius: 0.5rem;
   cursor: pointer;
 }
+
+/* 天氣背景特效（2026-09-26使用者明確規格，見midnight_page.py #midnight-weather-fx說明）：
+   z-index 55＝疊在地圖面板(50，背景0.92幾乎不透明，探索時通常展開)之上、上方資訊欄(60)與HUD
+   之下——放在地圖底下的話探索中完全看不到；特效本身半透明，pointer-events:none不擋任何點擊。
+   三層各自由#midnight-weather-fx上的fx-rain／fx-blizzard／fx-miasma class開關，可同時存在。 */
+#midnight-weather-fx {
+  position: fixed;
+  inset: 0;
+  z-index: 55;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+#midnight-weather-fx > div {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  transition: opacity 0.8s ease;
+}
+
+#midnight-weather-fx.fx-rain .midnight-weather-rain,
+#midnight-weather-fx.fx-blizzard .midnight-weather-blizzard,
+#midnight-weather-fx.fx-miasma .midnight-weather-miasma {
+  opacity: 1;
+}
+
+/* 夜雨：灰濛底色＋兩層斜向雨絲。 */
+.midnight-weather-rain {
+  background-color: rgba(70, 76, 88, 0.3);
+}
+
+.midnight-weather-rain::before,
+.midnight-weather-rain::after {
+  content: "";
+  position: absolute;
+  inset: -20%;
+  transform: rotate(12deg);
+  background-image: repeating-linear-gradient(
+    90deg,
+    transparent 0 23px,
+    rgba(215, 222, 235, 0.45) 23px 25px,
+    transparent 24px 61px,
+    rgba(215, 222, 235, 0.3) 61px 62px
+  );
+  -webkit-mask-image: repeating-linear-gradient(180deg, #000 0 40px, transparent 40px 110px);
+  mask-image: repeating-linear-gradient(180deg, #000 0 40px, transparent 40px 110px);
+  animation: midnight-weather-rain-fall 0.45s linear infinite;
+}
+
+.midnight-weather-rain::after {
+  opacity: 0.6;
+  -webkit-mask-size: 100% 170px;
+  mask-size: 100% 170px;
+  animation-name: midnight-weather-rain-fall-far;
+  animation-duration: 0.7s;
+}
+
+@keyframes midnight-weather-rain-fall-far {
+  from {
+    -webkit-mask-position: 0 0;
+    mask-position: 0 0;
+  }
+  to {
+    -webkit-mask-position: 0 170px;
+    mask-position: 0 170px;
+  }
+}
+
+#midnight-weather-fx:not(.fx-rain) .midnight-weather-rain::before,
+#midnight-weather-fx:not(.fx-rain) .midnight-weather-rain::after,
+#midnight-weather-fx:not(.fx-blizzard) .midnight-weather-blizzard::before,
+#midnight-weather-fx:not(.fx-blizzard) .midnight-weather-blizzard::after,
+#midnight-weather-fx:not(.fx-miasma) .midnight-weather-bubble {
+  animation-play-state: paused;
+}
+
+@keyframes midnight-weather-rain-fall {
+  from {
+    -webkit-mask-position: 0 0;
+    mask-position: 0 0;
+  }
+  to {
+    -webkit-mask-position: 0 110px;
+    mask-position: 0 110px;
+  }
+}
+
+/* 暴風雪：冷白霧＋兩層斜飄的雪片。 */
+.midnight-weather-blizzard {
+  background: radial-gradient(ellipse at center, rgba(220, 235, 255, 0.08) 30%, rgba(210, 228, 250, 0.35) 100%);
+}
+
+.midnight-weather-blizzard::before,
+.midnight-weather-blizzard::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image: radial-gradient(circle, rgba(255, 255, 255, 0.9) 0 1.6px, transparent 2.4px),
+    radial-gradient(circle, rgba(255, 255, 255, 0.7) 0 1.1px, transparent 1.8px),
+    radial-gradient(circle, rgba(255, 255, 255, 0.8) 0 2.2px, transparent 3px);
+  background-size: 90px 90px, 57px 63px, 150px 140px;
+  background-position: 0 0, 20px 35px, 60px 10px;
+  animation: midnight-weather-snow 3s linear infinite;
+}
+
+.midnight-weather-blizzard::after {
+  opacity: 0.55;
+  background-size: 130px 120px, 80px 95px, 210px 200px;
+  animation-duration: 5s;
+}
+
+@keyframes midnight-weather-snow {
+  from {
+    background-position: 0 0, 20px 35px, 60px 10px;
+  }
+  to {
+    background-position: -270px 270px, -151px 224px, -390px 430px;
+  }
+}
+
+/* 地變腐敗：暗紅暈邊＋往上飄的紅色泡沫（泡沫元素由midnight.jsのbuildMiasmaBubbles()建立）。 */
+.midnight-weather-miasma {
+  background: radial-gradient(ellipse at center, transparent 45%, rgba(150, 10, 25, 0.38) 100%);
+}
+
+.midnight-weather-bubble {
+  position: absolute;
+  bottom: -40px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, rgba(255, 170, 170, 0.75) 0 12%, rgba(210, 30, 45, 0.55) 45%, rgba(120, 0, 15, 0.25) 75%, transparent 76%);
+  box-shadow: 0 0 6px rgba(220, 30, 50, 0.45);
+  animation-name: midnight-weather-bubble-rise;
+  animation-timing-function: ease-in;
+  animation-iteration-count: infinite;
+}
+
+@keyframes midnight-weather-bubble-rise {
+  0% {
+    transform: translate(0, 0) scale(0.6);
+    opacity: 0;
+  }
+  15% {
+    opacity: 0.9;
+  }
+  60% {
+    transform: translate(18px, -60vh) scale(1);
+  }
+  85% {
+    opacity: 0.8;
+  }
+  100% {
+    transform: translate(-10px, -100vh) scale(1.15);
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #midnight-weather-fx *,
+  #midnight-weather-fx *::before,
+  #midnight-weather-fx *::after {
+    animation: none !important;
+  }
+}

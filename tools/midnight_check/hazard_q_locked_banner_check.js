@@ -22,6 +22,11 @@
 
 const { chromium } = require("playwright");
 
+// 2026-09-26使用者明確規格「地變板塊本來要先過其他板塊才能進入，現在先解除限制」：
+// midnight.js 的 HAZARD_Q_REQUIRES_MEMBER_CLEAR 暫時為 false，Q 一開局就能進入。
+// 這裡跟著改成驗證「未踏破其他板塊也有『進入』按鍵、沒有鎖定說明」；恢復鎖定時兩邊一起改回 true。
+const HAZARD_Q_LOCK_ENABLED = false;
+
 const BASE = process.env.PRITEST_BASE_URL || "http://localhost:8931";
 const META_WAIT_MS = 20000;
 
@@ -123,6 +128,12 @@ async function teleport(page, x, y) {
       };
     }, q.id);
 
+    if (!HAZARD_Q_LOCK_ENABLED) {
+      assert(view.nearbyIsQ, "Q 點成為 nearbyFieldPoint", view);
+      assert(view.enterPromptVisible, "上方資訊欄（#midnight-field-enter-prompt）有顯示出來", view);
+      assert(!view.enterNoteVisible, "鎖定暫停中：不顯示「你沒資格…」說明", view);
+      assert(!view.enterButtonHidden, "鎖定暫停中：未踏破其他板塊也有「進入」按鍵", view);
+    } else {
     assert(view.nearbyIsQ, "未解鎖的 Q 點照樣會成為 nearbyFieldPoint（改版前是整個被排除）", view);
     assert(view.enterPromptVisible, "上方資訊欄（#midnight-field-enter-prompt）有顯示出來", view);
     assert(view.enterNoteVisible, "鎖定說明顯示在上方資訊欄裡（#midnight-field-enter-note）", view);
@@ -165,6 +176,8 @@ async function teleport(page, x, y) {
       assert(ok, "解鎖後鎖定說明收起、「進入」按鍵恢復");
     } else {
       console.log("    （這張地圖沒有 hazardMember 點，略過解鎖後的檢查）");
+    }
+
     }
 
     const failed = results.filter((r) => !r.pass);

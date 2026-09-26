@@ -510,6 +510,13 @@ BODY = """    <div class="midnight-wrap">
         <!-- 地圖提示訊息（2026-09-22使用者明確規格「打過板塊地圖縮小時，此時當地圖閃黃時同時在
              背景的頁面另外閃黃光一行訊息」）：跟右上地圖圖示的黃光（mapIconNudge）同進同出，
              見static/midnight.jsのrenderMapIcon()。固定疊層、不擋點擊。 -->
+        <!-- 天氣背景特效（2026-09-26使用者明確規格）：地變凍傷＝暴風雪、地變腐敗＝紅色泡沫、
+             夜雨＝灰濛下雨。全螢幕固定疊層、不擋點擊，見static/midnight.jsのrenderWeatherFx()。 -->
+        <div id="midnight-weather-fx" aria-hidden="true">
+          <div class="midnight-weather-rain"></div>
+          <div class="midnight-weather-blizzard"></div>
+          <div class="midnight-weather-miasma"></div>
+        </div>
         <p id="midnight-map-nudge-message" class="midnight-flash-yellow" data-i18n="midnight_map_nudge_message" hidden></p>
         <div id="midnight-incoming-attack-warning" hidden>
           <span id="midnight-incoming-attack-name"></span>

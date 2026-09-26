@@ -1438,7 +1438,7 @@ STRINGS_EN: dict[str, str] = {
     "midnight_tower_wrong_note": "Wrong answer, try again",
     "midnight_tower_dice_reroll_button": "Pick dice to reroll once",
     "midnight_tower_dice_confirm_button": "Confirm hand",
-    "midnight_controls_hint": "Desktop: arrow keys or WASD to move, middle-click or long-press to drop a ping. Mobile: drag the on-screen bubble to move, long-press to drop a ping. You take continuous damage outside the circle.",
+    "midnight_controls_hint": "Desktop: arrow keys or WASD to move, middle-click or long-press to drop a ping. Mobile: drag the on-screen bubble to move, long-press to drop a ping. You take continuous damage outside the circle. Hotkeys: M map, C character, Q flask, E item, 1/2 switch left/right weapon.",
     "midnight_default_player_name": "Tester",
     "midnight_field_enter_button": "Enter Floor [Send Invite]",
     "midnight_field_invite_text": "{inviter} invites you to join entering \"{name}\"",

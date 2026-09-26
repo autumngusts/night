@@ -11773,8 +11773,46 @@
     return !!(btn && !btn.hidden && !btn.disabled && btn.offsetParent !== null);
   }
 
+  // 2026-09-26使用者明確規格的一般快捷鍵（只有對應按鈕當下能按時才有反應，跟滑鼠點擊走同一個
+  // handler，不另外寫一套條件）：M 地圖開關、C 角色視窗、Q 聖杯瓶、E 道具、1／2 左手／右手武器切換。
+  var HOTKEY_BUTTON_IDS = {
+    q: "btn-midnight-use-flask",
+    e: "btn-midnight-use-consumable",
+    "1": "btn-midnight-weapon-left",
+    "2": "btn-midnight-weapon-right",
+  };
+
+  function clickHotkeyButton(id) {
+    if (!hotkeyButtonUsable(id)) return false;
+    el(id).click();
+    return true;
+  }
+
+  function handleGeneralHotkeyDown(e) {
+    if (e.ctrlKey || e.altKey || e.metaKey) return false;
+    var k = (e.key || "").toLowerCase();
+    if (k === "m") {
+      // 展開中：地圖圖示仍在HUD上時照樣切換；圖示不可按時改按地圖右上的關閉鍵。
+      if (clickHotkeyButton("btn-midnight-map-icon")) return true;
+      return mapExpanded && clickHotkeyButton("btn-midnight-map-close-corner");
+    }
+    if (k === "c") {
+      var modal = el("midnight-character-sheet-modal");
+      if (modal && !modal.hidden) {
+        closeCharacterSheetModal();
+        return true;
+      }
+      return clickHotkeyButton("btn-midnight-open-character-sheet");
+    }
+    return HOTKEY_BUTTON_IDS[k] ? clickHotkeyButton(HOTKEY_BUTTON_IDS[k]) : false;
+  }
+
   function handleCombatHotkeyDown(e) {
     if (!e || e.repeat || hotkeyTargetIsTextInput(e)) return;
+    if (handleGeneralHotkeyDown(e)) {
+      e.preventDefault();
+      return;
+    }
     if (e.key === "Shift") {
       if (!hotkeyButtonUsable("btn-midnight-dodge")) return;
       e.preventDefault();
@@ -17900,7 +17938,12 @@
   // 實際的「未解鎖時顯示提示、不能進入」閘門在updateNearbyFieldPoint()（Q板塊已改走一般
   // 地點的fieldCardData() pipeline，不再是strong_enemy籌碼特例，見NON_FIELD_POINT_TYPES
   // 說明）。
+  // 2026-09-26使用者明確規格「地變板塊本來要先過其他板塊才能進入，現在先解除限制不用先挑戰過
+  // 其他板塊」：暫時關閉上面的開放閘門（原判定保留，之後要恢復時把這個旗標改回true即可）。
+  var HAZARD_Q_REQUIRES_MEMBER_CLEAR = false;
+
   function hazardQUnlocked() {
+    if (!HAZARD_Q_REQUIRES_MEMBER_CLEAR) return true;
     var members = map.points.filter(function (p) {
       return p.hazardMember;
     });
@@ -28212,6 +28255,39 @@
     return map.hazardZone[y * map.width + x] === 1;
   }
 
+  // 網頁背景的天氣特效（2026-09-26使用者明確規格）：自身處於會持續累積凍傷／腐敗的地變地形時
+  // 顯示暴風雪／紅色泡沫；自身處於夜雨（圈外淋雨，同maybeApplyCircleDamage()的
+  // outsideCircleSinceMs）時顯示灰濛下雨。條件跟實際扣血／蓄積的判定完全同一套，只做視覺。
+  function renderWeatherFx(phaseInfo) {
+    var root = el("midnight-weather-fx");
+    if (!root) return;
+    var hazard = !!(mySlot && map && inHazardTerrain());
+    var blizzard = hazard && map.specialRule === "ice_blizzard";
+    var miasma = hazard && map.specialRule === "red_miasma";
+    var rain = !!(mySlot && phaseInfo.day !== 3 && outsideCircleSinceMs !== null);
+    root.classList.toggle("fx-blizzard", blizzard);
+    root.classList.toggle("fx-miasma", miasma);
+    root.classList.toggle("fx-rain", rain);
+    if (miasma && !root.querySelector(".midnight-weather-bubble")) buildMiasmaBubbles(root);
+  }
+
+  // 紅色泡沫是一顆顆往上飄的元素，第一次需要時才建立（之後只靠class切換顯示）。
+  function buildMiasmaBubbles(root) {
+    var layer = root.querySelector(".midnight-weather-miasma");
+    if (!layer) return;
+    for (var i = 0; i < 28; i++) {
+      var b = document.createElement("span");
+      b.className = "midnight-weather-bubble";
+      var size = 8 + Math.random() * 26;
+      b.style.left = (Math.random() * 100).toFixed(1) + "%";
+      b.style.width = size.toFixed(0) + "px";
+      b.style.height = size.toFixed(0) + "px";
+      b.style.animationDuration = (6 + Math.random() * 8).toFixed(1) + "s";
+      b.style.animationDelay = (-Math.random() * 14).toFixed(1) + "s";
+      layer.appendChild(b);
+    }
+  }
+
   function applyMapSpecialRuleTick(now, phaseInfo) {
     if (!map || !map.specialRule) return;
     if (map.specialRule === "cassel_hidden_city") maybeApplyCasselTimeLoss(now, phaseInfo);
@@ -28832,6 +28908,7 @@
     var phaseInfo = currentPhaseInfo(now);
     maybeApplyCircleDamage(now, phaseInfo);
     applyMapSpecialRuleTick(now, phaseInfo);
+    renderWeatherFx(phaseInfo);
     updateNearDeathState(now);
     renderNearDeathStatus(now);
     updateNearDeathDials(now);
