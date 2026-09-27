@@ -1699,6 +1699,8 @@ STRINGS_JA: dict[str, str] = {
     "midnight_character_sheet_weapon_category": "種別：{category}",
     "midnight_character_sheet_weapon_power_mod": "威力補正：{label}({value})",
     "midnight_character_sheet_skill_a_label": "戦技",
+    "midnight_spell_kind_sorcery": "魔術",
+    "midnight_spell_kind_incantation": "祈祷",
     "midnight_character_sheet_skill_b_label": "戦技B",
     "midnight_character_sheet_power_none": "戦技威力（装備中の武器）：（武器未装備）",
     "midnight_character_sheet_favored": "得意武器：{text}",

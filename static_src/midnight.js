@@ -4256,6 +4256,10 @@
   var nearbyGroundItem = null; // { id, data } 目前分頁選取中的掉落物（拾取按鈕作用對象）
   var nearbyGroundItems = []; // 2026-09-20新增：拾取範圍內全部掉落物（分頁用，取代原本只認第一筆）
   var selectedGroundItemId = null; // 目前分頁選取的掉落物id
+  // 掉落物清單を畳んでいるか（2026-09-27 使用者明確要求「在右上有ー號來縮小清單 還有＋號
+  // 再次開啟地上清單」）。本地 only——畳むかどうかは見る人の都合で、他の端末や
+  // groundItems 側の状態とは関係がないので RTDB には出さない。
+  var groundItemCollapsed = false;
   var stamina = { current: STAMINA_MAX, max: STAMINA_MAX }; // 本地端資源，不同步（見上方常數區塊註解）
   var fp = { current: FP_BASE, max: FP_BASE }; // 本地端資源、不同步，理由同stamina；不自動回復。角色載入後由renderCombatPanel()改成selfFpMax(c)
   // 一般攻擊連段計數，左右手各自獨立（2026-09-05左右手雙獨立武器欄新增，使用者明確規格：
@@ -6695,6 +6699,11 @@
     el("btn-midnight-blessing-use").addEventListener("click", handleBlessingUseClick);
     el("btn-midnight-blessing-close").addEventListener("click", closeBlessingModal);
     el("btn-midnight-pickup-ground-item").addEventListener("click", handlePickupGroundItem);
+    el("btn-midnight-ground-item-toggle").addEventListener("click", function () {
+      groundItemCollapsed = !groundItemCollapsed;
+      updateGroundItemCollapseUI();
+    });
+    updateGroundItemCollapseUI(); // 初期表示は展開＝「－」。HTML側に文字を書かずここ1か所で決める
     el("btn-midnight-open-merchant").addEventListener("click", handleMerchantEnterClick);
     el("btn-midnight-merchant-buy-weapon").addEventListener("click", handleMerchantBuyWeapon);
     el("btn-midnight-merchant-close").addEventListener("click", closeMerchantModal);
@@ -19319,6 +19328,22 @@
     }
   }
 
+  // 掉落物清單の折りたたみ表示（2026-09-27 使用者明確要求）：畳んだら中身だけ隠し、
+  // 「＋」のボタンはその場に残す（上方banner の折りたたみ鈕と違って、展開鈕を別の場所へ
+  // 移さない——使用者の指定は「＋號再次開啟」でその場に戻す形）。
+  // updateNearbyGroundItem() は毎影格走るので、ここは状態が変わった時だけ呼ぶ
+  // （毎影格 textContent を書くと無駄に layout が走る。renderGroundItemTabs() が
+  // 署名キーでキャッシュしているのと同じ理由）。
+  function updateGroundItemCollapseUI() {
+    var contentEl = el("midnight-ground-item-content");
+    var btn = el("btn-midnight-ground-item-toggle");
+    if (contentEl) contentEl.hidden = groundItemCollapsed;
+    if (btn) {
+      btn.textContent = groundItemCollapsed ? "＋" : "－";
+      btn.setAttribute("aria-label", groundItemCollapsed ? "expand" : "collapse");
+    }
+  }
+
   // 分頁列渲染：沿用night.jsの.rulebook-tab-btn同款視覺（見style.css），但用獨立class
   // （.ground-item-tab-btn）避免跟規則書/紀錄抽屜的分頁切換互相干擾（同一慣例見
   // night.jsのswitchLogDrawerTab()註解「クラス名は別にして意図せず互いのタブ切替に
@@ -25370,15 +25395,39 @@
       return d.undetermined || d.kind === "Action";
     });
     if (actionSkills.length) {
+      // 2026-09-27使用者明確規格「魔術與祈禱也要在詳細內 標明寫明魔術祈禱的種類」：
+      // 杖／聖印時，這一區塊的標題與每一條招式都改標「魔術」／「祈禱」。原本只顯示
+      // kindLabel的系統名（「石掘り｜岩盤砕き」），看不出那是魔術還是祈禱。
+      // 哪一種由武器分類決定——沿用既有的skillKindOfWeapon()（staff→sorcery／
+      // sacred_seal→incant），不在招式資料另外加欄位：規則書本來就是「杖施放魔術、
+      // 聖印施放祈禱」，同一招式不會因為裝在別的武器上而變成另一種。
+      var spellKind = skillKindOfWeapon(weaponId);
+      var spellKindLabel =
+        spellKind === "sorcery"
+          ? window.I18N.t("midnight_spell_kind_sorcery")
+          : spellKind === "incant"
+          ? window.I18N.t("midnight_spell_kind_incantation")
+          : null;
       var skillATitle = document.createElement("p");
       skillATitle.className = "boss-subheading";
-      skillATitle.textContent = window.I18N.t("midnight_character_sheet_skill_a_label");
+      skillATitle.textContent = spellKindLabel || window.I18N.t("midnight_character_sheet_skill_a_label");
       detail.appendChild(skillATitle);
-      var isSpellCategory = !!(category && (category.id === "staff" || category.id === "sacred_seal"));
+      // 施法系かどうかの判定はラベルの有無と同値（どちらも staff／sacred_seal）なので、
+      // 同じ条件を 2 度書かずに spellKindLabel から導く。
+      var isSpellCategory = !!spellKindLabel;
       actionSkills.forEach(function (d) {
         // 2026-09-12：詳細資訊要連種類一起顯示（使用者明確要求），因此標題改用
         // CD.weaponSkillDisplayTitle()＝「種類｜名稱」（無種類的招式維持只顯示名稱）。
-        appendWeaponSheetSkillEntry(detail, CD.weaponSkillDisplayTitle(d), d.body, artInfo, isSpellCategory, CD);
+        // 2026-09-27：杖／聖印ではさらに「魔術」「祈禱」を前置して
+        // 「魔術｜輝剣｜魔術の輝剣」。区切り記号はCD側に閉じ込めてある。
+        appendWeaponSheetSkillEntry(
+          detail,
+          CD.weaponSkillDisplayTitle(d, spellKindLabel),
+          d.body,
+          artInfo,
+          isSpellCategory,
+          CD
+        );
       });
     }
 
@@ -30997,6 +31046,10 @@
         pendingBattleReentry: pendingBattleReentry,
         fledEncounterIds: fledEncounterIds,
         myIncomingAttack: myIncomingAttack,
+        // 2026-09-27補上：迴避の押下時刻。判定（spriteDodgeJudge）が実際に使う値そのもので、
+        // 「刀光が見えてから判定に載るまで何 ms かかったか」を外から測るのに要る
+        // （dodge_timing_diag.js）。読むだけの値なので公開しても挙動は変わらない。
+        dodgePressedAt: dodgePressedAt,
         nearbyStrongEnemy: nearbyStrongEnemy,
         nearbyMerchant: nearbyMerchant,
         nearbyRandomEvent: nearbyRandomEvent,

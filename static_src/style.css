@@ -4568,6 +4568,29 @@ html.midnight-banner-above-hud:not(.midnight-top-banner-collapsed) #midnight-rew
   border-top: 1px solid rgba(255, 255, 255, 0.2);
 }
 
+/* 掉落物清單の折りたたみ（2026-09-27 使用者明確要求「在右上有ー號來縮小清單 還有＋號
+   再次開啟地上清單」）：ボタンは absolute にしない——収めたあと中身が hidden になるので、
+   absolute だと親の高さが潰れて「＋」の当たり判定まで消える。flex の 1 行として置けば
+   収めた状態でもその行がそのまま残る。見た目は上方banner の折りたたみ鈕
+   （.midnight-top-banner-collapse-btn）と揃えるが、class は分けてある（理由は
+   midnight_page.py の該当コメント）。 */
+.midnight-ground-item-header {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.midnight-ground-item-collapse-btn {
+  width: 1.5rem;
+  height: 1.5rem;
+  padding: 0;
+  line-height: 1;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.15);
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  color: #f0f0f0;
+  cursor: pointer;
+}
+
 /* 2026-09-06優化：準備開始夜王戰鬥（見static/midnight.jsのrenderFinalCircleRewardsHud()），
    留在#midnight-hud-top-left最上面，跟隊友血量卡同一個文件流、有內容才佔位。 */
 #midnight-hud-ready-final-row {

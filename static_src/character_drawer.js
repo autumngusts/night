@@ -1959,10 +1959,18 @@
     return { name: name, body: body, kind: kind, kindLabel: kindLabel };
   }
 
+  // 見出しの区切り記号。「種類｜名称」も「魔術｜種類｜名称」も同じものを使う——
+  // 呼び出し側で文字列を継ぎ足すと記号が 2 か所に散るので、ここ 1 か所に閉じ込める。
+  var SKILL_TITLE_SEPARATOR = "｜";
+
   // 詳細表示用：kindLabel があれば「種類｜名称」、無ければ名称のみ。
-  function weaponSkillDisplayTitle(display) {
+  // prefixLabel（2026-09-27 追加、任意）：その手前にもう 1 段重ねる見出し。midnight の
+  // 角色視窗が杖／聖印の招式へ「魔術」「祈禱」を前置するのに使う（使用者明確規格
+  // 「魔術與祈禱也要在詳細內 標明寫明魔術祈禱的種類」）。渡さなければ従来と同じ結果。
+  function weaponSkillDisplayTitle(display, prefixLabel) {
     if (!display) return "";
-    return display.kindLabel ? display.kindLabel + "｜" + display.name : display.name;
+    var title = display.kindLabel ? display.kindLabel + SKILL_TITLE_SEPARATOR + display.name : display.name;
+    return prefixLabel ? prefixLabel + SKILL_TITLE_SEPARATOR + title : title;
   }
 
   function renderWeaponSkillEntry(container, ref, weaponId, c, storageKey) {

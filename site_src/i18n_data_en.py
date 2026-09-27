@@ -1699,6 +1699,8 @@ STRINGS_EN: dict[str, str] = {
     "midnight_character_sheet_weapon_category": "Type: {category}",
     "midnight_character_sheet_weapon_power_mod": "Power modifier: {label}({value})",
     "midnight_character_sheet_skill_a_label": "Skill",
+    "midnight_spell_kind_sorcery": "Sorcery",
+    "midnight_spell_kind_incantation": "Incantation",
     "midnight_character_sheet_skill_b_label": "Skill B",
     "midnight_character_sheet_power_none": "Art power (equipped weapon): (no weapon equipped)",
     "midnight_character_sheet_favored": "Favored weapons: {text}",

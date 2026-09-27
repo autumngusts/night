@@ -1704,6 +1704,8 @@ STRINGS_ZH: dict[str, str] = {
     "midnight_character_sheet_weapon_category": "種類：{category}",
     "midnight_character_sheet_weapon_power_mod": "威力補正：{label}({value})",
     "midnight_character_sheet_skill_a_label": "戰技",
+    "midnight_spell_kind_sorcery": "魔術",
+    "midnight_spell_kind_incantation": "祈禱",
     "midnight_character_sheet_skill_b_label": "戰技B",
     "midnight_character_sheet_power_none": "戰技威力（裝備中武器）：（尚未裝備武器）",
     "midnight_character_sheet_favored": "得意武器：{text}",

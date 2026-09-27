@@ -712,13 +712,25 @@ BODY = """    <div class="midnight-wrap">
                再加一段規則本文（跟角色面板同樣經過midnight_text_adapt.js轉換），
                見updateNearbyGroundItem()。 -->
           <div id="midnight-ground-item-prompt" hidden>
-            <!-- 2026-09-20使用者明確要求「掉落物品若有多項，在資訊欄的下方顯示不同分頁來
-                 切換」：分頁列由renderGroundItemTabs()動態產生（範圍內掉落物數量事先不
-                 固定，無法像規則書分頁那樣預先寫死按鈕），只有1項時保持hidden。 -->
-            <div id="midnight-ground-item-tabs" class="ground-item-tabs" hidden></div>
-            <p id="midnight-ground-item-name"></p>
-            <p id="midnight-ground-item-body"></p>
-            <button type="button" id="btn-midnight-pickup-ground-item" data-i18n="midnight_pickup_button"></button>
+            <!-- 2026-09-27使用者明確要求「畫面中撿取地上物品的清單 在右上有ー號來縮小清單
+                 還有＋號再次開啟地上清單」：同一顆按鈕切換「－」／「＋」，收起時只留這顆
+                 按鈕、下面的內容整塊隱藏。折疊狀態是本地的（groundItemCollapsed），不寫進
+                 RTDB——別人的畫面要不要收起跟自己無關。上方banner那組折疊鈕是收起後按鈕
+                 本身消失、改由HUD右上的展開鈕接手（見.midnight-top-banner-collapse-btn），
+                 這裡不同：使用者要的「＋」就在原地，所以按鈕一直留著。class也刻意分開，
+                 免得被banner那組的querySelectorAll一起綁到。 -->
+            <div class="midnight-ground-item-header">
+              <button type="button" id="btn-midnight-ground-item-toggle" class="midnight-ground-item-collapse-btn" aria-label="collapse"></button>
+            </div>
+            <div id="midnight-ground-item-content">
+              <!-- 2026-09-20使用者明確要求「掉落物品若有多項，在資訊欄的下方顯示不同分頁來
+                   切換」：分頁列由renderGroundItemTabs()動態產生（範圍內掉落物數量事先不
+                   固定，無法像規則書分頁那樣預先寫死按鈕），只有1項時保持hidden。 -->
+              <div id="midnight-ground-item-tabs" class="ground-item-tabs" hidden></div>
+              <p id="midnight-ground-item-name"></p>
+              <p id="midnight-ground-item-body"></p>
+              <button type="button" id="btn-midnight-pickup-ground-item" data-i18n="midnight_pickup_button"></button>
+            </div>
           </div>
         </div>
 
