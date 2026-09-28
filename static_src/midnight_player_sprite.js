@@ -149,7 +149,7 @@
     wanted.forEach(function (w) {
       var face = findFace(w.key);
       if (!face) {
-        face = { key: w.key, el: makeFace(doc), sheetFile: null, animId: "idle", startAt: Date.now(), cellPx: 0, cellHPx: 0, aspect: 1 };
+        face = { key: w.key, el: makeFace(doc), sheetFile: null, animId: "idle", startAt: Date.now(), cellPx: 0, cellHPx: 0, aspect: 1, flameEl: null, compEl: null, compFile: null, compStartAt: 0 };
         stageEl.appendChild(face.el);
       }
       if (face.sheetFile !== w.file) {
@@ -166,7 +166,10 @@
     });
     // 退場した面を片づける
     faces.forEach(function (f) {
-      if (next.indexOf(f) === -1 && f.el.parentNode) f.el.parentNode.removeChild(f.el);
+      if (next.indexOf(f) !== -1) return;
+      [f.el, f.flameEl, f.compEl].forEach(function (node) {
+        if (node && node.parentNode) node.parentNode.removeChild(node);
+      });
     });
     var reordered = next.length !== faces.length;
     if (!reordered) {
@@ -264,8 +267,83 @@
       face.el.style.bottom = "0px";
       face.el.style.backgroundSize = S.SHEET_COLS * faceW + "px " + S.SHEET_ROWS * face.cellHPx + "px";
       // 後ろの人ほど下に描く（DOM 順は party 順なので z-index で明示する）。
-      face.el.style.zIndex = String(MAX_FACES - i);
+      // 1 人ぶん 3 層：身後の同伴（死靈）＜身後の火焰＜本人（2026-09-28 身後裝飾）。
+      var zBase = (MAX_FACES - i) * 3;
+      face.el.style.zIndex = String(zBase + 2);
+      layoutDecor(face, zBase);
     });
+  }
+
+  // ---- 身後裝飾（2026-09-28 使用者明確規格）----
+  //   ・flame：追蹤者「技能強化（纏火）」持續中，人物身後的火焰（純 CSS 動畫，見 style.css
+  //     .midnight-player-sprite-flame）。
+  //   ・companion：復仇者的技能靈體存活中，人物身後（左側＝背對敵人的那一側）站著死靈，
+  //     播放同伴 sheet 的待機行（player_avenger_spirit.png，格式同玩家 sheet 6×10）。
+  // 跟本人的面是兄弟節點而不是子節點：面的圖是 background-image，子節點不論 z-index 怎麼設
+  // 都會畫在父節點的背景之上，擋住人物。
+  // 呼び出し端は毎影格 decor を渡すだけ（何を出すか・いつ消すかは呼び出し端が決める）。
+  var COMPANION_OFFSET = 0.22; // 同伴相對本人往左偏移（面寬比）
+  var COMPANION_SCALE = 1.2; // 同伴比本人大一圈、腳底略微浮起，從身後探出來（左側空間不夠時也看得出在背後）
+  var COMPANION_LIFT = 0.06; // 腳底離地（同伴格高比）
+
+  function setDecor(key, decor, staticPrefix) {
+    var face = findFace(key);
+    if (!face || !stageEl) return;
+    var doc = stageEl.ownerDocument;
+    var wantFlame = !!(decor && decor.flame);
+    if (wantFlame && !face.flameEl) {
+      face.flameEl = doc.createElement("div");
+      face.flameEl.className = "midnight-player-sprite-flame";
+      stageEl.insertBefore(face.flameEl, face.el);
+      stageW = 0;
+    } else if (!wantFlame && face.flameEl) {
+      if (face.flameEl.parentNode) face.flameEl.parentNode.removeChild(face.flameEl);
+      face.flameEl = null;
+    }
+    var compFile = (decor && decor.companion) || null;
+    if (compFile && !face.compEl) {
+      face.compEl = doc.createElement("div");
+      face.compEl.className = "midnight-sprite-face midnight-player-sprite-companion";
+      stageEl.insertBefore(face.compEl, face.flameEl || face.el);
+      face.compStartAt = Date.now();
+      stageW = 0;
+    } else if (!compFile && face.compEl) {
+      if (face.compEl.parentNode) face.compEl.parentNode.removeChild(face.compEl);
+      face.compEl = null;
+      face.compFile = null;
+    }
+    if (face.compEl && face.compFile !== compFile) {
+      face.compFile = compFile;
+      face.compEl.style.backgroundImage = "url(" + (staticPrefix || "../static/") + "images/sprites/" + compFile + ")";
+      preload(compFile, staticPrefix);
+      stageW = 0;
+    }
+  }
+
+  function layoutDecor(face, zBase) {
+    var left = parseFloat(face.el.style.left) || 0;
+    if (face.flameEl) {
+      face.flameEl.style.left = left + "px";
+      face.flameEl.style.width = face.cellPx + "px";
+      face.flameEl.style.height = face.cellHPx + "px";
+      face.flameEl.style.zIndex = String(zBase + 1);
+    }
+    if (face.compEl) {
+      var cw = Math.round(face.cellPx * COMPANION_SCALE);
+      var ch = Math.round(cw * cellAspectOf(face.compFile));
+      // 最左邊的人（單人時就是自己）再往左會被戰鬥面板的 overflow 切掉，至少留住格子中央的人物本體
+      // （sheet 的人物約佔格寬 25%～75%）。
+      var compLeft = Math.round(left - face.cellPx * COMPANION_OFFSET - (cw - face.cellPx) / 2);
+      face.compEl.style.left = Math.max(-Math.round(cw * 0.3), compLeft) + "px";
+      face.compEl.style.right = "auto";
+      face.compEl.style.width = cw + "px";
+      face.compEl.style.height = ch + "px";
+      face.compEl.style.bottom = Math.round(ch * COMPANION_LIFT) + "px";
+      face.compEl.style.backgroundSize = S.SHEET_COLS * cw + "px " + S.SHEET_ROWS * ch + "px";
+      face.compEl.style.zIndex = String(zBase);
+      face.compCellPx = cw;
+      face.compCellHPx = ch;
+    }
   }
 
   function tick(now) {
@@ -284,6 +362,10 @@
         idx = 0;
       }
       face.el.style.backgroundPosition = backgroundPosition(face.animId, idx, face.cellPx, face.cellHPx);
+      if (face.compEl && face.compCellPx) {
+        var cIdx = frameIndexAt("idle", now - face.compStartAt) || 0;
+        face.compEl.style.backgroundPosition = backgroundPosition("idle", cIdx, face.compCellPx, face.compCellHPx);
+      }
     });
   }
 
@@ -306,6 +388,7 @@
     hide: hide,
     setArena: setArena,
     playAnim: playAnim,
+    setDecor: setDecor,
     currentAnimId: currentAnimId,
     faceElement: faceElement,
     faceCount: function () { return faces.length; },

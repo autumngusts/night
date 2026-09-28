@@ -58,6 +58,12 @@ BODY = """    <div class="midnight-wrap">
              static/midnight.jsのhandleFlowIntroOpenClick()/handleFlowIntroCloseClick()。 -->
         <div class="wb-row">
           <button type="button" id="btn-midnight-flow-intro-open" data-i18n="midnight_flow_intro_open_button"></button>
+          <!-- 迴避時機校正（2026-09-28使用者明確規格「在房間創立時，各裝置可以按房間上方有個校正按鈕，
+               按下後裡面會倒數3210，提示玩家0的時候按下確認鍵，如此以校正刀光的迴避時間點」）：
+               純本地端（每台裝置各自量、各自存在localStorage），見static/midnight.jsの
+               openDodgeCalibModal()／dodgeCalibrationMs()。 -->
+          <button type="button" id="btn-midnight-dodge-calib-open" data-i18n="midnight_dodge_calib_open_button"></button>
+          <span id="midnight-dodge-calib-current" class="threat-ref-body"></span>
         </div>
         <h2 data-i18n="midnight_lobby_title"></h2>
         <!-- 人數提醒（2026-09-22使用者明確規格「創立房間 特別提醒 建議人數3人」，同日追加
@@ -268,6 +274,23 @@ BODY = """    <div class="midnight-wrap">
            空白示意畫布（CSS動畫示範縮圈／靈鳥飛行／四角HUD位置標籤，純示意，不是真的
            地圖canvas），右側是打字機播放的流程說明文字（static/midnight.jsの
            handleFlowIntroOpenClick()呼叫night_gm_flow.jsの既有typewriteInto()）。 -->
+      <!-- 迴避時機校正視窗（見等待房上方按鈕的註解）：跟流程簡介同款「全螢幕半透明黑＋置中卡片＋
+           右上角關閉✕」。 -->
+      <div id="midnight-dodge-calib-modal" hidden>
+        <div id="midnight-dodge-calib-box">
+          <button type="button" id="btn-midnight-dodge-calib-close" class="midnight-modal-close-x">&times;</button>
+          <h3 data-i18n="midnight_dodge_calib_title"></h3>
+          <p class="threat-ref-body" data-i18n="midnight_dodge_calib_intro"></p>
+          <div id="midnight-dodge-calib-count"></div>
+          <p id="midnight-dodge-calib-result"></p>
+          <div class="wb-row">
+            <button type="button" id="btn-midnight-dodge-calib-start" data-i18n="midnight_dodge_calib_start_button"></button>
+            <button type="button" id="btn-midnight-dodge-calib-confirm" class="primary-btn" data-i18n="midnight_dodge_calib_confirm_button" disabled></button>
+            <button type="button" id="btn-midnight-dodge-calib-reset" data-i18n="midnight_dodge_calib_reset_button"></button>
+          </div>
+        </div>
+      </div>
+
       <div id="midnight-flow-intro-modal" hidden>
         <div id="midnight-flow-intro-box">
           <button type="button" id="btn-midnight-flow-intro-close" class="midnight-modal-close-x">&times;</button>
@@ -837,9 +860,12 @@ BODY = """    <div class="midnight-wrap">
                  紅色警示燈」）：疊在小地圖／夜王立繪的角落，只在戰鬥中且自己在圈外（outsideCircleSinceMs
                  有值）時顯示，見static/midnight.jsのrenderMinimap()。 -->
             <span id="midnight-rain-warning-light" hidden></span>
-            <button type="button" id="btn-midnight-map-icon" data-i18n="midnight_map_icon_label"></button>
+            <!-- 快捷鍵標示（2026-09-28使用者明確規格「地圖的與角色視窗的快捷鍵標註在右上的按鈕中」）：
+                 鍵帽排在文字前面（按鈕很小，不用操作盤那種貼左上角的絕對定位，免得壓到文字）；
+                 文字改放子span，避免applyI18n()的textContent覆寫連鍵帽一起清掉。 -->
+            <button type="button" id="btn-midnight-map-icon"><span class="midnight-hotkey-badge midnight-hotkey-badge-inline">M</span><span data-i18n="midnight_map_icon_label"></span></button>
           </div>
-          <button type="button" id="btn-midnight-open-character-sheet" data-i18n="midnight_character_sheet_open_button"></button>
+          <button type="button" id="btn-midnight-open-character-sheet"><span class="midnight-hotkey-badge midnight-hotkey-badge-inline">C</span><span data-i18n="midnight_character_sheet_open_button"></span></button>
 
           <!-- 鍛造台戰技重抽（2026-09-08使用者明確規格「鍛造台戰技重抽為鍛造村的獎勵，不放
                在腳色視窗內，在離開鍛造村範圍後直接歸0無法使用」）：從角色面板搬到這個
@@ -1151,6 +1177,9 @@ BODY = """    <div class="midnight-wrap">
                    updateAbilityVisuals()；角色技能／技藝的一次性特效（爪擊／爆炸／旋風等）
                    由triggerEnemyFx()動態建立在同一個容器內。 -->
               <div id="midnight-enemy-mark" hidden>◎</div>
+              <!-- 鐵眼「鑑定眼」顯示期間敵人頭上的HP價值（2026-09-28），見static/midnight.jsの
+                   updateAbilityVisuals()。 -->
+              <div id="midnight-enemy-hp-value-badge" hidden></div>
               <!-- 武器詞條的追加攻擊特效（2026-09-13第2批）：蓄力攻擊的7種追擊（幻影／
                    黑炎／睡眠霧／聖衝擊波／冰嵐／魔力彈／熔岩）與架盾3秒的3種（咒靈／
                    燃燒／赤雷）共用這一層。跟上面的刀光／異常光暈／丟擲物是各自獨立的

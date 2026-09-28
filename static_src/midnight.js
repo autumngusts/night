@@ -4048,6 +4048,147 @@
     if (modal) modal.hidden = true;
   }
 
+  // ---- 迴避時機校正（2026-09-28使用者明確規格「在房間創立時，各裝置可以按房間上方有個校正按鈕，
+  // 按下後裡面會倒數3210，提示玩家0的時候按下確認鍵，如此以校正刀光的迴避時間點」）----
+  // 量的是「畫面上的0該出現的時刻」到「這台裝置記錄到按下」之間的差：跟戰鬥中「判定時刻是排程好的
+  // T、刀光由逐幀迴圈在T附近畫出來、按鍵再經過輸入延遲才被記錄」是同一條路徑（見
+  // tools/midnight_check/dodge_timing_diag.js 拆出來的①～③層），所以0也是在rAF裡依排程時刻切換，
+  // 不是用setTimeout在「剛好」的時間點寫字。
+  // 量到的毫秒數存在這台裝置的localStorage（各裝置的延遲不同，不同步給別人），performDodge()
+  // 把按下時刻往前扣掉這個值再拿去判定。
+  //   ・只採用 [0−DODGE_CALIB_EARLY_MS, 0＋DODGE_CALIB_LATE_MS] 內的按鍵，其餘視為手滑、不採用。
+  //   ・套用值夾在 [0, DODGE_CALIB_MAX_MS]：按得比0早（負值）代表這台裝置沒有可補的延遲，
+  //     不讓校正反過來把判定變嚴。
+  var DODGE_CALIB_STORAGE_KEY = "pritest-midnight-dodge-calib-ms";
+  var DODGE_CALIB_STEP_MS = 1000; // 3→2→1→0 每一格的間隔
+  var DODGE_CALIB_EARLY_MS = 400;
+  var DODGE_CALIB_LATE_MS = 800;
+  var DODGE_CALIB_MAX_MS = 400;
+  var dodgeCalibMsCache = null;
+  var dodgeCalib = null; // 進行中：{ startAt, zeroAt, raf }
+
+  function dodgeCalibrationMs() {
+    if (dodgeCalibMsCache !== null) return dodgeCalibMsCache;
+    var v = 0;
+    try {
+      v = parseInt(window.localStorage.getItem(DODGE_CALIB_STORAGE_KEY), 10) || 0;
+    } catch (e) {
+      v = 0;
+    }
+    dodgeCalibMsCache = Math.max(0, Math.min(DODGE_CALIB_MAX_MS, v));
+    return dodgeCalibMsCache;
+  }
+
+  function setDodgeCalibrationMs(ms) {
+    dodgeCalibMsCache = Math.max(0, Math.min(DODGE_CALIB_MAX_MS, Math.round(ms)));
+    try {
+      window.localStorage.setItem(DODGE_CALIB_STORAGE_KEY, String(dodgeCalibMsCache));
+    } catch (e) {
+      // 私密模式等寫不進去時，這次開著的分頁仍然套用（快取）
+    }
+    renderDodgeCalibCurrent();
+  }
+
+  function renderDodgeCalibCurrent() {
+    var cur = el("midnight-dodge-calib-current");
+    if (cur) cur.textContent = window.I18N.t("midnight_dodge_calib_current", { ms: dodgeCalibrationMs() });
+  }
+
+  function dodgeCalibModalOpen() {
+    var modal = el("midnight-dodge-calib-modal");
+    return !!(modal && !modal.hidden);
+  }
+
+  function openDodgeCalibModal() {
+    var modal = el("midnight-dodge-calib-modal");
+    if (!modal) return;
+    modal.hidden = false;
+    el("midnight-dodge-calib-count").textContent = "";
+    el("midnight-dodge-calib-result").textContent = window.I18N.t("midnight_dodge_calib_current", { ms: dodgeCalibrationMs() });
+  }
+
+  function stopDodgeCalib() {
+    if (dodgeCalib && dodgeCalib.raf) cancelAnimationFrame(dodgeCalib.raf);
+    dodgeCalib = null;
+    el("btn-midnight-dodge-calib-confirm").disabled = true;
+    el("btn-midnight-dodge-calib-start").disabled = false;
+  }
+
+  function closeDodgeCalibModal() {
+    stopDodgeCalib();
+    var modal = el("midnight-dodge-calib-modal");
+    if (modal) modal.hidden = true;
+  }
+
+  function startDodgeCalib() {
+    stopDodgeCalib();
+    var startAt = performance.now();
+    dodgeCalib = { startAt: startAt, zeroAt: startAt + 3 * DODGE_CALIB_STEP_MS, raf: 0 };
+    el("btn-midnight-dodge-calib-confirm").disabled = false;
+    el("btn-midnight-dodge-calib-start").disabled = true;
+    el("midnight-dodge-calib-result").textContent = "";
+    var countEl = el("midnight-dodge-calib-count");
+    function frame() {
+      if (!dodgeCalib) return;
+      var t = performance.now();
+      var n = Math.max(0, 3 - Math.floor((t - dodgeCalib.startAt) / DODGE_CALIB_STEP_MS));
+      var text = String(n);
+      if (countEl.textContent !== text) countEl.textContent = text;
+      countEl.classList.toggle("midnight-dodge-calib-zero", n === 0);
+      if (t > dodgeCalib.zeroAt + DODGE_CALIB_LATE_MS) {
+        stopDodgeCalib();
+        el("midnight-dodge-calib-result").textContent = window.I18N.t("midnight_dodge_calib_invalid");
+        return;
+      }
+      dodgeCalib.raf = requestAnimationFrame(frame);
+    }
+    frame();
+  }
+
+  // pressedAt 是 performance.now() 刻度（pointerdown／keydown 當下取）。
+  function confirmDodgeCalib(pressedAt) {
+    if (!dodgeCalib) return;
+    var diff = pressedAt - dodgeCalib.zeroAt;
+    stopDodgeCalib();
+    var resultEl = el("midnight-dodge-calib-result");
+    if (diff < -DODGE_CALIB_EARLY_MS || diff > DODGE_CALIB_LATE_MS) {
+      resultEl.textContent = window.I18N.t("midnight_dodge_calib_invalid");
+      return;
+    }
+    setDodgeCalibrationMs(diff);
+    resultEl.textContent = window.I18N.t("midnight_dodge_calib_result", { ms: Math.round(diff), applied: dodgeCalibrationMs() });
+  }
+
+  // 校正視窗開著時吃掉鍵盤（Shift／空白／Enter＝確認、Esc＝關閉），不讓它漏到戰鬥快捷鍵。
+  function handleDodgeCalibKeyDown(e) {
+    if (!dodgeCalibModalOpen()) return false;
+    var k = e.key;
+    if (k === "Escape") {
+      closeDodgeCalibModal();
+    } else if ((k === "Shift" || k === " " || k === "Enter") && !e.repeat) {
+      if (dodgeCalib) confirmDodgeCalib(performance.now());
+      else if (k === "Enter" || k === " ") startDodgeCalib();
+    }
+    e.preventDefault();
+    return true;
+  }
+
+  function bindDodgeCalibInput() {
+    el("btn-midnight-dodge-calib-open").addEventListener("click", openDodgeCalibModal);
+    el("btn-midnight-dodge-calib-close").addEventListener("click", closeDodgeCalibModal);
+    el("btn-midnight-dodge-calib-start").addEventListener("click", startDodgeCalib);
+    el("btn-midnight-dodge-calib-reset").addEventListener("click", function () {
+      stopDodgeCalib();
+      setDodgeCalibrationMs(0);
+      el("midnight-dodge-calib-result").textContent = window.I18N.t("midnight_dodge_calib_current", { ms: 0 });
+    });
+    // 判定用pointerdown（跟迴避鍵同一個「按下當下」的規格），click不再處理。
+    el("btn-midnight-dodge-calib-confirm").addEventListener("pointerdown", function () {
+      confirmDodgeCalib(performance.now());
+    });
+    renderDodgeCalibCurrent();
+  }
+
   // 2026-09-06優化：滑桿改成可搭配數字輸入框直接輸入（使用者明確規格「可以直接輸入數字」），
   // 兩個input元素各自綁定同一個commit()，並各自clamp在min/max內，避免手動輸入超出規則
   // 範圍的數字（例如負數）。
@@ -6595,6 +6736,7 @@
 
   function bindInput() {
     document.addEventListener("keydown", function (e) {
+      if (handleDodgeCalibKeyDown(e)) return; // 迴避時機校正視窗開著時獨佔鍵盤
       keysDown[e.key.toLowerCase()] = true;
       if (autoFly && isMovementKey(e.key)) autoFly = null; // 移動鍵會終止靈鳥自動飛行
       handleCombatHotkeyDown(e);
@@ -6812,6 +6954,7 @@
     });
     el("btn-midnight-flow-intro-open").addEventListener("click", handleFlowIntroOpenClick);
     el("btn-midnight-flow-intro-close").addEventListener("click", handleFlowIntroCloseClick);
+    bindDodgeCalibInput();
     el("btn-midnight-open-test-console").addEventListener("click", function () {
       testConsoleOpen = true;
       renderTestPanel();
@@ -7133,6 +7276,8 @@
     // 各角色專屬
     artBurn: ["技藝強化（燃燒）", "アーツ強化（炎上）"],
     skillFlameCloak: ["技能強化（纏火）", "スキル強化（炎の纏い）"],
+    yotoReleaseAtk: ["妖刀解放・攻", "妖刀解放・攻"],
+    yotoReleaseHeal: ["妖刀解放・癒", "妖刀解放・癒"],
     skillTimeExtend: ["技能強化（延長時間）", "スキル強化（時間延長）"],
     artHpRecover: ["技藝強化（HP回復）", "アーツ強化（HP回復）"],
     guardCounterHalberd: ["防禦反擊強化（斧槍）", "ガードカウンター強化（斧槍）"],
@@ -7492,22 +7637,33 @@
   // opts.partySizeMultApplied（2026-09-23新增）：呼叫端傳進來的amount已經套過人數終傷倍率，
   // 這裡就不要再乘一次。目前唯一的使用者是damageCombatTarget()「雜兵擋在前面、傷害溢出到
   // 本體」的那條路徑——雜兵那一段已經先縮放過，溢出量自然也是縮放後的值。
+  // 敵人本體目前的HP價值（＝減傷率％）。沒有guard資料時回傳null。
+  // 2026-09-28抽出成獨立函式：傷害結算與鐵眼「鑑定眼」頭上顯示（updateAbilityVisuals()）共用，
+  // 顯示的數字一定跟實際套用的減傷率一致。
+  function currentEnemyHpValueForTrig(trig) {
+    var fam = guardDataForTrig(trig);
+    if (!fam || typeof fam.guardCount !== "number" || !fam.guardValueTable) return null;
+    var guardNow = currentGuardCountForTrig(trig, fam.guardCount);
+    var hpValue = guardValueForCount(fam.guardValueTable, guardNow, trig.level || 1);
+    if (hpValue) {
+      // 測試模式「敵人防禦價值」倍率（2026-09-06新增，見testMult()說明）：直接乘進
+      // HP價值（減傷率）本身，跟其餘三個倍率一樣是計算鏈最後一步的乘法，不影響規則
+      // 本身的算式。
+      hpValue = hpValue * testMult("enemyGuardValueMult");
+      // 鐵眼「標記」（2026-09-08使用者明確要求「敵人HP價值-10 持續10s」）：跟測試模式
+      // 倍率同一個時機疊加，見applyMidnightAbilityPostEffect()寫入hpValueReduceUntil。
+      if (trig && trig.hpValueReduceUntil && Date.now() < trig.hpValueReduceUntil) hpValue -= 10;
+    }
+    return hpValue;
+  }
+
   function applyDamageToFieldEnemyHp(pointId, amount, opts) {
     var trig = fieldTriggers[pointId];
-    var fam = guardDataForTrig(trig);
     var realDamage = amount;
     var hpValueUsed = null;
-    if (fam && typeof fam.guardCount === "number" && fam.guardValueTable) {
-      var guardNow = currentGuardCountForTrig(trig, fam.guardCount);
-      var hpValue = guardValueForCount(fam.guardValueTable, guardNow, trig.level || 1);
+    var hpValue = currentEnemyHpValueForTrig(trig);
+    if (hpValue !== null) {
       if (hpValue) {
-        // 測試模式「敵人防禦價值」倍率（2026-09-06新增，見testMult()說明）：直接乘進
-        // HP價值（減傷率）本身，跟其餘三個倍率一樣是計算鏈最後一步的乘法，不影響規則
-        // 本身的算式。
-        hpValue = hpValue * testMult("enemyGuardValueMult");
-        // 鐵眼「標記」（2026-09-08使用者明確要求「敵人HP價值-10 持續10s」）：跟測試模式
-        // 倍率同一個時機疊加，見applyMidnightAbilityPostEffect()寫入hpValueReduceUntil。
-        if (trig && trig.hpValueReduceUntil && Date.now() < trig.hpValueReduceUntil) hpValue -= 10;
         var reductionPct = Math.max(0, Math.min(100, hpValue));
         realDamage = Math.round(amount * (1 - reductionPct / 100));
       }
@@ -9927,9 +10083,31 @@
   // applyRelicAbilityPostEffect() 處理）。
   var ART_BURN_DAMAGE_BONUS = 50;
 
+  // 執行者「妖刀解放・攻／癒」的［Action］加成（2026-09-28使用者明確規格「學到遺物效果第一個可以
+  // +10/20 之後+25/50」）：
+  //   ・習得2個以上＝規則書原文「習得此技能2個以上時 +25（攻）／+50（癒）」，一般模式也適用。
+  //   ・只習得1個＝+10（攻）／+20（癒），平衡模式專屬（平衡模式沒習得也能用解放，
+  //     學第1個要有感；一般模式要學到第1個才有解放可用，不另外加）。
+  //   ・「之後」取「習得2個以上時改為+25/+50」（不是+10再疊+25），跟原文的寫法一致。
+  // 跟其他技能加成一樣是規則書刻度，之後才乘CHARACTER_ABILITY_DAMAGE_MULT。
+  var YOTO_RELEASE_BONUS = {
+    yoto_release_action: { relic: "yotoReleaseAtk", one: 10, two: 25 },
+    yoto_release_heal_action: { relic: "yotoReleaseHeal", one: 20, two: 50 },
+  };
+
+  function yotoReleaseDamageBonus(c, abilityId) {
+    var def = YOTO_RELEASE_BONUS[abilityId];
+    if (!def) return 0;
+    var count = countRelic(c, def.relic);
+    if (count >= 2) return def.two;
+    if (count === 1 && balanceModeEnabled()) return def.one;
+    return 0;
+  }
+
   function relicAbilityDamageBonus(c, ability) {
     if (!c || !ability) return 0;
     if (ability.id === "assault_wedge" && hasRelic(c, "artBurn")) return ART_BURN_DAMAGE_BONUS;
+    if (YOTO_RELEASE_BONUS[ability.id]) return yotoReleaseDamageBonus(c, ability.id);
     return 0;
   }
 
@@ -10742,21 +10920,38 @@
     var out = { skill: [], art: [], defense: [] };
     if (!c || !type) return out;
     var learned = c.learnedRelicEffects || [];
+    // 同一個變體只列一次：執行者「妖刀解放・攻」在遺物表裡有2份（可重複習得拿+25），
+    // 兩份都學了時原本會列出兩個一模一樣的招式讓◀▶切來切去（2026-09-28）。
+    function add(list, entry) {
+      if (list.some(function (x) { return x.id === entry.id; })) return;
+      list.push(entry);
+    }
     (type.relicEffectGroups || []).forEach(function (g, gi) {
       (g.effects || []).forEach(function (e, ei) {
         if (!e.variantEntry) return;
         if (learned.indexOf(CD.relicEffectKey(type.id, gi, ei)) === -1) return;
         var v = e.variantEntry;
         if (v.action || v.defense) {
-          if (v.action) out[v.action.slot === "art" ? "art" : "skill"].push(v.action);
-          if (v.defense) out.defense.push(v.defense);
+          if (v.action) add(out[v.action.slot === "art" ? "art" : "skill"], v.action);
+          if (v.defense) add(out.defense, v.defense);
         } else if (v.kind === "Defense") {
-          out.defense.push(v);
+          add(out.defense, v);
         } else {
-          out[v.slot === "art" ? "art" : "skill"].push(v);
+          add(out[v.slot === "art" ? "art" : "skill"], v);
         }
       });
     });
+    // 平衡模式（2026-09-28使用者明確規格「執行者與執行者變體：平衡模式下/等級1就有妖刀解放能夠使用」）：
+    // 沒習得也視為擁有自己角色類型遺物表裡的妖刀解放（本體＝攻、暗黑＝癒）的［Action］變體。
+    // 只給Action（攻擊）那一半；附帶的「HP價值60防禦」變體仍要真的習得才有（規格只講解放）。
+    if (balanceModeEnabled()) {
+      (type.relicEffectGroups || []).forEach(function (g) {
+        (g.effects || []).forEach(function (e) {
+          var action = e.variantEntry && e.variantEntry.action;
+          if (action && YOTO_RELEASE_COST[action.id]) add(out.skill, action);
+        });
+      });
+    }
     return out;
   }
 
@@ -10794,6 +10989,10 @@
     return ((c && c.level) || 1) >= abilityUnlockLevel(kind);
   }
 
+  function skillBaseIsDefenseOnly(kind, baseAbility) {
+    return kind === "skill" && !!baseAbility && baseAbility.kind === "Defense";
+  }
+
   function characterAbilityEntry(kind) {
     var c = characters[myTokenId];
     var type = c && c.typeId ? window.PriTestCharacterTypes.get(c.typeId) : null;
@@ -10806,6 +11005,9 @@
     var selectedField = kind === "art" ? "_selectedArtVariantIndex" : "_selectedSkillVariantIndex";
     var selectedIdx = c ? c[selectedField] || 0 : 0;
     var ability = selectedIdx >= 1 && variants[selectedIdx - 1] ? variants[selectedIdx - 1] : baseAbility;
+    // 基礎招式是純Defense（執行者「妖刀」，走特殊防禦鍵）時，技能鍵上不會出現它，
+    // 有變體就直接用第1個變體（2026-09-28：平衡模式Lv1的妖刀解放不必先到角色視窗切換）。
+    if (ability === baseAbility && skillBaseIsDefenseOnly(kind, baseAbility) && variants.length) ability = variants[0];
     return { c: c, type: type, ability: ability, baseAbility: baseAbility, variants: variants };
   }
 
@@ -10821,9 +11023,16 @@
     guardian_dawn: { whirlwind: 20000 },
   };
 
+  // 2026-09-28使用者明確規格「平衡模式下…妖刀解放…其中cd5秒」：只在平衡模式覆寫。
+  var BALANCE_ABILITY_COOLDOWN_OVERRIDE_MS = {
+    yoto_release_action: 5000,
+    yoto_release_heal_action: 5000,
+  };
+
   function abilityBaseCooldownMs(c, abilityId, kind) {
     var byType = c && c.typeId && MIDNIGHT_ABILITY_COOLDOWN_OVERRIDE_BY_TYPE_MS[c.typeId];
     var base = byType && byType[abilityId] ? byType[abilityId] : MIDNIGHT_ABILITY_COOLDOWN_OVERRIDE_MS[abilityId] || (kind === "art" ? ART_COOLDOWN_MS : SKILL_COOLDOWN_MS);
+    if (balanceModeEnabled() && BALANCE_ABILITY_COOLDOWN_OVERRIDE_MS[abilityId]) base = BALANCE_ABILITY_COOLDOWN_OVERRIDE_MS[abilityId];
     // 遺物記憶（2026-09-25第1期）「アーツゲージクールタイム軽減」「スキルクールタイム軽減」：
     // 這裡是技藝/技能冷卻長度的唯一出口（含各角色的override），所以減免統一掛在這裡。
     return relicMemoryCooldownMs(c, base, kind);
@@ -11368,6 +11577,13 @@
     btn.hidden = !variants.length || !foundSkill.ability;
     if (btn.hidden) return;
     var idx = (foundSkill.c && foundSkill.c._selectedSkillVariantIndex) || 0;
+    if (skillBaseIsDefenseOnly("skill", foundSkill.baseAbility)) {
+      // 基礎招式（純Defense）不在技能鍵的輪替裡，只數變體（見characterAbilityEntry()）。
+      btn.hidden = variants.length < 2;
+      btn.textContent = window.I18N.t("midnight_skill_variant_switch_button", { current: Math.max(1, idx), total: variants.length });
+      btn.disabled = !actable;
+      return;
+    }
     btn.textContent = window.I18N.t("midnight_skill_variant_switch_button", { current: idx + 1, total: variants.length + 1 });
     btn.disabled = !actable;
   }
@@ -11376,7 +11592,8 @@
   // （跟消耗品卡片同款），delta＝±1；原本的「切換變體」單鍵維持（＝▶）。
   function renderSkillVariantArrows(foundSkill, actable) {
     var variants = (foundSkill && foundSkill.variants) || [];
-    var show = variants.length > 0 && !!foundSkill.ability && !el("btn-midnight-character-skill").hidden;
+    var minVariants = skillBaseIsDefenseOnly("skill", foundSkill && foundSkill.baseAbility) ? 2 : 1;
+    var show = variants.length >= minVariants && !!foundSkill.ability && !el("btn-midnight-character-skill").hidden;
     ["btn-midnight-skill-variant-prev", "btn-midnight-skill-variant-next"].forEach(function (id) {
       var btn = el(id);
       if (!btn) return;
@@ -11392,7 +11609,15 @@
     var total = (found.variants || []).length + 1;
     if (total <= 1) return;
     var step = typeof delta === "number" ? delta : 1;
-    c._selectedSkillVariantIndex = ((c._selectedSkillVariantIndex || 0) + step + total) % total;
+    if (skillBaseIsDefenseOnly("skill", found.baseAbility)) {
+      // 只在變體之間輪替（index 1..n），不回到技能鍵上用不了的純Defense基礎招式。
+      var n = total - 1;
+      if (n < 2) return;
+      var cur = Math.max(1, c._selectedSkillVariantIndex || 0) - 1;
+      c._selectedSkillVariantIndex = ((cur + step + n) % n) + 1;
+    } else {
+      c._selectedSkillVariantIndex = ((c._selectedSkillVariantIndex || 0) + step + total) % total;
+    }
     GameStorage.rtSet(gameId, "cloud", "character/" + myTokenId + "/_selectedSkillVariantIndex", c._selectedSkillVariantIndex);
     renderCharPanel();
     var next = characterAbilityEntry("skill");
@@ -11802,6 +12027,9 @@
     // 快捷鍵時會取消使用」：按下的當下就取消，不看體力夠不夠（體力不足、迴避沒成立也照樣中斷）。
     cancelCastingForDefense();
     if (!spendStamina(dodgeStaminaCost(characters[myTokenId]))) return;
+    // 迴避時機校正（2026-09-28，見dodgeCalibrationMs()）：扣掉這台裝置量到的顯示＋輸入延遲，
+    // 讓「看到刀光就按」在延遲大的裝置上也落在同一個判定帶。
+    pressedAt -= dodgeCalibrationMs();
     dodgePressedAt = pressedAt;
     recordBattleSimDodgePress(pressedAt); // 戰鬥模擬的迴避計時（純量測，放開時刻另由click補記）
     playMySpriteAnim("dodge"); // 玩家 sprite：迴避の行（row1）
@@ -12098,7 +12326,9 @@
       } else {
         valueText = row.theoretical ? "(" + row.value + ")" : String(row.value);
       }
-      lines.push(row.count + " → " + valueText);
+      // row.count 是多語系物件（{zh, ja}，例：「3（最大）」），直接字串化會變成「[object Object]」（2026-09-28修正）。
+      var countText = typeof row.count === "object" && row.count ? window.PriTestCharacterTypes.localizedText(row.count) : String(row.count);
+      lines.push(countText + " → " + valueText);
     });
     return lines.join("\n");
   }
@@ -12180,6 +12410,9 @@
   var EYE_FOR_VALUE_COOLDOWN_MS = 60000;
   var EYE_FOR_VALUE_DISPLAY_MS = 5000;
   var eyeForValueHideTimer = null;
+  // 2026-09-28使用者明確規格「鷹眼能力使用後，持續時間內在敵人的頭上顯示數字的HP價值 如80」：
+  // 跟下面的表格同一段顯示時間，頭上的數字由updateAbilityVisuals()逐幀更新（破防時即時變動）。
+  var eyeForValueShowUntil = 0;
 
   function handleEyeForValueClick() {
     var c = characters[myTokenId];
@@ -12196,6 +12429,7 @@
     var CharacterTypes = window.PriTestCharacterTypes;
     var noteEl = el("midnight-eye-for-value-note");
     noteEl.textContent = CharacterTypes.localizedText(fam.name) + "\n" + buildGuardValueTableText(fam);
+    eyeForValueShowUntil = Date.now() + EYE_FOR_VALUE_DISPLAY_MS;
     if (eyeForValueHideTimer) clearTimeout(eyeForValueHideTimer);
     eyeForValueHideTimer = setTimeout(function () {
       eyeForValueHideTimer = null;
@@ -15269,6 +15503,17 @@
     // 鐵眼「標記」：持續時間內敵人立繪上有標記符號。
     var markEl = el("midnight-enemy-mark");
     if (markEl) markEl.hidden = !(trig && trig.hpValueReduceUntil && trig.hpValueReduceUntil > now);
+    // 鐵眼「鑑定眼」：顯示期間敵人頭上的HP價值數字（見eyeForValueShowUntil）。
+    var hpValueBadge = el("midnight-enemy-hp-value-badge");
+    if (hpValueBadge) {
+      var shownHpValue = trig && eyeForValueShowUntil > now ? currentEnemyHpValueForTrig(trig) : null;
+      var showBadge = shownHpValue !== null && shownHpValue !== undefined;
+      if (showBadge) {
+        var badgeText = window.I18N.t("midnight_enemy_hp_value_badge", { value: Math.round(shownHpValue) });
+        if (hpValueBadge.textContent !== badgeText) hpValueBadge.textContent = badgeText;
+      }
+      if (hpValueBadge.hidden === showBadge) hpValueBadge.hidden = !showBadge;
+    }
     // 執行者「坩堝諸相・獸」：變身中襲擊／咆哮鍵背景持續閃光。
     var beast = beastFormActive(c, now);
     setClassOnIds(["btn-midnight-attack-shared-target", "btn-midnight-attack-left"], "midnight-buff-beast", beast);
@@ -15720,6 +15965,23 @@
     return out;
   }
 
+  // 點陣圖人物的身後裝飾（2026-09-28使用者明確規格）：
+  //   ・追蹤者「技能強化（纏火）」持續時間內（_flameCloakUntil，見applyRelicAbilityPostEffect()）
+  //     身後有火焰特效。
+  //   ・復仇者「召喚靈體」的靈體存活中（summonedSpirit.hp>0）身後站著死靈點陣圖。
+  // 兩個欄位都已同步到 character/{tokenId}，所以隊友的畫面也看得到。_flameCloakUntil 是寫入端的
+  // 本機時刻，跨裝置只差時鐘偏移那一點點，純表現層不另外換算。
+  var AVENGER_SPIRIT_SHEET = "player_avenger_spirit.png";
+
+  function playerSpriteDecor(c, now) {
+    if (!c) return null;
+    var spirit = c.summonedSpirit;
+    return {
+      flame: !!(c._flameCloakUntil && c._flameCloakUntil > now),
+      companion: spirit && spirit.hp > 0 ? AVENGER_SPIRIT_SHEET : null,
+    };
+  }
+
   // 自分の操作を鳴らす＋全端へ配る。各 handler の「この動作は確定した」地点
   // （既存の broadcastCombatActionBubble() と同じ場所）から呼ぶ。
   function playMySpriteAnim(animId) {
@@ -15766,6 +16028,7 @@
       var tokenId = m.key;
       var c = characters[tokenId];
       var downed = !!(c && c.nearDeath && c.nearDeath.active);
+      if (P.setDecor) P.setDecor(tokenId, playerSpriteDecor(c, now), "../static/");
       // 出演 1 影格目（初登場／輪替で戻ってきた）：今の状態を控えるだけで何も鳴らさない。
       // 瀕死中ならいきなり倒れた姿（death の最終幀）で出す。
       if (!playerSpriteKnown[tokenId]) {
@@ -24361,6 +24624,8 @@
     var options = [baseAbility].concat(variants);
     var selectedField = kind === "art" ? "_selectedArtVariantIndex" : "_selectedSkillVariantIndex";
     var currentIdx = c[selectedField] || 0;
+    // 純Defense的基礎招式（妖刀）選著時，技能鍵實際用的是第1個變體（見characterAbilityEntry()）。
+    if (currentIdx === 0 && skillBaseIsDefenseOnly(kind, baseAbility) && variants.length) currentIdx = 1;
     options.forEach(function (ability, idx) {
       var btn = document.createElement("button");
       btn.type = "button";
@@ -26260,7 +26525,8 @@
     // 魔術／祈禱鍵已由renderSideCombatButtons()隱藏，這裡補上武器戰技鍵與迴避／防禦鍵。
     var beastHide = beastFormActive(characters[myTokenId], Date.now());
     if (beastHide) artBtn.hidden = true;
-    el("btn-midnight-dodge").hidden = beastHide;
+    // 2026-09-28使用者明確規格「兩者的技藝變身後，要增加閃避按鍵」：迴避鍵在變身中保留，只藏防禦。
+    el("btn-midnight-dodge").hidden = false;
     el("btn-midnight-block").hidden = beastHide;
     renderAttributeAccumNote();
     renderFieldEncounterPanel(usingEncounter);

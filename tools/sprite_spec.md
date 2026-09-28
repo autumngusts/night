@@ -461,3 +461,24 @@ node tools/sprite_check/sprite_sheet_cells.js clean/hermit_dawn.png tools/sprite
 - 格子 232px（待機佔格高 0.63，與本體隱者 0.64 相近）。
 - 1hit 最後的藍光飛彈、技藝最後的紅色技枝圖騰比格子寬，各取以飛彈頭／人物為中心的 232px 視窗。
 - 待機、受擊、死亡 6 幀；順移、1hit、2hit、致命一擊、能力、技能 5 幀＋停格；技藝 4 幀＋停格。
+
+## 復仇者的死靈同伴 sheet（2026-09-28）
+
+素材：`photo/enemyPic/0928/復仇者_死靈.png`（1024×1536、RGB、深色底＋分隔線，形式同暗黑變體）。
+用途：復仇者「召喚靈體」的靈體存活中，站在玩家點陣圖身後（`midnight_player_sprite.js` 的
+`setDecor()`，只播待機行）。不經登錄表，`midnight.js` 的 `AVENGER_SPIRIT_SHEET` 直接指定檔名。
+
+```bash
+node tools/sprite_check/sprite_debg_dark.js photo/enemyPic/0928/復仇者_死靈.png clean/avenger_spirit.png \
+  --label-x=180 --soft-depth=3 --flood=8 --label-box=0-168:1075-1110 \
+  --lines=151,152,153,274,275,276,406,407,408,534,535,536,665,666,667,819,820,821,974,975,976,1140,1141,1142,1302,1303,1304 \
+  --ghost-full=24 --ghost=450-1023:537-664 --ghost=420-1023:668-818 --ghost=440-1023:822-973 \
+  --ghost=440-1023:977-1139 --ghost=440-1023:1143-1301 --ghost=290-1023:1305-1535
+node tools/sprite_check/sprite_sheet_cells.js clean/avenger_spirit.png tools/sprite_check/cells/player_avenger_spirit.json
+```
+
+- **`--lines=` 是必要的**：整張是藍灰色系，自動偵測會把人物所在的整段 y 當成分隔線。
+  分隔線 y 由「整列平均亮度的局部峰」找出（152／275／407／535／666／820／975／1141／1303），各取 ±1。
+- `--flood=8`＋`--soft-depth=3`：深灰長袍跟背景很接近，預設值會把身體挖出洞。
+- 特效（刀光、白光、爆炸）周圍的暗煙用 `--ghost=`；比照暗黑復仇者保留一圈暗色氣場。
+- 格子 240px。1hit 行 4 幀＋停格（第 3 幀刀光寬 318px，右端裁掉）；2hit～技藝 5 幀＋停格。
