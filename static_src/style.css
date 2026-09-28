@@ -10331,3 +10331,33 @@ html.midnight-top-banner-collapsed .midnight-top-banner-collapse-btn {
   min-width: 7rem;
   touch-action: manipulation;
 }
+
+/* ---- 2026-09-29 觀察者模式：不能操作（見 static/midnight.js 的 watchSlot 說明）----
+   操作區塊整塊關掉 pointer-events；隊友資訊面板只留［觀察］［接管］與空位的［加入］。
+   左上面板本身不關（要能按那幾顆），改成關掉面板裡其他按鈕。 */
+body.midnight-spectator-lock #midnight-hud-bottom-left,
+body.midnight-spectator-lock #midnight-hud-bottom-right,
+body.midnight-spectator-lock #midnight-hud-bottom-center,
+body.midnight-spectator-lock #midnight-hud-top-right,
+body.midnight-spectator-lock #midnight-hud-ready-final-row,
+body.midnight-spectator-lock #midnight-hud-merchant-row,
+body.midnight-spectator-lock #midnight-map-panel,
+body.midnight-spectator-lock #midnight-field-enter-prompt {
+  pointer-events: none;
+}
+
+body.midnight-spectator-lock #midnight-hud-bottom-left button,
+body.midnight-spectator-lock #midnight-hud-bottom-right button {
+  opacity: 0.55;
+}
+
+body.midnight-spectator-lock #midnight-hud-top-left button:not(.midnight-slot-watch-btn):not(.midnight-slot-takeover-btn):not(.midnight-slot-join-btn) {
+  pointer-events: none;
+  opacity: 0.55;
+}
+
+.midnight-slot-watch-btn.midnight-slot-watch-active {
+  background: #ffd64a;
+  color: #1a1a1a;
+  border-color: #c9a520;
+}

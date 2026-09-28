@@ -6259,9 +6259,22 @@
     if (p.tokenId !== myTokenId) {
       var menuPanel = el("midnight-menu-panel");
       var menuOpen = !!(menuPanel && !menuPanel.hidden);
+      // ［觀察］（2026-09-29，見watchSlot說明）：只有觀戰者有，排在［接管］前面。
+      if (spectatorMode() && p.tokenId) {
+        var watching = watchSlot === slot;
+        var watchBtn = document.createElement("button");
+        watchBtn.type = "button";
+        watchBtn.className = "midnight-slot-watch-btn" + (watching ? " midnight-slot-watch-active" : "");
+        watchBtn.textContent = window.I18N.t(watching ? "midnight_spectator_unwatch_button" : "midnight_spectator_watch_button");
+        watchBtn.addEventListener("click", function () {
+          toggleWatchSlot(slot);
+        });
+        row1.appendChild(watchBtn);
+      }
       if (!mySlot || menuOpen) {
         var takeoverBtn = document.createElement("button");
         takeoverBtn.type = "button";
+        takeoverBtn.className = "midnight-slot-takeover-btn";
         takeoverBtn.textContent = window.I18N.t("midnight_takeover_button");
         takeoverBtn.addEventListener("click", function () {
           handleTakeover(slot);
@@ -6520,6 +6533,7 @@
         if (!mySlot) {
           var joinBtn = document.createElement("button");
           joinBtn.type = "button";
+          joinBtn.className = "midnight-slot-join-btn";
           joinBtn.textContent = window.I18N.t("midnight_lobby_join_button");
           joinBtn.addEventListener("click", function (slotForClick) {
             return function () {
@@ -12095,6 +12109,7 @@
 
   function handleCombatHotkeyDown(e) {
     if (!e || e.repeat || hotkeyTargetIsTextInput(e)) return;
+    if (spectatorMode()) return; // 觀戰者不能操作（2026-09-29，見watchSlot說明）
     if (handleGeneralHotkeyDown(e)) {
       e.preventDefault();
       return;
@@ -15930,7 +15945,7 @@
       seen[tokenId] = true;
       out.push({ key: tokenId, typeId: c.typeId });
     }
-    push(myTokenId);
+    push(viewTokenId() || myTokenId); // 觀察中＝被觀察者站最右（跟他自己的畫面同一種排法）
     var trig = activeEncounter ? fieldTriggers[activeEncounter.id] : null;
     var slots = trig && trig.participants ? participantSlots(trig) : [];
     if (!slots.length) slots = occupiedSlots();
@@ -15940,7 +15955,7 @@
     var others = [];
     slots.forEach(function (slot) {
       var tokenId = players[slot] && players[slot].tokenId;
-      if (tokenId && tokenId !== myTokenId && others.indexOf(tokenId) === -1 && eligible(tokenId)) others.push(tokenId);
+      if (tokenId && tokenId !== myTokenId && !seen[tokenId] && others.indexOf(tokenId) === -1 && eligible(tokenId)) others.push(tokenId);
     });
     if (others.length > PLAYER_SPRITE_OTHER_SLOTS) {
       // 2026-09-26：瀕死中的隊友優先上台（頭上要掛救援圓盤，見updateRescueOverlays()），
@@ -16264,6 +16279,13 @@
     }
     var pt = activeEncounter;
     var trig = fieldTriggers[pt.id] || {};
+    if (!mySlot) {
+      // 觀戰者（2026-09-29觀察）：排程／發動／結算都交給參加者的裝置，這裡只播敵人出招動畫。
+      myIncomingAttack = null;
+      maybePlayEnemyAttackAnim(trig, now);
+      renderEnemyAttackOverlay();
+      return;
+    }
     ensureNextAttackScheduled(pt, trig);
     maybeStartEnemyAttack(pt, trig, now);
     maybePlayEnemyAttackAnim(trig, now);
@@ -17406,6 +17428,11 @@
     // 否則落地才播的特效（瓶壺爆裂／多段連閃，setTimeout 500ms後）在測試中永遠被擋掉。
     // 正式流程不會產生這個id。
     if (activeEncounter && activeEncounter.id === FX_PROBE_ENCOUNTER_ID) return;
+    // 觀戰者（2026-09-29觀察）：不走下面以自己位置／席位判斷的候選鏈，直接跟著被觀察者。
+    if (spectatorMode()) {
+      activeEncounter = spectatorWatchedEncounter();
+      return;
+    }
     // 2026-09-10使用者回報「Day3王戰時站在地圖點旁邊會進不了王戰」：候選優先序原本是
     // nearbyFieldPoint → 籌碼 → 王城 → 夜之強敵 → 夜之王，夜之王排在最後。Day3開始時
     // 玩家人若剛好停在任何一個板塊點/籌碼點/王城範圍內，那個點會一直贏得候選權，
@@ -26295,7 +26322,10 @@
   }
 
   function renderCharPanel() {
-    if (!mySlot) return; // 觀戰者沒有角色資源可顯示
+    if (!mySlot) {
+      renderWatchedCharPanel(); // 觀察中顯示被觀察者；沒在觀察就維持原本「沒有角色資源可顯示」
+      return;
+    }
     var selfChar = characters[myTokenId];
     var hpMax = selfArenaHpMax(selfChar);
     var hp = demoStats[myTokenId];
@@ -26984,6 +27014,98 @@
     btn.classList.toggle("midnight-btn-active-yellow", !panel.hidden);
   }
 
+  // ---- 觀察者的「觀察」（2026-09-29使用者明確規格「觀察者模式可以指定追蹤的玩家 可以同步觀察他的
+  // 畫面但不能操作按鈕，接著只能按隊友資訊的觀察或接管來操作」）----
+  // watchSlot：這台觀戰裝置正在觀察的席位（純本地，不寫RTDB）。觀察中：
+  //   ・戰鬥畫面＝那位玩家目前參加、敵人還活著的遭遇（spectatorWatchedEncounter()，直接讀共享的
+  //     fieldTriggers／fieldEnemyHp，不走recomputeActiveEncounter()那條以「自己的位置／席位」
+  //     判斷的鏈——那條鏈帶有邀請、投票、進入戰鬥等寫入副作用，觀戰者不能觸發）。
+  //   ・左上狀態面板＝那位玩家的HP與聖杯瓶（已同步的欄位）；FP／體力只存在操作者本機，顯示「—」。
+  //   ・點陣圖舞台由那位玩家站最右（敵人最近的位置），跟他自己畫面的排法一致。
+  //   ・地圖：他不在戰鬥中時自動展開、戰鬥中收合（跟操作者畫面的自動收合同一個時機）；地圖上他的
+  //     圖標外加一圈觀察框。
+  // 觀戰者（有沒有在觀察都一樣）一律不能操作：body.midnight-spectator-lock由CSS把所有操作區塊的
+  // pointer-events關掉，只留隊友資訊裡的［觀察］［接管］（與空位的［加入］）；鍵盤快捷鍵另外擋。
+  var watchSlot = null;
+
+  function spectatorMode() {
+    return !mySlot && !!(meta && meta.sessionStartAt);
+  }
+
+  function watchedTokenId() {
+    if (!spectatorMode() || !watchSlot) return null;
+    var p = players[watchSlot];
+    return p && p.tokenId ? p.tokenId : null;
+  }
+
+  // 畫面「以誰的視角」顯示：操作者＝自己，觀察中的觀戰者＝被觀察的人，其餘null。
+  function viewTokenId() {
+    if (mySlot) return myTokenId;
+    return watchedTokenId();
+  }
+
+  function toggleWatchSlot(slot) {
+    watchSlot = watchSlot === slot ? null : slot;
+    renderPlayersPanel();
+  }
+
+  function spectatorWatchedEncounter() {
+    if (!watchedTokenId()) return null;
+    var ids = Object.keys(fieldTriggers);
+    for (var i = 0; i < ids.length; i++) {
+      var trig = fieldTriggers[ids[i]];
+      if (!trig || trig.status !== "resolved" || !trig.enemyFamilyId || !trig.participants || !trig.participants[watchSlot]) continue;
+      var hp = fieldEnemyHp[ids[i]];
+      if (hp !== undefined && hp <= 0) continue;
+      var pt = null;
+      for (var j = 0; j < map.points.length; j++) {
+        if (map.points[j].id === ids[i]) {
+          pt = map.points[j];
+          break;
+        }
+      }
+      return pt || { id: ids[i] };
+    }
+    return null;
+  }
+
+  // 每影格（frameInner()）：觀戰者的activeEncounter只由這裡決定。
+  function updateSpectatorView() {
+    var lock = spectatorMode();
+    document.body.classList.toggle("midnight-spectator-lock", lock);
+    if (!lock) {
+      watchSlot = null;
+      return;
+    }
+    if (watchSlot && !watchedTokenId()) {
+      watchSlot = null; // 被觀察的席位被釋放了
+      renderPlayersPanel();
+    }
+    recomputeActiveEncounter(); // 觀戰者分支見該函式開頭
+    if (watchSlot && mapExpanded === !!activeEncounter) setMapExpanded(!activeEncounter);
+  }
+
+  // 觀察中：左上狀態面板改顯示被觀察者（見watchSlot說明）。
+  function renderWatchedCharPanel() {
+    var tokenId = watchedTokenId();
+    if (!tokenId) return;
+    var c = characters[tokenId];
+    var hpMax = selfArenaHpMax(c);
+    var hp = demoStats[tokenId];
+    setBar("midnight-self-hp-fill", "midnight-self-hp-value", hp === undefined ? hpMax : hp, hpMax);
+    ["midnight-self-fp", "midnight-self-stamina"].forEach(function (prefix) {
+      var fill = el(prefix + "-fill");
+      if (fill) fill.style.width = "0%";
+      var value = el(prefix + "-value");
+      if (value) value.textContent = "—";
+    });
+    var res = c || { flaskCount: FLASK_MAX_DEFAULT, flaskMax: FLASK_MAX_DEFAULT };
+    el("midnight-flask-count").textContent = window.I18N.t("midnight_flask_remaining", {
+      count: res.flaskCount,
+      max: res.flaskMax || FLASK_MAX_DEFAULT,
+    });
+  }
+
   // 觀察者模式徽章（2026-09-13使用者明確規格「觀察者模式時，右上不顯示盧恩，替代顯示
   // 眼睛符號以及黃底『觀察者模式』」）：觀戰＝沒有席位（!mySlot，見該變數說明）。
   // 等待房階段（meta.sessionStartAt尚未設定）還沒有人正式入座，此時全員都是!mySlot，
@@ -26995,6 +27117,12 @@
     var spectating = !mySlot && !!(meta && meta.sessionStartAt);
     badge.hidden = !spectating;
     runeRow.hidden = spectating;
+    var target = el("midnight-spectator-watch-target");
+    if (target) {
+      var wp = watchedTokenId() ? players[watchSlot] : null;
+      var text = wp ? window.I18N.t("midnight_spectator_watching", { name: wp.name || "" }) : "";
+      if (target.textContent !== text) target.textContent = text;
+    }
   }
 
   function tryMove(dx, dy) {
@@ -28892,10 +29020,23 @@
       cur.x += (target.x - cur.x) * LERP_FACTOR;
       cur.y += (target.y - cur.y) * LERP_FACTOR;
       renderedRemotePos[p.tokenId] = cur;
+      if (p.tokenId === watchedTokenId()) drawWatchRing(cur.x, cur.y, now);
       drawToken(cur.x, cur.y, p.characterId, p.name);
     }
 
     renderMinimap();
+  }
+
+  // 觀察中的對象：圖標底下一圈脈動的黃框（2026-09-29）。
+  function drawWatchRing(x, y, now) {
+    var r = CELL * (1.05 + 0.12 * Math.sin(now / 250)); // 圖標本身半徑CELL*0.8
+    ctx.save();
+    ctx.strokeStyle = "rgba(255, 214, 74, 0.95)";
+    ctx.lineWidth = 2.5;
+    ctx.beginPath();
+    ctx.arc(x * CELL, y * CELL, r, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.restore();
   }
 
   // 小地圖（2026-09-06使用者明確要求「戰鬥中小地圖顯示在地圖按鈕左邊,尺寸為原地圖的
@@ -29477,6 +29618,7 @@
     updateNearbyTower();
     updateNearbyFieldPoint();
     updateNearbyChipPoint();
+    updateSpectatorView(); // 2026-09-29：觀戰者的戰鬥畫面＝被觀察者的遭遇（必須在updateNearbyChipPoint()之後）
     maybeResolveAllSharedRewardVotes();
     expireStalePersonalRewards(now); // 2026-09-26：個人獎勵300秒自動消失
     updateTopBannerCollapseUI();

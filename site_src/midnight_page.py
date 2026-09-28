@@ -833,6 +833,8 @@ BODY = """    <div class="midnight-wrap">
           <span id="midnight-spectator-badge" hidden>
             <span class="midnight-icon-eye"></span>
             <span data-i18n="midnight_spectator_badge"></span>
+            <!-- 觀察中的對象（2026-09-29，見static/midnight.jsのwatchSlot說明）。 -->
+            <span id="midnight-spectator-watch-target"></span>
           </span>
           <!-- 獎勵清單重新開啟鈕（2026-09-13）：獎勵清單原本只有「有新的未解決獎勵時
                自動彈出」一條路徑，玩家按了關閉之後就再也叫不回來（見
