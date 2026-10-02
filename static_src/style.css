@@ -3948,13 +3948,19 @@ button {
     align-items: stretch;
   }
 
+  /* checkbox／radio不拉寬：拉成100%後，同一個<label>裡nowrap的說明文字會被擠到畫面右外側，
+     整頁被撐寬、手機瀏覽器自動縮小整頁（midnight等待房的武器詞條／點陣圖／平衡／測試模式列）。 */
   .wb-row select,
   .wb-row button,
-  .wb-row input,
+  .wb-row input:not([type="checkbox"]):not([type="radio"]),
   .floor-reward-entry-row select,
   .floor-reward-entry-row button,
-  .floor-reward-entry-row input {
+  .floor-reward-entry-row input:not([type="checkbox"]):not([type="radio"]) {
     width: 100%;
+  }
+
+  .wb-row label {
+    white-space: normal;
   }
 
   #turn-reward-list {
@@ -4191,6 +4197,12 @@ button {
 #midnight-canvas {
   display: block;
   max-width: 100%;
+  /* 手機橫向等矮螢幕：只限寬度時768px的canvas會比視窗高，疊在canvas左下角的手機搖桿
+     （#midnight-mobile-joystick）被推到畫面外而無法移動。加上高度上限讓canvas等比縮小
+     （canvas是replaced element，width/height維持auto就會保持比例）；4.5rem＝地圖面板
+     上下padding＋「收合地圖」列。座標換算都走getBoundingClientRect()，縮放不影響點擊。 */
+  max-height: calc(100vh - 4.5rem);
+  max-height: calc(100dvh - 4.5rem);
   border: 1px solid #444;
   background: #0c0f14;
   image-rendering: pixelated;
@@ -4265,6 +4277,14 @@ button {
   max-width: 100%;
   width: fit-content;
   margin: auto;
+}
+
+/* 手機橫向（視窗高度很矮）：「收合地圖」文字列被左上HUD蓋住、又跟canvas右上✕功能重複，
+   隱藏它把高度讓給地圖本身。canvas的max-height扣掉的4.5rem仍保留，這裡只是多出餘裕。 */
+@media (max-height: 500px) {
+  #midnight-map-panel > .wb-row {
+    display: none;
+  }
 }
 
 /* 商人／祝福籌碼的進入提示（2026-09-06改版：跟#midnight-field-enter-prompt同款固定定位
@@ -6779,6 +6799,30 @@ html.midnight-banner-above-hud:not(.midnight-top-banner-collapsed) #midnight-rew
   text-align: center;
 }
 
+/* 手機等窄畫面：92%寬的banner會整條蓋住右上導覽欄（地圖／角色／選單）。banner平時高於HUD
+   是使用者規格（見#midnight-hud-top-left上方說明），但右上欄被完全蓋住時連「點HUD暫時
+   浮上來」都點不到——地圖鍵實測被banner吃掉點擊。這裡不改疊層順序，只讓banner右緣停在
+   右上導覽欄左側（導覽欄約74px寬＋0.6rem邊距），左上隊友資訊仍可被蓋（它本來就會露出
+   一部分供點擊浮上）。 */
+@media (max-width: 640px) {
+  #midnight-field-enter-prompt,
+  #midnight-field-invite-prompt,
+  #midnight-field-banner,
+  #midnight-field-late-join-prompt,
+  #midnight-field-late-claim-prompt,
+  #midnight-strong-enemy-banner,
+  #midnight-scarab-banner,
+  #midnight-random-event-banner,
+  #midnight-battle-prep-banner,
+  #midnight-rewards-lock-banner {
+    left: 0.6rem;
+    right: 6rem;
+    width: auto;
+    max-width: none;
+    transform: none;
+  }
+}
+
 /* 2026-09-21：#midnight-scarab-banner／#midnight-random-event-banner納入上面的固定置頂
    群組（使用者明確規格「隨機事件…如同一般板塊處理 會出現banner」——原本這兩個沒有
    position:fixed，被#midnight-map-panel全螢幕面板蓋住，實際遊玩中看不到）。原本這裡給
@@ -8021,8 +8065,16 @@ html.midnight-top-banner-collapsed .midnight-top-banner-collapse-btn {
     max-width: 44vw;
   }
 
+  /* 原本是repeat(3, 22vw)＝66vw，加上右下max-width:52vw超過100vw，手機直立（約412px寬）時
+     右手武器卡被右下的迴避鍵蓋住點不到（Playwright實測）。改成2×2：上排聖杯瓶｜道具、
+     下排左手｜右手，欄寬＝(100vw−右下52vw−左右邊距0.6rem×2−兩組之間約0.4rem−格子間距
+     0.3rem)÷2＝(48vw−1.9rem)÷2，收在右下操作區左側。高度仍是2列48px，不影響上方
+     #midnight-hud-bottom-left-actions（bottom:7.2rem）的位置。 */
   #midnight-hud-bottom-left {
-    grid-template-columns: repeat(3, 22vw);
+    grid-template-columns: repeat(2, calc((48vw - 1.9rem) / 2));
+    grid-template-areas:
+      "flask consumable"
+      "left  right";
   }
 }
 
@@ -10360,4 +10412,19 @@ body.midnight-spectator-lock #midnight-hud-top-left button:not(.midnight-slot-wa
   background: #ffd64a;
   color: #1a1a1a;
   border-color: #c9a520;
+}
+
+/* 觸控裝置：聖杯瓶／道具卡片的◀▶切換鍵原本只有0.8rem（約12px）寬，手指很難點中。
+   加寬到1.15rem，卡片文字左右留白跟著加大避免被蓋住（桌機滑鼠維持原尺寸）。 */
+@media (hover: none) and (pointer: coarse) {
+  .midnight-consumable-cycle-btn {
+    width: 1.15rem;
+    font-size: 0.6rem;
+  }
+
+  #btn-midnight-use-flask,
+  #btn-midnight-use-consumable {
+    padding-left: 1.2rem;
+    padding-right: 1.2rem;
+  }
 }
