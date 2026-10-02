@@ -925,6 +925,10 @@ BODY = """    <div class="midnight-wrap">
             <span id="midnight-wandering-blessing-value" class="midnight-rune-value"></span>
             <button type="button" id="btn-midnight-pause-game" class="danger-btn" data-i18n="midnight_pause_button"></button>
             <button type="button" id="btn-midnight-resume-game" data-i18n="midnight_resume_button" hidden></button>
+            <!-- 放棄遊戲（2026-10-02）：原本只有頁面資訊欄裡的#btn-midnight-hud-abandon，手機上被
+                 地圖／HUD四角面板蓋住點不到。選單面板裡放同一顆功能的按鈕（同一個
+                 handleAbandonProposeClick()、同一個顯示條件，見static/midnight.jsのupdateAbandonVote()）。 -->
+            <button type="button" id="btn-midnight-menu-abandon" class="danger-btn" data-i18n="midnight_abandon_button"></button>
           </div>
 
           <!-- 測試模式面板（2026-09-06數值真正接入新增，使用者明確規格：「開始遊戲可以

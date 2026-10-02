@@ -544,6 +544,15 @@ button {
   margin: 1.75rem 0;
 }
 
+/* 320px級手機（2026-10-02）：固定欄寬＋間距共376px，整頁被撐寬、[終點]欄被推出畫面。
+   改成minmax(0, 原寬)，空間不足時各欄等比例縮小，寬畫面時仍是原尺寸。 */
+@media (max-width: 400px) {
+  .board-grid {
+    grid-template-columns: minmax(0, 64px) repeat(3, minmax(0, 72px)) minmax(0, 64px);
+    gap: 6px;
+  }
+}
+
 .night3-boss-wrap {
   display: flex;
   flex-direction: column;
@@ -2697,8 +2706,21 @@ button {
   font-size: 0.8rem;
   color: #888;
   display: flex;
+  flex-wrap: wrap; /* 2026-10-02：手機窄畫面讓[還原為劇本對應夜王]換到下一行，不再撐寬整頁 */
   align-items: center;
   gap: 0.4rem;
+  max-width: 100%;
+}
+
+/* select包在label裡：label原本隨select的固有寬度撐開，select的max-width:100%等於沒作用，
+   手機上整頁被撐到約610px寬。label改成可縮的flex容器，select才會被限制在畫面內。 */
+.game-boss-row label {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+  min-width: 0;
+  max-width: 100%;
 }
 
 .game-boss-row select {
@@ -2726,8 +2748,10 @@ button {
 
 .game-actions {
   display: flex;
+  flex-wrap: wrap; /* 2026-10-02：320px級手機上4顆按鈕一行放不下，[刪除]被推出畫面 */
   gap: 0.5rem;
   flex-shrink: 0;
+  max-width: 100%;
 }
 
 .game-actions .primary-btn {
@@ -4544,6 +4568,13 @@ html.midnight-hud-above-banner #midnight-hud-top-right {
   z-index: 620;
 }
 
+/* 2026-10-02使用者明確規格「逃離戰鬥還是在右上，可以按戰鬥畫面來讓他暫時跑到頂端以方便按」：
+   點戰鬥面板後3秒內（static/midnight.jsのbumpBattlePanelAboveHud()）拉到630——高於戰鬥中
+   左上/右上HUD的620，仍低於所有彈窗/遮罩（650起），不會戳穿角色視窗等。 */
+html.midnight-battle-panel-above-hud #midnight-hud-bottom-center {
+  z-index: 630;
+}
+
 /* 2026-09-13使用者明確規格「除了按下左上右上hud會讓他們排序在上方，按下樓層資訊banner、
    late-claim等 也會排序至上方」：上面那條規則只有「HUD蓋過banner」單向，戰鬥中
    （activeEncounter）更是一直掛著html.midnight-hud-above-banner，此時上方那條資訊欄
@@ -4673,6 +4704,11 @@ html.midnight-banner-above-hud:not(.midnight-top-banner-collapsed) #midnight-rew
 #midnight-test-panel {
   width: 220px;
   max-width: 42vw;
+  /* 2026-10-02：手機橫向等矮畫面上面板（含Debug面板）超出畫面底部又不能捲動。上方的按鈕列
+     ／小地圖約佔14rem，扣掉後當高度上限、內容改為可捲動（下限8rem，避免矮到不能用）。 */
+  max-height: max(8rem, calc(100vh - 16rem));
+  max-height: max(8rem, calc(100dvh - 16rem));
+  overflow-y: auto;
   background: rgba(10, 12, 18, 0.72);
   border: 1px solid rgba(255, 255, 255, 0.25);
   border-radius: 6px;
@@ -8034,11 +8070,16 @@ html.midnight-top-banner-collapsed .midnight-top-banner-collapse-btn {
      的整體大小可以再壓低高度」：垂直padding從0.3rem降到0.15rem、圖示與文字之間的gap從
      0.15rem降到0.05rem、行高收緊，水平padding維持0.3rem（寬度仍由width:4.6rem決定，
      不影響2026-09-10「戰鬥中按鈕不因文字變動而位移」的固定寬度設計）。 */
-  #midnight-hud-bottom-right button,
-  #midnight-hud-bottom-left-actions button {
+  /* 2026-10-02：選擇器要跟桌面版同一組（加上:not(.midnight-attack-mode-arrow)），否則權重
+     較低、width:4.6rem被桌面版的5.6rem蓋掉——2026-09-24桌面版加了:not()之後這裡就一直沒
+     生效，iPhone SE（320px）上右下一列只放得下一顆、排成單欄。min-height：沒有圖示的迴避鍵
+     單獨佔一列時只剩文字高度（實測19px），補一個下限。 */
+  #midnight-hud-bottom-right button:not(.midnight-attack-mode-arrow),
+  #midnight-hud-bottom-left-actions button:not(.midnight-attack-mode-arrow) {
     font-size: 0.68rem;
     padding: 0.15rem 0.3rem;
     width: 4.6rem;
+    min-height: 2.4rem;
     gap: 0.05rem;
     line-height: 1.15;
   }
@@ -10426,5 +10467,78 @@ body.midnight-spectator-lock #midnight-hud-top-left button:not(.midnight-slot-wa
   #btn-midnight-use-consumable {
     padding-left: 1.2rem;
     padding-right: 1.2rem;
+  }
+
+  /* iOS Safari：字級<16px的輸入框一聚焦就自動放大整頁，而且不會縮回（實測全站的
+     input/select/textarea都是13px）。midnight等待房輸入名字／密碼後放大狀態會一路帶進
+     遊戲畫面，固定定位的HUD全部錯位。用!important是因為不少輸入框另有ID選擇器設定字級，
+     這條必須無條件勝出。 */
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="button"]):not([type="submit"]),
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
+
+  /* 地圖右上✕與各視窗共用的✕（.midnight-modal-close-x，角色視窗等7處）原本1.8rem≈28px，
+     手指難點中；[逃離戰鬥]只有58×25。觸控裝置上放大到約40px／加高（2026-10-02）。 */
+  #btn-midnight-map-close-corner,
+  .midnight-modal-close-x {
+    width: 2.5rem;
+    height: 2.5rem;
+    font-size: 1.4rem;
+  }
+
+  #btn-midnight-flee-battle {
+    font-size: 0.78rem;
+    padding: 0.45rem 0.6rem;
+  }
+}
+
+/* midnight遊戲畫面防止雙擊縮放（2026-10-02）：iOS Safari在沒有touch-action:manipulation的
+   元素上快速連點會觸發「雙擊放大」，戰鬥中連按攻擊／迴避時整頁會被放大。manipulation仍保留
+   捲動與雙指縮放，只關掉雙擊縮放。html.midnight-no-select只在midnight頁面掛上（見
+   static/midnight.jsのguardAgainstStuckDrag()）。canvas／搖桿另有ID選擇器的touch-action:none，
+   權重較高不受影響。 */
+html.midnight-no-select,
+html.midnight-no-select * {
+  touch-action: manipulation;
+}
+
+/* 手機橫向等矮畫面（2026-10-02）：戰鬥面板（#midnight-hud-bottom-center）原本是畫面正中央
+   520px×最高90vh，在高約390px的橫向手機上整片蓋住左下操作盤（聖杯瓶／道具／武器卡），
+   敵人HP列也被擠到捲動範圍外。改成放進「左上HUD右側～右上HUD（戰鬥中含小地圖）左側、
+   底部操作區上方」這塊空位：左緣＝左上HUD寬（min(220px,42vw)，見#midnight-hud-top-left）
+   ＋間距，右緣讓出右上HUD約10.5rem，下緣讓出底部操作區約8.75rem。敵人圖框（點陣圖模式）
+   與插畫同步縮到「面板60%」與「可用高度」取小，名稱／屬性蓄積／HP列才都放得下。
+   [逃離戰鬥]跟著面板右上角，也就不再落在右上HUD底下。 */
+@media (max-height: 500px) and (orientation: landscape) {
+  #midnight-hud-bottom-center {
+    left: calc(min(220px, 42vw) + 1.2rem);
+    right: 10.5rem;
+    top: 0.6rem;
+    transform: none;
+    width: auto;
+    max-width: none;
+    max-height: calc(100vh - 9.35rem);
+    max-height: calc(100dvh - 9.35rem);
+  }
+
+  #midnight-field-encounter-image-wrap.midnight-sprite-arena {
+    width: min(60%, calc(100vh - 15rem));
+    width: min(60%, calc(100dvh - 15rem));
+  }
+
+  #midnight-field-encounter-image {
+    max-height: calc(100vh - 15rem);
+    max-height: calc(100dvh - 15rem);
+  }
+}
+
+/* 手機（窄畫面或橫向矮畫面）戰鬥面板背景加深（2026-10-02）：地圖收合時面板後面是頁面本身
+   （等待房標題、分享連結、資訊欄說明文字），0.72的半透明在手機上整片文字透出來、跟敵人
+   點陣圖和HP數值混在一起。桌面版面板周圍空間大，維持原本的半透明。 */
+@media (max-width: 640px), (max-height: 500px) {
+  #midnight-hud-bottom-center {
+    background: rgba(10, 12, 18, 0.92);
   }
 }

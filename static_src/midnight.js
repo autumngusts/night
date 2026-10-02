@@ -6761,10 +6761,16 @@
     });
     // 2026-09-20：按著方向鍵時alt-tab、或彈出window.prompt()（接管席位密碼等）會讓
     // keyup永遠收不到，角色會一直跑到再按一次同一個鍵為止；視窗失焦時直接清空按鍵狀態。
-    window.addEventListener("blur", function () {
+    function releaseHeldInputs() {
       keysDown = {};
       endBlockHold(); // G鍵長按防禦時失焦也收不到keyup，一併放開
       clearStraySelection();
+    }
+    window.addEventListener("blur", releaseHeldInputs);
+    // 2026-10-02：手機切換App／鎖定螢幕時不一定會發blur（iOS），長按防禦的touchend也可能
+    // 收不到，回來後仍在防禦中、體力不回復。切到背景時一併放開。
+    document.addEventListener("visibilitychange", function () {
+      if (document.hidden) releaseHeldInputs();
     });
     guardAgainstStuckDrag();
     el("btn-midnight-enter-battle").addEventListener("click", handleEnterBattleClick);
@@ -6924,6 +6930,25 @@
       var bannerEl = el(id);
       if (bannerEl) bannerEl.addEventListener("pointerdown", bumpBannerAboveHud, true);
     });
+    // 2026-10-02：buff圖示的名稱原本只寫在title（滑鼠移上去才看得到），手機完全看不到是哪個
+    // buff。點圖示→toast顯示該buff名稱；圖示只有18px不好點中，點到圖示列的其他位置就列出
+    // 全部生效中的buff。圖示每次重建（renderSelfBuffIcons()），所以委派在容器上。
+    var buffIconsEl = el("midnight-self-buff-icons");
+    if (buffIconsEl) {
+      buffIconsEl.addEventListener("click", function (e) {
+        var t = e.target;
+        var names = t && t.classList && t.classList.contains("midnight-self-buff-icon")
+          ? [t.title]
+          : Array.prototype.map.call(buffIconsEl.querySelectorAll(".midnight-self-buff-icon"), function (img) {
+              return img.title;
+            });
+        names = names.filter(Boolean);
+        if (names.length) showToast(names.join("、"));
+      });
+    }
+    // 2026-10-02：點戰鬥面板→暫時蓋過左上/右上HUD（見bumpBattlePanelAboveHud()），綁法同上。
+    var battlePanelEl = el("midnight-hud-bottom-center");
+    if (battlePanelEl) battlePanelEl.addEventListener("pointerdown", bumpBattlePanelAboveHud, true);
     el("btn-midnight-hud-collapse").addEventListener("click", function () {
       hudInfoBarCollapsed = !hudInfoBarCollapsed;
       el("midnight-hud").classList.toggle("midnight-hud-collapsed", hudInfoBarCollapsed);
@@ -6949,6 +6974,7 @@
     el("btn-midnight-game-failure-confirm").addEventListener("click", switchToUnlimitedMode);
     el("btn-midnight-game-victory-confirm").addEventListener("click", handleGameVictoryConfirmClick);
     el("btn-midnight-hud-abandon").addEventListener("click", handleAbandonProposeClick);
+    el("btn-midnight-menu-abandon").addEventListener("click", handleAbandonProposeClick); // 2026-10-02：選單面板內的同一顆
     el("btn-midnight-game-failure-abandon").addEventListener("click", handleAbandonProposeClick);
     el("btn-midnight-abandon-confirm-yes").addEventListener("click", handleAbandonConfirmYes);
     el("btn-midnight-abandon-confirm-no").addEventListener("click", handleAbandonConfirmNo);
@@ -19068,6 +19094,7 @@
 
   function bumpHudAboveBanner() {
     hudAboveBannerUntil = Date.now() + HUD_ABOVE_BANNER_TAP_MS;
+    battlePanelAboveHudUntil = 0; // 點了HUD＝玩家要操作HUD，戰鬥面板的暫時提升讓位
     updateHudStackingUI(Date.now());
   }
 
@@ -19083,10 +19110,23 @@
     updateHudStackingUI(Date.now());
   }
 
+  // 戰鬥面板的暫時提升（2026-10-02使用者明確規格「逃離戰鬥還是在右上，可以按戰鬥畫面來讓他
+  // 暫時跑到頂端以方便按」）：戰鬥中左上/右上HUD一直掛著midnight-hud-above-banner（620），
+  // 手機窄畫面上戰鬥面板（#midnight-hud-bottom-center）右上角的[逃離戰鬥]正好被右上導覽HUD
+  // 壓住點不到。點一下戰鬥面板本身→3秒內面板拉到630（見style.css的
+  // html.midnight-battle-panel-above-hud），同一套「時間戳→html class→CSS」慣例、同一個3秒常數。
+  var battlePanelAboveHudUntil = 0;
+
+  function bumpBattlePanelAboveHud() {
+    battlePanelAboveHudUntil = Date.now() + HUD_ABOVE_BANNER_TAP_MS;
+    updateHudStackingUI(Date.now());
+  }
+
   function updateHudStackingUI(now) {
     var above = !!activeEncounter || now < hudAboveBannerUntil;
     document.documentElement.classList.toggle("midnight-hud-above-banner", above);
     document.documentElement.classList.toggle("midnight-banner-above-hud", now < bannerAboveHudUntil);
+    document.documentElement.classList.toggle("midnight-battle-panel-above-hud", !!activeEncounter && now < battlePanelAboveHudUntil);
   }
 
   function updateTopBannerCollapseUI() {
@@ -26952,6 +26992,13 @@
     }
     stick.addEventListener("touchend", endJoystick);
     stick.addEventListener("touchcancel", endJoystick);
+    // 2026-10-02：手機切換App／鎖定螢幕時touchend可能收不到，回來後joystickActive仍是true，
+    // 角色會自己一直走。跟bindInput()裡鍵盤狀態的blur清除同一個理由，另外補visibilitychange
+    // （iOS切到背景時不一定會發blur）。
+    window.addEventListener("blur", endJoystick);
+    document.addEventListener("visibilitychange", function () {
+      if (document.hidden) endJoystick();
+    });
   }
 
   var mapExpanded = false;
@@ -28050,6 +28097,7 @@
     var buttons = el("midnight-abandon-vote-buttons");
     // final review M12：觀戰者（沒有席位）不顯示放棄遊戲按鈕（反正也不能投票）。
     el("btn-midnight-hud-abandon").hidden = !mySlot;
+    el("btn-midnight-menu-abandon").hidden = !mySlot;
     el("btn-midnight-game-failure-abandon").hidden = !mySlot;
     var vote = meta && meta.abandonVote;
     // final review M6：缺少at的投票物件（舊版rtSet留下的孤兒）一律忽略。
