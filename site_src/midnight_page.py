@@ -406,7 +406,7 @@ BODY = """    <div class="midnight-wrap">
 
             <!-- 戰鬥畫面示意：照真實HUD的五個區塊排（①左上自身／隊友 ②右上快捷 ③中央敵人視窗
                  ④左下道具／武器 ⑤右下動作），編號對應右側文字的①～⑤。中央用4秒一輪的CSS動畫
-                 示範「紅光0.5秒→刀光→按迴避→Perfect」。快捷鍵照static/midnight.jsの
+                 示範「紅光0.5秒＋迴避／防禦提醒→刀光→按迴避→Perfect→反擊」。快捷鍵照static/midnight.jsの
                  HOTKEY_BUTTON_IDS／handleCombatHotkeyDown()（M/C/Q/E/1/2/Shift/G）。 -->
             <div class="midnight-flow-intro-pane midnight-flow-intro-hud" data-flow-intro-pane="combat" hidden>
               <div class="mfi-hud-zone mfi-hud-tl">
@@ -427,16 +427,39 @@ BODY = """    <div class="midnight-wrap">
                 <span class="mfi-chip"><b class="mfi-key">C</b><span data-i18n="midnight_character_sheet_open_button"></span></span>
                 <span class="mfi-chip" data-i18n="midnight_menu_button"></span>
               </div>
+              <!-- 中央戰鬥舞台（2026-10-03使用者明確要求「要有敵人來的刀光示意、提醒玩家按迴避或防禦；
+                   玩家點陣圖也放在中間，在他上面也可以按指定來拯救瀕死」）：照實際點陣圖戰鬥的
+                   站位——玩家在左、敵人在右，自己站最右（最靠近敵人，見static/midnight.jsの
+                   playerSpriteParty()）。倒地隊友頭上的救援圓盤沿用實際的.midnight-rescue-dial
+                   樣式（外圈金色＝剩餘時間、內圈紫色＝還需要的復歸傷害，見updateRescueOverlays()）。
+                   sprite直接用遊戲中同一批sheet（玩家6×10、敵人6×8），純CSS背景定位播放。 -->
               <div class="mfi-hud-zone mfi-hud-center">
                 <span class="mfi-num">③</span>
                 <span class="mfi-chip mfi-chip-flee" data-i18n="midnight_flee_battle_button"></span>
-                <div class="mfi-enemy-warn">⚠ <span data-i18n="midnight_flow_intro_hud_move_name"></span></div>
-                <div class="mfi-enemy">
-                  <span class="mfi-enemy-glyph">👹</span>
-                  <span class="mfi-enemy-slash"></span>
-                  <span class="mfi-grade">Perfect</span>
+                <div class="mfi-stage-prompt">⚠ <span data-i18n="midnight_flow_intro_hud_dodge_prompt"></span></div>
+                <div class="mfi-stage-slash"></div>
+                <div class="mfi-actor mfi-actor-ally2">
+                  <span class="mfi-sprite mfi-sprite-player mfi-sprite-guardian"></span>
+                  <span class="mfi-actor-name" data-i18n="midnight_flow_intro_hud_ally2"></span>
                 </div>
-                <div class="mfi-bar mfi-bar-enemy"><i class="mfi-fill mfi-fill-enemy"></i></div>
+                <div class="mfi-actor mfi-actor-downed">
+                  <div class="mfi-rescue">
+                    <span class="midnight-rescue-dial mfi-rescue-dial"><span class="midnight-rescue-dial-inner"></span></span>
+                    <span class="mfi-chip mfi-chip-designate" data-i18n="midnight_near_death_designate_button"></span>
+                  </div>
+                  <span class="mfi-sprite mfi-sprite-player mfi-sprite-lady"></span>
+                  <span class="mfi-actor-name" data-i18n="midnight_flow_intro_hud_ally"></span>
+                </div>
+                <div class="mfi-actor mfi-actor-self">
+                  <span class="mfi-grade">Perfect</span>
+                  <span class="mfi-sprite mfi-sprite-player mfi-sprite-tracker"></span>
+                  <span class="mfi-actor-name" data-i18n="midnight_flow_intro_hud_self"></span>
+                </div>
+                <div class="mfi-actor mfi-actor-enemy">
+                  <div class="mfi-enemy-warn">⚠ <span data-i18n="midnight_flow_intro_hud_move_name"></span></div>
+                  <span class="mfi-sprite mfi-sprite-enemy"></span>
+                  <div class="mfi-bar mfi-bar-enemy"><i class="mfi-fill mfi-fill-enemy"></i></div>
+                </div>
               </div>
               <div class="mfi-hud-zone mfi-hud-bl">
                 <span class="mfi-num">④</span>

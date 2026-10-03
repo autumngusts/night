@@ -6916,13 +6916,16 @@ html.midnight-banner-above-hud:not(.midnight-top-banner-collapsed) #midnight-rew
   justify-content: flex-end;
 }
 
+/* 中央戰鬥舞台：寬度橫跨整個示意圖，玩家在左、敵人在右（同實際點陣圖戰鬥的站位）。 */
 .mfi-hud-center {
   top: 27%;
-  left: 50%;
-  width: 38%;
-  transform: translateX(-50%);
-  flex-direction: column;
-  align-items: center;
+  left: 3%;
+  right: 3%;
+  height: 40%;
+  display: block;
+  padding: 0;
+  overflow: visible;
+  background: linear-gradient(180deg, rgba(10, 12, 18, 0.55) 0%, rgba(40, 32, 24, 0.75) 100%);
 }
 
 .mfi-hud-bl {
@@ -7031,7 +7034,10 @@ html.midnight-banner-above-hud:not(.midnight-top-banner-collapsed) #midnight-rew
 }
 
 .mfi-chip-flee {
-  align-self: flex-end;
+  position: absolute;
+  top: 0.25rem;
+  right: 0.3rem;
+  z-index: 2;
   background: rgba(168, 20, 20, 0.75);
 }
 
@@ -7045,48 +7051,155 @@ html.midnight-banner-above-hud:not(.midnight-top-banner-collapsed) #midnight-rew
   line-height: 1.3;
 }
 
+/* ---- 舞台上的角色（4秒一輪：0～12.5%＝敵人紅光0.5秒＋迴避/防禦提醒，12.5%＝刀光命中，
+   之後自己迴避→Perfect，55%左右反擊、敵人扣血）---- */
+.mfi-actor {
+  position: absolute;
+  bottom: 2%;
+  width: 29%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.mfi-actor-ally2 {
+  left: 0;
+}
+
+.mfi-actor-downed {
+  left: 17%;
+}
+
+.mfi-actor-self {
+  left: 35%;
+}
+
+.mfi-actor-enemy {
+  right: 1%;
+  width: 30%;
+}
+
+.mfi-actor-name {
+  margin-top: -0.55rem;
+  font-size: 0.48rem;
+  white-space: nowrap;
+  text-shadow: 0 0 2px #000, 0 0 2px #000;
+}
+
+/* sprite：sheet是固定格數的格子（玩家6×10、敵人6×8），background-size撐成「整張＝格數倍」，
+   background-position的x以steps(6)逐格前進（0%→120%在steps(6)下剛好落在0/20/…/100%），
+   y用另一條step-end動畫切換「哪一列＝哪個動作」。行號照player_sprite_data.js／
+   enemy_sprite_data.js的ANIMS。 */
+.mfi-sprite {
+  display: block;
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  background-repeat: no-repeat;
+  background-position-x: 0%;
+  background-position-y: 0%;
+  image-rendering: pixelated;
+}
+
+.mfi-sprite-player {
+  background-size: 600% 1000%;
+  animation: mfi-frames 1.2s steps(6) infinite;
+}
+
+.mfi-sprite-tracker {
+  background-image: url("images/sprites/player_tracker.png");
+  animation: mfi-frames 1.2s steps(6) infinite, mfi-self-rows 4s step-end infinite;
+}
+
+.mfi-sprite-guardian {
+  background-image: url("images/sprites/player_guardian.png");
+}
+
+/* 倒地隊友：death列（row 3）的最後一格＝倒在地上。 */
+.mfi-sprite-lady {
+  background-image: url("images/sprites/player_lady.png");
+  background-position: 100% 33.333%;
+  animation: none;
+}
+
+.mfi-sprite-enemy {
+  background-image: url("images/sprites/enemy_soldier_knight_death_knight.png");
+  background-size: 600% 800%;
+  border-radius: 8px;
+  animation: mfi-frames 1.2s steps(6) infinite, mfi-enemy-rows 4s step-end infinite, mfi-enemy-flash 4s linear infinite;
+}
+
+/* 招式名稱疊在敵人sprite格子上方的留白處（舞台右上角留給［逃離戰鬥］）。 */
 .mfi-enemy-warn {
+  position: absolute;
+  top: 1.3rem;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 2;
+  font-size: 0.55rem;
   color: #ff6b6b;
   font-weight: bold;
+  white-space: nowrap;
+  text-shadow: 0 0 2px #000;
   animation: mfi-enemy-warn 4s step-end infinite;
-}
-
-.mfi-enemy {
-  position: relative;
-  width: 3.4rem;
-  height: 3.4rem;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 6px;
-  animation: mfi-enemy-flash 4s linear infinite;
-}
-
-.mfi-enemy-glyph {
-  font-size: 2.1rem;
-}
-
-/* 刀光：紅光結束（T＝0.5秒＝12.5%）前後出現一道斜向白光。 */
-.mfi-enemy-slash {
-  position: absolute;
-  left: -10%;
-  top: 45%;
-  width: 120%;
-  height: 3px;
-  background: linear-gradient(90deg, transparent, #fff, transparent);
-  transform: rotate(-30deg);
-  opacity: 0;
-  animation: mfi-slash 4s linear infinite;
 }
 
 .mfi-bar-enemy {
   width: 100%;
-  height: 0.4rem;
+  height: 0.35rem;
 }
 
 .mfi-fill-enemy {
   --mfi-c: #c0392b;
   animation: mfi-enemy-hp 4s step-end infinite;
+}
+
+/* 救援圓盤：直接用實際遊戲的.midnight-rescue-dial（外圈金＝剩餘時間、內圈紫＝還需要的
+   復歸傷害），這裡只縮小尺寸並用動畫示範「被攻擊→紫色減少」。 */
+.mfi-rescue {
+  position: absolute;
+  bottom: 62%;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+
+.mfi-rescue-dial.midnight-rescue-dial {
+  width: 1.5rem;
+  height: 1.5rem;
+  padding: 0.15rem;
+  animation: mfi-rescue-dial 4s linear infinite;
+}
+
+/* 迴避／防禦提醒：紅光期間閃爍，跟右下的迴避／防禦鍵同時發光。 */
+.mfi-stage-prompt {
+  position: absolute;
+  top: 0.25rem;
+  left: 40%;
+  transform: translateX(-50%);
+  padding: 0.1rem 0.45rem;
+  border-radius: 4px;
+  background: rgba(200, 30, 30, 0.85);
+  color: #fff;
+  font-weight: bold;
+  white-space: nowrap;
+  z-index: 2;
+  animation: mfi-prompt 4s linear infinite;
+}
+
+/* 敵人來的刀光：從敵人那一側往玩家方向斜斜掃過整個舞台（實際遊戲是全螢幕的斜向白光帶，
+   見#midnight-attack-effect）。 */
+.mfi-stage-slash {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  background: linear-gradient(115deg, transparent 44%, rgba(255, 255, 255, 0.95) 49%, rgba(255, 255, 255, 0.95) 51%, transparent 56%);
+  background-size: 250% 100%;
+  opacity: 0;
+  animation: mfi-stage-slash 4s linear infinite;
 }
 
 .mfi-cross {
@@ -7155,24 +7268,48 @@ html.midnight-banner-above-hud:not(.midnight-top-banner-collapsed) #midnight-rew
 .mfi-btn-guard {
   background: rgba(124, 179, 66, 0.35);
   border-color: rgba(124, 179, 66, 0.8);
+  animation: mfi-guard-hint 4s linear infinite;
 }
 
 .mfi-btn-dodge {
-  animation: mfi-dodge-press 4s step-end infinite;
+  animation: mfi-dodge-press 4s linear infinite;
 }
 
-/* 迴避成功度：疊在敵人圖上方（放在迴避鍵上方會蓋到右下其他按鈕）。 */
+/* 迴避成功度：跳在自己的點陣圖頭上。 */
 .mfi-grade {
   position: absolute;
   left: 50%;
-  top: -0.2rem;
+  bottom: 70%;
   transform: translateX(-50%);
   font-size: 0.8rem;
   color: #ffd54a;
   font-weight: bold;
   text-shadow: 0 0 3px #000;
   opacity: 0;
+  z-index: 2;
   animation: mfi-grade-pop 4s linear infinite;
+}
+
+@keyframes mfi-frames {
+  from { background-position-x: 0%; }
+  to { background-position-x: 120%; }
+}
+
+/* 自己：待機(row0)→迴避(row1)→待機→攻擊(row4)→待機。y＝row/(10-1)。 */
+@keyframes mfi-self-rows {
+  0% { background-position-y: 0%; }
+  12.5% { background-position-y: 11.111%; }
+  25% { background-position-y: 0%; }
+  55% { background-position-y: 44.444%; }
+  66% { background-position-y: 0%; }
+}
+
+/* 敵人：前搖＋攻擊(row1 line)→待機→受擊(row6)→待機。y＝row/(8-1)。 */
+@keyframes mfi-enemy-rows {
+  0% { background-position-y: 14.286%; }
+  22% { background-position-y: 0%; }
+  56% { background-position-y: 85.714%; }
+  66% { background-position-y: 0%; }
 }
 
 @keyframes mfi-blink {
@@ -7185,20 +7322,34 @@ html.midnight-banner-above-hud:not(.midnight-top-banner-collapsed) #midnight-rew
 }
 
 @keyframes mfi-enemy-flash {
-  0%, 12% { box-shadow: 0 0 14px 4px rgba(255, 40, 40, 0.85); background: rgba(255, 40, 40, 0.25); }
-  13%, 100% { box-shadow: none; background: transparent; }
+  0%, 12% { box-shadow: 0 0 14px 4px rgba(255, 40, 40, 0.85); background-color: rgba(255, 40, 40, 0.3); }
+  13%, 100% { box-shadow: none; background-color: transparent; }
 }
 
-@keyframes mfi-slash {
-  0%, 11% { opacity: 0; }
-  13% { opacity: 1; }
-  20%, 100% { opacity: 0; }
+@keyframes mfi-prompt {
+  0% { opacity: 1; transform: translateX(-50%) scale(1); }
+  4% { opacity: 0.55; transform: translateX(-50%) scale(1.08); }
+  8% { opacity: 1; transform: translateX(-50%) scale(1); }
+  12.5% { opacity: 1; }
+  15%, 100% { opacity: 0; }
+}
+
+@keyframes mfi-stage-slash {
+  0%, 10% { opacity: 0; background-position: 0% 0; }
+  12.5% { opacity: 1; }
+  20% { opacity: 0; background-position: 100% 0; }
+  100% { opacity: 0; }
+}
+
+@keyframes mfi-guard-hint {
+  0%, 12% { box-shadow: 0 0 8px 2px rgba(255, 80, 80, 0.9); }
+  13%, 100% { box-shadow: none; }
 }
 
 @keyframes mfi-dodge-press {
-  0% { box-shadow: none; }
-  12% { box-shadow: 0 0 8px 2px #ffd54a; }
-  22% { box-shadow: none; }
+  0%, 11% { box-shadow: 0 0 8px 2px rgba(255, 80, 80, 0.9); }
+  12% { box-shadow: 0 0 10px 3px #ffd54a; background-color: rgba(255, 213, 74, 0.5); }
+  20% { box-shadow: none; background-color: rgba(124, 179, 66, 0.35); }
 }
 
 @keyframes mfi-grade-pop {
@@ -7217,6 +7368,24 @@ html.midnight-banner-above-hud:not(.midnight-top-banner-collapsed) #midnight-rew
 @keyframes mfi-enemy-hp {
   0% { --mfi-pct: 70%; }
   56% { --mfi-pct: 52%; }
+}
+
+/* 救援圓盤的紫色（還需要的復歸傷害）隨隊友的攻擊遞減。 */
+@property --rescue-hp-pct {
+  syntax: "<percentage>";
+  inherits: true;
+  initial-value: 100%;
+}
+
+@property --rescue-time-pct {
+  syntax: "<percentage>";
+  inherits: true;
+  initial-value: 100%;
+}
+
+@keyframes mfi-rescue-dial {
+  0% { --rescue-hp-pct: 100%; --rescue-time-pct: 80%; }
+  100% { --rescue-hp-pct: 15%; --rescue-time-pct: 60%; }
 }
 
 /* ---- 夜雨與成長 ---- */
@@ -8725,8 +8894,9 @@ html.midnight-top-banner-collapsed .midnight-top-banner-collapse-btn {
     align-self: center;
   }
 
+  /* 戰鬥示意在手機上改成4:5直式：中央舞台要放4個點陣圖，正方形時會跟左下／右下區塊疊住。 */
   .midnight-flow-intro-hud {
-    aspect-ratio: 1 / 1;
+    aspect-ratio: 4 / 5;
   }
 
   .midnight-flow-intro-growth {
