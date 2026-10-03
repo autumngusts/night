@@ -7189,17 +7189,18 @@ html.midnight-banner-above-hud:not(.midnight-top-banner-collapsed) #midnight-rew
   animation: mfi-prompt 4s linear infinite;
 }
 
-/* 敵人來的刀光：從敵人那一側往玩家方向斜斜掃過整個舞台（實際遊戲是全螢幕的斜向白光帶，
-   見#midnight-attack-effect）。 */
-.mfi-stage-slash {
+/* 敵人來的刀光：跟實際遊戲的#midnight-attack-effect一樣是全螢幕的斜向白光帶——這裡的
+   「全螢幕」＝整張戰鬥示意圖（.midnight-flow-intro-hud），蓋在所有HUD區塊上面，
+   從敵人那一側（右）往玩家方向（左）掃過。 */
+.mfi-screen-slash {
   position: absolute;
   inset: 0;
-  z-index: 1;
+  z-index: 5;
   pointer-events: none;
   background: linear-gradient(115deg, transparent 44%, rgba(255, 255, 255, 0.95) 49%, rgba(255, 255, 255, 0.95) 51%, transparent 56%);
   background-size: 250% 100%;
   opacity: 0;
-  animation: mfi-stage-slash 4s linear infinite;
+  animation: mfi-screen-slash 4s linear infinite;
 }
 
 .mfi-cross {
@@ -7334,10 +7335,11 @@ html.midnight-banner-above-hud:not(.midnight-top-banner-collapsed) #midnight-rew
   15%, 100% { opacity: 0; }
 }
 
-@keyframes mfi-stage-slash {
+@keyframes mfi-screen-slash {
   0%, 10% { opacity: 0; background-position: 0% 0; }
-  12.5% { opacity: 1; }
-  20% { opacity: 0; background-position: 100% 0; }
+  12% { opacity: 1; }
+  18% { opacity: 0.85; }
+  21% { opacity: 0; background-position: 100% 0; }
   100% { opacity: 0; }
 }
 

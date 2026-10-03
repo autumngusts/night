@@ -437,7 +437,6 @@ BODY = """    <div class="midnight-wrap">
                 <span class="mfi-num">③</span>
                 <span class="mfi-chip mfi-chip-flee" data-i18n="midnight_flee_battle_button"></span>
                 <div class="mfi-stage-prompt">⚠ <span data-i18n="midnight_flow_intro_hud_dodge_prompt"></span></div>
-                <div class="mfi-stage-slash"></div>
                 <div class="mfi-actor mfi-actor-ally2">
                   <span class="mfi-sprite mfi-sprite-player mfi-sprite-guardian"></span>
                   <span class="mfi-actor-name" data-i18n="midnight_flow_intro_hud_ally2"></span>
@@ -478,6 +477,9 @@ BODY = """    <div class="midnight-wrap">
                 <span class="mfi-btn mfi-btn-dodge"><b class="mfi-key">Shift</b><span data-i18n="midnight_dodge_button"></span></span>
                 <span class="mfi-btn mfi-btn-guard"><b class="mfi-key">G</b><span data-i18n="midnight_block_button"></span></span>
               </div>
+              <!-- 敵人來的刀光：跟實際遊戲的#midnight-attack-effect一樣是「全螢幕」斜向白光帶，
+                   這裡的全螢幕＝整張戰鬥示意圖（蓋過所有HUD區塊），不是只在中央戰鬥舞台裡。 -->
+              <div class="mfi-screen-slash"></div>
             </div>
 
             <!-- 夜雨與成長示意：上＝夜雨（圈外）每秒傷害隨連續停留時間1→2→4→8遞增（照
