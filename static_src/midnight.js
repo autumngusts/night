@@ -4030,17 +4030,58 @@
   // 流程簡介視窗（使用者明確規格「打開後播放打字機直到按下右上X」）：純本地端展示，不寫
   // 任何共享state，開/關只影響自己這台裝置畫面。用night_gm_flow.jsの既有typewriteInto()，
   // 不另外寫第二套打字機邏輯（CLAUDE.md §10重用原則）。
+  // 2026-10-03使用者明確要求「製作更詳細的遊戲玩法」：拆成4個分頁（流程／地圖路線／戰鬥操作／
+  // 夜雨與成長），每頁一張示意圖（見site_src/midnight_page.py）＋一段打字機文字。
+  // 記住上次看的分頁（本地變數即可，不需要跨裝置），重開視窗時回到同一頁。
+  var FLOW_INTRO_TEXT_KEYS = {
+    flow: "midnight_flow_intro_text",
+    route: "midnight_flow_intro_route_text",
+    combat: "midnight_flow_intro_combat_text",
+    growth: "midnight_flow_intro_growth_text",
+  };
+  var flowIntroTab = "flow";
+
+  function showFlowIntroTab(tab) {
+    if (!FLOW_INTRO_TEXT_KEYS[tab]) tab = "flow";
+    flowIntroTab = tab;
+    var modal = el("midnight-flow-intro-modal");
+    if (!modal) return;
+    Array.prototype.forEach.call(modal.querySelectorAll("[data-flow-intro-tab]"), function (btn) {
+      var on = btn.getAttribute("data-flow-intro-tab") === tab;
+      btn.classList.toggle("active", on);
+      btn.setAttribute("aria-selected", on ? "true" : "false");
+    });
+    Array.prototype.forEach.call(modal.querySelectorAll("[data-flow-intro-pane]"), function (pane) {
+      pane.hidden = pane.getAttribute("data-flow-intro-pane") !== tab;
+    });
+    // 地圖路線的SMIL時間軸從頁面載入就開始跑，而字幕的CSS動畫是pane顯示時才從0開始：
+    // 切到這頁時把SMIL歸零，兩者才會對齊（見style.cssの.mfi-route-caption-*說明）。
+    if (tab === "route") {
+      var svg = modal.querySelector(".midnight-flow-intro-route svg");
+      if (svg && svg.setCurrentTime) svg.setCurrentTime(0);
+    }
+    var textEl = el("midnight-flow-intro-text");
+    if (!textEl) return;
+    textEl.scrollTop = 0;
+    var text = window.I18N.t(FLOW_INTRO_TEXT_KEYS[tab]);
+    var GmFlow = window.PriTestNightGmFlow;
+    if (GmFlow) {
+      GmFlow.typewriteInto(textEl, text, { chunkSize: 3, intervalMs: 18 });
+    } else {
+      textEl.textContent = text;
+    }
+  }
+
   function handleFlowIntroOpenClick() {
     var modal = el("midnight-flow-intro-modal");
     if (!modal) return;
     modal.hidden = false;
-    var GmFlow = window.PriTestNightGmFlow;
-    var textEl = el("midnight-flow-intro-text");
-    if (GmFlow && textEl) {
-      GmFlow.typewriteInto(textEl, window.I18N.t("midnight_flow_intro_text"), { chunkSize: 3, intervalMs: 18 });
-    } else if (textEl) {
-      textEl.textContent = window.I18N.t("midnight_flow_intro_text");
-    }
+    showFlowIntroTab(flowIntroTab);
+  }
+
+  function handleFlowIntroTabClick(e) {
+    var btn = e.target && e.target.closest ? e.target.closest("[data-flow-intro-tab]") : null;
+    if (btn) showFlowIntroTab(btn.getAttribute("data-flow-intro-tab"));
   }
 
   function handleFlowIntroCloseClick() {
@@ -6994,6 +7035,7 @@
     });
     el("btn-midnight-flow-intro-open").addEventListener("click", handleFlowIntroOpenClick);
     el("btn-midnight-flow-intro-close").addEventListener("click", handleFlowIntroCloseClick);
+    el("midnight-flow-intro-tabs").addEventListener("click", handleFlowIntroTabClick);
     bindDodgeCalibInput();
     el("btn-midnight-open-test-console").addEventListener("click", function () {
       testConsoleOpen = true;

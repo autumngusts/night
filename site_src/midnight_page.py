@@ -270,10 +270,10 @@ BODY = """    <div class="midnight-wrap">
       </div>
 
       <!-- 流程簡介視窗（見上方按鈕註解）：跟#midnight-character-sheet-modal同款
-           「全螢幕半透明黑＋置中卡片＋固定右上角關閉✕」既有慣例。左側是跟地圖同比例的
-           空白示意畫布（CSS動畫示範縮圈／靈鳥飛行／四角HUD位置標籤，純示意，不是真的
-           地圖canvas），右側是打字機播放的流程說明文字（static/midnight.jsの
-           handleFlowIntroOpenClick()呼叫night_gm_flow.jsの既有typewriteInto()）。 -->
+           「全螢幕半透明黑＋置中卡片＋固定右上角關閉✕」既有慣例。上方4個分頁（流程／地圖
+           路線／戰鬥操作／夜雨與成長），每頁左側是示意圖（CSS／SVG動畫，純示意，不是真的
+           地圖canvas），右側是打字機播放的說明文字（static/midnight.jsのshowFlowIntroTab()
+           呼叫night_gm_flow.jsの既有typewriteInto()）。 -->
       <!-- 迴避時機校正視窗（見等待房上方按鈕的註解）：跟流程簡介同款「全螢幕半透明黑＋置中卡片＋
            右上角關閉✕」。 -->
       <div id="midnight-dodge-calib-modal" hidden>
@@ -295,8 +295,20 @@ BODY = """    <div class="midnight-wrap">
         <div id="midnight-flow-intro-box">
           <button type="button" id="btn-midnight-flow-intro-close" class="midnight-modal-close-x">&times;</button>
           <h3 data-i18n="midnight_flow_intro_title"></h3>
+          <!-- 分頁（2026-10-03使用者明確要求「製作更詳細的遊戲玩法：地圖路線規劃（畫線並同時表示
+               縮圈，第一天及第二天）／戰鬥方式說明／夜雨時的特性、遺物效果與武器詞條等介紹」）：
+               每一頁＝左側一張示意圖＋右側打字機文字。示意圖全部是純CSS／SVG動畫，不讀任何遊戲
+               state；說明文字裡的數字（縮圈8＋5分、夜雨1/2/4/8、瀕死60/90/120等）是照
+               static/midnight.js既有常數寫的，常數改了要一起改i18n文字。切換邏輯見
+               static/midnight.jsのshowFlowIntroTab()。 -->
+          <div id="midnight-flow-intro-tabs" role="tablist">
+            <button type="button" class="midnight-flow-intro-tab" role="tab" data-flow-intro-tab="flow" data-i18n="midnight_flow_intro_tab_flow"></button>
+            <button type="button" class="midnight-flow-intro-tab" role="tab" data-flow-intro-tab="route" data-i18n="midnight_flow_intro_tab_route"></button>
+            <button type="button" class="midnight-flow-intro-tab" role="tab" data-flow-intro-tab="combat" data-i18n="midnight_flow_intro_tab_combat"></button>
+            <button type="button" class="midnight-flow-intro-tab" role="tab" data-flow-intro-tab="growth" data-i18n="midnight_flow_intro_tab_growth"></button>
+          </div>
           <div id="midnight-flow-intro-body">
-            <div id="midnight-flow-intro-demo">
+            <div id="midnight-flow-intro-demo" class="midnight-flow-intro-pane" data-flow-intro-pane="flow">
               <div id="midnight-flow-intro-demo-ring"></div>
               <div id="midnight-flow-intro-demo-bird">🦅</div>
               <span class="midnight-flow-intro-demo-label midnight-flow-intro-demo-label-tl" data-i18n="midnight_flow_intro_label_team"></span>
@@ -304,6 +316,181 @@ BODY = """    <div class="midnight-wrap">
               <span class="midnight-flow-intro-demo-label midnight-flow-intro-demo-label-br" data-i18n="midnight_flow_intro_label_action"></span>
               <span class="midnight-flow-intro-demo-label midnight-flow-intro-demo-label-bl" data-i18n="midnight_flow_intro_label_item"></span>
             </div>
+
+            <!-- 地圖路線示意：24秒一輪（前12秒第1天、後12秒第2天），每天依序「開放期→縮到中圈→
+                 中圈暫停→縮到最小圈→夜之強敵」，對應static/midnight.jsのcomputeDayStage()的
+                 grace／shrink1／hold／shrink2／done。光環與夜雨遮罩共用同一組SMIL數值（兩處要
+                 一起改）；路線用pathLength=100＋stroke-dashoffset畫線。地點與路線純屬範例，
+                 實際地圖每局隨機。 -->
+            <div class="midnight-flow-intro-pane midnight-flow-intro-route" data-flow-intro-pane="route" hidden>
+              <svg viewBox="0 0 100 100" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
+                <defs>
+                  <pattern id="mfi-rain-pattern" width="3" height="3" patternUnits="userSpaceOnUse" patternTransform="rotate(20)">
+                    <rect width="3" height="3" fill="rgba(70, 90, 130, 0.45)"></rect>
+                    <line x1="1" y1="0" x2="1" y2="1.6" stroke="rgba(190, 210, 255, 0.55)" stroke-width="0.25"></line>
+                  </pattern>
+                  <mask id="mfi-rain-mask">
+                    <rect width="100" height="100" fill="#fff"></rect>
+                    <circle fill="#000" cx="44" cy="56" r="60">
+                      <animate attributeName="cx" dur="24s" repeatCount="indefinite" values="44;44;44;44;54;54;64;64;64;64;68;68" keyTimes="0;0.125;0.2083;0.2917;0.375;0.4999;0.5;0.625;0.7083;0.7917;0.875;1"></animate>
+                      <animate attributeName="cy" dur="24s" repeatCount="indefinite" values="56;56;56;56;62;62;40;40;40;40;32;32" keyTimes="0;0.125;0.2083;0.2917;0.375;0.4999;0.5;0.625;0.7083;0.7917;0.875;1"></animate>
+                      <animate attributeName="r" dur="24s" repeatCount="indefinite" values="60;60;32;32;9;9;60;60;32;32;9;9" keyTimes="0;0.125;0.2083;0.2917;0.375;0.4999;0.5;0.625;0.7083;0.7917;0.875;1"></animate>
+                    </circle>
+                  </mask>
+                </defs>
+                <rect width="100" height="100" fill="#141a14"></rect>
+                <path d="M0 30 Q30 22 55 34 T100 28 M0 70 Q25 60 50 74 T100 66" fill="none" stroke="rgba(120, 150, 110, 0.18)" stroke-width="6"></path>
+                <rect width="100" height="100" fill="url(#mfi-rain-pattern)" mask="url(#mfi-rain-mask)"></rect>
+
+                <!-- 最終圈預覽（中圈暫停起到縮完為止，示意「下一個最小圈會落在哪裡」） -->
+                <circle class="mfi-route-preview" cx="54" cy="62" r="9" opacity="0">
+                  <animate attributeName="opacity" dur="24s" repeatCount="indefinite" calcMode="discrete" values="0;1;0" keyTimes="0;0.2083;0.375"></animate>
+                </circle>
+                <circle class="mfi-route-preview" cx="68" cy="32" r="9" opacity="0">
+                  <animate attributeName="opacity" dur="24s" repeatCount="indefinite" calcMode="discrete" values="0;1;0" keyTimes="0;0.7083;0.875"></animate>
+                </circle>
+                <circle class="mfi-route-ring" cx="44" cy="56" r="60">
+                  <animate attributeName="cx" dur="24s" repeatCount="indefinite" values="44;44;44;44;54;54;64;64;64;64;68;68" keyTimes="0;0.125;0.2083;0.2917;0.375;0.4999;0.5;0.625;0.7083;0.7917;0.875;1"></animate>
+                  <animate attributeName="cy" dur="24s" repeatCount="indefinite" values="56;56;56;56;62;62;40;40;40;40;32;32" keyTimes="0;0.125;0.2083;0.2917;0.375;0.4999;0.5;0.625;0.7083;0.7917;0.875;1"></animate>
+                  <animate attributeName="r" dur="24s" repeatCount="indefinite" values="60;60;32;32;9;9;60;60;32;32;9;9" keyTimes="0;0.125;0.2083;0.2917;0.375;0.4999;0.5;0.625;0.7083;0.7917;0.875;1"></animate>
+                </circle>
+
+                <path class="mfi-route-line mfi-route-line-day1" pathLength="100" d="M12 86 L24 70 L26 40 L40 52 L54 62">
+                  <animate attributeName="stroke-dashoffset" dur="24s" repeatCount="indefinite" values="100;100;0;0" keyTimes="0;0.02;0.36;1"></animate>
+                  <animate attributeName="opacity" dur="24s" repeatCount="indefinite" values="1;1;0.4;0.4" keyTimes="0;0.5;0.52;1"></animate>
+                </path>
+                <path class="mfi-route-line mfi-route-line-day2" pathLength="100" d="M54 62 L80 76 L76 50 L58 22 L68 32">
+                  <animate attributeName="stroke-dashoffset" dur="24s" repeatCount="indefinite" values="100;100;0;0" keyTimes="0;0.52;0.86;1"></animate>
+                </path>
+
+                <g class="mfi-route-points">
+                  <text x="12" y="88">🚩</text><text class="mfi-route-name" x="12" y="93" data-i18n="midnight_flow_intro_route_pt_start"></text>
+                  <text x="24" y="72">⛪</text><text class="mfi-route-name" x="24" y="77" data-i18n="midnight_flow_intro_route_pt_church"></text>
+                  <text x="26" y="42">⚒</text><text class="mfi-route-name" x="26" y="47" data-i18n="midnight_flow_intro_route_pt_forge"></text>
+                  <text x="40" y="54">⚔</text><text class="mfi-route-name" x="40" y="59" data-i18n="midnight_flow_intro_route_pt_strong"></text>
+                  <text x="46" y="84">🦅</text><text class="mfi-route-name" x="46" y="89" data-i18n="midnight_flow_intro_route_pt_bird"></text>
+                  <text x="80" y="78">🔒</text><text class="mfi-route-name" x="80" y="83" data-i18n="midnight_flow_intro_route_pt_evergaol"></text>
+                  <text x="76" y="52">💰</text><text class="mfi-route-name" x="76" y="57" data-i18n="midnight_flow_intro_route_pt_merchant"></text>
+                  <text x="58" y="24">🗼</text><text class="mfi-route-name" x="58" y="29" data-i18n="midnight_flow_intro_route_pt_tower"></text>
+                  <text x="86" y="44">✨</text><text class="mfi-route-name" x="86" y="49" data-i18n="midnight_flow_intro_route_pt_blessing"></text>
+                </g>
+                <text class="mfi-route-boss" x="54" y="64" opacity="0">👹<animate attributeName="opacity" dur="24s" repeatCount="indefinite" calcMode="discrete" values="0;1;0" keyTimes="0;0.375;0.5"></animate></text>
+                <text class="mfi-route-boss" x="68" y="34" opacity="0">👹<animate attributeName="opacity" dur="24s" repeatCount="indefinite" calcMode="discrete" values="0;1" keyTimes="0;0.875"></animate></text>
+
+                <!-- 左上角：天數＋目前階段（discrete opacity逐段切換） -->
+                <rect x="1.5" y="1.5" width="62" height="12" rx="1.5" fill="rgba(0, 0, 0, 0.65)"></rect>
+                <g class="mfi-route-caption-day">
+                  <text x="4" y="6.6" data-i18n="midnight_flow_intro_route_day1"></text>
+                  <text x="4" y="6.6" data-i18n="midnight_flow_intro_route_day2"></text>
+                </g>
+                <g class="mfi-route-caption-stage">
+                  <text x="4" y="11.2" data-i18n="midnight_flow_intro_route_stage_grace"></text>
+                  <text x="4" y="11.2" data-i18n="midnight_flow_intro_route_stage_shrink1"></text>
+                  <text x="4" y="11.2" data-i18n="midnight_flow_intro_route_stage_hold"></text>
+                  <text x="4" y="11.2" data-i18n="midnight_flow_intro_route_stage_shrink2"></text>
+                  <text x="4" y="11.2" data-i18n="midnight_flow_intro_route_stage_night"></text>
+                </g>
+
+                <!-- 下方圖例 -->
+                <rect x="1.5" y="94.3" width="97" height="4.8" rx="1" fill="rgba(0, 0, 0, 0.65)"></rect>
+                <line class="mfi-route-line-day1 mfi-route-legend-line" x1="3" y1="96.7" x2="7" y2="96.7"></line>
+                <text class="mfi-route-legend" x="8" y="97.7" data-i18n="midnight_flow_intro_route_legend_day1"></text>
+                <line class="mfi-route-line-day2 mfi-route-legend-line" x1="29" y1="96.7" x2="33" y2="96.7"></line>
+                <text class="mfi-route-legend" x="34" y="97.7" data-i18n="midnight_flow_intro_route_legend_day2"></text>
+                <circle cx="57" cy="96.7" r="1.4" fill="none" stroke="#ffd54a" stroke-width="0.5"></circle>
+                <text class="mfi-route-legend" x="59.5" y="97.7" data-i18n="midnight_flow_intro_route_legend_ring"></text>
+                <rect x="77" y="95.3" width="3" height="2.8" fill="url(#mfi-rain-pattern)"></rect>
+                <text class="mfi-route-legend" x="81" y="97.7" data-i18n="midnight_flow_intro_route_legend_rain"></text>
+              </svg>
+            </div>
+
+            <!-- 戰鬥畫面示意：照真實HUD的五個區塊排（①左上自身／隊友 ②右上快捷 ③中央敵人視窗
+                 ④左下道具／武器 ⑤右下動作），編號對應右側文字的①～⑤。中央用4秒一輪的CSS動畫
+                 示範「紅光0.5秒→刀光→按迴避→Perfect」。快捷鍵照static/midnight.jsの
+                 HOTKEY_BUTTON_IDS／handleCombatHotkeyDown()（M/C/Q/E/1/2/Shift/G）。 -->
+            <div class="midnight-flow-intro-pane midnight-flow-intro-hud" data-flow-intro-pane="combat" hidden>
+              <div class="mfi-hud-zone mfi-hud-tl">
+                <span class="mfi-num">①</span>
+                <div class="mfi-bar"><span data-i18n="midnight_stat_hp_label"></span><i class="mfi-fill mfi-fill-hp"></i></div>
+                <div class="mfi-bar"><span data-i18n="midnight_stat_fp_label"></span><i class="mfi-fill mfi-fill-fp"></i></div>
+                <div class="mfi-bar"><span data-i18n="midnight_stat_stamina_label"></span><i class="mfi-fill mfi-fill-st"></i></div>
+                <div class="mfi-ally">
+                  <span class="mfi-ally-name"><span class="mfi-ally-warn">⚠</span><span data-i18n="midnight_flow_intro_hud_ally"></span></span>
+                  <span class="mfi-chip mfi-chip-designate" data-i18n="midnight_near_death_designate_button"></span>
+                  <div class="mfi-bar mfi-bar-rescue"><i class="mfi-fill mfi-fill-rescue"></i></div>
+                </div>
+              </div>
+              <div class="mfi-hud-zone mfi-hud-tr">
+                <span class="mfi-num">②</span>
+                <span class="mfi-chip" data-i18n="midnight_stat_rune_label"></span>
+                <span class="mfi-chip"><b class="mfi-key">M</b><span data-i18n="midnight_map_icon_label"></span></span>
+                <span class="mfi-chip"><b class="mfi-key">C</b><span data-i18n="midnight_character_sheet_open_button"></span></span>
+                <span class="mfi-chip" data-i18n="midnight_menu_button"></span>
+              </div>
+              <div class="mfi-hud-zone mfi-hud-center">
+                <span class="mfi-num">③</span>
+                <span class="mfi-chip mfi-chip-flee" data-i18n="midnight_flee_battle_button"></span>
+                <div class="mfi-enemy-warn">⚠ <span data-i18n="midnight_flow_intro_hud_move_name"></span></div>
+                <div class="mfi-enemy">
+                  <span class="mfi-enemy-glyph">👹</span>
+                  <span class="mfi-enemy-slash"></span>
+                  <span class="mfi-grade">Perfect</span>
+                </div>
+                <div class="mfi-bar mfi-bar-enemy"><i class="mfi-fill mfi-fill-enemy"></i></div>
+              </div>
+              <div class="mfi-hud-zone mfi-hud-bl">
+                <span class="mfi-num">④</span>
+                <div class="mfi-cross">
+                  <span class="mfi-card mfi-card-top"><b class="mfi-key">Q</b><span data-i18n="midnight_flow_intro_hud_flask"></span></span>
+                  <span class="mfi-card mfi-card-left"><b class="mfi-key">1</b><span data-i18n="midnight_flow_intro_hud_weapon_left"></span></span>
+                  <span class="mfi-card mfi-card-right"><b class="mfi-key">2</b><span data-i18n="midnight_flow_intro_hud_weapon_right"></span></span>
+                  <span class="mfi-card mfi-card-bottom"><b class="mfi-key">E</b><span data-i18n="midnight_flow_intro_hud_item"></span></span>
+                </div>
+              </div>
+              <div class="mfi-hud-zone mfi-hud-br">
+                <span class="mfi-num">⑤</span>
+                <span class="mfi-btn mfi-btn-attack"><em>◀</em><span data-i18n="midnight_flow_intro_hud_attack"></span><em>▶</em></span>
+                <span class="mfi-btn" data-i18n="midnight_flow_intro_hud_skill"></span>
+                <span class="mfi-btn" data-i18n="midnight_flow_intro_hud_spell"></span>
+                <span class="mfi-btn mfi-btn-dodge"><b class="mfi-key">Shift</b><span data-i18n="midnight_dodge_button"></span></span>
+                <span class="mfi-btn mfi-btn-guard"><b class="mfi-key">G</b><span data-i18n="midnight_block_button"></span></span>
+              </div>
+            </div>
+
+            <!-- 夜雨與成長示意：上＝夜雨（圈外）每秒傷害隨連續停留時間1→2→4→8遞增（照
+                 static/midnight.jsのcircleDamagePerTick()），中＝遺物記憶小中大＝1/2/3條，
+                 下＝武器詞條（C稀有度1條，其餘2條；第1條必有益、第2條60%有益，照
+                 affixCountForRarity()／AFFIX_SECOND_GOOD_CHANCE）。 -->
+            <div class="midnight-flow-intro-pane midnight-flow-intro-growth" data-flow-intro-pane="growth" hidden>
+              <div class="mfi-growth-block mfi-growth-rain">
+                <h4 data-i18n="midnight_flow_intro_growth_rain_title"></h4>
+                <div class="mfi-rain-chart">
+                  <div class="mfi-rain-col"><b>1</b><span class="mfi-rain-track"><i style="height: 12.5%"></i></span><span data-i18n="midnight_flow_intro_growth_rain_t1"></span></div>
+                  <div class="mfi-rain-col"><b>2</b><span class="mfi-rain-track"><i style="height: 25%"></i></span><span data-i18n="midnight_flow_intro_growth_rain_t2"></span></div>
+                  <div class="mfi-rain-col"><b>4</b><span class="mfi-rain-track"><i style="height: 50%"></i></span><span data-i18n="midnight_flow_intro_growth_rain_t3"></span></div>
+                  <div class="mfi-rain-col"><b>8</b><span class="mfi-rain-track"><i style="height: 100%"></i></span><span data-i18n="midnight_flow_intro_growth_rain_t4"></span></div>
+                </div>
+                <p class="mfi-growth-caption" data-i18n="midnight_flow_intro_growth_rain_caption"></p>
+              </div>
+              <div class="mfi-growth-block">
+                <h4 data-i18n="midnight_flow_intro_growth_memory_title"></h4>
+                <div class="mfi-memory-row">
+                  <span class="mfi-memory mfi-memory-s"><b data-i18n="midnight_relic_memory_size_s"></b>◆</span>
+                  <span class="mfi-memory mfi-memory-m"><b data-i18n="midnight_relic_memory_size_m"></b>◆◆</span>
+                  <span class="mfi-memory mfi-memory-l"><b data-i18n="midnight_relic_memory_size_l"></b>◆◆◆</span>
+                </div>
+                <p class="mfi-growth-caption" data-i18n="midnight_flow_intro_growth_memory_caption"></p>
+              </div>
+              <div class="mfi-growth-block">
+                <h4 data-i18n="midnight_flow_intro_growth_affix_title"></h4>
+                <div class="mfi-affix-card">
+                  <span class="mfi-affix-weapon" data-i18n="midnight_flow_intro_growth_affix_weapon"></span>
+                  <span class="mfi-affix-line mfi-affix-good" data-i18n="midnight_flow_intro_growth_affix_line1"></span>
+                  <span class="mfi-affix-line mfi-affix-maybe" data-i18n="midnight_flow_intro_growth_affix_line2"></span>
+                </div>
+              </div>
+            </div>
+
             <p id="midnight-flow-intro-text"></p>
           </div>
         </div>
