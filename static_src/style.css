@@ -7190,17 +7190,25 @@ html.midnight-banner-above-hud:not(.midnight-top-banner-collapsed) #midnight-rew
 }
 
 /* 敵人來的刀光：跟實際遊戲的#midnight-attack-effect一樣是全螢幕的斜向白光帶——這裡的
-   「全螢幕」＝整張戰鬥示意圖（.midnight-flow-intro-hud），蓋在所有HUD區塊上面，
-   從敵人那一側（右）往玩家方向（左）掃過。 */
+   「全螢幕」＝整張戰鬥示意圖（.midnight-flow-intro-hud），蓋在所有HUD區塊上面。光帶不移動，
+   命中瞬間原地閃一次（淡入淡出0.4秒，同midnight-attack-effect-fade）；連擊每一下各閃一次，
+   角度取自實際的slash／slash-2兩種變體。4秒一輪：第1下在12.5%（0.5秒），第2下在37.5%。 */
 .mfi-screen-slash {
   position: absolute;
   inset: 0;
   z-index: 5;
   pointer-events: none;
-  background: linear-gradient(115deg, transparent 44%, rgba(255, 255, 255, 0.95) 49%, rgba(255, 255, 255, 0.95) 51%, transparent 56%);
-  background-size: 250% 100%;
   opacity: 0;
-  animation: mfi-screen-slash 4s linear infinite;
+}
+
+.mfi-screen-slash-1 {
+  background: linear-gradient(115deg, transparent 42%, rgba(255, 255, 255, 0.85) 48%, rgba(255, 255, 255, 0.85) 52%, transparent 58%);
+  animation: mfi-screen-slash-1 4s linear infinite;
+}
+
+.mfi-screen-slash-2 {
+  background: linear-gradient(65deg, transparent 26%, rgba(255, 255, 255, 0.85) 32%, rgba(255, 255, 255, 0.85) 36%, transparent 42%);
+  animation: mfi-screen-slash-2 4s linear infinite;
 }
 
 .mfi-cross {
@@ -7288,7 +7296,11 @@ html.midnight-banner-above-hud:not(.midnight-top-banner-collapsed) #midnight-rew
   text-shadow: 0 0 3px #000;
   opacity: 0;
   z-index: 2;
-  animation: mfi-grade-pop 4s linear infinite;
+  animation: mfi-grade-pop-1 4s linear infinite;
+}
+
+.mfi-grade-2 {
+  animation-name: mfi-grade-pop-2;
 }
 
 @keyframes mfi-frames {
@@ -7296,21 +7308,25 @@ html.midnight-banner-above-hud:not(.midnight-top-banner-collapsed) #midnight-rew
   to { background-position-x: 120%; }
 }
 
-/* 自己：待機(row0)→迴避(row1)→待機→攻擊(row4)→待機。y＝row/(10-1)。 */
+/* 自己：待機(row0)→迴避(row1)→待機→迴避→待機→攻擊(row4)→待機。y＝row/(10-1)。 */
 @keyframes mfi-self-rows {
   0% { background-position-y: 0%; }
   12.5% { background-position-y: 11.111%; }
-  25% { background-position-y: 0%; }
-  55% { background-position-y: 44.444%; }
-  66% { background-position-y: 0%; }
+  24% { background-position-y: 0%; }
+  37.5% { background-position-y: 11.111%; }
+  49% { background-position-y: 0%; }
+  65% { background-position-y: 44.444%; }
+  76% { background-position-y: 0%; }
 }
 
-/* 敵人：前搖＋攻擊(row1 line)→待機→受擊(row6)→待機。y＝row/(8-1)。 */
+/* 敵人：攻擊(row1 line)×2下→待機→受擊(row6)→待機。y＝row/(8-1)。 */
 @keyframes mfi-enemy-rows {
   0% { background-position-y: 14.286%; }
   22% { background-position-y: 0%; }
-  56% { background-position-y: 85.714%; }
-  66% { background-position-y: 0%; }
+  33% { background-position-y: 14.286%; }
+  47% { background-position-y: 0%; }
+  66% { background-position-y: 85.714%; }
+  76% { background-position-y: 0%; }
 }
 
 @keyframes mfi-blink {
@@ -7319,7 +7335,7 @@ html.midnight-banner-above-hud:not(.midnight-top-banner-collapsed) #midnight-rew
 
 @keyframes mfi-enemy-warn {
   0% { opacity: 1; }
-  20% { opacity: 0; }
+  47% { opacity: 0; }
 }
 
 @keyframes mfi-enemy-flash {
@@ -7335,12 +7351,17 @@ html.midnight-banner-above-hud:not(.midnight-top-banner-collapsed) #midnight-rew
   15%, 100% { opacity: 0; }
 }
 
-@keyframes mfi-screen-slash {
-  0%, 10% { opacity: 0; background-position: 0% 0; }
-  12% { opacity: 1; }
-  18% { opacity: 0.85; }
-  21% { opacity: 0; background-position: 100% 0; }
-  100% { opacity: 0; }
+/* 0.4秒＝10%：前30%淡入、之後淡出（同midnight-attack-effect-fade）。 */
+@keyframes mfi-screen-slash-1 {
+  0%, 12.5% { opacity: 0; }
+  15.5% { opacity: 1; }
+  22.5%, 100% { opacity: 0; }
+}
+
+@keyframes mfi-screen-slash-2 {
+  0%, 37.5% { opacity: 0; }
+  40.5% { opacity: 1; }
+  47.5%, 100% { opacity: 0; }
 }
 
 @keyframes mfi-guard-hint {
@@ -7351,25 +7372,35 @@ html.midnight-banner-above-hud:not(.midnight-top-banner-collapsed) #midnight-rew
 @keyframes mfi-dodge-press {
   0%, 11% { box-shadow: 0 0 8px 2px rgba(255, 80, 80, 0.9); }
   12% { box-shadow: 0 0 10px 3px #ffd54a; background-color: rgba(255, 213, 74, 0.5); }
-  20% { box-shadow: none; background-color: rgba(124, 179, 66, 0.35); }
+  19% { box-shadow: none; background-color: rgba(124, 179, 66, 0.35); }
+  37% { box-shadow: none; background-color: rgba(124, 179, 66, 0.35); }
+  38% { box-shadow: 0 0 10px 3px #ffd54a; background-color: rgba(255, 213, 74, 0.5); }
+  45%, 100% { box-shadow: none; background-color: rgba(124, 179, 66, 0.35); }
 }
 
-@keyframes mfi-grade-pop {
-  0%, 12% { opacity: 0; transform: translate(-50%, 4px); }
+@keyframes mfi-grade-pop-1 {
+  0%, 12.5% { opacity: 0; transform: translate(-50%, 4px); }
   15% { opacity: 1; transform: translate(-50%, 0); }
-  35% { opacity: 1; }
-  42%, 100% { opacity: 0; }
+  30% { opacity: 1; }
+  34%, 100% { opacity: 0; }
+}
+
+@keyframes mfi-grade-pop-2 {
+  0%, 38% { opacity: 0; transform: translate(-50%, 4px); }
+  40.5% { opacity: 1; transform: translate(-50%, 0); }
+  56% { opacity: 1; }
+  60%, 100% { opacity: 0; }
 }
 
 @keyframes mfi-attack-press {
   0% { box-shadow: none; }
-  55% { box-shadow: 0 0 8px 2px #fff; }
-  62% { box-shadow: none; }
+  65% { box-shadow: 0 0 8px 2px #fff; }
+  72% { box-shadow: none; }
 }
 
 @keyframes mfi-enemy-hp {
   0% { --mfi-pct: 70%; }
-  56% { --mfi-pct: 52%; }
+  66% { --mfi-pct: 52%; }
 }
 
 /* 救援圓盤的紫色（還需要的復歸傷害）隨隊友的攻擊遞減。 */

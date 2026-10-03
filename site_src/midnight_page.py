@@ -406,7 +406,7 @@ BODY = """    <div class="midnight-wrap">
 
             <!-- 戰鬥畫面示意：照真實HUD的五個區塊排（①左上自身／隊友 ②右上快捷 ③中央敵人視窗
                  ④左下道具／武器 ⑤右下動作），編號對應右側文字的①～⑤。中央用4秒一輪的CSS動畫
-                 示範「紅光0.5秒＋迴避／防禦提醒→刀光→按迴避→Perfect→反擊」。快捷鍵照static/midnight.jsの
+                 示範「紅光0.5秒＋迴避／防禦提醒→刀光閃（第1下）→迴避Perfect→刀光再閃（第2下）→迴避Great→反擊」。快捷鍵照static/midnight.jsの
                  HOTKEY_BUTTON_IDS／handleCombatHotkeyDown()（M/C/Q/E/1/2/Shift/G）。 -->
             <div class="midnight-flow-intro-pane midnight-flow-intro-hud" data-flow-intro-pane="combat" hidden>
               <div class="mfi-hud-zone mfi-hud-tl">
@@ -450,7 +450,8 @@ BODY = """    <div class="midnight-wrap">
                   <span class="mfi-actor-name" data-i18n="midnight_flow_intro_hud_ally"></span>
                 </div>
                 <div class="mfi-actor mfi-actor-self">
-                  <span class="mfi-grade">Perfect</span>
+                  <span class="mfi-grade mfi-grade-1">Perfect</span>
+                  <span class="mfi-grade mfi-grade-2">Great</span>
                   <span class="mfi-sprite mfi-sprite-player mfi-sprite-tracker"></span>
                   <span class="mfi-actor-name" data-i18n="midnight_flow_intro_hud_self"></span>
                 </div>
@@ -478,8 +479,12 @@ BODY = """    <div class="midnight-wrap">
                 <span class="mfi-btn mfi-btn-guard"><b class="mfi-key">G</b><span data-i18n="midnight_block_button"></span></span>
               </div>
               <!-- 敵人來的刀光：跟實際遊戲的#midnight-attack-effect一樣是「全螢幕」斜向白光帶，
-                   這裡的全螢幕＝整張戰鬥示意圖（蓋過所有HUD區塊），不是只在中央戰鬥舞台裡。 -->
-              <div class="mfi-screen-slash"></div>
+                   這裡的全螢幕＝整張戰鬥示意圖（蓋過所有HUD區塊）。光帶不移動，只在命中瞬間原地
+                   閃一次；連擊時每一下各閃一次、角度不同（實際遊戲是6種角度隨機，見
+                   static/midnight.jsのtriggerAttackEffect()）。示意為2連擊：第1下＝紅光結束、
+                   第2下＝1秒後（點陣圖模式第1下的反應窗口長度）。 -->
+              <div class="mfi-screen-slash mfi-screen-slash-1"></div>
+              <div class="mfi-screen-slash mfi-screen-slash-2"></div>
             </div>
 
             <!-- 夜雨與成長示意：上＝夜雨（圈外）每秒傷害隨連續停留時間1→2→4→8遞增（照
