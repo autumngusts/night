@@ -8,7 +8,7 @@
 ## 1. 目標與範圍
 
 在首頁新增一個與「夜渡り」（night／midnight）完全獨立的派對遊戲「東正小遊戲（toushou）」。
-玩家對多個「標的」（歷史事件、人名、公司行號、風景、物品等）秘密押注並**預測最終股價**，
+玩家對多個「標的」（戰國歷史、日本名人、日本企業、地方、美食、動漫遊戲等）秘密押注並**預測最終股價**，
 再輪流擔任「股東」釋放消息面，由全場討論決定股價加減分，最後由預測最接近的人瓜分彩池。
 
 ### 1.0 設計重點：避免利益單向化
@@ -43,17 +43,17 @@
 | 檔案 | 職責 |
 | --- | --- |
 | `site_src/toushou_page.py` | `build_toushou_html()`，使用 `layout.page_shell` 產生頁面骨架 |
-| `static_src/toushou_data.js` | 純資料：標的池、消息牌表、任務卡定義、類別→角色名稱對照。掛載為 `window.PriTestToushouData` |
-| `static_src/toushou.js` | 規則引擎（`reduce(state, action)`、結算、任務判定）＋畫面渲染。掛載為 `window.PriTestToushou` |
+| `static_src/toushou_data.js` | 共用資料：通用消息牌、風向、任務卡、`registerCategory()`。掛載為 `window.PriTestToushouData` |
+| `static_src/toushou_data_*.js` | 各類別資料（標的＋專屬消息牌），以 `registerCategory()` 登錄（見 §7） |
+| `static_src/toushou_core.js` | 規則引擎（`reduce(state, action)`、結算、任務判定），純邏輯不碰 DOM。掛載為 `window.PriTestToushouCore` |
+| `static_src/toushou.js` | 畫面渲染與存讀檔。掛載為 `window.PriTestToushou` |
 | `site_src/i18n_data_{zh,ja,en}.py` | UI 文字 key（前綴 `ts_`）及首頁 `project_toushou_name/desc` |
 | `site_src/projects.py` | 新增首頁入口 `toushou/index.html` |
 | `generate.py` | copy list 加入兩個 JS，`build_pages()` 輸出 `dist/toushou/index.html` |
 
 不修改 night／midnight 的任何檔案，也不修改 `database.rules.json`。
 
-規則引擎與渲染寫在同一個 `toushou.js` 內，但 reducer 與結算函式不得碰觸 DOM，
-並在 `window.PriTestToushou` 匯出（`reduce`、`settleTarget`、`evaluateMissions`、`_debugState`），
-以便 Playwright 直接驗證。
+規則引擎獨立為 `toushou_core.js`，可在 Node 直接測試；UI 另外匯出 `window.PriTestToushou._debugState()` 供 Playwright 驗證。
 
 ---
 
@@ -64,7 +64,7 @@
 | 玩家人數 | 2～10 人，可輸入名稱（預設「玩家1」…） |
 | 初始籌碼 | 「全員一致」（輸入 1 個值，預設 1000）或「個別設定」（每人一個值） |
 | 標的數量 | 「依人數」（＝玩家人數）或「自訂」（1～20） |
-| 標的類別 | 勾選：歷史／人名／公司行號／風景／物品（至少 1 類） |
+| 標的類別 | 勾選 §7 的類別（至少 1 類） |
 | 標的設定 | 「隨機產生」（從勾選類別的池中不重複抽取）或「手動輸入」（名稱＋類別＋標籤），可混用：先隨機，再逐一修改或替換 |
 | 任務卡 | 啟用／不啟用 |
 | 最低押注 | 整數，預設為初始籌碼的 10%（全員一致時）或 100（個別設定時），可修改 |
@@ -79,7 +79,7 @@
 ## 4. 一個標的的流程
 
 ### 4.1 抽出標的（`reveal_target`）
-公開名稱、類別、2～3 個特徵標籤。起始股價固定 **100**。
+公開名稱、類別、簡介（只寫優點）、2～3 個特徵標籤、消息切入點。起始股價固定 **100**（只是起點，可以超過）。
 
 ### 4.2 全員下注（`bet`）
 - 在任何消息釋放**之前**完成；確定後不可加碼或下車。
@@ -105,9 +105,12 @@
 
 | 類別 | 角色名稱 |
 | --- | --- |
-| 公司行號 | 股東 |
-| 物品 | 黃牛 |
-| 歷史／人名／風景 | 投資客 |
+| 戰國歷史、戰國人名 | 說書人 |
+| 現代日本名人 | 經紀人 |
+| 日本企業 | 股東 |
+| 北海道、東北、關西 | 地產商 |
+| 和食、洋食、台式食物 | 美食評論家 |
+| 動漫遊戲 | 黃牛 |
 
 #### 4.3.1 標的消息面（累積說明）
 - 每則釋放的消息（不論是固定牌面、改寫或純自訂）都依序累積在該標的的「消息面」說明中，
@@ -175,17 +178,41 @@
 
 ## 7. 資料
 
-### 7.1 標的池
-```js
-{ id, category: "history" | "person" | "company" | "scenery" | "item", name: C(ja, zh), tags: [C(ja, zh), ...] }
-```
-每個類別先放約 10 個範例。手動輸入的標的存在 state 中（`custom: true`）。
+內容來源：`docs/toushou_data_draft.md`（2026-10-15 使用者審核通過的中文稿），轉成資料時補上日文。
 
-### 7.2 消息牌
+### 7.1 類別登錄
+每個類別以 `PriTestToushouData.registerCategory()` 登錄，性質相近的類別放在同一檔：
+
 ```js
-{ id, text: C(ja, zh), tone: "up" | "down" | "neutral" }
+registerCategory({
+  id, name: C(ja, zh), role: C(ja, zh),
+  excludeCommonCards: ["g05"],          // 可省略；此類標的不可直接打出的通用牌
+  targets: [{ id, name: C, summary: C, tags: [C], hooks: [C] }],
+  newsCards: [{ id, tone, text: C }]    // 類別專屬牌
+});
 ```
-`tone` 只作為畫面提示色。**正式牌表由使用者提供**；在此之前先放約 20 張標示「暫定範例」的牌（牌堆需能供 10 人 × 5 張開局手牌，不足時棄牌堆洗回）。
+
+| 檔案 | 類別 id |
+| --- | --- |
+| `toushou_data_sengoku.js` | `sengoku_event`、`sengoku_person` |
+| `toushou_data_celebrity.js` | `jp_celebrity`（排除通用牌 g05「醜聞」） |
+| `toushou_data_company.js` | `jp_company` |
+| `toushou_data_region.js` | `hokkaido`、`tohoku`、`kansai` |
+| `toushou_data_food.js` | `washoku`、`yoshoku`、`taiwan_food` |
+| `toushou_data_anime.js` | `anime_game` |
+
+新增類別＝新增（或擴充）資料檔，並在 `generate.py` copy list 與頁面的 `extra_scripts` 加入檔名（須在 `toushou_data.js` 之後、`toushou_core.js` 之前）。
+
+### 7.2 標的
+`{ id, category, name, summary, tags, hooks }`：簡介只寫優點；`tags` 2～3 個；`hooks` 為提示股東的消息切入點。
+手動輸入的標的存在 state 中（`custom: true`，只有名稱、類別、標籤）。
+
+### 7.3 消息牌
+`{ id, tone: "up" | "down" | "neutral", text: C(ja, zh), category: null | 類別 id }`，`text` 內的 `{target}` 顯示時代入目前標的名稱。
+- 牌堆＝通用牌（`category: null`）＋本局標的出現過的類別的專屬牌；張數不足 `人數 × 6` 時整副複製 k 份。
+- **可直接打出**的條件：通用牌（且不在目前標的類別的 `excludeCommonCards` 中），或與目前標的同類別的專屬牌。
+- 其他手牌只能「改寫」後當作自訂消息使用（`edited: true`）。
+- `tone` 只用於畫面提示色。
 
 ---
 
@@ -231,6 +258,7 @@ state = {
 - 全員籌碼皆為 0 → 直接跳到整局結算。
 - 隨機產生標的但池中數量不足 → 抽完為止，並提示改為手動補足。
 - 消息最終內容為空白（含把改寫的牌面文字刪光）→ 不可送出。
+- 未改寫就直接打出不可直接打出的牌（§7.3）→ 不可送出。
 
 ---
 

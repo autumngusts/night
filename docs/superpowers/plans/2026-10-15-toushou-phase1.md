@@ -10,6 +10,22 @@
 
 **Spec:** `docs/superpowers/specs/2026-10-15-toushou-game-design.md`
 
+## 修訂（2026-10-15，資料擬稿審核通過後）——優先於下方各 task 的對應內容
+
+資料依 `docs/toushou_data_draft.md`（已審核）與 spec §7 重做，以下差異覆蓋原 task：
+
+- **Task 1**：`toushou_data.js` 只放共用部分（`C`、`text`、`registerCategory`、通用牌 g01～g12、`WIND_COMPOSITION`、`MISSIONS`、`HAND_SIZE`、`START_PRICE`）；
+  類別資料拆到 `toushou_data_sengoku.js`、`_celebrity.js`、`_company.js`、`_region.js`、`_food.js`、`_anime.js`，內容照擬稿並補日文。
+  `CATEGORIES` 為 11 類（id 見 spec §7.1），`TARGETS` 每類 6 個，含 `summary`、`hooks`；`NEWS_CARDS` 帶 `category`（通用牌為 `null`）。
+  檢查改為：11 類、每類 6 標的、每標的 2～3 tags／3 hooks／summary、通用牌 12＋專屬牌 66、`jp_celebrity.excludeCommonCards` 含 `g05`。
+- **Task 2**：測試用類別改為 `sengoku_event`／`jp_company`；`pickRandomTargets([...],99,…)` 期望 6；`pickRandomTargets` 與 `newGame` 保留 `summary`、`hooks`；
+  牌堆＝通用牌＋本局出現類別的專屬牌，`k = max(1, ceil(人數×6 / 牌池張數))`。
+- **Task 4**：新增 `cardPlayable(state, cardId) → bool`（spec §7.3）；`newsError(state, playerId, cardId, text, edited)` 多一個參數，
+  未改寫打出不可直接打出的牌時回傳 `"ts_err_card_mismatch"`。
+- **Task 6/7**：設定畫面列出 11 類；標的卡顯示 `summary`、`tags`、`hooks`；手牌文字以 `{target}` 代入目前標的名稱；
+  不可直接打出的牌隱藏「直接打出」按鈕；新增 i18n `ts_err_card_mismatch`、`ts_hooks`、`ts_summary`。
+- 執行方式：在本對話中直接執行（未分派子代理）。
+
 ## Global Constraints
 
 - 所有 JS 為 Vanilla **ES5**（`var`、`function`，不用箭頭函式、`let/const`、template literal、class）；IIFE 掛到 `window`。
