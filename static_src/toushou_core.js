@@ -110,6 +110,7 @@
       current: null,
       history: [],
       lastSettlement: null,
+      missionsSeen: {},
       rng: config.seed >>> 0
     };
     config.players.forEach(function (p, i) {
@@ -159,19 +160,36 @@
     return s;
   }
 
+  // ---------------- 任務確認 ----------------
+
+  function pendingMissionViewers(s) {
+    if (s.phase !== "missions") return [];
+    var seen = s.missionsSeen || {};
+    return s.players.filter(function (p) { return !seen[p.id]; }).map(function (p) { return p.id; });
+  }
+
+  function missionSeen(s, a) {
+    if (pendingMissionViewers(s).indexOf(a.playerId) < 0) throw new Error("ts_err_not_your_turn");
+    if (!s.missionsSeen) s.missionsSeen = {};
+    s.missionsSeen[a.playerId] = true;
+    if (!pendingMissionViewers(s).length) s.phase = "reveal_target";
+  }
+
   // ---------------- 下注 ----------------
 
+  // 尚未下注的下注者（座位順序）。多裝置時可同時下注，不限順序。
+  function pendingBettors(s) {
+    if (s.phase !== "bet" || !s.current) return [];
+    return s.current.bettors.filter(function (id) { return !s.current.bets[id]; });
+  }
+
+  // 單機傳遞模式用：座位順序第一個尚未下注者
   function nextBettor(s) {
-    if (s.phase !== "bet" || !s.current) return null;
-    for (var i = 0; i < s.current.bettors.length; i++) {
-      var id = s.current.bettors[i];
-      if (!s.current.bets[id]) return id;
-    }
-    return null;
+    return pendingBettors(s)[0] || null;
   }
 
   function betError(s, playerId, amount, predict) {
-    if (nextBettor(s) !== playerId) return "ts_err_not_your_turn";
+    if (pendingBettors(s).indexOf(playerId) < 0) return "ts_err_not_your_turn";
     var p = playerById(s, playerId);
     if (!isInt(amount)) return "ts_err_int";
     if (amount > p.chips) return "ts_err_bet_max";
@@ -459,9 +477,9 @@
   function reduce(state, action) {
     var s = clone(state);
     switch (action.type) {
-      case "missionsDone":
+      case "missionSeen":
         if (s.phase !== "missions") throw new Error("ts_err_phase");
-        s.phase = "reveal_target";
+        missionSeen(s, action);
         break;
       case "startBetting":
         if (s.phase !== "reveal_target") throw new Error("ts_err_phase");
@@ -499,6 +517,8 @@
     reduce: reduce,
     betError: betError,
     nextBettor: nextBettor,
+    pendingBettors: pendingBettors,
+    pendingMissionViewers: pendingMissionViewers,
     currentShareholder: currentShareholder,
     cardPlayable: cardPlayable,
     newsError: newsError,

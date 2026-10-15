@@ -11,6 +11,10 @@ from __future__ import annotations
 from site_src.layout import page_shell
 
 TOUSHOU_SCRIPTS: tuple[str, ...] = (
+    # 連線模式（多裝置）用：Firebase 設定、雲端同步、QR Code（SDK 只在建立／加入房間時才載入）
+    "firebase_config.js",
+    "game_storage.js",
+    "qrcode.js",
     "toushou_data.js",
     "toushou_data_sengoku.js",
     "toushou_data_celebrity.js",

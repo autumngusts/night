@@ -219,13 +219,23 @@ check("defaultMinBet and roleFor", function () {
 console.log("[core: bet]");
 function started(n, extra) {
   var s = Core.newGame(baseConfig(n, extra));
-  if (s.phase === "missions") s = Core.reduce(s, { type: "missionsDone" });
+  if (s.phase === "missions") {
+    s.players.forEach(function (p) { s = Core.reduce(s, { type: "missionSeen", playerId: p.id }); });
+  }
   return Core.reduce(s, { type: "startBetting" });
 }
-check("missionsDone moves to reveal_target", function () {
-  var s = Core.newGame(baseConfig(2, { missionsEnabled: true }));
-  s = Core.reduce(s, { type: "missionsDone" });
+check("missionSeen per player (any order); all seen -> reveal_target", function () {
+  var s = Core.newGame(baseConfig(3, { missionsEnabled: true }));
+  assert.deepStrictEqual(Core.pendingMissionViewers(s), ["p0", "p1", "p2"]);
+  s = Core.reduce(s, { type: "missionSeen", playerId: "p2" });
+  assert.strictEqual(s.phase, "missions");
+  assert.deepStrictEqual(Core.pendingMissionViewers(s), ["p0", "p1"]);
+  assert.throws(function () { Core.reduce(s, { type: "missionSeen", playerId: "p2" }); }, /ts_err_not_your_turn/);
+  s = Core.reduce(s, { type: "missionSeen", playerId: "p0" });
+  s = Core.reduce(s, { type: "missionSeen", playerId: "p1" });
   assert.strictEqual(s.phase, "reveal_target");
+  assert.deepStrictEqual(Core.pendingMissionViewers(s), []);
+  assert.throws(function () { Core.reduce(s, { type: "missionsDone" }); }, /ts_err_phase/);
 });
 check("reduce does not mutate input; wrong phase throws", function () {
   var s = Core.newGame(baseConfig(2));
@@ -244,7 +254,8 @@ check("startBetting: price 100, all players bettors, pot 0", function () {
 });
 check("betError validations", function () {
   var s = started(2);
-  assert.strictEqual(Core.betError(s, "p1", 100, 100), "ts_err_not_your_turn");
+  assert.strictEqual(Core.betError(s, "p1", 100, 100), null, "bets are not ordered");
+  assert.strictEqual(Core.betError(s, "p9", 100, 100), "ts_err_not_your_turn");
   assert.strictEqual(Core.betError(s, "p0", 50, 100), "ts_err_bet_min");
   assert.strictEqual(Core.betError(s, "p0", 1001, 100), "ts_err_bet_max");
   assert.strictEqual(Core.betError(s, "p0", 100.5, 100), "ts_err_int");
@@ -259,7 +270,19 @@ check("placeBet deducts chips, fills pot, advances bettor", function () {
   assert.strictEqual(s.current.pot, 300);
   assert.deepStrictEqual(s.current.bets.p0, { amount: 300, predict: 120, chipsBefore: 1000 });
   assert.strictEqual(Core.nextBettor(s), "p1");
+  assert.deepStrictEqual(Core.pendingBettors(s), ["p1"]);
   assert.throws(function () { Core.reduce(s, { type: "placeBet", playerId: "p0", amount: 100, predict: 1 }); }, /ts_err_not_your_turn/);
+});
+check("bets in any order give the same result as seat order", function () {
+  var a = started(3), b = started(3);
+  ["p0", "p1", "p2"].forEach(function (id, i) { a = Core.reduce(a, { type: "placeBet", playerId: id, amount: 100 + i, predict: 90 + i }); });
+  ["p2", "p0", "p1"].forEach(function (id) {
+    var i = Number(id.slice(1));
+    b = Core.reduce(b, { type: "placeBet", playerId: id, amount: 100 + i, predict: 90 + i });
+  });
+  assert.strictEqual(a.phase, "news");
+  assert.deepStrictEqual(a.current.bets, b.current.bets);
+  assert.deepStrictEqual(a.current.order, b.current.order);
 });
 check("all bets placed -> news phase", function () {
   var s = started(2);
@@ -273,6 +296,7 @@ check("poor player may go all-in below minBet; broke player skipped", function (
   s.players[2].chips = 0;
   s = Core.reduce(s, { type: "startBetting" });
   assert.deepStrictEqual(s.current.bettors, ["p0", "p1"]);
+  assert.strictEqual(Core.betError(s, "p2", 0, 100), "ts_err_not_your_turn");
   s = Core.reduce(s, { type: "placeBet", playerId: "p0", amount: 100, predict: 100 });
   assert.strictEqual(Core.betError(s, "p1", 30, 100), "ts_err_bet_min");
   assert.strictEqual(Core.betError(s, "p1", 40, 100), null);

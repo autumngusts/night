@@ -11566,3 +11566,24 @@ html.midnight-no-select * {
   gap: 0.5rem;
   margin-top: 1rem;
 }
+.ts-seat-list {
+  list-style: none;
+  padding: 0;
+}
+.ts-seat-list li {
+  margin: 0.25rem 0;
+}
+.ts-room-url {
+  width: 100%;
+  font: inherit;
+  font-size: 0.85em;
+}
+.ts-room-qr {
+  display: block;
+  margin-top: 0.5rem;
+  max-width: 100%;
+}
+.ts-wait-text {
+  font-weight: bold;
+  opacity: 0.8;
+}

@@ -1,19 +1,30 @@
-// 東正小遊戲（toushou）UI。規則全部在 toushou_core.js，這裡只負責畫面、輸入與存讀檔。
+// 東正小遊戲（toushou）UI。規則全部在 toushou_core.js，這裡只負責畫面、輸入、存讀檔與雲端同步。
 // 傳遞遮蔽（ui.revealedFor 等）刻意不存進 state：重新整理後回到遮蔽畫面，避免洩漏秘密資訊。
 // 規則依據：docs/superpowers/specs/2026-10-15-toushou-game-design.md
+//           docs/superpowers/specs/2026-10-15-toushou-multidevice-design.md（多裝置連線）
+//
+// 統一模型：每台裝置「擁有」一或多個座位（mySeats()）。
+//   單機模式＝擁有全部座位；連線模式＝自己認領的座位＋（主持人）未被認領的座位。
+//   擁有多個座位時，需要保密的步驟用遮蔽畫面輪流操作。
 (function () {
   "use strict";
 
   var D = window.PriTestToushouData;
   var Core = window.PriTestToushouCore;
+  var Storage = window.PriTestGameStorage;
   var STORAGE_KEY = "pritest-toushou-state";
+  var ROOM_KEY = "pritest-toushou-room";
+  var CLIENT_KEY = "pritest-toushou-client";
   var app = document.getElementById("ts-app");
   if (!app) return;
 
   var state = null;
   var draft = null; // 設定畫面的草稿（不存檔）
-  var lastConfig = null; // 「同設定再玩一局」用
-  var ui = { revealedFor: null, missionIndex: 0, editing: null, selectedCard: null, error: "" };
+  var lastConfig = null; // 「同設定再玩一局」用（單機）
+  // room：連線模式時 { id, hostId, seats, loaded, missing, unsubscribe }；單機為 null
+  var room = null;
+  var clientId = loadClientId();
+  var ui = { revealedFor: null, editing: null, selectedCard: null, error: "", busy: false, skipRestore: false };
 
   function t(key, params) { return window.I18N.t(key, params); }
   function lang() { return window.I18N.getLang(); }
@@ -21,6 +32,22 @@
   function targetName(target) { return lt(target.name); }
   function targetTags(target) { return (target.tags || []).map(lt); }
   function newSeed() { return Math.floor(Math.random() * 4294967296); }
+
+  function randomHex(bytes) {
+    var arr = new Uint8Array(bytes);
+    (window.crypto || window.msCrypto).getRandomValues(arr);
+    return Array.prototype.map.call(arr, function (b) { return (b < 16 ? "0" : "") + b.toString(16); }).join("");
+  }
+
+  function loadClientId() {
+    var id = null;
+    try { id = localStorage.getItem(CLIENT_KEY); } catch (e) { /* 忽略 */ }
+    if (!id) {
+      id = "c" + randomHex(8);
+      try { localStorage.setItem(CLIENT_KEY, id); } catch (e) { /* 忽略：本次分頁內仍可用 */ }
+    }
+    return id;
+  }
 
   function el(tag, attrs, children) {
     var node = document.createElement(tag);
@@ -40,19 +67,23 @@
     return node;
   }
 
-  function save() {
+  // ---------------- 本機存檔 ----------------
+
+  function saveLocal() {
+    if (room) return; // 連線模式的 state 在雲端
     try {
       if (state) localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
       else localStorage.removeItem(STORAGE_KEY);
     } catch (e) { /* 私密模式等：只是不存檔 */ }
   }
 
-  function load() {
+  function loadLocal() {
     try {
       var raw = localStorage.getItem(STORAGE_KEY);
       if (!raw) return null;
       var s = JSON.parse(raw);
       if (!s || s.version !== 1 || !s.players || !s.phase) return null;
+      if (!s.missionsSeen) s.missionsSeen = {}; // 第 1 階段的舊存檔沒有這個欄位
       return s;
     } catch (e) {
       return null;
@@ -66,25 +97,137 @@
     ui.error = "";
   }
 
-  function dispatch(action) {
-    try {
-      state = Core.reduce(state, action);
-    } catch (e) {
-      ui.error = t(e.message);
-      render();
-      return false;
-    }
-    resetUi();
-    save();
-    render();
-    return true;
+  // ---------------- 座位與權限 ----------------
+
+  function isHost() { return !room || room.hostId === clientId; }
+
+  function mySeats() {
+    if (!state) return [];
+    return state.players.map(function (p) { return p.id; }).filter(function (id) {
+      if (!room) return true;
+      var owner = room.seats[id];
+      return owner === clientId || (!owner && room.hostId === clientId);
+    });
   }
 
-  function quitGame() {
+  function owns(playerId) { return mySeats().indexOf(playerId) >= 0; }
+
+  // ---------------- dispatch（本機／雲端共用入口） ----------------
+
+  function dispatch(action) {
+    if (ui.busy) return;
+    if (!room) {
+      try {
+        state = Core.reduce(state, action);
+      } catch (e) {
+        ui.error = t(e.message);
+        render();
+        return;
+      }
+      resetUi();
+      saveLocal();
+      render();
+      return;
+    }
+    // 連線模式：在雲端目前的 state 上執行同一個 reduce（transaction 保證同時操作不互相覆蓋）
+    var errKey = null;
+    ui.busy = true;
+    Storage.rtTransaction(room.id, "cloud", "toushou/stateJson", function (cur) {
+      if (!cur) { errKey = "ts_err_room_gone"; return undefined; }
+      try {
+        var next = Core.reduce(JSON.parse(cur), action);
+        errKey = null;
+        return JSON.stringify(next);
+      } catch (e) {
+        errKey = e.message;
+        return undefined; // 中止 transaction
+      }
+    }).then(function (committed) {
+      ui.busy = false;
+      if (errKey || committed === null) {
+        ui.error = t(errKey || "ts_err_network");
+        render();
+        return;
+      }
+      state = JSON.parse(committed);
+      resetUi();
+      render();
+    });
+  }
+
+  // ---------------- 連線：房間 ----------------
+
+  function roomUrl(id) {
+    return window.location.origin + window.location.pathname + "?room=" + id;
+  }
+
+  function enterRoom(id) {
+    leaveRoomSubscription();
+    room = { id: id, hostId: null, seats: {}, loaded: false, missing: false, unsubscribe: null };
     state = null;
     resetUi();
-    save();
+    try { localStorage.setItem(ROOM_KEY, id); } catch (e) { /* 忽略 */ }
+    if (window.history && window.history.replaceState) window.history.replaceState(null, "", "?room=" + id);
+    room.unsubscribe = Storage.rtSubscribe(id, "cloud", "toushou", function (v) {
+      if (!room || room.id !== id) return;
+      room.loaded = true;
+      if (!v || !v.stateJson) {
+        room.missing = true;
+        state = null;
+      } else {
+        room.missing = false;
+        room.hostId = v.hostId;
+        room.seats = v.seats || {};
+        state = JSON.parse(v.stateJson);
+      }
+      render({ remote: true });
+    });
     render();
+  }
+
+  function leaveRoomSubscription() {
+    if (room && room.unsubscribe) room.unsubscribe();
+  }
+
+  function leaveRoom() {
+    leaveRoomSubscription();
+    room = null;
+    state = loadLocal();
+    resetUi();
+    try { localStorage.removeItem(ROOM_KEY); } catch (e) { /* 忽略 */ }
+    if (window.history && window.history.replaceState) window.history.replaceState(null, "", window.location.pathname);
+    render();
+  }
+
+  function createRoom(config) {
+    var id = Storage.generateCloudGameId();
+    var initial = Core.newGame(config);
+    ui.busy = true;
+    render();
+    Storage.rtSet(id, "cloud", "toushou", { stateJson: JSON.stringify(initial), hostId: clientId, seats: {} })
+      .then(function () {
+        ui.busy = false;
+        enterRoom(id);
+      });
+  }
+
+  function claimSeat(playerId) {
+    Storage.rtTransaction(room.id, "cloud", "toushou/seats/" + playerId, function (cur) {
+      if (cur && cur !== clientId) return undefined;
+      return clientId;
+    }).then(function (v) {
+      if (v !== clientId) { ui.error = t("ts_err_seat_taken"); render(); }
+    });
+  }
+
+  function releaseSeat(playerId) {
+    Storage.rtSet(room.id, "cloud", "toushou/seats/" + playerId, null);
+  }
+
+  function endRoom() {
+    // 主持人放棄本局：刪除房間，其他裝置會看到「房間已結束」
+    var id = room.id;
+    Storage.rtSet(id, "cloud", "toushou", null).then(leaveRoom);
   }
 
   // ---------------- 設定畫面 ----------------
@@ -102,6 +245,7 @@
       targets: [],
       missionsEnabled: true,
       windEnabled: false,
+      online: false,
       minBet: 100,
       minBetEdited: false,
       error: ""
@@ -110,7 +254,7 @@
 
   function intOf(v) {
     var n = Number(v);
-    return v !== "" && isFinite(n) && Math.floor(n) === n ? n : NaN;
+    return v !== "" && v !== null && isFinite(n) && Math.floor(n) === n ? n : NaN;
   }
 
   function syncMinBet() {
@@ -164,12 +308,11 @@
     };
   }
 
-  function startGame(config) {
+  function startLocalGame(config) {
     lastConfig = config;
     state = Core.newGame(config);
     resetUi();
-    ui.missionIndex = 0;
-    save();
+    saveLocal();
     render();
   }
 
@@ -297,14 +440,21 @@
       id: "ts-min-bet", type: "number", min: "1", value: String(draft.minBet),
       oninput: function (e) { draft.minBet = e.target.value; draft.minBetEdited = true; }
     })]));
+    box.appendChild(el("label", { class: "ts-field" }, [el("input", {
+      id: "ts-online", type: "checkbox", checked: draft.online,
+      onchange: function (e) { draft.online = e.target.checked; render(); }
+    }), t("ts_online_mode")]));
+    if (draft.online) box.appendChild(el("p", { class: "ts-hooks", text: t("ts_online_hint") }));
 
     box.appendChild(el("p", { id: "ts-setup-error", class: "ts-error", text: draft.error || "" }));
-    box.appendChild(el("button", { id: "ts-btn-start", type: "button", class: "ts-primary", text: t("ts_btn_start"),
+    box.appendChild(el("button", { id: "ts-btn-start", type: "button", class: "ts-primary", disabled: ui.busy,
+      text: t(draft.online ? "ts_btn_create_room" : "ts_btn_start"),
       onclick: function () {
         var r = buildConfig();
         if (r.error) { draft.error = t(r.error); render(); return; }
         draft.error = "";
-        startGame(r.config);
+        if (draft.online) createRoom(r.config);
+        else startLocalGame(r.config);
       } }));
     return box;
   }
@@ -315,6 +465,8 @@
     for (var i = 0; i < state.players.length; i++) if (state.players[i].id === id) return state.players[i].name;
     return id;
   }
+
+  function playerOf(id) { return state.players.filter(function (p) { return p.id === id; })[0]; }
 
   function currentTarget() { return state.targets[state.targetIndex]; }
 
@@ -341,16 +493,21 @@
 
   function windLabel(w) { return w ? t("ts_wind_" + w) : ""; }
 
-  // 遮蔽畫面：未確認身分時顯示「請交給 ○○」，確認後呼叫 content()
+  // 遮蔽畫面：這台裝置擁有多個座位時，先顯示「請交給 ○○」，確認後呼叫 content()。
+  // 只擁有一個座位（自己的手機）時不需要遮蔽。
   function masked(playerId, content) {
-    if (ui.revealedFor === playerId) return content();
+    if (mySeats().length <= 1 || ui.revealedFor === playerId) return content();
     var name = playerName(playerId);
     return el("div", { id: "ts-mask", class: "ts-panel ts-mask" }, [
       el("h2", { text: t("ts_handoff", { name: name }) }),
       el("p", { text: t("ts_handoff_hint") }),
       el("button", { id: "ts-btn-reveal", type: "button", class: "ts-primary", text: t("ts_btn_i_am", { name: name }),
-        onclick: function () { ui.revealedFor = playerId; ui.error = ""; render(); } })
+        onclick: function () { ui.revealedFor = playerId; ui.error = ""; ui.skipRestore = true; render(); } })
     ]);
+  }
+
+  function waiting(text) {
+    return el("section", { class: "ts-panel ts-waiting" }, [el("p", { class: "ts-wait-text", text: text })]);
   }
 
   function newsBoard(news) {
@@ -391,38 +548,79 @@
     return el("p", { id: "ts-game-error", class: "ts-error", text: ui.error || "" });
   }
 
+  // ---------------- 房間面板（連線模式） ----------------
+
+  function renderRoomPanel() {
+    var seats = room.seats;
+    var noSeat = state.players.every(function (p) { return seats[p.id] !== clientId; });
+    var anyFree = state.players.some(function (p) { return !seats[p.id]; });
+    var list = el("ul", { id: "ts-seat-list", class: "ts-seat-list" });
+    state.players.forEach(function (p) {
+      var owner = seats[p.id];
+      var status;
+      var btn = null;
+      if (owner === clientId) {
+        status = t("ts_seat_mine");
+        btn = el("button", { class: "ts-btn-release", type: "button", "data-player": p.id, text: t("ts_seat_release"),
+          onclick: function () { releaseSeat(p.id); } });
+      } else if (owner) {
+        status = t("ts_seat_taken");
+      } else {
+        status = t("ts_seat_free");
+        btn = el("button", { class: "ts-btn-claim", type: "button", "data-player": p.id, text: t("ts_seat_claim"),
+          onclick: function () { claimSeat(p.id); } });
+      }
+      list.appendChild(el("li", { "data-player": p.id }, [el("strong", { text: p.name }), "　" + status + "　", btn]));
+    });
+    var url = roomUrl(room.id);
+    var canvas = el("canvas", { id: "ts-room-qr", class: "ts-room-qr" });
+    window.PriTestQRCode.renderToCanvas(canvas, url, { level: "L", scale: 4, margin: 2 });
+    var details = el("details", { id: "ts-room-panel", class: "ts-panel", open: noSeat || (isHost() && anyFree) }, [
+      el("summary", { text: t("ts_room_heading") + (isHost() ? "（" + t("ts_you_are_host") + "）" : "") }),
+      noSeat ? el("p", { class: "ts-hooks", text: t(isHost() ? "ts_host_seat_hint" : "ts_pick_seat") }) : null,
+      list,
+      el("p", { class: "ts-hooks", text: t("ts_room_link") }),
+      el("input", { id: "ts-room-url", type: "text", readonly: true, value: url, class: "ts-room-url" }),
+      canvas
+    ]);
+    return details;
+  }
+
   // ---------------- 各階段畫面 ----------------
 
   function renderMissions() {
-    var p = state.players[ui.missionIndex];
-    return masked(p.id, function () {
+    var pending = Core.pendingMissionViewers(state);
+    var mine = pending.filter(owns);
+    if (!mine.length) {
+      return waiting(t("ts_wait_missions", { done: state.players.length - pending.length, total: state.players.length }));
+    }
+    var pid = mine[0];
+    var p = playerOf(pid);
+    return masked(pid, function () {
       var def = null;
       D.MISSIONS.forEach(function (m) { if (m.id === p.mission.id) def = m; });
       return el("section", { class: "ts-panel" }, [
-        el("h2", { text: t("ts_mission_heading") }),
+        el("h2", { text: t("ts_mission_heading") + (mySeats().length > 1 ? "（" + p.name + "）" : "") }),
         el("p", { id: "ts-mission-text", text: fillParams(Core.missionText(p.mission.id), p.mission.params) }),
         el("p", { text: t("ts_mission_reward", { n: def ? def.reward : 0 }) }),
         el("button", { id: "ts-btn-hide", type: "button", class: "ts-primary", text: t("ts_btn_done_hide"),
-          onclick: function () {
-            ui.revealedFor = null;
-            if (ui.missionIndex + 1 >= state.players.length) {
-              ui.missionIndex = 0;
-              dispatch({ type: "missionsDone" });
-            } else {
-              ui.missionIndex += 1;
-              render();
-            }
-          } })
+          onclick: function () { dispatch({ type: "missionSeen", playerId: pid }); } })
       ]);
     });
   }
 
   function renderBet() {
-    var pid = Core.nextBettor(state);
-    var me = state.players.filter(function (p) { return p.id === pid; })[0];
+    var pending = Core.pendingBettors(state);
+    var mine = pending.filter(owns);
     var skipped = state.players.filter(function (p) { return state.current.bettors.indexOf(p.id) < 0; })
       .map(function (p) { return p.name; });
     var info = skipped.length ? el("p", { text: t("ts_skipped_broke", { names: skipped.join("、") }) }) : null;
+    var total = state.current.bettors.length;
+    if (!mine.length) {
+      return el("div", {}, [info, waiting(t("ts_wait_bets", { done: total - pending.length, total: total }))]);
+    }
+    var pid = mine[0];
+    var me = playerOf(pid);
     var body = masked(pid, function () {
       var min = Math.min(state.config.minBet, me.chips);
       var amount = el("input", { id: "ts-bet-amount", type: "number", min: String(min), max: String(me.chips), value: String(min) });
@@ -449,11 +647,12 @@
   function renderNews() {
     var pid = Core.currentShareholder(state);
     var role = lt(Core.roleFor(currentTarget().category));
-    var me = state.players.filter(function (p) { return p.id === pid; })[0];
+    var me = playerOf(pid);
     var windBadge = state.current.wind
       ? el("p", {}, [t("ts_wind") + "：", el("span", { id: "ts-wind-badge", class: "ts-wind-badge", text: windLabel(state.current.wind) })])
       : null;
     var heading = el("h2", { text: t("ts_news_heading", { role: role, name: me.name }) });
+    if (!owns(pid)) return el("div", {}, [heading, windBadge, waiting(t("ts_wait_news", { name: me.name }))]);
     var body = masked(pid, function () {
       var textArea = el("textarea", { id: "ts-news-text", class: "ts-news-text", "aria-label": t("ts_news_custom") });
       if (ui.editing !== null) textArea.value = ui.editing;
@@ -475,6 +674,7 @@
               ui.selectedCard = idx;
               ui.editing = cardText(cardId);
               ui.error = "";
+              ui.skipRestore = true;
               render();
             } })
         ]));
@@ -501,10 +701,14 @@
 
   function renderVote() {
     var pending = state.current.pending;
+    var news = el("p", {}, [el("strong", { text: playerName(pending.playerId) }),
+      state.current.wind ? " [" + windLabel(state.current.wind) + "]" : "", "：" + pending.text]);
+    if (!isHost()) {
+      return el("section", { class: "ts-panel" }, [news, el("p", { class: "ts-wait-text", text: t("ts_wait_vote") })]);
+    }
     var delta = el("input", { id: "ts-delta", type: "number", step: "1", value: "0" });
     return el("section", { class: "ts-panel" }, [
-      el("p", {}, [el("strong", { text: playerName(pending.playerId) }),
-        state.current.wind ? " [" + windLabel(state.current.wind) + "]" : "", "：" + pending.text]),
+      news,
       el("h3", { text: t("ts_vote_heading") }),
       el("label", { class: "ts-field" }, [t("ts_delta"), delta]),
       errorLine(),
@@ -533,6 +737,12 @@
     return table;
   }
 
+  function hostButton(id, textKey, action) {
+    if (!isHost()) return el("p", { class: "ts-wait-text", text: t("ts_wait_host") });
+    return el("button", { id: id, type: "button", class: "ts-primary", text: t(textKey),
+      onclick: function () { dispatch(action); } });
+  }
+
   function renderSettle() {
     var h = state.lastSettlement;
     var last = state.targetIndex + 1 >= state.targets.length;
@@ -540,10 +750,9 @@
       el("h2", { text: t("ts_settle_heading", { name: lt(h.name) }) }),
       el("p", { text: t("ts_final_price", { n: h.finalPrice }) + "　" + t("ts_pot", { n: h.pot }) }),
       el("div", { id: "ts-settle-table", class: "ts-table-wrap" }, [settleTable(h)]),
+      errorLine(),
       el("div", { class: "ts-actions" }, [
-        el("button", { id: "ts-btn-next-target", type: "button", class: "ts-primary",
-          text: t(last ? "ts_btn_to_final" : "ts_btn_next_target"),
-          onclick: function () { dispatch({ type: "nextTarget" }); } })
+        hostButton("ts-btn-next-target", last ? "ts_btn_to_final" : "ts_btn_next_target", { type: "nextTarget" })
       ])
     ]);
   }
@@ -583,19 +792,24 @@
       missionList,
       review,
       el("div", { class: "ts-actions" }, [
-        lastConfig ? el("button", { id: "ts-btn-replay", type: "button", class: "ts-primary", text: t("ts_btn_replay"),
+        !room && lastConfig ? el("button", { id: "ts-btn-replay", type: "button", class: "ts-primary", text: t("ts_btn_replay"),
           onclick: function () {
             var cfg = JSON.parse(JSON.stringify(lastConfig));
             cfg.seed = newSeed();
-            startGame(cfg);
+            startLocalGame(cfg);
           } }) : null,
-        el("button", { id: "ts-btn-back-setup", type: "button", text: t("ts_btn_back_setup"), onclick: quitGame })
+        el("button", { id: "ts-btn-back-setup", type: "button", text: t("ts_btn_back_setup"),
+          onclick: function () {
+            if (room) { leaveRoom(); return; }
+            state = null; resetUi(); saveLocal(); render();
+          } })
       ])
     ]);
   }
 
   function renderGame() {
     var wrap = el("div", {});
+    if (room) wrap.appendChild(renderRoomPanel());
     var phase = state.phase;
     if (phase === "final") {
       wrap.appendChild(renderFinal());
@@ -609,8 +823,7 @@
       var news = settled ? state.lastSettlement.news : (state.current ? state.current.news : []);
       wrap.appendChild(targetCard(currentTarget(), price, news));
       if (phase === "reveal_target") {
-        wrap.appendChild(el("button", { id: "ts-btn-start-betting", type: "button", class: "ts-primary",
-          text: t("ts_btn_start_betting"), onclick: function () { dispatch({ type: "startBetting" }); } }));
+        wrap.appendChild(hostButton("ts-btn-start-betting", "ts_btn_start_betting", { type: "startBetting" }));
       } else if (phase === "bet") {
         wrap.appendChild(renderBet());
       } else if (phase === "news") {
@@ -621,27 +834,96 @@
         wrap.appendChild(renderSettle());
       }
     }
-    wrap.appendChild(el("div", { class: "ts-actions" }, [
-      el("button", { id: "ts-btn-abandon", type: "button", text: t("ts_btn_abandon"),
+    var actions = el("div", { class: "ts-actions" });
+    if (isHost()) {
+      actions.appendChild(el("button", { id: "ts-btn-abandon", type: "button", text: t("ts_btn_abandon"),
         onclick: function () {
           if (!window.confirm(t("ts_confirm_abandon"))) return;
-          quitGame();
-        } })
-    ]));
+          if (room) { endRoom(); return; }
+          state = null; resetUi(); saveLocal(); render();
+        } }));
+    } else {
+      actions.appendChild(el("button", { id: "ts-btn-leave-room", type: "button", text: t("ts_btn_leave_room"), onclick: leaveRoom }));
+    }
+    wrap.appendChild(actions);
     return wrap;
   }
 
-  function render() {
+  function renderRoomStatus() {
+    if (!room.loaded) return waiting(t("ts_room_connecting"));
+    return el("section", { class: "ts-panel" }, [
+      el("p", { id: "ts-room-gone", text: t("ts_room_gone") }),
+      el("button", { id: "ts-btn-back-setup", type: "button", text: t("ts_btn_back_setup"), onclick: leaveRoom })
+    ]);
+  }
+
+  // ---------------- 重繪（保留輸入中的內容） ----------------
+
+  // 遠端更新會整個重繪；畫面「位置」沒變時，把輸入框的內容與焦點還原，避免打字打到一半被清掉。
+  function viewKey() {
+    if (!state) return "setup";
+    var c = state.current;
+    return [state.phase, state.targetIndex, c ? c.turnIndex : "", ui.revealedFor, ui.selectedCard].join("|");
+  }
+
+  function captureInputs() {
+    var values = {};
+    Array.prototype.forEach.call(app.querySelectorAll("input[id], textarea[id]"), function (node) {
+      if (node.type !== "checkbox" && node.type !== "radio") values[node.id] = node.value;
+    });
+    var active = document.activeElement;
+    return { key: viewKey(), values: values, focus: active && active.id && app.contains(active) ? active.id : null };
+  }
+
+  function restoreInputs(snap) {
+    if (!snap || snap.key !== viewKey()) return;
+    Object.keys(snap.values).forEach(function (id) {
+      var node = document.getElementById(id);
+      if (node && !node.readOnly) node.value = snap.values[id];
+    });
+    if (snap.focus) {
+      var f = document.getElementById(snap.focus);
+      if (f) f.focus();
+    }
+  }
+
+  var lastHtml = null;
+
+  // opts.remote：由其他裝置的更新觸發。這台裝置要顯示的內容完全沒變時（例如別人下注、自己正在填表），
+  // 不重建 DOM——避免打字中途輸入框被換掉造成游標跳動或重複輸入。
+  // 跳過時舊節點的事件處理仍然有效：它們讀的是模組層的 state（已更新），畫面相同代表 pid 等也相同。
+  function render(opts) {
+    var node = room && !state ? renderRoomStatus() : (state ? renderGame() : renderSetup());
+    var holder = document.createElement("div");
+    holder.appendChild(node);
+    var html = holder.innerHTML;
+    if (opts && opts.remote && html === lastHtml) return;
+    var snap = state && !ui.skipRestore ? captureInputs() : null;
+    ui.skipRestore = false;
     app.innerHTML = "";
-    app.appendChild(state ? renderGame() : renderSetup());
+    app.appendChild(node);
+    lastHtml = html;
+    restoreInputs(snap);
   }
 
   window.PriTestToushou = {
     _debugState: function () { return state ? JSON.parse(JSON.stringify(state)) : null; },
-    _reset: function () { draft = null; quitGame(); }
+    _debugRoom: function () { return room ? { id: room.id, hostId: room.hostId, seats: room.seats, clientId: clientId } : null; },
+    _reset: function () { draft = null; if (room) leaveRoom(); state = null; resetUi(); saveLocal(); render(); }
   };
 
   window.addEventListener("i18n:change", render);
-  state = load();
-  render();
+
+  var params = new URLSearchParams(window.location.search);
+  var roomParam = params.get("room");
+  var savedRoom = null;
+  try { savedRoom = localStorage.getItem(ROOM_KEY); } catch (e) { /* 忽略 */ }
+  if (roomParam && /^g[0-9a-f]{32}$/.test(roomParam)) {
+    enterRoom(roomParam);
+  } else if (savedRoom && /^g[0-9a-f]{32}$/.test(savedRoom)) {
+    enterRoom(savedRoom);
+  } else {
+    state = loadLocal();
+    render();
+  }
 })();
