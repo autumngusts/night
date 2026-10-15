@@ -2022,4 +2022,6 @@ STRINGS_EN: dict[str, str] = {
     "midnight_bargain_choose_button": "Choose this",
     "midnight_bargain_manual_note": " (cannot be auto-applied - handle it manually per the text)",
     "midnight_bargain_close_button": "Close",
+    "project_toushou_name": "Toushou",
+    "project_toushou_desc": "Price-guessing party game: bet, take turns leaking news as the insider, and decide the price together",
 }

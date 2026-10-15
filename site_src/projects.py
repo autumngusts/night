@@ -20,4 +20,10 @@ PROJECTS = [
         "name_key": "project_midnight_name",
         "desc_key": "project_midnight_desc",
     },
+    {
+        "id": "toushou",
+        "href": "toushou/index.html",
+        "name_key": "project_toushou_name",
+        "desc_key": "project_toushou_desc",
+    },
 ]

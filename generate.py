@@ -18,6 +18,7 @@ from site_src.i18n_data import STRINGS
 from site_src.index_page import build_index_html
 from site_src.midnight_page import build_midnight_html
 from site_src.night_page import build_night_html
+from site_src.toushou_page import TOUSHOU_SCRIPTS, build_toushou_html
 
 ROOT = Path(__file__).parent
 DIST_DIR = ROOT / "dist"
@@ -89,6 +90,7 @@ def build_static_assets() -> None:
         "midnight_player_sprite.js",
         "enemy_counter_rules.js",
         "midnight.js",
+        *TOUSHOU_SCRIPTS,
     ):
         shutil.copy(STATIC_SRC_DIR / name, static_dist / name)
 
@@ -126,9 +128,13 @@ def build_pages() -> None:
     midnight_dir.mkdir(parents=True, exist_ok=True)
     (midnight_dir / "index.html").write_text(build_midnight_html(), encoding="utf-8")
 
+    toushou_dir = DIST_DIR / "toushou"
+    toushou_dir.mkdir(parents=True, exist_ok=True)
+    (toushou_dir / "index.html").write_text(build_toushou_html(), encoding="utf-8")
+
 
 def main() -> None:
-    for name in ("index.html", "night", "admin", "characters", "midnight", "static"):
+    for name in ("index.html", "night", "admin", "characters", "midnight", "toushou", "static"):
         target = DIST_DIR / name
         if target.is_dir():
             shutil.rmtree(target)
