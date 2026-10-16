@@ -77,6 +77,48 @@
     });
     return shuffle(holder, arr);
   }
+  function roundHalf(x) { var r = x < 0 ? -Math.round(-x) : Math.round(x); return r === 0 ? 0 : r; }
+
+  function buildSwanDeck(holder) {
+    var arr = [];
+    D.SWAN_CARDS.forEach(function (c) {
+      var k = D.SWAN_COMPOSITION[c.id] || 1;
+      for (var i = 0; i < k; i++) arr.push(c.id);
+    });
+    return shuffle(holder, arr);
+  }
+
+  function swanById(id) {
+    for (var i = 0; i < D.SWAN_CARDS.length; i++) if (D.SWAN_CARDS[i].id === id) return D.SWAN_CARDS[i];
+    return null;
+  }
+
+  function sectorStartPrice(s, category) {
+    for (var i = s.history.length - 1; i >= 0; i--) {
+      if (s.history[i].category === category) {
+        var f = s.history[i].finalPrice;
+        return { price: Math.max(0, D.START_PRICE + roundHalf((f - D.START_PRICE) * 0.5)), from: f };
+      }
+    }
+    return { price: D.START_PRICE, from: null };
+  }
+
+  // 事件對單則加減分的修正（spec 2.5 步驟 2～3）
+  function modifyDelta(event, idx, n, delta, prevDelta) {
+    var d = delta;
+    if (event === "hype" && idx === 0) d = d * 2;
+    else if (event === "whale" && idx === n - 1) d = d * 2;
+    else if (event === "exhausted" && idx === n - 1) d = -d;
+    else if (event === "fomo" && d > 0) d = roundHalf(d * 1.5);
+    else if (event === "panic" && d < 0) d = roundHalf(d * 1.5);
+    else if (event === "lull") d = roundHalf(d / 2);
+    else if (event === "momentum" && idx > 0) d = d + roundHalf(prevDelta / 2);
+    if (event === "circuit") d = Math.max(-10, Math.min(10, d));
+    return d === 0 ? 0 : d;
+  }
+
+  function startPriceOf(c) { return isInt(c.startPrice) ? c.startPrice : D.START_PRICE; }
+
 
   // 從牌堆抽 1 張；牌堆空時把棄牌堆洗回；兩者皆空回傳 null
   function drawCard(s) {
@@ -101,12 +143,15 @@
         windEnabled: !!config.windEnabled,
         minBet: config.minBet,
         deltaMode: config.deltaMode === "vote" ? "vote" : "host",
-        voteCap: isInt(config.voteCap) ? config.voteCap : 100
+        voteCap: isInt(config.voteCap) ? config.voteCap : 100,
+        blackSwanEnabled: !!config.blackSwanEnabled,
+        sectorLinkEnabled: !!config.sectorLinkEnabled
       },
       players: [],
       deck: [],
       discard: [],
       windDeck: [],
+      swanDeck: [],
       targets: [],
       targetIndex: 0,
       current: null,
@@ -146,6 +191,8 @@
       });
     }
     s.windDeck = buildWindDeck(s);
+    // 未啟用時不消耗 PRNG，維持舊版的隨機序列
+    s.swanDeck = s.config.blackSwanEnabled ? buildSwanDeck(s) : [];
 
     if (s.config.missionsEnabled) {
       var missions = shuffle(s, D.MISSIONS);
@@ -208,8 +255,15 @@
       s.current = null;
       return;
     }
+    var target = s.targets[s.targetIndex];
+    var sp = s.config.sectorLinkEnabled ? sectorStartPrice(s, target.category) : { price: D.START_PRICE, from: null };
     s.current = {
-      price: D.START_PRICE,
+      price: sp.price,
+      startPrice: sp.price,
+      sectorFrom: sp.from,
+      event: null,
+      gap: null,
+      shortcoverUsed: false,
       bettors: bettors,
       bets: {},
       pot: 0,
@@ -230,8 +284,24 @@
     p.chips -= a.amount;
     s.current.pot += a.amount;
     if (nextBettor(s) === null) {
-      s.current.order = shuffle(s, s.players.map(function (x) { return x.id; }));
-      s.current.turnIndex = 0;
+      var c = s.current;
+      if (s.config.blackSwanEnabled) {
+        if (!s.swanDeck || !s.swanDeck.length) s.swanDeck = buildSwanDeck(s);
+        c.event = s.swanDeck.pop();
+        if (c.event === "gap") {
+          c.gap = Math.floor(rand(s) * 41) - 20;
+          c.price = Math.max(0, startPriceOf(c) + c.gap);
+        }
+      }
+      if (c.event === "reverse") {
+        c.order = s.players.map(function (x, i) { return { id: x.id, chips: x.chips, seat: i }; })
+          .sort(function (a, b) { return a.chips - b.chips || a.seat - b.seat; })
+          .map(function (x) { return x.id; });
+      } else {
+        c.order = shuffle(s, s.players.map(function (x) { return x.id; }));
+      }
+      if (c.event === "extra") c.order.push(c.order[0]);
+      c.turnIndex = 0;
       s.phase = "news";
       enterNewsTurn(s);
     }
@@ -265,8 +335,15 @@
     return card.category === target.category;
   }
 
+  function gagActive(s) {
+    if (s.phase !== "news" || !s.current || s.current.event !== "gag" || s.current.turnIndex !== 0) return false;
+    var p = playerById(s, currentShareholder(s));
+    return !!p && p.hand.some(function (id) { return cardPlayable(s, id); });
+  }
+
   function newsError(s, playerId, cardId, text, edited) {
     if (s.phase !== "news" || currentShareholder(s) !== playerId) return "ts_err_not_your_turn";
+    if (gagActive(s) && (cardId === null || cardId === undefined || edited)) return "ts_err_gag";
     if (cardId !== null && cardId !== undefined) {
       var p = playerById(s, playerId);
       if (p.hand.indexOf(cardId) < 0) return "ts_err_card";
@@ -304,21 +381,45 @@
   // 寫入消息面、換下一位股東或結算。extra 為投票模式的附加紀錄（votes/avg/windZeroed）
   function commitDelta(s, delta, extra) {
     var c = s.current;
-    c.price = Math.max(0, c.price + delta);
+    var n = c.order.length;
+    var idx = c.turnIndex;
+    var prev = c.news.length ? c.news[c.news.length - 1].delta : 0;
+    var finalDelta = modifyDelta(c.event, idx, n, delta, prev);
+    c.price = Math.max(0, c.price + finalDelta);
     var entry = { playerId: c.pending.playerId, cardId: c.pending.cardId, edited: c.pending.edited,
-      text: c.pending.text, wind: c.wind, delta: delta, priceAfter: c.price };
+      text: c.pending.text, wind: c.wind, delta: finalDelta, priceAfter: c.price };
+    if (finalDelta !== delta) entry.rawDelta = delta;
     Object.keys(extra || {}).forEach(function (k) { entry[k] = extra[k]; });
+    // 價格事件（spec 2.5 步驟 5）
+    var before = c.price;
+    var pe = null;
+    if (c.event === "exright" && idx === Math.ceil(n / 2) - 1) {
+      c.price = D.START_PRICE; pe = "exright";
+    } else if (c.event === "shortcover" && !c.shortcoverUsed && c.price < 60) {
+      c.shortcoverUsed = true; c.price += 20; pe = "shortcover";
+    } else if (c.event === "limit") {
+      var sp = startPriceOf(c);
+      var clamped = Math.min(sp + 50, Math.max(Math.max(0, sp - 50), c.price));
+      if (clamped !== c.price) { c.price = clamped; pe = "limit"; }
+    }
+    if (pe) { entry.priceEvent = pe; entry.priceBeforeEvent = before; entry.priceAfter = c.price; }
     c.news.push(entry);
     c.votes = {};
     c.turnIndex += 1;
     if (c.turnIndex >= c.order.length) {
       c.pending = null;
+      if (c.event === "rumor" && c.news.length) {
+        c.rumorIndex = Math.floor(rand(s) * c.news.length);
+        c.rumorDelta = c.news[c.rumorIndex].delta;
+        c.price = Math.max(0, c.price - c.rumorDelta);
+      }
       settleCurrent(s);
     } else {
       s.phase = "news";
       enterNewsTurn(s);
     }
   }
+
 
   function applyDelta(s, a) {
     if (deltaMode(s) !== "host") throw new Error("ts_err_vote_mode");
@@ -382,15 +483,18 @@
   var SHARES = { 1: [100], 2: [100], 3: [70, 30] };
   var SHARES_DEFAULT = [60, 30, 10];
 
-  function settleTarget(bets, finalPrice, seatOrder) {
+  function settleTarget(bets, finalPrice, seatOrder, opts) {
+    opts = opts || {};
     var parts = seatOrder.filter(function (id) { return bets[id] && bets[id].amount > 0; });
     var pot = 0;
     parts.forEach(function (id) { pot += bets[id].amount; });
+    pot += opts.bonus || 0; // 紓困加碼：銀行加碼一起分配
     var shares = SHARES[parts.length] || SHARES_DEFAULT;
     function err(id) { return Math.abs(bets[id].predict - finalPrice); }
     // 依誤差排序；sort 不保證穩定，所以用座位序當第二鍵
     var sorted = parts.slice().sort(function (a, b) {
-      return err(a) - err(b) || seatOrder.indexOf(a) - seatOrder.indexOf(b);
+      var cmp = opts.reverse ? err(b) - err(a) : err(a) - err(b); // 爆冷門：誤差大者在前
+      return cmp || seatOrder.indexOf(a) - seatOrder.indexOf(b);
     });
     var ranks = {};
     var payouts = {};
@@ -421,7 +525,23 @@
     var c = s.current;
     var target = s.targets[s.targetIndex];
     var seat = s.players.map(function (p) { return p.id; });
-    var r = settleTarget(c.bets, c.price, seat);
+    var sp = startPriceOf(c);
+    var cancelled = c.event === "cancel" && Math.abs(c.price - sp) <= 5;
+    var bonus = 0;
+    var r;
+    if (cancelled) {
+      r = { pot: 0, ranks: {}, payouts: {} };
+      seat.forEach(function (id) {
+        if (c.bets[id] && c.bets[id].amount > 0) { r.payouts[id] = c.bets[id].amount; r.pot += c.bets[id].amount; }
+      });
+    } else {
+      if (c.event === "bailout") {
+        var base = 0;
+        seat.forEach(function (id) { if (c.bets[id]) base += c.bets[id].amount; });
+        bonus = Math.floor(base * 0.5);
+      }
+      r = settleTarget(c.bets, c.price, seat, { reverse: c.event === "upset", bonus: bonus });
+    }
     Object.keys(r.payouts).forEach(function (id) { playerById(s, id).chips += r.payouts[id]; });
     var entry = {
       targetId: target.id,
@@ -433,7 +553,15 @@
       bets: c.bets,
       ranks: r.ranks,
       payouts: r.payouts,
-      news: c.news
+      news: c.news,
+      startPrice: sp,
+      sectorFrom: c.sectorFrom === undefined ? null : c.sectorFrom,
+      event: c.event || null,
+      gap: c.gap === undefined ? null : c.gap,
+      rumorIndex: c.rumorIndex === undefined ? null : c.rumorIndex,
+      rumorDelta: c.rumorDelta === undefined ? null : c.rumorDelta,
+      cancelled: cancelled,
+      bonus: bonus
     };
     s.history.push(entry);
     s.lastSettlement = clone(entry);
@@ -584,6 +712,10 @@
     voteError: voteError,
     pendingVoters: pendingVoters,
     tallyVotes: tallyVotes,
+    swanById: swanById,
+    sectorStartPrice: sectorStartPrice,
+    modifyDelta: modifyDelta,
+    gagActive: gagActive,
     nextBettor: nextBettor,
     pendingBettors: pendingBettors,
     pendingMissionViewers: pendingMissionViewers,

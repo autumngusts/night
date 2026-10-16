@@ -583,6 +583,200 @@ check("settle pays chips, writes history, nextTarget advances then final", funct
   assert.strictEqual(s.phase, "final");
 });
 
+console.log("[core: swan & sector]");
+function swanStarted(n, ev, extra) {
+  var s = started(n, Object.assign({ blackSwanEnabled: true }, extra || {}));
+  s.swanDeck = s.swanDeck.concat([ev]); // 下一張抽到 ev
+  return s;
+}
+function betAll(s, amounts) {
+  s.players.forEach(function (p, i) {
+    s = Core.reduce(s, { type: "placeBet", playerId: p.id, amount: amounts ? amounts[i] : 100, predict: 100 });
+  });
+  return s;
+}
+function hostPlay(s, deltas) {
+  deltas.forEach(function (d) { s = Core.reduce(release(s), { type: "applyDelta", delta: d }); });
+  return s;
+}
+function lastNews(s) { return s.phase === "settle" ? s.history[s.history.length - 1].news : s.current.news; }
+
+check("swan deck: 19 events x1 + 7 calm; disabled -> empty; data bilingual", function () {
+  assert.strictEqual(D.SWAN_CARDS.length, 20);
+  D.SWAN_CARDS.forEach(function (c) { bilingual(c.name, c.id); bilingual(c.text, c.id); });
+  var s = Core.newGame(baseConfig(3, { blackSwanEnabled: true }));
+  assert.strictEqual(s.swanDeck.length, 26);
+  assert.strictEqual(s.swanDeck.filter(function (x) { return x === "calm"; }).length, 7);
+  assert.deepStrictEqual(Core.newGame(baseConfig(3)).swanDeck, []);
+});
+check("disabled features keep old behaviour (same rng order, start 100, no event)", function () {
+  var a = betAll(started(3));
+  var b = betAll(started(3, { blackSwanEnabled: false, sectorLinkEnabled: false }));
+  assert.deepStrictEqual(a, b);
+  assert.strictEqual(a.current.startPrice, 100);
+  assert.strictEqual(a.current.event, null);
+});
+check("sectorStartPrice: latest same category, half away from zero, floor 0", function () {
+  var s = started(2);
+  s.history = [{ category: "x", finalPrice: 160 }, { category: "y", finalPrice: 10 }];
+  assert.deepStrictEqual(Core.sectorStartPrice(s, "x"), { price: 130, from: 160 });
+  assert.deepStrictEqual(Core.sectorStartPrice(s, "z"), { price: 100, from: null });
+  s.history.push({ category: "x", finalPrice: 40 });
+  assert.strictEqual(Core.sectorStartPrice(s, "x").price, 70);
+  s.history.push({ category: "x", finalPrice: 45 });
+  assert.strictEqual(Core.sectorStartPrice(s, "x").price, 72);
+  s.history.push({ category: "x", finalPrice: 0 });
+  assert.strictEqual(Core.sectorStartPrice(s, "x").price, 50);
+});
+check("sector link applied at startBetting only when enabled", function () {
+  function secondStart(extra) {
+    var cfg = baseConfig(2, extra);
+    cfg.targets = [cfg.targets[0], JSON.parse(JSON.stringify(cfg.targets[0]))];
+    var s = Core.reduce(Core.newGame(cfg), { type: "startBetting" });
+    s = hostPlay(betAll(s), [60, 0]);
+    return Core.reduce(Core.reduce(s, { type: "nextTarget" }), { type: "startBetting" });
+  }
+  var on = secondStart({ sectorLinkEnabled: true });
+  assert.strictEqual(on.current.startPrice, 130);
+  assert.strictEqual(on.current.price, 130);
+  assert.strictEqual(on.current.sectorFrom, 160);
+  assert.strictEqual(secondStart({}).current.startPrice, 100);
+});
+check("modifyDelta table", function () {
+  var m = Core.modifyDelta;
+  assert.strictEqual(m(null, 0, 3, 7, 0), 7);
+  assert.strictEqual(m("calm", 0, 3, 7, 0), 7);
+  assert.strictEqual(m("circuit", 1, 3, 40, 0), 10);
+  assert.strictEqual(m("circuit", 1, 3, -40, 0), -10);
+  assert.strictEqual(m("hype", 0, 3, 7, 0), 14);
+  assert.strictEqual(m("hype", 1, 3, 7, 0), 7);
+  assert.strictEqual(m("whale", 2, 3, -7, 0), -14);
+  assert.strictEqual(m("whale", 1, 3, -7, 0), -7);
+  assert.strictEqual(m("exhausted", 2, 3, 9, 0), -9);
+  assert.ok(!Object.is(m("exhausted", 2, 3, 0, 0), -0));
+  assert.strictEqual(m("fomo", 0, 3, 5, 0), 8);
+  assert.strictEqual(m("fomo", 0, 3, -5, 0), -5);
+  assert.strictEqual(m("panic", 0, 3, -5, 0), -8);
+  assert.strictEqual(m("panic", 0, 3, 5, 0), 5);
+  assert.strictEqual(m("lull", 0, 3, 5, 0), 3);
+  assert.strictEqual(m("lull", 0, 3, -5, 0), -3);
+  assert.strictEqual(m("momentum", 0, 3, 10, 30), 10);
+  assert.strictEqual(m("momentum", 1, 3, 10, 30), 25);
+  assert.strictEqual(m("momentum", 1, 3, 10, -5), 7);
+});
+check("delta events recorded with rawDelta; wind zero happens before modifier (vote)", function () {
+  var s = hostPlay(betAll(swanStarted(3, "hype")), [20, 5, 5]);
+  var n = s.history[0].news;
+  assert.strictEqual(n[0].delta, 40);
+  assert.strictEqual(n[0].rawDelta, 20);
+  assert.ok(!("rawDelta" in n[1]));
+  assert.strictEqual(s.history[0].finalPrice, 150);
+  assert.strictEqual(s.history[0].event, "hype");
+  var v = release(betAll(swanStarted(2, "fomo", { deltaMode: "vote" })));
+  v = Core.reduce(v, { type: "castVote", playerId: "p0", value: 10 });
+  v = Core.reduce(v, { type: "castVote", playerId: "p1", value: 10 });
+  assert.strictEqual(v.current.news[0].delta, 15);
+  assert.strictEqual(v.current.news[0].rawDelta, 10);
+});
+check("exright / shortcover / limit price events", function () {
+  var s = hostPlay(betAll(swanStarted(3, "exright")), [30, 30, 5]);
+  var n = s.history[0].news;
+  assert.strictEqual(n[1].priceEvent, "exright");
+  assert.strictEqual(n[1].priceBeforeEvent, 160);
+  assert.strictEqual(n[1].priceAfter, 100);
+  assert.strictEqual(s.history[0].finalPrice, 105);
+  s = hostPlay(betAll(swanStarted(3, "shortcover")), [-50, -30, 0]);
+  n = s.history[0].news;
+  assert.strictEqual(n[0].priceEvent, "shortcover");
+  assert.strictEqual(n[0].priceAfter, 70);
+  assert.ok(!n[1].priceEvent);
+  assert.strictEqual(s.history[0].finalPrice, 40);
+  s = hostPlay(betAll(swanStarted(2, "limit")), [80, -200]);
+  n = s.history[0].news;
+  assert.strictEqual(n[0].priceAfter, 150);
+  assert.strictEqual(n[0].priceEvent, "limit");
+  assert.strictEqual(n[1].priceAfter, 50);
+});
+check("gap moves price after bets, start price unchanged", function () {
+  var s = betAll(swanStarted(3, "gap"));
+  assert.ok(s.current.gap >= -20 && s.current.gap <= 20);
+  assert.strictEqual(s.current.price, 100 + s.current.gap);
+  assert.strictEqual(s.current.startPrice, 100);
+  s = hostPlay(s, [0, 0, 0]);
+  assert.strictEqual(s.history[0].gap, s.history[0].finalPrice - 100);
+});
+check("rumor removes one news delta before settlement", function () {
+  var s = hostPlay(betAll(swanStarted(3, "rumor")), [30, -10, 4]);
+  var h = s.history[0];
+  assert.ok(h.rumorIndex >= 0 && h.rumorIndex < 3);
+  assert.strictEqual(h.rumorDelta, h.news[h.rumorIndex].delta);
+  assert.strictEqual(h.finalPrice, 124 - h.rumorDelta);
+});
+check("extra: first shareholder speaks again at the end", function () {
+  var s = betAll(swanStarted(3, "extra"));
+  assert.strictEqual(s.current.order.length, 4);
+  assert.strictEqual(s.current.order[3], s.current.order[0]);
+  s = hostPlay(s, [1, 1, 1, 1]);
+  assert.strictEqual(s.history[0].news.length, 4);
+  assert.strictEqual(s.history[0].finalPrice, 104);
+});
+check("reverse: order by remaining chips ascending, ties by seat", function () {
+  var s = betAll(swanStarted(4, "reverse"), [100, 300, 200, 100]);
+  assert.deepStrictEqual(s.current.order, ["p1", "p2", "p0", "p3"]);
+});
+check("gag: first news must be a playable card unless none playable", function () {
+  var s = betAll(swanStarted(3, "gag"));
+  var sh = Core.currentShareholder(s);
+  var p = player(s, sh);
+  var playable = D.NEWS_CARDS.filter(function (c) { return c.category === null && Core.cardPlayable(s, c.id); })[0].id;
+  var other = D.NEWS_CARDS.filter(function (c) { return c.category !== null && !Core.cardPlayable(s, c.id); })[0].id;
+  p.hand = [playable, other];
+  assert.strictEqual(Core.gagActive(s), true);
+  assert.strictEqual(Core.newsError(s, sh, null, "x", false), "ts_err_gag");
+  assert.strictEqual(Core.newsError(s, sh, playable, "x", true), "ts_err_gag");
+  assert.strictEqual(Core.newsError(s, sh, playable, "x", false), null);
+  p.hand = [other];
+  assert.strictEqual(Core.gagActive(s), false);
+  assert.strictEqual(Core.newsError(s, sh, null, "x", false), null);
+  p.hand = [playable];
+  s = Core.reduce(Core.reduce(s, { type: "releaseNews", playerId: sh, cardId: playable, edited: false, text: "x" }), { type: "applyDelta", delta: 0 });
+  assert.strictEqual(Core.gagActive(s), false);
+});
+check("cancel refunds within 5; not when 6 away", function () {
+  var s = hostPlay(betAll(swanStarted(3, "cancel"), [100, 200, 300]), [5, 0, 0]);
+  var h = s.history[0];
+  assert.strictEqual(h.cancelled, true);
+  assert.deepStrictEqual(h.ranks, {});
+  assert.deepStrictEqual(h.payouts, { p0: 100, p1: 200, p2: 300 });
+  assert.deepStrictEqual(s.players.map(function (p) { return p.chips; }), [1000, 1000, 1000]);
+  s = hostPlay(betAll(swanStarted(3, "cancel")), [6, 0, 0]);
+  assert.strictEqual(s.history[0].cancelled, false);
+});
+check("upset reverses ranking; bailout adds 50% bonus", function () {
+  var b = { p0: { amount: 100, predict: 100 }, p1: { amount: 100, predict: 150 }, p2: { amount: 100, predict: 120 } };
+  var r = Core.settleTarget(b, 100, ["p0", "p1", "p2"], { reverse: true });
+  assert.strictEqual(r.ranks.p1, 1);
+  assert.strictEqual(r.payouts.p1, 210);
+  var bo = Core.settleTarget(b, 100, ["p0", "p1", "p2"], { bonus: 150 });
+  assert.strictEqual(bo.pot, 450);
+  assert.strictEqual(bo.payouts.p0 + bo.payouts.p1 + bo.payouts.p2, 450);
+  var s = hostPlay(betAll(swanStarted(3, "bailout"), [100, 100, 101]), [0, 0, 0]);
+  assert.strictEqual(s.history[0].bonus, 150);
+  assert.strictEqual(s.history[0].pot, 451);
+  var u = hostPlay(betAll(swanStarted(3, "upset")), [0, 0, 0]);
+  assert.strictEqual(u.history[0].event, "upset");
+});
+check("old state without new fields still plays", function () {
+  var s = started(2);
+  delete s.config.blackSwanEnabled;
+  delete s.config.sectorLinkEnabled;
+  delete s.swanDeck;
+  delete s.current.startPrice;
+  s = hostPlay(betAll(s), [10, 10]);
+  assert.strictEqual(s.history[0].finalPrice, 120);
+  assert.strictEqual(s.history[0].startPrice, 100);
+});
+
 console.log("[core: missions]");
 function missionState(missionId, params) {
   var s = Core.newGame(baseConfig(3));
