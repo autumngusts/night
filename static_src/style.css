@@ -11733,3 +11733,41 @@ html.midnight-no-select * {
   font-size: 1.3em;
   font-weight: bold;
 }
+.ut-url-input {
+  width: 100%;
+  font: inherit;
+  padding: 0.4rem;
+}
+.ut-file {
+  max-width: 100%;
+}
+/* 夢想模式的 YouTube 播放器：浮動卡片（YouTube 要求嵌入播放器至少 200×200），
+   遮罩蓋住影片畫面，看不到標題與縮圖，也點不到播放器本身 */
+.ut-yt-host {
+  position: fixed;
+  right: 12px;
+  bottom: 12px;
+  width: 200px;
+  height: 200px;
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
+  z-index: 50;
+}
+.ut-yt-host[hidden] {
+  display: none;
+}
+.ut-yt-cover {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #1d2a44;
+  color: #fff;
+  font-size: 2.5rem;
+  letter-spacing: 0.2em;
+}
+body.ut-has-player {
+  padding-bottom: 230px;
+}

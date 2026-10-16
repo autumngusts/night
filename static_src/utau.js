@@ -1,20 +1,27 @@
-// 我不會唱歌（utau）UI。規則全部在 utau_core.js，這裡只負責畫面、輸入與存讀檔。
+// 我不會唱歌（utau）UI。規則全部在 utau_core.js，這裡只負責畫面、輸入、存讀檔與播放。
 // 題目遮蔽（ui.revealed）刻意不存進 state：重新整理後回到遮蔽畫面，避免其他人看到題目。
+// 進階模式：音檔從 utau_pack.js（IndexedDB 題庫包）取出。iOS 只允許在點擊當下呼叫 play()，
+//   所以每輪一開始就先把音檔放進 <audio>（prepareAudio），按鈕只做同步的 play()。
+// 夢想模式：YouTube IFrame Player API。render() 會清空 #ut-app，iframe 一被移動就會重新載入，
+//   所以播放器放在 body 底下的浮動卡片（yt.host），用遮罩蓋住畫面讓人看不到影片標題與縮圖。
 (function () {
   "use strict";
 
   var Songs = window.PriTestUtauSongs;
   var Core = window.PriTestUtauCore;
+  var Pack = window.PriTestUtauPack;
   var STORAGE_KEY = "pritest-utau-state";
   var CONFIG_KEY = "pritest-utau-config";
   var MIN_PLAYERS = 2;
   var MAX_PLAYERS = 12;
+  var MODES = ["basic", "advanced", "dream"];
   var app = document.getElementById("ut-app");
   if (!app) return;
 
   var state = null;
   var draft = null; // 設定畫面的草稿
-  var ui = { revealed: false, aiCorrect: false, correct: {}, error: "" };
+  var ui = { revealed: false, aiCorrect: false, correct: {}, error: "", packMsg: "", packBusy: false, clearConfirm: false };
+  var packSongs = null; // 這台裝置已匯入的題庫包歌曲（null = 讀取中）
 
   function t(key, params) { return window.I18N.t(key, params); }
   function lang() { return window.I18N.getLang(); }
@@ -54,16 +61,19 @@
       var raw = localStorage.getItem(STORAGE_KEY);
       if (!raw) return null;
       var s = JSON.parse(raw);
-      if (!s || s.version !== 1 || !s.config || !s.current) return null;
+      // version 1 是舊版進階模式（玩家照指定方式唱），規則不相容，直接捨棄
+      if (!s || s.version !== 2 || !s.config || !s.current) return null;
       return s;
     } catch (e) {
       return null;
     }
   }
 
-  // 上一次的設定（回到設定畫面時沿用）
+  // 上一次的設定（回到設定畫面時沿用；題庫包歌曲不存，每次從 IndexedDB 讀）
   function saveConfig(config) {
-    try { localStorage.setItem(CONFIG_KEY, JSON.stringify(config)); } catch (e) { /* 忽略 */ }
+    var copy = JSON.parse(JSON.stringify(config));
+    delete copy.packSongs;
+    try { localStorage.setItem(CONFIG_KEY, JSON.stringify(copy)); } catch (e) { /* 忽略 */ }
   }
 
   function loadConfig() {
@@ -83,6 +93,7 @@
   }
 
   function commit(next) {
+    stopAll();
     state = next;
     resetRoundUi();
     save();
@@ -92,18 +103,23 @@
 
   // ---------------- 設定畫面 ----------------
 
+  function allCategories() { return Songs.categories.map(function (c) { return c.id; }); }
+  function allVariants() { return Songs.variants.map(function (v) { return v.id; }); }
+
   function newDraft() {
     var prev = loadConfig();
     if (prev && prev.players && prev.players.length >= MIN_PLAYERS) {
       return {
-        mode: prev.mode === "advanced" ? "advanced" : "basic",
+        mode: MODES.indexOf(prev.mode) >= 0 ? prev.mode : "basic",
         names: prev.players.map(function (p) { return p.name; }),
         aiBonus: prev.aiBonus,
         scoreTable: prev.scoreTable.slice(),
         regions: (prev.regions || []).slice(),
         decades: (prev.decades || []).slice(),
         categories: (prev.categories || allCategories()).slice(),
-        styles: (prev.styles || []).slice()
+        variants: (prev.variants || allVariants()).slice(),
+        clipSeconds: prev.clipSeconds || 12,
+        randomSpeed: !!prev.randomSpeed
       };
     }
     var count = 4;
@@ -117,15 +133,16 @@
       regions: Songs.regions.map(function (r) { return r.id; }),
       decades: Songs.decades(),
       categories: allCategories(),
-      styles: Songs.styles.map(function (s) { return s.id; })
+      variants: allVariants(),
+      clipSeconds: 12,
+      randomSpeed: false
     };
   }
 
-  function allCategories() { return Songs.categories.map(function (c) { return c.id; }); }
-
   // 把某一個篩選條件換成單一值後的首數（勾選框旁邊的數字用）
   function countWith(field, value) {
-    var cfg = { regions: draft.regions, decades: draft.decades, categories: draft.categories };
+    var cfg = { packSongs: packSongs || [], regions: draft.regions, decades: draft.decades,
+      categories: draft.categories, variants: draft.variants };
     cfg[field] = [value];
     return Core.songPool(cfg).length;
   }
@@ -153,7 +170,12 @@
       regions: draft.regions.slice(),
       decades: draft.decades.slice(),
       categories: draft.categories.slice(),
-      styles: draft.styles.slice()
+      variants: draft.variants.slice(),
+      packSongs: draft.mode === "advanced" ? (packSongs || []).map(function (s) {
+        return { id: s.id, t: s.t, a: s.a, y: s.y, r: s.r, c: s.c, clips: s.clips, variants: s.variants };
+      }) : [],
+      clipSeconds: Number(draft.clipSeconds) || 0,
+      randomSpeed: !!draft.randomSpeed
     };
   }
 
@@ -184,16 +206,117 @@
     return t("ut_score_n_right", { n: k });
   }
 
+  function refreshPack() {
+    if (!Pack) { packSongs = []; return Promise.resolve(); }
+    return Pack.list().then(function (list) {
+      packSongs = list;
+    }).catch(function () {
+      packSongs = [];
+    });
+  }
+
+  function importPack(file) {
+    if (!file) return;
+    ui.packBusy = true;
+    ui.packMsg = t("ut_pack_importing");
+    render();
+    Pack.importFile(file).then(function (res) {
+      ui.packMsg = t("ut_pack_imported", { added: res.added, total: res.total });
+      return refreshPack();
+    }).catch(function (e) {
+      ui.packMsg = t(/^ut_/.test(e.message) ? e.message : "ut_err_pack_format");
+    }).then(function () {
+      ui.packBusy = false;
+      render();
+    });
+  }
+
+  function renderPackSetup() {
+    var adv = el("div", { class: "ut-panel", id: "ut-pack-panel" }, [el("h2", { text: t("ut_pack_heading") })]);
+    adv.appendChild(el("p", { id: "ut-pack-status",
+      text: packSongs === null ? t("ut_loading") : t("ut_pack_status", { n: packSongs.length }) }));
+    var fileInput = el("input", { type: "file", id: "ut-pack-file", accept: ".zip,application/zip", class: "ut-file", disabled: ui.packBusy });
+    fileInput.addEventListener("change", function () { importPack(fileInput.files[0]); });
+    adv.appendChild(el("div", { class: "ut-field" }, [
+      el("label", { class: "ut-label", for: "ut-pack-file", text: t("ut_pack_import") }),
+      fileInput
+    ]));
+    if (packSongs && packSongs.length) {
+      adv.appendChild(el("button", { type: "button", id: "ut-btn-pack-clear", disabled: ui.packBusy,
+        text: ui.clearConfirm ? t("ut_pack_clear_confirm") : t("ut_pack_clear"),
+        onclick: function () {
+          if (!ui.clearConfirm) { ui.clearConfirm = true; render(); return; }
+          ui.clearConfirm = false;
+          Pack.clear().then(refreshPack).then(function () { ui.packMsg = ""; render(); });
+        } }));
+    }
+    if (ui.packMsg) adv.appendChild(el("p", { id: "ut-pack-msg", class: "ut-muted", text: ui.packMsg }));
+    adv.appendChild(el("p", { class: "ut-muted", text: t("ut_pack_hint") }));
+    if (!packSongs || !packSongs.length) return adv;
+
+    var regionRow = el("div", { class: "ut-field" }, [el("span", { class: "ut-label", text: t("ut_regions") })]);
+    Songs.regions.forEach(function (r) {
+      regionRow.appendChild(checkbox("ut-region-" + r.id, draft.regions.indexOf(r.id) >= 0,
+        t("ut_with_count", { label: lt(r.name), n: countWith("regions", r.id) }), function () {
+          toggleIn(draft.regions, r.id); render();
+        }));
+    });
+    adv.appendChild(regionRow);
+    var decadeRow = el("div", { class: "ut-field" }, [el("span", { class: "ut-label", text: t("ut_decades") })]);
+    Songs.decades().forEach(function (d) {
+      decadeRow.appendChild(checkbox("ut-decade-" + d, draft.decades.indexOf(d) >= 0,
+        t("ut_with_count", { label: t("ut_decade", { d: d }), n: countWith("decades", d) }), function () {
+          toggleIn(draft.decades, d); render();
+        }));
+    });
+    adv.appendChild(decadeRow);
+    var catRow = el("div", { class: "ut-field" }, [el("span", { class: "ut-label", text: t("ut_categories") })]);
+    Songs.categories.forEach(function (c) {
+      catRow.appendChild(checkbox("ut-cat-" + c.id, draft.categories.indexOf(c.id) >= 0,
+        t("ut_with_count", { label: lt(c.name), n: countWith("categories", c.id) }), function () {
+          toggleIn(draft.categories, c.id); render();
+        }));
+    });
+    adv.appendChild(catRow);
+    var variantRow = el("div", { class: "ut-field" }, [el("span", { class: "ut-label", text: t("ut_variants") })]);
+    Songs.variants.forEach(function (v) {
+      var label = checkbox("ut-variant-" + v.id, draft.variants.indexOf(v.id) >= 0,
+        t("ut_with_count", { label: lt(v.name), n: countWith("variants", v.id) }), function () {
+          toggleIn(draft.variants, v.id); render();
+        });
+      label.title = lt(v.desc);
+      variantRow.appendChild(label);
+    });
+    adv.appendChild(variantRow);
+    var poolSize = Core.songPool(draftConfig()).length;
+    adv.appendChild(el("p", { id: "ut-pool-size", class: poolSize ? "ut-muted" : "ut-error",
+      text: t("ut_pool_size", { n: poolSize }) }));
+    return adv;
+  }
+
+  function renderDreamSetup() {
+    var panel = el("div", { class: "ut-panel", id: "ut-dream-panel" }, [el("h2", { text: t("ut_dream_heading") })]);
+    panel.appendChild(el("div", { class: "ut-field" }, [
+      el("label", { for: "ut-clip-seconds", text: t("ut_clip_seconds") }),
+      numberInput({ id: "ut-clip-seconds", min: 5, max: 60 }, draft.clipSeconds, function (v) { draft.clipSeconds = v; })
+    ]));
+    panel.appendChild(el("div", { class: "ut-field" }, [
+      checkbox("ut-random-speed", draft.randomSpeed, t("ut_random_speed"), function (ev) { draft.randomSpeed = ev.target.checked; })
+    ]));
+    panel.appendChild(el("p", { class: "ut-muted", text: t("ut_dream_note") }));
+    return panel;
+  }
+
   function renderSetup() {
     if (!draft) draft = newDraft();
     var box = el("div", { class: "ut-setup" });
 
     // 模式
     var modePanel = el("div", { class: "ut-panel" }, [el("h2", { text: t("ut_mode") })]);
-    ["basic", "advanced"].forEach(function (m) {
+    MODES.forEach(function (m) {
       modePanel.appendChild(el("label", { class: "ut-radio" }, [
         el("input", { type: "radio", name: "ut-mode", id: "ut-mode-" + m, value: m, checked: draft.mode === m,
-          onchange: function () { draft.mode = m; render(); } }),
+          onchange: function () { draft.mode = m; ui.error = ""; render(); } }),
         el("strong", { text: t("ut_mode_" + m) }),
         el("span", { class: "ut-muted", text: t("ut_mode_" + m + "_desc") })
       ]));
@@ -248,45 +371,8 @@
       onclick: function () { draft.scoreTable = Core.defaultScoreTable(draft.names.length); render(); } }));
     box.appendChild(scorePanel);
 
-    // 進階：歌單篩選
-    if (draft.mode === "advanced") {
-      var adv = el("div", { class: "ut-panel" }, [el("h2", { text: t("ut_song_filter") })]);
-      var regionRow = el("div", { class: "ut-field" }, [el("span", { class: "ut-label", text: t("ut_regions") })]);
-      Songs.regions.forEach(function (r) {
-        regionRow.appendChild(checkbox("ut-region-" + r.id, draft.regions.indexOf(r.id) >= 0,
-          t("ut_with_count", { label: lt(r.name), n: countWith("regions", r.id) }), function () {
-          toggleIn(draft.regions, r.id); render();
-        }));
-      });
-      adv.appendChild(regionRow);
-      var decadeRow = el("div", { class: "ut-field" }, [el("span", { class: "ut-label", text: t("ut_decades") })]);
-      Songs.decades().forEach(function (d) {
-        decadeRow.appendChild(checkbox("ut-decade-" + d, draft.decades.indexOf(d) >= 0,
-          t("ut_with_count", { label: t("ut_decade", { d: d }), n: countWith("decades", d) }), function () {
-          toggleIn(draft.decades, d); render();
-        }));
-      });
-      adv.appendChild(decadeRow);
-      var catRow = el("div", { class: "ut-field" }, [el("span", { class: "ut-label", text: t("ut_categories") })]);
-      Songs.categories.forEach(function (c) {
-        catRow.appendChild(checkbox("ut-cat-" + c.id, draft.categories.indexOf(c.id) >= 0,
-          t("ut_with_count", { label: lt(c.name), n: countWith("categories", c.id) }), function () {
-            toggleIn(draft.categories, c.id); render();
-          }));
-      });
-      adv.appendChild(catRow);
-      var styleRow = el("div", { class: "ut-field" }, [el("span", { class: "ut-label", text: t("ut_styles") })]);
-      Songs.styles.forEach(function (s) {
-        styleRow.appendChild(checkbox("ut-style-" + s.id, draft.styles.indexOf(s.id) >= 0, lt(s.name), function () {
-          toggleIn(draft.styles, s.id); render();
-        }));
-      });
-      adv.appendChild(styleRow);
-      var poolSize = Core.songPool(draft).length;
-      adv.appendChild(el("p", { id: "ut-pool-size", class: poolSize ? "ut-muted" : "ut-error",
-        text: t("ut_pool_size", { n: poolSize }) }));
-      box.appendChild(adv);
-    }
+    if (draft.mode === "advanced") box.appendChild(renderPackSetup());
+    if (draft.mode === "dream") box.appendChild(renderDreamSetup());
 
     box.appendChild(el("p", { class: "ut-error", text: ui.error }));
     box.appendChild(el("div", { class: "ut-actions" }, [
@@ -317,37 +403,95 @@
     return id;
   }
 
-  function songLine(songId, styleId) {
-    var song = Songs.byId(songId);
+  function songLine(song, variantId) {
     if (!song) return "";
     var line = t("ut_song_line", { title: song.t, artist: song.a, year: song.y });
-    var style = Songs.style(styleId);
-    return style ? line + t("ut_style_suffix", { style: lt(style.name) }) : line;
+    var variant = Songs.variant(variantId);
+    return variant ? line + t("ut_style_suffix", { style: lt(variant.name) }) : line;
+  }
+
+  function currentPackSong() {
+    return state && state.current.songId ? Core.findPackSong(state.config, state.current.songId) : null;
   }
 
   function renderTopic() {
+    if (state.config.mode === "advanced") return renderAdvancedTopic();
+    if (state.config.mode === "dream") return renderDreamTopic();
+    var panel = el("div", { class: "ut-panel ut-topic", id: "ut-topic" });
+    panel.appendChild(el("p", { text: t("ut_basic_hint", { name: nameOf(state.current.singerId) }) }));
+    return panel;
+  }
+
+  // ---------------- 進階模式：播放題庫包 ----------------
+
+  var audio = { main: new Audio(), answer: new Audio(), keys: { main: null, answer: null }, urls: { main: null, answer: null } };
+
+  // 先把音檔放進 <audio>，讓按鈕在點擊當下就能同步 play()（iOS 的限制）
+  function prepareAudio(slot, song, variant) {
+    var key = song ? song.id + "|" + variant : null;
+    if (audio.keys[slot] === key) return;
+    audio.keys[slot] = key;
+    audio[slot].pause();
+    if (audio.urls[slot]) URL.revokeObjectURL(audio.urls[slot]);
+    audio.urls[slot] = null;
+    audio[slot].removeAttribute("src");
+    if (!key) return;
+    Pack.getClip(song, variant).then(function (blob) {
+      if (audio.keys[slot] !== key) return;
+      if (!blob) { ui.error = t("ut_err_clip_missing"); render(); return; }
+      audio.urls[slot] = URL.createObjectURL(blob);
+      audio[slot].src = audio.urls[slot];
+      render();
+    }).catch(function () {
+      ui.error = t("ut_err_clip_missing");
+      render();
+    });
+  }
+
+  function playAudio(slot) {
+    var other = slot === "main" ? "answer" : "main";
+    audio[other].pause();
+    audio[slot].currentTime = 0;
+    var p = audio[slot].play();
+    if (p && p.catch) p.catch(function () { /* 被瀏覽器擋下時再按一次即可 */ });
+  }
+
+  function stopAll() {
+    audio.main.pause();
+    audio.answer.pause();
+    stopYt();
+  }
+
+  function renderAdvancedTopic() {
     var cur = state.current;
     var singer = nameOf(cur.singerId);
-    var panel = el("div", { class: "ut-panel ut-topic", id: "ut-topic" });
-    if (state.config.mode !== "advanced") {
-      panel.appendChild(el("p", { text: t("ut_basic_hint", { name: singer }) }));
-      return panel;
-    }
+    var song = currentPackSong();
+    var variant = Songs.variant(cur.variant);
+    prepareAudio("main", song, cur.variant);
+    var ready = !!audio.urls.main;
+    var panel = el("div", { class: "ut-panel ut-topic", id: "ut-topic" }, [
+      el("p", { text: t("ut_advanced_hint", { name: singer }) }),
+      variant ? el("div", { class: "ut-style-badge", id: "ut-variant-badge", text: lt(variant.name) }) : null,
+      variant ? el("p", { class: "ut-style-desc", text: lt(variant.desc) }) : null,
+      el("div", { class: "ut-actions" }, [
+        el("button", { type: "button", id: "ut-btn-play", class: "ut-primary", disabled: !ready,
+          text: ready ? t("ut_btn_play") : t("ut_loading"), onclick: function () { playAudio("main"); } }),
+        el("button", { type: "button", id: "ut-btn-stop", text: t("ut_btn_stop"), onclick: function () { audio.main.pause(); } })
+      ])
+    ]);
+    // 出題者偷看答案（判定答對用），其他人不要看
     if (!ui.revealed) {
-      panel.appendChild(el("p", { text: t("ut_pass_device", { name: singer }) }));
-      panel.appendChild(el("button", { type: "button", id: "ut-btn-reveal", class: "ut-primary",
-        text: t("ut_btn_reveal", { name: singer }), onclick: function () { ui.revealed = true; render(); } }));
+      panel.appendChild(el("div", { class: "ut-actions" }, [
+        el("button", { type: "button", id: "ut-btn-reveal", text: t("ut_btn_peek", { name: singer }),
+          onclick: function () { ui.revealed = true; render(); } })
+      ]));
       return panel;
     }
-    var song = Songs.byId(cur.songId);
-    var style = Songs.style(cur.style);
     var region = song ? Songs.region(song.r) : null;
     var category = song ? Songs.category(song.c) : null;
     panel.appendChild(el("div", { class: "ut-song-card", id: "ut-song-card" }, [
       el("div", { class: "ut-song-title", text: song ? song.t : "" }),
-      el("div", { class: "ut-song-meta", text: song ? song.a + "（" + song.y + (region ? "・" + lt(region.name) : "") + (category ? "・" + lt(category.name) : "") + "）" : "" }),
-      style ? el("div", { class: "ut-style-badge", text: lt(style.name) }) : null,
-      style ? el("p", { class: "ut-style-desc", text: lt(style.desc) }) : null
+      el("div", { class: "ut-song-meta", text: song ? song.a + "（" + song.y + (region ? "・" + lt(region.name) : "") + (category ? "・" + lt(category.name) : "") + "）" : "" })
     ]));
     panel.appendChild(el("div", { class: "ut-actions" }, [
       el("button", { type: "button", id: "ut-btn-redraw", text: t("ut_btn_redraw"),
@@ -357,6 +501,197 @@
     ]));
     return panel;
   }
+
+  // ---------------- 夢想模式：YouTube ----------------
+
+  var yt = { host: null, player: null, ready: false, loading: false, videoId: null, wanted: null, timer: null,
+    playing: false, pendingStart: false, error: null };
+
+  function ytErrorKey(code) {
+    if (code === 101 || code === 150) return "ut_err_yt_embed";
+    if (code === 100 || code === 2) return "ut_err_yt_notfound";
+    return "ut_err_yt_generic";
+  }
+
+  function ensureYt(videoId) {
+    if (!yt.host) {
+      yt.host = el("div", { class: "ut-yt-host", id: "ut-yt-host" }, [
+        el("div", { id: "ut-yt-player" }),
+        el("div", { class: "ut-yt-cover", id: "ut-yt-cover" })
+      ]);
+      document.body.appendChild(yt.host);
+    }
+    yt.host.hidden = false;
+    yt.host.querySelector("#ut-yt-cover").textContent = yt.playing ? "♪ ♪ ♪" : "♪";
+    yt.wanted = videoId;
+    if (!window.YT || !window.YT.Player) {
+      if (!yt.loading) {
+        yt.loading = true;
+        window.onYouTubeIframeAPIReady = function () { ensureYt(yt.wanted); };
+        var script = document.createElement("script");
+        script.src = "https://www.youtube.com/iframe_api";
+        script.onerror = function () { yt.error = "ut_err_yt_generic"; render(); };
+        document.head.appendChild(script);
+      }
+      return;
+    }
+    if (!yt.player) {
+      yt.videoId = videoId;
+      yt.player = new window.YT.Player("ut-yt-player", {
+        width: 200,
+        height: 200,
+        videoId: videoId,
+        playerVars: { controls: 0, disablekb: 1, fs: 0, rel: 0, playsinline: 1, iv_load_policy: 3 },
+        events: {
+          onReady: function () { yt.ready = true; render(); },
+          onStateChange: onYtState,
+          onError: function (e) { yt.error = ytErrorKey(e.data); stopYt(); render(); }
+        }
+      });
+      return;
+    }
+    if (yt.ready && yt.videoId !== videoId) {
+      stopYt();
+      yt.error = null;
+      yt.videoId = videoId;
+      yt.player.cueVideoById(videoId);
+    }
+  }
+
+  function hideYt() {
+    if (!yt.host) return;
+    stopYt();
+    yt.host.hidden = true;
+  }
+
+  function stopYt() {
+    if (yt.timer) clearInterval(yt.timer);
+    yt.timer = null;
+    yt.pendingStart = false;
+    if (yt.player && yt.ready && yt.playing) yt.player.pauseVideo();
+    yt.playing = false;
+  }
+
+  function dreamClip() { return Number(state.config.clipSeconds) || 12; }
+
+  // 影片開始播放後才一定拿得到長度：第一次播放先靜音從頭播，拿到長度再跳到隨機起點
+  function onYtState(e) {
+    if (e.data !== 1 || !state || !state.current.dream) return;
+    var d = state.current.dream;
+    var p = yt.player;
+    if (!d.title) {
+      var data = p.getVideoData ? p.getVideoData() : null;
+      if (data && data.title) { state = Core.setDream(state, { title: data.title }); save(); }
+    }
+    if (yt.pendingStart) {
+      yt.pendingStart = false;
+      var start = Core.randomStart(p.getDuration(), dreamClip());
+      state = Core.setDream(state, { start: start });
+      save();
+      p.seekTo(start, true);
+      p.unMute();
+      watchClipEnd(start);
+      render();
+    }
+  }
+
+  function watchClipEnd(start) {
+    if (yt.timer) clearInterval(yt.timer);
+    yt.timer = setInterval(function () {
+      if (!yt.player || yt.pendingStart) return;
+      if (yt.player.getCurrentTime() >= start + dreamClip()) { stopYt(); render(); }
+    }, 200);
+  }
+
+  function playDream(reroll) {
+    var d = state.current.dream;
+    var p = yt.player;
+    if (!p || !yt.ready) return;
+    stopYt();
+    yt.error = null;
+    yt.playing = true;
+    if (p.setPlaybackRate) p.setPlaybackRate(d.rate || 1);
+    var start = reroll ? null : d.start;
+    if (start === null) {
+      var dur = p.getDuration ? p.getDuration() : 0;
+      if (dur > 0) {
+        start = Core.randomStart(dur, dreamClip());
+        state = Core.setDream(state, { start: start });
+        save();
+      }
+    }
+    if (start === null) {
+      yt.pendingStart = true;
+      p.mute();
+      p.playVideo();
+    } else {
+      p.unMute();
+      p.seekTo(start, true);
+      p.playVideo();
+      watchClipEnd(start);
+    }
+    render();
+  }
+
+  function renderDreamTopic() {
+    var cur = state.current;
+    var d = cur.dream;
+    var singer = nameOf(cur.singerId);
+    var panel = el("div", { class: "ut-panel ut-topic", id: "ut-topic" });
+    if (!d.videoId) {
+      if (!ui.revealed) {
+        panel.appendChild(el("p", { text: t("ut_pass_device", { name: singer }) }));
+        panel.appendChild(el("button", { type: "button", id: "ut-btn-reveal", class: "ut-primary",
+          text: t("ut_btn_dream_enter", { name: singer }), onclick: function () { ui.revealed = true; render(); } }));
+        return panel;
+      }
+      var input = el("input", { type: "url", id: "ut-dream-url", class: "ut-url-input",
+        placeholder: "https://www.youtube.com/watch?v=…", autocomplete: "off" });
+      var submit = function () {
+        var id = Core.parseYoutubeId(input.value);
+        if (!id) { ui.error = t("ut_err_bad_url"); render(); return; }
+        ui.error = "";
+        ui.revealed = false;
+        yt.error = null;
+        state = Core.setDream(state, { videoId: id, start: null, title: "" });
+        save();
+        render();
+      };
+      input.addEventListener("keydown", function (ev) { if (ev.key === "Enter") submit(); });
+      panel.appendChild(el("p", { text: t("ut_dream_url_label") }));
+      panel.appendChild(input);
+      panel.appendChild(el("p", { class: "ut-error", text: ui.error }));
+      panel.appendChild(el("div", { class: "ut-actions" }, [
+        el("button", { type: "button", id: "ut-btn-dream-set", class: "ut-primary", text: t("ut_btn_dream_set"), onclick: submit })
+      ]));
+      return panel;
+    }
+    var status = yt.error ? t(yt.error) : !yt.ready ? t("ut_loading") : yt.playing ? t("ut_dream_playing") : t("ut_dream_ready");
+    panel.appendChild(el("p", { text: t("ut_dream_hint", { name: singer, sec: dreamClip() }) }));
+    if (d.rate && d.rate !== 1) {
+      panel.appendChild(el("div", { class: "ut-style-badge", id: "ut-rate-badge", text: t("ut_dream_rate", { rate: d.rate }) }));
+    }
+    panel.appendChild(el("p", { id: "ut-dream-status", class: yt.error ? "ut-error" : "ut-muted", text: status }));
+    var blocked = !yt.ready || !!yt.error;
+    panel.appendChild(el("div", { class: "ut-actions" }, [
+      el("button", { type: "button", id: "ut-btn-dream-play", class: "ut-primary", disabled: blocked,
+        text: d.start === null ? t("ut_btn_play") : t("ut_btn_replay_clip"), onclick: function () { playDream(false); } }),
+      el("button", { type: "button", id: "ut-btn-dream-reroll", disabled: blocked,
+        text: t("ut_btn_reroll"), onclick: function () { playDream(true); } }),
+      el("button", { type: "button", id: "ut-btn-stop", text: t("ut_btn_stop"), onclick: function () { stopYt(); render(); } }),
+      el("button", { type: "button", id: "ut-btn-dream-reset", text: t("ut_btn_dream_reset"),
+        onclick: function () {
+          stopYt();
+          yt.error = null;
+          state = Core.setDream(state, { videoId: null, start: null, title: "" });
+          save();
+          render();
+        } })
+    ]));
+    return panel;
+  }
+
+  // ---------------- 判定與紀錄 ----------------
 
   function correctIds() {
     return Object.keys(ui.correct).filter(function (id) { return ui.correct[id]; });
@@ -401,7 +736,8 @@
     var names = h.correctIds.map(nameOf);
     var parts = [
       t("ut_hist_round", { n: h.round, name: nameOf(h.singerId) }),
-      h.songId ? songLine(h.songId, h.style) : null,
+      h.song ? songLine(h.song, h.variant) : null,
+      h.dream && h.dream.videoId ? t("ut_hist_dream", { title: h.dream.title || h.dream.videoId }) : null,
       t("ut_hist_ai", { result: h.aiCorrect ? t("ut_ai_on") : t("ut_ai_off") }),
       t("ut_hist_correct", { list: names.length ? names.join(t("ut_list_sep")) : t("ut_nobody") })
     ];
@@ -416,13 +752,29 @@
 
   function renderLastRound() {
     var h = state.history[state.history.length - 1];
-    if (!h) return null;
+    if (!h) {
+      prepareAudio("answer", null, null);
+      return null;
+    }
+    var answer = null;
+    if (state.config.mode === "advanced" && h.songId) {
+      var song = Core.findPackSong(state.config, h.songId);
+      var has = !!(song && song.clips && song.clips.original);
+      prepareAudio("answer", has ? song : null, "original");
+      answer = has ? el("button", { type: "button", id: "ut-btn-play-answer", disabled: !audio.urls.answer,
+        text: t("ut_btn_play_answer"), onclick: function () { playAudio("answer"); } }) : null;
+    }
+    if (state.config.mode === "dream" && h.dream && h.dream.videoId) {
+      answer = el("a", { id: "ut-answer-link", href: "https://www.youtube.com/watch?v=" + h.dream.videoId,
+        target: "_blank", rel: "noopener", text: t("ut_open_youtube") });
+    }
     return el("div", { class: "ut-panel ut-last", id: "ut-last-round" }, [
       el("h2", { text: t("ut_last_round") }),
       el("p", { text: historyText(h) }),
       el("p", { class: "ut-preview", text: deltaText(h) }),
-      state.prev ? el("button", { type: "button", id: "ut-btn-undo", text: t("ut_btn_undo"),
-        onclick: function () { commit(Core.undo(state)); } }) : null
+      answer ? el("div", { class: "ut-actions" }, [answer]) : null,
+      state.prev ? el("div", { class: "ut-actions" }, [el("button", { type: "button", id: "ut-btn-undo", text: t("ut_btn_undo"),
+        onclick: function () { commit(Core.undo(state)); } })]) : null
     ]);
   }
 
@@ -495,10 +847,15 @@
     if (!state) app.appendChild(renderSetup());
     else if (state.finished) app.appendChild(renderFinal());
     else app.appendChild(renderGame());
+    var dreamId = state && !state.finished && state.config.mode === "dream" && state.current.dream ? state.current.dream.videoId : null;
+    if (dreamId) ensureYt(dreamId);
+    else hideYt();
+    document.body.classList.toggle("ut-has-player", !!dreamId);
   }
 
   state = load();
   render();
+  refreshPack().then(render);
   window.addEventListener("i18n:change", render);
 
   // 測試用（tools/utau_check）

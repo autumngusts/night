@@ -17,3 +17,8 @@ database-debug.log
 ui-debug.log
 .firebase/
 .superpowers/
+
+# 我不會唱歌：題庫包製作工具的虛擬環境、下載快取與輸出（音檔不進 Git）
+tools/utau_clips/.venv/
+tools/utau_clips/cache/
+tools/utau_clips/out/

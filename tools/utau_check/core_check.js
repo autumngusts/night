@@ -105,36 +105,69 @@ var fake = { config: basic, scores: { p1: 5, p2: 7, p3: 5, p4: 1 } };
 assert.deepStrictEqual(Core.ranking(fake).map(function (x) { return x.id + ":" + x.rank; }),
   ["p2:1", "p1:2", "p3:2", "p4:4"]);
 
-// ---- 進階模式 ----
-var adv = { mode: "advanced", players: players(3), aiBonus: 1, scoreTable: [0, 2, 1],
-  regions: ["ko"], decades: [2020], styles: ["vocal", "lyrics"] };
-var pool = Core.songPool(adv);
-assert.ok(pool.length > 3);
+// ---- 進階模式（題庫包）----
+// 假的題庫包：5 首，版本各不相同
+var packSongs = [
+  { id: "ja:A", t: "A", a: "x", y: 2019, r: "ja", c: "anime", variants: ["original", "instrumental", "vocal"] },
+  { id: "ja:B", t: "B", a: "x", y: 2015, r: "ja", c: "pop", variants: ["original", "rhythm"] },
+  { id: "ja:C", t: "C", a: "x", y: 2021, r: "ja", c: "anime", variants: ["original", "instrumental", "melody"] },
+  { id: "ko:D", t: "D", a: "x", y: 2020, r: "ko", c: "idol", variants: ["original", "speed"] },
+  { id: "ja:E", t: "E", a: "x", y: 1995, r: "ja", c: "anime", variants: ["original", "instrumental"] }
+];
+var adv = { mode: "advanced", players: players(3), aiBonus: 1, scoreTable: [0, 2, 1], packSongs: packSongs,
+  regions: ["ja"], decades: [2010, 2020], categories: ["anime", "pop"], variants: ["instrumental", "rhythm", "melody"] };
+var pool = Core.songPool(adv).map(function (x) { return x.id; }).sort();
+assert.deepStrictEqual(pool, ["ja:A", "ja:B", "ja:C"], "region × decade × category × variant");
+assert.deepStrictEqual(Core.songPool(Object.assign({}, adv, { variants: ["speed"] })), [], "no song has the variant");
 s = Core.createGame(adv, r);
 var seen = [s.current.songId];
 for (i = 1; i < pool.length; i++) {
   s = Core.settle(s, { aiCorrect: false, correctIds: [] }, r);
   seen.push(s.current.songId);
 }
-assert.strictEqual(new Set(seen).size, pool.length, "no song repeats until the pool is exhausted");
-seen.forEach(function (id) {
-  var song = Songs.byId(id);
-  assert.strictEqual(song.r, "ko");
-  assert.strictEqual(Songs.decadeOf(song), 2020);
-});
-s = Core.settle(s, { aiCorrect: false, correctIds: [] }, r);
-assert.ok(Songs.byId(s.current.songId), "pool refills after exhaustion");
-assert.ok(["vocal", "lyrics"].indexOf(s.current.style) >= 0);
+assert.deepStrictEqual(seen.slice().sort(), pool, "no song repeats until the pool is exhausted");
+for (i = 0; i < 20; i++) {
+  s = Core.settle(s, { aiCorrect: false, correctIds: [] }, r);
+  var song = Core.findPackSong(s.config, s.current.songId);
+  assert.ok(song.variants.indexOf(s.current.variant) >= 0, "variant exists on the song");
+  assert.ok(adv.variants.indexOf(s.current.variant) >= 0, "variant is selected");
+  assert.notStrictEqual(s.current.variant, "original", "original is answer-only");
+}
+var last = s.history[s.history.length - 1];
+assert.ok(last.song && last.song.t, "history keeps the song title");
 var re = Core.redrawSong(s, r);
 assert.strictEqual(re.current.singerId, s.current.singerId, "redraw keeps singer");
-
-var animeOnly = { mode: "advanced", players: players(3), aiBonus: 1, scoreTable: [0, 2, 1],
-  regions: ["ja"], decades: Songs.decades(), categories: ["anime"], styles: ["vocal"] };
-Core.songPool(animeOnly).forEach(function (song) { assert.strictEqual(song.c, "anime"); });
-assert.strictEqual(Core.songPool(Object.assign({}, animeOnly, { categories: undefined })).length, countRegion("ja"),
-  "missing categories (old config) means all");
+assert.throws(function () { Core.createGame(Object.assign({}, adv, { packSongs: [] })); }, /ut_err_no_pack/);
+assert.throws(function () { Core.createGame(Object.assign({}, adv, { variants: [] })); }, /ut_err_variants/);
 assert.throws(function () { Core.createGame(Object.assign({}, adv, { decades: [1960] })); }, /ut_err_pool/);
-assert.throws(function () { Core.createGame(Object.assign({}, adv, { styles: [] })); }, /ut_err_styles/);
 assert.throws(function () { Core.createGame(Object.assign({}, basic, { players: players(1), scoreTable: [0] })); }, /ut_err_players/);
+
+// ---- 夢想模式（YouTube）----
+[
+  ["https://www.youtube.com/watch?v=dQw4w9WgXcQ", "dQw4w9WgXcQ"],
+  ["https://youtu.be/dQw4w9WgXcQ?si=abc", "dQw4w9WgXcQ"],
+  ["https://www.youtube.com/watch?list=PL1&v=dQw4w9WgXcQ&t=30", "dQw4w9WgXcQ"],
+  ["https://m.youtube.com/shorts/dQw4w9WgXcQ", "dQw4w9WgXcQ"],
+  ["https://music.youtube.com/watch?v=dQw4w9WgXcQ", "dQw4w9WgXcQ"],
+  ["https://www.youtube.com/embed/dQw4w9WgXcQ", "dQw4w9WgXcQ"],
+  ["dQw4w9WgXcQ", "dQw4w9WgXcQ"],
+  ["https://example.com/watch?v=dQw4w9WgXcQ", null],
+  ["hello", null]
+].forEach(function (c) { assert.strictEqual(Core.parseYoutubeId(c[0]), c[1], c[0]); });
+for (i = 0; i < 50; i++) {
+  var st = Core.randomStart(240, 12, r);
+  assert.ok(st >= 36 && st <= 240 * 0.9 - 12, "start in the middle: " + st);
+}
+assert.strictEqual(Core.randomStart(10, 12, r), 0, "short video");
+var dream = { mode: "dream", players: players(3), aiBonus: 1, scoreTable: [0, 2, 1], clipSeconds: 12, randomSpeed: true };
+s = Core.createGame(dream, r);
+assert.deepStrictEqual(Object.keys(s.current.dream).sort(), ["rate", "start", "title", "videoId"]);
+assert.ok([0.75, 1.25].indexOf(s.current.dream.rate) >= 0);
+s = Core.setDream(s, { videoId: "dQw4w9WgXcQ", start: 42, title: "T" });
+s = Core.settle(s, { aiCorrect: true, correctIds: [] }, r);
+assert.deepStrictEqual(s.history[0].dream, { videoId: "dQw4w9WgXcQ", title: "T" });
+assert.strictEqual(s.current.dream.videoId, null, "new round needs a new link");
+assert.strictEqual(Core.createGame(Object.assign({}, dream, { randomSpeed: false }), r).current.dream.rate, 1);
+assert.throws(function () { Core.createGame(Object.assign({}, dream, { clipSeconds: 3 })); }, /ut_err_clip_seconds/);
 
 console.log("utau core_check OK (" + Songs.songs.length + " songs)");

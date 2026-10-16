@@ -1,4 +1,5 @@
-// 我不會唱歌（utau）進階模式的歌單、分類與演唱方式。
+// 我不會唱歌（utau）的歌單、分類與題庫包音檔版本。
+// 歌單是題庫包製作工具（tools/utau_clips/build_pack.py）查歌名／歌手／年份／分類用的目錄。
 // 新增歌曲：在對應「地區＋分類」的區塊加一行 S(年份, "歌名", "歌手")。年代由年份自動換算（1985 → 1980s）。
 // 選曲方針（使用者指定）：以日本歌為主並細分類別；歐美、韓國只留在台灣／日本也廣為人知的歌。
 // 歌名、歌手保留原文；id 由地區＋歌名組成，同地區內不要重複歌名。
@@ -21,42 +22,32 @@
     { id: "classic", name: { zh: "懷舊・演歌", ja: "昭和歌謡・演歌", en: "Classics & enka" } }
   ];
 
-  var STYLES = [
+  // 進階模式題庫包的音檔版本（由 tools/utau_clips/build_pack.py 製作；original 只在公布答案時播放）
+  var VARIANTS = [
     {
       id: "instrumental",
-      name: { zh: "純樂器", ja: "楽器のみ", en: "Instrumental" },
-      desc: {
-        zh: "不能唱歌詞，只能用哼、口哨或模仿樂器的聲音表現旋律",
-        ja: "歌詞は禁止。ハミング・口笛・楽器のモノマネでメロディだけを表現する",
-        en: "No lyrics: hum, whistle or imitate instruments to carry the melody"
-      }
+      name: { zh: "純樂器", ja: "インスト", en: "Instrumental" },
+      desc: { zh: "拿掉人聲，只剩伴奏", ja: "ボーカルを消した伴奏だけ", en: "Backing track only, vocals removed" }
     },
     {
       id: "vocal",
-      name: { zh: "純人聲", ja: "アカペラ", en: "A cappella" },
-      desc: {
-        zh: "沒有伴奏，照原曲的旋律與歌詞清唱",
-        ja: "伴奏なしで、原曲のメロディと歌詞のままアカペラで歌う",
-        en: "No backing: sing the original melody and lyrics unaccompanied"
-      }
+      name: { zh: "純人聲", ja: "ボーカルのみ", en: "Vocals only" },
+      desc: { zh: "拿掉伴奏，只剩歌聲", ja: "伴奏を消した歌声だけ", en: "Vocals only, backing removed" }
     },
     {
-      id: "variation",
-      name: { zh: "變奏版", ja: "アレンジ版", en: "Variation" },
-      desc: {
-        zh: "把節奏或曲風整個換掉（例如抒情改搖滾、改饒舌、改演歌）",
-        ja: "リズムや曲調をガラッと変える（バラード→ロック、ラップ、演歌など）",
-        en: "Change the rhythm or genre (ballad as rock, rap, enka, etc.)"
-      }
+      id: "speed",
+      name: { zh: "變速變調", ja: "速度・キー変更", en: "Speed & pitch" },
+      desc: { zh: "整段加速升調或放慢降調", ja: "テンポとキーを上げる／下げる", en: "Sped up and raised, or slowed and lowered" }
     },
     {
-      id: "lyrics",
-      name: { zh: "歌詞變化版", ja: "替え歌", en: "New lyrics" },
-      desc: {
-        zh: "旋律照原曲，歌詞換成自己即興編的內容",
-        ja: "メロディは原曲のまま、歌詞を自分で即興の替え歌にする",
-        en: "Keep the original melody, improvise your own lyrics"
-      }
+      id: "rhythm",
+      name: { zh: "只有鼓＋貝斯", ja: "ドラム＋ベースのみ", en: "Drums & bass only" },
+      desc: { zh: "只剩節奏組，高難度", ja: "リズム隊だけ。高難度", en: "Rhythm section only. Hard!" }
+    },
+    {
+      id: "melody",
+      name: { zh: "八音盒／8bit", ja: "オルゴール／8bit", en: "Music box / 8-bit" },
+      desc: { zh: "歌聲旋律改用八音盒或 8bit 音色演奏", ja: "歌のメロディをオルゴールか8bit音で演奏", en: "The vocal melody replayed as a music box or 8-bit tune" }
     }
   ];
 
@@ -466,20 +457,20 @@
   }
 
   function byId(id) { return find(songs, id); }
-  function style(id) { return find(STYLES, id); }
+  function variant(id) { return find(VARIANTS, id); }
   function region_(id) { return find(REGIONS, id); }
   function category(id) { return find(CATEGORIES, id); }
 
   window.PriTestUtauSongs = {
     regions: REGIONS,
     categories: CATEGORIES,
-    styles: STYLES,
+    variants: VARIANTS,
     songs: songs,
     decadeOf: decadeOf,
     decades: decades,
     text: text,
     byId: byId,
-    style: style,
+    variant: variant,
     region: region_,
     category: category
   };

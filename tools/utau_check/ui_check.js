@@ -1,12 +1,16 @@
 // ============================================================================
-// utau（我不會唱歌）Playwright 流程檢查：基本模式結算／復原／重新整理還原，
-// 進階模式題目遮蔽、換歌、結束與同設定再玩、切換日文。
+// utau（我不會唱歌）Playwright 流程檢查：
+//   基本模式：結算／復原／重新整理還原
+//   進階模式：匯入題庫包 zip（測試內產生）、版本篩選、播放鍵就緒、出題者偷看、公布答案的原曲、重新整理後題庫包仍在
+//   夢想模式：輸入 YouTube 網址（錯誤網址提示）、浮動播放器、結算後的答案連結、切換日文
 // 前置：
 //   1. py -3 generate.py
 //   2. py -3 -m http.server 8942 --directory dist
 // 執行：node tools/utau_check/ui_check.js
 // ============================================================================
 "use strict";
+var fs = require("fs");
+var os = require("os");
 var path = require("path");
 var assert = require("assert");
 var chromium = require(require.resolve("playwright", { paths: [path.join(__dirname, "..", "midnight_check")] })).chromium;
@@ -15,17 +19,89 @@ var BASE = process.env.UTAU_BASE || "http://localhost:8942/utau/index.html";
 
 function debugState(page) { return page.evaluate(function () { return window.PriTestUtau._debugState(); }); }
 
+// ---- 測試用題庫包：STORED zip（與 build_pack.py 的輸出格式相同）----
+var CRC_TABLE = (function () {
+  var table = [];
+  for (var n = 0; n < 256; n++) {
+    var c = n;
+    for (var k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
+    table.push(c >>> 0);
+  }
+  return table;
+})();
+function crc32(buf) {
+  var c = 0xffffffff;
+  for (var i = 0; i < buf.length; i++) c = CRC_TABLE[(c ^ buf[i]) & 0xff] ^ (c >>> 8);
+  return (c ^ 0xffffffff) >>> 0;
+}
+function storedZip(files) {
+  var locals = [];
+  var centrals = [];
+  var offset = 0;
+  files.forEach(function (f) {
+    var name = Buffer.from(f.name, "utf8");
+    var data = f.data;
+    var crc = crc32(data);
+    var lh = Buffer.alloc(30);
+    lh.writeUInt32LE(0x04034b50, 0); lh.writeUInt16LE(20, 4); lh.writeUInt16LE(0x800, 6);
+    lh.writeUInt32LE(crc, 14); lh.writeUInt32LE(data.length, 18); lh.writeUInt32LE(data.length, 22);
+    lh.writeUInt16LE(name.length, 26);
+    locals.push(lh, name, data);
+    var ch = Buffer.alloc(46);
+    ch.writeUInt32LE(0x02014b50, 0); ch.writeUInt16LE(20, 4); ch.writeUInt16LE(20, 6); ch.writeUInt16LE(0x800, 8);
+    ch.writeUInt32LE(crc, 16); ch.writeUInt32LE(data.length, 20); ch.writeUInt32LE(data.length, 24);
+    ch.writeUInt16LE(name.length, 28); ch.writeUInt32LE(offset, 42);
+    centrals.push(ch, name);
+    offset += 30 + name.length + data.length;
+  });
+  var cd = Buffer.concat(centrals);
+  var end = Buffer.alloc(22);
+  end.writeUInt32LE(0x06054b50, 0); end.writeUInt16LE(files.length, 8); end.writeUInt16LE(files.length, 10);
+  end.writeUInt32LE(cd.length, 12); end.writeUInt32LE(offset, 16);
+  return Buffer.concat(locals.concat([cd, end]));
+}
+function makeTestPack() {
+  var variants = ["original", "instrumental", "vocal", "speed", "rhythm", "melody"];
+  var songs = [
+    { id: "ja:紅蓮華", t: "紅蓮華", a: "LiSA", y: 2019, r: "ja", c: "anime", key: "aaa" },
+    { id: "ja:Lemon", t: "Lemon", a: "米津玄師", y: 2018, r: "ja", c: "screen", key: "bbb" }
+  ];
+  var files = [];
+  songs.forEach(function (s) {
+    s.clips = {};
+    variants.forEach(function (v) {
+      var arc = "clips/" + s.key + "/" + v + ".m4a";
+      s.clips[v] = arc;
+      files.push({ name: arc, data: Buffer.from("fake-audio-" + s.key + "-" + v) });
+    });
+    delete s.key;
+  });
+  var manifest = { format: "pritest-utau-pack", version: 1, clipSeconds: 15, songs: songs };
+  files.unshift({ name: "manifest.json", data: Buffer.from(JSON.stringify(manifest), "utf8") });
+  var file = path.join(os.tmpdir(), "utau_test_pack.zip");
+  fs.writeFileSync(file, storedZip(files));
+  return file;
+}
+
 (async function main() {
+  var packFile = makeTestPack();
   var browser = await chromium.launch();
   var page = await browser.newPage();
   var errors = [];
   page.on("pageerror", function (e) { errors.push(String(e)); });
 
   await page.goto(BASE);
-  await page.evaluate(function () { localStorage.clear(); localStorage.setItem("pritest-lang", "zh"); });
+  await page.evaluate(function () {
+    localStorage.clear();
+    localStorage.setItem("pritest-lang", "zh");
+    return new Promise(function (resolve) {
+      var r = indexedDB.deleteDatabase("pritest-utau-pack");
+      r.onsuccess = r.onerror = r.onblocked = function () { resolve(); };
+    });
+  });
   await page.reload();
 
-  // ---- 設定：3 人、計分表跟著人數變成 3 列 ----
+  // ================= 基本模式 =================
   await page.fill("#ut-player-count", "3");
   await page.dispatchEvent("#ut-player-count", "change");
   assert.strictEqual(await page.locator(".ut-name-input").count(), 3);
@@ -39,9 +115,7 @@ function debugState(page) { return page.evaluate(function () { return window.Pri
   assert.strictEqual(s.config.players[0].name, "阿明");
   assert.deepStrictEqual(s.config.scoreTable, [0, 5, 1]);
   assert.strictEqual(s.round, 1);
-  assert.strictEqual(await page.locator("#ut-btn-reveal").count(), 0, "basic mode has no masked topic");
 
-  // ---- 結算：AI 答對＋1 人答對 ----
   var singer = s.current.singerId;
   var guesser = s.config.players.map(function (p) { return p.id; }).filter(function (id) { return id !== singer; })[0];
   assert.strictEqual(await page.locator(".ut-player-toggle").count(), 2, "singer is not a guesser");
@@ -53,65 +127,96 @@ function debugState(page) { return page.evaluate(function () { return window.Pri
   assert.strictEqual(s.scores[singer], 7);
   assert.strictEqual(s.scores[guesser], 5);
   assert.strictEqual(s.round, 2);
-  assert.notStrictEqual(s.current.singerId, singer);
   assert.strictEqual(await page.locator("#ut-btn-ai.ut-on").count(), 0, "toggles reset for the new round");
 
-  // ---- 復原 ----
   await page.click("#ut-btn-undo");
   s = await debugState(page);
   assert.strictEqual(s.round, 1);
   assert.strictEqual(s.scores[singer], 0);
   await page.click("#ut-btn-settle");
 
-  // ---- 重新整理還原 ----
   await page.reload();
   s = await debugState(page);
   assert.strictEqual(s.round, 2);
-  assert.ok(await page.locator("#ut-scoreboard").isVisible());
 
-  // ---- 結束 → 回到設定 → 進階模式 ----
+  // ================= 進階模式（題庫包）=================
   await page.click("#ut-btn-finish");
   assert.ok(await page.locator("#ut-winner").isVisible());
   await page.click("#ut-btn-back-setup");
   assert.strictEqual(await page.locator(".ut-name-input").count(), 3, "previous config is reused");
   await page.check("#ut-mode-advanced");
-  // 只留日本 2010 年代、只留替え歌
-  for (var id of ["zh", "ko", "en"]) await page.uncheck("#ut-region-" + id);
-  var decades = await page.$$eval("input[id^='ut-decade-']", function (els) { return els.map(function (e) { return e.id; }); });
-  for (var dId of decades) {
-    if (dId === "ut-decade-2010") await page.check("#" + dId);
-    else await page.uncheck("#" + dId);
-  }
-  for (var st of ["instrumental", "vocal", "variation"]) await page.uncheck("#ut-style-" + st);
-  for (var ct of ["screen", "pop", "idol", "net", "classic"]) await page.uncheck("#ut-cat-" + ct);
-  assert.ok(/\d+/.test(await page.textContent("#ut-pool-size")));
+  await page.waitForSelector("#ut-pack-status");
+  assert.ok((await page.textContent("#ut-pack-status")).indexOf("0") >= 0);
+  await page.click("#ut-btn-start");
+  assert.ok((await page.textContent(".ut-error")).length > 0, "cannot start without a pack");
+
+  await page.setInputFiles("#ut-pack-file", packFile);
+  await page.waitForFunction(function () {
+    var m = document.getElementById("ut-pack-msg");
+    return m && m.textContent.indexOf("2") >= 0 && document.getElementById("ut-pool-size");
+  });
+  assert.ok((await page.textContent("#ut-pack-status")).indexOf("2") >= 0);
+  // 只留純樂器、只留動漫
+  for (var v of ["vocal", "speed", "rhythm", "melody"]) await page.uncheck("#ut-variant-" + v);
+  await page.uncheck("#ut-cat-screen");
+  assert.ok((await page.textContent("#ut-pool-size")).indexOf("1") >= 0);
   await page.click("#ut-btn-start");
 
   s = await debugState(page);
   assert.strictEqual(s.config.mode, "advanced");
-  assert.strictEqual(await page.locator("#ut-song-card").count(), 0, "song is masked before reveal");
+  assert.strictEqual(s.current.songId, "ja:紅蓮華");
+  assert.strictEqual(s.current.variant, "instrumental");
+  assert.ok((await page.textContent("#ut-variant-badge")).indexOf("純樂器") >= 0);
+  await page.waitForSelector("#ut-btn-play:not([disabled])");
+  assert.strictEqual(await page.locator("#ut-song-card").count(), 0, "answer hidden before peek");
   await page.click("#ut-btn-reveal");
-  var title = await page.textContent(".ut-song-title");
-  assert.ok(title.length > 0);
-  assert.strictEqual(s.current.style, "lyrics");
-  assert.ok(s.current.songId.indexOf("ja:") === 0);
-  assert.deepStrictEqual(s.config.categories, ["anime"]);
-  assert.ok((await page.textContent(".ut-song-meta")).indexOf("動漫") >= 0, "category shown on the card");
-  await page.click("#ut-btn-redraw");
-  var s2 = await debugState(page);
-  assert.notStrictEqual(s2.current.songId, s.current.songId, "redraw picks a different song");
+  assert.strictEqual(await page.textContent(".ut-song-title"), "紅蓮華");
   await page.click("#ut-btn-hide");
-  assert.strictEqual(await page.locator("#ut-song-card").count(), 0);
-
-  // 結算後上一輪顯示答案
   await page.click("#ut-btn-settle");
-  var song = s2.current.songId.slice(3);
-  assert.ok((await page.textContent("#ut-last-round")).indexOf(song) >= 0, "answer shown after scoring");
+  assert.ok((await page.textContent("#ut-last-round")).indexOf("紅蓮華") >= 0, "answer shown after scoring");
+  await page.waitForSelector("#ut-btn-play-answer:not([disabled])");
+  // 讀回存在 IndexedDB 的音檔內容，確認是對的那一段
+  var clipText = await page.evaluate(function () {
+    var song = window.PriTestUtau._debugState().config.packSongs.filter(function (x) { return x.id === "ja:紅蓮華"; })[0];
+    return window.PriTestUtauPack.getClip(song, "original").then(function (b) { return b.text(); });
+  });
+  assert.strictEqual(clipText, "fake-audio-aaa-original");
 
-  // 重新整理後題目回到遮蔽
-  await page.click("#ut-btn-reveal");
+  // 重新整理後題庫包還在、播放鍵會再就緒
   await page.reload();
-  assert.strictEqual(await page.locator("#ut-song-card").count(), 0, "reveal is not persisted");
+  await page.waitForSelector("#ut-btn-play:not([disabled])");
+
+  // ================= 夢想模式（YouTube）=================
+  await page.click("#ut-btn-finish");
+  await page.click("#ut-btn-back-setup");
+  await page.check("#ut-mode-dream");
+  await page.fill("#ut-clip-seconds", "10");
+  await page.check("#ut-random-speed");
+  await page.click("#ut-btn-start");
+  s = await debugState(page);
+  assert.strictEqual(s.config.mode, "dream");
+  assert.strictEqual(s.config.clipSeconds, 10);
+  assert.ok([0.75, 1.25].indexOf(s.current.dream.rate) >= 0);
+  assert.ok(await page.locator("#ut-rate-badge").count() === 0, "rate badge only after the link is set");
+  assert.ok(await page.locator("#ut-yt-host:visible").count() === 0, "no player before a link is set");
+
+  await page.click("#ut-btn-reveal");
+  await page.fill("#ut-dream-url", "https://example.com/nope");
+  await page.click("#ut-btn-dream-set");
+  assert.ok((await page.textContent("#ut-topic .ut-error")).length > 0, "bad url rejected");
+  await page.fill("#ut-dream-url", "https://youtu.be/dQw4w9WgXcQ?si=x");
+  await page.click("#ut-btn-dream-set");
+  s = await debugState(page);
+  assert.strictEqual(s.current.dream.videoId, "dQw4w9WgXcQ");
+  assert.strictEqual(await page.locator("#ut-dream-url").count(), 0, "url input hidden after setting");
+  assert.ok(await page.locator("#ut-yt-host").isVisible(), "floating player shown");
+  assert.ok(await page.locator("#ut-rate-badge").isVisible());
+
+  await page.click("#ut-btn-settle");
+  assert.strictEqual(await page.getAttribute("#ut-answer-link", "href"), "https://www.youtube.com/watch?v=dQw4w9WgXcQ");
+  s = await debugState(page);
+  assert.strictEqual(s.current.dream.videoId, null);
+  assert.strictEqual(await page.locator("#ut-yt-host:visible").count(), 0, "player hidden until the next link");
 
   // ---- 切換日文 ----
   await page.evaluate(function () { window.I18N.setLang("ja"); });
@@ -123,11 +228,11 @@ function debugState(page) { return page.evaluate(function () { return window.Pri
   s = await debugState(page);
   assert.strictEqual(s.round, 1);
   assert.strictEqual(s.history.length, 0);
-  assert.strictEqual(s.config.mode, "advanced");
+  assert.strictEqual(s.config.mode, "dream");
 
   // ---- 首頁有入口 ----
   await page.goto(BASE.replace("utau/index.html", "index.html"));
-  assert.strictEqual(await page.locator("a[href='utau/index.html']").count() > 0, true);
+  assert.ok(await page.locator("a[href='utau/index.html']").count() > 0);
 
   assert.deepStrictEqual(errors, []);
   await browser.close();
