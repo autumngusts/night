@@ -26,4 +26,10 @@ PROJECTS = [
         "name_key": "project_toushou_name",
         "desc_key": "project_toushou_desc",
     },
+    {
+        "id": "utau",
+        "href": "utau/index.html",
+        "name_key": "project_utau_name",
+        "desc_key": "project_utau_desc",
+    },
 ]

@@ -19,6 +19,7 @@ from site_src.index_page import build_index_html
 from site_src.midnight_page import build_midnight_html
 from site_src.night_page import build_night_html
 from site_src.toushou_page import TOUSHOU_SCRIPTS, build_toushou_html
+from site_src.utau_page import UTAU_SCRIPTS, build_utau_html
 
 ROOT = Path(__file__).parent
 DIST_DIR = ROOT / "dist"
@@ -91,6 +92,7 @@ def build_static_assets() -> None:
         "enemy_counter_rules.js",
         "midnight.js",
         *TOUSHOU_SCRIPTS,
+        *UTAU_SCRIPTS,
     ):
         shutil.copy(STATIC_SRC_DIR / name, static_dist / name)
 
@@ -132,9 +134,13 @@ def build_pages() -> None:
     toushou_dir.mkdir(parents=True, exist_ok=True)
     (toushou_dir / "index.html").write_text(build_toushou_html(), encoding="utf-8")
 
+    utau_dir = DIST_DIR / "utau"
+    utau_dir.mkdir(parents=True, exist_ok=True)
+    (utau_dir / "index.html").write_text(build_utau_html(), encoding="utf-8")
+
 
 def main() -> None:
-    for name in ("index.html", "night", "admin", "characters", "midnight", "toushou", "static"):
+    for name in ("index.html", "night", "admin", "characters", "midnight", "toushou", "utau", "static"):
         target = DIST_DIR / name
         if target.is_dir():
             shutil.rmtree(target)
