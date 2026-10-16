@@ -1722,6 +1722,78 @@
    "zh": "孤獨",
    "ja": "孤独",
    "cat": "concept"
+  },
+  {
+   "id": "mar_horsestance",
+   "zh": "馬步",
+   "ja": "馬歩",
+   "cat": "martial"
+  },
+  {
+   "id": "mar_meridian",
+   "zh": "經脈",
+   "ja": "経脈",
+   "cat": "martial"
+  },
+  {
+   "id": "mar_acupoint",
+   "zh": "穴道",
+   "ja": "経穴",
+   "cat": "martial"
+  },
+  {
+   "id": "mar_innerforce",
+   "zh": "內力",
+   "ja": "内力",
+   "cat": "martial"
+  },
+  {
+   "id": "mar_stroke",
+   "zh": "招式",
+   "ja": "技",
+   "cat": "martial"
+  },
+  {
+   "id": "sec_rules",
+   "zh": "門規",
+   "ja": "掟",
+   "cat": "sect"
+  },
+  {
+   "id": "sec_master",
+   "zh": "師父",
+   "ja": "師匠",
+   "cat": "sect"
+  },
+  {
+   "id": "sec_disciple",
+   "zh": "弟子",
+   "ja": "弟子",
+   "cat": "sect"
+  },
+  {
+   "id": "sec_hall",
+   "zh": "大殿",
+   "ja": "大広間",
+   "cat": "sect"
+  },
+  {
+   "id": "sec_codex",
+   "zh": "門派典籍",
+   "ja": "門派の典籍",
+   "cat": "sect"
+  },
+  {
+   "id": "sec_banner",
+   "zh": "旗幟",
+   "ja": "旗",
+   "cat": "sect"
+  },
+  {
+   "id": "sec_token",
+   "zh": "令牌",
+   "ja": "令牌",
+   "cat": "sect"
   }
  ],
  "recipes": [
@@ -1767,7 +1839,7 @@
   ],
   [
    "nat_steam",
-   "fire",
+   "nat_grove",
    "nat_wind"
   ],
   [
@@ -1782,7 +1854,7 @@
   ],
   [
    "nat_mountain",
-   "nat_swamp",
+   "nat_mountain",
    "nat_valley"
   ],
   [
@@ -1877,7 +1949,7 @@
   ],
   [
    "mat_moltengold",
-   "earth",
+   "mat_ore",
    "mat_ironembryo"
   ],
   [
@@ -1887,7 +1959,7 @@
   ],
   [
    "mat_ore",
-   "metal",
+   "mat_ingot",
    "mat_copper"
   ],
   [
@@ -1897,12 +1969,12 @@
   ],
   [
    "mat_ore",
-   "water",
+   "nat_river",
    "mat_jade"
   ],
   [
    "nat_grove",
-   "metal",
+   "wpn_axe",
    "mat_timber"
   ],
   [
@@ -2067,7 +2139,7 @@
   ],
   [
    "herb_grass",
-   "herb_flower",
+   "fire",
    "herb_mugwort"
   ],
   [
@@ -2097,7 +2169,7 @@
   ],
   [
    "eli_juice",
-   "earth",
+   "herb_seed",
    "eli_pill"
   ],
   [
@@ -2107,7 +2179,7 @@
   ],
   [
    "herb_seed",
-   "nat_steam",
+   "water",
    "eli_wine"
   ],
   [
@@ -2136,7 +2208,7 @@
    "eli_ointment"
   ],
   [
-   "herb_flower",
+   "herb_mugwort",
    "mat_charcoal",
    "eli_incense"
   ],
@@ -2146,8 +2218,8 @@
    "eli_mercury"
   ],
   [
+   "eli_poisonherb",
    "mat_ore",
-   "nat_frost",
    "eli_arsenic"
   ],
   [
@@ -2186,8 +2258,8 @@
    "wpn_axe"
   ],
   [
-   "metal",
    "mat_ingot",
+   "wpn_axe",
    "wpn_dagger"
   ],
   [
@@ -2216,13 +2288,13 @@
    "wpn_blade"
   ],
   [
-   "mat_ironembryo",
-   "metal",
+   "mat_moltengold",
+   "mat_ingot",
    "wpn_sword"
   ],
   [
    "mat_ironembryo",
-   "earth",
+   "wood",
    "wpn_hammer"
   ],
   [
@@ -2251,13 +2323,13 @@
    "wpn_armor"
   ],
   [
+   "mat_copper",
    "mat_bamboo",
-   "mat_iron",
    "wpn_crossbow"
   ],
   [
+   "mat_iron",
    "mat_bamboo",
-   "herb_leaf",
    "wpn_fan"
   ],
   [
@@ -2286,8 +2358,8 @@
    "wpn_spear"
   ],
   [
-   "mat_silver",
    "metal",
+   "herb_sprout",
    "wpn_needle"
   ],
   [
@@ -2392,7 +2464,7 @@
   ],
   [
    "mat_copper",
-   "mat_timber",
+   "gear_chest",
    "gear_mech"
   ],
   [
@@ -2406,48 +2478,48 @@
    "gear_net"
   ],
   [
-   "nat_stone",
+   "nat_mountain",
    "wood",
    "mar_stance"
   ],
   [
-   "nat_wind",
-   "nat_mist",
+   "nat_steam",
+   "nat_river",
    "mar_breath"
   ],
   [
    "nat_steam",
-   "nat_mist",
+   "wood",
    "mar_qi"
   ],
   [
-   "nat_stone",
-   "nat_steam",
+   "mar_breath",
+   "mar_qi",
    "mar_neigong"
   ],
   [
-   "nat_mountain",
-   "nat_wind",
+   "mar_qi",
+   "mat_iron",
    "mar_force"
   ],
   [
+   "mar_stance",
    "mat_iron",
-   "nat_wind",
    "mar_fist"
   ],
   [
-   "nat_wind",
-   "wood",
+   "mar_qi",
+   "herb_leaf",
    "mar_palm"
   ],
   [
-   "herb_sprout",
-   "nat_wind",
+   "mar_qi",
+   "wpn_needle",
    "mar_fingers"
   ],
   [
+   "mar_stance",
    "herb_tree",
-   "nat_wind",
    "mar_kick"
   ],
   [
@@ -2456,43 +2528,43 @@
    "mar_qinggong"
   ],
   [
-   "wpn_dagger",
-   "nat_wind",
+   "wpn_sword",
+   "mar_qi",
    "mar_swordart"
   ],
   [
    "wpn_axe",
-   "nat_wind",
+   "mar_qi",
    "mar_saberart"
   ],
   [
    "wpn_stick",
-   "nat_wind",
+   "mar_qi",
    "mar_spearart"
   ],
   [
-   "nat_dark",
+   "mar_stance",
    "nat_wind",
    "mar_shadow"
   ],
   [
-   "nat_wind",
-   "nat_magma",
+   "mar_qi",
+   "nat_blaze",
    "mar_flamepalm"
   ],
   [
+   "mar_qi",
    "nat_frost",
-   "nat_wind",
    "mar_icepalm"
   ],
   [
-   "mat_iron",
-   "nat_mountain",
+   "mar_qi",
+   "mat_ingot",
    "mar_hardgong"
   ],
   [
+   "mar_qi",
    "eli_poisonherb",
-   "nat_wind",
    "mar_poisonpalm"
   ],
   [
@@ -2501,8 +2573,8 @@
    "mar_taichi"
   ],
   [
-   "nat_light",
-   "nat_valley",
+   "mar_breath",
+   "mat_ink",
    "mar_heart"
   ],
   [
@@ -2516,13 +2588,13 @@
    "per_farmer"
   ],
   [
-   "mat_ingot",
+   "mat_ironembryo",
    "nat_blaze",
    "per_smith"
   ],
   [
    "wpn_axe",
-   "nat_grove",
+   "herb_tree",
    "per_woodcutter"
   ],
   [
@@ -2531,8 +2603,8 @@
    "per_fisher"
   ],
   [
-   "herb_sprout",
-   "nat_stone",
+   "mar_breath",
+   "mar_stance",
    "per_monk"
   ],
   [
@@ -2547,7 +2619,7 @@
   ],
   [
    "mat_ink",
-   "mat_timber",
+   "herb_sprout",
    "per_scholar"
   ],
   [
@@ -2556,8 +2628,8 @@
    "per_merchant"
   ],
   [
-   "wpn_dagger",
-   "nat_mountain",
+   "wpn_sword",
+   "mar_stance",
    "per_swordsman"
   ],
   [
@@ -2591,8 +2663,8 @@
    "per_boatman"
   ],
   [
-   "mat_iron",
-   "earth",
+   "mat_copper",
+   "wpn_stick",
    "per_soldier"
   ],
   [
@@ -2617,7 +2689,7 @@
   ],
   [
    "nat_wind",
-   "nat_river",
+   "wpn_sword",
    "per_wanderer"
   ],
   [
@@ -2676,7 +2748,7 @@
    "sec_tomb"
   ],
   [
-   "nat_wind",
+   "nat_cloud",
    "nat_valley",
    "sec_xiaoyao"
   ],
@@ -2691,8 +2763,8 @@
    "sec_stronghold"
   ],
   [
-   "nat_stone",
-   "mat_ingot",
+   "mat_ink",
+   "mat_silver",
    "sec_court"
   ],
   [
@@ -2721,8 +2793,8 @@
    "sec_forge"
   ],
   [
-   "herb_tree",
    "nat_mountain",
+   "herb_leaf",
    "sec_qingcheng"
   ],
   [
@@ -2741,7 +2813,7 @@
    "plc_house"
   ],
   [
-   "nat_stone",
+   "mat_copper",
    "nat_grove",
    "plc_temple"
   ],
@@ -2752,7 +2824,7 @@
   ],
   [
    "mat_silver",
-   "earth",
+   "gear_chest",
    "plc_market"
   ],
   [
@@ -2787,7 +2859,7 @@
   ],
   [
    "herb_grass",
-   "nat_wind",
+   "nat_cloud",
    "plc_grassland"
   ],
   [
@@ -2872,7 +2944,7 @@
   ],
   [
    "nat_grove",
-   "nat_blaze",
+   "metal",
    "bst_tiger"
   ],
   [
@@ -2882,7 +2954,7 @@
   ],
   [
    "herb_grass",
-   "nat_river",
+   "nat_wind",
    "bst_horse"
   ],
   [
@@ -2902,7 +2974,7 @@
   ],
   [
    "herb_flower",
-   "nat_grove",
+   "herb_grass",
    "bst_deer"
   ],
   [
@@ -2951,7 +3023,7 @@
    "bst_spider"
   ],
   [
-   "nat_light",
+   "nat_mist",
    "nat_grove",
    "bst_fox"
   ],
@@ -2976,7 +3048,7 @@
    "trs_jadedisc"
   ],
   [
-   "wpn_dagger",
+   "wpn_sword",
    "mat_moltengold",
    "trs_famoussword"
   ],
@@ -3016,8 +3088,8 @@
    "trs_iceheart"
   ],
   [
-   "mat_ingot",
-   "herb_vine",
+   "mat_moltengold",
+   "mat_rope",
    "trs_goldmail"
   ],
   [
@@ -3037,12 +3109,12 @@
   ],
   [
    "herb_tree",
-   "mat_moltengold",
+   "nat_stone",
    "trs_amber"
   ],
   [
-   "mat_coldiron",
    "mat_moltengold",
+   "nat_dark",
    "trs_blackgold"
   ],
   [
@@ -3051,13 +3123,13 @@
    "trs_meteor"
   ],
   [
-   "nat_stone",
+   "mat_jade",
    "mat_ink",
    "trs_inkstone"
   ],
   [
    "nat_dark",
-   "water",
+   "nat_frost",
    "con_yin"
   ],
   [
@@ -3101,8 +3173,8 @@
    "con_hate"
   ],
   [
-   "nat_mountain",
-   "mat_ingot",
+   "mar_qi",
+   "nat_river",
    "con_righteous"
   ],
   [
@@ -3111,8 +3183,8 @@
    "con_fate"
   ],
   [
+   "nat_river",
    "nat_wind",
-   "nat_sea",
    "con_time"
   ],
   [
@@ -3136,7 +3208,7 @@
    "con_courage"
   ],
   [
-   "nat_cloud",
+   "herb_flower",
    "mat_ingot",
    "con_fortune"
   ],
@@ -3146,7 +3218,7 @@
    "con_void"
   ],
   [
-   "mat_silver",
+   "mat_ink",
    "nat_wind",
    "con_fame"
   ],
@@ -3159,6 +3231,66 @@
    "nat_dark",
    "nat_valley",
    "con_solitude"
+  ],
+  [
+   "mar_stance",
+   "earth",
+   "mar_horsestance"
+  ],
+  [
+   "nat_river",
+   "herb_vine",
+   "mar_meridian"
+  ],
+  [
+   "wpn_needle",
+   "nat_river",
+   "mar_acupoint"
+  ],
+  [
+   "mar_qi",
+   "nat_mountain",
+   "mar_innerforce"
+  ],
+  [
+   "mar_stance",
+   "mar_qi",
+   "mar_stroke"
+  ],
+  [
+   "nat_stone",
+   "mat_ink",
+   "sec_rules"
+  ],
+  [
+   "mar_qi",
+   "herb_tree",
+   "sec_master"
+  ],
+  [
+   "herb_sprout",
+   "mar_qi",
+   "sec_disciple"
+  ],
+  [
+   "mat_timber",
+   "mat_copper",
+   "sec_hall"
+  ],
+  [
+   "mar_qi",
+   "mat_ink",
+   "sec_codex"
+  ],
+  [
+   "wpn_stick",
+   "mat_rope",
+   "sec_banner"
+  ],
+  [
+   "mat_copper",
+   "wood",
+   "sec_token"
   ]
  ]
 }
