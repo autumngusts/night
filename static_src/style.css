@@ -11587,3 +11587,6 @@ html.midnight-no-select * {
   font-weight: bold;
   opacity: 0.8;
 }
+
+/* toushou 投票明細 */
+.ts-vote-detail { font-size: 0.85em; opacity: 0.8; }

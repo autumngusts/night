@@ -144,6 +144,46 @@ function debugState(page) { return page.evaluate(function () { return window.Pri
   assert.ok((await page.textContent("h1")).indexOf("東正ミニゲーム") >= 0);
   assert.ok((await page.textContent("#ts-final-table")).indexOf("合計") >= 0);
 
+  // ---- 第二局：單機 + 全員投票，跑 1 個標的 ----
+  await page.click('.lang-btn[data-lang="zh"]');
+  await page.click("#ts-btn-back-setup");
+  await page.fill("#ts-player-count", "3");
+  await page.dispatchEvent("#ts-player-count", "change");
+  await page.uncheck("#ts-missions");
+  await page.selectOption("#ts-delta-mode", "vote");
+  assert.strictEqual(await page.inputValue("#ts-vote-cap"), "100");
+  await page.click("#ts-btn-start");
+  s = await debugState(page);
+  assert.strictEqual(s.config.deltaMode, "vote");
+  await page.click("#ts-btn-start-betting");
+  for (var vb = 0; vb < 3; vb++) {
+    await page.click("#ts-btn-reveal");
+    await page.fill("#ts-bet-amount", "100");
+    await page.fill("#ts-bet-predict", "100");
+    await page.click("#ts-btn-confirm-bet");
+  }
+  for (var vk = 0; vk < 3; vk++) {
+    await page.click("#ts-btn-reveal");
+    await page.fill("#ts-news-text", "投票消息" + vk);
+    await page.click("#ts-btn-release");
+    var votes = [30, -10, 0];
+    for (var vv = 0; vv < 3; vv++) {
+      assert.strictEqual(await page.locator("#ts-vote-value").count(), 0, "vote hidden behind mask");
+      await page.click("#ts-btn-reveal");
+      if (vk === 0 && vv === 0) {
+        await page.fill("#ts-vote-value", "101");
+        await page.click("#ts-btn-cast-vote");
+        assert.ok((await page.textContent("#ts-game-error")).indexOf("100") >= 0, "range error shows cap");
+      }
+      await page.fill("#ts-vote-value", String(votes[vv]));
+      await page.click("#ts-btn-cast-vote");
+    }
+    assert.strictEqual(await page.locator(".ts-vote-detail").count(), vk + 1);
+  }
+  s = await debugState(page);
+  assert.strictEqual(s.phase, "settle");
+  assert.strictEqual(s.history[0].finalPrice, 100 + 7 * 3);
+
   assert.deepStrictEqual(errors, []);
   await browser.close();
   console.log("toushou ui_check: OK");

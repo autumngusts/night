@@ -120,7 +120,7 @@
       try {
         state = Core.reduce(state, action);
       } catch (e) {
-        ui.error = t(e.message);
+        ui.error = errText(e.message);
         render();
         return;
       }
@@ -145,7 +145,7 @@
     }).then(function (committed) {
       ui.busy = false;
       if (errKey || committed === null) {
-        ui.error = t(errKey || "ts_err_network");
+        ui.error = errText(errKey || "ts_err_network");
         render();
         return;
       }
@@ -153,6 +153,11 @@
       resetUi();
       render();
     });
+  }
+
+  // 錯誤訊息：投票上限的 key 需要 {cap}
+  function errText(key) {
+    return t(key, { cap: state && state.config ? state.config.voteCap : 100 });
   }
 
   // ---------------- 連線：房間 ----------------
@@ -248,6 +253,9 @@
       online: false,
       minBet: 100,
       minBetEdited: false,
+      deltaMode: "host",
+      deltaModeEdited: false,
+      voteCap: 100,
       error: ""
     };
   }
@@ -289,6 +297,8 @@
     if (chips.some(function (c) { return !(c >= 1); })) return { error: "ts_err_setup_chips" };
     var minBet = intOf(draft.minBet);
     if (!(minBet >= 1)) return { error: "ts_err_setup_chips" };
+    var voteCap = intOf(draft.voteCap);
+    if (draft.deltaMode === "vote" && !(voteCap >= 10 && voteCap <= 200)) return { error: "ts_err_setup_vote_cap" };
     if (!draft.targets.length) randomizeTargets();
     if (!draft.targets.length || draft.targets.some(function (tg) { return !lt(tg.name).trim(); })) {
       return { error: "ts_err_setup_targets" };
@@ -303,6 +313,8 @@
         missionsEnabled: draft.missionsEnabled,
         windEnabled: draft.windEnabled,
         minBet: minBet,
+        deltaMode: draft.deltaMode,
+        voteCap: draft.deltaMode === "vote" ? voteCap : 100,
         seed: newSeed()
       }
     };
@@ -442,9 +454,25 @@
     })]));
     box.appendChild(el("label", { class: "ts-field" }, [el("input", {
       id: "ts-online", type: "checkbox", checked: draft.online,
-      onchange: function (e) { draft.online = e.target.checked; render(); }
+      onchange: function (e) {
+        draft.online = e.target.checked;
+        if (!draft.deltaModeEdited) draft.deltaMode = draft.online ? "vote" : "host";
+        render();
+      }
     }), t("ts_online_mode")]));
     if (draft.online) box.appendChild(el("p", { class: "ts-hooks", text: t("ts_online_hint") }));
+    var modeSel = el("select", { id: "ts-delta-mode", "aria-label": t("ts_delta_mode"),
+      onchange: function (e) { draft.deltaMode = e.target.value; draft.deltaModeEdited = true; render(); } });
+    ["host", "vote"].forEach(function (m) {
+      modeSel.appendChild(el("option", { value: m, selected: draft.deltaMode === m, text: t("ts_delta_mode_" + m) }));
+    });
+    box.appendChild(el("label", { class: "ts-field" }, [t("ts_delta_mode"), modeSel]));
+    if (draft.deltaMode === "vote") {
+      box.appendChild(el("label", { class: "ts-field" }, [t("ts_vote_cap"), el("input", {
+        id: "ts-vote-cap", type: "number", min: "10", max: "200", value: String(draft.voteCap),
+        oninput: function (e) { draft.voteCap = e.target.value; }
+      })]));
+    }
 
     box.appendChild(el("p", { id: "ts-setup-error", class: "ts-error", text: draft.error || "" }));
     box.appendChild(el("button", { id: "ts-btn-start", type: "button", class: "ts-primary", disabled: ui.busy,
@@ -520,7 +548,14 @@
         el("strong", { text: playerName(n.playerId) }),
         n.wind ? " [" + windLabel(n.wind) + "]" : "",
         tag ? " (" + tag + ")" : "",
-        "：" + n.text + "　" + sign + " → " + n.priceAfter
+        "：" + n.text + "　" + sign + " → " + n.priceAfter,
+        n.votes ? el("div", { class: "ts-vote-detail", text: t("ts_news_votes", {
+          list: Object.keys(n.votes).map(function (id) {
+            var v = n.votes[id];
+            return playerName(id) + " " + (v > 0 ? "+" + v : String(v));
+          }).join("、"),
+          avg: String(Math.round(n.avg * 10) / 10)
+        }) + (n.windZeroed ? "（" + t("ts_news_wind_zeroed") + "）" : "") }) : null
       ]));
     });
     return ul;
@@ -703,6 +738,7 @@
     var pending = state.current.pending;
     var news = el("p", {}, [el("strong", { text: playerName(pending.playerId) }),
       state.current.wind ? " [" + windLabel(state.current.wind) + "]" : "", "：" + pending.text]);
+    if (state.config.deltaMode === "vote") return renderVoteBallot(news);
     if (!isHost()) {
       return el("section", { class: "ts-panel" }, [news, el("p", { class: "ts-wait-text", text: t("ts_wait_vote") })]);
     }
@@ -720,6 +756,41 @@
           dispatch({ type: "applyDelta", delta: d });
         } })
     ]);
+  }
+
+  // 全員投票：自己擁有的座位依序秘密投票（多座位時遮蔽輪流），其他人只看到進度
+  function renderVoteBallot(news) {
+    var pendingIds = Core.pendingVoters(state);
+    var total = state.players.length;
+    var mine = pendingIds.filter(owns);
+    var voted = total - pendingIds.length;
+    // 單機時主持人擁有全部座位，不會有人卡住，所以只在連線模式顯示
+    var skipBtn = room && isHost() && voted > 0 && pendingIds.length > 0
+      ? el("button", { id: "ts-btn-skip-voters", type: "button", text: t("ts_btn_skip_voters"),
+          onclick: function () { dispatch({ type: "skipPendingVoters" }); } })
+      : null;
+    var progress = t("ts_wait_votes", { done: voted, total: total });
+    if (!mine.length) {
+      return el("section", { class: "ts-panel" }, [news, el("p", { class: "ts-wait-text", text: progress }), errorLine(), skipBtn]);
+    }
+    var pid = mine[0];
+    var cap = state.config.voteCap;
+    var body = masked(pid, function () {
+      var input = el("input", { id: "ts-vote-value", type: "number", step: "1", min: String(-cap), max: String(cap), value: "0" });
+      return el("div", {}, [
+        el("h3", { text: t("ts_vote_cast_heading", { name: playerName(pid) }) }),
+        el("label", { class: "ts-field" }, [t("ts_vote_value", { cap: cap }), input]),
+        errorLine(),
+        el("button", { id: "ts-btn-cast-vote", type: "button", class: "ts-primary", text: t("ts_btn_cast_vote"),
+          onclick: function () {
+            var v = intOf(input.value);
+            var err = Core.voteError(state, pid, v);
+            if (err) { ui.error = errText(err); render(); return; }
+            dispatch({ type: "castVote", playerId: pid, value: v });
+          } })
+      ]);
+    });
+    return el("section", { class: "ts-panel" }, [news, body, el("p", { class: "ts-hooks", text: progress }), skipBtn]);
   }
 
   function settleTable(h) {
