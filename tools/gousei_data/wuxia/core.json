@@ -1839,7 +1839,7 @@
   ],
   [
    "nat_steam",
-   "nat_mountain",
+   "nat_blaze",
    "nat_wind"
   ],
   [
@@ -1968,8 +1968,8 @@
    "mat_silver"
   ],
   [
-   "mat_ore",
-   "nat_frost",
+   "nat_stone",
+   "nat_light",
    "mat_jade"
   ],
   [
@@ -2258,8 +2258,8 @@
    "wpn_axe"
   ],
   [
-   "mat_coldiron",
-   "mat_ingot",
+   "mat_ironembryo",
+   "nat_stone",
    "wpn_dagger"
   ],
   [
@@ -2708,13 +2708,13 @@
    "sec_emei"
   ],
   [
-   "sec_token",
-   "nat_frost",
+   "nat_mountain",
+   "nat_snow",
    "sec_kunlun"
   ],
   [
-   "sec_token",
-   "herb_flower",
+   "nat_mountain",
+   "per_swordsman",
    "sec_huashan"
   ],
   [
@@ -3043,7 +3043,7 @@
    "trs_gold"
   ],
   [
-   "nat_stone",
+   "mat_ore",
    "nat_light",
    "trs_gem"
   ],
