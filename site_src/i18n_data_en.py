@@ -2241,4 +2241,6 @@ STRINGS_EN: dict[str, str] = {
     "ut_btn_resume": "Back to game",
     "ut_btn_replay": "Play again (same settings)",
     "ut_btn_back_setup": "Back to setup",
+    "ut_categories": "Genres:",
+    "ut_with_count": "{label} ({n})",
 }

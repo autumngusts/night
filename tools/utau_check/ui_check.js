@@ -83,6 +83,7 @@ function debugState(page) { return page.evaluate(function () { return window.Pri
     else await page.uncheck("#" + dId);
   }
   for (var st of ["instrumental", "vocal", "variation"]) await page.uncheck("#ut-style-" + st);
+  for (var ct of ["screen", "pop", "idol", "net", "classic"]) await page.uncheck("#ut-cat-" + ct);
   assert.ok(/\d+/.test(await page.textContent("#ut-pool-size")));
   await page.click("#ut-btn-start");
 
@@ -94,6 +95,8 @@ function debugState(page) { return page.evaluate(function () { return window.Pri
   assert.ok(title.length > 0);
   assert.strictEqual(s.current.style, "lyrics");
   assert.ok(s.current.songId.indexOf("ja:") === 0);
+  assert.deepStrictEqual(s.config.categories, ["anime"]);
+  assert.ok((await page.textContent(".ut-song-meta")).indexOf("動漫") >= 0, "category shown on the card");
   await page.click("#ut-btn-redraw");
   var s2 = await debugState(page);
   assert.notStrictEqual(s2.current.songId, s.current.songId, "redraw picks a different song");

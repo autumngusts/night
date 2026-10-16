@@ -38,11 +38,12 @@
     return table;
   }
 
-  // 進階模式的歌曲池
+  // 進階模式的歌曲池（地區 × 年代 × 分類）。沒有 categories 欄位的舊設定視為全部分類。
   function songPool(config) {
     if (!Songs) return [];
     return Songs.songs.filter(function (s) {
-      return config.regions.indexOf(s.r) >= 0 && config.decades.indexOf(Songs.decadeOf(s)) >= 0;
+      return config.regions.indexOf(s.r) >= 0 && config.decades.indexOf(Songs.decadeOf(s)) >= 0 &&
+        (!config.categories || config.categories.indexOf(s.c) >= 0);
     });
   }
 

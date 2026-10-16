@@ -102,6 +102,7 @@
         scoreTable: prev.scoreTable.slice(),
         regions: (prev.regions || []).slice(),
         decades: (prev.decades || []).slice(),
+        categories: (prev.categories || allCategories()).slice(),
         styles: (prev.styles || []).slice()
       };
     }
@@ -114,9 +115,19 @@
       aiBonus: 1,
       scoreTable: Core.defaultScoreTable(count),
       regions: Songs.regions.map(function (r) { return r.id; }),
-      decades: Songs.decades().filter(function (d) { return d >= 1990; }),
+      decades: Songs.decades(),
+      categories: allCategories(),
       styles: Songs.styles.map(function (s) { return s.id; })
     };
+  }
+
+  function allCategories() { return Songs.categories.map(function (c) { return c.id; }); }
+
+  // 把某一個篩選條件換成單一值後的首數（勾選框旁邊的數字用）
+  function countWith(field, value) {
+    var cfg = { regions: draft.regions, decades: draft.decades, categories: draft.categories };
+    cfg[field] = [value];
+    return Core.songPool(cfg).length;
   }
 
   function setPlayerCount(n) {
@@ -141,6 +152,7 @@
       scoreTable: draft.scoreTable.map(function (v) { return Number(v) || 0; }),
       regions: draft.regions.slice(),
       decades: draft.decades.slice(),
+      categories: draft.categories.slice(),
       styles: draft.styles.slice()
     };
   }
@@ -241,18 +253,28 @@
       var adv = el("div", { class: "ut-panel" }, [el("h2", { text: t("ut_song_filter") })]);
       var regionRow = el("div", { class: "ut-field" }, [el("span", { class: "ut-label", text: t("ut_regions") })]);
       Songs.regions.forEach(function (r) {
-        regionRow.appendChild(checkbox("ut-region-" + r.id, draft.regions.indexOf(r.id) >= 0, lt(r.name), function () {
+        regionRow.appendChild(checkbox("ut-region-" + r.id, draft.regions.indexOf(r.id) >= 0,
+          t("ut_with_count", { label: lt(r.name), n: countWith("regions", r.id) }), function () {
           toggleIn(draft.regions, r.id); render();
         }));
       });
       adv.appendChild(regionRow);
       var decadeRow = el("div", { class: "ut-field" }, [el("span", { class: "ut-label", text: t("ut_decades") })]);
       Songs.decades().forEach(function (d) {
-        decadeRow.appendChild(checkbox("ut-decade-" + d, draft.decades.indexOf(d) >= 0, t("ut_decade", { d: d }), function () {
+        decadeRow.appendChild(checkbox("ut-decade-" + d, draft.decades.indexOf(d) >= 0,
+          t("ut_with_count", { label: t("ut_decade", { d: d }), n: countWith("decades", d) }), function () {
           toggleIn(draft.decades, d); render();
         }));
       });
       adv.appendChild(decadeRow);
+      var catRow = el("div", { class: "ut-field" }, [el("span", { class: "ut-label", text: t("ut_categories") })]);
+      Songs.categories.forEach(function (c) {
+        catRow.appendChild(checkbox("ut-cat-" + c.id, draft.categories.indexOf(c.id) >= 0,
+          t("ut_with_count", { label: lt(c.name), n: countWith("categories", c.id) }), function () {
+            toggleIn(draft.categories, c.id); render();
+          }));
+      });
+      adv.appendChild(catRow);
       var styleRow = el("div", { class: "ut-field" }, [el("span", { class: "ut-label", text: t("ut_styles") })]);
       Songs.styles.forEach(function (s) {
         styleRow.appendChild(checkbox("ut-style-" + s.id, draft.styles.indexOf(s.id) >= 0, lt(s.name), function () {
@@ -319,11 +341,11 @@
     }
     var song = Songs.byId(cur.songId);
     var style = Songs.style(cur.style);
-    var region = null;
-    Songs.regions.forEach(function (r) { if (song && r.id === song.r) region = r; });
+    var region = song ? Songs.region(song.r) : null;
+    var category = song ? Songs.category(song.c) : null;
     panel.appendChild(el("div", { class: "ut-song-card", id: "ut-song-card" }, [
       el("div", { class: "ut-song-title", text: song ? song.t : "" }),
-      el("div", { class: "ut-song-meta", text: song ? song.a + "（" + song.y + (region ? "・" + lt(region.name) : "") + "）" : "" }),
+      el("div", { class: "ut-song-meta", text: song ? song.a + "（" + song.y + (region ? "・" + lt(region.name) : "") + (category ? "・" + lt(category.name) : "") + "）" : "" }),
       style ? el("div", { class: "ut-style-badge", text: lt(style.name) }) : null,
       style ? el("p", { class: "ut-style-desc", text: lt(style.desc) }) : null
     ]));

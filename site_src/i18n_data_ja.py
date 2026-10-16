@@ -2241,4 +2241,6 @@ STRINGS_JA: dict[str, str] = {
     "ut_btn_resume": "ゲームに戻る",
     "ut_btn_replay": "同じ設定でもう一回",
     "ut_btn_back_setup": "設定に戻る",
+    "ut_categories": "ジャンル：",
+    "ut_with_count": "{label}（{n}）",
 }

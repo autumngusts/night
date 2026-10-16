@@ -2248,4 +2248,6 @@ STRINGS_ZH: dict[str, str] = {
     "ut_btn_resume": "回到遊戲",
     "ut_btn_replay": "同設定再玩一局",
     "ut_btn_back_setup": "回到設定",
+    "ut_categories": "分類：",
+    "ut_with_count": "{label}（{n}）",
 }

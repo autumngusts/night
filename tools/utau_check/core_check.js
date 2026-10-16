@@ -33,6 +33,14 @@ Songs.songs.forEach(function (s) {
   ids[s.id] = true;
   assert.ok(s.t && s.a && s.y >= 1950 && s.y <= 2026, "song fields " + s.id);
   assert.ok(Songs.regions.some(function (r) { return r.id === s.r; }), "region " + s.id);
+  assert.ok(Songs.category(s.c), "category " + s.id);
+});
+// 選曲方針：日本為主，歐美／韓國濃縮
+function countRegion(r) { return Songs.songs.filter(function (s) { return s.r === r; }).length; }
+assert.ok(countRegion("ja") >= 200, "ja count " + countRegion("ja"));
+assert.ok(countRegion("en") <= 25 && countRegion("ko") <= 20, "en/ko condensed");
+Songs.categories.forEach(function (c) {
+  assert.ok(Songs.songs.some(function (s) { return s.r === "ja" && s.c === c.id; }), "ja has category " + c.id);
 });
 assert.ok(Songs.songs.length >= 200, "song count " + Songs.songs.length);
 assert.strictEqual(Songs.decadeOf({ y: 1985 }), 1980);
@@ -120,6 +128,11 @@ assert.ok(["vocal", "lyrics"].indexOf(s.current.style) >= 0);
 var re = Core.redrawSong(s, r);
 assert.strictEqual(re.current.singerId, s.current.singerId, "redraw keeps singer");
 
+var animeOnly = { mode: "advanced", players: players(3), aiBonus: 1, scoreTable: [0, 2, 1],
+  regions: ["ja"], decades: Songs.decades(), categories: ["anime"], styles: ["vocal"] };
+Core.songPool(animeOnly).forEach(function (song) { assert.strictEqual(song.c, "anime"); });
+assert.strictEqual(Core.songPool(Object.assign({}, animeOnly, { categories: undefined })).length, countRegion("ja"),
+  "missing categories (old config) means all");
 assert.throws(function () { Core.createGame(Object.assign({}, adv, { decades: [1960] })); }, /ut_err_pool/);
 assert.throws(function () { Core.createGame(Object.assign({}, adv, { styles: [] })); }, /ut_err_styles/);
 assert.throws(function () { Core.createGame(Object.assign({}, basic, { players: players(1), scoreTable: [0] })); }, /ut_err_players/);
