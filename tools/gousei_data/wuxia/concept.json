@@ -1,0 +1,5367 @@
+{
+ "category": "concept",
+ "items": [
+  {
+   "id": "concept_zhiji",
+   "zh": "知己",
+   "ja": "知己"
+  },
+  {
+   "id": "concept_haoqing",
+   "zh": "豪情",
+   "ja": "豪気"
+  },
+  {
+   "id": "concept_chouren",
+   "zh": "仇人",
+   "ja": "仇敵"
+  },
+  {
+   "id": "concept_fuchou",
+   "zh": "復仇",
+   "ja": "復讐"
+  },
+  {
+   "id": "concept_xiangsi",
+   "zh": "相思",
+   "ja": "恋慕"
+  },
+  {
+   "id": "concept_hongdou",
+   "zh": "紅豆",
+   "ja": "紅豆"
+  },
+  {
+   "id": "concept_en",
+   "zh": "恩情",
+   "ja": "恩情"
+  },
+  {
+   "id": "concept_enyuan",
+   "zh": "恩怨",
+   "ja": "恩讐"
+  },
+  {
+   "id": "concept_xuechou",
+   "zh": "血仇",
+   "ja": "血の仇"
+  },
+  {
+   "id": "concept_jihen",
+   "zh": "積恨",
+   "ja": "積年の恨み"
+  },
+  {
+   "id": "concept_shenchou",
+   "zh": "血海深仇",
+   "ja": "血海の深讐"
+  },
+  {
+   "id": "concept_juewang",
+   "zh": "絕望",
+   "ja": "絶望"
+  },
+  {
+   "id": "concept_beifen",
+   "zh": "悲憤",
+   "ja": "悲憤"
+  },
+  {
+   "id": "concept_duanchang",
+   "zh": "斷腸",
+   "ja": "断腸"
+  },
+  {
+   "id": "concept_chouchang",
+   "zh": "惆悵",
+   "ja": "惆悵"
+  },
+  {
+   "id": "concept_sixiang",
+   "zh": "思鄉",
+   "ja": "望郷"
+  },
+  {
+   "id": "concept_xiangchou",
+   "zh": "鄉愁",
+   "ja": "郷愁"
+  },
+  {
+   "id": "concept_guji",
+   "zh": "孤寂",
+   "ja": "寂寥"
+  },
+  {
+   "id": "concept_kuangxi",
+   "zh": "狂喜",
+   "ja": "狂喜"
+  },
+  {
+   "id": "concept_xinwei",
+   "zh": "欣慰",
+   "ja": "安堵"
+  },
+  {
+   "id": "concept_kuanghuan",
+   "zh": "狂歡",
+   "ja": "狂宴"
+  },
+  {
+   "id": "concept_nuhuo",
+   "zh": "怒火",
+   "ja": "怒りの炎"
+  },
+  {
+   "id": "concept_leiting",
+   "zh": "雷霆之怒",
+   "ja": "雷霆の怒り"
+  },
+  {
+   "id": "concept_shaqi",
+   "zh": "殺氣",
+   "ja": "殺気"
+  },
+  {
+   "id": "concept_shayi",
+   "zh": "殺意",
+   "ja": "殺意"
+  },
+  {
+   "id": "concept_rouqing",
+   "zh": "柔情",
+   "ja": "柔情"
+  },
+  {
+   "id": "concept_tiehan",
+   "zh": "鐵漢柔情",
+   "ja": "鉄漢の柔情"
+  },
+  {
+   "id": "concept_qingshen",
+   "zh": "情深",
+   "ja": "情の深さ"
+  },
+  {
+   "id": "concept_yiwang",
+   "zh": "一往情深",
+   "ja": "一途な想い"
+  },
+  {
+   "id": "concept_yinyuan",
+   "zh": "姻緣",
+   "ja": "縁結び"
+  },
+  {
+   "id": "concept_moni",
+   "zh": "莫逆之交",
+   "ja": "莫逆の友"
+  },
+  {
+   "id": "concept_shengsi",
+   "zh": "生死之交",
+   "ja": "生死を共にする友"
+  },
+  {
+   "id": "concept_tongchou",
+   "zh": "同仇敵愾",
+   "ja": "同仇敵愾"
+  },
+  {
+   "id": "concept_chouhen",
+   "zh": "怨恨",
+   "ja": "怨念"
+  },
+  {
+   "id": "concept_yuanqi",
+   "zh": "怨氣",
+   "ja": "怨気"
+  },
+  {
+   "id": "concept_yuanling",
+   "zh": "怨靈",
+   "ja": "怨霊"
+  },
+  {
+   "id": "concept_chenyuan",
+   "zh": "沉冤",
+   "ja": "冤罪の闇"
+  },
+  {
+   "id": "concept_zhaoxue",
+   "zh": "昭雪",
+   "ja": "雪冤"
+  },
+  {
+   "id": "concept_xueyuan",
+   "zh": "雪恥",
+   "ja": "雪辱"
+  },
+  {
+   "id": "concept_xiushi",
+   "zh": "羞恥",
+   "ja": "羞恥"
+  },
+  {
+   "id": "concept_wuchi",
+   "zh": "無恥",
+   "ja": "恥知らず"
+  },
+  {
+   "id": "concept_chiru",
+   "zh": "恥辱",
+   "ja": "恥辱"
+  },
+  {
+   "id": "concept_kuixin",
+   "zh": "愧疚",
+   "ja": "後ろめたさ"
+  },
+  {
+   "id": "concept_huiyi",
+   "zh": "悔意",
+   "ja": "悔い"
+  },
+  {
+   "id": "concept_houhui",
+   "zh": "後悔莫及",
+   "ja": "後悔先に立たず"
+  },
+  {
+   "id": "concept_huanian",
+   "zh": "懷念",
+   "ja": "懐旧"
+  },
+  {
+   "id": "concept_jiuqing",
+   "zh": "舊情",
+   "ja": "旧情"
+  },
+  {
+   "id": "concept_jiuyuan",
+   "zh": "舊怨",
+   "ja": "旧怨"
+  },
+  {
+   "id": "concept_ganen",
+   "zh": "感恩",
+   "ja": "感謝の心"
+  },
+  {
+   "id": "concept_baoen",
+   "zh": "報恩",
+   "ja": "報恩"
+  },
+  {
+   "id": "concept_baochou",
+   "zh": "報仇雪恨",
+   "ja": "仇討ち雪辱"
+  },
+  {
+   "id": "concept_zhongqing",
+   "zh": "鍾情",
+   "ja": "ひたむきな愛"
+  },
+  {
+   "id": "concept_wangqing",
+   "zh": "忘情",
+   "ja": "情を忘れる"
+  },
+  {
+   "id": "concept_taiqing",
+   "zh": "太上忘情",
+   "ja": "太上忘情"
+  },
+  {
+   "id": "concept_duoqing",
+   "zh": "多情",
+   "ja": "多情"
+  },
+  {
+   "id": "concept_wuqing",
+   "zh": "無情",
+   "ja": "無情"
+  },
+  {
+   "id": "concept_jueqing",
+   "zh": "絕情",
+   "ja": "絶情"
+  },
+  {
+   "id": "concept_duanqing",
+   "zh": "斷情",
+   "ja": "断情"
+  },
+  {
+   "id": "concept_duanyi",
+   "zh": "斷義",
+   "ja": "義絶"
+  },
+  {
+   "id": "concept_gejiu",
+   "zh": "割袍斷義",
+   "ja": "袂を分かつ"
+  },
+  {
+   "id": "concept_lixin",
+   "zh": "離愁",
+   "ja": "離愁"
+  },
+  {
+   "id": "concept_bieli",
+   "zh": "別離",
+   "ja": "別離"
+  },
+  {
+   "id": "concept_songbie",
+   "zh": "送別",
+   "ja": "送別"
+  },
+  {
+   "id": "concept_chongfeng",
+   "zh": "重逢",
+   "ja": "再会"
+  },
+  {
+   "id": "concept_jiuji",
+   "zh": "久別重逢",
+   "ja": "久闊の再会"
+  },
+  {
+   "id": "concept_pingshui",
+   "zh": "萍水相逢",
+   "ja": "行きずりの出会い"
+  },
+  {
+   "id": "concept_youyuan",
+   "zh": "有緣",
+   "ja": "縁あり"
+  },
+  {
+   "id": "concept_wuyuan",
+   "zh": "無緣",
+   "ja": "縁なし"
+  },
+  {
+   "id": "concept_liangyuan",
+   "zh": "良緣",
+   "ja": "良縁"
+  },
+  {
+   "id": "concept_nieyuan",
+   "zh": "孽緣",
+   "ja": "悪縁"
+  },
+  {
+   "id": "concept_kuhai",
+   "zh": "情海",
+   "ja": "情の海"
+  },
+  {
+   "id": "concept_qinglang",
+   "zh": "情網",
+   "ja": "情の網"
+  },
+  {
+   "id": "concept_qingjue",
+   "zh": "癡情蠱",
+   "ja": "痴情の蠱"
+  },
+  {
+   "id": "concept_qingdu",
+   "zh": "情毒",
+   "ja": "恋の毒"
+  },
+  {
+   "id": "concept_shiqing",
+   "zh": "詩情",
+   "ja": "詩情"
+  },
+  {
+   "id": "concept_huayi",
+   "zh": "畫意",
+   "ja": "画趣"
+  },
+  {
+   "id": "concept_qinxin",
+   "zh": "琴心",
+   "ja": "琴心"
+  },
+  {
+   "id": "concept_jianxin",
+   "zh": "劍心",
+   "ja": "剣心"
+  },
+  {
+   "id": "concept_daoxin",
+   "zh": "刀心",
+   "ja": "刀心"
+  },
+  {
+   "id": "concept_xiayi",
+   "zh": "俠義",
+   "ja": "侠義"
+  },
+  {
+   "id": "concept_xiaoqi",
+   "zh": "俠氣",
+   "ja": "侠気"
+  },
+  {
+   "id": "concept_xiagu",
+   "zh": "俠骨柔腸",
+   "ja": "侠骨柔腸"
+  },
+  {
+   "id": "concept_xiaoxin",
+   "zh": "俠義心腸",
+   "ja": "侠義の心"
+  },
+  {
+   "id": "concept_daoyi",
+   "zh": "道義",
+   "ja": "道義"
+  },
+  {
+   "id": "concept_xinyong",
+   "zh": "信用",
+   "ja": "信用"
+  },
+  {
+   "id": "concept_nuoyan",
+   "zh": "承諾",
+   "ja": "約束"
+  },
+  {
+   "id": "concept_yiqian",
+   "zh": "一諾千金",
+   "ja": "一諾千金"
+  },
+  {
+   "id": "concept_xinyue",
+   "zh": "信約",
+   "ja": "盟約"
+  },
+  {
+   "id": "concept_mengshi",
+   "zh": "盟誓",
+   "ja": "誓い"
+  },
+  {
+   "id": "concept_jiebai",
+   "zh": "結義",
+   "ja": "義兄弟の契り"
+  },
+  {
+   "id": "concept_taoyuan",
+   "zh": "桃園結義",
+   "ja": "桃園の誓い"
+  },
+  {
+   "id": "concept_xiongdi",
+   "zh": "兄弟情義",
+   "ja": "兄弟の義"
+  },
+  {
+   "id": "concept_dianxue",
+   "zh": "歃血為盟",
+   "ja": "血盟"
+  },
+  {
+   "id": "concept_beipan",
+   "zh": "背叛",
+   "ja": "裏切り"
+  },
+  {
+   "id": "concept_beixin",
+   "zh": "背信",
+   "ja": "背信"
+  },
+  {
+   "id": "concept_beiyi",
+   "zh": "背義",
+   "ja": "不義"
+  },
+  {
+   "id": "concept_zhuiming",
+   "zh": "忘恩負義",
+   "ja": "恩知らず"
+  },
+  {
+   "id": "concept_beici",
+   "zh": "背後一刀",
+   "ja": "背後からの一刀"
+  },
+  {
+   "id": "concept_chayi",
+   "zh": "內奸",
+   "ja": "内通者"
+  },
+  {
+   "id": "concept_panshi",
+   "zh": "叛師",
+   "ja": "師を裏切る"
+  },
+  {
+   "id": "concept_pantu",
+   "zh": "叛徒",
+   "ja": "裏切り者"
+  },
+  {
+   "id": "concept_liyong",
+   "zh": "利用",
+   "ja": "利用"
+  },
+  {
+   "id": "concept_yinmou",
+   "zh": "陰謀",
+   "ja": "陰謀"
+  },
+  {
+   "id": "concept_guiji",
+   "zh": "詭計",
+   "ja": "詭計"
+  },
+  {
+   "id": "concept_yangmou",
+   "zh": "陽謀",
+   "ja": "陽謀"
+  },
+  {
+   "id": "concept_anji",
+   "zh": "暗計",
+   "ja": "暗計"
+  },
+  {
+   "id": "concept_xiongx",
+   "zh": "陰險",
+   "ja": "陰険"
+  },
+  {
+   "id": "concept_zhongshi",
+   "zh": "忠義",
+   "ja": "忠義"
+  },
+  {
+   "id": "concept_zhongcheng",
+   "zh": "忠誠",
+   "ja": "忠誠"
+  },
+  {
+   "id": "concept_zhonghun",
+   "zh": "忠魂",
+   "ja": "忠魂"
+  },
+  {
+   "id": "concept_yihun",
+   "zh": "義魂",
+   "ja": "義魂"
+  },
+  {
+   "id": "concept_wuhun",
+   "zh": "武魂",
+   "ja": "武魂"
+  },
+  {
+   "id": "concept_xiayi2",
+   "zh": "大義",
+   "ja": "大義"
+  },
+  {
+   "id": "concept_dayi",
+   "zh": "大義凜然",
+   "ja": "大義凜然"
+  },
+  {
+   "id": "concept_jiuyi",
+   "zh": "見義勇為",
+   "ja": "義を見て勇む"
+  },
+  {
+   "id": "concept_baoping",
+   "zh": "路見不平",
+   "ja": "路見不平"
+  },
+  {
+   "id": "concept_daoba",
+   "zh": "拔刀相助",
+   "ja": "助太刀"
+  },
+  {
+   "id": "concept_xiaozhi",
+   "zh": "劫富濟貧",
+   "ja": "義賊の志"
+  },
+  {
+   "id": "concept_yizei",
+   "zh": "義賊",
+   "ja": "義賊"
+  },
+  {
+   "id": "concept_yisi",
+   "zh": "義士",
+   "ja": "義士"
+  },
+  {
+   "id": "concept_yiju",
+   "zh": "義舉",
+   "ja": "義挙"
+  },
+  {
+   "id": "concept_yiqi",
+   "zh": "義氣千秋",
+   "ja": "義気千秋"
+  },
+  {
+   "id": "concept_jianghuyi",
+   "zh": "江湖義氣",
+   "ja": "江湖の義理"
+  },
+  {
+   "id": "concept_guilei",
+   "zh": "規矩",
+   "ja": "しきたり"
+  },
+  {
+   "id": "concept_jianghuguiju",
+   "zh": "江湖規矩",
+   "ja": "江湖の掟"
+  },
+  {
+   "id": "concept_daoyi2",
+   "zh": "盜亦有道",
+   "ja": "盗賊にも道あり"
+  },
+  {
+   "id": "concept_heidao",
+   "zh": "黑道",
+   "ja": "黒道"
+  },
+  {
+   "id": "concept_baidao",
+   "zh": "白道",
+   "ja": "白道"
+  },
+  {
+   "id": "concept_zhengdao",
+   "zh": "正道",
+   "ja": "正道"
+  },
+  {
+   "id": "concept_xiedao",
+   "zh": "邪道",
+   "ja": "邪道"
+  },
+  {
+   "id": "concept_zhengxie",
+   "zh": "正邪兩立",
+   "ja": "正邪相容れず"
+  },
+  {
+   "id": "concept_mozhang",
+   "zh": "魔障",
+   "ja": "魔障"
+  },
+  {
+   "id": "concept_xinmo",
+   "zh": "心魔",
+   "ja": "心魔"
+  },
+  {
+   "id": "concept_zouhuo",
+   "zh": "走火入魔",
+   "ja": "走火入魔"
+  },
+  {
+   "id": "concept_rumo",
+   "zh": "入魔",
+   "ja": "入魔"
+  },
+  {
+   "id": "concept_moxing",
+   "zh": "魔性",
+   "ja": "魔性"
+  },
+  {
+   "id": "concept_modao",
+   "zh": "魔道",
+   "ja": "魔道"
+  },
+  {
+   "id": "concept_fomo",
+   "zh": "佛魔",
+   "ja": "仏魔"
+  },
+  {
+   "id": "concept_dumo",
+   "zh": "渡魔",
+   "ja": "魔を渡す"
+  },
+  {
+   "id": "concept_jiebao",
+   "zh": "劫數",
+   "ja": "劫数"
+  },
+  {
+   "id": "concept_tianjie",
+   "zh": "天劫",
+   "ja": "天劫"
+  },
+  {
+   "id": "concept_renjie",
+   "zh": "人劫",
+   "ja": "人の劫"
+  },
+  {
+   "id": "concept_mojie",
+   "zh": "魔劫",
+   "ja": "魔劫"
+  },
+  {
+   "id": "concept_dujie",
+   "zh": "渡劫",
+   "ja": "渡劫"
+  },
+  {
+   "id": "concept_jiejing",
+   "zh": "劫後餘生",
+   "ja": "劫後の生"
+  },
+  {
+   "id": "concept_mingyun",
+   "zh": "命運",
+   "ja": "運命"
+  },
+  {
+   "id": "concept_tianming",
+   "zh": "天命",
+   "ja": "天命"
+  },
+  {
+   "id": "concept_mingshu",
+   "zh": "命數",
+   "ja": "命数"
+  },
+  {
+   "id": "concept_yuanfen",
+   "zh": "宿命",
+   "ja": "宿命"
+  },
+  {
+   "id": "concept_shouming",
+   "zh": "壽命",
+   "ja": "寿命"
+  },
+  {
+   "id": "concept_kuming",
+   "zh": "苦命",
+   "ja": "薄命"
+  },
+  {
+   "id": "concept_haoming",
+   "zh": "好命",
+   "ja": "強運"
+  },
+  {
+   "id": "concept_xiongming",
+   "zh": "兇命",
+   "ja": "凶運"
+  },
+  {
+   "id": "concept_niming",
+   "zh": "逆天改命",
+   "ja": "天に逆らい運を変える"
+  },
+  {
+   "id": "concept_ningtian",
+   "zh": "逆天",
+   "ja": "逆天"
+  },
+  {
+   "id": "concept_shunmin",
+   "zh": "順天應命",
+   "ja": "天に従う"
+  },
+  {
+   "id": "concept_tianji",
+   "zh": "天機",
+   "ja": "天機"
+  },
+  {
+   "id": "concept_tianjibu",
+   "zh": "天機不可洩",
+   "ja": "天機漏らすべからず"
+  },
+  {
+   "id": "concept_tuiyan",
+   "zh": "推演",
+   "ja": "推演"
+  },
+  {
+   "id": "concept_mingpan",
+   "zh": "命盤",
+   "ja": "命盤"
+  },
+  {
+   "id": "concept_xingxiang",
+   "zh": "星象",
+   "ja": "星象"
+  },
+  {
+   "id": "concept_zhanbu",
+   "zh": "占卜",
+   "ja": "占い"
+  },
+  {
+   "id": "concept_baishi",
+   "zh": "拜師",
+   "ja": "入門の儀"
+  },
+  {
+   "id": "concept_ruman",
+   "zh": "入門",
+   "ja": "入門"
+  },
+  {
+   "id": "concept_chukui",
+   "zh": "初窺門徑",
+   "ja": "門を窺う"
+  },
+  {
+   "id": "concept_xiaocheng",
+   "zh": "小成",
+   "ja": "小成"
+  },
+  {
+   "id": "concept_shulian",
+   "zh": "純熟",
+   "ja": "熟練"
+  },
+  {
+   "id": "concept_dacheng",
+   "zh": "大成",
+   "ja": "大成"
+  },
+  {
+   "id": "concept_yuanman",
+   "zh": "圓滿",
+   "ja": "円満"
+  },
+  {
+   "id": "concept_dengfeng",
+   "zh": "登峰造極",
+   "ja": "登峰造極"
+  },
+  {
+   "id": "concept_huajing",
+   "zh": "化境",
+   "ja": "化境"
+  },
+  {
+   "id": "concept_fanpu",
+   "zh": "返璞歸真",
+   "ja": "返璞帰真"
+  },
+  {
+   "id": "concept_tianren",
+   "zh": "天人合一",
+   "ja": "天人合一"
+  },
+  {
+   "id": "concept_poxu",
+   "zh": "破碎虛空",
+   "ja": "破碎虛空"
+  },
+  {
+   "id": "concept_wudao",
+   "zh": "武道",
+   "ja": "武の道"
+  },
+  {
+   "id": "concept_wudaoji",
+   "zh": "武道極致",
+   "ja": "武道の極み"
+  },
+  {
+   "id": "concept_zongshi",
+   "zh": "宗師風範",
+   "ja": "宗師の風格"
+  },
+  {
+   "id": "concept_houtian",
+   "zh": "後天境界",
+   "ja": "後天の境"
+  },
+  {
+   "id": "concept_xiantian",
+   "zh": "先天境界",
+   "ja": "先天の境"
+  },
+  {
+   "id": "concept_yiliu",
+   "zh": "一流高手",
+   "ja": "一流の使い手"
+  },
+  {
+   "id": "concept_juding",
+   "zh": "絕頂高手",
+   "ja": "絶頂の達人"
+  },
+  {
+   "id": "concept_tianxia1",
+   "zh": "天下第一",
+   "ja": "天下第一"
+  },
+  {
+   "id": "concept_dugu",
+   "zh": "獨孤求敗",
+   "ja": "孤高の求敗"
+  },
+  {
+   "id": "concept_wudi",
+   "zh": "天下無敵",
+   "ja": "天下無敵"
+  },
+  {
+   "id": "concept_wuzhao",
+   "zh": "無招勝有招",
+   "ja": "無招は有招に勝る"
+  },
+  {
+   "id": "concept_wujian",
+   "zh": "無劍勝有劍",
+   "ja": "無剣は有剣に勝る"
+  },
+  {
+   "id": "concept_feihua",
+   "zh": "飛花摘葉",
+   "ja": "飛花摘葉"
+  },
+  {
+   "id": "concept_renjian",
+   "zh": "人劍合一",
+   "ja": "人剣合一"
+  },
+  {
+   "id": "concept_jianqi",
+   "zh": "劍氣",
+   "ja": "剣気"
+  },
+  {
+   "id": "concept_jianyi",
+   "zh": "劍意",
+   "ja": "剣意"
+  },
+  {
+   "id": "concept_jianshi",
+   "zh": "劍勢",
+   "ja": "剣勢"
+  },
+  {
+   "id": "concept_daoyi3",
+   "zh": "刀意",
+   "ja": "刀意"
+  },
+  {
+   "id": "concept_daoqi",
+   "zh": "刀氣",
+   "ja": "刀気"
+  },
+  {
+   "id": "concept_quanyi",
+   "zh": "拳意",
+   "ja": "拳意"
+  },
+  {
+   "id": "concept_zhangyi",
+   "zh": "掌意",
+   "ja": "掌意"
+  },
+  {
+   "id": "concept_qiangyi",
+   "zh": "槍意",
+   "ja": "槍意"
+  },
+  {
+   "id": "concept_zhiyi",
+   "zh": "指意",
+   "ja": "指意"
+  },
+  {
+   "id": "concept_tuiyi",
+   "zh": "腿意",
+   "ja": "脚意"
+  },
+  {
+   "id": "concept_jianxinjing",
+   "zh": "劍心通明",
+   "ja": "剣心通明"
+  },
+  {
+   "id": "concept_tongming",
+   "zh": "通明",
+   "ja": "通明"
+  },
+  {
+   "id": "concept_jianwang",
+   "zh": "劍道至極",
+   "ja": "剣道至極"
+  },
+  {
+   "id": "concept_daowang",
+   "zh": "刀道至極",
+   "ja": "刀道至極"
+  },
+  {
+   "id": "concept_qihai",
+   "zh": "氣海",
+   "ja": "気海"
+  },
+  {
+   "id": "concept_dantian",
+   "zh": "丹田",
+   "ja": "丹田"
+  },
+  {
+   "id": "concept_xiaozhou",
+   "zh": "小周天",
+   "ja": "小周天"
+  },
+  {
+   "id": "concept_dazhou",
+   "zh": "大周天",
+   "ja": "大周天"
+  },
+  {
+   "id": "concept_zhoutian",
+   "zh": "周天運轉",
+   "ja": "周天運行"
+  },
+  {
+   "id": "concept_zhenyuan",
+   "zh": "真元",
+   "ja": "真元"
+  },
+  {
+   "id": "concept_yuanshen",
+   "zh": "元神",
+   "ja": "元神"
+  },
+  {
+   "id": "concept_shenshi",
+   "zh": "神識",
+   "ja": "神識"
+  },
+  {
+   "id": "concept_yuanying",
+   "zh": "元嬰",
+   "ja": "元嬰"
+  },
+  {
+   "id": "concept_jindan",
+   "zh": "結丹",
+   "ja": "結丹"
+  },
+  {
+   "id": "concept_chan",
+   "zh": "禪",
+   "ja": "禅"
+  },
+  {
+   "id": "concept_chanyi",
+   "zh": "禪意",
+   "ja": "禅意"
+  },
+  {
+   "id": "concept_dunwu",
+   "zh": "頓悟",
+   "ja": "頓悟"
+  },
+  {
+   "id": "concept_wudao2",
+   "zh": "悟道",
+   "ja": "悟道"
+  },
+  {
+   "id": "concept_kaiwu",
+   "zh": "開悟",
+   "ja": "開悟"
+  },
+  {
+   "id": "concept_puti",
+   "zh": "菩提",
+   "ja": "菩提"
+  },
+  {
+   "id": "concept_putijing",
+   "zh": "菩提明鏡",
+   "ja": "菩提明鏡"
+  },
+  {
+   "id": "concept_mingjing",
+   "zh": "明鏡止水",
+   "ja": "明鏡止水"
+  },
+  {
+   "id": "concept_zhishui",
+   "zh": "止水",
+   "ja": "止水"
+  },
+  {
+   "id": "concept_kong",
+   "zh": "空",
+   "ja": "空"
+  },
+  {
+   "id": "concept_sekong",
+   "zh": "色即是空",
+   "ja": "色即是空"
+  },
+  {
+   "id": "concept_kongsek",
+   "zh": "四大皆空",
+   "ja": "四大皆空"
+  },
+  {
+   "id": "concept_dingli",
+   "zh": "定力",
+   "ja": "定力"
+  },
+  {
+   "id": "concept_chandin",
+   "zh": "禪定",
+   "ja": "禅定"
+  },
+  {
+   "id": "concept_zuochan",
+   "zh": "坐禪",
+   "ja": "座禅"
+  },
+  {
+   "id": "concept_mianbi",
+   "zh": "面壁",
+   "ja": "面壁"
+  },
+  {
+   "id": "concept_mianbijiu",
+   "zh": "面壁九年",
+   "ja": "面壁九年"
+  },
+  {
+   "id": "concept_dunwu2",
+   "zh": "大徹大悟",
+   "ja": "大悟徹底"
+  },
+  {
+   "id": "concept_wuwei",
+   "zh": "無為",
+   "ja": "無為"
+  },
+  {
+   "id": "concept_daofa",
+   "zh": "道法自然",
+   "ja": "道法自然"
+  },
+  {
+   "id": "concept_ziran",
+   "zh": "自然而然",
+   "ja": "自然の理"
+  },
+  {
+   "id": "concept_shangshan",
+   "zh": "上善若水",
+   "ja": "上善は水の如し"
+  },
+  {
+   "id": "concept_rouke",
+   "zh": "以柔克剛",
+   "ja": "柔よく剛を制す"
+  },
+  {
+   "id": "concept_siliang",
+   "zh": "四兩撥千斤",
+   "ja": "四両撥千斤"
+  },
+  {
+   "id": "concept_liangyi",
+   "zh": "兩儀",
+   "ja": "両儀"
+  },
+  {
+   "id": "concept_sixiang4",
+   "zh": "四象",
+   "ja": "四象"
+  },
+  {
+   "id": "concept_taiji",
+   "zh": "太極生兩儀",
+   "ja": "太極両儀を生ず"
+  },
+  {
+   "id": "concept_yinyang",
+   "zh": "陰陽調和",
+   "ja": "陰陽調和"
+  },
+  {
+   "id": "concept_yinyangni",
+   "zh": "陰陽逆轉",
+   "ja": "陰陽逆転"
+  },
+  {
+   "id": "concept_yinjiyang",
+   "zh": "陰極陽生",
+   "ja": "陰極まりて陽生ず"
+  },
+  {
+   "id": "concept_yangjiyin",
+   "zh": "陽極陰生",
+   "ja": "陽極まりて陰生ず"
+  },
+  {
+   "id": "concept_wuji",
+   "zh": "無極",
+   "ja": "無極"
+  },
+  {
+   "id": "concept_hundun",
+   "zh": "混沌",
+   "ja": "混沌"
+  },
+  {
+   "id": "concept_chuanyuan",
+   "zh": "乾坤",
+   "ja": "乾坤"
+  },
+  {
+   "id": "concept_qiankun",
+   "zh": "乾坤一擲",
+   "ja": "乾坤一擲"
+  },
+  {
+   "id": "concept_qiankunn",
+   "zh": "乾坤大挪移",
+   "ja": "乾坤大挪移"
+  },
+  {
+   "id": "concept_chengming",
+   "zh": "成名",
+   "ja": "名を上げる"
+  },
+  {
+   "id": "concept_yizhan",
+   "zh": "一戰成名",
+   "ja": "一戦成名"
+  },
+  {
+   "id": "concept_weiming",
+   "zh": "威名",
+   "ja": "威名"
+  },
+  {
+   "id": "concept_xiaming",
+   "zh": "俠名",
+   "ja": "侠名"
+  },
+  {
+   "id": "concept_eming",
+   "zh": "惡名",
+   "ja": "悪名"
+  },
+  {
+   "id": "concept_xuming",
+   "zh": "虛名",
+   "ja": "虚名"
+  },
+  {
+   "id": "concept_shengming",
+   "zh": "盛名",
+   "ja": "盛名"
+  },
+  {
+   "id": "concept_mingzhen",
+   "zh": "名震江湖",
+   "ja": "江湖に名を轟かす"
+  },
+  {
+   "id": "concept_mingdong",
+   "zh": "名動天下",
+   "ja": "天下に名を馳せる"
+  },
+  {
+   "id": "concept_chuanshuo",
+   "zh": "傳說",
+   "ja": "伝説"
+  },
+  {
+   "id": "concept_chuanqi",
+   "zh": "傳奇",
+   "ja": "伝奇"
+  },
+  {
+   "id": "concept_shenhua",
+   "zh": "神話",
+   "ja": "神話"
+  },
+  {
+   "id": "concept_qiangu",
+   "zh": "千古流芳",
+   "ja": "千古に名を残す"
+  },
+  {
+   "id": "concept_yuchou",
+   "zh": "遺臭萬年",
+   "ja": "悪名を万年に残す"
+  },
+  {
+   "id": "concept_jianghu",
+   "zh": "江湖",
+   "ja": "江湖"
+  },
+  {
+   "id": "concept_wulin",
+   "zh": "武林",
+   "ja": "武林"
+  },
+  {
+   "id": "concept_wulindahui",
+   "zh": "武林大會",
+   "ja": "武林大会"
+  },
+  {
+   "id": "concept_wulinmeng",
+   "zh": "武林盟約",
+   "ja": "武林の盟約"
+  },
+  {
+   "id": "concept_fengyun",
+   "zh": "風雲",
+   "ja": "風雲"
+  },
+  {
+   "id": "concept_xingfeng",
+   "zh": "腥風血雨",
+   "ja": "血の雨風"
+  },
+  {
+   "id": "concept_yingxiong",
+   "zh": "英雄",
+   "ja": "英雄"
+  },
+  {
+   "id": "concept_yingxionghui",
+   "zh": "英雄大會",
+   "ja": "英雄大会"
+  },
+  {
+   "id": "concept_jianghuyuan",
+   "zh": "江湖恩怨",
+   "ja": "江湖の恩讐"
+  },
+  {
+   "id": "concept_jianghulao",
+   "zh": "江湖歲月",
+   "ja": "江湖の歳月"
+  },
+  {
+   "id": "concept_jianghuyuan2",
+   "zh": "江湖路遠",
+   "ja": "江湖は遠し"
+  },
+  {
+   "id": "concept_yishunn",
+   "zh": "一瞬",
+   "ja": "一瞬"
+  },
+  {
+   "id": "concept_yongheng",
+   "zh": "永恆",
+   "ja": "永遠"
+  },
+  {
+   "id": "concept_guangyin",
+   "zh": "光陰",
+   "ja": "光陰"
+  },
+  {
+   "id": "concept_liunian",
+   "zh": "流年",
+   "ja": "流れる年月"
+  },
+  {
+   "id": "concept_baiju",
+   "zh": "白駒過隙",
+   "ja": "白駒の隙を過ぐ"
+  },
+  {
+   "id": "concept_cangsang",
+   "zh": "滄海桑田",
+   "ja": "滄海桑田"
+  },
+  {
+   "id": "concept_qiannian",
+   "zh": "千年",
+   "ja": "千年"
+  },
+  {
+   "id": "concept_lunhui",
+   "zh": "輪迴",
+   "ja": "輪廻"
+  },
+  {
+   "id": "concept_zhuanshi",
+   "zh": "轉世",
+   "ja": "転生"
+  },
+  {
+   "id": "concept_qianshi",
+   "zh": "前世",
+   "ja": "前世"
+  },
+  {
+   "id": "concept_laisheng",
+   "zh": "來生",
+   "ja": "来世"
+  },
+  {
+   "id": "concept_yinguo",
+   "zh": "因果",
+   "ja": "因果"
+  },
+  {
+   "id": "concept_baoying",
+   "zh": "報應",
+   "ja": "報い"
+  },
+  {
+   "id": "concept_yinguolun",
+   "zh": "因果輪迴",
+   "ja": "因果応報"
+  },
+  {
+   "id": "concept_shiji",
+   "zh": "時機",
+   "ja": "好機"
+  },
+  {
+   "id": "concept_jiyuan",
+   "zh": "機緣",
+   "ja": "機縁"
+  },
+  {
+   "id": "concept_qiyun",
+   "zh": "氣運",
+   "ja": "気運"
+  },
+  {
+   "id": "concept_xinghong",
+   "zh": "鴻運當頭",
+   "ja": "幸運到来"
+  },
+  {
+   "id": "concept_xiongxian",
+   "zh": "逢凶化吉",
+   "ja": "凶を吉に転ず"
+  },
+  {
+   "id": "concept_daxue",
+   "zh": "大難不死",
+   "ja": "九死に一生"
+  },
+  {
+   "id": "concept_houfu",
+   "zh": "後福",
+   "ja": "後の福"
+  },
+  {
+   "id": "concept_xushi",
+   "zh": "虛實",
+   "ja": "虚実"
+  },
+  {
+   "id": "concept_dongjing",
+   "zh": "動靜",
+   "ja": "動静"
+  },
+  {
+   "id": "concept_gangrou",
+   "zh": "剛柔並濟",
+   "ja": "剛柔併せ持つ"
+  },
+  {
+   "id": "concept_shengsisi",
+   "zh": "生死",
+   "ja": "生死"
+  },
+  {
+   "id": "concept_sheng2",
+   "zh": "生生不息",
+   "ja": "生生流転"
+  },
+  {
+   "id": "concept_dongcha",
+   "zh": "洞察",
+   "ja": "洞察"
+  },
+  {
+   "id": "concept_jianwei",
+   "zh": "見微知著",
+   "ja": "微を見て著を知る"
+  },
+  {
+   "id": "concept_shenmou",
+   "zh": "深謀遠慮",
+   "ja": "深謀遠慮"
+  },
+  {
+   "id": "concept_yunchou",
+   "zh": "運籌帷幄",
+   "ja": "運籌帷幄"
+  },
+  {
+   "id": "concept_bingfa",
+   "zh": "兵法",
+   "ja": "兵法"
+  },
+  {
+   "id": "concept_miaoji",
+   "zh": "妙計",
+   "ja": "妙計"
+  },
+  {
+   "id": "concept_lianhuan",
+   "zh": "連環計",
+   "ja": "連環の計"
+  },
+  {
+   "id": "concept_meiren",
+   "zh": "美人計",
+   "ja": "美人の計"
+  },
+  {
+   "id": "concept_kongcheng",
+   "zh": "空城計",
+   "ja": "空城の計"
+  },
+  {
+   "id": "concept_jiedao",
+   "zh": "借刀殺人",
+   "ja": "借刀殺人"
+  },
+  {
+   "id": "concept_diaohu",
+   "zh": "調虎離山",
+   "ja": "虎を山から誘う"
+  },
+  {
+   "id": "concept_yinshe",
+   "zh": "引蛇出洞",
+   "ja": "蛇を穴から誘う"
+  },
+  {
+   "id": "concept_xiaoli",
+   "zh": "笑裡藏刀",
+   "ja": "笑中に刀を蔵す"
+  },
+  {
+   "id": "concept_anjian",
+   "zh": "暗箭傷人",
+   "ja": "暗箭人を傷つく"
+  },
+  {
+   "id": "concept_shengdong",
+   "zh": "聲東擊西",
+   "ja": "声東撃西"
+  },
+  {
+   "id": "concept_pingchang",
+   "zh": "平常心",
+   "ja": "平常心"
+  },
+  {
+   "id": "concept_danbo",
+   "zh": "淡泊名利",
+   "ja": "淡泊名利"
+  },
+  {
+   "id": "concept_chongru",
+   "zh": "寵辱不驚",
+   "ja": "寵辱驚かず"
+  },
+  {
+   "id": "concept_ningjing",
+   "zh": "寧靜致遠",
+   "ja": "寧静致遠"
+  },
+  {
+   "id": "concept_huoda",
+   "zh": "豁達",
+   "ja": "豁達"
+  },
+  {
+   "id": "concept_satuo",
+   "zh": "灑脫",
+   "ja": "洒脱"
+  },
+  {
+   "id": "concept_xiaosa",
+   "zh": "瀟灑",
+   "ja": "瀟洒"
+  },
+  {
+   "id": "concept_kuangfang",
+   "zh": "狂放",
+   "ja": "狂放"
+  },
+  {
+   "id": "concept_kuangao",
+   "zh": "狂傲",
+   "ja": "狂傲"
+  },
+  {
+   "id": "concept_aoqi",
+   "zh": "傲氣",
+   "ja": "傲気"
+  },
+  {
+   "id": "concept_aogu",
+   "zh": "傲骨",
+   "ja": "気骨"
+  },
+  {
+   "id": "concept_haomai",
+   "zh": "豪邁",
+   "ja": "豪邁"
+  },
+  {
+   "id": "concept_kangkai",
+   "zh": "慷慨",
+   "ja": "慷慨"
+  },
+  {
+   "id": "concept_beige",
+   "zh": "悲歌",
+   "ja": "悲歌"
+  },
+  {
+   "id": "concept_kangkaibei",
+   "zh": "慷慨悲歌",
+   "ja": "慷慨悲歌"
+  },
+  {
+   "id": "concept_juezhao",
+   "zh": "絕招",
+   "ja": "奥義"
+  },
+  {
+   "id": "concept_shazhao",
+   "zh": "殺招",
+   "ja": "殺し技"
+  },
+  {
+   "id": "concept_qizhao",
+   "zh": "奇招",
+   "ja": "奇策の技"
+  },
+  {
+   "id": "concept_xianzhao",
+   "zh": "險招",
+   "ja": "危険な技"
+  },
+  {
+   "id": "concept_bisha",
+   "zh": "必殺一擊",
+   "ja": "必殺の一撃"
+  },
+  {
+   "id": "concept_jiuxing",
+   "zh": "酒興",
+   "ja": "酒の興"
+  },
+  {
+   "id": "concept_zuimeng",
+   "zh": "醉生夢死",
+   "ja": "酔生夢死"
+  },
+  {
+   "id": "concept_duijiu",
+   "zh": "對酒當歌",
+   "ja": "酒に対して歌う"
+  },
+  {
+   "id": "concept_zhujiu",
+   "zh": "煮酒論英雄",
+   "ja": "酒を煮て英雄を論ず"
+  },
+  {
+   "id": "concept_chachan",
+   "zh": "茶禪一味",
+   "ja": "茶禅一味"
+  },
+  {
+   "id": "concept_pinming",
+   "zh": "品茗",
+   "ja": "茶を味わう"
+  },
+  {
+   "id": "concept_chahui",
+   "zh": "以茶會友",
+   "ja": "茶を以て友と会う"
+  },
+  {
+   "id": "concept_qinyun",
+   "zh": "琴韻",
+   "ja": "琴の調べ"
+  },
+  {
+   "id": "concept_xiaosheng",
+   "zh": "簫聲嗚咽",
+   "ja": "むせぶ笛の音"
+  },
+  {
+   "id": "concept_moxiang",
+   "zh": "墨香",
+   "ja": "墨の香り"
+  },
+  {
+   "id": "concept_rensheng",
+   "zh": "人生如棋",
+   "ja": "人生は碁の如し"
+  },
+  {
+   "id": "concept_lei",
+   "zh": "眼淚",
+   "ja": "涙"
+  },
+  {
+   "id": "concept_xuelei",
+   "zh": "血淚",
+   "ja": "血の涙"
+  },
+  {
+   "id": "concept_changxiao",
+   "zh": "長嘯",
+   "ja": "長嘯"
+  },
+  {
+   "id": "concept_nanke",
+   "zh": "南柯一夢",
+   "ja": "南柯の夢"
+  },
+  {
+   "id": "concept_daimeng",
+   "zh": "大夢初醒",
+   "ja": "夢から覚める"
+  },
+  {
+   "id": "concept_huangliang",
+   "zh": "黃粱一夢",
+   "ja": "邯鄲の夢"
+  },
+  {
+   "id": "concept_yimeng",
+   "zh": "一夢江湖",
+   "ja": "江湖一夢"
+  },
+  {
+   "id": "concept_huanjing",
+   "zh": "幻境",
+   "ja": "幻境"
+  },
+  {
+   "id": "concept_jinghua",
+   "zh": "鏡花水月",
+   "ja": "鏡花水月"
+  },
+  {
+   "id": "concept_shuiyue",
+   "zh": "水月",
+   "ja": "水月"
+  },
+  {
+   "id": "concept_chouyun",
+   "zh": "愁雲慘霧",
+   "ja": "愁雲惨霧"
+  },
+  {
+   "id": "concept_jiaochou",
+   "zh": "借酒澆愁",
+   "ja": "酒で憂さを晴らす"
+  },
+  {
+   "id": "concept_xiaose",
+   "zh": "蕭瑟",
+   "ja": "蕭瑟"
+  },
+  {
+   "id": "concept_qiusi",
+   "zh": "秋思",
+   "ja": "秋思"
+  },
+  {
+   "id": "concept_luohua",
+   "zh": "落花",
+   "ja": "落花"
+  },
+  {
+   "id": "concept_liushui",
+   "zh": "落花流水",
+   "ja": "落花流水"
+  },
+  {
+   "id": "concept_shangchun",
+   "zh": "傷春悲秋",
+   "ja": "傷春悲秋"
+  },
+  {
+   "id": "concept_yuexia",
+   "zh": "月下獨酌",
+   "ja": "月下独酌"
+  },
+  {
+   "id": "concept_dudiao",
+   "zh": "獨釣寒江",
+   "ja": "寒江に独り釣る"
+  },
+  {
+   "id": "concept_gufan",
+   "zh": "孤帆遠影",
+   "ja": "孤帆遠影"
+  },
+  {
+   "id": "concept_guyan",
+   "zh": "孤雁",
+   "ja": "孤雁"
+  },
+  {
+   "id": "concept_gujian",
+   "zh": "孤劍",
+   "ja": "孤剣"
+  },
+  {
+   "id": "concept_gufeng",
+   "zh": "孤峰",
+   "ja": "孤峰"
+  },
+  {
+   "id": "concept_gaochu",
+   "zh": "高處不勝寒",
+   "ja": "高きは寒さに堪えず"
+  },
+  {
+   "id": "concept_guao",
+   "zh": "孤傲",
+   "ja": "孤高の傲り"
+  },
+  {
+   "id": "concept_wuwei2",
+   "zh": "無畏",
+   "ja": "無畏"
+  },
+  {
+   "id": "concept_rexue",
+   "zh": "熱血",
+   "ja": "熱血"
+  },
+  {
+   "id": "concept_rexuefei",
+   "zh": "熱血沸騰",
+   "ja": "血が滾る"
+  },
+  {
+   "id": "concept_shisi",
+   "zh": "視死如歸",
+   "ja": "死を視ること帰するが如し"
+  },
+  {
+   "id": "concept_taishan",
+   "zh": "泰山崩於前",
+   "ja": "泰山崩るるも動じず"
+  },
+  {
+   "id": "concept_linwei",
+   "zh": "臨危不懼",
+   "ja": "危機に臨みて懼れず"
+  },
+  {
+   "id": "concept_pofu",
+   "zh": "破釜沉舟",
+   "ja": "破釜沈舟"
+  },
+  {
+   "id": "concept_beishui",
+   "zh": "背水一戰",
+   "ja": "背水の陣"
+  },
+  {
+   "id": "concept_yifu",
+   "zh": "一夫當關",
+   "ja": "一夫関に当たる"
+  },
+  {
+   "id": "concept_dazhi",
+   "zh": "大智若愚",
+   "ja": "大智は愚の如し"
+  },
+  {
+   "id": "concept_zhiyong",
+   "zh": "智勇雙全",
+   "ja": "智勇兼備"
+  },
+  {
+   "id": "concept_yiye",
+   "zh": "一葉知秋",
+   "ja": "一葉落ちて秋を知る"
+  },
+  {
+   "id": "concept_yijing",
+   "zh": "以靜制動",
+   "ja": "静を以て動を制す"
+  },
+  {
+   "id": "concept_gandan",
+   "zh": "肝膽相照",
+   "ja": "肝胆相照らす"
+  },
+  {
+   "id": "concept_liangle",
+   "zh": "兩肋插刀",
+   "ja": "両脇に刀を刺す覚悟"
+  },
+  {
+   "id": "concept_huannan",
+   "zh": "患難與共",
+   "ja": "苦難を共にする"
+  },
+  {
+   "id": "concept_tongzhou",
+   "zh": "同舟共濟",
+   "ja": "同舟共済"
+  },
+  {
+   "id": "concept_buli",
+   "zh": "不離不棄",
+   "ja": "離れず捨てず"
+  },
+  {
+   "id": "concept_yiyan",
+   "zh": "一言九鼎",
+   "ja": "一言九鼎"
+  },
+  {
+   "id": "concept_junzi",
+   "zh": "君子協定",
+   "ja": "君子協定"
+  },
+  {
+   "id": "concept_junzifeng",
+   "zh": "君子之風",
+   "ja": "君子の風"
+  },
+  {
+   "id": "concept_haoran",
+   "zh": "浩然正氣",
+   "ja": "浩然の気"
+  },
+  {
+   "id": "concept_xieqi",
+   "zh": "邪氣",
+   "ja": "邪気"
+  },
+  {
+   "id": "concept_chi",
+   "zh": "癡",
+   "ja": "痴"
+  },
+  {
+   "id": "concept_qingjie",
+   "zh": "情劫",
+   "ja": "情劫"
+  },
+  {
+   "id": "concept_qingshang",
+   "zh": "情傷",
+   "ja": "情傷"
+  },
+  {
+   "id": "concept_xinsi",
+   "zh": "心死",
+   "ja": "心が死ぬ"
+  },
+  {
+   "id": "concept_aimo",
+   "zh": "哀莫大於心死",
+   "ja": "哀しみは心の死に勝るなし"
+  },
+  {
+   "id": "concept_yixiao",
+   "zh": "一笑泯恩仇",
+   "ja": "一笑に付して恩讐を消す"
+  },
+  {
+   "id": "concept_xiangwang",
+   "zh": "相忘於江湖",
+   "ja": "江湖に相忘る"
+  },
+  {
+   "id": "concept_xiangru",
+   "zh": "相濡以沫",
+   "ja": "相濡以沫"
+  },
+  {
+   "id": "concept_shengsixu",
+   "zh": "生死相許",
+   "ja": "生死を誓う"
+  },
+  {
+   "id": "concept_baitou",
+   "zh": "白頭偕老",
+   "ja": "白髪になるまで"
+  },
+  {
+   "id": "concept_tianchang",
+   "zh": "天長地久",
+   "ja": "天長地久"
+  },
+  {
+   "id": "concept_haishi",
+   "zh": "海誓山盟",
+   "ja": "海誓山盟"
+  },
+  {
+   "id": "concept_chuancheng",
+   "zh": "傳承",
+   "ja": "伝承"
+  },
+  {
+   "id": "concept_yibo",
+   "zh": "衣缽",
+   "ja": "衣鉢"
+  },
+  {
+   "id": "concept_juexue",
+   "zh": "絕學",
+   "ja": "絶学"
+  },
+  {
+   "id": "concept_shichuan",
+   "zh": "失傳",
+   "ja": "失伝"
+  },
+  {
+   "id": "concept_jueshi",
+   "zh": "絕世武學",
+   "ja": "絶世の武学"
+  },
+  {
+   "id": "concept_mizhuan",
+   "zh": "祕傳",
+   "ja": "秘伝"
+  },
+  {
+   "id": "concept_jiaxue",
+   "zh": "家學淵源",
+   "ja": "家学の淵源"
+  },
+  {
+   "id": "concept_menfeng",
+   "zh": "門風",
+   "ja": "家風"
+  },
+  {
+   "id": "concept_shien",
+   "zh": "師恩",
+   "ja": "師恩"
+  },
+  {
+   "id": "concept_shitu",
+   "zh": "師徒情深",
+   "ja": "師弟の情"
+  },
+  {
+   "id": "concept_chuangong",
+   "zh": "傳功",
+   "ja": "伝功"
+  },
+  {
+   "id": "concept_guanding",
+   "zh": "灌頂",
+   "ja": "灌頂"
+  },
+  {
+   "id": "concept_tihu",
+   "zh": "醍醐灌頂",
+   "ja": "醍醐灌頂"
+  },
+  {
+   "id": "concept_jiandao",
+   "zh": "劍膽琴心",
+   "ja": "剣胆琴心"
+  },
+  {
+   "id": "concept_wenwu",
+   "zh": "文武雙全",
+   "ja": "文武両道"
+  },
+  {
+   "id": "concept_wenren",
+   "zh": "文人風骨",
+   "ja": "文人の気骨"
+  },
+  {
+   "id": "concept_zuixia",
+   "zh": "醉裡挑燈",
+   "ja": "酔中に灯を挑ぐ"
+  },
+  {
+   "id": "concept_jinbei",
+   "zh": "金盆洗手",
+   "ja": "足を洗う"
+  },
+  {
+   "id": "concept_guiyin",
+   "zh": "歸隱",
+   "ja": "隠遁"
+  },
+  {
+   "id": "concept_shanlin",
+   "zh": "山林隱逸",
+   "ja": "山林の隠逸"
+  },
+  {
+   "id": "concept_shiwai",
+   "zh": "世外桃源",
+   "ja": "世外の桃源"
+  },
+  {
+   "id": "concept_xuanji",
+   "zh": "玄機",
+   "ja": "玄機"
+  },
+  {
+   "id": "concept_xuanmen",
+   "zh": "玄門正宗",
+   "ja": "玄門の正統"
+  },
+  {
+   "id": "concept_daoxin2",
+   "zh": "道心",
+   "ja": "道心"
+  },
+  {
+   "id": "concept_xiuxing",
+   "zh": "修行",
+   "ja": "修行"
+  },
+  {
+   "id": "concept_xiulian",
+   "zh": "修煉",
+   "ja": "修練"
+  },
+  {
+   "id": "concept_kuxiu",
+   "zh": "苦修",
+   "ja": "苦行"
+  },
+  {
+   "id": "concept_xiuwei",
+   "zh": "修為",
+   "ja": "修為"
+  },
+  {
+   "id": "concept_yuanji",
+   "zh": "圓寂",
+   "ja": "円寂"
+  },
+  {
+   "id": "concept_sheli",
+   "zh": "舍利",
+   "ja": "舎利"
+  },
+  {
+   "id": "concept_foxin",
+   "zh": "佛心",
+   "ja": "仏心"
+  },
+  {
+   "id": "concept_cibei",
+   "zh": "慈悲",
+   "ja": "慈悲"
+  },
+  {
+   "id": "concept_fahai",
+   "zh": "法海無邊",
+   "ja": "法海無辺"
+  },
+  {
+   "id": "concept_fanfu",
+   "zh": "放下屠刀",
+   "ja": "屠刀を放つ"
+  },
+  {
+   "id": "concept_lidi",
+   "zh": "立地成佛",
+   "ja": "立地成仏"
+  },
+  {
+   "id": "concept_xinlu",
+   "zh": "心路歷程",
+   "ja": "心の道程"
+  },
+  {
+   "id": "concept_zhijing",
+   "zh": "止境",
+   "ja": "果てなき境"
+  },
+  {
+   "id": "concept_pingjing",
+   "zh": "瓶頸",
+   "ja": "壁"
+  },
+  {
+   "id": "concept_tupo",
+   "zh": "突破",
+   "ja": "突破"
+  },
+  {
+   "id": "concept_tupojing",
+   "zh": "境界突破",
+   "ja": "境地を破る"
+  },
+  {
+   "id": "concept_jinbu",
+   "zh": "精進",
+   "ja": "精進"
+  },
+  {
+   "id": "concept_zhuanzhu",
+   "zh": "專注",
+   "ja": "専心"
+  },
+  {
+   "id": "concept_wuwo",
+   "zh": "忘我",
+   "ja": "無我"
+  },
+  {
+   "id": "concept_wuwojing",
+   "zh": "物我兩忘",
+   "ja": "物我両忘"
+  },
+  {
+   "id": "concept_xinliu",
+   "zh": "心流",
+   "ja": "心流"
+  },
+  {
+   "id": "concept_liangzhi",
+   "zh": "良知",
+   "ja": "良知"
+  },
+  {
+   "id": "concept_renxin",
+   "zh": "人心",
+   "ja": "人心"
+  },
+  {
+   "id": "concept_renxinxian",
+   "zh": "人心險惡",
+   "ja": "人心の険しさ"
+  },
+  {
+   "id": "concept_shiqing2",
+   "zh": "世情",
+   "ja": "世情"
+  },
+  {
+   "id": "concept_shishi",
+   "zh": "世事無常",
+   "ja": "世事無常"
+  },
+  {
+   "id": "concept_wuchang",
+   "zh": "無常",
+   "ja": "無常"
+  },
+  {
+   "id": "concept_fanhua",
+   "zh": "繁華如夢",
+   "ja": "栄華は夢の如し"
+  },
+  {
+   "id": "concept_fuyun",
+   "zh": "浮雲",
+   "ja": "浮雲"
+  },
+  {
+   "id": "concept_fuyunming",
+   "zh": "浮雲名利",
+   "ja": "浮雲の名利"
+  },
+  {
+   "id": "concept_kuhai2",
+   "zh": "苦海無邊",
+   "ja": "苦海無辺"
+  },
+  {
+   "id": "concept_huitou",
+   "zh": "回頭是岸",
+   "ja": "回頭是岸"
+  },
+  {
+   "id": "concept_xiakemeng",
+   "zh": "俠客夢",
+   "ja": "侠客の夢"
+  },
+  {
+   "id": "concept_xiaoao",
+   "zh": "笑傲江湖",
+   "ja": "笑傲江湖"
+  },
+  {
+   "id": "concept_tianya",
+   "zh": "天涯海角",
+   "ja": "天涯海角"
+  },
+  {
+   "id": "concept_langji",
+   "zh": "浪跡天涯",
+   "ja": "天涯を放浪"
+  },
+  {
+   "id": "concept_yunyou",
+   "zh": "雲遊四方",
+   "ja": "雲遊四方"
+  },
+  {
+   "id": "concept_gudu",
+   "zh": "孤獨極致",
+   "ja": "孤独の極み"
+  },
+  {
+   "id": "concept_duizhi",
+   "zh": "對峙",
+   "ja": "対峙"
+  },
+  {
+   "id": "concept_juedou",
+   "zh": "決鬥",
+   "ja": "決闘"
+  },
+  {
+   "id": "concept_juedingzhan",
+   "zh": "絕頂之戰",
+   "ja": "絶頂の戦い"
+  },
+  {
+   "id": "concept_bijian",
+   "zh": "比武較技",
+   "ja": "腕比べ"
+  },
+  {
+   "id": "concept_yihan",
+   "zh": "遺憾",
+   "ja": "心残り"
+  }
+ ],
+ "recipes": [
+  [
+   "per_wanderer",
+   "con_fate",
+   "concept_zhiji"
+  ],
+  [
+   "eli_wine",
+   "concept_zhiji",
+   "concept_haoqing"
+  ],
+  [
+   "con_courage",
+   "eli_wine",
+   "concept_haoqing"
+  ],
+  [
+   "con_hate",
+   "per_wanderer",
+   "concept_chouren"
+  ],
+  [
+   "wpn_blade",
+   "concept_chouren",
+   "concept_fuchou"
+  ],
+  [
+   "con_hate",
+   "wpn_dagger",
+   "concept_fuchou"
+  ],
+  [
+   "con_love",
+   "con_solitude",
+   "concept_xiangsi"
+  ],
+  [
+   "con_love",
+   "mat_paper",
+   "concept_xiangsi"
+  ],
+  [
+   "concept_xiangsi",
+   "herb_seed",
+   "concept_hongdou"
+  ],
+  [
+   "con_love",
+   "con_righteous",
+   "concept_en"
+  ],
+  [
+   "concept_en",
+   "con_hate",
+   "concept_enyuan"
+  ],
+  [
+   "concept_chouren",
+   "concept_en",
+   "concept_enyuan"
+  ],
+  [
+   "concept_chouren",
+   "con_rage",
+   "concept_xuechou"
+  ],
+  [
+   "con_hate",
+   "con_time",
+   "concept_jihen"
+  ],
+  [
+   "concept_xuechou",
+   "concept_jihen",
+   "concept_shenchou"
+  ],
+  [
+   "con_sorrow",
+   "con_void",
+   "concept_juewang"
+  ],
+  [
+   "con_sorrow",
+   "con_rage",
+   "concept_beifen"
+  ],
+  [
+   "con_sorrow",
+   "eli_poisonherb",
+   "concept_duanchang"
+  ],
+  [
+   "con_sorrow",
+   "nat_rain",
+   "concept_chouchang"
+  ],
+  [
+   "con_sorrow",
+   "plc_house",
+   "concept_sixiang"
+  ],
+  [
+   "concept_sixiang",
+   "nat_moon",
+   "concept_xiangchou"
+  ],
+  [
+   "con_solitude",
+   "con_sorrow",
+   "concept_guji"
+  ],
+  [
+   "con_joy",
+   "con_joy",
+   "concept_kuangxi"
+  ],
+  [
+   "con_joy",
+   "con_calm",
+   "concept_xinwei"
+  ],
+  [
+   "concept_kuangxi",
+   "eli_wine",
+   "concept_kuanghuan"
+  ],
+  [
+   "con_rage",
+   "nat_blaze",
+   "concept_nuhuo"
+  ],
+  [
+   "concept_nuhuo",
+   "nat_thunder",
+   "concept_leiting"
+  ],
+  [
+   "con_rage",
+   "wpn_blade",
+   "concept_shaqi"
+  ],
+  [
+   "con_hate",
+   "mar_qi",
+   "concept_shaqi"
+  ],
+  [
+   "con_hate",
+   "per_assassin",
+   "concept_shayi"
+  ],
+  [
+   "con_love",
+   "water",
+   "concept_rouqing"
+  ],
+  [
+   "con_love",
+   "per_maiden",
+   "concept_rouqing"
+  ],
+  [
+   "concept_rouqing",
+   "mat_iron",
+   "concept_tiehan"
+  ],
+  [
+   "con_love",
+   "con_time",
+   "concept_qingshen"
+  ],
+  [
+   "concept_qingshen",
+   "concept_xiangsi",
+   "concept_yiwang"
+  ],
+  [
+   "con_love",
+   "con_fate",
+   "concept_yinyuan"
+  ],
+  [
+   "concept_zhiji",
+   "con_righteous",
+   "concept_moni"
+  ],
+  [
+   "concept_moni",
+   "con_courage",
+   "concept_shengsi"
+  ],
+  [
+   "concept_chouren",
+   "con_righteous",
+   "concept_tongchou"
+  ],
+  [
+   "con_hate",
+   "con_sorrow",
+   "concept_chouhen"
+  ],
+  [
+   "concept_chouhen",
+   "mar_qi",
+   "concept_yuanqi"
+  ],
+  [
+   "concept_chouhen",
+   "plc_grave",
+   "concept_yuanling"
+  ],
+  [
+   "concept_chouhen",
+   "con_secret",
+   "concept_chenyuan"
+  ],
+  [
+   "concept_chenyuan",
+   "nat_snow",
+   "concept_zhaoxue"
+  ],
+  [
+   "con_fame",
+   "nat_snow",
+   "concept_xueyuan"
+  ],
+  [
+   "con_fear",
+   "con_fame",
+   "concept_xiushi"
+  ],
+  [
+   "concept_xiushi",
+   "con_void",
+   "concept_wuchi"
+  ],
+  [
+   "concept_xiushi",
+   "con_rage",
+   "concept_chiru"
+  ],
+  [
+   "con_sorrow",
+   "con_righteous",
+   "concept_kuixin"
+  ],
+  [
+   "con_sorrow",
+   "con_time",
+   "concept_huiyi"
+  ],
+  [
+   "concept_huiyi",
+   "con_fate",
+   "concept_houhui"
+  ],
+  [
+   "con_time",
+   "con_dream",
+   "concept_huanian"
+  ],
+  [
+   "concept_huanian",
+   "con_love",
+   "concept_jiuqing"
+  ],
+  [
+   "concept_jihen",
+   "concept_huanian",
+   "concept_jiuyuan"
+  ],
+  [
+   "concept_en",
+   "con_joy",
+   "concept_ganen"
+  ],
+  [
+   "concept_ganen",
+   "con_righteous",
+   "concept_baoen"
+  ],
+  [
+   "concept_fuchou",
+   "concept_xueyuan",
+   "concept_baochou"
+  ],
+  [
+   "con_love",
+   "con_calm",
+   "concept_zhongqing"
+  ],
+  [
+   "con_love",
+   "con_void",
+   "concept_wangqing"
+  ],
+  [
+   "concept_wangqing",
+   "con_wisdom",
+   "concept_taiqing"
+  ],
+  [
+   "con_love",
+   "con_joy",
+   "concept_duoqing"
+  ],
+  [
+   "con_love",
+   "eli_arsenic",
+   "concept_wuqing"
+  ],
+  [
+   "con_hate",
+   "con_calm",
+   "concept_wuqing"
+  ],
+  [
+   "concept_wuqing",
+   "wpn_blade",
+   "concept_jueqing"
+  ],
+  [
+   "con_love",
+   "wpn_blade",
+   "concept_duanqing"
+  ],
+  [
+   "con_righteous",
+   "wpn_blade",
+   "concept_duanyi"
+  ],
+  [
+   "concept_duanyi",
+   "mat_cloth",
+   "concept_gejiu"
+  ],
+  [
+   "con_sorrow",
+   "plc_harbor",
+   "concept_lixin"
+  ],
+  [
+   "con_fate",
+   "plc_road",
+   "concept_bieli"
+  ],
+  [
+   "concept_bieli",
+   "eli_wine",
+   "concept_songbie"
+  ],
+  [
+   "concept_bieli",
+   "con_time",
+   "concept_chongfeng"
+  ],
+  [
+   "concept_chongfeng",
+   "con_joy",
+   "concept_jiuji"
+  ],
+  [
+   "con_fate",
+   "nat_river",
+   "concept_pingshui"
+  ],
+  [
+   "con_fate",
+   "con_joy",
+   "concept_youyuan"
+  ],
+  [
+   "con_fate",
+   "con_void",
+   "concept_wuyuan"
+  ],
+  [
+   "concept_yinyuan",
+   "con_fortune",
+   "concept_liangyuan"
+  ],
+  [
+   "concept_yinyuan",
+   "con_hate",
+   "concept_nieyuan"
+  ],
+  [
+   "con_love",
+   "nat_sea",
+   "concept_kuhai"
+  ],
+  [
+   "con_love",
+   "gear_net",
+   "concept_qinglang"
+  ],
+  [
+   "con_love",
+   "eli_poison",
+   "concept_qingjue"
+  ],
+  [
+   "concept_qingjue",
+   "bst_snake",
+   "concept_qingdu"
+  ],
+  [
+   "con_love",
+   "gear_brush",
+   "concept_shiqing"
+  ],
+  [
+   "con_wisdom",
+   "gear_brush",
+   "concept_huayi"
+  ],
+  [
+   "con_calm",
+   "trs_jadeflute",
+   "concept_qinxin"
+  ],
+  [
+   "con_courage",
+   "mar_swordart",
+   "concept_jianxin"
+  ],
+  [
+   "wpn_sword",
+   "con_calm",
+   "concept_jianxin"
+  ],
+  [
+   "con_courage",
+   "mar_saberart",
+   "concept_daoxin"
+  ],
+  [
+   "con_righteous",
+   "per_swordsman",
+   "concept_xiayi"
+  ],
+  [
+   "concept_xiayi",
+   "mar_qi",
+   "concept_xiaoqi"
+  ],
+  [
+   "concept_xiayi",
+   "concept_rouqing",
+   "concept_xiagu"
+  ],
+  [
+   "concept_xiayi",
+   "con_love",
+   "concept_xiaoxin"
+  ],
+  [
+   "con_righteous",
+   "sec_rules",
+   "concept_daoyi"
+  ],
+  [
+   "mat_silver",
+   "con_righteous",
+   "concept_xinyong"
+  ],
+  [
+   "per_merchant",
+   "con_righteous",
+   "concept_xinyong"
+  ],
+  [
+   "con_righteous",
+   "con_courage",
+   "concept_nuoyan"
+  ],
+  [
+   "concept_nuoyan",
+   "mat_ingot",
+   "concept_yiqian"
+  ],
+  [
+   "concept_nuoyan",
+   "mat_paper",
+   "concept_xinyue"
+  ],
+  [
+   "concept_nuoyan",
+   "nat_sun",
+   "concept_mengshi"
+  ],
+  [
+   "concept_nuoyan",
+   "nat_moon",
+   "concept_mengshi"
+  ],
+  [
+   "concept_moni",
+   "eli_wine",
+   "concept_jiebai"
+  ],
+  [
+   "concept_jiebai",
+   "herb_peony",
+   "concept_taoyuan"
+  ],
+  [
+   "concept_jiebai",
+   "con_love",
+   "concept_xiongdi"
+  ],
+  [
+   "concept_mengshi",
+   "eli_wine",
+   "concept_dianxue"
+  ],
+  [
+   "concept_nuoyan",
+   "con_hate",
+   "concept_beipan"
+  ],
+  [
+   "concept_xinyong",
+   "concept_beipan",
+   "concept_beixin"
+  ],
+  [
+   "con_righteous",
+   "concept_beipan",
+   "concept_beiyi"
+  ],
+  [
+   "concept_en",
+   "concept_beipan",
+   "concept_zhuiming"
+  ],
+  [
+   "concept_beipan",
+   "wpn_dagger",
+   "concept_beici"
+  ],
+  [
+   "concept_beipan",
+   "sec_disciple",
+   "concept_chayi"
+  ],
+  [
+   "concept_beipan",
+   "sec_master",
+   "concept_panshi"
+  ],
+  [
+   "concept_beipan",
+   "per_soldier",
+   "concept_pantu"
+  ],
+  [
+   "concept_beipan",
+   "mat_silver",
+   "concept_liyong"
+  ],
+  [
+   "con_secret",
+   "con_hate",
+   "concept_yinmou"
+  ],
+  [
+   "con_secret",
+   "con_wisdom",
+   "concept_guiji"
+  ],
+  [
+   "con_secret",
+   "con_yang",
+   "concept_yangmou"
+  ],
+  [
+   "con_secret",
+   "nat_dark",
+   "concept_anji"
+  ],
+  [
+   "con_yin",
+   "con_hate",
+   "concept_xiongx"
+  ],
+  [
+   "con_righteous",
+   "per_soldier",
+   "concept_zhongshi"
+  ],
+  [
+   "concept_zhongshi",
+   "con_calm",
+   "concept_zhongcheng"
+  ],
+  [
+   "concept_zhongshi",
+   "plc_grave",
+   "concept_zhonghun"
+  ],
+  [
+   "con_righteous",
+   "plc_grave",
+   "concept_yihun"
+  ],
+  [
+   "mar_innerforce",
+   "con_righteous",
+   "concept_wuhun"
+  ],
+  [
+   "con_righteous",
+   "con_wisdom",
+   "concept_xiayi2"
+  ],
+  [
+   "concept_xiayi2",
+   "con_courage",
+   "concept_dayi"
+  ],
+  [
+   "con_courage",
+   "concept_xiayi",
+   "concept_jiuyi"
+  ],
+  [
+   "plc_road",
+   "con_rage",
+   "concept_baoping"
+  ],
+  [
+   "concept_baoping",
+   "wpn_blade",
+   "concept_daoba"
+  ],
+  [
+   "concept_yizei",
+   "sec_guild",
+   "concept_xiaozhi"
+  ],
+  [
+   "per_thief",
+   "con_righteous",
+   "concept_yizei"
+  ],
+  [
+   "per_wanderer",
+   "concept_xiayi",
+   "concept_yisi"
+  ],
+  [
+   "concept_xiayi",
+   "mar_stroke",
+   "concept_yiju"
+  ],
+  [
+   "concept_xiayi",
+   "con_time",
+   "concept_yiqi"
+  ],
+  [
+   "concept_xiayi",
+   "plc_road",
+   "concept_jianghuyi"
+  ],
+  [
+   "sec_rules",
+   "concept_daoyi",
+   "concept_guilei"
+  ],
+  [
+   "concept_guilei",
+   "sec_banner",
+   "concept_jianghuguiju"
+  ],
+  [
+   "per_thief",
+   "concept_daoyi",
+   "concept_daoyi2"
+  ],
+  [
+   "per_bandit",
+   "con_yin",
+   "concept_heidao"
+  ],
+  [
+   "sec_court",
+   "con_righteous",
+   "concept_baidao"
+  ],
+  [
+   "con_righteous",
+   "sec_shaolin",
+   "concept_zhengdao"
+  ],
+  [
+   "con_hate",
+   "sec_demon",
+   "concept_xiedao"
+  ],
+  [
+   "concept_zhengdao",
+   "concept_xiedao",
+   "concept_zhengxie"
+  ],
+  [
+   "concept_xiedao",
+   "con_illusion",
+   "concept_mozhang"
+  ],
+  [
+   "con_fear",
+   "con_illusion",
+   "concept_xinmo"
+  ],
+  [
+   "concept_xinmo",
+   "mar_qi",
+   "concept_zouhuo"
+  ],
+  [
+   "concept_xinmo",
+   "con_rage",
+   "concept_rumo"
+  ],
+  [
+   "concept_xinmo",
+   "con_hate",
+   "concept_moxing"
+  ],
+  [
+   "concept_xiedao",
+   "mar_heart",
+   "concept_modao"
+  ],
+  [
+   "concept_xinmo",
+   "sec_shaolin",
+   "concept_fomo"
+  ],
+  [
+   "concept_xinmo",
+   "eli_dew",
+   "concept_dumo"
+  ],
+  [
+   "con_fate",
+   "con_fear",
+   "concept_jiebao"
+  ],
+  [
+   "nat_thunder",
+   "concept_jiebao",
+   "concept_tianjie"
+  ],
+  [
+   "concept_jiebao",
+   "per_wanderer",
+   "concept_renjie"
+  ],
+  [
+   "concept_jiebao",
+   "concept_xinmo",
+   "concept_mojie"
+  ],
+  [
+   "concept_tianjie",
+   "con_courage",
+   "concept_dujie"
+  ],
+  [
+   "concept_dujie",
+   "con_fortune",
+   "concept_jiejing"
+  ],
+  [
+   "con_fate",
+   "con_time",
+   "concept_mingyun"
+  ],
+  [
+   "con_fate",
+   "nat_sun",
+   "concept_tianming"
+  ],
+  [
+   "concept_mingyun",
+   "mar_stroke",
+   "concept_mingshu"
+  ],
+  [
+   "concept_mingyun",
+   "con_dream",
+   "concept_yuanfen"
+  ],
+  [
+   "con_time",
+   "eli_elixir",
+   "concept_shouming"
+  ],
+  [
+   "concept_mingyun",
+   "con_sorrow",
+   "concept_kuming"
+  ],
+  [
+   "concept_mingyun",
+   "con_fortune",
+   "concept_haoming"
+  ],
+  [
+   "concept_mingyun",
+   "con_fear",
+   "concept_xiongming"
+  ],
+  [
+   "concept_tianming",
+   "con_courage",
+   "concept_niming"
+  ],
+  [
+   "concept_tianming",
+   "con_rage",
+   "concept_ningtian"
+  ],
+  [
+   "concept_tianming",
+   "con_calm",
+   "concept_shunmin"
+  ],
+  [
+   "concept_tianming",
+   "con_secret",
+   "concept_tianji"
+  ],
+  [
+   "concept_tianji",
+   "con_void",
+   "concept_tianjibu"
+  ],
+  [
+   "concept_tianji",
+   "gear_waterclock",
+   "concept_tuiyan"
+  ],
+  [
+   "concept_mingyun",
+   "gear_mirror",
+   "concept_mingpan"
+  ],
+  [
+   "nat_moon",
+   "concept_tianji",
+   "concept_xingxiang"
+  ],
+  [
+   "concept_mingpan",
+   "trs_cauldron",
+   "concept_zhanbu"
+  ],
+  [
+   "sec_master",
+   "con_fate",
+   "concept_baishi"
+  ],
+  [
+   "concept_baishi",
+   "mar_stroke",
+   "concept_ruman"
+  ],
+  [
+   "concept_ruman",
+   "con_wisdom",
+   "concept_chukui"
+  ],
+  [
+   "concept_chukui",
+   "con_time",
+   "concept_xiaocheng"
+  ],
+  [
+   "mar_stroke",
+   "con_time",
+   "concept_shulian"
+  ],
+  [
+   "concept_xiaocheng",
+   "concept_shulian",
+   "concept_dacheng"
+  ],
+  [
+   "concept_dacheng",
+   "con_calm",
+   "concept_yuanman"
+  ],
+  [
+   "concept_dacheng",
+   "nat_mountain",
+   "concept_dengfeng"
+  ],
+  [
+   "concept_yuanman",
+   "con_void",
+   "concept_huajing"
+  ],
+  [
+   "concept_huajing",
+   "mat_jade",
+   "concept_fanpu"
+  ],
+  [
+   "concept_fanpu",
+   "concept_tianming",
+   "concept_tianren"
+  ],
+  [
+   "concept_tianren",
+   "con_void",
+   "concept_poxu"
+  ],
+  [
+   "mar_heart",
+   "con_righteous",
+   "concept_wudao"
+  ],
+  [
+   "concept_wudao",
+   "concept_dengfeng",
+   "concept_wudaoji"
+  ],
+  [
+   "concept_dacheng",
+   "con_fame",
+   "concept_zongshi"
+  ],
+  [
+   "mar_qi",
+   "con_time",
+   "concept_houtian"
+  ],
+  [
+   "concept_houtian",
+   "con_void",
+   "concept_xiantian"
+  ],
+  [
+   "concept_dacheng",
+   "per_swordsman",
+   "concept_yiliu"
+  ],
+  [
+   "concept_yiliu",
+   "nat_mountain",
+   "concept_juding"
+  ],
+  [
+   "concept_dengfeng",
+   "con_fame",
+   "concept_tianxia1"
+  ],
+  [
+   "concept_tianxia1",
+   "con_solitude",
+   "concept_dugu"
+  ],
+  [
+   "concept_tianxia1",
+   "con_void",
+   "concept_wudi"
+  ],
+  [
+   "mar_stroke",
+   "con_void",
+   "concept_wuzhao"
+  ],
+  [
+   "wpn_sword",
+   "con_void",
+   "concept_wujian"
+  ],
+  [
+   "herb_flower",
+   "concept_wuzhao",
+   "concept_feihua"
+  ],
+  [
+   "wpn_sword",
+   "concept_jianxin",
+   "concept_renjian"
+  ],
+  [
+   "concept_jianxin",
+   "mar_qi",
+   "concept_jianqi"
+  ],
+  [
+   "mar_swordart",
+   "con_wisdom",
+   "concept_jianyi"
+  ],
+  [
+   "concept_jianyi",
+   "mar_force",
+   "concept_jianshi"
+  ],
+  [
+   "mar_saberart",
+   "con_wisdom",
+   "concept_daoyi3"
+  ],
+  [
+   "concept_daoxin",
+   "mar_qi",
+   "concept_daoqi"
+  ],
+  [
+   "mar_fist",
+   "con_wisdom",
+   "concept_quanyi"
+  ],
+  [
+   "mar_palm",
+   "con_wisdom",
+   "concept_zhangyi"
+  ],
+  [
+   "mar_spearart",
+   "con_wisdom",
+   "concept_qiangyi"
+  ],
+  [
+   "mar_fingers",
+   "con_wisdom",
+   "concept_zhiyi"
+  ],
+  [
+   "mar_kick",
+   "con_wisdom",
+   "concept_tuiyi"
+  ],
+  [
+   "concept_jianxin",
+   "concept_jianyi",
+   "concept_jianxinjing"
+  ],
+  [
+   "con_wisdom",
+   "nat_light",
+   "concept_tongming"
+  ],
+  [
+   "concept_jianxinjing",
+   "concept_dengfeng",
+   "concept_jianwang"
+  ],
+  [
+   "concept_daoxin",
+   "concept_dengfeng",
+   "concept_daowang"
+  ],
+  [
+   "concept_zhenyuan",
+   "nat_sea",
+   "concept_qihai"
+  ],
+  [
+   "concept_zhenyuan",
+   "mar_breath",
+   "concept_dantian"
+  ],
+  [
+   "concept_zhenyuan",
+   "mar_meridian",
+   "concept_xiaozhou"
+  ],
+  [
+   "concept_xiaozhou",
+   "concept_xiaozhou",
+   "concept_dazhou"
+  ],
+  [
+   "concept_xiaozhou",
+   "nat_sun",
+   "concept_zhoutian"
+  ],
+  [
+   "mar_qi",
+   "con_yang",
+   "concept_zhenyuan"
+  ],
+  [
+   "concept_dantian",
+   "con_wisdom",
+   "concept_yuanshen"
+  ],
+  [
+   "concept_yuanshen",
+   "con_calm",
+   "concept_shenshi"
+  ],
+  [
+   "concept_dantian",
+   "eli_elixir",
+   "concept_yuanying"
+  ],
+  [
+   "concept_yuanshen",
+   "eli_cinnabar",
+   "concept_jindan"
+  ],
+  [
+   "sec_shaolin",
+   "con_calm",
+   "concept_chan"
+  ],
+  [
+   "concept_chan",
+   "nat_cloud",
+   "concept_chanyi"
+  ],
+  [
+   "concept_chan",
+   "nat_light",
+   "concept_dunwu"
+  ],
+  [
+   "concept_chan",
+   "con_wisdom",
+   "concept_wudao2"
+  ],
+  [
+   "concept_dunwu",
+   "con_void",
+   "concept_kaiwu"
+  ],
+  [
+   "herb_tree",
+   "concept_chan",
+   "concept_puti"
+  ],
+  [
+   "concept_puti",
+   "gear_mirror",
+   "concept_putijing"
+  ],
+  [
+   "concept_zhishui",
+   "gear_mirror",
+   "concept_mingjing"
+  ],
+  [
+   "con_calm",
+   "water",
+   "concept_zhishui"
+  ],
+  [
+   "con_void",
+   "concept_chan",
+   "concept_kong"
+  ],
+  [
+   "concept_kong",
+   "con_illusion",
+   "concept_sekong"
+  ],
+  [
+   "concept_kong",
+   "nat_dust",
+   "concept_kongsek"
+  ],
+  [
+   "con_calm",
+   "mar_stance",
+   "concept_dingli"
+  ],
+  [
+   "concept_chan",
+   "concept_dingli",
+   "concept_chandin"
+  ],
+  [
+   "concept_chan",
+   "plc_cave",
+   "concept_zuochan"
+  ],
+  [
+   "concept_zuochan",
+   "plc_cliff",
+   "concept_mianbi"
+  ],
+  [
+   "concept_mianbi",
+   "con_time",
+   "concept_mianbijiu"
+  ],
+  [
+   "concept_kaiwu",
+   "con_wisdom",
+   "concept_dunwu2"
+  ],
+  [
+   "con_void",
+   "per_daoist",
+   "concept_wuwei"
+  ],
+  [
+   "concept_wuwei",
+   "nat_grove",
+   "concept_daofa"
+  ],
+  [
+   "concept_daofa",
+   "nat_river",
+   "concept_ziran"
+  ],
+  [
+   "concept_daofa",
+   "water",
+   "concept_shangshan"
+  ],
+  [
+   "concept_rouqing",
+   "mat_steel",
+   "concept_rouke"
+  ],
+  [
+   "con_calm",
+   "mar_hardgong",
+   "concept_rouke"
+  ],
+  [
+   "concept_rouke",
+   "mar_force",
+   "concept_siliang"
+  ],
+  [
+   "con_yin",
+   "con_yang",
+   "concept_liangyi"
+  ],
+  [
+   "concept_liangyi",
+   "concept_liangyi",
+   "concept_sixiang4"
+  ],
+  [
+   "mar_taichi",
+   "concept_liangyi",
+   "concept_taiji"
+  ],
+  [
+   "concept_liangyi",
+   "con_calm",
+   "concept_yinyang"
+  ],
+  [
+   "concept_liangyi",
+   "con_illusion",
+   "concept_yinyangni"
+  ],
+  [
+   "con_yin",
+   "nat_light",
+   "concept_yinjiyang"
+  ],
+  [
+   "con_yang",
+   "nat_dark",
+   "concept_yangjiyin"
+  ],
+  [
+   "concept_taiji",
+   "con_void",
+   "concept_wuji"
+  ],
+  [
+   "concept_wuji",
+   "nat_dark",
+   "concept_hundun"
+  ],
+  [
+   "concept_tianming",
+   "earth",
+   "concept_chuanyuan"
+  ],
+  [
+   "concept_chuanyuan",
+   "mar_stroke",
+   "concept_qiankun"
+  ],
+  [
+   "concept_chuanyuan",
+   "mar_shadow",
+   "concept_qiankunn"
+  ],
+  [
+   "con_fame",
+   "mar_stroke",
+   "concept_chengming"
+  ],
+  [
+   "concept_chengming",
+   "con_courage",
+   "concept_yizhan"
+  ],
+  [
+   "con_fame",
+   "sec_banner",
+   "concept_weiming"
+  ],
+  [
+   "con_fame",
+   "concept_xiayi",
+   "concept_xiaming"
+  ],
+  [
+   "con_fame",
+   "con_hate",
+   "concept_eming"
+  ],
+  [
+   "con_fame",
+   "con_void",
+   "concept_xuming"
+  ],
+  [
+   "con_fame",
+   "con_time",
+   "concept_shengming"
+  ],
+  [
+   "concept_chengming",
+   "concept_jianghu",
+   "concept_mingzhen"
+  ],
+  [
+   "concept_mingzhen",
+   "concept_tianxia1",
+   "concept_mingdong"
+  ],
+  [
+   "con_fame",
+   "con_dream",
+   "concept_chuanshuo"
+  ],
+  [
+   "concept_chuanshuo",
+   "con_fortune",
+   "concept_chuanqi"
+  ],
+  [
+   "concept_chuanshuo",
+   "bst_dragon",
+   "concept_shenhua"
+  ],
+  [
+   "concept_chuanshuo",
+   "con_time",
+   "concept_qiangu"
+  ],
+  [
+   "concept_eming",
+   "con_time",
+   "concept_yuchou"
+  ],
+  [
+   "nat_river",
+   "concept_xiayi",
+   "concept_jianghu"
+  ],
+  [
+   "concept_jianghu",
+   "mar_stroke",
+   "concept_wulin"
+  ],
+  [
+   "concept_wulin",
+   "plc_market",
+   "concept_wulindahui"
+  ],
+  [
+   "concept_wulin",
+   "concept_nuoyan",
+   "concept_wulinmeng"
+  ],
+  [
+   "concept_jianghu",
+   "nat_wind",
+   "concept_fengyun"
+  ],
+  [
+   "nat_wind",
+   "concept_xuechou",
+   "concept_xingfeng"
+  ],
+  [
+   "con_courage",
+   "con_fame",
+   "concept_yingxiong"
+  ],
+  [
+   "concept_yingxiong",
+   "plc_market",
+   "concept_yingxionghui"
+  ],
+  [
+   "concept_jianghu",
+   "concept_enyuan",
+   "concept_jianghuyuan"
+  ],
+  [
+   "concept_jianghu",
+   "con_time",
+   "concept_jianghulao"
+  ],
+  [
+   "concept_jianghu",
+   "plc_road",
+   "concept_jianghuyuan2"
+  ],
+  [
+   "con_time",
+   "nat_thunder",
+   "concept_yishunn"
+  ],
+  [
+   "con_time",
+   "con_void",
+   "concept_yongheng"
+  ],
+  [
+   "con_time",
+   "nat_light",
+   "concept_guangyin"
+  ],
+  [
+   "con_time",
+   "nat_river",
+   "concept_liunian"
+  ],
+  [
+   "con_time",
+   "gear_waterclock",
+   "concept_baiju"
+  ],
+  [
+   "con_time",
+   "nat_sea",
+   "concept_cangsang"
+  ],
+  [
+   "con_time",
+   "con_time",
+   "concept_qiannian"
+  ],
+  [
+   "concept_mingyun",
+   "gear_wheel",
+   "concept_lunhui"
+  ],
+  [
+   "concept_lunhui",
+   "con_dream",
+   "concept_zhuanshi"
+  ],
+  [
+   "concept_lunhui",
+   "con_time",
+   "concept_qianshi"
+  ],
+  [
+   "concept_lunhui",
+   "herb_sprout",
+   "concept_laisheng"
+  ],
+  [
+   "herb_seed",
+   "concept_mingyun",
+   "concept_yinguo"
+  ],
+  [
+   "concept_yinguo",
+   "con_righteous",
+   "concept_baoying"
+  ],
+  [
+   "concept_yinguo",
+   "concept_lunhui",
+   "concept_yinguolun"
+  ],
+  [
+   "con_time",
+   "con_fortune",
+   "concept_shiji"
+  ],
+  [
+   "con_fortune",
+   "con_fate",
+   "concept_jiyuan"
+  ],
+  [
+   "mar_qi",
+   "con_fortune",
+   "concept_qiyun"
+  ],
+  [
+   "con_fortune",
+   "nat_sun",
+   "concept_xinghong"
+  ],
+  [
+   "con_fortune",
+   "con_fear",
+   "concept_xiongxian"
+  ],
+  [
+   "con_fortune",
+   "concept_jiebao",
+   "concept_daxue"
+  ],
+  [
+   "concept_daxue",
+   "con_fortune",
+   "concept_houfu"
+  ],
+  [
+   "con_void",
+   "con_illusion",
+   "concept_xushi"
+  ],
+  [
+   "con_calm",
+   "mar_shadow",
+   "concept_dongjing"
+  ],
+  [
+   "concept_rouqing",
+   "mar_hardgong",
+   "concept_gangrou"
+  ],
+  [
+   "con_fate",
+   "plc_grave",
+   "concept_shengsisi"
+  ],
+  [
+   "concept_shengsisi",
+   "herb_sprout",
+   "concept_sheng2"
+  ],
+  [
+   "con_wisdom",
+   "bst_eagle",
+   "concept_dongcha"
+  ],
+  [
+   "concept_dongcha",
+   "herb_seed",
+   "concept_jianwei"
+  ],
+  [
+   "con_wisdom",
+   "con_time",
+   "concept_shenmou"
+  ],
+  [
+   "concept_shenmou",
+   "mar_formation",
+   "concept_yunchou"
+  ],
+  [
+   "con_wisdom",
+   "mar_formation",
+   "concept_bingfa"
+  ],
+  [
+   "con_wisdom",
+   "concept_guiji",
+   "concept_miaoji"
+  ],
+  [
+   "concept_guiji",
+   "wpn_chain",
+   "concept_lianhuan"
+  ],
+  [
+   "concept_guiji",
+   "per_maiden",
+   "concept_meiren"
+  ],
+  [
+   "concept_guiji",
+   "plc_city",
+   "concept_kongcheng"
+  ],
+  [
+   "concept_guiji",
+   "wpn_blade",
+   "concept_jiedao"
+  ],
+  [
+   "concept_guiji",
+   "bst_tiger",
+   "concept_diaohu"
+  ],
+  [
+   "concept_guiji",
+   "bst_snake",
+   "concept_yinshe"
+  ],
+  [
+   "con_joy",
+   "wpn_dagger",
+   "concept_xiaoli"
+  ],
+  [
+   "concept_anji",
+   "wpn_arrow",
+   "concept_anjian"
+  ],
+  [
+   "concept_guiji",
+   "gear_bell",
+   "concept_shengdong"
+  ],
+  [
+   "con_calm",
+   "per_farmer",
+   "concept_pingchang"
+  ],
+  [
+   "con_calm",
+   "con_fame",
+   "concept_danbo"
+  ],
+  [
+   "con_calm",
+   "concept_mingzhen",
+   "concept_chongru"
+  ],
+  [
+   "con_calm",
+   "nat_valley",
+   "concept_ningjing"
+  ],
+  [
+   "con_calm",
+   "nat_sea",
+   "concept_huoda"
+  ],
+  [
+   "con_joy",
+   "nat_wind",
+   "concept_satuo"
+  ],
+  [
+   "con_calm",
+   "per_swordsman",
+   "concept_xiaosa"
+  ],
+  [
+   "con_rage",
+   "eli_wine",
+   "concept_kuangfang"
+  ],
+  [
+   "concept_kuangfang",
+   "con_fame",
+   "concept_kuangao"
+  ],
+  [
+   "con_courage",
+   "mar_qi",
+   "concept_aoqi"
+  ],
+  [
+   "concept_aoqi",
+   "mat_steel",
+   "concept_aogu"
+  ],
+  [
+   "concept_haoqing",
+   "nat_sea",
+   "concept_haomai"
+  ],
+  [
+   "concept_haoqing",
+   "mat_ingot",
+   "concept_kangkai"
+  ],
+  [
+   "con_sorrow",
+   "trs_jadeflute",
+   "concept_beige"
+  ],
+  [
+   "concept_kangkai",
+   "concept_beige",
+   "concept_kangkaibei"
+  ],
+  [
+   "mar_stroke",
+   "con_secret",
+   "concept_juezhao"
+  ],
+  [
+   "mar_stroke",
+   "concept_shayi",
+   "concept_shazhao"
+  ],
+  [
+   "mar_stroke",
+   "con_illusion",
+   "concept_qizhao"
+  ],
+  [
+   "mar_stroke",
+   "con_fear",
+   "concept_xianzhao"
+  ],
+  [
+   "concept_shazhao",
+   "con_courage",
+   "concept_bisha"
+  ],
+  [
+   "eli_wine",
+   "con_joy",
+   "concept_jiuxing"
+  ],
+  [
+   "eli_wine",
+   "con_dream",
+   "concept_zuimeng"
+  ],
+  [
+   "eli_wine",
+   "concept_beige",
+   "concept_duijiu"
+  ],
+  [
+   "eli_wine",
+   "concept_yingxiong",
+   "concept_zhujiu"
+  ],
+  [
+   "herb_tea",
+   "concept_chan",
+   "concept_chachan"
+  ],
+  [
+   "herb_tea",
+   "con_calm",
+   "concept_pinming"
+  ],
+  [
+   "herb_tea",
+   "concept_zhiji",
+   "concept_chahui"
+  ],
+  [
+   "trs_jadeflute",
+   "con_joy",
+   "concept_qinyun"
+  ],
+  [
+   "trs_jadeflute",
+   "con_solitude",
+   "concept_xiaosheng"
+  ],
+  [
+   "mat_ink",
+   "con_wisdom",
+   "concept_moxiang"
+  ],
+  [
+   "concept_mingyun",
+   "mar_formation",
+   "concept_rensheng"
+  ],
+  [
+   "con_sorrow",
+   "water",
+   "concept_lei"
+  ],
+  [
+   "concept_lei",
+   "concept_xuechou",
+   "concept_xuelei"
+  ],
+  [
+   "mar_breath",
+   "con_rage",
+   "concept_changxiao"
+  ],
+  [
+   "con_dream",
+   "herb_tree",
+   "concept_nanke"
+  ],
+  [
+   "con_dream",
+   "nat_light",
+   "concept_daimeng"
+  ],
+  [
+   "con_dream",
+   "herb_seed",
+   "concept_huangliang"
+  ],
+  [
+   "con_dream",
+   "concept_jianghu",
+   "concept_yimeng"
+  ],
+  [
+   "con_illusion",
+   "nat_mist",
+   "concept_huanjing"
+  ],
+  [
+   "gear_mirror",
+   "concept_huanjing",
+   "concept_jinghua"
+  ],
+  [
+   "con_illusion",
+   "nat_moon",
+   "concept_shuiyue"
+  ],
+  [
+   "con_sorrow",
+   "nat_cloud",
+   "concept_chouyun"
+  ],
+  [
+   "con_sorrow",
+   "eli_wine",
+   "concept_jiaochou"
+  ],
+  [
+   "con_sorrow",
+   "nat_wind",
+   "concept_xiaose"
+  ],
+  [
+   "con_sorrow",
+   "herb_chrysan",
+   "concept_qiusi"
+  ],
+  [
+   "con_sorrow",
+   "herb_flower",
+   "concept_luohua"
+  ],
+  [
+   "concept_luohua",
+   "nat_river",
+   "concept_liushui"
+  ],
+  [
+   "concept_qiusi",
+   "concept_luohua",
+   "concept_shangchun"
+  ],
+  [
+   "con_solitude",
+   "eli_wine",
+   "concept_yuexia"
+  ],
+  [
+   "con_solitude",
+   "per_fisher",
+   "concept_dudiao"
+  ],
+  [
+   "con_solitude",
+   "gear_boat",
+   "concept_gufan"
+  ],
+  [
+   "con_solitude",
+   "bst_bird",
+   "concept_guyan"
+  ],
+  [
+   "con_solitude",
+   "wpn_sword",
+   "concept_gujian"
+  ],
+  [
+   "con_solitude",
+   "nat_mountain",
+   "concept_gufeng"
+  ],
+  [
+   "concept_gufeng",
+   "nat_snow",
+   "concept_gaochu"
+  ],
+  [
+   "con_solitude",
+   "concept_aoqi",
+   "concept_guao"
+  ],
+  [
+   "con_courage",
+   "con_void",
+   "concept_wuwei2"
+  ],
+  [
+   "con_courage",
+   "nat_blaze",
+   "concept_rexue"
+  ],
+  [
+   "concept_rexue",
+   "nat_steam",
+   "concept_rexuefei"
+  ],
+  [
+   "con_courage",
+   "plc_grave",
+   "concept_shisi"
+  ],
+  [
+   "con_calm",
+   "nat_mountain",
+   "concept_taishan"
+  ],
+  [
+   "con_courage",
+   "con_fear",
+   "concept_linwei"
+  ],
+  [
+   "con_courage",
+   "gear_pot",
+   "concept_pofu"
+  ],
+  [
+   "con_courage",
+   "water",
+   "concept_beishui"
+  ],
+  [
+   "con_courage",
+   "plc_cliff",
+   "concept_yifu"
+  ],
+  [
+   "con_wisdom",
+   "per_farmer",
+   "concept_dazhi"
+  ],
+  [
+   "con_wisdom",
+   "con_courage",
+   "concept_zhiyong"
+  ],
+  [
+   "con_wisdom",
+   "herb_leaf",
+   "concept_yiye"
+  ],
+  [
+   "concept_dongjing",
+   "con_wisdom",
+   "concept_yijing"
+  ],
+  [
+   "concept_zhiji",
+   "con_courage",
+   "concept_gandan"
+  ],
+  [
+   "concept_xiayi",
+   "wpn_dagger",
+   "concept_liangle"
+  ],
+  [
+   "concept_jiebao",
+   "concept_zhiji",
+   "concept_huannan"
+  ],
+  [
+   "concept_zhiji",
+   "gear_boat",
+   "concept_tongzhou"
+  ],
+  [
+   "concept_qingshen",
+   "concept_xinyong",
+   "concept_buli"
+  ],
+  [
+   "concept_nuoyan",
+   "trs_cauldron",
+   "concept_yiyan"
+  ],
+  [
+   "concept_nuoyan",
+   "per_scholar",
+   "concept_junzi"
+  ],
+  [
+   "concept_xiayi",
+   "per_scholar",
+   "concept_junzifeng"
+  ],
+  [
+   "concept_zhengdao",
+   "mar_qi",
+   "concept_haoran"
+  ],
+  [
+   "concept_xiedao",
+   "mar_qi",
+   "concept_xieqi"
+  ],
+  [
+   "con_love",
+   "con_illusion",
+   "concept_chi"
+  ],
+  [
+   "con_love",
+   "concept_jiebao",
+   "concept_qingjie"
+  ],
+  [
+   "con_love",
+   "wpn_dagger",
+   "concept_qingshang"
+  ],
+  [
+   "con_love",
+   "plc_grave",
+   "concept_xinsi"
+  ],
+  [
+   "concept_xinsi",
+   "con_sorrow",
+   "concept_aimo"
+  ],
+  [
+   "con_joy",
+   "concept_enyuan",
+   "concept_yixiao"
+  ],
+  [
+   "concept_zhiji",
+   "concept_wangqing",
+   "concept_xiangwang"
+  ],
+  [
+   "con_love",
+   "eli_dew",
+   "concept_xiangru"
+  ],
+  [
+   "con_love",
+   "concept_shengsisi",
+   "concept_shengsixu"
+  ],
+  [
+   "concept_yinyuan",
+   "nat_snow",
+   "concept_baitou"
+  ],
+  [
+   "con_love",
+   "concept_qiannian",
+   "concept_tianchang"
+  ],
+  [
+   "concept_mengshi",
+   "nat_sea",
+   "concept_haishi"
+  ],
+  [
+   "sec_codex",
+   "con_time",
+   "concept_chuancheng"
+  ],
+  [
+   "sec_master",
+   "concept_chuancheng",
+   "concept_yibo"
+  ],
+  [
+   "mar_heart",
+   "concept_chuancheng",
+   "concept_juexue"
+  ],
+  [
+   "concept_chuancheng",
+   "con_void",
+   "concept_shichuan"
+  ],
+  [
+   "concept_juexue",
+   "concept_tianxia1",
+   "concept_jueshi"
+  ],
+  [
+   "concept_chuancheng",
+   "con_secret",
+   "concept_mizhuan"
+  ],
+  [
+   "concept_chuancheng",
+   "plc_house",
+   "concept_jiaxue"
+  ],
+  [
+   "sec_hall",
+   "con_righteous",
+   "concept_menfeng"
+  ],
+  [
+   "sec_master",
+   "concept_en",
+   "concept_shien"
+  ],
+  [
+   "sec_master",
+   "concept_qingshen",
+   "concept_shitu"
+  ],
+  [
+   "concept_chuancheng",
+   "mar_innerforce",
+   "concept_chuangong"
+  ],
+  [
+   "concept_chuangong",
+   "nat_waterfall",
+   "concept_guanding"
+  ],
+  [
+   "concept_dunwu",
+   "nat_waterfall",
+   "concept_tihu"
+  ],
+  [
+   "concept_jianxin",
+   "concept_qinyun",
+   "concept_jiandao"
+  ],
+  [
+   "per_scholar",
+   "concept_wudao",
+   "concept_wenwu"
+  ],
+  [
+   "per_scholar",
+   "concept_aogu",
+   "concept_wenren"
+  ],
+  [
+   "concept_jiuxing",
+   "gear_lantern",
+   "concept_zuixia"
+  ],
+  [
+   "concept_wudao",
+   "gear_bucket",
+   "concept_jinbei"
+  ],
+  [
+   "per_hermit",
+   "con_calm",
+   "concept_guiyin"
+  ],
+  [
+   "concept_guiyin",
+   "nat_mountain",
+   "concept_shanlin"
+  ],
+  [
+   "concept_guiyin",
+   "herb_peony",
+   "concept_shiwai"
+  ],
+  [
+   "concept_tianji",
+   "mar_heart",
+   "concept_xuanji"
+  ],
+  [
+   "per_daoist",
+   "concept_xuanji",
+   "concept_xuanmen"
+  ],
+  [
+   "per_daoist",
+   "con_calm",
+   "concept_daoxin2"
+  ],
+  [
+   "per_monk",
+   "concept_dingli",
+   "concept_xiuxing"
+  ],
+  [
+   "concept_xiuxing",
+   "mar_qi",
+   "concept_xiulian"
+  ],
+  [
+   "concept_xiuxing",
+   "con_sorrow",
+   "concept_kuxiu"
+  ],
+  [
+   "concept_xiulian",
+   "con_time",
+   "concept_xiuwei"
+  ],
+  [
+   "per_monk",
+   "concept_kong",
+   "concept_yuanji"
+  ],
+  [
+   "concept_yuanji",
+   "trs_pearl",
+   "concept_sheli"
+  ],
+  [
+   "per_monk",
+   "con_love",
+   "concept_foxin"
+  ],
+  [
+   "concept_foxin",
+   "con_calm",
+   "concept_cibei"
+  ],
+  [
+   "concept_cibei",
+   "nat_sea",
+   "concept_fahai"
+  ],
+  [
+   "concept_cibei",
+   "wpn_blade",
+   "concept_fanfu"
+  ],
+  [
+   "concept_fanfu",
+   "concept_kaiwu",
+   "concept_lidi"
+  ],
+  [
+   "con_wisdom",
+   "plc_road",
+   "concept_xinlu"
+  ],
+  [
+   "concept_dengfeng",
+   "con_void",
+   "concept_zhijing"
+  ],
+  [
+   "concept_xiuwei",
+   "nat_stone",
+   "concept_pingjing"
+  ],
+  [
+   "concept_pingjing",
+   "mar_force",
+   "concept_tupo"
+  ],
+  [
+   "concept_tupo",
+   "concept_huajing",
+   "concept_tupojing"
+  ],
+  [
+   "concept_xiulian",
+   "con_courage",
+   "concept_jinbu"
+  ],
+  [
+   "con_calm",
+   "mar_breath",
+   "concept_zhuanzhu"
+  ],
+  [
+   "concept_zhuanzhu",
+   "con_void",
+   "concept_wuwo"
+  ],
+  [
+   "concept_wuwo",
+   "nat_cloud",
+   "concept_wuwojing"
+  ],
+  [
+   "concept_wuwo",
+   "nat_river",
+   "concept_xinliu"
+  ],
+  [
+   "con_righteous",
+   "eli_dew",
+   "concept_liangzhi"
+  ],
+  [
+   "con_wisdom",
+   "per_wanderer",
+   "concept_renxin"
+  ],
+  [
+   "concept_renxin",
+   "concept_xiongx",
+   "concept_renxinxian"
+  ],
+  [
+   "concept_renxin",
+   "plc_market",
+   "concept_shiqing2"
+  ],
+  [
+   "concept_shiqing2",
+   "con_time",
+   "concept_shishi"
+  ],
+  [
+   "con_time",
+   "con_illusion",
+   "concept_wuchang"
+  ],
+  [
+   "con_dream",
+   "plc_city",
+   "concept_fanhua"
+  ],
+  [
+   "con_void",
+   "nat_cloud",
+   "concept_fuyun"
+  ],
+  [
+   "concept_fuyun",
+   "con_fame",
+   "concept_fuyunming"
+  ],
+  [
+   "con_sorrow",
+   "nat_sea",
+   "concept_kuhai2"
+  ],
+  [
+   "concept_kuhai2",
+   "con_wisdom",
+   "concept_huitou"
+  ],
+  [
+   "concept_xiayi",
+   "con_dream",
+   "concept_xiakemeng"
+  ],
+  [
+   "concept_jianghu",
+   "concept_kuangao",
+   "concept_xiaoao"
+  ],
+  [
+   "concept_jianghu",
+   "nat_sea",
+   "concept_tianya"
+  ],
+  [
+   "per_wanderer",
+   "concept_tianya",
+   "concept_langji"
+  ],
+  [
+   "concept_daoxin2",
+   "nat_cloud",
+   "concept_yunyou"
+  ],
+  [
+   "concept_dugu",
+   "concept_guji",
+   "concept_gudu"
+  ],
+  [
+   "con_courage",
+   "concept_chouren",
+   "concept_duizhi"
+  ],
+  [
+   "concept_duizhi",
+   "wpn_sword",
+   "concept_juedou"
+  ],
+  [
+   "concept_juedou",
+   "concept_juding",
+   "concept_juedingzhan"
+  ],
+  [
+   "concept_juedou",
+   "plc_market",
+   "concept_bijian"
+  ],
+  [
+   "concept_huiyi",
+   "concept_chuancheng",
+   "concept_yihan"
+  ],
+  [
+   "con_hate",
+   "per_swordsman",
+   "concept_chouren"
+  ],
+  [
+   "concept_xiangsi",
+   "herb_fruit",
+   "concept_hongdou"
+  ],
+  [
+   "con_hate",
+   "con_rage",
+   "concept_xuechou"
+  ],
+  [
+   "con_hate",
+   "concept_huanian",
+   "concept_jihen"
+  ],
+  [
+   "con_sorrow",
+   "plc_cliff",
+   "concept_juewang"
+  ],
+  [
+   "con_sorrow",
+   "nat_thunder",
+   "concept_beifen"
+  ],
+  [
+   "con_sorrow",
+   "eli_poison",
+   "concept_duanchang"
+  ],
+  [
+   "con_sorrow",
+   "plc_hut",
+   "concept_sixiang"
+  ],
+  [
+   "con_solitude",
+   "nat_snow",
+   "concept_guji"
+  ],
+  [
+   "con_joy",
+   "con_time",
+   "concept_xinwei"
+  ],
+  [
+   "concept_kuangxi",
+   "plc_inn",
+   "concept_kuanghuan"
+  ],
+  [
+   "con_rage",
+   "gear_torch",
+   "concept_nuhuo"
+  ],
+  [
+   "con_rage",
+   "mar_force",
+   "concept_shaqi"
+  ],
+  [
+   "con_love",
+   "nat_river",
+   "concept_qingshen"
+  ],
+  [
+   "con_love",
+   "nat_rainbow",
+   "concept_yinyuan"
+  ],
+  [
+   "concept_zhiji",
+   "con_hate",
+   "concept_shengsi"
+  ],
+  [
+   "concept_chouhen",
+   "nat_dark",
+   "concept_yuanqi"
+  ],
+  [
+   "concept_chouhen",
+   "bst_wolf",
+   "concept_yuanling"
+  ],
+  [
+   "con_secret",
+   "con_sorrow",
+   "concept_chenyuan"
+  ],
+  [
+   "con_fame",
+   "concept_xuechou",
+   "concept_xueyuan"
+  ],
+  [
+   "con_sorrow",
+   "concept_en",
+   "concept_kuixin"
+  ],
+  [
+   "con_sorrow",
+   "concept_huanian",
+   "concept_huiyi"
+  ],
+  [
+   "concept_en",
+   "eli_wine",
+   "concept_ganen"
+  ],
+  [
+   "con_hate",
+   "con_void",
+   "concept_wuqing"
+  ],
+  [
+   "con_love",
+   "mar_saberart",
+   "concept_duanqing"
+  ],
+  [
+   "con_sorrow",
+   "gear_boat",
+   "concept_lixin"
+  ],
+  [
+   "con_sorrow",
+   "plc_pavilion",
+   "concept_bieli"
+  ],
+  [
+   "concept_bieli",
+   "herb_willow",
+   "concept_songbie"
+  ],
+  [
+   "concept_bieli",
+   "con_fate",
+   "concept_chongfeng"
+  ],
+  [
+   "concept_yinyuan",
+   "con_rage",
+   "concept_nieyuan"
+  ],
+  [
+   "con_love",
+   "nat_mist",
+   "concept_qinglang"
+  ],
+  [
+   "con_righteous",
+   "per_wanderer",
+   "concept_xiayi"
+  ],
+  [
+   "concept_xiayi",
+   "nat_wind",
+   "concept_xiaoqi"
+  ],
+  [
+   "con_righteous",
+   "gear_slip",
+   "concept_daoyi"
+  ],
+  [
+   "con_righteous",
+   "mat_ingot",
+   "concept_xinyong"
+  ],
+  [
+   "con_courage",
+   "con_fate",
+   "concept_nuoyan"
+  ],
+  [
+   "concept_nuoyan",
+   "nat_sea",
+   "concept_mengshi"
+  ],
+  [
+   "concept_moni",
+   "nat_sun",
+   "concept_jiebai"
+  ],
+  [
+   "con_fear",
+   "con_hate",
+   "concept_beipan"
+  ],
+  [
+   "con_righteous",
+   "con_hate",
+   "concept_beiyi"
+  ],
+  [
+   "con_hate",
+   "nat_dark",
+   "concept_yinmou"
+  ],
+  [
+   "con_secret",
+   "per_thief",
+   "concept_guiji"
+  ],
+  [
+   "per_thief",
+   "concept_xiayi",
+   "concept_yizei"
+  ],
+  [
+   "per_hunter",
+   "concept_xiayi",
+   "concept_yisi"
+  ],
+  [
+   "con_righteous",
+   "sec_wudang",
+   "concept_zhengdao"
+  ],
+  [
+   "con_hate",
+   "sec_poison5",
+   "concept_xiedao"
+  ],
+  [
+   "con_rage",
+   "con_illusion",
+   "concept_xinmo"
+  ],
+  [
+   "concept_xinmo",
+   "sec_demon",
+   "concept_rumo"
+  ],
+  [
+   "con_fate",
+   "con_hate",
+   "concept_jiebao"
+  ],
+  [
+   "nat_thunder",
+   "con_fate",
+   "concept_tianjie"
+  ],
+  [
+   "concept_jiebao",
+   "con_courage",
+   "concept_dujie"
+  ],
+  [
+   "con_fate",
+   "con_dream",
+   "concept_mingyun"
+  ],
+  [
+   "con_fate",
+   "nat_moon",
+   "concept_tianming"
+  ],
+  [
+   "con_secret",
+   "con_fate",
+   "concept_tianji"
+  ],
+  [
+   "concept_ruman",
+   "con_time",
+   "concept_xiaocheng"
+  ],
+  [
+   "concept_xiaocheng",
+   "con_wisdom",
+   "concept_dacheng"
+  ],
+  [
+   "concept_dacheng",
+   "nat_moon",
+   "concept_yuanman"
+  ],
+  [
+   "concept_dacheng",
+   "concept_wudao",
+   "concept_dengfeng"
+  ],
+  [
+   "concept_dacheng",
+   "con_void",
+   "concept_huajing"
+  ],
+  [
+   "concept_huajing",
+   "herb_seed",
+   "concept_fanpu"
+  ],
+  [
+   "concept_fanpu",
+   "nat_sun",
+   "concept_tianren"
+  ],
+  [
+   "concept_dacheng",
+   "per_wanderer",
+   "concept_yiliu"
+  ],
+  [
+   "concept_dengfeng",
+   "per_swordsman",
+   "concept_tianxia1"
+  ],
+  [
+   "mar_stroke",
+   "con_calm",
+   "concept_wuzhao"
+  ],
+  [
+   "wpn_sword",
+   "concept_jianyi",
+   "concept_jianqi"
+  ],
+  [
+   "wpn_sword",
+   "con_wisdom",
+   "concept_jianyi"
+  ],
+  [
+   "wpn_blade",
+   "con_wisdom",
+   "concept_daoyi3"
+  ],
+  [
+   "wpn_blade",
+   "con_calm",
+   "concept_daoxin"
+  ],
+  [
+   "per_monk",
+   "con_calm",
+   "concept_chan"
+  ],
+  [
+   "concept_chan",
+   "con_fear",
+   "concept_dunwu"
+  ],
+  [
+   "concept_chan",
+   "herb_lotus",
+   "concept_puti"
+  ],
+  [
+   "concept_chan",
+   "con_solitude",
+   "concept_kong"
+  ],
+  [
+   "con_calm",
+   "mar_horsestance",
+   "concept_dingli"
+  ],
+  [
+   "concept_wuwei",
+   "nat_river",
+   "concept_daofa"
+  ],
+  [
+   "concept_taiji",
+   "mat_steel",
+   "concept_rouke"
+  ],
+  [
+   "mar_taichi",
+   "con_yin",
+   "concept_liangyi"
+  ],
+  [
+   "concept_taiji",
+   "nat_cloud",
+   "concept_wuji"
+  ],
+  [
+   "concept_chengming",
+   "wpn_sword",
+   "concept_yizhan"
+  ],
+  [
+   "plc_lake",
+   "concept_xiayi",
+   "concept_jianghu"
+  ],
+  [
+   "concept_jianghu",
+   "sec_shaolin",
+   "concept_wulin"
+  ],
+  [
+   "con_courage",
+   "per_swordsman",
+   "concept_yingxiong"
+  ],
+  [
+   "con_time",
+   "herb_flower",
+   "concept_liunian"
+  ],
+  [
+   "concept_mingyun",
+   "bst_turtle",
+   "concept_lunhui"
+  ],
+  [
+   "herb_fruit",
+   "concept_mingyun",
+   "concept_yinguo"
+  ],
+  [
+   "con_calm",
+   "con_rage",
+   "concept_dongjing"
+  ],
+  [
+   "con_wisdom",
+   "gear_lantern",
+   "concept_dongcha"
+  ],
+  [
+   "con_wisdom",
+   "nat_sea",
+   "concept_shenmou"
+  ],
+  [
+   "concept_guiji",
+   "per_dancer",
+   "concept_meiren"
+  ],
+  [
+   "concept_guiji",
+   "sec_court",
+   "concept_kongcheng"
+  ],
+  [
+   "concept_guiji",
+   "per_assassin",
+   "concept_jiedao"
+  ],
+  [
+   "concept_gufeng",
+   "con_courage",
+   "concept_aoqi"
+  ],
+  [
+   "concept_haoqing",
+   "plc_grassland",
+   "concept_haomai"
+  ],
+  [
+   "con_dream",
+   "herb_pine",
+   "concept_nanke"
+  ],
+  [
+   "con_illusion",
+   "nat_cloud",
+   "concept_huanjing"
+  ],
+  [
+   "con_sorrow",
+   "herb_peony",
+   "concept_luohua"
+  ],
+  [
+   "con_solitude",
+   "nat_sea",
+   "concept_gufan"
+  ],
+  [
+   "con_courage",
+   "mat_ink",
+   "concept_rexue"
+  ],
+  [
+   "con_courage",
+   "gear_boat",
+   "concept_pofu"
+  ],
+  [
+   "con_joy",
+   "concept_chouren",
+   "concept_yixiao"
+  ],
+  [
+   "con_love",
+   "nat_snow",
+   "concept_baitou"
+  ],
+  [
+   "concept_chuancheng",
+   "mar_neigong",
+   "concept_juexue"
+  ],
+  [
+   "con_righteous",
+   "per_hermit",
+   "concept_zhiji"
+  ],
+  [
+   "con_love",
+   "herb_orchid",
+   "concept_zhongqing"
+  ],
+  [
+   "mar_horsestance",
+   "con_time",
+   "concept_houtian"
+  ],
+  [
+   "mar_innerforce",
+   "concept_zhenyuan",
+   "concept_qihai"
+  ],
+  [
+   "mar_innerforce",
+   "concept_qihai",
+   "concept_dantian"
+  ],
+  [
+   "con_void",
+   "per_hermit",
+   "concept_wuwei"
+  ],
+  [
+   "con_time",
+   "concept_qiannian",
+   "concept_yongheng"
+  ],
+  [
+   "con_time",
+   "concept_shunmin",
+   "concept_shiji"
+  ],
+  [
+   "con_wisdom",
+   "concept_bingfa",
+   "concept_miaoji"
+  ],
+  [
+   "con_sorrow",
+   "nat_snow",
+   "concept_lei"
+  ],
+  [
+   "con_sorrow",
+   "plc_grave",
+   "concept_xinsi"
+  ],
+  [
+   "mar_stroke",
+   "concept_mizhuan",
+   "concept_juezhao"
+  ],
+  [
+   "sec_master",
+   "concept_yibo",
+   "concept_chuancheng"
+  ],
+  [
+   "con_fate",
+   "nat_rainbow",
+   "concept_youyuan"
+  ],
+  [
+   "concept_zhiji",
+   "nat_sun",
+   "concept_moni"
+  ],
+  [
+   "con_hate",
+   "per_thief",
+   "concept_shayi"
+  ]
+ ]
+}

@@ -1,0 +1,5207 @@
+{
+ "category": "weapon",
+ "items": [
+  {
+   "id": "weapon_saber",
+   "zh": "單刀",
+   "ja": "単刀"
+  },
+  {
+   "id": "weapon_steelsaber",
+   "zh": "鋼刀",
+   "ja": "鋼刀"
+  },
+  {
+   "id": "weapon_broadsaber",
+   "zh": "大刀",
+   "ja": "大刀"
+  },
+  {
+   "id": "weapon_willowsaber",
+   "zh": "細柳刀",
+   "ja": "細柳刀"
+  },
+  {
+   "id": "weapon_goosesaber",
+   "zh": "雁翎刀",
+   "ja": "雁翎刀"
+  },
+  {
+   "id": "weapon_pudao",
+   "zh": "朴刀",
+   "ja": "朴刀"
+  },
+  {
+   "id": "weapon_scimitar",
+   "zh": "彎刀",
+   "ja": "湾刀"
+  },
+  {
+   "id": "weapon_monksaber",
+   "zh": "戒刀",
+   "ja": "戒刀"
+  },
+  {
+   "id": "weapon_waistsaber",
+   "zh": "腰刀",
+   "ja": "腰刀"
+  },
+  {
+   "id": "weapon_twinsaber",
+   "zh": "雙刀",
+   "ja": "双刀"
+  },
+  {
+   "id": "weapon_mandarinsaber",
+   "zh": "鴛鴦雙刀",
+   "ja": "鴛鴦双刀"
+  },
+  {
+   "id": "weapon_horsecleaver",
+   "zh": "戰馬斬刀",
+   "ja": "戦馬斬刀"
+  },
+  {
+   "id": "weapon_crescentglaive",
+   "zh": "月牙大刀",
+   "ja": "月牙大刀"
+  },
+  {
+   "id": "weapon_dragonglaive",
+   "zh": "青龍月牙刀",
+   "ja": "青竜月牙刀"
+  },
+  {
+   "id": "weapon_ghostsaber",
+   "zh": "鬼面刀",
+   "ja": "鬼面刀"
+  },
+  {
+   "id": "weapon_ninering",
+   "zh": "九環大刀",
+   "ja": "九環大刀"
+  },
+  {
+   "id": "weapon_goldback",
+   "zh": "金背砍刀",
+   "ja": "金背砍刀"
+  },
+  {
+   "id": "weapon_tigersaber",
+   "zh": "五虎斷門刀",
+   "ja": "五虎断門刀"
+  },
+  {
+   "id": "weapon_icesaber",
+   "zh": "寒冰刀",
+   "ja": "寒冰刀"
+  },
+  {
+   "id": "weapon_flamesaber",
+   "zh": "烈焰刀",
+   "ja": "烈焔刀"
+  },
+  {
+   "id": "weapon_thundersaber",
+   "zh": "雷霆刀",
+   "ja": "雷霆刀"
+  },
+  {
+   "id": "weapon_bloodsaber",
+   "zh": "血刀",
+   "ja": "血刀"
+  },
+  {
+   "id": "weapon_poisonsaber",
+   "zh": "淬毒刀",
+   "ja": "淬毒刀"
+  },
+  {
+   "id": "weapon_cutwater",
+   "zh": "斷水刀",
+   "ja": "断水刀"
+  },
+  {
+   "id": "weapon_embroidered",
+   "zh": "繡春刀",
+   "ja": "繡春刀"
+  },
+  {
+   "id": "weapon_whetstone",
+   "zh": "礪刀石",
+   "ja": "礪刀石"
+  },
+  {
+   "id": "weapon_saberscabbard",
+   "zh": "刀鞘",
+   "ja": "刀鞘"
+  },
+  {
+   "id": "weapon_sabergrip",
+   "zh": "刀柄",
+   "ja": "刀柄"
+  },
+  {
+   "id": "weapon_demonsaber",
+   "zh": "魔刀",
+   "ja": "魔刀"
+  },
+  {
+   "id": "weapon_snowsaber",
+   "zh": "飲雪刀",
+   "ja": "飲雪刀"
+  },
+  {
+   "id": "weapon_sorrowsaber",
+   "zh": "斷魂刀",
+   "ja": "断魂刀"
+  },
+  {
+   "id": "weapon_meteorsaber",
+   "zh": "隕鐵刀",
+   "ja": "隕鉄刀"
+  },
+  {
+   "id": "weapon_blackgoldsaber",
+   "zh": "黑金刀",
+   "ja": "黑金刀"
+  },
+  {
+   "id": "weapon_holyscimitar",
+   "zh": "聖火彎刀",
+   "ja": "聖火湾刀"
+  },
+  {
+   "id": "weapon_barbarianblade",
+   "zh": "胡刀",
+   "ja": "胡刀"
+  },
+  {
+   "id": "weapon_steppesaber",
+   "zh": "馬刀",
+   "ja": "馬刀"
+  },
+  {
+   "id": "weapon_peonysaber",
+   "zh": "牡丹刀",
+   "ja": "牡丹刀"
+  },
+  {
+   "id": "weapon_deerhornsaber",
+   "zh": "鹿角刀",
+   "ja": "鹿角刀"
+  },
+  {
+   "id": "weapon_armysaber",
+   "zh": "軍刀",
+   "ja": "軍刀"
+  },
+  {
+   "id": "weapon_wandersaber",
+   "zh": "浪客刀",
+   "ja": "浪客刀"
+  },
+  {
+   "id": "weapon_chopper",
+   "zh": "劈山刀",
+   "ja": "劈山刀"
+  },
+  {
+   "id": "weapon_ironsword",
+   "zh": "鐵劍",
+   "ja": "鉄剣"
+  },
+  {
+   "id": "weapon_swordembryo",
+   "zh": "劍胚",
+   "ja": "剣胚"
+  },
+  {
+   "id": "weapon_bluesteel",
+   "zh": "青鋼劍",
+   "ja": "青鋼剣"
+  },
+  {
+   "id": "weapon_bronzesword",
+   "zh": "青銅劍",
+   "ja": "青銅剣"
+  },
+  {
+   "id": "weapon_woodsword",
+   "zh": "木劍",
+   "ja": "木剣"
+  },
+  {
+   "id": "weapon_bamboosword",
+   "zh": "竹劍",
+   "ja": "竹剣"
+  },
+  {
+   "id": "weapon_shortsword",
+   "zh": "短劍",
+   "ja": "短剣"
+  },
+  {
+   "id": "weapon_softsword",
+   "zh": "軟劍",
+   "ja": "軟剣"
+  },
+  {
+   "id": "weapon_twinswords",
+   "zh": "雙劍",
+   "ja": "双剣"
+  },
+  {
+   "id": "weapon_mandarinsword",
+   "zh": "鴛鴦劍",
+   "ja": "鴛鴦剣"
+  },
+  {
+   "id": "weapon_dancesword",
+   "zh": "霓裳雙劍",
+   "ja": "霓裳双剣"
+  },
+  {
+   "id": "weapon_coldsword",
+   "zh": "寒鐵劍",
+   "ja": "寒鉄剣"
+  },
+  {
+   "id": "weapon_flamesword",
+   "zh": "烈焰劍",
+   "ja": "烈焔剣"
+  },
+  {
+   "id": "weapon_icesword",
+   "zh": "玄冰劍",
+   "ja": "玄冰剣"
+  },
+  {
+   "id": "weapon_thundersword",
+   "zh": "雷鳴劍",
+   "ja": "雷鳴剣"
+  },
+  {
+   "id": "weapon_snowsword",
+   "zh": "霜雪劍",
+   "ja": "霜雪剣"
+  },
+  {
+   "id": "weapon_moonsword",
+   "zh": "皓月劍",
+   "ja": "皓月剣"
+  },
+  {
+   "id": "weapon_sunsword",
+   "zh": "烈日劍",
+   "ja": "烈日剣"
+  },
+  {
+   "id": "weapon_autumnwater",
+   "zh": "秋水劍",
+   "ja": "秋水剣"
+  },
+  {
+   "id": "weapon_pinesword",
+   "zh": "松紋劍",
+   "ja": "松紋剣"
+  },
+  {
+   "id": "weapon_plumsword",
+   "zh": "梅花劍",
+   "ja": "梅花剣"
+  },
+  {
+   "id": "weapon_lotussword",
+   "zh": "蓮花劍",
+   "ja": "蓮花剣"
+  },
+  {
+   "id": "weapon_orchidsword",
+   "zh": "蘭心劍",
+   "ja": "蘭心剣"
+  },
+  {
+   "id": "weapon_dragonspring",
+   "zh": "龍淵劍",
+   "ja": "竜淵剣"
+  },
+  {
+   "id": "weapon_dragonsword",
+   "zh": "龍吟劍",
+   "ja": "竜吟剣"
+  },
+  {
+   "id": "weapon_phoenixsword",
+   "zh": "鳳翔劍",
+   "ja": "鳳翔剣"
+  },
+  {
+   "id": "weapon_snakesword",
+   "zh": "蛇形劍",
+   "ja": "蛇形剣"
+  },
+  {
+   "id": "weapon_rainbowsword",
+   "zh": "白虹劍",
+   "ja": "白虹剣"
+  },
+  {
+   "id": "weapon_cranesword",
+   "zh": "鶴鳴劍",
+   "ja": "鶴鳴剣"
+  },
+  {
+   "id": "weapon_sevenstar",
+   "zh": "七星劍",
+   "ja": "七星剣"
+  },
+  {
+   "id": "weapon_gentlemansword",
+   "zh": "謙謙劍",
+   "ja": "謙謙剣"
+  },
+  {
+   "id": "weapon_ladysword",
+   "zh": "閨秀劍",
+   "ja": "閨秀剣"
+  },
+  {
+   "id": "weapon_swordsmansword",
+   "zh": "佩劍",
+   "ja": "佩剣"
+  },
+  {
+   "id": "weapon_heavysword",
+   "zh": "重劍",
+   "ja": "重剣"
+  },
+  {
+   "id": "weapon_meteorheavy",
+   "zh": "隕鐵重劍",
+   "ja": "隕鉄重剣"
+  },
+  {
+   "id": "weapon_peachwood",
+   "zh": "辟邪木劍",
+   "ja": "辟邪木剣"
+  },
+  {
+   "id": "weapon_yinsword",
+   "zh": "雌劍",
+   "ja": "雌剣"
+  },
+  {
+   "id": "weapon_yangsword",
+   "zh": "雄劍",
+   "ja": "雄剣"
+  },
+  {
+   "id": "weapon_pairswords",
+   "zh": "雌雄雙劍",
+   "ja": "雌雄双剣"
+  },
+  {
+   "id": "weapon_firewater",
+   "zh": "冰焰雙劍",
+   "ja": "冰焔双剣"
+  },
+  {
+   "id": "weapon_dragonphoenix",
+   "zh": "龍鳳呈祥劍",
+   "ja": "竜鳳呈祥剣"
+  },
+  {
+   "id": "weapon_sevenprecious",
+   "zh": "七星隕劍",
+   "ja": "七星隕剣"
+  },
+  {
+   "id": "weapon_swordhilt",
+   "zh": "劍柄",
+   "ja": "剣柄"
+  },
+  {
+   "id": "weapon_scabbard",
+   "zh": "劍鞘",
+   "ja": "剣鞘"
+  },
+  {
+   "id": "weapon_tassel",
+   "zh": "流蘇劍穗",
+   "ja": "流蘇剣穗"
+  },
+  {
+   "id": "weapon_huashansword",
+   "zh": "華山劍",
+   "ja": "華山剣"
+  },
+  {
+   "id": "weapon_taijisword",
+   "zh": "兩儀劍",
+   "ja": "兩儀剣"
+  },
+  {
+   "id": "weapon_emeisword",
+   "zh": "金頂劍",
+   "ja": "金頂剣"
+  },
+  {
+   "id": "weapon_kunlunsword",
+   "zh": "崑崙劍",
+   "ja": "崑崙剣"
+  },
+  {
+   "id": "weapon_qingchengsword",
+   "zh": "青城劍",
+   "ja": "青城剣"
+  },
+  {
+   "id": "weapon_tombsword",
+   "zh": "玉女劍",
+   "ja": "玉女剣"
+  },
+  {
+   "id": "weapon_tombswordgrave",
+   "zh": "冢劍",
+   "ja": "冢剣"
+  },
+  {
+   "id": "weapon_puresword",
+   "zh": "純陽劍",
+   "ja": "純陽剣"
+  },
+  {
+   "id": "weapon_jadesword",
+   "zh": "碧玉劍",
+   "ja": "碧玉剣"
+  },
+  {
+   "id": "weapon_coldlightsword",
+   "zh": "寒光劍",
+   "ja": "寒光剣"
+  },
+  {
+   "id": "weapon_shadowsword",
+   "zh": "暗影劍",
+   "ja": "暗影剣"
+  },
+  {
+   "id": "weapon_illusionsword",
+   "zh": "幻影劍",
+   "ja": "幻影剣"
+  },
+  {
+   "id": "weapon_lovesword",
+   "zh": "多情劍",
+   "ja": "多情剣"
+  },
+  {
+   "id": "weapon_righteoussword",
+   "zh": "正氣劍",
+   "ja": "正気剣"
+  },
+  {
+   "id": "weapon_foxsword",
+   "zh": "狐影劍",
+   "ja": "狐影剣"
+  },
+  {
+   "id": "weapon_tigersword",
+   "zh": "伏虎劍",
+   "ja": "伏虎剣"
+  },
+  {
+   "id": "weapon_eaglesword",
+   "zh": "鷹揚劍",
+   "ja": "鷹揚剣"
+  },
+  {
+   "id": "weapon_turtlesword",
+   "zh": "玄龜劍",
+   "ja": "玄龜剣"
+  },
+  {
+   "id": "weapon_canesword",
+   "zh": "杖劍",
+   "ja": "杖剣"
+  },
+  {
+   "id": "weapon_fishdagger",
+   "zh": "魚腸匕",
+   "ja": "魚腸匕"
+  },
+  {
+   "id": "weapon_cyanrainbow",
+   "zh": "青虹劍",
+   "ja": "青虹剣"
+  },
+  {
+   "id": "weapon_benevolent",
+   "zh": "仁心劍",
+   "ja": "仁心剣"
+  },
+  {
+   "id": "weapon_heavymountain",
+   "zh": "斷嶽重劍",
+   "ja": "断嶽重剣"
+  },
+  {
+   "id": "weapon_redfire",
+   "zh": "赤炎名劍",
+   "ja": "赤炎名剣"
+  },
+  {
+   "id": "weapon_hiddenshadow",
+   "zh": "藏影劍",
+   "ja": "藏影剣"
+  },
+  {
+   "id": "weapon_sheathlight",
+   "zh": "斂光劍",
+   "ja": "斂光剣"
+  },
+  {
+   "id": "weapon_malesword",
+   "zh": "雄鋒劍",
+   "ja": "雄鋒剣"
+  },
+  {
+   "id": "weapon_femalesword",
+   "zh": "雌鋒劍",
+   "ja": "雌鋒剣"
+  },
+  {
+   "id": "weapon_couplefamed",
+   "zh": "雌雄名劍",
+   "ja": "雌雄名剣"
+  },
+  {
+   "id": "weapon_heavenstar",
+   "zh": "天樞劍",
+   "ja": "天樞剣"
+  },
+  {
+   "id": "weapon_iceblue",
+   "zh": "青冥劍",
+   "ja": "青冥剣"
+  },
+  {
+   "id": "weapon_cutmountain",
+   "zh": "斷嶽刀",
+   "ja": "断嶽刀"
+  },
+  {
+   "id": "weapon_drinkblood",
+   "zh": "飲血寶刀",
+   "ja": "飲血宝刀"
+  },
+  {
+   "id": "weapon_frostflower",
+   "zh": "霜華刀",
+   "ja": "霜華刀"
+  },
+  {
+   "id": "weapon_sunblaze",
+   "zh": "炎陽刀",
+   "ja": "炎陽刀"
+  },
+  {
+   "id": "weapon_shockthunder",
+   "zh": "轟雷刀",
+   "ja": "轟雷刀"
+  },
+  {
+   "id": "weapon_crescentfamed",
+   "zh": "彎月寶刀",
+   "ja": "湾月宝刀"
+  },
+  {
+   "id": "weapon_dragonfamed",
+   "zh": "青龍名刀",
+   "ja": "青竜名刀"
+  },
+  {
+   "id": "weapon_ironspear",
+   "zh": "鐵槍",
+   "ja": "鉄槍"
+  },
+  {
+   "id": "weapon_flowerspear",
+   "zh": "花槍",
+   "ja": "花槍"
+  },
+  {
+   "id": "weapon_silverspear",
+   "zh": "銀槍",
+   "ja": "銀槍"
+  },
+  {
+   "id": "weapon_frostspear",
+   "zh": "凜霜槍",
+   "ja": "凜霜槍"
+  },
+  {
+   "id": "weapon_firetip",
+   "zh": "火尖槍",
+   "ja": "火尖槍"
+  },
+  {
+   "id": "weapon_dragonspear",
+   "zh": "龍膽亮銀槍",
+   "ja": "竜膽亮銀槍"
+  },
+  {
+   "id": "weapon_conqueror",
+   "zh": "霸王槍",
+   "ja": "霸王槍"
+  },
+  {
+   "id": "weapon_tigerspear",
+   "zh": "五虎斷魂槍",
+   "ja": "五虎断魂槍"
+  },
+  {
+   "id": "weapon_plumspear",
+   "zh": "梅花槍",
+   "ja": "梅花槍"
+  },
+  {
+   "id": "weapon_redtassel",
+   "zh": "紅纓槍",
+   "ja": "紅纓槍"
+  },
+  {
+   "id": "weapon_blackgoldspear",
+   "zh": "烏金槍",
+   "ja": "烏金槍"
+  },
+  {
+   "id": "weapon_spearhead",
+   "zh": "槍頭",
+   "ja": "槍頭"
+  },
+  {
+   "id": "weapon_halberd",
+   "zh": "戟",
+   "ja": "戟"
+  },
+  {
+   "id": "weapon_twinhalberd",
+   "zh": "雙戟",
+   "ja": "双戟"
+  },
+  {
+   "id": "weapon_moonhalberd",
+   "zh": "月牙戟",
+   "ja": "月牙戟"
+  },
+  {
+   "id": "weapon_skyhalberd",
+   "zh": "呂布戟",
+   "ja": "呂布戟"
+  },
+  {
+   "id": "weapon_trident",
+   "zh": "三叉戟",
+   "ja": "三叉戟"
+  },
+  {
+   "id": "weapon_mao",
+   "zh": "矛",
+   "ja": "矛"
+  },
+  {
+   "id": "weapon_snakespear",
+   "zh": "蛇紋長矛",
+   "ja": "蛇紋長矛"
+  },
+  {
+   "id": "weapon_shuo",
+   "zh": "槊",
+   "ja": "槊"
+  },
+  {
+   "id": "weapon_horseshuo",
+   "zh": "馬槊",
+   "ja": "馬槊"
+  },
+  {
+   "id": "weapon_tang",
+   "zh": "鏜",
+   "ja": "鏜"
+  },
+  {
+   "id": "weapon_fork",
+   "zh": "鋼叉",
+   "ja": "鋼叉"
+  },
+  {
+   "id": "weapon_fishfork",
+   "zh": "漁叉",
+   "ja": "漁叉"
+  },
+  {
+   "id": "weapon_flyfork",
+   "zh": "飛叉",
+   "ja": "飛叉"
+  },
+  {
+   "id": "weapon_hookspear",
+   "zh": "鉤鐮槍",
+   "ja": "鉤鐮槍"
+  },
+  {
+   "id": "weapon_naginata",
+   "zh": "薙刀",
+   "ja": "薙刀"
+  },
+  {
+   "id": "weapon_pairaxes",
+   "zh": "板斧",
+   "ja": "板斧"
+  },
+  {
+   "id": "weapon_flowaxe",
+   "zh": "宣花斧",
+   "ja": "宣花斧"
+  },
+  {
+   "id": "weapon_jadeaxe",
+   "zh": "玉鉞",
+   "ja": "玉鉞"
+  },
+  {
+   "id": "weapon_poleaxe",
+   "zh": "長柄大斧",
+   "ja": "長柄大斧"
+  },
+  {
+   "id": "weapon_woodaxe",
+   "zh": "樵斧",
+   "ja": "樵斧"
+  },
+  {
+   "id": "weapon_goldaxe",
+   "zh": "金鉞",
+   "ja": "金鉞"
+  },
+  {
+   "id": "weapon_twinaxe",
+   "zh": "鴛鴦鉞",
+   "ja": "鴛鴦鉞"
+  },
+  {
+   "id": "weapon_patrol",
+   "zh": "哨棒",
+   "ja": "哨棒"
+  },
+  {
+   "id": "weapon_copperrod",
+   "zh": "熟銅棍",
+   "ja": "熟銅棍"
+  },
+  {
+   "id": "weapon_zen",
+   "zh": "鐵禪杖",
+   "ja": "鉄禅杖"
+  },
+  {
+   "id": "weapon_monkspade",
+   "zh": "方便鏟",
+   "ja": "方便鏟"
+  },
+  {
+   "id": "weapon_moonspade",
+   "zh": "月牙鏟",
+   "ja": "月牙鏟"
+  },
+  {
+   "id": "weapon_wolfmace",
+   "zh": "狼齒棒",
+   "ja": "狼齒棒"
+  },
+  {
+   "id": "weapon_flail",
+   "zh": "連枷",
+   "ja": "連枷"
+  },
+  {
+   "id": "weapon_meteorhammer",
+   "zh": "飛星錘",
+   "ja": "飛星鎚"
+  },
+  {
+   "id": "weapon_twinhammer",
+   "zh": "雙錘",
+   "ja": "双鎚"
+  },
+  {
+   "id": "weapon_melonhammer",
+   "zh": "瓜錘",
+   "ja": "瓜鎚"
+  },
+  {
+   "id": "weapon_goldmelon",
+   "zh": "金瓜錘",
+   "ja": "金瓜鎚"
+  },
+  {
+   "id": "weapon_smithhammer",
+   "zh": "鑄鐵錘",
+   "ja": "鋳鉄鎚"
+  },
+  {
+   "id": "weapon_goathammer",
+   "zh": "羊角錘",
+   "ja": "羊角鎚"
+  },
+  {
+   "id": "weapon_ninejoint",
+   "zh": "九節鞭",
+   "ja": "九節鞭"
+  },
+  {
+   "id": "weapon_bamboowhip",
+   "zh": "竹節鞭",
+   "ja": "竹節鞭"
+  },
+  {
+   "id": "weapon_steelwhip",
+   "zh": "鋼鞭",
+   "ja": "鋼鞭"
+  },
+  {
+   "id": "weapon_threesection",
+   "zh": "三節棍",
+   "ja": "三節棍"
+  },
+  {
+   "id": "weapon_nunchaku",
+   "zh": "雙節棍",
+   "ja": "双節棍"
+  },
+  {
+   "id": "weapon_snakebone",
+   "zh": "蛇骨鞭",
+   "ja": "蛇骨鞭"
+  },
+  {
+   "id": "weapon_dragonsinew",
+   "zh": "龍筋鞭",
+   "ja": "竜筋鞭"
+  },
+  {
+   "id": "weapon_firewhip",
+   "zh": "火龍鞭",
+   "ja": "火竜鞭"
+  },
+  {
+   "id": "weapon_scorpionwhip",
+   "zh": "蠍尾鞭",
+   "ja": "蠍尾鞭"
+  },
+  {
+   "id": "weapon_silkcord",
+   "zh": "蠶絲索",
+   "ja": "蠶糸索"
+  },
+  {
+   "id": "weapon_horsewhip",
+   "zh": "馬鞭",
+   "ja": "馬鞭"
+  },
+  {
+   "id": "weapon_blackgoldwhip",
+   "zh": "烏金鞭",
+   "ja": "烏金鞭"
+  },
+  {
+   "id": "weapon_mace",
+   "zh": "鐧",
+   "ja": "鐧"
+  },
+  {
+   "id": "weapon_steelmace",
+   "zh": "鋼鐧",
+   "ja": "鋼鐧"
+  },
+  {
+   "id": "weapon_twinmace",
+   "zh": "雙鐧",
+   "ja": "双鐧"
+  },
+  {
+   "id": "weapon_beggarcrutch",
+   "zh": "鐵拐",
+   "ja": "鉄拐"
+  },
+  {
+   "id": "weapon_crutch",
+   "zh": "拐杖",
+   "ja": "拐杖"
+  },
+  {
+   "id": "weapon_dragoncrutch",
+   "zh": "龍頭拐杖",
+   "ja": "竜頭拐杖"
+  },
+  {
+   "id": "weapon_chainsickle",
+   "zh": "鏈鐮",
+   "ja": "鎖鐮"
+  },
+  {
+   "id": "weapon_twinsickle",
+   "zh": "雙鐮",
+   "ja": "双鐮"
+  },
+  {
+   "id": "weapon_reaper",
+   "zh": "勾魂鐮",
+   "ja": "勾魂鐮"
+  },
+  {
+   "id": "weapon_moonsickle",
+   "zh": "月牙鐮",
+   "ja": "月牙鐮"
+  },
+  {
+   "id": "weapon_ropedart",
+   "zh": "索鏢",
+   "ja": "索鏢"
+  },
+  {
+   "id": "weapon_twinhooks",
+   "zh": "雙鉤",
+   "ja": "双鉤"
+  },
+  {
+   "id": "weapon_crabpincer",
+   "zh": "蟹鉗鉤",
+   "ja": "蟹鉗鉤"
+  },
+  {
+   "id": "weapon_whisk",
+   "zh": "拂塵",
+   "ja": "拂塵"
+  },
+  {
+   "id": "weapon_silverwhisk",
+   "zh": "銀絲拂塵",
+   "ja": "銀糸拂塵"
+  },
+  {
+   "id": "weapon_anchorchain",
+   "zh": "鐵錨",
+   "ja": "鉄錨"
+  },
+  {
+   "id": "weapon_ironnet",
+   "zh": "鐵蛛網",
+   "ja": "鉄蛛網"
+  },
+  {
+   "id": "weapon_firegun",
+   "zh": "火繩銃",
+   "ja": "管銃"
+  },
+  {
+   "id": "weapon_digpick",
+   "zh": "礦鎬",
+   "ja": "礦鎬"
+  },
+  {
+   "id": "weapon_mountainpick",
+   "zh": "開山鎬",
+   "ja": "開山鎬"
+  },
+  {
+   "id": "weapon_flyknife",
+   "zh": "飛刀",
+   "ja": "飛刀"
+  },
+  {
+   "id": "weapon_willowknife",
+   "zh": "柳葉飛刀",
+   "ja": "柳葉飛刀"
+  },
+  {
+   "id": "weapon_plumdart",
+   "zh": "梅花鏢",
+   "ja": "梅花鏢"
+  },
+  {
+   "id": "weapon_lotusseed",
+   "zh": "蓮子鏢",
+   "ja": "蓮子鏢"
+  },
+  {
+   "id": "weapon_caltrop",
+   "zh": "蒺藜鏢",
+   "ja": "蒺藜鏢"
+  },
+  {
+   "id": "weapon_sleevearrow",
+   "zh": "暗袖箭",
+   "ja": "暗袖箭"
+  },
+  {
+   "id": "weapon_nail",
+   "zh": "穿骨釘",
+   "ja": "穿骨釘"
+  },
+  {
+   "id": "weapon_coffinnail",
+   "zh": "喪門釘",
+   "ja": "喪門釘"
+  },
+  {
+   "id": "weapon_goldneedle",
+   "zh": "金針",
+   "ja": "金針"
+  },
+  {
+   "id": "weapon_embroidery",
+   "zh": "繡花針",
+   "ja": "繡花針"
+  },
+  {
+   "id": "weapon_beeneedle",
+   "zh": "蜂尾針",
+   "ja": "蜂尾針"
+  },
+  {
+   "id": "weapon_coindart",
+   "zh": "錢幣鏢",
+   "ja": "銭幣鏢"
+  },
+  {
+   "id": "weapon_coppercoin",
+   "zh": "銅錢鏢",
+   "ja": "銅銭鏢"
+  },
+  {
+   "id": "weapon_stonedart",
+   "zh": "碎石鏢",
+   "ja": "碎石鏢"
+  },
+  {
+   "id": "weapon_swallowdart",
+   "zh": "燕尾鏢",
+   "ja": "燕尾鏢"
+  },
+  {
+   "id": "weapon_toaddart",
+   "zh": "蟾毒鏢",
+   "ja": "蟾毒鏢"
+  },
+  {
+   "id": "weapon_firedart",
+   "zh": "火焰鏢",
+   "ja": "火焔鏢"
+  },
+  {
+   "id": "weapon_boomerang",
+   "zh": "回旋鏢",
+   "ja": "回旋鏢"
+  },
+  {
+   "id": "weapon_dartbox",
+   "zh": "鏢匣",
+   "ja": "鏢匣"
+  },
+  {
+   "id": "weapon_sleevesword",
+   "zh": "袖劍",
+   "ja": "袖剣"
+  },
+  {
+   "id": "weapon_thunderbomb",
+   "zh": "雷霆彈",
+   "ja": "雷霆彈"
+  },
+  {
+   "id": "weapon_skybomb",
+   "zh": "驚天雷",
+   "ja": "驚天雷"
+  },
+  {
+   "id": "weapon_smokebomb",
+   "zh": "煙霧彈",
+   "ja": "煙霧彈"
+  },
+  {
+   "id": "weapon_poisonsmoke",
+   "zh": "毒煙彈",
+   "ja": "毒煙彈"
+  },
+  {
+   "id": "weapon_flashbomb",
+   "zh": "閃光彈",
+   "ja": "閃光彈"
+  },
+  {
+   "id": "weapon_fivepoison",
+   "zh": "五毒針",
+   "ja": "五毒針"
+  },
+  {
+   "id": "weapon_medneedle",
+   "zh": "藥王針",
+   "ja": "薬王針"
+  },
+  {
+   "id": "weapon_silverpair",
+   "zh": "梅花針",
+   "ja": "梅花針"
+  },
+  {
+   "id": "weapon_spidernail",
+   "zh": "蛛絲釘",
+   "ja": "蛛糸釘"
+  },
+  {
+   "id": "weapon_needlecase",
+   "zh": "針筒",
+   "ja": "針筒"
+  },
+  {
+   "id": "weapon_crossbow2",
+   "zh": "弩弓",
+   "ja": "弩弓"
+  },
+  {
+   "id": "weapon_mechbow",
+   "zh": "弩機",
+   "ja": "弩機"
+  },
+  {
+   "id": "weapon_pearlbow",
+   "zh": "連珠弩",
+   "ja": "連珠弩"
+  },
+  {
+   "id": "weapon_steelbow",
+   "zh": "鐵胎弓",
+   "ja": "鉄胎弓"
+  },
+  {
+   "id": "weapon_sunbow",
+   "zh": "射日弓",
+   "ja": "射日弓"
+  },
+  {
+   "id": "weapon_apebow",
+   "zh": "猿臂弓",
+   "ja": "猿臂弓"
+  },
+  {
+   "id": "weapon_moonbow",
+   "zh": "滿月弓",
+   "ja": "満月弓"
+  },
+  {
+   "id": "weapon_dragonbow",
+   "zh": "蟠龍弓",
+   "ja": "蟠竜弓"
+  },
+  {
+   "id": "weapon_cloudarrow",
+   "zh": "穿雲箭",
+   "ja": "穿雲箭"
+  },
+  {
+   "id": "weapon_whistle",
+   "zh": "嗚鏑箭",
+   "ja": "嗚鏑箭"
+  },
+  {
+   "id": "weapon_armorpierce",
+   "zh": "破甲箭",
+   "ja": "破甲箭"
+  },
+  {
+   "id": "weapon_goosearrow",
+   "zh": "雁翎箭",
+   "ja": "雁翎箭"
+  },
+  {
+   "id": "weapon_wolfarrow",
+   "zh": "狼牙箭",
+   "ja": "狼牙箭"
+  },
+  {
+   "id": "weapon_phoenixarrow",
+   "zh": "鳳羽箭",
+   "ja": "鳳羽箭"
+  },
+  {
+   "id": "weapon_firearrow",
+   "zh": "火箭",
+   "ja": "火箭"
+  },
+  {
+   "id": "weapon_powderarrow",
+   "zh": "神機箭",
+   "ja": "神機箭"
+  },
+  {
+   "id": "weapon_arrowhead",
+   "zh": "箭頭",
+   "ja": "箭頭"
+  },
+  {
+   "id": "weapon_quiver",
+   "zh": "箭囊",
+   "ja": "箭囊"
+  },
+  {
+   "id": "weapon_judge",
+   "zh": "鐵骨筆",
+   "ja": "鉄骨筆"
+  },
+  {
+   "id": "weapon_pointpen",
+   "zh": "截脈筆",
+   "ja": "截脈筆"
+  },
+  {
+   "id": "weapon_twinpen",
+   "zh": "雙鐵骨筆",
+   "ja": "双鉄骨筆"
+  },
+  {
+   "id": "weapon_emeithorn",
+   "zh": "峨嵋刺",
+   "ja": "峨眉刺"
+  },
+  {
+   "id": "weapon_waterthorn",
+   "zh": "分水刺",
+   "ja": "分水刺"
+  },
+  {
+   "id": "weapon_twinthorn",
+   "zh": "鴛鴦刺",
+   "ja": "鴛鴦刺"
+  },
+  {
+   "id": "weapon_inkfan",
+   "zh": "題詩扇",
+   "ja": "題詩扇"
+  },
+  {
+   "id": "weapon_featherfan",
+   "zh": "鶴羽扇",
+   "ja": "鶴羽扇"
+  },
+  {
+   "id": "weapon_jadefan",
+   "zh": "翡翠扇",
+   "ja": "翡翠扇"
+  },
+  {
+   "id": "weapon_xiaoyaofan",
+   "zh": "逍遙扇",
+   "ja": "逍遙扇"
+  },
+  {
+   "id": "weapon_peonyfan",
+   "zh": "牡丹扇",
+   "ja": "牡丹扇"
+  },
+  {
+   "id": "weapon_umbrella",
+   "zh": "鐵傘",
+   "ja": "鉄傘"
+  },
+  {
+   "id": "weapon_fanblade",
+   "zh": "劍扇",
+   "ja": "剣扇"
+  },
+  {
+   "id": "weapon_umbrellasword",
+   "zh": "傘劍",
+   "ja": "傘剣"
+  },
+  {
+   "id": "weapon_flutesword",
+   "zh": "笛劍",
+   "ja": "笛剣"
+  },
+  {
+   "id": "weapon_xiaosword",
+   "zh": "簫劍",
+   "ja": "簫剣"
+  },
+  {
+   "id": "weapon_ironflute",
+   "zh": "鐵笛",
+   "ja": "鉄笛"
+  },
+  {
+   "id": "weapon_ironxiao",
+   "zh": "鐵管簫",
+   "ja": "鉄管簫"
+  },
+  {
+   "id": "weapon_ring",
+   "zh": "精鐵環",
+   "ja": "精鉄環"
+  },
+  {
+   "id": "weapon_sunring",
+   "zh": "日輪",
+   "ja": "日輪"
+  },
+  {
+   "id": "weapon_moonring",
+   "zh": "月輪",
+   "ja": "月輪"
+  },
+  {
+   "id": "weapon_twinring",
+   "zh": "日月雙輪",
+   "ja": "日月双輪"
+  },
+  {
+   "id": "weapon_dharmawheel",
+   "zh": "法輪",
+   "ja": "法輪"
+  },
+  {
+   "id": "weapon_knuckle",
+   "zh": "指虎",
+   "ja": "指虎"
+  },
+  {
+   "id": "weapon_gauntlet",
+   "zh": "鐵拳套",
+   "ja": "鉄拳套"
+  },
+  {
+   "id": "weapon_tigerclaw",
+   "zh": "虎爪",
+   "ja": "虎爪"
+  },
+  {
+   "id": "weapon_ironclaw",
+   "zh": "鐵爪",
+   "ja": "鉄爪"
+  },
+  {
+   "id": "weapon_grapple",
+   "zh": "攀岩爪",
+   "ja": "攀岩爪"
+  },
+  {
+   "id": "weapon_spiderclaw",
+   "zh": "蛛絲飛爪",
+   "ja": "蛛糸飛爪"
+  },
+  {
+   "id": "weapon_lasso",
+   "zh": "飛索",
+   "ja": "飛索"
+  },
+  {
+   "id": "weapon_goldbell",
+   "zh": "金鈴索",
+   "ja": "金鈴索"
+  },
+  {
+   "id": "weapon_fistblade",
+   "zh": "拳刃",
+   "ja": "拳刃"
+  },
+  {
+   "id": "weapon_canecrook",
+   "zh": "錫杖",
+   "ja": "錫杖"
+  },
+  {
+   "id": "weapon_moondagger",
+   "zh": "彎匕",
+   "ja": "湾匕"
+  },
+  {
+   "id": "weapon_scorpionthorn",
+   "zh": "蠍牙刺",
+   "ja": "蠍牙刺"
+  },
+  {
+   "id": "weapon_foxdagger",
+   "zh": "靈狐匕",
+   "ja": "霊狐匕"
+  },
+  {
+   "id": "weapon_jadedagger",
+   "zh": "玉匕",
+   "ja": "玉匕"
+  },
+  {
+   "id": "weapon_assassinblade",
+   "zh": "刺客短刃",
+   "ja": "刺客短刃"
+  },
+  {
+   "id": "weapon_icedagger",
+   "zh": "冰魄匕",
+   "ja": "冰魄匕"
+  },
+  {
+   "id": "weapon_doubledagger",
+   "zh": "雙匕首",
+   "ja": "双匕首"
+  },
+  {
+   "id": "weapon_steeldagger",
+   "zh": "鋼匕",
+   "ja": "鋼匕"
+  },
+  {
+   "id": "weapon_colddagger",
+   "zh": "寒鐵匕",
+   "ja": "寒鉄匕"
+  },
+  {
+   "id": "weapon_twinflyknife",
+   "zh": "雙飛刀",
+   "ja": "双飛刀"
+  },
+  {
+   "id": "weapon_rattanshield",
+   "zh": "藤牌",
+   "ja": "藤牌"
+  },
+  {
+   "id": "weapon_ironshield",
+   "zh": "鐵盾",
+   "ja": "鉄盾"
+  },
+  {
+   "id": "weapon_coppershield",
+   "zh": "銅盾",
+   "ja": "銅盾"
+  },
+  {
+   "id": "weapon_turtleshield",
+   "zh": "玄殼盾",
+   "ja": "玄殼盾"
+  },
+  {
+   "id": "weapon_bearshield",
+   "zh": "熊皮盾",
+   "ja": "熊皮盾"
+  },
+  {
+   "id": "weapon_steelshield",
+   "zh": "鋼盾",
+   "ja": "鋼盾"
+  },
+  {
+   "id": "weapon_coldshield",
+   "zh": "寒鐵盾",
+   "ja": "寒鉄盾"
+  },
+  {
+   "id": "weapon_sabershield",
+   "zh": "藤牌刀",
+   "ja": "藤牌刀"
+  },
+  {
+   "id": "weapon_chainmail",
+   "zh": "連環鎖甲",
+   "ja": "連環鎖甲"
+  },
+  {
+   "id": "weapon_rattanarmor",
+   "zh": "烏藤甲",
+   "ja": "烏藤甲"
+  },
+  {
+   "id": "weapon_silverarmor",
+   "zh": "白銀鎧",
+   "ja": "白銀鎧"
+  },
+  {
+   "id": "weapon_darkarmor",
+   "zh": "黑鐵鎧",
+   "ja": "黑鉄鎧"
+  },
+  {
+   "id": "weapon_bracer",
+   "zh": "臂鎧",
+   "ja": "臂鎧"
+  },
+  {
+   "id": "weapon_silkarmor",
+   "zh": "蠶絲甲",
+   "ja": "蠶糸甲"
+  },
+  {
+   "id": "weapon_jadearmor",
+   "zh": "玉甲",
+   "ja": "玉甲"
+  },
+  {
+   "id": "weapon_generalarmor",
+   "zh": "將軍鎧",
+   "ja": "將軍鎧"
+  },
+  {
+   "id": "weapon_steelaxe",
+   "zh": "鋼斧",
+   "ja": "鋼斧"
+  },
+  {
+   "id": "weapon_steelspear",
+   "zh": "鋼槍",
+   "ja": "鋼槍"
+  },
+  {
+   "id": "weapon_steelhook",
+   "zh": "鋼鉤",
+   "ja": "鋼鉤"
+  },
+  {
+   "id": "weapon_steelchain",
+   "zh": "鋼鏈",
+   "ja": "鋼鎖"
+  },
+  {
+   "id": "weapon_steelneedle",
+   "zh": "鋼針",
+   "ja": "鋼針"
+  },
+  {
+   "id": "weapon_coldspear",
+   "zh": "寒鐵槍",
+   "ja": "寒鉄槍"
+  },
+  {
+   "id": "weapon_coldhammer",
+   "zh": "寒鐵錘",
+   "ja": "寒鉄鎚"
+  },
+  {
+   "id": "weapon_flamehammer",
+   "zh": "烈焰錘",
+   "ja": "烈焔鎚"
+  },
+  {
+   "id": "weapon_flameaxe",
+   "zh": "烈焰斧",
+   "ja": "烈焔斧"
+  },
+  {
+   "id": "weapon_silverbow",
+   "zh": "銀弓",
+   "ja": "銀弓"
+  },
+  {
+   "id": "weapon_goldbow",
+   "zh": "金弓",
+   "ja": "金弓"
+  },
+  {
+   "id": "weapon_blackgoldbow",
+   "zh": "烏金弓",
+   "ja": "烏金弓"
+  },
+  {
+   "id": "weapon_craftsword",
+   "zh": "精工劍",
+   "ja": "精工剣"
+  },
+  {
+   "id": "weapon_craftsaber",
+   "zh": "精工刀",
+   "ja": "精工刀"
+  },
+  {
+   "id": "weapon_craftspear",
+   "zh": "精工槍",
+   "ja": "精工槍"
+  },
+  {
+   "id": "weapon_hundredsaber",
+   "zh": "百煉鋼刀",
+   "ja": "百煉鋼刀"
+  },
+  {
+   "id": "weapon_hundredsword",
+   "zh": "百煉鋼劍",
+   "ja": "百煉鋼剣"
+  },
+  {
+   "id": "weapon_thousandsaber",
+   "zh": "千錘刀",
+   "ja": "千鎚刀"
+  },
+  {
+   "id": "weapon_thousandsword",
+   "zh": "千錘劍",
+   "ja": "千鎚剣"
+  },
+  {
+   "id": "weapon_sharpensword",
+   "zh": "開鋒劍",
+   "ja": "開鋒剣"
+  },
+  {
+   "id": "weapon_sharpensaber",
+   "zh": "開刃刀",
+   "ja": "開刃刀"
+  },
+  {
+   "id": "weapon_masterweapon",
+   "zh": "師門劍",
+   "ja": "師門剣"
+  },
+  {
+   "id": "weapon_discipleweapon",
+   "zh": "入門劍",
+   "ja": "入門剣"
+  },
+  {
+   "id": "weapon_commandarrow",
+   "zh": "令箭",
+   "ja": "令箭"
+  },
+  {
+   "id": "weapon_escortsaber",
+   "zh": "鏢師刀",
+   "ja": "鏢師刀"
+  },
+  {
+   "id": "weapon_strongholdaxe",
+   "zh": "山寨斧",
+   "ja": "山寨斧"
+  },
+  {
+   "id": "weapon_officerstick",
+   "zh": "水火棍",
+   "ja": "水火棍"
+  },
+  {
+   "id": "weapon_peachneedle",
+   "zh": "桃花飛針",
+   "ja": "桃花飛針"
+  },
+  {
+   "id": "weapon_whipspear",
+   "zh": "鞭槍",
+   "ja": "鞭槍"
+  },
+  {
+   "id": "weapon_softdragon",
+   "zh": "游龍劍",
+   "ja": "游竜剣"
+  },
+  {
+   "id": "weapon_bladeless",
+   "zh": "無鋒重劍",
+   "ja": "無鋒重剣"
+  },
+  {
+   "id": "weapon_steelwhipx",
+   "zh": "雙鞭",
+   "ja": "双鞭"
+  },
+  {
+   "id": "weapon_twinsticks",
+   "zh": "雙拐",
+   "ja": "双拐"
+  },
+  {
+   "id": "weapon_twincrossbow",
+   "zh": "雙弩",
+   "ja": "双弩"
+  },
+  {
+   "id": "weapon_tigertail",
+   "zh": "虎尾鞭",
+   "ja": "虎尾鞭"
+  },
+  {
+   "id": "weapon_coiledrod",
+   "zh": "盤龍棍",
+   "ja": "盤竜棍"
+  },
+  {
+   "id": "weapon_phoenixtang",
+   "zh": "鳳翅鎦金鏜",
+   "ja": "鳳翅鎦金鏜"
+  },
+  {
+   "id": "weapon_dotspear",
+   "zh": "點鋼槍",
+   "ja": "点鋼槍"
+  },
+  {
+   "id": "weapon_fireflail",
+   "zh": "火流星",
+   "ja": "火流星"
+  },
+  {
+   "id": "weapon_rainflower",
+   "zh": "暴雨飛花",
+   "ja": "暴雨飛花"
+  },
+  {
+   "id": "weapon_fairyscatter",
+   "zh": "天女散花",
+   "ja": "天女散花"
+  },
+  {
+   "id": "weapon_poisoncaltrop",
+   "zh": "淬毒蒺藜",
+   "ja": "淬毒蒺藜"
+  },
+  {
+   "id": "weapon_thunderfire",
+   "zh": "雷火彈",
+   "ja": "雷火彈"
+  },
+  {
+   "id": "weapon_sleevehidden",
+   "zh": "袖裡乾坤",
+   "ja": "袖裏乾坤"
+  },
+  {
+   "id": "weapon_plumsleeve",
+   "zh": "梅花袖箭",
+   "ja": "梅花袖箭"
+  },
+  {
+   "id": "weapon_flyneedle",
+   "zh": "飛針",
+   "ja": "飛針"
+  },
+  {
+   "id": "weapon_sunarrow",
+   "zh": "射日神箭",
+   "ja": "射日神箭"
+  },
+  {
+   "id": "weapon_zhugecross",
+   "zh": "武侯連弩",
+   "ja": "武侯連弩"
+  },
+  {
+   "id": "weapon_snakesoft",
+   "zh": "靈蛇軟劍",
+   "ja": "霊蛇軟剣"
+  },
+  {
+   "id": "weapon_twinsnake",
+   "zh": "靈蛇雙劍",
+   "ja": "霊蛇双剣"
+  },
+  {
+   "id": "weapon_beltsword",
+   "zh": "腰帶劍",
+   "ja": "腰帶剣"
+  },
+  {
+   "id": "weapon_nightsword",
+   "zh": "夜行短劍",
+   "ja": "夜行短剣"
+  },
+  {
+   "id": "weapon_bluelight",
+   "zh": "青光劍",
+   "ja": "青光剣"
+  },
+  {
+   "id": "weapon_oldbronze",
+   "zh": "古銅劍",
+   "ja": "古銅剣"
+  },
+  {
+   "id": "weapon_tombbronze",
+   "zh": "陪葬銅劍",
+   "ja": "陪葬銅剣"
+  },
+  {
+   "id": "weapon_northstar",
+   "zh": "北斗劍",
+   "ja": "北斗剣"
+  },
+  {
+   "id": "weapon_icecold",
+   "zh": "冰魄寒鐵劍",
+   "ja": "冰魄寒鉄剣"
+  },
+  {
+   "id": "weapon_bambooflute",
+   "zh": "竹笛劍",
+   "ja": "竹笛剣"
+  },
+  {
+   "id": "weapon_willowdart",
+   "zh": "柳葉鏢",
+   "ja": "柳葉鏢"
+  },
+  {
+   "id": "weapon_moondart",
+   "zh": "月牙鏢",
+   "ja": "月牙鏢"
+  },
+  {
+   "id": "weapon_crossdart",
+   "zh": "十字鏢",
+   "ja": "十字鏢"
+  },
+  {
+   "id": "weapon_swastikadart",
+   "zh": "卍字鏢",
+   "ja": "卍字鏢"
+  },
+  {
+   "id": "weapon_bodhidart",
+   "zh": "鐵菩提",
+   "ja": "鉄菩提"
+  },
+  {
+   "id": "weapon_olivedart",
+   "zh": "鐵橄欖",
+   "ja": "鉄橄欖"
+  },
+  {
+   "id": "weapon_slingshot",
+   "zh": "彈弓",
+   "ja": "彈弓"
+  },
+  {
+   "id": "weapon_slingstone",
+   "zh": "彈丸",
+   "ja": "彈丸"
+  },
+  {
+   "id": "weapon_poisonblow",
+   "zh": "毒吹箭",
+   "ja": "毒吹箭"
+  },
+  {
+   "id": "weapon_icicle",
+   "zh": "冰錐",
+   "ja": "冰錐"
+  },
+  {
+   "id": "weapon_thunderdart",
+   "zh": "雷鏢",
+   "ja": "雷鏢"
+  },
+  {
+   "id": "weapon_snowdart",
+   "zh": "雪片鏢",
+   "ja": "雪片鏢"
+  },
+  {
+   "id": "weapon_frostsnow",
+   "zh": "冰雪雙鏢",
+   "ja": "冰雪双鏢"
+  },
+  {
+   "id": "weapon_firethunder",
+   "zh": "雷火雙鏢",
+   "ja": "雷火双鏢"
+  },
+  {
+   "id": "weapon_raindart",
+   "zh": "雨絲針",
+   "ja": "雨糸針"
+  },
+  {
+   "id": "weapon_moonneedle",
+   "zh": "月光針",
+   "ja": "月光針"
+  },
+  {
+   "id": "weapon_webneedle",
+   "zh": "蛛絲針",
+   "ja": "蛛糸針"
+  },
+  {
+   "id": "weapon_moxaneedle",
+   "zh": "艾灸針",
+   "ja": "艾灸針"
+  },
+  {
+   "id": "weapon_returndragon",
+   "zh": "回龍鏢",
+   "ja": "回竜鏢"
+  },
+  {
+   "id": "weapon_shortbow",
+   "zh": "短弓",
+   "ja": "短弓"
+  },
+  {
+   "id": "weapon_pinebow",
+   "zh": "松木弓",
+   "ja": "松木弓"
+  },
+  {
+   "id": "weapon_willowbow",
+   "zh": "柳木弓",
+   "ja": "柳木弓"
+  },
+  {
+   "id": "weapon_bamboobow",
+   "zh": "竹弓",
+   "ja": "竹弓"
+  },
+  {
+   "id": "weapon_deerbow",
+   "zh": "鹿筋弓",
+   "ja": "鹿筋弓"
+  },
+  {
+   "id": "weapon_tigerbow",
+   "zh": "虎筋弓",
+   "ja": "虎筋弓"
+  },
+  {
+   "id": "weapon_horsebow",
+   "zh": "馬上弓",
+   "ja": "馬上弓"
+  },
+  {
+   "id": "weapon_compositebow",
+   "zh": "複合弓",
+   "ja": "複合弓"
+  },
+  {
+   "id": "weapon_bamboarrow",
+   "zh": "竹箭",
+   "ja": "竹箭"
+  },
+  {
+   "id": "weapon_ironarrow",
+   "zh": "鐵箭",
+   "ja": "鉄箭"
+  },
+  {
+   "id": "weapon_silverarrow",
+   "zh": "銀箭",
+   "ja": "銀箭"
+  },
+  {
+   "id": "weapon_eaglearrow",
+   "zh": "雕翎箭",
+   "ja": "雕翎箭"
+  },
+  {
+   "id": "weapon_poisoncross",
+   "zh": "毒弩",
+   "ja": "毒弩"
+  },
+  {
+   "id": "weapon_powdercross",
+   "zh": "火藥弩",
+   "ja": "火薬弩"
+  },
+  {
+   "id": "weapon_handcross",
+   "zh": "手弩",
+   "ja": "手弩"
+  },
+  {
+   "id": "weapon_ironcross",
+   "zh": "鐵弩",
+   "ja": "鉄弩"
+  },
+  {
+   "id": "weapon_bronzecross",
+   "zh": "青銅弩",
+   "ja": "青銅弩"
+  },
+  {
+   "id": "weapon_qincross",
+   "zh": "秦弩",
+   "ja": "秦弩"
+  },
+  {
+   "id": "weapon_poisonhand",
+   "zh": "毒手弩",
+   "ja": "毒手弩"
+  },
+  {
+   "id": "weapon_softwhip",
+   "zh": "軟鞭",
+   "ja": "軟鞭"
+  },
+  {
+   "id": "weapon_thunderwhip",
+   "zh": "雷鞭",
+   "ja": "雷鞭"
+  },
+  {
+   "id": "weapon_icewhip",
+   "zh": "冰鞭",
+   "ja": "冰鞭"
+  },
+  {
+   "id": "weapon_vinewhip",
+   "zh": "藤鞭",
+   "ja": "藤鞭"
+  },
+  {
+   "id": "weapon_bamboorod",
+   "zh": "竹節棍",
+   "ja": "竹節棍"
+  },
+  {
+   "id": "weapon_pinerod",
+   "zh": "松木棍",
+   "ja": "松木棍"
+  },
+  {
+   "id": "weapon_browrod",
+   "zh": "齊眉棍",
+   "ja": "齊眉棍"
+  },
+  {
+   "id": "weapon_flamerod",
+   "zh": "烈焰棍",
+   "ja": "烈焔棍"
+  },
+  {
+   "id": "weapon_thunderrod",
+   "zh": "雷音棍",
+   "ja": "雷音棍"
+  },
+  {
+   "id": "weapon_icerod",
+   "zh": "寒冰棍",
+   "ja": "寒冰棍"
+  },
+  {
+   "id": "weapon_sunspear",
+   "zh": "烈日槍",
+   "ja": "烈日槍"
+  },
+  {
+   "id": "weapon_moonspear",
+   "zh": "月影槍",
+   "ja": "月影槍"
+  },
+  {
+   "id": "weapon_stoneaxe",
+   "zh": "石斧",
+   "ja": "石斧"
+  },
+  {
+   "id": "weapon_copperaxe",
+   "zh": "銅斧",
+   "ja": "銅斧"
+  },
+  {
+   "id": "weapon_bearaxe",
+   "zh": "熊爪斧",
+   "ja": "熊爪斧"
+  },
+  {
+   "id": "weapon_thunderaxe",
+   "zh": "雷斧",
+   "ja": "雷斧"
+  },
+  {
+   "id": "weapon_iceaxe",
+   "zh": "冰斧",
+   "ja": "冰斧"
+  },
+  {
+   "id": "weapon_mountainhammer",
+   "zh": "山嶽錘",
+   "ja": "山嶽鎚"
+  },
+  {
+   "id": "weapon_luoyangspade",
+   "zh": "洛陽鏟",
+   "ja": "洛陽鏟"
+  },
+  {
+   "id": "weapon_tigershield",
+   "zh": "虎面盾",
+   "ja": "虎面盾"
+  },
+  {
+   "id": "weapon_dragonshield",
+   "zh": "龍紋盾",
+   "ja": "竜紋盾"
+  },
+  {
+   "id": "weapon_jadeshield",
+   "zh": "玉盾",
+   "ja": "玉盾"
+  },
+  {
+   "id": "weapon_silvershield",
+   "zh": "銀盾",
+   "ja": "銀盾"
+  },
+  {
+   "id": "weapon_frostshield",
+   "zh": "冰盾",
+   "ja": "冰盾"
+  },
+  {
+   "id": "weapon_coldarmor",
+   "zh": "寒鐵甲",
+   "ja": "寒鉄甲"
+  },
+  {
+   "id": "weapon_flamearmor",
+   "zh": "赤焰鎧",
+   "ja": "赤焔鎧"
+  },
+  {
+   "id": "weapon_snakearmor",
+   "zh": "蛇鱗甲",
+   "ja": "蛇鱗甲"
+  },
+  {
+   "id": "weapon_crabarmor",
+   "zh": "蟹殼甲",
+   "ja": "蟹殼甲"
+  },
+  {
+   "id": "weapon_bamboarmor",
+   "zh": "竹甲",
+   "ja": "竹甲"
+  },
+  {
+   "id": "weapon_paperarmor",
+   "zh": "紙甲",
+   "ja": "紙甲"
+  },
+  {
+   "id": "weapon_woodarmor",
+   "zh": "木甲",
+   "ja": "木甲"
+  },
+  {
+   "id": "weapon_copperarmor",
+   "zh": "銅甲",
+   "ja": "銅甲"
+  },
+  {
+   "id": "weapon_steelarmor",
+   "zh": "鋼甲",
+   "ja": "鋼甲"
+  },
+  {
+   "id": "weapon_tigerarmor",
+   "zh": "虎紋鎧",
+   "ja": "虎紋鎧"
+  },
+  {
+   "id": "weapon_sevenjoint",
+   "zh": "七節棍",
+   "ja": "七節棍"
+  },
+  {
+   "id": "weapon_childring",
+   "zh": "子母環",
+   "ja": "子母環"
+  },
+  {
+   "id": "weapon_shieldsaber",
+   "zh": "刀盾",
+   "ja": "刀盾"
+  },
+  {
+   "id": "weapon_sabersword",
+   "zh": "刀劍合璧",
+   "ja": "刀剣合璧"
+  },
+  {
+   "id": "weapon_swordspear",
+   "zh": "劍槍",
+   "ja": "剣槍"
+  },
+  {
+   "id": "weapon_heavyarmor",
+   "zh": "雙層重甲",
+   "ja": "双層重甲"
+  },
+  {
+   "id": "weapon_mailglove",
+   "zh": "鎖甲手套",
+   "ja": "鎖甲手套"
+  },
+  {
+   "id": "weapon_masterbsaber",
+   "zh": "師門刀",
+   "ja": "師門刀"
+  },
+  {
+   "id": "weapon_discipsaber",
+   "zh": "入門刀",
+   "ja": "入門刀"
+  },
+  {
+   "id": "weapon_masterstick",
+   "zh": "師門棍",
+   "ja": "師門棍"
+  },
+  {
+   "id": "weapon_discipstick",
+   "zh": "入門棍",
+   "ja": "入門棍"
+  },
+  {
+   "id": "weapon_strongholdsaber",
+   "zh": "山寨刀",
+   "ja": "山寨刀"
+  },
+  {
+   "id": "weapon_guardsaber",
+   "zh": "護院刀",
+   "ja": "護院刀"
+  },
+  {
+   "id": "weapon_constablesaber",
+   "zh": "捕快腰刀",
+   "ja": "捕快腰刀"
+  },
+  {
+   "id": "weapon_demonhook",
+   "zh": "魔鉤",
+   "ja": "魔鉤"
+  },
+  {
+   "id": "weapon_tangknife",
+   "zh": "唐門飛刀",
+   "ja": "唐門飛刀"
+  },
+  {
+   "id": "weapon_fivepoisondagger",
+   "zh": "五毒匕",
+   "ja": "五毒匕"
+  },
+  {
+   "id": "weapon_huntfork",
+   "zh": "獵叉",
+   "ja": "獵叉"
+  },
+  {
+   "id": "weapon_farmsickle",
+   "zh": "農鐮",
+   "ja": "農鐮"
+  },
+  {
+   "id": "weapon_thiefhook",
+   "zh": "飛賊鉤",
+   "ja": "飛賊鉤"
+  },
+  {
+   "id": "weapon_polespear",
+   "zh": "篙槍",
+   "ja": "篙槍"
+  },
+  {
+   "id": "weapon_templesaber",
+   "zh": "古剎戒刀",
+   "ja": "古剎戒刀"
+  },
+  {
+   "id": "weapon_kitchenknife",
+   "zh": "菜刀",
+   "ja": "菜刀"
+  },
+  {
+   "id": "weapon_citycross",
+   "zh": "城弩",
+   "ja": "城弩"
+  },
+  {
+   "id": "weapon_feardart",
+   "zh": "驚魂鏢",
+   "ja": "驚魂鏢"
+  },
+  {
+   "id": "weapon_famesaber",
+   "zh": "成名佩刀",
+   "ja": "成名佩刀"
+  },
+  {
+   "id": "weapon_hiddenblade",
+   "zh": "藏鋒袖劍",
+   "ja": "藏鋒袖剣"
+  },
+  {
+   "id": "weapon_joyring",
+   "zh": "歡喜環",
+   "ja": "歡喜環"
+  },
+  {
+   "id": "weapon_ropehammer",
+   "zh": "索命錘",
+   "ja": "索命鎚"
+  },
+  {
+   "id": "weapon_heavyhammer",
+   "zh": "金剛錘",
+   "ja": "金剛鎚"
+  }
+ ],
+ "recipes": [
+  [
+   "wpn_blade",
+   "water",
+   "weapon_saber"
+  ],
+  [
+   "wpn_blade",
+   "mar_saberart",
+   "weapon_saber"
+  ],
+  [
+   "weapon_saber",
+   "mat_steel",
+   "weapon_steelsaber"
+  ],
+  [
+   "weapon_saber",
+   "mat_iron",
+   "weapon_broadsaber"
+  ],
+  [
+   "weapon_saber",
+   "herb_willow",
+   "weapon_willowsaber"
+  ],
+  [
+   "weapon_saber",
+   "bst_bird",
+   "weapon_goosesaber"
+  ],
+  [
+   "weapon_saber",
+   "wpn_stick",
+   "weapon_pudao"
+  ],
+  [
+   "weapon_saber",
+   "nat_moon",
+   "weapon_scimitar"
+  ],
+  [
+   "weapon_saber",
+   "per_monk",
+   "weapon_monksaber"
+  ],
+  [
+   "weapon_saber",
+   "mat_cloth",
+   "weapon_waistsaber"
+  ],
+  [
+   "weapon_saber",
+   "weapon_saber",
+   "weapon_twinsaber"
+  ],
+  [
+   "weapon_twinsaber",
+   "con_love",
+   "weapon_mandarinsaber"
+  ],
+  [
+   "weapon_broadsaber",
+   "bst_horse",
+   "weapon_horsecleaver"
+  ],
+  [
+   "weapon_broadsaber",
+   "nat_moon",
+   "weapon_crescentglaive"
+  ],
+  [
+   "weapon_crescentglaive",
+   "bst_dragon",
+   "weapon_dragonglaive"
+  ],
+  [
+   "weapon_broadsaber",
+   "plc_grave",
+   "weapon_ghostsaber"
+  ],
+  [
+   "weapon_broadsaber",
+   "gear_bell",
+   "weapon_ninering"
+  ],
+  [
+   "weapon_broadsaber",
+   "trs_gold",
+   "weapon_goldback"
+  ],
+  [
+   "weapon_broadsaber",
+   "bst_tiger",
+   "weapon_tigersaber"
+  ],
+  [
+   "weapon_saber",
+   "nat_frost",
+   "weapon_icesaber"
+  ],
+  [
+   "weapon_saber",
+   "nat_blaze",
+   "weapon_flamesaber"
+  ],
+  [
+   "weapon_saber",
+   "nat_thunder",
+   "weapon_thundersaber"
+  ],
+  [
+   "weapon_saber",
+   "con_hate",
+   "weapon_bloodsaber"
+  ],
+  [
+   "weapon_saber",
+   "eli_poison",
+   "weapon_poisonsaber"
+  ],
+  [
+   "weapon_saber",
+   "nat_waterfall",
+   "weapon_cutwater"
+  ],
+  [
+   "weapon_saber",
+   "sec_court",
+   "weapon_embroidered"
+  ],
+  [
+   "weapon_saber",
+   "nat_stone",
+   "weapon_whetstone"
+  ],
+  [
+   "weapon_saber",
+   "mat_timber",
+   "weapon_saberscabbard"
+  ],
+  [
+   "weapon_saber",
+   "mat_rope",
+   "weapon_sabergrip"
+  ],
+  [
+   "weapon_saber",
+   "sec_demon",
+   "weapon_demonsaber"
+  ],
+  [
+   "weapon_saber",
+   "nat_snow",
+   "weapon_snowsaber"
+  ],
+  [
+   "weapon_saber",
+   "con_sorrow",
+   "weapon_sorrowsaber"
+  ],
+  [
+   "weapon_saber",
+   "trs_meteor",
+   "weapon_meteorsaber"
+  ],
+  [
+   "weapon_saber",
+   "trs_blackgold",
+   "weapon_blackgoldsaber"
+  ],
+  [
+   "weapon_scimitar",
+   "sec_ming",
+   "weapon_holyscimitar"
+  ],
+  [
+   "weapon_scimitar",
+   "plc_desert",
+   "weapon_barbarianblade"
+  ],
+  [
+   "weapon_scimitar",
+   "plc_grassland",
+   "weapon_steppesaber"
+  ],
+  [
+   "weapon_saber",
+   "herb_peony",
+   "weapon_peonysaber"
+  ],
+  [
+   "weapon_saber",
+   "bst_deer",
+   "weapon_deerhornsaber"
+  ],
+  [
+   "weapon_saber",
+   "per_soldier",
+   "weapon_armysaber"
+  ],
+  [
+   "weapon_saber",
+   "per_wanderer",
+   "weapon_wandersaber"
+  ],
+  [
+   "weapon_broadsaber",
+   "nat_mountain",
+   "weapon_chopper"
+  ],
+  [
+   "wpn_sword",
+   "mat_iron",
+   "weapon_ironsword"
+  ],
+  [
+   "weapon_swordembryo",
+   "fire",
+   "weapon_ironsword"
+  ],
+  [
+   "wpn_sword",
+   "mat_steel",
+   "weapon_bluesteel"
+  ],
+  [
+   "wpn_sword",
+   "mat_copper",
+   "weapon_bronzesword"
+  ],
+  [
+   "wpn_stick",
+   "mar_swordart",
+   "weapon_woodsword"
+  ],
+  [
+   "wpn_dagger",
+   "mar_swordart",
+   "weapon_shortsword"
+  ],
+  [
+   "wpn_sword",
+   "wpn_whip",
+   "weapon_softsword"
+  ],
+  [
+   "wpn_sword",
+   "wpn_sword",
+   "weapon_twinswords"
+  ],
+  [
+   "weapon_twinswords",
+   "con_love",
+   "weapon_mandarinsword"
+  ],
+  [
+   "weapon_twinswords",
+   "per_dancer",
+   "weapon_dancesword"
+  ],
+  [
+   "weapon_ironsword",
+   "nat_frost",
+   "weapon_coldsword"
+  ],
+  [
+   "wpn_sword",
+   "nat_blaze",
+   "weapon_flamesword"
+  ],
+  [
+   "wpn_sword",
+   "trs_iceheart",
+   "weapon_icesword"
+  ],
+  [
+   "wpn_sword",
+   "nat_thunder",
+   "weapon_thundersword"
+  ],
+  [
+   "wpn_sword",
+   "nat_snow",
+   "weapon_snowsword"
+  ],
+  [
+   "wpn_sword",
+   "nat_moon",
+   "weapon_moonsword"
+  ],
+  [
+   "wpn_sword",
+   "nat_sun",
+   "weapon_sunsword"
+  ],
+  [
+   "wpn_sword",
+   "plc_lake",
+   "weapon_autumnwater"
+  ],
+  [
+   "wpn_sword",
+   "herb_pine",
+   "weapon_pinesword"
+  ],
+  [
+   "wpn_sword",
+   "herb_plum",
+   "weapon_plumsword"
+  ],
+  [
+   "wpn_sword",
+   "herb_lotus",
+   "weapon_lotussword"
+  ],
+  [
+   "wpn_sword",
+   "plc_spring",
+   "weapon_dragonspring"
+  ],
+  [
+   "wpn_sword",
+   "bst_dragon",
+   "weapon_dragonsword"
+  ],
+  [
+   "wpn_sword",
+   "bst_phoenix",
+   "weapon_phoenixsword"
+  ],
+  [
+   "wpn_sword",
+   "bst_snake",
+   "weapon_snakesword"
+  ],
+  [
+   "wpn_sword",
+   "nat_rainbow",
+   "weapon_rainbowsword"
+  ],
+  [
+   "wpn_sword",
+   "bst_crane",
+   "weapon_cranesword"
+  ],
+  [
+   "wpn_sword",
+   "trs_gem",
+   "weapon_sevenstar"
+  ],
+  [
+   "wpn_sword",
+   "per_scholar",
+   "weapon_gentlemansword"
+  ],
+  [
+   "wpn_sword",
+   "per_maiden",
+   "weapon_ladysword"
+  ],
+  [
+   "wpn_sword",
+   "per_swordsman",
+   "weapon_swordsmansword"
+  ],
+  [
+   "weapon_ironsword",
+   "wpn_hammer",
+   "weapon_heavysword"
+  ],
+  [
+   "weapon_heavysword",
+   "trs_meteor",
+   "weapon_meteorheavy"
+  ],
+  [
+   "weapon_woodsword",
+   "per_daoist",
+   "weapon_peachwood"
+  ],
+  [
+   "weapon_woodsword",
+   "trs_peach",
+   "weapon_peachwood"
+  ],
+  [
+   "wpn_sword",
+   "con_yin",
+   "weapon_yinsword"
+  ],
+  [
+   "wpn_sword",
+   "con_yang",
+   "weapon_yangsword"
+  ],
+  [
+   "weapon_yinsword",
+   "weapon_yangsword",
+   "weapon_pairswords"
+  ],
+  [
+   "weapon_icesword",
+   "weapon_flamesword",
+   "weapon_firewater"
+  ],
+  [
+   "weapon_dragonsword",
+   "weapon_phoenixsword",
+   "weapon_dragonphoenix"
+  ],
+  [
+   "weapon_sevenstar",
+   "trs_meteor",
+   "weapon_sevenprecious"
+  ],
+  [
+   "wpn_sword",
+   "mat_rope",
+   "weapon_swordhilt"
+  ],
+  [
+   "wpn_sword",
+   "mat_bamboo",
+   "weapon_scabbard"
+  ],
+  [
+   "wpn_sword",
+   "bst_silkworm",
+   "weapon_tassel"
+  ],
+  [
+   "wpn_sword",
+   "mar_taichi",
+   "weapon_taijisword"
+  ],
+  [
+   "wpn_sword",
+   "sec_kunlun",
+   "weapon_kunlunsword"
+  ],
+  [
+   "wpn_sword",
+   "sec_qingcheng",
+   "weapon_qingchengsword"
+  ],
+  [
+   "wpn_sword",
+   "sec_tomb",
+   "weapon_tombsword"
+  ],
+  [
+   "wpn_sword",
+   "sec_swordtomb",
+   "weapon_tombswordgrave"
+  ],
+  [
+   "weapon_taijisword",
+   "sec_wudang",
+   "weapon_puresword"
+  ],
+  [
+   "wpn_sword",
+   "mat_jade",
+   "weapon_jadesword"
+  ],
+  [
+   "wpn_sword",
+   "nat_light",
+   "weapon_coldlightsword"
+  ],
+  [
+   "wpn_sword",
+   "nat_dark",
+   "weapon_shadowsword"
+  ],
+  [
+   "wpn_sword",
+   "con_illusion",
+   "weapon_illusionsword"
+  ],
+  [
+   "wpn_sword",
+   "con_love",
+   "weapon_lovesword"
+  ],
+  [
+   "wpn_sword",
+   "con_righteous",
+   "weapon_righteoussword"
+  ],
+  [
+   "wpn_sword",
+   "bst_fox",
+   "weapon_foxsword"
+  ],
+  [
+   "wpn_sword",
+   "bst_tiger",
+   "weapon_tigersword"
+  ],
+  [
+   "wpn_sword",
+   "bst_eagle",
+   "weapon_eaglesword"
+  ],
+  [
+   "wpn_sword",
+   "bst_turtle",
+   "weapon_turtlesword"
+  ],
+  [
+   "wpn_stick",
+   "wpn_sword",
+   "weapon_canesword"
+  ],
+  [
+   "wpn_dagger",
+   "bst_fish",
+   "weapon_fishdagger"
+  ],
+  [
+   "weapon_rainbowsword",
+   "trs_famoussword",
+   "weapon_cyanrainbow"
+  ],
+  [
+   "weapon_gentlemansword",
+   "trs_famoussword",
+   "weapon_benevolent"
+  ],
+  [
+   "weapon_heavysword",
+   "trs_famoussword",
+   "weapon_heavymountain"
+  ],
+  [
+   "weapon_flamesword",
+   "trs_famoussword",
+   "weapon_redfire"
+  ],
+  [
+   "weapon_shadowsword",
+   "trs_famoussword",
+   "weapon_hiddenshadow"
+  ],
+  [
+   "weapon_coldlightsword",
+   "trs_famoussword",
+   "weapon_sheathlight"
+  ],
+  [
+   "weapon_yangsword",
+   "trs_famoussword",
+   "weapon_malesword"
+  ],
+  [
+   "weapon_yinsword",
+   "trs_famoussword",
+   "weapon_femalesword"
+  ],
+  [
+   "weapon_malesword",
+   "weapon_femalesword",
+   "weapon_couplefamed"
+  ],
+  [
+   "weapon_sevenprecious",
+   "trs_famoussword",
+   "weapon_heavenstar"
+  ],
+  [
+   "weapon_icesword",
+   "trs_famoussword",
+   "weapon_iceblue"
+  ],
+  [
+   "weapon_broadsaber",
+   "trs_famoussaber",
+   "weapon_cutmountain"
+  ],
+  [
+   "weapon_bloodsaber",
+   "trs_famoussaber",
+   "weapon_drinkblood"
+  ],
+  [
+   "weapon_icesaber",
+   "trs_famoussaber",
+   "weapon_frostflower"
+  ],
+  [
+   "weapon_flamesaber",
+   "trs_famoussaber",
+   "weapon_sunblaze"
+  ],
+  [
+   "weapon_thundersaber",
+   "trs_famoussaber",
+   "weapon_shockthunder"
+  ],
+  [
+   "weapon_scimitar",
+   "trs_famoussaber",
+   "weapon_crescentfamed"
+  ],
+  [
+   "weapon_dragonglaive",
+   "trs_famoussaber",
+   "weapon_dragonfamed"
+  ],
+  [
+   "wpn_spear",
+   "mat_iron",
+   "weapon_ironspear"
+  ],
+  [
+   "wpn_spear",
+   "herb_flower",
+   "weapon_flowerspear"
+  ],
+  [
+   "wpn_spear",
+   "mat_silver",
+   "weapon_silverspear"
+  ],
+  [
+   "wpn_spear",
+   "nat_frost",
+   "weapon_frostspear"
+  ],
+  [
+   "wpn_spear",
+   "nat_blaze",
+   "weapon_firetip"
+  ],
+  [
+   "weapon_silverspear",
+   "bst_dragon",
+   "weapon_dragonspear"
+  ],
+  [
+   "weapon_ironspear",
+   "con_rage",
+   "weapon_conqueror"
+  ],
+  [
+   "weapon_ironspear",
+   "bst_tiger",
+   "weapon_tigerspear"
+  ],
+  [
+   "wpn_spear",
+   "herb_plum",
+   "weapon_plumspear"
+  ],
+  [
+   "wpn_spear",
+   "mat_cloth",
+   "weapon_redtassel"
+  ],
+  [
+   "wpn_spear",
+   "trs_blackgold",
+   "weapon_blackgoldspear"
+  ],
+  [
+   "wpn_spear",
+   "mat_ironembryo",
+   "weapon_spearhead"
+  ],
+  [
+   "wpn_spear",
+   "wpn_axe",
+   "weapon_halberd"
+  ],
+  [
+   "weapon_halberd",
+   "weapon_halberd",
+   "weapon_twinhalberd"
+  ],
+  [
+   "weapon_halberd",
+   "nat_moon",
+   "weapon_moonhalberd"
+  ],
+  [
+   "weapon_halberd",
+   "gear_brush",
+   "weapon_skyhalberd"
+  ],
+  [
+   "weapon_halberd",
+   "wpn_hook",
+   "weapon_trident"
+  ],
+  [
+   "wpn_stick",
+   "mat_ironembryo",
+   "weapon_mao"
+  ],
+  [
+   "weapon_mao",
+   "bst_snake",
+   "weapon_snakespear"
+  ],
+  [
+   "weapon_mao",
+   "wpn_rod",
+   "weapon_shuo"
+  ],
+  [
+   "weapon_shuo",
+   "bst_horse",
+   "weapon_horseshuo"
+  ],
+  [
+   "wpn_spear",
+   "wpn_spade",
+   "weapon_tang"
+  ],
+  [
+   "wpn_spear",
+   "wpn_hook",
+   "weapon_fork"
+  ],
+  [
+   "weapon_fork",
+   "gear_net",
+   "weapon_fishfork"
+  ],
+  [
+   "weapon_fork",
+   "wpn_dart",
+   "weapon_flyfork"
+  ],
+  [
+   "wpn_spear",
+   "wpn_sickle",
+   "weapon_hookspear"
+  ],
+  [
+   "wpn_spear",
+   "weapon_saber",
+   "weapon_naginata"
+  ],
+  [
+   "wpn_axe",
+   "wpn_axe",
+   "weapon_pairaxes"
+  ],
+  [
+   "wpn_axe",
+   "herb_flower",
+   "weapon_flowaxe"
+  ],
+  [
+   "wpn_axe",
+   "mat_jade",
+   "weapon_jadeaxe"
+  ],
+  [
+   "wpn_axe",
+   "wpn_stick",
+   "weapon_poleaxe"
+  ],
+  [
+   "wpn_axe",
+   "per_woodcutter",
+   "weapon_woodaxe"
+  ],
+  [
+   "wpn_axe",
+   "trs_gold",
+   "weapon_goldaxe"
+  ],
+  [
+   "weapon_jadeaxe",
+   "weapon_jadeaxe",
+   "weapon_twinaxe"
+  ],
+  [
+   "wpn_stick",
+   "plc_road",
+   "weapon_patrol"
+  ],
+  [
+   "wpn_rod",
+   "mat_copper",
+   "weapon_copperrod"
+  ],
+  [
+   "wpn_rod",
+   "per_monk",
+   "weapon_zen"
+  ],
+  [
+   "weapon_zen",
+   "wpn_spade",
+   "weapon_monkspade"
+  ],
+  [
+   "weapon_monkspade",
+   "nat_moon",
+   "weapon_moonspade"
+  ],
+  [
+   "wpn_rod",
+   "bst_wolf",
+   "weapon_wolfmace"
+  ],
+  [
+   "wpn_stick",
+   "per_farmer",
+   "weapon_flail"
+  ],
+  [
+   "wpn_hammer",
+   "wpn_chain",
+   "weapon_meteorhammer"
+  ],
+  [
+   "wpn_hammer",
+   "wpn_hammer",
+   "weapon_twinhammer"
+  ],
+  [
+   "wpn_hammer",
+   "herb_fruit",
+   "weapon_melonhammer"
+  ],
+  [
+   "wpn_hammer",
+   "plc_palace",
+   "weapon_goldmelon"
+  ],
+  [
+   "wpn_hammer",
+   "per_smith",
+   "weapon_smithhammer"
+  ],
+  [
+   "wpn_hammer",
+   "bst_goat",
+   "weapon_goathammer"
+  ],
+  [
+   "wpn_whip",
+   "wpn_chain",
+   "weapon_ninejoint"
+  ],
+  [
+   "wpn_whip",
+   "mat_bamboo",
+   "weapon_bamboowhip"
+  ],
+  [
+   "wpn_whip",
+   "mat_steel",
+   "weapon_steelwhip"
+  ],
+  [
+   "wpn_rod",
+   "wpn_chain",
+   "weapon_threesection"
+  ],
+  [
+   "wpn_stick",
+   "wpn_chain",
+   "weapon_nunchaku"
+  ],
+  [
+   "wpn_whip",
+   "bst_snake",
+   "weapon_snakebone"
+  ],
+  [
+   "wpn_whip",
+   "bst_dragon",
+   "weapon_dragonsinew"
+  ],
+  [
+   "wpn_whip",
+   "nat_blaze",
+   "weapon_firewhip"
+  ],
+  [
+   "wpn_whip",
+   "bst_scorpion",
+   "weapon_scorpionwhip"
+  ],
+  [
+   "wpn_whip",
+   "bst_silkworm",
+   "weapon_silkcord"
+  ],
+  [
+   "wpn_whip",
+   "bst_horse",
+   "weapon_horsewhip"
+  ],
+  [
+   "wpn_whip",
+   "trs_blackgold",
+   "weapon_blackgoldwhip"
+  ],
+  [
+   "wpn_rod",
+   "mat_ironembryo",
+   "weapon_mace"
+  ],
+  [
+   "weapon_mace",
+   "mat_steel",
+   "weapon_steelmace"
+  ],
+  [
+   "weapon_mace",
+   "weapon_mace",
+   "weapon_twinmace"
+  ],
+  [
+   "wpn_rod",
+   "per_beggar",
+   "weapon_beggarcrutch"
+  ],
+  [
+   "wpn_stick",
+   "per_hermit",
+   "weapon_crutch"
+  ],
+  [
+   "weapon_crutch",
+   "bst_dragon",
+   "weapon_dragoncrutch"
+  ],
+  [
+   "wpn_chain",
+   "wpn_sickle",
+   "weapon_chainsickle"
+  ],
+  [
+   "wpn_sickle",
+   "wpn_sickle",
+   "weapon_twinsickle"
+  ],
+  [
+   "wpn_sickle",
+   "plc_grave",
+   "weapon_reaper"
+  ],
+  [
+   "wpn_sickle",
+   "nat_moon",
+   "weapon_moonsickle"
+  ],
+  [
+   "mat_rope",
+   "wpn_dart",
+   "weapon_ropedart"
+  ],
+  [
+   "wpn_hook",
+   "wpn_hook",
+   "weapon_twinhooks"
+  ],
+  [
+   "wpn_hook",
+   "bst_crab",
+   "weapon_crabpincer"
+  ],
+  [
+   "wpn_whip",
+   "per_daoist",
+   "weapon_whisk"
+  ],
+  [
+   "weapon_whisk",
+   "mat_silver",
+   "weapon_silverwhisk"
+  ],
+  [
+   "wpn_chain",
+   "plc_harbor",
+   "weapon_anchorchain"
+  ],
+  [
+   "gear_net",
+   "wpn_chain",
+   "weapon_ironnet"
+  ],
+  [
+   "wpn_rod",
+   "mat_gunpowder",
+   "weapon_firegun"
+  ],
+  [
+   "wpn_pick",
+   "per_miner",
+   "weapon_digpick"
+  ],
+  [
+   "wpn_pick",
+   "nat_mountain",
+   "weapon_mountainpick"
+  ],
+  [
+   "wpn_dagger",
+   "wpn_dart",
+   "weapon_flyknife"
+  ],
+  [
+   "weapon_flyknife",
+   "herb_willow",
+   "weapon_willowknife"
+  ],
+  [
+   "wpn_dart",
+   "herb_plum",
+   "weapon_plumdart"
+  ],
+  [
+   "wpn_dart",
+   "herb_lotus",
+   "weapon_lotusseed"
+  ],
+  [
+   "wpn_dart",
+   "herb_grass",
+   "weapon_caltrop"
+  ],
+  [
+   "wpn_arrow",
+   "wpn_crossbow",
+   "weapon_sleevearrow"
+  ],
+  [
+   "wpn_needle",
+   "wpn_hammer",
+   "weapon_nail"
+  ],
+  [
+   "weapon_nail",
+   "plc_grave",
+   "weapon_coffinnail"
+  ],
+  [
+   "wpn_needle",
+   "trs_gold",
+   "weapon_goldneedle"
+  ],
+  [
+   "wpn_needle",
+   "per_maiden",
+   "weapon_embroidery"
+  ],
+  [
+   "wpn_needle",
+   "bst_bee",
+   "weapon_beeneedle"
+  ],
+  [
+   "wpn_dart",
+   "trs_gold",
+   "weapon_coindart"
+  ],
+  [
+   "wpn_dart",
+   "mat_copper",
+   "weapon_coppercoin"
+  ],
+  [
+   "wpn_dart",
+   "nat_stone",
+   "weapon_stonedart"
+  ],
+  [
+   "wpn_dart",
+   "bst_bird",
+   "weapon_swallowdart"
+  ],
+  [
+   "wpn_dart",
+   "bst_toad",
+   "weapon_toaddart"
+  ],
+  [
+   "wpn_dart",
+   "nat_blaze",
+   "weapon_firedart"
+  ],
+  [
+   "wpn_dart",
+   "gear_wheel",
+   "weapon_boomerang"
+  ],
+  [
+   "wpn_dagger",
+   "mat_cloth",
+   "weapon_sleevesword"
+  ],
+  [
+   "mat_gunpowder",
+   "wpn_dart",
+   "weapon_thunderbomb"
+  ],
+  [
+   "weapon_thunderbomb",
+   "nat_thunder",
+   "weapon_skybomb"
+  ],
+  [
+   "weapon_thunderbomb",
+   "nat_mist",
+   "weapon_smokebomb"
+  ],
+  [
+   "weapon_smokebomb",
+   "eli_poison",
+   "weapon_poisonsmoke"
+  ],
+  [
+   "weapon_thunderbomb",
+   "nat_light",
+   "weapon_flashbomb"
+  ],
+  [
+   "wpn_needle",
+   "sec_poison5",
+   "weapon_fivepoison"
+  ],
+  [
+   "wpn_needle",
+   "sec_medvalley",
+   "weapon_medneedle"
+  ],
+  [
+   "wpn_needle",
+   "herb_plum",
+   "weapon_silverpair"
+  ],
+  [
+   "weapon_nail",
+   "bst_spider",
+   "weapon_spidernail"
+  ],
+  [
+   "wpn_needle",
+   "mat_bamboo",
+   "weapon_needlecase"
+  ],
+  [
+   "wpn_bow",
+   "mat_timber",
+   "weapon_crossbow2"
+  ],
+  [
+   "weapon_crossbow2",
+   "gear_mech",
+   "weapon_mechbow"
+  ],
+  [
+   "wpn_crossbow",
+   "trs_pearl",
+   "weapon_pearlbow"
+  ],
+  [
+   "wpn_bow",
+   "mat_iron",
+   "weapon_steelbow"
+  ],
+  [
+   "wpn_bow",
+   "nat_sun",
+   "weapon_sunbow"
+  ],
+  [
+   "wpn_bow",
+   "bst_monkey",
+   "weapon_apebow"
+  ],
+  [
+   "wpn_bow",
+   "nat_moon",
+   "weapon_moonbow"
+  ],
+  [
+   "weapon_steelbow",
+   "bst_dragon",
+   "weapon_dragonbow"
+  ],
+  [
+   "wpn_arrow",
+   "nat_cloud",
+   "weapon_cloudarrow"
+  ],
+  [
+   "wpn_arrow",
+   "gear_bell",
+   "weapon_whistle"
+  ],
+  [
+   "wpn_arrow",
+   "wpn_armor",
+   "weapon_armorpierce"
+  ],
+  [
+   "wpn_arrow",
+   "bst_bird",
+   "weapon_goosearrow"
+  ],
+  [
+   "wpn_arrow",
+   "bst_wolf",
+   "weapon_wolfarrow"
+  ],
+  [
+   "wpn_arrow",
+   "bst_phoenix",
+   "weapon_phoenixarrow"
+  ],
+  [
+   "wpn_arrow",
+   "gear_torch",
+   "weapon_firearrow"
+  ],
+  [
+   "wpn_arrow",
+   "mat_gunpowder",
+   "weapon_powderarrow"
+  ],
+  [
+   "wpn_arrow",
+   "mat_ironembryo",
+   "weapon_arrowhead"
+  ],
+  [
+   "wpn_arrow",
+   "mat_cloth",
+   "weapon_quiver"
+  ],
+  [
+   "weapon_judge",
+   "mar_acupoint",
+   "weapon_pointpen"
+  ],
+  [
+   "weapon_judge",
+   "weapon_judge",
+   "weapon_twinpen"
+  ],
+  [
+   "wpn_dagger",
+   "sec_emei",
+   "weapon_emeithorn"
+  ],
+  [
+   "weapon_emeithorn",
+   "nat_river",
+   "weapon_waterthorn"
+  ],
+  [
+   "weapon_emeithorn",
+   "weapon_emeithorn",
+   "weapon_twinthorn"
+  ],
+  [
+   "wpn_fan",
+   "mat_ink",
+   "weapon_inkfan"
+  ],
+  [
+   "wpn_fan",
+   "bst_bird",
+   "weapon_featherfan"
+  ],
+  [
+   "wpn_fan",
+   "mat_jade",
+   "weapon_jadefan"
+  ],
+  [
+   "wpn_fan",
+   "sec_xiaoyao",
+   "weapon_xiaoyaofan"
+  ],
+  [
+   "wpn_fan",
+   "herb_peony",
+   "weapon_peonyfan"
+  ],
+  [
+   "wpn_fan",
+   "nat_rain",
+   "weapon_umbrella"
+  ],
+  [
+   "wpn_fan",
+   "weapon_shortsword",
+   "weapon_fanblade"
+  ],
+  [
+   "weapon_umbrella",
+   "weapon_shortsword",
+   "weapon_umbrellasword"
+  ],
+  [
+   "weapon_ironflute",
+   "weapon_shortsword",
+   "weapon_flutesword"
+  ],
+  [
+   "weapon_ironxiao",
+   "weapon_shortsword",
+   "weapon_xiaosword"
+  ],
+  [
+   "wpn_rod",
+   "mat_bamboo",
+   "weapon_ironflute"
+  ],
+  [
+   "wpn_rod",
+   "trs_jadeflute",
+   "weapon_ironxiao"
+  ],
+  [
+   "wpn_chain",
+   "wpn_chain",
+   "weapon_ring"
+  ],
+  [
+   "weapon_ring",
+   "nat_sun",
+   "weapon_sunring"
+  ],
+  [
+   "weapon_ring",
+   "nat_moon",
+   "weapon_moonring"
+  ],
+  [
+   "weapon_sunring",
+   "weapon_moonring",
+   "weapon_twinring"
+  ],
+  [
+   "weapon_ring",
+   "per_monk",
+   "weapon_dharmawheel"
+  ],
+  [
+   "weapon_ring",
+   "mar_fist",
+   "weapon_knuckle"
+  ],
+  [
+   "wpn_armor",
+   "mar_fist",
+   "weapon_gauntlet"
+  ],
+  [
+   "weapon_gauntlet",
+   "bst_tiger",
+   "weapon_tigerclaw"
+  ],
+  [
+   "weapon_gauntlet",
+   "wpn_hook",
+   "weapon_ironclaw"
+  ],
+  [
+   "weapon_ironclaw",
+   "mat_rope",
+   "weapon_grapple"
+  ],
+  [
+   "weapon_grapple",
+   "bst_spider",
+   "weapon_spiderclaw"
+  ],
+  [
+   "mat_rope",
+   "wpn_hook",
+   "weapon_lasso"
+  ],
+  [
+   "wpn_whip",
+   "gear_bell",
+   "weapon_goldbell"
+  ],
+  [
+   "weapon_gauntlet",
+   "weapon_saber",
+   "weapon_fistblade"
+  ],
+  [
+   "weapon_zen",
+   "gear_bell",
+   "weapon_canecrook"
+  ],
+  [
+   "wpn_dagger",
+   "nat_moon",
+   "weapon_moondagger"
+  ],
+  [
+   "wpn_dagger",
+   "bst_scorpion",
+   "weapon_scorpionthorn"
+  ],
+  [
+   "wpn_dagger",
+   "bst_fox",
+   "weapon_foxdagger"
+  ],
+  [
+   "wpn_dagger",
+   "mat_jade",
+   "weapon_jadedagger"
+  ],
+  [
+   "wpn_dagger",
+   "per_assassin",
+   "weapon_assassinblade"
+  ],
+  [
+   "wpn_dagger",
+   "trs_iceheart",
+   "weapon_icedagger"
+  ],
+  [
+   "wpn_dagger",
+   "wpn_dagger",
+   "weapon_doubledagger"
+  ],
+  [
+   "wpn_dagger",
+   "mat_steel",
+   "weapon_steeldagger"
+  ],
+  [
+   "wpn_dagger",
+   "mat_coldiron",
+   "weapon_colddagger"
+  ],
+  [
+   "weapon_flyknife",
+   "weapon_flyknife",
+   "weapon_twinflyknife"
+  ],
+  [
+   "wpn_shield",
+   "herb_vine",
+   "weapon_rattanshield"
+  ],
+  [
+   "wpn_shield",
+   "mat_iron",
+   "weapon_ironshield"
+  ],
+  [
+   "wpn_shield",
+   "mat_copper",
+   "weapon_coppershield"
+  ],
+  [
+   "wpn_shield",
+   "bst_turtle",
+   "weapon_turtleshield"
+  ],
+  [
+   "wpn_shield",
+   "bst_bear",
+   "weapon_bearshield"
+  ],
+  [
+   "wpn_shield",
+   "mat_steel",
+   "weapon_steelshield"
+  ],
+  [
+   "wpn_shield",
+   "mat_coldiron",
+   "weapon_coldshield"
+  ],
+  [
+   "weapon_rattanshield",
+   "weapon_saber",
+   "weapon_sabershield"
+  ],
+  [
+   "wpn_armor",
+   "wpn_chain",
+   "weapon_chainmail"
+  ],
+  [
+   "wpn_armor",
+   "herb_vine",
+   "weapon_rattanarmor"
+  ],
+  [
+   "wpn_armor",
+   "mat_silver",
+   "weapon_silverarmor"
+  ],
+  [
+   "wpn_armor",
+   "nat_dark",
+   "weapon_darkarmor"
+  ],
+  [
+   "wpn_armor",
+   "mat_cloth",
+   "weapon_bracer"
+  ],
+  [
+   "wpn_armor",
+   "bst_silkworm",
+   "weapon_silkarmor"
+  ],
+  [
+   "wpn_armor",
+   "mat_jade",
+   "weapon_jadearmor"
+  ],
+  [
+   "wpn_axe",
+   "mat_steel",
+   "weapon_steelaxe"
+  ],
+  [
+   "wpn_spear",
+   "mat_steel",
+   "weapon_steelspear"
+  ],
+  [
+   "wpn_hook",
+   "mat_steel",
+   "weapon_steelhook"
+  ],
+  [
+   "wpn_chain",
+   "mat_steel",
+   "weapon_steelchain"
+  ],
+  [
+   "wpn_needle",
+   "mat_steel",
+   "weapon_steelneedle"
+  ],
+  [
+   "wpn_spear",
+   "mat_coldiron",
+   "weapon_coldspear"
+  ],
+  [
+   "wpn_hammer",
+   "mat_coldiron",
+   "weapon_coldhammer"
+  ],
+  [
+   "wpn_hammer",
+   "nat_blaze",
+   "weapon_flamehammer"
+  ],
+  [
+   "wpn_axe",
+   "nat_blaze",
+   "weapon_flameaxe"
+  ],
+  [
+   "wpn_bow",
+   "mat_silver",
+   "weapon_silverbow"
+  ],
+  [
+   "wpn_bow",
+   "trs_gold",
+   "weapon_goldbow"
+  ],
+  [
+   "wpn_bow",
+   "trs_blackgold",
+   "weapon_blackgoldbow"
+  ],
+  [
+   "weapon_ironsword",
+   "per_smith",
+   "weapon_craftsword"
+  ],
+  [
+   "weapon_saber",
+   "per_smith",
+   "weapon_craftsaber"
+  ],
+  [
+   "weapon_ironspear",
+   "per_smith",
+   "weapon_craftspear"
+  ],
+  [
+   "weapon_steelsaber",
+   "gear_anvil",
+   "weapon_hundredsaber"
+  ],
+  [
+   "weapon_bluesteel",
+   "gear_anvil",
+   "weapon_hundredsword"
+  ],
+  [
+   "weapon_hundredsaber",
+   "wpn_hammer",
+   "weapon_thousandsaber"
+  ],
+  [
+   "weapon_hundredsword",
+   "wpn_hammer",
+   "weapon_thousandsword"
+  ],
+  [
+   "wpn_sword",
+   "weapon_whetstone",
+   "weapon_sharpensword"
+  ],
+  [
+   "weapon_saber",
+   "weapon_whetstone",
+   "weapon_sharpensaber"
+  ],
+  [
+   "wpn_sword",
+   "sec_master",
+   "weapon_masterweapon"
+  ],
+  [
+   "wpn_sword",
+   "sec_disciple",
+   "weapon_discipleweapon"
+  ],
+  [
+   "wpn_arrow",
+   "sec_token",
+   "weapon_commandarrow"
+  ],
+  [
+   "weapon_saber",
+   "sec_escort",
+   "weapon_escortsaber"
+  ],
+  [
+   "weapon_pairaxes",
+   "sec_stronghold",
+   "weapon_strongholdaxe"
+  ],
+  [
+   "wpn_stick",
+   "sec_court",
+   "weapon_officerstick"
+  ],
+  [
+   "wpn_needle",
+   "sec_peach",
+   "weapon_peachneedle"
+  ],
+  [
+   "wpn_spear",
+   "wpn_whip",
+   "weapon_whipspear"
+  ],
+  [
+   "weapon_softsword",
+   "mar_qinggong",
+   "weapon_softdragon"
+  ],
+  [
+   "weapon_heavysword",
+   "con_solitude",
+   "weapon_bladeless"
+  ],
+  [
+   "weapon_steelwhip",
+   "weapon_steelwhip",
+   "weapon_steelwhipx"
+  ],
+  [
+   "weapon_beggarcrutch",
+   "weapon_beggarcrutch",
+   "weapon_twinsticks"
+  ],
+  [
+   "weapon_crossbow2",
+   "weapon_crossbow2",
+   "weapon_twincrossbow"
+  ],
+  [
+   "weapon_steelwhip",
+   "bst_tiger",
+   "weapon_tigertail"
+  ],
+  [
+   "weapon_copperrod",
+   "bst_dragon",
+   "weapon_coiledrod"
+  ],
+  [
+   "weapon_tang",
+   "bst_phoenix",
+   "weapon_phoenixtang"
+  ],
+  [
+   "weapon_steelspear",
+   "per_soldier",
+   "weapon_dotspear"
+  ],
+  [
+   "weapon_meteorhammer",
+   "nat_blaze",
+   "weapon_fireflail"
+  ],
+  [
+   "weapon_plumdart",
+   "weapon_dartbox",
+   "weapon_rainflower"
+  ],
+  [
+   "weapon_dartbox",
+   "per_maiden",
+   "weapon_fairyscatter"
+  ],
+  [
+   "weapon_caltrop",
+   "eli_poison",
+   "weapon_poisoncaltrop"
+  ],
+  [
+   "weapon_thunderbomb",
+   "nat_blaze",
+   "weapon_thunderfire"
+  ],
+  [
+   "weapon_sleevearrow",
+   "weapon_sleevesword",
+   "weapon_sleevehidden"
+  ],
+  [
+   "weapon_sleevearrow",
+   "herb_plum",
+   "weapon_plumsleeve"
+  ],
+  [
+   "wpn_needle",
+   "wpn_dart",
+   "weapon_flyneedle"
+  ],
+  [
+   "weapon_sunbow",
+   "weapon_cloudarrow",
+   "weapon_sunarrow"
+  ],
+  [
+   "wpn_crossbow",
+   "con_wisdom",
+   "weapon_zhugecross"
+  ],
+  [
+   "weapon_softsword",
+   "bst_snake",
+   "weapon_snakesoft"
+  ],
+  [
+   "weapon_snakesoft",
+   "weapon_snakesoft",
+   "weapon_twinsnake"
+  ],
+  [
+   "weapon_softsword",
+   "mat_cloth",
+   "weapon_beltsword"
+  ],
+  [
+   "weapon_shortsword",
+   "nat_dark",
+   "weapon_nightsword"
+  ],
+  [
+   "weapon_bluesteel",
+   "nat_light",
+   "weapon_bluelight"
+  ],
+  [
+   "weapon_bronzesword",
+   "con_time",
+   "weapon_oldbronze"
+  ],
+  [
+   "weapon_bronzesword",
+   "plc_grave",
+   "weapon_tombbronze"
+  ],
+  [
+   "weapon_sevenstar",
+   "nat_moon",
+   "weapon_northstar"
+  ],
+  [
+   "weapon_coldsword",
+   "trs_iceheart",
+   "weapon_icecold"
+  ],
+  [
+   "weapon_bamboosword",
+   "weapon_ironflute",
+   "weapon_bambooflute"
+  ],
+  [
+   "wpn_dart",
+   "herb_willow",
+   "weapon_willowdart"
+  ],
+  [
+   "wpn_dart",
+   "nat_moon",
+   "weapon_moondart"
+  ],
+  [
+   "wpn_dart",
+   "wpn_dart",
+   "weapon_crossdart"
+  ],
+  [
+   "weapon_crossdart",
+   "per_monk",
+   "weapon_swastikadart"
+  ],
+  [
+   "wpn_dart",
+   "herb_seed",
+   "weapon_bodhidart"
+  ],
+  [
+   "wpn_dart",
+   "herb_fruit",
+   "weapon_olivedart"
+  ],
+  [
+   "wpn_stick",
+   "herb_vine",
+   "weapon_slingshot"
+  ],
+  [
+   "weapon_slingshot",
+   "nat_stone",
+   "weapon_slingstone"
+  ],
+  [
+   "weapon_needlecase",
+   "eli_poison",
+   "weapon_poisonblow"
+  ],
+  [
+   "wpn_dart",
+   "nat_frost",
+   "weapon_icicle"
+  ],
+  [
+   "wpn_dart",
+   "nat_thunder",
+   "weapon_thunderdart"
+  ],
+  [
+   "wpn_dart",
+   "nat_snow",
+   "weapon_snowdart"
+  ],
+  [
+   "weapon_icicle",
+   "weapon_snowdart",
+   "weapon_frostsnow"
+  ],
+  [
+   "weapon_thunderdart",
+   "weapon_firedart",
+   "weapon_firethunder"
+  ],
+  [
+   "wpn_needle",
+   "nat_rain",
+   "weapon_raindart"
+  ],
+  [
+   "wpn_needle",
+   "nat_moon",
+   "weapon_moonneedle"
+  ],
+  [
+   "wpn_needle",
+   "bst_spider",
+   "weapon_webneedle"
+  ],
+  [
+   "wpn_needle",
+   "herb_mugwort",
+   "weapon_moxaneedle"
+  ],
+  [
+   "weapon_boomerang",
+   "bst_dragon",
+   "weapon_returndragon"
+  ],
+  [
+   "wpn_bow",
+   "wpn_dagger",
+   "weapon_shortbow"
+  ],
+  [
+   "wpn_bow",
+   "herb_pine",
+   "weapon_pinebow"
+  ],
+  [
+   "wpn_bow",
+   "herb_willow",
+   "weapon_willowbow"
+  ],
+  [
+   "wpn_bow",
+   "mat_bamboo",
+   "weapon_bamboobow"
+  ],
+  [
+   "wpn_bow",
+   "bst_deer",
+   "weapon_deerbow"
+  ],
+  [
+   "wpn_bow",
+   "bst_tiger",
+   "weapon_tigerbow"
+  ],
+  [
+   "weapon_shortbow",
+   "bst_horse",
+   "weapon_horsebow"
+  ],
+  [
+   "weapon_bamboobow",
+   "weapon_deerbow",
+   "weapon_compositebow"
+  ],
+  [
+   "wpn_arrow",
+   "mat_bamboo",
+   "weapon_bamboarrow"
+  ],
+  [
+   "wpn_arrow",
+   "mat_iron",
+   "weapon_ironarrow"
+  ],
+  [
+   "wpn_arrow",
+   "mat_silver",
+   "weapon_silverarrow"
+  ],
+  [
+   "wpn_arrow",
+   "bst_eagle",
+   "weapon_eaglearrow"
+  ],
+  [
+   "weapon_crossbow2",
+   "eli_poison",
+   "weapon_poisoncross"
+  ],
+  [
+   "weapon_crossbow2",
+   "mat_gunpowder",
+   "weapon_powdercross"
+  ],
+  [
+   "weapon_crossbow2",
+   "wpn_dagger",
+   "weapon_handcross"
+  ],
+  [
+   "weapon_crossbow2",
+   "mat_iron",
+   "weapon_ironcross"
+  ],
+  [
+   "weapon_crossbow2",
+   "mat_copper",
+   "weapon_bronzecross"
+  ],
+  [
+   "weapon_bronzecross",
+   "sec_court",
+   "weapon_qincross"
+  ],
+  [
+   "weapon_handcross",
+   "eli_poison",
+   "weapon_poisonhand"
+  ],
+  [
+   "wpn_whip",
+   "mat_cloth",
+   "weapon_softwhip"
+  ],
+  [
+   "wpn_whip",
+   "nat_thunder",
+   "weapon_thunderwhip"
+  ],
+  [
+   "wpn_whip",
+   "nat_frost",
+   "weapon_icewhip"
+  ],
+  [
+   "wpn_whip",
+   "herb_vine",
+   "weapon_vinewhip"
+  ],
+  [
+   "wpn_stick",
+   "mat_bamboo",
+   "weapon_bamboorod"
+  ],
+  [
+   "wpn_stick",
+   "herb_pine",
+   "weapon_pinerod"
+  ],
+  [
+   "wpn_stick",
+   "per_monk",
+   "weapon_browrod"
+  ],
+  [
+   "wpn_rod",
+   "nat_blaze",
+   "weapon_flamerod"
+  ],
+  [
+   "wpn_rod",
+   "nat_thunder",
+   "weapon_thunderrod"
+  ],
+  [
+   "wpn_rod",
+   "nat_frost",
+   "weapon_icerod"
+  ],
+  [
+   "wpn_spear",
+   "nat_sun",
+   "weapon_sunspear"
+  ],
+  [
+   "wpn_spear",
+   "nat_moon",
+   "weapon_moonspear"
+  ],
+  [
+   "wpn_axe",
+   "nat_stone",
+   "weapon_stoneaxe"
+  ],
+  [
+   "wpn_axe",
+   "mat_copper",
+   "weapon_copperaxe"
+  ],
+  [
+   "wpn_axe",
+   "bst_bear",
+   "weapon_bearaxe"
+  ],
+  [
+   "wpn_axe",
+   "nat_thunder",
+   "weapon_thunderaxe"
+  ],
+  [
+   "wpn_axe",
+   "nat_frost",
+   "weapon_iceaxe"
+  ],
+  [
+   "wpn_hammer",
+   "nat_mountain",
+   "weapon_mountainhammer"
+  ],
+  [
+   "wpn_spade",
+   "plc_grave",
+   "weapon_luoyangspade"
+  ],
+  [
+   "wpn_shield",
+   "bst_tiger",
+   "weapon_tigershield"
+  ],
+  [
+   "wpn_shield",
+   "bst_dragon",
+   "weapon_dragonshield"
+  ],
+  [
+   "wpn_shield",
+   "mat_jade",
+   "weapon_jadeshield"
+  ],
+  [
+   "wpn_shield",
+   "mat_silver",
+   "weapon_silvershield"
+  ],
+  [
+   "wpn_shield",
+   "nat_frost",
+   "weapon_frostshield"
+  ],
+  [
+   "wpn_armor",
+   "mat_coldiron",
+   "weapon_coldarmor"
+  ],
+  [
+   "wpn_armor",
+   "nat_blaze",
+   "weapon_flamearmor"
+  ],
+  [
+   "wpn_armor",
+   "bst_snake",
+   "weapon_snakearmor"
+  ],
+  [
+   "wpn_armor",
+   "bst_crab",
+   "weapon_crabarmor"
+  ],
+  [
+   "wpn_armor",
+   "mat_bamboo",
+   "weapon_bamboarmor"
+  ],
+  [
+   "wpn_armor",
+   "mat_paper",
+   "weapon_paperarmor"
+  ],
+  [
+   "wpn_armor",
+   "mat_timber",
+   "weapon_woodarmor"
+  ],
+  [
+   "wpn_armor",
+   "mat_copper",
+   "weapon_copperarmor"
+  ],
+  [
+   "wpn_armor",
+   "mat_steel",
+   "weapon_steelarmor"
+  ],
+  [
+   "wpn_armor",
+   "bst_tiger",
+   "weapon_tigerarmor"
+  ],
+  [
+   "weapon_nunchaku",
+   "weapon_threesection",
+   "weapon_sevenjoint"
+  ],
+  [
+   "weapon_ring",
+   "weapon_ring",
+   "weapon_childring"
+  ],
+  [
+   "weapon_ironshield",
+   "weapon_saber",
+   "weapon_shieldsaber"
+  ],
+  [
+   "weapon_twinsaber",
+   "weapon_twinswords",
+   "weapon_sabersword"
+  ],
+  [
+   "wpn_spear",
+   "wpn_sword",
+   "weapon_swordspear"
+  ],
+  [
+   "weapon_steelarmor",
+   "weapon_copperarmor",
+   "weapon_heavyarmor"
+  ],
+  [
+   "weapon_chainmail",
+   "weapon_bracer",
+   "weapon_mailglove"
+  ],
+  [
+   "weapon_saber",
+   "sec_master",
+   "weapon_masterbsaber"
+  ],
+  [
+   "weapon_saber",
+   "sec_disciple",
+   "weapon_discipsaber"
+  ],
+  [
+   "wpn_stick",
+   "sec_master",
+   "weapon_masterstick"
+  ],
+  [
+   "wpn_stick",
+   "sec_disciple",
+   "weapon_discipstick"
+  ],
+  [
+   "weapon_saber",
+   "sec_stronghold",
+   "weapon_strongholdsaber"
+  ],
+  [
+   "weapon_waistsaber",
+   "sec_guild",
+   "weapon_guardsaber"
+  ],
+  [
+   "weapon_waistsaber",
+   "sec_court",
+   "weapon_constablesaber"
+  ],
+  [
+   "wpn_hook",
+   "sec_demon",
+   "weapon_demonhook"
+  ],
+  [
+   "weapon_flyknife",
+   "sec_tangmen",
+   "weapon_tangknife"
+  ],
+  [
+   "wpn_dagger",
+   "sec_poison5",
+   "weapon_fivepoisondagger"
+  ],
+  [
+   "weapon_fork",
+   "per_hunter",
+   "weapon_huntfork"
+  ],
+  [
+   "wpn_sickle",
+   "per_farmer",
+   "weapon_farmsickle"
+  ],
+  [
+   "wpn_hook",
+   "per_thief",
+   "weapon_thiefhook"
+  ],
+  [
+   "wpn_spear",
+   "per_boatman",
+   "weapon_polespear"
+  ],
+  [
+   "weapon_monksaber",
+   "plc_temple",
+   "weapon_templesaber"
+  ],
+  [
+   "weapon_waistsaber",
+   "gear_pot",
+   "weapon_kitchenknife"
+  ],
+  [
+   "weapon_ironcross",
+   "plc_city",
+   "weapon_citycross"
+  ],
+  [
+   "wpn_dart",
+   "con_fear",
+   "weapon_feardart"
+  ],
+  [
+   "weapon_saber",
+   "con_fame",
+   "weapon_famesaber"
+  ],
+  [
+   "weapon_sleevesword",
+   "con_secret",
+   "weapon_hiddenblade"
+  ],
+  [
+   "weapon_ring",
+   "con_joy",
+   "weapon_joyring"
+  ],
+  [
+   "weapon_meteorhammer",
+   "weapon_ropedart",
+   "weapon_ropehammer"
+  ],
+  [
+   "wpn_hammer",
+   "trs_gem",
+   "weapon_heavyhammer"
+  ],
+  [
+   "weapon_saber",
+   "wpn_axe",
+   "weapon_broadsaber"
+  ],
+  [
+   "wpn_sickle",
+   "weapon_saber",
+   "weapon_scimitar"
+  ],
+  [
+   "weapon_saber",
+   "sec_shaolin",
+   "weapon_monksaber"
+  ],
+  [
+   "wpn_blade",
+   "nat_frost",
+   "weapon_icesaber"
+  ],
+  [
+   "wpn_blade",
+   "nat_blaze",
+   "weapon_flamesaber"
+  ],
+  [
+   "wpn_blade",
+   "nat_thunder",
+   "weapon_thundersaber"
+  ],
+  [
+   "weapon_saber",
+   "nat_river",
+   "weapon_cutwater"
+  ],
+  [
+   "wpn_blade",
+   "trs_meteor",
+   "weapon_meteorsaber"
+  ],
+  [
+   "wpn_blade",
+   "trs_blackgold",
+   "weapon_blackgoldsaber"
+  ],
+  [
+   "weapon_scimitar",
+   "bst_horse",
+   "weapon_steppesaber"
+  ],
+  [
+   "weapon_scimitar",
+   "nat_sun",
+   "weapon_holyscimitar"
+  ],
+  [
+   "weapon_saber",
+   "plc_garden",
+   "weapon_peonysaber"
+  ],
+  [
+   "weapon_broadsaber",
+   "per_soldier",
+   "weapon_horsecleaver"
+  ],
+  [
+   "weapon_ironsword",
+   "mat_charcoal",
+   "weapon_bluesteel"
+  ],
+  [
+   "wpn_sword",
+   "wpn_dagger",
+   "weapon_shortsword"
+  ],
+  [
+   "weapon_bluesteel",
+   "wpn_whip",
+   "weapon_softsword"
+  ],
+  [
+   "weapon_ironsword",
+   "weapon_ironsword",
+   "weapon_twinswords"
+  ],
+  [
+   "weapon_ironsword",
+   "nat_blaze",
+   "weapon_flamesword"
+  ],
+  [
+   "wpn_sword",
+   "nat_frost",
+   "weapon_icesword"
+  ],
+  [
+   "weapon_ironsword",
+   "nat_snow",
+   "weapon_snowsword"
+  ],
+  [
+   "weapon_bluesteel",
+   "nat_moon",
+   "weapon_moonsword"
+  ],
+  [
+   "weapon_ironsword",
+   "nat_sun",
+   "weapon_sunsword"
+  ],
+  [
+   "weapon_ironsword",
+   "bst_dragon",
+   "weapon_dragonsword"
+  ],
+  [
+   "weapon_ironsword",
+   "bst_phoenix",
+   "weapon_phoenixsword"
+  ],
+  [
+   "weapon_bluesteel",
+   "bst_snake",
+   "weapon_snakesword"
+  ],
+  [
+   "weapon_bluesteel",
+   "bst_crane",
+   "weapon_cranesword"
+  ],
+  [
+   "weapon_bluesteel",
+   "per_scholar",
+   "weapon_gentlemansword"
+  ],
+  [
+   "wpn_sword",
+   "wpn_hammer",
+   "weapon_heavysword"
+  ],
+  [
+   "weapon_bluesteel",
+   "con_yin",
+   "weapon_yinsword"
+  ],
+  [
+   "weapon_bluesteel",
+   "con_yang",
+   "weapon_yangsword"
+  ],
+  [
+   "weapon_swordhilt",
+   "bst_silkworm",
+   "weapon_tassel"
+  ],
+  [
+   "weapon_ironsword",
+   "sec_huashan",
+   "weapon_huashansword"
+  ],
+  [
+   "weapon_ironsword",
+   "sec_emei",
+   "weapon_emeisword"
+  ],
+  [
+   "weapon_ironsword",
+   "nat_light",
+   "weapon_coldlightsword"
+  ],
+  [
+   "weapon_ironsword",
+   "nat_dark",
+   "weapon_shadowsword"
+  ],
+  [
+   "weapon_bluesteel",
+   "con_illusion",
+   "weapon_illusionsword"
+  ],
+  [
+   "weapon_bluesteel",
+   "con_love",
+   "weapon_lovesword"
+  ],
+  [
+   "weapon_ironsword",
+   "con_righteous",
+   "weapon_righteoussword"
+  ],
+  [
+   "weapon_ironsword",
+   "bst_fox",
+   "weapon_foxsword"
+  ],
+  [
+   "weapon_ironsword",
+   "bst_tiger",
+   "weapon_tigersword"
+  ],
+  [
+   "weapon_ironsword",
+   "bst_eagle",
+   "weapon_eaglesword"
+  ],
+  [
+   "weapon_ironsword",
+   "bst_turtle",
+   "weapon_turtlesword"
+  ],
+  [
+   "weapon_ironsword",
+   "trs_gem",
+   "weapon_sevenstar"
+  ],
+  [
+   "weapon_ironsword",
+   "mat_jade",
+   "weapon_jadesword"
+  ],
+  [
+   "weapon_spearhead",
+   "mat_iron",
+   "weapon_ironspear"
+  ],
+  [
+   "weapon_ironspear",
+   "herb_flower",
+   "weapon_flowerspear"
+  ],
+  [
+   "weapon_ironspear",
+   "mat_silver",
+   "weapon_silverspear"
+  ],
+  [
+   "weapon_ironspear",
+   "nat_frost",
+   "weapon_frostspear"
+  ],
+  [
+   "weapon_ironspear",
+   "nat_blaze",
+   "weapon_firetip"
+  ],
+  [
+   "weapon_ironspear",
+   "herb_plum",
+   "weapon_plumspear"
+  ],
+  [
+   "weapon_spearhead",
+   "wpn_axe",
+   "weapon_halberd"
+  ],
+  [
+   "wpn_rod",
+   "weapon_spearhead",
+   "weapon_mao"
+  ],
+  [
+   "weapon_ironspear",
+   "bst_dragon",
+   "weapon_dragonspear"
+  ],
+  [
+   "weapon_steelaxe",
+   "herb_flower",
+   "weapon_flowaxe"
+  ],
+  [
+   "wpn_rod",
+   "sec_shaolin",
+   "weapon_zen"
+  ],
+  [
+   "wpn_hammer",
+   "plc_field",
+   "weapon_melonhammer"
+  ],
+  [
+   "wpn_chain",
+   "weapon_steelwhip",
+   "weapon_ninejoint"
+  ],
+  [
+   "wpn_whip",
+   "wpn_rod",
+   "weapon_steelwhip"
+  ],
+  [
+   "wpn_chain",
+   "weapon_bamboorod",
+   "weapon_nunchaku"
+  ],
+  [
+   "weapon_steelwhip",
+   "bst_snake",
+   "weapon_snakebone"
+  ],
+  [
+   "wpn_whip",
+   "nat_magma",
+   "weapon_firewhip"
+  ],
+  [
+   "wpn_chain",
+   "weapon_twinsickle",
+   "weapon_chainsickle"
+  ],
+  [
+   "weapon_twinsickle",
+   "plc_grave",
+   "weapon_reaper"
+  ],
+  [
+   "weapon_steelhook",
+   "weapon_steelhook",
+   "weapon_twinhooks"
+  ],
+  [
+   "mat_rope",
+   "weapon_steelhook",
+   "weapon_lasso"
+  ],
+  [
+   "wpn_whip",
+   "sec_wudang",
+   "weapon_whisk"
+  ],
+  [
+   "weapon_whisk",
+   "trs_blackgold",
+   "weapon_silverwhisk"
+  ],
+  [
+   "wpn_dagger",
+   "wpn_needle",
+   "weapon_flyknife"
+  ],
+  [
+   "wpn_dart",
+   "herb_chrysan",
+   "weapon_plumdart"
+  ],
+  [
+   "wpn_dart",
+   "plc_lake",
+   "weapon_lotusseed"
+  ],
+  [
+   "wpn_needle",
+   "wpn_pick",
+   "weapon_nail"
+  ],
+  [
+   "wpn_needle",
+   "mat_moltengold",
+   "weapon_goldneedle"
+  ],
+  [
+   "wpn_needle",
+   "per_dancer",
+   "weapon_embroidery"
+  ],
+  [
+   "wpn_dart",
+   "mat_ingot",
+   "weapon_coppercoin"
+  ],
+  [
+   "wpn_dart",
+   "bst_crane",
+   "weapon_swallowdart"
+  ],
+  [
+   "wpn_dart",
+   "nat_magma",
+   "weapon_firedart"
+  ],
+  [
+   "wpn_dart",
+   "wpn_sickle",
+   "weapon_boomerang"
+  ],
+  [
+   "mat_gunpowder",
+   "wpn_stick",
+   "weapon_thunderbomb"
+  ],
+  [
+   "weapon_thunderbomb",
+   "nat_cloud",
+   "weapon_smokebomb"
+  ],
+  [
+   "weapon_thunderbomb",
+   "nat_sun",
+   "weapon_flashbomb"
+  ],
+  [
+   "wpn_needle",
+   "bst_scorpion",
+   "weapon_fivepoison"
+  ],
+  [
+   "wpn_bow",
+   "wpn_stick",
+   "weapon_crossbow2"
+  ],
+  [
+   "wpn_bow",
+   "mat_steel",
+   "weapon_steelbow"
+  ],
+  [
+   "weapon_steelbow",
+   "nat_sun",
+   "weapon_sunbow"
+  ],
+  [
+   "weapon_steelbow",
+   "nat_moon",
+   "weapon_moonbow"
+  ],
+  [
+   "wpn_arrow",
+   "nat_rainbow",
+   "weapon_cloudarrow"
+  ],
+  [
+   "weapon_ironarrow",
+   "wpn_armor",
+   "weapon_armorpierce"
+  ],
+  [
+   "wpn_arrow",
+   "nat_blaze",
+   "weapon_firearrow"
+  ],
+  [
+   "wpn_arrow",
+   "bst_deer",
+   "weapon_quiver"
+  ],
+  [
+   "wpn_needle",
+   "sec_emei",
+   "weapon_emeithorn"
+  ],
+  [
+   "wpn_fan",
+   "gear_brush",
+   "weapon_inkfan"
+  ],
+  [
+   "wpn_fan",
+   "mat_paper",
+   "weapon_umbrella"
+  ],
+  [
+   "wpn_dagger",
+   "nat_sun",
+   "weapon_moondagger"
+  ],
+  [
+   "wpn_dagger",
+   "trs_jadedisc",
+   "weapon_jadedagger"
+  ],
+  [
+   "wpn_dagger",
+   "nat_frost",
+   "weapon_icedagger"
+  ],
+  [
+   "wpn_shield",
+   "mat_rope",
+   "weapon_rattanshield"
+  ],
+  [
+   "wpn_shield",
+   "mat_ore",
+   "weapon_ironshield"
+  ],
+  [
+   "weapon_ironshield",
+   "mat_charcoal",
+   "weapon_steelshield"
+  ],
+  [
+   "wpn_armor",
+   "mat_ingot",
+   "weapon_silverarmor"
+  ],
+  [
+   "weapon_softsword",
+   "herb_orchid",
+   "weapon_orchidsword"
+  ],
+  [
+   "wpn_dart",
+   "gear_chest",
+   "weapon_dartbox"
+  ],
+  [
+   "gear_brush",
+   "wpn_dagger",
+   "weapon_judge"
+  ],
+  [
+   "wpn_blade",
+   "mar_swordart",
+   "weapon_swordembryo"
+  ],
+  [
+   "weapon_woodsword",
+   "mat_bamboo",
+   "weapon_bamboosword"
+  ],
+  [
+   "wpn_armor",
+   "per_soldier",
+   "weapon_generalarmor"
+  ]
+ ]
+}
