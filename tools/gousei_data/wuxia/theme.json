@@ -1,0 +1,49 @@
+{
+  "id": "wuxia",
+  "name": {"zh": "中國武俠風", "ja": "中華武侠風"},
+  "basics": [
+    {"id": "metal", "zh": "金", "ja": "金"},
+    {"id": "wood", "zh": "木", "ja": "木"},
+    {"id": "water", "zh": "水", "ja": "水"},
+    {"id": "fire", "zh": "火", "ja": "火"},
+    {"id": "earth", "zh": "土", "ja": "土"}
+  ],
+  "junk": [
+    {"id": "junk_ash", "zh": "灰燼", "ja": "灰"},
+    {"id": "junk_rubble", "zh": "碎石", "ja": "瓦礫"},
+    {"id": "junk_scrap", "zh": "廢鐵", "ja": "くず鉄"},
+    {"id": "junk_sludge", "zh": "爛泥", "ja": "ぬかるみ"},
+    {"id": "junk_smoke", "zh": "黑煙", "ja": "黒煙"},
+    {"id": "junk_splinter", "zh": "木屑", "ja": "木くず"},
+    {"id": "junk_dregs", "zh": "藥渣", "ja": "薬かす"},
+    {"id": "junk_rust", "zh": "鐵鏽", "ja": "錆"},
+    {"id": "junk_dust", "zh": "塵土", "ja": "砂ぼこり"},
+    {"id": "junk_slag", "zh": "爐渣", "ja": "鉱滓"},
+    {"id": "junk_rag", "zh": "破布", "ja": "ぼろ布"},
+    {"id": "junk_shard", "zh": "碎瓷", "ja": "陶片"},
+    {"id": "junk_bone", "zh": "枯骨", "ja": "枯れ骨"},
+    {"id": "junk_puddle", "zh": "死水", "ja": "よどみ水"},
+    {"id": "junk_cinder", "zh": "焦炭", "ja": "燃えかす"},
+    {"id": "junk_weed", "zh": "雜草", "ja": "雑草"},
+    {"id": "junk_rumor", "zh": "江湖謠言", "ja": "江湖の噂"},
+    {"id": "junk_brokenblade", "zh": "斷刃", "ja": "折れた刃"},
+    {"id": "junk_failedpill", "zh": "廢丹", "ja": "失敗丹"},
+    {"id": "junk_nothing", "zh": "一場空", "ja": "徒労"}
+  ],
+  "categories": [
+    {"id": "nature", "zh": "天地自然", "ja": "天地自然"},
+    {"id": "material", "zh": "材料", "ja": "素材"},
+    {"id": "herb", "zh": "藥草", "ja": "薬草"},
+    {"id": "elixir", "zh": "丹藥毒物", "ja": "丹薬・毒"},
+    {"id": "weapon", "zh": "兵器", "ja": "武器"},
+    {"id": "gear", "zh": "器物機關", "ja": "器物・からくり"},
+    {"id": "martial", "zh": "武學", "ja": "武学"},
+    {"id": "person", "zh": "江湖人物", "ja": "江湖の人物"},
+    {"id": "sect", "zh": "門派勢力", "ja": "門派・勢力"},
+    {"id": "place", "zh": "場所", "ja": "場所"},
+    {"id": "beast", "zh": "珍禽異獸", "ja": "霊獣"},
+    {"id": "treasure", "zh": "神兵秘寶", "ja": "神兵・秘宝"},
+    {"id": "concept", "zh": "境界意念", "ja": "境地・概念"}
+  ],
+  "min_items": 5000
+}
