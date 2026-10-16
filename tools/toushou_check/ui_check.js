@@ -184,6 +184,60 @@ function debugState(page) { return page.evaluate(function () { return window.Pri
   assert.strictEqual(s.phase, "settle");
   assert.strictEqual(s.history[0].finalPrice, 100 + 7 * 3);
 
+  // ---- 第三局：黑天鵝＋板塊連動，同一類別 2 個標的（spec 2026-10-16-toushou-swan-sector-design.md）----
+  await page.click("#ts-btn-abandon");
+  await page.waitForSelector("#ts-btn-start");
+  await page.selectOption("#ts-delta-mode", "host");
+  await page.check("#ts-swan");
+  await page.check("#ts-sector");
+  var catCount = await page.locator(".ts-cat").count();
+  for (var ci = 1; ci < catCount; ci++) await page.locator(".ts-cat").nth(ci).uncheck();
+  await page.click("#ts-btn-randomize");
+  await page.click("#ts-btn-start");
+  s = await debugState(page);
+  assert.strictEqual(s.config.blackSwanEnabled, true);
+  assert.strictEqual(s.config.sectorLinkEnabled, true);
+  assert.ok(s.targets.every(function (tg) { return tg.category === s.targets[0].category; }), "single category");
+  for (var sr = 0; sr < 2; sr++) {
+    if (sr === 1) {
+      // 下注前就預覽板塊連動的起始價
+      var expectStart = await page.evaluate(function () {
+        var st = window.PriTestToushou._debugState();
+        return window.PriTestToushouCore.sectorStartPrice(st, st.targets[st.targetIndex].category).price;
+      });
+      assert.ok((await page.textContent("#ts-start-price")).indexOf(String(expectStart)) >= 0, "start price preview");
+    }
+    await page.click("#ts-btn-start-betting");
+    s = await debugState(page);
+    if (sr === 1) assert.strictEqual(s.current.startPrice, expectStart);
+    for (var sb = 0; sb < 3; sb++) {
+      await page.click("#ts-btn-reveal");
+      assert.strictEqual(await page.inputValue("#ts-bet-predict"), String(s.current.startPrice), "predict defaults to start price");
+      await page.fill("#ts-bet-amount", "100");
+      await page.click("#ts-btn-confirm-bet");
+    }
+    s = await debugState(page);
+    assert.ok(s.current.event, "event drawn");
+    assert.strictEqual(await page.locator("#ts-swan-badge").count(), 1, "event badge shown");
+    var turns = 0;
+    while (s.phase === "news") {
+      await page.click("#ts-btn-reveal");
+      if (await page.locator(".ts-btn-play").count()) {
+        await page.locator(".ts-btn-play").first().click();
+      } else {
+        await page.fill("#ts-news-text", "事件局消息" + turns);
+        await page.click("#ts-btn-release");
+      }
+      await page.fill("#ts-delta", "20");
+      await page.click("#ts-btn-apply-delta");
+      turns++;
+      s = await debugState(page);
+    }
+    assert.strictEqual(s.phase, "settle");
+    assert.strictEqual(turns, s.history[sr].event === "extra" ? 4 : 3);
+    await page.click("#ts-btn-next-target");
+  }
+
   assert.deepStrictEqual(errors, []);
   await browser.close();
   console.log("toushou ui_check: OK");

@@ -250,6 +250,8 @@
       targets: [],
       missionsEnabled: true,
       windEnabled: false,
+      blackSwanEnabled: false,
+      sectorLinkEnabled: false,
       online: false,
       minBet: 100,
       minBetEdited: false,
@@ -312,6 +314,8 @@
         }),
         missionsEnabled: draft.missionsEnabled,
         windEnabled: draft.windEnabled,
+        blackSwanEnabled: draft.blackSwanEnabled,
+        sectorLinkEnabled: draft.sectorLinkEnabled,
         minBet: minBet,
         deltaMode: draft.deltaMode,
         voteCap: draft.deltaMode === "vote" ? voteCap : 100,
@@ -448,6 +452,14 @@
       id: "ts-wind", type: "checkbox", checked: draft.windEnabled,
       onchange: function (e) { draft.windEnabled = e.target.checked; }
     }), t("ts_wind_enabled")]));
+    box.appendChild(el("label", { class: "ts-field" }, [el("input", {
+      id: "ts-swan", type: "checkbox", checked: draft.blackSwanEnabled,
+      onchange: function (e) { draft.blackSwanEnabled = e.target.checked; }
+    }), t("ts_swan_enabled")]));
+    box.appendChild(el("label", { class: "ts-field" }, [el("input", {
+      id: "ts-sector", type: "checkbox", checked: draft.sectorLinkEnabled,
+      onchange: function (e) { draft.sectorLinkEnabled = e.target.checked; }
+    }), t("ts_sector_enabled")]));
     box.appendChild(el("label", { class: "ts-field" }, [t("ts_min_bet"), el("input", {
       id: "ts-min-bet", type: "number", min: "1", value: String(draft.minBet),
       oninput: function (e) { draft.minBet = e.target.value; draft.minBetEdited = true; }
@@ -538,7 +550,14 @@
     return el("section", { class: "ts-panel ts-waiting" }, [el("p", { class: "ts-wait-text", text: text })]);
   }
 
-  function newsBoard(news) {
+  function swanName(id) {
+    var c = Core.swanById(id);
+    return c ? lt(c.name) : id;
+  }
+
+  function signed(v) { return v > 0 ? "+" + v : String(v); }
+
+  function newsBoard(news, eventId) {
     if (!news.length) return el("p", { id: "ts-news-board", text: t("ts_news_none") });
     var ul = el("ul", { id: "ts-news-board", class: "ts-news-board" });
     news.forEach(function (n) {
@@ -548,20 +567,46 @@
         el("strong", { text: playerName(n.playerId) }),
         n.wind ? " [" + windLabel(n.wind) + "]" : "",
         tag ? " (" + tag + ")" : "",
-        "：" + n.text + "　" + sign + " → " + n.priceAfter,
+        // 有價格事件時，主行顯示事件前的價格，事件後的價格另起一行
+        "：" + n.text + "　" + sign + " → " + (n.priceEvent ? n.priceBeforeEvent : n.priceAfter),
         n.votes ? el("div", { class: "ts-vote-detail", text: t("ts_news_votes", {
           list: Object.keys(n.votes).map(function (id) {
             var v = n.votes[id];
             return playerName(id) + " " + (v > 0 ? "+" + v : String(v));
           }).join("、"),
           avg: String(Math.round(n.avg * 10) / 10)
-        }) + (n.windZeroed ? "（" + t("ts_news_wind_zeroed") + "）" : "") }) : null
+        }) + (n.windZeroed ? "（" + t("ts_news_wind_zeroed") + "）" : "") }) : null,
+        n.rawDelta !== undefined && eventId ? el("div", { class: "ts-news-mod", text: t("ts_news_modified", {
+          raw: signed(n.rawDelta), final: signed(n.delta), event: swanName(eventId) }) }) : null,
+        n.priceEvent ? el("div", { class: "ts-news-mod", text: t("ts_news_price_event", {
+          event: swanName(n.priceEvent), price: n.priceAfter }) }) : null
       ]));
     });
     return ul;
   }
 
-  function targetCard(target, price, news) {
+  // 黑天鵝事件與起始價（info＝state.current、lastSettlement 或下注前的預覽）
+  function marketInfo(info) {
+    if (!info) return null;
+    var box = el("div", { class: "ts-market-info" });
+    if (info.sectorFrom !== null && info.sectorFrom !== undefined) {
+      box.appendChild(el("p", { id: "ts-start-price", text: t("ts_start_price", { n: info.startPrice }) + "（" +
+        t("ts_sector_note", { prev: info.sectorFrom }) + "）" }));
+    }
+    if (info.event) {
+      var card = Core.swanById(info.event);
+      var n = info.order ? info.order.length : (info.news ? info.news.length : state.players.length);
+      var desc = card ? lt(card.text).split("{k}").join(String(Math.ceil(n / 2))) : "";
+      if (info.event === "gap" && info.gap !== null && info.gap !== undefined) {
+        desc += "（" + t("ts_gap_note", { gap: signed(info.gap) }) + "）";
+      }
+      box.appendChild(el("p", { id: "ts-swan-badge", class: "ts-swan-badge" }, [
+        el("strong", { text: t("ts_swan_heading") + "：" + swanName(info.event) }), "　" + desc]));
+    }
+    return box.childNodes.length ? box : null;
+  }
+
+  function targetCard(target, price, news, info) {
     var cat = Core.categoryById(target.category);
     var tags = el("div", { class: "ts-tags" });
     targetTags(target).forEach(function (tg) { tags.appendChild(el("span", { text: tg })); });
@@ -574,8 +619,9 @@
       tags,
       hooks.length ? el("p", { class: "ts-hooks", text: t("ts_hooks") + "：" + hooks.join("、") }) : null,
       el("p", {}, [t("ts_price") + "：", el("span", { id: "ts-price", class: "ts-price", text: String(price) })]),
+      marketInfo(info),
       el("h3", { text: t("ts_news_board") }),
-      newsBoard(news || [])
+      newsBoard(news || [], info && info.event)
     ]);
   }
 
@@ -659,7 +705,8 @@
     var body = masked(pid, function () {
       var min = Math.min(state.config.minBet, me.chips);
       var amount = el("input", { id: "ts-bet-amount", type: "number", min: String(min), max: String(me.chips), value: String(min) });
-      var predict = el("input", { id: "ts-bet-predict", type: "number", min: "0", value: String(D.START_PRICE) });
+      var predict = el("input", { id: "ts-bet-predict", type: "number", min: "0",
+        value: String(state.current.startPrice || D.START_PRICE) });
       return el("section", { class: "ts-panel" }, [
         el("h2", { text: t("ts_bet_heading", { name: me.name }) }),
         el("p", { text: t("ts_bet_chips_left", { n: me.chips, min: min }) }),
@@ -688,6 +735,7 @@
       : null;
     var heading = el("h2", { text: t("ts_news_heading", { role: role, name: me.name }) });
     if (!owns(pid)) return el("div", {}, [heading, windBadge, waiting(t("ts_wait_news", { name: me.name }))]);
+    var gagged = Core.gagActive(state);
     var body = masked(pid, function () {
       var textArea = el("textarea", { id: "ts-news-text", class: "ts-news-text", "aria-label": t("ts_news_custom") });
       if (ui.editing !== null) textArea.value = ui.editing;
@@ -704,7 +752,7 @@
             onclick: function () {
               dispatch({ type: "releaseNews", playerId: pid, cardId: cardId, edited: false, text: cardText(cardId) });
             } }) : null,
-          el("button", { class: "ts-btn-edit", type: "button", text: t("ts_btn_edit"),
+          gagged ? null : el("button", { class: "ts-btn-edit", type: "button", text: t("ts_btn_edit"),
             onclick: function () {
               ui.selectedCard = idx;
               ui.editing = cardText(cardId);
@@ -718,9 +766,10 @@
         el("h3", { text: t("ts_hand") }),
         el("p", { class: "ts-hooks", text: t("ts_hand_other_hint") }),
         hand,
-        el("label", {}, [t("ts_news_custom"), textArea]),
+        gagged ? el("p", { id: "ts-gag-hint", class: "ts-error", text: t("ts_gag_hint") }) : null,
+        gagged ? null : el("label", {}, [t("ts_news_custom"), textArea]),
         errorLine(),
-        el("button", { id: "ts-btn-release", type: "button", class: "ts-primary", text: t("ts_btn_release"),
+        gagged ? null : el("button", { id: "ts-btn-release", type: "button", class: "ts-primary", text: t("ts_btn_release"),
           onclick: function () {
             var text = textArea.value;
             var cardId = ui.selectedCard === null ? null : me.hand[ui.selectedCard];
@@ -802,7 +851,8 @@
       if (!b) return;
       var pay = h.payouts[p.id] || 0;
       var profit = pay - b.amount;
-      table.appendChild(el("tr", {}, [p.name, b.amount, b.predict, Math.abs(b.predict - h.finalPrice), h.ranks[p.id], pay,
+      table.appendChild(el("tr", {}, [p.name, b.amount, b.predict, Math.abs(b.predict - h.finalPrice),
+        h.ranks[p.id] === undefined ? "—" : h.ranks[p.id], pay,
         (profit > 0 ? "+" : "") + profit].map(function (v) { return el("td", { text: String(v) }); })));
     });
     return table;
@@ -814,12 +864,28 @@
       onclick: function () { dispatch(action); } });
   }
 
+  function settleNotes(h) {
+    var lines = [];
+    if (h.rumorIndex !== null && h.rumorIndex !== undefined) {
+      var rn = h.news[h.rumorIndex];
+      lines.push(t("ts_rumor_note", { name: playerName(rn.playerId), text: rn.text, delta: signed(-h.rumorDelta) }));
+    }
+    if (h.cancelled) lines.push(t("ts_cancel_note"));
+    if (h.bonus) lines.push(t("ts_bailout_note", { n: h.bonus }));
+    if (h.event === "upset") lines.push(t("ts_upset_note"));
+    if (!lines.length) return null;
+    var ul = el("ul", { class: "ts-settle-notes" });
+    lines.forEach(function (x) { ul.appendChild(el("li", { text: x })); });
+    return ul;
+  }
+
   function renderSettle() {
     var h = state.lastSettlement;
     var last = state.targetIndex + 1 >= state.targets.length;
     return el("section", { class: "ts-panel" }, [
       el("h2", { text: t("ts_settle_heading", { name: lt(h.name) }) }),
       el("p", { text: t("ts_final_price", { n: h.finalPrice }) + "　" + t("ts_pot", { n: h.pot }) }),
+      settleNotes(h),
       el("div", { id: "ts-settle-table", class: "ts-table-wrap" }, [settleTable(h)]),
       errorLine(),
       el("div", { class: "ts-actions" }, [
@@ -852,8 +918,11 @@
     var review = el("div", {}, [el("h3", { text: t("ts_history_heading") })]);
     state.history.forEach(function (h) {
       review.appendChild(el("details", {}, [
-        el("summary", { text: lt(h.name) + "　" + t("ts_final_price", { n: h.finalPrice }) }),
-        newsBoard(h.news),
+        el("summary", { text: lt(h.name) + "　" + t("ts_final_price", { n: h.finalPrice }) +
+          (h.event && h.event !== "calm" ? "　［" + swanName(h.event) + "］" : "") }),
+        marketInfo(h),
+        newsBoard(h.news, h.event),
+        settleNotes(h),
         el("div", { class: "ts-table-wrap" }, [settleTable(h)])
       ]));
     });
@@ -890,9 +959,15 @@
       wrap.appendChild(renderMissions());
     } else {
       var settled = phase === "settle";
-      var price = settled ? state.lastSettlement.finalPrice : (state.current ? state.current.price : D.START_PRICE);
+      var info = settled ? state.lastSettlement : state.current;
+      if (!info && state.config.sectorLinkEnabled) {
+        // 下注前預覽板塊連動的起始價（startBetting 時以同一函式決定）
+        var sp = Core.sectorStartPrice(state, currentTarget().category);
+        info = { startPrice: sp.price, sectorFrom: sp.from, price: sp.price };
+      }
+      var price = settled ? state.lastSettlement.finalPrice : (info ? info.price : D.START_PRICE);
       var news = settled ? state.lastSettlement.news : (state.current ? state.current.news : []);
-      wrap.appendChild(targetCard(currentTarget(), price, news));
+      wrap.appendChild(targetCard(currentTarget(), price, news, info));
       if (phase === "reveal_target") {
         wrap.appendChild(hostButton("ts-btn-start-betting", "ts_btn_start_betting", { type: "startBetting" }));
       } else if (phase === "bet") {

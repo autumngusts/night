@@ -11590,3 +11590,5 @@ html.midnight-no-select * {
 
 /* toushou 投票明細 */
 .ts-vote-detail { font-size: 0.85em; opacity: 0.8; }
+.ts-swan-badge { padding: 0.4rem 0.6rem; border-left: 4px solid #8a2be2; background: rgba(138, 43, 226, 0.08); }
+.ts-news-mod { font-size: 0.85em; opacity: 0.8; }
