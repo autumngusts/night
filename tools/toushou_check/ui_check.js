@@ -32,7 +32,7 @@ function debugState(page) { return page.evaluate(function () { return window.Pri
   await page.fill("#ts-player-count", "3");
   await page.dispatchEvent("#ts-player-count", "change");
   assert.strictEqual(await page.locator(".ts-player-name").count(), 3);
-  assert.strictEqual(await page.locator(".ts-cat").count(), 11, "11 categories listed");
+  assert.strictEqual(await page.locator(".ts-cat").count(), 17, "17 categories listed");
   await page.click("#ts-btn-randomize");
   assert.strictEqual(await page.locator(".ts-target-row").count(), 3);
   await page.click("#ts-btn-start");

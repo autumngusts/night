@@ -19,7 +19,9 @@ var DATA_FILES = [
   "toushou_data_company.js",
   "toushou_data_region.js",
   "toushou_data_food.js",
-  "toushou_data_anime.js"
+  "toushou_data_anime.js",
+  "toushou_data_culture.js",
+  "toushou_data_taiwan.js"
 ];
 
 function load(files) {
@@ -47,18 +49,26 @@ var w = load(hasCore ? DATA_FILES.concat(["toushou_core.js"]) : DATA_FILES);
 var D = w.PriTestToushouData;
 var Core = w.PriTestToushouCore;
 
-var CATEGORY_IDS = ["sengoku_event", "sengoku_person", "jp_celebrity", "jp_company",
-  "hokkaido", "tohoku", "kansai", "washoku", "yoshoku", "taiwan_food", "anime_game"];
+// 規則依據：docs/toushou_data_draft_v2.md（2026-10-16 定稿）。順序＝檔案載入順序
+var CATEGORY_IDS = ["sengoku_event", "sengoku_person", "jp_celebrity", "jp_company", "tw_company",
+  "hokkaido", "tohoku", "kansai", "kanto", "kyushu_okinawa", "washoku", "yoshoku", "taiwan_food",
+  "anime_game", "jp_sports", "jp_pop", "taiwan_spot"];
+var TARGET_COUNTS = {
+  sengoku_event: 6, sengoku_person: 10, jp_celebrity: 10, jp_company: 19, tw_company: 18,
+  hokkaido: 9, tohoku: 10, kansai: 10, kanto: 10, kyushu_okinawa: 11, washoku: 10, yoshoku: 10,
+  taiwan_food: 10, anime_game: 17, jp_sports: 10, jp_pop: 10, taiwan_spot: 10
+};
 var ROLES_ZH = {
   sengoku_event: "說書人", sengoku_person: "說書人", jp_celebrity: "經紀人", jp_company: "股東",
-  hokkaido: "地產商", tohoku: "地產商", kansai: "地產商",
-  washoku: "美食評論家", yoshoku: "美食評論家", taiwan_food: "美食評論家", anime_game: "黃牛"
+  tw_company: "股東", hokkaido: "地產商", tohoku: "地產商", kansai: "地產商", kanto: "地產商",
+  kyushu_okinawa: "地產商", washoku: "美食評論家", yoshoku: "美食評論家", taiwan_food: "美食評論家",
+  anime_game: "黃牛", jp_sports: "球評", jp_pop: "影評人", taiwan_spot: "在地導遊"
 };
 function bilingual(o, label) { assert.ok(o && o.zh && o.ja, label + " missing zh/ja"); }
 
 console.log("[data]");
 check("data module loaded", function () { assert.ok(D, "PriTestToushouData missing"); });
-check("11 categories in load order with role names", function () {
+check("17 categories in load order with role names", function () {
   assert.deepStrictEqual(D.CATEGORIES.map(function (c) { return c.id; }), CATEGORY_IDS);
   D.CATEGORIES.forEach(function (c) {
     bilingual(c.name, c.id);
@@ -66,12 +76,13 @@ check("11 categories in load order with role names", function () {
     assert.strictEqual(c.role.zh, ROLES_ZH[c.id], c.id);
   });
 });
-check("each category: 6 targets with summary, 2-3 tags, 3 hooks; ids unique", function () {
+check("target counts per category (190 total) with summary, 2-3 tags, 3 hooks; ids unique", function () {
   var ids = {};
   CATEGORY_IDS.forEach(function (cid) {
     var list = D.TARGETS.filter(function (t) { return t.category === cid; });
-    assert.strictEqual(list.length, 6, cid + " has " + list.length);
+    assert.strictEqual(list.length, TARGET_COUNTS[cid], cid + " has " + list.length);
   });
+  assert.strictEqual(D.TARGETS.length, 190);
   D.TARGETS.forEach(function (t) {
     assert.ok(!ids[t.id], "dup " + t.id); ids[t.id] = 1;
     bilingual(t.name, t.id);
@@ -81,11 +92,15 @@ check("each category: 6 targets with summary, 2-3 tags, 3 hooks; ids unique", fu
     t.tags.concat(t.hooks).forEach(function (x) { bilingual(x, t.id); });
   });
 });
-check("12 common cards + 6 per category, valid tone, unique ids", function () {
+check("12 common cards + 10 per category (2 up / 6 down / 2 neutral), unique ids", function () {
   var ids = {};
   assert.strictEqual(D.NEWS_CARDS.filter(function (c) { return c.category === null; }).length, 12);
   CATEGORY_IDS.forEach(function (cid) {
-    assert.strictEqual(D.NEWS_CARDS.filter(function (c) { return c.category === cid; }).length, 6, cid);
+    var cards = D.NEWS_CARDS.filter(function (c) { return c.category === cid; });
+    assert.strictEqual(cards.length, 10, cid);
+    ["up", "down", "neutral"].forEach(function (tone, i) {
+      assert.strictEqual(cards.filter(function (c) { return c.tone === tone; }).length, [2, 6, 2][i], cid + " " + tone);
+    });
   });
   D.NEWS_CARDS.forEach(function (c) {
     assert.ok(!ids[c.id], "dup " + c.id); ids[c.id] = 1;

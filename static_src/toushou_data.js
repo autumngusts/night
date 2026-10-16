@@ -1,7 +1,7 @@
 // 東正小遊戲（toushou）的共用資料：通用消息牌、風向、任務卡，以及類別登錄函式。
 // 各類別的標的與專屬消息牌放在 toushou_data_*.js，透過 registerCategory() 登錄。
 // 這裡不放任何規則邏輯；規則在 toushou_core.js。
-// 內容來源：docs/toushou_data_draft.md（2026-10-15 使用者審核通過）。
+// 內容來源：docs/toushou_data_draft_v2.md（2026-10-16 使用者定稿）。
 (function () {
   "use strict";
 
@@ -23,18 +23,18 @@
 
   // 通用消息牌：任何類別的標的都能用（除非該類別在 excludeCommonCards 中排除）
   [
-    N("g01", "up", "有名人が{target}を大絶賛", "名人公開大力推薦{target}"),
-    N("g02", "up", "{target}がSNSで突然バズる", "{target}在社群上意外爆紅"),
-    N("g03", "up", "海外メディアが{target}を大特集", "海外媒體大篇幅報導{target}"),
-    N("g04", "down", "{target}は実は名ばかりだと暴露される", "有人爆料{target}其實名不符實"),
-    N("g05", "down", "{target}のスキャンダルが発覚", "{target}被爆出醜聞"),
-    N("g06", "down", "専門家が{target}は持ち上げられすぎだと批判", "專家公開批評{target}被過度吹捧"),
-    N("g07", "down", "{target}のブームはもう終わったらしい", "{target}的熱潮據說已經退燒"),
-    N("g08", "down", "{target}より優れた代替品が登場", "出現比{target}更好的替代品"),
-    N("g09", "down", "ネットで{target}への長文の酷評が拡散", "網路上流傳{target}的負評長文"),
-    N("g10", "neutral", "近く{target}について重大発表があるらしい", "據說近期將有關於{target}的重大宣布"),
-    N("g11", "neutral", "大口投資家がひそかに{target}を売買しているらしい", "有大戶正在悄悄買賣{target}"),
-    N("g12", "neutral", "{target}への専門家の評価が真っ二つ", "專家對{target}的評價兩極")
+    N("g01", "up", "超人気YouTuberが{target}を紹介、動画が一晩で100万再生", "超人氣 YouTuber 開箱{target}，影片一夜破百萬觀看"),
+    N("g02", "up", "{target}がThreadsとTikTokで突然バズり、聖地巡礼が殺到", "{target}在 Threads 和 TikTok 意外爆紅，全網跟風打卡"),
+    N("g03", "up", "ニューヨーク・タイムズが{target}を一面特集、海外での知名度が急上昇", "《紐約時報》整版專題介紹{target}，國際知名度暴衝"),
+    N("g04", "down", "暴露系アカウント「{target}は完全に名ばかり」、コメント欄も同意一色", "爆料公社貼文：{target}根本名不符實，留言一面倒"),
+    N("g05", "down", "{target}にスキャンダル、文春砲がすでに動いているらしい", "{target}捲入醜聞，週刊文春已經在路上"),
+    N("g06", "down", "専門家がテレビで断言「{target}は持ち上げられすぎ」", "專家上節目直言：{target}被吹捧過頭了"),
+    N("g07", "down", "{target}の検索数が急落、「もうオワコン」の声", "網友發現{target}的搜尋熱度斷崖式下跌，「退流行了」"),
+    N("g08", "down", "ライバルが完全上位互換を発表、{target}が一気にかすむ", "對手推出完全上位替代品，{target}瞬間被比下去"),
+    N("g09", "down", "{target}を酷評する3000字の長文が掲示板で大炎上", "一篇三千字的{target}負評長文在 PTT 爆文"),
+    N("g10", "neutral", "近く{target}について「重大発表」があるらしい、内容は謎", "傳出{target}近期將有「重大宣布」，內容神秘"),
+    N("g11", "neutral", "謎の大口投資家がひそかに{target}を大量売買しているらしい", "有神秘大戶正在悄悄大量進出{target}"),
+    N("g12", "neutral", "{target}をめぐってコメンテーターが番組で大げんか、評価は真っ二つ", "名嘴為了{target}吵到節目差點開天窗，評價兩極")
   ].forEach(function (card) { NEWS_CARDS.push(card); });
 
   // def = { id, name, role, excludeCommonCards?, targets: [{id,name,summary,tags,hooks}], newsCards: [{id,tone,text}] }

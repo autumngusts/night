@@ -22,6 +22,8 @@ TOUSHOU_SCRIPTS: tuple[str, ...] = (
     "toushou_data_region.js",
     "toushou_data_food.js",
     "toushou_data_anime.js",
+    "toushou_data_culture.js",
+    "toushou_data_taiwan.js",
     "toushou_core.js",
     "toushou.js",
 )
