@@ -180,6 +180,8 @@
   function startGame() {
     ui.loading = true;
     ui.error = "";
+    ui.cat = "all";
+    ui.search = "";
     render();
     loadTheme(draft.themeId, function (err, theme) {
       ui.loading = false;
@@ -227,7 +229,7 @@
     var panel = el("div", { class: "gs-panel" }, [
       el("h2", { text: t("gs_targets", { name: p.name }) }),
       el("button", { id: "gs-toggle-targets", type: "button", text: t(ui.revealed ? "gs_hide_targets" : "gs_show_targets"),
-        onclick: function () { ui.revealed = !ui.revealed; render(); } })
+        onclick: function () { ui.revealed = !ui.revealed; ui.confirmNew = false; render(); } })
     ]);
     if (ui.revealed) panel.appendChild(targetList(theme, p, "gs-targets"));
     return panel;
@@ -275,6 +277,7 @@
 
   function doCombine() {
     var theme = themes[state.themeId];
+    ui.confirmNew = false;
     var res = Core.applyCombine(theme, state, ui.slots[0], ui.slots[1]);
     state = res.state;
     ui.lastEntry = res.entry;
@@ -286,6 +289,7 @@
 
   function pickItem(id) {
     if (ui.lastEntry || state.winner) return;
+    ui.confirmNew = false;
     if (!ui.slots[0]) ui.slots[0] = id;
     else ui.slots[1] = id;
     render();
@@ -341,8 +345,9 @@
         if (!back) return;
         state = back;
         resetTurnUi();
-        ui.handoff = false; // 復原後由同一位玩家重來
-        ui.revealed = true;
+        // 復原後回到輪到的玩家；同一裝置要重新交接，避免上一位的任務被下一位看到
+        ui.handoff = state.mode === "shared";
+        ui.revealed = false;
         save();
         render();
       } }),
@@ -352,6 +357,8 @@
         onclick: function () {
           if (!ui.confirmNew) { ui.confirmNew = true; render(); return; }
           state = null;
+          ui.cat = "all";
+          ui.search = "";
           resetTurnUi();
           ui.screen = "play";
           save();
