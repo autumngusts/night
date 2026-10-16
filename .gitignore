@@ -22,3 +22,5 @@ ui-debug.log
 tools/utau_clips/.venv/
 tools/utau_clips/cache/
 tools/utau_clips/out/
+tools/utau_clips/lyrics.json
+tools/utau_clips/models/

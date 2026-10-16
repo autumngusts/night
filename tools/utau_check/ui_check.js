@@ -61,7 +61,8 @@ function storedZip(files) {
   return Buffer.concat(locals.concat([cd, end]));
 }
 function makeTestPack() {
-  var variants = ["original", "instrumental", "vocal", "speed", "rhythm", "melody"];
+  var variants = ["original", "instrumental", "vocal", "other", "speed", "chip", "vocal_rev", "rhythm", "reverse",
+    "zh_read", "zh_sing", "zh_sing_inst", "ja_sing", "ja_sing_inst"];
   var songs = [
     { id: "ja:紅蓮華", t: "紅蓮華", a: "LiSA", y: 2019, r: "ja", c: "anime", key: "aaa" },
     { id: "ja:Lemon", t: "Lemon", a: "米津玄師", y: 2018, r: "ja", c: "screen", key: "bbb" }
@@ -157,7 +158,7 @@ function makeTestPack() {
   });
   assert.ok((await page.textContent("#ut-pack-status")).indexOf("2") >= 0);
   // 只留純樂器、只留動漫
-  for (var v of ["vocal", "speed", "rhythm", "melody"]) await page.uncheck("#ut-variant-" + v);
+  for (var v of ["vocal", "other", "speed", "chip", "vocal_rev", "rhythm", "reverse", "zh_read", "zh_sing", "ja_sing"]) await page.uncheck("#ut-variant-" + v);
   await page.uncheck("#ut-cat-screen");
   assert.ok((await page.textContent("#ut-pool-size")).indexOf("1") >= 0);
   await page.click("#ut-btn-start");
@@ -185,6 +186,39 @@ function makeTestPack() {
   // 重新整理後題庫包還在、播放鍵會再就緒
   await page.reload();
   await page.waitForSelector("#ut-btn-play:not([disabled])");
+
+  // ---- 中文歌聲的提示：播放 5 次後才能加上伴奏，不扣分 ----
+  await page.click("#ut-btn-finish");
+  await page.click("#ut-btn-back-setup");
+  await page.check("#ut-mode-advanced");
+  await page.waitForSelector("#ut-pool-size");
+  await page.uncheck("#ut-variant-instrumental");
+  await page.check("#ut-variant-zh_sing");
+  await page.check("#ut-cat-screen");
+  await page.click("#ut-btn-start");
+  s = await debugState(page);
+  assert.strictEqual(s.current.variant, "zh_sing");
+  assert.strictEqual(await page.locator("#ut-variant-zh_sing_inst").count(), 0, "hint clip is not a selectable version");
+  await page.waitForSelector("#ut-btn-play:not([disabled])");
+  assert.ok(await page.locator("#ut-btn-hint[disabled]").isVisible(), "hint locked at first");
+  assert.ok(await page.locator("#ut-ai-credit").isVisible(), "AI voice credit shown");
+  for (var n = 0; n < 5; n++) await page.dispatchEvent("#ut-btn-play", "click");
+  s = await debugState(page);
+  assert.strictEqual(s.current.plays, 5);
+  await page.waitForSelector("#ut-btn-hint:not([disabled])");
+  var hintSinger = s.current.singerId;
+  await page.click("#ut-btn-hint");
+  assert.ok(await page.locator("#ut-hint-on").isVisible());
+  // 提示後主播放器換成「歌聲＋伴奏」的音檔
+  await page.waitForSelector("#ut-btn-play:not([disabled])");
+  var hintGuesser = s.config.players.map(function (p) { return p.id; }).filter(function (id) { return id !== hintSinger; })[0];
+  await page.click(".ut-player-toggle[data-player='" + hintGuesser + "']");
+  var beforeHint = (await debugState(page)).scores[hintSinger];
+  await page.click("#ut-btn-settle");
+  s = await debugState(page);
+  assert.strictEqual(s.history[s.history.length - 1].hint, true);
+  assert.strictEqual(s.scores[hintSinger] - beforeHint, s.config.scoreTable[1], "hint does not change scoring");
+  assert.ok((await page.textContent("#ut-last-round")).indexOf("用了提示") >= 0, "history shows the hint");
 
   // ================= 夢想模式（YouTube）=================
   await page.click("#ut-btn-finish");

@@ -117,7 +117,8 @@
         regions: (prev.regions || []).slice(),
         decades: (prev.decades || []).slice(),
         categories: (prev.categories || allCategories()).slice(),
-        variants: (prev.variants || allVariants()).slice(),
+        // 舊設定可能留著已拿掉的版本（例如 melody），只保留目前清單裡有的
+        variants: (prev.variants || allVariants()).filter(function (v) { return allVariants().indexOf(v) >= 0; }),
         clipSeconds: prev.clipSeconds || 12,
         randomSpeed: !!prev.randomSpeed
       };
@@ -467,7 +468,8 @@
     var singer = nameOf(cur.singerId);
     var song = currentPackSong();
     var variant = Songs.variant(cur.variant);
-    prepareAudio("main", song, cur.variant);
+    // 用了提示：改播提示音檔（例：中文歌聲 → 歌聲＋伴奏）
+    prepareAudio("main", song, cur.hint ? Core.hintClip(cur.variant) : cur.variant);
     var ready = !!audio.urls.main;
     var panel = el("div", { class: "ut-panel ut-topic", id: "ut-topic" }, [
       el("p", { text: t("ut_advanced_hint", { name: singer }) }),
@@ -475,10 +477,28 @@
       variant ? el("p", { class: "ut-style-desc", text: lt(variant.desc) }) : null,
       el("div", { class: "ut-actions" }, [
         el("button", { type: "button", id: "ut-btn-play", class: "ut-primary", disabled: !ready,
-          text: ready ? t("ut_btn_play") : t("ut_loading"), onclick: function () { playAudio("main"); } }),
+          text: ready ? t("ut_btn_play") : t("ut_loading"), onclick: function () {
+            playAudio("main"); // 先同步 play()（iOS 只允許在點擊當下播放），再記錄次數
+            state = Core.recordPlay(state);
+            save();
+            render();
+          } }),
         el("button", { type: "button", id: "ut-btn-stop", text: t("ut_btn_stop"), onclick: function () { audio.main.pause(); } })
       ])
     ]);
+    if (Core.hasHint(state)) {
+      var left = Core.playsUntilHint(state);
+      panel.appendChild(el("div", { class: "ut-actions" }, [
+        cur.hint
+          ? el("span", { class: "ut-style-badge", id: "ut-hint-on", text: t("ut_hint_on") })
+          : el("button", { type: "button", id: "ut-btn-hint", disabled: left > 0,
+            text: left > 0 ? t("ut_btn_hint_locked", { n: left }) : t("ut_btn_hint"),
+            onclick: function () { state = Core.useHint(state); save(); render(); } })
+      ]));
+    }
+    // 聲庫／角色的使用規約要求標示名稱
+    if (cur.variant === "zh_sing") panel.appendChild(el("p", { class: "ut-muted", id: "ut-ai-credit", text: t("ut_ai_credit") }));
+    if (cur.variant === "ja_sing") panel.appendChild(el("p", { class: "ut-muted", id: "ut-ai-credit", text: t("ut_vv_credit") }));
     // 出題者偷看答案（判定答對用），其他人不要看
     if (!ui.revealed) {
       panel.appendChild(el("div", { class: "ut-actions" }, [
@@ -738,6 +758,7 @@
       t("ut_hist_round", { n: h.round, name: nameOf(h.singerId) }),
       h.song ? songLine(h.song, h.variant) : null,
       h.dream && h.dream.videoId ? t("ut_hist_dream", { title: h.dream.title || h.dream.videoId }) : null,
+      h.hint ? t("ut_hist_hint") : null,
       t("ut_hist_ai", { result: h.aiCorrect ? t("ut_ai_on") : t("ut_ai_off") }),
       t("ut_hist_correct", { list: names.length ? names.join(t("ut_list_sep")) : t("ut_nobody") })
     ];

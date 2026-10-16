@@ -7,10 +7,14 @@
 //   ・AI 答對：出題者另得 aiBonus
 // 抽人規則：每一輪隨機抽一位出題者，抽完一圈之前不重複。
 // 模式：basic（出題者自己唱）／advanced（播放題庫包音檔）／dream（出題者給 YouTube 連結，播隨機一段）
+// 提示（使用者指定，2026-10-17）：有提示音檔的版本（中文歌聲 → 加上伴奏），本輪播放滿 HINT_PLAYS 次後才能使用；
+//   使用提示不影響計分，只在紀錄中標示。
 (function () {
   "use strict";
 
   var Songs = window.PriTestUtauSongs;
+
+  var HINT_PLAYS = 5;
 
   function rand(rng) { return rng ? rng() : Math.random(); }
 
@@ -108,6 +112,8 @@
     var variants = playableVariants(s.config, song);
     s.current.songId = song.id;
     s.current.variant = variants[Math.floor(rand(rng) * variants.length)];
+    s.current.plays = 0;
+    s.current.hint = false;
   }
 
   // 夢想模式：每輪的播放速度（開「隨機變速」時 0.75 或 1.25 倍）
@@ -119,7 +125,7 @@
   function startRound(s, rng) {
     var singerId = drawSinger(s, rng);
     s.round += 1;
-    s.current = { singerId: singerId, songId: null, variant: null, dream: null };
+    s.current = { singerId: singerId, songId: null, variant: null, dream: null, plays: 0, hint: false };
     if (s.config.mode === "advanced") drawSong(s, rng);
     if (s.config.mode === "dream") s.current.dream = { videoId: null, start: null, rate: drawRate(s, rng), title: "" };
   }
@@ -175,7 +181,8 @@
       dream: cur.dream ? { videoId: cur.dream.videoId, title: cur.dream.title } : null,
       aiCorrect: !!result.aiCorrect,
       correctIds: correctIds,
-      deltas: deltas
+      deltas: deltas,
+      hint: !!cur.hint
     });
     s.prev = prevSnapshot;
     startRound(s, rng);
@@ -186,6 +193,47 @@
   function undo(state) {
     if (!state.prev) throw new Error("ut_err_no_undo");
     return clone(state.prev);
+  }
+
+  // ---- 提示 ----
+
+  // 這個版本的提示音檔名稱（例：zh_sing → zh_sing_inst），沒有提示則為 null
+  function hintClip(variantId) {
+    var v = Songs && Songs.variant ? Songs.variant(variantId) : null;
+    return v && v.hint ? v.hint : null;
+  }
+
+  // 本輪有沒有提示可用（不論是否已解鎖）：版本有提示，且這首歌的題庫包裡有提示音檔
+  function hasHint(state) {
+    var cur = state.current;
+    if (!cur || state.config.mode !== "advanced" || !cur.songId) return false;
+    var clip = hintClip(cur.variant);
+    var song = findPackSong(state.config, cur.songId);
+    return !!(clip && song && (song.variants || []).indexOf(clip) >= 0);
+  }
+
+  // 還要再播幾次才能用提示（0＝已可使用）
+  function playsUntilHint(state) {
+    return Math.max(0, HINT_PLAYS - ((state.current && state.current.plays) || 0));
+  }
+
+  function hintAvailable(state) {
+    return hasHint(state) && playsUntilHint(state) === 0;
+  }
+
+  // 按一次「播放」
+  function recordPlay(state) {
+    var s = clone(state);
+    s.current.plays = (s.current.plays || 0) + 1;
+    return s;
+  }
+
+  // 使用提示（未解鎖時不動作）
+  function useHint(state) {
+    if (!hintAvailable(state)) return state;
+    var s = clone(state);
+    s.current.hint = true;
+    return s;
   }
 
   // 出題者沒換、只重抽歌（或演唱方式）
@@ -252,6 +300,13 @@
     settle: settle,
     undo: undo,
     redrawSong: redrawSong,
+    HINT_PLAYS: HINT_PLAYS,
+    hintClip: hintClip,
+    hasHint: hasHint,
+    playsUntilHint: playsUntilHint,
+    hintAvailable: hintAvailable,
+    recordPlay: recordPlay,
+    useHint: useHint,
     finish: finish,
     ranking: ranking
   };

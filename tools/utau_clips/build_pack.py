@@ -7,9 +7,17 @@
   original      原曲（結算後公布答案時播放）
   instrumental  純樂器：Demucs 去掉人聲
   vocal         純人聲：Demucs 只留人聲（幾乎沒有人聲的曲子會略過）
-  speed         變速變調：整段加速升調或放慢降調
+  other         只有旋律樂器：Demucs 的 other（拿掉人聲、鼓、貝斯）
+  speed         極端變快：1.5 倍速＋升 6 半音
+  chip          8bit 旋律：人聲旋律用 CREPE 辨識成音符，再用脈衝波（紅白機音色）演奏
+  vocal_rev     人聲倒放：伴奏正常、人聲倒著放
   rhythm        只留鼓＋貝斯
-  melody        八音盒／8bit 旋律版：人聲旋律用 pYIN 轉成音符後重新合成（偶爾會轉錯）
+  reverse       整段倒放
+  zh_read       中文朗讀＋伴奏（需要 lyrics.json 的中文譯詞，見 zh_voice.py）
+  zh_sing       中文歌聲：DiffSinger 聲庫用中文填詞唱原曲旋律（需要 lyrics.json 的填詞與 models/ 的聲庫）
+  zh_sing_inst  中文歌聲＋伴奏（遊戲中播放 5 次後可用的提示，不是獨立的題目版本）
+  ja_sing       日文歌聲：VOICEVOX 角色用日文填詞唱原曲旋律（華語歌用；需要 lyrics.json 的 ja_sing 與 VOICEVOX ENGINE）
+  ja_sing_inst  日文歌聲＋伴奏（提示）
 
 用法（詳見同目錄 README.md）：
   tools/utau_clips/.venv/Scripts/python.exe tools/utau_clips/build_pack.py
@@ -19,14 +27,27 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import html
 import json
+import os
+import re
 import subprocess
 import sys
 import zipfile
 from pathlib import Path
 
+import warnings
+
+# Demucs 模型由 huggingface_hub 下載；Windows 沒有 symlink 權限、沒設 HF_TOKEN 時會洗版警告，與製作結果無關
+os.environ.setdefault("HF_HUB_DISABLE_SYMLINKS_WARNING", "1")
+os.environ.setdefault("HF_HUB_VERBOSITY", "error")
+warnings.filterwarnings("ignore", module="huggingface_hub")
+
 import numpy as np
 import soundfile as sf
+
+import ja_voice
+import zh_voice
 
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parent.parent
@@ -35,7 +56,12 @@ CACHE = HERE / "cache"
 OUT = HERE / "out"
 SR = 44100
 PAD = 1.0  # 分離時前後多留的秒數（給 Demucs 上下文，成品會剪掉）
-VARIANTS = ("original", "instrumental", "vocal", "speed", "rhythm", "melody")
+VARIANTS = ("original", "instrumental", "vocal", "zh_read", "other", "speed", "chip", "zh_sing", "zh_sing_inst",
+            "ja_sing", "ja_sing_inst", "vocal_rev", "rhythm", "reverse")
+# 製作方式改變時遞增：快取資料夾名稱含此版本，舊成品自動失效
+# 2：使用者試聽後，變速改極端變快、拿掉八音盒／8bit、新增 other／vocal_rev／reverse（2026-10-16）
+# 3：新增 chip（CREPE 版 8bit 旋律；使用者試聽三種程度後選「只有主旋律」）
+RECIPE = 3
 PACK_FORMAT = "pritest-utau-pack"
 PACK_VERSION = 1
 
@@ -73,10 +99,35 @@ def song_catalog() -> dict[str, dict]:
     return {s["id"]: s for s in json.loads(out.stdout.decode("utf-8"))}
 
 
+def load_entries(path: Path) -> list[dict]:
+    if not path.exists():
+        return []
+    return json.loads(path.read_text(encoding="utf-8") or "[]")
+
+
+def save_entries(path: Path, entries: list[dict]) -> None:
+    """一首一行寫回清單，方便人工檢查與修改。"""
+    lines = [json.dumps(e, ensure_ascii=False) for e in entries]
+    body = "[\n  " + ",\n  ".join(lines) + "\n]\n" if lines else "[]\n"
+    path.write_text(body, encoding="utf-8")
+
+
+YOUTUBE_ID = re.compile(
+    r"(?:youtube\.com/(?:watch\?(?:.*&)?v=|shorts/|embed/|live/)|youtu\.be/)([A-Za-z0-9_-]{11})"
+)
+
+
+def normalize_source(src: str) -> str:
+    """YouTube 的各種網址（youtu.be、shorts、music.youtube、帶 &t= 等）統一成 watch?v=<id>，
+    同一支影片才不會因網址寫法不同而重複下載、算出不同的快取雜湊。"""
+    m = YOUTUBE_ID.search(src)
+    return f"https://www.youtube.com/watch?v={m.group(1)}" if m else src
+
+
 def resolve_entry(entry: dict, catalog: dict[str, dict]) -> dict:
     """songs.json 的一筆 → 完整歌曲資料。id 對得到歌單就沿用歌單的歌名等欄位，也可以全部自己寫。"""
     if not entry.get("url") and not entry.get("file"):
-        raise ValueError(f"需要 url 或 file：{entry}")
+        raise ValueError(f"{entry.get('id') or entry}：需要 url 或 file（可以先跑 find_urls.py 自動搜尋）")
     base = dict(catalog.get(entry.get("id", ""), {}))
     for key in ("t", "a", "y", "r", "c"):
         if key in entry:
@@ -85,8 +136,13 @@ def resolve_entry(entry: dict, catalog: dict[str, dict]) -> dict:
     if missing:
         raise ValueError(f"{entry.get('id') or entry}：歌單裡找不到這個 id，請補上欄位 {missing}")
     base["id"] = entry.get("id") or f"{base['r']}:{base['t']}"
-    base["source"] = entry.get("url") or str(Path(entry["file"]).resolve())
+    base["source"] = normalize_source(entry["url"]) if entry.get("url") else str(Path(entry["file"]).resolve())
     base["start"] = entry.get("start")
+    skip = entry.get("skip") or []
+    bad = [v for v in skip if v not in VARIANTS or v == "original"]
+    if bad:
+        raise ValueError(f"{base['id']}：skip 只能填 {list(VARIANTS[1:])}，不認得 {bad}（原曲公布答案要用，不能略過）")
+    base["skip"] = list(skip)
     return base
 
 
@@ -98,61 +154,111 @@ def source_key(source: str) -> str:
 
 
 def fetch_source(song: dict) -> Path:
-    """下載（或轉檔）成 44.1kHz 立體聲 wav，結果存在 cache/src/。"""
-    key = source_key(song["source"])
-    wav = CACHE / "src" / f"{key}.wav"
-    if wav.exists():
-        return wav
-    wav.parent.mkdir(parents=True, exist_ok=True)
+    """YouTube 下載到 cache/dl/（只留原始壓縮檔，一首約 4MB；不另存整首 wav，那一首要 40MB）。本機檔直接回傳。"""
     src = song["source"]
-    if src.startswith("http"):
-        import yt_dlp
+    if not src.startswith("http"):
+        return Path(src)
+    key = source_key(src)
+    dl_dir = CACHE / "dl"
+    found = sorted(p for p in dl_dir.glob(f"{key}.*") if not p.name.endswith(".part"))
+    if found:
+        return found[0]
+    import yt_dlp
 
-        dl_dir = CACHE / "dl"
-        dl_dir.mkdir(parents=True, exist_ok=True)
-        opts = {
-            "format": "bestaudio/best",
-            "outtmpl": str(dl_dir / f"{key}.%(ext)s"),
-            "noplaylist": True,
-            "quiet": True,
-            "no_warnings": True,
-            "ffmpeg_location": ffmpeg_exe(),
-        }
-        with yt_dlp.YoutubeDL(opts) as ydl:
-            info = ydl.extract_info(src, download=True)
-            src = ydl.prepare_filename(info)
-    run_ffmpeg(["-i", src, "-vn", "-ac", "2", "-ar", str(SR), str(wav)])
-    return wav
+    dl_dir.mkdir(parents=True, exist_ok=True)
+    opts = {
+        "format": "bestaudio/best",
+        "outtmpl": str(dl_dir / f"{key}.%(ext)s"),
+        "noplaylist": True,
+        "quiet": True,
+        "no_warnings": True,
+        "noprogress": True,
+        "ffmpeg_location": ffmpeg_exe(),
+    }
+    with yt_dlp.YoutubeDL(opts) as ydl:
+        info = ydl.extract_info(src, download=True)
+        return Path(ydl.prepare_filename(info))
 
 
 def load_audio(path: Path) -> np.ndarray:
-    audio, sr = sf.read(str(path), dtype="float32", always_2d=True)
-    assert sr == SR, sr
-    if audio.shape[1] == 1:
-        audio = np.repeat(audio, 2, axis=1)
-    return audio[:, :2]
+    """用 ffmpeg 解碼成 44.1kHz 立體聲 float32，直接從管線讀進記憶體。"""
+    out = subprocess.run(
+        [ffmpeg_exe(), "-hide_banner", "-loglevel", "error", "-i", str(path), "-vn",
+         "-ac", "2", "-ar", str(SR), "-f", "f32le", "-"],
+        check=True, capture_output=True,
+    )
+    return np.frombuffer(out.stdout, dtype=np.float32).reshape(-1, 2).copy()
 
 
 # ---------------- 副歌位置 ----------------
 
 
+STEP = 0.5  # 副歌偵測的時間解析度（秒）
+
+
+def _repetition(chroma: np.ndarray, win: int) -> np.ndarray:
+    """rep[i] = 從第 i 格開始、長 win 格的片段，與全曲其他不重疊位置最相似的程度（和聲進行的重複度）。"""
+    n = chroma.shape[1]
+    sim = chroma.T @ chroma
+    rep = np.zeros(max(0, n - win + 1))
+    kernel = np.ones(win) / win
+    for lag in range(win, n - win + 1):
+        m = np.convolve(np.diagonal(sim, offset=lag), kernel, mode="valid")  # 片段 i 與片段 i+lag 的相似度
+        rep[: len(m)] = np.maximum(rep[: len(m)], m)
+        rep[lag: lag + len(m)] = np.maximum(rep[lag: lag + len(m)], m)
+    return rep
+
+
+def _z(x: np.ndarray) -> np.ndarray:
+    return (x - x.mean()) / (x.std() + 1e-9)
+
+
 def pick_start(audio: np.ndarray, clip: float) -> float:
-    """沒指定 start 時：在全曲 25%〜75% 之間找平均音量最大的一段（通常是副歌）。"""
+    """沒指定 start 時自動找副歌（2026-10-16 以 Whisper 辨識片段歌詞驗證，見 docs/utau_game_design.md §6.3）。
+
+    1. 分數＝音量（z 分數）＋重複度（z 分數）− 0.6 × 在全曲的位置：副歌大聲、會重複出現；
+       只看音量容易選到 C 段或最後一次副歌，加上重複度與「偏好前面」後選到的是第一次完整副歌。
+    2. 只在全曲 15%〜80% 之間找（避開前奏、尾奏）。
+    3. 從最高分往前退，退到分數仍在最高分 −1 以內的平台開頭（最多 8 秒），讓片段從副歌第一句開始，而不是句子中間。
+    4. 對齊到起點前後 1 秒內 onset 最強的拍點。
+    """
+    import librosa
+
     total = len(audio) / SR
     if total <= clip + 2 * PAD:
         return 0.0
-    mono = audio.mean(axis=1)
-    hop = SR // 2  # 0.5 秒一格
-    n = len(mono) // hop
-    rms = np.sqrt(np.mean(mono[: n * hop].reshape(n, hop) ** 2, axis=1))
-    win = int(clip * 2)
-    sums = np.convolve(rms, np.ones(win), mode="valid")  # sums[i] = 從 i*0.5 秒開始的 clip 秒
-    lo = max(int(total * 0.25 * 2), int(PAD * 2))
-    hi = min(int(total * 0.75 * 2), len(sums) - 1 - int(PAD * 2))
-    if hi <= lo:
+    sr = 22050
+    y = librosa.resample(audio.mean(axis=1), orig_sr=SR, target_sr=sr)
+    hop = int(sr * STEP)
+    rms = librosa.feature.rms(y=y, frame_length=hop, hop_length=hop, center=False)[0]
+    chroma = librosa.feature.chroma_cqt(y=y, sr=sr, hop_length=512)
+    per = hop // 512
+    n = min(len(rms), chroma.shape[1] // per)
+    chroma = chroma[:, : n * per].reshape(12, n, per).mean(axis=2)
+    chroma = chroma / (np.linalg.norm(chroma, axis=0, keepdims=True) + 1e-9)
+
+    win = int(clip / STEP)
+    loud = np.convolve(rms[:n], np.ones(win) / win, mode="valid")
+    rep = _repetition(chroma, win)
+    m = min(len(loud), len(rep))
+    t = np.arange(m) * STEP
+    score = _z(loud[:m]) + _z(rep[:m]) - 0.6 * t / total
+    ok = (t >= total * 0.15) & (t <= total * 0.8) & (t >= PAD) & (t + clip + PAD <= total)
+    if not ok.any():
         return max(0.0, (total - clip) / 2)
-    best = lo + int(np.argmax(sums[lo:hi + 1]))
-    return best / 2
+    best = int(np.argmax(np.where(ok, score, -np.inf)))
+    i = best
+    while i > 0 and ok[i - 1] and (best - i + 1) * STEP <= 8 and score[i - 1] >= score[best] - 1.0:
+        i -= 1
+    start = i * STEP
+
+    oenv = librosa.onset.onset_strength(y=y, sr=sr, hop_length=512)
+    _, beats = librosa.beat.beat_track(onset_envelope=oenv, sr=sr, hop_length=512)
+    times = librosa.frames_to_time(beats, sr=sr, hop_length=512)
+    near = [(oenv[b], bt) for b, bt in zip(beats, times) if abs(bt - start) <= 1.0 and bt >= PAD]
+    if near:
+        start = float(max(near)[1])
+    return round(start, 2)
 
 
 # ---------------- 音源分離 ----------------
@@ -179,62 +285,127 @@ def separate(segment: np.ndarray) -> dict[str, np.ndarray]:
     return {name: out[i].numpy().T.astype(np.float32) for i, name in enumerate(_MODEL.sources)}
 
 
-# ---------------- 旋律合成 ----------------
+# ---------------- 8bit 旋律 ----------------
 
 
-def extract_notes(vocals: np.ndarray) -> list[tuple[float, float, int]]:
-    """人聲 → (開始秒, 長度秒, MIDI 音高) 的音符列表。"""
+def crepe_notes(vocals: np.ndarray) -> list[tuple[float, float, int]]:
+    """人聲 → 音符 [(開始秒, 長度秒, MIDI)]。
+
+    音高用 CREPE（torchcrepe）：舊版 pYIN 在快節奏人聲上大多判為無聲，原唱在唱的時間只有 18〜66% 有音符，
+    聽不出是什麼歌；CREPE 提高到 64〜96%，音準（±1 半音）96〜100%（2026-10-16 以 6 首實測）。
+    1. 逐格（10ms）音高，periodicity > 0.3 視為有聲，四捨五入成半音，5 格中值濾波。
+    2. 同音高之間 ≤ 30ms 的斷訊補起來。
+    3. 同音高連續格成一個音，但在人聲的發音起點（onset）切開，保留歌詞的節奏（重複同音的音節）。
+    4. 與下一個音間隔 < 0.12 秒就延長補滿；離中位數超過 9 半音的音移八度（八度誤判）。
+    """
     import librosa
+    import torch
+    import torchcrepe
 
-    sr = 22050
-    y = librosa.resample(vocals.mean(axis=1), orig_sr=SR, target_sr=sr)
-    hop = 256
-    f0, voiced, prob = librosa.pyin(
-        y, fmin=librosa.note_to_hz("C2"), fmax=librosa.note_to_hz("C6"), sr=sr, frame_length=2048, hop_length=hop
+    y16 = librosa.resample(vocals.mean(axis=1), orig_sr=SR, target_sr=16000)
+    f0, per = torchcrepe.predict(
+        torch.tensor(y16)[None], 16000, hop_length=160, fmin=80, fmax=1000, model="full",
+        return_periodicity=True, batch_size=512, device="cpu", decoder=torchcrepe.decode.viterbi,
     )
-    midi = np.where(voiced & (prob > 0.3), np.round(librosa.hz_to_midi(np.nan_to_num(f0, nan=1.0))), 0).astype(int)
-    # 中值濾波去掉一兩格的抖動
-    smooth = midi.copy()
+    f0, per = f0[0].numpy(), per[0].numpy()
+    frame = 0.01
+    midi = np.where(per > 0.3, np.round(librosa.hz_to_midi(f0)), 0).astype(int)
+    sm = midi.copy()
     for i in range(2, len(midi) - 2):
-        smooth[i] = int(np.median(midi[i - 2:i + 3]))
-    notes = []
-    frame = hop / sr
+        sm[i] = int(np.median(midi[i - 2:i + 3]))
     i = 0
-    while i < len(smooth):
+    while i < len(sm):
+        if sm[i]:
+            i += 1
+            continue
         j = i
-        while j < len(smooth) and smooth[j] == smooth[i]:
+        while j < len(sm) and not sm[j]:
             j += 1
-        if smooth[i] > 0 and (j - i) * frame >= 0.08:
-            notes.append((i * frame, (j - i) * frame, int(smooth[i])))
+        if 0 < i and j < len(sm) and j - i <= 3 and sm[i - 1] == sm[j]:
+            sm[i:j] = sm[j]
         i = j
-    return notes
+    onsets = {int(o) for o in librosa.onset.onset_detect(y=y16, sr=16000, hop_length=160, backtrack=True, units="frames")}
+    notes = []
+    i = 0
+    while i < len(sm):
+        j = i + 1
+        while j < len(sm) and sm[j] == sm[i] and j not in onsets:
+            j += 1
+        if sm[i] > 0 and (j - i) * frame >= 0.06:
+            notes.append([i * frame, (j - i) * frame, int(sm[i])])
+        i = j
+    for a, b in zip(notes, notes[1:]):
+        if 0 < b[0] - (a[0] + a[1]) < 0.12:
+            a[1] = b[0] - a[0]
+    if notes:
+        med = np.median([n[2] for n in notes])
+        for n in notes:
+            n[2] -= 12 * round((n[2] - med) / 12) if abs(n[2] - med) > 9 else 0
+    return [tuple(n) for n in notes]
 
 
-def synth_melody(notes: list[tuple[float, float, int]], length: float, timbre: str) -> np.ndarray:
-    """音符 → 單聲道音訊。musicbox：衰減的正弦＋泛音；chip：方波（8bit）。"""
+def synth_chip(notes: list[tuple[float, float, int]], length: float) -> np.ndarray:
+    """音符 → 25% 脈衝波（紅白機的主旋律音色）。整體移八度讓旋律中位數落在 D5 附近；長音 0.2 秒後加一點顫音。"""
     out = np.zeros(int(length * SR), dtype=np.float32)
     if not notes:
         return out
-    # 移八度，讓旋律落在該音色好聽的音域
-    center = 76 if timbre == "musicbox" else 69
-    shift = 12 * round((center - float(np.median([n[2] for n in notes]))) / 12)
+    shift = 12 * round((74 - float(np.median([n[2] for n in notes]))) / 12)
     for start, dur, pitch in notes:
+        n = int(dur * SR)
+        t = np.arange(n) / SR
         freq = 440.0 * 2 ** ((pitch + shift - 69) / 12)
-        if timbre == "musicbox":
-            ring = max(dur, 0.6)
-            t = np.arange(int(ring * SR)) / SR
-            wave = np.sin(2 * np.pi * freq * t) + 0.3 * np.sin(4 * np.pi * freq * t) + 0.08 * np.sin(8 * np.pi * freq * t)
-            env = np.exp(-t / 0.35) * np.minimum(1.0, t / 0.004)
-        else:
-            t = np.arange(int(dur * SR)) / SR
-            wave = np.sign(np.sin(2 * np.pi * freq * t)) * 0.5
-            env = np.minimum(1.0, t / 0.005) * np.minimum(1.0, (dur - t) / 0.02 + 1e-3).clip(0, 1)
-        seg = (wave * env).astype(np.float32)
+        depth = np.clip((t - 0.2) / 0.15, 0, 1) * 0.25 if dur > 0.3 else 0.0
+        phase = np.cumsum(freq * 2 ** (depth * np.sin(2 * np.pi * 5.5 * t) / 12)) / SR
+        wave = np.where(phase % 1.0 < 0.25, 1.0, -1.0)
+        env = np.minimum(1.0, t / 0.004) * np.clip((dur - t) / 0.02, 0, 1) * (0.85 + 0.15 * np.exp(-t / 0.08))
         a = int(start * SR)
-        b = min(len(out), a + len(seg))
+        b = min(len(out), a + n)
         if b > a:
-            out[a:b] += seg[: b - a]
+            out[a:b] += (wave * env)[: b - a].astype(np.float32)
     return out
+
+
+# ---------------- 中文版（朗讀／歌聲）----------------
+
+
+def build_zh(song: dict, res: dict, lyrics: dict, clip: float) -> dict[str, Path]:
+    """lyrics.json 有這首歌的譯詞／填詞時，做出 zh_read／zh_sing／zh_sing_inst／ja_sing／ja_sing_inst。
+    快取在成品資料夾的 zh-<歌詞雜湊>/（歌詞或製作方式改變就重做）。"""
+    entry = lyrics.get(song["id"])
+    if not entry:
+        return {}
+    if abs(float(entry.get("start", -1)) - res["start"]) > 0.01:
+        log(f"    lyrics.json 的起點（{entry.get('start')}）與這次（{res['start']:g}）不同，略過中文版；請重新聽寫歌詞")
+        return {}
+    can_read, can_sing = zh_voice.ready(entry)
+    can_ja = ja_voice.ready(entry)
+    out_dir = res["dir"] / f"zh-{zh_voice.lyric_key(entry)}"
+    want = ((["zh_read"] if can_read else []) + (["zh_sing", "zh_sing_inst"] if can_sing else [])
+            + (["ja_sing", "ja_sing_inst"] if can_ja else []))
+    made = {name: out_dir / f"{name}.m4a" for name in want}
+    if all(p.exists() for p in made.values()):
+        return made
+    out_dir.mkdir(parents=True, exist_ok=True)
+    tmp = out_dir / "tmp.wav"
+    inst = load_audio(res["dir"] / "instrumental.m4a").mean(axis=1)
+    if can_read and not made["zh_read"].exists():
+        log("    中文朗讀…")
+        voice = zh_voice.read_aloud(entry, clip, out_dir, load_audio, ffmpeg_exe())
+        encode(finish(zh_voice.over_backing(voice, inst, 0.45)), made["zh_read"], tmp)
+    if can_sing and not (made["zh_sing"].exists() and made["zh_sing_inst"].exists()):
+        log("    中文歌聲…")
+        vocals = load_audio(res["dir"] / "vocal.m4a")
+        wav = zh_voice.sing(entry, vocals, crepe_notes(vocals), clip)
+        encode(finish(wav), made["zh_sing"], tmp)
+        encode(finish(zh_voice.over_backing(wav, inst, 0.5)), made["zh_sing_inst"], tmp)
+    if can_ja and not (made["ja_sing"].exists() and made["ja_sing_inst"].exists()):
+        log("    日文歌聲（VOICEVOX）…")
+        vocals = load_audio(res["dir"] / "vocal.m4a")
+        wav = ja_voice.sing(entry, vocals, crepe_notes(vocals), clip, load_audio)
+        encode(finish(wav), made["ja_sing"], tmp)
+        encode(finish(zh_voice.over_backing(wav, inst, 0.5)), made["ja_sing_inst"], tmp)
+    tmp.unlink(missing_ok=True)
+    return made
 
 
 # ---------------- 混音與輸出 ----------------
@@ -271,23 +442,36 @@ def encode(audio: np.ndarray, dest: Path, tmp: Path, filters: str | None = None)
     run_ffmpeg(args)
 
 
-def speed_filter(key: str) -> str:
-    """變速變調：依歌曲固定選「快＋升 3 半音」或「慢＋降 3 半音」。"""
-    fast = int(key, 16) % 2 == 0
-    tempo, semis = (1.3, 3) if fast else (0.8, -3)
+def speed_filter(tempo: float = 1.5, semis: int = 6) -> str:
+    """極端變快：asetrate 改音高，再用 atempo 補成指定速度。
+    使用者試聽後指定 1.5 倍速＋升 6 半音（舊版 1.3 倍＋3 半音太簡單；放慢版不採用）。"""
     ratio = 2 ** (semis / 12)
     return f"asetrate={SR}*{ratio:.6f},aresample={SR},atempo={tempo / ratio:.6f}"
 
 
 def build_song(song: dict, clip: float) -> dict:
-    wav = fetch_source(song)
-    audio = load_audio(wav)
-    start = float(song["start"]) if song["start"] is not None else pick_start(audio, clip)
     key = source_key(song["source"])
-    out_dir = CACHE / "clips" / f"{key}-{start:g}-{clip:g}"
+
+    def cached(start: float) -> dict | None:
+        out_dir = CACHE / "clips" / f"{key}-{start:g}-{clip:g}-r{RECIPE}"
+        meta = out_dir / "clips.json"
+        if meta.exists():
+            return {"start": start, "dir": out_dir, "clips": json.loads(meta.read_text(encoding="utf-8"))}
+        return None
+
+    # 起點已知且做過：不必下載、解碼
+    if song["start"] is not None and (hit := cached(float(song["start"]))):
+        return hit
+    audio = load_audio(fetch_source(song))
+    if song["start"] is not None:
+        start = float(song["start"])
+    else:
+        log("    尋找副歌…")
+        start = pick_start(audio, clip)
+        if hit := cached(start):
+            return hit
+    out_dir = CACHE / "clips" / f"{key}-{start:g}-{clip:g}-r{RECIPE}"
     meta_path = out_dir / "clips.json"
-    if meta_path.exists():
-        return {"start": start, "dir": out_dir, "clips": json.loads(meta_path.read_text(encoding="utf-8"))}
     out_dir.mkdir(parents=True, exist_ok=True)
 
     a = max(0, int((start - PAD) * SR))
@@ -305,25 +489,92 @@ def build_song(song: dict, clip: float) -> dict:
         encode(finish(data), out_dir / f"{name}.m4a", tmp, filters)
         made.append(name)
 
-    write("original", segment[body])
-    write("instrumental", (stems["drums"] + stems["bass"] + stems["other"])[body])
-    write("rhythm", (stems["drums"] + stems["bass"])[body])
-    write("speed", segment[body], speed_filter(key))
+    original = segment[body]
+    instrumental = (stems["drums"] + stems["bass"] + stems["other"])[body]
     vocals = stems["vocals"][body]
+    other = stems["other"][body]
+    write("original", original)
+    write("instrumental", instrumental)
+    if rms_db(other) > -40:
+        write("other", other)
+    else:
+        log("    幾乎沒有旋律樂器，略過「只有旋律樂器」")
+    write("speed", original, speed_filter())
     if rms_db(vocals) > -40:
         write("vocal", vocals)
         log("    擷取旋律…")
-        notes = extract_notes(vocals)
-        if len(notes) >= 4:
-            timbre = "musicbox" if int(key, 16) % 3 else "chip"
-            write("melody", synth_melody(notes, clip, timbre))
+        notes = crepe_notes(vocals)
+        if len(notes) >= 8:
+            write("chip", synth_chip(notes, clip))
         else:
-            log("    旋律音符太少，略過八音盒／8bit 版")
+            log("    旋律音符太少，略過 8bit 旋律")
+        write("vocal_rev", instrumental + vocals[::-1])
     else:
-        log("    幾乎沒有人聲，略過純人聲與旋律版")
+        log("    幾乎沒有人聲，略過純人聲、8bit 旋律與人聲倒放")
+    write("rhythm", (stems["drums"] + stems["bass"])[body])
+    write("reverse", original[::-1])
     tmp.unlink(missing_ok=True)
     meta_path.write_text(json.dumps(made), encoding="utf-8")
     return {"start": start, "dir": out_dir, "clips": made}
+
+
+VARIANT_LABELS = {
+    "original": "原曲", "instrumental": "純樂器", "vocal": "純人聲",
+    "other": "旋律樂器", "speed": "極端變快", "chip": "8bit 旋律", "vocal_rev": "人聲倒放",
+    "zh_read": "中文朗讀＋伴奏", "zh_sing": "中文歌聲", "zh_sing_inst": "中文歌聲＋伴奏（提示）",
+    "ja_sing": "日文歌聲", "ja_sing_inst": "日文歌聲＋伴奏（提示）", "rhythm": "鼓＋貝斯", "reverse": "整段倒放",
+}
+
+
+def write_preview(dest: Path, previews: list[dict]) -> Path:
+    """本機試聽頁：每首歌一列、每個版本一個播放器，聽過再決定要不要在 songs.json 加 skip。
+    直接讀 cache/ 裡的音檔，不另外複製。"""
+    def href(p: Path) -> str:
+        try:
+            return Path(os.path.relpath(p, dest.parent)).as_posix()
+        except ValueError:  # Windows 上輸出到別的磁碟機時沒有相對路徑
+            return p.resolve().as_uri()
+
+    head = "".join(f"<th>{VARIANT_LABELS[v]}</th>" for v in VARIANTS)
+    rows = []
+    for item in previews:
+        song, res, kept, paths = item["song"], item["res"], item["kept"], item["paths"]
+        cells = []
+        for v in VARIANTS:
+            if v not in paths:
+                cells.append('<td class="none">—</td>')
+                continue
+            cls = "" if v in kept else ' class="skip"'
+            src = html.escape(href(paths[v]))
+            cells.append(f'<td{cls}><audio controls preload="none" src="{src}"></audio></td>')
+        src_link = html.escape(song["source"])
+        rows.append(
+            f'<tr><th class="song"><code>{html.escape(song["id"])}</code><br>{html.escape(song["t"])} — '
+            f'{html.escape(song["a"])}<br><small>起點 {res["start"]:g} 秒・'
+            f'<a href="{src_link}" target="_blank">來源</a></small></th>{"".join(cells)}</tr>'
+        )
+    page = f"""<!doctype html>
+<html lang="zh-Hant"><head><meta charset="utf-8"><title>題庫包試聽</title>
+<style>
+body {{ font-family: system-ui, sans-serif; margin: 16px; background: #fff; color: #222; }}
+table {{ border-collapse: collapse; }}
+th, td {{ border: 1px solid #ccc; padding: 6px; vertical-align: top; }}
+th.song {{ text-align: left; min-width: 220px; font-weight: normal; }}
+audio {{ width: 180px; }}
+td.skip {{ background: #f3d6d6; opacity: .6; }}
+td.none {{ color: #999; text-align: center; }}
+</style></head><body>
+<h1>題庫包試聽（{len(previews)} 首）</h1>
+<p>紅底＝songs.json 的 <code>skip</code> 已排除、不會放進題庫包。
+聽起來不行的版本，在該首加上 <code>"skip": ["rhythm"]</code> 之類再重跑（不會重做音檔）。
+起點不對就改 <code>start</code>。</p>
+<table><tr><th>歌曲</th>{head}</tr>
+{chr(10).join(rows)}
+</table></body></html>
+"""
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    dest.write_text(page, encoding="utf-8")
+    return dest
 
 
 def main() -> None:
@@ -332,38 +583,67 @@ def main() -> None:
     parser.add_argument("--clip", type=float, default=15.0, help="每段秒數（預設 15）")
     parser.add_argument("--out", default=str(OUT / "utau_pack.zip"), help="輸出的題庫包")
     parser.add_argument("--only", action="append", help="只處理指定 id（可重複）")
+    parser.add_argument("--repick", action="store_true", help="自動選的起點（_autoStart）重新偵測；手動填的 start 不受影響")
     args = parser.parse_args()
 
     catalog = song_catalog()
-    entries = json.loads(Path(args.songs).read_text(encoding="utf-8"))
-    songs = [resolve_entry(e, catalog) for e in entries]
+    lyrics = zh_voice.load_lyrics()
+    songs_path = Path(args.songs)
+    entries = load_entries(songs_path)
+    # 還沒找到網址的歌（find_urls.py 搜尋失敗或剛加入）先略過，不讓整批停下來
+    pending = [e for e in entries if not e.get("url") and not e.get("file")]
+    work = [(e, resolve_entry(e, catalog)) for e in entries if e.get("url") or e.get("file")]
     if args.only:
-        songs = [s for s in songs if s["id"] in args.only]
-    if not songs:
-        sys.exit("清單是空的：請在 songs.json 加入歌曲")
+        work = [(e, s) for e, s in work if s["id"] in args.only]
+    if not work:
+        sys.exit("清單是空的：請在 songs.json 加入歌曲（或先跑 find_urls.py）")
 
     manifest = {"format": PACK_FORMAT, "version": PACK_VERSION, "clipSeconds": args.clip, "songs": []}
     files: list[tuple[Path, str]] = []
+    previews: list[dict] = []
     failed = []
-    for i, song in enumerate(songs, 1):
-        log(f"[{i}/{len(songs)}] {song['t']} — {song['a']}")
+    for i, (entry, song) in enumerate(work, 1):
+        log(f"[{i}/{len(work)}] {song['t']} — {song['a']}")
+        repick = args.repick and entry.get("_autoStart")
+        if repick:
+            song["start"] = None
         try:
             res = build_song(song, args.clip)
         except Exception as exc:  # 單首失敗不影響其他首
             log(f"    失敗：{exc}")
             failed.append(song["id"])
             continue
+        if entry.get("start") is None or repick:
+            # 自動偵測的起點寫回清單：下次製作結果相同，要微調也直接改這個數字
+            entry["start"] = res["start"]
+            entry["_autoStart"] = True
+        paths = {name: res["dir"] / f"{name}.m4a" for name in res["clips"]}
+        try:
+            paths.update(build_zh(song, res, lyrics, args.clip))
+        except Exception as exc:  # 中文版失敗不影響其他版本
+            log(f"    中文版失敗：{exc}")
+        # skip 只影響打包：快取照樣保留，之後取消 skip 不必重做
+        kept = [name for name in paths if name not in song["skip"]]
+        if not any(name not in ("original", "zh_sing_inst", "ja_sing_inst") for name in kept):
+            log("    所有題目版本都被略過，這首不放進題庫包")
+            failed.append(song["id"])
+            previews.append({"song": song, "res": res, "kept": kept, "paths": paths})
+            continue
         folder = source_key(song["source"])
         clips = {}
-        for name in res["clips"]:
+        for name in kept:
             arc = f"clips/{folder}/{name}.m4a"
-            files.append((res["dir"] / f"{name}.m4a", arc))
+            files.append((paths[name], arc))
             clips[name] = arc
         manifest["songs"].append({
             "id": song["id"], "t": song["t"], "a": song["a"], "y": song["y"], "r": song["r"], "c": song["c"],
             "start": res["start"], "clips": clips,
         })
-        log(f"    起點 {res['start']:g} 秒：{', '.join(res['clips'])}")
+        previews.append({"song": song, "res": res, "kept": kept, "paths": paths})
+        skipped = [n for n in paths if n not in kept]
+        log(f"    起點 {res['start']:g} 秒：{', '.join(kept)}" + (f"（略過 {', '.join(skipped)}）" if skipped else ""))
+
+    save_entries(songs_path, entries)
 
     out = Path(args.out)
     out.parent.mkdir(parents=True, exist_ok=True)
@@ -373,9 +653,13 @@ def main() -> None:
         for src, arc in files:
             zf.write(src, arc)
     size = out.stat().st_size / 1024 / 1024
+    preview = write_preview(out.parent / "preview.html", previews)
     log(f"完成：{len(manifest['songs'])} 首 → {out}（{size:.1f} MB）")
+    log(f"試聽頁：{preview}")
     if failed:
         log(f"失敗 {len(failed)} 首：{', '.join(failed)}")
+    if pending:
+        log(f"還沒有網址的 {len(pending)} 首沒有處理（可以跑 find_urls.py 搜尋）")
 
 
 if __name__ == "__main__":

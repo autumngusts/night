@@ -37,12 +37,17 @@ Songs.songs.forEach(function (s) {
 });
 // 選曲方針：日本為主，歐美／韓國濃縮
 function countRegion(r) { return Songs.songs.filter(function (s) { return s.r === r; }).length; }
-assert.ok(countRegion("ja") >= 200, "ja count " + countRegion("ja"));
+// 舊門檻 200 首來自「以日本歌為主、大量收錄」的初版方針；2026-10-17 使用者改為精選歌單（拿掉老歌、補足指定歌手），
+// 日本歌約 240 首，改為檢查 ≥ 150 首且動漫歌占日本歌至少 35%（使用者指定「動漫歌占比要很大」；
+// 35% 是 Claude 訂的下限，不是使用者給的數字。動漫歌只收台灣大眾熟悉的，所以不為了比例硬塞歌）。
+assert.ok(countRegion("ja") >= 150, "ja count " + countRegion("ja"));
+var jaAnime = Songs.songs.filter(function (s) { return s.r === "ja" && s.c === "anime"; }).length;
+assert.ok(jaAnime / countRegion("ja") >= 0.35, "ja anime share " + jaAnime + "/" + countRegion("ja"));
 assert.ok(countRegion("en") <= 25 && countRegion("ko") <= 20, "en/ko condensed");
 Songs.categories.forEach(function (c) {
   assert.ok(Songs.songs.some(function (s) { return s.r === "ja" && s.c === c.id; }), "ja has category " + c.id);
 });
-assert.ok(Songs.songs.length >= 200, "song count " + Songs.songs.length);
+assert.ok(Songs.songs.length >= 250, "song count " + Songs.songs.length);
 assert.strictEqual(Songs.decadeOf({ y: 1985 }), 1980);
 
 // ---- 預設計分表 ----
@@ -110,12 +115,12 @@ assert.deepStrictEqual(Core.ranking(fake).map(function (x) { return x.id + ":" +
 var packSongs = [
   { id: "ja:A", t: "A", a: "x", y: 2019, r: "ja", c: "anime", variants: ["original", "instrumental", "vocal"] },
   { id: "ja:B", t: "B", a: "x", y: 2015, r: "ja", c: "pop", variants: ["original", "rhythm"] },
-  { id: "ja:C", t: "C", a: "x", y: 2021, r: "ja", c: "anime", variants: ["original", "instrumental", "melody"] },
+  { id: "ja:C", t: "C", a: "x", y: 2021, r: "ja", c: "anime", variants: ["original", "instrumental", "reverse"] },
   { id: "ko:D", t: "D", a: "x", y: 2020, r: "ko", c: "idol", variants: ["original", "speed"] },
   { id: "ja:E", t: "E", a: "x", y: 1995, r: "ja", c: "anime", variants: ["original", "instrumental"] }
 ];
 var adv = { mode: "advanced", players: players(3), aiBonus: 1, scoreTable: [0, 2, 1], packSongs: packSongs,
-  regions: ["ja"], decades: [2010, 2020], categories: ["anime", "pop"], variants: ["instrumental", "rhythm", "melody"] };
+  regions: ["ja"], decades: [2010, 2020], categories: ["anime", "pop"], variants: ["instrumental", "rhythm", "reverse"] };
 var pool = Core.songPool(adv).map(function (x) { return x.id; }).sort();
 assert.deepStrictEqual(pool, ["ja:A", "ja:B", "ja:C"], "region × decade × category × variant");
 assert.deepStrictEqual(Core.songPool(Object.assign({}, adv, { variants: ["speed"] })), [], "no song has the variant");
@@ -141,6 +146,33 @@ assert.throws(function () { Core.createGame(Object.assign({}, adv, { packSongs: 
 assert.throws(function () { Core.createGame(Object.assign({}, adv, { variants: [] })); }, /ut_err_variants/);
 assert.throws(function () { Core.createGame(Object.assign({}, adv, { decades: [1960] })); }, /ut_err_pool/);
 assert.throws(function () { Core.createGame(Object.assign({}, basic, { players: players(1), scoreTable: [0] })); }, /ut_err_players/);
+
+// ---- 提示（使用者指定：中文歌聲播放滿 5 次後可加上伴奏，不影響計分）----
+var hintCfg = Object.assign({}, adv, { regions: ["ja"], decades: [2020], categories: ["anime"], variants: ["zh_sing"],
+  packSongs: [{ id: "ja:H", t: "H", a: "x", y: 2021, r: "ja", c: "anime", variants: ["original", "zh_sing", "zh_sing_inst"] }] });
+s = Core.createGame(hintCfg, r);
+assert.strictEqual(s.current.variant, "zh_sing", "hint clip itself is never drawn as a question");
+assert.strictEqual(Core.HINT_PLAYS, 5);
+assert.ok(Core.hasHint(s), "zh_sing with zh_sing_inst in the pack has a hint");
+for (i = 0; i < 4; i++) s = Core.recordPlay(s);
+assert.strictEqual(Core.playsUntilHint(s), 1);
+assert.strictEqual(Core.useHint(s).current.hint, false, "locked before 5 plays");
+s = Core.recordPlay(s);
+assert.ok(Core.hintAvailable(s));
+s = Core.useHint(s);
+assert.strictEqual(s.current.hint, true);
+var hintBefore = JSON.parse(JSON.stringify(s.scores));
+s = Core.settle(s, { aiCorrect: false, correctIds: ["p2"] }, r);
+var hintHist = s.history[s.history.length - 1];
+assert.strictEqual(hintHist.hint, true, "history marks the hint");
+assert.strictEqual(s.scores[hintHist.singerId] - hintBefore[hintHist.singerId], hintCfg.scoreTable[1], "hint does not change scoring");
+assert.strictEqual(s.current.plays, 0, "play count resets every round");
+assert.strictEqual(s.current.hint, false);
+var noHint = Core.createGame(Object.assign({}, hintCfg, { packSongs: [{ id: "ja:H", t: "H", a: "x", y: 2021, r: "ja", c: "anime",
+  variants: ["original", "zh_sing"] }] }), r);
+assert.ok(!Core.hasHint(noHint), "no hint without the hint clip in the pack");
+assert.strictEqual(Core.hintClip("ja_sing"), "ja_sing_inst", "Japanese singing has the same hint");
+assert.strictEqual(Core.hintClip("instrumental"), null);
 
 // ---- 夢想模式（YouTube）----
 [
