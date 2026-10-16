@@ -32,4 +32,10 @@ PROJECTS = [
         "name_key": "project_utau_name",
         "desc_key": "project_utau_desc",
     },
+    {
+        "id": "gousei",
+        "href": "gousei/index.html",
+        "name_key": "project_gousei_name",
+        "desc_key": "project_gousei_desc",
+    },
 ]
