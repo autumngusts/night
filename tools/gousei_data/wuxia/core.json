@@ -1839,7 +1839,7 @@
   ],
   [
    "nat_steam",
-   "nat_grove",
+   "nat_mountain",
    "nat_wind"
   ],
   [
@@ -1969,7 +1969,7 @@
   ],
   [
    "mat_ore",
-   "nat_river",
+   "nat_frost",
    "mat_jade"
   ],
   [
@@ -2258,8 +2258,8 @@
    "wpn_axe"
   ],
   [
+   "mat_coldiron",
    "mat_ingot",
-   "wpn_axe",
    "wpn_dagger"
   ],
   [
@@ -2289,7 +2289,7 @@
   ],
   [
    "mat_moltengold",
-   "mat_ingot",
+   "mat_coldiron",
    "wpn_sword"
   ],
   [
@@ -2358,7 +2358,7 @@
    "wpn_spear"
   ],
   [
-   "metal",
+   "mat_silver",
    "herb_sprout",
    "wpn_needle"
   ],
@@ -2499,7 +2499,7 @@
   ],
   [
    "mar_qi",
-   "mat_iron",
+   "nat_stone",
    "mar_force"
   ],
   [
@@ -2508,8 +2508,8 @@
    "mar_fist"
   ],
   [
+   "nat_wind",
    "mar_qi",
-   "herb_leaf",
    "mar_palm"
   ],
   [
@@ -2518,8 +2518,8 @@
    "mar_fingers"
   ],
   [
-   "mar_stance",
-   "herb_tree",
+   "mar_horsestance",
+   "mar_qi",
    "mar_kick"
   ],
   [
@@ -2693,27 +2693,27 @@
    "per_wanderer"
   ],
   [
-   "nat_mountain",
-   "nat_grove",
+   "plc_temple",
+   "sec_disciple",
    "sec_shaolin"
   ],
   [
-   "nat_mountain",
-   "nat_cloud",
+   "per_daoist",
+   "sec_disciple",
    "sec_wudang"
   ],
   [
-   "nat_mountain",
-   "nat_mist",
+   "per_maiden",
+   "sec_disciple",
    "sec_emei"
   ],
   [
-   "nat_mountain",
+   "sec_token",
    "nat_frost",
    "sec_kunlun"
   ],
   [
-   "nat_mountain",
+   "sec_token",
    "herb_flower",
    "sec_huashan"
   ],
@@ -2723,18 +2723,23 @@
    "sec_beggars"
   ],
   [
+   "per_beggar",
+   "sec_disciple",
+   "sec_beggars"
+  ],
+  [
    "eli_poisonherb",
    "wpn_dagger",
    "sec_tangmen"
   ],
   [
+   "sec_token",
    "nat_light",
-   "nat_mountain",
    "sec_ming"
   ],
   [
    "nat_dark",
-   "nat_magma",
+   "sec_banner",
    "sec_demon"
   ],
   [
@@ -2754,22 +2759,22 @@
   ],
   [
    "mat_silver",
-   "wpn_stick",
+   "sec_banner",
    "sec_escort"
   ],
   [
-   "nat_mountain",
-   "mat_timber",
+   "per_bandit",
+   "sec_banner",
    "sec_stronghold"
   ],
   [
-   "mat_ink",
-   "mat_silver",
+   "sec_hall",
+   "sec_token",
    "sec_court"
   ],
   [
-   "mat_silver",
-   "nat_sea",
+   "per_merchant",
+   "sec_banner",
    "sec_guild"
   ],
   [
@@ -2788,13 +2793,13 @@
    "sec_swordtomb"
   ],
   [
-   "mat_iron",
-   "mat_moltengold",
+   "per_smith",
+   "sec_hall",
    "sec_forge"
   ],
   [
-   "nat_mountain",
-   "herb_leaf",
+   "per_daoist",
+   "herb_tree",
    "sec_qingcheng"
   ],
   [
@@ -2943,8 +2948,8 @@
    "bst_snake"
   ],
   [
-   "nat_grove",
-   "metal",
+   "nat_mountain",
+   "nat_wind",
    "bst_tiger"
   ],
   [
@@ -2973,8 +2978,8 @@
    "bst_bear"
   ],
   [
-   "herb_flower",
-   "herb_grass",
+   "herb_lingzhi",
+   "nat_grove",
    "bst_deer"
   ],
   [
@@ -3023,7 +3028,7 @@
    "bst_spider"
   ],
   [
-   "nat_mist",
+   "nat_moon",
    "nat_grove",
    "bst_fox"
   ],
@@ -3108,7 +3113,7 @@
    "trs_cauldron"
   ],
   [
-   "herb_tree",
+   "herb_pine",
    "nat_stone",
    "trs_amber"
   ],
@@ -3173,7 +3178,7 @@
    "con_hate"
   ],
   [
-   "mar_qi",
+   "eli_wine",
    "nat_river",
    "con_righteous"
   ],
@@ -3183,8 +3188,8 @@
    "con_fate"
   ],
   [
-   "nat_river",
-   "nat_wind",
+   "nat_sun",
+   "nat_moon",
    "con_time"
   ],
   [
@@ -3208,8 +3213,8 @@
    "con_courage"
   ],
   [
-   "herb_flower",
-   "mat_ingot",
+   "trs_gold",
+   "nat_rainbow",
    "con_fortune"
   ],
   [
@@ -3263,13 +3268,13 @@
    "sec_rules"
   ],
   [
+   "per_scholar",
    "mar_qi",
-   "herb_tree",
    "sec_master"
   ],
   [
    "herb_sprout",
-   "mar_qi",
+   "mar_stance",
    "sec_disciple"
   ],
   [
@@ -3288,7 +3293,7 @@
    "sec_banner"
   ],
   [
-   "mat_copper",
+   "mat_moltengold",
    "wood",
    "sec_token"
   ]
