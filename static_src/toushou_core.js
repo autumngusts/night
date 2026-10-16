@@ -99,7 +99,9 @@
       config: {
         missionsEnabled: !!config.missionsEnabled,
         windEnabled: !!config.windEnabled,
-        minBet: config.minBet
+        minBet: config.minBet,
+        deltaMode: config.deltaMode === "vote" ? "vote" : "host",
+        voteCap: isInt(config.voteCap) ? config.voteCap : 100
       },
       players: [],
       deck: [],
@@ -293,23 +295,21 @@
       if (drawn) p.hand.push(drawn);
     }
     s.current.pending = { playerId: a.playerId, cardId: cardId, edited: cardId !== null && !!a.edited, text: a.text.trim() };
+    s.current.votes = {};
     s.phase = "vote";
   }
 
-  function applyDelta(s, a) {
-    var err = deltaError(s, a.delta);
-    if (err) throw new Error(err);
+  function deltaMode(s) { return s.config.deltaMode === "vote" ? "vote" : "host"; }
+
+  // 寫入消息面、換下一位股東或結算。extra 為投票模式的附加紀錄（votes/avg/windZeroed）
+  function commitDelta(s, delta, extra) {
     var c = s.current;
-    c.price = Math.max(0, c.price + a.delta);
-    c.news.push({
-      playerId: c.pending.playerId,
-      cardId: c.pending.cardId,
-      edited: c.pending.edited,
-      text: c.pending.text,
-      wind: c.wind,
-      delta: a.delta,
-      priceAfter: c.price
-    });
+    c.price = Math.max(0, c.price + delta);
+    var entry = { playerId: c.pending.playerId, cardId: c.pending.cardId, edited: c.pending.edited,
+      text: c.pending.text, wind: c.wind, delta: delta, priceAfter: c.price };
+    Object.keys(extra || {}).forEach(function (k) { entry[k] = extra[k]; });
+    c.news.push(entry);
+    c.votes = {};
     c.turnIndex += 1;
     if (c.turnIndex >= c.order.length) {
       c.pending = null;
@@ -318,6 +318,63 @@
       s.phase = "news";
       enterNewsTurn(s);
     }
+  }
+
+  function applyDelta(s, a) {
+    if (deltaMode(s) !== "host") throw new Error("ts_err_vote_mode");
+    var err = deltaError(s, a.delta);
+    if (err) throw new Error(err);
+    commitDelta(s, a.delta, null);
+  }
+
+  // ---------------- 投票（deltaMode = "vote"） ----------------
+
+  // 全部玩家（含股東）都投票；座位順序
+  function pendingVoters(s) {
+    if (s.phase !== "vote" || !s.current || deltaMode(s) !== "vote") return [];
+    var votes = s.current.votes || {};
+    return s.players.filter(function (p) { return !Object.prototype.hasOwnProperty.call(votes, p.id); })
+      .map(function (p) { return p.id; });
+  }
+
+  function voteError(s, playerId, value) {
+    if (deltaMode(s) !== "vote") return "ts_err_vote_mode";
+    if (!playerById(s, playerId)) return "ts_err_not_your_turn";
+    if (pendingVoters(s).indexOf(playerId) < 0) return "ts_err_already_voted";
+    if (!isInt(value)) return "ts_err_int";
+    if (Math.abs(value) > s.config.voteCap) return "ts_err_vote_range";
+    return null;
+  }
+
+  // 平均四捨五入（.5 遠離 0）；以整數運算避免浮點誤差。之後套用風向限制。
+  function tallyVotes(votes, wind) {
+    var ids = Object.keys(votes);
+    var sum = 0;
+    ids.forEach(function (id) { sum += votes[id]; });
+    var n = ids.length;
+    var raw = Math.floor((2 * Math.abs(sum) + n) / (2 * n)) * (sum < 0 ? -1 : 1);
+    var zeroed = (wind === "up" && raw < 0) || (wind === "down" && raw > 0);
+    return { sum: sum, count: n, avg: sum / n, delta: zeroed ? 0 : raw, windZeroed: zeroed };
+  }
+
+  function finishVote(s) {
+    var c = s.current;
+    var r = tallyVotes(c.votes, c.wind);
+    commitDelta(s, r.delta, { votes: clone(c.votes), avg: r.avg, windZeroed: r.windZeroed });
+  }
+
+  function castVote(s, a) {
+    var err = voteError(s, a.playerId, a.value);
+    if (err) throw new Error(err);
+    if (!s.current.votes) s.current.votes = {};
+    s.current.votes[a.playerId] = a.value;
+    if (!pendingVoters(s).length) finishVote(s);
+  }
+
+  function skipPendingVoters(s) {
+    if (deltaMode(s) !== "vote") throw new Error("ts_err_vote_mode");
+    if (!Object.keys(s.current.votes || {}).length) throw new Error("ts_err_no_votes");
+    finishVote(s);
   }
 
   // ---------------- 結算 ----------------
@@ -497,6 +554,14 @@
         if (s.phase !== "vote") throw new Error("ts_err_phase");
         applyDelta(s, action);
         break;
+      case "castVote":
+        if (s.phase !== "vote") throw new Error("ts_err_phase");
+        castVote(s, action);
+        break;
+      case "skipPendingVoters":
+        if (s.phase !== "vote") throw new Error("ts_err_phase");
+        skipPendingVoters(s);
+        break;
       case "nextTarget":
         if (s.phase !== "settle") throw new Error("ts_err_phase");
         nextTarget(s);
@@ -516,6 +581,9 @@
     newGame: newGame,
     reduce: reduce,
     betError: betError,
+    voteError: voteError,
+    pendingVoters: pendingVoters,
+    tallyVotes: tallyVotes,
     nextBettor: nextBettor,
     pendingBettors: pendingBettors,
     pendingMissionViewers: pendingMissionViewers,

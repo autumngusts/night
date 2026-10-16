@@ -415,6 +415,97 @@ check("wind cards: drawn per turn, sign enforced, recorded", function () {
   assert.deepStrictEqual(seen, { up: 2, down: 2, neutral: 1 });
 });
 
+console.log("[core: vote]");
+function toVote(n, extra) {
+  return release(toNews(n, Object.assign({ deltaMode: "vote" }, extra || {})));
+}
+check("config: deltaMode/voteCap defaults; old state without deltaMode is host", function () {
+  var s = Core.newGame(baseConfig(2));
+  assert.strictEqual(s.config.deltaMode, "host");
+  assert.strictEqual(s.config.voteCap, 100);
+  s = Core.newGame(baseConfig(2, { deltaMode: "vote", voteCap: 30 }));
+  assert.strictEqual(s.config.deltaMode, "vote");
+  assert.strictEqual(s.config.voteCap, 30);
+  var old = release(toNews(2));
+  delete old.config.deltaMode;
+  old = Core.reduce(old, { type: "applyDelta", delta: 5 });
+  assert.strictEqual(old.current.news[0].delta, 5);
+});
+check("tallyVotes: average rounded half away from zero, wind zeroing", function () {
+  function d(list, wind) {
+    var v = {};
+    list.forEach(function (x, i) { v["p" + i] = x; });
+    return Core.tallyVotes(v, wind || null);
+  }
+  assert.strictEqual(d([2, 3]).delta, 3);
+  assert.strictEqual(d([-2, -3]).delta, -3);
+  assert.strictEqual(d([10, -5, 0]).delta, 2);
+  assert.strictEqual(d([1, 1, 0]).delta, 1);
+  assert.strictEqual(d([1, 0, 0]).delta, 0);
+  assert.strictEqual(d([2, 3]).avg, 2.5);
+  var z = d([-10, -20], "up");
+  assert.strictEqual(z.delta, 0);
+  assert.strictEqual(z.windZeroed, true);
+  assert.strictEqual(d([10, 20], "down").delta, 0);
+  assert.strictEqual(d([-10, -20], "down").delta, -15);
+  assert.strictEqual(d([-10, -20], "neutral").delta, -15);
+  assert.strictEqual(d([5], "up").windZeroed, false);
+});
+check("castVote: validations and mode guard", function () {
+  var s = toVote(3, { voteCap: 50 });
+  assert.strictEqual(Core.voteError(s, "p0", 50), null);
+  assert.strictEqual(Core.voteError(s, "p0", -50), null);
+  assert.strictEqual(Core.voteError(s, "p0", 51), "ts_err_vote_range");
+  assert.strictEqual(Core.voteError(s, "p0", 1.5), "ts_err_int");
+  assert.strictEqual(Core.voteError(s, "zz", 1), "ts_err_not_your_turn");
+  s = Core.reduce(s, { type: "castVote", playerId: "p0", value: 10 });
+  assert.strictEqual(Core.voteError(s, "p0", 1), "ts_err_already_voted");
+  assert.throws(function () { Core.reduce(s, { type: "castVote", playerId: "p0", value: 1 }); }, /ts_err_already_voted/);
+  assert.throws(function () { Core.reduce(s, { type: "applyDelta", delta: 1 }); }, /ts_err_vote_mode/);
+  var h = release(toNews(3));
+  assert.throws(function () { Core.reduce(h, { type: "castVote", playerId: "p0", value: 1 }); }, /ts_err_vote_mode/);
+  assert.throws(function () { Core.reduce(h, { type: "skipPendingVoters" }); }, /ts_err_vote_mode/);
+});
+check("all votes in (any order, shareholder included) -> applied and recorded", function () {
+  var s = toVote(3);
+  var sh = Core.currentShareholder(s);
+  assert.deepStrictEqual(Core.pendingVoters(s), ["p0", "p1", "p2"]);
+  s = Core.reduce(s, { type: "castVote", playerId: "p2", value: 30 });
+  s = Core.reduce(s, { type: "castVote", playerId: sh === "p2" ? "p1" : sh, value: -10 });
+  assert.strictEqual(s.phase, "vote");
+  assert.strictEqual(Core.pendingVoters(s).length, 1);
+  s = Core.reduce(s, { type: "castVote", playerId: Core.pendingVoters(s)[0], value: 0 });
+  assert.strictEqual(s.phase, "news");
+  var n = s.current.news[0];
+  assert.strictEqual(n.delta, 7);
+  assert.strictEqual(n.priceAfter, 107);
+  assert.strictEqual(n.playerId, sh);
+  assert.strictEqual(Object.keys(n.votes).length, 3);
+  assert.strictEqual(n.windZeroed, false);
+  assert.deepStrictEqual(s.current.votes, {});
+});
+check("skipPendingVoters needs at least one vote; tallies existing votes", function () {
+  var s = toVote(3);
+  assert.throws(function () { Core.reduce(s, { type: "skipPendingVoters" }); }, /ts_err_no_votes/);
+  s = Core.reduce(s, { type: "castVote", playerId: "p1", value: -25 });
+  s = Core.reduce(s, { type: "skipPendingVoters" });
+  assert.strictEqual(s.current.news[0].delta, -25);
+  assert.deepStrictEqual(Object.keys(s.current.news[0].votes), ["p1"]);
+});
+check("vote mode plays a full target to settle; wind zeroing recorded", function () {
+  var s = toNews(2, { deltaMode: "vote", windEnabled: true });
+  for (var k = 0; k < 2; k++) {
+    s = release(s);
+    var wind = s.current.wind;
+    var v = wind === "up" ? -40 : 40;
+    s = Core.reduce(s, { type: "castVote", playerId: "p0", value: v });
+    s = Core.reduce(s, { type: "castVote", playerId: "p1", value: v });
+    var n = s.phase === "settle" ? s.history[0].news[k] : s.current.news[k];
+    assert.strictEqual(n.windZeroed, wind === "up" || wind === "down" ? (wind === "up") === (v < 0) : false);
+  }
+  assert.strictEqual(s.phase, "settle");
+});
+
 console.log("[core: settle]");
 var SEAT = ["p0", "p1", "p2", "p3", "p4"];
 function bets(list) {
