@@ -238,6 +238,24 @@ function debugState(page) { return page.evaluate(function () { return window.Pri
     await page.click("#ts-btn-next-target");
   }
 
+  // ---- 英文介面：文字來自 en、組字串的標點改為半形（遊戲資料在英文模式顯示日文）----
+  await page.click('.lang-btn[data-lang="en"]');
+  assert.strictEqual((await page.textContent("#ts-btn-start-betting")).trim(), "Start betting");
+  var enCard = await page.textContent(".ts-target-card");
+  assert.ok(enCard.indexOf("Target 3 / 3") >= 0, "target heading in English");
+  assert.ok(enCard.indexOf("Price: ") >= 0 && enCard.indexOf("Price：") < 0, "half-width colon in English");
+  assert.ok((await page.textContent("#ts-start-price")).indexOf("sector linkage: previous target") >= 0);
+  assert.ok((await page.textContent("#ts-start-price")).indexOf("（") < 0, "half-width parentheses in English");
+  await page.click("#ts-btn-abandon");
+  await page.waitForSelector("#ts-btn-start");
+  var enSetup = await page.textContent(".ts-panel");
+  ["開局設定", "人數", "最低押注", "加減分方式", "黑天鵝"].forEach(function (zhText) {
+    assert.ok(enSetup.indexOf(zhText) < 0, "no Chinese UI text in English setup: " + zhText);
+  });
+  assert.strictEqual((await page.textContent("#ts-btn-start")).trim(), "Start game");
+  await page.click('.lang-btn[data-lang="zh"]');
+  assert.strictEqual((await page.textContent("#ts-btn-start")).trim(), "開始遊戲");
+
   assert.deepStrictEqual(errors, []);
   await browser.close();
   console.log("toushou ui_check: OK");

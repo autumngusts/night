@@ -29,6 +29,12 @@
   function t(key, params) { return window.I18N.t(key, params); }
   function lang() { return window.I18N.getLang(); }
   function lt(obj) { return D.text(obj, lang()); }
+  // 組字串用的標點：中文／日文用全形，英文改成半形
+  var PUNCT_EN = { "：": ": ", "、": ", ", "（": " (", "）": ")", "　": "  ", "［": " [", "］": "]" };
+  function P(str) {
+    if (lang() !== "en") return str;
+    return str.replace(/[：、（）　［］]/g, function (ch) { return PUNCT_EN[ch]; });
+  }
   function targetName(target) { return lt(target.name); }
   function targetTags(target) { return (target.tags || []).map(lt); }
   function newSeed() { return Math.floor(Math.random() * 4294967296); }
@@ -568,14 +574,14 @@
         n.wind ? " [" + windLabel(n.wind) + "]" : "",
         tag ? " (" + tag + ")" : "",
         // 有價格事件時，主行顯示事件前的價格，事件後的價格另起一行
-        "：" + n.text + "　" + sign + " → " + (n.priceEvent ? n.priceBeforeEvent : n.priceAfter),
+        P("：") + n.text + P("　") + sign + " → " + (n.priceEvent ? n.priceBeforeEvent : n.priceAfter),
         n.votes ? el("div", { class: "ts-vote-detail", text: t("ts_news_votes", {
           list: Object.keys(n.votes).map(function (id) {
             var v = n.votes[id];
             return playerName(id) + " " + (v > 0 ? "+" + v : String(v));
-          }).join("、"),
+          }).join(P("、")),
           avg: String(Math.round(n.avg * 10) / 10)
-        }) + (n.windZeroed ? "（" + t("ts_news_wind_zeroed") + "）" : "") }) : null,
+        }) + (n.windZeroed ? P("（") + t("ts_news_wind_zeroed") + P("）") : "") }) : null,
         n.rawDelta !== undefined && eventId ? el("div", { class: "ts-news-mod", text: t("ts_news_modified", {
           raw: signed(n.rawDelta), final: signed(n.delta), event: swanName(eventId) }) }) : null,
         n.priceEvent ? el("div", { class: "ts-news-mod", text: t("ts_news_price_event", {
@@ -590,18 +596,18 @@
     if (!info) return null;
     var box = el("div", { class: "ts-market-info" });
     if (info.sectorFrom !== null && info.sectorFrom !== undefined) {
-      box.appendChild(el("p", { id: "ts-start-price", text: t("ts_start_price", { n: info.startPrice }) + "（" +
-        t("ts_sector_note", { prev: info.sectorFrom }) + "）" }));
+      box.appendChild(el("p", { id: "ts-start-price", text: t("ts_start_price", { n: info.startPrice }) + P("（") +
+        t("ts_sector_note", { prev: info.sectorFrom }) + P("）") }));
     }
     if (info.event) {
       var card = Core.swanById(info.event);
       var n = info.order ? info.order.length : (info.news ? info.news.length : state.players.length);
       var desc = card ? lt(card.text).split("{k}").join(String(Math.ceil(n / 2))) : "";
       if (info.event === "gap" && info.gap !== null && info.gap !== undefined) {
-        desc += "（" + t("ts_gap_note", { gap: signed(info.gap) }) + "）";
+        desc += P("（") + t("ts_gap_note", { gap: signed(info.gap) }) + P("）");
       }
       box.appendChild(el("p", { id: "ts-swan-badge", class: "ts-swan-badge" }, [
-        el("strong", { text: t("ts_swan_heading") + "：" + swanName(info.event) }), "　" + desc]));
+        el("strong", { text: t("ts_swan_heading") + P("：") + swanName(info.event) }), P("　") + desc]));
     }
     return box.childNodes.length ? box : null;
   }
@@ -613,12 +619,12 @@
     var hooks = (target.hooks || []).map(lt);
     return el("section", { class: "ts-panel ts-target-card" }, [
       el("p", { text: t("ts_target_heading", { i: state.targetIndex + 1, total: state.targets.length }) +
-        "　" + (cat ? lt(cat.name) : "") }),
+        P("　") + (cat ? lt(cat.name) : "") }),
       el("h2", { text: targetName(target) }),
       target.summary ? el("p", { class: "ts-summary", text: lt(target.summary) }) : null,
       tags,
-      hooks.length ? el("p", { class: "ts-hooks", text: t("ts_hooks") + "：" + hooks.join("、") }) : null,
-      el("p", {}, [t("ts_price") + "：", el("span", { id: "ts-price", class: "ts-price", text: String(price) })]),
+      hooks.length ? el("p", { class: "ts-hooks", text: t("ts_hooks") + P("：") + hooks.join(P("、")) }) : null,
+      el("p", {}, [t("ts_price") + P("："), el("span", { id: "ts-price", class: "ts-price", text: String(price) })]),
       marketInfo(info),
       el("h3", { text: t("ts_news_board") }),
       newsBoard(news || [], info && info.event)
@@ -651,13 +657,13 @@
         btn = el("button", { class: "ts-btn-claim", type: "button", "data-player": p.id, text: t("ts_seat_claim"),
           onclick: function () { claimSeat(p.id); } });
       }
-      list.appendChild(el("li", { "data-player": p.id }, [el("strong", { text: p.name }), "　" + status + "　", btn]));
+      list.appendChild(el("li", { "data-player": p.id }, [el("strong", { text: p.name }), P("　") + status + P("　"), btn]));
     });
     var url = roomUrl(room.id);
     var canvas = el("canvas", { id: "ts-room-qr", class: "ts-room-qr" });
     window.PriTestQRCode.renderToCanvas(canvas, url, { level: "L", scale: 4, margin: 2 });
     var details = el("details", { id: "ts-room-panel", class: "ts-panel", open: noSeat || (isHost() && anyFree) }, [
-      el("summary", { text: t("ts_room_heading") + (isHost() ? "（" + t("ts_you_are_host") + "）" : "") }),
+      el("summary", { text: t("ts_room_heading") + (isHost() ? P("（") + t("ts_you_are_host") + P("）") : "") }),
       noSeat ? el("p", { class: "ts-hooks", text: t(isHost() ? "ts_host_seat_hint" : "ts_pick_seat") }) : null,
       list,
       el("p", { class: "ts-hooks", text: t("ts_room_link") }),
@@ -681,7 +687,7 @@
       var def = null;
       D.MISSIONS.forEach(function (m) { if (m.id === p.mission.id) def = m; });
       return el("section", { class: "ts-panel" }, [
-        el("h2", { text: t("ts_mission_heading") + (mySeats().length > 1 ? "（" + p.name + "）" : "") }),
+        el("h2", { text: t("ts_mission_heading") + (mySeats().length > 1 ? P("（") + p.name + P("）") : "") }),
         el("p", { id: "ts-mission-text", text: fillParams(Core.missionText(p.mission.id), p.mission.params) }),
         el("p", { text: t("ts_mission_reward", { n: def ? def.reward : 0 }) }),
         el("button", { id: "ts-btn-hide", type: "button", class: "ts-primary", text: t("ts_btn_done_hide"),
@@ -695,7 +701,7 @@
     var mine = pending.filter(owns);
     var skipped = state.players.filter(function (p) { return state.current.bettors.indexOf(p.id) < 0; })
       .map(function (p) { return p.name; });
-    var info = skipped.length ? el("p", { text: t("ts_skipped_broke", { names: skipped.join("、") }) }) : null;
+    var info = skipped.length ? el("p", { text: t("ts_skipped_broke", { names: skipped.join(P("、")) }) }) : null;
     var total = state.current.bettors.length;
     if (!mine.length) {
       return el("div", {}, [info, waiting(t("ts_wait_bets", { done: total - pending.length, total: total }))]);
@@ -731,7 +737,7 @@
     var role = lt(Core.roleFor(currentTarget().category));
     var me = playerOf(pid);
     var windBadge = state.current.wind
-      ? el("p", {}, [t("ts_wind") + "：", el("span", { id: "ts-wind-badge", class: "ts-wind-badge", text: windLabel(state.current.wind) })])
+      ? el("p", {}, [t("ts_wind") + P("："), el("span", { id: "ts-wind-badge", class: "ts-wind-badge", text: windLabel(state.current.wind) })])
       : null;
     var heading = el("h2", { text: t("ts_news_heading", { role: role, name: me.name }) });
     if (!owns(pid)) return el("div", {}, [heading, windBadge, waiting(t("ts_wait_news", { name: me.name }))]);
@@ -786,7 +792,7 @@
   function renderVote() {
     var pending = state.current.pending;
     var news = el("p", {}, [el("strong", { text: playerName(pending.playerId) }),
-      state.current.wind ? " [" + windLabel(state.current.wind) + "]" : "", "：" + pending.text]);
+      state.current.wind ? " [" + windLabel(state.current.wind) + "]" : "", P("：") + pending.text]);
     if (state.config.deltaMode === "vote") return renderVoteBallot(news);
     if (!isHost()) {
       return el("section", { class: "ts-panel" }, [news, el("p", { class: "ts-wait-text", text: t("ts_wait_vote") })]);
@@ -884,7 +890,7 @@
     var last = state.targetIndex + 1 >= state.targets.length;
     return el("section", { class: "ts-panel" }, [
       el("h2", { text: t("ts_settle_heading", { name: lt(h.name) }) }),
-      el("p", { text: t("ts_final_price", { n: h.finalPrice }) + "　" + t("ts_pot", { n: h.pot }) }),
+      el("p", { text: t("ts_final_price", { n: h.finalPrice }) + P("　") + t("ts_pot", { n: h.pot }) }),
       settleNotes(h),
       el("div", { id: "ts-settle-table", class: "ts-table-wrap" }, [settleTable(h)]),
       errorLine(),
@@ -911,15 +917,15 @@
       state.players.forEach(function (p) {
         var r = missions[p.id];
         if (!r) return;
-        missionList.appendChild(el("li", { text: p.name + "：" + fillParams(Core.missionText(r.missionId), r.params) +
-          "（" + t(r.achieved ? "ts_mission_achieved" : "ts_mission_failed") + "）" }));
+        missionList.appendChild(el("li", { text: p.name + P("：") + fillParams(Core.missionText(r.missionId), r.params) +
+          P("（") + t(r.achieved ? "ts_mission_achieved" : "ts_mission_failed") + P("）") }));
       });
     }
     var review = el("div", {}, [el("h3", { text: t("ts_history_heading") })]);
     state.history.forEach(function (h) {
       review.appendChild(el("details", {}, [
-        el("summary", { text: lt(h.name) + "　" + t("ts_final_price", { n: h.finalPrice }) +
-          (h.event && h.event !== "calm" ? "　［" + swanName(h.event) + "］" : "") }),
+        el("summary", { text: lt(h.name) + P("　") + t("ts_final_price", { n: h.finalPrice }) +
+          (h.event && h.event !== "calm" ? P("　［") + swanName(h.event) + P("］") : "") }),
         marketInfo(h),
         newsBoard(h.news, h.event),
         settleNotes(h),
