@@ -1,0 +1,49 @@
+{
+  "id": "wafu",
+  "name": {"zh": "日本和風", "ja": "和風"},
+  "basics": [
+    {"id": "fire", "zh": "火", "ja": "火"},
+    {"id": "water", "zh": "水", "ja": "水"},
+    {"id": "thunder", "zh": "雷", "ja": "雷"},
+    {"id": "wind", "zh": "風", "ja": "風"},
+    {"id": "earth", "zh": "土", "ja": "土"}
+  ],
+  "junk": [
+    {"id": "junk_ash", "zh": "灰燼", "ja": "灰"},
+    {"id": "junk_rubble", "zh": "碎石", "ja": "瓦礫"},
+    {"id": "junk_scrap", "zh": "廢鐵", "ja": "くず鉄"},
+    {"id": "junk_mud", "zh": "爛泥", "ja": "泥"},
+    {"id": "junk_smoke", "zh": "黑煙", "ja": "黒煙"},
+    {"id": "junk_splinter", "zh": "木屑", "ja": "木くず"},
+    {"id": "junk_rust", "zh": "鐵鏽", "ja": "錆"},
+    {"id": "junk_dust", "zh": "塵埃", "ja": "ちり"},
+    {"id": "junk_cinder", "zh": "焦炭", "ja": "燃えかす"},
+    {"id": "junk_rag", "zh": "破布", "ja": "ぼろ切れ"},
+    {"id": "junk_shard", "zh": "碎陶", "ja": "かけら"},
+    {"id": "junk_puddle", "zh": "水窪", "ja": "水たまり"},
+    {"id": "junk_weed", "zh": "雜草", "ja": "雑草"},
+    {"id": "junk_brokenblade", "zh": "斷刀", "ja": "折れ刀"},
+    {"id": "junk_torncharm", "zh": "破符", "ja": "破れた札"},
+    {"id": "junk_badluck", "zh": "大凶", "ja": "大凶"},
+    {"id": "junk_rumor", "zh": "流言", "ja": "うわさ"},
+    {"id": "junk_bone", "zh": "枯骨", "ja": "しゃれこうべ"},
+    {"id": "junk_slag", "zh": "礦渣", "ja": "スラグ"},
+    {"id": "junk_nothing", "zh": "白費工夫", "ja": "骨折り損"}
+  ],
+  "categories": [
+    {"id": "nature", "zh": "自然風物", "ja": "自然・風物"},
+    {"id": "material", "zh": "素材", "ja": "素材"},
+    {"id": "plant", "zh": "草木", "ja": "草木"},
+    {"id": "food", "zh": "食物與酒", "ja": "食・酒"},
+    {"id": "weapon", "zh": "武具", "ja": "武具"},
+    {"id": "tool", "zh": "道具工藝", "ja": "道具・工芸"},
+    {"id": "art", "zh": "武藝忍術", "ja": "武芸・忍術"},
+    {"id": "person", "zh": "人物職業", "ja": "人物・職業"},
+    {"id": "yokai", "zh": "妖怪神獸", "ja": "妖怪・神獣"},
+    {"id": "place", "zh": "名所建築", "ja": "名所・建物"},
+    {"id": "faith", "zh": "神佛祭事", "ja": "神仏・祭事"},
+    {"id": "treasure", "zh": "寶物神器", "ja": "宝物・神器"},
+    {"id": "concept", "zh": "四季情趣", "ja": "四季・情緒"}
+  ],
+  "min_items": 5000
+}
