@@ -65,6 +65,7 @@ async function newDevice(browser, errors, label) {
   await A.fill("#ts-player-count", "3");
   await A.dispatchEvent("#ts-player-count", "change");
   await A.click("#ts-online");
+  assert.strictEqual(await A.inputValue("#ts-delta-mode"), "vote", "online defaults to vote mode");
   assert.ok((await A.textContent("#ts-btn-start")).indexOf("建立房間") >= 0);
   await A.click("#ts-btn-start");
   await A.waitForSelector("#ts-room-url", { timeout: TIMEOUT });
@@ -148,9 +149,33 @@ async function newDevice(browser, errors, label) {
       }
       await shDev.click("#ts-btn-release");
       await Promise.all([A, B, C].map(function (d) { return waitPhase(d, "vote"); }));
-      if (sh !== "p0") assert.strictEqual(await shDev.locator("#ts-delta").count(), 0, "only host inputs delta");
-      await A.fill("#ts-delta", String(k === 0 ? 20 : -5));
-      await A.click("#ts-btn-apply-delta");
+      var voteVal = k === 0 ? 20 : -5;
+      // 每台只看到自己的投票框，沒有遮蔽，也沒有主持人輸入欄
+      for (var vp in deviceOf) {
+        await deviceOf[vp].waitForSelector("#ts-vote-value", { timeout: TIMEOUT });
+        assert.strictEqual(await deviceOf[vp].locator("#ts-mask").count(), 0);
+        assert.strictEqual(await deviceOf[vp].locator("#ts-delta").count(), 0);
+      }
+      if (round === 1 && k === 1) {
+        // 主持人略過：只有 B 投票，A 用略過按鈕計票
+        await B.fill("#ts-vote-value", String(voteVal));
+        await B.click("#ts-btn-cast-vote");
+        await waitState(A, "return Object.keys(s.current.votes).length === 1;");
+        await waitState(B, "return Object.keys(s.current.votes).length === 1;");
+        assert.strictEqual(await B.locator("#ts-btn-skip-voters").count(), 0, "only host can skip");
+        await A.waitForSelector("#ts-btn-skip-voters", { timeout: TIMEOUT });
+        await A.click("#ts-btn-skip-voters");
+      } else {
+        await B.fill("#ts-vote-value", String(voteVal));
+        await B.click("#ts-btn-cast-vote");
+        await waitState(C, "return Object.keys(s.current.votes).length === 1;");
+        await C.waitForFunction(function () { return document.getElementById("ts-app").textContent.indexOf("1 / 3") >= 0; }, null, { timeout: TIMEOUT });
+        assert.strictEqual(await C.inputValue("#ts-vote-value"), "0", "other votes not shown / input untouched");
+        await C.fill("#ts-vote-value", String(voteVal));
+        await C.click("#ts-btn-cast-vote");
+        await A.fill("#ts-vote-value", String(voteVal));
+        await A.click("#ts-btn-cast-vote");
+      }
       var expectPhase = k === 2 ? "settle" : "news";
       await Promise.all([A, B, C].map(function (d) { return waitPhase(d, expectPhase); }));
       await B.waitForFunction(function (n) { return document.querySelectorAll("#ts-news-board li").length === n; }, k + 1, { timeout: TIMEOUT });
@@ -159,6 +184,10 @@ async function newDevice(browser, errors, label) {
     s = await debugState(A);
     var h = s.history[round];
     assert.strictEqual(h.finalPrice, 110);
+    h.news.forEach(function (n, idx) {
+      assert.strictEqual(Object.keys(n.votes).length, round === 1 && idx === 1 ? 1 : 3, "votes recorded");
+    });
+    for (var dv in deviceOf) assert.strictEqual(await deviceOf[dv].locator(".ts-vote-detail").count(), 3);
     assert.deepStrictEqual(h.news.map(function (n) { return n.playerId; }).sort(), ["p0", "p1", "p2"]);
     var sum = Object.keys(h.payouts).reduce(function (a, id) { return a + h.payouts[id]; }, 0);
     assert.strictEqual(sum, h.pot);
