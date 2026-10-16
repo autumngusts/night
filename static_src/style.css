@@ -11926,3 +11926,11 @@ body.ut-has-player {
   max-height: 16rem;
   overflow-y: auto;
 }
+.gs-qr {
+  display: block;
+  margin: 0.5rem auto;
+  max-width: 100%;
+}
+.gs-qr-url {
+  width: 100%;
+}

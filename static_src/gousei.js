@@ -391,10 +391,71 @@
     app.appendChild(renderFooter());
   }
 
-  // ---------------- 分別裝置：QR 畫面（Task 6 實作） ----------------
+  // ---------------- 分別裝置：QR 畫面 ----------------
+  // 一次只顯示一位玩家的 QR，避免別人順便掃到。手機端只靠 主題.seed.人數.編號 自己算任務。
 
-  function renderQrScreen() { ui.screen = "play"; render(); }
-  function renderJoin() { app.appendChild(el("p", { class: "gs-error", text: t("gs_join_invalid") })); }
+  function joinUrl(index) {
+    return window.location.origin + window.location.pathname + "?join=" + Core.joinParam(state, index);
+  }
+
+  function renderQrScreen() {
+    var box = el("div", { id: "gs-qr-screen", class: "gs-panel" }, [
+      el("h2", { text: t("gs_join_heading") }),
+      el("p", { class: "gs-muted", text: t("gs_seed", { seed: state.seed }) })
+    ]);
+    var buttons = el("div", { class: "gs-actions" });
+    state.players.forEach(function (p, i) {
+      var showing = ui.qrFor === i;
+      buttons.appendChild(el("button", { type: "button", "data-qr-player": String(i), class: showing ? "gs-primary" : "",
+        text: showing ? t("gs_join_hide") : t("gs_join_show", { name: p.name }),
+        onclick: function () { ui.qrFor = showing ? null : i; render(); } }));
+    });
+    box.appendChild(buttons);
+    if (ui.qrFor !== null) {
+      var url = joinUrl(ui.qrFor);
+      var canvas = el("canvas", { id: "gs-qr-canvas", class: "gs-qr" });
+      window.PriTestQRCode.renderToCanvas(canvas, url, { level: "L", scale: 6, margin: 3 });
+      box.appendChild(el("p", { class: "gs-big", text: state.players[ui.qrFor].name }));
+      box.appendChild(canvas);
+      box.appendChild(el("input", { id: "gs-qr-url", type: "text", readonly: true, value: url, class: "gs-qr-url" }));
+    }
+    box.appendChild(el("div", { class: "gs-actions" }, [
+      el("button", { id: "gs-qr-continue", type: "button", class: "gs-primary", text: t("gs_join_continue"),
+        onclick: function () { ui.screen = "play"; ui.qrFor = null; render(); } })
+    ]));
+    app.appendChild(box);
+  }
+
+  // ---------------- 分別裝置：手機看任務頁（?join=） ----------------
+
+  function renderJoin() {
+    if (join.invalid) {
+      app.appendChild(el("p", { id: "gs-join", class: "gs-error", text: t("gs_join_invalid") }));
+      return;
+    }
+    var theme = themes[join.themeId];
+    if (!theme) {
+      app.appendChild(el("p", { class: "gs-muted", text: ui.error || t("gs_loading") }));
+      return;
+    }
+    var targets;
+    try {
+      targets = Core.dealTargets(theme, join.seed, join.count)[join.index];
+    } catch (e) {
+      app.appendChild(el("p", { id: "gs-join", class: "gs-error", text: t("gs_join_invalid") }));
+      return;
+    }
+    var player = { name: "", targets: targets, done: [] };
+    var box = el("div", { id: "gs-join", class: "gs-panel" }, [
+      el("h2", { text: t("gs_join_title") }),
+      el("p", { class: "gs-muted", text: t("gs_join_player", { n: join.index + 1, count: join.count }) + "　" + t("gs_seed", { seed: join.seed }) }),
+      el("button", { id: "gs-join-toggle", type: "button", text: t(ui.revealed ? "gs_hide_targets" : "gs_show_targets"),
+        onclick: function () { ui.revealed = !ui.revealed; render(); } })
+    ]);
+    if (ui.revealed) box.appendChild(targetList(theme, player, "gs-join-targets"));
+    box.appendChild(el("p", { class: "gs-muted", text: t("gs_hint") }));
+    app.appendChild(box);
+  }
 
   // ---------------- 主畫面 ----------------
 
@@ -416,6 +477,12 @@
     var params = new URLSearchParams(window.location.search);
     if (params.has("join")) {
       join = Core.parseJoin(params.get("join")) || { invalid: true };
+      if (!join.invalid) {
+        loadTheme(join.themeId, function (err) {
+          if (err) join = { invalid: true };
+          render();
+        });
+      }
       render();
       return;
     }
