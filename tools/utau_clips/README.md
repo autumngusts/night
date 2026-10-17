@@ -159,12 +159,18 @@ gh release download 0.25.2 -R VOICEVOX/voicevox_engine -p "voicevox_engine-windo
    → `lyrics.json` 每首會有 `start`、`clip`（聽寫的秒數，預設 30）、每句的 `t`（開始秒數）與 `ja`（聽寫的原文）。
    - `--region ja` 只做日文歌。已經填好 15 秒的舊資料會保留原本的句子，只補上 15 秒以後的聽寫。
    - 人聲經過大量電子處理的歌（例：Perfume）Whisper 會聽不出來，需要手動填。
-3. **在對話中請 Claude** 校對聽寫、填上：
+3. 列出樂句與逐字時間（草稿常把十幾秒連成一句，分句與字數要看這份）：
+   `tools/utau_clips/.venv/Scripts/python.exe tools/utau_clips/lyrics_phrases.py ja:紅蓮華 zh:晴天 > tools/utau_clips/cache/phrases.txt`
+   - 每個樂句印出 `[開始-結束]`、音符數、人聲發音起點數（大約要填幾個字／音拍）；`W:` 是 Whisper 逐字時間。
+4. **在對話中請 Claude** 校對聽寫、寫成填詞檔（例：`cache/fills_b4.py`，含歌詞所以放 `cache/`、不進 Git），填上：
    - `voice`：原唱 `male`／`female`（決定歌聲聲庫）
+   - 每句的 `t`：對到樂句開始；`end`（可省略）：唱到哪裡，聽寫不出或沒把握的段落用 `end` 留白，不硬填
    - 每句的 `zh`：中文直譯（對照用，方便檢查填詞意思）
-   - 每句的 `sing`：中文填詞（歌聲用，一字唱一個音節，字數大約等於原句音節數）
-   - 華語歌改填每句的 `ja_sing`：日文填詞（平假名，一個假名唱一個音；避開「っ」等不能單獨成音的字）
-4. 再跑一次 `build_pack.py`：有 `sing` 的做 `zh_sing`＋`zh_sing_inst`，有 `ja_sing` 的做 `ja_sing`＋`ja_sing_inst`。
+   - 每句的 `sing`：中文填詞（歌聲用，只能有漢字、一字唱一個音節，字數大約等於原句音節數）
+   - 華語歌改填每句的 `ja_sing`：日文填詞（只能有平假名、一個假名唱一個音；長音「ー」會讓 VOICEVOX 回 HTTP 400）
+5. 合併進 `lyrics.json`（先檢查字元與時間順序，全部通過才寫入；備份在 `cache/lyrics.bak-<檔名>.json`）：
+   `tools/utau_clips/.venv/Scripts/python.exe tools/utau_clips/lyrics_merge.py tools/utau_clips/cache/fills_b4.py`
+6. 再跑一次 `build_pack.py --split`：有 `sing` 的做 `zh_sing`＋`zh_sing_inst`，有 `ja_sing` 的做 `ja_sing`＋`ja_sing_inst`。
    - 快取在成品資料夾的 `zh-<歌詞雜湊>/`，改了譯詞或填詞只重做那首的中文版。
    - `start` 改過（重選起點）時，`lyrics.json` 的時間軸就對不上了，工具會略過中文版並提示重新聽寫。
 - `lyrics.json` 是歌詞與譯詞，有版權疑慮，**不進 Git**。
