@@ -1,0 +1,6097 @@
+{
+ "category": "food",
+ "items": [
+  {
+   "id": "food_yasai",
+   "zh": "蔬菜",
+   "ja": "野菜"
+  },
+  {
+   "id": "food_koji",
+   "zh": "麴",
+   "ja": "麹"
+  },
+  {
+   "id": "food_komugi",
+   "zh": "小麥",
+   "ja": "小麦"
+  },
+  {
+   "id": "food_komugiko",
+   "zh": "麵粉",
+   "ja": "小麦粉"
+  },
+  {
+   "id": "food_bakuga",
+   "zh": "麥芽",
+   "ja": "麦芽"
+  },
+  {
+   "id": "food_sobanomi",
+   "zh": "蕎麥籽",
+   "ja": "蕎麦の実"
+  },
+  {
+   "id": "food_sobako",
+   "zh": "蕎麥粉",
+   "ja": "そば粉"
+  },
+  {
+   "id": "food_mochigome",
+   "zh": "糯米",
+   "ja": "もち米"
+  },
+  {
+   "id": "food_komeko",
+   "zh": "米穀粉",
+   "ja": "米粉"
+  },
+  {
+   "id": "food_nuka",
+   "zh": "米糠",
+   "ja": "糠"
+  },
+  {
+   "id": "food_shinmai",
+   "zh": "當年新米",
+   "ja": "今年米"
+  },
+  {
+   "id": "food_kibi",
+   "zh": "黍米",
+   "ja": "黍"
+  },
+  {
+   "id": "food_umisachi",
+   "zh": "海產",
+   "ja": "海の幸"
+  },
+  {
+   "id": "food_kujira",
+   "zh": "鯨肉",
+   "ja": "鯨肉"
+  },
+  {
+   "id": "food_yamakujira",
+   "zh": "山豬肉",
+   "ja": "山くじら"
+  },
+  {
+   "id": "food_momijiniku",
+   "zh": "鹿肉",
+   "ja": "紅葉肉"
+  },
+  {
+   "id": "food_sakuraniku",
+   "zh": "馬肉",
+   "ja": "桜肉"
+  },
+  {
+   "id": "food_gyuniku",
+   "zh": "牛肉",
+   "ja": "牛肉"
+  },
+  {
+   "id": "food_toriniku",
+   "zh": "雞肉",
+   "ja": "鶏肉"
+  },
+  {
+   "id": "food_kamoniku",
+   "zh": "鴨肉",
+   "ja": "鴨肉"
+  },
+  {
+   "id": "food_tamago",
+   "zh": "雞蛋",
+   "ja": "卵"
+  },
+  {
+   "id": "food_kudamono",
+   "zh": "水果",
+   "ja": "果物"
+  },
+  {
+   "id": "food_sansai",
+   "zh": "新採山菜",
+   "ja": "採れたて山菜"
+  },
+  {
+   "id": "food_daikon",
+   "zh": "白蘿蔔",
+   "ja": "大根"
+  },
+  {
+   "id": "food_ninjin",
+   "zh": "胡蘿蔔",
+   "ja": "人参"
+  },
+  {
+   "id": "food_gobou",
+   "zh": "牛蒡",
+   "ja": "牛蒡"
+  },
+  {
+   "id": "food_renkon",
+   "zh": "新挖蓮藕",
+   "ja": "掘りたて蓮根"
+  },
+  {
+   "id": "food_satoimo",
+   "zh": "芋艿",
+   "ja": "里芋"
+  },
+  {
+   "id": "food_yamaimo",
+   "zh": "山藥",
+   "ja": "山芋"
+  },
+  {
+   "id": "food_kyuuri",
+   "zh": "小黃瓜",
+   "ja": "胡瓜"
+  },
+  {
+   "id": "food_nasu",
+   "zh": "茄子",
+   "ja": "茄子"
+  },
+  {
+   "id": "food_kabocha",
+   "zh": "南瓜",
+   "ja": "南瓜"
+  },
+  {
+   "id": "food_negi",
+   "zh": "青蔥",
+   "ja": "葱"
+  },
+  {
+   "id": "food_shouga",
+   "zh": "嫩薑",
+   "ja": "新生姜"
+  },
+  {
+   "id": "food_togarashi",
+   "zh": "辣椒",
+   "ja": "唐辛子"
+  },
+  {
+   "id": "food_wasabi",
+   "zh": "本山葵",
+   "ja": "本山葵"
+  },
+  {
+   "id": "food_shiitake",
+   "zh": "鮮香菇",
+   "ja": "生椎茸"
+  },
+  {
+   "id": "food_hoshishiitake",
+   "zh": "乾香菇",
+   "ja": "干し椎茸"
+  },
+  {
+   "id": "food_goma",
+   "zh": "芝麻",
+   "ja": "胡麻"
+  },
+  {
+   "id": "food_irigoma",
+   "zh": "炒芝麻",
+   "ja": "炒り胡麻"
+  },
+  {
+   "id": "food_surigoma",
+   "zh": "芝麻碎",
+   "ja": "すり胡麻"
+  },
+  {
+   "id": "food_gomaabura",
+   "zh": "麻油",
+   "ja": "胡麻油"
+  },
+  {
+   "id": "food_daizu",
+   "zh": "乾黃豆",
+   "ja": "干し大豆"
+  },
+  {
+   "id": "food_azuki",
+   "zh": "紅豆粒",
+   "ja": "小豆粒"
+  },
+  {
+   "id": "food_fukumame",
+   "zh": "福豆",
+   "ja": "福豆"
+  },
+  {
+   "id": "food_kuromame",
+   "zh": "黑豆",
+   "ja": "黒豆"
+  },
+  {
+   "id": "food_edamame",
+   "zh": "鹽水毛豆",
+   "ja": "茹で枝豆"
+  },
+  {
+   "id": "food_konnyaku",
+   "zh": "蒟蒻",
+   "ja": "蒟蒻"
+  },
+  {
+   "id": "food_shirataki",
+   "zh": "蒟蒻絲",
+   "ja": "白滝"
+  },
+  {
+   "id": "food_wakame",
+   "zh": "新鮮裙帶菜",
+   "ja": "生わかめ"
+  },
+  {
+   "id": "food_hijiki",
+   "zh": "羊栖菜",
+   "ja": "ひじき"
+  },
+  {
+   "id": "food_tengusa",
+   "zh": "石花菜",
+   "ja": "天草"
+  },
+  {
+   "id": "food_tokoroten",
+   "zh": "石花菜凍",
+   "ja": "心太"
+  },
+  {
+   "id": "food_kanten",
+   "zh": "寒天",
+   "ja": "寒天"
+  },
+  {
+   "id": "food_warabiko",
+   "zh": "蕨粉",
+   "ja": "蕨粉"
+  },
+  {
+   "id": "food_konsai",
+   "zh": "根莖蔬菜",
+   "ja": "根菜"
+  },
+  {
+   "id": "food_mikan",
+   "zh": "溫州蜜柑",
+   "ja": "温州蜜柑"
+  },
+  {
+   "id": "food_nashi",
+   "zh": "梨子",
+   "ja": "梨"
+  },
+  {
+   "id": "food_ichigo",
+   "zh": "草莓",
+   "ja": "苺"
+  },
+  {
+   "id": "food_suika",
+   "zh": "西瓜",
+   "ja": "西瓜"
+  },
+  {
+   "id": "food_sudachi",
+   "zh": "酢橘",
+   "ja": "酢橘"
+  },
+  {
+   "id": "food_kajitsushu",
+   "zh": "水果酒",
+   "ja": "果実酒"
+  },
+  {
+   "id": "food_miso",
+   "zh": "味噌",
+   "ja": "味噌"
+  },
+  {
+   "id": "food_shoyu",
+   "zh": "醬油",
+   "ja": "醤油"
+  },
+  {
+   "id": "food_usukuchi",
+   "zh": "淡口醬油",
+   "ja": "薄口醤油"
+  },
+  {
+   "id": "food_shiromiso",
+   "zh": "白味噌",
+   "ja": "白味噌"
+  },
+  {
+   "id": "food_akamiso",
+   "zh": "紅味噌",
+   "ja": "赤味噌"
+  },
+  {
+   "id": "food_mugimiso",
+   "zh": "麥味噌",
+   "ja": "麦味噌"
+  },
+  {
+   "id": "food_shochu",
+   "zh": "燒酒",
+   "ja": "焼酎"
+  },
+  {
+   "id": "food_mirin",
+   "zh": "味醂",
+   "ja": "味醂"
+  },
+  {
+   "id": "food_su",
+   "zh": "醋",
+   "ja": "酢"
+  },
+  {
+   "id": "food_amazu",
+   "zh": "甜醋",
+   "ja": "甘酢"
+  },
+  {
+   "id": "food_sumiso",
+   "zh": "醋味噌",
+   "ja": "酢味噌"
+  },
+  {
+   "id": "food_ponzu",
+   "zh": "柑橘醋",
+   "ja": "ポン酢"
+  },
+  {
+   "id": "food_tare",
+   "zh": "照燒醬汁",
+   "ja": "タレ"
+  },
+  {
+   "id": "food_tentsuyu",
+   "zh": "天婦羅醬汁",
+   "ja": "天つゆ"
+  },
+  {
+   "id": "food_gomadare",
+   "zh": "芝麻醬",
+   "ja": "胡麻だれ"
+  },
+  {
+   "id": "food_shichimi",
+   "zh": "七味粉",
+   "ja": "七味唐辛子"
+  },
+  {
+   "id": "food_mizuame",
+   "zh": "麥芽糖漿",
+   "ja": "水飴"
+  },
+  {
+   "id": "food_satou",
+   "zh": "砂糖",
+   "ja": "砂糖"
+  },
+  {
+   "id": "food_wasanbon",
+   "zh": "和三盆糖",
+   "ja": "和三盆"
+  },
+  {
+   "id": "food_kurozato",
+   "zh": "黑糖",
+   "ja": "黒砂糖"
+  },
+  {
+   "id": "food_kuromitsu",
+   "zh": "黑糖蜜",
+   "ja": "黒蜜"
+  },
+  {
+   "id": "food_shiokoji",
+   "zh": "鹽麴",
+   "ja": "塩麹"
+  },
+  {
+   "id": "food_amazake",
+   "zh": "甜酒釀",
+   "ja": "甘酒"
+  },
+  {
+   "id": "food_sakekasu",
+   "zh": "酒粕",
+   "ja": "酒粕"
+  },
+  {
+   "id": "food_ichibandashi",
+   "zh": "頭道高湯",
+   "ja": "一番出汁"
+  },
+  {
+   "id": "food_shiitakedashi",
+   "zh": "香菇高湯",
+   "ja": "椎茸出汁"
+  },
+  {
+   "id": "food_shojindashi",
+   "zh": "素高湯",
+   "ja": "精進出汁"
+  },
+  {
+   "id": "food_niboshi",
+   "zh": "小魚乾",
+   "ja": "煮干し"
+  },
+  {
+   "id": "food_sumeshi",
+   "zh": "醋飯",
+   "ja": "酢飯"
+  },
+  {
+   "id": "food_tsukemono",
+   "zh": "醃菜",
+   "ja": "漬物"
+  },
+  {
+   "id": "food_nukazuke",
+   "zh": "米糠醃菜",
+   "ja": "糠漬け"
+  },
+  {
+   "id": "food_takuan",
+   "zh": "醃黃蘿蔔",
+   "ja": "沢庵"
+  },
+  {
+   "id": "food_asazuke",
+   "zh": "淺漬",
+   "ja": "浅漬け"
+  },
+  {
+   "id": "food_shibazuke",
+   "zh": "柴漬",
+   "ja": "柴漬け"
+  },
+  {
+   "id": "food_narazuke",
+   "zh": "奈良漬",
+   "ja": "奈良漬け"
+  },
+  {
+   "id": "food_wasabizuke",
+   "zh": "山葵漬",
+   "ja": "山葵漬け"
+  },
+  {
+   "id": "food_fukujinzuke",
+   "zh": "福神漬",
+   "ja": "福神漬け"
+  },
+  {
+   "id": "food_gari",
+   "zh": "醋薑片",
+   "ja": "ガリ"
+  },
+  {
+   "id": "food_benishouga",
+   "zh": "紅薑",
+   "ja": "紅生姜"
+  },
+  {
+   "id": "food_kasuzuke",
+   "zh": "酒粕醃魚",
+   "ja": "粕漬け"
+  },
+  {
+   "id": "food_tounyu",
+   "zh": "豆漿",
+   "ja": "豆乳"
+  },
+  {
+   "id": "food_tofu",
+   "zh": "豆腐",
+   "ja": "豆腐"
+  },
+  {
+   "id": "food_okara",
+   "zh": "豆渣",
+   "ja": "おから"
+  },
+  {
+   "id": "food_unohana",
+   "zh": "炒豆渣",
+   "ja": "卯の花"
+  },
+  {
+   "id": "food_yuba",
+   "zh": "豆皮",
+   "ja": "湯葉"
+  },
+  {
+   "id": "food_aburaage",
+   "zh": "炸豆皮",
+   "ja": "油揚げ"
+  },
+  {
+   "id": "food_atsuage",
+   "zh": "炸厚豆腐",
+   "ja": "厚揚げ"
+  },
+  {
+   "id": "food_ganmodoki",
+   "zh": "雁擬豆腐",
+   "ja": "がんもどき"
+  },
+  {
+   "id": "food_kouyadofu",
+   "zh": "凍豆腐",
+   "ja": "高野豆腐"
+  },
+  {
+   "id": "food_hiyayakko",
+   "zh": "涼拌豆腐",
+   "ja": "冷奴"
+  },
+  {
+   "id": "food_yudofu",
+   "zh": "湯豆腐",
+   "ja": "湯豆腐"
+  },
+  {
+   "id": "food_agedashi",
+   "zh": "炸出汁豆腐",
+   "ja": "揚げ出し豆腐"
+  },
+  {
+   "id": "food_dengaku",
+   "zh": "豆腐田樂",
+   "ja": "豆腐田楽"
+  },
+  {
+   "id": "food_nasudengaku",
+   "zh": "茄子田樂",
+   "ja": "茄子田楽"
+  },
+  {
+   "id": "food_gomadofu",
+   "zh": "芝麻豆腐",
+   "ja": "胡麻豆腐"
+  },
+  {
+   "id": "food_natto",
+   "zh": "納豆",
+   "ja": "納豆"
+  },
+  {
+   "id": "food_nattogohan",
+   "zh": "納豆飯",
+   "ja": "納豆ご飯"
+  },
+  {
+   "id": "food_shiraae",
+   "zh": "白拌菜",
+   "ja": "白和え"
+  },
+  {
+   "id": "food_gomaae",
+   "zh": "芝麻拌菜",
+   "ja": "胡麻和え"
+  },
+  {
+   "id": "food_ohitashi",
+   "zh": "涼拌青菜",
+   "ja": "お浸し"
+  },
+  {
+   "id": "food_sunomono",
+   "zh": "醋拌菜",
+   "ja": "酢の物"
+  },
+  {
+   "id": "food_namasu",
+   "zh": "醋拌蘿蔔絲",
+   "ja": "なます"
+  },
+  {
+   "id": "food_kohakunamasu",
+   "zh": "紅白醋蘿蔔",
+   "ja": "紅白なます"
+  },
+  {
+   "id": "food_nuta",
+   "zh": "醋味噌拌蔥",
+   "ja": "ぬた"
+  },
+  {
+   "id": "food_kinpira",
+   "zh": "金平牛蒡",
+   "ja": "きんぴら牛蒡"
+  },
+  {
+   "id": "food_hijikini",
+   "zh": "燉羊栖菜",
+   "ja": "ひじき煮"
+  },
+  {
+   "id": "food_kiriboshi",
+   "zh": "蘿蔔乾",
+   "ja": "切り干し大根"
+  },
+  {
+   "id": "food_furofuki",
+   "zh": "味噌燉蘿蔔",
+   "ja": "風呂吹き大根"
+  },
+  {
+   "id": "food_daikonoroshi",
+   "zh": "蘿蔔泥",
+   "ja": "大根おろし"
+  },
+  {
+   "id": "food_yakinasu",
+   "zh": "烤茄子",
+   "ja": "焼き茄子"
+  },
+  {
+   "id": "food_morokyu",
+   "zh": "味噌小黃瓜",
+   "ja": "もろきゅう"
+  },
+  {
+   "id": "food_tororo",
+   "zh": "山藥泥",
+   "ja": "とろろ"
+  },
+  {
+   "id": "food_nikkorogashi",
+   "zh": "醬燒芋艿",
+   "ja": "里芋の煮っころがし"
+  },
+  {
+   "id": "food_kinukatsugi",
+   "zh": "帶皮蒸芋艿",
+   "ja": "衣かつぎ"
+  },
+  {
+   "id": "food_sashimikonnyaku",
+   "zh": "生魚片蒟蒻",
+   "ja": "刺身蒟蒻"
+  },
+  {
+   "id": "food_imogaranawa",
+   "zh": "芋莖繩",
+   "ja": "芋がら縄"
+  },
+  {
+   "id": "food_nimono",
+   "zh": "燉菜",
+   "ja": "煮物"
+  },
+  {
+   "id": "food_nishime",
+   "zh": "煮染",
+   "ja": "煮しめ"
+  },
+  {
+   "id": "food_chikuzenni",
+   "zh": "筑前煮",
+   "ja": "筑前煮"
+  },
+  {
+   "id": "food_kabochanimono",
+   "zh": "燉南瓜",
+   "ja": "南瓜の煮物"
+  },
+  {
+   "id": "food_zundamochi",
+   "zh": "毛豆泥年糕",
+   "ja": "ずんだ餅"
+  },
+  {
+   "id": "food_fu",
+   "zh": "烤麩",
+   "ja": "焼き麩"
+  },
+  {
+   "id": "food_ishiyakiimo",
+   "zh": "石烤地瓜",
+   "ja": "石焼き芋"
+  },
+  {
+   "id": "food_misoshiru",
+   "zh": "味噌湯",
+   "ja": "味噌汁"
+  },
+  {
+   "id": "food_sumashijiru",
+   "zh": "清湯",
+   "ja": "すまし汁"
+  },
+  {
+   "id": "food_dobinmushi",
+   "zh": "土瓶蒸",
+   "ja": "土瓶蒸し"
+  },
+  {
+   "id": "food_ushiojiru",
+   "zh": "蛤蜊清湯",
+   "ja": "潮汁"
+  },
+  {
+   "id": "food_shijimijiru",
+   "zh": "蜆仔湯",
+   "ja": "蜆汁"
+  },
+  {
+   "id": "food_wakamejiru",
+   "zh": "海帶芽味噌湯",
+   "ja": "若布の味噌汁"
+  },
+  {
+   "id": "food_kenchinjiru",
+   "zh": "卷纖湯",
+   "ja": "けんちん汁"
+  },
+  {
+   "id": "food_shishijiru",
+   "zh": "山豬湯",
+   "ja": "しし汁"
+  },
+  {
+   "id": "food_kasujiru",
+   "zh": "酒粕湯",
+   "ja": "粕汁"
+  },
+  {
+   "id": "food_imoni",
+   "zh": "芋煮",
+   "ja": "芋煮"
+  },
+  {
+   "id": "food_imonikai",
+   "zh": "芋煮會",
+   "ja": "芋煮会"
+  },
+  {
+   "id": "food_shiruko",
+   "zh": "紅豆湯",
+   "ja": "お汁粉"
+  },
+  {
+   "id": "food_zenzai",
+   "zh": "紅豆年糕湯",
+   "ja": "ぜんざい"
+  },
+  {
+   "id": "food_shiratamazenzai",
+   "zh": "白玉紅豆湯",
+   "ja": "白玉ぜんざい"
+  },
+  {
+   "id": "food_shogayu",
+   "zh": "薑湯",
+   "ja": "生姜湯"
+  },
+  {
+   "id": "food_koikoku",
+   "zh": "鯉魚味噌湯",
+   "ja": "鯉こく"
+  },
+  {
+   "id": "food_tsumirejiru",
+   "zh": "魚丸湯",
+   "ja": "つみれ汁"
+  },
+  {
+   "id": "food_kimosui",
+   "zh": "鰻肝湯",
+   "ja": "肝吸い"
+  },
+  {
+   "id": "food_onigiri",
+   "zh": "飯糰",
+   "ja": "おにぎり"
+  },
+  {
+   "id": "food_shiomusubi",
+   "zh": "鹽飯糰",
+   "ja": "塩むすび"
+  },
+  {
+   "id": "food_yakionigiri",
+   "zh": "烤飯糰",
+   "ja": "焼きおにぎり"
+  },
+  {
+   "id": "food_shakeonigiri",
+   "zh": "鮭魚飯糰",
+   "ja": "鮭おにぎり"
+  },
+  {
+   "id": "food_tenmusu",
+   "zh": "炸蝦飯糰",
+   "ja": "天むす"
+  },
+  {
+   "id": "food_chazuke",
+   "zh": "茶泡飯",
+   "ja": "茶漬け"
+  },
+  {
+   "id": "food_shakechazuke",
+   "zh": "鮭魚茶泡飯",
+   "ja": "鮭茶漬け"
+  },
+  {
+   "id": "food_taichazuke",
+   "zh": "鯛魚茶泡飯",
+   "ja": "鯛茶漬け"
+  },
+  {
+   "id": "food_tkg",
+   "zh": "生蛋拌飯",
+   "ja": "卵かけご飯"
+  },
+  {
+   "id": "food_takikomi",
+   "zh": "什錦炊飯",
+   "ja": "炊き込みご飯"
+  },
+  {
+   "id": "food_gomoku",
+   "zh": "五目飯",
+   "ja": "五目ご飯"
+  },
+  {
+   "id": "food_taimeshi",
+   "zh": "鯛魚飯",
+   "ja": "鯛めし"
+  },
+  {
+   "id": "food_kamameshi",
+   "zh": "釜飯",
+   "ja": "釜飯"
+  },
+  {
+   "id": "food_kakimeshi",
+   "zh": "牡蠣炊飯",
+   "ja": "牡蠣飯"
+  },
+  {
+   "id": "food_sekihan",
+   "zh": "紅豆飯",
+   "ja": "赤飯"
+  },
+  {
+   "id": "food_okowa",
+   "zh": "糯米飯",
+   "ja": "おこわ"
+  },
+  {
+   "id": "food_azukigayu",
+   "zh": "紅豆粥",
+   "ja": "小豆粥"
+  },
+  {
+   "id": "food_tamagogayu",
+   "zh": "蛋粥",
+   "ja": "卵粥"
+  },
+  {
+   "id": "food_chagayu",
+   "zh": "茶粥",
+   "ja": "茶粥"
+  },
+  {
+   "id": "food_mugimeshi",
+   "zh": "麥飯",
+   "ja": "麦飯"
+  },
+  {
+   "id": "food_mugitoro",
+   "zh": "麥飯山藥泥",
+   "ja": "麦とろ"
+  },
+  {
+   "id": "food_hoshii",
+   "zh": "乾飯",
+   "ja": "干し飯"
+  },
+  {
+   "id": "food_hyorogan",
+   "zh": "兵糧丸",
+   "ja": "兵糧丸"
+  },
+  {
+   "id": "food_fukagawa",
+   "zh": "深川飯",
+   "ja": "深川飯"
+  },
+  {
+   "id": "food_don",
+   "zh": "丼飯",
+   "ja": "丼"
+  },
+  {
+   "id": "food_oyakodon",
+   "zh": "親子丼",
+   "ja": "親子丼"
+  },
+  {
+   "id": "food_tanindon",
+   "zh": "他人丼",
+   "ja": "他人丼"
+  },
+  {
+   "id": "food_tendon",
+   "zh": "天丼",
+   "ja": "天丼"
+  },
+  {
+   "id": "food_gyudon",
+   "zh": "牛丼",
+   "ja": "牛丼"
+  },
+  {
+   "id": "food_unadon",
+   "zh": "鰻魚丼",
+   "ja": "鰻丼"
+  },
+  {
+   "id": "food_hitsumabushi",
+   "zh": "鰻魚飯三吃",
+   "ja": "ひつまぶし"
+  },
+  {
+   "id": "food_kaisendon",
+   "zh": "海鮮丼",
+   "ja": "海鮮丼"
+  },
+  {
+   "id": "food_tekkadon",
+   "zh": "鐵火丼",
+   "ja": "鉄火丼"
+  },
+  {
+   "id": "food_ikuradon",
+   "zh": "鮭魚卵丼",
+   "ja": "いくら丼"
+  },
+  {
+   "id": "food_unidon",
+   "zh": "海膽丼",
+   "ja": "雲丹丼"
+  },
+  {
+   "id": "food_zousui",
+   "zh": "雜燴粥",
+   "ja": "雑炊"
+  },
+  {
+   "id": "food_kanizosui",
+   "zh": "螃蟹雜燴粥",
+   "ja": "蟹雑炊"
+  },
+  {
+   "id": "food_kiritanpo",
+   "zh": "烤米棒",
+   "ja": "きりたんぽ"
+  },
+  {
+   "id": "food_kiritanponabe",
+   "zh": "米棒鍋",
+   "ja": "きりたんぽ鍋"
+  },
+  {
+   "id": "food_gohei",
+   "zh": "五平餅",
+   "ja": "五平餅"
+  },
+  {
+   "id": "food_makizushi",
+   "zh": "壽司卷",
+   "ja": "巻き寿司"
+  },
+  {
+   "id": "food_kappamaki",
+   "zh": "小黃瓜卷",
+   "ja": "かっぱ巻き"
+  },
+  {
+   "id": "food_tekkamaki",
+   "zh": "鐵火卷",
+   "ja": "鉄火巻"
+  },
+  {
+   "id": "food_futomaki",
+   "zh": "太卷",
+   "ja": "太巻き"
+  },
+  {
+   "id": "food_gunkan",
+   "zh": "軍艦卷",
+   "ja": "軍艦巻き"
+  },
+  {
+   "id": "food_chirashi",
+   "zh": "散壽司",
+   "ja": "ちらし寿司"
+  },
+  {
+   "id": "food_oshizushi",
+   "zh": "押壽司",
+   "ja": "押し寿司"
+  },
+  {
+   "id": "food_sabazushi",
+   "zh": "鯖魚壽司",
+   "ja": "鯖寿司"
+  },
+  {
+   "id": "food_funazushi",
+   "zh": "鮒壽司",
+   "ja": "鮒寿司"
+  },
+  {
+   "id": "food_maguronigiri",
+   "zh": "鮪魚握壽司",
+   "ja": "鮪の握り"
+  },
+  {
+   "id": "food_edomae",
+   "zh": "江戶前壽司",
+   "ja": "江戸前寿司"
+  },
+  {
+   "id": "food_funamori",
+   "zh": "船盛",
+   "ja": "舟盛り"
+  },
+  {
+   "id": "food_ikezukuri",
+   "zh": "活造",
+   "ja": "活け造り"
+  },
+  {
+   "id": "food_tai",
+   "zh": "鯛魚",
+   "ja": "鯛"
+  },
+  {
+   "id": "food_sakuradai",
+   "zh": "櫻鯛",
+   "ja": "桜鯛"
+  },
+  {
+   "id": "food_kinmedai",
+   "zh": "金目鯛",
+   "ja": "金目鯛"
+  },
+  {
+   "id": "food_maguro",
+   "zh": "鮪魚",
+   "ja": "鮪"
+  },
+  {
+   "id": "food_ootoro",
+   "zh": "鮪魚大腹肉",
+   "ja": "大トロ"
+  },
+  {
+   "id": "food_katsuo",
+   "zh": "鰹魚",
+   "ja": "鰹"
+  },
+  {
+   "id": "food_hatsugatsuo",
+   "zh": "初鰹",
+   "ja": "初鰹"
+  },
+  {
+   "id": "food_modorigatsuo",
+   "zh": "回游鰹",
+   "ja": "戻り鰹"
+  },
+  {
+   "id": "food_tataki",
+   "zh": "炙燒鰹魚",
+   "ja": "鰹のたたき"
+  },
+  {
+   "id": "food_shuto",
+   "zh": "酒盜",
+   "ja": "酒盗"
+  },
+  {
+   "id": "food_saba",
+   "zh": "鯖魚",
+   "ja": "鯖"
+  },
+  {
+   "id": "food_iwashi",
+   "zh": "沙丁魚",
+   "ja": "鰯"
+  },
+  {
+   "id": "food_aji",
+   "zh": "竹莢魚",
+   "ja": "鯵"
+  },
+  {
+   "id": "food_shake",
+   "zh": "鮭魚",
+   "ja": "鮭"
+  },
+  {
+   "id": "food_buri",
+   "zh": "鰤魚",
+   "ja": "鰤"
+  },
+  {
+   "id": "food_fugu",
+   "zh": "河豚",
+   "ja": "河豚"
+  },
+  {
+   "id": "food_ankou",
+   "zh": "鮟鱇魚",
+   "ja": "鮟鱇"
+  },
+  {
+   "id": "food_hirame",
+   "zh": "比目魚",
+   "ja": "平目"
+  },
+  {
+   "id": "food_nishin",
+   "zh": "鯡魚",
+   "ja": "鰊"
+  },
+  {
+   "id": "food_sawara",
+   "zh": "土魠魚",
+   "ja": "鰆"
+  },
+  {
+   "id": "food_tara",
+   "zh": "鱈魚",
+   "ja": "鱈"
+  },
+  {
+   "id": "food_hatahata",
+   "zh": "叉牙魚",
+   "ja": "鰰"
+  },
+  {
+   "id": "food_sanma",
+   "zh": "秋刀魚",
+   "ja": "秋刀魚"
+  },
+  {
+   "id": "food_ayu",
+   "zh": "香魚",
+   "ja": "鮎"
+  },
+  {
+   "id": "food_unagi",
+   "zh": "鰻魚",
+   "ja": "鰻"
+  },
+  {
+   "id": "food_anago",
+   "zh": "星鰻",
+   "ja": "穴子"
+  },
+  {
+   "id": "food_iwana",
+   "zh": "岩魚",
+   "ja": "岩魚"
+  },
+  {
+   "id": "food_funa",
+   "zh": "鯽魚",
+   "ja": "鮒"
+  },
+  {
+   "id": "food_dojou",
+   "zh": "泥鰍",
+   "ja": "泥鰌"
+  },
+  {
+   "id": "food_asari",
+   "zh": "蛤蜊",
+   "ja": "浅蜊"
+  },
+  {
+   "id": "food_shijimi",
+   "zh": "蜆仔",
+   "ja": "蜆"
+  },
+  {
+   "id": "food_hamaguri",
+   "zh": "文蛤",
+   "ja": "蛤"
+  },
+  {
+   "id": "food_kaki",
+   "zh": "牡蠣",
+   "ja": "牡蠣"
+  },
+  {
+   "id": "food_hotate",
+   "zh": "扇貝",
+   "ja": "帆立"
+  },
+  {
+   "id": "food_sazae",
+   "zh": "蠑螺",
+   "ja": "栄螺"
+  },
+  {
+   "id": "food_awabi",
+   "zh": "鮑魚",
+   "ja": "鮑"
+  },
+  {
+   "id": "food_tako",
+   "zh": "章魚",
+   "ja": "蛸"
+  },
+  {
+   "id": "food_ika",
+   "zh": "鮮魷魚",
+   "ja": "生烏賊"
+  },
+  {
+   "id": "food_ebi",
+   "zh": "蝦",
+   "ja": "海老"
+  },
+  {
+   "id": "food_iseebi",
+   "zh": "伊勢龍蝦",
+   "ja": "伊勢海老"
+  },
+  {
+   "id": "food_amaebi",
+   "zh": "甜蝦",
+   "ja": "甘海老"
+  },
+  {
+   "id": "food_sakuraebi",
+   "zh": "櫻花蝦",
+   "ja": "桜海老"
+  },
+  {
+   "id": "food_kani",
+   "zh": "螃蟹",
+   "ja": "蟹"
+  },
+  {
+   "id": "food_uni",
+   "zh": "海膽",
+   "ja": "雲丹"
+  },
+  {
+   "id": "food_ikura",
+   "zh": "鮭魚卵",
+   "ja": "いくら"
+  },
+  {
+   "id": "food_kazunoko",
+   "zh": "鯡魚卵",
+   "ja": "数の子"
+  },
+  {
+   "id": "food_tarako",
+   "zh": "鱈魚子",
+   "ja": "鱈子"
+  },
+  {
+   "id": "food_mentaiko",
+   "zh": "明太子",
+   "ja": "明太子"
+  },
+  {
+   "id": "food_taishioyaki",
+   "zh": "鹽烤鯛魚",
+   "ja": "鯛の塩焼き"
+  },
+  {
+   "id": "food_okashiratsuki",
+   "zh": "全尾鯛",
+   "ja": "尾頭付き"
+  },
+  {
+   "id": "food_kabutoni",
+   "zh": "燉鯛魚頭",
+   "ja": "鯛の兜煮"
+  },
+  {
+   "id": "food_shiozake",
+   "zh": "鹽鮭",
+   "ja": "塩鮭"
+  },
+  {
+   "id": "food_shaketoba",
+   "zh": "鮭魚乾條",
+   "ja": "鮭とば"
+  },
+  {
+   "id": "food_shiosaba",
+   "zh": "鹽鯖",
+   "ja": "塩鯖"
+  },
+  {
+   "id": "food_shimesaba",
+   "zh": "醋醃鯖魚",
+   "ja": "しめ鯖"
+  },
+  {
+   "id": "food_sabamiso",
+   "zh": "味噌燉鯖魚",
+   "ja": "鯖の味噌煮"
+  },
+  {
+   "id": "food_buridaikon",
+   "zh": "鰤魚燉蘿蔔",
+   "ja": "鰤大根"
+  },
+  {
+   "id": "food_buriteri",
+   "zh": "照燒鰤魚",
+   "ja": "鰤の照り焼き"
+  },
+  {
+   "id": "food_iwashiumeni",
+   "zh": "梅煮沙丁魚",
+   "ja": "鰯の梅煮"
+  },
+  {
+   "id": "food_tsumire",
+   "zh": "沙丁魚丸",
+   "ja": "つみれ"
+  },
+  {
+   "id": "food_tazukuri",
+   "zh": "田作小魚",
+   "ja": "田作り"
+  },
+  {
+   "id": "food_sanmashioyaki",
+   "zh": "鹽烤秋刀魚",
+   "ja": "秋刀魚の塩焼き"
+  },
+  {
+   "id": "food_fugusashi",
+   "zh": "河豚刺身",
+   "ja": "河豚刺し"
+  },
+  {
+   "id": "food_tecchiri",
+   "zh": "河豚火鍋",
+   "ja": "てっちり"
+  },
+  {
+   "id": "food_hirezake",
+   "zh": "鰭酒",
+   "ja": "ひれ酒"
+  },
+  {
+   "id": "food_ankounabe",
+   "zh": "鮟鱇鍋",
+   "ja": "鮟鱇鍋"
+  },
+  {
+   "id": "food_tarachiri",
+   "zh": "鱈魚火鍋",
+   "ja": "鱈ちり"
+  },
+  {
+   "id": "food_boudara",
+   "zh": "棒鱈",
+   "ja": "棒鱈"
+  },
+  {
+   "id": "food_imobou",
+   "zh": "芋棒",
+   "ja": "芋棒"
+  },
+  {
+   "id": "food_shottsuru",
+   "zh": "鹽魚汁",
+   "ja": "しょっつる"
+  },
+  {
+   "id": "food_shottsurunabe",
+   "zh": "鹽魚汁鍋",
+   "ja": "しょっつる鍋"
+  },
+  {
+   "id": "food_kobujime",
+   "zh": "昆布漬比目魚",
+   "ja": "昆布締め"
+  },
+  {
+   "id": "food_migakinishin",
+   "zh": "乾鯡魚",
+   "ja": "身欠き鰊"
+  },
+  {
+   "id": "food_nishinsoba",
+   "zh": "鯡魚蕎麥",
+   "ja": "鰊蕎麦"
+  },
+  {
+   "id": "food_ishikari",
+   "zh": "石狩鍋",
+   "ja": "石狩鍋"
+  },
+  {
+   "id": "food_ajinohiraki",
+   "zh": "竹莢魚一夜乾",
+   "ja": "鯵の開き"
+  },
+  {
+   "id": "food_namerou",
+   "zh": "味噌拌竹莢魚",
+   "ja": "なめろう"
+  },
+  {
+   "id": "food_nanbanzuke",
+   "zh": "南蠻漬",
+   "ja": "南蛮漬け"
+  },
+  {
+   "id": "food_zuke",
+   "zh": "醬漬鮪魚",
+   "ja": "鮪の漬け"
+  },
+  {
+   "id": "food_negitoro",
+   "zh": "蔥花鮪魚",
+   "ja": "ねぎとろ"
+  },
+  {
+   "id": "food_yamakake",
+   "zh": "山藥泥鮪魚",
+   "ja": "山かけ"
+  },
+  {
+   "id": "food_nizakana",
+   "zh": "醬燒魚",
+   "ja": "煮魚"
+  },
+  {
+   "id": "food_saikyoyaki",
+   "zh": "西京燒",
+   "ja": "西京焼き"
+  },
+  {
+   "id": "food_funakanroni",
+   "zh": "甘露煮鯽魚",
+   "ja": "鮒の甘露煮"
+  },
+  {
+   "id": "food_ayushioyaki",
+   "zh": "鹽烤香魚",
+   "ja": "鮎の塩焼き"
+  },
+  {
+   "id": "food_koinoarai",
+   "zh": "冰鎮鯉魚片",
+   "ja": "鯉の洗い"
+  },
+  {
+   "id": "food_tsukudani",
+   "zh": "佃煮",
+   "ja": "佃煮"
+  },
+  {
+   "id": "food_kobumaki",
+   "zh": "昆布卷",
+   "ja": "昆布巻き"
+  },
+  {
+   "id": "food_surimi",
+   "zh": "魚漿",
+   "ja": "すり身"
+  },
+  {
+   "id": "food_kamaboko",
+   "zh": "板付魚糕",
+   "ja": "蒲鉾"
+  },
+  {
+   "id": "food_chikuwa",
+   "zh": "竹輪",
+   "ja": "竹輪"
+  },
+  {
+   "id": "food_hanpen",
+   "zh": "魚肉山芋餅",
+   "ja": "はんぺん"
+  },
+  {
+   "id": "food_satsumaage",
+   "zh": "薩摩炸魚餅",
+   "ja": "さつま揚げ"
+  },
+  {
+   "id": "food_datemaki",
+   "zh": "伊達卷",
+   "ja": "伊達巻"
+  },
+  {
+   "id": "food_sasakama",
+   "zh": "竹葉魚板",
+   "ja": "笹かまぼこ"
+  },
+  {
+   "id": "food_kohakukamaboko",
+   "zh": "紅白魚板",
+   "ja": "紅白蒲鉾"
+  },
+  {
+   "id": "food_oden",
+   "zh": "關東煮",
+   "ja": "おでん"
+  },
+  {
+   "id": "food_kotsuzake",
+   "zh": "骨酒",
+   "ja": "骨酒"
+  },
+  {
+   "id": "food_kanimiso",
+   "zh": "蟹膏",
+   "ja": "蟹味噌"
+  },
+  {
+   "id": "food_yudegani",
+   "zh": "水煮螃蟹",
+   "ja": "茹で蟹"
+  },
+  {
+   "id": "food_kaninabe",
+   "zh": "螃蟹火鍋",
+   "ja": "蟹鍋"
+  },
+  {
+   "id": "food_yakihamaguri",
+   "zh": "烤文蛤",
+   "ja": "焼き蛤"
+  },
+  {
+   "id": "food_dotenabe",
+   "zh": "味噌牡蠣鍋",
+   "ja": "土手鍋"
+  },
+  {
+   "id": "food_hotateyaki",
+   "zh": "烤扇貝",
+   "ja": "帆立の貝焼き"
+  },
+  {
+   "id": "food_noshiawabi",
+   "zh": "熨斗鮑",
+   "ja": "熨斗鮑"
+  },
+  {
+   "id": "food_asarisakamushi",
+   "zh": "酒蒸蛤蜊",
+   "ja": "浅蜊の酒蒸し"
+  },
+  {
+   "id": "food_takoyaki",
+   "zh": "章魚燒",
+   "ja": "たこ焼き"
+  },
+  {
+   "id": "food_akashiyaki",
+   "zh": "明石燒",
+   "ja": "明石焼き"
+  },
+  {
+   "id": "food_sudako",
+   "zh": "醋章魚",
+   "ja": "酢蛸"
+  },
+  {
+   "id": "food_ikayaki",
+   "zh": "烤魷魚",
+   "ja": "烏賊焼き"
+  },
+  {
+   "id": "food_ikameshi",
+   "zh": "魷魚飯",
+   "ja": "いか飯"
+  },
+  {
+   "id": "food_shiokara",
+   "zh": "鹽辛",
+   "ja": "塩辛"
+  },
+  {
+   "id": "food_surume",
+   "zh": "魷魚乾",
+   "ja": "するめ"
+  },
+  {
+   "id": "food_ichiyaboshi",
+   "zh": "一夜乾魷魚",
+   "ja": "烏賊の一夜干し"
+  },
+  {
+   "id": "food_tsuboyaki",
+   "zh": "壺燒蠑螺",
+   "ja": "栄螺の壺焼き"
+  },
+  {
+   "id": "food_kabayaki",
+   "zh": "蒲燒鰻",
+   "ja": "鰻の蒲焼"
+  },
+  {
+   "id": "food_shirayaki",
+   "zh": "白燒鰻",
+   "ja": "鰻の白焼き"
+  },
+  {
+   "id": "food_umaki",
+   "zh": "鰻魚玉子燒",
+   "ja": "う巻き"
+  },
+  {
+   "id": "food_taimen",
+   "zh": "鯛魚素麵",
+   "ja": "鯛麺"
+  },
+  {
+   "id": "food_tatsutaage",
+   "zh": "龍田炸鯨肉",
+   "ja": "竜田揚げ"
+  },
+  {
+   "id": "food_shishinabe",
+   "zh": "山豬鍋",
+   "ja": "しし鍋"
+  },
+  {
+   "id": "food_momijinabe",
+   "zh": "鹿肉鍋",
+   "ja": "紅葉鍋"
+  },
+  {
+   "id": "food_sakuranabe",
+   "zh": "馬肉鍋",
+   "ja": "桜鍋"
+  },
+  {
+   "id": "food_kamonabe",
+   "zh": "鴨肉鍋",
+   "ja": "鴨鍋"
+  },
+  {
+   "id": "food_gyunabe",
+   "zh": "牛肉鍋",
+   "ja": "牛鍋"
+  },
+  {
+   "id": "food_sukiyaki",
+   "zh": "壽喜燒",
+   "ja": "すき焼き"
+  },
+  {
+   "id": "food_shabushabu",
+   "zh": "涮涮鍋",
+   "ja": "しゃぶしゃぶ"
+  },
+  {
+   "id": "food_wagyu",
+   "zh": "和牛",
+   "ja": "和牛"
+  },
+  {
+   "id": "food_shimofuri",
+   "zh": "霜降牛肉",
+   "ja": "霜降り肉"
+  },
+  {
+   "id": "food_mizutaki",
+   "zh": "雞肉水炊鍋",
+   "ja": "水炊き"
+  },
+  {
+   "id": "food_yakitori",
+   "zh": "烤雞肉串",
+   "ja": "焼き鳥"
+  },
+  {
+   "id": "food_tsukune",
+   "zh": "雞肉丸",
+   "ja": "つくね"
+  },
+  {
+   "id": "food_tebasaki",
+   "zh": "雞翅",
+   "ja": "手羽先"
+  },
+  {
+   "id": "food_karaage",
+   "zh": "日式炸雞",
+   "ja": "唐揚げ"
+  },
+  {
+   "id": "food_nikujaga",
+   "zh": "馬鈴薯燉肉",
+   "ja": "肉じゃが"
+  },
+  {
+   "id": "food_kakuni",
+   "zh": "滷肉塊",
+   "ja": "角煮"
+  },
+  {
+   "id": "food_jibuni",
+   "zh": "治部煮",
+   "ja": "治部煮"
+  },
+  {
+   "id": "food_kamonanban",
+   "zh": "鴨肉蕎麥",
+   "ja": "鴨南蛮"
+  },
+  {
+   "id": "food_dojounabe",
+   "zh": "泥鰍鍋",
+   "ja": "泥鰌鍋"
+  },
+  {
+   "id": "food_yanagawa",
+   "zh": "柳川鍋",
+   "ja": "柳川鍋"
+  },
+  {
+   "id": "food_tamagoyaki",
+   "zh": "玉子燒",
+   "ja": "卵焼き"
+  },
+  {
+   "id": "food_dashimaki",
+   "zh": "高湯玉子燒",
+   "ja": "だし巻き卵"
+  },
+  {
+   "id": "food_chawanmushi",
+   "zh": "茶碗蒸",
+   "ja": "茶碗蒸し"
+  },
+  {
+   "id": "food_onsentamago",
+   "zh": "溫泉蛋",
+   "ja": "温泉卵"
+  },
+  {
+   "id": "food_kurotamago",
+   "zh": "黑蛋",
+   "ja": "黒卵"
+  },
+  {
+   "id": "food_nitamago",
+   "zh": "滷蛋",
+   "ja": "煮卵"
+  },
+  {
+   "id": "food_yudetamago",
+   "zh": "水煮蛋",
+   "ja": "茹で卵"
+  },
+  {
+   "id": "food_tamagodofu",
+   "zh": "玉子豆腐",
+   "ja": "玉子豆腐"
+  },
+  {
+   "id": "food_tamagozake",
+   "zh": "蛋酒",
+   "ja": "卵酒"
+  },
+  {
+   "id": "food_yosenabe",
+   "zh": "什錦火鍋",
+   "ja": "寄せ鍋"
+  },
+  {
+   "id": "food_yaminabe",
+   "zh": "黑暗火鍋",
+   "ja": "闇鍋"
+  },
+  {
+   "id": "food_mizorenabe",
+   "zh": "蘿蔔泥火鍋",
+   "ja": "みぞれ鍋"
+  },
+  {
+   "id": "food_koromo",
+   "zh": "麵衣",
+   "ja": "衣"
+  },
+  {
+   "id": "food_tenkasu",
+   "zh": "天婦羅碎",
+   "ja": "天かす"
+  },
+  {
+   "id": "food_tempura",
+   "zh": "天婦羅",
+   "ja": "天ぷら"
+  },
+  {
+   "id": "food_shojinage",
+   "zh": "素炸山菜",
+   "ja": "精進揚げ"
+  },
+  {
+   "id": "food_kakiage",
+   "zh": "什錦炸",
+   "ja": "かき揚げ"
+  },
+  {
+   "id": "food_okonomiyaki",
+   "zh": "大阪燒",
+   "ja": "お好み焼き"
+  },
+  {
+   "id": "food_monja",
+   "zh": "文字燒",
+   "ja": "もんじゃ焼き"
+  },
+  {
+   "id": "food_men",
+   "zh": "麵條",
+   "ja": "麺"
+  },
+  {
+   "id": "food_udon",
+   "zh": "烏龍麵",
+   "ja": "饂飩"
+  },
+  {
+   "id": "food_soumen",
+   "zh": "素麵",
+   "ja": "素麺"
+  },
+  {
+   "id": "food_hiyamugi",
+   "zh": "冷麥麵",
+   "ja": "冷麦"
+  },
+  {
+   "id": "food_kishimen",
+   "zh": "棊子麵",
+   "ja": "きしめん"
+  },
+  {
+   "id": "food_houtou",
+   "zh": "餺飥",
+   "ja": "ほうとう"
+  },
+  {
+   "id": "food_soba",
+   "zh": "蕎麥麵",
+   "ja": "蕎麦切り"
+  },
+  {
+   "id": "food_sobagaki",
+   "zh": "蕎麥糕",
+   "ja": "蕎麦掻き"
+  },
+  {
+   "id": "food_sobayu",
+   "zh": "蕎麥湯",
+   "ja": "蕎麦湯"
+  },
+  {
+   "id": "food_zarusoba",
+   "zh": "竹篩蕎麥",
+   "ja": "ざる蕎麦"
+  },
+  {
+   "id": "food_kakesoba",
+   "zh": "清湯蕎麥",
+   "ja": "かけ蕎麦"
+  },
+  {
+   "id": "food_tsukimiudon",
+   "zh": "月見烏龍麵",
+   "ja": "月見うどん"
+  },
+  {
+   "id": "food_kitsuneudon",
+   "zh": "豆皮烏龍麵",
+   "ja": "きつねうどん"
+  },
+  {
+   "id": "food_tanukisoba",
+   "zh": "天婦羅碎蕎麥",
+   "ja": "たぬき蕎麦"
+  },
+  {
+   "id": "food_tempurasoba",
+   "zh": "天婦羅蕎麥",
+   "ja": "天ぷら蕎麦"
+  },
+  {
+   "id": "food_toshikoshi",
+   "zh": "跨年蕎麥",
+   "ja": "年越し蕎麦"
+  },
+  {
+   "id": "food_wankosoba",
+   "zh": "碗子蕎麥",
+   "ja": "わんこそば"
+  },
+  {
+   "id": "food_nabeyakiudon",
+   "zh": "鍋燒烏龍麵",
+   "ja": "鍋焼きうどん"
+  },
+  {
+   "id": "food_hiyashisoumen",
+   "zh": "冰涼素麵",
+   "ja": "冷やし素麺"
+  },
+  {
+   "id": "food_nyumen",
+   "zh": "煮素麵",
+   "ja": "煮麺"
+  },
+  {
+   "id": "food_yakiudon",
+   "zh": "炒烏龍麵",
+   "ja": "焼うどん"
+  },
+  {
+   "id": "food_misonikomi",
+   "zh": "味噌燉烏龍麵",
+   "ja": "味噌煮込みうどん"
+  },
+  {
+   "id": "food_tororosoba",
+   "zh": "山藥泥蕎麥",
+   "ja": "とろろ蕎麦"
+  },
+  {
+   "id": "food_sansaisoba",
+   "zh": "山菜蕎麥",
+   "ja": "山菜そば"
+  },
+  {
+   "id": "food_atsukan",
+   "zh": "熱清酒",
+   "ja": "熱燗"
+  },
+  {
+   "id": "food_reishu",
+   "zh": "冷清酒",
+   "ja": "冷酒"
+  },
+  {
+   "id": "food_nigorizake",
+   "zh": "濁酒",
+   "ja": "濁り酒"
+  },
+  {
+   "id": "food_seishu",
+   "zh": "清酒",
+   "ja": "清酒"
+  },
+  {
+   "id": "food_shinshu",
+   "zh": "新酒",
+   "ja": "新酒"
+  },
+  {
+   "id": "food_koshu",
+   "zh": "古酒",
+   "ja": "古酒"
+  },
+  {
+   "id": "food_taruzake",
+   "zh": "樽酒",
+   "ja": "樽酒"
+  },
+  {
+   "id": "food_junmai",
+   "zh": "純米酒",
+   "ja": "純米酒"
+  },
+  {
+   "id": "food_ginjo",
+   "zh": "吟釀酒",
+   "ja": "吟醸酒"
+  },
+  {
+   "id": "food_daiginjo",
+   "zh": "大吟釀",
+   "ja": "大吟醸"
+  },
+  {
+   "id": "food_jizake",
+   "zh": "地酒",
+   "ja": "地酒"
+  },
+  {
+   "id": "food_imojochu",
+   "zh": "芋燒酒",
+   "ja": "芋焼酎"
+  },
+  {
+   "id": "food_mugijochu",
+   "zh": "麥燒酒",
+   "ja": "麦焼酎"
+  },
+  {
+   "id": "food_awamori",
+   "zh": "泡盛",
+   "ja": "泡盛"
+  },
+  {
+   "id": "food_hannyato",
+   "zh": "般若湯",
+   "ja": "般若湯"
+  },
+  {
+   "id": "food_gyokuro",
+   "zh": "一盞玉露",
+   "ja": "玉露の一服"
+  },
+  {
+   "id": "food_sencha",
+   "zh": "煎茶",
+   "ja": "煎茶"
+  },
+  {
+   "id": "food_houjicha",
+   "zh": "焙煎茶",
+   "ja": "ほうじ茶"
+  },
+  {
+   "id": "food_mugicha",
+   "zh": "麥茶",
+   "ja": "麦茶"
+  },
+  {
+   "id": "food_kobucha",
+   "zh": "昆布茶",
+   "ja": "昆布茶"
+  },
+  {
+   "id": "food_umekobucha",
+   "zh": "梅子昆布茶",
+   "ja": "梅昆布茶"
+  },
+  {
+   "id": "food_koicha",
+   "zh": "濃茶",
+   "ja": "濃茶"
+  },
+  {
+   "id": "food_usucha",
+   "zh": "薄茶",
+   "ja": "薄茶"
+  },
+  {
+   "id": "food_shincha",
+   "zh": "新茶",
+   "ja": "新茶"
+  },
+  {
+   "id": "food_amacha",
+   "zh": "甘茶",
+   "ja": "甘茶"
+  },
+  {
+   "id": "food_tsubuan",
+   "zh": "顆粒紅豆餡",
+   "ja": "粒餡"
+  },
+  {
+   "id": "food_koshian",
+   "zh": "紅豆泥",
+   "ja": "こし餡"
+  },
+  {
+   "id": "food_shiroan",
+   "zh": "白豆沙",
+   "ja": "白餡"
+  },
+  {
+   "id": "food_shiratama",
+   "zh": "白玉湯圓",
+   "ja": "白玉"
+  },
+  {
+   "id": "food_dango",
+   "zh": "糰子",
+   "ja": "団子"
+  },
+  {
+   "id": "food_sanshokudango",
+   "zh": "三色串糰子",
+   "ja": "三色串団子"
+  },
+  {
+   "id": "food_mitarashi",
+   "zh": "御手洗糰子",
+   "ja": "みたらし団子"
+  },
+  {
+   "id": "food_kusadango",
+   "zh": "艾草糰子",
+   "ja": "草団子"
+  },
+  {
+   "id": "food_andango",
+   "zh": "豆沙糰子",
+   "ja": "餡団子"
+  },
+  {
+   "id": "food_kibidango",
+   "zh": "吉備糰子",
+   "ja": "きび団子"
+  },
+  {
+   "id": "food_daifuku",
+   "zh": "大福",
+   "ja": "大福"
+  },
+  {
+   "id": "food_mamedaifuku",
+   "zh": "豆大福",
+   "ja": "豆大福"
+  },
+  {
+   "id": "food_ichigodaifuku",
+   "zh": "草莓大福",
+   "ja": "苺大福"
+  },
+  {
+   "id": "food_shiodaifuku",
+   "zh": "鹽大福",
+   "ja": "塩大福"
+  },
+  {
+   "id": "food_uguisumochi",
+   "zh": "鶯餅",
+   "ja": "鶯餅"
+  },
+  {
+   "id": "food_kusamochi",
+   "zh": "草餅",
+   "ja": "草餅"
+  },
+  {
+   "id": "food_chimaki",
+   "zh": "粽子",
+   "ja": "ちまき"
+  },
+  {
+   "id": "food_botamochi",
+   "zh": "牡丹餅",
+   "ja": "牡丹餅"
+  },
+  {
+   "id": "food_kinako",
+   "zh": "黃豆粉",
+   "ja": "黄粉"
+  },
+  {
+   "id": "food_abekawa",
+   "zh": "安倍川餅",
+   "ja": "安倍川餅"
+  },
+  {
+   "id": "food_shingenmochi",
+   "zh": "信玄餅",
+   "ja": "信玄餅"
+  },
+  {
+   "id": "food_warabimochi",
+   "zh": "蕨餅",
+   "ja": "わらび餅"
+  },
+  {
+   "id": "food_yakimochi",
+   "zh": "烤年糕",
+   "ja": "焼き餅"
+  },
+  {
+   "id": "food_isobeyaki",
+   "zh": "海苔烤年糕",
+   "ja": "磯辺焼き"
+  },
+  {
+   "id": "food_okaki",
+   "zh": "欠餅",
+   "ja": "おかき"
+  },
+  {
+   "id": "food_arare",
+   "zh": "米果",
+   "ja": "あられ"
+  },
+  {
+   "id": "food_hinaarare",
+   "zh": "女兒節米果",
+   "ja": "雛あられ"
+  },
+  {
+   "id": "food_senbei",
+   "zh": "仙貝",
+   "ja": "煎餅"
+  },
+  {
+   "id": "food_shoyusenbei",
+   "zh": "醬油仙貝",
+   "ja": "醤油煎餅"
+  },
+  {
+   "id": "food_tsukiusagimochi",
+   "zh": "月兔年糕",
+   "ja": "月兎の餅"
+  },
+  {
+   "id": "food_domyoji",
+   "zh": "道明寺糯米餅",
+   "ja": "道明寺餅"
+  },
+  {
+   "id": "food_youkan",
+   "zh": "羊羹",
+   "ja": "羊羹"
+  },
+  {
+   "id": "food_mizuyoukan",
+   "zh": "水羊羹",
+   "ja": "水羊羹"
+  },
+  {
+   "id": "food_imoyoukan",
+   "zh": "地瓜羊羹",
+   "ja": "芋羊羹"
+  },
+  {
+   "id": "food_matchayoukan",
+   "zh": "抹茶羊羹",
+   "ja": "抹茶羊羹"
+  },
+  {
+   "id": "food_kohakutou",
+   "zh": "琥珀糖",
+   "ja": "琥珀糖"
+  },
+  {
+   "id": "food_kingyokukan",
+   "zh": "錦玉羹",
+   "ja": "錦玉羹"
+  },
+  {
+   "id": "food_mitsumame",
+   "zh": "蜜豆",
+   "ja": "蜜豆"
+  },
+  {
+   "id": "food_anmitsu",
+   "zh": "餡蜜",
+   "ja": "あんみつ"
+  },
+  {
+   "id": "food_monaka",
+   "zh": "最中",
+   "ja": "最中"
+  },
+  {
+   "id": "food_manju",
+   "zh": "饅頭",
+   "ja": "饅頭"
+  },
+  {
+   "id": "food_onsenmanju",
+   "zh": "溫泉饅頭",
+   "ja": "温泉饅頭"
+  },
+  {
+   "id": "food_sakemanju",
+   "zh": "酒饅頭",
+   "ja": "酒饅頭"
+  },
+  {
+   "id": "food_kohakumanju",
+   "zh": "紅白饅頭",
+   "ja": "紅白饅頭"
+  },
+  {
+   "id": "food_mizumanju",
+   "zh": "水饅頭",
+   "ja": "水饅頭"
+  },
+  {
+   "id": "food_onimanju",
+   "zh": "鬼饅頭",
+   "ja": "鬼まんじゅう"
+  },
+  {
+   "id": "food_joyomanju",
+   "zh": "薯蕷饅頭",
+   "ja": "薯蕷饅頭"
+  },
+  {
+   "id": "food_imagawayaki",
+   "zh": "今川燒",
+   "ja": "今川焼き"
+  },
+  {
+   "id": "food_taiyaki",
+   "zh": "鯛魚燒",
+   "ja": "鯛焼き"
+  },
+  {
+   "id": "food_dorayaki",
+   "zh": "銅鑼燒",
+   "ja": "どら焼き"
+  },
+  {
+   "id": "food_castella",
+   "zh": "長崎蛋糕",
+   "ja": "カステラ"
+  },
+  {
+   "id": "food_kintsuba",
+   "zh": "金鍔燒",
+   "ja": "金鍔"
+  },
+  {
+   "id": "food_karintou",
+   "zh": "花林糖",
+   "ja": "花林糖"
+  },
+  {
+   "id": "food_daigakuimo",
+   "zh": "拔絲地瓜",
+   "ja": "大学芋"
+  },
+  {
+   "id": "food_imokinton",
+   "zh": "甘薯金團",
+   "ja": "芋きんとん"
+  },
+  {
+   "id": "food_amanatto",
+   "zh": "甘納豆",
+   "ja": "甘納豆"
+  },
+  {
+   "id": "food_kanoko",
+   "zh": "鹿子餅",
+   "ja": "鹿の子"
+  },
+  {
+   "id": "food_kuromameni",
+   "zh": "甜煮黑豆",
+   "ja": "黒豆の甘煮"
+  },
+  {
+   "id": "food_konpeito",
+   "zh": "金平糖",
+   "ja": "金平糖"
+  },
+  {
+   "id": "food_bekkouame",
+   "zh": "鼈甲糖",
+   "ja": "べっこう飴"
+  },
+  {
+   "id": "food_amedama",
+   "zh": "糖球",
+   "ja": "飴玉"
+  },
+  {
+   "id": "food_okoshi",
+   "zh": "米香",
+   "ja": "おこし"
+  },
+  {
+   "id": "food_kaminariokoshi",
+   "zh": "雷米香",
+   "ja": "雷おこし"
+  },
+  {
+   "id": "food_rakugan",
+   "zh": "落雁",
+   "ja": "落雁"
+  },
+  {
+   "id": "food_higashi",
+   "zh": "乾菓子",
+   "ja": "干菓子"
+  },
+  {
+   "id": "food_gyuhi",
+   "zh": "求肥",
+   "ja": "求肥"
+  },
+  {
+   "id": "food_hanabiramochi",
+   "zh": "花瓣餅",
+   "ja": "花びら餅"
+  },
+  {
+   "id": "food_uirou",
+   "zh": "外郎糕",
+   "ja": "外郎"
+  },
+  {
+   "id": "food_minazuki",
+   "zh": "水無月糕",
+   "ja": "水無月餅"
+  },
+  {
+   "id": "food_namayatsuhashi",
+   "zh": "生八橋",
+   "ja": "生八ッ橋"
+  },
+  {
+   "id": "food_yatsuhashi",
+   "zh": "八橋煎餅",
+   "ja": "八ッ橋"
+  },
+  {
+   "id": "food_nerikiri",
+   "zh": "練切",
+   "ja": "練り切り"
+  },
+  {
+   "id": "food_jonamagashi",
+   "zh": "上生菓子",
+   "ja": "上生菓子"
+  },
+  {
+   "id": "food_chagashi",
+   "zh": "茶點",
+   "ja": "茶菓子"
+  },
+  {
+   "id": "food_kakigoori",
+   "zh": "糖水刨冰",
+   "ja": "氷水"
+  },
+  {
+   "id": "food_koorikintoki",
+   "zh": "紅豆刨冰",
+   "ja": "氷金時"
+  },
+  {
+   "id": "food_ujikintoki",
+   "zh": "宇治金時",
+   "ja": "宇治金時"
+  },
+  {
+   "id": "food_bento",
+   "zh": "便當",
+   "ja": "弁当"
+  },
+  {
+   "id": "food_makunouchi",
+   "zh": "幕之內便當",
+   "ja": "幕の内弁当"
+  },
+  {
+   "id": "food_hanamibento",
+   "zh": "賞花便當",
+   "ja": "花見弁当"
+  },
+  {
+   "id": "food_shokado",
+   "zh": "松花堂便當",
+   "ja": "松花堂弁当"
+  },
+  {
+   "id": "food_ichiju",
+   "zh": "一湯三菜",
+   "ja": "一汁三菜"
+  },
+  {
+   "id": "food_gozen",
+   "zh": "御膳",
+   "ja": "御膳"
+  },
+  {
+   "id": "food_kaiseki",
+   "zh": "懷石料理",
+   "ja": "懐石料理"
+  },
+  {
+   "id": "food_shojin",
+   "zh": "精進膳",
+   "ja": "精進膳"
+  },
+  {
+   "id": "food_fucha",
+   "zh": "普茶料理",
+   "ja": "普茶料理"
+  },
+  {
+   "id": "food_enseki",
+   "zh": "宴席料理",
+   "ja": "会席料理"
+  },
+  {
+   "id": "food_honzen",
+   "zh": "本膳料理",
+   "ja": "本膳料理"
+  },
+  {
+   "id": "food_shogungozen",
+   "zh": "將軍御膳",
+   "ja": "将軍の御膳"
+  },
+  {
+   "id": "food_iwaizen",
+   "zh": "喜宴膳",
+   "ja": "祝い膳"
+  },
+  {
+   "id": "food_osechi",
+   "zh": "年菜重箱",
+   "ja": "重詰めおせち"
+  },
+  {
+   "id": "food_ryugu",
+   "zh": "龍宮膳",
+   "ja": "竜宮膳"
+  }
+ ],
+ "recipes": [
+  [
+   "per_farmer",
+   "fod_potato",
+   "food_yasai"
+  ],
+  [
+   "fod_rice",
+   "plt_mushroom",
+   "food_koji"
+  ],
+  [
+   "fod_gohan",
+   "plt_mushroom",
+   "food_koji"
+  ],
+  [
+   "fod_rice",
+   "plc_field",
+   "food_komugi"
+  ],
+  [
+   "food_komugi",
+   "mat_stone",
+   "food_komugiko"
+  ],
+  [
+   "food_komugi",
+   "water",
+   "food_bakuga"
+  ],
+  [
+   "food_komugi",
+   "nat_mountain",
+   "food_sobanomi"
+  ],
+  [
+   "food_sobanomi",
+   "mat_stone",
+   "food_sobako"
+  ],
+  [
+   "fod_mochi",
+   "plt_rice",
+   "food_mochigome"
+  ],
+  [
+   "fod_mochi",
+   "fod_rice",
+   "food_mochigome"
+  ],
+  [
+   "fod_rice",
+   "mat_stone",
+   "food_komeko"
+  ],
+  [
+   "fod_rice",
+   "tol_mallet",
+   "food_nuka"
+  ],
+  [
+   "fod_rice",
+   "cpt_autumn",
+   "food_shinmai"
+  ],
+  [
+   "fod_rice",
+   "per_farmer",
+   "food_shinmai"
+  ],
+  [
+   "food_komugi",
+   "nat_sun",
+   "food_kibi"
+  ],
+  [
+   "fod_fish",
+   "nat_sea",
+   "food_umisachi"
+  ],
+  [
+   "per_fisher",
+   "fod_fish",
+   "food_umisachi"
+  ],
+  [
+   "fod_fish",
+   "plc_island",
+   "food_kujira"
+  ],
+  [
+   "food_umisachi",
+   "plc_island",
+   "food_kujira"
+  ],
+  [
+   "food_kujira",
+   "nat_mountain",
+   "food_yamakujira"
+  ],
+  [
+   "food_yamakujira",
+   "plt_maple",
+   "food_momijiniku"
+  ],
+  [
+   "food_yamakujira",
+   "plt_sakura",
+   "food_sakuraniku"
+  ],
+  [
+   "food_yamakujira",
+   "plc_field",
+   "food_gyuniku"
+  ],
+  [
+   "food_yamakujira",
+   "tol_basket",
+   "food_toriniku"
+  ],
+  [
+   "food_toriniku",
+   "nat_river",
+   "food_kamoniku"
+  ],
+  [
+   "food_toriniku",
+   "tol_basket",
+   "food_tamago"
+  ],
+  [
+   "food_yasai",
+   "plt_tree",
+   "food_kudamono"
+  ],
+  [
+   "food_yasai",
+   "nat_mountain",
+   "food_sansai"
+  ],
+  [
+   "food_yasai",
+   "plt_forest",
+   "food_sansai"
+  ],
+  [
+   "food_yasai",
+   "earth",
+   "food_daikon"
+  ],
+  [
+   "food_yasai",
+   "nat_snow",
+   "food_daikon"
+  ],
+  [
+   "food_daikon",
+   "cpt_sunset",
+   "food_ninjin"
+  ],
+  [
+   "food_daikon",
+   "plt_tree",
+   "food_gobou"
+  ],
+  [
+   "food_yasai",
+   "plt_lotus",
+   "food_renkon"
+  ],
+  [
+   "fod_potato",
+   "plc_village",
+   "food_satoimo"
+  ],
+  [
+   "fod_potato",
+   "nat_mountain",
+   "food_yamaimo"
+  ],
+  [
+   "food_yasai",
+   "yok_kappa",
+   "food_kyuuri"
+  ],
+  [
+   "food_yasai",
+   "cpt_summer",
+   "food_nasu"
+  ],
+  [
+   "food_yasai",
+   "cpt_winter",
+   "food_kabocha"
+  ],
+  [
+   "food_yasai",
+   "plt_grass",
+   "food_negi"
+  ],
+  [
+   "food_yasai",
+   "plt_herb",
+   "food_shouga"
+  ],
+  [
+   "food_yasai",
+   "nat_flame",
+   "food_togarashi"
+  ],
+  [
+   "food_yasai",
+   "nat_waterfall",
+   "food_wasabi"
+  ],
+  [
+   "food_yasai",
+   "nat_river",
+   "food_wasabi"
+  ],
+  [
+   "food_yasai",
+   "plt_mushroom",
+   "food_shiitake"
+  ],
+  [
+   "food_shiitake",
+   "nat_sun",
+   "food_hoshishiitake"
+  ],
+  [
+   "food_shiitake",
+   "wind",
+   "food_hoshishiitake"
+  ],
+  [
+   "food_yasai",
+   "mat_sand",
+   "food_goma"
+  ],
+  [
+   "food_goma",
+   "fire",
+   "food_irigoma"
+  ],
+  [
+   "food_goma",
+   "nat_flame",
+   "food_irigoma"
+  ],
+  [
+   "food_irigoma",
+   "mat_pottery",
+   "food_surigoma"
+  ],
+  [
+   "food_goma",
+   "tol_mallet",
+   "food_surigoma"
+  ],
+  [
+   "food_irigoma",
+   "mat_stone",
+   "food_gomaabura"
+  ],
+  [
+   "food_goma",
+   "mat_stone",
+   "food_gomaabura"
+  ],
+  [
+   "food_yasai",
+   "nat_sun",
+   "food_daizu"
+  ],
+  [
+   "food_daizu",
+   "nat_flame",
+   "food_azuki"
+  ],
+  [
+   "food_daizu",
+   "cpt_sunset",
+   "food_azuki"
+  ],
+  [
+   "food_daizu",
+   "fire",
+   "food_fukumame"
+  ],
+  [
+   "food_daizu",
+   "yok_oni",
+   "food_fukumame"
+  ],
+  [
+   "food_daizu",
+   "nat_dark",
+   "food_kuromame"
+  ],
+  [
+   "food_daizu",
+   "mat_ink",
+   "food_kuromame"
+  ],
+  [
+   "food_daizu",
+   "nat_steam",
+   "food_edamame"
+  ],
+  [
+   "food_daizu",
+   "cpt_summer",
+   "food_edamame"
+  ],
+  [
+   "fod_potato",
+   "mat_stone",
+   "food_konnyaku"
+  ],
+  [
+   "food_satoimo",
+   "mat_stone",
+   "food_konnyaku"
+  ],
+  [
+   "food_konnyaku",
+   "nat_waterfall",
+   "food_shirataki"
+  ],
+  [
+   "fod_kombu",
+   "nat_wave",
+   "food_wakame"
+  ],
+  [
+   "fod_kombu",
+   "nat_dark",
+   "food_hijiki"
+  ],
+  [
+   "fod_nori",
+   "nat_rock",
+   "food_tengusa"
+  ],
+  [
+   "food_tengusa",
+   "nat_steam",
+   "food_tokoroten"
+  ],
+  [
+   "food_tengusa",
+   "water",
+   "food_tokoroten"
+  ],
+  [
+   "food_tokoroten",
+   "nat_frost",
+   "food_kanten"
+  ],
+  [
+   "food_tokoroten",
+   "nat_snow",
+   "food_kanten"
+  ],
+  [
+   "food_sansai",
+   "mat_stone",
+   "food_warabiko"
+  ],
+  [
+   "food_gobou",
+   "food_ninjin",
+   "food_konsai"
+  ],
+  [
+   "food_renkon",
+   "food_gobou",
+   "food_konsai"
+  ],
+  [
+   "food_kudamono",
+   "nat_sun",
+   "food_mikan"
+  ],
+  [
+   "food_kudamono",
+   "cpt_winter",
+   "food_mikan"
+  ],
+  [
+   "food_kudamono",
+   "water",
+   "food_nashi"
+  ],
+  [
+   "food_kudamono",
+   "cpt_autumn",
+   "food_nashi"
+  ],
+  [
+   "food_kudamono",
+   "plt_grass",
+   "food_ichigo"
+  ],
+  [
+   "food_kudamono",
+   "cpt_summer",
+   "food_suika"
+  ],
+  [
+   "food_kudamono",
+   "food_su",
+   "food_sudachi"
+  ],
+  [
+   "food_kudamono",
+   "food_shochu",
+   "food_kajitsushu"
+  ],
+  [
+   "food_kudamono",
+   "fod_sake",
+   "food_kajitsushu"
+  ],
+  [
+   "food_daizu",
+   "food_koji",
+   "food_miso"
+  ],
+  [
+   "food_miso",
+   "water",
+   "food_shoyu"
+  ],
+  [
+   "food_koji",
+   "food_komugi",
+   "food_shoyu"
+  ],
+  [
+   "food_shoyu",
+   "water",
+   "food_usukuchi"
+  ],
+  [
+   "food_miso",
+   "fod_rice",
+   "food_shiromiso"
+  ],
+  [
+   "food_miso",
+   "nat_snow",
+   "food_shiromiso"
+  ],
+  [
+   "food_miso",
+   "nat_flame",
+   "food_akamiso"
+  ],
+  [
+   "food_miso",
+   "food_komugi",
+   "food_mugimiso"
+  ],
+  [
+   "fod_sake",
+   "nat_steam",
+   "food_shochu"
+  ],
+  [
+   "food_shochu",
+   "food_mochigome",
+   "food_mirin"
+  ],
+  [
+   "fod_sake",
+   "food_mochigome",
+   "food_mirin"
+  ],
+  [
+   "fod_sake",
+   "wind",
+   "food_su"
+  ],
+  [
+   "food_su",
+   "food_satou",
+   "food_amazu"
+  ],
+  [
+   "food_su",
+   "food_mizuame",
+   "food_amazu"
+  ],
+  [
+   "food_su",
+   "food_miso",
+   "food_sumiso"
+  ],
+  [
+   "food_sudachi",
+   "food_shoyu",
+   "food_ponzu"
+  ],
+  [
+   "food_mikan",
+   "food_shoyu",
+   "food_ponzu"
+  ],
+  [
+   "food_shoyu",
+   "food_mirin",
+   "food_tare"
+  ],
+  [
+   "food_shoyu",
+   "food_satou",
+   "food_tare"
+  ],
+  [
+   "fod_dashi",
+   "food_mirin",
+   "food_tentsuyu"
+  ],
+  [
+   "food_surigoma",
+   "food_shoyu",
+   "food_gomadare"
+  ],
+  [
+   "food_togarashi",
+   "food_goma",
+   "food_shichimi"
+  ],
+  [
+   "food_togarashi",
+   "plt_herb",
+   "food_shichimi"
+  ],
+  [
+   "food_mochigome",
+   "food_bakuga",
+   "food_mizuame"
+  ],
+  [
+   "food_mizuame",
+   "mat_sand",
+   "food_satou"
+  ],
+  [
+   "food_satou",
+   "per_craftsman",
+   "food_wasanbon"
+  ],
+  [
+   "food_satou",
+   "nat_dark",
+   "food_kurozato"
+  ],
+  [
+   "food_kurozato",
+   "water",
+   "food_kuromitsu"
+  ],
+  [
+   "food_koji",
+   "mat_salt",
+   "food_shiokoji"
+  ],
+  [
+   "food_koji",
+   "fod_porridge",
+   "food_amazake"
+  ],
+  [
+   "food_koji",
+   "fod_gohan",
+   "food_amazake"
+  ],
+  [
+   "fod_sake",
+   "mat_cloth",
+   "food_sakekasu"
+  ],
+  [
+   "fod_dashi",
+   "fod_kombu",
+   "food_ichibandashi"
+  ],
+  [
+   "fod_katsuobushi",
+   "fod_kombu",
+   "food_ichibandashi"
+  ],
+  [
+   "food_hoshishiitake",
+   "water",
+   "food_shiitakedashi"
+  ],
+  [
+   "food_shiitake",
+   "fod_dashi",
+   "food_shiitakedashi"
+  ],
+  [
+   "food_shiitakedashi",
+   "fod_kombu",
+   "food_shojindashi"
+  ],
+  [
+   "food_iwashi",
+   "nat_sun",
+   "food_niboshi"
+  ],
+  [
+   "food_iwashi",
+   "nat_steam",
+   "food_niboshi"
+  ],
+  [
+   "fod_gohan",
+   "food_su",
+   "food_sumeshi"
+  ],
+  [
+   "fod_gohan",
+   "food_amazu",
+   "food_sumeshi"
+  ],
+  [
+   "food_yasai",
+   "mat_salt",
+   "food_tsukemono"
+  ],
+  [
+   "food_yasai",
+   "tol_bucket",
+   "food_tsukemono"
+  ],
+  [
+   "food_nuka",
+   "food_yasai",
+   "food_nukazuke"
+  ],
+  [
+   "food_nuka",
+   "food_kyuuri",
+   "food_nukazuke"
+  ],
+  [
+   "food_daikon",
+   "food_nuka",
+   "food_takuan"
+  ],
+  [
+   "food_daikon",
+   "food_tsukemono",
+   "food_takuan"
+  ],
+  [
+   "food_kyuuri",
+   "mat_salt",
+   "food_asazuke"
+  ],
+  [
+   "food_yasai",
+   "food_shiokoji",
+   "food_asazuke"
+  ],
+  [
+   "food_nasu",
+   "food_tsukemono",
+   "food_shibazuke"
+  ],
+  [
+   "food_sakekasu",
+   "food_yasai",
+   "food_narazuke"
+  ],
+  [
+   "food_sakekasu",
+   "food_kyuuri",
+   "food_narazuke"
+  ],
+  [
+   "food_wasabi",
+   "food_sakekasu",
+   "food_wasabizuke"
+  ],
+  [
+   "food_tsukemono",
+   "fth_god",
+   "food_fukujinzuke"
+  ],
+  [
+   "food_shouga",
+   "food_amazu",
+   "food_gari"
+  ],
+  [
+   "food_shouga",
+   "plt_ume",
+   "food_benishouga"
+  ],
+  [
+   "food_sakekasu",
+   "fod_fish",
+   "food_kasuzuke"
+  ],
+  [
+   "food_daizu",
+   "water",
+   "food_tounyu"
+  ],
+  [
+   "food_tounyu",
+   "mat_salt",
+   "food_tofu"
+  ],
+  [
+   "food_tounyu",
+   "nat_sea",
+   "food_tofu"
+  ],
+  [
+   "food_tounyu",
+   "mat_cloth",
+   "food_okara"
+  ],
+  [
+   "food_okara",
+   "fod_dashi",
+   "food_unohana"
+  ],
+  [
+   "food_tounyu",
+   "fire",
+   "food_yuba"
+  ],
+  [
+   "food_tounyu",
+   "nat_steam",
+   "food_yuba"
+  ],
+  [
+   "food_tofu",
+   "food_gomaabura",
+   "food_aburaage"
+  ],
+  [
+   "food_tofu",
+   "nat_flame",
+   "food_aburaage"
+  ],
+  [
+   "food_aburaage",
+   "food_tofu",
+   "food_atsuage"
+  ],
+  [
+   "food_tofu",
+   "food_toriniku",
+   "food_ganmodoki"
+  ],
+  [
+   "food_atsuage",
+   "food_yasai",
+   "food_ganmodoki"
+  ],
+  [
+   "food_tofu",
+   "nat_frost",
+   "food_kouyadofu"
+  ],
+  [
+   "food_tofu",
+   "plc_temple",
+   "food_kouyadofu"
+  ],
+  [
+   "food_tofu",
+   "nat_ice",
+   "food_hiyayakko"
+  ],
+  [
+   "food_tofu",
+   "cpt_summer",
+   "food_hiyayakko"
+  ],
+  [
+   "food_tofu",
+   "tol_pot",
+   "food_yudofu"
+  ],
+  [
+   "food_tofu",
+   "fod_kombu",
+   "food_yudofu"
+  ],
+  [
+   "food_aburaage",
+   "fod_dashi",
+   "food_agedashi"
+  ],
+  [
+   "food_tofu",
+   "food_miso",
+   "food_dengaku"
+  ],
+  [
+   "food_tofu",
+   "plt_bamboo",
+   "food_dengaku"
+  ],
+  [
+   "food_nasu",
+   "food_miso",
+   "food_nasudengaku"
+  ],
+  [
+   "food_surigoma",
+   "food_tofu",
+   "food_gomadofu"
+  ],
+  [
+   "food_daizu",
+   "plt_straw",
+   "food_natto"
+  ],
+  [
+   "food_natto",
+   "fod_gohan",
+   "food_nattogohan"
+  ],
+  [
+   "food_tofu",
+   "food_yasai",
+   "food_shiraae"
+  ],
+  [
+   "food_surigoma",
+   "food_yasai",
+   "food_gomaae"
+  ],
+  [
+   "food_gomadare",
+   "food_yasai",
+   "food_gomaae"
+  ],
+  [
+   "food_yasai",
+   "fod_dashi",
+   "food_ohitashi"
+  ],
+  [
+   "food_yasai",
+   "food_ichibandashi",
+   "food_ohitashi"
+  ],
+  [
+   "food_su",
+   "food_kyuuri",
+   "food_sunomono"
+  ],
+  [
+   "food_amazu",
+   "food_kyuuri",
+   "food_sunomono"
+  ],
+  [
+   "food_daikon",
+   "food_su",
+   "food_namasu"
+  ],
+  [
+   "food_namasu",
+   "food_ninjin",
+   "food_kohakunamasu"
+  ],
+  [
+   "food_sumiso",
+   "food_negi",
+   "food_nuta"
+  ],
+  [
+   "food_gobou",
+   "food_gomaabura",
+   "food_kinpira"
+  ],
+  [
+   "food_gobou",
+   "food_togarashi",
+   "food_kinpira"
+  ],
+  [
+   "food_hijiki",
+   "food_shoyu",
+   "food_hijikini"
+  ],
+  [
+   "food_hijiki",
+   "food_tare",
+   "food_hijikini"
+  ],
+  [
+   "food_daikon",
+   "nat_sun",
+   "food_kiriboshi"
+  ],
+  [
+   "food_daikon",
+   "wind",
+   "food_kiriboshi"
+  ],
+  [
+   "food_daikon",
+   "food_miso",
+   "food_furofuki"
+  ],
+  [
+   "food_daikon",
+   "nat_snow",
+   "food_daikonoroshi"
+  ],
+  [
+   "food_nasu",
+   "fire",
+   "food_yakinasu"
+  ],
+  [
+   "food_kyuuri",
+   "food_miso",
+   "food_morokyu"
+  ],
+  [
+   "food_yamaimo",
+   "mat_pottery",
+   "food_tororo"
+  ],
+  [
+   "food_yamaimo",
+   "tol_mallet",
+   "food_tororo"
+  ],
+  [
+   "food_satoimo",
+   "food_shoyu",
+   "food_nikkorogashi"
+  ],
+  [
+   "food_satoimo",
+   "nat_steam",
+   "food_kinukatsugi"
+  ],
+  [
+   "food_konnyaku",
+   "fod_sashimi",
+   "food_sashimikonnyaku"
+  ],
+  [
+   "food_satoimo",
+   "mat_rope",
+   "food_imogaranawa"
+  ],
+  [
+   "food_konsai",
+   "fod_dashi",
+   "food_nimono"
+  ],
+  [
+   "food_konsai",
+   "food_shoyu",
+   "food_nimono"
+  ],
+  [
+   "food_nimono",
+   "food_shoyu",
+   "food_nishime"
+  ],
+  [
+   "food_toriniku",
+   "food_konsai",
+   "food_chikuzenni"
+  ],
+  [
+   "food_toriniku",
+   "food_nimono",
+   "food_chikuzenni"
+  ],
+  [
+   "food_kabocha",
+   "fod_dashi",
+   "food_kabochanimono"
+  ],
+  [
+   "food_edamame",
+   "fod_mochi",
+   "food_zundamochi"
+  ],
+  [
+   "food_komugiko",
+   "fire",
+   "food_fu"
+  ],
+  [
+   "fod_bakedpotato",
+   "mat_stone",
+   "food_ishiyakiimo"
+  ],
+  [
+   "food_miso",
+   "fod_dashi",
+   "food_misoshiru"
+  ],
+  [
+   "food_miso",
+   "food_ichibandashi",
+   "food_misoshiru"
+  ],
+  [
+   "fod_dashi",
+   "food_shoyu",
+   "food_sumashijiru"
+  ],
+  [
+   "food_ichibandashi",
+   "mat_salt",
+   "food_sumashijiru"
+  ],
+  [
+   "food_sumashijiru",
+   "mat_pottery",
+   "food_dobinmushi"
+  ],
+  [
+   "food_hamaguri",
+   "water",
+   "food_ushiojiru"
+  ],
+  [
+   "food_shijimi",
+   "food_misoshiru",
+   "food_shijimijiru"
+  ],
+  [
+   "food_shijimi",
+   "food_miso",
+   "food_shijimijiru"
+  ],
+  [
+   "food_misoshiru",
+   "food_wakame",
+   "food_wakamejiru"
+  ],
+  [
+   "food_konsai",
+   "food_tofu",
+   "food_kenchinjiru"
+  ],
+  [
+   "food_konsai",
+   "plc_temple",
+   "food_kenchinjiru"
+  ],
+  [
+   "food_yamakujira",
+   "food_misoshiru",
+   "food_shishijiru"
+  ],
+  [
+   "food_sakekasu",
+   "fod_dashi",
+   "food_kasujiru"
+  ],
+  [
+   "food_satoimo",
+   "tol_pot",
+   "food_imoni"
+  ],
+  [
+   "food_satoimo",
+   "food_gyuniku",
+   "food_imoni"
+  ],
+  [
+   "food_imoni",
+   "cpt_autumn",
+   "food_imonikai"
+  ],
+  [
+   "food_koshian",
+   "water",
+   "food_shiruko"
+  ],
+  [
+   "food_koshian",
+   "food_yakimochi",
+   "food_shiruko"
+  ],
+  [
+   "food_tsubuan",
+   "food_yakimochi",
+   "food_zenzai"
+  ],
+  [
+   "food_zenzai",
+   "food_shiratama",
+   "food_shiratamazenzai"
+  ],
+  [
+   "food_shouga",
+   "nat_steam",
+   "food_shogayu"
+  ],
+  [
+   "fod_carp",
+   "food_misoshiru",
+   "food_koikoku"
+  ],
+  [
+   "food_tsumire",
+   "food_misoshiru",
+   "food_tsumirejiru"
+  ],
+  [
+   "food_unagi",
+   "food_sumashijiru",
+   "food_kimosui"
+  ],
+  [
+   "fod_gohan",
+   "fod_nori",
+   "food_onigiri"
+  ],
+  [
+   "fod_gohan",
+   "plt_ume",
+   "food_onigiri"
+  ],
+  [
+   "fod_gohan",
+   "mat_salt",
+   "food_shiomusubi"
+  ],
+  [
+   "food_onigiri",
+   "fire",
+   "food_yakionigiri"
+  ],
+  [
+   "food_onigiri",
+   "food_shoyu",
+   "food_yakionigiri"
+  ],
+  [
+   "food_onigiri",
+   "food_shake",
+   "food_shakeonigiri"
+  ],
+  [
+   "food_onigiri",
+   "food_tempura",
+   "food_tenmusu"
+  ],
+  [
+   "fod_gohan",
+   "fod_tea",
+   "food_chazuke"
+  ],
+  [
+   "fod_gohan",
+   "food_sencha",
+   "food_chazuke"
+  ],
+  [
+   "food_chazuke",
+   "food_shake",
+   "food_shakechazuke"
+  ],
+  [
+   "food_chazuke",
+   "food_tai",
+   "food_taichazuke"
+  ],
+  [
+   "fod_gohan",
+   "food_tamago",
+   "food_tkg"
+  ],
+  [
+   "fod_gohan",
+   "fod_dashi",
+   "food_takikomi"
+  ],
+  [
+   "fod_gohan",
+   "food_shiitake",
+   "food_takikomi"
+  ],
+  [
+   "food_takikomi",
+   "food_konsai",
+   "food_gomoku"
+  ],
+  [
+   "food_takikomi",
+   "food_tai",
+   "food_taimeshi"
+  ],
+  [
+   "food_takikomi",
+   "tol_pot",
+   "food_kamameshi"
+  ],
+  [
+   "food_takikomi",
+   "food_kaki",
+   "food_kakimeshi"
+  ],
+  [
+   "food_mochigome",
+   "food_azuki",
+   "food_sekihan"
+  ],
+  [
+   "food_okowa",
+   "food_azuki",
+   "food_sekihan"
+  ],
+  [
+   "food_mochigome",
+   "nat_steam",
+   "food_okowa"
+  ],
+  [
+   "fod_porridge",
+   "food_azuki",
+   "food_azukigayu"
+  ],
+  [
+   "fod_porridge",
+   "food_tamago",
+   "food_tamagogayu"
+  ],
+  [
+   "fod_porridge",
+   "fod_tea",
+   "food_chagayu"
+  ],
+  [
+   "fod_gohan",
+   "food_komugi",
+   "food_mugimeshi"
+  ],
+  [
+   "food_mugimeshi",
+   "food_tororo",
+   "food_mugitoro"
+  ],
+  [
+   "fod_gohan",
+   "nat_sun",
+   "food_hoshii"
+  ],
+  [
+   "fod_gohan",
+   "wind",
+   "food_hoshii"
+  ],
+  [
+   "fod_rice",
+   "per_ninja",
+   "food_hyorogan"
+  ],
+  [
+   "food_hoshii",
+   "art_ninjutsu",
+   "food_hyorogan"
+  ],
+  [
+   "fod_gohan",
+   "food_asari",
+   "food_fukagawa"
+  ],
+  [
+   "fod_gohan",
+   "tol_teabowl",
+   "food_don"
+  ],
+  [
+   "food_toriniku",
+   "food_tamago",
+   "food_oyakodon"
+  ],
+  [
+   "food_gyuniku",
+   "food_tamago",
+   "food_tanindon"
+  ],
+  [
+   "food_don",
+   "food_tempura",
+   "food_tendon"
+  ],
+  [
+   "food_tempura",
+   "fod_gohan",
+   "food_tendon"
+  ],
+  [
+   "food_don",
+   "food_gyuniku",
+   "food_gyudon"
+  ],
+  [
+   "food_don",
+   "food_kabayaki",
+   "food_unadon"
+  ],
+  [
+   "food_kabayaki",
+   "fod_gohan",
+   "food_unadon"
+  ],
+  [
+   "food_unadon",
+   "food_chazuke",
+   "food_hitsumabushi"
+  ],
+  [
+   "food_don",
+   "fod_sashimi",
+   "food_kaisendon"
+  ],
+  [
+   "food_sumeshi",
+   "fod_sashimi",
+   "food_kaisendon"
+  ],
+  [
+   "food_don",
+   "food_maguro",
+   "food_tekkadon"
+  ],
+  [
+   "food_sumeshi",
+   "food_maguro",
+   "food_tekkadon"
+  ],
+  [
+   "food_don",
+   "food_ikura",
+   "food_ikuradon"
+  ],
+  [
+   "food_ikura",
+   "fod_gohan",
+   "food_ikuradon"
+  ],
+  [
+   "food_don",
+   "food_uni",
+   "food_unidon"
+  ],
+  [
+   "food_uni",
+   "fod_gohan",
+   "food_unidon"
+  ],
+  [
+   "food_yosenabe",
+   "fod_gohan",
+   "food_zousui"
+  ],
+  [
+   "fod_porridge",
+   "fod_dashi",
+   "food_zousui"
+  ],
+  [
+   "food_kaninabe",
+   "fod_gohan",
+   "food_kanizosui"
+  ],
+  [
+   "fod_gohan",
+   "mat_charcoal",
+   "food_kiritanpo"
+  ],
+  [
+   "food_kiritanpo",
+   "tol_pot",
+   "food_kiritanponabe"
+  ],
+  [
+   "food_kiritanpo",
+   "food_miso",
+   "food_gohei"
+  ],
+  [
+   "fod_sushi",
+   "fod_nori",
+   "food_makizushi"
+  ],
+  [
+   "food_sumeshi",
+   "fod_nori",
+   "food_makizushi"
+  ],
+  [
+   "food_makizushi",
+   "food_kyuuri",
+   "food_kappamaki"
+  ],
+  [
+   "food_makizushi",
+   "yok_kappa",
+   "food_kappamaki"
+  ],
+  [
+   "food_makizushi",
+   "food_maguro",
+   "food_tekkamaki"
+  ],
+  [
+   "food_makizushi",
+   "food_tamagoyaki",
+   "food_futomaki"
+  ],
+  [
+   "food_makizushi",
+   "tol_ship",
+   "food_gunkan"
+  ],
+  [
+   "fod_sushi",
+   "wind",
+   "food_chirashi"
+  ],
+  [
+   "food_sumeshi",
+   "food_konsai",
+   "food_chirashi"
+  ],
+  [
+   "fod_sushi",
+   "mat_board",
+   "food_oshizushi"
+  ],
+  [
+   "food_sumeshi",
+   "mat_board",
+   "food_oshizushi"
+  ],
+  [
+   "food_oshizushi",
+   "food_saba",
+   "food_sabazushi"
+  ],
+  [
+   "food_saba",
+   "food_sumeshi",
+   "food_sabazushi"
+  ],
+  [
+   "food_funa",
+   "fod_gohan",
+   "food_funazushi"
+  ],
+  [
+   "food_funa",
+   "fod_rice",
+   "food_funazushi"
+  ],
+  [
+   "fod_sushi",
+   "food_maguro",
+   "food_maguronigiri"
+  ],
+  [
+   "food_maguronigiri",
+   "food_anago",
+   "food_edomae"
+  ],
+  [
+   "fod_sashimi",
+   "tol_ship",
+   "food_funamori"
+  ],
+  [
+   "food_tai",
+   "fod_sashimi",
+   "food_ikezukuri"
+  ],
+  [
+   "food_umisachi",
+   "fth_festival",
+   "food_tai"
+  ],
+  [
+   "fod_fish",
+   "fth_festival",
+   "food_tai"
+  ],
+  [
+   "food_tai",
+   "plt_sakura",
+   "food_sakuradai"
+  ],
+  [
+   "food_tai",
+   "mat_gold",
+   "food_kinmedai"
+  ],
+  [
+   "food_umisachi",
+   "nat_flame",
+   "food_maguro"
+  ],
+  [
+   "food_maguro",
+   "mat_gold",
+   "food_ootoro"
+  ],
+  [
+   "food_umisachi",
+   "mat_stone",
+   "food_katsuo"
+  ],
+  [
+   "food_umisachi",
+   "fod_katsuobushi",
+   "food_katsuo"
+  ],
+  [
+   "food_katsuo",
+   "cpt_spring",
+   "food_hatsugatsuo"
+  ],
+  [
+   "food_katsuo",
+   "cpt_autumn",
+   "food_modorigatsuo"
+  ],
+  [
+   "food_katsuo",
+   "plt_straw",
+   "food_tataki"
+  ],
+  [
+   "food_katsuo",
+   "nat_flame",
+   "food_tataki"
+  ],
+  [
+   "food_katsuo",
+   "mat_salt",
+   "food_shuto"
+  ],
+  [
+   "food_umisachi",
+   "nat_wave",
+   "food_saba"
+  ],
+  [
+   "food_umisachi",
+   "nat_whirlpool",
+   "food_iwashi"
+  ],
+  [
+   "food_umisachi",
+   "plc_port",
+   "food_aji"
+  ],
+  [
+   "food_umisachi",
+   "nat_river",
+   "food_shake"
+  ],
+  [
+   "food_umisachi",
+   "nat_waterfall",
+   "food_shake"
+  ],
+  [
+   "food_umisachi",
+   "cpt_winter",
+   "food_buri"
+  ],
+  [
+   "food_umisachi",
+   "wind",
+   "food_fugu"
+  ],
+  [
+   "food_umisachi",
+   "nat_dark",
+   "food_ankou"
+  ],
+  [
+   "food_umisachi",
+   "mat_sand",
+   "food_hirame"
+  ],
+  [
+   "food_umisachi",
+   "nat_ice",
+   "food_nishin"
+  ],
+  [
+   "fod_fish",
+   "cpt_spring",
+   "food_sawara"
+  ],
+  [
+   "fod_fish",
+   "nat_snow",
+   "food_tara"
+  ],
+  [
+   "fod_fish",
+   "thunder",
+   "food_hatahata"
+  ],
+  [
+   "fod_fish",
+   "wpn_katana",
+   "food_sanma"
+  ],
+  [
+   "fod_fish",
+   "cpt_autumn",
+   "food_sanma"
+  ],
+  [
+   "fod_fish",
+   "nat_waterfall",
+   "food_ayu"
+  ],
+  [
+   "fod_fish",
+   "cpt_summer",
+   "food_unagi"
+  ],
+  [
+   "fod_fish",
+   "mat_rope",
+   "food_unagi"
+  ],
+  [
+   "food_unagi",
+   "nat_sea",
+   "food_anago"
+  ],
+  [
+   "food_unagi",
+   "food_umisachi",
+   "food_anago"
+  ],
+  [
+   "fod_fish",
+   "nat_rock",
+   "food_iwana"
+  ],
+  [
+   "fod_fish",
+   "nat_valley",
+   "food_iwana"
+  ],
+  [
+   "fod_fish",
+   "plc_lake",
+   "food_funa"
+  ],
+  [
+   "fod_fish",
+   "plc_paddy",
+   "food_dojou"
+  ],
+  [
+   "food_umisachi",
+   "nat_shell",
+   "food_asari"
+  ],
+  [
+   "food_asari",
+   "nat_river",
+   "food_shijimi"
+  ],
+  [
+   "food_asari",
+   "plc_lake",
+   "food_shijimi"
+  ],
+  [
+   "food_asari",
+   "nat_sea",
+   "food_hamaguri"
+  ],
+  [
+   "food_asari",
+   "nat_rock",
+   "food_kaki"
+  ],
+  [
+   "food_asari",
+   "tol_fan",
+   "food_hotate"
+  ],
+  [
+   "food_asari",
+   "tol_ship",
+   "food_hotate"
+  ],
+  [
+   "food_asari",
+   "nat_whirlpool",
+   "food_sazae"
+  ],
+  [
+   "food_asari",
+   "trs_pearl",
+   "food_awabi"
+  ],
+  [
+   "food_umisachi",
+   "mat_pottery",
+   "food_tako"
+  ],
+  [
+   "food_umisachi",
+   "mat_ink",
+   "food_ika"
+  ],
+  [
+   "food_umisachi",
+   "per_human",
+   "food_ebi"
+  ],
+  [
+   "food_ebi",
+   "plc_shrine",
+   "food_iseebi"
+  ],
+  [
+   "food_ebi",
+   "food_satou",
+   "food_amaebi"
+  ],
+  [
+   "food_ebi",
+   "plt_sakura",
+   "food_sakuraebi"
+  ],
+  [
+   "food_umisachi",
+   "wpn_armor",
+   "food_kani"
+  ],
+  [
+   "food_umisachi",
+   "wpn_shuriken",
+   "food_uni"
+  ],
+  [
+   "food_shake",
+   "food_tamago",
+   "food_ikura"
+  ],
+  [
+   "food_shake",
+   "mat_gem",
+   "food_ikura"
+  ],
+  [
+   "food_nishin",
+   "food_tamago",
+   "food_kazunoko"
+  ],
+  [
+   "food_tara",
+   "food_tamago",
+   "food_tarako"
+  ],
+  [
+   "food_tara",
+   "mat_salt",
+   "food_tarako"
+  ],
+  [
+   "food_tarako",
+   "food_togarashi",
+   "food_mentaiko"
+  ],
+  [
+   "food_tarako",
+   "nat_flame",
+   "food_mentaiko"
+  ],
+  [
+   "food_tai",
+   "mat_salt",
+   "food_taishioyaki"
+  ],
+  [
+   "food_tai",
+   "fire",
+   "food_taishioyaki"
+  ],
+  [
+   "food_taishioyaki",
+   "fth_offering",
+   "food_okashiratsuki"
+  ],
+  [
+   "food_tai",
+   "wpn_armor",
+   "food_kabutoni"
+  ],
+  [
+   "food_shake",
+   "mat_salt",
+   "food_shiozake"
+  ],
+  [
+   "food_shake",
+   "wind",
+   "food_shaketoba"
+  ],
+  [
+   "food_saba",
+   "mat_salt",
+   "food_shiosaba"
+  ],
+  [
+   "food_saba",
+   "food_su",
+   "food_shimesaba"
+  ],
+  [
+   "food_saba",
+   "food_miso",
+   "food_sabamiso"
+  ],
+  [
+   "food_buri",
+   "food_daikon",
+   "food_buridaikon"
+  ],
+  [
+   "food_buri",
+   "food_tare",
+   "food_buriteri"
+  ],
+  [
+   "food_iwashi",
+   "plt_ume",
+   "food_iwashiumeni"
+  ],
+  [
+   "food_iwashi",
+   "tol_mallet",
+   "food_tsumire"
+  ],
+  [
+   "food_iwashi",
+   "food_surimi",
+   "food_tsumire"
+  ],
+  [
+   "food_iwashi",
+   "plc_field",
+   "food_tazukuri"
+  ],
+  [
+   "food_niboshi",
+   "food_satou",
+   "food_tazukuri"
+  ],
+  [
+   "food_sanma",
+   "mat_salt",
+   "food_sanmashioyaki"
+  ],
+  [
+   "food_sanma",
+   "food_daikonoroshi",
+   "food_sanmashioyaki"
+  ],
+  [
+   "food_fugu",
+   "fod_sashimi",
+   "food_fugusashi"
+  ],
+  [
+   "food_fugu",
+   "tol_pot",
+   "food_tecchiri"
+  ],
+  [
+   "food_fugu",
+   "food_atsukan",
+   "food_hirezake"
+  ],
+  [
+   "food_ankou",
+   "tol_pot",
+   "food_ankounabe"
+  ],
+  [
+   "food_tara",
+   "tol_pot",
+   "food_tarachiri"
+  ],
+  [
+   "food_tara",
+   "food_yosenabe",
+   "food_tarachiri"
+  ],
+  [
+   "food_tara",
+   "wind",
+   "food_boudara"
+  ],
+  [
+   "food_tara",
+   "nat_sun",
+   "food_boudara"
+  ],
+  [
+   "food_boudara",
+   "food_satoimo",
+   "food_imobou"
+  ],
+  [
+   "food_hatahata",
+   "mat_salt",
+   "food_shottsuru"
+  ],
+  [
+   "food_shottsuru",
+   "tol_pot",
+   "food_shottsurunabe"
+  ],
+  [
+   "food_hirame",
+   "fod_kombu",
+   "food_kobujime"
+  ],
+  [
+   "food_tai",
+   "fod_kombu",
+   "food_kobujime"
+  ],
+  [
+   "food_nishin",
+   "wind",
+   "food_migakinishin"
+  ],
+  [
+   "food_soba",
+   "food_migakinishin",
+   "food_nishinsoba"
+  ],
+  [
+   "food_shake",
+   "tol_pot",
+   "food_ishikari"
+  ],
+  [
+   "food_shake",
+   "food_miso",
+   "food_ishikari"
+  ],
+  [
+   "food_aji",
+   "fod_driedfish",
+   "food_ajinohiraki"
+  ],
+  [
+   "food_aji",
+   "food_miso",
+   "food_namerou"
+  ],
+  [
+   "food_aji",
+   "tol_mallet",
+   "food_namerou"
+  ],
+  [
+   "food_aji",
+   "food_amazu",
+   "food_nanbanzuke"
+  ],
+  [
+   "food_maguro",
+   "food_shoyu",
+   "food_zuke"
+  ],
+  [
+   "food_maguro",
+   "food_tare",
+   "food_zuke"
+  ],
+  [
+   "food_maguro",
+   "food_negi",
+   "food_negitoro"
+  ],
+  [
+   "food_maguro",
+   "food_tororo",
+   "food_yamakake"
+  ],
+  [
+   "fod_fish",
+   "food_shoyu",
+   "food_nizakana"
+  ],
+  [
+   "fod_fish",
+   "food_tare",
+   "food_nizakana"
+  ],
+  [
+   "food_sawara",
+   "food_shiromiso",
+   "food_saikyoyaki"
+  ],
+  [
+   "food_funa",
+   "food_satou",
+   "food_funakanroni"
+  ],
+  [
+   "food_ayu",
+   "mat_salt",
+   "food_ayushioyaki"
+  ],
+  [
+   "food_ayu",
+   "plt_bamboo",
+   "food_ayushioyaki"
+  ],
+  [
+   "fod_carp",
+   "nat_ice",
+   "food_koinoarai"
+  ],
+  [
+   "fod_kombu",
+   "food_shoyu",
+   "food_tsukudani"
+  ],
+  [
+   "fod_driedfish",
+   "food_shoyu",
+   "food_tsukudani"
+  ],
+  [
+   "fod_kombu",
+   "fod_fish",
+   "food_kobumaki"
+  ],
+  [
+   "fod_kombu",
+   "food_nishin",
+   "food_kobumaki"
+  ],
+  [
+   "food_umisachi",
+   "tol_mallet",
+   "food_surimi"
+  ],
+  [
+   "food_surimi",
+   "mat_board",
+   "food_kamaboko"
+  ],
+  [
+   "food_surimi",
+   "nat_steam",
+   "food_kamaboko"
+  ],
+  [
+   "food_surimi",
+   "plt_bamboo",
+   "food_chikuwa"
+  ],
+  [
+   "food_surimi",
+   "fire",
+   "food_chikuwa"
+  ],
+  [
+   "food_surimi",
+   "nat_cloud",
+   "food_hanpen"
+  ],
+  [
+   "food_surimi",
+   "food_gomaabura",
+   "food_satsumaage"
+  ],
+  [
+   "food_surimi",
+   "food_tamago",
+   "food_datemaki"
+  ],
+  [
+   "food_kamaboko",
+   "food_tamagoyaki",
+   "food_datemaki"
+  ],
+  [
+   "food_kamaboko",
+   "plt_bamboo",
+   "food_sasakama"
+  ],
+  [
+   "food_kamaboko",
+   "fth_festival",
+   "food_kohakukamaboko"
+  ],
+  [
+   "food_chikuwa",
+   "food_daikon",
+   "food_oden"
+  ],
+  [
+   "food_ganmodoki",
+   "food_daikon",
+   "food_oden"
+  ],
+  [
+   "food_iwana",
+   "food_atsukan",
+   "food_kotsuzake"
+  ],
+  [
+   "food_kani",
+   "food_miso",
+   "food_kanimiso"
+  ],
+  [
+   "food_kani",
+   "nat_steam",
+   "food_yudegani"
+  ],
+  [
+   "food_kani",
+   "tol_pot",
+   "food_kaninabe"
+  ],
+  [
+   "food_kani",
+   "food_yosenabe",
+   "food_kaninabe"
+  ],
+  [
+   "food_hamaguri",
+   "fire",
+   "food_yakihamaguri"
+  ],
+  [
+   "food_hamaguri",
+   "mat_charcoal",
+   "food_yakihamaguri"
+  ],
+  [
+   "food_kaki",
+   "tol_pot",
+   "food_dotenabe"
+  ],
+  [
+   "food_kaki",
+   "food_miso",
+   "food_dotenabe"
+  ],
+  [
+   "food_hotate",
+   "fire",
+   "food_hotateyaki"
+  ],
+  [
+   "food_awabi",
+   "fth_offering",
+   "food_noshiawabi"
+  ],
+  [
+   "food_asari",
+   "fod_sake",
+   "food_asarisakamushi"
+  ],
+  [
+   "food_tako",
+   "food_koromo",
+   "food_takoyaki"
+  ],
+  [
+   "food_takoyaki",
+   "fod_dashi",
+   "food_akashiyaki"
+  ],
+  [
+   "food_tako",
+   "food_su",
+   "food_sudako"
+  ],
+  [
+   "food_tako",
+   "food_amazu",
+   "food_sudako"
+  ],
+  [
+   "food_ika",
+   "fire",
+   "food_ikayaki"
+  ],
+  [
+   "food_ika",
+   "food_tare",
+   "food_ikayaki"
+  ],
+  [
+   "food_ika",
+   "food_mochigome",
+   "food_ikameshi"
+  ],
+  [
+   "food_ika",
+   "fod_gohan",
+   "food_ikameshi"
+  ],
+  [
+   "food_ika",
+   "mat_salt",
+   "food_shiokara"
+  ],
+  [
+   "food_ika",
+   "nat_sun",
+   "food_surume"
+  ],
+  [
+   "food_ika",
+   "wind",
+   "food_ichiyaboshi"
+  ],
+  [
+   "food_sazae",
+   "fire",
+   "food_tsuboyaki"
+  ],
+  [
+   "food_sazae",
+   "food_shoyu",
+   "food_tsuboyaki"
+  ],
+  [
+   "food_unagi",
+   "food_tare",
+   "food_kabayaki"
+  ],
+  [
+   "food_unagi",
+   "mat_charcoal",
+   "food_kabayaki"
+  ],
+  [
+   "food_unagi",
+   "fire",
+   "food_shirayaki"
+  ],
+  [
+   "food_kabayaki",
+   "food_tamagoyaki",
+   "food_umaki"
+  ],
+  [
+   "food_kabayaki",
+   "food_tamago",
+   "food_umaki"
+  ],
+  [
+   "food_soumen",
+   "food_tai",
+   "food_taimen"
+  ],
+  [
+   "food_kujira",
+   "food_gomaabura",
+   "food_tatsutaage"
+  ],
+  [
+   "food_kujira",
+   "plt_maple",
+   "food_tatsutaage"
+  ],
+  [
+   "food_yamakujira",
+   "tol_pot",
+   "food_shishinabe"
+  ],
+  [
+   "food_yamakujira",
+   "food_miso",
+   "food_shishinabe"
+  ],
+  [
+   "food_momijiniku",
+   "tol_pot",
+   "food_momijinabe"
+  ],
+  [
+   "food_sakuraniku",
+   "tol_pot",
+   "food_sakuranabe"
+  ],
+  [
+   "food_kamoniku",
+   "tol_pot",
+   "food_kamonabe"
+  ],
+  [
+   "food_gyuniku",
+   "tol_pot",
+   "food_gyunabe"
+  ],
+  [
+   "food_gyunabe",
+   "food_tare",
+   "food_sukiyaki"
+  ],
+  [
+   "food_gyunabe",
+   "food_tamago",
+   "food_sukiyaki"
+  ],
+  [
+   "food_gyuniku",
+   "fod_kombu",
+   "food_shabushabu"
+  ],
+  [
+   "food_gyuniku",
+   "nat_wave",
+   "food_shabushabu"
+  ],
+  [
+   "food_gyuniku",
+   "mat_gold",
+   "food_wagyu"
+  ],
+  [
+   "food_gyuniku",
+   "plc_village",
+   "food_wagyu"
+  ],
+  [
+   "food_wagyu",
+   "nat_frost",
+   "food_shimofuri"
+  ],
+  [
+   "food_toriniku",
+   "tol_pot",
+   "food_mizutaki"
+  ],
+  [
+   "food_toriniku",
+   "mat_charcoal",
+   "food_yakitori"
+  ],
+  [
+   "food_toriniku",
+   "plt_bamboo",
+   "food_yakitori"
+  ],
+  [
+   "food_toriniku",
+   "tol_mallet",
+   "food_tsukune"
+  ],
+  [
+   "food_toriniku",
+   "wind",
+   "food_tebasaki"
+  ],
+  [
+   "food_toriniku",
+   "food_gomaabura",
+   "food_karaage"
+  ],
+  [
+   "food_gyuniku",
+   "fod_potato",
+   "food_nikujaga"
+  ],
+  [
+   "food_yamakujira",
+   "food_tare",
+   "food_kakuni"
+  ],
+  [
+   "food_yamakujira",
+   "food_shoyu",
+   "food_kakuni"
+  ],
+  [
+   "food_kamoniku",
+   "fod_dashi",
+   "food_jibuni"
+  ],
+  [
+   "food_kamoniku",
+   "food_komugiko",
+   "food_jibuni"
+  ],
+  [
+   "food_soba",
+   "food_kamoniku",
+   "food_kamonanban"
+  ],
+  [
+   "food_dojou",
+   "tol_pot",
+   "food_dojounabe"
+  ],
+  [
+   "food_dojounabe",
+   "food_tamago",
+   "food_yanagawa"
+  ],
+  [
+   "food_dojounabe",
+   "food_gobou",
+   "food_yanagawa"
+  ],
+  [
+   "food_tamago",
+   "fire",
+   "food_tamagoyaki"
+  ],
+  [
+   "food_tamago",
+   "food_satou",
+   "food_tamagoyaki"
+  ],
+  [
+   "food_tamagoyaki",
+   "fod_dashi",
+   "food_dashimaki"
+  ],
+  [
+   "food_tamago",
+   "fod_dashi",
+   "food_dashimaki"
+  ],
+  [
+   "food_tamago",
+   "tol_teabowl",
+   "food_chawanmushi"
+  ],
+  [
+   "food_tamagodofu",
+   "tol_teabowl",
+   "food_chawanmushi"
+  ],
+  [
+   "food_tamago",
+   "plc_onsen",
+   "food_onsentamago"
+  ],
+  [
+   "food_onsentamago",
+   "nat_volcano",
+   "food_kurotamago"
+  ],
+  [
+   "food_tamago",
+   "food_shoyu",
+   "food_nitamago"
+  ],
+  [
+   "food_tamago",
+   "food_tare",
+   "food_nitamago"
+  ],
+  [
+   "food_tamago",
+   "nat_steam",
+   "food_yudetamago"
+  ],
+  [
+   "food_tamago",
+   "food_tofu",
+   "food_tamagodofu"
+  ],
+  [
+   "food_tamago",
+   "fod_sake",
+   "food_tamagozake"
+  ],
+  [
+   "food_yasai",
+   "tol_pot",
+   "food_yosenabe"
+  ],
+  [
+   "food_umisachi",
+   "tol_pot",
+   "food_yosenabe"
+  ],
+  [
+   "food_yosenabe",
+   "nat_dark",
+   "food_yaminabe"
+  ],
+  [
+   "food_yosenabe",
+   "nat_night",
+   "food_yaminabe"
+  ],
+  [
+   "food_daikonoroshi",
+   "tol_pot",
+   "food_mizorenabe"
+  ],
+  [
+   "food_komugiko",
+   "food_tamago",
+   "food_koromo"
+  ],
+  [
+   "food_koromo",
+   "food_gomaabura",
+   "food_tenkasu"
+  ],
+  [
+   "food_ebi",
+   "food_koromo",
+   "food_tempura"
+  ],
+  [
+   "food_ebi",
+   "food_gomaabura",
+   "food_tempura"
+  ],
+  [
+   "food_koromo",
+   "food_sansai",
+   "food_shojinage"
+  ],
+  [
+   "food_sakuraebi",
+   "food_koromo",
+   "food_kakiage"
+  ],
+  [
+   "food_koromo",
+   "food_konsai",
+   "food_kakiage"
+  ],
+  [
+   "food_koromo",
+   "food_yasai",
+   "food_okonomiyaki"
+  ],
+  [
+   "food_okonomiyaki",
+   "water",
+   "food_monja"
+  ],
+  [
+   "food_komugiko",
+   "water",
+   "food_men"
+  ],
+  [
+   "food_men",
+   "mat_rope",
+   "food_udon"
+  ],
+  [
+   "food_men",
+   "mat_thread",
+   "food_soumen"
+  ],
+  [
+   "food_soumen",
+   "food_udon",
+   "food_hiyamugi"
+  ],
+  [
+   "food_men",
+   "mat_cloth",
+   "food_kishimen"
+  ],
+  [
+   "food_men",
+   "food_kabocha",
+   "food_houtou"
+  ],
+  [
+   "food_sobako",
+   "water",
+   "food_soba"
+  ],
+  [
+   "food_sobako",
+   "nat_steam",
+   "food_sobagaki"
+  ],
+  [
+   "food_soba",
+   "water",
+   "food_sobayu"
+  ],
+  [
+   "food_soba",
+   "tol_basket",
+   "food_zarusoba"
+  ],
+  [
+   "food_soba",
+   "nat_ice",
+   "food_zarusoba"
+  ],
+  [
+   "food_soba",
+   "fod_dashi",
+   "food_kakesoba"
+  ],
+  [
+   "food_soba",
+   "food_tentsuyu",
+   "food_kakesoba"
+  ],
+  [
+   "food_udon",
+   "nat_moon",
+   "food_tsukimiudon"
+  ],
+  [
+   "food_udon",
+   "food_tamago",
+   "food_tsukimiudon"
+  ],
+  [
+   "food_udon",
+   "food_aburaage",
+   "food_kitsuneudon"
+  ],
+  [
+   "food_udon",
+   "yok_fox",
+   "food_kitsuneudon"
+  ],
+  [
+   "food_soba",
+   "food_tenkasu",
+   "food_tanukisoba"
+  ],
+  [
+   "food_soba",
+   "yok_tanuki",
+   "food_tanukisoba"
+  ],
+  [
+   "food_soba",
+   "food_tempura",
+   "food_tempurasoba"
+  ],
+  [
+   "food_soba",
+   "tol_bell",
+   "food_toshikoshi"
+  ],
+  [
+   "food_soba",
+   "cpt_winter",
+   "food_toshikoshi"
+  ],
+  [
+   "food_soba",
+   "tol_teabowl",
+   "food_wankosoba"
+  ],
+  [
+   "food_udon",
+   "tol_pot",
+   "food_nabeyakiudon"
+  ],
+  [
+   "food_soumen",
+   "nat_ice",
+   "food_hiyashisoumen"
+  ],
+  [
+   "food_soumen",
+   "fod_dashi",
+   "food_nyumen"
+  ],
+  [
+   "food_udon",
+   "nat_flame",
+   "food_yakiudon"
+  ],
+  [
+   "food_udon",
+   "food_akamiso",
+   "food_misonikomi"
+  ],
+  [
+   "food_soba",
+   "food_tororo",
+   "food_tororosoba"
+  ],
+  [
+   "food_soba",
+   "food_sansai",
+   "food_sansaisoba"
+  ],
+  [
+   "fod_sake",
+   "fire",
+   "food_atsukan"
+  ],
+  [
+   "fod_sake",
+   "nat_ice",
+   "food_reishu"
+  ],
+  [
+   "fod_sake",
+   "nat_snow",
+   "food_reishu"
+  ],
+  [
+   "fod_sake",
+   "nat_cloud",
+   "food_nigorizake"
+  ],
+  [
+   "food_nigorizake",
+   "mat_cloth",
+   "food_seishu"
+  ],
+  [
+   "fod_sake",
+   "mat_crystal",
+   "food_seishu"
+  ],
+  [
+   "fod_sake",
+   "food_shinmai",
+   "food_shinshu"
+  ],
+  [
+   "fod_sake",
+   "plc_cave",
+   "food_koshu"
+  ],
+  [
+   "fod_sake",
+   "cpt_wabisabi",
+   "food_koshu"
+  ],
+  [
+   "fod_sake",
+   "tol_bucket",
+   "food_taruzake"
+  ],
+  [
+   "fod_sake",
+   "fod_rice",
+   "food_junmai"
+  ],
+  [
+   "food_junmai",
+   "per_craftsman",
+   "food_ginjo"
+  ],
+  [
+   "food_ginjo",
+   "mat_crystal",
+   "food_daiginjo"
+  ],
+  [
+   "fod_sake",
+   "plc_village",
+   "food_jizake"
+  ],
+  [
+   "fod_sake",
+   "per_farmer",
+   "food_jizake"
+  ],
+  [
+   "food_shochu",
+   "fod_potato",
+   "food_imojochu"
+  ],
+  [
+   "fod_bakedpotato",
+   "food_shochu",
+   "food_imojochu"
+  ],
+  [
+   "food_shochu",
+   "food_komugi",
+   "food_mugijochu"
+  ],
+  [
+   "food_shochu",
+   "plc_island",
+   "food_awamori"
+  ],
+  [
+   "fod_sake",
+   "fth_monk",
+   "food_hannyato"
+  ],
+  [
+   "fod_sake",
+   "plc_temple",
+   "food_hannyato"
+  ],
+  [
+   "fod_tea",
+   "nat_shadow",
+   "food_gyokuro"
+  ],
+  [
+   "fod_tea",
+   "plt_straw",
+   "food_gyokuro"
+  ],
+  [
+   "fod_tea",
+   "tol_kyusu",
+   "food_sencha"
+  ],
+  [
+   "fod_tea",
+   "tol_teabowl",
+   "food_sencha"
+  ],
+  [
+   "fod_tea",
+   "fire",
+   "food_houjicha"
+  ],
+  [
+   "fod_tea",
+   "mat_charcoal",
+   "food_houjicha"
+  ],
+  [
+   "food_komugi",
+   "fod_tea",
+   "food_mugicha"
+  ],
+  [
+   "fod_kombu",
+   "fod_tea",
+   "food_kobucha"
+  ],
+  [
+   "food_kobucha",
+   "plt_ume",
+   "food_umekobucha"
+  ],
+  [
+   "fod_matcha",
+   "fod_matcha",
+   "food_koicha"
+  ],
+  [
+   "fod_matcha",
+   "water",
+   "food_usucha"
+  ],
+  [
+   "fod_matcha",
+   "tol_teabowl",
+   "food_usucha"
+  ],
+  [
+   "fod_tea",
+   "cpt_spring",
+   "food_shincha"
+  ],
+  [
+   "fod_tea",
+   "fth_buddha",
+   "food_amacha"
+  ],
+  [
+   "food_azuki",
+   "food_satou",
+   "food_tsubuan"
+  ],
+  [
+   "food_tsubuan",
+   "mat_cloth",
+   "food_koshian"
+  ],
+  [
+   "food_daizu",
+   "food_satou",
+   "food_shiroan"
+  ],
+  [
+   "food_mochigome",
+   "water",
+   "food_shiratama"
+  ],
+  [
+   "food_shiratama",
+   "plt_bamboo",
+   "food_dango"
+  ],
+  [
+   "food_komeko",
+   "water",
+   "food_dango"
+  ],
+  [
+   "food_dango",
+   "nat_rainbow",
+   "food_sanshokudango"
+  ],
+  [
+   "food_dango",
+   "plt_sakura",
+   "food_sanshokudango"
+  ],
+  [
+   "food_dango",
+   "food_shoyu",
+   "food_mitarashi"
+  ],
+  [
+   "food_dango",
+   "food_tare",
+   "food_mitarashi"
+  ],
+  [
+   "food_dango",
+   "plt_herb",
+   "food_kusadango"
+  ],
+  [
+   "food_dango",
+   "food_tsubuan",
+   "food_andango"
+  ],
+  [
+   "food_dango",
+   "food_koshian",
+   "food_andango"
+  ],
+  [
+   "food_dango",
+   "food_kibi",
+   "food_kibidango"
+  ],
+  [
+   "food_dango",
+   "yok_oni",
+   "food_kibidango"
+  ],
+  [
+   "fod_mochi",
+   "food_tsubuan",
+   "food_daifuku"
+  ],
+  [
+   "fod_mochi",
+   "food_koshian",
+   "food_daifuku"
+  ],
+  [
+   "food_daifuku",
+   "food_daizu",
+   "food_mamedaifuku"
+  ],
+  [
+   "food_daifuku",
+   "food_kuromame",
+   "food_mamedaifuku"
+  ],
+  [
+   "food_daifuku",
+   "food_ichigo",
+   "food_ichigodaifuku"
+  ],
+  [
+   "food_daifuku",
+   "mat_salt",
+   "food_shiodaifuku"
+  ],
+  [
+   "food_daifuku",
+   "food_kinako",
+   "food_uguisumochi"
+  ],
+  [
+   "fod_mochi",
+   "plt_herb",
+   "food_kusamochi"
+  ],
+  [
+   "food_mochigome",
+   "plt_bamboo",
+   "food_chimaki"
+  ],
+  [
+   "food_mochigome",
+   "food_tsubuan",
+   "food_botamochi"
+  ],
+  [
+   "fod_gohan",
+   "food_tsubuan",
+   "food_botamochi"
+  ],
+  [
+   "food_fukumame",
+   "mat_stone",
+   "food_kinako"
+  ],
+  [
+   "food_daizu",
+   "mat_stone",
+   "food_kinako"
+  ],
+  [
+   "fod_mochi",
+   "food_kinako",
+   "food_abekawa"
+  ],
+  [
+   "food_abekawa",
+   "food_kuromitsu",
+   "food_shingenmochi"
+  ],
+  [
+   "food_warabiko",
+   "food_kinako",
+   "food_warabimochi"
+  ],
+  [
+   "fod_mochi",
+   "fire",
+   "food_yakimochi"
+  ],
+  [
+   "fod_mochi",
+   "mat_charcoal",
+   "food_yakimochi"
+  ],
+  [
+   "food_yakimochi",
+   "fod_nori",
+   "food_isobeyaki"
+  ],
+  [
+   "fod_mochi",
+   "tol_mallet",
+   "food_okaki"
+  ],
+  [
+   "fod_mochi",
+   "nat_ice",
+   "food_arare"
+  ],
+  [
+   "food_arare",
+   "fth_festival",
+   "food_hinaarare"
+  ],
+  [
+   "fod_gohan",
+   "nat_flame",
+   "food_senbei"
+  ],
+  [
+   "fod_rice",
+   "fire",
+   "food_senbei"
+  ],
+  [
+   "food_senbei",
+   "food_shoyu",
+   "food_shoyusenbei"
+  ],
+  [
+   "fod_mochi",
+   "nat_moon",
+   "food_tsukiusagimochi"
+  ],
+  [
+   "food_mochigome",
+   "plc_temple",
+   "food_domyoji"
+  ],
+  [
+   "food_koshian",
+   "food_kanten",
+   "food_youkan"
+  ],
+  [
+   "food_tsubuan",
+   "food_kanten",
+   "food_youkan"
+  ],
+  [
+   "food_youkan",
+   "water",
+   "food_mizuyoukan"
+  ],
+  [
+   "fod_bakedpotato",
+   "food_kanten",
+   "food_imoyoukan"
+  ],
+  [
+   "food_youkan",
+   "fod_matcha",
+   "food_matchayoukan"
+  ],
+  [
+   "food_kanten",
+   "food_satou",
+   "food_kohakutou"
+  ],
+  [
+   "food_kanten",
+   "mat_glass",
+   "food_kingyokukan"
+  ],
+  [
+   "food_kanten",
+   "food_kuromitsu",
+   "food_mitsumame"
+  ],
+  [
+   "food_mitsumame",
+   "food_koshian",
+   "food_anmitsu"
+  ],
+  [
+   "food_tsubuan",
+   "nat_moon",
+   "food_monaka"
+  ],
+  [
+   "food_koshian",
+   "nat_steam",
+   "food_manju"
+  ],
+  [
+   "food_komugiko",
+   "food_koshian",
+   "food_manju"
+  ],
+  [
+   "food_manju",
+   "plc_onsen",
+   "food_onsenmanju"
+  ],
+  [
+   "food_manju",
+   "fod_sake",
+   "food_sakemanju"
+  ],
+  [
+   "food_manju",
+   "food_sakekasu",
+   "food_sakemanju"
+  ],
+  [
+   "food_manju",
+   "fth_festival",
+   "food_kohakumanju"
+  ],
+  [
+   "food_manju",
+   "water",
+   "food_mizumanju"
+  ],
+  [
+   "food_manju",
+   "yok_oni",
+   "food_onimanju"
+  ],
+  [
+   "food_manju",
+   "fod_bakedpotato",
+   "food_onimanju"
+  ],
+  [
+   "food_manju",
+   "food_yamaimo",
+   "food_joyomanju"
+  ],
+  [
+   "food_tsubuan",
+   "food_komugiko",
+   "food_imagawayaki"
+  ],
+  [
+   "food_imagawayaki",
+   "food_tai",
+   "food_taiyaki"
+  ],
+  [
+   "food_tsubuan",
+   "food_tai",
+   "food_taiyaki"
+  ],
+  [
+   "food_tsubuan",
+   "tol_bell",
+   "food_dorayaki"
+  ],
+  [
+   "food_koromo",
+   "food_satou",
+   "food_castella"
+  ],
+  [
+   "food_tsubuan",
+   "wpn_tsuba",
+   "food_kintsuba"
+  ],
+  [
+   "food_komugiko",
+   "food_kurozato",
+   "food_karintou"
+  ],
+  [
+   "fod_bakedpotato",
+   "food_mizuame",
+   "food_daigakuimo"
+  ],
+  [
+   "fod_bakedpotato",
+   "food_kuromitsu",
+   "food_daigakuimo"
+  ],
+  [
+   "fod_bakedpotato",
+   "food_satou",
+   "food_imokinton"
+  ],
+  [
+   "food_azuki",
+   "food_mizuame",
+   "food_amanatto"
+  ],
+  [
+   "food_gyuhi",
+   "food_amanatto",
+   "food_kanoko"
+  ],
+  [
+   "food_kuromame",
+   "food_satou",
+   "food_kuromameni"
+  ],
+  [
+   "food_satou",
+   "mat_crystal",
+   "food_konpeito"
+  ],
+  [
+   "food_satou",
+   "nat_flame",
+   "food_bekkouame"
+  ],
+  [
+   "food_mizuame",
+   "mat_gem",
+   "food_amedama"
+  ],
+  [
+   "fod_rice",
+   "food_mizuame",
+   "food_okoshi"
+  ],
+  [
+   "food_okoshi",
+   "thunder",
+   "food_kaminariokoshi"
+  ],
+  [
+   "food_okoshi",
+   "nat_rumble",
+   "food_kaminariokoshi"
+  ],
+  [
+   "food_wasanbon",
+   "art_kata",
+   "food_rakugan"
+  ],
+  [
+   "food_wasanbon",
+   "food_komeko",
+   "food_rakugan"
+  ],
+  [
+   "food_rakugan",
+   "food_kohakutou",
+   "food_higashi"
+  ],
+  [
+   "food_shiratama",
+   "food_satou",
+   "food_gyuhi"
+  ],
+  [
+   "food_shiratama",
+   "food_mizuame",
+   "food_gyuhi"
+  ],
+  [
+   "food_gyuhi",
+   "food_gobou",
+   "food_hanabiramochi"
+  ],
+  [
+   "food_komeko",
+   "food_satou",
+   "food_uirou"
+  ],
+  [
+   "food_komeko",
+   "nat_steam",
+   "food_uirou"
+  ],
+  [
+   "food_uirou",
+   "food_azuki",
+   "food_minazuki"
+  ],
+  [
+   "food_komeko",
+   "food_tsubuan",
+   "food_namayatsuhashi"
+  ],
+  [
+   "food_namayatsuhashi",
+   "fire",
+   "food_yatsuhashi"
+  ],
+  [
+   "food_shiroan",
+   "plt_flower",
+   "food_nerikiri"
+  ],
+  [
+   "food_shiroan",
+   "food_gyuhi",
+   "food_nerikiri"
+  ],
+  [
+   "food_nerikiri",
+   "per_teamaster",
+   "food_jonamagashi"
+  ],
+  [
+   "food_jonamagashi",
+   "food_usucha",
+   "food_chagashi"
+  ],
+  [
+   "food_satou",
+   "nat_ice",
+   "food_kakigoori"
+  ],
+  [
+   "food_mizuame",
+   "nat_snow",
+   "food_kakigoori"
+  ],
+  [
+   "food_kakigoori",
+   "food_tsubuan",
+   "food_koorikintoki"
+  ],
+  [
+   "food_koorikintoki",
+   "fod_matcha",
+   "food_ujikintoki"
+  ],
+  [
+   "food_onigiri",
+   "food_tamagoyaki",
+   "food_bento"
+  ],
+  [
+   "food_onigiri",
+   "food_tsukemono",
+   "food_bento"
+  ],
+  [
+   "food_bento",
+   "fod_grilledfish",
+   "food_makunouchi"
+  ],
+  [
+   "food_bento",
+   "cpt_hanami",
+   "food_hanamibento"
+  ],
+  [
+   "food_bento",
+   "plc_teahouse",
+   "food_shokado"
+  ],
+  [
+   "food_misoshiru",
+   "food_nimono",
+   "food_ichiju"
+  ],
+  [
+   "food_misoshiru",
+   "food_tsukemono",
+   "food_ichiju"
+  ],
+  [
+   "food_ichiju",
+   "per_samurai",
+   "food_gozen"
+  ],
+  [
+   "food_ichiju",
+   "per_teamaster",
+   "food_kaiseki"
+  ],
+  [
+   "food_ichiju",
+   "fod_matcha",
+   "food_kaiseki"
+  ],
+  [
+   "food_tofu",
+   "fth_monk",
+   "food_shojin"
+  ],
+  [
+   "food_ichiju",
+   "plc_temple",
+   "food_shojin"
+  ],
+  [
+   "food_shojin",
+   "fod_tea",
+   "food_fucha"
+  ],
+  [
+   "food_kaiseki",
+   "fod_sake",
+   "food_enseki"
+  ],
+  [
+   "food_enseki",
+   "plc_castle",
+   "food_honzen"
+  ],
+  [
+   "food_gozen",
+   "food_enseki",
+   "food_honzen"
+  ],
+  [
+   "food_honzen",
+   "per_samurai",
+   "food_shogungozen"
+  ],
+  [
+   "food_sekihan",
+   "food_taishioyaki",
+   "food_iwaizen"
+  ],
+  [
+   "food_sekihan",
+   "food_tai",
+   "food_iwaizen"
+  ],
+  [
+   "food_datemaki",
+   "food_kazunoko",
+   "food_osechi"
+  ],
+  [
+   "food_kuromameni",
+   "food_tazukuri",
+   "food_osechi"
+  ],
+  [
+   "food_funamori",
+   "yok_dragon",
+   "food_ryugu"
+  ]
+ ]
+}

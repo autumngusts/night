@@ -1,0 +1,5322 @@
+{
+ "category": "place",
+ "items": [
+  {
+   "id": "place_koya",
+   "zh": "小屋",
+   "ja": "小屋"
+  },
+  {
+   "id": "place_kayabuki",
+   "zh": "茅草屋",
+   "ja": "茅葺きの家"
+  },
+  {
+   "id": "place_gassho",
+   "zh": "合掌造",
+   "ja": "合掌造り"
+  },
+  {
+   "id": "place_shirakawago",
+   "zh": "白川鄉",
+   "ja": "白川郷"
+  },
+  {
+   "id": "place_kawara",
+   "zh": "屋頂瓦",
+   "ja": "屋根瓦"
+  },
+  {
+   "id": "place_dobei",
+   "zh": "夯土圍牆",
+   "ja": "土塀"
+  },
+  {
+   "id": "place_kura",
+   "zh": "倉庫",
+   "ja": "蔵"
+  },
+  {
+   "id": "place_dozo",
+   "zh": "土藏",
+   "ja": "土蔵"
+  },
+  {
+   "id": "place_sakagura",
+   "zh": "酒窖",
+   "ja": "酒蔵"
+  },
+  {
+   "id": "place_himuro",
+   "zh": "冰室",
+   "ja": "氷室"
+  },
+  {
+   "id": "place_engawa",
+   "zh": "緣廊",
+   "ja": "縁側"
+  },
+  {
+   "id": "place_washitsu",
+   "zh": "和室",
+   "ja": "和室"
+  },
+  {
+   "id": "place_tokonoma",
+   "zh": "壁龕",
+   "ja": "床の間"
+  },
+  {
+   "id": "place_yashiki",
+   "zh": "宅邸",
+   "ja": "屋敷"
+  },
+  {
+   "id": "place_bukeyashiki",
+   "zh": "武家宅邸",
+   "ja": "武家屋敷"
+  },
+  {
+   "id": "place_goten",
+   "zh": "御殿",
+   "ja": "御殿"
+  },
+  {
+   "id": "place_chojayashiki",
+   "zh": "富豪宅邸",
+   "ja": "長者屋敷"
+  },
+  {
+   "id": "place_gosho",
+   "zh": "御所",
+   "ja": "御所"
+  },
+  {
+   "id": "place_noka",
+   "zh": "農舍",
+   "ja": "農家"
+  },
+  {
+   "id": "place_machi",
+   "zh": "城鎮",
+   "ja": "町"
+  },
+  {
+   "id": "place_nagaya",
+   "zh": "長屋",
+   "ja": "長屋"
+  },
+  {
+   "id": "place_sanso",
+   "zh": "山莊",
+   "ja": "山荘"
+  },
+  {
+   "id": "place_yamagoya",
+   "zh": "山中小屋",
+   "ja": "山小屋"
+  },
+  {
+   "id": "place_sumiyakigoya",
+   "zh": "燒炭小屋",
+   "ja": "炭焼き小屋"
+  },
+  {
+   "id": "place_suishagoya",
+   "zh": "水車小屋",
+   "ja": "水車小屋"
+  },
+  {
+   "id": "place_yukiguni",
+   "zh": "豪雪村落",
+   "ja": "豪雪の村"
+  },
+  {
+   "id": "place_funaya",
+   "zh": "船屋",
+   "ja": "舟屋"
+  },
+  {
+   "id": "place_gyoson",
+   "zh": "漁村",
+   "ja": "漁村"
+  },
+  {
+   "id": "place_ine",
+   "zh": "伊根舟屋",
+   "ja": "伊根の舟屋"
+  },
+  {
+   "id": "place_kakurega",
+   "zh": "藏身處",
+   "ja": "隠れ家"
+  },
+  {
+   "id": "place_obakeyashiki",
+   "zh": "凶宅",
+   "ja": "幽霊屋敷"
+  },
+  {
+   "id": "place_mayoiga",
+   "zh": "迷家",
+   "ja": "マヨイガ"
+  },
+  {
+   "id": "place_karakuriyashiki",
+   "zh": "機關宅邸",
+   "ja": "からくり屋敷"
+  },
+  {
+   "id": "place_kakushibeya",
+   "zh": "密室",
+   "ja": "隠し部屋"
+  },
+  {
+   "id": "place_nukeana",
+   "zh": "密道",
+   "ja": "抜け穴"
+  },
+  {
+   "id": "place_okiya",
+   "zh": "置屋",
+   "ja": "置屋"
+  },
+  {
+   "id": "place_ozashiki",
+   "zh": "宴席廳",
+   "ja": "お座敷"
+  },
+  {
+   "id": "place_chashitsu",
+   "zh": "茶室",
+   "ja": "茶室"
+  },
+  {
+   "id": "place_roji",
+   "zh": "露地",
+   "ja": "露地"
+  },
+  {
+   "id": "place_tsukubai",
+   "zh": "石洗手缽",
+   "ja": "石の手水鉢"
+  },
+  {
+   "id": "place_shishiodoshi",
+   "zh": "驚鹿",
+   "ja": "鹿威し"
+  },
+  {
+   "id": "place_ryokan",
+   "zh": "旅籠",
+   "ja": "旅籠"
+  },
+  {
+   "id": "place_yuya",
+   "zh": "澡堂",
+   "ja": "湯屋"
+  },
+  {
+   "id": "place_sento",
+   "zh": "錢湯",
+   "ja": "銭湯"
+  },
+  {
+   "id": "place_kajiba",
+   "zh": "打鐵舖",
+   "ja": "鍛冶場"
+  },
+  {
+   "id": "place_koubou",
+   "zh": "工坊",
+   "ja": "工房"
+  },
+  {
+   "id": "place_shoka",
+   "zh": "商家",
+   "ja": "商家"
+  },
+  {
+   "id": "place_terakoya",
+   "zh": "寺子屋",
+   "ja": "寺子屋"
+  },
+  {
+   "id": "place_ishigaki",
+   "zh": "石垣",
+   "ja": "石垣"
+  },
+  {
+   "id": "place_hori",
+   "zh": "護城河",
+   "ja": "堀"
+  },
+  {
+   "id": "place_tenshu",
+   "zh": "天守閣",
+   "ja": "天守閣"
+  },
+  {
+   "id": "place_sumiyagura",
+   "zh": "角樓",
+   "ja": "隅櫓"
+  },
+  {
+   "id": "place_kuroganemon",
+   "zh": "鐵門",
+   "ja": "鉄門"
+  },
+  {
+   "id": "place_honmaru",
+   "zh": "本丸",
+   "ja": "本丸"
+  },
+  {
+   "id": "place_yamajiro",
+   "zh": "山城",
+   "ja": "山城"
+  },
+  {
+   "id": "place_tenkunoshiro",
+   "zh": "天空之城",
+   "ja": "天空の城"
+  },
+  {
+   "id": "place_ukishiro",
+   "zh": "浮城",
+   "ja": "浮城"
+  },
+  {
+   "id": "place_umijiro",
+   "zh": "海城",
+   "ja": "海城"
+  },
+  {
+   "id": "place_ryugujo",
+   "zh": "龍宮御殿",
+   "ja": "竜宮御殿"
+  },
+  {
+   "id": "place_shirasagijo",
+   "zh": "白鷺城",
+   "ja": "白鷺城"
+  },
+  {
+   "id": "place_karasujo",
+   "zh": "烏城",
+   "ja": "烏城"
+  },
+  {
+   "id": "place_shachihoko",
+   "zh": "鯱瓦",
+   "ja": "鯱瓦"
+  },
+  {
+   "id": "place_kinshachi",
+   "zh": "金鯱鉾",
+   "ja": "金鯱"
+  },
+  {
+   "id": "place_nagoyajo",
+   "zh": "名古屋城",
+   "ja": "名古屋城"
+  },
+  {
+   "id": "place_mushagaeshi",
+   "zh": "武者返",
+   "ja": "武者返し"
+  },
+  {
+   "id": "place_shinobigaeshi",
+   "zh": "防忍刺",
+   "ja": "忍び返し"
+  },
+  {
+   "id": "place_sama",
+   "zh": "射擊孔",
+   "ja": "狭間"
+  },
+  {
+   "id": "place_ishiotoshi",
+   "zh": "落石口",
+   "ja": "石落とし"
+  },
+  {
+   "id": "place_rakujo",
+   "zh": "陷落之城",
+   "ja": "落城"
+  },
+  {
+   "id": "place_shiroato",
+   "zh": "城址",
+   "ja": "城跡"
+  },
+  {
+   "id": "place_ichiyajo",
+   "zh": "一夜城",
+   "ja": "一夜城"
+  },
+  {
+   "id": "place_saku",
+   "zh": "柵欄",
+   "ja": "柵"
+  },
+  {
+   "id": "place_toride",
+   "zh": "堡壘",
+   "ja": "砦"
+  },
+  {
+   "id": "place_jinchi",
+   "zh": "陣地",
+   "ja": "陣地"
+  },
+  {
+   "id": "place_bakufu",
+   "zh": "幕府",
+   "ja": "幕府"
+  },
+  {
+   "id": "place_jokamachi",
+   "zh": "城下町",
+   "ja": "城下町"
+  },
+  {
+   "id": "place_edo",
+   "zh": "江戶",
+   "ja": "江戸"
+  },
+  {
+   "id": "place_edojo",
+   "zh": "江戶城",
+   "ja": "江戸城"
+  },
+  {
+   "id": "place_kamakura",
+   "zh": "鎌倉",
+   "ja": "鎌倉"
+  },
+  {
+   "id": "place_kamakuradaibutsu",
+   "zh": "鎌倉大佛",
+   "ja": "鎌倉大仏"
+  },
+  {
+   "id": "place_minatomachi",
+   "zh": "港町",
+   "ja": "港町"
+  },
+  {
+   "id": "place_osaka",
+   "zh": "大坂",
+   "ja": "大坂"
+  },
+  {
+   "id": "place_osakajo",
+   "zh": "大坂城",
+   "ja": "大坂城"
+  },
+  {
+   "id": "place_unga",
+   "zh": "運河",
+   "ja": "運河"
+  },
+  {
+   "id": "place_yosui",
+   "zh": "水渠",
+   "ja": "用水路"
+  },
+  {
+   "id": "place_dotonbori",
+   "zh": "道頓堀",
+   "ja": "道頓堀"
+  },
+  {
+   "id": "place_kumamotojo",
+   "zh": "熊本城",
+   "ja": "熊本城"
+  },
+  {
+   "id": "place_miyako",
+   "zh": "京城",
+   "ja": "都"
+  },
+  {
+   "id": "place_kyoto",
+   "zh": "京都",
+   "ja": "京都"
+  },
+  {
+   "id": "place_nijojo",
+   "zh": "二條城",
+   "ja": "二条城"
+  },
+  {
+   "id": "place_kasugataisha",
+   "zh": "春日大社",
+   "ja": "春日大社"
+  },
+  {
+   "id": "place_nara",
+   "zh": "奈良",
+   "ja": "奈良"
+  },
+  {
+   "id": "place_gion",
+   "zh": "祇園",
+   "ja": "祇園"
+  },
+  {
+   "id": "place_yasaka",
+   "zh": "八坂神社",
+   "ja": "八坂神社"
+  },
+  {
+   "id": "place_kyotogosho",
+   "zh": "京都御所",
+   "ja": "京都御所"
+  },
+  {
+   "id": "place_kamogawa",
+   "zh": "鴨川",
+   "ja": "鴨川"
+  },
+  {
+   "id": "place_kawadoko",
+   "zh": "川床",
+   "ja": "川床"
+  },
+  {
+   "id": "place_pontocho",
+   "zh": "先斗町",
+   "ja": "先斗町"
+  },
+  {
+   "id": "place_kaido",
+   "zh": "街道",
+   "ja": "街道"
+  },
+  {
+   "id": "place_komichi",
+   "zh": "小徑",
+   "ja": "小径"
+  },
+  {
+   "id": "place_sagano",
+   "zh": "嵯峨野",
+   "ja": "嵯峨野"
+  },
+  {
+   "id": "place_togetsukyo",
+   "zh": "渡月橋",
+   "ja": "渡月橋"
+  },
+  {
+   "id": "place_arashiyama",
+   "zh": "嵐山紅葉",
+   "ja": "嵐山の紅葉"
+  },
+  {
+   "id": "place_kiyomizudera",
+   "zh": "清水寺",
+   "ja": "清水寺"
+  },
+  {
+   "id": "place_engawabutai",
+   "zh": "舞台",
+   "ja": "舞台"
+  },
+  {
+   "id": "place_kinkakuji",
+   "zh": "金閣寺",
+   "ja": "金閣寺"
+  },
+  {
+   "id": "place_ginkakuji",
+   "zh": "銀閣寺",
+   "ja": "銀閣寺"
+  },
+  {
+   "id": "place_kogetsudai",
+   "zh": "向月台",
+   "ja": "向月台"
+  },
+  {
+   "id": "place_tetsugaku",
+   "zh": "哲學之道",
+   "ja": "哲学の道"
+  },
+  {
+   "id": "place_sekitei",
+   "zh": "石庭",
+   "ja": "石庭"
+  },
+  {
+   "id": "place_ryoanji",
+   "zh": "龍安寺",
+   "ja": "竜安寺"
+  },
+  {
+   "id": "place_toji",
+   "zh": "東寺",
+   "ja": "東寺"
+  },
+  {
+   "id": "place_fushimiinari",
+   "zh": "伏見稻荷大社",
+   "ja": "伏見稲荷大社"
+  },
+  {
+   "id": "place_heianjingu",
+   "zh": "平安神宮",
+   "ja": "平安神宮"
+  },
+  {
+   "id": "place_shinkyo",
+   "zh": "神橋",
+   "ja": "神橋"
+  },
+  {
+   "id": "place_toshogu",
+   "zh": "日光東照宮",
+   "ja": "日光東照宮"
+  },
+  {
+   "id": "place_nikko",
+   "zh": "日光",
+   "ja": "日光"
+  },
+  {
+   "id": "place_kumanosanzan",
+   "zh": "熊野三山",
+   "ja": "熊野三山"
+  },
+  {
+   "id": "place_kumanokodo",
+   "zh": "熊野古道",
+   "ja": "熊野古道"
+  },
+  {
+   "id": "place_dazaifu",
+   "zh": "太宰府",
+   "ja": "太宰府"
+  },
+  {
+   "id": "place_tsurugaoka",
+   "zh": "鶴岡八幡宮",
+   "ja": "鶴岡八幡宮"
+  },
+  {
+   "id": "place_konpira",
+   "zh": "金刀比羅宮",
+   "ja": "金刀比羅宮"
+  },
+  {
+   "id": "place_hokora",
+   "zh": "石祠",
+   "ja": "石祠"
+  },
+  {
+   "id": "place_sensoji",
+   "zh": "淺草寺",
+   "ja": "浅草寺"
+  },
+  {
+   "id": "place_kaminarimon",
+   "zh": "雷門",
+   "ja": "雷門"
+  },
+  {
+   "id": "place_nakamise",
+   "zh": "仲見世商店街",
+   "ja": "仲見世通り"
+  },
+  {
+   "id": "place_nihonbashi",
+   "zh": "日本橋",
+   "ja": "日本橋"
+  },
+  {
+   "id": "place_ryogoku",
+   "zh": "兩國",
+   "ja": "両国"
+  },
+  {
+   "id": "place_sumidagawa",
+   "zh": "隅田川",
+   "ja": "隅田川"
+  },
+  {
+   "id": "place_yukaku",
+   "zh": "遊廓",
+   "ja": "遊郭"
+  },
+  {
+   "id": "place_yoshiwara",
+   "zh": "吉原",
+   "ja": "吉原"
+  },
+  {
+   "id": "place_shimabara",
+   "zh": "島原",
+   "ja": "島原"
+  },
+  {
+   "id": "place_shukuba",
+   "zh": "驛站町",
+   "ja": "宿場町"
+  },
+  {
+   "id": "place_honjin",
+   "zh": "本陣",
+   "ja": "本陣"
+  },
+  {
+   "id": "place_sekisho",
+   "zh": "關卡",
+   "ja": "関所"
+  },
+  {
+   "id": "place_tokaido",
+   "zh": "東海道",
+   "ja": "東海道"
+  },
+  {
+   "id": "place_nakasendo",
+   "zh": "中山道",
+   "ja": "中山道"
+  },
+  {
+   "id": "place_tokaido53",
+   "zh": "東海道五十三次",
+   "ja": "東海道五十三次"
+  },
+  {
+   "id": "place_shinagawa",
+   "zh": "品川宿",
+   "ja": "品川宿"
+  },
+  {
+   "id": "place_hakone",
+   "zh": "箱根",
+   "ja": "箱根"
+  },
+  {
+   "id": "place_dejima",
+   "zh": "出島",
+   "ja": "出島"
+  },
+  {
+   "id": "place_nagasaki",
+   "zh": "長崎",
+   "ja": "長崎"
+  },
+  {
+   "id": "place_kozan",
+   "zh": "礦山",
+   "ja": "鉱山"
+  },
+  {
+   "id": "place_kinzan",
+   "zh": "金礦",
+   "ja": "金山"
+  },
+  {
+   "id": "place_sado",
+   "zh": "佐渡金山",
+   "ja": "佐渡金山"
+  },
+  {
+   "id": "place_ezo",
+   "zh": "蝦夷地",
+   "ja": "蝦夷地"
+  },
+  {
+   "id": "place_yamadera",
+   "zh": "山寺",
+   "ja": "山寺"
+  },
+  {
+   "id": "place_hojo",
+   "zh": "方丈",
+   "ja": "方丈"
+  },
+  {
+   "id": "place_zendo",
+   "zh": "禪堂",
+   "ja": "禅堂"
+  },
+  {
+   "id": "place_haka",
+   "zh": "墓所",
+   "ja": "墓所"
+  },
+  {
+   "id": "place_bochi",
+   "zh": "墓地",
+   "ja": "墓場"
+  },
+  {
+   "id": "place_kofun",
+   "zh": "古墳",
+   "ja": "古墳"
+  },
+  {
+   "id": "place_iwaya",
+   "zh": "岩窟",
+   "ja": "岩屋"
+  },
+  {
+   "id": "place_yomi",
+   "zh": "黃泉洞窟",
+   "ja": "黄泉の洞"
+  },
+  {
+   "id": "place_emma",
+   "zh": "閻魔廳",
+   "ja": "閻魔庁"
+  },
+  {
+   "id": "place_jodo",
+   "zh": "淨土",
+   "ja": "浄土"
+  },
+  {
+   "id": "place_byodoin",
+   "zh": "平等院",
+   "ja": "平等院"
+  },
+  {
+   "id": "place_uji",
+   "zh": "宇治",
+   "ja": "宇治"
+  },
+  {
+   "id": "place_horyuji",
+   "zh": "法隆寺",
+   "ja": "法隆寺"
+  },
+  {
+   "id": "place_kuramadera",
+   "zh": "鞍馬寺",
+   "ja": "鞍馬寺"
+  },
+  {
+   "id": "place_hinomiyagura",
+   "zh": "火警瞭望台",
+   "ja": "火の見櫓"
+  },
+  {
+   "id": "place_todai",
+   "zh": "燈塔",
+   "ja": "灯台"
+  },
+  {
+   "id": "place_tsukimiyagura",
+   "zh": "賞月樓",
+   "ja": "月見櫓"
+  },
+  {
+   "id": "place_yasakanoto",
+   "zh": "八坂塔",
+   "ja": "八坂の塔"
+  },
+  {
+   "id": "place_tsukiyama",
+   "zh": "假山",
+   "ja": "築山"
+  },
+  {
+   "id": "place_chisen",
+   "zh": "池泉庭園",
+   "ja": "池泉庭園"
+  },
+  {
+   "id": "place_kaiyushiki",
+   "zh": "迴遊式庭園",
+   "ja": "回遊式庭園"
+  },
+  {
+   "id": "place_kenrokuen",
+   "zh": "兼六園",
+   "ja": "兼六園"
+  },
+  {
+   "id": "place_shakkei",
+   "zh": "借景庭園",
+   "ja": "借景庭園"
+  },
+  {
+   "id": "place_karetaki",
+   "zh": "枯瀑",
+   "ja": "枯滝"
+  },
+  {
+   "id": "place_koinoike",
+   "zh": "鯉魚池",
+   "ja": "鯉の池"
+  },
+  {
+   "id": "place_nakajima",
+   "zh": "池中島",
+   "ja": "中島"
+  },
+  {
+   "id": "place_suikinkutsu",
+   "zh": "水琴窟",
+   "ja": "水琴窟"
+  },
+  {
+   "id": "place_jodoteien",
+   "zh": "淨土式庭園",
+   "ja": "浄土式庭園"
+  },
+  {
+   "id": "place_samon",
+   "zh": "砂紋",
+   "ja": "砂紋"
+  },
+  {
+   "id": "place_tanada",
+   "zh": "梯田",
+   "ja": "棚田"
+  },
+  {
+   "id": "place_tameike",
+   "zh": "蓄水池",
+   "ja": "溜池"
+  },
+  {
+   "id": "place_tsutsumi",
+   "zh": "堤防",
+   "ja": "堤"
+  },
+  {
+   "id": "place_seki",
+   "zh": "攔水堰",
+   "ja": "堰"
+  },
+  {
+   "id": "place_suimon",
+   "zh": "水門",
+   "ja": "水門"
+  },
+  {
+   "id": "place_enden",
+   "zh": "鹽田",
+   "ja": "塩田"
+  },
+  {
+   "id": "place_gyoko",
+   "zh": "漁港",
+   "ja": "漁港"
+  },
+  {
+   "id": "place_uogashi",
+   "zh": "魚市場",
+   "ja": "魚河岸"
+  },
+  {
+   "id": "place_kappabuchi",
+   "zh": "河童淵",
+   "ja": "河童淵"
+  },
+  {
+   "id": "place_itsukushimajinja",
+   "zh": "嚴島神社",
+   "ja": "厳島神社"
+  },
+  {
+   "id": "place_miyajima",
+   "zh": "宮島",
+   "ja": "宮島"
+  },
+  {
+   "id": "place_anagama",
+   "zh": "穴窯",
+   "ja": "穴窯"
+  },
+  {
+   "id": "place_noborigama",
+   "zh": "登窯",
+   "ja": "登り窯"
+  },
+  {
+   "id": "place_yakimononosato",
+   "zh": "陶瓷之鄉",
+   "ja": "焼き物の里"
+  },
+  {
+   "id": "place_tataraba",
+   "zh": "製鐵場",
+   "ja": "たたら場"
+  },
+  {
+   "id": "place_hito",
+   "zh": "祕境溫泉",
+   "ja": "秘湯"
+  },
+  {
+   "id": "place_rotenburo",
+   "zh": "露天浴池",
+   "ja": "露天風呂"
+  },
+  {
+   "id": "place_yukimiburo",
+   "zh": "賞雪溫泉",
+   "ja": "雪見風呂"
+  },
+  {
+   "id": "place_toujiba",
+   "zh": "湯治場",
+   "ja": "湯治場"
+  },
+  {
+   "id": "place_yubatake",
+   "zh": "湯田",
+   "ja": "湯畑"
+  },
+  {
+   "id": "place_kusatsu",
+   "zh": "草津溫泉",
+   "ja": "草津温泉"
+  },
+  {
+   "id": "place_sunaburo",
+   "zh": "沙浴",
+   "ja": "砂風呂"
+  },
+  {
+   "id": "place_ashiyu",
+   "zh": "足湯",
+   "ja": "足湯"
+  },
+  {
+   "id": "place_onsengai",
+   "zh": "溫泉街",
+   "ja": "温泉街"
+  },
+  {
+   "id": "place_beppu",
+   "zh": "別府溫泉",
+   "ja": "別府温泉"
+  },
+  {
+   "id": "place_kakurezato",
+   "zh": "隱世村落",
+   "ja": "隠れ里"
+  },
+  {
+   "id": "place_iganosato",
+   "zh": "伊賀之里",
+   "ja": "伊賀の里"
+  },
+  {
+   "id": "place_kogasato",
+   "zh": "甲賀之里",
+   "ja": "甲賀の里"
+  },
+  {
+   "id": "place_hotarunosato",
+   "zh": "螢火之鄉",
+   "ja": "蛍の里"
+  },
+  {
+   "id": "place_imobatake",
+   "zh": "芋田",
+   "ja": "芋畑"
+  },
+  {
+   "id": "place_yakuen",
+   "zh": "藥草園",
+   "ja": "薬草園"
+  },
+  {
+   "id": "place_ichiba",
+   "zh": "市集",
+   "ja": "市場"
+  },
+  {
+   "id": "place_asaichi",
+   "zh": "早市",
+   "ja": "朝市"
+  },
+  {
+   "id": "place_ryogaeya",
+   "zh": "錢莊",
+   "ja": "両替屋"
+  },
+  {
+   "id": "place_tonya",
+   "zh": "批發商",
+   "ja": "問屋"
+  },
+  {
+   "id": "place_kurayashiki",
+   "zh": "藏屋敷",
+   "ja": "蔵屋敷"
+  },
+  {
+   "id": "place_shichiya",
+   "zh": "當鋪",
+   "ja": "質屋"
+  },
+  {
+   "id": "place_kusuriya",
+   "zh": "藥舖",
+   "ja": "薬屋"
+  },
+  {
+   "id": "place_hataya",
+   "zh": "織坊",
+   "ja": "機屋"
+  },
+  {
+   "id": "place_somemonoya",
+   "zh": "染坊",
+   "ja": "染物屋"
+  },
+  {
+   "id": "place_kamisukiba",
+   "zh": "造紙坊",
+   "ja": "紙漉き場"
+  },
+  {
+   "id": "place_hanmoto",
+   "zh": "錦繪批發",
+   "ja": "錦絵問屋"
+  },
+  {
+   "id": "place_izakaya",
+   "zh": "居酒屋",
+   "ja": "居酒屋"
+  },
+  {
+   "id": "place_ryotei",
+   "zh": "料亭",
+   "ja": "料亭"
+  },
+  {
+   "id": "place_sushiya",
+   "zh": "壽司店",
+   "ja": "寿司屋"
+  },
+  {
+   "id": "place_amamidokoro",
+   "zh": "甜品店",
+   "ja": "甘味処"
+  },
+  {
+   "id": "place_nawanoren",
+   "zh": "繩暖簾酒館",
+   "ja": "縄のれんの店"
+  },
+  {
+   "id": "place_tougechaya",
+   "zh": "山口茶屋",
+   "ja": "峠の茶屋"
+  },
+  {
+   "id": "place_noubutai",
+   "zh": "能舞台",
+   "ja": "能舞台"
+  },
+  {
+   "id": "place_shibaigoya",
+   "zh": "戲棚",
+   "ja": "芝居小屋"
+  },
+  {
+   "id": "place_yose",
+   "zh": "說書場",
+   "ja": "寄席"
+  },
+  {
+   "id": "place_kyudojo",
+   "zh": "弓道場",
+   "ja": "弓道場"
+  },
+  {
+   "id": "place_keikoba",
+   "zh": "練習場",
+   "ja": "稽古場"
+  },
+  {
+   "id": "place_enbujo",
+   "zh": "演武場",
+   "ja": "演武場"
+  },
+  {
+   "id": "place_funayado",
+   "zh": "船宿",
+   "ja": "船宿"
+  },
+  {
+   "id": "place_watashiba",
+   "zh": "渡口",
+   "ja": "渡し場"
+  },
+  {
+   "id": "place_tsujido",
+   "zh": "路旁小堂",
+   "ja": "辻堂"
+  },
+  {
+   "id": "place_kosatsuba",
+   "zh": "告示場",
+   "ja": "高札場"
+  },
+  {
+   "id": "place_bugyosho",
+   "zh": "奉行所",
+   "ja": "奉行所"
+  },
+  {
+   "id": "place_shirasu",
+   "zh": "白洲",
+   "ja": "お白洲"
+  },
+  {
+   "id": "place_roya",
+   "zh": "牢獄",
+   "ja": "牢屋敷"
+  },
+  {
+   "id": "place_hanko",
+   "zh": "藩校",
+   "ja": "藩校"
+  },
+  {
+   "id": "place_senjo",
+   "zh": "戰場",
+   "ja": "戦場"
+  },
+  {
+   "id": "place_kosenjo",
+   "zh": "古戰場",
+   "ja": "古戦場"
+  },
+  {
+   "id": "place_sekigahara",
+   "zh": "關原",
+   "ja": "関ヶ原"
+  },
+  {
+   "id": "place_okehazama",
+   "zh": "桶狹間",
+   "ja": "桶狭間"
+  },
+  {
+   "id": "place_kawanakajima",
+   "zh": "川中島",
+   "ja": "川中島"
+  },
+  {
+   "id": "place_dannoura",
+   "zh": "壇之浦",
+   "ja": "壇ノ浦"
+  },
+  {
+   "id": "place_ichinotani",
+   "zh": "一之谷",
+   "ja": "一ノ谷"
+  },
+  {
+   "id": "place_honnoji",
+   "zh": "本能寺",
+   "ja": "本能寺"
+  },
+  {
+   "id": "place_seiryoden",
+   "zh": "清涼殿",
+   "ja": "清涼殿"
+  },
+  {
+   "id": "place_shishinden",
+   "zh": "紫宸殿",
+   "ja": "紫宸殿"
+  },
+  {
+   "id": "place_suzakumon",
+   "zh": "朱雀門",
+   "ja": "朱雀門"
+  },
+  {
+   "id": "place_rashomon",
+   "zh": "羅生門",
+   "ja": "羅生門"
+  },
+  {
+   "id": "place_hokoden",
+   "zh": "寶物殿",
+   "ja": "宝物殿"
+  },
+  {
+   "id": "place_azekura",
+   "zh": "校倉造",
+   "ja": "校倉造り"
+  },
+  {
+   "id": "place_shosoin",
+   "zh": "正倉院",
+   "ja": "正倉院"
+  },
+  {
+   "id": "place_ishibashi",
+   "zh": "石橋",
+   "ja": "石橋"
+  },
+  {
+   "id": "place_meganebashi",
+   "zh": "眼鏡橋",
+   "ja": "眼鏡橋"
+  },
+  {
+   "id": "place_tsuribashi",
+   "zh": "吊橋",
+   "ja": "吊り橋"
+  },
+  {
+   "id": "place_soribashi",
+   "zh": "拱橋",
+   "ja": "反り橋"
+  },
+  {
+   "id": "place_kintaikyo",
+   "zh": "錦帶橋",
+   "ja": "錦帯橋"
+  },
+  {
+   "id": "place_tsutenkyo",
+   "zh": "通天橋",
+   "ja": "通天橋"
+  },
+  {
+   "id": "place_funabashi",
+   "zh": "浮舟橋",
+   "ja": "舟橋"
+  },
+  {
+   "id": "place_sanjoohashi",
+   "zh": "三條大橋",
+   "ja": "三条大橋"
+  },
+  {
+   "id": "place_gojoohashi",
+   "zh": "五條大橋",
+   "ja": "五条大橋"
+  },
+  {
+   "id": "place_otemon",
+   "zh": "大手門",
+   "ja": "大手門"
+  },
+  {
+   "id": "place_adashino",
+   "zh": "化野",
+   "ja": "化野"
+  },
+  {
+   "id": "place_idobata",
+   "zh": "井邊",
+   "ja": "井戸端"
+  },
+  {
+   "id": "place_koto",
+   "zh": "古都",
+   "ja": "古都"
+  },
+  {
+   "id": "place_miyakooji",
+   "zh": "京城大道",
+   "ja": "都大路"
+  },
+  {
+   "id": "place_suzakuoji",
+   "zh": "朱雀大路",
+   "ja": "朱雀大路"
+  },
+  {
+   "id": "place_shokuninmachi",
+   "zh": "工匠町",
+   "ja": "職人町"
+  },
+  {
+   "id": "place_kajimachi",
+   "zh": "鐵匠町",
+   "ja": "鍛冶町"
+  },
+  {
+   "id": "place_chayamachi",
+   "zh": "茶屋町",
+   "ja": "茶屋町"
+  },
+  {
+   "id": "place_hanamachi",
+   "zh": "花街",
+   "ja": "花街"
+  },
+  {
+   "id": "place_noson",
+   "zh": "農村",
+   "ja": "農村"
+  },
+  {
+   "id": "place_sanson",
+   "zh": "山村",
+   "ja": "山村"
+  },
+  {
+   "id": "place_ochudonosato",
+   "zh": "落難武士之鄉",
+   "ja": "落人の里"
+  },
+  {
+   "id": "place_shoin",
+   "zh": "書院",
+   "ja": "書院"
+  },
+  {
+   "id": "place_shoinzukuri",
+   "zh": "書院造",
+   "ja": "書院造"
+  },
+  {
+   "id": "place_shindenzukuri",
+   "zh": "寢殿造",
+   "ja": "寝殿造"
+  },
+  {
+   "id": "place_sukiya",
+   "zh": "數寄屋造",
+   "ja": "数寄屋造"
+  },
+  {
+   "id": "place_katsura",
+   "zh": "桂離宮",
+   "ja": "桂離宮"
+  },
+  {
+   "id": "place_doma",
+   "zh": "土間",
+   "ja": "土間"
+  },
+  {
+   "id": "place_daidokoro",
+   "zh": "廚房",
+   "ja": "台所"
+  },
+  {
+   "id": "place_kyomachiya",
+   "zh": "京町家",
+   "ja": "京町家"
+  },
+  {
+   "id": "place_nakaniwa",
+   "zh": "天井小庭",
+   "ja": "坪庭"
+  },
+  {
+   "id": "place_kurazukuri",
+   "zh": "倉造老街",
+   "ja": "蔵造りの町並み"
+  },
+  {
+   "id": "place_ennoshita",
+   "zh": "地板下",
+   "ja": "縁の下"
+  },
+  {
+   "id": "place_yaneura",
+   "zh": "閣樓",
+   "ja": "屋根裏"
+  },
+  {
+   "id": "place_tsukimidai",
+   "zh": "賞月台",
+   "ja": "月見台"
+  },
+  {
+   "id": "place_konjikido",
+   "zh": "金色堂",
+   "ja": "金色堂"
+  },
+  {
+   "id": "place_hiraizumi",
+   "zh": "平泉",
+   "ja": "平泉"
+  },
+  {
+   "id": "place_kanazawa",
+   "zh": "金澤",
+   "ja": "金沢"
+  },
+  {
+   "id": "place_kurashiki",
+   "zh": "倉敷",
+   "ja": "倉敷"
+  },
+  {
+   "id": "place_tsumago",
+   "zh": "妻籠宿",
+   "ja": "妻籠宿"
+  },
+  {
+   "id": "place_enoshima",
+   "zh": "江之島",
+   "ja": "江ノ島"
+  },
+  {
+   "id": "place_sumiyoshi",
+   "zh": "住吉大社",
+   "ja": "住吉大社"
+  },
+  {
+   "id": "place_kibune",
+   "zh": "貴船神社",
+   "ja": "貴船神社"
+  },
+  {
+   "id": "place_edo808",
+   "zh": "大江戶八百八町",
+   "ja": "大江戸八百八町"
+  },
+  {
+   "id": "place_azuchijo",
+   "zh": "安土城",
+   "ja": "安土城"
+  },
+  {
+   "id": "place_tenshudai",
+   "zh": "天守台",
+   "ja": "天守台"
+  },
+  {
+   "id": "place_ninomaru",
+   "zh": "二之丸",
+   "ja": "二の丸"
+  },
+  {
+   "id": "place_sotobori",
+   "zh": "外護城河",
+   "ja": "外堀"
+  },
+  {
+   "id": "place_uchibori",
+   "zh": "內護城河",
+   "ja": "内堀"
+  },
+  {
+   "id": "place_masugata",
+   "zh": "枡形門",
+   "ja": "枡形門"
+  },
+  {
+   "id": "place_oohiroma",
+   "zh": "大廣間",
+   "ja": "大広間"
+  },
+  {
+   "id": "place_ooku",
+   "zh": "大奧",
+   "ja": "大奥"
+  },
+  {
+   "id": "place_matsunoroka",
+   "zh": "松之廊下",
+   "ja": "松の廊下"
+  },
+  {
+   "id": "place_tamonyagura",
+   "zh": "多聞櫓",
+   "ja": "多聞櫓"
+  },
+  {
+   "id": "place_hanareya",
+   "zh": "偏屋",
+   "ja": "離れ"
+  },
+  {
+   "id": "place_soan",
+   "zh": "茅草庵茶室",
+   "ja": "草庵茶室"
+  },
+  {
+   "id": "place_bessou",
+   "zh": "別墅",
+   "ja": "別荘"
+  },
+  {
+   "id": "place_rikyu",
+   "zh": "離宮",
+   "ja": "離宮"
+  },
+  {
+   "id": "place_shugakuin",
+   "zh": "修學院離宮",
+   "ja": "修学院離宮"
+  },
+  {
+   "id": "place_kyakuden",
+   "zh": "客殿",
+   "ja": "客殿"
+  },
+  {
+   "id": "place_watarirouka",
+   "zh": "迴廊",
+   "ja": "渡り廊下"
+  },
+  {
+   "id": "place_tsuridono",
+   "zh": "釣殿",
+   "ja": "釣殿"
+  },
+  {
+   "id": "place_yokocho",
+   "zh": "橫丁",
+   "ja": "横丁"
+  },
+  {
+   "id": "place_uramichi",
+   "zh": "後巷",
+   "ja": "裏通り"
+  },
+  {
+   "id": "place_kido",
+   "zh": "町木戶",
+   "ja": "町木戸"
+  },
+  {
+   "id": "place_kyodoido",
+   "zh": "共用水井",
+   "ja": "共同井戸"
+  },
+  {
+   "id": "place_jishinban",
+   "zh": "自身番",
+   "ja": "自身番"
+  },
+  {
+   "id": "place_bukemachi",
+   "zh": "武家町",
+   "ja": "武家町"
+  },
+  {
+   "id": "place_teramachi",
+   "zh": "寺町",
+   "ja": "寺町"
+  },
+  {
+   "id": "place_oiwake",
+   "zh": "岔路口",
+   "ja": "追分"
+  },
+  {
+   "id": "place_echigoya",
+   "zh": "和服批發商",
+   "ja": "呉服問屋"
+  },
+  {
+   "id": "place_dojima",
+   "zh": "堂島米市場",
+   "ja": "堂島米会所"
+  },
+  {
+   "id": "place_kinza",
+   "zh": "金座",
+   "ja": "金座"
+  },
+  {
+   "id": "place_hamagoten",
+   "zh": "濱御殿",
+   "ja": "浜御殿"
+  },
+  {
+   "id": "place_suigo",
+   "zh": "水鄉",
+   "ja": "水郷"
+  },
+  {
+   "id": "place_yanagawa",
+   "zh": "柳川",
+   "ja": "柳川"
+  },
+  {
+   "id": "place_ukimido",
+   "zh": "浮御堂",
+   "ja": "浮御堂"
+  },
+  {
+   "id": "place_inaka",
+   "zh": "鄉下",
+   "ja": "田舎"
+  },
+  {
+   "id": "place_hojoteien",
+   "zh": "方丈庭園",
+   "ja": "方丈庭園"
+  },
+  {
+   "id": "place_reien",
+   "zh": "陵園",
+   "ja": "霊園"
+  },
+  {
+   "id": "place_goryo",
+   "zh": "御陵",
+   "ja": "御陵"
+  },
+  {
+   "id": "place_daisenryo",
+   "zh": "仁德天皇陵",
+   "ja": "仁徳天皇陵"
+  },
+  {
+   "id": "place_tengusato",
+   "zh": "天狗隱里",
+   "ja": "天狗の隠れ里"
+  },
+  {
+   "id": "place_kitsunesato",
+   "zh": "狐狸隱里",
+   "ja": "狐の隠れ里"
+  },
+  {
+   "id": "place_tanukigoten",
+   "zh": "狸御殿",
+   "ja": "狸御殿"
+  },
+  {
+   "id": "place_kinojo",
+   "zh": "鬼之城",
+   "ja": "鬼ノ城"
+  },
+  {
+   "id": "place_oninoiwaya",
+   "zh": "鬼之岩窟",
+   "ja": "鬼の岩屋"
+  },
+  {
+   "id": "place_kakushitobira",
+   "zh": "暗門",
+   "ja": "隠し扉"
+  },
+  {
+   "id": "place_onsenyado",
+   "zh": "溫泉旅館",
+   "ja": "温泉宿"
+  },
+  {
+   "id": "place_tsukimiburo",
+   "zh": "賞月浴池",
+   "ja": "月見風呂"
+  },
+  {
+   "id": "place_kakushiyu",
+   "zh": "隱湯",
+   "ja": "隠し湯"
+  },
+  {
+   "id": "place_daimyoyashiki",
+   "zh": "大名宅邸",
+   "ja": "大名屋敷"
+  },
+  {
+   "id": "place_kugeyashiki",
+   "zh": "公卿宅邸",
+   "ja": "公家屋敷"
+  },
+  {
+   "id": "place_misemonogoya",
+   "zh": "雜耍棚",
+   "ja": "見世物小屋"
+  },
+  {
+   "id": "place_yaba",
+   "zh": "射箭場",
+   "ja": "矢場"
+  },
+  {
+   "id": "place_nogakudo",
+   "zh": "能樂堂",
+   "ja": "能楽堂"
+  },
+  {
+   "id": "place_funagura",
+   "zh": "船庫",
+   "ja": "船蔵"
+  },
+  {
+   "id": "place_zousenjo",
+   "zh": "造船廠",
+   "ja": "造船所"
+  },
+  {
+   "id": "place_sakai",
+   "zh": "堺",
+   "ja": "堺"
+  },
+  {
+   "id": "place_suigunjo",
+   "zh": "水軍城",
+   "ja": "水軍城"
+  },
+  {
+   "id": "place_tanko",
+   "zh": "煤礦",
+   "ja": "炭鉱"
+  },
+  {
+   "id": "place_katanakoubou",
+   "zh": "刀劍工坊",
+   "ja": "刀工房"
+  },
+  {
+   "id": "place_washinosato",
+   "zh": "和紙之鄉",
+   "ja": "和紙の里"
+  },
+  {
+   "id": "place_nishijin",
+   "zh": "西陣",
+   "ja": "西陣"
+  },
+  {
+   "id": "place_nadasakagura",
+   "zh": "灘之酒藏",
+   "ja": "灘の酒蔵"
+  },
+  {
+   "id": "place_senmaida",
+   "zh": "白米千枚田",
+   "ja": "白米千枚田"
+  },
+  {
+   "id": "place_shinden",
+   "zh": "新田",
+   "ja": "新田"
+  },
+  {
+   "id": "place_banya",
+   "zh": "漁夫小屋",
+   "ja": "番屋"
+  },
+  {
+   "id": "place_funatsukiba",
+   "zh": "船埠",
+   "ja": "船着き場"
+  },
+  {
+   "id": "place_kaminoshima",
+   "zh": "神之島",
+   "ja": "神の島"
+  },
+  {
+   "id": "place_kanetsukido",
+   "zh": "撞鐘堂",
+   "ja": "鐘撞堂"
+  },
+  {
+   "id": "place_takishugyoba",
+   "zh": "瀑布修行場",
+   "ja": "滝の修行場"
+  },
+  {
+   "id": "place_kenjutsudojo",
+   "zh": "劍術道場",
+   "ja": "剣術道場"
+  },
+  {
+   "id": "place_ryuketsu",
+   "zh": "龍之洞窟",
+   "ja": "龍の洞窟"
+  },
+  {
+   "id": "place_sekkutsuji",
+   "zh": "石窟寺院",
+   "ja": "石窟寺院"
+  },
+  {
+   "id": "place_hanamijaya",
+   "zh": "賞花茶屋",
+   "ja": "花見茶屋"
+  },
+  {
+   "id": "place_ochaya",
+   "zh": "藝妓茶屋",
+   "ja": "お茶屋"
+  },
+  {
+   "id": "place_ryogokubashi",
+   "zh": "兩國橋",
+   "ja": "両国橋"
+  },
+  {
+   "id": "place_fukagawa",
+   "zh": "深川",
+   "ja": "深川"
+  },
+  {
+   "id": "place_yoshiwaraomon",
+   "zh": "吉原大門",
+   "ja": "吉原大門"
+  },
+  {
+   "id": "place_shijogawara",
+   "zh": "四條河原",
+   "ja": "四条河原"
+  },
+  {
+   "id": "place_heijokyo",
+   "zh": "平城京",
+   "ja": "平城京"
+  },
+  {
+   "id": "place_kiritoshi",
+   "zh": "切通",
+   "ja": "切通し"
+  },
+  {
+   "id": "place_tenkanodaidokoro",
+   "zh": "天下廚房",
+   "ja": "天下の台所"
+  },
+  {
+   "id": "place_tojinyashiki",
+   "zh": "唐人宅邸",
+   "ja": "唐人屋敷"
+  },
+  {
+   "id": "place_shitamachi",
+   "zh": "下町",
+   "ja": "下町"
+  },
+  {
+   "id": "place_yamanote",
+   "zh": "山手",
+   "ja": "山の手"
+  },
+  {
+   "id": "place_honmarugoten",
+   "zh": "本丸御殿",
+   "ja": "本丸御殿"
+  },
+  {
+   "id": "place_hamarikyu",
+   "zh": "濱離宮",
+   "ja": "浜離宮"
+  },
+  {
+   "id": "place_nozurazumi",
+   "zh": "野面積",
+   "ja": "野面積み"
+  },
+  {
+   "id": "place_jinya",
+   "zh": "陣屋",
+   "ja": "陣屋"
+  },
+  {
+   "id": "place_sakuratsutsumi",
+   "zh": "櫻花堤",
+   "ja": "桜堤"
+  },
+  {
+   "id": "place_horikawa",
+   "zh": "堀川",
+   "ja": "堀川"
+  },
+  {
+   "id": "place_taikobashi",
+   "zh": "太鼓橋",
+   "ja": "太鼓橋"
+  },
+  {
+   "id": "place_haioku",
+   "zh": "廢屋",
+   "ja": "廃屋"
+  },
+  {
+   "id": "place_haidera",
+   "zh": "廢寺",
+   "ja": "廃寺"
+  },
+  {
+   "id": "place_haison",
+   "zh": "廢村",
+   "ja": "廃村"
+  },
+  {
+   "id": "place_ouchijuku",
+   "zh": "大內宿",
+   "ja": "大内宿"
+  },
+  {
+   "id": "place_mitsuke",
+   "zh": "見附",
+   "ja": "見附"
+  },
+  {
+   "id": "place_bansho",
+   "zh": "番所",
+   "ja": "番所"
+  },
+  {
+   "id": "place_daikansho",
+   "zh": "代官所",
+   "ja": "代官所"
+  },
+  {
+   "id": "place_hikeshiyashiki",
+   "zh": "火消屋敷",
+   "ja": "火消屋敷"
+  },
+  {
+   "id": "place_shijuku",
+   "zh": "私塾",
+   "ja": "私塾"
+  },
+  {
+   "id": "place_tenmondai",
+   "zh": "天文台",
+   "ja": "天文台"
+  },
+  {
+   "id": "place_tokinokane",
+   "zh": "報時鐘樓",
+   "ja": "時の鐘"
+  },
+  {
+   "id": "place_uranagaya",
+   "zh": "後巷長屋",
+   "ja": "裏長屋"
+  },
+  {
+   "id": "place_kusuridonya",
+   "zh": "藥材批發商",
+   "ja": "薬種問屋"
+  },
+  {
+   "id": "place_komedonya",
+   "zh": "米批發商",
+   "ja": "米問屋"
+  },
+  {
+   "id": "place_zaimokudonya",
+   "zh": "木材批發商",
+   "ja": "材木問屋"
+  },
+  {
+   "id": "place_kiba",
+   "zh": "貯木場",
+   "ja": "木場"
+  },
+  {
+   "id": "place_imonoba",
+   "zh": "鑄造場",
+   "ja": "鋳物場"
+  },
+  {
+   "id": "place_seibokusho",
+   "zh": "製墨坊",
+   "ja": "製墨所"
+  },
+  {
+   "id": "place_seichaba",
+   "zh": "製茶場",
+   "ja": "製茶場"
+  },
+  {
+   "id": "place_ageya",
+   "zh": "揚屋",
+   "ja": "揚屋"
+  },
+  {
+   "id": "place_yukinoyado",
+   "zh": "雪中旅宿",
+   "ja": "雪の宿"
+  },
+  {
+   "id": "place_kazanto",
+   "zh": "火山島",
+   "ja": "火山島"
+  },
+  {
+   "id": "place_naruto",
+   "zh": "鳴門",
+   "ja": "鳴門"
+  },
+  {
+   "id": "place_suishodo",
+   "zh": "水晶洞",
+   "ja": "水晶洞"
+  },
+  {
+   "id": "place_sanzokunotoride",
+   "zh": "山賊寨",
+   "ja": "山賊の砦"
+  },
+  {
+   "id": "place_uchideshi",
+   "zh": "內弟子房",
+   "ja": "内弟子部屋"
+  },
+  {
+   "id": "place_kakejaya",
+   "zh": "路邊茶棚",
+   "ja": "掛け茶屋"
+  },
+  {
+   "id": "place_noroshidai",
+   "zh": "烽火台",
+   "ja": "狼煙台"
+  },
+  {
+   "id": "place_ishikiriba",
+   "zh": "採石場",
+   "ja": "石切り場"
+  },
+  {
+   "id": "place_hanamikoji",
+   "zh": "花見小路",
+   "ja": "花見小路"
+  },
+  {
+   "id": "place_ishidatami",
+   "zh": "石板路",
+   "ja": "石畳の道"
+  },
+  {
+   "id": "place_gangi",
+   "zh": "雁木廊道",
+   "ja": "雁木通り"
+  },
+  {
+   "id": "place_wakihonjin",
+   "zh": "脇本陣",
+   "ja": "脇本陣"
+  },
+  {
+   "id": "place_teradaya",
+   "zh": "寺田屋",
+   "ja": "寺田屋"
+  },
+  {
+   "id": "place_ninomarugoten",
+   "zh": "二之丸御殿",
+   "ja": "二の丸御殿"
+  },
+  {
+   "id": "place_sakuradamon",
+   "zh": "櫻田門",
+   "ja": "桜田門"
+  },
+  {
+   "id": "place_ujibashi",
+   "zh": "宇治橋",
+   "ja": "宇治橋"
+  },
+  {
+   "id": "place_higashichaya",
+   "zh": "東茶屋街",
+   "ja": "ひがし茶屋街"
+  },
+  {
+   "id": "place_nishikiichiba",
+   "zh": "錦市場",
+   "ja": "錦市場"
+  },
+  {
+   "id": "place_senba",
+   "zh": "船場",
+   "ja": "船場"
+  },
+  {
+   "id": "place_saruwakacho",
+   "zh": "猿若町",
+   "ja": "猿若町"
+  },
+  {
+   "id": "place_okuzashiki",
+   "zh": "內廳",
+   "ja": "奥座敷"
+  },
+  {
+   "id": "place_kyokusui",
+   "zh": "曲水庭園",
+   "ja": "曲水の庭"
+  },
+  {
+   "id": "place_yarimizu",
+   "zh": "引水小溪",
+   "ja": "遣水"
+  },
+  {
+   "id": "place_suhama",
+   "zh": "洲濱",
+   "ja": "州浜"
+  },
+  {
+   "id": "place_igaueno",
+   "zh": "伊賀上野城",
+   "ja": "伊賀上野城"
+  },
+  {
+   "id": "place_tsurubeido",
+   "zh": "吊桶井",
+   "ja": "釣瓶井戸"
+  },
+  {
+   "id": "place_kojo",
+   "zh": "荒城",
+   "ja": "荒城"
+  },
+  {
+   "id": "place_nagayamon",
+   "zh": "長屋門",
+   "ja": "長屋門"
+  },
+  {
+   "id": "place_nijiriguchi",
+   "zh": "躙口",
+   "ja": "躙り口"
+  },
+  {
+   "id": "place_shinobazu",
+   "zh": "不忍池",
+   "ja": "不忍池"
+  },
+  {
+   "id": "place_odawara",
+   "zh": "小田原城",
+   "ja": "小田原城"
+  },
+  {
+   "id": "place_hikone",
+   "zh": "彦根城",
+   "ja": "彦根城"
+  },
+  {
+   "id": "place_aizu",
+   "zh": "會津若松城",
+   "ja": "会津若松城"
+  },
+  {
+   "id": "place_goryokaku",
+   "zh": "五稜郭",
+   "ja": "五稜郭"
+  },
+  {
+   "id": "place_ryukyu",
+   "zh": "琉球",
+   "ja": "琉球"
+  },
+  {
+   "id": "place_shurijo",
+   "zh": "首里城",
+   "ja": "首里城"
+  },
+  {
+   "id": "place_gokayama",
+   "zh": "五箇山",
+   "ja": "五箇山"
+  },
+  {
+   "id": "place_magome",
+   "zh": "馬籠宿",
+   "ja": "馬籠宿"
+  },
+  {
+   "id": "place_chusonji",
+   "zh": "中尊寺",
+   "ja": "中尊寺"
+  },
+  {
+   "id": "place_ohara",
+   "zh": "大原之里",
+   "ja": "大原の里"
+  },
+  {
+   "id": "place_suirokaku",
+   "zh": "水路閣",
+   "ja": "水路閣"
+  },
+  {
+   "id": "place_korakuen",
+   "zh": "後樂園",
+   "ja": "後楽園"
+  },
+  {
+   "id": "place_monomiyagura",
+   "zh": "瞭望櫓",
+   "ja": "物見櫓"
+  },
+  {
+   "id": "place_udatsu",
+   "zh": "卯建街景",
+   "ja": "うだつの町並み"
+  },
+  {
+   "id": "place_sogamae",
+   "zh": "總構",
+   "ja": "総構え"
+  },
+  {
+   "id": "place_jinaimachi",
+   "zh": "寺內町",
+   "ja": "寺内町"
+  },
+  {
+   "id": "place_yomeimon",
+   "zh": "陽明門",
+   "ja": "陽明門"
+  },
+  {
+   "id": "place_mizuchaya",
+   "zh": "水茶屋",
+   "ja": "水茶屋"
+  },
+  {
+   "id": "place_tsukudajima",
+   "zh": "佃島",
+   "ja": "佃島"
+  },
+  {
+   "id": "place_tofukuji",
+   "zh": "東福寺",
+   "ja": "東福寺"
+  },
+  {
+   "id": "place_tenryuji",
+   "zh": "天龍寺",
+   "ja": "天龍寺"
+  },
+  {
+   "id": "place_ishibutai",
+   "zh": "石舞台古墳",
+   "ja": "石舞台古墳"
+  },
+  {
+   "id": "place_asuka",
+   "zh": "飛鳥",
+   "ja": "飛鳥"
+  },
+  {
+   "id": "place_mizuki",
+   "zh": "水城",
+   "ja": "水城"
+  },
+  {
+   "id": "place_hakata",
+   "zh": "博多",
+   "ja": "博多"
+  },
+  {
+   "id": "place_ishiyama",
+   "zh": "石山本願寺",
+   "ja": "石山本願寺"
+  },
+  {
+   "id": "place_ichijodani",
+   "zh": "一乘谷",
+   "ja": "一乗谷"
+  },
+  {
+   "id": "place_nagashino",
+   "zh": "長篠",
+   "ja": "長篠"
+  },
+  {
+   "id": "place_yashima",
+   "zh": "屋島",
+   "ja": "屋島"
+  }
+ ],
+ "recipes": [
+  [
+   "plc_field",
+   "plc_house",
+   "place_koya"
+  ],
+  [
+   "plc_house",
+   "plt_grass",
+   "place_kayabuki"
+  ],
+  [
+   "place_kayabuki",
+   "nat_snow",
+   "place_gassho"
+  ],
+  [
+   "place_gassho",
+   "plc_village",
+   "place_shirakawago"
+  ],
+  [
+   "plc_house",
+   "mat_pottery",
+   "place_kawara"
+  ],
+  [
+   "plc_house",
+   "mat_clay",
+   "place_dobei"
+  ],
+  [
+   "plc_garden",
+   "earth",
+   "place_dobei"
+  ],
+  [
+   "plc_house",
+   "fod_rice",
+   "place_kura"
+  ],
+  [
+   "place_kura",
+   "mat_clay",
+   "place_dozo"
+  ],
+  [
+   "place_kura",
+   "fod_sake",
+   "place_sakagura"
+  ],
+  [
+   "place_kura",
+   "nat_ice",
+   "place_himuro"
+  ],
+  [
+   "plc_cave",
+   "nat_snow",
+   "place_himuro"
+  ],
+  [
+   "plc_house",
+   "mat_board",
+   "place_engawa"
+  ],
+  [
+   "plc_house",
+   "tol_fusuma",
+   "place_washitsu"
+  ],
+  [
+   "place_washitsu",
+   "tol_scroll",
+   "place_tokonoma"
+  ],
+  [
+   "plc_house",
+   "plc_garden",
+   "place_yashiki"
+  ],
+  [
+   "place_yashiki",
+   "per_samurai",
+   "place_bukeyashiki"
+  ],
+  [
+   "place_yashiki",
+   "trs_goldleaf",
+   "place_goten"
+  ],
+  [
+   "place_yashiki",
+   "mat_gold",
+   "place_chojayashiki"
+  ],
+  [
+   "place_kura",
+   "mat_gold",
+   "place_chojayashiki"
+  ],
+  [
+   "place_goten",
+   "trs_magatama",
+   "place_gosho"
+  ],
+  [
+   "plc_house",
+   "per_farmer",
+   "place_noka"
+  ],
+  [
+   "plc_village",
+   "per_merchant",
+   "place_machi"
+  ],
+  [
+   "place_machi",
+   "plc_house",
+   "place_nagaya"
+  ],
+  [
+   "plc_house",
+   "nat_mountain",
+   "place_sanso"
+  ],
+  [
+   "place_koya",
+   "nat_mountain",
+   "place_yamagoya"
+  ],
+  [
+   "place_koya",
+   "mat_charcoal",
+   "place_sumiyakigoya"
+  ],
+  [
+   "place_koya",
+   "nat_river",
+   "place_suishagoya"
+  ],
+  [
+   "plc_village",
+   "nat_snow",
+   "place_yukiguni"
+  ],
+  [
+   "plc_house",
+   "tol_ship",
+   "place_funaya"
+  ],
+  [
+   "plc_village",
+   "per_fisher",
+   "place_gyoson"
+  ],
+  [
+   "place_funaya",
+   "place_gyoson",
+   "place_ine"
+  ],
+  [
+   "plc_house",
+   "art_onkei",
+   "place_kakurega"
+  ],
+  [
+   "plc_cave",
+   "art_onkei",
+   "place_kakurega"
+  ],
+  [
+   "place_yashiki",
+   "yok_ghost",
+   "place_obakeyashiki"
+  ],
+  [
+   "place_yashiki",
+   "nat_mist",
+   "place_mayoiga"
+  ],
+  [
+   "place_yashiki",
+   "per_ninja",
+   "place_karakuriyashiki"
+  ],
+  [
+   "place_washitsu",
+   "art_onkei",
+   "place_kakushibeya"
+  ],
+  [
+   "plc_castle",
+   "plc_cave",
+   "place_nukeana"
+  ],
+  [
+   "plc_house",
+   "per_geisha",
+   "place_okiya"
+  ],
+  [
+   "place_washitsu",
+   "per_geisha",
+   "place_ozashiki"
+  ],
+  [
+   "plc_teahouse",
+   "cpt_wabisabi",
+   "place_chashitsu"
+  ],
+  [
+   "place_washitsu",
+   "per_teamaster",
+   "place_chashitsu"
+  ],
+  [
+   "place_chashitsu",
+   "plc_garden",
+   "place_roji"
+  ],
+  [
+   "place_roji",
+   "mat_stone",
+   "place_tsukubai"
+  ],
+  [
+   "place_roji",
+   "plt_bamboo",
+   "place_shishiodoshi"
+  ],
+  [
+   "place_machi",
+   "per_traveler",
+   "place_ryokan"
+  ],
+  [
+   "plc_onsen",
+   "plc_house",
+   "place_yuya"
+  ],
+  [
+   "place_yuya",
+   "place_machi",
+   "place_sento"
+  ],
+  [
+   "plc_house",
+   "per_smith",
+   "place_kajiba"
+  ],
+  [
+   "plc_house",
+   "mat_iron",
+   "place_kajiba"
+  ],
+  [
+   "plc_house",
+   "per_craftsman",
+   "place_koubou"
+  ],
+  [
+   "plc_house",
+   "per_merchant",
+   "place_shoka"
+  ],
+  [
+   "plc_temple",
+   "tol_book",
+   "place_terakoya"
+  ],
+  [
+   "plc_temple",
+   "tol_brush",
+   "place_terakoya"
+  ],
+  [
+   "plc_castle",
+   "mat_stone",
+   "place_ishigaki"
+  ],
+  [
+   "plc_castle",
+   "water",
+   "place_hori"
+  ],
+  [
+   "plc_castle",
+   "nat_river",
+   "place_hori"
+  ],
+  [
+   "plc_castle",
+   "plc_tower",
+   "place_tenshu"
+  ],
+  [
+   "plc_castle",
+   "wpn_bow",
+   "place_sumiyagura"
+  ],
+  [
+   "plc_castle",
+   "mat_iron",
+   "place_kuroganemon"
+  ],
+  [
+   "place_tenshu",
+   "place_ishigaki",
+   "place_honmaru"
+  ],
+  [
+   "plc_castle",
+   "nat_mountain",
+   "place_yamajiro"
+  ],
+  [
+   "place_yamajiro",
+   "nat_cloud",
+   "place_tenkunoshiro"
+  ],
+  [
+   "plc_castle",
+   "plc_lake",
+   "place_ukishiro"
+  ],
+  [
+   "plc_castle",
+   "nat_sea",
+   "place_umijiro"
+  ],
+  [
+   "place_goten",
+   "nat_sea",
+   "place_ryugujo"
+  ],
+  [
+   "place_tenshu",
+   "nat_snow",
+   "place_shirasagijo"
+  ],
+  [
+   "place_tenshu",
+   "mat_ink",
+   "place_karasujo"
+  ],
+  [
+   "place_kawara",
+   "fod_fish",
+   "place_shachihoko"
+  ],
+  [
+   "place_shachihoko",
+   "mat_gold",
+   "place_kinshachi"
+  ],
+  [
+   "place_tenshu",
+   "place_kinshachi",
+   "place_nagoyajo"
+  ],
+  [
+   "place_ishigaki",
+   "per_samurai",
+   "place_mushagaeshi"
+  ],
+  [
+   "place_dobei",
+   "per_ninja",
+   "place_shinobigaeshi"
+  ],
+  [
+   "place_sumiyagura",
+   "wpn_musket",
+   "place_sama"
+  ],
+  [
+   "place_sumiyagura",
+   "mat_stone",
+   "place_ishiotoshi"
+  ],
+  [
+   "place_tenshu",
+   "fire",
+   "place_rakujo"
+  ],
+  [
+   "plc_castle",
+   "plt_grass",
+   "place_shiroato"
+  ],
+  [
+   "place_rakujo",
+   "plt_grass",
+   "place_shiroato"
+  ],
+  [
+   "plc_castle",
+   "nat_night",
+   "place_ichiyajo"
+  ],
+  [
+   "plc_field",
+   "mat_board",
+   "place_saku"
+  ],
+  [
+   "plc_castle",
+   "place_saku",
+   "place_toride"
+  ],
+  [
+   "nat_mountain",
+   "place_saku",
+   "place_toride"
+  ],
+  [
+   "place_toride",
+   "per_samurai",
+   "place_jinchi"
+  ],
+  [
+   "place_bukeyashiki",
+   "plc_castle",
+   "place_bakufu"
+  ],
+  [
+   "plc_castle",
+   "plc_village",
+   "place_jokamachi"
+  ],
+  [
+   "plc_castle",
+   "place_machi",
+   "place_jokamachi"
+  ],
+  [
+   "place_bakufu",
+   "plc_port",
+   "place_edo"
+  ],
+  [
+   "place_edo",
+   "plc_castle",
+   "place_edojo"
+  ],
+  [
+   "place_edo",
+   "place_tenshu",
+   "place_edojo"
+  ],
+  [
+   "place_bakufu",
+   "wpn_sickle",
+   "place_kamakura"
+  ],
+  [
+   "place_kamakura",
+   "fth_buddha",
+   "place_kamakuradaibutsu"
+  ],
+  [
+   "plc_port",
+   "place_machi",
+   "place_minatomachi"
+  ],
+  [
+   "place_minatomachi",
+   "per_merchant",
+   "place_osaka"
+  ],
+  [
+   "place_osaka",
+   "plc_castle",
+   "place_osakajo"
+  ],
+  [
+   "place_osaka",
+   "place_tenshu",
+   "place_osakajo"
+  ],
+  [
+   "place_yosui",
+   "tol_ship",
+   "place_unga"
+  ],
+  [
+   "plc_paddy",
+   "water",
+   "place_yosui"
+  ],
+  [
+   "place_osaka",
+   "place_hori",
+   "place_dotonbori"
+  ],
+  [
+   "place_osaka",
+   "place_unga",
+   "place_dotonbori"
+  ],
+  [
+   "place_mushagaeshi",
+   "place_tenshu",
+   "place_kumamotojo"
+  ],
+  [
+   "place_machi",
+   "place_gosho",
+   "place_miyako"
+  ],
+  [
+   "place_miyako",
+   "plc_temple",
+   "place_kyoto"
+  ],
+  [
+   "place_kyoto",
+   "plc_castle",
+   "place_nijojo"
+  ],
+  [
+   "plc_shrine",
+   "tol_stonelantern",
+   "place_kasugataisha"
+  ],
+  [
+   "place_miyako",
+   "place_kasugataisha",
+   "place_nara"
+  ],
+  [
+   "place_kyoto",
+   "per_geisha",
+   "place_gion"
+  ],
+  [
+   "place_kyoto",
+   "place_okiya",
+   "place_gion"
+  ],
+  [
+   "place_gion",
+   "plc_shrine",
+   "place_yasaka"
+  ],
+  [
+   "place_kyoto",
+   "place_gosho",
+   "place_kyotogosho"
+  ],
+  [
+   "place_kyoto",
+   "nat_river",
+   "place_kamogawa"
+  ],
+  [
+   "plc_teahouse",
+   "nat_river",
+   "place_kawadoko"
+  ],
+  [
+   "place_kamogawa",
+   "plc_teahouse",
+   "place_kawadoko"
+  ],
+  [
+   "place_kawadoko",
+   "place_gion",
+   "place_pontocho"
+  ],
+  [
+   "plc_village",
+   "per_traveler",
+   "place_kaido"
+  ],
+  [
+   "plc_village",
+   "tol_zori",
+   "place_kaido"
+  ],
+  [
+   "place_kaido",
+   "plc_garden",
+   "place_komichi"
+  ],
+  [
+   "plt_bambooforest",
+   "place_kyoto",
+   "place_sagano"
+  ],
+  [
+   "plc_bridge",
+   "nat_moon",
+   "place_togetsukyo"
+  ],
+  [
+   "place_togetsukyo",
+   "plt_maple",
+   "place_arashiyama"
+  ],
+  [
+   "plc_temple",
+   "nat_waterfall",
+   "place_kiyomizudera"
+  ],
+  [
+   "place_engawa",
+   "per_geisha",
+   "place_engawabutai"
+  ],
+  [
+   "plc_temple",
+   "trs_goldleaf",
+   "place_kinkakuji"
+  ],
+  [
+   "plc_temple",
+   "cpt_wabisabi",
+   "place_ginkakuji"
+  ],
+  [
+   "place_kogetsudai",
+   "plc_temple",
+   "place_ginkakuji"
+  ],
+  [
+   "plc_karesansui",
+   "nat_moon",
+   "place_kogetsudai"
+  ],
+  [
+   "place_ginkakuji",
+   "place_komichi",
+   "place_tetsugaku"
+  ],
+  [
+   "plc_karesansui",
+   "plc_temple",
+   "place_sekitei"
+  ],
+  [
+   "place_sekitei",
+   "yok_dragon",
+   "place_ryoanji"
+  ],
+  [
+   "place_kyoto",
+   "plc_tower",
+   "place_toji"
+  ],
+  [
+   "place_kyoto",
+   "fth_inari",
+   "place_fushimiinari"
+  ],
+  [
+   "place_kyoto",
+   "plc_shrine",
+   "place_heianjingu"
+  ],
+  [
+   "plc_bridge",
+   "plc_shrine",
+   "place_shinkyo"
+  ],
+  [
+   "plc_bridge",
+   "fth_god",
+   "place_shinkyo"
+  ],
+  [
+   "plc_shrine",
+   "trs_goldleaf",
+   "place_toshogu"
+  ],
+  [
+   "place_shinkyo",
+   "place_bakufu",
+   "place_toshogu"
+  ],
+  [
+   "place_toshogu",
+   "nat_light",
+   "place_nikko"
+  ],
+  [
+   "plc_shrine",
+   "nat_ridge",
+   "place_kumanosanzan"
+  ],
+  [
+   "place_kaido",
+   "place_kumanosanzan",
+   "place_kumanokodo"
+  ],
+  [
+   "plc_shrine",
+   "plt_ume",
+   "place_dazaifu"
+  ],
+  [
+   "place_kamakura",
+   "plc_shrine",
+   "place_tsurugaoka"
+  ],
+  [
+   "plc_shrine",
+   "tol_ship",
+   "place_konpira"
+  ],
+  [
+   "plc_shrine",
+   "mat_stone",
+   "place_hokora"
+  ],
+  [
+   "place_edo",
+   "plc_temple",
+   "place_sensoji"
+  ],
+  [
+   "place_sensoji",
+   "thunder",
+   "place_kaminarimon"
+  ],
+  [
+   "place_sensoji",
+   "nat_rumble",
+   "place_kaminarimon"
+  ],
+  [
+   "place_kaminarimon",
+   "place_shoka",
+   "place_nakamise"
+  ],
+  [
+   "place_edo",
+   "plc_bridge",
+   "place_nihonbashi"
+  ],
+  [
+   "place_tokaido",
+   "place_edo",
+   "place_nihonbashi"
+  ],
+  [
+   "place_edo",
+   "cpt_hanabi",
+   "place_ryogoku"
+  ],
+  [
+   "place_edo",
+   "nat_river",
+   "place_sumidagawa"
+  ],
+  [
+   "place_machi",
+   "per_geisha",
+   "place_yukaku"
+  ],
+  [
+   "place_edo",
+   "place_yukaku",
+   "place_yoshiwara"
+  ],
+  [
+   "place_kyoto",
+   "place_yukaku",
+   "place_shimabara"
+  ],
+  [
+   "place_kaido",
+   "place_ryokan",
+   "place_shukuba"
+  ],
+  [
+   "place_shukuba",
+   "per_samurai",
+   "place_honjin"
+  ],
+  [
+   "place_kaido",
+   "per_samurai",
+   "place_sekisho"
+  ],
+  [
+   "place_kaido",
+   "nat_sea",
+   "place_tokaido"
+  ],
+  [
+   "place_kaido",
+   "nat_ridge",
+   "place_nakasendo"
+  ],
+  [
+   "place_tokaido",
+   "place_shukuba",
+   "place_tokaido53"
+  ],
+  [
+   "place_edo",
+   "place_shukuba",
+   "place_shinagawa"
+  ],
+  [
+   "place_sekisho",
+   "plc_onsen",
+   "place_hakone"
+  ],
+  [
+   "plc_island",
+   "per_merchant",
+   "place_dejima"
+  ],
+  [
+   "plc_port",
+   "plc_island",
+   "place_dejima"
+  ],
+  [
+   "place_dejima",
+   "place_machi",
+   "place_nagasaki"
+  ],
+  [
+   "plc_cave",
+   "mat_ore",
+   "place_kozan"
+  ],
+  [
+   "place_kozan",
+   "mat_gold",
+   "place_kinzan"
+  ],
+  [
+   "place_kinzan",
+   "plc_island",
+   "place_sado"
+  ],
+  [
+   "plc_island",
+   "nat_snow",
+   "place_ezo"
+  ],
+  [
+   "plc_temple",
+   "nat_rock",
+   "place_yamadera"
+  ],
+  [
+   "plc_temple",
+   "fth_monk",
+   "place_hojo"
+  ],
+  [
+   "plc_temple",
+   "art_breath",
+   "place_zendo"
+  ],
+  [
+   "plc_temple",
+   "fth_incense",
+   "place_haka"
+  ],
+  [
+   "place_haka",
+   "plc_field",
+   "place_bochi"
+  ],
+  [
+   "place_haka",
+   "earth",
+   "place_kofun"
+  ],
+  [
+   "plc_cave",
+   "nat_rock",
+   "place_iwaya"
+  ],
+  [
+   "place_iwaya",
+   "yok_ghost",
+   "place_yomi"
+  ],
+  [
+   "place_yomi",
+   "place_bugyosho",
+   "place_emma"
+  ],
+  [
+   "plc_temple",
+   "nat_light",
+   "place_jodo"
+  ],
+  [
+   "place_jodoteien",
+   "plc_temple",
+   "place_byodoin"
+  ],
+  [
+   "place_byodoin",
+   "plt_tea",
+   "place_uji"
+  ],
+  [
+   "place_nara",
+   "plc_temple",
+   "place_horyuji"
+  ],
+  [
+   "place_yamadera",
+   "yok_tengu",
+   "place_kuramadera"
+  ],
+  [
+   "plc_tower",
+   "fire",
+   "place_hinomiyagura"
+  ],
+  [
+   "plc_tower",
+   "nat_light",
+   "place_todai"
+  ],
+  [
+   "plc_port",
+   "plc_tower",
+   "place_todai"
+  ],
+  [
+   "place_sumiyagura",
+   "nat_moon",
+   "place_tsukimiyagura"
+  ],
+  [
+   "place_sumiyagura",
+   "cpt_tsukimi",
+   "place_tsukimiyagura"
+  ],
+  [
+   "place_gion",
+   "plc_tower",
+   "place_yasakanoto"
+  ],
+  [
+   "plc_garden",
+   "nat_mountain",
+   "place_tsukiyama"
+  ],
+  [
+   "plc_garden",
+   "plc_pond",
+   "place_chisen"
+  ],
+  [
+   "place_chisen",
+   "place_komichi",
+   "place_kaiyushiki"
+  ],
+  [
+   "place_kaiyushiki",
+   "plt_pine",
+   "place_kenrokuen"
+  ],
+  [
+   "plc_garden",
+   "nat_ridge",
+   "place_shakkei"
+  ],
+  [
+   "plc_karesansui",
+   "nat_waterfall",
+   "place_karetaki"
+  ],
+  [
+   "plc_pond",
+   "fod_carp",
+   "place_koinoike"
+  ],
+  [
+   "plc_pond",
+   "plc_island",
+   "place_nakajima"
+  ],
+  [
+   "place_tsukubai",
+   "tol_koto",
+   "place_suikinkutsu"
+  ],
+  [
+   "place_jodo",
+   "place_chisen",
+   "place_jodoteien"
+  ],
+  [
+   "plc_karesansui",
+   "nat_wave",
+   "place_samon"
+  ],
+  [
+   "plc_paddy",
+   "nat_mountain",
+   "place_tanada"
+  ],
+  [
+   "plc_pond",
+   "plc_paddy",
+   "place_tameike"
+  ],
+  [
+   "place_yosui",
+   "earth",
+   "place_tsutsumi"
+  ],
+  [
+   "place_yosui",
+   "mat_stone",
+   "place_seki"
+  ],
+  [
+   "place_yosui",
+   "place_kuroganemon",
+   "place_suimon"
+  ],
+  [
+   "plc_field",
+   "mat_salt",
+   "place_enden"
+  ],
+  [
+   "plc_paddy",
+   "nat_sea",
+   "place_enden"
+  ],
+  [
+   "plc_port",
+   "per_fisher",
+   "place_gyoko"
+  ],
+  [
+   "plc_port",
+   "fod_fish",
+   "place_uogashi"
+  ],
+  [
+   "plc_pond",
+   "yok_kappa",
+   "place_kappabuchi"
+  ],
+  [
+   "plc_shrine",
+   "nat_sea",
+   "place_itsukushimajinja"
+  ],
+  [
+   "place_itsukushimajinja",
+   "plc_island",
+   "place_miyajima"
+  ],
+  [
+   "plc_cave",
+   "fire",
+   "place_anagama"
+  ],
+  [
+   "place_anagama",
+   "nat_mountain",
+   "place_noborigama"
+  ],
+  [
+   "place_noborigama",
+   "plc_village",
+   "place_yakimononosato"
+  ],
+  [
+   "place_kajiba",
+   "mat_ironsand",
+   "place_tataraba"
+  ],
+  [
+   "plc_onsen",
+   "nat_valley",
+   "place_hito"
+  ],
+  [
+   "plc_onsen",
+   "plc_garden",
+   "place_rotenburo"
+  ],
+  [
+   "place_rotenburo",
+   "nat_snow",
+   "place_yukimiburo"
+  ],
+  [
+   "plc_onsen",
+   "per_healer",
+   "place_toujiba"
+  ],
+  [
+   "plc_onsen",
+   "plc_field",
+   "place_yubatake"
+  ],
+  [
+   "place_yubatake",
+   "plt_grass",
+   "place_kusatsu"
+  ],
+  [
+   "plc_onsen",
+   "mat_sand",
+   "place_sunaburo"
+  ],
+  [
+   "plc_onsen",
+   "tol_geta",
+   "place_ashiyu"
+  ],
+  [
+   "plc_onsen",
+   "place_machi",
+   "place_onsengai"
+  ],
+  [
+   "place_onsengai",
+   "nat_steam",
+   "place_beppu"
+  ],
+  [
+   "plc_village",
+   "art_onkei",
+   "place_kakurezato"
+  ],
+  [
+   "plc_village",
+   "per_ninja",
+   "place_iganosato"
+  ],
+  [
+   "plc_village",
+   "art_ninjutsu",
+   "place_kogasato"
+  ],
+  [
+   "plc_village",
+   "cpt_firefly",
+   "place_hotarunosato"
+  ],
+  [
+   "plc_field",
+   "fod_potato",
+   "place_imobatake"
+  ],
+  [
+   "plc_field",
+   "plt_herb",
+   "place_yakuen"
+  ],
+  [
+   "place_machi",
+   "tol_basket",
+   "place_ichiba"
+  ],
+  [
+   "place_ichiba",
+   "nat_sun",
+   "place_asaichi"
+  ],
+  [
+   "place_shoka",
+   "mat_gold",
+   "place_ryogaeya"
+  ],
+  [
+   "place_shoka",
+   "place_kura",
+   "place_tonya"
+  ],
+  [
+   "place_kura",
+   "place_yashiki",
+   "place_kurayashiki"
+  ],
+  [
+   "place_shoka",
+   "tol_kimono",
+   "place_shichiya"
+  ],
+  [
+   "place_shoka",
+   "plt_herb",
+   "place_kusuriya"
+  ],
+  [
+   "place_koubou",
+   "mat_thread",
+   "place_hataya"
+  ],
+  [
+   "place_koubou",
+   "mat_cloth",
+   "place_somemonoya"
+  ],
+  [
+   "place_koubou",
+   "mat_paper",
+   "place_kamisukiba"
+  ],
+  [
+   "place_koubou",
+   "per_painter",
+   "place_hanmoto"
+  ],
+  [
+   "plc_teahouse",
+   "fod_sake",
+   "place_izakaya"
+  ],
+  [
+   "plc_teahouse",
+   "per_chef",
+   "place_ryotei"
+  ],
+  [
+   "plc_teahouse",
+   "fod_sushi",
+   "place_sushiya"
+  ],
+  [
+   "plc_teahouse",
+   "fod_mochi",
+   "place_amamidokoro"
+  ],
+  [
+   "place_izakaya",
+   "mat_rope",
+   "place_nawanoren"
+  ],
+  [
+   "plc_teahouse",
+   "nat_mountain",
+   "place_tougechaya"
+  ],
+  [
+   "place_engawabutai",
+   "trs_mask",
+   "place_noubutai"
+  ],
+  [
+   "place_koya",
+   "place_engawabutai",
+   "place_shibaigoya"
+  ],
+  [
+   "place_engawabutai",
+   "place_machi",
+   "place_shibaigoya"
+  ],
+  [
+   "place_engawabutai",
+   "tol_fan",
+   "place_yose"
+  ],
+  [
+   "plc_dojo",
+   "wpn_bow",
+   "place_kyudojo"
+  ],
+  [
+   "plc_dojo",
+   "wpn_shinai",
+   "place_keikoba"
+  ],
+  [
+   "plc_dojo",
+   "art_kata",
+   "place_enbujo"
+  ],
+  [
+   "place_ryokan",
+   "tol_ship",
+   "place_funayado"
+  ],
+  [
+   "plc_port",
+   "nat_river",
+   "place_watashiba"
+  ],
+  [
+   "place_kaido",
+   "plc_temple",
+   "place_tsujido"
+  ],
+  [
+   "place_kaido",
+   "mat_board",
+   "place_kosatsuba"
+  ],
+  [
+   "place_machi",
+   "per_samurai",
+   "place_bugyosho"
+  ],
+  [
+   "place_bugyosho",
+   "mat_sand",
+   "place_shirasu"
+  ],
+  [
+   "place_bugyosho",
+   "wpn_chain",
+   "place_roya"
+  ],
+  [
+   "place_terakoya",
+   "per_samurai",
+   "place_hanko"
+  ],
+  [
+   "plc_field",
+   "wpn_armor",
+   "place_senjo"
+  ],
+  [
+   "place_senjo",
+   "plt_grass",
+   "place_kosenjo"
+  ],
+  [
+   "place_senjo",
+   "place_jinchi",
+   "place_sekigahara"
+  ],
+  [
+   "place_senjo",
+   "nat_rain",
+   "place_okehazama"
+  ],
+  [
+   "place_senjo",
+   "nat_river",
+   "place_kawanakajima"
+  ],
+  [
+   "place_senjo",
+   "tol_ship",
+   "place_dannoura"
+  ],
+  [
+   "place_senjo",
+   "nat_valley",
+   "place_ichinotani"
+  ],
+  [
+   "plc_temple",
+   "fire",
+   "place_honnoji"
+  ],
+  [
+   "place_gosho",
+   "thunder",
+   "place_seiryoden"
+  ],
+  [
+   "place_gosho",
+   "plt_sakura",
+   "place_shishinden"
+  ],
+  [
+   "place_miyako",
+   "place_kuroganemon",
+   "place_suzakumon"
+  ],
+  [
+   "place_suzakumon",
+   "yok_ghost",
+   "place_rashomon"
+  ],
+  [
+   "place_kura",
+   "trs_hoju",
+   "place_hokoden"
+  ],
+  [
+   "place_kura",
+   "mat_board",
+   "place_azekura"
+  ],
+  [
+   "place_azekura",
+   "place_nara",
+   "place_shosoin"
+  ],
+  [
+   "place_hokoden",
+   "place_nara",
+   "place_shosoin"
+  ],
+  [
+   "plc_bridge",
+   "mat_stone",
+   "place_ishibashi"
+  ],
+  [
+   "place_ishibashi",
+   "place_nagasaki",
+   "place_meganebashi"
+  ],
+  [
+   "plc_bridge",
+   "mat_rope",
+   "place_tsuribashi"
+  ],
+  [
+   "plc_bridge",
+   "nat_valley",
+   "place_tsuribashi"
+  ],
+  [
+   "plc_bridge",
+   "wpn_bow",
+   "place_soribashi"
+  ],
+  [
+   "place_soribashi",
+   "trs_brocade",
+   "place_kintaikyo"
+  ],
+  [
+   "plc_bridge",
+   "plt_maple",
+   "place_tsutenkyo"
+  ],
+  [
+   "plc_bridge",
+   "tol_ship",
+   "place_funabashi"
+  ],
+  [
+   "place_tokaido",
+   "place_kyoto",
+   "place_sanjoohashi"
+  ],
+  [
+   "plc_bridge",
+   "place_kyoto",
+   "place_gojoohashi"
+  ],
+  [
+   "place_kuroganemon",
+   "place_honmaru",
+   "place_otemon"
+  ],
+  [
+   "place_bochi",
+   "place_kyoto",
+   "place_adashino"
+  ],
+  [
+   "plc_well",
+   "per_human",
+   "place_idobata"
+  ],
+  [
+   "place_kyoto",
+   "place_nara",
+   "place_koto"
+  ],
+  [
+   "place_miyako",
+   "place_kaido",
+   "place_miyakooji"
+  ],
+  [
+   "place_miyakooji",
+   "place_suzakumon",
+   "place_suzakuoji"
+  ],
+  [
+   "place_machi",
+   "per_craftsman",
+   "place_shokuninmachi"
+  ],
+  [
+   "place_machi",
+   "place_kajiba",
+   "place_kajimachi"
+  ],
+  [
+   "place_machi",
+   "plc_teahouse",
+   "place_chayamachi"
+  ],
+  [
+   "place_okiya",
+   "place_machi",
+   "place_hanamachi"
+  ],
+  [
+   "plc_village",
+   "per_farmer",
+   "place_noson"
+  ],
+  [
+   "plc_village",
+   "plt_forest",
+   "place_sanson"
+  ],
+  [
+   "place_kakurezato",
+   "per_samurai",
+   "place_ochudonosato"
+  ],
+  [
+   "place_washitsu",
+   "tol_book",
+   "place_shoin"
+  ],
+  [
+   "place_shoin",
+   "place_tokonoma",
+   "place_shoinzukuri"
+  ],
+  [
+   "place_goten",
+   "place_chisen",
+   "place_shindenzukuri"
+  ],
+  [
+   "place_chashitsu",
+   "place_shoinzukuri",
+   "place_sukiya"
+  ],
+  [
+   "place_sukiya",
+   "place_kaiyushiki",
+   "place_katsura"
+  ],
+  [
+   "plc_house",
+   "earth",
+   "place_doma"
+  ],
+  [
+   "place_doma",
+   "tol_pot",
+   "place_daidokoro"
+  ],
+  [
+   "place_kyoto",
+   "plc_house",
+   "place_kyomachiya"
+  ],
+  [
+   "place_kyomachiya",
+   "plc_garden",
+   "place_nakaniwa"
+  ],
+  [
+   "place_dozo",
+   "place_machi",
+   "place_kurazukuri"
+  ],
+  [
+   "place_engawa",
+   "nat_shadow",
+   "place_ennoshita"
+  ],
+  [
+   "plc_house",
+   "per_ninja",
+   "place_yaneura"
+  ],
+  [
+   "place_engawa",
+   "nat_moon",
+   "place_tsukimidai"
+  ],
+  [
+   "plc_temple",
+   "mat_gold",
+   "place_konjikido"
+  ],
+  [
+   "place_konjikido",
+   "plc_village",
+   "place_hiraizumi"
+  ],
+  [
+   "place_jokamachi",
+   "trs_goldleaf",
+   "place_kanazawa"
+  ],
+  [
+   "place_kura",
+   "place_unga",
+   "place_kurashiki"
+  ],
+  [
+   "place_nakasendo",
+   "place_shukuba",
+   "place_tsumago"
+  ],
+  [
+   "place_kamakura",
+   "plc_island",
+   "place_enoshima"
+  ],
+  [
+   "plc_shrine",
+   "plc_port",
+   "place_sumiyoshi"
+  ],
+  [
+   "plc_shrine",
+   "nat_river",
+   "place_kibune"
+  ],
+  [
+   "place_edo",
+   "place_nagaya",
+   "place_edo808"
+  ],
+  [
+   "place_tenshu",
+   "trs_goldleaf",
+   "place_azuchijo"
+  ],
+  [
+   "place_tenshu",
+   "mat_stone",
+   "place_tenshudai"
+  ],
+  [
+   "place_honmaru",
+   "place_ishigaki",
+   "place_ninomaru"
+  ],
+  [
+   "place_hori",
+   "place_jokamachi",
+   "place_sotobori"
+  ],
+  [
+   "place_hori",
+   "place_honmaru",
+   "place_uchibori"
+  ],
+  [
+   "place_kuroganemon",
+   "place_ishigaki",
+   "place_masugata"
+  ],
+  [
+   "place_washitsu",
+   "place_goten",
+   "place_oohiroma"
+  ],
+  [
+   "place_edojo",
+   "place_ozashiki",
+   "place_ooku"
+  ],
+  [
+   "place_edojo",
+   "plt_pine",
+   "place_matsunoroka"
+  ],
+  [
+   "place_sumiyagura",
+   "place_dobei",
+   "place_tamonyagura"
+  ],
+  [
+   "place_yashiki",
+   "place_koya",
+   "place_hanareya"
+  ],
+  [
+   "place_chashitsu",
+   "place_kayabuki",
+   "place_soan"
+  ],
+  [
+   "place_sanso",
+   "place_yashiki",
+   "place_bessou"
+  ],
+  [
+   "place_goten",
+   "plc_lake",
+   "place_rikyu"
+  ],
+  [
+   "place_rikyu",
+   "place_tanada",
+   "place_shugakuin"
+  ],
+  [
+   "plc_temple",
+   "place_ozashiki",
+   "place_kyakuden"
+  ],
+  [
+   "place_engawa",
+   "plc_bridge",
+   "place_watarirouka"
+  ],
+  [
+   "place_shindenzukuri",
+   "plc_pond",
+   "place_tsuridono"
+  ],
+  [
+   "place_machi",
+   "place_komichi",
+   "place_yokocho"
+  ],
+  [
+   "place_nagaya",
+   "place_komichi",
+   "place_uramichi"
+  ],
+  [
+   "place_nagaya",
+   "mat_board",
+   "place_kido"
+  ],
+  [
+   "plc_well",
+   "place_nagaya",
+   "place_kyodoido"
+  ],
+  [
+   "place_hinomiyagura",
+   "place_machi",
+   "place_jishinban"
+  ],
+  [
+   "place_bukeyashiki",
+   "place_machi",
+   "place_bukemachi"
+  ],
+  [
+   "place_machi",
+   "plc_temple",
+   "place_teramachi"
+  ],
+  [
+   "place_tokaido",
+   "place_nakasendo",
+   "place_oiwake"
+  ],
+  [
+   "place_tonya",
+   "tol_kimono",
+   "place_echigoya"
+  ],
+  [
+   "place_osaka",
+   "place_kura",
+   "place_dojima"
+  ],
+  [
+   "place_ryogaeya",
+   "place_kajiba",
+   "place_kinza"
+  ],
+  [
+   "place_chisen",
+   "nat_sea",
+   "place_hamagoten"
+  ],
+  [
+   "place_unga",
+   "plc_village",
+   "place_suigo"
+  ],
+  [
+   "place_suigo",
+   "plt_willow",
+   "place_yanagawa"
+  ],
+  [
+   "plc_lake",
+   "plc_temple",
+   "place_ukimido"
+  ],
+  [
+   "place_noson",
+   "place_tanada",
+   "place_inaka"
+  ],
+  [
+   "place_hojo",
+   "plc_karesansui",
+   "place_hojoteien"
+  ],
+  [
+   "place_bochi",
+   "plc_garden",
+   "place_reien"
+  ],
+  [
+   "place_kofun",
+   "place_gosho",
+   "place_goryo"
+  ],
+  [
+   "place_goryo",
+   "place_hori",
+   "place_daisenryo"
+  ],
+  [
+   "place_kakurezato",
+   "yok_tengu",
+   "place_tengusato"
+  ],
+  [
+   "place_kakurezato",
+   "yok_fox",
+   "place_kitsunesato"
+  ],
+  [
+   "place_goten",
+   "yok_tanuki",
+   "place_tanukigoten"
+  ],
+  [
+   "plc_castle",
+   "yok_oni",
+   "place_kinojo"
+  ],
+  [
+   "place_iwaya",
+   "yok_oni",
+   "place_oninoiwaya"
+  ],
+  [
+   "place_karakuriyashiki",
+   "tol_fusuma",
+   "place_kakushitobira"
+  ],
+  [
+   "place_ryokan",
+   "plc_onsen",
+   "place_onsenyado"
+  ],
+  [
+   "place_rotenburo",
+   "nat_moon",
+   "place_tsukimiburo"
+  ],
+  [
+   "plc_onsen",
+   "art_onkei",
+   "place_kakushiyu"
+  ],
+  [
+   "place_bukeyashiki",
+   "place_edo",
+   "place_daimyoyashiki"
+  ],
+  [
+   "place_yashiki",
+   "place_miyako",
+   "place_kugeyashiki"
+  ],
+  [
+   "place_shibaigoya",
+   "yok_bake",
+   "place_misemonogoya"
+  ],
+  [
+   "place_kyudojo",
+   "place_machi",
+   "place_yaba"
+  ],
+  [
+   "place_noubutai",
+   "place_yashiki",
+   "place_nogakudo"
+  ],
+  [
+   "place_kura",
+   "tol_ship",
+   "place_funagura"
+  ],
+  [
+   "place_funagura",
+   "per_craftsman",
+   "place_zousenjo"
+  ],
+  [
+   "place_minatomachi",
+   "wpn_musket",
+   "place_sakai"
+  ],
+  [
+   "place_umijiro",
+   "tol_ship",
+   "place_suigunjo"
+  ],
+  [
+   "place_kozan",
+   "mat_charcoal",
+   "place_tanko"
+  ],
+  [
+   "place_kajiba",
+   "wpn_katana",
+   "place_katanakoubou"
+  ],
+  [
+   "place_kamisukiba",
+   "plc_village",
+   "place_washinosato"
+  ],
+  [
+   "place_hataya",
+   "place_kyoto",
+   "place_nishijin"
+  ],
+  [
+   "place_sakagura",
+   "nat_sea",
+   "place_nadasakagura"
+  ],
+  [
+   "place_tanada",
+   "nat_sea",
+   "place_senmaida"
+  ],
+  [
+   "plc_paddy",
+   "place_tsutsumi",
+   "place_shinden"
+  ],
+  [
+   "place_koya",
+   "per_fisher",
+   "place_banya"
+  ],
+  [
+   "plc_port",
+   "tol_ship",
+   "place_funatsukiba"
+  ],
+  [
+   "plc_island",
+   "fth_god",
+   "place_kaminoshima"
+  ],
+  [
+   "plc_tower",
+   "tol_bell",
+   "place_kanetsukido"
+  ],
+  [
+   "plc_dojo",
+   "nat_waterfall",
+   "place_takishugyoba"
+  ],
+  [
+   "plc_dojo",
+   "wpn_katana",
+   "place_kenjutsudojo"
+  ],
+  [
+   "plc_cave",
+   "yok_dragon",
+   "place_ryuketsu"
+  ],
+  [
+   "plc_cave",
+   "fth_buddha",
+   "place_sekkutsuji"
+  ],
+  [
+   "plc_teahouse",
+   "plt_sakura",
+   "place_hanamijaya"
+  ],
+  [
+   "plc_teahouse",
+   "per_geisha",
+   "place_ochaya"
+  ],
+  [
+   "place_ryogoku",
+   "plc_bridge",
+   "place_ryogokubashi"
+  ],
+  [
+   "place_edo",
+   "place_unga",
+   "place_fukagawa"
+  ],
+  [
+   "place_yoshiwara",
+   "place_kuroganemon",
+   "place_yoshiwaraomon"
+  ],
+  [
+   "place_kamogawa",
+   "place_engawabutai",
+   "place_shijogawara"
+  ],
+  [
+   "place_nara",
+   "place_miyakooji",
+   "place_heijokyo"
+  ],
+  [
+   "place_kamakura",
+   "nat_ridge",
+   "place_kiritoshi"
+  ],
+  [
+   "place_osaka",
+   "place_daidokoro",
+   "place_tenkanodaidokoro"
+  ],
+  [
+   "place_nagasaki",
+   "place_yashiki",
+   "place_tojinyashiki"
+  ],
+  [
+   "place_nagaya",
+   "place_unga",
+   "place_shitamachi"
+  ],
+  [
+   "place_bukemachi",
+   "place_edo",
+   "place_yamanote"
+  ],
+  [
+   "place_honmaru",
+   "place_goten",
+   "place_honmarugoten"
+  ],
+  [
+   "place_hamagoten",
+   "place_rikyu",
+   "place_hamarikyu"
+  ],
+  [
+   "place_ishigaki",
+   "nat_rock",
+   "place_nozurazumi"
+  ],
+  [
+   "place_jinchi",
+   "plc_house",
+   "place_jinya"
+  ],
+  [
+   "place_tsutsumi",
+   "plt_sakura",
+   "place_sakuratsutsumi"
+  ],
+  [
+   "place_unga",
+   "place_hori",
+   "place_horikawa"
+  ],
+  [
+   "place_soribashi",
+   "plc_shrine",
+   "place_taikobashi"
+  ],
+  [
+   "place_koya",
+   "plt_grass",
+   "place_haioku"
+  ],
+  [
+   "place_yamadera",
+   "plt_moss",
+   "place_haidera"
+  ],
+  [
+   "place_noson",
+   "plt_grass",
+   "place_haison"
+  ],
+  [
+   "place_kayabuki",
+   "place_shukuba",
+   "place_ouchijuku"
+  ],
+  [
+   "place_kuroganemon",
+   "place_kaido",
+   "place_mitsuke"
+  ],
+  [
+   "place_sekisho",
+   "place_koya",
+   "place_bansho"
+  ],
+  [
+   "place_bugyosho",
+   "place_noson",
+   "place_daikansho"
+  ],
+  [
+   "place_hinomiyagura",
+   "place_yashiki",
+   "place_hikeshiyashiki"
+  ],
+  [
+   "place_terakoya",
+   "place_shoin",
+   "place_shijuku"
+  ],
+  [
+   "plc_tower",
+   "nat_night",
+   "place_tenmondai"
+  ],
+  [
+   "place_kanetsukido",
+   "place_machi",
+   "place_tokinokane"
+  ],
+  [
+   "place_uramichi",
+   "plc_house",
+   "place_uranagaya"
+  ],
+  [
+   "place_kusuriya",
+   "place_tonya",
+   "place_kusuridonya"
+  ],
+  [
+   "place_tonya",
+   "fod_rice",
+   "place_komedonya"
+  ],
+  [
+   "place_tonya",
+   "plt_tree",
+   "place_zaimokudonya"
+  ],
+  [
+   "place_unga",
+   "plt_tree",
+   "place_kiba"
+  ],
+  [
+   "place_kajiba",
+   "tol_pot",
+   "place_imonoba"
+  ],
+  [
+   "place_koubou",
+   "mat_ink",
+   "place_seibokusho"
+  ],
+  [
+   "place_koubou",
+   "plt_tea",
+   "place_seichaba"
+  ],
+  [
+   "place_yukaku",
+   "place_ozashiki",
+   "place_ageya"
+  ],
+  [
+   "place_ryokan",
+   "nat_snow",
+   "place_yukinoyado"
+  ],
+  [
+   "place_ryokan",
+   "cpt_winter",
+   "place_yukinoyado"
+  ],
+  [
+   "plc_island",
+   "nat_lava",
+   "place_kazanto"
+  ],
+  [
+   "plc_port",
+   "nat_whirlpool",
+   "place_naruto"
+  ],
+  [
+   "plc_cave",
+   "mat_crystal",
+   "place_suishodo"
+  ],
+  [
+   "plc_cave",
+   "mat_gem",
+   "place_suishodo"
+  ],
+  [
+   "plc_cave",
+   "per_bandit",
+   "place_sanzokunotoride"
+  ],
+  [
+   "place_toride",
+   "per_bandit",
+   "place_sanzokunotoride"
+  ],
+  [
+   "plc_dojo",
+   "plc_house",
+   "place_uchideshi"
+  ],
+  [
+   "plc_teahouse",
+   "per_traveler",
+   "place_kakejaya"
+  ],
+  [
+   "plc_teahouse",
+   "place_kaido",
+   "place_kakejaya"
+  ],
+  [
+   "plc_tower",
+   "tol_beacon",
+   "place_noroshidai"
+  ],
+  [
+   "plc_tower",
+   "nat_smoke",
+   "place_noroshidai"
+  ],
+  [
+   "place_kozan",
+   "mat_stone",
+   "place_ishikiriba"
+  ],
+  [
+   "place_kozan",
+   "nat_rock",
+   "place_ishikiriba"
+  ],
+  [
+   "place_gion",
+   "place_komichi",
+   "place_hanamikoji"
+  ],
+  [
+   "place_komichi",
+   "mat_stone",
+   "place_ishidatami"
+  ],
+  [
+   "place_machi",
+   "nat_snow",
+   "place_gangi"
+  ],
+  [
+   "place_honjin",
+   "place_ryokan",
+   "place_wakihonjin"
+  ],
+  [
+   "place_funayado",
+   "per_samurai",
+   "place_teradaya"
+  ],
+  [
+   "place_nijojo",
+   "place_goten",
+   "place_ninomarugoten"
+  ],
+  [
+   "place_edojo",
+   "plt_sakura",
+   "place_sakuradamon"
+  ],
+  [
+   "place_uji",
+   "plc_bridge",
+   "place_ujibashi"
+  ],
+  [
+   "place_kanazawa",
+   "place_chayamachi",
+   "place_higashichaya"
+  ],
+  [
+   "place_kyoto",
+   "place_ichiba",
+   "place_nishikiichiba"
+  ],
+  [
+   "place_osaka",
+   "place_tonya",
+   "place_senba"
+  ],
+  [
+   "place_shibaigoya",
+   "place_edo",
+   "place_saruwakacho"
+  ],
+  [
+   "place_ozashiki",
+   "place_hanareya",
+   "place_okuzashiki"
+  ],
+  [
+   "place_chisen",
+   "nat_river",
+   "place_kyokusui"
+  ],
+  [
+   "place_shindenzukuri",
+   "nat_river",
+   "place_yarimizu"
+  ],
+  [
+   "place_chisen",
+   "mat_sand",
+   "place_suhama"
+  ],
+  [
+   "place_iganosato",
+   "plc_castle",
+   "place_igaueno"
+  ],
+  [
+   "plc_well",
+   "tol_bucket",
+   "place_tsurubeido"
+  ],
+  [
+   "place_shiroato",
+   "nat_moon",
+   "place_kojo"
+  ],
+  [
+   "place_bukeyashiki",
+   "place_nagaya",
+   "place_nagayamon"
+  ],
+  [
+   "place_chashitsu",
+   "tol_fusuma",
+   "place_nijiriguchi"
+  ],
+  [
+   "place_edo",
+   "plc_pond",
+   "place_shinobazu"
+  ],
+  [
+   "place_hakone",
+   "plc_castle",
+   "place_odawara"
+  ],
+  [
+   "place_ukishiro",
+   "place_tenshu",
+   "place_hikone"
+  ],
+  [
+   "place_yukiguni",
+   "plc_castle",
+   "place_aizu"
+  ],
+  [
+   "place_ezo",
+   "place_toride",
+   "place_goryokaku"
+  ],
+  [
+   "plc_island",
+   "nat_sun",
+   "place_ryukyu"
+  ],
+  [
+   "place_ryukyu",
+   "plc_castle",
+   "place_shurijo"
+  ],
+  [
+   "place_gassho",
+   "nat_valley",
+   "place_gokayama"
+  ],
+  [
+   "place_nakasendo",
+   "place_tougechaya",
+   "place_magome"
+  ],
+  [
+   "place_hiraizumi",
+   "plc_temple",
+   "place_chusonji"
+  ],
+  [
+   "place_kyoto",
+   "plc_village",
+   "place_ohara"
+  ],
+  [
+   "place_unga",
+   "plc_temple",
+   "place_suirokaku"
+  ],
+  [
+   "place_kaiyushiki",
+   "place_daimyoyashiki",
+   "place_korakuen"
+  ],
+  [
+   "place_sumiyagura",
+   "art_kehai",
+   "place_monomiyagura"
+  ],
+  [
+   "place_kurazukuri",
+   "place_dobei",
+   "place_udatsu"
+  ],
+  [
+   "place_sotobori",
+   "place_ishigaki",
+   "place_sogamae"
+  ],
+  [
+   "place_teramachi",
+   "place_hori",
+   "place_jinaimachi"
+  ],
+  [
+   "place_toshogu",
+   "place_kuroganemon",
+   "place_yomeimon"
+  ],
+  [
+   "plc_teahouse",
+   "water",
+   "place_mizuchaya"
+  ],
+  [
+   "place_edo",
+   "place_gyoson",
+   "place_tsukudajima"
+  ],
+  [
+   "place_tsutenkyo",
+   "plc_temple",
+   "place_tofukuji"
+  ],
+  [
+   "place_sagano",
+   "yok_dragon",
+   "place_tenryuji"
+  ],
+  [
+   "place_kofun",
+   "nat_rock",
+   "place_ishibutai"
+  ],
+  [
+   "place_ishibutai",
+   "place_miyako",
+   "place_asuka"
+  ],
+  [
+   "place_dazaifu",
+   "place_tsutsumi",
+   "place_mizuki"
+  ],
+  [
+   "place_minatomachi",
+   "place_dazaifu",
+   "place_hakata"
+  ],
+  [
+   "place_jinaimachi",
+   "place_osaka",
+   "place_ishiyama"
+  ],
+  [
+   "place_jokamachi",
+   "nat_valley",
+   "place_ichijodani"
+  ],
+  [
+   "place_senjo",
+   "wpn_musket",
+   "place_nagashino"
+  ],
+  [
+   "place_senjo",
+   "plc_island",
+   "place_yashima"
+  ],
+  [
+   "plc_house",
+   "plt_rice",
+   "place_kura"
+  ],
+  [
+   "place_kura",
+   "earth",
+   "place_dozo"
+  ],
+  [
+   "place_koubou",
+   "fod_sake",
+   "place_sakagura"
+  ],
+  [
+   "place_washitsu",
+   "plt_flower",
+   "place_tokonoma"
+  ],
+  [
+   "plc_village",
+   "plc_house",
+   "place_machi"
+  ],
+  [
+   "plc_house",
+   "nat_ridge",
+   "place_sanso"
+  ],
+  [
+   "place_koya",
+   "nat_ridge",
+   "place_yamagoya"
+  ],
+  [
+   "place_koya",
+   "water",
+   "place_suishagoya"
+  ],
+  [
+   "plc_house",
+   "plc_port",
+   "place_funaya"
+  ],
+  [
+   "plc_village",
+   "tol_net",
+   "place_gyoson"
+  ],
+  [
+   "place_yashiki",
+   "yok_bake",
+   "place_mayoiga"
+  ],
+  [
+   "place_iganosato",
+   "place_yashiki",
+   "place_karakuriyashiki"
+  ],
+  [
+   "place_washitsu",
+   "fod_sake",
+   "place_ozashiki"
+  ],
+  [
+   "plc_house",
+   "tol_zori",
+   "place_ryokan"
+  ],
+  [
+   "plc_onsen",
+   "tol_bucket",
+   "place_yuya"
+  ],
+  [
+   "plc_house",
+   "tol_mallet",
+   "place_koubou"
+  ],
+  [
+   "plc_castle",
+   "nat_rock",
+   "place_ishigaki"
+  ],
+  [
+   "plc_castle",
+   "wpn_arrow",
+   "place_sumiyagura"
+  ],
+  [
+   "plc_castle",
+   "mat_steel",
+   "place_kuroganemon"
+  ],
+  [
+   "plc_castle",
+   "nat_ridge",
+   "place_yamajiro"
+  ],
+  [
+   "place_yamajiro",
+   "cpt_morningmist",
+   "place_tenkunoshiro"
+  ],
+  [
+   "plc_castle",
+   "nat_flood",
+   "place_ukishiro"
+  ],
+  [
+   "plc_castle",
+   "nat_wave",
+   "place_umijiro"
+  ],
+  [
+   "place_tenshu",
+   "nat_dark",
+   "place_karasujo"
+  ],
+  [
+   "place_shachihoko",
+   "trs_goldleaf",
+   "place_kinshachi"
+  ],
+  [
+   "place_sumiyagura",
+   "wpn_arrow",
+   "place_sama"
+  ],
+  [
+   "plc_castle",
+   "fire",
+   "place_rakujo"
+  ],
+  [
+   "place_toride",
+   "nat_night",
+   "place_ichiyajo"
+  ],
+  [
+   "plc_field",
+   "plt_bamboo",
+   "place_saku"
+  ],
+  [
+   "place_toride",
+   "wpn_spear",
+   "place_jinchi"
+  ],
+  [
+   "place_bakufu",
+   "nat_sea",
+   "place_kamakura"
+  ],
+  [
+   "plc_port",
+   "plc_village",
+   "place_minatomachi"
+  ],
+  [
+   "place_minatomachi",
+   "place_kura",
+   "place_osaka"
+  ],
+  [
+   "plc_field",
+   "water",
+   "place_yosui"
+  ],
+  [
+   "place_machi",
+   "place_goten",
+   "place_miyako"
+  ],
+  [
+   "place_kyoto",
+   "water",
+   "place_kamogawa"
+  ],
+  [
+   "plc_garden",
+   "tol_zori",
+   "place_komichi"
+  ],
+  [
+   "plc_bridge",
+   "cpt_tsukimi",
+   "place_togetsukyo"
+  ],
+  [
+   "plc_temple",
+   "water",
+   "place_kiyomizudera"
+  ],
+  [
+   "plc_shrine",
+   "nat_waterfall",
+   "place_kumanosanzan"
+  ],
+  [
+   "plc_shrine",
+   "tol_brush",
+   "place_dazaifu"
+  ],
+  [
+   "plc_shrine",
+   "per_fisher",
+   "place_konpira"
+  ],
+  [
+   "place_kaido",
+   "plc_house",
+   "place_shukuba"
+  ],
+  [
+   "plc_cave",
+   "mat_iron",
+   "place_kozan"
+  ],
+  [
+   "plc_cave",
+   "mat_gold",
+   "place_kinzan"
+  ],
+  [
+   "plc_island",
+   "nat_ice",
+   "place_ezo"
+  ],
+  [
+   "place_haka",
+   "nat_mountain",
+   "place_kofun"
+  ],
+  [
+   "plc_cave",
+   "mat_stone",
+   "place_iwaya"
+  ],
+  [
+   "plc_tower",
+   "nat_flame",
+   "place_hinomiyagura"
+  ],
+  [
+   "plc_garden",
+   "plc_lake",
+   "place_chisen"
+  ],
+  [
+   "plc_pond",
+   "fod_fish",
+   "place_koinoike"
+  ],
+  [
+   "plc_karesansui",
+   "mat_sand",
+   "place_samon"
+  ],
+  [
+   "plc_paddy",
+   "nat_ridge",
+   "place_tanada"
+  ],
+  [
+   "plc_pond",
+   "plc_field",
+   "place_tameike"
+  ],
+  [
+   "place_yosui",
+   "nat_flood",
+   "place_tsutsumi"
+  ],
+  [
+   "plc_port",
+   "tol_net",
+   "place_gyoko"
+  ],
+  [
+   "place_edo",
+   "fod_fish",
+   "place_uogashi"
+  ],
+  [
+   "plc_shrine",
+   "nat_wave",
+   "place_itsukushimajinja"
+  ],
+  [
+   "plc_cave",
+   "mat_pottery",
+   "place_anagama"
+  ],
+  [
+   "plc_onsen",
+   "plt_forest",
+   "place_hito"
+  ],
+  [
+   "plc_onsen",
+   "nat_rock",
+   "place_rotenburo"
+  ],
+  [
+   "plc_onsen",
+   "plc_paddy",
+   "place_yubatake"
+  ],
+  [
+   "plc_onsen",
+   "plc_village",
+   "place_onsengai"
+  ],
+  [
+   "plc_village",
+   "nat_mist",
+   "place_kakurezato"
+  ],
+  [
+   "plc_village",
+   "wpn_shuriken",
+   "place_iganosato"
+  ],
+  [
+   "plc_village",
+   "wpn_kunai",
+   "place_kogasato"
+  ],
+  [
+   "place_machi",
+   "per_farmer",
+   "place_ichiba"
+  ],
+  [
+   "plc_house",
+   "per_healer",
+   "place_kusuriya"
+  ],
+  [
+   "place_koubou",
+   "tol_kimono",
+   "place_hataya"
+  ],
+  [
+   "plc_teahouse",
+   "tol_sakazuki",
+   "place_izakaya"
+  ],
+  [
+   "plc_teahouse",
+   "fod_sashimi",
+   "place_ryotei"
+  ],
+  [
+   "plc_teahouse",
+   "fod_rice",
+   "place_sushiya"
+  ],
+  [
+   "place_engawabutai",
+   "tol_flute",
+   "place_noubutai"
+  ],
+  [
+   "plc_dojo",
+   "wpn_arrow",
+   "place_kyudojo"
+  ],
+  [
+   "plc_dojo",
+   "art_shugyo",
+   "place_keikoba"
+  ],
+  [
+   "plc_dojo",
+   "art_kamae",
+   "place_enbujo"
+  ],
+  [
+   "place_bugyosho",
+   "mat_rope",
+   "place_roya"
+  ],
+  [
+   "plc_field",
+   "wpn_sword",
+   "place_senjo"
+  ],
+  [
+   "place_senjo",
+   "nat_sea",
+   "place_dannoura"
+  ],
+  [
+   "plc_temple",
+   "nat_flame",
+   "place_honnoji"
+  ],
+  [
+   "plc_bridge",
+   "nat_rock",
+   "place_ishibashi"
+  ],
+  [
+   "plc_village",
+   "plt_rice",
+   "place_noson"
+  ],
+  [
+   "plc_village",
+   "plt_tree",
+   "place_sanson"
+  ],
+  [
+   "place_washitsu",
+   "tol_brush",
+   "place_shoin"
+  ],
+  [
+   "place_doma",
+   "fire",
+   "place_daidokoro"
+  ],
+  [
+   "place_engawa",
+   "cpt_tsukimi",
+   "place_tsukimidai"
+  ],
+  [
+   "plc_shrine",
+   "water",
+   "place_kibune"
+  ],
+  [
+   "place_chashitsu",
+   "plt_straw",
+   "place_soan"
+  ],
+  [
+   "plc_well",
+   "place_machi",
+   "place_kyodoido"
+  ],
+  [
+   "place_machi",
+   "place_haka",
+   "place_teramachi"
+  ],
+  [
+   "place_koya",
+   "tol_net",
+   "place_banya"
+  ],
+  [
+   "plc_lake",
+   "tol_ship",
+   "place_funatsukiba"
+  ],
+  [
+   "plc_teahouse",
+   "cpt_hanami",
+   "place_hanamijaya"
+  ],
+  [
+   "plc_teahouse",
+   "tol_fan",
+   "place_ochaya"
+  ],
+  [
+   "plc_onsen",
+   "per_samurai",
+   "place_kakushiyu"
+  ],
+  [
+   "place_jinchi",
+   "place_yashiki",
+   "place_jinya"
+  ]
+ ]
+}

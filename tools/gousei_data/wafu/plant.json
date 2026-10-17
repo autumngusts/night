@@ -1,0 +1,5517 @@
+{
+ "category": "plant",
+ "items": [
+  {
+   "id": "plant_001",
+   "zh": "山櫻",
+   "ja": "山桜"
+  },
+  {
+   "id": "plant_002",
+   "zh": "垂枝櫻",
+   "ja": "枝垂れ桜"
+  },
+  {
+   "id": "plant_003",
+   "zh": "八重櫻",
+   "ja": "八重桜"
+  },
+  {
+   "id": "plant_004",
+   "zh": "宵櫻",
+   "ja": "宵桜"
+  },
+  {
+   "id": "plant_005",
+   "zh": "花瓣",
+   "ja": "花びら"
+  },
+  {
+   "id": "plant_006",
+   "zh": "櫻吹雪",
+   "ja": "桜吹雪"
+  },
+  {
+   "id": "plant_007",
+   "zh": "櫻花流水",
+   "ja": "桜流し"
+  },
+  {
+   "id": "plant_008",
+   "zh": "櫻花道",
+   "ja": "桜並木"
+  },
+  {
+   "id": "plant_009",
+   "zh": "千本櫻",
+   "ja": "千本桜"
+  },
+  {
+   "id": "plant_010",
+   "zh": "道明寺餅",
+   "ja": "道明寺"
+  },
+  {
+   "id": "plant_011",
+   "zh": "櫻花茶",
+   "ja": "桜茶"
+  },
+  {
+   "id": "plant_012",
+   "zh": "鹽漬櫻花",
+   "ja": "桜の塩漬け"
+  },
+  {
+   "id": "plant_013",
+   "zh": "染井吉野櫻",
+   "ja": "染井吉野"
+  },
+  {
+   "id": "plant_014",
+   "zh": "河津櫻",
+   "ja": "河津桜"
+  },
+  {
+   "id": "plant_015",
+   "zh": "冬櫻",
+   "ja": "冬桜"
+  },
+  {
+   "id": "plant_016",
+   "zh": "御衣黃櫻",
+   "ja": "御衣黄"
+  },
+  {
+   "id": "plant_017",
+   "zh": "護櫻人",
+   "ja": "桜守"
+  },
+  {
+   "id": "plant_018",
+   "zh": "櫻花酒",
+   "ja": "桜酒"
+  },
+  {
+   "id": "plant_019",
+   "zh": "三色糰子",
+   "ja": "三色団子"
+  },
+  {
+   "id": "plant_020",
+   "zh": "瀑布櫻",
+   "ja": "滝桜"
+  },
+  {
+   "id": "plant_021",
+   "zh": "盛開之櫻",
+   "ja": "満開の桜"
+  },
+  {
+   "id": "plant_022",
+   "zh": "散櫻",
+   "ja": "散り桜"
+  },
+  {
+   "id": "plant_023",
+   "zh": "櫻襲",
+   "ja": "桜襲"
+  },
+  {
+   "id": "plant_024",
+   "zh": "櫻花隔扇畫",
+   "ja": "桜の襖絵"
+  },
+  {
+   "id": "plant_025",
+   "zh": "櫻花太刀",
+   "ja": "桜花の太刀"
+  },
+  {
+   "id": "plant_026",
+   "zh": "西行櫻",
+   "ja": "西行桜"
+  },
+  {
+   "id": "plant_027",
+   "zh": "賞櫻名所",
+   "ja": "桜の名所"
+  },
+  {
+   "id": "plant_028",
+   "zh": "護櫻人之庭",
+   "ja": "桜守の庭"
+  },
+  {
+   "id": "plant_029",
+   "zh": "櫻下之宴",
+   "ja": "桜の下の宴"
+  },
+  {
+   "id": "plant_030",
+   "zh": "櫻之精靈",
+   "ja": "桜の精霊"
+  },
+  {
+   "id": "plant_031",
+   "zh": "紅梅",
+   "ja": "紅梅"
+  },
+  {
+   "id": "plant_032",
+   "zh": "白梅",
+   "ja": "白梅"
+  },
+  {
+   "id": "plant_033",
+   "zh": "梅林",
+   "ja": "梅林"
+  },
+  {
+   "id": "plant_034",
+   "zh": "醃梅",
+   "ja": "梅干し"
+  },
+  {
+   "id": "plant_035",
+   "zh": "梅酒",
+   "ja": "梅酒"
+  },
+  {
+   "id": "plant_036",
+   "zh": "探梅",
+   "ja": "探梅"
+  },
+  {
+   "id": "plant_037",
+   "zh": "飛梅",
+   "ja": "飛梅"
+  },
+  {
+   "id": "plant_038",
+   "zh": "臥龍梅",
+   "ja": "臥龍梅"
+  },
+  {
+   "id": "plant_039",
+   "zh": "寒梅",
+   "ja": "寒梅"
+  },
+  {
+   "id": "plant_040",
+   "zh": "梅花一朵",
+   "ja": "梅一輪"
+  },
+  {
+   "id": "plant_041",
+   "zh": "梅子",
+   "ja": "梅の実"
+  },
+  {
+   "id": "plant_042",
+   "zh": "青梅",
+   "ja": "青梅"
+  },
+  {
+   "id": "plant_043",
+   "zh": "梅茶",
+   "ja": "梅茶"
+  },
+  {
+   "id": "plant_044",
+   "zh": "梅干粥",
+   "ja": "梅干し粥"
+  },
+  {
+   "id": "plant_045",
+   "zh": "梅染",
+   "ja": "梅染め"
+  },
+  {
+   "id": "plant_046",
+   "zh": "梅襲",
+   "ja": "梅襲"
+  },
+  {
+   "id": "plant_047",
+   "zh": "梅園",
+   "ja": "梅園"
+  },
+  {
+   "id": "plant_048",
+   "zh": "偕樂園",
+   "ja": "偕楽園"
+  },
+  {
+   "id": "plant_049",
+   "zh": "梅缽紋",
+   "ja": "梅鉢紋"
+  },
+  {
+   "id": "plant_050",
+   "zh": "盆梅",
+   "ja": "盆梅"
+  },
+  {
+   "id": "plant_051",
+   "zh": "梅花香",
+   "ja": "梅の香"
+  },
+  {
+   "id": "plant_052",
+   "zh": "老梅",
+   "ja": "老梅"
+  },
+  {
+   "id": "plant_053",
+   "zh": "若松",
+   "ja": "若松"
+  },
+  {
+   "id": "plant_054",
+   "zh": "松竹梅",
+   "ja": "松竹梅"
+  },
+  {
+   "id": "plant_055",
+   "zh": "歲寒三友",
+   "ja": "歳寒三友"
+  },
+  {
+   "id": "plant_056",
+   "zh": "松針",
+   "ja": "松葉"
+  },
+  {
+   "id": "plant_057",
+   "zh": "松果",
+   "ja": "松ぼっくり"
+  },
+  {
+   "id": "plant_058",
+   "zh": "種子",
+   "ja": "種"
+  },
+  {
+   "id": "plant_059",
+   "zh": "松脂",
+   "ja": "松脂"
+  },
+  {
+   "id": "plant_060",
+   "zh": "火炬",
+   "ja": "松明"
+  },
+  {
+   "id": "plant_061",
+   "zh": "松風",
+   "ja": "松風"
+  },
+  {
+   "id": "plant_062",
+   "zh": "松林",
+   "ja": "松林"
+  },
+  {
+   "id": "plant_063",
+   "zh": "白砂青松",
+   "ja": "白砂青松"
+  },
+  {
+   "id": "plant_064",
+   "zh": "老松",
+   "ja": "老松"
+  },
+  {
+   "id": "plant_065",
+   "zh": "雪壓松",
+   "ja": "雪持ち松"
+  },
+  {
+   "id": "plant_066",
+   "zh": "松樹林蔭道",
+   "ja": "松並木"
+  },
+  {
+   "id": "plant_067",
+   "zh": "孤松",
+   "ja": "一本松"
+  },
+  {
+   "id": "plant_068",
+   "zh": "丘陵",
+   "ja": "丘"
+  },
+  {
+   "id": "plant_069",
+   "zh": "雪吊",
+   "ja": "雪吊り"
+  },
+  {
+   "id": "plant_070",
+   "zh": "松盆栽",
+   "ja": "松の盆栽"
+  },
+  {
+   "id": "plant_071",
+   "zh": "五葉松",
+   "ja": "五葉松"
+  },
+  {
+   "id": "plant_072",
+   "zh": "黑松",
+   "ja": "黒松"
+  },
+  {
+   "id": "plant_073",
+   "zh": "赤松",
+   "ja": "赤松"
+  },
+  {
+   "id": "plant_074",
+   "zh": "松茸",
+   "ja": "松茸"
+  },
+  {
+   "id": "plant_075",
+   "zh": "松茸飯",
+   "ja": "松茸ご飯"
+  },
+  {
+   "id": "plant_076",
+   "zh": "松前漬",
+   "ja": "松前漬け"
+  },
+  {
+   "id": "plant_077",
+   "zh": "新年松飾期",
+   "ja": "松の内"
+  },
+  {
+   "id": "plant_078",
+   "zh": "鏡板松",
+   "ja": "鏡松"
+  },
+  {
+   "id": "plant_079",
+   "zh": "松圖",
+   "ja": "松の絵"
+  },
+  {
+   "id": "plant_080",
+   "zh": "松之屏風",
+   "ja": "松の屏風"
+  },
+  {
+   "id": "plant_081",
+   "zh": "松香",
+   "ja": "松ヤニ"
+  },
+  {
+   "id": "plant_082",
+   "zh": "松脂燈",
+   "ja": "松脂の灯"
+  },
+  {
+   "id": "plant_083",
+   "zh": "松葉茶",
+   "ja": "松葉茶"
+  },
+  {
+   "id": "plant_084",
+   "zh": "松籟",
+   "ja": "松籟"
+  },
+  {
+   "id": "plant_085",
+   "zh": "高砂之松",
+   "ja": "高砂の松"
+  },
+  {
+   "id": "plant_086",
+   "zh": "竹筍",
+   "ja": "竹の子"
+  },
+  {
+   "id": "plant_087",
+   "zh": "竹皮",
+   "ja": "竹の皮"
+  },
+  {
+   "id": "plant_088",
+   "zh": "竹篾",
+   "ja": "竹ひご"
+  },
+  {
+   "id": "plant_089",
+   "zh": "竹工藝",
+   "ja": "竹細工"
+  },
+  {
+   "id": "plant_090",
+   "zh": "竹掃帚",
+   "ja": "竹箒"
+  },
+  {
+   "id": "plant_091",
+   "zh": "竹筒",
+   "ja": "竹筒"
+  },
+  {
+   "id": "plant_092",
+   "zh": "竹水筒",
+   "ja": "竹水筒"
+  },
+  {
+   "id": "plant_093",
+   "zh": "竹籬笆",
+   "ja": "竹垣"
+  },
+  {
+   "id": "plant_094",
+   "zh": "竹林小徑",
+   "ja": "竹林の道"
+  },
+  {
+   "id": "plant_095",
+   "zh": "青竹",
+   "ja": "青竹"
+  },
+  {
+   "id": "plant_096",
+   "zh": "竹花",
+   "ja": "竹の花"
+  },
+  {
+   "id": "plant_097",
+   "zh": "細竹葉",
+   "ja": "笹"
+  },
+  {
+   "id": "plant_098",
+   "zh": "笹舟",
+   "ja": "笹舟"
+  },
+  {
+   "id": "plant_099",
+   "zh": "笹糰子",
+   "ja": "笹団子"
+  },
+  {
+   "id": "plant_100",
+   "zh": "笹葉沙沙",
+   "ja": "笹の葉さらさら"
+  },
+  {
+   "id": "plant_101",
+   "zh": "輝夜姬之竹",
+   "ja": "かぐや姫の竹"
+  },
+  {
+   "id": "plant_102",
+   "zh": "金色之竹",
+   "ja": "金色の竹"
+  },
+  {
+   "id": "plant_103",
+   "zh": "竹取翁",
+   "ja": "竹取の翁"
+  },
+  {
+   "id": "plant_104",
+   "zh": "竹槍",
+   "ja": "竹槍"
+  },
+  {
+   "id": "plant_105",
+   "zh": "竹光",
+   "ja": "竹光"
+  },
+  {
+   "id": "plant_106",
+   "zh": "竹林七賢",
+   "ja": "竹林の七賢"
+  },
+  {
+   "id": "plant_107",
+   "zh": "流水素麵",
+   "ja": "流しそうめん"
+  },
+  {
+   "id": "plant_108",
+   "zh": "竹蜻蜓",
+   "ja": "竹とんぼ"
+  },
+  {
+   "id": "plant_109",
+   "zh": "竹馬",
+   "ja": "竹馬"
+  },
+  {
+   "id": "plant_110",
+   "zh": "竹之春",
+   "ja": "竹の春"
+  },
+  {
+   "id": "plant_111",
+   "zh": "竹筷",
+   "ja": "竹箸"
+  },
+  {
+   "id": "plant_112",
+   "zh": "竹炭",
+   "ja": "竹炭"
+  },
+  {
+   "id": "plant_113",
+   "zh": "竹醋液",
+   "ja": "竹酢液"
+  },
+  {
+   "id": "plant_114",
+   "zh": "楓樹",
+   "ja": "楓"
+  },
+  {
+   "id": "plant_115",
+   "zh": "銀杏樹",
+   "ja": "銀杏"
+  },
+  {
+   "id": "plant_116",
+   "zh": "銀杏林蔭道",
+   "ja": "銀杏並木"
+  },
+  {
+   "id": "plant_117",
+   "zh": "黃葉",
+   "ja": "黄葉"
+  },
+  {
+   "id": "plant_118",
+   "zh": "落葉",
+   "ja": "落ち葉"
+  },
+  {
+   "id": "plant_119",
+   "zh": "焚燒落葉",
+   "ja": "落ち葉焚き"
+  },
+  {
+   "id": "plant_120",
+   "zh": "紅葉地毯",
+   "ja": "紅葉の絨毯"
+  },
+  {
+   "id": "plant_121",
+   "zh": "紅葉錦繡",
+   "ja": "紅葉の錦"
+  },
+  {
+   "id": "plant_122",
+   "zh": "紅葉山谷",
+   "ja": "紅葉の谷"
+  },
+  {
+   "id": "plant_123",
+   "zh": "紅葉瀑布",
+   "ja": "紅葉の滝"
+  },
+  {
+   "id": "plant_124",
+   "zh": "紅葉之川",
+   "ja": "紅葉の川"
+  },
+  {
+   "id": "plant_125",
+   "zh": "龍田川",
+   "ja": "竜田川"
+  },
+  {
+   "id": "plant_126",
+   "zh": "賞楓之宴",
+   "ja": "紅葉の宴"
+  },
+  {
+   "id": "plant_127",
+   "zh": "楓葉茶屋",
+   "ja": "紅葉茶屋"
+  },
+  {
+   "id": "plant_128",
+   "zh": "楓葉饅頭",
+   "ja": "もみじ饅頭"
+  },
+  {
+   "id": "plant_129",
+   "zh": "紅葉襲",
+   "ja": "紅葉襲"
+  },
+  {
+   "id": "plant_130",
+   "zh": "賞楓名所",
+   "ja": "紅葉の名所"
+  },
+  {
+   "id": "plant_131",
+   "zh": "銀杏果",
+   "ja": "銀杏の実"
+  },
+  {
+   "id": "plant_132",
+   "zh": "銀杏御神木",
+   "ja": "御神木の銀杏"
+  },
+  {
+   "id": "plant_133",
+   "zh": "大銀杏",
+   "ja": "大銀杏"
+  },
+  {
+   "id": "plant_134",
+   "zh": "山茶花",
+   "ja": "椿"
+  },
+  {
+   "id": "plant_135",
+   "zh": "寒椿",
+   "ja": "寒椿"
+  },
+  {
+   "id": "plant_136",
+   "zh": "藪椿",
+   "ja": "藪椿"
+  },
+  {
+   "id": "plant_137",
+   "zh": "山茶花油",
+   "ja": "椿油"
+  },
+  {
+   "id": "plant_138",
+   "zh": "落椿",
+   "ja": "落ち椿"
+  },
+  {
+   "id": "plant_139",
+   "zh": "山茶花紋和服",
+   "ja": "椿柄の着物"
+  },
+  {
+   "id": "plant_140",
+   "zh": "山茶花庭園",
+   "ja": "椿の庭"
+  },
+  {
+   "id": "plant_141",
+   "zh": "赤椿",
+   "ja": "赤椿"
+  },
+  {
+   "id": "plant_142",
+   "zh": "白椿",
+   "ja": "白椿"
+  },
+  {
+   "id": "plant_143",
+   "zh": "五色椿",
+   "ja": "五色椿"
+  },
+  {
+   "id": "plant_144",
+   "zh": "椿餅",
+   "ja": "椿餅"
+  },
+  {
+   "id": "plant_145",
+   "zh": "茶席椿花",
+   "ja": "椿の茶花"
+  },
+  {
+   "id": "plant_146",
+   "zh": "菊花",
+   "ja": "菊"
+  },
+  {
+   "id": "plant_147",
+   "zh": "白菊",
+   "ja": "白菊"
+  },
+  {
+   "id": "plant_148",
+   "zh": "黃菊",
+   "ja": "黄菊"
+  },
+  {
+   "id": "plant_149",
+   "zh": "菊花酒",
+   "ja": "菊花酒"
+  },
+  {
+   "id": "plant_150",
+   "zh": "菊花茶",
+   "ja": "菊花茶"
+  },
+  {
+   "id": "plant_151",
+   "zh": "菊人形",
+   "ja": "菊人形"
+  },
+  {
+   "id": "plant_152",
+   "zh": "菊花紋",
+   "ja": "菊花紋"
+  },
+  {
+   "id": "plant_153",
+   "zh": "重陽節",
+   "ja": "菊の節句"
+  },
+  {
+   "id": "plant_154",
+   "zh": "菊水",
+   "ja": "菊水"
+  },
+  {
+   "id": "plant_155",
+   "zh": "菊露",
+   "ja": "菊の露"
+  },
+  {
+   "id": "plant_156",
+   "zh": "嵯峨菊",
+   "ja": "嵯峨菊"
+  },
+  {
+   "id": "plant_157",
+   "zh": "大輪菊",
+   "ja": "大輪菊"
+  },
+  {
+   "id": "plant_158",
+   "zh": "菊園",
+   "ja": "菊畑"
+  },
+  {
+   "id": "plant_159",
+   "zh": "菊之御紋",
+   "ja": "菊の御紋"
+  },
+  {
+   "id": "plant_160",
+   "zh": "菊慈童",
+   "ja": "菊慈童"
+  },
+  {
+   "id": "plant_161",
+   "zh": "菊花展",
+   "ja": "菊花展"
+  },
+  {
+   "id": "plant_162",
+   "zh": "千輪菊",
+   "ja": "千輪咲き"
+  },
+  {
+   "id": "plant_163",
+   "zh": "紫藤",
+   "ja": "藤"
+  },
+  {
+   "id": "plant_164",
+   "zh": "藤花棚",
+   "ja": "藤棚"
+  },
+  {
+   "id": "plant_165",
+   "zh": "藤花串",
+   "ja": "藤の花房"
+  },
+  {
+   "id": "plant_166",
+   "zh": "藤紫色布",
+   "ja": "藤色"
+  },
+  {
+   "id": "plant_167",
+   "zh": "藤紋",
+   "ja": "藤原の紋"
+  },
+  {
+   "id": "plant_168",
+   "zh": "賞藤",
+   "ja": "藤見"
+  },
+  {
+   "id": "plant_169",
+   "zh": "巨大紫藤",
+   "ja": "大藤"
+  },
+  {
+   "id": "plant_170",
+   "zh": "藤娘",
+   "ja": "藤娘"
+  },
+  {
+   "id": "plant_171",
+   "zh": "藤杖",
+   "ja": "藤の杖"
+  },
+  {
+   "id": "plant_172",
+   "zh": "繡球花",
+   "ja": "紫陽花"
+  },
+  {
+   "id": "plant_173",
+   "zh": "繡球花寺",
+   "ja": "紫陽花寺"
+  },
+  {
+   "id": "plant_174",
+   "zh": "藍繡球",
+   "ja": "青紫陽花"
+  },
+  {
+   "id": "plant_175",
+   "zh": "紅繡球",
+   "ja": "紅紫陽花"
+  },
+  {
+   "id": "plant_176",
+   "zh": "山繡球",
+   "ja": "額紫陽花"
+  },
+  {
+   "id": "plant_177",
+   "zh": "繡球花露",
+   "ja": "紫陽花の露"
+  },
+  {
+   "id": "plant_178",
+   "zh": "牽牛花",
+   "ja": "朝顔"
+  },
+  {
+   "id": "plant_179",
+   "zh": "牽牛花市",
+   "ja": "朝顔市"
+  },
+  {
+   "id": "plant_180",
+   "zh": "牽牛花種子",
+   "ja": "朝顔の種"
+  },
+  {
+   "id": "plant_181",
+   "zh": "牽牛花籠",
+   "ja": "朝顔の籠"
+  },
+  {
+   "id": "plant_182",
+   "zh": "夕顏",
+   "ja": "夕顔"
+  },
+  {
+   "id": "plant_183",
+   "zh": "旋花",
+   "ja": "昼顔"
+  },
+  {
+   "id": "plant_184",
+   "zh": "月下美人",
+   "ja": "月下美人"
+  },
+  {
+   "id": "plant_185",
+   "zh": "彼岸花",
+   "ja": "彼岸花"
+  },
+  {
+   "id": "plant_186",
+   "zh": "曼珠沙華",
+   "ja": "曼珠沙華"
+  },
+  {
+   "id": "plant_187",
+   "zh": "白彼岸花",
+   "ja": "白彼岸花"
+  },
+  {
+   "id": "plant_188",
+   "zh": "彼岸花原野",
+   "ja": "彼岸花の野"
+  },
+  {
+   "id": "plant_189",
+   "zh": "彼岸花之徑",
+   "ja": "彼岸花の道"
+  },
+  {
+   "id": "plant_190",
+   "zh": "三途川之花",
+   "ja": "三途の川の花"
+  },
+  {
+   "id": "plant_191",
+   "zh": "牡丹",
+   "ja": "牡丹"
+  },
+  {
+   "id": "plant_192",
+   "zh": "白牡丹",
+   "ja": "白牡丹"
+  },
+  {
+   "id": "plant_193",
+   "zh": "牡丹園",
+   "ja": "牡丹園"
+  },
+  {
+   "id": "plant_194",
+   "zh": "牡丹鍋",
+   "ja": "牡丹鍋"
+  },
+  {
+   "id": "plant_195",
+   "zh": "菖蒲",
+   "ja": "菖蒲"
+  },
+  {
+   "id": "plant_196",
+   "zh": "菖蒲湯",
+   "ja": "菖蒲湯"
+  },
+  {
+   "id": "plant_197",
+   "zh": "菖蒲園",
+   "ja": "菖蒲園"
+  },
+  {
+   "id": "plant_198",
+   "zh": "花菖蒲",
+   "ja": "花菖蒲"
+  },
+  {
+   "id": "plant_199",
+   "zh": "端午菖蒲",
+   "ja": "端午の菖蒲"
+  },
+  {
+   "id": "plant_200",
+   "zh": "杜若",
+   "ja": "杜若"
+  },
+  {
+   "id": "plant_201",
+   "zh": "燕子花圖",
+   "ja": "燕子花図"
+  },
+  {
+   "id": "plant_202",
+   "zh": "水仙",
+   "ja": "水仙"
+  },
+  {
+   "id": "plant_203",
+   "zh": "水仙香",
+   "ja": "水仙の香"
+  },
+  {
+   "id": "plant_204",
+   "zh": "水仙花",
+   "ja": "水仙花"
+  },
+  {
+   "id": "plant_205",
+   "zh": "撫子",
+   "ja": "撫子"
+  },
+  {
+   "id": "plant_206",
+   "zh": "露水",
+   "ja": "草の露"
+  },
+  {
+   "id": "plant_207",
+   "zh": "大和撫子",
+   "ja": "大和撫子"
+  },
+  {
+   "id": "plant_208",
+   "zh": "桔梗",
+   "ja": "桔梗"
+  },
+  {
+   "id": "plant_209",
+   "zh": "胡枝子",
+   "ja": "萩"
+  },
+  {
+   "id": "plant_210",
+   "zh": "萩之寺",
+   "ja": "萩の寺"
+  },
+  {
+   "id": "plant_211",
+   "zh": "萩餅",
+   "ja": "萩の餅"
+  },
+  {
+   "id": "plant_212",
+   "zh": "芒草",
+   "ja": "薄"
+  },
+  {
+   "id": "plant_213",
+   "zh": "芒草原",
+   "ja": "薄野"
+  },
+  {
+   "id": "plant_214",
+   "zh": "月見糰子",
+   "ja": "月見団子"
+  },
+  {
+   "id": "plant_215",
+   "zh": "芒穗",
+   "ja": "薄の穂"
+  },
+  {
+   "id": "plant_216",
+   "zh": "葛",
+   "ja": "葛"
+  },
+  {
+   "id": "plant_217",
+   "zh": "葛湯",
+   "ja": "葛湯"
+  },
+  {
+   "id": "plant_218",
+   "zh": "葛餅",
+   "ja": "葛餅"
+  },
+  {
+   "id": "plant_219",
+   "zh": "葛切",
+   "ja": "葛切り"
+  },
+  {
+   "id": "plant_220",
+   "zh": "吉野葛",
+   "ja": "吉野葛"
+  },
+  {
+   "id": "plant_221",
+   "zh": "葛花",
+   "ja": "葛の花"
+  },
+  {
+   "id": "plant_222",
+   "zh": "水芹",
+   "ja": "芹"
+  },
+  {
+   "id": "plant_223",
+   "zh": "薺菜",
+   "ja": "薺"
+  },
+  {
+   "id": "plant_224",
+   "zh": "鼠麴草",
+   "ja": "御形"
+  },
+  {
+   "id": "plant_225",
+   "zh": "繁縷",
+   "ja": "繁縷"
+  },
+  {
+   "id": "plant_226",
+   "zh": "寶蓋草",
+   "ja": "仏の座"
+  },
+  {
+   "id": "plant_227",
+   "zh": "蘿蔔",
+   "ja": "清白"
+  },
+  {
+   "id": "plant_228",
+   "zh": "蕪菁",
+   "ja": "蕪"
+  },
+  {
+   "id": "plant_229",
+   "zh": "春之七草",
+   "ja": "春の七草"
+  },
+  {
+   "id": "plant_230",
+   "zh": "七草粥",
+   "ja": "七草粥"
+  },
+  {
+   "id": "plant_231",
+   "zh": "秋之七草",
+   "ja": "秋の七草"
+  },
+  {
+   "id": "plant_232",
+   "zh": "七草花",
+   "ja": "七草の花"
+  },
+  {
+   "id": "plant_233",
+   "zh": "撫子花束",
+   "ja": "撫子の花束"
+  },
+  {
+   "id": "plant_234",
+   "zh": "藤袴",
+   "ja": "藤袴"
+  },
+  {
+   "id": "plant_235",
+   "zh": "女郎花",
+   "ja": "女郎花"
+  },
+  {
+   "id": "plant_236",
+   "zh": "尾花",
+   "ja": "尾花"
+  },
+  {
+   "id": "plant_237",
+   "zh": "苔玉",
+   "ja": "苔玉"
+  },
+  {
+   "id": "plant_238",
+   "zh": "苔庭",
+   "ja": "苔庭"
+  },
+  {
+   "id": "plant_239",
+   "zh": "苔寺",
+   "ja": "苔寺"
+  },
+  {
+   "id": "plant_240",
+   "zh": "長滿苔蘚的石",
+   "ja": "苔むす石"
+  },
+  {
+   "id": "plant_241",
+   "zh": "苔蘚地毯",
+   "ja": "苔の絨毯"
+  },
+  {
+   "id": "plant_242",
+   "zh": "青苔石燈籠",
+   "ja": "苔むした灯籠"
+  },
+  {
+   "id": "plant_243",
+   "zh": "苔清水",
+   "ja": "苔清水"
+  },
+  {
+   "id": "plant_244",
+   "zh": "苔蘚小徑",
+   "ja": "苔の道"
+  },
+  {
+   "id": "plant_245",
+   "zh": "細石",
+   "ja": "さざれ石"
+  },
+  {
+   "id": "plant_246",
+   "zh": "君之代石",
+   "ja": "君が代の石"
+  },
+  {
+   "id": "plant_247",
+   "zh": "盆栽",
+   "ja": "盆栽"
+  },
+  {
+   "id": "plant_248",
+   "zh": "盆栽庭",
+   "ja": "盆栽の庭"
+  },
+  {
+   "id": "plant_249",
+   "zh": "盆栽架",
+   "ja": "盆栽棚"
+  },
+  {
+   "id": "plant_250",
+   "zh": "盆栽剪刀",
+   "ja": "盆栽鋏"
+  },
+  {
+   "id": "plant_251",
+   "zh": "黑松盆栽",
+   "ja": "黒松盆栽"
+  },
+  {
+   "id": "plant_252",
+   "zh": "真柏",
+   "ja": "真柏"
+  },
+  {
+   "id": "plant_253",
+   "zh": "楓盆栽",
+   "ja": "もみじ盆栽"
+  },
+  {
+   "id": "plant_254",
+   "zh": "盆栽名人",
+   "ja": "盆栽名人"
+  },
+  {
+   "id": "plant_255",
+   "zh": "盆栽展",
+   "ja": "盆栽展"
+  },
+  {
+   "id": "plant_256",
+   "zh": "插花",
+   "ja": "生け花"
+  },
+  {
+   "id": "plant_257",
+   "zh": "花瓶",
+   "ja": "花瓶"
+  },
+  {
+   "id": "plant_258",
+   "zh": "花器",
+   "ja": "花器"
+  },
+  {
+   "id": "plant_259",
+   "zh": "花剪",
+   "ja": "花鋏"
+  },
+  {
+   "id": "plant_260",
+   "zh": "插花師範",
+   "ja": "生け花の師匠"
+  },
+  {
+   "id": "plant_261",
+   "zh": "池坊流",
+   "ja": "池坊"
+  },
+  {
+   "id": "plant_262",
+   "zh": "立花",
+   "ja": "立花"
+  },
+  {
+   "id": "plant_263",
+   "zh": "拋入花",
+   "ja": "投げ入れ"
+  },
+  {
+   "id": "plant_264",
+   "zh": "壁龕之花",
+   "ja": "床の間の花"
+  },
+  {
+   "id": "plant_265",
+   "zh": "茶花",
+   "ja": "茶花"
+  },
+  {
+   "id": "plant_266",
+   "zh": "一輪插花",
+   "ja": "一輪挿し"
+  },
+  {
+   "id": "plant_267",
+   "zh": "插花展",
+   "ja": "いけばな展"
+  },
+  {
+   "id": "plant_268",
+   "zh": "願望竹枝",
+   "ja": "願い事の笹"
+  },
+  {
+   "id": "plant_269",
+   "zh": "七草籃",
+   "ja": "七草籠"
+  },
+  {
+   "id": "plant_270",
+   "zh": "杉樹",
+   "ja": "杉"
+  },
+  {
+   "id": "plant_271",
+   "zh": "大杉",
+   "ja": "大杉"
+  },
+  {
+   "id": "plant_272",
+   "zh": "千年杉",
+   "ja": "千年杉"
+  },
+  {
+   "id": "plant_273",
+   "zh": "杉林蔭道",
+   "ja": "杉並木"
+  },
+  {
+   "id": "plant_274",
+   "zh": "杉玉",
+   "ja": "杉玉"
+  },
+  {
+   "id": "plant_275",
+   "zh": "屋久杉",
+   "ja": "屋久杉"
+  },
+  {
+   "id": "plant_276",
+   "zh": "神杉",
+   "ja": "神杉"
+  },
+  {
+   "id": "plant_277",
+   "zh": "杉木林",
+   "ja": "杉木立"
+  },
+  {
+   "id": "plant_278",
+   "zh": "扁柏",
+   "ja": "檜"
+  },
+  {
+   "id": "plant_279",
+   "zh": "檜木舞台",
+   "ja": "檜舞台"
+  },
+  {
+   "id": "plant_280",
+   "zh": "檜木浴桶",
+   "ja": "檜風呂"
+  },
+  {
+   "id": "plant_281",
+   "zh": "檜皮葺",
+   "ja": "檜皮葺"
+  },
+  {
+   "id": "plant_282",
+   "zh": "檜扇",
+   "ja": "檜扇"
+  },
+  {
+   "id": "plant_283",
+   "zh": "檜木柱",
+   "ja": "檜の柱"
+  },
+  {
+   "id": "plant_284",
+   "zh": "木曾檜",
+   "ja": "木曽檜"
+  },
+  {
+   "id": "plant_285",
+   "zh": "梧桐",
+   "ja": "桐"
+  },
+  {
+   "id": "plant_286",
+   "zh": "桐木箱",
+   "ja": "桐箱"
+  },
+  {
+   "id": "plant_287",
+   "zh": "桐木琴",
+   "ja": "桐の琴"
+  },
+  {
+   "id": "plant_288",
+   "zh": "桐紋",
+   "ja": "桐紋"
+  },
+  {
+   "id": "plant_289",
+   "zh": "五七桐",
+   "ja": "五七の桐"
+  },
+  {
+   "id": "plant_290",
+   "zh": "桐木屐",
+   "ja": "桐下駄"
+  },
+  {
+   "id": "plant_291",
+   "zh": "樟樹",
+   "ja": "楠"
+  },
+  {
+   "id": "plant_292",
+   "zh": "大樟",
+   "ja": "大楠"
+  },
+  {
+   "id": "plant_293",
+   "zh": "樟腦",
+   "ja": "樟脳"
+  },
+  {
+   "id": "plant_294",
+   "zh": "櫸木",
+   "ja": "欅"
+  },
+  {
+   "id": "plant_295",
+   "zh": "櫸木林蔭道",
+   "ja": "欅並木"
+  },
+  {
+   "id": "plant_296",
+   "zh": "橡樹",
+   "ja": "樫"
+  },
+  {
+   "id": "plant_297",
+   "zh": "椎木",
+   "ja": "椎"
+  },
+  {
+   "id": "plant_298",
+   "zh": "香菇",
+   "ja": "椎茸"
+  },
+  {
+   "id": "plant_299",
+   "zh": "柿子",
+   "ja": "柿"
+  },
+  {
+   "id": "plant_300",
+   "zh": "柿餅乾",
+   "ja": "干し柿"
+  },
+  {
+   "id": "plant_301",
+   "zh": "澀柿",
+   "ja": "渋柿"
+  },
+  {
+   "id": "plant_302",
+   "zh": "柿漆",
+   "ja": "柿渋"
+  },
+  {
+   "id": "plant_303",
+   "zh": "柿葉壽司",
+   "ja": "柿の葉寿司"
+  },
+  {
+   "id": "plant_304",
+   "zh": "栗子",
+   "ja": "栗"
+  },
+  {
+   "id": "plant_305",
+   "zh": "栗子饅頭",
+   "ja": "栗饅頭"
+  },
+  {
+   "id": "plant_306",
+   "zh": "栗子飯",
+   "ja": "栗ご飯"
+  },
+  {
+   "id": "plant_307",
+   "zh": "烤栗子",
+   "ja": "焼き栗"
+  },
+  {
+   "id": "plant_308",
+   "zh": "柚子",
+   "ja": "柚子"
+  },
+  {
+   "id": "plant_309",
+   "zh": "柚子浴",
+   "ja": "柚子湯"
+  },
+  {
+   "id": "plant_310",
+   "zh": "橘樹",
+   "ja": "橘"
+  },
+  {
+   "id": "plant_311",
+   "zh": "桃樹",
+   "ja": "桃"
+  },
+  {
+   "id": "plant_312",
+   "zh": "桃花節",
+   "ja": "桃の節句"
+  },
+  {
+   "id": "plant_313",
+   "zh": "白桃",
+   "ja": "白桃"
+  },
+  {
+   "id": "plant_314",
+   "zh": "桃花源",
+   "ja": "桃源郷"
+  },
+  {
+   "id": "plant_315",
+   "zh": "桑樹",
+   "ja": "桑"
+  },
+  {
+   "id": "plant_316",
+   "zh": "桑田",
+   "ja": "桑畑"
+  },
+  {
+   "id": "plant_317",
+   "zh": "漆樹",
+   "ja": "漆"
+  },
+  {
+   "id": "plant_318",
+   "zh": "漆器",
+   "ja": "漆器"
+  },
+  {
+   "id": "plant_319",
+   "zh": "漆塗酒杯",
+   "ja": "漆塗りの盃"
+  },
+  {
+   "id": "plant_320",
+   "zh": "漆黑刀鞘",
+   "ja": "漆黒の鞘"
+  },
+  {
+   "id": "plant_321",
+   "zh": "蒔繪",
+   "ja": "蒔絵"
+  },
+  {
+   "id": "plant_322",
+   "zh": "構樹",
+   "ja": "楮"
+  },
+  {
+   "id": "plant_323",
+   "zh": "楮紙",
+   "ja": "楮紙"
+  },
+  {
+   "id": "plant_324",
+   "zh": "楮之里",
+   "ja": "楮の里"
+  },
+  {
+   "id": "plant_325",
+   "zh": "三椏",
+   "ja": "三椏"
+  },
+  {
+   "id": "plant_326",
+   "zh": "千代紙",
+   "ja": "千代紙"
+  },
+  {
+   "id": "plant_327",
+   "zh": "神域之森",
+   "ja": "神域の森"
+  },
+  {
+   "id": "plant_328",
+   "zh": "夫婦杉",
+   "ja": "夫婦杉"
+  },
+  {
+   "id": "plant_329",
+   "zh": "千年樟",
+   "ja": "千年楠"
+  },
+  {
+   "id": "plant_donguri",
+   "zh": "橡實",
+   "ja": "団栗"
+  },
+  {
+   "id": "plant_donguri_koma",
+   "zh": "橡實陀螺",
+   "ja": "団栗独楽"
+  },
+  {
+   "id": "plant_inaho",
+   "zh": "稻穗",
+   "ja": "稲穂"
+  },
+  {
+   "id": "plant_sanae",
+   "zh": "秧苗",
+   "ja": "早苗"
+  },
+  {
+   "id": "plant_nawashiro",
+   "zh": "秧田",
+   "ja": "苗代"
+  },
+  {
+   "id": "plant_konjiki_inaho",
+   "zh": "黃金稻穗",
+   "ja": "黄金の稲穂"
+  },
+  {
+   "id": "plant_shinmai",
+   "zh": "新米",
+   "ja": "新米"
+  },
+  {
+   "id": "plant_hazakake",
+   "zh": "稻架晾曬",
+   "ja": "稲架掛け"
+  },
+  {
+   "id": "plant_kakashi",
+   "zh": "稻草人",
+   "ja": "案山子"
+  },
+  {
+   "id": "plant_waraningyo",
+   "zh": "稻草詛咒人偶",
+   "ja": "藁人形"
+  },
+  {
+   "id": "plant_warabuki",
+   "zh": "稻草屋頂",
+   "ja": "藁葺き屋根"
+  },
+  {
+   "id": "plant_mugi",
+   "zh": "麥",
+   "ja": "麦"
+  },
+  {
+   "id": "plant_mugibatake",
+   "zh": "麥田",
+   "ja": "麦畑"
+  },
+  {
+   "id": "plant_mugiaki",
+   "zh": "麥秋",
+   "ja": "麦秋"
+  },
+  {
+   "id": "plant_mugiwara",
+   "zh": "麥稈草帽",
+   "ja": "麦わら帽子"
+  },
+  {
+   "id": "plant_soba",
+   "zh": "蕎麥",
+   "ja": "蕎麦"
+  },
+  {
+   "id": "plant_soba_hana",
+   "zh": "蕎麥花",
+   "ja": "蕎麦の花"
+  },
+  {
+   "id": "plant_daizu",
+   "zh": "大豆",
+   "ja": "大豆"
+  },
+  {
+   "id": "plant_edamame",
+   "zh": "毛豆",
+   "ja": "枝豆"
+  },
+  {
+   "id": "plant_azuki",
+   "zh": "紅豆",
+   "ja": "小豆"
+  },
+  {
+   "id": "plant_tsukushi",
+   "zh": "筆頭菜",
+   "ja": "土筆"
+  },
+  {
+   "id": "plant_warabi",
+   "zh": "蕨菜",
+   "ja": "蕨"
+  },
+  {
+   "id": "plant_sansai",
+   "zh": "山野菜",
+   "ja": "山菜"
+  },
+  {
+   "id": "plant_sansai_soba",
+   "zh": "山菜蕎麥麵",
+   "ja": "山菜蕎麦"
+  },
+  {
+   "id": "plant_maitake",
+   "zh": "舞菇",
+   "ja": "舞茸"
+  },
+  {
+   "id": "plant_tenguda",
+   "zh": "天狗菇",
+   "ja": "天狗茸"
+  },
+  {
+   "id": "plant_dokukinoko",
+   "zh": "毒菇",
+   "ja": "毒茸"
+  },
+  {
+   "id": "plant_tsukiyotake",
+   "zh": "月夜菇",
+   "ja": "月夜茸"
+  },
+  {
+   "id": "plant_hikarikinoko",
+   "zh": "發光菇",
+   "ja": "光る茸"
+  },
+  {
+   "id": "plant_reishi",
+   "zh": "靈芝",
+   "ja": "霊芝"
+  },
+  {
+   "id": "plant_kinokogari",
+   "zh": "採菇",
+   "ja": "茸狩り"
+  },
+  {
+   "id": "plant_miru",
+   "zh": "海松藻",
+   "ja": "海松"
+  },
+  {
+   "id": "plant_moshio",
+   "zh": "藻鹽",
+   "ja": "藻塩"
+  },
+  {
+   "id": "plant_ukikusa",
+   "zh": "浮萍",
+   "ja": "浮草"
+  },
+  {
+   "id": "plant_wakame",
+   "zh": "裙帶菜",
+   "ja": "若布"
+  },
+  {
+   "id": "plant_yomogi",
+   "zh": "艾草",
+   "ja": "蓬"
+  },
+  {
+   "id": "plant_yomogimochi",
+   "zh": "艾草餅",
+   "ja": "蓬餅"
+  },
+  {
+   "id": "plant_mogusa",
+   "zh": "艾絨",
+   "ja": "艾"
+  },
+  {
+   "id": "plant_okyu",
+   "zh": "艾灸",
+   "ja": "お灸"
+  },
+  {
+   "id": "plant_shiso",
+   "zh": "紫蘇",
+   "ja": "紫蘇"
+  },
+  {
+   "id": "plant_wasabi",
+   "zh": "山葵",
+   "ja": "山葵"
+  },
+  {
+   "id": "plant_shoga",
+   "zh": "生薑",
+   "ja": "生姜"
+  },
+  {
+   "id": "plant_myoga",
+   "zh": "茗荷",
+   "ja": "茗荷"
+  },
+  {
+   "id": "plant_ninjin",
+   "zh": "高麗人參",
+   "ja": "朝鮮人参"
+  },
+  {
+   "id": "plant_sansho",
+   "zh": "山椒",
+   "ja": "山椒"
+  },
+  {
+   "id": "plant_hakka",
+   "zh": "薄荷",
+   "ja": "薄荷"
+  },
+  {
+   "id": "plant_yakuto",
+   "zh": "藥草浴",
+   "ja": "薬湯"
+  },
+  {
+   "id": "plant_dokudami",
+   "zh": "魚腥草",
+   "ja": "十薬"
+  },
+  {
+   "id": "plant_dokuso",
+   "zh": "毒草",
+   "ja": "毒草"
+  },
+  {
+   "id": "plant_torikabuto",
+   "zh": "烏頭",
+   "ja": "鳥兜"
+  },
+  {
+   "id": "plant_kakkonto",
+   "zh": "葛根湯",
+   "ja": "葛根湯"
+  },
+  {
+   "id": "plant_shincha",
+   "zh": "頭茶",
+   "ja": "一番茶"
+  },
+  {
+   "id": "plant_gyokuro",
+   "zh": "玉露",
+   "ja": "玉露"
+  },
+  {
+   "id": "plant_bancha",
+   "zh": "番茶",
+   "ja": "番茶"
+  },
+  {
+   "id": "plant_hojicha",
+   "zh": "焙茶",
+   "ja": "焙じ茶"
+  },
+  {
+   "id": "plant_genmaicha",
+   "zh": "玄米茶",
+   "ja": "玄米茶"
+  },
+  {
+   "id": "plant_cha_hana",
+   "zh": "茶花朵",
+   "ja": "茶の花"
+  },
+  {
+   "id": "plant_hachijuhachiya",
+   "zh": "茶嫩芽",
+   "ja": "茶の新芽"
+  },
+  {
+   "id": "plant_chabatake",
+   "zh": "茶園",
+   "ja": "茶畑"
+  },
+  {
+   "id": "plant_ujicha",
+   "zh": "宇治茶",
+   "ja": "宇治茶"
+  },
+  {
+   "id": "plant_renchi",
+   "zh": "蓮池",
+   "ja": "蓮池"
+  },
+  {
+   "id": "plant_renkon",
+   "zh": "蓮藕",
+   "ja": "蓮根"
+  },
+  {
+   "id": "plant_renge",
+   "zh": "蓮華",
+   "ja": "蓮華"
+  },
+  {
+   "id": "plant_hasu_ha",
+   "zh": "荷葉",
+   "ja": "蓮の葉"
+  },
+  {
+   "id": "plant_hasu_tsuyu",
+   "zh": "荷葉露珠",
+   "ja": "蓮の露"
+  },
+  {
+   "id": "plant_byakuren",
+   "zh": "白蓮",
+   "ja": "白蓮"
+  },
+  {
+   "id": "plant_suiren",
+   "zh": "睡蓮",
+   "ja": "睡蓮"
+  },
+  {
+   "id": "plant_kodaihasu",
+   "zh": "古代蓮",
+   "ja": "古代蓮"
+  },
+  {
+   "id": "plant_gokuraku_hasu",
+   "zh": "極樂之蓮",
+   "ja": "極楽の蓮"
+  },
+  {
+   "id": "plant_rengeza",
+   "zh": "蓮華座",
+   "ja": "蓮華座"
+  },
+  {
+   "id": "plant_nekoyanagi",
+   "zh": "貓柳",
+   "ja": "猫柳"
+  },
+  {
+   "id": "plant_yanagi_ame",
+   "zh": "柳下之雨",
+   "ja": "柳に雨"
+  },
+  {
+   "id": "plant_yanagi_yurei",
+   "zh": "柳下幽靈",
+   "ja": "柳の下の幽霊"
+  },
+  {
+   "id": "plant_yanagigori",
+   "zh": "柳條箱",
+   "ja": "柳行李"
+  },
+  {
+   "id": "plant_yanagi_namiki",
+   "zh": "垂柳林蔭道",
+   "ja": "柳並木"
+  },
+  {
+   "id": "plant_moribayashi",
+   "zh": "森林浴",
+   "ja": "森林浴"
+  },
+  {
+   "id": "plant_genseirin",
+   "zh": "原始林",
+   "ja": "原生林"
+  },
+  {
+   "id": "plant_bunarin",
+   "zh": "山毛櫸林",
+   "ja": "橅林"
+  },
+  {
+   "id": "plant_buna",
+   "zh": "山毛櫸",
+   "ja": "橅"
+  },
+  {
+   "id": "plant_shirakaba",
+   "zh": "白樺",
+   "ja": "白樺"
+  },
+  {
+   "id": "plant_enoki",
+   "zh": "朴樹",
+   "ja": "榎"
+  },
+  {
+   "id": "plant_ichirizuka",
+   "zh": "一里塚",
+   "ja": "一里塚"
+  },
+  {
+   "id": "plant_hoo",
+   "zh": "日本厚朴",
+   "ja": "朴の木"
+  },
+  {
+   "id": "plant_hobamiso",
+   "zh": "朴葉味噌",
+   "ja": "朴葉味噌"
+  },
+  {
+   "id": "plant_nemu",
+   "zh": "合歡樹",
+   "ja": "合歓の木"
+  },
+  {
+   "id": "plant_sarusuberi",
+   "zh": "紫薇",
+   "ja": "百日紅"
+  },
+  {
+   "id": "plant_kinmokusei",
+   "zh": "金桂",
+   "ja": "金木犀"
+  },
+  {
+   "id": "plant_ginmokusei",
+   "zh": "銀桂",
+   "ja": "銀木犀"
+  },
+  {
+   "id": "plant_mokusei_kaori",
+   "zh": "桂花香",
+   "ja": "木犀の香"
+  },
+  {
+   "id": "plant_biwa",
+   "zh": "枇杷",
+   "ja": "枇杷"
+  },
+  {
+   "id": "plant_zakuro",
+   "zh": "石榴",
+   "ja": "柘榴"
+  },
+  {
+   "id": "plant_mikan",
+   "zh": "橘子",
+   "ja": "蜜柑"
+  },
+  {
+   "id": "plant_kotatsu_mikan",
+   "zh": "暖桌橘子",
+   "ja": "炬燵蜜柑"
+  },
+  {
+   "id": "plant_jinchoge",
+   "zh": "瑞香",
+   "ja": "沈丁花"
+  },
+  {
+   "id": "plant_kuchinashi",
+   "zh": "梔子花",
+   "ja": "梔子"
+  },
+  {
+   "id": "plant_yamabuki",
+   "zh": "棣棠花",
+   "ja": "山吹"
+  },
+  {
+   "id": "plant_nanohana",
+   "zh": "油菜花",
+   "ja": "菜の花"
+  },
+  {
+   "id": "plant_nanohana_batake",
+   "zh": "油菜花田",
+   "ja": "菜の花畑"
+  },
+  {
+   "id": "plant_himawari",
+   "zh": "向日葵",
+   "ja": "向日葵"
+  },
+  {
+   "id": "plant_tanpopo",
+   "zh": "蒲公英",
+   "ja": "蒲公英"
+  },
+  {
+   "id": "plant_watage",
+   "zh": "蒲公英絨毛",
+   "ja": "綿毛"
+  },
+  {
+   "id": "plant_hozuki",
+   "zh": "酸漿",
+   "ja": "鬼灯"
+  },
+  {
+   "id": "plant_hozukiichi",
+   "zh": "酸漿市集",
+   "ja": "鬼灯市"
+  },
+  {
+   "id": "plant_rindo",
+   "zh": "龍膽",
+   "ja": "竜胆"
+  },
+  {
+   "id": "plant_suzuran",
+   "zh": "鈴蘭",
+   "ja": "鈴蘭"
+  },
+  {
+   "id": "plant_azami",
+   "zh": "薊",
+   "ja": "薊"
+  },
+  {
+   "id": "plant_hamayu",
+   "zh": "文殊蘭",
+   "ja": "浜木綿"
+  },
+  {
+   "id": "plant_hamahirugao",
+   "zh": "濱旋花",
+   "ja": "浜昼顔"
+  },
+  {
+   "id": "plant_tsukimiso",
+   "zh": "月見草",
+   "ja": "月見草"
+  },
+  {
+   "id": "plant_tsuyukusa",
+   "zh": "鴨跖草",
+   "ja": "露草"
+  },
+  {
+   "id": "plant_ashi",
+   "zh": "蘆葦",
+   "ja": "葦"
+  },
+  {
+   "id": "plant_yoshizu",
+   "zh": "蘆葦簾",
+   "ja": "葦簀"
+  },
+  {
+   "id": "plant_kusamura",
+   "zh": "草叢",
+   "ja": "草むら"
+  },
+  {
+   "id": "plant_karekusa",
+   "zh": "枯草",
+   "ja": "枯れ草"
+  },
+  {
+   "id": "plant_kusabue",
+   "zh": "草笛",
+   "ja": "草笛"
+  },
+  {
+   "id": "plant_noyaki",
+   "zh": "燒山",
+   "ja": "山焼き"
+  },
+  {
+   "id": "plant_kusaikire",
+   "zh": "草叢暑氣",
+   "ja": "草いきれ"
+  },
+  {
+   "id": "plant_mitsuba",
+   "zh": "鴨兒芹",
+   "ja": "三つ葉"
+  },
+  {
+   "id": "plant_hazakura",
+   "zh": "櫻花嫩葉",
+   "ja": "桜若葉"
+  },
+  {
+   "id": "plant_sakuranbo",
+   "zh": "櫻桃",
+   "ja": "桜桃"
+  },
+  {
+   "id": "plant_usuzumi",
+   "zh": "淡墨櫻",
+   "ja": "薄墨桜"
+  },
+  {
+   "id": "plant_hanabie",
+   "zh": "晚櫻",
+   "ja": "遅桜"
+  },
+  {
+   "id": "plant_hanaarashi",
+   "zh": "櫻嵐",
+   "ja": "桜嵐"
+  },
+  {
+   "id": "plant_sakura_zensen",
+   "zh": "櫻花信",
+   "ja": "桜便り"
+  },
+  {
+   "id": "plant_ubazakura",
+   "zh": "姥櫻",
+   "ja": "姥桜"
+  },
+  {
+   "id": "plant_oshibana",
+   "zh": "壓花",
+   "ja": "押し花"
+  },
+  {
+   "id": "plant_hanakotoba",
+   "zh": "花語",
+   "ja": "花言葉"
+  },
+  {
+   "id": "plant_hanataba",
+   "zh": "花束",
+   "ja": "花束"
+  },
+  {
+   "id": "plant_hanawa",
+   "zh": "花環",
+   "ja": "花輪"
+  },
+  {
+   "id": "plant_hyakka",
+   "zh": "百花繚亂",
+   "ja": "百花繚乱"
+  },
+  {
+   "id": "plant_kaori_hana",
+   "zh": "花香",
+   "ja": "花の香"
+  },
+  {
+   "id": "plant_uki_hanabi",
+   "zh": "水中花",
+   "ja": "水中花"
+  },
+  {
+   "id": "plant_hashiri_tsuyu",
+   "zh": "蓮子",
+   "ja": "蓮の実"
+  },
+  {
+   "id": "plant_hasu_tsubomi",
+   "zh": "蓮花苞",
+   "ja": "蓮の蕾"
+  },
+  {
+   "id": "plant_bodaiju",
+   "zh": "菩提樹",
+   "ja": "菩提樹"
+  },
+  {
+   "id": "plant_ume_uguisu",
+   "zh": "梅與黃鶯",
+   "ja": "梅に鶯"
+  },
+  {
+   "id": "plant_sakura_tsuki",
+   "zh": "櫻與帷幕",
+   "ja": "桜に幕"
+  },
+  {
+   "id": "plant_matsu_tsuru",
+   "zh": "松與鶴",
+   "ja": "松に鶴"
+  },
+  {
+   "id": "plant_susuki_tsuki",
+   "zh": "芒與月",
+   "ja": "芒に月"
+  },
+  {
+   "id": "plant_kiri_hoo",
+   "zh": "桐與鳳凰",
+   "ja": "桐に鳳凰"
+  },
+  {
+   "id": "plant_botan_cho",
+   "zh": "牡丹與蝶",
+   "ja": "牡丹に蝶"
+  },
+  {
+   "id": "plant_kiku_sakazuki",
+   "zh": "菊與酒杯",
+   "ja": "菊に盃"
+  },
+  {
+   "id": "plant_momiji_shika",
+   "zh": "紅葉與鹿",
+   "ja": "紅葉に鹿"
+  },
+  {
+   "id": "plant_hagi_inoshishi",
+   "zh": "胡枝子與山豬",
+   "ja": "萩に猪"
+  },
+  {
+   "id": "plant_fuji_hototogisu",
+   "zh": "藤與杜鵑",
+   "ja": "藤に不如帰"
+  },
+  {
+   "id": "plant_ayame_yatsuhashi",
+   "zh": "菖蒲與八橋",
+   "ja": "菖蒲に八橋"
+  },
+  {
+   "id": "plant_yanagi_tsubame",
+   "zh": "柳與燕",
+   "ja": "柳に燕"
+  },
+  {
+   "id": "plant_kiri_mon_hanafuda",
+   "zh": "桐下之雨",
+   "ja": "桐に雨"
+  },
+  {
+   "id": "plant_hanafuda_hana",
+   "zh": "花合",
+   "ja": "花合わせ"
+  },
+  {
+   "id": "plant_gokou",
+   "zh": "五光",
+   "ja": "五光"
+  }
+ ],
+ "recipes": [
+  [
+   "plt_sakura",
+   "nat_ridge",
+   "plant_001"
+  ],
+  [
+   "plt_sakura",
+   "plt_willow",
+   "plant_002"
+  ],
+  [
+   "plt_sakura",
+   "plt_sakura",
+   "plant_003"
+  ],
+  [
+   "plt_sakura",
+   "nat_night",
+   "plant_004"
+  ],
+  [
+   "plt_sakura",
+   "nat_moon",
+   "plant_004"
+  ],
+  [
+   "plt_flower",
+   "wind",
+   "plant_005"
+  ],
+  [
+   "plt_sakura",
+   "wind",
+   "plant_006"
+  ],
+  [
+   "plant_005",
+   "plt_sakura",
+   "plant_006"
+  ],
+  [
+   "plant_005",
+   "nat_river",
+   "plant_007"
+  ],
+  [
+   "plt_sakura",
+   "plt_tree",
+   "plant_008"
+  ],
+  [
+   "plant_001",
+   "plant_008",
+   "plant_009"
+  ],
+  [
+   "plt_sakura",
+   "fod_mochi",
+   "plant_010"
+  ],
+  [
+   "plt_sakura",
+   "fod_tea",
+   "plant_011"
+  ],
+  [
+   "plt_sakura",
+   "mat_salt",
+   "plant_012"
+  ],
+  [
+   "plt_sakura",
+   "plc_garden",
+   "plant_013"
+  ],
+  [
+   "plt_sakura",
+   "nat_river",
+   "plant_014"
+  ],
+  [
+   "plt_sakura",
+   "cpt_winter",
+   "plant_015"
+  ],
+  [
+   "plt_sakura",
+   "plt_tea",
+   "plant_016"
+  ],
+  [
+   "plt_sakura",
+   "per_human",
+   "plant_017"
+  ],
+  [
+   "plt_sakura",
+   "fod_sake",
+   "plant_018"
+  ],
+  [
+   "plt_flower",
+   "fod_mochi",
+   "plant_019"
+  ],
+  [
+   "plant_002",
+   "nat_waterfall",
+   "plant_020"
+  ],
+  [
+   "plt_sakura",
+   "nat_sun",
+   "plant_021"
+  ],
+  [
+   "plt_sakura",
+   "nat_rain",
+   "plant_022"
+  ],
+  [
+   "plt_sakura",
+   "tol_kimono",
+   "plant_023"
+  ],
+  [
+   "plt_sakura",
+   "tol_fusuma",
+   "plant_024"
+  ],
+  [
+   "plt_sakura",
+   "wpn_katana",
+   "plant_025"
+  ],
+  [
+   "plt_sakura",
+   "fth_monk",
+   "plant_026"
+  ],
+  [
+   "plant_009",
+   "plc_village",
+   "plant_027"
+  ],
+  [
+   "plant_017",
+   "plc_garden",
+   "plant_028"
+  ],
+  [
+   "plant_018",
+   "plant_008",
+   "plant_029"
+  ],
+  [
+   "plt_sakura",
+   "yok_kodama",
+   "plant_030"
+  ],
+  [
+   "plt_ume",
+   "nat_flame",
+   "plant_031"
+  ],
+  [
+   "plt_ume",
+   "nat_snow",
+   "plant_032"
+  ],
+  [
+   "plt_ume",
+   "plt_forest",
+   "plant_033"
+  ],
+  [
+   "plt_ume",
+   "mat_salt",
+   "plant_034"
+  ],
+  [
+   "plt_ume",
+   "fod_sake",
+   "plant_035"
+  ],
+  [
+   "plt_ume",
+   "per_traveler",
+   "plant_036"
+  ],
+  [
+   "plt_ume",
+   "wind",
+   "plant_037"
+  ],
+  [
+   "plt_ume",
+   "yok_dragon",
+   "plant_038"
+  ],
+  [
+   "plt_ume",
+   "cpt_winter",
+   "plant_039"
+  ],
+  [
+   "plant_039",
+   "nat_snow",
+   "plant_040"
+  ],
+  [
+   "plt_ume",
+   "cpt_summer",
+   "plant_041"
+  ],
+  [
+   "plant_041",
+   "plt_grass",
+   "plant_042"
+  ],
+  [
+   "plant_034",
+   "fod_tea",
+   "plant_043"
+  ],
+  [
+   "plant_034",
+   "fod_porridge",
+   "plant_044"
+  ],
+  [
+   "plt_ume",
+   "mat_cloth",
+   "plant_045"
+  ],
+  [
+   "plt_ume",
+   "tol_kimono",
+   "plant_046"
+  ],
+  [
+   "plt_ume",
+   "plc_garden",
+   "plant_047"
+  ],
+  [
+   "plant_033",
+   "plc_lake",
+   "plant_048"
+  ],
+  [
+   "plt_ume",
+   "wpn_tsuba",
+   "plant_049"
+  ],
+  [
+   "plant_247",
+   "plt_ume",
+   "plant_050"
+  ],
+  [
+   "plt_ume",
+   "fth_incense",
+   "plant_051"
+  ],
+  [
+   "plt_ume",
+   "nat_rock",
+   "plant_052"
+  ],
+  [
+   "plt_pine",
+   "cpt_spring",
+   "plant_053"
+  ],
+  [
+   "plt_bamboo",
+   "plt_ume",
+   "plant_054"
+  ],
+  [
+   "plant_054",
+   "nat_snow",
+   "plant_055"
+  ],
+  [
+   "plt_pine",
+   "mat_thread",
+   "plant_056"
+  ],
+  [
+   "plt_pine",
+   "plant_058",
+   "plant_057"
+  ],
+  [
+   "plt_flower",
+   "earth",
+   "plant_058"
+  ],
+  [
+   "plt_pine",
+   "nat_flame",
+   "plant_059"
+  ],
+  [
+   "plt_pine",
+   "fire",
+   "plant_060"
+  ],
+  [
+   "plt_pine",
+   "wind",
+   "plant_061"
+  ],
+  [
+   "plt_pine",
+   "plt_forest",
+   "plant_062"
+  ],
+  [
+   "plt_pine",
+   "mat_sand",
+   "plant_063"
+  ],
+  [
+   "plt_pine",
+   "nat_frost",
+   "plant_064"
+  ],
+  [
+   "plt_pine",
+   "nat_snow",
+   "plant_065"
+  ],
+  [
+   "plt_pine",
+   "per_traveler",
+   "plant_066"
+  ],
+  [
+   "plt_pine",
+   "plant_068",
+   "plant_067"
+  ],
+  [
+   "plt_grass",
+   "nat_valley",
+   "plant_068"
+  ],
+  [
+   "plt_pine",
+   "mat_rope",
+   "plant_069"
+  ],
+  [
+   "plant_247",
+   "plt_pine",
+   "plant_070"
+  ],
+  [
+   "plt_pine",
+   "wpn_shuriken",
+   "plant_071"
+  ],
+  [
+   "plt_pine",
+   "nat_dark",
+   "plant_072"
+  ],
+  [
+   "plt_pine",
+   "cpt_sunset",
+   "plant_073"
+  ],
+  [
+   "plt_pine",
+   "plt_mushroom",
+   "plant_074"
+  ],
+  [
+   "plant_074",
+   "fod_gohan",
+   "plant_075"
+  ],
+  [
+   "fod_kombu",
+   "plt_pine",
+   "plant_076"
+  ],
+  [
+   "plt_pine",
+   "fth_festival",
+   "plant_077"
+  ],
+  [
+   "plt_pine",
+   "tol_mirror",
+   "plant_078"
+  ],
+  [
+   "plt_pine",
+   "mat_ink",
+   "plant_079"
+  ],
+  [
+   "plt_pine",
+   "tol_fusuma",
+   "plant_080"
+  ],
+  [
+   "plant_059",
+   "mat_paper",
+   "plant_081"
+  ],
+  [
+   "plant_059",
+   "tol_lantern",
+   "plant_082"
+  ],
+  [
+   "plant_056",
+   "fod_tea",
+   "plant_083"
+  ],
+  [
+   "plant_061",
+   "plant_064",
+   "plant_084"
+  ],
+  [
+   "plant_064",
+   "fth_norito",
+   "plant_085"
+  ],
+  [
+   "plt_bamboo",
+   "nat_rain",
+   "plant_086"
+  ],
+  [
+   "plant_086",
+   "wpn_katana",
+   "plant_087"
+  ],
+  [
+   "plt_bamboo",
+   "wpn_sickle",
+   "plant_088"
+  ],
+  [
+   "plant_088",
+   "tol_basket",
+   "plant_089"
+  ],
+  [
+   "plt_bamboo",
+   "plt_straw",
+   "plant_090"
+  ],
+  [
+   "plt_bamboo",
+   "tol_bucket",
+   "plant_091"
+  ],
+  [
+   "plant_091",
+   "water",
+   "plant_092"
+  ],
+  [
+   "plt_bamboo",
+   "mat_rope",
+   "plant_093"
+  ],
+  [
+   "plt_bambooforest",
+   "per_traveler",
+   "plant_094"
+  ],
+  [
+   "plt_bamboo",
+   "cpt_spring",
+   "plant_095"
+  ],
+  [
+   "plt_bamboo",
+   "plt_flower",
+   "plant_096"
+  ],
+  [
+   "plt_bamboo",
+   "plant_206",
+   "plant_097"
+  ],
+  [
+   "plant_097",
+   "nat_river",
+   "plant_098"
+  ],
+  [
+   "plant_097",
+   "fod_mochi",
+   "plant_099"
+  ],
+  [
+   "plant_097",
+   "tol_windbell",
+   "plant_100"
+  ],
+  [
+   "plt_bamboo",
+   "nat_moon",
+   "plant_101"
+  ],
+  [
+   "plt_bamboo",
+   "nat_light",
+   "plant_102"
+  ],
+  [
+   "plant_102",
+   "per_human",
+   "plant_103"
+  ],
+  [
+   "plt_bamboo",
+   "wpn_spear",
+   "plant_104"
+  ],
+  [
+   "plt_bamboo",
+   "wpn_sheath",
+   "plant_105"
+  ],
+  [
+   "plt_bambooforest",
+   "tol_book",
+   "plant_106"
+  ],
+  [
+   "plant_091",
+   "nat_river",
+   "plant_107"
+  ],
+  [
+   "plt_bamboo",
+   "tol_kite",
+   "plant_108"
+  ],
+  [
+   "plt_bamboo",
+   "tol_zori",
+   "plant_109"
+  ],
+  [
+   "plt_bamboo",
+   "cpt_autumn",
+   "plant_110"
+  ],
+  [
+   "plt_bamboo",
+   "fod_rice",
+   "plant_111"
+  ],
+  [
+   "plt_bamboo",
+   "mat_charcoal",
+   "plant_112"
+  ],
+  [
+   "plant_112",
+   "nat_smoke",
+   "plant_113"
+  ],
+  [
+   "plt_maple",
+   "plt_tree",
+   "plant_114"
+  ],
+  [
+   "plt_tree",
+   "cpt_autumn",
+   "plant_115"
+  ],
+  [
+   "plant_115",
+   "per_traveler",
+   "plant_116"
+  ],
+  [
+   "plant_115",
+   "cpt_autumn",
+   "plant_117"
+  ],
+  [
+   "plt_maple",
+   "wind",
+   "plant_118"
+  ],
+  [
+   "plant_118",
+   "fire",
+   "plant_119"
+  ],
+  [
+   "plt_maple",
+   "mat_cloth",
+   "plant_120"
+  ],
+  [
+   "plt_maple",
+   "trs_brocade",
+   "plant_121"
+  ],
+  [
+   "plt_maple",
+   "nat_valley",
+   "plant_122"
+  ],
+  [
+   "plt_maple",
+   "nat_waterfall",
+   "plant_123"
+  ],
+  [
+   "plt_maple",
+   "nat_river",
+   "plant_124"
+  ],
+  [
+   "plant_124",
+   "yok_dragon",
+   "plant_125"
+  ],
+  [
+   "plt_maple",
+   "fod_sake",
+   "plant_126"
+  ],
+  [
+   "plt_maple",
+   "plc_teahouse",
+   "plant_127"
+  ],
+  [
+   "plt_maple",
+   "fod_mochi",
+   "plant_128"
+  ],
+  [
+   "plt_maple",
+   "tol_kimono",
+   "plant_129"
+  ],
+  [
+   "plt_maple",
+   "plc_temple",
+   "plant_130"
+  ],
+  [
+   "plant_115",
+   "plant_058",
+   "plant_131"
+  ],
+  [
+   "plant_115",
+   "plc_shrine",
+   "plant_132"
+  ],
+  [
+   "plant_115",
+   "plant_115",
+   "plant_133"
+  ],
+  [
+   "plt_flower",
+   "cpt_winter",
+   "plant_134"
+  ],
+  [
+   "plant_134",
+   "nat_frost",
+   "plant_135"
+  ],
+  [
+   "plant_134",
+   "plt_forest",
+   "plant_136"
+  ],
+  [
+   "plant_134",
+   "plant_058",
+   "plant_137"
+  ],
+  [
+   "plant_134",
+   "earth",
+   "plant_138"
+  ],
+  [
+   "plant_134",
+   "tol_kimono",
+   "plant_139"
+  ],
+  [
+   "plant_134",
+   "plc_garden",
+   "plant_140"
+  ],
+  [
+   "plant_134",
+   "nat_flame",
+   "plant_141"
+  ],
+  [
+   "plant_134",
+   "nat_snow",
+   "plant_142"
+  ],
+  [
+   "plant_134",
+   "nat_rainbow",
+   "plant_143"
+  ],
+  [
+   "plant_134",
+   "fod_mochi",
+   "plant_144"
+  ],
+  [
+   "plant_134",
+   "tol_teabowl",
+   "plant_145"
+  ],
+  [
+   "plt_flower",
+   "cpt_autumn",
+   "plant_146"
+  ],
+  [
+   "plant_146",
+   "nat_moon",
+   "plant_147"
+  ],
+  [
+   "plant_146",
+   "nat_sun",
+   "plant_148"
+  ],
+  [
+   "plant_146",
+   "fod_sake",
+   "plant_149"
+  ],
+  [
+   "plant_146",
+   "fod_tea",
+   "plant_150"
+  ],
+  [
+   "plant_146",
+   "trs_mask",
+   "plant_151"
+  ],
+  [
+   "plant_146",
+   "mat_gold",
+   "plant_152"
+  ],
+  [
+   "plant_146",
+   "fth_festival",
+   "plant_153"
+  ],
+  [
+   "plant_146",
+   "water",
+   "plant_154"
+  ],
+  [
+   "plant_146",
+   "nat_mist",
+   "plant_155"
+  ],
+  [
+   "plant_146",
+   "plc_temple",
+   "plant_156"
+  ],
+  [
+   "plant_146",
+   "plant_146",
+   "plant_157"
+  ],
+  [
+   "plant_146",
+   "plc_field",
+   "plant_158"
+  ],
+  [
+   "plant_152",
+   "wpn_tsuba",
+   "plant_159"
+  ],
+  [
+   "plant_154",
+   "trs_mask",
+   "plant_160"
+  ],
+  [
+   "plant_146",
+   "plc_garden",
+   "plant_161"
+  ],
+  [
+   "plant_157",
+   "plc_garden",
+   "plant_162"
+  ],
+  [
+   "plt_flower",
+   "mat_rope",
+   "plant_163"
+  ],
+  [
+   "plant_163",
+   "plt_bamboo",
+   "plant_164"
+  ],
+  [
+   "plant_163",
+   "nat_rain",
+   "plant_165"
+  ],
+  [
+   "plant_163",
+   "mat_cloth",
+   "plant_166"
+  ],
+  [
+   "plant_163",
+   "wpn_tsuba",
+   "plant_167"
+  ],
+  [
+   "plant_164",
+   "fod_sake",
+   "plant_168"
+  ],
+  [
+   "plant_163",
+   "plant_163",
+   "plant_169"
+  ],
+  [
+   "plant_163",
+   "per_geisha",
+   "plant_170"
+  ],
+  [
+   "plant_163",
+   "per_traveler",
+   "plant_171"
+  ],
+  [
+   "plt_flower",
+   "cpt_tsuyu",
+   "plant_172"
+  ],
+  [
+   "plant_172",
+   "plc_temple",
+   "plant_173"
+  ],
+  [
+   "plant_172",
+   "water",
+   "plant_174"
+  ],
+  [
+   "plant_172",
+   "nat_flame",
+   "plant_175"
+  ],
+  [
+   "plant_172",
+   "mat_stone",
+   "plant_176"
+  ],
+  [
+   "plant_172",
+   "nat_mist",
+   "plant_177"
+  ],
+  [
+   "plt_flower",
+   "cpt_morningmist",
+   "plant_178"
+  ],
+  [
+   "plant_178",
+   "per_merchant",
+   "plant_179"
+  ],
+  [
+   "plant_178",
+   "plant_058",
+   "plant_180"
+  ],
+  [
+   "plant_178",
+   "tol_basket",
+   "plant_181"
+  ],
+  [
+   "plant_178",
+   "cpt_sunset",
+   "plant_182"
+  ],
+  [
+   "plant_178",
+   "nat_sun",
+   "plant_183"
+  ],
+  [
+   "plt_flower",
+   "nat_night",
+   "plant_184"
+  ],
+  [
+   "plt_flower",
+   "fth_jizo",
+   "plant_185"
+  ],
+  [
+   "plant_185",
+   "fire",
+   "plant_186"
+  ],
+  [
+   "plant_185",
+   "nat_snow",
+   "plant_187"
+  ],
+  [
+   "plant_185",
+   "plc_field",
+   "plant_188"
+  ],
+  [
+   "plant_185",
+   "per_traveler",
+   "plant_189"
+  ],
+  [
+   "plant_185",
+   "nat_river",
+   "plant_190"
+  ],
+  [
+   "plt_flower",
+   "mat_gold",
+   "plant_191"
+  ],
+  [
+   "plant_191",
+   "nat_moon",
+   "plant_192"
+  ],
+  [
+   "plant_191",
+   "plc_garden",
+   "plant_193"
+  ],
+  [
+   "plant_191",
+   "tol_pot",
+   "plant_194"
+  ],
+  [
+   "plt_flower",
+   "plc_pond",
+   "plant_195"
+  ],
+  [
+   "plant_195",
+   "plc_onsen",
+   "plant_196"
+  ],
+  [
+   "plant_195",
+   "plc_garden",
+   "plant_197"
+  ],
+  [
+   "plant_195",
+   "nat_rain",
+   "plant_198"
+  ],
+  [
+   "plant_195",
+   "fth_festival",
+   "plant_199"
+  ],
+  [
+   "plant_195",
+   "plc_pond",
+   "plant_200"
+  ],
+  [
+   "plant_200",
+   "tol_fusuma",
+   "plant_201"
+  ],
+  [
+   "plt_flower",
+   "nat_ice",
+   "plant_202"
+  ],
+  [
+   "plant_202",
+   "fth_incense",
+   "plant_203"
+  ],
+  [
+   "plant_202",
+   "water",
+   "plant_204"
+  ],
+  [
+   "plt_flower",
+   "plant_206",
+   "plant_205"
+  ],
+  [
+   "plt_grass",
+   "nat_night",
+   "plant_206"
+  ],
+  [
+   "plant_205",
+   "tol_kimono",
+   "plant_207"
+  ],
+  [
+   "plt_flower",
+   "fth_ofuda",
+   "plant_208"
+  ],
+  [
+   "plt_flower",
+   "cpt_tsukimi",
+   "plant_209"
+  ],
+  [
+   "plant_209",
+   "plc_temple",
+   "plant_210"
+  ],
+  [
+   "plant_209",
+   "fod_mochi",
+   "plant_211"
+  ],
+  [
+   "plt_grass",
+   "cpt_autumn",
+   "plant_212"
+  ],
+  [
+   "plant_212",
+   "plc_field",
+   "plant_213"
+  ],
+  [
+   "plant_212",
+   "fod_mochi",
+   "plant_214"
+  ],
+  [
+   "plant_212",
+   "plt_rice",
+   "plant_215"
+  ],
+  [
+   "plt_grass",
+   "mat_rope",
+   "plant_216"
+  ],
+  [
+   "plant_216",
+   "nat_steam",
+   "plant_217"
+  ],
+  [
+   "plant_216",
+   "fod_mochi",
+   "plant_218"
+  ],
+  [
+   "plant_216",
+   "wpn_katana",
+   "plant_219"
+  ],
+  [
+   "plant_216",
+   "nat_mountain",
+   "plant_220"
+  ],
+  [
+   "plant_216",
+   "plt_flower",
+   "plant_221"
+  ],
+  [
+   "plt_grass",
+   "plc_pond",
+   "plant_222"
+  ],
+  [
+   "plt_grass",
+   "per_traveler",
+   "plant_223"
+  ],
+  [
+   "plt_grass",
+   "mat_gold",
+   "plant_224"
+  ],
+  [
+   "plt_grass",
+   "cpt_springhaze",
+   "plant_225"
+  ],
+  [
+   "plt_grass",
+   "fth_buddha",
+   "plant_226"
+  ],
+  [
+   "plt_grass",
+   "nat_snow",
+   "plant_227"
+  ],
+  [
+   "plt_grass",
+   "plc_field",
+   "plant_228"
+  ],
+  [
+   "plant_222",
+   "cpt_spring",
+   "plant_229"
+  ],
+  [
+   "plant_229",
+   "fod_porridge",
+   "plant_230"
+  ],
+  [
+   "plant_209",
+   "plant_212",
+   "plant_231"
+  ],
+  [
+   "plant_231",
+   "plant_208",
+   "plant_232"
+  ],
+  [
+   "plant_205",
+   "plant_208",
+   "plant_233"
+  ],
+  [
+   "plant_163",
+   "plant_212",
+   "plant_234"
+  ],
+  [
+   "plant_231",
+   "plt_flower",
+   "plant_235"
+  ],
+  [
+   "plant_212",
+   "wind",
+   "plant_236"
+  ],
+  [
+   "plt_moss",
+   "earth",
+   "plant_237"
+  ],
+  [
+   "plt_moss",
+   "plc_garden",
+   "plant_238"
+  ],
+  [
+   "plt_moss",
+   "plc_temple",
+   "plant_239"
+  ],
+  [
+   "plt_moss",
+   "mat_stone",
+   "plant_240"
+  ],
+  [
+   "plt_moss",
+   "mat_cloth",
+   "plant_241"
+  ],
+  [
+   "plt_moss",
+   "tol_stonelantern",
+   "plant_242"
+  ],
+  [
+   "plt_moss",
+   "water",
+   "plant_243"
+  ],
+  [
+   "plt_moss",
+   "per_traveler",
+   "plant_244"
+  ],
+  [
+   "plt_moss",
+   "nat_rock",
+   "plant_245"
+  ],
+  [
+   "plant_240",
+   "plant_245",
+   "plant_246"
+  ],
+  [
+   "plt_pine",
+   "tol_dish",
+   "plant_247"
+  ],
+  [
+   "plant_247",
+   "plc_garden",
+   "plant_248"
+  ],
+  [
+   "plant_247",
+   "mat_board",
+   "plant_249"
+  ],
+  [
+   "plant_247",
+   "wpn_sickle",
+   "plant_250"
+  ],
+  [
+   "plant_247",
+   "plant_072",
+   "plant_251"
+  ],
+  [
+   "plant_247",
+   "nat_frost",
+   "plant_252"
+  ],
+  [
+   "plant_247",
+   "plt_maple",
+   "plant_253"
+  ],
+  [
+   "plant_247",
+   "per_craftsman",
+   "plant_254"
+  ],
+  [
+   "plant_247",
+   "plc_dojo",
+   "plant_255"
+  ],
+  [
+   "plt_flower",
+   "plant_257",
+   "plant_256"
+  ],
+  [
+   "mat_pottery",
+   "plt_flower",
+   "plant_257"
+  ],
+  [
+   "mat_pottery",
+   "plt_bamboo",
+   "plant_258"
+  ],
+  [
+   "plt_flower",
+   "wpn_sickle",
+   "plant_259"
+  ],
+  [
+   "plant_256",
+   "per_disciple",
+   "plant_260"
+  ],
+  [
+   "plant_256",
+   "plc_temple",
+   "plant_261"
+  ],
+  [
+   "plant_256",
+   "plt_pine",
+   "plant_262"
+  ],
+  [
+   "plant_256",
+   "wind",
+   "plant_263"
+  ],
+  [
+   "plant_256",
+   "tol_fusuma",
+   "plant_264"
+  ],
+  [
+   "plt_flower",
+   "tol_teabowl",
+   "plant_265"
+  ],
+  [
+   "plt_flower",
+   "plant_091",
+   "plant_266"
+  ],
+  [
+   "plant_256",
+   "plc_garden",
+   "plant_267"
+  ],
+  [
+   "plant_097",
+   "fth_prayer",
+   "plant_268"
+  ],
+  [
+   "plant_229",
+   "tol_basket",
+   "plant_269"
+  ],
+  [
+   "plt_tree",
+   "nat_valley",
+   "plant_270"
+  ],
+  [
+   "plant_270",
+   "plant_270",
+   "plant_271"
+  ],
+  [
+   "plant_271",
+   "nat_moon",
+   "plant_272"
+  ],
+  [
+   "plant_270",
+   "per_traveler",
+   "plant_273"
+  ],
+  [
+   "plant_270",
+   "fod_sake",
+   "plant_274"
+  ],
+  [
+   "plant_270",
+   "plc_island",
+   "plant_275"
+  ],
+  [
+   "plant_270",
+   "fth_god",
+   "plant_276"
+  ],
+  [
+   "plant_270",
+   "plt_forest",
+   "plant_277"
+  ],
+  [
+   "plt_tree",
+   "fth_incense",
+   "plant_278"
+  ],
+  [
+   "plant_278",
+   "fth_festival",
+   "plant_279"
+  ],
+  [
+   "plant_278",
+   "plc_onsen",
+   "plant_280"
+  ],
+  [
+   "plant_278",
+   "plc_temple",
+   "plant_281"
+  ],
+  [
+   "plant_278",
+   "tol_fan",
+   "plant_282"
+  ],
+  [
+   "plant_278",
+   "plc_tower",
+   "plant_283"
+  ],
+  [
+   "plant_278",
+   "nat_mountain",
+   "plant_284"
+  ],
+  [
+   "plt_tree",
+   "yok_phoenix",
+   "plant_285"
+  ],
+  [
+   "plant_285",
+   "mat_board",
+   "plant_286"
+  ],
+  [
+   "plant_285",
+   "tol_koto",
+   "plant_287"
+  ],
+  [
+   "plant_285",
+   "wpn_tsuba",
+   "plant_288"
+  ],
+  [
+   "plant_288",
+   "plc_castle",
+   "plant_289"
+  ],
+  [
+   "plant_285",
+   "tol_geta",
+   "plant_290"
+  ],
+  [
+   "plt_tree",
+   "plc_temple",
+   "plant_291"
+  ],
+  [
+   "plant_291",
+   "plant_291",
+   "plant_292"
+  ],
+  [
+   "plant_291",
+   "nat_smoke",
+   "plant_293"
+  ],
+  [
+   "plt_tree",
+   "plant_068",
+   "plant_294"
+  ],
+  [
+   "plant_294",
+   "per_traveler",
+   "plant_295"
+  ],
+  [
+   "plant_donguri",
+   "plt_tree",
+   "plant_296"
+  ],
+  [
+   "plant_donguri",
+   "nat_mountain",
+   "plant_297"
+  ],
+  [
+   "plant_297",
+   "plt_mushroom",
+   "plant_298"
+  ],
+  [
+   "plt_tree",
+   "cpt_sunset",
+   "plant_299"
+  ],
+  [
+   "plant_299",
+   "wind",
+   "plant_300"
+  ],
+  [
+   "plant_299",
+   "plt_tea",
+   "plant_301"
+  ],
+  [
+   "plant_301",
+   "tol_bucket",
+   "plant_302"
+  ],
+  [
+   "plant_299",
+   "fod_sushi",
+   "plant_303"
+  ],
+  [
+   "plt_tree",
+   "nat_mountain",
+   "plant_304"
+  ],
+  [
+   "plant_304",
+   "fod_mochi",
+   "plant_305"
+  ],
+  [
+   "plant_304",
+   "fod_gohan",
+   "plant_306"
+  ],
+  [
+   "plant_304",
+   "fire",
+   "plant_307"
+  ],
+  [
+   "plt_tree",
+   "cpt_winter",
+   "plant_308"
+  ],
+  [
+   "plant_308",
+   "plc_onsen",
+   "plant_309"
+  ],
+  [
+   "plant_308",
+   "plc_castle",
+   "plant_310"
+  ],
+  [
+   "plt_tree",
+   "yok_oni",
+   "plant_311"
+  ],
+  [
+   "plant_311",
+   "fth_festival",
+   "plant_312"
+  ],
+  [
+   "plant_311",
+   "water",
+   "plant_313"
+  ],
+  [
+   "plant_311",
+   "nat_mist",
+   "plant_314"
+  ],
+  [
+   "plt_tree",
+   "mat_cloth",
+   "plant_315"
+  ],
+  [
+   "plant_315",
+   "plc_field",
+   "plant_316"
+  ],
+  [
+   "plt_tree",
+   "mat_ink",
+   "plant_317"
+  ],
+  [
+   "plant_317",
+   "tol_dish",
+   "plant_318"
+  ],
+  [
+   "plant_317",
+   "tol_sakazuki",
+   "plant_319"
+  ],
+  [
+   "plant_317",
+   "wpn_sheath",
+   "plant_320"
+  ],
+  [
+   "plant_317",
+   "trs_goldleaf",
+   "plant_321"
+  ],
+  [
+   "plt_tree",
+   "nat_steam",
+   "plant_322"
+  ],
+  [
+   "plant_322",
+   "water",
+   "plant_323"
+  ],
+  [
+   "plant_322",
+   "plc_village",
+   "plant_324"
+  ],
+  [
+   "plant_322",
+   "cpt_spring",
+   "plant_325"
+  ],
+  [
+   "plant_323",
+   "plt_flower",
+   "plant_326"
+  ],
+  [
+   "plt_forest",
+   "plc_shrine",
+   "plant_327"
+  ],
+  [
+   "plant_270",
+   "fth_shimenawa",
+   "plant_328"
+  ],
+  [
+   "plant_292",
+   "fth_shimenawa",
+   "plant_329"
+  ],
+  [
+   "plant_058",
+   "plt_forest",
+   "plant_donguri"
+  ],
+  [
+   "plant_donguri",
+   "nat_whirlwind",
+   "plant_donguri_koma"
+  ],
+  [
+   "plt_rice",
+   "cpt_autumn",
+   "plant_inaho"
+  ],
+  [
+   "plt_rice",
+   "cpt_tsuyu",
+   "plant_sanae"
+  ],
+  [
+   "plant_sanae",
+   "plc_paddy",
+   "plant_nawashiro"
+  ],
+  [
+   "plant_inaho",
+   "mat_gold",
+   "plant_konjiki_inaho"
+  ],
+  [
+   "plant_inaho",
+   "wpn_sickle",
+   "plant_shinmai"
+  ],
+  [
+   "plant_inaho",
+   "plt_bamboo",
+   "plant_hazakake"
+  ],
+  [
+   "plt_straw",
+   "per_human",
+   "plant_kakashi"
+  ],
+  [
+   "plt_straw",
+   "yok_grudge",
+   "plant_waraningyo"
+  ],
+  [
+   "plt_straw",
+   "plc_house",
+   "plant_warabuki"
+  ],
+  [
+   "plt_rice",
+   "cpt_winter",
+   "plant_mugi"
+  ],
+  [
+   "plant_mugi",
+   "plc_field",
+   "plant_mugibatake"
+  ],
+  [
+   "plant_mugibatake",
+   "cpt_summer",
+   "plant_mugiaki"
+  ],
+  [
+   "plant_mugi",
+   "tol_umbrella",
+   "plant_mugiwara"
+  ],
+  [
+   "plant_058",
+   "nat_mountain",
+   "plant_soba"
+  ],
+  [
+   "plant_soba",
+   "plt_flower",
+   "plant_soba_hana"
+  ],
+  [
+   "plant_058",
+   "plc_field",
+   "plant_daizu"
+  ],
+  [
+   "plant_daizu",
+   "cpt_summer",
+   "plant_edamame"
+  ],
+  [
+   "plant_daizu",
+   "nat_flame",
+   "plant_azuki"
+  ],
+  [
+   "plt_grass",
+   "tol_brush",
+   "plant_tsukushi"
+  ],
+  [
+   "plant_tsukushi",
+   "nat_mountain",
+   "plant_warabi"
+  ],
+  [
+   "plant_warabi",
+   "plant_tsukushi",
+   "plant_sansai"
+  ],
+  [
+   "plant_sansai",
+   "plant_soba",
+   "plant_sansai_soba"
+  ],
+  [
+   "plt_mushroom",
+   "fth_festival",
+   "plant_maitake"
+  ],
+  [
+   "plt_mushroom",
+   "yok_tengu",
+   "plant_tenguda"
+  ],
+  [
+   "plt_mushroom",
+   "yok_aura",
+   "plant_dokukinoko"
+  ],
+  [
+   "plt_mushroom",
+   "nat_moon",
+   "plant_tsukiyotake"
+  ],
+  [
+   "plt_mushroom",
+   "nat_light",
+   "plant_hikarikinoko"
+  ],
+  [
+   "plt_mushroom",
+   "trs_shinki",
+   "plant_reishi"
+  ],
+  [
+   "plt_mushroom",
+   "per_traveler",
+   "plant_kinokogari"
+  ],
+  [
+   "plt_seaweed",
+   "plt_pine",
+   "plant_miru"
+  ],
+  [
+   "plt_seaweed",
+   "mat_salt",
+   "plant_moshio"
+  ],
+  [
+   "plt_seaweed",
+   "plc_pond",
+   "plant_ukikusa"
+  ],
+  [
+   "plt_seaweed",
+   "cpt_spring",
+   "plant_wakame"
+  ],
+  [
+   "plt_herb",
+   "cpt_spring",
+   "plant_yomogi"
+  ],
+  [
+   "plant_yomogi",
+   "fod_mochi",
+   "plant_yomogimochi"
+  ],
+  [
+   "plant_yomogi",
+   "fire",
+   "plant_mogusa"
+  ],
+  [
+   "plant_mogusa",
+   "per_healer",
+   "plant_okyu"
+  ],
+  [
+   "plt_herb",
+   "cpt_summer",
+   "plant_shiso"
+  ],
+  [
+   "plt_herb",
+   "nat_river",
+   "plant_wasabi"
+  ],
+  [
+   "plt_herb",
+   "earth",
+   "plant_shoga"
+  ],
+  [
+   "plt_herb",
+   "nat_shadow",
+   "plant_myoga"
+  ],
+  [
+   "plt_herb",
+   "per_human",
+   "plant_ninjin"
+  ],
+  [
+   "plt_herb",
+   "plt_tree",
+   "plant_sansho"
+  ],
+  [
+   "plt_herb",
+   "nat_ice",
+   "plant_hakka"
+  ],
+  [
+   "plt_herb",
+   "plc_onsen",
+   "plant_yakuto"
+  ],
+  [
+   "plt_herb",
+   "nat_dark",
+   "plant_dokudami"
+  ],
+  [
+   "plt_herb",
+   "yok_aura",
+   "plant_dokuso"
+  ],
+  [
+   "plant_dokuso",
+   "yok_oni",
+   "plant_torikabuto"
+  ],
+  [
+   "plant_216",
+   "plt_herb",
+   "plant_kakkonto"
+  ],
+  [
+   "plant_hachijuhachiya",
+   "per_human",
+   "plant_shincha"
+  ],
+  [
+   "plt_tea",
+   "plant_206",
+   "plant_gyokuro"
+  ],
+  [
+   "plt_tea",
+   "cpt_autumn",
+   "plant_bancha"
+  ],
+  [
+   "plt_tea",
+   "nat_flame",
+   "plant_hojicha"
+  ],
+  [
+   "plt_tea",
+   "fod_rice",
+   "plant_genmaicha"
+  ],
+  [
+   "plt_tea",
+   "plt_flower",
+   "plant_cha_hana"
+  ],
+  [
+   "plt_tea",
+   "cpt_spring",
+   "plant_hachijuhachiya"
+  ],
+  [
+   "plt_tea",
+   "plc_field",
+   "plant_chabatake"
+  ],
+  [
+   "plant_chabatake",
+   "nat_river",
+   "plant_ujicha"
+  ],
+  [
+   "plt_lotus",
+   "plc_pond",
+   "plant_renchi"
+  ],
+  [
+   "plt_lotus",
+   "earth",
+   "plant_renkon"
+  ],
+  [
+   "plt_lotus",
+   "plc_temple",
+   "plant_renge"
+  ],
+  [
+   "plt_lotus",
+   "nat_rain",
+   "plant_hasu_ha"
+  ],
+  [
+   "plant_hasu_ha",
+   "plant_206",
+   "plant_hasu_tsuyu"
+  ],
+  [
+   "plt_lotus",
+   "nat_moon",
+   "plant_byakuren"
+  ],
+  [
+   "plt_lotus",
+   "nat_night",
+   "plant_suiren"
+  ],
+  [
+   "plt_lotus",
+   "plant_058",
+   "plant_kodaihasu"
+  ],
+  [
+   "plant_renge",
+   "nat_light",
+   "plant_gokuraku_hasu"
+  ],
+  [
+   "plant_renge",
+   "fth_buddha",
+   "plant_rengeza"
+  ],
+  [
+   "plt_willow",
+   "cpt_spring",
+   "plant_nekoyanagi"
+  ],
+  [
+   "plt_willow",
+   "nat_rain",
+   "plant_yanagi_ame"
+  ],
+  [
+   "plt_willow",
+   "yok_ghost",
+   "plant_yanagi_yurei"
+  ],
+  [
+   "plt_willow",
+   "tol_basket",
+   "plant_yanagigori"
+  ],
+  [
+   "plt_willow",
+   "nat_river",
+   "plant_yanagi_namiki"
+  ],
+  [
+   "plt_forest",
+   "art_breath",
+   "plant_moribayashi"
+  ],
+  [
+   "plt_forest",
+   "plt_forest",
+   "plant_genseirin"
+  ],
+  [
+   "plant_buna",
+   "plt_forest",
+   "plant_bunarin"
+  ],
+  [
+   "plt_tree",
+   "nat_snow",
+   "plant_buna"
+  ],
+  [
+   "plt_tree",
+   "nat_ice",
+   "plant_shirakaba"
+  ],
+  [
+   "plt_tree",
+   "per_traveler",
+   "plant_enoki"
+  ],
+  [
+   "plant_enoki",
+   "mat_stone",
+   "plant_ichirizuka"
+  ],
+  [
+   "plt_tree",
+   "tol_dish",
+   "plant_hoo"
+  ],
+  [
+   "plant_hoo",
+   "nat_flame",
+   "plant_hobamiso"
+  ],
+  [
+   "plt_tree",
+   "nat_night",
+   "plant_nemu"
+  ],
+  [
+   "plt_tree",
+   "cpt_heathaze",
+   "plant_sarusuberi"
+  ],
+  [
+   "plt_tree",
+   "trs_goldleaf",
+   "plant_kinmokusei"
+  ],
+  [
+   "plant_kinmokusei",
+   "nat_moon",
+   "plant_ginmokusei"
+  ],
+  [
+   "plant_kinmokusei",
+   "wind",
+   "plant_mokusei_kaori"
+  ],
+  [
+   "plt_tree",
+   "tol_koto",
+   "plant_biwa"
+  ],
+  [
+   "plt_tree",
+   "mat_gem",
+   "plant_zakuro"
+  ],
+  [
+   "plant_308",
+   "nat_sun",
+   "plant_mikan"
+  ],
+  [
+   "plant_mikan",
+   "cpt_winter",
+   "plant_kotatsu_mikan"
+  ],
+  [
+   "plt_flower",
+   "cpt_springhaze",
+   "plant_jinchoge"
+  ],
+  [
+   "plt_flower",
+   "mat_cloth",
+   "plant_kuchinashi"
+  ],
+  [
+   "plt_flower",
+   "nat_mountain",
+   "plant_yamabuki"
+  ],
+  [
+   "plant_058",
+   "cpt_spring",
+   "plant_nanohana"
+  ],
+  [
+   "plant_nanohana",
+   "plc_field",
+   "plant_nanohana_batake"
+  ],
+  [
+   "plt_flower",
+   "cpt_summer",
+   "plant_himawari"
+  ],
+  [
+   "plt_grass",
+   "nat_sun",
+   "plant_tanpopo"
+  ],
+  [
+   "plant_tanpopo",
+   "wind",
+   "plant_watage"
+  ],
+  [
+   "plt_grass",
+   "tol_lantern",
+   "plant_hozuki"
+  ],
+  [
+   "plant_hozuki",
+   "per_merchant",
+   "plant_hozukiichi"
+  ],
+  [
+   "plt_flower",
+   "yok_dragon",
+   "plant_rindo"
+  ],
+  [
+   "plt_flower",
+   "tol_windbell",
+   "plant_suzuran"
+  ],
+  [
+   "plt_flower",
+   "wpn_spear",
+   "plant_azami"
+  ],
+  [
+   "plt_flower",
+   "mat_sand",
+   "plant_hamayu"
+  ],
+  [
+   "plant_183",
+   "mat_sand",
+   "plant_hamahirugao"
+  ],
+  [
+   "plt_grass",
+   "cpt_tsukimi",
+   "plant_tsukimiso"
+  ],
+  [
+   "plant_206",
+   "plt_grass",
+   "plant_tsuyukusa"
+  ],
+  [
+   "plt_grass",
+   "plc_lake",
+   "plant_ashi"
+  ],
+  [
+   "plant_ashi",
+   "mat_rope",
+   "plant_yoshizu"
+  ],
+  [
+   "plt_grass",
+   "cpt_firefly",
+   "plant_kusamura"
+  ],
+  [
+   "plt_grass",
+   "cpt_winter",
+   "plant_karekusa"
+  ],
+  [
+   "plt_grass",
+   "tol_flute",
+   "plant_kusabue"
+  ],
+  [
+   "plant_karekusa",
+   "nat_flame",
+   "plant_noyaki"
+  ],
+  [
+   "plant_kusamura",
+   "cpt_heathaze",
+   "plant_kusaikire"
+  ],
+  [
+   "plt_grass",
+   "fod_dashi",
+   "plant_mitsuba"
+  ],
+  [
+   "plt_sakura",
+   "cpt_summer",
+   "plant_hazakura"
+  ],
+  [
+   "plant_hazakura",
+   "plant_058",
+   "plant_sakuranbo"
+  ],
+  [
+   "plt_sakura",
+   "mat_ink",
+   "plant_usuzumi"
+  ],
+  [
+   "plt_sakura",
+   "nat_frost",
+   "plant_hanabie"
+  ],
+  [
+   "plt_sakura",
+   "nat_storm",
+   "plant_hanaarashi"
+  ],
+  [
+   "plant_014",
+   "per_traveler",
+   "plant_sakura_zensen"
+  ],
+  [
+   "plant_052",
+   "plt_sakura",
+   "plant_ubazakura"
+  ],
+  [
+   "plt_flower",
+   "tol_book",
+   "plant_oshibana"
+  ],
+  [
+   "plt_flower",
+   "tol_scroll",
+   "plant_hanakotoba"
+  ],
+  [
+   "plt_flower",
+   "plt_flower",
+   "plant_hanataba"
+  ],
+  [
+   "plant_hanataba",
+   "wpn_chain",
+   "plant_hanawa"
+  ],
+  [
+   "plt_flower",
+   "plc_field",
+   "plant_hyakka"
+  ],
+  [
+   "plt_flower",
+   "fth_incense",
+   "plant_kaori_hana"
+  ],
+  [
+   "plt_flower",
+   "mat_glass",
+   "plant_uki_hanabi"
+  ],
+  [
+   "plant_kodaihasu",
+   "plant_058",
+   "plant_hashiri_tsuyu"
+  ],
+  [
+   "plt_lotus",
+   "cpt_spring",
+   "plant_hasu_tsubomi"
+  ],
+  [
+   "plt_tree",
+   "fth_buddha",
+   "plant_bodaiju"
+  ],
+  [
+   "plt_ume",
+   "tol_flute",
+   "plant_ume_uguisu"
+  ],
+  [
+   "plant_021",
+   "mat_cloth",
+   "plant_sakura_tsuki"
+  ],
+  [
+   "plant_064",
+   "yok_phoenix",
+   "plant_matsu_tsuru"
+  ],
+  [
+   "plant_213",
+   "nat_moon",
+   "plant_susuki_tsuki"
+  ],
+  [
+   "plant_285",
+   "yok_phoenix",
+   "plant_kiri_hoo"
+  ],
+  [
+   "plant_191",
+   "trs_hagoromo",
+   "plant_botan_cho"
+  ],
+  [
+   "plant_146",
+   "tol_sakazuki",
+   "plant_kiku_sakazuki"
+  ],
+  [
+   "plant_122",
+   "nat_mountain",
+   "plant_momiji_shika"
+  ],
+  [
+   "plant_209",
+   "plant_194",
+   "plant_hagi_inoshishi"
+  ],
+  [
+   "plant_164",
+   "nat_night",
+   "plant_fuji_hototogisu"
+  ],
+  [
+   "plant_200",
+   "plc_bridge",
+   "plant_ayame_yatsuhashi"
+  ],
+  [
+   "plt_willow",
+   "tol_kite",
+   "plant_yanagi_tsubame"
+  ],
+  [
+   "plant_285",
+   "nat_rain",
+   "plant_kiri_mon_hanafuda"
+  ],
+  [
+   "plant_sakura_tsuki",
+   "plant_susuki_tsuki",
+   "plant_hanafuda_hana"
+  ],
+  [
+   "plant_hanafuda_hana",
+   "plant_matsu_tsuru",
+   "plant_gokou"
+  ],
+  [
+   "plt_sakura",
+   "tol_lantern",
+   "plant_004"
+  ],
+  [
+   "plt_sakura",
+   "nat_whirlwind",
+   "plant_006"
+  ],
+  [
+   "plant_005",
+   "plc_pond",
+   "plant_007"
+  ],
+  [
+   "plant_001",
+   "plant_001",
+   "plant_009"
+  ],
+  [
+   "plant_012",
+   "fod_mochi",
+   "plant_010"
+  ],
+  [
+   "plant_012",
+   "fod_tea",
+   "plant_011"
+  ],
+  [
+   "plant_021",
+   "fod_sake",
+   "plant_018"
+  ],
+  [
+   "plt_sakura",
+   "nat_waterfall",
+   "plant_020"
+  ],
+  [
+   "plant_021",
+   "wind",
+   "plant_022"
+  ],
+  [
+   "plt_sakura",
+   "yok_aura",
+   "plant_030"
+  ],
+  [
+   "plt_ume",
+   "cpt_sunset",
+   "plant_031"
+  ],
+  [
+   "plt_ume",
+   "nat_moon",
+   "plant_032"
+  ],
+  [
+   "plt_ume",
+   "plt_ume",
+   "plant_033"
+  ],
+  [
+   "plant_041",
+   "mat_salt",
+   "plant_034"
+  ],
+  [
+   "plant_041",
+   "fod_sake",
+   "plant_035"
+  ],
+  [
+   "plt_ume",
+   "nat_whirlwind",
+   "plant_037"
+  ],
+  [
+   "plt_ume",
+   "nat_frost",
+   "plant_039"
+  ],
+  [
+   "plt_ume",
+   "plt_moss",
+   "plant_052"
+  ],
+  [
+   "plant_059",
+   "fire",
+   "plant_060"
+  ],
+  [
+   "plt_pine",
+   "plt_pine",
+   "plant_062"
+  ],
+  [
+   "plt_pine",
+   "nat_wave",
+   "plant_072"
+  ],
+  [
+   "plant_062",
+   "plt_mushroom",
+   "plant_074"
+  ],
+  [
+   "plt_bamboo",
+   "earth",
+   "plant_086"
+  ],
+  [
+   "plt_bamboo",
+   "plc_garden",
+   "plant_093"
+  ],
+  [
+   "plant_102",
+   "nat_moon",
+   "plant_101"
+  ],
+  [
+   "plant_115",
+   "wind",
+   "plant_118"
+  ],
+  [
+   "plant_118",
+   "fod_bakedpotato",
+   "plant_119"
+  ],
+  [
+   "plt_maple",
+   "plt_maple",
+   "plant_121"
+  ],
+  [
+   "plant_114",
+   "fod_mochi",
+   "plant_128"
+  ],
+  [
+   "plant_134",
+   "wpn_katana",
+   "plant_138"
+  ],
+  [
+   "plant_153",
+   "fod_sake",
+   "plant_149"
+  ],
+  [
+   "plant_146",
+   "nat_river",
+   "plant_154"
+  ],
+  [
+   "plt_flower",
+   "plt_willow",
+   "plant_163"
+  ],
+  [
+   "plant_163",
+   "plc_garden",
+   "plant_164"
+  ],
+  [
+   "plt_flower",
+   "cpt_samidare",
+   "plant_172"
+  ],
+  [
+   "plt_flower",
+   "cpt_sunset",
+   "plant_182"
+  ],
+  [
+   "plt_flower",
+   "yok_ghost",
+   "plant_185"
+  ],
+  [
+   "plant_185",
+   "fth_buddha",
+   "plant_186"
+  ],
+  [
+   "plt_flower",
+   "wpn_katana",
+   "plant_195"
+  ],
+  [
+   "plt_flower",
+   "tol_mirror",
+   "plant_202"
+  ],
+  [
+   "plt_moss",
+   "plc_karesansui",
+   "plant_238"
+  ],
+  [
+   "plant_238",
+   "plc_temple",
+   "plant_239"
+  ],
+  [
+   "plt_moss",
+   "plc_well",
+   "plant_243"
+  ],
+  [
+   "plt_tree",
+   "nat_mist",
+   "plant_270"
+  ],
+  [
+   "plant_272",
+   "plc_island",
+   "plant_275"
+  ],
+  [
+   "plant_299",
+   "nat_sun",
+   "plant_300"
+  ],
+  [
+   "plant_304",
+   "nat_flame",
+   "plant_307"
+  ],
+  [
+   "plant_311",
+   "nat_cloud",
+   "plant_314"
+  ],
+  [
+   "plant_317",
+   "mat_gold",
+   "plant_321"
+  ],
+  [
+   "plant_322",
+   "mat_paper",
+   "plant_323"
+  ],
+  [
+   "plant_sanae",
+   "nat_sun",
+   "plant_inaho"
+  ],
+  [
+   "plt_rice",
+   "plc_paddy",
+   "plant_sanae"
+  ],
+  [
+   "plant_inaho",
+   "cpt_sunset",
+   "plant_konjiki_inaho"
+  ],
+  [
+   "plt_straw",
+   "plc_paddy",
+   "plant_kakashi"
+  ],
+  [
+   "plt_straw",
+   "plc_village",
+   "plant_warabuki"
+  ],
+  [
+   "plt_seaweed",
+   "per_traveler",
+   "plant_ukikusa"
+  ],
+  [
+   "plt_grass",
+   "plt_herb",
+   "plant_yomogi"
+  ],
+  [
+   "plant_mogusa",
+   "per_human",
+   "plant_okyu"
+  ],
+  [
+   "plant_034",
+   "plt_herb",
+   "plant_shiso"
+  ],
+  [
+   "plt_herb",
+   "fod_sashimi",
+   "plant_wasabi"
+  ],
+  [
+   "plt_herb",
+   "fod_sushi",
+   "plant_shoga"
+  ],
+  [
+   "plt_herb",
+   "nat_snow",
+   "plant_hakka"
+  ],
+  [
+   "plt_grass",
+   "yok_grudge",
+   "plant_dokuso"
+  ],
+  [
+   "plt_tea",
+   "nat_shadow",
+   "plant_gyokuro"
+  ],
+  [
+   "plt_tea",
+   "tol_pot",
+   "plant_hojicha"
+  ],
+  [
+   "plt_tea",
+   "plant_068",
+   "plant_chabatake"
+  ],
+  [
+   "plt_lotus",
+   "nat_snow",
+   "plant_byakuren"
+  ],
+  [
+   "plt_willow",
+   "per_traveler",
+   "plant_yanagigori"
+  ],
+  [
+   "plt_forest",
+   "plt_moss",
+   "plant_genseirin"
+  ],
+  [
+   "plant_buna",
+   "plant_buna",
+   "plant_bunarin"
+  ],
+  [
+   "plant_kinmokusei",
+   "fth_incense",
+   "plant_mokusei_kaori"
+  ],
+  [
+   "plant_nanohana",
+   "plant_nanohana",
+   "plant_nanohana_batake"
+  ],
+  [
+   "plt_flower",
+   "nat_sun",
+   "plant_himawari"
+  ],
+  [
+   "plt_grass",
+   "yok_onibi",
+   "plant_hozuki"
+  ],
+  [
+   "plt_flower",
+   "tol_bell",
+   "plant_suzuran"
+  ],
+  [
+   "plant_ashi",
+   "cpt_summer",
+   "plant_yoshizu"
+  ],
+  [
+   "plt_sakura",
+   "plant_058",
+   "plant_sakuranbo"
+  ],
+  [
+   "plt_sakura",
+   "tol_inkstone",
+   "plant_usuzumi"
+  ],
+  [
+   "plant_005",
+   "nat_storm",
+   "plant_hanaarashi"
+  ],
+  [
+   "plt_flower",
+   "mat_paper",
+   "plant_oshibana"
+  ],
+  [
+   "plt_sakura",
+   "fod_matcha",
+   "plant_016"
+  ],
+  [
+   "plt_sakura",
+   "per_farmer",
+   "plant_017"
+  ],
+  [
+   "plt_sakura",
+   "tol_sakazuki",
+   "plant_018"
+  ],
+  [
+   "plt_sakura",
+   "wpn_sword",
+   "plant_025"
+  ],
+  [
+   "plt_ume",
+   "plc_teahouse",
+   "plant_036"
+  ],
+  [
+   "plt_ume",
+   "plant_058",
+   "plant_041"
+  ],
+  [
+   "plant_033",
+   "plc_garden",
+   "plant_047"
+  ],
+  [
+   "plant_047",
+   "plc_castle",
+   "plant_048"
+  ],
+  [
+   "plt_pine",
+   "plt_moss",
+   "plant_064"
+  ],
+  [
+   "plt_pine",
+   "tol_brush",
+   "plant_079"
+  ],
+  [
+   "plant_061",
+   "tol_koto",
+   "plant_084"
+  ],
+  [
+   "plant_091",
+   "per_traveler",
+   "plant_092"
+  ],
+  [
+   "plt_bamboo",
+   "cpt_summer",
+   "plant_107"
+  ],
+  [
+   "plant_088",
+   "nat_whirlwind",
+   "plant_108"
+  ],
+  [
+   "plant_115",
+   "nat_flame",
+   "plant_131"
+  ],
+  [
+   "plant_115",
+   "plc_temple",
+   "plant_133"
+  ],
+  [
+   "plant_134",
+   "cpt_winter",
+   "plant_135"
+  ],
+  [
+   "plant_146",
+   "nat_snow",
+   "plant_147"
+  ],
+  [
+   "plant_146",
+   "plant_206",
+   "plant_155"
+  ],
+  [
+   "plant_178",
+   "fth_festival",
+   "plant_179"
+  ],
+  [
+   "plant_185",
+   "nat_moon",
+   "plant_187"
+  ],
+  [
+   "plt_flower",
+   "plant_195",
+   "plant_198"
+  ],
+  [
+   "plant_195",
+   "fod_carp",
+   "plant_199"
+  ],
+  [
+   "plant_202",
+   "wind",
+   "plant_203"
+  ],
+  [
+   "plant_209",
+   "plant_azuki",
+   "plant_211"
+  ],
+  [
+   "plant_223",
+   "plant_222",
+   "plant_229"
+  ],
+  [
+   "plant_205",
+   "plant_hanataba",
+   "plant_233"
+  ],
+  [
+   "plt_flower",
+   "per_teamaster",
+   "plant_265"
+  ],
+  [
+   "plant_270",
+   "plc_shrine",
+   "plant_276"
+  ],
+  [
+   "plant_291",
+   "plc_shrine",
+   "plant_292"
+  ],
+  [
+   "plant_308",
+   "nat_steam",
+   "plant_309"
+  ],
+  [
+   "plant_134",
+   "nat_moon",
+   "plant_142"
+  ],
+  [
+   "plant_146",
+   "plt_tea",
+   "plant_150"
+  ],
+  [
+   "plant_163",
+   "fod_sake",
+   "plant_168"
+  ],
+  [
+   "plant_172",
+   "fth_monk",
+   "plant_173"
+  ],
+  [
+   "plant_191",
+   "plc_temple",
+   "plant_193"
+  ],
+  [
+   "plant_195",
+   "nat_river",
+   "plant_200"
+  ],
+  [
+   "plant_114",
+   "plant_247",
+   "plant_253"
+  ],
+  [
+   "plant_256",
+   "per_human",
+   "plant_260"
+  ],
+  [
+   "plant_285",
+   "mat_thread",
+   "plant_287"
+  ],
+  [
+   "plant_278",
+   "tol_bucket",
+   "plant_280"
+  ],
+  [
+   "plant_304",
+   "plant_azuki",
+   "plant_305"
+  ],
+  [
+   "plant_317",
+   "tol_teabowl",
+   "plant_318"
+  ],
+  [
+   "plant_renchi",
+   "wpn_sickle",
+   "plant_renkon"
+  ],
+  [
+   "plt_lotus",
+   "tol_umbrella",
+   "plant_hasu_ha"
+  ],
+  [
+   "plt_mushroom",
+   "yok_grudge",
+   "plant_dokukinoko"
+  ],
+  [
+   "plt_mushroom",
+   "yok_onibi",
+   "plant_hikarikinoko"
+  ],
+  [
+   "plant_mugi",
+   "wind",
+   "plant_mugibatake"
+  ],
+  [
+   "plant_soba",
+   "nat_snow",
+   "plant_soba_hana"
+  ],
+  [
+   "plant_daizu",
+   "fod_sake",
+   "plant_edamame"
+  ],
+  [
+   "plant_216",
+   "per_healer",
+   "plant_kakkonto"
+  ],
+  [
+   "plant_hozuki",
+   "fth_festival",
+   "plant_hozukiichi"
+  ],
+  [
+   "plant_183",
+   "nat_sea",
+   "plant_hamahirugao"
+  ],
+  [
+   "plant_karekusa",
+   "fire",
+   "plant_noyaki"
+  ],
+  [
+   "plt_tree",
+   "trs_juzu",
+   "plant_bodaiju"
+  ],
+  [
+   "plt_bamboo",
+   "nat_flame",
+   "plant_112"
+  ],
+  [
+   "plt_bamboo",
+   "fod_gohan",
+   "plant_111"
+  ],
+  [
+   "plant_097",
+   "plc_pond",
+   "plant_098"
+  ],
+  [
+   "plant_097",
+   "fod_rice",
+   "plant_099"
+  ],
+  [
+   "plt_maple",
+   "plc_garden",
+   "plant_114"
+  ],
+  [
+   "plant_118",
+   "mat_cloth",
+   "plant_120"
+  ],
+  [
+   "plant_121",
+   "nat_river",
+   "plant_125"
+  ]
+ ]
+}

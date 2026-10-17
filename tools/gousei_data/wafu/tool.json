@@ -1,0 +1,5242 @@
+{
+ "category": "tool",
+ "items": [
+  {
+   "id": "tool_shokudai",
+   "zh": "燭台",
+   "ja": "燭台"
+  },
+  {
+   "id": "tool_rousoku",
+   "zh": "蠟燭",
+   "ja": "蝋燭"
+  },
+  {
+   "id": "tool_ekakirousoku",
+   "zh": "繪蠟燭",
+   "ja": "絵蝋燭"
+  },
+  {
+   "id": "tool_andon",
+   "zh": "行燈",
+   "ja": "行灯"
+  },
+  {
+   "id": "tool_ariakeandon",
+   "zh": "有明行燈",
+   "ja": "有明行灯"
+  },
+  {
+   "id": "tool_bonbori",
+   "zh": "雪洞",
+   "ja": "雪洞"
+  },
+  {
+   "id": "tool_tsuridoro",
+   "zh": "吊燈籠",
+   "ja": "吊り灯籠"
+  },
+  {
+   "id": "tool_odawarachochin",
+   "zh": "小田原燈籠",
+   "ja": "小田原提灯"
+  },
+  {
+   "id": "tool_yumiharichochin",
+   "zh": "弓張燈籠",
+   "ja": "弓張提灯"
+  },
+  {
+   "id": "tool_akachochin",
+   "zh": "紅燈籠",
+   "ja": "赤提灯"
+  },
+  {
+   "id": "tool_gando",
+   "zh": "龕燈",
+   "ja": "龕灯"
+  },
+  {
+   "id": "tool_ukidoro",
+   "zh": "水燈籠",
+   "ja": "浮き灯籠"
+  },
+  {
+   "id": "tool_isaribi",
+   "zh": "漁火",
+   "ja": "漁火"
+  },
+  {
+   "id": "tool_hiuchibukuro",
+   "zh": "打火石袋",
+   "ja": "火打袋"
+  },
+  {
+   "id": "tool_kairo",
+   "zh": "懷爐",
+   "ja": "懐炉"
+  },
+  {
+   "id": "tool_kagaribi",
+   "zh": "篝火",
+   "ja": "篝火"
+  },
+  {
+   "id": "tool_kamado",
+   "zh": "灶",
+   "ja": "竈"
+  },
+  {
+   "id": "tool_noborigama",
+   "zh": "燒窯",
+   "ja": "焼き窯"
+  },
+  {
+   "id": "tool_kama",
+   "zh": "鐵釜",
+   "ja": "釜"
+  },
+  {
+   "id": "tool_habagama",
+   "zh": "羽釜",
+   "ja": "羽釜"
+  },
+  {
+   "id": "tool_ohitsu",
+   "zh": "飯桶",
+   "ja": "お櫃"
+  },
+  {
+   "id": "tool_shamoji",
+   "zh": "飯勺",
+   "ja": "杓文字"
+  },
+  {
+   "id": "tool_donabe",
+   "zh": "砂鍋",
+   "ja": "土鍋"
+  },
+  {
+   "id": "tool_otoshibuta",
+   "zh": "落蓋",
+   "ja": "落とし蓋"
+  },
+  {
+   "id": "tool_seiro",
+   "zh": "蒸籠",
+   "ja": "蒸籠"
+  },
+  {
+   "id": "tool_hifukitake",
+   "zh": "吹火筒",
+   "ja": "火吹き竹"
+  },
+  {
+   "id": "tool_fuigo",
+   "zh": "風箱",
+   "ja": "鞴"
+  },
+  {
+   "id": "tool_tatara",
+   "zh": "踏鞴爐",
+   "ja": "踏鞴"
+  },
+  {
+   "id": "tool_irori",
+   "zh": "圍爐裏",
+   "ja": "囲炉裏"
+  },
+  {
+   "id": "tool_jizaikagi",
+   "zh": "自在鉤",
+   "ja": "自在鉤"
+  },
+  {
+   "id": "tool_hibachi",
+   "zh": "火盆",
+   "ja": "火鉢"
+  },
+  {
+   "id": "tool_nagahibachi",
+   "zh": "長火盆",
+   "ja": "長火鉢"
+  },
+  {
+   "id": "tool_gotoku",
+   "zh": "爐架",
+   "ja": "五徳"
+  },
+  {
+   "id": "tool_hibashi",
+   "zh": "火筷",
+   "ja": "火箸"
+  },
+  {
+   "id": "tool_tetsubin",
+   "zh": "鐵壺",
+   "ja": "鉄瓶"
+  },
+  {
+   "id": "tool_yakiami",
+   "zh": "烤網",
+   "ja": "焼き網"
+  },
+  {
+   "id": "tool_mochiami",
+   "zh": "烤年糕網",
+   "ja": "餅焼き網"
+  },
+  {
+   "id": "tool_shichirin",
+   "zh": "七輪炭爐",
+   "ja": "七輪"
+  },
+  {
+   "id": "tool_manaita",
+   "zh": "砧板",
+   "ja": "俎板"
+  },
+  {
+   "id": "tool_hocho",
+   "zh": "菜刀",
+   "ja": "包丁"
+  },
+  {
+   "id": "tool_debabocho",
+   "zh": "出刃刀",
+   "ja": "出刃包丁"
+  },
+  {
+   "id": "tool_yanagiba",
+   "zh": "柳刃刀",
+   "ja": "柳刃包丁"
+  },
+  {
+   "id": "tool_nakiri",
+   "zh": "菜切刀",
+   "ja": "菜切り包丁"
+  },
+  {
+   "id": "tool_oroshigane",
+   "zh": "磨泥板",
+   "ja": "おろし金"
+  },
+  {
+   "id": "tool_hashi",
+   "zh": "筷子",
+   "ja": "箸"
+  },
+  {
+   "id": "tool_hashibako",
+   "zh": "筷盒",
+   "ja": "箸箱"
+  },
+  {
+   "id": "tool_saibashi",
+   "zh": "長筷",
+   "ja": "菜箸"
+  },
+  {
+   "id": "tool_hashioki",
+   "zh": "筷架",
+   "ja": "箸置き"
+  },
+  {
+   "id": "tool_owan",
+   "zh": "木碗",
+   "ja": "椀"
+  },
+  {
+   "id": "tool_shikki",
+   "zh": "漆碗",
+   "ja": "塗り椀"
+  },
+  {
+   "id": "tool_ozen",
+   "zh": "本膳",
+   "ja": "本膳"
+  },
+  {
+   "id": "tool_hakozen",
+   "zh": "箱膳",
+   "ja": "箱膳"
+  },
+  {
+   "id": "tool_chabudai",
+   "zh": "矮餐桌",
+   "ja": "ちゃぶ台"
+  },
+  {
+   "id": "tool_bento",
+   "zh": "便當盒",
+   "ja": "弁当箱"
+  },
+  {
+   "id": "tool_magewappa",
+   "zh": "曲木便當盒",
+   "ja": "曲げわっぱ"
+  },
+  {
+   "id": "tool_jubako",
+   "zh": "多層餐盒",
+   "ja": "重箱"
+  },
+  {
+   "id": "tool_okamochi",
+   "zh": "外送提盒",
+   "ja": "岡持ち"
+  },
+  {
+   "id": "tool_suribachi",
+   "zh": "研缽",
+   "ja": "擂鉢"
+  },
+  {
+   "id": "tool_surikogi",
+   "zh": "研杵",
+   "ja": "擂粉木"
+  },
+  {
+   "id": "tool_yagen",
+   "zh": "藥碾",
+   "ja": "薬研"
+  },
+  {
+   "id": "tool_usu",
+   "zh": "臼",
+   "ja": "臼"
+  },
+  {
+   "id": "tool_kine",
+   "zh": "杵",
+   "ja": "杵"
+  },
+  {
+   "id": "tool_ishiusu",
+   "zh": "石磨",
+   "ja": "石臼"
+  },
+  {
+   "id": "tool_karausu",
+   "zh": "踏碓",
+   "ja": "唐臼"
+  },
+  {
+   "id": "tool_takezutsu",
+   "zh": "竹吸筒",
+   "ja": "吸筒"
+  },
+  {
+   "id": "tool_hishaku",
+   "zh": "竹水瓢",
+   "ja": "竹柄杓"
+  },
+  {
+   "id": "tool_tamajakushi",
+   "zh": "湯勺",
+   "ja": "お玉杓子"
+  },
+  {
+   "id": "tool_taru",
+   "zh": "酒樽",
+   "ja": "樽"
+  },
+  {
+   "id": "tool_komodaru",
+   "zh": "草包酒樽",
+   "ja": "菰樽"
+  },
+  {
+   "id": "tool_tokkuri",
+   "zh": "酒壺",
+   "ja": "徳利"
+  },
+  {
+   "id": "tool_chirori",
+   "zh": "溫酒壺",
+   "ja": "ちろり"
+  },
+  {
+   "id": "tool_choshi",
+   "zh": "酒銚",
+   "ja": "銚子"
+  },
+  {
+   "id": "tool_masu",
+   "zh": "木升",
+   "ja": "枡"
+  },
+  {
+   "id": "tool_zaru",
+   "zh": "竹篩",
+   "ja": "笊"
+  },
+  {
+   "id": "tool_furui",
+   "zh": "篩子",
+   "ja": "篩"
+  },
+  {
+   "id": "tool_tsubo",
+   "zh": "陶壺",
+   "ja": "壺"
+  },
+  {
+   "id": "tool_mizugame",
+   "zh": "水缸",
+   "ja": "水甕"
+  },
+  {
+   "id": "tool_umeboshitsubo",
+   "zh": "梅乾罈",
+   "ja": "梅干し壺"
+  },
+  {
+   "id": "tool_chatsubo",
+   "zh": "大茶罈",
+   "ja": "茶壺"
+  },
+  {
+   "id": "tool_tsukemonoishi",
+   "zh": "醃菜石",
+   "ja": "漬物石"
+  },
+  {
+   "id": "tool_kamashiki",
+   "zh": "鍋墊",
+   "ja": "釜敷き"
+  },
+  {
+   "id": "tool_makisu",
+   "zh": "壽司竹簾",
+   "ja": "巻き簾"
+  },
+  {
+   "id": "tool_sushioke",
+   "zh": "壽司桶",
+   "ja": "寿司桶"
+  },
+  {
+   "id": "tool_kezuriki",
+   "zh": "柴魚刨",
+   "ja": "鰹節削り器"
+  },
+  {
+   "id": "tool_tarai",
+   "zh": "洗衣盆",
+   "ja": "盥"
+  },
+  {
+   "id": "tool_sentakuita",
+   "zh": "洗衣板",
+   "ja": "洗濯板"
+  },
+  {
+   "id": "tool_dobin",
+   "zh": "土瓶",
+   "ja": "土瓶"
+  },
+  {
+   "id": "tool_yunomi",
+   "zh": "茶杯",
+   "ja": "湯呑み"
+  },
+  {
+   "id": "tool_meotochawan",
+   "zh": "夫妻茶碗",
+   "ja": "夫婦茶碗"
+  },
+  {
+   "id": "tool_chasen",
+   "zh": "茶筅",
+   "ja": "茶筅"
+  },
+  {
+   "id": "tool_natsume",
+   "zh": "棗形茶罐",
+   "ja": "棗"
+  },
+  {
+   "id": "tool_chashaku",
+   "zh": "茶杓",
+   "ja": "茶杓"
+  },
+  {
+   "id": "tool_chagama",
+   "zh": "茶釜",
+   "ja": "茶釜"
+  },
+  {
+   "id": "tool_furo",
+   "zh": "風爐",
+   "ja": "風炉"
+  },
+  {
+   "id": "tool_chaire",
+   "zh": "茶入",
+   "ja": "茶入"
+  },
+  {
+   "id": "tool_fukusa",
+   "zh": "袱紗",
+   "ja": "袱紗"
+  },
+  {
+   "id": "tool_chakin",
+   "zh": "茶巾",
+   "ja": "茶巾"
+  },
+  {
+   "id": "tool_tenmoku",
+   "zh": "天目茶碗",
+   "ja": "天目茶碗"
+  },
+  {
+   "id": "tool_mizusashi",
+   "zh": "水指",
+   "ja": "水指"
+  },
+  {
+   "id": "tool_chabako",
+   "zh": "茶箱",
+   "ja": "茶箱"
+  },
+  {
+   "id": "tool_nodate",
+   "zh": "野點傘",
+   "ja": "野点傘"
+  },
+  {
+   "id": "tool_tatami",
+   "zh": "榻榻米",
+   "ja": "畳"
+  },
+  {
+   "id": "tool_goza",
+   "zh": "花見蓆",
+   "ja": "茣蓙"
+  },
+  {
+   "id": "tool_zabuton",
+   "zh": "坐墊",
+   "ja": "座布団"
+  },
+  {
+   "id": "tool_futon",
+   "zh": "被褥",
+   "ja": "布団"
+  },
+  {
+   "id": "tool_makura",
+   "zh": "箱枕",
+   "ja": "箱枕"
+  },
+  {
+   "id": "tool_kotatsu",
+   "zh": "被爐",
+   "ja": "炬燵"
+  },
+  {
+   "id": "tool_yutanpo",
+   "zh": "湯婆子",
+   "ja": "湯たんぽ"
+  },
+  {
+   "id": "tool_tansu",
+   "zh": "衣櫃",
+   "ja": "箪笥"
+  },
+  {
+   "id": "tool_kurumadansu",
+   "zh": "帶輪衣櫃",
+   "ja": "車箪笥"
+  },
+  {
+   "id": "tool_kaidandansu",
+   "zh": "樓梯櫃",
+   "ja": "階段箪笥"
+  },
+  {
+   "id": "tool_kusuridansu",
+   "zh": "藥櫃",
+   "ja": "薬箪笥"
+  },
+  {
+   "id": "tool_funadansu",
+   "zh": "船櫃",
+   "ja": "船箪笥"
+  },
+  {
+   "id": "tool_getabako",
+   "zh": "鞋櫃",
+   "ja": "下駄箱"
+  },
+  {
+   "id": "tool_nagamochi",
+   "zh": "長持箱",
+   "ja": "長持"
+  },
+  {
+   "id": "tool_zenibako",
+   "zh": "錢箱",
+   "ja": "銭箱"
+  },
+  {
+   "id": "tool_tsuzura",
+   "zh": "藤箱",
+   "ja": "葛籠"
+  },
+  {
+   "id": "tool_hasamibako",
+   "zh": "挾箱",
+   "ja": "挟箱"
+  },
+  {
+   "id": "tool_ikou",
+   "zh": "衣架",
+   "ja": "衣桁"
+  },
+  {
+   "id": "tool_byobu",
+   "zh": "屏風",
+   "ja": "屏風"
+  },
+  {
+   "id": "tool_kinbyobu",
+   "zh": "金屏風",
+   "ja": "金屏風"
+  },
+  {
+   "id": "tool_tsuitate",
+   "zh": "屏障",
+   "ja": "衝立"
+  },
+  {
+   "id": "tool_kicho",
+   "zh": "几帳",
+   "ja": "几帳"
+  },
+  {
+   "id": "tool_kumiko",
+   "zh": "組子木工",
+   "ja": "組子細工"
+  },
+  {
+   "id": "tool_yosegi",
+   "zh": "拼木工藝",
+   "ja": "寄木細工"
+  },
+  {
+   "id": "tool_himitsubako",
+   "zh": "機關盒",
+   "ja": "秘密箱"
+  },
+  {
+   "id": "tool_ranma",
+   "zh": "欄間",
+   "ja": "欄間"
+  },
+  {
+   "id": "tool_fusumae",
+   "zh": "隔扇畫",
+   "ja": "襖絵"
+  },
+  {
+   "id": "tool_kugikakushi",
+   "zh": "釘飾蓋",
+   "ja": "釘隠し"
+  },
+  {
+   "id": "tool_noren",
+   "zh": "暖簾",
+   "ja": "暖簾"
+  },
+  {
+   "id": "tool_kanban",
+   "zh": "招牌",
+   "ja": "看板"
+  },
+  {
+   "id": "tool_hikimaku",
+   "zh": "定式幕",
+   "ja": "引幕"
+  },
+  {
+   "id": "tool_sudare",
+   "zh": "竹簾",
+   "ja": "簾"
+  },
+  {
+   "id": "tool_kaya",
+   "zh": "蚊帳",
+   "ja": "蚊帳"
+  },
+  {
+   "id": "tool_katori",
+   "zh": "蚊香豬",
+   "ja": "蚊遣り豚"
+  },
+  {
+   "id": "tool_teruteru",
+   "zh": "晴天娃娃",
+   "ja": "照る照る坊主"
+  },
+  {
+   "id": "tool_mi",
+   "zh": "簸箕",
+   "ja": "箕"
+  },
+  {
+   "id": "tool_hoki",
+   "zh": "掃帚",
+   "ja": "箒"
+  },
+  {
+   "id": "tool_mokko",
+   "zh": "竹畚箕",
+   "ja": "畚"
+  },
+  {
+   "id": "tool_tsukubai",
+   "zh": "蹲踞洗手缽",
+   "ja": "蹲踞"
+  },
+  {
+   "id": "tool_kakehi",
+   "zh": "竹筧",
+   "ja": "筧"
+  },
+  {
+   "id": "tool_uekibachi",
+   "zh": "花盆",
+   "ja": "植木鉢"
+  },
+  {
+   "id": "tool_bonkei",
+   "zh": "盆景",
+   "ja": "盆景"
+  },
+  {
+   "id": "tool_hakoniwa",
+   "zh": "箱庭",
+   "ja": "箱庭"
+  },
+  {
+   "id": "tool_ichirinzashi",
+   "zh": "掛花器",
+   "ja": "掛花入"
+  },
+  {
+   "id": "tool_hanaire",
+   "zh": "竹花器",
+   "ja": "竹花入"
+  },
+  {
+   "id": "tool_kenzan",
+   "zh": "劍山",
+   "ja": "剣山"
+  },
+  {
+   "id": "tool_hanakago",
+   "zh": "花籃",
+   "ja": "花籠"
+  },
+  {
+   "id": "tool_koro",
+   "zh": "聞香爐",
+   "ja": "聞香炉"
+  },
+  {
+   "id": "tool_kogo",
+   "zh": "香盒",
+   "ja": "香合"
+  },
+  {
+   "id": "tool_hinoshi",
+   "zh": "火熨斗",
+   "ja": "火熨斗"
+  },
+  {
+   "id": "tool_hari",
+   "zh": "縫衣針",
+   "ja": "縫い針"
+  },
+  {
+   "id": "tool_haribako",
+   "zh": "針線盒",
+   "ja": "針箱"
+  },
+  {
+   "id": "tool_nigiribasami",
+   "zh": "握剪",
+   "ja": "握り鋏"
+  },
+  {
+   "id": "tool_kirie",
+   "zh": "剪紙",
+   "ja": "切り絵"
+  },
+  {
+   "id": "tool_furooke",
+   "zh": "澡桶",
+   "ja": "風呂桶"
+  },
+  {
+   "id": "tool_goemonburo",
+   "zh": "五右衛門浴缸",
+   "ja": "五右衛門風呂"
+  },
+  {
+   "id": "tool_tenugui",
+   "zh": "手巾",
+   "ja": "手拭い"
+  },
+  {
+   "id": "tool_nukabukuro",
+   "zh": "米糠袋",
+   "ja": "糠袋"
+  },
+  {
+   "id": "tool_furoshiki",
+   "zh": "包袱巾",
+   "ja": "風呂敷"
+  },
+  {
+   "id": "tool_kinchaku",
+   "zh": "束口袋",
+   "ja": "巾着"
+  },
+  {
+   "id": "tool_saifu",
+   "zh": "錢包",
+   "ja": "財布"
+  },
+  {
+   "id": "tool_zenisashi",
+   "zh": "錢串",
+   "ja": "銭差し"
+  },
+  {
+   "id": "tool_shoikago",
+   "zh": "背簍",
+   "ja": "背負い籠"
+  },
+  {
+   "id": "tool_obi",
+   "zh": "腰帶",
+   "ja": "帯"
+  },
+  {
+   "id": "tool_obijime",
+   "zh": "腰帶繩",
+   "ja": "帯締め"
+  },
+  {
+   "id": "tool_obidome",
+   "zh": "帶扣",
+   "ja": "帯留"
+  },
+  {
+   "id": "tool_hakama",
+   "zh": "袴",
+   "ja": "袴"
+  },
+  {
+   "id": "tool_haori",
+   "zh": "羽織",
+   "ja": "羽織"
+  },
+  {
+   "id": "tool_montsuki",
+   "zh": "紋付羽織袴",
+   "ja": "紋付羽織袴"
+  },
+  {
+   "id": "tool_kamishimo",
+   "zh": "裃",
+   "ja": "裃"
+  },
+  {
+   "id": "tool_hanten",
+   "zh": "半纏",
+   "ja": "半纏"
+  },
+  {
+   "id": "tool_hikeshibanten",
+   "zh": "消防半纏",
+   "ja": "火消し半纏"
+  },
+  {
+   "id": "tool_dotera",
+   "zh": "棉袍",
+   "ja": "褞袍"
+  },
+  {
+   "id": "tool_jinbei",
+   "zh": "甚平",
+   "ja": "甚平"
+  },
+  {
+   "id": "tool_furisode",
+   "zh": "振袖",
+   "ja": "振袖"
+  },
+  {
+   "id": "tool_kurotomesode",
+   "zh": "黑留袖",
+   "ja": "黒留袖"
+  },
+  {
+   "id": "tool_tasuki",
+   "zh": "束袖帶",
+   "ja": "襷"
+  },
+  {
+   "id": "tool_hachimaki",
+   "zh": "頭帶",
+   "ja": "鉢巻"
+  },
+  {
+   "id": "tool_hokkamuri",
+   "zh": "包頭巾",
+   "ja": "頬被り"
+  },
+  {
+   "id": "tool_fundoshi",
+   "zh": "兜襠布",
+   "ja": "褌"
+  },
+  {
+   "id": "tool_juban",
+   "zh": "襯衣",
+   "ja": "襦袢"
+  },
+  {
+   "id": "tool_junihitoe",
+   "zh": "十二單",
+   "ja": "十二単"
+  },
+  {
+   "id": "tool_uchikake",
+   "zh": "打掛",
+   "ja": "打掛"
+  },
+  {
+   "id": "tool_shiromuku",
+   "zh": "白無垢",
+   "ja": "白無垢"
+  },
+  {
+   "id": "tool_tsunokakushi",
+   "zh": "角隱",
+   "ja": "角隠し"
+  },
+  {
+   "id": "tool_hakoseko",
+   "zh": "筥迫",
+   "ja": "筥迫"
+  },
+  {
+   "id": "tool_kariginu",
+   "zh": "狩衣",
+   "ja": "狩衣"
+  },
+  {
+   "id": "tool_sokutai",
+   "zh": "束帶",
+   "ja": "束帯"
+  },
+  {
+   "id": "tool_kanmuri",
+   "zh": "冠",
+   "ja": "冠"
+  },
+  {
+   "id": "tool_yuzen",
+   "zh": "友禪染",
+   "ja": "友禅染"
+  },
+  {
+   "id": "tool_kamikoromo",
+   "zh": "紙衣",
+   "ja": "紙衣"
+  },
+  {
+   "id": "tool_somekame",
+   "zh": "染缸",
+   "ja": "染め甕"
+  },
+  {
+   "id": "tool_itoguruma",
+   "zh": "紡車",
+   "ja": "糸車"
+  },
+  {
+   "id": "tool_hataori",
+   "zh": "織布機",
+   "ja": "機織り機"
+  },
+  {
+   "id": "tool_tsuzureori",
+   "zh": "綴織",
+   "ja": "綴織"
+  },
+  {
+   "id": "tool_maekake",
+   "zh": "圍裙",
+   "ja": "前掛け"
+  },
+  {
+   "id": "tool_kappogi",
+   "zh": "烹飪罩衣",
+   "ja": "割烹着"
+  },
+  {
+   "id": "tool_momohiki",
+   "zh": "緊身褲",
+   "ja": "股引"
+  },
+  {
+   "id": "tool_tabi",
+   "zh": "足袋",
+   "ja": "足袋"
+  },
+  {
+   "id": "tool_jikatabi",
+   "zh": "膠底足袋",
+   "ja": "地下足袋"
+  },
+  {
+   "id": "tool_kyahan",
+   "zh": "綁腿",
+   "ja": "脚絆"
+  },
+  {
+   "id": "tool_kappa",
+   "zh": "雨披",
+   "ja": "合羽"
+  },
+  {
+   "id": "tool_mino",
+   "zh": "蓑衣",
+   "ja": "蓑"
+  },
+  {
+   "id": "tool_waraji",
+   "zh": "稻草鞋",
+   "ja": "草鞋"
+  },
+  {
+   "id": "tool_setta",
+   "zh": "雪踏",
+   "ja": "雪駄"
+  },
+  {
+   "id": "tool_yukigutsu",
+   "zh": "雪靴",
+   "ja": "雪沓"
+  },
+  {
+   "id": "tool_kanjiki",
+   "zh": "雪鞋",
+   "ja": "樏"
+  },
+  {
+   "id": "tool_ashida",
+   "zh": "高齒木屐",
+   "ja": "足駄"
+  },
+  {
+   "id": "tool_ipponba",
+   "zh": "單齒木屐",
+   "ja": "一本歯下駄"
+  },
+  {
+   "id": "tool_pokkuri",
+   "zh": "厚底木屐",
+   "ja": "ぽっくり"
+  },
+  {
+   "id": "tool_nurigeta",
+   "zh": "漆木屐",
+   "ja": "塗り下駄"
+  },
+  {
+   "id": "tool_kasa",
+   "zh": "斗笠",
+   "ja": "笠"
+  },
+  {
+   "id": "tool_amigasa",
+   "zh": "編笠",
+   "ja": "編み笠"
+  },
+  {
+   "id": "tool_sugegasa",
+   "zh": "菅笠",
+   "ja": "菅笠"
+  },
+  {
+   "id": "tool_hanagasa",
+   "zh": "花笠",
+   "ja": "花笠"
+  },
+  {
+   "id": "tool_tengai",
+   "zh": "天蓋笠",
+   "ja": "天蓋"
+  },
+  {
+   "id": "tool_bandasa",
+   "zh": "番傘",
+   "ja": "番傘"
+  },
+  {
+   "id": "tool_janome",
+   "zh": "蛇目傘",
+   "ja": "蛇の目傘"
+  },
+  {
+   "id": "tool_kushi",
+   "zh": "梳子",
+   "ja": "櫛"
+  },
+  {
+   "id": "tool_kanzashi",
+   "zh": "髮簪",
+   "ja": "簪"
+  },
+  {
+   "id": "tool_hanakanzashi",
+   "zh": "花簪",
+   "ja": "花簪"
+  },
+  {
+   "id": "tool_tamakanzashi",
+   "zh": "玉簪",
+   "ja": "玉簪"
+  },
+  {
+   "id": "tool_netsuke",
+   "zh": "根付",
+   "ja": "根付"
+  },
+  {
+   "id": "tool_inro",
+   "zh": "印籠",
+   "ja": "印籠"
+  },
+  {
+   "id": "tool_ojime",
+   "zh": "繩珠",
+   "ja": "緒締め"
+  },
+  {
+   "id": "tool_tekagami",
+   "zh": "手鏡",
+   "ja": "手鏡"
+  },
+  {
+   "id": "tool_kyodai",
+   "zh": "鏡臺",
+   "ja": "鏡台"
+  },
+  {
+   "id": "tool_beni",
+   "zh": "胭脂",
+   "ja": "紅"
+  },
+  {
+   "id": "tool_oshiroi",
+   "zh": "白粉",
+   "ja": "白粉"
+  },
+  {
+   "id": "tool_kumadori",
+   "zh": "臉譜",
+   "ja": "隈取"
+  },
+  {
+   "id": "tool_kiseru",
+   "zh": "煙管",
+   "ja": "煙管"
+  },
+  {
+   "id": "tool_tabakobon",
+   "zh": "煙草盤",
+   "ja": "煙草盆"
+  },
+  {
+   "id": "tool_tabakoire",
+   "zh": "煙草袋",
+   "ja": "煙草入れ"
+  },
+  {
+   "id": "tool_maiogi",
+   "zh": "舞扇",
+   "ja": "舞扇"
+  },
+  {
+   "id": "tool_shibuuchiwa",
+   "zh": "澀紙團扇",
+   "ja": "渋団扇"
+  },
+  {
+   "id": "tool_gunbai",
+   "zh": "軍配團扇",
+   "ja": "軍配"
+  },
+  {
+   "id": "tool_hagoita",
+   "zh": "羽子板",
+   "ja": "羽子板"
+  },
+  {
+   "id": "tool_oshiehagoita",
+   "zh": "押繪羽子板",
+   "ja": "押絵羽子板"
+  },
+  {
+   "id": "tool_shamisen",
+   "zh": "三味線",
+   "ja": "三味線"
+  },
+  {
+   "id": "tool_shamisenbachi",
+   "zh": "三味線撥",
+   "ja": "撥"
+  },
+  {
+   "id": "tool_gekkin",
+   "zh": "月琴",
+   "ja": "月琴"
+  },
+  {
+   "id": "tool_kokyu",
+   "zh": "胡弓",
+   "ja": "胡弓"
+  },
+  {
+   "id": "tool_biwa",
+   "zh": "琵琶",
+   "ja": "琵琶"
+  },
+  {
+   "id": "tool_wagon",
+   "zh": "和琴",
+   "ja": "和琴"
+  },
+  {
+   "id": "tool_kotoji",
+   "zh": "琴柱",
+   "ja": "琴柱"
+  },
+  {
+   "id": "tool_wadaiko",
+   "zh": "和太鼓",
+   "ja": "和太鼓"
+  },
+  {
+   "id": "tool_okedo",
+   "zh": "桶胴太鼓",
+   "ja": "桶胴太鼓"
+  },
+  {
+   "id": "tool_taikobachi",
+   "zh": "鼓槌",
+   "ja": "桴"
+  },
+  {
+   "id": "tool_tsuzumi",
+   "zh": "手鼓",
+   "ja": "鼓"
+  },
+  {
+   "id": "tool_kakko",
+   "zh": "羯鼓",
+   "ja": "羯鼓"
+  },
+  {
+   "id": "tool_shimedaiko",
+   "zh": "締太鼓",
+   "ja": "締太鼓"
+  },
+  {
+   "id": "tool_dendendaiko",
+   "zh": "搖鼓",
+   "ja": "でんでん太鼓"
+  },
+  {
+   "id": "tool_noukan",
+   "zh": "能管",
+   "ja": "能管"
+  },
+  {
+   "id": "tool_ryuteki",
+   "zh": "龍笛",
+   "ja": "龍笛"
+  },
+  {
+   "id": "tool_sho",
+   "zh": "笙",
+   "ja": "笙"
+  },
+  {
+   "id": "tool_shinobue",
+   "zh": "篠笛",
+   "ja": "篠笛"
+  },
+  {
+   "id": "tool_biidoro",
+   "zh": "玻璃吹笛",
+   "ja": "ビードロ"
+  },
+  {
+   "id": "tool_suzu",
+   "zh": "鈴鐺",
+   "ja": "鈴"
+  },
+  {
+   "id": "tool_kane",
+   "zh": "鉦",
+   "ja": "鉦"
+  },
+  {
+   "id": "tool_chappa",
+   "zh": "銅鈸",
+   "ja": "チャッパ"
+  },
+  {
+   "id": "tool_hansho",
+   "zh": "火警鐘",
+   "ja": "半鐘"
+  },
+  {
+   "id": "tool_dora",
+   "zh": "銅鑼",
+   "ja": "銅鑼"
+  },
+  {
+   "id": "tool_hyoshigi",
+   "zh": "拍子木",
+   "ja": "拍子木"
+  },
+  {
+   "id": "tool_sasara",
+   "zh": "竹刷樂器",
+   "ja": "簓"
+  },
+  {
+   "id": "tool_naruko",
+   "zh": "鳴子板",
+   "ja": "鳴子"
+  },
+  {
+   "id": "tool_nanbufurin",
+   "zh": "南部風鈴",
+   "ja": "南部風鈴"
+  },
+  {
+   "id": "tool_edofurin",
+   "zh": "江戶風鈴",
+   "ja": "江戸風鈴"
+  },
+  {
+   "id": "tool_suzuribako",
+   "zh": "硯盒",
+   "ja": "硯箱"
+  },
+  {
+   "id": "tool_makiesuzuribako",
+   "zh": "蒔繪硯盒",
+   "ja": "蒔絵硯箱"
+  },
+  {
+   "id": "tool_bunchin",
+   "zh": "文鎮",
+   "ja": "文鎮"
+  },
+  {
+   "id": "tool_fudetate",
+   "zh": "筆筒",
+   "ja": "筆立て"
+  },
+  {
+   "id": "tool_fudemaki",
+   "zh": "筆簾",
+   "ja": "筆巻き"
+  },
+  {
+   "id": "tool_yatate",
+   "zh": "攜帶筆墨盒",
+   "ja": "矢立"
+  },
+  {
+   "id": "tool_fudearai",
+   "zh": "筆洗",
+   "ja": "筆洗"
+  },
+  {
+   "id": "tool_suiteki",
+   "zh": "硯水滴",
+   "ja": "水滴"
+  },
+  {
+   "id": "tool_efude",
+   "zh": "畫筆",
+   "ja": "絵筆"
+  },
+  {
+   "id": "tool_sukigeta",
+   "zh": "抄紙簾",
+   "ja": "簀桁"
+  },
+  {
+   "id": "tool_minogami",
+   "zh": "美濃紙",
+   "ja": "美濃紙"
+  },
+  {
+   "id": "tool_shikishi",
+   "zh": "和歌色紙",
+   "ja": "歌色紙"
+  },
+  {
+   "id": "tool_origami",
+   "zh": "摺紙",
+   "ja": "折り紙"
+  },
+  {
+   "id": "tool_senbazuru",
+   "zh": "千羽鶴",
+   "ja": "千羽鶴"
+  },
+  {
+   "id": "tool_origamikabuto",
+   "zh": "紙頭盔",
+   "ja": "折り紙兜"
+  },
+  {
+   "id": "tool_kazaguruma",
+   "zh": "風車",
+   "ja": "風車"
+  },
+  {
+   "id": "tool_kamifusen",
+   "zh": "紙氣球",
+   "ja": "紙風船"
+  },
+  {
+   "id": "tool_koyori",
+   "zh": "紙縒",
+   "ja": "紙縒り"
+  },
+  {
+   "id": "tool_noshi",
+   "zh": "禮籤",
+   "ja": "熨斗"
+  },
+  {
+   "id": "tool_shugibukuro",
+   "zh": "紅包袋",
+   "ja": "祝儀袋"
+  },
+  {
+   "id": "tool_kakejiku",
+   "zh": "掛軸",
+   "ja": "掛軸"
+  },
+  {
+   "id": "tool_sumie",
+   "zh": "水墨畫",
+   "ja": "墨絵"
+  },
+  {
+   "id": "tool_sansuiga",
+   "zh": "山水畫",
+   "ja": "山水画"
+  },
+  {
+   "id": "tool_kachoga",
+   "zh": "花鳥畫",
+   "ja": "花鳥画"
+  },
+  {
+   "id": "tool_unryuzu",
+   "zh": "雲龍圖",
+   "ja": "雲龍図"
+  },
+  {
+   "id": "tool_emaki",
+   "zh": "繪卷",
+   "ja": "絵巻"
+  },
+  {
+   "id": "tool_chojugiga",
+   "zh": "鳥獸戲畫",
+   "ja": "鳥獣戯画"
+  },
+  {
+   "id": "tool_nomi",
+   "zh": "鑿子",
+   "ja": "鑿"
+  },
+  {
+   "id": "tool_chokokuto",
+   "zh": "雕刻刀",
+   "ja": "彫刻刀"
+  },
+  {
+   "id": "tool_hangi",
+   "zh": "雕版",
+   "ja": "木版"
+  },
+  {
+   "id": "tool_ukiyoe",
+   "zh": "浮世繪",
+   "ja": "浮世絵"
+  },
+  {
+   "id": "tool_nishikie",
+   "zh": "錦繪",
+   "ja": "錦絵"
+  },
+  {
+   "id": "tool_bijinga",
+   "zh": "美人畫",
+   "ja": "美人画"
+  },
+  {
+   "id": "tool_yakushae",
+   "zh": "役者繪",
+   "ja": "役者絵"
+  },
+  {
+   "id": "tool_meishoe",
+   "zh": "名所繪",
+   "ja": "名所絵"
+  },
+  {
+   "id": "tool_mushae",
+   "zh": "武者繪",
+   "ja": "武者絵"
+  },
+  {
+   "id": "tool_edodako",
+   "zh": "江戶風箏",
+   "ja": "江戸凧"
+  },
+  {
+   "id": "tool_kawaraban",
+   "zh": "瓦版",
+   "ja": "瓦版"
+  },
+  {
+   "id": "tool_ezoshi",
+   "zh": "繪草紙",
+   "ja": "絵草紙"
+  },
+  {
+   "id": "tool_kamishibai",
+   "zh": "紙戲劇",
+   "ja": "紙芝居"
+  },
+  {
+   "id": "tool_hanko",
+   "zh": "印章",
+   "ja": "判子"
+  },
+  {
+   "id": "tool_tegata",
+   "zh": "通行證",
+   "ja": "通行手形"
+  },
+  {
+   "id": "tool_tegami",
+   "zh": "書信",
+   "ja": "手紙"
+  },
+  {
+   "id": "tool_fumibako",
+   "zh": "文箱",
+   "ja": "文箱"
+  },
+  {
+   "id": "tool_bunko",
+   "zh": "文庫箱",
+   "ja": "文庫"
+  },
+  {
+   "id": "tool_shitajiki",
+   "zh": "墊紙氈",
+   "ja": "下敷き"
+  },
+  {
+   "id": "tool_koyomi",
+   "zh": "曆書",
+   "ja": "暦"
+  },
+  {
+   "id": "tool_chizu",
+   "zh": "古地圖",
+   "ja": "古地図"
+  },
+  {
+   "id": "tool_karuta",
+   "zh": "紙牌",
+   "ja": "歌留多"
+  },
+  {
+   "id": "tool_hanafuda",
+   "zh": "花牌",
+   "ja": "花札"
+  },
+  {
+   "id": "tool_menko",
+   "zh": "尪仔標",
+   "ja": "めんこ"
+  },
+  {
+   "id": "tool_soroban",
+   "zh": "算盤",
+   "ja": "算盤"
+  },
+  {
+   "id": "tool_daifukucho",
+   "zh": "大福帳",
+   "ja": "大福帳"
+  },
+  {
+   "id": "tool_tenbin",
+   "zh": "天秤",
+   "ja": "天秤"
+  },
+  {
+   "id": "tool_hakari",
+   "zh": "桿秤",
+   "ja": "竿秤"
+  },
+  {
+   "id": "tool_tenbinbo",
+   "zh": "扁擔",
+   "ja": "天秤棒"
+  },
+  {
+   "id": "tool_kago",
+   "zh": "轎子",
+   "ja": "駕籠"
+  },
+  {
+   "id": "tool_norimono",
+   "zh": "大名轎",
+   "ja": "乗物"
+  },
+  {
+   "id": "tool_sumitsubo",
+   "zh": "墨斗",
+   "ja": "墨壺"
+  },
+  {
+   "id": "tool_sashigane",
+   "zh": "曲尺",
+   "ja": "差金"
+  },
+  {
+   "id": "tool_monosashi",
+   "zh": "量尺",
+   "ja": "物差し"
+  },
+  {
+   "id": "tool_goban",
+   "zh": "棋盤",
+   "ja": "碁盤"
+  },
+  {
+   "id": "tool_gonoishi",
+   "zh": "圍棋子",
+   "ja": "碁石"
+  },
+  {
+   "id": "tool_goke",
+   "zh": "棋罐",
+   "ja": "碁笥"
+  },
+  {
+   "id": "tool_shogiban",
+   "zh": "將棋盤",
+   "ja": "将棋盤"
+  },
+  {
+   "id": "tool_shogikoma",
+   "zh": "將棋子",
+   "ja": "将棋駒"
+  },
+  {
+   "id": "tool_sugoroku",
+   "zh": "雙六",
+   "ja": "双六"
+  },
+  {
+   "id": "tool_kugi",
+   "zh": "釘子",
+   "ja": "釘"
+  },
+  {
+   "id": "tool_genno",
+   "zh": "玄翁錘",
+   "ja": "玄翁"
+  },
+  {
+   "id": "tool_kanatoko",
+   "zh": "鐵砧",
+   "ja": "金床"
+  },
+  {
+   "id": "tool_kanna",
+   "zh": "刨子",
+   "ja": "鉋"
+  },
+  {
+   "id": "tool_nokogiri",
+   "zh": "鋸子",
+   "ja": "鋸"
+  },
+  {
+   "id": "tool_hashigo",
+   "zh": "梯子",
+   "ja": "梯子"
+  },
+  {
+   "id": "tool_kiri",
+   "zh": "錐子",
+   "ja": "錐"
+  },
+  {
+   "id": "tool_chona",
+   "zh": "手斧",
+   "ja": "手斧"
+  },
+  {
+   "id": "tool_dougubako",
+   "zh": "木工工具箱",
+   "ja": "大工道具箱"
+  },
+  {
+   "id": "tool_ittobori",
+   "zh": "一刀雕",
+   "ja": "一刀彫"
+  },
+  {
+   "id": "tool_kamakurabori",
+   "zh": "鎌倉雕",
+   "ja": "鎌倉彫"
+  },
+  {
+   "id": "tool_makie",
+   "zh": "蒔繪手箱",
+   "ja": "蒔絵手箱"
+  },
+  {
+   "id": "tool_raden",
+   "zh": "螺鈿盒",
+   "ja": "螺鈿箱"
+  },
+  {
+   "id": "tool_rokuro",
+   "zh": "陶輪",
+   "ja": "轆轤"
+  },
+  {
+   "id": "tool_jiki",
+   "zh": "白瓷壺",
+   "ja": "白磁壺"
+  },
+  {
+   "id": "tool_akae",
+   "zh": "紅繪瓷盤",
+   "ja": "赤絵皿"
+  },
+  {
+   "id": "tool_imari",
+   "zh": "伊萬里大盤",
+   "ja": "伊万里大皿"
+  },
+  {
+   "id": "tool_kutani",
+   "zh": "九谷燒",
+   "ja": "九谷焼"
+  },
+  {
+   "id": "tool_bizen",
+   "zh": "備前酒壺",
+   "ja": "備前徳利"
+  },
+  {
+   "id": "tool_shigaraki",
+   "zh": "信樂狸",
+   "ja": "信楽狸"
+  },
+  {
+   "id": "tool_giyaman",
+   "zh": "玻璃杯",
+   "ja": "硝子盃"
+  },
+  {
+   "id": "tool_kiriko",
+   "zh": "切子玻璃杯",
+   "ja": "切子グラス"
+  },
+  {
+   "id": "tool_poi",
+   "zh": "撈金魚紙網",
+   "ja": "ポイ"
+  },
+  {
+   "id": "tool_ohajiki",
+   "zh": "彈玻璃片",
+   "ja": "おはじき"
+  },
+  {
+   "id": "tool_bidama",
+   "zh": "玻璃彈珠",
+   "ja": "ビー玉"
+  },
+  {
+   "id": "tool_bouenkyo",
+   "zh": "望遠鏡",
+   "ja": "遠眼鏡"
+  },
+  {
+   "id": "tool_sharin",
+   "zh": "車輪",
+   "ja": "車輪"
+  },
+  {
+   "id": "tool_haguruma",
+   "zh": "齒輪",
+   "ja": "歯車"
+  },
+  {
+   "id": "tool_erekiteru",
+   "zh": "摩擦起電機",
+   "ja": "エレキテル"
+  },
+  {
+   "id": "tool_karakuri",
+   "zh": "機關人偶",
+   "ja": "からくり人形"
+  },
+  {
+   "id": "tool_chahakobi",
+   "zh": "送茶人偶",
+   "ja": "茶運び人形"
+  },
+  {
+   "id": "tool_yumihiki",
+   "zh": "弓曳童子",
+   "ja": "弓曳童子"
+  },
+  {
+   "id": "tool_mojikaki",
+   "zh": "寫字人偶",
+   "ja": "文字書き人形"
+  },
+  {
+   "id": "tool_wadokei",
+   "zh": "和式時鐘",
+   "ja": "和時計"
+  },
+  {
+   "id": "tool_shakudokei",
+   "zh": "尺時計",
+   "ja": "尺時計"
+  },
+  {
+   "id": "tool_mannendokei",
+   "zh": "萬年自鳴鐘",
+   "ja": "万年時計"
+  },
+  {
+   "id": "tool_hidokei",
+   "zh": "日晷",
+   "ja": "日時計"
+  },
+  {
+   "id": "tool_rashinban",
+   "zh": "羅盤",
+   "ja": "羅針盤"
+  },
+  {
+   "id": "tool_mizuguruma",
+   "zh": "水車",
+   "ja": "水車"
+  },
+  {
+   "id": "tool_fumiguruma",
+   "zh": "踏水車",
+   "ja": "踏車"
+  },
+  {
+   "id": "tool_tomi",
+   "zh": "風穀機",
+   "ja": "唐箕"
+  },
+  {
+   "id": "tool_senbakoki",
+   "zh": "千齒扱",
+   "ja": "千歯扱き"
+  },
+  {
+   "id": "tool_tawara",
+   "zh": "米袋",
+   "ja": "俵"
+  },
+  {
+   "id": "tool_tsuribari",
+   "zh": "魚鉤",
+   "ja": "釣り針"
+  },
+  {
+   "id": "tool_tsurizao",
+   "zh": "釣竿",
+   "ja": "釣竿"
+  },
+  {
+   "id": "tool_takotsubo",
+   "zh": "章魚壺",
+   "ja": "蛸壺"
+  },
+  {
+   "id": "tool_biku",
+   "zh": "魚簍",
+   "ja": "魚籠"
+  },
+  {
+   "id": "tool_daihachi",
+   "zh": "大板車",
+   "ja": "大八車"
+  },
+  {
+   "id": "tool_jinrikisha",
+   "zh": "人力車",
+   "ja": "人力車"
+  },
+  {
+   "id": "tool_gissha",
+   "zh": "牛車",
+   "ja": "牛車"
+  },
+  {
+   "id": "tool_sori",
+   "zh": "雪橇",
+   "ja": "橇"
+  },
+  {
+   "id": "tool_hokake",
+   "zh": "船帆",
+   "ja": "帆"
+  },
+  {
+   "id": "tool_hobune",
+   "zh": "帆船",
+   "ja": "帆掛け船"
+  },
+  {
+   "id": "tool_takarabune",
+   "zh": "寶船",
+   "ja": "宝船"
+  },
+  {
+   "id": "tool_kurofune",
+   "zh": "黑船",
+   "ja": "黒船"
+  },
+  {
+   "id": "tool_sengokubune",
+   "zh": "千石船",
+   "ja": "千石船"
+  },
+  {
+   "id": "tool_atakebune",
+   "zh": "安宅船",
+   "ja": "安宅船"
+  },
+  {
+   "id": "tool_tsuribune",
+   "zh": "釣船",
+   "ja": "釣り舟"
+  },
+  {
+   "id": "tool_marukibune",
+   "zh": "獨木舟",
+   "ja": "丸木舟"
+  },
+  {
+   "id": "tool_tarubune",
+   "zh": "木盆舟",
+   "ja": "たらい舟"
+  },
+  {
+   "id": "tool_kai",
+   "zh": "船槳",
+   "ja": "櫂"
+  },
+  {
+   "id": "tool_watashibune",
+   "zh": "渡船",
+   "ja": "渡し舟"
+  },
+  {
+   "id": "tool_ikari",
+   "zh": "船錨",
+   "ja": "錨"
+  },
+  {
+   "id": "tool_hata",
+   "zh": "旗幟",
+   "ja": "旗"
+  },
+  {
+   "id": "tool_nobori",
+   "zh": "幟旗",
+   "ja": "幟"
+  },
+  {
+   "id": "tool_matoi",
+   "zh": "消防纏旗",
+   "ja": "纏"
+  },
+  {
+   "id": "tool_ryudosui",
+   "zh": "龍吐水",
+   "ja": "竜吐水"
+  },
+  {
+   "id": "tool_fukinagashi",
+   "zh": "風幡",
+   "ja": "吹き流し"
+  },
+  {
+   "id": "tool_koinobori",
+   "zh": "鯉魚旗",
+   "ja": "鯉幟"
+  },
+  {
+   "id": "tool_yakkodako",
+   "zh": "奴凧",
+   "ja": "奴凧"
+  },
+  {
+   "id": "tool_koma",
+   "zh": "陀螺",
+   "ja": "独楽"
+  },
+  {
+   "id": "tool_beigoma",
+   "zh": "鐵陀螺",
+   "ja": "ベーゴマ"
+  },
+  {
+   "id": "tool_temari",
+   "zh": "手鞠",
+   "ja": "手毬"
+  },
+  {
+   "id": "tool_kendama",
+   "zh": "劍玉",
+   "ja": "剣玉"
+  },
+  {
+   "id": "tool_otedama",
+   "zh": "沙包",
+   "ja": "お手玉"
+  },
+  {
+   "id": "tool_kaiawase",
+   "zh": "貝合",
+   "ja": "貝合わせ"
+  },
+  {
+   "id": "tool_kaioke",
+   "zh": "貝桶",
+   "ja": "貝桶"
+  },
+  {
+   "id": "tool_hariko",
+   "zh": "紙糊",
+   "ja": "張子"
+  },
+  {
+   "id": "tool_daruma",
+   "zh": "達摩",
+   "ja": "達磨"
+  },
+  {
+   "id": "tool_okiagari",
+   "zh": "不倒翁",
+   "ja": "起き上がり小法師"
+  },
+  {
+   "id": "tool_ningyo",
+   "zh": "偶人",
+   "ja": "人形"
+  },
+  {
+   "id": "tool_kugutsu",
+   "zh": "提線木偶",
+   "ja": "傀儡"
+  },
+  {
+   "id": "tool_dairibina",
+   "zh": "內裏雛",
+   "ja": "内裏雛"
+  },
+  {
+   "id": "tool_kamibina",
+   "zh": "紙雛",
+   "ja": "紙雛"
+  },
+  {
+   "id": "tool_nagashibina",
+   "zh": "流雛",
+   "ja": "流し雛"
+  },
+  {
+   "id": "tool_hinadan",
+   "zh": "雛人偶台",
+   "ja": "雛壇"
+  },
+  {
+   "id": "tool_gogatsuningyo",
+   "zh": "武者人偶",
+   "ja": "五月人形"
+  },
+  {
+   "id": "tool_kokeshi",
+   "zh": "小芥子",
+   "ja": "こけし"
+  },
+  {
+   "id": "tool_hakataningyo",
+   "zh": "博多人偶",
+   "ja": "博多人形"
+  },
+  {
+   "id": "tool_ichimatsu",
+   "zh": "市松人偶",
+   "ja": "市松人形"
+  },
+  {
+   "id": "tool_bunraku",
+   "zh": "文樂人偶",
+   "ja": "文楽人形"
+  },
+  {
+   "id": "tool_hera",
+   "zh": "刮刀",
+   "ja": "箆"
+  },
+  {
+   "id": "tool_kote",
+   "zh": "泥鏝",
+   "ja": "鏝"
+  },
+  {
+   "id": "tool_yarikanna",
+   "zh": "槍刨",
+   "ja": "槍鉋"
+  },
+  {
+   "id": "tool_sumisashi",
+   "zh": "竹墨筆",
+   "ja": "墨差し"
+  },
+  {
+   "id": "tool_mizumori",
+   "zh": "水平器",
+   "ja": "水盛り台"
+  },
+  {
+   "id": "tool_kakeya",
+   "zh": "大木槌",
+   "ja": "掛矢"
+  },
+  {
+   "id": "tool_menbo",
+   "zh": "擀麵棍",
+   "ja": "麺棒"
+  },
+  {
+   "id": "tool_sobakiri",
+   "zh": "蕎麥切刀",
+   "ja": "蕎麦切り包丁"
+  },
+  {
+   "id": "tool_oshizushibako",
+   "zh": "押壽司模",
+   "ja": "押し寿司型"
+  },
+  {
+   "id": "tool_kashigata",
+   "zh": "點心木模",
+   "ja": "菓子木型"
+  },
+  {
+   "id": "tool_niwabouki",
+   "zh": "庭院掃帚",
+   "ja": "庭箒"
+  },
+  {
+   "id": "tool_samonhiki",
+   "zh": "耙沙器",
+   "ja": "砂紋引き"
+  },
+  {
+   "id": "tool_jouro",
+   "zh": "澆花壺",
+   "ja": "如雨露"
+  },
+  {
+   "id": "tool_michiyuki",
+   "zh": "道行外套",
+   "ja": "道行コート"
+  },
+  {
+   "id": "tool_obiage",
+   "zh": "帶揚",
+   "ja": "帯揚げ"
+  },
+  {
+   "id": "tool_haneri",
+   "zh": "半襟",
+   "ja": "半衿"
+  },
+  {
+   "id": "tool_kamiire",
+   "zh": "紙夾",
+   "ja": "紙入れ"
+  },
+  {
+   "id": "tool_mokkan",
+   "zh": "木簡",
+   "ja": "木簡"
+  },
+  {
+   "id": "tool_zenmai",
+   "zh": "發條機關",
+   "ja": "ぜんまい仕掛け"
+  },
+  {
+   "id": "tool_nekoguruma",
+   "zh": "獨輪手推車",
+   "ja": "猫車"
+  },
+  {
+   "id": "tool_sao",
+   "zh": "撐船篙",
+   "ja": "棹"
+  },
+  {
+   "id": "tool_koorikezuri",
+   "zh": "刨冰器",
+   "ja": "氷削り鉋"
+  },
+  {
+   "id": "tool_yukikaki",
+   "zh": "雪鏟",
+   "ja": "雪掻き"
+  },
+  {
+   "id": "tool_awasekagami",
+   "zh": "對照鏡",
+   "ja": "合わせ鏡"
+  },
+  {
+   "id": "tool_morikago",
+   "zh": "果籃",
+   "ja": "盛り籠"
+  },
+  {
+   "id": "tool_ajirogasa",
+   "zh": "網代笠",
+   "ja": "網代笠"
+  },
+  {
+   "id": "tool_keshobako",
+   "zh": "梳妝盒",
+   "ja": "化粧箱"
+  },
+  {
+   "id": "tool_tsukue",
+   "zh": "書桌",
+   "ja": "文机"
+  },
+  {
+   "id": "tool_kyosoku",
+   "zh": "扶手墊",
+   "ja": "脇息"
+  },
+  {
+   "id": "tool_mizuyadansu",
+   "zh": "碗櫃",
+   "ja": "水屋箪笥"
+  },
+  {
+   "id": "tool_ryoshibako",
+   "zh": "料紙盒",
+   "ja": "料紙箱"
+  },
+  {
+   "id": "tool_uekibasami",
+   "zh": "園藝剪",
+   "ja": "植木鋏"
+  },
+  {
+   "id": "tool_kuginuki",
+   "zh": "拔釘鉗",
+   "ja": "釘抜き"
+  },
+  {
+   "id": "tool_hyogushi",
+   "zh": "裝裱刷",
+   "ja": "表具刷毛"
+  }
+ ],
+ "recipes": [
+  [
+   "tol_dish",
+   "nat_flame",
+   "tool_shokudai"
+  ],
+  [
+   "tool_rousoku",
+   "mat_iron",
+   "tool_shokudai"
+  ],
+  [
+   "tol_lantern",
+   "mat_thread",
+   "tool_rousoku"
+  ],
+  [
+   "tool_shokudai",
+   "mat_thread",
+   "tool_rousoku"
+  ],
+  [
+   "tool_rousoku",
+   "plt_flower",
+   "tool_ekakirousoku"
+  ],
+  [
+   "tool_rousoku",
+   "tool_efude",
+   "tool_ekakirousoku"
+  ],
+  [
+   "tol_lantern",
+   "mat_board",
+   "tool_andon"
+  ],
+  [
+   "tol_stonelantern",
+   "mat_paper",
+   "tool_andon"
+  ],
+  [
+   "tool_andon",
+   "nat_night",
+   "tool_ariakeandon"
+  ],
+  [
+   "tool_andon",
+   "nat_moon",
+   "tool_ariakeandon"
+  ],
+  [
+   "tool_andon",
+   "plt_flower",
+   "tool_bonbori"
+  ],
+  [
+   "tool_dairibina",
+   "tool_andon",
+   "tool_bonbori"
+  ],
+  [
+   "tol_stonelantern",
+   "mat_rope",
+   "tool_tsuridoro"
+  ],
+  [
+   "tol_lantern",
+   "per_traveler",
+   "tool_odawarachochin"
+  ],
+  [
+   "tol_lantern",
+   "tool_kyahan",
+   "tool_odawarachochin"
+  ],
+  [
+   "tol_lantern",
+   "wpn_bow",
+   "tool_yumiharichochin"
+  ],
+  [
+   "tol_lantern",
+   "fod_sake",
+   "tool_akachochin"
+  ],
+  [
+   "tol_lantern",
+   "tool_tokkuri",
+   "tool_akachochin"
+  ],
+  [
+   "tol_lantern",
+   "tol_bucket",
+   "tool_gando"
+  ],
+  [
+   "tol_lantern",
+   "nat_river",
+   "tool_ukidoro"
+  ],
+  [
+   "tol_lantern",
+   "tol_ship",
+   "tool_isaribi"
+  ],
+  [
+   "tool_tsuribune",
+   "fire",
+   "tool_isaribi"
+  ],
+  [
+   "tool_kinchaku",
+   "mat_stone",
+   "tool_hiuchibukuro"
+  ],
+  [
+   "tool_kinchaku",
+   "mat_steel",
+   "tool_hiuchibukuro"
+  ],
+  [
+   "tool_kinchaku",
+   "mat_charcoal",
+   "tool_kairo"
+  ],
+  [
+   "tool_hibachi",
+   "tool_kinchaku",
+   "tool_kairo"
+  ],
+  [
+   "tol_basket",
+   "fire",
+   "tool_kagaribi"
+  ],
+  [
+   "tol_pot",
+   "mat_clay",
+   "tool_kamado"
+  ],
+  [
+   "tool_kamado",
+   "nat_mountain",
+   "tool_noborigama"
+  ],
+  [
+   "tool_kamado",
+   "mat_iron",
+   "tool_kama"
+  ],
+  [
+   "tol_pot",
+   "tool_kamado",
+   "tool_kama"
+  ],
+  [
+   "tool_kama",
+   "fod_rice",
+   "tool_habagama"
+  ],
+  [
+   "tool_kama",
+   "fod_gohan",
+   "tool_habagama"
+  ],
+  [
+   "tool_habagama",
+   "tol_bucket",
+   "tool_ohitsu"
+  ],
+  [
+   "tool_ohitsu",
+   "fod_gohan",
+   "tool_shamoji"
+  ],
+  [
+   "tool_habagama",
+   "plt_tree",
+   "tool_shamoji"
+  ],
+  [
+   "tol_pot",
+   "earth",
+   "tool_donabe"
+  ],
+  [
+   "tool_donabe",
+   "mat_board",
+   "tool_otoshibuta"
+  ],
+  [
+   "tol_basket",
+   "nat_steam",
+   "tool_seiro"
+  ],
+  [
+   "tool_kama",
+   "tol_basket",
+   "tool_seiro"
+  ],
+  [
+   "tool_kamado",
+   "plt_bamboo",
+   "tool_hifukitake"
+  ],
+  [
+   "tol_flute",
+   "fire",
+   "tool_hifukitake"
+  ],
+  [
+   "tool_kamado",
+   "wind",
+   "tool_fuigo"
+  ],
+  [
+   "tol_fan",
+   "tool_kamado",
+   "tool_fuigo"
+  ],
+  [
+   "tool_fuigo",
+   "mat_ironsand",
+   "tool_tatara"
+  ],
+  [
+   "tool_tatami",
+   "mat_charcoal",
+   "tool_irori"
+  ],
+  [
+   "tool_tatami",
+   "nat_flame",
+   "tool_irori"
+  ],
+  [
+   "tool_irori",
+   "tol_pot",
+   "tool_jizaikagi"
+  ],
+  [
+   "tool_irori",
+   "tool_tetsubin",
+   "tool_jizaikagi"
+  ],
+  [
+   "tol_bucket",
+   "mat_charcoal",
+   "tool_hibachi"
+  ],
+  [
+   "tol_dish",
+   "mat_charcoal",
+   "tool_hibachi"
+  ],
+  [
+   "tool_hibachi",
+   "tool_tansu",
+   "tool_nagahibachi"
+  ],
+  [
+   "tool_hibachi",
+   "mat_iron",
+   "tool_gotoku"
+  ],
+  [
+   "tool_hibachi",
+   "tool_tetsubin",
+   "tool_gotoku"
+  ],
+  [
+   "tool_hashi",
+   "tool_hibachi",
+   "tool_hibashi"
+  ],
+  [
+   "tol_kyusu",
+   "mat_iron",
+   "tool_tetsubin"
+  ],
+  [
+   "tool_kama",
+   "tol_kyusu",
+   "tool_tetsubin"
+  ],
+  [
+   "tol_net",
+   "fire",
+   "tool_yakiami"
+  ],
+  [
+   "tol_net",
+   "tool_shichirin",
+   "tool_yakiami"
+  ],
+  [
+   "tool_yakiami",
+   "fod_mochi",
+   "tool_mochiami"
+  ],
+  [
+   "tool_hibachi",
+   "mat_clay",
+   "tool_shichirin"
+  ],
+  [
+   "tool_yakiami",
+   "mat_charcoal",
+   "tool_shichirin"
+  ],
+  [
+   "tol_dish",
+   "mat_board",
+   "tool_manaita"
+  ],
+  [
+   "tool_manaita",
+   "wpn_katana",
+   "tool_hocho"
+  ],
+  [
+   "tool_manaita",
+   "mat_steel",
+   "tool_hocho"
+  ],
+  [
+   "tool_hocho",
+   "fod_fish",
+   "tool_debabocho"
+  ],
+  [
+   "tool_hocho",
+   "plt_willow",
+   "tool_yanagiba"
+  ],
+  [
+   "tool_hocho",
+   "fod_sashimi",
+   "tool_yanagiba"
+  ],
+  [
+   "tool_hocho",
+   "fod_potato",
+   "tool_nakiri"
+  ],
+  [
+   "tool_manaita",
+   "tool_kugi",
+   "tool_oroshigane"
+  ],
+  [
+   "tool_kugi",
+   "tol_dish",
+   "tool_oroshigane"
+  ],
+  [
+   "tol_dish",
+   "plt_bamboo",
+   "tool_hashi"
+  ],
+  [
+   "tool_hashi",
+   "tool_bento",
+   "tool_hashibako"
+  ],
+  [
+   "tool_hashi",
+   "tol_pot",
+   "tool_saibashi"
+  ],
+  [
+   "tool_hashi",
+   "mat_pottery",
+   "tool_hashioki"
+  ],
+  [
+   "tool_hashi",
+   "mat_stone",
+   "tool_hashioki"
+  ],
+  [
+   "tol_teabowl",
+   "plt_tree",
+   "tool_owan"
+  ],
+  [
+   "tool_owan",
+   "tol_brush",
+   "tool_shikki"
+  ],
+  [
+   "tool_owan",
+   "mat_ink",
+   "tool_shikki"
+  ],
+  [
+   "tool_owan",
+   "tol_dish",
+   "tool_ozen"
+  ],
+  [
+   "tool_owan",
+   "tool_hashi",
+   "tool_ozen"
+  ],
+  [
+   "tool_ozen",
+   "tool_tansu",
+   "tool_hakozen"
+  ],
+  [
+   "tool_ozen",
+   "tool_tatami",
+   "tool_chabudai"
+  ],
+  [
+   "tol_basket",
+   "fod_gohan",
+   "tool_bento"
+  ],
+  [
+   "tool_shamoji",
+   "tol_basket",
+   "tool_bento"
+  ],
+  [
+   "tool_bento",
+   "nat_steam",
+   "tool_magewappa"
+  ],
+  [
+   "tool_bento",
+   "tool_shikki",
+   "tool_jubako"
+  ],
+  [
+   "tool_bento",
+   "tool_bento",
+   "tool_jubako"
+  ],
+  [
+   "tool_jubako",
+   "tol_bucket",
+   "tool_okamochi"
+  ],
+  [
+   "tool_jubako",
+   "tool_tenbinbo",
+   "tool_okamochi"
+  ],
+  [
+   "tol_mallet",
+   "mat_pottery",
+   "tool_suribachi"
+  ],
+  [
+   "tool_suribachi",
+   "plt_tree",
+   "tool_surikogi"
+  ],
+  [
+   "tool_suribachi",
+   "tol_mallet",
+   "tool_surikogi"
+  ],
+  [
+   "tool_suribachi",
+   "plt_herb",
+   "tool_yagen"
+  ],
+  [
+   "tool_suribachi",
+   "tool_sharin",
+   "tool_yagen"
+  ],
+  [
+   "tol_mallet",
+   "plt_rice",
+   "tool_usu"
+  ],
+  [
+   "tool_usu",
+   "tol_mallet",
+   "tool_kine"
+  ],
+  [
+   "tool_usu",
+   "mat_stone",
+   "tool_ishiusu"
+  ],
+  [
+   "tool_usu",
+   "mat_board",
+   "tool_karausu"
+  ],
+  [
+   "tool_usu",
+   "tool_kine",
+   "tool_karausu"
+  ],
+  [
+   "tol_sakazuki",
+   "plt_bamboo",
+   "tool_takezutsu"
+  ],
+  [
+   "tool_takezutsu",
+   "water",
+   "tool_hishaku"
+  ],
+  [
+   "tol_bucket",
+   "tool_takezutsu",
+   "tool_hishaku"
+  ],
+  [
+   "tool_hishaku",
+   "tol_pot",
+   "tool_tamajakushi"
+  ],
+  [
+   "tool_tokkuri",
+   "tol_bucket",
+   "tool_taru"
+  ],
+  [
+   "tool_taru",
+   "plt_straw",
+   "tool_komodaru"
+  ],
+  [
+   "tol_sakazuki",
+   "fod_sake",
+   "tool_tokkuri"
+  ],
+  [
+   "tool_tokkuri",
+   "nat_steam",
+   "tool_chirori"
+  ],
+  [
+   "tool_tokkuri",
+   "tool_shiromuku",
+   "tool_choshi"
+  ],
+  [
+   "tol_bucket",
+   "fod_rice",
+   "tool_masu"
+  ],
+  [
+   "tool_tenbin",
+   "fod_rice",
+   "tool_masu"
+  ],
+  [
+   "tol_basket",
+   "water",
+   "tool_zaru"
+  ],
+  [
+   "tool_zaru",
+   "mat_sand",
+   "tool_furui"
+  ],
+  [
+   "tol_bucket",
+   "mat_pottery",
+   "tool_tsubo"
+  ],
+  [
+   "tol_dish",
+   "mat_clay",
+   "tool_tsubo"
+  ],
+  [
+   "tool_tsubo",
+   "water",
+   "tool_mizugame"
+  ],
+  [
+   "tool_tsubo",
+   "nat_river",
+   "tool_mizugame"
+  ],
+  [
+   "tool_tsubo",
+   "plt_ume",
+   "tool_umeboshitsubo"
+  ],
+  [
+   "tool_tsubo",
+   "plt_tea",
+   "tool_chatsubo"
+  ],
+  [
+   "tool_tsubo",
+   "fod_tea",
+   "tool_chatsubo"
+  ],
+  [
+   "tool_taru",
+   "mat_stone",
+   "tool_tsukemonoishi"
+  ],
+  [
+   "tool_kama",
+   "plt_straw",
+   "tool_kamashiki"
+  ],
+  [
+   "tool_sudare",
+   "fod_sushi",
+   "tool_makisu"
+  ],
+  [
+   "tool_sudare",
+   "fod_nori",
+   "tool_makisu"
+  ],
+  [
+   "tool_ohitsu",
+   "fod_sushi",
+   "tool_sushioke"
+  ],
+  [
+   "tool_taru",
+   "fod_sushi",
+   "tool_sushioke"
+  ],
+  [
+   "tool_kanna",
+   "fod_katsuobushi",
+   "tool_kezuriki"
+  ],
+  [
+   "tol_bucket",
+   "tol_dish",
+   "tool_tarai"
+  ],
+  [
+   "tool_tarai",
+   "mat_board",
+   "tool_sentakuita"
+  ],
+  [
+   "tol_kyusu",
+   "earth",
+   "tool_dobin"
+  ],
+  [
+   "tool_donabe",
+   "tol_kyusu",
+   "tool_dobin"
+  ],
+  [
+   "tol_kyusu",
+   "tol_teabowl",
+   "tool_yunomi"
+  ],
+  [
+   "tol_teabowl",
+   "tool_dobin",
+   "tool_yunomi"
+  ],
+  [
+   "tol_teabowl",
+   "tol_teabowl",
+   "tool_meotochawan"
+  ],
+  [
+   "tol_teabowl",
+   "plt_bamboo",
+   "tool_chasen"
+  ],
+  [
+   "tool_shikki",
+   "fod_matcha",
+   "tool_natsume"
+  ],
+  [
+   "tool_natsume",
+   "plt_bamboo",
+   "tool_chashaku"
+  ],
+  [
+   "tool_chasen",
+   "tool_hishaku",
+   "tool_chashaku"
+  ],
+  [
+   "tool_kama",
+   "fod_tea",
+   "tool_chagama"
+  ],
+  [
+   "tool_tetsubin",
+   "fod_matcha",
+   "tool_chagama"
+  ],
+  [
+   "tool_chagama",
+   "tool_hibachi",
+   "tool_furo"
+  ],
+  [
+   "tool_tsubo",
+   "fod_matcha",
+   "tool_chaire"
+  ],
+  [
+   "tol_teabowl",
+   "mat_cloth",
+   "tool_fukusa"
+  ],
+  [
+   "tool_tenugui",
+   "tol_teabowl",
+   "tool_fukusa"
+  ],
+  [
+   "tool_fukusa",
+   "water",
+   "tool_chakin"
+  ],
+  [
+   "tool_tenugui",
+   "fod_matcha",
+   "tool_chakin"
+  ],
+  [
+   "tol_teabowl",
+   "nat_night",
+   "tool_tenmoku"
+  ],
+  [
+   "tool_mizugame",
+   "tol_teabowl",
+   "tool_mizusashi"
+  ],
+  [
+   "tool_mizugame",
+   "tool_chasen",
+   "tool_mizusashi"
+  ],
+  [
+   "tool_chasen",
+   "tool_tsuzura",
+   "tool_chabako"
+  ],
+  [
+   "tol_umbrella",
+   "tool_chasen",
+   "tool_nodate"
+  ],
+  [
+   "tool_bandasa",
+   "tool_chasen",
+   "tool_nodate"
+  ],
+  [
+   "tol_fusuma",
+   "plt_straw",
+   "tool_tatami"
+  ],
+  [
+   "tool_tatami",
+   "cpt_hanami",
+   "tool_goza"
+  ],
+  [
+   "tool_tatami",
+   "mat_cloth",
+   "tool_zabuton"
+  ],
+  [
+   "tool_zabuton",
+   "mat_cloth",
+   "tool_futon"
+  ],
+  [
+   "tool_tatami",
+   "tol_kimono",
+   "tool_futon"
+  ],
+  [
+   "tool_futon",
+   "mat_board",
+   "tool_makura"
+  ],
+  [
+   "tool_hibachi",
+   "tool_futon",
+   "tool_kotatsu"
+  ],
+  [
+   "tool_hibachi",
+   "tool_zabuton",
+   "tool_kotatsu"
+  ],
+  [
+   "tool_tetsubin",
+   "tool_futon",
+   "tool_yutanpo"
+  ],
+  [
+   "tol_kimono",
+   "mat_board",
+   "tool_tansu"
+  ],
+  [
+   "tool_kanna",
+   "tol_kimono",
+   "tool_tansu"
+  ],
+  [
+   "tool_tansu",
+   "tool_sharin",
+   "tool_kurumadansu"
+  ],
+  [
+   "tool_tansu",
+   "tool_hashigo",
+   "tool_kaidandansu"
+  ],
+  [
+   "tool_tansu",
+   "plt_herb",
+   "tool_kusuridansu"
+  ],
+  [
+   "tool_tansu",
+   "tool_yagen",
+   "tool_kusuridansu"
+  ],
+  [
+   "tool_tansu",
+   "tol_ship",
+   "tool_funadansu"
+  ],
+  [
+   "tool_tansu",
+   "tol_geta",
+   "tool_getabako"
+  ],
+  [
+   "tool_tansu",
+   "tool_tenbinbo",
+   "tool_nagamochi"
+  ],
+  [
+   "tool_tansu",
+   "tool_saifu",
+   "tool_zenibako"
+  ],
+  [
+   "tol_basket",
+   "tool_tansu",
+   "tool_tsuzura"
+  ],
+  [
+   "tool_tsuzura",
+   "tool_tenbinbo",
+   "tool_hasamibako"
+  ],
+  [
+   "tol_kimono",
+   "plt_bamboo",
+   "tool_ikou"
+  ],
+  [
+   "tol_fusuma",
+   "wind",
+   "tool_byobu"
+  ],
+  [
+   "tol_fusuma",
+   "tol_fusuma",
+   "tool_byobu"
+  ],
+  [
+   "tool_byobu",
+   "trs_goldleaf",
+   "tool_kinbyobu"
+  ],
+  [
+   "tool_byobu",
+   "mat_gold",
+   "tool_kinbyobu"
+  ],
+  [
+   "tol_fusuma",
+   "mat_board",
+   "tool_tsuitate"
+  ],
+  [
+   "tool_byobu",
+   "mat_board",
+   "tool_tsuitate"
+  ],
+  [
+   "tool_tsuitate",
+   "tool_junihitoe",
+   "tool_kicho"
+  ],
+  [
+   "tol_fusuma",
+   "tool_nomi",
+   "tool_kumiko"
+  ],
+  [
+   "tool_kumiko",
+   "mat_board",
+   "tool_yosegi"
+  ],
+  [
+   "tool_yosegi",
+   "tool_karakuri",
+   "tool_himitsubako"
+  ],
+  [
+   "tol_fusuma",
+   "tool_chokokuto",
+   "tool_ranma"
+  ],
+  [
+   "tol_fusuma",
+   "tool_efude",
+   "tool_fusumae"
+  ],
+  [
+   "tool_kugi",
+   "mat_gold",
+   "tool_kugikakushi"
+  ],
+  [
+   "tol_fusuma",
+   "mat_cloth",
+   "tool_noren"
+  ],
+  [
+   "tol_kimono",
+   "tol_fusuma",
+   "tool_noren"
+  ],
+  [
+   "tool_noren",
+   "mat_board",
+   "tool_kanban"
+  ],
+  [
+   "tool_noren",
+   "tool_chokokuto",
+   "tool_kanban"
+  ],
+  [
+   "tool_noren",
+   "tool_hyoshigi",
+   "tool_hikimaku"
+  ],
+  [
+   "tool_noren",
+   "plt_bamboo",
+   "tool_sudare"
+  ],
+  [
+   "tol_net",
+   "mat_cloth",
+   "tool_kaya"
+  ],
+  [
+   "tool_kaya",
+   "fth_incense",
+   "tool_katori"
+  ],
+  [
+   "tool_koro",
+   "cpt_summer",
+   "tool_katori"
+  ],
+  [
+   "tool_tenugui",
+   "cpt_tsuyu",
+   "tool_teruteru"
+  ],
+  [
+   "tool_tenugui",
+   "nat_rain",
+   "tool_teruteru"
+  ],
+  [
+   "tol_basket",
+   "wind",
+   "tool_mi"
+  ],
+  [
+   "tool_mi",
+   "plt_straw",
+   "tool_hoki"
+  ],
+  [
+   "tool_mi",
+   "mat_rope",
+   "tool_mokko"
+  ],
+  [
+   "tool_hishaku",
+   "mat_stone",
+   "tool_tsukubai"
+  ],
+  [
+   "tool_hishaku",
+   "plc_garden",
+   "tool_tsukubai"
+  ],
+  [
+   "tool_takezutsu",
+   "nat_river",
+   "tool_kakehi"
+  ],
+  [
+   "tool_tsubo",
+   "earth",
+   "tool_uekibachi"
+  ],
+  [
+   "tool_uekibachi",
+   "nat_mountain",
+   "tool_bonkei"
+  ],
+  [
+   "tool_bonkei",
+   "mat_board",
+   "tool_hakoniwa"
+  ],
+  [
+   "tool_tsubo",
+   "plt_flower",
+   "tool_ichirinzashi"
+  ],
+  [
+   "tool_takezutsu",
+   "plt_flower",
+   "tool_hanaire"
+  ],
+  [
+   "tool_kugi",
+   "plt_flower",
+   "tool_kenzan"
+  ],
+  [
+   "tol_basket",
+   "plt_flower",
+   "tool_hanakago"
+  ],
+  [
+   "tool_hanaire",
+   "tol_basket",
+   "tool_hanakago"
+  ],
+  [
+   "tool_tsubo",
+   "fth_incense",
+   "tool_koro"
+  ],
+  [
+   "tool_koro",
+   "tool_shikki",
+   "tool_kogo"
+  ],
+  [
+   "tool_hibachi",
+   "mat_cloth",
+   "tool_hinoshi"
+  ],
+  [
+   "tol_kimono",
+   "mat_iron",
+   "tool_hari"
+  ],
+  [
+   "tool_hari",
+   "tol_basket",
+   "tool_haribako"
+  ],
+  [
+   "tool_hari",
+   "tool_tansu",
+   "tool_haribako"
+  ],
+  [
+   "tool_haribako",
+   "mat_steel",
+   "tool_nigiribasami"
+  ],
+  [
+   "tool_origami",
+   "tool_nigiribasami",
+   "tool_kirie"
+  ],
+  [
+   "tol_bucket",
+   "nat_steam",
+   "tool_furooke"
+  ],
+  [
+   "tool_tarai",
+   "plc_onsen",
+   "tool_furooke"
+  ],
+  [
+   "tool_furooke",
+   "tool_kama",
+   "tool_goemonburo"
+  ],
+  [
+   "tool_furooke",
+   "mat_cloth",
+   "tool_tenugui"
+  ],
+  [
+   "tool_tenugui",
+   "fod_rice",
+   "tool_nukabukuro"
+  ],
+  [
+   "tool_tenugui",
+   "tool_bento",
+   "tool_furoshiki"
+  ],
+  [
+   "tool_furoshiki",
+   "mat_rope",
+   "tool_kinchaku"
+  ],
+  [
+   "tool_tenugui",
+   "mat_rope",
+   "tool_kinchaku"
+  ],
+  [
+   "tool_kinchaku",
+   "mat_gold",
+   "tool_saifu"
+  ],
+  [
+   "tool_saifu",
+   "mat_rope",
+   "tool_zenisashi"
+  ],
+  [
+   "tol_basket",
+   "per_farmer",
+   "tool_shoikago"
+  ],
+  [
+   "tol_kimono",
+   "mat_rope",
+   "tool_obi"
+  ],
+  [
+   "tool_hataori",
+   "tol_kimono",
+   "tool_obi"
+  ],
+  [
+   "tool_obi",
+   "mat_thread",
+   "tool_obijime"
+  ],
+  [
+   "tool_obijime",
+   "mat_gem",
+   "tool_obidome"
+  ],
+  [
+   "tol_kimono",
+   "per_samurai",
+   "tool_hakama"
+  ],
+  [
+   "tol_kimono",
+   "wind",
+   "tool_haori"
+  ],
+  [
+   "tol_kimono",
+   "trs_hagoromo",
+   "tool_haori"
+  ],
+  [
+   "tool_haori",
+   "tool_hakama",
+   "tool_montsuki"
+  ],
+  [
+   "tool_hakama",
+   "plc_castle",
+   "tool_kamishimo"
+  ],
+  [
+   "tool_haori",
+   "per_craftsman",
+   "tool_hanten"
+  ],
+  [
+   "tool_hanten",
+   "fire",
+   "tool_hikeshibanten"
+  ],
+  [
+   "tool_hanten",
+   "cpt_winter",
+   "tool_dotera"
+  ],
+  [
+   "tool_hanten",
+   "tool_futon",
+   "tool_dotera"
+  ],
+  [
+   "tool_hanten",
+   "cpt_summer",
+   "tool_jinbei"
+  ],
+  [
+   "tol_kimono",
+   "per_geisha",
+   "tool_furisode"
+  ],
+  [
+   "tool_furisode",
+   "mat_ink",
+   "tool_kurotomesode"
+  ],
+  [
+   "tool_hakama",
+   "mat_rope",
+   "tool_tasuki"
+  ],
+  [
+   "tool_tenugui",
+   "art_kiai",
+   "tool_hachimaki"
+  ],
+  [
+   "tool_tenugui",
+   "fth_festival",
+   "tool_hachimaki"
+  ],
+  [
+   "tool_tenugui",
+   "per_bandit",
+   "tool_hokkamuri"
+  ],
+  [
+   "tool_tenugui",
+   "per_human",
+   "tool_fundoshi"
+  ],
+  [
+   "tol_kimono",
+   "mat_cloth",
+   "tool_juban"
+  ],
+  [
+   "tol_kimono",
+   "tol_kimono",
+   "tool_junihitoe"
+  ],
+  [
+   "tol_kimono",
+   "trs_brocade",
+   "tool_uchikake"
+  ],
+  [
+   "tool_furisode",
+   "trs_brocade",
+   "tool_uchikake"
+  ],
+  [
+   "tol_kimono",
+   "nat_snow",
+   "tool_shiromuku"
+  ],
+  [
+   "tol_kimono",
+   "plc_shrine",
+   "tool_shiromuku"
+  ],
+  [
+   "tool_shiromuku",
+   "yok_oni",
+   "tool_tsunokakushi"
+  ],
+  [
+   "tool_kinchaku",
+   "tool_shiromuku",
+   "tool_hakoseko"
+  ],
+  [
+   "tool_haori",
+   "wpn_bow",
+   "tool_kariginu"
+  ],
+  [
+   "tool_kariginu",
+   "trs_brocade",
+   "tool_sokutai"
+  ],
+  [
+   "tool_sokutai",
+   "mat_gold",
+   "tool_kanmuri"
+  ],
+  [
+   "tol_kimono",
+   "tool_efude",
+   "tool_yuzen"
+  ],
+  [
+   "tool_minogami",
+   "tol_kimono",
+   "tool_kamikoromo"
+  ],
+  [
+   "tool_mizugame",
+   "mat_ink",
+   "tool_somekame"
+  ],
+  [
+   "tool_kazaguruma",
+   "mat_thread",
+   "tool_itoguruma"
+  ],
+  [
+   "tool_sharin",
+   "mat_thread",
+   "tool_itoguruma"
+  ],
+  [
+   "tool_itoguruma",
+   "mat_cloth",
+   "tool_hataori"
+  ],
+  [
+   "tool_hataori",
+   "tool_kushi",
+   "tool_tsuzureori"
+  ],
+  [
+   "tool_tenugui",
+   "per_merchant",
+   "tool_maekake"
+  ],
+  [
+   "tool_maekake",
+   "per_chef",
+   "tool_kappogi"
+  ],
+  [
+   "tool_hakama",
+   "per_craftsman",
+   "tool_momohiki"
+  ],
+  [
+   "tol_zori",
+   "mat_cloth",
+   "tool_tabi"
+  ],
+  [
+   "tool_tabi",
+   "tol_zori",
+   "tool_jikatabi"
+  ],
+  [
+   "tool_tabi",
+   "per_traveler",
+   "tool_kyahan"
+  ],
+  [
+   "tol_umbrella",
+   "tol_kimono",
+   "tool_kappa"
+  ],
+  [
+   "tol_kimono",
+   "plt_straw",
+   "tool_mino"
+  ],
+  [
+   "tol_zori",
+   "plt_straw",
+   "tool_waraji"
+  ],
+  [
+   "tol_zori",
+   "nat_snow",
+   "tool_setta"
+  ],
+  [
+   "tool_waraji",
+   "nat_snow",
+   "tool_yukigutsu"
+  ],
+  [
+   "tool_yukigutsu",
+   "plt_bamboo",
+   "tool_kanjiki"
+  ],
+  [
+   "tol_geta",
+   "nat_rain",
+   "tool_ashida"
+  ],
+  [
+   "tool_ashida",
+   "yok_tengu",
+   "tool_ipponba"
+  ],
+  [
+   "tol_geta",
+   "per_geisha",
+   "tool_pokkuri"
+  ],
+  [
+   "tool_nurigeta",
+   "per_geisha",
+   "tool_pokkuri"
+  ],
+  [
+   "tol_geta",
+   "tool_shikki",
+   "tool_nurigeta"
+  ],
+  [
+   "tol_umbrella",
+   "plt_straw",
+   "tool_kasa"
+  ],
+  [
+   "tool_mino",
+   "tol_umbrella",
+   "tool_kasa"
+  ],
+  [
+   "tool_kasa",
+   "tol_net",
+   "tool_amigasa"
+  ],
+  [
+   "tool_kasa",
+   "plt_grass",
+   "tool_sugegasa"
+  ],
+  [
+   "tool_sugegasa",
+   "plt_flower",
+   "tool_hanagasa"
+  ],
+  [
+   "tool_amigasa",
+   "fth_monk",
+   "tool_tengai"
+  ],
+  [
+   "tol_umbrella",
+   "plt_bamboo",
+   "tool_bandasa"
+  ],
+  [
+   "tol_umbrella",
+   "yok_orochi",
+   "tool_janome"
+  ],
+  [
+   "tol_mirror",
+   "plt_tree",
+   "tool_kushi"
+  ],
+  [
+   "tol_mirror",
+   "plt_bamboo",
+   "tool_kushi"
+  ],
+  [
+   "tool_kushi",
+   "plt_flower",
+   "tool_kanzashi"
+  ],
+  [
+   "tool_kanzashi",
+   "plt_sakura",
+   "tool_hanakanzashi"
+  ],
+  [
+   "tool_kanzashi",
+   "trs_pearl",
+   "tool_tamakanzashi"
+  ],
+  [
+   "tool_obi",
+   "yok_tanuki",
+   "tool_netsuke"
+  ],
+  [
+   "tool_ittobori",
+   "tool_obi",
+   "tool_netsuke"
+  ],
+  [
+   "tool_shikki",
+   "plt_herb",
+   "tool_inro"
+  ],
+  [
+   "tool_netsuke",
+   "tool_shikki",
+   "tool_inro"
+  ],
+  [
+   "tool_inro",
+   "mat_gem",
+   "tool_ojime"
+  ],
+  [
+   "tol_mirror",
+   "tool_kushi",
+   "tool_tekagami"
+  ],
+  [
+   "tol_mirror",
+   "tool_tansu",
+   "tool_kyodai"
+  ],
+  [
+   "tol_dish",
+   "plt_flower",
+   "tool_beni"
+  ],
+  [
+   "tol_dish",
+   "fod_rice",
+   "tool_oshiroi"
+  ],
+  [
+   "tool_kyodai",
+   "fod_rice",
+   "tool_oshiroi"
+  ],
+  [
+   "tool_oshiroi",
+   "tool_beni",
+   "tool_kumadori"
+  ],
+  [
+   "tool_hifukitake",
+   "nat_smoke",
+   "tool_kiseru"
+  ],
+  [
+   "tool_takezutsu",
+   "nat_smoke",
+   "tool_kiseru"
+  ],
+  [
+   "tool_kiseru",
+   "tool_hibachi",
+   "tool_tabakobon"
+  ],
+  [
+   "tool_kiseru",
+   "tool_kinchaku",
+   "tool_tabakoire"
+  ],
+  [
+   "tol_fan",
+   "per_geisha",
+   "tool_maiogi"
+  ],
+  [
+   "tol_fan",
+   "tool_furisode",
+   "tool_maiogi"
+  ],
+  [
+   "tol_fan",
+   "mat_charcoal",
+   "tool_shibuuchiwa"
+  ],
+  [
+   "tool_shibuuchiwa",
+   "per_samurai",
+   "tool_gunbai"
+  ],
+  [
+   "tol_fan",
+   "mat_board",
+   "tool_hagoita"
+  ],
+  [
+   "tool_hagoita",
+   "trs_brocade",
+   "tool_oshiehagoita"
+  ],
+  [
+   "tol_koto",
+   "tol_taiko",
+   "tool_shamisen"
+  ],
+  [
+   "tol_koto",
+   "per_geisha",
+   "tool_shamisen"
+  ],
+  [
+   "tool_shamisen",
+   "tol_fan",
+   "tool_shamisenbachi"
+  ],
+  [
+   "tool_shamisen",
+   "nat_moon",
+   "tool_gekkin"
+  ],
+  [
+   "tool_shamisen",
+   "wpn_bow",
+   "tool_kokyu"
+  ],
+  [
+   "tol_koto",
+   "plc_lake",
+   "tool_biwa"
+  ],
+  [
+   "tol_koto",
+   "fth_kannushi",
+   "tool_wagon"
+  ],
+  [
+   "tol_koto",
+   "plc_bridge",
+   "tool_kotoji"
+  ],
+  [
+   "tol_taiko",
+   "plc_village",
+   "tool_wadaiko"
+  ],
+  [
+   "tol_taiko",
+   "tol_bucket",
+   "tool_okedo"
+  ],
+  [
+   "tool_taru",
+   "tol_taiko",
+   "tool_okedo"
+  ],
+  [
+   "tool_wadaiko",
+   "plt_tree",
+   "tool_taikobachi"
+  ],
+  [
+   "tol_taiko",
+   "mat_thread",
+   "tool_tsuzumi"
+  ],
+  [
+   "tool_tsuzumi",
+   "tool_taikobachi",
+   "tool_kakko"
+  ],
+  [
+   "tol_taiko",
+   "mat_rope",
+   "tool_shimedaiko"
+  ],
+  [
+   "tool_tsuzumi",
+   "plt_bamboo",
+   "tool_dendendaiko"
+  ],
+  [
+   "tol_flute",
+   "trs_mask",
+   "tool_noukan"
+  ],
+  [
+   "tol_flute",
+   "yok_dragon",
+   "tool_ryuteki"
+  ],
+  [
+   "tol_flute",
+   "yok_phoenix",
+   "tool_sho"
+  ],
+  [
+   "tol_flute",
+   "trs_hagoromo",
+   "tool_sho"
+  ],
+  [
+   "tol_flute",
+   "plt_bambooforest",
+   "tool_shinobue"
+  ],
+  [
+   "tol_flute",
+   "mat_glass",
+   "tool_biidoro"
+  ],
+  [
+   "tool_giyaman",
+   "tol_flute",
+   "tool_biidoro"
+  ],
+  [
+   "tol_bell",
+   "mat_thread",
+   "tool_suzu"
+  ],
+  [
+   "tol_windbell",
+   "mat_iron",
+   "tool_suzu"
+  ],
+  [
+   "tol_bell",
+   "tol_mallet",
+   "tool_kane"
+  ],
+  [
+   "tool_kane",
+   "tool_kane",
+   "tool_chappa"
+  ],
+  [
+   "tol_bell",
+   "fire",
+   "tool_hansho"
+  ],
+  [
+   "tol_bell",
+   "tool_hikeshibanten",
+   "tool_hansho"
+  ],
+  [
+   "tol_bell",
+   "tol_ship",
+   "tool_dora"
+  ],
+  [
+   "tol_mallet",
+   "mat_board",
+   "tool_hyoshigi"
+  ],
+  [
+   "tool_hyoshigi",
+   "plt_bamboo",
+   "tool_sasara"
+  ],
+  [
+   "tool_hyoshigi",
+   "plc_paddy",
+   "tool_naruko"
+  ],
+  [
+   "tol_windbell",
+   "tool_tetsubin",
+   "tool_nanbufurin"
+  ],
+  [
+   "tol_windbell",
+   "tool_efude",
+   "tool_edofurin"
+  ],
+  [
+   "tol_inkstone",
+   "tool_tansu",
+   "tool_suzuribako"
+  ],
+  [
+   "tol_inkstone",
+   "tol_basket",
+   "tool_suzuribako"
+  ],
+  [
+   "tool_suzuribako",
+   "mat_gold",
+   "tool_makiesuzuribako"
+  ],
+  [
+   "tool_suzuribako",
+   "tool_makie",
+   "tool_makiesuzuribako"
+  ],
+  [
+   "tol_book",
+   "mat_stone",
+   "tool_bunchin"
+  ],
+  [
+   "tol_scroll",
+   "mat_iron",
+   "tool_bunchin"
+  ],
+  [
+   "tol_brush",
+   "tol_bucket",
+   "tool_fudetate"
+  ],
+  [
+   "tol_brush",
+   "tol_basket",
+   "tool_fudetate"
+  ],
+  [
+   "tool_sudare",
+   "tol_brush",
+   "tool_fudemaki"
+  ],
+  [
+   "tool_fudetate",
+   "wpn_arrow",
+   "tool_yatate"
+  ],
+  [
+   "tol_brush",
+   "water",
+   "tool_fudearai"
+  ],
+  [
+   "tol_brush",
+   "tol_sakazuki",
+   "tool_fudearai"
+  ],
+  [
+   "tol_inkstone",
+   "water",
+   "tool_suiteki"
+  ],
+  [
+   "tol_inkstone",
+   "tool_tokkuri",
+   "tool_suiteki"
+  ],
+  [
+   "tol_brush",
+   "per_painter",
+   "tool_efude"
+  ],
+  [
+   "tol_brush",
+   "nat_rainbow",
+   "tool_efude"
+  ],
+  [
+   "tol_net",
+   "mat_paper",
+   "tool_sukigeta"
+  ],
+  [
+   "tool_sukigeta",
+   "nat_river",
+   "tool_minogami"
+  ],
+  [
+   "tool_sukigeta",
+   "water",
+   "tool_minogami"
+  ],
+  [
+   "tol_brush",
+   "mat_paper",
+   "tool_shikishi"
+  ],
+  [
+   "tool_shikishi",
+   "tol_fan",
+   "tool_origami"
+  ],
+  [
+   "tool_minogami",
+   "tol_fan",
+   "tool_origami"
+  ],
+  [
+   "tool_origami",
+   "fth_prayer",
+   "tool_senbazuru"
+  ],
+  [
+   "tool_origami",
+   "wpn_armor",
+   "tool_origamikabuto"
+  ],
+  [
+   "tool_origami",
+   "nat_whirlwind",
+   "tool_kazaguruma"
+  ],
+  [
+   "tool_origami",
+   "wind",
+   "tool_kamifusen"
+  ],
+  [
+   "tool_minogami",
+   "mat_thread",
+   "tool_koyori"
+  ],
+  [
+   "tool_minogami",
+   "fod_driedfish",
+   "tool_noshi"
+  ],
+  [
+   "tool_noshi",
+   "fth_offering",
+   "tool_shugibukuro"
+  ],
+  [
+   "tool_koyori",
+   "fth_offering",
+   "tool_shugibukuro"
+  ],
+  [
+   "tol_scroll",
+   "tol_fusuma",
+   "tool_kakejiku"
+  ],
+  [
+   "tol_scroll",
+   "tool_sumie",
+   "tool_kakejiku"
+  ],
+  [
+   "tol_brush",
+   "tol_inkstone",
+   "tool_sumie"
+  ],
+  [
+   "tool_kakejiku",
+   "mat_ink",
+   "tool_sumie"
+  ],
+  [
+   "tool_sumie",
+   "nat_mountain",
+   "tool_sansuiga"
+  ],
+  [
+   "tool_sumie",
+   "nat_waterfall",
+   "tool_sansuiga"
+  ],
+  [
+   "tool_sumie",
+   "plt_flower",
+   "tool_kachoga"
+  ],
+  [
+   "tool_sumie",
+   "yok_dragon",
+   "tool_unryuzu"
+  ],
+  [
+   "tol_scroll",
+   "tool_efude",
+   "tool_emaki"
+  ],
+  [
+   "tol_scroll",
+   "tool_ezoshi",
+   "tool_emaki"
+  ],
+  [
+   "tool_emaki",
+   "tool_sumie",
+   "tool_chojugiga"
+  ],
+  [
+   "tol_mallet",
+   "mat_steel",
+   "tool_nomi"
+  ],
+  [
+   "tool_nomi",
+   "wpn_kunai",
+   "tool_chokokuto"
+  ],
+  [
+   "tool_chokokuto",
+   "mat_board",
+   "tool_hangi"
+  ],
+  [
+   "tool_hangi",
+   "tool_minogami",
+   "tool_ukiyoe"
+  ],
+  [
+   "tool_hangi",
+   "per_painter",
+   "tool_ukiyoe"
+  ],
+  [
+   "tool_ukiyoe",
+   "trs_brocade",
+   "tool_nishikie"
+  ],
+  [
+   "tool_ukiyoe",
+   "per_geisha",
+   "tool_bijinga"
+  ],
+  [
+   "tool_ukiyoe",
+   "tool_kumadori",
+   "tool_yakushae"
+  ],
+  [
+   "tool_ukiyoe",
+   "plc_bridge",
+   "tool_meishoe"
+  ],
+  [
+   "tool_ukiyoe",
+   "per_samurai",
+   "tool_mushae"
+  ],
+  [
+   "tol_kite",
+   "tool_mushae",
+   "tool_edodako"
+  ],
+  [
+   "tol_kite",
+   "tool_ukiyoe",
+   "tool_edodako"
+  ],
+  [
+   "tool_hangi",
+   "mat_clay",
+   "tool_kawaraban"
+  ],
+  [
+   "tol_book",
+   "tool_efude",
+   "tool_ezoshi"
+  ],
+  [
+   "tool_ukiyoe",
+   "tol_book",
+   "tool_ezoshi"
+  ],
+  [
+   "tool_ezoshi",
+   "tool_hyoshigi",
+   "tool_kamishibai"
+  ],
+  [
+   "tool_chokokuto",
+   "mat_stone",
+   "tool_hanko"
+  ],
+  [
+   "tool_hanko",
+   "per_traveler",
+   "tool_tegata"
+  ],
+  [
+   "tool_minogami",
+   "tol_brush",
+   "tool_tegami"
+  ],
+  [
+   "tool_minogami",
+   "per_traveler",
+   "tool_tegami"
+  ],
+  [
+   "tool_tegami",
+   "tool_shikki",
+   "tool_fumibako"
+  ],
+  [
+   "tool_fumibako",
+   "tol_book",
+   "tool_bunko"
+  ],
+  [
+   "tool_suzuribako",
+   "mat_cloth",
+   "tool_shitajiki"
+  ],
+  [
+   "tol_book",
+   "nat_moon",
+   "tool_koyomi"
+  ],
+  [
+   "tol_book",
+   "tool_hidokei",
+   "tool_koyomi"
+  ],
+  [
+   "tool_rashinban",
+   "tol_scroll",
+   "tool_chizu"
+  ],
+  [
+   "tool_monosashi",
+   "tol_scroll",
+   "tool_chizu"
+  ],
+  [
+   "tool_shikishi",
+   "tol_book",
+   "tool_karuta"
+  ],
+  [
+   "tool_karuta",
+   "plt_flower",
+   "tool_hanafuda"
+  ],
+  [
+   "tool_karuta",
+   "mat_clay",
+   "tool_menko"
+  ],
+  [
+   "tool_gonoishi",
+   "plt_bamboo",
+   "tool_soroban"
+  ],
+  [
+   "tol_book",
+   "tool_soroban",
+   "tool_daifukucho"
+  ],
+  [
+   "tol_dish",
+   "tol_dish",
+   "tool_tenbin"
+  ],
+  [
+   "tool_tenbin",
+   "mat_iron",
+   "tool_hakari"
+  ],
+  [
+   "tool_tenbin",
+   "plt_bamboo",
+   "tool_tenbinbo"
+  ],
+  [
+   "tol_basket",
+   "tool_tenbinbo",
+   "tool_kago"
+  ],
+  [
+   "tool_kago",
+   "tool_shikki",
+   "tool_norimono"
+  ],
+  [
+   "tool_tsubo",
+   "mat_ink",
+   "tool_sumitsubo"
+  ],
+  [
+   "tool_tsubo",
+   "mat_thread",
+   "tool_sumitsubo"
+  ],
+  [
+   "tool_sumitsubo",
+   "mat_steel",
+   "tool_sashigane"
+  ],
+  [
+   "tool_sashigane",
+   "plt_bamboo",
+   "tool_monosashi"
+  ],
+  [
+   "tool_sumitsubo",
+   "mat_board",
+   "tool_goban"
+  ],
+  [
+   "tool_goban",
+   "mat_stone",
+   "tool_gonoishi"
+  ],
+  [
+   "tool_gonoishi",
+   "tool_owan",
+   "tool_goke"
+  ],
+  [
+   "tool_goban",
+   "per_samurai",
+   "tool_shogiban"
+  ],
+  [
+   "tool_shogiban",
+   "tol_brush",
+   "tool_shogikoma"
+  ],
+  [
+   "tool_goban",
+   "per_traveler",
+   "tool_sugoroku"
+  ],
+  [
+   "tol_mallet",
+   "mat_iron",
+   "tool_kugi"
+  ],
+  [
+   "tol_mallet",
+   "tool_kugi",
+   "tool_genno"
+  ],
+  [
+   "tool_genno",
+   "mat_iron",
+   "tool_kanatoko"
+  ],
+  [
+   "tool_nomi",
+   "mat_board",
+   "tool_kanna"
+  ],
+  [
+   "tool_nomi",
+   "plt_forest",
+   "tool_nokogiri"
+  ],
+  [
+   "tool_nokogiri",
+   "plt_bamboo",
+   "tool_hashigo"
+  ],
+  [
+   "tool_kugi",
+   "nat_whirlwind",
+   "tool_kiri"
+  ],
+  [
+   "tool_kanna",
+   "wpn_axe",
+   "tool_chona"
+  ],
+  [
+   "tool_nokogiri",
+   "tool_kanna",
+   "tool_dougubako"
+  ],
+  [
+   "tool_chokokuto",
+   "plt_tree",
+   "tool_ittobori"
+  ],
+  [
+   "tool_chokokuto",
+   "tool_shikki",
+   "tool_kamakurabori"
+  ],
+  [
+   "tool_shikki",
+   "mat_gold",
+   "tool_makie"
+  ],
+  [
+   "tool_shikki",
+   "nat_shell",
+   "tool_raden"
+  ],
+  [
+   "tool_makie",
+   "nat_shell",
+   "tool_raden"
+  ],
+  [
+   "tool_koma",
+   "mat_clay",
+   "tool_rokuro"
+  ],
+  [
+   "tool_noborigama",
+   "mat_stone",
+   "tool_jiki"
+  ],
+  [
+   "tool_jiki",
+   "tool_efude",
+   "tool_akae"
+  ],
+  [
+   "tool_akae",
+   "plc_port",
+   "tool_imari"
+  ],
+  [
+   "tool_akae",
+   "mat_gold",
+   "tool_kutani"
+  ],
+  [
+   "tool_noborigama",
+   "tool_tokkuri",
+   "tool_bizen"
+  ],
+  [
+   "tool_noborigama",
+   "yok_tanuki",
+   "tool_shigaraki"
+  ],
+  [
+   "tol_sakazuki",
+   "mat_glass",
+   "tool_giyaman"
+  ],
+  [
+   "tool_giyaman",
+   "tool_nomi",
+   "tool_kiriko"
+  ],
+  [
+   "tol_net",
+   "tool_minogami",
+   "tool_poi"
+  ],
+  [
+   "tool_giyaman",
+   "tool_gonoishi",
+   "tool_ohajiki"
+  ],
+  [
+   "tool_temari",
+   "mat_glass",
+   "tool_bidama"
+  ],
+  [
+   "tool_giyaman",
+   "tool_takezutsu",
+   "tool_bouenkyo"
+  ],
+  [
+   "tool_kazaguruma",
+   "plt_tree",
+   "tool_sharin"
+  ],
+  [
+   "tool_sharin",
+   "mat_iron",
+   "tool_haguruma"
+  ],
+  [
+   "tool_sharin",
+   "tool_kugi",
+   "tool_haguruma"
+  ],
+  [
+   "tool_haguruma",
+   "thunder",
+   "tool_erekiteru"
+  ],
+  [
+   "tool_ningyo",
+   "tool_haguruma",
+   "tool_karakuri"
+  ],
+  [
+   "tool_karakuri",
+   "tol_teabowl",
+   "tool_chahakobi"
+  ],
+  [
+   "tool_karakuri",
+   "wpn_bow",
+   "tool_yumihiki"
+  ],
+  [
+   "tool_karakuri",
+   "tol_brush",
+   "tool_mojikaki"
+  ],
+  [
+   "tool_haguruma",
+   "tol_bell",
+   "tool_wadokei"
+  ],
+  [
+   "tool_wadokei",
+   "tool_monosashi",
+   "tool_shakudokei"
+  ],
+  [
+   "tool_wadokei",
+   "tool_karakuri",
+   "tool_mannendokei"
+  ],
+  [
+   "tool_monosashi",
+   "nat_shadow",
+   "tool_hidokei"
+  ],
+  [
+   "tol_ship",
+   "mat_ironsand",
+   "tool_rashinban"
+  ],
+  [
+   "tool_kazaguruma",
+   "nat_river",
+   "tool_mizuguruma"
+  ],
+  [
+   "tool_sharin",
+   "nat_river",
+   "tool_mizuguruma"
+  ],
+  [
+   "tool_mizuguruma",
+   "per_farmer",
+   "tool_fumiguruma"
+  ],
+  [
+   "tool_mi",
+   "tool_kazaguruma",
+   "tool_tomi"
+  ],
+  [
+   "tool_kugi",
+   "plt_rice",
+   "tool_senbakoki"
+  ],
+  [
+   "tol_basket",
+   "plt_straw",
+   "tool_tawara"
+  ],
+  [
+   "tool_hari",
+   "fod_fish",
+   "tool_tsuribari"
+  ],
+  [
+   "tool_tsuribari",
+   "plt_bamboo",
+   "tool_tsurizao"
+  ],
+  [
+   "tool_tsubo",
+   "nat_sea",
+   "tool_takotsubo"
+  ],
+  [
+   "tol_basket",
+   "fod_fish",
+   "tool_biku"
+  ],
+  [
+   "tool_tsurizao",
+   "tol_basket",
+   "tool_biku"
+  ],
+  [
+   "tool_sharin",
+   "mat_board",
+   "tool_daihachi"
+  ],
+  [
+   "tool_daihachi",
+   "per_human",
+   "tool_jinrikisha"
+  ],
+  [
+   "tool_kago",
+   "tool_sharin",
+   "tool_jinrikisha"
+  ],
+  [
+   "tool_sharin",
+   "tool_sudare",
+   "tool_gissha"
+  ],
+  [
+   "tool_daihachi",
+   "nat_snow",
+   "tool_sori"
+  ],
+  [
+   "tool_kanjiki",
+   "mat_board",
+   "tool_sori"
+  ],
+  [
+   "tol_ship",
+   "mat_cloth",
+   "tool_hokake"
+  ],
+  [
+   "tool_hokake",
+   "wind",
+   "tool_hobune"
+  ],
+  [
+   "tool_hobune",
+   "mat_gold",
+   "tool_takarabune"
+  ],
+  [
+   "tool_hobune",
+   "nat_smoke",
+   "tool_kurofune"
+  ],
+  [
+   "tol_ship",
+   "tool_tawara",
+   "tool_sengokubune"
+  ],
+  [
+   "tool_sengokubune",
+   "wpn_armor",
+   "tool_atakebune"
+  ],
+  [
+   "tol_ship",
+   "tool_tsurizao",
+   "tool_tsuribune"
+  ],
+  [
+   "tol_ship",
+   "tool_chona",
+   "tool_marukibune"
+  ],
+  [
+   "tool_tarai",
+   "nat_sea",
+   "tool_tarubune"
+  ],
+  [
+   "tol_ship",
+   "mat_board",
+   "tool_kai"
+  ],
+  [
+   "tool_kai",
+   "nat_river",
+   "tool_watashibune"
+  ],
+  [
+   "tool_sao",
+   "nat_river",
+   "tool_watashibune"
+  ],
+  [
+   "tol_ship",
+   "mat_stone",
+   "tool_ikari"
+  ],
+  [
+   "tol_kite",
+   "mat_cloth",
+   "tool_hata"
+  ],
+  [
+   "tool_hata",
+   "fth_festival",
+   "tool_nobori"
+  ],
+  [
+   "tool_nobori",
+   "nat_flame",
+   "tool_matoi"
+  ],
+  [
+   "tool_hikeshibanten",
+   "tool_nobori",
+   "tool_matoi"
+  ],
+  [
+   "tool_tarai",
+   "yok_dragon",
+   "tool_ryudosui"
+  ],
+  [
+   "tool_hata",
+   "wind",
+   "tool_fukinagashi"
+  ],
+  [
+   "tool_hata",
+   "fod_carp",
+   "tool_koinobori"
+  ],
+  [
+   "tool_fukinagashi",
+   "fod_carp",
+   "tool_koinobori"
+  ],
+  [
+   "tol_kite",
+   "tool_hanten",
+   "tool_yakkodako"
+  ],
+  [
+   "tol_mallet",
+   "nat_whirlwind",
+   "tool_koma"
+  ],
+  [
+   "tool_koma",
+   "mat_iron",
+   "tool_beigoma"
+  ],
+  [
+   "tool_suzu",
+   "mat_thread",
+   "tool_temari"
+  ],
+  [
+   "tool_suzu",
+   "tol_kimono",
+   "tool_temari"
+  ],
+  [
+   "tool_temari",
+   "wpn_sword",
+   "tool_kendama"
+  ],
+  [
+   "tool_temari",
+   "plt_rice",
+   "tool_otedama"
+  ],
+  [
+   "nat_shell",
+   "tool_efude",
+   "tool_kaiawase"
+  ],
+  [
+   "tool_kaiawase",
+   "tool_shikki",
+   "tool_kaioke"
+  ],
+  [
+   "tool_minogami",
+   "mat_clay",
+   "tool_hariko"
+  ],
+  [
+   "tool_hariko",
+   "fth_monk",
+   "tool_daruma"
+  ],
+  [
+   "tool_hariko",
+   "fth_prayer",
+   "tool_daruma"
+  ],
+  [
+   "tool_daruma",
+   "mat_clay",
+   "tool_okiagari"
+  ],
+  [
+   "tool_hariko",
+   "tol_kimono",
+   "tool_ningyo"
+  ],
+  [
+   "tool_ningyo",
+   "mat_thread",
+   "tool_kugutsu"
+  ],
+  [
+   "tool_ningyo",
+   "cpt_spring",
+   "tool_dairibina"
+  ],
+  [
+   "tool_ningyo",
+   "tool_kinbyobu",
+   "tool_dairibina"
+  ],
+  [
+   "tool_origami",
+   "tool_dairibina",
+   "tool_kamibina"
+  ],
+  [
+   "tool_kamibina",
+   "nat_river",
+   "tool_nagashibina"
+  ],
+  [
+   "tool_dairibina",
+   "mat_board",
+   "tool_hinadan"
+  ],
+  [
+   "tool_dairibina",
+   "tool_hashigo",
+   "tool_hinadan"
+  ],
+  [
+   "tool_ningyo",
+   "wpn_armor",
+   "tool_gogatsuningyo"
+  ],
+  [
+   "tool_ningyo",
+   "plt_tree",
+   "tool_kokeshi"
+  ],
+  [
+   "tool_ittobori",
+   "tool_ningyo",
+   "tool_kokeshi"
+  ],
+  [
+   "tool_ningyo",
+   "mat_clay",
+   "tool_hakataningyo"
+  ],
+  [
+   "tool_ningyo",
+   "tool_furisode",
+   "tool_ichimatsu"
+  ],
+  [
+   "tool_ningyo",
+   "tool_shamisen",
+   "tool_bunraku"
+  ],
+  [
+   "tool_shamoji",
+   "mat_clay",
+   "tool_hera"
+  ],
+  [
+   "tool_hera",
+   "plc_house",
+   "tool_kote"
+  ],
+  [
+   "tool_kanna",
+   "wpn_spear",
+   "tool_yarikanna"
+  ],
+  [
+   "tool_sumitsubo",
+   "plt_bamboo",
+   "tool_sumisashi"
+  ],
+  [
+   "tool_monosashi",
+   "water",
+   "tool_mizumori"
+  ],
+  [
+   "tol_mallet",
+   "tol_mallet",
+   "tool_kakeya"
+  ],
+  [
+   "tool_manaita",
+   "tool_surikogi",
+   "tool_menbo"
+  ],
+  [
+   "tool_hocho",
+   "tool_menbo",
+   "tool_sobakiri"
+  ],
+  [
+   "tool_sushioke",
+   "tool_otoshibuta",
+   "tool_oshizushibako"
+  ],
+  [
+   "tool_chokokuto",
+   "fod_mochi",
+   "tool_kashigata"
+  ],
+  [
+   "tool_ittobori",
+   "fod_mochi",
+   "tool_kashigata"
+  ],
+  [
+   "tool_hoki",
+   "plc_garden",
+   "tool_niwabouki"
+  ],
+  [
+   "tool_hoki",
+   "plc_karesansui",
+   "tool_samonhiki"
+  ],
+  [
+   "tool_tsubo",
+   "nat_rain",
+   "tool_jouro"
+  ],
+  [
+   "tool_takezutsu",
+   "nat_rain",
+   "tool_jouro"
+  ],
+  [
+   "tool_haori",
+   "per_traveler",
+   "tool_michiyuki"
+  ],
+  [
+   "tool_obi",
+   "tool_fukusa",
+   "tool_obiage"
+  ],
+  [
+   "tool_juban",
+   "tool_hari",
+   "tool_haneri"
+  ],
+  [
+   "tool_saifu",
+   "mat_paper",
+   "tool_kamiire"
+  ],
+  [
+   "tool_kinchaku",
+   "mat_paper",
+   "tool_kamiire"
+  ],
+  [
+   "tol_brush",
+   "mat_board",
+   "tool_mokkan"
+  ],
+  [
+   "tool_haguruma",
+   "mat_steel",
+   "tool_zenmai"
+  ],
+  [
+   "tool_sharin",
+   "tool_mokko",
+   "tool_nekoguruma"
+  ],
+  [
+   "tool_kai",
+   "plt_bamboo",
+   "tool_sao"
+  ],
+  [
+   "tool_kanna",
+   "nat_ice",
+   "tool_koorikezuri"
+  ],
+  [
+   "tool_mi",
+   "nat_snow",
+   "tool_yukikaki"
+  ],
+  [
+   "tol_mirror",
+   "tol_mirror",
+   "tool_awasekagami"
+  ],
+  [
+   "tol_basket",
+   "tol_dish",
+   "tool_morikago"
+  ],
+  [
+   "tool_kasa",
+   "plt_bamboo",
+   "tool_ajirogasa"
+  ],
+  [
+   "tool_kyodai",
+   "tool_shikki",
+   "tool_keshobako"
+  ],
+  [
+   "tool_beni",
+   "tool_shikki",
+   "tool_keshobako"
+  ],
+  [
+   "tool_suzuribako",
+   "mat_board",
+   "tool_tsukue"
+  ],
+  [
+   "tool_zabuton",
+   "mat_board",
+   "tool_kyosoku"
+  ],
+  [
+   "tool_tansu",
+   "tool_owan",
+   "tool_mizuyadansu"
+  ],
+  [
+   "tool_suzuribako",
+   "tool_minogami",
+   "tool_ryoshibako"
+  ],
+  [
+   "tool_nigiribasami",
+   "plt_pine",
+   "tool_uekibasami"
+  ],
+  [
+   "tool_kugi",
+   "tool_genno",
+   "tool_kuginuki"
+  ],
+  [
+   "tool_hera",
+   "tol_scroll",
+   "tool_hyogushi"
+  ]
+ ]
+}
