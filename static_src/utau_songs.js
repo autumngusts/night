@@ -32,7 +32,8 @@
   // 依難度由易到難排列。2026-10-16 使用者試聽後決定：變速改為極端變快、拿掉八音盒／8bit（聽不出來），
   // 新增只有旋律樂器、人聲倒放、整段倒放。題庫包裡不在此清單的版本（舊包的 melody）會被忽略。
   // 之後以 CREPE 重做 8bit 旋律（id 改為 chip，避免舊包聽不出來的 melody 再出現），使用者試聽後採用。
-  // zh_read／zh_sing：中文朗讀與 AI 中文歌聲（DiffSinger），使用者試聽後採用；zh_sing 的 hint 是提示用音檔（加上伴奏）。
+  // zh_sing：AI 中文歌聲（DiffSinger），使用者試聽後採用；hint 是提示用音檔（加上伴奏）。長度 30 秒（使用者指定，其他版本 15 秒）。
+  // zh_read（中文朗讀＋伴奏）使用者試聽後不採用，2026-10-17 拿掉；舊包裡的 zh_read 會被忽略。
   // ja_sing：華語歌的日文填詞由 VOICEVOX 角色演唱（男 玄野武宏／女 四国めたん，使用者試聽後指定），提示同 zh_sing。
   var VARIANTS = [
     {
@@ -44,11 +45,6 @@
       id: "vocal",
       name: { zh: "純人聲", ja: "ボーカルのみ", en: "Vocals only" },
       desc: { zh: "拿掉伴奏，只剩歌聲", ja: "伴奏を消した歌声だけ", en: "Vocals only, backing removed" }
-    },
-    {
-      id: "zh_read",
-      name: { zh: "中文朗讀＋伴奏", ja: "中国語の朗読＋伴奏", en: "Chinese reading + backing" },
-      desc: { zh: "歌詞翻成中文，由語音朗讀並疊上伴奏", ja: "歌詞を中国語に訳して読み上げ、伴奏を重ねる", en: "The lyrics translated into Chinese, read aloud over the backing track" }
     },
     {
       id: "other",

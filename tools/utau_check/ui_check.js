@@ -62,7 +62,7 @@ function storedZip(files) {
 }
 function makeTestPack() {
   var variants = ["original", "instrumental", "vocal", "other", "speed", "chip", "vocal_rev", "rhythm", "reverse",
-    "zh_read", "zh_sing", "zh_sing_inst", "ja_sing", "ja_sing_inst"];
+    "zh_read", "zh_sing", "zh_sing_inst", "ja_sing", "ja_sing_inst"];  // zh_read：舊包才有，遊戲要忽略
   var songs = [
     { id: "ja:紅蓮華", t: "紅蓮華", a: "LiSA", y: 2019, r: "ja", c: "anime", key: "aaa" },
     { id: "ja:Lemon", t: "Lemon", a: "米津玄師", y: 2018, r: "ja", c: "screen", key: "bbb" }
@@ -158,7 +158,8 @@ function makeTestPack() {
   });
   assert.ok((await page.textContent("#ut-pack-status")).indexOf("2") >= 0);
   // 只留純樂器、只留動漫
-  for (var v of ["vocal", "other", "speed", "chip", "vocal_rev", "rhythm", "reverse", "zh_read", "zh_sing", "ja_sing"]) await page.uncheck("#ut-variant-" + v);
+  for (var v of ["vocal", "other", "speed", "chip", "vocal_rev", "rhythm", "reverse", "zh_sing", "ja_sing"]) await page.uncheck("#ut-variant-" + v);
+  assert.strictEqual(await page.$("#ut-variant-zh_read"), null);  // 中文朗讀已拿掉（2026-10-17）
   await page.uncheck("#ut-cat-screen");
   assert.ok((await page.textContent("#ut-pool-size")).indexOf("1") >= 0);
   await page.click("#ut-btn-start");

@@ -1,8 +1,8 @@
-"""我不會唱歌（utau）進階模式：中文版音檔（zh_read 中文朗讀＋伴奏、zh_sing 中文歌聲、zh_sing_inst 歌聲＋伴奏）。
+"""我不會唱歌（utau）進階模式：中文版音檔（zh_sing 中文歌聲、zh_sing_inst 歌聲＋伴奏）。
 
 由 build_pack.py 呼叫；歌詞來自 lyrics.json（不進 Git，譯詞與填詞在對話中由 Claude 撰寫）。
 
-- zh_read：每句中文譯詞（lines[].zh）用 edge-tts 台灣語音朗讀，放在原曲該句開始的時間點（lines[].t），疊上伴奏。
+- zh_read（已拿掉，使用者試聽後不採用）：中文譯詞用 edge-tts 朗讀；read_aloud() 保留但 build_pack 不再呼叫。
 - zh_sing：中文填詞（lines[].sing，一字一音節）用 DiffSinger 聲庫唱原曲旋律。
     音高＝原唱的 CREPE 曲線（保留滑音、顫音），移八度到聲庫音域；
     字的起點對到原唱人聲的發音起點（onset），比對到 CREPE 音符起點時節奏準確率高（Ria 72%→78%、綺萱 83%，2026-10-17 實測）。
@@ -188,7 +188,7 @@ def _crepe(vocals: np.ndarray):
 
     y16 = librosa.resample(vocals.mean(axis=1), orig_sr=SR, target_sr=16000)
     f0, per = torchcrepe.predict(torch.tensor(y16)[None], 16000, hop_length=160, fmin=80, fmax=1000, model="full",
-                                 return_periodicity=True, batch_size=512, device="cpu", decoder=torchcrepe.decode.viterbi)
+                                 return_periodicity=True, batch_size=128, device="cpu", decoder=torchcrepe.decode.viterbi)
     return f0[0].numpy(), per[0].numpy()
 
 
@@ -253,7 +253,8 @@ def sing(entry: dict, vocals: np.ndarray, notes: list, clip: float) -> np.ndarra
     lines = entry["lines"]
     spans, pys = [], []
     for i, line in enumerate(lines):
-        end = lines[i + 1]["t"] if i + 1 < len(lines) else clip
+        # end（可省略）：該句唱到哪裡為止；沒填＝下一句開始（最後一句＝片段結尾）
+        end = line.get("end") or (lines[i + 1]["t"] if i + 1 < len(lines) else clip)
         ns = [n for n in notes if line["t"] - 0.15 <= n[0] < end - 0.15]
         if not ns:
             continue

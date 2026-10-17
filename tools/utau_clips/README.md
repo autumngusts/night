@@ -15,11 +15,10 @@
 | 純人聲 `vocal` | Demucs 只留人聲（幾乎沒有人聲的曲子會略過） |
 | 只有旋律樂器 `other` | Demucs 的 other（拿掉人聲、鼓、貝斯；幾乎沒有的曲子會略過） |
 | 極端變快 `speed` | 1.5 倍速＋升 6 半音 |
-| 8bit 旋律 `chip` | 人聲旋律用 CREPE 辨識成音符，再用紅白機的脈衝波音色演奏（幾乎沒有人聲的曲子會略過） |
+| 8bit 旋律 `chip` | 人聲旋律用 CREPE 辨識成音符，再用柔和的方波音色（8bit 遊戲風）演奏（幾乎沒有人聲的曲子會略過） |
 | 人聲倒放 `vocal_rev` | 伴奏正常、人聲倒著放（幾乎沒有人聲的曲子會略過） |
 | 只有鼓＋貝斯 `rhythm` | Demucs 的 drums＋bass |
 | 整段倒放 `reverse` | 原曲片段倒著放 |
-| 中文朗讀＋伴奏 `zh_read` | 中文譯詞用 edge-tts 台灣語音逐句朗讀，疊上伴奏（需要 `lyrics.json`） |
 | 中文歌聲 `zh_sing` | DiffSinger 聲庫用中文填詞唱原曲旋律，只有歌聲（需要 `lyrics.json` 與 `models/`） |
 | 中文歌聲＋伴奏 `zh_sing_inst` | 遊戲中 `zh_sing` 播放 5 次後可用的提示，不是獨立題目 |
 | 日文歌聲 `ja_sing` | 華語歌的日文填詞由 VOICEVOX 角色演唱（男 玄野武宏／女 四国めたん），只有歌聲 |
@@ -85,6 +84,7 @@ tools/utau_clips/.venv/Scripts/python.exe tools/utau_clips/find_urls.py --region
   並**寫回清單**（同時加上 `"_autoStart": true` 註記），下次製作結果相同，不滿意直接改這個數字。
 - `skip`：這首不要放進題庫包的版本，例如 `["rhythm", "vocal_rev"]`（`original` 不能略過）。
   只影響打包，音檔快取照留，之後拿掉 `skip` 不必重做。
+- `exclude: true`：審核後決定這首不做（不製作、不打包；留在清單裡，`find_urls.py` 就不會再加回來）。
 - 底線開頭的欄位（`_yt`、`_autoStart`）只是給人看的註記，製作工具不會讀。
 - 還沒有 `url`／`file` 的歌會被略過，不會讓整批停下來。
 
@@ -99,6 +99,7 @@ tools/utau_clips/.venv/Scripts/python.exe tools/utau_clips/build_pack.py
 
 - 速度：CPU 一首約 20 秒（下載＋找副歌＋分離＋8bit 旋律辨識）；做過的歌再跑幾乎不花時間。
 - 改了製作方式（`build_pack.py` 的 `RECIPE` 遞增）後，舊成品快取自動失效，重跑會重做。
+- 只改 8bit 音色時遞增 `CHIP_VERSION`：重跑只會用快取的人聲重做 `chip`，其他版本照用快取。
 - 快取：只留原始下載檔（`cache/dl/`，一首約 4MB）與成品（`cache/clips/`，一首約 1.5MB）。
 
 ### 4. 試聽、修正、再打包
@@ -114,7 +115,10 @@ tools/utau_clips/.venv/Scripts/python.exe tools/utau_clips/build_pack.py
 - 匯入多次會依歌曲 id 合併，所以可以分批做、分批匯入。
 - zip 是不壓縮（STORED）格式，請不要自己重新壓縮，瀏覽器端只讀得懂這種格式。
 
-## 中文版（zh_read／zh_sing）
+## 中文版（zh_sing）
+
+中文歌聲與它的伴奏提示長 **30 秒**（使用者 2026-10-17 指定），從題目片段的同一個起點另外分離人聲／伴奏（成品資料夾的 `long30/`）；其他版本維持 15 秒。
+中文朗讀（`zh_read`）使用者試聽後不採用，已拿掉。
 
 ### 聲庫與聲碼器（第一次，放在 `models/`，不進 Git）
 
@@ -152,14 +156,15 @@ gh release download 0.25.2 -R VOICEVOX/voicevox_engine -p "voicevox_engine-windo
 
 1. 先照平常跑 `build_pack.py`，做出片段。
 2. 聽寫歌詞草稿：`tools/utau_clips/.venv/Scripts/python.exe tools/utau_clips/lyrics_draft.py`
-   → `lyrics.json` 每首會有 `start`、每句的 `t`（開始秒數）與 `ja`（聽寫的原文）。
+   → `lyrics.json` 每首會有 `start`、`clip`（聽寫的秒數，預設 30）、每句的 `t`（開始秒數）與 `ja`（聽寫的原文）。
+   - `--region ja` 只做日文歌。已經填好 15 秒的舊資料會保留原本的句子，只補上 15 秒以後的聽寫。
    - 人聲經過大量電子處理的歌（例：Perfume）Whisper 會聽不出來，需要手動填。
 3. **在對話中請 Claude** 校對聽寫、填上：
-   - `voice`：原唱 `male`／`female`（決定朗讀語音與歌聲聲庫）
-   - 每句的 `zh`：中文直譯（朗讀用）
+   - `voice`：原唱 `male`／`female`（決定歌聲聲庫）
+   - 每句的 `zh`：中文直譯（對照用，方便檢查填詞意思）
    - 每句的 `sing`：中文填詞（歌聲用，一字唱一個音節，字數大約等於原句音節數）
    - 華語歌改填每句的 `ja_sing`：日文填詞（平假名，一個假名唱一個音；避開「っ」等不能單獨成音的字）
-4. 再跑一次 `build_pack.py`：有 `zh` 的做 `zh_read`，有 `sing` 的做 `zh_sing`＋`zh_sing_inst`，有 `ja_sing` 的做 `ja_sing`＋`ja_sing_inst`。
+4. 再跑一次 `build_pack.py`：有 `sing` 的做 `zh_sing`＋`zh_sing_inst`，有 `ja_sing` 的做 `ja_sing`＋`ja_sing_inst`。
    - 快取在成品資料夾的 `zh-<歌詞雜湊>/`，改了譯詞或填詞只重做那首的中文版。
    - `start` 改過（重選起點）時，`lyrics.json` 的時間軸就對不上了，工具會略過中文版並提示重新聽寫。
 - `lyrics.json` 是歌詞與譯詞，有版權疑慮，**不進 Git**。

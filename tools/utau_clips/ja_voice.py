@@ -81,7 +81,8 @@ def _mora_spans(entry: dict, vocals: np.ndarray, notes: list, clip: float):
     lines = entry["lines"]
     spans, kana = [], []
     for i, line in enumerate(lines):
-        end = lines[i + 1]["t"] if i + 1 < len(lines) else clip
+        # end（可省略）：該句唱到哪裡為止；沒填＝下一句開始（最後一句＝片段結尾）
+        end = line.get("end") or (lines[i + 1]["t"] if i + 1 < len(lines) else clip)
         ns = [n for n in notes if line["t"] - 0.15 <= n[0] < end - 0.15]
         if not ns:
             continue
