@@ -1,0 +1,3134 @@
+{
+ "category": "core",
+ "items": [
+  {
+   "id": "nat_flame",
+   "zh": "火焰",
+   "ja": "炎",
+   "cat": "nature"
+  },
+  {
+   "id": "nat_river",
+   "zh": "河川",
+   "ja": "川",
+   "cat": "nature"
+  },
+  {
+   "id": "nat_mountain",
+   "zh": "山",
+   "ja": "山",
+   "cat": "nature"
+  },
+  {
+   "id": "art_ki",
+   "zh": "氣",
+   "ja": "気",
+   "cat": "art"
+  },
+  {
+   "id": "nat_rumble",
+   "zh": "雷鳴",
+   "ja": "雷鳴",
+   "cat": "nature"
+  },
+  {
+   "id": "nat_steam",
+   "zh": "蒸氣",
+   "ja": "湯気",
+   "cat": "nature"
+  },
+  {
+   "id": "mat_iron",
+   "zh": "鐵",
+   "ja": "鉄",
+   "cat": "material"
+  },
+  {
+   "id": "nat_light",
+   "zh": "光芒",
+   "ja": "光",
+   "cat": "nature"
+  },
+  {
+   "id": "nat_smoke",
+   "zh": "煙",
+   "ja": "煙",
+   "cat": "nature"
+  },
+  {
+   "id": "nat_thunderstorm",
+   "zh": "雷雨",
+   "ja": "雷雨",
+   "cat": "nature"
+  },
+  {
+   "id": "nat_wave",
+   "zh": "波浪",
+   "ja": "波",
+   "cat": "nature"
+  },
+  {
+   "id": "plt_grass",
+   "zh": "草",
+   "ja": "草",
+   "cat": "plant"
+  },
+  {
+   "id": "nat_storm",
+   "zh": "暴風雨",
+   "ja": "嵐",
+   "cat": "nature"
+  },
+  {
+   "id": "nat_quake",
+   "zh": "地震",
+   "ja": "地震",
+   "cat": "nature"
+  },
+  {
+   "id": "nat_sandstorm",
+   "zh": "砂塵",
+   "ja": "砂塵",
+   "cat": "nature"
+  },
+  {
+   "id": "nat_whirlwind",
+   "zh": "旋風",
+   "ja": "旋風",
+   "cat": "nature"
+  },
+  {
+   "id": "nat_cloud",
+   "zh": "雲",
+   "ja": "雲",
+   "cat": "nature"
+  },
+  {
+   "id": "nat_mist",
+   "zh": "霧",
+   "ja": "霧",
+   "cat": "nature"
+  },
+  {
+   "id": "nat_rain",
+   "zh": "雨",
+   "ja": "雨",
+   "cat": "nature"
+  },
+  {
+   "id": "nat_lightning",
+   "zh": "閃電",
+   "ja": "稲妻",
+   "cat": "nature"
+  },
+  {
+   "id": "nat_sea",
+   "zh": "大海",
+   "ja": "海",
+   "cat": "nature"
+  },
+  {
+   "id": "nat_lava",
+   "zh": "熔岩",
+   "ja": "溶岩",
+   "cat": "nature"
+  },
+  {
+   "id": "nat_whirlpool",
+   "zh": "漩渦",
+   "ja": "渦潮",
+   "cat": "nature"
+  },
+  {
+   "id": "nat_tsunami",
+   "zh": "海嘯",
+   "ja": "津波",
+   "cat": "nature"
+  },
+  {
+   "id": "nat_rock",
+   "zh": "岩石",
+   "ja": "岩",
+   "cat": "nature"
+  },
+  {
+   "id": "nat_waterfall",
+   "zh": "瀑布",
+   "ja": "滝",
+   "cat": "nature"
+  },
+  {
+   "id": "nat_ridge",
+   "zh": "山脈",
+   "ja": "山脈",
+   "cat": "nature"
+  },
+  {
+   "id": "nat_flood",
+   "zh": "洪水",
+   "ja": "洪水",
+   "cat": "nature"
+  },
+  {
+   "id": "nat_sun",
+   "zh": "太陽",
+   "ja": "太陽",
+   "cat": "nature"
+  },
+  {
+   "id": "nat_moon",
+   "zh": "明月",
+   "ja": "月",
+   "cat": "nature"
+  },
+  {
+   "id": "nat_shadow",
+   "zh": "影子",
+   "ja": "影",
+   "cat": "nature"
+  },
+  {
+   "id": "nat_volcano",
+   "zh": "火山",
+   "ja": "火山",
+   "cat": "nature"
+  },
+  {
+   "id": "nat_thundercloud",
+   "zh": "雷雲",
+   "ja": "雷雲",
+   "cat": "nature"
+  },
+  {
+   "id": "nat_valley",
+   "zh": "山谷",
+   "ja": "谷",
+   "cat": "nature"
+  },
+  {
+   "id": "nat_rainbow",
+   "zh": "彩虹",
+   "ja": "虹",
+   "cat": "nature"
+  },
+  {
+   "id": "nat_dark",
+   "zh": "黑暗",
+   "ja": "闇",
+   "cat": "nature"
+  },
+  {
+   "id": "nat_shell",
+   "zh": "貝殼",
+   "ja": "貝",
+   "cat": "nature"
+  },
+  {
+   "id": "nat_tornado",
+   "zh": "龍捲風",
+   "ja": "竜巻",
+   "cat": "nature"
+  },
+  {
+   "id": "nat_frost",
+   "zh": "霜",
+   "ja": "霜",
+   "cat": "nature"
+  },
+  {
+   "id": "nat_night",
+   "zh": "夜晚",
+   "ja": "夜",
+   "cat": "nature"
+  },
+  {
+   "id": "nat_ice",
+   "zh": "冰",
+   "ja": "氷",
+   "cat": "nature"
+  },
+  {
+   "id": "nat_snow",
+   "zh": "雪",
+   "ja": "雪",
+   "cat": "nature"
+  },
+  {
+   "id": "mat_clay",
+   "zh": "黏土",
+   "ja": "粘土",
+   "cat": "material"
+  },
+  {
+   "id": "mat_sand",
+   "zh": "沙",
+   "ja": "砂",
+   "cat": "material"
+  },
+  {
+   "id": "mat_stone",
+   "zh": "石頭",
+   "ja": "石",
+   "cat": "material"
+  },
+  {
+   "id": "mat_steel",
+   "zh": "鋼",
+   "ja": "鋼",
+   "cat": "material"
+  },
+  {
+   "id": "mat_gunpowder",
+   "zh": "火藥",
+   "ja": "火薬",
+   "cat": "material"
+  },
+  {
+   "id": "mat_ink",
+   "zh": "墨",
+   "ja": "墨",
+   "cat": "material"
+  },
+  {
+   "id": "mat_paper",
+   "zh": "紙",
+   "ja": "紙",
+   "cat": "material"
+  },
+  {
+   "id": "mat_thread",
+   "zh": "絲線",
+   "ja": "糸",
+   "cat": "material"
+  },
+  {
+   "id": "mat_pottery",
+   "zh": "陶器",
+   "ja": "陶器",
+   "cat": "material"
+  },
+  {
+   "id": "mat_glass",
+   "zh": "玻璃",
+   "ja": "硝子",
+   "cat": "material"
+  },
+  {
+   "id": "mat_gold",
+   "zh": "黃金",
+   "ja": "金",
+   "cat": "material"
+  },
+  {
+   "id": "mat_ironsand",
+   "zh": "砂鐵",
+   "ja": "砂鉄",
+   "cat": "material"
+  },
+  {
+   "id": "mat_ore",
+   "zh": "礦石",
+   "ja": "鉱石",
+   "cat": "material"
+  },
+  {
+   "id": "mat_charcoal",
+   "zh": "木炭",
+   "ja": "炭",
+   "cat": "material"
+  },
+  {
+   "id": "mat_crystal",
+   "zh": "水晶",
+   "ja": "水晶",
+   "cat": "material"
+  },
+  {
+   "id": "mat_salt",
+   "zh": "鹽",
+   "ja": "塩",
+   "cat": "material"
+  },
+  {
+   "id": "mat_cloth",
+   "zh": "布",
+   "ja": "布",
+   "cat": "material"
+  },
+  {
+   "id": "mat_rope",
+   "zh": "繩索",
+   "ja": "縄",
+   "cat": "material"
+  },
+  {
+   "id": "mat_board",
+   "zh": "木板",
+   "ja": "板",
+   "cat": "material"
+  },
+  {
+   "id": "mat_gem",
+   "zh": "寶石",
+   "ja": "宝石",
+   "cat": "material"
+  },
+  {
+   "id": "plt_tree",
+   "zh": "樹木",
+   "ja": "木",
+   "cat": "plant"
+  },
+  {
+   "id": "plt_bamboo",
+   "zh": "竹",
+   "ja": "竹",
+   "cat": "plant"
+  },
+  {
+   "id": "plt_rice",
+   "zh": "稻",
+   "ja": "稲",
+   "cat": "plant"
+  },
+  {
+   "id": "plt_forest",
+   "zh": "森林",
+   "ja": "森",
+   "cat": "plant"
+  },
+  {
+   "id": "plt_bambooforest",
+   "zh": "竹林",
+   "ja": "竹林",
+   "cat": "plant"
+  },
+  {
+   "id": "plt_flower",
+   "zh": "花",
+   "ja": "花",
+   "cat": "plant"
+  },
+  {
+   "id": "plt_pine",
+   "zh": "松樹",
+   "ja": "松",
+   "cat": "plant"
+  },
+  {
+   "id": "plt_willow",
+   "zh": "柳樹",
+   "ja": "柳",
+   "cat": "plant"
+  },
+  {
+   "id": "plt_mushroom",
+   "zh": "菇",
+   "ja": "茸",
+   "cat": "plant"
+  },
+  {
+   "id": "plt_moss",
+   "zh": "青苔",
+   "ja": "苔",
+   "cat": "plant"
+  },
+  {
+   "id": "plt_seaweed",
+   "zh": "水草",
+   "ja": "藻",
+   "cat": "plant"
+  },
+  {
+   "id": "plt_herb",
+   "zh": "藥草",
+   "ja": "薬草",
+   "cat": "plant"
+  },
+  {
+   "id": "plt_tea",
+   "zh": "茶葉",
+   "ja": "茶葉",
+   "cat": "plant"
+  },
+  {
+   "id": "plt_maple",
+   "zh": "楓葉",
+   "ja": "紅葉",
+   "cat": "plant"
+  },
+  {
+   "id": "plt_straw",
+   "zh": "稻草",
+   "ja": "藁",
+   "cat": "plant"
+  },
+  {
+   "id": "plt_sakura",
+   "zh": "櫻花",
+   "ja": "桜",
+   "cat": "plant"
+  },
+  {
+   "id": "plt_ume",
+   "zh": "梅花",
+   "ja": "梅",
+   "cat": "plant"
+  },
+  {
+   "id": "plt_lotus",
+   "zh": "蓮花",
+   "ja": "蓮",
+   "cat": "plant"
+  },
+  {
+   "id": "fod_rice",
+   "zh": "白米",
+   "ja": "米",
+   "cat": "food"
+  },
+  {
+   "id": "fod_gohan",
+   "zh": "米飯",
+   "ja": "飯",
+   "cat": "food"
+  },
+  {
+   "id": "fod_porridge",
+   "zh": "粥",
+   "ja": "粥",
+   "cat": "food"
+  },
+  {
+   "id": "fod_sake",
+   "zh": "酒",
+   "ja": "酒",
+   "cat": "food"
+  },
+  {
+   "id": "fod_mochi",
+   "zh": "年糕",
+   "ja": "餅",
+   "cat": "food"
+  },
+  {
+   "id": "fod_fish",
+   "zh": "魚",
+   "ja": "魚",
+   "cat": "food"
+  },
+  {
+   "id": "fod_grilledfish",
+   "zh": "烤魚",
+   "ja": "焼き魚",
+   "cat": "food"
+  },
+  {
+   "id": "fod_driedfish",
+   "zh": "魚乾",
+   "ja": "干物",
+   "cat": "food"
+  },
+  {
+   "id": "fod_katsuobushi",
+   "zh": "柴魚片",
+   "ja": "鰹節",
+   "cat": "food"
+  },
+  {
+   "id": "fod_dashi",
+   "zh": "高湯",
+   "ja": "出汁",
+   "cat": "food"
+  },
+  {
+   "id": "fod_sashimi",
+   "zh": "生魚片",
+   "ja": "刺身",
+   "cat": "food"
+  },
+  {
+   "id": "fod_carp",
+   "zh": "鯉魚",
+   "ja": "鯉",
+   "cat": "food"
+  },
+  {
+   "id": "fod_sushi",
+   "zh": "壽司",
+   "ja": "寿司",
+   "cat": "food"
+  },
+  {
+   "id": "fod_tea",
+   "zh": "茶",
+   "ja": "茶",
+   "cat": "food"
+  },
+  {
+   "id": "fod_matcha",
+   "zh": "抹茶",
+   "ja": "抹茶",
+   "cat": "food"
+  },
+  {
+   "id": "fod_potato",
+   "zh": "芋頭",
+   "ja": "芋",
+   "cat": "food"
+  },
+  {
+   "id": "fod_bakedpotato",
+   "zh": "烤地瓜",
+   "ja": "焼き芋",
+   "cat": "food"
+  },
+  {
+   "id": "tol_pot",
+   "zh": "鍋",
+   "ja": "鍋",
+   "cat": "tool"
+  },
+  {
+   "id": "tol_bell",
+   "zh": "梵鐘",
+   "ja": "鐘",
+   "cat": "tool"
+  },
+  {
+   "id": "tol_beacon",
+   "zh": "狼煙",
+   "ja": "狼煙",
+   "cat": "tool"
+  },
+  {
+   "id": "tol_lantern",
+   "zh": "紙燈籠",
+   "ja": "提灯",
+   "cat": "tool"
+  },
+  {
+   "id": "tol_umbrella",
+   "zh": "油紙傘",
+   "ja": "傘",
+   "cat": "tool"
+  },
+  {
+   "id": "tol_fan",
+   "zh": "扇子",
+   "ja": "扇子",
+   "cat": "tool"
+  },
+  {
+   "id": "tol_brush",
+   "zh": "毛筆",
+   "ja": "筆",
+   "cat": "tool"
+  },
+  {
+   "id": "tol_inkstone",
+   "zh": "硯台",
+   "ja": "硯",
+   "cat": "tool"
+  },
+  {
+   "id": "tol_book",
+   "zh": "書籍",
+   "ja": "書物",
+   "cat": "tool"
+  },
+  {
+   "id": "tol_scroll",
+   "zh": "卷軸",
+   "ja": "巻物",
+   "cat": "tool"
+  },
+  {
+   "id": "tol_kite",
+   "zh": "風箏",
+   "ja": "凧",
+   "cat": "tool"
+  },
+  {
+   "id": "tol_fusuma",
+   "zh": "拉門",
+   "ja": "襖",
+   "cat": "tool"
+  },
+  {
+   "id": "tol_zori",
+   "zh": "草鞋",
+   "ja": "草履",
+   "cat": "tool"
+  },
+  {
+   "id": "tol_geta",
+   "zh": "木屐",
+   "ja": "下駄",
+   "cat": "tool"
+  },
+  {
+   "id": "tol_bucket",
+   "zh": "木桶",
+   "ja": "桶",
+   "cat": "tool"
+  },
+  {
+   "id": "tol_mallet",
+   "zh": "木槌",
+   "ja": "槌",
+   "cat": "tool"
+  },
+  {
+   "id": "tol_mirror",
+   "zh": "鏡子",
+   "ja": "鏡",
+   "cat": "tool"
+  },
+  {
+   "id": "tol_flute",
+   "zh": "笛子",
+   "ja": "笛",
+   "cat": "tool"
+  },
+  {
+   "id": "tol_koto",
+   "zh": "古箏",
+   "ja": "琴",
+   "cat": "tool"
+  },
+  {
+   "id": "tol_taiko",
+   "zh": "太鼓",
+   "ja": "太鼓",
+   "cat": "tool"
+  },
+  {
+   "id": "tol_windbell",
+   "zh": "風鈴",
+   "ja": "風鈴",
+   "cat": "tool"
+  },
+  {
+   "id": "tol_ship",
+   "zh": "船",
+   "ja": "船",
+   "cat": "tool"
+  },
+  {
+   "id": "tol_teabowl",
+   "zh": "茶碗",
+   "ja": "茶碗",
+   "cat": "tool"
+  },
+  {
+   "id": "tol_kyusu",
+   "zh": "急須",
+   "ja": "急須",
+   "cat": "tool"
+  },
+  {
+   "id": "tol_sakazuki",
+   "zh": "酒杯",
+   "ja": "盃",
+   "cat": "tool"
+  },
+  {
+   "id": "tol_dish",
+   "zh": "盤子",
+   "ja": "皿",
+   "cat": "tool"
+  },
+  {
+   "id": "tol_stonelantern",
+   "zh": "石燈籠",
+   "ja": "灯籠",
+   "cat": "tool"
+  },
+  {
+   "id": "tol_net",
+   "zh": "漁網",
+   "ja": "網",
+   "cat": "tool"
+  },
+  {
+   "id": "tol_basket",
+   "zh": "竹籠",
+   "ja": "籠",
+   "cat": "tool"
+  },
+  {
+   "id": "tol_kimono",
+   "zh": "和服",
+   "ja": "着物",
+   "cat": "tool"
+  },
+  {
+   "id": "wpn_katana",
+   "zh": "刀",
+   "ja": "刀",
+   "cat": "weapon"
+  },
+  {
+   "id": "wpn_sword",
+   "zh": "劍",
+   "ja": "剣",
+   "cat": "weapon"
+  },
+  {
+   "id": "wpn_axe",
+   "zh": "斧頭",
+   "ja": "斧",
+   "cat": "weapon"
+  },
+  {
+   "id": "wpn_shuriken",
+   "zh": "手裏劍",
+   "ja": "手裏剣",
+   "cat": "weapon"
+  },
+  {
+   "id": "wpn_sickle",
+   "zh": "鐮刀",
+   "ja": "鎌",
+   "cat": "weapon"
+  },
+  {
+   "id": "wpn_spear",
+   "zh": "長槍",
+   "ja": "槍",
+   "cat": "weapon"
+  },
+  {
+   "id": "wpn_arrow",
+   "zh": "箭",
+   "ja": "矢",
+   "cat": "weapon"
+  },
+  {
+   "id": "wpn_bow",
+   "zh": "弓",
+   "ja": "弓",
+   "cat": "weapon"
+  },
+  {
+   "id": "wpn_chain",
+   "zh": "鎖鏈",
+   "ja": "鎖",
+   "cat": "weapon"
+  },
+  {
+   "id": "wpn_kunai",
+   "zh": "苦無",
+   "ja": "苦無",
+   "cat": "weapon"
+  },
+  {
+   "id": "wpn_tessen",
+   "zh": "鐵扇",
+   "ja": "鉄扇",
+   "cat": "weapon"
+  },
+  {
+   "id": "wpn_matchlock",
+   "zh": "火繩",
+   "ja": "火縄",
+   "cat": "weapon"
+  },
+  {
+   "id": "wpn_musket",
+   "zh": "火繩槍",
+   "ja": "鉄砲",
+   "cat": "weapon"
+  },
+  {
+   "id": "wpn_bomb",
+   "zh": "炸彈",
+   "ja": "爆弾",
+   "cat": "weapon"
+  },
+  {
+   "id": "wpn_firecracker",
+   "zh": "爆竹",
+   "ja": "爆竹",
+   "cat": "weapon"
+  },
+  {
+   "id": "wpn_smokeball",
+   "zh": "煙幕彈",
+   "ja": "煙玉",
+   "cat": "weapon"
+  },
+  {
+   "id": "wpn_sheath",
+   "zh": "刀鞘",
+   "ja": "鞘",
+   "cat": "weapon"
+  },
+  {
+   "id": "wpn_shinai",
+   "zh": "竹刀",
+   "ja": "竹刀",
+   "cat": "weapon"
+  },
+  {
+   "id": "wpn_tsuba",
+   "zh": "刀鍔",
+   "ja": "鍔",
+   "cat": "weapon"
+  },
+  {
+   "id": "wpn_armor",
+   "zh": "鎧甲",
+   "ja": "鎧",
+   "cat": "weapon"
+  },
+  {
+   "id": "art_breath",
+   "zh": "呼吸",
+   "ja": "呼吸",
+   "cat": "art"
+  },
+  {
+   "id": "art_kiai",
+   "zh": "氣合",
+   "ja": "気合",
+   "cat": "art"
+  },
+  {
+   "id": "art_kehai",
+   "zh": "氣息",
+   "ja": "気配",
+   "cat": "art"
+  },
+  {
+   "id": "art_satsuki",
+   "zh": "殺氣",
+   "ja": "殺気",
+   "cat": "art"
+  },
+  {
+   "id": "art_aiki",
+   "zh": "合氣",
+   "ja": "合気",
+   "cat": "art"
+  },
+  {
+   "id": "art_shukuchi",
+   "zh": "縮地",
+   "ja": "縮地",
+   "cat": "art"
+  },
+  {
+   "id": "art_shugyo",
+   "zh": "修行",
+   "ja": "修行",
+   "cat": "art"
+  },
+  {
+   "id": "art_kata",
+   "zh": "招式",
+   "ja": "型",
+   "cat": "art"
+  },
+  {
+   "id": "art_kamae",
+   "zh": "架勢",
+   "ja": "構え",
+   "cat": "art"
+  },
+  {
+   "id": "art_fist",
+   "zh": "拳法",
+   "ja": "拳",
+   "cat": "art"
+  },
+  {
+   "id": "art_kenjutsu",
+   "zh": "劍術",
+   "ja": "剣術",
+   "cat": "art"
+  },
+  {
+   "id": "art_shurikenjutsu",
+   "zh": "手裏劍術",
+   "ja": "手裏剣術",
+   "cat": "art"
+  },
+  {
+   "id": "art_raikiri",
+   "zh": "雷切",
+   "ja": "雷切",
+   "cat": "art"
+  },
+  {
+   "id": "art_issen",
+   "zh": "一閃",
+   "ja": "一閃",
+   "cat": "art"
+  },
+  {
+   "id": "art_nito",
+   "zh": "二刀流",
+   "ja": "二刀流",
+   "cat": "art"
+  },
+  {
+   "id": "art_ninjutsu",
+   "zh": "忍術",
+   "ja": "忍術",
+   "cat": "art"
+  },
+  {
+   "id": "art_iai",
+   "zh": "居合",
+   "ja": "居合",
+   "cat": "art"
+  },
+  {
+   "id": "art_bunshin",
+   "zh": "分身",
+   "ja": "分身",
+   "cat": "art"
+  },
+  {
+   "id": "art_onkei",
+   "zh": "隱形",
+   "ja": "隠形",
+   "cat": "art"
+  },
+  {
+   "id": "per_human",
+   "zh": "人",
+   "ja": "人",
+   "cat": "person"
+  },
+  {
+   "id": "per_smith",
+   "zh": "鐵匠",
+   "ja": "鍛冶屋",
+   "cat": "person"
+  },
+  {
+   "id": "per_fisher",
+   "zh": "漁夫",
+   "ja": "漁師",
+   "cat": "person"
+  },
+  {
+   "id": "per_farmer",
+   "zh": "農夫",
+   "ja": "農夫",
+   "cat": "person"
+  },
+  {
+   "id": "per_healer",
+   "zh": "藥師",
+   "ja": "薬師",
+   "cat": "person"
+  },
+  {
+   "id": "per_potter",
+   "zh": "陶工",
+   "ja": "陶工",
+   "cat": "person"
+  },
+  {
+   "id": "per_chef",
+   "zh": "廚師",
+   "ja": "料理人",
+   "cat": "person"
+  },
+  {
+   "id": "per_bandit",
+   "zh": "山賊",
+   "ja": "山賊",
+   "cat": "person"
+  },
+  {
+   "id": "per_samurai",
+   "zh": "武士",
+   "ja": "侍",
+   "cat": "person"
+  },
+  {
+   "id": "per_ninja",
+   "zh": "忍者",
+   "ja": "忍者",
+   "cat": "person"
+  },
+  {
+   "id": "per_disciple",
+   "zh": "弟子",
+   "ja": "弟子",
+   "cat": "person"
+  },
+  {
+   "id": "per_craftsman",
+   "zh": "工匠",
+   "ja": "職人",
+   "cat": "person"
+  },
+  {
+   "id": "per_swordmaster",
+   "zh": "劍豪",
+   "ja": "剣豪",
+   "cat": "person"
+  },
+  {
+   "id": "per_painter",
+   "zh": "畫師",
+   "ja": "絵師",
+   "cat": "person"
+  },
+  {
+   "id": "per_teamaster",
+   "zh": "茶人",
+   "ja": "茶人",
+   "cat": "person"
+  },
+  {
+   "id": "per_geisha",
+   "zh": "藝妓",
+   "ja": "芸者",
+   "cat": "person"
+  },
+  {
+   "id": "per_traveler",
+   "zh": "旅人",
+   "ja": "旅人",
+   "cat": "person"
+  },
+  {
+   "id": "per_merchant",
+   "zh": "商人",
+   "ja": "商人",
+   "cat": "person"
+  },
+  {
+   "id": "yok_aura",
+   "zh": "妖氣",
+   "ja": "妖気",
+   "cat": "yokai"
+  },
+  {
+   "id": "yok_kappa",
+   "zh": "河童",
+   "ja": "河童",
+   "cat": "yokai"
+  },
+  {
+   "id": "yok_tengu",
+   "zh": "天狗",
+   "ja": "天狗",
+   "cat": "yokai"
+  },
+  {
+   "id": "yok_oni",
+   "zh": "鬼",
+   "ja": "鬼",
+   "cat": "yokai"
+  },
+  {
+   "id": "yok_raiju",
+   "zh": "雷獸",
+   "ja": "雷獣",
+   "cat": "yokai"
+  },
+  {
+   "id": "yok_fox",
+   "zh": "狐狸",
+   "ja": "狐",
+   "cat": "yokai"
+  },
+  {
+   "id": "yok_bake",
+   "zh": "變化",
+   "ja": "化け",
+   "cat": "yokai"
+  },
+  {
+   "id": "yok_onibi",
+   "zh": "鬼火",
+   "ja": "鬼火",
+   "cat": "yokai"
+  },
+  {
+   "id": "yok_tanuki",
+   "zh": "狸貓",
+   "ja": "狸",
+   "cat": "yokai"
+  },
+  {
+   "id": "yok_dragon",
+   "zh": "龍",
+   "ja": "龍",
+   "cat": "yokai"
+  },
+  {
+   "id": "yok_yamabiko",
+   "zh": "山彥",
+   "ja": "山彦",
+   "cat": "yokai"
+  },
+  {
+   "id": "yok_kirin",
+   "zh": "麒麟",
+   "ja": "麒麟",
+   "cat": "yokai"
+  },
+  {
+   "id": "yok_phoenix",
+   "zh": "鳳凰",
+   "ja": "鳳凰",
+   "cat": "yokai"
+  },
+  {
+   "id": "yok_orochi",
+   "zh": "大蛇",
+   "ja": "大蛇",
+   "cat": "yokai"
+  },
+  {
+   "id": "yok_kodama",
+   "zh": "樹靈",
+   "ja": "木霊",
+   "cat": "yokai"
+  },
+  {
+   "id": "yok_karakasa",
+   "zh": "唐傘妖怪",
+   "ja": "唐傘お化け",
+   "cat": "yokai"
+  },
+  {
+   "id": "yok_ghost",
+   "zh": "幽靈",
+   "ja": "幽霊",
+   "cat": "yokai"
+  },
+  {
+   "id": "yok_grudge",
+   "zh": "怨念",
+   "ja": "怨念",
+   "cat": "yokai"
+  },
+  {
+   "id": "yok_nue",
+   "zh": "鵺",
+   "ja": "鵺",
+   "cat": "yokai"
+  },
+  {
+   "id": "plc_field",
+   "zh": "田地",
+   "ja": "畑",
+   "cat": "place"
+  },
+  {
+   "id": "plc_paddy",
+   "zh": "水田",
+   "ja": "田んぼ",
+   "cat": "place"
+  },
+  {
+   "id": "plc_house",
+   "zh": "房屋",
+   "ja": "家",
+   "cat": "place"
+  },
+  {
+   "id": "plc_village",
+   "zh": "村莊",
+   "ja": "村",
+   "cat": "place"
+  },
+  {
+   "id": "plc_karesansui",
+   "zh": "枯山水",
+   "ja": "枯山水",
+   "cat": "place"
+  },
+  {
+   "id": "plc_bridge",
+   "zh": "橋",
+   "ja": "橋",
+   "cat": "place"
+  },
+  {
+   "id": "plc_port",
+   "zh": "港口",
+   "ja": "港",
+   "cat": "place"
+  },
+  {
+   "id": "plc_temple",
+   "zh": "寺院",
+   "ja": "寺",
+   "cat": "place"
+  },
+  {
+   "id": "plc_castle",
+   "zh": "城",
+   "ja": "城",
+   "cat": "place"
+  },
+  {
+   "id": "plc_cave",
+   "zh": "洞窟",
+   "ja": "洞窟",
+   "cat": "place"
+  },
+  {
+   "id": "plc_onsen",
+   "zh": "溫泉",
+   "ja": "温泉",
+   "cat": "place"
+  },
+  {
+   "id": "plc_island",
+   "zh": "島嶼",
+   "ja": "島",
+   "cat": "place"
+  },
+  {
+   "id": "plc_well",
+   "zh": "水井",
+   "ja": "井戸",
+   "cat": "place"
+  },
+  {
+   "id": "plc_dojo",
+   "zh": "道場",
+   "ja": "道場",
+   "cat": "place"
+  },
+  {
+   "id": "plc_lake",
+   "zh": "湖泊",
+   "ja": "湖",
+   "cat": "place"
+  },
+  {
+   "id": "plc_tower",
+   "zh": "寶塔",
+   "ja": "塔",
+   "cat": "place"
+  },
+  {
+   "id": "plc_pond",
+   "zh": "池塘",
+   "ja": "池",
+   "cat": "place"
+  },
+  {
+   "id": "plc_garden",
+   "zh": "庭院",
+   "ja": "庭",
+   "cat": "place"
+  },
+  {
+   "id": "plc_shrine",
+   "zh": "神社",
+   "ja": "神社",
+   "cat": "place"
+  },
+  {
+   "id": "plc_teahouse",
+   "zh": "茶屋",
+   "ja": "茶屋",
+   "cat": "place"
+  },
+  {
+   "id": "fth_prayer",
+   "zh": "祈禱",
+   "ja": "祈り",
+   "cat": "faith"
+  },
+  {
+   "id": "fth_norito",
+   "zh": "祝詞",
+   "ja": "祝詞",
+   "cat": "faith"
+  },
+  {
+   "id": "fth_ofuda",
+   "zh": "護符",
+   "ja": "御札",
+   "cat": "faith"
+  },
+  {
+   "id": "fth_omamori",
+   "zh": "御守",
+   "ja": "御守",
+   "cat": "faith"
+  },
+  {
+   "id": "fth_torii",
+   "zh": "鳥居",
+   "ja": "鳥居",
+   "cat": "faith"
+  },
+  {
+   "id": "fth_shimenawa",
+   "zh": "注連繩",
+   "ja": "注連縄",
+   "cat": "faith"
+  },
+  {
+   "id": "fth_jizo",
+   "zh": "地藏",
+   "ja": "地蔵",
+   "cat": "faith"
+  },
+  {
+   "id": "fth_buddha",
+   "zh": "佛",
+   "ja": "仏",
+   "cat": "faith"
+  },
+  {
+   "id": "fth_god",
+   "zh": "神",
+   "ja": "神",
+   "cat": "faith"
+  },
+  {
+   "id": "fth_goma",
+   "zh": "護摩",
+   "ja": "護摩",
+   "cat": "faith"
+  },
+  {
+   "id": "fth_miko",
+   "zh": "巫女",
+   "ja": "巫女",
+   "cat": "faith"
+  },
+  {
+   "id": "fth_monk",
+   "zh": "僧侶",
+   "ja": "僧侶",
+   "cat": "faith"
+  },
+  {
+   "id": "fth_hamaya",
+   "zh": "破魔箭",
+   "ja": "破魔矢",
+   "cat": "faith"
+  },
+  {
+   "id": "fth_incense",
+   "zh": "線香",
+   "ja": "線香",
+   "cat": "faith"
+  },
+  {
+   "id": "fth_kannushi",
+   "zh": "神主",
+   "ja": "神主",
+   "cat": "faith"
+  },
+  {
+   "id": "fth_festival",
+   "zh": "祭典",
+   "ja": "祭",
+   "cat": "faith"
+  },
+  {
+   "id": "fth_inari",
+   "zh": "稻荷",
+   "ja": "稲荷",
+   "cat": "faith"
+  },
+  {
+   "id": "trs_shinki",
+   "zh": "神氣",
+   "ja": "神気",
+   "cat": "treasure"
+  },
+  {
+   "id": "trs_hiden",
+   "zh": "秘傳",
+   "ja": "秘伝",
+   "cat": "treasure"
+  },
+  {
+   "id": "trs_magatama",
+   "zh": "勾玉",
+   "ja": "勾玉",
+   "cat": "treasure"
+  },
+  {
+   "id": "trs_kusanagi",
+   "zh": "草薙劍",
+   "ja": "草薙剣",
+   "cat": "treasure"
+  },
+  {
+   "id": "trs_yata",
+   "zh": "八咫鏡",
+   "ja": "八咫鏡",
+   "cat": "treasure"
+  },
+  {
+   "id": "trs_youtou",
+   "zh": "妖刀",
+   "ja": "妖刀",
+   "cat": "treasure"
+  },
+  {
+   "id": "trs_meito",
+   "zh": "名刀",
+   "ja": "名刀",
+   "cat": "treasure"
+  },
+  {
+   "id": "trs_kozuchi",
+   "zh": "萬寶槌",
+   "ja": "打ち出の小槌",
+   "cat": "treasure"
+  },
+  {
+   "id": "trs_hoju",
+   "zh": "寶珠",
+   "ja": "宝珠",
+   "cat": "treasure"
+  },
+  {
+   "id": "trs_hagoromo",
+   "zh": "羽衣",
+   "ja": "羽衣",
+   "cat": "treasure"
+  },
+  {
+   "id": "trs_kakuremino",
+   "zh": "隱身蓑",
+   "ja": "隠れ蓑",
+   "cat": "treasure"
+  },
+  {
+   "id": "trs_pearl",
+   "zh": "珍珠",
+   "ja": "真珠",
+   "cat": "treasure"
+  },
+  {
+   "id": "trs_mask",
+   "zh": "面具",
+   "ja": "面",
+   "cat": "treasure"
+  },
+  {
+   "id": "trs_hannya",
+   "zh": "般若面",
+   "ja": "般若の面",
+   "cat": "treasure"
+  },
+  {
+   "id": "trs_dragonjewel",
+   "zh": "龍珠",
+   "ja": "龍玉",
+   "cat": "treasure"
+  },
+  {
+   "id": "trs_brocade",
+   "zh": "錦緞",
+   "ja": "錦",
+   "cat": "treasure"
+  },
+  {
+   "id": "trs_goldleaf",
+   "zh": "金箔",
+   "ja": "金箔",
+   "cat": "treasure"
+  },
+  {
+   "id": "trs_juzu",
+   "zh": "念珠",
+   "ja": "数珠",
+   "cat": "treasure"
+  },
+  {
+   "id": "cpt_spring",
+   "zh": "春天",
+   "ja": "春",
+   "cat": "concept"
+  },
+  {
+   "id": "cpt_summer",
+   "zh": "夏天",
+   "ja": "夏",
+   "cat": "concept"
+  },
+  {
+   "id": "cpt_autumn",
+   "zh": "秋天",
+   "ja": "秋",
+   "cat": "concept"
+  },
+  {
+   "id": "cpt_winter",
+   "zh": "冬天",
+   "ja": "冬",
+   "cat": "concept"
+  },
+  {
+   "id": "cpt_sunset",
+   "zh": "晚霞",
+   "ja": "夕焼け",
+   "cat": "concept"
+  },
+  {
+   "id": "cpt_morningmist",
+   "zh": "晨霧",
+   "ja": "朝霧",
+   "cat": "concept"
+  },
+  {
+   "id": "cpt_typhoon",
+   "zh": "颱風",
+   "ja": "台風",
+   "cat": "concept"
+  },
+  {
+   "id": "cpt_heathaze",
+   "zh": "陽炎",
+   "ja": "陽炎",
+   "cat": "concept"
+  },
+  {
+   "id": "cpt_hanabi",
+   "zh": "煙火",
+   "ja": "花火",
+   "cat": "concept"
+  },
+  {
+   "id": "cpt_tsuyu",
+   "zh": "梅雨",
+   "ja": "梅雨",
+   "cat": "concept"
+  },
+  {
+   "id": "cpt_firefly",
+   "zh": "螢火蟲",
+   "ja": "蛍",
+   "cat": "concept"
+  },
+  {
+   "id": "cpt_samidare",
+   "zh": "五月雨",
+   "ja": "五月雨",
+   "cat": "concept"
+  },
+  {
+   "id": "cpt_springhaze",
+   "zh": "春霞",
+   "ja": "春霞",
+   "cat": "concept"
+  },
+  {
+   "id": "cpt_tsukimi",
+   "zh": "賞月",
+   "ja": "月見",
+   "cat": "concept"
+  },
+  {
+   "id": "cpt_hanami",
+   "zh": "賞花",
+   "ja": "花見",
+   "cat": "concept"
+  },
+  {
+   "id": "cpt_yudachi",
+   "zh": "驟雨",
+   "ja": "夕立",
+   "cat": "concept"
+  },
+  {
+   "id": "cpt_fuuryuu",
+   "zh": "風雅",
+   "ja": "風流",
+   "cat": "concept"
+  },
+  {
+   "id": "cpt_wabisabi",
+   "zh": "侘寂",
+   "ja": "侘び寂び",
+   "cat": "concept"
+  },
+  {
+   "id": "cpt_kogarashi",
+   "zh": "寒風",
+   "ja": "木枯らし",
+   "cat": "concept"
+  },
+  {
+   "id": "cpt_momijigari",
+   "zh": "賞楓",
+   "ja": "紅葉狩り",
+   "cat": "concept"
+  },
+  {
+   "id": "fod_driedpotato",
+   "zh": "地瓜乾",
+   "ja": "干し芋",
+   "cat": "food"
+  },
+  {
+   "id": "fod_kombu",
+   "zh": "昆布",
+   "ja": "昆布",
+   "cat": "food"
+  },
+  {
+   "id": "fod_nori",
+   "zh": "海苔",
+   "ja": "海苔",
+   "cat": "food"
+  },
+  {
+   "id": "fth_offering",
+   "zh": "香油錢",
+   "ja": "賽銭",
+   "cat": "faith"
+  }
+ ],
+ "recipes": [
+  [
+   "fire",
+   "fire",
+   "nat_flame"
+  ],
+  [
+   "water",
+   "water",
+   "nat_river"
+  ],
+  [
+   "earth",
+   "earth",
+   "nat_mountain"
+  ],
+  [
+   "wind",
+   "wind",
+   "art_ki"
+  ],
+  [
+   "thunder",
+   "thunder",
+   "nat_rumble"
+  ],
+  [
+   "fire",
+   "water",
+   "nat_steam"
+  ],
+  [
+   "fire",
+   "earth",
+   "mat_iron"
+  ],
+  [
+   "fire",
+   "thunder",
+   "nat_light"
+  ],
+  [
+   "fire",
+   "wind",
+   "nat_smoke"
+  ],
+  [
+   "thunder",
+   "water",
+   "nat_thunderstorm"
+  ],
+  [
+   "wind",
+   "water",
+   "nat_wave"
+  ],
+  [
+   "water",
+   "earth",
+   "plt_grass"
+  ],
+  [
+   "thunder",
+   "wind",
+   "nat_storm"
+  ],
+  [
+   "thunder",
+   "earth",
+   "nat_quake"
+  ],
+  [
+   "wind",
+   "earth",
+   "nat_sandstorm"
+  ],
+  [
+   "wind",
+   "nat_storm",
+   "nat_whirlwind"
+  ],
+  [
+   "nat_steam",
+   "wind",
+   "nat_cloud"
+  ],
+  [
+   "nat_steam",
+   "water",
+   "nat_mist"
+  ],
+  [
+   "nat_storm",
+   "water",
+   "nat_rain"
+  ],
+  [
+   "thunder",
+   "nat_storm",
+   "nat_lightning"
+  ],
+  [
+   "nat_river",
+   "nat_river",
+   "nat_sea"
+  ],
+  [
+   "fire",
+   "nat_mountain",
+   "nat_lava"
+  ],
+  [
+   "nat_wave",
+   "nat_whirlwind",
+   "nat_whirlpool"
+  ],
+  [
+   "nat_wave",
+   "nat_quake",
+   "nat_tsunami"
+  ],
+  [
+   "nat_mountain",
+   "nat_quake",
+   "nat_rock"
+  ],
+  [
+   "nat_river",
+   "nat_mountain",
+   "nat_waterfall"
+  ],
+  [
+   "nat_mountain",
+   "nat_mountain",
+   "nat_ridge"
+  ],
+  [
+   "nat_river",
+   "nat_storm",
+   "nat_flood"
+  ],
+  [
+   "nat_light",
+   "nat_flame",
+   "nat_sun"
+  ],
+  [
+   "nat_light",
+   "nat_wave",
+   "nat_moon"
+  ],
+  [
+   "nat_light",
+   "earth",
+   "nat_shadow"
+  ],
+  [
+   "nat_lava",
+   "nat_mountain",
+   "nat_volcano"
+  ],
+  [
+   "nat_cloud",
+   "thunder",
+   "nat_thundercloud"
+  ],
+  [
+   "nat_mountain",
+   "nat_rain",
+   "nat_valley"
+  ],
+  [
+   "nat_rain",
+   "nat_light",
+   "nat_rainbow"
+  ],
+  [
+   "nat_smoke",
+   "nat_cloud",
+   "nat_dark"
+  ],
+  [
+   "nat_sea",
+   "mat_sand",
+   "nat_shell"
+  ],
+  [
+   "nat_whirlwind",
+   "nat_cloud",
+   "nat_tornado"
+  ],
+  [
+   "nat_mist",
+   "plt_grass",
+   "nat_frost"
+  ],
+  [
+   "nat_moon",
+   "nat_cloud",
+   "nat_night"
+  ],
+  [
+   "nat_dark",
+   "nat_moon",
+   "nat_night"
+  ],
+  [
+   "nat_frost",
+   "water",
+   "nat_ice"
+  ],
+  [
+   "nat_river",
+   "nat_mist",
+   "nat_ice"
+  ],
+  [
+   "nat_cloud",
+   "nat_ice",
+   "nat_snow"
+  ],
+  [
+   "earth",
+   "nat_river",
+   "mat_clay"
+  ],
+  [
+   "nat_sandstorm",
+   "water",
+   "mat_sand"
+  ],
+  [
+   "nat_mountain",
+   "nat_sandstorm",
+   "mat_stone"
+  ],
+  [
+   "mat_iron",
+   "fire",
+   "mat_steel"
+  ],
+  [
+   "nat_smoke",
+   "nat_rumble",
+   "mat_gunpowder"
+  ],
+  [
+   "nat_smoke",
+   "water",
+   "mat_ink"
+  ],
+  [
+   "plt_grass",
+   "nat_steam",
+   "mat_paper"
+  ],
+  [
+   "plt_grass",
+   "wind",
+   "mat_thread"
+  ],
+  [
+   "earth",
+   "nat_flame",
+   "mat_pottery"
+  ],
+  [
+   "nat_sandstorm",
+   "nat_flame",
+   "mat_glass"
+  ],
+  [
+   "nat_mountain",
+   "nat_light",
+   "mat_gold"
+  ],
+  [
+   "mat_sand",
+   "nat_river",
+   "mat_ironsand"
+  ],
+  [
+   "nat_rock",
+   "nat_mountain",
+   "mat_ore"
+  ],
+  [
+   "plt_tree",
+   "fire",
+   "mat_charcoal"
+  ],
+  [
+   "nat_rock",
+   "nat_light",
+   "mat_crystal"
+  ],
+  [
+   "nat_sea",
+   "nat_flame",
+   "mat_salt"
+  ],
+  [
+   "mat_thread",
+   "nat_whirlwind",
+   "mat_cloth"
+  ],
+  [
+   "mat_thread",
+   "mat_thread",
+   "mat_rope"
+  ],
+  [
+   "plt_tree",
+   "mat_steel",
+   "mat_board"
+  ],
+  [
+   "mat_ore",
+   "nat_light",
+   "mat_gem"
+  ],
+  [
+   "plt_grass",
+   "plt_grass",
+   "plt_tree"
+  ],
+  [
+   "plt_grass",
+   "nat_mountain",
+   "plt_bamboo"
+  ],
+  [
+   "plt_grass",
+   "water",
+   "plt_rice"
+  ],
+  [
+   "plt_tree",
+   "plt_tree",
+   "plt_forest"
+  ],
+  [
+   "plt_bamboo",
+   "plt_bamboo",
+   "plt_bambooforest"
+  ],
+  [
+   "plt_grass",
+   "nat_light",
+   "plt_flower"
+  ],
+  [
+   "plt_tree",
+   "nat_rock",
+   "plt_pine"
+  ],
+  [
+   "plt_tree",
+   "nat_river",
+   "plt_willow"
+  ],
+  [
+   "plt_tree",
+   "nat_rain",
+   "plt_mushroom"
+  ],
+  [
+   "mat_stone",
+   "nat_rain",
+   "plt_moss"
+  ],
+  [
+   "nat_river",
+   "plt_grass",
+   "plt_seaweed"
+  ],
+  [
+   "plt_grass",
+   "nat_smoke",
+   "plt_herb"
+  ],
+  [
+   "plt_grass",
+   "fire",
+   "plt_tea"
+  ],
+  [
+   "plt_tree",
+   "nat_flame",
+   "plt_maple"
+  ],
+  [
+   "plt_rice",
+   "plt_rice",
+   "plt_straw"
+  ],
+  [
+   "plt_tree",
+   "plt_flower",
+   "plt_sakura"
+  ],
+  [
+   "plt_flower",
+   "nat_rain",
+   "plt_ume"
+  ],
+  [
+   "plt_flower",
+   "nat_river",
+   "plt_lotus"
+  ],
+  [
+   "plt_rice",
+   "wind",
+   "fod_rice"
+  ],
+  [
+   "plt_rice",
+   "fire",
+   "fod_gohan"
+  ],
+  [
+   "plt_rice",
+   "nat_steam",
+   "fod_porridge"
+  ],
+  [
+   "plt_rice",
+   "water",
+   "fod_sake"
+  ],
+  [
+   "plt_rice",
+   "mat_stone",
+   "fod_mochi"
+  ],
+  [
+   "nat_river",
+   "nat_wave",
+   "fod_fish"
+  ],
+  [
+   "fod_fish",
+   "nat_flame",
+   "fod_grilledfish"
+  ],
+  [
+   "fod_fish",
+   "wind",
+   "fod_driedfish"
+  ],
+  [
+   "fod_fish",
+   "nat_smoke",
+   "fod_katsuobushi"
+  ],
+  [
+   "fod_fish",
+   "nat_steam",
+   "fod_dashi"
+  ],
+  [
+   "fod_fish",
+   "water",
+   "fod_sashimi"
+  ],
+  [
+   "fod_fish",
+   "nat_river",
+   "fod_carp"
+  ],
+  [
+   "fod_fish",
+   "plt_rice",
+   "fod_sushi"
+  ],
+  [
+   "plt_tea",
+   "nat_steam",
+   "fod_tea"
+  ],
+  [
+   "plt_tea",
+   "mat_stone",
+   "fod_matcha"
+  ],
+  [
+   "plt_grass",
+   "earth",
+   "fod_potato"
+  ],
+  [
+   "fod_potato",
+   "nat_flame",
+   "fod_bakedpotato"
+  ],
+  [
+   "mat_iron",
+   "nat_steam",
+   "tol_pot"
+  ],
+  [
+   "mat_iron",
+   "nat_rumble",
+   "tol_bell"
+  ],
+  [
+   "fire",
+   "nat_smoke",
+   "tol_beacon"
+  ],
+  [
+   "mat_paper",
+   "nat_flame",
+   "tol_lantern"
+  ],
+  [
+   "mat_paper",
+   "nat_rain",
+   "tol_umbrella"
+  ],
+  [
+   "mat_paper",
+   "plt_bamboo",
+   "tol_fan"
+  ],
+  [
+   "plt_bamboo",
+   "mat_ink",
+   "tol_brush"
+  ],
+  [
+   "mat_stone",
+   "mat_ink",
+   "tol_inkstone"
+  ],
+  [
+   "mat_paper",
+   "mat_ink",
+   "tol_book"
+  ],
+  [
+   "mat_paper",
+   "mat_thread",
+   "tol_scroll"
+  ],
+  [
+   "mat_paper",
+   "wind",
+   "tol_kite"
+  ],
+  [
+   "mat_paper",
+   "plt_tree",
+   "tol_fusuma"
+  ],
+  [
+   "plt_grass",
+   "mat_thread",
+   "tol_zori"
+  ],
+  [
+   "plt_tree",
+   "plt_grass",
+   "tol_geta"
+  ],
+  [
+   "plt_tree",
+   "water",
+   "tol_bucket"
+  ],
+  [
+   "plt_tree",
+   "mat_stone",
+   "tol_mallet"
+  ],
+  [
+   "mat_iron",
+   "nat_light",
+   "tol_mirror"
+  ],
+  [
+   "plt_bamboo",
+   "wind",
+   "tol_flute"
+  ],
+  [
+   "plt_tree",
+   "mat_thread",
+   "tol_koto"
+  ],
+  [
+   "plt_tree",
+   "nat_rumble",
+   "tol_taiko"
+  ],
+  [
+   "mat_glass",
+   "wind",
+   "tol_windbell"
+  ],
+  [
+   "plt_tree",
+   "nat_wave",
+   "tol_ship"
+  ],
+  [
+   "mat_pottery",
+   "plt_tea",
+   "tol_teabowl"
+  ],
+  [
+   "mat_pottery",
+   "nat_steam",
+   "tol_kyusu"
+  ],
+  [
+   "mat_pottery",
+   "water",
+   "tol_sakazuki"
+  ],
+  [
+   "mat_pottery",
+   "mat_pottery",
+   "tol_dish"
+  ],
+  [
+   "mat_stone",
+   "nat_flame",
+   "tol_stonelantern"
+  ],
+  [
+   "mat_thread",
+   "nat_river",
+   "tol_net"
+  ],
+  [
+   "plt_bamboo",
+   "plt_grass",
+   "tol_basket"
+  ],
+  [
+   "mat_thread",
+   "plt_flower",
+   "tol_kimono"
+  ],
+  [
+   "mat_iron",
+   "nat_flame",
+   "wpn_katana"
+  ],
+  [
+   "mat_iron",
+   "thunder",
+   "wpn_sword"
+  ],
+  [
+   "plt_tree",
+   "mat_iron",
+   "wpn_axe"
+  ],
+  [
+   "mat_iron",
+   "wind",
+   "wpn_shuriken"
+  ],
+  [
+   "mat_iron",
+   "plt_grass",
+   "wpn_sickle"
+  ],
+  [
+   "plt_bamboo",
+   "mat_steel",
+   "wpn_spear"
+  ],
+  [
+   "plt_bamboo",
+   "mat_iron",
+   "wpn_arrow"
+  ],
+  [
+   "plt_bamboo",
+   "mat_thread",
+   "wpn_bow"
+  ],
+  [
+   "mat_iron",
+   "mat_thread",
+   "wpn_chain"
+  ],
+  [
+   "mat_iron",
+   "earth",
+   "wpn_kunai"
+  ],
+  [
+   "mat_paper",
+   "mat_iron",
+   "wpn_tessen"
+  ],
+  [
+   "mat_thread",
+   "nat_flame",
+   "wpn_matchlock"
+  ],
+  [
+   "mat_iron",
+   "mat_gunpowder",
+   "wpn_musket"
+  ],
+  [
+   "mat_gunpowder",
+   "mat_pottery",
+   "wpn_bomb"
+  ],
+  [
+   "mat_gunpowder",
+   "plt_bamboo",
+   "wpn_firecracker"
+  ],
+  [
+   "nat_smoke",
+   "mat_pottery",
+   "wpn_smokeball"
+  ],
+  [
+   "plt_tree",
+   "wpn_katana",
+   "wpn_sheath"
+  ],
+  [
+   "plt_bamboo",
+   "wpn_katana",
+   "wpn_shinai"
+  ],
+  [
+   "wpn_katana",
+   "mat_iron",
+   "wpn_tsuba"
+  ],
+  [
+   "mat_steel",
+   "mat_thread",
+   "wpn_armor"
+  ],
+  [
+   "art_ki",
+   "nat_wave",
+   "art_breath"
+  ],
+  [
+   "art_ki",
+   "nat_rumble",
+   "art_kiai"
+  ],
+  [
+   "art_ki",
+   "nat_mist",
+   "art_kehai"
+  ],
+  [
+   "art_ki",
+   "mat_iron",
+   "art_satsuki"
+  ],
+  [
+   "art_ki",
+   "art_ki",
+   "art_aiki"
+  ],
+  [
+   "art_ki",
+   "wind",
+   "art_shukuchi"
+  ],
+  [
+   "nat_mountain",
+   "art_ki",
+   "art_shugyo"
+  ],
+  [
+   "mat_clay",
+   "mat_iron",
+   "art_kata"
+  ],
+  [
+   "art_ki",
+   "nat_quake",
+   "art_kamae"
+  ],
+  [
+   "art_ki",
+   "mat_stone",
+   "art_fist"
+  ],
+  [
+   "art_ki",
+   "wpn_sword",
+   "art_kenjutsu"
+  ],
+  [
+   "art_ki",
+   "wpn_shuriken",
+   "art_shurikenjutsu"
+  ],
+  [
+   "wpn_katana",
+   "thunder",
+   "art_raikiri"
+  ],
+  [
+   "wpn_katana",
+   "nat_lightning",
+   "art_issen"
+  ],
+  [
+   "wpn_katana",
+   "wpn_katana",
+   "art_nito"
+  ],
+  [
+   "nat_shadow",
+   "art_ki",
+   "art_ninjutsu"
+  ],
+  [
+   "wpn_katana",
+   "art_ki",
+   "art_iai"
+  ],
+  [
+   "nat_shadow",
+   "nat_shadow",
+   "art_bunshin"
+  ],
+  [
+   "nat_shadow",
+   "nat_smoke",
+   "art_onkei"
+  ],
+  [
+   "earth",
+   "art_ki",
+   "per_human"
+  ],
+  [
+   "mat_iron",
+   "nat_smoke",
+   "per_smith"
+  ],
+  [
+   "fod_fish",
+   "nat_wave",
+   "per_fisher"
+  ],
+  [
+   "plt_rice",
+   "earth",
+   "per_farmer"
+  ],
+  [
+   "plt_herb",
+   "mat_stone",
+   "per_healer"
+  ],
+  [
+   "mat_pottery",
+   "mat_clay",
+   "per_potter"
+  ],
+  [
+   "tol_pot",
+   "fod_fish",
+   "per_chef"
+  ],
+  [
+   "nat_mountain",
+   "wpn_katana",
+   "per_bandit"
+  ],
+  [
+   "wpn_katana",
+   "per_human",
+   "per_samurai"
+  ],
+  [
+   "nat_shadow",
+   "wpn_shuriken",
+   "per_ninja"
+  ],
+  [
+   "per_human",
+   "art_shugyo",
+   "per_disciple"
+  ],
+  [
+   "per_human",
+   "mat_iron",
+   "per_craftsman"
+  ],
+  [
+   "wpn_sword",
+   "art_shugyo",
+   "per_swordmaster"
+  ],
+  [
+   "mat_ink",
+   "per_human",
+   "per_painter"
+  ],
+  [
+   "plt_tea",
+   "per_human",
+   "per_teamaster"
+  ],
+  [
+   "per_human",
+   "plt_flower",
+   "per_geisha"
+  ],
+  [
+   "per_human",
+   "plt_grass",
+   "per_traveler"
+  ],
+  [
+   "per_human",
+   "mat_gold",
+   "per_merchant"
+  ],
+  [
+   "art_ki",
+   "nat_smoke",
+   "yok_aura"
+  ],
+  [
+   "nat_river",
+   "yok_aura",
+   "yok_kappa"
+  ],
+  [
+   "nat_mountain",
+   "yok_aura",
+   "yok_tengu"
+  ],
+  [
+   "yok_aura",
+   "mat_iron",
+   "yok_oni"
+  ],
+  [
+   "thunder",
+   "yok_aura",
+   "yok_raiju"
+  ],
+  [
+   "plt_rice",
+   "yok_aura",
+   "yok_fox"
+  ],
+  [
+   "yok_aura",
+   "nat_smoke",
+   "yok_bake"
+  ],
+  [
+   "yok_aura",
+   "nat_flame",
+   "yok_onibi"
+  ],
+  [
+   "yok_aura",
+   "plt_tea",
+   "yok_tanuki"
+  ],
+  [
+   "nat_river",
+   "nat_lightning",
+   "yok_dragon"
+  ],
+  [
+   "thunder",
+   "nat_river",
+   "yok_dragon"
+  ],
+  [
+   "nat_mountain",
+   "nat_rumble",
+   "yok_yamabiko"
+  ],
+  [
+   "yok_dragon",
+   "nat_light",
+   "yok_kirin"
+  ],
+  [
+   "nat_sun",
+   "nat_flame",
+   "yok_phoenix"
+  ],
+  [
+   "yok_dragon",
+   "nat_river",
+   "yok_orochi"
+  ],
+  [
+   "plt_tree",
+   "art_ki",
+   "yok_kodama"
+  ],
+  [
+   "tol_umbrella",
+   "yok_aura",
+   "yok_karakasa"
+  ],
+  [
+   "per_human",
+   "nat_shadow",
+   "yok_ghost"
+  ],
+  [
+   "per_human",
+   "yok_aura",
+   "yok_grudge"
+  ],
+  [
+   "yok_aura",
+   "nat_lightning",
+   "yok_nue"
+  ],
+  [
+   "plt_grass",
+   "mat_clay",
+   "plc_field"
+  ],
+  [
+   "plt_rice",
+   "plc_field",
+   "plc_paddy"
+  ],
+  [
+   "plt_rice",
+   "mat_clay",
+   "plc_paddy"
+  ],
+  [
+   "plt_tree",
+   "mat_clay",
+   "plc_house"
+  ],
+  [
+   "plc_field",
+   "per_human",
+   "plc_village"
+  ],
+  [
+   "mat_stone",
+   "mat_sand",
+   "plc_karesansui"
+  ],
+  [
+   "nat_river",
+   "plt_bamboo",
+   "plc_bridge"
+  ],
+  [
+   "nat_sea",
+   "mat_stone",
+   "plc_port"
+  ],
+  [
+   "nat_mountain",
+   "tol_bell",
+   "plc_temple"
+  ],
+  [
+   "nat_mountain",
+   "mat_stone",
+   "plc_castle"
+  ],
+  [
+   "nat_mountain",
+   "nat_shadow",
+   "plc_cave"
+  ],
+  [
+   "nat_steam",
+   "nat_rock",
+   "plc_onsen"
+  ],
+  [
+   "nat_sea",
+   "nat_mountain",
+   "plc_island"
+  ],
+  [
+   "mat_stone",
+   "earth",
+   "plc_well"
+  ],
+  [
+   "plt_bamboo",
+   "art_ki",
+   "plc_dojo"
+  ],
+  [
+   "nat_river",
+   "nat_sea",
+   "plc_lake"
+  ],
+  [
+   "plt_tree",
+   "nat_cloud",
+   "plc_tower"
+  ],
+  [
+   "water",
+   "mat_stone",
+   "plc_pond"
+  ],
+  [
+   "plt_flower",
+   "mat_stone",
+   "plc_garden"
+  ],
+  [
+   "plt_tree",
+   "fth_prayer",
+   "plc_shrine"
+  ],
+  [
+   "plt_bamboo",
+   "plt_tea",
+   "plc_teahouse"
+  ],
+  [
+   "art_ki",
+   "nat_flame",
+   "fth_prayer"
+  ],
+  [
+   "fth_prayer",
+   "art_breath",
+   "fth_norito"
+  ],
+  [
+   "mat_paper",
+   "art_ki",
+   "fth_ofuda"
+  ],
+  [
+   "mat_paper",
+   "fth_prayer",
+   "fth_omamori"
+  ],
+  [
+   "plt_tree",
+   "nat_sun",
+   "fth_torii"
+  ],
+  [
+   "mat_thread",
+   "fth_prayer",
+   "fth_shimenawa"
+  ],
+  [
+   "mat_stone",
+   "fth_prayer",
+   "fth_jizo"
+  ],
+  [
+   "fth_prayer",
+   "plt_flower",
+   "fth_buddha"
+  ],
+  [
+   "fth_prayer",
+   "thunder",
+   "fth_god"
+  ],
+  [
+   "nat_flame",
+   "fth_prayer",
+   "fth_goma"
+  ],
+  [
+   "per_human",
+   "fth_prayer",
+   "fth_miko"
+  ],
+  [
+   "per_human",
+   "tol_bell",
+   "fth_monk"
+  ],
+  [
+   "plt_bamboo",
+   "fth_prayer",
+   "fth_hamaya"
+  ],
+  [
+   "nat_smoke",
+   "plt_tree",
+   "fth_incense"
+  ],
+  [
+   "per_human",
+   "nat_sun",
+   "fth_kannushi"
+  ],
+  [
+   "fth_prayer",
+   "nat_rumble",
+   "fth_festival"
+  ],
+  [
+   "tol_taiko",
+   "tol_flute",
+   "fth_festival"
+  ],
+  [
+   "plt_rice",
+   "fth_prayer",
+   "fth_inari"
+  ],
+  [
+   "art_ki",
+   "nat_light",
+   "trs_shinki"
+  ],
+  [
+   "mat_ink",
+   "art_ki",
+   "trs_hiden"
+  ],
+  [
+   "mat_stone",
+   "nat_light",
+   "trs_magatama"
+  ],
+  [
+   "wpn_sword",
+   "yok_dragon",
+   "trs_kusanagi"
+  ],
+  [
+   "tol_mirror",
+   "art_ki",
+   "trs_yata"
+  ],
+  [
+   "wpn_katana",
+   "yok_aura",
+   "trs_youtou"
+  ],
+  [
+   "wpn_katana",
+   "trs_shinki",
+   "trs_meito"
+  ],
+  [
+   "plt_tree",
+   "mat_gold",
+   "trs_kozuchi"
+  ],
+  [
+   "nat_light",
+   "fth_prayer",
+   "trs_hoju"
+  ],
+  [
+   "mat_thread",
+   "nat_cloud",
+   "trs_hagoromo"
+  ],
+  [
+   "plt_grass",
+   "nat_shadow",
+   "trs_kakuremino"
+  ],
+  [
+   "nat_sea",
+   "nat_light",
+   "trs_pearl"
+  ],
+  [
+   "plt_tree",
+   "per_human",
+   "trs_mask"
+  ],
+  [
+   "trs_mask",
+   "nat_dark",
+   "trs_hannya"
+  ],
+  [
+   "yok_dragon",
+   "mat_stone",
+   "trs_dragonjewel"
+  ],
+  [
+   "mat_thread",
+   "mat_gold",
+   "trs_brocade"
+  ],
+  [
+   "mat_gold",
+   "mat_paper",
+   "trs_goldleaf"
+  ],
+  [
+   "mat_thread",
+   "mat_stone",
+   "trs_juzu"
+  ],
+  [
+   "plt_grass",
+   "nat_rain",
+   "cpt_spring"
+  ],
+  [
+   "nat_sun",
+   "nat_sea",
+   "cpt_summer"
+  ],
+  [
+   "plt_rice",
+   "nat_sun",
+   "cpt_autumn"
+  ],
+  [
+   "nat_frost",
+   "wind",
+   "cpt_winter"
+  ],
+  [
+   "nat_cloud",
+   "nat_flame",
+   "cpt_sunset"
+  ],
+  [
+   "nat_mist",
+   "nat_sun",
+   "cpt_morningmist"
+  ],
+  [
+   "nat_storm",
+   "nat_sea",
+   "cpt_typhoon"
+  ],
+  [
+   "nat_steam",
+   "nat_sun",
+   "cpt_heathaze"
+  ],
+  [
+   "mat_gunpowder",
+   "nat_light",
+   "cpt_hanabi"
+  ],
+  [
+   "nat_rain",
+   "nat_rain",
+   "cpt_tsuyu"
+  ],
+  [
+   "nat_light",
+   "nat_river",
+   "cpt_firefly"
+  ],
+  [
+   "nat_rain",
+   "wind",
+   "cpt_samidare"
+  ],
+  [
+   "plt_flower",
+   "nat_mist",
+   "cpt_springhaze"
+  ],
+  [
+   "nat_moon",
+   "plt_rice",
+   "cpt_tsukimi"
+  ],
+  [
+   "plt_flower",
+   "fod_sake",
+   "cpt_hanami"
+  ],
+  [
+   "nat_thunderstorm",
+   "nat_sun",
+   "cpt_yudachi"
+  ],
+  [
+   "plt_flower",
+   "nat_moon",
+   "cpt_fuuryuu"
+  ],
+  [
+   "mat_stone",
+   "nat_mist",
+   "cpt_wabisabi"
+  ],
+  [
+   "plt_tree",
+   "wind",
+   "cpt_kogarashi"
+  ],
+  [
+   "plt_maple",
+   "nat_mountain",
+   "cpt_momijigari"
+  ],
+  [
+   "fod_potato",
+   "wind",
+   "fod_driedpotato"
+  ],
+  [
+   "plt_seaweed",
+   "wind",
+   "fod_kombu"
+  ],
+  [
+   "plt_seaweed",
+   "nat_flame",
+   "fod_nori"
+  ],
+  [
+   "mat_gold",
+   "fth_prayer",
+   "fth_offering"
+  ]
+ ]
+}

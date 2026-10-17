@@ -1,0 +1,3301 @@
+{
+ "category": "core",
+ "items": [
+  {
+   "id": "nat_grove",
+   "zh": "樹林",
+   "ja": "森",
+   "cat": "nature"
+  },
+  {
+   "id": "nat_river",
+   "zh": "江河",
+   "ja": "川",
+   "cat": "nature"
+  },
+  {
+   "id": "nat_steam",
+   "zh": "蒸氣",
+   "ja": "蒸気",
+   "cat": "nature"
+  },
+  {
+   "id": "nat_blaze",
+   "zh": "烈焰",
+   "ja": "烈火",
+   "cat": "nature"
+  },
+  {
+   "id": "nat_magma",
+   "zh": "岩漿",
+   "ja": "溶岩",
+   "cat": "nature"
+  },
+  {
+   "id": "nat_mountain",
+   "zh": "山岳",
+   "ja": "山岳",
+   "cat": "nature"
+  },
+  {
+   "id": "nat_swamp",
+   "zh": "沼澤",
+   "ja": "沼地",
+   "cat": "nature"
+  },
+  {
+   "id": "nat_cloud",
+   "zh": "雲",
+   "ja": "雲",
+   "cat": "nature"
+  },
+  {
+   "id": "nat_wind",
+   "zh": "風",
+   "ja": "風",
+   "cat": "nature"
+  },
+  {
+   "id": "nat_mist",
+   "zh": "霧",
+   "ja": "霧",
+   "cat": "nature"
+  },
+  {
+   "id": "nat_stone",
+   "zh": "岩石",
+   "ja": "岩",
+   "cat": "nature"
+  },
+  {
+   "id": "nat_valley",
+   "zh": "山谷",
+   "ja": "谷",
+   "cat": "nature"
+  },
+  {
+   "id": "nat_frost",
+   "zh": "冰霜",
+   "ja": "氷霜",
+   "cat": "nature"
+  },
+  {
+   "id": "nat_light",
+   "zh": "金光",
+   "ja": "光",
+   "cat": "nature"
+  },
+  {
+   "id": "nat_dark",
+   "zh": "黑暗",
+   "ja": "闇",
+   "cat": "nature"
+  },
+  {
+   "id": "nat_rain",
+   "zh": "雨",
+   "ja": "雨",
+   "cat": "nature"
+  },
+  {
+   "id": "nat_thunder",
+   "zh": "雷",
+   "ja": "雷",
+   "cat": "nature"
+  },
+  {
+   "id": "nat_snow",
+   "zh": "雪",
+   "ja": "雪",
+   "cat": "nature"
+  },
+  {
+   "id": "nat_dust",
+   "zh": "塵",
+   "ja": "砂塵",
+   "cat": "nature"
+  },
+  {
+   "id": "nat_rainbow",
+   "zh": "彩虹",
+   "ja": "虹",
+   "cat": "nature"
+  },
+  {
+   "id": "nat_sea",
+   "zh": "大海",
+   "ja": "海",
+   "cat": "nature"
+  },
+  {
+   "id": "nat_waterfall",
+   "zh": "瀑布",
+   "ja": "滝",
+   "cat": "nature"
+  },
+  {
+   "id": "nat_volcano",
+   "zh": "火山",
+   "ja": "火山",
+   "cat": "nature"
+  },
+  {
+   "id": "nat_moon",
+   "zh": "明月",
+   "ja": "月",
+   "cat": "nature"
+  },
+  {
+   "id": "nat_sun",
+   "zh": "烈日",
+   "ja": "太陽",
+   "cat": "nature"
+  },
+  {
+   "id": "mat_ingot",
+   "zh": "金錠",
+   "ja": "金塊",
+   "cat": "material"
+  },
+  {
+   "id": "mat_coldiron",
+   "zh": "寒鐵",
+   "ja": "寒鉄",
+   "cat": "material"
+  },
+  {
+   "id": "mat_moltengold",
+   "zh": "熔金",
+   "ja": "溶けた金",
+   "cat": "material"
+  },
+  {
+   "id": "mat_ore",
+   "zh": "礦石",
+   "ja": "鉱石",
+   "cat": "material"
+  },
+  {
+   "id": "mat_charcoal",
+   "zh": "木炭",
+   "ja": "木炭",
+   "cat": "material"
+  },
+  {
+   "id": "mat_ironembryo",
+   "zh": "鐵胚",
+   "ja": "鉄胚",
+   "cat": "material"
+  },
+  {
+   "id": "mat_iron",
+   "zh": "生鐵",
+   "ja": "銑鉄",
+   "cat": "material"
+  },
+  {
+   "id": "mat_copper",
+   "zh": "青銅",
+   "ja": "青銅",
+   "cat": "material"
+  },
+  {
+   "id": "mat_silver",
+   "zh": "白銀",
+   "ja": "銀",
+   "cat": "material"
+  },
+  {
+   "id": "mat_jade",
+   "zh": "玉石",
+   "ja": "玉",
+   "cat": "material"
+  },
+  {
+   "id": "mat_timber",
+   "zh": "木材",
+   "ja": "木材",
+   "cat": "material"
+  },
+  {
+   "id": "mat_bamboo",
+   "zh": "竹",
+   "ja": "竹",
+   "cat": "material"
+  },
+  {
+   "id": "mat_rope",
+   "zh": "麻繩",
+   "ja": "縄",
+   "cat": "material"
+  },
+  {
+   "id": "mat_clay",
+   "zh": "黏土",
+   "ja": "粘土",
+   "cat": "material"
+  },
+  {
+   "id": "mat_sulfur",
+   "zh": "硫磺",
+   "ja": "硫黄",
+   "cat": "material"
+  },
+  {
+   "id": "mat_ink",
+   "zh": "墨",
+   "ja": "墨",
+   "cat": "material"
+  },
+  {
+   "id": "mat_steel",
+   "zh": "鋼",
+   "ja": "鋼",
+   "cat": "material"
+  },
+  {
+   "id": "mat_cloth",
+   "zh": "布匹",
+   "ja": "布",
+   "cat": "material"
+  },
+  {
+   "id": "mat_brick",
+   "zh": "磚",
+   "ja": "煉瓦",
+   "cat": "material"
+  },
+  {
+   "id": "mat_porcelain",
+   "zh": "瓷",
+   "ja": "磁器",
+   "cat": "material"
+  },
+  {
+   "id": "mat_salt",
+   "zh": "鹽",
+   "ja": "塩",
+   "cat": "material"
+  },
+  {
+   "id": "mat_gunpowder",
+   "zh": "火藥",
+   "ja": "火薬",
+   "cat": "material"
+  },
+  {
+   "id": "mat_paper",
+   "zh": "紙",
+   "ja": "紙",
+   "cat": "material"
+  },
+  {
+   "id": "herb_sprout",
+   "zh": "嫩芽",
+   "ja": "新芽",
+   "cat": "herb"
+  },
+  {
+   "id": "herb_grass",
+   "zh": "野草",
+   "ja": "野草",
+   "cat": "herb"
+  },
+  {
+   "id": "herb_leaf",
+   "zh": "綠葉",
+   "ja": "葉",
+   "cat": "herb"
+  },
+  {
+   "id": "herb_flower",
+   "zh": "野花",
+   "ja": "花",
+   "cat": "herb"
+  },
+  {
+   "id": "herb_seed",
+   "zh": "種子",
+   "ja": "種",
+   "cat": "herb"
+  },
+  {
+   "id": "herb_vine",
+   "zh": "藤蔓",
+   "ja": "蔓",
+   "cat": "herb"
+  },
+  {
+   "id": "herb_moss",
+   "zh": "青苔",
+   "ja": "苔",
+   "cat": "herb"
+  },
+  {
+   "id": "herb_tree",
+   "zh": "大樹",
+   "ja": "樹",
+   "cat": "herb"
+  },
+  {
+   "id": "herb_lotus",
+   "zh": "蓮花",
+   "ja": "蓮",
+   "cat": "herb"
+  },
+  {
+   "id": "herb_peony",
+   "zh": "牡丹",
+   "ja": "牡丹",
+   "cat": "herb"
+  },
+  {
+   "id": "herb_plum",
+   "zh": "寒梅",
+   "ja": "梅",
+   "cat": "herb"
+  },
+  {
+   "id": "herb_chrysan",
+   "zh": "秋菊",
+   "ja": "菊",
+   "cat": "herb"
+  },
+  {
+   "id": "herb_orchid",
+   "zh": "幽蘭",
+   "ja": "蘭",
+   "cat": "herb"
+  },
+  {
+   "id": "herb_pine",
+   "zh": "青松",
+   "ja": "松",
+   "cat": "herb"
+  },
+  {
+   "id": "herb_willow",
+   "zh": "垂柳",
+   "ja": "柳",
+   "cat": "herb"
+  },
+  {
+   "id": "herb_fruit",
+   "zh": "野果",
+   "ja": "木の実",
+   "cat": "herb"
+  },
+  {
+   "id": "herb_root",
+   "zh": "草根",
+   "ja": "根",
+   "cat": "herb"
+  },
+  {
+   "id": "herb_ginseng",
+   "zh": "人參",
+   "ja": "朝鮮人参",
+   "cat": "herb"
+  },
+  {
+   "id": "herb_lingzhi",
+   "zh": "靈芝",
+   "ja": "霊芝",
+   "cat": "herb"
+  },
+  {
+   "id": "herb_fungus",
+   "zh": "蘑菇",
+   "ja": "茸",
+   "cat": "herb"
+  },
+  {
+   "id": "herb_mugwort",
+   "zh": "艾草",
+   "ja": "蓬",
+   "cat": "herb"
+  },
+  {
+   "id": "herb_tea",
+   "zh": "茶",
+   "ja": "茶",
+   "cat": "herb"
+  },
+  {
+   "id": "eli_juice",
+   "zh": "藥汁",
+   "ja": "薬汁",
+   "cat": "elixir"
+  },
+  {
+   "id": "eli_poisonherb",
+   "zh": "毒草",
+   "ja": "毒草",
+   "cat": "elixir"
+  },
+  {
+   "id": "eli_cinnabar",
+   "zh": "丹砂",
+   "ja": "丹砂",
+   "cat": "elixir"
+  },
+  {
+   "id": "eli_powder",
+   "zh": "藥粉",
+   "ja": "薬粉",
+   "cat": "elixir"
+  },
+  {
+   "id": "eli_pill",
+   "zh": "藥丸",
+   "ja": "丸薬",
+   "cat": "elixir"
+  },
+  {
+   "id": "eli_decoction",
+   "zh": "湯藥",
+   "ja": "煎じ薬",
+   "cat": "elixir"
+  },
+  {
+   "id": "eli_wine",
+   "zh": "美酒",
+   "ja": "酒",
+   "cat": "elixir"
+  },
+  {
+   "id": "eli_antidote",
+   "zh": "解毒散",
+   "ja": "解毒散",
+   "cat": "elixir"
+  },
+  {
+   "id": "eli_poison",
+   "zh": "劇毒",
+   "ja": "猛毒",
+   "cat": "elixir"
+  },
+  {
+   "id": "eli_numb",
+   "zh": "麻沸散",
+   "ja": "麻沸散",
+   "cat": "elixir"
+  },
+  {
+   "id": "eli_healing",
+   "zh": "金創藥",
+   "ja": "金創薬",
+   "cat": "elixir"
+  },
+  {
+   "id": "eli_ointment",
+   "zh": "藥膏",
+   "ja": "膏薬",
+   "cat": "elixir"
+  },
+  {
+   "id": "eli_incense",
+   "zh": "線香",
+   "ja": "線香",
+   "cat": "elixir"
+  },
+  {
+   "id": "eli_mercury",
+   "zh": "水銀",
+   "ja": "水銀",
+   "cat": "elixir"
+  },
+  {
+   "id": "eli_arsenic",
+   "zh": "砒霜",
+   "ja": "砒霜",
+   "cat": "elixir"
+  },
+  {
+   "id": "eli_elixir",
+   "zh": "金丹",
+   "ja": "金丹",
+   "cat": "elixir"
+  },
+  {
+   "id": "eli_realgar",
+   "zh": "雄黃",
+   "ja": "雄黄",
+   "cat": "elixir"
+  },
+  {
+   "id": "eli_oil",
+   "zh": "藥油",
+   "ja": "薬油",
+   "cat": "elixir"
+  },
+  {
+   "id": "eli_dew",
+   "zh": "甘露",
+   "ja": "甘露",
+   "cat": "elixir"
+  },
+  {
+   "id": "eli_cooling",
+   "zh": "清涼散",
+   "ja": "清涼散",
+   "cat": "elixir"
+  },
+  {
+   "id": "eli_bath",
+   "zh": "藥浴",
+   "ja": "薬湯",
+   "cat": "elixir"
+  },
+  {
+   "id": "wpn_axe",
+   "zh": "斧頭",
+   "ja": "斧",
+   "cat": "weapon"
+  },
+  {
+   "id": "wpn_dagger",
+   "zh": "匕首",
+   "ja": "匕首",
+   "cat": "weapon"
+  },
+  {
+   "id": "wpn_stick",
+   "zh": "木棍",
+   "ja": "棍",
+   "cat": "weapon"
+  },
+  {
+   "id": "wpn_sickle",
+   "zh": "鐮刀",
+   "ja": "鎌",
+   "cat": "weapon"
+  },
+  {
+   "id": "wpn_spade",
+   "zh": "鐵鏟",
+   "ja": "鉄のシャベル",
+   "cat": "weapon"
+  },
+  {
+   "id": "wpn_hook",
+   "zh": "鐵鉤",
+   "ja": "鉤",
+   "cat": "weapon"
+  },
+  {
+   "id": "wpn_blade",
+   "zh": "刀胚",
+   "ja": "刀の原型",
+   "cat": "weapon"
+  },
+  {
+   "id": "wpn_sword",
+   "zh": "長劍",
+   "ja": "長剣",
+   "cat": "weapon"
+  },
+  {
+   "id": "wpn_hammer",
+   "zh": "鐵錘",
+   "ja": "鉄槌",
+   "cat": "weapon"
+  },
+  {
+   "id": "wpn_chain",
+   "zh": "鐵鏈",
+   "ja": "鎖",
+   "cat": "weapon"
+  },
+  {
+   "id": "wpn_whip",
+   "zh": "長鞭",
+   "ja": "鞭",
+   "cat": "weapon"
+  },
+  {
+   "id": "wpn_dart",
+   "zh": "飛鏢",
+   "ja": "手裏剣",
+   "cat": "weapon"
+  },
+  {
+   "id": "wpn_shield",
+   "zh": "盾牌",
+   "ja": "盾",
+   "cat": "weapon"
+  },
+  {
+   "id": "wpn_armor",
+   "zh": "鐵甲",
+   "ja": "鎧",
+   "cat": "weapon"
+  },
+  {
+   "id": "wpn_crossbow",
+   "zh": "連弩",
+   "ja": "弩",
+   "cat": "weapon"
+  },
+  {
+   "id": "wpn_fan",
+   "zh": "鐵骨扇",
+   "ja": "扇",
+   "cat": "weapon"
+  },
+  {
+   "id": "wpn_rod",
+   "zh": "鐵棍",
+   "ja": "鉄棍",
+   "cat": "weapon"
+  },
+  {
+   "id": "wpn_pick",
+   "zh": "鶴嘴鎬",
+   "ja": "つるはし",
+   "cat": "weapon"
+  },
+  {
+   "id": "wpn_bow",
+   "zh": "長弓",
+   "ja": "弓",
+   "cat": "weapon"
+  },
+  {
+   "id": "wpn_arrow",
+   "zh": "羽箭",
+   "ja": "矢",
+   "cat": "weapon"
+  },
+  {
+   "id": "wpn_spear",
+   "zh": "長槍",
+   "ja": "槍",
+   "cat": "weapon"
+  },
+  {
+   "id": "wpn_needle",
+   "zh": "銀針",
+   "ja": "銀の針",
+   "cat": "weapon"
+  },
+  {
+   "id": "gear_torch",
+   "zh": "火把",
+   "ja": "松明",
+   "cat": "gear"
+  },
+  {
+   "id": "gear_chest",
+   "zh": "木箱",
+   "ja": "木箱",
+   "cat": "gear"
+  },
+  {
+   "id": "gear_wheel",
+   "zh": "木輪",
+   "ja": "車輪",
+   "cat": "gear"
+  },
+  {
+   "id": "gear_bucket",
+   "zh": "水桶",
+   "ja": "桶",
+   "cat": "gear"
+  },
+  {
+   "id": "gear_pot",
+   "zh": "鐵鍋",
+   "ja": "鉄鍋",
+   "cat": "gear"
+  },
+  {
+   "id": "gear_furnace",
+   "zh": "熔爐",
+   "ja": "炉",
+   "cat": "gear"
+  },
+  {
+   "id": "gear_bellows",
+   "zh": "風箱",
+   "ja": "ふいご",
+   "cat": "gear"
+  },
+  {
+   "id": "gear_anvil",
+   "zh": "鐵砧",
+   "ja": "金床",
+   "cat": "gear"
+  },
+  {
+   "id": "gear_lock",
+   "zh": "銅鎖",
+   "ja": "錠前",
+   "cat": "gear"
+  },
+  {
+   "id": "gear_key",
+   "zh": "鑰匙",
+   "ja": "鍵",
+   "cat": "gear"
+  },
+  {
+   "id": "gear_bell",
+   "zh": "銅鈴",
+   "ja": "鈴",
+   "cat": "gear"
+  },
+  {
+   "id": "gear_mirror",
+   "zh": "銅鏡",
+   "ja": "銅鏡",
+   "cat": "gear"
+  },
+  {
+   "id": "gear_brush",
+   "zh": "毛筆",
+   "ja": "筆",
+   "cat": "gear"
+  },
+  {
+   "id": "gear_slip",
+   "zh": "竹簡",
+   "ja": "竹簡",
+   "cat": "gear"
+  },
+  {
+   "id": "gear_lantern",
+   "zh": "燈籠",
+   "ja": "灯籠",
+   "cat": "gear"
+  },
+  {
+   "id": "gear_boat",
+   "zh": "木船",
+   "ja": "小舟",
+   "cat": "gear"
+  },
+  {
+   "id": "gear_raft",
+   "zh": "竹筏",
+   "ja": "いかだ",
+   "cat": "gear"
+  },
+  {
+   "id": "gear_ladder",
+   "zh": "梯子",
+   "ja": "梯子",
+   "cat": "gear"
+  },
+  {
+   "id": "gear_bridge",
+   "zh": "吊橋",
+   "ja": "吊り橋",
+   "cat": "gear"
+  },
+  {
+   "id": "gear_trap",
+   "zh": "捕獸夾",
+   "ja": "罠",
+   "cat": "gear"
+  },
+  {
+   "id": "gear_mech",
+   "zh": "機關匣",
+   "ja": "からくり箱",
+   "cat": "gear"
+  },
+  {
+   "id": "gear_waterclock",
+   "zh": "漏壺",
+   "ja": "水時計",
+   "cat": "gear"
+  },
+  {
+   "id": "gear_net",
+   "zh": "漁網",
+   "ja": "網",
+   "cat": "gear"
+  },
+  {
+   "id": "mar_stance",
+   "zh": "樁功",
+   "ja": "立ち木打ち",
+   "cat": "martial"
+  },
+  {
+   "id": "mar_breath",
+   "zh": "吐納",
+   "ja": "呼吸法",
+   "cat": "martial"
+  },
+  {
+   "id": "mar_qi",
+   "zh": "真氣",
+   "ja": "気",
+   "cat": "martial"
+  },
+  {
+   "id": "mar_neigong",
+   "zh": "內功",
+   "ja": "内功",
+   "cat": "martial"
+  },
+  {
+   "id": "mar_force",
+   "zh": "勁力",
+   "ja": "勁",
+   "cat": "martial"
+  },
+  {
+   "id": "mar_fist",
+   "zh": "拳法",
+   "ja": "拳法",
+   "cat": "martial"
+  },
+  {
+   "id": "mar_palm",
+   "zh": "掌法",
+   "ja": "掌法",
+   "cat": "martial"
+  },
+  {
+   "id": "mar_fingers",
+   "zh": "指法",
+   "ja": "指法",
+   "cat": "martial"
+  },
+  {
+   "id": "mar_kick",
+   "zh": "腿法",
+   "ja": "脚法",
+   "cat": "martial"
+  },
+  {
+   "id": "mar_qinggong",
+   "zh": "輕功",
+   "ja": "軽功",
+   "cat": "martial"
+  },
+  {
+   "id": "mar_swordart",
+   "zh": "劍法",
+   "ja": "剣術",
+   "cat": "martial"
+  },
+  {
+   "id": "mar_saberart",
+   "zh": "刀法",
+   "ja": "刀術",
+   "cat": "martial"
+  },
+  {
+   "id": "mar_spearart",
+   "zh": "槍法",
+   "ja": "槍術",
+   "cat": "martial"
+  },
+  {
+   "id": "mar_shadow",
+   "zh": "身法",
+   "ja": "身のこなし",
+   "cat": "martial"
+  },
+  {
+   "id": "mar_flamepalm",
+   "zh": "烈焰掌",
+   "ja": "烈焔掌",
+   "cat": "martial"
+  },
+  {
+   "id": "mar_icepalm",
+   "zh": "寒冰掌",
+   "ja": "寒氷掌",
+   "cat": "martial"
+  },
+  {
+   "id": "mar_hardgong",
+   "zh": "硬功",
+   "ja": "硬功",
+   "cat": "martial"
+  },
+  {
+   "id": "mar_poisonpalm",
+   "zh": "毒掌",
+   "ja": "毒掌",
+   "cat": "martial"
+  },
+  {
+   "id": "mar_taichi",
+   "zh": "太極",
+   "ja": "太極",
+   "cat": "martial"
+  },
+  {
+   "id": "mar_heart",
+   "zh": "心法",
+   "ja": "心法",
+   "cat": "martial"
+  },
+  {
+   "id": "mar_formation",
+   "zh": "陣法",
+   "ja": "陣法",
+   "cat": "martial"
+  },
+  {
+   "id": "per_farmer",
+   "zh": "農夫",
+   "ja": "農夫",
+   "cat": "person"
+  },
+  {
+   "id": "per_smith",
+   "zh": "鐵匠",
+   "ja": "鍛冶屋",
+   "cat": "person"
+  },
+  {
+   "id": "per_woodcutter",
+   "zh": "樵夫",
+   "ja": "きこり",
+   "cat": "person"
+  },
+  {
+   "id": "per_fisher",
+   "zh": "漁夫",
+   "ja": "漁師",
+   "cat": "person"
+  },
+  {
+   "id": "per_monk",
+   "zh": "僧人",
+   "ja": "僧侶",
+   "cat": "person"
+  },
+  {
+   "id": "per_daoist",
+   "zh": "道士",
+   "ja": "道士",
+   "cat": "person"
+  },
+  {
+   "id": "per_doctor",
+   "zh": "郎中",
+   "ja": "医者",
+   "cat": "person"
+  },
+  {
+   "id": "per_scholar",
+   "zh": "書生",
+   "ja": "書生",
+   "cat": "person"
+  },
+  {
+   "id": "per_merchant",
+   "zh": "商人",
+   "ja": "商人",
+   "cat": "person"
+  },
+  {
+   "id": "per_swordsman",
+   "zh": "劍客",
+   "ja": "剣客",
+   "cat": "person"
+  },
+  {
+   "id": "per_hermit",
+   "zh": "隱士",
+   "ja": "隠者",
+   "cat": "person"
+  },
+  {
+   "id": "per_beggar",
+   "zh": "乞丐",
+   "ja": "物乞い",
+   "cat": "person"
+  },
+  {
+   "id": "per_bandit",
+   "zh": "山賊",
+   "ja": "山賊",
+   "cat": "person"
+  },
+  {
+   "id": "per_assassin",
+   "zh": "刺客",
+   "ja": "刺客",
+   "cat": "person"
+  },
+  {
+   "id": "per_hunter",
+   "zh": "獵人",
+   "ja": "猟師",
+   "cat": "person"
+  },
+  {
+   "id": "per_boatman",
+   "zh": "船夫",
+   "ja": "船頭",
+   "cat": "person"
+  },
+  {
+   "id": "per_soldier",
+   "zh": "兵卒",
+   "ja": "兵士",
+   "cat": "person"
+  },
+  {
+   "id": "per_maiden",
+   "zh": "佳人",
+   "ja": "佳人",
+   "cat": "person"
+  },
+  {
+   "id": "per_dancer",
+   "zh": "舞姬",
+   "ja": "舞姫",
+   "cat": "person"
+  },
+  {
+   "id": "per_miner",
+   "zh": "礦工",
+   "ja": "鉱夫",
+   "cat": "person"
+  },
+  {
+   "id": "per_thief",
+   "zh": "盜賊",
+   "ja": "盗賊",
+   "cat": "person"
+  },
+  {
+   "id": "per_wanderer",
+   "zh": "浪客",
+   "ja": "浪人",
+   "cat": "person"
+  },
+  {
+   "id": "sec_shaolin",
+   "zh": "少林",
+   "ja": "少林",
+   "cat": "sect"
+  },
+  {
+   "id": "sec_wudang",
+   "zh": "武當",
+   "ja": "武当",
+   "cat": "sect"
+  },
+  {
+   "id": "sec_emei",
+   "zh": "峨嵋",
+   "ja": "峨眉",
+   "cat": "sect"
+  },
+  {
+   "id": "sec_kunlun",
+   "zh": "崑崙",
+   "ja": "崑崙",
+   "cat": "sect"
+  },
+  {
+   "id": "sec_huashan",
+   "zh": "華山",
+   "ja": "華山",
+   "cat": "sect"
+  },
+  {
+   "id": "sec_beggars",
+   "zh": "丐幫",
+   "ja": "丐幫",
+   "cat": "sect"
+  },
+  {
+   "id": "sec_tangmen",
+   "zh": "唐門",
+   "ja": "唐門",
+   "cat": "sect"
+  },
+  {
+   "id": "sec_ming",
+   "zh": "明教",
+   "ja": "明教",
+   "cat": "sect"
+  },
+  {
+   "id": "sec_demon",
+   "zh": "魔教",
+   "ja": "魔教",
+   "cat": "sect"
+  },
+  {
+   "id": "sec_peach",
+   "zh": "桃花島",
+   "ja": "桃花島",
+   "cat": "sect"
+  },
+  {
+   "id": "sec_tomb",
+   "zh": "古墓派",
+   "ja": "古墓派",
+   "cat": "sect"
+  },
+  {
+   "id": "sec_xiaoyao",
+   "zh": "逍遙派",
+   "ja": "逍遙派",
+   "cat": "sect"
+  },
+  {
+   "id": "sec_escort",
+   "zh": "鏢局",
+   "ja": "鏢局",
+   "cat": "sect"
+  },
+  {
+   "id": "sec_stronghold",
+   "zh": "山寨",
+   "ja": "山寨",
+   "cat": "sect"
+  },
+  {
+   "id": "sec_court",
+   "zh": "官府",
+   "ja": "官府",
+   "cat": "sect"
+  },
+  {
+   "id": "sec_guild",
+   "zh": "商會",
+   "ja": "商会",
+   "cat": "sect"
+  },
+  {
+   "id": "sec_medvalley",
+   "zh": "藥王谷",
+   "ja": "薬王谷",
+   "cat": "sect"
+  },
+  {
+   "id": "sec_poison5",
+   "zh": "五毒教",
+   "ja": "五毒教",
+   "cat": "sect"
+  },
+  {
+   "id": "sec_swordtomb",
+   "zh": "劍冢",
+   "ja": "剣塚",
+   "cat": "sect"
+  },
+  {
+   "id": "sec_forge",
+   "zh": "鑄劍山莊",
+   "ja": "鋳剣の里",
+   "cat": "sect"
+  },
+  {
+   "id": "sec_qingcheng",
+   "zh": "青城派",
+   "ja": "青城派",
+   "cat": "sect"
+  },
+  {
+   "id": "plc_field",
+   "zh": "田野",
+   "ja": "田畑",
+   "cat": "place"
+  },
+  {
+   "id": "plc_hut",
+   "zh": "茅屋",
+   "ja": "あばら屋",
+   "cat": "place"
+  },
+  {
+   "id": "plc_house",
+   "zh": "民居",
+   "ja": "民家",
+   "cat": "place"
+  },
+  {
+   "id": "plc_temple",
+   "zh": "古剎",
+   "ja": "古寺",
+   "cat": "place"
+  },
+  {
+   "id": "plc_inn",
+   "zh": "客棧",
+   "ja": "宿屋",
+   "cat": "place"
+  },
+  {
+   "id": "plc_market",
+   "zh": "市集",
+   "ja": "市",
+   "cat": "place"
+  },
+  {
+   "id": "plc_city",
+   "zh": "城池",
+   "ja": "城下町",
+   "cat": "place"
+  },
+  {
+   "id": "plc_cave",
+   "zh": "山洞",
+   "ja": "洞窟",
+   "cat": "place"
+  },
+  {
+   "id": "plc_cliff",
+   "zh": "絕壁",
+   "ja": "断崖",
+   "cat": "place"
+  },
+  {
+   "id": "plc_island",
+   "zh": "孤島",
+   "ja": "孤島",
+   "cat": "place"
+  },
+  {
+   "id": "plc_harbor",
+   "zh": "港口",
+   "ja": "港",
+   "cat": "place"
+  },
+  {
+   "id": "plc_desert",
+   "zh": "大漠",
+   "ja": "砂漠",
+   "cat": "place"
+  },
+  {
+   "id": "plc_grassland",
+   "zh": "草原",
+   "ja": "草原",
+   "cat": "place"
+  },
+  {
+   "id": "plc_woods",
+   "zh": "密林",
+   "ja": "密林",
+   "cat": "place"
+  },
+  {
+   "id": "plc_bamboogrove",
+   "zh": "竹林",
+   "ja": "竹林",
+   "cat": "place"
+  },
+  {
+   "id": "plc_lake",
+   "zh": "湖泊",
+   "ja": "湖",
+   "cat": "place"
+  },
+  {
+   "id": "plc_spring",
+   "zh": "泉眼",
+   "ja": "泉",
+   "cat": "place"
+  },
+  {
+   "id": "plc_hotspring",
+   "zh": "溫泉",
+   "ja": "温泉",
+   "cat": "place"
+  },
+  {
+   "id": "plc_mine",
+   "zh": "礦坑",
+   "ja": "鉱山",
+   "cat": "place"
+  },
+  {
+   "id": "plc_grave",
+   "zh": "墳場",
+   "ja": "墓場",
+   "cat": "place"
+  },
+  {
+   "id": "plc_palace",
+   "zh": "金殿",
+   "ja": "宮殿",
+   "cat": "place"
+  },
+  {
+   "id": "plc_garden",
+   "zh": "庭園",
+   "ja": "庭園",
+   "cat": "place"
+  },
+  {
+   "id": "plc_pavilion",
+   "zh": "涼亭",
+   "ja": "東屋",
+   "cat": "place"
+  },
+  {
+   "id": "plc_road",
+   "zh": "古道",
+   "ja": "街道",
+   "cat": "place"
+  },
+  {
+   "id": "bst_fish",
+   "zh": "游魚",
+   "ja": "魚",
+   "cat": "beast"
+  },
+  {
+   "id": "bst_bird",
+   "zh": "飛鳥",
+   "ja": "鳥",
+   "cat": "beast"
+  },
+  {
+   "id": "bst_crane",
+   "zh": "仙鶴",
+   "ja": "鶴",
+   "cat": "beast"
+  },
+  {
+   "id": "bst_eagle",
+   "zh": "蒼鷹",
+   "ja": "鷹",
+   "cat": "beast"
+  },
+  {
+   "id": "bst_snake",
+   "zh": "毒蛇",
+   "ja": "蛇",
+   "cat": "beast"
+  },
+  {
+   "id": "bst_tiger",
+   "zh": "猛虎",
+   "ja": "虎",
+   "cat": "beast"
+  },
+  {
+   "id": "bst_wolf",
+   "zh": "野狼",
+   "ja": "狼",
+   "cat": "beast"
+  },
+  {
+   "id": "bst_horse",
+   "zh": "駿馬",
+   "ja": "馬",
+   "cat": "beast"
+  },
+  {
+   "id": "bst_goat",
+   "zh": "山羊",
+   "ja": "山羊",
+   "cat": "beast"
+  },
+  {
+   "id": "bst_monkey",
+   "zh": "猿猴",
+   "ja": "猿",
+   "cat": "beast"
+  },
+  {
+   "id": "bst_bear",
+   "zh": "黑熊",
+   "ja": "熊",
+   "cat": "beast"
+  },
+  {
+   "id": "bst_deer",
+   "zh": "靈鹿",
+   "ja": "鹿",
+   "cat": "beast"
+  },
+  {
+   "id": "bst_dragon",
+   "zh": "神龍",
+   "ja": "龍",
+   "cat": "beast"
+  },
+  {
+   "id": "bst_phoenix",
+   "zh": "鳳凰",
+   "ja": "鳳凰",
+   "cat": "beast"
+  },
+  {
+   "id": "bst_turtle",
+   "zh": "靈龜",
+   "ja": "亀",
+   "cat": "beast"
+  },
+  {
+   "id": "bst_crab",
+   "zh": "螃蟹",
+   "ja": "蟹",
+   "cat": "beast"
+  },
+  {
+   "id": "bst_bee",
+   "zh": "蜜蜂",
+   "ja": "蜂",
+   "cat": "beast"
+  },
+  {
+   "id": "bst_silkworm",
+   "zh": "蠶",
+   "ja": "蚕",
+   "cat": "beast"
+  },
+  {
+   "id": "bst_toad",
+   "zh": "蟾蜍",
+   "ja": "蝦蟇",
+   "cat": "beast"
+  },
+  {
+   "id": "bst_scorpion",
+   "zh": "蠍子",
+   "ja": "蠍",
+   "cat": "beast"
+  },
+  {
+   "id": "bst_spider",
+   "zh": "蜘蛛",
+   "ja": "蜘蛛",
+   "cat": "beast"
+  },
+  {
+   "id": "bst_fox",
+   "zh": "靈狐",
+   "ja": "狐",
+   "cat": "beast"
+  },
+  {
+   "id": "trs_pearl",
+   "zh": "夜明珠",
+   "ja": "夜光の珠",
+   "cat": "treasure"
+  },
+  {
+   "id": "trs_gold",
+   "zh": "黃金",
+   "ja": "黄金",
+   "cat": "treasure"
+  },
+  {
+   "id": "trs_gem",
+   "zh": "寶石",
+   "ja": "宝石",
+   "cat": "treasure"
+  },
+  {
+   "id": "trs_jadedisc",
+   "zh": "玉璧",
+   "ja": "玉璧",
+   "cat": "treasure"
+  },
+  {
+   "id": "trs_famoussword",
+   "zh": "名劍",
+   "ja": "名剣",
+   "cat": "treasure"
+  },
+  {
+   "id": "trs_famoussaber",
+   "zh": "寶刀",
+   "ja": "宝刀",
+   "cat": "treasure"
+  },
+  {
+   "id": "trs_seal",
+   "zh": "玉璽",
+   "ja": "玉璽",
+   "cat": "treasure"
+  },
+  {
+   "id": "trs_manual",
+   "zh": "祕笈",
+   "ja": "秘伝書",
+   "cat": "treasure"
+  },
+  {
+   "id": "trs_map",
+   "zh": "藏寶圖",
+   "ja": "宝の地図",
+   "cat": "treasure"
+  },
+  {
+   "id": "trs_spiritstone",
+   "zh": "靈石",
+   "ja": "霊石",
+   "cat": "treasure"
+  },
+  {
+   "id": "trs_fireorb",
+   "zh": "火珠",
+   "ja": "火の珠",
+   "cat": "treasure"
+  },
+  {
+   "id": "trs_iceheart",
+   "zh": "冰魄",
+   "ja": "氷魄",
+   "cat": "treasure"
+  },
+  {
+   "id": "trs_goldmail",
+   "zh": "金絲軟甲",
+   "ja": "金糸の鎧",
+   "cat": "treasure"
+  },
+  {
+   "id": "trs_peach",
+   "zh": "仙桃",
+   "ja": "仙桃",
+   "cat": "treasure"
+  },
+  {
+   "id": "trs_jadeflute",
+   "zh": "玉簫",
+   "ja": "玉の笛",
+   "cat": "treasure"
+  },
+  {
+   "id": "trs_cauldron",
+   "zh": "九鼎",
+   "ja": "九鼎",
+   "cat": "treasure"
+  },
+  {
+   "id": "trs_amber",
+   "zh": "琥珀",
+   "ja": "琥珀",
+   "cat": "treasure"
+  },
+  {
+   "id": "trs_blackgold",
+   "zh": "烏金",
+   "ja": "烏金",
+   "cat": "treasure"
+  },
+  {
+   "id": "trs_meteor",
+   "zh": "隕鐵",
+   "ja": "隕鉄",
+   "cat": "treasure"
+  },
+  {
+   "id": "trs_inkstone",
+   "zh": "硯台",
+   "ja": "硯",
+   "cat": "treasure"
+  },
+  {
+   "id": "con_yin",
+   "zh": "陰",
+   "ja": "陰",
+   "cat": "concept"
+  },
+  {
+   "id": "con_yang",
+   "zh": "陽",
+   "ja": "陽",
+   "cat": "concept"
+  },
+  {
+   "id": "con_calm",
+   "zh": "平靜",
+   "ja": "静寂",
+   "cat": "concept"
+  },
+  {
+   "id": "con_rage",
+   "zh": "怒意",
+   "ja": "怒り",
+   "cat": "concept"
+  },
+  {
+   "id": "con_sorrow",
+   "zh": "愁緒",
+   "ja": "憂い",
+   "cat": "concept"
+  },
+  {
+   "id": "con_joy",
+   "zh": "喜悅",
+   "ja": "喜び",
+   "cat": "concept"
+  },
+  {
+   "id": "con_fear",
+   "zh": "恐懼",
+   "ja": "恐れ",
+   "cat": "concept"
+  },
+  {
+   "id": "con_love",
+   "zh": "情意",
+   "ja": "情",
+   "cat": "concept"
+  },
+  {
+   "id": "con_hate",
+   "zh": "仇恨",
+   "ja": "恨み",
+   "cat": "concept"
+  },
+  {
+   "id": "con_righteous",
+   "zh": "義氣",
+   "ja": "義",
+   "cat": "concept"
+  },
+  {
+   "id": "con_fate",
+   "zh": "緣分",
+   "ja": "縁",
+   "cat": "concept"
+  },
+  {
+   "id": "con_time",
+   "zh": "歲月",
+   "ja": "歳月",
+   "cat": "concept"
+  },
+  {
+   "id": "con_dream",
+   "zh": "夢境",
+   "ja": "夢",
+   "cat": "concept"
+  },
+  {
+   "id": "con_illusion",
+   "zh": "幻象",
+   "ja": "幻",
+   "cat": "concept"
+  },
+  {
+   "id": "con_wisdom",
+   "zh": "智慧",
+   "ja": "智慧",
+   "cat": "concept"
+  },
+  {
+   "id": "con_courage",
+   "zh": "膽識",
+   "ja": "胆力",
+   "cat": "concept"
+  },
+  {
+   "id": "con_fortune",
+   "zh": "福運",
+   "ja": "福",
+   "cat": "concept"
+  },
+  {
+   "id": "con_void",
+   "zh": "虛無",
+   "ja": "虚無",
+   "cat": "concept"
+  },
+  {
+   "id": "con_fame",
+   "zh": "名聲",
+   "ja": "名声",
+   "cat": "concept"
+  },
+  {
+   "id": "con_secret",
+   "zh": "祕密",
+   "ja": "秘密",
+   "cat": "concept"
+  },
+  {
+   "id": "con_solitude",
+   "zh": "孤獨",
+   "ja": "孤独",
+   "cat": "concept"
+  },
+  {
+   "id": "mar_horsestance",
+   "zh": "馬步",
+   "ja": "馬歩",
+   "cat": "martial"
+  },
+  {
+   "id": "mar_meridian",
+   "zh": "經脈",
+   "ja": "経脈",
+   "cat": "martial"
+  },
+  {
+   "id": "mar_acupoint",
+   "zh": "穴道",
+   "ja": "経穴",
+   "cat": "martial"
+  },
+  {
+   "id": "mar_innerforce",
+   "zh": "內力",
+   "ja": "内力",
+   "cat": "martial"
+  },
+  {
+   "id": "mar_stroke",
+   "zh": "招式",
+   "ja": "技",
+   "cat": "martial"
+  },
+  {
+   "id": "sec_rules",
+   "zh": "門規",
+   "ja": "掟",
+   "cat": "sect"
+  },
+  {
+   "id": "sec_master",
+   "zh": "師父",
+   "ja": "師匠",
+   "cat": "sect"
+  },
+  {
+   "id": "sec_disciple",
+   "zh": "弟子",
+   "ja": "弟子",
+   "cat": "sect"
+  },
+  {
+   "id": "sec_hall",
+   "zh": "大殿",
+   "ja": "大広間",
+   "cat": "sect"
+  },
+  {
+   "id": "sec_codex",
+   "zh": "門派典籍",
+   "ja": "門派の典籍",
+   "cat": "sect"
+  },
+  {
+   "id": "sec_banner",
+   "zh": "旗幟",
+   "ja": "旗",
+   "cat": "sect"
+  },
+  {
+   "id": "sec_token",
+   "zh": "令牌",
+   "ja": "令牌",
+   "cat": "sect"
+  }
+ ],
+ "recipes": [
+  [
+   "wood",
+   "wood",
+   "nat_grove"
+  ],
+  [
+   "water",
+   "water",
+   "nat_river"
+  ],
+  [
+   "water",
+   "fire",
+   "nat_steam"
+  ],
+  [
+   "fire",
+   "fire",
+   "nat_blaze"
+  ],
+  [
+   "fire",
+   "earth",
+   "nat_magma"
+  ],
+  [
+   "earth",
+   "earth",
+   "nat_mountain"
+  ],
+  [
+   "water",
+   "earth",
+   "nat_swamp"
+  ],
+  [
+   "nat_steam",
+   "nat_steam",
+   "nat_cloud"
+  ],
+  [
+   "nat_steam",
+   "nat_blaze",
+   "nat_wind"
+  ],
+  [
+   "nat_steam",
+   "water",
+   "nat_mist"
+  ],
+  [
+   "nat_mountain",
+   "earth",
+   "nat_stone"
+  ],
+  [
+   "nat_mountain",
+   "nat_mountain",
+   "nat_valley"
+  ],
+  [
+   "water",
+   "mat_coldiron",
+   "nat_frost"
+  ],
+  [
+   "nat_blaze",
+   "metal",
+   "nat_light"
+  ],
+  [
+   "nat_grove",
+   "nat_swamp",
+   "nat_dark"
+  ],
+  [
+   "nat_cloud",
+   "water",
+   "nat_rain"
+  ],
+  [
+   "nat_cloud",
+   "nat_blaze",
+   "nat_thunder"
+  ],
+  [
+   "nat_cloud",
+   "nat_frost",
+   "nat_snow"
+  ],
+  [
+   "nat_wind",
+   "earth",
+   "nat_dust"
+  ],
+  [
+   "nat_cloud",
+   "nat_light",
+   "nat_rainbow"
+  ],
+  [
+   "nat_river",
+   "nat_river",
+   "nat_sea"
+  ],
+  [
+   "nat_river",
+   "nat_mountain",
+   "nat_waterfall"
+  ],
+  [
+   "nat_magma",
+   "nat_mountain",
+   "nat_volcano"
+  ],
+  [
+   "nat_light",
+   "nat_river",
+   "nat_moon"
+  ],
+  [
+   "nat_light",
+   "nat_blaze",
+   "nat_sun"
+  ],
+  [
+   "metal",
+   "metal",
+   "mat_ingot"
+  ],
+  [
+   "metal",
+   "water",
+   "mat_coldiron"
+  ],
+  [
+   "metal",
+   "fire",
+   "mat_moltengold"
+  ],
+  [
+   "metal",
+   "earth",
+   "mat_ore"
+  ],
+  [
+   "wood",
+   "fire",
+   "mat_charcoal"
+  ],
+  [
+   "mat_moltengold",
+   "mat_ore",
+   "mat_ironembryo"
+  ],
+  [
+   "mat_ore",
+   "fire",
+   "mat_iron"
+  ],
+  [
+   "mat_ore",
+   "mat_ingot",
+   "mat_copper"
+  ],
+  [
+   "mat_ingot",
+   "water",
+   "mat_silver"
+  ],
+  [
+   "nat_stone",
+   "nat_light",
+   "mat_jade"
+  ],
+  [
+   "nat_grove",
+   "wpn_axe",
+   "mat_timber"
+  ],
+  [
+   "nat_grove",
+   "water",
+   "mat_bamboo"
+  ],
+  [
+   "herb_grass",
+   "herb_grass",
+   "mat_rope"
+  ],
+  [
+   "nat_swamp",
+   "earth",
+   "mat_clay"
+  ],
+  [
+   "nat_magma",
+   "mat_ore",
+   "mat_sulfur"
+  ],
+  [
+   "mat_charcoal",
+   "water",
+   "mat_ink"
+  ],
+  [
+   "mat_ironembryo",
+   "mat_charcoal",
+   "mat_steel"
+  ],
+  [
+   "mat_rope",
+   "mat_rope",
+   "mat_cloth"
+  ],
+  [
+   "mat_clay",
+   "fire",
+   "mat_brick"
+  ],
+  [
+   "mat_clay",
+   "nat_blaze",
+   "mat_porcelain"
+  ],
+  [
+   "nat_sea",
+   "fire",
+   "mat_salt"
+  ],
+  [
+   "mat_sulfur",
+   "mat_charcoal",
+   "mat_gunpowder"
+  ],
+  [
+   "mat_bamboo",
+   "water",
+   "mat_paper"
+  ],
+  [
+   "wood",
+   "water",
+   "herb_sprout"
+  ],
+  [
+   "wood",
+   "earth",
+   "herb_grass"
+  ],
+  [
+   "herb_sprout",
+   "wood",
+   "herb_leaf"
+  ],
+  [
+   "herb_sprout",
+   "earth",
+   "herb_flower"
+  ],
+  [
+   "herb_grass",
+   "earth",
+   "herb_seed"
+  ],
+  [
+   "herb_sprout",
+   "herb_sprout",
+   "herb_vine"
+  ],
+  [
+   "herb_sprout",
+   "nat_swamp",
+   "herb_moss"
+  ],
+  [
+   "nat_grove",
+   "earth",
+   "herb_tree"
+  ],
+  [
+   "herb_flower",
+   "water",
+   "herb_lotus"
+  ],
+  [
+   "herb_flower",
+   "fire",
+   "herb_peony"
+  ],
+  [
+   "herb_flower",
+   "nat_frost",
+   "herb_plum"
+  ],
+  [
+   "herb_flower",
+   "nat_cloud",
+   "herb_chrysan"
+  ],
+  [
+   "herb_flower",
+   "nat_valley",
+   "herb_orchid"
+  ],
+  [
+   "herb_tree",
+   "nat_frost",
+   "herb_pine"
+  ],
+  [
+   "herb_tree",
+   "nat_river",
+   "herb_willow"
+  ],
+  [
+   "herb_tree",
+   "water",
+   "herb_fruit"
+  ],
+  [
+   "herb_seed",
+   "nat_swamp",
+   "herb_root"
+  ],
+  [
+   "herb_seed",
+   "nat_mountain",
+   "herb_ginseng"
+  ],
+  [
+   "herb_moss",
+   "nat_valley",
+   "herb_lingzhi"
+  ],
+  [
+   "herb_moss",
+   "nat_grove",
+   "herb_fungus"
+  ],
+  [
+   "herb_grass",
+   "fire",
+   "herb_mugwort"
+  ],
+  [
+   "herb_leaf",
+   "nat_steam",
+   "herb_tea"
+  ],
+  [
+   "herb_sprout",
+   "water",
+   "eli_juice"
+  ],
+  [
+   "herb_grass",
+   "nat_swamp",
+   "eli_poisonherb"
+  ],
+  [
+   "mat_ore",
+   "nat_blaze",
+   "eli_cinnabar"
+  ],
+  [
+   "herb_leaf",
+   "nat_stone",
+   "eli_powder"
+  ],
+  [
+   "eli_juice",
+   "herb_seed",
+   "eli_pill"
+  ],
+  [
+   "eli_juice",
+   "fire",
+   "eli_decoction"
+  ],
+  [
+   "herb_seed",
+   "water",
+   "eli_wine"
+  ],
+  [
+   "eli_poisonherb",
+   "eli_juice",
+   "eli_antidote"
+  ],
+  [
+   "eli_poisonherb",
+   "eli_poisonherb",
+   "eli_poison"
+  ],
+  [
+   "eli_poisonherb",
+   "herb_leaf",
+   "eli_numb"
+  ],
+  [
+   "eli_juice",
+   "metal",
+   "eli_healing"
+  ],
+  [
+   "eli_juice",
+   "nat_swamp",
+   "eli_ointment"
+  ],
+  [
+   "herb_mugwort",
+   "mat_charcoal",
+   "eli_incense"
+  ],
+  [
+   "mat_silver",
+   "fire",
+   "eli_mercury"
+  ],
+  [
+   "eli_poisonherb",
+   "mat_ore",
+   "eli_arsenic"
+  ],
+  [
+   "eli_cinnabar",
+   "mat_moltengold",
+   "eli_elixir"
+  ],
+  [
+   "mat_ore",
+   "mat_sulfur",
+   "eli_realgar"
+  ],
+  [
+   "eli_juice",
+   "mat_charcoal",
+   "eli_oil"
+  ],
+  [
+   "herb_leaf",
+   "nat_mist",
+   "eli_dew"
+  ],
+  [
+   "eli_juice",
+   "nat_frost",
+   "eli_cooling"
+  ],
+  [
+   "eli_juice",
+   "nat_river",
+   "eli_bath"
+  ],
+  [
+   "metal",
+   "wood",
+   "wpn_axe"
+  ],
+  [
+   "mat_ironembryo",
+   "nat_stone",
+   "wpn_dagger"
+  ],
+  [
+   "nat_grove",
+   "wood",
+   "wpn_stick"
+  ],
+  [
+   "herb_grass",
+   "metal",
+   "wpn_sickle"
+  ],
+  [
+   "mat_ingot",
+   "earth",
+   "wpn_spade"
+  ],
+  [
+   "mat_ingot",
+   "wood",
+   "wpn_hook"
+  ],
+  [
+   "mat_ironembryo",
+   "fire",
+   "wpn_blade"
+  ],
+  [
+   "mat_moltengold",
+   "mat_coldiron",
+   "wpn_sword"
+  ],
+  [
+   "mat_ironembryo",
+   "wood",
+   "wpn_hammer"
+  ],
+  [
+   "mat_iron",
+   "mat_rope",
+   "wpn_chain"
+  ],
+  [
+   "herb_vine",
+   "mat_rope",
+   "wpn_whip"
+  ],
+  [
+   "mat_ingot",
+   "nat_wind",
+   "wpn_dart"
+  ],
+  [
+   "mat_timber",
+   "mat_ingot",
+   "wpn_shield"
+  ],
+  [
+   "mat_iron",
+   "mat_ingot",
+   "wpn_armor"
+  ],
+  [
+   "mat_copper",
+   "mat_bamboo",
+   "wpn_crossbow"
+  ],
+  [
+   "mat_iron",
+   "mat_bamboo",
+   "wpn_fan"
+  ],
+  [
+   "mat_iron",
+   "wpn_stick",
+   "wpn_rod"
+  ],
+  [
+   "mat_ore",
+   "mat_timber",
+   "wpn_pick"
+  ],
+  [
+   "mat_bamboo",
+   "herb_vine",
+   "wpn_bow"
+  ],
+  [
+   "mat_bamboo",
+   "metal",
+   "wpn_arrow"
+  ],
+  [
+   "wpn_stick",
+   "metal",
+   "wpn_spear"
+  ],
+  [
+   "mat_silver",
+   "herb_sprout",
+   "wpn_needle"
+  ],
+  [
+   "wood",
+   "nat_blaze",
+   "gear_torch"
+  ],
+  [
+   "nat_grove",
+   "mat_ingot",
+   "gear_chest"
+  ],
+  [
+   "mat_timber",
+   "mat_timber",
+   "gear_wheel"
+  ],
+  [
+   "mat_timber",
+   "water",
+   "gear_bucket"
+  ],
+  [
+   "mat_iron",
+   "fire",
+   "gear_pot"
+  ],
+  [
+   "nat_stone",
+   "nat_blaze",
+   "gear_furnace"
+  ],
+  [
+   "nat_wind",
+   "mat_timber",
+   "gear_bellows"
+  ],
+  [
+   "mat_iron",
+   "nat_stone",
+   "gear_anvil"
+  ],
+  [
+   "mat_copper",
+   "metal",
+   "gear_lock"
+  ],
+  [
+   "mat_copper",
+   "mat_ingot",
+   "gear_key"
+  ],
+  [
+   "mat_copper",
+   "nat_wind",
+   "gear_bell"
+  ],
+  [
+   "mat_copper",
+   "nat_light",
+   "gear_mirror"
+  ],
+  [
+   "mat_bamboo",
+   "mat_ink",
+   "gear_brush"
+  ],
+  [
+   "mat_bamboo",
+   "mat_rope",
+   "gear_slip"
+  ],
+  [
+   "mat_bamboo",
+   "gear_torch",
+   "gear_lantern"
+  ],
+  [
+   "mat_timber",
+   "nat_river",
+   "gear_boat"
+  ],
+  [
+   "mat_bamboo",
+   "nat_river",
+   "gear_raft"
+  ],
+  [
+   "mat_bamboo",
+   "mat_timber",
+   "gear_ladder"
+  ],
+  [
+   "mat_rope",
+   "nat_river",
+   "gear_bridge"
+  ],
+  [
+   "mat_iron",
+   "herb_vine",
+   "gear_trap"
+  ],
+  [
+   "mat_copper",
+   "gear_chest",
+   "gear_mech"
+  ],
+  [
+   "mat_copper",
+   "water",
+   "gear_waterclock"
+  ],
+  [
+   "mat_rope",
+   "nat_sea",
+   "gear_net"
+  ],
+  [
+   "nat_mountain",
+   "wood",
+   "mar_stance"
+  ],
+  [
+   "nat_steam",
+   "nat_river",
+   "mar_breath"
+  ],
+  [
+   "nat_steam",
+   "wood",
+   "mar_qi"
+  ],
+  [
+   "mar_breath",
+   "mar_qi",
+   "mar_neigong"
+  ],
+  [
+   "mar_qi",
+   "nat_stone",
+   "mar_force"
+  ],
+  [
+   "mar_stance",
+   "mat_iron",
+   "mar_fist"
+  ],
+  [
+   "nat_wind",
+   "mar_qi",
+   "mar_palm"
+  ],
+  [
+   "mar_qi",
+   "wpn_needle",
+   "mar_fingers"
+  ],
+  [
+   "mar_horsestance",
+   "mar_qi",
+   "mar_kick"
+  ],
+  [
+   "nat_wind",
+   "nat_cloud",
+   "mar_qinggong"
+  ],
+  [
+   "wpn_sword",
+   "mar_qi",
+   "mar_swordart"
+  ],
+  [
+   "wpn_axe",
+   "mar_qi",
+   "mar_saberart"
+  ],
+  [
+   "wpn_stick",
+   "mar_qi",
+   "mar_spearart"
+  ],
+  [
+   "mar_stance",
+   "nat_wind",
+   "mar_shadow"
+  ],
+  [
+   "mar_qi",
+   "nat_blaze",
+   "mar_flamepalm"
+  ],
+  [
+   "mar_qi",
+   "nat_frost",
+   "mar_icepalm"
+  ],
+  [
+   "mar_qi",
+   "mat_ingot",
+   "mar_hardgong"
+  ],
+  [
+   "mar_qi",
+   "eli_poisonherb",
+   "mar_poisonpalm"
+  ],
+  [
+   "nat_light",
+   "nat_dark",
+   "mar_taichi"
+  ],
+  [
+   "mar_breath",
+   "mat_ink",
+   "mar_heart"
+  ],
+  [
+   "nat_stone",
+   "nat_stone",
+   "mar_formation"
+  ],
+  [
+   "herb_seed",
+   "wpn_sickle",
+   "per_farmer"
+  ],
+  [
+   "mat_ironembryo",
+   "nat_blaze",
+   "per_smith"
+  ],
+  [
+   "wpn_axe",
+   "herb_tree",
+   "per_woodcutter"
+  ],
+  [
+   "nat_river",
+   "wpn_hook",
+   "per_fisher"
+  ],
+  [
+   "mar_breath",
+   "mar_stance",
+   "per_monk"
+  ],
+  [
+   "eli_cinnabar",
+   "nat_mountain",
+   "per_daoist"
+  ],
+  [
+   "eli_juice",
+   "herb_leaf",
+   "per_doctor"
+  ],
+  [
+   "mat_ink",
+   "herb_sprout",
+   "per_scholar"
+  ],
+  [
+   "mat_silver",
+   "nat_river",
+   "per_merchant"
+  ],
+  [
+   "wpn_sword",
+   "mar_stance",
+   "per_swordsman"
+  ],
+  [
+   "nat_valley",
+   "nat_grove",
+   "per_hermit"
+  ],
+  [
+   "wpn_stick",
+   "earth",
+   "per_beggar"
+  ],
+  [
+   "nat_mountain",
+   "wpn_axe",
+   "per_bandit"
+  ],
+  [
+   "nat_dark",
+   "wpn_dagger",
+   "per_assassin"
+  ],
+  [
+   "nat_grove",
+   "wpn_dagger",
+   "per_hunter"
+  ],
+  [
+   "nat_river",
+   "wpn_stick",
+   "per_boatman"
+  ],
+  [
+   "mat_copper",
+   "wpn_stick",
+   "per_soldier"
+  ],
+  [
+   "herb_flower",
+   "nat_river",
+   "per_maiden"
+  ],
+  [
+   "nat_wind",
+   "herb_flower",
+   "per_dancer"
+  ],
+  [
+   "mat_ore",
+   "wpn_axe",
+   "per_miner"
+  ],
+  [
+   "nat_dark",
+   "wpn_hook",
+   "per_thief"
+  ],
+  [
+   "nat_wind",
+   "wpn_sword",
+   "per_wanderer"
+  ],
+  [
+   "plc_temple",
+   "sec_disciple",
+   "sec_shaolin"
+  ],
+  [
+   "per_daoist",
+   "sec_disciple",
+   "sec_wudang"
+  ],
+  [
+   "per_maiden",
+   "sec_disciple",
+   "sec_emei"
+  ],
+  [
+   "nat_mountain",
+   "nat_snow",
+   "sec_kunlun"
+  ],
+  [
+   "nat_mountain",
+   "per_swordsman",
+   "sec_huashan"
+  ],
+  [
+   "wpn_stick",
+   "wpn_stick",
+   "sec_beggars"
+  ],
+  [
+   "per_beggar",
+   "sec_disciple",
+   "sec_beggars"
+  ],
+  [
+   "eli_poisonherb",
+   "wpn_dagger",
+   "sec_tangmen"
+  ],
+  [
+   "sec_token",
+   "nat_light",
+   "sec_ming"
+  ],
+  [
+   "nat_dark",
+   "sec_banner",
+   "sec_demon"
+  ],
+  [
+   "nat_sea",
+   "herb_flower",
+   "sec_peach"
+  ],
+  [
+   "nat_dark",
+   "nat_stone",
+   "sec_tomb"
+  ],
+  [
+   "nat_cloud",
+   "nat_valley",
+   "sec_xiaoyao"
+  ],
+  [
+   "mat_silver",
+   "sec_banner",
+   "sec_escort"
+  ],
+  [
+   "per_bandit",
+   "sec_banner",
+   "sec_stronghold"
+  ],
+  [
+   "sec_hall",
+   "sec_token",
+   "sec_court"
+  ],
+  [
+   "per_merchant",
+   "sec_banner",
+   "sec_guild"
+  ],
+  [
+   "nat_valley",
+   "eli_juice",
+   "sec_medvalley"
+  ],
+  [
+   "eli_poisonherb",
+   "nat_swamp",
+   "sec_poison5"
+  ],
+  [
+   "wpn_dagger",
+   "nat_stone",
+   "sec_swordtomb"
+  ],
+  [
+   "per_smith",
+   "sec_hall",
+   "sec_forge"
+  ],
+  [
+   "per_daoist",
+   "herb_tree",
+   "sec_qingcheng"
+  ],
+  [
+   "herb_seed",
+   "earth",
+   "plc_field"
+  ],
+  [
+   "herb_grass",
+   "mat_timber",
+   "plc_hut"
+  ],
+  [
+   "nat_stone",
+   "mat_timber",
+   "plc_house"
+  ],
+  [
+   "mat_copper",
+   "nat_grove",
+   "plc_temple"
+  ],
+  [
+   "mat_timber",
+   "mat_silver",
+   "plc_inn"
+  ],
+  [
+   "mat_silver",
+   "gear_chest",
+   "plc_market"
+  ],
+  [
+   "nat_stone",
+   "mat_silver",
+   "plc_city"
+  ],
+  [
+   "nat_mountain",
+   "nat_dark",
+   "plc_cave"
+  ],
+  [
+   "nat_mountain",
+   "nat_stone",
+   "plc_cliff"
+  ],
+  [
+   "nat_sea",
+   "earth",
+   "plc_island"
+  ],
+  [
+   "nat_sea",
+   "mat_timber",
+   "plc_harbor"
+  ],
+  [
+   "earth",
+   "nat_light",
+   "plc_desert"
+  ],
+  [
+   "herb_grass",
+   "nat_cloud",
+   "plc_grassland"
+  ],
+  [
+   "nat_grove",
+   "nat_grove",
+   "plc_woods"
+  ],
+  [
+   "mat_bamboo",
+   "nat_grove",
+   "plc_bamboogrove"
+  ],
+  [
+   "nat_river",
+   "nat_valley",
+   "plc_lake"
+  ],
+  [
+   "nat_stone",
+   "water",
+   "plc_spring"
+  ],
+  [
+   "water",
+   "nat_magma",
+   "plc_hotspring"
+  ],
+  [
+   "mat_ore",
+   "nat_mountain",
+   "plc_mine"
+  ],
+  [
+   "nat_dark",
+   "earth",
+   "plc_grave"
+  ],
+  [
+   "mat_moltengold",
+   "nat_stone",
+   "plc_palace"
+  ],
+  [
+   "herb_flower",
+   "nat_stone",
+   "plc_garden"
+  ],
+  [
+   "mat_bamboo",
+   "nat_stone",
+   "plc_pavilion"
+  ],
+  [
+   "nat_stone",
+   "earth",
+   "plc_road"
+  ],
+  [
+   "nat_river",
+   "herb_sprout",
+   "bst_fish"
+  ],
+  [
+   "nat_wind",
+   "nat_grove",
+   "bst_bird"
+  ],
+  [
+   "nat_cloud",
+   "nat_grove",
+   "bst_crane"
+  ],
+  [
+   "nat_wind",
+   "nat_stone",
+   "bst_eagle"
+  ],
+  [
+   "herb_vine",
+   "nat_swamp",
+   "bst_snake"
+  ],
+  [
+   "nat_mountain",
+   "nat_wind",
+   "bst_tiger"
+  ],
+  [
+   "nat_grove",
+   "nat_dark",
+   "bst_wolf"
+  ],
+  [
+   "herb_grass",
+   "nat_wind",
+   "bst_horse"
+  ],
+  [
+   "herb_grass",
+   "nat_mountain",
+   "bst_goat"
+  ],
+  [
+   "herb_tree",
+   "herb_vine",
+   "bst_monkey"
+  ],
+  [
+   "nat_mountain",
+   "herb_vine",
+   "bst_bear"
+  ],
+  [
+   "herb_lingzhi",
+   "nat_grove",
+   "bst_deer"
+  ],
+  [
+   "nat_cloud",
+   "nat_sea",
+   "bst_dragon"
+  ],
+  [
+   "nat_blaze",
+   "nat_wind",
+   "bst_phoenix"
+  ],
+  [
+   "nat_river",
+   "nat_stone",
+   "bst_turtle"
+  ],
+  [
+   "nat_sea",
+   "nat_stone",
+   "bst_crab"
+  ],
+  [
+   "herb_flower",
+   "wood",
+   "bst_bee"
+  ],
+  [
+   "herb_leaf",
+   "herb_sprout",
+   "bst_silkworm"
+  ],
+  [
+   "nat_swamp",
+   "herb_moss",
+   "bst_toad"
+  ],
+  [
+   "eli_poisonherb",
+   "earth",
+   "bst_scorpion"
+  ],
+  [
+   "herb_vine",
+   "herb_vine",
+   "bst_spider"
+  ],
+  [
+   "nat_moon",
+   "nat_grove",
+   "bst_fox"
+  ],
+  [
+   "nat_sea",
+   "nat_light",
+   "trs_pearl"
+  ],
+  [
+   "mat_ingot",
+   "mat_ingot",
+   "trs_gold"
+  ],
+  [
+   "mat_ore",
+   "nat_light",
+   "trs_gem"
+  ],
+  [
+   "mat_jade",
+   "mat_ingot",
+   "trs_jadedisc"
+  ],
+  [
+   "wpn_sword",
+   "mat_moltengold",
+   "trs_famoussword"
+  ],
+  [
+   "wpn_dagger",
+   "mat_silver",
+   "trs_famoussaber"
+  ],
+  [
+   "mat_jade",
+   "trs_gold",
+   "trs_seal"
+  ],
+  [
+   "herb_leaf",
+   "mat_ink",
+   "trs_manual"
+  ],
+  [
+   "mat_ink",
+   "nat_mountain",
+   "trs_map"
+  ],
+  [
+   "nat_mist",
+   "nat_stone",
+   "trs_spiritstone"
+  ],
+  [
+   "nat_magma",
+   "nat_light",
+   "trs_fireorb"
+  ],
+  [
+   "nat_frost",
+   "nat_light",
+   "trs_iceheart"
+  ],
+  [
+   "mat_moltengold",
+   "mat_rope",
+   "trs_goldmail"
+  ],
+  [
+   "herb_tree",
+   "nat_light",
+   "trs_peach"
+  ],
+  [
+   "mat_jade",
+   "mat_bamboo",
+   "trs_jadeflute"
+  ],
+  [
+   "mat_copper",
+   "mat_copper",
+   "trs_cauldron"
+  ],
+  [
+   "herb_pine",
+   "nat_stone",
+   "trs_amber"
+  ],
+  [
+   "mat_moltengold",
+   "nat_dark",
+   "trs_blackgold"
+  ],
+  [
+   "mat_ore",
+   "nat_cloud",
+   "trs_meteor"
+  ],
+  [
+   "mat_jade",
+   "mat_ink",
+   "trs_inkstone"
+  ],
+  [
+   "nat_dark",
+   "nat_frost",
+   "con_yin"
+  ],
+  [
+   "nat_light",
+   "fire",
+   "con_yang"
+  ],
+  [
+   "water",
+   "nat_swamp",
+   "con_calm"
+  ],
+  [
+   "fire",
+   "nat_blaze",
+   "con_rage"
+  ],
+  [
+   "nat_mist",
+   "nat_river",
+   "con_sorrow"
+  ],
+  [
+   "herb_flower",
+   "nat_light",
+   "con_joy"
+  ],
+  [
+   "nat_dark",
+   "nat_mist",
+   "con_fear"
+  ],
+  [
+   "herb_flower",
+   "nat_mist",
+   "con_love"
+  ],
+  [
+   "nat_blaze",
+   "nat_dark",
+   "con_hate"
+  ],
+  [
+   "eli_wine",
+   "nat_river",
+   "con_righteous"
+  ],
+  [
+   "nat_cloud",
+   "nat_river",
+   "con_fate"
+  ],
+  [
+   "nat_sun",
+   "nat_moon",
+   "con_time"
+  ],
+  [
+   "nat_cloud",
+   "nat_dark",
+   "con_dream"
+  ],
+  [
+   "nat_mist",
+   "nat_light",
+   "con_illusion"
+  ],
+  [
+   "nat_light",
+   "mat_ink",
+   "con_wisdom"
+  ],
+  [
+   "nat_blaze",
+   "nat_mountain",
+   "con_courage"
+  ],
+  [
+   "trs_gold",
+   "nat_rainbow",
+   "con_fortune"
+  ],
+  [
+   "nat_dark",
+   "nat_dark",
+   "con_void"
+  ],
+  [
+   "mat_ink",
+   "nat_wind",
+   "con_fame"
+  ],
+  [
+   "nat_dark",
+   "mat_ink",
+   "con_secret"
+  ],
+  [
+   "nat_dark",
+   "nat_valley",
+   "con_solitude"
+  ],
+  [
+   "mar_stance",
+   "earth",
+   "mar_horsestance"
+  ],
+  [
+   "nat_river",
+   "herb_vine",
+   "mar_meridian"
+  ],
+  [
+   "wpn_needle",
+   "nat_river",
+   "mar_acupoint"
+  ],
+  [
+   "mar_qi",
+   "nat_mountain",
+   "mar_innerforce"
+  ],
+  [
+   "mar_stance",
+   "mar_qi",
+   "mar_stroke"
+  ],
+  [
+   "nat_stone",
+   "mat_ink",
+   "sec_rules"
+  ],
+  [
+   "per_scholar",
+   "mar_qi",
+   "sec_master"
+  ],
+  [
+   "herb_sprout",
+   "mar_stance",
+   "sec_disciple"
+  ],
+  [
+   "mat_timber",
+   "mat_copper",
+   "sec_hall"
+  ],
+  [
+   "mar_qi",
+   "mat_ink",
+   "sec_codex"
+  ],
+  [
+   "wpn_stick",
+   "mat_rope",
+   "sec_banner"
+  ],
+  [
+   "mat_moltengold",
+   "wood",
+   "sec_token"
+  ]
+ ]
+}

@@ -1,0 +1,5242 @@
+{
+ "category": "treasure",
+ "items": [
+  {
+   "id": "treasure_sw_frost",
+   "zh": "霜華劍",
+   "ja": "霜華剣"
+  },
+  {
+   "id": "treasure_sw_flame",
+   "zh": "赤焰劍",
+   "ja": "赤焔剣"
+  },
+  {
+   "id": "treasure_sw_thunder",
+   "zh": "雷霆劍",
+   "ja": "雷霆剣"
+  },
+  {
+   "id": "treasure_sw_meteor",
+   "zh": "隕星劍",
+   "ja": "隕星剣"
+  },
+  {
+   "id": "treasure_xuantie",
+   "zh": "玄鐵錠",
+   "ja": "玄鉄の塊"
+  },
+  {
+   "id": "treasure_sw_xuan",
+   "zh": "玄鐵重劍",
+   "ja": "玄鉄重剣"
+  },
+  {
+   "id": "treasure_sw_moon",
+   "zh": "月華劍",
+   "ja": "月華剣"
+  },
+  {
+   "id": "treasure_sw_sun",
+   "zh": "日輪劍",
+   "ja": "日輪剣"
+  },
+  {
+   "id": "treasure_sw_ouye",
+   "zh": "歐冶劍",
+   "ja": "欧冶剣"
+  },
+  {
+   "id": "treasure_sw_yitian",
+   "zh": "倚天劍",
+   "ja": "倚天剣"
+  },
+  {
+   "id": "treasure_sw_ganjiang",
+   "zh": "干將劍",
+   "ja": "干将剣"
+  },
+  {
+   "id": "treasure_sw_moye",
+   "zh": "莫邪劍",
+   "ja": "莫邪剣"
+  },
+  {
+   "id": "treasure_sw_pair",
+   "zh": "干將莫邪雙劍",
+   "ja": "干将莫邪の双剣"
+  },
+  {
+   "id": "treasure_sw_xuanyuan",
+   "zh": "軒轅劍",
+   "ja": "軒轅剣"
+  },
+  {
+   "id": "treasure_sw_yuchang",
+   "zh": "魚腸劍",
+   "ja": "魚腸剣"
+  },
+  {
+   "id": "treasure_sw_longquan",
+   "zh": "龍泉劍",
+   "ja": "龍泉剣"
+  },
+  {
+   "id": "treasure_sw_fengming",
+   "zh": "鳳鳴劍",
+   "ja": "鳳鳴剣"
+  },
+  {
+   "id": "treasure_sw_tiger",
+   "zh": "虎魄劍",
+   "ja": "虎魄剣"
+  },
+  {
+   "id": "treasure_sw_greensnake",
+   "zh": "青蛇劍",
+   "ja": "青蛇剣"
+  },
+  {
+   "id": "treasure_sw_goldsnake",
+   "zh": "金蛇劍",
+   "ja": "金蛇剣"
+  },
+  {
+   "id": "treasure_sw_lotus",
+   "zh": "青蓮劍",
+   "ja": "青蓮剣"
+  },
+  {
+   "id": "treasure_sw_plum",
+   "zh": "寒梅劍",
+   "ja": "寒梅剣"
+  },
+  {
+   "id": "treasure_sw_orchid",
+   "zh": "幽蘭劍",
+   "ja": "幽蘭剣"
+  },
+  {
+   "id": "treasure_sw_jade",
+   "zh": "白玉劍",
+   "ja": "白玉剣"
+  },
+  {
+   "id": "treasure_sw_windthunder",
+   "zh": "風雷劍",
+   "ja": "風雷剣"
+  },
+  {
+   "id": "treasure_sw_taiji",
+   "zh": "太極神劍",
+   "ja": "太極神剣"
+  },
+  {
+   "id": "treasure_sw_zhenwu",
+   "zh": "真武劍",
+   "ja": "真武剣"
+  },
+  {
+   "id": "treasure_sw_gentleman",
+   "zh": "君子劍",
+   "ja": "君子剣"
+  },
+  {
+   "id": "treasure_sw_lady",
+   "zh": "淑女劍",
+   "ja": "淑女剣"
+  },
+  {
+   "id": "treasure_sw_crane",
+   "zh": "白鶴劍",
+   "ja": "白鶴剣"
+  },
+  {
+   "id": "treasure_sw_waterfall",
+   "zh": "飛瀑劍",
+   "ja": "飛瀑剣"
+  },
+  {
+   "id": "treasure_sw_cloud",
+   "zh": "凌雲劍",
+   "ja": "凌雲剣"
+  },
+  {
+   "id": "treasure_sw_sea",
+   "zh": "滄海劍",
+   "ja": "滄海剣"
+  },
+  {
+   "id": "treasure_sw_magma",
+   "zh": "熔岩劍",
+   "ja": "熔岩剣"
+  },
+  {
+   "id": "treasure_sw_rainbow",
+   "zh": "虹霓劍",
+   "ja": "虹霓剣"
+  },
+  {
+   "id": "treasure_sw_dark",
+   "zh": "幽冥劍",
+   "ja": "幽冥剣"
+  },
+  {
+   "id": "treasure_sw_snow",
+   "zh": "飛雪劍",
+   "ja": "飛雪剣"
+  },
+  {
+   "id": "treasure_sw_light",
+   "zh": "金光劍",
+   "ja": "金光剣"
+  },
+  {
+   "id": "treasure_sw_emei",
+   "zh": "峨嵋劍",
+   "ja": "峨眉剣"
+  },
+  {
+   "id": "treasure_sw_cold",
+   "zh": "寒月劍",
+   "ja": "寒月剣"
+  },
+  {
+   "id": "treasure_sw_sunmoon",
+   "zh": "日月雙劍",
+   "ja": "日月の双剣"
+  },
+  {
+   "id": "treasure_sw_fireice",
+   "zh": "冰火雙劍",
+   "ja": "氷炎の双剣"
+  },
+  {
+   "id": "treasure_sw_dragonphoenix",
+   "zh": "龍鳳雙劍",
+   "ja": "龍鳳の双剣"
+  },
+  {
+   "id": "treasure_sw_xuanwu",
+   "zh": "玄武劍",
+   "ja": "玄武剣"
+  },
+  {
+   "id": "treasure_sw_zhuque",
+   "zh": "朱雀劍",
+   "ja": "朱雀剣"
+  },
+  {
+   "id": "treasure_sw_baihu",
+   "zh": "白虎劍",
+   "ja": "白虎剣"
+  },
+  {
+   "id": "treasure_sw_four",
+   "zh": "四象神劍",
+   "ja": "四象神剣"
+  },
+  {
+   "id": "treasure_sw_tombleft",
+   "zh": "劍冢遺劍",
+   "ja": "剣塚の遺剣"
+  },
+  {
+   "id": "treasure_sw_heartbreak",
+   "zh": "斷腸劍",
+   "ja": "断腸剣"
+  },
+  {
+   "id": "treasure_sw_justice",
+   "zh": "浩然劍",
+   "ja": "浩然剣"
+  },
+  {
+   "id": "treasure_sw_lone",
+   "zh": "孤鴻劍",
+   "ja": "孤鴻剣"
+  },
+  {
+   "id": "treasure_sw_courage",
+   "zh": "膽烈劍",
+   "ja": "胆烈剣"
+  },
+  {
+   "id": "treasure_sw_ghost",
+   "zh": "驅魔劍",
+   "ja": "駆魔剣"
+  },
+  {
+   "id": "treasure_sb_tulong",
+   "zh": "屠龍刀",
+   "ja": "屠龍刀"
+  },
+  {
+   "id": "treasure_sb_flame",
+   "zh": "赤炎刀",
+   "ja": "赤炎刀"
+  },
+  {
+   "id": "treasure_sb_frost",
+   "zh": "霜月刀",
+   "ja": "霜月刀"
+  },
+  {
+   "id": "treasure_sb_yanyue",
+   "zh": "偃月刀",
+   "ja": "偃月刀"
+  },
+  {
+   "id": "treasure_sb_qinglong",
+   "zh": "青龍偃月刀",
+   "ja": "青龍偃月刀"
+  },
+  {
+   "id": "treasure_sb_tigerhead",
+   "zh": "虎頭刀",
+   "ja": "虎頭刀"
+  },
+  {
+   "id": "treasure_sb_ghost",
+   "zh": "鬼頭刀",
+   "ja": "鬼頭刀"
+  },
+  {
+   "id": "treasure_sb_thunder",
+   "zh": "驚雷刀",
+   "ja": "驚雷刀"
+  },
+  {
+   "id": "treasure_sb_golden",
+   "zh": "金背大刀",
+   "ja": "金背大刀"
+  },
+  {
+   "id": "treasure_sb_sand",
+   "zh": "大漠彎刀",
+   "ja": "大漠の曲刀"
+  },
+  {
+   "id": "treasure_sb_wolf",
+   "zh": "狼牙刀",
+   "ja": "狼牙刀"
+  },
+  {
+   "id": "treasure_sb_eagle",
+   "zh": "鷹翼刀",
+   "ja": "鷹翼刀"
+  },
+  {
+   "id": "treasure_sb_nine",
+   "zh": "九環刀",
+   "ja": "九環刀"
+  },
+  {
+   "id": "treasure_sb_willow",
+   "zh": "柳葉刀",
+   "ja": "柳葉刀"
+  },
+  {
+   "id": "treasure_sb_dark",
+   "zh": "暗夜刀",
+   "ja": "暗夜刀"
+  },
+  {
+   "id": "treasure_sb_meteor",
+   "zh": "流星刀",
+   "ja": "流星刀"
+  },
+  {
+   "id": "treasure_sb_blackgold",
+   "zh": "烏金刀",
+   "ja": "烏金刀"
+  },
+  {
+   "id": "treasure_sb_lovepair",
+   "zh": "鴛鴦刀",
+   "ja": "鴛鴦刀"
+  },
+  {
+   "id": "treasure_sb_rain",
+   "zh": "驟雨刀",
+   "ja": "驟雨刀"
+  },
+  {
+   "id": "treasure_sb_wave",
+   "zh": "驚濤刀",
+   "ja": "驚濤刀"
+  },
+  {
+   "id": "treasure_sb_bear",
+   "zh": "裂山刀",
+   "ja": "裂山刀"
+  },
+  {
+   "id": "treasure_st_jade",
+   "zh": "碧玉杖",
+   "ja": "碧玉杖"
+  },
+  {
+   "id": "treasure_st_monk",
+   "zh": "禪杖",
+   "ja": "禅杖"
+  },
+  {
+   "id": "treasure_st_dragonhead",
+   "zh": "龍頭杖",
+   "ja": "龍頭杖"
+  },
+  {
+   "id": "treasure_st_goldhoop",
+   "zh": "金箍棒",
+   "ja": "金箍棒"
+  },
+  {
+   "id": "treasure_sp_gold",
+   "zh": "湛金槍",
+   "ja": "湛金槍"
+  },
+  {
+   "id": "treasure_sp_halberd",
+   "zh": "方天畫戟",
+   "ja": "方天画戟"
+  },
+  {
+   "id": "treasure_bw_meteor",
+   "zh": "隕鐵弓",
+   "ja": "隕鉄弓"
+  },
+  {
+   "id": "treasure_bw_eagle",
+   "zh": "射鵰弓",
+   "ja": "射鵰弓"
+  },
+  {
+   "id": "treasure_hw_icene",
+   "zh": "冰魄銀針",
+   "ja": "氷魄銀針"
+  },
+  {
+   "id": "treasure_hw_coldpoison",
+   "zh": "寒毒銀針",
+   "ja": "寒毒銀針"
+  },
+  {
+   "id": "treasure_hw_meteorhammer",
+   "zh": "流星錘",
+   "ja": "流星鎚"
+  },
+  {
+   "id": "treasure_hw_goldwhip",
+   "zh": "黃金鞭",
+   "ja": "黄金の鞭"
+  },
+  {
+   "id": "treasure_hw_jadefan",
+   "zh": "玉骨扇",
+   "ja": "玉骨扇"
+  },
+  {
+   "id": "treasure_hw_blackaxe",
+   "zh": "烏金巨斧",
+   "ja": "烏金の巨斧"
+  },
+  {
+   "id": "treasure_hw_firearrow",
+   "zh": "火珠箭",
+   "ja": "火珠矢"
+  },
+  {
+   "id": "treasure_hw_icearrow",
+   "zh": "冰魄箭",
+   "ja": "氷魄矢"
+  },
+  {
+   "id": "treasure_hw_crossbow",
+   "zh": "隕鐵連弩",
+   "ja": "隕鉄連弩"
+  },
+  {
+   "id": "treasure_hw_shield",
+   "zh": "烏金盾",
+   "ja": "烏金の盾"
+  },
+  {
+   "id": "treasure_hw_goldspear",
+   "zh": "隕鐵槍",
+   "ja": "隕鉄槍"
+  },
+  {
+   "id": "treasure_hw_hook",
+   "zh": "烏金鉤",
+   "ja": "烏金鉤"
+  },
+  {
+   "id": "treasure_hw_chain",
+   "zh": "隕鐵鎖",
+   "ja": "隕鉄の鎖"
+  },
+  {
+   "id": "treasure_hw_rod",
+   "zh": "玄鐵棍",
+   "ja": "玄鉄棍"
+  },
+  {
+   "id": "treasure_hw_sickle",
+   "zh": "烏金鐮",
+   "ja": "烏金の鎌"
+  },
+  {
+   "id": "treasure_hw_spade",
+   "zh": "隕鐵鏟",
+   "ja": "隕鉄の鋤"
+  },
+  {
+   "id": "treasure_hw_pick",
+   "zh": "玄鐵鎬",
+   "ja": "玄鉄の鶴嘴"
+  },
+  {
+   "id": "treasure_hw_dagger",
+   "zh": "玄鐵匕",
+   "ja": "玄鉄の匕首"
+  },
+  {
+   "id": "treasure_mn_sword",
+   "zh": "劍訣祕卷",
+   "ja": "剣訣の秘巻"
+  },
+  {
+   "id": "treasure_mn_saber",
+   "zh": "刀訣祕卷",
+   "ja": "刀訣の秘巻"
+  },
+  {
+   "id": "treasure_mn_spear",
+   "zh": "槍譜",
+   "ja": "槍譜"
+  },
+  {
+   "id": "treasure_mn_fist",
+   "zh": "拳經",
+   "ja": "拳経"
+  },
+  {
+   "id": "treasure_mn_palm",
+   "zh": "掌譜",
+   "ja": "掌譜"
+  },
+  {
+   "id": "treasure_mn_finger",
+   "zh": "指法祕譜",
+   "ja": "指法秘譜"
+  },
+  {
+   "id": "treasure_mn_kick",
+   "zh": "腿法圖解",
+   "ja": "脚技図解"
+  },
+  {
+   "id": "treasure_mn_qing",
+   "zh": "輕功圖譜",
+   "ja": "軽功図譜"
+  },
+  {
+   "id": "treasure_mn_neigong",
+   "zh": "內功心經",
+   "ja": "内功心経"
+  },
+  {
+   "id": "treasure_mn_heart",
+   "zh": "心法口訣",
+   "ja": "心法口訣"
+  },
+  {
+   "id": "treasure_mn_formation",
+   "zh": "陣法圖錄",
+   "ja": "陣法図録"
+  },
+  {
+   "id": "treasure_mn_shadow",
+   "zh": "身法要訣",
+   "ja": "身法要訣"
+  },
+  {
+   "id": "treasure_mn_acupoint",
+   "zh": "穴位祕圖",
+   "ja": "経穴の秘図"
+  },
+  {
+   "id": "treasure_mn_meridian",
+   "zh": "經脈圖",
+   "ja": "経脈図"
+  },
+  {
+   "id": "treasure_mn_stance",
+   "zh": "樁功要旨",
+   "ja": "立禅の要諦"
+  },
+  {
+   "id": "treasure_mn_breath",
+   "zh": "吐納訣",
+   "ja": "吐納の訣"
+  },
+  {
+   "id": "treasure_mn_poison",
+   "zh": "毒術祕典",
+   "ja": "毒術秘典"
+  },
+  {
+   "id": "treasure_mn_medical",
+   "zh": "醫經",
+   "ja": "医経"
+  },
+  {
+   "id": "treasure_mn_elixir",
+   "zh": "丹經",
+   "ja": "丹経"
+  },
+  {
+   "id": "treasure_mn_herbal",
+   "zh": "百草經",
+   "ja": "百草経"
+  },
+  {
+   "id": "treasure_mn_fragment",
+   "zh": "殘卷",
+   "ja": "残巻"
+  },
+  {
+   "id": "treasure_mn_swordfrag",
+   "zh": "劍譜殘卷",
+   "ja": "剣譜の残巻"
+  },
+  {
+   "id": "treasure_mn_neigongfrag",
+   "zh": "內功殘篇",
+   "ja": "内功の残篇"
+  },
+  {
+   "id": "treasure_mn_yinfrag",
+   "zh": "九陰殘篇",
+   "ja": "九陰残篇"
+  },
+  {
+   "id": "treasure_mn_yangfrag",
+   "zh": "九陽殘篇",
+   "ja": "九陽残篇"
+  },
+  {
+   "id": "treasure_mn_copy",
+   "zh": "手抄本",
+   "ja": "写本"
+  },
+  {
+   "id": "treasure_mn_bamboo",
+   "zh": "竹簡祕錄",
+   "ja": "竹簡秘録"
+  },
+  {
+   "id": "treasure_mn_wall",
+   "zh": "石壁刻文",
+   "ja": "石壁の刻文"
+  },
+  {
+   "id": "treasure_mn_shaolin",
+   "zh": "少林武經",
+   "ja": "少林武経"
+  },
+  {
+   "id": "treasure_mn_wudang",
+   "zh": "武當真經",
+   "ja": "武当真経"
+  },
+  {
+   "id": "treasure_mn_huashan",
+   "zh": "華山劍宗祕笈",
+   "ja": "華山剣宗の秘笈"
+  },
+  {
+   "id": "treasure_mn_kunlun",
+   "zh": "崑崙祕傳",
+   "ja": "崑崙秘伝"
+  },
+  {
+   "id": "treasure_mn_ming",
+   "zh": "聖火祕典",
+   "ja": "聖火秘典"
+  },
+  {
+   "id": "treasure_mn_peach",
+   "zh": "桃花島祕冊",
+   "ja": "桃花島秘冊"
+  },
+  {
+   "id": "treasure_mn_dragonpalm",
+   "zh": "降龍掌譜",
+   "ja": "降龍掌譜"
+  },
+  {
+   "id": "treasure_mn_poison5",
+   "zh": "五毒祕冊",
+   "ja": "五毒秘冊"
+  },
+  {
+   "id": "treasure_mn_medvalley",
+   "zh": "神農本草",
+   "ja": "神農本草"
+  },
+  {
+   "id": "treasure_mn_swordtomb",
+   "zh": "獨孤九劍譜",
+   "ja": "独孤九剣譜"
+  },
+  {
+   "id": "treasure_mn_forge",
+   "zh": "鑄劍錄",
+   "ja": "鋳剣録"
+  },
+  {
+   "id": "treasure_mn_escort",
+   "zh": "鏢經",
+   "ja": "鏢経"
+  },
+  {
+   "id": "treasure_mn_war",
+   "zh": "兵法祕冊",
+   "ja": "兵法の秘冊"
+  },
+  {
+   "id": "treasure_mn_sunzi",
+   "zh": "孫子兵法",
+   "ja": "孫子の兵法"
+  },
+  {
+   "id": "treasure_mn_music",
+   "zh": "簫譜",
+   "ja": "簫譜"
+  },
+  {
+   "id": "treasure_mn_heaven",
+   "zh": "天書",
+   "ja": "天書"
+  },
+  {
+   "id": "treasure_mn_blank",
+   "zh": "無字天書",
+   "ja": "無字天書"
+  },
+  {
+   "id": "treasure_mn_dao",
+   "zh": "道德經",
+   "ja": "道徳経"
+  },
+  {
+   "id": "treasure_mn_sutra",
+   "zh": "金剛經",
+   "ja": "金剛経"
+  },
+  {
+   "id": "treasure_mn_prajna",
+   "zh": "般若心經",
+   "ja": "般若心経"
+  },
+  {
+   "id": "treasure_mn_jade",
+   "zh": "玉冊",
+   "ja": "玉冊"
+  },
+  {
+   "id": "treasure_mn_lost",
+   "zh": "失傳祕笈",
+   "ja": "失伝の秘笈"
+  },
+  {
+   "id": "treasure_mn_lostsword",
+   "zh": "失傳劍譜",
+   "ja": "失伝の剣譜"
+  },
+  {
+   "id": "treasure_mn_general",
+   "zh": "武學總綱",
+   "ja": "武学総綱"
+  },
+  {
+   "id": "treasure_mn_qiankun",
+   "zh": "乾坤大挪移心法",
+   "ja": "乾坤大挪移心法"
+  },
+  {
+   "id": "treasure_mn_taijifist",
+   "zh": "太極拳經",
+   "ja": "太極拳経"
+  },
+  {
+   "id": "treasure_mn_sevenhurt",
+   "zh": "七傷拳經",
+   "ja": "七傷拳経"
+  },
+  {
+   "id": "treasure_mn_sixveins",
+   "zh": "六脈神劍譜",
+   "ja": "六脈神剣譜"
+  },
+  {
+   "id": "treasure_mn_lingbo",
+   "zh": "凌波微步圖",
+   "ja": "凌波微歩図"
+  },
+  {
+   "id": "treasure_mn_onesun",
+   "zh": "一陽指經",
+   "ja": "一陽指経"
+  },
+  {
+   "id": "treasure_mn_hermit",
+   "zh": "隱士遺卷",
+   "ja": "隠者の遺巻"
+  },
+  {
+   "id": "treasure_mn_swordsman",
+   "zh": "劍客遺書",
+   "ja": "剣客の遺書"
+  },
+  {
+   "id": "treasure_mn_assassin",
+   "zh": "刺客名冊",
+   "ja": "刺客名簿"
+  },
+  {
+   "id": "treasure_mn_thief",
+   "zh": "盜帥祕錄",
+   "ja": "盗帥秘録"
+  },
+  {
+   "id": "treasure_mn_hunter",
+   "zh": "獵人圖譜",
+   "ja": "狩人の図譜"
+  },
+  {
+   "id": "treasure_mn_dancer",
+   "zh": "霓裳羽衣譜",
+   "ja": "霓裳羽衣譜"
+  },
+  {
+   "id": "treasure_mn_wanderer",
+   "zh": "浪客手札",
+   "ja": "浪人の手記"
+  },
+  {
+   "id": "treasure_mn_beggar",
+   "zh": "乞丐百寶冊",
+   "ja": "乞食の百宝帳"
+  },
+  {
+   "id": "treasure_mn_merchant",
+   "zh": "商賈帳冊",
+   "ja": "商人の帳簿"
+  },
+  {
+   "id": "treasure_mn_smith",
+   "zh": "匠師圖錄",
+   "ja": "匠の図録"
+  },
+  {
+   "id": "treasure_mn_codex",
+   "zh": "宗門寶典",
+   "ja": "宗門の宝典"
+  },
+  {
+   "id": "treasure_mn_rules",
+   "zh": "門規祕本",
+   "ja": "門規の秘本"
+  },
+  {
+   "id": "treasure_mn_master",
+   "zh": "師門遺訓",
+   "ja": "師門の遺訓"
+  },
+  {
+   "id": "treasure_mn_disciple",
+   "zh": "弟子手劄",
+   "ja": "弟子の覚書"
+  },
+  {
+   "id": "treasure_mn_legacy",
+   "zh": "武林祕傳",
+   "ja": "武林秘伝"
+  },
+  {
+   "id": "treasure_mn_library",
+   "zh": "藏經樓",
+   "ja": "蔵経楼"
+  },
+  {
+   "id": "treasure_mn_ultimate",
+   "zh": "武學大全",
+   "ja": "武学大全"
+  },
+  {
+   "id": "treasure_mn_secretletter",
+   "zh": "密函",
+   "ja": "密函"
+  },
+  {
+   "id": "treasure_tm_fragment",
+   "zh": "殘圖",
+   "ja": "残図"
+  },
+  {
+   "id": "treasure_tm_whole",
+   "zh": "寶圖合璧",
+   "ja": "宝図の合璧"
+  },
+  {
+   "id": "treasure_tm_trove",
+   "zh": "寶藏",
+   "ja": "宝"
+  },
+  {
+   "id": "treasure_tm_chest",
+   "zh": "烏金寶箱",
+   "ja": "烏金の宝箱"
+  },
+  {
+   "id": "treasure_tm_hoard",
+   "zh": "金銀財寶",
+   "ja": "金銀財宝"
+  },
+  {
+   "id": "treasure_tm_vault",
+   "zh": "洞窟寶庫",
+   "ja": "洞窟の宝庫"
+  },
+  {
+   "id": "treasure_tm_sunk",
+   "zh": "沉船寶藏",
+   "ja": "沈没船の宝"
+  },
+  {
+   "id": "treasure_tm_island",
+   "zh": "藏寶島",
+   "ja": "宝の島"
+  },
+  {
+   "id": "treasure_tm_grave",
+   "zh": "陪葬珍寶",
+   "ja": "副葬の珍宝"
+  },
+  {
+   "id": "treasure_tm_desert",
+   "zh": "大漠遺寶",
+   "ja": "大漠の遺宝"
+  },
+  {
+   "id": "treasure_tm_palace",
+   "zh": "皇宮寶庫",
+   "ja": "宮廷の宝庫"
+  },
+  {
+   "id": "treasure_tm_temple",
+   "zh": "古剎祕寶",
+   "ja": "古刹の秘宝"
+  },
+  {
+   "id": "treasure_tm_mechchest",
+   "zh": "機關寶箱",
+   "ja": "からくり宝箱"
+  },
+  {
+   "id": "treasure_tm_compass",
+   "zh": "指南羅盤",
+   "ja": "指南羅針"
+  },
+  {
+   "id": "treasure_tm_finder",
+   "zh": "尋寶羅盤",
+   "ja": "探宝の羅盤"
+  },
+  {
+   "id": "treasure_tm_dragonhoard",
+   "zh": "龍之寶庫",
+   "ja": "龍の宝庫"
+  },
+  {
+   "id": "treasure_tm_pirate",
+   "zh": "海盜寶藏",
+   "ja": "海賊の宝"
+  },
+  {
+   "id": "treasure_tm_royal",
+   "zh": "皇室珍藏",
+   "ja": "皇室の珍蔵"
+  },
+  {
+   "id": "treasure_tm_loot",
+   "zh": "山賊贓物",
+   "ja": "山賊の盗品"
+  },
+  {
+   "id": "treasure_tm_minemap",
+   "zh": "礦脈圖",
+   "ja": "鉱脈図"
+  },
+  {
+   "id": "treasure_tm_seamap",
+   "zh": "航海祕圖",
+   "ja": "航海の秘図"
+  },
+  {
+   "id": "treasure_tm_marketmap",
+   "zh": "市集暗圖",
+   "ja": "市の隠し地図"
+  },
+  {
+   "id": "treasure_tm_roadmap",
+   "zh": "古道輿圖",
+   "ja": "古道の輿図"
+  },
+  {
+   "id": "treasure_tm_cliffmap",
+   "zh": "絕壁攀援圖",
+   "ja": "断崖の登攀図"
+  },
+  {
+   "id": "treasure_tm_secretmap",
+   "zh": "祕境地圖",
+   "ja": "秘境の地図"
+  },
+  {
+   "id": "treasure_pe_water",
+   "zh": "避水珠",
+   "ja": "避水珠"
+  },
+  {
+   "id": "treasure_pe_fire",
+   "zh": "避火珠",
+   "ja": "避火珠"
+  },
+  {
+   "id": "treasure_pe_dust",
+   "zh": "避塵珠",
+   "ja": "避塵珠"
+  },
+  {
+   "id": "treasure_pe_poison",
+   "zh": "避毒珠",
+   "ja": "避毒珠"
+  },
+  {
+   "id": "treasure_pe_wind",
+   "zh": "定風珠",
+   "ja": "定風珠"
+  },
+  {
+   "id": "treasure_pe_suihou",
+   "zh": "隨侯珠",
+   "ja": "随侯珠"
+  },
+  {
+   "id": "treasure_pe_warmjade",
+   "zh": "溫潤暖玉",
+   "ja": "温かな玉"
+  },
+  {
+   "id": "treasure_pe_coldjade",
+   "zh": "冷玉",
+   "ja": "冷玉"
+  },
+  {
+   "id": "treasure_pe_whitejade",
+   "zh": "羊脂白玉",
+   "ja": "羊脂白玉"
+  },
+  {
+   "id": "treasure_pe_seal",
+   "zh": "傳國玉璽",
+   "ja": "伝国の玉璽"
+  },
+  {
+   "id": "treasure_pe_pendant",
+   "zh": "雲紋玉佩",
+   "ja": "雲紋の玉佩"
+  },
+  {
+   "id": "treasure_pe_bracelet",
+   "zh": "銀鑲玉鐲",
+   "ja": "銀嵌めの玉釧"
+  },
+  {
+   "id": "treasure_pe_hairpin",
+   "zh": "花簪玉釵",
+   "ja": "花簪の玉釵"
+  },
+  {
+   "id": "treasure_pe_ruyi",
+   "zh": "琥珀如意",
+   "ja": "琥珀の如意"
+  },
+  {
+   "id": "treasure_pe_dragonpendant",
+   "zh": "龍紋玉佩",
+   "ja": "龍紋の玉佩"
+  },
+  {
+   "id": "treasure_pe_phoenixpendant",
+   "zh": "鳳凰玉佩",
+   "ja": "鳳凰の玉佩"
+  },
+  {
+   "id": "treasure_pe_nightcup",
+   "zh": "夜明瓷杯",
+   "ja": "夜明の磁杯"
+  },
+  {
+   "id": "treasure_pe_ruby",
+   "zh": "赤焰寶玉",
+   "ja": "赤焔の宝玉"
+  },
+  {
+   "id": "treasure_pe_sapphire",
+   "zh": "滄海寶玉",
+   "ja": "滄海の宝玉"
+  },
+  {
+   "id": "treasure_pe_emerald",
+   "zh": "碧翠寶玉",
+   "ja": "碧翠の宝玉"
+  },
+  {
+   "id": "treasure_pe_glaze",
+   "zh": "釉彩寶珠",
+   "ja": "彩釉の宝珠"
+  },
+  {
+   "id": "treasure_pe_crystal",
+   "zh": "冰晶寶玉",
+   "ja": "氷晶の宝玉"
+  },
+  {
+   "id": "treasure_pe_rainbowgem",
+   "zh": "七彩寶石",
+   "ja": "七色の宝石"
+  },
+  {
+   "id": "treasure_pe_diamond",
+   "zh": "金剛鑽",
+   "ja": "金剛鑽"
+  },
+  {
+   "id": "treasure_pe_topaz",
+   "zh": "金黃寶玉",
+   "ja": "金黄の宝玉"
+  },
+  {
+   "id": "treasure_pe_moonstone",
+   "zh": "皎月寶石",
+   "ja": "皎月の宝石"
+  },
+  {
+   "id": "treasure_pe_sunstone",
+   "zh": "驕陽寶石",
+   "ja": "驕陽の宝石"
+  },
+  {
+   "id": "treasure_pe_tigereye",
+   "zh": "虎眼石",
+   "ja": "虎目石"
+  },
+  {
+   "id": "treasure_pe_dragonball",
+   "zh": "神龍寶珠",
+   "ja": "龍の宝珠"
+  },
+  {
+   "id": "treasure_pe_turtlejade",
+   "zh": "靈龜玉",
+   "ja": "霊亀の玉"
+  },
+  {
+   "id": "treasure_pe_firejade",
+   "zh": "火玉佩",
+   "ja": "火玉佩"
+  },
+  {
+   "id": "treasure_pe_icejade",
+   "zh": "冰玉佩",
+   "ja": "氷玉佩"
+  },
+  {
+   "id": "treasure_pe_honeyamber",
+   "zh": "蜜珀",
+   "ja": "蜜珀"
+  },
+  {
+   "id": "treasure_pe_insectamber",
+   "zh": "蛛珀",
+   "ja": "蜘蛛入りの琥珀"
+  },
+  {
+   "id": "treasure_pe_amberbead",
+   "zh": "琥珀珠",
+   "ja": "琥珀の数珠"
+  },
+  {
+   "id": "treasure_pe_ambercup",
+   "zh": "琥珀杯",
+   "ja": "琥珀の杯"
+  },
+  {
+   "id": "treasure_pe_goldglaze",
+   "zh": "金琉璃",
+   "ja": "金瑠璃"
+  },
+  {
+   "id": "treasure_pe_chandelier",
+   "zh": "七寶燈",
+   "ja": "七宝の灯"
+  },
+  {
+   "id": "treasure_pe_hundredjewel",
+   "zh": "百寶匣",
+   "ja": "百宝の匣"
+  },
+  {
+   "id": "treasure_pe_nine",
+   "zh": "九曲玲瓏玉",
+   "ja": "九曲玲瓏玉"
+  },
+  {
+   "id": "treasure_ss_five",
+   "zh": "七彩靈石",
+   "ja": "七彩の霊石"
+  },
+  {
+   "id": "treasure_ss_mend",
+   "zh": "補天靈石",
+   "ja": "補天の霊石"
+  },
+  {
+   "id": "treasure_ss_test",
+   "zh": "試金石",
+   "ja": "試金石"
+  },
+  {
+   "id": "treasure_ss_magnet",
+   "zh": "引鐵石",
+   "ja": "引鉄石"
+  },
+  {
+   "id": "treasure_ss_threelife",
+   "zh": "三生石",
+   "ja": "三生石"
+  },
+  {
+   "id": "treasure_ss_forget",
+   "zh": "忘情石",
+   "ja": "忘情石"
+  },
+  {
+   "id": "treasure_ss_soul",
+   "zh": "鎮魂石",
+   "ja": "鎮魂石"
+  },
+  {
+   "id": "treasure_ss_enlight",
+   "zh": "悟道石",
+   "ja": "悟道石"
+  },
+  {
+   "id": "treasure_ss_fortune",
+   "zh": "福運石",
+   "ja": "福運石"
+  },
+  {
+   "id": "treasure_ss_time",
+   "zh": "時光石",
+   "ja": "時の石"
+  },
+  {
+   "id": "treasure_ss_void",
+   "zh": "虛空石",
+   "ja": "虚空の石"
+  },
+  {
+   "id": "treasure_ss_dream",
+   "zh": "入夢石",
+   "ja": "夢見の石"
+  },
+  {
+   "id": "treasure_ss_illusion",
+   "zh": "幻象石",
+   "ja": "幻の石"
+  },
+  {
+   "id": "treasure_ss_hate",
+   "zh": "斷仇石",
+   "ja": "断仇の石"
+  },
+  {
+   "id": "treasure_ss_joy",
+   "zh": "喜樂石",
+   "ja": "喜楽の石"
+  },
+  {
+   "id": "treasure_fo_sheli",
+   "zh": "舍利子",
+   "ja": "舎利子"
+  },
+  {
+   "id": "treasure_fo_fireessence",
+   "zh": "火精",
+   "ja": "火精"
+  },
+  {
+   "id": "treasure_fo_thunderfire",
+   "zh": "雷火珠",
+   "ja": "雷火珠"
+  },
+  {
+   "id": "treasure_fo_thunderbomb",
+   "zh": "霹靂彈",
+   "ja": "霹靂弾"
+  },
+  {
+   "id": "treasure_fo_sunorb",
+   "zh": "烈日珠",
+   "ja": "烈日珠"
+  },
+  {
+   "id": "treasure_fo_prayer",
+   "zh": "念珠",
+   "ja": "念珠"
+  },
+  {
+   "id": "treasure_fo_vajra",
+   "zh": "金剛杵",
+   "ja": "金剛杵"
+  },
+  {
+   "id": "treasure_ih_ancient",
+   "zh": "萬年玄冰",
+   "ja": "万年玄氷"
+  },
+  {
+   "id": "treasure_ih_moon",
+   "zh": "寒月珠",
+   "ja": "寒月珠"
+  },
+  {
+   "id": "treasure_ih_snow",
+   "zh": "雪魄",
+   "ja": "雪魄"
+  },
+  {
+   "id": "treasure_ih_sea",
+   "zh": "北海玄冰",
+   "ja": "北海の玄氷"
+  },
+  {
+   "id": "treasure_mt_meteor",
+   "zh": "隕鐵精",
+   "ja": "隕鉄精"
+  },
+  {
+   "id": "treasure_mt_blackgold",
+   "zh": "烏金精",
+   "ja": "烏金精"
+  },
+  {
+   "id": "treasure_mt_redgold",
+   "zh": "烈火赤金",
+   "ja": "烈火の赤金"
+  },
+  {
+   "id": "treasure_mt_leaf",
+   "zh": "金葉子",
+   "ja": "金葉子"
+  },
+  {
+   "id": "treasure_mt_buddha",
+   "zh": "金佛",
+   "ja": "金仏"
+  },
+  {
+   "id": "treasure_mt_mountain",
+   "zh": "金山",
+   "ja": "金山"
+  },
+  {
+   "id": "treasure_mt_seal",
+   "zh": "金印",
+   "ja": "金印"
+  },
+  {
+   "id": "treasure_mt_cup",
+   "zh": "金樽",
+   "ja": "金樽"
+  },
+  {
+   "id": "treasure_mt_pagoda",
+   "zh": "黃金寶塔",
+   "ja": "黄金の宝塔"
+  },
+  {
+   "id": "treasure_mt_horse",
+   "zh": "金馬",
+   "ja": "金馬"
+  },
+  {
+   "id": "treasure_am_blackworm",
+   "zh": "烏蠶衣",
+   "ja": "烏蚕衣"
+  },
+  {
+   "id": "treasure_am_icesilk",
+   "zh": "冰蠶寶衣",
+   "ja": "氷蚕の宝衣"
+  },
+  {
+   "id": "treasure_am_turtle",
+   "zh": "玄龜寶甲",
+   "ja": "玄亀の宝甲"
+  },
+  {
+   "id": "treasure_am_dragon",
+   "zh": "神龍寶鎧",
+   "ja": "神龍の宝鎧"
+  },
+  {
+   "id": "treasure_am_meteor",
+   "zh": "隕鐵甲",
+   "ja": "隕鉄甲"
+  },
+  {
+   "id": "treasure_am_blackgold",
+   "zh": "烏金戰鎧",
+   "ja": "烏金の戦鎧"
+  },
+  {
+   "id": "treasure_am_gold",
+   "zh": "黃金甲",
+   "ja": "黄金甲"
+  },
+  {
+   "id": "treasure_am_heart",
+   "zh": "軟甲護心鏡",
+   "ja": "軟甲の護心鏡"
+  },
+  {
+   "id": "treasure_am_phoenix",
+   "zh": "鳳凰霞衣",
+   "ja": "鳳凰霞衣"
+  },
+  {
+   "id": "treasure_am_spider",
+   "zh": "蛛絲衣",
+   "ja": "蜘蛛糸の衣"
+  },
+  {
+   "id": "treasure_am_crane",
+   "zh": "仙鶴羽氅",
+   "ja": "仙鶴の羽氅"
+  },
+  {
+   "id": "treasure_am_xuanwushield",
+   "zh": "玄武盾",
+   "ja": "玄武の盾"
+  },
+  {
+   "id": "treasure_am_fireproof",
+   "zh": "火浣衣",
+   "ja": "火浣衣"
+  },
+  {
+   "id": "treasure_am_ice",
+   "zh": "玄冰寶甲",
+   "ja": "玄氷の宝甲"
+  },
+  {
+   "id": "treasure_am_tiger",
+   "zh": "虎威甲",
+   "ja": "虎威甲"
+  },
+  {
+   "id": "treasure_am_deer",
+   "zh": "靈鹿裘",
+   "ja": "霊鹿の裘"
+  },
+  {
+   "id": "treasure_am_fox",
+   "zh": "白狐寶裘",
+   "ja": "白狐の宝裘"
+  },
+  {
+   "id": "treasure_am_bear",
+   "zh": "熊筋軟甲",
+   "ja": "熊筋の軟甲"
+  },
+  {
+   "id": "treasure_am_eagle",
+   "zh": "鷹羽輕甲",
+   "ja": "鷹羽の軽甲"
+  },
+  {
+   "id": "treasure_fq_taiji",
+   "zh": "太極圖",
+   "ja": "太極図"
+  },
+  {
+   "id": "treasure_fq_bagua",
+   "zh": "陰陽八卦盤",
+   "ja": "陰陽八卦盤"
+  },
+  {
+   "id": "treasure_fq_talisman",
+   "zh": "靈符",
+   "ja": "霊符"
+  },
+  {
+   "id": "treasure_fq_soulbell",
+   "zh": "鎮魄鈴",
+   "ja": "鎮魄鈴"
+  },
+  {
+   "id": "treasure_fq_peachsword",
+   "zh": "桃木劍",
+   "ja": "桃木剣"
+  },
+  {
+   "id": "treasure_fq_incense",
+   "zh": "香鼎",
+   "ja": "香鼎"
+  },
+  {
+   "id": "treasure_fq_elixirpot",
+   "zh": "丹鼎",
+   "ja": "丹鼎"
+  },
+  {
+   "id": "treasure_fq_qiankun",
+   "zh": "太極鼎",
+   "ja": "太極鼎"
+  },
+  {
+   "id": "treasure_fq_bag",
+   "zh": "靈石寶囊",
+   "ja": "霊石の宝嚢"
+  },
+  {
+   "id": "treasure_fq_demonmirror",
+   "zh": "離火寶鏡",
+   "ja": "離火の宝鏡"
+  },
+  {
+   "id": "treasure_fq_tigertally",
+   "zh": "虎符",
+   "ja": "虎符"
+  },
+  {
+   "id": "treasure_fq_marshal",
+   "zh": "帥印",
+   "ja": "帥印"
+  },
+  {
+   "id": "treasure_fq_edict",
+   "zh": "御詔",
+   "ja": "御詔"
+  },
+  {
+   "id": "treasure_fq_ironcharter",
+   "zh": "丹書鐵券",
+   "ja": "丹書鉄券"
+  },
+  {
+   "id": "treasure_fq_nectar",
+   "zh": "玉露瓊漿",
+   "ja": "玉露の瓊漿"
+  },
+  {
+   "id": "treasure_fq_medcauldron",
+   "zh": "藥王鼎",
+   "ja": "薬王鼎"
+  },
+  {
+   "id": "treasure_fq_forgecauldron",
+   "zh": "鑄劍神爐",
+   "ja": "鋳剣の神炉"
+  },
+  {
+   "id": "treasure_fq_nation",
+   "zh": "鎮國神鼎",
+   "ja": "鎮国の神鼎"
+  },
+  {
+   "id": "treasure_fq_poisonpearl",
+   "zh": "五毒珠",
+   "ja": "五毒珠"
+  },
+  {
+   "id": "treasure_fq_escortsilver",
+   "zh": "鏢銀",
+   "ja": "鏢銀"
+  },
+  {
+   "id": "treasure_fq_bannerpole",
+   "zh": "令旗",
+   "ja": "令旗"
+  },
+  {
+   "id": "treasure_wf_ink",
+   "zh": "墨寶",
+   "ja": "墨宝"
+  },
+  {
+   "id": "treasure_wf_scroll",
+   "zh": "墨畫卷軸",
+   "ja": "墨画の巻物"
+  },
+  {
+   "id": "treasure_wf_orchid",
+   "zh": "蘭亭序",
+   "ja": "蘭亭序"
+  },
+  {
+   "id": "treasure_wf_river",
+   "zh": "千里江山圖",
+   "ja": "千里江山図"
+  },
+  {
+   "id": "treasure_wf_market",
+   "zh": "清明上河圖",
+   "ja": "清明上河図"
+  },
+  {
+   "id": "treasure_wf_waterfall",
+   "zh": "飛瀑圖",
+   "ja": "飛瀑図"
+  },
+  {
+   "id": "treasure_wf_bird",
+   "zh": "花鳥圖",
+   "ja": "花鳥図"
+  },
+  {
+   "id": "treasure_wf_horse",
+   "zh": "奔馬圖",
+   "ja": "奔馬図"
+  },
+  {
+   "id": "treasure_wf_duan",
+   "zh": "端硯",
+   "ja": "端渓硯"
+  },
+  {
+   "id": "treasure_wf_poem",
+   "zh": "詩稿",
+   "ja": "詩稿"
+  },
+  {
+   "id": "treasure_wf_plum",
+   "zh": "寒梅圖",
+   "ja": "寒梅図"
+  },
+  {
+   "id": "treasure_wf_bamboo",
+   "zh": "墨竹圖",
+   "ja": "墨竹図"
+  },
+  {
+   "id": "treasure_wf_crane",
+   "zh": "松鶴圖",
+   "ja": "松鶴図"
+  },
+  {
+   "id": "treasure_wf_tiger",
+   "zh": "猛虎圖",
+   "ja": "猛虎図"
+  },
+  {
+   "id": "treasure_wf_beauty",
+   "zh": "佳人圖",
+   "ja": "佳人図"
+  },
+  {
+   "id": "treasure_wf_dance",
+   "zh": "舞姬圖",
+   "ja": "舞姫図"
+  },
+  {
+   "id": "treasure_wf_moon",
+   "zh": "月下圖",
+   "ja": "月下図"
+  },
+  {
+   "id": "treasure_mu_sea",
+   "zh": "碧海簫",
+   "ja": "碧海の簫"
+  },
+  {
+   "id": "treasure_mu_phoenix",
+   "zh": "鳳吟簫",
+   "ja": "鳳吟の簫"
+  },
+  {
+   "id": "treasure_mu_dragon",
+   "zh": "龍吟簫",
+   "ja": "龍吟の簫"
+  },
+  {
+   "id": "treasure_mu_moon",
+   "zh": "月下玉簫",
+   "ja": "月下の玉簫"
+  },
+  {
+   "id": "treasure_mu_crane",
+   "zh": "鶴鳴簫",
+   "ja": "鶴鳴の簫"
+  },
+  {
+   "id": "treasure_mu_bamboo",
+   "zh": "竹海簫",
+   "ja": "竹海の簫"
+  },
+  {
+   "id": "treasure_mu_snow",
+   "zh": "落雪簫",
+   "ja": "落雪の簫"
+  },
+  {
+   "id": "treasure_lg_supreme",
+   "zh": "武林至寶",
+   "ja": "武林の至宝"
+  },
+  {
+   "id": "treasure_lg_weapons",
+   "zh": "神兵錄",
+   "ja": "神兵録"
+  },
+  {
+   "id": "treasure_lg_rank",
+   "zh": "天下神兵榜",
+   "ja": "天下神兵番付"
+  },
+  {
+   "id": "treasure_lg_divine",
+   "zh": "神兵利器",
+   "ja": "神兵利器"
+  },
+  {
+   "id": "treasure_lg_armory",
+   "zh": "神兵閣",
+   "ja": "神兵閣"
+  },
+  {
+   "id": "treasure_lg_nation",
+   "zh": "國之重器",
+   "ja": "国の重器"
+  },
+  {
+   "id": "treasure_lg_chosen",
+   "zh": "命定之器",
+   "ja": "宿命の器"
+  },
+  {
+   "id": "treasure_lg_void",
+   "zh": "無相神兵",
+   "ja": "無相の神兵"
+  },
+  {
+   "id": "treasure_lg_time",
+   "zh": "萬古奇珍",
+   "ja": "万古の奇珍"
+  },
+  {
+   "id": "treasure_sw_dragonslay",
+   "zh": "斬龍劍",
+   "ja": "斬龍剣"
+  },
+  {
+   "id": "treasure_sw_phoenixfire",
+   "zh": "鳳炎劍",
+   "ja": "鳳炎剣"
+  },
+  {
+   "id": "treasure_sw_thunderdragon",
+   "zh": "雷龍劍",
+   "ja": "雷龍剣"
+  },
+  {
+   "id": "treasure_sw_frostlotus",
+   "zh": "雪蓮劍",
+   "ja": "雪蓮剣"
+  },
+  {
+   "id": "treasure_sw_plumsnow",
+   "zh": "傲雪寒梅劍",
+   "ja": "傲雪寒梅剣"
+  },
+  {
+   "id": "treasure_sw_orchidmist",
+   "zh": "空谷幽蘭劍",
+   "ja": "空谷幽蘭剣"
+  },
+  {
+   "id": "treasure_sw_cranecloud",
+   "zh": "雲鶴劍",
+   "ja": "雲鶴剣"
+  },
+  {
+   "id": "treasure_sw_seawave",
+   "zh": "碧海驚濤劍",
+   "ja": "碧海驚濤剣"
+  },
+  {
+   "id": "treasure_sw_moonriver",
+   "zh": "月落江河劍",
+   "ja": "月落ちの剣"
+  },
+  {
+   "id": "treasure_sw_sunfire",
+   "zh": "烈陽劍",
+   "ja": "烈陽剣"
+  },
+  {
+   "id": "treasure_sw_heavy",
+   "zh": "重劍無鋒",
+   "ja": "重剣無鋒"
+  },
+  {
+   "id": "treasure_sw_swordgod",
+   "zh": "劍神遺劍",
+   "ja": "剣神の遺剣"
+  },
+  {
+   "id": "treasure_sw_hermit",
+   "zh": "隱士之劍",
+   "ja": "隠者の剣"
+  },
+  {
+   "id": "treasure_sw_wanderer",
+   "zh": "浪客佩劍",
+   "ja": "浪人の佩剣"
+  },
+  {
+   "id": "treasure_sw_assassin",
+   "zh": "刺客短劍",
+   "ja": "刺客の短剣"
+  },
+  {
+   "id": "treasure_sw_monk",
+   "zh": "戒律劍",
+   "ja": "戒律剣"
+  },
+  {
+   "id": "treasure_sw_daoist",
+   "zh": "玄門法劍",
+   "ja": "玄門の法剣"
+  },
+  {
+   "id": "treasure_sw_maiden",
+   "zh": "紅顏劍",
+   "ja": "紅顔剣"
+  },
+  {
+   "id": "treasure_sw_beggarjade",
+   "zh": "竹影劍",
+   "ja": "竹影剣"
+  },
+  {
+   "id": "treasure_sw_peach",
+   "zh": "桃源劍",
+   "ja": "桃源剣"
+  },
+  {
+   "id": "treasure_sw_tomb",
+   "zh": "古墓寒劍",
+   "ja": "古墓の寒剣"
+  },
+  {
+   "id": "treasure_sw_unite",
+   "zh": "凌霄劍氣",
+   "ja": "凌霄の剣気"
+  },
+  {
+   "id": "treasure_sw_swordqi",
+   "zh": "無形劍氣",
+   "ja": "無形の剣気"
+  },
+  {
+   "id": "treasure_sw_swordheart",
+   "zh": "寶劍之心",
+   "ja": "宝剣の心"
+  },
+  {
+   "id": "treasure_sw_formation",
+   "zh": "寶劍成陣",
+   "ja": "宝剣の陣"
+  },
+  {
+   "id": "treasure_sw_wine",
+   "zh": "醉仙劍",
+   "ja": "酔仙剣"
+  },
+  {
+   "id": "treasure_sw_poison",
+   "zh": "碧血毒劍",
+   "ja": "碧血の毒剣"
+  },
+  {
+   "id": "treasure_sw_ghostfire",
+   "zh": "鬼火劍",
+   "ja": "鬼火剣"
+  },
+  {
+   "id": "treasure_sw_hundred",
+   "zh": "百鍊精鋼劍",
+   "ja": "百錬の鋼剣"
+  },
+  {
+   "id": "treasure_sw_bronze",
+   "zh": "青銅古劍",
+   "ja": "青銅の古剣"
+  },
+  {
+   "id": "treasure_sw_ancient",
+   "zh": "上古神劍",
+   "ja": "上古の神剣"
+  },
+  {
+   "id": "treasure_sw_heaven",
+   "zh": "問天劍",
+   "ja": "問天剣"
+  },
+  {
+   "id": "treasure_sw_earth",
+   "zh": "鎮嶽劍",
+   "ja": "鎮嶽剣"
+  },
+  {
+   "id": "treasure_sw_sacred",
+   "zh": "聖王劍",
+   "ja": "聖王剣"
+  },
+  {
+   "id": "treasure_sw_endless",
+   "zh": "無盡劍",
+   "ja": "無尽剣"
+  },
+  {
+   "id": "treasure_sb_flamedragon",
+   "zh": "火龍刀",
+   "ja": "火龍刀"
+  },
+  {
+   "id": "treasure_sb_snowwolf",
+   "zh": "雪狼刀",
+   "ja": "雪狼刀"
+  },
+  {
+   "id": "treasure_sb_desertwind",
+   "zh": "沙暴彎刀",
+   "ja": "砂嵐の曲刀"
+  },
+  {
+   "id": "treasure_sb_tigerking",
+   "zh": "虎王刀",
+   "ja": "虎王刀"
+  },
+  {
+   "id": "treasure_sb_bloodmoon",
+   "zh": "血月刀",
+   "ja": "血月刀"
+  },
+  {
+   "id": "treasure_sb_ghostking",
+   "zh": "鬼王刀",
+   "ja": "鬼王刀"
+  },
+  {
+   "id": "treasure_sb_thunderstorm",
+   "zh": "雷暴刀",
+   "ja": "雷暴刀"
+  },
+  {
+   "id": "treasure_sb_nineheaven",
+   "zh": "九天刀",
+   "ja": "九天刀"
+  },
+  {
+   "id": "treasure_sb_emperor",
+   "zh": "帝王寶刀",
+   "ja": "帝王の宝刀"
+  },
+  {
+   "id": "treasure_sb_hero",
+   "zh": "英雄刀",
+   "ja": "英雄刀"
+  },
+  {
+   "id": "treasure_sb_brother",
+   "zh": "義薄雲天刀",
+   "ja": "義薄雲天刀"
+  },
+  {
+   "id": "treasure_sb_fury",
+   "zh": "怒濤刀",
+   "ja": "怒濤刀"
+  },
+  {
+   "id": "treasure_sb_lone",
+   "zh": "孤月刀",
+   "ja": "孤月刀"
+  },
+  {
+   "id": "treasure_sb_butcher",
+   "zh": "屠夫刀",
+   "ja": "屠夫刀"
+  },
+  {
+   "id": "treasure_sb_soldier",
+   "zh": "斬馬刀",
+   "ja": "斬馬刀"
+  },
+  {
+   "id": "treasure_sb_stormcrown",
+   "zh": "破軍刀",
+   "ja": "破軍刀"
+  },
+  {
+   "id": "treasure_sb_timeless",
+   "zh": "歲月刀",
+   "ja": "歳月刀"
+  },
+  {
+   "id": "treasure_sb_ultimate",
+   "zh": "天罡刀",
+   "ja": "天罡刀"
+  },
+  {
+   "id": "treasure_st_jadecrane",
+   "zh": "鶴首杖",
+   "ja": "鶴首杖"
+  },
+  {
+   "id": "treasure_st_wolfclub",
+   "zh": "狼牙棒",
+   "ja": "狼牙棒"
+  },
+  {
+   "id": "treasure_st_snake",
+   "zh": "蛇頭杖",
+   "ja": "蛇頭杖"
+  },
+  {
+   "id": "treasure_st_deer",
+   "zh": "鹿角杖",
+   "ja": "鹿角杖"
+  },
+  {
+   "id": "treasure_st_pine",
+   "zh": "松紋杖",
+   "ja": "松紋の杖"
+  },
+  {
+   "id": "treasure_st_ghosthead",
+   "zh": "鬼頭杖",
+   "ja": "鬼頭杖"
+  },
+  {
+   "id": "treasure_st_thunderstaff",
+   "zh": "雷鳴杖",
+   "ja": "雷鳴杖"
+  },
+  {
+   "id": "treasure_sp_snake",
+   "zh": "丈八蛇矛",
+   "ja": "丈八蛇矛"
+  },
+  {
+   "id": "treasure_sp_dragon",
+   "zh": "盤龍槍",
+   "ja": "盤龍槍"
+  },
+  {
+   "id": "treasure_sp_tigerspear",
+   "zh": "虎頭湛金槍",
+   "ja": "虎頭湛金槍"
+  },
+  {
+   "id": "treasure_sp_wind",
+   "zh": "追風槍",
+   "ja": "追風槍"
+  },
+  {
+   "id": "treasure_sp_thunder",
+   "zh": "驚雷槍",
+   "ja": "驚雷槍"
+  },
+  {
+   "id": "treasure_sp_ice",
+   "zh": "寒霜槍",
+   "ja": "寒霜槍"
+  },
+  {
+   "id": "treasure_sp_halberdgod",
+   "zh": "戟神",
+   "ja": "戟神"
+  },
+  {
+   "id": "treasure_hw_fastneedle",
+   "zh": "奪命飛針",
+   "ja": "奪命飛針"
+  },
+  {
+   "id": "treasure_hw_flower",
+   "zh": "漫天花雨",
+   "ja": "漫天花雨"
+  },
+  {
+   "id": "treasure_hw_poisondart",
+   "zh": "七星奪命鏢",
+   "ja": "七星奪命鏢"
+  },
+  {
+   "id": "treasure_hw_boomerang",
+   "zh": "流星鏢",
+   "ja": "流星鏢"
+  },
+  {
+   "id": "treasure_hw_thunderclap",
+   "zh": "天雷彈",
+   "ja": "天雷弾"
+  },
+  {
+   "id": "treasure_hw_firecracker",
+   "zh": "火龍出水",
+   "ja": "火龍出水"
+  },
+  {
+   "id": "treasure_hw_sunbomb",
+   "zh": "赤日轟天雷",
+   "ja": "赤日轟天雷"
+  },
+  {
+   "id": "treasure_hw_fanwind",
+   "zh": "扇動乾坤",
+   "ja": "扇動乾坤"
+  },
+  {
+   "id": "treasure_hw_fanpoison",
+   "zh": "毒玉扇",
+   "ja": "毒玉扇"
+  },
+  {
+   "id": "treasure_hw_fanmoon",
+   "zh": "月影扇",
+   "ja": "月影扇"
+  },
+  {
+   "id": "treasure_hw_longbow",
+   "zh": "穿雲弓",
+   "ja": "穿雲弓"
+  },
+  {
+   "id": "treasure_hw_firebow",
+   "zh": "烈焰弓",
+   "ja": "烈焰弓"
+  },
+  {
+   "id": "treasure_hw_icebow",
+   "zh": "冰魄弓",
+   "ja": "氷魄弓"
+  },
+  {
+   "id": "treasure_hw_thunderbow",
+   "zh": "雷鳴弓",
+   "ja": "雷鳴弓"
+  },
+  {
+   "id": "treasure_hw_suncrossbow",
+   "zh": "落日神弩",
+   "ja": "落日神弩"
+  },
+  {
+   "id": "treasure_hw_dragonshield",
+   "zh": "龍鱗盾",
+   "ja": "龍鱗盾"
+  },
+  {
+   "id": "treasure_hw_turtleshield",
+   "zh": "龜甲盾",
+   "ja": "亀甲盾"
+  },
+  {
+   "id": "treasure_hw_whipdragon",
+   "zh": "蟠龍鞭",
+   "ja": "蟠龍鞭"
+  },
+  {
+   "id": "treasure_hw_whipsnake",
+   "zh": "銀蛇鞭",
+   "ja": "銀蛇鞭"
+  },
+  {
+   "id": "treasure_hw_chainmeteor",
+   "zh": "星墜鎖鏈",
+   "ja": "星墜の鎖"
+  },
+  {
+   "id": "treasure_hw_hammerthunder",
+   "zh": "雷神錘",
+   "ja": "雷神鎚"
+  },
+  {
+   "id": "treasure_hw_hammermountain",
+   "zh": "開山錘",
+   "ja": "開山鎚"
+  },
+  {
+   "id": "treasure_hw_axestorm",
+   "zh": "裂地巨斧",
+   "ja": "裂地の巨斧"
+  },
+  {
+   "id": "treasure_hw_axebear",
+   "zh": "熊王斧",
+   "ja": "熊王斧"
+  },
+  {
+   "id": "treasure_lg_dragonblade",
+   "zh": "龍吟寶刀",
+   "ja": "龍吟の宝刀"
+  },
+  {
+   "id": "treasure_lg_phoenixpair",
+   "zh": "鳳凰雙絕",
+   "ja": "鳳凰双絶"
+  },
+  {
+   "id": "treasure_lg_fireicepair",
+   "zh": "冰火兩儀",
+   "ja": "氷炎両儀"
+  },
+  {
+   "id": "treasure_lg_sevenstar",
+   "zh": "七星寶劍",
+   "ja": "七星宝剣"
+  },
+  {
+   "id": "treasure_lg_weaponking",
+   "zh": "兵中之王",
+   "ja": "兵中の王"
+  },
+  {
+   "id": "treasure_lg_heroegg",
+   "zh": "俠義傳承",
+   "ja": "侠義の継承"
+  },
+  {
+   "id": "treasure_lg_ancient",
+   "zh": "上古遺寶",
+   "ja": "上古の遺宝"
+  },
+  {
+   "id": "treasure_lg_royalvault",
+   "zh": "帝王陵寢寶藏",
+   "ja": "帝王陵の宝"
+  },
+  {
+   "id": "treasure_lg_lostcity",
+   "zh": "失落古城寶藏",
+   "ja": "失われた古城の宝"
+  },
+  {
+   "id": "treasure_lg_dragonking",
+   "zh": "龍王寶藏",
+   "ja": "龍王の宝"
+  },
+  {
+   "id": "treasure_lg_wulin",
+   "zh": "武林祕寶",
+   "ja": "武林の秘宝"
+  },
+  {
+   "id": "treasure_lg_heavenbook",
+   "zh": "天機寶錄",
+   "ja": "天機の宝録"
+  },
+  {
+   "id": "treasure_lg_chosenbook",
+   "zh": "命運之書",
+   "ja": "運命の書"
+  },
+  {
+   "id": "treasure_lg_fiveelem",
+   "zh": "五行神珠",
+   "ja": "五行の神珠"
+  },
+  {
+   "id": "treasure_lg_yinyangpearl",
+   "zh": "陰陽神珠",
+   "ja": "陰陽の神珠"
+  },
+  {
+   "id": "treasure_lg_mindjade",
+   "zh": "心玉",
+   "ja": "心玉"
+  },
+  {
+   "id": "treasure_lg_rainbowsword",
+   "zh": "七彩神劍",
+   "ja": "七彩の神剣"
+  },
+  {
+   "id": "treasure_lg_starmap",
+   "zh": "星辰祕圖",
+   "ja": "星辰の秘図"
+  },
+  {
+   "id": "treasure_lg_dreamjade",
+   "zh": "夢幻玉璧",
+   "ja": "夢幻の玉璧"
+  },
+  {
+   "id": "treasure_lg_godarmor",
+   "zh": "天衣",
+   "ja": "天衣"
+  },
+  {
+   "id": "treasure_lg_unbroken",
+   "zh": "金剛不壞寶甲",
+   "ja": "金剛不壊の宝甲"
+  },
+  {
+   "id": "treasure_lg_heartshield",
+   "zh": "護體神甲",
+   "ja": "護体の神甲"
+  },
+  {
+   "id": "treasure_lg_eternalflame",
+   "zh": "不滅聖火",
+   "ja": "不滅の聖火"
+  },
+  {
+   "id": "treasure_lg_eternalice",
+   "zh": "極地玄冰",
+   "ja": "極地の玄氷"
+  },
+  {
+   "id": "treasure_lg_voidblade",
+   "zh": "虛空斬",
+   "ja": "虚空斬"
+  },
+  {
+   "id": "treasure_lg_emptyhand",
+   "zh": "空手奪刃",
+   "ja": "空手奪刃"
+  },
+  {
+   "id": "treasure_lg_pearlbed",
+   "zh": "龍宮珍寶",
+   "ja": "龍宮の珍宝"
+  },
+  {
+   "id": "treasure_lg_nineheavens",
+   "zh": "九霄神兵",
+   "ja": "九霄の神兵"
+  },
+  {
+   "id": "treasure_lg_mountainsea",
+   "zh": "山海至寶",
+   "ja": "山海の至宝"
+  },
+  {
+   "id": "treasure_lg_sealsword",
+   "zh": "鎮國神劍",
+   "ja": "鎮国の神剣"
+  }
+ ],
+ "recipes": [
+  [
+   "trs_famoussword",
+   "nat_frost",
+   "treasure_sw_frost"
+  ],
+  [
+   "trs_famoussword",
+   "trs_iceheart",
+   "treasure_sw_frost"
+  ],
+  [
+   "trs_famoussword",
+   "nat_blaze",
+   "treasure_sw_flame"
+  ],
+  [
+   "trs_famoussword",
+   "trs_fireorb",
+   "treasure_sw_flame"
+  ],
+  [
+   "trs_famoussword",
+   "nat_thunder",
+   "treasure_sw_thunder"
+  ],
+  [
+   "trs_famoussword",
+   "trs_meteor",
+   "treasure_sw_meteor"
+  ],
+  [
+   "wpn_sword",
+   "trs_meteor",
+   "treasure_sw_meteor"
+  ],
+  [
+   "trs_blackgold",
+   "mat_coldiron",
+   "treasure_xuantie"
+  ],
+  [
+   "treasure_xuantie",
+   "wpn_sword",
+   "treasure_sw_xuan"
+  ],
+  [
+   "treasure_xuantie",
+   "sec_swordtomb",
+   "treasure_sw_xuan"
+  ],
+  [
+   "trs_famoussword",
+   "nat_moon",
+   "treasure_sw_moon"
+  ],
+  [
+   "trs_famoussword",
+   "nat_sun",
+   "treasure_sw_sun"
+  ],
+  [
+   "sec_forge",
+   "trs_famoussword",
+   "treasure_sw_ouye"
+  ],
+  [
+   "treasure_sw_meteor",
+   "trs_manual",
+   "treasure_sw_yitian"
+  ],
+  [
+   "trs_famoussword",
+   "con_yang",
+   "treasure_sw_ganjiang"
+  ],
+  [
+   "trs_famoussword",
+   "con_yin",
+   "treasure_sw_moye"
+  ],
+  [
+   "treasure_sw_ganjiang",
+   "treasure_sw_moye",
+   "treasure_sw_pair"
+  ],
+  [
+   "trs_cauldron",
+   "trs_famoussword",
+   "treasure_sw_xuanyuan"
+  ],
+  [
+   "trs_famoussword",
+   "bst_fish",
+   "treasure_sw_yuchang"
+  ],
+  [
+   "trs_famoussword",
+   "bst_dragon",
+   "treasure_sw_longquan"
+  ],
+  [
+   "trs_famoussword",
+   "bst_phoenix",
+   "treasure_sw_fengming"
+  ],
+  [
+   "trs_famoussword",
+   "bst_tiger",
+   "treasure_sw_tiger"
+  ],
+  [
+   "trs_famoussword",
+   "bst_snake",
+   "treasure_sw_greensnake"
+  ],
+  [
+   "trs_gold",
+   "bst_snake",
+   "treasure_sw_goldsnake"
+  ],
+  [
+   "trs_famoussword",
+   "herb_lotus",
+   "treasure_sw_lotus"
+  ],
+  [
+   "trs_famoussword",
+   "herb_plum",
+   "treasure_sw_plum"
+  ],
+  [
+   "trs_famoussword",
+   "herb_orchid",
+   "treasure_sw_orchid"
+  ],
+  [
+   "trs_famoussword",
+   "mat_jade",
+   "treasure_sw_jade"
+  ],
+  [
+   "treasure_sw_thunder",
+   "nat_wind",
+   "treasure_sw_windthunder"
+  ],
+  [
+   "trs_famoussword",
+   "mar_taichi",
+   "treasure_sw_taiji"
+  ],
+  [
+   "trs_famoussword",
+   "sec_wudang",
+   "treasure_sw_zhenwu"
+  ],
+  [
+   "trs_famoussword",
+   "per_scholar",
+   "treasure_sw_gentleman"
+  ],
+  [
+   "trs_famoussword",
+   "per_maiden",
+   "treasure_sw_lady"
+  ],
+  [
+   "trs_famoussword",
+   "bst_crane",
+   "treasure_sw_crane"
+  ],
+  [
+   "trs_famoussword",
+   "nat_waterfall",
+   "treasure_sw_waterfall"
+  ],
+  [
+   "trs_famoussword",
+   "nat_cloud",
+   "treasure_sw_cloud"
+  ],
+  [
+   "trs_famoussword",
+   "nat_sea",
+   "treasure_sw_sea"
+  ],
+  [
+   "trs_famoussword",
+   "nat_magma",
+   "treasure_sw_magma"
+  ],
+  [
+   "trs_famoussword",
+   "nat_rainbow",
+   "treasure_sw_rainbow"
+  ],
+  [
+   "trs_famoussword",
+   "nat_dark",
+   "treasure_sw_dark"
+  ],
+  [
+   "trs_famoussword",
+   "nat_snow",
+   "treasure_sw_snow"
+  ],
+  [
+   "trs_famoussword",
+   "nat_light",
+   "treasure_sw_light"
+  ],
+  [
+   "trs_famoussword",
+   "sec_emei",
+   "treasure_sw_emei"
+  ],
+  [
+   "treasure_sw_moon",
+   "nat_frost",
+   "treasure_sw_cold"
+  ],
+  [
+   "treasure_sw_sun",
+   "treasure_sw_moon",
+   "treasure_sw_sunmoon"
+  ],
+  [
+   "treasure_sw_frost",
+   "treasure_sw_flame",
+   "treasure_sw_fireice"
+  ],
+  [
+   "treasure_sw_longquan",
+   "treasure_sw_fengming",
+   "treasure_sw_dragonphoenix"
+  ],
+  [
+   "treasure_sw_zhenwu",
+   "bst_turtle",
+   "treasure_sw_xuanwu"
+  ],
+  [
+   "treasure_sw_flame",
+   "bst_phoenix",
+   "treasure_sw_zhuque"
+  ],
+  [
+   "treasure_sw_tiger",
+   "nat_snow",
+   "treasure_sw_baihu"
+  ],
+  [
+   "treasure_sw_xuanwu",
+   "treasure_sw_zhuque",
+   "treasure_sw_four"
+  ],
+  [
+   "trs_famoussword",
+   "sec_swordtomb",
+   "treasure_sw_tombleft"
+  ],
+  [
+   "trs_famoussword",
+   "con_sorrow",
+   "treasure_sw_heartbreak"
+  ],
+  [
+   "trs_famoussword",
+   "con_righteous",
+   "treasure_sw_justice"
+  ],
+  [
+   "trs_famoussword",
+   "con_solitude",
+   "treasure_sw_lone"
+  ],
+  [
+   "trs_famoussword",
+   "con_courage",
+   "treasure_sw_courage"
+  ],
+  [
+   "trs_famoussword",
+   "eli_incense",
+   "treasure_sw_ghost"
+  ],
+  [
+   "trs_famoussaber",
+   "bst_dragon",
+   "treasure_sb_tulong"
+  ],
+  [
+   "trs_famoussaber",
+   "nat_blaze",
+   "treasure_sb_flame"
+  ],
+  [
+   "trs_famoussaber",
+   "nat_frost",
+   "treasure_sb_frost"
+  ],
+  [
+   "trs_famoussaber",
+   "nat_moon",
+   "treasure_sb_yanyue"
+  ],
+  [
+   "treasure_sb_yanyue",
+   "bst_dragon",
+   "treasure_sb_qinglong"
+  ],
+  [
+   "trs_famoussaber",
+   "bst_tiger",
+   "treasure_sb_tigerhead"
+  ],
+  [
+   "trs_famoussaber",
+   "con_fear",
+   "treasure_sb_ghost"
+  ],
+  [
+   "trs_famoussaber",
+   "nat_thunder",
+   "treasure_sb_thunder"
+  ],
+  [
+   "trs_famoussaber",
+   "trs_gold",
+   "treasure_sb_golden"
+  ],
+  [
+   "trs_famoussaber",
+   "plc_desert",
+   "treasure_sb_sand"
+  ],
+  [
+   "trs_famoussaber",
+   "bst_wolf",
+   "treasure_sb_wolf"
+  ],
+  [
+   "trs_famoussaber",
+   "bst_eagle",
+   "treasure_sb_eagle"
+  ],
+  [
+   "trs_famoussaber",
+   "wpn_chain",
+   "treasure_sb_nine"
+  ],
+  [
+   "trs_famoussaber",
+   "herb_willow",
+   "treasure_sb_willow"
+  ],
+  [
+   "trs_famoussaber",
+   "nat_dark",
+   "treasure_sb_dark"
+  ],
+  [
+   "trs_famoussaber",
+   "trs_meteor",
+   "treasure_sb_meteor"
+  ],
+  [
+   "trs_famoussaber",
+   "trs_blackgold",
+   "treasure_sb_blackgold"
+  ],
+  [
+   "trs_famoussaber",
+   "con_love",
+   "treasure_sb_lovepair"
+  ],
+  [
+   "trs_famoussaber",
+   "nat_rain",
+   "treasure_sb_rain"
+  ],
+  [
+   "trs_famoussaber",
+   "nat_sea",
+   "treasure_sb_wave"
+  ],
+  [
+   "trs_famoussaber",
+   "bst_bear",
+   "treasure_sb_bear"
+  ],
+  [
+   "trs_jadedisc",
+   "mat_bamboo",
+   "treasure_st_jade"
+  ],
+  [
+   "treasure_st_jade",
+   "per_monk",
+   "treasure_st_monk"
+  ],
+  [
+   "treasure_st_jade",
+   "bst_dragon",
+   "treasure_st_dragonhead"
+  ],
+  [
+   "treasure_xuantie",
+   "bst_monkey",
+   "treasure_st_goldhoop"
+  ],
+  [
+   "trs_gold",
+   "wpn_spear",
+   "treasure_sp_gold"
+  ],
+  [
+   "treasure_sb_yanyue",
+   "wpn_spear",
+   "treasure_sp_halberd"
+  ],
+  [
+   "trs_meteor",
+   "wpn_bow",
+   "treasure_bw_meteor"
+  ],
+  [
+   "treasure_bw_meteor",
+   "bst_eagle",
+   "treasure_bw_eagle"
+  ],
+  [
+   "trs_iceheart",
+   "wpn_needle",
+   "treasure_hw_icene"
+  ],
+  [
+   "treasure_hw_icene",
+   "eli_poison",
+   "treasure_hw_coldpoison"
+  ],
+  [
+   "trs_meteor",
+   "wpn_hammer",
+   "treasure_hw_meteorhammer"
+  ],
+  [
+   "trs_gold",
+   "wpn_whip",
+   "treasure_hw_goldwhip"
+  ],
+  [
+   "trs_jadedisc",
+   "wpn_fan",
+   "treasure_hw_jadefan"
+  ],
+  [
+   "trs_blackgold",
+   "wpn_axe",
+   "treasure_hw_blackaxe"
+  ],
+  [
+   "trs_fireorb",
+   "wpn_arrow",
+   "treasure_hw_firearrow"
+  ],
+  [
+   "trs_iceheart",
+   "wpn_arrow",
+   "treasure_hw_icearrow"
+  ],
+  [
+   "trs_meteor",
+   "wpn_crossbow",
+   "treasure_hw_crossbow"
+  ],
+  [
+   "trs_blackgold",
+   "wpn_shield",
+   "treasure_hw_shield"
+  ],
+  [
+   "trs_meteor",
+   "wpn_spear",
+   "treasure_hw_goldspear"
+  ],
+  [
+   "trs_blackgold",
+   "wpn_hook",
+   "treasure_hw_hook"
+  ],
+  [
+   "trs_meteor",
+   "wpn_chain",
+   "treasure_hw_chain"
+  ],
+  [
+   "treasure_xuantie",
+   "wpn_rod",
+   "treasure_hw_rod"
+  ],
+  [
+   "trs_blackgold",
+   "wpn_sickle",
+   "treasure_hw_sickle"
+  ],
+  [
+   "trs_meteor",
+   "wpn_spade",
+   "treasure_hw_spade"
+  ],
+  [
+   "treasure_xuantie",
+   "wpn_pick",
+   "treasure_hw_pick"
+  ],
+  [
+   "treasure_xuantie",
+   "wpn_dagger",
+   "treasure_hw_dagger"
+  ],
+  [
+   "trs_manual",
+   "mar_swordart",
+   "treasure_mn_sword"
+  ],
+  [
+   "trs_manual",
+   "mar_saberart",
+   "treasure_mn_saber"
+  ],
+  [
+   "trs_manual",
+   "mar_spearart",
+   "treasure_mn_spear"
+  ],
+  [
+   "trs_manual",
+   "mar_fist",
+   "treasure_mn_fist"
+  ],
+  [
+   "trs_manual",
+   "mar_palm",
+   "treasure_mn_palm"
+  ],
+  [
+   "trs_manual",
+   "mar_fingers",
+   "treasure_mn_finger"
+  ],
+  [
+   "trs_manual",
+   "mar_kick",
+   "treasure_mn_kick"
+  ],
+  [
+   "trs_manual",
+   "mar_qinggong",
+   "treasure_mn_qing"
+  ],
+  [
+   "trs_manual",
+   "mar_neigong",
+   "treasure_mn_neigong"
+  ],
+  [
+   "trs_manual",
+   "mar_heart",
+   "treasure_mn_heart"
+  ],
+  [
+   "trs_manual",
+   "mar_formation",
+   "treasure_mn_formation"
+  ],
+  [
+   "trs_manual",
+   "mar_shadow",
+   "treasure_mn_shadow"
+  ],
+  [
+   "trs_manual",
+   "mar_acupoint",
+   "treasure_mn_acupoint"
+  ],
+  [
+   "trs_manual",
+   "mar_meridian",
+   "treasure_mn_meridian"
+  ],
+  [
+   "trs_manual",
+   "mar_stance",
+   "treasure_mn_stance"
+  ],
+  [
+   "trs_manual",
+   "mar_breath",
+   "treasure_mn_breath"
+  ],
+  [
+   "trs_manual",
+   "eli_poison",
+   "treasure_mn_poison"
+  ],
+  [
+   "trs_manual",
+   "per_doctor",
+   "treasure_mn_medical"
+  ],
+  [
+   "trs_manual",
+   "eli_elixir",
+   "treasure_mn_elixir"
+  ],
+  [
+   "trs_manual",
+   "herb_grass",
+   "treasure_mn_herbal"
+  ],
+  [
+   "trs_manual",
+   "fire",
+   "treasure_mn_fragment"
+  ],
+  [
+   "treasure_mn_sword",
+   "fire",
+   "treasure_mn_swordfrag"
+  ],
+  [
+   "treasure_mn_fragment",
+   "treasure_mn_neigong",
+   "treasure_mn_neigongfrag"
+  ],
+  [
+   "treasure_mn_neigongfrag",
+   "con_yin",
+   "treasure_mn_yinfrag"
+  ],
+  [
+   "treasure_mn_neigongfrag",
+   "con_yang",
+   "treasure_mn_yangfrag"
+  ],
+  [
+   "trs_manual",
+   "mat_paper",
+   "treasure_mn_copy"
+  ],
+  [
+   "trs_manual",
+   "gear_slip",
+   "treasure_mn_bamboo"
+  ],
+  [
+   "trs_manual",
+   "plc_cave",
+   "treasure_mn_wall"
+  ],
+  [
+   "trs_manual",
+   "sec_shaolin",
+   "treasure_mn_shaolin"
+  ],
+  [
+   "trs_manual",
+   "sec_wudang",
+   "treasure_mn_wudang"
+  ],
+  [
+   "trs_manual",
+   "sec_huashan",
+   "treasure_mn_huashan"
+  ],
+  [
+   "trs_manual",
+   "sec_kunlun",
+   "treasure_mn_kunlun"
+  ],
+  [
+   "trs_manual",
+   "sec_ming",
+   "treasure_mn_ming"
+  ],
+  [
+   "trs_manual",
+   "sec_peach",
+   "treasure_mn_peach"
+  ],
+  [
+   "treasure_mn_palm",
+   "bst_dragon",
+   "treasure_mn_dragonpalm"
+  ],
+  [
+   "treasure_mn_palm",
+   "sec_beggars",
+   "treasure_mn_dragonpalm"
+  ],
+  [
+   "trs_manual",
+   "sec_poison5",
+   "treasure_mn_poison5"
+  ],
+  [
+   "trs_manual",
+   "sec_medvalley",
+   "treasure_mn_medvalley"
+  ],
+  [
+   "treasure_mn_sword",
+   "sec_swordtomb",
+   "treasure_mn_swordtomb"
+  ],
+  [
+   "trs_manual",
+   "sec_forge",
+   "treasure_mn_forge"
+  ],
+  [
+   "trs_manual",
+   "sec_escort",
+   "treasure_mn_escort"
+  ],
+  [
+   "trs_manual",
+   "per_soldier",
+   "treasure_mn_war"
+  ],
+  [
+   "treasure_mn_war",
+   "per_scholar",
+   "treasure_mn_sunzi"
+  ],
+  [
+   "trs_manual",
+   "trs_jadeflute",
+   "treasure_mn_music"
+  ],
+  [
+   "trs_manual",
+   "nat_light",
+   "treasure_mn_heaven"
+  ],
+  [
+   "treasure_mn_heaven",
+   "con_void",
+   "treasure_mn_blank"
+  ],
+  [
+   "trs_manual",
+   "per_daoist",
+   "treasure_mn_dao"
+  ],
+  [
+   "trs_manual",
+   "per_monk",
+   "treasure_mn_sutra"
+  ],
+  [
+   "treasure_mn_sutra",
+   "con_calm",
+   "treasure_mn_prajna"
+  ],
+  [
+   "trs_jadedisc",
+   "trs_manual",
+   "treasure_mn_jade"
+  ],
+  [
+   "trs_manual",
+   "con_time",
+   "treasure_mn_lost"
+  ],
+  [
+   "treasure_mn_sword",
+   "con_time",
+   "treasure_mn_lostsword"
+  ],
+  [
+   "treasure_mn_neigong",
+   "treasure_mn_heart",
+   "treasure_mn_general"
+  ],
+  [
+   "treasure_mn_ming",
+   "mar_heart",
+   "treasure_mn_qiankun"
+  ],
+  [
+   "treasure_mn_fist",
+   "mar_taichi",
+   "treasure_mn_taijifist"
+  ],
+  [
+   "treasure_mn_fist",
+   "con_sorrow",
+   "treasure_mn_sevenhurt"
+  ],
+  [
+   "treasure_mn_sword",
+   "treasure_mn_finger",
+   "treasure_mn_sixveins"
+  ],
+  [
+   "treasure_mn_qing",
+   "nat_river",
+   "treasure_mn_lingbo"
+  ],
+  [
+   "treasure_mn_finger",
+   "nat_sun",
+   "treasure_mn_onesun"
+  ],
+  [
+   "trs_manual",
+   "per_hermit",
+   "treasure_mn_hermit"
+  ],
+  [
+   "trs_manual",
+   "per_swordsman",
+   "treasure_mn_swordsman"
+  ],
+  [
+   "trs_manual",
+   "per_assassin",
+   "treasure_mn_assassin"
+  ],
+  [
+   "trs_manual",
+   "per_thief",
+   "treasure_mn_thief"
+  ],
+  [
+   "trs_manual",
+   "per_hunter",
+   "treasure_mn_hunter"
+  ],
+  [
+   "trs_manual",
+   "per_dancer",
+   "treasure_mn_dancer"
+  ],
+  [
+   "trs_manual",
+   "per_wanderer",
+   "treasure_mn_wanderer"
+  ],
+  [
+   "trs_manual",
+   "per_beggar",
+   "treasure_mn_beggar"
+  ],
+  [
+   "trs_manual",
+   "per_merchant",
+   "treasure_mn_merchant"
+  ],
+  [
+   "trs_manual",
+   "per_smith",
+   "treasure_mn_smith"
+  ],
+  [
+   "trs_manual",
+   "sec_codex",
+   "treasure_mn_codex"
+  ],
+  [
+   "trs_manual",
+   "sec_rules",
+   "treasure_mn_rules"
+  ],
+  [
+   "trs_manual",
+   "sec_master",
+   "treasure_mn_master"
+  ],
+  [
+   "trs_manual",
+   "sec_disciple",
+   "treasure_mn_disciple"
+  ],
+  [
+   "treasure_mn_codex",
+   "treasure_mn_hermit",
+   "treasure_mn_legacy"
+  ],
+  [
+   "trs_manual",
+   "plc_temple",
+   "treasure_mn_library"
+  ],
+  [
+   "treasure_mn_general",
+   "treasure_mn_library",
+   "treasure_mn_ultimate"
+  ],
+  [
+   "treasure_wf_ink",
+   "con_secret",
+   "treasure_mn_secretletter"
+  ],
+  [
+   "trs_map",
+   "fire",
+   "treasure_tm_fragment"
+  ],
+  [
+   "treasure_tm_fragment",
+   "treasure_tm_fragment",
+   "treasure_tm_whole"
+  ],
+  [
+   "trs_map",
+   "wpn_spade",
+   "treasure_tm_trove"
+  ],
+  [
+   "trs_blackgold",
+   "gear_chest",
+   "treasure_tm_chest"
+  ],
+  [
+   "trs_gold",
+   "mat_silver",
+   "treasure_tm_hoard"
+  ],
+  [
+   "treasure_tm_chest",
+   "plc_cave",
+   "treasure_tm_vault"
+  ],
+  [
+   "trs_map",
+   "gear_boat",
+   "treasure_tm_sunk"
+  ],
+  [
+   "trs_map",
+   "plc_island",
+   "treasure_tm_island"
+  ],
+  [
+   "trs_map",
+   "plc_grave",
+   "treasure_tm_grave"
+  ],
+  [
+   "trs_map",
+   "plc_desert",
+   "treasure_tm_desert"
+  ],
+  [
+   "trs_map",
+   "plc_palace",
+   "treasure_tm_palace"
+  ],
+  [
+   "trs_map",
+   "plc_temple",
+   "treasure_tm_temple"
+  ],
+  [
+   "treasure_tm_chest",
+   "gear_mech",
+   "treasure_tm_mechchest"
+  ],
+  [
+   "trs_spiritstone",
+   "wpn_needle",
+   "treasure_tm_compass"
+  ],
+  [
+   "treasure_tm_compass",
+   "trs_map",
+   "treasure_tm_finder"
+  ],
+  [
+   "treasure_tm_vault",
+   "bst_dragon",
+   "treasure_tm_dragonhoard"
+  ],
+  [
+   "treasure_tm_sunk",
+   "per_bandit",
+   "treasure_tm_pirate"
+  ],
+  [
+   "treasure_tm_palace",
+   "trs_seal",
+   "treasure_tm_royal"
+  ],
+  [
+   "trs_gold",
+   "per_bandit",
+   "treasure_tm_loot"
+  ],
+  [
+   "trs_map",
+   "per_miner",
+   "treasure_tm_minemap"
+  ],
+  [
+   "trs_map",
+   "per_boatman",
+   "treasure_tm_seamap"
+  ],
+  [
+   "trs_map",
+   "plc_market",
+   "treasure_tm_marketmap"
+  ],
+  [
+   "trs_map",
+   "plc_road",
+   "treasure_tm_roadmap"
+  ],
+  [
+   "trs_map",
+   "plc_cliff",
+   "treasure_tm_cliffmap"
+  ],
+  [
+   "trs_map",
+   "con_secret",
+   "treasure_tm_secretmap"
+  ],
+  [
+   "trs_pearl",
+   "nat_sea",
+   "treasure_pe_water"
+  ],
+  [
+   "trs_pearl",
+   "nat_volcano",
+   "treasure_pe_fire"
+  ],
+  [
+   "trs_pearl",
+   "nat_dust",
+   "treasure_pe_dust"
+  ],
+  [
+   "trs_pearl",
+   "eli_cooling",
+   "treasure_pe_poison"
+  ],
+  [
+   "trs_pearl",
+   "nat_wind",
+   "treasure_pe_wind"
+  ],
+  [
+   "trs_pearl",
+   "bst_snake",
+   "treasure_pe_suihou"
+  ],
+  [
+   "trs_jadedisc",
+   "fire",
+   "treasure_pe_warmjade"
+  ],
+  [
+   "trs_jadedisc",
+   "nat_frost",
+   "treasure_pe_coldjade"
+  ],
+  [
+   "trs_jadedisc",
+   "bst_goat",
+   "treasure_pe_whitejade"
+  ],
+  [
+   "trs_seal",
+   "trs_jadedisc",
+   "treasure_pe_seal"
+  ],
+  [
+   "trs_jadedisc",
+   "mat_rope",
+   "treasure_pe_pendant"
+  ],
+  [
+   "trs_jadedisc",
+   "mat_silver",
+   "treasure_pe_bracelet"
+  ],
+  [
+   "trs_jadedisc",
+   "herb_flower",
+   "treasure_pe_hairpin"
+  ],
+  [
+   "trs_amber",
+   "herb_lingzhi",
+   "treasure_pe_ruyi"
+  ],
+  [
+   "treasure_pe_pendant",
+   "bst_dragon",
+   "treasure_pe_dragonpendant"
+  ],
+  [
+   "treasure_pe_pendant",
+   "bst_phoenix",
+   "treasure_pe_phoenixpendant"
+  ],
+  [
+   "trs_pearl",
+   "mat_porcelain",
+   "treasure_pe_nightcup"
+  ],
+  [
+   "trs_gem",
+   "fire",
+   "treasure_pe_ruby"
+  ],
+  [
+   "trs_gem",
+   "nat_sea",
+   "treasure_pe_sapphire"
+  ],
+  [
+   "trs_gem",
+   "mat_jade",
+   "treasure_pe_emerald"
+  ],
+  [
+   "trs_gem",
+   "mat_porcelain",
+   "treasure_pe_glaze"
+  ],
+  [
+   "trs_gem",
+   "nat_frost",
+   "treasure_pe_crystal"
+  ],
+  [
+   "trs_gem",
+   "nat_rainbow",
+   "treasure_pe_rainbowgem"
+  ],
+  [
+   "trs_gem",
+   "mar_hardgong",
+   "treasure_pe_diamond"
+  ],
+  [
+   "trs_gem",
+   "trs_gold",
+   "treasure_pe_topaz"
+  ],
+  [
+   "trs_gem",
+   "nat_moon",
+   "treasure_pe_moonstone"
+  ],
+  [
+   "trs_gem",
+   "nat_sun",
+   "treasure_pe_sunstone"
+  ],
+  [
+   "trs_gem",
+   "bst_tiger",
+   "treasure_pe_tigereye"
+  ],
+  [
+   "trs_gem",
+   "bst_dragon",
+   "treasure_pe_dragonball"
+  ],
+  [
+   "trs_jadedisc",
+   "bst_turtle",
+   "treasure_pe_turtlejade"
+  ],
+  [
+   "trs_jadedisc",
+   "trs_fireorb",
+   "treasure_pe_firejade"
+  ],
+  [
+   "trs_jadedisc",
+   "trs_iceheart",
+   "treasure_pe_icejade"
+  ],
+  [
+   "trs_amber",
+   "bst_bee",
+   "treasure_pe_honeyamber"
+  ],
+  [
+   "trs_amber",
+   "bst_spider",
+   "treasure_pe_insectamber"
+  ],
+  [
+   "trs_amber",
+   "mat_rope",
+   "treasure_pe_amberbead"
+  ],
+  [
+   "trs_amber",
+   "eli_dew",
+   "treasure_pe_ambercup"
+  ],
+  [
+   "treasure_pe_glaze",
+   "trs_gold",
+   "treasure_pe_goldglaze"
+  ],
+  [
+   "treasure_pe_rainbowgem",
+   "gear_lantern",
+   "treasure_pe_chandelier"
+  ],
+  [
+   "treasure_pe_rainbowgem",
+   "treasure_tm_chest",
+   "treasure_pe_hundredjewel"
+  ],
+  [
+   "treasure_pe_ruyi",
+   "treasure_pe_crystal",
+   "treasure_pe_nine"
+  ],
+  [
+   "trs_spiritstone",
+   "nat_rainbow",
+   "treasure_ss_five"
+  ],
+  [
+   "treasure_ss_five",
+   "fire",
+   "treasure_ss_mend"
+  ],
+  [
+   "trs_spiritstone",
+   "trs_gold",
+   "treasure_ss_test"
+  ],
+  [
+   "trs_spiritstone",
+   "mat_iron",
+   "treasure_ss_magnet"
+  ],
+  [
+   "trs_spiritstone",
+   "con_fate",
+   "treasure_ss_threelife"
+  ],
+  [
+   "trs_spiritstone",
+   "con_love",
+   "treasure_ss_forget"
+  ],
+  [
+   "trs_spiritstone",
+   "plc_grave",
+   "treasure_ss_soul"
+  ],
+  [
+   "trs_spiritstone",
+   "con_wisdom",
+   "treasure_ss_enlight"
+  ],
+  [
+   "trs_spiritstone",
+   "con_fortune",
+   "treasure_ss_fortune"
+  ],
+  [
+   "trs_spiritstone",
+   "con_time",
+   "treasure_ss_time"
+  ],
+  [
+   "trs_spiritstone",
+   "con_void",
+   "treasure_ss_void"
+  ],
+  [
+   "trs_spiritstone",
+   "con_dream",
+   "treasure_ss_dream"
+  ],
+  [
+   "trs_spiritstone",
+   "con_illusion",
+   "treasure_ss_illusion"
+  ],
+  [
+   "trs_spiritstone",
+   "con_hate",
+   "treasure_ss_hate"
+  ],
+  [
+   "trs_spiritstone",
+   "con_joy",
+   "treasure_ss_joy"
+  ],
+  [
+   "trs_fireorb",
+   "per_monk",
+   "treasure_fo_sheli"
+  ],
+  [
+   "trs_fireorb",
+   "nat_magma",
+   "treasure_fo_fireessence"
+  ],
+  [
+   "trs_fireorb",
+   "nat_thunder",
+   "treasure_fo_thunderfire"
+  ],
+  [
+   "trs_fireorb",
+   "mat_gunpowder",
+   "treasure_fo_thunderbomb"
+  ],
+  [
+   "trs_fireorb",
+   "nat_sun",
+   "treasure_fo_sunorb"
+  ],
+  [
+   "trs_spiritstone",
+   "per_monk",
+   "treasure_fo_prayer"
+  ],
+  [
+   "trs_blackgold",
+   "per_monk",
+   "treasure_fo_vajra"
+  ],
+  [
+   "trs_iceheart",
+   "con_time",
+   "treasure_ih_ancient"
+  ],
+  [
+   "trs_iceheart",
+   "nat_moon",
+   "treasure_ih_moon"
+  ],
+  [
+   "trs_iceheart",
+   "nat_snow",
+   "treasure_ih_snow"
+  ],
+  [
+   "trs_iceheart",
+   "nat_sea",
+   "treasure_ih_sea"
+  ],
+  [
+   "trs_meteor",
+   "gear_furnace",
+   "treasure_mt_meteor"
+  ],
+  [
+   "trs_blackgold",
+   "gear_furnace",
+   "treasure_mt_blackgold"
+  ],
+  [
+   "trs_gold",
+   "fire",
+   "treasure_mt_redgold"
+  ],
+  [
+   "trs_gold",
+   "herb_leaf",
+   "treasure_mt_leaf"
+  ],
+  [
+   "trs_gold",
+   "per_monk",
+   "treasure_mt_buddha"
+  ],
+  [
+   "trs_gold",
+   "nat_mountain",
+   "treasure_mt_mountain"
+  ],
+  [
+   "trs_gold",
+   "trs_seal",
+   "treasure_mt_seal"
+  ],
+  [
+   "trs_gold",
+   "mat_porcelain",
+   "treasure_mt_cup"
+  ],
+  [
+   "treasure_mt_buddha",
+   "plc_temple",
+   "treasure_mt_pagoda"
+  ],
+  [
+   "trs_gold",
+   "bst_horse",
+   "treasure_mt_horse"
+  ],
+  [
+   "trs_goldmail",
+   "bst_silkworm",
+   "treasure_am_blackworm"
+  ],
+  [
+   "treasure_am_blackworm",
+   "trs_iceheart",
+   "treasure_am_icesilk"
+  ],
+  [
+   "trs_goldmail",
+   "bst_turtle",
+   "treasure_am_turtle"
+  ],
+  [
+   "trs_goldmail",
+   "bst_dragon",
+   "treasure_am_dragon"
+  ],
+  [
+   "trs_meteor",
+   "wpn_armor",
+   "treasure_am_meteor"
+  ],
+  [
+   "trs_blackgold",
+   "wpn_armor",
+   "treasure_am_blackgold"
+  ],
+  [
+   "trs_gold",
+   "wpn_armor",
+   "treasure_am_gold"
+  ],
+  [
+   "trs_goldmail",
+   "gear_mirror",
+   "treasure_am_heart"
+  ],
+  [
+   "trs_goldmail",
+   "bst_phoenix",
+   "treasure_am_phoenix"
+  ],
+  [
+   "trs_goldmail",
+   "bst_spider",
+   "treasure_am_spider"
+  ],
+  [
+   "trs_goldmail",
+   "bst_crane",
+   "treasure_am_crane"
+  ],
+  [
+   "treasure_am_turtle",
+   "wpn_shield",
+   "treasure_am_xuanwushield"
+  ],
+  [
+   "trs_goldmail",
+   "trs_fireorb",
+   "treasure_am_fireproof"
+  ],
+  [
+   "trs_goldmail",
+   "trs_iceheart",
+   "treasure_am_ice"
+  ],
+  [
+   "trs_goldmail",
+   "bst_tiger",
+   "treasure_am_tiger"
+  ],
+  [
+   "trs_goldmail",
+   "bst_deer",
+   "treasure_am_deer"
+  ],
+  [
+   "trs_goldmail",
+   "bst_fox",
+   "treasure_am_fox"
+  ],
+  [
+   "trs_goldmail",
+   "bst_bear",
+   "treasure_am_bear"
+  ],
+  [
+   "trs_goldmail",
+   "bst_eagle",
+   "treasure_am_eagle"
+  ],
+  [
+   "trs_jadedisc",
+   "mar_taichi",
+   "treasure_fq_taiji"
+  ],
+  [
+   "treasure_fq_taiji",
+   "gear_mirror",
+   "treasure_fq_bagua"
+  ],
+  [
+   "trs_spiritstone",
+   "mat_paper",
+   "treasure_fq_talisman"
+  ],
+  [
+   "trs_spiritstone",
+   "gear_bell",
+   "treasure_fq_soulbell"
+  ],
+  [
+   "trs_peach",
+   "wpn_sword",
+   "treasure_fq_peachsword"
+  ],
+  [
+   "trs_cauldron",
+   "eli_incense",
+   "treasure_fq_incense"
+  ],
+  [
+   "trs_cauldron",
+   "eli_elixir",
+   "treasure_fq_elixirpot"
+  ],
+  [
+   "trs_cauldron",
+   "mar_taichi",
+   "treasure_fq_qiankun"
+  ],
+  [
+   "trs_spiritstone",
+   "mat_cloth",
+   "treasure_fq_bag"
+  ],
+  [
+   "trs_fireorb",
+   "gear_mirror",
+   "treasure_fq_demonmirror"
+  ],
+  [
+   "trs_seal",
+   "bst_tiger",
+   "treasure_fq_tigertally"
+  ],
+  [
+   "trs_seal",
+   "per_soldier",
+   "treasure_fq_marshal"
+  ],
+  [
+   "trs_seal",
+   "mat_paper",
+   "treasure_fq_edict"
+  ],
+  [
+   "treasure_fq_edict",
+   "mat_iron",
+   "treasure_fq_ironcharter"
+  ],
+  [
+   "trs_jadedisc",
+   "eli_dew",
+   "treasure_fq_nectar"
+  ],
+  [
+   "trs_cauldron",
+   "sec_medvalley",
+   "treasure_fq_medcauldron"
+  ],
+  [
+   "trs_cauldron",
+   "sec_forge",
+   "treasure_fq_forgecauldron"
+  ],
+  [
+   "trs_cauldron",
+   "trs_seal",
+   "treasure_fq_nation"
+  ],
+  [
+   "trs_spiritstone",
+   "sec_poison5",
+   "treasure_fq_poisonpearl"
+  ],
+  [
+   "trs_gold",
+   "sec_escort",
+   "treasure_fq_escortsilver"
+  ],
+  [
+   "trs_seal",
+   "sec_banner",
+   "treasure_fq_bannerpole"
+  ],
+  [
+   "trs_inkstone",
+   "mat_ink",
+   "treasure_wf_ink"
+  ],
+  [
+   "treasure_wf_ink",
+   "mat_paper",
+   "treasure_wf_scroll"
+  ],
+  [
+   "treasure_wf_ink",
+   "herb_orchid",
+   "treasure_wf_orchid"
+  ],
+  [
+   "treasure_wf_scroll",
+   "nat_river",
+   "treasure_wf_river"
+  ],
+  [
+   "treasure_wf_scroll",
+   "plc_market",
+   "treasure_wf_market"
+  ],
+  [
+   "treasure_wf_scroll",
+   "nat_waterfall",
+   "treasure_wf_waterfall"
+  ],
+  [
+   "treasure_wf_scroll",
+   "bst_bird",
+   "treasure_wf_bird"
+  ],
+  [
+   "treasure_wf_scroll",
+   "bst_horse",
+   "treasure_wf_horse"
+  ],
+  [
+   "trs_inkstone",
+   "nat_stone",
+   "treasure_wf_duan"
+  ],
+  [
+   "treasure_wf_ink",
+   "per_scholar",
+   "treasure_wf_poem"
+  ],
+  [
+   "treasure_wf_scroll",
+   "herb_plum",
+   "treasure_wf_plum"
+  ],
+  [
+   "treasure_wf_scroll",
+   "plc_bamboogrove",
+   "treasure_wf_bamboo"
+  ],
+  [
+   "treasure_wf_scroll",
+   "bst_crane",
+   "treasure_wf_crane"
+  ],
+  [
+   "treasure_wf_scroll",
+   "bst_tiger",
+   "treasure_wf_tiger"
+  ],
+  [
+   "treasure_wf_scroll",
+   "per_maiden",
+   "treasure_wf_beauty"
+  ],
+  [
+   "treasure_wf_scroll",
+   "per_dancer",
+   "treasure_wf_dance"
+  ],
+  [
+   "treasure_wf_scroll",
+   "nat_moon",
+   "treasure_wf_moon"
+  ],
+  [
+   "trs_jadeflute",
+   "nat_sea",
+   "treasure_mu_sea"
+  ],
+  [
+   "trs_jadeflute",
+   "bst_phoenix",
+   "treasure_mu_phoenix"
+  ],
+  [
+   "trs_jadeflute",
+   "bst_dragon",
+   "treasure_mu_dragon"
+  ],
+  [
+   "trs_jadeflute",
+   "nat_moon",
+   "treasure_mu_moon"
+  ],
+  [
+   "trs_jadeflute",
+   "bst_crane",
+   "treasure_mu_crane"
+  ],
+  [
+   "trs_jadeflute",
+   "plc_bamboogrove",
+   "treasure_mu_bamboo"
+  ],
+  [
+   "trs_jadeflute",
+   "nat_snow",
+   "treasure_mu_snow"
+  ],
+  [
+   "treasure_sb_tulong",
+   "treasure_sw_yitian",
+   "treasure_lg_supreme"
+  ],
+  [
+   "trs_manual",
+   "trs_famoussword",
+   "treasure_lg_weapons"
+  ],
+  [
+   "treasure_lg_weapons",
+   "con_fame",
+   "treasure_lg_rank"
+  ],
+  [
+   "treasure_sw_xuanyuan",
+   "treasure_sw_xuan",
+   "treasure_lg_divine"
+  ],
+  [
+   "treasure_lg_divine",
+   "sec_hall",
+   "treasure_lg_armory"
+  ],
+  [
+   "treasure_pe_seal",
+   "trs_cauldron",
+   "treasure_lg_nation"
+  ],
+  [
+   "treasure_lg_supreme",
+   "con_fate",
+   "treasure_lg_chosen"
+  ],
+  [
+   "treasure_lg_divine",
+   "con_void",
+   "treasure_lg_void"
+  ],
+  [
+   "treasure_lg_nation",
+   "con_time",
+   "treasure_lg_time"
+  ],
+  [
+   "treasure_sw_longquan",
+   "treasure_sb_tulong",
+   "treasure_sw_dragonslay"
+  ],
+  [
+   "treasure_sw_fengming",
+   "treasure_sw_flame",
+   "treasure_sw_phoenixfire"
+  ],
+  [
+   "treasure_sw_thunder",
+   "treasure_sw_longquan",
+   "treasure_sw_thunderdragon"
+  ],
+  [
+   "treasure_sw_lotus",
+   "nat_snow",
+   "treasure_sw_frostlotus"
+  ],
+  [
+   "treasure_sw_plum",
+   "nat_snow",
+   "treasure_sw_plumsnow"
+  ],
+  [
+   "treasure_sw_orchid",
+   "nat_valley",
+   "treasure_sw_orchidmist"
+  ],
+  [
+   "treasure_sw_crane",
+   "nat_cloud",
+   "treasure_sw_cranecloud"
+  ],
+  [
+   "treasure_sw_sea",
+   "nat_thunder",
+   "treasure_sw_seawave"
+  ],
+  [
+   "treasure_sw_moon",
+   "nat_river",
+   "treasure_sw_moonriver"
+  ],
+  [
+   "treasure_sw_sun",
+   "nat_blaze",
+   "treasure_sw_sunfire"
+  ],
+  [
+   "treasure_sw_xuan",
+   "mar_force",
+   "treasure_sw_heavy"
+  ],
+  [
+   "treasure_sw_xuan",
+   "per_swordsman",
+   "treasure_sw_swordgod"
+  ],
+  [
+   "trs_famoussword",
+   "per_hermit",
+   "treasure_sw_hermit"
+  ],
+  [
+   "trs_famoussword",
+   "per_wanderer",
+   "treasure_sw_wanderer"
+  ],
+  [
+   "trs_famoussword",
+   "per_assassin",
+   "treasure_sw_assassin"
+  ],
+  [
+   "trs_famoussword",
+   "per_monk",
+   "treasure_sw_monk"
+  ],
+  [
+   "trs_famoussword",
+   "per_daoist",
+   "treasure_sw_daoist"
+  ],
+  [
+   "trs_famoussword",
+   "per_dancer",
+   "treasure_sw_maiden"
+  ],
+  [
+   "trs_famoussword",
+   "plc_bamboogrove",
+   "treasure_sw_beggarjade"
+  ],
+  [
+   "trs_famoussword",
+   "sec_peach",
+   "treasure_sw_peach"
+  ],
+  [
+   "trs_famoussword",
+   "sec_tomb",
+   "treasure_sw_tomb"
+  ],
+  [
+   "treasure_sw_cloud",
+   "mar_qi",
+   "treasure_sw_unite"
+  ],
+  [
+   "trs_famoussword",
+   "mar_qi",
+   "treasure_sw_swordqi"
+  ],
+  [
+   "trs_famoussword",
+   "mar_heart",
+   "treasure_sw_swordheart"
+  ],
+  [
+   "trs_famoussword",
+   "mar_formation",
+   "treasure_sw_formation"
+  ],
+  [
+   "trs_famoussword",
+   "eli_wine",
+   "treasure_sw_wine"
+  ],
+  [
+   "trs_famoussword",
+   "eli_poison",
+   "treasure_sw_poison"
+  ],
+  [
+   "treasure_sw_dark",
+   "fire",
+   "treasure_sw_ghostfire"
+  ],
+  [
+   "trs_famoussword",
+   "mat_steel",
+   "treasure_sw_hundred"
+  ],
+  [
+   "trs_famoussword",
+   "mat_copper",
+   "treasure_sw_bronze"
+  ],
+  [
+   "treasure_sw_bronze",
+   "con_time",
+   "treasure_sw_ancient"
+  ],
+  [
+   "treasure_sw_ancient",
+   "nat_cloud",
+   "treasure_sw_heaven"
+  ],
+  [
+   "treasure_sw_ancient",
+   "nat_mountain",
+   "treasure_sw_earth"
+  ],
+  [
+   "treasure_sw_xuanyuan",
+   "trs_seal",
+   "treasure_sw_sacred"
+  ],
+  [
+   "treasure_sw_four",
+   "con_void",
+   "treasure_sw_endless"
+  ],
+  [
+   "treasure_sb_flame",
+   "bst_dragon",
+   "treasure_sb_flamedragon"
+  ],
+  [
+   "treasure_sb_wolf",
+   "nat_snow",
+   "treasure_sb_snowwolf"
+  ],
+  [
+   "treasure_sb_sand",
+   "nat_wind",
+   "treasure_sb_desertwind"
+  ],
+  [
+   "treasure_sb_tigerhead",
+   "trs_gold",
+   "treasure_sb_tigerking"
+  ],
+  [
+   "treasure_sb_yanyue",
+   "con_rage",
+   "treasure_sb_bloodmoon"
+  ],
+  [
+   "treasure_sb_ghost",
+   "per_bandit",
+   "treasure_sb_ghostking"
+  ],
+  [
+   "treasure_sb_thunder",
+   "nat_rain",
+   "treasure_sb_thunderstorm"
+  ],
+  [
+   "treasure_sb_nine",
+   "nat_cloud",
+   "treasure_sb_nineheaven"
+  ],
+  [
+   "trs_famoussaber",
+   "trs_seal",
+   "treasure_sb_emperor"
+  ],
+  [
+   "trs_famoussaber",
+   "con_courage",
+   "treasure_sb_hero"
+  ],
+  [
+   "trs_famoussaber",
+   "con_righteous",
+   "treasure_sb_brother"
+  ],
+  [
+   "trs_famoussaber",
+   "con_rage",
+   "treasure_sb_fury"
+  ],
+  [
+   "trs_famoussaber",
+   "con_solitude",
+   "treasure_sb_lone"
+  ],
+  [
+   "trs_famoussaber",
+   "per_hunter",
+   "treasure_sb_butcher"
+  ],
+  [
+   "trs_famoussaber",
+   "bst_horse",
+   "treasure_sb_soldier"
+  ],
+  [
+   "trs_famoussaber",
+   "per_soldier",
+   "treasure_sb_stormcrown"
+  ],
+  [
+   "trs_famoussaber",
+   "con_time",
+   "treasure_sb_timeless"
+  ],
+  [
+   "treasure_sb_meteor",
+   "treasure_sb_blackgold",
+   "treasure_sb_ultimate"
+  ],
+  [
+   "treasure_st_jade",
+   "bst_crane",
+   "treasure_st_jadecrane"
+  ],
+  [
+   "treasure_xuantie",
+   "bst_wolf",
+   "treasure_st_wolfclub"
+  ],
+  [
+   "treasure_st_jade",
+   "bst_snake",
+   "treasure_st_snake"
+  ],
+  [
+   "treasure_st_jade",
+   "bst_deer",
+   "treasure_st_deer"
+  ],
+  [
+   "treasure_st_jade",
+   "herb_pine",
+   "treasure_st_pine"
+  ],
+  [
+   "treasure_st_jade",
+   "con_fear",
+   "treasure_st_ghosthead"
+  ],
+  [
+   "treasure_st_jade",
+   "nat_thunder",
+   "treasure_st_thunderstaff"
+  ],
+  [
+   "treasure_sp_gold",
+   "bst_snake",
+   "treasure_sp_snake"
+  ],
+  [
+   "treasure_sp_gold",
+   "bst_dragon",
+   "treasure_sp_dragon"
+  ],
+  [
+   "treasure_sp_gold",
+   "bst_tiger",
+   "treasure_sp_tigerspear"
+  ],
+  [
+   "treasure_hw_goldspear",
+   "bst_horse",
+   "treasure_sp_wind"
+  ],
+  [
+   "treasure_hw_goldspear",
+   "nat_thunder",
+   "treasure_sp_thunder"
+  ],
+  [
+   "treasure_hw_goldspear",
+   "nat_frost",
+   "treasure_sp_ice"
+  ],
+  [
+   "treasure_sp_halberd",
+   "bst_tiger",
+   "treasure_sp_halberdgod"
+  ],
+  [
+   "treasure_hw_icene",
+   "mar_fingers",
+   "treasure_hw_fastneedle"
+  ],
+  [
+   "treasure_hw_icene",
+   "herb_flower",
+   "treasure_hw_flower"
+  ],
+  [
+   "trs_iceheart",
+   "wpn_dart",
+   "treasure_hw_poisondart"
+  ],
+  [
+   "trs_meteor",
+   "wpn_dart",
+   "treasure_hw_boomerang"
+  ],
+  [
+   "treasure_fo_thunderbomb",
+   "nat_thunder",
+   "treasure_hw_thunderclap"
+  ],
+  [
+   "treasure_fo_thunderbomb",
+   "nat_river",
+   "treasure_hw_firecracker"
+  ],
+  [
+   "treasure_fo_thunderbomb",
+   "nat_sun",
+   "treasure_hw_sunbomb"
+  ],
+  [
+   "treasure_hw_jadefan",
+   "mar_taichi",
+   "treasure_hw_fanwind"
+  ],
+  [
+   "treasure_hw_jadefan",
+   "eli_poison",
+   "treasure_hw_fanpoison"
+  ],
+  [
+   "treasure_hw_jadefan",
+   "nat_moon",
+   "treasure_hw_fanmoon"
+  ],
+  [
+   "treasure_bw_meteor",
+   "nat_cloud",
+   "treasure_hw_longbow"
+  ],
+  [
+   "treasure_bw_meteor",
+   "trs_fireorb",
+   "treasure_hw_firebow"
+  ],
+  [
+   "treasure_bw_meteor",
+   "trs_iceheart",
+   "treasure_hw_icebow"
+  ],
+  [
+   "treasure_bw_meteor",
+   "nat_thunder",
+   "treasure_hw_thunderbow"
+  ],
+  [
+   "treasure_hw_crossbow",
+   "nat_sun",
+   "treasure_hw_suncrossbow"
+  ],
+  [
+   "treasure_hw_shield",
+   "bst_dragon",
+   "treasure_hw_dragonshield"
+  ],
+  [
+   "treasure_hw_shield",
+   "bst_turtle",
+   "treasure_hw_turtleshield"
+  ],
+  [
+   "treasure_hw_goldwhip",
+   "bst_dragon",
+   "treasure_hw_whipdragon"
+  ],
+  [
+   "treasure_hw_goldwhip",
+   "bst_snake",
+   "treasure_hw_whipsnake"
+  ],
+  [
+   "treasure_hw_chain",
+   "nat_light",
+   "treasure_hw_chainmeteor"
+  ],
+  [
+   "treasure_hw_meteorhammer",
+   "nat_thunder",
+   "treasure_hw_hammerthunder"
+  ],
+  [
+   "treasure_hw_meteorhammer",
+   "nat_mountain",
+   "treasure_hw_hammermountain"
+  ],
+  [
+   "treasure_hw_blackaxe",
+   "nat_magma",
+   "treasure_hw_axestorm"
+  ],
+  [
+   "treasure_hw_blackaxe",
+   "bst_bear",
+   "treasure_hw_axebear"
+  ],
+  [
+   "treasure_sb_tulong",
+   "treasure_mu_dragon",
+   "treasure_lg_dragonblade"
+  ],
+  [
+   "treasure_mu_phoenix",
+   "treasure_sw_fengming",
+   "treasure_lg_phoenixpair"
+  ],
+  [
+   "treasure_sw_fireice",
+   "treasure_fq_taiji",
+   "treasure_lg_fireicepair"
+  ],
+  [
+   "treasure_sw_four",
+   "treasure_sw_sunmoon",
+   "treasure_lg_sevenstar"
+  ],
+  [
+   "treasure_lg_rank",
+   "treasure_lg_divine",
+   "treasure_lg_weaponking"
+  ],
+  [
+   "treasure_lg_supreme",
+   "con_righteous",
+   "treasure_lg_heroegg"
+  ],
+  [
+   "treasure_tm_pirate",
+   "con_time",
+   "treasure_lg_ancient"
+  ],
+  [
+   "treasure_tm_royal",
+   "plc_grave",
+   "treasure_lg_royalvault"
+  ],
+  [
+   "treasure_tm_desert",
+   "plc_city",
+   "treasure_lg_lostcity"
+  ],
+  [
+   "treasure_tm_dragonhoard",
+   "bst_phoenix",
+   "treasure_lg_dragonking"
+  ],
+  [
+   "treasure_mn_ultimate",
+   "treasure_lg_supreme",
+   "treasure_lg_wulin"
+  ],
+  [
+   "treasure_mn_heaven",
+   "treasure_lg_weapons",
+   "treasure_lg_heavenbook"
+  ],
+  [
+   "treasure_mn_blank",
+   "con_fate",
+   "treasure_lg_chosenbook"
+  ],
+  [
+   "treasure_fo_fireessence",
+   "treasure_pe_coldjade",
+   "treasure_lg_fiveelem"
+  ],
+  [
+   "treasure_pe_warmjade",
+   "treasure_pe_coldjade",
+   "treasure_lg_yinyangpearl"
+  ],
+  [
+   "treasure_pe_nine",
+   "con_wisdom",
+   "treasure_lg_mindjade"
+  ],
+  [
+   "treasure_sw_rainbow",
+   "treasure_pe_rainbowgem",
+   "treasure_lg_rainbowsword"
+  ],
+  [
+   "treasure_tm_finder",
+   "treasure_ss_time",
+   "treasure_lg_starmap"
+  ],
+  [
+   "treasure_ss_dream",
+   "treasure_ss_illusion",
+   "treasure_lg_dreamjade"
+  ],
+  [
+   "treasure_am_icesilk",
+   "treasure_am_fireproof",
+   "treasure_lg_godarmor"
+  ],
+  [
+   "treasure_am_dragon",
+   "treasure_am_xuanwushield",
+   "treasure_lg_unbroken"
+  ],
+  [
+   "treasure_am_heart",
+   "treasure_am_meteor",
+   "treasure_lg_heartshield"
+  ],
+  [
+   "treasure_fo_sunorb",
+   "treasure_fo_fireessence",
+   "treasure_lg_eternalflame"
+  ],
+  [
+   "treasure_ih_ancient",
+   "treasure_ih_sea",
+   "treasure_lg_eternalice"
+  ],
+  [
+   "treasure_sb_timeless",
+   "con_void",
+   "treasure_lg_voidblade"
+  ],
+  [
+   "treasure_sb_lone",
+   "mar_fingers",
+   "treasure_lg_emptyhand"
+  ],
+  [
+   "treasure_tm_sunk",
+   "treasure_pe_nightcup",
+   "treasure_lg_pearlbed"
+  ],
+  [
+   "treasure_sw_heaven",
+   "treasure_sb_nineheaven",
+   "treasure_lg_nineheavens"
+  ],
+  [
+   "treasure_sw_earth",
+   "treasure_sw_sea",
+   "treasure_lg_mountainsea"
+  ],
+  [
+   "treasure_sw_sacred",
+   "treasure_fq_nation",
+   "treasure_lg_sealsword"
+  ],
+  [
+   "treasure_sw_flame",
+   "nat_sun",
+   "treasure_sw_sun"
+  ],
+  [
+   "treasure_sw_frost",
+   "nat_moon",
+   "treasure_sw_moon"
+  ],
+  [
+   "trs_famoussword",
+   "per_smith",
+   "treasure_sw_ouye"
+  ],
+  [
+   "trs_jadedisc",
+   "wpn_sword",
+   "treasure_sw_jade"
+  ],
+  [
+   "treasure_sw_zhenwu",
+   "mar_taichi",
+   "treasure_sw_taiji"
+  ],
+  [
+   "trs_famoussword",
+   "sec_huashan",
+   "treasure_sw_gentleman"
+  ],
+  [
+   "trs_famoussword",
+   "herb_pine",
+   "treasure_sw_crane"
+  ],
+  [
+   "trs_famoussword",
+   "nat_mist",
+   "treasure_sw_cloud"
+  ],
+  [
+   "trs_famoussword",
+   "plc_cave",
+   "treasure_sw_hermit"
+  ],
+  [
+   "trs_famoussword",
+   "mar_neigong",
+   "treasure_sw_swordqi"
+  ],
+  [
+   "trs_famoussword",
+   "plc_grave",
+   "treasure_sw_bronze"
+  ],
+  [
+   "treasure_sw_xuan",
+   "mar_hardgong",
+   "treasure_sw_heavy"
+  ],
+  [
+   "treasure_sb_frost",
+   "nat_moon",
+   "treasure_sb_yanyue"
+  ],
+  [
+   "treasure_sb_wolf",
+   "plc_desert",
+   "treasure_sb_sand"
+  ],
+  [
+   "trs_famoussaber",
+   "wpn_hook",
+   "treasure_sb_nine"
+  ],
+  [
+   "trs_famoussaber",
+   "herb_leaf",
+   "treasure_sb_willow"
+  ],
+  [
+   "trs_famoussaber",
+   "per_swordsman",
+   "treasure_sb_hero"
+  ],
+  [
+   "trs_jadedisc",
+   "wpn_stick",
+   "treasure_st_jade"
+  ],
+  [
+   "trs_meteor",
+   "wpn_arrow",
+   "treasure_bw_meteor"
+  ],
+  [
+   "trs_iceheart",
+   "eli_powder",
+   "treasure_hw_icene"
+  ],
+  [
+   "trs_jadedisc",
+   "gear_brush",
+   "treasure_hw_jadefan"
+  ],
+  [
+   "trs_fireorb",
+   "nat_blaze",
+   "treasure_hw_firearrow"
+  ],
+  [
+   "treasure_mn_fragment",
+   "mar_swordart",
+   "treasure_mn_sword"
+  ],
+  [
+   "treasure_mn_fragment",
+   "mar_saberart",
+   "treasure_mn_saber"
+  ],
+  [
+   "treasure_mn_fragment",
+   "mar_spearart",
+   "treasure_mn_spear"
+  ],
+  [
+   "treasure_mn_fragment",
+   "mar_fist",
+   "treasure_mn_fist"
+  ],
+  [
+   "treasure_mn_fragment",
+   "mar_palm",
+   "treasure_mn_palm"
+  ],
+  [
+   "treasure_mn_fragment",
+   "mar_fingers",
+   "treasure_mn_finger"
+  ],
+  [
+   "treasure_mn_fragment",
+   "mar_qinggong",
+   "treasure_mn_qing"
+  ],
+  [
+   "treasure_mn_fragment",
+   "mar_neigong",
+   "treasure_mn_neigong"
+  ],
+  [
+   "treasure_mn_fragment",
+   "mar_heart",
+   "treasure_mn_heart"
+  ],
+  [
+   "treasure_mn_fragment",
+   "mar_formation",
+   "treasure_mn_formation"
+  ],
+  [
+   "treasure_mn_fragment",
+   "eli_healing",
+   "treasure_mn_medical"
+  ],
+  [
+   "treasure_mn_fragment",
+   "eli_poisonherb",
+   "treasure_mn_poison"
+  ],
+  [
+   "treasure_mn_fragment",
+   "eli_cinnabar",
+   "treasure_mn_elixir"
+  ],
+  [
+   "treasure_mn_fragment",
+   "trs_jadeflute",
+   "treasure_mn_music"
+  ],
+  [
+   "trs_manual",
+   "nat_thunder",
+   "treasure_mn_heaven"
+  ],
+  [
+   "treasure_mn_copy",
+   "con_void",
+   "treasure_mn_blank"
+  ],
+  [
+   "treasure_mn_fragment",
+   "con_time",
+   "treasure_mn_lost"
+  ],
+  [
+   "trs_manual",
+   "plc_hut",
+   "treasure_mn_hermit"
+  ],
+  [
+   "trs_manual",
+   "plc_cliff",
+   "treasure_mn_wall"
+  ],
+  [
+   "trs_manual",
+   "mat_bamboo",
+   "treasure_mn_bamboo"
+  ],
+  [
+   "trs_manual",
+   "sec_hall",
+   "treasure_mn_codex"
+  ],
+  [
+   "treasure_mn_codex",
+   "plc_temple",
+   "treasure_mn_library"
+  ],
+  [
+   "treasure_mn_codex",
+   "treasure_mn_general",
+   "treasure_mn_ultimate"
+  ],
+  [
+   "trs_map",
+   "plc_harbor",
+   "treasure_tm_island"
+  ],
+  [
+   "trs_map",
+   "nat_sea",
+   "treasure_tm_sunk"
+  ],
+  [
+   "trs_map",
+   "nat_dust",
+   "treasure_tm_desert"
+  ],
+  [
+   "trs_map",
+   "sec_court",
+   "treasure_tm_palace"
+  ],
+  [
+   "trs_map",
+   "sec_shaolin",
+   "treasure_tm_temple"
+  ],
+  [
+   "treasure_tm_island",
+   "per_boatman",
+   "treasure_tm_seamap"
+  ],
+  [
+   "trs_map",
+   "plc_mine",
+   "treasure_tm_minemap"
+  ],
+  [
+   "treasure_tm_palace",
+   "trs_jadedisc",
+   "treasure_tm_royal"
+  ],
+  [
+   "treasure_tm_island",
+   "per_bandit",
+   "treasure_tm_pirate"
+  ],
+  [
+   "trs_pearl",
+   "nat_waterfall",
+   "treasure_pe_water"
+  ],
+  [
+   "trs_pearl",
+   "nat_magma",
+   "treasure_pe_fire"
+  ],
+  [
+   "trs_pearl",
+   "nat_cloud",
+   "treasure_pe_wind"
+  ],
+  [
+   "trs_jadedisc",
+   "bst_dragon",
+   "treasure_pe_dragonpendant"
+  ],
+  [
+   "trs_jadedisc",
+   "bst_phoenix",
+   "treasure_pe_phoenixpendant"
+  ],
+  [
+   "trs_jadedisc",
+   "nat_sun",
+   "treasure_pe_warmjade"
+  ],
+  [
+   "trs_jadedisc",
+   "bst_deer",
+   "treasure_pe_whitejade"
+  ],
+  [
+   "trs_jadedisc",
+   "mat_cloth",
+   "treasure_pe_pendant"
+  ],
+  [
+   "trs_gem",
+   "mat_steel",
+   "treasure_pe_diamond"
+  ],
+  [
+   "trs_gem",
+   "bst_eagle",
+   "treasure_pe_tigereye"
+  ],
+  [
+   "trs_jadedisc",
+   "nat_blaze",
+   "treasure_pe_firejade"
+  ],
+  [
+   "trs_jadedisc",
+   "nat_snow",
+   "treasure_pe_icejade"
+  ],
+  [
+   "trs_amber",
+   "per_monk",
+   "treasure_pe_amberbead"
+  ],
+  [
+   "trs_spiritstone",
+   "mat_porcelain",
+   "treasure_ss_five"
+  ],
+  [
+   "trs_spiritstone",
+   "mat_ingot",
+   "treasure_ss_test"
+  ],
+  [
+   "trs_spiritstone",
+   "con_fear",
+   "treasure_ss_soul"
+  ],
+  [
+   "trs_fireorb",
+   "nat_volcano",
+   "treasure_fo_fireessence"
+  ],
+  [
+   "trs_fireorb",
+   "nat_rain",
+   "treasure_fo_thunderfire"
+  ],
+  [
+   "trs_fireorb",
+   "nat_light",
+   "treasure_fo_sunorb"
+  ],
+  [
+   "trs_fireorb",
+   "mat_sulfur",
+   "treasure_fo_thunderbomb"
+  ],
+  [
+   "trs_iceheart",
+   "nat_valley",
+   "treasure_ih_ancient"
+  ],
+  [
+   "trs_iceheart",
+   "nat_light",
+   "treasure_ih_moon"
+  ],
+  [
+   "trs_blackgold",
+   "wpn_hammer",
+   "treasure_mt_blackgold"
+  ],
+  [
+   "trs_gold",
+   "nat_blaze",
+   "treasure_mt_redgold"
+  ],
+  [
+   "trs_gold",
+   "plc_temple",
+   "treasure_mt_buddha"
+  ],
+  [
+   "trs_goldmail",
+   "nat_snow",
+   "treasure_am_icesilk"
+  ],
+  [
+   "trs_goldmail",
+   "wpn_shield",
+   "treasure_am_turtle"
+  ],
+  [
+   "trs_goldmail",
+   "trs_gold",
+   "treasure_am_gold"
+  ],
+  [
+   "trs_goldmail",
+   "nat_frost",
+   "treasure_am_ice"
+  ],
+  [
+   "trs_goldmail",
+   "nat_blaze",
+   "treasure_am_fireproof"
+  ],
+  [
+   "trs_goldmail",
+   "nat_cloud",
+   "treasure_am_crane"
+  ],
+  [
+   "trs_spiritstone",
+   "eli_cinnabar",
+   "treasure_fq_talisman"
+  ],
+  [
+   "trs_peach",
+   "wpn_stick",
+   "treasure_fq_peachsword"
+  ],
+  [
+   "trs_cauldron",
+   "nat_steam",
+   "treasure_fq_incense"
+  ],
+  [
+   "trs_cauldron",
+   "eli_pill",
+   "treasure_fq_elixirpot"
+  ],
+  [
+   "trs_seal",
+   "per_scholar",
+   "treasure_fq_edict"
+  ],
+  [
+   "trs_inkstone",
+   "mat_paper",
+   "treasure_wf_ink"
+  ],
+  [
+   "trs_inkstone",
+   "mat_clay",
+   "treasure_wf_duan"
+  ],
+  [
+   "trs_jadeflute",
+   "nat_waterfall",
+   "treasure_mu_sea"
+  ],
+  [
+   "trs_jadeflute",
+   "nat_frost",
+   "treasure_mu_snow"
+  ],
+  [
+   "trs_jadeflute",
+   "mat_bamboo",
+   "treasure_mu_bamboo"
+  ],
+  [
+   "treasure_sw_yitian",
+   "treasure_sb_yanyue",
+   "treasure_lg_supreme"
+  ],
+  [
+   "treasure_sw_xuanyuan",
+   "treasure_sb_tulong",
+   "treasure_lg_divine"
+  ],
+  [
+   "treasure_lg_divine",
+   "trs_manual",
+   "treasure_lg_weapons"
+  ],
+  [
+   "treasure_fq_nation",
+   "treasure_pe_seal",
+   "treasure_lg_nation"
+  ],
+  [
+   "treasure_lg_weapons",
+   "sec_hall",
+   "treasure_lg_armory"
+  ]
+ ]
+}

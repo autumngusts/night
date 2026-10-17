@@ -1,0 +1,5352 @@
+{
+ "category": "material",
+ "items": [
+  {
+   "id": "material_001",
+   "zh": "精鋼",
+   "ja": "精鋼"
+  },
+  {
+   "id": "material_002",
+   "zh": "百煉鋼",
+   "ja": "百錬鋼"
+  },
+  {
+   "id": "material_003",
+   "zh": "千錘鋼",
+   "ja": "千鎚鋼"
+  },
+  {
+   "id": "material_004",
+   "zh": "花紋鋼",
+   "ja": "紋様鋼"
+  },
+  {
+   "id": "material_005",
+   "zh": "青鋼",
+   "ja": "青鋼"
+  },
+  {
+   "id": "material_006",
+   "zh": "鑌鐵",
+   "ja": "ウーツ鋼"
+  },
+  {
+   "id": "material_007",
+   "zh": "烏鋼",
+   "ja": "烏鋼"
+  },
+  {
+   "id": "material_008",
+   "zh": "赤銅",
+   "ja": "赤銅"
+  },
+  {
+   "id": "material_009",
+   "zh": "黃銅",
+   "ja": "黄銅"
+  },
+  {
+   "id": "material_010",
+   "zh": "白銅",
+   "ja": "白銅"
+  },
+  {
+   "id": "material_011",
+   "zh": "紫銅",
+   "ja": "紫銅"
+  },
+  {
+   "id": "material_012",
+   "zh": "古銅",
+   "ja": "古銅"
+  },
+  {
+   "id": "material_013",
+   "zh": "銅片",
+   "ja": "銅片"
+  },
+  {
+   "id": "material_014",
+   "zh": "銅絲",
+   "ja": "銅線"
+  },
+  {
+   "id": "material_015",
+   "zh": "銅錢",
+   "ja": "銅銭"
+  },
+  {
+   "id": "material_016",
+   "zh": "銅鏽",
+   "ja": "緑青"
+  },
+  {
+   "id": "material_017",
+   "zh": "銅水",
+   "ja": "溶けた銅"
+  },
+  {
+   "id": "material_018",
+   "zh": "鎏金",
+   "ja": "金めっき"
+  },
+  {
+   "id": "material_019",
+   "zh": "鍍銀",
+   "ja": "銀めっき"
+  },
+  {
+   "id": "material_020",
+   "zh": "銀錠",
+   "ja": "銀の延べ棒"
+  },
+  {
+   "id": "material_021",
+   "zh": "碎銀",
+   "ja": "砕けた銀"
+  },
+  {
+   "id": "material_022",
+   "zh": "銀絲",
+   "ja": "銀糸"
+  },
+  {
+   "id": "material_023",
+   "zh": "銀箔",
+   "ja": "銀箔"
+  },
+  {
+   "id": "material_024",
+   "zh": "銀粉",
+   "ja": "銀粉"
+  },
+  {
+   "id": "material_025",
+   "zh": "純銀",
+   "ja": "純銀"
+  },
+  {
+   "id": "material_026",
+   "zh": "金條",
+   "ja": "金の延べ棒"
+  },
+  {
+   "id": "material_027",
+   "zh": "金箔",
+   "ja": "金箔"
+  },
+  {
+   "id": "material_028",
+   "zh": "金粉",
+   "ja": "金粉"
+  },
+  {
+   "id": "material_029",
+   "zh": "金絲",
+   "ja": "金糸"
+  },
+  {
+   "id": "material_030",
+   "zh": "砂金",
+   "ja": "砂金"
+  },
+  {
+   "id": "material_031",
+   "zh": "金銀錯",
+   "ja": "金銀象嵌"
+  },
+  {
+   "id": "material_032",
+   "zh": "錯金鋼",
+   "ja": "金象嵌鋼"
+  },
+  {
+   "id": "material_033",
+   "zh": "赤金",
+   "ja": "赤金"
+  },
+  {
+   "id": "material_034",
+   "zh": "精金",
+   "ja": "精金"
+  },
+  {
+   "id": "material_035",
+   "zh": "紫金",
+   "ja": "紫金"
+  },
+  {
+   "id": "material_036",
+   "zh": "玄鐵",
+   "ja": "玄鉄"
+  },
+  {
+   "id": "material_037",
+   "zh": "玄鋼",
+   "ja": "玄鋼"
+  },
+  {
+   "id": "material_038",
+   "zh": "玄冰鐵",
+   "ja": "玄氷鉄"
+  },
+  {
+   "id": "material_039",
+   "zh": "萬年寒鐵",
+   "ja": "万年寒鉄"
+  },
+  {
+   "id": "material_040",
+   "zh": "赤炎鐵",
+   "ja": "赤炎鉄"
+  },
+  {
+   "id": "material_041",
+   "zh": "黑鐵",
+   "ja": "黒鉄"
+  },
+  {
+   "id": "material_042",
+   "zh": "熟鐵",
+   "ja": "熟鉄"
+  },
+  {
+   "id": "material_043",
+   "zh": "精鐵",
+   "ja": "精鉄"
+  },
+  {
+   "id": "material_044",
+   "zh": "百煉精鐵",
+   "ja": "百錬精鉄"
+  },
+  {
+   "id": "material_045",
+   "zh": "鐵水",
+   "ja": "溶けた鉄"
+  },
+  {
+   "id": "material_046",
+   "zh": "鑄鐵",
+   "ja": "鋳鉄"
+  },
+  {
+   "id": "material_047",
+   "zh": "鐵錠",
+   "ja": "鉄塊"
+  },
+  {
+   "id": "material_048",
+   "zh": "鐵砂",
+   "ja": "砂鉄"
+  },
+  {
+   "id": "material_049",
+   "zh": "鐵絲",
+   "ja": "針金"
+  },
+  {
+   "id": "material_050",
+   "zh": "鋼絲",
+   "ja": "鋼線"
+  },
+  {
+   "id": "material_051",
+   "zh": "鐵片",
+   "ja": "鉄片"
+  },
+  {
+   "id": "material_052",
+   "zh": "鋼板",
+   "ja": "鋼板"
+  },
+  {
+   "id": "material_053",
+   "zh": "鐵環",
+   "ja": "鉄の輪"
+  },
+  {
+   "id": "material_054",
+   "zh": "鐵絲網",
+   "ja": "鉄条網"
+  },
+  {
+   "id": "material_055",
+   "zh": "鐵釘",
+   "ja": "鉄釘"
+  },
+  {
+   "id": "material_056",
+   "zh": "鐵條",
+   "ja": "鉄棒"
+  },
+  {
+   "id": "material_057",
+   "zh": "磨刀石",
+   "ja": "砥石"
+  },
+  {
+   "id": "material_058",
+   "zh": "刀片",
+   "ja": "刃片"
+  },
+  {
+   "id": "material_059",
+   "zh": "刃鋼",
+   "ja": "刃鋼"
+  },
+  {
+   "id": "material_060",
+   "zh": "烏金鋼",
+   "ja": "烏金鋼"
+  },
+  {
+   "id": "material_061",
+   "zh": "天外隕鐵",
+   "ja": "天外隕鉄"
+  },
+  {
+   "id": "material_062",
+   "zh": "星辰鐵",
+   "ja": "星辰鉄"
+  },
+  {
+   "id": "material_063",
+   "zh": "雷擊鐵",
+   "ja": "雷撃鉄"
+  },
+  {
+   "id": "material_064",
+   "zh": "烏金隕鐵",
+   "ja": "烏金隕鉄"
+  },
+  {
+   "id": "material_065",
+   "zh": "九天玄鐵",
+   "ja": "九天玄鉄"
+  },
+  {
+   "id": "material_066",
+   "zh": "火精鐵",
+   "ja": "火精鉄"
+  },
+  {
+   "id": "material_067",
+   "zh": "鉛塊",
+   "ja": "鉛塊"
+  },
+  {
+   "id": "material_068",
+   "zh": "白玉",
+   "ja": "白玉"
+  },
+  {
+   "id": "material_069",
+   "zh": "青玉",
+   "ja": "青玉"
+  },
+  {
+   "id": "material_070",
+   "zh": "翡翠",
+   "ja": "翡翠"
+  },
+  {
+   "id": "material_071",
+   "zh": "碧玉",
+   "ja": "碧玉"
+  },
+  {
+   "id": "material_072",
+   "zh": "墨玉",
+   "ja": "墨玉"
+  },
+  {
+   "id": "material_073",
+   "zh": "黃玉",
+   "ja": "黄玉"
+  },
+  {
+   "id": "material_074",
+   "zh": "紅玉",
+   "ja": "紅玉"
+  },
+  {
+   "id": "material_075",
+   "zh": "紫玉",
+   "ja": "紫玉"
+  },
+  {
+   "id": "material_076",
+   "zh": "羊脂玉",
+   "ja": "羊脂玉"
+  },
+  {
+   "id": "material_077",
+   "zh": "暖玉",
+   "ja": "温玉"
+  },
+  {
+   "id": "material_078",
+   "zh": "寒玉",
+   "ja": "寒玉"
+  },
+  {
+   "id": "material_079",
+   "zh": "萬年寒玉",
+   "ja": "万年寒玉"
+  },
+  {
+   "id": "material_080",
+   "zh": "血玉",
+   "ja": "血玉"
+  },
+  {
+   "id": "material_081",
+   "zh": "玉粉",
+   "ja": "玉の粉"
+  },
+  {
+   "id": "material_082",
+   "zh": "玉髓",
+   "ja": "玉髄"
+  },
+  {
+   "id": "material_083",
+   "zh": "玉鐲",
+   "ja": "玉の腕輪"
+  },
+  {
+   "id": "material_084",
+   "zh": "玉環",
+   "ja": "玉環"
+  },
+  {
+   "id": "material_085",
+   "zh": "玉璜",
+   "ja": "玉璜"
+  },
+  {
+   "id": "material_086",
+   "zh": "玉圭",
+   "ja": "玉圭"
+  },
+  {
+   "id": "material_087",
+   "zh": "和氏璧",
+   "ja": "和氏の璧"
+  },
+  {
+   "id": "material_088",
+   "zh": "月華玉",
+   "ja": "月華玉"
+  },
+  {
+   "id": "material_089",
+   "zh": "日精玉",
+   "ja": "日精玉"
+  },
+  {
+   "id": "material_090",
+   "zh": "龍血玉",
+   "ja": "竜血玉"
+  },
+  {
+   "id": "material_091",
+   "zh": "夜光璧",
+   "ja": "夜光璧"
+  },
+  {
+   "id": "material_092",
+   "zh": "漢白玉",
+   "ja": "漢白玉"
+  },
+  {
+   "id": "material_093",
+   "zh": "白石",
+   "ja": "白石"
+  },
+  {
+   "id": "material_094",
+   "zh": "石灰",
+   "ja": "石灰"
+  },
+  {
+   "id": "material_095",
+   "zh": "青石",
+   "ja": "青石"
+  },
+  {
+   "id": "material_096",
+   "zh": "青石板",
+   "ja": "青石板"
+  },
+  {
+   "id": "material_097",
+   "zh": "石板",
+   "ja": "石板"
+  },
+  {
+   "id": "material_098",
+   "zh": "碑石",
+   "ja": "碑石"
+  },
+  {
+   "id": "material_099",
+   "zh": "大理石",
+   "ja": "大理石"
+  },
+  {
+   "id": "material_100",
+   "zh": "卵石",
+   "ja": "丸石"
+  },
+  {
+   "id": "material_101",
+   "zh": "細沙",
+   "ja": "細砂"
+  },
+  {
+   "id": "material_102",
+   "zh": "砂漿",
+   "ja": "モルタル"
+  },
+  {
+   "id": "material_103",
+   "zh": "灰漿",
+   "ja": "漆喰"
+  },
+  {
+   "id": "material_104",
+   "zh": "玻璃",
+   "ja": "ガラス"
+  },
+  {
+   "id": "material_105",
+   "zh": "琉璃",
+   "ja": "瑠璃"
+  },
+  {
+   "id": "material_106",
+   "zh": "琉璃珠",
+   "ja": "瑠璃玉"
+  },
+  {
+   "id": "material_107",
+   "zh": "琉璃瓦",
+   "ja": "瑠璃瓦"
+  },
+  {
+   "id": "material_108",
+   "zh": "八寶琉璃",
+   "ja": "八宝瑠璃"
+  },
+  {
+   "id": "material_109",
+   "zh": "五色石",
+   "ja": "五色石"
+  },
+  {
+   "id": "material_110",
+   "zh": "補天石",
+   "ja": "補天石"
+  },
+  {
+   "id": "material_111",
+   "zh": "水晶",
+   "ja": "水晶"
+  },
+  {
+   "id": "material_112",
+   "zh": "紫晶",
+   "ja": "紫水晶"
+  },
+  {
+   "id": "material_113",
+   "zh": "黃晶",
+   "ja": "黄水晶"
+  },
+  {
+   "id": "material_114",
+   "zh": "火晶石",
+   "ja": "火晶石"
+  },
+  {
+   "id": "material_115",
+   "zh": "冰晶",
+   "ja": "氷晶"
+  },
+  {
+   "id": "material_116",
+   "zh": "雷晶",
+   "ja": "雷晶"
+  },
+  {
+   "id": "material_117",
+   "zh": "金剛石",
+   "ja": "ダイヤモンド"
+  },
+  {
+   "id": "material_118",
+   "zh": "金剛砂",
+   "ja": "金剛砂"
+  },
+  {
+   "id": "material_119",
+   "zh": "金剛鋼",
+   "ja": "金剛鋼"
+  },
+  {
+   "id": "material_120",
+   "zh": "紅寶石",
+   "ja": "ルビー"
+  },
+  {
+   "id": "material_121",
+   "zh": "藍寶石",
+   "ja": "サファイア"
+  },
+  {
+   "id": "material_122",
+   "zh": "綠寶石",
+   "ja": "エメラルド"
+  },
+  {
+   "id": "material_123",
+   "zh": "青金石",
+   "ja": "ラピスラズリ"
+  },
+  {
+   "id": "material_124",
+   "zh": "瑪瑙",
+   "ja": "瑪瑙"
+  },
+  {
+   "id": "material_125",
+   "zh": "黑曜石",
+   "ja": "黒曜石"
+  },
+  {
+   "id": "material_126",
+   "zh": "千層雲母",
+   "ja": "千枚雲母"
+  },
+  {
+   "id": "material_127",
+   "zh": "燧石",
+   "ja": "火打石"
+  },
+  {
+   "id": "material_128",
+   "zh": "磁石",
+   "ja": "磁石"
+  },
+  {
+   "id": "material_129",
+   "zh": "硝石",
+   "ja": "硝石"
+  },
+  {
+   "id": "material_130",
+   "zh": "赭石",
+   "ja": "赭石"
+  },
+  {
+   "id": "material_131",
+   "zh": "石青",
+   "ja": "石青"
+  },
+  {
+   "id": "material_132",
+   "zh": "石綠",
+   "ja": "石緑"
+  },
+  {
+   "id": "material_133",
+   "zh": "貝殼",
+   "ja": "貝殻"
+  },
+  {
+   "id": "material_134",
+   "zh": "珍珠",
+   "ja": "真珠"
+  },
+  {
+   "id": "material_135",
+   "zh": "珍珠末",
+   "ja": "真珠末"
+  },
+  {
+   "id": "material_136",
+   "zh": "鮫人淚珠",
+   "ja": "鮫人の涙"
+  },
+  {
+   "id": "material_137",
+   "zh": "螺鈿",
+   "ja": "螺鈿"
+  },
+  {
+   "id": "material_138",
+   "zh": "珊瑚",
+   "ja": "珊瑚"
+  },
+  {
+   "id": "material_139",
+   "zh": "蟹殼",
+   "ja": "蟹の甲羅"
+  },
+  {
+   "id": "material_140",
+   "zh": "木板",
+   "ja": "板材"
+  },
+  {
+   "id": "material_141",
+   "zh": "木片",
+   "ja": "木片"
+  },
+  {
+   "id": "material_142",
+   "zh": "木釘",
+   "ja": "木釘"
+  },
+  {
+   "id": "material_143",
+   "zh": "木漿",
+   "ja": "木パルプ"
+  },
+  {
+   "id": "material_144",
+   "zh": "松木",
+   "ja": "松材"
+  },
+  {
+   "id": "material_145",
+   "zh": "柳木",
+   "ja": "柳材"
+  },
+  {
+   "id": "material_146",
+   "zh": "辟邪桃木",
+   "ja": "辟邪の桃木"
+  },
+  {
+   "id": "material_147",
+   "zh": "紫檀",
+   "ja": "紫檀"
+  },
+  {
+   "id": "material_148",
+   "zh": "烏木",
+   "ja": "黒檀"
+  },
+  {
+   "id": "material_149",
+   "zh": "楠木",
+   "ja": "楠材"
+  },
+  {
+   "id": "material_150",
+   "zh": "花梨木",
+   "ja": "花梨"
+  },
+  {
+   "id": "material_151",
+   "zh": "梧桐木",
+   "ja": "桐の木"
+  },
+  {
+   "id": "material_152",
+   "zh": "焦尾木",
+   "ja": "焦尾の木"
+  },
+  {
+   "id": "material_153",
+   "zh": "扶桑木",
+   "ja": "扶桑の木"
+  },
+  {
+   "id": "material_154",
+   "zh": "千年古木",
+   "ja": "千年の古木"
+  },
+  {
+   "id": "material_155",
+   "zh": "樹脂",
+   "ja": "樹脂"
+  },
+  {
+   "id": "material_156",
+   "zh": "松樹脂",
+   "ja": "松の樹脂"
+  },
+  {
+   "id": "material_157",
+   "zh": "松煙",
+   "ja": "松煙"
+  },
+  {
+   "id": "material_158",
+   "zh": "龍血樹脂",
+   "ja": "竜血樹脂"
+  },
+  {
+   "id": "material_159",
+   "zh": "桐油",
+   "ja": "桐油"
+  },
+  {
+   "id": "material_160",
+   "zh": "大漆",
+   "ja": "漆"
+  },
+  {
+   "id": "material_161",
+   "zh": "朱漆",
+   "ja": "朱漆"
+  },
+  {
+   "id": "material_162",
+   "zh": "黑漆",
+   "ja": "黒漆"
+  },
+  {
+   "id": "material_163",
+   "zh": "金漆",
+   "ja": "金漆"
+  },
+  {
+   "id": "material_164",
+   "zh": "魚膠",
+   "ja": "にかわ"
+  },
+  {
+   "id": "material_165",
+   "zh": "骨膠",
+   "ja": "骨にかわ"
+  },
+  {
+   "id": "material_166",
+   "zh": "皮膠",
+   "ja": "皮にかわ"
+  },
+  {
+   "id": "material_167",
+   "zh": "白炭",
+   "ja": "白炭"
+  },
+  {
+   "id": "material_168",
+   "zh": "炭粉",
+   "ja": "炭粉"
+  },
+  {
+   "id": "material_169",
+   "zh": "竹片",
+   "ja": "竹片"
+  },
+  {
+   "id": "material_170",
+   "zh": "竹篾",
+   "ja": "竹ひご"
+  },
+  {
+   "id": "material_171",
+   "zh": "竹絲",
+   "ja": "竹糸"
+  },
+  {
+   "id": "material_172",
+   "zh": "竹炭",
+   "ja": "竹炭"
+  },
+  {
+   "id": "material_173",
+   "zh": "青竹",
+   "ja": "青竹"
+  },
+  {
+   "id": "material_174",
+   "zh": "湘妃竹",
+   "ja": "湘妃竹"
+  },
+  {
+   "id": "material_175",
+   "zh": "紫竹",
+   "ja": "紫竹"
+  },
+  {
+   "id": "material_176",
+   "zh": "墨竹",
+   "ja": "墨竹"
+  },
+  {
+   "id": "material_177",
+   "zh": "藤條",
+   "ja": "籐"
+  },
+  {
+   "id": "material_178",
+   "zh": "葛布",
+   "ja": "葛布"
+  },
+  {
+   "id": "material_179",
+   "zh": "箭桿",
+   "ja": "矢柄"
+  },
+  {
+   "id": "material_180",
+   "zh": "箭羽",
+   "ja": "矢羽"
+  },
+  {
+   "id": "material_181",
+   "zh": "箭鏃",
+   "ja": "矢尻"
+  },
+  {
+   "id": "material_182",
+   "zh": "弓弦",
+   "ja": "弓弦"
+  },
+  {
+   "id": "material_183",
+   "zh": "弓胎",
+   "ja": "弓の芯"
+  },
+  {
+   "id": "material_184",
+   "zh": "竹紙",
+   "ja": "竹紙"
+  },
+  {
+   "id": "material_185",
+   "zh": "紙漿",
+   "ja": "紙の原料"
+  },
+  {
+   "id": "material_186",
+   "zh": "宣紙",
+   "ja": "宣紙"
+  },
+  {
+   "id": "material_187",
+   "zh": "金箋",
+   "ja": "金箋"
+  },
+  {
+   "id": "material_188",
+   "zh": "紅紙",
+   "ja": "赤い紙"
+  },
+  {
+   "id": "material_189",
+   "zh": "黃紙",
+   "ja": "黄紙"
+  },
+  {
+   "id": "material_190",
+   "zh": "紙錢",
+   "ja": "紙銭"
+  },
+  {
+   "id": "material_191",
+   "zh": "絹本",
+   "ja": "絹本"
+  },
+  {
+   "id": "material_192",
+   "zh": "畫軸",
+   "ja": "画軸"
+  },
+  {
+   "id": "material_193",
+   "zh": "木牘",
+   "ja": "木牘"
+  },
+  {
+   "id": "material_194",
+   "zh": "帛書",
+   "ja": "帛書"
+  },
+  {
+   "id": "material_195",
+   "zh": "羊皮卷",
+   "ja": "羊皮の巻物"
+  },
+  {
+   "id": "material_196",
+   "zh": "碑帖",
+   "ja": "石刷り"
+  },
+  {
+   "id": "material_197",
+   "zh": "松煙墨",
+   "ja": "松煙墨"
+  },
+  {
+   "id": "material_198",
+   "zh": "油煙",
+   "ja": "油煙"
+  },
+  {
+   "id": "material_199",
+   "zh": "油煙墨",
+   "ja": "油煙墨"
+  },
+  {
+   "id": "material_200",
+   "zh": "朱墨",
+   "ja": "朱墨"
+  },
+  {
+   "id": "material_201",
+   "zh": "金墨",
+   "ja": "金墨"
+  },
+  {
+   "id": "material_202",
+   "zh": "墨錠",
+   "ja": "墨の塊"
+  },
+  {
+   "id": "material_203",
+   "zh": "墨汁",
+   "ja": "墨汁"
+  },
+  {
+   "id": "material_204",
+   "zh": "彩墨",
+   "ja": "彩墨"
+  },
+  {
+   "id": "material_205",
+   "zh": "胭脂",
+   "ja": "臙脂"
+  },
+  {
+   "id": "material_206",
+   "zh": "白繭",
+   "ja": "白い繭"
+  },
+  {
+   "id": "material_207",
+   "zh": "生絲",
+   "ja": "生糸"
+  },
+  {
+   "id": "material_208",
+   "zh": "絲線",
+   "ja": "より糸"
+  },
+  {
+   "id": "material_209",
+   "zh": "綢緞",
+   "ja": "絹の布"
+  },
+  {
+   "id": "material_210",
+   "zh": "織錦",
+   "ja": "錦織"
+  },
+  {
+   "id": "material_211",
+   "zh": "輕紗",
+   "ja": "薄絹"
+  },
+  {
+   "id": "material_212",
+   "zh": "羅綺",
+   "ja": "羅綺"
+  },
+  {
+   "id": "material_213",
+   "zh": "紅綢",
+   "ja": "紅絹"
+  },
+  {
+   "id": "material_214",
+   "zh": "白綢",
+   "ja": "白絹"
+  },
+  {
+   "id": "material_215",
+   "zh": "黑綢",
+   "ja": "黒絹"
+  },
+  {
+   "id": "material_216",
+   "zh": "繡線",
+   "ja": "刺繍糸"
+  },
+  {
+   "id": "material_217",
+   "zh": "刺繡",
+   "ja": "刺繍布"
+  },
+  {
+   "id": "material_218",
+   "zh": "冰蠶絲",
+   "ja": "氷蚕糸"
+  },
+  {
+   "id": "material_219",
+   "zh": "金蠶絲",
+   "ja": "金蚕糸"
+  },
+  {
+   "id": "material_220",
+   "zh": "鮫綃",
+   "ja": "鮫綃"
+  },
+  {
+   "id": "material_221",
+   "zh": "麻布",
+   "ja": "麻布"
+  },
+  {
+   "id": "material_222",
+   "zh": "紅布",
+   "ja": "赤布"
+  },
+  {
+   "id": "material_223",
+   "zh": "白布",
+   "ja": "白布"
+  },
+  {
+   "id": "material_224",
+   "zh": "青布",
+   "ja": "青布"
+  },
+  {
+   "id": "material_225",
+   "zh": "黑布",
+   "ja": "黒布"
+  },
+  {
+   "id": "material_226",
+   "zh": "黃布",
+   "ja": "黄布"
+  },
+  {
+   "id": "material_227",
+   "zh": "棉花",
+   "ja": "綿花"
+  },
+  {
+   "id": "material_228",
+   "zh": "棉紗",
+   "ja": "綿糸"
+  },
+  {
+   "id": "material_229",
+   "zh": "棉布",
+   "ja": "綿布"
+  },
+  {
+   "id": "material_230",
+   "zh": "獸皮",
+   "ja": "毛皮"
+  },
+  {
+   "id": "material_231",
+   "zh": "熊皮",
+   "ja": "熊の皮"
+  },
+  {
+   "id": "material_232",
+   "zh": "鹿革",
+   "ja": "鹿革"
+  },
+  {
+   "id": "material_233",
+   "zh": "羊皮",
+   "ja": "羊皮"
+  },
+  {
+   "id": "material_234",
+   "zh": "蛇皮",
+   "ja": "蛇の皮"
+  },
+  {
+   "id": "material_235",
+   "zh": "皮革",
+   "ja": "なめし革"
+  },
+  {
+   "id": "material_236",
+   "zh": "皮繩",
+   "ja": "革紐"
+  },
+  {
+   "id": "material_237",
+   "zh": "皮條",
+   "ja": "革帯"
+  },
+  {
+   "id": "material_238",
+   "zh": "皮甲片",
+   "ja": "革の甲片"
+  },
+  {
+   "id": "material_239",
+   "zh": "皮囊",
+   "ja": "革袋"
+  },
+  {
+   "id": "material_240",
+   "zh": "軟皮",
+   "ja": "柔らかい革"
+  },
+  {
+   "id": "material_241",
+   "zh": "硬皮",
+   "ja": "硬い革"
+  },
+  {
+   "id": "material_242",
+   "zh": "漆皮",
+   "ja": "漆革"
+  },
+  {
+   "id": "material_243",
+   "zh": "獸筋",
+   "ja": "獣の腱"
+  },
+  {
+   "id": "material_244",
+   "zh": "白骨",
+   "ja": "白骨"
+  },
+  {
+   "id": "material_245",
+   "zh": "骨片",
+   "ja": "骨片"
+  },
+  {
+   "id": "material_246",
+   "zh": "骨粉",
+   "ja": "骨粉"
+  },
+  {
+   "id": "material_247",
+   "zh": "骨針",
+   "ja": "骨針"
+  },
+  {
+   "id": "material_248",
+   "zh": "磷粉",
+   "ja": "燐粉"
+  },
+  {
+   "id": "material_249",
+   "zh": "狼牙",
+   "ja": "狼の牙"
+  },
+  {
+   "id": "material_250",
+   "zh": "鹿角",
+   "ja": "鹿の角"
+  },
+  {
+   "id": "material_251",
+   "zh": "翎羽",
+   "ja": "飾り羽"
+  },
+  {
+   "id": "material_252",
+   "zh": "蜂蠟",
+   "ja": "蜜蝋"
+  },
+  {
+   "id": "material_253",
+   "zh": "蜜蠟",
+   "ja": "蜜蝋石"
+  },
+  {
+   "id": "material_254",
+   "zh": "蠟丸",
+   "ja": "蝋丸"
+  },
+  {
+   "id": "material_255",
+   "zh": "煤炭",
+   "ja": "石炭"
+  },
+  {
+   "id": "material_256",
+   "zh": "火攻油",
+   "ja": "火攻めの油"
+  },
+  {
+   "id": "material_257",
+   "zh": "火絨",
+   "ja": "火口"
+  },
+  {
+   "id": "material_258",
+   "zh": "引信",
+   "ja": "導火線"
+  },
+  {
+   "id": "material_259",
+   "zh": "花火藥",
+   "ja": "花火薬"
+  },
+  {
+   "id": "material_260",
+   "zh": "燈油",
+   "ja": "灯油"
+  },
+  {
+   "id": "material_261",
+   "zh": "海鹽",
+   "ja": "海塩"
+  },
+  {
+   "id": "material_262",
+   "zh": "岩鹽",
+   "ja": "岩塩"
+  },
+  {
+   "id": "material_263",
+   "zh": "精鹽",
+   "ja": "精製塩"
+  },
+  {
+   "id": "material_264",
+   "zh": "鹽鹵",
+   "ja": "にがり"
+  },
+  {
+   "id": "material_265",
+   "zh": "鹽磚",
+   "ja": "塩の塊"
+  },
+  {
+   "id": "material_266",
+   "zh": "青瓷",
+   "ja": "青磁"
+  },
+  {
+   "id": "material_267",
+   "zh": "白瓷",
+   "ja": "白磁"
+  },
+  {
+   "id": "material_268",
+   "zh": "青花瓷",
+   "ja": "青花"
+  },
+  {
+   "id": "material_269",
+   "zh": "粉彩",
+   "ja": "粉彩"
+  },
+  {
+   "id": "material_270",
+   "zh": "紫砂",
+   "ja": "紫砂"
+  },
+  {
+   "id": "material_271",
+   "zh": "陶土",
+   "ja": "陶土"
+  },
+  {
+   "id": "material_272",
+   "zh": "粗陶",
+   "ja": "素焼き"
+  },
+  {
+   "id": "material_273",
+   "zh": "瓦片",
+   "ja": "瓦"
+  },
+  {
+   "id": "material_274",
+   "zh": "釉料",
+   "ja": "釉薬"
+  },
+  {
+   "id": "material_275",
+   "zh": "青磚",
+   "ja": "青い磚"
+  },
+  {
+   "id": "material_276",
+   "zh": "金磚",
+   "ja": "金磚"
+  },
+  {
+   "id": "material_277",
+   "zh": "城磚",
+   "ja": "城壁の磚"
+  },
+  {
+   "id": "material_278",
+   "zh": "磚坯",
+   "ja": "磚の素地"
+  },
+  {
+   "id": "material_279",
+   "zh": "夯土",
+   "ja": "版築土"
+  },
+  {
+   "id": "material_280",
+   "zh": "鋼錠",
+   "ja": "鋼塊"
+  },
+  {
+   "id": "material_281",
+   "zh": "鋼條",
+   "ja": "鋼棒"
+  },
+  {
+   "id": "material_282",
+   "zh": "鋼釘",
+   "ja": "鋼の釘"
+  },
+  {
+   "id": "material_283",
+   "zh": "鋼環",
+   "ja": "鋼の輪"
+  },
+  {
+   "id": "material_284",
+   "zh": "鋼索",
+   "ja": "鋼索"
+  },
+  {
+   "id": "material_285",
+   "zh": "鋼網",
+   "ja": "鋼の網"
+  },
+  {
+   "id": "material_286",
+   "zh": "鋼管",
+   "ja": "鋼管"
+  },
+  {
+   "id": "material_287",
+   "zh": "鐵管",
+   "ja": "鉄管"
+  },
+  {
+   "id": "material_288",
+   "zh": "銅管",
+   "ja": "銅管"
+  },
+  {
+   "id": "material_289",
+   "zh": "銅釘",
+   "ja": "銅の釘"
+  },
+  {
+   "id": "material_290",
+   "zh": "銅環",
+   "ja": "銅の輪"
+  },
+  {
+   "id": "material_291",
+   "zh": "銅鏈",
+   "ja": "銅の鎖"
+  },
+  {
+   "id": "material_292",
+   "zh": "銀環",
+   "ja": "銀の輪"
+  },
+  {
+   "id": "material_293",
+   "zh": "銀鏈",
+   "ja": "銀の鎖"
+  },
+  {
+   "id": "material_294",
+   "zh": "金環",
+   "ja": "金の輪"
+  },
+  {
+   "id": "material_295",
+   "zh": "金鏈",
+   "ja": "金の鎖"
+  },
+  {
+   "id": "material_296",
+   "zh": "金葉",
+   "ja": "金の葉"
+  },
+  {
+   "id": "material_297",
+   "zh": "銀葉",
+   "ja": "銀の葉"
+  },
+  {
+   "id": "material_298",
+   "zh": "鍍金鐵",
+   "ja": "金メッキ鉄"
+  },
+  {
+   "id": "material_299",
+   "zh": "汞金",
+   "ja": "アマルガム"
+  },
+  {
+   "id": "material_300",
+   "zh": "響銅",
+   "ja": "響銅"
+  },
+  {
+   "id": "material_301",
+   "zh": "鉛丹",
+   "ja": "鉛丹"
+  },
+  {
+   "id": "material_302",
+   "zh": "焊料",
+   "ja": "はんだ"
+  },
+  {
+   "id": "material_303",
+   "zh": "刀鋼",
+   "ja": "刀用鋼"
+  },
+  {
+   "id": "material_304",
+   "zh": "劍鋼",
+   "ja": "剣用鋼"
+  },
+  {
+   "id": "material_305",
+   "zh": "甲鋼",
+   "ja": "甲冑用鋼"
+  },
+  {
+   "id": "material_306",
+   "zh": "針鋼",
+   "ja": "針用鋼"
+  },
+  {
+   "id": "material_307",
+   "zh": "烏金絲",
+   "ja": "烏金糸"
+  },
+  {
+   "id": "material_308",
+   "zh": "玄鐵絲",
+   "ja": "玄鉄糸"
+  },
+  {
+   "id": "material_309",
+   "zh": "玄鐵砂",
+   "ja": "玄鉄砂"
+  },
+  {
+   "id": "material_310",
+   "zh": "玄鐵板",
+   "ja": "玄鉄板"
+  },
+  {
+   "id": "material_311",
+   "zh": "流火隕鐵",
+   "ja": "流火の隕鉄"
+  },
+  {
+   "id": "material_312",
+   "zh": "寒星鐵",
+   "ja": "寒星鉄"
+  },
+  {
+   "id": "material_313",
+   "zh": "雷星鐵",
+   "ja": "雷星鉄"
+  },
+  {
+   "id": "material_314",
+   "zh": "玄冰",
+   "ja": "玄氷"
+  },
+  {
+   "id": "material_315",
+   "zh": "萬載玄冰",
+   "ja": "万載玄氷"
+  },
+  {
+   "id": "material_316",
+   "zh": "混沌鐵",
+   "ja": "混沌鉄"
+  },
+  {
+   "id": "material_317",
+   "zh": "太乙精金",
+   "ja": "太乙精金"
+  },
+  {
+   "id": "material_318",
+   "zh": "紫金玄鐵",
+   "ja": "紫金玄鉄"
+  },
+  {
+   "id": "material_319",
+   "zh": "龍血鐵",
+   "ja": "竜血鉄"
+  },
+  {
+   "id": "material_320",
+   "zh": "鳳凰金",
+   "ja": "鳳凰金"
+  },
+  {
+   "id": "material_321",
+   "zh": "鉛華",
+   "ja": "鉛華"
+  },
+  {
+   "id": "material_322",
+   "zh": "玉珮",
+   "ja": "佩玉"
+  },
+  {
+   "id": "material_323",
+   "zh": "玉墜",
+   "ja": "玉のペンダント"
+  },
+  {
+   "id": "material_324",
+   "zh": "玉雕胚",
+   "ja": "玉彫りの原石"
+  },
+  {
+   "id": "material_325",
+   "zh": "玉鎖",
+   "ja": "玉の錠"
+  },
+  {
+   "id": "material_326",
+   "zh": "玉腰帶",
+   "ja": "玉の腰帯"
+  },
+  {
+   "id": "material_327",
+   "zh": "彩玉",
+   "ja": "彩玉"
+  },
+  {
+   "id": "material_328",
+   "zh": "瑤池玉",
+   "ja": "瑶池の玉"
+  },
+  {
+   "id": "material_329",
+   "zh": "昆侖玉",
+   "ja": "崑崙玉"
+  },
+  {
+   "id": "material_330",
+   "zh": "琅玕",
+   "ja": "琅玕"
+  },
+  {
+   "id": "material_331",
+   "zh": "日月玉",
+   "ja": "日月玉"
+  },
+  {
+   "id": "material_332",
+   "zh": "寶珠",
+   "ja": "宝珠"
+  },
+  {
+   "id": "material_333",
+   "zh": "琉璃金剛",
+   "ja": "琉璃金剛"
+  },
+  {
+   "id": "material_334",
+   "zh": "星砂",
+   "ja": "星砂"
+  },
+  {
+   "id": "material_335",
+   "zh": "月光石",
+   "ja": "月長石"
+  },
+  {
+   "id": "material_336",
+   "zh": "日光石",
+   "ja": "日長石"
+  },
+  {
+   "id": "material_337",
+   "zh": "赤焰石",
+   "ja": "赤焔石"
+  },
+  {
+   "id": "material_338",
+   "zh": "雷紋石",
+   "ja": "雷紋石"
+  },
+  {
+   "id": "material_339",
+   "zh": "碧璽",
+   "ja": "トルマリン"
+  },
+  {
+   "id": "material_340",
+   "zh": "血珀",
+   "ja": "血琥珀"
+  },
+  {
+   "id": "material_341",
+   "zh": "金珀",
+   "ja": "金琥珀"
+  },
+  {
+   "id": "material_342",
+   "zh": "蟲珀",
+   "ja": "虫入り琥珀"
+  },
+  {
+   "id": "material_343",
+   "zh": "銀朱",
+   "ja": "銀朱"
+  },
+  {
+   "id": "material_344",
+   "zh": "雌黃",
+   "ja": "雌黄"
+  },
+  {
+   "id": "material_345",
+   "zh": "膽礬",
+   "ja": "胆礬"
+  },
+  {
+   "id": "material_346",
+   "zh": "芒硝",
+   "ja": "芒硝"
+  },
+  {
+   "id": "material_347",
+   "zh": "火硝",
+   "ja": "火硝"
+  },
+  {
+   "id": "material_348",
+   "zh": "硼砂",
+   "ja": "硼砂"
+  },
+  {
+   "id": "material_349",
+   "zh": "精製火藥",
+   "ja": "精製火薬"
+  },
+  {
+   "id": "material_350",
+   "zh": "閃光粉",
+   "ja": "閃光粉"
+  },
+  {
+   "id": "material_351",
+   "zh": "紅焰藥",
+   "ja": "紅焔薬"
+  },
+  {
+   "id": "material_352",
+   "zh": "綠焰藥",
+   "ja": "緑焔薬"
+  },
+  {
+   "id": "material_353",
+   "zh": "藍焰藥",
+   "ja": "青焔薬"
+  },
+  {
+   "id": "material_354",
+   "zh": "磷火粉",
+   "ja": "鬼火の粉"
+  },
+  {
+   "id": "material_355",
+   "zh": "條石",
+   "ja": "角石"
+  },
+  {
+   "id": "material_356",
+   "zh": "硯石",
+   "ja": "硯石"
+  },
+  {
+   "id": "material_357",
+   "zh": "印石",
+   "ja": "印材"
+  },
+  {
+   "id": "material_358",
+   "zh": "雞血石",
+   "ja": "鶏血石"
+  },
+  {
+   "id": "material_359",
+   "zh": "田黃石",
+   "ja": "田黄石"
+  },
+  {
+   "id": "material_360",
+   "zh": "青石磚",
+   "ja": "青石の磚"
+  },
+  {
+   "id": "material_361",
+   "zh": "琉璃磚",
+   "ja": "瑠璃磚"
+  },
+  {
+   "id": "material_362",
+   "zh": "雕磚",
+   "ja": "彫刻磚"
+  },
+  {
+   "id": "material_363",
+   "zh": "青瓦",
+   "ja": "青瓦"
+  },
+  {
+   "id": "material_364",
+   "zh": "彩瓦",
+   "ja": "彩瓦"
+  },
+  {
+   "id": "material_365",
+   "zh": "天青瓷",
+   "ja": "天青磁"
+  },
+  {
+   "id": "material_366",
+   "zh": "冰裂瓷",
+   "ja": "氷裂磁"
+  },
+  {
+   "id": "material_367",
+   "zh": "霽紅瓷",
+   "ja": "霽紅磁"
+  },
+  {
+   "id": "material_368",
+   "zh": "黑瓷",
+   "ja": "黒磁"
+  },
+  {
+   "id": "material_369",
+   "zh": "影青",
+   "ja": "影青"
+  },
+  {
+   "id": "material_370",
+   "zh": "琺瑯",
+   "ja": "七宝"
+  },
+  {
+   "id": "material_371",
+   "zh": "掐絲琺瑯",
+   "ja": "掐糸七宝"
+  },
+  {
+   "id": "material_372",
+   "zh": "紅釉",
+   "ja": "紅釉"
+  },
+  {
+   "id": "material_373",
+   "zh": "黑釉",
+   "ja": "黒釉"
+  },
+  {
+   "id": "material_374",
+   "zh": "黃釉",
+   "ja": "黄釉"
+  },
+  {
+   "id": "material_375",
+   "zh": "高嶺土",
+   "ja": "カオリン"
+  },
+  {
+   "id": "material_376",
+   "zh": "赤土",
+   "ja": "赤土"
+  },
+  {
+   "id": "material_377",
+   "zh": "白堊",
+   "ja": "白亜"
+  },
+  {
+   "id": "material_378",
+   "zh": "膠泥",
+   "ja": "膠泥"
+  },
+  {
+   "id": "material_379",
+   "zh": "澄泥",
+   "ja": "澄泥"
+  },
+  {
+   "id": "material_380",
+   "zh": "陰沉木",
+   "ja": "沈み木"
+  },
+  {
+   "id": "material_381",
+   "zh": "木胎",
+   "ja": "木地"
+  },
+  {
+   "id": "material_382",
+   "zh": "漆胎",
+   "ja": "漆の素地"
+  },
+  {
+   "id": "material_383",
+   "zh": "描金漆",
+   "ja": "蒔絵漆"
+  },
+  {
+   "id": "material_384",
+   "zh": "螺鈿漆",
+   "ja": "螺鈿漆"
+  },
+  {
+   "id": "material_385",
+   "zh": "剔紅",
+   "ja": "堆朱"
+  },
+  {
+   "id": "material_386",
+   "zh": "毛竹",
+   "ja": "孟宗竹"
+  },
+  {
+   "id": "material_387",
+   "zh": "竹筒",
+   "ja": "竹筒"
+  },
+  {
+   "id": "material_388",
+   "zh": "竹席",
+   "ja": "竹の筵"
+  },
+  {
+   "id": "material_389",
+   "zh": "蜂膠",
+   "ja": "蜂ヤニ"
+  },
+  {
+   "id": "material_390",
+   "zh": "蠟紙",
+   "ja": "蝋紙"
+  },
+  {
+   "id": "material_391",
+   "zh": "油繩",
+   "ja": "油縄"
+  },
+  {
+   "id": "material_392",
+   "zh": "絲繩",
+   "ja": "絹縄"
+  },
+  {
+   "id": "material_393",
+   "zh": "灑金箋",
+   "ja": "金砂子紙"
+  },
+  {
+   "id": "material_394",
+   "zh": "冷金箋",
+   "ja": "冷金紙"
+  },
+  {
+   "id": "material_395",
+   "zh": "銀箋",
+   "ja": "銀箋"
+  },
+  {
+   "id": "material_396",
+   "zh": "蠟箋",
+   "ja": "蝋箋"
+  },
+  {
+   "id": "material_397",
+   "zh": "雲母箋",
+   "ja": "雲母紙"
+  },
+  {
+   "id": "material_398",
+   "zh": "碧雲箋",
+   "ja": "碧雲箋"
+  },
+  {
+   "id": "material_399",
+   "zh": "花箋",
+   "ja": "花箋"
+  },
+  {
+   "id": "material_400",
+   "zh": "無字紙",
+   "ja": "無字の紙"
+  },
+  {
+   "id": "material_401",
+   "zh": "紫金墨",
+   "ja": "紫金墨"
+  },
+  {
+   "id": "material_402",
+   "zh": "藍墨",
+   "ja": "藍墨"
+  },
+  {
+   "id": "material_403",
+   "zh": "血墨",
+   "ja": "血墨"
+  },
+  {
+   "id": "material_404",
+   "zh": "印泥",
+   "ja": "印泥"
+  },
+  {
+   "id": "material_405",
+   "zh": "雲錦",
+   "ja": "雲錦"
+  },
+  {
+   "id": "material_406",
+   "zh": "鸞鳳錦",
+   "ja": "鸞鳳錦"
+  },
+  {
+   "id": "material_407",
+   "zh": "龍紋錦",
+   "ja": "龍紋錦"
+  },
+  {
+   "id": "material_408",
+   "zh": "青綢",
+   "ja": "青絹"
+  },
+  {
+   "id": "material_409",
+   "zh": "黃綢",
+   "ja": "黄絹"
+  },
+  {
+   "id": "material_410",
+   "zh": "紫綢",
+   "ja": "紫絹"
+  },
+  {
+   "id": "material_411",
+   "zh": "無縫天衣",
+   "ja": "天衣無縫"
+  },
+  {
+   "id": "material_412",
+   "zh": "絲絨",
+   "ja": "ビロード"
+  },
+  {
+   "id": "material_413",
+   "zh": "麻線",
+   "ja": "麻糸"
+  },
+  {
+   "id": "material_414",
+   "zh": "息壤",
+   "ja": "息壌"
+  },
+  {
+   "id": "material_415",
+   "zh": "不死木",
+   "ja": "不死の木"
+  },
+  {
+   "id": "material_416",
+   "zh": "扶桑神木",
+   "ja": "扶桑神木"
+  },
+  {
+   "id": "material_417",
+   "zh": "鋼胚",
+   "ja": "鋼の素材"
+  },
+  {
+   "id": "material_418",
+   "zh": "槍頭鋼",
+   "ja": "槍用鋼"
+  },
+  {
+   "id": "material_419",
+   "zh": "盾鋼",
+   "ja": "盾用鋼"
+  },
+  {
+   "id": "material_420",
+   "zh": "銅板",
+   "ja": "銅板"
+  },
+  {
+   "id": "material_421",
+   "zh": "銅網",
+   "ja": "銅の網"
+  },
+  {
+   "id": "material_422",
+   "zh": "金線錦",
+   "ja": "金糸錦"
+  },
+  {
+   "id": "material_423",
+   "zh": "軟金絲",
+   "ja": "柔らかい金糸"
+  },
+  {
+   "id": "material_424",
+   "zh": "雲母粉",
+   "ja": "雲母の粉"
+  },
+  {
+   "id": "material_425",
+   "zh": "珊瑚粉",
+   "ja": "珊瑚の粉"
+  },
+  {
+   "id": "material_426",
+   "zh": "貝粉",
+   "ja": "貝の粉"
+  },
+  {
+   "id": "material_427",
+   "zh": "孔雀石",
+   "ja": "孔雀石"
+  },
+  {
+   "id": "material_428",
+   "zh": "蜜蠟珠",
+   "ja": "蜜蝋の珠"
+  },
+  {
+   "id": "material_429",
+   "zh": "玉釵",
+   "ja": "玉のかんざし"
+  },
+  {
+   "id": "material_430",
+   "zh": "玉冠",
+   "ja": "玉冠"
+  },
+  {
+   "id": "material_431",
+   "zh": "玉盞",
+   "ja": "玉の杯"
+  },
+  {
+   "id": "material_432",
+   "zh": "翡翠珠",
+   "ja": "翡翠の珠"
+  },
+  {
+   "id": "material_433",
+   "zh": "寒玉榻",
+   "ja": "寒玉の榻"
+  },
+  {
+   "id": "material_434",
+   "zh": "鍛鐵",
+   "ja": "鍛鉄"
+  },
+  {
+   "id": "material_435",
+   "zh": "淬鋼",
+   "ja": "焼入れ鋼"
+  },
+  {
+   "id": "material_436",
+   "zh": "淬毒鋼",
+   "ja": "毒焼入れ鋼"
+  },
+  {
+   "id": "material_437",
+   "zh": "冰淬鋼",
+   "ja": "氷焼入れ鋼"
+  },
+  {
+   "id": "material_438",
+   "zh": "雷淬鋼",
+   "ja": "雷焼入れ鋼"
+  },
+  {
+   "id": "material_439",
+   "zh": "劍範",
+   "ja": "剣型"
+  },
+  {
+   "id": "material_440",
+   "zh": "刀範",
+   "ja": "刀の鋳型"
+  },
+  {
+   "id": "material_441",
+   "zh": "劍坯",
+   "ja": "剣の素地"
+  },
+  {
+   "id": "material_442",
+   "zh": "麻紙",
+   "ja": "麻紙"
+  },
+  {
+   "id": "material_443",
+   "zh": "油紙",
+   "ja": "油紙"
+  },
+  {
+   "id": "material_444",
+   "zh": "油布",
+   "ja": "油布"
+  },
+  {
+   "id": "material_445",
+   "zh": "蠟染布",
+   "ja": "蝋纈染め"
+  },
+  {
+   "id": "material_446",
+   "zh": "紗布",
+   "ja": "ガーゼ"
+  },
+  {
+   "id": "material_447",
+   "zh": "熟鹿革",
+   "ja": "熟した鹿革"
+  },
+  {
+   "id": "material_448",
+   "zh": "皮胎",
+   "ja": "革の素地"
+  },
+  {
+   "id": "material_449",
+   "zh": "骨笛料",
+   "ja": "骨笛の材"
+  },
+  {
+   "id": "material_450",
+   "zh": "青鹽",
+   "ja": "青塩"
+  },
+  {
+   "id": "material_451",
+   "zh": "鹽霜",
+   "ja": "塩の霜"
+  },
+  {
+   "id": "material_452",
+   "zh": "九幽玄鐵",
+   "ja": "九幽玄鉄"
+  },
+  {
+   "id": "material_453",
+   "zh": "玄天寒玉",
+   "ja": "玄天寒玉"
+  },
+  {
+   "id": "material_454",
+   "zh": "先天神鐵",
+   "ja": "先天神鉄"
+  },
+  {
+   "id": "material_455",
+   "zh": "鴻蒙紫金",
+   "ja": "鴻蒙紫金"
+  },
+  {
+   "id": "material_456",
+   "zh": "冰火晶",
+   "ja": "氷火晶"
+  },
+  {
+   "id": "material_457",
+   "zh": "天機石",
+   "ja": "天機石"
+  },
+  {
+   "id": "material_458",
+   "zh": "磁針",
+   "ja": "磁針"
+  },
+  {
+   "id": "material_459",
+   "zh": "鋼甲片",
+   "ja": "鋼の甲片"
+  },
+  {
+   "id": "material_460",
+   "zh": "銅鈴料",
+   "ja": "鈴用の銅"
+  },
+  {
+   "id": "material_461",
+   "zh": "銀鎖絲",
+   "ja": "銀の鎖糸"
+  },
+  {
+   "id": "material_462",
+   "zh": "金絲網",
+   "ja": "金糸の網"
+  },
+  {
+   "id": "material_463",
+   "zh": "翡翠粉",
+   "ja": "翡翠の粉"
+  },
+  {
+   "id": "material_464",
+   "zh": "黑玉",
+   "ja": "黒玉"
+  },
+  {
+   "id": "material_465",
+   "zh": "冰玉",
+   "ja": "氷玉"
+  },
+  {
+   "id": "material_466",
+   "zh": "火玉",
+   "ja": "火玉"
+  },
+  {
+   "id": "material_467",
+   "zh": "彩釉瓷",
+   "ja": "彩釉磁"
+  },
+  {
+   "id": "material_468",
+   "zh": "蠟封",
+   "ja": "蝋封"
+  },
+  {
+   "id": "material_469",
+   "zh": "絲帶",
+   "ja": "絹の帯"
+  },
+  {
+   "id": "material_470",
+   "zh": "麻袋布",
+   "ja": "麻袋の布"
+  },
+  {
+   "id": "material_471",
+   "zh": "烏木片",
+   "ja": "黒檀片"
+  },
+  {
+   "id": "material_472",
+   "zh": "竹纖維",
+   "ja": "竹繊維"
+  }
+ ],
+ "recipes": [
+  [
+   "mat_steel",
+   "mat_steel",
+   "material_001"
+  ],
+  [
+   "mat_steel",
+   "nat_blaze",
+   "material_001"
+  ],
+  [
+   "material_001",
+   "nat_blaze",
+   "material_002"
+  ],
+  [
+   "mat_steel",
+   "material_044",
+   "material_002"
+  ],
+  [
+   "material_001",
+   "wpn_hammer",
+   "material_003"
+  ],
+  [
+   "material_052",
+   "wpn_hammer",
+   "material_003"
+  ],
+  [
+   "material_001",
+   "gear_anvil",
+   "material_004"
+  ],
+  [
+   "mat_steel",
+   "material_050",
+   "material_004"
+  ],
+  [
+   "mat_steel",
+   "mat_copper",
+   "material_005"
+  ],
+  [
+   "material_001",
+   "herb_moss",
+   "material_005"
+  ],
+  [
+   "mat_steel",
+   "plc_desert",
+   "material_006"
+  ],
+  [
+   "material_001",
+   "plc_desert",
+   "material_006"
+  ],
+  [
+   "mat_steel",
+   "mat_ink",
+   "material_007"
+  ],
+  [
+   "material_041",
+   "mat_steel",
+   "material_007"
+  ],
+  [
+   "mat_copper",
+   "nat_blaze",
+   "material_008"
+  ],
+  [
+   "mat_copper",
+   "nat_magma",
+   "material_008"
+  ],
+  [
+   "mat_copper",
+   "trs_gold",
+   "material_009"
+  ],
+  [
+   "material_013",
+   "trs_gold",
+   "material_009"
+  ],
+  [
+   "mat_copper",
+   "mat_silver",
+   "material_010"
+  ],
+  [
+   "material_008",
+   "mat_moltengold",
+   "material_011"
+  ],
+  [
+   "material_013",
+   "material_035",
+   "material_011"
+  ],
+  [
+   "material_008",
+   "con_time",
+   "material_012"
+  ],
+  [
+   "mat_copper",
+   "material_016",
+   "material_012"
+  ],
+  [
+   "mat_copper",
+   "wpn_hammer",
+   "material_013"
+  ],
+  [
+   "material_017",
+   "gear_anvil",
+   "material_013"
+  ],
+  [
+   "mat_copper",
+   "mat_rope",
+   "material_014"
+  ],
+  [
+   "material_013",
+   "material_058",
+   "material_014"
+  ],
+  [
+   "mat_copper",
+   "plc_market",
+   "material_015"
+  ],
+  [
+   "material_009",
+   "wpn_hammer",
+   "material_015"
+  ],
+  [
+   "mat_copper",
+   "con_time",
+   "material_016"
+  ],
+  [
+   "material_008",
+   "water",
+   "material_016"
+  ],
+  [
+   "material_008",
+   "gear_furnace",
+   "material_017"
+  ],
+  [
+   "mat_copper",
+   "material_028",
+   "material_018"
+  ],
+  [
+   "material_008",
+   "material_028",
+   "material_018"
+  ],
+  [
+   "material_013",
+   "material_028",
+   "material_018"
+  ],
+  [
+   "mat_copper",
+   "material_024",
+   "material_019"
+  ],
+  [
+   "material_013",
+   "material_024",
+   "material_019"
+  ],
+  [
+   "mat_silver",
+   "mat_ingot",
+   "material_020"
+  ],
+  [
+   "mat_silver",
+   "mat_brick",
+   "material_020"
+  ],
+  [
+   "mat_silver",
+   "wpn_hammer",
+   "material_021"
+  ],
+  [
+   "material_020",
+   "wpn_hammer",
+   "material_021"
+  ],
+  [
+   "mat_silver",
+   "mat_rope",
+   "material_022"
+  ],
+  [
+   "material_020",
+   "material_049",
+   "material_022"
+  ],
+  [
+   "mat_silver",
+   "gear_anvil",
+   "material_023"
+  ],
+  [
+   "material_021",
+   "wpn_hammer",
+   "material_023"
+  ],
+  [
+   "mat_silver",
+   "nat_dust",
+   "material_024"
+  ],
+  [
+   "mat_silver",
+   "gear_furnace",
+   "material_025"
+  ],
+  [
+   "trs_gold",
+   "mat_ingot",
+   "material_026"
+  ],
+  [
+   "mat_ingot",
+   "mat_moltengold",
+   "material_026"
+  ],
+  [
+   "material_026",
+   "wpn_hammer",
+   "material_027"
+  ],
+  [
+   "material_026",
+   "nat_dust",
+   "material_028"
+  ],
+  [
+   "trs_gold",
+   "mat_rope",
+   "material_029"
+  ],
+  [
+   "material_027",
+   "material_058",
+   "material_029"
+  ],
+  [
+   "material_101",
+   "trs_gold",
+   "material_030"
+  ],
+  [
+   "material_029",
+   "material_022",
+   "material_031"
+  ],
+  [
+   "material_022",
+   "mat_steel",
+   "material_031"
+  ],
+  [
+   "mat_steel",
+   "material_029",
+   "material_032"
+  ],
+  [
+   "mat_moltengold",
+   "nat_blaze",
+   "material_033"
+  ],
+  [
+   "mat_moltengold",
+   "trs_gold",
+   "material_034"
+  ],
+  [
+   "material_026",
+   "mat_moltengold",
+   "material_034"
+  ],
+  [
+   "trs_gold",
+   "material_008",
+   "material_035"
+  ],
+  [
+   "material_033",
+   "material_011",
+   "material_035"
+  ],
+  [
+   "mat_coldiron",
+   "nat_dark",
+   "material_036"
+  ],
+  [
+   "mat_coldiron",
+   "material_041",
+   "material_036"
+  ],
+  [
+   "material_036",
+   "mat_steel",
+   "material_037"
+  ],
+  [
+   "material_007",
+   "mat_coldiron",
+   "material_037"
+  ],
+  [
+   "mat_coldiron",
+   "trs_iceheart",
+   "material_038"
+  ],
+  [
+   "mat_coldiron",
+   "material_314",
+   "material_038"
+  ],
+  [
+   "mat_coldiron",
+   "con_time",
+   "material_039"
+  ],
+  [
+   "material_038",
+   "con_time",
+   "material_039"
+  ],
+  [
+   "mat_iron",
+   "nat_magma",
+   "material_040"
+  ],
+  [
+   "material_045",
+   "nat_magma",
+   "material_040"
+  ],
+  [
+   "mat_iron",
+   "mat_charcoal",
+   "material_041"
+  ],
+  [
+   "mat_iron",
+   "nat_dark",
+   "material_041"
+  ],
+  [
+   "mat_iron",
+   "wpn_hammer",
+   "material_042"
+  ],
+  [
+   "mat_iron",
+   "gear_anvil",
+   "material_042"
+  ],
+  [
+   "material_042",
+   "mat_charcoal",
+   "material_043"
+  ],
+  [
+   "material_043",
+   "nat_blaze",
+   "material_044"
+  ],
+  [
+   "mat_iron",
+   "gear_furnace",
+   "material_045"
+  ],
+  [
+   "mat_ironembryo",
+   "gear_furnace",
+   "material_045"
+  ],
+  [
+   "material_045",
+   "water",
+   "material_046"
+  ],
+  [
+   "material_045",
+   "mat_clay",
+   "material_046"
+  ],
+  [
+   "material_045",
+   "mat_brick",
+   "material_047"
+  ],
+  [
+   "material_045",
+   "gear_chest",
+   "material_047"
+  ],
+  [
+   "mat_ore",
+   "wpn_hammer",
+   "material_048"
+  ],
+  [
+   "mat_ore",
+   "material_057",
+   "material_048"
+  ],
+  [
+   "material_042",
+   "mat_rope",
+   "material_049"
+  ],
+  [
+   "mat_steel",
+   "mat_rope",
+   "material_050"
+  ],
+  [
+   "mat_steel",
+   "material_049",
+   "material_050"
+  ],
+  [
+   "material_042",
+   "wpn_hammer",
+   "material_051"
+  ],
+  [
+   "material_046",
+   "wpn_hammer",
+   "material_051"
+  ],
+  [
+   "mat_steel",
+   "wpn_hammer",
+   "material_052"
+  ],
+  [
+   "mat_steel",
+   "gear_anvil",
+   "material_052"
+  ],
+  [
+   "material_049",
+   "material_049",
+   "material_053"
+  ],
+  [
+   "material_049",
+   "gear_net",
+   "material_054"
+  ],
+  [
+   "material_049",
+   "gear_anvil",
+   "material_055"
+  ],
+  [
+   "material_042",
+   "wpn_rod",
+   "material_056"
+  ],
+  [
+   "nat_stone",
+   "mat_steel",
+   "material_057"
+  ],
+  [
+   "material_052",
+   "material_057",
+   "material_058"
+  ],
+  [
+   "material_001",
+   "material_057",
+   "material_059"
+  ],
+  [
+   "material_001",
+   "material_058",
+   "material_059"
+  ],
+  [
+   "trs_blackgold",
+   "mat_steel",
+   "material_060"
+  ],
+  [
+   "material_062",
+   "trs_meteor",
+   "material_061"
+  ],
+  [
+   "material_043",
+   "nat_moon",
+   "material_062"
+  ],
+  [
+   "mat_iron",
+   "nat_thunder",
+   "material_063"
+  ],
+  [
+   "material_060",
+   "trs_meteor",
+   "material_064"
+  ],
+  [
+   "material_037",
+   "material_061",
+   "material_065"
+  ],
+  [
+   "material_040",
+   "trs_fireorb",
+   "material_066"
+  ],
+  [
+   "mat_ore",
+   "eli_mercury",
+   "material_067"
+  ],
+  [
+   "mat_jade",
+   "nat_snow",
+   "material_068"
+  ],
+  [
+   "mat_jade",
+   "material_173",
+   "material_069"
+  ],
+  [
+   "mat_jade",
+   "herb_leaf",
+   "material_070"
+  ],
+  [
+   "mat_jade",
+   "material_132",
+   "material_070"
+  ],
+  [
+   "mat_jade",
+   "herb_moss",
+   "material_071"
+  ],
+  [
+   "material_069",
+   "herb_moss",
+   "material_071"
+  ],
+  [
+   "mat_jade",
+   "nat_dark",
+   "material_072"
+  ],
+  [
+   "mat_jade",
+   "herb_chrysan",
+   "material_073"
+  ],
+  [
+   "mat_jade",
+   "material_113",
+   "material_073"
+  ],
+  [
+   "mat_jade",
+   "eli_cinnabar",
+   "material_074"
+  ],
+  [
+   "mat_jade",
+   "material_130",
+   "material_074"
+  ],
+  [
+   "mat_jade",
+   "herb_peony",
+   "material_075"
+  ],
+  [
+   "material_068",
+   "bst_goat",
+   "material_076"
+  ],
+  [
+   "material_068",
+   "material_233",
+   "material_076"
+  ],
+  [
+   "mat_jade",
+   "plc_hotspring",
+   "material_077"
+  ],
+  [
+   "material_068",
+   "plc_hotspring",
+   "material_077"
+  ],
+  [
+   "mat_jade",
+   "nat_frost",
+   "material_078"
+  ],
+  [
+   "material_068",
+   "nat_frost",
+   "material_078"
+  ],
+  [
+   "material_078",
+   "con_time",
+   "material_079"
+  ],
+  [
+   "material_074",
+   "plc_grave",
+   "material_080"
+  ],
+  [
+   "material_074",
+   "con_hate",
+   "material_080"
+  ],
+  [
+   "mat_jade",
+   "material_057",
+   "material_081"
+  ],
+  [
+   "mat_jade",
+   "material_118",
+   "material_081"
+  ],
+  [
+   "material_068",
+   "eli_dew",
+   "material_082"
+  ],
+  [
+   "mat_jade",
+   "material_022",
+   "material_083"
+  ],
+  [
+   "mat_jade",
+   "material_029",
+   "material_083"
+  ],
+  [
+   "mat_jade",
+   "material_053",
+   "material_084"
+  ],
+  [
+   "material_068",
+   "material_283",
+   "material_084"
+  ],
+  [
+   "material_068",
+   "trs_jadedisc",
+   "material_085"
+  ],
+  [
+   "material_068",
+   "trs_seal",
+   "material_086"
+  ],
+  [
+   "material_076",
+   "trs_jadedisc",
+   "material_087"
+  ],
+  [
+   "trs_jadedisc",
+   "material_329",
+   "material_087"
+  ],
+  [
+   "material_068",
+   "nat_moon",
+   "material_088"
+  ],
+  [
+   "material_073",
+   "nat_sun",
+   "material_089"
+  ],
+  [
+   "material_080",
+   "bst_dragon",
+   "material_090"
+  ],
+  [
+   "mat_jade",
+   "trs_pearl",
+   "material_091"
+  ],
+  [
+   "material_093",
+   "mat_jade",
+   "material_092"
+  ],
+  [
+   "material_093",
+   "material_068",
+   "material_092"
+  ],
+  [
+   "material_094",
+   "nat_stone",
+   "material_093"
+  ],
+  [
+   "mat_charcoal",
+   "nat_stone",
+   "material_094"
+  ],
+  [
+   "mat_ore",
+   "herb_moss",
+   "material_095"
+  ],
+  [
+   "material_095",
+   "wpn_spade",
+   "material_096"
+  ],
+  [
+   "material_095",
+   "wpn_hammer",
+   "material_096"
+  ],
+  [
+   "material_093",
+   "wpn_hammer",
+   "material_097"
+  ],
+  [
+   "material_096",
+   "gear_brush",
+   "material_098"
+  ],
+  [
+   "material_093",
+   "nat_cloud",
+   "material_099"
+  ],
+  [
+   "mat_ore",
+   "nat_river",
+   "material_100"
+  ],
+  [
+   "mat_ore",
+   "nat_waterfall",
+   "material_100"
+  ],
+  [
+   "material_100",
+   "wpn_hammer",
+   "material_101"
+  ],
+  [
+   "plc_desert",
+   "mat_ore",
+   "material_101"
+  ],
+  [
+   "material_101",
+   "material_094",
+   "material_102"
+  ],
+  [
+   "material_094",
+   "water",
+   "material_103"
+  ],
+  [
+   "material_101",
+   "nat_blaze",
+   "material_104"
+  ],
+  [
+   "material_101",
+   "fire",
+   "material_104"
+  ],
+  [
+   "material_104",
+   "trs_gem",
+   "material_105"
+  ],
+  [
+   "material_104",
+   "material_131",
+   "material_105"
+  ],
+  [
+   "material_105",
+   "mat_rope",
+   "material_106"
+  ],
+  [
+   "material_273",
+   "material_105",
+   "material_107"
+  ],
+  [
+   "material_273",
+   "material_274",
+   "material_107"
+  ],
+  [
+   "material_105",
+   "material_134",
+   "material_108"
+  ],
+  [
+   "material_105",
+   "material_332",
+   "material_108"
+  ],
+  [
+   "material_105",
+   "nat_rainbow",
+   "material_109"
+  ],
+  [
+   "material_427",
+   "nat_rainbow",
+   "material_109"
+  ],
+  [
+   "material_109",
+   "nat_sun",
+   "material_110"
+  ],
+  [
+   "mat_ore",
+   "nat_frost",
+   "material_111"
+  ],
+  [
+   "material_111",
+   "herb_orchid",
+   "material_112"
+  ],
+  [
+   "material_111",
+   "herb_chrysan",
+   "material_113"
+  ],
+  [
+   "material_111",
+   "trs_fireorb",
+   "material_114"
+  ],
+  [
+   "material_111",
+   "material_337",
+   "material_114"
+  ],
+  [
+   "material_111",
+   "trs_iceheart",
+   "material_115"
+  ],
+  [
+   "material_111",
+   "nat_thunder",
+   "material_116"
+  ],
+  [
+   "material_111",
+   "mar_hardgong",
+   "material_117"
+  ],
+  [
+   "material_117",
+   "wpn_hammer",
+   "material_118"
+  ],
+  [
+   "material_001",
+   "material_117",
+   "material_119"
+  ],
+  [
+   "material_111",
+   "nat_blaze",
+   "material_120"
+  ],
+  [
+   "material_111",
+   "nat_sea",
+   "material_121"
+  ],
+  [
+   "material_111",
+   "herb_leaf",
+   "material_122"
+  ],
+  [
+   "trs_gem",
+   "material_131",
+   "material_123"
+  ],
+  [
+   "nat_magma",
+   "material_104",
+   "material_124"
+  ],
+  [
+   "nat_magma",
+   "material_111",
+   "material_125"
+  ],
+  [
+   "material_111",
+   "nat_cloud",
+   "material_126"
+  ],
+  [
+   "mat_ore",
+   "nat_stone",
+   "material_127"
+  ],
+  [
+   "mat_ore",
+   "mat_iron",
+   "material_128"
+  ],
+  [
+   "mat_ore",
+   "material_041",
+   "material_128"
+  ],
+  [
+   "mat_ore",
+   "plc_cave",
+   "material_129"
+  ],
+  [
+   "mat_ore",
+   "plc_grave",
+   "material_129"
+  ],
+  [
+   "mat_ore",
+   "eli_cinnabar",
+   "material_130"
+  ],
+  [
+   "mat_ore",
+   "nat_sea",
+   "material_131"
+  ],
+  [
+   "mat_ore",
+   "material_121",
+   "material_131"
+  ],
+  [
+   "mat_ore",
+   "herb_leaf",
+   "material_132"
+  ],
+  [
+   "mat_ore",
+   "material_070",
+   "material_132"
+  ],
+  [
+   "mat_porcelain",
+   "nat_sea",
+   "material_133"
+  ],
+  [
+   "bst_crab",
+   "mat_porcelain",
+   "material_133"
+  ],
+  [
+   "material_133",
+   "nat_moon",
+   "material_134"
+  ],
+  [
+   "material_133",
+   "trs_pearl",
+   "material_134"
+  ],
+  [
+   "material_134",
+   "wpn_hammer",
+   "material_135"
+  ],
+  [
+   "material_134",
+   "con_sorrow",
+   "material_136"
+  ],
+  [
+   "material_133",
+   "mat_timber",
+   "material_137"
+  ],
+  [
+   "material_133",
+   "nat_sea",
+   "material_138"
+  ],
+  [
+   "bst_crab",
+   "material_133",
+   "material_139"
+  ],
+  [
+   "mat_timber",
+   "wpn_axe",
+   "material_140"
+  ],
+  [
+   "mat_timber",
+   "material_058",
+   "material_140"
+  ],
+  [
+   "material_140",
+   "wpn_dagger",
+   "material_141"
+  ],
+  [
+   "material_140",
+   "wpn_hammer",
+   "material_142"
+  ],
+  [
+   "mat_timber",
+   "gear_pot",
+   "material_143"
+  ],
+  [
+   "mat_timber",
+   "herb_pine",
+   "material_144"
+  ],
+  [
+   "mat_timber",
+   "herb_willow",
+   "material_145"
+  ],
+  [
+   "mat_timber",
+   "trs_peach",
+   "material_146"
+  ],
+  [
+   "material_150",
+   "herb_orchid",
+   "material_147"
+  ],
+  [
+   "mat_timber",
+   "nat_dark",
+   "material_148"
+  ],
+  [
+   "herb_tree",
+   "mat_timber",
+   "material_149"
+  ],
+  [
+   "mat_timber",
+   "herb_flower",
+   "material_150"
+  ],
+  [
+   "mat_timber",
+   "bst_phoenix",
+   "material_151"
+  ],
+  [
+   "material_151",
+   "nat_blaze",
+   "material_152"
+  ],
+  [
+   "mat_timber",
+   "nat_sun",
+   "material_153"
+  ],
+  [
+   "material_149",
+   "con_time",
+   "material_154"
+  ],
+  [
+   "mat_timber",
+   "wpn_dagger",
+   "material_155"
+  ],
+  [
+   "herb_tree",
+   "material_058",
+   "material_155"
+  ],
+  [
+   "material_155",
+   "herb_pine",
+   "material_156"
+  ],
+  [
+   "herb_pine",
+   "mat_charcoal",
+   "material_157"
+  ],
+  [
+   "material_155",
+   "bst_dragon",
+   "material_158"
+  ],
+  [
+   "mat_timber",
+   "eli_oil",
+   "material_159"
+  ],
+  [
+   "mat_timber",
+   "herb_seed",
+   "material_159"
+  ],
+  [
+   "material_155",
+   "gear_bucket",
+   "material_160"
+  ],
+  [
+   "material_155",
+   "eli_oil",
+   "material_160"
+  ],
+  [
+   "material_160",
+   "eli_cinnabar",
+   "material_161"
+  ],
+  [
+   "material_160",
+   "mat_ink",
+   "material_162"
+  ],
+  [
+   "material_160",
+   "material_028",
+   "material_163"
+  ],
+  [
+   "bst_fish",
+   "material_155",
+   "material_164"
+  ],
+  [
+   "material_244",
+   "material_155",
+   "material_165"
+  ],
+  [
+   "material_235",
+   "gear_pot",
+   "material_166"
+  ],
+  [
+   "mat_charcoal",
+   "material_094",
+   "material_167"
+  ],
+  [
+   "mat_charcoal",
+   "wpn_hammer",
+   "material_168"
+  ],
+  [
+   "mat_bamboo",
+   "wpn_dagger",
+   "material_169"
+  ],
+  [
+   "material_169",
+   "material_058",
+   "material_170"
+  ],
+  [
+   "material_169",
+   "wpn_dagger",
+   "material_170"
+  ],
+  [
+   "material_170",
+   "mat_rope",
+   "material_171"
+  ],
+  [
+   "mat_bamboo",
+   "nat_blaze",
+   "material_172"
+  ],
+  [
+   "mat_bamboo",
+   "herb_moss",
+   "material_173"
+  ],
+  [
+   "mat_bamboo",
+   "con_sorrow",
+   "material_174"
+  ],
+  [
+   "material_173",
+   "con_sorrow",
+   "material_174"
+  ],
+  [
+   "mat_bamboo",
+   "herb_peony",
+   "material_175"
+  ],
+  [
+   "material_173",
+   "herb_peony",
+   "material_175"
+  ],
+  [
+   "material_173",
+   "mat_ink",
+   "material_176"
+  ],
+  [
+   "herb_vine",
+   "material_169",
+   "material_177"
+  ],
+  [
+   "herb_vine",
+   "mat_cloth",
+   "material_178"
+  ],
+  [
+   "material_169",
+   "material_057",
+   "material_179"
+  ],
+  [
+   "material_251",
+   "material_169",
+   "material_180"
+  ],
+  [
+   "material_052",
+   "material_169",
+   "material_181"
+  ],
+  [
+   "mat_rope",
+   "material_243",
+   "material_182"
+  ],
+  [
+   "material_208",
+   "material_243",
+   "material_182"
+  ],
+  [
+   "material_169",
+   "material_243",
+   "material_183"
+  ],
+  [
+   "mat_bamboo",
+   "mat_paper",
+   "material_184"
+  ],
+  [
+   "material_169",
+   "water",
+   "material_184"
+  ],
+  [
+   "material_143",
+   "mat_bamboo",
+   "material_185"
+  ],
+  [
+   "mat_paper",
+   "per_scholar",
+   "material_186"
+  ],
+  [
+   "material_184",
+   "per_scholar",
+   "material_186"
+  ],
+  [
+   "mat_paper",
+   "material_028",
+   "material_187"
+  ],
+  [
+   "mat_paper",
+   "eli_cinnabar",
+   "material_188"
+  ],
+  [
+   "mat_paper",
+   "material_222",
+   "material_188"
+  ],
+  [
+   "mat_paper",
+   "eli_realgar",
+   "material_189"
+  ],
+  [
+   "mat_paper",
+   "material_226",
+   "material_189"
+  ],
+  [
+   "mat_paper",
+   "plc_grave",
+   "material_190"
+  ],
+  [
+   "material_209",
+   "mat_paper",
+   "material_191"
+  ],
+  [
+   "material_209",
+   "material_186",
+   "material_191"
+  ],
+  [
+   "material_191",
+   "gear_brush",
+   "material_192"
+  ],
+  [
+   "material_186",
+   "gear_brush",
+   "material_192"
+  ],
+  [
+   "material_140",
+   "gear_brush",
+   "material_193"
+  ],
+  [
+   "material_209",
+   "gear_brush",
+   "material_194"
+  ],
+  [
+   "material_233",
+   "gear_brush",
+   "material_195"
+  ],
+  [
+   "material_098",
+   "material_186",
+   "material_196"
+  ],
+  [
+   "material_157",
+   "material_164",
+   "material_197"
+  ],
+  [
+   "mat_ink",
+   "material_157",
+   "material_197"
+  ],
+  [
+   "material_159",
+   "nat_blaze",
+   "material_198"
+  ],
+  [
+   "material_198",
+   "material_164",
+   "material_199"
+  ],
+  [
+   "mat_ink",
+   "eli_cinnabar",
+   "material_200"
+  ],
+  [
+   "mat_ink",
+   "material_130",
+   "material_200"
+  ],
+  [
+   "mat_ink",
+   "material_028",
+   "material_201"
+  ],
+  [
+   "mat_ink",
+   "mat_ingot",
+   "material_202"
+  ],
+  [
+   "mat_ink",
+   "mat_brick",
+   "material_202"
+  ],
+  [
+   "mat_ink",
+   "water",
+   "material_203"
+  ],
+  [
+   "mat_ink",
+   "gear_bucket",
+   "material_203"
+  ],
+  [
+   "mat_ink",
+   "nat_rainbow",
+   "material_204"
+  ],
+  [
+   "mat_ink",
+   "material_427",
+   "material_204"
+  ],
+  [
+   "herb_peony",
+   "material_188",
+   "material_205"
+  ],
+  [
+   "herb_peony",
+   "material_130",
+   "material_205"
+  ],
+  [
+   "bst_silkworm",
+   "mat_paper",
+   "material_206"
+  ],
+  [
+   "material_206",
+   "water",
+   "material_207"
+  ],
+  [
+   "material_206",
+   "gear_pot",
+   "material_207"
+  ],
+  [
+   "material_207",
+   "mat_rope",
+   "material_208"
+  ],
+  [
+   "material_207",
+   "mat_cloth",
+   "material_209"
+  ],
+  [
+   "material_207",
+   "material_208",
+   "material_209"
+  ],
+  [
+   "material_209",
+   "material_029",
+   "material_210"
+  ],
+  [
+   "material_209",
+   "nat_mist",
+   "material_211"
+  ],
+  [
+   "material_209",
+   "nat_cloud",
+   "material_211"
+  ],
+  [
+   "material_209",
+   "per_dancer",
+   "material_212"
+  ],
+  [
+   "material_209",
+   "eli_cinnabar",
+   "material_213"
+  ],
+  [
+   "material_209",
+   "material_222",
+   "material_213"
+  ],
+  [
+   "material_209",
+   "nat_snow",
+   "material_214"
+  ],
+  [
+   "material_209",
+   "material_223",
+   "material_214"
+  ],
+  [
+   "material_209",
+   "mat_ink",
+   "material_215"
+  ],
+  [
+   "material_209",
+   "material_225",
+   "material_215"
+  ],
+  [
+   "material_208",
+   "wpn_needle",
+   "material_216"
+  ],
+  [
+   "material_208",
+   "eli_cinnabar",
+   "material_216"
+  ],
+  [
+   "material_209",
+   "material_216",
+   "material_217"
+  ],
+  [
+   "material_207",
+   "nat_frost",
+   "material_218"
+  ],
+  [
+   "material_207",
+   "material_078",
+   "material_218"
+  ],
+  [
+   "material_218",
+   "material_029",
+   "material_219"
+  ],
+  [
+   "material_211",
+   "nat_sea",
+   "material_220"
+  ],
+  [
+   "mat_cloth",
+   "mat_rope",
+   "material_221"
+  ],
+  [
+   "mat_cloth",
+   "mat_cloth",
+   "material_221"
+  ],
+  [
+   "mat_cloth",
+   "eli_cinnabar",
+   "material_222"
+  ],
+  [
+   "mat_cloth",
+   "material_205",
+   "material_222"
+  ],
+  [
+   "mat_cloth",
+   "material_094",
+   "material_223"
+  ],
+  [
+   "mat_cloth",
+   "material_093",
+   "material_223"
+  ],
+  [
+   "mat_cloth",
+   "material_131",
+   "material_224"
+  ],
+  [
+   "mat_cloth",
+   "mat_ink",
+   "material_225"
+  ],
+  [
+   "mat_cloth",
+   "material_255",
+   "material_225"
+  ],
+  [
+   "mat_cloth",
+   "eli_realgar",
+   "material_226"
+  ],
+  [
+   "herb_seed",
+   "mat_cloth",
+   "material_227"
+  ],
+  [
+   "material_227",
+   "mat_rope",
+   "material_228"
+  ],
+  [
+   "material_228",
+   "mat_cloth",
+   "material_229"
+  ],
+  [
+   "material_227",
+   "mat_cloth",
+   "material_229"
+  ],
+  [
+   "bst_wolf",
+   "material_058",
+   "material_230"
+  ],
+  [
+   "bst_bear",
+   "material_058",
+   "material_231"
+  ],
+  [
+   "bst_deer",
+   "material_058",
+   "material_232"
+  ],
+  [
+   "bst_goat",
+   "material_058",
+   "material_233"
+  ],
+  [
+   "bst_snake",
+   "material_058",
+   "material_234"
+  ],
+  [
+   "material_230",
+   "mat_salt",
+   "material_235"
+  ],
+  [
+   "material_230",
+   "material_094",
+   "material_235"
+  ],
+  [
+   "material_235",
+   "mat_rope",
+   "material_236"
+  ],
+  [
+   "material_235",
+   "material_413",
+   "material_236"
+  ],
+  [
+   "material_235",
+   "material_058",
+   "material_237"
+  ],
+  [
+   "material_235",
+   "material_051",
+   "material_238"
+  ],
+  [
+   "material_235",
+   "water",
+   "material_239"
+  ],
+  [
+   "material_235",
+   "eli_oil",
+   "material_240"
+  ],
+  [
+   "material_235",
+   "material_252",
+   "material_240"
+  ],
+  [
+   "material_235",
+   "nat_blaze",
+   "material_241"
+  ],
+  [
+   "material_235",
+   "material_160",
+   "material_242"
+  ],
+  [
+   "material_230",
+   "mat_rope",
+   "material_243"
+  ],
+  [
+   "plc_grave",
+   "material_094",
+   "material_244"
+  ],
+  [
+   "material_244",
+   "wpn_hammer",
+   "material_245"
+  ],
+  [
+   "material_244",
+   "material_057",
+   "material_246"
+  ],
+  [
+   "material_245",
+   "material_057",
+   "material_246"
+  ],
+  [
+   "material_244",
+   "material_058",
+   "material_247"
+  ],
+  [
+   "material_245",
+   "material_058",
+   "material_247"
+  ],
+  [
+   "material_244",
+   "nat_blaze",
+   "material_248"
+  ],
+  [
+   "material_244",
+   "mat_sulfur",
+   "material_248"
+  ],
+  [
+   "bst_wolf",
+   "material_244",
+   "material_249"
+  ],
+  [
+   "bst_wolf",
+   "material_245",
+   "material_249"
+  ],
+  [
+   "bst_deer",
+   "material_245",
+   "material_250"
+  ],
+  [
+   "bst_deer",
+   "material_244",
+   "material_250"
+  ],
+  [
+   "bst_bird",
+   "mat_cloth",
+   "material_251"
+  ],
+  [
+   "bst_bee",
+   "material_155",
+   "material_252"
+  ],
+  [
+   "material_252",
+   "trs_amber",
+   "material_253"
+  ],
+  [
+   "material_252",
+   "eli_pill",
+   "material_254"
+  ],
+  [
+   "material_252",
+   "eli_powder",
+   "material_254"
+  ],
+  [
+   "mat_ore",
+   "mat_charcoal",
+   "material_255"
+  ],
+  [
+   "mat_ore",
+   "plc_mine",
+   "material_255"
+  ],
+  [
+   "eli_oil",
+   "mat_sulfur",
+   "material_256"
+  ],
+  [
+   "herb_grass",
+   "material_127",
+   "material_257"
+  ],
+  [
+   "herb_mugwort",
+   "material_127",
+   "material_257"
+  ],
+  [
+   "mat_rope",
+   "mat_gunpowder",
+   "material_258"
+  ],
+  [
+   "material_391",
+   "mat_gunpowder",
+   "material_258"
+  ],
+  [
+   "mat_gunpowder",
+   "nat_rainbow",
+   "material_259"
+  ],
+  [
+   "material_159",
+   "gear_lantern",
+   "material_260"
+  ],
+  [
+   "mat_salt",
+   "nat_sea",
+   "material_261"
+  ],
+  [
+   "mat_salt",
+   "material_133",
+   "material_261"
+  ],
+  [
+   "mat_salt",
+   "nat_stone",
+   "material_262"
+  ],
+  [
+   "mat_salt",
+   "mat_cloth",
+   "material_263"
+  ],
+  [
+   "mat_salt",
+   "water",
+   "material_264"
+  ],
+  [
+   "mat_salt",
+   "mat_brick",
+   "material_265"
+  ],
+  [
+   "mat_porcelain",
+   "herb_moss",
+   "material_266"
+  ],
+  [
+   "mat_porcelain",
+   "material_095",
+   "material_266"
+  ],
+  [
+   "mat_porcelain",
+   "material_093",
+   "material_267"
+  ],
+  [
+   "mat_porcelain",
+   "material_377",
+   "material_267"
+  ],
+  [
+   "material_267",
+   "material_131",
+   "material_268"
+  ],
+  [
+   "material_267",
+   "material_402",
+   "material_268"
+  ],
+  [
+   "material_267",
+   "nat_rainbow",
+   "material_269"
+  ],
+  [
+   "mat_clay",
+   "eli_cinnabar",
+   "material_270"
+  ],
+  [
+   "mat_clay",
+   "water",
+   "material_271"
+  ],
+  [
+   "material_271",
+   "mat_brick",
+   "material_272"
+  ],
+  [
+   "material_271",
+   "fire",
+   "material_272"
+  ],
+  [
+   "mat_clay",
+   "mat_bamboo",
+   "material_273"
+  ],
+  [
+   "mat_porcelain",
+   "material_104",
+   "material_274"
+  ],
+  [
+   "mat_porcelain",
+   "material_105",
+   "material_274"
+  ],
+  [
+   "mat_brick",
+   "herb_moss",
+   "material_275"
+  ],
+  [
+   "mat_brick",
+   "trs_gold",
+   "material_276"
+  ],
+  [
+   "mat_brick",
+   "material_026",
+   "material_276"
+  ],
+  [
+   "mat_brick",
+   "plc_city",
+   "material_277"
+  ],
+  [
+   "mat_clay",
+   "material_140",
+   "material_278"
+  ],
+  [
+   "mat_clay",
+   "wpn_hammer",
+   "material_279"
+  ],
+  [
+   "mat_clay",
+   "material_097",
+   "material_279"
+  ],
+  [
+   "mat_steel",
+   "mat_ingot",
+   "material_280"
+  ],
+  [
+   "mat_steel",
+   "wpn_rod",
+   "material_281"
+  ],
+  [
+   "material_050",
+   "wpn_hammer",
+   "material_282"
+  ],
+  [
+   "material_050",
+   "material_050",
+   "material_283"
+  ],
+  [
+   "material_050",
+   "mat_rope",
+   "material_284"
+  ],
+  [
+   "material_050",
+   "gear_net",
+   "material_285"
+  ],
+  [
+   "material_052",
+   "mat_bamboo",
+   "material_286"
+  ],
+  [
+   "material_042",
+   "mat_bamboo",
+   "material_287"
+  ],
+  [
+   "material_013",
+   "mat_bamboo",
+   "material_288"
+  ],
+  [
+   "material_014",
+   "wpn_hammer",
+   "material_289"
+  ],
+  [
+   "material_014",
+   "material_014",
+   "material_290"
+  ],
+  [
+   "material_290",
+   "material_290",
+   "material_291"
+  ],
+  [
+   "material_022",
+   "material_022",
+   "material_292"
+  ],
+  [
+   "material_292",
+   "material_292",
+   "material_293"
+  ],
+  [
+   "material_029",
+   "material_029",
+   "material_294"
+  ],
+  [
+   "material_294",
+   "material_294",
+   "material_295"
+  ],
+  [
+   "material_027",
+   "herb_leaf",
+   "material_296"
+  ],
+  [
+   "material_023",
+   "herb_leaf",
+   "material_297"
+  ],
+  [
+   "material_051",
+   "material_028",
+   "material_298"
+  ],
+  [
+   "eli_mercury",
+   "material_028",
+   "material_299"
+  ],
+  [
+   "material_008",
+   "gear_bell",
+   "material_300"
+  ],
+  [
+   "material_067",
+   "eli_cinnabar",
+   "material_301"
+  ],
+  [
+   "material_067",
+   "material_014",
+   "material_302"
+  ],
+  [
+   "material_059",
+   "wpn_blade",
+   "material_303"
+  ],
+  [
+   "material_059",
+   "wpn_sword",
+   "material_304"
+  ],
+  [
+   "material_052",
+   "wpn_armor",
+   "material_305"
+  ],
+  [
+   "material_050",
+   "wpn_needle",
+   "material_306"
+  ],
+  [
+   "material_060",
+   "material_050",
+   "material_307"
+  ],
+  [
+   "material_036",
+   "material_049",
+   "material_308"
+  ],
+  [
+   "material_036",
+   "material_048",
+   "material_309"
+  ],
+  [
+   "material_036",
+   "wpn_hammer",
+   "material_310"
+  ],
+  [
+   "material_062",
+   "nat_blaze",
+   "material_311"
+  ],
+  [
+   "material_062",
+   "nat_frost",
+   "material_312"
+  ],
+  [
+   "material_062",
+   "nat_thunder",
+   "material_313"
+  ],
+  [
+   "mat_coldiron",
+   "nat_frost",
+   "material_314"
+  ],
+  [
+   "material_314",
+   "con_time",
+   "material_315"
+  ],
+  [
+   "material_061",
+   "con_void",
+   "material_316"
+  ],
+  [
+   "material_034",
+   "trs_spiritstone",
+   "material_317"
+  ],
+  [
+   "material_035",
+   "material_036",
+   "material_318"
+  ],
+  [
+   "material_040",
+   "bst_dragon",
+   "material_319"
+  ],
+  [
+   "material_033",
+   "bst_phoenix",
+   "material_320"
+  ],
+  [
+   "material_067",
+   "mat_salt",
+   "material_321"
+  ],
+  [
+   "material_068",
+   "mat_rope",
+   "material_322"
+  ],
+  [
+   "material_322",
+   "material_029",
+   "material_323"
+  ],
+  [
+   "mat_jade",
+   "material_058",
+   "material_324"
+  ],
+  [
+   "material_068",
+   "gear_lock",
+   "material_325"
+  ],
+  [
+   "material_068",
+   "material_237",
+   "material_326"
+  ],
+  [
+   "mat_jade",
+   "material_105",
+   "material_327"
+  ],
+  [
+   "material_077",
+   "eli_dew",
+   "material_328"
+  ],
+  [
+   "material_076",
+   "sec_kunlun",
+   "material_329"
+  ],
+  [
+   "material_070",
+   "material_173",
+   "material_330"
+  ],
+  [
+   "material_089",
+   "material_088",
+   "material_331"
+  ],
+  [
+   "material_105",
+   "trs_gem",
+   "material_332"
+  ],
+  [
+   "material_105",
+   "material_117",
+   "material_333"
+  ],
+  [
+   "material_101",
+   "nat_moon",
+   "material_334"
+  ],
+  [
+   "material_111",
+   "nat_moon",
+   "material_335"
+  ],
+  [
+   "material_111",
+   "material_088",
+   "material_335"
+  ],
+  [
+   "material_113",
+   "nat_sun",
+   "material_336"
+  ],
+  [
+   "material_120",
+   "nat_magma",
+   "material_337"
+  ],
+  [
+   "material_116",
+   "nat_stone",
+   "material_338"
+  ],
+  [
+   "material_122",
+   "material_120",
+   "material_339"
+  ],
+  [
+   "material_122",
+   "material_121",
+   "material_339"
+  ],
+  [
+   "material_253",
+   "eli_cinnabar",
+   "material_340"
+  ],
+  [
+   "material_253",
+   "material_028",
+   "material_341"
+  ],
+  [
+   "material_253",
+   "bst_bee",
+   "material_342"
+  ],
+  [
+   "eli_mercury",
+   "mat_sulfur",
+   "material_343"
+  ],
+  [
+   "eli_realgar",
+   "mat_sulfur",
+   "material_344"
+  ],
+  [
+   "mat_ore",
+   "mat_copper",
+   "material_345"
+  ],
+  [
+   "material_129",
+   "mat_salt",
+   "material_346"
+  ],
+  [
+   "material_129",
+   "nat_blaze",
+   "material_347"
+  ],
+  [
+   "mat_salt",
+   "mat_ore",
+   "material_348"
+  ],
+  [
+   "mat_gunpowder",
+   "material_129",
+   "material_349"
+  ],
+  [
+   "mat_gunpowder",
+   "material_248",
+   "material_350"
+  ],
+  [
+   "mat_gunpowder",
+   "eli_cinnabar",
+   "material_351"
+  ],
+  [
+   "mat_gunpowder",
+   "material_132",
+   "material_352"
+  ],
+  [
+   "mat_gunpowder",
+   "material_131",
+   "material_353"
+  ],
+  [
+   "material_248",
+   "plc_grave",
+   "material_354"
+  ],
+  [
+   "material_095",
+   "wpn_axe",
+   "material_355"
+  ],
+  [
+   "material_095",
+   "mat_ink",
+   "material_356"
+  ],
+  [
+   "material_095",
+   "trs_seal",
+   "material_357"
+  ],
+  [
+   "material_357",
+   "eli_cinnabar",
+   "material_358"
+  ],
+  [
+   "material_357",
+   "material_073",
+   "material_359"
+  ],
+  [
+   "material_095",
+   "mat_brick",
+   "material_360"
+  ],
+  [
+   "mat_brick",
+   "material_105",
+   "material_361"
+  ],
+  [
+   "mat_brick",
+   "material_058",
+   "material_362"
+  ],
+  [
+   "material_273",
+   "herb_moss",
+   "material_363"
+  ],
+  [
+   "material_273",
+   "material_204",
+   "material_364"
+  ],
+  [
+   "material_266",
+   "nat_rain",
+   "material_365"
+  ],
+  [
+   "material_266",
+   "nat_frost",
+   "material_366"
+  ],
+  [
+   "material_267",
+   "eli_cinnabar",
+   "material_367"
+  ],
+  [
+   "mat_porcelain",
+   "mat_ink",
+   "material_368"
+  ],
+  [
+   "material_266",
+   "material_267",
+   "material_369"
+  ],
+  [
+   "material_013",
+   "material_274",
+   "material_370"
+  ],
+  [
+   "material_014",
+   "material_274",
+   "material_371"
+  ],
+  [
+   "material_274",
+   "eli_cinnabar",
+   "material_372"
+  ],
+  [
+   "material_274",
+   "mat_ink",
+   "material_373"
+  ],
+  [
+   "material_274",
+   "eli_realgar",
+   "material_374"
+  ],
+  [
+   "mat_clay",
+   "nat_cloud",
+   "material_375"
+  ],
+  [
+   "mat_clay",
+   "material_130",
+   "material_376"
+  ],
+  [
+   "mat_clay",
+   "material_094",
+   "material_377"
+  ],
+  [
+   "mat_clay",
+   "material_155",
+   "material_378"
+  ],
+  [
+   "mat_clay",
+   "nat_river",
+   "material_379"
+  ],
+  [
+   "material_148",
+   "nat_river",
+   "material_380"
+  ],
+  [
+   "material_140",
+   "material_058",
+   "material_381"
+  ],
+  [
+   "material_381",
+   "material_160",
+   "material_382"
+  ],
+  [
+   "material_162",
+   "material_028",
+   "material_383"
+  ],
+  [
+   "material_160",
+   "material_137",
+   "material_384"
+  ],
+  [
+   "material_161",
+   "material_058",
+   "material_385"
+  ],
+  [
+   "mat_bamboo",
+   "wpn_axe",
+   "material_386"
+  ],
+  [
+   "mat_bamboo",
+   "material_058",
+   "material_387"
+  ],
+  [
+   "material_170",
+   "material_170",
+   "material_388"
+  ],
+  [
+   "material_252",
+   "material_155",
+   "material_389"
+  ],
+  [
+   "material_252",
+   "mat_paper",
+   "material_390"
+  ],
+  [
+   "mat_rope",
+   "material_159",
+   "material_391"
+  ],
+  [
+   "material_208",
+   "mat_rope",
+   "material_392"
+  ],
+  [
+   "material_186",
+   "material_028",
+   "material_393"
+  ],
+  [
+   "material_186",
+   "material_027",
+   "material_394"
+  ],
+  [
+   "material_186",
+   "material_024",
+   "material_395"
+  ],
+  [
+   "material_186",
+   "material_252",
+   "material_396"
+  ],
+  [
+   "material_186",
+   "material_126",
+   "material_397"
+  ],
+  [
+   "material_186",
+   "material_131",
+   "material_398"
+  ],
+  [
+   "material_188",
+   "herb_flower",
+   "material_399"
+  ],
+  [
+   "material_186",
+   "con_void",
+   "material_400"
+  ],
+  [
+   "material_201",
+   "material_202",
+   "material_401"
+  ],
+  [
+   "material_203",
+   "material_131",
+   "material_402"
+  ],
+  [
+   "mat_ink",
+   "con_rage",
+   "material_403"
+  ],
+  [
+   "material_200",
+   "eli_oil",
+   "material_404"
+  ],
+  [
+   "material_210",
+   "nat_cloud",
+   "material_405"
+  ],
+  [
+   "material_210",
+   "bst_phoenix",
+   "material_406"
+  ],
+  [
+   "material_210",
+   "bst_dragon",
+   "material_407"
+  ],
+  [
+   "material_209",
+   "material_131",
+   "material_408"
+  ],
+  [
+   "material_209",
+   "eli_realgar",
+   "material_409"
+  ],
+  [
+   "material_209",
+   "material_175",
+   "material_410"
+  ],
+  [
+   "material_219",
+   "material_220",
+   "material_411"
+  ],
+  [
+   "material_209",
+   "material_233",
+   "material_412"
+  ],
+  [
+   "material_221",
+   "mat_rope",
+   "material_413"
+  ],
+  [
+   "material_279",
+   "trs_spiritstone",
+   "material_414"
+  ],
+  [
+   "material_154",
+   "trs_peach",
+   "material_415"
+  ],
+  [
+   "material_153",
+   "con_time",
+   "material_416"
+  ],
+  [
+   "mat_steel",
+   "wpn_blade",
+   "material_417"
+  ],
+  [
+   "material_059",
+   "wpn_spear",
+   "material_418"
+  ],
+  [
+   "material_052",
+   "wpn_shield",
+   "material_419"
+  ],
+  [
+   "material_013",
+   "material_013",
+   "material_420"
+  ],
+  [
+   "material_014",
+   "gear_net",
+   "material_421"
+  ],
+  [
+   "material_210",
+   "material_029",
+   "material_422"
+  ],
+  [
+   "material_029",
+   "material_240",
+   "material_423"
+  ],
+  [
+   "material_126",
+   "wpn_hammer",
+   "material_424"
+  ],
+  [
+   "material_138",
+   "wpn_hammer",
+   "material_425"
+  ],
+  [
+   "material_133",
+   "wpn_hammer",
+   "material_426"
+  ],
+  [
+   "material_132",
+   "trs_gem",
+   "material_427"
+  ],
+  [
+   "material_253",
+   "mat_rope",
+   "material_428"
+  ],
+  [
+   "material_068",
+   "material_022",
+   "material_429"
+  ],
+  [
+   "material_068",
+   "material_029",
+   "material_430"
+  ],
+  [
+   "material_068",
+   "gear_bucket",
+   "material_431"
+  ],
+  [
+   "material_070",
+   "mat_rope",
+   "material_432"
+  ],
+  [
+   "material_078",
+   "material_140",
+   "material_433"
+  ],
+  [
+   "material_042",
+   "gear_anvil",
+   "material_434"
+  ],
+  [
+   "mat_steel",
+   "water",
+   "material_435"
+  ],
+  [
+   "material_435",
+   "eli_poison",
+   "material_436"
+  ],
+  [
+   "material_435",
+   "nat_frost",
+   "material_437"
+  ],
+  [
+   "material_435",
+   "nat_thunder",
+   "material_438"
+  ],
+  [
+   "mat_clay",
+   "wpn_sword",
+   "material_439"
+  ],
+  [
+   "mat_clay",
+   "wpn_blade",
+   "material_440"
+  ],
+  [
+   "material_439",
+   "material_045",
+   "material_441"
+  ],
+  [
+   "mat_paper",
+   "mat_rope",
+   "material_442"
+  ],
+  [
+   "mat_paper",
+   "material_159",
+   "material_443"
+  ],
+  [
+   "mat_cloth",
+   "material_159",
+   "material_444"
+  ],
+  [
+   "mat_cloth",
+   "material_252",
+   "material_445"
+  ],
+  [
+   "material_221",
+   "material_211",
+   "material_446"
+  ],
+  [
+   "material_232",
+   "eli_oil",
+   "material_447"
+  ],
+  [
+   "material_235",
+   "material_381",
+   "material_448"
+  ],
+  [
+   "material_244",
+   "material_387",
+   "material_449"
+  ],
+  [
+   "mat_salt",
+   "herb_moss",
+   "material_450"
+  ],
+  [
+   "mat_salt",
+   "nat_frost",
+   "material_451"
+  ],
+  [
+   "material_036",
+   "plc_grave",
+   "material_452"
+  ],
+  [
+   "material_079",
+   "material_314",
+   "material_453"
+  ],
+  [
+   "material_316",
+   "material_317",
+   "material_454"
+  ],
+  [
+   "material_318",
+   "material_331",
+   "material_455"
+  ],
+  [
+   "material_115",
+   "material_114",
+   "material_456"
+  ],
+  [
+   "material_128",
+   "material_334",
+   "material_457"
+  ],
+  [
+   "material_128",
+   "material_050",
+   "material_458"
+  ],
+  [
+   "material_052",
+   "material_238",
+   "material_459"
+  ],
+  [
+   "material_300",
+   "gear_bell",
+   "material_460"
+  ],
+  [
+   "material_293",
+   "material_022",
+   "material_461"
+  ],
+  [
+   "material_029",
+   "gear_net",
+   "material_462"
+  ],
+  [
+   "material_070",
+   "material_081",
+   "material_463"
+  ],
+  [
+   "material_072",
+   "material_255",
+   "material_464"
+  ],
+  [
+   "material_078",
+   "material_115",
+   "material_465"
+  ],
+  [
+   "material_074",
+   "material_114",
+   "material_466"
+  ],
+  [
+   "material_267",
+   "material_372",
+   "material_467"
+  ],
+  [
+   "material_252",
+   "material_189",
+   "material_468"
+  ],
+  [
+   "material_209",
+   "material_058",
+   "material_469"
+  ],
+  [
+   "material_221",
+   "material_391",
+   "material_470"
+  ],
+  [
+   "material_148",
+   "material_058",
+   "material_471"
+  ],
+  [
+   "material_171",
+   "material_171",
+   "material_472"
+  ]
+ ]
+}

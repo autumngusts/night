@@ -1,0 +1,5327 @@
+{
+ "category": "herb",
+ "items": [
+  {
+   "id": "herb_x_licorice",
+   "zh": "甘草",
+   "ja": "甘草"
+  },
+  {
+   "id": "herb_x_angelica",
+   "zh": "當歸",
+   "ja": "当帰"
+  },
+  {
+   "id": "herb_x_astragalus",
+   "zh": "黃芪",
+   "ja": "黄耆"
+  },
+  {
+   "id": "herb_x_rehmannia",
+   "zh": "地黃",
+   "ja": "地黄"
+  },
+  {
+   "id": "herb_x_peonyroot",
+   "zh": "芍藥",
+   "ja": "芍薬"
+  },
+  {
+   "id": "herb_x_poria",
+   "zh": "茯苓",
+   "ja": "茯苓"
+  },
+  {
+   "id": "herb_x_chuanxiong",
+   "zh": "川芎",
+   "ja": "川芎"
+  },
+  {
+   "id": "herb_x_whiteatract",
+   "zh": "白朮",
+   "ja": "白朮"
+  },
+  {
+   "id": "herb_x_ephedra",
+   "zh": "麻黃",
+   "ja": "麻黄"
+  },
+  {
+   "id": "herb_x_cinnamon",
+   "zh": "肉桂",
+   "ja": "肉桂"
+  },
+  {
+   "id": "herb_x_ginger",
+   "zh": "生薑",
+   "ja": "生姜"
+  },
+  {
+   "id": "herb_x_wolfberry",
+   "zh": "枸杞",
+   "ja": "クコの実"
+  },
+  {
+   "id": "herb_x_jujube",
+   "zh": "紅棗",
+   "ja": "ナツメ"
+  },
+  {
+   "id": "herb_x_longan",
+   "zh": "龍眼",
+   "ja": "竜眼"
+  },
+  {
+   "id": "herb_x_mint",
+   "zh": "薄荷",
+   "ja": "ハッカ"
+  },
+  {
+   "id": "herb_x_honeysuckle",
+   "zh": "金銀花",
+   "ja": "金銀花"
+  },
+  {
+   "id": "herb_x_bellflower",
+   "zh": "鈴蘭",
+   "ja": "スズラン"
+  },
+  {
+   "id": "herb_x_dandelion",
+   "zh": "蒲公英",
+   "ja": "タンポポ"
+  },
+  {
+   "id": "herb_x_plantain",
+   "zh": "車前草",
+   "ja": "車前草"
+  },
+  {
+   "id": "herb_x_wormwood",
+   "zh": "青蒿",
+   "ja": "青蒿"
+  },
+  {
+   "id": "herb_x_motherwort",
+   "zh": "益母草",
+   "ja": "益母草"
+  },
+  {
+   "id": "herb_x_houttuynia",
+   "zh": "魚腥草",
+   "ja": "ドクダミ"
+  },
+  {
+   "id": "herb_x_yam",
+   "zh": "山藥",
+   "ja": "山芋"
+  },
+  {
+   "id": "herb_x_lotusseed",
+   "zh": "蓮子",
+   "ja": "蓮の実"
+  },
+  {
+   "id": "herb_x_lotusroot",
+   "zh": "蓮藕",
+   "ja": "蓮根"
+  },
+  {
+   "id": "herb_x_lotusleaf",
+   "zh": "荷葉",
+   "ja": "蓮の葉"
+  },
+  {
+   "id": "herb_x_bambooshoot",
+   "zh": "竹筍",
+   "ja": "筍"
+  },
+  {
+   "id": "herb_x_reed",
+   "zh": "蘆葦",
+   "ja": "葦"
+  },
+  {
+   "id": "herb_x_reedroot",
+   "zh": "蘆根",
+   "ja": "葦の根"
+  },
+  {
+   "id": "herb_x_rush",
+   "zh": "燈芯草",
+   "ja": "イグサ"
+  },
+  {
+   "id": "herb_x_sesame",
+   "zh": "胡麻",
+   "ja": "ごま"
+  },
+  {
+   "id": "herb_x_walnut",
+   "zh": "核桃",
+   "ja": "胡桃"
+  },
+  {
+   "id": "herb_x_chestnut",
+   "zh": "板栗",
+   "ja": "栗"
+  },
+  {
+   "id": "herb_x_peachblossom",
+   "zh": "桃花",
+   "ja": "桃の花"
+  },
+  {
+   "id": "herb_x_redbean",
+   "zh": "赤小豆",
+   "ja": "小豆"
+  },
+  {
+   "id": "herb_x_mungbean",
+   "zh": "綠豆",
+   "ja": "緑豆"
+  },
+  {
+   "id": "herb_x_rice",
+   "zh": "稻穗",
+   "ja": "稲穂"
+  },
+  {
+   "id": "herb_x_bambooleaf",
+   "zh": "竹葉",
+   "ja": "笹の葉"
+  },
+  {
+   "id": "herb_x_lovepea",
+   "zh": "相思豆",
+   "ja": "相思豆"
+  },
+  {
+   "id": "herb_x_forgetgrass",
+   "zh": "忘憂草",
+   "ja": "忘れ草"
+  },
+  {
+   "id": "herb_x_calmgrass",
+   "zh": "清心草",
+   "ja": "清心草"
+  },
+  {
+   "id": "herb_x_breathgrass",
+   "zh": "練氣草",
+   "ja": "練気草"
+  },
+  {
+   "id": "herb_x_marrowroot",
+   "zh": "洗髓根",
+   "ja": "洗髄根"
+  },
+  {
+   "id": "herb_x_qiflower",
+   "zh": "凝氣花",
+   "ja": "凝気花"
+  },
+  {
+   "id": "herb_x_dreamflower",
+   "zh": "夢仙花",
+   "ja": "夢仙花"
+  },
+  {
+   "id": "herb_x_illusionflower",
+   "zh": "幻心花",
+   "ja": "幻心花"
+  },
+  {
+   "id": "herb_x_fortunegrass",
+   "zh": "福運草",
+   "ja": "福運草"
+  },
+  {
+   "id": "herb_x_courageroot",
+   "zh": "壯膽根",
+   "ja": "壮胆根"
+  },
+  {
+   "id": "herb_x_wisdomtea",
+   "zh": "智慧茶",
+   "ja": "智慧茶"
+  },
+  {
+   "id": "herb_x_righteouspine",
+   "zh": "忠義松",
+   "ja": "忠義の松"
+  },
+  {
+   "id": "herb_x_fatevine",
+   "zh": "緣分藤",
+   "ja": "縁の蔓"
+  },
+  {
+   "id": "herb_x_solitudepine",
+   "zh": "孤松",
+   "ja": "孤松"
+  },
+  {
+   "id": "herb_x_sorrowwillow",
+   "zh": "愁柳",
+   "ja": "愁柳"
+  },
+  {
+   "id": "herb_x_joyflower",
+   "zh": "歡喜花",
+   "ja": "歓喜花"
+  },
+  {
+   "id": "herb_x_rageflower",
+   "zh": "怒焰花",
+   "ja": "怒焔花"
+  },
+  {
+   "id": "herb_x_fearmoss",
+   "zh": "懼苔",
+   "ja": "懼苔"
+  },
+  {
+   "id": "herb_x_hatevine",
+   "zh": "恨藤",
+   "ja": "恨み蔓"
+  },
+  {
+   "id": "herb_x_timemoss",
+   "zh": "歲月苔",
+   "ja": "歳月苔"
+  },
+  {
+   "id": "herb_x_voidgrass",
+   "zh": "虛無草",
+   "ja": "虚無草"
+  },
+  {
+   "id": "herb_x_secretseed",
+   "zh": "祕種",
+   "ja": "秘種"
+  },
+  {
+   "id": "herb_x_famepeony",
+   "zh": "花王牡丹",
+   "ja": "花王の牡丹"
+  },
+  {
+   "id": "herb_x_yinflower",
+   "zh": "陰蘭",
+   "ja": "陰蘭"
+  },
+  {
+   "id": "herb_x_yangpeony",
+   "zh": "陽牡丹",
+   "ja": "陽牡丹"
+  },
+  {
+   "id": "herb_x_snakegallgrass",
+   "zh": "蛇膽草",
+   "ja": "蛇胆草"
+  },
+  {
+   "id": "herb_x_tigerbone",
+   "zh": "虎骨草",
+   "ja": "虎骨草"
+  },
+  {
+   "id": "herb_x_wolfgrass",
+   "zh": "狼毒草",
+   "ja": "狼毒草"
+  },
+  {
+   "id": "herb_x_horsetooth",
+   "zh": "馬齒莧",
+   "ja": "スベリヒユ"
+  },
+  {
+   "id": "herb_x_cranegrass",
+   "zh": "鶴草",
+   "ja": "鶴草"
+  },
+  {
+   "id": "herb_x_eaglefeather",
+   "zh": "鷹爪花",
+   "ja": "鷹爪花"
+  },
+  {
+   "id": "herb_x_monkeyfruit",
+   "zh": "猴兒果",
+   "ja": "猿の果実"
+  },
+  {
+   "id": "herb_x_bearroot",
+   "zh": "熊膽草",
+   "ja": "熊胆草"
+  },
+  {
+   "id": "herb_x_deergrass",
+   "zh": "鹿銜草",
+   "ja": "鹿銜草"
+  },
+  {
+   "id": "herb_x_goatgrass",
+   "zh": "羊蹄",
+   "ja": "ギシギシ"
+  },
+  {
+   "id": "herb_x_spiderflower",
+   "zh": "蛛網花",
+   "ja": "蜘蛛花"
+  },
+  {
+   "id": "herb_x_scorpiongrass",
+   "zh": "蠍尾草",
+   "ja": "蠍尾草"
+  },
+  {
+   "id": "herb_x_crabapple",
+   "zh": "蟹爪蘭",
+   "ja": "蟹爪蘭"
+  },
+  {
+   "id": "herb_x_toadmoss",
+   "zh": "蟾衣苔",
+   "ja": "蟾衣苔"
+  },
+  {
+   "id": "herb_x_turtleleaf",
+   "zh": "龜背葉",
+   "ja": "亀背の葉"
+  },
+  {
+   "id": "herb_x_fishvine",
+   "zh": "魚藤",
+   "ja": "魚藤"
+  },
+  {
+   "id": "herb_x_birdnestgrass",
+   "zh": "燕窩草",
+   "ja": "燕窩草"
+  },
+  {
+   "id": "herb_x_silkmulberry",
+   "zh": "桑葉",
+   "ja": "桑の葉"
+  },
+  {
+   "id": "herb_x_mulberry",
+   "zh": "桑椹",
+   "ja": "桑の実"
+  },
+  {
+   "id": "herb_x_cordyceps",
+   "zh": "蟲草",
+   "ja": "冬虫夏草の芽"
+  },
+  {
+   "id": "herb_x_wintercordy",
+   "zh": "冬蟲夏草",
+   "ja": "冬虫夏草"
+  },
+  {
+   "id": "herb_x_dragonbeard",
+   "zh": "龍鬚草",
+   "ja": "竜髭草"
+  },
+  {
+   "id": "herb_x_phoenixflower",
+   "zh": "鳳凰花",
+   "ja": "鳳凰花"
+  },
+  {
+   "id": "herb_x_snowlotus",
+   "zh": "雪蓮",
+   "ja": "雪蓮"
+  },
+  {
+   "id": "herb_x_icelotus",
+   "zh": "冰魄蓮",
+   "ja": "氷魄蓮"
+  },
+  {
+   "id": "herb_x_thousandsnowlotus",
+   "zh": "千年雪蓮",
+   "ja": "千年雪蓮"
+  },
+  {
+   "id": "herb_x_tianshanlotus",
+   "zh": "天山雪蓮",
+   "ja": "天山の雪蓮"
+  },
+  {
+   "id": "herb_x_firelotus",
+   "zh": "火蓮",
+   "ja": "火蓮"
+  },
+  {
+   "id": "herb_x_bloodlotus",
+   "zh": "赤焰蓮",
+   "ja": "赤焔蓮"
+  },
+  {
+   "id": "herb_x_goldlotus",
+   "zh": "金蓮",
+   "ja": "金蓮"
+  },
+  {
+   "id": "herb_x_thunderlotus",
+   "zh": "雷蓮",
+   "ja": "雷蓮"
+  },
+  {
+   "id": "herb_x_moonlotus",
+   "zh": "月華蓮",
+   "ja": "月華蓮"
+  },
+  {
+   "id": "herb_x_sunlotus",
+   "zh": "烈陽蓮",
+   "ja": "烈陽蓮"
+  },
+  {
+   "id": "herb_x_mistlotus",
+   "zh": "霧蓮",
+   "ja": "霧蓮"
+  },
+  {
+   "id": "herb_x_firelingzhi",
+   "zh": "火靈芝",
+   "ja": "火霊芝"
+  },
+  {
+   "id": "herb_x_icelingzhi",
+   "zh": "冰靈芝",
+   "ja": "氷霊芝"
+  },
+  {
+   "id": "herb_x_bloodlingzhi",
+   "zh": "血靈芝",
+   "ja": "血霊芝"
+  },
+  {
+   "id": "herb_x_blacklingzhi",
+   "zh": "黑靈芝",
+   "ja": "黒霊芝"
+  },
+  {
+   "id": "herb_x_goldlingzhi",
+   "zh": "金靈芝",
+   "ja": "金霊芝"
+  },
+  {
+   "id": "herb_x_jadelingzhi",
+   "zh": "玉靈芝",
+   "ja": "玉霊芝"
+  },
+  {
+   "id": "herb_x_thunderlingzhi",
+   "zh": "雷靈芝",
+   "ja": "雷霊芝"
+  },
+  {
+   "id": "herb_x_moonlingzhi",
+   "zh": "月靈芝",
+   "ja": "月霊芝"
+  },
+  {
+   "id": "herb_x_ninelingzhi",
+   "zh": "九葉靈芝",
+   "ja": "九葉霊芝"
+  },
+  {
+   "id": "herb_x_thousandlingzhi",
+   "zh": "千年靈芝",
+   "ja": "千年霊芝"
+  },
+  {
+   "id": "herb_x_bloodginseng",
+   "zh": "血參",
+   "ja": "血参"
+  },
+  {
+   "id": "herb_x_snowginseng",
+   "zh": "雪參",
+   "ja": "雪参"
+  },
+  {
+   "id": "herb_x_fireginseng",
+   "zh": "火參",
+   "ja": "火参"
+  },
+  {
+   "id": "herb_x_goldginseng",
+   "zh": "金參",
+   "ja": "金参"
+  },
+  {
+   "id": "herb_x_jadeginseng",
+   "zh": "玉參",
+   "ja": "玉参"
+  },
+  {
+   "id": "herb_x_thousandginseng",
+   "zh": "千年人參",
+   "ja": "千年人参"
+  },
+  {
+   "id": "herb_x_ginsengfruit",
+   "zh": "人參果",
+   "ja": "人参果"
+  },
+  {
+   "id": "herb_x_shouwu",
+   "zh": "何首烏",
+   "ja": "何首烏"
+  },
+  {
+   "id": "herb_x_thousandshouwu",
+   "zh": "千年何首烏",
+   "ja": "千年何首烏"
+  },
+  {
+   "id": "herb_x_cliffgrass",
+   "zh": "懸崖草",
+   "ja": "崖の草"
+  },
+  {
+   "id": "herb_x_cliffpine",
+   "zh": "絕壁古松",
+   "ja": "絶壁の古松"
+  },
+  {
+   "id": "herb_x_caveherb",
+   "zh": "洞中靈草",
+   "ja": "洞中の霊草"
+  },
+  {
+   "id": "herb_x_cavemoss",
+   "zh": "洞苔",
+   "ja": "洞窟の苔"
+  },
+  {
+   "id": "herb_x_cavefungus",
+   "zh": "洞菇",
+   "ja": "洞窟茸"
+  },
+  {
+   "id": "herb_x_cactus",
+   "zh": "仙人掌",
+   "ja": "サボテン"
+  },
+  {
+   "id": "herb_x_seabuckthorn",
+   "zh": "沙棘",
+   "ja": "サジー"
+  },
+  {
+   "id": "herb_x_islandgrass",
+   "zh": "海島草",
+   "ja": "島の草"
+  },
+  {
+   "id": "herb_x_seaweed",
+   "zh": "海藻",
+   "ja": "海藻"
+  },
+  {
+   "id": "herb_x_kelp",
+   "zh": "昆布",
+   "ja": "昆布"
+  },
+  {
+   "id": "herb_x_coralgrass",
+   "zh": "珊瑚草",
+   "ja": "珊瑚草"
+  },
+  {
+   "id": "herb_x_nightgrass",
+   "zh": "夜光草",
+   "ja": "夜光草"
+  },
+  {
+   "id": "herb_x_springcress",
+   "zh": "水芹",
+   "ja": "水芹"
+  },
+  {
+   "id": "herb_x_lakeweed",
+   "zh": "湖萍",
+   "ja": "浮き草"
+  },
+  {
+   "id": "herb_x_springmoss",
+   "zh": "溫泉苔",
+   "ja": "温泉苔"
+  },
+  {
+   "id": "herb_x_minevine",
+   "zh": "礦藤",
+   "ja": "鉱蔓"
+  },
+  {
+   "id": "herb_x_spiderlily",
+   "zh": "曼珠沙華",
+   "ja": "彼岸花"
+  },
+  {
+   "id": "herb_x_palacepeony",
+   "zh": "宮牡丹",
+   "ja": "宮の牡丹"
+  },
+  {
+   "id": "herb_x_gardenorchid",
+   "zh": "園蘭",
+   "ja": "園の蘭"
+  },
+  {
+   "id": "herb_x_pavilionplum",
+   "zh": "亭梅",
+   "ja": "亭の梅"
+  },
+  {
+   "id": "herb_x_templepine",
+   "zh": "古剎青松",
+   "ja": "古刹の青松"
+  },
+  {
+   "id": "herb_x_templelotus",
+   "zh": "佛前蓮",
+   "ja": "仏前の蓮"
+  },
+  {
+   "id": "herb_x_woodsvine",
+   "zh": "密林藤",
+   "ja": "密林の蔓"
+  },
+  {
+   "id": "herb_x_bamboofungus",
+   "zh": "竹蓀",
+   "ja": "竹蓀"
+  },
+  {
+   "id": "herb_x_prairieflower",
+   "zh": "草原花",
+   "ja": "草原の花"
+  },
+  {
+   "id": "herb_x_lakelotus",
+   "zh": "湖蓮",
+   "ja": "湖の蓮"
+  },
+  {
+   "id": "herb_x_snowplum",
+   "zh": "雪中紅梅",
+   "ja": "雪中の紅梅"
+  },
+  {
+   "id": "herb_x_snowpine",
+   "zh": "雪松",
+   "ja": "雪松"
+  },
+  {
+   "id": "herb_x_frostchrysan",
+   "zh": "霜菊",
+   "ja": "霜菊"
+  },
+  {
+   "id": "herb_x_mistorchid",
+   "zh": "霧蘭",
+   "ja": "霧蘭"
+  },
+  {
+   "id": "herb_x_rainflower",
+   "zh": "雨花",
+   "ja": "雨花"
+  },
+  {
+   "id": "herb_x_rainbowflower",
+   "zh": "虹彩花",
+   "ja": "虹彩花"
+  },
+  {
+   "id": "herb_x_thunderpine",
+   "zh": "雷擊松",
+   "ja": "雷撃松"
+  },
+  {
+   "id": "herb_x_thundertree",
+   "zh": "雷擊木",
+   "ja": "雷撃木"
+  },
+  {
+   "id": "herb_x_lightflower",
+   "zh": "金光牡丹",
+   "ja": "金光牡丹"
+  },
+  {
+   "id": "herb_x_darkflower",
+   "zh": "幽冥花",
+   "ja": "幽冥花"
+  },
+  {
+   "id": "herb_x_moonflower",
+   "zh": "月見花",
+   "ja": "月見草"
+  },
+  {
+   "id": "herb_x_sunflower",
+   "zh": "向日葵",
+   "ja": "向日葵"
+  },
+  {
+   "id": "herb_x_waterfallmoss",
+   "zh": "瀑邊苔",
+   "ja": "滝辺の苔"
+  },
+  {
+   "id": "herb_x_volcanograss",
+   "zh": "火山草",
+   "ja": "火山草"
+  },
+  {
+   "id": "herb_x_magmaflower",
+   "zh": "熔岩花",
+   "ja": "溶岩花"
+  },
+  {
+   "id": "herb_x_seaflower",
+   "zh": "海棠",
+   "ja": "海棠"
+  },
+  {
+   "id": "herb_x_stonefungus",
+   "zh": "石耳",
+   "ja": "岩茸"
+  },
+  {
+   "id": "herb_x_stonelotus",
+   "zh": "石蓮",
+   "ja": "石蓮"
+  },
+  {
+   "id": "herb_x_stoneorchid",
+   "zh": "石斛",
+   "ja": "石斛"
+  },
+  {
+   "id": "herb_x_cloudtea",
+   "zh": "雲霧茶",
+   "ja": "雲霧茶"
+  },
+  {
+   "id": "herb_x_cloudgrass",
+   "zh": "雲芽",
+   "ja": "雲の芽"
+  },
+  {
+   "id": "herb_x_windgrass",
+   "zh": "風藤",
+   "ja": "風藤"
+  },
+  {
+   "id": "herb_x_windbell",
+   "zh": "風鈴草",
+   "ja": "風鈴草"
+  },
+  {
+   "id": "herb_x_dewgrass",
+   "zh": "露草",
+   "ja": "露草"
+  },
+  {
+   "id": "herb_x_frostgrass",
+   "zh": "霜草",
+   "ja": "霜草"
+  },
+  {
+   "id": "herb_x_firegrass",
+   "zh": "火焰草",
+   "ja": "火炎草"
+  },
+  {
+   "id": "herb_x_redmushroom",
+   "zh": "紅菇",
+   "ja": "紅茸"
+  },
+  {
+   "id": "herb_x_blackfungus",
+   "zh": "黑木耳",
+   "ja": "黒キクラゲ"
+  },
+  {
+   "id": "herb_x_whitefungus",
+   "zh": "銀耳",
+   "ja": "白キクラゲ"
+  },
+  {
+   "id": "herb_x_woodear",
+   "zh": "木耳",
+   "ja": "木耳"
+  },
+  {
+   "id": "herb_x_shiitake",
+   "zh": "香菇",
+   "ja": "椎茸"
+  },
+  {
+   "id": "herb_x_matsutake",
+   "zh": "松茸",
+   "ja": "松茸"
+  },
+  {
+   "id": "herb_x_morel",
+   "zh": "羊肚菌",
+   "ja": "アミガサタケ"
+  },
+  {
+   "id": "herb_x_truffle",
+   "zh": "地下菌",
+   "ja": "トリュフ"
+  },
+  {
+   "id": "herb_x_thunderfungus",
+   "zh": "雷菇",
+   "ja": "雷茸"
+  },
+  {
+   "id": "herb_x_ghostfungus",
+   "zh": "鬼傘",
+   "ja": "鬼傘"
+  },
+  {
+   "id": "herb_x_glowmoss",
+   "zh": "螢光苔",
+   "ja": "蛍光苔"
+  },
+  {
+   "id": "herb_x_goldmoss",
+   "zh": "金線苔",
+   "ja": "金線苔"
+  },
+  {
+   "id": "herb_x_stonemoss",
+   "zh": "石衣",
+   "ja": "石衣"
+  },
+  {
+   "id": "herb_x_cypress",
+   "zh": "古柏",
+   "ja": "古柏"
+  },
+  {
+   "id": "herb_x_camphor",
+   "zh": "樟木",
+   "ja": "樟"
+  },
+  {
+   "id": "herb_x_redwood",
+   "zh": "紅木",
+   "ja": "紅木"
+  },
+  {
+   "id": "herb_x_ironwood",
+   "zh": "鐵木",
+   "ja": "鉄木"
+  },
+  {
+   "id": "herb_x_peachwood",
+   "zh": "桃木",
+   "ja": "桃木"
+  },
+  {
+   "id": "herb_x_bodhi",
+   "zh": "菩提樹",
+   "ja": "菩提樹"
+  },
+  {
+   "id": "herb_x_bodhiseed",
+   "zh": "菩提子",
+   "ja": "菩提子"
+  },
+  {
+   "id": "herb_x_banyan",
+   "zh": "榕樹",
+   "ja": "ガジュマル"
+  },
+  {
+   "id": "herb_x_maple",
+   "zh": "楓樹",
+   "ja": "楓"
+  },
+  {
+   "id": "herb_x_mapleleaf",
+   "zh": "紅葉",
+   "ja": "紅葉"
+  },
+  {
+   "id": "herb_x_ginkgo",
+   "zh": "銀杏",
+   "ja": "銀杏"
+  },
+  {
+   "id": "herb_x_osmanthus",
+   "zh": "桂花",
+   "ja": "金木犀"
+  },
+  {
+   "id": "herb_x_cherry",
+   "zh": "櫻花",
+   "ja": "桜"
+  },
+  {
+   "id": "herb_x_magnolia",
+   "zh": "玉蘭",
+   "ja": "玉蘭"
+  },
+  {
+   "id": "herb_x_jasmine",
+   "zh": "茉莉",
+   "ja": "ジャスミン"
+  },
+  {
+   "id": "herb_x_rose",
+   "zh": "玫瑰",
+   "ja": "薔薇"
+  },
+  {
+   "id": "herb_x_camellia",
+   "zh": "山茶花",
+   "ja": "山茶花"
+  },
+  {
+   "id": "herb_x_hibiscus",
+   "zh": "木芙蓉",
+   "ja": "木芙蓉"
+  },
+  {
+   "id": "herb_x_wisteria",
+   "zh": "紫藤",
+   "ja": "藤の花"
+  },
+  {
+   "id": "herb_x_lily",
+   "zh": "百合",
+   "ja": "百合"
+  },
+  {
+   "id": "herb_x_narcissus",
+   "zh": "水仙",
+   "ja": "水仙"
+  },
+  {
+   "id": "herb_x_orchidking",
+   "zh": "蘭王",
+   "ja": "蘭の王"
+  },
+  {
+   "id": "herb_x_poisonpeony",
+   "zh": "毒牡丹",
+   "ja": "毒牡丹"
+  },
+  {
+   "id": "herb_x_poisonfruit",
+   "zh": "毒果",
+   "ja": "毒の実"
+  },
+  {
+   "id": "herb_x_poisonseed",
+   "zh": "毒種",
+   "ja": "毒の種"
+  },
+  {
+   "id": "herb_x_bloodvine",
+   "zh": "血藤",
+   "ja": "血藤"
+  },
+  {
+   "id": "herb_x_bloodflower",
+   "zh": "血花",
+   "ja": "血の花"
+  },
+  {
+   "id": "herb_x_nightshade",
+   "zh": "黑漿果",
+   "ja": "黒い毒果"
+  },
+  {
+   "id": "herb_x_ghostorchid",
+   "zh": "鬼蘭",
+   "ja": "鬼蘭"
+  },
+  {
+   "id": "herb_x_antidotegrass",
+   "zh": "解毒草",
+   "ja": "解毒草"
+  },
+  {
+   "id": "herb_x_coolleaf",
+   "zh": "涼葉",
+   "ja": "涼葉"
+  },
+  {
+   "id": "herb_x_healgrass",
+   "zh": "金創草",
+   "ja": "金創草"
+  },
+  {
+   "id": "herb_x_bloodstop",
+   "zh": "止血草",
+   "ja": "止血草"
+  },
+  {
+   "id": "herb_x_dryleaf",
+   "zh": "乾葉",
+   "ja": "乾燥葉"
+  },
+  {
+   "id": "herb_x_dryroot",
+   "zh": "乾根",
+   "ja": "干し根"
+  },
+  {
+   "id": "herb_x_herbbundle",
+   "zh": "藥草束",
+   "ja": "薬草の束"
+  },
+  {
+   "id": "herb_x_herbbag",
+   "zh": "藥草囊",
+   "ja": "薬草袋"
+  },
+  {
+   "id": "herb_x_herbpaste",
+   "zh": "藥泥",
+   "ja": "薬泥"
+  },
+  {
+   "id": "herb_x_ginsengtea",
+   "zh": "參茶",
+   "ja": "参茶"
+  },
+  {
+   "id": "herb_x_roastroot",
+   "zh": "炮製草根",
+   "ja": "炮製した根"
+  },
+  {
+   "id": "herb_x_herbash",
+   "zh": "草木灰",
+   "ja": "草木灰"
+  },
+  {
+   "id": "herb_x_pressedflower",
+   "zh": "押花",
+   "ja": "押し花"
+  },
+  {
+   "id": "herb_x_herbalmanual",
+   "zh": "本草經",
+   "ja": "本草経"
+  },
+  {
+   "id": "herb_x_teabrick",
+   "zh": "茶磚",
+   "ja": "茶磚"
+  },
+  {
+   "id": "herb_x_lotustea",
+   "zh": "荷葉茶",
+   "ja": "蓮茶"
+  },
+  {
+   "id": "herb_x_minttea",
+   "zh": "薄荷茶",
+   "ja": "ミント茶"
+  },
+  {
+   "id": "herb_x_moxastick",
+   "zh": "艾條",
+   "ja": "艾条"
+  },
+  {
+   "id": "herb_x_moxa",
+   "zh": "艾絨",
+   "ja": "もぐさ"
+  },
+  {
+   "id": "herb_x_zhuguo",
+   "zh": "朱果",
+   "ja": "朱果"
+  },
+  {
+   "id": "herb_x_pantao",
+   "zh": "蟠桃",
+   "ja": "蟠桃"
+  },
+  {
+   "id": "herb_x_soulgrass",
+   "zh": "還魂草",
+   "ja": "還魂草"
+  },
+  {
+   "id": "herb_x_ninesoulgrass",
+   "zh": "九轉還魂草",
+   "ja": "九転還魂草"
+  },
+  {
+   "id": "herb_x_lifetree",
+   "zh": "長生樹",
+   "ja": "長生樹"
+  },
+  {
+   "id": "herb_x_immortalgrass",
+   "zh": "不老草",
+   "ja": "不老草"
+  },
+  {
+   "id": "herb_x_spiritgrass",
+   "zh": "靈草",
+   "ja": "霊草"
+  },
+  {
+   "id": "herb_x_spiritflower",
+   "zh": "靈花",
+   "ja": "霊花"
+  },
+  {
+   "id": "herb_x_spiritfruit",
+   "zh": "靈果",
+   "ja": "霊果"
+  },
+  {
+   "id": "herb_x_spiritroot",
+   "zh": "靈根",
+   "ja": "霊根"
+  },
+  {
+   "id": "herb_x_spirittree",
+   "zh": "靈木",
+   "ja": "霊木"
+  },
+  {
+   "id": "herb_x_spiritginseng",
+   "zh": "靈參",
+   "ja": "霊参"
+  },
+  {
+   "id": "herb_x_immortallingzhi",
+   "zh": "仙靈芝",
+   "ja": "仙霊芝"
+  },
+  {
+   "id": "herb_x_icefirelotus",
+   "zh": "冰火蓮",
+   "ja": "氷火蓮"
+  },
+  {
+   "id": "herb_x_icefirelingzhi",
+   "zh": "冰火靈芝",
+   "ja": "氷火霊芝"
+  },
+  {
+   "id": "herb_x_icefireginseng",
+   "zh": "冰火參",
+   "ja": "氷火参"
+  },
+  {
+   "id": "herb_x_yinyangflower",
+   "zh": "陰陽花",
+   "ja": "陰陽花"
+  },
+  {
+   "id": "herb_x_twinlotus",
+   "zh": "並蒂蓮",
+   "ja": "並蒂蓮"
+  },
+  {
+   "id": "herb_x_jadelotus",
+   "zh": "玉蓮",
+   "ja": "玉蓮"
+  },
+  {
+   "id": "herb_x_goldjadelotus",
+   "zh": "金玉蓮",
+   "ja": "金玉蓮"
+  },
+  {
+   "id": "herb_x_sunmoonlotus",
+   "zh": "日月蓮",
+   "ja": "日月蓮"
+  },
+  {
+   "id": "herb_x_thousandfirelotus",
+   "zh": "千年火蓮",
+   "ja": "千年火蓮"
+  },
+  {
+   "id": "herb_x_thunderfirelotus",
+   "zh": "雷火蓮",
+   "ja": "雷火蓮"
+  },
+  {
+   "id": "herb_x_ninegradelotus",
+   "zh": "九品金蓮",
+   "ja": "九品金蓮"
+  },
+  {
+   "id": "herb_x_lotusking",
+   "zh": "蓮王",
+   "ja": "蓮王"
+  },
+  {
+   "id": "herb_x_silverlotus",
+   "zh": "銀蓮",
+   "ja": "銀蓮"
+  },
+  {
+   "id": "herb_x_crystallotus",
+   "zh": "水晶蓮",
+   "ja": "水晶蓮"
+  },
+  {
+   "id": "herb_x_dragonlotus",
+   "zh": "龍蓮",
+   "ja": "竜蓮"
+  },
+  {
+   "id": "herb_x_dreamlotus",
+   "zh": "夢蓮",
+   "ja": "夢蓮"
+  },
+  {
+   "id": "herb_x_netherlotus",
+   "zh": "幽冥蓮",
+   "ja": "幽冥蓮"
+  },
+  {
+   "id": "herb_x_inklotus",
+   "zh": "墨荷",
+   "ja": "墨荷"
+  },
+  {
+   "id": "herb_x_mudlotus",
+   "zh": "泥蓮",
+   "ja": "泥蓮"
+  },
+  {
+   "id": "herb_x_clematis",
+   "zh": "鐵線蓮",
+   "ja": "テッセン"
+  },
+  {
+   "id": "herb_x_thousandbloodlingzhi",
+   "zh": "千年血靈芝",
+   "ja": "千年血霊芝"
+  },
+  {
+   "id": "herb_x_dragonlingzhi",
+   "zh": "龍芝",
+   "ja": "竜芝"
+  },
+  {
+   "id": "herb_x_phoenixlingzhi",
+   "zh": "鳳芝",
+   "ja": "鳳芝"
+  },
+  {
+   "id": "herb_x_cranelingzhi",
+   "zh": "鶴芝",
+   "ja": "鶴芝"
+  },
+  {
+   "id": "herb_x_lingzhiking",
+   "zh": "靈芝王",
+   "ja": "霊芝王"
+  },
+  {
+   "id": "herb_x_nineleafthousand",
+   "zh": "九葉千年芝",
+   "ja": "九葉千年芝"
+  },
+  {
+   "id": "herb_x_tenthousandlingzhi",
+   "zh": "萬年靈芝",
+   "ja": "万年霊芝"
+  },
+  {
+   "id": "herb_x_lingzhitea",
+   "zh": "靈芝茶",
+   "ja": "霊芝茶"
+  },
+  {
+   "id": "herb_x_thunderfirelingzhi",
+   "zh": "雷火靈芝",
+   "ja": "雷火霊芝"
+  },
+  {
+   "id": "herb_x_sunlingzhi",
+   "zh": "烈陽靈芝",
+   "ja": "烈陽霊芝"
+  },
+  {
+   "id": "herb_x_sunmoonlingzhi",
+   "zh": "日月靈芝",
+   "ja": "日月霊芝"
+  },
+  {
+   "id": "herb_x_goldjadelingzhi",
+   "zh": "金玉靈芝",
+   "ja": "金玉霊芝"
+  },
+  {
+   "id": "herb_x_thousandbloodginseng",
+   "zh": "千年血參",
+   "ja": "千年血参"
+  },
+  {
+   "id": "herb_x_dragonbloodginseng",
+   "zh": "龍血參",
+   "ja": "竜血参"
+  },
+  {
+   "id": "herb_x_thousandsnowginseng",
+   "zh": "千年雪參",
+   "ja": "千年雪参"
+  },
+  {
+   "id": "herb_x_tenthousandginseng",
+   "zh": "萬年人參",
+   "ja": "万年人参"
+  },
+  {
+   "id": "herb_x_ginsengtree",
+   "zh": "人參果樹",
+   "ja": "人参果の木"
+  },
+  {
+   "id": "herb_x_ginsengking",
+   "zh": "參王",
+   "ja": "参王"
+  },
+  {
+   "id": "herb_x_ginsengsprout",
+   "zh": "參苗",
+   "ja": "参の苗"
+  },
+  {
+   "id": "herb_x_spiritginsengking",
+   "zh": "靈參王",
+   "ja": "霊参王"
+  },
+  {
+   "id": "herb_x_phoenixginseng",
+   "zh": "鳳凰參",
+   "ja": "鳳凰参"
+  },
+  {
+   "id": "herb_x_dragonginseng",
+   "zh": "龍參",
+   "ja": "竜参"
+  },
+  {
+   "id": "herb_x_ninegoldginseng",
+   "zh": "九轉參",
+   "ja": "九転参"
+  },
+  {
+   "id": "herb_x_goldjadeginseng",
+   "zh": "金玉參",
+   "ja": "金玉参"
+  },
+  {
+   "id": "herb_x_danshen",
+   "zh": "丹參",
+   "ja": "丹参"
+  },
+  {
+   "id": "herb_x_elixirgrass",
+   "zh": "丹草",
+   "ja": "丹草"
+  },
+  {
+   "id": "herb_x_hundredherbs",
+   "zh": "百草",
+   "ja": "百草"
+  },
+  {
+   "id": "herb_x_hermitorchid",
+   "zh": "隱士蘭",
+   "ja": "隠者の蘭"
+  },
+  {
+   "id": "herb_x_zentea",
+   "zh": "禪茶",
+   "ja": "禅茶"
+  },
+  {
+   "id": "herb_x_scholartea",
+   "zh": "書生清茶",
+   "ja": "書生の清茶"
+  },
+  {
+   "id": "herb_x_medvalleygrass",
+   "zh": "谷中靈草",
+   "ja": "谷中の霊草"
+  },
+  {
+   "id": "herb_x_medvalleyginseng",
+   "zh": "藥王谷參",
+   "ja": "薬王谷の参"
+  },
+  {
+   "id": "herb_x_medvalleylotus",
+   "zh": "藥王蓮",
+   "ja": "薬王蓮"
+  },
+  {
+   "id": "herb_x_emeitea",
+   "zh": "峨嵋雪芽",
+   "ja": "峨嵋雪芽"
+  },
+  {
+   "id": "herb_x_wudangtea",
+   "zh": "武當雲茶",
+   "ja": "武当雲茶"
+  },
+  {
+   "id": "herb_x_wudangpine",
+   "zh": "武當松",
+   "ja": "武当松"
+  },
+  {
+   "id": "herb_x_kunlunlotus",
+   "zh": "崑崙仙蓮",
+   "ja": "崑崙仙蓮"
+  },
+  {
+   "id": "herb_x_kunlunginseng",
+   "zh": "崑崙參",
+   "ja": "崑崙参"
+  },
+  {
+   "id": "herb_x_kunlunlingzhi",
+   "zh": "崑崙芝",
+   "ja": "崑崙芝"
+  },
+  {
+   "id": "herb_x_huashanpine",
+   "zh": "華山松",
+   "ja": "華山松"
+  },
+  {
+   "id": "herb_x_qingchengtea",
+   "zh": "青城雪芽",
+   "ja": "青城雪芽"
+  },
+  {
+   "id": "herb_x_fivepoisonflower",
+   "zh": "五毒花",
+   "ja": "五毒花"
+  },
+  {
+   "id": "herb_x_fivepoisongrass",
+   "zh": "五毒草",
+   "ja": "五毒草"
+  },
+  {
+   "id": "herb_x_fivepoisonfruit",
+   "zh": "五毒果",
+   "ja": "五毒果"
+  },
+  {
+   "id": "herb_x_mingholyflower",
+   "zh": "聖火花",
+   "ja": "聖火花"
+  },
+  {
+   "id": "herb_x_tombcoldlotus",
+   "zh": "古墓寒蓮",
+   "ja": "古墓の寒蓮"
+  },
+  {
+   "id": "herb_x_xiaoyaoflower",
+   "zh": "逍遙花",
+   "ja": "逍遙花"
+  },
+  {
+   "id": "herb_x_tributetea",
+   "zh": "貢茶",
+   "ja": "貢茶"
+  },
+  {
+   "id": "herb_x_tributeginseng",
+   "zh": "貢參",
+   "ja": "貢参"
+  },
+  {
+   "id": "herb_x_tributefruit",
+   "zh": "貢果",
+   "ja": "貢果"
+  },
+  {
+   "id": "herb_x_swordtombpine",
+   "zh": "劍冢古松",
+   "ja": "剣冢の古松"
+  },
+  {
+   "id": "herb_x_forgetree",
+   "zh": "劍鑄木",
+   "ja": "剣鋳木"
+  },
+  {
+   "id": "herb_x_swordorchid",
+   "zh": "劍蘭",
+   "ja": "グラジオラス"
+  },
+  {
+   "id": "herb_x_swordleaf",
+   "zh": "劍葉",
+   "ja": "剣の葉"
+  },
+  {
+   "id": "herb_x_swordbean",
+   "zh": "刀豆",
+   "ja": "なた豆"
+  },
+  {
+   "id": "herb_x_arrowgrass",
+   "zh": "箭草",
+   "ja": "矢草"
+  },
+  {
+   "id": "herb_x_pineneedle",
+   "zh": "松針",
+   "ja": "松葉"
+  },
+  {
+   "id": "herb_x_lanternfruit",
+   "zh": "燈籠果",
+   "ja": "ほおずき"
+  },
+  {
+   "id": "herb_x_inkorchid",
+   "zh": "墨蘭",
+   "ja": "墨蘭"
+  },
+  {
+   "id": "herb_x_inkchrysan",
+   "zh": "墨菊",
+   "ja": "墨菊"
+  },
+  {
+   "id": "herb_x_inkplum",
+   "zh": "墨梅",
+   "ja": "墨梅"
+  },
+  {
+   "id": "herb_x_jadehairpin",
+   "zh": "玉簪花",
+   "ja": "ギボウシ"
+  },
+  {
+   "id": "herb_x_marigold",
+   "zh": "金盞花",
+   "ja": "金盞花"
+  },
+  {
+   "id": "herb_x_coincoppergrass",
+   "zh": "銅錢草",
+   "ja": "銅銭草"
+  },
+  {
+   "id": "herb_x_saltwormwood",
+   "zh": "鹽蒿",
+   "ja": "塩蒿"
+  },
+  {
+   "id": "herb_x_firecrackerflower",
+   "zh": "爆竹花",
+   "ja": "爆竹花"
+  },
+  {
+   "id": "herb_x_fragrantgrass",
+   "zh": "香草",
+   "ja": "香草"
+  },
+  {
+   "id": "herb_x_redplum",
+   "zh": "紅梅",
+   "ja": "紅梅"
+  },
+  {
+   "id": "herb_x_whiteplum",
+   "zh": "白梅",
+   "ja": "白梅"
+  },
+  {
+   "id": "herb_x_plumseed",
+   "zh": "梅子",
+   "ja": "梅の実"
+  },
+  {
+   "id": "herb_x_greenplum",
+   "zh": "青梅",
+   "ja": "青梅"
+  },
+  {
+   "id": "herb_x_proudplum",
+   "zh": "傲雪寒梅",
+   "ja": "傲雪の寒梅"
+  },
+  {
+   "id": "herb_x_ancientplum",
+   "zh": "千年古梅",
+   "ja": "千年の古梅"
+  },
+  {
+   "id": "herb_x_plumorchid",
+   "zh": "梅蘭",
+   "ja": "梅蘭"
+  },
+  {
+   "id": "herb_x_bamboochrysan",
+   "zh": "竹菊",
+   "ja": "竹菊"
+  },
+  {
+   "id": "herb_x_fourgentlemen",
+   "zh": "四君子",
+   "ja": "四君子"
+  },
+  {
+   "id": "herb_x_goldchrysan",
+   "zh": "金菊",
+   "ja": "金菊"
+  },
+  {
+   "id": "herb_x_whitechrysan",
+   "zh": "白菊",
+   "ja": "白菊"
+  },
+  {
+   "id": "herb_x_wildchrysan",
+   "zh": "野菊",
+   "ja": "野菊"
+  },
+  {
+   "id": "herb_x_chrysanbud",
+   "zh": "菊蕾",
+   "ja": "菊の蕾"
+  },
+  {
+   "id": "herb_x_doubleninechrysan",
+   "zh": "重陽菊",
+   "ja": "重陽の菊"
+  },
+  {
+   "id": "herb_x_orchidgrass",
+   "zh": "蘭草",
+   "ja": "蘭草"
+  },
+  {
+   "id": "herb_x_snoworchid",
+   "zh": "雪蘭",
+   "ja": "雪蘭"
+  },
+  {
+   "id": "herb_x_phoenixorchid",
+   "zh": "鳳尾蘭",
+   "ja": "鳳尾蘭"
+  },
+  {
+   "id": "herb_x_whitepeony",
+   "zh": "白牡丹",
+   "ja": "白牡丹"
+  },
+  {
+   "id": "herb_x_goldpeony",
+   "zh": "金牡丹",
+   "ja": "金牡丹"
+  },
+  {
+   "id": "herb_x_beautypeony",
+   "zh": "國色天香",
+   "ja": "国色天香"
+  },
+  {
+   "id": "herb_x_luoyangpeony",
+   "zh": "洛陽牡丹",
+   "ja": "洛陽牡丹"
+  },
+  {
+   "id": "herb_x_pinenut",
+   "zh": "松子",
+   "ja": "松の実"
+  },
+  {
+   "id": "herb_x_pineresin",
+   "zh": "松脂",
+   "ja": "松脂"
+  },
+  {
+   "id": "herb_x_welcomepine",
+   "zh": "迎客松",
+   "ja": "迎客松"
+  },
+  {
+   "id": "herb_x_pinecrane",
+   "zh": "松鶴",
+   "ja": "松鶴"
+  },
+  {
+   "id": "herb_x_thousandpine",
+   "zh": "千年古松",
+   "ja": "千年の古松"
+  },
+  {
+   "id": "herb_x_willowcatkin",
+   "zh": "柳絮",
+   "ja": "柳絮"
+  },
+  {
+   "id": "herb_x_willowleaf",
+   "zh": "柳葉",
+   "ja": "柳の葉"
+  },
+  {
+   "id": "herb_x_willowbranch",
+   "zh": "柳條",
+   "ja": "柳の枝"
+  },
+  {
+   "id": "herb_x_longjing",
+   "zh": "龍井",
+   "ja": "龍井茶"
+  },
+  {
+   "id": "herb_x_oolong",
+   "zh": "烏龍茶",
+   "ja": "烏龍茶"
+  },
+  {
+   "id": "herb_x_tieguanyin",
+   "zh": "鐵觀音",
+   "ja": "鉄観音"
+  },
+  {
+   "id": "herb_x_silverneedletea",
+   "zh": "白毫銀針",
+   "ja": "白毫銀針"
+  },
+  {
+   "id": "herb_x_redtea",
+   "zh": "紅茶",
+   "ja": "紅茶"
+  },
+  {
+   "id": "herb_x_greentea",
+   "zh": "綠茶",
+   "ja": "緑茶"
+  },
+  {
+   "id": "herb_x_teaking",
+   "zh": "茶王",
+   "ja": "茶王"
+  },
+  {
+   "id": "herb_x_teaseed",
+   "zh": "茶籽",
+   "ja": "茶の実"
+  },
+  {
+   "id": "herb_x_agedtea",
+   "zh": "陳茶",
+   "ja": "古茶"
+  },
+  {
+   "id": "herb_x_greenvine",
+   "zh": "青藤",
+   "ja": "青藤"
+  },
+  {
+   "id": "herb_x_thundervine",
+   "zh": "雷藤",
+   "ja": "雷藤"
+  },
+  {
+   "id": "herb_x_icevine",
+   "zh": "冰藤",
+   "ja": "氷蔓"
+  },
+  {
+   "id": "herb_x_firevine",
+   "zh": "火藤",
+   "ja": "火蔓"
+  },
+  {
+   "id": "herb_x_goldvine",
+   "zh": "金線藤",
+   "ja": "金線藤"
+  },
+  {
+   "id": "herb_x_dragonvine",
+   "zh": "龍藤",
+   "ja": "竜蔓"
+  },
+  {
+   "id": "herb_x_ancientvine",
+   "zh": "千年古藤",
+   "ja": "千年の古蔓"
+  },
+  {
+   "id": "herb_x_icemoss",
+   "zh": "冰苔",
+   "ja": "氷苔"
+  },
+  {
+   "id": "herb_x_firemoss",
+   "zh": "火苔",
+   "ja": "火苔"
+  },
+  {
+   "id": "herb_x_bloodmoss",
+   "zh": "血苔",
+   "ja": "血苔"
+  },
+  {
+   "id": "herb_x_spiritmushroom",
+   "zh": "靈菇",
+   "ja": "霊茸"
+  },
+  {
+   "id": "herb_x_goldmushroom",
+   "zh": "金菇",
+   "ja": "金茸"
+  },
+  {
+   "id": "herb_x_icemushroom",
+   "zh": "冰菇",
+   "ja": "氷茸"
+  },
+  {
+   "id": "herb_x_thousandmushroom",
+   "zh": "千年菇",
+   "ja": "千年茸"
+  },
+  {
+   "id": "herb_x_immortalherb",
+   "zh": "仙草",
+   "ja": "仙草"
+  },
+  {
+   "id": "herb_x_immortalfruit",
+   "zh": "仙果",
+   "ja": "仙果"
+  },
+  {
+   "id": "herb_x_immortaltree",
+   "zh": "仙樹",
+   "ja": "仙樹"
+  },
+  {
+   "id": "herb_x_spiritfruittree",
+   "zh": "靈果樹",
+   "ja": "霊果樹"
+  },
+  {
+   "id": "herb_x_zhuguotree",
+   "zh": "朱果樹",
+   "ja": "朱果樹"
+  },
+  {
+   "id": "herb_x_thousandzhuguo",
+   "zh": "千年朱果",
+   "ja": "千年朱果"
+  },
+  {
+   "id": "herb_x_thousandpantao",
+   "zh": "千年蟠桃",
+   "ja": "千年蟠桃"
+  },
+  {
+   "id": "herb_x_pantaotree",
+   "zh": "蟠桃樹",
+   "ja": "蟠桃樹"
+  },
+  {
+   "id": "herb_x_soulflower",
+   "zh": "還魂花",
+   "ja": "還魂花"
+  },
+  {
+   "id": "herb_x_soullotus",
+   "zh": "還魂蓮",
+   "ja": "還魂蓮"
+  },
+  {
+   "id": "herb_x_soulginseng",
+   "zh": "還魂參",
+   "ja": "還魂参"
+  },
+  {
+   "id": "herb_x_ninesoulginseng",
+   "zh": "九轉還魂參",
+   "ja": "九転還魂参"
+  },
+  {
+   "id": "herb_x_agelessginseng",
+   "zh": "不老參",
+   "ja": "不老参"
+  },
+  {
+   "id": "herb_x_agelesslingzhi",
+   "zh": "不老芝",
+   "ja": "不老芝"
+  },
+  {
+   "id": "herb_x_agelesslotus",
+   "zh": "不老蓮",
+   "ja": "不老蓮"
+  },
+  {
+   "id": "herb_x_agelessfruit",
+   "zh": "不老果",
+   "ja": "不老果"
+  },
+  {
+   "id": "herb_x_lifefruit",
+   "zh": "長生果",
+   "ja": "長生果"
+  },
+  {
+   "id": "herb_x_lifeleaf",
+   "zh": "長生葉",
+   "ja": "長生葉"
+  },
+  {
+   "id": "herb_x_liferoot",
+   "zh": "長生根",
+   "ja": "長生根"
+  },
+  {
+   "id": "herb_x_lifelotus",
+   "zh": "長生蓮",
+   "ja": "長生蓮"
+  },
+  {
+   "id": "herb_x_thousandfirelingzhi",
+   "zh": "千年火靈芝",
+   "ja": "千年火霊芝"
+  },
+  {
+   "id": "herb_x_thousandicelingzhi",
+   "zh": "千年冰靈芝",
+   "ja": "千年氷霊芝"
+  },
+  {
+   "id": "herb_x_thousandblacklingzhi",
+   "zh": "千年黑靈芝",
+   "ja": "千年黒霊芝"
+  },
+  {
+   "id": "herb_x_thousandfireginseng",
+   "zh": "千年火參",
+   "ja": "千年火参"
+  },
+  {
+   "id": "herb_x_thousandjadeginseng",
+   "zh": "千年玉參",
+   "ja": "千年玉参"
+  },
+  {
+   "id": "herb_x_thousandgoldlotus",
+   "zh": "千年金蓮",
+   "ja": "千年金蓮"
+  },
+  {
+   "id": "herb_x_thousandicefirelotus",
+   "zh": "千年冰火蓮",
+   "ja": "千年氷火蓮"
+  },
+  {
+   "id": "herb_x_thousandicefirelingzhi",
+   "zh": "千年冰火靈芝",
+   "ja": "千年氷火霊芝"
+  },
+  {
+   "id": "herb_x_tianshanthousandlotus",
+   "zh": "天山千年雪蓮",
+   "ja": "天山千年雪蓮"
+  },
+  {
+   "id": "herb_x_kunlunthousandlotus",
+   "zh": "崑崙千年仙蓮",
+   "ja": "崑崙千年仙蓮"
+  },
+  {
+   "id": "herb_x_moonicelotus",
+   "zh": "月下冰魄蓮",
+   "ja": "月下氷魄蓮"
+  },
+  {
+   "id": "herb_x_volcanobloodlotus",
+   "zh": "火山赤焰蓮",
+   "ja": "火山赤焔蓮"
+  },
+  {
+   "id": "herb_x_buddhalotus",
+   "zh": "九品佛蓮",
+   "ja": "九品仏蓮"
+  },
+  {
+   "id": "herb_x_twinsnowlotus",
+   "zh": "並蒂雪蓮",
+   "ja": "並蒂雪蓮"
+  },
+  {
+   "id": "herb_x_twinfirelotus",
+   "zh": "並蒂火蓮",
+   "ja": "並蒂火蓮"
+  },
+  {
+   "id": "herb_x_twingoldlotus",
+   "zh": "並蒂金蓮",
+   "ja": "並蒂金蓮"
+  },
+  {
+   "id": "herb_x_thousanddragonblood",
+   "zh": "千年龍血參",
+   "ja": "千年竜血参"
+  },
+  {
+   "id": "herb_x_spiritginsengtenthousand",
+   "zh": "萬年靈參",
+   "ja": "万年霊参"
+  },
+  {
+   "id": "herb_x_immortalthousandlingzhi",
+   "zh": "萬年仙芝",
+   "ja": "万年仙芝"
+  },
+  {
+   "id": "herb_x_ninethousandlingzhi",
+   "zh": "九葉萬年芝",
+   "ja": "九葉万年芝"
+  },
+  {
+   "id": "herb_x_thousanddragonbeard",
+   "zh": "千年龍鬚草",
+   "ja": "千年竜髭草"
+  },
+  {
+   "id": "herb_x_firephoenixflower",
+   "zh": "浴火鳳凰花",
+   "ja": "浴火鳳凰花"
+  },
+  {
+   "id": "herb_x_thousandpoisonlotus",
+   "zh": "千年毒蓮",
+   "ja": "千年毒蓮"
+  },
+  {
+   "id": "herb_x_poisonsprout",
+   "zh": "毒苗",
+   "ja": "毒の苗"
+  },
+  {
+   "id": "herb_x_poisontree",
+   "zh": "毒樹",
+   "ja": "毒樹"
+  },
+  {
+   "id": "herb_x_miasmamoss",
+   "zh": "瘴苔",
+   "ja": "瘴苔"
+  },
+  {
+   "id": "herb_x_miasmatree",
+   "zh": "瘴氣樹",
+   "ja": "瘴気樹"
+  },
+  {
+   "id": "herb_x_poisonflowerking",
+   "zh": "毒花王",
+   "ja": "毒花王"
+  },
+  {
+   "id": "herb_x_fivepoisonking",
+   "zh": "五毒王草",
+   "ja": "五毒王草"
+  },
+  {
+   "id": "herb_x_gravehostorchid",
+   "zh": "墳頭鬼蘭",
+   "ja": "墓の鬼蘭"
+  },
+  {
+   "id": "herb_x_yellowspringflower",
+   "zh": "黃泉花",
+   "ja": "黄泉花"
+  },
+  {
+   "id": "herb_x_partingflower",
+   "zh": "離恨花",
+   "ja": "離恨花"
+  },
+  {
+   "id": "herb_x_hundredantidote",
+   "zh": "百解靈草",
+   "ja": "百解霊草"
+  },
+  {
+   "id": "herb_x_woundstopgrass",
+   "zh": "金創止血草",
+   "ja": "金創止血草"
+  },
+  {
+   "id": "herb_x_angelicamilk",
+   "zh": "歸芪",
+   "ja": "帰耆"
+  },
+  {
+   "id": "herb_x_fourherbs",
+   "zh": "四物草",
+   "ja": "四物草"
+  },
+  {
+   "id": "herb_x_guixiong",
+   "zh": "歸芎",
+   "ja": "帰芎"
+  },
+  {
+   "id": "herb_x_shaodi",
+   "zh": "芍地",
+   "ja": "芍地"
+  },
+  {
+   "id": "herb_x_imperiallongjing",
+   "zh": "御前龍井",
+   "ja": "御前龍井"
+  },
+  {
+   "id": "herb_x_teakingtree",
+   "zh": "茶王樹",
+   "ja": "茶王樹"
+  },
+  {
+   "id": "herb_x_oldtieguanyin",
+   "zh": "陳年鐵觀音",
+   "ja": "熟成鉄観音"
+  },
+  {
+   "id": "herb_x_oldtribute",
+   "zh": "陳年貢茶",
+   "ja": "熟成貢茶"
+  },
+  {
+   "id": "herb_x_imperialbeauty",
+   "zh": "御賜國色天香",
+   "ja": "御賜の国色天香"
+  },
+  {
+   "id": "herb_x_thousandwelcomepine",
+   "zh": "千年迎客松",
+   "ja": "千年迎客松"
+  },
+  {
+   "id": "herb_x_pinecranelife",
+   "zh": "松鶴延年",
+   "ja": "松鶴延年"
+  },
+  {
+   "id": "herb_x_inkplumorchid",
+   "zh": "墨梅蘭",
+   "ja": "墨梅蘭"
+  },
+  {
+   "id": "herb_x_inkbamboochrysan",
+   "zh": "墨竹菊",
+   "ja": "墨竹菊"
+  },
+  {
+   "id": "herb_x_inkgentlemen",
+   "zh": "墨四君子",
+   "ja": "墨四君子"
+  },
+  {
+   "id": "herb_x_redwhiteplum",
+   "zh": "紅白梅",
+   "ja": "紅白梅"
+  },
+  {
+   "id": "herb_x_goldsilverchrysan",
+   "zh": "金銀菊",
+   "ja": "金銀菊"
+  },
+  {
+   "id": "herb_x_goldsilverpeony",
+   "zh": "金銀牡丹",
+   "ja": "金銀牡丹"
+  },
+  {
+   "id": "herb_x_goldsilverlotus",
+   "zh": "金銀蓮",
+   "ja": "金銀蓮"
+  },
+  {
+   "id": "herb_x_blackwhiteear",
+   "zh": "黑白耳",
+   "ja": "黒白木耳"
+  },
+  {
+   "id": "herb_x_spiritthousandmushroom",
+   "zh": "千年靈菇",
+   "ja": "千年霊茸"
+  },
+  {
+   "id": "herb_x_thousandmatsutake",
+   "zh": "千年松茸",
+   "ja": "千年松茸"
+  },
+  {
+   "id": "herb_x_seaspiritlingzhi",
+   "zh": "海靈芝",
+   "ja": "海の霊芝"
+  },
+  {
+   "id": "herb_x_nightcoral",
+   "zh": "夜光珊瑚草",
+   "ja": "夜光珊瑚草"
+  },
+  {
+   "id": "herb_x_dragonpalacecoral",
+   "zh": "龍宮珊瑚草",
+   "ja": "竜宮珊瑚草"
+  },
+  {
+   "id": "herb_x_spiritturtleleaf",
+   "zh": "靈龜葉",
+   "ja": "霊亀の葉"
+  },
+  {
+   "id": "herb_x_sunburncactus",
+   "zh": "烈日仙人掌",
+   "ja": "烈日サボテン"
+  },
+  {
+   "id": "herb_x_darkcavefungus",
+   "zh": "暗洞菇",
+   "ja": "暗洞茸"
+  },
+  {
+   "id": "herb_x_medvalleythousandlotus",
+   "zh": "千年藥王蓮",
+   "ja": "千年薬王蓮"
+  },
+  {
+   "id": "herb_x_medvalleyhundred",
+   "zh": "谷中百草",
+   "ja": "谷中百草"
+  },
+  {
+   "id": "herb_x_nurtureqigrass",
+   "zh": "養氣草",
+   "ja": "養気草"
+  },
+  {
+   "id": "herb_x_marrowspiritroot",
+   "zh": "洗髓靈根",
+   "ja": "洗髄霊根"
+  },
+  {
+   "id": "herb_x_swordqigrass",
+   "zh": "劍氣草",
+   "ja": "剣気草"
+  },
+  {
+   "id": "herb_x_lightbodygrass",
+   "zh": "輕身草",
+   "ja": "軽身草"
+  }
+ ],
+ "recipes": [
+  [
+   "herb_root",
+   "bst_bee",
+   "herb_x_licorice"
+  ],
+  [
+   "herb_root",
+   "con_love",
+   "herb_x_angelica"
+  ],
+  [
+   "herb_root",
+   "trs_gold",
+   "herb_x_astragalus"
+  ],
+  [
+   "herb_root",
+   "earth",
+   "herb_x_rehmannia"
+  ],
+  [
+   "herb_peony",
+   "herb_root",
+   "herb_x_peonyroot"
+  ],
+  [
+   "herb_pine",
+   "herb_root",
+   "herb_x_poria"
+  ],
+  [
+   "herb_root",
+   "nat_river",
+   "herb_x_chuanxiong"
+  ],
+  [
+   "herb_root",
+   "mat_silver",
+   "herb_x_whiteatract"
+  ],
+  [
+   "herb_grass",
+   "plc_desert",
+   "herb_x_ephedra"
+  ],
+  [
+   "herb_tree",
+   "eli_powder",
+   "herb_x_cinnamon"
+  ],
+  [
+   "herb_root",
+   "fire",
+   "herb_x_ginger"
+  ],
+  [
+   "herb_fruit",
+   "nat_sun",
+   "herb_x_wolfberry"
+  ],
+  [
+   "herb_fruit",
+   "eli_cinnabar",
+   "herb_x_jujube"
+  ],
+  [
+   "herb_fruit",
+   "bst_dragon",
+   "herb_x_longan"
+  ],
+  [
+   "herb_leaf",
+   "eli_cooling",
+   "herb_x_mint"
+  ],
+  [
+   "herb_flower",
+   "mat_silver",
+   "herb_x_honeysuckle"
+  ],
+  [
+   "herb_flower",
+   "gear_bell",
+   "herb_x_bellflower"
+  ],
+  [
+   "herb_seed",
+   "nat_wind",
+   "herb_x_dandelion"
+  ],
+  [
+   "herb_grass",
+   "gear_wheel",
+   "herb_x_plantain"
+  ],
+  [
+   "herb_mugwort",
+   "herb_leaf",
+   "herb_x_wormwood"
+  ],
+  [
+   "herb_grass",
+   "per_maiden",
+   "herb_x_motherwort"
+  ],
+  [
+   "herb_leaf",
+   "bst_fish",
+   "herb_x_houttuynia"
+  ],
+  [
+   "herb_root",
+   "nat_mountain",
+   "herb_x_yam"
+  ],
+  [
+   "herb_lotus",
+   "herb_seed",
+   "herb_x_lotusseed"
+  ],
+  [
+   "herb_lotus",
+   "herb_root",
+   "herb_x_lotusroot"
+  ],
+  [
+   "herb_lotus",
+   "herb_leaf",
+   "herb_x_lotusleaf"
+  ],
+  [
+   "mat_bamboo",
+   "herb_sprout",
+   "herb_x_bambooshoot"
+  ],
+  [
+   "herb_grass",
+   "nat_river",
+   "herb_x_reed"
+  ],
+  [
+   "herb_x_reed",
+   "herb_root",
+   "herb_x_reedroot"
+  ],
+  [
+   "herb_grass",
+   "gear_lantern",
+   "herb_x_rush"
+  ],
+  [
+   "herb_seed",
+   "eli_oil",
+   "herb_x_sesame"
+  ],
+  [
+   "herb_fruit",
+   "nat_stone",
+   "herb_x_walnut"
+  ],
+  [
+   "herb_fruit",
+   "herb_tree",
+   "herb_x_chestnut"
+  ],
+  [
+   "herb_flower",
+   "trs_peach",
+   "herb_x_peachblossom"
+  ],
+  [
+   "herb_seed",
+   "fire",
+   "herb_x_redbean"
+  ],
+  [
+   "herb_seed",
+   "herb_leaf",
+   "herb_x_mungbean"
+  ],
+  [
+   "herb_seed",
+   "plc_field",
+   "herb_x_rice"
+  ],
+  [
+   "mat_bamboo",
+   "herb_leaf",
+   "herb_x_bambooleaf"
+  ],
+  [
+   "herb_seed",
+   "con_love",
+   "herb_x_lovepea"
+  ],
+  [
+   "herb_grass",
+   "con_sorrow",
+   "herb_x_forgetgrass"
+  ],
+  [
+   "herb_grass",
+   "con_calm",
+   "herb_x_calmgrass"
+  ],
+  [
+   "herb_grass",
+   "mar_breath",
+   "herb_x_breathgrass"
+  ],
+  [
+   "herb_root",
+   "mar_meridian",
+   "herb_x_marrowroot"
+  ],
+  [
+   "herb_flower",
+   "mar_qi",
+   "herb_x_qiflower"
+  ],
+  [
+   "herb_flower",
+   "con_dream",
+   "herb_x_dreamflower"
+  ],
+  [
+   "herb_flower",
+   "con_illusion",
+   "herb_x_illusionflower"
+  ],
+  [
+   "herb_grass",
+   "con_fortune",
+   "herb_x_fortunegrass"
+  ],
+  [
+   "herb_root",
+   "con_courage",
+   "herb_x_courageroot"
+  ],
+  [
+   "herb_tea",
+   "con_wisdom",
+   "herb_x_wisdomtea"
+  ],
+  [
+   "herb_pine",
+   "con_righteous",
+   "herb_x_righteouspine"
+  ],
+  [
+   "herb_vine",
+   "con_fate",
+   "herb_x_fatevine"
+  ],
+  [
+   "herb_pine",
+   "con_solitude",
+   "herb_x_solitudepine"
+  ],
+  [
+   "herb_willow",
+   "con_sorrow",
+   "herb_x_sorrowwillow"
+  ],
+  [
+   "herb_flower",
+   "con_joy",
+   "herb_x_joyflower"
+  ],
+  [
+   "herb_flower",
+   "con_rage",
+   "herb_x_rageflower"
+  ],
+  [
+   "herb_moss",
+   "con_fear",
+   "herb_x_fearmoss"
+  ],
+  [
+   "herb_vine",
+   "con_hate",
+   "herb_x_hatevine"
+  ],
+  [
+   "herb_moss",
+   "con_time",
+   "herb_x_timemoss"
+  ],
+  [
+   "herb_grass",
+   "con_void",
+   "herb_x_voidgrass"
+  ],
+  [
+   "herb_seed",
+   "con_secret",
+   "herb_x_secretseed"
+  ],
+  [
+   "herb_peony",
+   "con_fame",
+   "herb_x_famepeony"
+  ],
+  [
+   "herb_orchid",
+   "con_yin",
+   "herb_x_yinflower"
+  ],
+  [
+   "herb_peony",
+   "con_yang",
+   "herb_x_yangpeony"
+  ],
+  [
+   "herb_grass",
+   "bst_snake",
+   "herb_x_snakegallgrass"
+  ],
+  [
+   "herb_grass",
+   "bst_tiger",
+   "herb_x_tigerbone"
+  ],
+  [
+   "herb_grass",
+   "bst_wolf",
+   "herb_x_wolfgrass"
+  ],
+  [
+   "herb_grass",
+   "bst_horse",
+   "herb_x_horsetooth"
+  ],
+  [
+   "herb_grass",
+   "bst_crane",
+   "herb_x_cranegrass"
+  ],
+  [
+   "herb_flower",
+   "bst_eagle",
+   "herb_x_eaglefeather"
+  ],
+  [
+   "herb_fruit",
+   "bst_monkey",
+   "herb_x_monkeyfruit"
+  ],
+  [
+   "herb_root",
+   "bst_bear",
+   "herb_x_bearroot"
+  ],
+  [
+   "herb_grass",
+   "bst_deer",
+   "herb_x_deergrass"
+  ],
+  [
+   "herb_leaf",
+   "bst_goat",
+   "herb_x_goatgrass"
+  ],
+  [
+   "herb_flower",
+   "bst_spider",
+   "herb_x_spiderflower"
+  ],
+  [
+   "herb_grass",
+   "bst_scorpion",
+   "herb_x_scorpiongrass"
+  ],
+  [
+   "herb_orchid",
+   "bst_crab",
+   "herb_x_crabapple"
+  ],
+  [
+   "herb_moss",
+   "bst_toad",
+   "herb_x_toadmoss"
+  ],
+  [
+   "herb_leaf",
+   "bst_turtle",
+   "herb_x_turtleleaf"
+  ],
+  [
+   "herb_vine",
+   "bst_fish",
+   "herb_x_fishvine"
+  ],
+  [
+   "herb_grass",
+   "bst_bird",
+   "herb_x_birdnestgrass"
+  ],
+  [
+   "herb_leaf",
+   "bst_silkworm",
+   "herb_x_silkmulberry"
+  ],
+  [
+   "herb_fruit",
+   "bst_silkworm",
+   "herb_x_mulberry"
+  ],
+  [
+   "herb_fungus",
+   "bst_silkworm",
+   "herb_x_cordyceps"
+  ],
+  [
+   "herb_x_cordyceps",
+   "nat_snow",
+   "herb_x_wintercordy"
+  ],
+  [
+   "herb_grass",
+   "bst_dragon",
+   "herb_x_dragonbeard"
+  ],
+  [
+   "herb_flower",
+   "bst_phoenix",
+   "herb_x_phoenixflower"
+  ],
+  [
+   "herb_lotus",
+   "nat_snow",
+   "herb_x_snowlotus"
+  ],
+  [
+   "herb_x_snowlotus",
+   "trs_iceheart",
+   "herb_x_icelotus"
+  ],
+  [
+   "herb_x_snowlotus",
+   "con_time",
+   "herb_x_thousandsnowlotus"
+  ],
+  [
+   "herb_x_snowlotus",
+   "nat_mountain",
+   "herb_x_tianshanlotus"
+  ],
+  [
+   "herb_lotus",
+   "nat_blaze",
+   "herb_x_firelotus"
+  ],
+  [
+   "herb_x_firelotus",
+   "eli_cinnabar",
+   "herb_x_bloodlotus"
+  ],
+  [
+   "herb_lotus",
+   "trs_gold",
+   "herb_x_goldlotus"
+  ],
+  [
+   "herb_lotus",
+   "nat_thunder",
+   "herb_x_thunderlotus"
+  ],
+  [
+   "herb_lotus",
+   "nat_moon",
+   "herb_x_moonlotus"
+  ],
+  [
+   "herb_lotus",
+   "nat_sun",
+   "herb_x_sunlotus"
+  ],
+  [
+   "herb_lotus",
+   "nat_mist",
+   "herb_x_mistlotus"
+  ],
+  [
+   "herb_lingzhi",
+   "nat_blaze",
+   "herb_x_firelingzhi"
+  ],
+  [
+   "herb_lingzhi",
+   "nat_frost",
+   "herb_x_icelingzhi"
+  ],
+  [
+   "herb_lingzhi",
+   "eli_cinnabar",
+   "herb_x_bloodlingzhi"
+  ],
+  [
+   "herb_lingzhi",
+   "nat_dark",
+   "herb_x_blacklingzhi"
+  ],
+  [
+   "herb_lingzhi",
+   "trs_gold",
+   "herb_x_goldlingzhi"
+  ],
+  [
+   "herb_lingzhi",
+   "mat_jade",
+   "herb_x_jadelingzhi"
+  ],
+  [
+   "herb_lingzhi",
+   "nat_thunder",
+   "herb_x_thunderlingzhi"
+  ],
+  [
+   "herb_lingzhi",
+   "nat_moon",
+   "herb_x_moonlingzhi"
+  ],
+  [
+   "herb_lingzhi",
+   "trs_cauldron",
+   "herb_x_ninelingzhi"
+  ],
+  [
+   "herb_lingzhi",
+   "con_time",
+   "herb_x_thousandlingzhi"
+  ],
+  [
+   "herb_ginseng",
+   "eli_cinnabar",
+   "herb_x_bloodginseng"
+  ],
+  [
+   "herb_ginseng",
+   "nat_snow",
+   "herb_x_snowginseng"
+  ],
+  [
+   "herb_ginseng",
+   "nat_blaze",
+   "herb_x_fireginseng"
+  ],
+  [
+   "herb_ginseng",
+   "trs_gold",
+   "herb_x_goldginseng"
+  ],
+  [
+   "herb_ginseng",
+   "mat_jade",
+   "herb_x_jadeginseng"
+  ],
+  [
+   "herb_ginseng",
+   "con_time",
+   "herb_x_thousandginseng"
+  ],
+  [
+   "herb_ginseng",
+   "herb_fruit",
+   "herb_x_ginsengfruit"
+  ],
+  [
+   "herb_root",
+   "herb_vine",
+   "herb_x_shouwu"
+  ],
+  [
+   "herb_x_shouwu",
+   "con_time",
+   "herb_x_thousandshouwu"
+  ],
+  [
+   "herb_grass",
+   "plc_cliff",
+   "herb_x_cliffgrass"
+  ],
+  [
+   "herb_pine",
+   "plc_cliff",
+   "herb_x_cliffpine"
+  ],
+  [
+   "herb_grass",
+   "plc_cave",
+   "herb_x_caveherb"
+  ],
+  [
+   "herb_moss",
+   "plc_cave",
+   "herb_x_cavemoss"
+  ],
+  [
+   "herb_fungus",
+   "plc_cave",
+   "herb_x_cavefungus"
+  ],
+  [
+   "herb_tree",
+   "plc_desert",
+   "herb_x_cactus"
+  ],
+  [
+   "herb_fruit",
+   "plc_desert",
+   "herb_x_seabuckthorn"
+  ],
+  [
+   "herb_grass",
+   "plc_island",
+   "herb_x_islandgrass"
+  ],
+  [
+   "herb_grass",
+   "nat_sea",
+   "herb_x_seaweed"
+  ],
+  [
+   "herb_x_seaweed",
+   "herb_leaf",
+   "herb_x_kelp"
+  ],
+  [
+   "herb_x_seaweed",
+   "trs_gem",
+   "herb_x_coralgrass"
+  ],
+  [
+   "herb_grass",
+   "trs_pearl",
+   "herb_x_nightgrass"
+  ],
+  [
+   "herb_grass",
+   "plc_spring",
+   "herb_x_springcress"
+  ],
+  [
+   "herb_leaf",
+   "plc_lake",
+   "herb_x_lakeweed"
+  ],
+  [
+   "herb_moss",
+   "plc_hotspring",
+   "herb_x_springmoss"
+  ],
+  [
+   "herb_vine",
+   "plc_mine",
+   "herb_x_minevine"
+  ],
+  [
+   "herb_flower",
+   "plc_grave",
+   "herb_x_spiderlily"
+  ],
+  [
+   "herb_peony",
+   "plc_palace",
+   "herb_x_palacepeony"
+  ],
+  [
+   "herb_orchid",
+   "plc_garden",
+   "herb_x_gardenorchid"
+  ],
+  [
+   "herb_plum",
+   "plc_pavilion",
+   "herb_x_pavilionplum"
+  ],
+  [
+   "herb_pine",
+   "plc_temple",
+   "herb_x_templepine"
+  ],
+  [
+   "herb_lotus",
+   "plc_temple",
+   "herb_x_templelotus"
+  ],
+  [
+   "herb_vine",
+   "plc_woods",
+   "herb_x_woodsvine"
+  ],
+  [
+   "herb_fungus",
+   "plc_bamboogrove",
+   "herb_x_bamboofungus"
+  ],
+  [
+   "herb_flower",
+   "plc_grassland",
+   "herb_x_prairieflower"
+  ],
+  [
+   "herb_lotus",
+   "plc_lake",
+   "herb_x_lakelotus"
+  ],
+  [
+   "herb_plum",
+   "nat_snow",
+   "herb_x_snowplum"
+  ],
+  [
+   "herb_pine",
+   "nat_snow",
+   "herb_x_snowpine"
+  ],
+  [
+   "herb_chrysan",
+   "nat_frost",
+   "herb_x_frostchrysan"
+  ],
+  [
+   "herb_orchid",
+   "nat_mist",
+   "herb_x_mistorchid"
+  ],
+  [
+   "herb_flower",
+   "nat_rain",
+   "herb_x_rainflower"
+  ],
+  [
+   "herb_flower",
+   "nat_rainbow",
+   "herb_x_rainbowflower"
+  ],
+  [
+   "herb_pine",
+   "nat_thunder",
+   "herb_x_thunderpine"
+  ],
+  [
+   "herb_tree",
+   "nat_thunder",
+   "herb_x_thundertree"
+  ],
+  [
+   "herb_peony",
+   "nat_light",
+   "herb_x_lightflower"
+  ],
+  [
+   "herb_flower",
+   "nat_dark",
+   "herb_x_darkflower"
+  ],
+  [
+   "herb_flower",
+   "nat_moon",
+   "herb_x_moonflower"
+  ],
+  [
+   "herb_flower",
+   "nat_sun",
+   "herb_x_sunflower"
+  ],
+  [
+   "herb_moss",
+   "nat_waterfall",
+   "herb_x_waterfallmoss"
+  ],
+  [
+   "herb_grass",
+   "nat_volcano",
+   "herb_x_volcanograss"
+  ],
+  [
+   "herb_flower",
+   "nat_magma",
+   "herb_x_magmaflower"
+  ],
+  [
+   "herb_peony",
+   "nat_sea",
+   "herb_x_seaflower"
+  ],
+  [
+   "herb_fungus",
+   "nat_stone",
+   "herb_x_stonefungus"
+  ],
+  [
+   "herb_lotus",
+   "nat_stone",
+   "herb_x_stonelotus"
+  ],
+  [
+   "herb_orchid",
+   "nat_stone",
+   "herb_x_stoneorchid"
+  ],
+  [
+   "herb_tea",
+   "nat_mist",
+   "herb_x_cloudtea"
+  ],
+  [
+   "herb_sprout",
+   "nat_cloud",
+   "herb_x_cloudgrass"
+  ],
+  [
+   "herb_vine",
+   "nat_wind",
+   "herb_x_windgrass"
+  ],
+  [
+   "herb_grass",
+   "gear_bell",
+   "herb_x_windbell"
+  ],
+  [
+   "herb_grass",
+   "eli_dew",
+   "herb_x_dewgrass"
+  ],
+  [
+   "herb_grass",
+   "nat_frost",
+   "herb_x_frostgrass"
+  ],
+  [
+   "herb_grass",
+   "nat_blaze",
+   "herb_x_firegrass"
+  ],
+  [
+   "herb_fungus",
+   "fire",
+   "herb_x_redmushroom"
+  ],
+  [
+   "herb_fungus",
+   "nat_dark",
+   "herb_x_blackfungus"
+  ],
+  [
+   "herb_fungus",
+   "nat_snow",
+   "herb_x_whitefungus"
+  ],
+  [
+   "herb_fungus",
+   "mat_timber",
+   "herb_x_woodear"
+  ],
+  [
+   "herb_fungus",
+   "eli_incense",
+   "herb_x_shiitake"
+  ],
+  [
+   "herb_fungus",
+   "herb_pine",
+   "herb_x_matsutake"
+  ],
+  [
+   "herb_fungus",
+   "bst_goat",
+   "herb_x_morel"
+  ],
+  [
+   "herb_fungus",
+   "earth",
+   "herb_x_truffle"
+  ],
+  [
+   "herb_fungus",
+   "nat_thunder",
+   "herb_x_thunderfungus"
+  ],
+  [
+   "herb_fungus",
+   "plc_grave",
+   "herb_x_ghostfungus"
+  ],
+  [
+   "herb_moss",
+   "trs_pearl",
+   "herb_x_glowmoss"
+  ],
+  [
+   "herb_moss",
+   "trs_gold",
+   "herb_x_goldmoss"
+  ],
+  [
+   "herb_moss",
+   "nat_stone",
+   "herb_x_stonemoss"
+  ],
+  [
+   "herb_pine",
+   "con_time",
+   "herb_x_cypress"
+  ],
+  [
+   "herb_tree",
+   "eli_oil",
+   "herb_x_camphor"
+  ],
+  [
+   "herb_tree",
+   "eli_cinnabar",
+   "herb_x_redwood"
+  ],
+  [
+   "herb_tree",
+   "mat_iron",
+   "herb_x_ironwood"
+  ],
+  [
+   "herb_tree",
+   "trs_peach",
+   "herb_x_peachwood"
+  ],
+  [
+   "herb_tree",
+   "per_monk",
+   "herb_x_bodhi"
+  ],
+  [
+   "herb_x_bodhi",
+   "herb_seed",
+   "herb_x_bodhiseed"
+  ],
+  [
+   "herb_tree",
+   "herb_root",
+   "herb_x_banyan"
+  ],
+  [
+   "herb_tree",
+   "fire",
+   "herb_x_maple"
+  ],
+  [
+   "herb_x_maple",
+   "herb_leaf",
+   "herb_x_mapleleaf"
+  ],
+  [
+   "herb_tree",
+   "mat_silver",
+   "herb_x_ginkgo"
+  ],
+  [
+   "herb_flower",
+   "herb_tree",
+   "herb_x_osmanthus"
+  ],
+  [
+   "herb_plum",
+   "herb_flower",
+   "herb_x_cherry"
+  ],
+  [
+   "herb_orchid",
+   "mat_jade",
+   "herb_x_magnolia"
+  ],
+  [
+   "herb_flower",
+   "herb_tea",
+   "herb_x_jasmine"
+  ],
+  [
+   "herb_flower",
+   "herb_vine",
+   "herb_x_rose"
+  ],
+  [
+   "herb_tea",
+   "nat_mountain",
+   "herb_x_camellia"
+  ],
+  [
+   "herb_lotus",
+   "herb_tree",
+   "herb_x_hibiscus"
+  ],
+  [
+   "herb_vine",
+   "herb_orchid",
+   "herb_x_wisteria"
+  ],
+  [
+   "herb_flower",
+   "herb_root",
+   "herb_x_lily"
+  ],
+  [
+   "herb_orchid",
+   "nat_river",
+   "herb_x_narcissus"
+  ],
+  [
+   "herb_orchid",
+   "con_fame",
+   "herb_x_orchidking"
+  ],
+  [
+   "eli_poisonherb",
+   "herb_peony",
+   "herb_x_poisonpeony"
+  ],
+  [
+   "eli_poisonherb",
+   "herb_fruit",
+   "herb_x_poisonfruit"
+  ],
+  [
+   "eli_poisonherb",
+   "herb_seed",
+   "herb_x_poisonseed"
+  ],
+  [
+   "herb_vine",
+   "eli_cinnabar",
+   "herb_x_bloodvine"
+  ],
+  [
+   "herb_flower",
+   "eli_cinnabar",
+   "herb_x_bloodflower"
+  ],
+  [
+   "herb_fruit",
+   "nat_dark",
+   "herb_x_nightshade"
+  ],
+  [
+   "herb_orchid",
+   "nat_dark",
+   "herb_x_ghostorchid"
+  ],
+  [
+   "herb_grass",
+   "eli_antidote",
+   "herb_x_antidotegrass"
+  ],
+  [
+   "herb_leaf",
+   "nat_frost",
+   "herb_x_coolleaf"
+  ],
+  [
+   "herb_grass",
+   "eli_healing",
+   "herb_x_healgrass"
+  ],
+  [
+   "herb_grass",
+   "eli_ointment",
+   "herb_x_bloodstop"
+  ],
+  [
+   "herb_leaf",
+   "nat_sun",
+   "herb_x_dryleaf"
+  ],
+  [
+   "herb_root",
+   "nat_sun",
+   "herb_x_dryroot"
+  ],
+  [
+   "herb_grass",
+   "mat_rope",
+   "herb_x_herbbundle"
+  ],
+  [
+   "herb_grass",
+   "mat_cloth",
+   "herb_x_herbbag"
+  ],
+  [
+   "herb_grass",
+   "eli_juice",
+   "herb_x_herbpaste"
+  ],
+  [
+   "herb_ginseng",
+   "herb_tea",
+   "herb_x_ginsengtea"
+  ],
+  [
+   "herb_root",
+   "gear_furnace",
+   "herb_x_roastroot"
+  ],
+  [
+   "herb_grass",
+   "mat_charcoal",
+   "herb_x_herbash"
+  ],
+  [
+   "herb_flower",
+   "mat_paper",
+   "herb_x_pressedflower"
+  ],
+  [
+   "herb_grass",
+   "gear_slip",
+   "herb_x_herbalmanual"
+  ],
+  [
+   "herb_tea",
+   "mat_brick",
+   "herb_x_teabrick"
+  ],
+  [
+   "herb_x_lotusleaf",
+   "herb_tea",
+   "herb_x_lotustea"
+  ],
+  [
+   "herb_x_mint",
+   "herb_tea",
+   "herb_x_minttea"
+  ],
+  [
+   "herb_mugwort",
+   "mat_paper",
+   "herb_x_moxastick"
+  ],
+  [
+   "herb_fruit",
+   "trs_fireorb",
+   "herb_x_zhuguo"
+  ],
+  [
+   "herb_fruit",
+   "trs_peach",
+   "herb_x_pantao"
+  ],
+  [
+   "herb_grass",
+   "plc_grave",
+   "herb_x_soulgrass"
+  ],
+  [
+   "herb_x_soulgrass",
+   "eli_elixir",
+   "herb_x_ninesoulgrass"
+  ],
+  [
+   "herb_tree",
+   "con_time",
+   "herb_x_lifetree"
+  ],
+  [
+   "herb_grass",
+   "con_time",
+   "herb_x_immortalgrass"
+  ],
+  [
+   "herb_grass",
+   "trs_spiritstone",
+   "herb_x_spiritgrass"
+  ],
+  [
+   "herb_flower",
+   "trs_spiritstone",
+   "herb_x_spiritflower"
+  ],
+  [
+   "herb_fruit",
+   "trs_spiritstone",
+   "herb_x_spiritfruit"
+  ],
+  [
+   "herb_root",
+   "trs_spiritstone",
+   "herb_x_spiritroot"
+  ],
+  [
+   "herb_tree",
+   "trs_spiritstone",
+   "herb_x_spirittree"
+  ],
+  [
+   "herb_x_spiritroot",
+   "herb_ginseng",
+   "herb_x_spiritginseng"
+  ],
+  [
+   "herb_lingzhi",
+   "herb_x_spiritgrass",
+   "herb_x_immortallingzhi"
+  ],
+  [
+   "herb_x_snowlotus",
+   "herb_x_firelotus",
+   "herb_x_icefirelotus"
+  ],
+  [
+   "herb_x_icelotus",
+   "nat_blaze",
+   "herb_x_icefirelotus"
+  ],
+  [
+   "herb_x_icelingzhi",
+   "herb_x_firelingzhi",
+   "herb_x_icefirelingzhi"
+  ],
+  [
+   "herb_lingzhi",
+   "herb_x_icefirelotus",
+   "herb_x_icefirelingzhi"
+  ],
+  [
+   "herb_x_snowginseng",
+   "herb_x_fireginseng",
+   "herb_x_icefireginseng"
+  ],
+  [
+   "herb_x_yinflower",
+   "herb_x_yangpeony",
+   "herb_x_yinyangflower"
+  ],
+  [
+   "herb_flower",
+   "mar_taichi",
+   "herb_x_yinyangflower"
+  ],
+  [
+   "herb_lotus",
+   "herb_lotus",
+   "herb_x_twinlotus"
+  ],
+  [
+   "herb_lotus",
+   "mat_jade",
+   "herb_x_jadelotus"
+  ],
+  [
+   "herb_x_goldlotus",
+   "herb_x_jadelotus",
+   "herb_x_goldjadelotus"
+  ],
+  [
+   "herb_x_sunlotus",
+   "herb_x_moonlotus",
+   "herb_x_sunmoonlotus"
+  ],
+  [
+   "herb_x_firelotus",
+   "con_time",
+   "herb_x_thousandfirelotus"
+  ],
+  [
+   "herb_x_thunderlotus",
+   "herb_x_firelotus",
+   "herb_x_thunderfirelotus"
+  ],
+  [
+   "herb_x_goldlotus",
+   "trs_cauldron",
+   "herb_x_ninegradelotus"
+  ],
+  [
+   "herb_lotus",
+   "con_fame",
+   "herb_x_lotusking"
+  ],
+  [
+   "herb_lotus",
+   "mat_silver",
+   "herb_x_silverlotus"
+  ],
+  [
+   "herb_lotus",
+   "trs_gem",
+   "herb_x_crystallotus"
+  ],
+  [
+   "herb_lotus",
+   "bst_dragon",
+   "herb_x_dragonlotus"
+  ],
+  [
+   "herb_lotus",
+   "con_dream",
+   "herb_x_dreamlotus"
+  ],
+  [
+   "herb_x_darkflower",
+   "herb_lotus",
+   "herb_x_netherlotus"
+  ],
+  [
+   "herb_lotus",
+   "mat_ink",
+   "herb_x_inklotus"
+  ],
+  [
+   "herb_lotus",
+   "mat_clay",
+   "herb_x_mudlotus"
+  ],
+  [
+   "herb_lotus",
+   "mat_iron",
+   "herb_x_clematis"
+  ],
+  [
+   "herb_x_bloodlingzhi",
+   "con_time",
+   "herb_x_thousandbloodlingzhi"
+  ],
+  [
+   "herb_lingzhi",
+   "bst_dragon",
+   "herb_x_dragonlingzhi"
+  ],
+  [
+   "herb_lingzhi",
+   "bst_phoenix",
+   "herb_x_phoenixlingzhi"
+  ],
+  [
+   "herb_lingzhi",
+   "bst_crane",
+   "herb_x_cranelingzhi"
+  ],
+  [
+   "herb_lingzhi",
+   "con_fame",
+   "herb_x_lingzhiking"
+  ],
+  [
+   "herb_x_ninelingzhi",
+   "con_time",
+   "herb_x_nineleafthousand"
+  ],
+  [
+   "herb_x_thousandlingzhi",
+   "herb_x_thousandlingzhi",
+   "herb_x_tenthousandlingzhi"
+  ],
+  [
+   "herb_lingzhi",
+   "herb_tea",
+   "herb_x_lingzhitea"
+  ],
+  [
+   "herb_x_thunderlingzhi",
+   "herb_x_firelingzhi",
+   "herb_x_thunderfirelingzhi"
+  ],
+  [
+   "herb_lingzhi",
+   "nat_sun",
+   "herb_x_sunlingzhi"
+  ],
+  [
+   "herb_x_sunlingzhi",
+   "herb_x_moonlingzhi",
+   "herb_x_sunmoonlingzhi"
+  ],
+  [
+   "herb_x_goldlingzhi",
+   "herb_x_jadelingzhi",
+   "herb_x_goldjadelingzhi"
+  ],
+  [
+   "herb_x_bloodginseng",
+   "con_time",
+   "herb_x_thousandbloodginseng"
+  ],
+  [
+   "herb_x_bloodginseng",
+   "bst_dragon",
+   "herb_x_dragonbloodginseng"
+  ],
+  [
+   "herb_x_thousandginseng",
+   "herb_x_snowginseng",
+   "herb_x_thousandsnowginseng"
+  ],
+  [
+   "herb_x_thousandginseng",
+   "herb_x_thousandginseng",
+   "herb_x_tenthousandginseng"
+  ],
+  [
+   "herb_x_ginsengfruit",
+   "herb_tree",
+   "herb_x_ginsengtree"
+  ],
+  [
+   "herb_ginseng",
+   "con_fame",
+   "herb_x_ginsengking"
+  ],
+  [
+   "herb_ginseng",
+   "herb_sprout",
+   "herb_x_ginsengsprout"
+  ],
+  [
+   "herb_x_spiritginseng",
+   "con_fame",
+   "herb_x_spiritginsengking"
+  ],
+  [
+   "herb_ginseng",
+   "bst_phoenix",
+   "herb_x_phoenixginseng"
+  ],
+  [
+   "herb_ginseng",
+   "bst_dragon",
+   "herb_x_dragonginseng"
+  ],
+  [
+   "herb_x_thousandginseng",
+   "eli_elixir",
+   "herb_x_ninegoldginseng"
+  ],
+  [
+   "herb_x_goldginseng",
+   "herb_x_jadeginseng",
+   "herb_x_goldjadeginseng"
+  ],
+  [
+   "herb_root",
+   "eli_cinnabar",
+   "herb_x_danshen"
+  ],
+  [
+   "herb_grass",
+   "eli_elixir",
+   "herb_x_elixirgrass"
+  ],
+  [
+   "herb_grass",
+   "per_doctor",
+   "herb_x_hundredherbs"
+  ],
+  [
+   "herb_orchid",
+   "per_hermit",
+   "herb_x_hermitorchid"
+  ],
+  [
+   "herb_tea",
+   "per_monk",
+   "herb_x_zentea"
+  ],
+  [
+   "herb_tea",
+   "per_scholar",
+   "herb_x_scholartea"
+  ],
+  [
+   "herb_grass",
+   "sec_medvalley",
+   "herb_x_medvalleygrass"
+  ],
+  [
+   "herb_ginseng",
+   "sec_medvalley",
+   "herb_x_medvalleyginseng"
+  ],
+  [
+   "herb_lotus",
+   "sec_medvalley",
+   "herb_x_medvalleylotus"
+  ],
+  [
+   "herb_tea",
+   "sec_emei",
+   "herb_x_emeitea"
+  ],
+  [
+   "herb_tea",
+   "sec_wudang",
+   "herb_x_wudangtea"
+  ],
+  [
+   "herb_pine",
+   "sec_wudang",
+   "herb_x_wudangpine"
+  ],
+  [
+   "herb_lotus",
+   "sec_kunlun",
+   "herb_x_kunlunlotus"
+  ],
+  [
+   "herb_ginseng",
+   "sec_kunlun",
+   "herb_x_kunlunginseng"
+  ],
+  [
+   "herb_lingzhi",
+   "sec_kunlun",
+   "herb_x_kunlunlingzhi"
+  ],
+  [
+   "herb_pine",
+   "sec_huashan",
+   "herb_x_huashanpine"
+  ],
+  [
+   "herb_tea",
+   "sec_qingcheng",
+   "herb_x_qingchengtea"
+  ],
+  [
+   "herb_flower",
+   "sec_poison5",
+   "herb_x_fivepoisonflower"
+  ],
+  [
+   "herb_grass",
+   "sec_poison5",
+   "herb_x_fivepoisongrass"
+  ],
+  [
+   "herb_fruit",
+   "sec_poison5",
+   "herb_x_fivepoisonfruit"
+  ],
+  [
+   "herb_flower",
+   "sec_ming",
+   "herb_x_mingholyflower"
+  ],
+  [
+   "herb_lotus",
+   "sec_tomb",
+   "herb_x_tombcoldlotus"
+  ],
+  [
+   "herb_flower",
+   "sec_xiaoyao",
+   "herb_x_xiaoyaoflower"
+  ],
+  [
+   "herb_tea",
+   "sec_court",
+   "herb_x_tributetea"
+  ],
+  [
+   "herb_ginseng",
+   "sec_court",
+   "herb_x_tributeginseng"
+  ],
+  [
+   "herb_fruit",
+   "sec_court",
+   "herb_x_tributefruit"
+  ],
+  [
+   "herb_pine",
+   "sec_swordtomb",
+   "herb_x_swordtombpine"
+  ],
+  [
+   "herb_tree",
+   "sec_forge",
+   "herb_x_forgetree"
+  ],
+  [
+   "herb_orchid",
+   "wpn_sword",
+   "herb_x_swordorchid"
+  ],
+  [
+   "herb_leaf",
+   "wpn_sword",
+   "herb_x_swordleaf"
+  ],
+  [
+   "herb_seed",
+   "wpn_blade",
+   "herb_x_swordbean"
+  ],
+  [
+   "herb_grass",
+   "wpn_arrow",
+   "herb_x_arrowgrass"
+  ],
+  [
+   "herb_pine",
+   "wpn_needle",
+   "herb_x_pineneedle"
+  ],
+  [
+   "herb_fruit",
+   "gear_lantern",
+   "herb_x_lanternfruit"
+  ],
+  [
+   "herb_orchid",
+   "mat_ink",
+   "herb_x_inkorchid"
+  ],
+  [
+   "herb_chrysan",
+   "mat_ink",
+   "herb_x_inkchrysan"
+  ],
+  [
+   "herb_plum",
+   "mat_ink",
+   "herb_x_inkplum"
+  ],
+  [
+   "herb_flower",
+   "mat_jade",
+   "herb_x_jadehairpin"
+  ],
+  [
+   "herb_flower",
+   "mat_ingot",
+   "herb_x_marigold"
+  ],
+  [
+   "herb_grass",
+   "mat_copper",
+   "herb_x_coincoppergrass"
+  ],
+  [
+   "herb_grass",
+   "mat_salt",
+   "herb_x_saltwormwood"
+  ],
+  [
+   "herb_flower",
+   "mat_gunpowder",
+   "herb_x_firecrackerflower"
+  ],
+  [
+   "herb_grass",
+   "eli_incense",
+   "herb_x_fragrantgrass"
+  ],
+  [
+   "herb_plum",
+   "fire",
+   "herb_x_redplum"
+  ],
+  [
+   "herb_plum",
+   "mat_silver",
+   "herb_x_whiteplum"
+  ],
+  [
+   "herb_plum",
+   "herb_seed",
+   "herb_x_plumseed"
+  ],
+  [
+   "herb_plum",
+   "herb_leaf",
+   "herb_x_greenplum"
+  ],
+  [
+   "herb_x_snowplum",
+   "con_courage",
+   "herb_x_proudplum"
+  ],
+  [
+   "herb_plum",
+   "con_time",
+   "herb_x_ancientplum"
+  ],
+  [
+   "herb_plum",
+   "herb_orchid",
+   "herb_x_plumorchid"
+  ],
+  [
+   "mat_bamboo",
+   "herb_chrysan",
+   "herb_x_bamboochrysan"
+  ],
+  [
+   "herb_x_plumorchid",
+   "herb_x_bamboochrysan",
+   "herb_x_fourgentlemen"
+  ],
+  [
+   "herb_chrysan",
+   "trs_gold",
+   "herb_x_goldchrysan"
+  ],
+  [
+   "herb_chrysan",
+   "mat_silver",
+   "herb_x_whitechrysan"
+  ],
+  [
+   "herb_chrysan",
+   "herb_grass",
+   "herb_x_wildchrysan"
+  ],
+  [
+   "herb_chrysan",
+   "herb_sprout",
+   "herb_x_chrysanbud"
+  ],
+  [
+   "herb_chrysan",
+   "con_yang",
+   "herb_x_doubleninechrysan"
+  ],
+  [
+   "herb_orchid",
+   "herb_grass",
+   "herb_x_orchidgrass"
+  ],
+  [
+   "herb_orchid",
+   "nat_snow",
+   "herb_x_snoworchid"
+  ],
+  [
+   "herb_orchid",
+   "bst_phoenix",
+   "herb_x_phoenixorchid"
+  ],
+  [
+   "herb_peony",
+   "mat_silver",
+   "herb_x_whitepeony"
+  ],
+  [
+   "herb_peony",
+   "trs_gold",
+   "herb_x_goldpeony"
+  ],
+  [
+   "herb_peony",
+   "per_maiden",
+   "herb_x_beautypeony"
+  ],
+  [
+   "herb_peony",
+   "plc_city",
+   "herb_x_luoyangpeony"
+  ],
+  [
+   "herb_pine",
+   "herb_seed",
+   "herb_x_pinenut"
+  ],
+  [
+   "herb_pine",
+   "eli_oil",
+   "herb_x_pineresin"
+  ],
+  [
+   "herb_pine",
+   "plc_inn",
+   "herb_x_welcomepine"
+  ],
+  [
+   "herb_pine",
+   "bst_crane",
+   "herb_x_pinecrane"
+  ],
+  [
+   "herb_pine",
+   "herb_tree",
+   "herb_x_thousandpine"
+  ],
+  [
+   "herb_willow",
+   "nat_wind",
+   "herb_x_willowcatkin"
+  ],
+  [
+   "herb_willow",
+   "herb_leaf",
+   "herb_x_willowleaf"
+  ],
+  [
+   "herb_willow",
+   "herb_vine",
+   "herb_x_willowbranch"
+  ],
+  [
+   "herb_tea",
+   "plc_spring",
+   "herb_x_longjing"
+  ],
+  [
+   "herb_tea",
+   "bst_dragon",
+   "herb_x_oolong"
+  ],
+  [
+   "herb_tea",
+   "mat_iron",
+   "herb_x_tieguanyin"
+  ],
+  [
+   "herb_tea",
+   "mat_silver",
+   "herb_x_silverneedletea"
+  ],
+  [
+   "herb_tea",
+   "fire",
+   "herb_x_redtea"
+  ],
+  [
+   "herb_tea",
+   "herb_leaf",
+   "herb_x_greentea"
+  ],
+  [
+   "herb_tea",
+   "con_fame",
+   "herb_x_teaking"
+  ],
+  [
+   "herb_tea",
+   "herb_seed",
+   "herb_x_teaseed"
+  ],
+  [
+   "herb_tea",
+   "con_time",
+   "herb_x_agedtea"
+  ],
+  [
+   "herb_vine",
+   "herb_leaf",
+   "herb_x_greenvine"
+  ],
+  [
+   "herb_vine",
+   "nat_thunder",
+   "herb_x_thundervine"
+  ],
+  [
+   "herb_vine",
+   "nat_frost",
+   "herb_x_icevine"
+  ],
+  [
+   "herb_vine",
+   "nat_blaze",
+   "herb_x_firevine"
+  ],
+  [
+   "herb_vine",
+   "trs_gold",
+   "herb_x_goldvine"
+  ],
+  [
+   "herb_vine",
+   "bst_dragon",
+   "herb_x_dragonvine"
+  ],
+  [
+   "herb_vine",
+   "con_time",
+   "herb_x_ancientvine"
+  ],
+  [
+   "herb_moss",
+   "nat_frost",
+   "herb_x_icemoss"
+  ],
+  [
+   "herb_moss",
+   "nat_blaze",
+   "herb_x_firemoss"
+  ],
+  [
+   "herb_moss",
+   "eli_cinnabar",
+   "herb_x_bloodmoss"
+  ],
+  [
+   "herb_fungus",
+   "trs_spiritstone",
+   "herb_x_spiritmushroom"
+  ],
+  [
+   "herb_fungus",
+   "trs_gold",
+   "herb_x_goldmushroom"
+  ],
+  [
+   "herb_fungus",
+   "nat_frost",
+   "herb_x_icemushroom"
+  ],
+  [
+   "herb_fungus",
+   "con_time",
+   "herb_x_thousandmushroom"
+  ],
+  [
+   "herb_x_spiritgrass",
+   "per_daoist",
+   "herb_x_immortalherb"
+  ],
+  [
+   "herb_x_spiritfruit",
+   "per_daoist",
+   "herb_x_immortalfruit"
+  ],
+  [
+   "herb_x_spirittree",
+   "per_daoist",
+   "herb_x_immortaltree"
+  ],
+  [
+   "herb_x_spiritfruit",
+   "herb_tree",
+   "herb_x_spiritfruittree"
+  ],
+  [
+   "herb_x_zhuguo",
+   "herb_tree",
+   "herb_x_zhuguotree"
+  ],
+  [
+   "herb_x_zhuguo",
+   "con_time",
+   "herb_x_thousandzhuguo"
+  ],
+  [
+   "herb_x_pantao",
+   "con_time",
+   "herb_x_thousandpantao"
+  ],
+  [
+   "herb_x_pantao",
+   "herb_tree",
+   "herb_x_pantaotree"
+  ],
+  [
+   "herb_x_soulgrass",
+   "herb_flower",
+   "herb_x_soulflower"
+  ],
+  [
+   "herb_x_soulgrass",
+   "herb_lotus",
+   "herb_x_soullotus"
+  ],
+  [
+   "herb_x_soulgrass",
+   "herb_ginseng",
+   "herb_x_soulginseng"
+  ],
+  [
+   "herb_x_ninesoulgrass",
+   "herb_ginseng",
+   "herb_x_ninesoulginseng"
+  ],
+  [
+   "herb_x_immortalgrass",
+   "herb_ginseng",
+   "herb_x_agelessginseng"
+  ],
+  [
+   "herb_x_immortalgrass",
+   "herb_lingzhi",
+   "herb_x_agelesslingzhi"
+  ],
+  [
+   "herb_x_immortalgrass",
+   "herb_lotus",
+   "herb_x_agelesslotus"
+  ],
+  [
+   "herb_x_immortalgrass",
+   "herb_fruit",
+   "herb_x_agelessfruit"
+  ],
+  [
+   "herb_x_lifetree",
+   "herb_fruit",
+   "herb_x_lifefruit"
+  ],
+  [
+   "herb_x_lifetree",
+   "herb_leaf",
+   "herb_x_lifeleaf"
+  ],
+  [
+   "herb_x_lifetree",
+   "herb_root",
+   "herb_x_liferoot"
+  ],
+  [
+   "herb_x_lifetree",
+   "herb_lotus",
+   "herb_x_lifelotus"
+  ],
+  [
+   "herb_x_firelingzhi",
+   "con_time",
+   "herb_x_thousandfirelingzhi"
+  ],
+  [
+   "herb_x_icelingzhi",
+   "con_time",
+   "herb_x_thousandicelingzhi"
+  ],
+  [
+   "herb_x_blacklingzhi",
+   "con_time",
+   "herb_x_thousandblacklingzhi"
+  ],
+  [
+   "herb_x_fireginseng",
+   "con_time",
+   "herb_x_thousandfireginseng"
+  ],
+  [
+   "herb_x_jadeginseng",
+   "con_time",
+   "herb_x_thousandjadeginseng"
+  ],
+  [
+   "herb_x_goldlotus",
+   "con_time",
+   "herb_x_thousandgoldlotus"
+  ],
+  [
+   "herb_x_icefirelotus",
+   "con_time",
+   "herb_x_thousandicefirelotus"
+  ],
+  [
+   "herb_x_icefirelingzhi",
+   "con_time",
+   "herb_x_thousandicefirelingzhi"
+  ],
+  [
+   "herb_x_tianshanlotus",
+   "con_time",
+   "herb_x_tianshanthousandlotus"
+  ],
+  [
+   "herb_x_kunlunlotus",
+   "con_time",
+   "herb_x_kunlunthousandlotus"
+  ],
+  [
+   "herb_x_icelotus",
+   "nat_moon",
+   "herb_x_moonicelotus"
+  ],
+  [
+   "herb_x_bloodlotus",
+   "nat_volcano",
+   "herb_x_volcanobloodlotus"
+  ],
+  [
+   "herb_x_ninegradelotus",
+   "per_monk",
+   "herb_x_buddhalotus"
+  ],
+  [
+   "herb_x_twinlotus",
+   "herb_x_snowlotus",
+   "herb_x_twinsnowlotus"
+  ],
+  [
+   "herb_x_twinlotus",
+   "herb_x_firelotus",
+   "herb_x_twinfirelotus"
+  ],
+  [
+   "herb_x_twinlotus",
+   "herb_x_goldlotus",
+   "herb_x_twingoldlotus"
+  ],
+  [
+   "herb_x_dragonbloodginseng",
+   "con_time",
+   "herb_x_thousanddragonblood"
+  ],
+  [
+   "herb_x_tenthousandginseng",
+   "herb_x_spiritroot",
+   "herb_x_spiritginsengtenthousand"
+  ],
+  [
+   "herb_x_immortallingzhi",
+   "herb_x_tenthousandlingzhi",
+   "herb_x_immortalthousandlingzhi"
+  ],
+  [
+   "herb_x_nineleafthousand",
+   "herb_x_tenthousandlingzhi",
+   "herb_x_ninethousandlingzhi"
+  ],
+  [
+   "herb_x_dragonbeard",
+   "con_time",
+   "herb_x_thousanddragonbeard"
+  ],
+  [
+   "herb_x_phoenixflower",
+   "nat_blaze",
+   "herb_x_firephoenixflower"
+  ],
+  [
+   "herb_x_poisonseed",
+   "herb_sprout",
+   "herb_x_poisonsprout"
+  ],
+  [
+   "herb_x_poisonfruit",
+   "herb_tree",
+   "herb_x_poisontree"
+  ],
+  [
+   "herb_x_poisontree",
+   "nat_mist",
+   "herb_x_miasmatree"
+  ],
+  [
+   "herb_x_poisonpeony",
+   "con_fame",
+   "herb_x_poisonflowerking"
+  ],
+  [
+   "herb_x_fivepoisongrass",
+   "con_fame",
+   "herb_x_fivepoisonking"
+  ],
+  [
+   "herb_x_ghostorchid",
+   "plc_grave",
+   "herb_x_gravehostorchid"
+  ],
+  [
+   "herb_x_darkflower",
+   "plc_grave",
+   "herb_x_yellowspringflower"
+  ],
+  [
+   "herb_x_spiderlily",
+   "con_sorrow",
+   "herb_x_partingflower"
+  ],
+  [
+   "herb_x_antidotegrass",
+   "herb_x_hundredherbs",
+   "herb_x_hundredantidote"
+  ],
+  [
+   "herb_x_healgrass",
+   "herb_x_bloodstop",
+   "herb_x_woundstopgrass"
+  ],
+  [
+   "herb_x_angelica",
+   "herb_x_astragalus",
+   "herb_x_angelicamilk"
+  ],
+  [
+   "herb_x_guixiong",
+   "herb_x_shaodi",
+   "herb_x_fourherbs"
+  ],
+  [
+   "herb_x_angelica",
+   "herb_x_chuanxiong",
+   "herb_x_guixiong"
+  ],
+  [
+   "herb_x_peonyroot",
+   "herb_x_rehmannia",
+   "herb_x_shaodi"
+  ],
+  [
+   "herb_x_longjing",
+   "sec_court",
+   "herb_x_imperiallongjing"
+  ],
+  [
+   "herb_x_teaking",
+   "herb_tree",
+   "herb_x_teakingtree"
+  ],
+  [
+   "herb_x_tieguanyin",
+   "con_time",
+   "herb_x_oldtieguanyin"
+  ],
+  [
+   "herb_x_tributetea",
+   "con_time",
+   "herb_x_oldtribute"
+  ],
+  [
+   "herb_x_beautypeony",
+   "sec_court",
+   "herb_x_imperialbeauty"
+  ],
+  [
+   "herb_x_welcomepine",
+   "con_time",
+   "herb_x_thousandwelcomepine"
+  ],
+  [
+   "herb_x_pinecrane",
+   "con_time",
+   "herb_x_pinecranelife"
+  ],
+  [
+   "herb_x_inkplum",
+   "herb_x_inkorchid",
+   "herb_x_inkplumorchid"
+  ],
+  [
+   "herb_x_inkchrysan",
+   "herb_x_bamboochrysan",
+   "herb_x_inkbamboochrysan"
+  ],
+  [
+   "herb_x_inkplumorchid",
+   "herb_x_inkbamboochrysan",
+   "herb_x_inkgentlemen"
+  ],
+  [
+   "herb_x_redplum",
+   "herb_x_whiteplum",
+   "herb_x_redwhiteplum"
+  ],
+  [
+   "herb_x_goldchrysan",
+   "herb_x_whitechrysan",
+   "herb_x_goldsilverchrysan"
+  ],
+  [
+   "herb_x_goldpeony",
+   "herb_x_whitepeony",
+   "herb_x_goldsilverpeony"
+  ],
+  [
+   "herb_x_goldlotus",
+   "herb_x_silverlotus",
+   "herb_x_goldsilverlotus"
+  ],
+  [
+   "herb_x_blackfungus",
+   "herb_x_whitefungus",
+   "herb_x_blackwhiteear"
+  ],
+  [
+   "herb_x_thousandmushroom",
+   "herb_x_spiritmushroom",
+   "herb_x_spiritthousandmushroom"
+  ],
+  [
+   "herb_x_matsutake",
+   "con_time",
+   "herb_x_thousandmatsutake"
+  ],
+  [
+   "herb_x_seaweed",
+   "herb_lingzhi",
+   "herb_x_seaspiritlingzhi"
+  ],
+  [
+   "herb_x_coralgrass",
+   "herb_x_nightgrass",
+   "herb_x_nightcoral"
+  ],
+  [
+   "herb_x_coralgrass",
+   "bst_dragon",
+   "herb_x_dragonpalacecoral"
+  ],
+  [
+   "herb_x_turtleleaf",
+   "trs_spiritstone",
+   "herb_x_spiritturtleleaf"
+  ],
+  [
+   "herb_x_cactus",
+   "nat_sun",
+   "herb_x_sunburncactus"
+  ],
+  [
+   "herb_x_cavefungus",
+   "nat_dark",
+   "herb_x_darkcavefungus"
+  ],
+  [
+   "herb_x_medvalleylotus",
+   "con_time",
+   "herb_x_medvalleythousandlotus"
+  ],
+  [
+   "herb_x_medvalleygrass",
+   "herb_x_hundredherbs",
+   "herb_x_medvalleyhundred"
+  ],
+  [
+   "herb_x_breathgrass",
+   "mar_qi",
+   "herb_x_nurtureqigrass"
+  ],
+  [
+   "herb_x_marrowroot",
+   "mar_innerforce",
+   "herb_x_marrowspiritroot"
+  ],
+  [
+   "herb_x_swordleaf",
+   "mar_swordart",
+   "herb_x_swordqigrass"
+  ],
+  [
+   "herb_grass",
+   "mar_qinggong",
+   "herb_x_lightbodygrass"
+  ],
+  [
+   "herb_lotus",
+   "nat_frost",
+   "herb_x_snowlotus"
+  ],
+  [
+   "herb_lotus",
+   "fire",
+   "herb_x_firelotus"
+  ],
+  [
+   "herb_lotus",
+   "metal",
+   "herb_x_goldlotus"
+  ],
+  [
+   "herb_lingzhi",
+   "fire",
+   "herb_x_firelingzhi"
+  ],
+  [
+   "herb_lingzhi",
+   "nat_snow",
+   "herb_x_icelingzhi"
+  ],
+  [
+   "herb_lingzhi",
+   "mat_ingot",
+   "herb_x_goldlingzhi"
+  ],
+  [
+   "herb_lingzhi",
+   "trs_jadedisc",
+   "herb_x_jadelingzhi"
+  ],
+  [
+   "herb_ginseng",
+   "nat_frost",
+   "herb_x_snowginseng"
+  ],
+  [
+   "herb_ginseng",
+   "mat_ingot",
+   "herb_x_goldginseng"
+  ],
+  [
+   "herb_ginseng",
+   "trs_jadedisc",
+   "herb_x_jadeginseng"
+  ],
+  [
+   "herb_ginseng",
+   "bst_tiger",
+   "herb_x_bloodginseng"
+  ],
+  [
+   "herb_x_thousandshouwu",
+   "herb_ginseng",
+   "herb_x_thousandginseng"
+  ],
+  [
+   "herb_lingzhi",
+   "herb_x_thousandpine",
+   "herb_x_thousandlingzhi"
+  ],
+  [
+   "herb_x_snowlotus",
+   "herb_x_thousandpine",
+   "herb_x_thousandsnowlotus"
+  ],
+  [
+   "herb_x_bodhi",
+   "herb_fruit",
+   "herb_x_bodhiseed"
+  ],
+  [
+   "herb_lotus",
+   "herb_willow",
+   "herb_x_lotusleaf"
+  ],
+  [
+   "herb_x_cordyceps",
+   "nat_frost",
+   "herb_x_wintercordy"
+  ],
+  [
+   "herb_tree",
+   "herb_seed",
+   "herb_x_cinnamon"
+  ],
+  [
+   "herb_root",
+   "eli_oil",
+   "herb_x_ginger"
+  ],
+  [
+   "herb_fruit",
+   "herb_pine",
+   "herb_x_jujube"
+  ],
+  [
+   "herb_flower",
+   "herb_seed",
+   "herb_x_dandelion"
+  ],
+  [
+   "herb_root",
+   "nat_valley",
+   "herb_x_yam"
+  ],
+  [
+   "herb_leaf",
+   "nat_sea",
+   "herb_x_seaweed"
+  ],
+  [
+   "herb_x_seaweed",
+   "herb_root",
+   "herb_x_kelp"
+  ],
+  [
+   "herb_seed",
+   "nat_dark",
+   "herb_x_sesame"
+  ],
+  [
+   "herb_fruit",
+   "mat_brick",
+   "herb_x_walnut"
+  ],
+  [
+   "herb_fruit",
+   "nat_dust",
+   "herb_x_chestnut"
+  ],
+  [
+   "herb_seed",
+   "eli_cinnabar",
+   "herb_x_redbean"
+  ],
+  [
+   "herb_seed",
+   "per_maiden",
+   "herb_x_lovepea"
+  ],
+  [
+   "herb_grass",
+   "eli_wine",
+   "herb_x_forgetgrass"
+  ],
+  [
+   "herb_grass",
+   "nat_mist",
+   "herb_x_calmgrass"
+  ],
+  [
+   "herb_moss",
+   "nat_dust",
+   "herb_x_timemoss"
+  ],
+  [
+   "herb_grass",
+   "herb_lingzhi",
+   "herb_x_deergrass"
+  ],
+  [
+   "herb_fruit",
+   "mat_cloth",
+   "herb_x_mulberry"
+  ],
+  [
+   "herb_flower",
+   "nat_blaze",
+   "herb_x_phoenixflower"
+  ],
+  [
+   "herb_grass",
+   "nat_dark",
+   "herb_x_caveherb"
+  ],
+  [
+   "herb_moss",
+   "nat_dark",
+   "herb_x_cavemoss"
+  ],
+  [
+   "herb_moss",
+   "plc_spring",
+   "herb_x_springmoss"
+  ],
+  [
+   "herb_lotus",
+   "per_monk",
+   "herb_x_templelotus"
+  ],
+  [
+   "herb_chrysan",
+   "nat_snow",
+   "herb_x_frostchrysan"
+  ],
+  [
+   "herb_orchid",
+   "nat_valley",
+   "herb_x_mistorchid"
+  ],
+  [
+   "herb_flower",
+   "nat_waterfall",
+   "herb_x_rainbowflower"
+  ],
+  [
+   "herb_grass",
+   "nat_snow",
+   "herb_x_frostgrass"
+  ],
+  [
+   "herb_fungus",
+   "eli_cinnabar",
+   "herb_x_redmushroom"
+  ],
+  [
+   "herb_fungus",
+   "mat_silver",
+   "herb_x_whitefungus"
+  ],
+  [
+   "herb_tree",
+   "herb_leaf",
+   "herb_x_maple"
+  ],
+  [
+   "herb_flower",
+   "herb_pine",
+   "herb_x_osmanthus"
+  ],
+  [
+   "herb_grass",
+   "wpn_needle",
+   "herb_x_healgrass"
+  ],
+  [
+   "herb_grass",
+   "eli_oil",
+   "herb_x_herbpaste"
+  ],
+  [
+   "herb_ginseng",
+   "herb_leaf",
+   "herb_x_ginsengtea"
+  ],
+  [
+   "herb_root",
+   "mat_charcoal",
+   "herb_x_roastroot"
+  ],
+  [
+   "herb_mugwort",
+   "herb_mugwort",
+   "herb_x_moxa"
+  ],
+  [
+   "herb_mugwort",
+   "mat_rope",
+   "herb_x_moxastick"
+  ],
+  [
+   "herb_grass",
+   "nat_light",
+   "herb_x_spiritgrass"
+  ],
+  [
+   "herb_fruit",
+   "nat_light",
+   "herb_x_spiritfruit"
+  ],
+  [
+   "herb_x_spiritgrass",
+   "con_time",
+   "herb_x_immortalgrass"
+  ],
+  [
+   "herb_x_spirittree",
+   "con_time",
+   "herb_x_lifetree"
+  ],
+  [
+   "herb_tea",
+   "nat_waterfall",
+   "herb_x_longjing"
+  ],
+  [
+   "herb_tea",
+   "nat_dark",
+   "herb_x_oolong"
+  ],
+  [
+   "herb_tea",
+   "eli_cinnabar",
+   "herb_x_redtea"
+  ],
+  [
+   "herb_pine",
+   "bst_eagle",
+   "herb_x_pinecrane"
+  ],
+  [
+   "herb_orchid",
+   "gear_brush",
+   "herb_x_inkorchid"
+  ],
+  [
+   "herb_plum",
+   "gear_brush",
+   "herb_x_inkplum"
+  ],
+  [
+   "herb_chrysan",
+   "gear_brush",
+   "herb_x_inkchrysan"
+  ],
+  [
+   "herb_plum",
+   "eli_cinnabar",
+   "herb_x_redplum"
+  ],
+  [
+   "herb_peony",
+   "mat_ingot",
+   "herb_x_goldpeony"
+  ],
+  [
+   "herb_chrysan",
+   "mat_ingot",
+   "herb_x_goldchrysan"
+  ],
+  [
+   "herb_lotus",
+   "trs_jadedisc",
+   "herb_x_jadelotus"
+  ],
+  [
+   "herb_x_ginsengtree",
+   "herb_root",
+   "herb_x_ginsengfruit"
+  ],
+  [
+   "herb_ginseng",
+   "trs_seal",
+   "herb_x_ginsengking"
+  ],
+  [
+   "herb_lingzhi",
+   "trs_seal",
+   "herb_x_lingzhiking"
+  ],
+  [
+   "herb_lotus",
+   "trs_seal",
+   "herb_x_lotusking"
+  ],
+  [
+   "herb_tea",
+   "trs_seal",
+   "herb_x_teaking"
+  ],
+  [
+   "herb_root",
+   "nat_light",
+   "herb_x_spiritroot"
+  ],
+  [
+   "herb_x_spiritgrass",
+   "mar_neigong",
+   "herb_x_immortalherb"
+  ],
+  [
+   "herb_x_spiritfruit",
+   "eli_elixir",
+   "herb_x_immortalfruit"
+  ],
+  [
+   "herb_lotus",
+   "nat_volcano",
+   "herb_x_firelotus"
+  ],
+  [
+   "herb_root",
+   "mat_porcelain",
+   "herb_x_licorice"
+  ],
+  [
+   "herb_root",
+   "per_maiden",
+   "herb_x_angelica"
+  ],
+  [
+   "herb_root",
+   "mat_ingot",
+   "herb_x_astragalus"
+  ],
+  [
+   "herb_pine",
+   "mat_clay",
+   "herb_x_poria"
+  ],
+  [
+   "herb_grass",
+   "nat_dust",
+   "herb_x_ephedra"
+  ],
+  [
+   "herb_fruit",
+   "eli_pill",
+   "herb_x_wolfberry"
+  ],
+  [
+   "herb_vine",
+   "mat_silver",
+   "herb_x_honeysuckle"
+  ],
+  [
+   "herb_flower",
+   "gear_key",
+   "herb_x_bellflower"
+  ],
+  [
+   "herb_grass",
+   "per_dancer",
+   "herb_x_motherwort"
+  ],
+  [
+   "mat_bamboo",
+   "herb_seed",
+   "herb_x_bambooshoot"
+  ],
+  [
+   "herb_grass",
+   "mat_paper",
+   "herb_x_rush"
+  ],
+  [
+   "herb_orchid",
+   "wpn_blade",
+   "herb_x_swordorchid"
+  ],
+  [
+   "herb_leaf",
+   "wpn_spear",
+   "herb_x_swordleaf"
+  ],
+  [
+   "herb_fruit",
+   "fire",
+   "herb_x_lanternfruit"
+  ],
+  [
+   "herb_peony",
+   "nat_river",
+   "herb_x_seaflower"
+  ],
+  [
+   "herb_tea",
+   "nat_cloud",
+   "herb_x_cloudtea"
+  ],
+  [
+   "herb_vine",
+   "nat_cloud",
+   "herb_x_windgrass"
+  ],
+  [
+   "herb_vine",
+   "eli_healing",
+   "herb_x_bloodvine"
+  ],
+  [
+   "herb_flower",
+   "eli_healing",
+   "herb_x_bloodflower"
+  ],
+  [
+   "herb_vine",
+   "herb_sprout",
+   "herb_x_greenvine"
+  ],
+  [
+   "herb_vine",
+   "mat_ingot",
+   "herb_x_goldvine"
+  ],
+  [
+   "herb_vine",
+   "nat_snow",
+   "herb_x_icevine"
+  ],
+  [
+   "herb_vine",
+   "fire",
+   "herb_x_firevine"
+  ],
+  [
+   "herb_moss",
+   "nat_snow",
+   "herb_x_icemoss"
+  ],
+  [
+   "herb_moss",
+   "fire",
+   "herb_x_firemoss"
+  ],
+  [
+   "herb_moss",
+   "eli_healing",
+   "herb_x_bloodmoss"
+  ],
+  [
+   "herb_fungus",
+   "mat_ingot",
+   "herb_x_goldmushroom"
+  ],
+  [
+   "herb_fungus",
+   "herb_fungus",
+   "herb_x_thousandmushroom"
+  ],
+  [
+   "herb_lotus",
+   "mat_brick",
+   "herb_x_stonelotus"
+  ],
+  [
+   "herb_orchid",
+   "mat_ore",
+   "herb_x_stoneorchid"
+  ],
+  [
+   "herb_fungus",
+   "mat_ore",
+   "herb_x_stonefungus"
+  ],
+  [
+   "herb_moss",
+   "nat_rain",
+   "herb_x_waterfallmoss"
+  ],
+  [
+   "herb_fungus",
+   "per_monk",
+   "herb_x_shiitake"
+  ],
+  [
+   "herb_fungus",
+   "mat_clay",
+   "herb_x_truffle"
+  ],
+  [
+   "herb_fungus",
+   "nat_rain",
+   "herb_x_thunderfungus"
+  ],
+  [
+   "herb_leaf",
+   "fire",
+   "herb_x_mapleleaf"
+  ],
+  [
+   "herb_tree",
+   "mat_jade",
+   "herb_x_ginkgo"
+  ],
+  [
+   "herb_flower",
+   "nat_snow",
+   "herb_x_cherry"
+  ],
+  [
+   "herb_orchid",
+   "herb_tea",
+   "herb_x_jasmine"
+  ],
+  [
+   "herb_vine",
+   "nat_rainbow",
+   "herb_x_wisteria"
+  ],
+  [
+   "herb_flower",
+   "mat_porcelain",
+   "herb_x_lily"
+  ],
+  [
+   "herb_orchid",
+   "mat_porcelain",
+   "herb_x_narcissus"
+  ],
+  [
+   "herb_orchid",
+   "trs_seal",
+   "herb_x_orchidking"
+  ],
+  [
+   "herb_leaf",
+   "eli_antidote",
+   "herb_x_coolleaf"
+  ],
+  [
+   "herb_grass",
+   "gear_chest",
+   "herb_x_herbbag"
+  ],
+  [
+   "herb_flower",
+   "gear_slip",
+   "herb_x_pressedflower"
+  ],
+  [
+   "herb_grass",
+   "sec_codex",
+   "herb_x_herbalmanual"
+  ],
+  [
+   "herb_tea",
+   "mat_clay",
+   "herb_x_teabrick"
+  ],
+  [
+   "herb_tea",
+   "herb_moss",
+   "herb_x_agedtea"
+  ],
+  [
+   "herb_lotus",
+   "eli_poison",
+   "herb_x_thousandpoisonlotus"
+  ],
+  [
+   "herb_moss",
+   "eli_poison",
+   "herb_x_miasmamoss"
+  ]
+ ]
+}

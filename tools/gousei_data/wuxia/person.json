@@ -1,0 +1,5202 @@
+{
+ "category": "person",
+ "items": [
+  {
+   "id": "person_biaoshi",
+   "zh": "鏢師",
+   "ja": "鏢師"
+  },
+  {
+   "id": "person_biaotou",
+   "zh": "總鏢頭",
+   "ja": "総鏢頭"
+  },
+  {
+   "id": "person_tangzi",
+   "zh": "趟子手",
+   "ja": "趟子手"
+  },
+  {
+   "id": "person_constable",
+   "zh": "捕快",
+   "ja": "捕吏"
+  },
+  {
+   "id": "person_batou",
+   "zh": "捕頭",
+   "ja": "捕頭"
+  },
+  {
+   "id": "person_shenbu",
+   "zh": "神捕",
+   "ja": "名捕"
+  },
+  {
+   "id": "person_yayi",
+   "zh": "衙役",
+   "ja": "下役"
+  },
+  {
+   "id": "person_jailer",
+   "zh": "牢頭",
+   "ja": "牢番頭"
+  },
+  {
+   "id": "person_magistrate",
+   "zh": "縣令",
+   "ja": "県令"
+  },
+  {
+   "id": "person_envoy",
+   "zh": "欽差大臣",
+   "ja": "欽差大臣"
+  },
+  {
+   "id": "person_zhuangyuan",
+   "zh": "狀元",
+   "ja": "状元"
+  },
+  {
+   "id": "person_xiucai",
+   "zh": "秀才",
+   "ja": "秀才"
+  },
+  {
+   "id": "person_juren",
+   "zh": "舉人",
+   "ja": "挙人"
+  },
+  {
+   "id": "person_teacher",
+   "zh": "私塾先生",
+   "ja": "寺子屋の先生"
+  },
+  {
+   "id": "person_storyteller",
+   "zh": "說書人",
+   "ja": "講釈師"
+  },
+  {
+   "id": "person_innkeeper",
+   "zh": "掌櫃",
+   "ja": "宿の主人"
+  },
+  {
+   "id": "person_waiter",
+   "zh": "店小二",
+   "ja": "店の小僧"
+  },
+  {
+   "id": "person_cook",
+   "zh": "廚子",
+   "ja": "料理人"
+  },
+  {
+   "id": "person_brewer",
+   "zh": "釀酒師",
+   "ja": "酒造り"
+  },
+  {
+   "id": "person_winehost",
+   "zh": "酒肆老闆",
+   "ja": "酒屋の主"
+  },
+  {
+   "id": "person_teaman",
+   "zh": "茶博士",
+   "ja": "茶屋の給仕"
+  },
+  {
+   "id": "person_butcher",
+   "zh": "屠夫",
+   "ja": "肉屋"
+  },
+  {
+   "id": "person_swordsmith",
+   "zh": "鑄劍師",
+   "ja": "剣鍛冶"
+  },
+  {
+   "id": "person_bladesmith",
+   "zh": "刀匠",
+   "ja": "刀鍛冶"
+  },
+  {
+   "id": "person_armorsmith",
+   "zh": "甲匠",
+   "ja": "甲冑師"
+  },
+  {
+   "id": "person_bowyer",
+   "zh": "弓匠",
+   "ja": "弓師"
+  },
+  {
+   "id": "person_silversmith",
+   "zh": "銀匠",
+   "ja": "銀細工師"
+  },
+  {
+   "id": "person_coppersmith",
+   "zh": "銅匠",
+   "ja": "銅細工師"
+  },
+  {
+   "id": "person_locksmith",
+   "zh": "鎖匠",
+   "ja": "錠前師"
+  },
+  {
+   "id": "person_masterforger",
+   "zh": "鑄造名匠",
+   "ja": "名工"
+  },
+  {
+   "id": "person_godsmith",
+   "zh": "神匠",
+   "ja": "神工"
+  },
+  {
+   "id": "person_carpenter",
+   "zh": "木匠",
+   "ja": "大工"
+  },
+  {
+   "id": "person_luban",
+   "zh": "魯班傳人",
+   "ja": "魯班の弟子"
+  },
+  {
+   "id": "person_shipwright",
+   "zh": "船匠",
+   "ja": "船大工"
+  },
+  {
+   "id": "person_mason",
+   "zh": "石匠",
+   "ja": "石工"
+  },
+  {
+   "id": "person_potter",
+   "zh": "陶工",
+   "ja": "陶工"
+  },
+  {
+   "id": "person_tailor",
+   "zh": "裁縫",
+   "ja": "仕立屋"
+  },
+  {
+   "id": "person_embroiderer",
+   "zh": "繡娘",
+   "ja": "刺繍娘"
+  },
+  {
+   "id": "person_weaver",
+   "zh": "織女",
+   "ja": "織り姫"
+  },
+  {
+   "id": "person_poisondoc",
+   "zh": "毒醫",
+   "ja": "毒医"
+  },
+  {
+   "id": "person_divinedoc",
+   "zh": "神醫",
+   "ja": "神医"
+  },
+  {
+   "id": "person_herbboy",
+   "zh": "藥童",
+   "ja": "薬童"
+  },
+  {
+   "id": "person_acupuncturist",
+   "zh": "針灸師",
+   "ja": "鍼灸師"
+  },
+  {
+   "id": "person_pharmacist",
+   "zh": "藥師",
+   "ja": "薬師"
+  },
+  {
+   "id": "person_alchemist",
+   "zh": "煉丹師",
+   "ja": "錬丹師"
+  },
+  {
+   "id": "person_alchemysage",
+   "zh": "丹聖",
+   "ja": "丹聖"
+  },
+  {
+   "id": "person_fortuneteller",
+   "zh": "算命先生",
+   "ja": "占い師"
+  },
+  {
+   "id": "person_geomancer",
+   "zh": "風水師",
+   "ja": "風水師"
+  },
+  {
+   "id": "person_bonesetter",
+   "zh": "接骨師",
+   "ja": "接骨師"
+  },
+  {
+   "id": "person_drugking",
+   "zh": "藥王",
+   "ja": "薬王"
+  },
+  {
+   "id": "person_oldfisher",
+   "zh": "漁翁",
+   "ja": "漁翁"
+  },
+  {
+   "id": "person_ferryman",
+   "zh": "老艄公",
+   "ja": "渡し守"
+  },
+  {
+   "id": "person_porter",
+   "zh": "挑夫",
+   "ja": "荷担ぎ"
+  },
+  {
+   "id": "person_groom",
+   "zh": "馬夫",
+   "ja": "馬丁"
+  },
+  {
+   "id": "person_horsethief",
+   "zh": "馬賊",
+   "ja": "馬賊"
+  },
+  {
+   "id": "person_busker",
+   "zh": "賣藝人",
+   "ja": "大道芸人"
+  },
+  {
+   "id": "person_fluteman",
+   "zh": "簫客",
+   "ja": "笛吹き"
+  },
+  {
+   "id": "person_calligrapher",
+   "zh": "書法家",
+   "ja": "書家"
+  },
+  {
+   "id": "person_painter",
+   "zh": "畫師",
+   "ja": "絵師"
+  },
+  {
+   "id": "person_flyingthief",
+   "zh": "飛賊",
+   "ja": "飛賊"
+  },
+  {
+   "id": "person_godthief",
+   "zh": "神偷",
+   "ja": "神盗"
+  },
+  {
+   "id": "person_nimblethief",
+   "zh": "妙手空空",
+   "ja": "妙手空空"
+  },
+  {
+   "id": "person_seabandit",
+   "zh": "海盜",
+   "ja": "海賊"
+  },
+  {
+   "id": "person_riverbandit",
+   "zh": "水賊",
+   "ja": "水賊"
+  },
+  {
+   "id": "person_tombrobber",
+   "zh": "盜墓賊",
+   "ja": "墓盗み"
+  },
+  {
+   "id": "person_stronglord",
+   "zh": "寨主",
+   "ja": "砦の主"
+  },
+  {
+   "id": "person_nightwalker",
+   "zh": "夜行人",
+   "ja": "夜行人"
+  },
+  {
+   "id": "person_hitman",
+   "zh": "殺手",
+   "ja": "殺し屋"
+  },
+  {
+   "id": "person_blackrobe",
+   "zh": "黑衣人",
+   "ja": "黒衣の者"
+  },
+  {
+   "id": "person_poisonassassin",
+   "zh": "毒刺客",
+   "ja": "毒の刺客"
+  },
+  {
+   "id": "person_winesword",
+   "zh": "酒劍仙",
+   "ja": "酒剣仙"
+  },
+  {
+   "id": "person_chivalrous",
+   "zh": "劍俠",
+   "ja": "剣侠"
+  },
+  {
+   "id": "person_swordmaniac",
+   "zh": "劍癡",
+   "ja": "剣の虫"
+  },
+  {
+   "id": "person_swordsaint",
+   "zh": "劍聖",
+   "ja": "剣聖"
+  },
+  {
+   "id": "person_swordimmortal",
+   "zh": "劍仙",
+   "ja": "剣仙"
+  },
+  {
+   "id": "person_swordgod",
+   "zh": "劍尊",
+   "ja": "剣尊"
+  },
+  {
+   "id": "person_swordfiend",
+   "zh": "劍魔",
+   "ja": "剣魔"
+  },
+  {
+   "id": "person_lonesword",
+   "zh": "孤劍客",
+   "ja": "孤剣客"
+  },
+  {
+   "id": "person_fastsword",
+   "zh": "快劍手",
+   "ja": "早剣使い"
+  },
+  {
+   "id": "person_twinsword",
+   "zh": "雙劍客",
+   "ja": "二刀の剣客"
+  },
+  {
+   "id": "person_frostsword",
+   "zh": "冰劍客",
+   "ja": "氷剣の客"
+  },
+  {
+   "id": "person_flamesword",
+   "zh": "烈火劍客",
+   "ja": "烈火の剣客"
+  },
+  {
+   "id": "person_thundersword",
+   "zh": "雷劍士",
+   "ja": "雷剣士"
+  },
+  {
+   "id": "person_drunkhero",
+   "zh": "醉俠",
+   "ja": "酔いどれ侠客"
+  },
+  {
+   "id": "person_blademan",
+   "zh": "刀客",
+   "ja": "刀客"
+  },
+  {
+   "id": "person_bladeking",
+   "zh": "刀王",
+   "ja": "刀王"
+  },
+  {
+   "id": "person_bladefiend",
+   "zh": "狂刀客",
+   "ja": "狂刀客"
+  },
+  {
+   "id": "person_bladesaint",
+   "zh": "刀聖",
+   "ja": "刀聖"
+  },
+  {
+   "id": "person_spearman",
+   "zh": "槍手",
+   "ja": "槍使い"
+  },
+  {
+   "id": "person_spearking",
+   "zh": "槍王",
+   "ja": "槍王"
+  },
+  {
+   "id": "person_boxer",
+   "zh": "拳師",
+   "ja": "拳師"
+  },
+  {
+   "id": "person_fistking",
+   "zh": "拳王",
+   "ja": "拳王"
+  },
+  {
+   "id": "person_martialteacher",
+   "zh": "武師",
+   "ja": "武芸師範"
+  },
+  {
+   "id": "person_fightmonk",
+   "zh": "武僧",
+   "ja": "僧兵"
+  },
+  {
+   "id": "person_abbot",
+   "zh": "住持",
+   "ja": "住職"
+  },
+  {
+   "id": "person_patriarch",
+   "zh": "方丈",
+   "ja": "方丈"
+  },
+  {
+   "id": "person_ascetic",
+   "zh": "苦行僧",
+   "ja": "苦行僧"
+  },
+  {
+   "id": "person_zenmaster",
+   "zh": "禪師",
+   "ja": "禅師"
+  },
+  {
+   "id": "person_eminentmonk",
+   "zh": "高僧",
+   "ja": "高僧"
+  },
+  {
+   "id": "person_arhat",
+   "zh": "金剛羅漢",
+   "ja": "金剛羅漢"
+  },
+  {
+   "id": "person_drunkmonk",
+   "zh": "酒肉和尚",
+   "ja": "破戒僧"
+  },
+  {
+   "id": "person_novice",
+   "zh": "小沙彌",
+   "ja": "小坊主"
+  },
+  {
+   "id": "person_taoboy",
+   "zh": "道童",
+   "ja": "道童"
+  },
+  {
+   "id": "person_truman",
+   "zh": "真人",
+   "ja": "真人"
+  },
+  {
+   "id": "person_heavenmaster",
+   "zh": "天師",
+   "ja": "天師"
+  },
+  {
+   "id": "person_qimaster",
+   "zh": "煉氣士",
+   "ja": "練気士"
+  },
+  {
+   "id": "person_taichimaster",
+   "zh": "太極宗師",
+   "ja": "太極宗師"
+  },
+  {
+   "id": "person_taoist",
+   "zh": "仙姑",
+   "ja": "女道士"
+  },
+  {
+   "id": "person_heroine",
+   "zh": "女俠",
+   "ja": "女侠"
+  },
+  {
+   "id": "person_poisonlady",
+   "zh": "毒娘子",
+   "ja": "毒娘"
+  },
+  {
+   "id": "person_foxwitch",
+   "zh": "妖女",
+   "ja": "妖女"
+  },
+  {
+   "id": "person_villagegirl",
+   "zh": "村姑",
+   "ja": "村娘"
+  },
+  {
+   "id": "person_femaledoc",
+   "zh": "女醫",
+   "ja": "女医"
+  },
+  {
+   "id": "person_fairy",
+   "zh": "仙子",
+   "ja": "仙女"
+  },
+  {
+   "id": "person_jadelady",
+   "zh": "玉女",
+   "ja": "玉女"
+  },
+  {
+   "id": "person_famouscourtesan",
+   "zh": "名伶",
+   "ja": "名妓"
+  },
+  {
+   "id": "person_flowerqueen",
+   "zh": "花魁",
+   "ja": "花魁"
+  },
+  {
+   "id": "person_sworddancer",
+   "zh": "舞劍姬",
+   "ja": "剣舞の姫"
+  },
+  {
+   "id": "person_beggarelder",
+   "zh": "九袋長老",
+   "ja": "九袋長老"
+  },
+  {
+   "id": "person_beggarchief",
+   "zh": "丐幫幫主",
+   "ja": "丐幇の幇主"
+  },
+  {
+   "id": "person_beggarkid",
+   "zh": "乞兒",
+   "ja": "物乞いの子"
+  },
+  {
+   "id": "person_huazi",
+   "zh": "叫花子",
+   "ja": "乞食"
+  },
+  {
+   "id": "person_sage",
+   "zh": "高人",
+   "ja": "高人"
+  },
+  {
+   "id": "person_cloudhermit",
+   "zh": "世外高人",
+   "ja": "世捨ての高人"
+  },
+  {
+   "id": "person_mountainman",
+   "zh": "山人",
+   "ja": "山人"
+  },
+  {
+   "id": "person_bamboohermit",
+   "zh": "竹林隱者",
+   "ja": "竹林の隠者"
+  },
+  {
+   "id": "person_valleylord",
+   "zh": "谷主",
+   "ja": "谷主"
+  },
+  {
+   "id": "person_cavelord",
+   "zh": "洞主",
+   "ja": "洞主"
+  },
+  {
+   "id": "person_islandlord",
+   "zh": "島主",
+   "ja": "島主"
+  },
+  {
+   "id": "person_manorlord",
+   "zh": "莊主",
+   "ja": "荘主"
+  },
+  {
+   "id": "person_greathero",
+   "zh": "大俠",
+   "ja": "大侠"
+  },
+  {
+   "id": "person_herogreat",
+   "zh": "俠之大者",
+   "ja": "侠の大者"
+  },
+  {
+   "id": "person_demonlord",
+   "zh": "魔頭",
+   "ja": "魔頭"
+  },
+  {
+   "id": "person_archdemon",
+   "zh": "大魔頭",
+   "ja": "大魔頭"
+  },
+  {
+   "id": "person_demonchief",
+   "zh": "魔教教主",
+   "ja": "魔教教主"
+  },
+  {
+   "id": "person_lightenvoy",
+   "zh": "光明使",
+   "ja": "光明使"
+  },
+  {
+   "id": "person_mingchief",
+   "zh": "明教教主",
+   "ja": "明教教主"
+  },
+  {
+   "id": "person_wulinleader",
+   "zh": "武林盟主",
+   "ja": "武林盟主"
+  },
+  {
+   "id": "person_numberone",
+   "zh": "武林第一人",
+   "ja": "武林第一人"
+  },
+  {
+   "id": "person_bestsword",
+   "zh": "天下第一劍",
+   "ja": "天下第一の剣"
+  },
+  {
+   "id": "person_grandmaster",
+   "zh": "宗師",
+   "ja": "宗師"
+  },
+  {
+   "id": "person_eragrandmaster",
+   "zh": "開宗宗師",
+   "ja": "開宗の宗師"
+  },
+  {
+   "id": "person_youngsword",
+   "zh": "少俠",
+   "ja": "若き侠客"
+  },
+  {
+   "id": "person_sectleader",
+   "zh": "掌門人",
+   "ja": "掌門"
+  },
+  {
+   "id": "person_wudangleader",
+   "zh": "武當掌門",
+   "ja": "武当掌門"
+  },
+  {
+   "id": "person_huashanleader",
+   "zh": "華山掌門",
+   "ja": "華山掌門"
+  },
+  {
+   "id": "person_emeileader",
+   "zh": "峨嵋掌門",
+   "ja": "峨嵋掌門"
+  },
+  {
+   "id": "person_kunlunleader",
+   "zh": "崑崙掌門",
+   "ja": "崑崙掌門"
+  },
+  {
+   "id": "person_qingchengleader",
+   "zh": "青城掌門",
+   "ja": "青城掌門"
+  },
+  {
+   "id": "person_tangleader",
+   "zh": "唐門門主",
+   "ja": "唐門門主"
+  },
+  {
+   "id": "person_poisonchief",
+   "zh": "五毒教主",
+   "ja": "五毒教主"
+  },
+  {
+   "id": "person_xiaoyaoleader",
+   "zh": "逍遙掌門",
+   "ja": "逍遥派掌門"
+  },
+  {
+   "id": "person_peachlord",
+   "zh": "桃花島主",
+   "ja": "桃花島主"
+  },
+  {
+   "id": "person_elder",
+   "zh": "長老",
+   "ja": "長老"
+  },
+  {
+   "id": "person_guardian",
+   "zh": "護法",
+   "ja": "護法"
+  },
+  {
+   "id": "person_hallmaster",
+   "zh": "堂主",
+   "ja": "堂主"
+  },
+  {
+   "id": "person_helmsman",
+   "zh": "舵主",
+   "ja": "舵主"
+  },
+  {
+   "id": "person_lawelder",
+   "zh": "執法長老",
+   "ja": "執法長老"
+  },
+  {
+   "id": "person_steward",
+   "zh": "總管",
+   "ja": "総支配人"
+  },
+  {
+   "id": "person_accountant",
+   "zh": "賬房先生",
+   "ja": "帳簿係"
+  },
+  {
+   "id": "person_youngmaster",
+   "zh": "少爺",
+   "ja": "若旦那"
+  },
+  {
+   "id": "person_youngmistress",
+   "zh": "大小姐",
+   "ja": "お嬢様"
+  },
+  {
+   "id": "person_richgirl",
+   "zh": "千金小姐",
+   "ja": "千金"
+  },
+  {
+   "id": "person_princess",
+   "zh": "公主",
+   "ja": "姫君"
+  },
+  {
+   "id": "person_emperor",
+   "zh": "皇帝",
+   "ja": "皇帝"
+  },
+  {
+   "id": "person_general",
+   "zh": "將軍",
+   "ja": "将軍"
+  },
+  {
+   "id": "person_marshal",
+   "zh": "元帥",
+   "ja": "元帥"
+  },
+  {
+   "id": "person_strategist",
+   "zh": "軍師",
+   "ja": "軍師"
+  },
+  {
+   "id": "person_chancellor",
+   "zh": "丞相",
+   "ja": "丞相"
+  },
+  {
+   "id": "person_imperialguard",
+   "zh": "御林軍",
+   "ja": "近衛兵"
+  },
+  {
+   "id": "person_guardcaptain",
+   "zh": "禁軍統領",
+   "ja": "近衛隊長"
+  },
+  {
+   "id": "person_palacemaster",
+   "zh": "大內高手",
+   "ja": "宮中の達人"
+  },
+  {
+   "id": "person_chivalrousthief",
+   "zh": "俠盜",
+   "ja": "侠盗"
+  },
+  {
+   "id": "person_greenwood",
+   "zh": "綠林好漢",
+   "ja": "緑林の好漢"
+  },
+  {
+   "id": "person_rake",
+   "zh": "浪子",
+   "ja": "放蕩児"
+  },
+  {
+   "id": "person_knighterrant",
+   "zh": "遊俠",
+   "ja": "遊侠"
+  },
+  {
+   "id": "person_hero",
+   "zh": "俠客",
+   "ja": "侠客"
+  },
+  {
+   "id": "person_madscholar",
+   "zh": "狂生",
+   "ja": "狂生"
+  },
+  {
+   "id": "person_genius",
+   "zh": "才子",
+   "ja": "才子"
+  },
+  {
+   "id": "person_confucianhero",
+   "zh": "儒俠",
+   "ja": "儒侠"
+  },
+  {
+   "id": "person_oldbrat",
+   "zh": "老頑童",
+   "ja": "老いたる悪童"
+  },
+  {
+   "id": "person_madman",
+   "zh": "瘋癲客",
+   "ja": "狂人"
+  },
+  {
+   "id": "person_eccentric",
+   "zh": "怪傑",
+   "ja": "怪傑"
+  },
+  {
+   "id": "person_mysterious",
+   "zh": "神祕客",
+   "ja": "謎の人物"
+  },
+  {
+   "id": "person_loner",
+   "zh": "獨行俠",
+   "ja": "一匹狼の侠客"
+  },
+  {
+   "id": "person_avenger",
+   "zh": "復仇者",
+   "ja": "復讐者"
+  },
+  {
+   "id": "person_lovesword",
+   "zh": "癡情劍客",
+   "ja": "情に生きる剣客"
+  },
+  {
+   "id": "person_martyr",
+   "zh": "壯士",
+   "ja": "壮士"
+  },
+  {
+   "id": "person_gambler",
+   "zh": "賭俠",
+   "ja": "賭け事師"
+  },
+  {
+   "id": "person_swindler",
+   "zh": "江湖騙子",
+   "ja": "詐欺師"
+  },
+  {
+   "id": "person_recluse",
+   "zh": "閒雲野鶴",
+   "ja": "閑雲野鶴"
+  },
+  {
+   "id": "person_tigerslayer",
+   "zh": "打虎英雄",
+   "ja": "虎殺しの英雄"
+  },
+  {
+   "id": "person_wolftamer",
+   "zh": "馴狼人",
+   "ja": "狼使い"
+  },
+  {
+   "id": "person_falconer",
+   "zh": "鷹匠",
+   "ja": "鷹匠"
+  },
+  {
+   "id": "person_snakecharmer",
+   "zh": "馴蛇人",
+   "ja": "蛇使い"
+  },
+  {
+   "id": "person_beekeeper",
+   "zh": "養蜂人",
+   "ja": "養蜂家"
+  },
+  {
+   "id": "person_silkfarmer",
+   "zh": "養蠶人",
+   "ja": "養蚕農"
+  },
+  {
+   "id": "person_shepherd",
+   "zh": "牧羊人",
+   "ja": "羊飼い"
+  },
+  {
+   "id": "person_herdsman",
+   "zh": "牧民",
+   "ja": "遊牧民"
+  },
+  {
+   "id": "person_gumaster",
+   "zh": "蠱師",
+   "ja": "蠱師"
+  },
+  {
+   "id": "person_dragonslayer",
+   "zh": "屠龍客",
+   "ja": "竜殺し"
+  },
+  {
+   "id": "person_peerless",
+   "zh": "絕世劍客",
+   "ja": "絶世の剣客"
+  },
+  {
+   "id": "person_swordemperor",
+   "zh": "劍帝",
+   "ja": "剣帝"
+  },
+  {
+   "id": "person_outer",
+   "zh": "外門弟子",
+   "ja": "外門の弟子"
+  },
+  {
+   "id": "person_inner",
+   "zh": "內門弟子",
+   "ja": "内門の弟子"
+  },
+  {
+   "id": "person_personal",
+   "zh": "親傳弟子",
+   "ja": "直弟子"
+  },
+  {
+   "id": "person_eldest",
+   "zh": "大師兄",
+   "ja": "大師兄"
+  },
+  {
+   "id": "person_shibo",
+   "zh": "師伯",
+   "ja": "師伯"
+  },
+  {
+   "id": "person_shushuzu",
+   "zh": "師叔祖",
+   "ja": "師叔祖"
+  },
+  {
+   "id": "person_founder",
+   "zh": "開山祖師",
+   "ja": "開祖"
+  },
+  {
+   "id": "person_ginsenghunter",
+   "zh": "挖參人",
+   "ja": "朝鮮人参採り"
+  },
+  {
+   "id": "person_lotusgirl",
+   "zh": "採蓮女",
+   "ja": "蓮摘みの娘"
+  },
+  {
+   "id": "person_teapicker",
+   "zh": "採茶女",
+   "ja": "茶摘み娘"
+  },
+  {
+   "id": "person_flowergirl",
+   "zh": "賣花女",
+   "ja": "花売り娘"
+  },
+  {
+   "id": "person_fishergirl",
+   "zh": "漁家女",
+   "ja": "漁師の娘"
+  },
+  {
+   "id": "person_washgirl",
+   "zh": "浣紗女",
+   "ja": "浣紗の娘"
+  },
+  {
+   "id": "person_plumfairy",
+   "zh": "梅花仙子",
+   "ja": "梅の仙女"
+  },
+  {
+   "id": "person_orchidfairy",
+   "zh": "幽蘭仙子",
+   "ja": "蘭の仙女"
+  },
+  {
+   "id": "person_lotusfairy",
+   "zh": "蓮花仙子",
+   "ja": "蓮の仙女"
+  },
+  {
+   "id": "person_moonfairy",
+   "zh": "月宮仙子",
+   "ja": "月の仙女"
+  },
+  {
+   "id": "person_teasage",
+   "zh": "茶仙",
+   "ja": "茶仙"
+  },
+  {
+   "id": "person_poetsage",
+   "zh": "詩仙",
+   "ja": "詩仙"
+  },
+  {
+   "id": "person_paintersaint",
+   "zh": "畫聖",
+   "ja": "画聖"
+  },
+  {
+   "id": "person_penmaster",
+   "zh": "書聖",
+   "ja": "書聖"
+  },
+  {
+   "id": "person_wanderingdoc",
+   "zh": "遊方郎中",
+   "ja": "旅の医者"
+  },
+  {
+   "id": "person_poisonsage",
+   "zh": "毒尊",
+   "ja": "毒尊"
+  },
+  {
+   "id": "person_dragontamer",
+   "zh": "馴龍人",
+   "ja": "竜使い"
+  },
+  {
+   "id": "person_mountainking",
+   "zh": "山大王",
+   "ja": "山の大王"
+  },
+  {
+   "id": "person_banditadvisor",
+   "zh": "山寨軍師",
+   "ja": "山賊の軍師"
+  },
+  {
+   "id": "person_robber",
+   "zh": "劫匪",
+   "ja": "強盗"
+  },
+  {
+   "id": "person_tyrant",
+   "zh": "惡霸",
+   "ja": "悪党の親玉"
+  },
+  {
+   "id": "person_landlord",
+   "zh": "土豪",
+   "ja": "土豪"
+  },
+  {
+   "id": "person_corruptofficial",
+   "zh": "貪官",
+   "ja": "汚職官吏"
+  },
+  {
+   "id": "person_honestofficial",
+   "zh": "青天大老爺",
+   "ja": "清廉な名奉行"
+  },
+  {
+   "id": "person_cruelofficer",
+   "zh": "酷吏",
+   "ja": "酷吏"
+  },
+  {
+   "id": "person_traitorminister",
+   "zh": "奸臣",
+   "ja": "奸臣"
+  },
+  {
+   "id": "person_preceptor",
+   "zh": "國師",
+   "ja": "国師"
+  },
+  {
+   "id": "person_emperortutor",
+   "zh": "帝師",
+   "ja": "帝師"
+  },
+  {
+   "id": "person_princeconsort",
+   "zh": "駙馬",
+   "ja": "駙馬"
+  },
+  {
+   "id": "person_crownprince",
+   "zh": "太子",
+   "ja": "皇太子"
+  },
+  {
+   "id": "person_foreignmerchant",
+   "zh": "胡商",
+   "ja": "西域の商人"
+  },
+  {
+   "id": "person_packhorse",
+   "zh": "馬幫腳夫",
+   "ja": "馬方"
+  },
+  {
+   "id": "person_saltsmuggler",
+   "zh": "鹽梟",
+   "ja": "塩の密売人"
+  },
+  {
+   "id": "person_saltmerchant",
+   "zh": "鹽商",
+   "ja": "塩商人"
+  },
+  {
+   "id": "person_teamerchant",
+   "zh": "茶商",
+   "ja": "茶商人"
+  },
+  {
+   "id": "person_jeweler",
+   "zh": "珠寶商",
+   "ja": "宝石商"
+  },
+  {
+   "id": "person_banker",
+   "zh": "錢莊老闆",
+   "ja": "両替商"
+  },
+  {
+   "id": "person_tombkeeper",
+   "zh": "守冢人",
+   "ja": "剣冢の番人"
+  },
+  {
+   "id": "person_forgelord",
+   "zh": "鑄劍山莊莊主",
+   "ja": "鋳剣山荘の主"
+  },
+  {
+   "id": "person_bronzeman",
+   "zh": "銅人武僧",
+   "ja": "銅人僧"
+  },
+  {
+   "id": "person_woodman",
+   "zh": "木人",
+   "ja": "木人"
+  },
+  {
+   "id": "person_sutramonk",
+   "zh": "守經僧",
+   "ja": "経蔵の僧"
+  },
+  {
+   "id": "person_sweepermonk",
+   "zh": "掃地僧",
+   "ja": "掃除の僧"
+  },
+  {
+   "id": "person_flyingheroine",
+   "zh": "飛天女俠",
+   "ja": "飛天の女侠"
+  },
+  {
+   "id": "person_whipman",
+   "zh": "鞭客",
+   "ja": "鞭使い"
+  },
+  {
+   "id": "person_hammerman",
+   "zh": "錘手",
+   "ja": "鎚使い"
+  },
+  {
+   "id": "person_axegeneral",
+   "zh": "斧將",
+   "ja": "斧の将"
+  },
+  {
+   "id": "person_archer",
+   "zh": "弓手",
+   "ja": "弓兵"
+  },
+  {
+   "id": "person_sharpshooter",
+   "zh": "神箭手",
+   "ja": "神射手"
+  },
+  {
+   "id": "person_crossbowman",
+   "zh": "弩手",
+   "ja": "弩兵"
+  },
+  {
+   "id": "person_dartman",
+   "zh": "飛鏢客",
+   "ja": "飛鏢使い"
+  },
+  {
+   "id": "person_hiddenmaster",
+   "zh": "暗器高手",
+   "ja": "暗器の達人"
+  },
+  {
+   "id": "person_fanscholar",
+   "zh": "鐵扇書生",
+   "ja": "鉄扇の書生"
+  },
+  {
+   "id": "person_acupointer",
+   "zh": "點穴客",
+   "ja": "点穴使い"
+  },
+  {
+   "id": "person_shieldman",
+   "zh": "盾兵",
+   "ja": "盾兵"
+  },
+  {
+   "id": "person_hookpirate",
+   "zh": "鐵鉤船長",
+   "ja": "鉄鉤の船長"
+  },
+  {
+   "id": "person_formationmaster",
+   "zh": "陣法大師",
+   "ja": "陣法の大家"
+  },
+  {
+   "id": "person_lightfoot",
+   "zh": "輕功高手",
+   "ja": "軽功の達人"
+  },
+  {
+   "id": "person_grassflyer",
+   "zh": "草尖飛客",
+   "ja": "草葉を駆ける客"
+  },
+  {
+   "id": "person_snowtrace",
+   "zh": "雪上留蹤客",
+   "ja": "雪上を行く客"
+  },
+  {
+   "id": "person_innerpower",
+   "zh": "內功高手",
+   "ja": "内功の達人"
+  },
+  {
+   "id": "person_swordwind",
+   "zh": "御劍仙",
+   "ja": "御剣仙人"
+  },
+  {
+   "id": "person_drunkboxer",
+   "zh": "醉拳師",
+   "ja": "酔拳の使い手"
+  },
+  {
+   "id": "person_ironfist",
+   "zh": "鐵拳師",
+   "ja": "鉄拳の使い手"
+  },
+  {
+   "id": "person_ironpalm",
+   "zh": "鐵掌門人",
+   "ja": "鉄掌の門人"
+  },
+  {
+   "id": "person_stonebreaker",
+   "zh": "開碑手",
+   "ja": "碑砕きの拳士"
+  },
+  {
+   "id": "person_taichiboxer",
+   "zh": "太極拳師",
+   "ja": "太極拳の師"
+  },
+  {
+   "id": "person_swordqi",
+   "zh": "劍氣宗師",
+   "ja": "剣気の宗師"
+  },
+  {
+   "id": "person_swordheart",
+   "zh": "劍心傳人",
+   "ja": "剣心の継承者"
+  },
+  {
+   "id": "person_sworddisciple",
+   "zh": "劍童",
+   "ja": "剣童"
+  },
+  {
+   "id": "person_matchmaker",
+   "zh": "媒婆",
+   "ja": "仲人婆"
+  },
+  {
+   "id": "person_oldwoman",
+   "zh": "老嫗",
+   "ja": "老婆"
+  },
+  {
+   "id": "person_blindsword",
+   "zh": "盲劍客",
+   "ja": "盲目の剣客"
+  },
+  {
+   "id": "person_whitebrow",
+   "zh": "白眉大師",
+   "ja": "白眉の大師"
+  },
+  {
+   "id": "person_whitescholar",
+   "zh": "白衣秀士",
+   "ja": "白衣の秀才"
+  },
+  {
+   "id": "person_redlady",
+   "zh": "紅衣女子",
+   "ja": "紅衣の女"
+  },
+  {
+   "id": "person_jadeface",
+   "zh": "玉面公子",
+   "ja": "玉面の貴公子"
+  },
+  {
+   "id": "person_ironjudge",
+   "zh": "鐵面判官",
+   "ja": "鉄面の判官"
+  },
+  {
+   "id": "person_smilingtiger",
+   "zh": "笑面虎",
+   "ja": "笑面虎"
+  },
+  {
+   "id": "person_godgambler",
+   "zh": "賭神",
+   "ja": "賭神"
+  },
+  {
+   "id": "person_godchef",
+   "zh": "神廚",
+   "ja": "神の料理人"
+  },
+  {
+   "id": "person_doctorsaint",
+   "zh": "醫聖",
+   "ja": "医聖"
+  },
+  {
+   "id": "person_needlegod",
+   "zh": "針神",
+   "ja": "針の神"
+  },
+  {
+   "id": "person_divinecalc",
+   "zh": "神算子",
+   "ja": "神算子"
+  },
+  {
+   "id": "person_halfimmortal",
+   "zh": "半仙",
+   "ja": "半仙"
+  },
+  {
+   "id": "person_oldseer",
+   "zh": "天機老人",
+   "ja": "天機老人"
+  },
+  {
+   "id": "person_stargazer",
+   "zh": "觀星客",
+   "ja": "星読みの客"
+  },
+  {
+   "id": "person_fengshuigrand",
+   "zh": "風水大師",
+   "ja": "風水の大家"
+  },
+  {
+   "id": "person_demonsaintess",
+   "zh": "魔教聖姑",
+   "ja": "魔教の聖姑"
+  },
+  {
+   "id": "person_demonelder",
+   "zh": "魔教長老",
+   "ja": "魔教の長老"
+  },
+  {
+   "id": "person_poisondragon",
+   "zh": "毒龍尊者",
+   "ja": "毒竜尊者"
+  },
+  {
+   "id": "person_ghostface",
+   "zh": "鬼面殺手",
+   "ja": "鬼面の殺し屋"
+  },
+  {
+   "id": "person_nightowl",
+   "zh": "夜梟",
+   "ja": "夜梟"
+  },
+  {
+   "id": "person_shadowkiller",
+   "zh": "暗影刺客",
+   "ja": "影の刺客"
+  },
+  {
+   "id": "person_scorpionlady",
+   "zh": "蠍娘子",
+   "ja": "蠍娘"
+  },
+  {
+   "id": "person_viperbeauty",
+   "zh": "蛇蠍佳人",
+   "ja": "蛇蠍の美女"
+  },
+  {
+   "id": "person_gumother",
+   "zh": "蠱母",
+   "ja": "蠱母"
+  },
+  {
+   "id": "person_guking",
+   "zh": "蠱尊",
+   "ja": "蠱尊"
+  },
+  {
+   "id": "person_snowhermit",
+   "zh": "雪山老人",
+   "ja": "雪山の老人"
+  },
+  {
+   "id": "person_desertbandit",
+   "zh": "沙盜",
+   "ja": "砂漠の盗賊"
+  },
+  {
+   "id": "person_desertblade",
+   "zh": "漠北刀客",
+   "ja": "漠北の刀客"
+  },
+  {
+   "id": "person_sailor",
+   "zh": "水手",
+   "ja": "水夫"
+  },
+  {
+   "id": "person_captain",
+   "zh": "船長",
+   "ja": "船長"
+  },
+  {
+   "id": "person_oldswordsman",
+   "zh": "老劍客",
+   "ja": "老剣客"
+  },
+  {
+   "id": "person_oldblade",
+   "zh": "老刀客",
+   "ja": "老刀客"
+  },
+  {
+   "id": "person_oldgeneral",
+   "zh": "老將軍",
+   "ja": "老将軍"
+  },
+  {
+   "id": "person_oldmonk",
+   "zh": "老僧",
+   "ja": "老僧"
+  },
+  {
+   "id": "person_olddaoist",
+   "zh": "老道",
+   "ja": "老道士"
+  },
+  {
+   "id": "person_oldbeggar",
+   "zh": "老丐",
+   "ja": "老いた乞食"
+  },
+  {
+   "id": "person_swordcouple",
+   "zh": "俠侶",
+   "ja": "侠の連れ合い"
+  },
+  {
+   "id": "person_sworn",
+   "zh": "結義兄弟",
+   "ja": "義兄弟"
+  },
+  {
+   "id": "person_imperialdoc",
+   "zh": "太醫",
+   "ja": "太医"
+  },
+  {
+   "id": "person_imperialchef",
+   "zh": "御廚",
+   "ja": "御膳係"
+  },
+  {
+   "id": "person_palacemaid",
+   "zh": "宮女",
+   "ja": "宮女"
+  },
+  {
+   "id": "person_eunuch",
+   "zh": "內侍",
+   "ja": "宦官"
+  },
+  {
+   "id": "person_empress",
+   "zh": "皇后",
+   "ja": "皇后"
+  },
+  {
+   "id": "person_consort",
+   "zh": "貴妃",
+   "ja": "貴妃"
+  },
+  {
+   "id": "person_tanhua",
+   "zh": "探花郎",
+   "ja": "探花"
+  },
+  {
+   "id": "person_jinshi",
+   "zh": "進士",
+   "ja": "進士"
+  },
+  {
+   "id": "person_oilseller",
+   "zh": "賣油郎",
+   "ja": "油売り"
+  },
+  {
+   "id": "person_charcoalseller",
+   "zh": "賣炭翁",
+   "ja": "炭売りの老人"
+  },
+  {
+   "id": "person_wineseller",
+   "zh": "酒販",
+   "ja": "酒売り"
+  },
+  {
+   "id": "person_mirrorpolisher",
+   "zh": "磨鏡匠",
+   "ja": "鏡磨ぎ"
+  },
+  {
+   "id": "person_sealcarver",
+   "zh": "篆刻師",
+   "ja": "篆刻師"
+  },
+  {
+   "id": "person_porcelainmaster",
+   "zh": "瓷匠",
+   "ja": "磁器師"
+  },
+  {
+   "id": "person_bamboocraft",
+   "zh": "竹匠",
+   "ja": "竹細工師"
+  },
+  {
+   "id": "person_papermaker",
+   "zh": "造紙匠",
+   "ja": "紙漉き職人"
+  },
+  {
+   "id": "person_powdermaster",
+   "zh": "火藥師",
+   "ja": "火薬師"
+  },
+  {
+   "id": "person_mechmaster",
+   "zh": "機關師",
+   "ja": "からくり師"
+  },
+  {
+   "id": "person_heavencraft",
+   "zh": "天工巧匠",
+   "ja": "天工の名匠"
+  },
+  {
+   "id": "person_forgesage",
+   "zh": "鑄劍宗師",
+   "ja": "鋳剣の宗師"
+  },
+  {
+   "id": "person_bestblade",
+   "zh": "天下第一刀",
+   "ja": "天下一の刀"
+  },
+  {
+   "id": "person_warsaint",
+   "zh": "戰神將",
+   "ja": "戦神の将"
+  },
+  {
+   "id": "person_fistsaint",
+   "zh": "拳聖",
+   "ja": "拳聖"
+  },
+  {
+   "id": "person_spearshen",
+   "zh": "槍神",
+   "ja": "槍神"
+  },
+  {
+   "id": "person_medimmortal",
+   "zh": "醫仙",
+   "ja": "医仙"
+  },
+  {
+   "id": "person_moondrunk",
+   "zh": "醉月仙",
+   "ja": "酔月の仙"
+  },
+  {
+   "id": "person_heroking",
+   "zh": "俠王",
+   "ja": "侠王"
+  },
+  {
+   "id": "person_supreme",
+   "zh": "江湖至尊",
+   "ja": "江湖の至尊"
+  },
+  {
+   "id": "person_legend",
+   "zh": "武林神話",
+   "ja": "武林の神話"
+  },
+  {
+   "id": "person_beauty",
+   "zh": "傾城佳人",
+   "ja": "傾城の佳人"
+  },
+  {
+   "id": "person_informant",
+   "zh": "百曉生",
+   "ja": "百暁生"
+  },
+  {
+   "id": "person_spy",
+   "zh": "探子",
+   "ja": "間者"
+  },
+  {
+   "id": "person_youngbiaotou",
+   "zh": "少鏢頭",
+   "ja": "若鏢頭"
+  },
+  {
+   "id": "person_oldbiaotou",
+   "zh": "老鏢頭",
+   "ja": "老鏢頭"
+  },
+  {
+   "id": "person_familyhead",
+   "zh": "世家家主",
+   "ja": "名門の当主"
+  },
+  {
+   "id": "person_staffmonk",
+   "zh": "棍僧",
+   "ja": "棍僧"
+  },
+  {
+   "id": "person_wudangsword",
+   "zh": "武當劍客",
+   "ja": "武当の剣客"
+  },
+  {
+   "id": "person_nun",
+   "zh": "師太",
+   "ja": "庵主"
+  },
+  {
+   "id": "person_shepherdboy",
+   "zh": "牧童",
+   "ja": "牧童"
+  },
+  {
+   "id": "person_oldfarmer",
+   "zh": "老農",
+   "ja": "老農夫"
+  },
+  {
+   "id": "person_farmwife",
+   "zh": "農婦",
+   "ja": "農家の嫁"
+  },
+  {
+   "id": "person_jadecarver",
+   "zh": "玉匠",
+   "ja": "玉細工師"
+  },
+  {
+   "id": "person_gemcutter",
+   "zh": "寶石匠",
+   "ja": "宝石細工師"
+  },
+  {
+   "id": "person_goldsmith",
+   "zh": "金匠",
+   "ja": "金細工師"
+  },
+  {
+   "id": "person_brushmaker",
+   "zh": "筆墨匠",
+   "ja": "筆墨職人"
+  },
+  {
+   "id": "person_inkmaker",
+   "zh": "墨匠",
+   "ja": "墨職人"
+  },
+  {
+   "id": "person_foreignmonk",
+   "zh": "西域僧",
+   "ja": "西域の僧"
+  },
+  {
+   "id": "person_wokou",
+   "zh": "倭寇",
+   "ja": "倭寇"
+  },
+  {
+   "id": "person_ronin",
+   "zh": "渡海浪人",
+   "ja": "海を渡った浪人"
+  },
+  {
+   "id": "person_miaogirl",
+   "zh": "苗女",
+   "ja": "苗族の娘"
+  },
+  {
+   "id": "person_blazeblade",
+   "zh": "烈焰刀客",
+   "ja": "烈火の刀客"
+  },
+  {
+   "id": "person_frostheroine",
+   "zh": "寒霜女俠",
+   "ja": "寒霜の女侠"
+  },
+  {
+   "id": "person_thunderblade",
+   "zh": "雷霆刀客",
+   "ja": "雷霆の刀客"
+  },
+  {
+   "id": "person_windwalker",
+   "zh": "風行者",
+   "ja": "風を行く者"
+  },
+  {
+   "id": "person_strongman",
+   "zh": "大力士",
+   "ja": "大力士"
+  },
+  {
+   "id": "person_diver",
+   "zh": "潛水客",
+   "ja": "潜り手"
+  },
+  {
+   "id": "person_pearldiver",
+   "zh": "採珠人",
+   "ja": "真珠採り"
+  },
+  {
+   "id": "person_masterstoryteller",
+   "zh": "評書名家",
+   "ja": "名講釈師"
+  },
+  {
+   "id": "person_troupehead",
+   "zh": "戲班班主",
+   "ja": "一座の座長"
+  },
+  {
+   "id": "person_staractor",
+   "zh": "名角",
+   "ja": "名優"
+  },
+  {
+   "id": "person_fluteimmortal",
+   "zh": "簫仙",
+   "ja": "簫仙"
+  },
+  {
+   "id": "person_soulchaser",
+   "zh": "追魂使",
+   "ja": "追魂使"
+  },
+  {
+   "id": "person_executioner",
+   "zh": "劊子手",
+   "ja": "首切り役人"
+  },
+  {
+   "id": "person_coroner",
+   "zh": "仵作",
+   "ja": "検死役"
+  },
+  {
+   "id": "person_gravekeeper",
+   "zh": "守墓人",
+   "ja": "墓守"
+  },
+  {
+   "id": "person_watchman",
+   "zh": "更夫",
+   "ja": "夜回り"
+  },
+  {
+   "id": "person_exorcist",
+   "zh": "驅魔道人",
+   "ja": "悪魔祓いの道士"
+  },
+  {
+   "id": "person_monsterhunter",
+   "zh": "捉妖師",
+   "ja": "妖怪退治の師"
+  },
+  {
+   "id": "person_ghostdoc",
+   "zh": "鬼醫",
+   "ja": "鬼医"
+  },
+  {
+   "id": "person_yama",
+   "zh": "閻羅判官",
+   "ja": "閻魔判官"
+  },
+  {
+   "id": "person_cavalry",
+   "zh": "騎兵",
+   "ja": "騎兵"
+  },
+  {
+   "id": "person_vanguard",
+   "zh": "先鋒",
+   "ja": "先鋒"
+  },
+  {
+   "id": "person_hanlin",
+   "zh": "翰林學士",
+   "ja": "翰林学士"
+  },
+  {
+   "id": "person_swordblade",
+   "zh": "刀劍雙絕",
+   "ja": "刀剣双絶"
+  },
+  {
+   "id": "person_knightdoc",
+   "zh": "俠醫",
+   "ja": "侠医"
+  },
+  {
+   "id": "person_confdoc",
+   "zh": "儒醫",
+   "ja": "儒医"
+  },
+  {
+   "id": "person_merchanthero",
+   "zh": "商俠",
+   "ja": "商侠"
+  },
+  {
+   "id": "person_beggarhero",
+   "zh": "丐俠",
+   "ja": "丐侠"
+  },
+  {
+   "id": "person_swordhermit",
+   "zh": "隱居劍客",
+   "ja": "隠棲の剣客"
+  },
+  {
+   "id": "person_oldhero",
+   "zh": "白髮俠客",
+   "ja": "白髪の侠客"
+  },
+  {
+   "id": "person_bladehermit",
+   "zh": "歸隱刀客",
+   "ja": "隠退した刀客"
+  },
+  {
+   "id": "person_wineseer",
+   "zh": "醉道人",
+   "ja": "酔いどれ道士"
+  },
+  {
+   "id": "person_ricemerchant",
+   "zh": "米商",
+   "ja": "米商人"
+  },
+  {
+   "id": "person_silkmerchant",
+   "zh": "絲綢商",
+   "ja": "絹商人"
+  },
+  {
+   "id": "person_horsemerchant",
+   "zh": "馬販",
+   "ja": "馬商人"
+  },
+  {
+   "id": "person_ferrywoman",
+   "zh": "擺渡女",
+   "ja": "渡し舟の娘"
+  },
+  {
+   "id": "person_shipcook",
+   "zh": "船廚",
+   "ja": "船の料理人"
+  },
+  {
+   "id": "person_boatleader",
+   "zh": "船幫幫主",
+   "ja": "船幇の頭"
+  },
+  {
+   "id": "person_herbmerchant",
+   "zh": "藥材商",
+   "ja": "薬種問屋"
+  },
+  {
+   "id": "person_huntsman",
+   "zh": "獵戶",
+   "ja": "山の猟人"
+  },
+  {
+   "id": "person_bearhunter",
+   "zh": "打熊獵手",
+   "ja": "熊狩りの猟師"
+  },
+  {
+   "id": "person_foxhunter",
+   "zh": "獵狐人",
+   "ja": "狐狩り"
+  },
+  {
+   "id": "person_tigerking",
+   "zh": "伏虎王",
+   "ja": "伏虎の王"
+  },
+  {
+   "id": "person_cranehermit",
+   "zh": "鶴隱士",
+   "ja": "鶴の隠者"
+  },
+  {
+   "id": "person_pinehermit",
+   "zh": "松下隱者",
+   "ja": "松下の隠者"
+  },
+  {
+   "id": "person_plumhermit",
+   "zh": "梅林居士",
+   "ja": "梅林の居士"
+  },
+  {
+   "id": "person_orchidscholar",
+   "zh": "蘭亭雅士",
+   "ja": "蘭亭の雅人"
+  },
+  {
+   "id": "person_chrysanhermit",
+   "zh": "採菊隱士",
+   "ja": "菊を摘む隠者"
+  },
+  {
+   "id": "person_willowmaiden",
+   "zh": "柳腰舞姬",
+   "ja": "柳腰の舞姫"
+  },
+  {
+   "id": "person_peonybeauty",
+   "zh": "牡丹佳人",
+   "ja": "牡丹の佳人"
+  },
+  {
+   "id": "person_lotusmonk",
+   "zh": "蓮花僧",
+   "ja": "蓮華の僧"
+  },
+  {
+   "id": "person_lingzhidoc",
+   "zh": "靈芝仙醫",
+   "ja": "霊芝の仙医"
+  },
+  {
+   "id": "person_mushroomhunter",
+   "zh": "採菇人",
+   "ja": "きのこ採り"
+  },
+  {
+   "id": "person_mossrecluse",
+   "zh": "苔蘚老人",
+   "ja": "苔むした老人"
+  },
+  {
+   "id": "person_vinewhip",
+   "zh": "藤鞭客",
+   "ja": "蔓鞭の客"
+  },
+  {
+   "id": "person_fisherhermit",
+   "zh": "江湖釣叟",
+   "ja": "江湖の釣り翁"
+  },
+  {
+   "id": "person_lakeboatman",
+   "zh": "湖上船夫",
+   "ja": "湖の船頭"
+  },
+  {
+   "id": "person_springmaid",
+   "zh": "泉邊少女",
+   "ja": "泉辺の少女"
+  },
+  {
+   "id": "person_hotspringowner",
+   "zh": "溫泉主人",
+   "ja": "湯守"
+  },
+  {
+   "id": "person_minerboss",
+   "zh": "礦頭",
+   "ja": "鉱山の親方"
+  },
+  {
+   "id": "person_oreseller",
+   "zh": "礦商",
+   "ja": "鉱石商人"
+  },
+  {
+   "id": "person_steelsmith",
+   "zh": "鋼匠",
+   "ja": "鋼の鍛冶"
+  },
+  {
+   "id": "person_ironclad",
+   "zh": "鐵甲將軍",
+   "ja": "鉄甲の将軍"
+  },
+  {
+   "id": "person_shieldgeneral",
+   "zh": "盾將",
+   "ja": "盾の将"
+  },
+  {
+   "id": "person_chainprisoner",
+   "zh": "鎖鏈囚徒",
+   "ja": "鎖につながれた囚人"
+  },
+  {
+   "id": "person_trapper",
+   "zh": "設陷獵人",
+   "ja": "罠猟師"
+  },
+  {
+   "id": "person_netfisher",
+   "zh": "撒網漁夫",
+   "ja": "投網の漁師"
+  },
+  {
+   "id": "person_raftman",
+   "zh": "竹筏客",
+   "ja": "筏乗り"
+  },
+  {
+   "id": "person_bridgekeeper",
+   "zh": "守橋人",
+   "ja": "橋守"
+  },
+  {
+   "id": "person_ladderthief",
+   "zh": "梯上君子",
+   "ja": "梁上の君子"
+  },
+  {
+   "id": "person_lanternman",
+   "zh": "提燈人",
+   "ja": "提灯持ち"
+  },
+  {
+   "id": "person_bellringer",
+   "zh": "鳴鐘僧",
+   "ja": "鐘撞きの僧"
+  },
+  {
+   "id": "person_mirrorsage",
+   "zh": "鏡心居士",
+   "ja": "鏡心居士"
+  },
+  {
+   "id": "person_keykeeper",
+   "zh": "掌鑰人",
+   "ja": "鍵番"
+  },
+  {
+   "id": "person_chestguard",
+   "zh": "護寶鏢師",
+   "ja": "宝を守る鏢師"
+  },
+  {
+   "id": "person_mapseeker",
+   "zh": "尋寶客",
+   "ja": "宝探し"
+  },
+  {
+   "id": "person_treasurehunter",
+   "zh": "探寶宗師",
+   "ja": "宝探しの名人"
+  },
+  {
+   "id": "person_pearlmaiden",
+   "zh": "明珠佳人",
+   "ja": "明珠の佳人"
+  },
+  {
+   "id": "person_jadeprince",
+   "zh": "玉簫公子",
+   "ja": "玉簫の貴公子"
+  },
+  {
+   "id": "person_goldenguard",
+   "zh": "金甲衛",
+   "ja": "金甲の衛士"
+  },
+  {
+   "id": "person_amberscholar",
+   "zh": "琥珀書生",
+   "ja": "琥珀の書生"
+  },
+  {
+   "id": "person_inkstonescholar",
+   "zh": "硯田書生",
+   "ja": "硯田の書生"
+  },
+  {
+   "id": "person_sealcommander",
+   "zh": "掌印官",
+   "ja": "印綬の官"
+  },
+  {
+   "id": "person_cauldronkeeper",
+   "zh": "守鼎人",
+   "ja": "鼎守り"
+  }
+ ],
+ "recipes": [
+  [
+   "sec_escort",
+   "per_swordsman",
+   "person_biaoshi"
+  ],
+  [
+   "sec_escort",
+   "per_soldier",
+   "person_biaoshi"
+  ],
+  [
+   "person_biaoshi",
+   "sec_banner",
+   "person_biaotou"
+  ],
+  [
+   "person_biaoshi",
+   "sec_token",
+   "person_biaotou"
+  ],
+  [
+   "person_biaoshi",
+   "gear_wheel",
+   "person_tangzi"
+  ],
+  [
+   "per_soldier",
+   "mat_rope",
+   "person_constable"
+  ],
+  [
+   "sec_court",
+   "per_soldier",
+   "person_constable"
+  ],
+  [
+   "person_constable",
+   "sec_token",
+   "person_batou"
+  ],
+  [
+   "person_batou",
+   "con_wisdom",
+   "person_shenbu"
+  ],
+  [
+   "per_soldier",
+   "wpn_rod",
+   "person_yayi"
+  ],
+  [
+   "person_constable",
+   "gear_key",
+   "person_jailer"
+  ],
+  [
+   "sec_court",
+   "per_scholar",
+   "person_magistrate"
+  ],
+  [
+   "trs_seal",
+   "person_magistrate",
+   "person_envoy"
+  ],
+  [
+   "per_scholar",
+   "con_fame",
+   "person_zhuangyuan"
+  ],
+  [
+   "per_scholar",
+   "gear_brush",
+   "person_xiucai"
+  ],
+  [
+   "person_xiucai",
+   "mat_paper",
+   "person_juren"
+  ],
+  [
+   "per_scholar",
+   "sec_disciple",
+   "person_teacher"
+  ],
+  [
+   "per_scholar",
+   "plc_inn",
+   "person_storyteller"
+  ],
+  [
+   "per_merchant",
+   "plc_inn",
+   "person_innkeeper"
+  ],
+  [
+   "per_wanderer",
+   "plc_inn",
+   "person_waiter"
+  ],
+  [
+   "person_innkeeper",
+   "mat_cloth",
+   "person_waiter"
+  ],
+  [
+   "per_farmer",
+   "gear_pot",
+   "person_cook"
+  ],
+  [
+   "per_farmer",
+   "eli_wine",
+   "person_brewer"
+  ],
+  [
+   "person_innkeeper",
+   "eli_wine",
+   "person_winehost"
+  ],
+  [
+   "person_waiter",
+   "herb_tea",
+   "person_teaman"
+  ],
+  [
+   "per_hunter",
+   "wpn_blade",
+   "person_butcher"
+  ],
+  [
+   "per_smith",
+   "wpn_sword",
+   "person_swordsmith"
+  ],
+  [
+   "per_smith",
+   "wpn_blade",
+   "person_bladesmith"
+  ],
+  [
+   "per_smith",
+   "wpn_armor",
+   "person_armorsmith"
+  ],
+  [
+   "per_smith",
+   "wpn_bow",
+   "person_bowyer"
+  ],
+  [
+   "per_smith",
+   "mat_silver",
+   "person_silversmith"
+  ],
+  [
+   "per_smith",
+   "mat_copper",
+   "person_coppersmith"
+  ],
+  [
+   "per_smith",
+   "gear_lock",
+   "person_locksmith"
+  ],
+  [
+   "person_swordsmith",
+   "trs_meteor",
+   "person_masterforger"
+  ],
+  [
+   "person_masterforger",
+   "fire",
+   "person_godsmith"
+  ],
+  [
+   "per_woodcutter",
+   "mat_timber",
+   "person_carpenter"
+  ],
+  [
+   "person_carpenter",
+   "gear_mech",
+   "person_luban"
+  ],
+  [
+   "person_carpenter",
+   "gear_boat",
+   "person_shipwright"
+  ],
+  [
+   "per_miner",
+   "nat_stone",
+   "person_mason"
+  ],
+  [
+   "per_farmer",
+   "mat_clay",
+   "person_potter"
+  ],
+  [
+   "per_maiden",
+   "mat_cloth",
+   "person_tailor"
+  ],
+  [
+   "per_maiden",
+   "bst_silkworm",
+   "person_embroiderer"
+  ],
+  [
+   "bst_silkworm",
+   "person_tailor",
+   "person_weaver"
+  ],
+  [
+   "per_doctor",
+   "eli_poison",
+   "person_poisondoc"
+  ],
+  [
+   "per_doctor",
+   "herb_lingzhi",
+   "person_divinedoc"
+  ],
+  [
+   "per_doctor",
+   "herb_ginseng",
+   "person_divinedoc"
+  ],
+  [
+   "per_doctor",
+   "sec_disciple",
+   "person_herbboy"
+  ],
+  [
+   "per_doctor",
+   "wpn_needle",
+   "person_acupuncturist"
+  ],
+  [
+   "per_doctor",
+   "eli_powder",
+   "person_pharmacist"
+  ],
+  [
+   "per_daoist",
+   "eli_elixir",
+   "person_alchemist"
+  ],
+  [
+   "person_alchemist",
+   "bst_dragon",
+   "person_alchemysage"
+  ],
+  [
+   "per_daoist",
+   "con_fate",
+   "person_fortuneteller"
+  ],
+  [
+   "per_daoist",
+   "mar_formation",
+   "person_geomancer"
+  ],
+  [
+   "per_doctor",
+   "eli_bath",
+   "person_bonesetter"
+  ],
+  [
+   "person_divinedoc",
+   "sec_medvalley",
+   "person_drugking"
+  ],
+  [
+   "per_fisher",
+   "plc_lake",
+   "person_oldfisher"
+  ],
+  [
+   "per_boatman",
+   "plc_harbor",
+   "person_ferryman"
+  ],
+  [
+   "per_farmer",
+   "plc_road",
+   "person_porter"
+  ],
+  [
+   "person_waiter",
+   "bst_horse",
+   "person_groom"
+  ],
+  [
+   "per_bandit",
+   "bst_horse",
+   "person_horsethief"
+  ],
+  [
+   "per_dancer",
+   "plc_market",
+   "person_busker"
+  ],
+  [
+   "per_wanderer",
+   "trs_jadeflute",
+   "person_fluteman"
+  ],
+  [
+   "per_scholar",
+   "mat_ink",
+   "person_calligrapher"
+  ],
+  [
+   "person_calligrapher",
+   "mat_paper",
+   "person_painter"
+  ],
+  [
+   "per_thief",
+   "mar_qinggong",
+   "person_flyingthief"
+  ],
+  [
+   "per_thief",
+   "con_wisdom",
+   "person_godthief"
+  ],
+  [
+   "per_thief",
+   "mar_shadow",
+   "person_nimblethief"
+  ],
+  [
+   "per_bandit",
+   "nat_sea",
+   "person_seabandit"
+  ],
+  [
+   "per_bandit",
+   "nat_river",
+   "person_riverbandit"
+  ],
+  [
+   "per_thief",
+   "plc_grave",
+   "person_tombrobber"
+  ],
+  [
+   "per_bandit",
+   "sec_stronghold",
+   "person_stronglord"
+  ],
+  [
+   "per_wanderer",
+   "nat_dark",
+   "person_nightwalker"
+  ],
+  [
+   "per_assassin",
+   "trs_gold",
+   "person_hitman"
+  ],
+  [
+   "per_assassin",
+   "mat_cloth",
+   "person_blackrobe"
+  ],
+  [
+   "per_assassin",
+   "eli_poison",
+   "person_poisonassassin"
+  ],
+  [
+   "per_swordsman",
+   "eli_wine",
+   "person_winesword"
+  ],
+  [
+   "per_swordsman",
+   "mar_swordart",
+   "person_swordmaniac"
+  ],
+  [
+   "person_swordmaniac",
+   "trs_famoussword",
+   "person_swordsaint"
+  ],
+  [
+   "person_swordsaint",
+   "nat_cloud",
+   "person_swordimmortal"
+  ],
+  [
+   "person_swordsaint",
+   "bst_crane",
+   "person_swordimmortal"
+  ],
+  [
+   "person_swordsaint",
+   "nat_thunder",
+   "person_swordgod"
+  ],
+  [
+   "per_swordsman",
+   "con_solitude",
+   "person_lonesword"
+  ],
+  [
+   "per_swordsman",
+   "nat_wind",
+   "person_fastsword"
+  ],
+  [
+   "per_swordsman",
+   "per_swordsman",
+   "person_twinsword"
+  ],
+  [
+   "per_swordsman",
+   "nat_frost",
+   "person_frostsword"
+  ],
+  [
+   "per_swordsman",
+   "nat_blaze",
+   "person_flamesword"
+  ],
+  [
+   "per_swordsman",
+   "nat_thunder",
+   "person_thundersword"
+  ],
+  [
+   "per_wanderer",
+   "eli_wine",
+   "person_drunkhero"
+  ],
+  [
+   "per_wanderer",
+   "wpn_blade",
+   "person_blademan"
+  ],
+  [
+   "person_blademan",
+   "trs_famoussaber",
+   "person_bladeking"
+  ],
+  [
+   "person_blademan",
+   "con_rage",
+   "person_bladefiend"
+  ],
+  [
+   "person_blademan",
+   "mar_saberart",
+   "person_bladesaint"
+  ],
+  [
+   "per_soldier",
+   "wpn_spear",
+   "person_spearman"
+  ],
+  [
+   "person_spearman",
+   "bst_dragon",
+   "person_spearking"
+  ],
+  [
+   "per_soldier",
+   "mar_fist",
+   "person_boxer"
+  ],
+  [
+   "person_boxer",
+   "con_courage",
+   "person_fistking"
+  ],
+  [
+   "person_boxer",
+   "sec_master",
+   "person_martialteacher"
+  ],
+  [
+   "per_monk",
+   "mar_kick",
+   "person_fightmonk"
+  ],
+  [
+   "per_monk",
+   "plc_temple",
+   "person_abbot"
+  ],
+  [
+   "person_abbot",
+   "con_wisdom",
+   "person_patriarch"
+  ],
+  [
+   "per_monk",
+   "plc_desert",
+   "person_ascetic"
+  ],
+  [
+   "per_monk",
+   "con_fame",
+   "person_eminentmonk"
+  ],
+  [
+   "per_monk",
+   "mar_hardgong",
+   "person_arhat"
+  ],
+  [
+   "per_monk",
+   "eli_wine",
+   "person_drunkmonk"
+  ],
+  [
+   "per_monk",
+   "herb_sprout",
+   "person_novice"
+  ],
+  [
+   "per_daoist",
+   "herb_sprout",
+   "person_taoboy"
+  ],
+  [
+   "per_daoist",
+   "mar_innerforce",
+   "person_truman"
+  ],
+  [
+   "per_daoist",
+   "nat_thunder",
+   "person_heavenmaster"
+  ],
+  [
+   "per_daoist",
+   "mar_qi",
+   "person_qimaster"
+  ],
+  [
+   "per_daoist",
+   "mar_taichi",
+   "person_taichimaster"
+  ],
+  [
+   "per_maiden",
+   "per_daoist",
+   "person_taoist"
+  ],
+  [
+   "per_maiden",
+   "per_swordsman",
+   "person_heroine"
+  ],
+  [
+   "per_maiden",
+   "eli_poison",
+   "person_poisonlady"
+  ],
+  [
+   "per_maiden",
+   "bst_fox",
+   "person_foxwitch"
+  ],
+  [
+   "per_maiden",
+   "plc_field",
+   "person_villagegirl"
+  ],
+  [
+   "per_doctor",
+   "per_maiden",
+   "person_femaledoc"
+  ],
+  [
+   "per_maiden",
+   "nat_cloud",
+   "person_fairy"
+  ],
+  [
+   "per_maiden",
+   "mat_jade",
+   "person_jadelady"
+  ],
+  [
+   "per_dancer",
+   "con_fame",
+   "person_famouscourtesan"
+  ],
+  [
+   "per_dancer",
+   "herb_peony",
+   "person_flowerqueen"
+  ],
+  [
+   "per_dancer",
+   "wpn_sword",
+   "person_sworddancer"
+  ],
+  [
+   "per_beggar",
+   "sec_banner",
+   "person_beggarelder"
+  ],
+  [
+   "per_beggar",
+   "sec_beggars",
+   "person_beggarchief"
+  ],
+  [
+   "per_beggar",
+   "herb_sprout",
+   "person_beggarkid"
+  ],
+  [
+   "per_beggar",
+   "herb_flower",
+   "person_huazi"
+  ],
+  [
+   "per_hermit",
+   "con_wisdom",
+   "person_sage"
+  ],
+  [
+   "per_hermit",
+   "nat_cloud",
+   "person_cloudhermit"
+  ],
+  [
+   "per_hermit",
+   "nat_mountain",
+   "person_mountainman"
+  ],
+  [
+   "per_hermit",
+   "plc_bamboogrove",
+   "person_bamboohermit"
+  ],
+  [
+   "per_hermit",
+   "nat_valley",
+   "person_valleylord"
+  ],
+  [
+   "per_hermit",
+   "plc_cave",
+   "person_cavelord"
+  ],
+  [
+   "per_hermit",
+   "plc_island",
+   "person_islandlord"
+  ],
+  [
+   "per_merchant",
+   "plc_house",
+   "person_manorlord"
+  ],
+  [
+   "person_chivalrous",
+   "con_fame",
+   "person_greathero"
+  ],
+  [
+   "person_greathero",
+   "con_righteous",
+   "person_herogreat"
+  ],
+  [
+   "person_swordfiend",
+   "sec_demon",
+   "person_demonlord"
+  ],
+  [
+   "person_bladefiend",
+   "sec_demon",
+   "person_demonlord"
+  ],
+  [
+   "person_demonlord",
+   "con_fear",
+   "person_archdemon"
+  ],
+  [
+   "person_demonlord",
+   "sec_banner",
+   "person_demonchief"
+  ],
+  [
+   "sec_ming",
+   "per_wanderer",
+   "person_lightenvoy"
+  ],
+  [
+   "person_lightenvoy",
+   "con_yang",
+   "person_mingchief"
+  ],
+  [
+   "person_greathero",
+   "sec_banner",
+   "person_wulinleader"
+  ],
+  [
+   "person_swordsaint",
+   "sec_token",
+   "person_wulinleader"
+  ],
+  [
+   "person_wulinleader",
+   "nat_sun",
+   "person_numberone"
+  ],
+  [
+   "person_numberone",
+   "person_swordsaint",
+   "person_bestsword"
+  ],
+  [
+   "person_martialteacher",
+   "con_wisdom",
+   "person_grandmaster"
+  ],
+  [
+   "person_grandmaster",
+   "con_fame",
+   "person_eragrandmaster"
+  ],
+  [
+   "per_swordsman",
+   "herb_sprout",
+   "person_youngsword"
+  ],
+  [
+   "person_martialteacher",
+   "sec_hall",
+   "person_sectleader"
+  ],
+  [
+   "person_truman",
+   "sec_wudang",
+   "person_wudangleader"
+  ],
+  [
+   "person_swordmaniac",
+   "sec_huashan",
+   "person_huashanleader"
+  ],
+  [
+   "person_heroine",
+   "sec_emei",
+   "person_emeileader"
+  ],
+  [
+   "person_sage",
+   "sec_kunlun",
+   "person_kunlunleader"
+  ],
+  [
+   "person_taoist",
+   "sec_qingcheng",
+   "person_qingchengleader"
+  ],
+  [
+   "person_poisonassassin",
+   "sec_tangmen",
+   "person_tangleader"
+  ],
+  [
+   "person_poisonlady",
+   "sec_poison5",
+   "person_poisonchief"
+  ],
+  [
+   "person_cloudhermit",
+   "sec_xiaoyao",
+   "person_xiaoyaoleader"
+  ],
+  [
+   "person_islandlord",
+   "sec_peach",
+   "person_peachlord"
+  ],
+  [
+   "person_martialteacher",
+   "sec_rules",
+   "person_elder"
+  ],
+  [
+   "person_fightmonk",
+   "sec_banner",
+   "person_guardian"
+  ],
+  [
+   "person_elder",
+   "sec_hall",
+   "person_hallmaster"
+  ],
+  [
+   "per_boatman",
+   "sec_banner",
+   "person_helmsman"
+  ],
+  [
+   "person_elder",
+   "sec_rules",
+   "person_lawelder"
+  ],
+  [
+   "person_innkeeper",
+   "sec_hall",
+   "person_steward"
+  ],
+  [
+   "per_scholar",
+   "mat_silver",
+   "person_accountant"
+  ],
+  [
+   "per_merchant",
+   "herb_sprout",
+   "person_youngmaster"
+  ],
+  [
+   "per_maiden",
+   "plc_house",
+   "person_youngmistress"
+  ],
+  [
+   "per_maiden",
+   "trs_gold",
+   "person_richgirl"
+  ],
+  [
+   "per_maiden",
+   "plc_palace",
+   "person_princess"
+  ],
+  [
+   "person_envoy",
+   "plc_palace",
+   "person_emperor"
+  ],
+  [
+   "per_soldier",
+   "sec_banner",
+   "person_general"
+  ],
+  [
+   "person_general",
+   "sec_token",
+   "person_marshal"
+  ],
+  [
+   "per_scholar",
+   "mar_formation",
+   "person_strategist"
+  ],
+  [
+   "person_magistrate",
+   "con_wisdom",
+   "person_chancellor"
+  ],
+  [
+   "per_soldier",
+   "plc_palace",
+   "person_imperialguard"
+  ],
+  [
+   "person_imperialguard",
+   "sec_token",
+   "person_guardcaptain"
+  ],
+  [
+   "person_imperialguard",
+   "mar_neigong",
+   "person_palacemaster"
+  ],
+  [
+   "per_thief",
+   "trs_gold",
+   "person_chivalrousthief"
+  ],
+  [
+   "per_bandit",
+   "con_righteous",
+   "person_greenwood"
+  ],
+  [
+   "per_wanderer",
+   "con_love",
+   "person_rake"
+  ],
+  [
+   "per_wanderer",
+   "con_courage",
+   "person_hero"
+  ],
+  [
+   "per_scholar",
+   "con_rage",
+   "person_madscholar"
+  ],
+  [
+   "per_scholar",
+   "con_wisdom",
+   "person_genius"
+  ],
+  [
+   "per_scholar",
+   "per_swordsman",
+   "person_confucianhero"
+  ],
+  [
+   "per_hermit",
+   "con_joy",
+   "person_oldbrat"
+  ],
+  [
+   "per_hermit",
+   "con_illusion",
+   "person_madman"
+  ],
+  [
+   "per_hermit",
+   "con_secret",
+   "person_eccentric"
+  ],
+  [
+   "per_wanderer",
+   "con_secret",
+   "person_mysterious"
+  ],
+  [
+   "per_wanderer",
+   "con_solitude",
+   "person_loner"
+  ],
+  [
+   "person_hitman",
+   "con_hate",
+   "person_avenger"
+  ],
+  [
+   "per_swordsman",
+   "con_love",
+   "person_lovesword"
+  ],
+  [
+   "per_soldier",
+   "con_courage",
+   "person_martyr"
+  ],
+  [
+   "per_wanderer",
+   "con_fortune",
+   "person_gambler"
+  ],
+  [
+   "per_merchant",
+   "con_illusion",
+   "person_swindler"
+  ],
+  [
+   "per_hermit",
+   "bst_crane",
+   "person_recluse"
+  ],
+  [
+   "per_hunter",
+   "bst_tiger",
+   "person_tigerslayer"
+  ],
+  [
+   "per_hunter",
+   "bst_wolf",
+   "person_wolftamer"
+  ],
+  [
+   "person_wolftamer",
+   "bst_eagle",
+   "person_falconer"
+  ],
+  [
+   "per_wanderer",
+   "bst_snake",
+   "person_snakecharmer"
+  ],
+  [
+   "per_farmer",
+   "bst_bee",
+   "person_beekeeper"
+  ],
+  [
+   "per_farmer",
+   "bst_silkworm",
+   "person_silkfarmer"
+  ],
+  [
+   "person_herdsman",
+   "bst_goat",
+   "person_shepherd"
+  ],
+  [
+   "per_farmer",
+   "plc_grassland",
+   "person_herdsman"
+  ],
+  [
+   "person_poisondoc",
+   "bst_scorpion",
+   "person_gumaster"
+  ],
+  [
+   "per_swordsman",
+   "bst_dragon",
+   "person_dragonslayer"
+  ],
+  [
+   "person_swordsaint",
+   "con_fame",
+   "person_peerless"
+  ],
+  [
+   "person_swordgod",
+   "trs_seal",
+   "person_swordemperor"
+  ],
+  [
+   "sec_disciple",
+   "per_farmer",
+   "person_outer"
+  ],
+  [
+   "person_outer",
+   "mar_neigong",
+   "person_inner"
+  ],
+  [
+   "person_inner",
+   "sec_master",
+   "person_personal"
+  ],
+  [
+   "person_personal",
+   "con_courage",
+   "person_eldest"
+  ],
+  [
+   "person_elder",
+   "sec_master",
+   "person_shibo"
+  ],
+  [
+   "person_shibo",
+   "con_time",
+   "person_shushuzu"
+  ],
+  [
+   "person_shushuzu",
+   "sec_codex",
+   "person_founder"
+  ],
+  [
+   "per_woodcutter",
+   "herb_ginseng",
+   "person_ginsenghunter"
+  ],
+  [
+   "per_maiden",
+   "herb_lotus",
+   "person_lotusgirl"
+  ],
+  [
+   "per_maiden",
+   "herb_tea",
+   "person_teapicker"
+  ],
+  [
+   "per_maiden",
+   "herb_flower",
+   "person_flowergirl"
+  ],
+  [
+   "per_maiden",
+   "person_oldfisher",
+   "person_fishergirl"
+  ],
+  [
+   "per_maiden",
+   "nat_river",
+   "person_washgirl"
+  ],
+  [
+   "person_fairy",
+   "herb_plum",
+   "person_plumfairy"
+  ],
+  [
+   "person_fairy",
+   "herb_orchid",
+   "person_orchidfairy"
+  ],
+  [
+   "person_fairy",
+   "herb_lotus",
+   "person_lotusfairy"
+  ],
+  [
+   "person_fairy",
+   "nat_moon",
+   "person_moonfairy"
+  ],
+  [
+   "per_hermit",
+   "herb_tea",
+   "person_teasage"
+  ],
+  [
+   "per_scholar",
+   "nat_moon",
+   "person_poetsage"
+  ],
+  [
+   "person_painter",
+   "nat_waterfall",
+   "person_paintersaint"
+  ],
+  [
+   "person_calligrapher",
+   "trs_inkstone",
+   "person_penmaster"
+  ],
+  [
+   "per_doctor",
+   "per_wanderer",
+   "person_wanderingdoc"
+  ],
+  [
+   "person_poisondoc",
+   "eli_arsenic",
+   "person_poisonsage"
+  ],
+  [
+   "person_wolftamer",
+   "bst_dragon",
+   "person_dragontamer"
+  ],
+  [
+   "person_stronglord",
+   "bst_tiger",
+   "person_mountainking"
+  ],
+  [
+   "person_strategist",
+   "per_bandit",
+   "person_banditadvisor"
+  ],
+  [
+   "per_bandit",
+   "mat_silver",
+   "person_robber"
+  ],
+  [
+   "per_merchant",
+   "con_rage",
+   "person_tyrant"
+  ],
+  [
+   "per_farmer",
+   "trs_gold",
+   "person_landlord"
+  ],
+  [
+   "person_magistrate",
+   "mat_silver",
+   "person_corruptofficial"
+  ],
+  [
+   "person_magistrate",
+   "nat_sun",
+   "person_honestofficial"
+  ],
+  [
+   "person_constable",
+   "con_rage",
+   "person_cruelofficer"
+  ],
+  [
+   "person_chancellor",
+   "con_hate",
+   "person_traitorminister"
+  ],
+  [
+   "per_daoist",
+   "person_emperor",
+   "person_preceptor"
+  ],
+  [
+   "per_scholar",
+   "person_emperor",
+   "person_emperortutor"
+  ],
+  [
+   "person_princess",
+   "per_swordsman",
+   "person_princeconsort"
+  ],
+  [
+   "person_emperor",
+   "herb_sprout",
+   "person_crownprince"
+  ],
+  [
+   "per_merchant",
+   "plc_desert",
+   "person_foreignmerchant"
+  ],
+  [
+   "person_groom",
+   "plc_road",
+   "person_packhorse"
+  ],
+  [
+   "per_bandit",
+   "mat_salt",
+   "person_saltsmuggler"
+  ],
+  [
+   "per_merchant",
+   "mat_salt",
+   "person_saltmerchant"
+  ],
+  [
+   "per_merchant",
+   "herb_tea",
+   "person_teamerchant"
+  ],
+  [
+   "per_merchant",
+   "trs_gem",
+   "person_jeweler"
+  ],
+  [
+   "per_merchant",
+   "trs_gold",
+   "person_banker"
+  ],
+  [
+   "per_hermit",
+   "sec_swordtomb",
+   "person_tombkeeper"
+  ],
+  [
+   "person_manorlord",
+   "sec_forge",
+   "person_forgelord"
+  ],
+  [
+   "person_fightmonk",
+   "mat_copper",
+   "person_bronzeman"
+  ],
+  [
+   "person_fightmonk",
+   "mat_timber",
+   "person_woodman"
+  ],
+  [
+   "per_monk",
+   "sec_codex",
+   "person_sutramonk"
+  ],
+  [
+   "per_monk",
+   "nat_dust",
+   "person_sweepermonk"
+  ],
+  [
+   "person_heroine",
+   "mar_qinggong",
+   "person_flyingheroine"
+  ],
+  [
+   "per_wanderer",
+   "wpn_whip",
+   "person_whipman"
+  ],
+  [
+   "per_miner",
+   "wpn_hammer",
+   "person_hammerman"
+  ],
+  [
+   "per_soldier",
+   "wpn_axe",
+   "person_axegeneral"
+  ],
+  [
+   "per_hunter",
+   "wpn_bow",
+   "person_archer"
+  ],
+  [
+   "person_archer",
+   "wpn_arrow",
+   "person_sharpshooter"
+  ],
+  [
+   "per_soldier",
+   "wpn_crossbow",
+   "person_crossbowman"
+  ],
+  [
+   "per_wanderer",
+   "wpn_dart",
+   "person_dartman"
+  ],
+  [
+   "person_dartman",
+   "wpn_needle",
+   "person_hiddenmaster"
+  ],
+  [
+   "per_scholar",
+   "wpn_fan",
+   "person_fanscholar"
+  ],
+  [
+   "per_wanderer",
+   "mar_acupoint",
+   "person_acupointer"
+  ],
+  [
+   "per_soldier",
+   "wpn_shield",
+   "person_shieldman"
+  ],
+  [
+   "person_seabandit",
+   "wpn_hook",
+   "person_hookpirate"
+  ],
+  [
+   "person_strategist",
+   "nat_stone",
+   "person_formationmaster"
+  ],
+  [
+   "person_knighterrant",
+   "mar_qinggong",
+   "person_lightfoot"
+  ],
+  [
+   "person_lightfoot",
+   "herb_grass",
+   "person_grassflyer"
+  ],
+  [
+   "person_lightfoot",
+   "nat_snow",
+   "person_snowtrace"
+  ],
+  [
+   "per_hermit",
+   "mar_neigong",
+   "person_innerpower"
+  ],
+  [
+   "person_swordimmortal",
+   "nat_wind",
+   "person_swordwind"
+  ],
+  [
+   "person_boxer",
+   "eli_wine",
+   "person_drunkboxer"
+  ],
+  [
+   "person_boxer",
+   "mat_steel",
+   "person_ironfist"
+  ],
+  [
+   "person_boxer",
+   "mar_palm",
+   "person_ironpalm"
+  ],
+  [
+   "person_boxer",
+   "nat_stone",
+   "person_stonebreaker"
+  ],
+  [
+   "person_boxer",
+   "mar_taichi",
+   "person_taichiboxer"
+  ],
+  [
+   "person_swordsaint",
+   "mar_qi",
+   "person_swordqi"
+  ],
+  [
+   "person_swordsaint",
+   "mar_heart",
+   "person_swordheart"
+  ],
+  [
+   "person_taoboy",
+   "wpn_sword",
+   "person_sworddisciple"
+  ],
+  [
+   "person_villagegirl",
+   "con_fate",
+   "person_matchmaker"
+  ],
+  [
+   "person_villagegirl",
+   "con_time",
+   "person_oldwoman"
+  ],
+  [
+   "per_swordsman",
+   "nat_dark",
+   "person_blindsword"
+  ],
+  [
+   "per_monk",
+   "nat_snow",
+   "person_whitebrow"
+  ],
+  [
+   "person_xiucai",
+   "nat_snow",
+   "person_whitescholar"
+  ],
+  [
+   "per_maiden",
+   "nat_blaze",
+   "person_redlady"
+  ],
+  [
+   "person_youngmaster",
+   "mat_jade",
+   "person_jadeface"
+  ],
+  [
+   "person_magistrate",
+   "mat_iron",
+   "person_ironjudge"
+  ],
+  [
+   "person_swindler",
+   "bst_tiger",
+   "person_smilingtiger"
+  ],
+  [
+   "person_gambler",
+   "con_fortune",
+   "person_godgambler"
+  ],
+  [
+   "person_cook",
+   "nat_blaze",
+   "person_godchef"
+  ],
+  [
+   "person_divinedoc",
+   "person_sage",
+   "person_doctorsaint"
+  ],
+  [
+   "person_acupuncturist",
+   "mar_qi",
+   "person_needlegod"
+  ],
+  [
+   "person_fortuneteller",
+   "con_wisdom",
+   "person_divinecalc"
+  ],
+  [
+   "person_fortuneteller",
+   "nat_cloud",
+   "person_halfimmortal"
+  ],
+  [
+   "person_divinecalc",
+   "con_secret",
+   "person_oldseer"
+  ],
+  [
+   "person_fortuneteller",
+   "nat_moon",
+   "person_stargazer"
+  ],
+  [
+   "person_geomancer",
+   "nat_mountain",
+   "person_fengshuigrand"
+  ],
+  [
+   "per_maiden",
+   "sec_demon",
+   "person_demonsaintess"
+  ],
+  [
+   "person_elder",
+   "sec_demon",
+   "person_demonelder"
+  ],
+  [
+   "person_poisonsage",
+   "bst_dragon",
+   "person_poisondragon"
+  ],
+  [
+   "person_hitman",
+   "con_fear",
+   "person_ghostface"
+  ],
+  [
+   "person_nightwalker",
+   "bst_bird",
+   "person_nightowl"
+  ],
+  [
+   "person_hitman",
+   "mar_shadow",
+   "person_shadowkiller"
+  ],
+  [
+   "person_poisonlady",
+   "bst_scorpion",
+   "person_scorpionlady"
+  ],
+  [
+   "person_poisonlady",
+   "bst_snake",
+   "person_viperbeauty"
+  ],
+  [
+   "person_gumaster",
+   "bst_silkworm",
+   "person_gumother"
+  ],
+  [
+   "person_gumaster",
+   "bst_spider",
+   "person_guking"
+  ],
+  [
+   "per_hermit",
+   "nat_snow",
+   "person_snowhermit"
+  ],
+  [
+   "per_bandit",
+   "plc_desert",
+   "person_desertbandit"
+  ],
+  [
+   "person_blademan",
+   "plc_desert",
+   "person_desertblade"
+  ],
+  [
+   "per_boatman",
+   "nat_sea",
+   "person_sailor"
+  ],
+  [
+   "person_sailor",
+   "sec_banner",
+   "person_captain"
+  ],
+  [
+   "per_swordsman",
+   "con_time",
+   "person_oldswordsman"
+  ],
+  [
+   "person_blademan",
+   "con_time",
+   "person_oldblade"
+  ],
+  [
+   "person_general",
+   "con_time",
+   "person_oldgeneral"
+  ],
+  [
+   "per_monk",
+   "con_time",
+   "person_oldmonk"
+  ],
+  [
+   "per_daoist",
+   "con_time",
+   "person_olddaoist"
+  ],
+  [
+   "per_beggar",
+   "con_time",
+   "person_oldbeggar"
+  ],
+  [
+   "per_swordsman",
+   "person_heroine",
+   "person_swordcouple"
+  ],
+  [
+   "person_hero",
+   "eli_wine",
+   "person_sworn"
+  ],
+  [
+   "per_doctor",
+   "plc_palace",
+   "person_imperialdoc"
+  ],
+  [
+   "person_cook",
+   "plc_palace",
+   "person_imperialchef"
+  ],
+  [
+   "person_villagegirl",
+   "plc_palace",
+   "person_palacemaid"
+  ],
+  [
+   "person_waiter",
+   "plc_palace",
+   "person_eunuch"
+  ],
+  [
+   "person_princess",
+   "person_emperor",
+   "person_empress"
+  ],
+  [
+   "per_maiden",
+   "person_emperor",
+   "person_consort"
+  ],
+  [
+   "person_juren",
+   "herb_flower",
+   "person_tanhua"
+  ],
+  [
+   "person_juren",
+   "gear_brush",
+   "person_jinshi"
+  ],
+  [
+   "per_merchant",
+   "eli_oil",
+   "person_oilseller"
+  ],
+  [
+   "per_woodcutter",
+   "mat_charcoal",
+   "person_charcoalseller"
+  ],
+  [
+   "per_merchant",
+   "eli_wine",
+   "person_wineseller"
+  ],
+  [
+   "person_coppersmith",
+   "gear_mirror",
+   "person_mirrorpolisher"
+  ],
+  [
+   "person_mason",
+   "trs_seal",
+   "person_sealcarver"
+  ],
+  [
+   "person_potter",
+   "mat_porcelain",
+   "person_porcelainmaster"
+  ],
+  [
+   "person_carpenter",
+   "mat_bamboo",
+   "person_bamboocraft"
+  ],
+  [
+   "person_bamboocraft",
+   "mat_paper",
+   "person_papermaker"
+  ],
+  [
+   "person_alchemist",
+   "mat_gunpowder",
+   "person_powdermaster"
+  ],
+  [
+   "person_locksmith",
+   "gear_mech",
+   "person_mechmaster"
+  ],
+  [
+   "person_mechmaster",
+   "gear_waterclock",
+   "person_heavencraft"
+  ],
+  [
+   "person_swordsmith",
+   "gear_furnace",
+   "person_forgesage"
+  ],
+  [
+   "person_numberone",
+   "person_bladeking",
+   "person_bestblade"
+  ],
+  [
+   "person_general",
+   "person_bladesaint",
+   "person_warsaint"
+  ],
+  [
+   "person_fistking",
+   "person_grandmaster",
+   "person_fistsaint"
+  ],
+  [
+   "person_spearking",
+   "nat_thunder",
+   "person_spearshen"
+  ],
+  [
+   "person_doctorsaint",
+   "nat_cloud",
+   "person_medimmortal"
+  ],
+  [
+   "person_drunkhero",
+   "nat_moon",
+   "person_moondrunk"
+  ],
+  [
+   "person_greathero",
+   "bst_dragon",
+   "person_heroking"
+  ],
+  [
+   "person_numberone",
+   "trs_seal",
+   "person_supreme"
+  ],
+  [
+   "person_supreme",
+   "con_time",
+   "person_legend"
+  ],
+  [
+   "person_jadelady",
+   "plc_city",
+   "person_beauty"
+  ],
+  [
+   "person_storyteller",
+   "con_secret",
+   "person_informant"
+  ],
+  [
+   "person_nightwalker",
+   "con_secret",
+   "person_spy"
+  ],
+  [
+   "person_biaotou",
+   "herb_sprout",
+   "person_youngbiaotou"
+  ],
+  [
+   "person_biaotou",
+   "con_time",
+   "person_oldbiaotou"
+  ],
+  [
+   "person_martialteacher",
+   "plc_house",
+   "person_familyhead"
+  ],
+  [
+   "person_fightmonk",
+   "wpn_stick",
+   "person_staffmonk"
+  ],
+  [
+   "person_truman",
+   "per_swordsman",
+   "person_wudangsword"
+  ],
+  [
+   "per_maiden",
+   "per_monk",
+   "person_nun"
+  ],
+  [
+   "person_shepherd",
+   "herb_sprout",
+   "person_shepherdboy"
+  ],
+  [
+   "per_farmer",
+   "con_time",
+   "person_oldfarmer"
+  ],
+  [
+   "person_villagegirl",
+   "per_farmer",
+   "person_farmwife"
+  ],
+  [
+   "person_mason",
+   "mat_jade",
+   "person_jadecarver"
+  ],
+  [
+   "person_jadecarver",
+   "trs_gem",
+   "person_gemcutter"
+  ],
+  [
+   "person_silversmith",
+   "trs_gold",
+   "person_goldsmith"
+  ],
+  [
+   "person_papermaker",
+   "gear_brush",
+   "person_brushmaker"
+  ],
+  [
+   "person_charcoalseller",
+   "mat_ink",
+   "person_inkmaker"
+  ],
+  [
+   "per_monk",
+   "person_foreignmerchant",
+   "person_foreignmonk"
+  ],
+  [
+   "person_seabandit",
+   "wpn_blade",
+   "person_wokou"
+  ],
+  [
+   "person_blademan",
+   "nat_sea",
+   "person_ronin"
+  ],
+  [
+   "person_villagegirl",
+   "person_gumaster",
+   "person_miaogirl"
+  ],
+  [
+   "person_blademan",
+   "nat_blaze",
+   "person_blazeblade"
+  ],
+  [
+   "person_heroine",
+   "nat_frost",
+   "person_frostheroine"
+  ],
+  [
+   "person_blademan",
+   "nat_thunder",
+   "person_thunderblade"
+  ],
+  [
+   "person_lightfoot",
+   "nat_wind",
+   "person_windwalker"
+  ],
+  [
+   "person_hammerman",
+   "mar_force",
+   "person_strongman"
+  ],
+  [
+   "person_oldfisher",
+   "nat_sea",
+   "person_diver"
+  ],
+  [
+   "person_oldfisher",
+   "trs_pearl",
+   "person_pearldiver"
+  ],
+  [
+   "person_storyteller",
+   "con_fame",
+   "person_masterstoryteller"
+  ],
+  [
+   "person_busker",
+   "sec_banner",
+   "person_troupehead"
+  ],
+  [
+   "person_busker",
+   "con_fame",
+   "person_staractor"
+  ],
+  [
+   "person_fluteman",
+   "nat_cloud",
+   "person_fluteimmortal"
+  ],
+  [
+   "person_hitman",
+   "bst_wolf",
+   "person_soulchaser"
+  ],
+  [
+   "person_butcher",
+   "sec_court",
+   "person_executioner"
+  ],
+  [
+   "per_doctor",
+   "plc_grave",
+   "person_coroner"
+  ],
+  [
+   "per_hermit",
+   "plc_grave",
+   "person_gravekeeper"
+  ],
+  [
+   "per_soldier",
+   "gear_lantern",
+   "person_watchman"
+  ],
+  [
+   "per_daoist",
+   "con_fear",
+   "person_exorcist"
+  ],
+  [
+   "person_exorcist",
+   "bst_fox",
+   "person_monsterhunter"
+  ],
+  [
+   "person_divinedoc",
+   "nat_dark",
+   "person_ghostdoc"
+  ],
+  [
+   "person_ironjudge",
+   "nat_dark",
+   "person_yama"
+  ],
+  [
+   "person_spearman",
+   "bst_horse",
+   "person_cavalry"
+  ],
+  [
+   "person_axegeneral",
+   "sec_banner",
+   "person_vanguard"
+  ],
+  [
+   "person_zhuangyuan",
+   "gear_brush",
+   "person_hanlin"
+  ],
+  [
+   "per_swordsman",
+   "person_blademan",
+   "person_swordblade"
+  ],
+  [
+   "person_knighterrant",
+   "per_doctor",
+   "person_knightdoc"
+  ],
+  [
+   "per_scholar",
+   "per_doctor",
+   "person_confdoc"
+  ],
+  [
+   "per_merchant",
+   "person_hero",
+   "person_merchanthero"
+  ],
+  [
+   "per_beggar",
+   "person_hero",
+   "person_beggarhero"
+  ],
+  [
+   "per_swordsman",
+   "per_hermit",
+   "person_swordhermit"
+  ],
+  [
+   "person_hero",
+   "nat_snow",
+   "person_oldhero"
+  ],
+  [
+   "person_blademan",
+   "per_hermit",
+   "person_bladehermit"
+  ],
+  [
+   "person_truman",
+   "eli_wine",
+   "person_wineseer"
+  ],
+  [
+   "per_merchant",
+   "herb_seed",
+   "person_ricemerchant"
+  ],
+  [
+   "per_merchant",
+   "bst_silkworm",
+   "person_silkmerchant"
+  ],
+  [
+   "per_merchant",
+   "bst_horse",
+   "person_horsemerchant"
+  ],
+  [
+   "per_maiden",
+   "person_ferryman",
+   "person_ferrywoman"
+  ],
+  [
+   "person_cook",
+   "gear_boat",
+   "person_shipcook"
+  ],
+  [
+   "person_captain",
+   "sec_stronghold",
+   "person_boatleader"
+  ],
+  [
+   "per_merchant",
+   "herb_root",
+   "person_herbmerchant"
+  ],
+  [
+   "per_hunter",
+   "plc_woods",
+   "person_huntsman"
+  ],
+  [
+   "per_hunter",
+   "bst_bear",
+   "person_bearhunter"
+  ],
+  [
+   "per_hunter",
+   "bst_fox",
+   "person_foxhunter"
+  ],
+  [
+   "person_tigerslayer",
+   "bst_tiger",
+   "person_tigerking"
+  ],
+  [
+   "person_recluse",
+   "herb_pine",
+   "person_cranehermit"
+  ],
+  [
+   "per_hermit",
+   "herb_pine",
+   "person_pinehermit"
+  ],
+  [
+   "per_hermit",
+   "herb_plum",
+   "person_plumhermit"
+  ],
+  [
+   "per_scholar",
+   "herb_orchid",
+   "person_orchidscholar"
+  ],
+  [
+   "per_hermit",
+   "herb_chrysan",
+   "person_chrysanhermit"
+  ],
+  [
+   "per_dancer",
+   "herb_willow",
+   "person_willowmaiden"
+  ],
+  [
+   "person_jadelady",
+   "herb_peony",
+   "person_peonybeauty"
+  ],
+  [
+   "person_zenmaster",
+   "herb_lotus",
+   "person_lotusmonk"
+  ],
+  [
+   "person_divinedoc",
+   "herb_lingzhi",
+   "person_lingzhidoc"
+  ],
+  [
+   "per_woodcutter",
+   "herb_fungus",
+   "person_mushroomhunter"
+  ],
+  [
+   "per_hermit",
+   "herb_moss",
+   "person_mossrecluse"
+  ],
+  [
+   "person_whipman",
+   "herb_vine",
+   "person_vinewhip"
+  ],
+  [
+   "person_oldfisher",
+   "con_solitude",
+   "person_fisherhermit"
+  ],
+  [
+   "per_boatman",
+   "plc_lake",
+   "person_lakeboatman"
+  ],
+  [
+   "per_maiden",
+   "plc_spring",
+   "person_springmaid"
+  ],
+  [
+   "person_innkeeper",
+   "plc_hotspring",
+   "person_hotspringowner"
+  ],
+  [
+   "per_miner",
+   "plc_mine",
+   "person_minerboss"
+  ],
+  [
+   "per_merchant",
+   "mat_ore",
+   "person_oreseller"
+  ],
+  [
+   "per_smith",
+   "mat_steel",
+   "person_steelsmith"
+  ],
+  [
+   "person_general",
+   "wpn_armor",
+   "person_ironclad"
+  ],
+  [
+   "person_general",
+   "wpn_shield",
+   "person_shieldgeneral"
+  ],
+  [
+   "person_constable",
+   "wpn_chain",
+   "person_chainprisoner"
+  ],
+  [
+   "per_hunter",
+   "gear_trap",
+   "person_trapper"
+  ],
+  [
+   "per_fisher",
+   "gear_net",
+   "person_netfisher"
+  ],
+  [
+   "per_boatman",
+   "gear_raft",
+   "person_raftman"
+  ],
+  [
+   "per_soldier",
+   "gear_bridge",
+   "person_bridgekeeper"
+  ],
+  [
+   "per_thief",
+   "gear_ladder",
+   "person_ladderthief"
+  ],
+  [
+   "per_wanderer",
+   "gear_lantern",
+   "person_lanternman"
+  ],
+  [
+   "person_oldmonk",
+   "gear_bell",
+   "person_bellringer"
+  ],
+  [
+   "per_hermit",
+   "gear_mirror",
+   "person_mirrorsage"
+  ],
+  [
+   "person_innkeeper",
+   "gear_key",
+   "person_keykeeper"
+  ],
+  [
+   "person_biaoshi",
+   "gear_chest",
+   "person_chestguard"
+  ],
+  [
+   "per_wanderer",
+   "trs_map",
+   "person_mapseeker"
+  ],
+  [
+   "person_mapseeker",
+   "trs_meteor",
+   "person_treasurehunter"
+  ],
+  [
+   "per_maiden",
+   "trs_pearl",
+   "person_pearlmaiden"
+  ],
+  [
+   "person_youngmaster",
+   "trs_jadeflute",
+   "person_jadeprince"
+  ],
+  [
+   "person_imperialguard",
+   "trs_goldmail",
+   "person_goldenguard"
+  ],
+  [
+   "per_scholar",
+   "trs_amber",
+   "person_amberscholar"
+  ],
+  [
+   "per_scholar",
+   "trs_inkstone",
+   "person_inkstonescholar"
+  ],
+  [
+   "person_chancellor",
+   "trs_seal",
+   "person_sealcommander"
+  ],
+  [
+   "person_elder",
+   "trs_cauldron",
+   "person_cauldronkeeper"
+  ],
+  [
+   "person_hero",
+   "sec_escort",
+   "person_biaoshi"
+  ],
+  [
+   "person_biaoshi",
+   "mat_silver",
+   "person_biaotou"
+  ],
+  [
+   "person_batou",
+   "mat_rope",
+   "person_constable"
+  ],
+  [
+   "person_constable",
+   "per_scholar",
+   "person_magistrate"
+  ],
+  [
+   "person_teacher",
+   "mat_paper",
+   "person_xiucai"
+  ],
+  [
+   "person_xiucai",
+   "con_fame",
+   "person_juren"
+  ],
+  [
+   "person_jinshi",
+   "nat_sun",
+   "person_zhuangyuan"
+  ],
+  [
+   "person_teacher",
+   "con_secret",
+   "person_storyteller"
+  ],
+  [
+   "person_waiter",
+   "mat_silver",
+   "person_innkeeper"
+  ],
+  [
+   "person_innkeeper",
+   "gear_pot",
+   "person_cook"
+  ],
+  [
+   "person_winehost",
+   "herb_seed",
+   "person_brewer"
+  ],
+  [
+   "person_innkeeper",
+   "herb_tea",
+   "person_teaman"
+  ],
+  [
+   "person_cook",
+   "wpn_blade",
+   "person_butcher"
+  ],
+  [
+   "person_bladesmith",
+   "wpn_sword",
+   "person_swordsmith"
+  ],
+  [
+   "person_swordsmith",
+   "wpn_hammer",
+   "person_bladesmith"
+  ],
+  [
+   "per_smith",
+   "trs_goldmail",
+   "person_armorsmith"
+  ],
+  [
+   "person_goldsmith",
+   "mat_ingot",
+   "person_silversmith"
+  ],
+  [
+   "person_shipwright",
+   "mat_timber",
+   "person_carpenter"
+  ],
+  [
+   "person_jadecarver",
+   "nat_stone",
+   "person_mason"
+  ],
+  [
+   "person_porcelainmaster",
+   "mat_clay",
+   "person_potter"
+  ],
+  [
+   "person_embroiderer",
+   "mat_cloth",
+   "person_tailor"
+  ],
+  [
+   "person_tailor",
+   "herb_flower",
+   "person_embroiderer"
+  ],
+  [
+   "per_doctor",
+   "bst_scorpion",
+   "person_poisondoc"
+  ],
+  [
+   "person_doctorsaint",
+   "herb_root",
+   "person_divinedoc"
+  ],
+  [
+   "person_herbboy",
+   "eli_powder",
+   "person_pharmacist"
+  ],
+  [
+   "person_pharmacist",
+   "eli_cinnabar",
+   "person_alchemist"
+  ],
+  [
+   "person_geomancer",
+   "con_fate",
+   "person_fortuneteller"
+  ],
+  [
+   "person_fortuneteller",
+   "nat_stone",
+   "person_geomancer"
+  ],
+  [
+   "per_boatman",
+   "nat_river",
+   "person_ferryman"
+  ],
+  [
+   "person_porter",
+   "bst_horse",
+   "person_groom"
+  ],
+  [
+   "person_fluteman",
+   "plc_road",
+   "person_busker"
+  ],
+  [
+   "person_nightwalker",
+   "mar_qinggong",
+   "person_flyingthief"
+  ],
+  [
+   "person_flyingthief",
+   "con_secret",
+   "person_godthief"
+  ],
+  [
+   "person_riverbandit",
+   "nat_sea",
+   "person_seabandit"
+  ],
+  [
+   "per_thief",
+   "plc_cave",
+   "person_tombrobber"
+  ],
+  [
+   "person_mountainking",
+   "sec_banner",
+   "person_stronglord"
+  ],
+  [
+   "person_flyingthief",
+   "nat_dark",
+   "person_nightwalker"
+  ],
+  [
+   "person_blackrobe",
+   "wpn_dagger",
+   "person_hitman"
+  ],
+  [
+   "person_swordimmortal",
+   "eli_wine",
+   "person_winesword"
+  ],
+  [
+   "person_lonesword",
+   "trs_famoussword",
+   "person_swordsaint"
+  ],
+  [
+   "per_swordsman",
+   "bst_phoenix",
+   "person_swordimmortal"
+  ],
+  [
+   "per_swordsman",
+   "wpn_arrow",
+   "person_fastsword"
+  ],
+  [
+   "person_swordblade",
+   "wpn_sword",
+   "person_twinsword"
+  ],
+  [
+   "per_swordsman",
+   "trs_iceheart",
+   "person_frostsword"
+  ],
+  [
+   "per_swordsman",
+   "trs_fireorb",
+   "person_flamesword"
+  ],
+  [
+   "person_bladesaint",
+   "nat_blaze",
+   "person_bladeking"
+  ],
+  [
+   "person_martialteacher",
+   "mar_fist",
+   "person_boxer"
+  ],
+  [
+   "person_boxer",
+   "bst_tiger",
+   "person_fistking"
+  ],
+  [
+   "person_patriarch",
+   "plc_temple",
+   "person_abbot"
+  ],
+  [
+   "person_abbot",
+   "con_calm",
+   "person_zenmaster"
+  ],
+  [
+   "person_zenmaster",
+   "con_fame",
+   "person_eminentmonk"
+  ],
+  [
+   "person_taoboy",
+   "con_wisdom",
+   "person_truman"
+  ],
+  [
+   "person_truman",
+   "con_yin",
+   "person_taichimaster"
+  ],
+  [
+   "person_swordcouple",
+   "per_maiden",
+   "person_heroine"
+  ],
+  [
+   "person_jadelady",
+   "nat_mist",
+   "person_fairy"
+  ],
+  [
+   "person_famouscourtesan",
+   "herb_flower",
+   "person_flowerqueen"
+  ],
+  [
+   "person_beggarelder",
+   "wpn_stick",
+   "person_beggarchief"
+  ],
+  [
+   "person_cloudhermit",
+   "con_secret",
+   "person_sage"
+  ],
+  [
+   "person_sage",
+   "plc_island",
+   "person_islandlord"
+  ],
+  [
+   "person_hero",
+   "con_righteous",
+   "person_greathero"
+  ],
+  [
+   "person_grandmaster",
+   "trs_seal",
+   "person_wulinleader"
+  ],
+  [
+   "person_wulinleader",
+   "person_bestsword",
+   "person_numberone"
+  ],
+  [
+   "person_taichimaster",
+   "con_wisdom",
+   "person_grandmaster"
+  ],
+  [
+   "person_grandmaster",
+   "sec_banner",
+   "person_sectleader"
+  ],
+  [
+   "person_grandmaster",
+   "sec_codex",
+   "person_elder"
+  ],
+  [
+   "person_helmsman",
+   "sec_hall",
+   "person_hallmaster"
+  ],
+  [
+   "person_chancellor",
+   "mar_formation",
+   "person_strategist"
+  ],
+  [
+   "person_vanguard",
+   "sec_token",
+   "person_general"
+  ],
+  [
+   "person_crownprince",
+   "con_time",
+   "person_emperor"
+  ],
+  [
+   "person_empress",
+   "herb_sprout",
+   "person_princess"
+  ],
+  [
+   "per_swordsman",
+   "per_dancer",
+   "person_rake"
+  ],
+  [
+   "person_knighterrant",
+   "wpn_sword",
+   "person_hero"
+  ],
+  [
+   "person_hero",
+   "per_wanderer",
+   "person_knighterrant"
+  ],
+  [
+   "person_xiucai",
+   "con_wisdom",
+   "person_genius"
+  ],
+  [
+   "person_blackrobe",
+   "con_secret",
+   "person_mysterious"
+  ],
+  [
+   "person_swindler",
+   "con_fortune",
+   "person_gambler"
+  ],
+  [
+   "person_gambler",
+   "con_illusion",
+   "person_swindler"
+  ],
+  [
+   "per_hunter",
+   "trs_famoussword",
+   "person_tigerslayer"
+  ],
+  [
+   "person_gumaster",
+   "bst_snake",
+   "person_snakecharmer"
+  ],
+  [
+   "person_miaogirl",
+   "eli_poisonherb",
+   "person_gumaster"
+  ],
+  [
+   "person_hero",
+   "bst_dragon",
+   "person_dragonslayer"
+  ],
+  [
+   "person_numberone",
+   "person_swordemperor",
+   "person_peerless"
+  ],
+  [
+   "person_swordsaint",
+   "bst_phoenix",
+   "person_swordemperor"
+  ],
+  [
+   "person_archdemon",
+   "herb_sprout",
+   "person_demonlord"
+  ],
+  [
+   "person_xiucai",
+   "gear_slip",
+   "person_teacher"
+  ],
+  [
+   "person_innkeeper",
+   "gear_bucket",
+   "person_waiter"
+  ],
+  [
+   "per_assassin",
+   "mat_ingot",
+   "person_hitman"
+  ],
+  [
+   "person_eldest",
+   "con_time",
+   "person_shushuzu"
+  ],
+  [
+   "person_sectleader",
+   "con_time",
+   "person_founder"
+  ],
+  [
+   "person_elder",
+   "herb_sprout",
+   "person_personal"
+  ],
+  [
+   "per_farmer",
+   "sec_rules",
+   "person_outer"
+  ],
+  [
+   "person_biaoshi",
+   "mat_rope",
+   "person_tangzi"
+  ],
+  [
+   "person_constable",
+   "wpn_rod",
+   "person_yayi"
+  ],
+  [
+   "person_yayi",
+   "gear_key",
+   "person_jailer"
+  ],
+  [
+   "person_emperor",
+   "person_magistrate",
+   "person_envoy"
+  ],
+  [
+   "person_banditadvisor",
+   "sec_stronghold",
+   "person_mountainking"
+  ],
+  [
+   "per_bandit",
+   "mat_ingot",
+   "person_robber"
+  ],
+  [
+   "person_landlord",
+   "con_rage",
+   "person_tyrant"
+  ],
+  [
+   "person_tyrant",
+   "plc_field",
+   "person_landlord"
+  ],
+  [
+   "person_tyrant",
+   "person_magistrate",
+   "person_corruptofficial"
+  ],
+  [
+   "person_truman",
+   "person_emperor",
+   "person_preceptor"
+  ],
+  [
+   "person_saltmerchant",
+   "wpn_dagger",
+   "person_saltsmuggler"
+  ],
+  [
+   "person_accountant",
+   "trs_gold",
+   "person_banker"
+  ],
+  [
+   "person_goldsmith",
+   "trs_gem",
+   "person_jeweler"
+  ],
+  [
+   "person_teapicker",
+   "per_merchant",
+   "person_teamerchant"
+  ],
+  [
+   "person_oldmonk",
+   "nat_dust",
+   "person_sweepermonk"
+  ],
+  [
+   "per_beggar",
+   "wpn_whip",
+   "person_whipman"
+  ],
+  [
+   "per_smith",
+   "mar_force",
+   "person_hammerman"
+  ],
+  [
+   "person_vanguard",
+   "wpn_bow",
+   "person_archer"
+  ],
+  [
+   "person_tangleader",
+   "person_dartman",
+   "person_hiddenmaster"
+  ],
+  [
+   "person_genius",
+   "wpn_fan",
+   "person_fanscholar"
+  ],
+  [
+   "person_acupuncturist",
+   "mar_fingers",
+   "person_acupointer"
+  ],
+  [
+   "person_flyingheroine",
+   "nat_wind",
+   "person_lightfoot"
+  ],
+  [
+   "person_truman",
+   "mar_neigong",
+   "person_innerpower"
+  ],
+  [
+   "person_honestofficial",
+   "mat_iron",
+   "person_ironjudge"
+  ],
+  [
+   "person_ronin",
+   "nat_sea",
+   "person_wokou"
+  ],
+  [
+   "person_imperialchef",
+   "fire",
+   "person_godchef"
+  ],
+  [
+   "person_gumaster",
+   "person_poisondoc",
+   "person_poisonsage"
+  ],
+  [
+   "person_archdemon",
+   "sec_rules",
+   "person_demonelder"
+  ],
+  [
+   "person_snakecharmer",
+   "bst_dragon",
+   "person_dragontamer"
+  ],
+  [
+   "person_swordmaniac",
+   "mar_qi",
+   "person_swordqi"
+  ],
+  [
+   "person_grandmaster",
+   "con_time",
+   "person_eragrandmaster"
+  ],
+  [
+   "person_stargazer",
+   "con_time",
+   "person_oldseer"
+  ],
+  [
+   "per_swordsman",
+   "con_fame",
+   "person_chivalrous"
+  ],
+  [
+   "per_swordsman",
+   "con_rage",
+   "person_swordfiend"
+  ]
+ ]
+}

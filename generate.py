@@ -20,6 +20,7 @@ from site_src.midnight_page import build_midnight_html
 from site_src.night_page import build_night_html
 from site_src.toushou_page import TOUSHOU_SCRIPTS, build_toushou_html
 from site_src.utau_page import UTAU_SCRIPTS, build_utau_html
+from site_src.gousei_page import GOUSEI_DATA_FILES, GOUSEI_SCRIPTS, build_gousei_html
 
 ROOT = Path(__file__).parent
 DIST_DIR = ROOT / "dist"
@@ -93,8 +94,14 @@ def build_static_assets() -> None:
         "midnight.js",
         *TOUSHOU_SCRIPTS,
         *UTAU_SCRIPTS,
+        *GOUSEI_SCRIPTS,
     ):
         shutil.copy(STATIC_SRC_DIR / name, static_dist / name)
+
+    # 武俠合成的主題資料：頁面動態載入，不在 script 清單裡；尚未建置的主題略過
+    for name in GOUSEI_DATA_FILES:
+        if (STATIC_SRC_DIR / name).is_file():
+            shutil.copy(STATIC_SRC_DIR / name, static_dist / name)
 
     template = (STATIC_SRC_DIR / "i18n.template.js").read_text(encoding="utf-8")
     data = json.dumps(STRINGS, ensure_ascii=False, indent=2)
@@ -138,9 +145,13 @@ def build_pages() -> None:
     utau_dir.mkdir(parents=True, exist_ok=True)
     (utau_dir / "index.html").write_text(build_utau_html(), encoding="utf-8")
 
+    gousei_dir = DIST_DIR / "gousei"
+    gousei_dir.mkdir(parents=True, exist_ok=True)
+    (gousei_dir / "index.html").write_text(build_gousei_html(), encoding="utf-8")
+
 
 def main() -> None:
-    for name in ("index.html", "night", "admin", "characters", "midnight", "toushou", "utau", "static"):
+    for name in ("index.html", "night", "admin", "characters", "midnight", "toushou", "utau", "gousei", "static"):
         target = DIST_DIR / name
         if target.is_dir():
             shutil.rmtree(target)
