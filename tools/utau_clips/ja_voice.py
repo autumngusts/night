@@ -108,6 +108,9 @@ def sing(entry: dict, vocals: np.ndarray, notes: list, clip: float, decode) -> n
     ensure_engine()
     _, style, target = ROLES[entry.get("voice", "female")]
     spans, kana, f0, per = _mora_spans(entry, vocals, notes, clip)
+    # 第一個假名從片段一開始就唱時，開頭休止只剩 1 格，/sing_frame_audio_query 會回 HTTP 500（2026-10-18，說愛你）
+    if spans and spans[0][0] < 0.1:
+        spans[0] = (0.1, max(spans[0][1], 0.15))
     t10 = np.arange(len(f0)) * 0.01
     voiced = per > 0.3
     midi10 = 69 + 12 * np.log2(np.maximum(f0, 1) / 440)
