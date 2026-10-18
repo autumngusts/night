@@ -158,6 +158,9 @@
 
   // ---------------- 語音指令（只做字串解析；麥克風／朗讀在 gousei.js） ----------------
   // 辨識結果的漢字／假名不穩定：片假名一律轉平假名、去掉空白與標點後再比對。
+  // 同音字（雷加水 → 累家稅）靠拼音比對：setPinyin() 載入「拼音 → 漢字」表（static_src/gousei_pinyin.js）後，
+  //   每個字轉成寬鬆化的無聲調拼音，名稱與辨識結果在「字」與「拼音」兩種層次都比對，取較高者。
+  // 正規化後一個字對應一個 token，所以字串位置與 token 位置一致，可以直接用同一個 index 切開。
 
   function toHiragana(s) {
     return s.replace(/[ァ-ヶ]/g, function (c) { return String.fromCharCode(c.charCodeAt(0) - 0x60); });
@@ -167,14 +170,63 @@
     return toHiragana(String(s || "").toLowerCase()).replace(/[\s、。，,.．!！?？「」『』・…~〜"'“”:：;；]/g, "");
   }
 
-  // 喚醒詞「yo, アキ」。「秋」「亜紀」等一般詞彙（物體名稱也有「秋」）必須前面接 yo 才算
+  var pinyinOf = null; // 字 → 寬鬆拼音；setPinyin() 之後才有
+
+  // 台灣口音常見的混用：zh/ch/sh ≈ z/c/s、ing/eng ≈ in/en、n ≈ l
+  function fuzzySyllable(s) {
+    return s.replace(/^([zcs])h/, "$1").replace(/([ie])ng$/, "$1n").replace(/^n(?=[aeiouv])/, "l");
+  }
+
+  function setPinyin(table) {
+    pinyinOf = {};
+    Object.keys(table || {}).forEach(function (py) {
+      var f = fuzzySyllable(py);
+      var chars = table[py];
+      for (var i = 0; i < chars.length; i++) pinyinOf[chars.charAt(i)] = f;
+    });
+  }
+
+  function tokens(n) {
+    var out = [];
+    for (var i = 0; i < n.length; i++) {
+      var c = n.charAt(i);
+      out.push(pinyinOf && pinyinOf[c] ? pinyinOf[c] : c);
+    }
+    return out;
+  }
+
+  function levenshtein(a, b) {
+    var prev = [], cur, i, j;
+    for (j = 0; j <= b.length; j++) prev.push(j);
+    for (i = 1; i <= a.length; i++) {
+      cur = [i];
+      for (j = 1; j <= b.length; j++) {
+        cur.push(Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1)));
+      }
+      prev = cur;
+    }
+    return prev[b.length];
+  }
+
+  function inList(list, v) { return list.indexOf(v) >= 0; }
+
+  // 喚醒詞「yo, アキ」。
+  //   字面：「秋」「亜紀」等一般詞彙（物體名稱也有「秋」）必須前面接 yo 才算。
+  //   拼音：中文辨識常寫成「有阿基」「要啊奇」「喲阿吉」「亞基」，依音節判斷。
+  //   英文：「yo aki」「you a key」。
   var WAKE_YO = ["yo", "よー", "よう", "よぉ", "よ", "ヨ", "喲", "唷", "呦", "哟"].map(normSpeech);
   var WAKE_AKI = ["aki", "アキ", "阿基", "阿奇", "阿琪", "阿吉", "阿姬", "阿紀", "阿祺", "阿齊", "阿琦", "阿岐"].map(normSpeech);
   var WAKE_AKI_WEAK = ["秋", "亜紀", "亜希", "安芸", "阿木"].map(normSpeech);
+  var WAKE_PY_YO = ["yo", "you", "yao", "yue", "yon", "io"];
+  var WAKE_PY_A = ["a", "ai"];
+  var WAKE_PY_KI = ["ji", "qi", "xi", "zi", "ci"];
+  var WAKE_LATIN = /(yo|you|yoh)(a|ah)?(ki|key|kee|chi|qi)/;
+  var WAKE_LATIN_START = /^(aki|akey|akee)/;
 
   // strict = 朗讀中：喇叭的聲音可能被收音，只接受有 yo 開頭的完整喚醒詞
   function detectWake(text, strict) {
     var n = normSpeech(text);
+    // 字面
     var lists = [[WAKE_AKI, false], [WAKE_AKI_WEAK, true]];
     for (var l = 0; l < lists.length; l++) {
       var words = lists[l][0], needYo = lists[l][1] || strict;
@@ -190,29 +242,40 @@
         }
       }
     }
+    // 拼音
+    if (pinyinOf) {
+      var t = tokens(n);
+      for (var i = 0; i + 2 < t.length; i++) {
+        if (inList(WAKE_PY_YO, t[i]) && inList(WAKE_PY_A, t[i + 1]) && inList(WAKE_PY_KI, t[i + 2])) {
+          return { rest: n.slice(i + 3) };
+        }
+      }
+      // 「亞基」（yo+a 連在一起）、「阿吉」（沒聽到 yo）：只在開頭、且不是朗讀中才算
+      if (!strict && t.length >= 2 && (t[0] === "ya" || inList(WAKE_PY_A, t[0])) && inList(WAKE_PY_KI, t[1])) {
+        return { rest: n.slice(2) };
+      }
+    }
+    // 英文
+    var m = WAKE_LATIN.exec(n);
+    if (m) return { rest: n.slice(m.index + m[0].length) };
+    if (!strict) {
+      m = WAKE_LATIN_START.exec(n);
+      if (m) return { rest: n.slice(m[0].length) };
+    }
     return null;
   }
 
-  function levenshtein(a, b) {
-    var prev = [], cur, i, j;
-    for (j = 0; j <= b.length; j++) prev.push(j);
-    for (i = 1; i <= a.length; i++) {
-      cur = [i];
-      for (j = 1; j <= b.length; j++) {
-        cur.push(Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (a.charAt(i - 1) === b.charAt(j - 1) ? 0 : 1)));
-      }
-      prev = cur;
-    }
-    return prev[b.length];
-  }
-
   var COMBO_SEPS = ["加上", "加", "和", "跟", "與", "与", "配上", "配", "+", "＋", "プラス", "たす", "足す", "と", "plus", "and"].map(normSpeech);
+  // 同音的分隔詞（家、佳、河、根…）：拼音一致就當作分隔候選，切錯的位置會因為比對分數低而被淘汰
+  var COMBO_SEPS_PY = [["jia", "shang"], ["jia"], ["he"], ["gen"], ["yu"]].map(function (s) { return s.map(fuzzySyllable); });
   var COMBO_HEAD = ["我要", "我想", "請", "把"].map(normSpeech);
   var COMBO_TAIL = ["を合成してください", "を合成して", "を合成", "合成してください", "合成して", "してください", "合成", "して",
     "ください", "です", "吧", "で"].map(normSpeech);
   var COMBO_MIN_SCORE = 0.6;
+  var PINYIN_PENALTY = 0.05; // 只有讀音一樣時，略低於字面完全一致
 
-  // 「A 加 B」→ 池子裡最像的兩個物體（廢料不列入候選）。每一段的相似度都要 ≥ 0.6（兩個字錯一個不算），否則回傳 null。
+  // 「A 加 B」→ 池子裡最像的兩個物體（廢料不列入候選）。
+  // 每一段的相似度（字面或拼音的 1−編輯距離／長度）都要 ≥ 0.6（兩個字錯一個不算），否則回傳 null。
   function parseVoiceCombo(theme, pool, text) {
     var n = normSpeech(text);
     var changed = true;
@@ -224,47 +287,63 @@
       });
     }
     if (!n) return null;
+    var nt = tokens(n);
     var cands = [];
+    function addCand(id, name) {
+      var s = normSpeech(name);
+      if (s) cands.push({ id: id, s: s, t: tokens(s) });
+    }
     pool.forEach(function (id) {
       if (theme.junkSet[id] || !theme.byId[id]) return;
       var it = theme.byId[id];
-      cands.push({ id: id, name: normSpeech(it.zh) });
-      if (it.ja !== it.zh) cands.push({ id: id, name: normSpeech(it.ja) });
+      addCand(id, it.zh);
+      if (it.ja !== it.zh) addCand(id, it.ja);
     });
     var memo = {};
-    function bestFor(part) {
-      if (memo.hasOwnProperty(part)) return memo[part];
+    function bestFor(from, to) {
+      var key = from + ":" + to;
+      if (memo.hasOwnProperty(key)) return memo[key];
+      var s = n.slice(from, to), t = nt.slice(from, to);
       var best = null;
       for (var i = 0; i < cands.length; i++) {
-        var name = cands[i].name;
-        var len = Math.max(part.length, name.length);
-        if (!name || Math.abs(part.length - name.length) > len / 2) continue;
-        var score = part === name ? 1 : 1 - levenshtein(part, name) / len;
-        if (!best || score > best.score) best = { id: cands[i].id, score: score };
+        var c = cands[i];
+        var len = Math.max(s.length, c.s.length);
+        if (Math.abs(s.length - c.s.length) > len / 2) continue;
+        var score = s === c.s ? 1 : 1 - levenshtein(s, c.s) / len;
+        if (pinyinOf && score < 1) score = Math.max(score, 1 - levenshtein(t, c.t) / len - PINYIN_PENALTY);
+        if (!best || score > best.score) best = { id: c.id, score: score };
       }
-      memo[part] = best;
+      memo[key] = best;
       return best;
     }
     var result = null;
-    function trySplit(left, right, exactOnly) {
-      if (!left || !right) return;
-      var a = bestFor(left), b = bestFor(right);
+    function trySplit(at, sepLen, exactOnly) {
+      if (at <= 0 || at + sepLen >= n.length) return;
+      var a = bestFor(0, at), b = bestFor(at + sepLen, n.length);
       if (!a || !b) return;
-      if (exactOnly && (a.score < 1 || b.score < 1)) return;
-      var score = Math.min(a.score, b.score) + (a.score + b.score) / 1000;
-      if (Math.min(a.score, b.score) >= COMBO_MIN_SCORE && (!result || score > result.score)) {
-        result = { a: a.id, b: b.id, score: score };
-      }
+      var min = Math.min(a.score, b.score);
+      if (exactOnly && min < 1 - PINYIN_PENALTY) return;
+      var score = min + (a.score + b.score) / 1000;
+      if (min >= COMBO_MIN_SCORE && (!result || score > result.score)) result = { a: a.id, b: b.id, score: score };
     }
     COMBO_SEPS.forEach(function (sep) {
       var idx = n.indexOf(sep, 1);
       while (idx > 0) {
-        trySplit(n.slice(0, idx), n.slice(idx + sep.length), false);
+        trySplit(idx, sep.length, false);
         idx = n.indexOf(sep, idx + 1);
       }
     });
-    // 沒說「加」：例如「火水」，只接受兩段都完全一致
-    for (var i = 1; i < n.length; i++) trySplit(n.slice(0, i), n.slice(i), true);
+    if (pinyinOf) {
+      COMBO_SEPS_PY.forEach(function (sep) {
+        for (var i = 1; i + sep.length < nt.length; i++) {
+          var hit = true;
+          for (var k = 0; k < sep.length; k++) if (nt[i + k] !== sep[k]) { hit = false; break; }
+          if (hit) trySplit(i, sep.length, false);
+        }
+      });
+    }
+    // 沒說「加」：例如「火水」，只接受兩段都完全一致（讀音一致也可）
+    for (var i = 1; i < n.length; i++) trySplit(i, 0, true);
     return result;
   }
 
@@ -288,6 +367,7 @@
     parseJoin: parseJoin,
     normSpeech: normSpeech,
     detectWake: detectWake,
-    parseVoiceCombo: parseVoiceCombo
+    parseVoiceCombo: parseVoiceCombo,
+    setPinyin: setPinyin
   };
 })();

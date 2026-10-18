@@ -11965,6 +11965,13 @@ body.ut-has-player {
 .gs-voice.gs-voice-on {
   border-color: #2471a3;
 }
+.gs-voice-talk {
+  display: block;
+  width: 100%;
+  margin-top: 0.5rem;
+  padding: 0.75rem 1rem;
+  font-size: 1.15rem;
+}
 .gs-voice-status {
   font-weight: bold;
 }

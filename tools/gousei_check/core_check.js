@@ -161,4 +161,31 @@ assert.strictEqual(combo("灰加甲"), null, "廢料不列入候選");
 assert.strictEqual(combo("甲加k1"), null, "不在池子裡的不算");
 assert.strictEqual(combo("不知道"), null);
 
+// ---- 語音：拼音（同音字）比對 ----
+new Function("window", fs.readFileSync(path.join(SRC, "gousei_pinyin.js"), "utf8"))(win);
+Core.setPinyin(win.PriTestGouseiPinyin);
+var ptheme = Core.indexTheme({ id: "py", name: { zh: "拼", ja: "拼" }, basics: ["thunder", "water", "fire"], junk: ["z1"],
+  categories: [], recipes: {}, items: [["thunder", "雷", "雷", "basic", 0], ["water", "水", "水", "basic", 0],
+    ["fire", "火", "火", "basic", 0], ["z1", "灰", "灰", "junk", 0], ["steam", "蒸氣", "蒸気", "c", 1]] });
+function pcombo(text) {
+  var r = Core.parseVoiceCombo(ptheme, ["thunder", "water", "fire", "z1", "steam"], text);
+  return r ? [r.a, r.b] : null;
+}
+assert.deepStrictEqual(pcombo("雷加水"), ["thunder", "water"]);
+assert.deepStrictEqual(pcombo("累家稅"), ["thunder", "water"], "同音字：雷→累、加→家、水→稅");
+assert.deepStrictEqual(pcombo("淚加睡"), ["thunder", "water"]);
+assert.deepStrictEqual(pcombo("或和雷"), ["fire", "thunder"], "火→或（huo）、和為分隔");
+assert.deepStrictEqual(pcombo("正氣加火"), ["steam", "fire"], "zh/z 寬鬆：蒸 zheng ≈ 正 zheng、氣 qi");
+assert.ok(Core.parseVoiceCombo(ptheme, ["thunder", "water"], "雷加水").score > Core.parseVoiceCombo(ptheme, ["thunder", "water"], "累加水").score,
+  "字面一致的分數高於只有讀音一致");
+assert.strictEqual(pcombo("今天天氣很好"), null);
+assert.deepStrictEqual(Core.detectWake("有阿基", true), { rest: "" }, "中文辨識：有阿基");
+assert.deepStrictEqual(Core.detectWake("要啊奇 雷加水", false), { rest: "雷加水" });
+assert.deepStrictEqual(Core.detectWake("you a key", true), { rest: "" }, "英文辨識");
+assert.deepStrictEqual(Core.detectWake("亞基", false), { rest: "" }, "yo+a 連成「亞」");
+assert.strictEqual(Core.detectWake("亞基", true), null, "兩個音節的寫法朗讀中不算");
+["今天天氣很好", "記得", "有一個", "要求", "你好啊"].forEach(function (s) {
+  assert.strictEqual(Core.detectWake(s, false), null, "一般句子不誤觸：" + s);
+});
+
 console.log("gousei core_check OK");

@@ -529,7 +529,7 @@
 
   var SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
   var VOICE_REPEAT_MS = 60000;
-  var VOICE_COMMAND_MS = 8000;
+  var VOICE_COMMAND_MS = 10000;
   var VOICE_ADVANCE_FALLBACK_MS = 20000;
   var VOICE_POOL_CHUNK = 15;
   var voice = { on: false, rec: null, audio: null, speaking: false, speakToken: 0, turnKey: null, spokenEntry: null,
@@ -558,6 +558,9 @@
           onclick: function () { if (voice.on) voiceStop(); else voiceStart(); render(); } }),
         el("span", { id: "gs-voice-status", class: "gs-voice-status", text: voice.on ? voice.status : "" })
       ]),
+      // 喚醒詞叫不出來時的備用：按按鈕或空白鍵直接等「A 加 B」
+      voice.on && voiceReady() ? el("button", { id: "gs-voice-talk", type: "button", class: "gs-primary gs-voice-talk",
+        text: t("gs_voice_talk"), onclick: talkNow }) : null,
       el("p", { id: "gs-voice-heard", class: "gs-muted", text: voice.on && voice.heard ? t("gs_voice_heard", { text: voice.heard }) : "" }),
       voice.error ? el("p", { class: "gs-error", text: voice.error })
         : (voiceSupported() ? null : el("p", { class: "gs-muted", text: t("gs_voice_unsupported") }))
@@ -633,14 +636,14 @@
     var rec = new SpeechRec();
     rec.lang = speechLang();
     rec.continuous = true;
-    rec.interimResults = false;
+    // 即時結果只用來提早偵測喚醒詞（先響提示音），指令一律等最終結果
+    rec.interimResults = true;
     rec.maxAlternatives = 5;
     rec.onresult = function (ev) {
       for (var i = ev.resultIndex; i < ev.results.length; i++) {
-        if (!ev.results[i].isFinal) continue;
         var alts = [];
         for (var k = 0; k < ev.results[i].length; k++) alts.push(ev.results[i][k].transcript);
-        onHeard(alts);
+        onHeard(alts, ev.results[i].isFinal);
       }
     };
     rec.onerror = function (ev) {
@@ -670,7 +673,28 @@
       if (Ctx && !voice.audio) voice.audio = new Ctx();
       if (voice.audio && voice.audio.state === "suspended") voice.audio.resume();
     } catch (e) { voice.audio = null; }
+    loadPinyin();
     startRecognition();
+  }
+
+  // 拼音表（同音字比對用）很大，開啟語音模式時才載入；載入失敗只是退回字面比對
+  var pinyinState = "none";
+  function loadPinyin() {
+    if (pinyinState !== "none") return;
+    function ready() {
+      if (!window.PriTestGouseiPinyin) { pinyinState = "none"; return; }
+      Core.setPinyin(window.PriTestGouseiPinyin);
+      pinyinState = "ready";
+    }
+    if (window.PriTestGouseiPinyin) { ready(); return; }
+    var src = app.getAttribute("data-src-pinyin");
+    if (!src) return;
+    pinyinState = "loading";
+    var tag = document.createElement("script");
+    tag.src = src;
+    tag.onload = ready;
+    tag.onerror = function () { pinyinState = "none"; };
+    document.head.appendChild(tag);
   }
 
   function voiceStop() {
@@ -784,23 +808,41 @@
     return true;
   }
 
-  function onHeard(alts) {
+  function talkNow() {
+    if (!voiceReady()) return;
+    stopSpeaking();
+    waitCommand();
+  }
+
+  function retryCommand() {
+    clearTimeout(voice.awaitTimer);
+    voice.awaitUntil = 0;
+    setVoiceStatus(t("gs_voice_retry"));
+    speak([t("gs_voice_retry")], waitCommand);
+  }
+
+  function onHeard(alts, isFinal) {
     if (!voiceReady()) return;
     setVoiceHeard(alts[0]);
-    if (voice.awaitUntil > Date.now()) {
-      if (voice.speaking) return; // 「請再說一次」的回音
-      if (tryVoiceCombo(alts)) return;
-      clearTimeout(voice.awaitTimer);
-      voice.awaitUntil = 0;
-      setVoiceStatus(t("gs_voice_retry"));
-      speak([t("gs_voice_retry")], waitCommand);
+    var awaiting = voice.awaitUntil > Date.now();
+    if (isFinal === false) {
+      // 即時結果：一聽到喚醒詞就打斷朗讀、響提示音
+      if (!awaiting && Core.detectWake(alts[0], voice.speaking)) talkNow();
       return;
     }
     var rests = [];
     alts.forEach(function (a) {
-      var w = Core.detectWake(a, voice.speaking);
+      var w = Core.detectWake(a, voice.speaking && !awaiting);
       if (w) rests.push(w.rest);
     });
+    if (awaiting) {
+      if (voice.speaking) return; // 「請再說一次」的回音
+      // 即時結果已響過提示音時，最終結果可能還帶著喚醒詞：只取後面的部分
+      var texts = rests.length ? rests.filter(function (r) { return r; }) : alts;
+      if (!texts.length) return; // 只有喚醒詞：繼續等指令
+      if (!tryVoiceCombo(texts)) retryCommand();
+      return;
+    }
     if (!rests.length) return;
     stopSpeaking();
     // 「yo アキ 火加水」一口氣說完也可以
@@ -832,6 +874,15 @@
     render();
   }
 
+  // 空白鍵＝按住說話（輸入框裡不攔）
+  document.addEventListener("keydown", function (ev) {
+    if (ev.key !== " " || !voiceReady()) return;
+    var tag = ev.target && ev.target.tagName;
+    if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || tag === "BUTTON") return;
+    ev.preventDefault();
+    talkNow();
+  });
+
   window.addEventListener("i18n:change", function () {
     // 辨識語言跟著介面切換：abort 後 onend 會用新的 lang 重開
     if (voice.rec) { try { voice.rec.abort(); } catch (e) { /* 已停止 */ } }
@@ -841,7 +892,8 @@
     _debugState: function () { return state ? JSON.parse(JSON.stringify(state)) : null; },
     _theme: function () { return state ? themes[state.themeId] : null; },
     // 測試用：模擬一次語音辨識結果（候選字串陣列）
-    _voiceHeard: function (alts) { onHeard(alts); },
+    _voiceHeard: function (alts, isFinal) { onHeard(alts, isFinal !== false); },
+    _pinyinReady: function () { return pinyinState === "ready"; },
     _voiceOn: function () { return voice.on; }
   };
   init();

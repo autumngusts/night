@@ -67,6 +67,7 @@
 | `static_src/gousei_core.js` | 規則引擎 `window.PriTestGouseiCore`（純函式，不碰 DOM／storage） |
 | `static_src/gousei.js` | UI `window.PriTestGousei` |
 | `static_src/gousei_data_<theme>.js` | 主題資料（建置產物，提交進 Git） |
+| `static_src/gousei_pinyin.js` | 語音模式的拼音表（`build_pinyin.py` 產物，提交進 Git；開啟語音模式時才動態載入） |
 | `tools/gousei_data/<theme>/*.json` | 原始資料 |
 | `tools/gousei_data/build.py` | 驗證、計算階段、輸出資料檔 |
 
@@ -111,12 +112,14 @@ entry = { round, playerId, a, b, result, isNew, achieved }
 設定畫面勾「用語音遊玩」，或遊戲中按「🎤 開啟語音模式」。使用 Web Speech API（Chrome／Edge；需 https 或 localhost、允許麥克風），不另外連外部服務。
 
 * **朗讀**：輪到某玩家時朗讀「輪到 ○○」與池子中的物體（廢料不念，分段朗讀），念完後每 60 秒（`VOICE_REPEAT_MS`）重複；正在等指令時延後。確認畫面、QR 畫面不朗讀。
-* **喚醒詞**：喊「yo, アキ」→ 提示音 → 8 秒內（`VOICE_COMMAND_MS`）說「A 加 B」（日文「A プラス B」「A と B」「A たす B」）即直接合成。也可一口氣說「yo アキ 火加水」。
+* **喚醒詞**：喊「yo, アキ」→ 提示音 → 10 秒內（`VOICE_COMMAND_MS`）說「A 加 B」（日文「A プラス B」「A と B」「A たす B」）即直接合成。也可一口氣說「yo アキ 火加水」。即時（interim）辨識結果一出現喚醒詞就先響提示音。
+* **備用**：「🎙 直接說」按鈕或空白鍵＝不用喚醒詞，直接響提示音等指令。
 * **合成後**：念出結果，念完自動換下一位（不必按「下一位」）；聽不懂時念「請再說一次」並重新等指令。
 * **解析**（`Core.detectWake`／`Core.parseVoiceCombo`，純函式）：
   * 片假名轉平假名、去空白標點後比對；去掉「我要／把」「〜吧／を合成して」等口語。
   * 以分隔詞切成兩段，各自找池子中最像的物體（zh／ja 名稱皆可，廢料不列入），相似度＝1−編輯距離／長度，兩段都要 ≥ 0.6。沒說分隔詞時只接受兩段都完全一致。
-  * 喚醒詞的「秋」「亜紀」等一般詞彙（物體名稱也有「秋」）必須前面接 yo 才算。
+  * **拼音比對**：辨識只回傳文字，同音字常跑掉（雷加水 → 累家稅）。開啟語音模式時動態載入 `gousei_pinyin.js`（`tools/gousei_data/build_pinyin.py` 以 pypinyin 產生的「無聲調拼音 → 漢字」表，CJK 基本區約 2 萬字、65 KB），`Core.setPinyin()` 後字面與拼音兩種相似度取高者（拼音只扣 0.05，字面一致優先）。拼音做台灣口音寬鬆化：zh/ch/sh≈z/c/s、ing/eng≈in/en、n≈l。分隔詞也比對拼音（jia／jia shang／he／gen／yu，例如「家」「佳」）。
+  * 喚醒詞：字面（「秋」「亜紀」等一般詞彙必須前面接 yo）、拼音（yo/you/yao/yue ＋ a/ai ＋ ji/qi/xi/zi/ci，例如「有阿基」「要啊奇」；開頭的「亞基」「阿吉」在非朗讀中也算）、英文（yo aki／you a key）三種都判斷。
 * **回音對策**：朗讀中麥克風可能收到喇叭聲音，朗讀中只接受有 yo 開頭的喚醒詞；等指令時忽略朗讀中的辨識結果。
 * 辨識／朗讀語言跟著介面：zh → `zh-TW`，ja → `ja-JP`；en 因物體名稱沒有英文，也用 `ja-JP`。
 

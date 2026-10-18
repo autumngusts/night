@@ -47,7 +47,9 @@ var VOICE_STUB = function () {
 };
 
 function spoken(page) { return page.evaluate(function () { return window.__spoken.slice(); }); }
-function voiceHeard(page, alts) { return page.evaluate(function (a) { window.PriTestGousei._voiceHeard(a); }, alts); }
+function voiceHeard(page, alts, isFinal) {
+  return page.evaluate(function (args) { window.PriTestGousei._voiceHeard(args[0], args[1]); }, [alts, isFinal !== false]);
+}
 function waitSpoken(page, text) {
   return page.waitForFunction(function (s) { return window.__spoken.join("|").indexOf(s) >= 0; }, text);
 }
@@ -208,13 +210,17 @@ async function confirmAll(page, count) {
   var said = (await spoken(vpage)).join("|");
   ["金", "木", "水", "火", "土"].forEach(function (n) { assert.ok(said.indexOf(n) >= 0, "朗讀池子：" + n); });
   await waitListening(vpage);
+  await vpage.waitForFunction(function () { return window.PriTestGousei._pinyinReady(); });
 
-  // 喚醒詞 → 提示後說「金加火」→ 直接合成 → 念結果 → 自動換下一位並朗讀
+  // 喚醒詞（即時結果就先響提示音）→ 說「今家火」（金加火的同音字）→ 直接合成 → 念結果 → 自動換下一位並朗讀
   await voiceHeard(vpage, ["你好"]);
   assert.strictEqual((await debugState(vpage)).log.length, 0, "沒有喚醒詞不動作");
-  await voiceHeard(vpage, ["yo アキ"]);
-  assert.ok((await vpage.textContent("#gs-voice-status")).indexOf("加") >= 0, "喚醒後提示說 A 加 B");
-  await voiceHeard(vpage, ["金加火"]);
+  await voiceHeard(vpage, ["有阿基"], false);
+  assert.ok((await vpage.textContent("#gs-voice-status")).indexOf("加") >= 0, "即時結果聽到喚醒詞就提示說 A 加 B");
+  await voiceHeard(vpage, ["有阿基"]);
+  assert.strictEqual((await debugState(vpage)).log.length, 0, "最終結果只有喚醒詞：繼續等指令");
+  assert.ok((await vpage.textContent("#gs-voice-status")).indexOf("加") >= 0);
+  await voiceHeard(vpage, ["今家火"]);
   st = await debugState(vpage);
   assert.strictEqual(st.log.length, 1);
   assert.deepStrictEqual([st.log[0].a, st.log[0].b], ["metal", "fire"]);
@@ -242,12 +248,24 @@ async function confirmAll(page, count) {
   assert.strictEqual(st.log.length, 3, "喚醒詞和指令一口氣說完");
   assert.deepStrictEqual([st.log[2].a, st.log[2].b], ["earth", "earth"]);
 
+  // 備用：按「直接說」按鈕，不用喚醒詞
+  await vpage.waitForFunction(function () {
+    return window.__spoken.filter(function (s) { return s.indexOf("輪到 玩家2") >= 0; }).length >= 2;
+  });
+  await waitListening(vpage);
+  await vpage.click("#gs-voice-talk");
+  assert.ok((await vpage.textContent("#gs-voice-status")).indexOf("加") >= 0, "按鈕後直接等指令");
+  await voiceHeard(vpage, ["睡和吐"]);
+  st = await debugState(vpage);
+  assert.strictEqual(st.log.length, 4, "按鈕說話合成");
+  assert.deepStrictEqual([st.log[3].a, st.log[3].b], ["water", "earth"]);
+
   // 關閉語音模式後不再反應
   await vpage.waitForSelector("#gs-voice-toggle");
   await vpage.click("#gs-voice-toggle");
   assert.ok(!(await vpage.evaluate(function () { return window.PriTestGousei._voiceOn(); })));
   await voiceHeard(vpage, ["yo アキ 金加金"]);
-  assert.strictEqual((await debugState(vpage)).log.length, 3);
+  assert.strictEqual((await debugState(vpage)).log.length, 4);
   await vctx.close();
 
   assert.deepStrictEqual(pageErrors, [], "頁面不應有 JS 錯誤");
