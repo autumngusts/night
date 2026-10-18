@@ -156,6 +156,118 @@
     return { themeId: parts[0], seed: parts[1], count: count, index: index };
   }
 
+  // ---------------- 語音指令（只做字串解析；麥克風／朗讀在 gousei.js） ----------------
+  // 辨識結果的漢字／假名不穩定：片假名一律轉平假名、去掉空白與標點後再比對。
+
+  function toHiragana(s) {
+    return s.replace(/[ァ-ヶ]/g, function (c) { return String.fromCharCode(c.charCodeAt(0) - 0x60); });
+  }
+
+  function normSpeech(s) {
+    return toHiragana(String(s || "").toLowerCase()).replace(/[\s、。，,.．!！?？「」『』・…~〜"'“”:：;；]/g, "");
+  }
+
+  // 喚醒詞「yo, アキ」。「秋」「亜紀」等一般詞彙（物體名稱也有「秋」）必須前面接 yo 才算
+  var WAKE_YO = ["yo", "よー", "よう", "よぉ", "よ", "ヨ", "喲", "唷", "呦", "哟"].map(normSpeech);
+  var WAKE_AKI = ["aki", "アキ", "阿基", "阿奇", "阿琪", "阿吉", "阿姬", "阿紀", "阿祺", "阿齊", "阿琦", "阿岐"].map(normSpeech);
+  var WAKE_AKI_WEAK = ["秋", "亜紀", "亜希", "安芸", "阿木"].map(normSpeech);
+
+  // strict = 朗讀中：喇叭的聲音可能被收音，只接受有 yo 開頭的完整喚醒詞
+  function detectWake(text, strict) {
+    var n = normSpeech(text);
+    var lists = [[WAKE_AKI, false], [WAKE_AKI_WEAK, true]];
+    for (var l = 0; l < lists.length; l++) {
+      var words = lists[l][0], needYo = lists[l][1] || strict;
+      for (var w = 0; w < words.length; w++) {
+        var idx = n.indexOf(words[w]);
+        while (idx >= 0) {
+          var hasYo = false;
+          for (var y = 0; y < WAKE_YO.length; y++) {
+            if (idx >= WAKE_YO[y].length && n.slice(idx - WAKE_YO[y].length, idx) === WAKE_YO[y]) { hasYo = true; break; }
+          }
+          if (hasYo || (!needYo && idx === 0)) return { rest: n.slice(idx + words[w].length) };
+          idx = n.indexOf(words[w], idx + 1);
+        }
+      }
+    }
+    return null;
+  }
+
+  function levenshtein(a, b) {
+    var prev = [], cur, i, j;
+    for (j = 0; j <= b.length; j++) prev.push(j);
+    for (i = 1; i <= a.length; i++) {
+      cur = [i];
+      for (j = 1; j <= b.length; j++) {
+        cur.push(Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (a.charAt(i - 1) === b.charAt(j - 1) ? 0 : 1)));
+      }
+      prev = cur;
+    }
+    return prev[b.length];
+  }
+
+  var COMBO_SEPS = ["加上", "加", "和", "跟", "與", "与", "配上", "配", "+", "＋", "プラス", "たす", "足す", "と", "plus", "and"].map(normSpeech);
+  var COMBO_HEAD = ["我要", "我想", "請", "把"].map(normSpeech);
+  var COMBO_TAIL = ["を合成してください", "を合成して", "を合成", "合成してください", "合成して", "してください", "合成", "して",
+    "ください", "です", "吧", "で"].map(normSpeech);
+  var COMBO_MIN_SCORE = 0.6;
+
+  // 「A 加 B」→ 池子裡最像的兩個物體（廢料不列入候選）。每一段的相似度都要 ≥ 0.6（兩個字錯一個不算），否則回傳 null。
+  function parseVoiceCombo(theme, pool, text) {
+    var n = normSpeech(text);
+    var changed = true;
+    while (changed && n) {
+      changed = false;
+      COMBO_HEAD.forEach(function (h) { if (n.indexOf(h) === 0 && n.length > h.length) { n = n.slice(h.length); changed = true; } });
+      COMBO_TAIL.forEach(function (s) {
+        if (n.length > s.length && n.slice(-s.length) === s) { n = n.slice(0, -s.length); changed = true; }
+      });
+    }
+    if (!n) return null;
+    var cands = [];
+    pool.forEach(function (id) {
+      if (theme.junkSet[id] || !theme.byId[id]) return;
+      var it = theme.byId[id];
+      cands.push({ id: id, name: normSpeech(it.zh) });
+      if (it.ja !== it.zh) cands.push({ id: id, name: normSpeech(it.ja) });
+    });
+    var memo = {};
+    function bestFor(part) {
+      if (memo.hasOwnProperty(part)) return memo[part];
+      var best = null;
+      for (var i = 0; i < cands.length; i++) {
+        var name = cands[i].name;
+        var len = Math.max(part.length, name.length);
+        if (!name || Math.abs(part.length - name.length) > len / 2) continue;
+        var score = part === name ? 1 : 1 - levenshtein(part, name) / len;
+        if (!best || score > best.score) best = { id: cands[i].id, score: score };
+      }
+      memo[part] = best;
+      return best;
+    }
+    var result = null;
+    function trySplit(left, right, exactOnly) {
+      if (!left || !right) return;
+      var a = bestFor(left), b = bestFor(right);
+      if (!a || !b) return;
+      if (exactOnly && (a.score < 1 || b.score < 1)) return;
+      var score = Math.min(a.score, b.score) + (a.score + b.score) / 1000;
+      if (Math.min(a.score, b.score) >= COMBO_MIN_SCORE && (!result || score > result.score)) {
+        result = { a: a.id, b: b.id, score: score };
+      }
+    }
+    COMBO_SEPS.forEach(function (sep) {
+      var idx = n.indexOf(sep, 1);
+      while (idx > 0) {
+        trySplit(n.slice(0, idx), n.slice(idx + sep.length), false);
+        idx = n.indexOf(sep, idx + 1);
+      }
+    });
+    // 沒說「加」：例如「火水」，只接受兩段都完全一致
+    for (var i = 1; i < n.length; i++) trySplit(n.slice(0, i), n.slice(i), true);
+    return result;
+  }
+
   window.PriTestGouseiCore = {
     MID_TIERS: MID_TIERS,
     HIGH_TIERS: HIGH_TIERS,
@@ -173,6 +285,9 @@
     applyCombine: applyCombine,
     undo: undo,
     joinParam: joinParam,
-    parseJoin: parseJoin
+    parseJoin: parseJoin,
+    normSpeech: normSpeech,
+    detectWake: detectWake,
+    parseVoiceCombo: parseVoiceCombo
   };
 })();

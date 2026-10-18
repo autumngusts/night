@@ -11774,7 +11774,7 @@ body.ut-has-player {
 
 /* ---------- 武俠合成（gousei） ---------- */
 .gs-wrap {
-  max-width: 48rem;
+  max-width: 64rem;
   margin: 0 auto;
 }
 .gs-panel {
@@ -11840,9 +11840,38 @@ body.ut-has-player {
   font-weight: bold;
   margin: 0.5rem 0;
 }
-.gs-handoff {
+.gs-confirm {
+  padding: 1.5rem 1rem;
+}
+.gs-confirm > .gs-big {
   text-align: center;
-  padding: 2rem 1rem;
+}
+.gs-player-targets {
+  list-style: none;
+  padding: 0;
+  margin: 0.5rem 0 0;
+}
+.gs-player-targets-item {
+  border-bottom: 1px dashed #ddd;
+  padding: 0.5rem 0;
+}
+.gs-player-targets-item.gs-current .gs-player-targets-head strong::before {
+  content: "▶ ";
+}
+.gs-player-targets-item.gs-open {
+  background: rgba(30, 132, 73, 0.08);
+}
+.gs-player-targets-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 1rem;
+}
+.gs-player-targets-head button {
+  margin-left: auto;
+}
+.gs-player-targets-item .gs-target-list {
+  padding: 0 0.5rem;
 }
 .gs-target-list,
 .gs-progress {
@@ -11885,6 +11914,7 @@ body.ut-has-player {
 .gs-slot {
   flex: 1;
   min-height: 3rem;
+  font-size: 1.15rem;
   border: 2px dashed #999;
   border-radius: 8px;
   background: transparent;
@@ -11897,15 +11927,52 @@ body.ut-has-player {
 .gs-plus {
   font-size: 1.5em;
 }
+/* 池子是主角：約佔半個畫面，字放大 */
+.gs-pool {
+  border-width: 2px;
+}
+.gs-pool h2 {
+  font-size: 1.3em;
+}
 .gs-pool-list {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.35rem;
+  align-content: flex-start;
+  gap: 0.5rem;
   margin-top: 0.5rem;
+  min-height: 50vh;
+  max-height: 70vh;
+  overflow-y: auto;
+  padding: 0.25rem;
 }
 .gs-item {
-  padding: 0.3rem 0.6rem;
+  padding: 0.5rem 0.95rem;
   border-radius: 999px;
+  font-size: 1.15rem;
+  line-height: 1.3;
+}
+.gs-item.gs-picked {
+  outline: 3px solid #1e8449;
+  outline-offset: 1px;
+}
+.gs-voice {
+  padding: 0.5rem 1rem;
+}
+.gs-voice .gs-actions {
+  align-items: center;
+  margin-top: 0;
+}
+.gs-voice.gs-voice-on {
+  border-color: #2471a3;
+}
+.gs-voice-status {
+  font-weight: bold;
+}
+.gs-voice p {
+  margin: 0.25rem 0 0;
+}
+.gs-voice p:empty {
+  display: none;
 }
 .gs-item.gs-cat-basic {
   font-weight: bold;

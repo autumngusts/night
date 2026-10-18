@@ -1,8 +1,10 @@
 // 武俠合成（gousei）UI。規則全部在 gousei_core.js，這裡只負責畫面、輸入、存讀檔與主題資料載入。
 // 主題資料很大（每個主題數千種物體），不在頁面 script 清單裡：選主題時才以 <script> 動態載入，
 //   網址從 #gs-app 的 data-src-<theme> 取（帶快取雜湊，見 site_src/gousei_page.py）。
-// 任務遮蔽（ui.revealed / ui.handoff）刻意不存進 state：重新整理後回到交接畫面，避免其他人看到任務。
+// 同一裝置模式：開局先進「任務確認」畫面（state.confirm），全員輪流查看並隱藏後才正式開始；
+//   遊戲中池子下方的各玩家任務一次只能展開一位（ui.revealedFor），刻意不存檔：重新整理後一律隱藏。
 // 分別裝置模式：手機開 ?join=<theme.seed.count.index>，只顯示自己的任務，不同步、不存檔。
+// 語音模式（Web Speech API）：輪到誰就朗讀玩家與池子，每分鐘重複；喊「yo, アキ」→ 提示音 →「A 加 B」直接合成。
 (function () {
   "use strict";
 
@@ -17,8 +19,8 @@
 
   var themes = {}; // themeId -> Core.indexTheme 結果
   var state = null;
-  var draft = { themeId: "wuxia", mode: "shared", names: ["", ""] };
-  var ui = { handoff: true, revealed: false, slots: [null, null], lastEntry: null, search: "", cat: "all",
+  var draft = { themeId: "wuxia", mode: "shared", names: ["", ""], voice: false };
+  var ui = { revealedFor: null, revealed: false, slots: [null, null], lastEntry: null, search: "", cat: "all",
     qrFor: null, confirmNew: false, error: "", loading: false, screen: "play" };
   var join = null;
 
@@ -168,6 +170,12 @@
     });
     box.appendChild(el("div", { class: "gs-field" }, [el("span", { class: "gs-label", text: t("gs_players") })]));
     box.appendChild(names);
+    var voiceBox = el("input", { id: "gs-voice-setup", type: "checkbox", checked: draft.voice, disabled: !voiceSupported(),
+      onchange: function () { draft.voice = voiceBox.checked; } });
+    box.appendChild(el("div", { class: "gs-field" }, [
+      el("label", { class: "gs-check" }, [voiceBox, " " + t("gs_voice_setup")]),
+      el("span", { class: "gs-muted", text: voiceSupported() ? t("gs_voice_setup_hint") : t("gs_voice_unsupported") })
+    ]));
     box.appendChild(el("p", { class: "gs-muted", text: t("gs_hint") }));
     box.appendChild(el("p", { class: "gs-error", text: ui.error }));
     box.appendChild(el("div", { class: "gs-actions" }, [
@@ -178,6 +186,8 @@
   }
 
   function startGame() {
+    // 朗讀與音效需要使用者操作才能啟動，所以在按下「開始遊戲」的當下就開
+    if (draft.voice && voiceSupported()) voiceStart();
     ui.loading = true;
     ui.error = "";
     ui.cat = "all";
@@ -194,6 +204,7 @@
         render();
         return;
       }
+      if (state.mode === "shared") state.confirm = { viewed: [] };
       resetTurnUi();
       ui.screen = state.mode === "split" ? "qr" : "play";
       save();
@@ -202,38 +213,73 @@
   }
 
   function resetTurnUi() {
-    ui.handoff = true;
-    ui.revealed = false;
+    ui.revealedFor = null;
     ui.slots = [null, null];
     ui.lastEntry = null;
     ui.confirmNew = false;
   }
 
-  // ---------------- 同一裝置：交接畫面 ----------------
+  // ---------------- 同一裝置：各玩家的隱藏任務 ----------------
+  // 開局確認與遊戲中共用。一次只展開一位，展開另一位時前一位自動收起。
 
-  function renderHandoff() {
-    var p = Core.currentPlayer(state);
-    app.appendChild(el("div", { class: "gs-panel gs-handoff" }, [
-      el("h2", { text: t("gs_round_turn", { round: state.round, name: p.name }) }),
-      el("p", { class: "gs-big", text: t("gs_handoff", { name: p.name }) }),
-      el("button", { id: "gs-handoff-ready", type: "button", class: "gs-primary", text: t("gs_handoff_ready", { name: p.name }),
-        onclick: function () { ui.handoff = false; ui.revealed = true; render(); } })
+  function toggleReveal(id) {
+    if (ui.revealedFor === id) {
+      ui.revealedFor = null;
+    } else {
+      ui.revealedFor = id;
+      if (state.confirm && state.confirm.viewed.indexOf(id) < 0) { state.confirm.viewed.push(id); save(); }
+    }
+    ui.confirmNew = false;
+    render();
+  }
+
+  function playerTargetsList(theme) {
+    var list = el("ul", { id: "gs-player-targets", class: "gs-player-targets" });
+    state.players.forEach(function (p, i) {
+      var open = ui.revealedFor === p.id;
+      var current = !state.confirm && !state.winner && i === state.turn;
+      var status = state.confirm
+        ? (state.confirm.viewed.indexOf(p.id) >= 0 ? el("span", { class: "gs-badge", text: t("gs_confirm_seen") }) : null)
+        : el("span", { class: "gs-muted", text: t("gs_progress_short", { done: p.done.length, total: p.targets.length }) });
+      var li = el("li", { class: "gs-player-targets-item" + (open ? " gs-open" : "") + (current ? " gs-current" : ""),
+        "data-player": p.id }, [
+        el("div", { class: "gs-player-targets-head" }, [
+          el("strong", { text: p.name }), status,
+          el("button", { type: "button", "data-reveal": p.id, class: open ? "gs-primary" : "",
+            text: open ? t("gs_hide_targets") : t("gs_show_player_targets"), onclick: function () { toggleReveal(p.id); } })
+        ])
+      ]);
+      if (open) li.appendChild(targetList(theme, p, "gs-targets-" + p.id));
+      list.appendChild(li);
+    });
+    return list;
+  }
+
+  function renderConfirm(theme) {
+    var total = state.players.length;
+    var seen = state.confirm.viewed.length;
+    var canStart = seen >= total && !ui.revealedFor;
+    var note = canStart ? t("gs_confirm_ready")
+      : (seen >= total ? t("gs_confirm_hide_first") : t("gs_confirm_wait", { n: seen, total: total }));
+    app.appendChild(el("div", { id: "gs-confirm", class: "gs-panel gs-confirm" }, [
+      el("h2", { text: t("gs_confirm_heading") }),
+      el("p", { class: "gs-muted", text: t("gs_confirm_hint") }),
+      playerTargetsList(theme),
+      el("p", { class: "gs-big", text: note }),
+      el("div", { class: "gs-actions" }, [
+        el("button", { id: "gs-confirm-start", type: "button", class: "gs-primary", disabled: !canStart, text: t("gs_confirm_start"),
+          onclick: function () {
+            delete state.confirm;
+            resetTurnUi();
+            save();
+            render();
+          } })
+      ])
     ]));
-    app.appendChild(progressPanel());
+    app.appendChild(renderFooter());
   }
 
   // ---------------- 遊戲畫面 ----------------
-
-  function renderTargetsPanel(theme) {
-    var p = Core.currentPlayer(state);
-    var panel = el("div", { class: "gs-panel" }, [
-      el("h2", { text: t("gs_targets", { name: p.name }) }),
-      el("button", { id: "gs-toggle-targets", type: "button", text: t(ui.revealed ? "gs_hide_targets" : "gs_show_targets"),
-        onclick: function () { ui.revealed = !ui.revealed; ui.confirmNew = false; render(); } })
-    ]);
-    if (ui.revealed) panel.appendChild(targetList(theme, p, "gs-targets"));
-    return panel;
-  }
 
   function renderResult(theme) {
     var e = ui.lastEntry;
@@ -254,7 +300,6 @@
 
   function nextTurn() {
     resetTurnUi();
-    ui.handoff = state.mode === "shared";
     render();
   }
 
@@ -282,7 +327,7 @@
     state = res.state;
     ui.lastEntry = res.entry;
     ui.slots = [null, null];
-    ui.revealed = false;
+    ui.revealedFor = null;
     save();
     render();
   }
@@ -305,7 +350,8 @@
       return it.zh.toLowerCase().indexOf(q) >= 0 || it.ja.toLowerCase().indexOf(q) >= 0;
     });
     matched.slice(0, POOL_LIMIT).forEach(function (id) {
-      list.appendChild(el("button", { type: "button", class: "gs-item gs-cat-" + theme.byId[id].cat, "data-item": id,
+      var picked = ui.slots[0] === id || ui.slots[1] === id;
+      list.appendChild(el("button", { type: "button", class: "gs-item gs-cat-" + theme.byId[id].cat + (picked ? " gs-picked" : ""), "data-item": id,
         text: itemName(theme, id), onclick: function () { pickItem(id); } }));
     });
     if (matched.length > POOL_LIMIT) list.appendChild(el("p", { class: "gs-muted", text: t("gs_pool_more", { n: matched.length - POOL_LIMIT }) }));
@@ -322,7 +368,7 @@
     // 只重畫清單，不重畫整個畫面（避免輸入框失去焦點）
     search.addEventListener("input", function () { ui.search = search.value; fillPoolList(theme, list); });
     fillPoolList(theme, list);
-    return el("div", { class: "gs-panel" }, [
+    return el("div", { id: "gs-pool", class: "gs-panel gs-pool" }, [
       el("h2", { text: t("gs_pool", { n: state.pool.length }) }),
       el("div", { class: "gs-field" }, [search, select]),
       list
@@ -344,10 +390,8 @@
         var back = Core.undo(state);
         if (!back) return;
         state = back;
+        // 復原後所有任務一律收起，避免上一位的任務被下一位看到
         resetTurnUi();
-        // 復原後回到輪到的玩家；同一裝置要重新交接，避免上一位的任務被下一位看到
-        ui.handoff = state.mode === "shared";
-        ui.revealed = false;
         save();
         render();
       } }),
@@ -380,13 +424,16 @@
       var p = Core.currentPlayer(state);
       app.appendChild(el("h2", { class: "gs-turn", text: t("gs_round_turn", { round: state.round, name: p.name }) }));
     }
+    app.appendChild(renderVoiceBar());
     if (ui.lastEntry) app.appendChild(renderResult(theme));
-    else if (!state.winner) {
-      if (state.mode === "shared") app.appendChild(renderTargetsPanel(theme));
-      app.appendChild(renderSlots(theme));
-    }
-    app.appendChild(progressPanel());
+    else if (!state.winner) app.appendChild(renderSlots(theme));
     if (!state.winner) app.appendChild(renderPool(theme));
+    // 同一裝置：池子下方可展開各玩家的任務（含進度）；分別裝置：任務在手機上，這裡只顯示進度
+    if (state.mode === "shared" && !state.winner) {
+      app.appendChild(el("div", { class: "gs-panel" }, [el("h2", { text: t("gs_player_targets_heading") }), playerTargetsList(theme)]));
+    } else {
+      app.appendChild(progressPanel());
+    }
     app.appendChild(renderLog(theme));
     app.appendChild(renderFooter());
   }
@@ -468,9 +515,298 @@
       app.appendChild(el("p", { class: "gs-muted", text: ui.error || t("gs_loading") }));
       return;
     }
-    if (ui.screen === "qr") { renderQrScreen(theme); return; }
-    if (state.mode === "shared" && ui.handoff && !ui.lastEntry && !state.winner) { renderHandoff(); return; }
-    renderPlay(theme);
+    if (ui.screen === "qr") renderQrScreen(theme);
+    else if (state.confirm) renderConfirm(theme);
+    else renderPlay(theme);
+    voiceSync();
+  }
+
+  // ---------------- 語音模式 ----------------
+  // 朗讀：speechSynthesis；辨識：SpeechRecognition（Chrome／Edge，需 https 或 localhost）。
+  // 物體名稱沒有英文，en 介面也用日文辨識與朗讀。
+  // 朗讀中喇叭的聲音可能被麥克風收到：朗讀中只接受有 yo 開頭的喚醒詞（Core.detectWake 的 strict），
+  //   等待指令時則忽略朗讀中的辨識結果。
+
+  var SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
+  var VOICE_REPEAT_MS = 60000;
+  var VOICE_COMMAND_MS = 8000;
+  var VOICE_ADVANCE_FALLBACK_MS = 20000;
+  var VOICE_POOL_CHUNK = 15;
+  var voice = { on: false, rec: null, audio: null, speaking: false, speakToken: 0, turnKey: null, spokenEntry: null,
+    repeatTimer: null, awaitUntil: 0, awaitTimer: null, advanceTimer: null, status: "", heard: "", error: "" };
+
+  function voiceSupported() { return !!(SpeechRec && window.speechSynthesis); }
+  function speechLang() { return lang() === "zh" ? "zh-TW" : "ja-JP"; }
+
+  function setVoiceStatus(text) {
+    voice.status = text;
+    var node = document.getElementById("gs-voice-status");
+    if (node) node.textContent = text;
+  }
+
+  function setVoiceHeard(text) {
+    voice.heard = text;
+    var node = document.getElementById("gs-voice-heard");
+    if (node) node.textContent = text ? t("gs_voice_heard", { text: text }) : "";
+  }
+
+  function renderVoiceBar() {
+    return el("div", { id: "gs-voice", class: "gs-panel gs-voice" + (voice.on ? " gs-voice-on" : "") }, [
+      el("div", { class: "gs-actions" }, [
+        el("button", { id: "gs-voice-toggle", type: "button", class: voice.on ? "gs-primary" : "", disabled: !voiceSupported(),
+          text: t(voice.on ? "gs_voice_off" : "gs_voice_on"),
+          onclick: function () { if (voice.on) voiceStop(); else voiceStart(); render(); } }),
+        el("span", { id: "gs-voice-status", class: "gs-voice-status", text: voice.on ? voice.status : "" })
+      ]),
+      el("p", { id: "gs-voice-heard", class: "gs-muted", text: voice.on && voice.heard ? t("gs_voice_heard", { text: voice.heard }) : "" }),
+      voice.error ? el("p", { class: "gs-error", text: voice.error })
+        : (voiceSupported() ? null : el("p", { class: "gs-muted", text: t("gs_voice_unsupported") }))
+    ]);
+  }
+
+  function pickVoice() {
+    var want = speechLang().toLowerCase();
+    var list = window.speechSynthesis.getVoices() || [];
+    for (var i = 0; i < list.length; i++) if (String(list[i].lang).toLowerCase().replace("_", "-") === want) return list[i];
+    var base = want.split("-")[0];
+    for (var j = 0; j < list.length; j++) if (String(list[j].lang).toLowerCase().indexOf(base) === 0) return list[j];
+    return null;
+  }
+
+  // 依序朗讀多段（長文分段，避免 Chrome 長句朗讀中途停掉）。新的朗讀會取消舊的（speakToken）。
+  function speak(parts, onDone) {
+    var synth = window.speechSynthesis;
+    var token = ++voice.speakToken;
+    synth.cancel();
+    var i = 0;
+    voice.speaking = true;
+    function next() {
+      if (token !== voice.speakToken || !voice.on) return;
+      if (i >= parts.length) {
+        voice.speaking = false;
+        if (onDone) onDone();
+        return;
+      }
+      var u = new SpeechSynthesisUtterance(parts[i++]);
+      u.lang = speechLang();
+      var v = pickVoice();
+      if (v) u.voice = v;
+      u.onend = next;
+      u.onerror = next;
+      synth.speak(u);
+    }
+    next();
+  }
+
+  function stopSpeaking() {
+    voice.speakToken++;
+    voice.speaking = false;
+    if (window.speechSynthesis) window.speechSynthesis.cancel();
+  }
+
+  function beep() {
+    try {
+      var ctx = voice.audio;
+      if (!ctx) return;
+      if (ctx.state === "suspended") ctx.resume();
+      var osc = ctx.createOscillator();
+      var gain = ctx.createGain();
+      osc.frequency.value = 880;
+      gain.gain.setValueAtTime(0.25, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.3);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start();
+      osc.stop(ctx.currentTime + 0.3);
+    } catch (e) { /* 沒有音效也能玩 */ }
+  }
+
+  function clearVoiceTimers() {
+    clearTimeout(voice.repeatTimer);
+    clearTimeout(voice.awaitTimer);
+    clearTimeout(voice.advanceTimer);
+    voice.awaitUntil = 0;
+  }
+
+  function startRecognition() {
+    if (!voice.on || voice.rec) return;
+    var rec = new SpeechRec();
+    rec.lang = speechLang();
+    rec.continuous = true;
+    rec.interimResults = false;
+    rec.maxAlternatives = 5;
+    rec.onresult = function (ev) {
+      for (var i = ev.resultIndex; i < ev.results.length; i++) {
+        if (!ev.results[i].isFinal) continue;
+        var alts = [];
+        for (var k = 0; k < ev.results[i].length; k++) alts.push(ev.results[i][k].transcript);
+        onHeard(alts);
+      }
+    };
+    rec.onerror = function (ev) {
+      if (ev.error === "not-allowed" || ev.error === "service-not-allowed") {
+        voiceStop();
+        voice.error = t("gs_voice_denied");
+        render();
+      }
+    };
+    // 無聲一陣子後瀏覽器會自己結束辨識：語音模式還開著就重開（切換語言時也靠這裡換 lang）
+    rec.onend = function () {
+      if (voice.rec === rec) voice.rec = null;
+      if (voice.on) setTimeout(startRecognition, 300);
+    };
+    voice.rec = rec;
+    try { rec.start(); } catch (e) { voice.rec = null; }
+  }
+
+  function voiceStart() {
+    if (!voiceSupported()) return;
+    voice.on = true;
+    voice.error = "";
+    voice.turnKey = null;
+    voice.spokenEntry = ui.lastEntry;
+    try {
+      var Ctx = window.AudioContext || window.webkitAudioContext;
+      if (Ctx && !voice.audio) voice.audio = new Ctx();
+      if (voice.audio && voice.audio.state === "suspended") voice.audio.resume();
+    } catch (e) { voice.audio = null; }
+    startRecognition();
+  }
+
+  function voiceStop() {
+    voice.on = false;
+    clearVoiceTimers();
+    stopSpeaking();
+    voice.turnKey = null;
+    voice.status = "";
+    voice.heard = "";
+    var rec = voice.rec;
+    voice.rec = null;
+    if (rec) { try { rec.abort(); } catch (e) { /* 已停止 */ } }
+  }
+
+  function voiceReady() {
+    return voice.on && state && !join && !state.confirm && ui.screen === "play" && !ui.lastEntry && !state.winner &&
+      !!themes[state.themeId];
+  }
+
+  function announceTurn() {
+    var theme = themes[state.themeId];
+    var p = Core.currentPlayer(state);
+    var names = state.pool.filter(function (id) { return !theme.junkSet[id]; }).map(function (id) { return itemName(theme, id); });
+    var parts = [t("gs_voice_turn", { name: p.name }), t("gs_voice_pool", { n: names.length })];
+    for (var i = 0; i < names.length; i += VOICE_POOL_CHUNK) parts.push(names.slice(i, i + VOICE_POOL_CHUNK).join("、"));
+    parts.push(t("gs_voice_how"));
+    clearTimeout(voice.repeatTimer);
+    setVoiceStatus(t("gs_voice_reading"));
+    speak(parts, function () {
+      setVoiceStatus(t("gs_voice_listening"));
+      scheduleRepeat();
+    });
+  }
+
+  // 每一分鐘重複朗讀；正在等指令時延後
+  function scheduleRepeat() {
+    clearTimeout(voice.repeatTimer);
+    voice.repeatTimer = setTimeout(function () {
+      if (!voiceReady()) return;
+      if (voice.awaitUntil > Date.now()) { scheduleRepeat(); return; }
+      announceTurn();
+    }, VOICE_REPEAT_MS);
+  }
+
+  function speakResult() {
+    var theme = themes[state.themeId];
+    var e = ui.lastEntry;
+    var status = theme.junkSet[e.result] ? t("gs_result_junk") : (e.isNew ? t("gs_result_new") : t("gs_result_old"));
+    var parts = [t("gs_voice_result", { a: itemName(theme, e.a), b: itemName(theme, e.b), r: itemName(theme, e.result) }), status];
+    var p = playerById(e.playerId);
+    if (e.achieved) parts.push(t("gs_achieved", { done: p.done.length, total: p.targets.length }));
+    if (state.winner) parts.push(t("gs_winner", { name: playerById(state.winner).name }));
+    setVoiceStatus("");
+    // 念完自動換下一位（語音模式不必按「下一位」）；朗讀事件沒觸發時以計時器保底
+    function advance() {
+      clearTimeout(voice.advanceTimer);
+      if (ui.lastEntry === e && !state.winner) nextTurn();
+    }
+    if (!state.winner) voice.advanceTimer = setTimeout(advance, VOICE_ADVANCE_FALLBACK_MS);
+    speak(parts, advance);
+  }
+
+  // 每次 render 後呼叫：輪到的人（或語言）變了就朗讀；出現新的合成結果就念結果
+  function voiceSync() {
+    if (!voice.on) return;
+    if (!state || join || state.confirm || ui.screen !== "play" || !themes[state.themeId]) {
+      clearVoiceTimers();
+      stopSpeaking();
+      voice.turnKey = null;
+      return;
+    }
+    if (ui.lastEntry) {
+      if (voice.spokenEntry !== ui.lastEntry) {
+        voice.spokenEntry = ui.lastEntry;
+        voice.turnKey = null;
+        clearVoiceTimers();
+        speakResult();
+      }
+      return;
+    }
+    if (state.winner) return;
+    var key = lang() + ":" + state.round + ":" + state.turn + ":" + state.log.length;
+    if (key === voice.turnKey) return;
+    voice.turnKey = key;
+    clearVoiceTimers();
+    announceTurn();
+  }
+
+  function waitCommand() {
+    clearTimeout(voice.awaitTimer);
+    voice.awaitUntil = Date.now() + VOICE_COMMAND_MS;
+    setVoiceStatus(t("gs_voice_say_combo"));
+    beep();
+    voice.awaitTimer = setTimeout(function () {
+      voice.awaitUntil = 0;
+      if (voiceReady()) setVoiceStatus(t("gs_voice_listening"));
+    }, VOICE_COMMAND_MS);
+  }
+
+  function tryVoiceCombo(texts) {
+    var theme = themes[state.themeId];
+    var best = null;
+    texts.forEach(function (tx) {
+      var r = Core.parseVoiceCombo(theme, state.pool, tx);
+      if (r && (!best || r.score > best.score)) best = r;
+    });
+    if (!best) return false;
+    clearVoiceTimers();
+    ui.slots = [best.a, best.b];
+    doCombine();
+    return true;
+  }
+
+  function onHeard(alts) {
+    if (!voiceReady()) return;
+    setVoiceHeard(alts[0]);
+    if (voice.awaitUntil > Date.now()) {
+      if (voice.speaking) return; // 「請再說一次」的回音
+      if (tryVoiceCombo(alts)) return;
+      clearTimeout(voice.awaitTimer);
+      voice.awaitUntil = 0;
+      setVoiceStatus(t("gs_voice_retry"));
+      speak([t("gs_voice_retry")], waitCommand);
+      return;
+    }
+    var rests = [];
+    alts.forEach(function (a) {
+      var w = Core.detectWake(a, voice.speaking);
+      if (w) rests.push(w.rest);
+    });
+    if (!rests.length) return;
+    stopSpeaking();
+    // 「yo アキ 火加水」一口氣說完也可以
+    var said = rests.filter(function (r) { return r; });
+    if (said.length && tryVoiceCombo(said)) return;
+    waitCommand();
   }
 
   function init() {
@@ -488,7 +824,6 @@
     }
     state = load();
     if (state) {
-      ui.handoff = state.mode === "shared";
       loadTheme(state.themeId, function (err) {
         if (err) ui.error = t("gs_load_failed");
         render();
@@ -497,10 +832,17 @@
     render();
   }
 
-  window.addEventListener("i18n:change", render);
+  window.addEventListener("i18n:change", function () {
+    // 辨識語言跟著介面切換：abort 後 onend 會用新的 lang 重開
+    if (voice.rec) { try { voice.rec.abort(); } catch (e) { /* 已停止 */ } }
+    render();
+  });
   window.PriTestGousei = {
     _debugState: function () { return state ? JSON.parse(JSON.stringify(state)) : null; },
-    _theme: function () { return state ? themes[state.themeId] : null; }
+    _theme: function () { return state ? themes[state.themeId] : null; },
+    // 測試用：模擬一次語音辨識結果（候選字串陣列）
+    _voiceHeard: function (alts) { onHeard(alts); },
+    _voiceOn: function () { return voice.on; }
   };
   init();
 })();

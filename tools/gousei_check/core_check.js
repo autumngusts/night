@@ -134,4 +134,31 @@ assert.strictEqual(Core.parseJoin("fx.seedA.2.5"), null);
 assert.strictEqual(Core.parseJoin("garbage"), null);
 assert.strictEqual(Core.parseJoin("fx.seedA.9.0"), null, "人數超過 8");
 
+// ---- 語音：喚醒詞「yo, アキ」 ----
+assert.deepStrictEqual(Core.detectWake("Yo, アキ", false), { rest: "" });
+assert.deepStrictEqual(Core.detectWake("ヨー、あき 甲加乙", false), { rest: "甲加乙" }, "片假名／平假名、標點都可以");
+assert.deepStrictEqual(Core.detectWake("喲阿基", true), { rest: "" }, "中文辨識的寫法");
+assert.deepStrictEqual(Core.detectWake("アキ", false), { rest: "" }, "沒聽到 yo 也可以（不是朗讀中）");
+assert.strictEqual(Core.detectWake("アキ", true), null, "朗讀中必須有 yo，避免喇叭回音");
+assert.strictEqual(Core.detectWake("秋", false), null, "「秋」是一般詞彙（物體名稱也有），沒有 yo 不算");
+assert.deepStrictEqual(Core.detectWake("よ秋", false), { rest: "" });
+assert.strictEqual(Core.detectWake("千秋楽", false), null);
+assert.strictEqual(Core.detectWake("今天天氣很好", false), null);
+
+// ---- 語音：「A 加 B」 ----
+var vpool = ["b1", "b2", "z1", "i1", "j1"];
+function combo(text) {
+  var r = Core.parseVoiceCombo(theme, vpool, text);
+  return r ? [r.a, r.b] : null;
+}
+assert.deepStrictEqual(combo("甲加乙"), ["b1", "b2"]);
+assert.deepStrictEqual(combo("我要 甲 和 甲 吧"), ["b1", "b1"], "去掉前後的口語");
+assert.deepStrictEqual(combo("乙プラス甲を合成して"), ["b2", "b1"], "日文說法");
+assert.deepStrictEqual(combo("乙と甲"), ["b2", "b1"]);
+assert.deepStrictEqual(combo("甲乙"), ["b1", "b2"], "沒說「加」時兩段都要完全一致");
+assert.deepStrictEqual(combo("I1 加 j1"), ["i1", "j1"], "大小寫不影響");
+assert.strictEqual(combo("灰加甲"), null, "廢料不列入候選");
+assert.strictEqual(combo("甲加k1"), null, "不在池子裡的不算");
+assert.strictEqual(combo("不知道"), null);
+
 console.log("gousei core_check OK");
