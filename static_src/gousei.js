@@ -351,8 +351,11 @@
     });
     matched.slice(0, POOL_LIMIT).forEach(function (id) {
       var picked = ui.slots[0] === id || ui.slots[1] === id;
+      // 編號＝池子順序（1 起算），語音可以說「3 加 7」
       list.appendChild(el("button", { type: "button", class: "gs-item gs-cat-" + theme.byId[id].cat + (picked ? " gs-picked" : ""), "data-item": id,
-        text: itemName(theme, id), onclick: function () { pickItem(id); } }));
+        onclick: function () { pickItem(id); } }, [
+        el("span", { class: "gs-item-no", text: String(state.pool.indexOf(id) + 1) }), itemName(theme, id)
+      ]));
     });
     if (matched.length > POOL_LIMIT) list.appendChild(el("p", { class: "gs-muted", text: t("gs_pool_more", { n: matched.length - POOL_LIMIT }) }));
   }
@@ -535,7 +538,7 @@
   var WAKE_STORE_KEY = "pritest-gousei-wake";
   var WAKE_TRAIN_COUNT = 3;
   var WAKE_TEMPLATE_LIMIT = 30;
-  var voice = { on: false, rec: null, audio: null, speaking: false, speakToken: 0, turnKey: null, spokenEntry: null, training: null,
+  var voice = { on: false, rec: null, audio: null, speaking: false, speakToken: 0, turnKey: null, spokenEntry: null, training: null, pending: null, pendingTimer: null,
     repeatTimer: null, awaitUntil: 0, awaitTimer: null, advanceTimer: null, status: "", heard: "", error: "" };
 
   function voiceSupported() { return !!(SpeechRec && window.speechSynthesis); }
@@ -568,8 +571,12 @@
           text: t("gs_voice_train_clear"), onclick: function () { saveWakeTemplates([]); render(); } }) : null,
         el("span", { class: "gs-muted", text: wakeTemplates().length ? t("gs_voice_trained", { n: wakeTemplates().length }) : t("gs_voice_untrained") })
       ]) : null,
+      voice.on && voice.pending ? el("div", { class: "gs-actions" }, [
+        el("button", { id: "gs-voice-yes", type: "button", class: "gs-primary", text: t("gs_voice_yes"), onclick: function () { answerConfirm(true); } }),
+        el("button", { id: "gs-voice-no", type: "button", text: t("gs_voice_no"), onclick: function () { answerConfirm(false); } })
+      ]) : null,
       // 喚醒詞叫不出來時的備用：按按鈕或空白鍵直接等「A 加 B」
-      voice.on && voiceReady() ? el("button", { id: "gs-voice-talk", type: "button", class: "gs-primary gs-voice-talk",
+      voice.on && voiceReady() && !voice.pending ? el("button", { id: "gs-voice-talk", type: "button", class: "gs-primary gs-voice-talk",
         text: t("gs_voice_talk"), onclick: talkNow }) : null,
       el("p", { id: "gs-voice-heard", class: "gs-muted", text: voice.on && voice.heard ? t("gs_voice_heard", { text: voice.heard }) : "" }),
       voice.error ? el("p", { class: "gs-error", text: voice.error })
@@ -638,7 +645,9 @@
     clearTimeout(voice.repeatTimer);
     clearTimeout(voice.awaitTimer);
     clearTimeout(voice.advanceTimer);
+    clearTimeout(voice.pendingTimer);
     voice.awaitUntil = 0;
+    voice.pending = null;
   }
 
   function startRecognition() {
@@ -728,7 +737,8 @@
   function announceTurn() {
     var theme = themes[state.themeId];
     var p = Core.currentPlayer(state);
-    var names = state.pool.filter(function (id) { return !theme.junkSet[id]; }).map(function (id) { return itemName(theme, id); });
+    var names = [];
+    state.pool.forEach(function (id, i) { if (!theme.junkSet[id]) names.push((i + 1) + " " + itemName(theme, id)); });
     var parts = [t("gs_voice_turn", { name: p.name }), t("gs_voice_pool", { n: names.length })];
     for (var i = 0; i < names.length; i += VOICE_POOL_CHUNK) parts.push(names.slice(i, i + VOICE_POOL_CHUNK).join("、"));
     parts.push(t("gs_voice_how"));
@@ -745,7 +755,7 @@
     clearTimeout(voice.repeatTimer);
     voice.repeatTimer = setTimeout(function () {
       if (!voiceReady()) return;
-      if (voice.awaitUntil > Date.now()) { scheduleRepeat(); return; }
+      if (voice.awaitUntil > Date.now() || voice.pending) { scheduleRepeat(); return; }
       announceTurn();
     }, VOICE_REPEAT_MS);
   }
@@ -814,22 +824,60 @@
     });
     if (!best) return false;
     clearVoiceTimers();
-    ui.slots = [best.a, best.b];
-    doCombine();
+    if (best.exact) {
+      ui.slots = [best.a, best.b];
+      doCombine();
+    } else {
+      askConfirm(best);
+    }
     return true;
+  }
+
+  // 只靠讀音或近似比對的結果：先問「A 加 B，對嗎？」，說「對」才合成
+  function askConfirm(pick) {
+    var theme = themes[state.themeId];
+    var names = { a: itemName(theme, pick.a), b: itemName(theme, pick.b) };
+    voice.pending = { a: pick.a, b: pick.b };
+    voice.status = t("gs_voice_confirm_status", names);
+    render();
+    speak([t("gs_voice_confirm_q", names)], function () {
+      if (!voice.pending) return;
+      beep();
+      clearTimeout(voice.pendingTimer);
+      voice.pendingTimer = setTimeout(function () {
+        voice.pending = null;
+        if (voiceReady()) { setVoiceStatus(t("gs_voice_listening")); render(); scheduleRepeat(); }
+      }, VOICE_COMMAND_MS);
+    });
+  }
+
+  function answerConfirm(yes) {
+    var p = voice.pending;
+    if (!p) return;
+    clearVoiceTimers();
+    stopSpeaking();
+    if (yes) {
+      ui.slots = [p.a, p.b];
+      doCombine();
+    } else {
+      render();
+      retryCommand("gs_voice_again");
+    }
   }
 
   function talkNow() {
     if (!voiceReady()) return;
     stopSpeaking();
+    clearTimeout(voice.pendingTimer);
+    voice.pending = null;
     waitCommand();
   }
 
-  function retryCommand() {
+  function retryCommand(key) {
     clearTimeout(voice.awaitTimer);
     voice.awaitUntil = 0;
-    setVoiceStatus(t("gs_voice_retry"));
-    speak([t("gs_voice_retry")], waitCommand);
+    setVoiceStatus(t(key || "gs_voice_retry"));
+    speak([t(key || "gs_voice_retry")], waitCommand);
   }
 
   // ---- 喚醒詞訓練 ----
@@ -907,6 +955,15 @@
     }
     if (!voiceReady()) return;
     setVoiceHeard(alts[0]);
+    if (voice.pending) {
+      if (isFinal === false || voice.speaking) return; // 提問本身的回音
+      for (var i = 0; i < alts.length; i++) {
+        var yn = Core.parseYesNo(alts[i]);
+        if (yn !== null) { answerConfirm(yn); return; }
+      }
+      tryVoiceCombo(alts); // 直接說了新的組合也可以
+      return;
+    }
     var awaiting = voice.awaitUntil > Date.now();
     if (isFinal === false) {
       // 即時結果：一聽到喚醒詞就打斷朗讀、響提示音

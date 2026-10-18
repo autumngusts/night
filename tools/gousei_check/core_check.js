@@ -200,4 +200,27 @@ assert.strictEqual(Core.detectWake("開心合唱", false, ["開始合成"]), nul
   assert.strictEqual(Core.detectWake(s, false), null, "一般句子不誤觸：" + s);
 });
 
+// ---- 語音：池子編號與確認回答 ----
+assert.strictEqual(Core.parseSpokenNumber("3"), 3);
+assert.strictEqual(Core.parseSpokenNumber("二十三"), 23);
+assert.strictEqual(Core.parseSpokenNumber("第七號"), 7);
+assert.strictEqual(Core.parseSpokenNumber("3番"), 3);
+assert.strictEqual(Core.parseSpokenNumber("一百零五"), 105);
+assert.strictEqual(Core.parseSpokenNumber("一刀流"), null, "含數字的名稱不是編號");
+var npool = ["thunder", "water", "z1", "fire", "steam"];
+function ncombo(text) { var r = Core.parseVoiceCombo(ptheme, npool, text); return r ? [r.a, r.b, r.exact] : null; }
+assert.deepStrictEqual(ncombo("1加4"), ["thunder", "fire", true], "編號＝池子順序");
+assert.deepStrictEqual(ncombo("第一個加第五號"), ["thunder", "steam", true]);
+assert.deepStrictEqual(ncombo("2 加 火"), ["water", "fire", true], "編號與名稱可以混用");
+assert.strictEqual(ncombo("3加4"), null, "廢料的編號不算");
+assert.strictEqual(ncombo("1加9"), null, "超出池子");
+assert.deepStrictEqual(ncombo("雷加水"), ["thunder", "water", true], "字面完全一致＝exact");
+assert.deepStrictEqual(ncombo("累家稅"), ["thunder", "water", false], "只靠讀音＝要確認");
+assert.strictEqual(Core.parseYesNo("對"), true);
+assert.strictEqual(Core.parseYesNo("好啊"), true);
+assert.strictEqual(Core.parseYesNo("はい"), true);
+assert.strictEqual(Core.parseYesNo("不對"), false, "否定詞優先");
+assert.strictEqual(Core.parseYesNo("違います"), false);
+assert.strictEqual(Core.parseYesNo("雷加水"), null);
+
 console.log("gousei core_check OK");

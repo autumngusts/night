@@ -345,7 +345,40 @@
   var COMBO_MIN_SCORE = 0.6;
   var PINYIN_PENALTY = 0.05; // 只有讀音一樣時，略低於字面完全一致
 
-  // 「A 加 B」→ 池子裡最像的兩個物體（廢料不列入候選）。
+  // 池子編號（1 起算，＝池子順序）：「3」「三」「第三個」「7號」「3番」。數字是辨識最穩定的內容。
+  var CN_DIGITS = { "零": 0, "〇": 0, "一": 1, "二": 2, "兩": 2, "两": 2, "三": 3, "四": 4, "五": 5, "六": 6, "七": 7, "八": 8, "九": 9 };
+
+  function parseSpokenNumber(s) {
+    s = s.replace(/^(第|だい)/, "").replace(/(號|号|個|个|番目|番|ばんめ|ばん)$/, "");
+    if (/^[0-9０-９]+$/.test(s)) {
+      return parseInt(s.replace(/[０-９]/g, function (c) { return String.fromCharCode(c.charCodeAt(0) - 0xfee0); }), 10);
+    }
+    if (!s || !/^[零〇一二兩两三四五六七八九十百]+$/.test(s)) return null;
+    var total = 0, cur = 0;
+    for (var i = 0; i < s.length; i++) {
+      var c = s.charAt(i);
+      if (c === "十") { total += (cur || 1) * 10; cur = 0; }
+      else if (c === "百") { total += (cur || 1) * 100; cur = 0; }
+      else cur = CN_DIGITS[c];
+    }
+    return total + cur;
+  }
+
+  // 確認提問的回答：true＝對、false＝不對、null＝都不是。否定詞先判斷（「不對」含「對」）
+  var ANSWER_NO = ["不", "錯", "错", "取消", "いいえ", "ちがう", "違", "だめ", "やめ", "no"].map(normSpeech);
+  var ANSWER_YES = ["對", "对", "是", "好", "確定", "确定", "沒錯", "可以", "嗯", "合成", "はい", "うん", "そう", "ええ", "おっけー",
+    "ok", "yes"].map(normSpeech);
+
+  function parseYesNo(text) {
+    var n = normSpeech(text);
+    if (!n) return null;
+    for (var i = 0; i < ANSWER_NO.length; i++) if (n.indexOf(ANSWER_NO[i]) >= 0) return false;
+    for (var j = 0; j < ANSWER_YES.length; j++) if (n.indexOf(ANSWER_YES[j]) >= 0) return true;
+    return null;
+  }
+
+  // 「A 加 B」→ 池子裡最像的兩個物體（廢料不列入候選）。各段也可以是池子編號（「3 加 7」）。
+  // 回傳的 exact＝兩段都是字面完全一致或編號；只靠讀音或近似比對時為 false（UI 會先確認再合成）。
   // 每一段的相似度（字面或拼音的 1−編輯距離／長度）都要 ≥ 0.6（兩個字錯一個不算），否則回傳 null。
   function parseVoiceCombo(theme, pool, text) {
     var n = normSpeech(text);
@@ -376,6 +409,11 @@
       if (memo.hasOwnProperty(key)) return memo[key];
       var s = n.slice(from, to), t = nt.slice(from, to);
       var best = null;
+      var num = parseSpokenNumber(s);
+      if (num !== null && num >= 1 && num <= pool.length && !theme.junkSet[pool[num - 1]] && theme.byId[pool[num - 1]]) {
+        memo[key] = { id: pool[num - 1], score: 1 };
+        return memo[key];
+      }
       for (var i = 0; i < cands.length; i++) {
         var c = cands[i];
         var len = Math.max(s.length, c.s.length);
@@ -395,7 +433,7 @@
       var min = Math.min(a.score, b.score);
       if (exactOnly && min < 1 - PINYIN_PENALTY) return;
       var score = min + (a.score + b.score) / 1000;
-      if (min >= COMBO_MIN_SCORE && (!result || score > result.score)) result = { a: a.id, b: b.id, score: score };
+      if (min >= COMBO_MIN_SCORE && (!result || score > result.score)) result = { a: a.id, b: b.id, score: score, exact: min >= 1 };
     }
     COMBO_SEPS.forEach(function (sep) {
       var idx = n.indexOf(sep, 1);
@@ -439,6 +477,8 @@
     normSpeech: normSpeech,
     detectWake: detectWake,
     parseVoiceCombo: parseVoiceCombo,
-    setPinyin: setPinyin
+    setPinyin: setPinyin,
+    parseSpokenNumber: parseSpokenNumber,
+    parseYesNo: parseYesNo
   };
 })();

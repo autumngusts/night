@@ -208,7 +208,7 @@ async function confirmAll(page, count) {
   await waitSpoken(vpage, "輪到 玩家1");
   await waitSpoken(vpage, "什麼加什麼"); // 最後一段：玩法說明
   var said = (await spoken(vpage)).join("|");
-  ["金", "木", "水", "火", "土"].forEach(function (n) { assert.ok(said.indexOf(n) >= 0, "朗讀池子：" + n); });
+  ["1 金", "2 木", "3 水", "4 火", "5 土"].forEach(function (n) { assert.ok(said.indexOf(n) >= 0, "朗讀池子（含編號）：" + n); });
   await waitListening(vpage);
   await vpage.waitForFunction(function () { return window.PriTestGousei._pinyinReady(); });
 
@@ -221,6 +221,19 @@ async function confirmAll(page, count) {
   assert.strictEqual((await debugState(vpage)).log.length, 0, "最終結果只有喚醒詞：繼續等指令");
   assert.ok((await vpage.textContent("#gs-voice-status")).indexOf("加") >= 0);
   await voiceHeard(vpage, ["今家火"]);
+  // 只靠讀音比對到的結果要先確認：說「不對」→ 重說；再說一次 → 說「對」才合成
+  await vpage.waitForFunction(function () { return window.__spoken.join("|").indexOf("金 加 火，對嗎") >= 0; });
+  assert.strictEqual((await debugState(vpage)).log.length, 0, "確認前不合成");
+  await vpage.waitForTimeout(80); // 提問念完才聽回答（朗讀中的辨識結果視為回音）
+  await voiceHeard(vpage, ["不對"]);
+  await waitSpoken(vpage, "好，請再說一次");
+  await vpage.waitForFunction(function () { return document.getElementById("gs-voice-status").textContent.indexOf("加") >= 0 &&
+    document.getElementById("gs-voice-status").textContent.indexOf("確認") < 0; });
+  await voiceHeard(vpage, ["今家火"]);
+  await vpage.waitForSelector("#gs-voice-yes");
+  await vpage.waitForFunction(function () { return window.__spoken.filter(function (s) { return s.indexOf("對嗎") >= 0; }).length >= 2; });
+  await vpage.waitForTimeout(80);
+  await voiceHeard(vpage, ["對"]);
   st = await debugState(vpage);
   assert.strictEqual(st.log.length, 1);
   assert.deepStrictEqual([st.log[0].a, st.log[0].b], ["metal", "fire"]);
@@ -256,6 +269,8 @@ async function confirmAll(page, count) {
   await vpage.click("#gs-voice-talk");
   assert.ok((await vpage.textContent("#gs-voice-status")).indexOf("加") >= 0, "按鈕後直接等指令");
   await voiceHeard(vpage, ["睡和吐"]);
+  await vpage.waitForSelector("#gs-voice-yes");
+  await vpage.dispatchEvent("#gs-voice-yes", "click");
   st = await debugState(vpage);
   assert.strictEqual(st.log.length, 4, "按鈕說話合成");
   assert.deepStrictEqual([st.log[3].a, st.log[3].b], ["water", "earth"]);
@@ -272,7 +287,7 @@ async function confirmAll(page, count) {
   await waitListening(vpage);
   await voiceHeard(vpage, ["凱始合成"]);
   assert.ok((await vpage.textContent("#gs-voice-status")).indexOf("加") >= 0, "訓練過的詞（同音也可）能喚醒");
-  await voiceHeard(vpage, ["火加木"]);
+  await voiceHeard(vpage, ["4加2"]); // 池子編號：4＝火、2＝木
   st = await debugState(vpage);
   assert.strictEqual(st.log.length, 5);
   assert.deepStrictEqual([st.log[4].a, st.log[4].b], ["fire", "wood"]);
