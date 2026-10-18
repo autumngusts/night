@@ -260,12 +260,32 @@ async function confirmAll(page, count) {
   assert.strictEqual(st.log.length, 4, "按鈕說話合成");
   assert.deepStrictEqual([st.log[3].a, st.log[3].b], ["water", "earth"]);
 
+  // 訓練喚醒詞：說三次「開始合成」→ 之後用它喚醒
+  await waitListening(vpage);
+  await vpage.click("#gs-voice-train");
+  assert.ok((await vpage.textContent("#gs-voice-status")).indexOf("1/3") >= 0, "訓練提示");
+  await voiceHeard(vpage, ["開始合成"]);
+  await voiceHeard(vpage, ["開始和成"]);
+  assert.strictEqual((await debugState(vpage)).log.length, 4, "訓練中不會合成");
+  await voiceHeard(vpage, ["開始合成"]);
+  assert.deepStrictEqual(await vpage.evaluate(function () { return window.PriTestGousei._wakeTemplates(); }), ["開始合成", "開始和成"]);
+  await waitListening(vpage);
+  await voiceHeard(vpage, ["凱始合成"]);
+  assert.ok((await vpage.textContent("#gs-voice-status")).indexOf("加") >= 0, "訓練過的詞（同音也可）能喚醒");
+  await voiceHeard(vpage, ["火加木"]);
+  st = await debugState(vpage);
+  assert.strictEqual(st.log.length, 5);
+  assert.deepStrictEqual([st.log[4].a, st.log[4].b], ["fire", "wood"]);
+  await vpage.waitForSelector("#gs-voice-train-clear");
+  await vpage.click("#gs-voice-train-clear");
+  assert.deepStrictEqual(await vpage.evaluate(function () { return window.PriTestGousei._wakeTemplates(); }), []);
+
   // 關閉語音模式後不再反應
   await vpage.waitForSelector("#gs-voice-toggle");
   await vpage.click("#gs-voice-toggle");
   assert.ok(!(await vpage.evaluate(function () { return window.PriTestGousei._voiceOn(); })));
   await voiceHeard(vpage, ["yo アキ 金加金"]);
-  assert.strictEqual((await debugState(vpage)).log.length, 4);
+  assert.strictEqual((await debugState(vpage)).log.length, 5);
   await vctx.close();
 
   assert.deepStrictEqual(pageErrors, [], "頁面不應有 JS 錯誤");

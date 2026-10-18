@@ -208,24 +208,96 @@
     return prev[b.length];
   }
 
-  function inList(list, v) { return list.indexOf(v) >= 0; }
+  // ---- 音節的「聽起來像不像」 ----
+  // 辨識器會把聽不懂的外語音節換成任意同類音（yo アキ → 幼兒體：a→兒、ki→體），
+  // 所以喚醒詞以「聲母類別 × 韻母類別」比對，而不是列舉寫法。
+  var PY_INITIALS = ["zh", "ch", "sh", "b", "p", "m", "f", "d", "t", "n", "l", "g", "k", "h", "j", "q", "x", "r", "z", "c", "s", "y", "w"];
+  var INITIAL_CLASS = { j: "jqx", q: "jqx", x: "jqx", z: "zcs", c: "zcs", s: "zcs", d: "dt", t: "dt", g: "gkh", k: "gkh", h: "gkh",
+    b: "bp", p: "bp", m: "mnl", n: "mnl", l: "mnl", f: "f", r: "r", y: "zero", w: "zero", "": "zero" };
+  var FINAL_CLASS = { i: "i", ei: "i", ie: "i", o: "o", ou: "o", ao: "o", uo: "o", ong: "o", iu: "o", iao: "o",
+    a: "a", ai: "a", an: "a", ang: "a", ia: "a", e: "e", er: "e", en: "e", eng: "e", u: "u", ui: "u", un: "u", v: "u", ue: "u" };
+
+  function splitSyllable(s) {
+    if (!/^[a-z]+$/.test(s)) return null;
+    for (var i = 0; i < PY_INITIALS.length; i++) {
+      var ini = PY_INITIALS[i];
+      if (s.length > ini.length && s.indexOf(ini) === 0) return [ini, s.slice(ini.length)];
+    }
+    return ["", s];
+  }
+
+  function partCost(a, b, classes) {
+    if (a === b) return 0;
+    return classes[a] && classes[a] === classes[b] ? 0.5 : 1;
+  }
+
+  // 0＝相同、0.5＝聲母或韻母只差同類、1＝不像
+  function syllableCost(a, b) {
+    if (a === b) return 0;
+    var x = splitSyllable(a), y = splitSyllable(b);
+    if (!x || !y) return 1;
+    return Math.max(partCost(x[0], y[0], INITIAL_CLASS), partCost(x[1], y[1], FINAL_CLASS));
+  }
+
+  function levenshteinCost(a, b) {
+    var prev = [], cur, i, j;
+    for (j = 0; j <= b.length; j++) prev.push(j);
+    for (i = 1; i <= a.length; i++) {
+      cur = [i];
+      for (j = 1; j <= b.length; j++) cur.push(Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + syllableCost(a[i - 1], b[j - 1])));
+      prev = cur;
+    }
+    return prev[b.length];
+  }
+
+  function syllableIs(s, initials, finalClasses) {
+    var p = splitSyllable(s);
+    return !!p && initials.indexOf(p[0]) >= 0 && finalClasses.indexOf(FINAL_CLASS[p[1]]) >= 0;
+  }
 
   // 喚醒詞「yo, アキ」。
   //   字面：「秋」「亜紀」等一般詞彙（物體名稱也有「秋」）必須前面接 yo 才算。
-  //   拼音：中文辨識常寫成「有阿基」「要啊奇」「喲阿吉」「亞基」，依音節判斷。
+  //   拼音：yo（零聲母／y ＋ o 類韻母：有、要、幼、喲）＋ a（零聲母母音：阿、啊、兒、愛）
+  //        ＋ ki（j q x d t g k ＋ i／ei：基、奇、西、體、地、幾）。z c s（子、十）不算，避免「有兒子」「有二十」。
   //   英文：「yo aki」「you a key」。
-  var WAKE_YO = ["yo", "よー", "よう", "よぉ", "よ", "ヨ", "喲", "唷", "呦", "哟"].map(normSpeech);
+  //   訓練：玩家自己說過的喚醒詞（templates，見 matchWakeTemplates）。
+  var WAKE_YO = ["yo", "よー", "よう", "よぉ", "よ", "ヨ", "夜", "陽", "洋", "喲", "唷", "呦", "哟"].map(normSpeech);
   var WAKE_AKI = ["aki", "アキ", "阿基", "阿奇", "阿琪", "阿吉", "阿姬", "阿紀", "阿祺", "阿齊", "阿琦", "阿岐"].map(normSpeech);
-  var WAKE_AKI_WEAK = ["秋", "亜紀", "亜希", "安芸", "阿木"].map(normSpeech);
-  var WAKE_PY_YO = ["yo", "you", "yao", "yue", "yon", "io"];
-  var WAKE_PY_A = ["a", "ai"];
-  var WAKE_PY_KI = ["ji", "qi", "xi", "zi", "ci"];
+  var WAKE_AKI_WEAK = ["秋", "亜紀", "亜希", "安芸", "阿木", "明", "空き", "飽き"].map(normSpeech);
+  var WAKE_KANA = /(よ[うーぉお]?|ゆ[うー]?|お)[ー]?[あわ][ー]?(き|ち|け|ぎ|てぃ)/;
   var WAKE_LATIN = /(yo|you|yoh)(a|ah)?(ki|key|kee|chi|qi)/;
   var WAKE_LATIN_START = /^(aki|akey|akee)/;
 
+  function isWakeYo(s) { return syllableIs(s, ["", "y"], ["o"]); }
+  function isWakeA(s) { return syllableIs(s, [""], ["a", "e", "o"]); }
+  function isWakeKi(s) { return syllableIs(s, ["j", "q", "x", "d", "t", "g", "k"], ["i"]); }
+
+  // 訓練過的喚醒詞：在辨識結果裡找與任一範本「拼音距離」夠近的片段。
+  // 3 音節以下只容許同類音的差異（距離 ≤ 0.5）；4 音節以上容許差一個音節。朗讀中只接受完全一致。
+  function matchWakeTemplates(n, templates, strict) {
+    if (!templates || !templates.length) return null;
+    var t = tokens(n);
+    var best = null;
+    templates.forEach(function (tp) {
+      var tt = tokens(normSpeech(tp));
+      var L = tt.length;
+      if (!L) return;
+      var allowed = strict ? 0 : (L >= 4 ? 1 : (L >= 2 ? 0.5 : 0));
+      for (var w = Math.max(1, L - 1); w <= L + 1; w++) {
+        for (var i = 0; i + w <= t.length; i++) {
+          var d = levenshteinCost(t.slice(i, i + w), tt);
+          if (d <= allowed && (!best || d < best.d || (d === best.d && i < best.i))) best = { d: d, i: i, end: i + w };
+        }
+      }
+    });
+    return best ? { rest: n.slice(best.end) } : null;
+  }
+
   // strict = 朗讀中：喇叭的聲音可能被收音，只接受有 yo 開頭的完整喚醒詞
-  function detectWake(text, strict) {
+  function detectWake(text, strict, templates) {
     var n = normSpeech(text);
+    var trained = matchWakeTemplates(n, templates, strict);
+    if (trained) return trained;
     // 字面
     var lists = [[WAKE_AKI, false], [WAKE_AKI_WEAK, true]];
     for (var l = 0; l < lists.length; l++) {
@@ -242,21 +314,20 @@
         }
       }
     }
+    // 假名（日文辨識）
+    var m = WAKE_KANA.exec(n);
+    if (m) return { rest: n.slice(m.index + m[0].length) };
     // 拼音
     if (pinyinOf) {
       var t = tokens(n);
       for (var i = 0; i + 2 < t.length; i++) {
-        if (inList(WAKE_PY_YO, t[i]) && inList(WAKE_PY_A, t[i + 1]) && inList(WAKE_PY_KI, t[i + 2])) {
-          return { rest: n.slice(i + 3) };
-        }
+        if (isWakeYo(t[i]) && isWakeA(t[i + 1]) && isWakeKi(t[i + 2])) return { rest: n.slice(i + 3) };
       }
       // 「亞基」（yo+a 連在一起）、「阿吉」（沒聽到 yo）：只在開頭、且不是朗讀中才算
-      if (!strict && t.length >= 2 && (t[0] === "ya" || inList(WAKE_PY_A, t[0])) && inList(WAKE_PY_KI, t[1])) {
-        return { rest: n.slice(2) };
-      }
+      if (!strict && t.length >= 2 && (t[0] === "ya" || isWakeA(t[0])) && isWakeKi(t[1])) return { rest: n.slice(2) };
     }
     // 英文
-    var m = WAKE_LATIN.exec(n);
+    m = WAKE_LATIN.exec(n);
     if (m) return { rest: n.slice(m.index + m[0].length) };
     if (!strict) {
       m = WAKE_LATIN_START.exec(n);

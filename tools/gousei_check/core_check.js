@@ -184,7 +184,19 @@ assert.deepStrictEqual(Core.detectWake("要啊奇 雷加水", false), { rest: "�
 assert.deepStrictEqual(Core.detectWake("you a key", true), { rest: "" }, "英文辨識");
 assert.deepStrictEqual(Core.detectWake("亞基", false), { rest: "" }, "yo+a 連成「亞」");
 assert.strictEqual(Core.detectWake("亞基", true), null, "兩個音節的寫法朗讀中不算");
-["今天天氣很好", "記得", "有一個", "要求", "你好啊"].forEach(function (s) {
+// 辨識器把外語音節換成同類音：yo アキ → 幼兒體（a→兒、ki→體）
+["幼兒體", "有兒題", "要阿地", "よあき", "ようあき"].forEach(function (s) {
+  assert.deepStrictEqual(Core.detectWake(s, false), { rest: "" }, "音節類別比對：" + s);
+});
+assert.deepStrictEqual(Core.detectWake("幼兒體雷加水", true), { rest: "雷加水" });
+// 訓練過的範本：同類音的差異可以，不像的不行
+var tpl = ["幼兒體"];
+assert.deepStrictEqual(Core.detectWake("右兒提", false, tpl), { rest: "" }, "範本：同音字");
+assert.deepStrictEqual(Core.detectWake("有爾地 雷加水", false, tpl), { rest: "雷加水" }, "範本：ti≈di");
+assert.strictEqual(Core.detectWake("幼稚", false, tpl), null);
+assert.deepStrictEqual(Core.detectWake("開始和成", false, ["開始合成"]), { rest: "" }, "範本可以是任何詞");
+assert.strictEqual(Core.detectWake("開心合唱", false, ["開始合成"]), null);
+["今天天氣很好", "記得", "有一個", "要求", "你好啊", "有兒子", "有二十", "又愛吃", "有一次", "有的"].forEach(function (s) {
   assert.strictEqual(Core.detectWake(s, false), null, "一般句子不誤觸：" + s);
 });
 

@@ -532,7 +532,10 @@
   var VOICE_COMMAND_MS = 10000;
   var VOICE_ADVANCE_FALLBACK_MS = 20000;
   var VOICE_POOL_CHUNK = 15;
-  var voice = { on: false, rec: null, audio: null, speaking: false, speakToken: 0, turnKey: null, spokenEntry: null,
+  var WAKE_STORE_KEY = "pritest-gousei-wake";
+  var WAKE_TRAIN_COUNT = 3;
+  var WAKE_TEMPLATE_LIMIT = 30;
+  var voice = { on: false, rec: null, audio: null, speaking: false, speakToken: 0, turnKey: null, spokenEntry: null, training: null,
     repeatTimer: null, awaitUntil: 0, awaitTimer: null, advanceTimer: null, status: "", heard: "", error: "" };
 
   function voiceSupported() { return !!(SpeechRec && window.speechSynthesis); }
@@ -558,6 +561,13 @@
           onclick: function () { if (voice.on) voiceStop(); else voiceStart(); render(); } }),
         el("span", { id: "gs-voice-status", class: "gs-voice-status", text: voice.on ? voice.status : "" })
       ]),
+      voice.on ? el("div", { class: "gs-actions" }, [
+        el("button", { id: "gs-voice-train", type: "button", text: t(voice.training ? "gs_voice_train_cancel" : "gs_voice_train"),
+          onclick: function () { if (voice.training) stopTraining(); else startTraining(); } }),
+        wakeTemplates().length && !voice.training ? el("button", { id: "gs-voice-train-clear", type: "button",
+          text: t("gs_voice_train_clear"), onclick: function () { saveWakeTemplates([]); render(); } }) : null,
+        el("span", { class: "gs-muted", text: wakeTemplates().length ? t("gs_voice_trained", { n: wakeTemplates().length }) : t("gs_voice_untrained") })
+      ]) : null,
       // 喚醒詞叫不出來時的備用：按按鈕或空白鍵直接等「A 加 B」
       voice.on && voiceReady() ? el("button", { id: "gs-voice-talk", type: "button", class: "gs-primary gs-voice-talk",
         text: t("gs_voice_talk"), onclick: talkNow }) : null,
@@ -699,6 +709,7 @@
 
   function voiceStop() {
     voice.on = false;
+    voice.training = null;
     clearVoiceTimers();
     stopSpeaking();
     voice.turnKey = null;
@@ -710,7 +721,7 @@
   }
 
   function voiceReady() {
-    return voice.on && state && !join && !state.confirm && ui.screen === "play" && !ui.lastEntry && !state.winner &&
+    return voice.on && !voice.training && state && !join && !state.confirm && ui.screen === "play" && !ui.lastEntry && !state.winner &&
       !!themes[state.themeId];
   }
 
@@ -759,7 +770,7 @@
 
   // 每次 render 後呼叫：輪到的人（或語言）變了就朗讀；出現新的合成結果就念結果
   function voiceSync() {
-    if (!voice.on) return;
+    if (!voice.on || voice.training) return;
     if (!state || join || state.confirm || ui.screen !== "play" || !themes[state.themeId]) {
       clearVoiceTimers();
       stopSpeaking();
@@ -821,18 +832,90 @@
     speak([t("gs_voice_retry")], waitCommand);
   }
 
+  // ---- 喚醒詞訓練 ----
+  // 辨識器把「yo アキ」寫成什麼因人、因裝置而異（幼兒體、有阿基…）。讓玩家說幾次，記住實際的辨識結果，
+  // 之後以拼音距離比對（Core.detectWake 的 templates）。依辨識語言分開存在這台瀏覽器（localStorage）。
+  // 也可以藉此換成任何好辨識的詞（例如「開始合成」）。
+
+  function loadWakeStore() {
+    try {
+      var o = JSON.parse(localStorage.getItem(WAKE_STORE_KEY) || "{}");
+      return o && typeof o === "object" ? o : {};
+    } catch (e) {
+      return {};
+    }
+  }
+
+  function wakeTemplates() {
+    var list = loadWakeStore()[speechLang()];
+    return Array.isArray(list) ? list : [];
+  }
+
+  function saveWakeTemplates(list) {
+    var store = loadWakeStore();
+    if (list.length) store[speechLang()] = list.slice(-WAKE_TEMPLATE_LIMIT);
+    else delete store[speechLang()];
+    try { localStorage.setItem(WAKE_STORE_KEY, JSON.stringify(store)); } catch (e) { /* 私密模式等：只是記不住 */ }
+  }
+
+  function startTraining() {
+    if (!voice.on) return;
+    clearVoiceTimers();
+    stopSpeaking();
+    voice.training = { samples: [], count: 0 };
+    voice.heard = "";
+    voice.status = t("gs_voice_train_step", { n: 1, total: WAKE_TRAIN_COUNT });
+    beep();
+    render();
+  }
+
+  function stopTraining() {
+    voice.training = null;
+    voice.status = "";
+    voice.turnKey = null; // 回到遊戲後重新朗讀輪到誰
+    render();
+  }
+
+  function trainSample(alts) {
+    var tr = voice.training;
+    // 只取前兩個候選：後面的候選常是無關的字，收進來會增加誤觸
+    alts.slice(0, 2).forEach(function (a) {
+      var n = Core.normSpeech(a);
+      if (n && tr.samples.indexOf(n) < 0) tr.samples.push(n);
+    });
+    tr.count += 1;
+    if (tr.count < WAKE_TRAIN_COUNT) {
+      setVoiceStatus(t("gs_voice_train_step", { n: tr.count + 1, total: WAKE_TRAIN_COUNT }));
+      beep();
+      return;
+    }
+    var list = wakeTemplates();
+    tr.samples.forEach(function (n) { if (list.indexOf(n) < 0) list.push(n); });
+    saveWakeTemplates(list);
+    voice.training = null;
+    voice.turnKey = null;
+    voice.heard = "";
+    voice.status = t("gs_voice_train_done", { list: tr.samples.join("、") });
+    render();
+  }
+
   function onHeard(alts, isFinal) {
+    if (voice.on && voice.training) {
+      setVoiceHeard(alts[0]);
+      if (isFinal !== false) trainSample(alts);
+      return;
+    }
     if (!voiceReady()) return;
     setVoiceHeard(alts[0]);
     var awaiting = voice.awaitUntil > Date.now();
     if (isFinal === false) {
       // 即時結果：一聽到喚醒詞就打斷朗讀、響提示音
-      if (!awaiting && Core.detectWake(alts[0], voice.speaking)) talkNow();
+      if (!awaiting && Core.detectWake(alts[0], voice.speaking, wakeTemplates())) talkNow();
       return;
     }
     var rests = [];
     alts.forEach(function (a) {
-      var w = Core.detectWake(a, voice.speaking && !awaiting);
+      var w = Core.detectWake(a, voice.speaking && !awaiting, wakeTemplates());
       if (w) rests.push(w.rest);
     });
     if (awaiting) {
@@ -894,6 +977,7 @@
     // 測試用：模擬一次語音辨識結果（候選字串陣列）
     _voiceHeard: function (alts, isFinal) { onHeard(alts, isFinal !== false); },
     _pinyinReady: function () { return pinyinState === "ready"; },
+    _wakeTemplates: function () { return wakeTemplates(); },
     _voiceOn: function () { return voice.on; }
   };
   init();
