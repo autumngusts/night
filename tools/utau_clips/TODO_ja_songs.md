@@ -28,7 +28,7 @@
 | [ ] | BURNOUT SYNDROMES | ヒカリアレ | 2016 | anime | ハイキュー!! |
 | [ ] | BURNOUT SYNDROMES | PHOENIX | 2020 | anime | ハイキュー!! |
 | [ ] | 大石昌良 | 君じゃなきゃダメみたい | 2014 | anime | 月刊少女野崎くん |
-| [ ] | 玉置成実 | Believe | 2003 | anime | ガンダムSEED。Folder5 也有同名「Believe」，id 是「地區＋歌名」會撞名，需改用不同歌名寫法或擇一 |
+| [ ] | 玉置成実 | Believe | 2003 | anime | ガンダムSEED。與 Folder5「Believe」撞名，兩首都要收（使用者確認），處理方式見下方「注意」 |
 | [ ] | 玉置成実 | Realize | 2003 | anime | ガンダムSEED |
 | [ ] | 玉置成実 | Reason | 2005 | anime | ガンダムSEED DESTINY |
 | [ ] | SIAM SHADE | 1/3の純情な感情 | 1997 | anime | るろうに剣心 |
@@ -54,11 +54,11 @@
 | [ ] | 桑田佳祐 | 明日晴れるかな | 2007 | screen | ドラマ プロポーズ大作戦 |
 | [ ] | wacci | 別の人の彼女になったよ | 2018 | pop | |
 | [ ] | 氣志團 | One Night Carnival | 2001 | pop | |
-| [ ] | あたらよ | 僕は... | — | pop | 使用者指定（不在原候選中），正式歌名與年份待確認 |
+| [ ] | あたらよ | 僕は... | — | pop | 使用者指定（使用者確認收），正式歌名寫法與年份製作時再查 |
 | [ ] | M!LK | 好きすぎて滅! | 2025 | idol | 2026 上半期 Billboard JAPAN #2 |
 | [ ] | 倉木麻衣 | Love, Day After Tomorrow | 1999 | pop | |
 | [ ] | 倉木麻衣 | Secret of my heart | 2000 | anime | 名探偵コナン |
-| [ ] | 倉木麻衣 | Time after time ～花舞う街で～ | 2003 | anime | 名探偵コナン。使用者寫「Secret of my heart ～花舞う街で～」，推定是兩首合併，待確認 |
+| [ ] | 倉木麻衣 | Time after time ～花舞う街で～ | 2003 | anime | 名探偵コナン（使用者確認收） |
 | [ ] | 倉木麻衣 | 渡月橋 ～君 想ふ～ | 2017 | anime | 名探偵コナン |
 | [ ] | ZARD | 負けないで | 1993 | pop | |
 | [ ] | ZARD | マイ フレンド | 1996 | anime | SLAM DUNK |
@@ -83,4 +83,12 @@
 ## 注意
 
 - 2005 年以前的歌不少；2026-10-17 改版曾拿掉年代較久遠的歌，這批是使用者明確選入。
-- **「Believe」撞名**：Folder5 與玉置成実都有，id 規則是「地區＋歌名」（`ja:Believe`），同地區內不能重複，製作時要處理（例如其中一首歌名加註）。
+- **「Believe」撞名（兩首都要收，使用者確認）**：`S()` 目前以 `地區 + ":" + 歌名` 當 id
+  （`static_src/utau_songs.js` 的 `function S`），Folder5 與玉置成実都會變成 `ja:Believe`，
+  `byId()` 只會找到第一首，`songs.json` 也以 id 對應音源。建議做法：
+  1. 讓 `S(year, title, artist, key)` 多一個可省略的第 4 參數，id 改為 `region + ":" + (key || title)`；
+     不傳 `key` 的既有歌 id 完全不變，既有題庫包與 `songs.json` 不受影響。
+  2. 兩首寫成 `S(2000, "Believe", "Folder5", "Believe (Folder5)")`、
+     `S(2003, "Believe", "玉置成実", "Believe (玉置成実)")`，畫面上顯示的歌名仍是「Believe」。
+  3. `songs.json` 用對應的新 id（`ja:Believe (Folder5)` 等）。`build_pack.py`／`find_urls.py`
+     讀的是 `song["id"]`／`song["t"]`，不會用歌名反推 id，應不需修改，但製作時仍要確認一次。
