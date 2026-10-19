@@ -141,6 +141,28 @@
 
   function undo(state) { return state && state.prev ? state.prev : null; }
 
+  // 已知會合出廢料的組合：材料本身是廢料，或遊戲紀錄中同一組合（不分順序）合出過廢料。
+  // 回傳 { result: 廢料 id 或 null, junkMaterial: 是否因材料是廢料 }；不是已知廢料則回傳 null。
+  // 只看紀錄，不偷看配方表，所以不會洩漏「沒試過的組合」是否有配方。
+  function knownJunk(theme, state, a, b) {
+    if (theme.junkSet[a] || theme.junkSet[b]) return { result: null, junkMaterial: true };
+    var key = pairKey(a, b);
+    for (var i = state.log.length - 1; i >= 0; i--) {
+      var e = state.log[i];
+      if (theme.junkSet[e.result] && pairKey(e.a, e.b) === key) return { result: e.result, junkMaterial: false };
+    }
+    return null;
+  }
+
+  // 把廢料移出池子（不算回合）。上一步的快照也一併清掉，復原時廢料不會跑回來。
+  function clearJunk(theme, state) {
+    var next = clone(state);
+    function strip(s) { s.pool = s.pool.filter(function (id) { return !theme.junkSet[id]; }); }
+    strip(next);
+    if (next.prev) strip(next.prev);
+    return next;
+  }
+
   // 分別裝置模式：手機只需要主題、seed、人數、自己的編號，就能算出自己的任務（不同步）
   function joinParam(state, index) {
     return [state.themeId, state.seed, state.players.length, index].join(".");
@@ -472,6 +494,8 @@
     currentPlayer: currentPlayer,
     applyCombine: applyCombine,
     undo: undo,
+    knownJunk: knownJunk,
+    clearJunk: clearJunk,
     joinParam: joinParam,
     parseJoin: parseJoin,
     normSpeech: normSpeech,

@@ -1,0 +1,30 @@
+{
+  "category": "material",
+  "open": true,
+  "items": [
+    {"id": "x_hongbu", "zh": "紅布", "ja": "紅布"},
+    {"id": "x_changyi", "zh": "腸衣", "ja": "腸"},
+    {"id": "x_konglonghuashi", "zh": "恐龍化石", "ja": "恐竜の化石"},
+    {"id": "x_biejia", "zh": "鼈甲", "ja": "鼈甲"},
+    {"id": "x_pige", "zh": "皮革", "ja": "革"},
+    {"id": "x_rouzhi", "zh": "鞣製", "ja": "鞣し"},
+    {"id": "x_heifa", "zh": "黑髮", "ja": "黒髪"},
+    {"id": "x_qiangbi", "zh": "牆壁", "ja": "壁"},
+    {"id": "x_hezhi", "zh": "和紙", "ja": "和紙"},
+    {"id": "x_fayou", "zh": "髮油", "ja": "髪油"},
+    {"id": "x_huxu", "zh": "鬍鬚", "ja": "ひげ"}
+  ],
+  "recipes": [
+    ["mat_cloth", "material_shu", "x_hongbu"],
+    ["x_zhurou", "mat_rope", "x_changyi"],
+    ["material_fossil", "x_fujing", "x_konglonghuashi"],
+    ["yokai_kame", "tool_kushi", "x_biejia"],
+    ["food_momijiniku", "x_rouzhi", "x_pige"],
+    ["plant_302", "yokai_jyu", "x_rouzhi"],
+    ["person_001", "material_bokuju", "x_heifa"],
+    ["yokai_nurikabe", "material_tsuchikabe", "x_qiangbi"],
+    ["material_washi", "plant_323", "x_hezhi"],
+    ["plant_134", "material_tomyoyu", "x_fayou"],
+    ["person_006", "material_mosen", "x_huxu"]
+  ]
+}

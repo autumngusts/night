@@ -1,0 +1,10 @@
+{
+  "category": "weapon",
+  "open": true,
+  "items": [
+    {"id": "x_aizhikui", "zh": "愛之盔", "ja": "愛の兜"}
+  ],
+  "recipes": [
+    ["weapon_kabuto", "concept_koigokoro", "x_aizhikui"]
+  ]
+}

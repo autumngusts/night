@@ -65,6 +65,15 @@ class BuildTest(unittest.TestCase):
         th = self.load({"theme.json": THEME, "core.json": CORE, "c.json": CAT_C, "d.json": cat_d})
         self.assertTrue(any("d.json" in e for e in th["errors"]), th["errors"])
 
+    def test_open_chunk_may_use_any_category(self):
+        cat_d = {"category": "d", "open": True, "items": [{"id": "d1", "zh": "丁", "ja": "丁"}],
+                 "recipes": [["c2", "c3", "d1"]]}
+        th = self.load({"theme.json": THEME, "core.json": CORE, "c.json": CAT_C, "d.json": cat_d})
+        self.assertEqual(th["errors"], [])
+        bad = dict(cat_d, recipes=[["c2", "c3", "c1"]])
+        th = self.load({"theme.json": THEME, "core.json": CORE, "c.json": CAT_C, "d.json": bad})
+        self.assertTrue(any("不屬於分類" in e for e in th["errors"]), th["errors"])
+
     def test_duplicate_name(self):
         cat = dict(CAT_C, items=[{"id": "c2", "zh": "一", "ja": "二"}, {"id": "c3", "zh": "三", "ja": "三"}])
         th = self.load({"theme.json": THEME, "core.json": CORE, "c.json": cat})

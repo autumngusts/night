@@ -21,7 +21,7 @@
   var state = null;
   var draft = { themeId: "wuxia", mode: "shared", names: ["", ""], voice: false };
   var ui = { revealedFor: null, revealed: false, slots: [null, null], lastEntry: null, search: "", cat: "all",
-    qrFor: null, confirmNew: false, error: "", loading: false, screen: "play" };
+    qrFor: null, confirmNew: false, junkWarn: null, error: "", loading: false, screen: "play" };
   var join = null;
 
   function t(key, params) { return window.I18N.t(key, params); }
@@ -217,6 +217,7 @@
     ui.slots = [null, null];
     ui.lastEntry = null;
     ui.confirmNew = false;
+    ui.junkWarn = null;
   }
 
   // ---------------- 同一裝置：各玩家的隱藏任務 ----------------
@@ -290,7 +291,7 @@
       el("h2", { text: t("gs_result_heading", { name: p.name }) }),
       el("p", { class: "gs-formula", text: itemName(theme, e.a) + " ＋ " + itemName(theme, e.b) + " →" }),
       el("p", { class: "gs-big", "data-result": e.result, text: itemName(theme, e.result) }),
-      el("p", { class: "gs-muted", text: t("gs_target_meta", { cat: catName(theme, it.cat), tier: it.tier }) + "　" + status }),
+      el("p", { class: "gs-muted", text: (theme.junkSet[e.result] ? t("gs_junk_meta") : t("gs_target_meta", { cat: catName(theme, it.cat), tier: it.tier })) + "　" + status }),
       e.achieved ? el("p", { class: "gs-big", text: t("gs_achieved", { done: p.done.length, total: p.targets.length }) }) : null,
       state.winner ? null : el("div", { class: "gs-actions" }, [
         el("button", { id: "gs-next", type: "button", class: "gs-primary", text: t("gs_next"), onclick: nextTurn })
@@ -308,21 +309,37 @@
       var id = ui.slots[i];
       return el("button", { id: "gs-slot-" + i, type: "button", class: "gs-slot" + (id ? " gs-filled" : ""),
         text: id ? itemName(theme, id) : t("gs_slot_empty"),
-        onclick: function () { ui.slots[i] = null; render(); } });
+        onclick: function () { ui.slots[i] = null; ui.junkWarn = null; render(); } });
     }
     var ready = ui.slots[0] && ui.slots[1];
+    var w = ui.junkWarn;
+    var actions = w ? el("div", { id: "gs-junk-warn", class: "gs-junk-warn" }, [
+      el("p", { text: w.junkMaterial ? t("gs_junk_warn_material")
+        : t("gs_junk_warn_seen", { r: itemName(theme, w.result) }) }),
+      el("div", { class: "gs-actions" }, [
+        el("button", { id: "gs-combine-anyway", type: "button", text: t("gs_junk_warn_go"), onclick: function () { doCombine(true); } }),
+        el("button", { id: "gs-junk-warn-cancel", type: "button", class: "gs-primary", text: t("gs_junk_warn_change"),
+          onclick: function () { ui.slots = [null, null]; ui.junkWarn = null; render(); } })
+      ])
+    ]) : el("div", { class: "gs-actions" }, [
+      el("button", { id: "gs-combine", type: "button", class: "gs-primary", disabled: !ready, text: t("gs_combine"), onclick: function () { doCombine(false); } }),
+      el("button", { id: "gs-clear", type: "button", text: t("gs_clear"), onclick: function () { ui.slots = [null, null]; render(); } })
+    ]);
     return el("div", { class: "gs-panel gs-workbench" }, [
       el("div", { class: "gs-slots" }, [slot(0), el("span", { class: "gs-plus", text: "＋" }), slot(1)]),
-      el("div", { class: "gs-actions" }, [
-        el("button", { id: "gs-combine", type: "button", class: "gs-primary", disabled: !ready, text: t("gs_combine"), onclick: doCombine }),
-        el("button", { id: "gs-clear", type: "button", text: t("gs_clear"), onclick: function () { ui.slots = [null, null]; render(); } })
-      ])
+      actions
     ]);
   }
 
-  function doCombine() {
+  // force＝false 時，已知會合出廢料的組合先提示（見 Core.knownJunk）；語音模式一律直接合成
+  function doCombine(force) {
     var theme = themes[state.themeId];
     ui.confirmNew = false;
+    if (!force) {
+      var known = Core.knownJunk(theme, state, ui.slots[0], ui.slots[1]);
+      if (known) { ui.junkWarn = known; render(); return; }
+    }
+    ui.junkWarn = null;
     var res = Core.applyCombine(theme, state, ui.slots[0], ui.slots[1]);
     state = res.state;
     ui.lastEntry = res.entry;
@@ -335,6 +352,7 @@
   function pickItem(id) {
     if (ui.lastEntry || state.winner) return;
     ui.confirmNew = false;
+    ui.junkWarn = null;
     if (!ui.slots[0]) ui.slots[0] = id;
     else ui.slots[1] = id;
     render();
@@ -371,8 +389,21 @@
     // 只重畫清單，不重畫整個畫面（避免輸入框失去焦點）
     search.addEventListener("input", function () { ui.search = search.value; fillPoolList(theme, list); });
     fillPoolList(theme, list);
+    var junkCount = state.pool.filter(function (id) { return theme.junkSet[id]; }).length;
     return el("div", { id: "gs-pool", class: "gs-panel gs-pool" }, [
-      el("h2", { text: t("gs_pool", { n: state.pool.length }) }),
+      el("div", { class: "gs-pool-head" }, [
+        el("h2", { text: t("gs_pool", { n: state.pool.length }) }),
+        junkCount && !state.winner ? el("button", { id: "gs-clear-junk", type: "button", text: t("gs_clear_junk", { n: junkCount }),
+          onclick: function () {
+            state = Core.clearJunk(theme, state);
+            ui.junkWarn = null;
+            if (theme.junkSet[ui.slots[0]]) ui.slots[0] = null;
+            if (theme.junkSet[ui.slots[1]]) ui.slots[1] = null;
+            if (!ui.slots[0] && ui.slots[1]) ui.slots = [ui.slots[1], null];
+            save();
+            render();
+          } }) : null
+      ]),
       el("div", { class: "gs-field" }, [search, select]),
       list
     ]);
@@ -824,23 +855,28 @@
     });
     if (!best) return false;
     clearVoiceTimers();
-    if (best.exact) {
+    // 語音比對本來就排除廢料，所以這裡只會遇到「合過的組合合出廢料」
+    var known = Core.knownJunk(theme, state, best.a, best.b);
+    if (best.exact && !known) {
       ui.slots = [best.a, best.b];
-      doCombine();
+      doCombine(true);
     } else {
-      askConfirm(best);
+      askConfirm(best, known);
     }
     return true;
   }
 
-  // 只靠讀音或近似比對的結果：先問「A 加 B，對嗎？」，說「對」才合成
-  function askConfirm(pick) {
+  // 只靠讀音或近似比對的結果：先問「A 加 B，對嗎？」，說「對」才合成。
+  // 合過會變廢料的組合改問「之前合過，結果是廢料 X，還要合成嗎？」（與讀音確認合併成一句，不問兩次）
+  function askConfirm(pick, known) {
     var theme = themes[state.themeId];
     var names = { a: itemName(theme, pick.a), b: itemName(theme, pick.b) };
+    var junk = known && known.result;
+    if (junk) names.r = itemName(theme, junk);
     voice.pending = { a: pick.a, b: pick.b };
-    voice.status = t("gs_voice_confirm_status", names);
+    voice.status = t(junk ? "gs_voice_junk_status" : "gs_voice_confirm_status", names);
     render();
-    speak([t("gs_voice_confirm_q", names)], function () {
+    speak([t(junk ? "gs_voice_junk_q" : "gs_voice_confirm_q", names)], function () {
       if (!voice.pending) return;
       beep();
       clearTimeout(voice.pendingTimer);
@@ -858,7 +894,7 @@
     stopSpeaking();
     if (yes) {
       ui.slots = [p.a, p.b];
-      doCombine();
+      doCombine(true);
     } else {
       render();
       retryCommand("gs_voice_again");

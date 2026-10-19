@@ -90,7 +90,7 @@ def load_theme(theme_dir: Path, skeleton: bool = False) -> dict:
                 errors.append(f"{path.name}: {it.get('id')} 必須屬於分類 {own}")
                 continue
             add_item(it, cat, path.name)
-        chunks.append((path.name, own, chunk.get("recipes", [])))
+        chunks.append((path.name, own, chunk.get("recipes", []), bool(chunk.get("open"))))
 
     for lang in ("zh", "ja"):
         seen: dict[str, str] = {}
@@ -103,7 +103,7 @@ def load_theme(theme_dir: Path, skeleton: bool = False) -> dict:
 
     recipes: dict[str, str] = {}
     recipe_src: dict[str, str] = {}
-    for src, own, rows in chunks:
+    for src, own, rows, is_open in chunks:
         for row in rows:
             if not (isinstance(row, list) and len(row) == 3):
                 errors.append(f"{src}: 配方格式錯誤 {row!r}")
@@ -123,10 +123,11 @@ def load_theme(theme_dir: Path, skeleton: bool = False) -> dict:
                 if items[r]["cat"] != own:
                     errors.append(f"{src}: 配方 {row} 的結果不屬於分類 {own}")
                     continue
-                if own not in (items[a]["cat"], items[b]["cat"]):
+                # 擴充檔（"open": true）可引用主題內任何物體，只要求結果屬於本分類
+                if not is_open and own not in (items[a]["cat"], items[b]["cat"]):
                     errors.append(f"{src}: 配方 {row} 至少要有一個材料屬於分類 {own}")
                     continue
-                foreign = [x for x in (a, b) if items[x]["src"] not in (src, "core.json", "theme.json")]
+                foreign = [] if is_open else [x for x in (a, b) if items[x]["src"] not in (src, "core.json", "theme.json")]
                 if foreign:
                     errors.append(f"{src}: 配方 {row} 的材料 {foreign} 只能來自本檔、core.json 或初始物體")
                     continue

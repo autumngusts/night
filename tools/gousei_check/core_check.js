@@ -126,6 +126,23 @@ assert.strictEqual(w.state.winner, "p1");
 assert.strictEqual(w.state.turn, 0, "獲勝後不再輪替");
 assert.throws(function () { Core.applyCombine(theme, w.state, "b1", "b1"); }, /game-over/);
 
+// ---- 已知廢料組合與清除廢料 ----
+var j1 = Core.applyCombine(theme, res.state, "b1", "i2"); // 沒有配方 → 廢料
+var junkId = j1.entry.result;
+assert.ok(theme.junkSet[junkId], "無配方＝廢料");
+assert.strictEqual(Core.knownJunk(theme, res.state, "b1", "i2"), null, "沒合過的組合不提示（不偷看配方表）");
+assert.deepStrictEqual(Core.knownJunk(theme, j1.state, "i2", "b1"), { result: junkId, junkMaterial: false }, "合過的組合不分順序");
+assert.strictEqual(Core.knownJunk(theme, j1.state, "b1", "b2"), null, "有配方的組合不提示");
+assert.deepStrictEqual(Core.knownJunk(theme, j1.state, junkId, "b1"), { result: null, junkMaterial: true }, "材料是廢料");
+var cleared = Core.clearJunk(theme, j1.state);
+assert.strictEqual(cleared.pool.indexOf(junkId), -1, "廢料移出池子");
+assert.deepStrictEqual(cleared.pool, ["b1", "b2", "i2"]);
+assert.strictEqual(cleared.turn, j1.state.turn, "清除廢料不算回合");
+assert.strictEqual(cleared.log.length, j1.state.log.length, "紀錄保留，仍可提示");
+assert.ok(Core.knownJunk(theme, cleared, "b1", "i2"));
+assert.ok(j1.state.pool.indexOf(junkId) >= 0, "不改動傳入的 state");
+assert.deepStrictEqual(Core.undo(cleared).pool, res.state.pool, "清除後仍可復原上一步合成");
+
 // ---- 參加碼 ----
 var jp = Core.joinParam(st, 1);
 assert.strictEqual(jp, "fx.seedA.2.1");

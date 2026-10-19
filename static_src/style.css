@@ -11934,6 +11934,17 @@ body.ut-has-player {
 .gs-pool h2 {
   font-size: 1.3em;
 }
+.gs-pool-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+.gs-junk-warn {
+  border-left: 4px solid #c0392b;
+  padding-left: 0.75rem;
+}
 .gs-pool-list {
   display: flex;
   flex-wrap: wrap;

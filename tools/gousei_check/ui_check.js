@@ -3,7 +3,7 @@
 //   同一裝置：設定 → 開局任務確認（全員看過並隱藏才能開始）→ 大池子 → 池子下方展開任務 → 合成 → 結果
 //            → 下一位（不再交接）→ 復原 → 重新整理還原 → 親手達成任務
 //   分別裝置：QR 畫面 → 手機頁任務與共用裝置一致 → 無效連結
-//   語音模式（假的辨識／朗讀）：朗讀輪到誰與池子 → 喚醒詞 → 「A 加 B」直接合成 → 自動換人 → 聽不懂重說
+//   語音模式（假的辨識／朗讀）：朗讀輪到誰與池子 → 喚醒詞 → 「A 加 B」直接合成 → 自動換人 → 聽不懂重說 → 合過的廢料組合念提醒
 //   兩個主題都能載入；切換日文後名稱改變
 // 前置：
 //   1. py -3 generate.py
@@ -147,6 +147,51 @@ async function confirmAll(page, count) {
   await page.fill("#gs-pool-search", "水");
   assert.ok(await page.evaluate(function () { return document.activeElement.id === "gs-pool-search"; }));
   await page.fill("#gs-pool-search", "");
+
+  // 已知廢料組合：第二次按合成先提示，可換一組或仍要合成；之後可一鍵清除池子裡的廢料
+  var junkPair = await page.evaluate(function () {
+    var th = window.PriTestGousei._theme();
+    var pool = window.PriTestGousei._debugState().pool;
+    for (var i = 0; i < pool.length; i++) for (var j = i; j < pool.length; j++) {
+      var k = pool[i] <= pool[j] ? pool[i] + "|" + pool[j] : pool[j] + "|" + pool[i];
+      if (!th.recipes[k] && !th.junkSet[pool[i]] && !th.junkSet[pool[j]]) return [pool[i], pool[j]];
+    }
+    return null;
+  });
+  assert.ok(junkPair, "初始池子要有無配方的組合");
+  async function pickPair(p) {
+    await page.click('#gs-pool-list button[data-item="' + p[0] + '"]');
+    await page.click('#gs-pool-list button[data-item="' + p[1] + '"]');
+  }
+  assert.strictEqual(await page.locator("#gs-clear-junk").count(), 0, "沒有廢料時不顯示清除鍵");
+  await pickPair(junkPair);
+  await page.click("#gs-combine");
+  await page.waitForSelector("#gs-result");
+  assert.ok((await page.textContent("#gs-result")).indexOf("廢料・不能再合成") >= 0);
+  await page.click("#gs-next");
+  var logLen = (await debugState(page)).log.length;
+  await pickPair([junkPair[1], junkPair[0]]);
+  await page.click("#gs-combine");
+  await page.waitForSelector("#gs-junk-warn");
+  assert.ok((await page.textContent("#gs-junk-warn")).indexOf("之前合過") >= 0, "已知廢料組合先提示");
+  assert.strictEqual((await debugState(page)).log.length, logLen, "提示時尚未合成");
+  await page.click("#gs-junk-warn-cancel");
+  assert.strictEqual(await page.locator("#gs-junk-warn").count(), 0);
+  assert.strictEqual(await page.locator(".gs-slot.gs-filled").count(), 0, "換一組＝清空材料欄");
+  await pickPair(junkPair);
+  await page.click("#gs-combine");
+  await page.click("#gs-combine-anyway");
+  await page.waitForSelector("#gs-result");
+  assert.strictEqual((await debugState(page)).log.length, logLen + 1, "仍要合成＝照常合成");
+  await page.click("#gs-next");
+  await page.click("#gs-clear-junk");
+  st = await debugState(page);
+  assert.strictEqual(await page.evaluate(function () {
+    var th = window.PriTestGousei._theme();
+    return window.PriTestGousei._debugState().pool.filter(function (id) { return th.junkSet[id]; }).length;
+  }), 0, "池子沒有廢料");
+  assert.strictEqual(await page.locator("#gs-clear-junk").count(), 0, "清除後按鍵消失");
+  assert.strictEqual(st.log.length, logLen + 1, "清除廢料不算回合");
 
   // 親手達成：把目前玩家中階任務的兩個材料放進池子，合成後應達成
   st = await debugState(page);
@@ -295,12 +340,44 @@ async function confirmAll(page, count) {
   await vpage.click("#gs-voice-train-clear");
   assert.deepStrictEqual(await vpage.evaluate(function () { return window.PriTestGousei._wakeTemplates(); }), []);
 
+  // 合過會變廢料的組合：語音也先念提醒，說「對」才合成
+  function turnsSpoken() {
+    return vpage.evaluate(function () { return window.__spoken.filter(function (s) { return s.indexOf("輪到") >= 0; }).length; });
+  }
+  async function waitNextTurn(n) {
+    await vpage.waitForFunction(function (k) { return window.__spoken.filter(function (s) { return s.indexOf("輪到") >= 0; }).length > k; }, n);
+    await waitListening(vpage);
+  }
+  var vj = await vpage.evaluate(function () {
+    var th = window.PriTestGousei._theme(), pool = window.PriTestGousei._debugState().pool;
+    for (var i = 0; i < pool.length; i++) for (var j = i + 1; j < pool.length; j++) {
+      var k = pool[i] <= pool[j] ? pool[i] + "|" + pool[j] : pool[j] + "|" + pool[i];
+      if (!th.recipes[k] && !th.junkSet[pool[i]] && !th.junkSet[pool[j]]) return [pool[i], pool[j], th.byId[pool[i]].zh, th.byId[pool[j]].zh];
+    }
+    return null;
+  });
+  assert.ok(vj, "語音測試要有無配方的組合");
+  var nTurns = await turnsSpoken();
+  await vpage.click('#gs-pool-list button[data-item="' + vj[0] + '"]');
+  await vpage.click('#gs-pool-list button[data-item="' + vj[1] + '"]');
+  await vpage.click("#gs-combine");
+  await waitNextTurn(nTurns);
+  assert.strictEqual((await debugState(vpage)).log.length, 6);
+  await vpage.click("#gs-voice-talk");
+  await voiceHeard(vpage, [vj[3] + "加" + vj[2]]);
+  await waitSpoken(vpage, "之前合過");
+  assert.ok((await vpage.textContent("#gs-voice-status")).indexOf("廢料") >= 0, "畫面也顯示提醒");
+  assert.strictEqual((await debugState(vpage)).log.length, 6, "提醒時尚未合成");
+  await vpage.waitForTimeout(80);
+  await voiceHeard(vpage, ["對"]);
+  assert.strictEqual((await debugState(vpage)).log.length, 7, "說「對」照常合成");
+
   // 關閉語音模式後不再反應
   await vpage.waitForSelector("#gs-voice-toggle");
   await vpage.click("#gs-voice-toggle");
   assert.ok(!(await vpage.evaluate(function () { return window.PriTestGousei._voiceOn(); })));
   await voiceHeard(vpage, ["yo アキ 金加金"]);
-  assert.strictEqual((await debugState(vpage)).log.length, 5);
+  assert.strictEqual((await debugState(vpage)).log.length, 7);
   await vctx.close();
 
   assert.deepStrictEqual(pageErrors, [], "頁面不應有 JS 錯誤");

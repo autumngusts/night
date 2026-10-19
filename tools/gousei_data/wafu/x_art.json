@@ -1,0 +1,24 @@
+{
+  "category": "art",
+  "open": true,
+  "items": [
+    {"id": "x_zuoshoudao", "zh": "左手刀", "ja": "左利きの剣"},
+    {"id": "x_xinyinliu", "zh": "新陰流", "ja": "新陰流"},
+    {"id": "x_beichenyidaoliu", "zh": "北辰一刀流", "ja": "北辰一刀流"},
+    {"id": "x_zhixinyingliu", "zh": "直心影流", "ja": "直心影流"},
+    {"id": "x_jiejin", "zh": "截金", "ja": "截金"},
+    {"id": "x_jiande", "zh": "見得", "ja": "見得"},
+    {"id": "x_huadao", "zh": "花道", "ja": "花道"},
+    {"id": "x_shiziwu", "zh": "獅子舞", "ja": "獅子舞"}
+  ],
+  "recipes": [
+    ["person_027", "tol_mirror", "x_zuoshoudao"],
+    ["art_n003", "art_kenjutsu", "x_xinyinliu"],
+    ["art_n001", "nature_hokkyokusei", "x_beichenyidaoliu"],
+    ["art_kenjutsu", "nat_shadow", "x_zhixinyingliu"],
+    ["x_jiejinshi", "trs_goldleaf", "x_jiejin"],
+    ["person_159", "tool_kumadori", "x_jiande"],
+    ["person_159", "place_engawabutai", "x_huadao"],
+    ["faith_150", "person_182", "x_shiziwu"]
+  ]
+}
