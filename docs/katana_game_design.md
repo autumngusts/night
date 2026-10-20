@@ -233,6 +233,16 @@
   * **合併**：同 uid 取 `saved` 較新的快照、勝／敗各取較大值；新刀加入；最後依 `saved` 新→舊排序。
   * **覆蓋**：確認一次後整個取代。
 
+### 7.5 連線對刀（使用者指定 2026-10-20，最多 8 把刀）
+
+* 準備畫面「連線對刀」→「建立房間」，網址變成 `katana/index.html?room=<g+32hex>`，傳給其他人；其他人打開網址或貼上網址加入。各自從**自己的刀鞘**選刀、按「準備好了」；沒選刀＝觀戰。房主可加入 AI 對手刀補人數。出戰總數（玩家＋AI）上限 8 把，滿了之後新加入的人只能觀戰。
+* 模組：`katana_net.js`（`PriTestKatanaNet`）負責房間協定與同步；畫面在 `katana.js`。Firebase 沿用 `game_storage.js` 的 `rtSet`／`rtSubscribe`／`rtTransaction`／`rtSetWithOnDisconnect`，資料放在 `games/<roomId>/rtState/kt/...`，**`database.rules.json` 不用改**。Firebase SDK 只在開房／進房時才載入。
+* 資料：`meta { host, no, status: "lobby"|"play" }`、`on/<cid>`（在線，onDisconnect 自動移除）、`pl/<cid> { name, snap, ready, at }`、`npc`、`m/<no> { seed, fighters, startAt }`、`in<no>/<r>/<cid>`（各玩家第 r 回合放的牌）、`s<no> { r, st, end, seq }`（房主在回合交界寫的整份狀態）。
+* **同步方式（房主為準）**：大家用同一個 seed 各自模擬（固定步長）。招式只在回合交界發動，所以玩家放的牌先記成「下個交界生效」；交界前 0.25 秒起放的牌算下一回合。到交界時房主收齊在線玩家的牌（最多等 1.5 秒），用 `Arena.queueCard` 套用後把 `Arena.serialize(a)` 寫進 `s<no>`；其他人停在交界，收到後 `Arena.restore()` 換上再繼續。每回合重新對齊，不同瀏覽器的浮點誤差不會累積；落後的人收到較新的狀態會直接跳上去。結束也以房主送出的結束狀態為準。
+* 為此 `katana_arena.js` 的亂數改成存在 `a.rng` 的數字（同一個 mulberry32，結果與舊版完全相同），並提供 `serialize`／`restore`（binds 的 fighter 參照換成 id）／`atBoundary`。
+* 斷線：玩家離線→房主在下一個交界把那把刀改成 AI（`f.human = false`，寫進狀態，大家看到一致）；房主在大廳離線→最早加入的在線者自動接手（transaction）；房主在對局中離線→對局中止。對局中途進房或重新整理的人以觀戰者身分從最新狀態接著看。
+* 戰績：每個人只把自己出戰那把刀的勝敗寫回自己的刀鞘。
+
 ## 8. 測試
 
 ```bash
@@ -241,4 +251,6 @@ py -3 generate.py
 py -3 -m http.server 8944 --directory dist
 node tools/katana_check/ui_check.js
 node tools/katana_check/scabbard_check.js
+# 連線對刀（需先啟動 Firebase emulator：tools/midnight_check/node_modules/.bin/firebase emulators:start --only database,auth --project elden-ring-nightreign）
+node tools/katana_check/net_check.js
 ```

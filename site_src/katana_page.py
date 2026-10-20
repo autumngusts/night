@@ -1,6 +1,7 @@
 """神前鍛刀對決（katana）のページを組み立てる。
 
-ゲームロジックはすべてブラウザ側：static/katana_data.js（資料）→ static/katana_core.js（冶金・規則引擎）→ static/katana_arena.js（對刀場模擬）→ static/katana.js（UI）。
+ゲームロジックはすべてブラウザ側：static/katana_data.js（資料）→ static/katana_core.js（冶金・規則引擎）→ static/katana_arena.js（對刀場模擬）→ static/katana_net.js（連線對刀：firebase_config.js／game_storage.js の rtState を使う）→ static/katana.js（UI）。
+Firebase SDK は連線對刀の房間を開いたときだけ game_storage.js が遅延ロードする（ふだんは通信なし）。
 """
 
 from __future__ import annotations
@@ -11,6 +12,9 @@ KATANA_SCRIPTS: tuple[str, ...] = (
     "katana_data.js",
     "katana_core.js",
     "katana_arena.js",
+    "firebase_config.js",
+    "game_storage.js",
+    "katana_net.js",
     "katana.js",
 )
 

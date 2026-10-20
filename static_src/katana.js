@@ -20,7 +20,8 @@
     return { draft: {}, mg: {}, handoff: -1, result: null, confirmNew: false, error: "", cutResult: null, npc: null, scPick: null,
       arena: null, arenaKey: null, arenaSpeed: 1, duel: null, lobby: ui ? ui.lobby : null, invite: ui ? ui.invite : null, inviteKept: ui ? ui.inviteKept : false,
       inviteOpen: null, copyMsg: "", importText: "", importErr: false, confirmDel: null,
-      lab: ui ? ui.lab : null, labOpen: ui ? ui.labOpen : false };
+      lab: ui ? ui.lab : null, labOpen: ui ? ui.labOpen : false,
+      room: ui ? ui.room : null, roomSword: ui ? ui.roomSword : null, duelDoneNo: ui ? ui.duelDoneNo : null };
   }
   var anim = null;
 
@@ -1131,6 +1132,7 @@
   function renderSetup() {
     var saved = load();
     var wrap = el("div", {});
+    if (ui.room) wrap.appendChild(roomPanel());
     if (ui.invite) wrap.appendChild(invitePanel());
     // 預覽用（artifact）可把實驗場放最上面並展開：window.PRITEST_KATANA_LAB_FIRST
     var labFirst = !!window.PRITEST_KATANA_LAB_FIRST;
@@ -1184,6 +1186,7 @@
       wrap.appendChild(panel);
       wrap.appendChild(lobbyPanel());
     }
+    if (!ui.room) wrap.appendChild(netEntryPanel());
     if (!labFirst) wrap.appendChild(labPanel(false));
     wrap.appendChild(scabbardPanel());
     wrap.appendChild(specialsCatalog());
@@ -1670,12 +1673,14 @@
 
   // ---------------- 對刀場（畫面） ----------------
   // a：PriTestKatanaArena.create() 的狀態（保存在 ui，重新 render 也能接著打）。onEnd(result) 只會呼叫一次。
+  // net：連線對刀的控制器（PriTestKatanaNet 的 matchCtl）。有的時候：只有自己的刀能放牌、放的牌在回合交界
+  //      才由房主統一套用；每一步前問 net.canStep()；沒有暫停・加速・快轉。
 
   function arenaFighterLabel(f) {
     return f.name + (f.snap && f.snap.name ? "「" + f.snap.name + "」" : "");
   }
 
-  function arenaView(a, onEnd) {
+  function arenaView(a, onEnd, net) {
     var Arena = window.PriTestKatanaArena;
     var wrap = el("div", { class: "kt-arena" });
     var hud = el("div", { class: "kt-arena-hud" });
@@ -1683,8 +1688,10 @@
     var btnPause = el("button", { type: "button", text: t("kt_ar_pause") });
     var btnSpeed = el("button", { type: "button", text: "×" + (ui.arenaSpeed || 1) });
     var btnSkip = el("button", { type: "button", text: t("kt_ar_skip") });
+    var netTxt = el("span", { class: "kt-arena-net" });
     hud.appendChild(roundTxt);
-    hud.appendChild(el("span", { class: "kt-arena-hud-btns" }, [btnPause, btnSpeed, btnSkip]));
+    if (net) hud.appendChild(netTxt);
+    else hud.appendChild(el("span", { class: "kt-arena-hud-btns" }, [btnPause, btnSpeed, btnSkip]));
     var canvas = el("canvas", { class: "kt-arena-canvas", width: "600", height: "600", "aria-label": t("kt_clash_title") });
     var feed = el("ol", { class: "kt-arena-feed" });
     var panels = el("div", { class: "kt-arena-panels" });
@@ -1715,6 +1722,7 @@
           el("span", { class: "kt-af-dot" }),
           el("strong", { text: arenaFighterLabel(f) }),
           f.human ? null : el("span", { class: "kt-af-ai", text: "AI" }),
+          net && net.mine(f.id) ? el("span", { class: "kt-af-me", text: t("kt_net_you") }) : null,
           !f.alive ? el("span", { class: "kt-bad", text: " " + t(f.out === "stall" ? "kt_ar_stalled" : "kt_broken") }) : null,
           a.winner === f.id ? el("span", { text: " 🏆" }) : null
         ]);
@@ -1722,30 +1730,46 @@
         var traits = el("div", { class: "kt-af-traits" }, [el("span", { class: "kt-af-style", title: L(D.ARENA_STYLES[f.prof.style].desc), text: L(D.ARENA_STYLES[f.prof.style].name) })]
           .concat(f.prof.traits.map(function (tr) { return el("span", { class: "kt-af-trait", title: L(D.ARENA_TRAITS[tr].desc), text: L(D.ARENA_TRAITS[tr].name) }); })));
         var q = el("div", { class: "kt-af-queue" });
+        // 連線：已放但還沒到回合交界的牌（pend）排在等待區後面
+        var mine = f.human && (!net || net.mine(f.id));
+        var pend = net && mine ? net.pending(f.id) : [];
+        function pendName(u) {
+          if (u === "special") return f.special ? L(Core.byId(D.SPECIALS, f.special).name) : u;
+          var h = f.hand.filter(function (x) { return x.uid === u; })[0];
+          return h ? cardName(h.card) : u;
+        }
         for (var i = 0; i < Arena.QUEUE; i++) {
-          var it = f.queue[i];
-          q.appendChild(el("div", { class: "kt-af-slot" + (it ? " kt-af-slot-on" + (it.special ? " kt-af-slot-sp" : "") : "") },
-            it ? [el("strong", { text: cardName(it.card) }), el("span", { class: "kt-muted", text: t("kt_ar_at", { n: it.at }) })] : [el("span", { class: "kt-muted", text: t("kt_ar_slot_empty") })]));
+          var it = f.queue[i], pu = !it ? pend[i - f.queue.length] : null;
+          q.appendChild(el("div", { class: "kt-af-slot" + (it ? " kt-af-slot-on" + (it.special ? " kt-af-slot-sp" : "") : (pu ? " kt-af-slot-pending" : "")) },
+            it ? [el("strong", { text: cardName(it.card) }), el("span", { class: "kt-muted", text: t("kt_ar_at", { n: it.at }) })]
+              : pu ? [el("strong", { text: pendName(pu) }), el("span", { class: "kt-muted", text: t("kt_net_pending") })]
+              : [el("span", { class: "kt-muted", text: t("kt_ar_slot_empty") })]));
         }
         var hand = el("div", { class: "kt-af-hand" });
-        var canQueue = f.alive && !a.over && f.queue.length < Arena.QUEUE;
-        if (f.human) {
+        var canQueue = f.alive && !a.over && f.queue.length + pend.length < Arena.QUEUE;
+        function play(uid) {
+          if (net) { if (net.pick(a, f.id, uid)) buildPanels(); }
+          else if (!Arena.queueCard(a, f.id, uid)) buildPanels();
+        }
+        if (mine) {
           f.hand.forEach(function (h) {
             var c = Arena.cardDef(h.card);
-            hand.appendChild(el("button", { type: "button", class: "kt-card-btn kt-card-" + c.kind, disabled: !canQueue, title: L(c.desc), "data-card": h.card,
-              onclick: function () { if (!Arena.queueCard(a, f.id, h.uid)) buildPanels(); } }, [
+            hand.appendChild(el("button", { type: "button", class: "kt-card-btn kt-card-" + c.kind, disabled: !canQueue || pend.indexOf(h.uid) >= 0, title: L(c.desc), "data-card": h.card,
+              onclick: function () { play(h.uid); } }, [
               el("strong", { text: L(c.name) }),
               el("span", { text: c.wait ? t("kt_ar_wait_n", { n: c.wait }) : t("kt_ar_wait_0") })
             ]));
           });
           if (f.special) {
             var spc = Core.byId(D.SPECIALS, f.special);
-            hand.appendChild(el("button", { type: "button", class: "kt-card-btn kt-card-special", disabled: !canQueue || f.specialUsed, title: L(spc.desc), "data-card": "special",
-              onclick: function () { if (!Arena.queueCard(a, f.id, "special")) buildPanels(); } }, [
+            hand.appendChild(el("button", { type: "button", class: "kt-card-btn kt-card-special", disabled: !canQueue || f.specialUsed || pend.indexOf("special") >= 0, title: L(spc.desc), "data-card": "special",
+              onclick: function () { play("special"); } }, [
               el("strong", { text: L(spc.name) }),
               el("span", { text: f.specialUsed ? t("kt_ar_used") : t("kt_ar_wait_n", { n: D.SPECIAL_WAIT }) })
             ]));
           }
+        } else if (f.human) {
+          hand.appendChild(el("span", { class: "kt-muted", text: t("kt_net_other_hand", { n: f.hand.length }) }));
         } else {
           hand.appendChild(el("span", { class: "kt-muted", text: t("kt_ar_ai_hand", { n: f.hand.length }) + (f.special ? "・" + t("kt_sp_has", { name: L(Core.byId(D.SPECIALS, f.special).name) }) + (f.specialUsed ? t("kt_ar_used_paren") : "") : "") }));
         }
@@ -1771,6 +1795,12 @@
         b.spTxt.textContent = Math.round(f.spin * 100) + "%";
       });
       roundTxt.textContent = a.over ? t("kt_ar_over") : t("kt_ar_round", { n: a.round, max: Arena.MAX_ROUNDS, s: (Arena.ROUND_S - (a.time % Arena.ROUND_S)).toFixed(1) });
+      if (net) {
+        var wait = net.startIn();
+        netTxt.textContent = net.hostGone ? t("kt_net_host_gone") : wait > 0 ? t("kt_net_countdown", { s: Math.ceil(wait / 1000) })
+          : net.waiting === "players" ? t("kt_net_wait_players") : net.waiting === "host" ? t("kt_net_wait_host") : "";
+        netTxt.className = "kt-arena-net" + (net.hostGone ? " kt-error" : "");
+      }
     }
 
     // ----- 文字戰況 -----
@@ -2110,6 +2140,8 @@
 
     function endIfOver() {
       if (!a.over || ended) return false;
+      // 連線：房主送出結束狀態後才算結束；非房主以房主的結束狀態為準
+      if (net) { net.canStep(a); if (!net.isHost && !net.ended) return false; }
       ended = true;
       stopAnim();
       onEnd(Arena.result(a));
@@ -2120,9 +2152,10 @@
     btnSpeed.addEventListener("click", function () { ui.arenaSpeed = ui.arenaSpeed === 2 ? 1 : 2; btnSpeed.textContent = "×" + ui.arenaSpeed; });
     btnSkip.addEventListener("click", function () { Arena.run(a); endIfOver(); });
 
+    if (net) net.onRestore = function () { vis.ver = -1; vis.logAt = Math.min(vis.logAt, a.log.length); };
     buildPanels();
     updateFeed();
-    if (a.over) { drawLater(); return wrap; }
+    if (a.over && (!net || net.isHost || net.ended)) { drawLater(); return wrap; }
 
     var acc = 0, last = 0;
     anim = { kind: "arena" };
@@ -2132,8 +2165,12 @@
       if (!paused) {
         acc += dt * (ui.arenaSpeed || 1);
         var n = 0;
-        while (acc >= Arena.DT && n++ < 8 && !a.over) { Arena.step(a); acc -= Arena.DT; }
+        while (acc >= Arena.DT && n++ < 8 && !a.over) {
+          if (net && !net.canStep(a)) { acc = 0; break; }
+          Arena.step(a); acc -= Arena.DT;
+        }
         if (n >= 8) acc = 0;
+        if (net && a.over) net.canStep(a);
         consumeEvents();
         tickVisuals(dt * (ui.arenaSpeed || 1));
       }
@@ -2441,6 +2478,199 @@
     return panel;
   }
 
+  // ---------------- 連線對刀（最多 8 把刀，使用者指定 2026-10-20） ----------------
+  // 房間與同步協定在 katana_net.js；這裡只做畫面。ui.room＝PriTestKatanaNet.open() 的房間物件。
+  // 房間網址：katana/index.html?room=<g+32hex>。玩家名稱記在 localStorage["pritest-katana-netname"]。
+  var NETNAME_KEY = "pritest-katana-netname";
+
+  function netName() { try { return localStorage.getItem(NETNAME_KEY) || ""; } catch (e) { return ""; } }
+  function setNetName(n) { try { localStorage.setItem(NETNAME_KEY, n); } catch (e) { /* 只是記不住 */ } }
+  function roomUrl(id) { return location.href.split(/[?#]/)[0] + "?room=" + id; }
+
+  function openRoom(roomId) {
+    var Net = window.PriTestKatanaNet;
+    if (!Net) return;
+    if (ui.room) ui.room.leave();
+    ui.roomSword = null;
+    ui.room = Net.open({ roomId: roomId || null, name: netName(), onChange: onRoomChange });
+    // 網址帶上房間（重新整理或傳給別人都能回到同一間）；同時去掉 ?duel= 邀請
+    try { history.replaceState(null, "", roomUrl(ui.room.id)); } catch (e) { /* file:// 等 */ }
+    rerenderKeepScroll();
+  }
+
+  function leaveRoom() {
+    if (ui.room) ui.room.leave();
+    ui.room = null;
+    if (ui.duel && ui.duel.online) ui.duel = null;
+    if (/[?&]room=/.test(location.search)) history.replaceState(null, "", location.href.split(/[?#]/)[0]);
+    render();
+  }
+
+  // 房間資料一有變動就呼叫。對刀中不重畫（會中斷動畫），只處理開打・回大廳
+  var roomRenderPending = false;
+  function onRoomChange() {
+    var room = ui.room;
+    if (!room) return;
+    var meta = room.meta;
+    if (meta && meta.status === "play" && room.match && room.match.no === meta.no && (!ui.duel || !ui.duel.online || ui.duel.no !== meta.no) && ui.duelDoneNo !== meta.no) {
+      startOnlineDuel(room);
+      return;
+    }
+    if (ui.duel && ui.duel.online) {
+      if (ui.duel.result && meta && meta.status === "lobby") { ui.duelDoneNo = ui.duel.no; ui.duel = null; render(); }
+      return;
+    }
+    if (ui.duel || state) return; // 房間只畫在準備畫面；鍛刀中不打斷小遊戲
+    // 正在輸入名字時先不重畫（會搶走焦點），離開輸入框再畫
+    var act = document.activeElement;
+    if (act && act.classList && act.classList.contains("kt-room-name")) { roomRenderPending = true; return; }
+    roomRenderPending = false;
+    rerenderKeepScroll();
+  }
+
+  function startOnlineDuel(room) {
+    var m = room.match;
+    var a = window.PriTestKatanaArena.create({ seed: m.seed, fighters: m.fighters });
+    var ctl = room.matchCtl();
+    var names = {}, uidOf = {};
+    m.fighters.forEach(function (f) {
+      names[f.id] = f.name + (f.snap && f.snap.name ? "「" + f.snap.name + "」" : "");
+      if (f.cid === room.cid && ui.roomSword) uidOf[f.id] = ui.roomSword;
+    });
+    ui.duel = { online: true, no: m.no, arena: a, net: ctl, names: names, uidOf: uidOf, result: null };
+    window.scrollTo(0, 0);
+    render();
+  }
+
+  // 沒有房間時：建立房間或貼上房間網址加入
+  function netEntryPanel() {
+    var panel = el("div", { class: "kt-panel kt-net-entry" });
+    panel.appendChild(el("h2", { text: t("kt_net_title") }));
+    panel.appendChild(el("p", { class: "kt-muted", text: t("kt_net_intro", { n: window.PriTestKatanaNet ? window.PriTestKatanaNet.MAX_FIGHTERS : 8 }) }));
+    var inp = el("input", { type: "text", class: "kt-text kt-net-join-input", placeholder: t("kt_net_join_ph") });
+    inp.value = ui.roomJoinText || "";
+    inp.addEventListener("input", function () { ui.roomJoinText = inp.value; ui.roomJoinBad = false; });
+    panel.appendChild(el("div", { class: "kt-actions" }, [
+      el("button", { type: "button", class: "kt-primary kt-net-create", text: t("kt_net_create"), onclick: function () { openRoom(null); } })
+    ]));
+    panel.appendChild(field(t("kt_net_join"), inp));
+    panel.appendChild(el("div", { class: "kt-actions" }, [
+      el("button", { type: "button", text: t("kt_net_join_go"), onclick: function () {
+        var Net = window.PriTestKatanaNet;
+        var id = Net.roomFromUrl(ui.roomJoinText) || (Net.validRoomId(String(ui.roomJoinText || "").trim()) ? String(ui.roomJoinText).trim() : null);
+        if (!id) { ui.roomJoinBad = true; rerenderKeepScroll(); return; }
+        ui.roomJoinText = "";
+        openRoom(id);
+      } }),
+      ui.roomJoinBad ? el("span", { class: "kt-error", text: t("kt_net_join_bad") }) : null
+    ]));
+    return panel;
+  }
+
+  // 房間大廳
+  function roomPanel() {
+    var room = ui.room, Net = window.PriTestKatanaNet;
+    var panel = el("div", { class: "kt-panel kt-room" });
+    panel.appendChild(el("h2", { text: t("kt_net_room_title") }));
+    function foot() { return el("div", { class: "kt-actions" }, [el("button", { type: "button", class: "kt-link kt-room-leave", text: t("kt_net_leave"), onclick: leaveRoom })]); }
+    if (room.missing) {
+      panel.appendChild(el("p", { class: "kt-error", text: t("kt_net_missing") }));
+      panel.appendChild(foot());
+      return panel;
+    }
+    if (!room.loaded) {
+      panel.appendChild(el("p", { class: "kt-muted", text: t("kt_net_connecting") }));
+      panel.appendChild(foot());
+      return panel;
+    }
+    // 邀請網址
+    var url = roomUrl(room.id);
+    var box = el("input", { type: "text", class: "kt-text kt-invite-url kt-room-url", readonly: true, value: url, onfocus: function (ev) { ev.target.select(); } });
+    panel.appendChild(el("div", { class: "kt-invite" }, [
+      el("p", { class: "kt-muted", text: t("kt_net_share") }), box,
+      el("div", { class: "kt-actions" }, [
+        el("button", { type: "button", class: "kt-primary", text: t("kt_net_copy"), onclick: function () { copyText(url, box); } }),
+        ui.copyMsg ? el("span", { class: "kt-muted", text: ui.copyMsg }) : null
+      ])
+    ]));
+    if (room.meta && !room.hostOnline()) panel.appendChild(el("p", { class: "kt-error", text: t("kt_net_host_away") }));
+    if (room.meta && room.meta.status === "play") panel.appendChild(el("p", { class: "kt-muted", text: t("kt_net_in_play") }));
+
+    // 參加者
+    var ps = room.list();
+    var host = room.meta ? room.meta.host : null;
+    var tbl = el("div", { class: "kt-room-list" });
+    ps.forEach(function (p) {
+      tbl.appendChild(el("div", { class: "kt-room-row" + (p.cid === room.cid ? " kt-room-me" : ""), "data-cid": p.cid }, [
+        el("strong", { text: (p.cid === host ? "👑 " : "") + (p.name || t("kt_net_noname")) + (p.cid === room.cid ? " " + t("kt_net_you") : "") }),
+        el("span", { class: "kt-muted", text: p.snap ? snapTitle(p.snap) : t("kt_net_no_sword") }),
+        p.snap ? el("span", { class: p.ready ? "kt-good" : "kt-muted", text: p.ready ? t("kt_net_ready_on") : t("kt_net_ready_off") }) : null
+      ]));
+    });
+    room.npcIds().forEach(function (id) {
+      var n = Core.byId(D.NPC_SWORDS, id);
+      if (n) tbl.appendChild(el("div", { class: "kt-room-row" }, [el("strong", { text: npcName(n) }), el("span", { class: "kt-af-ai", text: "AI" })]));
+    });
+    panel.appendChild(field(t("kt_net_members", { n: room.fighterCount(), max: Net.MAX_FIGHTERS }), tbl));
+
+    // 自己：名字・出戰的刀・準備
+    var lobbyOpen = room.meta && room.meta.status === "lobby";
+    var nameInp = el("input", { type: "text", class: "kt-text kt-room-name", maxlength: "16", value: room.me.name || "", placeholder: t("kt_net_name_ph") });
+    nameInp.addEventListener("change", function () {
+      var v = nameInp.value.trim().slice(0, 16);
+      setNetName(v);
+      room.update({ name: v });
+    });
+    nameInp.addEventListener("blur", function () { if (roomRenderPending) setTimeout(onRoomChange, 0); });
+    panel.appendChild(field(t("kt_net_name"), nameInp));
+    var sc = scabbardLoad();
+    if (!sc.swords.length) panel.appendChild(el("p", { class: "kt-muted", text: t("kt_net_need_sword") }));
+    else {
+      var full = room.full() && !room.me.snap;
+      var sel = el("select", { class: "kt-room-sword", disabled: !lobbyOpen || full }, [el("option", { value: "", text: t("kt_net_watch") })].concat(sc.swords.map(function (x) {
+        return el("option", { value: x.uid, selected: ui.roomSword === x.uid, text: snapTitle(x.snap) + (x.snap.smith ? " " + t("kt_sc_by", { name: x.snap.smith }) : "") + (x.guest ? "（" + t("kt_sc_guest") + "）" : "") });
+      })));
+      sel.addEventListener("change", function () {
+        var x = sc.swords.filter(function (y) { return y.uid === sel.value; })[0] || null;
+        ui.roomSword = x ? x.uid : null;
+        room.update({ snap: x ? snapWithUid(x) : null, ready: false });
+        rerenderKeepScroll();
+      });
+      panel.appendChild(field(t("kt_net_sword"), sel, full ? t("kt_net_full", { max: Net.MAX_FIGHTERS }) : null));
+      if (room.me.snap && lobbyOpen) {
+        panel.appendChild(el("div", { class: "kt-actions" }, [
+          el("button", { type: "button", class: "kt-chip kt-room-ready" + (room.me.ready ? " kt-chip-on" : ""), text: room.me.ready ? t("kt_net_ready_on") : t("kt_net_ready_btn"),
+            onclick: function () { room.update({ ready: !room.me.ready }); rerenderKeepScroll(); } })
+        ]));
+      }
+    }
+
+    // 房主：AI 對手刀・開打
+    if (room.isHost() && lobbyOpen) {
+      panel.appendChild(el("div", { class: "kt-mg-title", text: t("kt_net_host_tools") }));
+      var count = room.fighterCount();
+      D.NPC_SWORDS.forEach(function (n) {
+        var on = !!(room.npc && room.npc[n.id]);
+        panel.appendChild(el("label", { class: "kt-check" }, [
+          el("input", { type: "checkbox", checked: on, disabled: !on && count >= Net.MAX_FIGHTERS, onchange: function (ev) { room.setNpc(n.id, ev.target.checked); } }), " " + npcName(n)
+        ]));
+      });
+      var can = room.canStart();
+      panel.appendChild(el("div", { class: "kt-actions" }, [
+        el("button", { type: "button", class: "kt-primary kt-room-start", text: t("kt_net_start"), disabled: !can, onclick: function () {
+          room.start(function (id) { var n = Core.byId(D.NPC_SWORDS, id); return n ? Core.npcSnapshot(n) : null; },
+            function (id) { var n = Core.byId(D.NPC_SWORDS, id); return n ? npcName(n) : id; },
+            function (k) { return t("kt_net_anon", { n: k }); });
+        } }),
+        can ? null : el("span", { class: "kt-muted", text: t("kt_net_start_need") })
+      ]));
+    } else if (lobbyOpen) {
+      panel.appendChild(el("p", { class: "kt-muted", text: t("kt_net_wait_start") }));
+    }
+    panel.appendChild(foot());
+    return panel;
+  }
+
   // ---------------- 對刀實驗場：直接輸入刀的數據來看對刀（使用者指定 2026-10-20） ----------------
   // 不經過鍛刀，直接設定刀種・尺寸・硬度・韌性・鋒利・覺醒招式，開打或批次模擬看勝率。
   // 質量與耐久照遊戲公式自動算（質量＝bladeMassKg、耐久＝60＋韌性×0.6＋質量×20，同 Core.stats）。
@@ -2631,6 +2861,7 @@
   function renderDuel() {
     var du = ui.duel;
     function nameOf(id) { return du.names[id] || id; }
+    if (du.online) { renderOnlineDuel(du, nameOf); return; }
     app.appendChild(el("h2", { text: t("kt_duel_title") }));
     if (du.result) {
       app.appendChild(el("div", { class: "kt-panel kt-result" }, [
@@ -2655,6 +2886,38 @@
     }));
     app.appendChild(el("div", { class: "kt-footer-tools" }, [
       el("button", { type: "button", class: "kt-link", text: t("kt_duel_quit"), onclick: function () { ui.duel = null; render(); } })
+    ]));
+  }
+
+  function renderOnlineDuel(du, nameOf) {
+    var room = ui.room;
+    app.appendChild(el("h2", { text: t("kt_net_duel_title") }));
+    if (du.result) {
+      var isHost = room && room.isHost();
+      app.appendChild(el("div", { class: "kt-panel kt-result" }, [
+        el("h3", { text: t("kt_clash_winner", { name: nameOf(du.result.winner) }) }),
+        arenaResultTable(du.result, nameOf),
+        el("div", { class: "kt-actions" }, [
+          el("button", { type: "button", class: "kt-primary kt-net-back", text: t("kt_net_back_room"), onclick: function () {
+            if (isHost) room.backToLobby();
+            ui.duelDoneNo = du.no;
+            ui.duel = null;
+            render();
+          } }),
+          el("button", { type: "button", class: "kt-link", text: t("kt_net_leave"), onclick: leaveRoom })
+        ])
+      ]));
+      return;
+    }
+    app.appendChild(el("p", { class: "kt-muted", text: t("kt_net_howto") }));
+    app.appendChild(arenaView(du.arena, function (res) {
+      du.result = res;
+      du.net.dispose();
+      recordResult(res, du.uidOf);
+      render();
+    }, du.net));
+    app.appendChild(el("div", { class: "kt-footer-tools" }, [
+      el("button", { type: "button", class: "kt-link", text: t("kt_net_quit"), onclick: leaveRoom })
     ]));
   }
 
@@ -2735,6 +2998,10 @@
   }
 
   state = null;
+  (function readRoom() {
+    var id = window.PriTestKatanaNet ? window.PriTestKatanaNet.roomFromUrl(location.search) : null;
+    if (id) openRoom(id);
+  })();
   (function readInvite() {
     var m = location.search.match(/[?&]duel=([A-Za-z0-9_-]+)/);
     var snap = m ? decodeSnap(m[1]) : null;

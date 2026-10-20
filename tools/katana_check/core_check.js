@@ -340,5 +340,33 @@ console.log("katana core_check OK");
   var snap = Core.swordSnapshot(state.players[0].blade, { smith: "甲", name: "試" });
   assert.ok(snap.stats.integrity > 0 && snap.type && snap.name === "試");
   console.log("arena: hono beat minarai", wins, "/ 30");
+
+  // 連線對刀用：每回合交界序列化→還原（經過 JSON，模擬 Firebase 傳輸）後繼續跑，結果與不中斷完全一致
+  ["s1", "s2", "s3", "s4"].forEach(function (sd) {
+    function mk() {
+      return Arena.create({ seed: "net|" + sd, fighters: ["sato", "hono", "minarai", "sato"].map(function (id, i) { return { id: "f" + i, name: id, human: false, snap: npc(id) }; }) });
+    }
+    var ref = Arena.run(mk());
+    var b = mk(), restores = 0;
+    for (var i = 0; i < 20000 && !b.over; i++) {
+      if (Arena.atBoundary(b)) {
+        var txt = Arena.serialize(b);
+        Arena.restore(b, JSON.parse(JSON.stringify(txt)));
+        restores++;
+      }
+      Arena.step(b);
+    }
+    var got = Arena.result(b);
+    assert.deepStrictEqual(got, ref, "serialize/restore keeps determinism " + sd);
+    assert.ok(restores >= 2, "restored at boundaries " + sd);
+  });
+  // 綁定中的刀也能正確還原參照
+  var bb = Arena.create({ seed: "bindser", fighters: [{ id: "x", name: "x", snap: npc("hono") }, { id: "y", name: "y", snap: npc("sato") }] });
+  for (var bi = 0; bi < 6000 && !bb.binds.length && !bb.over; bi++) Arena.step(bb);
+  if (bb.binds.length) {
+    var bc = Arena.restore(Arena.create({ seed: "z", fighters: [{ id: "q", name: "q", snap: npc("sato") }, { id: "r", name: "r", snap: npc("sato") }] }), Arena.serialize(bb));
+    assert.ok(bc.binds[0].a === bc.fighters.filter(function (f) { return f.id === bb.binds[0].a.id; })[0], "bind refs restored");
+  }
+  console.log("arena serialize/restore OK");
 })();
 console.log("katana arena checks OK");

@@ -79,13 +79,14 @@
   // ---------------- 建立 ----------------
   // fighters：[{ id, name, human, snap, hp }]
   function create(opts) {
-    var rng = Core.makeRng("arena|" + opts.seed);
     var n = opts.fighters.length;
     var a = {
       seed: String(opts.seed), time: 0, round: 1, over: false, winner: null, ver: 1,
-      fighters: [], binds: [], cooldown: {}, ghost: {}, events: [], log: [], hazards: [], timed: [], outOrder: []
+      fighters: [], binds: [], cooldown: {}, ghost: {}, events: [], log: [], hazards: [], timed: [], outOrder: [],
+      // 亂數狀態存成數字（與 Core.makeRng 同一個 mulberry32），整個狀態才能序列化給連線對刀同步
+      rng: Core.hashStr("arena|" + opts.seed)
     };
-    a.rngState = rng;
+    function rng() { return rnd(a); }
     opts.fighters.forEach(function (x, i) {
       var prof = profile(x.snap);
       var ang = Math.PI * 2 * i / n + rng() * 0.3;
@@ -95,7 +96,7 @@
       for (var k = deck.length - 1; k > 0; k--) { var j = Math.floor(drng() * (k + 1)); var tmp = deck[k]; deck[k] = deck[j]; deck[j] = tmp; }
       var dir = i % 2 === 0 ? 1 : -1; // 一半順時針、一半逆時針繞場，路線才會交錯
       var f = {
-        id: x.id, name: x.name, human: !!x.human, snap: x.snap, prof: prof, color: COLORS[i % COLORS.length],
+        id: x.id, name: x.name, human: !!x.human, cid: x.cid || null, snap: x.snap, prof: prof, color: COLORS[i % COLORS.length],
         x: Math.cos(ang) * r0, y: Math.sin(ang) * r0,
         vx: -Math.sin(ang) * 30 * dir, vy: Math.cos(ang) * 30 * dir,
         dir: dir, rot: rng() * 6.28, spin: 1, hp: Math.max(0, Math.min(prof.maxHp, x.hp === undefined ? prof.maxHp : x.hp)),
@@ -123,7 +124,14 @@
     }
   }
 
-  function rnd(a) { return a.rngState(); }
+  // mulberry32（同 Core.makeRng），狀態放在 a.rng
+  function rnd(a) {
+    a.rng = (a.rng + 0x6d2b79f5) >>> 0;
+    var t = a.rng;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  }
   function emit(a, ev) { ev.t = a.time; a.events.push(ev); }
   function byFid(a, id) { for (var i = 0; i < a.fighters.length; i++) if (a.fighters[i].id === id) return a.fighters[i]; return null; }
   function alive(a) { return a.fighters.filter(function (f) { return f.alive; }); }
@@ -673,6 +681,40 @@
     };
   }
 
+  // ---------------- 連線對刀用：序列化・還原・回合交界 ----------------
+  // 狀態裡只有 binds 直接參照 fighter 物件，序列化時換成 id；events 是畫面用的暫存，不帶
+  function serialize(a) {
+    var o = {};
+    Object.keys(a).forEach(function (k) { if (k !== "events" && k !== "binds") o[k] = a[k]; });
+    o.binds = a.binds.map(function (bd) {
+      var c = {};
+      Object.keys(bd).forEach(function (k) { c[k] = bd[k]; });
+      c.a = bd.a.id; c.b = bd.b.id;
+      return c;
+    });
+    return JSON.stringify(o);
+  }
+
+  // 就地還原（畫面拿著同一個 a 物件，不能換掉參照）
+  function restore(a, text) {
+    var o = JSON.parse(text);
+    Object.keys(a).forEach(function (k) { delete a[k]; });
+    Object.keys(o).forEach(function (k) { a[k] = o[k]; });
+    // Firebase 不存空陣列／空物件：補回預設
+    ["fighters", "binds", "log", "hazards", "timed", "outOrder"].forEach(function (k) { if (!Array.isArray(a[k])) a[k] = []; });
+    ["cooldown", "ghost"].forEach(function (k) { if (!a[k] || typeof a[k] !== "object") a[k] = {}; });
+    a.fighters.forEach(function (f) {
+      ["deck", "discard", "hand", "queue", "buffs", "dots"].forEach(function (k) { if (!Array.isArray(f[k])) f[k] = []; });
+      if (!f.fx || typeof f.fx !== "object") f.fx = {};
+    });
+    a.binds = a.binds.map(function (bd) { bd.a = byFid(a, bd.a); bd.b = byFid(a, bd.b); return bd; }).filter(function (bd) { return bd.a && bd.b; });
+    a.events = [];
+    return a;
+  }
+
+  // 下一步會跨進新回合（招式在回合交界發動；連線時在這裡等齊所有人的出牌）
+  function atBoundary(a) { return !a.over && Math.floor((a.time + DT) / ROUND_S) + 1 !== a.round; }
+
   // 一口氣跑到結束（測試與「快轉」用）。plan：{ [秒數]: [[fid, uid|"special"], ...] } 可選
   function run(a, maxSeconds) {
     var limit = (maxSeconds || (MAX_ROUNDS * ROUND_S + 5)) / DT;
@@ -683,6 +725,7 @@
 
   window.PriTestKatanaArena = {
     R: R, DT: DT, ROUND_S: ROUND_S, MAX_ROUNDS: MAX_ROUNDS, HAND: HAND, QUEUE: QUEUE,
-    profile: profile, create: create, bany: bany, step: step, queueCard: queueCard, result: result, run: run, cardDef: cardDef
+    profile: profile, create: create, bany: bany, step: step, queueCard: queueCard, result: result, run: run, cardDef: cardDef,
+    serialize: serialize, restore: restore, atBoundary: atBoundary
   };
 })();
