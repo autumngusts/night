@@ -1,8 +1,9 @@
 // ============================================================================
 // katana（神前鍛刀對決）Playwright 流程檢查：
 //   設定（兩人）→ 交接畫面 → 13 道工序（小割分揀、加熱、鎚擊、研磨…）全員輪流 → 神前審查
-//   → 試斬 5 目標 → 互擊（加入對手刀）→ 總結；重新整理能還原；切換語言沒有漏翻的 kt_ 鍵
-//   第二局：單人以特殊材料（烏茲鋼）打異國刀種（彎刀），確認小割・積沸被略過
+//   → 命名・收入刀鞘 → 試斬 5 目標 → 對刀場（加入對手刀、放牌、快轉）→ 總結；重新整理能還原；切換語言沒有漏翻的 kt_ 鍵
+//   第二局：單人以特殊材料（烏茲鋼）打異國刀種（克力士），確認小割・積沸被略過
+//   最後：刀鞘的刀轉成邀請網址，以 ?duel= 打開 → 對刀 → 戰績寫回刀鞘
 // 前置：
 //   1. py -3 generate.py
 //   2. py -3 -m http.server 8944 --directory dist
@@ -191,6 +192,16 @@ async function forgeAll(page, onMaterial) {
   await noMissingKeys(page);
   console.log("judge:", s.players.map(function (p) { return p.name + " " + p.blade.type + " HRC " + p.blade.hardEdge + " sori " + p.blade.sori + " flaws " + p.blade.flaws.join("/"); }).join(" | "));
 
+  // 命名・覺醒招式・收入刀鞘
+  assert.strictEqual(await page.locator(".kt-naming").count(), 2);
+  s = await st(page);
+  assert.ok(s.players.every(function (p) { return p.blade.special !== undefined; }), "awaken decided");
+  await page.fill(".kt-naming input.kt-text >> nth=0", "試作一號");
+  await mustClick(page, "kt_sc_put");
+  var sc = await page.evaluate(function () { return window.PriTestKatana._scabbard(); });
+  assert.strictEqual(sc.swords.length, 1);
+  assert.ok(["試作一號"].indexOf(sc.swords[0].snap.name) >= 0, "sword name saved: " + sc.swords[0].snap.name);
+
   // 試斬
   await mustClick(page, "kt_go_cut");
   for (var c = 0; c < 10; c++) {
@@ -207,11 +218,28 @@ async function forgeAll(page, onMaterial) {
   // 互擊
   await page.evaluate(function () { var cb = document.querySelector('.kt-check input[type="checkbox"]'); cb.checked = true; cb.dispatchEvent(new Event("change")); });
   await mustClick(page, "kt_go_clash");
-  await mustClick(page, "kt_stance_ju");
-  await mustClick(page, "kt_clash_round");
-  await mustClick(page, "kt_clash_auto");
+  await page.waitForSelector(".kt-arena-canvas");
+  await page.waitForTimeout(1500);
+  // 把第一把能出牌的刀的手牌放進等待區（試斬可能已經把某把刀打斷）
+  var queued = await page.evaluate(function () {
+    var b = document.querySelector(".kt-af .kt-card-btn:not([disabled])");
+    if (!b) return -1;
+    var fid = b.closest(".kt-af").getAttribute("data-fid");
+    b.click();
+    return window.PriTestKatana._ui().arena.fighters.filter(function (f) { return f.id === fid; })[0].queue.length;
+  });
+  assert.strictEqual(queued, 1, "card queued");
+  await page.waitForTimeout(3500);
+  var ar = await page.evaluate(function () { var a = window.PriTestKatana._ui().arena; return { t: a.time, round: a.round, fx: a.log.filter(function (e) { return e.type === "card"; }).length }; });
+  assert.ok(ar.t > 3 && ar.round >= 2, "arena runs: " + JSON.stringify(ar));
+  await page.screenshot({ path: path.join(process.env.KATANA_SHOT_DIR || __dirname, "katana_arena.png"), fullPage: false });
+  await noMissingKeys(page);
+  await mustClick(page, "kt_ar_skip");
+  await page.waitForTimeout(100);
   s = await st(page);
   assert.ok(s.clash.winner, "clash winner");
+  assert.strictEqual(s.clash.placing.length, 3);
+  console.log("clash:", s.clash.placing.join(","), JSON.stringify(s.clash.summary.map(function (x) { return x.id + ":" + x.hp + "/" + x.maxHp; })));
   await mustClick(page, "kt_to_final");
   await page.waitForSelector(".kt-table");
   await noMissingKeys(page);
@@ -249,6 +277,47 @@ async function forgeAll(page, onMaterial) {
   assert.strictEqual(s.mode, "show");
   assert.ok(s.players[0].log.some(function (e) { return e.step === "kowari" && e.skipped; }), "kowari skipped");
   console.log("solo wootz kris (show):", JSON.stringify({ C: b.kawaC, hrc: b.hardEdge, sori: b.sori, intact: b.patternIntact, flaws: b.flaws }));
+
+  // ---- 刀鞘 → 邀請網址 → 對方打開後對刀 ----
+  sc = await page.evaluate(function () { return window.PriTestKatana._scabbard(); });
+  var rec0 = sc.swords[0].rec.w + sc.swords[0].rec.l;
+  assert.strictEqual(rec0, 1, "forge clash recorded to scabbard");
+  var code = await page.evaluate(function () { return window.PriTestKatana._encode(window.PriTestKatana._scabbard().swords[0].snap); });
+  await page.goto(BASE + "?duel=" + code);
+  await page.waitForSelector(".kt-invite-panel");
+  await noMissingKeys(page);
+  await page.screenshot({ path: path.join(process.env.KATANA_SHOT_DIR || __dirname, "katana_invite.png"), fullPage: true });
+  await mustClick(page, "kt_duel_go");
+  await page.waitForSelector(".kt-arena-canvas");
+  var nf = await page.evaluate(function () { return window.PriTestKatana._ui().duel.arena.fighters.map(function (f) { return f.id + (f.human ? "H" : "A"); }); });
+  assert.strictEqual(nf.length, 2, "invite duel fighters: " + nf);
+  await page.waitForTimeout(800);
+  await mustClick(page, "kt_ar_skip");
+  await page.waitForTimeout(100);
+  await mustClick(page, "kt_duel_again");
+  await mustClick(page, "kt_ar_skip");
+  await mustClick(page, "kt_duel_back");
+  sc = await page.evaluate(function () { return window.PriTestKatana._scabbard(); });
+  assert.strictEqual(sc.swords[0].rec.w + sc.swords[0].rec.l, 3, "duels recorded");
+  // 壞掉的碼不會讓頁面出錯
+  await page.goto(BASE + "?duel=AAAA");
+  await page.waitForSelector(".kt-names");
+  assert.strictEqual(await page.locator(".kt-invite-panel").count(), 0);
+
+  // ---- 對刀實驗場：批次模擬・改刀種・開打 ----
+  await page.evaluate(function () { document.querySelector(".kt-lab").open = true; });
+  assert.strictEqual(await page.locator(".kt-lab-card").count(), 4);
+  await page.evaluate(function () { var sel = document.querySelector(".kt-lab-card select"); sel.value = "jiuhuan"; sel.dispatchEvent(new Event("change")); });
+  assert.strictEqual(await page.evaluate(function () { return window.PriTestKatana._ui().lab.blades[0].type; }), "jiuhuan");
+  await mustClick(page, "kt_lab_add");
+  await page.evaluate(function () { var b = Array.prototype.filter.call(document.querySelectorAll("button"), function (x) { return x.textContent === window.I18N.t("kt_lab_batch", { n: 100 }); })[0]; b.click(); });
+  assert.strictEqual(await page.locator(".kt-lab-batch tr").count(), 6, "batch table rows");
+  await noMissingKeys(page);
+  await mustClick(page, "kt_lab_go");
+  await page.waitForSelector(".kt-arena-canvas");
+  assert.strictEqual(await page.evaluate(function () { return window.PriTestKatana._ui().duel.arena.fighters.length; }), 5);
+  await mustClick(page, "kt_ar_skip");
+  await mustClick(page, "kt_duel_back");
 
   if (errors.length) console.log("ERRORS", errors);
   assert.deepStrictEqual(errors, []);

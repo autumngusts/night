@@ -12218,3 +12218,82 @@ body.ut-has-player {
 .kt-rhythm-face { position: absolute; inset: 1.4rem 8%; border-radius: 4px 40% 40% 4px; background: linear-gradient(180deg, #dfe6ec, #9aa4ad 60%, #eef3f6); }
 .kt-rhythm-ring { width: 4.5rem; height: 4.5rem; border-radius: 50%; border: 4px solid #e7774f; position: relative; }
 @media (prefers-reduced-motion: reduce) { .kt-shake { animation: none; } }
+
+/* katana 第三版：小遊戲畫框置頂・對刀場・刀鞘 */
+.kt-stage { border: 2px solid var(--kt-accent); border-radius: 12px; padding: 0.75rem; margin-bottom: 1rem; background: var(--kt-accent-soft); }
+.kt-stage-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.5rem; margin-bottom: 0.25rem; }
+.kt-stage-head strong { font-size: 1.15em; }
+.kt-stage .kt-mg { margin: 0.5rem 0; border-style: solid; background: var(--kt-panel-bg, transparent); }
+.kt-stage-empty { padding: 1rem; text-align: center; opacity: 0.8; }
+.kt-stage .kt-error:empty { min-height: 0; }
+
+.kt-arena { display: flex; flex-direction: column; gap: 0.6rem; margin-bottom: 1rem; }
+.kt-arena-hud { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.5rem; font-variant-numeric: tabular-nums; }
+.kt-arena-hud-btns { display: flex; flex-wrap: wrap; gap: 0.35rem; }
+.kt-arena-stage { display: flex; justify-content: center; }
+.kt-arena-canvas { width: 100%; max-width: 560px; aspect-ratio: 1 / 1; height: auto; border-radius: 50%; background: #17120e; box-shadow: 0 0 0 1px var(--kt-line), 0 8px 30px rgba(0, 0, 0, 0.35); }
+.kt-arena-feed { list-style: none; margin: 0; padding: 0; min-height: 1.4em; font-size: 0.85em; }
+.kt-arena-feed li:first-child { font-weight: bold; }
+.kt-arena-feed li:not(:first-child) { opacity: 0.65; }
+.kt-arena-panels { display: grid; grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr)); gap: 0.6rem; }
+.kt-af { border: 1px solid var(--kt-line); border-radius: 10px; padding: 0.6rem; display: flex; flex-direction: column; gap: 0.3rem; min-width: 0; }
+.kt-af-out { opacity: 0.5; }
+.kt-af-win { border-color: var(--kt-gold); box-shadow: 0 0 0 1px var(--kt-gold); }
+.kt-af-head { display: flex; align-items: center; gap: 0.35rem; flex-wrap: wrap; }
+.kt-af-dot { width: 0.8rem; height: 0.8rem; border-radius: 50%; flex: none; }
+.kt-af-ai { font-size: 0.7em; padding: 0 0.4rem; border-radius: 4px; border: 1px solid var(--kt-line); }
+.kt-af-traits { display: flex; flex-wrap: wrap; gap: 0.25rem; }
+.kt-af-style, .kt-af-trait { font-size: 0.72em; padding: 0.05rem 0.45rem; border-radius: 999px; border: 1px solid var(--kt-line); cursor: help; }
+.kt-af-style { border-color: var(--kt-accent); color: var(--kt-accent); }
+.kt-af-label { font-size: 0.75em; opacity: 0.7; }
+.kt-af-queue { display: grid; grid-template-columns: 1fr 1fr; gap: 0.3rem; }
+.kt-af-slot { min-height: 2.4rem; border: 1px dashed var(--kt-line); border-radius: 6px; padding: 0.2rem 0.4rem; font-size: 0.8em; display: flex; flex-direction: column; justify-content: center; }
+.kt-af-slot-on { border-style: solid; border-color: var(--kt-accent); background: var(--kt-accent-soft); }
+.kt-af-slot-sp { border-color: var(--kt-gold); background: rgba(184, 137, 43, 0.15); }
+.kt-af-hand { display: flex; flex-wrap: wrap; gap: 0.3rem; }
+.kt-card-btn { display: flex; flex-direction: column; align-items: flex-start; gap: 0.05rem; padding: 0.3rem 0.55rem; border-radius: 6px; border: 1px solid var(--kt-line); background: var(--kt-soft); color: inherit; cursor: pointer; font-size: 0.85em; text-align: left; }
+.kt-card-btn span { font-size: 0.78em; opacity: 0.75; }
+.kt-card-btn:disabled { opacity: 0.45; cursor: default; }
+.kt-card-tech { border-color: var(--kt-accent); }
+.kt-card-special { border-color: var(--kt-gold); background: rgba(184, 137, 43, 0.18); }
+.kt-bar-spin { background: var(--kt-gold); }
+
+.kt-sheath { display: flex; flex-wrap: wrap; gap: 0.6rem; align-items: center; border: 1px solid var(--kt-line); border-radius: 10px; padding: 0.5rem; margin: 0.5rem 0; }
+.kt-sheath-blade { flex: 1 1 14rem; min-width: 0; max-width: 22rem; }
+.kt-sheath-blade svg { width: 100%; height: auto; }
+.kt-sheath-body { flex: 1 1 14rem; min-width: 0; display: flex; flex-direction: column; gap: 0.2rem; }
+.kt-sheath-special, .kt-awaken strong { color: var(--kt-gold); font-weight: bold; }
+.kt-naming { border-top: 1px dashed var(--kt-line); margin-top: 0.6rem; padding-top: 0.6rem; display: flex; flex-direction: column; gap: 0.4rem; }
+.kt-awaken { padding: 0.4rem 0.6rem; border-radius: 8px; background: rgba(184, 137, 43, 0.12); }
+.kt-invite { padding: 0.5rem; border-radius: 8px; background: var(--kt-soft); margin-bottom: 0.5rem; }
+.kt-invite-url, .kt-import { width: 100%; box-sizing: border-box; font-size: 0.85em; }
+.kt-invite-panel { border-color: var(--kt-gold); }
+.kt-lobby-row { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; }
+.kt-arena-body { display: flex; flex-direction: column; gap: 0.6rem; }
+.kt-arena-left { display: flex; flex-direction: column; gap: 0.4rem; min-width: 0; }
+@media (min-width: 860px) {
+  .kt-arena-body { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(16rem, 1fr); align-items: start; }
+  .kt-arena-body .kt-arena-panels { grid-template-columns: 1fr; max-height: 80vh; overflow-y: auto; }
+}
+.kt-af .kt-bar-row { grid-template-columns: 2.6rem minmax(0, 1fr) auto; }
+.kt-catalog > summary { cursor: pointer; font-weight: bold; color: var(--kt-gold); }
+.kt-catalog-list { list-style: none; padding: 0; margin: 0; display: grid; gap: 0.45rem; }
+.kt-catalog-list li { display: block; line-height: 1.5; }
+.kt-catalog-list .kt-af-dot { display: inline-block; margin-right: 0.4rem; vertical-align: middle; }
+
+/* katana 對刀實驗場 */
+.kt-lab > summary { cursor: pointer; font-weight: bold; color: var(--kt-accent); font-size: 1.1em; }
+.kt-lab-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(17rem, 1fr)); gap: 0.6rem; }
+.kt-lab-card { border: 1px solid var(--kt-line); border-radius: 10px; padding: 0.6rem; display: flex; flex-direction: column; gap: 0.35rem; min-width: 0; }
+.kt-lab-head { display: flex; align-items: center; gap: 0.4rem; }
+.kt-lab-head .kt-text { flex: 1 1 auto; min-width: 0; }
+.kt-lab-card select.kt-text { width: 100%; }
+.kt-lab-preview svg { width: 100%; height: auto; max-height: 5rem; }
+.kt-lab-sliders .kt-field { margin: 0.1rem 0; }
+.kt-lab-info { font-size: 0.82em; }
+.kt-lab-winbar { display: grid; grid-template-columns: minmax(4rem, 1fr) 3rem; align-items: center; gap: 0.4rem; }
+.kt-lab-sliders { display: flex; flex-direction: column; gap: 0.15rem; }
+.kt-lab-sliders .kt-field { display: grid; grid-template-columns: 4.5em minmax(0, 1fr); align-items: center; gap: 0.4rem; margin: 0; }
+.kt-lab-sliders .kt-label { margin: 0; font-size: 0.85em; }
+.kt-lab-head .kt-chip, .kt-lab-head .kt-link { white-space: nowrap; flex: none; }
+.kt-lab-card > .kt-field { margin: 0; }

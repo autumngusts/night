@@ -14,7 +14,14 @@
 
   var state = null;
   var setup = { names: ["", ""], assist: true, mode: "show" };
-  var ui = { draft: {}, mg: {}, handoff: -1, result: null, confirmNew: false, error: "", cutResult: null, npc: null };
+  var ui = freshUi();
+  // 對刀・刀鞘相關的畫面狀態（不存檔）：arena 對刀場、duel 自由對刀、lobby 對刀準備、invite 收到的邀請
+  function freshUi() {
+    return { draft: {}, mg: {}, handoff: -1, result: null, confirmNew: false, error: "", cutResult: null, npc: null, scPick: null,
+      arena: null, arenaKey: null, arenaSpeed: 1, duel: null, lobby: ui ? ui.lobby : null, invite: ui ? ui.invite : null, inviteKept: ui ? ui.inviteKept : false,
+      inviteOpen: null, copyMsg: "", importText: "", importErr: false, confirmDel: null,
+      lab: ui ? ui.lab : null, labOpen: ui ? ui.labOpen : false };
+  }
   var anim = null;
 
   function t(key, params) { return window.I18N.t(key, params); }
@@ -96,7 +103,7 @@
   // plunge：取出後還要按「入水」，取出到入水的毫秒數存成 delay（核心以空冷 25℃/秒 換算）
   function heatGame(cfg) {
     var res = ui.mg[cfg.key];
-    var box = el("div", { class: "kt-mg kt-heat" + (cfg.daylight ? " kt-daylight" : "") });
+    var box = el("div", { class: "kt-mg kt-heat" + (cfg.daylight ? " kt-daylight" : ""), "data-live": res && (!cfg.plunge || res.delay !== undefined) ? null : "1" });
     var steel = el("div", { class: "kt-steel" });
     var sparks = el("div", { class: "kt-sparks" });
     var stage = el("div", { class: "kt-forge" }, [steel, sparks]);
@@ -191,7 +198,7 @@
   function hammerGame(cfg) {
     var res = ui.mg[cfg.key];
     var noSteel = cfg.swing || cfg.chisel;
-    var box = el("div", { class: "kt-mg kt-hammer" });
+    var box = el("div", { class: "kt-mg kt-hammer", "data-live": res ? null : "1" });
     box.appendChild(el("div", { class: "kt-mg-title", text: cfg.title }));
     var track = el("div", { class: "kt-track" });
     var zone = el("div", { class: "kt-zone" });
@@ -281,7 +288,7 @@
   // 小片左右擺動，按「放下」時與鋼堆中心的偏差決定精準度；疊越高擺越快
   function stackGame(cfg) {
     var res = ui.mg[cfg.key];
-    var box = el("div", { class: "kt-mg kt-stack" });
+    var box = el("div", { class: "kt-mg kt-stack", "data-live": res ? null : "1" });
     box.appendChild(el("div", { class: "kt-mg-title", text: t("kt_mg_stack") }));
     var field_ = el("div", { class: "kt-stack-field" });
     var mover = el("div", { class: "kt-stack-piece kt-stack-mover" });
@@ -358,7 +365,7 @@
   }
   function clayGame(cfg) {
     var res = ui.mg[cfg.key];
-    var box = el("div", { class: "kt-mg kt-clay" });
+    var box = el("div", { class: "kt-mg kt-clay", "data-live": res ? null : "1" });
     box.appendChild(el("div", { class: "kt-mg-title", text: t("kt_mg_clay") }));
     var canvas = el("canvas", { class: "kt-clay-canvas", width: "640", height: "150", "aria-label": t("kt_mg_clay") });
     box.appendChild(canvas);
@@ -432,7 +439,7 @@
   // 刀背壓在加熱的銅台上，磨亮的面隨溫度出現回火色（淡麥稈→麥稈→褐→紫→藍→灰）。按「離火」時的溫度＝回火溫度。
   function temperGame(cfg) {
     var res = ui.mg[cfg.key];
-    var box = el("div", { class: "kt-mg kt-temper" });
+    var box = el("div", { class: "kt-mg kt-temper", "data-live": res ? null : "1" });
     box.appendChild(el("div", { class: "kt-mg-title", text: t("kt_mg_temper") }));
     var plate = el("div", { class: "kt-temper-plate" });
     var swatches = el("div", { class: "kt-temper-guide" }, D.TEMPER_COLORS.filter(function (c) { return c.t >= 180 && c.t <= 400; }).map(function (c) {
@@ -484,7 +491,7 @@
   // 圓圈依固定節拍脹縮，在最大時按「研ぐ」。偏離節拍越少越好；刀面隨著次數變亮
   function rhythmGame(cfg) {
     var res = ui.mg[cfg.key];
-    var box = el("div", { class: "kt-mg kt-rhythm" });
+    var box = el("div", { class: "kt-mg kt-rhythm", "data-live": res ? null : "1" });
     box.appendChild(el("div", { class: "kt-mg-title", text: t("kt_mg_rhythm") }));
     var face = el("div", { class: "kt-rhythm-face" });
     var ring = el("div", { class: "kt-rhythm-ring" });
@@ -552,7 +559,7 @@
     var st = Core.byId(D.SORI_TYPES, b.soriType) || D.SORI_TYPES[1];
     var ks = Core.byId(D.KISSAKI, b.kissaki) || (dbl ? Core.byId(D.KISSAKI, "kensaki") : D.KISSAKI[1]);
     var S = 6; // px / cm
-    var nk = length * (bt.id === "yari" ? 0.9 : (bt.family === "nihonto" ? 0.28 : 0.22));
+    var nk = length * (bt.id === "yari" || bt.shaft ? 0.9 : (bt.family === "nihonto" ? 0.28 : 0.22));
     var Lpx = length * S, NKpx = nk * S;
     var widthPx = mihaba / 10 * S * 1.6;
     var soriPx = sori / 10 * S * (Math.abs(sori) > 50 ? 1 : 1.6); // 小彎度誇張 1.6 倍讓反り看得出來
@@ -640,7 +647,12 @@
     var svg = '<svg class="kt-blade" viewBox="0 ' + vbY + " " + Wd + " " + H + '" xmlns="http://www.w3.org/2000/svg" role="img">';
     svg += '<defs><linearGradient id="ktSteel" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#7d8790"/><stop offset="0.5" stop-color="#b9c1c8"/><stop offset="1" stop-color="#8d969e"/></linearGradient>' +
       '<filter id="ktNioi"><feGaussianBlur stdDeviation="0.8"/></filter></defs>';
-    svg += '<polygon points="' + pts(nkPts) + '" fill="#4f4237" stroke="#2c241d" stroke-width="0.8"/>';
+    // 莖・柄（長柄兵器畫成木柄）
+    svg += '<polygon points="' + pts(nkPts) + '" fill="' + (bt.shaft ? "#6b4a2a" : "#4f4237") + '" stroke="#2c241d" stroke-width="0.8"/>';
+    if (bt.ringPommel) {
+      var rp = center(-nk / length);
+      svg += '<circle cx="' + (rp[0] - widthPx * 0.45).toFixed(1) + '" cy="' + (rp[1] + widthPx * 0.45).toFixed(1) + '" r="' + (widthPx * 0.55).toFixed(1) + '" fill="none" stroke="#8a6d25" stroke-width="2.4"/>';
+    }
     if (bt.family === "nihonto") {
       for (var y = 2; y < 20; y += 2) {
         var a0 = nkTop[y], b0 = nkBot[y];
@@ -679,6 +691,14 @@
       if (tk.id !== "lenticular") {
         var yk = Math.round((1 - kLen) * N);
         svg += '<line x1="' + top[yk][0].toFixed(1) + '" y1="' + top[yk][1].toFixed(1) + '" x2="' + bot[yk][0].toFixed(1) + '" y2="' + bot[yk][1].toFixed(1) + '" stroke="#5d666e" stroke-width="0.8"/>';
+      }
+    }
+    // 九環刀：刀背的鐵環
+    if (bt.rings) {
+      for (var ri = 0; ri < bt.rings; ri++) {
+        var ru = 0.1 + ri * (0.55 / Math.max(1, bt.rings - 1));
+        var rpp = off(center(ru), normal(ru), widthAt(ru) * 0.2);
+        svg += '<circle cx="' + rpp[0].toFixed(1) + '" cy="' + rpp[1].toFixed(1) + '" r="' + (widthPx * 0.13).toFixed(1) + '" fill="none" stroke="#c9a44a" stroke-width="1.4"/>';
       }
     }
     // 鎺（日本刀）／護手（異國刀劍）
@@ -840,7 +860,7 @@
     var wrap = el("div", {});
     wrap.appendChild(field(t("kt_f_type_nihonto"), radioList("type", D.BLADE_TYPES.filter(function (o) { return o.family === "nihonto"; }), d.type, pickType)));
     var fam = Core.byId(D.BLADE_TYPES, d.type).family;
-    [["famous", "kt_f_type_famous"], ["rare", "kt_f_type_rare"]].forEach(function (g) {
+    [["chinese", "kt_f_type_chinese"], ["famous", "kt_f_type_famous"], ["rare", "kt_f_type_rare"]].forEach(function (g) {
       wrap.appendChild(el("details", { class: "kt-special", open: fam === g[0] }, [
         el("summary", { text: t(g[1]) }),
         radioList("type", D.BLADE_TYPES.filter(function (o) { return o.family === g[0]; }), d.type, pickType)
@@ -890,9 +910,12 @@
             picks
           ]));
         });
-        box.appendChild(el("div", { class: "kt-mg-title", text: t("kt_mg_sort") }));
-        box.appendChild(grid);
-        box.appendChild(el("div", { class: "kt-muted", text: t("kt_kowari_left", { n: d.picks.filter(function (x) { return x === null; }).length }) }));
+        var left = d.picks.filter(function (x) { return x === null; }).length;
+        box.appendChild(el("div", { class: "kt-mg kt-sort", "data-live": left ? "1" : null }, [
+          el("div", { class: "kt-mg-title", text: t("kt_mg_sort") }),
+          grid,
+          el("div", { class: "kt-muted", text: t("kt_kowari_left", { n: left }) })
+        ]));
       }
     } else if (step.kind === "heat") {
       if (step.id === "tsumi") {
@@ -1108,6 +1131,10 @@
   function renderSetup() {
     var saved = load();
     var wrap = el("div", {});
+    if (ui.invite) wrap.appendChild(invitePanel());
+    // 預覽用（artifact）可把實驗場放最上面並展開：window.PRITEST_KATANA_LAB_FIRST
+    var labFirst = !!window.PRITEST_KATANA_LAB_FIRST;
+    if (labFirst) wrap.appendChild(labPanel(true));
     if (saved) {
       wrap.appendChild(el("div", { class: "kt-panel" }, [
         el("p", { text: t("kt_saved_found") }),
@@ -1145,14 +1172,38 @@
     panel.appendChild(el("div", { class: "kt-actions" }, [
       el("button", { type: "button", class: "kt-primary", text: t("kt_start"), onclick: function () {
         state = Core.newGame({ names: setup.names.map(function (n, i) { return n.trim() || t("kt_name_ph", { n: i + 1 }); }), assist: setup.assist, mode: setup.mode });
-        ui = { draft: {}, mg: {}, handoff: -1, result: null, confirmNew: false, error: "", cutResult: null, npc: null };
+        ui = freshUi();
         save();
         render();
       } })
     ]));
-    wrap.appendChild(panel);
+    if (ui.invite) {
+      wrap.appendChild(lobbyPanel());
+      wrap.appendChild(panel);
+    } else {
+      wrap.appendChild(panel);
+      wrap.appendChild(lobbyPanel());
+    }
+    if (!labFirst) wrap.appendChild(labPanel(false));
+    wrap.appendChild(scabbardPanel());
+    wrap.appendChild(specialsCatalog());
     wrap.appendChild(flowOverview());
     app.appendChild(wrap);
+  }
+
+  // 覺醒招式一覽：依分組列出名稱・覺醒條件・效果
+  function specialsCatalog() {
+    var box = el("details", { class: "kt-panel kt-catalog" }, [el("summary", { text: t("kt_sp_catalog", { n: D.SPECIALS.length }) }),
+      el("p", { class: "kt-muted", text: t("kt_sp_catalog_note") })]);
+    D.SPECIAL_GROUPS.forEach(function (g) {
+      box.appendChild(el("h3", { text: L(g.name) }));
+      box.appendChild(el("ul", { class: "kt-catalog-list" }, D.SPECIALS.filter(function (sp) { return sp.group === g.id; }).map(function (sp) {
+        var dot = el("span", { class: "kt-af-dot" });
+        dot.style.background = sp.color;
+        return el("li", {}, [dot, el("strong", { text: L(sp.name) }), el("span", { class: "kt-muted", text: "　" + t("kt_sp_cond") + L(sp.cond) }), el("div", { text: L(sp.desc) })]);
+      })));
+    });
+    return box;
   }
 
   function flowOverview() {
@@ -1210,18 +1261,21 @@
       return;
     }
     var step = D.STEPS[p.step];
-    app.appendChild(el("div", { class: "kt-turn" }, [el("strong", { text: p.name }), " — " + t("kt_step_n", { n: p.step + 1, total: D.STEPS.length }),
-      el("span", { class: "kt-mode-badge kt-mode-" + (state.mode || "serious"), text: t("kt_mode_" + (state.mode || "serious")) })]));
-    app.appendChild(progressBar(p));
-    var main = el("div", { class: "kt-panel" });
-    main.appendChild(el("h2", { text: L(step.name) }));
-    main.appendChild(el("p", { text: L(step.summary) }));
-    main.appendChild(el("details", { class: "kt-tips", open: true }, [
-      el("summary", { text: t("kt_tips") }),
-      el("ul", {}, step.tips.map(function (tp) { return el("li", { text: L(tp) }); }))
-    ]));
-    main.appendChild(stepControls(pIndex, step));
+    // 版面（使用者指定 2026-10-20）：最上方固定是小遊戲畫框，主標題與工序流程放在下方。
+    // 畫框放「目前要玩的」小遊戲（data-live）；全部玩完時放最後一個的結果。已完成的其他小遊戲留在下方原位。
+    var controls = stepControls(pIndex, step);
+    var mgs = Array.prototype.slice.call(controls.querySelectorAll(".kt-mg"));
+    var active = mgs.filter(function (m) { return m.getAttribute("data-live") === "1"; })[0] || mgs[mgs.length - 1] || null;
     var input = buildInput(pIndex, step);
+    var stage = el("div", { class: "kt-stage" });
+    stage.appendChild(el("div", { class: "kt-stage-head" }, [
+      el("strong", { text: L(step.name) }),
+      el("span", { class: "kt-muted", text: p.name + "・" + t("kt_step_n", { n: p.step + 1, total: D.STEPS.length }) }),
+      el("span", { class: "kt-mode-badge kt-mode-" + (state.mode || "serious"), text: t("kt_mode_" + (state.mode || "serious")) })
+    ]));
+    stage.appendChild(active || el("div", { class: "kt-stage-empty", text: t("kt_stage_none") }));
+    app.appendChild(stage);
+    var main = el("div", { class: "kt-panel" });
     main.appendChild(el("div", { class: "kt-error", text: ui.error ? t(ui.error) : "" }));
     main.appendChild(el("div", { class: "kt-actions" }, [
       el("button", { type: "button", class: "kt-primary", text: t("kt_finish_step"), disabled: !input, onclick: function () {
@@ -1235,6 +1289,17 @@
       } }),
       !input ? el("span", { class: "kt-muted", text: t("kt_need_minigame") }) : null
     ]));
+    stage.appendChild(main.firstChild);
+    stage.appendChild(main.firstChild);
+    app.appendChild(el("div", { class: "kt-turn" }, [el("strong", { text: p.name }), " — " + t("kt_step_n", { n: p.step + 1, total: D.STEPS.length })]));
+    app.appendChild(progressBar(p));
+    main.appendChild(el("h2", { text: L(step.name) }));
+    main.appendChild(el("p", { text: L(step.summary) }));
+    main.appendChild(el("details", { class: "kt-tips", open: true }, [
+      el("summary", { text: t("kt_tips") }),
+      el("ul", {}, step.tips.map(function (tp) { return el("li", { text: L(tp) }); }))
+    ]));
+    main.appendChild(controls);
     app.appendChild(main);
     app.appendChild(el("div", { class: "kt-panel" }, [el("h2", { text: t("kt_blade_now") }), bladeStatus(p.blade), pastNotes(p)]));
     app.appendChild(footerTools());
@@ -1310,7 +1375,12 @@
   function renderJudge() {
     var order = state.players.slice().sort(function (a, b) { return Core.judge(b.blade).total - Core.judge(a.blade).total; });
     app.appendChild(el("div", { class: "kt-panel" }, [el("h2", { text: t("kt_judge_title") }), el("p", { text: t("kt_judge_intro") })]));
-    order.forEach(function (p, i) { app.appendChild(swordCard(p, state.players.length > 1 ? i + 1 : 0)); });
+    Core.ensureSpecials(state);
+    order.forEach(function (p, i) {
+      var card = swordCard(p, state.players.length > 1 ? i + 1 : 0);
+      card.appendChild(nameAndSheathe(p));
+      app.appendChild(card);
+    });
     app.appendChild(el("div", { class: "kt-panel" }, [
       el("p", { text: t("kt_cut_intro") }),
       el("div", { class: "kt-actions" }, [
@@ -1387,24 +1457,658 @@
     return el("div", { class: "kt-panel kt-scroll" }, [el("table", { class: "kt-table" }, [head].concat(rows))]);
   }
 
-  // ---------------- 畫面：互擊 ----------------
+  // ---------------- 刀鞘（保存鍛好的刀，下次對刀直接拔出來用） ----------------
+  // localStorage["pritest-katana-scabbard"] = { v: 1, swords: [{ uid, snap, guest, rec: { w, l }, saved }] }
+  //   snap：Core.swordSnapshot()；guest＝從別人的邀請碼收下的刀
+  var SCABBARD_KEY = "pritest-katana-scabbard";
+  var SCABBARD_MAX = 60;
+
+  function scabbardLoad() {
+    try {
+      var s = JSON.parse(localStorage.getItem(SCABBARD_KEY) || "null");
+      if (s && s.v === 1 && Array.isArray(s.swords)) return s;
+    } catch (e) { /* 讀不到就當作空的 */ }
+    return { v: 1, swords: [] };
+  }
+
+  function scabbardSave(sc) {
+    try { localStorage.setItem(SCABBARD_KEY, JSON.stringify(sc)); } catch (e) { /* 私密模式等：只是記不住 */ }
+  }
+
+  function scabbardFind(uid) { return scabbardLoad().swords.filter(function (x) { return x.uid === uid; })[0] || null; }
+
+  function sheathe(uid, snap, guest) {
+    var sc = scabbardLoad();
+    var old = sc.swords.filter(function (x) { return x.uid === uid; })[0];
+    if (old) { old.snap = snap; old.saved = Date.now(); }
+    else {
+      sc.swords.unshift({ uid: uid, snap: snap, guest: !!guest, rec: { w: 0, l: 0 }, saved: Date.now() });
+      if (sc.swords.length > SCABBARD_MAX) sc.swords.length = SCABBARD_MAX;
+    }
+    scabbardSave(sc);
+  }
+
+  function unsheathe(uid) {
+    var sc = scabbardLoad();
+    sc.swords = sc.swords.filter(function (x) { return x.uid !== uid; });
+    scabbardSave(sc);
+  }
+
+  // 對刀結果寫進刀鞘的戰績。uidOf：{ 對刀場的 fighter id: 刀鞘 uid }
+  function recordResult(res, uidOf) {
+    var sc = scabbardLoad(), changed = false;
+    sc.swords.forEach(function (x) {
+      Object.keys(uidOf).forEach(function (fid) {
+        if (uidOf[fid] !== x.uid) return;
+        if (res.winner === fid) x.rec.w++; else x.rec.l++;
+        changed = true;
+      });
+    });
+    if (changed) scabbardSave(sc);
+  }
+
+  // 邀請碼：快照 JSON → base64url。可以貼整個邀請網址或只貼碼
+  function encodeSnap(snap) {
+    var b64 = btoa(unescape(encodeURIComponent(JSON.stringify(snap))));
+    return b64.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+  }
+
+  function decodeSnap(text) {
+    try {
+      var code = String(text || "").trim();
+      var m = code.match(/[?&#]duel=([A-Za-z0-9_-]+)/);
+      if (m) code = m[1];
+      var b64 = code.replace(/-/g, "+").replace(/_/g, "/");
+      while (b64.length % 4) b64 += "=";
+      return sanitizeSnap(JSON.parse(decodeURIComponent(escape(atob(b64)))));
+    } catch (e) { return null; }
+  }
+
+  // 收到的碼不可信：只留已知欄位，數值夾在合法範圍內
+  function sanitizeSnap(s) {
+    if (!s || s.v !== 1 || !s.stats || !Core.byId(D.BLADE_TYPES, s.type)) return null;
+    function num(v, lo, hi, dflt) { v = Number(v); return isFinite(v) ? Math.min(hi, Math.max(lo, v)) : dflt; }
+    function pick(list, v) { return Core.byId(list, v) ? v : null; }
+    var st = s.stats;
+    return {
+      v: 1, name: String(s.name || "").slice(0, 24), smith: String(s.smith || "").slice(0, 16), type: s.type,
+      length: num(s.length, 10, 200, 70), sori: num(s.sori, -60, 300, 0), mihaba: num(s.mihaba, 5, 90, 30), kasane: num(s.kasane, 0.3, 15, 7),
+      tsukuri: pick(D.TSUKURI, s.tsukuri), kissaki: pick(D.KISSAKI, s.kissaki), soriType: pick(D.SORI_TYPES, s.soriType),
+      hamon: pick(D.HAMON, s.hamon), yasurime: pick(D.YASURIME, s.yasurime), mune: pick(D.MUNE, s.mune), pattern: pick(D.PATTERNS, s.pattern),
+      kawaId: pick(D.KAWAGANE, s.kawaId), ashi: !!s.ashi, mei: String(s.mei || "").slice(0, 20), mode: s.mode === "show" ? "show" : "serious",
+      edges: s.edges === 2 ? 2 : 1, wave: !!s.wave, crack: !!s.crack, special: Core.byId(D.SPECIALS, s.special) ? s.special : null,
+      grade: Math.round(num(s.grade, 0, D.GRADES.length - 1, D.GRADES.length - 1)), total: num(s.total, 0, 100, 0),
+      flaws: (Array.isArray(s.flaws) ? s.flaws : []).filter(function (f) { return !!D.FLAWS[f]; }).slice(0, 12),
+      stats: { hardness: num(st.hardness, 20, 70, 50), toughness: num(st.toughness, 5, 100, 50), sharpness: num(st.sharpness, 0, 100, 50),
+        mass: num(st.mass, 0.1, 5, 1), integrity: num(st.integrity, 20, 160, 80), chip: num(st.chip, 0.3, 2, 1) }
+    };
+  }
+
+  function inviteUrl(snap) { return location.href.split(/[?#]/)[0] + "?duel=" + encodeSnap(snap); }
+
+  function snapTitle(snap) {
+    var bt = Core.byId(D.BLADE_TYPES, snap.type);
+    return (snap.name ? "「" + snap.name + "」" : "") + (bt ? L(bt.name) : "");
+  }
+
+  function npcName(n) { return L(n.name); }
+
+  // 複製到剪貼簿；被拒絕時改成選取文字讓玩家自己複製
+  function copyText(text, input) {
+    function fallback() { if (input) { input.focus(); input.select(); } ui.copyMsg = t("kt_sc_copy_manual"); }
+    try {
+      navigator.clipboard.writeText(text).then(function () { ui.copyMsg = t("kt_sc_copied"); rerenderKeepScroll(); }, function () { fallback(); });
+    } catch (e) { fallback(); }
+  }
+
+  // 刀的小卡（刀鞘列表、邀請、對刀準備用）
+  function snapCard(snap, children, cls) {
+    var prof = window.PriTestKatanaArena.profile(snap);
+    var sp = snap.special ? Core.byId(D.SPECIALS, snap.special) : null;
+    var s = snap.stats;
+    return el("div", { class: "kt-sheath " + (cls || "") }, [
+      el("div", { class: "kt-sheath-blade" }, [bladeSvg(snap)]),
+      el("div", { class: "kt-sheath-body" }, [
+        el("div", { class: "kt-sheath-title" }, [el("strong", { text: snapTitle(snap) }), snap.smith ? el("span", { class: "kt-muted", text: " " + t("kt_sc_by", { name: snap.smith }) }) : null]),
+        el("div", { class: "kt-muted", text: L((D.GRADES[snap.grade] || D.GRADES[D.GRADES.length - 1]).name) + " " + snap.total + t("kt_points") + "・" + L(D.ARENA_STYLES[prof.style].name) +
+          "・HRC " + s.hardness + "・" + t("kt_st_tough") + " " + s.toughness + "・" + t("kt_st_sharp") + " " + s.sharpness + "・" + t("kt_st_hp") + " " + s.integrity }),
+        sp ? el("div", { class: "kt-sheath-special", title: L(sp.desc), text: t("kt_sp_has", { name: L(sp.name) }) }) : null,
+        children && children.length ? el("div", { class: "kt-actions" }, children) : null
+      ])
+    ]);
+  }
+
+  // ---------------- 對刀場（畫面） ----------------
+  // a：PriTestKatanaArena.create() 的狀態（保存在 ui，重新 render 也能接著打）。onEnd(result) 只會呼叫一次。
+
+  function arenaFighterLabel(f) {
+    return f.name + (f.snap && f.snap.name ? "「" + f.snap.name + "」" : "");
+  }
+
+  function arenaView(a, onEnd) {
+    var Arena = window.PriTestKatanaArena;
+    var wrap = el("div", { class: "kt-arena" });
+    var hud = el("div", { class: "kt-arena-hud" });
+    var roundTxt = el("strong", {});
+    var btnPause = el("button", { type: "button", text: t("kt_ar_pause") });
+    var btnSpeed = el("button", { type: "button", text: "×" + (ui.arenaSpeed || 1) });
+    var btnSkip = el("button", { type: "button", text: t("kt_ar_skip") });
+    hud.appendChild(roundTxt);
+    hud.appendChild(el("span", { class: "kt-arena-hud-btns" }, [btnPause, btnSpeed, btnSkip]));
+    var canvas = el("canvas", { class: "kt-arena-canvas", width: "600", height: "600", "aria-label": t("kt_clash_title") });
+    var feed = el("ol", { class: "kt-arena-feed" });
+    var panels = el("div", { class: "kt-arena-panels" });
+    // 寬螢幕：左邊場地、右邊各刀面板（邊看邊出牌）；窄螢幕上下排列
+    wrap.appendChild(hud);
+    wrap.appendChild(el("div", { class: "kt-arena-body" }, [
+      el("div", { class: "kt-arena-left" }, [el("div", { class: "kt-arena-stage" }, [canvas]), feed]),
+      panels
+    ]));
+
+    var vis = { parts: [], floats: [], rings: [], bolts: [], cuts: [], arcs: [], trails: {}, flash: null, cutin: null, banner: null, logAt: 0, ver: -1, barT: 0 };
+    var paused = false;
+    var ended = false;
+
+    function hexRgb(h) { var n = parseInt(String(h).slice(1), 16); return ((n >> 16) & 255) + "," + ((n >> 8) & 255) + "," + (n & 255); }
+    function byF(id) { for (var i = 0; i < a.fighters.length; i++) if (a.fighters[i].id === id) return a.fighters[i]; return null; }
+    function cardName(id) { var c = Arena.cardDef(id); return c ? L(c.name) : id; }
+
+    // ----- 每把刀的面板：耐久・勢い・等待區・手牌 -----
+    var bars = {};
+    function buildPanels() {
+      panels.innerHTML = "";
+      a.fighters.forEach(function (f) {
+        var hpFill = el("div", { class: "kt-bar-fill" });
+        var spFill = el("div", { class: "kt-bar-fill kt-bar-spin" });
+        bars[f.id] = { hp: hpFill, spin: spFill, hpTxt: el("span", { class: "kt-bar-val" }), spTxt: el("span", { class: "kt-bar-val" }) };
+        var head = el("div", { class: "kt-af-head" }, [
+          el("span", { class: "kt-af-dot" }),
+          el("strong", { text: arenaFighterLabel(f) }),
+          f.human ? null : el("span", { class: "kt-af-ai", text: "AI" }),
+          !f.alive ? el("span", { class: "kt-bad", text: " " + t(f.out === "stall" ? "kt_ar_stalled" : "kt_broken") }) : null,
+          a.winner === f.id ? el("span", { text: " 🏆" }) : null
+        ]);
+        head.firstChild.style.background = f.color;
+        var traits = el("div", { class: "kt-af-traits" }, [el("span", { class: "kt-af-style", title: L(D.ARENA_STYLES[f.prof.style].desc), text: L(D.ARENA_STYLES[f.prof.style].name) })]
+          .concat(f.prof.traits.map(function (tr) { return el("span", { class: "kt-af-trait", title: L(D.ARENA_TRAITS[tr].desc), text: L(D.ARENA_TRAITS[tr].name) }); })));
+        var q = el("div", { class: "kt-af-queue" });
+        for (var i = 0; i < Arena.QUEUE; i++) {
+          var it = f.queue[i];
+          q.appendChild(el("div", { class: "kt-af-slot" + (it ? " kt-af-slot-on" + (it.special ? " kt-af-slot-sp" : "") : "") },
+            it ? [el("strong", { text: cardName(it.card) }), el("span", { class: "kt-muted", text: t("kt_ar_at", { n: it.at }) })] : [el("span", { class: "kt-muted", text: t("kt_ar_slot_empty") })]));
+        }
+        var hand = el("div", { class: "kt-af-hand" });
+        var canQueue = f.alive && !a.over && f.queue.length < Arena.QUEUE;
+        if (f.human) {
+          f.hand.forEach(function (h) {
+            var c = Arena.cardDef(h.card);
+            hand.appendChild(el("button", { type: "button", class: "kt-card-btn kt-card-" + c.kind, disabled: !canQueue, title: L(c.desc), "data-card": h.card,
+              onclick: function () { if (!Arena.queueCard(a, f.id, h.uid)) buildPanels(); } }, [
+              el("strong", { text: L(c.name) }),
+              el("span", { text: c.wait ? t("kt_ar_wait_n", { n: c.wait }) : t("kt_ar_wait_0") })
+            ]));
+          });
+          if (f.special) {
+            var spc = Core.byId(D.SPECIALS, f.special);
+            hand.appendChild(el("button", { type: "button", class: "kt-card-btn kt-card-special", disabled: !canQueue || f.specialUsed, title: L(spc.desc), "data-card": "special",
+              onclick: function () { if (!Arena.queueCard(a, f.id, "special")) buildPanels(); } }, [
+              el("strong", { text: L(spc.name) }),
+              el("span", { text: f.specialUsed ? t("kt_ar_used") : t("kt_ar_wait_n", { n: D.SPECIAL_WAIT }) })
+            ]));
+          }
+        } else {
+          hand.appendChild(el("span", { class: "kt-muted", text: t("kt_ar_ai_hand", { n: f.hand.length }) + (f.special ? "・" + t("kt_sp_has", { name: L(Core.byId(D.SPECIALS, f.special).name) }) + (f.specialUsed ? t("kt_ar_used_paren") : "") : "") }));
+        }
+        panels.appendChild(el("div", { class: "kt-af" + (f.alive ? "" : " kt-af-out") + (a.winner === f.id ? " kt-af-win" : ""), "data-fid": f.id }, [
+          head, traits,
+          el("div", { class: "kt-bar-row" }, [el("span", { class: "kt-bar-label", text: t("kt_st_hp") }), el("div", { class: "kt-bar" }, [hpFill]), bars[f.id].hpTxt]),
+          el("div", { class: "kt-bar-row" }, [el("span", { class: "kt-bar-label", text: t("kt_ar_spin") }), el("div", { class: "kt-bar" }, [spFill]), bars[f.id].spTxt]),
+          el("div", { class: "kt-af-label", text: t("kt_ar_queue") }), q,
+          el("div", { class: "kt-af-label", text: f.human ? t("kt_ar_hand") : "" }), hand
+        ]));
+      });
+      vis.ver = a.ver;
+      updateBars();
+    }
+    function updateBars() {
+      a.fighters.forEach(function (f) {
+        var b = bars[f.id];
+        if (!b) return;
+        b.hp.style.width = Math.max(0, f.hp / f.prof.maxHp * 100) + "%";
+        b.hp.className = "kt-bar-fill" + (f.hp < f.prof.maxHp * 0.3 ? " kt-bar-low" : "");
+        b.spin.style.width = Math.max(0, f.spin * 100) + "%";
+        b.hpTxt.textContent = Math.round(f.hp) + "/" + f.prof.maxHp;
+        b.spTxt.textContent = Math.round(f.spin * 100) + "%";
+      });
+      roundTxt.textContent = a.over ? t("kt_ar_over") : t("kt_ar_round", { n: a.round, max: Arena.MAX_ROUNDS, s: (Arena.ROUND_S - (a.time % Arena.ROUND_S)).toFixed(1) });
+    }
+
+    // ----- 文字戰況 -----
+    function updateFeed() {
+      while (vis.logAt < a.log.length) {
+        var e = a.log[vis.logAt++], txt = null;
+        if (e.type === "bind") txt = t("kt_ar_log_bind", { a: arenaFighterLabel(byF(e.a)), b: arenaFighterLabel(byF(e.b)) });
+        else if (e.type === "card") txt = t("kt_ar_log_card", { f: arenaFighterLabel(byF(e.f)), card: cardName(e.card) });
+        else if (e.type === "break") txt = t("kt_ar_log_break", { f: arenaFighterLabel(byF(e.f)) });
+        else if (e.type === "stall") txt = t("kt_ar_log_stall", { f: arenaFighterLabel(byF(e.f)) });
+        if (!txt) continue;
+        feed.insertBefore(el("li", { text: txt }), feed.firstChild);
+        while (feed.childNodes.length > 6) feed.removeChild(feed.lastChild);
+      }
+    }
+
+    // ----- 特效 -----
+    function addSparks(x, y, n, kind) {
+      for (var i = 0; i < n; i++) {
+        var ang = Math.random() * Math.PI * 2, sp = 40 + Math.random() * 120;
+        vis.parts.push({ x: x, y: y, vx: Math.cos(ang) * sp, vy: Math.sin(ang) * sp, life: 0.25 + Math.random() * 0.3, max: 0.55, kind: kind || "spark" });
+      }
+    }
+    function consumeEvents() {
+      a.events.forEach(function (e) {
+        // 武士風的特效（與下方的基本效果疊加）
+        if (e.type === "slash" || e.type === "mikiri") {
+          var ca = Math.random() * Math.PI;
+          vis.cuts.push({ x: e.x, y: e.y, ang: ca, len: 60, life: 0.32, max: 0.32, color: e.color ? hexRgb(e.color) : "255,255,255" });
+          if (e.type === "mikiri") { vis.cuts.push({ x: e.x, y: e.y, ang: ca + Math.PI / 2, len: 50, life: 0.32, max: 0.32, color: "255,255,255" }); vis.floats.push({ x: e.x, y: e.y - 22, text: t("kt_ar_fx_mikiri"), life: 1, max: 1, color: "#ffffff", big: true }); }
+        }
+        if (e.type === "bloom") { addSparks(e.x, e.y, 30, "petal"); vis.rings.push({ x: e.x, y: e.y, r: 6, grow: 70, life: 0.45, max: 0.45, color: "255,170,200", thick: 4 }); }
+        if (e.type === "sakura") addSparks(e.x, e.y, 24, "petal");
+        if (e.type === "fubuki") { addSparks(e.x, e.y, 50, "snow"); vis.rings.push({ x: e.x, y: e.y, r: 10, grow: e.r, life: 0.6, max: 0.6, color: "220,240,255", thick: 6 }); }
+        if (e.type === "iai") {
+          vis.arcs.push({ x: e.x, y: e.y, r: e.r, a0: Math.random() * Math.PI * 2, life: 0.45, max: 0.45 });
+          vis.flash = { life: 0.18, max: 0.18 };
+          vis.floats.push({ x: e.x, y: e.y - 26, text: t("kt_ar_fx_zan"), life: 1, max: 1, color: "#ffffff", big: true });
+        }
+        if (e.type === "card" && Core.byId(D.SPECIALS, e.card)) {
+          var spc = Core.byId(D.SPECIALS, e.card), cf = byF(e.f);
+          vis.cutin = { text: L(spc.name), who: cf ? arenaFighterLabel(cf) : "", color: spc.color, life: 1.3, max: 1.3 };
+        }
+        if (e.type === "spark") { addSparks(e.x, e.y, 8, e.fire ? "fire" : (e.momiji ? "leaf" : "spark")); if (Math.random() < 0.35) vis.rings.push({ x: e.x, y: e.y, r: 2, grow: 16, life: 0.12, max: 0.12, color: "255,245,200" }); }
+        else if (e.type === "bind") { addSparks(e.x, e.y, 34, "spark"); vis.rings.push({ x: e.x, y: e.y, r: 6, grow: 90, life: 0.35, max: 0.35, color: "255,230,150" }); }
+        else if (e.type === "release") vis.rings.push({ x: e.x, y: e.y, r: 4, grow: 140, life: 0.3, max: 0.3, color: "255,255,255" });
+        else if (e.type === "tick" || e.type === "wall") addSparks(e.x, e.y, 4, "spark");
+        else if (e.type === "hit" && e.n >= 2) vis.floats.push({ x: e.x, y: e.y - 12, text: "-" + e.n, life: 0.9, max: 0.9, color: e.kind === "burn" ? "#ff8a3d" : (e.kind === "bleed" ? "#e04848" : (e.kind === "sakura" || e.kind === "kaika" ? "#ff9fc8" : e.kind === "fubuki" ? "#cfe8ff" : e.kind === "poison" ? "#b57cff" : (e.kind === "reflect" ? "#ffcf6a" : "#fff"))) });
+        else if (e.type === "card") { var f = byF(e.f); vis.floats.push({ x: e.x, y: e.y - 26, text: cardName(e.card), life: 1.4, max: 1.4, color: f ? f.color : "#fff", big: true }); }
+        else if (e.type === "mikiri" || e.type === "slash") { vis.rings.push({ x: e.x, y: e.y, r: 10, grow: 160, life: 0.3, max: 0.3, color: e.color ? hexRgb(e.color) : "220,240,255" }); addSparks(e.x, e.y, 14, "spark"); }
+        else if (e.type === "strike") { vis.rings.push({ x: e.x, y: e.y, r: 8, grow: Math.min(e.r, Arena.R * 1.1), life: 0.5, max: 0.5, color: hexRgb(e.color || "#ffffff"), thick: 5 }); addSparks(e.x, e.y, 20, "spark"); }
+        else if (e.type === "heal") vis.floats.push({ x: e.x, y: e.y - 12, text: "+" + e.n, life: 1.1, max: 1.1, color: "#7be08f", big: true });
+        else if (e.type === "evade") vis.rings.push({ x: e.x, y: e.y, r: 6, grow: 30, life: 0.25, max: 0.25, color: "230,240,255" });
+        else if (e.type === "dispel") vis.floats.push({ x: e.x, y: e.y - 16, text: t("kt_ar_dispel"), life: 1.1, max: 1.1, color: "#e0e0ff" });
+        else if (e.type === "iai") vis.rings.push({ x: e.x, y: e.y, r: e.r * 0.5, grow: e.r * 2, life: 0.35, max: 0.35, color: "255,255,255", thick: 4 });
+        else if (e.type === "lightning") vis.bolts.push({ x: e.x, y: e.y, x2: e.x2, y2: e.y2, life: 0.4, max: 0.4, color: e.color ? hexRgb(e.color) : "200,220,255" });
+        else if (e.type === "meteor") { vis.rings.push({ x: e.x, y: e.y, r: 4, grow: e.r * 3, life: 0.45, max: 0.45, color: "255,150,60", thick: 5 }); addSparks(e.x, e.y, 26, "fire"); }
+        else if (e.type === "break") { addSparks(e.x, e.y, 30, "shard"); vis.floats.push({ x: e.x, y: e.y - 20, text: t("kt_broken"), life: 1.6, max: 1.6, color: "#ff6a5a", big: true }); }
+        else if (e.type === "stall") vis.floats.push({ x: e.x, y: e.y - 20, text: t("kt_ar_stalled"), life: 1.6, max: 1.6, color: "#c9c9c9", big: true });
+        else if (e.type === "chip") addSparks(e.x, e.y, 10, "shard");
+        else if (e.type === "round") vis.banner = { text: t("kt_ar_round_banner", { n: e.n }), life: 1.1, max: 1.1 };
+        else if (e.type === "block") vis.rings.push({ x: e.x, y: e.y, r: 18, grow: 20, life: 0.3, max: 0.3, color: "255,215,90" });
+      });
+      a.events = [];
+    }
+
+    // ----- 繪圖 -----
+    // ---- 俯視的刀形（每把刀的辨識度）----
+    // 以觸及半徑 r 為 1 的座標：刀尖在 +x。依刀種的身幅・反り・寬窄變化・波刃・長柄・護手・刀背環畫出剪影，
+    // 柄卷用該刀的玩家色，一眼分得出是誰的刀、什麼刀種。結果快取在 f._glyph（對刀場物件，不存檔）。
+    function glyphOf(f) {
+      if (f._glyph) return f._glyph;
+      var snap = f.snap, bt = Core.byId(D.BLADE_TYPES, snap.type) || D.BLADE_TYPES[2];
+      var dbl = bt.edges === 2, pole = !!bt.shaft || bt.id === "yari";
+      var b0 = pole ? 0.45 : 0.06;
+      var hw = Math.min(0.34, Math.max(0.07, (snap.mihaba || 30) / 190)); // 身幅誇張約 3 倍，縮小也看得出寬窄
+      var sori = Math.max(-0.45, Math.min(1.2, (snap.sori || 0) / 80));
+      var wave = bt.wave, N = 30, top = [], bot = [];
+      for (var i = 0; i <= N; i++) {
+        var u = i / N, x = b0 + (1 - b0) * u;
+        var y = -sori * 0.4 * u * u;
+        if (wave && u > 0.08 && u < 0.88) y += 0.04 * Math.sin((u - 0.08) / 0.8 * Math.PI * Math.min(wave.count, 9));
+        var w = hw * (bt.profile === "widen" ? 0.75 + 0.7 * u : (bt.profile === "narrow" ? 1 - 0.5 * u : (bt.profile === "kukri" ? 0.8 + 0.5 * Math.sin(u * Math.PI * 0.9) : 1 - 0.25 * u)));
+        if (u > 0.85) {
+          var tt = (u - 0.85) / 0.15;
+          w *= (snap.kissaki === "round" || snap.kissaki === "o") ? Math.sqrt(Math.max(0, 1 - tt * tt)) : 1 - tt;
+        }
+        if (dbl) { top.push([x, y - w / 2]); bot.push([x, y + w / 2]); }
+        else { top.push([x, y - w * 0.3]); bot.push([x, y + w * 0.7]); }
+      }
+      f._glyph = { top: top, bot: bot, poly: top.concat(bot.slice().reverse()), b0: b0, pole: pole, hw: hw, dbl: dbl,
+        guard: bt.family === "nihonto" ? "tsuba" : (bt.id === "hudie" ? "dguard" : "cross"),
+        rings: bt.rings || 0, ringPommel: !!bt.ringPommel, hilt: pole ? 1.15 : 0.42, family: bt.family };
+      return f._glyph;
+    }
+
+    function drawBlade(ctx, f, s) {
+      var r = f.prof.radius * s, gl = glyphOf(f), px1 = (window.devicePixelRatio || 1) / r;
+      function path(arr) { ctx.beginPath(); arr.forEach(function (q, i) { if (i) ctx.lineTo(q[0], q[1]); else ctx.moveTo(q[0], q[1]); }); }
+      ctx.save();
+      ctx.rotate(f.rot);
+      ctx.scale(r, r);
+      // 柄：長柄是木柄＋玩家色握把；刀劍是玩家色的柄卷
+      ctx.fillStyle = gl.pole ? "#6b4a2a" : "#241a14";
+      ctx.fillRect(-gl.hilt, -0.045, gl.hilt + gl.b0, 0.09);
+      ctx.fillStyle = f.color;
+      if (gl.pole) ctx.fillRect(-0.7, -0.055, 0.45, 0.11);
+      else ctx.fillRect(-gl.hilt + 0.03, -0.055, gl.hilt - 0.05, 0.11);
+      ctx.strokeStyle = "rgba(0,0,0,0.45)"; ctx.lineWidth = 1 * px1;
+      for (var k = 0; k < 4; k++) { var hx = (gl.pole ? -0.68 : -gl.hilt + 0.06) + k * 0.09; ctx.beginPath(); ctx.moveTo(hx, -0.055); ctx.lineTo(hx + 0.05, 0.055); ctx.stroke(); }
+      if (gl.ringPommel) { ctx.strokeStyle = "#c9a44a"; ctx.lineWidth = 2.4 * px1; ctx.beginPath(); ctx.arc(-gl.hilt - 0.07, 0, 0.07, 0, Math.PI * 2); ctx.stroke(); }
+      // 刀身
+      ctx.fillStyle = "#dfe6ec"; ctx.strokeStyle = "#4b545c"; ctx.lineWidth = 1 * px1;
+      path(gl.poly); ctx.closePath(); ctx.fill(); ctx.stroke();
+      // 刃的光（單刃只有刃側；雙刃兩側）
+      ctx.strokeStyle = "rgba(255,255,255,0.95)"; ctx.lineWidth = 1.3 * px1;
+      path(gl.bot); ctx.stroke();
+      if (gl.dbl) { path(gl.top); ctx.stroke(); }
+      if (gl.rings) {
+        ctx.strokeStyle = "#c9a44a"; ctx.lineWidth = 1.2 * px1;
+        for (var ri = 0; ri < gl.rings; ri++) { var q = gl.top[Math.round((0.08 + ri * 0.06) * 30)]; ctx.beginPath(); ctx.arc(q[0], q[1] + 0.02, 0.025, 0, Math.PI * 2); ctx.stroke(); }
+      }
+      // 鍔（日本刀）／十字護手／D 形護手（蝴蝶雙刀）
+      ctx.fillStyle = "#c9a44a"; ctx.strokeStyle = "#7a5d1f"; ctx.lineWidth = 1 * px1;
+      if (gl.guard === "tsuba") { ctx.beginPath(); ctx.ellipse(gl.b0, 0, 0.035, Math.max(0.09, gl.hw * 0.95), 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke(); }
+      else {
+        ctx.fillRect(gl.b0 - 0.02, -gl.hw * 1.6, 0.04, gl.hw * 3.2);
+        if (gl.guard === "dguard") { ctx.strokeStyle = "#c9a44a"; ctx.lineWidth = 2 * px1; ctx.beginPath(); ctx.moveTo(gl.b0, gl.hw * 1.5); ctx.quadraticCurveTo(-gl.hilt * 0.5, gl.hw * 2.6, -gl.hilt, 0.06); ctx.stroke(); }
+      }
+      ctx.restore();
+      ctx.fillStyle = f.color;
+      ctx.beginPath(); ctx.arc(0, 0, Math.max(2.5, 3.5 * s), 0, Math.PI * 2); ctx.fill();
+    }
+
+    function drawFrame() {
+      var cssW = canvas.clientWidth || 360;
+      var dpr = window.devicePixelRatio || 1;
+      var px = Math.round(cssW * dpr);
+      if (canvas.width !== px) { canvas.width = px; canvas.height = px; }
+      var ctx = canvas.getContext("2d");
+      var s = px / (2 * Arena.R + 24);
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.clearRect(0, 0, px, px);
+      ctx.translate(px / 2, px / 2);
+      // 場地：碗形的土俵，外圈是注連縄
+      var g = ctx.createRadialGradient(0, 0, 10 * s, 0, 0, Arena.R * s);
+      g.addColorStop(0, "#5a4a3b"); g.addColorStop(1, "#231c16");
+      ctx.fillStyle = g;
+      ctx.beginPath(); ctx.arc(0, 0, Arena.R * s, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = "rgba(255,240,220,0.06)";
+      ctx.lineWidth = 1 * dpr;
+      [0.3, 0.55, 0.8].forEach(function (k) { ctx.beginPath(); ctx.arc(0, 0, Arena.R * k * s, 0, Math.PI * 2); ctx.stroke(); });
+      ctx.strokeStyle = "rgba(255,240,220,0.12)";
+      ctx.beginPath(); ctx.arc(0, 0, 8 * s, 0, Math.PI * 2); ctx.stroke();
+      ctx.lineWidth = 7 * s;
+      ctx.strokeStyle = "#c9a65a";
+      ctx.beginPath(); ctx.arc(0, 0, (Arena.R + 3) * s, 0, Math.PI * 2); ctx.stroke();
+      ctx.setLineDash([5 * s, 5 * s]);
+      ctx.strokeStyle = "#8a6d33";
+      ctx.lineWidth = 3 * s;
+      ctx.beginPath(); ctx.arc(0, 0, (Arena.R + 3) * s, 0, Math.PI * 2); ctx.stroke();
+      ctx.setLineDash([]);
+      // 流星落下預告
+      a.hazards.forEach(function (hz) {
+        ctx.strokeStyle = "rgba(255,140,60," + (0.3 + 0.5 * Math.abs(Math.sin(a.time * 12))) + ")";
+        ctx.lineWidth = 2 * dpr;
+        ctx.beginPath(); ctx.arc(hz.x * s, hz.y * s, hz.r * s, 0, Math.PI * 2); ctx.stroke();
+      });
+      // 退場的刀：倒在原地
+      a.fighters.forEach(function (f) {
+        if (f.alive) return;
+        ctx.save();
+        ctx.globalAlpha = 0.35;
+        ctx.translate(f.x * s, f.y * s);
+        drawBlade(ctx, f, s);
+        ctx.restore();
+      });
+      a.fighters.forEach(function (f) {
+        if (!f.alive) return;
+        ctx.save();
+        ctx.translate(f.x * s, f.y * s);
+        var r = f.prof.radius * s;
+        // 招式的光環：覺醒招式依各自顏色（D.SPECIALS[].color）
+        f.buffs.forEach(function (bf, bi) {
+          ctx.globalAlpha = 0.22 + 0.1 * Math.sin(a.time * 10 + bi);
+          ctx.fillStyle = bf.color || "#fff";
+          ctx.beginPath(); ctx.arc(0, 0, r * (bf.reach || 1) * (1.2 + 0.08 * bi), 0, Math.PI * 2); ctx.fill();
+          ctx.globalAlpha = 1;
+          if (bf.invuln) { ctx.strokeStyle = bf.color; ctx.lineWidth = 3 * dpr; ctx.beginPath(); ctx.arc(0, 0, r + 8 * s, 0, Math.PI * 2); ctx.stroke(); }
+        });
+        if (Arena.bany(f, "evade")) ctx.globalAlpha = 0.55 + 0.25 * Math.sin(a.time * 14);
+        if (f.fx.momiji > 0) { ctx.fillStyle = "rgba(220,60,40,0.18)"; ctx.beginPath(); ctx.arc(0, 0, r * 1.15, 0, Math.PI * 2); ctx.fill(); }
+        if (Arena.bany(f, "vortex")) {
+          ctx.strokeStyle = "rgba(170,200,255,0.5)"; ctx.lineWidth = 2 * dpr;
+          for (var k = 0; k < 3; k++) { ctx.beginPath(); ctx.arc(0, 0, r * (1.4 + k * 0.5), a.time * 4 + k, a.time * 4 + k + 2); ctx.stroke(); }
+        }
+        var ring = f.fx.guard > 0 ? "rgba(110,170,255,0.8)" : (f.fx.mikiri > 0 ? "rgba(255,255,255,0.85)" : null);
+        if (ring) {
+          ctx.strokeStyle = ring; ctx.lineWidth = 2.5 * dpr;
+          if (f.fx.mikiri > 0 && !f.fx.guard) ctx.setLineDash([4 * dpr, 4 * dpr]);
+          ctx.beginPath(); ctx.arc(0, 0, r + 6 * s, 0, Math.PI * 2); ctx.stroke();
+          ctx.setLineDash([]);
+        }
+        if (f.fx.iaiHold > 0) { ctx.strokeStyle = "rgba(255,255,255,0.6)"; ctx.lineWidth = 1.5 * dpr; ctx.beginPath(); ctx.arc(0, 0, r * 3.5 * (1 - f.fx.iaiHold), 0, Math.PI * 2); ctx.stroke(); }
+        // 耐久環
+        ctx.strokeStyle = "rgba(0,0,0,0.45)"; ctx.lineWidth = 3 * dpr;
+        ctx.beginPath(); ctx.arc(0, 0, r + 2.5 * s, 0, Math.PI * 2); ctx.stroke();
+        ctx.strokeStyle = f.color;
+        ctx.beginPath(); ctx.arc(0, 0, r + 2.5 * s, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * Math.max(0, f.hp / f.prof.maxHp)); ctx.stroke();
+        // 刀身（勢い越低轉越慢、越晃）
+        if (f.fx.stun > 0) ctx.translate(Math.sin(a.time * 60) * 2 * s, 0);
+        var bd = null;
+        a.binds.forEach(function (x) { if (x.a === f || x.b === f) bd = x; });
+        if (bd) {
+          var op = bd.a === f ? bd.b : bd.a;
+          f.rot = Math.atan2(op.y - f.y, op.x - f.x) + Math.sin(a.time * 38 + (bd.a === f ? 0 : 1.7)) * 0.12;
+        }
+        var tr = vis.trails[f.id] || (vis.trails[f.id] = []);
+        var fast = f.fx.issen > 0 || f.fx.dash > 0 || Arena.bany(f, "speed") && Math.hypot(f.vx, f.vy) > 70;
+        if (fast) { tr.push({ x: f.x, y: f.y, rot: f.rot }); if (tr.length > 7) tr.shift(); } else if (tr.length) tr.shift();
+        var keepA = ctx.globalAlpha;
+        tr.forEach(function (gp, gi) {
+          ctx.save();
+          ctx.translate((gp.x - f.x) * s, (gp.y - f.y) * s);
+          ctx.globalAlpha = keepA * 0.08 * (gi + 1);
+          var rot0 = f.rot; f.rot = gp.rot; drawBlade(ctx, f, s); f.rot = rot0;
+          ctx.restore();
+        });
+        ctx.globalAlpha = keepA;
+        drawBlade(ctx, f, s);
+        ctx.globalAlpha = 1;
+        ctx.restore();
+        // 落櫻斬：中招的刀身邊飄著櫻花；吹雪斬：凍僵時有雪
+        if (f.dots.some(function (d) { return d.kind === "sakura"; }) && Math.random() < 0.4) vis.parts.push({ x: f.x + (Math.random() - 0.5) * 26, y: f.y - 14, vx: (Math.random() - 0.5) * 16, vy: 22, life: 0.7, max: 0.7, kind: "petal" });
+        if (f.fx.slow > 0 && Math.random() < 0.3) vis.parts.push({ x: f.x + (Math.random() - 0.5) * 26, y: f.y + (Math.random() - 0.5) * 26, vx: 0, vy: 6, life: 0.6, max: 0.6, kind: "snow" });
+        if (f.fx.kaika > 0 && Math.random() < 0.15) vis.parts.push({ x: f.x, y: f.y, vx: (Math.random() - 0.5) * 40, vy: (Math.random() - 0.5) * 40, life: 0.5, max: 0.5, kind: "petal" });
+        // 紅葉斬り：發動中身邊飄落楓葉
+        if (f.fx.momiji > 0 && Math.random() < 0.3) vis.parts.push({ x: f.x + (Math.random() - 0.5) * 30, y: f.y + (Math.random() - 0.5) * 30, vx: (Math.random() - 0.5) * 20, vy: 18, life: 0.8, max: 0.8, kind: "leaf" });
+        // 火焰尾跡（火之呼吸・炎之呼吸・日之呼吸）
+        if (Arena.bany(f, "flame") && Math.random() < 0.6) vis.parts.push({ x: f.x, y: f.y, vx: (Math.random() - 0.5) * 30 - f.vx * 0.2, vy: (Math.random() - 0.5) * 30 - f.vy * 0.2, life: 0.35, max: 0.35, kind: "fire" });
+        // 名牌
+        ctx.font = Math.round(11 * dpr) + "px sans-serif";
+        ctx.textAlign = "center";
+        ctx.fillStyle = "rgba(255,255,255,0.85)";
+        ctx.fillText(f.name, f.x * s, (f.y - f.prof.radius - 7) * s);
+      });
+      // 火花・碎片・楓葉
+      vis.parts.forEach(function (p) {
+        var k = p.life / p.max;
+        if (p.kind === "petal") { ctx.fillStyle = "rgba(255," + Math.round(160 + 50 * k) + ",200," + k + ")"; ctx.beginPath(); ctx.ellipse(p.x * s, p.y * s, 3.2 * dpr, 2 * dpr, p.vx, 0, Math.PI * 2); ctx.fill(); return; }
+        if (p.kind === "snow") { ctx.fillStyle = "rgba(240,248,255," + k + ")"; ctx.beginPath(); ctx.arc(p.x * s, p.y * s, 1.8 * dpr, 0, Math.PI * 2); ctx.fill(); return; }
+        if (p.kind === "leaf") { ctx.fillStyle = "rgba(214," + Math.round(60 + 60 * k) + ",40," + k + ")"; ctx.beginPath(); ctx.ellipse(p.x * s, p.y * s, 3 * dpr, 1.6 * dpr, p.vx, 0, Math.PI * 2); ctx.fill(); return; }
+        ctx.strokeStyle = p.kind === "fire" ? "rgba(255," + Math.round(90 + 100 * k) + ",30," + k + ")" : (p.kind === "shard" ? "rgba(220,230,240," + k + ")" : "rgba(255," + Math.round(200 + 55 * k) + "," + Math.round(120 * k) + "," + k + ")");
+        ctx.lineWidth = (p.kind === "fire" ? 2.5 : 1.6) * dpr;
+        ctx.beginPath(); ctx.moveTo(p.x * s, p.y * s); ctx.lineTo((p.x - p.vx * 0.05) * s, (p.y - p.vy * 0.05) * s); ctx.stroke();
+      });
+      vis.rings.forEach(function (rg) {
+        var k = rg.life / rg.max;
+        ctx.strokeStyle = "rgba(" + rg.color + "," + k + ")"; ctx.lineWidth = (rg.thick || 2) * dpr;
+        ctx.beginPath(); ctx.arc(rg.x * s, rg.y * s, (rg.r + rg.grow * (1 - k)) * s, 0, Math.PI * 2); ctx.stroke();
+      });
+      vis.bolts.forEach(function (b) {
+        var k = b.life / b.max;
+        ctx.strokeStyle = "rgba(" + b.color + "," + k + ")"; ctx.lineWidth = 3 * dpr;
+        ctx.beginPath(); ctx.moveTo(b.x * s, b.y * s);
+        for (var i = 1; i <= 6; i++) {
+          var q = i / 6;
+          ctx.lineTo((b.x + (b.x2 - b.x) * q + (i < 6 ? (Math.random() - 0.5) * 18 : 0)) * s, (b.y + (b.y2 - b.y) * q + (i < 6 ? (Math.random() - 0.5) * 18 : 0)) * s);
+        }
+        ctx.stroke();
+      });
+      vis.floats.forEach(function (fl) {
+        var k = fl.life / fl.max;
+        ctx.globalAlpha = Math.min(1, k * 2);
+        ctx.font = (fl.big ? "bold " + Math.round(15 * dpr) : Math.round(12 * dpr)) + "px sans-serif";
+        ctx.textAlign = "center";
+        ctx.fillStyle = fl.color;
+        ctx.fillText(fl.text, fl.x * s, (fl.y - (1 - k) * 18) * s);
+        ctx.globalAlpha = 1;
+      });
+      vis.cuts.forEach(function (c) {
+        var k = c.life / c.max, dx = Math.cos(c.ang) * c.len * (1.2 - k * 0.4), dy = Math.sin(c.ang) * c.len * (1.2 - k * 0.4);
+        ctx.lineCap = "round";
+        ctx.strokeStyle = "rgba(" + c.color + "," + (0.35 * k) + ")"; ctx.lineWidth = 7 * dpr * k;
+        ctx.beginPath(); ctx.moveTo((c.x - dx) * s, (c.y - dy) * s); ctx.lineTo((c.x + dx) * s, (c.y + dy) * s); ctx.stroke();
+        ctx.strokeStyle = "rgba(255,255,255," + k + ")"; ctx.lineWidth = 1.6 * dpr;
+        ctx.beginPath(); ctx.moveTo((c.x - dx) * s, (c.y - dy) * s); ctx.lineTo((c.x + dx) * s, (c.y + dy) * s); ctx.stroke();
+      });
+      vis.arcs.forEach(function (c) {
+        var k = c.life / c.max, sweep = Math.PI * 1.7 * (1 - k * 0.6);
+        ctx.strokeStyle = "rgba(255,255,255," + (0.9 * k) + ")"; ctx.lineWidth = 6 * dpr * k + 1;
+        ctx.beginPath(); ctx.arc(c.x * s, c.y * s, c.r * s, c.a0, c.a0 + sweep); ctx.stroke();
+        ctx.strokeStyle = "rgba(180,220,255," + (0.5 * k) + ")"; ctx.lineWidth = 14 * dpr * k;
+        ctx.beginPath(); ctx.arc(c.x * s, c.y * s, c.r * s * 0.92, c.a0, c.a0 + sweep); ctx.stroke();
+      });
+      if (vis.flash) {
+        ctx.fillStyle = "rgba(255,255,255," + (0.3 * vis.flash.life / vis.flash.max) + ")";
+        ctx.beginPath(); ctx.arc(0, 0, (Arena.R + 12) * s, 0, Math.PI * 2); ctx.fill();
+      }
+      if (vis.cutin) {
+        var kc = vis.cutin.life / vis.cutin.max, slide = Math.min(1, (1 - kc) * 6);
+        var bandH = 34 * dpr, by = Arena.R * 0.25 * s;
+        ctx.globalAlpha = Math.min(1, kc * 3);
+        ctx.fillStyle = "rgba(10,8,6,0.78)";
+        ctx.fillRect(-px / 2, by - bandH / 2, px, bandH);
+        ctx.fillStyle = vis.cutin.color;
+        ctx.fillRect(-px / 2, by - bandH / 2, px, 2 * dpr);
+        ctx.fillRect(-px / 2, by + bandH / 2 - 2 * dpr, px, 2 * dpr);
+        ctx.font = "bold " + Math.round(17 * dpr) + "px serif";
+        ctx.textAlign = "center";
+        ctx.fillStyle = vis.cutin.color;
+        ctx.fillText(vis.cutin.text, (1 - slide) * px * 0.6, by + 6 * dpr);
+        ctx.font = Math.round(10 * dpr) + "px sans-serif";
+        ctx.fillStyle = "rgba(255,255,255,0.8)";
+        ctx.fillText(vis.cutin.who, (1 - slide) * px * 0.6, by - 10 * dpr);
+        ctx.globalAlpha = 1;
+      }
+      if (vis.banner) {
+        var kb = vis.banner.life / vis.banner.max;
+        ctx.globalAlpha = Math.min(1, kb * 2);
+        ctx.font = "bold " + Math.round(22 * dpr) + "px serif";
+        ctx.textAlign = "center";
+        ctx.fillStyle = "#f3e2b8";
+        ctx.fillText(vis.banner.text, 0, -Arena.R * 0.55 * s);
+        ctx.globalAlpha = 1;
+      }
+    }
+
+    function tickVisuals(dt) {
+      vis.parts = vis.parts.filter(function (p) { p.life -= dt; p.x += p.vx * dt; p.y += p.vy * dt; p.vx *= 0.92; p.vy *= 0.92; return p.life > 0; });
+      ["floats", "rings", "bolts", "cuts", "arcs"].forEach(function (k) {
+        vis[k] = vis[k].filter(function (x) { x.life -= dt; return x.life > 0; });
+      });
+      ["flash", "cutin"].forEach(function (k) { if (vis[k]) { vis[k].life -= dt; if (vis[k].life <= 0) vis[k] = null; } });
+      if (vis.banner) { vis.banner.life -= dt; if (vis.banner.life <= 0) vis.banner = null; }
+    }
+
+    function endIfOver() {
+      if (!a.over || ended) return false;
+      ended = true;
+      stopAnim();
+      onEnd(Arena.result(a));
+      return true;
+    }
+
+    btnPause.addEventListener("click", function () { paused = !paused; btnPause.textContent = paused ? t("kt_ar_resume") : t("kt_ar_pause"); });
+    btnSpeed.addEventListener("click", function () { ui.arenaSpeed = ui.arenaSpeed === 2 ? 1 : 2; btnSpeed.textContent = "×" + ui.arenaSpeed; });
+    btnSkip.addEventListener("click", function () { Arena.run(a); endIfOver(); });
+
+    buildPanels();
+    updateFeed();
+    if (a.over) { drawLater(); return wrap; }
+
+    var acc = 0, last = 0;
+    anim = { kind: "arena" };
+    function frame(now) {
+      var dt = last ? Math.min(0.05, (now - last) / 1000) : 0;
+      last = now;
+      if (!paused) {
+        acc += dt * (ui.arenaSpeed || 1);
+        var n = 0;
+        while (acc >= Arena.DT && n++ < 8 && !a.over) { Arena.step(a); acc -= Arena.DT; }
+        if (n >= 8) acc = 0;
+        consumeEvents();
+        tickVisuals(dt * (ui.arenaSpeed || 1));
+      }
+      drawFrame();
+      vis.barT -= dt;
+      if (vis.ver !== a.ver) buildPanels();
+      else if (vis.barT <= 0) { vis.barT = 0.1; updateBars(); }
+      updateFeed();
+      if (endIfOver()) return;
+      anim.id = requestAnimationFrame(frame);
+    }
+    anim.id = requestAnimationFrame(frame);
+    return wrap;
+
+    function drawLater() { requestAnimationFrame(function () { if (canvas.isConnected) drawFrame(); }); }
+  }
+
+  // 對刀結束後的成績表
+  function arenaResultTable(res, nameOf) {
+    var head = el("tr", {}, ["", "kt_ar_col_hp", "kt_ar_col_dealt", "kt_ar_col_chips", "kt_ar_col_state"].map(function (k) { return el("th", { text: k ? t(k) : "" }); }));
+    var rows = res.placing.map(function (id, i) {
+      var sm = res.summary.filter(function (x) { return x.id === id; })[0];
+      var st = sm.alive ? (id === res.winner ? "🏆" : t("kt_ar_alive")) : t(sm.out === "stall" ? "kt_ar_stalled" : "kt_broken");
+      return el("tr", {}, [el("th", { text: "#" + (i + 1) + " " + nameOf(id) }), el("td", { text: sm.hp + "/" + sm.maxHp }), el("td", { text: String(sm.dealt) }),
+        el("td", { text: sm.chips + " / " + sm.bends }), el("td", { text: st })]);
+    });
+    return el("div", { class: "kt-scroll" }, [el("table", { class: "kt-table" }, [head].concat(rows))]);
+  }
+
+  // ---------------- 畫面：互擊（鍛刀局內） ----------------
 
   function clashSetup() {
     if (!ui.npc) ui.npc = state.players.length < 2 ? { sato: true } : {};
+    if (!ui.scPick) ui.scPick = {};
     var panel = el("div", { class: "kt-panel" });
     panel.appendChild(el("h2", { text: t("kt_clash_title") }));
     panel.appendChild(el("p", { text: t("kt_clash_intro") }));
+    panel.appendChild(el("div", { class: "kt-mg-title", text: t("kt_clash_npc") }));
     D.NPC_SWORDS.forEach(function (n) {
       panel.appendChild(el("label", { class: "kt-check" }, [
-        el("input", { type: "checkbox", checked: !!ui.npc[n.id], onchange: function (ev) { ui.npc[n.id] = ev.target.checked; render(); } }),
-        " " + L(n.name)
+        el("input", { type: "checkbox", checked: !!ui.npc[n.id], onchange: function (ev) { ui.npc[n.id] = ev.target.checked; rerenderKeepScroll(); } }),
+        " " + npcName(n)
       ]));
     });
-    var npcIds = D.NPC_SWORDS.filter(function (n) { return ui.npc[n.id]; }).map(function (n) { return n.id; });
-    var count = state.players.length + npcIds.length;
+    var mine = scabbardLoad().swords.filter(function (x) { return x.uid.indexOf(state.seed + "|") !== 0; });
+    if (mine.length) {
+      panel.appendChild(el("div", { class: "kt-mg-title", text: t("kt_clash_from_sc") }));
+      mine.forEach(function (x) {
+        panel.appendChild(el("label", { class: "kt-check" }, [
+          el("input", { type: "checkbox", checked: !!ui.scPick[x.uid], onchange: function (ev) { ui.scPick[x.uid] = ev.target.checked; rerenderKeepScroll(); } }),
+          " " + snapTitle(x.snap) + (x.snap.smith ? " " + t("kt_sc_by", { name: x.snap.smith }) : "")
+        ]));
+      });
+    }
+    var extras = D.NPC_SWORDS.filter(function (n) { return ui.npc[n.id]; }).map(function (n) { return { id: "npc-" + n.id, name: npcName(n), snap: Core.npcSnapshot(n) }; });
+    mine.forEach(function (x, i) { if (ui.scPick[x.uid]) extras.push({ id: "sc-" + i, name: x.snap.smith || snapTitle(x.snap), snap: x.snap, uid: x.uid }); });
+    var count = state.players.length + extras.length;
     panel.appendChild(el("div", { class: "kt-actions" }, [
       el("button", { type: "button", class: "kt-primary", text: t("kt_go_clash"), disabled: count < 2, onclick: function () {
-        Core.startClash(state, npcIds); save(); window.scrollTo(0, 0); render();
+        Core.startClash(state, extras);
+        state.clash.uidOf = {};
+        extras.forEach(function (x) { if (x.uid) state.clash.uidOf[x.id] = x.uid; });
+        state.players.forEach(function (p) { state.clash.uidOf[p.id] = state.seed + "|" + p.id; });
+        ui.arena = null;
+        save(); window.scrollTo(0, 0); render();
       } }),
       count < 2 ? el("span", { class: "kt-muted", text: t("kt_clash_need2") }) : null
     ]));
@@ -1413,7 +2117,8 @@
   }
 
   function fighterName(id) {
-    if (id.indexOf("npc-") === 0) return L(Core.byId(D.NPC_SWORDS, id.slice(4)).name);
+    var f = state.clash ? state.clash.fighters.filter(function (x) { return x.id === id; })[0] : null;
+    if (f) return f.name;
     for (var i = 0; i < state.players.length; i++) if (state.players[i].id === id) return state.players[i].name;
     return id;
   }
@@ -1421,51 +2126,404 @@
   function renderClash() {
     var cl = state.clash;
     app.appendChild(el("h2", { text: t("kt_clash_title") }));
-    var list = el("div", { class: "kt-fighters" });
-    cl.fighters.forEach(function (f) {
-      var fill = el("div", { class: "kt-bar-fill" + (f.hp < f.maxHp * 0.3 ? " kt-bar-low" : "") });
-      fill.style.width = Math.max(0, f.hp / f.maxHp * 100) + "%";
-      var stance = null;
-      if (!f.npc && f.alive && !cl.winner) {
-        stance = el("div", { class: "kt-stance" }, ["go", "ju"].map(function (sv) {
-          return el("button", { type: "button", class: "kt-chip" + (f.stance === sv ? " kt-chip-on" : ""), text: t("kt_stance_" + sv), title: t("kt_stance_" + sv + "_desc"),
-            onclick: function () { f.stance = sv; save(); render(); } });
-        }));
-      }
-      list.appendChild(el("div", { class: "kt-fighter" + (f.alive ? "" : " kt-fighter-out") + (cl.winner === f.id ? " kt-fighter-win" : "") }, [
-        el("div", { class: "kt-fighter-name" }, [el("strong", { text: fighterName(f.id) }), f.alive ? null : " " + t("kt_broken"), cl.winner === f.id ? " 🏆" : null]),
-        el("div", { class: "kt-bar" }, [fill]),
-        el("div", { class: "kt-muted", text: t("kt_fighter_info", { hp: Math.round(Math.max(0, f.hp)), max: f.maxHp, c: f.chips, b: f.bends }) }),
-        stance
-      ]));
-    });
-    app.appendChild(el("div", { class: "kt-panel" }, [list]));
-    if (!cl.winner) {
-      app.appendChild(el("div", { class: "kt-actions" }, [
-        el("button", { type: "button", class: "kt-primary", text: t("kt_clash_round"), onclick: function () { Core.clashRound(state); save(); render(); } }),
-        el("button", { type: "button", text: t("kt_clash_auto"), onclick: function () {
-          var g = 0;
-          while (!state.clash.winner && g++ < 300) Core.clashRound(state);
-          save(); render();
-        } })
-      ]));
-    } else {
+    if (cl.winner) {
       app.appendChild(el("div", { class: "kt-panel kt-result" }, [
         el("h3", { text: t("kt_clash_winner", { name: fighterName(cl.winner) }) }),
+        cl.summary && cl.summary.length ? arenaResultTable({ winner: cl.winner, placing: cl.placing, summary: cl.summary }, fighterName) : null,
         el("button", { type: "button", class: "kt-primary", text: t("kt_to_final"), onclick: function () { state.phase = "end"; save(); window.scrollTo(0, 0); render(); } })
       ]));
+      return;
     }
-    var log = el("ol", { class: "kt-clash-log", reversed: true });
-    cl.log.slice().reverse().forEach(function (r) {
-      var items = r.entries.map(function (e) {
-        if (e.bye) return el("li", { text: t("kt_clash_bye", { name: fighterName(e.bye) }) });
-        function evs(arr) { return arr.length ? "（" + arr.map(function (x) { return t("kt_ev_" + x); }).join("、") + "）" : ""; }
-        return el("li", { text: t("kt_clash_entry", { a: fighterName(e.a), b: fighterName(e.b), da: e.da, db: e.db }) + evs(e.ea.concat(e.eb.map(function (x) { return x; }))) });
-      });
-      log.appendChild(el("li", {}, [el("strong", { text: t("kt_round", { n: r.round }) }), el("ul", {}, items)]));
-    });
-    if (cl.log.length) app.appendChild(el("div", { class: "kt-panel" }, [el("h3", { text: t("kt_log") }), log]));
+    // 對刀場狀態放在 ui（不存檔）：重新整理會從頭再打一次
+    if (!ui.arena || ui.arenaKey !== state.seed) {
+      ui.arena = window.PriTestKatanaArena.create({ seed: state.seed + "|clash", fighters: cl.fighters });
+      ui.arenaKey = state.seed;
+    }
+    app.appendChild(el("p", { class: "kt-muted", text: t("kt_ar_howto") }));
+    app.appendChild(arenaView(ui.arena, function (res) {
+      Core.finishClash(state, res);
+      recordResult(res, cl.uidOf || {});
+      ui.arena = null;
+      save();
+      render();
+    }));
     app.appendChild(footerTools());
+  }
+
+  // ---------------- 畫面：刀鞘・邀請・自由對刀（開爐準備畫面） ----------------
+
+  function scabbardPanel() {
+    var sc = scabbardLoad();
+    var panel = el("div", { class: "kt-panel" });
+    panel.appendChild(el("h2", { text: t("kt_sc_title") }));
+    panel.appendChild(el("p", { class: "kt-muted", text: t("kt_sc_intro") }));
+    if (!sc.swords.length) panel.appendChild(el("p", { text: t("kt_sc_empty") }));
+    sc.swords.forEach(function (x) {
+      var open = ui.inviteOpen === x.uid;
+      var kids = [
+        el("span", { class: "kt-muted", text: (x.guest ? t("kt_sc_guest") + "・" : "") + t("kt_sc_rec", { w: x.rec.w, l: x.rec.l }) }),
+        el("button", { type: "button", text: open ? t("kt_sc_invite_close") : t("kt_sc_invite"), onclick: function () { ui.inviteOpen = open ? null : x.uid; ui.copyMsg = ""; rerenderKeepScroll(); } }),
+        ui.confirmDel === x.uid ? el("span", {}, [
+          el("button", { type: "button", class: "kt-danger", text: t("kt_sc_del_yes"), onclick: function () { unsheathe(x.uid); ui.confirmDel = null; rerenderKeepScroll(); } }),
+          el("button", { type: "button", text: t("kt_no"), onclick: function () { ui.confirmDel = null; rerenderKeepScroll(); } })
+        ]) : el("button", { type: "button", class: "kt-link", text: t("kt_sc_del"), onclick: function () { ui.confirmDel = x.uid; rerenderKeepScroll(); } })
+      ];
+      panel.appendChild(snapCard(x.snap, kids));
+      if (open) {
+        var url = inviteUrl(x.snap);
+        var box = el("input", { type: "text", class: "kt-text kt-invite-url", readonly: true, value: url, onfocus: function (ev) { ev.target.select(); } });
+        panel.appendChild(el("div", { class: "kt-invite" }, [
+          el("p", { class: "kt-muted", text: t("kt_sc_invite_note") }),
+          box,
+          el("div", { class: "kt-actions" }, [
+            el("button", { type: "button", class: "kt-primary", text: t("kt_sc_copy"), onclick: function () { copyText(url, box); } }),
+            ui.copyMsg ? el("span", { class: "kt-muted", text: ui.copyMsg }) : null
+          ])
+        ]));
+      }
+    });
+    // 貼上別人的邀請碼
+    var imp = el("textarea", { class: "kt-text kt-import", rows: "2", placeholder: t("kt_sc_import_ph") });
+    imp.value = ui.importText || "";
+    imp.addEventListener("input", function () { ui.importText = imp.value; });
+    panel.appendChild(field(t("kt_sc_import"), imp));
+    panel.appendChild(el("div", { class: "kt-actions" }, [
+      el("button", { type: "button", text: t("kt_sc_import_go"), onclick: function () {
+        var snap = decodeSnap(ui.importText);
+        if (!snap) { ui.importErr = true; rerenderKeepScroll(); return; }
+        ui.importErr = false; ui.importText = "";
+        lobbyAddGuest(snap);
+        rerenderKeepScroll();
+      } }),
+      ui.importErr ? el("span", { class: "kt-error", text: t("kt_sc_import_bad") }) : null
+    ]));
+    return panel;
+  }
+
+  // 自由對刀的準備：從刀鞘挑刀、加入收到的客刀與對手刀，指定誰由玩家操作
+  function lobby() {
+    if (!ui.lobby) ui.lobby = { pick: {}, guests: [], npc: {}, human: {} };
+    return ui.lobby;
+  }
+
+  function lobbyAddGuest(snap) {
+    var lb = lobby();
+    lb.guests.push(snap);
+    var gid = "g" + (lb.guests.length - 1);
+    lb.pick[gid] = true;
+    lb.human[gid] = false;
+  }
+
+  function lobbyFighters() {
+    var lb = lobby(), sc = scabbardLoad(), out = [];
+    sc.swords.forEach(function (x, i) {
+      if (!lb.pick[x.uid]) return;
+      out.push({ id: "s" + i, key: x.uid, name: x.snap.smith || t("kt_sc_mine"), snap: x.snap, human: lb.human[x.uid] !== false, uid: x.uid });
+    });
+    lb.guests.forEach(function (g, i) {
+      var gid = "g" + i;
+      if (!lb.pick[gid]) return;
+      out.push({ id: gid, key: gid, name: g.smith || t("kt_sc_guest"), snap: g, human: !!lb.human[gid] });
+    });
+    D.NPC_SWORDS.forEach(function (n) {
+      if (!lb.npc[n.id]) return;
+      out.push({ id: "npc-" + n.id, key: "npc-" + n.id, name: npcName(n), snap: Core.npcSnapshot(n), human: false });
+    });
+    return out;
+  }
+
+  function lobbyPanel() {
+    var lb = lobby(), sc = scabbardLoad();
+    var panel = el("div", { class: "kt-panel" });
+    panel.appendChild(el("h2", { text: t("kt_duel_title") }));
+    panel.appendChild(el("p", { class: "kt-muted", text: t("kt_duel_intro") }));
+    function row(key, label, isHuman, canHuman) {
+      var picked = !!lb.pick[key];
+      return el("div", { class: "kt-lobby-row" }, [
+        el("label", { class: "kt-check" }, [
+          el("input", { type: "checkbox", checked: picked, onchange: function (ev) { lb.pick[key] = ev.target.checked; rerenderKeepScroll(); } }), " " + label
+        ]),
+        picked && canHuman ? el("button", { type: "button", class: "kt-chip" + (isHuman ? " kt-chip-on" : ""), text: isHuman ? t("kt_duel_human") : "AI",
+          onclick: function () { lb.human[key] = !isHuman; rerenderKeepScroll(); } }) : null
+      ]);
+    }
+    sc.swords.forEach(function (x) { panel.appendChild(row(x.uid, snapTitle(x.snap) + (x.snap.smith ? " " + t("kt_sc_by", { name: x.snap.smith }) : ""), lb.human[x.uid] !== false, true)); });
+    lb.guests.forEach(function (g, i) { panel.appendChild(row("g" + i, "✉ " + snapTitle(g) + (g.smith ? " " + t("kt_sc_by", { name: g.smith }) : ""), !!lb.human["g" + i], true)); });
+    D.NPC_SWORDS.forEach(function (n) {
+      panel.appendChild(el("label", { class: "kt-check" }, [
+        el("input", { type: "checkbox", checked: !!lb.npc[n.id], onchange: function (ev) { lb.npc[n.id] = ev.target.checked; rerenderKeepScroll(); } }), " " + npcName(n)
+      ]));
+    });
+    var fs = lobbyFighters();
+    panel.appendChild(el("div", { class: "kt-actions" }, [
+      el("button", { type: "button", class: "kt-primary", text: t("kt_duel_go"), disabled: fs.length < 2, onclick: function () {
+        var seed = String(Date.now());
+        var uidOf = {};
+        fs.forEach(function (f) { if (f.uid) uidOf[f.id] = f.uid; });
+        ui.duel = { arena: window.PriTestKatanaArena.create({ seed: seed, fighters: fs }), uidOf: uidOf, result: null, names: {} };
+        fs.forEach(function (f) { ui.duel.names[f.id] = f.name + (f.snap.name ? "「" + f.snap.name + "」" : ""); });
+        window.scrollTo(0, 0);
+        render();
+      } }),
+      fs.length < 2 ? el("span", { class: "kt-muted", text: t("kt_clash_need2") }) : null
+    ]));
+    return panel;
+  }
+
+  // 收到邀請（?duel=…）時，最上方顯示對方的刀
+  function invitePanel() {
+    var snap = ui.invite;
+    var panel = el("div", { class: "kt-panel kt-invite-panel" });
+    panel.appendChild(el("h2", { text: t("kt_inv_title", { name: snap.smith || t("kt_sc_guest") }) }));
+    panel.appendChild(snapCard(snap, [
+      el("button", { type: "button", text: t("kt_inv_keep"), onclick: function () {
+        sheathe("guest|" + Core.hashStr(JSON.stringify(snap)), snap, true);
+        ui.inviteKept = true;
+        rerenderKeepScroll();
+      }, disabled: !!ui.inviteKept }),
+      ui.inviteKept ? el("span", { class: "kt-good", text: t("kt_inv_kept") }) : null
+    ]));
+    panel.appendChild(el("p", { class: "kt-muted", text: scabbardLoad().swords.filter(function (x) { return !x.guest; }).length ? t("kt_inv_pick") : t("kt_inv_no_sword") }));
+    return panel;
+  }
+
+  // ---------------- 對刀實驗場：直接輸入刀的數據來看對刀（使用者指定 2026-10-20） ----------------
+  // 不經過鍛刀，直接設定刀種・尺寸・硬度・韌性・鋒利・覺醒招式，開打或批次模擬看勝率。
+  // 質量與耐久照遊戲公式自動算（質量＝bladeMassKg、耐久＝60＋韌性×0.6＋質量×20，同 Core.stats）。
+  // 設定存在 localStorage["pritest-katana-lab"]（只是方便，讀不到就用預設）。
+  var LAB_KEY = "pritest-katana-lab";
+  var LAB_MAX = 8;
+  var LAB_PRESETS = [
+    { type: "uchigatana", special: "hinokokyu", hardness: 61, toughness: 62, sharpness: 80, human: true },
+    { type: "guandao", special: "honoo", hardness: 58, toughness: 72, sharpness: 62 },
+    { type: "kris", special: "jakou", hardness: 48, toughness: 66, sharpness: 55 },
+    { type: "rapier", special: "mushi", hardness: 50, toughness: 74, sharpness: 60 }
+  ];
+
+  function mid(r) { return Math.round((r[0] + r[1]) / 2 * 10) / 10; }
+
+  function labCalc(x) {
+    var bt = Core.byId(D.BLADE_TYPES, x.type), tk = Core.byId(D.TSUKURI, bt.tsukuri[0]);
+    x.mass = Math.round(Core.bladeMassKg(x.length, x.mihaba, x.kasane, tk.area) * 100) / 100;
+    x.integrity = Math.round(Core.clamp(60 + x.toughness * 0.6 + x.mass * 20, 20, 160));
+    return x;
+  }
+
+  function labBlade(p) {
+    var bt = Core.byId(D.BLADE_TYPES, p.type) || D.BLADE_TYPES[2];
+    return labCalc({ type: bt.id, name: p.name || L(bt.name), special: p.special || "", human: !!p.human,
+      length: Math.round(mid(bt.ideal)), mihaba: Math.round(mid(bt.width)), kasane: mid(bt.kasane), sori: Math.round(mid(bt.sori)),
+      hardness: p.hardness || Math.round(mid(bt.hrc)), toughness: p.toughness || 60, sharpness: p.sharpness || 60 });
+  }
+
+  function labState() {
+    if (ui.lab) return ui.lab;
+    var saved = null;
+    try { saved = JSON.parse(localStorage.getItem(LAB_KEY) || "null"); } catch (e) { saved = null; }
+    if (saved && Array.isArray(saved.blades) && saved.blades.every(function (x) { return Core.byId(D.BLADE_TYPES, x.type); })) ui.lab = { blades: saved.blades.map(labCalc), batch: null };
+    else ui.lab = { blades: LAB_PRESETS.map(labBlade), batch: null };
+    return ui.lab;
+  }
+
+  function labSave() { try { localStorage.setItem(LAB_KEY, JSON.stringify({ blades: ui.lab.blades })); } catch (e) { /* 只是記不住 */ } }
+
+  // 實驗場的刀 → 對刀場用的快照（經 sanitizeSnap 夾在合法範圍）
+  function labSnap(x) {
+    var bt = Core.byId(D.BLADE_TYPES, x.type);
+    return sanitizeSnap({ v: 1, name: x.name, smith: "", type: x.type, length: x.length, sori: x.sori, mihaba: x.mihaba, kasane: x.kasane,
+      tsukuri: bt.tsukuri[0], kissaki: bt.kissaki[0], soriType: bt.soriType[0], hamon: bt.ht === "diff" ? "suguha" : "none", ashi: false,
+      edges: bt.edges, wave: !!bt.wave, crack: false, special: x.special || null, grade: 3, total: 0, flaws: [],
+      stats: { hardness: x.hardness, toughness: x.toughness, sharpness: x.sharpness, mass: x.mass, integrity: x.integrity, chip: 1 } });
+  }
+
+  function labFighters(forceAi) {
+    return ui.lab.blades.map(function (x, i) {
+      return { id: "L" + (i + 1), name: (i + 1) + ". " + x.name, human: forceAi ? false : !!x.human, snap: labSnap(x) };
+    });
+  }
+
+  function typeSelect(value, onPick) {
+    var sel = el("select", { class: "kt-text", onchange: function (ev) { onPick(ev.target.value); } });
+    [["nihonto", "kt_f_type_nihonto"], ["chinese", "kt_f_type_chinese"], ["famous", "kt_f_type_famous"], ["rare", "kt_f_type_rare"]].forEach(function (g) {
+      var og = el("optgroup", { label: t(g[1]) });
+      D.BLADE_TYPES.filter(function (o) { return o.family === g[0]; }).forEach(function (o) {
+        og.appendChild(el("option", { value: o.id, selected: o.id === value, text: L(o.name) }));
+      });
+      sel.appendChild(og);
+    });
+    return sel;
+  }
+
+  function specialSelect(value, onPick) {
+    var sel = el("select", { class: "kt-text", onchange: function (ev) { onPick(ev.target.value); } });
+    sel.appendChild(el("option", { value: "", selected: !value, text: t("kt_lab_no_special") }));
+    D.SPECIAL_GROUPS.forEach(function (g) {
+      var og = el("optgroup", { label: L(g.name) });
+      D.SPECIALS.filter(function (sp) { return sp.group === g.id; }).forEach(function (sp) {
+        og.appendChild(el("option", { value: sp.id, selected: sp.id === value, text: L(sp.name) }));
+      });
+      sel.appendChild(og);
+    });
+    return sel;
+  }
+
+  function labCard(x, i) {
+    var lab = ui.lab;
+    var bt = Core.byId(D.BLADE_TYPES, x.type);
+    var info = el("div", { class: "kt-muted kt-lab-info" });
+    var preview = el("div", { class: "kt-lab-preview" });
+    function refresh() {
+      labCalc(x);
+      var snap = labSnap(x), prof = window.PriTestKatanaArena.profile(snap);
+      info.textContent = t("kt_lab_calc", { mass: x.mass, hp: x.integrity }) + "・" + L(D.ARENA_STYLES[prof.style].name) +
+        (prof.traits.length ? "・" + prof.traits.map(function (tr) { return L(D.ARENA_TRAITS[tr].name); }).join("、") : "");
+      preview.innerHTML = "";
+      preview.appendChild(bladeSvg(snap));
+      labSave();
+    }
+    function sl(label, key, min, max, stepv, unit) {
+      return field(label, slider(min, max, stepv, x[key], function (v) { return v + (unit || ""); }, function (v) { x[key] = v; refresh(); }));
+    }
+    var card = el("div", { class: "kt-lab-card" }, [
+      el("div", { class: "kt-lab-head" }, [
+        el("strong", { text: "#" + (i + 1) }),
+        el("input", { type: "text", class: "kt-text", maxlength: "16", value: x.name, oninput: function (ev) { x.name = ev.target.value; labSave(); } }),
+        el("button", { type: "button", class: "kt-chip" + (x.human ? " kt-chip-on" : ""), text: x.human ? t("kt_duel_human") : "AI",
+          onclick: function () { x.human = !x.human; labSave(); rerenderKeepScroll(); } }),
+        lab.blades.length > 2 ? el("button", { type: "button", class: "kt-link", text: t("kt_remove"), onclick: function () { lab.blades.splice(i, 1); labSave(); rerenderKeepScroll(); } }) : null
+      ]),
+      field(t("kt_lab_type"), typeSelect(x.type, function (v) {
+        var nb = labBlade({ type: v, special: x.special, hardness: x.hardness, toughness: x.toughness, sharpness: x.sharpness, human: x.human });
+        lab.blades[i] = nb; labSave(); rerenderKeepScroll();
+      })),
+      field(t("kt_lab_special"), specialSelect(x.special, function (v) { x.special = v; labSave(); })),
+      preview,
+      el("div", { class: "kt-lab-sliders" }, [
+        sl(t("kt_f_length"), "length", bt.min, bt.max, 1, " cm"),
+        sl(t("kt_f_mihaba"), "mihaba", Math.max(8, bt.width[0] - 10), Math.min(90, bt.width[1] + 10), 1, " mm"),
+        sl(t("kt_f_kasane"), "kasane", 0.5, 12, 0.5, " mm"),
+        sl(t("kt_s_sori"), "sori", Math.max(-60, bt.sori[0] - 40), Math.min(260, bt.sori[1] + 40), 1, " mm"),
+        sl("HRC", "hardness", 40, 66, 0.5, ""),
+        sl(t("kt_st_tough"), "toughness", 5, 100, 1, ""),
+        sl(t("kt_st_sharp"), "sharpness", 0, 100, 1, "")
+      ]),
+      info
+    ]);
+    refresh();
+    return card;
+  }
+
+  function labPanel(open) {
+    var lab = labState();
+    var box = el("details", { class: "kt-panel kt-lab", open: open || ui.labOpen }, [el("summary", { text: t("kt_lab_title") })]);
+    box.addEventListener("toggle", function () { ui.labOpen = box.open; });
+    box.appendChild(el("p", { class: "kt-muted", text: t("kt_lab_intro") }));
+    var grid = el("div", { class: "kt-lab-grid" });
+    lab.blades.forEach(function (x, i) { grid.appendChild(labCard(x, i)); });
+    box.appendChild(grid);
+    box.appendChild(el("div", { class: "kt-actions" }, [
+      lab.blades.length < LAB_MAX ? el("button", { type: "button", text: t("kt_lab_add"), onclick: function () {
+        lab.blades.push(labBlade(LAB_PRESETS[lab.blades.length % LAB_PRESETS.length])); labSave(); rerenderKeepScroll();
+      } }) : null,
+      el("button", { type: "button", class: "kt-link", text: t("kt_lab_reset"), onclick: function () {
+        lab.blades = LAB_PRESETS.map(labBlade); lab.batch = null; labSave(); rerenderKeepScroll();
+      } })
+    ]));
+    box.appendChild(el("div", { class: "kt-actions" }, [
+      el("button", { type: "button", class: "kt-primary", text: t("kt_lab_go"), onclick: function () {
+        var fs = labFighters(false), names = {};
+        fs.forEach(function (f) { names[f.id] = f.name; });
+        ui.duel = { arena: window.PriTestKatanaArena.create({ seed: String(Date.now()), fighters: fs }), uidOf: {}, result: null, names: names };
+        window.scrollTo(0, 0);
+        render();
+      } }),
+      el("button", { type: "button", text: t("kt_lab_batch", { n: 100 }), onclick: function () { labBatch(100); rerenderKeepScroll(); } })
+    ]));
+    if (lab.batch) box.appendChild(labBatchTable(lab.batch));
+    return box;
+  }
+
+  // 全員 AI 打 n 場：勝率・平均存活時間・平均剩餘耐久・平均造成損傷
+  function labBatch(n) {
+    var Arena = window.PriTestKatanaArena;
+    var fs = labFighters(true);
+    var acc = {};
+    fs.forEach(function (f) { acc[f.id] = { name: f.name, win: 0, dealt: 0, hp: 0, alive: 0 }; });
+    var time = 0;
+    for (var k = 0; k < n; k++) {
+      var res = Arena.run(Arena.create({ seed: "lab" + k + "|" + Date.now(), fighters: fs }));
+      time += res.time;
+      acc[res.winner].win++;
+      res.summary.forEach(function (sm) { var o = acc[sm.id]; o.dealt += sm.dealt; o.hp += sm.hp / sm.maxHp; if (sm.alive) o.alive++; });
+    }
+    ui.lab.batch = { n: n, time: time / n, rows: fs.map(function (f) { return acc[f.id]; }) };
+  }
+
+  function labBatchTable(b) {
+    var head = el("tr", {}, ["", "kt_lab_col_win", "kt_lab_col_dealt", "kt_lab_col_hp"].map(function (k) { return el("th", { text: k ? t(k) : "" }); }));
+    var rows = b.rows.slice().sort(function (x, y) { return y.win - x.win; }).map(function (r) {
+      var fill = el("div", { class: "kt-bar-fill" });
+      fill.style.width = (r.win / b.n * 100) + "%";
+      return el("tr", {}, [el("th", { text: r.name }),
+        el("td", {}, [el("div", { class: "kt-lab-winbar" }, [el("div", { class: "kt-bar" }, [fill]), el("span", { text: Math.round(r.win / b.n * 100) + "%" })])]),
+        el("td", { text: String(Math.round(r.dealt / b.n)) }), el("td", { text: Math.round(r.hp / b.n * 100) + "%" })]);
+    });
+    return el("div", { class: "kt-lab-batch" }, [
+      el("p", { class: "kt-muted", text: t("kt_lab_batch_note", { n: b.n, s: b.time.toFixed(1) }) }),
+      el("div", { class: "kt-scroll" }, [el("table", { class: "kt-table" }, [head].concat(rows))])
+    ]);
+  }
+
+  function renderDuel() {
+    var du = ui.duel;
+    function nameOf(id) { return du.names[id] || id; }
+    app.appendChild(el("h2", { text: t("kt_duel_title") }));
+    if (du.result) {
+      app.appendChild(el("div", { class: "kt-panel kt-result" }, [
+        el("h3", { text: t("kt_clash_winner", { name: nameOf(du.result.winner) }) }),
+        arenaResultTable(du.result, nameOf),
+        el("div", { class: "kt-actions" }, [
+          el("button", { type: "button", class: "kt-primary", text: t("kt_duel_again"), onclick: function () {
+            var fs = du.arena.fighters.map(function (f) { return { id: f.id, name: f.name, human: f.human, snap: f.snap }; });
+            ui.duel = { arena: window.PriTestKatanaArena.create({ seed: String(Date.now()), fighters: fs }), uidOf: du.uidOf, result: null, names: du.names };
+            render();
+          } }),
+          el("button", { type: "button", text: t("kt_duel_back"), onclick: function () { ui.duel = null; render(); } })
+        ])
+      ]));
+      return;
+    }
+    app.appendChild(el("p", { class: "kt-muted", text: t("kt_ar_howto") }));
+    app.appendChild(arenaView(du.arena, function (res) {
+      du.result = res;
+      recordResult(res, du.uidOf);
+      render();
+    }));
+    app.appendChild(el("div", { class: "kt-footer-tools" }, [
+      el("button", { type: "button", class: "kt-link", text: t("kt_duel_quit"), onclick: function () { ui.duel = null; render(); } })
+    ]));
+  }
+
+  // 審查・總結畫面的刀卡下方：刀號（命名）・覺醒招式・收入刀鞘
+  function nameAndSheathe(p) {
+    var b = p.blade;
+    var uid = state.seed + "|" + p.id;
+    var sp = b.special ? Core.byId(D.SPECIALS, b.special) : null;
+    var inSc = !!scabbardFind(uid);
+    var nameInput = el("input", { type: "text", class: "kt-text", maxlength: "24", value: b.swordName || "", placeholder: t("kt_name_sword_ph"),
+      oninput: function (ev) { b.swordName = ev.target.value; save(); } });
+    return el("div", { class: "kt-naming" }, [
+      sp ? el("div", { class: "kt-awaken" }, [el("strong", { text: t("kt_sp_awaken", { name: L(sp.name) }) }), el("div", { class: "kt-muted", text: L(sp.cond) + "：" + L(sp.desc) })])
+        : el("div", { class: "kt-muted", text: t("kt_sp_none") }),
+      field(t("kt_name_sword"), nameInput),
+      el("div", { class: "kt-actions" }, [
+        el("button", { type: "button", class: inSc ? "" : "kt-primary", text: inSc ? t("kt_sc_update") : t("kt_sc_put"), onclick: function () {
+          sheathe(uid, Core.swordSnapshot(b, { smith: p.name }), false);
+          rerenderKeepScroll();
+        } }),
+        inSc ? el("span", { class: "kt-good", text: t("kt_sc_in") }) : null
+      ])
+    ]);
   }
 
   // ---------------- 畫面：總結 ----------------
@@ -1483,11 +2541,13 @@
       el("div", { class: "kt-scroll" }, [el("table", { class: "kt-table" }, [head].concat(trs))]),
       el("p", { class: "kt-muted", text: t("kt_final_note") })
     ]));
-    var placing = state.clash ? state.clash.fighters : [];
+    var placing = state.clash && state.clash.summary ? state.clash.summary : [];
     rows.forEach(function (r) {
       var p = state.players.filter(function (x) { return x.id === r.id; })[0];
       var f = placing.filter(function (x) { return x.id === r.id; })[0];
-      app.appendChild(swordCard(p, 0, f ? { chips: f.chips, broken: !f.alive } : null));
+      var card = swordCard(p, 0, f ? { chips: f.chips, broken: !f.alive } : null);
+      card.appendChild(nameAndSheathe(p));
+      app.appendChild(card);
     });
     app.appendChild(el("div", { class: "kt-actions" }, [
       el("button", { type: "button", class: "kt-primary", text: t("kt_new_game"), onclick: function () { state = null; save(); render(); } })
@@ -1499,6 +2559,7 @@
   function render() {
     stopAnim();
     app.innerHTML = "";
+    if (ui.duel) { renderDuel(); return; }
     if (!state) { renderSetup(); return; }
     if (state.phase === "forge" || ui.result) renderForge(); // 最後一道工序的結果也要先看完再進審查
     else if (state.phase === "judge") renderJudge();
@@ -1508,10 +2569,22 @@
   }
 
   state = null;
+  (function readInvite() {
+    var m = location.search.match(/[?&]duel=([A-Za-z0-9_-]+)/);
+    var snap = m ? decodeSnap(m[1]) : null;
+    if (!snap) return;
+    ui.invite = snap;
+    lobbyAddGuest(snap);
+    // 預設：自己刀鞘裡的第一把刀迎戰
+    var mine = scabbardLoad().swords.filter(function (x) { return !x.guest; })[0];
+    if (mine) lobby().pick[mine.uid] = true;
+    else lobby().npc.sato = true;
+  })();
   window.addEventListener("i18n:change", render);
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", render);
   else render();
 
   // 測試用
-  window.PriTestKatana = { _state: function () { return state; }, _ui: function () { return ui; }, _render: render };
+  window.PriTestKatana = { _state: function () { return state; }, _ui: function () { return ui; }, _render: render,
+    _scabbard: scabbardLoad, _encode: encodeSnap, _decode: decodeSnap };
 })();

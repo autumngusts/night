@@ -175,7 +175,7 @@
   ];
 
   // ---------------- 刃物の種類 ----------------
-  // family：nihonto（日本刀）／famous（知名武器）／rare（冷門但酷炫，使用者指定 2026-10-20）
+  // family：nihonto（日本刀）／chinese（中華刀劍）／famous（知名武器）／rare（冷門但酷炫，使用者指定 2026-10-20）
   // edges：1 單刃／2 雙刃；ideal：理想刃長（cm）；sori：理想彎度（mm，負值＝內彎・前彎）；width：身幅；kasane：重（mm）
   // ht：理想的熱處理 —— diff（差異淬火：刃硬背軟）／through（整體淬火＋回火）；hrc：刃的理想硬度
   // forgeSori：火造時預設打出的彎度；tsukuri／kissaki／soriType：此刀種相稱的斷面・切先・彎法（審查「姿」用）
@@ -224,15 +224,47 @@
     { id: "gladius", family: "famous", edges: 2, min: 45, max: 70, ideal: [50, 60], sori: [0, 1], width: [45, 58], kasane: [5, 7], ht: "through", hrc: [50, 56], forgeSori: 0,
       tsukuri: ["diamond"], kissaki: ["kensaki"], soriType: ["muzori"],
       name: C("グラディウス", "羅馬短劍（Gladius）"), desc: C("ローマ軍団兵の短く幅広い剣。", "羅馬軍團兵的短而寬的劍。") },
-    { id: "jian", family: "famous", edges: 2, min: 60, max: 90, ideal: [70, 78], sori: [0, 1], width: [30, 40], kasane: [5, 7], ht: "diff", hrc: [52, 60], forgeSori: 0,
+    { id: "jian", family: "chinese", edges: 2, min: 60, max: 90, ideal: [70, 78], sori: [0, 1], width: [30, 40], kasane: [5, 7], ht: "diff", hrc: [52, 60], forgeSori: 0,
       tsukuri: ["diamond", "fuller"], kissaki: ["kensaki"], soriType: ["muzori"],
       name: C("中国剣（剣）", "中華劍（劍）"), desc: C("真っ直ぐで細身の両刃剣。刃鉄を挟んだ夾鋼で作られることも多い。", "細長筆直的雙刃劍，常以夾鋼製成。") },
-    { id: "miaodao", family: "famous", edges: 1, min: 90, max: 130, ideal: [100, 120], sori: [25, 45], width: [28, 34], kasane: [6, 8], ht: "diff", hrc: [56, 61], forgeSori: 15,
+    { id: "miaodao", family: "chinese", edges: 1, min: 90, max: 130, ideal: [100, 120], sori: [25, 45], width: [28, 34], kasane: [6, 8], ht: "diff", hrc: [56, 61], forgeSori: 15,
       tsukuri: ["shinogi", "lenticular"], kissaki: ["chu", "needle"], soriType: ["torii", "saki"],
       name: C("苗刀", "苗刀"), desc: C("明代の長大な両手刀。倭刀の影響を受けた。", "明代的長大雙手刀，受倭刀影響。") },
-    { id: "liuyedao", family: "famous", edges: 1, min: 65, max: 90, ideal: [72, 80], sori: [20, 40], width: [32, 38], kasane: [5, 8], ht: "diff", hrc: [55, 61], forgeSori: 18,
+    { id: "liuyedao", family: "chinese", edges: 1, min: 65, max: 90, ideal: [72, 80], sori: [20, 40], width: [32, 38], kasane: [5, 8], ht: "diff", hrc: [55, 61], forgeSori: 18,
       tsukuri: ["shinogi", "lenticular"], kissaki: ["chu", "o"], soriType: ["torii", "saki"],
       name: C("柳葉刀", "柳葉刀"), desc: C("明・清の中国の片刃刀。ゆるやかに反る。", "明清時代的中國單刃刀，彎度和緩。") },
+
+    // ---- 中華刀劍（使用者指定 2026-10-20：再加約 10 種）。shaft：裝長柄的兵器（畫成長柄）；rings：刀背的環數；ringPommel：環首 ----
+    { id: "huanshou", family: "chinese", edges: 1, min: 80, max: 120, ideal: [90, 105], sori: [0, 3], width: [28, 34], kasane: [7, 9], ht: "diff", hrc: [55, 60], forgeSori: -22, ringPommel: true,
+      tsukuri: ["hira", "kiriha"], kissaki: ["ko", "chu"], soriType: ["muzori"],
+      name: C("環首刀", "環首刀"), desc: C("漢代の直刀。柄頭に環を付ける。騎兵の斬撃のために剣から生まれた片刃の刀。", "漢代直刀，柄端帶環。為騎兵劈砍而由劍演變出的單刃刀。") },
+    { id: "hengdao", family: "chinese", edges: 1, min: 60, max: 90, ideal: [70, 80], sori: [0, 3], width: [28, 33], kasane: [7, 9], ht: "diff", hrc: [56, 61], forgeSori: -4,
+      tsukuri: ["kiriha", "hira"], kissaki: ["ko", "chu"], soriType: ["muzori"],
+      name: C("唐横刀", "唐橫刀"), desc: C("唐代の直刀。腰に横たえて佩く。日本の上古刀の手本となった。", "唐代直刀，橫佩於腰間。是日本上古刀的範本。") },
+    { id: "modao", family: "chinese", edges: 2, min: 90, max: 140, ideal: [100, 120], sori: [0, 1], width: [38, 48], kasane: [6, 8], ht: "diff", hrc: [52, 58], forgeSori: 0, shaft: true,
+      tsukuri: ["diamond", "ryoshinogi"], kissaki: ["kensaki"], soriType: ["muzori"],
+      name: C("陌刀", "陌刀"), desc: C("唐の重装歩兵の長柄の両刃刀。「人馬ともに砕く」と言われた。", "唐代重裝步兵的長柄雙刃刀，號稱「人馬俱碎」。") },
+    { id: "zhanmadao", family: "chinese", edges: 1, min: 100, max: 140, ideal: [110, 125], sori: [5, 20], width: [38, 46], kasane: [7, 9], ht: "diff", hrc: [55, 60], forgeSori: -16, profile: "widen",
+      tsukuri: ["hira", "lenticular"], kissaki: ["chu", "o"], soriType: ["saki", "torii"],
+      name: C("斬馬刀", "斬馬刀"), desc: C("騎馬を断つための長大な両手刀。", "用來斬斷戰馬的長大雙手刀。") },
+    { id: "yanling", family: "chinese", edges: 1, min: 70, max: 90, ideal: [74, 82], sori: [12, 25], width: [30, 36], kasane: [6, 8], ht: "diff", hrc: [55, 60], forgeSori: 6,
+      tsukuri: ["lenticular", "shinogi"], kissaki: ["chu", "needle"], soriType: ["saki"],
+      name: C("雁翎刀", "雁翎刀"), desc: C("明・清の軍刀。ほぼ真っ直ぐで先だけ雁の羽のように反り、先に偽刃を付ける。", "明清的軍刀。刀身近直，只有刀尖段如雁翎般上翹，前段開有假刃。") },
+    { id: "niuwei", family: "chinese", edges: 1, min: 65, max: 85, ideal: [70, 78], sori: [15, 30], width: [38, 52], kasane: [6, 8], ht: "diff", hrc: [55, 60], forgeSori: 12, profile: "widen",
+      tsukuri: ["hira", "lenticular"], kissaki: ["o", "chu"], soriType: ["saki"],
+      name: C("牛尾刀", "牛尾刀"), desc: C("清代の民間の刀。先が牛の尾のように幅広く膨らむ。", "清代民間刀。刀尖段如牛尾般變寬隆起。") },
+    { id: "guandao", family: "chinese", edges: 1, min: 50, max: 80, ideal: [55, 70], sori: [20, 40], width: [55, 75], kasane: [7, 10], ht: "diff", hrc: [54, 60], forgeSori: 15, profile: "widen", shaft: true,
+      tsukuri: ["naginata", "hira"], kissaki: ["o"], soriType: ["saki"],
+      name: C("偃月刀（関刀）", "偃月刀（關刀）"), desc: C("長柄に幅広い三日月形の刃を付けた大刀。関羽の青龍偃月刀で知られる。", "長柄上裝著寬大半月形刀刃的大刀，以關羽的青龍偃月刀聞名。") },
+    { id: "jiuhuan", family: "chinese", edges: 1, min: 70, max: 90, ideal: [75, 85], sori: [5, 15], width: [45, 60], kasane: [6, 8], ht: "diff", hrc: [54, 59], forgeSori: 4, profile: "widen", rings: 9,
+      tsukuri: ["hira"], kissaki: ["o", "chu"], soriType: ["saki"],
+      name: C("九環刀", "九環刀"), desc: C("刀背に九つの鉄環を通した幅広の刀。振ると環が鳴る。", "刀背穿有九個鐵環的寬刀，揮動時鐵環作響。") },
+    { id: "guitou", family: "chinese", edges: 1, min: 60, max: 85, ideal: [65, 75], sori: [5, 15], width: [55, 75], kasane: [7, 10], ht: "diff", hrc: [53, 58], forgeSori: 4, profile: "widen",
+      tsukuri: ["hira"], kissaki: ["round", "o"], soriType: ["saki"],
+      name: C("鬼頭刀", "鬼頭刀"), desc: C("先が極端に幅広い重い刀。処刑人の刀として知られる。", "刀尖段極寬的重刀，以劊子手刀聞名。") },
+    { id: "hudie", family: "chinese", edges: 1, min: 30, max: 45, ideal: [33, 40], sori: [0, 5], width: [45, 58], kasane: [5, 7], ht: "diff", hrc: [55, 60], forgeSori: 0, profile: "widen",
+      tsukuri: ["hira"], kissaki: ["o", "chu"], soriType: ["muzori"],
+      name: C("蝴蝶双刀", "蝴蝶雙刀"), desc: C("南派拳法の短く幅広い二本一対の刀。D 字形の護拳が付く。", "南派拳術使用的短寬雙刀，一對兩把，帶 D 形護手。") },
     { id: "shamshir", family: "famous", edges: 1, min: 70, max: 100, ideal: [80, 90], sori: [45, 80], width: [24, 32], kasane: [5, 7], ht: "through", hrc: [50, 58], forgeSori: 30, profile: "narrow",
       tsukuri: ["hira", "lenticular"], kissaki: ["needle"], soriType: ["saki"],
       name: C("シャムシール（彎刀）", "彎刀（波斯彎刀）"), desc: C("ペルシアの深く反った細身の片刃刀。反りは主に火造りで打ち出す（焼き入れでも反る）。", "波斯的深彎細身單刃刀，彎度主要靠火造打出（淬火也會再彎）。") },
@@ -406,7 +438,7 @@
   var NPC_SWORDS = [
     { id: "minarai", name: C("見習いの刀", "學徒之刀"), sharpness: 45, hardness: 57, toughness: 45, mass: 0.9, integrity: 70 },
     { id: "sato", name: C("里の鍛冶の刀", "村中鍛冶之刀"), sharpness: 62, hardness: 60, toughness: 62, mass: 1.0, integrity: 90 },
-    { id: "hono", name: C("神前奉納刀", "神前奉納刀"), sharpness: 78, hardness: 62, toughness: 75, mass: 1.05, integrity: 110 }
+    { id: "hono", name: C("神前奉納刀", "神前奉納刀"), sharpness: 78, hardness: 62, toughness: 75, mass: 1.05, integrity: 110, special: "tsubame" }
   ];
 
   // 審査の等級（total 以上）
@@ -434,6 +466,175 @@
     patternLost: { name: C("模様の消失", "紋路消失"), penalty: 2 }
   };
 
+  // ---------------- 對刀場（陀螺式） ----------------
+  // 招式卡：kind basic＝簡易動作／tech＝技／special＝刀的覺醒招式（每場一次）
+  // wait：放進等待區後，要再過幾個回合交界才發動（0＝下一個回合交界就發動）。效果邏輯在 katana_arena.js
+  var ARENA_CARDS = [
+    { id: "dash", kind: "basic", wait: 0, name: C("踏み込み", "踏進"), desc: C("最も近い相手へ一気に詰める。", "朝最近的對手一口氣逼近。") },
+    { id: "guard", kind: "basic", wait: 0, name: C("受け構え", "守勢"), desc: C("3 秒間、受ける傷を半減し押されにくくなる。", "3 秒內受到的損傷減半，也不容易被推開。") },
+    { id: "spin", kind: "basic", wait: 0, name: C("呼吸を整える", "調息"), desc: C("勢い（回転）を 25% 回復する。", "回復 25% 的氣勢（轉速）。") },
+    { id: "mikiri", kind: "tech", wait: 0, name: C("見切り", "看破"), desc: C("4 秒間構える。次の刃合わせを無傷でいなし、相手に返す。", "架勢 4 秒。下一次刀刃相接時無傷化解，並反擊對手。") },
+    { id: "issen", kind: "tech", wait: 1, name: C("一閃", "一閃"), desc: C("一直線に駆け抜けて斬る。当たった相手に大ダメージ、鍔迫り合いにならない。", "直線疾馳而過斬擊。命中的對手受重創，不會陷入僵持。") },
+    { id: "iai", kind: "tech", wait: 1, name: C("居合", "居合"), desc: C("一瞬止まって納刀し、周囲を抜き打ちで薙ぎ払う。", "停住一瞬收刀，以拔刀術橫掃周圍。") },
+    { id: "momiji", kind: "tech", wait: 1, name: C("紅葉斬り", "楓葉斬"), desc: C("4 秒間、刃合わせのたびに紅葉のような連撃。傷 ×1.6、相手の勢いを削る。", "4 秒內每次刀刃相接都化作楓葉般的連擊。損傷 ×1.6，並削弱對手氣勢。") },
+    // 使用者指定 2026-10-20：開花斬・落櫻斬・吹雪斬（楓葉斬已有）
+    { id: "kaika", kind: "tech", wait: 1, name: C("開花斬り", "開花斬"), desc: C("4 秒間構える。次の鍔迫り合いが解ける瞬間、花が開くように斬り広げて相手を吹き飛ばす。", "架勢 4 秒。下一次刀刃相接分開的瞬間，如花綻放般斬開並把對手轟飛。") },
+    { id: "rakuou", kind: "tech", wait: 1, name: C("落桜斬り", "落櫻斬"), desc: C("最も近い相手に桜を散らす。3 秒間、花びらが切り刻み（毎秒 4）、動きを鈍らせる。", "朝最近的對手灑落櫻花：3 秒內花瓣持續切割（每秒 4），並使其行動遲緩。") },
+    { id: "fubuki", kind: "tech", wait: 1, name: C("吹雪斬り", "吹雪斬"), desc: C("周囲に吹雪を巻き起こす。近くの相手を斬り、凍えさせて遅くし、勢いを奪う。", "在周圍捲起暴風雪：斬擊附近的對手，使其凍僵變慢並奪走氣勢。") }
+  ];
+
+  // 覺醒招式：鍛完時依刀的性能・材料・形狀覺醒（判定在 katana_core.js 的 specialCandidates / awaken）
+  // group：classic 刀性／breath 呼吸（使用者指定 2026-10-20：鬼滅之刃的招式名）／meito 名刀之魂（歷史名刀）
+  // req（覺醒條件，全部符合才算；any 為「其中一組符合即可」）：
+  //   minHrc maxHrc minSharp minTough minMass maxMass minLen maxLen minSori minWidth maxKasane minTotal minFlaws maxClarity
+  //   types kawa media hamon soriType tsukuri kissaki（陣列，符合其一）、wave、minScore：{ jigane, hamon, sugata, soundness, finish }
+  // fx（效果，katana_arena.js 的 activateSpecial）：
+  //   buff：{ t 秒, dmg 傷害倍率, speed 速度倍率, mass 質量倍率, guard 受傷倍率, invuln 無敵, pierce 無視對方防禦與無敵, evade 穿身閃避機率,
+  //           reach 觸及倍率, regen 每秒回復, curse 每秒反噬（不致死）, reflect 反彈受傷比例, vortex 吸引, noSeek, noBind 接觸不僵持,
+  //           hits 接觸幾次後結束, ramp 每次接觸傷害倍率增加, bindMul 僵持傷害倍率, bindLong 僵持時間倍率, bindDrain 僵持中額外削勢い, flame 火焰外觀,
+  //           onHit：{ dmg, dot：{ kind, dps, t }, stun, drain, knock } 每次接觸時 }
+  //   strike：{ target nearest|strongest|weakest|all, radius（all 時的範圍，省略＝全場）, dmg, teleport, stun, knock, drain, dot, dispel 解除對方強化,
+  //             pierce, count 次數, delay 間隔秒 }
+  //   meteor：{ n, dmg, r }・heal 回復最大耐久比例・spin 回復勢い・cleanse 解除自身持續傷害
+  //   dmg 皆為基準值，實際 × 攻 / 對方防。
+  var SPECIALS = [
+    // ---- 刀性 ----
+    { id: "hinokokyu", group: "classic", color: "#ff6a2a", name: C("火の呼吸", "火之呼吸"), cond: C("焼き入れが見事で刃が硬い", "淬火漂亮且刃口夠硬"),
+      desc: C("5 秒間、刃が燃え上がる。傷 ×2・速さ ×1.4、触れた相手を焼く。", "5 秒內刀身燃起烈焰。損傷 ×2、速度 ×1.4，碰到的對手會被灼燒。"),
+      req: { minHrc: 60, minScore: { hamon: 14 } }, fx: { buff: { t: 5, dmg: 2, speed: 1.4, flame: true, onHit: { dot: { kind: "burn", dps: 3, t: 3 } } } } },
+    { id: "tsubame", group: "classic", color: "#9fd3ff", name: C("燕返し", "燕返"), cond: C("長寸で姿が良い", "刀身長且姿態佳"),
+      desc: C("5 秒間、次の 2 回の接触で返す刀の二連撃。鍔迫り合いにならない。", "5 秒內接下來 2 次接觸都化作回身二連斬，不陷入僵持。"),
+      req: { minLen: 75, minScore: { sugata: 14 } }, fx: { buff: { t: 5, hits: 2, noBind: true, onHit: { dmg: 26 } } } },
+    { id: "raikiri", group: "classic", color: "#c8dcff", name: C("雷切", "雷切"), cond: C("切れ味が極めて鋭い", "鋒利度極高"),
+      desc: C("最も耐久の高い相手へ雷のように斬り込み、しびれさせる。", "如雷般斬向耐久最高的對手，使其麻痺。"),
+      req: { minSharp: 80 }, fx: { strike: { target: "strongest", teleport: true, dmg: 24, stun: 1.2 } } },
+    { id: "ryusei", group: "classic", color: "#ff9640", name: C("流星落とし", "流星落"), cond: C("隕鉄で鍛えた", "以隕鐵鍛成"),
+      desc: C("相手の位置へ 3 つの流星を落とす。", "朝對手的位置落下 3 顆流星。"),
+      req: { kawa: ["meteor"] }, fx: { meteor: { n: 3, dmg: 13, r: 26 } } },
+    { id: "uzumon", group: "classic", color: "#a8c8ff", name: C("渦紋嵐", "渦紋嵐"), cond: C("ダマスカス・ウーツの紋様鋼", "大馬士革或烏茲紋樣鋼"),
+      desc: C("5 秒間、渦の紋のように相手を引き寄せて斬り、勢いを奪う。", "5 秒內如渦紋般把對手吸近斬擊，並奪走氣勢。"),
+      req: { kawa: ["damascus", "wootz"] }, fx: { buff: { t: 5, vortex: true, bindDrain: 0.1, onHit: { dmg: 8, drain: 0.06 } } } },
+    { id: "fudo", group: "classic", color: "#ffd75a", name: C("不動金剛", "不動金剛"), cond: C("粘りが非常に強い", "韌性極強"),
+      desc: C("5 秒間、一切の傷を受けず、動かざること山の如し。", "5 秒內不受任何損傷，不動如山。"),
+      req: { minTough: 72 }, fx: { buff: { t: 5, invuln: true, mass: 3 } } },
+    { id: "getsurin", group: "classic", color: "#e6e0ff", name: C("月輪", "月輪"), cond: C("反りが深い", "彎度很深"),
+      desc: C("4 秒間、満月の弧を描いて場を駆け巡り、すれ違う相手を斬る。速さ ×2.2・傷 ×1.5。", "4 秒內畫出滿月的弧線在場中疾馳，斬過擦身的對手。速度 ×2.2、損傷 ×1.5。"),
+      req: { minSori: 30 }, fx: { buff: { t: 4, speed: 2.2, dmg: 1.5, noSeek: true, onHit: { dmg: 12 } } } },
+    { id: "jakou", group: "classic", color: "#7fbf6a", name: C("蛇咬", "蛇咬"), cond: C("波打つ刃", "波浪形刀刃"),
+      desc: C("5 秒間、触れた相手に出血を与える（4 秒間持続ダメージ）。", "5 秒內碰到的對手會出血（持續損傷 4 秒）。"),
+      req: { wave: true }, fx: { buff: { t: 5, onHit: { dot: { kind: "bleed", dps: 4, t: 4 } } } } },
+
+    // ---- 呼吸 ----
+    { id: "mizu", group: "breath", color: "#4aa3ff", name: C("水の呼吸 拾ノ型 生生流転", "水之呼吸・拾之型 生生流轉"), cond: C("水で焼き入れた直刃・湾れ刃の刀", "以水淬火的直刃或湾刃之刀"),
+      desc: C("7 秒間、水龍のように回り続け、触れるたびに傷が 4 割ずつ増す。", "7 秒內如水龍迴旋不止，每接觸一次損傷再增 4 成。"),
+      req: { media: ["cold", "warm"], hamon: ["suguha", "konotare"], minTotal: 60 }, fx: { buff: { t: 7, dmg: 1, ramp: 0.4, speed: 1.2, onHit: { dmg: 8 } } } },
+    { id: "kaminari", group: "breath", color: "#ffe14a", name: C("雷の呼吸 壱ノ型 霹靂一閃", "雷之呼吸・壹之型 霹靂一閃"), cond: C("鋭く、抜き打ちに向く長さ", "鋒利且長度適合拔刀術"),
+      desc: C("一瞬で最も近い相手へ踏み込んで斬り、しびれさせる。", "一瞬間踏進最近的對手斬擊，並使其麻痺。"),
+      req: { minSharp: 70, maxLen: 80 }, fx: { strike: { target: "nearest", teleport: true, dmg: 22, stun: 0.6 } } },
+    { id: "honoo", group: "breath", color: "#ff4a2a", name: C("炎の呼吸 玖ノ型 煉獄", "炎之呼吸・玖之型 煉獄"), cond: C("華やかな乱れ刃で硬い", "華麗的亂刃且夠硬"),
+      desc: C("炎をまとって突進し、最初に当たった相手を大きく吹き飛ばす。", "裹著烈焰突進，把第一個撞上的對手重重轟飛。"),
+      req: { minHrc: 58, hamon: ["gunome", "choji", "hitatsura"] }, fx: { buff: { t: 3.5, speed: 2.5, dmg: 1.5, noBind: true, hits: 1, flame: true, onHit: { dmg: 40, knock: 120 } } } },
+    { id: "kemono", group: "breath", color: "#b07a4a", name: C("獣の呼吸 肆ノ牙 切細裂き", "獸之呼吸・肆之牙 切細裂"), cond: C("傷の多い刀（刃こぼれが牙になる）", "瑕疵多的刀（刃口缺損化為獠牙）"),
+      desc: C("5 秒間、鋸のような刃で触れた相手を切り裂き、出血させる。", "5 秒內以鋸齒般的刀刃撕裂碰到的對手，使其出血。"),
+      req: { minFlaws: 2 }, fx: { buff: { t: 5, speed: 1.3, onHit: { dmg: 8, dot: { kind: "bleed", dps: 4, t: 3 } } } } },
+    { id: "mushi", group: "breath", color: "#c58aff", name: C("蟲の呼吸 蝶ノ舞 戯れ", "蟲之呼吸・蝶之舞 戲弄"), cond: C("突きに特化した細身", "專為刺擊的細身"),
+      desc: C("5 秒間、蝶のようにかわしながら刺し、毒を残す。", "5 秒內如蝴蝶般閃身刺擊，留下劇毒。"),
+      req: { any: [{ types: ["rapier"] }, { tsukuri: ["hexa", "sankaku"] }] },
+      fx: { buff: { t: 5, evade: 0.6, noBind: true, onHit: { dmg: 3, dot: { kind: "poison", dps: 5, t: 4 } } } } },
+    { id: "kasumi", group: "breath", color: "#dfe8f0", name: C("霞の呼吸 漆ノ型 朧", "霞之呼吸・漆之型 朧"), cond: C("刃文が霞むほど朧だが切れる", "刃文朦朧如霞卻依然鋒利"),
+      desc: C("5 秒間、霞のように姿がおぼろになり、ほとんどの接触をすり抜けて斬る。", "5 秒內身形如霞般朦朧，幾乎所有接觸都穿身而過並斬擊。"),
+      req: { maxClarity: 0.45, minSharp: 55, hamon: ["suguha", "konotare", "gunome", "choji", "hitatsura"] }, fx: { buff: { t: 5, evade: 0.85, speed: 1.3, onHit: { dmg: 12 } } } },
+    { id: "hana", group: "breath", color: "#ff8fb8", name: C("花の呼吸 陸ノ型 渦桃", "花之呼吸・陸之型 渦桃"), cond: C("丁子刃が見事", "丁子刃開得漂亮"),
+      desc: C("5 秒間、花びらのように身を翻して斬り、相手を押し返す。", "5 秒內如花瓣般翻身斬擊，並把對手推開。"),
+      req: { hamon: ["choji"], minScore: { hamon: 12 } }, fx: { buff: { t: 5, speed: 1.2, dmg: 1.3, onHit: { dmg: 14, knock: 60 } } } },
+    { id: "iwa", group: "breath", color: "#9a9a9a", name: C("岩の呼吸 壱ノ型 蛇紋岩・双極", "岩之呼吸・壹之型 蛇紋岩・雙極"), cond: C("重い刀", "沉重的刀"),
+      desc: C("周囲を叩き潰して吹き飛ばし、4 秒間さらに重くなる。", "砸碎周圍並把對手轟飛，之後 4 秒更加沉重。"),
+      req: { minMass: 1.4 }, fx: { strike: { target: "all", radius: 60, dmg: 24, knock: 120 }, buff: { t: 4, mass: 2 } } },
+    { id: "kaze", group: "breath", color: "#6fd39a", name: C("風の呼吸 壱ノ型 塵旋風・削ぎ", "風之呼吸・壹之型 塵旋風・削"), cond: C("軽くて鋭い", "輕而鋒利"),
+      desc: C("4 秒間、旋風のように駆け、3 回まで触れた相手を削る。", "4 秒內如旋風疾馳，最多削過 3 次接觸的對手。"),
+      req: { maxMass: 0.85, minSharp: 60 }, fx: { buff: { t: 4, speed: 2.4, noBind: true, hits: 3, onHit: { dmg: 18 } } } },
+    { id: "hebi", group: "breath", color: "#b8f0c8", name: C("蛇の呼吸 弐ノ型 狭頭の毒牙", "蛇之呼吸・貳之型 狹頭之毒牙"), cond: C("先反りの刀", "先反的刀"),
+      desc: C("最も弱った相手へ蛇のようにうねって咬みつき、毒を残す。", "如蛇般蜿蜒咬向最虛弱的對手，留下劇毒。"),
+      req: { soriType: ["saki"] }, fx: { strike: { target: "weakest", teleport: true, dmg: 11, dot: { kind: "poison", dps: 3, t: 4 } } } },
+    { id: "oto", group: "breath", color: "#ffd24a", name: C("音の呼吸 肆ノ型 響斬無間", "音之呼吸・肆之型 響斬無間"), cond: C("大太刀ほどの長さ", "有大太刀般的長度"),
+      desc: C("爆ぜる斬撃を 3 連続で周囲に響かせる。", "連續 3 次在周圍炸響爆裂般的斬擊。"),
+      req: { minLen: 100 }, fx: { strike: { target: "all", radius: 75, dmg: 9, count: 3, delay: 0.4 } } },
+    { id: "koi", group: "breath", color: "#ff7fc0", name: C("恋の呼吸 伍ノ型 揺らめく恋情・乱れ爪", "戀之呼吸・伍之型 搖曳戀情・亂爪"), cond: C("鞭のようにしなる薄刃", "如鞭般柔軟的薄刃"),
+      desc: C("しなる刃で場のほぼ全域を薙ぎ、3 秒間速くなる。", "以柔軟刀刃橫掃幾乎整個場地，之後 3 秒加速。"),
+      req: { any: [{ types: ["urumi"] }, { maxKasane: 3 }] }, fx: { strike: { target: "all", radius: 95, dmg: 15, knock: 40 }, buff: { t: 3, speed: 1.5 } } },
+    { id: "tsuki", group: "breath", color: "#b49cff", name: C("月の呼吸 拾ノ型 穿面斬・蘿月", "月之呼吸・拾之型 穿面斬・蘿月"), cond: C("三日月より深い反り", "比新月還深的彎度"),
+      desc: C("無数の三日月の刃が場の全員を斬り、3 秒間傷 ×1.4。", "無數新月般的刀刃斬向場上所有對手，之後 3 秒損傷 ×1.4。"),
+      req: { any: [{ minSori: 80 }, { types: ["shotel", "khopesh"] }] }, fx: { strike: { target: "all", dmg: 12 }, buff: { t: 3, dmg: 1.4 } } },
+    { id: "hi", group: "breath", color: "#ffb02a", name: C("日の呼吸 円舞", "日之呼吸・圓舞"), cond: C("神品に迫る出来", "接近神品的成品"),
+      desc: C("5 秒間、日輪をまとう。傷 ×2・速さ ×1.3・受ける傷半減・耐久回復、触れた相手を焼く。", "5 秒內纏繞日輪。損傷 ×2、速度 ×1.3、受傷減半並回復耐久，碰到的對手會被灼燒。"),
+      req: { minTotal: 88 }, fx: { buff: { t: 5, dmg: 2, speed: 1.3, guard: 0.5, regen: 1, flame: true, onHit: { dot: { kind: "burn", dps: 3, t: 3 } } } } },
+
+    // ---- 名刀之魂 ----
+    { id: "doujigiri", group: "meito", color: "#d0d6dc", name: C("童子切安綱", "童子切安綱"), cond: C("玉鋼の太刀・打刀で上作以上", "玉鋼打成的太刀或打刀，上作以上"),
+      desc: C("鬼斬り：最も耐久の高い相手を斬る。防御も無敵も通さない。", "斬鬼：斬向耐久最高的對手，無視防禦與無敵。"),
+      req: { types: ["tachi", "uchigatana"], kawa: ["tama1", "tama2"], minTotal: 82 }, fx: { strike: { target: "strongest", teleport: true, dmg: 24, pierce: true } } },
+    { id: "onimaru", group: "meito", color: "#a04040", name: C("鬼丸国綱", "鬼丸國綱"), cond: C("硬く焼いた太刀", "淬得夠硬的太刀"),
+      desc: C("鬼を退ける：周囲の相手を斬ってすくませ、4 秒間受ける傷を減らす。", "退鬼：斬擊周圍對手使其畏縮（麻痺），之後 4 秒受傷減少。"),
+      req: { types: ["tachi"], minHrc: 59 }, fx: { strike: { target: "all", radius: 80, dmg: 14, stun: 1.5 }, buff: { t: 4, guard: 0.6 } } },
+    { id: "mikazuki", group: "meito", color: "#e8e2b0", name: C("三日月宗近", "三日月宗近"), cond: C("地鉄と姿がとびきり美しく、反りがある", "地鐵與姿態極美且有彎度"),
+      desc: C("天下一の美：5 秒間、傷 ×1.6、三日月の打ち除けで一部の接触をかわす。", "天下最美：5 秒內損傷 ×1.6，以新月狀的打除閃過部分接觸。"),
+      req: { minScore: { jigane: 17, sugata: 16 }, minSori: 15 }, fx: { buff: { t: 5, dmg: 1.6, evade: 0.3, onHit: { dmg: 10 } } } },
+    { id: "odenta", group: "meito", color: "#ffe9a8", name: C("大典太光世", "大典太光世"), cond: C("身幅広く重く粘る太刀・打刀・大太刀", "寬、重且韌的太刀、打刀或大太刀"),
+      desc: C("病を祓う：耐久を 25% 回復し持続傷を払い、4 秒間受ける傷を減らす。", "祓病：回復 25% 耐久、解除持續損傷，之後 4 秒受傷減少。"),
+      req: { types: ["tachi", "uchigatana", "odachi"], minMass: 1.1, minTough: 60 }, fx: { heal: 0.25, cleanse: true, buff: { t: 4, guard: 0.7 } } },
+    { id: "juzumaru", group: "meito", color: "#f0f0ff", name: C("数珠丸恒次", "數珠丸恒次"), cond: C("長寸の直刃", "長寸的直刃"),
+      desc: C("破邪：全員を斬って相手の強化を解き、自分の持続傷も払い、2 秒間無敵。", "破邪：斬擊全體並解除對手的強化，也解除自身持續損傷，2 秒無敵。"),
+      req: { minLen: 78, hamon: ["suguha"] }, fx: { cleanse: true, strike: { target: "all", dmg: 12, dispel: true }, buff: { t: 2, invuln: true } } },
+    { id: "tonbogiri", group: "meito", color: "#9fe0ff", name: C("蜻蛉切", "蜻蛉切"), cond: C("槍・薙刀・長巻", "槍、薙刀或長卷"),
+      desc: C("止まった蜻蛉が両断された穂先：5 秒間、間合い ×1.6・傷 ×1.5、触れるたびに突く。", "蜻蜓停上即被切成兩半的槍尖：5 秒內觸及 ×1.6、損傷 ×1.5，每次接觸都刺擊。"),
+      req: { types: ["yari", "naginata", "nagamaki"] }, fx: { buff: { t: 5, reach: 1.6, dmg: 1.5, onHit: { dmg: 10 } } } },
+    { id: "muramasa", group: "meito", color: "#c0103a", name: C("村正", "村正"), cond: C("互の目・皆焼で硬く鋭い", "互目或皆燒，又硬又利"),
+      desc: C("妖刀：6 秒間、傷 ×2.6・速さ ×1.3。ただし毎秒 2 の耐久を自分が吸われる（折れはしない）。", "妖刀：6 秒內損傷 ×2.6、速度 ×1.3，但每秒反噬自身 2 耐久（不會因此折斷）。"),
+      req: { hamon: ["gunome", "hitatsura"], minHrc: 60, minSharp: 70 }, fx: { buff: { t: 6, dmg: 2.6, speed: 1.3, curse: 2 } } },
+    { id: "masamune", group: "meito", color: "#fff0c8", name: C("正宗", "正宗"), cond: C("総合が上々作で地鉄が冴える", "總評上上作且地鐵出色"),
+      desc: C("相州上手：6 秒間、傷 ×1.5・速さ ×1.2・受ける傷 ×0.6・耐久回復。", "相州上手：6 秒內損傷 ×1.5、速度 ×1.2、受傷 ×0.6 並回復耐久。"),
+      req: { minTotal: 85, minScore: { jigane: 16 } }, fx: { buff: { t: 6, dmg: 1.5, guard: 0.6, speed: 1.2, regen: 1.5 } } },
+    { id: "heshikiri", group: "meito", color: "#7a9cc0", name: C("へし切長谷部", "壓切長谷部"), cond: C("鋭くて取り回しの良い長さ", "鋒利且長度好使"),
+      desc: C("押し当てて切る：5 秒間、鍔迫り合いが長くなり、その間の傷 ×3。", "壓上就切：5 秒內刀刃相接的僵持更久，期間損傷 ×3。"),
+      req: { minSharp: 75, maxLen: 70 }, fx: { buff: { t: 5, bindMul: 3, bindLong: 1.5 } } },
+    { id: "honebami", group: "meito", color: "#e0d0c0", name: C("骨喰藤四郎", "骨喰藤四郎"), cond: C("脇差・薙刀", "脇差或薙刀"),
+      desc: C("骨まで喰らう：5 秒間、防御も無敵も通し、触れるたびに斬って勢いを奪う。", "噬骨：5 秒內無視防禦與無敵，每次接觸都斬擊並奪走氣勢。"),
+      req: { types: ["wakizashi", "naginata"] }, fx: { buff: { t: 5, pierce: true, onHit: { dmg: 14, drain: 0.15 } } } },
+    { id: "fudokuniyuki", group: "meito", color: "#ffb84a", name: C("不動国行", "不動國行"), cond: C("粘り強い太刀・打刀で良作以上", "韌性強的太刀或打刀，良作以上"),
+      desc: C("倶利伽羅の不動明王：5 秒間、動かず受ける傷 ×0.4、受けた傷の 6 割を相手に返す。", "倶利伽羅不動明王：5 秒內不動如山、受傷 ×0.4，並把受到損傷的 6 成反彈給對手。"),
+      req: { types: ["tachi", "uchigatana"], minTough: 65, minTotal: 70 }, fx: { buff: { t: 5, mass: 3, guard: 0.4, reflect: 0.6 } } },
+    { id: "fudoyukimitsu", group: "meito", color: "#ffcf6a", name: C("不動行光", "不動行光"), cond: C("短刀", "短刀"),
+      desc: C("信長の守り刀：3 秒間無敵となり、触れた相手を斬り返す。", "信長的護身刀：3 秒內無敵，並斬回碰到的對手。"),
+      req: { types: ["tanto"] }, fx: { buff: { t: 3, invuln: true, onHit: { dmg: 14 } } } },
+    { id: "ookanehira", group: "meito", color: "#c0c8d0", name: C("大包平", "大包平"), cond: C("長寸で身幅の広い堂々たる姿", "長寸寬身的堂堂之姿"),
+      desc: C("日本刀の横綱：6 秒間、間合い ×1.4・重さ ×1.5・傷 ×1.6。", "日本刀的橫綱：6 秒內觸及 ×1.4、質量 ×1.5、損傷 ×1.6。"),
+      req: { minLen: 85, minWidth: 32 }, fx: { buff: { t: 6, reach: 1.4, mass: 1.5, dmg: 1.6, onHit: { dmg: 6 } } } }
+  ];
+  var SPECIAL_GROUPS = [
+    { id: "classic", name: C("刀性", "刀性") },
+    { id: "breath", name: C("呼吸", "呼吸") },
+    { id: "meito", name: C("名刀の魂", "名刀之魂") }
+  ];
+  var SPECIAL_WAIT = 2;
+
+  // 打法（由刀的數據決定，影響滑行方式）
+  var ARENA_STYLES = {
+    attack: { name: C("攻撃型", "攻擊型"), desc: C("大きく速く旋回し、相手を追う。", "大幅快速繞場，主動追擊對手。") },
+    defense: { name: C("防御型", "防禦型"), desc: C("重く中央に居座り、押し負けない。", "沉重地盤踞中央，不易被推開。") },
+    stamina: { name: C("持久型", "持久型"), desc: C("軽く、勢いが長持ちする。相手を避けがち。", "輕巧、氣勢持久，傾向閃避。") },
+    balance: { name: C("均衡型", "均衡型"), desc: C("攻守のバランスが良い。", "攻守平衡。") }
+  };
+  var ARENA_TRAITS = {
+    double: { name: C("両刃", "雙刃"), desc: C("離れ際にもう一太刀。", "分開時再補一刀。") },
+    slice: { name: C("引き斬り", "拖斬"), desc: C("反りで刃が滑り、鍔迫り合いが短く傷が深い。", "彎度讓刀刃滑過，僵持較短但傷更深。") },
+    thrust: { name: C("刺突", "刺擊"), desc: C("ぶつかった瞬間の傷 ×1.5。", "撞上的瞬間損傷 ×1.5。") },
+    heavy: { name: C("重撃", "重擊"), desc: C("弾き飛ばす力 ×1.5。", "彈飛對手的力道 ×1.5。") },
+    wave: { name: C("波刃", "波刃"), desc: C("刃合わせで相手の勢いを余計に削る。", "刀刃相接時額外削弱對手氣勢。") },
+    brittle: { name: C("硬く脆い", "硬而脆"), desc: C("刃こぼれしやすい。", "容易崩刃。") },
+    soft: { name: C("柔らかい", "偏軟"), desc: C("曲がりやすく、曲がるたびに遅くなる。", "容易彎曲，每彎一次就變慢。") },
+    cracked: { name: C("焼き割れ持ち", "帶淬裂"), desc: C("刃合わせで突然折れることがある。", "刀刃相接時可能突然折斷。") }
+  };
+
   window.PriTestKatanaData = {
     KAWAGANE: KAWAGANE,
     SHINGANE: SHINGANE,
@@ -454,6 +655,12 @@
     NAKAGOJIRI: NAKAGOJIRI,
     TARGETS: TARGETS,
     NPC_SWORDS: NPC_SWORDS,
+    ARENA_CARDS: ARENA_CARDS,
+    SPECIALS: SPECIALS,
+    SPECIAL_GROUPS: SPECIAL_GROUPS,
+    SPECIAL_WAIT: SPECIAL_WAIT,
+    ARENA_STYLES: ARENA_STYLES,
+    ARENA_TRAITS: ARENA_TRAITS,
     GRADES: GRADES,
     FLAWS: FLAWS,
     PATTERNS: [

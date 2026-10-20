@@ -1,6 +1,6 @@
 """神前鍛刀對決（katana）のページを組み立てる。
 
-ゲームロジックはすべてブラウザ側：static/katana_data.js（資料）→ static/katana_core.js（冶金・規則引擎）→ static/katana.js（UI）。
+ゲームロジックはすべてブラウザ側：static/katana_data.js（資料）→ static/katana_core.js（冶金・規則引擎）→ static/katana_arena.js（對刀場模擬）→ static/katana.js（UI）。
 """
 
 from __future__ import annotations
@@ -10,6 +10,7 @@ from site_src.layout import page_shell
 KATANA_SCRIPTS: tuple[str, ...] = (
     "katana_data.js",
     "katana_core.js",
+    "katana_arena.js",
     "katana.js",
 )
 

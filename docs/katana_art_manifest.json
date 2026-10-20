@@ -1,0 +1,2044 @@
+{
+  "version": 1,
+  "generated_from": "static_src/katana_data.js",
+  "spec": "docs/katana_art_spec.md",
+  "blades": [
+    {
+      "id": "tanto",
+      "family": "nihonto",
+      "name": {
+        "ja": "短刀",
+        "zh": "短刀",
+        "en": "tanto (Japanese dagger)"
+      },
+      "era": "Japan, Kamakura–Edo",
+      "dims": {
+        "blade_cm": 26,
+        "width_mm": 25,
+        "thickness_mm": 6,
+        "sori_mm": 1,
+        "edges": 1
+      },
+      "shape": {
+        "profile": "taper",
+        "wave": null,
+        "shaft": false,
+        "rings": 0,
+        "ringPommel": false,
+        "heatTreat": "differential (visible hamon line)"
+      },
+      "fittings": "small round tsuba or none, short silk-wrapped hilt, black lacquer",
+      "identify": "single-edged, straight",
+      "files": {
+        "side": "static/katana_art/side/tanto.png",
+        "top": "static/katana_art/top/tanto.png",
+        "topHilt": "static/katana_art/top/tanto_hilt.png"
+      },
+      "prompt_side": "Side-view game asset of a tanto (Japanese dagger), Japan, Kamakura–Edo. short straight single-edged blade, no curve, hira-zukuri flat profile. Fittings: small round tsuba or none, short silk-wrapped hilt, black lacquer. Blade length about 26 cm, width 25 mm. Polished steel with a visible white temper line (hamon) along the edge. Blade pointing right, hilt on the left, cutting edge facing down, spine up. Orthographic, no perspective, entire weapon visible with margins, soft studio light from the top-left, no hand, no background, transparent background, 2048x512, realistic illustrated style consistent across the set.",
+      "prompt_top": "Top-down game sprite of a tanto (Japanese dagger) lying flat, seen from directly above. short straight single-edged blade, no curve, hira-zukuri flat profile. The guard/collar is exactly at the image center and the blade points right toward the edge of the image; the hilt points left. Strong readable silhouette at 48 px, clean dark outline, bright steel, no shadow, transparent background, 512x512. Paint the hilt wrap in neutral light grey so it can be tinted with the player color."
+    },
+    {
+      "id": "wakizashi",
+      "family": "nihonto",
+      "name": {
+        "ja": "脇差",
+        "zh": "脇差",
+        "en": "wakizashi (Japanese companion sword)"
+      },
+      "era": "Japan, Muromachi–Edo",
+      "dims": {
+        "blade_cm": 50,
+        "width_mm": 29,
+        "thickness_mm": 6.75,
+        "sori_mm": 11,
+        "edges": 1
+      },
+      "shape": {
+        "profile": "taper",
+        "wave": null,
+        "shaft": false,
+        "rings": 0,
+        "ringPommel": false,
+        "heatTreat": "differential (visible hamon line)"
+      },
+      "fittings": "round iron tsuba, gold habaki, diamond silk wrap",
+      "identify": "single-edged",
+      "files": {
+        "side": "static/katana_art/side/wakizashi.png",
+        "top": "static/katana_art/top/wakizashi.png",
+        "topHilt": "static/katana_art/top/wakizashi_hilt.png"
+      },
+      "prompt_side": "Side-view game asset of a wakizashi (Japanese companion sword), Japan, Muromachi–Edo. medium curved single-edged blade with ridge line (shinogi). Fittings: round iron tsuba, gold habaki, diamond silk wrap. Blade length about 50 cm, width 29 mm. Polished steel with a visible white temper line (hamon) along the edge. Blade pointing right, hilt on the left, cutting edge facing down, spine up. Orthographic, no perspective, entire weapon visible with margins, soft studio light from the top-left, no hand, no background, transparent background, 2048x512, realistic illustrated style consistent across the set.",
+      "prompt_top": "Top-down game sprite of a wakizashi (Japanese companion sword) lying flat, seen from directly above. medium curved single-edged blade with ridge line (shinogi). The guard/collar is exactly at the image center and the blade points right toward the edge of the image; the hilt points left. Strong readable silhouette at 48 px, clean dark outline, bright steel, no shadow, transparent background, 512x512. Paint the hilt wrap in neutral light grey so it can be tinted with the player color."
+    },
+    {
+      "id": "uchigatana",
+      "family": "nihonto",
+      "name": {
+        "ja": "打刀",
+        "zh": "打刀",
+        "en": "uchigatana (katana)"
+      },
+      "era": "Japan, Muromachi–Edo",
+      "dims": {
+        "blade_cm": 71,
+        "width_mm": 31,
+        "thickness_mm": 7.25,
+        "sori_mm": 17,
+        "edges": 1
+      },
+      "shape": {
+        "profile": "taper",
+        "wave": null,
+        "shaft": false,
+        "rings": 0,
+        "ringPommel": false,
+        "heatTreat": "differential (visible hamon line)"
+      },
+      "fittings": "round iron tsuba, gold habaki, diamond silk wrap (tsuka-ito)",
+      "identify": "single-edged",
+      "files": {
+        "side": "static/katana_art/side/uchigatana.png",
+        "top": "static/katana_art/top/uchigatana.png",
+        "topHilt": "static/katana_art/top/uchigatana_hilt.png"
+      },
+      "prompt_side": "Side-view game asset of a uchigatana (katana), Japan, Muromachi–Edo. classic curved single-edged blade, visible hamon temper line, medium point. Fittings: round iron tsuba, gold habaki, diamond silk wrap (tsuka-ito). Blade length about 71 cm, width 31 mm. Polished steel with a visible white temper line (hamon) along the edge. Blade pointing right, hilt on the left, cutting edge facing down, spine up. Orthographic, no perspective, entire weapon visible with margins, soft studio light from the top-left, no hand, no background, transparent background, 2048x512, realistic illustrated style consistent across the set.",
+      "prompt_top": "Top-down game sprite of a uchigatana (katana) lying flat, seen from directly above. classic curved single-edged blade, visible hamon temper line, medium point. The guard/collar is exactly at the image center and the blade points right toward the edge of the image; the hilt points left. Strong readable silhouette at 48 px, clean dark outline, bright steel, no shadow, transparent background, 512x512. Paint the hilt wrap in neutral light grey so it can be tinted with the player color."
+    },
+    {
+      "id": "tachi",
+      "family": "nihonto",
+      "name": {
+        "ja": "太刀",
+        "zh": "太刀",
+        "en": "tachi (Japanese slung sword)"
+      },
+      "era": "Japan, Heian–Kamakura",
+      "dims": {
+        "blade_cm": 79,
+        "width_mm": 30,
+        "thickness_mm": 7.25,
+        "sori_mm": 25,
+        "edges": 1
+      },
+      "shape": {
+        "profile": "taper",
+        "wave": null,
+        "shaft": false,
+        "rings": 0,
+        "ringPommel": false,
+        "heatTreat": "differential (visible hamon line)"
+      },
+      "fittings": "ornate tachi-style mounts, curved hilt, mokko-shaped tsuba",
+      "identify": "single-edged, strong curve (25 mm)",
+      "files": {
+        "side": "static/katana_art/side/tachi.png",
+        "top": "static/katana_art/top/tachi.png",
+        "topHilt": "static/katana_art/top/tachi_hilt.png"
+      },
+      "prompt_side": "Side-view game asset of a tachi (Japanese slung sword), Japan, Heian–Kamakura. deeply curved near the hilt (koshi-zori), elegant narrowing toward small point. Fittings: ornate tachi-style mounts, curved hilt, mokko-shaped tsuba. Blade length about 79 cm, width 30 mm. Polished steel with a visible white temper line (hamon) along the edge. Blade pointing right, hilt on the left, cutting edge facing down, spine up. Orthographic, no perspective, entire weapon visible with margins, soft studio light from the top-left, no hand, no background, transparent background, 2048x512, realistic illustrated style consistent across the set.",
+      "prompt_top": "Top-down game sprite of a tachi (Japanese slung sword) lying flat, seen from directly above. deeply curved near the hilt (koshi-zori), elegant narrowing toward small point. The guard/collar is exactly at the image center and the blade points right toward the edge of the image; the hilt points left. Strong readable silhouette at 48 px, clean dark outline, bright steel, no shadow, transparent background, 512x512. Paint the hilt wrap in neutral light grey so it can be tinted with the player color."
+    },
+    {
+      "id": "odachi",
+      "family": "nihonto",
+      "name": {
+        "ja": "大太刀",
+        "zh": "大太刀",
+        "en": "odachi (great sword)"
+      },
+      "era": "Japan, Nanbokucho",
+      "dims": {
+        "blade_cm": 103,
+        "width_mm": 36,
+        "thickness_mm": 8.25,
+        "sori_mm": 32,
+        "edges": 1
+      },
+      "shape": {
+        "profile": "taper",
+        "wave": null,
+        "shaft": false,
+        "rings": 0,
+        "ringPommel": false,
+        "heatTreat": "differential (visible hamon line)"
+      },
+      "fittings": "very long hilt for two hands, large tsuba",
+      "identify": "single-edged, strong curve (32 mm)",
+      "files": {
+        "side": "static/katana_art/side/odachi.png",
+        "top": "static/katana_art/top/odachi.png",
+        "topHilt": "static/katana_art/top/odachi_hilt.png"
+      },
+      "prompt_side": "Side-view game asset of a odachi (great sword), Japan, Nanbokucho. extremely long deeply curved blade, large point. Fittings: very long hilt for two hands, large tsuba. Blade length about 103 cm, width 36 mm. Polished steel with a visible white temper line (hamon) along the edge. Blade pointing right, hilt on the left, cutting edge facing down, spine up. Orthographic, no perspective, entire weapon visible with margins, soft studio light from the top-left, no hand, no background, transparent background, 2048x512, realistic illustrated style consistent across the set.",
+      "prompt_top": "Top-down game sprite of a odachi (great sword) lying flat, seen from directly above. extremely long deeply curved blade, large point. The guard/collar is exactly at the image center and the blade points right toward the edge of the image; the hilt points left. Strong readable silhouette at 48 px, clean dark outline, bright steel, no shadow, transparent background, 512x512. Paint the hilt wrap in neutral light grey so it can be tinted with the player color."
+    },
+    {
+      "id": "naginata",
+      "family": "nihonto",
+      "name": {
+        "ja": "薙刀",
+        "zh": "薙刀",
+        "en": "naginata (Japanese glaive)"
+      },
+      "era": "Japan, Heian–Edo",
+      "dims": {
+        "blade_cm": 48,
+        "width_mm": 34,
+        "thickness_mm": 7,
+        "sori_mm": 23,
+        "edges": 1
+      },
+      "shape": {
+        "profile": "widen",
+        "wave": null,
+        "shaft": false,
+        "rings": 0,
+        "ringPommel": false,
+        "heatTreat": "differential (visible hamon line)"
+      },
+      "fittings": "long lacquered wooden pole, metal collar",
+      "identify": "single-edged, strong curve (23 mm), profile: widen",
+      "files": {
+        "side": "static/katana_art/side/naginata.png",
+        "top": "static/katana_art/top/naginata.png",
+        "topHilt": "static/katana_art/top/naginata_hilt.png"
+      },
+      "prompt_side": "Side-view game asset of a naginata (Japanese glaive), Japan, Heian–Edo. curved blade on a long pole, widening toward the tip, strong tip curve. Fittings: long lacquered wooden pole, metal collar. Blade length about 48 cm, width 34 mm. Polished steel with a visible white temper line (hamon) along the edge. Blade pointing right, hilt on the left, cutting edge facing down, spine up. Orthographic, no perspective, entire weapon visible with margins, soft studio light from the top-left, no hand, no background, transparent background, 2048x512, realistic illustrated style consistent across the set.",
+      "prompt_top": "Top-down game sprite of a naginata (Japanese glaive) lying flat, seen from directly above. curved blade on a long pole, widening toward the tip, strong tip curve. The guard/collar is exactly at the image center and the blade points right toward the edge of the image; the hilt points left. Strong readable silhouette at 48 px, clean dark outline, bright steel, no shadow, transparent background, 512x512. Paint the hilt wrap in neutral light grey so it can be tinted with the player color."
+    },
+    {
+      "id": "nagamaki",
+      "family": "nihonto",
+      "name": {
+        "ja": "長巻",
+        "zh": "長卷",
+        "en": "nagamaki"
+      },
+      "era": "Japan, Kamakura–Muromachi",
+      "dims": {
+        "blade_cm": 76,
+        "width_mm": 34,
+        "thickness_mm": 7.75,
+        "sori_mm": 20,
+        "edges": 1
+      },
+      "shape": {
+        "profile": "taper",
+        "wave": null,
+        "shaft": false,
+        "rings": 0,
+        "ringPommel": false,
+        "heatTreat": "differential (visible hamon line)"
+      },
+      "fittings": "very long cord-wrapped hilt as long as the blade",
+      "identify": "single-edged, strong curve (20 mm)",
+      "files": {
+        "side": "static/katana_art/side/nagamaki.png",
+        "top": "static/katana_art/top/nagamaki.png",
+        "topHilt": "static/katana_art/top/nagamaki_hilt.png"
+      },
+      "prompt_side": "Side-view game asset of a nagamaki, Japan, Kamakura–Muromachi. tachi-like blade on an extra-long wrapped hilt. Fittings: very long cord-wrapped hilt as long as the blade. Blade length about 76 cm, width 34 mm. Polished steel with a visible white temper line (hamon) along the edge. Blade pointing right, hilt on the left, cutting edge facing down, spine up. Orthographic, no perspective, entire weapon visible with margins, soft studio light from the top-left, no hand, no background, transparent background, 2048x512, realistic illustrated style consistent across the set.",
+      "prompt_top": "Top-down game sprite of a nagamaki lying flat, seen from directly above. tachi-like blade on an extra-long wrapped hilt. The guard/collar is exactly at the image center and the blade points right toward the edge of the image; the hilt points left. Strong readable silhouette at 48 px, clean dark outline, bright steel, no shadow, transparent background, 512x512. Paint the hilt wrap in neutral light grey so it can be tinted with the player color."
+    },
+    {
+      "id": "yari",
+      "family": "nihonto",
+      "name": {
+        "ja": "槍（穂）",
+        "zh": "槍（槍頭）",
+        "en": "yari (Japanese spear)"
+      },
+      "era": "Japan, Muromachi–Edo",
+      "dims": {
+        "blade_cm": 20,
+        "width_mm": 25,
+        "thickness_mm": 7.5,
+        "sori_mm": 1,
+        "edges": 2
+      },
+      "shape": {
+        "profile": "taper",
+        "wave": null,
+        "shaft": false,
+        "rings": 0,
+        "ringPommel": false,
+        "heatTreat": "differential (visible hamon line)"
+      },
+      "fittings": "long straight wooden shaft, metal collar",
+      "identify": "double-edged, straight",
+      "files": {
+        "side": "static/katana_art/side/yari.png",
+        "top": "static/katana_art/top/yari.png",
+        "topHilt": "static/katana_art/top/yari_hilt.png"
+      },
+      "prompt_side": "Side-view game asset of a yari (Japanese spear), Japan, Muromachi–Edo. straight double-edged spearhead with central ridge on a long shaft. Fittings: long straight wooden shaft, metal collar. Blade length about 20 cm, width 25 mm. Polished steel with a visible white temper line (hamon) along the edge. Blade pointing right, hilt on the left, Orthographic, no perspective, entire weapon visible with margins, soft studio light from the top-left, no hand, no background, transparent background, 2048x512, realistic illustrated style consistent across the set.",
+      "prompt_top": "Top-down game sprite of a yari (Japanese spear) lying flat, seen from directly above. straight double-edged spearhead with central ridge on a long shaft. The guard/collar is exactly at the image center and the blade points right toward the edge of the image; the hilt points left. Strong readable silhouette at 48 px, clean dark outline, bright steel, no shadow, transparent background, 512x512. Paint the hilt wrap in neutral light grey so it can be tinted with the player color."
+    },
+    {
+      "id": "longsword",
+      "family": "famous",
+      "name": {
+        "ja": "ロングソード",
+        "zh": "長劍（雙手長劍）",
+        "en": "medieval longsword"
+      },
+      "era": "Europe, 14th–16th c.",
+      "dims": {
+        "blade_cm": 95,
+        "width_mm": 45,
+        "thickness_mm": 6,
+        "sori_mm": 1,
+        "edges": 2
+      },
+      "shape": {
+        "profile": "taper",
+        "wave": null,
+        "shaft": false,
+        "rings": 0,
+        "ringPommel": false,
+        "heatTreat": "through-hardened (uniform steel, no hamon)"
+      },
+      "fittings": "straight cross-guard, leather grip, wheel pommel",
+      "identify": "double-edged, straight",
+      "files": {
+        "side": "static/katana_art/side/longsword.png",
+        "top": "static/katana_art/top/longsword.png",
+        "topHilt": "static/katana_art/top/longsword_hilt.png"
+      },
+      "prompt_side": "Side-view game asset of a medieval longsword, Europe, 14th–16th c.. long straight double-edged blade with fuller, cruciform hilt. Fittings: straight cross-guard, leather grip, wheel pommel. Blade length about 95 cm, width 45 mm. Polished uniform steel. Blade pointing right, hilt on the left, Orthographic, no perspective, entire weapon visible with margins, soft studio light from the top-left, no hand, no background, transparent background, 2048x512, realistic illustrated style consistent across the set.",
+      "prompt_top": "Top-down game sprite of a medieval longsword lying flat, seen from directly above. long straight double-edged blade with fuller, cruciform hilt. The guard/collar is exactly at the image center and the blade points right toward the edge of the image; the hilt points left. Strong readable silhouette at 48 px, clean dark outline, bright steel, no shadow, transparent background, 512x512. Paint the hilt wrap in neutral light grey so it can be tinted with the player color."
+    },
+    {
+      "id": "broadsword",
+      "family": "famous",
+      "name": {
+        "ja": "ブロードソード（西洋両刃剣）",
+        "zh": "闊劍（西洋雙刃劍）",
+        "en": "basket-hilted broadsword"
+      },
+      "era": "Europe, 17th–18th c.",
+      "dims": {
+        "blade_cm": 83,
+        "width_mm": 46,
+        "thickness_mm": 5,
+        "sori_mm": 1,
+        "edges": 2
+      },
+      "shape": {
+        "profile": "taper",
+        "wave": null,
+        "shaft": false,
+        "rings": 0,
+        "ringPommel": false,
+        "heatTreat": "through-hardened (uniform steel, no hamon)"
+      },
+      "fittings": "steel basket hilt, leather grip",
+      "identify": "double-edged, straight",
+      "files": {
+        "side": "static/katana_art/side/broadsword.png",
+        "top": "static/katana_art/top/broadsword.png",
+        "topHilt": "static/katana_art/top/broadsword_hilt.png"
+      },
+      "prompt_side": "Side-view game asset of a basket-hilted broadsword, Europe, 17th–18th c.. straight wide double-edged blade, rounded tip. Fittings: steel basket hilt, leather grip. Blade length about 83 cm, width 46 mm. Polished uniform steel. Blade pointing right, hilt on the left, Orthographic, no perspective, entire weapon visible with margins, soft studio light from the top-left, no hand, no background, transparent background, 2048x512, realistic illustrated style consistent across the set.",
+      "prompt_top": "Top-down game sprite of a basket-hilted broadsword lying flat, seen from directly above. straight wide double-edged blade, rounded tip. The guard/collar is exactly at the image center and the blade points right toward the edge of the image; the hilt points left. Strong readable silhouette at 48 px, clean dark outline, bright steel, no shadow, transparent background, 512x512. Paint the hilt wrap in neutral light grey so it can be tinted with the player color."
+    },
+    {
+      "id": "zweihander",
+      "family": "famous",
+      "name": {
+        "ja": "ツヴァイヘンダー",
+        "zh": "雙手大劍（Zweihänder）",
+        "en": "Zweihänder"
+      },
+      "era": "Germany, 16th c.",
+      "dims": {
+        "blade_cm": 128,
+        "width_mm": 48,
+        "thickness_mm": 6,
+        "sori_mm": 1,
+        "edges": 2
+      },
+      "shape": {
+        "profile": "taper",
+        "wave": null,
+        "shaft": false,
+        "rings": 0,
+        "ringPommel": false,
+        "heatTreat": "through-hardened (uniform steel, no hamon)"
+      },
+      "fittings": "huge cross-guard with side rings, parrying hooks (parierhaken), long leather grip",
+      "identify": "double-edged, straight",
+      "files": {
+        "side": "static/katana_art/side/zweihander.png",
+        "top": "static/katana_art/top/zweihander.png",
+        "topHilt": "static/katana_art/top/zweihander_hilt.png"
+      },
+      "prompt_side": "Side-view game asset of a Zweihänder, Germany, 16th c.. giant straight two-handed blade, unsharpened ricasso. Fittings: huge cross-guard with side rings, parrying hooks (parierhaken), long leather grip. Blade length about 128 cm, width 48 mm. Polished uniform steel. Blade pointing right, hilt on the left, Orthographic, no perspective, entire weapon visible with margins, soft studio light from the top-left, no hand, no background, transparent background, 2048x512, realistic illustrated style consistent across the set.",
+      "prompt_top": "Top-down game sprite of a Zweihänder lying flat, seen from directly above. giant straight two-handed blade, unsharpened ricasso. The guard/collar is exactly at the image center and the blade points right toward the edge of the image; the hilt points left. Strong readable silhouette at 48 px, clean dark outline, bright steel, no shadow, transparent background, 512x512. Paint the hilt wrap in neutral light grey so it can be tinted with the player color."
+    },
+    {
+      "id": "rapier",
+      "family": "famous",
+      "name": {
+        "ja": "レイピア",
+        "zh": "細劍（Rapier）",
+        "en": "rapier"
+      },
+      "era": "Europe, 16th–17th c.",
+      "dims": {
+        "blade_cm": 103,
+        "width_mm": 19,
+        "thickness_mm": 7.5,
+        "sori_mm": 1,
+        "edges": 2
+      },
+      "shape": {
+        "profile": "narrow",
+        "wave": null,
+        "shaft": false,
+        "rings": 0,
+        "ringPommel": false,
+        "heatTreat": "through-hardened (uniform steel, no hamon)"
+      },
+      "fittings": "swept hilt with ornate rings, wire-wrapped grip",
+      "identify": "double-edged, straight, profile: narrow",
+      "files": {
+        "side": "static/katana_art/side/rapier.png",
+        "top": "static/katana_art/top/rapier.png",
+        "topHilt": "static/katana_art/top/rapier_hilt.png"
+      },
+      "prompt_side": "Side-view game asset of a rapier, Europe, 16th–17th c.. very long narrow thrusting blade, needle point. Fittings: swept hilt with ornate rings, wire-wrapped grip. Blade length about 103 cm, width 19 mm. Polished uniform steel. Blade pointing right, hilt on the left, Orthographic, no perspective, entire weapon visible with margins, soft studio light from the top-left, no hand, no background, transparent background, 2048x512, realistic illustrated style consistent across the set.",
+      "prompt_top": "Top-down game sprite of a rapier lying flat, seen from directly above. very long narrow thrusting blade, needle point. The guard/collar is exactly at the image center and the blade points right toward the edge of the image; the hilt points left. Strong readable silhouette at 48 px, clean dark outline, bright steel, no shadow, transparent background, 512x512. Paint the hilt wrap in neutral light grey so it can be tinted with the player color."
+    },
+    {
+      "id": "sabre",
+      "family": "famous",
+      "name": {
+        "ja": "サーベル",
+        "zh": "軍刀（Sabre）",
+        "en": "cavalry sabre"
+      },
+      "era": "Europe, 18th–19th c.",
+      "dims": {
+        "blade_cm": 85,
+        "width_mm": 29,
+        "thickness_mm": 7,
+        "sori_mm": 40,
+        "edges": 1
+      },
+      "shape": {
+        "profile": "taper",
+        "wave": null,
+        "shaft": false,
+        "rings": 0,
+        "ringPommel": false,
+        "heatTreat": "through-hardened (uniform steel, no hamon)"
+      },
+      "fittings": "stirrup or three-bar hilt, brass guard",
+      "identify": "single-edged, strong curve (40 mm)",
+      "files": {
+        "side": "static/katana_art/side/sabre.png",
+        "top": "static/katana_art/top/sabre.png",
+        "topHilt": "static/katana_art/top/sabre_hilt.png"
+      },
+      "prompt_side": "Side-view game asset of a cavalry sabre, Europe, 18th–19th c.. curved single-edged blade with fuller, pointed tip. Fittings: stirrup or three-bar hilt, brass guard. Blade length about 85 cm, width 29 mm. Polished uniform steel. Blade pointing right, hilt on the left, cutting edge facing down, spine up. Orthographic, no perspective, entire weapon visible with margins, soft studio light from the top-left, no hand, no background, transparent background, 2048x512, realistic illustrated style consistent across the set.",
+      "prompt_top": "Top-down game sprite of a cavalry sabre lying flat, seen from directly above. curved single-edged blade with fuller, pointed tip. The guard/collar is exactly at the image center and the blade points right toward the edge of the image; the hilt points left. Strong readable silhouette at 48 px, clean dark outline, bright steel, no shadow, transparent background, 512x512. Paint the hilt wrap in neutral light grey so it can be tinted with the player color."
+    },
+    {
+      "id": "gladius",
+      "family": "famous",
+      "name": {
+        "ja": "グラディウス",
+        "zh": "羅馬短劍（Gladius）",
+        "en": "Roman gladius"
+      },
+      "era": "Rome, 1st c. BC–3rd c. AD",
+      "dims": {
+        "blade_cm": 55,
+        "width_mm": 52,
+        "thickness_mm": 6,
+        "sori_mm": 1,
+        "edges": 2
+      },
+      "shape": {
+        "profile": "taper",
+        "wave": null,
+        "shaft": false,
+        "rings": 0,
+        "ringPommel": false,
+        "heatTreat": "through-hardened (uniform steel, no hamon)"
+      },
+      "fittings": "bone grip with knuckle ridges, round wooden pommel",
+      "identify": "double-edged, straight",
+      "files": {
+        "side": "static/katana_art/side/gladius.png",
+        "top": "static/katana_art/top/gladius.png",
+        "topHilt": "static/katana_art/top/gladius_hilt.png"
+      },
+      "prompt_side": "Side-view game asset of a Roman gladius, Rome, 1st c. BC–3rd c. AD. short wide straight double-edged blade with long triangular point. Fittings: bone grip with knuckle ridges, round wooden pommel. Blade length about 55 cm, width 52 mm. Polished uniform steel. Blade pointing right, hilt on the left, Orthographic, no perspective, entire weapon visible with margins, soft studio light from the top-left, no hand, no background, transparent background, 2048x512, realistic illustrated style consistent across the set.",
+      "prompt_top": "Top-down game sprite of a Roman gladius lying flat, seen from directly above. short wide straight double-edged blade with long triangular point. The guard/collar is exactly at the image center and the blade points right toward the edge of the image; the hilt points left. Strong readable silhouette at 48 px, clean dark outline, bright steel, no shadow, transparent background, 512x512. Paint the hilt wrap in neutral light grey so it can be tinted with the player color."
+    },
+    {
+      "id": "jian",
+      "family": "chinese",
+      "name": {
+        "ja": "中国剣（剣）",
+        "zh": "中華劍（劍）",
+        "en": "Chinese jian (straight sword)"
+      },
+      "era": "China, Han–Qing",
+      "dims": {
+        "blade_cm": 74,
+        "width_mm": 35,
+        "thickness_mm": 6,
+        "sori_mm": 1,
+        "edges": 2
+      },
+      "shape": {
+        "profile": "taper",
+        "wave": null,
+        "shaft": false,
+        "rings": 0,
+        "ringPommel": false,
+        "heatTreat": "differential (visible hamon line)"
+      },
+      "fittings": "small boat-shaped guard, cord-wrapped wooden grip, tassel",
+      "identify": "double-edged, straight",
+      "files": {
+        "side": "static/katana_art/side/jian.png",
+        "top": "static/katana_art/top/jian.png",
+        "topHilt": "static/katana_art/top/jian_hilt.png"
+      },
+      "prompt_side": "Side-view game asset of a Chinese jian (straight sword), China, Han–Qing. slender straight double-edged blade with central ridge, tapering point. Fittings: small boat-shaped guard, cord-wrapped wooden grip, tassel. Blade length about 74 cm, width 35 mm. Polished steel with a visible white temper line (hamon) along the edge. Blade pointing right, hilt on the left, Orthographic, no perspective, entire weapon visible with margins, soft studio light from the top-left, no hand, no background, transparent background, 2048x512, realistic illustrated style consistent across the set.",
+      "prompt_top": "Top-down game sprite of a Chinese jian (straight sword) lying flat, seen from directly above. slender straight double-edged blade with central ridge, tapering point. The guard/collar is exactly at the image center and the blade points right toward the edge of the image; the hilt points left. Strong readable silhouette at 48 px, clean dark outline, bright steel, no shadow, transparent background, 512x512. Paint the hilt wrap in neutral light grey so it can be tinted with the player color."
+    },
+    {
+      "id": "miaodao",
+      "family": "chinese",
+      "name": {
+        "ja": "苗刀",
+        "zh": "苗刀",
+        "en": "miaodao (long Chinese saber)"
+      },
+      "era": "China, Ming",
+      "dims": {
+        "blade_cm": 110,
+        "width_mm": 31,
+        "thickness_mm": 7,
+        "sori_mm": 35,
+        "edges": 1
+      },
+      "shape": {
+        "profile": "taper",
+        "wave": null,
+        "shaft": false,
+        "rings": 0,
+        "ringPommel": false,
+        "heatTreat": "differential (visible hamon line)"
+      },
+      "fittings": "round disk guard, very long two-handed grip",
+      "identify": "single-edged, strong curve (35 mm)",
+      "files": {
+        "side": "static/katana_art/side/miaodao.png",
+        "top": "static/katana_art/top/miaodao.png",
+        "topHilt": "static/katana_art/top/miaodao_hilt.png"
+      },
+      "prompt_side": "Side-view game asset of a miaodao (long Chinese saber), China, Ming. long slender gently curved single-edged blade. Fittings: round disk guard, very long two-handed grip. Blade length about 110 cm, width 31 mm. Polished steel with a visible white temper line (hamon) along the edge. Blade pointing right, hilt on the left, cutting edge facing down, spine up. Orthographic, no perspective, entire weapon visible with margins, soft studio light from the top-left, no hand, no background, transparent background, 2048x512, realistic illustrated style consistent across the set.",
+      "prompt_top": "Top-down game sprite of a miaodao (long Chinese saber) lying flat, seen from directly above. long slender gently curved single-edged blade. The guard/collar is exactly at the image center and the blade points right toward the edge of the image; the hilt points left. Strong readable silhouette at 48 px, clean dark outline, bright steel, no shadow, transparent background, 512x512. Paint the hilt wrap in neutral light grey so it can be tinted with the player color."
+    },
+    {
+      "id": "liuyedao",
+      "family": "chinese",
+      "name": {
+        "ja": "柳葉刀",
+        "zh": "柳葉刀",
+        "en": "liuyedao (willow-leaf saber)"
+      },
+      "era": "China, Ming–Qing",
+      "dims": {
+        "blade_cm": 76,
+        "width_mm": 35,
+        "thickness_mm": 6.5,
+        "sori_mm": 30,
+        "edges": 1
+      },
+      "shape": {
+        "profile": "taper",
+        "wave": null,
+        "shaft": false,
+        "rings": 0,
+        "ringPommel": false,
+        "heatTreat": "differential (visible hamon line)"
+      },
+      "fittings": "oval disk guard, wrapped grip, cap pommel",
+      "identify": "single-edged, strong curve (30 mm)",
+      "files": {
+        "side": "static/katana_art/side/liuyedao.png",
+        "top": "static/katana_art/top/liuyedao.png",
+        "topHilt": "static/katana_art/top/liuyedao_hilt.png"
+      },
+      "prompt_side": "Side-view game asset of a liuyedao (willow-leaf saber), China, Ming–Qing. gently curved single-edged saber with even curve. Fittings: oval disk guard, wrapped grip, cap pommel. Blade length about 76 cm, width 35 mm. Polished steel with a visible white temper line (hamon) along the edge. Blade pointing right, hilt on the left, cutting edge facing down, spine up. Orthographic, no perspective, entire weapon visible with margins, soft studio light from the top-left, no hand, no background, transparent background, 2048x512, realistic illustrated style consistent across the set.",
+      "prompt_top": "Top-down game sprite of a liuyedao (willow-leaf saber) lying flat, seen from directly above. gently curved single-edged saber with even curve. The guard/collar is exactly at the image center and the blade points right toward the edge of the image; the hilt points left. Strong readable silhouette at 48 px, clean dark outline, bright steel, no shadow, transparent background, 512x512. Paint the hilt wrap in neutral light grey so it can be tinted with the player color."
+    },
+    {
+      "id": "huanshou",
+      "family": "chinese",
+      "name": {
+        "ja": "環首刀",
+        "zh": "環首刀",
+        "en": "Han dynasty ring-pommel dao (huanshou dao)"
+      },
+      "era": "China, Han",
+      "dims": {
+        "blade_cm": 98,
+        "width_mm": 31,
+        "thickness_mm": 8,
+        "sori_mm": 2,
+        "edges": 1
+      },
+      "shape": {
+        "profile": "taper",
+        "wave": null,
+        "shaft": false,
+        "rings": 0,
+        "ringPommel": true,
+        "heatTreat": "differential (visible hamon line)"
+      },
+      "fittings": "large iron ring pommel, simple short guard or none, cord-wrapped grip",
+      "identify": "single-edged, straight, ring pommel",
+      "files": {
+        "side": "static/katana_art/side/huanshou.png",
+        "top": "static/katana_art/top/huanshou.png",
+        "topHilt": "static/katana_art/top/huanshou_hilt.png"
+      },
+      "prompt_side": "Side-view game asset of a Han dynasty ring-pommel dao (huanshou dao), China, Han. long straight single-edged blade with a ring at the end of the hilt. Fittings: large iron ring pommel, simple short guard or none, cord-wrapped grip. Blade length about 98 cm, width 31 mm. Polished steel with a visible white temper line (hamon) along the edge. Blade pointing right, hilt on the left, cutting edge facing down, spine up. Orthographic, no perspective, entire weapon visible with margins, soft studio light from the top-left, no hand, no background, transparent background, 2048x512, realistic illustrated style consistent across the set.",
+      "prompt_top": "Top-down game sprite of a Han dynasty ring-pommel dao (huanshou dao) lying flat, seen from directly above. long straight single-edged blade with a ring at the end of the hilt. The guard/collar is exactly at the image center and the blade points right toward the edge of the image; the hilt points left. Strong readable silhouette at 48 px, clean dark outline, bright steel, no shadow, transparent background, 512x512. Paint the hilt wrap in neutral light grey so it can be tinted with the player color."
+    },
+    {
+      "id": "hengdao",
+      "family": "chinese",
+      "name": {
+        "ja": "唐横刀",
+        "zh": "唐橫刀",
+        "en": "Tang dynasty hengdao (straight saber)"
+      },
+      "era": "China, Tang",
+      "dims": {
+        "blade_cm": 75,
+        "width_mm": 31,
+        "thickness_mm": 8,
+        "sori_mm": 2,
+        "edges": 1
+      },
+      "shape": {
+        "profile": "taper",
+        "wave": null,
+        "shaft": false,
+        "rings": 0,
+        "ringPommel": false,
+        "heatTreat": "differential (visible hamon line)"
+      },
+      "fittings": "small disk guard, ornate fittings, P-shaped scabbard mounts",
+      "identify": "single-edged, straight",
+      "files": {
+        "side": "static/katana_art/side/hengdao.png",
+        "top": "static/katana_art/top/hengdao.png",
+        "topHilt": "static/katana_art/top/hengdao_hilt.png"
+      },
+      "prompt_side": "Side-view game asset of a Tang dynasty hengdao (straight saber), China, Tang. straight single-edged blade, kiriha (chisel) edge, small point. Fittings: small disk guard, ornate fittings, P-shaped scabbard mounts. Blade length about 75 cm, width 31 mm. Polished steel with a visible white temper line (hamon) along the edge. Blade pointing right, hilt on the left, cutting edge facing down, spine up. Orthographic, no perspective, entire weapon visible with margins, soft studio light from the top-left, no hand, no background, transparent background, 2048x512, realistic illustrated style consistent across the set.",
+      "prompt_top": "Top-down game sprite of a Tang dynasty hengdao (straight saber) lying flat, seen from directly above. straight single-edged blade, kiriha (chisel) edge, small point. The guard/collar is exactly at the image center and the blade points right toward the edge of the image; the hilt points left. Strong readable silhouette at 48 px, clean dark outline, bright steel, no shadow, transparent background, 512x512. Paint the hilt wrap in neutral light grey so it can be tinted with the player color."
+    },
+    {
+      "id": "modao",
+      "family": "chinese",
+      "name": {
+        "ja": "陌刀",
+        "zh": "陌刀",
+        "en": "Tang modao (two-edged pole sword)"
+      },
+      "era": "China, Tang",
+      "dims": {
+        "blade_cm": 110,
+        "width_mm": 43,
+        "thickness_mm": 7,
+        "sori_mm": 1,
+        "edges": 2
+      },
+      "shape": {
+        "profile": "taper",
+        "wave": null,
+        "shaft": true,
+        "rings": 0,
+        "ringPommel": false,
+        "heatTreat": "differential (visible hamon line)"
+      },
+      "fittings": "long wooden shaft-like hilt, metal collar",
+      "identify": "double-edged, straight, mounted on a long pole",
+      "files": {
+        "side": "static/katana_art/side/modao.png",
+        "top": "static/katana_art/top/modao.png",
+        "topHilt": "static/katana_art/top/modao_hilt.png"
+      },
+      "prompt_side": "Side-view game asset of a Tang modao (two-edged pole sword), China, Tang. long straight double-edged blade mounted on a long staff. Fittings: long wooden shaft-like hilt, metal collar. Blade length about 110 cm, width 43 mm. Polished steel with a visible white temper line (hamon) along the edge. Blade pointing right, hilt on the left, Orthographic, no perspective, entire weapon visible with margins, soft studio light from the top-left, no hand, no background, transparent background, 2048x512, realistic illustrated style consistent across the set.",
+      "prompt_top": "Top-down game sprite of a Tang modao (two-edged pole sword) lying flat, seen from directly above. long straight double-edged blade mounted on a long staff. The guard/collar is exactly at the image center and the blade points right toward the edge of the image; the hilt points left. Strong readable silhouette at 48 px, clean dark outline, bright steel, no shadow, transparent background, 512x512. Paint the hilt wrap in neutral light grey so it can be tinted with the player color."
+    },
+    {
+      "id": "zhanmadao",
+      "family": "chinese",
+      "name": {
+        "ja": "斬馬刀",
+        "zh": "斬馬刀",
+        "en": "zhanmadao (horse-cutting saber)"
+      },
+      "era": "China, Song–Ming",
+      "dims": {
+        "blade_cm": 118,
+        "width_mm": 42,
+        "thickness_mm": 8,
+        "sori_mm": 13,
+        "edges": 1
+      },
+      "shape": {
+        "profile": "widen",
+        "wave": null,
+        "shaft": false,
+        "rings": 0,
+        "ringPommel": false,
+        "heatTreat": "differential (visible hamon line)"
+      },
+      "fittings": "long two-handed grip, disk guard",
+      "identify": "single-edged, profile: widen",
+      "files": {
+        "side": "static/katana_art/side/zhanmadao.png",
+        "top": "static/katana_art/top/zhanmadao.png",
+        "topHilt": "static/katana_art/top/zhanmadao_hilt.png"
+      },
+      "prompt_side": "Side-view game asset of a zhanmadao (horse-cutting saber), China, Song–Ming. very long single-edged blade widening toward the tip, slight forward curve. Fittings: long two-handed grip, disk guard. Blade length about 118 cm, width 42 mm. Polished steel with a visible white temper line (hamon) along the edge. Blade pointing right, hilt on the left, cutting edge facing down, spine up. Orthographic, no perspective, entire weapon visible with margins, soft studio light from the top-left, no hand, no background, transparent background, 2048x512, realistic illustrated style consistent across the set.",
+      "prompt_top": "Top-down game sprite of a zhanmadao (horse-cutting saber) lying flat, seen from directly above. very long single-edged blade widening toward the tip, slight forward curve. The guard/collar is exactly at the image center and the blade points right toward the edge of the image; the hilt points left. Strong readable silhouette at 48 px, clean dark outline, bright steel, no shadow, transparent background, 512x512. Paint the hilt wrap in neutral light grey so it can be tinted with the player color."
+    },
+    {
+      "id": "yanling",
+      "family": "chinese",
+      "name": {
+        "ja": "雁翎刀",
+        "zh": "雁翎刀",
+        "en": "yanlingdao (goose-quill saber)"
+      },
+      "era": "China, Ming–Qing",
+      "dims": {
+        "blade_cm": 78,
+        "width_mm": 33,
+        "thickness_mm": 7,
+        "sori_mm": 19,
+        "edges": 1
+      },
+      "shape": {
+        "profile": "taper",
+        "wave": null,
+        "shaft": false,
+        "rings": 0,
+        "ringPommel": false,
+        "heatTreat": "differential (visible hamon line)"
+      },
+      "fittings": "oval disk guard, wrapped grip",
+      "identify": "single-edged",
+      "files": {
+        "side": "static/katana_art/side/yanling.png",
+        "top": "static/katana_art/top/yanling.png",
+        "topHilt": "static/katana_art/top/yanling_hilt.png"
+      },
+      "prompt_side": "Side-view game asset of a yanlingdao (goose-quill saber), China, Ming–Qing. nearly straight blade that curves up only near the tip, false edge on the back of the tip. Fittings: oval disk guard, wrapped grip. Blade length about 78 cm, width 33 mm. Polished steel with a visible white temper line (hamon) along the edge. Blade pointing right, hilt on the left, cutting edge facing down, spine up. Orthographic, no perspective, entire weapon visible with margins, soft studio light from the top-left, no hand, no background, transparent background, 2048x512, realistic illustrated style consistent across the set.",
+      "prompt_top": "Top-down game sprite of a yanlingdao (goose-quill saber) lying flat, seen from directly above. nearly straight blade that curves up only near the tip, false edge on the back of the tip. The guard/collar is exactly at the image center and the blade points right toward the edge of the image; the hilt points left. Strong readable silhouette at 48 px, clean dark outline, bright steel, no shadow, transparent background, 512x512. Paint the hilt wrap in neutral light grey so it can be tinted with the player color."
+    },
+    {
+      "id": "niuwei",
+      "family": "chinese",
+      "name": {
+        "ja": "牛尾刀",
+        "zh": "牛尾刀",
+        "en": "niuweidao (oxtail saber)"
+      },
+      "era": "China, Qing",
+      "dims": {
+        "blade_cm": 74,
+        "width_mm": 45,
+        "thickness_mm": 7,
+        "sori_mm": 23,
+        "edges": 1
+      },
+      "shape": {
+        "profile": "widen",
+        "wave": null,
+        "shaft": false,
+        "rings": 0,
+        "ringPommel": false,
+        "heatTreat": "differential (visible hamon line)"
+      },
+      "fittings": "disk guard, wrapped grip",
+      "identify": "single-edged, strong curve (23 mm), profile: widen",
+      "files": {
+        "side": "static/katana_art/side/niuwei.png",
+        "top": "static/katana_art/top/niuwei.png",
+        "topHilt": "static/katana_art/top/niuwei_hilt.png"
+      },
+      "prompt_side": "Side-view game asset of a niuweidao (oxtail saber), China, Qing. single-edged saber whose tip section flares wide like an ox tail. Fittings: disk guard, wrapped grip. Blade length about 74 cm, width 45 mm. Polished steel with a visible white temper line (hamon) along the edge. Blade pointing right, hilt on the left, cutting edge facing down, spine up. Orthographic, no perspective, entire weapon visible with margins, soft studio light from the top-left, no hand, no background, transparent background, 2048x512, realistic illustrated style consistent across the set.",
+      "prompt_top": "Top-down game sprite of a niuweidao (oxtail saber) lying flat, seen from directly above. single-edged saber whose tip section flares wide like an ox tail. The guard/collar is exactly at the image center and the blade points right toward the edge of the image; the hilt points left. Strong readable silhouette at 48 px, clean dark outline, bright steel, no shadow, transparent background, 512x512. Paint the hilt wrap in neutral light grey so it can be tinted with the player color."
+    },
+    {
+      "id": "guandao",
+      "family": "chinese",
+      "name": {
+        "ja": "偃月刀（関刀）",
+        "zh": "偃月刀（關刀）",
+        "en": "guandao (Guan Yu's crescent glaive)"
+      },
+      "era": "China, Song–Qing",
+      "dims": {
+        "blade_cm": 63,
+        "width_mm": 65,
+        "thickness_mm": 8.5,
+        "sori_mm": 30,
+        "edges": 1
+      },
+      "shape": {
+        "profile": "widen",
+        "wave": null,
+        "shaft": true,
+        "rings": 0,
+        "ringPommel": false,
+        "heatTreat": "differential (visible hamon line)"
+      },
+      "fittings": "long lacquered pole, dragon-head collar, spike at the back of the blade",
+      "identify": "single-edged, strong curve (30 mm), profile: widen, mounted on a long pole",
+      "files": {
+        "side": "static/katana_art/side/guandao.png",
+        "top": "static/katana_art/top/guandao.png",
+        "topHilt": "static/katana_art/top/guandao_hilt.png"
+      },
+      "prompt_side": "Side-view game asset of a guandao (Guan Yu's crescent glaive), China, Song–Qing. huge wide crescent blade on a long pole. Fittings: long lacquered pole, dragon-head collar, spike at the back of the blade. Blade length about 63 cm, width 65 mm. Polished steel with a visible white temper line (hamon) along the edge. Blade pointing right, hilt on the left, cutting edge facing down, spine up. Orthographic, no perspective, entire weapon visible with margins, soft studio light from the top-left, no hand, no background, transparent background, 2048x512, realistic illustrated style consistent across the set.",
+      "prompt_top": "Top-down game sprite of a guandao (Guan Yu's crescent glaive) lying flat, seen from directly above. huge wide crescent blade on a long pole. The guard/collar is exactly at the image center and the blade points right toward the edge of the image; the hilt points left. Strong readable silhouette at 48 px, clean dark outline, bright steel, no shadow, transparent background, 512x512. Paint the hilt wrap in neutral light grey so it can be tinted with the player color."
+    },
+    {
+      "id": "jiuhuan",
+      "family": "chinese",
+      "name": {
+        "ja": "九環刀",
+        "zh": "九環刀",
+        "en": "nine-ring broadsword (jiuhuan dao)"
+      },
+      "era": "China, Qing–modern",
+      "dims": {
+        "blade_cm": 80,
+        "width_mm": 53,
+        "thickness_mm": 7,
+        "sori_mm": 10,
+        "edges": 1
+      },
+      "shape": {
+        "profile": "widen",
+        "wave": null,
+        "shaft": false,
+        "rings": 9,
+        "ringPommel": false,
+        "heatTreat": "differential (visible hamon line)"
+      },
+      "fittings": "disk guard, ring pommel",
+      "identify": "single-edged, profile: widen, 9 rings on the spine",
+      "files": {
+        "side": "static/katana_art/side/jiuhuan.png",
+        "top": "static/katana_art/top/jiuhuan.png",
+        "topHilt": "static/katana_art/top/jiuhuan_hilt.png"
+      },
+      "prompt_side": "Side-view game asset of a nine-ring broadsword (jiuhuan dao), China, Qing–modern. wide single-edged blade with nine iron rings threaded along the spine. Fittings: disk guard, ring pommel. Blade length about 80 cm, width 53 mm. Polished steel with a visible white temper line (hamon) along the edge. Blade pointing right, hilt on the left, cutting edge facing down, spine up. Orthographic, no perspective, entire weapon visible with margins, soft studio light from the top-left, no hand, no background, transparent background, 2048x512, realistic illustrated style consistent across the set.",
+      "prompt_top": "Top-down game sprite of a nine-ring broadsword (jiuhuan dao) lying flat, seen from directly above. wide single-edged blade with nine iron rings threaded along the spine. The guard/collar is exactly at the image center and the blade points right toward the edge of the image; the hilt points left. Strong readable silhouette at 48 px, clean dark outline, bright steel, no shadow, transparent background, 512x512. Paint the hilt wrap in neutral light grey so it can be tinted with the player color."
+    },
+    {
+      "id": "guitou",
+      "family": "chinese",
+      "name": {
+        "ja": "鬼頭刀",
+        "zh": "鬼頭刀",
+        "en": "guitou dao (ghost-head / executioner's saber)"
+      },
+      "era": "China, Qing",
+      "dims": {
+        "blade_cm": 70,
+        "width_mm": 65,
+        "thickness_mm": 8.5,
+        "sori_mm": 10,
+        "edges": 1
+      },
+      "shape": {
+        "profile": "widen",
+        "wave": null,
+        "shaft": false,
+        "rings": 0,
+        "ringPommel": false,
+        "heatTreat": "differential (visible hamon line)"
+      },
+      "fittings": "heavy disk guard, thick grip",
+      "identify": "single-edged, profile: widen",
+      "files": {
+        "side": "static/katana_art/side/guitou.png",
+        "top": "static/katana_art/top/guitou.png",
+        "topHilt": "static/katana_art/top/guitou_hilt.png"
+      },
+      "prompt_side": "Side-view game asset of a guitou dao (ghost-head / executioner's saber), China, Qing. heavy single-edged blade that becomes extremely wide toward a rounded tip. Fittings: heavy disk guard, thick grip. Blade length about 70 cm, width 65 mm. Polished steel with a visible white temper line (hamon) along the edge. Blade pointing right, hilt on the left, cutting edge facing down, spine up. Orthographic, no perspective, entire weapon visible with margins, soft studio light from the top-left, no hand, no background, transparent background, 2048x512, realistic illustrated style consistent across the set.",
+      "prompt_top": "Top-down game sprite of a guitou dao (ghost-head / executioner's saber) lying flat, seen from directly above. heavy single-edged blade that becomes extremely wide toward a rounded tip. The guard/collar is exactly at the image center and the blade points right toward the edge of the image; the hilt points left. Strong readable silhouette at 48 px, clean dark outline, bright steel, no shadow, transparent background, 512x512. Paint the hilt wrap in neutral light grey so it can be tinted with the player color."
+    },
+    {
+      "id": "hudie",
+      "family": "chinese",
+      "name": {
+        "ja": "蝴蝶双刀",
+        "zh": "蝴蝶雙刀",
+        "en": "butterfly swords (hudie shuang dao)"
+      },
+      "era": "China, Southern styles, Qing",
+      "dims": {
+        "blade_cm": 37,
+        "width_mm": 52,
+        "thickness_mm": 6,
+        "sori_mm": 3,
+        "edges": 1
+      },
+      "shape": {
+        "profile": "widen",
+        "wave": null,
+        "shaft": false,
+        "rings": 0,
+        "ringPommel": false,
+        "heatTreat": "differential (visible hamon line)"
+      },
+      "fittings": "D-shaped knuckle guard, short grip, sold as a pair",
+      "identify": "single-edged, straight, profile: widen",
+      "files": {
+        "side": "static/katana_art/side/hudie.png",
+        "top": "static/katana_art/top/hudie.png",
+        "topHilt": "static/katana_art/top/hudie_hilt.png"
+      },
+      "prompt_side": "Side-view game asset of a butterfly swords (hudie shuang dao), China, Southern styles, Qing. short very wide single-edged blades, used as a mirrored pair. Fittings: D-shaped knuckle guard, short grip, sold as a pair. Blade length about 37 cm, width 52 mm. Polished steel with a visible white temper line (hamon) along the edge. Blade pointing right, hilt on the left, cutting edge facing down, spine up. Orthographic, no perspective, entire weapon visible with margins, soft studio light from the top-left, no hand, no background, transparent background, 2048x512, realistic illustrated style consistent across the set.",
+      "prompt_top": "Top-down game sprite of a butterfly swords (hudie shuang dao) lying flat, seen from directly above. short very wide single-edged blades, used as a mirrored pair. The guard/collar is exactly at the image center and the blade points right toward the edge of the image; the hilt points left. Strong readable silhouette at 48 px, clean dark outline, bright steel, no shadow, transparent background, 512x512. Paint the hilt wrap in neutral light grey so it can be tinted with the player color."
+    },
+    {
+      "id": "shamshir",
+      "family": "famous",
+      "name": {
+        "ja": "シャムシール（彎刀）",
+        "zh": "彎刀（波斯彎刀）",
+        "en": "Persian shamshir"
+      },
+      "era": "Persia, 16th–19th c.",
+      "dims": {
+        "blade_cm": 85,
+        "width_mm": 28,
+        "thickness_mm": 6,
+        "sori_mm": 63,
+        "edges": 1
+      },
+      "shape": {
+        "profile": "narrow",
+        "wave": null,
+        "shaft": false,
+        "rings": 0,
+        "ringPommel": false,
+        "heatTreat": "through-hardened (uniform steel, no hamon)"
+      },
+      "fittings": "simple cross-guard, pistol-grip pommel",
+      "identify": "single-edged, strong curve (63 mm), profile: narrow",
+      "files": {
+        "side": "static/katana_art/side/shamshir.png",
+        "top": "static/katana_art/top/shamshir.png",
+        "topHilt": "static/katana_art/top/shamshir_hilt.png"
+      },
+      "prompt_side": "Side-view game asset of a Persian shamshir, Persia, 16th–19th c.. slender, very deeply curved single-edged blade, needle tip. Fittings: simple cross-guard, pistol-grip pommel. Blade length about 85 cm, width 28 mm. Polished uniform steel. Blade pointing right, hilt on the left, cutting edge facing down, spine up. Orthographic, no perspective, entire weapon visible with margins, soft studio light from the top-left, no hand, no background, transparent background, 2048x512, realistic illustrated style consistent across the set.",
+      "prompt_top": "Top-down game sprite of a Persian shamshir lying flat, seen from directly above. slender, very deeply curved single-edged blade, needle tip. The guard/collar is exactly at the image center and the blade points right toward the edge of the image; the hilt points left. Strong readable silhouette at 48 px, clean dark outline, bright steel, no shadow, transparent background, 512x512. Paint the hilt wrap in neutral light grey so it can be tinted with the player color."
+    },
+    {
+      "id": "kilij",
+      "family": "famous",
+      "name": {
+        "ja": "キリジ（トルコ刀）",
+        "zh": "土耳其彎刀（Kilij）",
+        "en": "Ottoman kilij"
+      },
+      "era": "Ottoman Empire, 15th–19th c.",
+      "dims": {
+        "blade_cm": 79,
+        "width_mm": 38,
+        "thickness_mm": 7,
+        "sori_mm": 53,
+        "edges": 1
+      },
+      "shape": {
+        "profile": "widen",
+        "wave": null,
+        "shaft": false,
+        "rings": 0,
+        "ringPommel": false,
+        "heatTreat": "through-hardened (uniform steel, no hamon)"
+      },
+      "fittings": "cross-guard, angled pistol grip",
+      "identify": "single-edged, strong curve (53 mm), profile: widen",
+      "files": {
+        "side": "static/katana_art/side/kilij.png",
+        "top": "static/katana_art/top/kilij.png",
+        "topHilt": "static/katana_art/top/kilij_hilt.png"
+      },
+      "prompt_side": "Side-view game asset of a Ottoman kilij, Ottoman Empire, 15th–19th c.. curved blade whose last third widens (yelman) with a false edge. Fittings: cross-guard, angled pistol grip. Blade length about 79 cm, width 38 mm. Polished uniform steel. Blade pointing right, hilt on the left, cutting edge facing down, spine up. Orthographic, no perspective, entire weapon visible with margins, soft studio light from the top-left, no hand, no background, transparent background, 2048x512, realistic illustrated style consistent across the set.",
+      "prompt_top": "Top-down game sprite of a Ottoman kilij lying flat, seen from directly above. curved blade whose last third widens (yelman) with a false edge. The guard/collar is exactly at the image center and the blade points right toward the edge of the image; the hilt points left. Strong readable silhouette at 48 px, clean dark outline, bright steel, no shadow, transparent background, 512x512. Paint the hilt wrap in neutral light grey so it can be tinted with the player color."
+    },
+    {
+      "id": "falchion",
+      "family": "famous",
+      "name": {
+        "ja": "ファルシオン",
+        "zh": "法爾欽（Falchion）",
+        "en": "falchion"
+      },
+      "era": "Europe, 13th–16th c.",
+      "dims": {
+        "blade_cm": 75,
+        "width_mm": 53,
+        "thickness_mm": 6,
+        "sori_mm": 13,
+        "edges": 1
+      },
+      "shape": {
+        "profile": "widen",
+        "wave": null,
+        "shaft": false,
+        "rings": 0,
+        "ringPommel": false,
+        "heatTreat": "through-hardened (uniform steel, no hamon)"
+      },
+      "fittings": "simple cross-guard, wooden grip",
+      "identify": "single-edged, profile: widen",
+      "files": {
+        "side": "static/katana_art/side/falchion.png",
+        "top": "static/katana_art/top/falchion.png",
+        "topHilt": "static/katana_art/top/falchion_hilt.png"
+      },
+      "prompt_side": "Side-view game asset of a falchion, Europe, 13th–16th c.. single-edged blade widening toward the tip, cleaver-like. Fittings: simple cross-guard, wooden grip. Blade length about 75 cm, width 53 mm. Polished uniform steel. Blade pointing right, hilt on the left, cutting edge facing down, spine up. Orthographic, no perspective, entire weapon visible with margins, soft studio light from the top-left, no hand, no background, transparent background, 2048x512, realistic illustrated style consistent across the set.",
+      "prompt_top": "Top-down game sprite of a falchion lying flat, seen from directly above. single-edged blade widening toward the tip, cleaver-like. The guard/collar is exactly at the image center and the blade points right toward the edge of the image; the hilt points left. Strong readable silhouette at 48 px, clean dark outline, bright steel, no shadow, transparent background, 512x512. Paint the hilt wrap in neutral light grey so it can be tinted with the player color."
+    },
+    {
+      "id": "kukri",
+      "family": "famous",
+      "name": {
+        "ja": "ククリ",
+        "zh": "廓爾喀彎刀（ククリ）",
+        "en": "Nepalese kukri"
+      },
+      "era": "Nepal",
+      "dims": {
+        "blade_cm": 31,
+        "width_mm": 53,
+        "thickness_mm": 8.5,
+        "sori_mm": -21,
+        "edges": 1
+      },
+      "shape": {
+        "profile": "kukri",
+        "wave": null,
+        "shaft": false,
+        "rings": 0,
+        "ringPommel": false,
+        "heatTreat": "differential (visible hamon line)"
+      },
+      "fittings": "wooden or horn grip with rings, no guard, notch (cho) at the base",
+      "identify": "single-edged, forward/inward curve (-21 mm), profile: kukri",
+      "files": {
+        "side": "static/katana_art/side/kukri.png",
+        "top": "static/katana_art/top/kukri.png",
+        "topHilt": "static/katana_art/top/kukri_hilt.png"
+      },
+      "prompt_side": "Side-view game asset of a Nepalese kukri, Nepal. inwardly curved heavy blade with bulging belly. Fittings: wooden or horn grip with rings, no guard, notch (cho) at the base. Blade length about 31 cm, width 53 mm. Polished steel with a visible white temper line (hamon) along the edge. Blade pointing right, hilt on the left, cutting edge facing down, spine up. Orthographic, no perspective, entire weapon visible with margins, soft studio light from the top-left, no hand, no background, transparent background, 2048x512, realistic illustrated style consistent across the set.",
+      "prompt_top": "Top-down game sprite of a Nepalese kukri lying flat, seen from directly above. inwardly curved heavy blade with bulging belly. The guard/collar is exactly at the image center and the blade points right toward the edge of the image; the hilt points left. Strong readable silhouette at 48 px, clean dark outline, bright steel, no shadow, transparent background, 512x512. Paint the hilt wrap in neutral light grey so it can be tinted with the player color."
+    },
+    {
+      "id": "khopesh",
+      "family": "rare",
+      "name": {
+        "ja": "ケペシュ",
+        "zh": "鐮形劍（Khopesh）",
+        "en": "Egyptian khopesh"
+      },
+      "era": "Egypt, Bronze Age",
+      "dims": {
+        "blade_cm": 55,
+        "width_mm": 43,
+        "thickness_mm": 6.5,
+        "sori_mm": 85,
+        "edges": 1
+      },
+      "shape": {
+        "profile": "widen",
+        "wave": null,
+        "shaft": false,
+        "rings": 0,
+        "ringPommel": false,
+        "heatTreat": "through-hardened (uniform steel, no hamon)"
+      },
+      "fittings": "integral bronze hilt",
+      "identify": "single-edged, strong curve (85 mm), profile: widen",
+      "files": {
+        "side": "static/katana_art/side/khopesh.png",
+        "top": "static/katana_art/top/khopesh.png",
+        "topHilt": "static/katana_art/top/khopesh_hilt.png"
+      },
+      "prompt_side": "Side-view game asset of a Egyptian khopesh, Egypt, Bronze Age. sickle-shaped blade, cutting with the outer arc, straight hilt section. Fittings: integral bronze hilt. Blade length about 55 cm, width 43 mm. Polished uniform steel. Blade pointing right, hilt on the left, cutting edge facing down, spine up. Orthographic, no perspective, entire weapon visible with margins, soft studio light from the top-left, no hand, no background, transparent background, 2048x512, realistic illustrated style consistent across the set.",
+      "prompt_top": "Top-down game sprite of a Egyptian khopesh lying flat, seen from directly above. sickle-shaped blade, cutting with the outer arc, straight hilt section. The guard/collar is exactly at the image center and the blade points right toward the edge of the image; the hilt points left. Strong readable silhouette at 48 px, clean dark outline, bright steel, no shadow, transparent background, 512x512. Paint the hilt wrap in neutral light grey so it can be tinted with the player color."
+    },
+    {
+      "id": "shotel",
+      "family": "rare",
+      "name": {
+        "ja": "ショテル",
+        "zh": "衣索比亞鐮劍（Shotel）",
+        "en": "Ethiopian shotel"
+      },
+      "era": "Ethiopia",
+      "dims": {
+        "blade_cm": 88,
+        "width_mm": 30,
+        "thickness_mm": 6,
+        "sori_mm": 185,
+        "edges": 2
+      },
+      "shape": {
+        "profile": "taper",
+        "wave": null,
+        "shaft": false,
+        "rings": 0,
+        "ringPommel": false,
+        "heatTreat": "through-hardened (uniform steel, no hamon)"
+      },
+      "fittings": "simple wooden grip, no guard",
+      "identify": "double-edged, strong curve (185 mm)",
+      "files": {
+        "side": "static/katana_art/side/shotel.png",
+        "top": "static/katana_art/top/shotel.png",
+        "topHilt": "static/katana_art/top/shotel_hilt.png"
+      },
+      "prompt_side": "Side-view game asset of a Ethiopian shotel, Ethiopia. nearly semicircular double-edged sickle blade. Fittings: simple wooden grip, no guard. Blade length about 88 cm, width 30 mm. Polished uniform steel. Blade pointing right, hilt on the left, Orthographic, no perspective, entire weapon visible with margins, soft studio light from the top-left, no hand, no background, transparent background, 2048x512, realistic illustrated style consistent across the set.",
+      "prompt_top": "Top-down game sprite of a Ethiopian shotel lying flat, seen from directly above. nearly semicircular double-edged sickle blade. The guard/collar is exactly at the image center and the blade points right toward the edge of the image; the hilt points left. Strong readable silhouette at 48 px, clean dark outline, bright steel, no shadow, transparent background, 512x512. Paint the hilt wrap in neutral light grey so it can be tinted with the player color."
+    },
+    {
+      "id": "kris",
+      "family": "rare",
+      "name": {
+        "ja": "クリス",
+        "zh": "克力士波刃劍（Kris）",
+        "en": "Javanese kris"
+      },
+      "era": "Indonesia",
+      "dims": {
+        "blade_cm": 40,
+        "width_mm": 38,
+        "thickness_mm": 5,
+        "sori_mm": 1,
+        "edges": 2
+      },
+      "shape": {
+        "profile": "taper",
+        "wave": {
+          "count": 7,
+          "amp": 7
+        },
+        "shaft": false,
+        "rings": 0,
+        "ringPommel": false,
+        "heatTreat": "through-hardened (uniform steel, no hamon)"
+      },
+      "fittings": "carved wooden hilt (pistol-like), wide asymmetrical base (ganja)",
+      "identify": "double-edged, straight, 7 waves",
+      "files": {
+        "side": "static/katana_art/side/kris.png",
+        "top": "static/katana_art/top/kris.png",
+        "topHilt": "static/katana_art/top/kris_hilt.png"
+      },
+      "prompt_side": "Side-view game asset of a Javanese kris, Indonesia. wavy double-edged dagger with visible pamor nickel pattern. Fittings: carved wooden hilt (pistol-like), wide asymmetrical base (ganja). Blade length about 40 cm, width 38 mm. Polished uniform steel. Blade pointing right, hilt on the left, Orthographic, no perspective, entire weapon visible with margins, soft studio light from the top-left, no hand, no background, transparent background, 2048x512, realistic illustrated style consistent across the set.",
+      "prompt_top": "Top-down game sprite of a Javanese kris lying flat, seen from directly above. wavy double-edged dagger with visible pamor nickel pattern. The guard/collar is exactly at the image center and the blade points right toward the edge of the image; the hilt points left. Strong readable silhouette at 48 px, clean dark outline, bright steel, no shadow, transparent background, 512x512. Paint the hilt wrap in neutral light grey so it can be tinted with the player color."
+    },
+    {
+      "id": "flamberge",
+      "family": "rare",
+      "name": {
+        "ja": "フランベルジュ",
+        "zh": "火焰劍（Flamberge）",
+        "en": "flamberge"
+      },
+      "era": "Europe, 16th–17th c.",
+      "dims": {
+        "blade_cm": 133,
+        "width_mm": 48,
+        "thickness_mm": 6,
+        "sori_mm": 1,
+        "edges": 2
+      },
+      "shape": {
+        "profile": "taper",
+        "wave": {
+          "count": 14,
+          "amp": 6
+        },
+        "shaft": false,
+        "rings": 0,
+        "ringPommel": false,
+        "heatTreat": "through-hardened (uniform steel, no hamon)"
+      },
+      "fittings": "large cross-guard with side rings, ricasso",
+      "identify": "double-edged, straight, 14 waves",
+      "files": {
+        "side": "static/katana_art/side/flamberge.png",
+        "top": "static/katana_art/top/flamberge.png",
+        "topHilt": "static/katana_art/top/flamberge_hilt.png"
+      },
+      "prompt_side": "Side-view game asset of a flamberge, Europe, 16th–17th c.. long two-handed sword with flame-like wavy edges. Fittings: large cross-guard with side rings, ricasso. Blade length about 133 cm, width 48 mm. Polished uniform steel. Blade pointing right, hilt on the left, Orthographic, no perspective, entire weapon visible with margins, soft studio light from the top-left, no hand, no background, transparent background, 2048x512, realistic illustrated style consistent across the set.",
+      "prompt_top": "Top-down game sprite of a flamberge lying flat, seen from directly above. long two-handed sword with flame-like wavy edges. The guard/collar is exactly at the image center and the blade points right toward the edge of the image; the hilt points left. Strong readable silhouette at 48 px, clean dark outline, bright steel, no shadow, transparent background, 512x512. Paint the hilt wrap in neutral light grey so it can be tinted with the player color."
+    },
+    {
+      "id": "urumi",
+      "family": "rare",
+      "name": {
+        "ja": "ウルミ",
+        "zh": "鞭劍（Urumi）",
+        "en": "urumi (whip sword)"
+      },
+      "era": "South India, Kerala",
+      "dims": {
+        "blade_cm": 150,
+        "width_mm": 20,
+        "thickness_mm": 0.8999999999999999,
+        "sori_mm": 1,
+        "edges": 2
+      },
+      "shape": {
+        "profile": "taper",
+        "wave": null,
+        "shaft": false,
+        "rings": 0,
+        "ringPommel": false,
+        "heatTreat": "through-hardened (uniform steel, no hamon)"
+      },
+      "fittings": "small cross-guard, simple grip",
+      "identify": "double-edged, straight",
+      "files": {
+        "side": "static/katana_art/side/urumi.png",
+        "top": "static/katana_art/top/urumi.png",
+        "topHilt": "static/katana_art/top/urumi_hilt.png"
+      },
+      "prompt_side": "Side-view game asset of a urumi (whip sword), South India, Kerala. extremely thin flexible steel band, coiling like a whip. Fittings: small cross-guard, simple grip. Blade length about 150 cm, width 20 mm. Polished uniform steel. Blade pointing right, hilt on the left, Orthographic, no perspective, entire weapon visible with margins, soft studio light from the top-left, no hand, no background, transparent background, 2048x512, realistic illustrated style consistent across the set.",
+      "prompt_top": "Top-down game sprite of a urumi (whip sword) lying flat, seen from directly above. extremely thin flexible steel band, coiling like a whip. The guard/collar is exactly at the image center and the blade points right toward the edge of the image; the hilt points left. Strong readable silhouette at 48 px, clean dark outline, bright steel, no shadow, transparent background, 512x512. Paint the hilt wrap in neutral light grey so it can be tinted with the player color."
+    },
+    {
+      "id": "falcata",
+      "family": "rare",
+      "name": {
+        "ja": "ファルカタ",
+        "zh": "法爾卡塔（Falcata）",
+        "en": "Iberian falcata"
+      },
+      "era": "Iberia, 5th–1st c. BC",
+      "dims": {
+        "blade_cm": 52,
+        "width_mm": 53,
+        "thickness_mm": 7,
+        "sori_mm": -17,
+        "edges": 1
+      },
+      "shape": {
+        "profile": "widen",
+        "wave": null,
+        "shaft": false,
+        "rings": 0,
+        "ringPommel": false,
+        "heatTreat": "through-hardened (uniform steel, no hamon)"
+      },
+      "fittings": "hooked hilt shaped like a bird or horse head, closed knuckle guard",
+      "identify": "single-edged, forward/inward curve (-17 mm), profile: widen",
+      "files": {
+        "side": "static/katana_art/side/falcata.png",
+        "top": "static/katana_art/top/falcata.png",
+        "topHilt": "static/katana_art/top/falcata_hilt.png"
+      },
+      "prompt_side": "Side-view game asset of a Iberian falcata, Iberia, 5th–1st c. BC. forward-curved single-edged blade, heavier toward the tip. Fittings: hooked hilt shaped like a bird or horse head, closed knuckle guard. Blade length about 52 cm, width 53 mm. Polished uniform steel. Blade pointing right, hilt on the left, cutting edge facing down, spine up. Orthographic, no perspective, entire weapon visible with margins, soft studio light from the top-left, no hand, no background, transparent background, 2048x512, realistic illustrated style consistent across the set.",
+      "prompt_top": "Top-down game sprite of a Iberian falcata lying flat, seen from directly above. forward-curved single-edged blade, heavier toward the tip. The guard/collar is exactly at the image center and the blade points right toward the edge of the image; the hilt points left. Strong readable silhouette at 48 px, clean dark outline, bright steel, no shadow, transparent background, 512x512. Paint the hilt wrap in neutral light grey so it can be tinted with the player color."
+    },
+    {
+      "id": "yatagan",
+      "family": "rare",
+      "name": {
+        "ja": "ヤタガン",
+        "zh": "亞達禮彎刀（Yatagan）",
+        "en": "Ottoman yatagan"
+      },
+      "era": "Ottoman Empire, 16th–19th c.",
+      "dims": {
+        "blade_cm": 66,
+        "width_mm": 34,
+        "thickness_mm": 7,
+        "sori_mm": -17,
+        "edges": 1
+      },
+      "shape": {
+        "profile": "taper",
+        "wave": null,
+        "shaft": false,
+        "rings": 0,
+        "ringPommel": false,
+        "heatTreat": "through-hardened (uniform steel, no hamon)"
+      },
+      "fittings": "no guard, grip with large ear-shaped pommel",
+      "identify": "single-edged, forward/inward curve (-17 mm)",
+      "files": {
+        "side": "static/katana_art/side/yatagan.png",
+        "top": "static/katana_art/top/yatagan.png",
+        "topHilt": "static/katana_art/top/yatagan_hilt.png"
+      },
+      "prompt_side": "Side-view game asset of a Ottoman yatagan, Ottoman Empire, 16th–19th c.. forward-curved single-edged blade, slight S-shape. Fittings: no guard, grip with large ear-shaped pommel. Blade length about 66 cm, width 34 mm. Polished uniform steel. Blade pointing right, hilt on the left, cutting edge facing down, spine up. Orthographic, no perspective, entire weapon visible with margins, soft studio light from the top-left, no hand, no background, transparent background, 2048x512, realistic illustrated style consistent across the set.",
+      "prompt_top": "Top-down game sprite of a Ottoman yatagan lying flat, seen from directly above. forward-curved single-edged blade, slight S-shape. The guard/collar is exactly at the image center and the blade points right toward the edge of the image; the hilt points left. Strong readable silhouette at 48 px, clean dark outline, bright steel, no shadow, transparent background, 512x512. Paint the hilt wrap in neutral light grey so it can be tinted with the player color."
+    }
+  ],
+  "cards": [
+    {
+      "id": "dash",
+      "name": {
+        "ja": "踏み込み",
+        "zh": "踏進"
+      },
+      "color": "#ffffff",
+      "vfx": "fast lunge: motion streaks and 3–4 fading afterimages of the blade",
+      "files": {
+        "sheet": "static/katana_art/vfx/dash.png"
+      },
+      "prompt": "Game VFX sprite sheet, 8 frames in a single horizontal row, each frame 256x256, transparent background, additive-friendly bright core. Effect: fast lunge: motion streaks and 3–4 fading afterimages of the blade. Main color #ffffff. Japanese ink-and-light samurai style, top-down view, centered on the frame, no text unless specified, no character."
+    },
+    {
+      "id": "guard",
+      "name": {
+        "ja": "受け構え",
+        "zh": "守勢"
+      },
+      "color": "#ffffff",
+      "vfx": "defensive stance: translucent blue circular barrier around the blade",
+      "files": {
+        "sheet": "static/katana_art/vfx/guard.png"
+      },
+      "prompt": "Game VFX sprite sheet, 8 frames in a single horizontal row, each frame 256x256, transparent background, additive-friendly bright core. Effect: defensive stance: translucent blue circular barrier around the blade. Main color #ffffff. Japanese ink-and-light samurai style, top-down view, centered on the frame, no text unless specified, no character."
+    },
+    {
+      "id": "spin",
+      "name": {
+        "ja": "呼吸を整える",
+        "zh": "調息"
+      },
+      "color": "#ffffff",
+      "vfx": "regaining momentum: swirling wind ring that tightens around the blade",
+      "files": {
+        "sheet": "static/katana_art/vfx/spin.png"
+      },
+      "prompt": "Game VFX sprite sheet, 8 frames in a single horizontal row, each frame 256x256, transparent background, additive-friendly bright core. Effect: regaining momentum: swirling wind ring that tightens around the blade. Main color #ffffff. Japanese ink-and-light samurai style, top-down view, centered on the frame, no text unless specified, no character."
+    },
+    {
+      "id": "mikiri",
+      "name": {
+        "ja": "見切り",
+        "zh": "看破"
+      },
+      "color": "#ffffff",
+      "vfx": "parry/counter: white dashed ring while armed; on trigger an X-shaped white slash and the word 見切",
+      "files": {
+        "sheet": "static/katana_art/vfx/mikiri.png"
+      },
+      "prompt": "Game VFX sprite sheet, 8 frames in a single horizontal row, each frame 256x256, transparent background, additive-friendly bright core. Effect: parry/counter: white dashed ring while armed; on trigger an X-shaped white slash and the word 見切. Main color #ffffff. Japanese ink-and-light samurai style, top-down view, centered on the frame, no text unless specified, no character."
+    },
+    {
+      "id": "issen",
+      "name": {
+        "ja": "一閃",
+        "zh": "一閃"
+      },
+      "color": "#ffffff",
+      "vfx": "single flash cut: blade dashes in a straight line leaving a thin bright cut line and afterimages",
+      "files": {
+        "sheet": "static/katana_art/vfx/issen.png"
+      },
+      "prompt": "Game VFX sprite sheet, 8 frames in a single horizontal row, each frame 256x256, transparent background, additive-friendly bright core. Effect: single flash cut: blade dashes in a straight line leaving a thin bright cut line and afterimages. Main color #ffffff. Japanese ink-and-light samurai style, top-down view, centered on the frame, no text unless specified, no character."
+    },
+    {
+      "id": "iai",
+      "name": {
+        "ja": "居合",
+        "zh": "居合"
+      },
+      "color": "#ffffff",
+      "vfx": "iai quick-draw: blade sheathed and still for a moment, then a wide white crescent slash arc around it with a brief screen flash and the kanji 斬",
+      "files": {
+        "sheet": "static/katana_art/vfx/iai.png"
+      },
+      "prompt": "Game VFX sprite sheet, 8 frames in a single horizontal row, each frame 256x256, transparent background, additive-friendly bright core. Effect: iai quick-draw: blade sheathed and still for a moment, then a wide white crescent slash arc around it with a brief screen flash and the kanji 斬. Main color #ffffff. Japanese ink-and-light samurai style, top-down view, centered on the frame, no text unless specified, no character."
+    },
+    {
+      "id": "momiji",
+      "name": {
+        "ja": "紅葉斬り",
+        "zh": "楓葉斬"
+      },
+      "color": "#ffffff",
+      "vfx": "maple-leaf cuts: red and orange maple leaves scatter from every clash",
+      "files": {
+        "sheet": "static/katana_art/vfx/momiji.png"
+      },
+      "prompt": "Game VFX sprite sheet, 8 frames in a single horizontal row, each frame 256x256, transparent background, additive-friendly bright core. Effect: maple-leaf cuts: red and orange maple leaves scatter from every clash. Main color #ffffff. Japanese ink-and-light samurai style, top-down view, centered on the frame, no text unless specified, no character."
+    },
+    {
+      "id": "kaika",
+      "name": {
+        "ja": "開花斬り",
+        "zh": "開花斬"
+      },
+      "color": "#ffffff",
+      "vfx": "blossom-opening cut: when two locked blades separate, a flower of pink petals bursts open with a radial slash",
+      "files": {
+        "sheet": "static/katana_art/vfx/kaika.png"
+      },
+      "prompt": "Game VFX sprite sheet, 8 frames in a single horizontal row, each frame 256x256, transparent background, additive-friendly bright core. Effect: blossom-opening cut: when two locked blades separate, a flower of pink petals bursts open with a radial slash. Main color #ffffff. Japanese ink-and-light samurai style, top-down view, centered on the frame, no text unless specified, no character."
+    },
+    {
+      "id": "rakuou",
+      "name": {
+        "ja": "落桜斬り",
+        "zh": "落櫻斬"
+      },
+      "color": "#ffffff",
+      "vfx": "falling cherry blossoms: a shower of sakura petals falls on the target and keeps slicing it",
+      "files": {
+        "sheet": "static/katana_art/vfx/rakuou.png"
+      },
+      "prompt": "Game VFX sprite sheet, 8 frames in a single horizontal row, each frame 256x256, transparent background, additive-friendly bright core. Effect: falling cherry blossoms: a shower of sakura petals falls on the target and keeps slicing it. Main color #ffffff. Japanese ink-and-light samurai style, top-down view, centered on the frame, no text unless specified, no character."
+    },
+    {
+      "id": "fubuki",
+      "name": {
+        "ja": "吹雪斬り",
+        "zh": "吹雪斬"
+      },
+      "color": "#ffffff",
+      "vfx": "blizzard cut: a ring of swirling snow and ice shards bursts outward, frost on the targets",
+      "files": {
+        "sheet": "static/katana_art/vfx/fubuki.png"
+      },
+      "prompt": "Game VFX sprite sheet, 8 frames in a single horizontal row, each frame 256x256, transparent background, additive-friendly bright core. Effect: blizzard cut: a ring of swirling snow and ice shards bursts outward, frost on the targets. Main color #ffffff. Japanese ink-and-light samurai style, top-down view, centered on the frame, no text unless specified, no character."
+    }
+  ],
+  "specials": [
+    {
+      "id": "hinokokyu",
+      "name": {
+        "ja": "火の呼吸",
+        "zh": "火之呼吸"
+      },
+      "color": "#ff6a2a",
+      "vfx": "signature technique \"火の呼吸\" (classic): 5 秒間、刃が燃え上がる。傷 ×2・速さ ×1.4、触れた相手を焼く。",
+      "files": {
+        "sheet": "static/katana_art/vfx/hinokokyu.png"
+      },
+      "prompt": "Game VFX sprite sheet, 8 frames in a single horizontal row, each frame 256x256, transparent background, additive-friendly bright core. Effect: signature technique \"火の呼吸\" (classic): 5 秒間、刃が燃え上がる。傷 ×2・速さ ×1.4、触れた相手を焼く。. Main color #ff6a2a. Japanese ink-and-light samurai style, top-down view, centered on the frame, no text unless specified, no character.",
+      "group": "classic",
+      "cutin": "static/katana_art/cutin/hinokokyu.png"
+    },
+    {
+      "id": "tsubame",
+      "name": {
+        "ja": "燕返し",
+        "zh": "燕返"
+      },
+      "color": "#9fd3ff",
+      "vfx": "signature technique \"燕返し\" (classic): 5 秒間、次の 2 回の接触で返す刀の二連撃。鍔迫り合いにならない。",
+      "files": {
+        "sheet": "static/katana_art/vfx/tsubame.png"
+      },
+      "prompt": "Game VFX sprite sheet, 8 frames in a single horizontal row, each frame 256x256, transparent background, additive-friendly bright core. Effect: signature technique \"燕返し\" (classic): 5 秒間、次の 2 回の接触で返す刀の二連撃。鍔迫り合いにならない。. Main color #9fd3ff. Japanese ink-and-light samurai style, top-down view, centered on the frame, no text unless specified, no character.",
+      "group": "classic",
+      "cutin": "static/katana_art/cutin/tsubame.png"
+    },
+    {
+      "id": "raikiri",
+      "name": {
+        "ja": "雷切",
+        "zh": "雷切"
+      },
+      "color": "#c8dcff",
+      "vfx": "signature technique \"雷切\" (classic): 最も耐久の高い相手へ雷のように斬り込み、しびれさせる。",
+      "files": {
+        "sheet": "static/katana_art/vfx/raikiri.png"
+      },
+      "prompt": "Game VFX sprite sheet, 8 frames in a single horizontal row, each frame 256x256, transparent background, additive-friendly bright core. Effect: signature technique \"雷切\" (classic): 最も耐久の高い相手へ雷のように斬り込み、しびれさせる。. Main color #c8dcff. Japanese ink-and-light samurai style, top-down view, centered on the frame, no text unless specified, no character.",
+      "group": "classic",
+      "cutin": "static/katana_art/cutin/raikiri.png"
+    },
+    {
+      "id": "ryusei",
+      "name": {
+        "ja": "流星落とし",
+        "zh": "流星落"
+      },
+      "color": "#ff9640",
+      "vfx": "signature technique \"流星落とし\" (classic): 相手の位置へ 3 つの流星を落とす。",
+      "files": {
+        "sheet": "static/katana_art/vfx/ryusei.png"
+      },
+      "prompt": "Game VFX sprite sheet, 8 frames in a single horizontal row, each frame 256x256, transparent background, additive-friendly bright core. Effect: signature technique \"流星落とし\" (classic): 相手の位置へ 3 つの流星を落とす。. Main color #ff9640. Japanese ink-and-light samurai style, top-down view, centered on the frame, no text unless specified, no character.",
+      "group": "classic",
+      "cutin": "static/katana_art/cutin/ryusei.png"
+    },
+    {
+      "id": "uzumon",
+      "name": {
+        "ja": "渦紋嵐",
+        "zh": "渦紋嵐"
+      },
+      "color": "#a8c8ff",
+      "vfx": "signature technique \"渦紋嵐\" (classic): 5 秒間、渦の紋のように相手を引き寄せて斬り、勢いを奪う。",
+      "files": {
+        "sheet": "static/katana_art/vfx/uzumon.png"
+      },
+      "prompt": "Game VFX sprite sheet, 8 frames in a single horizontal row, each frame 256x256, transparent background, additive-friendly bright core. Effect: signature technique \"渦紋嵐\" (classic): 5 秒間、渦の紋のように相手を引き寄せて斬り、勢いを奪う。. Main color #a8c8ff. Japanese ink-and-light samurai style, top-down view, centered on the frame, no text unless specified, no character.",
+      "group": "classic",
+      "cutin": "static/katana_art/cutin/uzumon.png"
+    },
+    {
+      "id": "fudo",
+      "name": {
+        "ja": "不動金剛",
+        "zh": "不動金剛"
+      },
+      "color": "#ffd75a",
+      "vfx": "signature technique \"不動金剛\" (classic): 5 秒間、一切の傷を受けず、動かざること山の如し。",
+      "files": {
+        "sheet": "static/katana_art/vfx/fudo.png"
+      },
+      "prompt": "Game VFX sprite sheet, 8 frames in a single horizontal row, each frame 256x256, transparent background, additive-friendly bright core. Effect: signature technique \"不動金剛\" (classic): 5 秒間、一切の傷を受けず、動かざること山の如し。. Main color #ffd75a. Japanese ink-and-light samurai style, top-down view, centered on the frame, no text unless specified, no character.",
+      "group": "classic",
+      "cutin": "static/katana_art/cutin/fudo.png"
+    },
+    {
+      "id": "getsurin",
+      "name": {
+        "ja": "月輪",
+        "zh": "月輪"
+      },
+      "color": "#e6e0ff",
+      "vfx": "signature technique \"月輪\" (classic): 4 秒間、満月の弧を描いて場を駆け巡り、すれ違う相手を斬る。速さ ×2.2・傷 ×1.5。",
+      "files": {
+        "sheet": "static/katana_art/vfx/getsurin.png"
+      },
+      "prompt": "Game VFX sprite sheet, 8 frames in a single horizontal row, each frame 256x256, transparent background, additive-friendly bright core. Effect: signature technique \"月輪\" (classic): 4 秒間、満月の弧を描いて場を駆け巡り、すれ違う相手を斬る。速さ ×2.2・傷 ×1.5。. Main color #e6e0ff. Japanese ink-and-light samurai style, top-down view, centered on the frame, no text unless specified, no character.",
+      "group": "classic",
+      "cutin": "static/katana_art/cutin/getsurin.png"
+    },
+    {
+      "id": "jakou",
+      "name": {
+        "ja": "蛇咬",
+        "zh": "蛇咬"
+      },
+      "color": "#7fbf6a",
+      "vfx": "signature technique \"蛇咬\" (classic): 5 秒間、触れた相手に出血を与える（4 秒間持続ダメージ）。",
+      "files": {
+        "sheet": "static/katana_art/vfx/jakou.png"
+      },
+      "prompt": "Game VFX sprite sheet, 8 frames in a single horizontal row, each frame 256x256, transparent background, additive-friendly bright core. Effect: signature technique \"蛇咬\" (classic): 5 秒間、触れた相手に出血を与える（4 秒間持続ダメージ）。. Main color #7fbf6a. Japanese ink-and-light samurai style, top-down view, centered on the frame, no text unless specified, no character.",
+      "group": "classic",
+      "cutin": "static/katana_art/cutin/jakou.png"
+    },
+    {
+      "id": "mizu",
+      "name": {
+        "ja": "水の呼吸 拾ノ型 生生流転",
+        "zh": "水之呼吸・拾之型 生生流轉"
+      },
+      "color": "#4aa3ff",
+      "vfx": "signature technique \"水の呼吸 拾ノ型 生生流転\" (breath): 7 秒間、水龍のように回り続け、触れるたびに傷が 4 割ずつ増す。",
+      "files": {
+        "sheet": "static/katana_art/vfx/mizu.png"
+      },
+      "prompt": "Game VFX sprite sheet, 8 frames in a single horizontal row, each frame 256x256, transparent background, additive-friendly bright core. Effect: signature technique \"水の呼吸 拾ノ型 生生流転\" (breath): 7 秒間、水龍のように回り続け、触れるたびに傷が 4 割ずつ増す。. Main color #4aa3ff. Japanese ink-and-light samurai style, top-down view, centered on the frame, no text unless specified, no character.",
+      "group": "breath",
+      "cutin": "static/katana_art/cutin/mizu.png"
+    },
+    {
+      "id": "kaminari",
+      "name": {
+        "ja": "雷の呼吸 壱ノ型 霹靂一閃",
+        "zh": "雷之呼吸・壹之型 霹靂一閃"
+      },
+      "color": "#ffe14a",
+      "vfx": "signature technique \"雷の呼吸 壱ノ型 霹靂一閃\" (breath): 一瞬で最も近い相手へ踏み込んで斬り、しびれさせる。",
+      "files": {
+        "sheet": "static/katana_art/vfx/kaminari.png"
+      },
+      "prompt": "Game VFX sprite sheet, 8 frames in a single horizontal row, each frame 256x256, transparent background, additive-friendly bright core. Effect: signature technique \"雷の呼吸 壱ノ型 霹靂一閃\" (breath): 一瞬で最も近い相手へ踏み込んで斬り、しびれさせる。. Main color #ffe14a. Japanese ink-and-light samurai style, top-down view, centered on the frame, no text unless specified, no character.",
+      "group": "breath",
+      "cutin": "static/katana_art/cutin/kaminari.png"
+    },
+    {
+      "id": "honoo",
+      "name": {
+        "ja": "炎の呼吸 玖ノ型 煉獄",
+        "zh": "炎之呼吸・玖之型 煉獄"
+      },
+      "color": "#ff4a2a",
+      "vfx": "signature technique \"炎の呼吸 玖ノ型 煉獄\" (breath): 炎をまとって突進し、最初に当たった相手を大きく吹き飛ばす。",
+      "files": {
+        "sheet": "static/katana_art/vfx/honoo.png"
+      },
+      "prompt": "Game VFX sprite sheet, 8 frames in a single horizontal row, each frame 256x256, transparent background, additive-friendly bright core. Effect: signature technique \"炎の呼吸 玖ノ型 煉獄\" (breath): 炎をまとって突進し、最初に当たった相手を大きく吹き飛ばす。. Main color #ff4a2a. Japanese ink-and-light samurai style, top-down view, centered on the frame, no text unless specified, no character.",
+      "group": "breath",
+      "cutin": "static/katana_art/cutin/honoo.png"
+    },
+    {
+      "id": "kemono",
+      "name": {
+        "ja": "獣の呼吸 肆ノ牙 切細裂き",
+        "zh": "獸之呼吸・肆之牙 切細裂"
+      },
+      "color": "#b07a4a",
+      "vfx": "signature technique \"獣の呼吸 肆ノ牙 切細裂き\" (breath): 5 秒間、鋸のような刃で触れた相手を切り裂き、出血させる。",
+      "files": {
+        "sheet": "static/katana_art/vfx/kemono.png"
+      },
+      "prompt": "Game VFX sprite sheet, 8 frames in a single horizontal row, each frame 256x256, transparent background, additive-friendly bright core. Effect: signature technique \"獣の呼吸 肆ノ牙 切細裂き\" (breath): 5 秒間、鋸のような刃で触れた相手を切り裂き、出血させる。. Main color #b07a4a. Japanese ink-and-light samurai style, top-down view, centered on the frame, no text unless specified, no character.",
+      "group": "breath",
+      "cutin": "static/katana_art/cutin/kemono.png"
+    },
+    {
+      "id": "mushi",
+      "name": {
+        "ja": "蟲の呼吸 蝶ノ舞 戯れ",
+        "zh": "蟲之呼吸・蝶之舞 戲弄"
+      },
+      "color": "#c58aff",
+      "vfx": "signature technique \"蟲の呼吸 蝶ノ舞 戯れ\" (breath): 5 秒間、蝶のようにかわしながら刺し、毒を残す。",
+      "files": {
+        "sheet": "static/katana_art/vfx/mushi.png"
+      },
+      "prompt": "Game VFX sprite sheet, 8 frames in a single horizontal row, each frame 256x256, transparent background, additive-friendly bright core. Effect: signature technique \"蟲の呼吸 蝶ノ舞 戯れ\" (breath): 5 秒間、蝶のようにかわしながら刺し、毒を残す。. Main color #c58aff. Japanese ink-and-light samurai style, top-down view, centered on the frame, no text unless specified, no character.",
+      "group": "breath",
+      "cutin": "static/katana_art/cutin/mushi.png"
+    },
+    {
+      "id": "kasumi",
+      "name": {
+        "ja": "霞の呼吸 漆ノ型 朧",
+        "zh": "霞之呼吸・漆之型 朧"
+      },
+      "color": "#dfe8f0",
+      "vfx": "signature technique \"霞の呼吸 漆ノ型 朧\" (breath): 5 秒間、霞のように姿がおぼろになり、ほとんどの接触をすり抜けて斬る。",
+      "files": {
+        "sheet": "static/katana_art/vfx/kasumi.png"
+      },
+      "prompt": "Game VFX sprite sheet, 8 frames in a single horizontal row, each frame 256x256, transparent background, additive-friendly bright core. Effect: signature technique \"霞の呼吸 漆ノ型 朧\" (breath): 5 秒間、霞のように姿がおぼろになり、ほとんどの接触をすり抜けて斬る。. Main color #dfe8f0. Japanese ink-and-light samurai style, top-down view, centered on the frame, no text unless specified, no character.",
+      "group": "breath",
+      "cutin": "static/katana_art/cutin/kasumi.png"
+    },
+    {
+      "id": "hana",
+      "name": {
+        "ja": "花の呼吸 陸ノ型 渦桃",
+        "zh": "花之呼吸・陸之型 渦桃"
+      },
+      "color": "#ff8fb8",
+      "vfx": "signature technique \"花の呼吸 陸ノ型 渦桃\" (breath): 5 秒間、花びらのように身を翻して斬り、相手を押し返す。",
+      "files": {
+        "sheet": "static/katana_art/vfx/hana.png"
+      },
+      "prompt": "Game VFX sprite sheet, 8 frames in a single horizontal row, each frame 256x256, transparent background, additive-friendly bright core. Effect: signature technique \"花の呼吸 陸ノ型 渦桃\" (breath): 5 秒間、花びらのように身を翻して斬り、相手を押し返す。. Main color #ff8fb8. Japanese ink-and-light samurai style, top-down view, centered on the frame, no text unless specified, no character.",
+      "group": "breath",
+      "cutin": "static/katana_art/cutin/hana.png"
+    },
+    {
+      "id": "iwa",
+      "name": {
+        "ja": "岩の呼吸 壱ノ型 蛇紋岩・双極",
+        "zh": "岩之呼吸・壹之型 蛇紋岩・雙極"
+      },
+      "color": "#9a9a9a",
+      "vfx": "signature technique \"岩の呼吸 壱ノ型 蛇紋岩・双極\" (breath): 周囲を叩き潰して吹き飛ばし、4 秒間さらに重くなる。",
+      "files": {
+        "sheet": "static/katana_art/vfx/iwa.png"
+      },
+      "prompt": "Game VFX sprite sheet, 8 frames in a single horizontal row, each frame 256x256, transparent background, additive-friendly bright core. Effect: signature technique \"岩の呼吸 壱ノ型 蛇紋岩・双極\" (breath): 周囲を叩き潰して吹き飛ばし、4 秒間さらに重くなる。. Main color #9a9a9a. Japanese ink-and-light samurai style, top-down view, centered on the frame, no text unless specified, no character.",
+      "group": "breath",
+      "cutin": "static/katana_art/cutin/iwa.png"
+    },
+    {
+      "id": "kaze",
+      "name": {
+        "ja": "風の呼吸 壱ノ型 塵旋風・削ぎ",
+        "zh": "風之呼吸・壹之型 塵旋風・削"
+      },
+      "color": "#6fd39a",
+      "vfx": "signature technique \"風の呼吸 壱ノ型 塵旋風・削ぎ\" (breath): 4 秒間、旋風のように駆け、3 回まで触れた相手を削る。",
+      "files": {
+        "sheet": "static/katana_art/vfx/kaze.png"
+      },
+      "prompt": "Game VFX sprite sheet, 8 frames in a single horizontal row, each frame 256x256, transparent background, additive-friendly bright core. Effect: signature technique \"風の呼吸 壱ノ型 塵旋風・削ぎ\" (breath): 4 秒間、旋風のように駆け、3 回まで触れた相手を削る。. Main color #6fd39a. Japanese ink-and-light samurai style, top-down view, centered on the frame, no text unless specified, no character.",
+      "group": "breath",
+      "cutin": "static/katana_art/cutin/kaze.png"
+    },
+    {
+      "id": "hebi",
+      "name": {
+        "ja": "蛇の呼吸 弐ノ型 狭頭の毒牙",
+        "zh": "蛇之呼吸・貳之型 狹頭之毒牙"
+      },
+      "color": "#b8f0c8",
+      "vfx": "signature technique \"蛇の呼吸 弐ノ型 狭頭の毒牙\" (breath): 最も弱った相手へ蛇のようにうねって咬みつき、毒を残す。",
+      "files": {
+        "sheet": "static/katana_art/vfx/hebi.png"
+      },
+      "prompt": "Game VFX sprite sheet, 8 frames in a single horizontal row, each frame 256x256, transparent background, additive-friendly bright core. Effect: signature technique \"蛇の呼吸 弐ノ型 狭頭の毒牙\" (breath): 最も弱った相手へ蛇のようにうねって咬みつき、毒を残す。. Main color #b8f0c8. Japanese ink-and-light samurai style, top-down view, centered on the frame, no text unless specified, no character.",
+      "group": "breath",
+      "cutin": "static/katana_art/cutin/hebi.png"
+    },
+    {
+      "id": "oto",
+      "name": {
+        "ja": "音の呼吸 肆ノ型 響斬無間",
+        "zh": "音之呼吸・肆之型 響斬無間"
+      },
+      "color": "#ffd24a",
+      "vfx": "signature technique \"音の呼吸 肆ノ型 響斬無間\" (breath): 爆ぜる斬撃を 3 連続で周囲に響かせる。",
+      "files": {
+        "sheet": "static/katana_art/vfx/oto.png"
+      },
+      "prompt": "Game VFX sprite sheet, 8 frames in a single horizontal row, each frame 256x256, transparent background, additive-friendly bright core. Effect: signature technique \"音の呼吸 肆ノ型 響斬無間\" (breath): 爆ぜる斬撃を 3 連続で周囲に響かせる。. Main color #ffd24a. Japanese ink-and-light samurai style, top-down view, centered on the frame, no text unless specified, no character.",
+      "group": "breath",
+      "cutin": "static/katana_art/cutin/oto.png"
+    },
+    {
+      "id": "koi",
+      "name": {
+        "ja": "恋の呼吸 伍ノ型 揺らめく恋情・乱れ爪",
+        "zh": "戀之呼吸・伍之型 搖曳戀情・亂爪"
+      },
+      "color": "#ff7fc0",
+      "vfx": "signature technique \"恋の呼吸 伍ノ型 揺らめく恋情・乱れ爪\" (breath): しなる刃で場のほぼ全域を薙ぎ、3 秒間速くなる。",
+      "files": {
+        "sheet": "static/katana_art/vfx/koi.png"
+      },
+      "prompt": "Game VFX sprite sheet, 8 frames in a single horizontal row, each frame 256x256, transparent background, additive-friendly bright core. Effect: signature technique \"恋の呼吸 伍ノ型 揺らめく恋情・乱れ爪\" (breath): しなる刃で場のほぼ全域を薙ぎ、3 秒間速くなる。. Main color #ff7fc0. Japanese ink-and-light samurai style, top-down view, centered on the frame, no text unless specified, no character.",
+      "group": "breath",
+      "cutin": "static/katana_art/cutin/koi.png"
+    },
+    {
+      "id": "tsuki",
+      "name": {
+        "ja": "月の呼吸 拾ノ型 穿面斬・蘿月",
+        "zh": "月之呼吸・拾之型 穿面斬・蘿月"
+      },
+      "color": "#b49cff",
+      "vfx": "signature technique \"月の呼吸 拾ノ型 穿面斬・蘿月\" (breath): 無数の三日月の刃が場の全員を斬り、3 秒間傷 ×1.4。",
+      "files": {
+        "sheet": "static/katana_art/vfx/tsuki.png"
+      },
+      "prompt": "Game VFX sprite sheet, 8 frames in a single horizontal row, each frame 256x256, transparent background, additive-friendly bright core. Effect: signature technique \"月の呼吸 拾ノ型 穿面斬・蘿月\" (breath): 無数の三日月の刃が場の全員を斬り、3 秒間傷 ×1.4。. Main color #b49cff. Japanese ink-and-light samurai style, top-down view, centered on the frame, no text unless specified, no character.",
+      "group": "breath",
+      "cutin": "static/katana_art/cutin/tsuki.png"
+    },
+    {
+      "id": "hi",
+      "name": {
+        "ja": "日の呼吸 円舞",
+        "zh": "日之呼吸・圓舞"
+      },
+      "color": "#ffb02a",
+      "vfx": "signature technique \"日の呼吸 円舞\" (breath): 5 秒間、日輪をまとう。傷 ×2・速さ ×1.3・受ける傷半減・耐久回復、触れた相手を焼く。",
+      "files": {
+        "sheet": "static/katana_art/vfx/hi.png"
+      },
+      "prompt": "Game VFX sprite sheet, 8 frames in a single horizontal row, each frame 256x256, transparent background, additive-friendly bright core. Effect: signature technique \"日の呼吸 円舞\" (breath): 5 秒間、日輪をまとう。傷 ×2・速さ ×1.3・受ける傷半減・耐久回復、触れた相手を焼く。. Main color #ffb02a. Japanese ink-and-light samurai style, top-down view, centered on the frame, no text unless specified, no character.",
+      "group": "breath",
+      "cutin": "static/katana_art/cutin/hi.png"
+    },
+    {
+      "id": "doujigiri",
+      "name": {
+        "ja": "童子切安綱",
+        "zh": "童子切安綱"
+      },
+      "color": "#d0d6dc",
+      "vfx": "signature technique \"童子切安綱\" (meito): 鬼斬り：最も耐久の高い相手を斬る。防御も無敵も通さない。",
+      "files": {
+        "sheet": "static/katana_art/vfx/doujigiri.png"
+      },
+      "prompt": "Game VFX sprite sheet, 8 frames in a single horizontal row, each frame 256x256, transparent background, additive-friendly bright core. Effect: signature technique \"童子切安綱\" (meito): 鬼斬り：最も耐久の高い相手を斬る。防御も無敵も通さない。. Main color #d0d6dc. Japanese ink-and-light samurai style, top-down view, centered on the frame, no text unless specified, no character.",
+      "group": "meito",
+      "cutin": "static/katana_art/cutin/doujigiri.png"
+    },
+    {
+      "id": "onimaru",
+      "name": {
+        "ja": "鬼丸国綱",
+        "zh": "鬼丸國綱"
+      },
+      "color": "#a04040",
+      "vfx": "signature technique \"鬼丸国綱\" (meito): 鬼を退ける：周囲の相手を斬ってすくませ、4 秒間受ける傷を減らす。",
+      "files": {
+        "sheet": "static/katana_art/vfx/onimaru.png"
+      },
+      "prompt": "Game VFX sprite sheet, 8 frames in a single horizontal row, each frame 256x256, transparent background, additive-friendly bright core. Effect: signature technique \"鬼丸国綱\" (meito): 鬼を退ける：周囲の相手を斬ってすくませ、4 秒間受ける傷を減らす。. Main color #a04040. Japanese ink-and-light samurai style, top-down view, centered on the frame, no text unless specified, no character.",
+      "group": "meito",
+      "cutin": "static/katana_art/cutin/onimaru.png"
+    },
+    {
+      "id": "mikazuki",
+      "name": {
+        "ja": "三日月宗近",
+        "zh": "三日月宗近"
+      },
+      "color": "#e8e2b0",
+      "vfx": "signature technique \"三日月宗近\" (meito): 天下一の美：5 秒間、傷 ×1.6、三日月の打ち除けで一部の接触をかわす。",
+      "files": {
+        "sheet": "static/katana_art/vfx/mikazuki.png"
+      },
+      "prompt": "Game VFX sprite sheet, 8 frames in a single horizontal row, each frame 256x256, transparent background, additive-friendly bright core. Effect: signature technique \"三日月宗近\" (meito): 天下一の美：5 秒間、傷 ×1.6、三日月の打ち除けで一部の接触をかわす。. Main color #e8e2b0. Japanese ink-and-light samurai style, top-down view, centered on the frame, no text unless specified, no character.",
+      "group": "meito",
+      "cutin": "static/katana_art/cutin/mikazuki.png"
+    },
+    {
+      "id": "odenta",
+      "name": {
+        "ja": "大典太光世",
+        "zh": "大典太光世"
+      },
+      "color": "#ffe9a8",
+      "vfx": "signature technique \"大典太光世\" (meito): 病を祓う：耐久を 25% 回復し持続傷を払い、4 秒間受ける傷を減らす。",
+      "files": {
+        "sheet": "static/katana_art/vfx/odenta.png"
+      },
+      "prompt": "Game VFX sprite sheet, 8 frames in a single horizontal row, each frame 256x256, transparent background, additive-friendly bright core. Effect: signature technique \"大典太光世\" (meito): 病を祓う：耐久を 25% 回復し持続傷を払い、4 秒間受ける傷を減らす。. Main color #ffe9a8. Japanese ink-and-light samurai style, top-down view, centered on the frame, no text unless specified, no character.",
+      "group": "meito",
+      "cutin": "static/katana_art/cutin/odenta.png"
+    },
+    {
+      "id": "juzumaru",
+      "name": {
+        "ja": "数珠丸恒次",
+        "zh": "數珠丸恒次"
+      },
+      "color": "#f0f0ff",
+      "vfx": "signature technique \"数珠丸恒次\" (meito): 破邪：全員を斬って相手の強化を解き、自分の持続傷も払い、2 秒間無敵。",
+      "files": {
+        "sheet": "static/katana_art/vfx/juzumaru.png"
+      },
+      "prompt": "Game VFX sprite sheet, 8 frames in a single horizontal row, each frame 256x256, transparent background, additive-friendly bright core. Effect: signature technique \"数珠丸恒次\" (meito): 破邪：全員を斬って相手の強化を解き、自分の持続傷も払い、2 秒間無敵。. Main color #f0f0ff. Japanese ink-and-light samurai style, top-down view, centered on the frame, no text unless specified, no character.",
+      "group": "meito",
+      "cutin": "static/katana_art/cutin/juzumaru.png"
+    },
+    {
+      "id": "tonbogiri",
+      "name": {
+        "ja": "蜻蛉切",
+        "zh": "蜻蛉切"
+      },
+      "color": "#9fe0ff",
+      "vfx": "signature technique \"蜻蛉切\" (meito): 止まった蜻蛉が両断された穂先：5 秒間、間合い ×1.6・傷 ×1.5、触れるたびに突く。",
+      "files": {
+        "sheet": "static/katana_art/vfx/tonbogiri.png"
+      },
+      "prompt": "Game VFX sprite sheet, 8 frames in a single horizontal row, each frame 256x256, transparent background, additive-friendly bright core. Effect: signature technique \"蜻蛉切\" (meito): 止まった蜻蛉が両断された穂先：5 秒間、間合い ×1.6・傷 ×1.5、触れるたびに突く。. Main color #9fe0ff. Japanese ink-and-light samurai style, top-down view, centered on the frame, no text unless specified, no character.",
+      "group": "meito",
+      "cutin": "static/katana_art/cutin/tonbogiri.png"
+    },
+    {
+      "id": "muramasa",
+      "name": {
+        "ja": "村正",
+        "zh": "村正"
+      },
+      "color": "#c0103a",
+      "vfx": "signature technique \"村正\" (meito): 妖刀：6 秒間、傷 ×2.6・速さ ×1.3。ただし毎秒 2 の耐久を自分が吸われる（折れはしない）。",
+      "files": {
+        "sheet": "static/katana_art/vfx/muramasa.png"
+      },
+      "prompt": "Game VFX sprite sheet, 8 frames in a single horizontal row, each frame 256x256, transparent background, additive-friendly bright core. Effect: signature technique \"村正\" (meito): 妖刀：6 秒間、傷 ×2.6・速さ ×1.3。ただし毎秒 2 の耐久を自分が吸われる（折れはしない）。. Main color #c0103a. Japanese ink-and-light samurai style, top-down view, centered on the frame, no text unless specified, no character.",
+      "group": "meito",
+      "cutin": "static/katana_art/cutin/muramasa.png"
+    },
+    {
+      "id": "masamune",
+      "name": {
+        "ja": "正宗",
+        "zh": "正宗"
+      },
+      "color": "#fff0c8",
+      "vfx": "signature technique \"正宗\" (meito): 相州上手：6 秒間、傷 ×1.5・速さ ×1.2・受ける傷 ×0.6・耐久回復。",
+      "files": {
+        "sheet": "static/katana_art/vfx/masamune.png"
+      },
+      "prompt": "Game VFX sprite sheet, 8 frames in a single horizontal row, each frame 256x256, transparent background, additive-friendly bright core. Effect: signature technique \"正宗\" (meito): 相州上手：6 秒間、傷 ×1.5・速さ ×1.2・受ける傷 ×0.6・耐久回復。. Main color #fff0c8. Japanese ink-and-light samurai style, top-down view, centered on the frame, no text unless specified, no character.",
+      "group": "meito",
+      "cutin": "static/katana_art/cutin/masamune.png"
+    },
+    {
+      "id": "heshikiri",
+      "name": {
+        "ja": "へし切長谷部",
+        "zh": "壓切長谷部"
+      },
+      "color": "#7a9cc0",
+      "vfx": "signature technique \"へし切長谷部\" (meito): 押し当てて切る：5 秒間、鍔迫り合いが長くなり、その間の傷 ×3。",
+      "files": {
+        "sheet": "static/katana_art/vfx/heshikiri.png"
+      },
+      "prompt": "Game VFX sprite sheet, 8 frames in a single horizontal row, each frame 256x256, transparent background, additive-friendly bright core. Effect: signature technique \"へし切長谷部\" (meito): 押し当てて切る：5 秒間、鍔迫り合いが長くなり、その間の傷 ×3。. Main color #7a9cc0. Japanese ink-and-light samurai style, top-down view, centered on the frame, no text unless specified, no character.",
+      "group": "meito",
+      "cutin": "static/katana_art/cutin/heshikiri.png"
+    },
+    {
+      "id": "honebami",
+      "name": {
+        "ja": "骨喰藤四郎",
+        "zh": "骨喰藤四郎"
+      },
+      "color": "#e0d0c0",
+      "vfx": "signature technique \"骨喰藤四郎\" (meito): 骨まで喰らう：5 秒間、防御も無敵も通し、触れるたびに斬って勢いを奪う。",
+      "files": {
+        "sheet": "static/katana_art/vfx/honebami.png"
+      },
+      "prompt": "Game VFX sprite sheet, 8 frames in a single horizontal row, each frame 256x256, transparent background, additive-friendly bright core. Effect: signature technique \"骨喰藤四郎\" (meito): 骨まで喰らう：5 秒間、防御も無敵も通し、触れるたびに斬って勢いを奪う。. Main color #e0d0c0. Japanese ink-and-light samurai style, top-down view, centered on the frame, no text unless specified, no character.",
+      "group": "meito",
+      "cutin": "static/katana_art/cutin/honebami.png"
+    },
+    {
+      "id": "fudokuniyuki",
+      "name": {
+        "ja": "不動国行",
+        "zh": "不動國行"
+      },
+      "color": "#ffb84a",
+      "vfx": "signature technique \"不動国行\" (meito): 倶利伽羅の不動明王：5 秒間、動かず受ける傷 ×0.4、受けた傷の 6 割を相手に返す。",
+      "files": {
+        "sheet": "static/katana_art/vfx/fudokuniyuki.png"
+      },
+      "prompt": "Game VFX sprite sheet, 8 frames in a single horizontal row, each frame 256x256, transparent background, additive-friendly bright core. Effect: signature technique \"不動国行\" (meito): 倶利伽羅の不動明王：5 秒間、動かず受ける傷 ×0.4、受けた傷の 6 割を相手に返す。. Main color #ffb84a. Japanese ink-and-light samurai style, top-down view, centered on the frame, no text unless specified, no character.",
+      "group": "meito",
+      "cutin": "static/katana_art/cutin/fudokuniyuki.png"
+    },
+    {
+      "id": "fudoyukimitsu",
+      "name": {
+        "ja": "不動行光",
+        "zh": "不動行光"
+      },
+      "color": "#ffcf6a",
+      "vfx": "signature technique \"不動行光\" (meito): 信長の守り刀：3 秒間無敵となり、触れた相手を斬り返す。",
+      "files": {
+        "sheet": "static/katana_art/vfx/fudoyukimitsu.png"
+      },
+      "prompt": "Game VFX sprite sheet, 8 frames in a single horizontal row, each frame 256x256, transparent background, additive-friendly bright core. Effect: signature technique \"不動行光\" (meito): 信長の守り刀：3 秒間無敵となり、触れた相手を斬り返す。. Main color #ffcf6a. Japanese ink-and-light samurai style, top-down view, centered on the frame, no text unless specified, no character.",
+      "group": "meito",
+      "cutin": "static/katana_art/cutin/fudoyukimitsu.png"
+    },
+    {
+      "id": "ookanehira",
+      "name": {
+        "ja": "大包平",
+        "zh": "大包平"
+      },
+      "color": "#c0c8d0",
+      "vfx": "signature technique \"大包平\" (meito): 日本刀の横綱：6 秒間、間合い ×1.4・重さ ×1.5・傷 ×1.6。",
+      "files": {
+        "sheet": "static/katana_art/vfx/ookanehira.png"
+      },
+      "prompt": "Game VFX sprite sheet, 8 frames in a single horizontal row, each frame 256x256, transparent background, additive-friendly bright core. Effect: signature technique \"大包平\" (meito): 日本刀の横綱：6 秒間、間合い ×1.4・重さ ×1.5・傷 ×1.6。. Main color #c0c8d0. Japanese ink-and-light samurai style, top-down view, centered on the frame, no text unless specified, no character.",
+      "group": "meito",
+      "cutin": "static/katana_art/cutin/ookanehira.png"
+    }
+  ],
+  "common_vfx": [
+    {
+      "id": "clash_sparks",
+      "name": {
+        "ja": "鍔迫り合いの火花",
+        "zh": "刀刃相接的火花"
+      },
+      "color": "#ffd27a",
+      "vfx": "two blades locked edge to edge, a burst of orange and yellow sparks and a bright flash at the contact point",
+      "files": {
+        "sheet": "static/katana_art/vfx/clash_sparks.png"
+      },
+      "prompt": "Game VFX sprite sheet, 8 frames in a single horizontal row, each frame 256x256, transparent background, additive-friendly bright core. Effect: two blades locked edge to edge, a burst of orange and yellow sparks and a bright flash at the contact point. Main color #ffd27a. Japanese ink-and-light samurai style, top-down view, centered on the frame, no text unless specified, no character."
+    },
+    {
+      "id": "break",
+      "name": {
+        "ja": "折れ",
+        "zh": "折斷"
+      },
+      "color": "#dfe6ec",
+      "vfx": "a blade snapping: steel shards flying outward and a crack line",
+      "files": {
+        "sheet": "static/katana_art/vfx/break.png"
+      },
+      "prompt": "Game VFX sprite sheet, 8 frames in a single horizontal row, each frame 256x256, transparent background, additive-friendly bright core. Effect: a blade snapping: steel shards flying outward and a crack line. Main color #dfe6ec. Japanese ink-and-light samurai style, top-down view, centered on the frame, no text unless specified, no character."
+    },
+    {
+      "id": "chip",
+      "name": {
+        "ja": "刃こぼれ",
+        "zh": "崩刃"
+      },
+      "color": "#dfe6ec",
+      "vfx": "small steel chips flying off an edge",
+      "files": {
+        "sheet": "static/katana_art/vfx/chip.png"
+      },
+      "prompt": "Game VFX sprite sheet, 8 frames in a single horizontal row, each frame 256x256, transparent background, additive-friendly bright core. Effect: small steel chips flying off an edge. Main color #dfe6ec. Japanese ink-and-light samurai style, top-down view, centered on the frame, no text unless specified, no character."
+    },
+    {
+      "id": "burn",
+      "name": {
+        "ja": "灼燒",
+        "zh": "灼燒"
+      },
+      "color": "#ff8a3d",
+      "vfx": "small flames licking around a target",
+      "files": {
+        "sheet": "static/katana_art/vfx/burn.png"
+      },
+      "prompt": "Game VFX sprite sheet, 8 frames in a single horizontal row, each frame 256x256, transparent background, additive-friendly bright core. Effect: small flames licking around a target. Main color #ff8a3d. Japanese ink-and-light samurai style, top-down view, centered on the frame, no text unless specified, no character."
+    },
+    {
+      "id": "bleed",
+      "name": {
+        "ja": "出血",
+        "zh": "出血"
+      },
+      "color": "#e04848",
+      "vfx": "stylized red slash droplets",
+      "files": {
+        "sheet": "static/katana_art/vfx/bleed.png"
+      },
+      "prompt": "Game VFX sprite sheet, 8 frames in a single horizontal row, each frame 256x256, transparent background, additive-friendly bright core. Effect: stylized red slash droplets. Main color #e04848. Japanese ink-and-light samurai style, top-down view, centered on the frame, no text unless specified, no character."
+    },
+    {
+      "id": "poison",
+      "name": {
+        "ja": "毒",
+        "zh": "毒"
+      },
+      "color": "#b57cff",
+      "vfx": "purple poison mist and butterfly sparkles",
+      "files": {
+        "sheet": "static/katana_art/vfx/poison.png"
+      },
+      "prompt": "Game VFX sprite sheet, 8 frames in a single horizontal row, each frame 256x256, transparent background, additive-friendly bright core. Effect: purple poison mist and butterfly sparkles. Main color #b57cff. Japanese ink-and-light samurai style, top-down view, centered on the frame, no text unless specified, no character."
+    }
+  ]
+}

@@ -873,7 +873,10 @@
     else if (stepId === "mei") applyMei(b, input, notes);
     p.log.push({ step: stepId, notes: notes });
     advance(p);
-    if (currentForger(state) < 0) state.phase = "judge";
+    if (currentForger(state) < 0) {
+      state.phase = "judge";
+      state.players.forEach(function (q, i) { awaken(state, i); });
+    }
     return { ok: true, notes: notes };
   }
 
@@ -1067,94 +1070,104 @@
     return s;
   }
 
-  // ---------------- 互擊 ----------------
-  // 試斬後的損傷會帶進互擊（hp 從試斬剩下的值開始）。人數不足 2 時加入對手刀。
+  // ---------------- 覺醒招式・刀的快照 ----------------
+  // 鍛完（進入審查）時，依刀的性能・材料・形狀判定是否覺醒特殊招式。條件見 D.SPECIALS 的 cond。
+  // 符合多項時以種子亂數挑一項；沒有符合但總評達上上作者，也有機會覺醒任一招式。表演模式機率較高。
+  // 覺醒條件（D.SPECIALS[].req）的判定
+  function meetsReq(b, r, ctx) {
+    if (r.any && !r.any.some(function (x) { return meetsReq(b, x, ctx); })) return false;
+    var s = ctx.s, j = ctx.j;
+    function lo(v, k) { return r[k] === undefined || v >= r[k]; }
+    function hi(v, k) { return r[k] === undefined || v <= r[k]; }
+    function inList(v, k) { return !r[k] || r[k].indexOf(v) >= 0; }
+    if (!lo(s.hardness, "minHrc") || !hi(s.hardness, "maxHrc") || !lo(s.sharpness, "minSharp") || !lo(s.toughness, "minTough")) return false;
+    if (!lo(s.mass, "minMass") || !hi(s.mass, "maxMass") || !lo(b.length || 0, "minLen") || !hi(b.length || 0, "maxLen")) return false;
+    if (!lo(b.sori || 0, "minSori") || !lo(b.mihaba || 0, "minWidth") || !hi(b.kasane || 0, "maxKasane")) return false;
+    if (!lo(j.total, "minTotal") || !lo(b.flaws.length, "minFlaws") || !hi(b.hamonClarity || 0, "maxClarity")) return false;
+    if (!inList(b.type, "types") || !inList(b.kawaId, "kawa") || !inList(b.media, "media") || !inList(b.hamon, "hamon")) return false;
+    if (!inList(b.soriType, "soriType") || !inList(b.tsukuri, "tsukuri") || !inList(b.kissaki, "kissaki")) return false;
+    if (r.wave && !ctx.bt.wave) return false;
+    if (r.minScore) for (var k in r.minScore) if (!(j.scores[k] >= r.minScore[k])) return false;
+    return true;
+  }
 
-  function startClash(state, npcIds) {
+  function specialCandidates(b) {
+    var ctx = { s: stats(b), j: judge(b), bt: byId(D.BLADE_TYPES, b.type) || {} };
+    return D.SPECIALS.filter(function (sp) { return meetsReq(b, sp.req || {}, ctx); }).map(function (sp) { return sp.id; });
+  }
+
+  function awaken(state, pIndex) {
+    var b = state.players[pIndex].blade;
+    if (b.special !== undefined) return b.special;
+    var rng = stepRng(state, pIndex, "awaken");
+    var cands = specialCandidates(b), show = isShow(b);
+    var pick = null;
+    if (cands.length && rng() < (show ? 0.9 : 0.65)) pick = cands[Math.floor(rng() * cands.length)];
+    else if (judge(b).total >= 78 && rng() < (show ? 0.5 : 0.25)) pick = D.SPECIALS[Math.floor(rng() * D.SPECIALS.length)].id;
+    b.special = pick;
+    return pick;
+  }
+
+  // 舊存檔（進入審查後才加入這個功能）補判定
+  function ensureSpecials(state) {
+    if (state.phase === "forge") return;
+    state.players.forEach(function (p, i) { if (p.blade.special === undefined) awaken(state, i); });
+  }
+
+  // 刀鞘與對刀場使用的快照：只留畫圖與戰鬥需要的欄位（可轉成邀請碼）
+  var SNAP_FIELDS = ["type", "length", "sori", "mihaba", "kasane", "tsukuri", "kissaki", "soriType", "hamon", "ashi", "yasurime", "mune", "pattern", "kawaId", "mei", "mode"];
+  function swordSnapshot(b, opts) {
+    opts = opts || {};
+    var bt = byId(D.BLADE_TYPES, b.type) || {};
+    var j = judge(b), s = stats(b);
+    var snap = { v: 1, name: String(opts.name || b.swordName || "").slice(0, 24), smith: String(opts.smith || "").slice(0, 16),
+      edges: bt.edges || 1, wave: !!bt.wave, special: b.special || null, crack: hasFlaw(b, "yakiware"),
+      grade: j.grade, total: j.total, stats: s, flaws: b.flaws.slice() };
+    SNAP_FIELDS.forEach(function (k) { snap[k] = b[k]; });
+    return snap;
+  }
+
+  function npcSnapshot(n) {
+    return { v: 1, name: "", smith: "", npc: n.id, type: "uchigatana", length: 70, sori: 17, mihaba: 31, kasane: 7, tsukuri: "shinogi", kissaki: "chu",
+      soriType: "torii", hamon: "suguha", ashi: false, edges: 1, wave: false, special: n.special || null, crack: false, flaws: [], grade: 3, total: 55,
+      stats: { hardness: n.hardness, toughness: n.toughness, sharpness: n.sharpness, mass: n.mass, integrity: n.integrity, chip: 1 } };
+  }
+
+  // ---------------- 對刀（互擊） ----------------
+  // 實際的滑行・碰撞・招式在 katana_arena.js（PriTestKatanaArena）以固定步長模擬；這裡只負責
+  // 「誰上場、帶著多少耐久」與比賽結束後的名次。試斬後的損傷會帶進對刀（hp 從試斬剩下的值開始）。
+  // extras：[{ id, name, snap }]（對手刀、刀鞘裡的刀）
+  function startClash(state, extras) {
     state.phase = "clash";
+    ensureSpecials(state);
     var fighters = state.players.map(function (p) {
       var s = stats(p.blade);
-      var hp = state.cut ? state.cut.hp[p.id] : s.integrity;
-      return { id: p.id, npc: false, sharpness: s.sharpness, hardness: s.hardness, toughness: s.toughness, mass: s.mass,
-        chip: s.chip, crack: hasFlaw(p.blade, "yakiware"), hp: hp, maxHp: s.integrity, stance: "go", bends: 0, chips: 0,
-        alive: hp > 0, outRound: hp > 0 ? 0 : -1 };
+      return { id: p.id, name: p.name, human: true, snap: swordSnapshot(p.blade, { smith: p.name }), hp: state.cut ? state.cut.hp[p.id] : s.integrity };
     });
-    (npcIds || []).forEach(function (id) {
-      var n = byId(D.NPC_SWORDS, id);
-      if (!n) return;
-      fighters.push({ id: "npc-" + n.id, npc: true, npcId: n.id, sharpness: n.sharpness, hardness: n.hardness, toughness: n.toughness,
-        mass: n.mass, chip: 1, crack: false, hp: n.integrity, maxHp: n.integrity, stance: "go", bends: 0, chips: 0, alive: true, outRound: 0 });
-    });
-    state.clash = { round: 0, fighters: fighters, log: [], winner: null };
+    (extras || []).forEach(function (x) { fighters.push({ id: x.id, name: x.name, human: false, snap: x.snap, hp: x.snap.stats.integrity }); });
+    state.clash = { fighters: fighters, winner: null, placing: [], summary: [] };
   }
 
-  function damageTo(a, b, rng) {
-    var dealt = 9 * (b.hardness / 60) * Math.sqrt(b.mass) * (b.stance === "go" ? 1.25 : 0.85) * Math.pow(0.9, b.bends);
-    var taken = (a.stance === "go" ? 1.15 : 0.75) * (70 / (a.toughness + 10)) * (1 + Math.max(0, a.hardness - 63) * 0.1) * a.chip;
-    return dealt * taken * (0.75 + rng() * 0.5);
-  }
-
-  // 進行一輪：存活者亂數配對，奇數時一把輪空。回傳本輪紀錄
-  function clashRound(state) {
+  // result：PriTestKatanaArena.result()
+  function finishClash(state, result) {
     var cl = state.clash;
-    if (!cl || cl.winner) return null;
-    cl.round++;
-    var rng = makeRng(state.seed + "|clash|" + cl.round);
-    var alive = cl.fighters.filter(function (f) { return f.alive; });
-    for (var i = alive.length - 1; i > 0; i--) {
-      var j = Math.floor(rng() * (i + 1));
-      var tmp = alive[i]; alive[i] = alive[j]; alive[j] = tmp;
-    }
-    var entries = [];
-    for (var k = 0; k + 1 < alive.length; k += 2) {
-      var a = alive[k], b = alive[k + 1];
-      var da = damageTo(a, b, rng), db = damageTo(b, a, rng);
-      var e = { a: a.id, b: b.id, da: Math.round(da), db: Math.round(db), ea: [], eb: [] };
-      [[a, da, e.ea], [b, db, e.eb]].forEach(function (x) {
-        var f = x[0], ev = x[2];
-        f.hp -= x[1];
-        if (f.hardness >= 61 && rng() < 0.3 * f.chip) { f.chips++; f.hp -= 3; ev.push("chip"); }
-        if (f.hardness < 52 && rng() < 0.4) { f.bends++; ev.push("bend"); }
-        if (f.crack && rng() < 0.12) { f.hp = 0; ev.push("crackbreak"); }
-      });
-      [[a, e.ea], [b, e.eb]].forEach(function (x) {
-        if (x[0].hp <= 0) { x[0].hp = 0; x[0].alive = false; x[0].outRound = cl.round; x[1].push("break"); }
-      });
-      e.hpA = Math.round(a.hp); e.hpB = Math.round(b.hp);
-      entries.push(e);
-    }
-    if (alive.length % 2 === 1) entries.push({ bye: alive[alive.length - 1].id });
-    cl.log.push({ round: cl.round, entries: entries });
-    var still = cl.fighters.filter(function (f) { return f.alive; });
-    if (still.length === 1) cl.winner = still[0].id;
-    else if (still.length === 0) {
-      // 同歸於盡：本輪剩餘 hp（可能為負）最高者勝
-      var best = null;
-      alive.forEach(function (f) { if (!best || f.hp > best.hp) best = f; });
-      cl.winner = best.id;
-      best.alive = true; best.hp = 1; best.outRound = 0;
-    }
-    return cl.log[cl.log.length - 1];
+    cl.winner = result.winner;
+    cl.placing = result.placing.slice();
+    cl.summary = result.summary;
   }
 
-  // 互擊名次：存活者第 1，之後依退場回合晚者在前，同回合依剩餘 hp
+  // 互擊名次：對刀場算好的名次（勝者在前、之後依退場時間晚者在前）
   function clashPlacing(state) {
-    var cl = state.clash;
-    if (!cl) return [];
-    return cl.fighters.slice().sort(function (x, y) {
-      if (x.id === cl.winner) return -1;
-      if (y.id === cl.winner) return 1;
-      var rx = x.alive ? 1e9 : x.outRound, ry = y.alive ? 1e9 : y.outRound;
-      if (rx !== ry) return ry - rx;
-      return y.hp - x.hp;
-    }).map(function (f) { return f.id; });
+    return state.clash && state.clash.placing ? state.clash.placing.slice() : [];
   }
+
+  function isPlayerId(state, id) { return state.players.some(function (p) { return p.id === id; }); }
 
   var CLASH_BONUS = [15, 8, 4];
 
-  // 總合：審查分 + 試斬分 ×2 + 互擊名次加分
+  // 總合：審查分 + 試斬分 ×2 + 互擊名次加分（只算玩家之間的名次）
   function finalRanking(state) {
-    var placing = clashPlacing(state).filter(function (id) { return id.indexOf("npc-") !== 0; });
+    var placing = clashPlacing(state).filter(function (id) { return isPlayerId(state, id); });
     var rows = state.players.map(function (p) {
       var j = judge(p.blade);
       var cp = cutPoints(state, p.id);
@@ -1194,7 +1207,15 @@
     applyCut: applyCut,
     cutPoints: cutPoints,
     startClash: startClash,
-    clashRound: clashRound,
+    finishClash: finishClash,
+    awaken: awaken,
+    specialCandidates: specialCandidates,
+    ensureSpecials: ensureSpecials,
+    swordSnapshot: swordSnapshot,
+    bladeMassKg: bladeMassKg,
+    npcSnapshot: npcSnapshot,
+    clamp: clamp,
+    hashStr: hashStr,
     clashPlacing: clashPlacing,
     finalRanking: finalRanking,
     // 冶金（測試與輔助模式用）

@@ -11,12 +11,13 @@ var assert = require("assert");
 
 var SRC = path.join(__dirname, "..", "..", "static_src");
 var win = {};
-["katana_data.js", "katana_core.js"].forEach(function (f) {
+["katana_data.js", "katana_core.js", "katana_arena.js"].forEach(function (f) {
   new Function("window", fs.readFileSync(path.join(SRC, f), "utf8"))(win);
 });
 var D = win.PriTestKatanaData;
 var Core = win.PriTestKatanaCore;
 var M = Core.metal;
+var Arena = win.PriTestKatanaArena;
 
 function mid(w) { return Math.round((w.lo + w.hi) / 2); }
 
@@ -181,12 +182,14 @@ assert.strictEqual(state.cut.target, D.TARGETS.length);
 console.log("cut points:", Core.cutPoints(state, "p1"), Core.cutPoints(state, "p2"), "hp:", JSON.stringify(state.cut.hp));
 assert.ok(Core.cutPoints(state, "p1") >= Core.cutPoints(state, "p2"));
 
-// 互擊（加入對手刀）
-Core.startClash(state, ["sato"]);
-guard = 0;
-while (!state.clash.winner && guard++ < 200) Core.clashRound(state);
-assert.ok(state.clash.winner, "clash must end");
-console.log("clash winner:", state.clash.winner, "rounds:", state.clash.round, "placing:", Core.clashPlacing(state).join(","));
+// 互擊（對刀場；加入對手刀）
+Core.startClash(state, [{ id: "npc-sato", name: "sato", snap: Core.npcSnapshot(Core.byId(D.NPC_SWORDS, "sato")) }]);
+assert.strictEqual(state.clash.fighters.length, 3);
+var ar = Arena.create({ seed: state.seed, fighters: state.clash.fighters });
+var arRes = Arena.run(ar);
+assert.ok(arRes.winner, "clash must end");
+Core.finishClash(state, arRes);
+console.log("clash winner:", state.clash.winner, "reason:", arRes.reason, "t:", arRes.time, "placing:", Core.clashPlacing(state).join(","));
 var rank = Core.finalRanking(state);
 assert.strictEqual(rank.length, 2);
 
@@ -281,9 +284,61 @@ D.BLADE_TYPES.forEach(function (bt) {
   var shin = bt.edges === 2 || bt.ht === "through" ? "none" : "hocho";
   var pl = forgeOne("type-" + bt.id, { type: bt.id, shingane: shin, kawaKg: 10 });
   var j = Core.judge(pl.blade);
-  console.log("  " + bt.id + ": " + j.total + " sugata " + j.scores.sugata + " sori " + pl.blade.sori + " HRC " + pl.blade.hardEdge + " flaws " + pl.blade.flaws.join("/"));
+  console.log("  " + bt.id + ": " + j.total + " sugata " + j.scores.sugata + " sori " + pl.blade.sori + " HRC " + pl.blade.hardEdge + " flaws " + pl.blade.flaws.join("/") + " sp " + Core.specialCandidates(pl.blade).join(","));
   assert.ok(j.total >= 55, bt.id + " ideal total " + j.total);
   assert.ok(j.scores.sugata >= 14, bt.id + " sugata " + j.scores.sugata);
 });
 
 console.log("katana core_check OK");
+
+// ---------------- 對刀場（陀螺式） ----------------
+(function arenaChecks() {
+  function npc(id) { return Core.npcSnapshot(Core.byId(D.NPC_SWORDS, id)); }
+  function duel(seed, a, b) { return Arena.run(Arena.create({ seed: seed, fighters: [{ id: "a", snap: a }, { id: "b", snap: b }] })); }
+  // 確定性：同種子同結果
+  assert.deepStrictEqual(duel("det", npc("sato"), npc("hono")), duel("det", npc("sato"), npc("hono")));
+  // 強的刀大多會贏，但不是必勝
+  var wins = 0;
+  for (var i = 0; i < 30; i++) if (duel("w" + i, npc("minarai"), npc("hono")).winner === "b") wins++;
+  assert.ok(wins >= 22, "stronger blade should usually win: " + wins);
+  // 等待區上限・覺醒招式只能用一次
+  var a = Arena.create({ seed: "q", fighters: [{ id: "a", snap: Object.assign(npc("sato"), { special: "raikiri" }) }, { id: "b", snap: npc("sato") }] });
+  var f = a.fighters[0];
+  assert.strictEqual(Arena.queueCard(a, "a", f.hand[0].uid), null);
+  assert.strictEqual(Arena.queueCard(a, "a", "special"), null);
+  assert.strictEqual(Arena.queueCard(a, "a", f.hand[0].uid), "kt_ar_err_full");
+  assert.strictEqual(f.queue[1].at, 1 + 1 + D.SPECIAL_WAIT);
+  // 每種覺醒招式與技都能發動、比賽會結束
+  D.SPECIALS.concat(D.ARENA_CARDS).forEach(function (c) {
+    var ar = Arena.create({ seed: "sp-" + c.id, fighters: [{ id: "a", snap: Object.assign(npc("hono"), { special: c.id }) }, { id: "b", snap: npc("sato") }, { id: "c", snap: npc("minarai") }] });
+    var fa = ar.fighters[0];
+    if (D.SPECIALS.indexOf(c) >= 0) Arena.queueCard(ar, "a", "special");
+    else { fa.hand[0].card = c.id; Arena.queueCard(ar, "a", fa.hand[0].uid); }
+    var res = Arena.run(ar);
+    assert.ok(res.winner && res.placing.length === 3, "card " + c.id);
+    assert.ok(ar.log.some(function (e) { return e.type === "card" && e.f === "a" && e.card === c.id; }) || !fa.alive, "card fired " + c.id);
+  });
+  // 覺醒招式資料完整：分組有效、名稱雙語、有效果、id 不重複
+  var spIds = {};
+  D.SPECIALS.forEach(function (sp) {
+    assert.ok(!spIds[sp.id], "dup special " + sp.id); spIds[sp.id] = 1;
+    assert.ok(Core.byId(D.SPECIAL_GROUPS, sp.group), "group " + sp.id);
+    assert.ok(sp.name.ja && sp.name.zh && sp.desc.ja && sp.desc.zh && sp.cond.ja && sp.cond.zh && /^#[0-9a-f]{6}$/i.test(sp.color), "text " + sp.id);
+    assert.ok(sp.req && sp.fx && Object.keys(sp.fx).length, "fx " + sp.id);
+  });
+  assert.ok(D.SPECIALS.length >= 35);
+  // 刀的形狀決定特性
+  var kris = Object.assign(npc("sato"), { edges: 2, wave: true, sori: 0, mihaba: 30 });
+  var pk = Arena.profile(kris);
+  assert.ok(pk.traits.indexOf("double") >= 0 && pk.traits.indexOf("wave") >= 0 && pk.traits.indexOf("thrust") >= 0);
+  assert.ok(Arena.profile(Object.assign(npc("sato"), { sori: 60 })).traits.indexOf("slice") >= 0);
+  // 覺醒：隕鐵一定是流星落的候補
+  var sm = Core.newGame({ names: ["m"], seed: "met" });
+  sm.players[0].blade.kawaId = "meteor";
+  assert.ok(Core.specialCandidates(sm.players[0].blade).indexOf("ryusei") >= 0);
+  // 快照可以序列化、欄位齊全
+  var snap = Core.swordSnapshot(state.players[0].blade, { smith: "甲", name: "試" });
+  assert.ok(snap.stats.integrity > 0 && snap.type && snap.name === "試");
+  console.log("arena: hono beat minarai", wins, "/ 30");
+})();
+console.log("katana arena checks OK");
