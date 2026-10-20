@@ -225,10 +225,13 @@
 
 ### 7.4 刀鞘與邀請
 
-* `localStorage["pritest-katana-scabbard"] = { v: 1, swords: [{ uid, snap, guest, rec: { w, l }, saved }] }`，最多 60 把。`snap` 是 `Core.swordSnapshot()`：畫圖與戰鬥需要的欄位＋`stats()`＋覺醒招式。
+* `localStorage["pritest-katana-scabbard"] = { v: 1, swords: [{ uid, snap, guest, rec: { w, l }, saved }] }`，**最多 50 把**（使用者指定 2026-10-20，原 60）。滿了時「收入刀鞘」與「收下客刀」會擋下並提示，不會悄悄刪掉舊刀；匯入時放不下的刀會回報略過幾把。`snap` 是 `Core.swordSnapshot()`：畫圖與戰鬥需要的欄位＋`stats()`＋覺醒招式。
+* **uid**：新收入的刀是 `"k" + 32 位 hex 亂數`，第一次收入時記在刀身 `blade.scUid`（`bladeScUid()`）；舊資料的 `"seed|玩家id"` 照常沿用。快照帶 `snap.uid`（原主 uid），邀請碼與匯出都會帶著走；收下的客刀 uid＝`"guest|<原主 uid>"`（舊版邀請碼沒有 uid 時退回 `"guest|" + hashStr(快照)`）。同一把刀不管經過幾台裝置都認得出來，重複收下不會變兩把。
 * **邀請網址**：`katana/index.html?duel=<base64url(JSON(snap))>`。對方打開後在準備畫面最上方看到客刀，預設以自己刀鞘的第一把刀迎戰（沒有就用村中鍛冶之刀），對刀在對方裝置上進行；客刀可由 AI 或對方操作，也能收進刀鞘（`guest`）。收到的碼一律經 `sanitizeSnap()` 只留已知欄位、數值夾在合法範圍。
 * 也可以在準備畫面貼上邀請網址／刀碼加入對刀；自由對刀可選刀鞘的刀、客刀、對手刀，各自指定玩家或 AI。戰績寫回刀鞘。
-* 目前沒有即時連線（同時在兩台裝置上操作同一場）；若要做需接 Firebase（`game_storage.js`）。
+* **整個刀鞘的匯出／匯入**（換裝置用）：檔案 `{ kind: "pritest-katana-scabbard", v: 1, exported, swords: [...] }`（下載 `.json`），或刀鞘碼 `"KTSC1." + base64url(同一份 JSON)`。匯入時每把刀都過 `sanitizeSnap()`、uid 須符合 `/^[A-Za-z0-9|_.:-]{1,100}$/`。
+  * **合併**：同 uid 取 `saved` 較新的快照、勝／敗各取較大值；新刀加入；最後依 `saved` 新→舊排序。
+  * **覆蓋**：確認一次後整個取代。
 
 ## 8. 測試
 
@@ -237,4 +240,5 @@ node tools/katana_check/core_check.js
 py -3 generate.py
 py -3 -m http.server 8944 --directory dist
 node tools/katana_check/ui_check.js
+node tools/katana_check/scabbard_check.js
 ```

@@ -1459,9 +1459,12 @@
 
   // ---------------- 刀鞘（保存鍛好的刀，下次對刀直接拔出來用） ----------------
   // localStorage["pritest-katana-scabbard"] = { v: 1, swords: [{ uid, snap, guest, rec: { w, l }, saved }] }
-  //   snap：Core.swordSnapshot()；guest＝從別人的邀請碼收下的刀
+  //   snap：Core.swordSnapshot()（+ uid：原主那把刀的 uid，邀請碼與匯出會帶著走）；guest＝從別人的邀請碼收下的刀
+  //   uid：新收的刀是 "k" + 32 位 hex 亂數（舊資料的 "seed|玩家id"、"guest|hash" 照常有效）；
+  //        客刀為 "guest|<原主 uid>"，同一把刀不管經過幾台裝置都認得出來
   var SCABBARD_KEY = "pritest-katana-scabbard";
-  var SCABBARD_MAX = 60;
+  var SCABBARD_MAX = 50; // 使用者指定 2026-10-20（原 60）。滿了不再悄悄刪舊刀，改成擋下並提示
+  var UID_RE = /^[A-Za-z0-9|_.:-]{1,100}$/;
 
   function scabbardLoad() {
     try {
@@ -1477,15 +1480,100 @@
 
   function scabbardFind(uid) { return scabbardLoad().swords.filter(function (x) { return x.uid === uid; })[0] || null; }
 
+  function scabbardFull() { return scabbardLoad().swords.length >= SCABBARD_MAX; }
+
+  function newUid() {
+    var b = new Uint8Array(16);
+    try { window.crypto.getRandomValues(b); } catch (e) { for (var i = 0; i < 16; i++) b[i] = Math.floor(Math.random() * 256); }
+    return "k" + Array.prototype.map.call(b, function (x) { return (x < 16 ? "0" : "") + x.toString(16); }).join("");
+  }
+
+  // 收到的客刀用的 uid：快照有原主 uid 就用它，舊版邀請碼沒有時退回快照雜湊
+  function guestUid(snap) { return "guest|" + (snap.uid || Core.hashStr(JSON.stringify(snap))); }
+
+  // 邀請碼／匯出用：快照補上原主 uid（客刀沿用它原本的原主 uid）
+  function snapWithUid(x) {
+    var s = {};
+    Object.keys(x.snap).forEach(function (k) { s[k] = x.snap[k]; });
+    s.uid = x.guest ? (x.snap.uid || x.uid) : x.uid;
+    return s;
+  }
+
+  // 回傳 null 或 "full"（刀鞘已滿且是新的刀：不收，由畫面提示）
   function sheathe(uid, snap, guest) {
     var sc = scabbardLoad();
     var old = sc.swords.filter(function (x) { return x.uid === uid; })[0];
     if (old) { old.snap = snap; old.saved = Date.now(); }
     else {
+      if (sc.swords.length >= SCABBARD_MAX) return "full";
       sc.swords.unshift({ uid: uid, snap: snap, guest: !!guest, rec: { w: 0, l: 0 }, saved: Date.now() });
-      if (sc.swords.length > SCABBARD_MAX) sc.swords.length = SCABBARD_MAX;
     }
     scabbardSave(sc);
+    return null;
+  }
+
+  // ---- 整個刀鞘的匯出／匯入（帶 uid 與戰績，換裝置後接著用） ----
+  // 檔案：{ kind: "pritest-katana-scabbard", v: 1, exported, swords: [...] }；刀鞘碼＝"KTSC1." + base64url(同一份 JSON)
+  var SCABBARD_EXPORT_KIND = "pritest-katana-scabbard";
+  var SCABBARD_CODE_PREFIX = "KTSC1.";
+
+  function b64urlEncode(text) { return btoa(unescape(encodeURIComponent(text))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, ""); }
+  function b64urlDecode(code) {
+    var b64 = code.replace(/-/g, "+").replace(/_/g, "/");
+    while (b64.length % 4) b64 += "=";
+    return decodeURIComponent(escape(atob(b64)));
+  }
+
+  function scabbardExportJson() {
+    var sc = scabbardLoad();
+    return JSON.stringify({ kind: SCABBARD_EXPORT_KIND, v: 1, exported: Date.now(), swords: sc.swords.map(function (x) {
+      return { uid: x.uid, snap: snapWithUid(x), guest: !!x.guest, rec: { w: x.rec.w, l: x.rec.l }, saved: x.saved };
+    }) });
+  }
+
+  function scabbardExportCode() { return SCABBARD_CODE_PREFIX + b64urlEncode(scabbardExportJson()); }
+
+  // 讀檔案內容或刀鞘碼 → 清理過的刀陣列；讀不出來回傳 null。資料不可信：每把刀都過 sanitizeSnap
+  function parseScabbardExport(text) {
+    var obj;
+    try {
+      var s = String(text || "").trim();
+      if (s.indexOf(SCABBARD_CODE_PREFIX) === 0) s = b64urlDecode(s.slice(SCABBARD_CODE_PREFIX.length).replace(/\s+/g, ""));
+      obj = JSON.parse(s);
+    } catch (e) { return null; }
+    if (!obj || obj.kind !== SCABBARD_EXPORT_KIND || obj.v !== 1 || !Array.isArray(obj.swords)) return null;
+    function cnt(v) { v = Math.floor(Number(v)); return isFinite(v) ? Math.min(1e6, Math.max(0, v)) : 0; }
+    var seen = {}, out = [];
+    obj.swords.forEach(function (x) {
+      if (!x || typeof x.uid !== "string" || !UID_RE.test(x.uid) || seen[x.uid]) return;
+      var snap = sanitizeSnap(x.snap);
+      if (!snap) return;
+      seen[x.uid] = true;
+      var saved = Number(x.saved);
+      out.push({ uid: x.uid, snap: snap, guest: !!x.guest, rec: { w: cnt(x.rec && x.rec.w), l: cnt(x.rec && x.rec.l) }, saved: isFinite(saved) && saved > 0 ? saved : 0 });
+    });
+    return out;
+  }
+
+  // mode："merge"（同 uid：較新的快照、勝敗各取大；新刀加入）或 "replace"（整個取代）
+  // 回傳 { added, updated, skipped }；skipped＝超過上限放不下的刀
+  function scabbardImport(list, mode) {
+    var sc = mode === "replace" ? { v: 1, swords: [] } : scabbardLoad();
+    var r = { added: 0, updated: 0, skipped: 0 };
+    var incoming = list.slice().sort(function (a, b) { return b.saved - a.saved; });
+    incoming.forEach(function (x) {
+      var old = sc.swords.filter(function (y) { return y.uid === x.uid; })[0];
+      if (old) {
+        if (x.saved > (old.saved || 0)) { old.snap = x.snap; old.saved = x.saved; }
+        old.rec.w = Math.max(old.rec.w, x.rec.w);
+        old.rec.l = Math.max(old.rec.l, x.rec.l);
+        r.updated++;
+      } else if (sc.swords.length >= SCABBARD_MAX) r.skipped++;
+      else { sc.swords.push(x); r.added++; }
+    });
+    sc.swords.sort(function (a, b) { return (b.saved || 0) - (a.saved || 0); });
+    scabbardSave(sc);
+    return r;
   }
 
   function unsheathe(uid) {
@@ -1530,7 +1618,7 @@
     function num(v, lo, hi, dflt) { v = Number(v); return isFinite(v) ? Math.min(hi, Math.max(lo, v)) : dflt; }
     function pick(list, v) { return Core.byId(list, v) ? v : null; }
     var st = s.stats;
-    return {
+    var out = {
       v: 1, name: String(s.name || "").slice(0, 24), smith: String(s.smith || "").slice(0, 16), type: s.type,
       length: num(s.length, 10, 200, 70), sori: num(s.sori, -60, 300, 0), mihaba: num(s.mihaba, 5, 90, 30), kasane: num(s.kasane, 0.3, 15, 7),
       tsukuri: pick(D.TSUKURI, s.tsukuri), kissaki: pick(D.KISSAKI, s.kissaki), soriType: pick(D.SORI_TYPES, s.soriType),
@@ -1542,6 +1630,8 @@
       stats: { hardness: num(st.hardness, 20, 70, 50), toughness: num(st.toughness, 5, 100, 50), sharpness: num(st.sharpness, 0, 100, 50),
         mass: num(st.mass, 0.1, 5, 1), integrity: num(st.integrity, 20, 160, 80), chip: num(st.chip, 0.3, 2, 1) }
     };
+    if (typeof s.uid === "string" && UID_RE.test(s.uid)) out.uid = s.uid;
+    return out;
   }
 
   function inviteUrl(snap) { return location.href.split(/[?#]/)[0] + "?duel=" + encodeSnap(snap); }
@@ -2088,7 +2178,8 @@
         " " + npcName(n)
       ]));
     });
-    var mine = scabbardLoad().swords.filter(function (x) { return x.uid.indexOf(state.seed + "|") !== 0; });
+    var thisGame = state.players.map(bladeScUid);
+    var mine = scabbardLoad().swords.filter(function (x) { return thisGame.indexOf(x.uid) < 0; });
     if (mine.length) {
       panel.appendChild(el("div", { class: "kt-mg-title", text: t("kt_clash_from_sc") }));
       mine.forEach(function (x) {
@@ -2106,7 +2197,7 @@
         Core.startClash(state, extras);
         state.clash.uidOf = {};
         extras.forEach(function (x) { if (x.uid) state.clash.uidOf[x.id] = x.uid; });
-        state.players.forEach(function (p) { state.clash.uidOf[p.id] = state.seed + "|" + p.id; });
+        state.players.forEach(function (p) { var u = bladeScUid(p); if (u) state.clash.uidOf[p.id] = u; });
         ui.arena = null;
         save(); window.scrollTo(0, 0); render();
       } }),
@@ -2155,8 +2246,9 @@
   function scabbardPanel() {
     var sc = scabbardLoad();
     var panel = el("div", { class: "kt-panel" });
-    panel.appendChild(el("h2", { text: t("kt_sc_title") }));
+    panel.appendChild(el("h2", { text: t("kt_sc_title") + " " + t("kt_sc_count", { n: sc.swords.length, max: SCABBARD_MAX }) }));
     panel.appendChild(el("p", { class: "kt-muted", text: t("kt_sc_intro") }));
+    if (sc.swords.length >= SCABBARD_MAX) panel.appendChild(el("p", { class: "kt-error kt-sc-full", text: t("kt_sc_full", { max: SCABBARD_MAX }) }));
     if (!sc.swords.length) panel.appendChild(el("p", { text: t("kt_sc_empty") }));
     sc.swords.forEach(function (x) {
       var open = ui.inviteOpen === x.uid;
@@ -2170,7 +2262,7 @@
       ];
       panel.appendChild(snapCard(x.snap, kids));
       if (open) {
-        var url = inviteUrl(x.snap);
+        var url = inviteUrl(snapWithUid(x));
         var box = el("input", { type: "text", class: "kt-text kt-invite-url", readonly: true, value: url, onfocus: function (ev) { ev.target.select(); } });
         panel.appendChild(el("div", { class: "kt-invite" }, [
           el("p", { class: "kt-muted", text: t("kt_sc_invite_note") }),
@@ -2197,7 +2289,68 @@
       } }),
       ui.importErr ? el("span", { class: "kt-error", text: t("kt_sc_import_bad") }) : null
     ]));
+    panel.appendChild(scabbardTransferBox());
     return panel;
+  }
+
+  // 整個刀鞘的匯出／匯入（換裝置時用）
+  function scabbardTransferBox() {
+    var tr = ui.scTransfer || (ui.scTransfer = { text: "", mode: "merge", confirm: false, msg: "", bad: false, code: "" });
+    var box = el("div", { class: "kt-sc-transfer" });
+    box.appendChild(el("h3", { text: t("kt_sc_tr_title") }));
+    box.appendChild(el("p", { class: "kt-muted", text: t("kt_sc_tr_intro") }));
+    var codeBox = tr.code ? el("textarea", { class: "kt-text kt-import kt-sc-code", rows: "3", readonly: true, onfocus: function (ev) { ev.target.select(); } }) : null;
+    if (codeBox) codeBox.value = tr.code;
+    box.appendChild(el("div", { class: "kt-actions" }, [
+      el("button", { type: "button", text: t("kt_sc_tr_download"), onclick: function () {
+        var d = new Date(), pad = function (n) { return (n < 10 ? "0" : "") + n; };
+        var blob = new Blob([scabbardExportJson()], { type: "application/json" });
+        var a = el("a", { href: URL.createObjectURL(blob), download: "katana-scabbard-" + d.getFullYear() + pad(d.getMonth() + 1) + pad(d.getDate()) + ".json" });
+        document.body.appendChild(a); a.click(); a.remove();
+        setTimeout(function () { URL.revokeObjectURL(a.href); }, 1000);
+      } }),
+      el("button", { type: "button", text: t("kt_sc_tr_code"), onclick: function () { tr.code = scabbardExportCode(); ui.copyMsg = ""; rerenderKeepScroll(); } }),
+      tr.code ? el("button", { type: "button", class: "kt-primary", text: t("kt_sc_copy_code"), onclick: function () { copyText(tr.code, box.querySelector(".kt-sc-code")); } }) : null,
+      tr.code && ui.copyMsg ? el("span", { class: "kt-muted", text: ui.copyMsg }) : null
+    ]));
+    if (codeBox) box.appendChild(codeBox);
+    // 匯入：貼上刀鞘碼或選檔案
+    var area = el("textarea", { class: "kt-text kt-import kt-sc-import", rows: "2", placeholder: t("kt_sc_tr_paste_ph") });
+    area.value = tr.text;
+    area.addEventListener("input", function () { tr.text = area.value; tr.confirm = false; });
+    var file = el("input", { type: "file", accept: ".json,application/json,text/plain", class: "kt-sc-file", onchange: function (ev) {
+      var f = ev.target.files && ev.target.files[0];
+      if (!f) return;
+      var rd = new FileReader();
+      rd.onload = function () { tr.text = String(rd.result || ""); tr.confirm = false; tr.msg = ""; tr.bad = false; rerenderKeepScroll(); };
+      rd.readAsText(f);
+    } });
+    box.appendChild(field(t("kt_sc_tr_import"), el("div", {}, [area, file])));
+    box.appendChild(radioList("scImportMode", [
+      { id: "merge", name: { ja: t("kt_sc_tr_merge"), zh: t("kt_sc_tr_merge") }, desc: { ja: t("kt_sc_tr_merge_desc"), zh: t("kt_sc_tr_merge_desc") } },
+      { id: "replace", name: { ja: t("kt_sc_tr_replace"), zh: t("kt_sc_tr_replace") }, desc: { ja: t("kt_sc_tr_replace_desc"), zh: t("kt_sc_tr_replace_desc") } }
+    ], tr.mode, function (v) { tr.mode = v; tr.confirm = false; rerenderKeepScroll(); }));
+    function doImport() {
+      var list = parseScabbardExport(tr.text);
+      if (!list) { tr.bad = true; tr.msg = ""; tr.confirm = false; rerenderKeepScroll(); return; }
+      var r = scabbardImport(list, tr.mode);
+      tr.bad = false; tr.confirm = false; tr.text = "";
+      tr.msg = t("kt_sc_tr_done", { added: r.added, updated: r.updated }) + (r.skipped ? " " + t("kt_sc_tr_skipped", { n: r.skipped, max: SCABBARD_MAX }) : "");
+      rerenderKeepScroll();
+    }
+    box.appendChild(el("div", { class: "kt-actions" }, tr.confirm ? [
+      el("span", { class: "kt-error", text: t("kt_sc_tr_replace_confirm") }),
+      el("button", { type: "button", class: "kt-danger", text: t("kt_sc_tr_replace_yes"), onclick: doImport }),
+      el("button", { type: "button", text: t("kt_no"), onclick: function () { tr.confirm = false; rerenderKeepScroll(); } })
+    ] : [
+      el("button", { type: "button", class: "kt-primary kt-sc-import-go", text: t("kt_sc_tr_import_go"), onclick: function () {
+        if (tr.mode === "replace") { if (!parseScabbardExport(tr.text)) { tr.bad = true; rerenderKeepScroll(); return; } tr.confirm = true; rerenderKeepScroll(); return; }
+        doImport();
+      } }),
+      tr.bad ? el("span", { class: "kt-error", text: t("kt_sc_tr_bad") }) : null,
+      tr.msg ? el("span", { class: "kt-good kt-sc-tr-msg", text: tr.msg }) : null
+    ]));
+    return box;
   }
 
   // 自由對刀的準備：從刀鞘挑刀、加入收到的客刀與對手刀，指定誰由玩家操作
@@ -2277,11 +2430,12 @@
     panel.appendChild(el("h2", { text: t("kt_inv_title", { name: snap.smith || t("kt_sc_guest") }) }));
     panel.appendChild(snapCard(snap, [
       el("button", { type: "button", text: t("kt_inv_keep"), onclick: function () {
-        sheathe("guest|" + Core.hashStr(JSON.stringify(snap)), snap, true);
-        ui.inviteKept = true;
+        if (sheathe(guestUid(snap), snap, true) === "full") ui.inviteFull = true;
+        else { ui.inviteKept = true; ui.inviteFull = false; }
         rerenderKeepScroll();
       }, disabled: !!ui.inviteKept }),
-      ui.inviteKept ? el("span", { class: "kt-good", text: t("kt_inv_kept") }) : null
+      ui.inviteKept ? el("span", { class: "kt-good", text: t("kt_inv_kept") }) : null,
+      ui.inviteFull && !ui.inviteKept ? el("span", { class: "kt-error", text: t("kt_sc_full", { max: SCABBARD_MAX }) }) : null
     ]));
     panel.appendChild(el("p", { class: "kt-muted", text: scabbardLoad().swords.filter(function (x) { return !x.guest; }).length ? t("kt_inv_pick") : t("kt_inv_no_sword") }));
     return panel;
@@ -2504,12 +2658,20 @@
     ]));
   }
 
+  // 這局某位玩家的刀在刀鞘裡的 uid：第一次收入時配亂數 uid 記在刀身（b.scUid）；
+  // 舊版以「seed|玩家id」收過的刀沿用舊 uid；還沒收過回傳 null
+  function bladeScUid(p) {
+    var legacyUid = state.seed + "|" + p.id;
+    return p.blade.scUid || (scabbardFind(legacyUid) ? legacyUid : null);
+  }
+
   // 審查・總結畫面的刀卡下方：刀號（命名）・覺醒招式・收入刀鞘
   function nameAndSheathe(p) {
     var b = p.blade;
-    var uid = state.seed + "|" + p.id;
+    var uid = bladeScUid(p);
     var sp = b.special ? Core.byId(D.SPECIALS, b.special) : null;
-    var inSc = !!scabbardFind(uid);
+    var inSc = !!(uid && scabbardFind(uid));
+    var full = !inSc && scabbardFull();
     var nameInput = el("input", { type: "text", class: "kt-text", maxlength: "24", value: b.swordName || "", placeholder: t("kt_name_sword_ph"),
       oninput: function (ev) { b.swordName = ev.target.value; save(); } });
     return el("div", { class: "kt-naming" }, [
@@ -2517,11 +2679,15 @@
         : el("div", { class: "kt-muted", text: t("kt_sp_none") }),
       field(t("kt_name_sword"), nameInput),
       el("div", { class: "kt-actions" }, [
-        el("button", { type: "button", class: inSc ? "" : "kt-primary", text: inSc ? t("kt_sc_update") : t("kt_sc_put"), onclick: function () {
-          sheathe(uid, Core.swordSnapshot(b, { smith: p.name }), false);
+        el("button", { type: "button", class: inSc ? "" : "kt-primary", text: inSc ? t("kt_sc_update") : t("kt_sc_put"), disabled: full, onclick: function () {
+          if (!uid) { uid = newUid(); b.scUid = uid; save(); }
+          var snap = Core.swordSnapshot(b, { smith: p.name });
+          snap.uid = uid;
+          sheathe(uid, snap, false);
           rerenderKeepScroll();
         } }),
-        inSc ? el("span", { class: "kt-good", text: t("kt_sc_in") }) : null
+        inSc ? el("span", { class: "kt-good", text: t("kt_sc_in") }) : null,
+        full ? el("span", { class: "kt-error", text: t("kt_sc_full", { max: SCABBARD_MAX }) }) : null
       ])
     ]);
   }
@@ -2586,5 +2752,6 @@
 
   // 測試用
   window.PriTestKatana = { _state: function () { return state; }, _ui: function () { return ui; }, _render: render,
-    _scabbard: scabbardLoad, _encode: encodeSnap, _decode: decodeSnap };
+    _scabbard: scabbardLoad, _encode: encodeSnap, _decode: decodeSnap,
+    _scExport: scabbardExportCode, _scParse: parseScabbardExport, _scImport: scabbardImport, _scMax: SCABBARD_MAX };
 })();
