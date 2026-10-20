@@ -488,65 +488,6 @@
     return box;
   }
 
-  // ---------------- 小遊戲：研磨節奏 ----------------
-  // 圓圈依固定節拍脹縮，在最大時按「研ぐ」。偏離節拍越少越好；刀面隨著次數變亮
-  function rhythmGame(cfg) {
-    var res = ui.mg[cfg.key];
-    var box = el("div", { class: "kt-mg kt-rhythm", "data-live": res ? null : "1" });
-    box.appendChild(el("div", { class: "kt-mg-title", text: t("kt_mg_rhythm") }));
-    var face = el("div", { class: "kt-rhythm-face" });
-    var ring = el("div", { class: "kt-rhythm-ring" });
-    var stageEl = el("div", { class: "kt-rhythm-stage" }, [face, ring]);
-    var info = el("div", { class: "kt-readout" });
-    box.appendChild(stageEl);
-    box.appendChild(info);
-    function shine(n) { face.style.opacity = String(0.25 + 0.75 * Math.min(1, n / cfg.strokes)); }
-    if (res) {
-      shine(cfg.strokes);
-      info.textContent = t("kt_rhythm_done", { p: Math.round(res.acc * 100) });
-      return box;
-    }
-    shine(0);
-    var PERIOD = 900, hits = [], t0 = 0;
-    info.textContent = t("kt_rhythm_progress", { n: 0, total: cfg.strokes });
-    var btnGo = el("button", { type: "button", class: "kt-primary", text: t("kt_rhythm_start") });
-    var btnHit = el("button", { type: "button", class: "kt-primary kt-hit", text: t("kt_rhythm_hit"), disabled: true });
-    function stroke() {
-      if (!anim || anim.kind !== "rhythm") return;
-      var ph = ((performance.now() - t0) % PERIOD) / PERIOD; // 0＝拍點
-      var err = Math.min(ph, 1 - ph) * 2; // 0〜1
-      hits.push(Math.max(0, 1 - err * 1.6));
-      shine(hits.length);
-      info.textContent = t("kt_rhythm_progress", { n: hits.length, total: cfg.strokes });
-      if (hits.length >= cfg.strokes) {
-        var sum = 0;
-        hits.forEach(function (h) { sum += h; });
-        stopAnim();
-        ui.mg[cfg.key] = { acc: Math.round(sum / hits.length * 100) / 100 };
-        rerenderKeepScroll();
-      }
-    }
-    btnGo.addEventListener("click", function () {
-      stopAnim();
-      btnGo.disabled = true; btnHit.disabled = false;
-      t0 = performance.now();
-      anim = { kind: "rhythm" };
-      anim.onKey = function (ev) { if (ev.code === "Space" || ev.key === " ") { ev.preventDefault(); stroke(); } };
-      document.addEventListener("keydown", anim.onKey);
-      function frame(now) {
-        var ph = ((now - t0) % PERIOD) / PERIOD;
-        var s = 1 - Math.min(ph, 1 - ph) * 2; // 拍點時 1
-        ring.style.transform = "scale(" + (0.55 + 0.45 * s) + ")";
-        ring.style.opacity = String(0.35 + 0.65 * s);
-        anim.id = requestAnimationFrame(frame);
-      }
-      anim.id = requestAnimationFrame(frame);
-    });
-    btnHit.addEventListener("click", stroke);
-    box.appendChild(el("div", { class: "kt-actions" }, [btnGo, btnHit]));
-    return box;
-  }
-
   // ---------------- 刀身 SVG ----------------
   // 刃朝下、切先朝右。反りの中心は SORI_TYPES.center（負的反り＝內彎，如廓爾喀刀）；切先の長さは KISSAKI.len。
   // 單刃：中心線＝棟，刃在下方；雙刃：中心線為劍脊，兩側對稱。異國刀劍畫護手，日本刀畫鎺。
@@ -772,6 +713,32 @@
 
   function mgKey(pIndex, stepId, part) { return pIndex + ":" + stepId + ":" + part; }
 
+  // 第二版小遊戲（katana_games.js）用的介面：動畫迴圈・鍵盤・完成時寫入成績
+  function mgCtx(key) {
+    return {
+      el: el, t: t, L: L, tempColor: tempColor, result: ui.mg[key] || null,
+      mode: state && state.mode === "serious" ? "serious" : "show",
+      seed: (state ? state.seed : "x") + "|" + key,
+      run: function (kind, frame, onKey) {
+        stopAnim();
+        var me = anim = { kind: kind };
+        if (onKey) { me.onKey = onKey; document.addEventListener("keydown", onKey); }
+        var last = performance.now();
+        function loop(now) {
+          if (anim !== me) return;
+          var dt = Math.min(0.05, (now - last) / 1000);
+          last = now;
+          if (frame(now, dt) === false || anim !== me) return; // 遊戲在這一格結束（done 會 stopAnim）
+          me.id = requestAnimationFrame(loop);
+        }
+        me.id = requestAnimationFrame(loop);
+      },
+      stop: stopAnim,
+      done: function (res) { stopAnim(); ui.mg[key] = res; rerenderKeepScroll(); }
+    };
+  }
+  var Games = window.PriTestKatanaGames;
+
   // 刀種相稱的選項：先找刀種宣告的第一個，找不到就取刃數相符的第一個
   function edgesOk(o, bt) { return !o.edges || o.edges === bt.edges; }
   function firstFit(list, wanted, bt) {
@@ -890,34 +857,10 @@
       if (d.shingane !== "none") box.appendChild(field(t("kt_f_shin_kg"), slider(0.5, 4, 0.5, d.shinKg, function (v) { return v + " kg"; }, function (v) { d.shinKg = v; })));
       if (state.assist) box.appendChild(compTable(Core.byId(D.KAWAGANE, d.kawagane)));
     } else if (step.kind === "kowari") {
-      // 先水壓（打薄），打得均勻斷口才好判讀；之後才敲碎分揀
+      // 先水壓・小割：敲鋼餅上的弱點，裂痕一次次擴大後碎開；敲得準斷口才好判讀。之後碎片散在桌上逐片判讀分揀
       var miz = ui.mg[key("mizuheshi")];
-      box.appendChild(hammerGame({ key: key("mizuheshi"), strikes: 6, speed: 2.2, zone: 0.14, coolMs: 7000, title: t("kt_mg_mizuheshi") }));
-      if (miz) {
-        var pieces = Core.kowariPieces(state, pIndex, miz.acc);
-        var grid = el("div", { class: "kt-pieces" });
-        pieces.forEach(function (pc, i) {
-          var face = el("div", { class: "kt-piece-face kt-look-" + pc.look + " kt-sheen-" + pc.sheen + " kt-spots-" + pc.spots });
-          var picks = el("div", { class: "kt-piece-picks" });
-          [["kawa", "kt_pick_kawa"], ["shin", "kt_pick_shin"], ["discard", "kt_pick_discard"]].forEach(function (o) {
-            if (o[0] === "shin" && b.shinId === "none") return;
-            picks.appendChild(el("button", { type: "button", class: "kt-chip" + (d.picks[i] === o[0] ? " kt-chip-on kt-chip-" + o[0] : ""), text: t(o[1]),
-              onclick: function () { d.picks[i] = o[0]; rerenderKeepScroll(); } }));
-          });
-          grid.appendChild(el("div", { class: "kt-piece" + (d.picks[i] ? " kt-piece-picked" : "") }, [
-            face,
-            el("div", { class: "kt-piece-desc", text: t("kt_look_" + pc.look) + "・" + t("kt_sheen_" + pc.sheen) + "・" + t("kt_spots_" + pc.spots) }),
-            state.assist ? el("div", { class: "kt-muted", text: "C≈" + pc.carbon.toFixed(2) + "%" }) : null,
-            picks
-          ]));
-        });
-        var left = d.picks.filter(function (x) { return x === null; }).length;
-        box.appendChild(el("div", { class: "kt-mg kt-sort", "data-live": left ? "1" : null }, [
-          el("div", { class: "kt-mg-title", text: t("kt_mg_sort") }),
-          grid,
-          el("div", { class: "kt-muted", text: t("kt_kowari_left", { n: left }) })
-        ]));
-      }
+      box.appendChild(Games.shatter(mgCtx(key("mizuheshi")), { title: t("kt_mg_mizuheshi"), pieces: Core.KOWARI_PIECES }));
+      if (miz) box.appendChild(sortBoard(pIndex, b, d, miz, key("mizuheshi")));
     } else if (step.kind === "heat") {
       if (step.id === "tsumi") {
         box.appendChild(stackGame({ key: key("stack"), pieces: 7 }));
@@ -954,14 +897,14 @@
       if (state.assist) box.appendChild(metalInfo(b));
       box.appendChild(el("div", { class: "kt-muted", text: d.folds ? t("kt_heat_goal_weld") : t("kt_heat_goal_forge") }));
       box.appendChild(heatGame({ key: heatKey, win: Core.heatWindow(b, "fold", { folds: d.folds }), daylight: false, title: t("kt_mg_heat") }));
-      if (heatDone) box.appendChild(hammerGame({ key: hamKey, strikes: Core.HAMMER_STRIKES, speed: 2.4, zone: 0.12, coolMs: 7000,
-        title: d.folds ? t("kt_mg_fold_hammer") : t("kt_mg_hammer") }));
+      if (heatDone) box.appendChild(Games.music(mgCtx(hamKey), { title: d.folds ? t("kt_mg_fold_hammer") : t("kt_mg_hammer"),
+        lanes: [t("kt_lane_yokoza"), t("kt_lane_saki_l"), t("kt_lane_saki_r")], hammer: true, coolMs: 7000 }));
     } else if (step.kind === "construct") {
       box.appendChild(field(t("kt_f_construction"), radioList("con", D.CONSTRUCTIONS, d.construction, function (v) { setDraft(d, "construction", v); },
         { disabled: function (o) { return o.needsShingane && b.shinId === "none"; } })));
       box.appendChild(constructionDiagram(d.construction));
       box.appendChild(heatGame({ key: heatKey, win: Core.heatWindow(b, "weld"), daylight: false, title: t("kt_mg_weld") }));
-      if (heatDone) box.appendChild(hammerGame({ key: hamKey, strikes: 6, speed: 2.4, zone: 0.12, coolMs: 6000, title: t("kt_mg_weld_hammer") }));
+      if (heatDone) box.appendChild(Games.arc(mgCtx(hamKey), { title: t("kt_mg_weld_hammer"), strikes: state.mode === "serious" ? 8 : 6, coolMs: 6000 }));
     } else if (step.kind === "sunobe") {
       var bt = Core.byId(D.BLADE_TYPES, b.type);
       box.appendChild(el("p", {}, [el("strong", { text: L(bt.name) }), "：" + L(bt.desc) + " " + t("kt_ideal_len", { lo: bt.ideal[0], hi: bt.ideal[1] })]));
@@ -973,7 +916,7 @@
       updNeed();
       box.appendChild(field(t("kt_f_length"), slider(bt.min, bt.max, 1, d.length, function (v) { return v + " cm"; }, function (v) { d.length = v; updNeed(); }), null));
       box.appendChild(need);
-      box.appendChild(hammerGame({ key: hamKey, strikes: Core.HAMMER_STRIKES, speed: 2.2, zone: 0.14, coolMs: 8000, title: t("kt_mg_sunobe"), grow: true }));
+      box.appendChild(Games.arc(mgCtx(hamKey), { title: t("kt_mg_sunobe"), strikes: Math.max(Core.HAMMER_STRIKES, state.mode === "serious" ? 10 : 8), coolMs: 8000, grow: true }));
     } else if (step.kind === "hizukuri") {
       var hbt = Core.byId(D.BLADE_TYPES, b.type);
       var preview = el("div", { class: "kt-preview" });
@@ -999,7 +942,7 @@
       box.appendChild(field(t("kt_f_mihaba"), slider(wLo, wHi, 1, d.mihaba, function (v) { return v + " mm"; }, function (v) { d.mihaba = v; updPreview(); })));
       box.appendChild(field(t("kt_f_kasane"), slider(kLo, kHi, kHi < 3 ? 0.1 : 0.5, d.kasane, function (v) { return v + " mm"; }, function (v) { d.kasane = v; updPreview(); })));
       box.appendChild(field(t("kt_f_forge_sori"), slider(sLo, sHi, 1, d.forgeSori, function (v) { return v + " mm"; }, function (v) { d.forgeSori = v; updPreview(); }), t("kt_forge_sori_note")));
-      box.appendChild(hammerGame({ key: hamKey, strikes: 10, speed: 2.6, zone: 0.12, coolMs: 7000, title: t("kt_mg_hizukuri") }));
+      box.appendChild(Games.memory(mgCtx(hamKey), { title: t("kt_mg_hizukuri"), points: Games.bladePoints(), backdrop: "bar", coolMs: 7000 }));
     } else if (step.kind === "tsuchioki") {
       var pb2 = Core.clone(b);
       pb2.hamon = d.hamon === "none" ? null : d.hamon; pb2.ashi = d.ashi;
@@ -1048,7 +991,10 @@
       });
       box.appendChild(field(t("kt_f_stone_seq"), d.order.length ? seq : el("div", { class: "kt-muted", text: t("kt_stone_empty") })));
       box.appendChild(field(t("kt_f_edge"), radioList("edge", D.EDGE_GEOMETRY, d.edge, function (v) { setDraft(d, "edge", v); })));
-      box.appendChild(rhythmGame({ key: key("rhythm"), strokes: 12 }));
+      if (d.order.length || ui.mg[key("rhythm")]) {
+        box.appendChild(Games.music(mgCtx(key("rhythm")), { title: t("kt_mg_rhythm"), lanes: [t("kt_lane_ha"), t("kt_lane_shinogi"), t("kt_lane_ji"), t("kt_lane_kissaki")],
+          segments: d.order.map(function (id) { return L(Core.byId(D.STONES, id).name); }) }));
+      } else box.appendChild(el("div", { class: "kt-muted", text: t("kt_togi_pick_first") }));
     } else if (step.kind === "mei") {
       box.appendChild(field(t("kt_f_yasurime"), radioList("yasurime", D.YASURIME, d.yasurime, function (v) { setDraft(d, "yasurime", v); }, { compact: true })));
       box.appendChild(field(t("kt_f_nakagojiri"), radioList("nakagojiri", D.NAKAGOJIRI, d.nakagojiri, function (v) { setDraft(d, "nakagojiri", v); }, { compact: true })));
@@ -1058,12 +1004,72 @@
       var pb3 = Core.clone(b);
       pb3.yasurime = d.yasurime;
       box.appendChild(bladeSvg(pb3));
-      // 一字一鏨（至少 2 下：鑢目與目釘穴），最多 8 下
-      var chars = Math.max(2, Math.min(8, Array.from(d.mei.trim()).length));
-      box.appendChild(hammerGame({ key: key("chisel"), strikes: chars, speed: 2.8, zone: 0.1, coolMs: 1e9, chisel: true, text: d.mei.trim() || t("kt_mumei"),
-        title: d.mei.trim() ? t("kt_mg_chisel") : t("kt_mg_chisel_mumei") }));
+      // 鏨的順序：每個字左右兩個鏨位（無銘時是鑢目與目釘穴的 4 點），記住亮起的順序再依序敲
+      var meiText = d.mei.trim();
+      box.appendChild(Games.memory(mgCtx(key("chisel")), { title: meiText ? t("kt_mg_chisel") : t("kt_mg_chisel_mumei"),
+        points: Games.platePoints(meiText), backdrop: "plate", text: Games.plateText(meiText).join("") }));
     }
     return box;
+  }
+
+  // 小割的分揀：碎片照碎開時散落的位置擺在桌上；點一片放大看斷口，再分到皮鐵／心鐵／捨棄
+  function sortBoard(pIndex, b, d, miz, mkey) {
+    var pieces = Core.kowariPieces(state, pIndex, miz.acc);
+    var lay = miz.layout || Games.scatterLayout(mgCtx(mkey).seed, pieces.length);
+    var selKey = "sort:" + pIndex;
+    var sel = ui[selKey];
+    if (sel === undefined || sel === null || d.picks[sel]) {
+      sel = d.picks.indexOf(null);
+      if (sel < 0) sel = ui[selKey] === undefined ? null : ui[selKey]; // 全部分完：保留目前檢視的那片（或不選）
+      ui[selKey] = sel;
+    }
+    var left = d.picks.filter(function (x) { return x === null; }).length;
+    var board = el("div", { class: "kt-sort-board" });
+    pieces.forEach(function (pc, i) {
+      var btn = el("button", { type: "button", class: "kt-shard-btn" + (sel === i ? " kt-shard-sel" : "") + (d.picks[i] ? " kt-shard-" + d.picks[i] : ""),
+        "aria-label": t("kt_sort_piece", { n: i + 1 }), "data-i": String(i),
+        onclick: function () { ui[selKey] = i; rerenderKeepScroll(); } }, [
+        el("div", { class: "kt-piece-face kt-look-" + pc.look + " kt-sheen-" + pc.sheen + " kt-spots-" + pc.spots }),
+        d.picks[i] ? el("span", { class: "kt-shard-tag", text: t("kt_tag_" + d.picks[i]) }) : null
+      ]);
+      btn.style.left = (lay[i][0] * 100) + "%"; btn.style.top = (lay[i][1] * 100) + "%";
+      btn.style.transform = "translate(-50%, -50%) rotate(" + lay[i][2] + "deg)";
+      board.appendChild(btn);
+    });
+    var insp;
+    if (sel === null || sel === undefined) insp = el("div", { class: "kt-muted", text: t("kt_sort_all_done") });
+    else {
+      var pc = pieces[sel];
+      var chips = el("div", { class: "kt-piece-picks" });
+      [["kawa", "kt_pick_kawa"], ["shin", "kt_pick_shin"], ["discard", "kt_pick_discard"]].forEach(function (o) {
+        if (o[0] === "shin" && b.shinId === "none") return;
+        chips.appendChild(el("button", { type: "button", class: "kt-chip" + (d.picks[sel] === o[0] ? " kt-chip-on kt-chip-" + o[0] : ""), text: t(o[1]),
+          onclick: function () {
+            d.picks[sel] = o[0];
+            var nx = -1;
+            for (var k = 1; k <= d.picks.length; k++) { var j = (sel + k) % d.picks.length; if (d.picks[j] === null) { nx = j; break; } }
+            ui[selKey] = nx < 0 ? null : nx;
+            rerenderKeepScroll();
+          } }));
+      });
+      insp = el("div", { class: "kt-piece kt-sort-insp" }, [
+        el("div", { class: "kt-piece-face kt-piece-face-big kt-look-" + pc.look + " kt-sheen-" + pc.sheen + " kt-spots-" + pc.spots }),
+        el("div", {}, [
+          el("strong", { text: t("kt_sort_piece", { n: sel + 1 }) }),
+          el("div", { class: "kt-piece-desc", text: t("kt_look_" + pc.look) + "・" + t("kt_sheen_" + pc.sheen) + "・" + t("kt_spots_" + pc.spots) }),
+          state.assist ? el("div", { class: "kt-muted", text: "C≈" + pc.carbon.toFixed(2) + "%" }) : null,
+          chips
+        ])
+      ]);
+    }
+    var counts = { kawa: 0, shin: 0, discard: 0 };
+    d.picks.forEach(function (x) { if (x) counts[x]++; });
+    return el("div", { class: "kt-mg kt-sort", "data-live": left ? "1" : null }, [
+      el("div", { class: "kt-mg-title", text: t("kt_mg_sort") }),
+      el("div", { class: "kt-muted", text: t("kt_sort_hint") }),
+      board, insp,
+      el("div", { class: "kt-muted", text: t("kt_sort_counts", { k: counts.kawa, s: counts.shin, x: counts.discard, n: left }) })
+    ]);
   }
 
   function constructionDiagram(id) {

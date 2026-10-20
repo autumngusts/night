@@ -75,33 +75,54 @@ async function drawClay(page) {
   assert.ok(clay.length && clay[clay.length - 1] > 0, "clay drawing registered: " + clay);
 }
 
+// 第二版小遊戲（katana_games.js）：呼叫遊戲框上的 ktAuto(quality)，依遊戲規則自動操作直到完成
+var QUALITY = 1;
+var mgScores = [];
+async function autoGame(page) {
+  var kind = await page.evaluate(function (q) {
+    var b = Array.prototype.filter.call(document.querySelectorAll('.kt-mg[data-live="1"]'), function (x) { return !!x.ktAuto; })[0];
+    if (!b) return null;
+    b.ktAuto(q);
+    return b.className;
+  }, QUALITY);
+  assert.ok(kind, "no live minigame to play");
+  await page.waitForFunction(function () {
+    return !Array.prototype.some.call(document.querySelectorAll('.kt-mg[data-live="1"]'), function (x) { return !!x.ktAuto; });
+  }, null, { timeout: 60000 });
+  var r = await page.evaluate(function () { var u = window.PriTestKatana._ui(); var ks = Object.keys(u.mg); return u.mg[ks[ks.length - 1]]; });
+  mgScores.push({ kind: kind.replace("kt-mg ", ""), q: QUALITY, acc: r.acc, cold: r.cold || 0 });
+}
+
 async function doStep(page, stepId) {
   if (process.env.KT_VERBOSE) console.log("step", stepId);
   if (stepId === "kowari") {
-    await tapUntilDone(page, "kt_hammer_start", "kt_hammer_hit");
-    for (var k = 0; k < 13; k++) {
-      var left = await page.evaluate(function () {
-        var p = Array.prototype.filter.call(document.querySelectorAll(".kt-piece"), function (x) { return !x.classList.contains("kt-piece-picked"); });
-        if (p[0]) { var chips = p[0].querySelectorAll(".kt-chip"); (p.length % 4 === 0 ? chips[chips.length - 1] : chips[0]).click(); }
-        return p.length;
-      });
-      if (!left) break;
+    await autoGame(page);
+    // 散落的碎片：檢視窗口自動換到下一片；每 4 片丟 1 片，其餘當皮鐵
+    assert.strictEqual(await page.locator(".kt-shard-btn").count(), 12, "12 scattered pieces");
+    for (var k = 0; k < 12; k++) {
+      var more = await page.evaluate(function (k) {
+        var chips = document.querySelectorAll(".kt-sort-insp .kt-chip");
+        if (!chips.length) return false;
+        (k % 4 === 3 ? chips[chips.length - 1] : chips[0]).click();
+        return true;
+      }, k);
+      if (!more) break;
     }
   } else if (stepId === "tsumi") {
     await tapUntilDone(page, "kt_stack_start", "kt_stack_drop", 120);
     await doHeat(page, 5200);
   } else if (stepId === "tsukurikomi") {
     await doHeat(page, 5200);
-    await tapUntilDone(page, "kt_hammer_start", "kt_hammer_hit");
+    await autoGame(page);
   } else if (stepId === "yakiire") {
     await doHeat(page, 3200);
     await page.waitForTimeout(400);
     await mustClick(page, "kt_plunge");
   } else if (stepId === "shitakitae" || stepId === "uwakitae") {
     await doHeat(page, 4800);
-    await tapUntilDone(page, "kt_hammer_start", "kt_hammer_hit");
+    await autoGame(page);
   } else if (stepId === "sunobe" || stepId === "hizukuri") {
-    await tapUntilDone(page, "kt_hammer_start", "kt_hammer_hit");
+    await autoGame(page);
   } else if (stepId === "tsuchioki") {
     if (await page.locator(".kt-clay-canvas").count()) await drawClay(page);
   } else if (stepId === "aitori") {
@@ -112,9 +133,9 @@ async function doStep(page, stepId) {
     for (var s = 0; s < 11; s++) {
       await page.evaluate(function () { var b = document.querySelector(".kt-stone:not([disabled])"); if (b) b.click(); });
     }
-    await tapUntilDone(page, "kt_rhythm_start", "kt_rhythm_hit", 300);
+    await autoGame(page);
   } else if (stepId === "mei") {
-    await tapUntilDone(page, "kt_chisel_start", "kt_chisel_hit");
+    await autoGame(page);
   }
   var fin = await clickKey(page, "kt_finish_step");
   if (!fin) {
@@ -258,6 +279,7 @@ async function forgeAll(page, onMaterial) {
   await page.evaluate(function () { document.querySelectorAll(".kt-names .kt-link").forEach(function (b) { b.click(); }); });
   await page.evaluate(function () { var b = document.querySelector(".kt-names .kt-link"); if (b) b.click(); });
   await mustClick(page, "kt_start");
+  QUALITY = 0.5; // 第二局故意打得差，確認小遊戲的成績會反映出來
   await forgeAll(page, async function (pg) {
     await pg.evaluate(function () {
       document.querySelector('input[name="type"][value="kris"]').dispatchEvent(new Event("change"));
@@ -277,6 +299,16 @@ async function forgeAll(page, onMaterial) {
   assert.strictEqual(s.mode, "show");
   assert.ok(s.players[0].log.some(function (e) { return e.step === "kowari" && e.skipped; }), "kowari skipped");
   console.log("solo wootz kris (show):", JSON.stringify({ C: b.kawaC, hrc: b.hardEdge, sori: b.sori, intact: b.patternIntact, flaws: b.flaws }));
+  // 小遊戲成績：照規則打滿分的局都高；故意打差的局確實變低
+  var good = mgScores.filter(function (m) { return m.q >= 1; }), bad = mgScores.filter(function (m) { return m.q < 1; });
+  var kinds = {};
+  good.forEach(function (m) { kinds[m.kind] = true; });
+  ["kt-shatter", "kt-arc", "kt-music", "kt-memory"].forEach(function (k) { assert.ok(kinds[k], "played " + k + ": " + Object.keys(kinds)); });
+  good.forEach(function (m) { assert.ok(m.acc >= 0.85, "good play scores high: " + JSON.stringify(m)); });
+  // 照節奏打（音樂）、照順序打（記憶）、會回爐（圓弧）的人不會打到冷掉的鋼
+  good.forEach(function (m) { assert.strictEqual(m.cold, 0, "no cold strikes in good play: " + JSON.stringify(m)); });
+  assert.ok(bad.length && bad.every(function (m) { return m.acc < 0.95; }), "poor play scores lower: " + JSON.stringify(bad));
+  console.log("minigames:", JSON.stringify(mgScores.map(function (m) { return m.kind.replace("kt-", "") + "@" + m.q + "=" + m.acc; })));
 
   // ---- 刀鞘 → 邀請網址 → 對方打開後對刀 ----
   sc = await page.evaluate(function () { return window.PriTestKatana._scabbard(); });
