@@ -1680,6 +1680,74 @@
     return f.name + (f.snap && f.snap.name ? "「" + f.snap.name + "」" : "");
   }
 
+  // ---- 俯視的刀形（每把刀的辨識度）----
+  // 以觸及半徑 r 為 1 的座標：刀尖在 +x。依刀種的身幅・反り・寬窄變化・波刃・長柄・護手・刀背環畫出剪影，
+  // 柄卷用該刀的玩家色，一眼分得出是誰的刀、什麼刀種。結果快取在 f._glyph（對刀場物件，不存檔）。
+  // 只用到 f.snap / f.prof.radius / f.rot / f.color，不碰對刀場狀態；美術參考圖工具也用它（_artRef）。
+  function glyphOf(f) {
+    if (f._glyph) return f._glyph;
+    var snap = f.snap, bt = Core.byId(D.BLADE_TYPES, snap.type) || D.BLADE_TYPES[2];
+    var dbl = bt.edges === 2, pole = !!bt.shaft || bt.id === "yari";
+    var b0 = pole ? 0.45 : 0.06;
+    var hw = Math.min(0.34, Math.max(0.07, (snap.mihaba || 30) / 190)); // 身幅誇張約 3 倍，縮小也看得出寬窄
+    var sori = Math.max(-0.45, Math.min(1.2, (snap.sori || 0) / 80));
+    var wave = bt.wave, N = 30, top = [], bot = [];
+    for (var i = 0; i <= N; i++) {
+      var u = i / N, x = b0 + (1 - b0) * u;
+      var y = -sori * 0.4 * u * u;
+      if (wave && u > 0.08 && u < 0.88) y += 0.04 * Math.sin((u - 0.08) / 0.8 * Math.PI * Math.min(wave.count, 9));
+      var w = hw * (bt.profile === "widen" ? 0.75 + 0.7 * u : (bt.profile === "narrow" ? 1 - 0.5 * u : (bt.profile === "kukri" ? 0.8 + 0.5 * Math.sin(u * Math.PI * 0.9) : 1 - 0.25 * u)));
+      if (u > 0.85) {
+        var tt = (u - 0.85) / 0.15;
+        w *= (snap.kissaki === "round" || snap.kissaki === "o") ? Math.sqrt(Math.max(0, 1 - tt * tt)) : 1 - tt;
+      }
+      if (dbl) { top.push([x, y - w / 2]); bot.push([x, y + w / 2]); }
+      else { top.push([x, y - w * 0.3]); bot.push([x, y + w * 0.7]); }
+    }
+    f._glyph = { top: top, bot: bot, poly: top.concat(bot.slice().reverse()), b0: b0, pole: pole, hw: hw, dbl: dbl,
+      guard: bt.family === "nihonto" ? "tsuba" : (bt.id === "hudie" ? "dguard" : "cross"),
+      rings: bt.rings || 0, ringPommel: !!bt.ringPommel, hilt: pole ? 1.15 : 0.42, family: bt.family };
+    return f._glyph;
+  }
+
+  function drawBlade(ctx, f, s) {
+    var r = f.prof.radius * s, gl = glyphOf(f), px1 = (window.devicePixelRatio || 1) / r;
+    function path(arr) { ctx.beginPath(); arr.forEach(function (q, i) { if (i) ctx.lineTo(q[0], q[1]); else ctx.moveTo(q[0], q[1]); }); }
+    ctx.save();
+    ctx.rotate(f.rot);
+    ctx.scale(r, r);
+    // 柄：長柄是木柄＋玩家色握把；刀劍是玩家色的柄卷
+    ctx.fillStyle = gl.pole ? "#6b4a2a" : "#241a14";
+    ctx.fillRect(-gl.hilt, -0.045, gl.hilt + gl.b0, 0.09);
+    ctx.fillStyle = f.color;
+    if (gl.pole) ctx.fillRect(-0.7, -0.055, 0.45, 0.11);
+    else ctx.fillRect(-gl.hilt + 0.03, -0.055, gl.hilt - 0.05, 0.11);
+    ctx.strokeStyle = "rgba(0,0,0,0.45)"; ctx.lineWidth = 1 * px1;
+    for (var k = 0; k < 4; k++) { var hx = (gl.pole ? -0.68 : -gl.hilt + 0.06) + k * 0.09; ctx.beginPath(); ctx.moveTo(hx, -0.055); ctx.lineTo(hx + 0.05, 0.055); ctx.stroke(); }
+    if (gl.ringPommel) { ctx.strokeStyle = "#c9a44a"; ctx.lineWidth = 2.4 * px1; ctx.beginPath(); ctx.arc(-gl.hilt - 0.07, 0, 0.07, 0, Math.PI * 2); ctx.stroke(); }
+    // 刀身
+    ctx.fillStyle = "#dfe6ec"; ctx.strokeStyle = "#4b545c"; ctx.lineWidth = 1 * px1;
+    path(gl.poly); ctx.closePath(); ctx.fill(); ctx.stroke();
+    // 刃的光（單刃只有刃側；雙刃兩側）
+    ctx.strokeStyle = "rgba(255,255,255,0.95)"; ctx.lineWidth = 1.3 * px1;
+    path(gl.bot); ctx.stroke();
+    if (gl.dbl) { path(gl.top); ctx.stroke(); }
+    if (gl.rings) {
+      ctx.strokeStyle = "#c9a44a"; ctx.lineWidth = 1.2 * px1;
+      for (var ri = 0; ri < gl.rings; ri++) { var q = gl.top[Math.round((0.08 + ri * 0.06) * 30)]; ctx.beginPath(); ctx.arc(q[0], q[1] + 0.02, 0.025, 0, Math.PI * 2); ctx.stroke(); }
+    }
+    // 鍔（日本刀）／十字護手／D 形護手（蝴蝶雙刀）
+    ctx.fillStyle = "#c9a44a"; ctx.strokeStyle = "#7a5d1f"; ctx.lineWidth = 1 * px1;
+    if (gl.guard === "tsuba") { ctx.beginPath(); ctx.ellipse(gl.b0, 0, 0.035, Math.max(0.09, gl.hw * 0.95), 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke(); }
+    else {
+      ctx.fillRect(gl.b0 - 0.02, -gl.hw * 1.6, 0.04, gl.hw * 3.2);
+      if (gl.guard === "dguard") { ctx.strokeStyle = "#c9a44a"; ctx.lineWidth = 2 * px1; ctx.beginPath(); ctx.moveTo(gl.b0, gl.hw * 1.5); ctx.quadraticCurveTo(-gl.hilt * 0.5, gl.hw * 2.6, -gl.hilt, 0.06); ctx.stroke(); }
+    }
+    ctx.restore();
+    ctx.fillStyle = f.color;
+    ctx.beginPath(); ctx.arc(0, 0, Math.max(2.5, 3.5 * s), 0, Math.PI * 2); ctx.fill();
+  }
+
   function arenaView(a, onEnd, net) {
     var Arena = window.PriTestKatanaArena;
     var wrap = el("div", { class: "kt-arena" });
@@ -1868,73 +1936,6 @@
     }
 
     // ----- 繪圖 -----
-    // ---- 俯視的刀形（每把刀的辨識度）----
-    // 以觸及半徑 r 為 1 的座標：刀尖在 +x。依刀種的身幅・反り・寬窄變化・波刃・長柄・護手・刀背環畫出剪影，
-    // 柄卷用該刀的玩家色，一眼分得出是誰的刀、什麼刀種。結果快取在 f._glyph（對刀場物件，不存檔）。
-    function glyphOf(f) {
-      if (f._glyph) return f._glyph;
-      var snap = f.snap, bt = Core.byId(D.BLADE_TYPES, snap.type) || D.BLADE_TYPES[2];
-      var dbl = bt.edges === 2, pole = !!bt.shaft || bt.id === "yari";
-      var b0 = pole ? 0.45 : 0.06;
-      var hw = Math.min(0.34, Math.max(0.07, (snap.mihaba || 30) / 190)); // 身幅誇張約 3 倍，縮小也看得出寬窄
-      var sori = Math.max(-0.45, Math.min(1.2, (snap.sori || 0) / 80));
-      var wave = bt.wave, N = 30, top = [], bot = [];
-      for (var i = 0; i <= N; i++) {
-        var u = i / N, x = b0 + (1 - b0) * u;
-        var y = -sori * 0.4 * u * u;
-        if (wave && u > 0.08 && u < 0.88) y += 0.04 * Math.sin((u - 0.08) / 0.8 * Math.PI * Math.min(wave.count, 9));
-        var w = hw * (bt.profile === "widen" ? 0.75 + 0.7 * u : (bt.profile === "narrow" ? 1 - 0.5 * u : (bt.profile === "kukri" ? 0.8 + 0.5 * Math.sin(u * Math.PI * 0.9) : 1 - 0.25 * u)));
-        if (u > 0.85) {
-          var tt = (u - 0.85) / 0.15;
-          w *= (snap.kissaki === "round" || snap.kissaki === "o") ? Math.sqrt(Math.max(0, 1 - tt * tt)) : 1 - tt;
-        }
-        if (dbl) { top.push([x, y - w / 2]); bot.push([x, y + w / 2]); }
-        else { top.push([x, y - w * 0.3]); bot.push([x, y + w * 0.7]); }
-      }
-      f._glyph = { top: top, bot: bot, poly: top.concat(bot.slice().reverse()), b0: b0, pole: pole, hw: hw, dbl: dbl,
-        guard: bt.family === "nihonto" ? "tsuba" : (bt.id === "hudie" ? "dguard" : "cross"),
-        rings: bt.rings || 0, ringPommel: !!bt.ringPommel, hilt: pole ? 1.15 : 0.42, family: bt.family };
-      return f._glyph;
-    }
-
-    function drawBlade(ctx, f, s) {
-      var r = f.prof.radius * s, gl = glyphOf(f), px1 = (window.devicePixelRatio || 1) / r;
-      function path(arr) { ctx.beginPath(); arr.forEach(function (q, i) { if (i) ctx.lineTo(q[0], q[1]); else ctx.moveTo(q[0], q[1]); }); }
-      ctx.save();
-      ctx.rotate(f.rot);
-      ctx.scale(r, r);
-      // 柄：長柄是木柄＋玩家色握把；刀劍是玩家色的柄卷
-      ctx.fillStyle = gl.pole ? "#6b4a2a" : "#241a14";
-      ctx.fillRect(-gl.hilt, -0.045, gl.hilt + gl.b0, 0.09);
-      ctx.fillStyle = f.color;
-      if (gl.pole) ctx.fillRect(-0.7, -0.055, 0.45, 0.11);
-      else ctx.fillRect(-gl.hilt + 0.03, -0.055, gl.hilt - 0.05, 0.11);
-      ctx.strokeStyle = "rgba(0,0,0,0.45)"; ctx.lineWidth = 1 * px1;
-      for (var k = 0; k < 4; k++) { var hx = (gl.pole ? -0.68 : -gl.hilt + 0.06) + k * 0.09; ctx.beginPath(); ctx.moveTo(hx, -0.055); ctx.lineTo(hx + 0.05, 0.055); ctx.stroke(); }
-      if (gl.ringPommel) { ctx.strokeStyle = "#c9a44a"; ctx.lineWidth = 2.4 * px1; ctx.beginPath(); ctx.arc(-gl.hilt - 0.07, 0, 0.07, 0, Math.PI * 2); ctx.stroke(); }
-      // 刀身
-      ctx.fillStyle = "#dfe6ec"; ctx.strokeStyle = "#4b545c"; ctx.lineWidth = 1 * px1;
-      path(gl.poly); ctx.closePath(); ctx.fill(); ctx.stroke();
-      // 刃的光（單刃只有刃側；雙刃兩側）
-      ctx.strokeStyle = "rgba(255,255,255,0.95)"; ctx.lineWidth = 1.3 * px1;
-      path(gl.bot); ctx.stroke();
-      if (gl.dbl) { path(gl.top); ctx.stroke(); }
-      if (gl.rings) {
-        ctx.strokeStyle = "#c9a44a"; ctx.lineWidth = 1.2 * px1;
-        for (var ri = 0; ri < gl.rings; ri++) { var q = gl.top[Math.round((0.08 + ri * 0.06) * 30)]; ctx.beginPath(); ctx.arc(q[0], q[1] + 0.02, 0.025, 0, Math.PI * 2); ctx.stroke(); }
-      }
-      // 鍔（日本刀）／十字護手／D 形護手（蝴蝶雙刀）
-      ctx.fillStyle = "#c9a44a"; ctx.strokeStyle = "#7a5d1f"; ctx.lineWidth = 1 * px1;
-      if (gl.guard === "tsuba") { ctx.beginPath(); ctx.ellipse(gl.b0, 0, 0.035, Math.max(0.09, gl.hw * 0.95), 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke(); }
-      else {
-        ctx.fillRect(gl.b0 - 0.02, -gl.hw * 1.6, 0.04, gl.hw * 3.2);
-        if (gl.guard === "dguard") { ctx.strokeStyle = "#c9a44a"; ctx.lineWidth = 2 * px1; ctx.beginPath(); ctx.moveTo(gl.b0, gl.hw * 1.5); ctx.quadraticCurveTo(-gl.hilt * 0.5, gl.hw * 2.6, -gl.hilt, 0.06); ctx.stroke(); }
-      }
-      ctx.restore();
-      ctx.fillStyle = f.color;
-      ctx.beginPath(); ctx.arc(0, 0, Math.max(2.5, 3.5 * s), 0, Math.PI * 2); ctx.fill();
-    }
-
     function drawFrame() {
       var cssW = canvas.clientWidth || 360;
       var dpr = window.devicePixelRatio || 1;
@@ -3020,5 +3021,22 @@
   // 測試用
   window.PriTestKatana = { _state: function () { return state; }, _ui: function () { return ui; }, _render: render,
     _scabbard: scabbardLoad, _encode: encodeSnap, _decode: decodeSnap,
-    _scExport: scabbardExportCode, _scParse: parseScabbardExport, _scImport: scabbardImport, _scMax: SCABBARD_MAX };
+    _scExport: scabbardExportCode, _scParse: parseScabbardExport, _scImport: scabbardImport, _scMax: SCABBARD_MAX,
+    // 美術參考圖（tools/katana_art/build_prompt_book.js 用）：每個刀種的標準刀形，用遊戲本身的繪圖輸出
+    _artRef: {
+      snap: function (type) { return labSnap(labBlade({ type: type })); },
+      side: function (type) { return bladeSvg(labSnap(labBlade({ type: type }))).outerHTML; },
+      // 俯視：畫在 canvas 正中央，刀尖朝右、離中心約 45%（長柄兵器 38%，柄才放得下）；柄卷畫成淺灰
+      top: function (canvas, type, color) {
+        var snap = labSnap(labBlade({ type: type }));
+        var bt = Core.byId(D.BLADE_TYPES, type);
+        var S = canvas.width, ctx = canvas.getContext("2d");
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
+        ctx.clearRect(0, 0, S, S);
+        ctx.translate(S / 2, S / 2);
+        var pole = !!bt.shaft || bt.id === "yari";
+        // drawBlade 的 s 是場地縮放（中心圓點也乘它），所以用 radius 決定大小、s 固定 1
+        drawBlade(ctx, { snap: snap, prof: { radius: S * (pole ? 0.38 : 0.45) }, rot: 0, color: color || "#c8c8c8" }, 1);
+      }
+    } };
 })();

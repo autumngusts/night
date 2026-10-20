@@ -1,0 +1,266 @@
+<title>Katana Master 生圖手冊</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Shippori+Mincho:wght@600;800&family=Noto+Sans+TC:wght@400;500;700&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+/* 版面：鍛冶場的帳簿。上方是步驟，下方依素材種類分頁，每張卡左邊參考圖、右邊可直接複製的提示詞 */
+:root {
+  --paper: #f3f1ec;      /* 和紙 */
+  --sheet: #fbfaf7;
+  --ink: #1f2226;        /* 墨 */
+  --ink-soft: #5b6068;
+  --steel: #8c96a1;      /* 鋼 */
+  --line: #d9d6cf;
+  --shu: #b23a24;        /* 朱 */
+  --shu-soft: rgba(178, 58, 36, 0.1);
+  --gold: #9a7428;
+  --code-bg: #eceae4;
+  --ref-bg: #ffffff;
+  --ok: #2f7a4b;
+  --f-display: "Shippori Mincho", "Noto Serif TC", "Yu Mincho", serif;
+  --f-body: "Noto Sans TC", "Hiragino Sans", "Microsoft JhengHei", system-ui, sans-serif;
+  --f-mono: "JetBrains Mono", "Cascadia Mono", Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --paper: #16181b; --sheet: #1e2125; --ink: #e8e6e1; --ink-soft: #a3a8af; --steel: #7d8792; --line: #33373d;
+    --shu: #e0694f; --shu-soft: rgba(224, 105, 79, 0.14); --gold: #d1a650; --code-bg: #121417; --ref-bg: #f4f3ef; --ok: #6fcf97;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --paper: #16181b; --sheet: #1e2125; --ink: #e8e6e1; --ink-soft: #a3a8af; --steel: #7d8792; --line: #33373d;
+  --shu: #e0694f; --shu-soft: rgba(224, 105, 79, 0.14); --gold: #d1a650; --code-bg: #121417; --ref-bg: #f4f3ef; --ok: #6fcf97;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { background: var(--paper); color: var(--ink); font-family: var(--f-body); font-size: 15px; line-height: 1.65; }
+.wrap { max-width: 1120px; margin: 0 auto; padding-block: 28px 64px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); display: flex; flex-direction: column; gap: 28px; }
+h1, h2, h3 { font-family: var(--f-display); text-wrap: balance; margin: 0; line-height: 1.3; }
+h1 { font-size: clamp(1.8rem, 4vw, 2.6rem); font-weight: 800; letter-spacing: 0.02em; }
+h2 { font-size: 1.35rem; font-weight: 800; }
+h3 { font-size: 1.1rem; font-weight: 600; }
+p { margin: 0; max-width: 68ch; }
+.muted { color: var(--ink-soft); }
+.eyebrow { font-size: 0.75rem; letter-spacing: 0.14em; text-transform: uppercase; color: var(--shu); font-weight: 700; }
+header { display: flex; flex-direction: column; gap: 10px; border-bottom: 2px solid var(--ink); padding-bottom: 18px; }
+header .counts { display: flex; flex-wrap: wrap; gap: 6px 18px; font-variant-numeric: tabular-nums; color: var(--ink-soft); font-size: 0.9rem; }
+header .counts b { color: var(--ink); font-weight: 700; }
+
+.steps { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px; counter-reset: step; padding: 0; margin: 0; list-style: none; }
+.steps li { counter-increment: step; background: var(--sheet); border: 1px solid var(--line); border-radius: 6px; padding: 14px 14px 14px 52px; position: relative; min-width: 0; }
+.steps li::before { content: counter(step); position: absolute; left: 14px; top: 12px; width: 26px; height: 26px; border-radius: 50%; border: 1.5px solid var(--shu); color: var(--shu); font-family: var(--f-display); font-weight: 800; display: grid; place-items: center; font-size: 0.95rem; }
+.steps b { display: block; margin-bottom: 2px; }
+.steps code, .note code, .save code { font-family: var(--f-mono); font-size: 0.82em; background: var(--code-bg); padding: 1px 5px; border-radius: 3px; overflow-wrap: anywhere; }
+.note { border-left: 3px solid var(--gold); padding: 10px 14px; background: var(--sheet); border-radius: 0 6px 6px 0; display: flex; flex-direction: column; gap: 6px; }
+
+.tabs { display: flex; flex-wrap: wrap; gap: 6px; border-bottom: 1px solid var(--line); padding-bottom: 10px; position: sticky; top: env(safe-area-inset-top, 0px); background: var(--paper); z-index: 2; padding-top: 10px; }
+.tab { font: inherit; font-weight: 700; border: 1px solid var(--line); background: var(--sheet); color: var(--ink); border-radius: 999px; padding: 6px 14px; cursor: pointer; }
+.tab[aria-selected="true"] { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+.tab span { font-weight: 400; opacity: 0.7; margin-left: 4px; font-variant-numeric: tabular-nums; }
+.tab:focus-visible, .copy:focus-visible, .filter:focus-visible, input:focus-visible { outline: 2px solid var(--shu); outline-offset: 2px; }
+.toolbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.toolbar input { font: inherit; padding: 6px 10px; border: 1px solid var(--line); border-radius: 6px; background: var(--sheet); color: var(--ink); min-width: 0; flex: 1 1 200px; max-width: 320px; }
+.filter { font: inherit; font-size: 0.85rem; border: 1px solid var(--line); background: transparent; color: var(--ink-soft); border-radius: 4px; padding: 3px 10px; cursor: pointer; }
+.filter[aria-pressed="true"] { border-color: var(--shu); color: var(--shu); background: var(--shu-soft); }
+
+.panel-intro { display: flex; flex-direction: column; gap: 8px; }
+.checks { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 0.88rem; padding: 0; margin: 0; list-style: none; }
+.checks li::before { content: "✓ "; color: var(--ok); font-weight: 700; }
+
+.cards { display: flex; flex-direction: column; gap: 14px; }
+.card { display: grid; grid-template-columns: minmax(0, 300px) minmax(0, 1fr); gap: 18px; background: var(--sheet); border: 1px solid var(--line); border-radius: 6px; padding: 16px; }
+@media (max-width: 760px) { .card { grid-template-columns: minmax(0, 1fr); } .ref { max-width: 240px; } }
+.ref { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.ref figure { margin: 0; background: var(--ref-bg); border: 1px solid var(--line); border-radius: 4px; display: grid; place-items: center; overflow: hidden; }
+.ref img { display: block; width: 100%; height: auto; }
+.ref figcaption, .ref .hint { font-size: 0.78rem; color: var(--ink-soft); }
+.swatch { aspect-ratio: 1 / 1; max-width: 100%; display: grid; place-items: center; background: #000; border-radius: 4px; position: relative; overflow: hidden; }
+.swatch.wide { aspect-ratio: 3 / 2; }
+.swatch i { width: 46%; aspect-ratio: 1 / 1; border-radius: 50%; filter: blur(14px); opacity: 0.9; }
+.swatch.wide i { width: 34%; margin-left: 46%; }
+.swatch span { position: absolute; left: 10px; bottom: 8px; font-family: var(--f-mono); font-size: 0.75rem; color: #e8e6e1; }
+.body { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.title { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; }
+.title .ja { color: var(--ink-soft); font-size: 0.9rem; }
+.title .id { font-family: var(--f-mono); font-size: 0.78rem; color: var(--steel); }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip { font-size: 0.78rem; border: 1px solid var(--line); border-radius: 4px; padding: 1px 8px; color: var(--ink-soft); font-variant-numeric: tabular-nums; }
+.chip.key { border-color: var(--gold); color: var(--gold); }
+.prompt { position: relative; }
+.prompt pre { margin: 0; font-family: var(--f-mono); font-size: 0.8rem; line-height: 1.55; background: var(--code-bg); border-radius: 4px; padding: 12px 14px; white-space: pre-wrap; overflow-wrap: anywhere; max-height: 260px; overflow-y: auto; }
+.row { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; }
+.copy { font: inherit; font-weight: 700; border: none; border-radius: 4px; background: var(--shu); color: #fff; padding: 7px 16px; cursor: pointer; }
+.copy.done { background: var(--ok); }
+.save { font-size: 0.85rem; color: var(--ink-soft); min-width: 0; }
+.empty { color: var(--ink-soft); padding: 20px 0; }
+@media (prefers-reduced-motion: no-preference) { .copy { transition: background 0.15s; } }
+</style>
+
+<div class="wrap">
+  <header>
+    <div class="eyebrow">神前鍛刀對決 · 美術素材</div>
+    <h1>Katana Master 生圖手冊</h1>
+    <p class="muted">每張卡片都是一張要交給 ChatGPT 的圖：先上傳參考圖（刀種才有），再貼上提示詞。提示詞是英文的，照原樣貼上就好，不需要翻譯或修改。</p>
+    <div class="counts" id="counts"></div>
+  </header>
+
+  <section style="display:flex;flex-direction:column;gap:12px">
+    <h2>怎麼做一張圖</h2>
+    <ol class="steps">
+      <li><b>開一個新對話</b>同一分組（例如日本刀）在同一個對話裡連續做，畫風比較一致。</li>
+      <li><b>上傳參考圖</b>刀種卡片左邊的白底圖。按右鍵「另存圖片」，或直接用 repo 裡 <code>docs/katana_art/ref/</code> 的同名檔案。特效與切入圖不用參考圖。</li>
+      <li><b>複製提示詞並送出</b>按卡片上的「複製提示詞」，貼進 ChatGPT 送出。不要另外加說明，提示詞已經寫好尺寸與背景。</li>
+      <li><b>對照檢查清單</b>每個分頁上方有要檢查的項目。不符合就回覆：<code>Redo it. The guard must be exactly at the center.</code> 這種一句話的修正。</li>
+      <li><b>下載並改檔名</b>存成卡片下方寫的檔名，放到對應資料夾。背景是綠色的話，先去背再放。</li>
+    </ol>
+    <div class="note">
+      <p><b>背景透明做不出來時：</b>提示詞已經要求「不能透明就用純綠 #00FF00 背景」。拿到綠底圖之後用去背工具（Photoshop 的「選取 › 顏色範圍」、remove.bg 等）把綠色去掉，存成透明 PNG。</p>
+      <p><b>用 API 產圖時：</b><code>gpt-image-1</code> 可以直接指定 <code>size</code> 與 <code>background: "transparent"</code>，數值照卡片上的標籤填，提示詞照貼。</p>
+      <p><b>遊戲還沒接上這些圖片</b>（程式繪製的刀與特效照常運作）。圖片收齊後再實作載入，見 <code>docs/katana_art_spec.md</code> §6。</p>
+    </div>
+  </section>
+
+  <section style="display:flex;flex-direction:column;gap:16px">
+    <div class="tabs" role="tablist" id="tabs"></div>
+    <div class="panel-intro" id="intro"></div>
+    <div class="toolbar" id="toolbar"></div>
+    <div class="cards" id="cards"></div>
+  </section>
+</div>
+
+<script>
+var DATA = __DATA__;
+
+var FAMILY = { nihonto: "日本刀", chinese: "中華刀劍", famous: "西洋與名劍", rare: "冷門刀劍" };
+var GROUP = { classic: "刀性", breath: "呼吸", meito: "名刀之魂" };
+var TABS = [
+  { id: "top", name: "俯視圖", desc: "對刀場上轉動的刀。辨識度最重要，建議先做這一組。",
+    checks: ["鍔（護手）在畫面正中央，不是整把刀置中", "刀尖朝右、柄朝左", "柄卷是淺灰色、沒有花紋顏色", "背景透明或純綠", "沒有文字、手、陰影"] },
+  { id: "side", name: "側視圖", desc: "審查畫面與刀鞘卡片用的整把刀。",
+    checks: ["正側面、沒有透視", "刀尖朝右；單刃刀刃朝下", "整把刀都在畫面內", "刀身與刃文完全不透明（去背沒有吃到刀身）", "沒有文字、刀鞘、刀架"] },
+  { id: "vfx", name: "招式特效", desc: "招式發動的那一瞬間。遊戲會自己做放大與淡出，所以只要一張最強烈的畫面。",
+    checks: ["純黑背景", "特效在中央、約佔畫面七成", "主色和卡片的色塊一致", "沒有刀、人物、文字、邊框"] },
+  { id: "cutin", name: "切入圖", desc: "覺醒招式發動時的橫幅。左邊留給遊戲寫招式名。",
+    checks: ["純黑背景、橫幅", "圖樣在右側 6 成", "左側 4 成保持空白", "沒有任何文字"] }
+];
+
+var state = { tab: "top", q: "", fam: "" };
+try { var saved = JSON.parse(localStorage.getItem("katana-book") || "null"); if (saved && saved.tab) state.tab = saved.tab; } catch (e) {}
+
+function h(tag, attrs, kids) {
+  var n = document.createElement(tag);
+  Object.keys(attrs || {}).forEach(function (k) {
+    var v = attrs[k];
+    if (v === null || v === undefined || v === false) return;
+    if (k === "text") n.textContent = v; else if (k === "class") n.className = v;
+    else if (k.indexOf("on") === 0) n.addEventListener(k.slice(2), v); else n.setAttribute(k, v === true ? "" : v);
+  });
+  (kids || []).forEach(function (c) { if (c !== null && c !== undefined) n.appendChild(typeof c === "string" ? document.createTextNode(c) : c); });
+  return n;
+}
+
+function items(tab) {
+  if (tab === "top" || tab === "side") return DATA.blades.map(function (b) {
+    return { key: b.id, zh: b.name.zh, ja: b.name.ja, en: b.name.en, group: b.family, groupName: FAMILY[b.family] || b.family,
+      ref: tab === "top" ? b.refTop : b.refSide, refPath: b.reference[tab], wide: tab === "side",
+      size: b.gpt[tab].size, bg: "透明背景", prompt: tab === "top" ? b.prompt_top : b.prompt_side, save: b.files[tab],
+      extra: [b.dims.blade_cm + " cm", (b.dims.edges === 2 ? "雙刃" : "單刃"), b.pole ? "長柄" : null] };
+  });
+  if (tab === "vfx") return DATA.cards.map(function (c) { return vfxItem(c, "招式卡"); })
+    .concat(DATA.specials.map(function (s) { return vfxItem(s, GROUP[s.group] || s.group, s.group); }))
+    .concat(DATA.common_vfx.map(function (c) { return vfxItem(c, "共通特效", "common"); }));
+  return DATA.specials.map(function (s) {
+    return { key: s.id, zh: s.name.zh, ja: s.name.ja, en: s.en, group: s.group, groupName: GROUP[s.group] || s.group, color: s.color, wide: true,
+      size: s.gpt_cutin.size, bg: "純黑背景", prompt: s.prompt_cutin, save: s.files.cutin, extra: [] };
+  });
+}
+function vfxItem(c, groupName, group) {
+  return { key: c.id, zh: c.name.zh, ja: c.name.ja, en: c.en, group: group || "card", groupName: groupName, color: c.color,
+    size: c.gpt.size, bg: "純黑背景", prompt: c.prompt, save: c.files.vfx, extra: [] };
+}
+
+function copy(btn, text, pre) {
+  function ok() { btn.textContent = "已複製"; btn.classList.add("done"); setTimeout(function () { btn.textContent = "複製提示詞"; btn.classList.remove("done"); }, 1600); }
+  function fallback() {
+    var r = document.createRange(); r.selectNodeContents(pre);
+    var s = window.getSelection(); s.removeAllRanges(); s.addRange(r);
+    btn.textContent = "已選取，請按 Ctrl+C";
+  }
+  try { navigator.clipboard.writeText(text).then(ok, fallback); } catch (e) { fallback(); }
+}
+
+function card(it) {
+  var pre = h("pre", { text: it.prompt });
+  var btn = h("button", { type: "button", class: "copy", text: "複製提示詞" });
+  btn.addEventListener("click", function () { copy(btn, it.prompt, pre); });
+  var ref;
+  if (it.ref) {
+    ref = h("div", { class: "ref" }, [
+      h("figure", {}, [h("img", { src: it.ref, alt: it.zh + " 參考圖", loading: "lazy" })]),
+      h("div", { class: "hint", text: "上傳這張參考圖（右鍵另存）：" + it.refPath })
+    ]);
+  } else {
+    var sw = h("div", { class: "swatch" + (it.wide ? " wide" : "") }, [h("i"), h("span", { text: it.color })]);
+    sw.firstChild.style.background = it.color;
+    ref = h("div", { class: "ref" }, [sw, h("div", { class: "hint", text: "不用參考圖。色塊是這個招式的主色。" })]);
+  }
+  return h("article", { class: "card" }, [
+    ref,
+    h("div", { class: "body" }, [
+      h("div", { class: "title" }, [h("h3", { text: it.zh }), it.ja && it.ja !== it.zh ? h("span", { class: "ja", text: it.ja }) : null, h("span", { class: "id", text: it.en })]),
+      h("div", { class: "chips" }, [h("span", { class: "chip key", text: it.size }), h("span", { class: "chip key", text: it.bg }), h("span", { class: "chip", text: it.groupName })]
+        .concat(it.extra.filter(Boolean).map(function (x) { return h("span", { class: "chip", text: x }); }))),
+      h("div", { class: "prompt" }, [pre]),
+      h("div", { class: "row" }, [btn, h("div", { class: "save" }, ["存成 ", h("code", { text: it.save })])])
+    ])
+  ]);
+}
+
+function render() {
+  var tabs = document.getElementById("tabs"); tabs.innerHTML = "";
+  TABS.forEach(function (t) {
+    var b = h("button", { type: "button", class: "tab", role: "tab", "aria-selected": String(state.tab === t.id) }, [t.name, h("span", { text: String(items(t.id).length) })]);
+    b.addEventListener("click", function () { state.tab = t.id; state.fam = ""; try { localStorage.setItem("katana-book", JSON.stringify({ tab: t.id })); } catch (e) {} render(); });
+    tabs.appendChild(b);
+  });
+  var tab = TABS.filter(function (t) { return t.id === state.tab; })[0];
+  var intro = document.getElementById("intro"); intro.innerHTML = "";
+  intro.appendChild(h("p", { text: tab.desc }));
+  intro.appendChild(h("ul", { class: "checks" }, tab.checks.map(function (c) { return h("li", { text: c }); })));
+  var all = items(state.tab);
+  var groups = []; all.forEach(function (x) { if (groups.indexOf(x.group) < 0) groups.push(x.group); });
+  var tb = document.getElementById("toolbar"); tb.innerHTML = "";
+  var q = h("input", { type: "search", id: "q", placeholder: "搜尋名稱或 id", value: state.q });
+  q.addEventListener("input", function () { state.q = q.value; drawCards(); });
+  tb.appendChild(q);
+  [""].concat(groups).forEach(function (g) {
+    var name = g ? (all.filter(function (x) { return x.group === g; })[0].groupName) : "全部";
+    var f = h("button", { type: "button", class: "filter", "aria-pressed": String(state.fam === g), text: name });
+    f.addEventListener("click", function () { state.fam = g; render(); });
+    tb.appendChild(f);
+  });
+  drawCards();
+}
+
+function drawCards() {
+  var box = document.getElementById("cards"); box.innerHTML = "";
+  var ql = state.q.trim().toLowerCase();
+  var list = items(state.tab).filter(function (x) {
+    if (state.fam && x.group !== state.fam) return false;
+    if (!ql) return true;
+    return (x.zh + " " + x.ja + " " + x.en + " " + x.key).toLowerCase().indexOf(ql) >= 0;
+  });
+  if (!list.length) box.appendChild(h("p", { class: "empty", text: "沒有符合的項目。" }));
+  list.forEach(function (x) { box.appendChild(card(x)); });
+}
+
+document.getElementById("counts").append(
+  h("span", {}, ["刀種 ", h("b", { text: String(DATA.blades.length) })]),
+  h("span", {}, ["招式特效 ", h("b", { text: String(DATA.cards.length + DATA.specials.length + DATA.common_vfx.length) })]),
+  h("span", {}, ["切入圖 ", h("b", { text: String(DATA.specials.length) })]),
+  h("span", {}, ["產生自 ", h("code", { text: "tools/katana_art/build_prompt_book.js" })])
+);
+render();
+</script>
