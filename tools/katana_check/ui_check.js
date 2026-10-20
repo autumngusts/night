@@ -82,21 +82,30 @@ async function autoGame(page) {
   var kind = await page.evaluate(function (q) {
     var b = Array.prototype.filter.call(document.querySelectorAll('.kt-mg[data-live="1"]'), function (x) { return !!x.ktAuto; })[0];
     if (!b) return null;
+    b.setAttribute("data-auto", "1");
     b.ktAuto(q);
     return b.className;
   }, QUALITY);
   assert.ok(kind, "no live minigame to play");
-  await page.waitForFunction(function () {
-    return !Array.prototype.some.call(document.querySelectorAll('.kt-mg[data-live="1"]'), function (x) { return !!x.ktAuto; });
-  }, null, { timeout: 60000 });
+  // 等這一個遊戲結束（完成後畫面重畫，這個節點就不在了；之後可能接著出現下一個遊戲，例如切半）
+  await page.waitForFunction(function () { return !document.querySelector('.kt-mg[data-auto="1"]'); }, null, { timeout: 60000 });
   var r = await page.evaluate(function () { var u = window.PriTestKatana._ui(); var ks = Object.keys(u.mg); return u.mg[ks[ks.length - 1]]; });
   mgScores.push({ kind: kind.replace("kt-mg ", ""), q: QUALITY, acc: r.acc, cold: r.cold || 0 });
+}
+
+// 畫框裡有可以自動遊玩的小遊戲就一直玩（折返時打延之後還有切半）
+async function autoAll(page) {
+  for (var i = 0; i < 4; i++) {
+    var live = await page.evaluate(function () { return Array.prototype.some.call(document.querySelectorAll('.kt-mg[data-live="1"]'), function (x) { return !!x.ktAuto; }); });
+    if (!live) return;
+    await autoGame(page);
+  }
 }
 
 async function doStep(page, stepId) {
   if (process.env.KT_VERBOSE) console.log("step", stepId);
   if (stepId === "kowari") {
-    await autoGame(page);
+    await autoAll(page);
     // 散落的碎片：檢視窗口自動換到下一片；每 4 片丟 1 片，其餘當皮鐵
     assert.strictEqual(await page.locator(".kt-shard-btn").count(), 12, "12 scattered pieces");
     for (var k = 0; k < 12; k++) {
@@ -113,16 +122,16 @@ async function doStep(page, stepId) {
     await doHeat(page, 5200);
   } else if (stepId === "tsukurikomi") {
     await doHeat(page, 5200);
-    await autoGame(page);
+    await autoAll(page);
   } else if (stepId === "yakiire") {
     await doHeat(page, 3200);
     await page.waitForTimeout(400);
     await mustClick(page, "kt_plunge");
   } else if (stepId === "shitakitae" || stepId === "uwakitae") {
     await doHeat(page, 4800);
-    await autoGame(page);
+    await autoAll(page);
   } else if (stepId === "sunobe" || stepId === "hizukuri") {
-    await autoGame(page);
+    await autoAll(page);
   } else if (stepId === "tsuchioki") {
     if (await page.locator(".kt-clay-canvas").count()) await drawClay(page);
   } else if (stepId === "aitori") {
@@ -133,9 +142,9 @@ async function doStep(page, stepId) {
     for (var s = 0; s < 11; s++) {
       await page.evaluate(function () { var b = document.querySelector(".kt-stone:not([disabled])"); if (b) b.click(); });
     }
-    await autoGame(page);
+    await autoAll(page);
   } else if (stepId === "mei") {
-    await autoGame(page);
+    await autoAll(page);
   }
   var fin = await clickKey(page, "kt_finish_step");
   if (!fin) {
@@ -303,7 +312,8 @@ async function forgeAll(page, onMaterial) {
   var good = mgScores.filter(function (m) { return m.q >= 1; }), bad = mgScores.filter(function (m) { return m.q < 1; });
   var kinds = {};
   good.forEach(function (m) { kinds[m.kind] = true; });
-  ["kt-shatter", "kt-arc", "kt-music", "kt-memory"].forEach(function (k) { assert.ok(kinds[k], "played " + k + ": " + Object.keys(kinds)); });
+  // 每局抽到的小遊戲不同（各類型個別的檢查在 games_check.js）；這裡只確認一局裡有好幾種
+  assert.ok(Object.keys(kinds).length >= 4, "several game types in one forge: " + Object.keys(kinds));
   good.forEach(function (m) { assert.ok(m.acc >= 0.85, "good play scores high: " + JSON.stringify(m)); });
   // 照節奏打（音樂）、照順序打（記憶）、會回爐（圓弧）的人不會打到冷掉的鋼
   good.forEach(function (m) { assert.strictEqual(m.cold, 0, "no cold strikes in good play: " + JSON.stringify(m)); });

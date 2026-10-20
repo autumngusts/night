@@ -69,6 +69,7 @@
     if (anim) {
       if (anim.id) cancelAnimationFrame(anim.id);
       if (anim.onKey) document.removeEventListener("keydown", anim.onKey);
+      if (anim.onKeyUp) document.removeEventListener("keyup", anim.onKeyUp);
       anim = null;
     }
   }
@@ -719,10 +720,11 @@
       el: el, t: t, L: L, tempColor: tempColor, result: ui.mg[key] || null,
       mode: state && state.mode === "serious" ? "serious" : "show",
       seed: (state ? state.seed : "x") + "|" + key,
-      run: function (kind, frame, onKey) {
+      run: function (kind, frame, onKey, onKeyUp) {
         stopAnim();
         var me = anim = { kind: kind };
         if (onKey) { me.onKey = onKey; document.addEventListener("keydown", onKey); }
+        if (onKeyUp) { me.onKeyUp = onKeyUp; document.addEventListener("keyup", onKeyUp); }
         var last = performance.now();
         function loop(now) {
           if (anim !== me) return;
@@ -738,6 +740,52 @@
     };
   }
   var Games = window.PriTestKatanaGames;
+
+  // 每道工序的小遊戲候選（使用者指定 2026-10-20：不同鍛造碰到不同類型）。
+  // 每一局依 seed 抽一種；同一位鍛冶師連續兩道工序不抽同一種。小割固定是碎裂。
+  var GAME_POOLS = {
+    shitakitae: ["music", "arc", "arrows", "mash"],
+    uwakitae: ["music", "arc", "arrows", "mash"],
+    tsukurikomi: ["arc", "whack", "charge"],
+    sunobe: ["arc", "mash", "charge", "whack"],
+    hizukuri: ["memory", "whack", "arrows"],
+    togi: ["music", "charge", "arrows"],
+    mei: ["memory", "arrows"]
+  };
+  function gameFor(pIndex, stepId) { return gameForSeed(state.seed, pIndex, stepId); }
+  function gameForSeed(seed, pIndex, stepId) {
+    var prev = null;
+    for (var i = 0; i < D.STEPS.length; i++) {
+      var pool = GAME_POOLS[D.STEPS[i].id];
+      if (!pool) continue;
+      var opts = pool.filter(function (g) { return g !== prev; });
+      var rng = Core.makeRng(seed + "|game|" + pIndex + "|" + D.STEPS[i].id);
+      var pick = opts[Math.floor(rng() * opts.length)];
+      if (D.STEPS[i].id === stepId) return pick;
+      prev = pick;
+    }
+    return null;
+  }
+
+  // 依抽到的類型組出設定。base：{ title, strikes: [表演, 較真], minStrikes, coolMs, grow, lanes, hammer, segments, labels, points, backdrop, text }
+  function stepGame(pIndex, stepId, mkey, base) {
+    var type = gameFor(pIndex, stepId);
+    var serious = state.mode === "serious";
+    var cfg = { title: base.title + "（" + t("kt_gt_" + type) + "）", coolMs: base.coolMs, grow: base.grow, minStrikes: base.minStrikes };
+    cfg.strikes = Math.max(base.minStrikes || 0, serious ? base.strikes[1] : base.strikes[0]);
+    cfg.labels = base.labels;
+    cfg.lanes = base.lanes; cfg.hammer = base.hammer; cfg.segments = base.segments;
+    cfg.points = base.points; cfg.backdrop = base.backdrop; cfg.text = base.text;
+    var box = Games[type](mgCtx(mkey), cfg);
+    box.setAttribute("data-game", type);
+    return box;
+  }
+
+  // 方向指令的四個方向代表的部位（依工序）
+  function dirLabels(kind) {
+    return { up: t("kt_dir_" + kind + "_up"), down: t("kt_dir_" + kind + "_down"), left: t("kt_dir_" + kind + "_left"), right: t("kt_dir_" + kind + "_right") };
+  }
+  function hammerLanes() { return [t("kt_lane_yokoza"), t("kt_lane_saki_l"), t("kt_lane_saki_r")]; }
 
   // 刀種相稱的選項：先找刀種宣告的第一個，找不到就取刃數相符的第一個
   function edgesOk(o, bt) { return !o.edges || o.edges === bt.edges; }
@@ -780,7 +828,7 @@
     switch (step.id) {
       case "kowari": return ["mizuheshi"];
       case "tsumi": return ["stack", "heat"];
-      case "shitakitae": case "uwakitae": return ["heat", "hammer"];
+      case "shitakitae": case "uwakitae": return d.folds > 0 ? ["heat", "hammer", "cut"] : ["heat", "hammer"];
       case "tsukurikomi": return ["heat", "hammer"];
       case "sunobe": return ["hammer"];
       case "hizukuri": return ["hammer"];
@@ -802,6 +850,8 @@
     function mg(part) { return ui.mg[mgKey(pIndex, step.id, part)]; }
     if (parts.indexOf("heat") >= 0) { x.temp = mg("heat").temp; if (mg("heat").delay !== undefined) x.delay = mg("heat").delay; }
     if (parts.indexOf("hammer") >= 0) x.hammer = mg("hammer");
+    // 折返的切込み：切得不均，折起來的層也不均——打延成績 ×(0.8＋0.2×切半準確度)
+    if (parts.indexOf("cut") >= 0) { x.hammer = Core.clone(x.hammer); x.hammer.acc = Math.round(x.hammer.acc * (0.8 + 0.2 * mg("cut").acc) * 100) / 100; x.cut = mg("cut"); }
     if (step.id === "kowari") { x.mizuheshi = mg("mizuheshi"); if (d.picks.indexOf(null) >= 0) return null; }
     if (step.id === "tsumi") x.stack = mg("stack");
     if (step.id === "tsuchioki") x.clayAcc = d.hamon === "none" ? 1 : mg("clay").acc;
@@ -897,14 +947,16 @@
       if (state.assist) box.appendChild(metalInfo(b));
       box.appendChild(el("div", { class: "kt-muted", text: d.folds ? t("kt_heat_goal_weld") : t("kt_heat_goal_forge") }));
       box.appendChild(heatGame({ key: heatKey, win: Core.heatWindow(b, "fold", { folds: d.folds }), daylight: false, title: t("kt_mg_heat") }));
-      if (heatDone) box.appendChild(Games.music(mgCtx(hamKey), { title: d.folds ? t("kt_mg_fold_hammer") : t("kt_mg_hammer"),
-        lanes: [t("kt_lane_yokoza"), t("kt_lane_saki_l"), t("kt_lane_saki_r")], hammer: true, coolMs: 7000 }));
+      if (heatDone) box.appendChild(stepGame(pIndex, step.id, hamKey, { title: d.folds ? t("kt_mg_fold_hammer") : t("kt_mg_hammer"),
+        strikes: [8, 12], minStrikes: Core.HAMMER_STRIKES, coolMs: 7000, lanes: hammerLanes(), hammer: true, labels: dirLabels("h") }));
+      // 折返：打延之後切込み，把不規則的鋼塊切成兩半
+      if (heatDone && d.folds > 0 && ui.mg[hamKey]) box.appendChild(Games.cut(mgCtx(key("cut")), { title: t("kt_mg_cut") }));
     } else if (step.kind === "construct") {
       box.appendChild(field(t("kt_f_construction"), radioList("con", D.CONSTRUCTIONS, d.construction, function (v) { setDraft(d, "construction", v); },
         { disabled: function (o) { return o.needsShingane && b.shinId === "none"; } })));
       box.appendChild(constructionDiagram(d.construction));
       box.appendChild(heatGame({ key: heatKey, win: Core.heatWindow(b, "weld"), daylight: false, title: t("kt_mg_weld") }));
-      if (heatDone) box.appendChild(Games.arc(mgCtx(hamKey), { title: t("kt_mg_weld_hammer"), strikes: state.mode === "serious" ? 8 : 6, coolMs: 6000 }));
+      if (heatDone) box.appendChild(stepGame(pIndex, step.id, hamKey, { title: t("kt_mg_weld_hammer"), strikes: [6, 8], coolMs: 6000, labels: dirLabels("h") }));
     } else if (step.kind === "sunobe") {
       var bt = Core.byId(D.BLADE_TYPES, b.type);
       box.appendChild(el("p", {}, [el("strong", { text: L(bt.name) }), "：" + L(bt.desc) + " " + t("kt_ideal_len", { lo: bt.ideal[0], hi: bt.ideal[1] })]));
@@ -916,7 +968,7 @@
       updNeed();
       box.appendChild(field(t("kt_f_length"), slider(bt.min, bt.max, 1, d.length, function (v) { return v + " cm"; }, function (v) { d.length = v; updNeed(); }), null));
       box.appendChild(need);
-      box.appendChild(Games.arc(mgCtx(hamKey), { title: t("kt_mg_sunobe"), strikes: Math.max(Core.HAMMER_STRIKES, state.mode === "serious" ? 10 : 8), coolMs: 8000, grow: true }));
+      box.appendChild(stepGame(pIndex, step.id, hamKey, { title: t("kt_mg_sunobe"), strikes: [8, 10], minStrikes: Core.HAMMER_STRIKES, coolMs: 8000, grow: true, labels: dirLabels("h") }));
     } else if (step.kind === "hizukuri") {
       var hbt = Core.byId(D.BLADE_TYPES, b.type);
       var preview = el("div", { class: "kt-preview" });
@@ -942,7 +994,8 @@
       box.appendChild(field(t("kt_f_mihaba"), slider(wLo, wHi, 1, d.mihaba, function (v) { return v + " mm"; }, function (v) { d.mihaba = v; updPreview(); })));
       box.appendChild(field(t("kt_f_kasane"), slider(kLo, kHi, kHi < 3 ? 0.1 : 0.5, d.kasane, function (v) { return v + " mm"; }, function (v) { d.kasane = v; updPreview(); })));
       box.appendChild(field(t("kt_f_forge_sori"), slider(sLo, sHi, 1, d.forgeSori, function (v) { return v + " mm"; }, function (v) { d.forgeSori = v; updPreview(); }), t("kt_forge_sori_note")));
-      box.appendChild(Games.memory(mgCtx(hamKey), { title: t("kt_mg_hizukuri"), points: Games.bladePoints(), backdrop: "bar", coolMs: 7000 }));
+      box.appendChild(stepGame(pIndex, step.id, hamKey, { title: t("kt_mg_hizukuri"), strikes: [8, 10], coolMs: 7000,
+        points: Games.bladePoints(), backdrop: "bar", labels: dirLabels("h") }));
     } else if (step.kind === "tsuchioki") {
       var pb2 = Core.clone(b);
       pb2.hamon = d.hamon === "none" ? null : d.hamon; pb2.ashi = d.ashi;
@@ -992,8 +1045,9 @@
       box.appendChild(field(t("kt_f_stone_seq"), d.order.length ? seq : el("div", { class: "kt-muted", text: t("kt_stone_empty") })));
       box.appendChild(field(t("kt_f_edge"), radioList("edge", D.EDGE_GEOMETRY, d.edge, function (v) { setDraft(d, "edge", v); })));
       if (d.order.length || ui.mg[key("rhythm")]) {
-        box.appendChild(Games.music(mgCtx(key("rhythm")), { title: t("kt_mg_rhythm"), lanes: [t("kt_lane_ha"), t("kt_lane_shinogi"), t("kt_lane_ji"), t("kt_lane_kissaki")],
-          segments: d.order.map(function (id) { return L(Core.byId(D.STONES, id).name); }) }));
+        box.appendChild(stepGame(pIndex, step.id, key("rhythm"), { title: t("kt_mg_rhythm"), strikes: [8, 12],
+          lanes: [t("kt_lane_ha"), t("kt_lane_shinogi"), t("kt_lane_ji"), t("kt_lane_kissaki")],
+          segments: d.order.map(function (id) { return L(Core.byId(D.STONES, id).name); }), labels: dirLabels("t") }));
       } else box.appendChild(el("div", { class: "kt-muted", text: t("kt_togi_pick_first") }));
     } else if (step.kind === "mei") {
       box.appendChild(field(t("kt_f_yasurime"), radioList("yasurime", D.YASURIME, d.yasurime, function (v) { setDraft(d, "yasurime", v); }, { compact: true })));
@@ -1006,8 +1060,9 @@
       box.appendChild(bladeSvg(pb3));
       // 鏨的順序：每個字左右兩個鏨位（無銘時是鑢目與目釘穴的 4 點），記住亮起的順序再依序敲
       var meiText = d.mei.trim();
-      box.appendChild(Games.memory(mgCtx(key("chisel")), { title: meiText ? t("kt_mg_chisel") : t("kt_mg_chisel_mumei"),
-        points: Games.platePoints(meiText), backdrop: "plate", text: Games.plateText(meiText).join("") }));
+      var nStroke = Math.max(4, Math.min(12, Games.plateText(meiText).length * 2));
+      box.appendChild(stepGame(pIndex, step.id, key("chisel"), { title: meiText ? t("kt_mg_chisel") : t("kt_mg_chisel_mumei"), strikes: [nStroke, nStroke],
+        points: Games.platePoints(meiText), backdrop: "plate", text: Games.plateText(meiText).join(""), labels: dirLabels("m") }));
     }
     return box;
   }
@@ -3071,6 +3126,7 @@
   // 測試用
   window.PriTestKatana = { _state: function () { return state; }, _ui: function () { return ui; }, _render: render,
     _scabbard: scabbardLoad, _encode: encodeSnap, _decode: decodeSnap,
+    _gameForSeed: gameForSeed, _mgCtx: function (key) { return mgCtx(key); },
     _scExport: scabbardExportCode, _scParse: parseScabbardExport, _scImport: scabbardImport, _scMax: SCABBARD_MAX,
     // 美術參考圖（tools/katana_art/build_prompt_book.js 用）：每個刀種的標準刀形，用遊戲本身的繪圖輸出
     _artRef: {
