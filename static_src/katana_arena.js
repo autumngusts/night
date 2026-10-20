@@ -32,6 +32,10 @@
   var STYLE_DECK = { attack: ["issen", "dash"], defense: ["mikiri", "guard"], stamina: ["spin", "iai"], balance: ["momiji", "mikiri"] };
   // 打法：[推進力倍率, 勢い衰減倍率, 追擊力]
   var STYLE_PARAM = { attack: [1.3, 1.0, 34], defense: [0.8, 0.9, 14], stamina: [1.0, 0.6, 6], balance: [1.05, 0.85, 24] };
+  // 試合模式（使用者指定 2026-10-20）：刀不自轉。停在壁面收刀 → 抽出斬擊方向、先亮刀光路徑 → 沿路徑斬到下一個壁面停下。
+  // 路上碰到其他刀＝刀刃相接（火花、互相削耐久），雙方往隨機方向彈開，停下後繼續下一輪。招式全自動。
+  var SHIAI = { SHEATHE: 0.45, SHEATHE_RND: 0.6, AIM: 0.55, SPEED: 175, RECOIL: 130, AIM_ENEMY: 0.55, CLASH: 9 };
+  var MODES = ["koma", "shiai"];
   var COLORS = ["#e2553f", "#3f8fe2", "#e2b23f", "#52b06a", "#a35fd6", "#e27fb6", "#4fc4c4", "#c48a4f", "#9aa0a6", "#d6d65f"];
 
   var clamp = Core.clamp;
@@ -77,11 +81,11 @@
   function has(f, trait) { return f.prof.traits.indexOf(trait) >= 0; }
 
   // ---------------- 建立 ----------------
-  // fighters：[{ id, name, human, snap, hp }]
+  // fighters：[{ id, name, human, snap, hp }]；mode："koma"（陀螺，預設）｜"shiai"（試合）
   function create(opts) {
     var n = opts.fighters.length;
     var a = {
-      seed: String(opts.seed), time: 0, round: 1, over: false, winner: null, ver: 1,
+      seed: String(opts.seed), mode: MODES.indexOf(opts.mode) >= 0 ? opts.mode : "koma", time: 0, round: 1, over: false, winner: null, ver: 1,
       fighters: [], binds: [], cooldown: {}, ghost: {}, events: [], log: [], hazards: [], timed: [], outOrder: [],
       // 亂數狀態存成數字（與 Core.makeRng 同一個 mulberry32），整個狀態才能序列化給連線對刀同步
       rng: Core.hashStr("arena|" + opts.seed)
@@ -105,6 +109,13 @@
         fx: {}, buffs: [], dots: [], wander: 0.5 + rng(), driveMul: 1, uid: 0
       };
       if (f.hp <= 0) { f.alive = false; f.out = "break"; }
+      if (a.mode === "shiai") {
+        // 試合：站在壁面、刀朝場中，先收刀一會兒（錯開出手時間）
+        var lim0 = R - prof.radius;
+        f.x = Math.cos(ang) * lim0; f.y = Math.sin(ang) * lim0; f.vx = 0; f.vy = 0;
+        f.rot = ang + Math.PI;
+        f.sh = { st: "sheathe", t: SHIAI.SHEATHE + rng() * SHIAI.SHEATHE_RND, dir: f.rot, x0: f.x, y0: f.y, x1: f.x, y1: f.y, aimEnemy: false };
+      }
       draw(f, HAND);
       a.fighters.push(f);
     });
@@ -133,6 +144,12 @@
     return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
   }
   function emit(a, ev) { ev.t = a.time; a.events.push(ev); }
+
+  // 擊退：陀螺是加速度；試合模式下被擊退的刀進入「彈開」狀態，停下後才繼續下一輪
+  function knock(a, g, vx, vy) {
+    g.vx += vx; g.vy += vy;
+    if (a.mode === "shiai" && g.sh && g.alive) g.sh.st = "recoil";
+  }
   function byFid(a, id) { for (var i = 0; i < a.fighters.length; i++) if (a.fighters[i].id === id) return a.fighters[i]; return null; }
   function alive(a) { return a.fighters.filter(function (f) { return f.alive; }); }
 
@@ -204,12 +221,13 @@
     a.log.push({ t: a.time, type: "card", f: f.id, card: card });
     emit(a, { type: "card", f: f.id, card: card, x: f.x, y: f.y });
     if (card === "dash") {
-      if (e) { var d = Math.hypot(e.x - f.x, e.y - f.y) || 1; f.vx += (e.x - f.x) / d * 70; f.vy += (e.y - f.y) / d * 70; }
+      if (a.mode === "shiai") f.sh.aimEnemy = true; // 試合：下一刀直接斬向對手、刀光較短
+      else if (e) { var d = Math.hypot(e.x - f.x, e.y - f.y) || 1; f.vx += (e.x - f.x) / d * 70; f.vy += (e.y - f.y) / d * 70; }
       fx.dash = 1.5;
     } else if (card === "guard") fx.guard = 3;
     else if (card === "spin") f.spin = Math.min(1, f.spin + 0.25);
     else if (card === "mikiri") fx.mikiri = 4;
-    else if (card === "issen") fx.issen = 1.6;
+    else if (card === "issen") { fx.issen = 1.6; if (a.mode === "shiai") f.sh.aimEnemy = true; }
     else if (card === "iai") fx.iaiHold = 1.0;
     else if (card === "momiji") fx.momiji = 4;
     else if (card === "kaika") fx.kaika = 4;
@@ -290,7 +308,7 @@
     if (st.dispel && g.buffs.length) { g.buffs = []; a.ver++; emit(a, { type: "dispel", f: g.id, x: g.x, y: g.y }); }
     if (st.knock) {
       var dx = g.x - f.x, dy = g.y - f.y, d = Math.hypot(dx, dy) || 1;
-      g.vx += dx / d * st.knock; g.vy += dy / d * st.knock;
+      knock(a, g, dx / d * st.knock, dy / d * st.knock);
     }
   }
 
@@ -314,6 +332,7 @@
       f.y = tgt.y + Math.sin(ang) * (f.prof.radius + tgt.prof.radius + 2);
       emit(a, { type: "lightning", f: f.id, x: fromX, y: fromY, x2: tgt.x, y2: tgt.y, color: sp.color });
       pairCool(a, f, tgt, 1.2);
+      if (a.mode === "shiai") shiaiStop(a, f);
     } else emit(a, { type: "slash", f: f.id, x: tgt.x, y: tgt.y, color: sp.color });
     strikeOne(a, f, tgt, st, sp);
   }
@@ -337,7 +356,7 @@
         if (oh.dot) g.dots.push({ kind: oh.dot.kind, dps: oh.dot.dps, t: oh.dot.t, src: f.id });
         if (oh.stun) g.fx.stun = Math.max(g.fx.stun || 0, oh.stun);
         if (oh.drain) g.spin -= oh.drain;
-        if (oh.knock) { var dx = g.x - f.x, dy = g.y - f.y, d = Math.hypot(dx, dy) || 1; g.vx += dx / d * oh.knock; g.vy += dy / d * oh.knock; }
+        if (oh.knock) { var dx = g.x - f.x, dy = g.y - f.y, d = Math.hypot(dx, dy) || 1; knock(a, g, dx / d * oh.knock, dy / d * oh.knock); }
         if (oh.dmg || oh.knock) emit(a, { type: "slash", f: f.id, x: (f.x + g.x) / 2, y: (f.y + g.y) / 2, color: b.color });
       }
       if (b.ramp) b.dmg = (b.dmg || 1) + b.ramp;
@@ -356,6 +375,7 @@
 
   // ---------------- 碰撞 ----------------
   function collide(a, f, g) {
+    if (a.mode === "shiai") { shiaiCollide(a, f, g); return; }
     var dx = g.x - f.x, dy = g.y - f.y;
     var d = Math.hypot(dx, dy) || 0.001;
     var minD = reach(f) + reach(g);
@@ -508,7 +528,7 @@
             var dx = g.x - f.x, dy = g.y - f.y, d = Math.hypot(dx, dy) || 1;
             if (d > f.prof.radius * 3.5 + g.prof.radius) return;
             hit(a, f, g, 16 * f.prof.atk / g.prof.def * dmgMul(f), "iai");
-            g.vx += dx / d * 80; g.vy += dy / d * 80;
+            knock(a, g, dx / d * 80, dy / d * 80);
           });
           f.spin = Math.min(1, f.spin + 0.1);
         }
@@ -520,6 +540,7 @@
         return dt.t > 0 && f.alive;
       });
       if (!f.alive) return;
+      if (a.mode === "shiai") { shiaiMove(a, f); return; }
       if (fx.stun > 0) { f.vx *= 0.85; f.vy *= 0.85; return; }
       if (bound(a, f)) return;
 
@@ -565,6 +586,12 @@
     a.fighters.forEach(function (f) {
       if (!f.alive) return;
       f.x += f.vx * DT; f.y += f.vy * DT;
+      if (a.mode === "shiai") {
+        // 斬到（或彈到）壁面就停下收刀
+        var rs = Math.hypot(f.x, f.y), ls = R - f.prof.radius;
+        if (rs > ls) { f.x = f.x / rs * ls; f.y = f.y / rs * ls; if (f.sh.st === "slash" || f.sh.st === "recoil") shiaiStop(a, f); }
+        return;
+      }
       f.rot += (6 + 22 * f.spin) * f.dir * DT;
       // 場地邊緣（注連縄）：反彈並損失勢い
       var r = Math.hypot(f.x, f.y), lim = R - f.prof.radius;
@@ -608,12 +635,132 @@
       return false;
     });
 
-    a.fighters.forEach(function (f) { if (f.alive && f.spin <= 0) { f.spin = 0; knockOut(a, f, "stall"); } });
+    if (a.mode === "shiai") a.fighters.forEach(function (f) { if (f.spin < 0.2) f.spin = 0.2; }); // 試合沒有力竭
+    else a.fighters.forEach(function (f) { if (f.alive && f.spin <= 0) { f.spin = 0; knockOut(a, f, "stall"); } });
     checkEnd(a);
   }
 
+  // ---------------- 試合模式 ----------------
+  function shiaiStop(a, f) {
+    f.sh.st = "sheathe";
+    f.sh.t = SHIAI.SHEATHE + rnd(a) * SHIAI.SHEATHE_RND;
+    f.vx = 0; f.vy = 0;
+  }
+
+  // 抽出斬擊方向：大多隨機（從壁面往場內），一部分大致朝最近的對手；踏進・一閃・覺醒招式發動中直接斬向對手
+  function shiaiAim(a, f) {
+    var e = nearestEnemy(a, f), ang;
+    var lock = f.sh.aimEnemy || (f.buffs.length > 0 && !bany(f, "noSeek"));
+    f.sh.aimEnemy = false;
+    if (e && (lock || rnd(a) < SHIAI.AIM_ENEMY)) ang = Math.atan2(e.y - f.y, e.x - f.x) + (lock ? 0 : (rnd(a) - 0.5) * 0.9);
+    else if (Math.hypot(f.x, f.y) > R * 0.5) ang = Math.atan2(-f.y, -f.x) + (rnd(a) - 0.5) * 2.2;
+    else ang = rnd(a) * Math.PI * 2;
+    var dx = Math.cos(ang), dy = Math.sin(ang), lim = R - f.prof.radius;
+    var pd = f.x * dx + f.y * dy, pp = f.x * f.x + f.y * f.y;
+    var tt = -pd + Math.sqrt(Math.max(0, pd * pd - pp + lim * lim));
+    f.sh.dir = ang; f.rot = ang;
+    f.sh.x0 = f.x; f.sh.y0 = f.y; f.sh.x1 = f.x + dx * tt; f.sh.y1 = f.y + dy * tt;
+  }
+
+  function shiaiSpeed(f) {
+    return SHIAI.SPEED * (f.prof.drive / 30) * f.driveMul * (0.6 + 0.4 * f.spin) * bprod(f, "speed") *
+      (f.fx.slow > 0 ? 0.55 : 1) * (f.fx.issen > 0 ? 1.6 : 1);
+  }
+
+  function shiaiMove(a, f) {
+    var sh = f.sh, fx = f.fx;
+    if (fx.iaiHold > 0 || fx.stun > 0) { f.vx = 0; f.vy = 0; return; } // 居合的納刀・麻痺：原地不動
+    sh.t -= DT;
+    if (sh.st === "sheathe") {
+      f.vx = 0; f.vy = 0;
+      if (sh.t <= 0) {
+        shiaiAim(a, f);
+        sh.st = "aim";
+        sh.t = SHIAI.AIM * (fx.dash > 0 || fx.issen > 0 ? 0.5 : 1);
+        emit(a, { type: "aim", f: f.id, x: sh.x0, y: sh.y0, x2: sh.x1, y2: sh.y1 });
+      }
+    } else if (sh.st === "aim") {
+      f.vx = 0; f.vy = 0;
+      if (sh.t <= 0) sh.st = "slash";
+    } else if (sh.st === "slash") {
+      var v = shiaiSpeed(f);
+      f.vx = Math.cos(sh.dir) * v; f.vy = Math.sin(sh.dir) * v;
+    } else if (sh.st === "recoil") {
+      var k = Math.exp(-3 * DT);
+      f.vx *= k; f.vy *= k;
+      if (Math.hypot(f.vx, f.vy) < 18) shiaiStop(a, f);
+    }
+  }
+
+  // 試合：碰到就是刀刃相接（不論對方在斬擊中或停在壁面）。火花、互相削耐久，雙方往隨機方向彈開
+  function shiaiCollide(a, f, g) {
+    var dx = g.x - f.x, dy = g.y - f.y;
+    var d = Math.hypot(dx, dy) || 0.001;
+    if (d >= reach(f) + reach(g) || cooling(a, f, g)) return;
+    var nx = dx / d, ny = dy / d;
+    var mx = (f.x + g.x) / 2, my = (f.y + g.y) / 2;
+    // 穿身閃避（霞・蟲・三日月）
+    var ev = Math.max(bmax(f, "evade"), bmax(g, "evade"));
+    if (ev && rnd(a) < ev) {
+      var ef = bmax(f, "evade") >= bmax(g, "evade") ? f : g, eo = ef === f ? g : f;
+      onContact(a, ef, eo);
+      emit(a, { type: "evade", f: ef.id, x: ef.x, y: ef.y });
+      pairCool(a, f, g, 0.5);
+      return;
+    }
+    pairCool(a, f, g, 0.6);
+    var mk = f.fx.mikiri > 0 ? [f, g] : (g.fx.mikiri > 0 ? [g, f] : null);
+    if (mk) {
+      mk[0].fx.mikiri = 0;
+      hit(a, mk[0], mk[1], 14 * mk[0].prof.atk / mk[1].prof.def * dmgMul(mk[0]), "mikiri");
+      emit(a, { type: "mikiri", f: mk[0].id, x: mx, y: my });
+    } else {
+      var skip = onContact(a, f, g);
+      skip = onContact(a, g, f) || skip;
+      if (!f.alive || !g.alive) return;
+      emit(a, { type: "bind", a: f.id, b: g.id, x: mx, y: my });
+      a.log.push({ t: a.time, type: "bind", a: f.id, b: g.id });
+      if (!skip) {
+        var rel = Math.hypot(f.vx - g.vx, f.vy - g.vy), spdK = clamp(0.6 + rel / 300, 0.6, 1.5);
+        // 雙方的損傷先算好再同時套用（否則編號小的一方永遠先出手，致命的一擊也總是它先）
+        var dmgOf = function (me, op) {
+          return SHIAI.CLASH * me.prof.atk / op.prof.def * dmgMul(me) * bprod(me, "bindMul") * spdK *
+            Math.sqrt(effMass(me) / effMass(op)) * (has(me, "slice") ? 1.15 : 1) * (me.fx.momiji > 0 ? 1.6 : 1) *
+            (has(me, "thrust") && me.sh.st === "slash" ? 1.4 : 1);
+        };
+        var dFG = dmgOf(f, g), dGF = dmgOf(g, f);
+        hit(a, f, g, dFG, "clash");
+        hit(a, g, f, dGF, "clash");
+        [[f, g], [g, f]].forEach(function (pr) {
+          var me = pr[0], op = pr[1];
+          if (!me.alive || !op.alive) return;
+          op.spin -= 0.04 + (me.fx.momiji > 0 ? 0.08 : 0) + (has(me, "wave") ? 0.03 : 0) + bsum(me, "bindDrain");
+          if (me.fx.kaika > 0 && op.alive) {
+            me.fx.kaika = 0;
+            hit(a, me, op, 12 * me.prof.atk / op.prof.def * dmgMul(me), "kaika");
+            emit(a, { type: "bloom", f: me.id, x: mx, y: my });
+          }
+          if (has(me, "double") && op.alive) hit(a, me, op, 4 * me.prof.atk / op.prof.def * dmgMul(me), "double");
+          if (has(me, "cracked") && rnd(a) < 0.05) { emit(a, { type: "crackbreak", f: me.id, x: me.x, y: me.y }); knockOut(a, me, "break"); }
+          else if (has(me, "brittle") && rnd(a) < 0.22 * me.prof.chip) { me.chips++; hit(a, op, me, 4, "chip"); emit(a, { type: "chip", f: me.id, x: me.x, y: me.y }); }
+          if (me.alive && has(me, "soft") && rnd(a) < 0.3) { me.bends++; me.driveMul *= 0.92; emit(a, { type: "bend", f: me.id, x: me.x, y: me.y }); }
+        });
+      }
+    }
+    // 彈開：大致往遠離對方的方向，加上隨機角度；重的刀把對方彈得更遠
+    [[f, g, -1], [g, f, 1]].forEach(function (pr) {
+      var me = pr[0], op = pr[1];
+      if (!me.alive) return;
+      var ang = Math.atan2(ny * pr[2], nx * pr[2]) + (rnd(a) - 0.5) * 2.4;
+      var sp = SHIAI.RECOIL * Math.sqrt(effMass(op) / effMass(me)) * (has(op, "heavy") ? 1.4 : 1);
+      me.vx = Math.cos(ang) * sp; me.vy = Math.sin(ang) * sp;
+      me.sh.st = "recoil";
+    });
+    emit(a, { type: "release", x: mx, y: my });
+  }
+
   function aiChoose(a, f) {
-    if (f.human || !f.alive || f.queue.length >= QUEUE) return;
+    if ((f.human && a.mode !== "shiai") || !f.alive || f.queue.length >= QUEUE) return; // 試合模式全自動
     var rng = Core.makeRng(a.seed + "|ai|" + f.id + "|" + a.round);
     if (f.special && !f.specialUsed && (f.hp < f.prof.maxHp * 0.7 || a.round >= 2) && rng() < 0.7) { queueCard(a, f.id, "special"); return; }
     if (!f.hand.length || rng() > 0.55) return;
@@ -654,6 +801,13 @@
     if (!winner) {
       // 同時退場：最後退場者中剩餘耐久最高的一方
       var last = a.fighters.slice().sort(function (x, y) { return (y.outTime - x.outTime) || (y.hp - x.hp); })[0];
+      if (a.mode === "shiai") {
+        // 試合常有相討ち：同一刻退場的刀中造成損傷較多者勝，再相同就抽籤（不讓編號小的一方永遠贏）
+        var tied = a.fighters.filter(function (x) { return x.outTime === last.outTime && x.hp === last.hp; });
+        var best = Math.max.apply(null, tied.map(function (x) { return Math.round(x.dealt); }));
+        tied = tied.filter(function (x) { return Math.round(x.dealt) === best; });
+        last = tied[Math.floor(rnd(a) * tied.length)];
+      }
       winner = last;
     }
     a.winner = winner.id;
@@ -724,7 +878,7 @@
   }
 
   window.PriTestKatanaArena = {
-    R: R, DT: DT, ROUND_S: ROUND_S, MAX_ROUNDS: MAX_ROUNDS, HAND: HAND, QUEUE: QUEUE,
+    R: R, DT: DT, ROUND_S: ROUND_S, MAX_ROUNDS: MAX_ROUNDS, HAND: HAND, QUEUE: QUEUE, MODES: MODES, SHIAI: SHIAI,
     profile: profile, create: create, bany: bany, step: step, queueCard: queueCard, result: result, run: run, cardDef: cardDef,
     serialize: serialize, restore: restore, atBoundary: atBoundary
   };

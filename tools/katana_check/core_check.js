@@ -368,5 +368,59 @@ console.log("katana core_check OK");
     assert.ok(bc.binds[0].a === bc.fighters.filter(function (f) { return f.id === bb.binds[0].a.id; })[0], "bind refs restored");
   }
   console.log("arena serialize/restore OK");
+
+  // ---- 試合模式（2026-10-20）：刀不自轉、收刀→刀光→斬到壁面；碰到就相接、互相削、彈開；全自動 ----
+  function shiai(seed, ids, humans) {
+    return Arena.create({ seed: seed, mode: "shiai", fighters: ids.map(function (id, i) { return { id: "s" + i, name: id, human: !!humans, snap: npc(id) }; }) });
+  }
+  var sa = shiai("sh1", ["sato", "hono"]);
+  assert.strictEqual(sa.mode, "shiai");
+  assert.ok(sa.fighters.every(function (f) { return f.sh && f.sh.st === "sheathe" && Math.abs(Math.hypot(f.x, f.y) - (Arena.R - f.prof.radius)) < 1e-6; }), "start at the wall, sheathed");
+  var seen = {}, rot0 = sa.fighters[0].rot, rotChangedWhileSheathed = false, pathOk = true;
+  for (var si = 0; si < 60 * 20 && !sa.over; si++) {
+    var st0 = sa.fighters.map(function (f) { return f.sh.st; });
+    Arena.step(sa);
+    sa.fighters.forEach(function (f, k) {
+      seen[f.sh.st] = true;
+      if (st0[k] === "sheathe" && f.sh.st === "sheathe" && k === 0 && f.rot !== rot0) rotChangedWhileSheathed = true;
+      if (f.sh.st === "aim") {
+        // 刀光的終點在壁面上
+        var rr = Math.hypot(f.sh.x1, f.sh.y1);
+        if (Math.abs(rr - (Arena.R - f.prof.radius)) > 1e-6) pathOk = false;
+      }
+    });
+    rot0 = sa.fighters[0].rot;
+  }
+  assert.ok(seen.sheathe && seen.aim && seen.slash && seen.recoil, "all states visited: " + Object.keys(seen));
+  assert.ok(!rotChangedWhileSheathed, "blade doesn't spin while sheathed");
+  assert.ok(pathOk, "aim path ends at the wall");
+  assert.ok(sa.log.some(function (e) { return e.type === "bind"; }), "blades clash in shiai");
+  // 打得完、沒有力竭；全自動（玩家的刀也由 AI 出牌）
+  var shRes = [], clashes = 0;
+  for (var sk = 0; sk < 40; sk++) {
+    var sb = shiai("shr" + sk, ["sato", "hono", "minarai"], true);
+    var rs = Arena.run(sb);
+    assert.ok(rs.winner && rs.placing.length === 3, "shiai finishes");
+    assert.ok(rs.summary.every(function (x) { return x.out !== "stall"; }), "no stall in shiai");
+    clashes += sb.log.filter(function (e) { return e.type === "bind"; }).length;
+    if (sb.log.some(function (e) { return e.type === "card"; })) shRes.push(1);
+  }
+  assert.ok(shRes.length > 30, "cards fire automatically for human blades in shiai: " + shRes.length);
+  assert.ok(clashes / 40 >= 3, "enough clashes per bout: " + clashes / 40);
+  // 同樣的刀對打不偏向編號小的一方（同時折斷時不再固定判給第一把）
+  var w0 = 0;
+  for (var sw = 0; sw < 200; sw++) { var rr2 = Arena.run(shiai("same" + sw, ["sato", "sato"])); if (rr2.winner === "s0") w0++; }
+  assert.ok(w0 > 70 && w0 < 130, "identical blades are even: s0 won " + w0 + "/200");
+  // 決定性＋每回合序列化還原（連線對刀用）
+  var refS = Arena.run(shiai("shdet", ["sato", "hono", "minarai", "sato"]));
+  var sc2 = shiai("shdet", ["sato", "hono", "minarai", "sato"]);
+  for (var sj = 0; sj < 20000 && !sc2.over; sj++) {
+    if (Arena.atBoundary(sc2)) Arena.restore(sc2, JSON.parse(JSON.stringify(Arena.serialize(sc2))));
+    Arena.step(sc2);
+  }
+  assert.deepStrictEqual(Arena.result(sc2), refS, "shiai serialize/restore keeps determinism");
+  // 陀螺模式預設不變
+  assert.strictEqual(Arena.create({ seed: "k", fighters: [{ id: "a", name: "a", snap: npc("sato") }, { id: "b", name: "b", snap: npc("sato") }] }).mode, "koma");
+  console.log("arena shiai OK (avg clashes " + (clashes / 40).toFixed(1) + ", s0 wins " + w0 + "/200)");
 })();
 console.log("katana arena checks OK");

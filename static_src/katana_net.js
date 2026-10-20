@@ -6,7 +6,8 @@
 //   on/<cid>          true（onDisconnect 自動移除＝在線）
 //   pl/<cid>          { name, snap: JSON 字串 | "", ready, at }
 //   npc               { <npcId>: true }（房主加入的 AI 對手刀）
-//   m/<no>            { seed, fighters: JSON 字串, startAt: 伺服器時刻 ms }
+//   mode              "koma" | "shiai"（對刀模式，房主選）
+//   m/<no>            { seed, fighters: JSON 字串, startAt: 伺服器時刻 ms, mode }
 //   in<no>/<r>/<cid>  { <fid>: "uid,uid" | "" }（各玩家第 r 回合放的牌）
 //   s<no>             { r, st: Arena.serialize(), end }（房主在每個回合交界寫的整份狀態）
 //
@@ -46,7 +47,7 @@
     var room = {
       id: roomId, cid: cid, creating: creating,
       loaded: false, missing: false, closed: false,
-      meta: null, online: {}, players: {}, npc: {}, match: null, matchNo: 0,
+      meta: null, online: {}, players: {}, npc: {}, arenaMode: "koma", match: null, matchNo: 0,
       me: { name: opts.name || "", snap: opts.snap || null, ready: false, at: 0 }
     };
 
@@ -64,6 +65,13 @@
         var p = room.players[k] || {};
         return { cid: k, name: String(p.name || "").slice(0, 16), snap: parseJson(p.snap), ready: !!p.ready, at: Number(p.at) || 0 };
       }).sort(function (x, y) { return (x.at - y.at) || (x.cid < y.cid ? -1 : 1); });
+    };
+
+    room.mode = function () { return room.arenaMode === "shiai" ? "shiai" : "koma"; };
+    room.setMode = function (m) {
+      if (!room.isHost()) return;
+      room.arenaMode = m === "shiai" ? "shiai" : "koma";
+      set("mode", room.arenaMode);
     };
 
     room.npcIds = function () { return Object.keys(room.npc || {}).filter(function (k) { return room.npc[k]; }); };
@@ -121,7 +129,7 @@
       });
       var no = (room.meta.no || 0) + 1;
       var seed = newCid() + Date.now();
-      set("m/" + no, { seed: seed, fighters: JSON.stringify(fighters), startAt: GS.serverNow() + START_DELAY_MS }).then(function () {
+      set("m/" + no, { seed: seed, fighters: JSON.stringify(fighters), startAt: GS.serverNow() + START_DELAY_MS, mode: room.mode() }).then(function () {
         if (no > 1) { set("m/" + (no - 1), null); set("in" + (no - 1), null); set("s" + (no - 1), null); }
         return set("meta", { v: 1, host: cid, no: no, status: "play" });
       });
@@ -162,7 +170,7 @@
         if (!v || room.matchNo !== no) return;
         var fs = parseJson(v.fighters);
         if (!Array.isArray(fs)) return;
-        room.match = { no: no, seed: String(v.seed), fighters: fs, startAt: Number(v.startAt) || 0 };
+        room.match = { no: no, seed: String(v.seed), fighters: fs, startAt: Number(v.startAt) || 0, mode: v.mode === "shiai" ? "shiai" : "koma" };
         changed();
       });
     }
@@ -185,6 +193,7 @@
       sub("on", function (v) { room.online = v || {}; maybeTakeHost(); changed(); });
       sub("pl", function (v) { room.players = v || {}; changed(); });
       sub("npc", function (v) { room.npc = v || {}; changed(); });
+      sub("mode", function (v) { room.arenaMode = v === "shiai" ? "shiai" : "koma"; changed(); });
       stopPresence = GS.rtSetWithOnDisconnect(roomId, CLOUD, path("on/" + cid), true);
       pushMe();
     }
@@ -276,7 +285,8 @@
             var now = Date.now();
             if (!waitStart) waitStart = now;
             var got = inputs[a.round] || {};
-            var need = a.fighters.filter(function (f) { return f.human && f.alive && f.cid && f.cid !== cid && room.online[f.cid]; });
+            // 試合模式全自動，沒有人會出牌：不用等
+            var need = a.mode === "shiai" ? [] : a.fighters.filter(function (f) { return f.human && f.alive && f.cid && f.cid !== cid && room.online[f.cid]; });
             var all = need.every(function (f) { return !!got[f.cid]; });
             if (!all && now - waitStart < LOCK_WAIT_MS) { ctl.waiting = "players"; return false; }
             // 離線的玩家改由 AI 接手（寫進狀態，大家看到的一致）

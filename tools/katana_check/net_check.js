@@ -1,7 +1,7 @@
 // ============================================================================
 // katana 連線對刀檢查（2026-10-20）：Firebase emulator 上 3 個瀏覽器（房主＋2 人）＋1 把 AI 刀
 //   建房 → 加入 → 選刀・準備 → 開打 → 各自出牌（只能操作自己的刀）→ 回合交界同步 →
-//   三邊結果一致 → 戰績寫回各自刀鞘 → 回到房間 → 第二場中途有人離線（改由 AI 接手）也能打完
+//   三邊結果一致 → 戰績寫回各自刀鞘 → 回到房間 → 第二場（試合模式）中途有人離線（改由 AI 接手）也能打完
 // 前置：
 //   1. py -3 generate.py
 //   2. py -3 -m http.server 8944 --directory dist
@@ -143,12 +143,17 @@ function playMyCard(page) {
     assert.strictEqual(sc.swords[0].rec.w + sc.swords[0].rec.l, 1, all[k3].label + " record written");
   }
 
-  // ---- 回到房間 → 第二場，三號中途離開 ----
+  // ---- 回到房間 → 第二場改成試合模式（房主選），三號中途離開 ----
   await host.dispatchEvent(".kt-net-back", "click");
   await p2.waitForSelector(".kt-room-start, .kt-room-ready", { timeout: 15000 });
+  await host.evaluate(function () { var r = document.querySelector('input[name="roomMode"][value="shiai"]'); r.checked = true; r.dispatchEvent(new Event("change")); });
+  await p2.waitForFunction(function () { return window.PriTestKatana._ui().room.mode() === "shiai"; }, null, { timeout: 15000 });
+  assert.ok(await p2.evaluate(function () { return document.querySelector('input[name="roomMode"][value="shiai"]').disabled; }), "only host picks the mode");
   await host.waitForFunction(function () { return window.PriTestKatana._ui().room.canStart(); }, null, { timeout: 15000 });
   await host.dispatchEvent(".kt-room-start", "click");
   for (var j2 = 0; j2 < all.length; j2++) await all[j2].waitForFunction(function () { var du = window.PriTestKatana._ui().duel; return du && du.no === 2 && du.arena.time > 0.2; }, null, { timeout: 20000 });
+  assert.strictEqual(await p2.evaluate(function () { return window.PriTestKatana._ui().duel.arena.mode; }), "shiai", "match 2 is a shiai bout");
+  assert.strictEqual(await p2.locator(".kt-arena .kt-card-btn").count(), 0, "no playable cards in shiai");
   var p3fid = (await arenaInfo(p3)).fighters.filter(function (f) { return f.mine; })[0].id;
   await p3.context().close();
   await host.waitForFunction(function (fid) {
@@ -163,8 +168,10 @@ function playMyCard(page) {
   assert.deepStrictEqual(r2p, r2h, "match 2 results agree after disconnect");
   console.log("match 2:", JSON.stringify({ winner: r2h.winner, placing: r2h.placing }));
 
-  // ---- 滿 8 把：房主＋二號＋5 人＋AI 1 把；第 9 人只能觀戰 ----
+  // ---- 滿 8 把：房主＋二號＋5 人＋AI 1 把；第 9 人只能觀戰（改回陀螺模式） ----
   await host.dispatchEvent(".kt-net-back", "click");
+  await host.waitForSelector('input[name="roomMode"][value="koma"]');
+  await host.evaluate(function () { var r = document.querySelector('input[name="roomMode"][value="koma"]'); r.checked = true; r.dispatchEvent(new Event("change")); });
   var extra = [];
   var npcs = ["minarai", "sato", "hono", "minarai", "sato"];
   for (var e = 0; e < 5; e++) {

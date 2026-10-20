@@ -1789,7 +1789,7 @@
         var head = el("div", { class: "kt-af-head" }, [
           el("span", { class: "kt-af-dot" }),
           el("strong", { text: arenaFighterLabel(f) }),
-          f.human ? null : el("span", { class: "kt-af-ai", text: "AI" }),
+          f.human && a.mode !== "shiai" ? null : el("span", { class: "kt-af-ai", text: a.mode === "shiai" ? t("kt_amode_auto") : "AI" }),
           net && net.mine(f.id) ? el("span", { class: "kt-af-me", text: t("kt_net_you") }) : null,
           !f.alive ? el("span", { class: "kt-bad", text: " " + t(f.out === "stall" ? "kt_ar_stalled" : "kt_broken") }) : null,
           a.winner === f.id ? el("span", { text: " 🏆" }) : null
@@ -1799,7 +1799,8 @@
           .concat(f.prof.traits.map(function (tr) { return el("span", { class: "kt-af-trait", title: L(D.ARENA_TRAITS[tr].desc), text: L(D.ARENA_TRAITS[tr].name) }); })));
         var q = el("div", { class: "kt-af-queue" });
         // 連線：已放但還沒到回合交界的牌（pend）排在等待區後面
-        var mine = f.human && (!net || net.mine(f.id));
+        var auto = a.mode === "shiai"; // 試合模式全自動：沒有人能放牌
+        var mine = f.human && !auto && (!net || net.mine(f.id));
         var pend = net && mine ? net.pending(f.id) : [];
         function pendName(u) {
           if (u === "special") return f.special ? L(Core.byId(D.SPECIALS, f.special).name) : u;
@@ -1836,6 +1837,8 @@
               el("span", { text: f.specialUsed ? t("kt_ar_used") : t("kt_ar_wait_n", { n: D.SPECIAL_WAIT }) })
             ]));
           }
+        } else if (auto) {
+          hand.appendChild(el("span", { class: "kt-muted", text: t("kt_ar_auto_hand", { n: f.hand.length }) + (f.special ? "・" + t("kt_sp_has", { name: L(Core.byId(D.SPECIALS, f.special).name) }) + (f.specialUsed ? t("kt_ar_used_paren") : "") : "") }));
         } else if (f.human) {
           hand.appendChild(el("span", { class: "kt-muted", text: t("kt_net_other_hand", { n: f.hand.length }) }));
         } else {
@@ -1970,6 +1973,33 @@
         ctx.lineWidth = 2 * dpr;
         ctx.beginPath(); ctx.arc(hz.x * s, hz.y * s, hz.r * s, 0, Math.PI * 2); ctx.stroke();
       });
+      // 試合：刀光路徑。預告中是逐漸變亮的虛線，斬擊中是從起點到刀身的光跡
+      a.fighters.forEach(function (f) {
+        if (!f.alive || !f.sh || (f.sh.st !== "aim" && f.sh.st !== "slash")) return;
+        var sh = f.sh;
+        ctx.save();
+        ctx.lineCap = "round";
+        if (sh.st === "aim") {
+          var p = 1 - Math.max(0, sh.t) / Arena.SHIAI.AIM;
+          ctx.globalAlpha = 0.25 + 0.55 * p;
+          ctx.strokeStyle = f.color; ctx.lineWidth = 2 * dpr;
+          ctx.setLineDash([6 * dpr, 6 * dpr]);
+          ctx.beginPath(); ctx.moveTo(sh.x0 * s, sh.y0 * s); ctx.lineTo(sh.x1 * s, sh.y1 * s); ctx.stroke();
+          ctx.setLineDash([]);
+          ctx.fillStyle = f.color;
+          ctx.beginPath(); ctx.arc(sh.x1 * s, sh.y1 * s, 3 * dpr, 0, Math.PI * 2); ctx.fill();
+        } else {
+          var g = ctx.createLinearGradient(sh.x0 * s, sh.y0 * s, f.x * s, f.y * s);
+          g.addColorStop(0, "rgba(255,255,255,0)");
+          g.addColorStop(1, "rgba(255,255,255,0.85)");
+          ctx.strokeStyle = g; ctx.lineWidth = 4 * dpr;
+          ctx.beginPath(); ctx.moveTo(sh.x0 * s, sh.y0 * s); ctx.lineTo(f.x * s, f.y * s); ctx.stroke();
+          ctx.globalAlpha = 0.25;
+          ctx.strokeStyle = f.color; ctx.lineWidth = 1.5 * dpr;
+          ctx.beginPath(); ctx.moveTo(f.x * s, f.y * s); ctx.lineTo(sh.x1 * s, sh.y1 * s); ctx.stroke();
+        }
+        ctx.restore();
+      });
       // 退場的刀：倒在原地
       a.fighters.forEach(function (f) {
         if (f.alive) return;
@@ -2020,7 +2050,7 @@
           f.rot = Math.atan2(op.y - f.y, op.x - f.x) + Math.sin(a.time * 38 + (bd.a === f ? 0 : 1.7)) * 0.12;
         }
         var tr = vis.trails[f.id] || (vis.trails[f.id] = []);
-        var fast = f.fx.issen > 0 || f.fx.dash > 0 || Arena.bany(f, "speed") && Math.hypot(f.vx, f.vy) > 70;
+        var fast = f.sh ? f.sh.st === "slash" : (f.fx.issen > 0 || f.fx.dash > 0 || Arena.bany(f, "speed") && Math.hypot(f.vx, f.vy) > 70);
         if (fast) { tr.push({ x: f.x, y: f.y, rot: f.rot }); if (tr.length > 7) tr.shift(); } else if (tr.length) tr.shift();
         var keepA = ctx.globalAlpha;
         tr.forEach(function (gp, gi) {
@@ -2031,6 +2061,8 @@
           ctx.restore();
         });
         ctx.globalAlpha = keepA;
+        // 試合的收刀：刀身縮短、稍淡
+        if (f.sh && f.sh.st === "sheathe") { ctx.globalAlpha = keepA * 0.8; ctx.scale(0.65, 0.65); }
         drawBlade(ctx, f, s);
         ctx.globalAlpha = 1;
         ctx.restore();
@@ -2391,6 +2423,13 @@
     return box;
   }
 
+  // 對刀模式：陀螺（koma）｜試合（shiai，使用者指定 2026-10-20：刀不自轉、收刀→刀光→斬到壁面，全自動）
+  function arenaModePicker(name, value, onPick, disabled) {
+    return field(t("kt_amode"), radioList(name, ["koma", "shiai"].map(function (id) {
+      return { id: id, name: { ja: t("kt_amode_" + id), zh: t("kt_amode_" + id) }, desc: { ja: t("kt_amode_" + id + "_desc"), zh: t("kt_amode_" + id + "_desc") } };
+    }), value || "koma", onPick, { disabled: disabled ? function () { return true; } : null }));
+  }
+
   // 自由對刀的準備：從刀鞘挑刀、加入收到的客刀與對手刀，指定誰由玩家操作
   function lobby() {
     if (!ui.lobby) ui.lobby = { pick: {}, guests: [], npc: {}, human: {} };
@@ -2446,12 +2485,13 @@
       ]));
     });
     var fs = lobbyFighters();
+    panel.appendChild(arenaModePicker("duelMode", ui.duelMode, function (v) { ui.duelMode = v; rerenderKeepScroll(); }));
     panel.appendChild(el("div", { class: "kt-actions" }, [
       el("button", { type: "button", class: "kt-primary", text: t("kt_duel_go"), disabled: fs.length < 2, onclick: function () {
         var seed = String(Date.now());
         var uidOf = {};
         fs.forEach(function (f) { if (f.uid) uidOf[f.id] = f.uid; });
-        ui.duel = { arena: window.PriTestKatanaArena.create({ seed: seed, fighters: fs }), uidOf: uidOf, result: null, names: {} };
+        ui.duel = { arena: window.PriTestKatanaArena.create({ seed: seed, fighters: fs, mode: ui.duelMode }), uidOf: uidOf, result: null, names: {} };
         fs.forEach(function (f) { ui.duel.names[f.id] = f.name + (f.snap.name ? "「" + f.snap.name + "」" : ""); });
         window.scrollTo(0, 0);
         render();
@@ -2531,7 +2571,7 @@
 
   function startOnlineDuel(room) {
     var m = room.match;
-    var a = window.PriTestKatanaArena.create({ seed: m.seed, fighters: m.fighters });
+    var a = window.PriTestKatanaArena.create({ seed: m.seed, fighters: m.fighters, mode: m.mode });
     var ctl = room.matchCtl();
     var names = {}, uidOf = {};
     m.fighters.forEach(function (f) {
@@ -2646,6 +2686,9 @@
       }
     }
 
+    // 對刀模式：房主選，其他人只看
+    panel.appendChild(arenaModePicker("roomMode", room.mode(), function (v) { room.setMode(v); }, !(room.isHost() && lobbyOpen)));
+
     // 房主：AI 對手刀・開打
     if (room.isHost() && lobbyOpen) {
       panel.appendChild(el("div", { class: "kt-mg-title", text: t("kt_net_host_tools") }));
@@ -2705,12 +2748,12 @@
     if (ui.lab) return ui.lab;
     var saved = null;
     try { saved = JSON.parse(localStorage.getItem(LAB_KEY) || "null"); } catch (e) { saved = null; }
-    if (saved && Array.isArray(saved.blades) && saved.blades.every(function (x) { return Core.byId(D.BLADE_TYPES, x.type); })) ui.lab = { blades: saved.blades.map(labCalc), batch: null };
-    else ui.lab = { blades: LAB_PRESETS.map(labBlade), batch: null };
+    if (saved && Array.isArray(saved.blades) && saved.blades.every(function (x) { return Core.byId(D.BLADE_TYPES, x.type); })) ui.lab = { blades: saved.blades.map(labCalc), batch: null, mode: saved.mode === "shiai" ? "shiai" : "koma" };
+    else ui.lab = { blades: LAB_PRESETS.map(labBlade), batch: null, mode: "koma" };
     return ui.lab;
   }
 
-  function labSave() { try { localStorage.setItem(LAB_KEY, JSON.stringify({ blades: ui.lab.blades })); } catch (e) { /* 只是記不住 */ } }
+  function labSave() { try { localStorage.setItem(LAB_KEY, JSON.stringify({ blades: ui.lab.blades, mode: ui.lab.mode })); } catch (e) { /* 只是記不住 */ } }
 
   // 實驗場的刀 → 對刀場用的快照（經 sanitizeSnap 夾在合法範圍）
   function labSnap(x) {
@@ -2814,11 +2857,12 @@
         lab.blades = LAB_PRESETS.map(labBlade); lab.batch = null; labSave(); rerenderKeepScroll();
       } })
     ]));
+    box.appendChild(arenaModePicker("labMode", lab.mode, function (v) { lab.mode = v; lab.batch = null; labSave(); rerenderKeepScroll(); }));
     box.appendChild(el("div", { class: "kt-actions" }, [
       el("button", { type: "button", class: "kt-primary", text: t("kt_lab_go"), onclick: function () {
         var fs = labFighters(false), names = {};
         fs.forEach(function (f) { names[f.id] = f.name; });
-        ui.duel = { arena: window.PriTestKatanaArena.create({ seed: String(Date.now()), fighters: fs }), uidOf: {}, result: null, names: names };
+        ui.duel = { arena: window.PriTestKatanaArena.create({ seed: String(Date.now()), fighters: fs, mode: lab.mode }), uidOf: {}, result: null, names: names };
         window.scrollTo(0, 0);
         render();
       } }),
@@ -2836,7 +2880,7 @@
     fs.forEach(function (f) { acc[f.id] = { name: f.name, win: 0, dealt: 0, hp: 0, alive: 0 }; });
     var time = 0;
     for (var k = 0; k < n; k++) {
-      var res = Arena.run(Arena.create({ seed: "lab" + k + "|" + Date.now(), fighters: fs }));
+      var res = Arena.run(Arena.create({ seed: "lab" + k + "|" + Date.now(), fighters: fs, mode: ui.lab.mode }));
       time += res.time;
       acc[res.winner].win++;
       res.summary.forEach(function (sm) { var o = acc[sm.id]; o.dealt += sm.dealt; o.hp += sm.hp / sm.maxHp; if (sm.alive) o.alive++; });
@@ -2871,7 +2915,7 @@
         el("div", { class: "kt-actions" }, [
           el("button", { type: "button", class: "kt-primary", text: t("kt_duel_again"), onclick: function () {
             var fs = du.arena.fighters.map(function (f) { return { id: f.id, name: f.name, human: f.human, snap: f.snap }; });
-            ui.duel = { arena: window.PriTestKatanaArena.create({ seed: String(Date.now()), fighters: fs }), uidOf: du.uidOf, result: null, names: du.names };
+            ui.duel = { arena: window.PriTestKatanaArena.create({ seed: String(Date.now()), fighters: fs, mode: du.arena.mode }), uidOf: du.uidOf, result: null, names: du.names };
             render();
           } }),
           el("button", { type: "button", text: t("kt_duel_back"), onclick: function () { ui.duel = null; render(); } })
@@ -2879,7 +2923,7 @@
       ]));
       return;
     }
-    app.appendChild(el("p", { class: "kt-muted", text: t("kt_ar_howto") }));
+    app.appendChild(el("p", { class: "kt-muted", text: t(du.arena.mode === "shiai" ? "kt_amode_shiai_howto" : "kt_ar_howto") }));
     app.appendChild(arenaView(du.arena, function (res) {
       du.result = res;
       recordResult(res, du.uidOf);
@@ -2910,7 +2954,7 @@
       ]));
       return;
     }
-    app.appendChild(el("p", { class: "kt-muted", text: t("kt_net_howto") }));
+    app.appendChild(el("p", { class: "kt-muted", text: t(du.arena.mode === "shiai" ? "kt_amode_shiai_howto" : "kt_net_howto") }));
     app.appendChild(arenaView(du.arena, function (res) {
       du.result = res;
       du.net.dispose();
