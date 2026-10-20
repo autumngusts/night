@@ -38,4 +38,10 @@ PROJECTS = [
         "name_key": "project_gousei_name",
         "desc_key": "project_gousei_desc",
     },
+    {
+        "id": "katana",
+        "href": "katana/index.html",
+        "name_key": "project_katana_name",
+        "desc_key": "project_katana_desc",
+    },
 ]
