@@ -25,6 +25,13 @@ var CASES = [
   { type: "charge", cfg: { strikes: 8, coolMs: 8000 } },
   { type: "cut", cfg: {} }
 ];
+// 第四批（katana_games2.js，2026-10-21）：全部用同一個框架，設定與敲打類工序相同
+var EXTRA = ["pendulum", "color", "align", "sustain", "reaction", "lissa", "slide", "beat", "bellows", "balance", "pressure", "steer",
+  "count", "pairs", "odd", "spot", "heatpick", "order", "combo", "catch"];
+EXTRA.forEach(function (type) {
+  CASES.push({ type: type, cfg: { strikes: 8, minStrikes: 8, coolMs: 7000, labels: { up: "u", down: "d", left: "l", right: "r" } } });
+});
+if (process.env.ONLY) CASES = CASES.filter(function (c) { return process.env.ONLY.split(",").indexOf(c.type) >= 0; });
 
 (async function () {
   var browser = await chromium.launch();
@@ -80,7 +87,7 @@ var CASES = [
     var K = window.PriTestKatana, D = window.PriTestKatanaData, Core = window.PriTestKatanaCore;
     var ids = ["shitakitae", "uwakitae", "tsukurikomi", "sunobe", "hizukuri", "togi", "mei"];
     var out = [];
-    for (var g = 0; g < 30; g++) {
+    for (var g = 0; g < 60; g++) {
       var st = Core.newGame({ names: ["a"], seed: "pick" + g, mode: "show" });
       // gameFor 讀的是目前的 state：借 _state 的物件換掉 seed 來算
       out.push(ids.map(function (id) { return K._gameForSeed(st.seed, 0, id); }));
@@ -91,11 +98,11 @@ var CASES = [
   picks.rows.forEach(function (r) { for (var k = 1; k < r.length; k++) assert.notStrictEqual(r[k], r[k - 1], "no repeat in a row: " + r.join(",")); });
   var combos = {};
   picks.rows.forEach(function (r) { combos[r.join(",")] = 1; });
-  assert.ok(Object.keys(combos).length >= 20, "different forges get different games: " + Object.keys(combos).length + " / 30");
+  assert.ok(Object.keys(combos).length >= 50, "different forges get different games: " + Object.keys(combos).length + " / 60");
   var used = {};
   picks.rows.forEach(function (r) { r.forEach(function (x) { used[x] = 1; }); });
-  ["arc", "music", "memory", "mash", "whack", "arrows", "charge"].forEach(function (x) { assert.ok(used[x], "type gets picked: " + x); });
-  console.log("pick variety:", Object.keys(combos).length, "/ 30 combos");
+  ["arc", "music", "memory", "mash", "whack", "arrows", "charge"].concat(EXTRA).forEach(function (x) { assert.ok(used[x], "type gets picked: " + x); });
+  console.log("pick variety:", Object.keys(combos).length, "/ 60 combos");
 
   assert.deepStrictEqual(errors, []);
   await browser.close();

@@ -12278,6 +12278,7 @@ body.ut-has-player {
 .kt-g-miss { color: #c0392b; }
 @keyframes kt-g-pop { from { opacity: 1; transform: translate(-50%, -30%) scale(1.15); } to { opacity: 0; transform: translate(-50%, -110%) scale(1); } }
 .kt-arc-canvas { width: min(100%, 300px); height: auto; aspect-ratio: 1 / 1; cursor: pointer; }
+.kt-tg-canvas { width: min(100%, 420px); height: auto; aspect-ratio: 16 / 9; border-radius: 8px; cursor: pointer; touch-action: none; }
 .kt-music-canvas { max-width: 100%; height: auto; border-radius: 8px; cursor: pointer; }
 .kt-music-pads { display: flex; gap: 4px; max-width: 100%; margin: 0 auto 0.4rem; }
 .kt-music-pad { flex: 1; min-width: 0; padding: 0.7rem 0.2rem; border-radius: 8px; border: 1px solid var(--kt-line); background: var(--kt-soft); color: inherit; font: inherit; font-weight: bold; cursor: pointer; touch-action: manipulation; }

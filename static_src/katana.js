@@ -743,14 +743,15 @@
 
   // 每道工序的小遊戲候選（使用者指定 2026-10-20：不同鍛造碰到不同類型）。
   // 每一局依 seed 抽一種；同一位鍛冶師連續兩道工序不抽同一種。小割固定是碎裂。
+  // 2026-10-21 加入第四批 20 種（katana_games2.js）
   var GAME_POOLS = {
-    shitakitae: ["music", "arc", "arrows", "mash"],
-    uwakitae: ["music", "arc", "arrows", "mash"],
-    tsukurikomi: ["arc", "whack", "charge"],
-    sunobe: ["arc", "mash", "charge", "whack"],
-    hizukuri: ["memory", "whack", "arrows"],
-    togi: ["music", "charge", "arrows"],
-    mei: ["memory", "arrows"]
+    shitakitae: ["music", "arc", "arrows", "mash", "pendulum", "bellows", "count", "beat", "reaction"],
+    uwakitae: ["music", "arc", "arrows", "mash", "pendulum", "bellows", "count", "lissa", "catch"],
+    tsukurikomi: ["arc", "whack", "charge", "align", "pressure", "heatpick", "color", "balance"],
+    sunobe: ["arc", "mash", "charge", "whack", "pendulum", "balance", "catch", "lissa", "reaction"],
+    hizukuri: ["memory", "whack", "arrows", "align", "order", "spot", "combo", "color", "heatpick"],
+    togi: ["music", "charge", "arrows", "slide", "steer", "pressure", "spot", "odd", "sustain", "beat"],
+    mei: ["memory", "arrows", "steer", "order", "combo", "pairs", "sustain", "odd"]
   };
   function gameFor(pIndex, stepId) { return gameForSeed(state.seed, pIndex, stepId); }
   function gameForSeed(seed, pIndex, stepId) {

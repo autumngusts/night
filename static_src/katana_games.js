@@ -1057,6 +1057,7 @@
 
   window.PriTestKatanaGames = {
     DIFF: DIFF, MORE: MORE, arc: arc, music: music, memory: memory, shatter: shatter, mash: mash, whack: whack, arrows: arrows, charge: charge, cut: cutHalf, leftRatio: leftRatio,
+    popup: popup, shake: shake, steelBar: steelBar, clipHalf: clipHalf,
     makeChart: makeChart, bladePoints: bladePoints, platePoints: platePoints, plateText: plateText, scatterLayout: scatterLayout, shards: shards
   };
 })();
