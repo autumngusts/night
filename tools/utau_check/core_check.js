@@ -3,6 +3,7 @@
 // 執行：node tools/utau_check/core_check.js
 // 計分規則（使用者指定）：答對人數 k 查計分表；出題者與每位答對者各得 table[k]，
 // 全部答錯只有出題者得 table[0]；AI 答對出題者另得 aiBonus。
+// 進階模式（2026-10-18 使用者指定）：沒有出題者、全體一起猜；答對者各得 table[k]，k 以全體玩家計。
 // ============================================================================
 "use strict";
 var fs = require("fs");
@@ -54,6 +55,10 @@ assert.strictEqual(Songs.decadeOf({ y: 1985 }), 1980);
 assert.deepStrictEqual(Core.defaultScoreTable(4), [0, 3, 3, 1]);
 assert.deepStrictEqual(Core.defaultScoreTable(6), [0, 3, 3, 3, 2, 1]);
 assert.deepStrictEqual(Core.defaultScoreTable(2), [0, 1]);
+// 進階模式沒有出題者：猜題人數＝全體，計分表多一列
+assert.deepStrictEqual(Core.defaultScoreTable(3, "advanced"), [0, 3, 3, 1]);
+assert.strictEqual(Core.guesserCount("advanced", 3), 3);
+assert.strictEqual(Core.guesserCount("basic", 3), 2);
 
 function players(n) {
   var list = [];
@@ -119,7 +124,8 @@ var packSongs = [
   { id: "ko:D", t: "D", a: "x", y: 2020, r: "ko", c: "idol", variants: ["original", "speed"] },
   { id: "ja:E", t: "E", a: "x", y: 1995, r: "ja", c: "anime", variants: ["original", "instrumental"] }
 ];
-var adv = { mode: "advanced", players: players(3), aiBonus: 1, scoreTable: [0, 2, 1], packSongs: packSongs,
+// 舊值 [0, 2, 1] 是輪流出題時「猜題 2 人」的表；2026-10-18 改為全體猜題後猜題 3 人，計分表 4 列
+var adv = { mode: "advanced", players: players(3), aiBonus: 1, scoreTable: [0, 3, 2, 1], packSongs: packSongs,
   regions: ["ja"], decades: [2010, 2020], categories: ["anime", "pop"], variants: ["instrumental", "rhythm", "reverse"] };
 var pool = Core.songPool(adv).map(function (x) { return x.id; }).sort();
 assert.deepStrictEqual(pool, ["ja:A", "ja:B", "ja:C"], "region × decade × category × variant");
@@ -134,14 +140,62 @@ assert.deepStrictEqual(seen.slice().sort(), pool, "no song repeats until the poo
 for (i = 0; i < 20; i++) {
   s = Core.settle(s, { aiCorrect: false, correctIds: [] }, r);
   var song = Core.findPackSong(s.config, s.current.songId);
-  assert.ok(song.variants.indexOf(s.current.variant) >= 0, "variant exists on the song");
-  assert.ok(adv.variants.indexOf(s.current.variant) >= 0, "variant is selected");
-  assert.notStrictEqual(s.current.variant, "original", "original is answer-only");
+  assert.strictEqual(s.current.singerId, null, "advanced mode has no quizmaster");
+  assert.strictEqual(s.current.variant, null, "versions are picked by the players, not drawn");
+  Core.pickableVariants(s).forEach(function (v) {
+    assert.ok(song.variants.indexOf(v) >= 0, "variant exists on the song");
+    assert.ok(adv.variants.indexOf(v) >= 0, "variant is selected");
+    assert.notStrictEqual(v, "original", "original is answer-only");
+  });
 }
 var last = s.history[s.history.length - 1];
 assert.ok(last.song && last.song.t, "history keeps the song title");
 var re = Core.redrawSong(s, r);
-assert.strictEqual(re.current.singerId, s.current.singerId, "redraw keeps singer");
+assert.strictEqual(re.current.singerId, null, "redraw keeps no quizmaster");
+assert.throws(function () { Core.createGame(Object.assign({}, adv, { scoreTable: [0, 2, 1] })); }, /ut_err_table/,
+  "advanced table needs players + 1 rows");
+
+// ---- 進階模式：挑版本（最多 3 種）、年代／歌手提示、全體計分 ----
+var pickCfg = Object.assign({}, adv, { regions: ["ja"], decades: [2010], categories: ["pop"],
+  variants: ["instrumental", "vocal", "other", "speed", "rhythm"],
+  packSongs: [{ id: "ja:P", t: "P", a: "Artist", y: 2016, r: "ja", c: "pop",
+    variants: ["original", "instrumental", "vocal", "other", "speed", "rhythm", "reverse"] }] });
+s = Core.createGame(pickCfg, r);
+assert.deepStrictEqual(s.current.picked, []);
+assert.deepStrictEqual(Core.pickableVariants(s), ["instrumental", "vocal", "other", "speed", "rhythm"],
+  "only versions the song has and the setup selected (reverse is not selected)");
+assert.strictEqual(Core.MAX_PICKS, 3);
+assert.strictEqual(Core.pickVariant(s, "reverse"), s, "unselected version cannot be picked");
+assert.strictEqual(Core.pickVariant(s, "original"), s, "original cannot be picked");
+s = Core.pickVariant(s, "vocal");
+s = Core.pickVariant(s, "speed");
+s = Core.pickVariant(s, "vocal");
+assert.deepStrictEqual(s.current.picked, ["vocal", "speed"], "re-picking does not use a slot");
+assert.strictEqual(s.current.variant, "vocal");
+s = Core.pickVariant(s, "rhythm");
+assert.strictEqual(Core.picksLeft(s), 0);
+assert.strictEqual(Core.pickVariant(s, "other"), s, "no 4th version");
+s = Core.pickVariant(s, "speed");
+assert.strictEqual(s.current.variant, "speed", "picked versions can still be switched back to");
+assert.strictEqual(Core.useInfoHint(s, "lyrics"), s, "unknown hint kind is ignored");
+s = Core.useInfoHint(s, "decade");
+s = Core.useInfoHint(s, "artist");
+assert.deepStrictEqual(s.current.info, { decade: true, artist: true });
+var grpBefore = JSON.parse(JSON.stringify(s.scores));
+s = Core.settle(s, { aiCorrect: true, correctIds: ["p1", "p3"] }, r);
+var grpHist = s.history[s.history.length - 1];
+assert.deepStrictEqual(grpHist.picked, ["vocal", "speed", "rhythm"], "history keeps the picked versions");
+assert.deepStrictEqual(grpHist.info, { decade: true, artist: true }, "history keeps the hints");
+assert.strictEqual(grpHist.aiCorrect, false, "no AI bonus without a quizmaster");
+assert.deepStrictEqual(grpHist.deltas, { p1: pickCfg.scoreTable[2], p2: 0, p3: pickCfg.scoreTable[2] },
+  "each correct guesser gets table[k]; hints do not change scoring");
+assert.strictEqual(s.scores.p1 - grpBefore.p1, 2);
+assert.deepStrictEqual(s.current.picked, [], "picks reset every round");
+assert.deepStrictEqual(s.current.info, {}, "hints reset every round");
+s = Core.settle(s, { aiCorrect: false, correctIds: [] }, r);
+assert.deepStrictEqual(s.history[s.history.length - 1].deltas, { p1: 0, p2: 0, p3: 0 }, "all wrong: nobody scores");
+s = Core.settle(s, { aiCorrect: false, correctIds: ["p1", "p2", "p3"] }, r);
+assert.deepStrictEqual(s.history[s.history.length - 1].deltas, { p1: 1, p2: 1, p3: 1 }, "everyone right: table[3]");
 assert.throws(function () { Core.createGame(Object.assign({}, adv, { packSongs: [] })); }, /ut_err_no_pack/);
 assert.throws(function () { Core.createGame(Object.assign({}, adv, { variants: [] })); }, /ut_err_variants/);
 assert.throws(function () { Core.createGame(Object.assign({}, adv, { decades: [1960] })); }, /ut_err_pool/);
@@ -151,7 +205,9 @@ assert.throws(function () { Core.createGame(Object.assign({}, basic, { players: 
 var hintCfg = Object.assign({}, adv, { regions: ["ja"], decades: [2020], categories: ["anime"], variants: ["zh_sing"],
   packSongs: [{ id: "ja:H", t: "H", a: "x", y: 2021, r: "ja", c: "anime", variants: ["original", "zh_sing", "zh_sing_inst"] }] });
 s = Core.createGame(hintCfg, r);
-assert.strictEqual(s.current.variant, "zh_sing", "hint clip itself is never drawn as a question");
+assert.deepStrictEqual(Core.pickableVariants(s), ["zh_sing"], "hint clip itself is never pickable");
+assert.ok(!Core.hasHint(s), "no hint before a version is picked");
+s = Core.pickVariant(s, "zh_sing");
 assert.strictEqual(Core.HINT_PLAYS, 5);
 assert.ok(Core.hasHint(s), "zh_sing with zh_sing_inst in the pack has a hint");
 for (i = 0; i < 4; i++) s = Core.recordPlay(s);
@@ -165,11 +221,11 @@ var hintBefore = JSON.parse(JSON.stringify(s.scores));
 s = Core.settle(s, { aiCorrect: false, correctIds: ["p2"] }, r);
 var hintHist = s.history[s.history.length - 1];
 assert.strictEqual(hintHist.hint, true, "history marks the hint");
-assert.strictEqual(s.scores[hintHist.singerId] - hintBefore[hintHist.singerId], hintCfg.scoreTable[1], "hint does not change scoring");
+assert.strictEqual(s.scores.p2 - hintBefore.p2, hintCfg.scoreTable[1], "hint does not change scoring");
 assert.strictEqual(s.current.plays, 0, "play count resets every round");
 assert.strictEqual(s.current.hint, false);
-var noHint = Core.createGame(Object.assign({}, hintCfg, { packSongs: [{ id: "ja:H", t: "H", a: "x", y: 2021, r: "ja", c: "anime",
-  variants: ["original", "zh_sing"] }] }), r);
+var noHint = Core.pickVariant(Core.createGame(Object.assign({}, hintCfg, { packSongs: [{ id: "ja:H", t: "H", a: "x", y: 2021, r: "ja", c: "anime",
+  variants: ["original", "zh_sing"] }] }), r), "zh_sing");
 assert.ok(!Core.hasHint(noHint), "no hint without the hint clip in the pack");
 assert.strictEqual(Core.hintClip("ja_sing"), "ja_sing_inst", "Japanese singing has the same hint");
 assert.strictEqual(Core.hintClip("instrumental"), null);

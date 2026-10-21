@@ -114,6 +114,22 @@ tools/utau_clips/.venv/Scripts/python.exe tools/utau_clips/build_pack.py
 在遊戲設定畫面選「進階模式」→「匯入題庫包」選 `utau_pack.zip`。
 - 匯入多次會依歌曲 id 合併，所以可以分批做、分批匯入。
 - zip 是不壓縮（STORED）格式，請不要自己重新壓縮，瀏覽器端只讀得懂這種格式。
+- 匯入只是在裝置內讀檔寫進瀏覽器，**不會上傳、也不用網路流量**。但 zip 放在 iCloud／Google Drive 等雲端時，
+  選檔那一刻雲端 App 會先下載整個檔案，請先在 Wi-Fi 下存到手機本機（或用傳輸線傳）。
+- 匯入前會向瀏覽器要求保留資料（`navigator.storage.persist()`），並檢查剩餘空間；面板會顯示已用／剩餘空間與是否已同意保留。
+
+#### 手機用分包（`split_pack.py`）
+
+完整包約 1.2GB，手機一次匯入容易失敗；`--split` 的分類包最大也有 300MB 以上。打包完成後再切成每包 ≤100MB 的分包：
+
+```bash
+tools/utau_clips/.venv/Scripts/python.exe tools/utau_clips/split_pack.py              # 輸出 out/phone/utau_phone_01_….zip
+tools/utau_clips/.venv/Scripts/python.exe tools/utau_clips/split_pack.py --max-mb 150 # 改每包上限
+```
+
+- 直接從 `out/utau_pack.zip` 切，不重做音檔，幾秒就完成；每次執行會先清掉 `out/phone/` 裡舊的分包。
+- 依「地區＋分類」排序後裝箱，相鄰的小分類會併成同一包；同一首歌的所有版本一定在同一包。
+- 全部依序匯入後與完整包相同；只想玩某些分類時看檔名挑著匯入即可。匯入完可以刪掉手機上的 zip 省空間。
 
 ## 中文版（zh_sing）
 

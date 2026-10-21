@@ -1,6 +1,7 @@
 // 我不會唱歌（utau）UI。規則全部在 utau_core.js，這裡只負責畫面、輸入、存讀檔與播放。
 // 題目遮蔽（ui.revealed）刻意不存進 state：重新整理後回到遮蔽畫面，避免其他人看到題目。
-// 進階模式：音檔從 utau_pack.js（IndexedDB 題庫包）取出。iOS 只允許在點擊當下呼叫 play()，
+// 進階模式：全體一起猜（沒有出題者），每題由大家挑最多 3 種版本來聽，可公開年代／歌手當提示。
+//   音檔從 utau_pack.js（IndexedDB 題庫包）取出。iOS 只允許在點擊當下呼叫 play()，
 //   所以每輪一開始就先把音檔放進 <audio>（prepareAudio），按鈕只做同步的 play()。
 // 夢想模式：YouTube IFrame Player API。render() 會清空 #ut-app，iframe 一被移動就會重新載入，
 //   所以播放器放在 body 底下的浮動卡片（yt.host），用遮罩蓋住畫面讓人看不到影片標題與縮圖。
@@ -22,6 +23,7 @@
   var draft = null; // 設定畫面的草稿
   var ui = { revealed: false, aiCorrect: false, correct: {}, error: "", packMsg: "", packBusy: false, clearConfirm: false };
   var packSongs = null; // 這台裝置已匯入的題庫包歌曲（null = 讀取中）
+  var packStorage = null; // 瀏覽器儲存空間 { usage, quota, persisted }（null = 讀取中或不支援）
 
   function t(key, params) { return window.I18N.t(key, params); }
   function lang() { return window.I18N.getLang(); }
@@ -63,6 +65,8 @@
       var s = JSON.parse(raw);
       // version 1 是舊版進階模式（玩家照指定方式唱），規則不相容，直接捨棄
       if (!s || s.version !== 2 || !s.config || !s.current) return null;
+      // 2026-10-18 以前的進階模式是輪流出題、版本隨機指定，與現在的全體猜題不相容
+      if (s.config.mode === "advanced" && !s.current.picked) return null;
       return s;
     } catch (e) {
       return null;
@@ -109,7 +113,7 @@
   function newDraft() {
     var prev = loadConfig();
     if (prev && prev.players && prev.players.length >= MIN_PLAYERS) {
-      return {
+      return fitScoreTable({
         mode: MODES.indexOf(prev.mode) >= 0 ? prev.mode : "basic",
         names: prev.players.map(function (p) { return p.name; }),
         aiBonus: prev.aiBonus,
@@ -121,7 +125,7 @@
         variants: (prev.variants || allVariants()).filter(function (v) { return allVariants().indexOf(v) >= 0; }),
         clipSeconds: prev.clipSeconds || 12,
         randomSpeed: !!prev.randomSpeed
-      };
+      });
     }
     var count = 4;
     var names = [];
@@ -140,6 +144,13 @@
     };
   }
 
+  // 進階模式沒有出題者，計分表多一列：列數對不上時重設為預設值
+  function fitScoreTable(d) {
+    var rows = Core.guesserCount(d.mode, d.names.length) + 1;
+    if (!d.scoreTable || d.scoreTable.length !== rows) d.scoreTable = Core.defaultScoreTable(d.names.length, d.mode);
+    return d;
+  }
+
   // 把某一個篩選條件換成單一值後的首數（勾選框旁邊的數字用）
   function countWith(field, value) {
     var cfg = { packSongs: packSongs || [], regions: draft.regions, decades: draft.decades,
@@ -154,7 +165,7 @@
     while (draft.names.length < n) draft.names.push("");
     draft.names.length = n;
     // 人數變了，答對人數的列數也跟著變：計分表重設為預設值
-    draft.scoreTable = Core.defaultScoreTable(n);
+    draft.scoreTable = Core.defaultScoreTable(n, draft.mode);
   }
 
   function playerName(i) {
@@ -209,11 +220,29 @@
 
   function refreshPack() {
     if (!Pack) { packSongs = []; return Promise.resolve(); }
-    return Pack.list().then(function (list) {
-      packSongs = list;
+    var info = Pack.storageInfo ? Pack.storageInfo().catch(function () { return null; }) : Promise.resolve(null);
+    return Promise.all([Pack.list(), info]).then(function (r) {
+      packSongs = r[0];
+      packStorage = r[1];
     }).catch(function () {
       packSongs = [];
     });
+  }
+
+  function formatMb(bytes) {
+    return (bytes / 1024 / 1024).toFixed(bytes < 10 * 1024 * 1024 ? 1 : 0) + " MB";
+  }
+
+  // 已用／剩餘空間與「瀏覽器是否承諾不自動清除」；estimate() 不支援時只顯示保留狀態
+  function packStorageText() {
+    if (!packStorage) return "";
+    var parts = [];
+    if (packStorage.quota !== null) {
+      parts.push(t("ut_pack_storage", { used: formatMb(packStorage.usage),
+        free: formatMb(Math.max(0, packStorage.quota - packStorage.usage)) }));
+    }
+    parts.push(t(packStorage.persisted ? "ut_pack_persisted" : "ut_pack_not_persisted"));
+    return parts.join(" ");
   }
 
   function importPack(file) {
@@ -225,7 +254,12 @@
       ui.packMsg = t("ut_pack_imported", { added: res.added, total: res.total });
       return refreshPack();
     }).catch(function (e) {
-      ui.packMsg = t(/^ut_/.test(e.message) ? e.message : "ut_err_pack_format");
+      if (e.message === "ut_err_pack_space" && e.params) {
+        ui.packMsg = t("ut_err_pack_space", { need: formatMb(e.params.need), free: formatMb(e.params.free) });
+      } else {
+        ui.packMsg = t(/^ut_/.test(e.message) ? e.message : "ut_err_pack_format");
+      }
+      return refreshPack();
     }).then(function () {
       ui.packBusy = false;
       render();
@@ -236,6 +270,7 @@
     var adv = el("div", { class: "ut-panel", id: "ut-pack-panel" }, [el("h2", { text: t("ut_pack_heading") })]);
     adv.appendChild(el("p", { id: "ut-pack-status",
       text: packSongs === null ? t("ut_loading") : t("ut_pack_status", { n: packSongs.length }) }));
+    if (packStorageText()) adv.appendChild(el("p", { id: "ut-pack-storage", class: "ut-muted", text: packStorageText() }));
     var fileInput = el("input", { type: "file", id: "ut-pack-file", accept: ".zip,application/zip", class: "ut-file", disabled: ui.packBusy });
     fileInput.addEventListener("change", function () { importPack(fileInput.files[0]); });
     adv.appendChild(el("div", { class: "ut-field" }, [
@@ -317,7 +352,7 @@
     MODES.forEach(function (m) {
       modePanel.appendChild(el("label", { class: "ut-radio" }, [
         el("input", { type: "radio", name: "ut-mode", id: "ut-mode-" + m, value: m, checked: draft.mode === m,
-          onchange: function () { draft.mode = m; ui.error = ""; render(); } }),
+          onchange: function () { draft.mode = m; fitScoreTable(draft); ui.error = ""; render(); } }),
         el("strong", { text: t("ut_mode_" + m) }),
         el("span", { class: "ut-muted", text: t("ut_mode_" + m + "_desc") })
       ]));
@@ -346,16 +381,19 @@
     playerPanel.appendChild(list);
     box.appendChild(playerPanel);
 
-    // 計分
-    var guessers = draft.names.length - 1;
+    // 計分（進階模式沒有出題者，也就沒有 AI 加分）
+    var group = Core.isGroupMode(draft.mode);
+    var guessers = Core.guesserCount(draft.mode, draft.names.length);
     var scorePanel = el("div", { class: "ut-panel" }, [
       el("h2", { text: t("ut_scoring") }),
-      el("p", { class: "ut-muted", text: t("ut_scoring_note") })
+      el("p", { class: "ut-muted", text: t(group ? "ut_scoring_note_group" : "ut_scoring_note") })
     ]);
-    scorePanel.appendChild(el("div", { class: "ut-field" }, [
-      el("label", { for: "ut-ai-bonus", text: t("ut_ai_bonus") }),
-      numberInput({ id: "ut-ai-bonus" }, draft.aiBonus, function (v) { draft.aiBonus = v; })
-    ]));
+    if (!group) {
+      scorePanel.appendChild(el("div", { class: "ut-field" }, [
+        el("label", { for: "ut-ai-bonus", text: t("ut_ai_bonus") }),
+        numberInput({ id: "ut-ai-bonus" }, draft.aiBonus, function (v) { draft.aiBonus = v; })
+      ]));
+    }
     var table = el("table", { class: "ut-score-table" });
     for (var k = guessers; k >= 0; k--) {
       (function (k) {
@@ -369,7 +407,7 @@
     }
     scorePanel.appendChild(table);
     scorePanel.appendChild(el("button", { type: "button", id: "ut-btn-score-default", text: t("ut_btn_score_default"),
-      onclick: function () { draft.scoreTable = Core.defaultScoreTable(draft.names.length); render(); } }));
+      onclick: function () { draft.scoreTable = Core.defaultScoreTable(draft.names.length, draft.mode); render(); } }));
     box.appendChild(scorePanel);
 
     if (draft.mode === "advanced") box.appendChild(renderPackSetup());
@@ -404,11 +442,11 @@
     return id;
   }
 
-  function songLine(song, variantId) {
+  function songLine(song, variantIds) {
     if (!song) return "";
     var line = t("ut_song_line", { title: song.t, artist: song.a, year: song.y });
-    var variant = Songs.variant(variantId);
-    return variant ? line + t("ut_style_suffix", { style: lt(variant.name) }) : line;
+    var names = (variantIds || []).map(Songs.variant).filter(Boolean).map(function (v) { return lt(v.name); });
+    return names.length ? line + t("ut_style_suffix", { style: names.join(t("ut_list_sep")) }) : line;
   }
 
   function currentPackSong() {
@@ -463,19 +501,53 @@
     stopYt();
   }
 
+  // 主播放器要放的音檔：用了伴奏提示、且目前版本有提示音檔時改播提示音檔（例：中文歌聲 → 歌聲＋伴奏）
+  function mainClip(song) {
+    var cur = state.current;
+    if (!cur.variant) return null;
+    var hint = Core.hintClip(cur.variant);
+    if (cur.hint && hint && song && (song.variants || []).indexOf(hint) >= 0) return hint;
+    return cur.variant;
+  }
+
+  function songMeta(song) {
+    var region = Songs.region(song.r);
+    var category = Songs.category(song.c);
+    return song.a + "（" + song.y + (region ? "・" + lt(region.name) : "") + (category ? "・" + lt(category.name) : "") + "）";
+  }
+
   function renderAdvancedTopic() {
     var cur = state.current;
-    var singer = nameOf(cur.singerId);
     var song = currentPackSong();
-    var variant = Songs.variant(cur.variant);
-    // 用了提示：改播提示音檔（例：中文歌聲 → 歌聲＋伴奏）
-    prepareAudio("main", song, cur.hint ? Core.hintClip(cur.variant) : cur.variant);
+    var clip = mainClip(song);
+    prepareAudio("main", clip ? song : null, clip);
     var ready = !!audio.urls.main;
+    var info = cur.info || {};
     var panel = el("div", { class: "ut-panel ut-topic", id: "ut-topic" }, [
-      el("p", { text: t("ut_advanced_hint", { name: singer }) }),
-      variant ? el("div", { class: "ut-style-badge", id: "ut-variant-badge", text: lt(variant.name) }) : null,
-      variant ? el("p", { class: "ut-style-desc", text: lt(variant.desc) }) : null,
-      el("div", { class: "ut-actions" }, [
+      el("p", { text: t("ut_group_hint", { n: Core.MAX_PICKS }) })
+    ]);
+
+    // 挑版本：已挑的可以隨時切回來重聽；額度用完後沒挑過的版本停用
+    var left = Core.picksLeft(state);
+    var pickRow = el("div", { class: "ut-toggle-row", id: "ut-pick-row" });
+    Core.pickableVariants(state).forEach(function (vid) {
+      var v = Songs.variant(vid);
+      var picked = cur.picked.indexOf(vid) >= 0;
+      var btn = el("button", { type: "button", class: "ut-toggle ut-pick" + (vid === cur.variant ? " ut-on" : ""),
+        "data-variant": vid, disabled: !picked && left === 0, "aria-pressed": vid === cur.variant ? "true" : "false",
+        text: (picked ? "♪ " : "") + (v ? lt(v.name) : vid),
+        onclick: function () { state = Core.pickVariant(state, vid); save(); render(); } });
+      if (v) btn.title = lt(v.desc);
+      pickRow.appendChild(btn);
+    });
+    panel.appendChild(pickRow);
+    panel.appendChild(el("p", { class: "ut-muted", id: "ut-picks-left", text: t("ut_picks_left", { n: left, max: Core.MAX_PICKS }) }));
+
+    var variant = Songs.variant(cur.variant);
+    if (variant) {
+      panel.appendChild(el("div", { class: "ut-style-badge", id: "ut-variant-badge", text: lt(variant.name) }));
+      panel.appendChild(el("p", { class: "ut-style-desc", text: lt(variant.desc) }));
+      panel.appendChild(el("div", { class: "ut-actions" }, [
         el("button", { type: "button", id: "ut-btn-play", class: "ut-primary", disabled: !ready,
           text: ready ? t("ut_btn_play") : t("ut_loading"), onclick: function () {
             playAudio("main"); // 先同步 play()（iOS 只允許在點擊當下播放），再記錄次數
@@ -484,41 +556,58 @@
             render();
           } }),
         el("button", { type: "button", id: "ut-btn-stop", text: t("ut_btn_stop"), onclick: function () { audio.main.pause(); } })
-      ])
-    ]);
+      ]));
+    }
     if (Core.hasHint(state)) {
-      var left = Core.playsUntilHint(state);
+      var until = Core.playsUntilHint(state);
       panel.appendChild(el("div", { class: "ut-actions" }, [
         cur.hint
           ? el("span", { class: "ut-style-badge", id: "ut-hint-on", text: t("ut_hint_on") })
-          : el("button", { type: "button", id: "ut-btn-hint", disabled: left > 0,
-            text: left > 0 ? t("ut_btn_hint_locked", { n: left }) : t("ut_btn_hint"),
+          : el("button", { type: "button", id: "ut-btn-hint", disabled: until > 0,
+            text: until > 0 ? t("ut_btn_hint_locked", { n: until }) : t("ut_btn_hint"),
             onclick: function () { state = Core.useHint(state); save(); render(); } })
       ]));
     }
     // 聲庫／角色的使用規約要求標示名稱
     if (cur.variant === "zh_sing") panel.appendChild(el("p", { class: "ut-muted", id: "ut-ai-credit", text: t("ut_ai_credit") }));
     if (cur.variant === "ja_sing") panel.appendChild(el("p", { class: "ut-muted", id: "ut-ai-credit", text: t("ut_vv_credit") }));
-    // 出題者偷看答案（判定答對用），其他人不要看
+
+    // 提示：公開年代或歌手
+    if (song && !ui.revealed) {
+      var hintRow = el("div", { class: "ut-actions", id: "ut-info-hints" });
+      hintRow.appendChild(info.decade
+        ? el("span", { class: "ut-style-badge", id: "ut-info-decade", text: t("ut_info_decade", { d: Songs.decadeOf(song) }) })
+        : el("button", { type: "button", id: "ut-btn-info-decade", text: t("ut_btn_info_decade"),
+          onclick: function () { state = Core.useInfoHint(state, "decade"); save(); render(); } }));
+      hintRow.appendChild(info.artist
+        ? el("span", { class: "ut-style-badge", id: "ut-info-artist", text: t("ut_info_artist", { name: song.a }) })
+        : el("button", { type: "button", id: "ut-btn-info-artist", text: t("ut_btn_info_artist"),
+          onclick: function () { state = Core.useInfoHint(state, "artist"); save(); render(); } }));
+      panel.appendChild(hintRow);
+    }
+
+    // 大家都猜完後公布答案
     if (!ui.revealed) {
       panel.appendChild(el("div", { class: "ut-actions" }, [
-        el("button", { type: "button", id: "ut-btn-reveal", text: t("ut_btn_peek", { name: singer }),
+        el("button", { type: "button", id: "ut-btn-redraw", text: t("ut_btn_redraw"),
+          onclick: function () { stopAll(); state = Core.redrawSong(state); save(); render(); } }),
+        el("button", { type: "button", id: "ut-btn-reveal", class: "ut-primary", text: t("ut_btn_reveal_answer"),
           onclick: function () { ui.revealed = true; render(); } })
       ]));
       return panel;
     }
-    var region = song ? Songs.region(song.r) : null;
-    var category = song ? Songs.category(song.c) : null;
+    var hasOriginal = !!(song && song.clips && song.clips.original);
+    prepareAudio("answer", hasOriginal ? song : null, "original");
     panel.appendChild(el("div", { class: "ut-song-card", id: "ut-song-card" }, [
       el("div", { class: "ut-song-title", text: song ? song.t : "" }),
-      el("div", { class: "ut-song-meta", text: song ? song.a + "（" + song.y + (region ? "・" + lt(region.name) : "") + (category ? "・" + lt(category.name) : "") + "）" : "" })
+      el("div", { class: "ut-song-meta", text: song ? songMeta(song) : "" })
     ]));
-    panel.appendChild(el("div", { class: "ut-actions" }, [
-      el("button", { type: "button", id: "ut-btn-redraw", text: t("ut_btn_redraw"),
-        onclick: function () { state = Core.redrawSong(state); save(); render(); } }),
-      el("button", { type: "button", id: "ut-btn-hide", class: "ut-primary", text: t("ut_btn_hide"),
-        onclick: function () { ui.revealed = false; render(); } })
-    ]));
+    if (hasOriginal) {
+      panel.appendChild(el("div", { class: "ut-actions" }, [
+        el("button", { type: "button", id: "ut-btn-reveal-play", disabled: !audio.urls.answer,
+          text: t("ut_btn_play_answer"), onclick: function () { playAudio("answer"); } })
+      ]));
+    }
     return panel;
   }
 
@@ -721,13 +810,16 @@
     var cur = state.current;
     var panel = el("div", { class: "ut-panel ut-judge" }, [el("h2", { text: t("ut_judge_heading") })]);
 
-    panel.appendChild(el("div", { class: "ut-field" }, [
-      el("span", { class: "ut-label", text: t("ut_ai_question") }),
-      el("button", { type: "button", id: "ut-btn-ai", class: "ut-toggle" + (ui.aiCorrect ? " ut-on" : ""),
-        "aria-pressed": ui.aiCorrect ? "true" : "false",
-        text: ui.aiCorrect ? t("ut_ai_on") : t("ut_ai_off"),
-        onclick: function () { ui.aiCorrect = !ui.aiCorrect; render(); } })
-    ]));
+    // 進階模式沒有出題者，AI 答對也沒有人加分
+    if (cur.singerId) {
+      panel.appendChild(el("div", { class: "ut-field" }, [
+        el("span", { class: "ut-label", text: t("ut_ai_question") }),
+        el("button", { type: "button", id: "ut-btn-ai", class: "ut-toggle" + (ui.aiCorrect ? " ut-on" : ""),
+          "aria-pressed": ui.aiCorrect ? "true" : "false",
+          text: ui.aiCorrect ? t("ut_ai_on") : t("ut_ai_off"),
+          onclick: function () { ui.aiCorrect = !ui.aiCorrect; render(); } })
+      ]));
+    }
 
     panel.appendChild(el("p", { class: "ut-label", text: t("ut_who_correct") }));
     var row = el("div", { class: "ut-toggle-row" });
@@ -754,12 +846,15 @@
 
   function historyText(h) {
     var names = h.correctIds.map(nameOf);
+    var info = h.info || {};
+    var infoUsed = Core.INFO_HINTS.filter(function (k) { return info[k]; }).map(function (k) { return t("ut_hint_kind_" + k); });
     var parts = [
-      t("ut_hist_round", { n: h.round, name: nameOf(h.singerId) }),
-      h.song ? songLine(h.song, h.variant) : null,
+      h.singerId ? t("ut_hist_round", { n: h.round, name: nameOf(h.singerId) }) : t("ut_hist_round_group", { n: h.round }),
+      h.song ? songLine(h.song, h.picked || (h.variant ? [h.variant] : [])) : null,
       h.dream && h.dream.videoId ? t("ut_hist_dream", { title: h.dream.title || h.dream.videoId }) : null,
       h.hint ? t("ut_hist_hint") : null,
-      t("ut_hist_ai", { result: h.aiCorrect ? t("ut_ai_on") : t("ut_ai_off") }),
+      infoUsed.length ? t("ut_hist_info", { list: infoUsed.join(t("ut_list_sep")) }) : null,
+      h.singerId ? t("ut_hist_ai", { result: h.aiCorrect ? t("ut_ai_on") : t("ut_ai_off") }) : null,
       t("ut_hist_correct", { list: names.length ? names.join(t("ut_list_sep")) : t("ut_nobody") })
     ];
     return parts.filter(Boolean).join(t("ut_hist_sep"));
@@ -773,12 +868,14 @@
 
   function renderLastRound() {
     var h = state.history[state.history.length - 1];
+    // 進階模式公布答案時，answer 播放器給本題的原曲用（renderAdvancedTopic），這裡不能動它
+    var answerBusy = state.config.mode === "advanced" && ui.revealed;
     if (!h) {
-      prepareAudio("answer", null, null);
+      if (!answerBusy) prepareAudio("answer", null, null);
       return null;
     }
     var answer = null;
-    if (state.config.mode === "advanced" && h.songId) {
+    if (state.config.mode === "advanced" && h.songId && !answerBusy) {
       var song = Core.findPackSong(state.config, h.songId);
       var has = !!(song && song.clips && song.clips.original);
       prepareAudio("answer", has ? song : null, "original");
@@ -826,9 +923,11 @@
   function renderGame() {
     var cur = state.current;
     var box = el("div", { class: "ut-game" });
-    box.appendChild(el("div", { class: "ut-round-head" }, [
+    box.appendChild(el("div", { class: "ut-round-head" }, cur.singerId ? [
       el("h2", { id: "ut-round-title", text: t("ut_round_title", { n: state.round, name: nameOf(cur.singerId) }) }),
       el("p", { class: "ut-muted", text: t("ut_cycle_left", { n: state.queue.length }) })
+    ] : [
+      el("h2", { id: "ut-round-title", text: t("ut_round_title_group", { n: state.round }) })
     ]));
     [renderTopic(), renderJudge(), renderLastRound(), renderScoreboard(), renderHistory()].forEach(function (node) {
       if (node) box.appendChild(node);

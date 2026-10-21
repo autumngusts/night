@@ -7,6 +7,10 @@
 //   ・AI 答對：出題者另得 aiBonus
 // 抽人規則：每一輪隨機抽一位出題者，抽完一圈之前不重複。
 // 模式：basic（出題者自己唱）／advanced（播放題庫包音檔）／dream（出題者給 YouTube 連結，播隨機一段）
+// 進階模式（使用者指定，2026-10-18）：不輪流出題，全體一起猜。
+//   ・沒有出題者：答對人數 k 以全體玩家計，每位答對者各得 scoreTable[k]；全部答錯沒有人得分；沒有 AI 加分。
+//   ・聽法由大家挑：這首歌有、且設定有勾選的版本中，每題最多挑 MAX_PICKS 種來聽（重播已挑過的不另計）。
+//   ・提示：可公開「年代」或「歌手」（INFO_HINTS）。和伴奏提示一樣不影響計分，只在紀錄標示。
 // 提示（使用者指定，2026-10-17）：有提示音檔的版本（中文歌聲 → 加上伴奏），本輪播放滿 HINT_PLAYS 次後才能使用；
 //   使用提示不影響計分，只在紀錄中標示。
 (function () {
@@ -15,6 +19,8 @@
   var Songs = window.PriTestUtauSongs;
 
   var HINT_PLAYS = 5;
+  var MAX_PICKS = 3;
+  var INFO_HINTS = ["decade", "artist"];
 
   function rand(rng) { return rng ? rng() : Math.random(); }
 
@@ -36,10 +42,18 @@
     return out;
   }
 
+  // 進階模式：沒有出題者，全體一起猜
+  function isGroupMode(mode) { return mode === "advanced"; }
+
+  // 猜題人數（計分表的最大答對人數）
+  function guesserCount(mode, playerCount) {
+    return Math.max(1, isGroupMode(mode) ? playerCount : playerCount - 1);
+  }
+
   // 預設計分表：index = 答對人數（0 = 全部答錯，guessers = 全部答對）
   // 少數人答對 3 分、多數人答對 2 分、全部答對 1 分、全部答錯 0 分
-  function defaultScoreTable(playerCount) {
-    var guessers = Math.max(1, playerCount - 1);
+  function defaultScoreTable(playerCount, mode) {
+    var guessers = guesserCount(mode, playerCount);
     var table = [];
     for (var k = 0; k <= guessers; k++) {
       if (k === 0) table.push(0);
@@ -72,7 +86,7 @@
 
   function validateConfig(config) {
     if (!config.players || config.players.length < 2) throw new Error("ut_err_players");
-    if (config.scoreTable.length !== config.players.length) throw new Error("ut_err_table");
+    if (config.scoreTable.length !== guesserCount(config.mode, config.players.length) + 1) throw new Error("ut_err_table");
     if (config.mode === "advanced") {
       if (!config.packSongs || !config.packSongs.length) throw new Error("ut_err_no_pack");
       if (!config.variants.length) throw new Error("ut_err_variants");
@@ -98,7 +112,7 @@
     return s.queue.shift();
   }
 
-  // 抽歌：用過的歌整池用完前不重複；版本從這首歌有的、且有勾選的版本中隨機
+  // 抽歌：用過的歌整池用完前不重複。版本不再隨機指定，由大家挑（pickVariant）
   function drawSong(s, rng) {
     var pool = songPool(s.config);
     var fresh = pool.filter(function (song) { return s.usedSongs.indexOf(song.id) < 0; });
@@ -109,9 +123,10 @@
     }
     var song = fresh[Math.floor(rand(rng) * fresh.length)];
     s.usedSongs.push(song.id);
-    var variants = playableVariants(s.config, song);
     s.current.songId = song.id;
-    s.current.variant = variants[Math.floor(rand(rng) * variants.length)];
+    s.current.variant = null;
+    s.current.picked = [];
+    s.current.info = {};
     s.current.plays = 0;
     s.current.hint = false;
   }
@@ -123,7 +138,7 @@
   }
 
   function startRound(s, rng) {
-    var singerId = drawSinger(s, rng);
+    var singerId = isGroupMode(s.config.mode) ? null : drawSinger(s, rng);
     s.round += 1;
     s.current = { singerId: singerId, songId: null, variant: null, dream: null, plays: 0, hint: false };
     if (s.config.mode === "advanced") drawSong(s, rng);
@@ -149,16 +164,18 @@
     return s;
   }
 
-  // 本輪各人得分（不改 state，結算預覽也用這個）
+  // 本輪各人得分（不改 state，結算預覽也用這個）。singerId 為 null＝進階模式（沒有出題者）
   function computeDeltas(config, singerId, aiCorrect, correctIds) {
     var deltas = {};
     config.players.forEach(function (p) { deltas[p.id] = 0; });
     var valid = correctIds.filter(function (id) { return id !== singerId && deltas.hasOwnProperty(id); });
     var k = valid.length;
     var pts = Number(config.scoreTable[k]) || 0;
-    deltas[singerId] += pts;
     valid.forEach(function (id) { deltas[id] += pts; });
-    if (aiCorrect) deltas[singerId] += Number(config.aiBonus) || 0;
+    if (singerId) {
+      deltas[singerId] += pts;
+      if (aiCorrect) deltas[singerId] += Number(config.aiBonus) || 0;
+    }
     return deltas;
   }
 
@@ -177,9 +194,11 @@
       singerId: cur.singerId,
       songId: cur.songId,
       variant: cur.variant,
+      picked: cur.picked ? cur.picked.slice() : null,
+      info: cur.info ? clone(cur.info) : null,
       song: cur.songId ? pick(findPackSong(s.config, cur.songId), ["t", "a", "y", "r", "c"]) : null,
       dream: cur.dream ? { videoId: cur.dream.videoId, title: cur.dream.title } : null,
-      aiCorrect: !!result.aiCorrect,
+      aiCorrect: !!result.aiCorrect && !!cur.singerId,
       correctIds: correctIds,
       deltas: deltas,
       hint: !!cur.hint
@@ -233,6 +252,39 @@
     if (!hintAvailable(state)) return state;
     var s = clone(state);
     s.current.hint = true;
+    return s;
+  }
+
+  // ---- 進階模式：挑版本、資訊提示 ----
+
+  // 這一題可以挑的版本（這首歌有、且設定有勾選）
+  function pickableVariants(state) {
+    var song = state.current && state.current.songId ? findPackSong(state.config, state.current.songId) : null;
+    return song ? playableVariants(state.config, song) : [];
+  }
+
+  // 還能再挑幾種版本
+  function picksLeft(state) {
+    return Math.max(0, MAX_PICKS - ((state.current && state.current.picked) || []).length);
+  }
+
+  // 選一個版本來聽：已挑過的直接切換；新的版本要還有額度。不能挑時不動作
+  function pickVariant(state, variantId) {
+    var cur = state.current;
+    if (!cur || !cur.picked || pickableVariants(state).indexOf(variantId) < 0) return state;
+    if (cur.picked.indexOf(variantId) < 0 && picksLeft(state) === 0) return state;
+    var s = clone(state);
+    if (s.current.picked.indexOf(variantId) < 0) s.current.picked.push(variantId);
+    s.current.variant = variantId;
+    return s;
+  }
+
+  // 公開年代或歌手
+  function useInfoHint(state, kind) {
+    if (INFO_HINTS.indexOf(kind) < 0 || !state.current || !state.current.songId) return state;
+    var s = clone(state);
+    s.current.info = s.current.info || {};
+    s.current.info[kind] = true;
     return s;
   }
 
@@ -290,6 +342,14 @@
 
   window.PriTestUtauCore = {
     defaultScoreTable: defaultScoreTable,
+    isGroupMode: isGroupMode,
+    guesserCount: guesserCount,
+    MAX_PICKS: MAX_PICKS,
+    INFO_HINTS: INFO_HINTS,
+    pickableVariants: pickableVariants,
+    picksLeft: picksLeft,
+    pickVariant: pickVariant,
+    useInfoHint: useInfoHint,
     songPool: songPool,
     findPackSong: findPackSong,
     setDream: setDream,

@@ -101,13 +101,75 @@
     });
   }
 
+  // ---------------- 儲存空間 ----------------
+
+  // 剩餘空間要再留一點餘裕：IndexedDB 存 Blob 有額外開銷，estimate() 也只是估計值
+  var SPACE_MARGIN = 1.05;
+  var SPACE_RESERVE = 20 * 1024 * 1024;
+
+  // 要求瀏覽器不要自動清除這個網站的資料（題庫包）。不支援或被拒絕時回傳 false，不影響匯入。
+  function requestPersist() {
+    var s = navigator.storage;
+    if (!s || !s.persist) return Promise.resolve(false);
+    return (s.persisted ? s.persisted() : Promise.resolve(false)).then(function (already) {
+      return already || s.persist();
+    }).catch(function () { return false; });
+  }
+
+  // { usage, quota, persisted }：usage／quota 不支援時為 null
+  function storageInfo() {
+    var s = navigator.storage;
+    var est = s && s.estimate ? s.estimate().catch(function () { return null; }) : Promise.resolve(null);
+    var per = s && s.persisted ? s.persisted().catch(function () { return false; }) : Promise.resolve(false);
+    return Promise.all([est, per]).then(function (r) {
+      var e = r[0];
+      var ok = e && typeof e.quota === "number" && e.quota > 0;
+      return { usage: ok ? e.usage || 0 : null, quota: ok ? e.quota : null, persisted: !!r[1] };
+    });
+  }
+
+  // 這個包要新寫入的大小：已經存在的音檔（同一路徑＝同一來源同一版本）會被覆蓋，不算在內
+  function bytesNeeded(db, manifest, index) {
+    return req(db.transaction("clips").objectStore("clips").getAllKeys()).then(function (keys) {
+      var have = {};
+      keys.forEach(function (k) { have[k] = true; });
+      var need = 0;
+      manifest.songs.forEach(function (song) {
+        Object.keys(song.clips || {}).forEach(function (variant) {
+          var path = song.clips[variant];
+          if (index[path] && !have[path]) need += index[path].size;
+        });
+      });
+      return need;
+    });
+  }
+
+  // 空間不夠就丟出 ut_err_pack_space（帶 need／free 給畫面顯示），不支援 estimate() 時直接放行
+  function checkSpace(db, manifest, index) {
+    return Promise.all([bytesNeeded(db, manifest, index), storageInfo()]).then(function (r) {
+      var need = r[0];
+      var info = r[1];
+      if (info.quota === null || need === 0) return;
+      var free = info.quota - info.usage;
+      if (need * SPACE_MARGIN + SPACE_RESERVE > free) {
+        var err = new Error("ut_err_pack_space");
+        err.params = { need: need, free: Math.max(0, free) };
+        throw err;
+      }
+    });
+  }
+
   // ---------------- 公開 API ----------------
 
-  // 匯入題庫包 zip → { added, total }
+  // 匯入題庫包 zip → { added, total, persisted }
   function importFile(file) {
     var manifest;
     var index;
-    return readZipIndex(file).then(function (idx) {
+    var persisted = false;
+    return requestPersist().then(function (p) {
+      persisted = p;
+      return readZipIndex(file);
+    }).then(function (idx) {
       index = idx;
       var m = index["manifest.json"];
       if (!m) throw new Error("ut_err_pack_format");
@@ -116,6 +178,8 @@
       manifest = JSON.parse(text);
       if (!manifest || manifest.format !== PACK_FORMAT || !Array.isArray(manifest.songs)) throw new Error("ut_err_pack_format");
       return openDb();
+    }).then(function (db) {
+      return checkSpace(db, manifest, index).then(function () { return db; });
     }).then(function (db) {
       var tx = db.transaction(["songs", "clips"], "readwrite");
       var songs = tx.objectStore("songs");
@@ -135,7 +199,7 @@
     }).then(function () {
       return list();
     }).then(function (all) {
-      return { added: manifest.songs.length, total: all.length };
+      return { added: manifest.songs.length, total: all.length, persisted: persisted };
     });
   }
 
@@ -164,5 +228,5 @@
     });
   }
 
-  window.PriTestUtauPack = { importFile: importFile, list: list, getClip: getClip, clear: clear };
+  window.PriTestUtauPack = { importFile: importFile, list: list, getClip: getClip, clear: clear, storageInfo: storageInfo };
 })();

@@ -1,7 +1,8 @@
 // ============================================================================
 // utau（我不會唱歌）Playwright 流程檢查：
 //   基本模式：結算／復原／重新整理還原
-//   進階模式：匯入題庫包 zip（測試內產生）、版本篩選、播放鍵就緒、出題者偷看、公布答案的原曲、重新整理後題庫包仍在
+//   進階模式：匯入題庫包 zip（測試內產生）、版本篩選、全體猜題（挑最多 3 種版本、年代／歌手提示、公布答案）、
+//             播放鍵就緒、公布答案的原曲、重新整理後題庫包仍在
 //   夢想模式：輸入 YouTube 網址（錯誤網址提示）、浮動播放器、結算後的答案連結、切換日文
 // 前置：
 //   1. py -3 generate.py
@@ -157,8 +158,11 @@ function makeTestPack() {
     return m && m.textContent.indexOf("2") >= 0 && document.getElementById("ut-pool-size");
   });
   assert.ok((await page.textContent("#ut-pack-status")).indexOf("2") >= 0);
-  // 只留純樂器、只留動漫
-  for (var v of ["vocal", "other", "speed", "chip", "vocal_rev", "rhythm", "reverse", "zh_sing", "ja_sing"]) await page.uncheck("#ut-variant-" + v);
+  // 進階模式沒有出題者：3 人的計分表是 4 列（0〜3 人答對），沒有 AI 加分欄
+  assert.strictEqual(await page.locator(".ut-score-input").count(), 4, "advanced table has players + 1 rows");
+  assert.strictEqual(await page.locator("#ut-ai-bonus").count(), 0, "no AI bonus in advanced mode");
+  // 留純樂器、純人聲、極端變快、鼓＋貝斯（4 種，用來驗證最多挑 3 種）；只留動漫
+  for (var v of ["other", "chip", "vocal_rev", "reverse", "zh_sing", "ja_sing"]) await page.uncheck("#ut-variant-" + v);
   assert.strictEqual(await page.$("#ut-variant-zh_read"), null);  // 中文朗讀已拿掉（2026-10-17）
   await page.uncheck("#ut-cat-screen");
   assert.ok((await page.textContent("#ut-pool-size")).indexOf("1") >= 0);
@@ -167,14 +171,40 @@ function makeTestPack() {
   s = await debugState(page);
   assert.strictEqual(s.config.mode, "advanced");
   assert.strictEqual(s.current.songId, "ja:紅蓮華");
-  assert.strictEqual(s.current.variant, "instrumental");
+  assert.strictEqual(s.current.singerId, null, "everyone guesses together");
+  assert.strictEqual(s.current.variant, null, "no version until someone picks one");
+  assert.strictEqual(await page.locator("#ut-btn-play").count(), 0, "nothing to play before picking");
+  assert.ok((await page.textContent("#ut-round-title")).indexOf("大家一起猜") >= 0);
+  assert.strictEqual(await page.locator("#ut-btn-ai").count(), 0, "no AI toggle without a quizmaster");
+  assert.strictEqual(await page.locator(".ut-player-toggle").count(), 3, "every player is a guesser");
+  assert.strictEqual(await page.locator(".ut-pick").count(), 4);
+  await page.click(".ut-pick[data-variant='instrumental']");
   assert.ok((await page.textContent("#ut-variant-badge")).indexOf("純樂器") >= 0);
   await page.waitForSelector("#ut-btn-play:not([disabled])");
-  assert.strictEqual(await page.locator("#ut-song-card").count(), 0, "answer hidden before peek");
+  await page.click(".ut-pick[data-variant='vocal']");
+  await page.click(".ut-pick[data-variant='speed']");
+  assert.ok(await page.locator(".ut-pick[data-variant='rhythm'][disabled]").count() === 1, "4th version is locked");
+  await page.click(".ut-pick[data-variant='instrumental']");
+  s = await debugState(page);
+  assert.deepStrictEqual(s.current.picked, ["instrumental", "vocal", "speed"]);
+  assert.strictEqual(s.current.variant, "instrumental", "can switch back to a picked version");
+  // 提示：年代、歌手
+  assert.strictEqual(await page.locator("#ut-info-decade").count(), 0);
+  await page.click("#ut-btn-info-decade");
+  assert.ok((await page.textContent("#ut-info-decade")).indexOf("2010") >= 0);
+  await page.click("#ut-btn-info-artist");
+  assert.ok((await page.textContent("#ut-info-artist")).indexOf("LiSA") >= 0);
+  assert.strictEqual(await page.locator("#ut-song-card").count(), 0, "answer hidden before reveal");
   await page.click("#ut-btn-reveal");
   assert.strictEqual(await page.textContent(".ut-song-title"), "紅蓮華");
-  await page.click("#ut-btn-hide");
+  await page.waitForSelector("#ut-btn-reveal-play:not([disabled])");
+  await page.click(".ut-player-toggle[data-player='p1']");
+  await page.click(".ut-player-toggle[data-player='p3']");
+  assert.ok((await page.textContent("#ut-preview")).indexOf("+3") >= 0, "2 of 3 right: table[2] = 3 each");
   await page.click("#ut-btn-settle");
+  s = await debugState(page);
+  assert.deepStrictEqual(s.history[0].deltas, { p1: 3, p2: 0, p3: 3 });
+  assert.ok((await page.textContent("#ut-last-round")).indexOf("年代、歌手") >= 0, "history shows the info hints");
   assert.ok((await page.textContent("#ut-last-round")).indexOf("紅蓮華") >= 0, "answer shown after scoring");
   await page.waitForSelector("#ut-btn-play-answer:not([disabled])");
   // 讀回存在 IndexedDB 的音檔內容，確認是對的那一段
@@ -184,8 +214,9 @@ function makeTestPack() {
   });
   assert.strictEqual(clipText, "fake-audio-aaa-original");
 
-  // 重新整理後題庫包還在、播放鍵會再就緒
+  // 重新整理後題庫包還在、挑了版本之後播放鍵會再就緒
   await page.reload();
+  await page.click(".ut-pick[data-variant='vocal']");
   await page.waitForSelector("#ut-btn-play:not([disabled])");
 
   // ---- 中文歌聲的提示：播放 5 次後才能加上伴奏，不扣分 ----
@@ -197,9 +228,12 @@ function makeTestPack() {
   await page.check("#ut-variant-zh_sing");
   await page.check("#ut-cat-screen");
   await page.click("#ut-btn-start");
+  assert.strictEqual(await page.locator("#ut-variant-zh_sing_inst").count(), 0, "hint clip is not a selectable version");
+  // 純人聲、極端變快、鼓＋貝斯仍有勾選，只挑中文歌聲
+  assert.strictEqual(await page.locator(".ut-pick[data-variant='zh_sing_inst']").count(), 0, "hint clip is not pickable");
+  await page.click(".ut-pick[data-variant='zh_sing']");
   s = await debugState(page);
   assert.strictEqual(s.current.variant, "zh_sing");
-  assert.strictEqual(await page.locator("#ut-variant-zh_sing_inst").count(), 0, "hint clip is not a selectable version");
   await page.waitForSelector("#ut-btn-play:not([disabled])");
   assert.ok(await page.locator("#ut-btn-hint[disabled]").isVisible(), "hint locked at first");
   assert.ok(await page.locator("#ut-ai-credit").isVisible(), "AI voice credit shown");
@@ -207,18 +241,16 @@ function makeTestPack() {
   s = await debugState(page);
   assert.strictEqual(s.current.plays, 5);
   await page.waitForSelector("#ut-btn-hint:not([disabled])");
-  var hintSinger = s.current.singerId;
   await page.click("#ut-btn-hint");
   assert.ok(await page.locator("#ut-hint-on").isVisible());
   // 提示後主播放器換成「歌聲＋伴奏」的音檔
   await page.waitForSelector("#ut-btn-play:not([disabled])");
-  var hintGuesser = s.config.players.map(function (p) { return p.id; }).filter(function (id) { return id !== hintSinger; })[0];
-  await page.click(".ut-player-toggle[data-player='" + hintGuesser + "']");
-  var beforeHint = (await debugState(page)).scores[hintSinger];
+  await page.click(".ut-player-toggle[data-player='p2']");
+  var beforeHint = (await debugState(page)).scores.p2;
   await page.click("#ut-btn-settle");
   s = await debugState(page);
   assert.strictEqual(s.history[s.history.length - 1].hint, true);
-  assert.strictEqual(s.scores[hintSinger] - beforeHint, s.config.scoreTable[1], "hint does not change scoring");
+  assert.strictEqual(s.scores.p2 - beforeHint, s.config.scoreTable[1], "hint does not change scoring");
   assert.ok((await page.textContent("#ut-last-round")).indexOf("用了提示") >= 0, "history shows the hint");
 
   // ================= 夢想模式（YouTube）=================
@@ -268,6 +300,63 @@ function makeTestPack() {
   // ---- 首頁有入口 ----
   await page.goto(BASE.replace("utau/index.html", "index.html"));
   assert.ok(await page.locator("a[href='utau/index.html']").count() > 0);
+
+  assert.deepStrictEqual(errors, []);
+
+  // ================= 儲存空間：persist() 與空間不足檢查 =================
+  // navigator.storage 換成可控制的假物件：window.__utFree＝剩餘空間（bytes），persist() 被呼叫就記下來
+  var ctx = await browser.newContext();
+  await ctx.addInitScript(function () {
+    window.__utFree = 1024 * 1024;
+    window.__utPersistCalls = 0;
+    window.__utPersisted = false;
+    window.__utEstimateCalls = 0;
+    var proto = Object.getPrototypeOf(navigator.storage);
+    proto.estimate = function () { window.__utEstimateCalls++; return Promise.resolve({ usage: 5 * 1024 * 1024, quota: 5 * 1024 * 1024 + window.__utFree }); };
+    proto.persisted = function () { return Promise.resolve(window.__utPersisted); };
+    proto.persist = function () { window.__utPersistCalls++; window.__utPersisted = true; return Promise.resolve(true); };
+  });
+  var p2 = await ctx.newPage();
+  p2.on("pageerror", function (e) { errors.push(String(e)); });
+  await p2.goto(BASE);
+  await p2.evaluate(function () { localStorage.setItem("pritest-lang", "zh"); });
+  await p2.reload();
+  await p2.check("#ut-mode-advanced");
+  await p2.waitForSelector("#ut-pack-storage");
+  assert.ok((await p2.textContent("#ut-pack-storage")).indexOf("可能被自動清除") >= 0, "not persisted yet");
+
+  // 剩 1MB（低於保留餘裕）→ 擋下、提示分包，題庫不變
+  await p2.setInputFiles("#ut-pack-file", packFile);
+  await p2.waitForFunction(function () {
+    var m = document.getElementById("ut-pack-msg");
+    return m && m.textContent.indexOf("空間不足") >= 0;
+  });
+  assert.ok((await p2.textContent("#ut-pack-msg")).indexOf("out/phone/") >= 0, "space error suggests phone packs");
+  assert.ok((await p2.textContent("#ut-pack-status")).indexOf("0") >= 0, "nothing imported");
+  assert.strictEqual(await p2.evaluate(function () { return window.__utPersistCalls; }), 1, "persist() requested before import");
+
+  // 空間足夠 → 匯入成功，顯示已同意保留
+  await p2.evaluate(function () { window.__utFree = 500 * 1024 * 1024; });
+  await p2.setInputFiles("#ut-pack-file", []);
+  await p2.setInputFiles("#ut-pack-file", packFile);
+  await p2.waitForFunction(function () {
+    var m = document.getElementById("ut-pack-msg");
+    return m && m.textContent.indexOf("已匯入 2") >= 0;
+  });
+  assert.ok((await p2.textContent("#ut-pack-storage")).indexOf("已同意保留") >= 0);
+  assert.ok((await p2.textContent("#ut-pack-storage")).indexOf("剩餘約 500 MB") >= 0);
+
+  // 空間又變少，但重新匯入同一包：音檔都已存在（會被覆蓋），不需要新空間 → 不擋
+  // （訊息和上一次一樣是「已匯入 2」，所以用 estimate() 次數確認這次匯入〔空間檢查＋重新整理〕跑完了）
+  var calls = await p2.evaluate(function () { window.__utFree = 1024 * 1024; return window.__utEstimateCalls; });
+  await p2.setInputFiles("#ut-pack-file", []);
+  await p2.setInputFiles("#ut-pack-file", packFile);
+  await p2.waitForFunction(function (n) {
+    var m = document.getElementById("ut-pack-msg");
+    return window.__utEstimateCalls >= n + 2 && m && m.textContent.indexOf("已匯入") >= 0;
+  }, calls);
+  assert.ok((await p2.textContent("#ut-pack-msg")).indexOf("空間不足") < 0, "re-import of existing clips is not blocked");
+  await ctx.close();
 
   assert.deepStrictEqual(errors, []);
   await browser.close();
