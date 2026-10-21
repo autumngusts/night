@@ -34,7 +34,7 @@
   var STYLE_PARAM = { attack: [1.3, 1.0, 34], defense: [0.8, 0.9, 14], stamina: [1.0, 0.6, 6], balance: [1.05, 0.85, 24] };
   // 試合模式（使用者指定 2026-10-20）：刀不自轉。停在壁面收刀 → 抽出斬擊方向、先亮刀光路徑 → 沿路徑斬到下一個壁面停下。
   // 路上碰到其他刀＝刀刃相接（火花、互相削耐久），雙方往隨機方向彈開，停下後繼續下一輪。招式全自動。
-  var SHIAI = { SHEATHE: 0.45, SHEATHE_RND: 0.6, AIM: 0.55, SPEED: 175, RECOIL: 130, AIM_ENEMY: 0.55, CLASH: 9 };
+  var SHIAI = { SHEATHE: 0.45, SHEATHE_RND: 0.6, AIM: 0.55, SPEED: 260, RECOIL: 160, RECOIL_MIN: 95, LOCK: 1, LOCK_RND: 1, AIM_ENEMY: 0.55, CLASH: 9 };
   var MODES = ["koma", "shiai"];
   var COLORS = ["#e2553f", "#3f8fe2", "#e2b23f", "#52b06a", "#a35fd6", "#e27fb6", "#4fc4c4", "#c48a4f", "#9aa0a6", "#d6d65f"];
 
@@ -669,6 +669,7 @@
 
   function shiaiMove(a, f) {
     var sh = f.sh, fx = f.fx;
+    if (sh.st === "lock") { shiaiLock(a, f); return; }
     if (fx.iaiHold > 0 || fx.stun > 0) { f.vx = 0; f.vy = 0; return; } // 居合的納刀・麻痺：原地不動
     sh.t -= DT;
     if (sh.st === "sheathe") {
@@ -686,9 +687,11 @@
       var v = shiaiSpeed(f);
       f.vx = Math.cos(sh.dir) * v; f.vy = Math.sin(sh.dir) * v;
     } else if (sh.st === "recoil") {
-      var k = Math.exp(-3 * DT);
-      f.vx *= k; f.vy *= k;
-      if (Math.hypot(f.vx, f.vy) < 18) shiaiStop(a, f);
+      // 彈開後一路滑到壁面才停下收刀（使用者指定 2026-10-21）：減速但保留最低速度
+      var k = Math.exp(-1.2 * DT), v0 = Math.hypot(f.vx, f.vy);
+      if (v0 < 1e-6) { var ra = rnd(a) * Math.PI * 2; f.vx = Math.cos(ra); f.vy = Math.sin(ra); v0 = 1; }
+      var v1 = Math.max(SHIAI.RECOIL_MIN, v0 * k);
+      f.vx *= v1 / v0; f.vy *= v1 / v0;
     }
   }
 
@@ -747,16 +750,45 @@
         });
       }
     }
-    // 彈開：大致往遠離對方的方向，加上隨機角度；重的刀把對方彈得更遠
+    // 彈開：大致往遠離對方的方向，加上隨機角度；重的刀把對方彈得更遠。
+    // 刀刃相接（使用者指定 2026-10-21）：先鎖住 1〜2 秒、持續噴火花，時間到才彈開（彈開速度先算好存著）。
+    // 閃避・見切・不陷入僵持的招式接觸不鎖，直接彈開。
+    var lockT = (mk || skip) ? 0 : SHIAI.LOCK + rnd(a) * SHIAI.LOCK_RND;
     [[f, g, -1], [g, f, 1]].forEach(function (pr) {
       var me = pr[0], op = pr[1];
       if (!me.alive) return;
       var ang = Math.atan2(ny * pr[2], nx * pr[2]) + (rnd(a) - 0.5) * 2.4;
       var sp = SHIAI.RECOIL * Math.sqrt(effMass(op) / effMass(me)) * (has(op, "heavy") ? 1.4 : 1);
-      me.vx = Math.cos(ang) * sp; me.vy = Math.sin(ang) * sp;
-      me.sh.st = "recoil";
+      if (lockT > 0) {
+        me.sh.st = "lock"; me.sh.t = lockT; me.sh.op = op.id; me.sh.spark = 0;
+        me.sh.rvx = Math.cos(ang) * sp; me.sh.rvy = Math.sin(ang) * sp;
+        me.vx = 0; me.vy = 0;
+      } else {
+        me.vx = Math.cos(ang) * sp; me.vy = Math.sin(ang) * sp;
+        me.sh.st = "recoil";
+      }
     });
-    emit(a, { type: "release", x: mx, y: my });
+    if (lockT > 0) pairCool(a, f, g, lockT + 0.6);
+    else emit(a, { type: "release", x: mx, y: my });
+  }
+
+  // 相接中：停在原地互推、持續噴火花；時間到（或對手退場）才彈開
+  function shiaiLock(a, f) {
+    var sh = f.sh, op = byFid(a, sh.op);
+    f.vx = 0; f.vy = 0;
+    sh.t -= DT;
+    if (op && op.alive && op.sh && op.sh.st === "lock" && op.sh.op === f.id && sh.t > 0) {
+      sh.spark -= DT;
+      // 一對只由其中一把噴火花，免得加倍
+      if (f.id < op.id && sh.spark <= 0) {
+        sh.spark = 0.07;
+        emit(a, { type: "spark", x: (f.x + op.x) / 2, y: (f.y + op.y) / 2, momiji: f.fx.momiji > 0 || op.fx.momiji > 0, fire: bany(f, "flame") || bany(op, "flame") });
+      }
+      return;
+    }
+    f.vx = sh.rvx || 0; f.vy = sh.rvy || 0;
+    sh.st = "recoil";
+    if (!op || f.id < op.id || !op.alive) emit(a, { type: "release", x: op ? (f.x + op.x) / 2 : f.x, y: op ? (f.y + op.y) / 2 : f.y });
   }
 
   function aiChoose(a, f) {

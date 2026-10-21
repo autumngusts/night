@@ -14,6 +14,7 @@ KATANA_SCRIPTS: tuple[str, ...] = (
     "katana_games.js",
     "katana_games2.js",
     "katana_arena.js",
+    "katana_arena_pov.js",
     "firebase_config.js",
     "game_storage.js",
     "katana_net.js",

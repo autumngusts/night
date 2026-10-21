@@ -110,7 +110,18 @@ STYLE: <整組共用的畫風，一字不改>
 
 ---
 
-## 6. 接進遊戲時要做的事（尚未實作）
+## 6. 接進遊戲時要做的事
+
+**2026-10-21 已接上（第一批：太刀 `tachi` 的俯視＋側視）**：
+
+* 素材放在 `static_src/katana_art/{top,side}/<id>.png`，`generate.py` 整個複製到 `dist/static/katana_art/`。
+  原圖（`photo/tmp/katana/tachi_upon.png`、`tachi_side.png`，透明背景）先整理成規格位置：俯視圖把鍔移到正中央、刀尖在中心右方 45%，輸出 768×768；側視圖裁到不透明範圍、寬 1024。
+* `katana.js`：`ART_TOP`（刀種 → 刀尖比例）／`ART_SIDE` 登記有哪些圖；`drawBlade` 有圖就畫圖（依觸及半徑縮放、旋轉，外加玩家色光暈，因為美術刀身比程式剪影細），柄卷的淺灰換成玩家色（`artTopTinted`，依圖＋顏色快取）；載入中或失敗時沿用程式剪影。對刀面板在刀名旁顯示側視小圖（只有自己刀種有圖時）。
+* 借圖（下面那條）已實作在 `artTopId`：目前只有太刀的圖，所以**所有刀在對刀場都會用太刀的圖演出**，靠柄色與光暈分辨。之後補上其他刀種的圖就會自動換回各自的圖。
+* artifact 預覽版用 `window.PRITEST_KATANA_ART_SRC = { "top/tachi": dataURI }` 覆寫圖片來源。
+
+以下是原本的規劃（特效、切入圖、審查畫面的側視底圖尚未實作）：
+
 
 * `generate.py` 複製 `static_src/katana_art/`。
 * 對刀場：`drawBlade` 有 `top/<id>.png` 時改畫圖片（依觸及半徑縮放、旋轉；1024 圖的中心＝旋轉中心），把接近 `#C8C8C8` 的柄卷像素換成玩家色；沒有圖時沿用程式剪影。

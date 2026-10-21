@@ -1772,8 +1772,94 @@
     return f._glyph;
   }
 
+  // ---- 美術素材（docs/katana_art_spec.md §6，2026-10-21 起接上太刀）----
+  // ART_TOP：有俯視圖的刀種 → 刀尖離中心佔圖寬的比例（規格：一般 0.45、長柄 0.38；鍔／握持點在圖正中央）。
+  // ART_SIDE：有側視圖的刀種（對刀面板的小圖）。新增素材時只要把檔案放進 static_src/katana_art/ 並登記在這裡。
+  var ART_TOP = { tachi: 0.45 };
+  var ART_SIDE = { tachi: true };
+  // artifact 預覽版用 window.PRITEST_KATANA_ART_SRC（{ "top/tachi": dataURI }）覆寫來源
+  function artSrc(key) {
+    var o = window.PRITEST_KATANA_ART_SRC;
+    return o && o[key] ? o[key] : "../static/katana_art/" + key + ".png";
+  }
+  var artImgs = {}; // key → Image（載入完成）｜null（載入中）｜false（失敗，退回程式繪製）
+  function artImg(key) {
+    if (!(key in artImgs)) {
+      artImgs[key] = null;
+      var im = new Image();
+      im.onload = function () { artImgs[key] = im; };
+      im.onerror = function () { artImgs[key] = false; };
+      im.src = artSrc(key);
+    }
+    return artImgs[key] || null;
+  }
+  function artPreload() {
+    Object.keys(ART_TOP).forEach(function (id) { artImg("top/" + id); });
+    Object.keys(ART_SIDE).forEach(function (id) { artImg("side/" + id); });
+  }
+  // 這把刀在對刀場用哪張俯視圖：自己的刀種有圖就用；沒有就從有圖的刀種隨機借一張（同分組優先，
+  // 同一把刀固定同一張；使用者指定 2026-10-20）。一張都沒有時回傳 null＝程式繪製。只存 id 字串（對刀場狀態要能序列化）。
+  function artTopId(f) {
+    if (f._artTop !== undefined) return f._artTop || null;
+    var have = Object.keys(ART_TOP), id = null, type = f.snap && f.snap.type;
+    if (ART_TOP[type]) id = type;
+    else if (have.length) {
+      var bt = Core.byId(D.BLADE_TYPES, type), fam = bt ? bt.family : null;
+      var same = have.filter(function (x) { var b = Core.byId(D.BLADE_TYPES, x); return b && b.family === fam; });
+      var pool = same.length ? same : have;
+      id = pool[Core.hashStr("art|" + f.id + "|" + (f.name || "") + "|" + type) % pool.length];
+    }
+    f._artTop = id || "";
+    return id;
+  }
+  // 刀視角用的側視圖：跟俯視圖借同一個刀種（沒有側視圖就回傳 null＝程式畫的簡化刀）
+  function artSideOf(f) {
+    var id = artTopId(f);
+    return id && ART_SIDE[id] ? artImg("side/" + id) : null;
+  }
+  // 柄卷的淺灰（規格 #C8C8C8）換成玩家色：只動鍔左側、低彩度且夠亮的像素，依亮度保留陰影。結果依（圖, 顏色）快取
+  var artTinted = {};
+  function artTopTinted(id, color) {
+    var key = id + "|" + color;
+    if (artTinted[key]) return artTinted[key];
+    var im = artImg("top/" + id);
+    if (!im) return null;
+    var cv = document.createElement("canvas");
+    cv.width = im.naturalWidth; cv.height = im.naturalHeight;
+    var cx = cv.getContext("2d");
+    cx.drawImage(im, 0, 0);
+    try {
+      var data = cx.getImageData(0, 0, cv.width, cv.height), d = data.data, W = cv.width;
+      var n = parseInt(String(color).slice(1), 16), cr = (n >> 16) & 255, cg = (n >> 8) & 255, cb = n & 255;
+      var gx = W / 2 - W * 0.012; // 鍔的左緣（圖的中心＝鍔）
+      for (var i = 0; i < d.length; i += 4) {
+        if (d[i + 3] < 30 || (i / 4) % W > gx) continue;
+        var r0 = d[i], g0 = d[i + 1], b0 = d[i + 2], mx = Math.max(r0, g0, b0), mn = Math.min(r0, g0, b0);
+        if (mx - mn > 30 || mx < 95) continue;
+        var k = (r0 + g0 + b0) / 3 / 200;
+        d[i] = Math.min(255, cr * k); d[i + 1] = Math.min(255, cg * k); d[i + 2] = Math.min(255, cb * k);
+      }
+      cx.putImageData(data, 0, 0);
+    } catch (e) { /* 跨來源圖片讀不到像素：不換色，照原圖畫 */ }
+    artTinted[key] = cv;
+    return cv;
+  }
+
   function drawBlade(ctx, f, s) {
     var r = f.prof.radius * s, gl = glyphOf(f), px1 = (window.devicePixelRatio || 1) / r;
+    var art = f.noArt ? null : artTopId(f), artCv = art ? artTopTinted(art, f.color) : null;
+    if (artCv) {
+      var D2 = r / ART_TOP[art];
+      ctx.save();
+      ctx.rotate(f.rot);
+      // 美術的刀身比程式剪影細：描一圈玩家色的光暈，縮小時仍看得出位置與是誰的刀
+      ctx.shadowColor = f.color; ctx.shadowBlur = Math.max(3, r * 0.22);
+      ctx.drawImage(artCv, -D2 / 2, -D2 / 2, D2, D2);
+      ctx.shadowBlur = 0;
+      ctx.drawImage(artCv, -D2 / 2, -D2 / 2, D2, D2);
+      ctx.restore();
+      return; // 鍔就在中心，不再畫中心圓點
+    }
     function path(arr) { ctx.beginPath(); arr.forEach(function (q, i) { if (i) ctx.lineTo(q[0], q[1]); else ctx.moveTo(q[0], q[1]); }); }
     ctx.save();
     ctx.rotate(f.rot);
@@ -1812,16 +1898,19 @@
 
   function arenaView(a, onEnd, net) {
     var Arena = window.PriTestKatanaArena;
+    artPreload();
     var wrap = el("div", { class: "kt-arena" });
     var hud = el("div", { class: "kt-arena-hud" });
     var roundTxt = el("strong", {});
     var btnPause = el("button", { type: "button", text: t("kt_ar_pause") });
     var btnSpeed = el("button", { type: "button", text: "×" + (ui.arenaSpeed || 1) });
     var btnSkip = el("button", { type: "button", text: t("kt_ar_skip") });
+    // 視角：俯瞰 → 各刀的刀視角（第一人稱）輪流切換（使用者指定 2026-10-21）
+    var btnView = el("button", { type: "button", class: "kt-arena-view" });
     var netTxt = el("span", { class: "kt-arena-net" });
     hud.appendChild(roundTxt);
-    if (net) hud.appendChild(netTxt);
-    else hud.appendChild(el("span", { class: "kt-arena-hud-btns" }, [btnPause, btnSpeed, btnSkip]));
+    if (net) { hud.appendChild(netTxt); hud.appendChild(el("span", { class: "kt-arena-hud-btns" }, [btnView])); }
+    else hud.appendChild(el("span", { class: "kt-arena-hud-btns" }, [btnView, btnPause, btnSpeed, btnSkip]));
     var canvas = el("canvas", { class: "kt-arena-canvas", width: "600", height: "600", "aria-label": t("kt_clash_title") });
     var feed = el("ol", { class: "kt-arena-feed" });
     var panels = el("div", { class: "kt-arena-panels" });
@@ -1832,13 +1921,31 @@
       panels
     ]));
 
-    var vis = { parts: [], floats: [], rings: [], bolts: [], cuts: [], arcs: [], trails: {}, flash: null, cutin: null, banner: null, logAt: 0, ver: -1, barT: 0 };
+    var vis = { parts: [], floats: [], rings: [], bolts: [], cuts: [], arcs: [], scars: [], trails: {}, flash: null, cutin: null, banner: null, logAt: 0, ver: -1, barT: 0 };
+    // 打擊感（頓幀・慢動作・震動）與刀視角：只影響畫面，見 katana_arena_pov.js
+    var Pov = window.PriTestKatanaPov;
+    var fx = Pov.createFx({ noTime: !!net });
+    var cam = null, frameDt = 0;
     var paused = false;
     var ended = false;
 
     function hexRgb(h) { var n = parseInt(String(h).slice(1), 16); return ((n >> 16) & 255) + "," + ((n >> 8) & 255) + "," + (n & 255); }
     function byF(id) { for (var i = 0; i < a.fighters.length; i++) if (a.fighters[i].id === id) return a.fighters[i]; return null; }
     function cardName(id) { var c = Arena.cardDef(id); return c ? L(c.name) : id; }
+    function setView(v) {
+      ui.arenaView = v;
+      var f = v && v !== "top" ? byF(v) : null;
+      cam = f ? Pov.createCam(f.id) : null;
+      fx.focus = f ? f.id : null;
+      canvas.classList.toggle("kt-arena-canvas-pov", !!cam);
+      btnView.textContent = f ? t("kt_ar_view_pov", { name: arenaFighterLabel(f) }) : t("kt_ar_view_top");
+    }
+    btnView.addEventListener("click", function () {
+      var ids = ["top"].concat(a.fighters.map(function (f) { return f.id; }));
+      var i = ids.indexOf(cam ? cam.fid : "top");
+      setView(ids[(i + 1) % ids.length]);
+      if (a.over || paused) drawLater();
+    });
 
     // ----- 每把刀的面板：耐久・勢い・等待區・手牌 -----
     var bars = {};
@@ -1851,6 +1958,7 @@
         var head = el("div", { class: "kt-af-head" }, [
           el("span", { class: "kt-af-dot" }),
           el("strong", { text: arenaFighterLabel(f) }),
+          f.snap && ART_SIDE[f.snap.type] ? el("img", { class: "kt-af-art", src: artSrc("side/" + f.snap.type), alt: "" }) : null,
           f.human && a.mode !== "shiai" ? null : el("span", { class: "kt-af-ai", text: a.mode === "shiai" ? t("kt_amode_auto") : "AI" }),
           net && net.mine(f.id) ? el("span", { class: "kt-af-me", text: t("kt_net_you") }) : null,
           !f.alive ? el("span", { class: "kt-bad", text: " " + t(f.out === "stall" ? "kt_ar_stalled" : "kt_broken") }) : null,
@@ -1959,6 +2067,7 @@
     }
     function consumeEvents() {
       a.events.forEach(function (e) {
+        fx.event(e, a);
         // 武士風的特效（與下方的基本效果疊加）
         if (e.type === "slash" || e.type === "mikiri") {
           var ca = Math.random() * Math.PI;
@@ -1976,6 +2085,7 @@
         if (e.type === "card" && Core.byId(D.SPECIALS, e.card)) {
           var spc = Core.byId(D.SPECIALS, e.card), cf = byF(e.f);
           vis.cutin = { text: L(spc.name), who: cf ? arenaFighterLabel(cf) : "", color: spc.color, life: 1.3, max: 1.3 };
+          fx.special();
         }
         if (e.type === "spark") { addSparks(e.x, e.y, 8, e.fire ? "fire" : (e.momiji ? "leaf" : "spark")); if (Math.random() < 0.35) vis.rings.push({ x: e.x, y: e.y, r: 2, grow: 16, life: 0.12, max: 0.12, color: "255,245,200" }); }
         else if (e.type === "bind") { addSparks(e.x, e.y, 34, "spark"); vis.rings.push({ x: e.x, y: e.y, r: 6, grow: 90, life: 0.35, max: 0.35, color: "255,230,150" }); }
@@ -2010,7 +2120,19 @@
       var s = px / (2 * Arena.R + 24);
       ctx.setTransform(1, 0, 0, 1, 0, 0);
       ctx.clearRect(0, 0, px, px);
-      ctx.translate(px / 2, px / 2);
+      if (cam) {
+        Pov.draw(ctx, px, px, a, cam, { dt: frameDt, vis: vis, sideArt: artSideOf, fx: fx, dpr: dpr,
+          hpOf: function (f) { return Math.max(0, f.hp / f.prof.maxHp); },
+          labels: { lock: t("kt_ar_pov_lock"), out: t("kt_ar_pov_out") } });
+        frameDt = 0;
+        ctx.setTransform(1, 0, 0, 1, px / 2, px / 2);
+        drawBanners(ctx, px, dpr, s);
+        return;
+      }
+      frameDt = 0;
+      var shk = fx.offset(px / 600);
+      ctx.translate(px / 2 + shk.x, px / 2 + shk.y);
+      ctx.rotate(shk.r);
       // 場地：碗形的土俵，外圈是注連縄
       var g = ctx.createRadialGradient(0, 0, 10 * s, 0, 0, Arena.R * s);
       g.addColorStop(0, "#5a4a3b"); g.addColorStop(1, "#231c16");
@@ -2029,6 +2151,15 @@
       ctx.lineWidth = 3 * s;
       ctx.beginPath(); ctx.arc(0, 0, (Arena.R + 3) * s, 0, Math.PI * 2); ctx.stroke();
       ctx.setLineDash([]);
+      // 斬痕：試合的斬擊在地上留下幾秒的刀痕
+      vis.scars.forEach(function (sc) {
+        var k = sc.life / sc.max;
+        ctx.lineCap = "round";
+        ctx.strokeStyle = "rgba(15,10,6," + 0.55 * k + ")"; ctx.lineWidth = 3 * dpr;
+        ctx.beginPath(); ctx.moveTo(sc.x0 * s, sc.y0 * s); ctx.lineTo(sc.x1 * s, sc.y1 * s); ctx.stroke();
+        ctx.strokeStyle = "rgba(255,225,180," + 0.22 * k + ")"; ctx.lineWidth = 1 * dpr;
+        ctx.beginPath(); ctx.moveTo(sc.x0 * s, sc.y0 * s + dpr); ctx.lineTo(sc.x1 * s, sc.y1 * s + dpr); ctx.stroke();
+      });
       // 流星落下預告
       a.hazards.forEach(function (hz) {
         ctx.strokeStyle = "rgba(255,140,60," + (0.3 + 0.5 * Math.abs(Math.sin(a.time * 12))) + ")";
@@ -2041,24 +2172,38 @@
         var sh = f.sh;
         ctx.save();
         ctx.lineCap = "round";
+        // 刀光（使用者指定 2026-10-21）：像揮刀的一閃。前 35% 的時間光從刀身一口氣劃到對面壁面，之後越來越亮、微微閃爍
+        var x0 = sh.x0 * s, y0 = sh.y0 * s, x1 = sh.x1 * s, y1 = sh.y1 * s, rgb = hexRgb(f.color);
         if (sh.st === "aim") {
-          var p = 1 - Math.max(0, sh.t) / Arena.SHIAI.AIM;
-          ctx.globalAlpha = 0.25 + 0.55 * p;
-          ctx.strokeStyle = f.color; ctx.lineWidth = 2 * dpr;
-          ctx.setLineDash([6 * dpr, 6 * dpr]);
-          ctx.beginPath(); ctx.moveTo(sh.x0 * s, sh.y0 * s); ctx.lineTo(sh.x1 * s, sh.y1 * s); ctx.stroke();
-          ctx.setLineDash([]);
-          ctx.fillStyle = f.color;
-          ctx.beginPath(); ctx.arc(sh.x1 * s, sh.y1 * s, 3 * dpr, 0, Math.PI * 2); ctx.fill();
+          var aimMax = Arena.SHIAI.AIM * (f.fx.dash > 0 || f.fx.issen > 0 ? 0.5 : 1);
+          var p = Math.max(0, Math.min(1, 1 - Math.max(0, sh.t) / aimMax)), q = Math.min(1, p / 0.35), ease = 1 - Math.pow(1 - q, 3);
+          var ex = x0 + (x1 - x0) * ease, ey = y0 + (y1 - y0) * ease, flick = 0.85 + 0.15 * Math.sin(a.time * 70);
+          ctx.shadowColor = "rgba(" + rgb + ",0.9)"; ctx.shadowBlur = (6 + 10 * p) * dpr;
+          ctx.strokeStyle = "rgba(" + rgb + "," + (0.25 + 0.4 * p) * flick + ")"; ctx.lineWidth = (3 + 5 * p) * dpr;
+          ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(ex, ey); ctx.stroke();
+          ctx.shadowBlur = 0;
+          ctx.strokeStyle = "rgba(255,255,255," + (0.55 + 0.45 * p) * flick + ")"; ctx.lineWidth = (0.8 + 1.2 * p) * dpr;
+          ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(ex, ey); ctx.stroke();
+          if (q < 1) { // 劃過去的光點
+            ctx.fillStyle = "#fff";
+            ctx.beginPath(); ctx.arc(ex, ey, 3.5 * dpr, 0, Math.PI * 2); ctx.fill();
+          }
         } else {
-          var g = ctx.createLinearGradient(sh.x0 * s, sh.y0 * s, f.x * s, f.y * s);
+          // 斬擊：粗的白色光跡＋殘光，前方路徑淡淡留著
+          var fx0 = f.x * s, fy0 = f.y * s;
+          var g = ctx.createLinearGradient(x0, y0, fx0, fy0);
           g.addColorStop(0, "rgba(255,255,255,0)");
-          g.addColorStop(1, "rgba(255,255,255,0.85)");
-          ctx.strokeStyle = g; ctx.lineWidth = 4 * dpr;
-          ctx.beginPath(); ctx.moveTo(sh.x0 * s, sh.y0 * s); ctx.lineTo(f.x * s, f.y * s); ctx.stroke();
-          ctx.globalAlpha = 0.25;
-          ctx.strokeStyle = f.color; ctx.lineWidth = 1.5 * dpr;
-          ctx.beginPath(); ctx.moveTo(f.x * s, f.y * s); ctx.lineTo(sh.x1 * s, sh.y1 * s); ctx.stroke();
+          g.addColorStop(0.6, "rgba(" + rgb + ",0.55)");
+          g.addColorStop(1, "rgba(255,255,255,0.95)");
+          ctx.shadowColor = "rgba(" + rgb + ",0.9)"; ctx.shadowBlur = 12 * dpr;
+          ctx.strokeStyle = g; ctx.lineWidth = f.prof.radius * 0.9 * s;
+          ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(fx0, fy0); ctx.stroke();
+          ctx.shadowBlur = 0;
+          ctx.strokeStyle = "rgba(255,255,255,0.9)"; ctx.lineWidth = 1.5 * dpr;
+          ctx.beginPath(); ctx.moveTo(x0 + (fx0 - x0) * 0.5, y0 + (fy0 - y0) * 0.5); ctx.lineTo(fx0, fy0); ctx.stroke();
+          ctx.globalAlpha = 0.3;
+          ctx.strokeStyle = "rgba(" + rgb + ",1)"; ctx.lineWidth = 1.5 * dpr;
+          ctx.beginPath(); ctx.moveTo(fx0, fy0); ctx.lineTo(x1, y1); ctx.stroke();
         }
         ctx.restore();
       });
@@ -2111,18 +2256,57 @@
           var op = bd.a === f ? bd.b : bd.a;
           f.rot = Math.atan2(op.y - f.y, op.x - f.x) + Math.sin(a.time * 38 + (bd.a === f ? 0 : 1.7)) * 0.12;
         }
+        // 試合的刀刃相接：刀身指向對手、互推顫動，中間一團脈動的光
+        var lop = f.sh && f.sh.st === "lock" ? a.fighters.filter(function (x) { return x.id === f.sh.op; })[0] : null;
+        if (lop) {
+          f.rot = Math.atan2(lop.y - f.y, lop.x - f.x) + Math.sin(a.time * 45 + (f.id < lop.id ? 0 : 1.7)) * 0.16;
+          ctx.translate(Math.sin(a.time * 90 + (f.id < lop.id ? 0 : 2)) * 1.2 * s, 0);
+          if (f.id < lop.id) {
+            ctx.save();
+            ctx.translate((lop.x - f.x) / 2 * s, (lop.y - f.y) / 2 * s);
+            var pulse = 0.6 + 0.4 * Math.sin(a.time * 30);
+            var gl = ctx.createRadialGradient(0, 0, 0, 0, 0, 22 * s);
+            gl.addColorStop(0, "rgba(255,250,220," + 0.9 * pulse + ")"); gl.addColorStop(0.4, "rgba(255,200,90," + 0.45 * pulse + ")"); gl.addColorStop(1, "rgba(255,160,40,0)");
+            ctx.fillStyle = gl; ctx.beginPath(); ctx.arc(0, 0, 22 * s, 0, Math.PI * 2); ctx.fill();
+            ctx.restore();
+          }
+        }
         var tr = vis.trails[f.id] || (vis.trails[f.id] = []);
         var fast = f.sh ? f.sh.st === "slash" : (f.fx.issen > 0 || f.fx.dash > 0 || Arena.bany(f, "speed") && Math.hypot(f.vx, f.vy) > 70);
-        if (fast) { tr.push({ x: f.x, y: f.y, rot: f.rot }); if (tr.length > 7) tr.shift(); } else if (tr.length) tr.shift();
+        var trMax = f.sh ? 14 : 7; // 試合的斬擊殘影拉長，速度感更強
+        if (fast) { tr.push({ x: f.x, y: f.y, rot: f.rot }); if (tr.length > trMax) tr.shift(); } else if (tr.length) tr.shift();
+        // 試合的斬擊：刀身後方的速度線
+        if (f.sh && f.sh.st === "slash") {
+          var sd = f.sh.dir, cdx = Math.cos(sd), cdy = Math.sin(sd);
+          ctx.save();
+          ctx.lineCap = "round";
+          for (var sl = 0; sl < 6; sl++) {
+            var off = (Math.random() - 0.5) * f.prof.radius * 2.2 * s, back = (8 + Math.random() * 14) * s, len = (18 + Math.random() * 34) * s;
+            var bx = -cdx * back - cdy * off, by = -cdy * back + cdx * off;
+            ctx.strokeStyle = "rgba(255,255,255," + (0.25 + Math.random() * 0.4) + ")"; ctx.lineWidth = (0.8 + Math.random()) * dpr;
+            ctx.beginPath(); ctx.moveTo(bx, by); ctx.lineTo(bx - cdx * len, by - cdy * len); ctx.stroke();
+          }
+          ctx.restore();
+        }
         var keepA = ctx.globalAlpha;
         tr.forEach(function (gp, gi) {
           ctx.save();
           ctx.translate((gp.x - f.x) * s, (gp.y - f.y) * s);
-          ctx.globalAlpha = keepA * 0.08 * (gi + 1);
+          ctx.globalAlpha = keepA * (0.56 / tr.length) * (gi + 1);
           var rot0 = f.rot; f.rot = gp.rot; drawBlade(ctx, f, s); f.rot = rot0;
           ctx.restore();
         });
         ctx.globalAlpha = keepA;
+        // 陀螺：轉得越快，刀身後方的旋轉殘光越長
+        if (!f.sh && !bd && f.spin > 0.2) {
+          var wsp = (6 + 22 * f.spin) * (f.dir || 1), swp = Math.min(1.4, Math.abs(wsp) * 0.05);
+          ctx.save();
+          ctx.strokeStyle = "rgba(230,236,245," + 0.28 * f.spin + ")"; ctx.lineWidth = r * 0.22;
+          ctx.beginPath(); ctx.arc(0, 0, r * 0.7, wsp > 0 ? f.rot - swp : f.rot, wsp > 0 ? f.rot : f.rot + swp); ctx.stroke();
+          ctx.strokeStyle = "rgba(" + hexRgb(f.color) + "," + 0.35 * f.spin + ")"; ctx.lineWidth = 1.5 * dpr;
+          ctx.beginPath(); ctx.arc(0, 0, r * 0.98, wsp > 0 ? f.rot - swp : f.rot, wsp > 0 ? f.rot : f.rot + swp); ctx.stroke();
+          ctx.restore();
+        }
         // 試合的收刀：刀身縮短、稍淡
         if (f.sh && f.sh.st === "sheathe") { ctx.globalAlpha = keepA * 0.8; ctx.scale(0.65, 0.65); }
         drawBlade(ctx, f, s);
@@ -2195,6 +2379,13 @@
         ctx.fillStyle = "rgba(255,255,255," + (0.3 * vis.flash.life / vis.flash.max) + ")";
         ctx.beginPath(); ctx.arc(0, 0, (Arena.R + 12) * s, 0, Math.PI * 2); ctx.fill();
       }
+      drawBanners(ctx, px, dpr, s);
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      fx.overlay(ctx, px, px);
+    }
+
+    // 招式切入與回合字樣：俯瞰與刀視角共用（ctx 原點在畫面中央）
+    function drawBanners(ctx, px, dpr, s) {
       if (vis.cutin) {
         var kc = vis.cutin.life / vis.cutin.max, slide = Math.min(1, (1 - kc) * 6);
         var bandH = 34 * dpr, by = Arena.R * 0.25 * s;
@@ -2224,7 +2415,26 @@
       }
     }
 
+    // 跟著對刀時間走的畫面特效：斬痕、蓄力時往刀身聚集的光粒
+    function worldFx(dt) {
+      if (dt <= 0) return;
+      a.fighters.forEach(function (f) {
+        if (!f.alive || !f.sh) return;
+        if (f.sh.st === "slash") {
+          var key = f.id + "|" + Math.round(f.sh.x0 * 10) + "|" + Math.round(f.sh.y0 * 10), sc = null;
+          vis.scars.forEach(function (x) { if (x.key === key) sc = x; });
+          if (!sc) { sc = { key: key, x0: f.sh.x0, y0: f.sh.y0, max: 3.5 }; vis.scars.push(sc); if (vis.scars.length > 24) vis.scars.shift(); }
+          sc.x1 = f.x; sc.y1 = f.y; sc.life = sc.max;
+        } else if (f.sh.st === "aim" && Math.random() < dt * 40) {
+          var ang = Math.random() * Math.PI * 2, d = f.prof.radius * 2.2;
+          vis.parts.push({ x: f.x + Math.cos(ang) * d, y: f.y + Math.sin(ang) * d, vx: -Math.cos(ang) * d * 3.2, vy: -Math.sin(ang) * d * 3.2, life: 0.28, max: 0.28, kind: "spark" });
+        }
+      });
+    }
+
     function tickVisuals(dt) {
+      worldFx(dt);
+      vis.scars = vis.scars.filter(function (x) { x.life -= dt; return x.life > 0; });
       vis.parts = vis.parts.filter(function (p) { p.life -= dt; p.x += p.vx * dt; p.y += p.vy * dt; p.vx *= 0.92; p.vy *= 0.92; return p.life > 0; });
       ["floats", "rings", "bolts", "cuts", "arcs"].forEach(function (k) {
         vis[k] = vis[k].filter(function (x) { x.life -= dt; return x.life > 0; });
@@ -2248,6 +2458,7 @@
     btnSkip.addEventListener("click", function () { Arena.run(a); endIfOver(); });
 
     if (net) net.onRestore = function () { vis.ver = -1; vis.logAt = Math.min(vis.logAt, a.log.length); };
+    setView(ui.arenaView);
     buildPanels();
     updateFeed();
     if (a.over && (!net || net.isHost || net.ended)) { drawLater(); return wrap; }
@@ -2257,8 +2468,9 @@
     function frame(now) {
       var dt = last ? Math.min(0.05, (now - last) / 1000) : 0;
       last = now;
+      var ts = paused ? 0 : fx.tick(dt); // 頓幀中 0、慢動作中 <1
       if (!paused) {
-        acc += dt * (ui.arenaSpeed || 1);
+        acc += dt * (ui.arenaSpeed || 1) * ts;
         var n = 0;
         while (acc >= Arena.DT && n++ < 8 && !a.over) {
           if (net && !net.canStep(a)) { acc = 0; break; }
@@ -2267,7 +2479,8 @@
         if (n >= 8) acc = 0;
         if (net && a.over) net.canStep(a);
         consumeEvents();
-        tickVisuals(dt * (ui.arenaSpeed || 1));
+        tickVisuals(dt * (ui.arenaSpeed || 1) * ts);
+        frameDt = dt * (ui.arenaSpeed || 1) * ts;
       }
       drawFrame();
       vis.barT -= dt;
@@ -3146,7 +3359,7 @@
         ctx.translate(S / 2, S / 2);
         var pole = !!bt.shaft || bt.id === "yari";
         // drawBlade 的 s 是場地縮放（中心圓點也乘它），所以用 radius 決定大小、s 固定 1
-        drawBlade(ctx, { snap: snap, prof: { radius: S * (pole ? 0.38 : 0.45) }, rot: 0, color: color || "#c8c8c8" }, 1);
+        drawBlade(ctx, { snap: snap, prof: { radius: S * (pole ? 0.38 : 0.45) }, rot: 0, color: color || "#c8c8c8", noArt: true }, 1);
       }
     } };
 })();

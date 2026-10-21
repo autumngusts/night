@@ -115,6 +115,11 @@ def build_static_assets() -> None:
     if images_src.is_dir():
         shutil.copytree(images_src, static_dist / "images")
 
+    # 神前鍛刀對決的美術素材（docs/katana_art_spec.md §6）
+    katana_art_src = STATIC_SRC_DIR / "katana_art"
+    if katana_art_src.is_dir():
+        shutil.copytree(katana_art_src, static_dist / "katana_art")
+
 
 def build_pages() -> None:
     (DIST_DIR / "index.html").write_text(build_index_html(), encoding="utf-8")
