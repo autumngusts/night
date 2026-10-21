@@ -291,7 +291,7 @@
 
 ### 7.6 試合模式（使用者指定 2026-10-20）
 
-對刀場有兩種模式（`Arena.create({ mode })`）：**陀螺**（`koma`，預設，§7 的自轉滑行）與**試合**（`shiai`）。自由對刀、對刀實驗場、連線對刀（房主選，存在 `kt/mode`、對局 `m/<no>.mode`）可以切換；鍛刀局內的互擊維持陀螺。
+對刀場有兩種模式（`Arena.create({ mode })`）：**陀螺**（`koma`，預設，§7 的自轉滑行）與**試合**（`shiai`）。自由對刀、對刀實驗場、連線對刀（房主選，存在 `kt/mode`、對局 `m/<no>.mode`）、鍛刀局最後的互擊（2026-10-21 起，存在 `state.clash.mode`）都可以切換。
 
 * 刀不自轉，像握在手上。每把刀是一個狀態機（`f.sh.st`）：
   1. **收刀** `sheathe`（0.45〜1.05 秒）：停在壁面，刀身畫短。
@@ -313,6 +313,8 @@ py -3 -m http.server 8944 --directory dist
 node tools/katana_check/ui_check.js
 node tools/katana_check/scabbard_check.js
 node tools/katana_check/games_check.js
+# 多局掃描：每局 seed 不同（抽到的小遊戲不同），表演／較真、好壞打法、不同刀種，互擊輪流陀螺／試合，確認都能走到總結（GAMES=6）
+node tools/katana_check/forge_sweep_check.js
 # 連線對刀（需先啟動 Firebase emulator：tools/midnight_check/node_modules/.bin/firebase emulators:start --only database,auth --project elden-ring-nightreign）
 node tools/katana_check/net_check.js
 ```

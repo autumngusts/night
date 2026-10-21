@@ -87,6 +87,7 @@ async function autoGame(page) {
     return b.className;
   }, QUALITY);
   assert.ok(kind, "no live minigame to play");
+  if (process.env.KT_VERBOSE) console.log("  play", kind, QUALITY);
   // 等這一個遊戲結束（完成後畫面重畫，這個節點就不在了；之後可能接著出現下一個遊戲，例如切半）
   await page.waitForFunction(function () { return !document.querySelector('.kt-mg[data-auto="1"]'); }, null, { timeout: 60000 });
   var r = await page.evaluate(function () { var u = window.PriTestKatana._ui(); var ks = Object.keys(u.mg); return u.mg[ks[ks.length - 1]]; });
@@ -177,7 +178,7 @@ async function forgeAll(page, onMaterial) {
   }
 }
 
-(async function main() {
+async function main() {
   var browser = await chromium.launch();
   var page = await browser.newPage({ viewport: { width: 1100, height: 900 } });
   var errors = [];
@@ -365,4 +366,7 @@ async function forgeAll(page, onMaterial) {
   assert.deepStrictEqual(errors, []);
   await browser.close();
   console.log("katana ui_check OK");
-})().catch(function (e) { console.error(e); process.exit(1); });
+}
+// forge_sweep_check.js 重用這裡的操作函式
+module.exports = { st: st, clickKey: clickKey, mustClick: mustClick, forgeAll: forgeAll, noMissingKeys: noMissingKeys, setQuality: function (q) { QUALITY = q; }, scores: function () { return mgScores; } };
+if (require.main === module) main().catch(function (e) { console.error(e); process.exit(1); });

@@ -2324,9 +2324,12 @@
     var extras = D.NPC_SWORDS.filter(function (n) { return ui.npc[n.id]; }).map(function (n) { return { id: "npc-" + n.id, name: npcName(n), snap: Core.npcSnapshot(n) }; });
     mine.forEach(function (x, i) { if (ui.scPick[x.uid]) extras.push({ id: "sc-" + i, name: x.snap.smith || snapTitle(x.snap), snap: x.snap, uid: x.uid }); });
     var count = state.players.length + extras.length;
+    // 對刀模式：陀螺／試合（使用者指定 2026-10-21：鍛完刀的互擊也能選）
+    panel.appendChild(arenaModePicker("clashMode", ui.clashMode, function (v) { ui.clashMode = v; rerenderKeepScroll(); }));
     panel.appendChild(el("div", { class: "kt-actions" }, [
       el("button", { type: "button", class: "kt-primary", text: t("kt_go_clash"), disabled: count < 2, onclick: function () {
         Core.startClash(state, extras);
+        state.clash.mode = ui.clashMode === "shiai" ? "shiai" : "koma";
         state.clash.uidOf = {};
         extras.forEach(function (x) { if (x.uid) state.clash.uidOf[x.id] = x.uid; });
         state.players.forEach(function (p) { var u = bladeScUid(p); if (u) state.clash.uidOf[p.id] = u; });
@@ -2359,10 +2362,10 @@
     }
     // 對刀場狀態放在 ui（不存檔）：重新整理會從頭再打一次
     if (!ui.arena || ui.arenaKey !== state.seed) {
-      ui.arena = window.PriTestKatanaArena.create({ seed: state.seed + "|clash", fighters: cl.fighters });
+      ui.arena = window.PriTestKatanaArena.create({ seed: state.seed + "|clash", fighters: cl.fighters, mode: cl.mode || "koma" });
       ui.arenaKey = state.seed;
     }
-    app.appendChild(el("p", { class: "kt-muted", text: t("kt_ar_howto") }));
+    app.appendChild(el("p", { class: "kt-muted", text: t(ui.arena.mode === "shiai" ? "kt_amode_shiai_howto" : "kt_ar_howto") }));
     app.appendChild(arenaView(ui.arena, function (res) {
       Core.finishClash(state, res);
       recordResult(res, cl.uidOf || {});
