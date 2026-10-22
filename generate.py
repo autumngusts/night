@@ -22,6 +22,7 @@ from site_src.toushou_page import TOUSHOU_SCRIPTS, build_toushou_html
 from site_src.utau_page import UTAU_SCRIPTS, build_utau_html
 from site_src.gousei_page import GOUSEI_DATA_FILES, GOUSEI_SCRIPTS, build_gousei_html
 from site_src.katana_page import KATANA_SCRIPTS, build_katana_html
+from site_src.yellow_page import YELLOW_SCRIPTS, build_yellow_html
 
 ROOT = Path(__file__).parent
 DIST_DIR = ROOT / "dist"
@@ -97,6 +98,7 @@ def build_static_assets() -> None:
         *UTAU_SCRIPTS,
         *GOUSEI_SCRIPTS,
         *KATANA_SCRIPTS,
+        *YELLOW_SCRIPTS,
     ):
         shutil.copy(STATIC_SRC_DIR / name, static_dist / name)
 
@@ -160,9 +162,13 @@ def build_pages() -> None:
     katana_dir.mkdir(parents=True, exist_ok=True)
     (katana_dir / "index.html").write_text(build_katana_html(), encoding="utf-8")
 
+    yellow_dir = DIST_DIR / "yellow"
+    yellow_dir.mkdir(parents=True, exist_ok=True)
+    (yellow_dir / "index.html").write_text(build_yellow_html(), encoding="utf-8")
+
 
 def main() -> None:
-    for name in ("index.html", "night", "admin", "characters", "midnight", "toushou", "utau", "gousei", "katana", "static"):
+    for name in ("index.html", "night", "admin", "characters", "midnight", "toushou", "utau", "gousei", "katana", "yellow", "static"):
         target = DIST_DIR / name
         if target.is_dir():
             shutil.rmtree(target)

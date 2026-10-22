@@ -44,4 +44,10 @@ PROJECTS = [
         "name_key": "project_katana_name",
         "desc_key": "project_katana_desc",
     },
+    {
+        "id": "yellow",
+        "href": "yellow/index.html",
+        "name_key": "project_yellow_name",
+        "desc_key": "project_yellow_desc",
+    },
 ]

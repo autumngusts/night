@@ -15,10 +15,11 @@ from site_src.i18n_data_en import STRINGS_EN
 from site_src.i18n_data_ja import STRINGS_JA
 from site_src.i18n_data_zh import STRINGS_ZH
 from site_src.i18n_katana import KATANA_EN, KATANA_JA, KATANA_ZH
+from site_src.i18n_yellow import YELLOW_EN, YELLOW_JA, YELLOW_ZH
 
-# 神前鍛刀對決的字串較多，獨立放在 i18n_katana.py 再合併
+# 神前鍛刀對決・黃牌的字串較多，獨立放在 i18n_katana.py／i18n_yellow.py 再合併
 STRINGS: dict[str, dict[str, str]] = {
-    "zh": {**STRINGS_ZH, **KATANA_ZH},
-    "ja": {**STRINGS_JA, **KATANA_JA},
-    "en": {**STRINGS_EN, **KATANA_EN},
+    "zh": {**STRINGS_ZH, **KATANA_ZH, **YELLOW_ZH},
+    "ja": {**STRINGS_JA, **KATANA_JA, **YELLOW_JA},
+    "en": {**STRINGS_EN, **KATANA_EN, **YELLOW_EN},
 }
