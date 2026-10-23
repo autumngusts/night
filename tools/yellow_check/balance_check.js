@@ -9,6 +9,7 @@ var D = bot.D;
 var N = Number(process.argv[2]) || 20;
 var CLS = D.CLASSES.map(function (c) { return c.id; });
 var ORDER = [0, 1, 2, 3];
+var FL = D.ACTS.length * D.FLOORS.length;
 var byHero = {};
 [1, 2, 3, 4].forEach(function (n) {
   var wins = 0, reach = {};
@@ -21,14 +22,14 @@ var byHero = {};
       if (!x) return;
       var b = byHero[x.cls] = byHero[x.cls] || { win: 0, n: 0, prog: 0 };
       b.n++; if (r.phase === "win") b.win++;
-      b.prog += r.phase === "win" ? 15 : r.act * 5 + r.floor;
+      b.prog += r.phase === "win" ? FL : r.act * D.FLOORS.length + r.floor;
     });
     var k = r.phase === "win" ? "win" : "a" + (r.act + 1) + "f" + (r.floor + 1);
     reach[k] = (reach[k] || 0) + 1;
   }
   console.log(n + " 人：通關 " + wins + "/" + N + "  " + JSON.stringify(reach));
 });
-// 各英雄：參與的局中通關幾局、平均推進到第幾層（滿分 15）
+// 各英雄：參與的局中通關幾局、平均推進到第幾層（滿分＝總層數 12）
 Object.keys(byHero).forEach(function (k) {
   var b = byHero[k];
   console.log(k + "：通關 " + b.win + "/" + b.n + "  平均推進 " + (b.prog / b.n).toFixed(1) + " 層");

@@ -14,6 +14,8 @@ from site_src.layout import page_shell
 YELLOW_SCRIPTS: tuple[str, ...] = (
     "yellow_data.js",
     "yellow_core.js",
+    "yellow_ai.js",
+    "yellow_audio.js",
     "firebase_config.js",
     "game_storage.js",
     "qrcode.js",

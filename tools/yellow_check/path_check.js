@@ -1,6 +1,6 @@
 // 黃牌 Yellow Card 成長方向（特化路線）檢查：每位英雄 × 三條方向，讓英雄只拿那條方向的獎勵卡、
 // 升級也優先升那條方向，和一位固定隊友（貪婪 AI）兩人通關。統計：
-//   通關率、平均推進層數（滿分 15）、該路線的卡佔英雄出牌的比例、最常打出的路線卡
+//   通關率、平均推進層數（滿分＝總層數 12）、該路線的卡佔英雄出牌的比例、最常打出的路線卡
 // 用來找出「太弱／太強」或「其實沒在用那條路線的卡」的方向。只當作調整數值的參考。
 //   node tools/yellow_check/path_check.js [每條路線的局數，預設 10] [只測某英雄 id]
 "use strict";
@@ -22,7 +22,7 @@ D.CLASSES.forEach(function (hero) {
       var seats = [{ cls: hero.id }, { cls: partner }, null, null];
       var r = bot.run(9000 + g * 13, seats, { path: { 0: p.id } });
       if (r.phase === "win") wins++;
-      prog += r.phase === "win" ? 15 : r.act * 5 + r.floor;
+      prog += r.phase === "win" ? D.ACTS.length * D.FLOORS.length : r.act * D.FLOORS.length + r.floor;
       var pl = r.plays[0] || {};
       Object.keys(pl).forEach(function (id) {
         allPlays += pl[id];
