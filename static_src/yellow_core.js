@@ -20,9 +20,9 @@
   var D = root.PriTestYellowData;
 
   // 升級時數值會加成的 op（n 欄位）
-  var BOOST_OPS = { dmg: 1, dmgAll: 1, dmgSec: 1, dmgExec: 1, dmgMissing: 1, dmgSpirit: 1, dmgMel: 1, lifesteal: 1, hexDmg: 1,
+  var BOOST_OPS = { dmg: 1, dmgAll: 1, dmgSec: 1, dmgExec: 1, dmgMissing: 1, dmgSpirit: 1, dmgMel: 1, lifesteal: 1, hexDmg: 1, dmgPotion: 1, dmgAllPotion: 1,
     blk: 1, blkAlly: 1, blkAll: 1, blkSpirit: 1, heal: 1, healAll: 1, regen: 1, st: 1, stAll: 1, pow: 1, trap: 1, sac: 1, finale: 1 };
-  var NO_BOOST_POW = { mana: 1, spiritTurn: 1, melTurn: 1, drawTurn: 1, chiAtk: 1, chiTurn: 1, potionTurn: 1, potionStart: 1, adv: 1, luck: 1, formDraw: 1 };
+  var NO_BOOST_POW = { mana: 1, spiritTurn: 1, melTurn: 1, drawTurn: 1, chiAtk: 1, chiTurn: 1, potionTurn: 1, potionStart: 1, potionUp: 1, catalyze: 1, partyStrTurn: 1, adv: 1, luck: 1, formDraw: 1 };
   var NEG_STATUS = ["weak", "vuln", "poison", "burn"];
   var DEBUFF_TYPES = ["weak", "vuln", "poison", "burn", "stun"];
   var MAX_ENEMIES = 14;
@@ -264,14 +264,34 @@
   // ---------------- 傷害・狀態 ----------------
   function hitEnemy(st, e, amount, ignoreBlock) {
     if (e.hp <= 0) return 0;
+    // 受庇護（ward）：場上還有其他敵人時，受到的傷害減半（先打掉手下）
+    if (warded(st, e)) amount = Math.ceil(amount / 2);
     var absorbed = 0;
     if (!ignoreBlock) { absorbed = Math.min(e.blk, amount); e.blk -= absorbed; }
     var dmg = amount - absorbed;
     e.hp = Math.max(0, e.hp - dmg);
     log(st, { t: "dmg", to: eref(e), n: dmg, b: absorbed });
     if (e.hp <= 0) log(st, { t: "kill", to: eref(e) });
+    else checkPhase(st, e);
     return dmg;
   }
+  function warded(st, e) {
+    var d = D.ENEMY[e.id];
+    return !!(d && d.ward) && st.enemies.some(function (x) { return x !== e && x.hp > 0; });
+  }
+  // 第二階段（phase）：血量降到 at 比例以下時換成另一套行動（只換一次），可附帶護盾、力量、召喚
+  function checkPhase(st, e) {
+    var d = D.ENEMY[e.id], ph = d && d.phase;
+    if (!ph || e.ph || e.hp > ph.at * e.max) return;
+    e.ph = 1; e.pi = 0; e.last = -1;
+    log(st, { t: "phase", to: eref(e) });
+    if (ph.blk) { e.blk += ph.blk; log(st, { t: "blk", to: eref(e), n: ph.blk, src: eref(e) }); }
+    if (ph.str) { e.str += ph.str; log(st, { t: "str", to: eref(e), n: ph.str, src: eref(e) }); }
+    if (ph.cleanse) e.st.poison = e.st.burn = e.st.weak = e.st.vuln = 0;
+    if (ph.summon) runEnemyAct(st, e, { k: "summon", id: ph.summon.id, n: ph.summon.n });
+    chooseIntent(st, e);
+  }
+  function patOf(e) { var d = D.ENEMY[e.id]; return d.phase && e.ph ? d.phase : d; }
 
   // 英雄的攻擊：計算數值後打，血月（leech）吸血
   function heroAttack(st, h, e, base) {
@@ -374,13 +394,21 @@
   // 氣（武僧）：最多 D.MAX_CHI
   function gainChi(h, n) { h.chi = Math.min(D.MAX_CHI, (h.chi || 0) + n); }
   // 藥水（鍊金術師）：0 費、用完消耗的藥水牌放進 to 的手牌；id＝"rand" 時隨機
-  function brew(st, h, to, id) {
+  // up：做出升級版藥水（催化方向；能力 potionUp＝做出的藥水全部升級）；potionBlk＝每做出一瓶獲得護盾
+  function brew(st, h, to, id, up) {
     if (!to || to.down) return;
     var pid = id === "rand" ? pick(st, D.POTIONS) : id;
     if (!D.CARD[pid]) return;
-    if (handFull(to)) to.disc.push(newCard(st, pid)); else to.hand.push(newCard(st, pid));
-    log(st, { t: "brew", to: href(to), s: h.seat, c: pid });
+    var c = newCard(st, pid);
+    if (up || (h.pw && h.pw.potionUp)) c.up = true;
+    if (handFull(to)) to.disc.push(c); else to.hand.push(c);
+    log(st, { t: "brew", to: href(to), s: h.seat, c: pid, up: !!c.up });
+    if (h.pw && h.pw.potionBlk) gainBlock(st, h, h.pw.potionBlk);
   }
+  function isPotion(c) { return D.POTIONS.indexOf(c.id) >= 0; }
+  function potionCount(h) { return h.hand.filter(isPotion).length; }
+  // 鍊金術師：每打出幾張牌做出一瓶（催化能力 catalyze 減少需要的張數，最少 1）
+  function reagentNeed(h) { return h.pw.reagent ? Math.max(1, h.pw.reagent - (h.pw.catalyze || 0)) : 0; }
   // 擲骰（賭徒）：1～6，幸運加點（最多 6）；老千（adv）擲兩次取高
   function rollDie(st, h, adv) {
     var luck = h.pw.luck || 0;
@@ -412,7 +440,19 @@
     if (got) log(st, { t: "recall", to: href(h), n: got });
   }
 
-  function removeDead(st) { st.enemies = st.enemies.filter(function (e) { return e.hp > 0; }); }
+  // 分裂（split）：倒下時在原地生出 n 隻 id
+  function removeDead(st) {
+    var dead = st.enemies.filter(function (e) { return e.hp <= 0; });
+    st.enemies = st.enemies.filter(function (e) { return e.hp > 0; });
+    dead.forEach(function (e) {
+      var sp = D.ENEMY[e.id] && D.ENEMY[e.id].split;
+      if (!sp || st.phase !== "battle") return;
+      for (var i = 0; i < sp.n; i++) {
+        var m = spawnEnemy(st, sp.id, e.sec, e.ring, hpMultFor(st));
+        if (m) { chooseIntent(st, m); log(st, { t: "split", to: eref(m), src: { k: "e", id: e.id, u: e.u } }); }
+      }
+    });
+  }
 
   // 精靈攻擊：每隻打自己扇形區的一個隨機敵人，沒有就打任意敵人
   function spiritsAttack(st, h) {
@@ -453,7 +493,7 @@
   }
 
   function chooseIntent(st, e) {
-    var def = D.ENEMY[e.id];
+    var def = patOf(e);
     var idx;
     if (def.cyc === "rand" && def.pat.length > 1) {
       do { idx = rint(st, def.pat.length); } while (idx === e.last);
@@ -474,8 +514,10 @@
     var n = sectorCount(st);
     var mult = hpMultFor(st);
     if (kind === "boss") {
-      spawnEnemy(st, act.boss, rint(st, n), "far", BOSS_HP_BY_PARTY[partySize(st)] * BOSS_HP_MULT * (1 + D.ENDLESS.hp * loopOf(st)) * (tor(st, 7) ? 1.2 : 1));
-      for (var s = 0; s < n; s++) spawnEnemy(st, act.minion, s, null, HP_BY_ACT[actOf(st)] * extraHp(st));
+      var bid = st.boss && D.ENEMY[st.boss] ? st.boss : pick(st, act.bosses);
+      spawnEnemy(st, bid, rint(st, n), "far", BOSS_HP_BY_PARTY[partySize(st)] * BOSS_HP_MULT * (1 + D.ENDLESS.hp * loopOf(st)) * (tor(st, 7) ? 1.2 : 1));
+      var minion = D.ENEMY[bid].minion || act.minion;
+      for (var s = 0; s < n; s++) spawnEnemy(st, minion, s, null, HP_BY_ACT[actOf(st)] * extraHp(st));
       return;
     }
     // 每個扇形區的敵人依那一區主人選的目的地（Hellcard 式，使用者指定 2026-10-22）：菁英／較強／一般／較弱
@@ -559,6 +601,7 @@
     if (h.pw.burnAll) st.enemies.forEach(function (e) { addStatus(st, e, "burn", h.pw.burnAll, null); });
     if (h.pw.poisonAll) st.enemies.forEach(function (e) { addStatus(st, e, "poison", h.pw.poisonAll, null); });
     if (h.pw.healAll) alive(st).forEach(function (x) { healHero(st, x, h.pw.healAll); });
+    if (h.pw.partyStrTurn) alive(st).forEach(function (x) { x.str += h.pw.partyStrTurn; log(st, { t: "str", to: href(x), n: h.pw.partyStrTurn }); });
     if (h.pw.melTurn) h.mel = Math.min(D.MAX_MELODY, h.mel + h.pw.melTurn);
     if (h.pw.spiritTurn) h.sp = Math.min(D.MAX_SPIRITS, h.sp + h.pw.spiritTurn);
     if (h.pw.chiTurn) gainChi(h, h.pw.chiTurn);
@@ -609,7 +652,9 @@
         for (var i = 0; i < (act.h || 1); i++) {
           var h = hero(st, seat);
           if (!h || h.down || e.hp <= 0) return;
-          hitHero(st, h, enemyHitValue(st, e, act.n, seat), false, e);
+          var lost = hitHero(st, h, enemyHitValue(st, e, act.n, seat), false, e);
+          // 吸血攻擊：打掉多少生命就回復多少
+          if (act.drain && lost > 0 && e.hp > 0) { var v = Math.min(lost, e.max - e.hp); if (v > 0) { e.hp += v; log(st, { t: "heal", to: eref(e), n: v, src: eref(e) }); } }
           if (h.pw.thorns && !h.down) hitEnemy(st, e, h.pw.thorns, false);
         }
       });
@@ -652,6 +697,15 @@
       }
     } else if (act.k === "move") {
       moveEnemy(st, e, act.to);
+    } else if (act.k === "shatter") {
+      // 破甲：目標英雄的護盾歸零
+      actTargets(st, e, act).forEach(function (seat) {
+        var h = hero(st, seat);
+        if (h && !h.down && h.blk > 0) { log(st, { t: "shatter", to: href(h), n: h.blk, src: eref(e) }); h.blk = 0; }
+      });
+    } else if (act.k === "purge") {
+      // 淨化：清掉自己（all＝全體敵人）的中毒、燃燒、虛弱、易傷
+      (act.all ? st.enemies : [e]).forEach(function (x) { if (x.hp > 0) { NEG_STATUS.forEach(function (k) { x.st[k] = 0; }); log(st, { t: "purge", to: eref(x), src: eref(e) }); } });
     }
   }
 
@@ -676,6 +730,11 @@
     st.enemies.forEach(decay);
     heroes(st).forEach(function (h) { decay(h); h.taunt = false; });
     st.round += 1;
+    // 成長（grow）：每過一回合力量 +n
+    st.enemies.forEach(function (e) {
+      var g = D.ENEMY[e.id] && D.ENEMY[e.id].grow;
+      if (g && e.hp > 0) { e.str += g; log(st, { t: "str", to: eref(e), n: g, src: eref(e) }); }
+    });
     log(st, { t: "round" });
     st.enemies.forEach(function (e) { chooseIntent(st, e); });
     alive(st).forEach(function (h) { startHeroTurn(st, h); });
@@ -830,6 +889,8 @@
   function enterFloor(st) {
     var boss = D.FLOORS[st.floor] === "boss";
     st.phase = "map";
+    // 每一幕的首領在幕開始時抽好（地圖上看得到）；2026-10-23 使用者指定每幕有多位首領
+    if (st.floor === 0 || !st.boss || actDef(st).bosses.indexOf(st.boss) < 0) st.boss = pick(st, actDef(st).bosses);
     // 倒下的英雄不用選（自己的區域照一般敵人）
     heroes(st).forEach(function (h) {
       if (h.down) { h.dests = []; h.dest = "fallen"; } else { h.dests = boss ? ["boss"] : rollDests(st).slice(0, 2); h.dest = null; }
@@ -962,7 +1023,7 @@
     // 鍊金術師的材料：每打出 reagent 張牌（藥水不算）做出一瓶隨機藥水
     if (h.pw.reagent && d.rar !== "token") {
       h.rg = (h.rg || 0) + 1;
-      if (h.rg >= h.pw.reagent) { h.rg = 0; brew(st, h, h, "rand"); }
+      if (h.rg >= reagentNeed(h)) { h.rg = 0; brew(st, h, h, "rand"); }
     }
     if (d.type === "pow") { /* 能力牌打出後離開牌堆（本場戰鬥） */ }
     else if (d.exhaust) h.exh.push(c);
@@ -1095,7 +1156,14 @@
         break;
       case "recall": recall(st, h, f.n); break;
       // 鍊金術師
-      case "brew": for (i = 0; i < (f.n || 1); i++) brew(st, h, f.ally && ts ? ts : h, f.c); break;
+      case "brew": for (i = 0; i < (f.n || 1); i++) brew(st, h, f.ally && ts ? ts : h, f.c, f.up); break;
+      // 催化（2026-10-23 使用者指定：鍊金術師的毒劑方向改成藥水強化，把毒留給女巫）
+      case "dmgPotion": heroAttack(st, h, te, f.n * potionCount(h)); break;
+      case "dmgAllPotion": n = potionCount(h); if (n > 0) area().forEach(function (e) { heroAttack(st, h, e, f.n * n); }); break;
+      case "refine": h.hand.forEach(function (c) { if (isPotion(c) && !c.up) { c.up = true; n = (n || 0) + 1; } }); if (n) log(st, { t: "refine", to: href(h), n: n }); break;
+      // 頌歌（2026-10-23 使用者指定：吟遊詩人的安魂方向改成增益，治療留給祭司）
+      case "manaAlly": if (ts && !ts.down) { ts.mana += f.n; log(st, { t: "manaGive", to: href(ts), n: f.n }); } break;
+      case "drawAlly": if (ts && !ts.down) drawCards(st, ts, f.n); break;
       // 賭徒
       case "roll":
         n = rollDie(st, h, f.a) * f.n;
@@ -1249,6 +1317,7 @@
     heroes: heroes, alive: alive, hero: hero, enemy: enemy, controllers: controllers,
     sectorCount: sectorCount, secOf: secOf, secOwner: secOwner, relicSum: relicSum,
     restPct: restPct, loopOf: loopOf, actDef: actDef, tmodVal: tmodVal, unlocked: unlocked, bloodCost: bloodCost,
+    warded: warded, potionCount: potionCount, reagentNeed: reagentNeed,
     _rnd: rnd
   };
 })();

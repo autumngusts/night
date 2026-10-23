@@ -29,11 +29,15 @@
     return tot;
   }
 
-  function evalState(st) {
+  // me：出牌的英雄 seat（其他還沒結束回合的隊友手上的魔力與手牌才算價值；自己的魔力看出牌成本）
+  function evalState(st, me) {
     if (st.phase !== "battle") return st.phase === "lose" ? -1e6 : 1e5;
     var v = 0;
     st.enemies.forEach(function (e) {
       v -= Math.max(0, e.hp - 1.5 * e.st.poison - 1.2 * e.st.burn) + 8 + e.blk * 0.3;
+      // 會分裂的敵人：倒下後會生出的小怪先算進去（否則 AI 會覺得打死牠局面變差而一直不出手）
+      var sp = D.ENEMY[e.id] && D.ENEMY[e.id].split;
+      if (sp) v -= sp.n * (D.ENEMY[sp.id].hp[1] + 8);
       v += 2 * e.st.vuln + 2 * e.st.weak + 6 * e.st.stun;
     });
     v -= 1.4 * incoming(st);
@@ -53,13 +57,15 @@
         });
       });
       h.hand.forEach(function (c) { if (D.CARD[c.id] && D.CARD[c.id].rar === "token") v += 2.5; });
+      // 給隊友的魔力與抽牌（頌歌）：隊友還能用時才有價值
+      if (me != null && h.seat !== me && !h.down && !h.done) v += 2 * h.mana + 1 * h.hand.length;
     });
     return v;
   }
 
   // 最好的一張牌與目標；沒有值得打的回傳 null
   function bestPlay(st, h) {
-    var base = evalState(st), best = null;
+    var base = evalState(st, h.seat), best = null;
     h.hand.forEach(function (c) {
       if (!Core.canPlay(st, h, c)) return;
       var d = Core.cardDef(c), vt = Core.validTargets(st, h, c);
@@ -72,7 +78,7 @@
       tgs.forEach(function (tg) {
         var s2 = clone(st);
         if (Core.apply(s2, h.ctrl, { t: "play", s: h.seat, u: c.u, tg: tg })) return;
-        var sc = evalState(s2) - base - d.cost * 0.5;
+        var sc = evalState(s2, h.seat) - base - d.cost * 0.5;
         if (!best || sc > best.sc) best = { sc: sc, u: c.u, id: c.id, tg: tg };
       });
     });

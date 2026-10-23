@@ -30,6 +30,11 @@ function check(st) {
   });
 }
 
+// 把敵人都打到剩 1 血、一擊就能清場（測試獎勵流程用）。
+// 2026-10-23 加入「分裂」的敵人（倒下時生出小怪，戰鬥不會馬上結束），所以先換成不會分裂的骷髏兵
+function weakenAll(st) {
+  st.enemies.forEach(function (e) { if (D.ENEMY[e.id].split) e.id = "skel"; e.hp = 1; e.blk = 0; });
+}
 function rand(arr, r) { return arr[Math.floor(r() * arr.length)]; }
 // 全員選目的地（依序選 want 裡第一個有的，沒有就選第一個）
 function goFloor(st, want) {
@@ -282,7 +287,7 @@ for (var g = 0; g < games; g++) {
   assert(st5.enemies.filter(function (e) { return e.sec === Core.secOf(st5, 1); }).every(function (e) { return !D.ENEMY[e.id].elite; }), "選營火的區不應有菁英");
   // 打贏：只領目的地的獎勵（2026-10-23 仿 Hellcard，不再固定選卡）：菁英＝遺物＋選卡、營火＝休息
   var relics0 = p0.relics.length;
-  st5.enemies.forEach(function (e) { e.hp = 1; e.blk = 0; });
+  weakenAll(st5);
   p0.hand = [{ u: 9501, id: "pri_doom" }]; p0.mana = 3; p0.str = 99;
   Core.apply(st5, "local", { t: "play", s: 0, u: 9501, tg: null });
   assert(st5.phase === "reward", "清光敵人應進入戰利品");
@@ -300,7 +305,7 @@ for (var g = 0; g < games; g++) {
     var hd = sd.heroes[0];
     hd.dests = [dk, "camp"];
     Core.apply(sd, "local", { t: "dest", s: 0, i: 0 });
-    sd.enemies.forEach(function (e) { e.hp = 1; e.blk = 0; });
+    weakenAll(sd);
     hd.hand = [{ u: 9601, id: "pri_doom" }]; hd.mana = 3; hd.str = 99;
     Core.apply(sd, "local", { t: "play", s: 0, u: 9601, tg: null });
     var ks = [hd.pend && hd.pend.k].concat(hd.queue.map(function (q) { return q.k; })).join(",");
@@ -324,7 +329,7 @@ for (var g = 0; g < games; g++) {
   var dead = rv.heroes[1];
   dead.hp = 1; Core.apply(rv, "local", { t: "end", s: 1 });
   dead.hp = 0; dead.down = true; dead.done = true;
-  rv.enemies.forEach(function (e) { e.hp = 1; e.blk = 0; });
+  weakenAll(rv);
   var ru = (rv.uid += 1);
   rv.heroes[0].hand = [{ u: ru, id: "pri_doom" }]; rv.heroes[0].mana = 3; rv.heroes[0].str = 99;
   Core.apply(rv, "local", { t: "play", s: 0, u: ru, tg: null });
@@ -333,7 +338,7 @@ for (var g = 0; g < games; g++) {
   assert(rv.phase === "map" && dead.dest === "fallen" && rv.heroes[0].dests.indexOf("shrine") >= 0, "有人倒下：選項有復活神殿、倒下的英雄不用選");
   goFloor(rv, "shrine");
   assert(rv.phase === "battle" && dead.down && dead.done && !dead.hand.length, "倒下的英雄不參戰");
-  rv.enemies.forEach(function (e) { e.hp = 1; e.blk = 0; });
+  weakenAll(rv);
   ru = (rv.uid += 1);
   rv.heroes[0].hand = [{ u: ru, id: "pri_doom" }]; rv.heroes[0].mana = 3; rv.heroes[0].str = 99;
   Core.apply(rv, "local", { t: "play", s: 0, u: ru, tg: null });
@@ -348,7 +353,7 @@ for (var g = 0; g < games; g++) {
   for (var li = 0; li < 40; li++) {
     lk.heroes[0].dests = ["spoils", "camp"]; lk.heroes[0].dest = null; lk.phase = "map";
     Core.apply(lk, "local", { t: "dest", s: 0, i: 0 });
-    lk.enemies.forEach(function (e) { e.hp = 1; e.blk = 0; });
+    weakenAll(lk);
     var lu = (lk.uid += 1);
     lk.heroes[0].hand = [{ u: lu, id: "pri_doom" }]; lk.heroes[0].mana = 3; lk.heroes[0].str = 99;
     Core.apply(lk, "local", { t: "play", s: 0, u: lu, tg: null });
@@ -377,7 +382,7 @@ for (var g = 0; g < games; g++) {
   for (var si = 0; si < 60; si++) {
     solo.heroes[0].dests = ["treasure", "camp"]; solo.heroes[0].dest = null; solo.phase = "map";
     Core.apply(solo, "local", { t: "dest", s: 0, i: 0 });
-    solo.enemies.forEach(function (e) { e.hp = 1; e.blk = 0; });
+    weakenAll(solo);
     var su = (solo.uid += 1);
     solo.heroes[0].hand = [{ u: su, id: "pri_doom" }]; solo.heroes[0].mana = 3; solo.heroes[0].str = 99;
     Core.apply(solo, "local", { t: "play", s: 0, u: su, tg: null });
@@ -421,7 +426,7 @@ for (var g = 0; g < games; g++) {
   var t8 = Core.create({ seed: 35, seats: [{ cls: "paladin" }, null, null, null], torment: 8 });
   t8.heroes[0].dests = ["spoils", "camp"];
   Core.apply(t8, "local", { t: "dest", s: 0, i: 0 });
-  t8.enemies.forEach(function (e) { e.hp = 1; e.blk = 0; });
+  weakenAll(t8);
   t8.heroes[0].hand = [{ u: 9602, id: "pri_doom" }]; t8.heroes[0].mana = 3; t8.heroes[0].str = 99;
   Core.apply(t8, "local", { t: "play", s: 0, u: 9602, tg: null });
   assert(t8.heroes[0].pend.k === "card" && t8.heroes[0].pend.opts.length === 2, "苦痛 8：卡牌獎勵兩個選項");
@@ -438,25 +443,29 @@ for (var g = 0; g < games; g++) {
   function give(b, id) { b.st.uid += 1; var c = { u: b.st.uid, id: id }; b.h.hand.push(c); return c.u; }
   // 武僧：攻擊牌給氣；氣不夠時「消耗氣」的效果不發動，夠了才發動
   var m = battleWith("monk", 41);
-  assert(m.h.pw.chiAtk === 1 && m.h.chi === 0, "武僧開戰時沒有氣");
+  // 每張攻擊牌給的氣從英雄資料讀（2026-10-23 平衡調整 1 → 2）
+  var chiN = D.CLASS.monk.passive.n;
+  assert(m.h.pw.chiAtk === chiN && m.h.chi === 0, "武僧開戰時沒有氣");
   Core.apply(m.st, "local", { t: "play", s: 0, u: give(m, "mon_crush"), tg: { e: m.e.u } });
-  assert(m.e.hp === 193 && m.h.chi === 1, "崩拳：氣不夠時只打 7，之後獲得 1 氣，實際 " + m.e.hp + "/" + m.h.chi);
+  assert(m.e.hp === 193 && m.h.chi === chiN, "崩拳：氣不夠時只打 7，之後獲得 " + chiN + " 氣，實際 " + m.e.hp + "/" + m.h.chi);
   m.h.chi = 3;
   Core.apply(m.st, "local", { t: "play", s: 0, u: give(m, "mon_crush"), tg: { e: m.e.u } });
-  assert(m.e.hp === 179 && m.h.chi === 2, "崩拳：消耗 2 氣再打 7，實際 " + m.e.hp + "/" + m.h.chi);
+  assert(m.e.hp === 179 && m.h.chi === 3 - 2 + chiN, "崩拳：消耗 2 氣再打 7，實際 " + m.e.hp + "/" + m.h.chi);
   // 德魯伊：變身、狼形打內圈 +2、姿態加成、熊形每回合護盾
   var dr = battleWith("druid", 42);
   var drawn0 = dr.h.hand.length;
   Core.apply(dr.st, "local", { t: "play", s: 0, u: give(dr, "dru_wolf"), tg: { e: dr.e.u } });
-  // 狼形牌是「先變身再攻擊」：6＋狼形打內圈 2
-  assert(dr.h.form === "wolf" && dr.e.hp === 192 && dr.h.hand.length === drawn0 + 1, "狼形：變身後打 8、變身抽 1 張，實際 " + dr.e.hp);
+  // 狼形牌是「先變身再攻擊」：6＋狼形打內圈加成（2026-10-23 平衡調整 2 → 3，期望值改從 D.FORMS 讀）
+  var wolfN = D.FORMS.wolf.n;
+  assert(dr.h.form === "wolf" && dr.e.hp === 200 - (6 + wolfN) && dr.h.hand.length === drawn0 + 1, "狼形：變身後打 " + (6 + wolfN) + "、變身抽 1 張，實際 " + dr.e.hp);
   Core.apply(dr.st, "local", { t: "play", s: 0, u: give(dr, "dru_claw"), tg: { e: dr.e.u } });
-  // 姿態加成的 +3 是另一段攻擊，兩段都吃狼形打內圈 +2：(6+2)+(3+2)
-  assert(dr.e.hp === 179, "爪擊在狼形應打 13，實際 " + (192 - dr.e.hp));
+  // 姿態加成的 +3 是另一段攻擊，兩段都吃狼形打內圈加成：(6+n)+(3+n)
+  var hp0 = 200 - (6 + wolfN);
+  assert(dr.e.hp === hp0 - (9 + 2 * wolfN), "爪擊在狼形應打 " + (9 + 2 * wolfN) + "，實際 " + (hp0 - dr.e.hp));
   dr.h.form = "bear"; dr.h.blk = 0;
   dr.st.enemies.forEach(function (e) { e.intent = [{ k: "blk", n: 0 }]; });
   dr.st.heroes[1].done = true; Core.apply(dr.st, "local", { t: "end", s: 0 });
-  assert(dr.st.phase === "battle" && dr.h.blk >= 4, "熊形：每回合開始時護盾 4，實際 " + dr.h.blk);
+  assert(dr.st.phase === "battle" && dr.h.blk >= D.FORMS.bear.blk, "熊形：每回合開始時護盾 " + D.FORMS.bear.blk + "，實際 " + dr.h.blk);
   // 時空術士：延遲傷害在下回合開始時才發動；回溯拿回剛打出的牌
   var ch = battleWith("chrono", 43);
   Core.apply(ch.st, "local", { t: "play", s: 0, u: give(ch, "chr_bomb"), tg: { e: ch.e.u } });
@@ -613,6 +622,123 @@ for (var g = 0; g < games; g++) {
   goFloor(e1);
   assert(Core.actDef(e4) === D.ACTS[0] && Core.loopOf(e4) === 1, "第四幕輪回第一幕的敵人池");
   assert(e4.enemies[0].max > e1.enemies[0].max, "第四幕的敵人比第一幕強：" + e1.enemies[0].max + "→" + e4.enemies[0].max);
+
+  // ---- 2026-10-23 第三批：新敵人機制、每幕多位首領、催化（鍊金術師）、頌歌（吟遊詩人） ----
+  // 測試用：把戰場換成指定的敵人（近戰放內圈，否則攻擊會變成前進）
+  function setFoes(st, list) {
+    st.enemies = list.map(function (x) {
+      st.uid += 1;
+      var hp = x.hp || 500;
+      return { u: st.uid, id: x.id, hp: hp, max: x.max || hp, blk: 0, str: 0, st: { weak: 0, vuln: 0, poison: 0, burn: 0, stun: 0 },
+        sec: 0, ring: x.ring || (D.ENEMY[x.id].kind === "melee" ? "near" : "far"), pi: 0, last: -1, intent: x.intent || [] };
+    });
+    return st.enemies;
+  }
+  function playCard(st, seat, id, tg) {
+    var u = (st.uid += 1);
+    st.heroes[seat].hand.push({ u: u, id: id });
+    st.heroes[seat].mana = 9;
+    return Core.apply(st, "local", { t: "play", s: seat, u: u, tg: tg || null });
+  }
+  var mx = Core.create({ seed: 61, seats: [{ cls: "paladin" }, { cls: "bard" }, null, null] });
+  goFloor(mx);
+  var mh = mx.heroes[0];
+  mh.str = 0;
+  // 分裂：裂殖腐泥倒下時生出 2 隻小腐泥，戰鬥繼續
+  var sl = setFoes(mx, [{ id: "bigslime", hp: 1 }])[0];
+  playCard(mx, 0, "pal_strike", { e: sl.u });
+  assert(mx.phase === "battle" && mx.enemies.length === 2 && mx.enemies.every(function (e) { return e.id === "slimelet"; }), "分裂：裂殖腐泥倒下生出 2 隻小腐泥，實際 " + mx.enemies.map(function (e) { return e.id; }));
+  // 受庇護：場上還有其他敵人時傷害減半；其他敵人都倒下後傷害正常
+  var wd = setFoes(mx, [{ id: "lich", hp: 100 }, { id: "skel", hp: 1 }]);
+  var lich = wd[0];
+  assert(Core.warded(mx, lich), "巫妖：有骷髏兵在場時受庇護");
+  playCard(mx, 0, "pal_strike", { e: lich.u });
+  assert(lich.hp === 100 - Math.ceil(7 / 2), "受庇護：斬擊 7 減半，實際 " + (100 - lich.hp));
+  playCard(mx, 0, "pal_strike", { e: wd[1].u });
+  assert(!Core.warded(mx, lich), "骷髏兵倒下後不再受庇護");
+  var lh = lich.hp;
+  playCard(mx, 0, "pal_strike", { e: lich.u });
+  assert(lh - lich.hp === 7, "庇護失效後傷害正常");
+  // 第二階段：骨龍生命降到一半以下時換行動、力量 +2、清除自己的負面狀態（只換一次）
+  var dr = setFoes(mx, [{ id: "bonedragon", hp: 56, max: 100 }])[0];
+  dr.st.poison = 5;
+  playCard(mx, 0, "pal_strike", { e: dr.u });
+  assert(dr.ph === 1 && dr.str === 2 && dr.st.poison === 0 && mx.log.some(function (e) { return e.t === "phase"; }), "第二階段：骨龍變身");
+  assert(JSON.stringify(dr.intent) === JSON.stringify(D.ENEMY.bonedragon.phase.pat[0]), "第二階段：換成第二套行動");
+  playCard(mx, 0, "pal_strike", { e: dr.u });
+  assert(dr.str === 2, "第二階段只換一次");
+  // 成長：熔岩巨像每過一回合力量 +1
+  var co = setFoes(mx, [{ id: "colossus", hp: 500 }])[0];
+  Core.heroes(mx).forEach(function (h) { Core.apply(mx, "local", { t: "end", s: h.seat }); });
+  assert(co.str === 1, "成長：熔岩巨像每回合力量 +1，實際 " + co.str);
+  // 吸血：吸血鬼打掉多少生命就回復多少
+  var vp = setFoes(mx, [{ id: "vampire", hp: 10, max: 30, intent: [{ k: "atk", n: 5, drain: true }] }])[0];
+  mh.blk = 0; mh.hp = mh.max;
+  var b1 = mx.heroes[1]; b1.blk = 99;
+  vp.sec = Core.secOf(mx, 0);
+  Core.heroes(mx).forEach(function (h) { Core.apply(mx, "local", { t: "end", s: h.seat }); });
+  assert(vp.hp === 15 && mh.hp === mh.max - 5, "吸血：打掉 5 生命回復 5，實際 " + vp.hp);
+  // 破甲：紀律官先把護盾歸零再攻擊
+  var ef = setFoes(mx, [{ id: "enforcer", hp: 500, intent: [{ k: "shatter" }, { k: "atk", n: 9 }] }])[0];
+  ef.sec = Core.secOf(mx, 0);
+  mh.hp = mh.max;
+  Core.heroes(mx).forEach(function (h) { h.done = false; });
+  mh.blk = 0;
+  playCard(mx, 0, "pal_defend");
+  assert(mh.blk > 0, "防禦有護盾");
+  Core.heroes(mx).forEach(function (h) { Core.apply(mx, "local", { t: "end", s: h.seat }); });
+  assert(mh.hp === mh.max - 9 && mx.log.some(function (e) { return e.t === "shatter"; }), "破甲：護盾歸零後吃滿 9 傷害，實際 −" + (mh.max - mh.hp));
+  // 淨化：惡魔祭司清除全體敵人的負面狀態
+  var pr = setFoes(mx, [{ id: "priestess", hp: 500, intent: [{ k: "purge", all: true }] }, { id: "guard", hp: 500, intent: [] }]);
+  pr.forEach(function (e) { e.st.poison = 6; e.st.vuln = 2; });
+  Core.heroes(mx).forEach(function (h) { Core.apply(mx, "local", { t: "end", s: h.seat }); });
+  assert(pr.every(function (e) { return e.st.poison === 0 && e.st.vuln === 0; }), "淨化：全體敵人的中毒、易傷清除");
+  // 頌歌：給隊友魔力、抽牌、力量
+  setFoes(mx, [{ id: "skel", hp: 500 }]);
+  Core.heroes(mx).forEach(function (h) { h.done = false; h.down = false; h.hp = h.max; });
+  mh.mana = 0;
+  var hand0 = mh.hand.length;
+  playCard(mx, 1, "bar_elegy", { s: 0 });
+  assert(mh.mana === 1, "鼓點：隊友魔力 +1");
+  playCard(mx, 1, "bar_chant", { s: 0 });
+  assert(mh.hand.length === hand0 + 2, "靈感：隊友抽 2 張");
+  playCard(mx, 1, "bar_lullaby", { s: 0 });
+  assert(mh.str === 2, "激勵：隊友力量 +2");
+  assert(!D.CARDS.some(function (c) { return c.cls === "bard" && c.path === "anthem" && JSON.stringify(c.fx).indexOf("heal") >= 0; }), "頌歌方向沒有治療");
+  assert(!D.CARDS.some(function (c) { return c.cls === "alchemist" && c.path === "catalyst" && JSON.stringify(c.fx).indexOf("poison") >= 0; }), "催化方向沒有毒");
+
+  // 催化：依手上的藥水數造成傷害、升級版藥水、催化劑減少做藥需要的張數
+  var ca = Core.create({ seed: 62, seats: [{ cls: "alchemist" }, null, null, null] });
+  goFloor(ca);
+  var cah = ca.heroes[0];
+  cah.str = 0;
+  var cfoe = setFoes(ca, [{ id: "skel", hp: 500 }])[0];
+  cah.hand = [{ u: (ca.uid += 1), id: "alc_p_heal" }, { u: (ca.uid += 1), id: "alc_p_str" }];
+  playCard(ca, 0, "alc_catalyst", { e: cfoe.u });
+  // 期望值從卡牌資料算（平衡調整會改每瓶的傷害）
+  var perPotion = D.CARD.alc_catalyst.fx[0].n;
+  assert(cfoe.hp === 500 - perPotion * 2, "瓶中雷：" + perPotion + " × 2 瓶，實際 " + (500 - cfoe.hp));
+  playCard(ca, 0, "alc_recipe");
+  assert(cah.hand.filter(function (c) { return D.POTIONS.indexOf(c.id) >= 0; }).every(function (c) { return c.up; }), "精煉：手上的藥水全部升級");
+  playCard(ca, 0, "alc_fog");
+  assert(cah.hand.filter(function (c) { return D.POTIONS.indexOf(c.id) >= 0 && c.up; }).length === 3, "濃縮：做出升級版藥水");
+  playCard(ca, 0, "alc_corrode");
+  assert(Core.reagentNeed(cah) === D.CLASS.alchemist.extra.reagent - 1, "催化劑：做藥需要的張數 −1");
+
+  // 每幕有 3 位首領：幕開始時抽好（st.boss），首領戰出現的就是牠
+  D.ACTS.forEach(function (a) { assert(a.bosses.length === 3 && a.bosses.every(function (b) { return D.ENEMY[b] && D.ENEMY[b].boss; }), "每幕 3 位首領"); });
+  var seen = {};
+  for (var bs = 0; bs < 30; bs++) {
+    var bst = Core.create({ seed: 300 + bs, seats: [{ cls: "paladin" }, null, null, null] });
+    assert(D.ACTS[0].bosses.indexOf(bst.boss) >= 0, "第一幕的首領在名單內");
+    seen[bst.boss] = 1;
+    if (bs === 0) {
+      bst.floor = 3; bst.heroes[0].dests = ["boss"]; bst.heroes[0].dest = null;
+      Core.apply(bst, "local", { t: "dest", s: 0, i: 0 });
+      assert(bst.enemies.some(function (e) { return e.id === bst.boss; }), "首領戰出現的是 st.boss");
+    }
+  }
+  assert(Object.keys(seen).length === 3, "30 局內三位首領都出現過：" + Object.keys(seen));
 
   // AI 隊友：ctrl 為 ai 的英雄由 AI.next 決定行動，整局跑得完（不會卡住）
   require("../../static_src/yellow_ai.js");

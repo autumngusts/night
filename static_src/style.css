@@ -12841,3 +12841,34 @@ button.yc-relic:hover:not(:disabled) { border-color: var(--yc-accent); }
   .yc-sig-emo { font-size: 1.1rem; }
   .yc-torment-list { columns: 1; }
 }
+
+/* 標記說明（❔）、第一場戰鬥的教學、敵人的特殊機制（2026-10-23） */
+.yc-help-btn { top: 1%; right: 1%; bottom: auto; font-size: 0.9rem; padding: 0.1rem 0.4rem; }
+.yc-legend { position: absolute; top: 1%; right: 1%; bottom: 1%; width: min(22rem, 92%); overflow-y: auto; z-index: 13; padding: 0.5rem 0.7rem;
+  border-radius: 10px; background: rgba(20, 18, 16, 0.94); color: #f4efe6; font-size: 0.8rem; box-shadow: 0 4px 16px rgba(0, 0, 0, 0.55); }
+.yc-legend-head { display: flex; align-items: center; gap: 0.4rem; position: sticky; top: -0.5rem; padding: 0.2rem 0; background: inherit; }
+.yc-legend-head strong { flex: 1; }
+.yc-legend h4 { margin: 0.6rem 0 0.2rem; font-size: 0.85rem; color: var(--yc-accent); }
+.yc-legend-list { display: grid; grid-template-columns: auto 1fr; gap: 0.15rem 0.5rem; margin: 0; }
+.yc-legend-list dt { text-align: center; white-space: nowrap; }
+.yc-legend-list dd { margin: 0; opacity: 0.92; }
+.yc-tut { position: absolute; left: 50%; top: 4%; transform: translateX(-50%); width: min(24rem, 88%); z-index: 12; padding: 0.6rem 0.8rem;
+  border-radius: 10px; background: rgba(255, 250, 235, 0.97); color: #2a2218; border: 2px solid var(--yc-accent); box-shadow: 0 4px 14px rgba(0, 0, 0, 0.45); }
+.yc-tut p { margin: 0.2rem 0 0.4rem; line-height: 1.45; }
+.yc-tut .yc-actions { margin: 0; }
+.yc-badge-mech { background: rgba(127, 127, 127, 0.25); }
+.yc-badge-mech.yc-on { background: rgba(200, 150, 30, 0.45); }
+.yc-boss-preview { margin: 0.3rem 0; padding: 0.35rem 0.6rem; border-radius: 8px; background: rgba(160, 40, 40, 0.12); }
+.yc-profile textarea { width: 100%; box-sizing: border-box; font-family: ui-monospace, monospace; font-size: 0.8rem; word-break: break-all; }
+@media (max-width: 640px) {
+  .yc-legend { font-size: 0.72rem; width: 96%; right: 2%; }
+  .yc-tut { font-size: 0.82rem; top: 2%; }
+  /* 手機戰鬥畫面（2026-10-23 使用者指定：英雄多、敵人多時資訊太擠）：戰場以外的部分變矮，戰場才能放大
+     （fitArena() 會讓「上方資訊列＋戰場＋手牌」放進一個畫面，所以其他部分越矮，戰場越大） */
+  .yc-focus-panel.yc-focus-empty { display: none; }
+  .yc-tabs { flex-wrap: nowrap; gap: 0.2rem; }
+  .yc-tab { flex: 1 1 0; min-width: 0; padding: 0.2rem 0.3rem; font-size: 0.78rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .yc-topbar { gap: 0.2rem 0.5rem; font-size: 0.82em; margin-bottom: 0.25rem; }
+  .yc-arena-wrap { padding: 4px; }
+  .yc-hero-tag { font-size: 0.55rem; }
+}

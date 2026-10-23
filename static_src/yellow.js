@@ -125,6 +125,76 @@
     return { xp: {}, won: -1, done: [] };
   }
   function saveProfile(p) { try { localStorage.setItem(PROFILE_KEY, JSON.stringify(p)); } catch (e) { /* 只是記不住 */ } }
+  // 匯出／匯入（2026-10-23 使用者指定：換瀏覽器或清掉資料時可以搬進度）。代碼＝"YC1-" + base64url(JSON)；
+  // 匯入是「合併」：每位英雄的經驗、通關過的苦痛都取較高的一邊，所以不會因為貼錯代碼而失去進度
+  var PROFILE_DONE_MAX = 300;
+  function b64urlEncode(str) { return btoa(unescape(encodeURIComponent(str))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, ""); }
+  function b64urlDecode(str) {
+    var b = str.replace(/-/g, "+").replace(/_/g, "/");
+    while (b.length % 4) b += "=";
+    return decodeURIComponent(escape(atob(b)));
+  }
+  function exportProfile(p) { return "YC1-" + b64urlEncode(JSON.stringify({ xp: p.xp, won: p.won, done: p.done.slice(-PROFILE_DONE_MAX) })); }
+  function importProfile(code) {
+    var m = /^YC1-([A-Za-z0-9_-]+)$/.exec(String(code || "").replace(/\s+/g, ""));
+    if (!m) return null;
+    var o;
+    try { o = JSON.parse(b64urlDecode(m[1])); } catch (e) { return null; }
+    if (!o || typeof o !== "object" || typeof o.xp !== "object" || !o.xp) return null;
+    var xp = {};
+    D.CLASSES.forEach(function (c) { var v = Number(o.xp[c.id]); if (isFinite(v) && v > 0) xp[c.id] = Math.floor(v); });
+    var won = Math.max(-1, Math.min(D.TORMENTS.length, Math.floor(Number(o.won))));
+    if (!isFinite(won)) won = -1;
+    var done = Array.isArray(o.done) ? o.done.filter(function (x) { return typeof x === "number" && isFinite(x); }) : [];
+    return { xp: xp, won: won, done: done };
+  }
+  function mergeProfile(a, b) {
+    var xp = {};
+    D.CLASSES.forEach(function (c) { var v = Math.max(a.xp[c.id] || 0, b.xp[c.id] || 0); if (v) xp[c.id] = v; });
+    var done = a.done.slice();
+    b.done.forEach(function (x) { if (done.indexOf(x) < 0) done.push(x); });
+    return { xp: xp, won: Math.max(a.won, b.won), done: done.slice(-PROFILE_DONE_MAX) };
+  }
+  function profilePanel() {
+    var p = profile();
+    var d = el("details", { class: "yc-panel yc-profile", open: ui.profOpen ? true : null });
+    d.addEventListener("toggle", function () { ui.profOpen = d.open; });
+    d.appendChild(el("summary", { text: "📦 " + t("yc_prof_title") }));
+    d.appendChild(el("p", { class: "yc-small", text: t("yc_prof_summary", { n: totalLv(p), w: p.won >= 0 ? p.won : t("yc_prof_none") }) }));
+    d.appendChild(el("p", { class: "yc-small yc-muted", text: t("yc_prof_desc") }));
+    d.appendChild(el("div", { class: "yc-actions" }, [
+      el("button", { type: "button", text: t("yc_prof_export"), onclick: function () { ui.profCode = exportProfile(profile()); ui.profMsg = null; render(); } })
+    ]));
+    if (ui.profCode) {
+      var out = el("textarea", { class: "yc-text yc-prof-code", readonly: true, rows: 3 });
+      out.value = ui.profCode;
+      out.addEventListener("focus", function () { out.select(); });
+      d.appendChild(out);
+      d.appendChild(el("div", { class: "yc-actions" }, [
+        el("button", { type: "button", class: "yc-small-btn", text: t("yc_prof_copy"), onclick: function () {
+          var done = function () { ui.profMsg = { ok: true, k: "yc_prof_copied" }; render(); };
+          try { navigator.clipboard.writeText(ui.profCode).then(done, function () { out.select(); }); } catch (e) { out.select(); }
+        } }),
+        el("span", { class: "yc-small yc-muted", text: t("yc_prof_export_hint") })
+      ]));
+    }
+    var inp = el("textarea", { class: "yc-text yc-prof-in", rows: 2, placeholder: t("yc_prof_import_ph") });
+    inp.value = ui.profIn || "";
+    inp.addEventListener("input", function () { ui.profIn = inp.value; });
+    d.appendChild(inp);
+    d.appendChild(el("div", { class: "yc-actions" }, [
+      el("button", { type: "button", text: t("yc_prof_import"), onclick: function () {
+        var got = importProfile(ui.profIn);
+        if (!got) { ui.profMsg = { ok: false, k: "yc_prof_import_bad" }; render(); return; }
+        saveProfile(mergeProfile(profile(), got));
+        ui.profIn = ""; ui.profCode = null;
+        ui.profMsg = { ok: true, k: "yc_prof_import_ok" };
+        render();
+      } }),
+      ui.profMsg ? el("span", { class: ui.profMsg.ok ? "yc-good" : "yc-bad", text: t(ui.profMsg.k, { n: totalLv(profile()) }) }) : null
+    ]));
+    return d;
+  }
   function heroLv(p, cls) { var xp = p.xp[cls] || 0, lv = 0; D.LEVEL_XP.forEach(function (n, i) { if (xp >= n) lv = i; }); return lv; }
   function totalLv(p) { var n = 0; D.CLASSES.forEach(function (c) { n += heroLv(p, c.id); }); return n; }
   function starterOpts(p) { var tl = totalLv(p); return D.STARTERS.filter(function (x) { return tl >= x.need; }); }
@@ -207,7 +277,8 @@
     if (f.o === "chiIf") return t("yc_fx_chiIf", { c: f.c }) + sub(f.fx);
     if (f.o === "delay") return t("yc_fx_delay") + sub(f.fx);
     if (f.o === "form") return t("yc_fx_form", { f: t("yc_form_" + f.f) });
-    if (f.o === "brew") return t(f.ally ? "yc_fx_brew_ally" : "yc_fx_brew", { n: f.n || 1, c: f.c === "rand" ? t("yc_potion_rand") : L(D.CARD[f.c].name) });
+    if (f.o === "brew") return t(f.ally ? "yc_fx_brew_ally" : "yc_fx_brew", { n: f.n || 1, c: (f.c === "rand" ? t("yc_potion_rand") : L(D.CARD[f.c].name)) + (f.up ? "+" : "") });
+    if (f.o === "dmgPotion" || f.o === "dmgAllPotion") return t("yc_fx_" + f.o, p) + (h ? t("yc_fx_now_potion", { m: Core.potionCount(h) }) : "");
     if (f.o === "roll") return t("yc_fx_roll_" + f.k, p) + (f.a ? t("yc_fx_adv") : "");
     if (f.o === "gamble") return t(f.lose && f.lose.length ? "yc_fx_gamble" : "yc_fx_gamble_nolose", { w: sub(f.win), l: sub(f.lose) }) + (f.a ? t("yc_fx_adv") : "");
     return t("yc_fx_" + f.o, p);
@@ -422,6 +493,7 @@
     ]));
     wrap.appendChild(net);
 
+    wrap.appendChild(profilePanel());
     wrap.appendChild(rulesPanel());
     return wrap;
   }
@@ -610,6 +682,7 @@
     if (obj.blk > 0) row.appendChild(el("span", { class: "yc-badge yc-badge-blk", title: t("yc_block"), text: "🛡" + obj.blk }));
     if (obj.str) row.appendChild(el("span", { class: "yc-badge yc-badge-str", title: t("yc_str"), text: "💪" + obj.str }));
     if (obj.thorns) row.appendChild(el("span", { class: "yc-badge yc-badge-thorns", title: t("yc_thorns_desc", { n: obj.thorns }), text: "🌵" + obj.thorns }));
+    (obj.mech || []).forEach(function (m) { row.appendChild(el("span", { class: "yc-badge yc-badge-mech" + (m.on ? " yc-on" : ""), title: m.title, text: m.icon })); });
     ["weak", "vuln", "poison", "burn", "stun", "regen"].forEach(function (s) {
       if (obj.st && obj.st[s] > 0) row.appendChild(el("span", { class: "yc-badge yc-badge-" + s, title: stName(s) + "：" + t("yc_st_desc_" + s), text: t("yc_sti_" + s) + obj.st[s] }));
     });
@@ -623,8 +696,8 @@
       if (obj.taunt) row.appendChild(el("span", { class: "yc-badge yc-badge-taunt", title: t("yc_taunt_desc"), text: "🎯" }));
       if (obj.chi) row.appendChild(el("span", { class: "yc-badge yc-badge-sp", title: t("yc_chi_desc", { n: D.MAX_CHI }), text: "☯" + obj.chi }));
       if (obj.flux) row.appendChild(el("span", { class: "yc-badge yc-badge-sp", title: t("yc_flux_desc", { n: D.MAX_FLUX }), text: "⌛" + obj.flux }));
-      if (obj.pw && obj.pw.reagent) row.appendChild(el("span", { class: "yc-badge yc-badge-sp", title: t("yc_rg_desc", { n: obj.pw.reagent }), text: "🧪" + (obj.rg || 0) + "/" + obj.pw.reagent }));
-      if (obj.form) row.appendChild(el("span", { class: "yc-badge yc-badge-sp", title: t("yc_form_desc_" + obj.form), text: D.FORMS[obj.form].icon + t("yc_form_" + obj.form) }));
+      if (obj.pw && obj.pw.reagent) row.appendChild(el("span", { class: "yc-badge yc-badge-sp", title: t("yc_rg_desc", { n: Core.reagentNeed(obj) }), text: "🧪" + (obj.rg || 0) + "/" + Core.reagentNeed(obj) }));
+      if (obj.form) row.appendChild(el("span", { class: "yc-badge yc-badge-sp", title: t("yc_form_desc_" + obj.form, { n: D.FORMS[obj.form].blk || D.FORMS[obj.form].n }), text: D.FORMS[obj.form].icon + t("yc_form_" + obj.form) }));
       if (obj.later && obj.later.length) row.appendChild(el("span", { class: "yc-badge yc-badge-sp", title: t("yc_later_desc"), text: "⏳" + obj.later.length }));
     }
     return row;
@@ -645,7 +718,7 @@
       case "atk":
         var seats = Core.actTargets(st, e, a);
         var v = seats.length === 1 ? Core.enemyHitValue(st, e, a.n, seats[0]) : Core.enemyHitValue(st, e, a.n, -1);
-        return "⚔" + v + ((a.h || 1) > 1 ? "×" + a.h : "") + tg();
+        return (a.drain ? "🩸" : "⚔") + v + ((a.h || 1) > 1 ? "×" + a.h : "") + (a.drain && !short ? t("yc_int_drain") : "") + tg();
       case "blk": return "🛡" + a.n + (a.all ? t("yc_int_allies") : "");
       case "buff": return "💪+" + a.str + (a.all ? t("yc_int_allies") : "");
       case "heal": return "💚" + a.n + (a.all ? t("yc_int_allies") : "");
@@ -655,6 +728,8 @@
       case "summon": return "➕" + (short ? "" : t("yc_int_summon", { name: enemyName(a.id) }));
       case "move": return (a.to === "near" ? "⇣" : "⇡") + (short ? "" : t(a.to === "near" ? "yc_int_advance" : "yc_int_retreat"));
       case "stun": return "💫" + (short ? "" : t("yc_int_stun"));
+      case "shatter": return "💔" + (short ? "" : t("yc_int_shatter")) + tg();
+      case "purge": return "✨" + (short ? "" : t("yc_int_purge")) + (a.all ? t("yc_int_allies") : "");
     }
     return a.k;
   }
@@ -663,6 +738,15 @@
   function secSpan(st) { return Core.secSpan(st); }
   function secStart(st, i) { return Core.secStart(st, i); }
   function pctPos(p) { return "left:" + p.x.toFixed(2) + "%;top:" + p.y.toFixed(2) + "%"; }
+  // 敵人的特殊機制（2026-10-23）：受庇護、成長、分裂、第二階段 → [{ icon, title, on }]（on＝正在生效）
+  function enemyMech(st, e) {
+    var d = D.ENEMY[e.id], out = [];
+    if (d.ward) out.push({ icon: "🔰", on: Core.warded(st, e), title: t(Core.warded(st, e) ? "yc_mech_ward_on" : "yc_mech_ward_off") });
+    if (d.grow) out.push({ icon: "📈", title: t("yc_mech_grow", { n: d.grow }) });
+    if (d.split) out.push({ icon: "🧬", title: t("yc_mech_split", { n: d.split.n, name: enemyName(d.split.id) }) });
+    if (d.phase) out.push({ icon: e.ph ? "🔥" : "🌗", on: !!e.ph, title: t(e.ph ? "yc_mech_phase_on" : "yc_mech_phase", { n: Math.round(d.phase.at * 100) }) });
+    return out;
+  }
   function enemySizeKey(e) { var d = D.ENEMY[e.id]; return d.size || (d.boss ? "boss" : d.elite ? "l" : "m"); }
 
   // 敵人＝依體型大小的圓點（元素本身就是判定圓）；外圈的環是血量，上方是意圖、下方是血量數字與狀態
@@ -676,7 +760,9 @@
     if (pos.x < 49.5) classes += " yc-side-l";
     if (pos.y > 50.5) classes += " yc-side-b";
     var pct = e.max ? Math.max(0, Math.min(100, e.hp / e.max * 100)) : 0;
-    var title = enemyName(e.id) + "（" + t("yc_size_" + enemySizeKey(e)) + "・" + t("yc_kind_" + d.kind) + "）\n" + acts.map(function (a) { return intentText(st, e, a); }).join("\n") + (d.thorns ? "\n🌵 " + t("yc_thorns_desc", { n: d.thorns }) : "");
+    var mech = enemyMech(st, e);
+    var title = enemyName(e.id) + "（" + t("yc_size_" + enemySizeKey(e)) + "・" + t("yc_kind_" + d.kind) + "）\n" + acts.map(function (a) { return intentText(st, e, a); }).join("\n") + (d.thorns ? "\n🌵 " + t("yc_thorns_desc", { n: d.thorns }) : "") +
+      mech.map(function (m) { return "\n" + m.icon + " " + m.title; }).join("");
     var start = prev && (Math.abs(prev.x - pos.x) > 0.05 || Math.abs(prev.y - pos.y) > 0.05) ? prev : pos;
     var node = el("div", { class: classes, "data-ref": "e" + e.u, title: title,
       style: pctPos(start) + ";width:" + (pos.r * 2).toFixed(2) + "%;--hp:" + pct.toFixed(1),
@@ -686,7 +772,7 @@
       el("span", { class: "yc-enemy-shield", title: e.hp + " / " + e.max, text: e.hp }),
       e.blk ? el("span", { class: "yc-enemy-blk", text: e.blk }) : null,
       el("div", { class: "yc-enemy-int" }, acts.map(function (a) { return el("span", { class: "yc-int yc-int-" + a.k, text: intentText(st, e, a, true) }); })),
-      el("div", { class: "yc-enemy-label" }, [statusBadges({ st: e.st, str: e.str, thorns: d.thorns }, false)])
+      el("div", { class: "yc-enemy-label" }, [statusBadges({ st: e.st, str: e.str, thorns: d.thorns, mech: mech }, false)])
     ]);
     // 被擊退／拉近／隊形重排：從上一次的位置補間過去
     if (start !== pos) requestAnimationFrame(function () { requestAnimationFrame(function () { node.classList.add("yc-moving"); node.style.left = pos.x.toFixed(2) + "%"; node.style.top = pos.y.toFixed(2) + "%"; }); });
@@ -856,7 +942,7 @@
   function focusPanel(st, links, incoming) {
     var f = ui.focus;
     var box = el("div", { class: "yc-focus-panel" });
-    if (!f) { box.appendChild(el("span", { class: "yc-muted", text: t("yc_focus_tip") })); return box; }
+    if (!f) { box.classList.add("yc-focus-empty"); box.appendChild(el("span", { class: "yc-muted", text: t("yc_focus_tip") })); return box; }
     if (f.k === "e") {
       var e = Core.enemy(st, f.u), d = D.ENEMY[e.id];
       box.appendChild(el("div", { class: "yc-focus-head" }, [
@@ -922,6 +1008,8 @@
     board.appendChild(fx);
     board.appendChild(svg("svg", { viewBox: "0 0 100 100", class: "yc-arena-arc", "aria-hidden": "true" }));
     board.appendChild(signalBar(st));
+    if (ui.legend) board.appendChild(legendPanel());
+    else if (!ui.replay) { var tc = tutCard(); if (tc) board.appendChild(tc); }
     return el("div", { class: "yc-arena-wrap" }, [board, focusPanel(st, links, incoming)]);
   }
 
@@ -1651,6 +1739,10 @@
     }
     wrap.appendChild(el("h2", { text: actName(st.act) + " — " + t("yc_floor_n", { n: st.floor + 1, total: D.FLOORS.length }) }));
     wrap.appendChild(floorTrack(st));
+    if (st.boss && D.ENEMY[st.boss]) {
+      wrap.appendChild(el("p", { class: "yc-boss-preview" }, [el("strong", { text: t("yc_act_boss") + D.ENEMY[st.boss].icon + " " + enemyName(st.boss) }),
+        el("span", { class: "yc-small", text: " — " + t("yc_boss_hint_" + st.boss) })]));
+    }
     var boss = D.FLOORS[st.floor] === "boss";
     wrap.appendChild(el("p", { class: "yc-muted", text: boss ? t("yc_map_boss") : t("yc_map_pick") }));
     Core.heroes(st).forEach(function (h) {
@@ -2012,11 +2104,68 @@
     });
     sendSignal(hit !== null ? { k: "ping", u: hit } : { k: "ping", x: p.x, y: p.y });
   }
+  // 標記說明（2026-10-23 使用者指定：戰鬥畫面顯示各種標記的說明）：戰場右上的 ❔
+  function legendRows() {
+    var sec = function (k, rows) { return { k: k, rows: rows }; };
+    var st = ["weak", "vuln", "poison", "burn", "stun", "regen"].map(function (s) { return [t("yc_sti_" + s), stName(s) + "：" + t("yc_st_desc_" + s)]; });
+    return [
+      sec("yc_legend_sec_field", [["⭕", t("yc_legend_sectors")], ["◎", t("yc_legend_rings")]]),
+      sec("yc_legend_sec_status", [["🛡", t("yc_block") + "：" + t("yc_legend_blk")], ["💪", t("yc_str")]].concat(st)),
+      sec("yc_legend_sec_hero", [
+        ["🦉", t("yc_spirits_desc", { n: 2 })], ["♪", t("yc_melody_desc")], ["🪤", t("yc_trap_desc", { n: "N" })], ["☯", t("yc_chi_desc", { n: D.MAX_CHI })],
+        ["⌛", t("yc_flux_desc", { n: D.MAX_FLUX })], ["🧪", t("yc_rg_desc", { n: 3 })], ["🐻🐺🦅", t("yc_legend_forms")], ["⏳", t("yc_later_desc")],
+        ["✦", t("yc_legend_pow")], ["🎯", t("yc_taunt_desc")]]),
+      sec("yc_legend_sec_intent", [["⚔", t("yc_legend_atk")], ["🩸", t("yc_int_drain") + " " + t("yc_legend_drain")], ["🛡", t("yc_legend_eblk")], ["💪+", t("yc_legend_buff")],
+        ["💚", t("yc_legend_heal")], ["🃏", t("yc_legend_curse")], ["🟨", t("yc_legend_yellow", { n: D.RED_CARD_DMG })], ["➕", t("yc_legend_summon")],
+        ["⇣ ⇡", t("yc_legend_move")], ["💔", t("yc_int_shatter")], ["✨", t("yc_int_purge")], ["💫", t("yc_legend_stun")]]),
+      sec("yc_legend_sec_mech", [["🌵", t("yc_thorns_desc", { n: "N" })], ["🔰", t("yc_mech_ward_on")], ["📈", t("yc_mech_grow", { n: "N" })],
+        ["🧬", t("yc_legend_split")], ["🌗", t("yc_mech_phase", { n: 50 })]])
+    ];
+  }
+  function legendPanel() {
+    var stop = function (ev) { ev.stopPropagation(); };
+    var box = el("div", { class: "yc-legend", onclick: stop });
+    box.appendChild(el("div", { class: "yc-legend-head" }, [el("strong", { text: "❔ " + t("yc_legend_title") }),
+      el("button", { type: "button", class: "yc-small-btn", text: t("yc_tut_replay"), onclick: function () { ui.legend = false; ui.tutStep = 0; render(); } }),
+      el("button", { type: "button", class: "yc-small-btn", text: "✕", title: t("yc_legend_close"), onclick: function () { ui.legend = false; render(); } })]));
+    legendRows().forEach(function (sec) {
+      box.appendChild(el("h4", { text: t(sec.k) }));
+      var dl = el("dl", { class: "yc-legend-list" });
+      sec.rows.forEach(function (r) { dl.appendChild(el("dt", { text: r[0] })); dl.appendChild(el("dd", { text: r[1] })); });
+      box.appendChild(dl);
+    });
+    return box;
+  }
+  // 第一場戰鬥的教學（看過一次就記在這台裝置；❔ 裡可以重看）
+  var TUT_KEY = "pritest-yellow-tut";
+  var TUT_STEPS = 5;
+  function tutSeen() { try { return localStorage.getItem(TUT_KEY) === "1"; } catch (e) { return true; } }
+  function tutFinish() { ui.tutStep = null; try { localStorage.setItem(TUT_KEY, "1"); } catch (e) { /* 只是記不住 */ } render(); }
+  function tutCard() {
+    if (ui.tutStep === null || ui.tutStep === undefined) {
+      if (tutSeen() || ui.tutClosed) return null;
+      ui.tutStep = 0;
+    }
+    var i = ui.tutStep;
+    var last = i >= TUT_STEPS - 1;
+    var stop = function (ev) { ev.stopPropagation(); };
+    return el("div", { class: "yc-tut", onclick: stop }, [
+      el("div", { class: "yc-tut-step yc-small yc-muted", text: t("yc_tut_title") + "（" + (i + 1) + " / " + TUT_STEPS + "）" }),
+      el("p", { text: t("yc_tut_" + (i + 1), { n: D.MANA }) }),
+      el("div", { class: "yc-actions" }, [
+        el("button", { type: "button", class: "yc-primary yc-small-btn", text: t(last ? "yc_tut_done" : "yc_tut_next"), onclick: function () { if (last) { ui.tutClosed = true; tutFinish(); } else { ui.tutStep = i + 1; render(); } } }),
+        last ? null : el("button", { type: "button", class: "yc-small-btn", text: t("yc_tut_skip"), onclick: function () { ui.tutClosed = true; tutFinish(); } })
+      ])
+    ]);
+  }
+
   // 戰場的兩個空角：右下＝標記鈕、左下＝表情（點開才出現表情列）；不另外佔一列，手機上手牌才放得進畫面
   function signalBar(st) {
     var seat = myHeroSeat(st);
     var stop = function (ev) { ev.stopPropagation(); };
     var bar = el("div", { class: "yc-signal-bar", onclick: stop });
+    bar.appendChild(el("button", { type: "button", class: "yc-sig-btn yc-help-btn" + (ui.legend ? " yc-on" : ""), title: t("yc_legend_title"), text: "❔",
+      onclick: function (ev) { ev.stopPropagation(); ui.legend = !ui.legend; render(); } }));
     bar.appendChild(el("button", { type: "button", class: "yc-sig-btn yc-ping-btn" + (ui.pingMode ? " yc-on" : ""), title: t("yc_ping_hint"), text: "📍" + t("yc_ping"),
       onclick: function (ev) { ev.stopPropagation(); ui.pingMode = !ui.pingMode; ui.emoteOpen = false; render(); } }));
     bar.appendChild(el("button", { type: "button", class: "yc-sig-btn yc-emo-toggle" + (ui.emoteOpen ? " yc-on" : ""), title: t("yc_emotes"), disabled: seat === null ? true : null, text: "😀",

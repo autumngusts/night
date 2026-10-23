@@ -38,7 +38,7 @@
       passive: { p: "burnPlus", n: 1 }, perk: 1,
       paths: [{ id: "fire", name: N("火焰", "火炎", "Fire") }, { id: "frost", name: N("冰霜", "氷霜", "Frost") }, { id: "arcane", name: N("奧術", "秘術", "Arcane") }],
       start: ["mag_bolt", "mag_bolt", "mag_bolt", "mag_barrier", "mag_barrier", "mag_barrier", "mag_fireball", "mag_frost"] },
-    { id: "priest", name: N("祭司", "司祭", "Priest"), icon: "✨", hp: 70, color: "#3aa8b5",
+    { id: "priest", name: N("祭司", "司祭", "Priest"), icon: "✨", hp: 60, color: "#3aa8b5",
       desc: N("隊伍的支柱。治療、替隊友加護盾與力量，也能降下神罰。", "隊の支柱。回復、仲間への防御と筋力付与、そして神罰。", "The party's anchor: heals, shields and empowers allies, and calls down divine wrath."),
       passive: { p: "healAll", n: 1 }, perk: 1,
       paths: [{ id: "heal", name: N("治療", "治癒", "Healing") }, { id: "ward", name: N("庇護", "加護", "Warding") }, { id: "wrath", name: N("神罰", "神罰", "Wrath") }],
@@ -53,11 +53,11 @@
       passive: { p: "spiritStart", n: 2 }, perk: 1,
       paths: [{ id: "swarm", name: N("群聚", "群れ", "Swarm") }, { id: "empower", name: N("強化", "強化", "Empower") }, { id: "sacrifice", name: N("獻祭", "生贄", "Sacrifice") }],
       start: ["sum_call", "sum_call", "sum_staff", "sum_staff", "sum_staff", "sum_charm", "sum_charm", "sum_burst"] },
-    { id: "bard", name: N("吟遊詩人", "吟遊詩人", "Bard"), icon: "🎻", hp: 66, color: "#d4609a",
-      desc: N("累積旋律，再用終曲一口氣轉成全隊的力量、治療或音爆。", "旋律を溜め、終曲で一気に仲間の筋力・回復・音撃へ変える。", "Builds Melody, then spends it all in a finale for party-wide strength, healing or a sonic blast."),
-      passive: { p: "melTurn", n: 2 }, perk: 1,
-      paths: [{ id: "war", name: N("戰歌", "戦歌", "War Song") }, { id: "requiem", name: N("安魂", "鎮魂", "Requiem") }, { id: "discord", name: N("不協和", "不協和", "Discord") }],
-      start: ["bar_rapier", "bar_rapier", "bar_rapier", "bar_step", "bar_step", "bar_prelude", "bar_prelude", "bar_finale"] }
+    { id: "bard", name: N("吟遊詩人", "吟遊詩人", "Bard"), icon: "🎻", hp: 70, color: "#d4609a",
+      desc: N("累積旋律，再用終曲一口氣轉成全隊的力量、護盾或音爆；也能直接給隊友魔力、抽牌與力量。", "旋律を溜め、終曲で一気に仲間の筋力・防御・音撃へ変える。仲間に魔力・ドロー・筋力を直接渡すこともできる。", "Builds Melody, then spends it all in a finale for party-wide strength, block or a sonic blast — or hands allies mana, cards and strength directly."),
+      passive: { p: "melTurn", n: 3 }, perk: 1,
+      paths: [{ id: "war", name: N("戰歌", "戦歌", "War Song") }, { id: "anthem", name: N("頌歌", "賛歌", "Anthem") }, { id: "discord", name: N("不協和", "不協和", "Discord") }],
+      start: ["bar_rapier", "bar_rapier", "bar_rapier", "bar_rapier", "bar_step", "bar_prelude", "bar_prelude", "bar_finale"] }
   ];
 
   // ---------------- 卡牌 ----------------
@@ -164,9 +164,9 @@
 
     // ===== 祭司 =====
     card("pri_smite", "priest", null, "basic", "atk", 1, "enemy", "any", [dmg(5)], N("懲擊", "懲罰", "Smite")),
-    card("pri_bless", "priest", null, "basic", "skl", 1, "ally", null, [{ o: "blkAlly", n: 6 }], N("祝福護盾", "祝福の盾", "Blessed Shield")),
-    card("pri_heal", "priest", null, "basic", "skl", 1, "ally", null, [{ o: "heal", n: 6 }], N("治療", "治癒", "Heal")),
-    card("pri_holy", "priest", null, "basic", "atk", 2, "none", "any", [{ o: "dmgAll", n: 3, r: "any" }, { o: "healAll", n: 2 }], N("聖光", "聖光", "Holy Light")),
+    card("pri_bless", "priest", null, "basic", "skl", 1, "ally", null, [{ o: "blkAlly", n: 5 }], N("祝福護盾", "祝福の盾", "Blessed Shield")),
+    card("pri_heal", "priest", null, "basic", "skl", 1, "ally", null, [{ o: "heal", n: 5 }], N("治療", "治癒", "Heal")),
+    card("pri_holy", "priest", null, "basic", "atk", 2, "none", "any", [{ o: "dmgAll", n: 3, r: "any" }, { o: "healAll", n: 1 }], N("聖光", "聖光", "Holy Light")),
     card("pri_renew", "priest", "heal", "common", "skl", 1, "ally", null, [{ o: "regen", n: 4 }], N("再生", "再生", "Renew")),
     card("pri_prayer", "priest", "heal", "common", "skl", 1, "ally", null, [{ o: "heal", n: 4 }, { o: "draw", n: 1 }], N("祈禱", "祈り", "Prayer")),
     card("pri_mass", "priest", "heal", "uncommon", "skl", 2, "none", null, [{ o: "healAll", n: 6 }], N("群體治療", "全体治癒", "Mass Heal"), { exhaust: true }),
@@ -227,8 +227,8 @@
     card("sum_gate", "summoner", "sacrifice", "rare", "atk", 2, "none", "any", [{ o: "sac", k: "dmgAll", n: 6 }, { o: "summon", n: 2 }], N("冥府之門", "冥府の門", "Underworld Gate")),
 
     // ===== 吟遊詩人 =====
-    card("bar_rapier", "bard", null, "basic", "atk", 1, "enemy", "any", [], N("刺劍", "細剣", "Rapier"), { near: [dmg(7)], far: [dmg(4)] }),
-    card("bar_step", "bard", null, "basic", "skl", 1, "self", null, [blk(5)], N("輕步", "軽業", "Light Step")),
+    card("bar_rapier", "bard", null, "basic", "atk", 1, "enemy", "any", [], N("刺劍", "細剣", "Rapier"), { near: [dmg(8)], far: [dmg(5)] }),
+    card("bar_step", "bard", null, "basic", "skl", 1, "self", null, [blk(6)], N("輕步", "軽業", "Light Step")),
     card("bar_prelude", "bard", null, "basic", "skl", 1, "self", null, [{ o: "mel", n: 2 }, blk(4)], N("序曲", "序曲", "Prelude")),
     card("bar_finale", "bard", null, "basic", "skl", 1, "none", null, [{ o: "finale", k: "blkAll", n: 3 }], N("終曲・守護", "終曲・守護", "Finale: Guard")),
     card("bar_march", "bard", "war", "common", "skl", 1, "self", null, [{ o: "mel", n: 2 }, { o: "draw", n: 1 }], N("進行曲", "行進曲", "March")),
@@ -236,11 +236,11 @@
     card("bar_ode", "bard", "war", "uncommon", "skl", 1, "none", null, [{ o: "strAll", n: 1 }, { o: "mel", n: 2 }], N("英雄頌", "英雄頌", "Heroic Ode"), { exhaust: true }),
     card("bar_triumph", "bard", "war", "uncommon", "skl", 1, "none", null, [{ o: "blkAll", n: 4 }, { o: "mel", n: 2 }], N("凱歌", "凱歌", "Triumph")),
     card("bar_anthem", "bard", "war", "rare", "pow", 2, "self", null, [{ o: "pow", p: "melTurn", n: 2 }], N("戰神讚歌", "軍神賛歌", "Anthem of War")),
-    card("bar_lullaby", "bard", "requiem", "common", "skl", 1, "none", null, [{ o: "healAll", n: 2 }, { o: "mel", n: 1 }], N("搖籃曲", "子守歌", "Lullaby")),
-    card("bar_requiem", "bard", "requiem", "common", "skl", 1, "none", null, [{ o: "finale", k: "healAll", n: 1 }], N("終曲・安魂", "終曲・鎮魂", "Finale: Requiem")),
-    card("bar_chord", "bard", "requiem", "uncommon", "skl", 2, "none", null, [{ o: "blkAll", n: 6 }, { o: "mel", n: 1 }], N("守護和弦", "守りの和音", "Guarding Chord")),
-    card("bar_calm", "bard", "requiem", "uncommon", "skl", 1, "none", null, [{ o: "cleanseAll" }, { o: "mel", n: 2 }], N("寧靜", "静寂", "Serenity")),
-    card("bar_heaven", "bard", "requiem", "rare", "skl", 2, "none", null, [{ o: "healAll", n: 5 }, { o: "blkAll", n: 5 }], N("天籟", "天籟", "Heavenly Voice"), { exhaust: true }),
+    card("bar_lullaby", "bard", "anthem", "common", "skl", 1, "ally", null, [{ o: "strAlly", n: 2 }, { o: "mel", n: 1 }], N("激勵", "激励", "Rally")),
+    card("bar_requiem", "bard", "anthem", "common", "skl", 1, "none", null, [{ o: "finale", k: "strAll", n: 1, per: 3 }], N("終曲・凱歌", "終曲・凱歌", "Finale: Triumph")),
+    card("bar_chord", "bard", "anthem", "uncommon", "skl", 2, "none", null, [{ o: "blkAll", n: 6 }, { o: "mel", n: 1 }], N("守護和弦", "守りの和音", "Guarding Chord")),
+    card("bar_calm", "bard", "anthem", "uncommon", "skl", 1, "none", null, [{ o: "cleanseAll" }, { o: "mel", n: 2 }], N("寧靜", "静寂", "Serenity")),
+    card("bar_heaven", "bard", "anthem", "rare", "skl", 2, "none", null, [{ o: "strAll", n: 2 }, { o: "blkAll", n: 4 }], N("天籟", "天籟", "Heavenly Voice"), { exhaust: true }),
     card("bar_shriek", "bard", "discord", "common", "atk", 1, "enemy", "any", [dmg(4), { o: "mel", n: 1 }], N("刺耳音", "金切り声", "Shriek")),
     card("bar_jar", "bard", "discord", "common", "skl", 1, "none", "any", [{ o: "stAll", s: "weak", n: 1, r: "any" }, { o: "mel", n: 1 }], N("不協和音", "不協和音", "Dissonance")),
     card("bar_boom", "bard", "discord", "uncommon", "atk", 2, "none", "any", [{ o: "finale", k: "dmgAll", n: 2 }], N("終曲・音爆", "終曲・音撃", "Finale: Sonic Boom")),
@@ -439,13 +439,13 @@
     card("bar_warsong", "bard", "war", "rare", "skl", 2, "none", null, [{ o: "finale", k: "strAll", n: 2, per: 3 }], N("戰神之歌", "軍神の歌", "Warsong")),
     card("bar_epic", "bard", "war", "rare", "skl", 2, "none", null, [{ o: "strAll", n: 2 }, { o: "blkAll", n: 5 }], N("英雄史詩", "英雄叙事詩", "Heroic Epic"), { exhaust: true }),
     // ===== 吟遊詩人・安魂 =====
-    card("bar_hum", "bard", "requiem", "common", "skl", 1, "none", null, [{ o: "blkAll", n: 3 }, { o: "mel", n: 1 }], N("低吟", "口ずさみ", "Hum")),
-    card("bar_elegy", "bard", "requiem", "uncommon", "skl", 1, "none", null, [{ o: "healAll", n: 3 }, { o: "mel", n: 2 }], N("輓歌", "哀歌", "Elegy")),
-    card("bar_chant", "bard", "requiem", "uncommon", "skl", 2, "ally", null, [{ o: "heal", n: 8 }, { o: "regen", n: 3 }], N("聖詠", "聖詠", "Chant")),
-    card("bar_soothe", "bard", "requiem", "uncommon", "skl", 1, "none", null, [{ o: "cleanseAll" }, { o: "healAll", n: 2 }], N("撫慰之歌", "慰めの歌", "Soothing Song")),
-    card("bar_mass", "bard", "requiem", "rare", "skl", 2, "none", null, [{ o: "finale", k: "healAll", n: 2 }], N("安魂彌撒", "鎮魂ミサ", "Requiem Mass"), { exhaust: true }),
-    card("bar_choir", "bard", "requiem", "rare", "pow", 2, "self", null, [{ o: "pow", p: "healAll", n: 2 }], N("天使合唱", "天使の合唱", "Angelic Choir")),
-    card("bar_sanctsong", "bard", "requiem", "rare", "skl", 2, "none", null, [{ o: "finale", k: "blkAll", n: 4 }], N("聖所之歌", "聖域の歌", "Song of Sanctuary")),
+    card("bar_hum", "bard", "anthem", "common", "skl", 1, "none", null, [{ o: "blkAll", n: 3 }, { o: "mel", n: 1 }], N("低吟", "口ずさみ", "Hum")),
+    card("bar_elegy", "bard", "anthem", "uncommon", "skl", 1, "ally", null, [{ o: "manaAlly", n: 1 }, { o: "mel", n: 1 }], N("鼓點", "ドラムビート", "Drumbeat")),
+    card("bar_chant", "bard", "anthem", "uncommon", "skl", 1, "ally", null, [{ o: "drawAlly", n: 2 }, { o: "mel", n: 1 }], N("靈感", "インスピレーション", "Inspiration")),
+    card("bar_soothe", "bard", "anthem", "uncommon", "skl", 1, "none", null, [{ o: "strAll", n: 1 }, { o: "mel", n: 1 }], N("凱旋行軍", "凱旋行進", "Victory Parade")),
+    card("bar_mass", "bard", "anthem", "rare", "skl", 1, "none", null, [{ o: "finale", k: "strAll", n: 1, per: 2 }], N("英雄交響曲", "英雄交響曲", "Heroic Symphony"), { exhaust: true }),
+    card("bar_choir", "bard", "anthem", "rare", "pow", 2, "self", null, [{ o: "pow", p: "melTurn", n: 2 }, { o: "pow", p: "partyStrTurn", n: 1 }], N("永恆樂章", "永遠の楽章", "Eternal Movement")),
+    card("bar_sanctsong", "bard", "anthem", "rare", "skl", 2, "ally", null, [{ o: "manaAlly", n: 2 }, { o: "drawAlly", n: 2 }], N("即興獨奏", "即興ソロ", "Improvised Solo"), { exhaust: true }),
     // ===== 吟遊詩人・不協和 =====
     card("bar_sharp", "bard", "discord", "common", "atk", 1, "enemy", "any", [dmg(3, 2), { o: "mel", n: 1 }], N("尖音", "鋭音", "Sharp Note")),
     card("bar_sonic", "bard", "discord", "uncommon", "atk", 1, "area", "any", [{ o: "dmgAll", n: 6, r: "any" }, { o: "mel", n: 1 }], N("音波炸裂", "音波炸裂", "Sonic Burst"), { ar: "m" }),
@@ -471,12 +471,12 @@
   function pw(p, n) { return { o: "pow", p: p, n: n }; }
 
   HEROES = HEROES.concat([
-    { id: "monk", name: N("武僧", "武僧", "Monk"), icon: "🥋", hp: 72, color: "#e07b39",
+    { id: "monk", name: N("武僧", "武僧", "Monk"), icon: "🥋", hp: 76, color: "#e07b39",
       desc: N("以拳腳近身作戰。打攻擊牌累積「氣」，再消耗氣打出更強的招式、治療或銅牆鐵壁。", "拳と蹴りで戦う。攻撃で「気」を溜め、気を使って強力な技・回復・鉄壁を繰り出す。", "Fights with fists and feet. Attacks build Chi, which powers stronger strikes, healing or an iron body."),
-      passive: { p: "chiAtk", n: 1 }, perk: 1,
+      passive: { p: "chiAtk", n: 2 }, perk: 1,
       paths: [{ id: "fist", name: N("拳法", "拳法", "Fists") }, { id: "zen", name: N("禪定", "禅定", "Zen") }, { id: "iron", name: N("金鐘罩", "金剛身", "Iron Body") }],
       start: ["mon_palm", "mon_palm", "mon_palm", "mon_guard", "mon_guard", "mon_breath", "mon_kick", "mon_flurry"] },
-    { id: "druid", name: N("德魯伊", "ドルイド", "Druid"), icon: "🌿", hp: 76, color: "#7a8f2a",
+    { id: "druid", name: N("德魯伊", "ドルイド", "Druid"), icon: "🌿", hp: 78, color: "#7a8f2a",
       desc: N("在熊、狼、鷹三種姿態之間變身。熊每回合得到護盾、狼擅長內圈、鷹擅長外圈，許多牌在對應姿態有額外效果。", "熊・狼・鷹の三つの姿に変身する。熊は毎ターン防御、狼は内周、鷹は外周が得意。多くのカードは対応する姿で追加効果。", "Shifts between Bear, Wolf and Hawk. Bear gains block each turn, Wolf excels at the inner ring, Hawk at the outer; many cards gain extra effects in the matching form."),
       passive: { p: "formDraw", n: 1 }, perk: 1,
       paths: [{ id: "bear", name: N("熊", "熊", "Bear") }, { id: "wolf", name: N("狼", "狼", "Wolf") }, { id: "hawk", name: N("鷹", "鷹", "Hawk") }],
@@ -488,10 +488,10 @@
       paths: [{ id: "haste", name: N("加速", "加速", "Haste") }, { id: "stasis", name: N("停滯", "停滞", "Stasis") }, { id: "fore", name: N("預知", "予知", "Foresight") }],
       start: ["chr_bolt", "chr_bolt", "chr_bolt", "chr_ward", "chr_ward", "chr_ward", "chr_slow", "chr_rewind"] },
     { id: "alchemist", name: N("鍊金術師", "錬金術師", "Alchemist"), icon: "⚗️", hp: 70, color: "#1f8f6f",
-      desc: N("製作藥水。把 0 費、用完就消失的藥水牌放進自己或隊友的手牌：炸藥、治療、力量、護盾、毒藥。每打 3 張牌，累積的材料會自動做出一瓶藥水。", "薬を作る。0コストの使い切り薬カードを自分や仲間の手札に入れる：爆薬・回復・筋力・防御・毒。カードを3枚使うごとに素材から薬が1本できる。", "Brews potions: free, single-use potion cards added to your or an ally's hand — bombs, healing, strength, armor, poison. Every 3 cards played, gathered reagents brew a potion automatically."),
+      desc: N("製作藥水。把 0 費、用完就消失的藥水牌放進自己或隊友的手牌：炸藥、治療、力量、護盾、毒藥。每打 3 張牌，累積的材料會自動做出一瓶藥水；催化方向讓藥水升級、依手上的藥水數量造成傷害。", "薬を作る。0コストの使い切り薬カードを自分や仲間の手札に入れる：爆薬・回復・筋力・防御・毒。カードを3枚使うごとに素材から薬が1本できる。触媒の道では薬を強化し、手札の薬の数でダメージを与える。", "Brews potions: free, single-use potion cards added to your or an ally's hand — bombs, healing, strength, armor, poison. Every 3 cards played, gathered reagents brew a potion automatically. The Catalysis path upgrades potions and deals damage per potion in hand."),
       // 2026-10-23 重做：每打出 3 張牌，累積的材料自動做出一瓶隨機藥水（extra.reagent＝需要幾張）
       passive: { p: "potionStart", n: 2 }, perk: 1, extra: { reagent: 3 },
-      paths: [{ id: "bomb", name: N("爆破", "爆破", "Bombs") }, { id: "elixir", name: N("強化", "強化", "Elixirs") }, { id: "toxin", name: N("毒劑", "毒薬", "Toxins") }],
+      paths: [{ id: "bomb", name: N("爆破", "爆破", "Bombs") }, { id: "elixir", name: N("補給", "補給", "Supplies") }, { id: "catalyst", name: N("催化", "触媒", "Catalysis") }],
       start: ["alc_toss", "alc_toss", "alc_toss", "alc_coat", "alc_coat", "alc_coat", "alc_brew", "alc_flask"] },
     { id: "gambler", name: N("賭徒", "ギャンブラー", "Gambler"), icon: "🎲", hp: 72, color: "#b8336a",
       desc: N("一切交給骰子。擲骰決定威力、擲 4 以上大贏，輸了就要付出代價。", "すべてはサイコロ次第。出目で威力が決まり、4以上なら大当たり、外れれば代償を払う。", "Leaves it all to the dice: rolls decide the power, a 4 or higher wins big, and losing has a price."),
@@ -501,18 +501,18 @@
   ]);
 
   // 德魯伊的姿態：熊＝每回合開始時護盾；狼／鷹＝打內圈／外圈的攻擊加成
-  var FORMS = { bear: { icon: "🐻", blk: 4 }, wolf: { icon: "🐺", ring: "near", n: 2 }, hawk: { icon: "🦅", ring: "far", n: 2 } };
+  var FORMS = { bear: { icon: "🐻", blk: 5 }, wolf: { icon: "🐺", ring: "near", n: 3 }, hawk: { icon: "🦅", ring: "far", n: 3 } };
   // 鍊金術師的藥水（rar:"token"，不會出現在獎勵與商店）
   var POTIONS = ["alc_p_fire", "alc_p_heal", "alc_p_str", "alc_p_poison", "alc_p_guard", "alc_p_swift"];
 
   CARDS = CARDS.concat([
     // ===== 武僧 =====
-    card("mon_palm", "monk", null, "basic", "atk", 1, "enemy", "near", [dmg(6)], N("掌擊", "掌打", "Palm Strike")),
-    card("mon_guard", "monk", null, "basic", "skl", 1, "self", null, [blk(5)], N("架式", "構え", "Stance")),
+    card("mon_palm", "monk", null, "basic", "atk", 1, "enemy", "near", [dmg(7)], N("掌擊", "掌打", "Palm Strike")),
+    card("mon_guard", "monk", null, "basic", "skl", 1, "self", null, [blk(6)], N("架式", "構え", "Stance")),
     card("mon_breath", "monk", null, "basic", "skl", 1, "self", null, [{ o: "chi", n: 2 }, blk(3)], N("調息", "調息", "Breathe")),
     // 飛踢：任何射程（起始牌組唯一打得到外圈的牌；全部近戰時單人遇到外圈的遠程敵人會打不完，2026-10-22 檢查發現）
-    card("mon_kick", "monk", null, "basic", "atk", 1, "enemy", "any", [dmg(5), chiIf(2, [dmg(6)])], N("飛踢", "飛び蹴り", "Flying Kick")),
-    card("mon_flurry", "monk", null, "basic", "atk", 1, "enemy", "near", [dmg(3, 2)], N("連打", "連打", "Flurry")),
+    card("mon_kick", "monk", null, "basic", "atk", 1, "enemy", "any", [dmg(6), chiIf(2, [dmg(6)])], N("飛踢", "飛び蹴り", "Flying Kick")),
+    card("mon_flurry", "monk", null, "basic", "atk", 1, "enemy", "near", [dmg(4, 2)], N("連打", "連打", "Flurry")),
     // 拳法
     card("mon_chain", "monk", "fist", "common", "atk", 1, "enemy", "near", [dmg(4, 2)], N("連環拳", "連環拳", "Chain Punch")),
     card("mon_crush", "monk", "fist", "common", "atk", 1, "enemy", "near", [dmg(7), chiIf(2, [dmg(7)])], N("崩拳", "崩拳", "Crushing Fist")),
@@ -684,18 +684,18 @@
     card("alc_rage", "alchemist", "elixir", "rare", "skl", 1, "ally", null, [{ o: "strAlly", n: 3 }, brewC("alc_p_str", 1, true)], N("狂暴藥劑", "狂暴薬", "Rage Draught"), { exhaust: true }),
     card("alc_mass", "alchemist", "elixir", "rare", "skl", 2, "none", null, [{ o: "strAll", n: 1 }, { o: "blkAll", n: 5 }], N("群體強化", "全体強化", "Mass Enhancement"), { exhaust: true }),
     // 毒劑
-    card("alc_fog", "alchemist", "toxin", "common", "skl", 1, "area", "any", [{ o: "stAll", s: "poison", n: 3, r: "any" }], N("毒霧瓶", "毒霧瓶", "Fog Flask"), { ar: "m" }),
-    card("alc_blade", "alchemist", "toxin", "common", "atk", 1, "enemy", "any", [dmg(4), st("poison", 3)], N("淬毒刃", "毒の刃", "Poisoned Blade")),
-    card("alc_mkpoison", "alchemist", "toxin", "common", "skl", 1, "self", null, [brewC("alc_p_poison", 1), blk(3)], N("製毒", "毒作り", "Make Poison")),
-    card("alc_corrode", "alchemist", "toxin", "uncommon", "skl", 1, "enemy", "any", [st("poison", 5), st("vuln", 1)], N("腐蝕液", "腐食液", "Corrosive")),
-    card("alc_gas", "alchemist", "toxin", "uncommon", "skl", 2, "none", "any", [{ o: "stAll", s: "poison", n: 4, r: "any" }], N("毒氣彈", "毒ガス弾", "Gas Bomb")),
-    card("alc_recipe", "alchemist", "toxin", "uncommon", "skl", 1, "self", null, [brewC("alc_p_poison", 2)], N("劇毒配方", "猛毒の調合", "Toxic Recipe")),
-    card("alc_nerve", "alchemist", "toxin", "uncommon", "skl", 1, "enemy", "any", [st("poison", 4), st("weak", 2)], N("神經毒素", "神経毒素", "Nerve Agent")),
-    card("alc_catalyst", "alchemist", "toxin", "uncommon", "skl", 1, "enemy", "any", [{ o: "poisonX", n: 2 }], N("毒性催化", "毒性触媒", "Toxic Catalyst"), { exhaust: true }),
-    card("alc_plague", "alchemist", "toxin", "rare", "pow", 2, "self", null, [pw("poisonAll", 2)], N("瘟疫之源", "疫病の源", "Plague Source")),
-    card("alc_perfect", "alchemist", "toxin", "rare", "skl", 2, "enemy", "any", [st("poison", 15)], N("完美毒藥", "完全な毒", "Perfect Poison")),
-    card("alc_cloud", "alchemist", "toxin", "rare", "skl", 2, "area", "any", [{ o: "stAll", s: "poison", n: 7, r: "any" }], N("毒雲", "毒雲", "Toxic Cloud"), { ar: "l" }),
-    card("alc_venom", "alchemist", "toxin", "rare", "pow", 1, "self", null, [pw("poisonPlus", 2)], N("劇毒專精", "猛毒の極意", "Venom Mastery")),
+    card("alc_fog", "alchemist", "catalyst", "common", "skl", 1, "self", null, [{ o: "brew", c: "rand", n: 1, up: true }, blk(3)], N("濃縮", "濃縮", "Concentrate")),
+    card("alc_blade", "alchemist", "catalyst", "common", "atk", 1, "enemy", "any", [dmg(4), { o: "dmgPotion", n: 3 }], N("藥瓶連擲", "瓶の連投", "Bottle Barrage")),
+    card("alc_mkpoison", "alchemist", "catalyst", "common", "skl", 0, "self", null, [brewC("rand", 1)], N("試劑", "試薬", "Reagent"), { exhaust: true }),
+    card("alc_corrode", "alchemist", "catalyst", "uncommon", "pow", 1, "self", null, [pw("catalyze", 1)], N("催化劑", "触媒", "Catalyst Agent")),
+    card("alc_gas", "alchemist", "catalyst", "uncommon", "atk", 1, "area", "any", [{ o: "dmgAll", n: 6, r: "any" }, brewC("rand", 1)], N("反應爆炸", "反応爆発", "Reactive Blast"), { ar: "m" }),
+    card("alc_recipe", "alchemist", "catalyst", "uncommon", "skl", 1, "self", null, [{ o: "refine" }, { o: "draw", n: 1 }], N("精煉", "精錬", "Refine")),
+    card("alc_nerve", "alchemist", "catalyst", "uncommon", "skl", 1, "ally", null, [{ o: "brew", c: "rand", n: 1, ally: true, up: true }, { o: "drawAlly", n: 1 }], N("藥效擴散", "薬効拡散", "Spread the Effect")),
+    card("alc_catalyst", "alchemist", "catalyst", "uncommon", "atk", 1, "enemy", "any", [{ o: "dmgPotion", n: 4 }], N("瓶中雷", "瓶詰めの雷", "Bottled Lightning")),
+    card("alc_plague", "alchemist", "catalyst", "rare", "pow", 2, "self", null, [pw("potionUp", 1)], N("完美配方", "完璧な処方", "Perfect Formula")),
+    card("alc_perfect", "alchemist", "catalyst", "rare", "skl", 2, "self", null, [{ o: "brew", c: "rand", n: 3, up: true }], N("大煉成", "大錬成", "Grand Transmutation"), { exhaust: true }),
+    card("alc_cloud", "alchemist", "catalyst", "rare", "atk", 2, "area", "any", [{ o: "dmgAllPotion", n: 4, r: "any" }], N("終極反應", "究極反応", "Final Reaction"), { ar: "l" }),
+    card("alc_venom", "alchemist", "catalyst", "rare", "pow", 1, "self", null, [pw("potionBlk", 3)], N("煉金工房", "錬金工房", "Alchemy Lab")),
 
     // ===== 賭徒 =====
     card("gam_coin", "gambler", null, "basic", "atk", 1, "enemy", "any", [dmg(4), roll("dmg", 1)], N("擲硬幣", "コイントス", "Coin Toss")),
@@ -759,7 +759,16 @@
     { id: "slime", name: N("腐泥", "腐泥", "Ooze"), icon: "🟢", kind: "melee", hp: [16, 19], pat: [[{ k: "atk", n: 5 }, { k: "curse", card: "t_wound", n: 1 }], [{ k: "blk", n: 7 }]], cyc: "loop" },
     { id: "knight", thorns: 2, name: N("墓穴騎士", "墓所の騎士", "Grave Knight"), icon: "⚔️", kind: "melee", elite: true, hp: [52, 58], pat: [[{ k: "atk", n: 12 }], [{ k: "blk", n: 10 }, { k: "buff", str: 2 }], [{ k: "atk", n: 5, h: 3 }]], cyc: "loop" },
     { id: "witch", name: N("沼地女巫", "沼の魔女", "Bog Witch"), icon: "🧙", kind: "ranged", elite: true, hp: [40, 46], pat: [[{ k: "debuff", s: "vuln", n: 2, tgt: "all" }], [{ k: "atk", n: 9 }], [{ k: "summon", id: "bats", n: 1 }], [{ k: "atk", n: 6 }, { k: "curse", card: "t_daze", n: 1, tgt: "all" }]], cyc: "loop" },
+    { id: "slimelet", size: "s", name: N("小腐泥", "小さな腐泥", "Oozeling"), icon: "🟩", kind: "melee", spawn: "near", hp: [6, 8], pat: [[{ k: "atk", n: 3 }]], cyc: "loop" },
+    { id: "bigslime", size: "l", split: { id: "slimelet", n: 2 }, name: N("裂殖腐泥", "分裂する腐泥", "Splitting Ooze"), icon: "🫧", kind: "melee", hp: [24, 28], pat: [[{ k: "atk", n: 6 }], [{ k: "blk", n: 5 }, { k: "atk", n: 3 }]], cyc: "loop" },
+    { id: "vampire", name: N("吸血鬼", "吸血鬼", "Vampire"), icon: "🧛", kind: "melee", hp: [20, 24], pat: [[{ k: "atk", n: 5, drain: true }], [{ k: "debuff", s: "weak", n: 1 }, { k: "atk", n: 4, drain: true }]], cyc: "rand" },
     { id: "giant", name: N("腐化巨人", "腐敗の巨人", "Rot Giant"), icon: "👹", kind: "boss", boss: true, hp: [95, 95], pat: [[{ k: "atk", n: 8, tgt: "all" }], [{ k: "buff", str: 2 }, { k: "blk", n: 15 }], [{ k: "atk", n: 18, tgt: "low" }], [{ k: "summon", id: "slime", n: 2 }]], cyc: "loop" },
+
+    { id: "bonedragon", name: N("骨龍", "骨竜", "Bone Dragon"), icon: "🐉", kind: "boss", boss: true, hp: [100, 100],
+      pat: [[{ k: "atk", n: 7, tgt: "all" }], [{ k: "blk", n: 12 }, { k: "buff", str: 1 }], [{ k: "atk", n: 16, tgt: "rand" }]], cyc: "loop",
+      phase: { at: 0.5, str: 2, cleanse: true, pat: [[{ k: "atk", n: 5, h: 2, tgt: "all" }], [{ k: "atk", n: 20, tgt: "rand" }], [{ k: "blk", n: 10 }, { k: "buff", str: 2 }]], cyc: "loop" } },
+    { id: "lich", ward: true, name: N("巫妖", "リッチ", "Lich"), icon: "☠️", kind: "boss", boss: true, hp: [80, 80],
+      pat: [[{ k: "summon", id: "skel", n: 2 }], [{ k: "atk", n: 8, tgt: "all" }], [{ k: "debuff", s: "weak", n: 2, tgt: "all" }, { k: "blk", n: 10 }], [{ k: "atk", n: 14, tgt: "low" }]], cyc: "loop" },
 
     // ---- 第二幕：熔岩地獄 ----
     { id: "imp", size: "s", name: N("小惡魔", "インプ", "Imp"), icon: "😈", kind: "ranged", hp: [16, 19], pat: [[{ k: "atk", n: 5 }, { k: "debuff", s: "burn", n: 2 }], [{ k: "atk", n: 7 }]], cyc: "rand" },
@@ -769,7 +778,16 @@
     { id: "salamander", thorns: 1, name: N("火蜥蜴", "サラマンダー", "Salamander"), icon: "🦎", kind: "melee", hp: [26, 30], pat: [[{ k: "atk", n: 6 }, { k: "debuff", s: "burn", n: 3 }], [{ k: "buff", str: 2 }, { k: "blk", n: 6 }]], cyc: "loop" },
     { id: "brute", thorns: 3, name: N("炎魔", "炎魔", "Balrog"), icon: "🔥", kind: "melee", elite: true, hp: [80, 88], pat: [[{ k: "atk", n: 16 }], [{ k: "atk", n: 6, h: 2 }, { k: "debuff", s: "burn", n: 3 }], [{ k: "buff", str: 3 }, { k: "blk", n: 12 }]], cyc: "loop" },
     { id: "warlock", name: N("深淵術士", "深淵の術士", "Abyss Warlock"), icon: "🌀", kind: "ranged", elite: true, hp: [64, 70], pat: [[{ k: "atk", n: 7, tgt: "all" }], [{ k: "summon", id: "imp", n: 1 }], [{ k: "debuff", s: "weak", n: 2, tgt: "all" }, { k: "blk", n: 10 }]], cyc: "loop" },
+    { id: "spark", size: "s", name: N("火花", "火花", "Spark"), icon: "✨", kind: "ranged", hp: [7, 9], pat: [[{ k: "atk", n: 3 }, { k: "debuff", s: "burn", n: 1 }]], cyc: "loop" },
+    { id: "lavaslime", size: "l", split: { id: "spark", n: 2 }, name: N("熔岩泥", "溶岩泥", "Lava Ooze"), icon: "🟠", kind: "melee", hp: [28, 32], pat: [[{ k: "atk", n: 8 }], [{ k: "atk", n: 4 }, { k: "debuff", s: "burn", n: 2 }]], cyc: "loop" },
+    { id: "priestess", name: N("惡魔祭司", "悪魔の祭司", "Demon Priestess"), icon: "🔮", kind: "ranged", hp: [26, 30], pat: [[{ k: "purge", all: true }, { k: "atk", n: 4 }], [{ k: "heal", n: 6, all: true }], [{ k: "atk", n: 7 }]], cyc: "loop" },
     { id: "lord", thorns: 2, name: N("深淵領主", "深淵の領主", "Abyss Lord"), icon: "👿", kind: "boss", boss: true, hp: [160, 160], pat: [[{ k: "atk", n: 10, tgt: "all" }], [{ k: "summon", id: "hound", n: 2 }], [{ k: "atk", n: 6, h: 3, tgt: "low" }], [{ k: "buff", str: 3 }, { k: "debuff", s: "vuln", n: 2, tgt: "all" }], [{ k: "atk", n: 24, tgt: "rand" }]], cyc: "loop" },
+
+    { id: "colossus", thorns: 2, grow: 1, name: N("熔岩巨像", "溶岩の巨像", "Magma Colossus"), icon: "🌋", kind: "boss", boss: true, hp: [170, 170],
+      pat: [[{ k: "atk", n: 8, tgt: "all" }], [{ k: "blk", n: 20 }], [{ k: "atk", n: 24, tgt: "rand" }], [{ k: "atk", n: 5, h: 3, tgt: "low" }]], cyc: "loop" },
+    { id: "queen", name: N("炎之女王", "炎の女王", "Flame Queen"), icon: "👸", kind: "boss", boss: true, hp: [150, 150],
+      pat: [[{ k: "debuff", s: "burn", n: 3, tgt: "all" }], [{ k: "atk", n: 9, tgt: "all" }], [{ k: "summon", id: "imp", n: 2 }]], cyc: "loop",
+      phase: { at: 0.5, blk: 15, summon: { id: "salamander", n: 2 }, pat: [[{ k: "debuff", s: "burn", n: 4, tgt: "all" }, { k: "atk", n: 6, tgt: "all" }], [{ k: "atk", n: 26, tgt: "rand" }], [{ k: "heal", n: 15 }, { k: "blk", n: 12 }]], cyc: "loop" } },
 
     // ---- 第三幕：審判之庭 ----
     { id: "lineman", name: N("巡邊員", "線審", "Linesman"), icon: "🚩", kind: "ranged", hp: [30, 34], pat: [[{ k: "atk", n: 8 }], [{ k: "debuff", s: "weak", n: 2 }, { k: "atk", n: 5 }]], cyc: "rand" },
@@ -778,6 +796,13 @@
     { id: "golem", thorns: 3, size: "l", name: N("審判石像", "審判の石像", "Judgement Golem"), icon: "🗽", kind: "melee", hp: [44, 50], pat: [[{ k: "blk", n: 14 }], [{ k: "atk", n: 14 }], [{ k: "atk", n: 8 }, { k: "blk", n: 8 }]], cyc: "loop" },
     { id: "var", name: N("影像判官", "ビデオ判定官", "VAR Seer"), icon: "📺", kind: "ranged", elite: true, hp: [90, 96], pat: [[{ k: "yellow", tgt: "all" }], [{ k: "atk", n: 10, tgt: "all" }], [{ k: "heal", n: 15, all: true }, { k: "blk", n: 12 }]], cyc: "loop" },
     { id: "captain", thorns: 3, name: N("黑衣隊長", "黒衣の主将", "Dark Captain"), icon: "🦹", kind: "melee", elite: true, hp: [100, 110], pat: [[{ k: "atk", n: 20 }], [{ k: "buff", str: 3, all: true }], [{ k: "atk", n: 7, h: 3 }]], cyc: "loop" },
+    { id: "heckler", name: N("噓聲觀眾", "ヤジ馬", "Heckler"), icon: "📣", kind: "ranged", hp: [24, 28], pat: [[{ k: "curse", card: "t_daze", n: 1 }, { k: "atk", n: 4 }], [{ k: "atk", n: 8 }]], cyc: "rand" },
+    { id: "enforcer", name: N("紀律官", "規律官", "Enforcer"), icon: "👮", kind: "melee", hp: [36, 40], pat: [[{ k: "shatter" }, { k: "atk", n: 9 }], [{ k: "blk", n: 10 }], [{ k: "atk", n: 5, h: 2 }]], cyc: "loop" },
+    { id: "whistler", grow: 1, name: N("黑哨王", "黒い笛の王", "Crooked Whistler"), icon: "📢", kind: "boss", boss: true, hp: [200, 200],
+      pat: [[{ k: "shatter", tgt: "all" }, { k: "atk", n: 10, tgt: "all" }], [{ k: "yellow", tgt: "all" }, { k: "blk", n: 15 }], [{ k: "atk", n: 7, h: 3, tgt: "low" }], [{ k: "summon", id: "enforcer", n: 1 }]], cyc: "loop" },
+    { id: "scales", ward: true, minion: "lineman", name: N("審判天平", "審判の天秤", "Scales of Judgement"), icon: "⚖️", kind: "boss", boss: true, hp: [170, 170],
+      pat: [[{ k: "summon", id: "lineman", n: 2 }], [{ k: "atk", n: 12, tgt: "all" }], [{ k: "purge" }, { k: "blk", n: 20 }], [{ k: "atk", n: 30, tgt: "rand" }]], cyc: "loop",
+      phase: { at: 0.4, str: 3, pat: [[{ k: "atk", n: 10, tgt: "all" }, { k: "debuff", s: "vuln", n: 2, tgt: "all" }], [{ k: "yellow", tgt: "all" }, { k: "atk", n: 18, tgt: "rand" }], [{ k: "atk", n: 6, h: 4, tgt: "low" }]], cyc: "loop" } },
     { id: "referee", name: N("地獄裁判長", "地獄の主審", "Hell Referee"), icon: "🟨", kind: "boss", boss: true, hp: [220, 220], pat: [[{ k: "yellow", tgt: "all" }, { k: "blk", n: 15 }], [{ k: "atk", n: 12, tgt: "all" }], [{ k: "summon", id: "lineman", n: 2 }], [{ k: "atk", n: 8, h: 2, tgt: "low" }, { k: "buff", str: 2 }], [{ k: "yellow", tgt: "rand" }, { k: "atk", n: 30, tgt: "rand" }]], cyc: "loop" }
   ];
 
@@ -829,17 +854,17 @@
   var ALTAR_HP = 8;
 
   // ---------------- 遭遇 ----------------
-  // 一般戰鬥：每個扇形區各抽一組 pack；菁英：放進隨機一區，其他區抽 pack；Boss：隨機一區的外圈＋每區一隻小兵
+  // 一般戰鬥：每個扇形區各抽一組 pack；菁英：放進隨機一區，其他區抽 pack；Boss：bosses 中幕開始時抽一位（st.boss），站隨機一區的外圈＋每區一隻小兵
   var ACTS = [
     { name: N("第一幕・亡者墓地", "第一幕・亡者の墓地", "Act I — Graveyard"),
-      packs: [["skel"], ["skel", "archer"], ["ghoul"], ["bats", "archer"], ["slime"], ["cultist"], ["skel", "bats"]],
-      elites: ["knight", "witch"], boss: "giant", minion: "skel" },
+      packs: [["skel"], ["skel", "archer"], ["ghoul"], ["bats", "archer"], ["slime"], ["cultist"], ["skel", "bats"], ["bigslime"], ["vampire", "bats"], ["vampire"]],
+      elites: ["knight", "witch"], bosses: ["giant", "bonedragon", "lich"], minion: "skel" },
     { name: N("第二幕・熔岩地獄", "第二幕・溶岩地獄", "Act II — Inferno"),
-      packs: [["imp", "hound"], ["guard"], ["succubus", "imp"], ["salamander"], ["hound", "hound"], ["guard", "imp"]],
-      elites: ["brute", "warlock"], boss: "lord", minion: "imp" },
+      packs: [["imp", "hound"], ["guard"], ["succubus", "imp"], ["salamander"], ["hound", "hound"], ["guard", "imp"], ["lavaslime"], ["priestess", "guard"], ["priestess", "hound"]],
+      elites: ["brute", "warlock"], bosses: ["lord", "colossus", "queen"], minion: "imp" },
     { name: N("第三幕・審判之庭", "第三幕・審判の庭", "Act III — Court of Judgement"),
-      packs: [["lineman", "hooligan"], ["shade", "hooligan"], ["golem"], ["shade", "lineman"], ["golem", "lineman"]],
-      elites: ["var", "captain"], boss: "referee", minion: "hooligan" }
+      packs: [["lineman", "hooligan"], ["shade", "hooligan"], ["golem"], ["shade", "lineman"], ["golem", "lineman"], ["heckler", "enforcer"], ["enforcer", "lineman"], ["heckler", "hooligan"]],
+      elites: ["var", "captain"], bosses: ["referee", "whistler", "scales"], minion: "hooligan" }
   ];
 
   // 每幕的樓層（2026-10-22 使用者指定，仿 Hellcard）：前三層是一般戰鬥、第四層是 Boss，一局 3 幕 × 4 層＝12 層、3 場 Boss 戰。
