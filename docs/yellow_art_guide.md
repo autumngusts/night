@@ -31,8 +31,8 @@
 | --- | --- | --- | --- | --- | --- |
 | 選角大圖 | `heroes/<id>_portrait.png` | 512×640 | 1024×1280 | 選角資訊卡左側約 6～8rem 寬 | 全身、腳底到下緣留約 16px |
 | 戰場小人 | `heroes/<id>_<n/e/s/w>.png` | 160×192 | 640×768（正交、同一張參考圖） | 戰場上約 40～60px 高 | 南＝面向畫面；東／西只畫一張，另一邊程式左右翻轉 |
-| 敵人棋子（小／中／大） | `enemies/<id>.png`（尚未接上程式） | 128×128 | 512×512 | 判定圓直徑約戰場的 3～5% | 主體放在中央圓形內，四周留透明 |
-| 首領棋子 | `enemies/<id>.png`（尚未接上程式） | 256×256 | 1024×1024 | 判定圓直徑約戰場的 8% | 同上 |
+| 敵人棋子（小／中／大） | `enemies/<id>.png` | 128×128 | 512×512 | 判定圓直徑約戰場的 3～5% | 主體放在中央圓形內，四周留透明 |
+| 首領棋子 | `enemies/<id>.png` | 256×256 | 1024×1024 | 判定圓直徑約戰場的 8% | 同上 |
 | 卡面插圖 | `cards/<path>.png`（尚未接上程式） | 480×200 | 1200×500 | 卡面上方約 120×50px | 一條成長方向一張就夠（39 張） |
 | 地區／遺物圖示 | `icons/<id>.png`（尚未接上程式） | 128×128 | 512×512 | 約 1.5～2rem | 目前是 emoji |
 
@@ -91,6 +91,12 @@ cropped feet, extra limbs, multiple characters, busy background, floor, scenery
 | 時空術士 chronomancer | `chronomancer in a purple-blue hooded robe with gold clock motifs, golden gear rings floating around the hands, silver hair` |
 | 鍊金術師 alchemist | `alchemist with brass goggles on a green hood, leather satchel, colorful potion flasks on a belt` |
 | 賭徒 gambler | `stylish gambler, black top hat with red band, red tailcoat, playing cards and dice in hand` |
+| 忍者 ninja（2026-10-24 新增，還沒有圖） | `ninja in a dark navy hood and mask, short sword on the back, shuriken in hand, red scarf` |
+| 劍豪 kensei（同上） | `wandering samurai swordsman, steel-grey kimono and hakama, katana at the hip, topknot, calm stance` |
+| 陰陽師 onmyoji（同上） | `onmyoji in a navy and white court robe with tall black eboshi hat, paper talismans floating around, small fox spirit` |
+| 海賊 pirate（同上） | `pirate captain, teal coat and tricorn hat, cutlass in one hand and flintlock pistol in the other, eyepatch` |
+| 舞孃 dancer（同上） | `graceful dancer, coral and gold flowing dress, two folding fans, ribbons, mid-twirl pose` |
+| 咒術師 jujutsu（同上） | `curse sorcerer in a dark plum robe, holding a straw doll pierced with nails, faint purple cursed aura` |
 
 ### 敵人與首領（2026-10-23 新增的放前面）
 
@@ -119,6 +125,9 @@ cropped feet, extra limbs, multiple characters, busy background, floor, scenery
 | 類別 | 位置 | 程式 |
 | --- | --- | --- |
 | 選角大圖、戰場小人 | `static_src/images/yellow/heroes/` | `static_src/yellow.js` 的 `HERO_ART`（`dirs`＝有哪些方向、`portrait`＝有沒有大圖） |
-| 敵人、卡面、圖示 | 建議 `static_src/images/yellow/enemies/`、`cards/`、`icons/` | 尚未接上：目前敵人與地區用 emoji、卡面用職業圖示。圖做好後再加讀圖的程式（沒有圖時退回 emoji） |
+| 敵人 | `static_src/images/yellow/enemies/<id>.png` | `static_src/yellow.js` 的 `ENEMY_ART`（列出有圖的敵人 id）；有圖的敵人在戰場棋子與資訊面板顯示圖片，沒有圖的照舊用 emoji。2026-10-24 起遊戲裡的 38 種敵人全部有圖（一般與菁英 128、首領 256）。資料夾裡另有 6 張尚未加進遊戲的敵人圖：角鬥士 `gladiator`、暴躁山羊 `goat`、拳擊師父 `boxer`、左輪射手 `gunslinger`、巨大娃娃 `doll`、玩具熊 `teddy` |
+| 卡面、圖示 | 建議 `static_src/images/yellow/cards/`、`icons/` | 尚未接上：地區用 emoji、卡面用職業圖示 |
+
+新增敵人圖時要在 `ENEMY_ART` 加上那個 id。使用者給的圖若是多隻拼成一張（2×2、4×4 都有，依連通塊重心分格，同一格裡分開的小塊例如蝙蝠群要一起留下）、背景帶半透明光暈，切圖時把不透明度低於約 140 的像素當成背景清掉（背景本來就乾淨透明的圖，門檻放低到約 40，火焰與光芒的柔邊才會留下），只留每格最大的主體，再縮到上表尺寸。
 
 放好後執行 `py -3 generate.py`，`dist/static/images/yellow/` 就會有新圖。

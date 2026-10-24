@@ -21,8 +21,13 @@
 
   // 升級時數值會加成的 op（n 欄位）
   var BOOST_OPS = { dmg: 1, dmgAll: 1, dmgSec: 1, dmgExec: 1, dmgMissing: 1, dmgSpirit: 1, dmgMel: 1, lifesteal: 1, hexDmg: 1, dmgPotion: 1, dmgAllPotion: 1,
+    edge: 1, parry: 1, kek: 1, kekAlly: 1, kekAll: 1, ammo: 1, beat: 1, dmgCombo: 1, dmgAtkN: 1, dmgGen: 1, ammoDmg: 1,
+    dmgShiki: 1, dmgAllShiki: 1, blkShiki: 1, addTok: 1, turnAtk: 1, ce: 1, dmgAllCharm: 1, beatSpend: 1,
     blk: 1, blkAlly: 1, blkAll: 1, blkSpirit: 1, heal: 1, healAll: 1, regen: 1, st: 1, stAll: 1, pow: 1, trap: 1, sac: 1, finale: 1 };
-  var NO_BOOST_POW = { mana: 1, spiritTurn: 1, melTurn: 1, drawTurn: 1, chiAtk: 1, chiTurn: 1, potionTurn: 1, potionStart: 1, potionUp: 1, catalyze: 1, partyStrTurn: 1, adv: 1, luck: 1, formDraw: 1 };
+  var NO_BOOST_POW = { mana: 1, spiritTurn: 1, melTurn: 1, drawTurn: 1, chiAtk: 1, chiTurn: 1, potionTurn: 1, potionStart: 1, potionUp: 1, catalyze: 1, partyStrTurn: 1, adv: 1, luck: 1, formDraw: 1,
+    noSkl: 1, linkMul: 1, shikiTwice: 1, beatKeep: 1, echoTurn: 1, loseTurn: 1, kekRefl: 1, parryBlk: 1, genDraw: 1, comboDodge: 1, ammoStart: 1 };
+  // 陰陽師的五行相生：木 → 火 → 土 → 金 → 水 → 木（GEN[上一張] ＝ 這一張就是相生）
+  var GEN = { wood: "fire", fire: "earth", earth: "metal", metal: "water", water: "wood" };
   var NEG_STATUS = ["weak", "vuln", "poison", "burn"];
   var DEBUFF_TYPES = ["weak", "vuln", "poison", "burn", "stun"];
   var MAX_ENEMIES = 14;
@@ -154,6 +159,8 @@
     var def = D.ENEMY[e.id];
     if (e.st.stun > 0) return [{ k: "stun" }];
     var acts = e.intent || [];
+    // 魅惑（舞孃）：攻擊改打另一隻敵人，不再前進／後退
+    if (e.st.charm > 0) return acts.map(function (a) { return a.k === "atk" ? { k: "charm", n: a.n, h: a.h } : a; });
     var hasAtk = acts.some(function (a) { return a.k === "atk"; });
     if (hasAtk && def.kind === "melee" && e.ring === "far") return acts.filter(function (a) { return a.k !== "atk"; }).concat([{ k: "move", to: "near" }]);
     if (hasAtk && def.kind === "ranged" && e.ring === "near") return acts.filter(function (a) { return a.k !== "atk"; }).concat([{ k: "move", to: "far" }]);
@@ -245,6 +252,12 @@
     var v = n + (h.str || 0) + (ring === "far" ? (h.pw.far || 0) : 0) + (ring === "near" ? (h.pw.near || 0) : 0) + (h.pw.frenzy && h.hp * 2 <= h.max ? h.pw.frenzy : 0);
     var fb = h.form && D.FORMS[h.form];
     if (fb && fb.ring && fb.ring === ring) v += fb.n;
+    // 2026-10-24 新英雄：忍者的影步（本回合第 3 張起）、劍豪的連刃、咒術師的束縛／天與咒縛、舞孃的舞劍與魅力
+    var pw = h.pw || {};
+    if (pw.combo && (h.combo || 0) >= 2) v += pw.combo;
+    v += (pw.chainAtk || 0) * (h.atkN || 0) + (h.turnAtk || 0) + (pw.atkPlus || 0);
+    if (pw.beatAtk && (h.beat || 0) >= 5) v += pw.beatAtk;
+    if (e && pw.charmPlus && e.st.charm > 0) v += pw.charmPlus;
     if (h.st.weak > 0) v = v * 0.75;
     if (e && e.st.vuln > 0) v = v * 1.5;
     return Math.max(0, Math.floor(v));
@@ -294,9 +307,16 @@
   function patOf(e) { var d = D.ENEMY[e.id]; return d.phase && e.ph ? d.phase : d; }
 
   // 英雄的攻擊：計算數值後打，血月（leech）吸血
-  function heroAttack(st, h, e, base) {
+  // pierce：無視護盾（斬鐵）。打倒的數量記在 h.ck（掠奪 killIf 用）
+  function heroAttack(st, h, e, base, pierce) {
     if (!e || e.hp <= 0 || h.down) return 0;
-    var dealt = hitEnemy(st, e, heroHitValue(h, base, ringOf(e), e), false);
+    var dealt = hitEnemy(st, e, heroHitValue(h, base, ringOf(e), e), !!pierce);
+    if (e.hp <= 0) {
+      h.ck = (h.ck || 0) + 1;
+      if (h.pw.killStr) { h.str += h.pw.killStr; log(st, { t: "str", to: href(h), n: h.pw.killStr }); }
+      if (h.pw.killAmmo) gainAmmo(h, h.pw.killAmmo);
+      if (h.pw.killBlk) gainBlock(st, h, h.pw.killBlk);
+    }
     if (dealt > 0 && h.pw.leech) healHero(st, h, h.pw.leech);
     if (e.hp <= 0 && relicSum(h, "killHeal")) healHero(st, h, relicSum(h, "killHeal"));
     // 接力旗：擊倒別人區域的敵人時，那一區的主人回復
@@ -317,6 +337,14 @@
     var entry = { t: "dmg", to: href(h), n: dmg, b: absorbed };
     if (src) entry.src = eref(src);
     log(st, entry);
+    // 咒術師：生命減少時累積咒力；綁定（link）的敵人受到同樣的傷害（無視護盾）
+    if (dmg > 0 && h.pw.ceHit) gainCe(h, h.pw.ceHit);
+    if (dmg > 0) st.enemies.forEach(function (x) {
+      if (x.hp > 0 && x.st.link > 0 && x.lk === h.seat) {
+        log(st, { t: "linkHit", to: eref(x), s: h.seat });
+        hitEnemy(st, x, (dmg + (h.pw.linkPlus || 0)) * (h.pw.linkMul || 1), true);
+      }
+    });
     // 三枚貝殼：被敵人打掉生命時，其他隊友回復一半（最多 4）
     if (src && dmg > 0 && relicSum(h, "shareHeal")) {
       var share = Math.min(4, Math.floor(dmg / 2));
@@ -353,7 +381,7 @@
   }
 
   function gainBlock(st, h, n) {
-    if (h.down || n <= 0) return;
+    if (h.down || n <= 0 || h.noBlk) return;
     h.blk += n;
     log(st, { t: "blk", to: href(h), n: n });
   }
@@ -363,6 +391,9 @@
     if (e.hp <= 0 || n <= 0) return;
     if (h && s === "burn" && h.pw.burnPlus) n += h.pw.burnPlus;
     if (h && s === "poison" && h.pw.poisonPlus) n += h.pw.poisonPlus;
+    // 魅惑：首領免疫；綁定：記住是誰綁的（那位英雄受傷時才會連帶）
+    if (s === "charm" && isBoss(e)) return;
+    if (s === "link" && h) e.lk = h.seat;
     e.st[s] = (e.st[s] || 0) + n;
     log(st, { t: "st", to: eref(e), s: s, n: n });
   }
@@ -418,6 +449,40 @@
     log(st, { t: "roll", to: href(h), n: v });
     return v;
   }
+  // ---- 2026-10-24 新英雄（忍者、劍豪、陰陽師、海賊、舞孃、咒術師，設計見 docs/yellow_new_heroes.md） ----
+  function ammoCap(h) { return D.MAX_AMMO + ((h.pw && h.pw.ammoMax) || 0); }
+  function gainAmmo(h, n) { h.ammo = Math.max(0, Math.min(ammoCap(h), (h.ammo || 0) + n)); }
+  function gainCe(h, n) { h.ce = Math.min(D.MAX_CE, (h.ce || 0) + n); }
+  // 節拍（舞孃）：增加時觸發舞步（自己護盾）與舞台（全隊護盾）
+  function gainBeat(st, h, n) {
+    if (n <= 0) return;
+    h.beat = Math.min(D.MAX_BEAT, (h.beat || 0) + n);
+    if (h.pw.beatBlk) gainBlock(st, h, h.pw.beatBlk);
+    if (h.pw.beatBlkAll) alive(st).forEach(function (x) { gainBlock(st, x, h.pw.beatBlkAll); });
+  }
+  // 代幣牌（忍者的手裡劍）：放進手牌，滿了進棄牌堆
+  function addTok(st, h, id, n) {
+    if (!D.CARD[id] || h.down) return;
+    for (var i = 0; i < n; i++) { var c = newCard(st, id); if (handFull(h)) h.disc.push(c); else h.hand.push(c); }
+    log(st, { t: "tok", to: href(h), c: id, n: n });
+  }
+  // 目標這回合的意圖是不是打我（背刺／後之先）
+  function aimsAt(st, e, h) {
+    return effActs(st, e).some(function (a) { return a.k === "atk" && actTargets(st, e, a).indexOf(h.seat) >= 0; });
+  }
+  // 式神（陰陽師）：打一個隨機敵人（自己扇形區優先），傷害 SHIKI_DMG × 等級
+  function shikiAttack(st, h) {
+    if (!h.shiki) return;
+    var live = st.enemies.filter(function (e) { return e.hp > 0; });
+    if (!live.length) return;
+    var own = live.filter(function (e) { return e.sec === secOf(st, h.seat); });
+    var e = pick(st, own.length ? own : live);
+    log(st, { t: "shikiAtk", to: eref(e), s: h.seat });
+    hitEnemy(st, e, D.SHIKI_DMG * h.shiki, false);
+  }
+  // 攻擊牌第一次命中時才加的值（一之太刀、劍意、神射手、研刃），用一次就歸零
+  function takeBonus(h) { var b = h.bonus || 0; h.bonus = 0; return b; }
+
   // 延遲效果（時空術士）：下回合開始時發動；記住當時的目標
   function runLater(st, h) {
     var list = h.later || [];
@@ -534,6 +599,12 @@
   function resetBattleFields(h) {
     h.blk = 0; h.str = 0; h.taunt = false; h.done = false; h.sp = 0; h.mel = 0; h.trap = 0;
     h.chi = 0; h.form = null; h.later = []; h.flux = 0; h.rg = 0;
+    // 2026-10-24 新英雄的戰鬥內資源
+    h.combo = 0; h.atkN = 0; h.dodge = 0; h.echo = 0; h.edge = 0; h.parry = 0; h.bonus = 0; h.ck = 0;
+    h.lastEl = null; h.genN = 0; h.genHit = false; h.genWild = false; h.shiki = 0; h.kek = 0;
+    h.ammo = 0; h.beat = 0; h.lastType = null; h.ce = 0;
+    h.turnAtk = 0; h.noSkl = false; h.noBlk = false; h.onlyN = null; h.echoAny = 0; h.echoUsed = false; h.half = false;
+    h.endLose = 0; h.debt = 0; h.comboDodged = false;
     h.st = { weak: 0, vuln: 0, poison: 0, burn: 0, regen: 0 };
     h.pw = {};
   }
@@ -561,6 +632,8 @@
       });
       h.sp = Math.min(D.MAX_SPIRITS, h.sp + relicSum(h, "spiritStart"));
       h.revUsed = false;
+      // 海賊：開戰的彈藥
+      if (h.pw.ammoStart) gainAmmo(h, h.pw.ammoStart);
     });
     buildEncounter(st, kind);
     // 苦痛修正：敵人開戰護盾／力量
@@ -589,6 +662,16 @@
     h.blk = 0;
     h.done = false;
     h.mana = D.MANA + (h.pw.mana || 0) + relicSum(h, "manaTurn");
+    // 2026-10-24 新英雄：每回合歸零的資源與束縛；借時的魔力在這裡扣回
+    h.combo = 0; h.atkN = 0; h.genN = 0; h.parry = 0; h.kek = 0; h.turnAtk = 0; h.half = false;
+    h.noSkl = false; h.noBlk = false; h.onlyN = null; h.echoAny = 0; h.echoUsed = false; h.comboDodged = false;
+    if (h.debt) { h.mana = Math.max(0, h.mana - h.debt); h.debt = 0; }
+    if (h.pw.beatBlk !== undefined && !h.pw.beatKeep) h.beat = Math.floor((h.beat || 0) / 2);
+    if (h.pw.ammoTurn && st.round > 1) gainAmmo(h, h.pw.ammoTurn);
+    if (h.pw.edgeTurn) h.edge = (h.edge || 0) + h.pw.edgeTurn;
+    if (h.pw.parryTurn) h.parry += h.pw.parryTurn;
+    if (h.pw.kekTurn) h.kek += h.pw.kekTurn;
+    if (h.pw.ceTurn) gainCe(h, h.pw.ceTurn);
     // 時空術士的時能：每回合累積，每 3 點多 1 魔力
     if (h.pw.flux) { h.flux = Math.min(D.MAX_FLUX, (h.flux || 0) + h.pw.flux); h.mana += Math.floor(h.flux / 3); }
     // 守護戒指：生命最低的其他隊友得到護盾
@@ -609,6 +692,16 @@
     if (h.form && D.FORMS[h.form].blk) gainBlock(st, h, D.FORMS[h.form].blk);
     drawCards(st, h, Math.max(1, D.HAND_SIZE + relicSum(h, "handPlus") + (h.pw.drawTurn || 0)));
     for (var pi = 0; pi < (h.pw.potionTurn || 0); pi++) brew(st, h, h, "rand");
+    if (h.pw.beatTurn) gainBeat(st, h, h.pw.beatTurn);
+    if (h.pw.shikiBlk && h.shiki) gainBlock(st, h, h.pw.shikiBlk * h.shiki);
+    if (h.pw.tokTurn) addTok(st, h, "nin_shuriken", h.pw.tokTurn);
+    if (h.pw.charmTurn) {
+      var cands = st.enemies.filter(function (e) { return e.hp > 0 && !isBoss(e); });
+      if (cands.length) addStatus(st, pick(st, cands), "charm", h.pw.charmTurn, h);
+    }
+    // 極之番：每回合開始失去生命（魔力 +1 在 pw.mana）
+    if (h.pw.loseTurn) hitHero(st, h, h.pw.loseTurn, true);
+    if (h.down) return;
     runLater(st, h);
   }
 
@@ -616,6 +709,13 @@
   function endHeroTurn(st, h) {
     if (h.down) return;
     if (h.sp > 0) spiritsAttack(st, h);
+    // 式神（青龍：兩次）、甲板砲台、孤注（回合結束時失去生命）
+    for (var si = 0; si < (h.pw.shikiTwice ? 2 : 1); si++) shikiAttack(st, h);
+    if (h.pw.turret) {
+      var live = st.enemies.filter(function (e) { return e.hp > 0; });
+      if (live.length) { var tt = pick(st, live); log(st, { t: "turret", to: eref(tt), s: h.seat }); hitEnemy(st, tt, h.pw.turret, false); }
+    }
+    if (h.endLose) { var lose = h.endLose; h.endLose = 0; hitHero(st, h, lose, true); if (h.down) return; }
     var yellows = h.hand.filter(function (c) { return c.id === "t_yellow"; });
     if (yellows.length >= 2) {
       log(st, { t: "red", to: href(h) });
@@ -652,12 +752,42 @@
         for (var i = 0; i < (act.h || 1); i++) {
           var h = hero(st, seat);
           if (!h || h.down || e.hp <= 0) return;
-          var lost = hitHero(st, h, enemyHitValue(st, e, act.n, seat), false, e);
-          // 吸血攻擊：打掉多少生命就回復多少
-          if (act.drain && lost > 0 && e.hp > 0) { var v = Math.min(lost, e.max - e.hp); if (v > 0) { e.hp += v; log(st, { t: "heal", to: eref(e), n: v, src: eref(e) }); } }
-          if (h.pw.thorns && !h.down) hitEnemy(st, e, h.pw.thorns, false);
+          var hv = enemyHitValue(st, e, act.n, seat);
+          // 結界（陰陽師）：每次受到攻擊減傷；金剛結界把擋下的量打回去
+          if (h.kek > 0) {
+            var cut = Math.min(h.kek, hv);
+            hv -= cut;
+            if (cut > 0 && h.pw.kekRefl) { log(st, { t: "kekRefl", to: eref(e), s: h.seat, n: cut }); hitEnemy(st, e, cut, false); }
+          }
+          if (h.half) hv = Math.floor(hv / 2);
+          if (e.hp <= 0) return;
+          if (h.dodge > 0) {
+            // 替身（忍者）：抵銷這次攻擊
+            h.dodge -= 1;
+            log(st, { t: "dodge", to: href(h), src: eref(e) });
+          } else {
+            var lost = hitHero(st, h, hv, false, e);
+            // 吸血攻擊：打掉多少生命就回復多少
+            if (act.drain && lost > 0 && e.hp > 0) { var v = Math.min(lost, e.max - e.hp); if (v > 0) { e.hp += v; log(st, { t: "heal", to: eref(e), n: v, src: eref(e) }); } }
+          }
+          if (h.pw.thorns && !h.down && e.hp > 0) hitEnemy(st, e, h.pw.thorns, false);
+          // 見切（劍豪）：本輪被攻擊時反擊；明鏡止水再得到等量護盾
+          if (h.parry > 0 && !h.down && e.hp > 0) {
+            log(st, { t: "parry", to: eref(e), s: h.seat, n: h.parry });
+            hitEnemy(st, e, h.parry, false);
+            if (h.pw.parryBlk) gainBlock(st, h, h.parry);
+          }
         }
       });
+    } else if (act.k === "charm") {
+      // 被魅惑：改打另一隻隨機敵人（用自己的攻擊力）；沒有其他敵人就落空
+      for (var ci = 0; ci < (act.h || 1); ci++) {
+        var others = st.enemies.filter(function (x) { return x !== e && x.hp > 0; });
+        if (!others.length || e.hp <= 0) { log(st, { t: "charmMiss", to: eref(e), src: eref(e) }); break; }
+        var victim = pick(st, others);
+        log(st, { t: "charmHit", to: eref(victim), src: eref(e) });
+        hitEnemy(st, victim, enemyHitValue(st, e, act.n, -1), false);
+      }
     } else if (act.k === "blk") {
       (act.all ? st.enemies : [e]).forEach(function (x) { if (x.hp > 0) { x.blk += act.n; log(st, { t: "blk", to: eref(x), n: act.n, src: eref(e) }); } });
     } else if (act.k === "buff") {
@@ -710,7 +840,7 @@
   }
 
   function decay(obj) {
-    ["weak", "vuln"].forEach(function (s) { if (obj.st[s] > 0 && !(obj.fresh && obj.fresh[s])) obj.st[s] -= 1; });
+    ["weak", "vuln", "charm", "link"].forEach(function (s) { if (obj.st[s] > 0 && !(obj.fresh && obj.fresh[s])) obj.st[s] -= 1; });
     obj.fresh = null;
   }
 
@@ -967,6 +1097,10 @@
   function canPlay(st, h, c) {
     var d = cardDef(c);
     if (!d || d.unplayable) return false;
+    // 彈藥不夠／束縛：不能打技能牌、只能再打 n 張
+    if ((d.ammo && (h.ammo || 0) < d.ammo) || (d.needAmmo && !h.ammo)) return false;
+    if (d.type === "skl" && (h.noSkl || (h.pw && h.pw.noSkl))) return false;
+    if (h.onlyN === 0) return false;
     return st.phase === "battle" && !h.down && !h.done && (h.mana >= d.cost || bloodCost(h, d) < h.hp);
   }
   // 契約祭壇：魔力不夠時每少 1 點改付 bloodMana 生命（沒有契約＝無限大）
@@ -1015,8 +1149,45 @@
     // 近遠效果不同：依出牌當下目標所在的圈套用，再套共通效果；德魯伊的姿態加成看出牌當下的姿態
     var formNow = h.form;
     var list = (ring && d[ring] ? d[ring] : []).concat(d.fx).concat(formNow && d.forms && d.forms[formNow] ? d.forms[formNow] : []);
+    // ---- 2026-10-24 新英雄：出牌前的判定 ----
+    var limited = typeof h.onlyN === "number";
+    // 五行相生：上一張的屬性生這一張（或轉生）；陰陽調和＋太極
+    h.genHit = !!(d.el && (h.genWild || (h.lastEl && GEN[h.lastEl] === d.el)));
+    if (h.genHit) {
+      h.genWild = false; h.genN += 1;
+      log(st, { t: "gen", to: href(h), n: h.genN });
+      if (h.pw.genBlk) gainBlock(st, h, h.pw.genBlk);
+      if (h.pw.genDraw) drawCards(st, h, h.pw.genDraw);
+    }
+    if (d.el) h.lastEl = d.el;
+    // 第一次命中的加成：一之太刀（本回合第一張攻擊牌）、劍意（居合斬加倍）、神射手（花彈藥的牌）、研刃（手裡劍）
+    h.bonus = 0;
+    if (d.type === "atk") {
+      if (h.pw.firstAtk && !h.atkN) h.bonus += h.pw.firstAtk;
+      if (h.edge) { h.bonus += h.edge * (d.dblEdge ? 2 : 1); h.edge = 0; }
+      if (d.ammo && h.pw.gunPlus) h.bonus += h.pw.gunPlus;
+      if (d.id === "nin_shuriken" && h.pw.shuri) h.bonus += h.pw.shuri;
+    }
+    if (d.ammo) h.ammo -= d.ammo;
+    h.ck = 0;
+    // 再發動一次：縛・一擊（任何牌）、影分身（下一張攻擊牌）、多重影分身（每回合第一張攻擊牌）
+    var reps = 1;
+    if (h.echoAny > 0) { reps = 2; h.echoAny = 0; }
+    else if (d.type === "atk" && h.echo > 0) { reps = 2; h.echo -= 1; }
+    else if (d.type === "atk" && h.pw.echoTurn && !h.echoUsed) { reps = 2; h.echoUsed = true; }
+    if (reps > 1) log(st, { t: "echo", to: href(h) });
     // 出牌途中被荊棘打倒：後面的效果不再發動（牌進棄牌堆）
-    list.forEach(function (f) { if (st.phase === "battle" && !h.down) runFx(st, h, d, f, te, ts, zone); });
+    for (var rp = 0; rp < reps; rp++) list.forEach(function (f) { if (st.phase === "battle" && !h.down) runFx(st, h, d, f, te, ts, zone); });
+    h.bonus = 0;
+    // 連擊數、本回合攻擊牌數、節拍（換牌型）、隱遁（第 3 張得到替身）、只能再打 n 張
+    h.combo += 1;
+    if (d.type === "atk") h.atkN += 1;
+    if (h.pw.beatBlk !== undefined && !h.down) {
+      if (h.lastType && h.lastType !== d.type) gainBeat(st, h, 1);
+      h.lastType = d.type;
+    }
+    if (h.pw.comboDodge && h.combo >= 3 && !h.comboDodged) { h.comboDodged = true; h.dodge = Math.min(D.MAX_DODGE, h.dodge + h.pw.comboDodge); }
+    if (limited && h.onlyN > 0) h.onlyN -= 1;
     if (h.down) { h.disc.push(c); checkWin(st); return null; }
     // 武僧：每打出一張攻擊牌獲得氣
     if (d.type === "atk" && h.pw.chiAtk) gainChi(h, h.pw.chiAtk);
@@ -1043,16 +1214,18 @@
     var i, n;
     switch (f.o) {
       case "dmg":
-        for (i = 0; i < (f.h || 1); i++) heroAttack(st, h, te, f.n);
+        // pierceGen：相生成立時才無視護盾（金行）
+        for (i = 0; i < (f.h || 1); i++) heroAttack(st, h, te, f.n + (i === 0 ? takeBonus(h) : 0), f.pierce || (f.pierceGen && h.genHit));
         break;
       case "dmgAll":
-        for (i = 0; i < (f.h || 1); i++) area().forEach(function (e) { heroAttack(st, h, e, f.n); });
+        n = takeBonus(h);
+        for (i = 0; i < (f.h || 1); i++) area().forEach(function (e) { heroAttack(st, h, e, f.n + (i === 0 ? n : 0), f.pierce); });
         break;
       case "dmgSec":
         if (te) st.enemies.filter(function (e) { return e.hp > 0 && e.sec === te.sec; }).forEach(function (e) { heroAttack(st, h, e, f.n); });
         break;
-      case "dmgBlock": heroAttack(st, h, te, h.blk * f.n); break;
-      case "dmgExec": if (te) heroAttack(st, h, te, te.hp * 2 <= te.max ? f.n * 2 : f.n); break;
+      case "dmgBlock": heroAttack(st, h, te, h.blk * f.n + takeBonus(h)); break;
+      case "dmgExec": if (te) heroAttack(st, h, te, (te.hp * 2 <= te.max ? f.n * 2 : f.n) + takeBonus(h)); break;
       case "dmgMissing": heroAttack(st, h, te, f.n + Math.floor((h.max - h.hp) / f.k)); break;
       case "dmgSpirit": heroAttack(st, h, te, f.n * h.sp); break;
       case "dmgMel": heroAttack(st, h, te, f.n * h.mel); break;
@@ -1177,7 +1350,80 @@
       case "gamble":
         (rollDie(st, h, f.a) >= 4 ? f.win : f.lose || []).forEach(function (g) { if (st.phase === "battle") runFx(st, h, d, g, te, ts, zone); });
         break;
+      // ---- 2026-10-24 新英雄（docs/yellow_new_heroes.md） ----
+      // 條件：連擊／背刺／後之先／本回合打過攻擊牌／相生／掠奪／節拍／綁定／魅惑（不消耗）；咒力（消耗）
+      case "comboIf": if ((h.combo || 0) >= f.c) sub(); break;
+      case "back":
+        if (te && te.hp > 0 && !aimsAt(st, te, h)) { sub(); if (h.pw.backPlus) heroAttack(st, h, te, h.pw.backPlus); }
+        break;
+      case "aimed": if (te && te.hp > 0 && aimsAt(st, te, h)) sub(); break;
+      case "atkIf": if ((h.atkN || 0) >= (f.c || 1)) sub(); break;
+      case "gen": if (h.genHit) sub(); break;
+      case "killIf": n = h.ck || 0; for (i = 0; i < n; i++) sub(); break;
+      case "beatIf": if ((h.beat || 0) >= f.c) sub(); break;
+      case "linked": if (te && te.st.link > 0) sub(); break;
+      case "hasLink": if (st.enemies.some(function (e) { return e.hp > 0 && e.st.link > 0 && e.lk === h.seat; })) sub(); break;
+      case "charmed": if (te && te.st.charm > 0) sub(); break;
+      case "ceIf":
+        n = Math.max(0, f.c - (h.pw.ceDisc || 0));
+        if ((h.ce || 0) >= n) { h.ce -= n; log(st, { t: "ceSpend", to: href(h), n: n }); sub(); }
+        break;
+      // 忍者
+      case "addTok": addTok(st, h, f.c, f.n); break;
+      case "dodge": h.dodge = Math.min(D.MAX_DODGE, (h.dodge || 0) + f.n); log(st, { t: "dodgeGain", to: href(h), n: f.n }); break;
+      case "echo": h.echo = (h.echo || 0) + 1; break;
+      case "dmgCombo": heroAttack(st, h, te, f.n * (h.combo || 0) + takeBonus(h)); break;
+      // 劍豪
+      case "edge": h.edge = (h.edge || 0) + f.n; log(st, { t: "edge", to: href(h), n: f.n }); break;
+      case "parry": h.parry = (h.parry || 0) + f.n; break;
+      case "dmgAtkN": n = (h.atkN || 0) + (f.k || 0); for (i = 0; i < n; i++) heroAttack(st, h, te, f.n + (i === 0 ? takeBonus(h) : 0)); break;
+      // 陰陽師
+      case "dmgGen": heroAttack(st, h, te, f.n * ((h.genN || 0) + 1) + takeBonus(h)); break;
+      case "genNext": h.genWild = true; break;
+      case "shikiSet": if (!h.shiki) { h.shiki = 1; log(st, { t: "shiki", to: href(h), n: 1 }); } break;
+      case "shiki": h.shiki = Math.min(D.MAX_SHIKI, (h.shiki || 0) + f.n); log(st, { t: "shiki", to: href(h), n: h.shiki }); break;
+      case "shikiAct": shikiAttack(st, h); break;
+      case "blkShiki": gainBlock(st, h, f.n * (h.shiki || 0)); break;
+      case "dmgShiki": heroAttack(st, h, te, (f.k || 0) + f.n * (h.shiki || 0) + takeBonus(h)); break;
+      case "dmgAllShiki": n = f.n * (h.shiki || 0); if (n > 0) area().forEach(function (e) { heroAttack(st, h, e, n); }); break;
+      case "kek": h.kek += f.n; log(st, { t: "kek", to: href(h), n: f.n }); break;
+      case "kekAlly": if (ts && !ts.down) { ts.kek = (ts.kek || 0) + f.n; log(st, { t: "kek", to: href(ts), n: f.n }); } break;
+      case "kekAll": alive(st).forEach(function (x) { x.kek = (x.kek || 0) + f.n; log(st, { t: "kek", to: href(x), n: f.n }); }); break;
+      // 海賊
+      case "ammo": gainAmmo(h, f.n); break;
+      case "ammoDmg":
+        n = h.ammo || 0;
+        h.ammo = 0;
+        if (n > 0) log(st, { t: "ammoSpend", to: href(h), n: n });
+        if (f.k === "dmgAll") { for (i = 0; i < n; i++) area().forEach(function (e) { heroAttack(st, h, e, f.n); }); }
+        else { for (i = 0; i < n; i++) heroAttack(st, h, te, f.n + (i === 0 ? takeBonus(h) : 0)); }
+        break;
+      // 舞孃
+      case "beat": gainBeat(st, h, f.n); break;
+      case "beatSpend":
+        n = h.beat || 0;
+        h.beat = 0;
+        if (n > 0) log(st, { t: "beatSpend", to: href(h), n: n });
+        if (f.k === "dmg") heroAttack(st, h, te, f.n * n + takeBonus(h));
+        else if (f.k === "blkAll") alive(st).forEach(function (x) { gainBlock(st, x, f.n * n); });
+        break;
+      case "dmgAllCharm": area().filter(function (e) { return e.st.charm > 0; }).forEach(function (e) { heroAttack(st, h, e, f.n); }); break;
+      // 咒術師
+      case "ce": gainCe(h, f.n); break;
+      case "vow":
+        if (f.k === "noBlk") { h.blk = 0; h.noBlk = true; }
+        else if (f.k === "noSkl") h.noSkl = true;
+        else if (f.k === "one") { h.onlyN = 1; h.echoAny = 1; }
+        log(st, { t: "vow", to: href(h), k: f.k });
+        break;
+      case "turnAtk": h.turnAtk += f.n; break;
+      case "turnAtkMissing": h.turnAtk += Math.floor((h.max - h.hp) / f.k); break;
+      case "ceStr": n = h.ce || 0; h.ce = 0; h.turnAtk += Math.floor(n / 2); if (n) log(st, { t: "ceSpend", to: href(h), n: n }); break;
+      case "endLose": h.endLose = (h.endLose || 0) + f.n; break;
+      case "manaNext": h.mana += f.n; h.debt = (h.debt || 0) + (f.k || f.n); log(st, { t: "manaBorrow", to: href(h), n: f.n }); break;
+      case "half": h.half = true; break;
     }
+    function sub() { (f.fx || []).forEach(function (g) { if (st.phase === "battle" && !h.down) runFx(st, h, d, g, te, ts, zone); }); }
   }
 
   // ---------------- 選擇（獎勵／營火／寶箱） ----------------
@@ -1317,7 +1563,7 @@
     heroes: heroes, alive: alive, hero: hero, enemy: enemy, controllers: controllers,
     sectorCount: sectorCount, secOf: secOf, secOwner: secOwner, relicSum: relicSum,
     restPct: restPct, loopOf: loopOf, actDef: actDef, tmodVal: tmodVal, unlocked: unlocked, bloodCost: bloodCost,
-    warded: warded, potionCount: potionCount, reagentNeed: reagentNeed,
+    warded: warded, potionCount: potionCount, reagentNeed: reagentNeed, aimsAt: aimsAt, ammoCap: ammoCap, GEN: GEN,
     _rnd: rnd
   };
 })();

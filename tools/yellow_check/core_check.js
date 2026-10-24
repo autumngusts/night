@@ -740,6 +740,144 @@ for (var g = 0; g < games; g++) {
   }
   assert(Object.keys(seen).length === 3, "30 局內三位首領都出現過：" + Object.keys(seen));
 
+  // ---- 2026-10-24 新英雄（忍者、劍豪、陰陽師、海賊、舞孃、咒術師；docs/yellow_new_heroes.md） ----
+  // 期望值盡量從資料讀（被動數值、彈藥上限）；敵人傷害用 Core.enemyHitValue 算（會乘上幕數倍率）
+  function duo(cls, seed) {
+    var s6 = Core.create({ seed: seed, seats: [{ cls: cls }, { cls: "paladin" }, null, null] });
+    goFloor(s6);
+    var h6 = s6.heroes[0];
+    h6.str = 0; h6.st.weak = 0; h6.hp = h6.max;
+    s6.heroes[1].blk = 999;
+    return { st: s6, h: h6 };
+  }
+  function endRound(s6) { Core.heroes(s6).forEach(function (h) { h.done = false; }); Core.heroes(s6).forEach(function (h) { Core.apply(s6, "local", { t: "end", s: h.seat }); }); }
+  function foesAt(s6, list) { var fs = setFoes(s6, list); fs.forEach(function (e) { e.sec = Core.secOf(s6, 0); }); return fs; }
+
+  // 忍者：影步（第 3 張起攻擊 +n）、背刺、手裡劍、替身、影分身
+  var nj = duo("ninja", 71), njh = nj.h, combo = D.CLASS.ninja.passive.n;
+  var kunai = D.CARD.nin_kunai.fx[0].n, back = D.CARD.nin_back.fx[0].n, backX = D.CARD.nin_back.fx[1].fx[0].n;
+  var nf = foesAt(nj.st, [{ id: "skel", hp: 500, intent: [] }, { id: "skel", hp: 500, intent: [] }])[0];
+  njh.combo = 0;
+  ["nin_kunai", "nin_kunai", "nin_kunai"].forEach(function (id) { playCard(nj.st, 0, id, { e: nf.u }); });
+  assert(nf.hp === 500 - (kunai * 3 + combo), "影步：第 3 張攻擊 +" + combo + "，實際 " + (500 - nf.hp));
+  njh.combo = 0; nf.hp = 500;
+  playCard(nj.st, 0, "nin_back", { e: nf.u });
+  assert(nf.hp === 500 - back - backX, "背刺：目標不打我時 " + back + "＋" + backX + "，實際 " + (500 - nf.hp));
+  njh.combo = 0; nf.hp = 500; nf.intent = [{ k: "atk", n: 5 }];
+  playCard(nj.st, 0, "nin_back", { e: nf.u });
+  assert(nf.hp === 500 - back, "背刺：目標要打我時只有 " + back + "，實際 " + (500 - nf.hp));
+  var tk0 = njh.hand.filter(function (c) { return c.id === "nin_shuriken"; }).length;
+  playCard(nj.st, 0, "nin_case");
+  assert(njh.hand.filter(function (c) { return c.id === "nin_shuriken"; }).length === tk0 + 2, "手裡劍匣：2 張手裡劍放進手牌");
+  njh.combo = 0; nf.hp = 500;
+  playCard(nj.st, 0, "nin_shadowclone");
+  playCard(nj.st, 0, "nin_kunai", { e: nf.u });
+  assert(nf.hp === 500 - kunai * 2, "影分身：下一張攻擊牌發動兩次，實際 " + (500 - nf.hp));
+  playCard(nj.st, 0, "nin_sub");
+  assert(njh.dodge === 1, "替身術：替身 1");
+  njh.blk = 0; njh.hp = njh.max;
+  endRound(nj.st);
+  assert(njh.hp === njh.max && njh.dodge === 0 && nj.st.log.some(function (e) { return e.t === "dodge"; }), "替身：抵銷一次攻擊，實際 −" + (njh.max - njh.hp));
+
+  // 劍豪：一之太刀、劍意（居合斬加倍）、斬鐵、見切、後之先
+  var ks = duo("kensei", 72), ksh = ks.h, first = D.CLASS.kensei.passive.n;
+  var kf = foesAt(ks.st, [{ id: "skel", hp: 500, intent: [] }, { id: "skel", hp: 500, intent: [] }])[0];
+  ksh.atkN = 0;
+  playCard(ks.st, 0, "ken_tachi", { e: kf.u });
+  playCard(ks.st, 0, "ken_tachi", { e: kf.u });
+  assert(kf.hp === 500 - (7 + first) - 7, "一之太刀：只有第一張攻擊牌 +" + first + "，實際 " + (500 - kf.hp));
+  kf.hp = 500;
+  playCard(ks.st, 0, "ken_breath");
+  playCard(ks.st, 0, "ken_iai", { e: kf.u });
+  assert(kf.hp === 500 - (14 + 5 * 2) && ksh.edge === 0, "居合斬：劍意 5 加倍，實際 " + (500 - kf.hp));
+  kf.hp = 500; kf.blk = 10;
+  playCard(ks.st, 0, "ken_zantetsu", { e: kf.u });
+  assert(kf.hp === 488 && kf.blk === 10, "斬鐵：無視護盾，實際 " + (500 - kf.hp) + " 護盾 " + kf.blk);
+  kf.hp = 500; kf.blk = 0; kf.intent = [{ k: "atk", n: 5 }];
+  playCard(ks.st, 0, "ken_gonosen", { e: kf.u });
+  assert(kf.hp === 488, "後之先：目標要打我時 6＋6，實際 " + (500 - kf.hp));
+  kf.hp = 500;
+  playCard(ks.st, 0, "ken_kyouka");
+  endRound(ks.st);
+  assert(kf.hp === 494 && ks.st.log.some(function (e) { return e.t === "parry"; }), "見切：被攻擊時反擊 6，實際 " + (500 - kf.hp));
+  assert(ksh.parry === 0, "見切在自己下回合開始時歸零");
+
+  // 陰陽師：相生（木 → 火）、陰陽調和的護盾、式神、結界
+  var om = duo("onmyoji", 73), omh = om.h, genBlk = D.CLASS.onmyoji.passive.n;
+  var fireN = D.CARD.onm_fire.fx[0].n, fireGen = D.CARD.onm_fire.fx[1].fx[0].n;
+  var of = foesAt(om.st, [{ id: "skel", hp: 500, intent: [] }, { id: "skel", hp: 500, intent: [] }])[0];
+  omh.lastEl = null; omh.blk = 0;
+  playCard(om.st, 0, "onm_wood");
+  playCard(om.st, 0, "onm_fire", { e: of.u });
+  assert(of.hp === 500 - fireN - fireGen && omh.blk === genBlk && omh.genN === 1, "相生：木 → 火，火符 " + fireN + "＋" + fireGen + "、護盾 " + genBlk + "，實際 " + (500 - of.hp) + "/" + omh.blk);
+  of.hp = 500;
+  playCard(om.st, 0, "onm_fire", { e: of.u });
+  assert(of.hp === 500 - fireN, "火 → 火不是相生，實際 " + (500 - of.hp));
+  playCard(om.st, 0, "onm_call");
+  playCard(om.st, 0, "onm_kekkai");
+  var kekN = D.CARD.onm_kekkai.fx[0].n;
+  assert(omh.shiki === 1 && omh.kek === kekN, "式神召喚、結界 3");
+  of.intent = [{ k: "atk", n: 9 }];
+  var hit9 = Core.enemyHitValue(om.st, of, 9, 0);
+  omh.blk = 0; omh.hp = omh.max; of.hp = 500;
+  endRound(om.st);
+  assert(omh.hp === omh.max - Math.max(0, hit9 - kekN), "結界：每下減 " + kekN + "，實際 −" + (omh.max - omh.hp) + "（原本 " + hit9 + "）");
+  assert(om.st.log.some(function (e) { return e.t === "shikiAtk"; }), "式神在回合結束時攻擊");
+
+  // 海賊：開戰彈藥、彈藥不夠不能出、掠奪、連環槍
+  var pi = duo("pirate", 74), pih = pi.h;
+  assert(pih.ammo === D.CLASS.pirate.extra.ammoStart, "海賊開戰 " + D.CLASS.pirate.extra.ammoStart + " 彈藥，實際 " + pih.ammo);
+  var pf = foesAt(pi.st, [{ id: "skel", hp: 500, ring: "far", intent: [] }, { id: "skel", hp: 1, ring: "near", intent: [] }]);
+  pih.ammo = 0;
+  assert(playCard(pi.st, 0, "pir_musket", { e: pf[0].u }) === "cannot_play", "沒有彈藥不能開火槍");
+  pih.ammo = 3;
+  playCard(pi.st, 0, "pir_chain", { e: pf[0].u });
+  assert(pf[0].hp === 500 - 18 && pih.ammo === 0, "連環槍：3 發 × 6，實際 " + (500 - pf[0].hp));
+  playCard(pi.st, 0, "pir_plunder", { e: pf[1].u });
+  assert(pih.mana === 9, "劫掠：打倒目標回 1 魔力，實際 " + pih.mana);
+
+  // 舞孃：換牌型累積節拍（＋舞步護盾）、魅惑（改打別的敵人；首領免疫）
+  var dc = duo("dancer", 75), dch = dc.h, bb = D.CLASS.dancer.passive.n;
+  var df = foesAt(dc.st, [{ id: "skel", hp: 500, intent: [] }, { id: "skel", hp: 500, intent: [] }]);
+  dch.lastType = null; dch.beat = 0; dch.blk = 0;
+  playCard(dc.st, 0, "dan_fan", { e: df[0].u });
+  playCard(dc.st, 0, "dan_step");
+  var stepB = D.CARD.dan_step.fx[0].n;
+  assert(dch.beat === 1 && dch.blk === stepB + bb, "節拍：攻擊 → 技能 +1，舞步護盾 " + bb + "，實際 " + dch.beat + "/" + dch.blk);
+  playCard(dc.st, 0, "dan_step");
+  assert(dch.beat === 1, "技能 → 技能不加節拍");
+  df[0].hp = df[1].hp = 500;
+  df[0].intent = [{ k: "atk", n: 6 }];
+  playCard(dc.st, 0, "dan_glance", { e: df[0].u });
+  assert(df[0].st.charm === 1, "拋媚眼：魅惑 1");
+  dch.blk = 0; dch.hp = dch.max;
+  endRound(dc.st);
+  assert(dch.hp === dch.max && df[1].hp < 500 && dc.st.log.some(function (e) { return e.t === "charmHit"; }), "魅惑：改打另一隻敵人，實際 英雄 −" + (dch.max - dch.hp) + " 另一隻 −" + (500 - df[1].hp));
+  var bossC = setFoes(dc.st, [{ id: "giant", hp: 500 }, { id: "skel", hp: 500 }])[0];
+  playCard(dc.st, 0, "dan_glance", { e: bossC.u });
+  assert(!(bossC.st.charm > 0), "首領免疫魅惑");
+
+  // 咒術師：受傷累積咒力、綁定、消耗咒力、束縛
+  var jj = duo("jujutsu", 76), jjh = jj.h, ceHit = D.CLASS.jujutsu.passive.n;
+  var jf = foesAt(jj.st, [{ id: "skel", hp: 500, intent: [] }, { id: "skel", hp: 500, intent: [] }])[0];
+  jjh.ce = 0;
+  playCard(jj.st, 0, "juj_doll", { e: jf.u });
+  playCard(jj.st, 0, "juj_stab");
+  assert(jjh.ce === ceHit && jf.hp === 497, "自刺：咒力 +" + ceHit + "，綁定的敵人也受 3，實際 " + jjh.ce + "/" + (500 - jf.hp));
+  jf.hp = 500; jjh.ce = 2;
+  var cnt = D.CARD.juj_counter.fx[0].n + D.CARD.juj_counter.fx[1].fx[0].n, nail = D.CARD.juj_nail.fx[0].n;
+  playCard(jj.st, 0, "juj_counter", { e: jf.u });
+  assert(jf.hp === 500 - cnt && jjh.ce === 0, "反咒：消耗 2 咒力再加傷害，共 " + cnt + "，實際 " + (500 - jf.hp));
+  playCard(jj.st, 0, "juj_silent");
+  var skl = { u: (jj.st.uid += 1), id: "juj_ward" };
+  jjh.hand.push(skl);
+  assert(!Core.canPlay(jj.st, jjh, skl), "縛・寡言：本回合不能再打技能牌");
+  jjh.noSkl = false; jf.hp = 500;
+  playCard(jj.st, 0, "juj_onestrike");
+  playCard(jj.st, 0, "juj_nail", { e: jf.u });
+  assert(jf.hp === 500 - nail * 2, "縛・一擊：下一張牌發動兩次，實際 " + (500 - jf.hp));
+  assert(playCard(jj.st, 0, "juj_nail", { e: jf.u }) === "cannot_play", "縛・一擊：之後不能再出牌");
+
   // AI 隊友：ctrl 為 ai 的英雄由 AI.next 決定行動，整局跑得完（不會卡住）
   require("../../static_src/yellow_ai.js");
   var A = global.PriTestYellowAI;

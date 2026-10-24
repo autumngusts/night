@@ -15,18 +15,29 @@
 
   function clone(o) { return JSON.parse(JSON.stringify(o)); }
 
-  // 預計受到的傷害（扣掉護盾）
+  // 預計受到的傷害（扣掉護盾）。2026-10-24 新英雄：結界（每下減傷）、簡易領域（減半）、替身（抵銷最大的幾下）
+  // 另外回傳每位英雄會被打幾下（見切的反擊次數）
   function incoming(st) {
-    var by = {};
+    var hits = {};
     st.enemies.forEach(function (e) {
       Core.effActs(st, e).forEach(function (a) {
         if (a.k !== "atk") return;
-        Core.actTargets(st, e, a).forEach(function (s) { by[s] = (by[s] || 0) + Core.enemyHitValue(st, e, a.n, s) * (a.h || 1); });
+        Core.actTargets(st, e, a).forEach(function (s) {
+          var v = Core.enemyHitValue(st, e, a.n, s);
+          for (var i = 0; i < (a.h || 1); i++) (hits[s] = hits[s] || []).push(v);
+        });
       });
     });
-    var tot = 0;
-    Core.alive(st).forEach(function (h) { tot += Math.max(0, (by[h.seat] || 0) - h.blk); });
-    return tot;
+    var tot = 0, count = {};
+    Core.alive(st).forEach(function (h) {
+      var list = (hits[h.seat] || []).map(function (v) { v = Math.max(0, v - (h.kek || 0)); return h.half ? Math.floor(v / 2) : v; });
+      count[h.seat] = list.length;
+      list.sort(function (a, b) { return b - a; });
+      var sum = 0;
+      list.slice(h.dodge || 0).forEach(function (v) { sum += v; });
+      tot += Math.max(0, sum - h.blk);
+    });
+    return { tot: tot, count: count };
   }
 
   // me：出牌的英雄 seat（其他還沒結束回合的隊友手上的魔力與手牌才算價值；自己的魔力看出牌成本）
@@ -39,14 +50,24 @@
       var sp = D.ENEMY[e.id] && D.ENEMY[e.id].split;
       if (sp) v -= sp.n * (D.ENEMY[sp.id].hp[1] + 8);
       v += 2 * e.st.vuln + 2 * e.st.weak + 6 * e.st.stun;
+      // 魅惑（會打自己人）、綁定（我受傷時牠也受傷）
+      if (e.st.charm > 0) Core.effActs(st, e).forEach(function (a) { if (a.k === "charm") v += 0.7 * Core.enemyHitValue(st, e, a.n, -1) * (a.h || 1); });
+      v += 1.5 * (e.st.link || 0) + 1.5 * (e.st.charm || 0);
     });
-    v -= 1.4 * incoming(st);
+    var inc = incoming(st);
+    v -= 1.4 * inc.tot;
     Core.heroes(st).forEach(function (h) {
       v += h.down ? -40 : 0.9 * h.hp + 3 * h.str + 0.5 * h.hand.length;
       Object.keys(h.pw).forEach(function (k) { v += 6 * h.pw[k]; });
       v += 1.5 * (h.st.regen || 0) + 3 * (h.sp || 0) + 1.2 * (h.mel || 0) + 0.6 * (h.trap || 0);
       // 氣、姿態、延遲效果（下回合才發動，當下的局面看不到）、手上的藥水
       v += 1.0 * (h.chi || 0) + (h.form ? 3 : 0) + 1.5 * (h.flux || 0) + 1.0 * (h.rg || 0);
+      // 2026-10-24 新英雄的資源：劍意、見切（會被打幾下就反擊幾次）、替身、影分身、式神、彈藥、節拍、咒力、轉生；借時與孤注是之後的代價
+      v += 0.8 * (h.edge || 0) + 0.9 * (h.parry || 0) * (inc.count[h.seat] || 0) + 2 * (h.dodge || 0) + 4 * (h.echo || 0) + 4 * (h.echoAny || 0);
+      v += 5 * (h.shiki || 0) + 1.5 * (h.ammo || 0) + 1.0 * (h.beat || 0) + 1.0 * (h.ce || 0) + (h.genWild ? 2 : 0);
+      v -= 4 * (h.debt || 0) + 0.9 * (h.endLose || 0);
+      // 五行：手上有「被剛打出的屬性所生」的牌時，下一張就能相生（讓貪婪 AI 學會照順序出牌）
+      if (h.lastEl) v += 1.5 * h.hand.filter(function (c) { var cd = D.CARD[c.id]; return cd && cd.el === Core.GEN[h.lastEl]; }).length;
       (h.later || []).forEach(function (x) {
         x.fx.forEach(function (f) {
           if (f.o === "dmg") v += 0.9 * f.n * (f.h || 1);

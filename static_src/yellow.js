@@ -255,6 +255,10 @@
 
   // ---------------- 卡牌說明（依 fx 自動產生） ----------------
   var DMG_OPS = { dmg: 1, dmgAll: 1, dmgSec: 1, dmgExec: 1 };
+  // 2026-10-24 新英雄的條件 op（巢狀 fx）
+  var COND_OPS = { comboIf: 1, back: 1, aimed: 1, atkIf: 1, gen: 1, killIf: 1, beatIf: 1, linked: 1, hasLink: 1, charmed: 1, ceIf: 1 };
+  // 五行（陰陽師）的圖示
+  var EL_ICON = { wood: "🌳", fire: "🔥", earth: "⛰️", metal: "⚙️", water: "💧" };
   function fxText(d, f, h, ring) {
     var p = { n: f.n, h: f.h || 1, s: f.s ? stName(f.s) : "", r: t("yc_rng_" + (f.r || d.rng || "any")), k: f.k, per: f.per || 1 };
     // 有英雄時顯示實際數值（力量、鷹眼、狂熱、虛弱都算進去）
@@ -281,6 +285,17 @@
     if (f.o === "dmgPotion" || f.o === "dmgAllPotion") return t("yc_fx_" + f.o, p) + (h ? t("yc_fx_now_potion", { m: Core.potionCount(h) }) : "");
     if (f.o === "roll") return t("yc_fx_roll_" + f.k, p) + (f.a ? t("yc_fx_adv") : "");
     if (f.o === "gamble") return t(f.lose && f.lose.length ? "yc_fx_gamble" : "yc_fx_gamble_nolose", { w: sub(f.win), l: sub(f.lose) }) + (f.a ? t("yc_fx_adv") : "");
+    // 2026-10-24 新英雄：條件（連擊／背刺／後之先／相生／掠奪／節拍／綁定／魅惑／咒力…）＋巢狀效果
+    if (COND_OPS[f.o]) return t("yc_fx_" + f.o, { c: f.o === "ceIf" && h ? Math.max(0, f.c - (h.pw.ceDisc || 0)) : f.c }) + sub(f.fx);
+    if (f.o === "dmg" && (f.pierce || f.pierceGen)) return t((f.h || 1) > 1 ? "yc_fx_dmg_multi" : "yc_fx_dmg", p) + t(f.pierce ? "yc_fx_pierce" : "yc_fx_pierceGen");
+    if (f.o === "ammoDmg" || f.o === "beatSpend" || f.o === "vow") return t("yc_fx_" + f.o + "_" + f.k, p) + (h && f.o === "ammoDmg" ? t("yc_fx_now_ammo", { m: h.ammo || 0 }) : h && f.o === "beatSpend" ? t("yc_fx_now_beat", { m: h.beat || 0 }) : "");
+    if (h && f.o === "dmgCombo") return t("yc_fx_dmgCombo", p) + t("yc_fx_now_combo", { m: h.combo || 0 });
+    if (h && (f.o === "blkShiki" || f.o === "dmgShiki" || f.o === "dmgAllShiki")) return t("yc_fx_" + f.o, p) + t("yc_fx_now_shiki", { m: h.shiki || 0 });
+    // 對自己用的牌（清祓、水遁）：移除的是自己的負面狀態
+    if (f.o === "cleanse" && d.tgt === "self") return t("yc_fx_cleanse_self");
+    if (f.o === "addTok") return t("yc_fx_addTok", { n: f.n, c: L(D.CARD[f.c].name) });
+    if (f.o === "manaNext") return t("yc_fx_manaNext", { n: f.n, k: f.k || f.n });
+    if (f.o === "dmgAtkN") return t("yc_fx_dmgAtkN", p) + (h ? t("yc_fx_now_hits", { m: (h.atkN || 0) + (f.k || 0) }) : "");
     return t("yc_fx_" + f.o, p);
   }
 
@@ -297,6 +312,7 @@
     if (d.unplayable) parts.unshift(t("yc_kw_unplayable"));
     if (d.ethereal) parts.push(t("yc_kw_ethereal"));
     if (d.id === "t_yellow") parts.push(t("yc_kw_redcard", { n: D.RED_CARD_DMG }));
+    if (d.dblEdge) parts.push(t("yc_kw_dblEdge"));
     if (d.exhaust) parts.push(t("yc_kw_exhaust"));
     return parts.join(sep);
   }
@@ -316,6 +332,8 @@
     if (d.tgt === "area") meta.push(t("yc_tgt_area", { s: t("yc_area_" + (d.ar || "m")) }));
     if (d.tgt === "ally") meta.push(t("yc_tgt_ally"));
     if (d.tgt === "down") meta.push(t("yc_tgt_down"));
+    if (d.el) meta.push(EL_ICON[d.el] + t("yc_el_" + d.el));
+    if (d.ammo) meta.push(t("yc_tag_ammo", { n: d.ammo }));
     return meta.join(" · ");
   }
   function cardEl(c, opts) {
@@ -339,6 +357,7 @@
       ]),
       el("span", { class: "yc-card-art" }, [
         el("span", { class: "yc-card-art-icon", text: hd ? hd.icon : "🟨" }),
+        d.el ? el("span", { class: "yc-card-art-el", title: t("yc_el_" + d.el), text: EL_ICON[d.el] }) : null,
         el("span", { class: "yc-card-art-type", text: d.tgt === "area" ? "🎯" : (TYPE_ICON[d.type] || "") })
       ]),
       el("span", { class: "yc-card-meta", text: cardMeta(d) }),
@@ -683,7 +702,7 @@
     if (obj.str) row.appendChild(el("span", { class: "yc-badge yc-badge-str", title: t("yc_str"), text: "💪" + obj.str }));
     if (obj.thorns) row.appendChild(el("span", { class: "yc-badge yc-badge-thorns", title: t("yc_thorns_desc", { n: obj.thorns }), text: "🌵" + obj.thorns }));
     (obj.mech || []).forEach(function (m) { row.appendChild(el("span", { class: "yc-badge yc-badge-mech" + (m.on ? " yc-on" : ""), title: m.title, text: m.icon })); });
-    ["weak", "vuln", "poison", "burn", "stun", "regen"].forEach(function (s) {
+    ["weak", "vuln", "poison", "burn", "stun", "regen", "charm", "link"].forEach(function (s) {
       if (obj.st && obj.st[s] > 0) row.appendChild(el("span", { class: "yc-badge yc-badge-" + s, title: stName(s) + "：" + t("yc_st_desc_" + s), text: t("yc_sti_" + s) + obj.st[s] }));
     });
     if (isHero) {
@@ -691,7 +710,7 @@
       if (obj.mel) row.appendChild(el("span", { class: "yc-badge yc-badge-mel", title: t("yc_melody_desc"), text: "♪" + obj.mel }));
       if (obj.trap) row.appendChild(el("span", { class: "yc-badge yc-badge-trap", title: t("yc_trap_desc", { n: obj.trap }), text: "🪤" + obj.trap }));
       Object.keys(obj.pw || {}).forEach(function (p) {
-        if (obj.pw[p] && p !== "reagent") row.appendChild(el("span", { class: "yc-badge yc-badge-pow", title: t("yc_pow_" + p, { n: obj.pw[p] }), text: "✦" + obj.pw[p] }));
+        if (obj.pw[p] && p !== "reagent" && p !== "ammoStart") row.appendChild(el("span", { class: "yc-badge yc-badge-pow", title: t("yc_pow_" + p, { n: obj.pw[p] }), text: "✦" + obj.pw[p] }));
       });
       if (obj.taunt) row.appendChild(el("span", { class: "yc-badge yc-badge-taunt", title: t("yc_taunt_desc"), text: "🎯" }));
       if (obj.chi) row.appendChild(el("span", { class: "yc-badge yc-badge-sp", title: t("yc_chi_desc", { n: D.MAX_CHI }), text: "☯" + obj.chi }));
@@ -699,8 +718,34 @@
       if (obj.pw && obj.pw.reagent) row.appendChild(el("span", { class: "yc-badge yc-badge-sp", title: t("yc_rg_desc", { n: Core.reagentNeed(obj) }), text: "🧪" + (obj.rg || 0) + "/" + Core.reagentNeed(obj) }));
       if (obj.form) row.appendChild(el("span", { class: "yc-badge yc-badge-sp", title: t("yc_form_desc_" + obj.form, { n: D.FORMS[obj.form].blk || D.FORMS[obj.form].n }), text: D.FORMS[obj.form].icon + t("yc_form_" + obj.form) }));
       if (obj.later && obj.later.length) row.appendChild(el("span", { class: "yc-badge yc-badge-sp", title: t("yc_later_desc"), text: "⏳" + obj.later.length }));
+      newHeroBadges(obj).forEach(function (b) { row.appendChild(el("span", { class: "yc-badge yc-badge-sp", title: b[1], text: b[0] })); });
     }
     return row;
+  }
+
+  // 2026-10-24 新英雄的資源標記：[文字, 說明]（只顯示有值的；連擊、彈藥、節拍只給有那個被動的英雄）
+  function newHeroBadges(h) {
+    var out = [], pw = h.pw || {};
+    if (pw.combo !== undefined && h.combo) out.push(["🌀" + h.combo, t("yc_combo_desc", { n: pw.combo })]);
+    if (h.dodge) out.push(["👤" + h.dodge, t("yc_dodge_desc", { n: D.MAX_DODGE })]);
+    if (h.echo || h.echoAny) out.push(["👥", t("yc_echo_desc")]);
+    if (h.edge) out.push(["🗡️" + h.edge, t("yc_edge_desc")]);
+    if (h.parry) out.push(["🔁" + h.parry, t("yc_parry_desc", { n: h.parry })]);
+    if (h.lastEl) out.push([EL_ICON[h.lastEl] + "→" + EL_ICON[Core.GEN[h.lastEl]], t("yc_lastEl_desc", { a: t("yc_el_" + h.lastEl), b: t("yc_el_" + Core.GEN[h.lastEl]) })]);
+    if (h.genWild) out.push(["♾️", t("yc_genWild_desc")]);
+    if (h.shiki) out.push(["👺" + h.shiki, t("yc_shiki_desc", { n: D.SHIKI_DMG * h.shiki, m: D.MAX_SHIKI })]);
+    if (h.kek) out.push(["⛩️" + h.kek, t("yc_kek_desc", { n: h.kek })]);
+    if (pw.ammoTurn !== undefined) out.push(["🔫" + (h.ammo || 0) + "/" + Core.ammoCap(h), t("yc_ammo_desc", { n: pw.ammoTurn })]);
+    if (pw.beatBlk !== undefined && h.beat) out.push(["🎵" + h.beat, t("yc_beat_desc", { n: D.MAX_BEAT })]);
+    if (pw.ceHit !== undefined && h.ce) out.push(["🌑" + h.ce, t("yc_ce_desc", { n: D.MAX_CE })]);
+    if (h.turnAtk) out.push(["💢+" + h.turnAtk, t("yc_turnAtk_desc", { n: h.turnAtk })]);
+    if (h.noSkl || pw.noSkl) out.push(["🚫🔰", t("yc_noSkl_desc")]);
+    if (h.noBlk) out.push(["🚫🛡", t("yc_noBlk_desc")]);
+    if (typeof h.onlyN === "number") out.push(["☝️" + h.onlyN, t("yc_onlyN_desc", { n: h.onlyN })]);
+    if (h.half) out.push(["◐", t("yc_half_desc")]);
+    if (h.endLose) out.push(["⌛−" + h.endLose, t("yc_endLose_desc", { n: h.endLose })]);
+    if (h.debt) out.push(["💸−" + h.debt, t("yc_debt_desc", { n: h.debt })]);
+    return out;
   }
 
   function hpBar(cur, max) {
@@ -730,6 +775,7 @@
       case "stun": return "💫" + (short ? "" : t("yc_int_stun"));
       case "shatter": return "💔" + (short ? "" : t("yc_int_shatter")) + tg();
       case "purge": return "✨" + (short ? "" : t("yc_int_purge")) + (a.all ? t("yc_int_allies") : "");
+      case "charm": return "💗⚔" + Core.enemyHitValue(st, e, a.n, -1) + ((a.h || 1) > 1 ? "×" + a.h : "") + (short ? "" : t("yc_int_charm"));
     }
     return a.k;
   }
@@ -767,7 +813,7 @@
     var node = el("div", { class: classes, "data-ref": "e" + e.u, title: title,
       style: pctPos(start) + ";width:" + (pos.r * 2).toFixed(2) + "%;--hp:" + pct.toFixed(1),
       onclick: function (ev) { ev.stopPropagation(); ui.focus = focus ? null : { k: "e", u: e.u }; render(); } }, [
-      el("div", { class: "yc-enemy-dot" }, [el("span", { class: "yc-enemy-icon", text: d.icon })]),
+      el("div", { class: "yc-enemy-dot" }, [enemyIcon(e.id, "yc-enemy-icon")]),
       // 血量：掛在圓點上的紅色盾牌（使用者指定 2026-10-22）；護盾是旁邊的藍色小盾
       el("span", { class: "yc-enemy-shield", title: e.hp + " / " + e.max, text: e.hp }),
       e.blk ? el("span", { class: "yc-enemy-blk", text: e.blk }) : null,
@@ -800,6 +846,18 @@
     alchemist: { dirs: "snw", portrait: true },
     gambler: { dirs: "senw", portrait: true }
   };
+  // 敵人圖（static_src/images/yellow/enemies/<id>.png，一般 128×128、首領 256×256，見 docs/yellow_art_guide.md）：
+  // 列在這裡的敵人在圓形棋子上顯示圖片，沒有圖的照舊用 emoji
+  var ENEMY_IMG = "../static/images/yellow/enemies/";
+  var ENEMY_ART = {
+    skel: 1, archer: 1, ghoul: 1, bats: 1, cultist: 1, slime: 1, bigslime: 1, slimelet: 1, vampire: 1, knight: 1, witch: 1, giant: 1, bonedragon: 1, lich: 1,
+    imp: 1, hound: 1, guard: 1, succubus: 1, salamander: 1, lavaslime: 1, spark: 1, priestess: 1, brute: 1, warlock: 1, lord: 1, colossus: 1, queen: 1,
+    lineman: 1, hooligan: 1, shade: 1, golem: 1, heckler: 1, enforcer: 1, var: 1, captain: 1, referee: 1, whistler: 1, scales: 1
+  };
+  function enemyIcon(id, cls) {
+    if (ENEMY_ART[id]) return el("img", { class: cls + " yc-enemy-img", src: ENEMY_IMG + id + ".png", alt: "", draggable: "false" });
+    return el("span", { class: cls, text: D.ENEMY[id].icon });
+  }
   // 面向自己扇形區的外側；站在正中央（單人）時面向畫面
   function heroFacing(pos) {
     var dx = pos.x - 50, dy = pos.y - 50;
@@ -946,7 +1004,7 @@
     if (f.k === "e") {
       var e = Core.enemy(st, f.u), d = D.ENEMY[e.id];
       box.appendChild(el("div", { class: "yc-focus-head" }, [
-        el("span", { class: "yc-focus-icon", text: d.icon }),
+        enemyIcon(e.id, "yc-focus-icon"),
         el("strong", { text: enemyName(e.id) }),
         el("span", { class: "yc-muted yc-small", text: t("yc_size_" + enemySizeKey(e)) + "・" + t("yc_kind_" + d.kind) })
       ]));
@@ -1420,6 +1478,9 @@
       case "thorns": return t("yc_log_thorns", { to: to, a: heroLabel(st, e.s), n: e.n });
       case "handFull": return t("yc_log_handFull", { to: to, n: D.HAND_MAX });
       case "tmod": return t("yc_log_tmod", { m: tmodText(e.id, e.n), n: e.left });
+      case "tok": return t("yc_log_tok", { to: to, n: e.n, c: L(D.CARD[e.c].name) });
+      case "parry": case "shikiAtk": case "kekRefl": case "linkHit": case "turret": return t("yc_log_" + e.t, { to: to, a: heroLabel(st, e.s), n: e.n });
+      case "vow": return t("yc_log_vow", { to: to, k: t("yc_vow_" + e.k) });
       default: return t("yc_log_" + e.t, { to: to, n: e.n });
     }
   }
@@ -2107,7 +2168,7 @@
   // 標記說明（2026-10-23 使用者指定：戰鬥畫面顯示各種標記的說明）：戰場右上的 ❔
   function legendRows() {
     var sec = function (k, rows) { return { k: k, rows: rows }; };
-    var st = ["weak", "vuln", "poison", "burn", "stun", "regen"].map(function (s) { return [t("yc_sti_" + s), stName(s) + "：" + t("yc_st_desc_" + s)]; });
+    var st = ["weak", "vuln", "poison", "burn", "stun", "regen", "charm", "link"].map(function (s) { return [t("yc_sti_" + s), stName(s) + "：" + t("yc_st_desc_" + s)]; });
     return [
       sec("yc_legend_sec_field", [["⭕", t("yc_legend_sectors")], ["◎", t("yc_legend_rings")]]),
       sec("yc_legend_sec_status", [["🛡", t("yc_block") + "：" + t("yc_legend_blk")], ["💪", t("yc_str")]].concat(st)),
@@ -2115,6 +2176,12 @@
         ["🦉", t("yc_spirits_desc", { n: 2 })], ["♪", t("yc_melody_desc")], ["🪤", t("yc_trap_desc", { n: "N" })], ["☯", t("yc_chi_desc", { n: D.MAX_CHI })],
         ["⌛", t("yc_flux_desc", { n: D.MAX_FLUX })], ["🧪", t("yc_rg_desc", { n: 3 })], ["🐻🐺🦅", t("yc_legend_forms")], ["⏳", t("yc_later_desc")],
         ["✦", t("yc_legend_pow")], ["🎯", t("yc_taunt_desc")]]),
+      // 2026-10-24 新英雄
+      sec("yc_legend_sec_hero2", [
+        ["🌀", t("yc_combo_desc", { n: "N" })], ["👤", t("yc_dodge_desc", { n: D.MAX_DODGE })], ["👥", t("yc_echo_desc")], ["🗡️", t("yc_edge_desc")],
+        ["🔁", t("yc_parry_desc", { n: "N" })], ["🌳🔥⛰️⚙️💧", t("yc_legend_gen")], ["👺", t("yc_shiki_desc", { n: D.SHIKI_DMG + "×Lv", m: D.MAX_SHIKI })],
+        ["⛩️", t("yc_kek_desc", { n: "N" })], ["🔫", t("yc_ammo_desc", { n: 1 })], ["🎵", t("yc_beat_desc", { n: D.MAX_BEAT })], ["🌑", t("yc_ce_desc", { n: D.MAX_CE })],
+        ["💢 🚫 ☝️", t("yc_legend_vow")]]),
       sec("yc_legend_sec_intent", [["⚔", t("yc_legend_atk")], ["🩸", t("yc_int_drain") + " " + t("yc_legend_drain")], ["🛡", t("yc_legend_eblk")], ["💪+", t("yc_legend_buff")],
         ["💚", t("yc_legend_heal")], ["🃏", t("yc_legend_curse")], ["🟨", t("yc_legend_yellow", { n: D.RED_CARD_DMG })], ["➕", t("yc_legend_summon")],
         ["⇣ ⇡", t("yc_legend_move")], ["💔", t("yc_int_shatter")], ["✨", t("yc_int_purge")], ["💫", t("yc_legend_stun")]]),
