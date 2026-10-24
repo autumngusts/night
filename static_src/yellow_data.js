@@ -803,7 +803,74 @@
     { id: "scales", ward: true, minion: "lineman", name: N("審判天平", "審判の天秤", "Scales of Judgement"), icon: "⚖️", kind: "boss", boss: true, hp: [170, 170],
       pat: [[{ k: "summon", id: "lineman", n: 2 }], [{ k: "atk", n: 12, tgt: "all" }], [{ k: "purge" }, { k: "blk", n: 20 }], [{ k: "atk", n: 30, tgt: "rand" }]], cyc: "loop",
       phase: { at: 0.4, str: 3, pat: [[{ k: "atk", n: 10, tgt: "all" }, { k: "debuff", s: "vuln", n: 2, tgt: "all" }], [{ k: "yellow", tgt: "all" }, { k: "atk", n: 18, tgt: "rand" }], [{ k: "atk", n: 6, h: 4, tgt: "low" }]], cyc: "loop" } },
-    { id: "referee", name: N("地獄裁判長", "地獄の主審", "Hell Referee"), icon: "🟨", kind: "boss", boss: true, hp: [220, 220], pat: [[{ k: "yellow", tgt: "all" }, { k: "blk", n: 15 }], [{ k: "atk", n: 12, tgt: "all" }], [{ k: "summon", id: "lineman", n: 2 }], [{ k: "atk", n: 8, h: 2, tgt: "low" }, { k: "buff", str: 2 }], [{ k: "yellow", tgt: "rand" }, { k: "atk", n: 30, tgt: "rand" }]], cyc: "loop" }
+    { id: "referee", name: N("地獄裁判長", "地獄の主審", "Hell Referee"), icon: "🟨", kind: "boss", boss: true, hp: [220, 220], pat: [[{ k: "yellow", tgt: "all" }, { k: "blk", n: 15 }], [{ k: "atk", n: 12, tgt: "all" }], [{ k: "summon", id: "lineman", n: 2 }], [{ k: "atk", n: 8, h: 2, tgt: "low" }, { k: "buff", str: 2 }], [{ k: "yellow", tgt: "rand" }, { k: "atk", n: 30, tgt: "rand" }]], cyc: "loop" },
+
+    // ---- 2026-10-24 新區域（使用者指定：每幕從同難度的區域隨機抽一個；精簡版，每區約 5 種一般、1 菁英、2 首領） ----
+    // 第一幕・夜之馬戲團：戲法 swap（瞬間換到別人的扇形區、內外圈對調）
+    { id: "clown", name: N("小丑", "ピエロ", "Clown"), icon: "🤡", kind: "melee", hp: [14, 17], pat: [[{ k: "atk", n: 6 }], [{ k: "swap" }, { k: "atk", n: 4 }]], cyc: "loop" },
+    { id: "juggler", name: N("雜耍師", "ジャグラー", "Juggler"), icon: "🤹", kind: "ranged", hp: [12, 14], pat: [[{ k: "atk", n: 2, h: 3, tgt: "rand" }], [{ k: "blk", n: 5 }, { k: "swap" }]], cyc: "loop" },
+    { id: "teddy", size: "s", name: N("玩具熊", "テディベア", "Teddy Bear"), icon: "🧸", kind: "melee", spawn: "near", hp: [7, 9], pat: [[{ k: "atk", n: 2, h: 2 }]], cyc: "loop" },
+    { id: "doll", size: "l", split: { id: "teddy", n: 2 }, name: N("巨大娃娃", "巨大人形", "Giant Doll"), icon: "🪆", kind: "melee", hp: [24, 28], pat: [[{ k: "atk", n: 7 }], [{ k: "blk", n: 6 }, { k: "curse", card: "t_daze", n: 1 }]], cyc: "loop" },
+    { id: "knifer", name: N("飛刀手", "ナイフ投げ", "Knife Thrower"), icon: "🗡️", kind: "ranged", hp: [13, 16], pat: [[{ k: "atk", n: 6 }], [{ k: "atk", n: 2, h: 3 }]], cyc: "rand" },
+    { id: "tiger", name: N("火圈老虎", "火の輪の虎", "Ring-of-Fire Tiger"), icon: "🐯", kind: "melee", spawn: "near", hp: [19, 23], pat: [[{ k: "atk", n: 8 }], [{ k: "buff", str: 2 }], [{ k: "atk", n: 4, h: 2 }]], cyc: "rand" },
+    { id: "ringmaster", name: N("馬戲團長", "団長", "Ringmaster"), icon: "🎪", kind: "ranged", elite: true, hp: [44, 50], pat: [[{ k: "buff", str: 2, all: true }], [{ k: "swap", all: true }, { k: "blk", n: 8 }], [{ k: "atk", n: 9, tgt: "rand" }], [{ k: "summon", id: "teddy", n: 1 }, { k: "atk", n: 5 }]], cyc: "loop" },
+    { id: "magician", name: N("假面魔術師", "仮面の奇術師", "Masked Illusionist"), icon: "🎩", kind: "boss", boss: true, hp: [85, 85],
+      pat: [[{ k: "summon", id: "juggler", n: 2 }], [{ k: "atk", n: 8, tgt: "all" }], [{ k: "swap", all: true }, { k: "blk", n: 14 }], [{ k: "atk", n: 16, tgt: "rand" }]], cyc: "loop",
+      phase: { at: 0.5, str: 1, summon: { id: "clown", n: 1 }, pat: [[{ k: "atk", n: 4, h: 2, tgt: "all" }], [{ k: "swap", all: true }, { k: "atk", n: 18, tgt: "low" }], [{ k: "blk", n: 12 }, { k: "curse", card: "t_daze", n: 1, tgt: "all" }]], cyc: "loop" } },
+    { id: "elephant", grow: 1, name: N("巨象", "巨象", "Circus Elephant"), icon: "🐘", kind: "boss", boss: true, hp: [100, 100],
+      pat: [[{ k: "atk", n: 7, tgt: "all" }], [{ k: "blk", n: 12 }, { k: "buff", str: 1 }], [{ k: "atk", n: 18, tgt: "low" }], [{ k: "summon", id: "tiger", n: 1 }]], cyc: "loop" },
+
+    // 第一幕・無人島：偷牌 steal（從抽牌堆拿走牌，這場戰鬥拿不回來）
+    { id: "crab", thorns: 1, name: N("寄居蟹", "ヤドカリ", "Hermit Crab"), icon: "🦀", kind: "melee", hp: [16, 19], pat: [[{ k: "blk", n: 8 }, { k: "atk", n: 3 }], [{ k: "atk", n: 6 }]], cyc: "loop" },
+    { id: "monkey", size: "s", name: N("小偷猴", "盗み猿", "Thief Monkey"), icon: "🐒", kind: "ranged", spawn: "near", hp: [9, 11], pat: [[{ k: "steal", n: 1 }, { k: "atk", n: 3 }], [{ k: "atk", n: 4 }]], cyc: "rand" },
+    { id: "goat", name: N("暴躁山羊", "暴れ山羊", "Angry Goat"), icon: "🐐", kind: "melee", spawn: "near", hp: [18, 21], pat: [[{ k: "atk", n: 9 }], [{ k: "buff", str: 1 }, { k: "atk", n: 4 }]], cyc: "loop" },
+    { id: "seasnake", name: N("海蛇", "海蛇", "Sea Snake"), icon: "🐍", kind: "ranged", hp: [13, 15], pat: [[{ k: "atk", n: 3 }, { k: "debuff", s: "poison", n: 3 }], [{ k: "atk", n: 6 }]], cyc: "loop" },
+    { id: "boar", name: N("野豬", "猪", "Wild Boar"), icon: "🐗", kind: "melee", hp: [20, 24], pat: [[{ k: "atk", n: 7 }], [{ k: "atk", n: 3, h: 2 }]], cyc: "rand" },
+    { id: "shark", name: N("鯊魚人", "サメ男", "Shark Man"), icon: "🦈", kind: "melee", elite: true, hp: [46, 52], pat: [[{ k: "atk", n: 13 }], [{ k: "atk", n: 5, h: 2, drain: true }], [{ k: "blk", n: 8 }, { k: "buff", str: 2 }]], cyc: "loop" },
+    { id: "kraken", name: N("巨大章魚", "大ダコ", "Kraken"), icon: "🐙", kind: "boss", boss: true, hp: [95, 95],
+      pat: [[{ k: "atk", n: 2, h: 3, tgt: "all" }], [{ k: "steal", n: 2, tgt: "all" }, { k: "blk", n: 10 }], [{ k: "buff", str: 1 }, { k: "blk", n: 8 }], [{ k: "atk", n: 17, tgt: "low" }]], cyc: "loop" },
+    { id: "apeking", minion: "monkey", name: N("猴王", "猿の王", "Monkey King"), icon: "🦍", kind: "boss", boss: true, hp: [90, 90],
+      pat: [[{ k: "summon", id: "monkey", n: 2 }], [{ k: "atk", n: 8, tgt: "all" }], [{ k: "steal", n: 1, tgt: "all" }, { k: "atk", n: 6, tgt: "rand" }], [{ k: "atk", n: 15, tgt: "low" }]], cyc: "loop",
+      phase: { at: 0.5, str: 2, pat: [[{ k: "atk", n: 5, h: 2, tgt: "all" }], [{ k: "summon", id: "monkey", n: 2 }, { k: "blk", n: 10 }], [{ k: "atk", n: 20, tgt: "rand" }]], cyc: "loop" } },
+
+    // 第二幕・百鬼祭典：爆炸 burst（倒下時對所在區域的英雄造成傷害）
+    { id: "lantern", size: "s", burst: 4, name: N("提燈妖", "提灯お化け", "Lantern Ghost"), icon: "🏮", kind: "ranged", hp: [14, 17], pat: [[{ k: "atk", n: 5 }], [{ k: "atk", n: 3 }, { k: "debuff", s: "burn", n: 2 }]], cyc: "loop" },
+    { id: "masker", name: N("面具舞者", "面の舞い手", "Masked Dancer"), icon: "🎭", kind: "ranged", hp: [22, 26], pat: [[{ k: "atk", n: 4, h: 2 }], [{ k: "debuff", s: "vuln", n: 2 }, { k: "atk", n: 4 }]], cyc: "rand" },
+    { id: "drummer", name: N("太鼓手", "太鼓打ち", "Taiko Drummer"), icon: "🥁", kind: "ranged", hp: [24, 28], pat: [[{ k: "buff", str: 2, all: true }], [{ k: "atk", n: 7 }], [{ k: "atk", n: 7 }]], cyc: "loop" },
+    { id: "firework", size: "s", burst: 6, name: N("煙火精靈", "花火の精", "Firework Sprite"), icon: "🎆", kind: "melee", spawn: "near", hp: [10, 12], pat: [[{ k: "atk", n: 4 }]], cyc: "loop" },
+    { id: "sakeoni", name: N("醉鬼", "酔いどれ鬼", "Drunken Oni"), icon: "🍶", kind: "melee", hp: [30, 34], pat: [[{ k: "atk", n: 10 }], [{ k: "heal", n: 8 }, { k: "blk", n: 6 }], [{ k: "atk", n: 5, h: 2 }]], cyc: "rand" },
+    { id: "shishi", thorns: 2, name: N("獅子舞", "獅子舞", "Lion Dancer"), icon: "🦁", kind: "melee", elite: true, hp: [70, 78], pat: [[{ k: "atk", n: 14 }], [{ k: "atk", n: 5, h: 3 }], [{ k: "buff", str: 2 }, { k: "blk", n: 10 }], [{ k: "summon", id: "firework", n: 1 }]], cyc: "loop" },
+    { id: "kyubi", minion: "masker", name: N("九尾狐", "九尾の狐", "Nine-Tailed Fox"), icon: "🦊", kind: "boss", boss: true, hp: [155, 155],
+      pat: [[{ k: "debuff", s: "burn", n: 3, tgt: "all" }], [{ k: "atk", n: 5, h: 2, tgt: "all" }], [{ k: "summon", id: "lantern", n: 2 }], [{ k: "atk", n: 22, tgt: "rand" }]], cyc: "loop",
+      phase: { at: 0.5, str: 2, pat: [[{ k: "atk", n: 7, tgt: "all" }, { k: "debuff", s: "vuln", n: 2, tgt: "all" }], [{ k: "atk", n: 26, tgt: "rand" }], [{ k: "summon", id: "firework", n: 2 }, { k: "heal", n: 12 }]], cyc: "loop" } },
+    { id: "mikoshi", grow: 1, name: N("大神轎", "大神輿", "Great Mikoshi"), icon: "🏯", kind: "boss", boss: true, hp: [150, 150],
+      pat: [[{ k: "atk", n: 9, tgt: "all" }], [{ k: "blk", n: 16 }, { k: "buff", str: 1 }], [{ k: "atk", n: 6, h: 3, tgt: "low" }], [{ k: "summon", id: "drummer", n: 1 }, { k: "summon", id: "firework", n: 1 }]], cyc: "loop" },
+
+    // 第二幕・航空母艦：空襲 pierce（攻擊無視護盾）
+    { id: "deckhand", name: N("甲板水兵", "甲板員", "Deckhand"), icon: "⚓", kind: "melee", hp: [26, 30], pat: [[{ k: "atk", n: 9 }], [{ k: "blk", n: 8 }, { k: "atk", n: 4 }]], cyc: "loop" },
+    { id: "gunslinger", name: N("左輪射手", "ガンマン", "Gunslinger"), icon: "🤠", kind: "ranged", hp: [22, 26], pat: [[{ k: "atk", n: 3, h: 3 }], [{ k: "atk", n: 8 }]], cyc: "rand" },
+    { id: "drone", size: "s", name: N("偵察機", "偵察機", "Scout Plane"), icon: "🛩️", kind: "ranged", hp: [12, 14], pat: [[{ k: "atk", n: 4, pierce: true }]], cyc: "loop" },
+    { id: "bomber", name: N("轟炸機", "爆撃機", "Bomber"), icon: "✈️", kind: "ranged", hp: [24, 28], pat: [[{ k: "atk", n: 3, tgt: "all", pierce: true }], [{ k: "blk", n: 6 }], [{ k: "atk", n: 7 }]], cyc: "loop" },
+    { id: "mechanic", name: N("整備兵", "整備兵", "Deck Mechanic"), icon: "🔧", kind: "ranged", hp: [22, 26], pat: [[{ k: "heal", n: 7, all: true }], [{ k: "blk", n: 6, all: true }], [{ k: "atk", n: 6 }]], cyc: "loop" },
+    { id: "commander", name: N("飛行隊長", "飛行隊長", "Squadron Leader"), icon: "🎖️", kind: "ranged", elite: true, hp: [66, 72], pat: [[{ k: "summon", id: "drone", n: 1 }], [{ k: "atk", n: 10, tgt: "rand", pierce: true }], [{ k: "buff", str: 2, all: true }, { k: "blk", n: 10 }]], cyc: "loop" },
+    { id: "admiral", minion: "deckhand", name: N("鋼鐵提督", "鋼鉄の提督", "Iron Admiral"), icon: "🪖", kind: "boss", boss: true, hp: [160, 160],
+      pat: [[{ k: "summon", id: "drone", n: 2 }], [{ k: "atk", n: 9, tgt: "all" }], [{ k: "atk", n: 14, tgt: "rand", pierce: true }], [{ k: "blk", n: 20 }, { k: "buff", str: 2 }]], cyc: "loop" },
+    { id: "flagship", ward: true, minion: "drone", name: N("母艦核心", "母艦コア", "Carrier Core"), icon: "🛳️", kind: "boss", boss: true, hp: [150, 150],
+      pat: [[{ k: "summon", id: "drone", n: 2 }], [{ k: "atk", n: 4, h: 2, tgt: "all", pierce: true }], [{ k: "blk", n: 15 }], [{ k: "atk", n: 24, tgt: "rand" }]], cyc: "loop",
+      phase: { at: 0.5, blk: 15, summon: { id: "bomber", n: 2 }, pat: [[{ k: "atk", n: 6, tgt: "all", pierce: true }], [{ k: "atk", n: 26, tgt: "rand" }], [{ k: "summon", id: "drone", n: 2 }, { k: "heal", n: 12 }]], cyc: "loop" } },
+
+    // 第三幕・羅馬競技場：喝采 rally（有同伴倒下時力量 +n）
+    { id: "gladiator", rally: 1, name: N("角鬥士", "剣闘士", "Gladiator"), icon: "🛡️", kind: "melee", hp: [38, 42], pat: [[{ k: "atk", n: 12 }], [{ k: "blk", n: 10 }, { k: "atk", n: 5 }]], cyc: "loop" },
+    { id: "boxer", rally: 1, name: N("拳擊師父", "拳闘の師範", "Pugilist"), icon: "🥊", kind: "melee", spawn: "near", hp: [34, 38], pat: [[{ k: "atk", n: 4, h: 3 }], [{ k: "buff", str: 2 }, { k: "blk", n: 6 }], [{ k: "atk", n: 10 }]], cyc: "rand" },
+    { id: "retiarius", name: N("網鬥士", "網闘士", "Net Fighter"), icon: "🔱", kind: "ranged", hp: [30, 34], pat: [[{ k: "debuff", s: "weak", n: 2 }, { k: "atk", n: 6 }], [{ k: "atk", n: 10 }]], cyc: "rand" },
+    { id: "charioteer", rally: 1, name: N("戰車手", "戦車乗り", "Charioteer"), icon: "🏇", kind: "melee", hp: [36, 40], pat: [[{ k: "atk", n: 12 }], [{ k: "atk", n: 6, h: 2 }], [{ k: "blk", n: 8 }]], cyc: "loop" },
+    { id: "tomato", size: "s", name: N("狂熱觀眾", "熱狂する観客", "Rowdy Spectator"), icon: "🍅", kind: "ranged", hp: [22, 26], pat: [[{ k: "curse", card: "t_daze", n: 1 }, { k: "atk", n: 5 }], [{ k: "atk", n: 9 }]], cyc: "rand" },
+    { id: "champion", thorns: 2, rally: 2, name: N("冠軍角鬥士", "王者の剣闘士", "Champion"), icon: "🏆", kind: "melee", elite: true, hp: [100, 108], pat: [[{ k: "atk", n: 22 }], [{ k: "atk", n: 7, h: 3 }], [{ k: "buff", str: 3 }, { k: "blk", n: 14 }]], cyc: "loop" },
+    { id: "emperor", ward: true, minion: "tomato", name: N("暴君皇帝", "暴君帝", "Tyrant Emperor"), icon: "🫅", kind: "boss", boss: true, hp: [180, 180],
+      pat: [[{ k: "summon", id: "gladiator", n: 1 }], [{ k: "atk", n: 12, tgt: "all" }], [{ k: "shatter", tgt: "all" }, { k: "atk", n: 10, tgt: "all" }], [{ k: "buff", str: 2, all: true }, { k: "blk", n: 15 }], [{ k: "atk", n: 32, tgt: "rand" }]], cyc: "loop" },
+    { id: "minotaur", name: N("牛頭人", "ミノタウロス", "Minotaur"), icon: "🐂", kind: "boss", boss: true, hp: [190, 190],
+      pat: [[{ k: "atk", n: 12, tgt: "all" }], [{ k: "atk", n: 7, h: 3, tgt: "low" }], [{ k: "blk", n: 18 }, { k: "buff", str: 2 }], [{ k: "summon", id: "boxer", n: 1 }, { k: "atk", n: 28, tgt: "rand" }]], cyc: "loop",
+      phase: { at: 0.4, str: 2, pat: [[{ k: "shatter", tgt: "all" }, { k: "atk", n: 10, tgt: "all" }], [{ k: "atk", n: 6, h: 4, tgt: "low" }], [{ k: "blk", n: 12 }, { k: "atk", n: 30, tgt: "rand" }]], cyc: "loop" } }
   ];
 
   // ---------------- 遺物（2026-10-22 使用者指定：遺物、金幣、商店一同實作） ----------------
@@ -855,17 +922,35 @@
 
   // ---------------- 遭遇 ----------------
   // 一般戰鬥：每個扇形區各抽一組 pack；菁英：放進隨機一區，其他區抽 pack；Boss：bosses 中幕開始時抽一位（st.boss），站隨機一區的外圈＋每區一隻小兵
+  // 2026-10-24 使用者指定：每一幕從同難度（tier）的區域隨機抽一個（core 的 rollRegion）；ACTS 是原本的三幕（也是 tier 0～2 的預設區域）
   var ACTS = [
-    { name: N("第一幕・亡者墓地", "第一幕・亡者の墓地", "Act I — Graveyard"),
+    { id: "grave", tier: 0, name: N("第一幕・亡者墓地", "第一幕・亡者の墓地", "Act I — Graveyard"),
       packs: [["skel"], ["skel", "archer"], ["ghoul"], ["bats", "archer"], ["slime"], ["cultist"], ["skel", "bats"], ["bigslime"], ["vampire", "bats"], ["vampire"]],
       elites: ["knight", "witch"], bosses: ["giant", "bonedragon", "lich"], minion: "skel" },
-    { name: N("第二幕・熔岩地獄", "第二幕・溶岩地獄", "Act II — Inferno"),
+    { id: "inferno", tier: 1, name: N("第二幕・熔岩地獄", "第二幕・溶岩地獄", "Act II — Inferno"),
       packs: [["imp", "hound"], ["guard"], ["succubus", "imp"], ["salamander"], ["hound", "hound"], ["guard", "imp"], ["lavaslime"], ["priestess", "guard"], ["priestess", "hound"]],
       elites: ["brute", "warlock"], bosses: ["lord", "colossus", "queen"], minion: "imp" },
-    { name: N("第三幕・審判之庭", "第三幕・審判の庭", "Act III — Court of Judgement"),
+    { id: "court", tier: 2, name: N("第三幕・審判之庭", "第三幕・審判の庭", "Act III — Court of Judgement"),
       packs: [["lineman", "hooligan"], ["shade", "hooligan"], ["golem"], ["shade", "lineman"], ["golem", "lineman"], ["heckler", "enforcer"], ["enforcer", "lineman"], ["heckler", "hooligan"]],
       elites: ["var", "captain"], bosses: ["referee", "whistler", "scales"], minion: "hooligan" }
   ];
+  var REGIONS = ACTS.concat([
+    { id: "circus", tier: 0, name: N("第一幕・夜之馬戲團", "第一幕・夜のサーカス", "Act I — Night Circus"),
+      packs: [["clown"], ["clown", "juggler"], ["doll"], ["knifer", "teddy"], ["tiger"], ["juggler", "knifer"], ["clown", "teddy"], ["tiger", "juggler"]],
+      elites: ["ringmaster"], bosses: ["magician", "elephant"], minion: "clown" },
+    { id: "island", tier: 0, name: N("第一幕・無人島", "第一幕・無人島", "Act I — Castaway Isle"),
+      packs: [["crab"], ["crab", "monkey"], ["goat"], ["seasnake", "monkey"], ["boar"], ["goat", "seasnake"], ["boar", "monkey"], ["seasnake", "crab"]],
+      elites: ["shark"], bosses: ["kraken", "apeking"], minion: "crab" },
+    { id: "festival", tier: 1, name: N("第二幕・百鬼祭典", "第二幕・百鬼の祭り", "Act II — Night Festival"),
+      packs: [["lantern", "masker"], ["drummer", "firework"], ["sakeoni"], ["masker", "firework"], ["lantern", "lantern"], ["sakeoni", "lantern"], ["drummer", "masker"]],
+      elites: ["shishi"], bosses: ["kyubi", "mikoshi"], minion: "lantern" },
+    { id: "carrier", tier: 1, name: N("第二幕・航空母艦", "第二幕・航空母艦", "Act II — Aircraft Carrier"),
+      packs: [["deckhand"], ["gunslinger", "drone"], ["bomber"], ["deckhand", "mechanic"], ["drone", "drone"], ["gunslinger", "mechanic"], ["deckhand", "drone"]],
+      elites: ["commander"], bosses: ["admiral", "flagship"], minion: "deckhand" },
+    { id: "colosseum", tier: 2, name: N("第三幕・羅馬競技場", "第三幕・ローマの闘技場", "Act III — Colosseum"),
+      packs: [["gladiator", "tomato"], ["boxer", "retiarius"], ["charioteer"], ["gladiator", "boxer"], ["retiarius", "tomato"], ["charioteer", "tomato"], ["boxer", "tomato"]],
+      elites: ["champion"], bosses: ["emperor", "minotaur"], minion: "tomato" }
+  ]);
 
   // 每幕的樓層（2026-10-22 使用者指定，仿 Hellcard）：前三層是一般戰鬥、第四層是 Boss，一局 3 幕 × 4 層＝12 層、3 場 Boss 戰。
   // 一般層開戰前，每位英雄各自從兩個「目的地」選一個：所選的目的地決定自己扇形區的敵人（foe），打贏後各自領目的地的獎勵。
@@ -1256,7 +1341,7 @@
     CARDS: CARDS, CARD: index(CARDS),
     ENEMIES: ENEMIES, ENEMY: index(ENEMIES),
     RELICS: RELICS, RELIC: index(RELICS), ALTAR_HP: ALTAR_HP,
-    ACTS: ACTS, FLOORS: FLOORS, DESTS: DESTS, DEST: index(DESTS), FOE_HP: FOE_HP,
+    ACTS: ACTS, REGIONS: REGIONS, REGION: index(REGIONS), FLOORS: FLOORS, DESTS: DESTS, DEST: index(DESTS), FOE_HP: FOE_HP,
     MAX_PERK: MAX_PERK, SHRINE_PCT: SHRINE_PCT, ALTARS: ALTARS, ALTAR: index(ALTARS), ALTAR_NUM: ALTAR_NUM,
     TMODS: TMODS, TMOD: index(TMODS), LEVEL_XP: LEVEL_XP, STARTERS: STARTERS, MAX_FLUX: 10,
     // 敵人判定圓的半徑（戰場座標：圓形戰場直徑 100）；size 沒寫時菁英＝l、Boss＝boss、其他＝m

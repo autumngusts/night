@@ -616,11 +616,13 @@ for (var g = 0; g < games; g++) {
   assert(fin.phase === "win", "一般模式：第三幕首領打完就通關");
   // 第四幕的敵人來自第一幕的敵人池，而且比第一幕強
   var e4 = Core.create({ seed: 98, seats: [{ cls: "paladin" }, null, null, null], endless: true });
-  e4.act = 3; e4.floor = 0;
+  e4.act = 3; e4.floor = 0; e4.regs[3] = "grave";
   goFloor(e4);
   var e1 = Core.create({ seed: 98, seats: [{ cls: "paladin" }, null, null, null] });
+  e1.regs[0] = "grave";
   goFloor(e1);
-  assert(Core.actDef(e4) === D.ACTS[0] && Core.loopOf(e4) === 1, "第四幕輪回第一幕的敵人池");
+  // 舊期望「actDef(e4) === D.ACTS[0]」：2026-10-24 起每幕從同難度的區域抽，第四幕抽的是 tier 0 的區域
+  assert(Core.actDef(e4).tier === 0 && Core.loopOf(e4) === 1, "第四幕輪回第一幕（tier 0）的區域");
   assert(e4.enemies[0].max > e1.enemies[0].max, "第四幕的敵人比第一幕強：" + e1.enemies[0].max + "→" + e4.enemies[0].max);
 
   // ---- 2026-10-23 第三批：新敵人機制、每幕多位首領、催化（鍊金術師）、頌歌（吟遊詩人） ----
@@ -726,11 +728,14 @@ for (var g = 0; g < games; g++) {
   assert(Core.reagentNeed(cah) === D.CLASS.alchemist.extra.reagent - 1, "催化劑：做藥需要的張數 −1");
 
   // 每幕有 3 位首領：幕開始時抽好（st.boss），首領戰出現的就是牠
-  D.ACTS.forEach(function (a) { assert(a.bosses.length === 3 && a.bosses.every(function (b) { return D.ENEMY[b] && D.ENEMY[b].boss; }), "每幕 3 位首領"); });
-  var seen = {};
+  // （2026-10-24 新區域是精簡版，每區 2 位首領；原本三幕仍是 3 位）
+  D.REGIONS.forEach(function (a) { assert(a.bosses.length === (D.ACTS.indexOf(a) >= 0 ? 3 : 2) && a.bosses.every(function (b) { return D.ENEMY[b] && D.ENEMY[b].boss; }), "首領數：" + a.id); });
+  var seen = {}, seenRg = {};
   for (var bs = 0; bs < 30; bs++) {
     var bst = Core.create({ seed: 300 + bs, seats: [{ cls: "paladin" }, null, null, null] });
-    assert(D.ACTS[0].bosses.indexOf(bst.boss) >= 0, "第一幕的首領在名單內");
+    assert(Core.actDef(bst).tier === 0 && Core.actDef(bst).bosses.indexOf(bst.boss) >= 0, "第一幕的首領在抽到的區域名單內");
+    seenRg[bst.regs[0]] = 1;
+    if (Core.actDef(bst).id !== "grave") continue;
     seen[bst.boss] = 1;
     if (bs === 0) {
       bst.floor = 3; bst.heroes[0].dests = ["boss"]; bst.heroes[0].dest = null;
@@ -738,7 +743,46 @@ for (var g = 0; g < games; g++) {
       assert(bst.enemies.some(function (e) { return e.id === bst.boss; }), "首領戰出現的是 st.boss");
     }
   }
-  assert(Object.keys(seen).length === 3, "30 局內三位首領都出現過：" + Object.keys(seen));
+  assert(Object.keys(seen).length === 3, "墓地的三位首領都出現過：" + Object.keys(seen));
+  assert(Object.keys(seenRg).length === 3, "30 局內第一幕的三個區域都抽到過：" + Object.keys(seenRg));
+
+  // ---- 2026-10-24 新區域：每幕隨機區域、戲法、偷牌、爆炸、喝采、空襲 ----
+  D.REGIONS.forEach(function (r) {
+    [].concat.apply([], r.packs).concat(r.elites, r.bosses, [r.minion]).forEach(function (id) { assert(D.ENEMY[id], r.id + " 的敵人不存在：" + id); });
+  });
+  // 進下一幕時重抽該幕的區域（tier 對應幕數）
+  var rgs = Core.create({ seed: 401, seats: [{ cls: "paladin" }, null, null, null] });
+  rgs.floor = D.FLOORS.length - 1; rgs.act = 0;
+  Core.nextFloor(rgs);
+  assert(rgs.act === 1 && D.REGION[rgs.regs[1]].tier === 1 && Core.actDef(rgs).bosses.indexOf(rgs.boss) >= 0, "第二幕抽 tier 1 的區域與首領");
+  var rx = duo("paladin", 402), rxh = rx.h;
+  rxh.blk = 0;
+  // 戲法：換到另一位英雄的區域、內外圈對調
+  var cl = foesAt(rx.st, [{ id: "clown", hp: 500, ring: "near", intent: [{ k: "swap" }] }])[0];
+  var sec0 = cl.sec;
+  endRound(rx.st);
+  assert(cl.sec !== sec0 && cl.ring === "far", "戲法：換區且內圈→外圈，實際 sec " + sec0 + "→" + cl.sec + " " + cl.ring);
+  // 偷牌：抽牌堆少 n 張、進消耗堆
+  var mk = foesAt(rx.st, [{ id: "monkey", hp: 500, intent: [{ k: "steal", n: 2 }] }])[0];
+  var tot0 = rxh.draw.length + rxh.disc.length + rxh.hand.length, ex0 = rxh.exh.length;
+  endRound(rx.st);
+  assert(rxh.exh.length === ex0 + 2 && rxh.draw.length + rxh.disc.length + rxh.hand.length === tot0 - 2, "偷牌：拿走 2 張到消耗堆");
+  // 空襲：無視護盾
+  var dr = foesAt(rx.st, [{ id: "drone", hp: 500, intent: [{ k: "atk", n: 6, pierce: true }] }])[0];
+  rxh.blk = 50; rxh.hp = rxh.max;
+  var pv = Core.enemyHitValue(rx.st, dr, 6, rxh.seat);
+  endRound(rx.st);
+  assert(rxh.hp === rxh.max - pv, "空襲：護盾 50 也擋不住 " + pv + "，實際生命 " + rxh.hp + "/" + rxh.max);
+  // 爆炸：倒下時打所在區域的英雄（護盾可擋），其他區域的英雄不受影響
+  var fw = foesAt(rx.st, [{ id: "firework", hp: 1, intent: [] }, { id: "skel", hp: 500, intent: [] }])[0];
+  rxh.blk = 0; rxh.hp = rxh.max; rx.st.heroes[1].blk = 0; var hp1 = rx.st.heroes[1].hp;
+  var bv = Core.enemyHitValue(rx.st, fw, D.ENEMY.firework.burst, rxh.seat);
+  playCard(rx.st, 0, "pal_strike", { e: fw.u });
+  assert(rxh.hp === rxh.max - bv && rx.st.heroes[1].hp === hp1, "爆炸：只有所在區域的英雄受到 " + bv + " 傷害，實際 " + rxh.hp + "/" + rxh.max + "、隊友 " + rx.st.heroes[1].hp + "/" + hp1);
+  // 喝采：其他敵人倒下時力量 +rally
+  var gl = foesAt(rx.st, [{ id: "gladiator", hp: 500, intent: [] }, { id: "skel", hp: 1, intent: [] }]);
+  playCard(rx.st, 0, "pal_strike", { e: gl[1].u });
+  assert(gl[0].str === D.ENEMY.gladiator.rally, "喝采：同伴倒下力量 +" + D.ENEMY.gladiator.rally + "，實際 " + gl[0].str);
 
   // ---- 2026-10-24 新英雄（忍者、劍豪、陰陽師、海賊、舞孃、咒術師；docs/yellow_new_heroes.md） ----
   // 期望值盡量從資料讀（被動數值、彈藥上限）；敵人傷害用 Core.enemyHitValue 算（會乘上幕數倍率）

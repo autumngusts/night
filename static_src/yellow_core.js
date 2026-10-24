@@ -229,7 +229,18 @@
   function tor(st, k) { return (st.torment || 0) >= k; }
   // 無盡模式：第三幕之後的第幾輪（0＝還在前三幕）；敵人池依序輪流用三幕的
   function loopOf(st) { return Math.max(0, st.act - (D.ACTS.length - 1)); }
-  function actDef(st) { return D.ACTS[st.act % D.ACTS.length]; }
+  // 2026-10-24 使用者指定：每一幕從同難度（tier）的區域隨機抽一個，抽到的記在 st.regs[幕]；舊存檔沒有就用原本的三幕
+  function actDef(st) { return regionOf(st, st.act); }
+  function regionOf(st, act) {
+    var r = st.regs && D.REGION[st.regs[act]];
+    return r && r.tier === act % D.ACTS.length ? r : D.ACTS[act % D.ACTS.length];
+  }
+  function rollRegion(st) {
+    st.regs = st.regs || [];
+    var cur = D.REGION[st.regs[st.act]];
+    if (cur && cur.tier === st.act % D.ACTS.length) return;
+    st.regs[st.act] = pick(st, D.REGIONS.filter(function (r) { return r.tier === st.act % D.ACTS.length; })).id;
+  }
   function extraHp(st) { return (1 + D.ENDLESS.hp * loopOf(st)) * (tor(st, 1) ? 1.1 : 1) * (1 + tmodVal(st, "hp") / 100); }
   // 目前生效的苦痛修正（無盡模式）加總：n × pw
   function tmodVal(st, id) {
@@ -510,7 +521,19 @@
     var dead = st.enemies.filter(function (e) { return e.hp <= 0; });
     st.enemies = st.enemies.filter(function (e) { return e.hp > 0; });
     dead.forEach(function (e) {
-      var sp = D.ENEMY[e.id] && D.ENEMY[e.id].split;
+      var dd = D.ENEMY[e.id];
+      // 爆炸（祭典）：倒下時對所在區域的英雄造成 burst 傷害（護盾可擋；只打一人，人數多時才不會疊加）
+      var bh = dd && dd.burst && st.phase === "battle" ? laneTarget(st, e) : null;
+      if (bh) {
+        log(st, { t: "burst", to: eref(e), n: dd.burst });
+        hitHero(st, bh, enemyHitValue(st, e, dd.burst, bh.seat), false);
+      }
+      // 喝采（羅馬競技場）：有同伴倒下時，帶 rally 的敵人力量 +rally
+      if (st.phase === "battle") st.enemies.forEach(function (x) {
+        var rl = D.ENEMY[x.id] && D.ENEMY[x.id].rally;
+        if (rl && x.hp > 0) { x.str += rl; log(st, { t: "rally", to: eref(x), n: rl, src: eref(e) }); }
+      });
+      var sp = dd && dd.split;
       if (!sp || st.phase !== "battle") return;
       for (var i = 0; i < sp.n; i++) {
         var m = spawnEnemy(st, sp.id, e.sec, e.ring, hpMultFor(st));
@@ -766,7 +789,8 @@
             h.dodge -= 1;
             log(st, { t: "dodge", to: href(h), src: eref(e) });
           } else {
-            var lost = hitHero(st, h, hv, false, e);
+            // 空襲（航空母艦）：pierce 的攻擊無視護盾
+            var lost = hitHero(st, h, hv, !!act.pierce, e);
             // 吸血攻擊：打掉多少生命就回復多少
             if (act.drain && lost > 0 && e.hp > 0) { var v = Math.min(lost, e.max - e.hp); if (v > 0) { e.hp += v; log(st, { t: "heal", to: eref(e), n: v, src: eref(e) }); } }
           }
@@ -833,10 +857,34 @@
         var h = hero(st, seat);
         if (h && !h.down && h.blk > 0) { log(st, { t: "shatter", to: href(h), n: h.blk, src: eref(e) }); h.blk = 0; }
       });
+    } else if (act.k === "swap") {
+      // 戲法（馬戲團）：瞬間移到另一位英雄的扇形區，內外圈對調（首領只換區）；all＝全體敵人一起換
+      (act.all ? st.enemies : [e]).forEach(function (x) { if (x.hp > 0) swapEnemy(st, x); });
+    } else if (act.k === "steal") {
+      // 偷牌（無人島）：從目標英雄的抽牌堆隨機拿走 n 張，這場戰鬥都拿不回來（戰鬥結束後牌組不受影響）
+      actTargets(st, e, act).forEach(function (seat) {
+        var h = hero(st, seat);
+        if (!h || h.down) return;
+        var got = 0;
+        for (var i = 0; i < act.n; i++) {
+          var pile = h.draw.length ? h.draw : h.disc;
+          if (!pile.length) break;
+          h.exh.push(pile.splice(rint(st, pile.length), 1)[0]);
+          got++;
+        }
+        if (got) log(st, { t: "steal", to: href(h), n: got, src: eref(e) });
+      });
     } else if (act.k === "purge") {
       // 淨化：清掉自己（all＝全體敵人）的中毒、燃燒、虛弱、易傷
       (act.all ? st.enemies : [e]).forEach(function (x) { if (x.hp > 0) { NEG_STATUS.forEach(function (k) { x.st[k] = 0; }); log(st, { t: "purge", to: eref(x), src: eref(e) }); } });
     }
+  }
+
+  function swapEnemy(st, x) {
+    var n = sectorCount(st);
+    if (n > 1) x.sec = (x.sec + 1 + rint(st, n - 1)) % n;
+    if (!isBoss(x)) x.ring = x.ring === "near" ? "far" : "near";
+    log(st, { t: "swap", to: eref(x), z: x.ring, sec: x.sec });
   }
 
   function decay(obj) {
@@ -1020,6 +1068,7 @@
     var boss = D.FLOORS[st.floor] === "boss";
     st.phase = "map";
     // 每一幕的首領在幕開始時抽好（地圖上看得到）；2026-10-23 使用者指定每幕有多位首領
+    if (st.floor === 0) rollRegion(st);
     if (st.floor === 0 || !st.boss || actDef(st).bosses.indexOf(st.boss) < 0) st.boss = pick(st, actDef(st).bosses);
     // 倒下的英雄不用選（自己的區域照一般敵人）
     heroes(st).forEach(function (h) {
@@ -1042,7 +1091,7 @@
   // 全員選好目的地：開戰（Boss 層全員選「Boss」）
   function startFloor(st) {
     var boss = D.FLOORS[st.floor] === "boss";
-    log(st, { t: "floor", act: st.act, floor: st.floor });
+    log(st, { t: "floor", act: st.act, floor: st.floor, rg: actDef(st).id });
     startBattle(st, boss ? "boss" : "battle");
   }
 
@@ -1054,7 +1103,8 @@
       st.act += 1;
       st.floor = 0;
       heroes(st).forEach(function (h) { h.down = false; h.hp = h.max; });
-      log(st, { t: "act", act: st.act });
+      rollRegion(st);
+      log(st, { t: "act", act: st.act, rg: st.regs[st.act] });
     }
     enterFloor(st);
   }
@@ -1562,7 +1612,7 @@
     polar: polar, secSpan: secSpan, secStart: secStart, enemyHitValue: enemyHitValue, heroHitValue: heroHitValue,
     heroes: heroes, alive: alive, hero: hero, enemy: enemy, controllers: controllers,
     sectorCount: sectorCount, secOf: secOf, secOwner: secOwner, relicSum: relicSum,
-    restPct: restPct, loopOf: loopOf, actDef: actDef, tmodVal: tmodVal, unlocked: unlocked, bloodCost: bloodCost,
+    restPct: restPct, loopOf: loopOf, actDef: actDef, regionOf: regionOf, nextFloor: nextFloor, tmodVal: tmodVal, unlocked: unlocked, bloodCost: bloodCost,
     warded: warded, potionCount: potionCount, reagentNeed: reagentNeed, aimsAt: aimsAt, ammoCap: ammoCap, GEN: GEN,
     _rnd: rnd
   };

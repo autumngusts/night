@@ -85,8 +85,9 @@
   // 連線時這個操作者在不在（AI 永遠在）；本機一律在
   function isOnline(ctrl) { return mode !== "net" || !room || room.isOnline(ctrl); }
   // 幕名：無盡模式第四幕起寫「第 N 幕・（輪到的那一幕）」
-  function actName(act) {
-    var def = D.ACTS[act % D.ACTS.length];
+  function actName(act, rg) {
+    var st = game();
+    var def = (rg && D.REGION[rg]) || (st ? Core.regionOf(st, act) : D.ACTS[act % D.ACTS.length]);
     return (act >= D.ACTS.length ? t("yc_act_endless", { n: act + 1 }) + " · " : "") + L(def.name);
   }
 
@@ -763,7 +764,7 @@
       case "atk":
         var seats = Core.actTargets(st, e, a);
         var v = seats.length === 1 ? Core.enemyHitValue(st, e, a.n, seats[0]) : Core.enemyHitValue(st, e, a.n, -1);
-        return (a.drain ? "🩸" : "⚔") + v + ((a.h || 1) > 1 ? "×" + a.h : "") + (a.drain && !short ? t("yc_int_drain") : "") + tg();
+        return (a.drain ? "🩸" : a.pierce ? "✈" : "⚔") + v + ((a.h || 1) > 1 ? "×" + a.h : "") + (a.drain && !short ? t("yc_int_drain") : "") + (a.pierce && !short ? t("yc_int_pierce") : "") + tg();
       case "blk": return "🛡" + a.n + (a.all ? t("yc_int_allies") : "");
       case "buff": return "💪+" + a.str + (a.all ? t("yc_int_allies") : "");
       case "heal": return "💚" + a.n + (a.all ? t("yc_int_allies") : "");
@@ -775,6 +776,8 @@
       case "stun": return "💫" + (short ? "" : t("yc_int_stun"));
       case "shatter": return "💔" + (short ? "" : t("yc_int_shatter")) + tg();
       case "purge": return "✨" + (short ? "" : t("yc_int_purge")) + (a.all ? t("yc_int_allies") : "");
+      case "swap": return "🎩" + (short ? "" : t("yc_int_swap")) + (a.all ? t("yc_int_allies") : "");
+      case "steal": return "🐒" + a.n + (short ? "" : t("yc_int_steal")) + tg();
       case "charm": return "💗⚔" + Core.enemyHitValue(st, e, a.n, -1) + ((a.h || 1) > 1 ? "×" + a.h : "") + (short ? "" : t("yc_int_charm"));
     }
     return a.k;
@@ -790,6 +793,8 @@
     if (d.ward) out.push({ icon: "🔰", on: Core.warded(st, e), title: t(Core.warded(st, e) ? "yc_mech_ward_on" : "yc_mech_ward_off") });
     if (d.grow) out.push({ icon: "📈", title: t("yc_mech_grow", { n: d.grow }) });
     if (d.split) out.push({ icon: "🧬", title: t("yc_mech_split", { n: d.split.n, name: enemyName(d.split.id) }) });
+    if (d.burst) out.push({ icon: "💥", title: t("yc_mech_burst", { n: d.burst }) });
+    if (d.rally) out.push({ icon: "📣", title: t("yc_mech_rally", { n: d.rally }) });
     if (d.phase) out.push({ icon: e.ph ? "🔥" : "🌗", on: !!e.ph, title: t(e.ph ? "yc_mech_phase_on" : "yc_mech_phase", { n: Math.round(d.phase.at * 100) }) });
     return out;
   }
@@ -852,7 +857,9 @@
   var ENEMY_ART = {
     skel: 1, archer: 1, ghoul: 1, bats: 1, cultist: 1, slime: 1, bigslime: 1, slimelet: 1, vampire: 1, knight: 1, witch: 1, giant: 1, bonedragon: 1, lich: 1,
     imp: 1, hound: 1, guard: 1, succubus: 1, salamander: 1, lavaslime: 1, spark: 1, priestess: 1, brute: 1, warlock: 1, lord: 1, colossus: 1, queen: 1,
-    lineman: 1, hooligan: 1, shade: 1, golem: 1, heckler: 1, enforcer: 1, var: 1, captain: 1, referee: 1, whistler: 1, scales: 1
+    lineman: 1, hooligan: 1, shade: 1, golem: 1, heckler: 1, enforcer: 1, var: 1, captain: 1, referee: 1, whistler: 1, scales: 1,
+    // 2026-10-24 新區域（其餘新敵人還沒有圖，用 emoji）
+    doll: 1, teddy: 1, goat: 1, gunslinger: 1, gladiator: 1, boxer: 1
   };
   function enemyIcon(id, cls) {
     if (ENEMY_ART[id]) return el("img", { class: cls + " yc-enemy-img", src: ENEMY_IMG + id + ".png", alt: "", draggable: "false" });
@@ -1068,7 +1075,7 @@
     board.appendChild(signalBar(st));
     if (ui.legend) board.appendChild(legendPanel());
     else if (!ui.replay) { var tc = tutCard(); if (tc) board.appendChild(tc); }
-    return el("div", { class: "yc-arena-wrap" }, [board, focusPanel(st, links, incoming)]);
+    return el("div", { class: "yc-arena-wrap yc-rg-" + Core.actDef(st).id }, [board, focusPanel(st, links, incoming)]);
   }
 
   // ---------------- 手牌區（扇形） ----------------
@@ -1461,6 +1468,10 @@
       case "dmg": return t(e.b ? "yc_log_dmg_blk" : "yc_log_dmg", { to: to, n: e.n, b: e.b });
       case "st": return t("yc_log_st", { to: to, n: e.n, s: stName(e.s) });
       case "move": return t("yc_log_move", { to: to, z: t("yc_zone_" + e.z) });
+      case "swap": return t("yc_log_swap", { to: to, z: t("yc_zone_" + e.z), a: heroLabel(st, st.secs ? st.secs[e.sec] : 0) });
+      case "steal": return t("yc_log_steal", { to: to, n: e.n });
+      case "burst": return t("yc_log_burst", { to: to, n: e.n });
+      case "rally": return t("yc_log_rally", { to: to, n: e.n });
       case "curse": return t("yc_log_curse", { to: to, n: e.n, c: L(D.CARD[e.c].name) });
       case "red": return t("yc_log_red", { to: to, n: D.RED_CARD_DMG });
       case "pow": return t("yc_log_pow", { to: to, p: t("yc_pow_" + e.p, { n: e.n }) });
@@ -1473,7 +1484,7 @@
       case "form": return t("yc_log_form", { to: to, f: t("yc_form_" + e.f) });
       case "brew": return t("yc_log_brew", { to: to, c: L(D.CARD[e.c].name), a: heroLabel(st, e.s) });
       case "later": return t("yc_log_later", { to: to, c: D.CARD[e.c] ? L(D.CARD[e.c].name) : "" });
-      case "act": return t("yc_log_act", { act: actName(e.act) });
+      case "act": return t("yc_log_act", { act: actName(e.act, e.rg) });
       case "shift": return t("yc_log_shift", { to: to, a: heroLabel(st, st.secs[e.sec]) });
       case "thorns": return t("yc_log_thorns", { to: to, a: heroLabel(st, e.s), n: e.n });
       case "handFull": return t("yc_log_handFull", { to: to, n: D.HAND_MAX });
@@ -1709,6 +1720,7 @@
       case "str": if (x) x.str = (x.str || 0) + e.n; break;
       case "st": if (x) x.st[e.s] = (x.st[e.s] || 0) + e.n; break;
       case "move": if (x) x.ring = e.z; break;
+      case "swap": if (x) { x.ring = e.z; x.sec = e.sec; } break;
       case "shift": if (x) x.sec = e.sec; break;
       case "kill": st.enemies = st.enemies.filter(function (q) { return q.u !== e.to.u; }); break;
       case "down": if (x) { x.down = true; x.hp = 0; x.blk = 0; } break;
@@ -1722,7 +1734,7 @@
   // 每一步的長度：移動、攻擊比較久，其他短一點
   function stepTime(e) {
     if (e.t === "enemyTurn") return 900;
-    if (e.t === "move" || e.t === "shift") return 560;
+    if (e.t === "move" || e.t === "shift" || e.t === "swap") return 560;
     if (e.t === "dmg") return e.src ? 700 : (e.n || e.b ? 420 : 0);
     if (e.t === "kill") return 480;
     if (e.t === "st" || e.t === "curse" || e.t === "yellow") return e.src ? 560 : 120;
@@ -2184,9 +2196,10 @@
         ["💢 🚫 ☝️", t("yc_legend_vow")]]),
       sec("yc_legend_sec_intent", [["⚔", t("yc_legend_atk")], ["🩸", t("yc_int_drain") + " " + t("yc_legend_drain")], ["🛡", t("yc_legend_eblk")], ["💪+", t("yc_legend_buff")],
         ["💚", t("yc_legend_heal")], ["🃏", t("yc_legend_curse")], ["🟨", t("yc_legend_yellow", { n: D.RED_CARD_DMG })], ["➕", t("yc_legend_summon")],
-        ["⇣ ⇡", t("yc_legend_move")], ["💔", t("yc_int_shatter")], ["✨", t("yc_int_purge")], ["💫", t("yc_legend_stun")]]),
+        ["⇣ ⇡", t("yc_legend_move")], ["💔", t("yc_int_shatter")], ["✨", t("yc_int_purge")], ["💫", t("yc_legend_stun")],
+        ["✈", t("yc_legend_pierce")], ["🎩", t("yc_legend_swap")], ["🐒", t("yc_legend_steal")]]),
       sec("yc_legend_sec_mech", [["🌵", t("yc_thorns_desc", { n: "N" })], ["🔰", t("yc_mech_ward_on")], ["📈", t("yc_mech_grow", { n: "N" })],
-        ["🧬", t("yc_legend_split")], ["🌗", t("yc_mech_phase", { n: 50 })]])
+        ["🧬", t("yc_legend_split")], ["🌗", t("yc_mech_phase", { n: 50 })], ["💥", t("yc_mech_burst", { n: "N" })], ["📣", t("yc_mech_rally", { n: "N" })]])
     ];
   }
   function legendPanel() {

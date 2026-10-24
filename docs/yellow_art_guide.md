@@ -125,7 +125,7 @@ cropped feet, extra limbs, multiple characters, busy background, floor, scenery
 | 類別 | 位置 | 程式 |
 | --- | --- | --- |
 | 選角大圖、戰場小人 | `static_src/images/yellow/heroes/` | `static_src/yellow.js` 的 `HERO_ART`（`dirs`＝有哪些方向、`portrait`＝有沒有大圖） |
-| 敵人 | `static_src/images/yellow/enemies/<id>.png` | `static_src/yellow.js` 的 `ENEMY_ART`（列出有圖的敵人 id）；有圖的敵人在戰場棋子與資訊面板顯示圖片，沒有圖的照舊用 emoji。2026-10-24 起遊戲裡的 38 種敵人全部有圖（一般與菁英 128、首領 256）。資料夾裡另有 6 張尚未加進遊戲的敵人圖：角鬥士 `gladiator`、暴躁山羊 `goat`、拳擊師父 `boxer`、左輪射手 `gunslinger`、巨大娃娃 `doll`、玩具熊 `teddy` |
+| 敵人 | `static_src/images/yellow/enemies/<id>.png` | `static_src/yellow.js` 的 `ENEMY_ART`（列出有圖的敵人 id）；有圖的敵人在戰場棋子與資訊面板顯示圖片，沒有圖的照舊用 emoji。2026-10-24 起遊戲裡的 38 種敵人全部有圖（一般與菁英 128、首領 256）。之前保留的 6 張（`gladiator`、`goat`、`boxer`、`gunslinger`、`doll`、`teddy`）2026-10-24 已用在新區域。新區域其餘還沒有圖的敵人 id：馬戲團 `clown` `juggler` `knifer` `tiger` `ringmaster` `magician` `elephant`；無人島 `crab` `monkey` `seasnake` `boar` `shark` `kraken` `apeking`；祭典 `lantern` `masker` `drummer` `firework` `sakeoni` `shishi` `kyubi` `mikoshi`；航空母艦 `deckhand` `drone` `bomber` `mechanic` `commander` `admiral` `flagship`；競技場 `retiarius` `charioteer` `tomato` `champion` `emperor` `minotaur`（首領 256，其他 128） |
 | 卡面、圖示 | 建議 `static_src/images/yellow/cards/`、`icons/` | 尚未接上：地區用 emoji、卡面用職業圖示 |
 
 新增敵人圖時要在 `ENEMY_ART` 加上那個 id。使用者給的圖若是多隻拼成一張（2×2、4×4 都有，依連通塊重心分格，同一格裡分開的小塊例如蝙蝠群要一起留下）、背景帶半透明光暈，切圖時把不透明度低於約 140 的像素當成背景清掉（背景本來就乾淨透明的圖，門檻放低到約 40，火焰與光芒的柔邊才會留下），只留每格最大的主體，再縮到上表尺寸。

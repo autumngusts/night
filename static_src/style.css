@@ -12450,6 +12450,12 @@ body.ut-has-player {
 
 /* 戰場：圓形，英雄在中心，依人數切成扇形區（SVG 背景），敵人以 % 座標絕對定位在內／外圈 */
 .yc-arena-wrap { background: var(--yc-arena); border-radius: 14px; padding: 8px; }
+/* 2026-10-24 區域的戰場底色（原本三幕維持 --yc-arena） */
+.yc-arena-wrap.yc-rg-circus { --yc-arena: #2c1a2e; }
+.yc-arena-wrap.yc-rg-island { --yc-arena: #13302f; }
+.yc-arena-wrap.yc-rg-festival { --yc-arena: #331a16; }
+.yc-arena-wrap.yc-rg-carrier { --yc-arena: #1c2733; }
+.yc-arena-wrap.yc-rg-colosseum { --yc-arena: #34291a; }
 .yc-arena { position: relative; width: min(100%, 46rem, max(20rem, calc(100svh - 27rem))); aspect-ratio: 1; margin: 0 auto; }
 .yc-arena-bg { position: absolute; inset: 0; width: 100%; height: 100%; }
 .yc-arena-ring { fill: none; stroke: var(--yc-arena-line); stroke-width: 0.25; }

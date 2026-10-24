@@ -24,18 +24,19 @@
         if (a.k !== "atk") return;
         Core.actTargets(st, e, a).forEach(function (s) {
           var v = Core.enemyHitValue(st, e, a.n, s);
-          for (var i = 0; i < (a.h || 1); i++) (hits[s] = hits[s] || []).push(v);
+          // 空襲（pierce）無視護盾：用負數記，下面分開算
+          for (var i = 0; i < (a.h || 1); i++) (hits[s] = hits[s] || []).push(a.pierce ? -v : v);
         });
       });
     });
     var tot = 0, count = {};
     Core.alive(st).forEach(function (h) {
-      var list = (hits[h.seat] || []).map(function (v) { v = Math.max(0, v - (h.kek || 0)); return h.half ? Math.floor(v / 2) : v; });
+      var list = (hits[h.seat] || []).map(function (v) { var p = v < 0; v = Math.max(0, Math.abs(v) - (h.kek || 0)); v = h.half ? Math.floor(v / 2) : v; return { v: v, p: p }; });
       count[h.seat] = list.length;
-      list.sort(function (a, b) { return b - a; });
-      var sum = 0;
-      list.slice(h.dodge || 0).forEach(function (v) { sum += v; });
-      tot += Math.max(0, sum - h.blk);
+      list.sort(function (a, b) { return b.v - a.v; });
+      var sum = 0, pierce = 0;
+      list.slice(h.dodge || 0).forEach(function (x) { if (x.p) pierce += x.v; else sum += x.v; });
+      tot += Math.max(0, sum - h.blk) + pierce;
     });
     return { tot: tot, count: count };
   }
