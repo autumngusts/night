@@ -1,0 +1,201 @@
+// DÉJÀ VU：產生擴充固定山路 static_src/dejavu_courses.js（2026-10-26 第六批，10 → 102 條）
+//   node tools/dejavu_check/gen_courses.js
+// 每條路依「路線性格」（PROFILES）用零件（D.PIECES）接出來，盡量不重疊；亂數 seed 由 id 決定，所以重跑結果一樣。
+// 只有名稱是真實地名，路段形狀是風格化的生成結果，不是實際測量。產生後的檔案可以直接手動微調。
+"use strict";
+
+global.window = global;
+require("../../static_src/dejavu_data.js");
+require("../../static_src/dejavu_core.js");
+var D = global.PriTestDejavuData;
+var Core = global.PriTestDejavuCore;
+var fs = require("fs");
+var path = require("path");
+
+// 路線性格：零件權重＋坡度變化
+var PROFILES = {
+  hairpin: { hairpin: 3, double_hairpin: 1.5, hairpin_wide: 1.5, straight_s: 3, medium: 1.5, tight: 2, gutter_hairpin: 0.8, fishhook: 1, triple_hairpin: 0.4, kink: 1 },
+  switchback: { switchback: 0.8, hairpin: 3, double_hairpin: 2, triple_hairpin: 0.8, straight_s: 3, kink: 1, tight: 1 },
+  fast: { straight_l: 3, sweep: 3, long_sweep: 2, kink: 3, cliff_run: 1, straight_s: 2, medium: 1, carousel: 0.4 },
+  technical: { medium: 3, tight: 3, s_curve: 2, chicane: 1, esses: 1, decreasing: 1, increasing: 1, double_apex: 1, straight_s: 3, hairpin: 1 },
+  narrow: { snake: 2, esses: 2, tight: 3, medium: 2, s_curve: 2, straight_s: 2, hairpin: 1, kink: 1 },
+  mixed: { straight_s: 4, straight_l: 2, sweep: 3, medium: 3, tight: 3, hairpin: 2, s_curve: 2, double_hairpin: 1, kink: 2, long_sweep: 1, hairpin_wide: 1,
+    chicane: 1, decreasing: 1, increasing: 1, esses: 1, crest: 1, dive: 0.8, fishhook: 0.8, double_apex: 0.8, snake: 0.6 },
+  coastal: { sweep: 3, medium: 3, kink: 2, straight_l: 1.5, straight_s: 2, cliff_run: 1.5, tight: 1, bridge: 0.5, tunnel: 0.4, s_curve: 1 },
+  tunnel: { tunnel: 1.5, tunnel_curve: 1.5, medium: 2, straight_s: 2, sweep: 2, tight: 1.5, hairpin: 1, bridge: 0.8 },
+  rally: { gravel: 1.5, gravel_corner: 1.5, crest: 1.5, dip: 1, tight: 2, medium: 2, straight_s: 2, hairpin: 1, dive: 1 },
+  highland: { long_sweep: 2, sweep: 3, carousel: 1, crest: 1, straight_l: 2, kink: 2, hairpin: 1, dive: 0.5, medium: 1 },
+  cliff: { cliff_run: 2, tunnel: 1, tunnel_curve: 1, bridge: 1, medium: 2, tight: 2, hairpin: 1.5, straight_s: 2 }
+};
+var PROFILE_IDS = Object.keys(PROFILES);
+
+function C(zh, ja, en) { return [zh, ja, en]; }
+// [id, 名稱, 分類, 性格, 路寬, 坡度, 長度 km, { scene, water }?]
+var LIST = [
+  // ---- 日本峠 ----
+  ["irohazaka", C("伊呂波坂", "いろは坂", "Irohazaka"), "touge", "hairpin", 7, 8, 3.6],
+  ["tsubaki", C("椿線", "椿ライン", "Tsubaki Line"), "touge", "technical", 6.5, 8, 4.2],
+  ["nagao", C("長尾峠", "長尾峠", "Nagao Pass"), "touge", "narrow", 5.5, 7, 3.2],
+  ["hakonetp", C("箱根收費道", "箱根ターンパイク", "Hakone Turnpike"), "touge", "fast", 8.5, 9, 5.2],
+  ["ashinokosl", C("蘆之湖天際線", "芦ノ湖スカイライン", "Ashinoko Skyline"), "touge", "highland", 7, 5, 4.6, { scene: "lake", water: 1 }],
+  ["izusl", C("伊豆天際線", "伊豆スカイライン", "Izu Skyline"), "touge", "fast", 7.5, 6, 5.5],
+  ["kirifuri", C("日光霧降高原", "日光霧降高原", "Nikko Kirifuri"), "touge", "mixed", 6.5, 8, 4],
+  ["momiji", C("紅葉線", "もみじライン", "Momiji Line"), "touge", "technical", 6.5, 7, 3.8],
+  ["sadamine", C("定峰峠", "定峰峠", "Sadamine Pass"), "touge", "narrow", 5.5, 7, 3],
+  ["shomaru", C("正丸峠", "正丸峠", "Shomaru Pass"), "touge", "hairpin", 5.5, 8, 2.8],
+  ["happogahara", C("八方原", "八方ヶ原", "Happogahara"), "touge", "hairpin", 6.5, 9, 3.4],
+  ["tsukuba", C("筑波山", "筑波山", "Mt. Tsukuba"), "touge", "technical", 6, 7, 3.2],
+  ["yabitsu", C("矢櫃峠", "ヤビツ峠", "Yabitsu Pass"), "touge", "narrow", 5, 8, 3.6],
+  ["okutama", C("奧多摩周遊道路", "奥多摩周遊道路", "Okutama Shuyu"), "touge", "mixed", 7, 6, 5],
+  ["rokko", C("六甲山", "六甲山", "Mt. Rokko"), "touge", "hairpin", 6.5, 9, 3.6],
+  ["shigakusatsu", C("志賀草津高原", "志賀草津高原ルート", "Shiga-Kusatsu"), "touge", "highland", 7, 7, 5.6],
+  ["bandai", C("磐梯吾妻天際線", "磐梯吾妻スカイライン", "Bandai-Azuma Skyline"), "touge", "highland", 7, 6, 5],
+  ["venus", C("維納斯線", "ビーナスライン", "Venus Line"), "touge", "fast", 7.5, 4, 5.4],
+  ["fujiazami", C("富士薊線", "ふじあざみライン", "Fuji Azami Line"), "touge", "switchback", 6, 12, 3.4],
+  ["ibuki", C("伊吹山兜風道", "伊吹山ドライブウェイ", "Ibuki Driveway"), "touge", "mixed", 7, 7, 4.4],
+  ["aso", C("阿蘇牛奶路", "阿蘇ミルクロード", "Aso Milk Road"), "touge", "fast", 8, 4, 5],
+  ["ebino", C("蝦野高原", "えびの高原", "Ebino Highland"), "touge", "mixed", 6.5, 7, 4],
+  ["tsuetsuki", C("杖突峠", "杖突峠", "Tsuetsuki Pass"), "touge", "technical", 6.5, 8, 3.6],
+  ["mikuni", C("三國峠", "三国峠", "Mikuni Pass"), "touge", "hairpin", 6.5, 8, 3.8],
+  ["shiobara", C("鹽原", "塩原", "Shiobara"), "touge", "technical", 6.5, 6, 3.6],
+  ["ikoma", C("生駒山", "生駒山", "Mt. Ikoma"), "touge", "narrow", 6, 8, 3],
+  ["wada", C("和田峠", "和田峠", "Wada Pass"), "touge", "switchback", 5, 11, 2.8],
+  ["odarumi", C("大垂水峠", "大垂水峠", "Odarumi Pass"), "touge", "mixed", 7, 6, 3.6],
+  ["echizen", C("越前海岸", "越前海岸", "Echizen Coast"), "touge", "coastal", 7, 3, 4.6, { scene: "sea", water: -1 }],
+  ["oga", C("男鹿半島", "男鹿半島", "Oga Peninsula"), "touge", "coastal", 6.5, 4, 4.2, { scene: "sea", water: 1 }],
+  // ---- 台灣山路 ----
+  ["yangjin", C("陽金公路", "陽金公路（陽明山）", "Yangjin Hwy (Yangmingshan)"), "tw", "technical", 6.5, 7, 4.2],
+  ["beiyi", C("北宜公路九彎十八拐", "北宜公路・九彎十八拐", "Beiyi Hwy 'Nine Bends'"), "tw", "narrow", 6.5, 6, 5],
+  ["hehuan", C("合歡山武嶺", "合歓山・武嶺", "Hehuanshan Wuling"), "tw", "switchback", 6, 9, 4.6],
+  ["taroko", C("太魯閣中橫", "タロコ・中横公路", "Taroko Central Cross-Island"), "tw", "cliff", 6, 6, 5.4],
+  ["beiheng", C("北橫公路", "北横公路", "Northern Cross-Island Hwy"), "tw", "narrow", 6, 6, 5],
+  ["nanheng", C("南橫公路", "南横公路", "Southern Cross-Island Hwy"), "tw", "mixed", 6, 7, 5.8],
+  ["alishan", C("阿里山公路", "阿里山公路", "Alishan Hwy"), "tw", "hairpin", 6.5, 8, 4.8],
+  ["sunmoon", C("日月潭環湖", "日月潭湖畔道路", "Sun Moon Lake Loop"), "tw", "coastal", 7, 3, 4.2, { scene: "lake", water: 1 }],
+  ["xitou", C("溪頭", "渓頭", "Xitou"), "tw", "technical", 6, 7, 3.4],
+  ["dasyueshan", C("大雪山林道", "大雪山林道", "Dasyueshan Forest Rd"), "tw", "rally", 5.5, 8, 4],
+  ["suhua", C("蘇花公路", "蘇花公路", "Suhua Hwy"), "tw", "cliff", 6.5, 3, 5.6, { scene: "sea", water: -1 }],
+  ["tw11", C("台11線東海岸", "台11線・東海岸", "East Coast Hwy 11"), "tw", "coastal", 8, 2, 5.6, { scene: "sea", water: 1 }],
+  ["fengguizui", C("風櫃嘴", "風櫃嘴", "Fengguizui"), "tw", "narrow", 5.5, 8, 3.2],
+  ["buyanting", C("102 縣道不厭亭", "102県道・不厭亭", "Route 102 Buyanting"), "tw", "technical", 6, 7, 3.8],
+  ["wuzhishan", C("五指山", "五指山", "Wuzhishan"), "tw", "hairpin", 5.5, 8, 3.4],
+  ["lalashan", C("拉拉山", "拉拉山", "Lalashan"), "tw", "narrow", 5.5, 7, 4.4],
+  ["qingjing", C("清境", "清境", "Cingjing"), "tw", "highland", 6.5, 7, 4.4],
+  ["kenting", C("墾丁濱海", "墾丁海岸道路", "Kenting Coast"), "tw", "coastal", 7.5, 2, 4.4, { scene: "sea", water: -1 }],
+  ["taipingshan", C("太平山", "太平山", "Taipingshan"), "tw", "switchback", 5.5, 9, 4],
+  ["guguan", C("谷關", "谷関", "Guguan"), "tw", "tunnel", 6.5, 6, 4.2],
+  // ---- 世界名道 ----
+  ["stelvio", C("斯泰爾維奧山口", "ステルヴィオ峠", "Stelvio Pass"), "world", "switchback", 6, 8, 5],
+  ["transfagarasan", C("特蘭斯法加拉什", "トランスファガラシャン", "Transfăgărășan"), "world", "hairpin", 6.5, 7, 5.6],
+  ["grossglockner", C("大格洛克納高山公路", "グロースグロックナー", "Grossglockner"), "world", "highland", 7, 8, 5.4],
+  ["furka", C("富卡山口", "フルカ峠", "Furka Pass"), "world", "cliff", 6, 8, 4.6],
+  ["tremola", C("聖哥達特雷莫拉", "ゴッタルド・トレモラ", "Gotthard Tremola"), "world", "switchback", 5.5, 8, 4],
+  ["turini", C("圖里尼山口", "チュリニ峠", "Col de Turini"), "world", "hairpin", 5.5, 8, 4.2],
+  ["corniche", C("蔚藍海岸濱海路", "コルニッシュ", "Grande Corniche"), "world", "coastal", 7, 4, 4.4, { scene: "sea", water: -1 }],
+  ["amalfi", C("阿瑪菲海岸", "アマルフィ海岸", "Amalfi Coast"), "world", "narrow", 5.5, 3, 4.6, { scene: "sea", water: -1 }],
+  ["trollstigen", C("精靈之路", "トロルスティーゲン", "Trollstigen"), "world", "switchback", 5.5, 9, 3.6],
+  ["atlantic", C("大西洋海濱路", "アトランティック・ロード", "Atlantic Road"), "world", "coastal", 7, 2, 4.2, { scene: "sea", water: 1 }],
+  ["pikes", C("派克峰", "パイクスピーク", "Pikes Peak"), "world", "hairpin", 7, 7, 6],
+  ["dragon", C("巨龍之尾", "テール・オブ・ザ・ドラゴン", "Tail of the Dragon"), "world", "narrow", 6, 5, 5],
+  ["angeles", C("安吉利斯冠線", "エンジェルス・クレスト", "Angeles Crest"), "world", "fast", 7.5, 6, 6],
+  ["mulholland", C("穆赫蘭道", "マルホランド・ドライブ", "Mulholland Drive"), "world", "technical", 6.5, 5, 4.2],
+  ["bigsur", C("大索爾一號公路", "ビッグサー・ハイウェイ1", "Big Sur Hwy 1"), "world", "coastal", 7, 3, 5.6, { scene: "sea", water: -1 }],
+  ["milliondollar", C("百萬美元公路", "ミリオンダラー・ハイウェイ", "Million Dollar Hwy"), "world", "cliff", 6, 7, 5],
+  ["beartooth", C("熊牙公路", "ベアトゥース・ハイウェイ", "Beartooth Hwy"), "world", "switchback", 6.5, 7, 5.2],
+  ["sani", C("薩尼山口", "サニ峠", "Sani Pass"), "world", "rally", 5.5, 9, 4],
+  ["chapmans", C("查普曼峰", "チャップマンズ・ピーク", "Chapman's Peak"), "world", "coastal", 6.5, 4, 4, { scene: "sea", water: -1 }],
+  ["guoliang", C("郭亮掛壁公路", "郭亮村の絶壁トンネル", "Guoliang Tunnel"), "world", "tunnel", 5.5, 7, 3.6],
+  ["tianmen", C("天門山通天大道", "天門山・通天大道", "Tianmen 99 Bends"), "world", "switchback", 6, 9, 5],
+  ["panorama", C("全景山", "マウント・パノラマ", "Mount Panorama"), "world", "fast", 8, 6, 4.4],
+  ["yungas", C("永加斯死亡公路", "ユンガスの道", "Yungas Road"), "world", "rally", 5, 8, 5],
+  ["jebelhafeet", C("哈菲特山", "ジェベル・ハフィート", "Jebel Hafeet"), "world", "fast", 9, 7, 5.2],
+  ["corse", C("科西嘉山路", "コルシカ山岳路", "Corsica D81"), "world", "narrow", 5.5, 5, 5, { scene: "sea", water: 1 }],
+  ["greatocean", C("大洋路", "グレート・オーシャン・ロード", "Great Ocean Road"), "world", "coastal", 7.5, 2, 5.8, { scene: "sea", water: -1 }],
+  // ---- MF Ghost 風格（風格化，不是實際路線） ----
+  ["nagaogt", C("箱根長尾 GT", "箱根長尾GT", "Hakone Nagao GT"), "mfg", "mixed", 8, 8, 5],
+  ["amagigt", C("伊豆天城 GT", "伊豆天城GT", "Izu Amagi GT"), "mfg", "hairpin", 7.5, 7, 5.2],
+  ["fujigt", C("富士吉田 GT", "富士吉田GT", "Fujiyoshida GT"), "mfg", "fast", 9, 6, 6],
+  ["atamitoge", C("熱海峠 GT", "熱海峠GT", "Atami Pass GT"), "mfg", "technical", 7.5, 8, 4.8],
+  ["yugawara", C("湯河原 GT", "湯河原GT", "Yugawara GT"), "mfg", "coastal", 8, 5, 5.2, { scene: "sea", water: -1 }],
+  ["izunokuni", C("伊豆之國湖岸 GT", "伊豆の国レイクサイドGT", "Izunokuni Lakeside GT"), "mfg", "highland", 8.5, 5, 5.6, { scene: "lake", water: 1 }],
+  // ---- 原創 ----
+  ["kirimine", C("霧峰", "霧峰", "Kirimine"), "orig", "mixed", 6.5, 8, 4.4],
+  ["kitsunebi", C("狐火峠", "狐火峠", "Kitsunebi Pass"), "orig", "hairpin", 6, 9, 3.8],
+  ["raimei", C("雷鳴坂", "雷鳴坂", "Raimei Slope"), "orig", "fast", 8, 10, 4.6],
+  ["ryuseki", C("龍脊", "龍の背", "Dragon's Spine"), "orig", "narrow", 5.5, 8, 4.6],
+  ["hakuro", C("白狼林道", "白狼林道", "White Wolf Forest Rd"), "orig", "rally", 6, 8, 4.2],
+  ["gekko", C("月光谷", "月光谷", "Moonlight Valley"), "orig", "tunnel", 6.5, 7, 4.4],
+  ["kikoku", C("鬼哭峠", "鬼哭峠", "Kikoku Pass"), "orig", "switchback", 5.5, 10, 4],
+  ["hoshifuri", C("星降坂", "星降る坂", "Starfall Slope"), "orig", "highland", 7, 7, 5],
+  ["tengu", C("天狗之鼻", "天狗の鼻", "Tengu's Nose"), "orig", "cliff", 6, 8, 4.4],
+  ["aosagi", C("蒼鷺湖", "蒼鷺湖", "Grey Heron Lake"), "orig", "coastal", 7, 4, 4.6, { scene: "lake", water: -1 }]
+];
+
+function hash(str) { var h = 2166136261; for (var i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 16777619); } return h | 0; }
+
+function pick(r, w) {
+  var ids = Object.keys(w), tot = 0, i;
+  for (i = 0; i < ids.length; i++) tot += w[ids[i]];
+  var x = r() * tot;
+  for (i = 0; i < ids.length; i++) { x -= w[ids[i]]; if (x < 0) return ids[i]; }
+  return ids[0];
+}
+
+function cross(course) { return Core.trackInfo(Core.buildTrack(course, { seed: 1, season: "summer", rain: false })); }
+
+function generate(def) {
+  var w = PROFILES[def[3]];
+  for (var attempt = 0; attempt < 12; attempt++) {
+    var r = Core.rng(hash(def[0]) + attempt * 7919);
+    var course = { w: def[4], g: def[5], segs: [{ t: "S", len: 150, g: null }] };
+    var target = def[6] * 1000, guard = 0, okRun = true;
+    while (Core.courseLen(course) < target && guard++ < 120) {
+      var best = null;
+      for (var tries = 0; tries < 8; tries++) {
+        var cand = Core.expandPiece(pick(r, w), r() < 0.5 ? 1 : -1, null);
+        var info = cross({ w: course.w, g: course.g, segs: course.segs.concat(cand) });
+        if (!best || info.cross < best.cross) best = { segs: cand, cross: info.cross };
+        if (info.cross === 0) break;
+      }
+      if (best.cross > 0) { okRun = false; break; }
+      course.segs = course.segs.concat(best.segs);
+    }
+    if (!okRun) continue;
+    var fin = cross(course);
+    if (fin.cross === 0 && fin.drop > 0) return course;
+  }
+  throw new Error("generate failed: " + def[0]);
+}
+
+function segOut(s) {
+  var a = s.t === "S" ? ["S", Math.round(s.len)] : ["C", Math.round(s.ang), Math.round(s.r)];
+  if (s.g !== null && s.g !== undefined || s.sf) a.push(s.g === undefined ? null : s.g);
+  if (s.sf) a.push(s.sf);
+  return a;
+}
+
+var out = [];
+var t0 = Date.now();
+LIST.forEach(function (def) {
+  var course = generate(def);
+  var o = { id: def[0], cat: def[2], prof: def[3], name: def[1], w: def[4], g: def[5] };
+  if (def[7]) { o.scene = def[7].scene; o.water = def[7].water; }
+  o.segs = course.segs.map(segOut);
+  out.push(o);
+  process.stdout.write(def[0] + " " + (Core.courseLen(course) / 1000).toFixed(2) + "km " + course.segs.length + "段\n");
+});
+
+var lines = out.map(function (o) {
+  var head = "    { id: " + JSON.stringify(o.id) + ", cat: " + JSON.stringify(o.cat) + ", prof: " + JSON.stringify(o.prof) +
+    ", name: C(" + o.name.map(function (x) { return JSON.stringify(x); }).join(", ") + "), w: " + o.w + ", g: " + o.g +
+    (o.scene ? ", scene: " + JSON.stringify(o.scene) + ", water: " + o.water : "") + ",\n      segs: " + JSON.stringify(o.segs) + " }";
+  return head;
+});
+var src = "// DÉJÀ VU 山道下坡（dejavu）：擴充固定山路（2026-10-26 第六批，10 → " + (10 + out.length) + " 條）。在 dejavu_data.js 之後、dejavu_core.js 之前載入。\n" +
+  "// 由 tools/dejavu_check/gen_courses.js 產生：依路線性格（prof）用零件接出來的風格化路線，只有名稱是真實地名，形狀不是實際測量。\n" +
+  "// 可以直接手改 segs（格式同 dejavu_data.js 的 COURSES）；重新執行產生工具會覆蓋這個檔案。\n" +
+  "(function () {\n  \"use strict\";\n\n  var root = typeof window !== \"undefined\" ? window : globalThis;\n  var D = root.PriTestDejavuData;\n  if (!D) return;\n" +
+  "  var C = D.C;\n\n  // 路線性格（車庫／山路畫面顯示用，說明文字在 i18n 的 dv_prof_*）\n  D.COURSE_PROFILES = " + JSON.stringify(PROFILE_IDS) + ";\n\n" +
+  "  [\n" + lines.join(",\n") + "\n  ].forEach(function (c) { D.COURSES.push(c); });\n})();\n";
+fs.writeFileSync(path.join(__dirname, "../../static_src/dejavu_courses.js"), src);
+console.log("寫入 " + out.length + " 條，耗時 " + ((Date.now() - t0) / 1000).toFixed(1) + " 秒");

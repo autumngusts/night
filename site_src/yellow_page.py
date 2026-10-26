@@ -36,4 +36,6 @@ def build_yellow_html() -> str:
         static_prefix="../static/",
         home_href="../index.html",
         extra_scripts=YELLOW_SCRIPTS,
+        extra_styles=("css/yellow.css",),
+        extra_i18n=("i18n/yellow.js",),
     )

@@ -44,4 +44,6 @@ def build_toushou_html() -> str:
         static_prefix="../static/",
         home_href="../index.html",
         extra_scripts=TOUSHOU_SCRIPTS,
+        extra_styles=("css/toushou.css",),
+        extra_i18n=("i18n/toushou.js",),
     )

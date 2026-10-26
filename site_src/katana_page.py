@@ -35,4 +35,6 @@ def build_katana_html() -> str:
         static_prefix="../static/",
         home_href="../index.html",
         extra_scripts=KATANA_SCRIPTS,
+        extra_styles=("css/katana.css",),
+        extra_i18n=("i18n/katana.js",),
     )

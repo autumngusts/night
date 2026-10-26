@@ -61,20 +61,26 @@
     return tr._cock;
   }
 
-  // o：{ pal, trees, water: 水的顏色或 null, patchColor }
+  // o：{ pal, trees, water: 水的顏色或 null, patchColor, decor?: 地區景物, snowWall?: 每個取樣點的雪牆高度（0＝沒有）, shoulder?: 路肩顏色,
+  //      cam?: 外部攝影機（轉播用）{ x, y, z, h, j: 所在路段取樣點, pitch: 俯角（弧度，往下看為正）, zoom: 焦距倍率, back: 往後畫幾公尺 }
+  //      有 cam 時不畫車內（引擎蓋、儀表板），被跟的車也畫成看板，路面依離鏡頭遠近排序後由遠到近畫（鏡頭可以朝任何方向） }
   function draw(ctx, W, H, race, car, o) {
     var Core = window.PriTestDejavuCore;
     var tr = race.track, ds = tr.ds, sp = tr.sp || [];
     var pc = prep(tr, race.seed);
+    var cam = o.cam || null, ext = !!cam;
     var pose = Core.carPose(race, car);
-    var i0 = clamp(Math.floor(car.s / ds), 0, tr.N - 2);
-    var ch = Math.cos(pose.h), sh = Math.sin(pose.h);
-    var camZ = tr.z[i0] + 1.15;
-    var slope = tr.sl[i0];
-    var F = W * 0.72, cx = W / 2, hy = H * 0.4;
+    var view = ext ? { x: cam.x, y: cam.y, h: cam.h } : pose;
+    var i0 = ext ? clamp(cam.j, 0, tr.N - 2) : clamp(Math.floor(car.s / ds), 0, tr.N - 2);
+    var ch = Math.cos(view.h), sh = Math.sin(view.h);
+    var camZ = ext ? cam.z : tr.z[i0] + 1.15;
+    var slope = ext ? 0 : tr.sl[i0];
+    var pitch = ext ? cam.pitch || 0 : 0, cp = Math.cos(pitch), spch = Math.sin(pitch);
+    var F = W * 0.72 * (ext ? cam.zoom || 1 : 1), cx = W / 2, hy = H * (ext ? 0.5 : 0.4);
     // 車速越快鏡頭越低一點、微微晃動
-    hy += Math.sin(race.t * 23) * Math.min(1.5, car.v * 0.04);
-    var hz = hy - slope * F;   // 無限遠（與鏡頭同高）的地平線
+    if (!ext) hy += Math.sin(race.t * 23) * Math.min(1.5, car.v * 0.04);
+    // 無限遠（與鏡頭同高）的地平線：車內＝順著坡度；外部鏡頭＝依俯角
+    var hz = ext ? hy - Math.tan(pitch) * F : hy - slope * F;
     var season = tr.season, pal = o.pal;
     var skyC = tr.rain ? SKY.rain : SKY[season];
     var fog = rgb(skyC[1]);
@@ -83,9 +89,10 @@
     // 投影：保留鏡頭座標（f 往前、l 往左、u 往上），多邊形在 CLIP 平面裁切後才換成螢幕座標
     function P(f, l, u) { return { f: f, l: l, u: u, x: cx - l / f * F, y: hy - u / f * F }; }
     function proj(x, y, z) {
-      var dx = x - pose.x, dy = y - pose.y;
-      var fw = dx * ch + dy * sh;
-      return P(fw, -dx * sh + dy * ch, z - camZ + fw * slope);
+      var dx = x - view.x, dy = y - view.y;
+      var fw = dx * ch + dy * sh, up = z - camZ + fw * slope;
+      if (pitch) return P(fw * cp - up * spch, -dx * sh + dy * ch, fw * spch + up * cp);
+      return P(fw, -dx * sh + dy * ch, up);
     }
     function cut(a, b) {
       var t = (CLIP - a.f) / (b.f - a.f);
@@ -135,7 +142,7 @@
     g.addColorStop(0, skyC[0]); g.addColorStop(1, skyC[1]);
     ctx.fillStyle = g; ctx.fillRect(0, 0, W, Math.max(0, hz) + 2);
     function azX(az) {
-      var d = Math.atan2(Math.sin(az - pose.h), Math.cos(az - pose.h));
+      var d = Math.atan2(Math.sin(az - view.h), Math.cos(az - view.h));
       if (Math.abs(d) > 1.3) return null;
       return cx - Math.tan(d) * F;
     }
@@ -167,7 +174,7 @@
       ctx.fillStyle = gg;
       ctx.beginPath(); ctx.moveTo(0, hz + 2);
       for (var px = 0; px <= W + 16; px += 16) {
-        var u = (pose.h + Math.atan((cx - px) / F)) * freq;
+        var u = (view.h + Math.atan((cx - px) / F)) * freq;
         var hgt = base + amp * (0.55 * Math.sin(u + ph) + 0.3 * Math.sin(u * 2.7 + ph * 2) + 0.15 * Math.sin(u * 6.1 + ph * 3));
         ctx.lineTo(px, hz - Math.max(0, hgt) * F);
       }
@@ -178,24 +185,33 @@
     // 地平線以下的底色（被遠方的霧蓋住的地面）
     ctx.fillStyle = tint(pal.ground, -0.05, fog, 0.6);
     ctx.fillRect(0, hz, W, H - hz);
-    if (sp[i0] === 3) { ctx.fillStyle = "#1c1c1d"; ctx.fillRect(0, 0, W, H); }
+    if (sp[i0] === 3 && (!ext || camZ < tr.z[i0] + 5)) { ctx.fillStyle = "#1c1c1d"; ctx.fillRect(0, 0, W, H); }
+
 
     // ---- 看板：依所在列分桶，畫完那一列的路面才畫 ----
     var jMax = Math.min(tr.N - 2, i0 + Math.round(VIEW / ds));
-    var nRows = jMax - i0 + 1;
+    // 看板的範圍：車內只看前方；外部鏡頭前後都畫
+    var sLo = ext ? Math.max(0, i0 - Math.round((cam.back || 160) / ds)) : i0;
+    var nRows = jMax - sLo + 1;
     var buckets = [];
     function addSprite(j, s) {
-      var k = j - i0;
+      var k = j - sLo;
       if (k < 0 || k >= nRows) return;
       (buckets[k] = buckets[k] || []).push(s);
     }
     o.trees.forEach(function (t) {
-      if (t.j === undefined || t.j < i0 || t.j > jMax) return;
+      if (t.j === undefined || t.j < sLo || t.j > jMax) return;
       var p = proj(t.x, t.y, tr.z[t.j] + terrainZ(t.j, t.o));
-      if (p.f > 2 && p.f < VIEW) addSprite(t.j, { f: p.f, kind: "tree", p: p, t: t });
+      if (p.f > (ext ? 8 : 2) && p.f < VIEW) addSprite(t.j, { f: p.f, kind: "tree", p: p, t: t });   // 外部鏡頭：太近的樹會擋住整個畫面
+    });
+    // 地區景物（台灣：路邊攤、機車、霓虹、民眾、大看板）
+    (o.decor || []).forEach(function (d) {
+      if (d.j < sLo || d.j > jMax) return;
+      var p = proj(d.x, d.y, tr.z[d.j] + terrainZ(d.j, d.off));
+      if (p.f > (ext ? 7 : NEAR) && p.f < VIEW) addSprite(d.j, { f: p.f, kind: "decor", p: p, d: d });   // 外部鏡頭：太近的景物會擋畫面
     });
     var sJ = Math.round(tr.start / ds), fJ = Math.round(tr.finish / ds);
-    for (var q = i0 + 1; q <= jMax; q++) {
+    for (var q = sLo + 1; q <= jMax; q++) {
       var code = sp[q];
       if (code === 3) continue;
       // 護欄柱：山谷側（橋上兩側）
@@ -225,17 +241,17 @@
     (race.items || []).forEach(function (it) {
       if (it.until !== undefined && race.t > it.until) return;
       var j = Math.floor(it.s / ds);
-      if (j < i0 || j > jMax) return;
-      if (it.kind === "boost" || it.kind === "oil") { (flat[j] = flat[j] || []).push(it); return; }
+      if (j < sLo || j > jMax) return;
+      if (it.kind === "boost" || it.kind === "oil" || it.kind === "mud" || it.kind === "ramp") { (flat[j] = flat[j] || []).push(it); return; }
       var p = edge(j, 0);
       if (p.f > NEAR && p.f < VIEW) addSprite(j, { f: p.f, kind: it.kind, p: p, j: j, it: it });
     });
     race.cars.forEach(function (c) {
-      if (c === car || c.state === "dnf" && c.v < 0.1 && Math.abs(c.s - car.s) > 300) return;
+      if (c === car && !ext || c.state === "dnf" && c.v < 0.1 && Math.abs(c.s - car.s) > 300) return;
       var ps = Core.carPose(race, c);
       var cj = clamp(Math.floor(c.s / ds), 0, tr.N - 1);
       var p = proj(ps.x, ps.y, tr.z[cj]);
-      if (p.f > 1.2 && p.f < VIEW) addSprite(cj, { f: p.f, kind: "car", p: p, c: c, rel: ps.h - pose.h });
+      if (p.f > 1.2 && p.f < VIEW * (ext ? cam.zoom || 1 : 1)) addSprite(cj, { f: p.f, kind: "car", p: p, c: c, rel: ps.h - view.h });
     });
 
     function quad(a, b, c, d, col) { poly([a, b, c, d], col); }
@@ -255,9 +271,17 @@
 
     // ---- 由遠到近：每列一條帶（鏡頭後方幾列也畫，甩尾／打滑轉頭時才不會空白） ----
     var roadCol = tr.rain ? "#3d4246" : pal.road;
-    var jBack = Math.max(0, i0 - 12);
-    for (var jj = jBack; jj < i0; jj++) strip(jj);
-    for (var k = nRows - 2; k >= 0; k--) { strip(i0 + k); drawBucket(k); }
+    if (!ext) {
+      var jBack = Math.max(0, i0 - 12);
+      for (var jj = jBack; jj < i0; jj++) strip(jj);
+      for (var k = nRows - 2; k >= 0; k--) { strip(i0 + k); drawBucket(k); }
+    } else {
+      // 外部鏡頭：依離鏡頭的距離由遠到近（畫家演算法）
+      var rows = [];
+      for (var jr = sLo; jr < jMax; jr++) rows.push({ j: jr, d: (tr.x[jr] - view.x) * (tr.x[jr] - view.x) + (tr.y[jr] - view.y) * (tr.y[jr] - view.y) });
+      rows.sort(function (a, b) { return b.d - a.d; });
+      rows.forEach(function (r) { strip(r.j); drawBucket(r.j - sLo); });
+    }
 
     function strip(ja) {
       var jb = ja + 1;
@@ -265,6 +289,19 @@
       var fa = Math.max(cA.f, cB.f);
       var ft = fogT(Math.max(0, cA.f)), band = Math.floor(ja / 3) % 2, cd = sp[ja];
       var wl = pc.wall[ja];
+      if (cd === 3 && ext && sp[i0] !== 3) {
+        // 外部鏡頭在隧道外：隧道是一座山（頂＋兩側斜坡），看不到裡面
+        quad(edge(ja, hw + 1.6), edge(jb, hw + 1.6), edge(jb, -hw - 1.6), edge(ja, -hw - 1.6), tint("#444648", 0, fog, ft));
+        [1, -1].forEach(function (side) {
+          terr(ja, jb, side, hw + 16, hw + 60, tint(pal.ground, band ? -0.06 : -0.1, fog, Math.min(0.9, ft + 0.15)));
+          quad(edge(ja, side * (hw + 16), 0), edge(jb, side * (hw + 16), 0), edge(jb, side * (hw + 4), 12), edge(ja, side * (hw + 4), 12),
+            tint(HILL[season], (side > 0 ? 0 : -0.06) + (band ? 0 : -0.03), fog, ft));
+        });
+        quad(edge(ja, hw + 4, 12), edge(jb, hw + 4, 12), edge(jb, -hw - 4, 12), edge(ja, -hw - 4, 12), tint(HILL[season], 0.04, fog, ft));
+        if (sp[ja - 1] !== 3) portal(ja, ft);
+        if (sp[jb] !== 3) portal(jb, ft);
+        return;
+      }
       if (cd === 3) {
         // 隧道：上方是山體，兩側牆、頂板、燈
         quad(edge(ja, hw + 9, 13), edge(jb, hw + 9, 13), edge(jb, -hw - 9, 13), edge(ja, -hw - 9, 13), tint(HILL[season], -0.05, fog, ft));
@@ -278,7 +315,7 @@
           });
         }
         laneLines(ja, jb, fa, ft, false);
-        if (sp[ja - 1] !== 3 && ja > i0) portal(ja, ft);   // 入口（從外面看的洞口）
+        if (sp[ja - 1] !== 3 && (ja > i0 || ext)) portal(ja, ft);   // 入口（從外面看的洞口）
         return;
       }
       // 兩側地形
@@ -299,8 +336,19 @@
           if (cd === 4) quad(edge(ja, side * (hw + 1.6), 0), edge(jb, side * (hw + 1.6), 0), edge(jb, side * (hw + 1.6), -1.2), edge(ja, side * (hw + 1.6), -1.2), tint(CONCRETE, -0.15, fog, ft));
         }
       });
-      // 路肩、路面
-      quad(edge(ja, hw + 1.6), edge(jb, hw + 1.6), edge(jb, -hw - 1.6), edge(ja, -hw - 1.6), tint(cd === 4 ? CONCRETE : pal.shoulder, band ? 0 : -0.07, fog, ft));
+      // 日本冬天：路邊的雪牆（高低起伏，只在部分路段）
+      if (o.snowWall && o.snowWall[ja] && cd !== 4) {
+        var swh = o.snowWall[ja];
+        [1, -1].forEach(function (side) {
+          if (tr.water && side === tr.water) return;
+          quad(edge(ja, side * (hw + 1.7), 0), edge(jb, side * (hw + 1.7), 0), edge(jb, side * (hw + 1.7), swh), edge(ja, side * (hw + 1.7), swh),
+            tint("#dfe7ee", (band ? 0 : -0.03) + (side > 0 ? 0 : -0.04), fog, ft));
+          quad(edge(ja, side * (hw + 1.7), swh), edge(jb, side * (hw + 1.7), swh), edge(jb, side * (hw + 3.2), swh + 0.3), edge(ja, side * (hw + 3.2), swh + 0.3),
+            tint("#f7fafc", 0, fog, ft));
+        });
+      }
+      // 路肩、路面（日本春秋：路肩鋪滿花瓣／落葉）
+      quad(edge(ja, hw + 1.6), edge(jb, hw + 1.6), edge(jb, -hw - 1.6), edge(ja, -hw - 1.6), tint(cd === 4 ? CONCRETE : o.shoulder || pal.shoulder, band ? 0 : -0.07, fog, ft));
       var rl = edge(ja, hw), rr = edge(ja, -hw), bl = edge(jb, hw), br = edge(jb, -hw);
       quad(rl, bl, br, rr, tint(cd === 1 ? "#9b8565" : roadCol, band ? 0 : 0.04, fog, ft));
       if (tr.surf[ja] < 1 && cd !== 1) {
@@ -322,13 +370,19 @@
       }
       laneLines(ja, jb, fa, ft, cd === 1);
       (flat[ja] || []).forEach(function (it) {
-        var len = it.kind === "boost" ? 4 : 6, w = it.kind === "boost" ? hw * 0.85 : hw * 0.75;
+        var len = it.kind === "boost" || it.kind === "ramp" ? 4 : 6, w = it.kind === "boost" || it.kind === "ramp" ? hw * 0.85 : hw * 0.75;
         var a1 = edge(ja, w), a2 = edge(ja, -w), b1 = edge(jb + Math.round(len / ds) - 1, w), b2 = edge(jb + Math.round(len / ds) - 1, -w);
         if (it.kind === "boost") {
           quad(a1, b1, b2, a2, tint("#ffb020", 0, fog, ft));
           var m1 = edge(ja + 1, w * 0.9), m2 = edge(ja + 1, -w * 0.9), tip = edge(jb + 1, 0);
           poly([m1, tip, m2], tint("#fff27a", 0, fog, ft));
-        } else quad(a1, b1, b2, a2, "rgba(15,15,20," + (0.8 * (1 - ft)).toFixed(2) + ")");
+        } else if (it.kind === "ramp") {
+          // 跳台：灰色斜板＋黃黑警示條
+          quad(edge(ja, w, 0), edge(jb + 1, w, 0.5), edge(jb + 1, -w, 0.5), edge(ja, -w, 0), tint("#8d949b", 0, fog, ft));
+          quad(edge(jb + 1, w, 0.5), edge(jb + 1, w, 0.62), edge(jb + 1, -w, 0.62), edge(jb + 1, -w, 0.5), tint("#ffd23a", 0, fog, ft));
+        } else if (it.kind === "mud") quad(a1, b1, b2, a2, "rgba(98,70,40," + (0.85 * (1 - ft)).toFixed(2) + ")");
+        else quad(a1, b1, b2, a2, "rgba(15,15,20," + (0.8 * (1 - ft)).toFixed(2) + ")");
+
       });
       // 護欄（山谷、水邊；橋上兩側）
       [1, -1].forEach(function (side) {
@@ -353,6 +407,11 @@
       var pts = [edge(j, hw + 9, 0), edge(j, hw + 9, 10), edge(j, -hw - 9, 10), edge(j, -hw - 9, 0)];
       var hole = [edge(j, hw + 0.8, 0), edge(j, hw + 0.8, 5.4), edge(j, -hw - 0.8, 5.4), edge(j, -hw - 0.8, 0)];
       if (pts.concat(hole).some(function (p) { return p.f < NEAR; })) return;
+      if (ext) {
+        ctx.fillStyle = "#151516"; ctx.beginPath();
+        hole.forEach(function (p, i) { if (i) ctx.lineTo(p.x, p.y); else ctx.moveTo(p.x, p.y); }); ctx.closePath(); ctx.fill();
+      }
+
       ctx.fillStyle = tint(CONCRETE, -0.05, fog, ft);
       ctx.beginPath();
       pts.forEach(function (p, i) { if (i) ctx.lineTo(p.x, p.y); else ctx.moveTo(p.x, p.y); }); ctx.closePath();
@@ -407,6 +466,7 @@
           ctx.fillText(s.goal ? "GOAL" : "START", (Lt.x + Rt.x) / 2, (Lt.y + Rt.y) / 2 - bh * 0.22);
         }
       } else if (s.kind === "car") drawCar(p, sc, s);
+      else if (s.kind === "decor") drawDecor(p, sc, s.d, ft);
       else if (s.kind === "rock") {
         [[0.3, 0.9, 0.9], [-0.9, 0.6, 0.7], [1.6, 0.5, 0.5], [-1.8, 0.45, 0.55]].forEach(function (r, n) {
           ctx.fillStyle = tint(n % 2 ? "#6f6a63" : "#8a857c", 0, fog, ft);
@@ -457,8 +517,10 @@
       }
     }
     function drawCar(p, sc, s) {
-      var cw = 1.8 + Math.abs(Math.sin(s.rel)) * 2.6, chh = 1.3;
+      var side = Math.abs(Math.sin(s.rel)), front = Math.cos(s.rel) < -0.2;
+      var cw = 1.8 + side * 2.6, chh = 1.3;
       ctx.fillStyle = "rgba(0,0,0,0.35)"; ctx.fillRect(p.x - cw / 2 * sc, p.y - 0.15 * sc, cw * sc, 0.3 * sc);
+      if (ext && (side > 0.55 || front)) { drawCarExt(p, sc, s, cw, chh, side, front); return; }
       ctx.fillStyle = "#111";
       ctx.fillRect(p.x - cw * 0.45 * sc, p.y - 0.4 * sc, cw * 0.18 * sc, 0.4 * sc); ctx.fillRect(p.x + cw * 0.27 * sc, p.y - 0.4 * sc, cw * 0.18 * sc, 0.4 * sc);
       ctx.fillStyle = s.c.color; ctx.fillRect(p.x - cw / 2 * sc, p.y - chh * 0.85 * sc, cw * sc, chh * 0.6 * sc);
@@ -482,6 +544,181 @@
       }
     }
 
+    // ---- 台灣的路邊景物（p＝地面點，sc＝每公尺幾像素） ----
+    function box(x, y, w, h, col) { ctx.fillStyle = col; ctx.fillRect(x, y, w, h); }
+    function label(txt, x, y, size, col, vertical) {
+      if (size < 7) return;
+      ctx.fillStyle = col; ctx.font = "bold " + Math.round(size) + "px sans-serif"; ctx.textAlign = "center";
+      if (!vertical) { ctx.fillText(txt, x, y); return; }
+      for (var i = 0; i < txt.length; i++) ctx.fillText(txt[i], x, y + i * size * 1.05);
+    }
+    function drawDecor(p, sc, d, ft) {
+      var t = race.t, x = p.x, y = p.y;
+      if (sc < 0.6) return;
+      ctx.save();
+      if (ft > 0.05) ctx.globalAlpha = 1 - ft * 0.85;
+      if (d.kind === "stall") {
+        var w = 2.6 * sc, h = 2.3 * sc;
+        box(x - w / 2, y - h, Math.max(1, 0.08 * sc), h, "#6b6f74"); box(x + w / 2 - 0.08 * sc, y - h, Math.max(1, 0.08 * sc), h, "#6b6f74");
+        box(x - w * 0.45, y - 0.95 * sc, w * 0.9, 0.95 * sc, "#c9b48a");
+        box(x - w * 0.45, y - 0.95 * sc, w * 0.9, 0.12 * sc, "#8a6d45");
+        // 篷子：條紋
+        var n = 6;
+        for (var k = 0; k < n; k++) {
+          ctx.fillStyle = k % 2 ? "#ffffff" : d.c;
+          ctx.beginPath();
+          var x0 = x - w * 0.6 + k * w * 1.2 / n, x1 = x0 + w * 1.2 / n;
+          ctx.moveTo(x0, y - h); ctx.lineTo(x1, y - h); ctx.lineTo(x - w * 0.3 + (k + 1) * w * 0.6 / n, y - h - 0.55 * sc); ctx.lineTo(x - w * 0.3 + k * w * 0.6 / n, y - h - 0.55 * sc); ctx.closePath(); ctx.fill();
+        }
+        box(x - w * 0.42, y - h + 0.02 * sc, w * 0.84, 0.48 * sc, "#c0262d");
+        label(d.txt, x, y - h + 0.4 * sc, 0.38 * sc, "#fff3a8");
+        if (sc > 5) {
+          ctx.fillStyle = Math.floor(t * 3 + d.ph) % 2 ? "#ffe680" : "#fff7c9";
+          for (var b = 0; b < 7; b++) { ctx.beginPath(); ctx.arc(x - w * 0.55 + b * w * 1.1 / 6, y - h + 0.05 * sc, 0.07 * sc, 0, Math.PI * 2); ctx.fill(); }
+          // 熱氣
+          ctx.fillStyle = "rgba(255,255,255,0.55)";
+          for (var q = 0; q < 3; q++) {
+            var ph = (t * 0.6 + q / 3 + d.ph) % 1;
+            ctx.beginPath(); ctx.arc(x - w * 0.15 + q * 0.3 * sc + Math.sin(ph * 6) * 0.1 * sc, y - (1.0 + ph * 1.1) * sc, (0.12 + ph * 0.18) * sc, 0, Math.PI * 2); ctx.fill();
+          }
+        }
+      } else if (d.kind === "scooter") {
+        var L = 1.8 * sc * (0.55 + 0.45 * Math.abs(Math.cos(d.ang))), r = 0.27 * sc;
+        ctx.fillStyle = "#151515";
+        ctx.beginPath(); ctx.arc(x - L * 0.36, y - r, r, 0, Math.PI * 2); ctx.arc(x + L * 0.36, y - r, r, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = d.c;
+        ctx.beginPath(); ctx.moveTo(x - L * 0.5, y - 0.45 * sc); ctx.lineTo(x - L * 0.45, y - 0.85 * sc); ctx.lineTo(x + L * 0.05, y - 0.8 * sc);
+        ctx.lineTo(x + L * 0.25, y - 0.5 * sc); ctx.lineTo(x + L * 0.35, y - 1.15 * sc); ctx.lineTo(x + L * 0.45, y - 1.15 * sc); ctx.lineTo(x + L * 0.42, y - 0.4 * sc); ctx.closePath(); ctx.fill();
+        box(x - L * 0.42, y - 0.97 * sc, L * 0.42, 0.14 * sc, "#222");
+        ctx.strokeStyle = "#333"; ctx.lineWidth = Math.max(1, 0.06 * sc);
+        ctx.beginPath(); ctx.moveTo(x + L * 0.3, y - 1.25 * sc); ctx.lineTo(x + L * 0.5, y - 1.2 * sc); ctx.stroke();
+        if (d.helmet) { ctx.fillStyle = d.helmet; ctx.beginPath(); ctx.arc(x - L * 0.15, y - 1.08 * sc, 0.16 * sc, Math.PI, 0); ctx.fill(); }
+      } else if (d.kind === "billboard") {
+        var bw = d.w * sc, bh = 3 * sc, top = y - d.hgt * sc;
+        box(x - bw * 0.3, top + bh, Math.max(1, 0.25 * sc), d.hgt * sc - bh, "#5e6266");
+        box(x + bw * 0.3 - 0.25 * sc, top + bh, Math.max(1, 0.25 * sc), d.hgt * sc - bh, "#5e6266");
+        box(x - bw / 2 - 0.12 * sc, top - 0.12 * sc, bw + 0.24 * sc, bh + 0.24 * sc, "#e8e8e8");
+        box(x - bw / 2, top, bw, bh, d.bg);
+        if (d.face) {
+          // 選舉看板：抽象的候選人剪影＋號碼（虛構）
+          ctx.fillStyle = "#f2d2b6"; ctx.beginPath(); ctx.arc(x - bw * 0.3, top + bh * 0.42, bh * 0.24, 0, Math.PI * 2); ctx.fill();
+          box(x - bw * 0.42, top + bh * 0.66, bw * 0.24, bh * 0.34, "#1f3f8f");
+          label(d.txt, x + bw * 0.12, top + bh * 0.52, Math.min(bh * 0.42, bw * 0.55 / Math.max(2, d.txt.length)), "#fff");
+          label(d.sub, x + bw * 0.12, top + bh * 0.85, Math.min(bh * 0.2, bw * 0.55 / Math.max(3, d.sub.length)), "#ffe14d");
+        } else {
+          label(d.txt, x, top + bh * 0.58, Math.min(bh * 0.46, bw * 0.92 / Math.max(2, d.txt.length)), d.fg);
+          label(d.sub, x, top + bh * 0.9, Math.min(bh * 0.22, bw * 0.9 / Math.max(3, d.sub.length)), d.fg);
+        }
+      } else if (d.kind === "neon") {
+        var nw = 0.9 * sc, nh = 0.75 * sc * d.txt.length + 0.4 * sc, nt = y - 1.2 * sc - nh;
+        box(x - 0.05 * sc, nt + nh, Math.max(1, 0.1 * sc), 1.2 * sc, "#4a4a4a");
+        box(x - nw / 2, nt, nw, nh, "#1a1420");
+        var on = Math.sin(t * 9 + d.ph * 7) > -0.85;
+        ctx.strokeStyle = on ? d.c : "#3a2a3a"; ctx.lineWidth = Math.max(1, 0.08 * sc);
+        ctx.strokeRect(x - nw / 2 + 0.06 * sc, nt + 0.06 * sc, nw - 0.12 * sc, nh - 0.12 * sc);
+        if (on && sc > 3) { ctx.shadowColor = d.c; ctx.shadowBlur = Math.min(18, 0.5 * sc); }
+        label(d.txt, x, nt + 0.25 * sc + 0.55 * sc, 0.6 * sc, on ? d.c : "#4a3a4a", true);
+        ctx.shadowBlur = 0;
+      } else if (d.kind === "person") drawPerson(x, y, sc, d, t);
+      ctx.restore();
+    }
+    function drawPerson(x, y, sc, d, t) {
+      var u = sc, ph = d.ph * 6;
+      if (u < 2) { box(x - 0.2 * u, y - 1.6 * u, 0.4 * u, 1.6 * u, d.c); return; }
+      var head = "#f0c9a5";
+      if (d.type === "dog") {
+        var wag = Math.sin(t * 14 + ph) * 0.15 * u;
+        box(x - 0.45 * u, y - 0.6 * u, 0.9 * u, 0.32 * u, "#a8743f");
+        box(x - 0.4 * u, y - 0.3 * u, 0.1 * u, 0.3 * u, "#8e5f31"); box(x + 0.3 * u, y - 0.3 * u, 0.1 * u, 0.3 * u, "#8e5f31");
+        box(x + 0.35 * u, y - 0.85 * u, 0.3 * u, 0.3 * u, "#a8743f");
+        ctx.strokeStyle = "#8e5f31"; ctx.lineWidth = Math.max(1, 0.07 * u);
+        ctx.beginPath(); ctx.moveTo(x - 0.45 * u, y - 0.55 * u); ctx.lineTo(x - 0.7 * u, y - 0.8 * u + wag); ctx.stroke();
+        return;
+      }
+      if (d.type === "santaizi") {
+        // 電音三太子：大頭、搖擺跳舞
+        var sway = Math.sin(t * 6 + ph) * 0.25, bounce = Math.abs(Math.sin(t * 6 + ph)) * 0.25 * u;
+        ctx.save(); ctx.translate(x, y - bounce); ctx.rotate(sway);
+        box(-0.35 * u, -1.3 * u, 0.7 * u, 1.3 * u, "#d8342c");
+        box(-0.35 * u, -1.0 * u, 0.7 * u, 0.18 * u, "#f5c518");
+        ctx.strokeStyle = "#d8342c"; ctx.lineWidth = Math.max(1, 0.16 * u);
+        ctx.beginPath(); ctx.moveTo(-0.3 * u, -1.15 * u); ctx.lineTo(-0.75 * u, -1.6 * u - Math.sin(t * 12) * 0.2 * u);
+        ctx.moveTo(0.3 * u, -1.15 * u); ctx.lineTo(0.75 * u, -1.6 * u + Math.sin(t * 12) * 0.2 * u); ctx.stroke();
+        ctx.fillStyle = "#fbe3d0"; ctx.beginPath(); ctx.arc(0, -1.85 * u, 0.55 * u, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = "#111"; ctx.beginPath(); ctx.arc(0, -2.1 * u, 0.5 * u, Math.PI, 0); ctx.fill();
+        ctx.fillStyle = "#f5c518"; box(-0.2 * u, -2.5 * u, 0.4 * u, 0.22 * u, "#f5c518");
+        ctx.fillStyle = "#e85a6a"; ctx.beginPath(); ctx.arc(-0.28 * u, -1.72 * u, 0.1 * u, 0, Math.PI * 2); ctx.arc(0.28 * u, -1.72 * u, 0.1 * u, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = "#111"; ctx.fillRect(-0.32 * u, -1.98 * u, 0.22 * u, 0.1 * u); ctx.fillRect(0.1 * u, -1.98 * u, 0.22 * u, 0.1 * u);
+        ctx.restore();
+        return;
+      }
+      var hop = d.type === "dancer" ? Math.abs(Math.sin(t * 7 + ph)) * 0.3 * u : 0;
+      var by = y - hop;
+      // 腳（藍白拖）
+      box(x - 0.2 * u, by - 0.8 * u, 0.13 * u, 0.8 * u, head); box(x + 0.07 * u, by - 0.8 * u, 0.13 * u, 0.8 * u, head);
+      box(x - 0.25 * u, by - 0.06 * u, 0.2 * u, 0.06 * u, "#2a5bd7"); box(x + 0.05 * u, by - 0.06 * u, 0.2 * u, 0.06 * u, "#2a5bd7");
+      box(x - 0.24 * u, by - 0.95 * u, 0.48 * u, 0.3 * u, d.type === "auntie" ? d.c : "#2c3e64");   // 短褲／裙
+      box(x - 0.24 * u, by - 1.45 * u, 0.48 * u, 0.55 * u, d.type === "uncle" ? "#f4f4f0" : d.c);  // 上衣（阿伯是白色吊嘎）
+      if (d.type === "auntie") { ctx.fillStyle = "#fff"; for (var f2 = 0; f2 < 4; f2++) { ctx.beginPath(); ctx.arc(x - 0.15 * u + (f2 % 2) * 0.28 * u, by - 1.3 * u + Math.floor(f2 / 2) * 0.35 * u, 0.05 * u, 0, Math.PI * 2); ctx.fill(); } }
+      ctx.fillStyle = head; ctx.beginPath(); ctx.arc(x, by - 1.62 * u, 0.17 * u, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = head; ctx.lineWidth = Math.max(1, 0.1 * u); ctx.beginPath();
+      var wave = Math.sin(t * 8 + ph);
+      if (d.type === "uncle" || d.type === "flag") { ctx.moveTo(x + 0.24 * u, by - 1.4 * u); ctx.lineTo(x + (0.45 + wave * 0.15) * u, by - 1.95 * u); }
+      else if (d.type === "phone") { ctx.moveTo(x + 0.24 * u, by - 1.4 * u); ctx.lineTo(x + 0.3 * u, by - 1.9 * u); }
+      else if (d.type === "dancer") { ctx.moveTo(x - 0.24 * u, by - 1.4 * u); ctx.lineTo(x - (0.5 + wave * 0.2) * u, by - 1.9 * u); ctx.moveTo(x + 0.24 * u, by - 1.4 * u); ctx.lineTo(x + (0.5 - wave * 0.2) * u, by - 1.9 * u); }
+      else { ctx.moveTo(x + 0.24 * u, by - 1.4 * u); ctx.lineTo(x + 0.3 * u, by - 0.95 * u); }
+      ctx.moveTo(x - 0.24 * u, by - 1.4 * u); ctx.lineTo(x - 0.3 * u, by - 0.95 * u); ctx.stroke();
+      if (d.type === "phone") { box(x + 0.22 * u, by - 2.15 * u, 0.16 * u, 0.26 * u, "#222"); box(x + 0.24 * u, by - 2.13 * u, 0.12 * u, 0.2 * u, "#9fd8ff"); }
+      if (d.type === "flag") {
+        var fx = x + (0.45 + wave * 0.15) * u, fy = by - 1.95 * u;
+        ctx.strokeStyle = "#555"; ctx.lineWidth = Math.max(1, 0.04 * u); ctx.beginPath(); ctx.moveTo(fx, fy); ctx.lineTo(fx, fy - 1.0 * u); ctx.stroke();
+        ctx.fillStyle = d.c2; ctx.beginPath(); ctx.moveTo(fx, fy - 1.0 * u); ctx.lineTo(fx + (0.8 + Math.sin(t * 10) * 0.1) * u, fy - 0.8 * u); ctx.lineTo(fx, fy - 0.55 * u); ctx.closePath(); ctx.fill();
+      }
+      if (d.type === "auntie") {
+        // 阿嬤的傘
+        ctx.strokeStyle = "#555"; ctx.lineWidth = Math.max(1, 0.04 * u); ctx.beginPath(); ctx.moveTo(x + 0.3 * u, by - 0.95 * u); ctx.lineTo(x + 0.3 * u, by - 2.1 * u); ctx.stroke();
+        ctx.fillStyle = d.c2; ctx.beginPath(); ctx.arc(x + 0.3 * u, by - 2.1 * u, 0.6 * u, Math.PI, 0); ctx.fill();
+      }
+      if (d.type === "uncle") { ctx.fillStyle = "#555"; ctx.beginPath(); ctx.arc(x, by - 1.7 * u, 0.17 * u, Math.PI, 0); ctx.fill(); }
+    }
+
+    // 外部鏡頭看到的車：側面（車身＋兩個輪子＋車窗）或正面（頭燈）
+
+    function drawCarExt(p, sc, s, cw, chh, side, front) {
+      var col = s.c.color;
+      ctx.fillStyle = col;
+      ctx.beginPath();
+      ctx.moveTo(p.x - cw / 2 * sc, p.y - 0.3 * sc); ctx.lineTo(p.x - cw / 2 * sc, p.y - chh * 0.8 * sc);
+      ctx.lineTo(p.x + cw / 2 * sc, p.y - chh * 0.8 * sc); ctx.lineTo(p.x + cw / 2 * sc, p.y - 0.3 * sc); ctx.closePath(); ctx.fill();
+      ctx.fillStyle = shade(col, -0.1);
+      ctx.beginPath();
+      ctx.moveTo(p.x - cw * 0.3 * sc, p.y - chh * 0.8 * sc); ctx.lineTo(p.x - cw * 0.2 * sc, p.y - chh * 1.22 * sc);
+      ctx.lineTo(p.x + cw * 0.2 * sc, p.y - chh * 1.22 * sc); ctx.lineTo(p.x + cw * 0.34 * sc, p.y - chh * 0.8 * sc); ctx.closePath(); ctx.fill();
+      ctx.fillStyle = "rgba(25,35,48,0.85)";
+      ctx.fillRect(p.x - cw * 0.22 * sc, p.y - chh * 1.15 * sc, cw * 0.44 * sc, chh * 0.28 * sc);
+      if (side > 0.55) {
+        ctx.fillStyle = "#111";
+        [-0.32, 0.32].forEach(function (u) { ctx.beginPath(); ctx.arc(p.x + cw * u * sc, p.y - 0.32 * sc, 0.34 * sc, 0, Math.PI * 2); ctx.fill(); });
+        ctx.fillStyle = "#9aa0a6";
+        [-0.32, 0.32].forEach(function (u) { ctx.beginPath(); ctx.arc(p.x + cw * u * sc, p.y - 0.32 * sc, 0.15 * sc, 0, Math.PI * 2); ctx.fill(); });
+      }
+      if (front) {
+        ctx.fillStyle = "#fff6c8";
+        ctx.fillRect(p.x - cw * 0.46 * sc, p.y - chh * 0.66 * sc, cw * 0.16 * sc, chh * 0.1 * sc);
+        ctx.fillRect(p.x + cw * 0.3 * sc, p.y - chh * 0.66 * sc, cw * 0.16 * sc, chh * 0.1 * sc);
+      } else if (s.c.braking) {
+        ctx.fillStyle = "#ff2a2a";
+        var tx = Math.sin(s.rel) > 0 ? -1 : 1;   // 側面時尾燈在車尾那一端
+        ctx.fillRect(p.x + tx * cw * 0.47 * sc - 0.08 * sc, p.y - chh * 0.7 * sc, 0.16 * sc, chh * 0.14 * sc);
+      }
+      if (s.f < 160) {
+        ctx.font = "bold 12px sans-serif"; ctx.textAlign = "center"; ctx.fillStyle = "#fff";
+        ctx.strokeStyle = "rgba(0,0,0,0.7)"; ctx.lineWidth = 3;
+        ctx.strokeText(s.c.name, p.x, p.y - chh * 1.25 * sc - 6); ctx.fillText(s.c.name, p.x, p.y - chh * 1.25 * sc - 6);
+      }
+    }
+
+    if (ext) return;
     // 奔放模式：加速中畫速度線
     var cf = car.fx;
     if (cf && (cf.nitro > 0 || cf.sling > 0 || cf.boost > 0)) {
@@ -577,5 +814,6 @@
     }
   }
 
-  window.PriTestDejavuCockpit = { draw: draw };
+  window.PriTestDejavuCockpit = { draw: draw, prep: prep };
+
 })();

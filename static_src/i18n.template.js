@@ -45,5 +45,13 @@
     applyI18n();
   });
 
-  window.I18N = { t: t, getLang: getLang, setLang: setLang, applyI18n: applyI18n };
+  // 各遊戲的字串（static/i18n/<遊戲>.js）在 i18n.js 之後載入時併進來，每個遊戲分開更新、互不影響
+  function extend(more) {
+    Object.keys(more || {}).forEach(function (lang) {
+      var table = STRINGS[lang] || (STRINGS[lang] = {});
+      Object.keys(more[lang]).forEach(function (k) { table[k] = more[lang][k]; });
+    });
+  }
+
+  window.I18N = { t: t, getLang: getLang, setLang: setLang, applyI18n: applyI18n, extend: extend };
 })();

@@ -31,10 +31,36 @@ DIST_DIR = ROOT / "dist"
 STATIC_SRC_DIR = ROOT / "static_src"
 
 
+# 各遊戲字串鍵的前綴 → static/i18n/<遊戲>.js（其餘留在共用的 i18n.js）
+GAME_I18N_PREFIXES: dict[str, tuple[str, ...]] = {
+    "yellow": ("yc_",),
+    "katana": ("kt_",),
+    "dejavu": ("dv_",),
+    "fist": ("fe_", "fr_"),
+    "toushou": ("ts_",),
+    "utau": ("ut_",),
+    "gousei": ("gs_",),
+}
+
+
+def split_strings(strings: dict[str, dict[str, str]]) -> tuple[dict[str, dict[str, str]], dict[str, dict[str, dict[str, str]]]]:
+    shared: dict[str, dict[str, str]] = {lang: {} for lang in strings}
+    per_game: dict[str, dict[str, dict[str, str]]] = {g: {lang: {} for lang in strings} for g in GAME_I18N_PREFIXES}
+    for lang, table in strings.items():
+        for key, text in table.items():
+            owner = next((g for g, ps in GAME_I18N_PREFIXES.items() if key.startswith(ps)), None)
+            (per_game[owner][lang] if owner else shared[lang])[key] = text
+    return shared, per_game
+
+
 def build_static_assets() -> None:
     static_dist = DIST_DIR / "static"
     static_dist.mkdir(parents=True, exist_ok=True)
     shutil.copy(STATIC_SRC_DIR / "style.css", static_dist / "style.css")
+    # 各遊戲自己的樣式（頁面用 extra_styles 載入）
+    css_src = STATIC_SRC_DIR / "css"
+    if css_src.is_dir():
+        shutil.copytree(css_src, static_dist / "css", dirs_exist_ok=True)
     for name in (
         "games.js",
         "firebase_config.js",
@@ -111,11 +137,20 @@ def build_static_assets() -> None:
         if (STATIC_SRC_DIR / name).is_file():
             shutil.copy(STATIC_SRC_DIR / name, static_dist / name)
 
+    # 字串：共用的放 i18n.js；各遊戲的（依鍵的前綴）放 i18n/<遊戲>.js，頁面用 extra_i18n 載入
+    # （使用者指定 2026-10-26：每個遊戲分開 JS／CSS，更新不互相影響；也讓每頁不用下載其他遊戲的字串）
+    shared, per_game = split_strings(STRINGS)
     template = (STATIC_SRC_DIR / "i18n.template.js").read_text(encoding="utf-8")
-    data = json.dumps(STRINGS, ensure_ascii=False, indent=2)
+    data = json.dumps(shared, ensure_ascii=False, indent=2)
     (static_dist / "i18n.js").write_text(
         template.replace("__I18N_DATA__", data), encoding="utf-8"
     )
+    (static_dist / "i18n").mkdir(exist_ok=True)
+    for game, strings in per_game.items():
+        (static_dist / "i18n" / f"{game}.js").write_text(
+            f"// 由 generate.py 從 site_src 的字串產生（{game}）\nwindow.I18N.extend({json.dumps(strings, ensure_ascii=False, indent=2)});\n",
+            encoding="utf-8",
+        )
 
     images_src = STATIC_SRC_DIR / "images"
     if images_src.is_dir():

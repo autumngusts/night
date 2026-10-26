@@ -29,4 +29,6 @@ def build_utau_html() -> str:
         static_prefix="../static/",
         home_href="../index.html",
         extra_scripts=UTAU_SCRIPTS,
+        extra_styles=("css/utau.css",),
+        extra_i18n=("i18n/utau.js",),
     )

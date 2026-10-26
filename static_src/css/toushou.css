@@ -1,0 +1,157 @@
+/* toushou 的樣式（由 tools/split_css.py 從 style.css 搬出；之後直接改這個檔） */
+/* ===== 東正小遊戲（toushou） ===== */
+.ts-panel {
+  border: 1px solid #ccc;
+  border-radius: 8px;
+  padding: 1rem;
+  margin-bottom: 1rem;
+}
+.ts-field {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0.5rem 0;
+}
+.ts-field input[type="number"] {
+  width: 6rem;
+}
+.ts-player-list li,
+.ts-target-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin: 0.25rem 0;
+}
+.ts-target-name {
+  flex: 1 1 10rem;
+  min-width: 0;
+}
+.ts-target-tags {
+  flex: 2 1 12rem;
+  min-width: 0;
+}
+.ts-error {
+  color: #c0392b;
+  min-height: 1.2em;
+}
+.ts-primary {
+  font-weight: bold;
+  padding: 0.5rem 1.25rem;
+}
+.ts-mask {
+  text-align: center;
+  padding: 2rem 1rem;
+}
+.ts-target-card h2 {
+  margin: 0 0 0.25rem;
+}
+.ts-summary {
+  margin: 0.25rem 0 0.5rem;
+}
+.ts-tags span {
+  display: inline-block;
+  border: 1px solid #999;
+  border-radius: 999px;
+  padding: 0 0.6rem;
+  margin: 0 0.25rem 0.25rem 0;
+  font-size: 0.9em;
+}
+.ts-hooks {
+  font-size: 0.9em;
+  opacity: 0.8;
+}
+.ts-price {
+  font-size: 1.6rem;
+  font-weight: bold;
+}
+.ts-news-board {
+  list-style: none;
+  padding: 0;
+}
+.ts-news-board li {
+  border-left: 4px solid #999;
+  padding: 0.25rem 0.5rem;
+  margin: 0.25rem 0;
+}
+.ts-news-board li.ts-up { border-left-color: #2e8b57; }
+.ts-news-board li.ts-down { border-left-color: #c0392b; }
+.ts-hand {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  padding: 0;
+  list-style: none;
+}
+.ts-hand li {
+  border: 1px solid #999;
+  border-radius: 6px;
+  padding: 0.5rem;
+  flex: 1 1 12rem;
+}
+.ts-hand li.ts-up { border-color: #2e8b57; }
+.ts-hand li.ts-down { border-color: #c0392b; }
+.ts-hand li.ts-unplayable { opacity: 0.6; border-style: dashed; }
+.ts-hand li.ts-selected { outline: 3px solid #4a8fd8; opacity: 1; }
+.ts-news-text {
+  width: 100%;
+  min-height: 4rem;
+  font: inherit;
+}
+.ts-wind-badge {
+  display: inline-block;
+  font-weight: bold;
+  padding: 0 0.5rem;
+  border-radius: 4px;
+  border: 1px solid currentColor;
+}
+.ts-table-wrap {
+  overflow-x: auto;
+}
+.ts-table {
+  border-collapse: collapse;
+  width: 100%;
+}
+.ts-table th,
+.ts-table td {
+  border-bottom: 1px solid #ddd;
+  padding: 0.25rem 0.5rem;
+  text-align: right;
+  white-space: nowrap;
+}
+.ts-table th:first-child,
+.ts-table td:first-child {
+  text-align: left;
+}
+.ts-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 1rem;
+}
+.ts-seat-list {
+  list-style: none;
+  padding: 0;
+}
+.ts-seat-list li {
+  margin: 0.25rem 0;
+}
+.ts-room-url {
+  width: 100%;
+  font: inherit;
+  font-size: 0.85em;
+}
+.ts-room-qr {
+  display: block;
+  margin-top: 0.5rem;
+  max-width: 100%;
+}
+.ts-wait-text {
+  font-weight: bold;
+  opacity: 0.8;
+}
+
+/* toushou 投票明細 */
+.ts-vote-detail { font-size: 0.85em; opacity: 0.8; }
+.ts-swan-badge { padding: 0.4rem 0.6rem; border-left: 4px solid #8a2be2; background: rgba(138, 43, 226, 0.08); }
+.ts-news-mod { font-size: 0.85em; opacity: 0.8; }

@@ -9,6 +9,8 @@
 
 global.window = global;
 require("../../static_src/dejavu_data.js");
+require("../../static_src/dejavu_cars.js");
+require("../../static_src/dejavu_courses.js");
 require("../../static_src/dejavu_core.js");
 var D = global.PriTestDejavuData;
 var Core = global.PriTestDejavuCore;
@@ -25,7 +27,8 @@ D.COURSES.forEach(function (co) {
   var want = co.segs.reduce(function (a, s) { return a + (s[0] === "C" ? s[1] : 0); }, 0) * Math.PI / 180;
   var got = tr.h[tr.N - 1] - tr.h[0];
   ok(Math.abs(got - want) < 0.02, co.id + " 總轉角 " + got.toFixed(3) + " ≠ " + want.toFixed(3));
-  ok(Math.abs(info.len - Core.courseLen(course)) < 8, co.id + " 長度不一致 " + info.len + " vs " + Core.courseLen(course));
+  // 每段取樣時捨入到 DS（2 m），每段最多差 1 m；第六批生成的路段數多（最多近百段），門檻依段數放寬
+  ok(Math.abs(info.len - Core.courseLen(course)) < 8 + course.segs.length, co.id + " 長度不一致 " + info.len + " vs " + Core.courseLen(course));
   ok(info.cross === 0, co.id + " 有路面重疊 " + info.cross);
   ok(info.drop > 0, co.id + " 下坡卻沒有落差");
   var up = Core.trackInfo(Core.buildTrack(course, { season: "summer", seed: 1, dir: "up" }));
@@ -135,7 +138,7 @@ ok(risky.spins > careful.spins + 0.5, "冬天軟胎全力進攻應該比雪胎�
 
 // 5. 第三批：零件、特殊路面、組合技、車款數量
 (function () {
-  ok(D.CARS.length >= 50, "車款不到 50 款：" + D.CARS.length);
+  ok(D.CARS.length >= 300, "車款不到 300 款：" + D.CARS.length);
   var ids = {};
   D.CARS.forEach(function (c) {
     ok(!ids[c.id], "車款 id 重複 " + c.id); ids[c.id] = 1;
@@ -226,6 +229,44 @@ ok(risky.spins > careful.spins + 0.5, "冬天軟胎全力進攻應該比雪胎�
   ok(tot.wild > tot.real * 1.3, "奔放模式超車沒有明顯比較多");
   ok(tot.moves > 10 && tot.cards > 50 && tot.traps > 10 && tot.items > 20, "奔放模式的招式／出牌／陷阱／道具箱太少");
   ok(tot.dnf / tot.cars < 0.2, "奔放模式退賽太多 " + tot.dnf + "/" + tot.cars);
+})();
+
+// 7. 第六批：山路數量、細部調校、改裝點數、奔放模式新牌／機關／甩尾集氣
+(function () {
+  ok(D.COURSES.length >= 100, "固定山路不到 100 條：" + D.COURSES.length);
+  var seen = {};
+  D.COURSES.forEach(function (co) { ok(!seen[co.id], "山路 id 重複 " + co.id); seen[co.id] = 1; });
+  var base = Core.carStats({ car: "s15" });
+  var same = Core.carStats({ car: "s15", lsd: 0, susp: 0, camber: 0, rst: 0, blst: 0, drv: "" });
+  ok(JSON.stringify(base) === JSON.stringify(same), "細部調校全為 0 時數值應該跟原廠一樣");
+  ok(Core.carStats({ car: "s15", rst: 30 }).pi < base.pi, "限流閥應該降低 PI");
+  ok(Core.carStats({ car: "s15", blst: 100 }).m === base.m + 100, "配重沒有加上去");
+  ok(Core.carStats({ car: "s15", drv: "4WD" }).drive === "4WD", "驅動改裝沒有生效");
+  ok(Core.cleanSpec({ car: "custom", drv: "4WD" }).drv === "", "自製車不該有驅動改裝");
+  var full = { car: "ae86", up: { eng: 4, wt: 4, brk: 4, hdl: 4, grp: 4 } };
+  ok(D.UPGRADES.reduce(function (a, u) { return a + Core.cleanSpec(full).up[u]; }, 0) === D.UPGRADE_POINTS, "預設改裝點數上限不對");
+  ok(D.UPGRADES.reduce(function (a, u) { return a + Core.cleanSpec(full, 20).up[u]; }, 0) === 20, "改裝點數 20 沒有生效");
+  // 調校過的車也要決定論
+  var tuned = { course: Core.fixedCourse("irohazaka"), season: "spring", mode: "battle", seed: 77, upPts: 10,
+    cars: [{ spec: { car: "s15", lsd: 3, susp: 2, camber: 3, up: { eng: 4, grp: 4, brk: 2 } } }, { spec: { car: "nd", susp: -2, rst: 10, blst: 50, drv: "4WD" } }, { spec: { car: "custom", custom: { kw: 900, kg: 600, cla: 0.6 } } }] };
+  ok(summary(Core.runToEnd(Core.createRace(tuned))) === summary(Core.runToEnd(Core.createRace(tuned))), "調校過的車同 seed 結果不同");
+  // 奔放模式新元素
+  var ev = { shield: 0, mud: 0, jump: 0, charge: 0, smoke: 0, magnet: 0 };
+  ["irohazaka", "beiyi", "stelvio", "akina"].forEach(function (co, k) {
+    var r = Core.runToEnd(Core.createRace({ course: Core.fixedCourse(co), season: "summer", mode: "battle", rule: "wild", seed: 40 + k,
+      cars: ["ae86", "fd3s", "gc8", "ek9", "gt3", "r32", "s15", "nd"].map(function (id) { return { spec: { car: id, style: "attack" }, cpu: true }; }) }));
+    r.events.forEach(function (e) {
+      if (e.type === "shield") ev.shield++;
+      if (e.type === "trap" && e.kind === "mud") ev.mud++;
+      if (e.type === "jump") ev.jump++;
+      if (e.type === "charge") ev.charge++;
+      if (e.type === "card" && e.card === "smoke") ev.smoke++;
+      if (e.type === "card" && e.card === "magnet") ev.magnet++;
+    });
+  });
+  console.log("第六批奔放元素：" + JSON.stringify(ev));
+  ok(ev.jump > 0 && ev.charge > 0 && ev.mud > 0, "跳台／甩尾集氣／泥坑沒有發生");
+  ok(ev.smoke + ev.magnet + ev.shield > 0, "新手牌沒有被使用");
 })();
 
 console.log(fails ? "✗ 失敗 " + fails + " 項" : "✓ 全部通過");

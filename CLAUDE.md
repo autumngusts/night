@@ -422,6 +422,21 @@ site_src/i18n_data.py
 
 加入對應 i18n keys。
 
+### 5.2.1 每個遊戲分開 JS／CSS／字串（使用者指定 2026-10-26）
+
+「盡量每個新遊戲都放置不同 js、css，這樣分別更新不會互相影響到」：
+
+* **CSS**：遊戲的樣式放 `static_src/css/<name>.css`，頁面用 `page_shell(extra_styles=("css/<name>.css",))` 載入。
+  `static_src/style.css` 只放全站共用與 TRPG（night／midnight／admin／characters）的樣式，**不要把遊戲樣式加進去**。
+  所有 class／id／keyframes 都用遊戲自己的前綴（例：`.kt-`、`#gs-`）；在 `tools/split_css.py` 的 `GAMES` 登記前綴，
+  `py -3 tools/split_css.py --check` 可檢查 style.css 有沒有混進遊戲樣式（有的話不加 `--check` 重跑就會搬走）。
+* **JS**：遊戲邏輯一律放 `static_src/<name>*.js`，掛在自己的 `window.PriTest<Name>*` 命名空間，不要修改別的遊戲的檔案。
+* **字串**：鍵用遊戲自己的前綴（例：`kt_`、`fr_`），字串檔放 `site_src/i18n_<name>.py` 再由 `i18n_data.py` 合併；
+  在 `generate.py` 的 `GAME_I18N_PREFIXES` 登記前綴，建置時會輸出成 `static/i18n/<name>.js`（`I18N.extend`），
+  頁面用 `page_shell(extra_i18n=("i18n/<name>.js",))` 載入。首頁會用到的 `project_<name>_*` 留在共用的 `i18n.js`。
+
+目前已分開的遊戲：yellow、katana、fist、dejavu、gousei、toushou、utau。
+
 ---
 
 # 6. 多語系（i18n）

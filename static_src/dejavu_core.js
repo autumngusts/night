@@ -26,6 +26,7 @@
   var GRID_GAP = 9;
   var WET_MU = 0.78;
   var DNF_DAMAGE = 100;
+  var MAX_SEGS = 1000;       // 一條路最多幾段（2026-10-26 第六批：600 → 1000）
 
   // ---------------- 亂數 ----------------
   function rng(seed) {
@@ -89,7 +90,9 @@
       g: clamp(Number(c.g) || 0, 0, 15),
       scene: c.scene === "lake" || c.scene === "sea" ? c.scene : "mountain",
       water: c.water === 1 || c.water === -1 ? c.water : 0,
-      segs: (c.segs || []).slice(0, 600).map(cleanSeg)
+      // 景觀地區（只影響畫面：jp 日本、tw 台灣、none 一般；空字串＝依山路自動決定）
+      region: D.REGIONS.indexOf(c.region) >= 0 ? c.region : "",
+      segs: (c.segs || []).slice(0, MAX_SEGS).map(cleanSeg)
     };
   }
 
@@ -183,7 +186,7 @@
     return {
       N: N, ds: DS, x: x, y: y, z: z, h: h, k: k, sl: sl, off: off, surf: surf, segOf: segOf, patches: patches, sp: spRaw,
       w: w, start: start * DS, finish: finish * DS, L: (N - 1) * DS, rain: rain, season: opts.season || "summer",
-      scene: course.scene || "mountain", water: course.water || 0,
+      scene: course.scene || "mountain", water: course.water || 0, src: course.src || "", region: course.region || "",
       bbox: { minX: minX, minY: minY, maxX: maxX, maxY: maxY, minZ: minZ, maxZ: maxZ }
     };
   }
@@ -302,9 +305,12 @@
   }
 
   // ---------------- 車 ----------------
-  // spec：{ car: id, custom?: { drive, kw, kg, grip, brk, hdl, vmax }, tire, aero(0–5), gear(-2–2), style, up: { eng, wt, brk, hdl } }
-  function cleanSpec(sp) {
+  // spec：{ car: id, custom?: { drive, kw, kg, grip, brk, hdl, vmax, cda, cla }, tire, aero(0–5), gear(-2–2), style, up: { eng, wt, brk, hdl, grp },
+  //         細部調校（第六批，全部預設 0＝原廠，結果跟以前完全一樣）：lsd、susp、camber、rst 限流閥 %、blst 配重 kg（範圍見 D.TUNES）、drv 驅動改裝 }
+  // pts＝改裝點數上限（設定畫面可選，預設 D.UPGRADE_POINTS）
+  function cleanSpec(sp, pts) {
     sp = sp || {};
+    pts = D.UPGRADE_PTS_OPTIONS.indexOf(Number(pts)) >= 0 ? Number(pts) : D.UPGRADE_POINTS;
     var o = {
       car: sp.car === "custom" || D.car(sp.car) ? sp.car : "ae86",
       tire: D.TIRES[sp.tire] ? sp.tire : "sport",
@@ -313,10 +319,15 @@
       style: D.STYLES[sp.style] ? sp.style : "balanced",
       up: {}
     };
+    Object.keys(D.TUNES).forEach(function (key) {
+      var rg = D.TUNES[key];
+      o[key] = clamp(Math.round((Number(sp[key]) || 0) / rg[2]) * rg[2], rg[0], rg[1]);
+    });
+    o.drv = sp.car !== "custom" && D.DRIVE_INFO[sp.drv] ? sp.drv : "";
     var used = 0;
     D.UPGRADES.forEach(function (u) {
       var v = clamp(Math.round(Number(sp.up && sp.up[u]) || 0), 0, D.UPGRADE_MAX);
-      if (used + v > D.UPGRADE_POINTS) v = D.UPGRADE_POINTS - used;
+      if (used + v > pts) v = pts - used;
       used += v;
       o.up[u] = v;
     });
@@ -331,13 +342,13 @@
     return o;
   }
 
-  function carStats(spec) {
-    spec = cleanSpec(spec);
+  function carStats(spec, pts) {
+    spec = cleanSpec(spec, pts);
     var base = spec.car === "custom" ? D.CUSTOM.base : D.car(spec.car);
     var b = {};
     Object.keys(base).forEach(function (k) { b[k] = base[k]; });
     if (spec.car === "custom") Object.keys(spec.custom).forEach(function (k) { b[k] = spec.custom[k]; });
-    var up = spec.car === "custom" ? { eng: 0, wt: 0, brk: 0, hdl: 0 } : spec.up;
+    var up = spec.car === "custom" ? { eng: 0, wt: 0, brk: 0, hdl: 0, grp: 0 } : spec.up;
     var st = {
       name: b.name, brand: b.brand, drive: b.drive, ev: !!b.ev,
       kw: b.kw * (1 + 0.06 * up.eng),
@@ -349,6 +360,19 @@
       cla: b.cla + 0.18 * spec.aero,
       vmax: b.vmax
     };
+    // 細部調校（全部是 0 時不改任何數值）
+    if (up.grp) st.grip *= 1 + 0.02 * up.grp;
+    if (spec.drv && spec.drv !== b.drive) {
+      // 驅動改裝：改成四驅多 70 kg、四驅拆成兩驅少 50 kg
+      st.m += spec.drv === "4WD" ? 70 : b.drive === "4WD" ? -50 : 0;
+      st.drive = spec.drv;
+      st.swap = b.drive;
+    }
+    if (spec.rst) st.kw *= 1 - spec.rst / 100;
+    if (spec.blst) st.m += spec.blst;
+    st.lsd = spec.lsd; st.susp = spec.susp;
+    st.lat = 1 + 0.012 * spec.camber;
+    if (spec.camber) st.brk *= 1 - 0.025 * spec.camber;
     st.P = st.kw * 1000;
     // 輪胎負荷敏感度：車越重，每公斤分到的抓地越少（輕量車在山路的優勢）；重車下坡煞車也比較吃力
     st.load = Math.pow(1250 / st.m, 0.15);
@@ -364,6 +388,13 @@
     return st;
   }
 
+  // 驅動方式＋LSD：LSD 每級出彎牽引 +5%（最多到 100%），但抓地極限附近比較「暴躁」（救得回來的極限 −0.006）
+  function driveInfo(st) {
+    var b = D.DRIVE_INFO[st.drive], o = { share: b.share, bal: b.bal, tol: b.tol, low: b.low };
+    if (st.lsd) { o.share = Math.min(1, b.share * (1 + 0.05 * st.lsd)); o.tol = b.tol - 0.006 * st.lsd; }
+    return o;
+  }
+
   // ---------------- 比賽 ----------------
   // opts：{ course, season, dir, mode: "battle"|"attack", seed, cars: [{ spec, name, color, cpu }] }
   function createRace(opts) {
@@ -372,6 +403,7 @@
     var season = D.SEASONS[opts.season] ? opts.season : "summer";
     var tr = buildTrack(course, { season: season, dir: opts.dir, seed: seed });
     var r = rng(seed);
+    var pts = opts.upPts;
     var race = {
       seed: seed, season: season, mode: opts.mode === "attack" ? "attack" : "battle", dir: opts.dir === "up" ? "up" : "down",
       course: course, track: tr, t: 0, done: false, events: [], cars: [], rnd: r,
@@ -389,12 +421,12 @@
     for (var i = 0; i < n; i++) grid.push(i);
     for (i = n - 1; i > 0; i--) { var j = Math.floor(r() * (i + 1)); var tmp = grid[i]; grid[i] = grid[j]; grid[j] = tmp; }
     opts.cars.forEach(function (c, idx) {
-      var spec = cleanSpec(c.spec);
-      var st = carStats(spec);
+      var spec = cleanSpec(c.spec, pts);
+      var st = carStats(spec, pts);
       var tire = D.TIRES[spec.tire];
       var car = {
         id: idx, name: c.name || ("#" + (idx + 1)), color: c.color || D.COLORS[idx % D.COLORS.length], cpu: !!c.cpu,
-        spec: spec, st: st, di: D.DRIVE_INFO[st.drive], style: D.STYLES[spec.style],
+        spec: spec, st: st, di: driveInfo(st), style: D.STYLES[spec.style], passKind: null, hold: null, yieldT: 0, touched: false, beingPassed: null,
         tireMul: tire[season] * (tr.rain ? tire.wet : 1),
         grid: grid.indexOf(idx),
         s: race.mode === "attack" ? tr.start : tr.start - grid.indexOf(idx) * GRID_GAP,
@@ -409,7 +441,7 @@
       race.items = genItems(tr, race.wr);
       race.itemSeq = race.items.length;
       race.cars.forEach(function (c) {
-        c.hand = []; c.fx = {}; c.draftT = 0; c.cardsUsed = 0; c.passMove = null; c.passMoveT = -99;
+        c.hand = []; c.fx = {}; c.draftT = 0; c.cardsUsed = 0; c.passMove = null; c.passMoveT = -99; c.charge = 0; c.charges = 0;
         c.nextDraw = tr.start + D.DRAW_EVERY;
         for (var h = 0; h < D.HAND_START; h++) drawCard(race, c);
       });
@@ -425,7 +457,7 @@
     while (s < tr.finish - 60) {
       var x = r() * tot, kind = kinds[0];
       for (var i = 0; i < kinds.length; i++) { x -= D.ITEMS[kinds[i]].w; if (x < 0) { kind = kinds[i]; break; } }
-      if (kind === "boost" && maxK(tr, s - 20, s + 40) > 1 / 300) kind = "box";
+      if ((kind === "boost" || kind === "ramp") && maxK(tr, s - 20, s + 40) > 1 / 300) kind = "box";
       items.push({ id: items.length, s: s, kind: kind });
       s += D.ITEM_GAP * (0.6 + r() * 0.8);
     }
@@ -463,6 +495,12 @@
       race.items.push({ id: race.itemSeq++, s: Math.max(race.track.start, c.s - 8), kind: "oil", owner: c.id, until: race.t + 25 });
     } else if (id === "repair") {
       c.dmg = Math.max(0, c.dmg - 40); c.stun = Math.min(c.stun, 0.2);
+    } else if (id === "smoke") {
+      race.cars.forEach(function (a) {
+        if (a === c || a.state !== "run" || a.s >= c.s || c.s - a.s > 40) return;
+        if (a.fx.shield > 0) { event(race, a, "shield", { kind: "smoke" }); return; }
+        a.fx.blind = 3;
+      });
     } else fx[id] = info.t;
   }
   // 出牌：idx＝手牌第幾張；expect＝重播時核對牌的種類。玩家出的牌記進 race.log（Déjà vu 重播照步數套用）
@@ -491,6 +529,9 @@
       else if (ahead && has("sling")) want = "sling";
       else if (behind && c.s - behind.s < 25 && has("block") && !(c.fx.block > 0)) want = "block";
       else if (behind && has("oil")) want = "oil";
+      else if (behind && c.s - behind.s < 35 && has("smoke")) want = "smoke";
+      else if (has("shield") && !(c.fx.shield > 0) && hazardAhead(race, c, 140)) want = "shield";
+      else if (ahead && ahead.s - c.s < 60 && has("magnet") && !(c.fx.magnet > 0) && maxK(tr, c.s, c.s + 120) < 1 / 200) want = "magnet";
       else if (straight && has("nitro") && !(c.fx.nitro > 0)) want = "nitro";
       else if (tightSoon && has("gutter") && !(c.fx.gutter > 0)) want = "gutter";
       else if (tightSoon && has("late") && !(c.fx.late > 0)) want = "late";
@@ -498,18 +539,28 @@
       if (want) playCard(race, c.id, c.hand.indexOf(want));
     });
   }
-  // 牌與機關對抓地的影響（oil 是車手預料不到的，不算進目標速度）
+  // 前方 within 公尺內有沒有會傷到自己的機關（CPU 用來決定要不要開護盾）
+  function hazardAhead(race, c, within) {
+    return race.items.some(function (it) {
+      if (it.s <= c.s || it.s > c.s + within) return false;
+      if (it.until !== undefined && race.t > it.until) return false;
+      return it.kind === "rock" || it.kind === "mud" || it.kind === "oil" && it.owner !== c.id;
+    });
+  }
+  // 牌與機關對抓地的影響（oil／mud 是車手預料不到的，不算進目標速度）
   function wildGrip(c, k, withOil) {
     var fx = c.fx, g = 1;
     if (fx.late > 0) g *= 1.08;
     if (fx.gutter > 0 && k > 1 / 40) g *= 1.25;
     if (fx.move > 0) g *= c.moveKind === "gutter" ? 1.2 : 1.1;
     if (withOil && fx.oil > 0) g *= 0.65;
+    if (withOil && fx.mud > 0) g *= 0.75;
     return g;
   }
   function wildPower(c) {
     var fx = c.fx, m = 1;
     if (fx.boost > 0) m = 1.4;
+    if (fx.jump > 0) m = Math.max(m, 1.3);
     if (fx.nitro > 0) m = Math.max(m, 1.7);
     if (fx.sling > 0) m = Math.max(m, 2.2);
     return m;
@@ -519,10 +570,16 @@
     race.items.forEach(function (it) {
       if (it.s <= s0 || it.s > c.s) return;
       if (it.until !== undefined && race.t > it.until) return;
+      var shielded = c.fx.shield > 0;
       if (it.kind === "boost") { c.fx.boost = 2.5; }
+      else if (it.kind === "ramp") { c.fx.jump = 1.8; event(race, c, "jump"); }
       else if (it.kind === "box") {
         var got = drawCard(race, c);
         if (got) event(race, c, "item", { card: got });
+      } else if (shielded && (it.kind === "rock" || it.kind === "mud" || it.kind === "oil" && it.owner !== c.id)) {
+        event(race, c, "shield", { kind: it.kind });
+      } else if (it.kind === "mud") {
+        if (race.wr() > (D.ROCK_DODGE[c.styleId] || 0.5) * 0.8) { c.fx.mud = 2; event(race, c, "trap", { kind: "mud" }); }
       } else if (it.kind === "rock") {
         if (race.wr() > (D.ROCK_DODGE[c.styleId] || 0.5)) {
           c.v *= 0.65; c.stun = Math.max(c.stun, 0.7); c.spinDir = race.wr() < 0.5 ? 1 : -1; c.passing = null;
@@ -541,6 +598,8 @@
     var s = race.track.surf[i];
     if (assumed) s = 1 - 0.8 * (1 - s);   // 車手看得到路面，但只能預估八成
     var mu = race.baseMu * s * c.tireMul * c.st.grip * c.st.load;
+    // 懸吊：硬（+）在乾燥好路面抓地好一點，濕滑／碎石／積雪反而吃虧；軟（−）相反
+    if (c.st.susp) mu *= s >= 0.95 && race.baseMu >= 0.9 ? 1 + 0.012 * c.st.susp : 1 - 0.02 * c.st.susp;
     if (mu < 0.8) mu *= c.di.low;
     return mu;
   }
@@ -599,7 +658,7 @@
       var k = Math.abs(tr.k[i]);
       var on = k > 1 / 250;
       var err = c.noise[i] * sigma;
-      var muL = carMu(race, c, i, true) * c.di.bal;
+      var muL = carMu(race, c, i, true) * c.di.bal * st.lat;
       var den = k - muL * q;
       var lim = den <= 1e-6 ? st.vtop : Math.sqrt(muL * G / den);
       vc[i] = lim >= st.vtop ? st.vtop : Math.min(st.vtop, lim * f * (on ? 1 + err : 1));
@@ -612,7 +671,7 @@
       var v1 = vc[i + 1];
       var mu = carMu(race, c, i, true);
       // 彎中還在用橫向抓地時，能拿來煞車的部分比較少（摩擦圓）
-      var rr = Math.min(1, v1 * v1 * Math.abs(tr.k[i]) / (mu * c.di.bal * (G + q * v1 * v1)));
+      var rr = Math.min(1, v1 * v1 * Math.abs(tr.k[i]) / (mu * c.di.bal * st.lat * (G + q * v1 * v1)));
       var circ = Math.sqrt(Math.max(0.15, 1 - rr * rr));
       var dec = mu * st.brk * (G + q * v1 * v1) * 0.9 * f * circ + RHO_HALF * st.cda * v1 * v1 / st.m + ROLL - G * tr.sl[i];
       dec = Math.max(dec, 0.6);
@@ -644,6 +703,7 @@
     var sev = r - c.di.tol;
     var hit = v > 13 ? (v - 10) * 1.6 * (1 + sev * 4) : 0;
     if (race.wild) hit *= 0.5;   // 奔放模式：撞擊損傷減半（街機風，比較不會一撞就退賽）
+    if (race.wild && c.fx.shield > 0) hit *= 0.5;
     c.dmg = Math.min(DNF_DAMAGE, c.dmg + 8 + hit);
     c.spins++;
     c.stun = 2.2 + Math.min(2, sev * 8);
@@ -657,26 +717,64 @@
     return v * 0.25;
   }
 
+  // 並排：自己的車頭已經超過前車車身的一半（overlap≥½ 才算真的並排，進彎時對方必須讓線）
+  function alongside(c, a, part) { return c.s >= a.s - CAR_LEN * (part || 0.5); }
+  // 這段路上自己規劃的最低速度（＝彎道的進彎目標速度）
+  function minProf(c, tr, s0, s1) {
+    var a = idxAt(tr, s0), b = idxAt(tr, s1), m = Infinity;
+    for (var i = a; i <= b; i++) if (c.prof[i] < m) m = c.prof[i];
+    return m;
+  }
+
   // 同時出發：決定每台車這一步的速度上限（跟車）與超車
+  //   超車有兩種（第七批，較真／奔放都有）：
+  //   1. 直線超車：路夠寬、前方是直線、自己比較快 → 換到旁邊加速超過去。到了彎道如果已經並排就並排過彎，否則放棄。
+  //   2. 晚煞車切內線：緊跟在後、前方有彎、自己進彎能帶更高速度 → 切到彎的內側晚一點煞車。到切入點還沒並排（車頭沒到對方車尾）就得放棄、退回後面。
+  //   並排過彎時被超的一方只能走外側線（彎中目標速度 ×0.96），超車方走內側也會稍微犧牲出彎（×0.985）；路窄並排可能擦撞（雙方掉速、小損傷）。
+  //   超過以後要領先約一個半車身才切回行車線；被超的一方也會往另一側讓。
   function traffic(race, dt) {
     var tr = race.track, cars = race.cars;
     var active = cars.filter(function (c) { return c.state === "run" && c.stun <= 0; });
-    cars.forEach(function (c) { c.cap = Infinity; c.draft = false; });
+    cars.forEach(function (c) { c.cap = Infinity; c.draft = false; c.beingPassed = null; });
     if (race.mode !== "battle") return;
     active.forEach(function (c) {
       var ahead = null;
       active.forEach(function (a) { if (a !== c && a.s > c.s && (!ahead || a.s < ahead.s)) ahead = a; });
-      if (!ahead) { c.passing = null; return; }
+      if (!ahead) { c.passing = null; c.passKind = null; return; }
       var gap = ahead.s - c.s - CAR_LEN;
       var wild = race.wild, fx = c.fx || {};
-      if (c.passing !== null && c.passing !== ahead.id) c.passing = null;
+      if (c.passing !== null && c.passing !== ahead.id) {
+        // 前車換人了：剛超過去的話，先保持在旁邊直到拉開距離
+        var was = race.cars[c.passing];
+        if (was && was.s < c.s) c.hold = was.id;
+        c.passing = null; c.passKind = null;
+      }
       if (gap < 25 && maxK(tr, c.s, ahead.s) < 1 / 200) c.draft = true;
+      if (wild && fx.magnet > 0 && gap < 60 && maxK(tr, c.s, ahead.s) < 1 / 120) c.draft = true;
       if (wild) c.draftT = c.draft ? c.draftT + dt : 0;
       if (c.passing === ahead.id) {
-        // 彎道到了還沒超過：放棄（奔放模式的招式超車中不放棄）
         var forcing = wild && (fx.move > 0 || fx.ghost > 0 || fx.sling > 0);
-        if (!forcing && maxK(tr, c.s, c.s + 25) > 1 / 60 && c.s < ahead.s - 1.5) c.passing = null;
-        else return;
+        var abort = false;
+        if (c.passKind === "brake") abort = maxK(tr, c.s, c.s + 6) > 1 / 60 && !alongside(c, ahead, 1);
+        else abort = maxK(tr, c.s, c.s + 25) > 1 / 60 && c.s < ahead.s - 1.5 && !alongside(c, ahead);
+        if (abort && !forcing) {
+          // 沒能並排就到了彎：放棄，退回後面
+          if (c.passKind === "brake") event(race, c, "pass_fail", { other: ahead.id });
+          c.passing = null; c.passKind = null;
+        } else {
+          ahead.beingPassed = c;
+          if (alongside(c, ahead) && maxK(tr, c.s, c.s + 10) > 1 / 150) {
+            ahead.yieldT = 1.2;
+            // 窄路並排過彎：可能擦撞（每次超車最多一次）
+            if (!c.touched && tr.w < 6.5 && race.rnd() < (0.35 + (ahead.style.block < 1 ? 0.35 : 0)) * dt) {
+              c.touched = true;
+              c.v *= 0.9; ahead.v *= 0.88;
+              c.dmg = Math.min(DNF_DAMAGE - 1, c.dmg + 3); ahead.dmg = Math.min(DNF_DAMAGE - 1, ahead.dmg + 3);
+              event(race, c, "contact", { other: ahead.id });
+            }
+          }
+          return;
+        }
       }
       if (wild && fx.ghost > 0 && gap < 10) { setMove(race, c, ahead, "ghost"); return; }
       if (gap < 10 && c.v > ahead.v - 0.5) {
@@ -684,10 +782,23 @@
         var room = wild ? tr.w >= 4.5 && maxK(tr, c.s, c.s + 40) < 1 / 150 : tr.w >= 6 && maxK(tr, c.s, c.s + 70) < 1 / 150;
         var faster = profAt(c, tr, c.s + 40) > ahead.v * (wild ? 1.02 : 1.04) + 0.5 || wild && c.draftT > 1;
         if (room && faster && race.rnd() < c.style.pass * blockM * dt * 2 * (wild ? 2.5 : 1)) {
-          c.passing = ahead.id;
+          c.passing = ahead.id; c.passKind = "straight"; c.touched = false;
           c.side = (ahead.d > 0.3 ? -1 : ahead.d < -0.3 ? 1 : (race.rnd() < 0.5 ? 1 : -1));
           if (wild && c.draftT > 1.5) { c.passMove = "slipstream"; c.passMoveT = race.t; fx.boost = 1.5; }
           return;
+        }
+        // 晚煞車切內線：前方 20–90 m 有彎、路寬夠兩台並排、緊跟（6 m 內）、自己進彎能帶更快的速度
+        var kIn = maxK(tr, c.s + 20, c.s + 90);
+        if (!room && gap < 6 && kIn > 1 / 70 && kIn < 1 / 12 && tr.w >= (wild ? 4.5 : 5.5)) {
+          var mine = minProf(c, tr, c.s + 15, c.s + 95), his = minProf(ahead, tr, c.s + 15, c.s + 95);
+          if (mine > his * 1.03 + 0.3 && race.rnd() < c.style.pass * blockM * dt * 0.9) {
+            c.passing = ahead.id; c.passKind = "brake"; c.touched = false;
+            // 內側＝彎的方向（左彎在左）
+            var a0 = idxAt(tr, c.s + 20), a1 = idxAt(tr, c.s + 90), kk = 0;
+            for (var ii = a0; ii <= a1; ii++) if (Math.abs(tr.k[ii]) > Math.abs(kk)) kk = tr.k[ii];
+            c.side = kk >= 0 ? 1 : -1;
+            return;
+          }
         }
         if (wild && !room) {
           // 彎中招式：髮夾彎內側「溝落」、甩尾中的「慣性甩尾」外側超車
@@ -725,9 +836,10 @@
       mu *= wildGrip(c, k, true);
     }
     var q = RHO_HALF * st.cla / st.m;
-    var latMax = mu * c.di.bal * (G + q * v * v);
+    var latMax = mu * c.di.bal * st.lat * (G + q * v * v);
+
     var r = v * v * k / latMax;
-    var drag = RHO_HALF * st.cda * v * v / st.m * (c.draft ? 0.8 : 1);
+    var drag = RHO_HALF * st.cda * v * v / st.m * (c.draft ? (wfx && wfx.magnet > 0 ? 0.7 : 0.8) : 1);
     var grav = G * tr.sl[i];
     var target = c.state === "fin" ? profAt(c, tr, c.s) : Math.min(profAt(c, tr, c.s), profAt(c, tr, c.s + v * 0.12), c.cap);
     var pmul = 1;
@@ -735,8 +847,12 @@
       pmul = wildPower(c);
       var tm = k > 1 / 250 ? Math.sqrt(wildGrip(c, k, false)) : 1;
       if (pmul > 1 && maxK(tr, c.s, c.s + v * 2.5) < 1 / 200) tm *= 1.1;
+      if (wfx.blind > 0) tm *= 0.93;
       target = Math.min(Math.min(profAt(c, tr, c.s), profAt(c, tr, c.s + v * 0.12)) * tm, c.cap);
     }
+    // 並排過彎：被超的一方走外側線、超車方走內側（都比自己的理想線慢一點）
+    if (c.yieldT > 0) { c.yieldT -= dt; if (k > 1 / 250 && c.state === "run") target *= 0.96; }
+    if (c.passKind === "brake" && c.passing !== null && k > 1 / 250) target *= 0.985;
     var rc = Math.min(1, r);
     var circle = Math.sqrt(Math.max(0.15, 1 - rc * rc));
     var a;
@@ -777,8 +893,23 @@
     if (!c.drifting && as > 0.55) { c.drifting = true; c.drifts++; }
     else if (c.drifting && as < 0.15) c.drifting = false;
     if (c.state === "dnf") return;
+    // 奔放模式：甩尾集氣，累積 CHARGE_SEC 秒補一張牌（手牌滿了就變成短暫加速）
+    if (wfx && c.state === "run" && c.stun <= 0) {
+      if (as > 0.5 && v > 10) c.charge += dt / D.CHARGE_SEC;
+      if (c.charge >= 1) {
+        c.charge = 0; c.charges++;
+        var got = drawCard(race, c);
+        if (!got) wfx.boost = Math.max(wfx.boost || 0, 1.2);
+        event(race, c, "charge", got ? { card: got } : {});
+      }
+    }
     // 橫向位置：超車時移到旁邊
-    var dT = c.passing !== null ? c.side * (tr.w * 0.3) : c.state === "fin" ? (tr.w / 2 - 1.3) * c.side : 0;
+
+    var holdCar = c.hold !== null ? race.cars[c.hold] : null;
+    if (holdCar && (c.s - holdCar.s > CAR_LEN * 1.6 || holdCar.state !== "run" || c.state !== "run")) { c.hold = null; holdCar = null; }
+    var bp = c.beingPassed;
+    var dT = c.passing !== null || holdCar ? c.side * (tr.w * 0.3) : c.state === "fin" ? (tr.w / 2 - 1.3) * c.side :
+      bp && bp.passing === c.id ? -bp.side * (tr.w * 0.18) : 0;
     c.d += (dT - c.d) * Math.min(1, dt * 2.2);
     c.v = v;
     var s0 = c.s;
@@ -822,7 +953,12 @@
             c.overtakes++;
             var mv = race.wild && c.passMove && race.t - c.passMoveT < 6 ? c.passMove : null;
             if (mv) c.passMove = null;
-            event(race, c, "pass", mv ? { other: passed.id, move: mv } : { other: passed.id });
+            var pe = { other: passed.id };
+            if (mv) pe.move = mv;
+            if (c.passKind === "brake" && c.passing === passed.id) pe.kind = "brake";
+            else if (c.passing === passed.id && passed.yieldT > 0) pe.kind = "sbs";
+            event(race, c, "pass", pe);
+
           }
         }
       });
@@ -861,7 +997,7 @@
         pos: i + 1, id: c.id, name: c.name, color: c.color, car: c.st.name, cpu: c.cpu, state: c.state,
         time: c.finT, gap: c.state === "fin" && lead !== null ? c.finT - lead : null, dnf: c.dnf,
         dist: Math.max(0, Math.min(c.s, race.track.finish) - race.track.start),
-        maxKmh: Math.round(c.maxV * 3.6), spins: c.spins, drifts: c.drifts, overtakes: c.overtakes, dmg: Math.round(c.dmg), cards: c.cardsUsed || 0
+        maxKmh: Math.round(c.maxV * 3.6), spins: c.spins, drifts: c.drifts, overtakes: c.overtakes, dmg: Math.round(c.dmg), cards: c.cardsUsed || 0, charges: c.charges || 0
       };
     });
   }
@@ -882,6 +1018,6 @@
     DT: DT, DS: DS, CAR_LEN: CAR_LEN,
     rng: rng, parseSeg: parseSeg, pieceTags: pieceTags, findCombos: findCombos, segLen: segLen, courseLen: courseLen, fixedCourse: fixedCourse, expandPiece: expandPiece,
     cleanCourse: cleanCourse, cleanSeg: cleanSeg, buildTrack: buildTrack, trackInfo: trackInfo, randomCourse: randomCourse, randomFill: randomFill,
-    cleanSpec: cleanSpec, carStats: carStats, createRace: createRace, command: command, playCard: playCard, step: step, order: order, runToEnd: runToEnd, results: results, carPose: carPose
+    MAX_SEGS: MAX_SEGS, cleanSpec: cleanSpec, carStats: carStats, createRace: createRace, command: command, playCard: playCard, step: step, order: order, runToEnd: runToEnd, results: results, carPose: carPose
   };
 })();

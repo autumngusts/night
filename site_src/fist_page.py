@@ -41,4 +41,6 @@ def build_fist_html() -> str:
         static_prefix="../static/",
         home_href="../index.html",
         extra_scripts=FIST_SCRIPTS,
+        extra_styles=("css/fist.css",),
+        extra_i18n=("i18n/fist.js",),
     )

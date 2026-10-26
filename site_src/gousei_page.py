@@ -45,4 +45,6 @@ def build_gousei_html() -> str:
         static_prefix=STATIC_PREFIX,
         home_href="../index.html",
         extra_scripts=GOUSEI_SCRIPTS,
+        extra_styles=("css/gousei.css",),
+        extra_i18n=("i18n/gousei.js",),
     )

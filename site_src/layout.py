@@ -32,10 +32,20 @@ def page_shell(
     static_prefix: str,
     home_href: str,
     extra_scripts: tuple[str, ...] = (),
+    extra_styles: tuple[str, ...] = (),
+    extra_i18n: tuple[str, ...] = (),
 ) -> str:
     lang_buttons = "\n".join(
         f'      <button type="button" class="lang-btn" data-lang="{lang}" data-i18n="lang_name_{lang}"></button>'
         for lang in LANGS
+    )
+    # 各遊戲自己的樣式（static_src/css/<遊戲>.css；使用者指定 2026-10-26：每個遊戲分開 CSS，更新不互相影響）
+    styles = "".join(
+        f'\n<link rel="stylesheet" href="{asset_url(static_prefix, name)}">' for name in extra_styles
+    )
+    # 各遊戲自己的字串（static/i18n/<遊戲>.js，generate.py 依鍵的前綴從 STRINGS 分出）：緊接在 i18n.js 之後、遊戲腳本之前
+    i18n_scripts = "".join(
+        f'\n  <script src="{asset_url(static_prefix, name)}"></script>' for name in extra_i18n
     )
     scripts = "\n".join(
         f'  <script src="{asset_url(static_prefix, name)}"></script>' for name in extra_scripts
@@ -48,7 +58,7 @@ def page_shell(
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{title}</title>
 <link rel="icon" href="data:,">
-<link rel="stylesheet" href="{asset_url(static_prefix, 'style.css')}">
+<link rel="stylesheet" href="{asset_url(static_prefix, 'style.css')}">{styles}
 </head>
 <body>
   <header class="site-header">
@@ -62,7 +72,7 @@ def page_shell(
   <main>
 {body}
   </main>
-  <script src="{asset_url(static_prefix, 'i18n.js')}"></script>
+  <script src="{asset_url(static_prefix, 'i18n.js')}"></script>{i18n_scripts}
 {scripts}
 </body>
 </html>

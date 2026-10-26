@@ -104,8 +104,10 @@
   // 自製車：滑桿範圍（drive 由玩家選）
   var CUSTOM = {
     base: { id: "custom", brand: "custom", name: "Custom", drive: "FR", kw: 160, kg: 1200, grip: 1.0, brk: 1.0, hdl: 1.0, cda: 0.64, cla: 0.05, vmax: 250 },
+    // 第六批放寬範圍，並開放空阻／下壓力（舊存檔沒有 cda／cla 時用 base，結果不變）
     range: {
-      kw: [60, 500, 5], kg: [700, 2200, 10], grip: [0.9, 1.15, 0.01], brk: [0.9, 1.15, 0.01], hdl: [0.85, 1.2, 0.01], vmax: [180, 320, 5]
+      kw: [40, 1500, 5], kg: [450, 3200, 10], grip: [0.85, 1.2, 0.01], brk: [0.85, 1.2, 0.01], hdl: [0.8, 1.25, 0.01], vmax: [140, 450, 5],
+      cda: [0.45, 0.9, 0.01], cla: [0, 0.7, 0.01]
     }
   };
 
@@ -149,10 +151,15 @@
   };
   var STYLE_IDS = ["calm", "balanced", "attack", "defend"];
 
-  // 改裝點數（市售車）／每項上限
+  // 改裝點數（市售車）／每項上限；設定畫面可選點數上限（6＝原本的標準）
   var UPGRADE_POINTS = 6;
+  var UPGRADE_PTS_OPTIONS = [6, 10, 20];
   var UPGRADE_MAX = 4;
-  var UPGRADES = ["eng", "wt", "brk", "hdl"];
+  var UPGRADES = ["eng", "wt", "brk", "hdl", "grp"];
+  // 細部調校（[最小, 最大, 間隔]；全部 0＝原廠，跟第五批以前的結果完全一樣）
+  //   lsd＝限滑差速器（出彎牽引↑、極限比較暴躁）、susp＝懸吊（−軟／＋硬）、camber＝外傾角（過彎↑、煞車↓）、
+  //   rst＝限流閥（出力 −%，用來壓 PI）、blst＝配重（kg）
+  var TUNES = { lsd: [0, 3, 1], susp: [-2, 2, 1], camber: [0, 3, 1], rst: [0, 40, 5], blst: [0, 200, 10] };
 
   // 特殊路面（路段的 sf）：mu＝抓地倍率、winter＝冬天再乘、dry＝不受雨雪影響（隧道；值＝冬天的倍率，抵銷積雪）
   //   code 從 1 開始，對應 SURFACE_IDS 的順序（buildTrack 的 tr.sp 存 code）
@@ -222,39 +229,39 @@
   // 段格式：["S", 長度, 坡度?]、["C", 角度, 半徑, 坡度?]
   var COURSES = [
     {
-      id: "akina", name: C("秋名山", "秋名山", "Akina"), w: 6.5, g: 7,
+      id: "akina", prof: "hairpin", name: C("秋名山", "秋名山", "Akina"), w: 6.5, g: 7,
       desc: C("著名的五連續髮夾彎，前段高速、後段考驗煞車與甩尾", "有名な五連ヘアピン。前半は高速、後半はブレーキとドリフト勝負", "Famous five consecutive hairpins"),
       segs: [["S", 200], ["C", 35, 180], ["S", 150], ["C", -60, 90], ["S", 120], ["C", 90, 35], ["S", 90], ["C", -80, 45], ["S", 260],
         ["C", 170, 14, 9], ["S", 70, 9], ["C", -170, 14, 9], ["S", 70, 9], ["C", 170, 15, 9], ["S", 60, 9], ["C", -170, 14, 9], ["S", 70, 9], ["C", 165, 15, 9],
         ["S", 200], ["C", -50, 120], ["S", 150], ["C", 70, 50], ["S", 110], ["C", -90, 30], ["S", 240], ["C", 45, 150], ["S", 120], ["C", -30, 200], ["S", 150]]
     },
     {
-      id: "myogi", name: C("妙義山", "妙義山", "Myogi"), w: 6.5, g: 7,
+      id: "myogi", prof: "technical", name: C("妙義山", "妙義山", "Myogi"), w: 6.5, g: 7,
       desc: C("中速技術彎連續，中段一條長直線後接兩個大髮夾", "テクニカルな中速コーナーの連続。中盤の長いストレートの先に大きなヘアピン", "Technical mid-speed corners, a long straight into two hairpins"),
       segs: [["S", 180], ["C", 60, 70], ["S", 100], ["C", -75, 45], ["S", 90], ["C", 90, 30], ["S", 60], ["C", -120, 22], ["S", 220], ["C", 45, 120], ["S", 160],
         ["C", -170, 16, 9], ["S", 80, 9], ["C", 160, 18, 9], ["S", 260], ["C", -60, 80], ["S", 120], ["C", 80, 40], ["S", 90], ["C", -90, 35], ["S", 200], ["C", 50, 100], ["S", 150]]
     },
     {
-      id: "haruna", name: C("榛名山", "榛名山", "Haruna"), w: 7, g: 7, scene: "lake", water: 1,
+      id: "haruna", prof: "mixed", name: C("榛名山", "榛名山", "Haruna"), w: 7, g: 7, scene: "lake", water: 1,
       desc: C("從湖畔出發的下坡，前段高速、後段髮夾彎", "湖畔からスタートするダウンヒル。前半高速、後半ヘアピン", "Downhill from the lakeside: fast first half, hairpins later"),
       segs: [["S", 220], ["C", 30, 200], ["S", 180], ["C", -50, 120], ["S", 150], ["C", 70, 60], ["S", 120], ["C", -90, 40], ["S", 100], ["C", 170, 15, 9], ["S", 70, 9],
         ["C", -165, 16, 9], ["S", 80], ["C", 100, 30], ["S", 200], ["C", -40, 160], ["S", 140], ["C", 60, 70], ["S", 180]]
     },
     {
-      id: "usui", name: C("碓冰", "碓氷", "Usui"), w: 5.5, g: 6,
+      id: "usui", prof: "narrow", name: C("碓冰", "碓氷", "Usui"), w: 5.5, g: 6,
       desc: C("路窄彎多，幾乎沒有超車點，前車就是一道牆", "狭くてコーナーだらけ。抜きどころがほぼない", "Narrow and twisty, almost nowhere to pass"),
       segs: [["S", 120], ["C", 80, 25], ["S", 40], ["C", -90, 22], ["S", 50], ["C", 100, 20], ["S", 40], ["C", -70, 30], ["S", 60], ["C", 120, 18], ["S", 35],
         ["C", -110, 20], ["S", 70], ["C", 85, 25], ["S", 40], ["C", -95, 22], ["S", 90], ["C", 130, 16], ["S", 40], ["C", -80, 28], ["S", 60], ["C", 90, 24],
         ["S", 50], ["C", -100, 20], ["S", 120], ["C", 60, 40], ["S", 80], ["C", -75, 30], ["S", 100]]
     },
     {
-      id: "akagi", name: C("赤城", "赤城", "Akagi"), w: 8, g: 6,
+      id: "akagi", prof: "fast", name: C("赤城", "赤城", "Akagi"), w: 8, g: 6,
       desc: C("路寬、長直線多的高速山路，有兩個大髮夾", "道幅が広く長いストレートが多い高速峠。大きなヘアピンが二つ", "Wide, fast, long straights"),
       segs: [["S", 350], ["C", 30, 250], ["S", 300], ["C", -60, 100], ["S", 200], ["C", 90, 45], ["S", 250], ["C", -170, 18], ["S", 300], ["C", 45, 160], ["S", 280],
         ["C", -80, 60], ["S", 220], ["C", 170, 16], ["S", 350], ["C", -40, 200], ["S", 250], ["C", 70, 70], ["S", 300]]
     },
     {
-      id: "hakone", name: C("箱根七曲", "箱根七曲り", "Hakone Nanamagari"), w: 6, g: 10,
+      id: "hakone", prof: "switchback", name: C("箱根七曲", "箱根七曲り", "Hakone Nanamagari"), w: 6, g: 10,
       desc: C("陡坡上連續七個彎，煞車與車重決勝負", "急勾配に七つの連続コーナー。ブレーキと車重が勝負", "Seven bends on a steep grade"),
       segs: [["S", 150], ["C", 40, 120], ["S", 100], ["C", 160, 15, 11], ["S", 45, 11], ["C", -160, 15, 11], ["S", 45, 11], ["C", 165, 14, 11], ["S", 50, 11],
         ["C", -155, 16, 11], ["S", 45, 11], ["C", 160, 15, 11], ["S", 50, 11], ["C", -165, 14, 11], ["S", 45, 11], ["C", 160, 15, 11], ["S", 150], ["C", -50, 100],
@@ -262,25 +269,25 @@
     },
     // ---- MF Ghost 風格的公路賽場（cat: "mfg"；風格化，不是實際路線） ----
     {
-      id: "odawara", cat: "mfg", name: C("小田原派克峰", "小田原パイクスピーク", "Odawara Pikes Peak"), w: 8, g: 9,
+      id: "odawara", cat: "mfg", prof: "fast", name: C("小田原派克峰", "小田原パイクスピーク", "Odawara Pikes Peak"), w: 8, g: 9,
       desc: C("寬闊收費公路的陡下坡，高速彎一路連到底", "広い有料道路の急な下り。高速コーナーが延々と続く", "Steep downhill on a wide toll road, fast sweepers all the way"),
       segs: [["S", 400], ["C", 35, 220], ["S", 300], ["C", -50, 160], ["S", 250], ["C", 70, 90], ["S", 200], ["C", -90, 70], ["S", 300], ["C", 40, 200], ["S", 350],
         ["C", -120, 50], ["S", 200], ["C", 60, 120], ["S", 300], ["C", -30, 260], ["S", 300]]
     },
     {
-      id: "ashinoko", cat: "mfg", name: C("蘆之湖 GT", "芦ノ湖GT", "Ashinoko GT"), w: 7.5, g: 5, scene: "lake", water: -1,
+      id: "ashinoko", cat: "mfg", prof: "mixed", name: C("蘆之湖 GT", "芦ノ湖GT", "Ashinoko GT"), w: 7.5, g: 5, scene: "lake", water: -1,
       desc: C("沿著湖岸的高速段，接上山腰的急髮夾", "湖岸沿いの高速区間から山腹のきついヘアピンへ", "Fast lakeside run into a tight mountainside hairpin"),
       segs: [["S", 250], ["C", 45, 140], ["S", 200], ["C", -80, 60], ["S", 150], ["C", 100, 40], ["S", 120], ["C", -60, 90], ["S", 280], ["C", 30, 250], ["S", 200],
         ["C", -150, 25], ["S", 150], ["C", 90, 50], ["S", 220], ["C", -45, 150], ["S", 250]]
     },
     {
-      id: "manazuru", cat: "mfg", name: C("真鶴半島", "ザ・ペニンシュラ真鶴", "The Peninsula Manazuru"), w: 6, g: 4, scene: "sea", water: -1,
+      id: "manazuru", cat: "mfg", prof: "technical", name: C("真鶴半島", "ザ・ペニンシュラ真鶴", "The Peninsula Manazuru"), w: 6, g: 4, scene: "sea", water: -1,
       desc: C("海岸邊的窄路，連續急彎，幾乎沒有喘息", "海沿いの狭い道。きついコーナーが息つく暇なく続く", "Narrow coastal road with relentless tight corners"),
       segs: [["S", 150], ["C", 70, 35], ["S", 80], ["C", -60, 40], ["S", 100], ["C", 110, 25], ["S", 60], ["C", -90, 30], ["S", 120], ["C", 50, 60], ["S", 90],
         ["C", -120, 22], ["S", 70], ["C", 80, 35], ["S", 110], ["C", -70, 40], ["S", 150], ["C", 100, 28], ["S", 120]]
     },
     {
-      id: "atami", cat: "mfg", name: C("熱海海濱雙線", "シーサイドダブルレーン", "Seaside Double Lane"), w: 9.5, g: 3, scene: "sea", water: -1,
+      id: "atami", cat: "mfg", prof: "fast", name: C("熱海海濱雙線", "シーサイドダブルレーン", "Seaside Double Lane"), w: 9.5, g: 3, scene: "sea", water: -1,
       desc: C("海邊的雙線道，路寬能並排，極速與超車的戰場", "海沿いの片側二車線。並走できる道幅で最高速と追い抜きの勝負", "Wide seaside dual carriageway: top speed and overtaking"),
       segs: [["S", 500], ["C", 25, 300], ["S", 400], ["C", -40, 220], ["S", 350], ["C", 60, 150], ["S", 300], ["C", -35, 250], ["S", 450], ["C", 90, 80], ["S", 300],
         ["C", -50, 180], ["S", 400]]
@@ -299,20 +306,31 @@
     block: { icon: "🛡", t: 10 },       // 鐵壁防守：後車超車機率 ×0.05
     oil: { icon: "🛢", t: 0 },          // 在身後 8 m 灑油漬（其他車經過：抓地 ×0.65 持續 1.5 秒）
     repair: { icon: "🔧", t: 0 },       // 損傷 −40、立刻從打滑恢復
-    ghost: { icon: "👻", t: 5 }         // 鬼之走線：無視前車阻擋，隨時可以超車
+    ghost: { icon: "👻", t: 5 },        // 鬼之走線：無視前車阻擋，隨時可以超車
+    // ---- 第六批 ----
+    shield: { icon: "💠", t: 8 },       // 護盾：擋下落石／油漬／泥坑／煙幕，打滑損傷減半
+    magnet: { icon: "🧲", t: 8 },       // 尾流磁鐵：前方 60 m 內有車就吸到尾流（空阻 −30%），也能累積尾流彈弓
+    smoke: { icon: "💨", t: 0 }         // 煙幕：身後 40 m 內的車 3 秒看不清路（目標速度 ×0.93）
   };
-  var CARD_IDS = ["nitro", "sling", "late", "gutter", "block", "oil", "repair", "ghost"];
+  var CARD_IDS = ["nitro", "sling", "late", "gutter", "block", "oil", "repair", "ghost", "shield", "magnet", "smoke"];
+  // 甩尾集氣（奔放模式）：甩尾累積 CHARGE_SEC 秒就補一張牌（手牌滿了改成短暫加速）
+  var CHARGE_SEC = 3;
   var HAND_MAX = 3, HAND_START = 2, DRAW_EVERY = 700;
   // 路面機關：每隔 gap 公尺左右放一個，依 w 權重抽種類
   var ITEMS = {
     boost: { w: 4 },   // 加速帶：2.5 秒出力 ×1.4
     box: { w: 3 },     // 道具箱：補一張牌
-    rock: { w: 2 }     // 落石：沒閃過就減速、小打滑、損傷 +6（閃避率看戰略）
+    rock: { w: 2 },    // 落石：沒閃過就減速、小打滑、損傷 +6（閃避率看戰略）
+    mud: { w: 1.5 },   // 泥坑（第六批）：沒閃過 2 秒抓地 ×0.75
+    ramp: { w: 1.5 }   // 跳台（第六批，只放直線）：飛越後 1.8 秒出力 ×1.3
   };
   var ITEM_GAP = 230;
   var ROCK_DODGE = { calm: 0.75, balanced: 0.55, attack: 0.4, defend: 0.6 };
   // 招式超車（奔放模式）：名稱只是演出，機率／效果在 dejavu_core.js 的 traffic()
   var MOVES = ["gutter", "drift", "slipstream", "ghost", "sling"];
+
+  // 景觀地區（第八批，只影響畫面）：jp 日本（櫻花／紅葉／雪牆）、tw 台灣（路邊攤、霓虹、機車、民眾、大看板）、none 一般
+  var REGIONS = ["jp", "tw", "none"];
 
   var COLORS = ["#e8e8e8", "#d33a2c", "#2f6fd6", "#f2c230", "#2e9e5b", "#8e44ad", "#ff7f27", "#222222", "#19b5c9", "#ff6fae", "#8bc34a", "#8d6e63"];
   var MAX_CARS = 12;
@@ -320,10 +338,11 @@
   root.PriTestDejavuData = {
     C: C, BRANDS: BRANDS, CARS: CARS, CUSTOM: CUSTOM, DRIVES: DRIVES, DRIVE_INFO: DRIVE_INFO,
     TIRES: TIRES, TIRE_IDS: TIRE_IDS, SEASONS: SEASONS, SEASON_IDS: SEASON_IDS, STYLES: STYLES, STYLE_IDS: STYLE_IDS,
-    UPGRADE_POINTS: UPGRADE_POINTS, UPGRADE_MAX: UPGRADE_MAX, UPGRADES: UPGRADES,
+    UPGRADE_POINTS: UPGRADE_POINTS, UPGRADE_PTS_OPTIONS: UPGRADE_PTS_OPTIONS, UPGRADE_MAX: UPGRADE_MAX, UPGRADES: UPGRADES, TUNES: TUNES, CHARGE_SEC: CHARGE_SEC,
+
     PIECES: PIECES, GRADES: GRADES, SURFACES: SURFACES, SURFACE_IDS: SURFACE_IDS, COMBOS: COMBOS,
     RULE_IDS: RULE_IDS, CARDS: CARDS, CARD_IDS: CARD_IDS, HAND_MAX: HAND_MAX, HAND_START: HAND_START, DRAW_EVERY: DRAW_EVERY,
-    ITEMS: ITEMS, ITEM_GAP: ITEM_GAP, ROCK_DODGE: ROCK_DODGE, MOVES: MOVES, COURSES: COURSES, COLORS: COLORS, MAX_CARS: MAX_CARS,
+    ITEMS: ITEMS, ITEM_GAP: ITEM_GAP, ROCK_DODGE: ROCK_DODGE, MOVES: MOVES, COURSES: COURSES, COLORS: COLORS, MAX_CARS: MAX_CARS, REGIONS: REGIONS,
     car: function (id) { for (var i = 0; i < CARS.length; i++) if (CARS[i].id === id) return CARS[i]; return null; },
     course: function (id) { for (var i = 0; i < COURSES.length; i++) if (COURSES[i].id === id) return COURSES[i]; return null; },
     piece: function (id) { for (var i = 0; i < PIECES.length; i++) if (PIECES[i].id === id) return PIECES[i]; return null; }
