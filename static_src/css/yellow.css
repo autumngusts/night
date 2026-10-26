@@ -498,3 +498,68 @@ button.yc-relic:hover:not(:disabled) { border-color: var(--yc-accent); }
   .yc-arena-wrap { padding: 4px; }
   .yc-hero-tag { font-size: 0.55rem; }
 }
+
+/* ---- 2026-10-27 UI 簡化：選角只留一份英雄清單、戰鬥畫面字大一點、少放常駐說明 ---- */
+.yc-seat-grid { grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr)); align-items: start; }
+.yc-seat { cursor: pointer; --yc-cls: var(--yc-line); border-left: 4px solid var(--yc-cls); }
+.yc-seat-pick { outline: 2px solid var(--yc-accent); background: var(--yc-accent-soft); }
+.yc-seat-head { display: flex; align-items: center; gap: 0.5rem; }
+.yc-seat-hero { display: inline-flex; align-items: center; gap: 0.3rem; font-size: 1.05em; }
+.yc-seat:not(.yc-seat-pick) .yc-art .yc-small { display: none; }
+.yc-pick-head { margin: 0.9rem 0 0.4rem; font-weight: bold; font-size: 0.92em; }
+.yc-hero-btn { padding: 0.35rem 0.6rem; }
+/* 戰場：空的資訊列不佔位（點敵人／英雄才出現） */
+.yc-focus-panel.yc-focus-empty { display: none; }
+.yc-hint:empty { min-height: 0; margin: 0; }
+.yc-hero-tag { font-size: 0.58rem; padding: 0.05em 0.3em; }
+.yc-enemy-int .yc-int { font-size: 0.74rem; padding: 0 4px; }
+.yc-enemy-shield { font-size: 0.74rem; }
+.yc-ring-label { font-size: 0.74em; }
+/* 分頁上的血量／護盾 */
+.yc-tab-hp, .yc-tab-blk { margin-left: 0.35em; font-size: 0.85em; font-weight: normal; opacity: 0.85; }
+.yc-tab-blk { color: #4a6fd0; }
+.yc-tab .yc-tag-low { color: var(--yc-bad); opacity: 1; font-weight: bold; }
+/* 戰利品：已完成的英雄縮成一行 */
+.yc-choice-done { opacity: 0.7; margin: 0.4rem 0; }
+.yc-choice-done h3 { margin: 0; }
+.yc-choice-done .yc-relic-row { display: none; }
+@media (max-width: 640px) {
+  .yc-hero-tag { font-size: 0.5rem; }
+  .yc-enemy-int .yc-int { font-size: 0.56rem; }
+  .yc-tab-blk { display: none; }
+}
+
+/* ---- 2026-10-27 使用者指定：預計扣血紅字、手牌貼近戰場（資訊欄放左邊）、牌組原尺寸＋大卡稀有度外框 ---- */
+.yc-tag-dmg { color: #ff5a48; }
+.yc-tab-dmg { margin-left: 0.35em; color: var(--yc-bad); font-weight: bold; font-size: 0.85em; }
+.yc-tag-dmg.yc-dmg-zero, .yc-tab-dmg.yc-dmg-zero { color: #9aa3ad; font-weight: normal; }
+
+.yc-hands { display: grid; grid-template-columns: 12.5rem minmax(0, 1fr); grid-template-areas: "side main"; gap: 0.6rem; margin-top: 0.3rem; padding: 0.4rem 0.6rem; }
+.yc-hands-side { grid-area: side; display: flex; flex-direction: column; gap: 0.45rem; min-width: 0; }
+.yc-hands-main { grid-area: main; min-width: 0; display: flex; flex-direction: column; }
+.yc-hands-main .yc-hint { order: 2; }
+.yc-hands-main .yc-hand-body { margin-top: 0; }
+.yc-hands-main .yc-fan { margin-top: 0; }
+.yc-hands-side .yc-tabs { flex-direction: column; flex-wrap: nowrap; margin: 0; }
+.yc-hands-side .yc-tab { text-align: left; border-radius: 6px; border-bottom-width: 1px; border-left: 4px solid var(--yc-cls); padding: 0.3rem 0.5rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.yc-hands-side .yc-hand-info { flex-direction: column; align-items: flex-start; gap: 0.3rem; }
+.yc-hands-side .yc-hand-end { margin-left: 0; align-self: stretch; flex-direction: column-reverse; align-items: stretch; gap: 0.2rem; text-align: center; }
+@media (max-width: 640px) {
+  .yc-hands { grid-template-columns: minmax(0, 1fr); grid-template-areas: "main" "side"; gap: 0.3rem; padding: 0.3rem; }
+  .yc-hands-side .yc-tabs { flex-direction: row; }
+  .yc-hands-side .yc-tab { flex: 1 1 0; min-width: 0; border-left-width: 3px; }
+  .yc-hands-side .yc-hand-info { flex-direction: row; flex-wrap: wrap; align-items: center; }
+  .yc-hands-side .yc-hand-end { margin-left: auto; align-self: auto; flex-direction: row; }
+}
+
+/* 牌組：維持原本卡牌大小（說明太長就截掉，滑過看大卡） */
+.yc-hand.yc-deck-grid .yc-card { aspect-ratio: 5 / 7; min-height: 0; }
+.yc-hand.yc-deck-grid .yc-card-text { display: -webkit-box; overflow: hidden; }
+/* 大卡：外框顏色依稀有度 */
+.yc-card-detail { --yc-rar: #8a8f96; border: 4px solid var(--yc-rar); box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.35), 0 0 14px color-mix(in srgb, var(--yc-rar) 60%, transparent), 0 12px 30px rgba(0, 0, 0, 0.5); }
+.yc-card-detail.yc-rar-basic { --yc-rar: #a47a4e; }
+.yc-card-detail.yc-rar-common { --yc-rar: #9aa3ad; }
+.yc-card-detail.yc-rar-uncommon { --yc-rar: #3f86e0; }
+.yc-card-detail.yc-rar-rare { --yc-rar: #e8b020; }
+.yc-card-detail.yc-rar-token { --yc-rar: #8e5bc8; }
+.yc-card-detail.yc-type-curse { --yc-rar: #5a4a3a; }

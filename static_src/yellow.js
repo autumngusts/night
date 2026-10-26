@@ -240,7 +240,14 @@
 
   // ---------------- 名稱 ----------------
   function heroDef(id) { return D.CLASS[id]; }
-  function heroName(h) { return h ? (h.name || L(heroDef(h.cls).name)) + (isAi(h) ? " 🤖" : "") : ""; }
+  function heroName(h) {
+    if (!h) return "";
+    var base = h.name || L(heroDef(h.cls).name);
+    // 同一隊有重複英雄又沒取名字時，加上座位號才分得出來
+    var g = !h.name && game();
+    if (g && Core.heroes(g).some(function (x) { return x !== h && x.cls === h.cls && !x.name; })) base += " " + (h.seat + 1);
+    return base + (isAi(h) ? " 🤖" : "");
+  }
   function heroLabel(st, seat) {
     var h = Core.hero(st, seat);
     return h ? heroDef(h.cls).icon + heroName(h) : "?";
@@ -396,13 +403,12 @@
   }
 
   // ---------------- 英雄選擇 ----------------
-  // taken：已被其他座位選走的英雄 id（同一隊不能重複）
-  function heroGrid(cur, taken, onPick, allowEmpty) {
+  // 2026-10-27 使用者指定：同一隊可以選重複的英雄，不做限制
+  function heroGrid(cur, onPick, allowEmpty) {
     var grid = el("div", { class: "yc-hero-pick" });
     D.CLASSES.forEach(function (c) {
-      var off = taken.indexOf(c.id) >= 0 && cur !== c.id;
       grid.appendChild(el("button", { type: "button", class: "yc-hero-btn" + (cur === c.id ? " yc-on" : ""), style: "--yc-cls:" + c.color,
-        disabled: off ? true : null, title: L(c.desc),
+        title: L(c.desc),
         onclick: function () { ui.focusHero = c.id; onPick(c.id); } }, [el("span", { class: "yc-class-icon", text: c.icon }), el("span", { text: L(c.name) })]));
     });
     if (allowEmpty) grid.appendChild(el("button", { type: "button", class: "yc-hero-btn" + (cur ? "" : " yc-on"), onclick: function () { onPick(null); } }, [el("span", { text: t("yc_seat_none") })]));
@@ -457,12 +463,17 @@
     var local = el("div", { class: "yc-panel" });
     local.appendChild(el("h2", { text: t("yc_local_title") }));
     local.appendChild(el("p", { class: "yc-muted", text: t("yc_local_desc") }));
+    // 2026-10-27 簡化：四個座位只顯示選好的英雄，英雄清單只有一份（點座位＝切換要替誰選）
     var grid = el("div", { class: "yc-seat-grid" });
+    var pick = ui.pickSeat || 0;
     ui.setup.forEach(function (s, seat) {
-      var taken = ui.setup.filter(function (x, i) { return x && i !== seat; }).map(function (x) { return x.cls; });
-      var box = el("div", { class: "yc-seat" + (s ? "" : " yc-seat-empty") });
-      box.appendChild(el("div", { class: "yc-seat-pos", text: t("yc_player_n", { n: seat + 1 }) }));
-      box.appendChild(heroGrid(s ? s.cls : null, taken, function (cls) { ui.setup[seat] = cls ? { cls: cls, name: s ? s.name : "", ai: !!(s && s.ai), art: s ? s.art : null } : null; render(); }, true));
+      var cd = s ? heroDef(s.cls) : null;
+      var box = el("div", { class: "yc-seat" + (s ? "" : " yc-seat-empty") + (seat === pick ? " yc-seat-pick" : ""), style: cd ? "--yc-cls:" + cd.color : null,
+        onclick: function (ev) { if (ev.target.closest("input, select, label")) return; ui.pickSeat = seat; if (s) ui.focusHero = s.cls; render(); } });
+      box.appendChild(el("div", { class: "yc-seat-head" }, [
+        el("span", { class: "yc-seat-pos", text: t("yc_player_n", { n: seat + 1 }) }),
+        el("span", { class: "yc-seat-hero" }, cd ? [el("span", { class: "yc-class-icon", text: cd.icon }), el("strong", { text: L(cd.name) })] : [el("span", { class: "yc-muted", text: t("yc_seat_none") })])
+      ]));
       if (s) {
         var inp = el("input", { type: "text", class: "yc-text", maxlength: "16", placeholder: L(heroDef(s.cls).name) });
         inp.value = s.name || "";
@@ -475,6 +486,14 @@
       grid.appendChild(box);
     });
     local.appendChild(grid);
+    var curP = ui.setup[pick];
+    local.appendChild(el("div", { class: "yc-pick-head", text: t("yc_pick_for", { n: pick + 1 }) }));
+    local.appendChild(heroGrid(curP ? curP.cls : null, function (cls) {
+      ui.setup[pick] = cls ? { cls: cls, name: curP ? curP.name : "", ai: !!(curP && curP.ai), art: curP ? curP.art : null } : null;
+      // 選好後自動換到下一個空位
+      if (cls && !curP) { var nx = ui.setup.indexOf(null); if (nx >= 0) ui.pickSeat = nx; }
+      render();
+    }, true));
     local.appendChild(heroInfo(ui.focusHero));
     var count = ui.setup.filter(Boolean).length;
     var humans = ui.setup.filter(function (s) { return s && !s.ai; }).length;
@@ -626,21 +645,20 @@
       var on = s && room.isOnline(s.cid);
       var isMe = s && s.cid === room.cid;
       var isAiSeat = s && AI && s.cid === AI.CTRL;
-      var taken = room.seats.filter(function (x, i) { return x && i !== seat && room.isOnline(x.cid); }).map(function (x) { return x.cls; });
       var box = el("div", { class: "yc-seat" + (s ? "" : " yc-seat-empty") + (isMe ? " yc-seat-me" : "") });
       box.appendChild(el("div", { class: "yc-seat-pos", text: t("yc_player_n", { n: seat + 1 }) }));
       if (isAiSeat && room.isHost()) {
         // 房主改 AI 的英雄，或清掉這個 AI
-        box.appendChild(heroGrid(s.cls, taken, function (cls) { if (cls) room.setAiSeat(seat, cls, heroLv(profile(), cls)); else room.leaveSeat(seat); }, true));
+        box.appendChild(heroGrid(s.cls, function (cls) { if (cls) room.setAiSeat(seat, cls, heroLv(profile(), cls)); else room.leaveSeat(seat); }, true));
       } else if (!s || isMe || !on || isAiSeat) {
-        box.appendChild(heroGrid(s && (isMe || !on) ? s.cls : null, taken, function (cls) {
+        box.appendChild(heroGrid(s && (isMe || !on) ? s.cls : null, function (cls) {
           if (cls) room.takeSeat(seat, cls, { lv: heroLv(profile(), cls), art: isMe ? s.art : null }); else room.leaveSeat(seat);
         }, isMe));
         if (isMe) box.appendChild(artSelect(s.art, function (v) { room.takeSeat(seat, s.cls, { lv: heroLv(profile(), s.cls), art: validArt(v) }); }));
       }
       if (AI && room.isHost() && (!s || !on)) {
-        var freeCls = D.CLASSES.filter(function (c) { return taken.indexOf(c.id) < 0; })[0];
-        if (freeCls) box.appendChild(el("button", { type: "button", class: "yc-small-btn", text: "🤖 " + t("yc_add_ai"), onclick: function () { room.setAiSeat(seat, freeCls.id, heroLv(profile(), freeCls.id)); } }));
+        var freeCls = D.CLASSES[0];
+        box.appendChild(el("button", { type: "button", class: "yc-small-btn", text: "🤖 " + t("yc_add_ai"), onclick: function () { room.setAiSeat(seat, freeCls.id, heroLv(profile(), freeCls.id)); } }));
       }
       if (s) {
         var c = heroDef(s.cls);
@@ -786,6 +804,17 @@
     return a.k;
   }
 
+  // 這回合被敵人瞄準時的預計扣血（扣掉護盾後；2026-10-27 使用者指定：血量旁邊紅字 -N）
+  function expectedLoss(h, incoming) {
+    var n = incoming && incoming[h.seat];
+    return !n || h.down ? null : Math.max(0, n - h.blk);
+  }
+  function dmgTag(h, incoming, cls) {
+    var loss = expectedLoss(h, incoming);
+    if (loss === null) return null;
+    return el("span", { class: (cls || "yc-tag-dmg") + (loss ? "" : " yc-dmg-zero"), title: t("yc_focus_hero", { name: heroName(h), n: incoming[h.seat], w: loss }), text: "-" + loss });
+  }
+
   function polar(deg, r) { return Core.polar(deg, r); }
   function secSpan(st) { return Core.secSpan(st); }
   function secStart(st, i) { return Core.secStart(st, i); }
@@ -889,7 +918,7 @@
     if (has("s")) return { src: HERO_IMG + id + "_s.png", flip: false };
     return null;
   }
-  function heroChip(st, h, pos) {
+  function heroChip(st, h, pos, incoming) {
     var c = heroDef(h.cls);
     var focus = ui.focus && ui.focus.k === "h" && ui.focus.s === h.seat;
     var classes = "yc-hero" + (h.down ? " yc-down" : "") + (h.done && !h.down ? " yc-done" : "") + (mine(h) ? " yc-mine" : "") + (ui.tab === h.seat ? " yc-hero-tab" : "") + (focus ? " yc-focus" : "");
@@ -917,6 +946,7 @@
       el("span", { class: "yc-tag-mana", text: h.mana }),
       el("span", { class: "yc-tag-hp" + (pct <= 0.3 ? " yc-tag-low" : ""), text: h.hp }),
       h.blk ? el("span", { class: "yc-tag-blk", text: h.blk }) : null,
+      dmgTag(h, incoming),
       h.form && D.FORMS[h.form] ? el("span", { text: D.FORMS[h.form].icon }) : null
     ]);
     kids.push(tag);
@@ -1070,7 +1100,7 @@
     // 已經不在場上的敵人保留到這次的演出用完（擊殺消散）
     Object.keys(prev).forEach(function (u) { if (u.charAt(0) !== "x" && !ui.enemyPos[u]) ui.enemyPos["x" + u] = prev[u]; });
     st.secs.forEach(function (seat, i) {
-      heroChip(st, Core.hero(st, seat), lay.h[seat]).forEach(function (node) { board.appendChild(node); });
+      heroChip(st, Core.hero(st, seat), lay.h[seat], incoming).forEach(function (node) { board.appendChild(node); });
     });
     var fx = svg("svg", { viewBox: "0 0 100 100", class: "yc-arena-fx", "aria-hidden": "true" });
     fx.appendChild(svgDefs());
@@ -1094,24 +1124,35 @@
 
   function renderHands(st) {
     var tab = ui.tab = defaultTab(st);
+    var incoming = ui.replay ? {} : incomingBySeat(st);
     var wrap = el("div", { class: "yc-hands" });
     var tabs = el("div", { class: "yc-tabs" });
     Core.heroes(st).forEach(function (h) {
       var c = heroDef(h.cls);
       tabs.appendChild(el("button", { type: "button", class: "yc-tab" + (h.seat === tab ? " yc-on" : "") + (mine(h) ? " yc-tab-mine" : ""), style: "--yc-cls:" + c.color,
         onclick: function () { ui.tab = h.seat; render(); } }, [
-        c.icon + " " + heroName(h), h.down ? " 💀" : h.done ? " ✓" : mine(h) ? " ●" : ""
+        c.icon + " " + heroName(h), h.down ? " 💀" : h.done ? " ✓" : mine(h) ? " ●" : "",
+        // 分頁上直接看得到血量與護盾（戰場上的頭頂數字很小）
+        h.down ? null : el("span", { class: "yc-tab-hp" + (h.hp / h.max <= 0.3 ? " yc-tag-low" : ""), text: "♥" + h.hp }),
+        h.blk && !h.down ? el("span", { class: "yc-tab-blk", text: "🛡️" + h.blk }) : null,
+        dmgTag(h, incoming, "yc-tab-dmg")
       ]));
     });
-    wrap.appendChild(tabs);
+    // 2026-10-27 使用者指定：手牌往上貼近戰場，英雄分頁・魔力・牌組・結束回合放在左邊一欄（手機改放手牌下方）
+    var side = el("div", { class: "yc-hands-side" }, [tabs]);
+    var main = el("div", { class: "yc-hands-main" });
+    wrap.appendChild(main);
+    wrap.appendChild(side);
     var h = Core.hero(st, tab);
     if (!h) return wrap;
     // 敵人回合重播中不能操作
     var own = mine(h) && !ui.replay;
     // 資訊列：魔力・牌堆・狀態・遺物，右邊是結束回合（手牌區要矮，戰場和手牌才能同時放進畫面）
-    wrap.appendChild(el("div", { class: "yc-hand-info" }, [
+    side.appendChild(el("div", { class: "yc-hand-info" }, [
       el("span", { class: "yc-mana-big", title: t("yc_mana") }, [t("yc_mana") + " ", el("strong", { text: h.mana })]),
-      el("span", { class: "yc-muted", text: (handHidden(h) ? t("yc_hand_n", { n: h.hand.length }) + " · " : "") + t("yc_piles_rest", { c: h.disc.length, x: h.exh.length }) }),
+      // 手牌上限：滿了就抽不到牌（牌留在抽牌堆），滿的時候紅字提醒
+      el("span", { class: h.hand.length >= D.HAND_MAX ? "yc-bad" : "yc-muted", title: t("yc_hand_full_tip", { n: D.HAND_MAX }), text: t("yc_hand_cap", { n: h.hand.length, m: D.HAND_MAX }) }),
+      el("span", { class: "yc-muted", text: t("yc_piles_rest", { c: h.disc.length, x: h.exh.length }) }),
       el("button", { type: "button", class: "yc-link", text: t("yc_view_deck"), onclick: function () { ui.deckView = h.seat; render(); } }),
       own || ui.replay || isAi(h) ? null : el("span", { class: "yc-muted", text: t("yc_not_yours") }),
       !isOnline(h.ctrl) ? el("span", { class: "yc-tag-off", text: t("yc_offline") }) : null,
@@ -1126,9 +1167,10 @@
         el("button", { type: "button", class: h.done ? "" : "yc-primary yc-end", text: h.done ? t("yc_unend") : t("yc_end_turn"), onclick: function () { send({ t: "end", s: h.seat, on: !h.done }); } })
       ]) : null
     ]));
-    var hint = ui.replay ? t("yc_enemy_acting") : own && !h.done && !h.down ? t("yc_hint_pick") : "";
+    // 操作說明只在還沒看完教學時常駐，之後只顯示狀態與錯誤（說明在 ❔ 裡）
+    var hint = ui.replay ? t("yc_enemy_acting") : own && !h.done && !h.down && !tutSeen() ? t("yc_hint_pick") : "";
     if (ui.err) hint = ui.err;
-    wrap.appendChild(el("div", { class: "yc-hint" + (ui.err ? " yc-bad" : ""), text: hint }));
+    main.appendChild(el("div", { class: "yc-hint" + (ui.err ? " yc-bad" : ""), text: hint }));
     var fan = el("div", { class: "yc-fan", "data-seat": h.seat, onpointerleave: function () { ui.hover = -1; layoutFan(fan); } });
     // 手牌左邊是抽牌堆，上方顯示剩下幾張（2026-10-23 使用者指定）
     var body = el("div", { class: "yc-hand-body" }, [drawPileEl(h), fan]);
@@ -1138,7 +1180,7 @@
         fan.appendChild(el("div", { class: "yc-slot yc-slot-back", "data-i": i }, [el("div", { class: "yc-card yc-card-back", style: "--yc-cls:" + heroDef(h.cls).color }, [el("span", { text: "🟨" })])]));
       });
       if (!h.hand.length) fan.appendChild(el("div", { class: "yc-muted yc-fan-empty", text: h.down ? t("yc_is_down") : t("yc_empty_hand") }));
-      wrap.appendChild(body);
+      main.appendChild(body);
       return wrap;
     }
     h.hand.forEach(function (c, i) {
@@ -1154,7 +1196,7 @@
       fan.appendChild(slot);
     });
     if (!h.hand.length) fan.appendChild(el("div", { class: "yc-muted yc-fan-empty", text: h.down ? t("yc_is_down") : t("yc_empty_hand") }));
-    wrap.appendChild(body);
+    main.appendChild(body);
     return wrap;
   }
 
@@ -1359,6 +1401,12 @@
     var top = Math.max(8, Math.min(window.innerHeight - dh - 8, r.top));
     detailEl.style.left = left + "px";
     detailEl.style.top = top + "px";
+  }
+  // 牌組裡的卡維持原本卡牌大小，滑過（手機：按住）時旁邊顯示大卡
+  function deckCard(node, c, h) {
+    node.addEventListener("pointerenter", function () { hideDetail(); showDetail({ c: c, h: h }, 0, 0, node.getBoundingClientRect()); });
+    node.addEventListener("pointerleave", hideDetail);
+    return node;
   }
   function hideDetail() {
     if (detailEl && detailEl.parentNode) detailEl.parentNode.removeChild(detailEl);
@@ -1874,7 +1922,8 @@
       if (rrow) box.appendChild(rrow);
       var p = h.pend;
       if (!p && h.down) { box.appendChild(el("div", { class: "yc-bad", text: "💤 " + t("yc_fallen") })); wrap.appendChild(box); return; }
-      if (!p) { box.appendChild(el("div", { class: "yc-good", text: t("yc_choice_done") })); wrap.appendChild(box); return; }
+      // 已完成的英雄縮成一行
+      if (!p) { box.classList.add("yc-choice-done"); box.firstChild.appendChild(el("span", { class: "yc-good", text: " ✓ " + t("yc_choice_done") })); wrap.appendChild(box); return; }
       if (!mine(h)) { box.appendChild(el("div", { class: "yc-muted", text: t("yc_choice_waiting") })); wrap.appendChild(box); return; }
       var choose = function (ch) { send({ t: "choose", s: h.seat, c: ch }); };
       var canUpgrade = h.deck.some(function (x) { return !x.up; });
@@ -1925,7 +1974,8 @@
         var grid = el("div", { class: "yc-hand yc-deck-grid" });
         h.deck.forEach(function (x) {
           if (p.k === "upgrade" && x.up) return;
-          grid.appendChild(cardEl(p.k === "upgrade" ? { id: x.id, u: x.u, up: true } : x, { onclick: function () { choose({ u: x.u }); } }));
+          var shown = p.k === "upgrade" ? { id: x.id, u: x.u, up: true } : x;
+          grid.appendChild(deckCard(cardEl(shown, { onclick: function () { hideDetail(); choose({ u: x.u }); } }), shown, h));
         });
         box.appendChild(grid);
         box.appendChild(el("div", { class: "yc-actions" }, [el("button", { type: "button", text: t(p.back || p.k === "upgrade" ? "yc_back" : "yc_done"), onclick: function () { choose({ back: true }); } })]));
@@ -1979,7 +2029,7 @@
     box.appendChild(el("div", { class: "yc-modal-head" }, [el("h3", { text: t("yc_deck_of", { name: heroName(h), n: h.deck.length }) }), el("button", { type: "button", text: "✕", onclick: close })]));
     box.appendChild(el("div", { class: "yc-small yc-muted", text: pathCounts(h) }));
     var grid = el("div", { class: "yc-hand yc-deck-grid" });
-    h.deck.slice().sort(function (a, b) { return a.id < b.id ? -1 : a.id > b.id ? 1 : 0; }).forEach(function (c) { grid.appendChild(cardEl(c, { button: false })); });
+    h.deck.slice().sort(function (a, b) { return a.id < b.id ? -1 : a.id > b.id ? 1 : 0; }).forEach(function (c) { grid.appendChild(deckCard(cardEl(c, { button: false }), c, h)); });
     box.appendChild(grid);
     if (st.phase === "battle" && h.draw.length && !handHidden(h)) {
       box.appendChild(el("h4", { text: t("yc_draw_pile", { n: h.draw.length }) }));

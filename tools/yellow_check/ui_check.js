@@ -239,19 +239,21 @@ async function battleChecks(page) {
   await noRawKeys(page, "入口畫面");
   await page.screenshot({ path: path.join(SHOT_DIR, "01_entry.png"), fullPage: true });
   // 第 3、4 位玩家選英雄（遊俠、祭司）；選過的英雄在其他座位要變成不能選
-  await page.evaluate(function () {
-    var seats = document.querySelectorAll(".yc-seat");
-    [[2, "遊俠"], [3, "祭司"]].forEach(function (x) {
-      var b = Array.prototype.filter.call(document.querySelectorAll(".yc-seat")[x[0]].querySelectorAll(".yc-hero-btn"), function (y) { return y.textContent.indexOf(x[1]) >= 0; })[0];
+  // 2026-10-27 選角改成「點座位 → 共用的一份英雄清單」，不再每個座位各一份
+  for (var pk of [[2, "遊俠"], [3, "祭司"]]) {
+    await page.evaluate(function (x) { document.querySelectorAll(".yc-seat")[x[0]].click(); }, pk);
+    await page.evaluate(function (x) {
+      var b = Array.prototype.filter.call(document.querySelectorAll(".yc-hero-pick .yc-hero-btn"), function (y) { return y.textContent.indexOf(x[1]) >= 0; })[0];
       b.click();
-    });
-    void seats;
-  });
+    }, pk);
+  }
   var dup = await page.evaluate(function () {
-    var b = Array.prototype.filter.call(document.querySelectorAll(".yc-seat")[0].querySelectorAll(".yc-hero-btn"), function (y) { return y.textContent.indexOf("遊俠") >= 0; })[0];
+    document.querySelectorAll(".yc-seat")[0].click();
+    var b = Array.prototype.filter.call(document.querySelectorAll(".yc-hero-pick .yc-hero-btn"), function (y) { return y.textContent.indexOf("遊俠") >= 0; })[0];
     return b.disabled;
   });
-  assert.ok(dup, "已被選走的英雄在其他座位應該不能選");
+  // 2026-10-27 使用者指定：可以選重複英雄（舊規格是「已被選走的英雄在其他座位不能選」）
+  assert.ok(!dup, "已被別的座位選走的英雄也要能選（允許重複）");
   // 取個名字
   await page.evaluate(function () {
     var inputs = document.querySelectorAll(".yc-seat .yc-text");
