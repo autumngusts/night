@@ -50,4 +50,10 @@ PROJECTS = [
         "name_key": "project_yellow_name",
         "desc_key": "project_yellow_desc",
     },
+    {
+        "id": "dejavu",
+        "href": "dejavu/index.html",
+        "name_key": "project_dejavu_name",
+        "desc_key": "project_dejavu_desc",
+    },
 ]
