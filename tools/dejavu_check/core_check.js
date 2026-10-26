@@ -185,5 +185,48 @@ ok(risky.spins > careful.spins + 0.5, "冬天軟胎全力進攻應該比雪胎�
   });
 })();
 
+// 6. 奔放模式：決定論、玩家出牌重播一致、招式超車／出牌／機關都有發生、超車比較真模式多、不會大量退賽
+(function () {
+  var cars = ["ae86", "fd3s", "gc8", "ek9", "gt3", "r32", "s15", "nd"];
+  function opts(rule, course, seed) {
+    return { course: Core.fixedCourse(course), season: "summer", mode: "battle", rule: rule, seed: seed,
+      cars: cars.map(function (id, i) { return { spec: { car: id, style: "balanced" }, cpu: i > 0, name: "c" + i }; }) };
+  }
+  var o = opts("wild", "akina", 31);
+  var race = Core.createRace(o);
+  ok(race.wild && race.items.length > 5, "奔放模式沒有路面機關");
+  ok(race.cars.every(function (c) { return c.hand.length === D.HAND_START; }), "開賽手牌數不對");
+  var played = 0;
+  for (var k = 0; k < 20000 && !race.done; k++) {
+    if (k % 400 === 100 && race.cars[0].hand.length) { if (Core.playCard(race, 0, 0)) played++; }
+    Core.step(race, Core.DT);
+  }
+  Core.runToEnd(race);
+  ok(played > 0 && race.log.filter(function (l) { return l.card; }).length === played, "玩家出牌沒有記錄 " + played);
+  var replay = Core.runToEnd(Core.createRace(Object.assign({}, o, { cmds: race.log })));
+  ok(summary(replay) === summary(race), "奔放模式帶出牌紀錄重播結果不同");
+  ok(!Core.playCard(Core.createRace(opts("real", "akina", 31)), 0, 0), "較真模式不該能出牌");
+
+  var tot = { real: 0, wild: 0, moves: 0, cards: 0, traps: 0, items: 0, dnf: 0, cars: 0 };
+  ["akina", "usui", "atami", "hakone"].forEach(function (co) {
+    for (var sd = 0; sd < 3; sd++) {
+      ["real", "wild"].forEach(function (rule) {
+        var r = Core.runToEnd(Core.createRace(opts(rule, co, 500 + sd)));
+        r.events.forEach(function (e) {
+          if (e.type === "pass") { tot[rule]++; if (e.move) tot.moves++; }
+          if (e.type === "card") tot.cards++;
+          if (e.type === "trap") tot.traps++;
+          if (e.type === "item") tot.items++;
+        });
+        if (rule === "wild") Core.results(r).forEach(function (x) { tot.cars++; if (x.state === "dnf") tot.dnf++; ok(x.state === "fin" || x.state === "dnf", "奔放模式有車卡住"); });
+      });
+    }
+  });
+  console.log("奔放模式 vs 較真：超車 " + tot.wild + " vs " + tot.real + "、招式 " + tot.moves + "、出牌 " + tot.cards + "、陷阱 " + tot.traps + "、道具箱 " + tot.items + "、退賽 " + tot.dnf + "/" + tot.cars);
+  ok(tot.wild > tot.real * 1.3, "奔放模式超車沒有明顯比較多");
+  ok(tot.moves > 10 && tot.cards > 50 && tot.traps > 10 && tot.items > 20, "奔放模式的招式／出牌／陷阱／道具箱太少");
+  ok(tot.dnf / tot.cars < 0.2, "奔放模式退賽太多 " + tot.dnf + "/" + tot.cars);
+})();
+
 console.log(fails ? "✗ 失敗 " + fails + " 項" : "✓ 全部通過");
 process.exit(fails ? 1 : 0);

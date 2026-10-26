@@ -13,7 +13,8 @@
   var HILL = { spring: "#6f9160", summer: "#46703c", autumn: "#8e6236", winter: "#d5dfe6", rain: "#5f6d5c" };
   var ROCK = { spring: "#7a7265", summer: "#6b675a", autumn: "#77644f", winter: "#b9c3cb" };
   var CONCRETE = "#9a9a94";
-  var NEAR = 3.5;     // 車頭前 3.5 m 內被引擎蓋擋住，不畫（太近的梯形投影會爆大）
+  var NEAR = 1.5;     // 看板（樹、柱子、車）比這更近就不畫
+  var CLIP = 0.3;     // 路面／地形多邊形的近裁切平面（鏡頭前 0.3 m）
   var VIEW = 320;     // 往前畫幾公尺
 
   function clamp(x, a, b) { return x < a ? a : x > b ? b : x; }
@@ -79,11 +80,35 @@
     var fog = rgb(skyC[1]);
     function fogT(f) { return clamp((f - 30) / (VIEW * 1.05), 0, 0.82); }
 
+    // 投影：保留鏡頭座標（f 往前、l 往左、u 往上），多邊形在 CLIP 平面裁切後才換成螢幕座標
+    function P(f, l, u) { return { f: f, l: l, u: u, x: cx - l / f * F, y: hy - u / f * F }; }
     function proj(x, y, z) {
       var dx = x - pose.x, dy = y - pose.y;
-      var fw = dx * ch + dy * sh, lt = -dx * sh + dy * ch;
-      var up = z - camZ + fw * slope;
-      return { f: fw, x: cx - lt / fw * F, y: hy - up / fw * F };
+      var fw = dx * ch + dy * sh;
+      return P(fw, -dx * sh + dy * ch, z - camZ + fw * slope);
+    }
+    function cut(a, b) {
+      var t = (CLIP - a.f) / (b.f - a.f);
+      return P(CLIP, a.l + (b.l - a.l) * t, a.u + (b.u - a.u) * t);
+    }
+    // 多邊形對近平面裁切（只切掉鏡頭後面的部分，不整塊丟掉，近處才不會破洞）
+    function poly(pts, col) {
+      var out = [], n = pts.length;
+      for (var i = 0; i < n; i++) {
+        var a = pts[i], b = pts[(i + 1) % n], ina = a.f >= CLIP, inb = b.f >= CLIP;
+        if (ina) out.push(a);
+        if (ina !== inb) out.push(cut(a, b));
+      }
+      if (out.length < 3) return;
+      ctx.fillStyle = col;
+      ctx.beginPath(); ctx.moveTo(out[0].x, out[0].y);
+      for (i = 1; i < out.length; i++) ctx.lineTo(out[i].x, out[i].y);
+      ctx.closePath(); ctx.fill();
+    }
+    function seg(a, b) {
+      if (a.f < CLIP && b.f < CLIP) return;
+      if (a.f < CLIP) a = cut(a, b); else if (b.f < CLIP) b = cut(a, b);
+      ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y);
     }
     function edge(j, off, dz) {
       var nx = -Math.sin(tr.h[j]), ny = Math.cos(tr.h[j]);
@@ -194,8 +219,17 @@
         var nxt = q + 25 <= jMax ? edge(q + 25, pc.wall[q + 25] * (hw + 2.4), 9) : null;
         if (pp.f > NEAR) addSprite(q, { f: pp.f, kind: "pole", p: pp, top: edge(q, ws * (hw + 2.4), 9), next: nxt && nxt.f > NEAR ? nxt : null });
       }
-      if (q === sJ || q === fJ) addSprite(q, { f: edge(q, 0).f, kind: "gate", j: q, goal: q === fJ });
+      if (q === sJ || q === fJ) { var gp = edge(q, 0); if (gp.f > NEAR) addSprite(q, { f: gp.f, p: gp, kind: "gate", j: q, goal: q === fJ }); }
     }
+    var flat = {};
+    (race.items || []).forEach(function (it) {
+      if (it.until !== undefined && race.t > it.until) return;
+      var j = Math.floor(it.s / ds);
+      if (j < i0 || j > jMax) return;
+      if (it.kind === "boost" || it.kind === "oil") { (flat[j] = flat[j] || []).push(it); return; }
+      var p = edge(j, 0);
+      if (p.f > NEAR && p.f < VIEW) addSprite(j, { f: p.f, kind: it.kind, p: p, j: j, it: it });
+    });
     race.cars.forEach(function (c) {
       if (c === car || c.state === "dnf" && c.v < 0.1 && Math.abs(c.s - car.s) > 300) return;
       var ps = Core.carPose(race, c);
@@ -204,43 +238,32 @@
       if (p.f > 1.2 && p.f < VIEW) addSprite(cj, { f: p.f, kind: "car", p: p, c: c, rel: ps.h - pose.h });
     });
 
-    function quad(a, b, c, d, col) {
-      if (a.f < NEAR || b.f < NEAR || c.f < NEAR || d.f < NEAR) return;
-      ctx.fillStyle = col;
-      ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.lineTo(c.x, c.y); ctx.lineTo(d.x, d.y); ctx.closePath(); ctx.fill();
+    function quad(a, b, c, d, col) { poly([a, b, c, d], col); }
+    // 彎內側的地形不能伸得比彎道半徑還遠，否則相鄰兩列會交叉摺疊
+    function reach(ja, side, off) {
+      var k = Math.max(Math.abs(tr.k[ja]), Math.abs(tr.k[ja + 1]));
+      if (k < 1e-4 || tr.k[ja] * side <= 0) return off;
+      return Math.max(hw + 2.4, Math.min(off, 0.8 / k));
     }
-    // 兩列之間、橫向 off1→off2 的地形面
-    function terr(ja, jb, off1, off2, col) {
-      quad(edge(ja, off1, terrainZ(ja, off1)), edge(jb, off1, terrainZ(jb, off1)), edge(jb, off2, terrainZ(jb, off2)), edge(ja, off2, terrainZ(ja, off2)), col);
+    // 兩列之間、橫向 off1→off2 的地形面（off 取絕對值方向由 side 決定）
+    function terr(ja, jb, side, o1, o2, col) {
+      o2 = reach(ja, side, o2);
+      if (o2 <= o1) return;
+      var a1 = side * o1, a2 = side * o2;
+      quad(edge(ja, a1, terrainZ(ja, a1)), edge(jb, a1, terrainZ(jb, a1)), edge(jb, a2, terrainZ(jb, a2)), edge(ja, a2, terrainZ(ja, a2)), col);
     }
 
-    // ---- 由遠到近：每列一條帶 ----
+    // ---- 由遠到近：每列一條帶（鏡頭後方幾列也畫，甩尾／打滑轉頭時才不會空白） ----
     var roadCol = tr.rain ? "#3d4246" : pal.road;
-    // 車頭正前方：先在鏡頭座標裡畫一小段平面路面當底，後面的帶狀路面會蓋上去；補上路面和引擎蓋之間的空隙
-    (function apron() {
-      var dx0 = tr.x[i0] - pose.x, dy0 = tr.y[i0] - pose.y;
-      var f0 = dx0 * ch + dy0 * sh, lt0 = -dx0 * sh + dy0 * ch, dh = tr.h[i0] - pose.h;
-      var cs = Math.cos(dh), tn = Math.tan(clamp(dh, -1.2, 1.2));
-      function P(f, off) { var L = lt0 + off * cs + (f - f0) * tn; return { x: cx - L / f * F, y: hy + 1.15 / f * F }; }
-      var f1 = NEAR + 2.5, f2 = 0.7, yTop = P(f1, 0).y;
-      ctx.fillStyle = sp[i0] === 3 ? "#3a3a38" : tint(pal.ground, -0.06, null, 0);
-      ctx.fillRect(0, yTop - 1, W, H - yTop + 1);
-      function band2(o1, o2, col) {
-        var a = P(f1, o1), b = P(f1, o2), c = P(f2, o2), d = P(f2, o1);
-        ctx.fillStyle = col;
-        ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.lineTo(c.x, c.y); ctx.lineTo(d.x, d.y); ctx.closePath(); ctx.fill();
-      }
-      var cd0 = sp[i0];
-      band2(hw + 1.6, -hw - 1.6, cd0 === 4 ? CONCRETE : cd0 === 3 ? "#444648" : pal.shoulder);
-      band2(hw, -hw, cd0 === 1 ? "#9b8565" : cd0 === 3 ? "#444648" : roadCol);
-      if (cd0 !== 1) { band2(hw - 0.1, hw - 0.4, pal.line); band2(-hw + 0.4, -hw + 0.1, pal.line); }
-    })();
+    var jBack = Math.max(0, i0 - 12);
+    for (var jj = jBack; jj < i0; jj++) strip(jj);
+    for (var k = nRows - 2; k >= 0; k--) { strip(i0 + k); drawBucket(k); }
 
-    for (var k = nRows - 2; k >= 0; k--) {
-      var ja = i0 + k, jb = ja + 1;
-      var cA = edge(ja, 0);
-      if (cA.f < NEAR * 0.5) { drawBucket(k); continue; }
-      var ft = fogT(cA.f), band = Math.floor(ja / 3) % 2, cd = sp[ja];
+    function strip(ja) {
+      var jb = ja + 1;
+      var cA = edge(ja, 0), cB = edge(jb, 0);
+      var fa = Math.max(cA.f, cB.f);
+      var ft = fogT(Math.max(0, cA.f)), band = Math.floor(ja / 3) % 2, cd = sp[ja];
       var wl = pc.wall[ja];
       if (cd === 3) {
         // 隧道：上方是山體，兩側牆、頂板、燈
@@ -254,25 +277,25 @@
             quad(edge(ja, side * (hw + 0.7), 5.0), edge(jb, side * (hw + 0.7), 5.0), edge(jb, side * (hw + 0.7), 5.3), edge(ja, side * (hw + 0.7), 5.3), "#ffd27a");
           });
         }
-        laneLines(ja, jb, cA, ft, false);
-        if (sp[ja - 1] !== 3) portal(ja, ft);   // 入口（從外面看的洞口）
-        drawBucket(k);
-        continue;
+        laneLines(ja, jb, fa, ft, false);
+        if (sp[ja - 1] !== 3 && ja > i0) portal(ja, ft);   // 入口（從外面看的洞口）
+        return;
       }
       // 兩側地形
       [1, -1].forEach(function (side) {
         var isWater = tr.water && side === tr.water && cd !== 4;
         var isWall = cd !== 4 && !isWater && side === wl;
         if (isWall) {
-          terr(ja, jb, side * (hw + 3.2), side * (hw + 40), tint(HILL[season], band ? 0 : -0.03, fog, ft));
-          terr(ja, jb, side * (hw + 2.2), side * (hw + 3.2), tint(ROCK[season], band ? -0.02 : -0.08, fog, ft));
-          terr(ja, jb, side * (hw + 1.6), side * (hw + 2.2), tint("#5c564a", 0, fog, ft));
+          terr(ja, jb, side, hw + 3.2, hw + 40, tint(HILL[season], band ? 0 : -0.03, fog, ft));
+          terr(ja, jb, side, hw + 2.2, hw + 3.2, tint(ROCK[season], band ? -0.02 : -0.08, fog, ft));
+          terr(ja, jb, side, hw + 1.6, hw + 2.2, tint("#5c564a", 0, fog, ft));
         } else if (isWater && o.water) {
-          quad(edge(ja, side * (hw + 9), -2.1), edge(jb, side * (hw + 9), -2.1), edge(jb, side * (hw + 450), -2.1), edge(ja, side * (hw + 450), -2.1),
+          var wf = reach(ja, side, hw + 450);
+          quad(edge(ja, side * (hw + 9), -2.1), edge(jb, side * (hw + 9), -2.1), edge(jb, side * wf, -2.1), edge(ja, side * wf, -2.1),
             tint(o.water, Math.floor(ja / 2) % 3 === 0 ? 0.05 : 0, fog, Math.min(0.75, ft * 0.8)));
-          terr(ja, jb, side * (hw + 1.6), side * (hw + 9.2), tint(season === "winter" ? "#e9eef2" : "#a89f86", band ? 0 : -0.04, fog, ft));
+          terr(ja, jb, side, hw + 1.6, hw + 9.2, tint(season === "winter" ? "#e9eef2" : "#a89f86", band ? 0 : -0.04, fog, ft));
         } else {
-          terr(ja, jb, side * (hw + 1.6), side * (hw + 130), tint(pal.ground, band ? -0.06 : -0.1, fog, Math.min(0.9, ft + 0.15)));
+          terr(ja, jb, side, hw + 1.6, hw + 130, tint(pal.ground, band ? -0.06 : -0.1, fog, Math.min(0.9, ft + 0.15)));
           if (cd === 4) quad(edge(ja, side * (hw + 1.6), 0), edge(jb, side * (hw + 1.6), 0), edge(jb, side * (hw + 1.6), -1.2), edge(ja, side * (hw + 1.6), -1.2), tint(CONCRETE, -0.15, fog, ft));
         }
       });
@@ -297,30 +320,33 @@
         var ins = tr.k[ja] >= 0 ? 1 : -1;
         quad(edge(ja, ins * hw), edge(jb, ins * hw), edge(jb, ins * (hw - 0.45), -0.12), edge(ja, ins * (hw - 0.45), -0.12), tint("#2f3a2c", 0, fog, ft));
       }
-      laneLines(ja, jb, cA, ft, cd === 1);
+      laneLines(ja, jb, fa, ft, cd === 1);
+      (flat[ja] || []).forEach(function (it) {
+        var len = it.kind === "boost" ? 4 : 6, w = it.kind === "boost" ? hw * 0.85 : hw * 0.75;
+        var a1 = edge(ja, w), a2 = edge(ja, -w), b1 = edge(jb + Math.round(len / ds) - 1, w), b2 = edge(jb + Math.round(len / ds) - 1, -w);
+        if (it.kind === "boost") {
+          quad(a1, b1, b2, a2, tint("#ffb020", 0, fog, ft));
+          var m1 = edge(ja + 1, w * 0.9), m2 = edge(ja + 1, -w * 0.9), tip = edge(jb + 1, 0);
+          poly([m1, tip, m2], tint("#fff27a", 0, fog, ft));
+        } else quad(a1, b1, b2, a2, "rgba(15,15,20," + (0.8 * (1 - ft)).toFixed(2) + ")");
+      });
       // 護欄（山谷、水邊；橋上兩側）
       [1, -1].forEach(function (side) {
         if (cd !== 4 && side === wl && !(tr.water && side === tr.water)) return;
         quad(edge(ja, side * (hw + 1.1), 0.5), edge(jb, side * (hw + 1.1), 0.5), edge(jb, side * (hw + 1.1), 0.82), edge(ja, side * (hw + 1.1), 0.82),
           tint("#d4d8dc", band ? 0 : -0.1, fog, ft));
       });
-      drawBucket(k);
     }
 
-    function laneLines(ja, jb, cA, ft, gravel) {
+    function laneLines(ja, jb, fa, ft, gravel) {
       if (gravel) return;
-      var lw = clamp(0.15 / cA.f * F, 0.6, 5);
-      ctx.strokeStyle = tint(pal.line, 0, fog, ft); ctx.lineWidth = lw;
-      var a1 = edge(ja, hw - 0.25), b1 = edge(jb, hw - 0.25), a2 = edge(ja, -hw + 0.25), b2 = edge(jb, -hw + 0.25);
-      if (a1.f > NEAR && b1.f > NEAR && a2.f > NEAR && b2.f > NEAR) {
-        ctx.beginPath(); ctx.moveTo(a1.x, a1.y); ctx.lineTo(b1.x, b1.y); ctx.moveTo(a2.x, a2.y); ctx.lineTo(b2.x, b2.y); ctx.stroke();
-      }
+      ctx.strokeStyle = tint(pal.line, 0, fog, ft); ctx.lineWidth = clamp(0.15 / Math.max(0.5, fa) * F, 0.6, 6);
+      ctx.beginPath();
+      seg(edge(ja, hw - 0.25), edge(jb, hw - 0.25)); seg(edge(ja, -hw + 0.25), edge(jb, -hw + 0.25));
+      ctx.stroke();
       if (Math.floor(ja / 2) % 3 === 0) {
-        var c1 = edge(ja, 0), c2 = edge(jb, 0);
-        if (c1.f > NEAR && c2.f > NEAR) {
-          ctx.strokeStyle = tint("#f0c83c", 0, fog, ft);
-          ctx.beginPath(); ctx.moveTo(c1.x, c1.y); ctx.lineTo(c2.x, c2.y); ctx.stroke();
-        }
+        ctx.strokeStyle = tint("#f0c83c", 0, fog, ft);
+        ctx.beginPath(); seg(edge(ja, 0), edge(jb, 0)); ctx.stroke();
       }
     }
     function portal(j, ft) {
@@ -381,6 +407,22 @@
           ctx.fillText(s.goal ? "GOAL" : "START", (Lt.x + Rt.x) / 2, (Lt.y + Rt.y) / 2 - bh * 0.22);
         }
       } else if (s.kind === "car") drawCar(p, sc, s);
+      else if (s.kind === "rock") {
+        [[0.3, 0.9, 0.9], [-0.9, 0.6, 0.7], [1.6, 0.5, 0.5], [-1.8, 0.45, 0.55]].forEach(function (r, n) {
+          ctx.fillStyle = tint(n % 2 ? "#6f6a63" : "#8a857c", 0, fog, ft);
+          ctx.beginPath(); ctx.ellipse(p.x - r[0] * sc, p.y - r[2] * 0.6 * sc, r[2] * sc, r[2] * 0.7 * sc, 0, 0, Math.PI * 2); ctx.fill();
+        });
+      } else if (s.kind === "box") {
+        [-hw * 0.5, hw * 0.5].forEach(function (o, n) {
+          var bp = edge(s.j, o, 1.2 + Math.sin(race.t * 3 + n) * 0.2);
+          if (bp.f < NEAR) return;
+          var bs = 0.8 * F / bp.f;
+          ctx.fillStyle = "hsl(" + Math.round((race.t * 120 + n * 90) % 360) + ",85%,55%)";
+          ctx.fillRect(bp.x - bs, bp.y - bs, bs * 2, bs * 2);
+          ctx.strokeStyle = "#fff"; ctx.lineWidth = Math.max(1, bs * 0.12); ctx.strokeRect(bp.x - bs, bp.y - bs, bs * 2, bs * 2);
+          if (bs > 6) { ctx.fillStyle = "#fff"; ctx.font = "bold " + Math.round(bs * 1.4) + "px sans-serif"; ctx.textAlign = "center"; ctx.fillText("?", bp.x, bp.y + bs * 0.5); }
+        });
+      }
     }
     function drawTree(p, sc, t, ft) {
       // 夏冬以杉木為主；春秋多是櫻花／楓樹，夾一些常綠樹
@@ -440,6 +482,19 @@
       }
     }
 
+    // 奔放模式：加速中畫速度線
+    var cf = car.fx;
+    if (cf && (cf.nitro > 0 || cf.sling > 0 || cf.boost > 0)) {
+      ctx.save();
+      ctx.strokeStyle = cf.boost > 0 && !(cf.nitro > 0) ? "rgba(255,220,120,0.55)" : "rgba(140,200,255,0.6)";
+      for (var sl2 = 0; sl2 < 26; sl2++) {
+        var ang = sl2 / 26 * Math.PI * 2 + race.t * 0.7, r0 = Math.min(W, H) * (0.35 + ((sl2 * 37 + Math.floor(race.t * 30)) % 10) / 40);
+        ctx.lineWidth = 1 + (sl2 % 3);
+        ctx.beginPath(); ctx.moveTo(cx + Math.cos(ang) * r0, hy + Math.sin(ang) * r0 * 0.7);
+        ctx.lineTo(cx + Math.cos(ang) * r0 * 1.5, hy + Math.sin(ang) * r0 * 1.05); ctx.stroke();
+      }
+      ctx.restore();
+    }
     // 高速時的暗角（速度感）
     var vf = clamp((car.v - 20) / 40, 0, 1);
     if (vf > 0) {

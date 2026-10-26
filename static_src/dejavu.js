@@ -80,7 +80,7 @@
     return {
       v: 1,
       players: [{ name: "", color: D.COLORS[1] }, { name: "", color: D.COLORS[2] }],
-      cpu: 2, season: "autumn", mode: "battle", dir: "down", piCap: 0,
+      cpu: 2, season: "autumn", mode: "battle", rule: "real", dir: "down", piCap: 0,
       course: Core.fixedCourse("akina"), build: null,
       cars: [defaultSpec("ae86"), defaultSpec("fd3s")], cpuCars: null, seed: newSeed()
     };
@@ -94,6 +94,7 @@
       s.cars = s.cars.slice(0, s.players.length).map(function (c) { var o = Core.cleanSpec(c); if (!o.custom) o.custom = (c && c.custom) || defaultSpec("custom").custom; return o; });
       s.cpu = clamp(Number(s.cpu) || 0, 0, D.MAX_CARS - s.players.length);
       if (!D.SEASONS[s.season]) s.season = "autumn";
+      if (D.RULE_IDS.indexOf(s.rule) < 0) s.rule = "real";
       if (s.course.src === "shinmei") s.course.src = "myogi"; // 2026-10-26 真明山改名為妙義山
       return s;
     } catch (e) { return null; }
@@ -365,6 +366,9 @@
     app.appendChild(pl);
 
     var rules = el("div", { class: "dv-panel" }, [
+      el("h3", {}, [t("dv_rule")]),
+      choice(D.RULE_IDS, setup.rule, function (id) { return t("dv_rule_" + id); }, function (id) { setup.rule = id; save(); render(); }, "dv-big"),
+      el("p", { class: "dv-muted" }, [t("dv_rule_" + setup.rule + "_desc")]),
       el("h3", {}, [t("dv_season")]),
       choice(D.SEASON_IDS, setup.season, function (id) { return SEASON_ICON[id] + " " + L(D.SEASONS[id].name); },
         function (id) { setup.season = id; setup.cpuCars = null; save(); render(); }, "dv-big"),
@@ -768,10 +772,12 @@
   // ---------------- 4. 比賽 ----------------
   // cmds：Déjà vu 重播時帶入上一場的戰略指令紀錄
   function startRace(seed, cmds) {
-    ui.race = Core.createRace({ course: setup.course, season: setup.season, dir: setup.dir, mode: setup.mode, seed: seed, cars: raceCars(), cmds: cmds || [] });
+    ui.race = Core.createRace({ course: setup.course, season: setup.season, dir: setup.dir, mode: setup.mode, rule: setup.rule, seed: seed, cars: raceCars(), cmds: cmds || [] });
     ui.raceSeed = seed;
     ui.follow = 0; ui.autoFollow = setup.players.length > 1; ui.paused = false;
     ui.countdown = 3.2; ui.acc = 0; ui.result = null; ui.cam = null; ui.smoke = []; ui.weather = []; ui.seenEv = 0; ui.ticker = [];
+    ui.rec = { t: [], a: [] }; ui.rp = null; ui.rpCool = 0; ui.finHold = null; ui.final = null; ui.flash = null;
+    if (ui.replayOn === undefined) ui.replayOn = true;
     go("race");
   }
 
@@ -782,7 +788,7 @@
     if (!race) return go("garage");
     app.innerHTML = "";
     app.appendChild(stepNav());
-    R.main = el("canvas", { class: "dv-chase" }, []);
+    R.main = el("canvas", { class: "dv-chase", onclick: function () { if (ui.final) finishRace(); } }, []);
     R.map = el("canvas", { class: "dv-minimap" }, []);
     R.elev = el("canvas", { class: "dv-elev" }, []);
     R.board = el("ol", { class: "dv-board" }, []);
@@ -804,18 +810,26 @@
   function humanCars() { return ui.race.cars.filter(function (c) { return !c.cpu; }); }
   function renderTactics() {
     var cars = humanCars();
-    var sig = cars.map(function (c) { return c.styleId + c.state; }).join("|") + lang();
+    var sig = cars.map(function (c) { return c.styleId + c.state + (c.hand ? c.hand.join(",") : ""); }).join("|") + lang();
     if (sig === R.tacSig) return;
     R.tacSig = sig;
     R.tac.innerHTML = "";
-    R.tac.appendChild(el("div", { class: "dv-small dv-muted" }, [t("dv_tactic_title") + (cars.length === 1 ? "　" + t("dv_tactic_keys") : "")]));
+    var wild = ui.race.wild;
+    R.tac.appendChild(el("div", { class: "dv-small dv-muted" }, [t("dv_tactic_title") +
+      (cars.length === 1 ? "　" + t("dv_tactic_keys") + (wild ? "　" + t("dv_hand_keys") : "") : "")]));
     cars.forEach(function (c) {
       R.tac.appendChild(el("div", { class: "dv-tac-row" }, [
         el("span", { class: "dv-tac-name" }, [el("i", { class: "dv-dot", style: "background:" + c.color }, []), c.name]),
         el("div", { class: "dv-choice" }, D.STYLE_IDS.map(function (id) {
           return btn(L(D.STYLES[id].name), function () { if (Core.command(ui.race, c.id, id)) renderTactics(); },
             (c.styleId === id ? "dv-on " : "") + "dv-tac-" + id, c.state !== "run" || ui.race.done);
-        }))
+        })),
+        wild ? el("div", { class: "dv-hand" }, c.hand.length ? c.hand.map(function (id, idx) {
+          return el("button", {
+            type: "button", class: "dv-hcard dv-hcard-" + id, title: t("dv_cardd_" + id), disabled: c.state !== "run" || ui.race.done,
+            onclick: function () { if (Core.playCard(ui.race, c.id, idx)) renderTactics(); }
+          }, [el("b", {}, [D.CARDS[id].icon]), t("dv_card_" + id)]);
+        }) : [el("span", { class: "dv-muted dv-small" }, [t("dv_hand_empty")])]) : null
       ]));
     });
   }
@@ -823,7 +837,9 @@
     if (ui.screen !== "race" || !ui.race || e.target && /INPUT|SELECT|TEXTAREA/.test(e.target.tagName)) return;
     var cars = humanCars();
     var k = "1234".indexOf(e.key);
+    var ci = "qwe".indexOf(String(e.key).toLowerCase());
     if (k >= 0 && cars.length === 1) { Core.command(ui.race, cars[0].id, D.STYLE_IDS[k]); renderTactics(); }
+    else if (ci >= 0 && cars.length === 1 && ui.race.wild) { Core.playCard(ui.race, cars[0].id, ci); renderTactics(); }
     else if (e.key === "c" || e.key === "C") { ui.camMode = CAMS[(CAMS.indexOf(ui.camMode) + 1) % CAMS.length]; ui.cam = null; renderCtrl(); }
     else if (e.key === " ") { ui.paused = !ui.paused; renderCtrl(); e.preventDefault(); }
   });
@@ -835,6 +851,7 @@
     R.ctrl.appendChild(el("span", { class: "dv-sep" }, []));
     CAMS.forEach(function (m) { R.ctrl.appendChild(btn(t("dv_cam_" + m), function () { ui.camMode = m; ui.cam = null; renderCtrl(); }, ui.camMode === m ? "dv-on" : "")); });
     R.ctrl.appendChild(el("label", { class: "dv-small" }, [el("input", { type: "checkbox", checked: ui.autoFollow, onchange: function (e) { ui.autoFollow = e.target.checked; } }, []), t("dv_auto_follow")]));
+    R.ctrl.appendChild(el("label", { class: "dv-small" }, [el("input", { type: "checkbox", checked: ui.replayOn, onchange: function (e) { ui.replayOn = e.target.checked; if (!ui.replayOn) ui.rp = null; } }, []), t("dv_replay_on")]));
     R.ctrl.appendChild(btn(t("dv_skip"), function () { Core.runToEnd(ui.race); finishRace(); }, "dv-link"));
   }
 
@@ -867,7 +884,11 @@
     var race = ui.race, c = race.cars[e.car];
     if (e.type === "spin") return t("dv_ev_spin", { name: c.name, v: e.v });
     if (e.type === "dnf") return t(e.why === "time" ? "dv_ev_dnf_time" : "dv_ev_dnf", { name: c.name });
+    if (e.type === "pass" && e.move) return t("dv_ev_pass_move", { name: c.name, other: race.cars[e.other].name, move: t("dv_move_" + e.move) });
     if (e.type === "pass") return t("dv_ev_pass", { name: c.name, other: race.cars[e.other].name });
+    if (e.type === "card") return t("dv_ev_card", { name: c.name, card: D.CARDS[e.card].icon + t("dv_card_" + e.card) });
+    if (e.type === "item") return t("dv_ev_item", { name: c.name, card: D.CARDS[e.card].icon + t("dv_card_" + e.card) });
+    if (e.type === "trap") return t("dv_ev_trap_" + e.kind, { name: c.name });
     if (e.type === "fin") return t("dv_ev_fin", { name: c.name, time: fmtTime(c.finT) });
     if (e.type === "tactic") return t("dv_ev_tactic", { name: c.name, style: L(D.STYLES[e.style].name) });
     return "";
@@ -876,10 +897,123 @@
   function updateTicker() {
     var ev = ui.race.events;
     if (ui.seenEv === ev.length) return;
-    for (; ui.seenEv < ev.length; ui.seenEv++) ui.ticker.unshift(ev[ui.seenEv]);
+    for (; ui.seenEv < ev.length; ui.seenEv++) { ui.ticker.unshift(ev[ui.seenEv]); onEvent(ev[ui.seenEv]); }
     ui.ticker = ui.ticker.slice(0, 7);
     R.ticker.innerHTML = "";
     ui.ticker.forEach(function (e) { R.ticker.appendChild(el("li", { class: "dv-ev-" + e.type }, [el("small", {}, [fmtTime(e.t)]), eventText(e)])); });
+  }
+
+  // ---------------- 錄影與重播 ----------------
+  // 每兩步（1/15 秒）存一格各車狀態；重播時內插出一個「幽靈比賽」交給同一套繪圖函式畫
+  var REC_F = 9;   // s, d, yaw, slip, v, braking, state, stun, 效果旗標（奔放模式：1 加速、2 防守、4 鬼、8 招式）
+  var STATE_CODE = { run: 0, fin: 1, dnf: 2 }, STATE_NAME = ["run", "fin", "dnf"];
+  function record(race) {
+    var a = new Float32Array(race.cars.length * REC_F);
+    race.cars.forEach(function (c, i) {
+      var o = i * REC_F;
+      a[o] = c.s; a[o + 1] = c.d; a[o + 2] = c.yaw; a[o + 3] = c.slip; a[o + 4] = c.v;
+      a[o + 5] = c.braking ? 1 : 0; a[o + 6] = STATE_CODE[c.state]; a[o + 7] = c.stun; a[o + 8] = fxBits(c);
+    });
+    ui.rec.t.push(race.t); ui.rec.a.push(a);
+  }
+  function ghostAt(race, t, ghost) {
+    var T = ui.rec.t, lo = 0, hi = T.length - 1;
+    if (hi < 0) return null;
+    while (lo < hi) { var mid = (lo + hi + 1) >> 1; if (T[mid] <= t) lo = mid; else hi = mid - 1; }
+    var i = lo, j = Math.min(T.length - 1, i + 1), f = j > i ? clamp((t - T[i]) / (T[j] - T[i]), 0, 1) : 0;
+    var A = ui.rec.a[i], B = ui.rec.a[j];
+    ghost = ghost || { track: race.track, mode: race.mode, items: race.items, wild: race.wild, season: race.season, seed: race.seed, events: [], cars: race.cars.map(function (c) {
+      return { id: c.id, name: c.name, color: c.color, st: c.st, cpu: c.cpu };
+    }) };
+    ghost.t = t;
+    ghost.cars.forEach(function (g, k) {
+      var o = k * REC_F;
+      g.s = A[o] + (B[o] - A[o]) * f; g.d = A[o + 1] + (B[o + 1] - A[o + 1]) * f;
+      g.yaw = A[o + 2] + (B[o + 2] - A[o + 2]) * f; g.slip = A[o + 3] + (B[o + 3] - A[o + 3]) * f; g.v = A[o + 4] + (B[o + 4] - A[o + 4]) * f;
+      g.braking = A[o + 5] > 0.5; g.state = STATE_NAME[A[o + 6]]; g.stun = A[o + 7];
+      var b = A[o + 8];
+      g.fxv = { go: b & 1, block: b & 2, ghost: b & 4, move: b & 8 };
+    });
+    return ghost;
+  }
+
+  // 奔放模式的效果（畫面用）：go＝加速中、block＝鐵壁、ghost＝鬼之走線、move＝招式超車中
+  function fxView(c) {
+    if (c.fxv) return c.fxv;
+    var f = c.fx;
+    if (!f) return null;
+    return { go: f.nitro > 0 || f.sling > 0 || f.boost > 0, block: f.block > 0, ghost: f.ghost > 0, move: f.move > 0 || f.sling > 0 };
+  }
+  function fxBits(c) {
+    var v = fxView(c);
+    return v ? (v.go ? 1 : 0) | (v.block ? 2 : 0) | (v.ghost ? 4 : 0) | (v.move ? 8 : 0) : 0;
+  }
+
+  function onEvent(e) {
+    var race = ui.race, c = race.cars[e.car];
+    if (e.type === "fin") {
+      // 衝線：鏡頭停在這台車上一下，顯示名次與時間
+      var pos = Core.order(race).indexOf(c) + 1;
+      if (ui.autoFollow || c.id === ui.follow) ui.finHold = { id: c.id, pos: pos, until: performance.now() + 2600 };
+    }
+    if (e.type === "pass" && e.move) ui.flash = { text: c.name + " · " + t("dv_move_" + e.move) + "!", color: c.color, until: performance.now() + 1600 };
+    else if (e.type === "card" && !c.cpu) ui.flash = { text: D.CARDS[e.card].icon + " " + t("dv_card_" + e.card), color: c.color, until: performance.now() + 1200 };
+    if (e.type === "pass" && ui.replayOn && !ui.rp && performance.now() > ui.rpCool) {
+      var other = race.cars[e.other];
+      var pos2 = Core.order(race).indexOf(c) + 1;
+      // 玩家參與的超車、前三名之爭、或奔放模式的招式超車才重播
+      if (!c.cpu || !other.cpu || pos2 <= 3 || e.move) ui.rp = { car: c.id, other: other.id, move: e.move || null, t0: Math.max(0, e.t - 3.2), t1: e.t + 1.0, clock: Math.max(0, e.t - 3.2), hold: {}, ghost: null };
+    }
+  }
+
+  // 子畫面：超車重播（比賽照常進行）
+  function drawReplayPip(dt) {
+    var rp = ui.rp, race = ui.race;
+    if (!rp) return;
+    if (race.t < rp.t1 && !race.done) return;   // 還沒錄到事後那一秒
+    if (!ui.paused) rp.clock += dt * 0.6;
+    if (rp.clock > rp.t1) { ui.rp = null; ui.rpCool = performance.now() + 2500; return; }
+    var main = fitCanvas(R.main), dpr = window.devicePixelRatio || 1;
+    var pw = Math.round(Math.max(150, main.w * 0.42)), ph = Math.round(pw * 0.62);
+    var cv = ui.pipCv || (ui.pipCv = document.createElement("canvas"));
+    if (cv.width !== pw * dpr || cv.height !== ph * dpr) { cv.width = pw * dpr; cv.height = ph * dpr; }
+    var pctx = cv.getContext("2d");
+    pctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    rp.ghost = ghostAt(race, rp.clock, rp.ghost);
+    drawChase(rp.ghost, dt * 0.6, { f: { ctx: pctx, w: pw, h: ph }, follow: rp.car, hold: rp.hold, ghost: true });
+    var x = main.w - pw - 8, y = 58, ctx = main.ctx;
+    ctx.save();
+    ctx.fillStyle = "rgba(0,0,0,0.6)"; ctx.fillRect(x - 3, y - 3, pw + 6, ph + 6);
+    ctx.drawImage(cv, x, y, pw, ph);
+    ctx.fillStyle = "rgba(0,0,0,0.65)"; ctx.fillRect(x, y, pw, 20);
+    ctx.fillStyle = Math.floor(rp.clock * 3) % 2 ? "#ff3b3b" : "#ffd84d";
+    ctx.font = "bold 12px sans-serif"; ctx.textAlign = "left";
+    ctx.fillText("▶ REPLAY", x + 6, y + 14);
+    ctx.fillStyle = "#fff"; ctx.textAlign = "right";
+    ctx.fillText(rp.move ? t("dv_ev_pass_move", { name: race.cars[rp.car].name, other: race.cars[rp.other].name, move: t("dv_move_" + rp.move) })
+      : t("dv_ev_pass", { name: race.cars[rp.car].name, other: race.cars[rp.other].name }), x + pw - 6, y + 14);
+    ctx.restore();
+  }
+
+  // 全部抵達後：冠軍衝線的慢動作重播，播完才進結果畫面
+  function drawFinal(dt) {
+    var fin = ui.final, race = ui.race;
+    if (!ui.paused) fin.clock += dt * 0.5;
+    fin.ghost = ghostAt(race, fin.clock, fin.ghost);
+    var f = fitCanvas(R.main), ctx = f.ctx;
+    drawChase(fin.ghost, dt * 0.5, { f: f, follow: fin.id, hold: fin.hold, ghost: true });
+    var c = race.cars[fin.id];
+    ctx.save();
+    ctx.fillStyle = "rgba(0,0,0,0.55)"; ctx.fillRect(0, 10, f.w, 58);
+    ctx.textAlign = "center"; ctx.fillStyle = "#ffd84d"; ctx.font = "bold 24px sans-serif";
+    ctx.fillText("🏆 " + t("dv_winner", { name: c.name }), f.w / 2, 38);
+    ctx.fillStyle = "#fff"; ctx.font = "14px sans-serif";
+    ctx.fillText(c.st.name + " · " + fmtTime(c.finT), f.w / 2, 59);
+    ctx.textAlign = "left"; ctx.font = "bold 13px sans-serif"; ctx.fillStyle = Math.floor(fin.clock * 3) % 2 ? "#ff3b3b" : "#ffd84d";
+    ctx.fillText("▶ REPLAY", 12, f.h - 14);
+    ctx.textAlign = "right"; ctx.fillStyle = "#fff"; ctx.fillText(t("dv_tap_skip"), f.w - 12, f.h - 14);
+    ctx.restore();
+    return fin.clock > fin.t1;
   }
 
   function stopLoop() { if (ui.raf) cancelAnimationFrame(ui.raf); ui.raf = 0; }
@@ -895,22 +1029,48 @@
       if (!ui.paused) {
         if (ui.countdown > 0) ui.countdown -= dt;
         else if (!race.done) {
-          ui.acc += dt * ui.speed;
+          // 跟拍的車快到終點時自動放慢到 1 倍速，才看得到衝線
+          var fc = race.cars[ui.follow];
+          var near = fc && fc.state === "run" && race.track.finish - fc.s < 70 + fc.v * 0.5;
+          ui.acc += dt * (near ? Math.min(1, ui.speed) : ui.speed);
           var steps = 0;
-          while (ui.acc >= Core.DT && steps < 800 && !race.done) { Core.step(race, Core.DT); ui.acc -= Core.DT; steps++; }
+          while (ui.acc >= Core.DT && steps < 800 && !race.done) {
+            Core.step(race, Core.DT); ui.acc -= Core.DT; steps++;
+            if (race.stepN % 2 === 0) record(race);
+          }
         }
       }
-      if (ui.autoFollow) {
+      var hold = ui.finHold && performance.now() < ui.finHold.until ? ui.finHold : null;
+      if (hold && ui.autoFollow) ui.follow = hold.id;
+      else if (ui.autoFollow) {
         var ord = Core.order(race).filter(function (c) { return c.state === "run"; });
         if (ord.length) ui.follow = ord[0].id;
       }
-      if (ui.camMode === "cockpit" && window.PriTestDejavuCockpit) drawCockpit(race, dt);
-      else drawChase(race, dt);
+      if (race.done && !ui.doneAt) {
+        ui.doneAt = ts;
+        var win = Core.order(race)[0];
+        if (win && win.state === "fin" && ui.rec.t.length && !ui.final) {
+          ui.rp = null;
+          ui.final = { id: win.id, clock: Math.max(0, win.finT - 3.2), t1: win.finT + 1.6, hold: {}, ghost: null };
+        }
+      }
+      // 畫面出錯不能讓整個比賽迴圈停掉（模擬照跑，只記一次錯誤）
+      try {
+        if (ui.final) {
+          if (drawFinal(dt)) { finishRace(); return; }
+        } else {
+          if (ui.camMode === "cockpit" && window.PriTestDejavuCockpit) drawCockpit(race, dt);
+          else drawChase(race, dt);
+          drawReplayPip(dt);
+        }
+      } catch (err) {
+        if (!ui.drawErr) { ui.drawErr = true; console.error(err); }
+        if (ui.final) { finishRace(); return; }
+      }
       boardT += dt;
       if (boardT > 0.2) { boardT = 0; renderBoard(); renderTactics(); drawMap(R.map, race.track, { race: race }); drawElev(R.elev, race.track, race); }
       updateTicker();
-      if (race.done && !ui.doneAt) ui.doneAt = ts;
-      if (race.done && ts - ui.doneAt > 1800) { finishRace(); return; }
+      if (race.done && !ui.final && ts - ui.doneAt > 1800) { finishRace(); return; }
       ui.raf = requestAnimationFrame(frame);
     }
     ui.doneAt = 0;
@@ -919,23 +1079,27 @@
 
   function finishRace() {
     stopLoop();
+    ui.final = null; ui.rp = null;
     ui.lastLog = ui.race.log.slice();
     ui.result = Core.results(ui.race);
     go("result");
   }
 
   // 追焦鏡頭：車頭朝上旋轉的俯視圖
-  function drawChase(race, dt) {
-    var cv = R.main, f = fitCanvas(cv), ctx = f.ctx, tr = race.track;
+  // opt：{ f: 畫布（預設主畫面）, follow: 跟哪台, hold: 存鏡頭狀態的物件（預設 ui）, ghost: true＝重播（不畫煙、天氣、HUD） }
+  function drawChase(race, dt, opt) {
+    opt = opt || {};
+    var f = opt.f || fitCanvas(R.main), ctx = f.ctx, tr = race.track;
     var pal = PAL[tr.season];
     var sc = scenery(tr);
-    var car = race.cars[ui.follow] || race.cars[0];
+    var car = race.cars[opt.follow !== undefined ? opt.follow : ui.follow] || race.cars[0];
+    var H0 = opt.hold || ui;
     var pose = Core.carPose(race, car);
     var i0 = clamp(Math.floor(car.s / tr.ds), 0, tr.N - 1);
     var camH = tr.h[i0];
-    if (!ui.cam || ui.cam.car !== car.id) ui.cam = { car: car.id, h: camH, x: pose.x, y: pose.y, z: 7 };
-    var drone = ui.camMode === "drone";
-    var cam = ui.cam, k = Math.min(1, dt * (drone ? 0.6 : 3));
+    if (!H0.cam || H0.cam.car !== car.id) H0.cam = { car: car.id, h: camH, x: pose.x, y: pose.y, z: 7 };
+    var drone = !opt.ghost && ui.camMode === "drone";
+    var cam = H0.cam, k = Math.min(1, dt * (drone ? 0.6 : 3));
     cam.h += (camH - cam.h) * k;
     var look = drone ? 25 + car.v * 0.6 : 10 + car.v * 0.35;
     var tx = pose.x + Math.cos(cam.h) * look, ty = pose.y + Math.sin(cam.h) * look;
@@ -1001,8 +1165,10 @@
       }
       void n;
     });
-    // 煙
-    var smoke = ui.smoke;
+    // 奔放模式的路面機關
+    if (race.items && race.items.length) drawItems(ctx, race, cam, viewR);
+    // 煙（重播不畫）
+    var smoke = opt.ghost ? [] : ui.smoke;
     race.cars.forEach(function (c) {
       if (Math.abs(c.slip) > 0.45 && c.v > 6 || c.stun > 0 && c.v > 3) {
         var ps = Core.carPose(race, c);
@@ -1033,6 +1199,9 @@
         ctx.fillStyle = "rgba(255,250,200,0.18)";
         ctx.beginPath(); ctx.moveTo(2.2, 0.7); ctx.lineTo(16, 3.6); ctx.lineTo(16, -3.6); ctx.lineTo(2.2, -0.7); ctx.fill();
       }
+      var fv = fxView(c);
+      if (fv) drawCarFx(ctx, fv, race.t);
+      if (fv && fv.ghost) ctx.globalAlpha *= 0.5;
       ctx.fillStyle = "rgba(0,0,0,0.35)"; ctx.fillRect(-2.3, -1.0, 4.7, 2.1);
       ctx.fillStyle = c.color; ctx.fillRect(-2.2, -0.9, 4.4, 1.8);
       ctx.fillStyle = "rgba(20,30,40,0.85)"; ctx.fillRect(0.3, -0.75, 0.9, 1.5); ctx.fillRect(-1.6, -0.7, 0.6, 1.4);
@@ -1065,9 +1234,76 @@
       ctx.fillStyle = lb.c.id === car.id ? "#ffe066" : "#fff";
       ctx.fillText(lb.c.name, sx, sy - 14);
     });
+    if (opt.ghost) return;
     drawWeather(ctx, f, tr, dt);
     drawHud(ctx, f, race, car);
     if (drone) drawLive(ctx, f, race);
+  }
+
+  // 路上某點（s）的世界座標與方向；off＝橫向位移（左正）
+  function posAt(tr, s, off) {
+    var p = clamp(s / tr.ds, 0, tr.N - 1.001), i = Math.floor(p), f = p - i;
+    var h = tr.h[i] + (tr.h[i + 1] - tr.h[i]) * f;
+    var x = tr.x[i] + (tr.x[i + 1] - tr.x[i]) * f, y = tr.y[i] + (tr.y[i + 1] - tr.y[i]) * f;
+    return { x: x - Math.sin(h) * (off || 0), y: y + Math.cos(h) * (off || 0), h: h };
+  }
+  // 機關：加速帶（黃色箭頭）、道具箱（旋轉的？方塊）、落石、油漬（世界座標，ctx 已經是俯視轉換）
+  function drawItems(ctx, race, cam, viewR) {
+    var tr = race.track;
+    race.items.forEach(function (it) {
+      if (it.until !== undefined && race.t > it.until) return;
+      var p = posAt(tr, it.s, 0);
+      if (Math.abs(p.x - cam.x) > viewR || Math.abs(p.y - cam.y) > viewR) return;
+      ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.h);
+      if (it.kind === "boost") {
+        var w = tr.w * 0.42, blink = Math.floor(race.t * 6) % 3;
+        for (var k = 0; k < 3; k++) {
+          ctx.fillStyle = k === blink ? "#fff27a" : "#ffb020";
+          ctx.beginPath(); ctx.moveTo(-1.5 + k * 1.6, -w); ctx.lineTo(0.2 + k * 1.6, 0); ctx.lineTo(-1.5 + k * 1.6, w);
+          ctx.lineTo(-0.7 + k * 1.6, w); ctx.lineTo(1.0 + k * 1.6, 0); ctx.lineTo(-0.7 + k * 1.6, -w); ctx.closePath(); ctx.fill();
+        }
+      } else if (it.kind === "box") {
+        [-tr.w * 0.25, tr.w * 0.25].forEach(function (o, n) {
+          ctx.save(); ctx.translate(0, o); ctx.rotate(race.t * 2 + n);
+          ctx.fillStyle = "hsl(" + Math.round((race.t * 120 + n * 90) % 360) + ",85%,55%)"; ctx.fillRect(-0.8, -0.8, 1.6, 1.6);
+          ctx.strokeStyle = "#fff"; ctx.lineWidth = 0.15; ctx.strokeRect(-0.8, -0.8, 1.6, 1.6);
+          ctx.restore();
+        });
+      } else if (it.kind === "rock") {
+        [[0.2, 0.6, 0.9], [-0.6, -0.8, 0.7], [0.9, -1.6, 0.5], [-1, 1.5, 0.55]].forEach(function (r, n) {
+          ctx.fillStyle = n % 2 ? "#6f6a63" : "#8a857c";
+          ctx.beginPath(); ctx.arc(r[0], r[1] + ((it.id % 3) - 1) * 0.8, r[2], 0, Math.PI * 2); ctx.fill();
+        });
+      } else if (it.kind === "oil") {
+        ctx.fillStyle = "rgba(15,15,20,0.75)";
+        ctx.beginPath(); ctx.ellipse(0, 0, 3.2, tr.w * 0.38, 0, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = "rgba(120,80,200,0.35)";
+        ctx.beginPath(); ctx.ellipse(0.6, 0.4, 1.4, tr.w * 0.15, 0.4, 0, Math.PI * 2); ctx.fill();
+      }
+      ctx.restore();
+    });
+  }
+  // 車身上的效果（ctx 已轉到車的座標：車頭朝 +x）
+  function drawCarFx(ctx, fv, t) {
+    if (fv.go) {
+      var fl = 1.6 + Math.sin(t * 40) * 0.5;
+      ctx.fillStyle = "rgba(80,170,255,0.85)";
+      ctx.beginPath(); ctx.moveTo(-2.2, -0.5); ctx.lineTo(-2.2 - fl * 1.4, 0); ctx.lineTo(-2.2, 0.5); ctx.closePath(); ctx.fill();
+      ctx.fillStyle = "rgba(255,200,80,0.9)";
+      ctx.beginPath(); ctx.moveTo(-2.2, -0.3); ctx.lineTo(-2.2 - fl * 0.8, 0); ctx.lineTo(-2.2, 0.3); ctx.closePath(); ctx.fill();
+    }
+    if (fv.move) {
+      ctx.strokeStyle = "rgba(255,255,255,0.7)"; ctx.lineWidth = 0.12;
+      for (var k = -1; k <= 1; k++) { ctx.beginPath(); ctx.moveTo(-3, k * 0.9); ctx.lineTo(-7 - Math.abs(k) * 1.5, k * 1.1); ctx.stroke(); }
+    }
+    if (fv.block) {
+      ctx.strokeStyle = "rgba(90,220,255,0.8)"; ctx.lineWidth = 0.25;
+      ctx.beginPath(); ctx.ellipse(0, 0, 3.4, 2.1, 0, 0, Math.PI * 2); ctx.stroke();
+    }
+    if (fv.ghost) {
+      ctx.strokeStyle = "rgba(190,120,255,0.9)"; ctx.lineWidth = 0.2;
+      ctx.strokeRect(-2.6, -1.2, 5.2, 2.4);
+    }
   }
 
   // 空拍轉播（MF Ghost 風）：LIVE 標誌與前三名
@@ -1159,6 +1395,32 @@
       var txt = ui.countdown > 0 ? String(clamp(n, 1, 3)) : "GO!";
       ctx.strokeText(txt, f.w / 2, f.h * 0.45); ctx.fillText(txt, f.w / 2, f.h * 0.45);
     }
+    var fl = ui.flash && performance.now() < ui.flash.until ? ui.flash : null;
+    if (fl) {
+      var age = 1 - (ui.flash.until - performance.now()) / 1600;
+      ctx.save();
+      ctx.textAlign = "center"; ctx.font = "italic bold " + Math.round(26 + 8 * Math.max(0, 0.3 - age) / 0.3) + "px sans-serif";
+      ctx.lineWidth = 5; ctx.strokeStyle = "rgba(0,0,0,0.75)"; ctx.fillStyle = "#fff";
+      ctx.strokeText(fl.text, f.w / 2, f.h * 0.62); ctx.fillText(fl.text, f.w / 2, f.h * 0.62);
+      ctx.fillStyle = fl.color; ctx.fillRect(f.w / 2 - 60, f.h * 0.62 + 8, 120, 4);
+      ctx.restore();
+    }
+    var fh = ui.finHold && performance.now() < ui.finHold.until ? ui.finHold : null;
+    if (fh) {
+      var fcar = race.cars[fh.id];
+      ctx.save();
+      ctx.fillStyle = "rgba(0,0,0,0.6)"; ctx.fillRect(0, f.h * 0.36, f.w, 64);
+      // 格子旗條紋
+      for (var cxk = 0; cxk < f.w; cxk += 12) for (var cyk = 0; cyk < 2; cyk++) {
+        ctx.fillStyle = (cxk / 12 + cyk) % 2 ? "#111" : "#fff";
+        ctx.fillRect(cxk, f.h * 0.36 + (cyk ? 58 : 0), 12, 6);
+      }
+      ctx.textAlign = "center"; ctx.fillStyle = "#ffd84d"; ctx.font = "bold 26px sans-serif";
+      ctx.fillText("🏁 FINISH  P" + fh.pos, f.w / 2, f.h * 0.36 + 32);
+      ctx.fillStyle = "#fff"; ctx.font = "bold 14px sans-serif";
+      ctx.fillText(fcar.name + " · " + fmtTime(fcar.finT), f.w / 2, f.h * 0.36 + 51);
+      ctx.restore();
+    }
     if (race.done) {
       ctx.textAlign = "center"; ctx.font = "bold 30px sans-serif"; ctx.fillStyle = "#fff";
       ctx.strokeStyle = "rgba(0,0,0,0.6)"; ctx.lineWidth = 4;
@@ -1199,7 +1461,8 @@
       }))
     ]);
     app.appendChild(el("div", { class: "dv-panel" }, [
-      el("h2", {}, [courseName() + " · " + SEASON_ICON[setup.season] + " " + L(D.SEASONS[setup.season].name) + " · " + t("dv_mode_" + setup.mode)]),
+      el("h2", {}, [courseName() + " · " + SEASON_ICON[setup.season] + " " + L(D.SEASONS[setup.season].name) + " · " + t("dv_mode_" + setup.mode) +
+        (ui.race && ui.race.wild ? " · " + t("dv_rule_wild") : "")]),
       fin.length ? pod : el("p", {}, [t("dv_nobody")]),
       el("div", { class: "dv-scroll" }, [tbl])
     ]));
@@ -1218,7 +1481,10 @@
   // 測試用
   window.PriTestDejavu = {
     setup: function () { return JSON.parse(JSON.stringify(setup)); },
-    ui: function () { return { screen: ui.screen, tab: ui.tab, courseTab: ui.courseTab, follow: ui.follow }; },
+    ui: function () {
+      return { screen: ui.screen, tab: ui.tab, courseTab: ui.courseTab, follow: ui.follow, replay: !!(ui.rp && ui.race && ui.race.t >= ui.rp.t1),
+        final: !!ui.final, finHold: ui.finHold ? ui.finHold.id : null, recFrames: ui.rec ? ui.rec.t.length : 0 };
+    },
     race: function () { return ui.race; },
     result: function () { return ui.result; },
     go: go

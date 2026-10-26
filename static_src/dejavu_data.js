@@ -287,6 +287,33 @@
     }
   ];
 
+  // ---- 奔放模式（rule: "wild"）----
+  // 規則：較真＝純物理；奔放＝誇張超車、手牌、路面機關
+  var RULE_IDS = ["real", "wild"];
+  // 手牌：t＝持續秒數（0＝立即）
+  var CARDS = {
+    nitro: { icon: "🔥", t: 5 },        // 出力 ×1.7、直線目標速度 ×1.1
+    sling: { icon: "🎯", t: 2.5 },      // 前方 45 m 內有車：強制超車＋大推力；沒有車就當短氮氣
+    late: { icon: "🛑", t: 8 },         // 極限晚煞：抓地 ×1.08、彎道目標速度提高
+    gutter: { icon: "⤵", t: 10 },      // 溝落：急彎抓地 ×1.25，髮夾彎超車機率大增
+    block: { icon: "🛡", t: 10 },       // 鐵壁防守：後車超車機率 ×0.05
+    oil: { icon: "🛢", t: 0 },          // 在身後 8 m 灑油漬（其他車經過：抓地 ×0.65 持續 1.5 秒）
+    repair: { icon: "🔧", t: 0 },       // 損傷 −40、立刻從打滑恢復
+    ghost: { icon: "👻", t: 5 }         // 鬼之走線：無視前車阻擋，隨時可以超車
+  };
+  var CARD_IDS = ["nitro", "sling", "late", "gutter", "block", "oil", "repair", "ghost"];
+  var HAND_MAX = 3, HAND_START = 2, DRAW_EVERY = 700;
+  // 路面機關：每隔 gap 公尺左右放一個，依 w 權重抽種類
+  var ITEMS = {
+    boost: { w: 4 },   // 加速帶：2.5 秒出力 ×1.4
+    box: { w: 3 },     // 道具箱：補一張牌
+    rock: { w: 2 }     // 落石：沒閃過就減速、小打滑、損傷 +6（閃避率看戰略）
+  };
+  var ITEM_GAP = 230;
+  var ROCK_DODGE = { calm: 0.75, balanced: 0.55, attack: 0.4, defend: 0.6 };
+  // 招式超車（奔放模式）：名稱只是演出，機率／效果在 dejavu_core.js 的 traffic()
+  var MOVES = ["gutter", "drift", "slipstream", "ghost", "sling"];
+
   var COLORS = ["#e8e8e8", "#d33a2c", "#2f6fd6", "#f2c230", "#2e9e5b", "#8e44ad", "#ff7f27", "#222222", "#19b5c9", "#ff6fae", "#8bc34a", "#8d6e63"];
   var MAX_CARS = 12;
 
@@ -294,7 +321,9 @@
     C: C, BRANDS: BRANDS, CARS: CARS, CUSTOM: CUSTOM, DRIVES: DRIVES, DRIVE_INFO: DRIVE_INFO,
     TIRES: TIRES, TIRE_IDS: TIRE_IDS, SEASONS: SEASONS, SEASON_IDS: SEASON_IDS, STYLES: STYLES, STYLE_IDS: STYLE_IDS,
     UPGRADE_POINTS: UPGRADE_POINTS, UPGRADE_MAX: UPGRADE_MAX, UPGRADES: UPGRADES,
-    PIECES: PIECES, GRADES: GRADES, SURFACES: SURFACES, SURFACE_IDS: SURFACE_IDS, COMBOS: COMBOS, COURSES: COURSES, COLORS: COLORS, MAX_CARS: MAX_CARS,
+    PIECES: PIECES, GRADES: GRADES, SURFACES: SURFACES, SURFACE_IDS: SURFACE_IDS, COMBOS: COMBOS,
+    RULE_IDS: RULE_IDS, CARDS: CARDS, CARD_IDS: CARD_IDS, HAND_MAX: HAND_MAX, HAND_START: HAND_START, DRAW_EVERY: DRAW_EVERY,
+    ITEMS: ITEMS, ITEM_GAP: ITEM_GAP, ROCK_DODGE: ROCK_DODGE, MOVES: MOVES, COURSES: COURSES, COLORS: COLORS, MAX_CARS: MAX_CARS,
     car: function (id) { for (var i = 0; i < CARS.length; i++) if (CARS[i].id === id) return CARS[i]; return null; },
     course: function (id) { for (var i = 0; i < COURSES.length; i++) if (COURSES[i].id === id) return COURSES[i]; return null; },
     piece: function (id) { for (var i = 0; i < PIECES.length; i++) if (PIECES[i].id === id) return PIECES[i]; return null; }

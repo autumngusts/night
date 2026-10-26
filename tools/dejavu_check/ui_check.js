@@ -180,6 +180,58 @@ function screen(page) { return page.evaluate(function () { return window.PriTest
   await page.waitForTimeout(300);
   await clickKey(page, "dv_skip");
 
+  // ---- 5b. 車內視角不跳過、自然跑完：終點門架進入視野不能讓畫面迴圈停掉（2026-10-26 的 bug），
+  //          要出現衝線停留、冠軍重播，最後自己進結果畫面 ----
+  await page.evaluate(function () {
+    var s = JSON.parse(localStorage.getItem("pritest-dejavu-setup"));
+    s.course = window.PriTestDejavuCore.fixedCourse("usui"); s.build = null; s.season = "summer";
+    localStorage.setItem("pritest-dejavu-setup", JSON.stringify(s));
+  });
+  await page.reload();
+  await page.waitForFunction(function () { return !!window.PriTestDejavu; });
+  await page.evaluate(function () { window.PriTestDejavu.go("garage"); });
+  await clickKey(page, "dv_go");
+  await clickKey(page, "dv_cam_cockpit");
+  await page.evaluate(function () { Array.prototype.filter.call(document.querySelectorAll(".dv-ctrl button"), function (b) { return b.textContent === "8×"; })[0].click(); });
+  var sawHold = false, sawFinal = false;
+  for (var w = 0; w < 400 && await screen(page) === "race"; w++) {
+    var u5 = await page.evaluate(function () { return window.PriTestDejavu.ui(); });
+    if (u5.finHold !== null) sawHold = true;
+    if (u5.final && !sawFinal) { sawFinal = true; await page.screenshot({ path: path.join(SHOT_DIR, "race_final_replay.png") }); }
+    await page.waitForTimeout(250);
+  }
+  assert.strictEqual(await screen(page), "result", "車內視角跑完整場沒有自己進到結果畫面");
+  assert.ok(sawHold, "沒有衝線停留畫面");
+  assert.ok(sawFinal, "沒有冠軍衝線重播");
+
+  // ---- 5c. 奔放模式：設定畫面切規則、比賽中按手牌出牌、機關畫得出來、Déjà vu 照樣一致 ----
+  await page.evaluate(function () { window.PriTestDejavu.go("setup"); });
+  await clickKey(page, "dv_rule_wild");
+  assert.strictEqual((await page.evaluate(function () { return window.PriTestDejavu.setup(); })).rule, "wild");
+  await page.evaluate(function () { window.PriTestDejavu.go("garage"); });
+  await clickKey(page, "dv_go");
+  await page.evaluate(function () { Array.prototype.filter.call(document.querySelectorAll(".dv-ctrl button"), function (b) { return b.textContent === "4×"; })[0].click(); });
+  await page.waitForFunction(function () { return window.PriTestDejavu.race().t > 6; }, null, { timeout: 30000 });
+  var handN = await page.locator(".dv-hcard").count();
+  assert.ok(handN >= 1, "奔放模式沒有手牌按鈕");
+  await page.evaluate(function () { document.querySelector(".dv-hcard:not(:disabled)").click(); });
+  var cardLog = await page.evaluate(function () { return window.PriTestDejavu.race().log.filter(function (l) { return l.card; }).length; });
+  assert.ok(cardLog >= 1, "按手牌沒有出牌");
+  await page.waitForTimeout(1500);
+  await page.screenshot({ path: path.join(SHOT_DIR, "race_wild.png") });
+  await clickKey(page, "dv_cam_cockpit");
+  await page.waitForTimeout(1200);
+  await page.screenshot({ path: path.join(SHOT_DIR, "race_wild_cockpit.png") });
+  await noRawKeys(page, "奔放模式比賽");
+  await clickKey(page, "dv_skip");
+  var w1 = await page.evaluate(function () { return JSON.stringify(window.PriTestDejavu.result().map(function (r) { return [r.id, r.state, r.time, r.cards]; })); });
+  await clickKey(page, "dv_dejavu");
+  await clickKey(page, "dv_skip");
+  var w2 = await page.evaluate(function () { return JSON.stringify(window.PriTestDejavu.result().map(function (r) { return [r.id, r.state, r.time, r.cards]; })); });
+  assert.strictEqual(w2, w1, "奔放模式 Déjà vu 重播結果不同");
+  await page.evaluate(function () { window.PriTestDejavu.go("setup"); });
+  await clickKey(page, "dv_rule_real");
+
   // ---- 6. 重新整理後設定還在、三語 ----
   await page.reload();
   await page.waitForFunction(function () { return !!window.PriTestDejavu; });

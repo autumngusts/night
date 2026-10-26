@@ -378,6 +378,8 @@
       baseMu: D.SEASONS[season].mu * (tr.rain ? WET_MU : 1),
       timeout: 60 + (tr.finish - tr.start) / 4,
       stepN: 0, log: [],
+      // 奔放模式：誇張超車、手牌、路面機關（較真模式完全不受影響：另外用 wr 這條亂數，不動 rnd 的抽取順序）
+      wild: opts.rule === "wild", items: [], itemSeq: 0, wr: rng((seed ^ 0x5eed1e) | 0),
       // 重播用的戰略指令（Déjà vu：照原本的步數套用，結果就會一模一樣）
       pending: (opts.cmds || []).slice().sort(function (a, b) { return a.n - b.n; })
     };
@@ -403,7 +405,136 @@
       car.prof = buildProfile(race, car);
       race.cars.push(car);
     });
+    if (race.wild) {
+      race.items = genItems(tr, race.wr);
+      race.itemSeq = race.items.length;
+      race.cars.forEach(function (c) {
+        c.hand = []; c.fx = {}; c.draftT = 0; c.cardsUsed = 0; c.passMove = null; c.passMoveT = -99;
+        c.nextDraw = tr.start + D.DRAW_EVERY;
+        for (var h = 0; h < D.HAND_START; h++) drawCard(race, c);
+      });
+    }
     return race;
+  }
+
+  // ---------------- 奔放模式 ----------------
+  // 路面機關：發車後 200 m 起，每隔約 ITEM_GAP 放一個；加速帶只放在直線上
+  function genItems(tr, r) {
+    var items = [], s = tr.start + 200, kinds = Object.keys(D.ITEMS), tot = 0;
+    kinds.forEach(function (k) { tot += D.ITEMS[k].w; });
+    while (s < tr.finish - 60) {
+      var x = r() * tot, kind = kinds[0];
+      for (var i = 0; i < kinds.length; i++) { x -= D.ITEMS[kinds[i]].w; if (x < 0) { kind = kinds[i]; break; } }
+      if (kind === "boost" && maxK(tr, s - 20, s + 40) > 1 / 300) kind = "box";
+      items.push({ id: items.length, s: s, kind: kind });
+      s += D.ITEM_GAP * (0.6 + r() * 0.8);
+    }
+    return items;
+  }
+  function drawCard(race, c) {
+    if (c.hand.length >= D.HAND_MAX) return null;
+    var id = D.CARD_IDS[Math.floor(race.wr() * D.CARD_IDS.length)];
+    c.hand.push(id);
+    return id;
+  }
+  function carAhead(race, c, within) {
+    var best = null;
+    race.cars.forEach(function (a) {
+      if (a !== c && a.state === "run" && a.s > c.s && a.s - c.s <= within && (!best || a.s < best.s)) best = a;
+    });
+    return best;
+  }
+  function carBehind(race, c, within) {
+    var best = null;
+    race.cars.forEach(function (a) {
+      if (a !== c && a.state === "run" && a.s < c.s && c.s - a.s <= within && (!best || a.s > best.s)) best = a;
+    });
+    return best;
+  }
+  function setMove(race, c, ahead, move) {
+    c.passing = ahead.id; c.passMove = move; c.passMoveT = race.t;
+  }
+  function applyCard(race, c, id) {
+    var fx = c.fx, info = D.CARDS[id];
+    if (id === "sling") {
+      var a = race.mode === "battle" ? carAhead(race, c, 45) : null;
+      if (a) { setMove(race, c, a, "sling"); fx.sling = info.t; } else fx.nitro = Math.max(fx.nitro || 0, 2.5);
+    } else if (id === "oil") {
+      race.items.push({ id: race.itemSeq++, s: Math.max(race.track.start, c.s - 8), kind: "oil", owner: c.id, until: race.t + 25 });
+    } else if (id === "repair") {
+      c.dmg = Math.max(0, c.dmg - 40); c.stun = Math.min(c.stun, 0.2);
+    } else fx[id] = info.t;
+  }
+  // 出牌：idx＝手牌第幾張；expect＝重播時核對牌的種類。玩家出的牌記進 race.log（Déjà vu 重播照步數套用）
+  function playCard(race, carId, idx, expect) {
+    var c = race.cars[carId];
+    if (!race.wild || !c || c.state !== "run" || race.done) return false;
+    var id = c.hand[idx];
+    if (!id || (expect && id !== expect)) return false;
+    c.hand.splice(idx, 1);
+    applyCard(race, c, id);
+    c.cardsUsed++;
+    if (!c.cpu) race.log.push({ n: race.stepN, car: carId, card: id, idx: idx });
+    event(race, c, "card", { card: id });
+    return true;
+  }
+  // CPU 出牌（只看比賽狀態，決定論）
+  function cpuCards(race) {
+    var tr = race.track;
+    race.cars.forEach(function (c) {
+      if (!c.cpu || c.state !== "run" || !c.hand.length) return;
+      var want = null, has = function (id) { return c.hand.indexOf(id) >= 0; };
+      var ahead = race.mode === "battle" ? carAhead(race, c, 45) : null, behind = race.mode === "battle" ? carBehind(race, c, 40) : null;
+      var tightSoon = maxK(tr, c.s + 20, c.s + 90) > 1 / 35, straight = maxK(tr, c.s, c.s + 150) < 1 / 200;
+      if (c.dmg >= 45 && has("repair")) want = "repair";
+      else if (ahead && ahead.s - c.s < 15 && has("ghost")) want = "ghost";
+      else if (ahead && has("sling")) want = "sling";
+      else if (behind && c.s - behind.s < 25 && has("block") && !(c.fx.block > 0)) want = "block";
+      else if (behind && has("oil")) want = "oil";
+      else if (straight && has("nitro") && !(c.fx.nitro > 0)) want = "nitro";
+      else if (tightSoon && has("gutter") && !(c.fx.gutter > 0)) want = "gutter";
+      else if (tightSoon && has("late") && !(c.fx.late > 0)) want = "late";
+      else if (c.hand.length >= D.HAND_MAX && has("nitro") && maxK(tr, c.s, c.s + 80) < 1 / 200) want = "nitro";
+      if (want) playCard(race, c.id, c.hand.indexOf(want));
+    });
+  }
+  // 牌與機關對抓地的影響（oil 是車手預料不到的，不算進目標速度）
+  function wildGrip(c, k, withOil) {
+    var fx = c.fx, g = 1;
+    if (fx.late > 0) g *= 1.08;
+    if (fx.gutter > 0 && k > 1 / 40) g *= 1.25;
+    if (fx.move > 0) g *= c.moveKind === "gutter" ? 1.2 : 1.1;
+    if (withOil && fx.oil > 0) g *= 0.65;
+    return g;
+  }
+  function wildPower(c) {
+    var fx = c.fx, m = 1;
+    if (fx.boost > 0) m = 1.4;
+    if (fx.nitro > 0) m = Math.max(m, 1.7);
+    if (fx.sling > 0) m = Math.max(m, 2.2);
+    return m;
+  }
+  // 越過機關
+  function hitItems(race, c, s0) {
+    race.items.forEach(function (it) {
+      if (it.s <= s0 || it.s > c.s) return;
+      if (it.until !== undefined && race.t > it.until) return;
+      if (it.kind === "boost") { c.fx.boost = 2.5; }
+      else if (it.kind === "box") {
+        var got = drawCard(race, c);
+        if (got) event(race, c, "item", { card: got });
+      } else if (it.kind === "rock") {
+        if (race.wr() > (D.ROCK_DODGE[c.styleId] || 0.5)) {
+          c.v *= 0.65; c.stun = Math.max(c.stun, 0.7); c.spinDir = race.wr() < 0.5 ? 1 : -1; c.passing = null;
+          c.dmg = Math.min(DNF_DAMAGE, c.dmg + 6);
+          event(race, c, "trap", { kind: "rock" });
+          if (c.dmg >= DNF_DAMAGE) { c.state = "dnf"; c.dnf = "crash"; event(race, c, "dnf", { why: "crash" }); }
+        }
+      } else if (it.kind === "oil" && it.owner !== c.id) {
+        c.fx.oil = 1.5;
+        event(race, c, "trap", { kind: "oil" });
+      }
+    });
   }
 
   function carMu(race, c, i, assumed) {
@@ -512,6 +643,7 @@
   function spin(race, c, v, r, kSign) {
     var sev = r - c.di.tol;
     var hit = v > 13 ? (v - 10) * 1.6 * (1 + sev * 4) : 0;
+    if (race.wild) hit *= 0.5;   // 奔放模式：撞擊損傷減半（街機風，比較不會一撞就退賽）
     c.dmg = Math.min(DNF_DAMAGE, c.dmg + 8 + hit);
     c.spins++;
     c.stun = 2.2 + Math.min(2, sev * 8);
@@ -536,19 +668,40 @@
       active.forEach(function (a) { if (a !== c && a.s > c.s && (!ahead || a.s < ahead.s)) ahead = a; });
       if (!ahead) { c.passing = null; return; }
       var gap = ahead.s - c.s - CAR_LEN;
+      var wild = race.wild, fx = c.fx || {};
       if (c.passing !== null && c.passing !== ahead.id) c.passing = null;
       if (gap < 25 && maxK(tr, c.s, ahead.s) < 1 / 200) c.draft = true;
+      if (wild) c.draftT = c.draft ? c.draftT + dt : 0;
       if (c.passing === ahead.id) {
-        if (maxK(tr, c.s, c.s + 25) > 1 / 60 && c.s < ahead.s - 1.5) c.passing = null; // 彎道到了還沒超過：放棄
+        // 彎道到了還沒超過：放棄（奔放模式的招式超車中不放棄）
+        var forcing = wild && (fx.move > 0 || fx.ghost > 0 || fx.sling > 0);
+        if (!forcing && maxK(tr, c.s, c.s + 25) > 1 / 60 && c.s < ahead.s - 1.5) c.passing = null;
         else return;
       }
+      if (wild && fx.ghost > 0 && gap < 10) { setMove(race, c, ahead, "ghost"); return; }
       if (gap < 10 && c.v > ahead.v - 0.5) {
-        var room = tr.w >= 6 && maxK(tr, c.s, c.s + 70) < 1 / 150;
-        var faster = profAt(c, tr, c.s + 40) > ahead.v * 1.04 + 0.5;
-        if (room && faster && race.rnd() < c.style.pass * ahead.style.block * dt * 2) {
+        var blockM = ahead.style.block * (wild && ahead.fx.block > 0 ? 0.05 : 1);
+        var room = wild ? tr.w >= 4.5 && maxK(tr, c.s, c.s + 40) < 1 / 150 : tr.w >= 6 && maxK(tr, c.s, c.s + 70) < 1 / 150;
+        var faster = profAt(c, tr, c.s + 40) > ahead.v * (wild ? 1.02 : 1.04) + 0.5 || wild && c.draftT > 1;
+        if (room && faster && race.rnd() < c.style.pass * blockM * dt * 2 * (wild ? 2.5 : 1)) {
           c.passing = ahead.id;
           c.side = (ahead.d > 0.3 ? -1 : ahead.d < -0.3 ? 1 : (race.rnd() < 0.5 ? 1 : -1));
+          if (wild && c.draftT > 1.5) { c.passMove = "slipstream"; c.passMoveT = race.t; fx.boost = 1.5; }
           return;
+        }
+        if (wild && !room) {
+          // 彎中招式：髮夾彎內側「溝落」、甩尾中的「慣性甩尾」外側超車
+          var kA = maxK(tr, c.s, c.s + 30);
+          if (kA > 1 / 35 && c.v > ahead.v * 0.97 - 0.5 && race.wr() < c.style.pass * blockM * dt * (fx.gutter > 0 ? 3 : 1) * 1.6) {
+            setMove(race, c, ahead, "gutter"); fx.move = 2.2; c.moveKind = "gutter";
+            c.side = tr.k[idxAt(tr, c.s + 15)] >= 0 ? 1 : -1;
+            return;
+          }
+          if (kA > 1 / 120 && (c.drifting || c.styleId === "attack") && race.wr() < c.style.pass * blockM * dt * 1.2) {
+            setMove(race, c, ahead, "drift"); fx.move = 2; c.moveKind = "drift";
+            c.side = tr.k[idxAt(tr, c.s + 15)] >= 0 ? -1 : 1;
+            return;
+          }
         }
         c.cap = gap < 0 ? ahead.v - 1 : ahead.v + Math.max(0, gap - 3) * 0.6;
       }
@@ -566,12 +719,24 @@
     }
     var kS = tr.k[i], k = Math.abs(kS);
     var mu = carMu(race, c, i, false);
+    var wfx = race.wild ? c.fx : null;
+    if (wfx) {
+      Object.keys(wfx).forEach(function (key) { if (wfx[key] > 0) wfx[key] -= dt; });
+      mu *= wildGrip(c, k, true);
+    }
     var q = RHO_HALF * st.cla / st.m;
     var latMax = mu * c.di.bal * (G + q * v * v);
     var r = v * v * k / latMax;
     var drag = RHO_HALF * st.cda * v * v / st.m * (c.draft ? 0.8 : 1);
     var grav = G * tr.sl[i];
     var target = c.state === "fin" ? profAt(c, tr, c.s) : Math.min(profAt(c, tr, c.s), profAt(c, tr, c.s + v * 0.12), c.cap);
+    var pmul = 1;
+    if (wfx && c.state === "run") {
+      pmul = wildPower(c);
+      var tm = k > 1 / 250 ? Math.sqrt(wildGrip(c, k, false)) : 1;
+      if (pmul > 1 && maxK(tr, c.s, c.s + v * 2.5) < 1 / 200) tm *= 1.1;
+      target = Math.min(Math.min(profAt(c, tr, c.s), profAt(c, tr, c.s + v * 0.12)) * tm, c.cap);
+    }
     var rc = Math.min(1, r);
     var circle = Math.sqrt(Math.max(0.15, 1 - rc * rc));
     var a;
@@ -581,10 +746,10 @@
       c.yaw += c.spinDir * 6 * dt * Math.min(1, c.stun);
     } else if (v < target - 0.05) {
       var pf = st.ev ? 1 : Math.min(1, 0.5 + 0.5 * v / st.vpk);
-      var fp = st.P * pf / Math.max(v, 4);
-      var ft = mu * c.di.share * st.m * (G + q * v * v);
+      var fp = st.P * pf * pmul / Math.max(v, 4);
+      var ft = mu * c.di.share * st.m * (G + q * v * v) * (pmul > 1 ? 1.15 : 1);
       a = Math.min(fp, ft) / st.m * circle - drag - ROLL + grav;
-      if (v >= st.vcap && a > 0) a = 0;
+      if (v >= st.vcap * (pmul > 1 ? 1.1 : 1) && a > 0) a = 0;
       if (a > 0 && v + a * dt > target) a = (target - v) / dt;
     } else {
       var maxB = mu * st.brk * (G + q * v * v) * circle;
@@ -620,6 +785,10 @@
     c.s = Math.min(tr.L - 0.5, c.s + v * dt);
     if (c.s >= tr.L - 0.5) c.v = 0;
     if (v > c.maxV && c.state === "run") c.maxV = v;
+    if (wfx && c.state === "run") {
+      hitItems(race, c, s0);
+      if (c.s >= c.nextDraw) { c.nextDraw += D.DRAW_EVERY; drawCard(race, c); }
+    }
     if (c.state === "run" && c.s >= tr.finish) {
       c.state = "fin";
       c.finT = race.t - dt + (tr.finish - s0) / Math.max(0.1, c.s - s0) * dt;
@@ -633,9 +802,11 @@
     dt = dt || DT;
     while (race.pending.length && race.pending[0].n <= race.stepN) {
       var cm = race.pending.shift();
-      command(race, cm.car, cm.style);
+      if (cm.card) playCard(race, cm.car, cm.idx, cm.card);
+      else command(race, cm.car, cm.style);
     }
     if (race.stepN % 60 === 0) cpuTactics(race);
+    if (race.wild && race.stepN % 30 === 15) cpuCards(race);
     race.stepN++;
     race.t += dt;
     traffic(race, dt);
@@ -647,7 +818,12 @@
         var was = prevOrder.indexOf(id);
         if (was > p) {
           var c = race.cars[id], passed = race.cars[prevOrder[p]];
-          if (c.state === "run" && passed.state === "run" && passed.stun <= 0) { c.overtakes++; event(race, c, "pass", { other: passed.id }); }
+          if (c.state === "run" && passed.state === "run" && passed.stun <= 0) {
+            c.overtakes++;
+            var mv = race.wild && c.passMove && race.t - c.passMoveT < 6 ? c.passMove : null;
+            if (mv) c.passMove = null;
+            event(race, c, "pass", mv ? { other: passed.id, move: mv } : { other: passed.id });
+          }
         }
       });
     }
@@ -685,7 +861,7 @@
         pos: i + 1, id: c.id, name: c.name, color: c.color, car: c.st.name, cpu: c.cpu, state: c.state,
         time: c.finT, gap: c.state === "fin" && lead !== null ? c.finT - lead : null, dnf: c.dnf,
         dist: Math.max(0, Math.min(c.s, race.track.finish) - race.track.start),
-        maxKmh: Math.round(c.maxV * 3.6), spins: c.spins, drifts: c.drifts, overtakes: c.overtakes, dmg: Math.round(c.dmg)
+        maxKmh: Math.round(c.maxV * 3.6), spins: c.spins, drifts: c.drifts, overtakes: c.overtakes, dmg: Math.round(c.dmg), cards: c.cardsUsed || 0
       };
     });
   }
@@ -706,6 +882,6 @@
     DT: DT, DS: DS, CAR_LEN: CAR_LEN,
     rng: rng, parseSeg: parseSeg, pieceTags: pieceTags, findCombos: findCombos, segLen: segLen, courseLen: courseLen, fixedCourse: fixedCourse, expandPiece: expandPiece,
     cleanCourse: cleanCourse, cleanSeg: cleanSeg, buildTrack: buildTrack, trackInfo: trackInfo, randomCourse: randomCourse, randomFill: randomFill,
-    cleanSpec: cleanSpec, carStats: carStats, createRace: createRace, command: command, step: step, order: order, runToEnd: runToEnd, results: results, carPose: carPose
+    cleanSpec: cleanSpec, carStats: carStats, createRace: createRace, command: command, playCard: playCard, step: step, order: order, runToEnd: runToEnd, results: results, carPose: carPose
   };
 })();
