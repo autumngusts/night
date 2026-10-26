@@ -18,6 +18,9 @@
   zh_sing_inst  中文歌聲＋伴奏（遊戲中播放 5 次後可用的提示，不是獨立的題目版本）
   ja_sing       日文歌聲：VOICEVOX 角色用日文填詞唱原曲旋律（華語歌用；需要 lyrics.json 的 ja_sing 與 VOICEVOX ENGINE）
   ja_sing_inst  日文歌聲＋伴奏（提示）
+  acap_full     阿卡貝拉：B-box＋人聲貝斯＋節奏伴唱和聲（acappella.py；需要 VOICEVOX ENGINE，長度 30 秒）
+  acap_bass     阿卡貝拉：B-box＋人聲貝斯
+  acap_bbox     阿卡貝拉：只有 B-box
 
 用法（詳見同目錄 README.md）：
   tools/utau_clips/.venv/Scripts/python.exe tools/utau_clips/build_pack.py
@@ -60,7 +63,7 @@ PAD = 1.0  # 分離時前後多留的秒數（給 Demucs 上下文，成品會�
 # AI 歌聲（zh_sing 等）的長度：使用者試聽後要求中文歌聲拉長到 30 秒（2026-10-17），其他版本維持 --clip（15 秒）
 SING_CLIP = 30.0
 VARIANTS = ("original", "instrumental", "vocal", "other", "speed", "chip", "zh_sing", "zh_sing_inst",
-            "ja_sing", "ja_sing_inst", "vocal_rev", "rhythm", "reverse")
+            "ja_sing", "ja_sing_inst", "acap_full", "acap_bass", "acap_bbox", "vocal_rev", "rhythm", "reverse")
 # 製作方式改變時遞增：快取資料夾名稱含此版本，舊成品自動失效
 # 2：使用者試聽後，變速改極端變快、拿掉八音盒／8bit、新增 other／vocal_rev／reverse（2026-10-16）
 # 3：新增 chip（CREPE 版 8bit 旋律；使用者試聽三種程度後選「只有主旋律」）
@@ -461,6 +464,50 @@ def long_stems(song: dict, res: dict, seconds: float) -> Path:
     return out_dir
 
 
+# ---------------- 阿卡貝拉 ----------------
+
+
+def build_acappella(song: dict, res: dict) -> dict[str, Path]:
+    """acap_full／acap_bass／acap_bbox（acappella.py）。從題目片段的同一個起點另外分離 ACAP_CLIP 秒（需要四軌，
+    long_stems() 只存人聲／伴奏不夠用）。快取在成品資料夾的 acap-v<ACAP_VERSION>/，acap.json 記錄做出哪些。
+    鼓的打擊點太少（幾乎沒有鼓的抒情歌）時 B-box 沒有意義，三個版本都不做，也記在 acap.json 不再重試。"""
+    import acappella
+
+    out_dir = res["dir"] / f"acap-v{acappella.ACAP_VERSION}"
+    meta = out_dir / "acap.json"
+    if meta.exists():
+        return {name: out_dir / f"{name}.m4a" for name in json.loads(meta.read_text(encoding="utf-8"))}
+    sec = acappella.ACAP_CLIP
+    log(f"    阿卡貝拉：分離 {sec:g} 秒…")
+    audio = load_audio(fetch_source(song))
+    start = res["start"]
+    a = max(0, int((start - PAD) * SR))
+    b = min(len(audio), int((start + sec + PAD) * SR))
+    segment = audio[a:b]
+    lead = int(start * SR) - a
+    n = int(sec * SR)
+
+    def fit(x: np.ndarray) -> np.ndarray:  # 歌曲結尾不足時補靜音
+        return np.pad(x[lead: lead + n], ((0, max(0, n - len(x[lead: lead + n]))), (0, 0)))
+
+    stems = {k: fit(v) for k, v in separate(segment).items()}
+    original = fit(segment)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    hits = acappella.drum_hits(stems["drums"])
+    made: list[str] = []
+    if len(hits) < 8:
+        log(f"    鼓的打擊點只有 {len(hits)} 個，略過阿卡貝拉")
+    else:
+        log("    阿卡貝拉：人聲貝斯、節奏伴唱…")
+        tmp = out_dir / "tmp.wav"
+        for name, data in acappella.make(stems, original, sec).items():
+            encode(finish(data), out_dir / f"{name}.m4a", tmp)
+            made.append(name)
+        tmp.unlink(missing_ok=True)
+    meta.write_text(json.dumps(made), encoding="utf-8")
+    return {name: out_dir / f"{name}.m4a" for name in made}
+
+
 # ---------------- 混音與輸出 ----------------
 
 
@@ -592,6 +639,7 @@ VARIANT_LABELS = {
     "other": "旋律樂器", "speed": "極端變快", "chip": "8bit 旋律", "vocal_rev": "人聲倒放",
     "zh_sing": "中文歌聲", "zh_sing_inst": "中文歌聲＋伴奏（提示）",
     "ja_sing": "日文歌聲", "ja_sing_inst": "日文歌聲＋伴奏（提示）", "rhythm": "鼓＋貝斯", "reverse": "整段倒放",
+    "acap_full": "阿卡貝拉", "acap_bass": "B-box＋貝斯", "acap_bbox": "只有 B-box",
 }
 
 
@@ -665,6 +713,7 @@ def main() -> None:
     parser.add_argument("--repick", action="store_true", help="自動選的起點（_autoStart）重新偵測；手動填的 start 不受影響")
     parser.add_argument("--split", action="store_true",
                         help="另外依「地區＋分類」拆成多個題庫包（utau_pack_ja-anime.zip 等），方便手機分批匯入")
+    parser.add_argument("--no-acap", action="store_true", help="不做阿卡貝拉三個版本（沒有 VOICEVOX ENGINE 時）")
     args = parser.parse_args()
 
     catalog = song_catalog()
@@ -705,6 +754,11 @@ def main() -> None:
             paths.update(build_zh(song, res, lyrics, args.clip))
         except Exception as exc:  # 中文版失敗不影響其他版本
             log(f"    中文版失敗：{exc}")
+        if not args.no_acap:
+            try:
+                paths.update(build_acappella(song, res))
+            except Exception as exc:  # 阿卡貝拉失敗不影響其他版本
+                log(f"    阿卡貝拉失敗：{exc}")
         # skip 只影響打包：快取照樣保留，之後取消 skip 不必重做
         kept = [name for name in paths if name not in song["skip"]]
         if not any(name not in ("original", "zh_sing_inst", "ja_sing_inst") for name in kept):

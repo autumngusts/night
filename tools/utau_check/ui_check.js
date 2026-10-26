@@ -63,7 +63,7 @@ function storedZip(files) {
 }
 function makeTestPack() {
   var variants = ["original", "instrumental", "vocal", "other", "speed", "chip", "vocal_rev", "rhythm", "reverse",
-    "zh_read", "zh_sing", "zh_sing_inst", "ja_sing", "ja_sing_inst"];  // zh_read：舊包才有，遊戲要忽略
+    "zh_read", "zh_sing", "zh_sing_inst", "ja_sing", "ja_sing_inst", "acap_full", "acap_bass", "acap_bbox"];  // zh_read：舊包才有，遊戲要忽略
   var songs = [
     { id: "ja:紅蓮華", t: "紅蓮華", a: "LiSA", y: 2019, r: "ja", c: "anime", key: "aaa" },
     { id: "ja:Lemon", t: "Lemon", a: "米津玄師", y: 2018, r: "ja", c: "screen", key: "bbb" }
@@ -162,7 +162,7 @@ function makeTestPack() {
   assert.strictEqual(await page.locator(".ut-score-input").count(), 4, "advanced table has players + 1 rows");
   assert.strictEqual(await page.locator("#ut-ai-bonus").count(), 0, "no AI bonus in advanced mode");
   // 留純樂器、純人聲、極端變快、鼓＋貝斯（4 種，用來驗證最多挑 3 種）；只留動漫
-  for (var v of ["other", "chip", "vocal_rev", "reverse", "zh_sing", "ja_sing"]) await page.uncheck("#ut-variant-" + v);
+  for (var v of ["other", "chip", "vocal_rev", "reverse", "zh_sing", "ja_sing", "acap_full", "acap_bass", "acap_bbox"]) await page.uncheck("#ut-variant-" + v);
   assert.strictEqual(await page.$("#ut-variant-zh_read"), null);  // 中文朗讀已拿掉（2026-10-17）
   await page.uncheck("#ut-cat-screen");
   assert.ok((await page.textContent("#ut-pool-size")).indexOf("1") >= 0);
@@ -226,6 +226,7 @@ function makeTestPack() {
   await page.waitForSelector("#ut-pool-size");
   await page.uncheck("#ut-variant-instrumental");
   await page.check("#ut-variant-zh_sing");
+  await page.check("#ut-variant-acap_full");
   await page.check("#ut-cat-screen");
   await page.click("#ut-btn-start");
   assert.strictEqual(await page.locator("#ut-variant-zh_sing_inst").count(), 0, "hint clip is not a selectable version");
@@ -252,6 +253,11 @@ function makeTestPack() {
   assert.strictEqual(s.history[s.history.length - 1].hint, true);
   assert.strictEqual(s.scores.p2 - beforeHint, s.config.scoreTable[1], "hint does not change scoring");
   assert.ok((await page.textContent("#ut-last-round")).indexOf("用了提示") >= 0, "history shows the hint");
+  // 阿卡貝拉：要標示 VOICEVOX 角色名與 B-box 音源
+  await page.click(".ut-pick[data-variant='acap_full']");
+  await page.waitForSelector("#ut-btn-play:not([disabled])");
+  assert.ok((await page.textContent("#ut-ai-credit")).indexOf("VOICEVOX:青山龍星") >= 0, "a cappella credit shown");
+  assert.ok((await page.textContent("#ut-ai-credit")).indexOf("unfa") >= 0, "beatbox credit shown");
 
   // ================= 夢想模式（YouTube）=================
   await page.click("#ut-btn-finish");

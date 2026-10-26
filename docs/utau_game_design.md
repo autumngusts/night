@@ -57,12 +57,13 @@
 | 檔案 | 內容 |
 | --- | --- |
 | `site_src/utau_page.py` | 頁面組裝與 script 清單 `UTAU_SCRIPTS`（`generate.py` 也用這份清單複製檔案） |
-| `static_src/utau_songs.js` | 歌單目錄（455 首：日本 300〔動漫 126〕、華語 118、韓國 16、歐美 21；2026-10-19 使用者勾選追加 89 首）、地區、分類、音檔版本定義。同地區撞名的歌用 `S()` 第 4 參數 `key` 區分 id（例：`ja:Believe (Folder5)`） |
+| `static_src/utau_songs.js` | 歌單目錄（499 首：日本 319〔動漫 138〕、華語 143、韓國 16、歐美 21；2026-10-19 使用者勾選追加 89 首、2026-10-26 再追加 44 首）、地區、分類、音檔版本定義。同地區撞名的歌用 `S()` 第 4 參數 `key` 區分 id（例：`ja:Believe (Folder5)`） |
 | `static_src/utau_pack.js` | 題庫包：讀取 zip、存進 IndexedDB、取出音檔 |
 | `static_src/utau_core.js` | 規則引擎（純函式，不碰 DOM／storage，可用 node 測試） |
 | `static_src/utau.js` | UI、存讀檔、音檔播放、YouTube 播放器 |
 | `tools/utau_clips/find_urls.py` | 從歌單挑歌並自動搜尋 YouTube 網址（本機執行） |
 | `tools/utau_clips/build_pack.py` | 題庫包製作工具（本機執行） |
+| `tools/utau_clips/acappella.py` | 阿卡貝拉三個版本（B-box／人聲貝斯／節奏伴唱和聲），由 `build_pack.py` 呼叫 |
 | `tools/utau_clips/songs.json` | 製作工具的輸入清單 |
 | `tools/utau_check/core_check.js` | 規則引擎的 node 檢查 |
 | `tools/utau_check/ui_check.js` | Playwright 整體流程檢查 |
@@ -282,7 +283,10 @@ songs.json 一筆
 | `speed` | ffmpeg `asetrate` 改音高，再用 `atempo` 補成 1.5 倍速 | 1.5 倍速＋升 6 半音 |
 | `chip` | vocals → CREPE 音符 → 柔和方波（50% 方波＋2.5kHz 低通） | 見 6.5.1、6.5.4；音符少於 8 個時略過 |
 | `vocal_rev` | instrumental + 倒轉的 vocals | 沒有人聲時略過 |
+| `acap_full` | B-box＋人聲貝斯＋節奏伴唱和聲（全部人聲，沒有主旋律） | 見 6.5.5；30 秒 |
 | `rhythm` | drums + bass | 高難度 |
+| `acap_bass` | B-box＋人聲貝斯 | 見 6.5.5；30 秒 |
+| `acap_bbox` | 只有 B-box | 見 6.5.5；30 秒 |
 | `reverse` | 原始片段倒轉 | 最難 |
 
 `static_src/utau_songs.js` 的 `VARIANTS` 依難度由易到難排列，設定畫面照這個順序顯示。
@@ -398,6 +402,28 @@ pYIN 在快節奏、經 Demucs 分離的人聲上大多數格子信心值很低�
 另外試算過「主旋律清晰度」（原唱在唱的時間內 CREPE periodicity 平均值，347 首中位數 0.71；多人合唱、嘶吼、碎節奏的歌偏低，
 例如 Bohemian Rhapsody 0.25、ハレ晴レユカイ 0.36），考慮只替清楚的歌做 8bit。
 使用者決定**不設門檻**：只要能做出 8bit（音符 8 個以上）就照做。
+
+### 6.5.5 阿卡貝拉（`acap_full`／`acap_bass`／`acap_bbox`，2026-10-25〜26）
+
+使用者提案：特殊改編曲「B-box → 再加貝斯 → 再加合音」來猜歌，**三個獨立版本**（各占一次挑選額度）。
+程式在 `tools/utau_clips/acappella.py`，`build_pack.build_acappella()` 呼叫。
+
+- **長度 30 秒**（使用者：「音樂長度需要 30s」）：從題目片段的同一個起點另外用 Demucs 分離 30 秒（需要四軌）。
+  快取在成品資料夾的 `acap-v<ACAP_VERSION>/`，`acap.json` 記錄做出哪些版本；改做法時遞增 `acappella.ACAP_VERSION`，不必動 `RECIPE`。
+- **鼓的打擊點少於 8 個**（幾乎沒有鼓的歌）時三個版本都不做。
+- 需要 VOICEVOX ENGINE；沒有時用 `build_pack.py --no-acap` 略過。
+- 混音：B-box（RMS 1）＋人聲貝斯 ×0.7＋和聲 ×0.4，再做 0.3 秒淡入淡出與音量統一。
+
+| 部分 | 做法 | 試聽過程 |
+| --- | --- | --- |
+| B-box | 鼓軌整軌找 onset，每個打擊點用 60ms 頻譜（<150Hz／150Hz〜5kHz／>5kHz）分成大鼓／小鼓／Hi-hat，另在 >6kHz 補抓 Hi-hat；換成 unfa 口技單音（Freesound 714272，CC0）的「② EDM」組合：短大鼓＋「psh」小鼓＋閉合 Hi-hat，每一下從多個錄音中隨機挑 | 程式合成（簡單合成、模擬口腔共鳴）、VOICEVOX 念「ドゥン／パ／ツ」、AVP 資料集（CC BY 4.0，新手錄音）都不採用；unfa 五種風格中選 ② EDM |
+| 貝斯 | 貝斯軌 CREPE（fmin 35Hz）→ 移到 A2 附近 → VOICEVOX 青山龍星唱「ドゥ」 | Demucs 原始貝斯軌不採用 |
+| 和聲 | 其他樂器軌每拍比對 24 種大小三和弦（DP 抑制頻繁換和弦）→ 三部展開排列（低 玄野武宏／中 春日部つむぎ偏左／高 四国めたん偏右）→ 節奏伴唱：正拍「ドゥ」、反拍「ワ」；每個音漸強漸弱、整段跟著原曲能量起伏、2.8kHz 低通＋少量殘響 | 長音「ウ」→ 太硬、黏在一起、走音；試過哼唱「ン」、6 人合唱團、主旋律「ル」＋和聲、非 VOICEVOX 合成合唱後選定節奏伴唱 |
+
+- **VOICEVOX 一律強制 f0**：只給樂譜時低音域會走音（實測低聲部唱準 0〜88%），f0 改成樂譜的曲線（和聲加 70ms 滑音、
+  長音 0.45 秒後才出現的顫音、±5 cents 飄移）後 6 首三聲部唱準 99〜100%。中聲部低於 MIDI 55 升八度（つむぎ唱不到 D3）。
+- 試過「先判調、只用調內和弦」改善和弦辨識，與貝斯的吻合度沒有變好，不採用。
+- 規約要求的標示：遊戲播放這三個版本時顯示 VOICEVOX 角色名（`ut_acap_*_credit`）與 B-box 音源。
 
 ### 6.6 沒有做的版本
 

@@ -571,6 +571,7 @@
     // 聲庫／角色的使用規約要求標示名稱
     if (cur.variant === "zh_sing") panel.appendChild(el("p", { class: "ut-muted", id: "ut-ai-credit", text: t("ut_ai_credit") }));
     if (cur.variant === "ja_sing") panel.appendChild(el("p", { class: "ut-muted", id: "ut-ai-credit", text: t("ut_vv_credit") }));
+    if (/^acap_/.test(cur.variant)) panel.appendChild(el("p", { class: "ut-muted", id: "ut-ai-credit", text: t("ut_" + cur.variant + "_credit") }));
 
     // 提示：公開年代或歌手
     if (song && !ui.revealed) {
