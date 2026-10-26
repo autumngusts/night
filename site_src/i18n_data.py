@@ -16,11 +16,13 @@ from site_src.i18n_data_ja import STRINGS_JA
 from site_src.i18n_data_zh import STRINGS_ZH
 from site_src.i18n_katana import KATANA_EN, KATANA_JA, KATANA_ZH
 from site_src.i18n_yellow import YELLOW_EN, YELLOW_JA, YELLOW_ZH
+from site_src.i18n_fist import FIST_EN, FIST_JA, FIST_ZH
+from site_src.i18n_fist_raid import FIST_RAID_EN, FIST_RAID_JA, FIST_RAID_ZH
 from site_src.i18n_dejavu import DEJAVU_EN, DEJAVU_JA, DEJAVU_ZH
 
-# 神前鍛刀對決・黃牌・DÉJÀ VU 的字串較多，獨立放在 i18n_katana.py／i18n_yellow.py／i18n_dejavu.py 再合併
+# 神前鍛刀對決・黃牌・鐵拳教育・DÉJÀ VU 的字串較多，獨立放在 i18n_katana.py／i18n_yellow.py／i18n_fist.py／i18n_dejavu.py 再合併
 STRINGS: dict[str, dict[str, str]] = {
-    "zh": {**STRINGS_ZH, **KATANA_ZH, **YELLOW_ZH, **DEJAVU_ZH},
-    "ja": {**STRINGS_JA, **KATANA_JA, **YELLOW_JA, **DEJAVU_JA},
-    "en": {**STRINGS_EN, **KATANA_EN, **YELLOW_EN, **DEJAVU_EN},
+    "zh": {**STRINGS_ZH, **KATANA_ZH, **YELLOW_ZH, **FIST_ZH, **FIST_RAID_ZH, **DEJAVU_ZH},
+    "ja": {**STRINGS_JA, **KATANA_JA, **YELLOW_JA, **FIST_JA, **FIST_RAID_JA, **DEJAVU_JA},
+    "en": {**STRINGS_EN, **KATANA_EN, **YELLOW_EN, **FIST_EN, **FIST_RAID_EN, **DEJAVU_EN},
 }

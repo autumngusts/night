@@ -53,6 +53,15 @@
     });
   }
 
+  // 替已登錄的類別追加標的（擴充資料 toushou_data_ext.js 用；由 tools/toushou_data/ext.py 產生）
+  function addTargets(categoryId, targets) {
+    var known = CATEGORIES.some(function (c) { return c.id === categoryId; });
+    if (!known) throw new Error("unknown category " + categoryId);
+    targets.forEach(function (t) {
+      TARGETS.push({ id: t.id, category: categoryId, name: t.name, summary: t.summary, tags: t.tags, hooks: t.hooks });
+    });
+  }
+
   var WIND_COMPOSITION = { up: 2, down: 2, neutral: 1 };
 
   function M(id, check, params, reward, ja, zh) {
@@ -111,6 +120,7 @@
     C: C,
     text: text,
     registerCategory: registerCategory,
+    addTargets: addTargets,
     CATEGORIES: CATEGORIES,
     TARGETS: TARGETS,
     NEWS_CARDS: NEWS_CARDS,

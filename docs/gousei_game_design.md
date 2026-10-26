@@ -67,6 +67,24 @@
 * 池子是主角：約佔半個畫面（`.gs-pool-list` 最小高度 50vh），物體按鈕字放大；已選入合成欄的物體加框。
 * 不再有每回合的交接畫面；任務改放在池子下方的「各玩家任務」區，合成、換人、復原後自動收起。
 
+### 1.8 物體圖像與美術風格（使用者指定，2026-10-26：「增加美術，武俠合成內美術風格變換」）
+
+* 物體有八千多種，不逐一作畫：`static_src/gousei_art.js` 依**分類圖案**（兵器＝劍、丹藥＝葫蘆、門派＝牌樓、妖怪＝狐面、神佛祭事＝鳥居…，初始物體各有自己的圖案）
+  ＋物體 id 的 FNV-1a 雜湊（配色、角度、左右翻轉）＋**階段裝飾**（5 以上光環、8 以上雙環、11 以上星點）＋名稱首字（落款／印文），全部程式畫 SVG。
+* 顯示在：池子按鈕（34px）、合成欄（40px）、合成結果（120px，彈出動畫）、任務卡（40px）。
+* 池子上方的「🎨 美術風格」下拉選單切換，存在這台瀏覽器（`localStorage["pritest-gousei-art"]`），不進對局狀態、不同步：
+
+| 風格 id | 武俠 | 和風 |
+| --- | --- | --- |
+| `gongbi`（預設） | 工筆彩繪：絹底、金線、淡彩 | 浮世繪：青海波、粗黑輪廓、藍朱平塗 |
+| `ink` | 水墨：宣紙、墨韻圓相、方形朱印 | 墨繪：同上，圓形朱印 |
+| `pixel` | 像素（SVG 濾鏡 `#gsa-px` 方塊化） | 同左 |
+| `seal` | 印章：朱紅方印陰刻名稱首字 | 家紋：黑圓剪影 |
+| `none` | 純文字（原本的樣子） | 同左 |
+
+* 像素濾鏡的範圍必須是 `filterUnits="userSpaceOnUse"` 的整張 100×100；用預設（依圖形外框）時取樣格會落在範圍外，整片空白。
+* 檢查：`node tools/gousei_check/art_check.js`（兩個主題 × 5 種風格，圖鑑截圖在 `tools/gousei_check/shots/`）。
+
 ---
 
 ## 2. 檔案結構與載入順序
@@ -75,13 +93,14 @@
 | --- | --- |
 | `site_src/gousei_page.py` | 頁面組裝；`GOUSEI_SCRIPTS`、`GOUSEI_DATA_FILES` |
 | `static_src/gousei_core.js` | 規則引擎 `window.PriTestGouseiCore`（純函式，不碰 DOM／storage） |
+| `static_src/gousei_art.js` | 物體圖像與美術風格 `window.PriTestGouseiArt`（§1.8） |
 | `static_src/gousei.js` | UI `window.PriTestGousei` |
 | `static_src/gousei_data_<theme>.js` | 主題資料（建置產物，提交進 Git） |
 | `static_src/gousei_pinyin.js` | 語音模式的拼音表（`build_pinyin.py` 產物，提交進 Git；開啟語音模式時才動態載入） |
 | `tools/gousei_data/<theme>/*.json` | 原始資料 |
 | `tools/gousei_data/build.py` | 驗證、計算階段、輸出資料檔 |
 
-Script 載入順序：`qrcode.js` → `gousei_core.js` → `gousei.js`。
+Script 載入順序：`firebase_config.js` → `game_storage.js` → `qrcode.js` → `gousei_core.js` → `gousei_art.js` → `gousei.js`（Firebase SDK 只在連線同步時才由 `game_storage.js` 動態載入）。
 
 主題資料很大，不放進 script 清單：選定主題後由 `gousei.js` 動態插入 `<script>` 載入，網址從 `#gs-app` 的 `data-src-<theme>` 屬性取得（含 `asset_url` 快取雜湊），資料掛在 `window.PriTestGouseiData[themeId]`。
 
@@ -114,6 +133,20 @@ entry = { round, playerId, a, b, result, isNew, achieved }
 * 手機以 `Core.dealTargets(theme, seed, count)[index]` 自行算出自己的任務，不同步、不存檔。
 * 共用裝置仍可由 seed 算出全員任務，用於自動判定達成，但不顯示內容。
 * 格式不合法或人數／編號超出範圍時顯示錯誤（`#gs-join.gs-error`）。
+
+### 4.1 連線同步（使用者指定，2026-10-19）
+
+分別裝置模式開局時可勾「連線同步」：每位玩家用自己的手機看到即時的池子、結果、紀錄與進度，輪到自己時直接在手機上合成。不勾則維持上面的離線玩法。
+
+* 存放位置：Firebase `games/<房間 id>/rtState/gousei = { stateJson, hostId }`。房間 id 是 `PriTestGameStorage.generateCloudGameId()`（`g`＋32 位 hex），沿用 toushou 的做法；現有 `database.rules.json` 已允許 `rtState`，**不需要另外部署規則**。state 存成 JSON 字串，避免 Firebase 把空陣列與 `null` 吃掉。
+* 參加網址：`?join=<theme>.<seed>.<count>.<index>&room=<房間 id>`。沒有 `room` 的舊網址仍是離線看任務頁。
+* 權限：
+  * 手機（`room.me`＝玩家編號）只有輪到自己時才有工作台、能選材料；其他時候顯示「等待 ○○ 合成中」。手機上方是「你是 ○○」與可收合的自己的任務。手機沒有語音、復原、新遊戲與 QR。
+  * 主機（`hostId`＝建立房間的裝置，`localStorage["pritest-gousei-client"]`）可替任何人操作；復原與新遊戲只有主機能按。主機按新遊戲會刪除房間，手機顯示「這局已結束」。
+* 所有變更（合成、清除廢料、復原）都經 `mutate()`：連線時在雲端最新 state 上以 `rtTransaction` 執行。合成與復原會比對按下時的紀錄筆數，雲端已有新紀錄（例如兩台同時按）就作廢並提示「畫面已更新」，所以同一回合只會成立一次。
+* 任何一台合成後，所有裝置都顯示該次結果（`applyRemote()`），各自按「下一位」收起；被復原則全部收起。主機的語音模式也會朗讀別台合成的結果。
+* 重新整理：主機以 `localStorage["pritest-gousei-room"]` 回到房間；手機靠網址回到房間。連線模式不寫本機存檔 `pritest-gousei-state`（開連線新局時會清掉本機舊局）。
+* 測試：`tools/gousei_check/multi_device_check.js`（Firebase Local Emulator，見 §7）。
 
 ---
 
@@ -257,6 +290,9 @@ py -3 tools/gousei_data/build.py --check
 py -3 generate.py
 py -3 -m http.server 8943 --directory dist   # 另一個終端
 node tools/gousei_check/ui_check.js
+# 連線同步（另開終端啟動 emulator）：
+#   tools/midnight_check/node_modules/.bin/firebase emulators:start --only database,auth --project elden-ring-nightreign
+node tools/gousei_check/multi_device_check.js
 ```
 
 `ui_check.js` 借用 `tools/midnight_check` 的 Playwright，涵蓋同一裝置的開局任務確認／池子高度／展開任務／合成／復原／重新整理／已知廢料組合提示與清除廢料／親手達成／日文切換、分別裝置的 QR、手機任務一致性與無效連結，以及語音模式（以假的 `SpeechRecognition`／`speechSynthesis` 替身，經 `PriTestGousei._voiceHeard()` 注入辨識結果）。實際麥克風辨識只能人工測試。

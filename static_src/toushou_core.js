@@ -4,6 +4,7 @@
 // 隨機性只來自 state.rng（mulberry32），使同一串 action 在任何裝置上結果一致
 // （第 2 階段多裝置同步需要這個特性）。
 // 規則依據：docs/superpowers/specs/2026-10-15-toushou-game-design.md
+//           docs/superpowers/specs/2026-10-21-toushou-insider-mode-design.md（內線模式）
 (function () {
   "use strict";
 
@@ -134,18 +135,23 @@
     return null;
   }
 
+  function isInsiderMode(s) { return !!s.config && s.config.mode === "insider"; }
+
   function newGame(config) {
+    // 內線模式沒有股價變動，依賴股價的規則一律關閉（insider spec §2）
+    var insider = config.mode === "insider";
     var s = {
       version: 1,
       phase: "reveal_target",
       config: {
-        missionsEnabled: !!config.missionsEnabled,
-        windEnabled: !!config.windEnabled,
+        mode: insider ? "insider" : "classic",
+        missionsEnabled: !insider && !!config.missionsEnabled,
+        windEnabled: !insider && !!config.windEnabled,
         minBet: config.minBet,
-        deltaMode: config.deltaMode === "vote" ? "vote" : "host",
+        deltaMode: !insider && config.deltaMode === "vote" ? "vote" : "host",
         voteCap: isInt(config.voteCap) ? config.voteCap : 100,
-        blackSwanEnabled: !!config.blackSwanEnabled,
-        sectorLinkEnabled: !!config.sectorLinkEnabled
+        blackSwanEnabled: !insider && !!config.blackSwanEnabled,
+        sectorLinkEnabled: !insider && !!config.sectorLinkEnabled
       },
       players: [],
       deck: [],
@@ -189,6 +195,11 @@
         var card = drawCard(s);
         if (card) p.hand.push(card);
       });
+    }
+    if (insider) {
+      // 內線人輪替的起點（insider spec §3.2）；不建立風向／黑天鵝牌堆、不發任務
+      s.insiderOffset = Math.floor(rand(s) * s.players.length);
+      return s;
     }
     s.windDeck = buildWindDeck(s);
     // 未啟用時不消耗 PRNG，維持舊版的隨機序列
@@ -245,10 +256,12 @@
     var min = Math.min(s.config.minBet, p.chips); // 籌碼不足最低押注時只能全押
     if (amount < min || amount < 1) return "ts_err_bet_min";
     if (!isInt(predict) || predict < 0) return "ts_err_predict";
+    if (isInsiderMode(s) && predict > TRUTH_MAX) return "ts_err_predict_range";
     return null;
   }
 
   function startBetting(s) {
+    if (isInsiderMode(s)) { startInsider(s); return; }
     var bettors = s.players.filter(function (p) { return p.chips > 0; }).map(function (p) { return p.id; });
     if (!bettors.length) {
       s.phase = "final";
@@ -283,6 +296,10 @@
     s.current.bets[a.playerId] = { amount: a.amount, predict: a.predict, chipsBefore: p.chips };
     p.chips -= a.amount;
     s.current.pot += a.amount;
+    if (nextBettor(s) === null && isInsiderMode(s)) {
+      s.phase = "discuss";
+      return;
+    }
     if (nextBettor(s) === null) {
       var c = s.current;
       if (s.config.blackSwanEnabled) {
@@ -342,7 +359,12 @@
   }
 
   function newsError(s, playerId, cardId, text, edited) {
-    if (s.phase !== "news" || currentShareholder(s) !== playerId) return "ts_err_not_your_turn";
+    if (s.phase === "insider_narrate") {
+      if (s.current.insiderId !== playerId) return "ts_err_not_insider";
+      if (s.current.news.length >= INSIDER_NEWS_MAX) return "ts_err_phase";
+    } else if (s.phase !== "news" || currentShareholder(s) !== playerId) {
+      return "ts_err_not_your_turn";
+    }
     if (gagActive(s) && (cardId === null || cardId === undefined || edited)) return "ts_err_gag";
     if (cardId !== null && cardId !== undefined) {
       var p = playerById(s, playerId);
@@ -370,6 +392,12 @@
       s.discard.push(cardId);
       var drawn = drawCard(s);
       if (drawn) p.hand.push(drawn);
+    }
+    if (s.phase === "insider_narrate") {
+      // 內線人的消息沒有加減分，直接累積到消息面；滿 3 則自動結束敘述
+      s.current.news.push({ playerId: a.playerId, cardId: cardId, edited: cardId !== null && !!a.edited, text: a.text.trim() });
+      if (s.current.news.length >= INSIDER_NEWS_MAX) finishNarration(s);
+      return;
     }
     s.current.pending = { playerId: a.playerId, cardId: cardId, edited: cardId !== null && !!a.edited, text: a.text.trim() };
     s.current.votes = {};
@@ -568,6 +596,128 @@
     s.phase = "settle";
   }
 
+  // ---------------- 內線模式（insider spec §3、§4） ----------------
+
+  var TRUTH_MAX = 99; // 實價 T 為 0～99，不會出現 100
+  var INSIDER_NEWS_MAX = 3;
+  // 均方根誤差 E 的門檻；E ≤ 10／20／30／40 的淨損益為 +S／+S/2／0／−S/2，超過 40 為 −S−S/2（賠超過押金）
+  var INSIDER_TIERS = [10, 20, 30, 40];
+
+  function insiderFor(s, targetIndex) {
+    var n = s.players.length;
+    return s.players[(targetIndex + (s.insiderOffset || 0)) % n].id;
+  }
+
+  function startInsider(s) {
+    if (!s.players.some(function (p) { return p.chips > 0; })) {
+      s.phase = "final";
+      s.current = null;
+      return;
+    }
+    s.current = {
+      insiderId: insiderFor(s, s.targetIndex),
+      truth: Math.floor(rand(s) * (TRUTH_MAX + 1)),
+      insiderStake: null,
+      bettors: [],
+      bets: {},
+      pot: 0,
+      news: []
+    };
+    s.phase = "insider_stake";
+  }
+
+  function insiderStakeMax(s) {
+    return Math.floor(playerById(s, s.current.insiderId).chips / 2);
+  }
+
+  function insiderStakeError(s, playerId, amount) {
+    if (s.phase !== "insider_stake" || s.current.insiderId !== playerId) return "ts_err_not_insider";
+    if (!isInt(amount)) return "ts_err_int";
+    if (amount < 0 || amount > insiderStakeMax(s)) return "ts_err_stake_range";
+    return null;
+  }
+
+  function insiderStake(s, a) {
+    var err = insiderStakeError(s, a.playerId, a.amount);
+    if (err) throw new Error(err);
+    playerById(s, a.playerId).chips -= a.amount;
+    s.current.insiderStake = a.amount;
+    s.phase = "insider_narrate";
+  }
+
+  function finishNarration(s) {
+    var c = s.current;
+    c.bettors = s.players.filter(function (p) { return p.id !== c.insiderId && p.chips > 0; })
+      .map(function (p) { return p.id; });
+    if (!c.bettors.length) { settleInsider(s); return; }
+    s.phase = "bet";
+  }
+
+  function endNarration(s, a) {
+    if (s.current.insiderId !== a.playerId) throw new Error("ts_err_not_insider");
+    if (!s.current.news.length) throw new Error("ts_err_need_news");
+    finishNarration(s);
+  }
+
+  // 以整數比較 Σ(預測−T)² ≤ 門檻² × 人數（等同 E ≤ 門檻），不取根號以免浮點誤差
+  function insiderResult(bets, truth, stake) {
+    var ids = Object.keys(bets);
+    var n = ids.length;
+    if (!n) return { count: 0, sumSq: 0, error: null, tier: null, net: 0 };
+    var sumSq = 0;
+    ids.forEach(function (id) { var d = bets[id].predict - truth; sumSq += d * d; });
+    var tier = INSIDER_TIERS.length;
+    for (var i = 0; i < INSIDER_TIERS.length; i++) {
+      if (sumSq <= INSIDER_TIERS[i] * INSIDER_TIERS[i] * n) { tier = i; break; }
+    }
+    var half = Math.floor(stake / 2);
+    var net = [stake, half, 0, -half, -stake - half][tier];
+    return { count: n, sumSq: sumSq, error: Math.sqrt(sumSq / n), tier: tier, net: net === 0 ? 0 : net };
+  }
+
+  function settleInsider(s) {
+    var c = s.current;
+    var target = s.targets[s.targetIndex];
+    var seat = s.players.map(function (p) { return p.id; });
+    var r = settleTarget(c.bets, c.truth, seat);
+    Object.keys(r.payouts).forEach(function (id) { playerById(s, id).chips += r.payouts[id]; });
+    var stake = c.insiderStake || 0;
+    var ir = insiderResult(c.bets, c.truth, stake);
+    var insider = playerById(s, c.insiderId);
+    // 押金上限是籌碼的一半，所以「再付 S/2」一定付得起；仍以 0 為下限以防萬一
+    insider.chips = Math.max(0, insider.chips + stake + ir.net);
+    var entry = {
+      mode: "insider",
+      targetId: target.id,
+      category: target.category,
+      name: target.name,
+      tags: target.tags,
+      finalPrice: c.truth, // 共用的結算／回顧畫面以 finalPrice 計算誤差
+      truth: c.truth,
+      pot: r.pot,
+      bets: c.bets,
+      ranks: r.ranks,
+      payouts: r.payouts,
+      news: c.news,
+      insiderId: c.insiderId,
+      insiderStake: stake,
+      insiderError: ir.error,
+      insiderTier: ir.tier,
+      insiderNet: ir.net,
+      startPrice: null,
+      sectorFrom: null,
+      event: null,
+      gap: null,
+      rumorIndex: null,
+      rumorDelta: null,
+      cancelled: false,
+      bonus: 0
+    };
+    s.history.push(entry);
+    s.lastSettlement = clone(entry);
+    s.phase = "settle";
+  }
+
   function nextTarget(s) {
     s.current = null;
     s.targetIndex += 1;
@@ -675,8 +825,20 @@
         placeBet(s, action);
         break;
       case "releaseNews":
-        if (s.phase !== "news") throw new Error("ts_err_phase");
+        if (s.phase !== "news" && s.phase !== "insider_narrate") throw new Error("ts_err_phase");
         releaseNews(s, action);
+        break;
+      case "insiderStake":
+        if (s.phase !== "insider_stake") throw new Error("ts_err_phase");
+        insiderStake(s, action);
+        break;
+      case "endNarration":
+        if (s.phase !== "insider_narrate") throw new Error("ts_err_phase");
+        endNarration(s, action);
+        break;
+      case "revealAnswer":
+        if (s.phase !== "discuss") throw new Error("ts_err_phase");
+        settleInsider(s);
         break;
       case "applyDelta":
         if (s.phase !== "vote") throw new Error("ts_err_phase");
@@ -726,6 +888,13 @@
     settleTarget: settleTarget,
     evaluateMissions: evaluateMissions,
     finalStandings: finalStandings,
-    missionText: missionText
+    missionText: missionText,
+    isInsiderMode: isInsiderMode,
+    insiderFor: insiderFor,
+    insiderStakeMax: insiderStakeMax,
+    insiderStakeError: insiderStakeError,
+    insiderResult: insiderResult,
+    TRUTH_MAX: TRUTH_MAX,
+    INSIDER_NEWS_MAX: INSIDER_NEWS_MAX
   };
 })();

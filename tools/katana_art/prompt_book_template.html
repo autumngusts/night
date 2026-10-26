@@ -95,6 +95,9 @@ header .counts b { color: var(--ink); font-weight: 700; }
 .copy.done { background: var(--ok); }
 .save { font-size: 0.85rem; color: var(--ink-soft); min-width: 0; }
 .empty { color: var(--ink-soft); padding: 20px 0; }
+.card-done { opacity: 0.6; }
+.chip-done { border-color: var(--ok); color: var(--ok); font-weight: 700; }
+.toolbar .todo { margin-left: auto; }
 @media (prefers-reduced-motion: no-preference) { .copy { transition: background 0.15s; } }
 </style>
 
@@ -118,7 +121,8 @@ header .counts b { color: var(--ink); font-weight: 700; }
     <div class="note">
       <p><b>背景透明做不出來時：</b>提示詞已經要求「不能透明就用純綠 #00FF00 背景」。拿到綠底圖之後用去背工具（Photoshop 的「選取 › 顏色範圍」、remove.bg 等）把綠色去掉，存成透明 PNG。</p>
       <p><b>用 API 產圖時：</b><code>gpt-image-1</code> 可以直接指定 <code>size</code> 與 <code>background: "transparent"</code>，數值照卡片上的標籤填，提示詞照貼。</p>
-      <p><b>遊戲還沒接上這些圖片</b>（程式繪製的刀與特效照常運作）。圖片收齊後再實作載入，見 <code>docs/katana_art_spec.md</code> §6。</p>
+      <p><b>遊戲接上的進度：</b>俯視圖與側視圖已接上（放進資料夾、在 <code>katana.js</code> 的 <code>ART_TOP</code>／<code>ART_SIDE</code> 登記就會出現；還沒有圖的刀種會借已有的圖上場）。招式特效與切入圖還沒接上，先做好放著即可。見 <code>docs/katana_art_spec.md</code> §6。</p>
+      <p><b>原圖不用自己裁切：</b>生成工具給的圖鍔不一定剛好在中心。原圖先放在 <code>photo/tmp/katana/</code>（例如 <code>tachi_upon.png</code>、<code>tachi_side.png</code>），交給 Claude 整理成規格位置再放進遊戲。</p>
     </div>
   </section>
 
@@ -146,7 +150,9 @@ var TABS = [
     checks: ["純黑背景、橫幅", "圖樣在右側 6 成", "左側 4 成保持空白", "沒有任何文字"] }
 ];
 
-var state = { tab: "top", q: "", fam: "" };
+var DONE = DATA.done || [];
+function isDone(it) { return DONE.indexOf(it.save) >= 0; }
+var state = { tab: "top", q: "", fam: "", todo: false };
 try { var saved = JSON.parse(localStorage.getItem("katana-book") || "null"); if (saved && saved.tab) state.tab = saved.tab; } catch (e) {}
 
 function h(tag, attrs, kids) {
@@ -206,11 +212,12 @@ function card(it) {
     sw.firstChild.style.background = it.color;
     ref = h("div", { class: "ref" }, [sw, h("div", { class: "hint", text: "不用參考圖。色塊是這個招式的主色。" })]);
   }
-  return h("article", { class: "card" }, [
+  var fin = isDone(it);
+  return h("article", { class: "card" + (fin ? " card-done" : "") }, [
     ref,
     h("div", { class: "body" }, [
       h("div", { class: "title" }, [h("h3", { text: it.zh }), it.ja && it.ja !== it.zh ? h("span", { class: "ja", text: it.ja }) : null, h("span", { class: "id", text: it.en })]),
-      h("div", { class: "chips" }, [h("span", { class: "chip key", text: it.size }), h("span", { class: "chip key", text: it.bg }), h("span", { class: "chip", text: it.groupName })]
+      h("div", { class: "chips" }, [fin ? h("span", { class: "chip chip-done", text: "✓ 已完成" }) : null, h("span", { class: "chip key", text: it.size }), h("span", { class: "chip key", text: it.bg }), h("span", { class: "chip", text: it.groupName })]
         .concat(it.extra.filter(Boolean).map(function (x) { return h("span", { class: "chip", text: x }); }))),
       h("div", { class: "prompt" }, [pre]),
       h("div", { class: "row" }, [btn, h("div", { class: "save" }, ["存成 ", h("code", { text: it.save })])])
@@ -221,7 +228,8 @@ function card(it) {
 function render() {
   var tabs = document.getElementById("tabs"); tabs.innerHTML = "";
   TABS.forEach(function (t) {
-    var b = h("button", { type: "button", class: "tab", role: "tab", "aria-selected": String(state.tab === t.id) }, [t.name, h("span", { text: String(items(t.id).length) })]);
+    var its = items(t.id), nd = its.filter(isDone).length;
+    var b = h("button", { type: "button", class: "tab", role: "tab", "aria-selected": String(state.tab === t.id) }, [t.name, h("span", { text: nd + " / " + its.length })]);
     b.addEventListener("click", function () { state.tab = t.id; state.fam = ""; try { localStorage.setItem("katana-book", JSON.stringify({ tab: t.id })); } catch (e) {} render(); });
     tabs.appendChild(b);
   });
@@ -241,6 +249,9 @@ function render() {
     f.addEventListener("click", function () { state.fam = g; render(); });
     tb.appendChild(f);
   });
+  var td = h("button", { type: "button", class: "filter todo", "aria-pressed": String(state.todo), text: "只看未完成" });
+  td.addEventListener("click", function () { state.todo = !state.todo; render(); });
+  tb.appendChild(td);
   drawCards();
 }
 
@@ -249,6 +260,7 @@ function drawCards() {
   var ql = state.q.trim().toLowerCase();
   var list = items(state.tab).filter(function (x) {
     if (state.fam && x.group !== state.fam) return false;
+    if (state.todo && isDone(x)) return false;
     if (!ql) return true;
     return (x.zh + " " + x.ja + " " + x.en + " " + x.key).toLowerCase().indexOf(ql) >= 0;
   });
@@ -257,6 +269,7 @@ function drawCards() {
 }
 
 document.getElementById("counts").append(
+  h("span", {}, ["已完成 ", h("b", { text: String(DONE.length) }), " / " + (DATA.blades.length * 2 + DATA.cards.length + DATA.specials.length * 2 + DATA.common_vfx.length) + " 張"]),
   h("span", {}, ["刀種 ", h("b", { text: String(DATA.blades.length) })]),
   h("span", {}, ["招式特效 ", h("b", { text: String(DATA.cards.length + DATA.specials.length + DATA.common_vfx.length) })]),
   h("span", {}, ["切入圖 ", h("b", { text: String(DATA.specials.length) })]),

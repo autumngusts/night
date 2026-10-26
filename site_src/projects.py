@@ -51,6 +51,12 @@ PROJECTS = [
         "desc_key": "project_yellow_desc",
     },
     {
+        "id": "fist",
+        "href": "fist/index.html",
+        "name_key": "project_fist_name",
+        "desc_key": "project_fist_desc",
+    },
+    {
         "id": "dejavu",
         "href": "dejavu/index.html",
         "name_key": "project_dejavu_name",

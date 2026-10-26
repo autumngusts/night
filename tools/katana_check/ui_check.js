@@ -31,8 +31,11 @@ async function clickKey(page, key, nth) {
   return ok;
 }
 
+// 2026-10-26 起對刀分出勝負後先播約 2.1 秒的決著演出（katana_style.js，docs §7.8）才換到結果畫面，
+// 「跳過」之後的結果按鈕要等一下才出現：找不到時最多重試 4 秒
 async function mustClick(page, key) {
   var ok = await clickKey(page, key);
+  for (var i = 0; !ok && i < 40; i++) { await page.waitForTimeout(100); ok = await clickKey(page, key); }
   assert.ok(ok, "button not found: " + key);
 }
 
@@ -266,8 +269,8 @@ async function main() {
   await page.screenshot({ path: path.join(process.env.KATANA_SHOT_DIR || __dirname, "katana_arena.png"), fullPage: false });
   await noMissingKeys(page);
   await mustClick(page, "kt_ar_skip");
-  await page.waitForTimeout(100);
-  s = await st(page);
+  // 2026-10-26 起分出勝負後先播約 2.1 秒的決著演出（katana_style.js，docs §7.8）才寫入結果；舊版只等 0.1 秒
+  for (var wi = 0; wi < 50; wi++) { s = await st(page); if (s.clash && s.clash.winner) break; await page.waitForTimeout(100); }
   assert.ok(s.clash.winner, "clash winner");
   assert.strictEqual(s.clash.placing.length, 3);
   console.log("clash:", s.clash.placing.join(","), JSON.stringify(s.clash.summary.map(function (x) { return x.id + ":" + x.hp + "/" + x.maxHp; })));

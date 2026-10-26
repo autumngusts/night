@@ -10,8 +10,12 @@ from __future__ import annotations
 from site_src.layout import asset_url, page_shell
 
 GOUSEI_SCRIPTS: tuple[str, ...] = (
+    # 連線同步用：Firebase 設定、雲端同步（SDK 只在建立／加入房間時才載入）
+    "firebase_config.js",
+    "game_storage.js",
     "qrcode.js",
     "gousei_core.js",
+    "gousei_art.js",
     "gousei.js",
 )
 

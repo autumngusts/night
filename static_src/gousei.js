@@ -3,13 +3,21 @@
 //   網址從 #gs-app 的 data-src-<theme> 取（帶快取雜湊，見 site_src/gousei_page.py）。
 // 同一裝置模式：開局先進「任務確認」畫面（state.confirm），全員輪流查看並隱藏後才正式開始；
 //   遊戲中池子下方的各玩家任務一次只能展開一位（ui.revealedFor），刻意不存檔：重新整理後一律隱藏。
-// 分別裝置模式：手機開 ?join=<theme.seed.count.index>，只顯示自己的任務，不同步、不存檔。
+// 分別裝置模式：手機開 ?join=<theme.seed.count.index>，只顯示自己的任務，不同步、不存檔（未勾連線同步時）。
+// 連線同步（分別裝置＋勾選，2026-10-19）：整局 state 以 JSON 字串放在 Firebase
+//   games/<房間 id>/rtState/gousei（沿用 toushou 的做法，現有規則即允許，不需另外部署）。
+//   手機開 ?join=...&room=<id> 變成完整遊戲畫面，只有輪到自己才能合成；主機可替任何人操作，
+//   復原與新遊戲只有主機能按。所有變更都經 mutate() 在雲端最新 state 上以 transaction 執行。
 // 語音模式（Web Speech API）：輪到誰就朗讀玩家與池子，每分鐘重複；喊「yo, アキ」→ 提示音 →「A 加 B」直接合成。
 (function () {
   "use strict";
 
   var Core = window.PriTestGouseiCore;
   var STORAGE_KEY = "pritest-gousei-state";
+  var ROOM_KEY = "pritest-gousei-room";
+  var CLIENT_KEY = "pritest-gousei-client";
+  var ROOM_RE = /^g[0-9a-f]{32}$/;
+  var Storage = window.PriTestGameStorage;
   var THEMES = ["wuxia", "wafu"];
   var MODES = ["shared", "split"];
   var POOL_LIMIT = 300;
@@ -19,12 +27,27 @@
 
   var themes = {}; // themeId -> Core.indexTheme 結果
   var state = null;
-  var draft = { themeId: "wuxia", mode: "shared", names: ["", ""], voice: false };
+  var draft = { themeId: "wuxia", mode: "shared", names: ["", ""], voice: false, online: false };
   var ui = { revealedFor: null, revealed: false, slots: [null, null], lastEntry: null, search: "", cat: "all",
-    qrFor: null, confirmNew: false, junkWarn: null, error: "", loading: false, screen: "play" };
+    qrFor: null, confirmNew: false, junkWarn: null, error: "", loading: false, screen: "play", busy: false, playError: "" };
   var join = null;
+  // 連線同步的房間：{ id, hostId, me: 手機的玩家編號（主機為 null）, loaded, missing, unsubscribe }
+  var room = null;
 
   function t(key, params) { return window.I18N.t(key, params); }
+
+  function loadClientId() {
+    var id = null;
+    try { id = localStorage.getItem(CLIENT_KEY); } catch (e) { /* 忽略 */ }
+    if (!id) {
+      var arr = new Uint8Array(8);
+      (window.crypto || window.msCrypto).getRandomValues(arr);
+      id = "c" + Array.prototype.map.call(arr, function (b) { return (b < 16 ? "0" : "") + b.toString(16); }).join("");
+      try { localStorage.setItem(CLIENT_KEY, id); } catch (e) { /* 忽略：本次分頁內仍可用 */ }
+    }
+    return id;
+  }
+  var clientId = loadClientId();
   function lang() { return window.I18N.getLang(); }
 
   function el(tag, attrs, children) {
@@ -60,6 +83,27 @@
     return lang() === "zh" ? c.zh : c.ja;
   }
 
+  // 物體圖示（gousei_art.js；使用者指定 2026-10-26：增加美術、可切換美術風格）。風格是「純文字」時回傳 null
+  function artNode(theme, id, size) {
+    var A = window.PriTestGouseiArt, it = theme.byId[id];
+    if (!A || !it) return null;
+    var svg = A.icon(theme.data.id, { id: id, cat: it.cat, tier: it.tier }, itemName(theme, id), size);
+    if (!svg) return null;
+    var span = el("span", { class: "gs-art" });
+    span.innerHTML = svg;
+    return span;
+  }
+
+  function artStyleSelect(themeId) {
+    var A = window.PriTestGouseiArt;
+    if (!A) return null;
+    var select = el("select", { id: "gs-art-style", title: t("gs_art") }, A.STYLES.map(function (s) {
+      return el("option", { value: s, selected: s === A.style(), text: "🎨 " + t("gs_art_" + s + (s === "none" ? "" : "_" + themeId)) });
+    }));
+    select.addEventListener("change", function () { A.setStyle(select.value); render(); });
+    return select;
+  }
+
   function playerById(id) {
     for (var i = 0; i < state.players.length; i++) if (state.players[i].id === id) return state.players[i];
     return null;
@@ -88,6 +132,7 @@
   // ---------------- 存讀檔 ----------------
 
   function save() {
+    if (room) return; // 連線模式的 state 在雲端
     try {
       if (state) localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
       else localStorage.removeItem(STORAGE_KEY);
@@ -123,6 +168,7 @@
       var done = player.done.indexOf(id) >= 0;
       list.appendChild(el("li", { class: "gs-target" + (done ? " gs-done" : ""), "data-target": id }, [
         el("span", { class: "gs-target-tier", text: t(i === 0 ? "gs_tier_mid" : "gs_tier_high") }),
+        artNode(theme, id, 40),
         el("strong", { class: "gs-target-name", text: itemName(theme, id) }),
         el("span", { class: "gs-muted", text: t("gs_target_meta", { cat: catName(theme, it.cat), tier: it.tier }) }),
         done ? el("span", { class: "gs-badge", text: t("gs_done") }) : null
@@ -147,7 +193,15 @@
     box.appendChild(el("div", { class: "gs-field" }, [el("span", { class: "gs-label", text: t("gs_theme") }),
       radioGroup("gs-theme", THEMES, draft.themeId, "gs_theme_", function (v) { draft.themeId = v; })]));
     box.appendChild(el("div", { class: "gs-field" }, [el("span", { class: "gs-label", text: t("gs_mode") }),
-      radioGroup("gs-mode", MODES, draft.mode, "gs_mode_", function (v) { draft.mode = v; })]));
+      radioGroup("gs-mode", MODES, draft.mode, "gs_mode_", function (v) { draft.mode = v; render(); })]));
+    if (draft.mode === "split") {
+      var online = el("input", { id: "gs-online", type: "checkbox", checked: draft.online,
+        onchange: function () { draft.online = online.checked; } });
+      box.appendChild(el("div", { class: "gs-field" }, [
+        el("label", { class: "gs-check" }, [online, " " + t("gs_online_setup")]),
+        el("span", { class: "gs-muted", text: t("gs_online_hint") })
+      ]));
+    }
 
     var count = el("input", { id: "gs-player-count", type: "number", min: Core.MIN_PLAYERS, max: Core.MAX_PLAYERS,
       value: draft.names.length });
@@ -207,8 +261,112 @@
       if (state.mode === "shared") state.confirm = { viewed: [] };
       resetTurnUi();
       ui.screen = state.mode === "split" ? "qr" : "play";
+      if (state.mode === "split" && draft.online) { createRoom(state); return; }
       save();
       render();
+    });
+  }
+
+  // ---------------- 連線同步：房間 ----------------
+
+  function isHost() { return !room || room.hostId === clientId; }
+  // 手機只能在自己的回合操作；主機（與離線）可以替任何人操作
+  function canAct() { return !room || room.me === null || (!!state && state.turn === room.me); }
+
+  function createRoom(initial) {
+    var id = Storage.generateCloudGameId();
+    ui.loading = true;
+    render();
+    Storage.rtSet(id, "cloud", "gousei", { stateJson: JSON.stringify(initial), hostId: clientId }).then(function () {
+      ui.loading = false;
+      // 開新局＝放棄本機舊局
+      try { localStorage.removeItem(STORAGE_KEY); localStorage.setItem(ROOM_KEY, id); } catch (e) { /* 忽略 */ }
+      enterRoom(id, null);
+    });
+  }
+
+  function enterRoom(id, me) {
+    if (room && room.unsubscribe) room.unsubscribe();
+    room = { id: id, hostId: null, me: me, loaded: false, missing: false, unsubscribe: null };
+    state = null;
+    room.unsubscribe = Storage.rtSubscribe(id, "cloud", "gousei", function (v) {
+      if (!room || room.id !== id) return;
+      room.loaded = true;
+      if (!v || !v.stateJson) {
+        room.missing = true;
+        state = null;
+        render();
+        return;
+      }
+      room.missing = false;
+      room.hostId = v.hostId;
+      applyRemote(JSON.parse(v.stateJson));
+    });
+    render();
+  }
+
+  // 遠端 state 更新：有新的合成就所有裝置都顯示結果；被復原則收起一切
+  function applyRemote(next) {
+    var before = state;
+    state = next;
+    if (before && next.log.length > before.log.length) {
+      ui.lastEntry = next.log[next.log.length - 1];
+      ui.slots = [null, null];
+      ui.junkWarn = null;
+      ui.revealedFor = null;
+      ui.playError = "";
+    } else if (before && next.log.length < before.log.length) {
+      resetTurnUi();
+    }
+    ui.slots = ui.slots.map(function (id) { return id && next.pool.indexOf(id) >= 0 ? id : null; });
+    if (!themes[next.themeId]) {
+      loadTheme(next.themeId, function (err) { if (err) ui.error = t("gs_load_failed"); render(); });
+      return;
+    }
+    render();
+  }
+
+  function leaveRoom() {
+    if (room && room.unsubscribe) room.unsubscribe();
+    room = null;
+    try { localStorage.removeItem(ROOM_KEY); } catch (e) { /* 忽略 */ }
+  }
+
+  // 所有改變 state 的操作的共用入口。fn(s) 回傳 { state, entry? }，不合法時 throw（訊息為 i18n key）。
+  // 離線：直接套用。連線：在雲端最新 state 上以 transaction 執行（可能重試，fn 必須是純函式）。
+  function mutate(fn, done) {
+    ui.playError = "";
+    if (!room) {
+      var r;
+      try { r = fn(state); } catch (e) { ui.playError = t(e.message); render(); return; }
+      state = r.state;
+      save();
+      done(r);
+      return;
+    }
+    if (ui.busy) return;
+    var last = null, errKey = null;
+    ui.busy = true;
+    render();
+    Storage.rtTransaction(room.id, "cloud", "gousei/stateJson", function (cur) {
+      if (!cur) { errKey = "gs_online_gone"; return undefined; }
+      try {
+        last = fn(JSON.parse(cur));
+        errKey = null;
+        return JSON.stringify(last.state);
+      } catch (e) {
+        errKey = e.message;
+        return undefined; // 中止 transaction
+      }
+    }).then(function (committed) {
+      ui.busy = false;
+      if (errKey || committed === null) {
+        ui.playError = t(errKey || "gs_err_network");
+        render();
+        return;
+      }
+      state = JSON.parse(committed);
+      done(last);
     });
   }
 
@@ -290,7 +448,7 @@
     return el("div", { id: "gs-result", class: "gs-panel gs-result" + (e.achieved ? " gs-achieved" : "") }, [
       el("h2", { text: t("gs_result_heading", { name: p.name }) }),
       el("p", { class: "gs-formula", text: itemName(theme, e.a) + " ＋ " + itemName(theme, e.b) + " →" }),
-      el("p", { class: "gs-big", "data-result": e.result, text: itemName(theme, e.result) }),
+      el("p", { class: "gs-big gs-result-item", "data-result": e.result }, [artNode(theme, e.result, 120), el("span", { text: itemName(theme, e.result) })]),
       el("p", { class: "gs-muted", text: (theme.junkSet[e.result] ? t("gs_junk_meta") : t("gs_target_meta", { cat: catName(theme, it.cat), tier: it.tier })) + "　" + status }),
       e.achieved ? el("p", { class: "gs-big", text: t("gs_achieved", { done: p.done.length, total: p.targets.length }) }) : null,
       state.winner ? null : el("div", { class: "gs-actions" }, [
@@ -308,8 +466,7 @@
     function slot(i) {
       var id = ui.slots[i];
       return el("button", { id: "gs-slot-" + i, type: "button", class: "gs-slot" + (id ? " gs-filled" : ""),
-        text: id ? itemName(theme, id) : t("gs_slot_empty"),
-        onclick: function () { ui.slots[i] = null; ui.junkWarn = null; render(); } });
+        onclick: function () { ui.slots[i] = null; ui.junkWarn = null; render(); } }, id ? [artNode(theme, id, 40), itemName(theme, id)] : [t("gs_slot_empty")]);
     }
     var ready = ui.slots[0] && ui.slots[1];
     var w = ui.junkWarn;
@@ -322,12 +479,13 @@
           onclick: function () { ui.slots = [null, null]; ui.junkWarn = null; render(); } })
       ])
     ]) : el("div", { class: "gs-actions" }, [
-      el("button", { id: "gs-combine", type: "button", class: "gs-primary", disabled: !ready, text: t("gs_combine"), onclick: function () { doCombine(false); } }),
+      el("button", { id: "gs-combine", type: "button", class: "gs-primary", disabled: !ready || ui.busy, text: t("gs_combine"), onclick: function () { doCombine(false); } }),
       el("button", { id: "gs-clear", type: "button", text: t("gs_clear"), onclick: function () { ui.slots = [null, null]; render(); } })
     ]);
     return el("div", { class: "gs-panel gs-workbench" }, [
       el("div", { class: "gs-slots" }, [slot(0), el("span", { class: "gs-plus", text: "＋" }), slot(1)]),
-      actions
+      actions,
+      ui.playError ? el("p", { id: "gs-play-error", class: "gs-error", text: ui.playError }) : null
     ]);
   }
 
@@ -340,17 +498,22 @@
       if (known) { ui.junkWarn = known; render(); return; }
     }
     ui.junkWarn = null;
-    var res = Core.applyCombine(theme, state, ui.slots[0], ui.slots[1]);
-    state = res.state;
-    ui.lastEntry = res.entry;
-    ui.slots = [null, null];
-    ui.revealedFor = null;
-    save();
-    render();
+    var a = ui.slots[0], b = ui.slots[1], logLen = state.log.length, me = room ? room.me : null;
+    mutate(function (s) {
+      // 按下之後別台先合成了（紀錄變了）就作廢，請玩家看過新畫面再操作
+      if (s.log.length !== logLen) throw new Error("gs_err_stale");
+      if (me !== null && s.turn !== me) throw new Error("gs_err_turn");
+      return Core.applyCombine(theme, s, a, b);
+    }, function (res) {
+      ui.lastEntry = res.entry;
+      ui.slots = [null, null];
+      ui.revealedFor = null;
+      render();
+    });
   }
 
   function pickItem(id) {
-    if (ui.lastEntry || state.winner) return;
+    if (ui.lastEntry || state.winner || !canAct()) return;
     ui.confirmNew = false;
     ui.junkWarn = null;
     if (!ui.slots[0]) ui.slots[0] = id;
@@ -372,7 +535,7 @@
       // 編號＝池子順序（1 起算），語音可以說「3 加 7」
       list.appendChild(el("button", { type: "button", class: "gs-item gs-cat-" + theme.byId[id].cat + (picked ? " gs-picked" : ""), "data-item": id,
         onclick: function () { pickItem(id); } }, [
-        el("span", { class: "gs-item-no", text: String(state.pool.indexOf(id) + 1) }), itemName(theme, id)
+        el("span", { class: "gs-item-no", text: String(state.pool.indexOf(id) + 1) }), artNode(theme, id, 34), itemName(theme, id)
       ]));
     });
     if (matched.length > POOL_LIMIT) list.appendChild(el("p", { class: "gs-muted", text: t("gs_pool_more", { n: matched.length - POOL_LIMIT }) }));
@@ -395,16 +558,16 @@
         el("h2", { text: t("gs_pool", { n: state.pool.length }) }),
         junkCount && !state.winner ? el("button", { id: "gs-clear-junk", type: "button", text: t("gs_clear_junk", { n: junkCount }),
           onclick: function () {
-            state = Core.clearJunk(theme, state);
-            ui.junkWarn = null;
-            if (theme.junkSet[ui.slots[0]]) ui.slots[0] = null;
-            if (theme.junkSet[ui.slots[1]]) ui.slots[1] = null;
-            if (!ui.slots[0] && ui.slots[1]) ui.slots = [ui.slots[1], null];
-            save();
-            render();
+            mutate(function (s) { return { state: Core.clearJunk(theme, s) }; }, function () {
+              ui.junkWarn = null;
+              if (theme.junkSet[ui.slots[0]]) ui.slots[0] = null;
+              if (theme.junkSet[ui.slots[1]]) ui.slots[1] = null;
+              if (!ui.slots[0] && ui.slots[1]) ui.slots = [ui.slots[1], null];
+              render();
+            });
           } }) : null
       ]),
-      el("div", { class: "gs-field" }, [search, select]),
+      el("div", { class: "gs-field" }, [search, select, artStyleSelect(theme.data.id)]),
       list
     ]);
   }
@@ -419,21 +582,29 @@
   }
 
   function renderFooter() {
+    var seed = el("p", { class: "gs-muted", text: t("gs_seed", { seed: state.seed }) });
+    if (!isHost()) return el("div", {}, [seed]);
     var actions = el("div", { class: "gs-actions" }, [
-      el("button", { id: "gs-undo", type: "button", disabled: !state.prev, text: t("gs_undo"), onclick: function () {
-        var back = Core.undo(state);
-        if (!back) return;
-        state = back;
-        // 復原後所有任務一律收起，避免上一位的任務被下一位看到
-        resetTurnUi();
-        save();
-        render();
+      el("button", { id: "gs-undo", type: "button", disabled: !state.prev || ui.busy, text: t("gs_undo"), onclick: function () {
+        var logLen = state.log.length;
+        mutate(function (s) {
+          if (s.log.length !== logLen) throw new Error("gs_err_stale");
+          var back = Core.undo(s);
+          if (!back) throw new Error("gs_err_stale");
+          return { state: back };
+        }, function () {
+          // 復原後所有任務一律收起，避免上一位的任務被下一位看到
+          resetTurnUi();
+          render();
+        });
       } }),
       state.mode === "split" ? el("button", { id: "gs-show-qr", type: "button", text: t("gs_qr_button"),
         onclick: function () { ui.screen = "qr"; ui.qrFor = null; render(); } }) : null,
       el("button", { id: "gs-new-game", type: "button", text: ui.confirmNew ? t("gs_new_game_confirm") : t("gs_new_game"),
         onclick: function () {
           if (!ui.confirmNew) { ui.confirmNew = true; render(); return; }
+          // 連線中：刪除房間，手機會看到「這局已結束」
+          if (room) { Storage.rtSet(room.id, "cloud", "gousei", null); leaveRoom(); }
           state = null;
           ui.cat = "all";
           ui.search = "";
@@ -443,7 +614,7 @@
           render();
         } })
     ]);
-    return el("div", {}, [actions, el("p", { class: "gs-muted", text: t("gs_seed", { seed: state.seed }) })]);
+    return el("div", {}, [actions, room ? el("p", { id: "gs-online-note", class: "gs-muted", text: t("gs_online_on") }) : null, seed]);
   }
 
   function renderPlay(theme) {
@@ -458,9 +629,14 @@
       var p = Core.currentPlayer(state);
       app.appendChild(el("h2", { class: "gs-turn", text: t("gs_round_turn", { round: state.round, name: p.name }) }));
     }
-    app.appendChild(renderVoiceBar());
+    var phone = room && room.me !== null;
+    if (phone) app.appendChild(renderMyTargets(theme));
+    else app.appendChild(renderVoiceBar());
     if (ui.lastEntry) app.appendChild(renderResult(theme));
-    else if (!state.winner) app.appendChild(renderSlots(theme));
+    else if (!state.winner && canAct()) app.appendChild(renderSlots(theme));
+    else if (!state.winner) app.appendChild(el("div", { id: "gs-wait", class: "gs-panel" }, [
+      el("p", { class: "gs-big", text: t("gs_wait_turn", { name: Core.currentPlayer(state).name }) })
+    ]));
     if (!state.winner) app.appendChild(renderPool(theme));
     // 同一裝置：池子下方可展開各玩家的任務（含進度）；分別裝置：任務在手機上，這裡只顯示進度
     if (state.mode === "shared" && !state.winner) {
@@ -472,11 +648,26 @@
     app.appendChild(renderFooter());
   }
 
+  // 連線同步的手機：自己的任務（預設收起）＋輪到自己時的提示
+  function renderMyTargets(theme) {
+    var me = state.players[room.me];
+    var mine = !state.winner && state.turn === room.me;
+    var box = el("div", { id: "gs-my-targets", class: "gs-panel" + (mine ? " gs-current" : "") }, [
+      el("h2", { text: t("gs_online_me", { name: me.name }) }),
+      mine ? el("p", { class: "gs-big", text: t("gs_your_turn") }) : null,
+      el("p", { class: "gs-muted", text: t("gs_progress_short", { done: me.done.length, total: me.targets.length }) }),
+      el("button", { id: "gs-join-toggle", type: "button", text: t(ui.revealed ? "gs_hide_targets" : "gs_show_targets"),
+        onclick: function () { ui.revealed = !ui.revealed; render(); } })
+    ]);
+    if (ui.revealed) box.appendChild(targetList(theme, me, "gs-join-targets"));
+    return box;
+  }
+
   // ---------------- 分別裝置：QR 畫面 ----------------
   // 一次只顯示一位玩家的 QR，避免別人順便掃到。手機端只靠 主題.seed.人數.編號 自己算任務。
 
   function joinUrl(index) {
-    return window.location.origin + window.location.pathname + "?join=" + Core.joinParam(state, index);
+    return window.location.origin + window.location.pathname + "?join=" + Core.joinParam(state, index) + (room ? "&room=" + room.id : "");
   }
 
   function renderQrScreen() {
@@ -541,8 +732,29 @@
   // ---------------- 主畫面 ----------------
 
   function render() {
+    // 遠端更新會整頁重畫：保留搜尋框的焦點與游標
+    var active = document.activeElement;
+    var caret = active && active.id === "gs-pool-search" ? active.selectionStart : null;
+    renderInner();
+    if (caret !== null) {
+      var input = document.getElementById("gs-pool-search");
+      if (input) { input.focus(); try { input.setSelectionRange(caret, caret); } catch (e) { /* 忽略 */ } }
+    }
+  }
+
+  function renderInner() {
     app.innerHTML = "";
-    if (join) { renderJoin(); return; }
+    if (room && (!room.loaded || room.missing || !state)) {
+      app.appendChild(el("p", { id: "gs-online-status", class: room.missing ? "gs-error" : "gs-muted",
+        text: room.missing ? t("gs_online_gone") : t("gs_online_connecting") }));
+      if (room.missing && room.me === null) {
+        app.appendChild(el("div", { class: "gs-actions" }, [el("button", { id: "gs-online-leave", type: "button", text: t("gs_new_game"),
+          onclick: function () { leaveRoom(); state = null; resetTurnUi(); render(); } })]));
+      }
+      return;
+    }
+    if (join && !room) { renderJoin(); return; }
+    if (ui.loading && state) { app.appendChild(el("p", { class: "gs-muted", text: t("gs_online_connecting") })); return; }
     if (!state) { renderSetup(); return; }
     var theme = themes[state.themeId];
     if (!theme) {
@@ -1031,15 +1243,20 @@
     var params = new URLSearchParams(window.location.search);
     if (params.has("join")) {
       join = Core.parseJoin(params.get("join")) || { invalid: true };
+      var roomId = params.get("room");
       if (!join.invalid) {
         loadTheme(join.themeId, function (err) {
           if (err) join = { invalid: true };
           render();
         });
+        if (roomId && ROOM_RE.test(roomId)) enterRoom(roomId, join.index);
       }
       render();
       return;
     }
+    var savedRoom = null;
+    try { savedRoom = localStorage.getItem(ROOM_KEY); } catch (e) { /* 忽略 */ }
+    if (savedRoom && ROOM_RE.test(savedRoom)) { enterRoom(savedRoom, null); return; }
     state = load();
     if (state) {
       loadTheme(state.themeId, function (err) {
@@ -1067,6 +1284,7 @@
   window.PriTestGousei = {
     _debugState: function () { return state ? JSON.parse(JSON.stringify(state)) : null; },
     _theme: function () { return state ? themes[state.themeId] : null; },
+    _debugRoom: function () { return room ? { id: room.id, hostId: room.hostId, me: room.me, clientId: clientId } : null; },
     // 測試用：模擬一次語音辨識結果（候選字串陣列）
     _voiceHeard: function (alts, isFinal) { onHeard(alts, isFinal !== false); },
     _pinyinReady: function () { return pinyinState === "ready"; },

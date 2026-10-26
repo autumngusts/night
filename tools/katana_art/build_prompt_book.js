@@ -82,7 +82,12 @@ function mkdirp(d) { fs.mkdirSync(d, { recursive: true }); }
     b.refSide = r.side;
   });
 
-  var data = { blades: manifest.blades, cards: manifest.cards, specials: manifest.specials, common_vfx: manifest.common_vfx };
+  // 已經放進 static_src/katana_art/ 的素材：手冊上標成「已完成」
+  var done = [];
+  manifest.blades.concat(manifest.cards, manifest.specials, manifest.common_vfx).forEach(function (x) {
+    Object.keys(x.files || {}).forEach(function (k) { if (fs.existsSync(path.join(ROOT, x.files[k])) && done.indexOf(x.files[k]) < 0) done.push(x.files[k]); });
+  });
+  var data = { blades: manifest.blades, cards: manifest.cards, specials: manifest.specials, common_vfx: manifest.common_vfx, done: done };
   var json = JSON.stringify(data).replace(/<\//g, "<\\/");
   var tpl = fs.readFileSync(path.join(__dirname, "prompt_book_template.html"), "utf8");
   var html = tpl.replace("__DATA__", function () { return json; });

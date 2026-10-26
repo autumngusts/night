@@ -309,8 +309,8 @@ def separate(segment: np.ndarray) -> dict[str, np.ndarray]:
 # ---------------- 8bit 旋律 ----------------
 
 
-def crepe_notes(vocals: np.ndarray) -> list[tuple[float, float, int]]:
-    """人聲 → 音符 [(開始秒, 長度秒, MIDI)]。
+def crepe_notes(vocals: np.ndarray, fmin: float = 80, fmax: float = 1000) -> list[tuple[float, float, int]]:
+    """人聲 → 音符 [(開始秒, 長度秒, MIDI)]。fmin／fmax 是音高搜尋範圍（阿卡貝拉的人聲貝斯用低音域抓貝斯軌）。
 
     音高用 CREPE（torchcrepe）：舊版 pYIN 在快節奏人聲上大多判為無聲，原唱在唱的時間只有 18〜66% 有音符，
     聽不出是什麼歌；CREPE 提高到 64〜96%，音準（±1 半音）96〜100%（2026-10-16 以 6 首實測）。
@@ -325,7 +325,7 @@ def crepe_notes(vocals: np.ndarray) -> list[tuple[float, float, int]]:
 
     y16 = librosa.resample(vocals.mean(axis=1), orig_sr=SR, target_sr=16000)
     f0, per = torchcrepe.predict(
-        torch.tensor(y16)[None], 16000, hop_length=160, fmin=80, fmax=1000, model="full",
+        torch.tensor(y16)[None], 16000, hop_length=160, fmin=fmin, fmax=fmax, model="full",
         return_periodicity=True, batch_size=128, device="cpu", decoder=torchcrepe.decode.viterbi,
     )
     f0, per = f0[0].numpy(), per[0].numpy()

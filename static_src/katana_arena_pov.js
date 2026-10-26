@@ -8,7 +8,8 @@
   "use strict";
   var TAU = Math.PI * 2;
   var EYE_H = 9, BLADE_H = 6, WALL_H = 5, FOV = 1.45, NEAR = 2.5;
-  var SIDE_GUARD = 0.225, SIDE_ASPECT = 1024 / 144; // 側視圖：鍔在圖寬 22.5% 處，刀尖朝右（docs/katana_art_spec.md）
+  // 程式畫的簡化刀（沒有側視圖時）的鍔位置與長寬比；有圖時改用圖片自己的尺寸與 img.ktGuard（katana.js 的 ART_SIDE）
+  var SIDE_GUARD = 0.225, SIDE_ASPECT = 1024 / 144;
   // 四本柱（青・赤・白・黒）與吊り提燈：純佈景，位置固定在場外
   var PILLARS = [[150, -150, "#2f5d8f"], [150, 150, "#a33a2a"], [-150, 150, "#d8d2c4"], [-150, -150, "#26211d"]];
   var LANTERNS = [];
@@ -122,8 +123,9 @@
     var h = L / SIDE_ASPECT;
     if (glow) { ctx.shadowColor = color; ctx.shadowBlur = glow; }
     if (img) {
-      ctx.drawImage(img, -SIDE_GUARD * L, -h / 2, L, h);
-      if (glow) { ctx.shadowBlur = 0; ctx.drawImage(img, -SIDE_GUARD * L, -h / 2, L, h); }
+      var ih = img.naturalWidth ? L * img.naturalHeight / img.naturalWidth : h, gx = (img.ktGuard || SIDE_GUARD) * L;
+      ctx.drawImage(img, -gx, -ih / 2, L, ih);
+      if (glow) { ctx.shadowBlur = 0; ctx.drawImage(img, -gx, -ih / 2, L, ih); }
     } else {
       var bl = L * (1 - SIDE_GUARD);
       ctx.fillStyle = "#dfe6ec";
@@ -172,12 +174,15 @@
     ctx.rotate(cam.roll + off.r);
     var M = Math.max(W, H) * 1.6;
     // 天：夜的神社，地平線附近透出篝火的暖色
+    // 戰鬥場景（katana_style.js 的 scene.pov）可以換天空・地面的顏色並畫遠景；沒有時是原本的夜神社
+    var stg = opts.stage, skyC = stg ? stg.sky() : ["#07060c", "#1a1218", "#3a2418"], gndC = stg ? stg.gnd() : ["#2a2018", "#5a4532", "#8a6a4a"];
     var sky = ctx.createLinearGradient(0, -HY, 0, 0);
-    sky.addColorStop(0, "#07060c"); sky.addColorStop(0.75, "#1a1218"); sky.addColorStop(1, "#3a2418");
+    sky.addColorStop(0, skyC[0]); sky.addColorStop(0.75, skyC[1]); sky.addColorStop(1, skyC[2]);
     ctx.fillStyle = sky; ctx.fillRect(-M, -M, 2 * M, M);
-    // 地：土俵的土，近處被照亮
+    if (stg) stg.deco(ctx, M, HY, ang, cam.t, W);
+    // 地：場地的地面，近處被照亮
     var gnd = ctx.createLinearGradient(0, 0, 0, H - HY);
-    gnd.addColorStop(0, "#2a2018"); gnd.addColorStop(0.35, "#5a4532"); gnd.addColorStop(1, "#8a6a4a");
+    gnd.addColorStop(0, gndC[0]); gnd.addColorStop(0.35, gndC[1]); gnd.addColorStop(1, gndC[2]);
     ctx.fillStyle = gnd; ctx.fillRect(-M, 0, 2 * M, M);
     // 場外佈景（遠到近）：提燈與四本柱
     var far = [];

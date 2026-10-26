@@ -1211,6 +1211,8 @@
     var panel = el("div", { class: "kt-panel" });
     panel.appendChild(el("h2", { text: t("kt_setup") }));
     panel.appendChild(el("p", { class: "kt-intro", text: t("kt_intro") }));
+    var looks = lookSelects(null);
+    if (looks.length) panel.appendChild(el("div", { class: "kt-actions kt-looks" }, [el("span", { class: "kt-muted", text: t("kt_look_hint") })].concat(looks)));
     var list = el("ol", { class: "kt-names" });
     setup.names.forEach(function (n, i) {
       list.appendChild(el("li", {}, [
@@ -1774,9 +1776,11 @@
 
   // ---- 美術素材（docs/katana_art_spec.md §6，2026-10-21 起接上太刀）----
   // ART_TOP：有俯視圖的刀種 → 刀尖離中心佔圖寬的比例（規格：一般 0.45、長柄 0.38；鍔／握持點在圖正中央）。
-  // ART_SIDE：有側視圖的刀種（對刀面板的小圖）。新增素材時只要把檔案放進 static_src/katana_art/ 並登記在這裡。
-  var ART_TOP = { tachi: 0.45 };
-  var ART_SIDE = { tachi: true };
+  // ART_SIDE：有側視圖的刀種 → 鍔（無鍔時為鎺）中心離圖左端佔圖寬的比例（對刀面板的小圖、刀視角用）。
+  // 新增素材時只要把檔案放進 static_src/katana_art/ 並登記在這裡。
+  // 原圖的整理（去背殘留、鍔置中、裁切）用 tools/katana_art/import_art.py，它會印出 ART_SIDE 要填的值
+  var ART_TOP = { tachi: 0.45, tanto: 0.45, wakizashi: 0.45 };
+  var ART_SIDE = { tachi: 0.225, tanto: 0.22, wakizashi: 0.252 };
   // artifact 預覽版用 window.PRITEST_KATANA_ART_SRC（{ "top/tachi": dataURI }）覆寫來源
   function artSrc(key) {
     var o = window.PRITEST_KATANA_ART_SRC;
@@ -1812,10 +1816,12 @@
     f._artTop = id || "";
     return id;
   }
-  // 刀視角用的側視圖：跟俯視圖借同一個刀種（沒有側視圖就回傳 null＝程式畫的簡化刀）
+  // 刀視角用的側視圖：跟俯視圖借同一個刀種（沒有側視圖就回傳 null＝程式畫的簡化刀）。
+  // 每張圖的長寬比與鍔的位置都不同：鍔的比例掛在 Image 上（ktGuard），長寬比由 katana_arena_pov.js 讀圖片尺寸
   function artSideOf(f) {
-    var id = artTopId(f);
-    return id && ART_SIDE[id] ? artImg("side/" + id) : null;
+    var id = artTopId(f), im = id && ART_SIDE[id] ? artImg("side/" + id) : null;
+    if (im) im.ktGuard = ART_SIDE[id];
+    return im;
   }
   // 柄卷的淺灰（規格 #C8C8C8）換成玩家色：只動鍔左側、低彩度且夠亮的像素，依亮度保留陰影。結果依（圖, 顏色）快取
   var artTinted = {};
@@ -1896,8 +1902,26 @@
     ctx.beginPath(); ctx.arc(0, 0, Math.max(2.5, 3.5 * s), 0, Math.PI * 2); ctx.fill();
   }
 
+  // 美術風格與戰鬥場景的選單（katana_style.js；使用者指定 2026-10-26）。onStage：場景改了之後要做的事
+  function lookSelects(onStage) {
+    var KS = window.PriTestKatanaStyle;
+    if (!KS) return [];
+    var lk = el("select", { class: "kt-look-select", title: t("kt_look") });
+    KS.LOOKS.forEach(function (x) { var o = el("option", { value: x.id, text: "🎨 " + L(x.name) }); if (x.id === KS.look()) o.selected = true; lk.appendChild(o); });
+    lk.addEventListener("change", function () { KS.setLook(lk.value); KS.applyLook(app); });
+    var sg = el("select", { class: "kt-stage-select", title: t("kt_scene") });
+    [{ id: "auto", name: null }].concat(KS.STAGES).forEach(function (x) {
+      var o = el("option", { value: x.id, text: "🏯 " + (x.name ? L(x.name) : t("kt_scene_auto")) });
+      if (x.id === KS.stagePref()) o.selected = true;
+      sg.appendChild(o);
+    });
+    sg.addEventListener("change", function () { KS.setStagePref(sg.value); if (onStage) onStage(sg.value); });
+    return [lk, sg];
+  }
+
   function arenaView(a, onEnd, net) {
     var Arena = window.PriTestKatanaArena;
+    var KS = window.PriTestKatanaStyle;
     artPreload();
     var wrap = el("div", { class: "kt-arena" });
     var hud = el("div", { class: "kt-arena-hud" });
@@ -1909,8 +1933,9 @@
     var btnView = el("button", { type: "button", class: "kt-arena-view" });
     var netTxt = el("span", { class: "kt-arena-net" });
     hud.appendChild(roundTxt);
-    if (net) { hud.appendChild(netTxt); hud.appendChild(el("span", { class: "kt-arena-hud-btns" }, [btnView])); }
-    else hud.appendChild(el("span", { class: "kt-arena-hud-btns" }, [btnView, btnPause, btnSpeed, btnSkip]));
+    var looks = lookSelects(function () { if (scene) scene.setStage(KS.stageFor(a.seed)); if (a.over || paused) drawLater(); });
+    if (net) { hud.appendChild(netTxt); hud.appendChild(el("span", { class: "kt-arena-hud-btns" }, [btnView].concat(looks))); }
+    else hud.appendChild(el("span", { class: "kt-arena-hud-btns" }, [btnView, btnPause, btnSpeed, btnSkip].concat(looks)));
     var canvas = el("canvas", { class: "kt-arena-canvas", width: "600", height: "600", "aria-label": t("kt_clash_title") });
     var feed = el("ol", { class: "kt-arena-feed" });
     var panels = el("div", { class: "kt-arena-panels" });
@@ -1925,6 +1950,9 @@
     // 打擊感（頓幀・慢動作・震動）與刀視角：只影響畫面，見 katana_arena_pov.js
     var Pov = window.PriTestKatanaPov;
     var fx = Pov.createFx({ noTime: !!net });
+    // 美術風格與戰鬥場景（katana_style.js；只影響畫面）。場景預設依對局種子決定，連線時大家看到同一個
+    var scene = KS ? KS.createScene(KS.stageFor(a.seed)) : null;
+    function sceneLabels() { return { stage: scene ? L(scene.stage.name) : "", fight: t("kt_scene_fight") }; }
     var cam = null, frameDt = 0;
     var paused = false;
     var ended = false;
@@ -2068,6 +2096,7 @@
     function consumeEvents() {
       a.events.forEach(function (e) {
         fx.event(e, a);
+        if (scene) scene.impact(e);
         // 武士風的特效（與下方的基本效果疊加）
         if (e.type === "slash" || e.type === "mikiri") {
           var ca = Math.random() * Math.PI;
@@ -2113,19 +2142,25 @@
     // ----- 繪圖 -----
     function drawFrame() {
       var cssW = canvas.clientWidth || 360;
-      var dpr = window.devicePixelRatio || 1;
+      // 像素風格：畫布解析度降低（CSS 放大時保留方塊），線寬等比例跟著縮
+      var dpr = (window.devicePixelRatio || 1) * (KS ? KS.resScale() : 1);
       var px = Math.round(cssW * dpr);
       if (canvas.width !== px) { canvas.width = px; canvas.height = px; }
       var ctx = canvas.getContext("2d");
-      var s = px / (2 * Arena.R + 24);
+      ctx.imageSmoothingEnabled = !(KS && KS.resScale() < 1);
+      // 有戰鬥場景時場地四周留白，畫場外佈景
+      var s = px / (2 * Arena.R + (scene ? 56 : 24));
       ctx.setTransform(1, 0, 0, 1, 0, 0);
       ctx.clearRect(0, 0, px, px);
       if (cam) {
-        Pov.draw(ctx, px, px, a, cam, { dt: frameDt, vis: vis, sideArt: artSideOf, fx: fx, dpr: dpr,
+        Pov.draw(ctx, px, px, a, cam, { dt: frameDt, vis: vis, sideArt: artSideOf, fx: fx, dpr: dpr, stage: scene ? scene.pov : null,
           hpOf: function (f) { return Math.max(0, f.hp / f.prof.maxHp); },
           labels: { lock: t("kt_ar_pov_lock"), out: t("kt_ar_pov_out") } });
         frameDt = 0;
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
+        if (scene) scene.pov.front(ctx, px, px, dpr);
         ctx.setTransform(1, 0, 0, 1, px / 2, px / 2);
+        if (scene) scene.pov.overlays(ctx, px, dpr, sceneLabels());
         drawBanners(ctx, px, dpr, s);
         return;
       }
@@ -2133,7 +2168,10 @@
       var shk = fx.offset(px / 600);
       ctx.translate(px / 2 + shk.x, px / 2 + shk.y);
       ctx.rotate(shk.r);
-      // 場地：碗形的土俵，外圈是注連縄
+      // 場地：戰鬥場景（背景・場外佈景・地面・龜裂）；沒有 katana_style.js 時是原本的土俵
+      if (scene) scene.drawBack(ctx, px, s, dpr, Arena.R);
+      else drawDohyo();
+      function drawDohyo() {
       var g = ctx.createRadialGradient(0, 0, 10 * s, 0, 0, Arena.R * s);
       g.addColorStop(0, "#5a4a3b"); g.addColorStop(1, "#231c16");
       ctx.fillStyle = g;
@@ -2151,6 +2189,7 @@
       ctx.lineWidth = 3 * s;
       ctx.beginPath(); ctx.arc(0, 0, (Arena.R + 3) * s, 0, Math.PI * 2); ctx.stroke();
       ctx.setLineDash([]);
+      }
       // 斬痕：試合的斬擊在地上留下幾秒的刀痕
       vis.scars.forEach(function (sc) {
         var k = sc.life / sc.max;
@@ -2379,6 +2418,8 @@
         ctx.fillStyle = "rgba(255,255,255," + (0.3 * vis.flash.life / vis.flash.max) + ")";
         ctx.beginPath(); ctx.arc(0, 0, (Arena.R + 12) * s, 0, Math.PI * 2); ctx.fill();
       }
+      // 場景前景：天氣粒子、雷、開場字幕、決著演出
+      if (scene) scene.drawFront(ctx, px, s, dpr, Arena.R, sceneLabels());
       drawBanners(ctx, px, dpr, s);
       ctx.setTransform(1, 0, 0, 1, 0, 0);
       fx.overlay(ctx, px, px);
@@ -2433,6 +2474,7 @@
     }
 
     function tickVisuals(dt) {
+      if (scene) scene.tick(dt);
       worldFx(dt);
       vis.scars = vis.scars.filter(function (x) { x.life -= dt; return x.life > 0; });
       vis.parts = vis.parts.filter(function (p) { p.life -= dt; p.x += p.vx * dt; p.y += p.vy * dt; p.vx *= 0.92; p.vy *= 0.92; return p.life > 0; });
@@ -2447,6 +2489,15 @@
       if (!a.over || ended) return false;
       // 連線：房主送出結束狀態後才算結束；非房主以房主的結束狀態為準
       if (net) { net.canStep(a); if (!net.isHost && !net.ended) return false; }
+      // 決著演出（墨潑＋「勝」＋勝者名）播完才換畫面
+      if (scene && !scene.finaleDone()) {
+        if (!scene.finale) {
+          var wf = a.winner ? byF(a.winner) : null;
+          scene.startFinale(t(wf ? "kt_scene_win" : "kt_scene_draw"), wf ? arenaFighterLabel(wf) : "", wf ? wf.color : "#dddddd");
+          fx.event({ type: "break", x: 0, y: 0 }, a);
+        }
+        return false;
+      }
       ended = true;
       stopAnim();
       onEnd(Arena.result(a));
@@ -2469,6 +2520,7 @@
       var dt = last ? Math.min(0.05, (now - last) / 1000) : 0;
       last = now;
       var ts = paused ? 0 : fx.tick(dt); // 頓幀中 0、慢動作中 <1
+      if (scene) scene.tickUi(dt); // 開場字幕・決著演出用真實時間，不受頓幀・慢動作・暫停影響
       if (!paused) {
         acc += dt * (ui.arenaSpeed || 1) * ts;
         var n = 0;
@@ -3311,6 +3363,7 @@
   function render() {
     stopAnim();
     app.innerHTML = "";
+    if (window.PriTestKatanaStyle) window.PriTestKatanaStyle.applyLook(app);
     if (ui.duel) { renderDuel(); return; }
     if (!state) { renderSetup(); return; }
     if (state.phase === "forge" || ui.result) renderForge(); // 最後一道工序的結果也要先看完再進審查

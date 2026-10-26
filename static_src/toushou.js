@@ -2,6 +2,7 @@
 // 傳遞遮蔽（ui.revealedFor 等）刻意不存進 state：重新整理後回到遮蔽畫面，避免洩漏秘密資訊。
 // 規則依據：docs/superpowers/specs/2026-10-15-toushou-game-design.md
 //           docs/superpowers/specs/2026-10-15-toushou-multidevice-design.md（多裝置連線）
+//           docs/superpowers/specs/2026-10-21-toushou-insider-mode-design.md（內線模式）
 //
 // 統一模型：每台裝置「擁有」一或多個座位（mySeats()）。
 //   單機模式＝擁有全部座位；連線模式＝自己認領的座位＋（主持人）未被認領的座位。
@@ -247,6 +248,7 @@
     var players = [];
     for (var i = 0; i < 4; i++) players.push({ name: t("ts_player_default", { n: i + 1 }), chips: 1000 });
     return {
+      mode: "classic",
       players: players,
       chipsMode: "same",
       chipsSame: 1000,
@@ -305,14 +307,16 @@
     if (chips.some(function (c) { return !(c >= 1); })) return { error: "ts_err_setup_chips" };
     var minBet = intOf(draft.minBet);
     if (!(minBet >= 1)) return { error: "ts_err_setup_chips" };
+    var insider = draft.mode === "insider";
     var voteCap = intOf(draft.voteCap);
-    if (draft.deltaMode === "vote" && !(voteCap >= 10 && voteCap <= 200)) return { error: "ts_err_setup_vote_cap" };
+    if (!insider && draft.deltaMode === "vote" && !(voteCap >= 10 && voteCap <= 200)) return { error: "ts_err_setup_vote_cap" };
     if (!draft.targets.length) randomizeTargets();
     if (!draft.targets.length || draft.targets.some(function (tg) { return !lt(tg.name).trim(); })) {
       return { error: "ts_err_setup_targets" };
     }
     return {
       config: {
+        mode: insider ? "insider" : "classic",
         players: draft.players.map(function (p, i) { return { name: String(p.name).trim(), chips: chips[i] }; }),
         targets: draft.targets.map(function (tg) {
           return { category: tg.category, name: tg.name, summary: tg.summary || null, tags: tg.tags,
@@ -324,7 +328,7 @@
         sectorLinkEnabled: draft.sectorLinkEnabled,
         minBet: minBet,
         deltaMode: draft.deltaMode,
-        voteCap: draft.deltaMode === "vote" ? voteCap : 100,
+        voteCap: !insider && draft.deltaMode === "vote" ? voteCap : 100,
         seed: newSeed()
       }
     };
@@ -354,6 +358,15 @@
       syncMinBet();
     }
     var box = el("section", { class: "ts-panel" }, [el("h2", { text: t("ts_setup_heading") })]);
+    var insider = draft.mode === "insider";
+
+    var gameModeSel = el("select", { id: "ts-game-mode", "aria-label": t("ts_game_mode"),
+      onchange: function (e) { draft.mode = e.target.value; render(); } });
+    ["classic", "insider"].forEach(function (m) {
+      gameModeSel.appendChild(el("option", { value: m, selected: draft.mode === m, text: t("ts_game_mode_" + m) }));
+    });
+    box.appendChild(el("label", { class: "ts-field" }, [t("ts_game_mode"), gameModeSel]));
+    box.appendChild(el("p", { class: "ts-hooks", text: t("ts_game_mode_" + draft.mode + "_desc") }));
 
     box.appendChild(el("label", { class: "ts-field" }, [
       t("ts_player_count"),
@@ -450,22 +463,31 @@
     });
     box.appendChild(el("div", {}, [el("p", { text: t("ts_targets") }), tlist]));
 
-    box.appendChild(el("label", { class: "ts-field" }, [el("input", {
-      id: "ts-missions", type: "checkbox", checked: draft.missionsEnabled,
-      onchange: function (e) { draft.missionsEnabled = e.target.checked; }
-    }), t("ts_missions_enabled")]));
-    box.appendChild(el("label", { class: "ts-field" }, [el("input", {
-      id: "ts-wind", type: "checkbox", checked: draft.windEnabled,
-      onchange: function (e) { draft.windEnabled = e.target.checked; }
-    }), t("ts_wind_enabled")]));
-    box.appendChild(el("label", { class: "ts-field" }, [el("input", {
-      id: "ts-swan", type: "checkbox", checked: draft.blackSwanEnabled,
-      onchange: function (e) { draft.blackSwanEnabled = e.target.checked; }
-    }), t("ts_swan_enabled")]));
-    box.appendChild(el("label", { class: "ts-field" }, [el("input", {
-      id: "ts-sector", type: "checkbox", checked: draft.sectorLinkEnabled,
-      onchange: function (e) { draft.sectorLinkEnabled = e.target.checked; }
-    }), t("ts_sector_enabled")]));
+    if (insider) {
+      // 內線人依座位輪替（每個標的換一人），標的數不是人數的倍數時次數會不平均
+      var tCount = draft.targets.length ||
+        (draft.targetCountMode === "players" ? draft.players.length : draft.targetCount);
+      if (tCount % draft.players.length !== 0) {
+        box.appendChild(el("p", { id: "ts-insider-uneven", class: "ts-error", text: t("ts_insider_uneven") }));
+      }
+    } else {
+      box.appendChild(el("label", { class: "ts-field" }, [el("input", {
+        id: "ts-missions", type: "checkbox", checked: draft.missionsEnabled,
+        onchange: function (e) { draft.missionsEnabled = e.target.checked; }
+      }), t("ts_missions_enabled")]));
+      box.appendChild(el("label", { class: "ts-field" }, [el("input", {
+        id: "ts-wind", type: "checkbox", checked: draft.windEnabled,
+        onchange: function (e) { draft.windEnabled = e.target.checked; }
+      }), t("ts_wind_enabled")]));
+      box.appendChild(el("label", { class: "ts-field" }, [el("input", {
+        id: "ts-swan", type: "checkbox", checked: draft.blackSwanEnabled,
+        onchange: function (e) { draft.blackSwanEnabled = e.target.checked; }
+      }), t("ts_swan_enabled")]));
+      box.appendChild(el("label", { class: "ts-field" }, [el("input", {
+        id: "ts-sector", type: "checkbox", checked: draft.sectorLinkEnabled,
+        onchange: function (e) { draft.sectorLinkEnabled = e.target.checked; }
+      }), t("ts_sector_enabled")]));
+    }
     box.appendChild(el("label", { class: "ts-field" }, [t("ts_min_bet"), el("input", {
       id: "ts-min-bet", type: "number", min: "1", value: String(draft.minBet),
       oninput: function (e) { draft.minBet = e.target.value; draft.minBetEdited = true; }
@@ -484,8 +506,8 @@
     ["host", "vote"].forEach(function (m) {
       modeSel.appendChild(el("option", { value: m, selected: draft.deltaMode === m, text: t("ts_delta_mode_" + m) }));
     });
-    box.appendChild(el("label", { class: "ts-field" }, [t("ts_delta_mode"), modeSel]));
-    if (draft.deltaMode === "vote") {
+    if (!insider) box.appendChild(el("label", { class: "ts-field" }, [t("ts_delta_mode"), modeSel]));
+    if (!insider && draft.deltaMode === "vote") {
       box.appendChild(el("label", { class: "ts-field" }, [t("ts_vote_cap"), el("input", {
         id: "ts-vote-cap", type: "number", min: "10", max: "200", value: String(draft.voteCap),
         oninput: function (e) { draft.voteCap = e.target.value; }
@@ -567,8 +589,14 @@
     if (!news.length) return el("p", { id: "ts-news-board", text: t("ts_news_none") });
     var ul = el("ul", { id: "ts-news-board", class: "ts-news-board" });
     news.forEach(function (n) {
-      var sign = n.delta > 0 ? "+" + n.delta : String(n.delta);
       var tag = n.cardId === null ? t("ts_custom_tag") : (n.edited ? t("ts_edited_tag") : "");
+      if (n.delta === undefined) {
+        // 內線模式的消息沒有加減分與股價
+        ul.appendChild(el("li", {}, [el("strong", { text: playerName(n.playerId) }),
+          tag ? " (" + tag + ")" : "", P("：") + n.text]));
+        return;
+      }
+      var sign = n.delta > 0 ? "+" + n.delta : String(n.delta);
       ul.appendChild(el("li", { class: n.delta > 0 ? "ts-up" : (n.delta < 0 ? "ts-down" : "") }, [
         el("strong", { text: playerName(n.playerId) }),
         n.wind ? " [" + windLabel(n.wind) + "]" : "",
@@ -612,6 +640,19 @@
     return box.childNodes.length ? box : null;
   }
 
+  // 內線模式的標的卡：內線人、公開的押金；結算後才顯示實價 T（info＝state.current 或 lastSettlement）
+  function insiderInfo(info) {
+    var insiderId = info ? info.insiderId : Core.insiderFor(state, state.targetIndex);
+    var stake = info ? info.insiderStake : null;
+    var settled = !!(info && info.mode === "insider");
+    return el("div", { class: "ts-insider-info" }, [
+      el("p", { id: "ts-insider-name", text: t("ts_insider_is", { name: playerName(insiderId) }) +
+        (stake !== null && stake !== undefined ? P("　") + t("ts_insider_stake_public", { n: stake }) : "") }),
+      el("p", {}, [t("ts_truth") + P("："), el("span", { id: "ts-price", class: "ts-price",
+        text: settled ? String(info.truth) : "?" })])
+    ]);
+  }
+
   function targetCard(target, price, news, info) {
     var cat = Core.categoryById(target.category);
     var tags = el("div", { class: "ts-tags" });
@@ -624,7 +665,8 @@
       target.summary ? el("p", { class: "ts-summary", text: lt(target.summary) }) : null,
       tags,
       hooks.length ? el("p", { class: "ts-hooks", text: t("ts_hooks") + P("：") + hooks.join(P("、")) }) : null,
-      el("p", {}, [t("ts_price") + P("："), el("span", { id: "ts-price", class: "ts-price", text: String(price) })]),
+      Core.isInsiderMode(state) ? insiderInfo(info)
+        : el("p", {}, [t("ts_price") + P("："), el("span", { id: "ts-price", class: "ts-price", text: String(price) })]),
       marketInfo(info),
       el("h3", { text: t("ts_news_board") }),
       newsBoard(news || [], info && info.event)
@@ -699,7 +741,10 @@
   function renderBet() {
     var pending = Core.pendingBettors(state);
     var mine = pending.filter(owns);
-    var skipped = state.players.filter(function (p) { return state.current.bettors.indexOf(p.id) < 0; })
+    // 內線人本來就不下注，不列入「籌碼歸零而跳過」
+    var skipped = state.players.filter(function (p) {
+      return state.current.bettors.indexOf(p.id) < 0 && p.id !== state.current.insiderId;
+    })
       .map(function (p) { return p.name; });
     var info = skipped.length ? el("p", { text: t("ts_skipped_broke", { names: skipped.join(P("、")) }) }) : null;
     var total = state.current.bettors.length;
@@ -711,13 +756,15 @@
     var body = masked(pid, function () {
       var min = Math.min(state.config.minBet, me.chips);
       var amount = el("input", { id: "ts-bet-amount", type: "number", min: String(min), max: String(me.chips), value: String(min) });
+      var insider = Core.isInsiderMode(state);
       var predict = el("input", { id: "ts-bet-predict", type: "number", min: "0",
-        value: String(state.current.startPrice || D.START_PRICE) });
+        max: insider ? String(Core.TRUTH_MAX) : null,
+        value: String(insider ? 50 : (state.current.startPrice || D.START_PRICE)) });
       return el("section", { class: "ts-panel" }, [
         el("h2", { text: t("ts_bet_heading", { name: me.name }) }),
         el("p", { text: t("ts_bet_chips_left", { n: me.chips, min: min }) }),
         el("label", { class: "ts-field" }, [t("ts_bet_amount"), amount]),
-        el("label", { class: "ts-field" }, [t("ts_bet_predict"), predict]),
+        el("label", { class: "ts-field" }, [t(insider ? "ts_insider_bet_predict" : "ts_bet_predict"), predict]),
         errorLine(),
         el("button", { id: "ts-btn-confirm-bet", type: "button", class: "ts-primary", text: t("ts_btn_confirm_bet"),
           onclick: function () {
@@ -742,51 +789,118 @@
     var heading = el("h2", { text: t("ts_news_heading", { role: role, name: me.name }) });
     if (!owns(pid)) return el("div", {}, [heading, windBadge, waiting(t("ts_wait_news", { name: me.name }))]);
     var gagged = Core.gagActive(state);
-    var body = masked(pid, function () {
-      var textArea = el("textarea", { id: "ts-news-text", class: "ts-news-text", "aria-label": t("ts_news_custom") });
-      if (ui.editing !== null) textArea.value = ui.editing;
-      textArea.addEventListener("input", function () { ui.editing = textArea.value; });
-      var hand = el("ul", { class: "ts-hand" });
-      me.hand.forEach(function (cardId, idx) {
-        var card = Core.cardById(cardId);
-        var playable = Core.cardPlayable(state, cardId);
-        var cls = [card ? "ts-" + card.tone : "", playable ? "" : "ts-unplayable", ui.selectedCard === idx ? "ts-selected" : ""]
-          .filter(Boolean).join(" ");
-        hand.appendChild(el("li", { "data-card": cardId, class: cls }, [
-          el("p", { text: cardText(cardId) }),
-          playable ? el("button", { class: "ts-btn-play", type: "button", text: t("ts_btn_play"),
-            onclick: function () {
-              dispatch({ type: "releaseNews", playerId: pid, cardId: cardId, edited: false, text: cardText(cardId) });
-            } }) : null,
-          gagged ? null : el("button", { class: "ts-btn-edit", type: "button", text: t("ts_btn_edit"),
-            onclick: function () {
-              ui.selectedCard = idx;
-              ui.editing = cardText(cardId);
-              ui.error = "";
-              ui.skipRestore = true;
-              render();
-            } })
-        ]));
-      });
-      return el("section", { class: "ts-panel" }, [
-        el("h3", { text: t("ts_hand") }),
-        el("p", { class: "ts-hooks", text: t("ts_hand_other_hint") }),
-        hand,
-        gagged ? el("p", { id: "ts-gag-hint", class: "ts-error", text: t("ts_gag_hint") }) : null,
-        gagged ? null : el("label", {}, [t("ts_news_custom"), textArea]),
-        errorLine(),
-        gagged ? null : el("button", { id: "ts-btn-release", type: "button", class: "ts-primary", text: t("ts_btn_release"),
+    var body = masked(pid, function () { return newsComposer(pid, gagged, [], []); });
+    return el("div", {}, [heading, windBadge, body]);
+  }
+
+  // 手牌＋自訂消息輸入（經典模式的股東、內線模式的內線人共用）；before／after 為額外插入的節點
+  function newsComposer(pid, gagged, before, after) {
+    var me = playerOf(pid);
+    var textArea = el("textarea", { id: "ts-news-text", class: "ts-news-text", "aria-label": t("ts_news_custom") });
+    if (ui.editing !== null) textArea.value = ui.editing;
+    textArea.addEventListener("input", function () { ui.editing = textArea.value; });
+    var hand = el("ul", { class: "ts-hand" });
+    me.hand.forEach(function (cardId, idx) {
+      var card = Core.cardById(cardId);
+      var playable = Core.cardPlayable(state, cardId);
+      var cls = [card ? "ts-" + card.tone : "", playable ? "" : "ts-unplayable", ui.selectedCard === idx ? "ts-selected" : ""]
+        .filter(Boolean).join(" ");
+      hand.appendChild(el("li", { "data-card": cardId, class: cls }, [
+        el("p", { text: cardText(cardId) }),
+        playable ? el("button", { class: "ts-btn-play", type: "button", text: t("ts_btn_play"),
           onclick: function () {
-            var text = textArea.value;
-            var cardId = ui.selectedCard === null ? null : me.hand[ui.selectedCard];
-            var edited = cardId !== null;
-            var err = Core.newsError(state, pid, cardId, text, edited);
-            if (err) { ui.error = t(err); ui.editing = text; render(); return; }
-            dispatch({ type: "releaseNews", playerId: pid, cardId: cardId, edited: edited, text: text });
+            dispatch({ type: "releaseNews", playerId: pid, cardId: cardId, edited: false, text: cardText(cardId) });
+          } }) : null,
+        gagged ? null : el("button", { class: "ts-btn-edit", type: "button", text: t("ts_btn_edit"),
+          onclick: function () {
+            ui.selectedCard = idx;
+            ui.editing = cardText(cardId);
+            ui.error = "";
+            ui.skipRestore = true;
+            render();
+          } })
+      ]));
+    });
+    return el("section", { class: "ts-panel" }, before.concat([
+      el("h3", { text: t("ts_hand") }),
+      el("p", { class: "ts-hooks", text: t("ts_hand_other_hint") }),
+      hand,
+      gagged ? el("p", { id: "ts-gag-hint", class: "ts-error", text: t("ts_gag_hint") }) : null,
+      gagged ? null : el("label", {}, [t("ts_news_custom"), textArea]),
+      errorLine(),
+      gagged ? null : el("button", { id: "ts-btn-release", type: "button", class: "ts-primary", text: t("ts_btn_release"),
+        onclick: function () {
+          var text = textArea.value;
+          var cardId = ui.selectedCard === null ? null : me.hand[ui.selectedCard];
+          var edited = cardId !== null;
+          var err = Core.newsError(state, pid, cardId, text, edited);
+          if (err) { ui.error = t(err); ui.editing = text; render(); return; }
+          dispatch({ type: "releaseNews", playerId: pid, cardId: cardId, edited: edited, text: text });
+        } })
+    ], after));
+  }
+
+  // ---------------- 內線模式各階段 ----------------
+
+  function renderInsiderStake() {
+    var pid = state.current.insiderId;
+    var name = playerName(pid);
+    if (!owns(pid)) return waiting(t("ts_wait_insider_stake", { name: name }));
+    return masked(pid, function () {
+      var max = Core.insiderStakeMax(state);
+      var amount = el("input", { id: "ts-insider-stake", type: "number", min: "0", max: String(max), value: "0" });
+      return el("section", { class: "ts-panel" }, [
+        el("h2", { text: t("ts_insider_stake_heading", { name: name }) }),
+        el("p", { text: t("ts_insider_stake_hint", { max: max }) }),
+        el("ul", { class: "ts-hooks" }, ["ts_insider_tier_0", "ts_insider_tier_1", "ts_insider_tier_2",
+          "ts_insider_tier_3", "ts_insider_tier_4"].map(function (k) { return el("li", { text: t(k) }); })),
+        el("label", { class: "ts-field" }, [t("ts_insider_stake"), amount]),
+        errorLine(),
+        el("button", { id: "ts-btn-insider-stake", type: "button", class: "ts-primary", text: t("ts_btn_insider_stake"),
+          onclick: function () {
+            var a = intOf(amount.value);
+            var err = Core.insiderStakeError(state, pid, a);
+            if (err) { ui.error = t(err); render(); return; }
+            dispatch({ type: "insiderStake", playerId: pid, amount: a });
           } })
       ]);
     });
-    return el("div", {}, [heading, windBadge, body]);
+  }
+
+  function renderInsiderNarrate() {
+    var pid = state.current.insiderId;
+    var name = playerName(pid);
+    var count = state.current.news.length;
+    var heading = el("h2", { text: t("ts_insider_narrate_heading", { name: name, n: count, max: Core.INSIDER_NEWS_MAX }) });
+    if (!owns(pid)) return el("div", {}, [heading, waiting(t("ts_wait_insider_narrate", { name: name }))]);
+    var body = masked(pid, function () {
+      var truth = el("p", { class: "ts-insider-truth" }, [t("ts_truth") + P("："),
+        el("span", { id: "ts-insider-truth", class: "ts-price", text: String(state.current.truth) })]);
+      var rule = el("p", { class: "ts-error", text: t("ts_insider_no_numbers") });
+      var end = el("button", { id: "ts-btn-end-narration", type: "button", disabled: count < 1,
+        text: t("ts_btn_end_narration"),
+        onclick: function () { dispatch({ type: "endNarration", playerId: pid }); } });
+      return newsComposer(pid, false, [truth, rule], [end]);
+    });
+    return el("div", {}, [heading, body]);
+  }
+
+  function renderDiscuss() {
+    var total = state.current.bettors.length;
+    return el("section", { class: "ts-panel" }, [
+      el("p", { class: "ts-wait-text", text: t("ts_discuss_hint", { done: total, total: total }) }),
+      errorLine(),
+      hostButton("ts-btn-reveal-answer", "ts_btn_reveal_answer", { type: "revealAnswer" })
+    ]);
+  }
+
+  function insiderSettleLine(h) {
+    if (h.mode !== "insider") return null;
+    var key = h.insiderError === null ? "ts_insider_result_none" : "ts_insider_result";
+    return el("p", { class: "ts-insider-result", text: t(key, {
+      name: playerName(h.insiderId), stake: h.insiderStake,
+      error: h.insiderError === null ? "" : String(Math.round(h.insiderError * 10) / 10),
+      net: signed(h.insiderNet) }) });
   }
 
   function renderVote() {
@@ -885,12 +999,17 @@
     return ul;
   }
 
+  function priceLabel(h) {
+    return h.mode === "insider" ? t("ts_truth_value", { n: h.truth }) : t("ts_final_price", { n: h.finalPrice });
+  }
+
   function renderSettle() {
     var h = state.lastSettlement;
     var last = state.targetIndex + 1 >= state.targets.length;
     return el("section", { class: "ts-panel" }, [
       el("h2", { text: t("ts_settle_heading", { name: lt(h.name) }) }),
-      el("p", { text: t("ts_final_price", { n: h.finalPrice }) + P("　") + t("ts_pot", { n: h.pot }) }),
+      el("p", { text: priceLabel(h) + P("　") + t("ts_pot", { n: h.pot }) }),
+      insiderSettleLine(h),
       settleNotes(h),
       el("div", { id: "ts-settle-table", class: "ts-table-wrap" }, [settleTable(h)]),
       errorLine(),
@@ -924,8 +1043,9 @@
     var review = el("div", {}, [el("h3", { text: t("ts_history_heading") })]);
     state.history.forEach(function (h) {
       review.appendChild(el("details", {}, [
-        el("summary", { text: lt(h.name) + P("　") + t("ts_final_price", { n: h.finalPrice }) +
+        el("summary", { text: lt(h.name) + P("　") + priceLabel(h) +
           (h.event && h.event !== "calm" ? P("　［") + swanName(h.event) + P("］") : "") }),
+        insiderSettleLine(h),
         marketInfo(h),
         newsBoard(h.news, h.event),
         settleNotes(h),
@@ -975,7 +1095,14 @@
       var news = settled ? state.lastSettlement.news : (state.current ? state.current.news : []);
       wrap.appendChild(targetCard(currentTarget(), price, news, info));
       if (phase === "reveal_target") {
-        wrap.appendChild(hostButton("ts-btn-start-betting", "ts_btn_start_betting", { type: "startBetting" }));
+        wrap.appendChild(hostButton("ts-btn-start-betting",
+          Core.isInsiderMode(state) ? "ts_btn_start_insider" : "ts_btn_start_betting", { type: "startBetting" }));
+      } else if (phase === "insider_stake") {
+        wrap.appendChild(renderInsiderStake());
+      } else if (phase === "insider_narrate") {
+        wrap.appendChild(renderInsiderNarrate());
+      } else if (phase === "discuss") {
+        wrap.appendChild(renderDiscuss());
       } else if (phase === "bet") {
         wrap.appendChild(renderBet());
       } else if (phase === "news") {
@@ -1015,8 +1142,12 @@
   function viewKey() {
     if (!state) return "setup";
     var c = state.current;
-    return [state.phase, state.targetIndex, c ? c.turnIndex : "", ui.revealedFor, ui.selectedCard].join("|");
+    // 內線人連續發消息時 phase 不變，用消息則數區分，避免剛送出的文字被還原回輸入框
+    return [state.phase, state.targetIndex, c ? c.turnIndex : "", c && c.news ? c.news.length : "",
+      ui.revealedFor, ui.selectedCard].join("|");
   }
+
+  var lastKey = null; // 目前 DOM 是在哪個 viewKey 下畫出來的
 
   function captureInputs() {
     var values = {};
@@ -1024,7 +1155,7 @@
       if (node.type !== "checkbox" && node.type !== "radio") values[node.id] = node.value;
     });
     var active = document.activeElement;
-    return { key: viewKey(), values: values, focus: active && active.id && app.contains(active) ? active.id : null };
+    return { key: lastKey, values: values, focus: active && active.id && app.contains(active) ? active.id : null };
   }
 
   function restoreInputs(snap) {
@@ -1056,6 +1187,7 @@
     app.appendChild(node);
     lastHtml = html;
     restoreInputs(snap);
+    lastKey = state ? viewKey() : null;
   }
 
   window.PriTestToushou = {

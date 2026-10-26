@@ -21,7 +21,8 @@ var DATA_FILES = [
   "toushou_data_food.js",
   "toushou_data_anime.js",
   "toushou_data_culture.js",
-  "toushou_data_taiwan.js"
+  "toushou_data_taiwan.js",
+  "toushou_data_ext.js"
 ];
 
 function load(files) {
@@ -53,10 +54,11 @@ var Core = w.PriTestToushouCore;
 var CATEGORY_IDS = ["sengoku_event", "sengoku_person", "jp_celebrity", "jp_company", "tw_company",
   "hokkaido", "tohoku", "kansai", "kanto", "kyushu_okinawa", "washoku", "yoshoku", "taiwan_food",
   "anime_game", "jp_sports", "jp_pop", "taiwan_spot"];
+// 2026-10-19 擴充（tools/toushou_data/ext/*.txt）：使用者點名的 12 類各補到 38，總數 503
 var TARGET_COUNTS = {
-  sengoku_event: 6, sengoku_person: 10, jp_celebrity: 10, jp_company: 19, tw_company: 18,
-  hokkaido: 9, tohoku: 10, kansai: 10, kanto: 10, kyushu_okinawa: 11, washoku: 10, yoshoku: 10,
-  taiwan_food: 10, anime_game: 17, jp_sports: 10, jp_pop: 10, taiwan_spot: 10
+  sengoku_event: 6, sengoku_person: 38, jp_celebrity: 10, jp_company: 38, tw_company: 38,
+  hokkaido: 38, tohoku: 38, kansai: 38, kanto: 38, kyushu_okinawa: 11, washoku: 38, yoshoku: 10,
+  taiwan_food: 10, anime_game: 38, jp_sports: 38, jp_pop: 38, taiwan_spot: 38
 };
 var ROLES_ZH = {
   sengoku_event: "說書人", sengoku_person: "說書人", jp_celebrity: "經紀人", jp_company: "股東",
@@ -76,13 +78,13 @@ check("17 categories in load order with role names", function () {
     assert.strictEqual(c.role.zh, ROLES_ZH[c.id], c.id);
   });
 });
-check("target counts per category (190 total) with summary, 2-3 tags, 3 hooks; ids unique", function () {
+check("target counts per category (503 total) with summary, 2-3 tags, 3 hooks; ids unique", function () {
   var ids = {};
   CATEGORY_IDS.forEach(function (cid) {
     var list = D.TARGETS.filter(function (t) { return t.category === cid; });
     assert.strictEqual(list.length, TARGET_COUNTS[cid], cid + " has " + list.length);
   });
-  assert.strictEqual(D.TARGETS.length, 190);
+  assert.strictEqual(D.TARGETS.length, 503);
   D.TARGETS.forEach(function (t) {
     assert.ok(!ids[t.id], "dup " + t.id); ids[t.id] = 1;
     bilingual(t.name, t.id);
@@ -853,6 +855,200 @@ check("missions ignored when disabled; finalStandings adds bonus and ranks", fun
   assert.strictEqual(st[0].playerId, "p1");
   assert.strictEqual(st[1].rank, 2);
   assert.strictEqual(st[2].rank, 2);
+});
+
+// ---------------- 內線模式（docs/superpowers/specs/2026-10-21-toushou-insider-mode-design.md） ----------------
+console.log("[core: insider mode]");
+
+function insiderGame(n, extra) {
+  var cfg = { mode: "insider" };
+  Object.keys(extra || {}).forEach(function (k) { cfg[k] = extra[k]; });
+  return Core.newGame(baseConfig(n, cfg));
+}
+// 開始一個標的並由內線人押金、發 1 則消息、結束敘述 → bet 階段
+function insiderToBet(s, stake) {
+  s = Core.reduce(s, { type: "startBetting" });
+  var ins = s.current.insiderId;
+  s = Core.reduce(s, { type: "insiderStake", playerId: ins, amount: stake === undefined ? 0 : stake });
+  s = Core.reduce(s, { type: "releaseNews", playerId: ins, cardId: null, edited: false, text: "hint" });
+  return Core.reduce(s, { type: "endNarration", playerId: ins });
+}
+function insiderBetAll(s, predictOf) {
+  s.current.bettors.forEach(function (id) {
+    s = Core.reduce(s, { type: "placeBet", playerId: id, amount: 100, predict: predictOf(id) });
+  });
+  return s;
+}
+
+check("insider config: classic-only rules forced off, missions skipped; old state is classic", function () {
+  var s = insiderGame(3, { missionsEnabled: true, windEnabled: true, blackSwanEnabled: true,
+    sectorLinkEnabled: true, deltaMode: "vote" });
+  assert.strictEqual(s.config.mode, "insider");
+  assert.strictEqual(s.phase, "reveal_target");
+  ["missionsEnabled", "windEnabled", "blackSwanEnabled", "sectorLinkEnabled"].forEach(function (k) {
+    assert.strictEqual(s.config[k], false, k);
+  });
+  assert.strictEqual(s.config.deltaMode, "host");
+  assert.deepStrictEqual(s.windDeck, []);
+  assert.ok(s.insiderOffset >= 0 && s.insiderOffset < 3);
+  var classic = Core.newGame(baseConfig(3));
+  assert.strictEqual(classic.config.mode, "classic");
+  delete classic.config.mode;
+  assert.strictEqual(Core.isInsiderMode(classic), false);
+});
+check("insider rotation: 3 players x 6 targets -> each insider exactly twice", function () {
+  var s = insiderGame(3);
+  var count = {};
+  for (var k = 0; k < 6; k++) { var id = Core.insiderFor(s, k); count[id] = (count[id] || 0) + 1; }
+  assert.deepStrictEqual(Object.keys(count).sort(), ["p0", "p1", "p2"]);
+  Object.keys(count).forEach(function (id) { assert.strictEqual(count[id], 2); });
+});
+check("truth T in 0..99, deterministic per seed", function () {
+  var seen = { min: 99, max: 0 };
+  for (var seed = 1; seed <= 400; seed++) {
+    var s = Core.reduce(insiderGame(3, { seed: seed }), { type: "startBetting" });
+    assert.ok(s.current.truth >= 0 && s.current.truth <= 99, "T=" + s.current.truth);
+    seen.min = Math.min(seen.min, s.current.truth);
+    seen.max = Math.max(seen.max, s.current.truth);
+  }
+  assert.ok(seen.min <= 5 && seen.max >= 94, JSON.stringify(seen));
+  var a = Core.reduce(insiderGame(3), { type: "startBetting" });
+  var b = Core.reduce(insiderGame(3), { type: "startBetting" });
+  assert.strictEqual(a.current.truth, b.current.truth);
+  assert.strictEqual(a.phase, "insider_stake");
+});
+check("insider stake: only insider, 0..floor(chips/2), deducted and public", function () {
+  var s = Core.reduce(insiderGame(3), { type: "startBetting" });
+  var ins = s.current.insiderId;
+  var other = s.players.filter(function (p) { return p.id !== ins; })[0].id;
+  player(s, ins).chips = 501;
+  assert.strictEqual(Core.insiderStakeMax(s), 250);
+  assert.strictEqual(Core.insiderStakeError(s, other, 10), "ts_err_not_insider");
+  assert.strictEqual(Core.insiderStakeError(s, ins, 251), "ts_err_stake_range");
+  assert.strictEqual(Core.insiderStakeError(s, ins, -1), "ts_err_stake_range");
+  assert.strictEqual(Core.insiderStakeError(s, ins, 1.5), "ts_err_int");
+  assert.strictEqual(Core.insiderStakeError(s, ins, 0), null);
+  assert.throws(function () { Core.reduce(s, { type: "insiderStake", playerId: other, amount: 10 }); });
+  s = Core.reduce(s, { type: "insiderStake", playerId: ins, amount: 250 });
+  assert.strictEqual(player(s, ins).chips, 251);
+  assert.strictEqual(s.current.insiderStake, 250);
+  assert.strictEqual(s.current.pot, 0);
+  assert.strictEqual(s.phase, "insider_narrate");
+  var z = Core.reduce(insiderGame(3), { type: "startBetting" });
+  player(z, z.current.insiderId).chips = 0;
+  assert.strictEqual(Core.insiderStakeMax(z), 0);
+  assert.strictEqual(Core.insiderStakeError(z, z.current.insiderId, 0), null);
+});
+check("narration: needs 1 news to end, auto-ends at 3, only insider; custom keeps hand", function () {
+  var s = Core.reduce(insiderGame(3), { type: "startBetting" });
+  var ins = s.current.insiderId;
+  var other = s.players.filter(function (p) { return p.id !== ins; })[0].id;
+  s = Core.reduce(s, { type: "insiderStake", playerId: ins, amount: 0 });
+  assert.throws(function () { Core.reduce(s, { type: "endNarration", playerId: ins }); }, /ts_err_need_news/);
+  assert.strictEqual(Core.newsError(s, other, null, "x", false), "ts_err_not_insider");
+  var hand = player(s, ins).hand.slice();
+  s = Core.reduce(s, { type: "releaseNews", playerId: ins, cardId: null, edited: false, text: " a " });
+  assert.deepStrictEqual(player(s, ins).hand, hand);
+  var playable = player(s, ins).hand.filter(function (id) { return Core.cardPlayable(s, id); })[0];
+  s = Core.reduce(s, { type: "releaseNews", playerId: ins, cardId: player(s, ins).hand[0], edited: true, text: "b" });
+  assert.strictEqual(player(s, ins).hand.length, 5);
+  assert.strictEqual(s.phase, "insider_narrate");
+  s = Core.reduce(s, { type: "releaseNews", playerId: ins, cardId: null, edited: false, text: "c" });
+  assert.strictEqual(s.phase, "bet");
+  assert.deepStrictEqual(s.current.news.map(function (n) { return n.text; }), ["a", "b", "c"]);
+  assert.strictEqual(s.current.news[0].delta, undefined);
+  assert.ok(playable === undefined || typeof playable === "string");
+});
+check("insider bet: insider excluded, predict 0..99, all in -> discuss", function () {
+  var s = insiderToBet(insiderGame(3));
+  var ins = s.current.insiderId;
+  assert.strictEqual(s.current.bettors.length, 2);
+  assert.ok(s.current.bettors.indexOf(ins) < 0);
+  var b = s.current.bettors[0];
+  assert.strictEqual(Core.betError(s, ins, 100, 50), "ts_err_not_your_turn");
+  assert.strictEqual(Core.betError(s, b, 100, 100), "ts_err_predict_range");
+  assert.strictEqual(Core.betError(s, b, 100, 99), null);
+  s = insiderBetAll(s, function () { return 50; });
+  assert.strictEqual(s.phase, "discuss");
+  assert.throws(function () { Core.reduce(s, { type: "nextTarget" }); });
+  s = Core.reduce(s, { type: "revealAnswer" });
+  assert.strictEqual(s.phase, "settle");
+});
+check("insiderResult tiers at exact boundaries (E = 10/20/30/40) and beyond", function () {
+  function one(d) { return { a: { predict: 50 + d } }; }
+  assert.deepStrictEqual([0, 10, 11, 20, 21, 30, 31, 40, 41].map(function (d) {
+    return Core.insiderResult(one(d), 50, 100).net;
+  }), [100, 100, 50, 50, 0, 0, -50, -50, -150]);
+  // 兩人誤差 0 與 20：E = √200 ≈ 14.1 → 第 2 級
+  var r = Core.insiderResult({ a: { predict: 50 }, b: { predict: 70 } }, 50, 101);
+  assert.strictEqual(r.tier, 1);
+  assert.strictEqual(r.net, 50);
+  assert.ok(Math.abs(r.error - Math.sqrt(200)) < 1e-9);
+  assert.strictEqual(Core.insiderResult({ a: { predict: 99 } }, 0, 0).net, 0);
+  var none = Core.insiderResult({}, 50, 100);
+  assert.strictEqual(none.error, null);
+  assert.strictEqual(none.net, 0);
+});
+check("insider settle: pot by |predict - T|, insider paid by bank, loses > stake, never negative", function () {
+  var s = insiderToBet(insiderGame(4), 400);
+  var ins = s.current.insiderId;
+  var T = s.current.truth;
+  var far = T >= 50 ? 0 : 99;
+  var before = {};
+  s.players.forEach(function (p) { before[p.id] = p.chips; });
+  s = insiderBetAll(s, function () { return far; });
+  s = Core.reduce(s, { type: "revealAnswer" });
+  var h = s.history[0];
+  assert.strictEqual(h.mode, "insider");
+  assert.strictEqual(h.truth, T);
+  assert.strictEqual(h.finalPrice, T);
+  assert.strictEqual(h.insiderNet, -600);
+  // 押金時已扣 400，結算再扣 200：1000 → 400
+  assert.strictEqual(player(s, ins).chips, 400);
+  assert.strictEqual(before[ins], 600);
+  // 三人同預測並列，平分彩池 300
+  assert.strictEqual(h.pot, 300);
+  h.bets && Object.keys(h.bets).forEach(function (id) { assert.strictEqual(h.payouts[id], 100); });
+  assert.ok(s.players.every(function (p) { return p.chips >= 0; }));
+});
+check("insider settle: accurate readers win, insider doubles stake", function () {
+  var s = insiderToBet(insiderGame(3), 200);
+  var ins = s.current.insiderId;
+  var T = s.current.truth;
+  var ids = s.current.bettors;
+  s = insiderBetAll(s, function (id) { return id === ids[0] ? T : Math.min(99, T + 5); });
+  s = Core.reduce(s, { type: "revealAnswer" });
+  var h = s.history[0];
+  assert.strictEqual(h.insiderNet, 200);
+  assert.strictEqual(player(s, ins).chips, 1200);
+  assert.strictEqual(h.ranks[ids[0]], 1);
+  assert.strictEqual(h.payouts[ids[0]], 200);
+});
+check("no bettors (others broke) -> settle directly, stake returned", function () {
+  var s = Core.reduce(insiderGame(3), { type: "startBetting" });
+  var ins = s.current.insiderId;
+  s.players.forEach(function (p) { if (p.id !== ins) p.chips = 0; });
+  s = Core.reduce(s, { type: "insiderStake", playerId: ins, amount: 300 });
+  s = Core.reduce(s, { type: "releaseNews", playerId: ins, cardId: null, edited: false, text: "x" });
+  s = Core.reduce(s, { type: "endNarration", playerId: ins });
+  assert.strictEqual(s.phase, "settle");
+  assert.strictEqual(s.history[0].insiderError, null);
+  assert.strictEqual(player(s, ins).chips, 1000);
+});
+check("insider full game: every target settles, rotation follows insiderFor, then final", function () {
+  var s = insiderGame(3);
+  for (var k = 0; k < s.targets.length; k++) {
+    assert.strictEqual(s.phase, "reveal_target");
+    s = insiderToBet(s, 100);
+    assert.strictEqual(s.current.insiderId, Core.insiderFor(s, k));
+    s = insiderBetAll(s, function () { return 40; });
+    s = Core.reduce(s, { type: "revealAnswer" });
+    s = Core.reduce(s, { type: "nextTarget" });
+  }
+  assert.strictEqual(s.phase, "final");
+  assert.strictEqual(s.history.length, 3);
+  assert.deepStrictEqual(Core.evaluateMissions(s), []);
+  assert.strictEqual(Core.finalStandings(s).length, 3);
 });
 
 }
