@@ -246,6 +246,9 @@
     return h ? heroDef(h.cls).icon + heroName(h) : "?";
   }
   function enemyName(id) { var d = D.ENEMY[id]; return d ? L(d.name) : id; }
+  // 詞綴（2026-10-26）：名稱前加詞綴名，例如「狂暴的骷髏兵」
+  function affixName(af, name) { var a = af && D.AFFIX[af]; return a ? t("yc_af_name", { af: L(a.name), name: name }) : name; }
+  function enemyLabel(e) { return affixName(e.af, enemyName(e.id)); }
   function cardName(c) { var d = D.CARD[c.id]; return d ? L(d.name) + (c.up ? "+" : "") : c.id; }
   function stName(s) { return t("yc_st_" + s); }
   function pathName(cls, pid) {
@@ -795,7 +798,10 @@
     if (d.split) out.push({ icon: "🧬", title: t("yc_mech_split", { n: d.split.n, name: enemyName(d.split.id) }) });
     if (d.burst) out.push({ icon: "💥", title: t("yc_mech_burst", { n: d.burst }) });
     if (d.rally) out.push({ icon: "📣", title: t("yc_mech_rally", { n: d.rally }) });
+    // 2026-10-25 首領／菁英暈眩結束後免疫 1 回合
+    if (e.stImm > 0) out.push({ icon: "🚫", on: true, title: t("yc_mech_stunImm") });
     if (d.phase) out.push({ icon: e.ph ? "🔥" : "🌗", on: !!e.ph, title: t(e.ph ? "yc_mech_phase_on" : "yc_mech_phase", { n: Math.round(d.phase.at * 100) }) });
+    if (e.af && D.AFFIX[e.af]) { var af = D.AFFIX[e.af]; out.unshift({ icon: af.icon, on: !(e.af === "undying" && e.afUsed), title: L(af.name) + "：" + L(af.desc) }); }
     return out;
   }
   function enemySizeKey(e) { var d = D.ENEMY[e.id]; return d.size || (d.boss ? "boss" : d.elite ? "l" : "m"); }
@@ -812,7 +818,7 @@
     if (pos.y > 50.5) classes += " yc-side-b";
     var pct = e.max ? Math.max(0, Math.min(100, e.hp / e.max * 100)) : 0;
     var mech = enemyMech(st, e);
-    var title = enemyName(e.id) + "（" + t("yc_size_" + enemySizeKey(e)) + "・" + t("yc_kind_" + d.kind) + "）\n" + acts.map(function (a) { return intentText(st, e, a); }).join("\n") + (d.thorns ? "\n🌵 " + t("yc_thorns_desc", { n: d.thorns }) : "") +
+    var title = enemyLabel(e) + "（" + t("yc_size_" + enemySizeKey(e)) + "・" + t("yc_kind_" + d.kind) + "）\n" + acts.map(function (a) { return intentText(st, e, a); }).join("\n") + (d.thorns ? "\n🌵 " + t("yc_thorns_desc", { n: d.thorns }) : "") +
       mech.map(function (m) { return "\n" + m.icon + " " + m.title; }).join("");
     var start = prev && (Math.abs(prev.x - pos.x) > 0.05 || Math.abs(prev.y - pos.y) > 0.05) ? prev : pos;
     var node = el("div", { class: classes, "data-ref": "e" + e.u, title: title,
@@ -1012,7 +1018,7 @@
       var e = Core.enemy(st, f.u), d = D.ENEMY[e.id];
       box.appendChild(el("div", { class: "yc-focus-head" }, [
         enemyIcon(e.id, "yc-focus-icon"),
-        el("strong", { text: enemyName(e.id) }),
+        el("strong", { text: enemyLabel(e) }),
         el("span", { class: "yc-muted yc-small", text: t("yc_size_" + enemySizeKey(e)) + "・" + t("yc_kind_" + d.kind) })
       ]));
       box.appendChild(hpBar(e.hp, e.max));
@@ -1458,7 +1464,7 @@
   function refName(st, r) {
     if (!r) return "";
     if (r.k === "h") return heroLabel(st, r.s);
-    return D.ENEMY[r.id] ? D.ENEMY[r.id].icon + enemyName(r.id) : "?";
+    return D.ENEMY[r.id] ? D.ENEMY[r.id].icon + affixName(r.af, enemyName(r.id)) : "?";
   }
 
   function logText(st, e) {
@@ -1717,7 +1723,7 @@
       case "dmg": if (x) { x.blk = Math.max(0, (x.blk || 0) - (e.b || 0)); x.hp = Math.max(0, x.hp - (e.n || 0)); } break;
       case "heal": if (x) x.hp = Math.min(x.max, x.hp + e.n); break;
       case "blk": if (x) x.blk = (x.blk || 0) + e.n; break;
-      case "str": if (x) x.str = (x.str || 0) + e.n; break;
+      case "str": case "rally": if (x) x.str = (x.str || 0) + e.n; break;
       case "st": if (x) x.st[e.s] = (x.st[e.s] || 0) + e.n; break;
       case "move": if (x) x.ring = e.z; break;
       case "swap": if (x) { x.ring = e.z; x.sec = e.sec; } break;
@@ -2199,7 +2205,8 @@
         ["⇣ ⇡", t("yc_legend_move")], ["💔", t("yc_int_shatter")], ["✨", t("yc_int_purge")], ["💫", t("yc_legend_stun")],
         ["✈", t("yc_legend_pierce")], ["🎩", t("yc_legend_swap")], ["🐒", t("yc_legend_steal")]]),
       sec("yc_legend_sec_mech", [["🌵", t("yc_thorns_desc", { n: "N" })], ["🔰", t("yc_mech_ward_on")], ["📈", t("yc_mech_grow", { n: "N" })],
-        ["🧬", t("yc_legend_split")], ["🌗", t("yc_mech_phase", { n: 50 })], ["💥", t("yc_mech_burst", { n: "N" })], ["📣", t("yc_mech_rally", { n: "N" })]])
+        ["🧬", t("yc_legend_split")], ["🌗", t("yc_mech_phase", { n: 50 })], ["💥", t("yc_mech_burst", { n: "N" })], ["📣", t("yc_mech_rally", { n: "N" })], ["🚫", t("yc_legend_stunImm")]]),
+      sec("yc_legend_sec_af", D.AFFIXES.map(function (a) { return [a.icon, L(a.name) + "：" + L(a.desc)]; }))
     ];
   }
   function legendPanel() {

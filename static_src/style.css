@@ -12807,7 +12807,10 @@ button.yc-relic:hover:not(:disabled) { border-color: var(--yc-accent); }
 .yc-seat-row { display: flex; gap: 0.4rem; align-items: center; flex-wrap: wrap; margin-top: 0.3rem; }
 .yc-ai-label { display: inline-flex; align-items: center; gap: 0.2rem; font-size: 0.85em; cursor: pointer; white-space: nowrap; }
 .yc-mode-opts { display: flex; flex-wrap: wrap; gap: 0.4rem 1rem; align-items: center; margin: 0.7rem 0 0.2rem; padding: 0.5rem 0.7rem; border: 1px dashed var(--yc-line); border-radius: 8px; }
-.yc-opt { display: inline-flex; align-items: center; gap: 0.35rem; }
+.yc-opt { display: inline-flex; align-items: center; gap: 0.35rem; max-width: 100%; }
+/* 2026-10-25 手機寬度：苦痛等級的選項文字很長，下拉選單撐出容器（橫向捲動 11px），標籤也被擠成一字一行 */
+.yc-opt > span { flex: none; white-space: nowrap; }
+.yc-opt > .yc-select { flex: 1 1 auto; min-width: 0; }
 /* 出發遺物（局外進度，2026-10-23）：選單佔滿一列、解鎖提示換行 */
 .yc-art { display: flex; flex-wrap: wrap; width: 100%; margin-top: 0.35rem; }
 .yc-art > span:first-child { white-space: nowrap; }

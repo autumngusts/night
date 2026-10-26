@@ -37,7 +37,7 @@
       desc: N("內外圈都打得到的法術。火焰燃燒、冰霜控場、奧術爆發。", "内外どちらにも届く魔法。炎の燃焼、氷の制圧、秘術の爆発。", "Spells that reach either ring: burning fire, controlling frost, explosive arcana."),
       passive: { p: "burnPlus", n: 1 }, perk: 1,
       paths: [{ id: "fire", name: N("火焰", "火炎", "Fire") }, { id: "frost", name: N("冰霜", "氷霜", "Frost") }, { id: "arcane", name: N("奧術", "秘術", "Arcane") }],
-      start: ["mag_bolt", "mag_bolt", "mag_bolt", "mag_barrier", "mag_barrier", "mag_barrier", "mag_fireball", "mag_frost"] },
+      start: ["mag_bolt", "mag_bolt", "mag_ring", "mag_barrier", "mag_barrier", "mag_barrier", "mag_fireball", "mag_frost"] },
     { id: "priest", name: N("祭司", "司祭", "Priest"), icon: "✨", hp: 60, color: "#3aa8b5",
       desc: N("隊伍的支柱。治療、替隊友加護盾與力量，也能降下神罰。", "隊の支柱。回復、仲間への防御と筋力付与、そして神罰。", "The party's anchor: heals, shields and empowers allies, and calls down divine wrath."),
       passive: { p: "healAll", n: 1 }, perk: 1,
@@ -155,7 +155,7 @@
     card("mag_icearmor", "mage", "frost", "common", "skl", 1, "self", null, [blk(9)], N("寒冰護甲", "氷の鎧", "Ice Armor")),
     card("mag_blizzard", "mage", "frost", "uncommon", "atk", 2, "none", "any", [{ o: "dmgAll", n: 4, r: "any" }, { o: "stAll", s: "weak", n: 1, r: "any" }], N("暴風雪", "吹雪", "Blizzard")),
     card("mag_icewall", "mage", "frost", "uncommon", "skl", 1, "self", null, [blk(6), { o: "pushAll" }], N("冰牆", "氷壁", "Ice Wall")),
-    card("mag_zero", "mage", "frost", "rare", "skl", 3, "none", "any", [{ o: "stAll", s: "stun", n: 1, r: "any" }], N("絕對零度", "絶対零度", "Absolute Zero"), { exhaust: true }),
+    card("mag_zero", "mage", "frost", "rare", "skl", 2, "none", "any", [{ o: "stAll", s: "stun", n: 1, r: "any" }], N("絕對零度", "絶対零度", "Absolute Zero"), { exhaust: true }),
     card("mag_surge", "mage", "arcane", "common", "skl", 0, "self", null, [{ o: "mana", n: 2 }, { o: "draw", n: 1 }], N("魔力湧泉", "魔力の泉", "Mana Surge"), { exhaust: true }),
     card("mag_intel", "mage", "arcane", "common", "skl", 1, "self", null, [{ o: "draw", n: 2 }, { o: "mana", n: 1 }], N("奧術智慧", "秘術の知恵", "Arcane Intellect")),
     card("mag_chain", "mage", "arcane", "uncommon", "atk", 2, "enemy", "any", [{ o: "dmgSec", n: 11 }], N("連鎖閃電", "連鎖雷", "Chain Lightning")),
@@ -486,13 +486,13 @@
       // 2026-10-23 重做（仿 Hellcard Tinkerer 的累積型資源）：時能每回合累積，每 3 點每回合多 1 魔力；原本的「每回合多抽 1 張」改放 extra
       passive: { p: "flux", n: 1 }, perk: 1, extra: { drawTurn: 1 },
       paths: [{ id: "haste", name: N("加速", "加速", "Haste") }, { id: "stasis", name: N("停滯", "停滞", "Stasis") }, { id: "fore", name: N("預知", "予知", "Foresight") }],
-      start: ["chr_bolt", "chr_bolt", "chr_bolt", "chr_ward", "chr_ward", "chr_ward", "chr_slow", "chr_rewind"] },
+      start: ["chr_bolt", "chr_bolt", "chr_bubble", "chr_ward", "chr_ward", "chr_ward", "chr_slow", "chr_rewind"] },
     { id: "alchemist", name: N("鍊金術師", "錬金術師", "Alchemist"), icon: "⚗️", hp: 70, color: "#1f8f6f",
       desc: N("製作藥水。把 0 費、用完就消失的藥水牌放進自己或隊友的手牌：炸藥、治療、力量、護盾、毒藥。每打 3 張牌，累積的材料會自動做出一瓶藥水；催化方向讓藥水升級、依手上的藥水數量造成傷害。", "薬を作る。0コストの使い切り薬カードを自分や仲間の手札に入れる：爆薬・回復・筋力・防御・毒。カードを3枚使うごとに素材から薬が1本できる。触媒の道では薬を強化し、手札の薬の数でダメージを与える。", "Brews potions: free, single-use potion cards added to your or an ally's hand — bombs, healing, strength, armor, poison. Every 3 cards played, gathered reagents brew a potion automatically. The Catalysis path upgrades potions and deals damage per potion in hand."),
       // 2026-10-23 重做：每打出 3 張牌，累積的材料自動做出一瓶隨機藥水（extra.reagent＝需要幾張）
       passive: { p: "potionStart", n: 2 }, perk: 1, extra: { reagent: 3 },
       paths: [{ id: "bomb", name: N("爆破", "爆破", "Bombs") }, { id: "elixir", name: N("補給", "補給", "Supplies") }, { id: "catalyst", name: N("催化", "触媒", "Catalysis") }],
-      start: ["alc_toss", "alc_toss", "alc_toss", "alc_coat", "alc_coat", "alc_coat", "alc_brew", "alc_flask"] },
+      start: ["alc_toss", "alc_toss", "alc_tear", "alc_coat", "alc_coat", "alc_coat", "alc_brew", "alc_flask"] },
     { id: "gambler", name: N("賭徒", "ギャンブラー", "Gambler"), icon: "🎲", hp: 72, color: "#b8336a",
       desc: N("一切交給骰子。擲骰決定威力、擲 4 以上大贏，輸了就要付出代價。", "すべてはサイコロ次第。出目で威力が決まり、4以上なら大当たり、外れれば代償を払う。", "Leaves it all to the dice: rolls decide the power, a 4 or higher wins big, and losing has a price."),
       passive: { p: "luck", n: 1 }, perk: 1,
@@ -613,7 +613,7 @@
     card("chr_overclock", "chrono", "haste", "uncommon", "skl", 1, "self", null, [{ o: "mana", n: 2 }, { o: "lose", n: 3 }], N("超頻", "オーバークロック", "Overclock")),
     card("chr_chain", "chrono", "haste", "uncommon", "skl", 2, "self", null, [{ o: "draw", n: 3 }, { o: "mana", n: 1 }], N("連續施法", "連続詠唱", "Chain Cast")),
     card("chr_step", "chrono", "haste", "uncommon", "atk", 0, "enemy", "any", [dmg(4)], N("瞬擊", "瞬撃", "Blink Strike")),
-    card("chr_borrow", "chrono", "haste", "uncommon", "skl", 0, "self", null, [{ o: "mana", n: 2 }, later([{ o: "lose", n: 4 }])], N("預支時間", "時間の前借り", "Borrowed Time")),
+    card("chr_borrow", "chrono", "haste", "uncommon", "skl", 0, "self", null, [{ o: "mana", n: 2 }, later([{ o: "lose", n: 4 }])], N("預支時間", "時間の前借り", "Borrowed Time"), { exhaust: true }),
     card("chr_mastery", "chrono", "haste", "rare", "pow", 2, "self", null, [pw("mana", 1)], N("時間掌控", "時の支配", "Time Mastery")),
     card("chr_accel", "chrono", "haste", "rare", "pow", 2, "self", null, [pw("drawTurn", 1)], N("時光加速", "時の加速", "Acceleration")),
     card("chr_double", "chrono", "haste", "rare", "skl", 2, "self", null, [{ o: "mana", n: 3 }, { o: "draw", n: 3 }], N("雙重時間", "二重時間", "Double Time"), { exhaust: true }),
@@ -622,12 +622,12 @@
     card("chr_drag", "chrono", "stasis", "common", "skl", 1, "enemy", "any", [st("weak", 2), { o: "draw", n: 1 }], N("遲緩", "遅延", "Drag")),
     card("chr_freeze", "chrono", "stasis", "common", "skl", 2, "enemy", "any", [st("stun", 1)], N("凍結時間", "時間凍結", "Freeze Time"), { exhaust: true, up: { cost: 1 } }),
     card("chr_anchor", "chrono", "stasis", "common", "atk", 1, "enemy", "any", [dmg(6), st("weak", 1)], N("時間錨", "時の錨", "Time Anchor")),
-    card("chr_field", "chrono", "stasis", "uncommon", "skl", 2, "none", "any", [{ o: "stAll", s: "weak", n: 2, r: "any" }], N("停滯力場", "停滞の場", "Stasis Field")),
-    card("chr_cage", "chrono", "stasis", "uncommon", "skl", 1, "area", "any", [{ o: "stAll", s: "stun", n: 1, r: "any" }], N("時間牢籠", "時の檻", "Time Cage"), { ar: "s", exhaust: true }),
+    card("chr_field", "chrono", "stasis", "uncommon", "skl", 1, "none", "any", [{ o: "stAll", s: "weak", n: 2, r: "any" }], N("停滯力場", "停滞の場", "Stasis Field")),
+    card("chr_cage", "chrono", "stasis", "uncommon", "skl", 1, "area", "any", [{ o: "stAll", s: "stun", n: 1, r: "any" }], N("時間牢籠", "時の檻", "Time Cage"), { ar: "m", exhaust: true }),
     card("chr_zone", "chrono", "stasis", "uncommon", "skl", 1, "none", "near", [{ o: "stAll", s: "weak", n: 1, r: "near" }, { o: "pushAll" }], N("減速領域", "減速領域", "Slow Zone")),
     card("chr_stop", "chrono", "stasis", "uncommon", "atk", 2, "enemy", "any", [dmg(10), st("stun", 1)], N("時停一擊", "時止めの一撃", "Stopped Strike"), { exhaust: true }),
     card("chr_age", "chrono", "stasis", "uncommon", "skl", 1, "enemy", "any", [st("vuln", 2), st("poison", 3)], N("老化", "老化", "Age")),
-    card("chr_world", "chrono", "stasis", "rare", "skl", 3, "none", "any", [{ o: "stAll", s: "stun", n: 1, r: "any" }], N("世界靜止", "世界の静止", "The World Stops"), { exhaust: true }),
+    card("chr_world", "chrono", "stasis", "rare", "skl", 2, "none", "any", [{ o: "stAll", s: "stun", n: 1, r: "any" }], N("世界靜止", "世界の静止", "The World Stops"), { exhaust: true }),
     card("chr_entropy", "chrono", "stasis", "rare", "pow", 2, "self", null, [pw("weakAll", 1)], N("熵增", "エントロピー", "Entropy")),
     card("chr_rift", "chrono", "stasis", "rare", "atk", 2, "enemy", "any", [{ o: "dmgExec", n: 12 }, st("weak", 2)], N("時間斷層", "時の断層", "Time Rift")),
     card("chr_permafrost", "chrono", "stasis", "rare", "skl", 2, "enemy", "any", [st("stun", 1), st("vuln", 3)], N("永凍", "永久凍結", "Permafrost")),
@@ -983,6 +983,20 @@
   ];
   var ALTAR_NUM = { trade: 6, pact: 3, war: 6, warStr: 3 };
   var FOE_HP = { light: 0.75, normal: 1, strong: 1.3 };
+  // 敵人詞綴（2026-10-26 使用者指定）：只用通用效果，不借用各敵人的招牌機制（docs/superpowers/specs/2026-10-26-yellow-affix-design.md）
+  var AFFIXES = [
+    { id: "tough", icon: "❤️", name: N("強韌", "強靭", "Tough"), desc: N("血量 ×1.3", "生命 ×1.3", "×1.3 HP") },
+    { id: "armor", icon: "🛡️", name: N("堅甲", "堅甲", "Armored"), desc: N("開場護盾＝最大血量的 30%", "開戦時に最大生命の 30% の防御", "Starts with block equal to 30% of max HP") },
+    { id: "fury", icon: "💢", name: N("狂暴", "狂暴", "Furious"), desc: N("力量 +1（第二幕起 +2）", "筋力 +1（第二幕から +2）", "+1 Strength (+2 from Act II)") },
+    { id: "swift", icon: "⚡", name: N("迅捷", "迅速", "Swift"), desc: N("攻擊次數 +1", "攻撃回数 +1", "+1 hit on every attack") },
+    { id: "regen", icon: "💚", name: N("再生", "再生", "Regenerating"), desc: N("每回合開始回復最大血量的 5%（至少 1）", "毎ターン開始時に最大生命の 5% 回復（最低 1）", "Heals 5% of max HP at the start of each turn (min 1)") },
+    { id: "undying", icon: "🩹", name: N("不屈", "不屈", "Undying"), desc: N("第一次受到致命傷時剩 1 生命", "初めて致命傷を受けたとき生命 1 で耐える", "Survives the first lethal hit with 1 HP") },
+    { id: "venom", icon: "🐍", name: N("毒牙", "毒牙", "Venomous"), desc: N("攻擊打掉生命時，英雄中毒 1", "攻撃で生命を削ると英雄に毒 1", "Attacks that deal HP damage inflict 1 Poison") },
+    { id: "anchor", icon: "⚓", name: N("穩固", "不動", "Anchored"), desc: N("不會被推開、拉近或換區", "押し出し・引き寄せ・移動を受けない", "Can't be pushed, pulled or moved to another sector") }
+  ];
+  // 2026-10-26 平衡：原本 ×1.5／50%／+2～3／10%／中毒 2、機率 10／20／30% 時貪婪 AI 整體通關 59% → 43%，調弱後 53%
+  var AFFIX_NUM = { tough: 1.3, armor: 0.3, fury: [1, 2, 2], regen: 0.05, venom: 1 };
+  var AFFIX_PCT = [5, 10, 15];   // 一般敵人帶詞綴的機率（第一／二／三幕，無盡模式照第三幕）
 
   // 苦痛等級（2026-10-23 使用者指定，Hellcard 的苦痛等級）：選第 n 級時 1～n 級的效果全部套用；效果寫在 yellow_core.js 的 tor()
   var TORMENTS = [
@@ -1057,7 +1071,7 @@
       desc: N("攻擊、技能交替出牌累積節拍，每次節拍增加就得到護盾。劍舞越跳越強，魅惑讓敵人改打自己人，迴旋舞步守護隊友。", "攻撃とスキルを交互に使って拍子を溜め、拍子が増えるたびに防御。剣舞は舞うほど強く、魅了で敵同士を争わせ、旋回で仲間を守る。", "Alternates attacks and skills to build beat, gaining block every time it rises. Sword dances grow stronger, charm turns enemies on each other, and whirling steps protect allies."),
       passive: { p: "beatBlk", n: 3 }, perk: 1,
       paths: [{ id: "blade", name: N("劍舞", "剣舞", "Blade Dance") }, { id: "charm", name: N("魅惑", "魅了", "Charm") }, { id: "whirl", name: N("迴旋", "旋回", "Whirl") }],
-      start: ["dan_fan", "dan_fan", "dan_fan", "dan_step", "dan_step", "dan_step", "dan_spin", "dan_wink"] },
+      start: ["dan_fan", "dan_fan", "dan_lure", "dan_step", "dan_step", "dan_step", "dan_spin", "dan_wink"] },
     { id: "jujutsu", name: N("咒術師", "呪術師", "Jujutsushi"), icon: "🪆", hp: 80, color: "#4a2040",
       desc: N("受傷就累積咒力。用稻草人偶把自己受的傷轉給敵人，立下束縛換取爆發，消耗咒力展開領域。", "傷を負うほど呪力が溜まる。藁人形で自分の傷を敵に移し、縛りで爆発力を得て、呪力で領域を展開する。", "Builds cursed energy from every wound. Straw dolls pass their pain to enemies, binding vows trade restrictions for power, and cursed energy fuels domain techniques."),
       passive: { p: "ceHit", n: 3 }, perk: 1,
@@ -1322,6 +1336,27 @@
     card("juj_sixeyes", "jujutsu", "domain", "rare", "pow", 2, "self", null, [pw("ceDisc", 1)], N("六眼", "六眼", "Six Eyes"))
   ]);
 
+  // 2026-10-25 使用者指定：敵人變多後補強魔力與範圍控制（docs/yellow_card_design.md「魔力型與範圍控制」）
+  // 魔力型（吟遊詩人、時空術士、法師、武僧）：額外魔力只在回合開始或每回合一次時給，或要消耗資源，結構上不會無限輪轉
+  // 範圍控制（法師、時空術士、鍊金術師、舞孃）：起始牌組各換進一張範圍控制卡，控制路線各多一張
+  CARDS = CARDS.concat([
+    // ---- 魔力型 ----
+    card("bar_tempo", "bard", "anthem", "common", "skl", 1, "none", null, [{ o: "finale", k: "manaAll", n: 1, per: 4 }], N("終曲・激昂", "終曲・高揚", "Finale: Uplift")),
+    card("chr_store", "chrono", "haste", "common", "skl", 1, "self", null, [op("flux", 2), blk(4)], N("蓄時", "時の蓄え", "Stored Time")),
+    card("mag_flow", "mage", "arcane", "uncommon", "pow", 1, "self", null, [pw("manaCombo", 1)], N("法力回流", "魔力還流", "Mana Reflux")),
+    card("mon_cycle", "monk", "zen", "uncommon", "pow", 1, "self", null, [pw("chiMana", 1), op("chi", 2)], N("周天", "周天", "Orbit of Qi")),
+    // ---- 範圍控制：起始卡 ----
+    card("mag_ring", "mage", null, "basic", "skl", 1, "none", "near", [{ o: "pushAll" }, sAll("weak", 2, "near")], N("霜環", "霜の輪", "Frost Ring")),
+    card("chr_bubble", "chrono", null, "basic", "skl", 1, "area", "any", [sAll("stun", 1)], N("時間泡", "時の泡", "Time Bubble"), { ar: "s", exhaust: true }),
+    card("alc_tear", "alchemist", null, "basic", "skl", 1, "area", "any", [sAll("weak", 2)], N("催淚瓶", "催涙瓶", "Tear Gas"), { ar: "m" }),
+    card("dan_lure", "dancer", null, "basic", "skl", 1, "none", "near", [sAll("charm", 1, "near")], N("魅舞", "魅惑の舞", "Alluring Dance"), { exhaust: true }),
+    // ---- 範圍控制：路線卡 ----
+    card("mag_cold", "mage", "frost", "common", "skl", 1, "area", "any", [sAll("stun", 1)], N("寒流", "寒波", "Cold Snap"), { ar: "m", exhaust: true, up: { cost: 0 } }),
+    card("chr_still", "chrono", "stasis", "common", "skl", 1, "none", "near", [sAll("stun", 1, "near")], N("靜止之環", "静止の環", "Ring of Stillness"), { exhaust: true }),
+    card("alc_glue", "alchemist", "bomb", "common", "skl", 1, "area", "any", [sAll("weak", 1), { o: "pushAll" }], N("黏膠瓶", "粘着瓶", "Glue Flask"), { ar: "m" }),
+    card("dan_sway", "dancer", "charm", "common", "skl", 1, "area", "any", [sAll("charm", 1)], N("搖曳", "揺らめき", "Sway"), { ar: "m" })
+  ]);
+
   (function () {
     var seen = {};
     CARDS.forEach(function (c) {
@@ -1342,13 +1377,14 @@
     ENEMIES: ENEMIES, ENEMY: index(ENEMIES),
     RELICS: RELICS, RELIC: index(RELICS), ALTAR_HP: ALTAR_HP,
     ACTS: ACTS, REGIONS: REGIONS, REGION: index(REGIONS), FLOORS: FLOORS, DESTS: DESTS, DEST: index(DESTS), FOE_HP: FOE_HP,
+    AFFIXES: AFFIXES, AFFIX: index(AFFIXES), AFFIX_NUM: AFFIX_NUM, AFFIX_PCT: AFFIX_PCT,
     MAX_PERK: MAX_PERK, SHRINE_PCT: SHRINE_PCT, ALTARS: ALTARS, ALTAR: index(ALTARS), ALTAR_NUM: ALTAR_NUM,
     TMODS: TMODS, TMOD: index(TMODS), LEVEL_XP: LEVEL_XP, STARTERS: STARTERS, MAX_FLUX: 10,
     // 敵人判定圓的半徑（戰場座標：圓形戰場直徑 100）；size 沒寫時菁英＝l、Boss＝boss、其他＝m
     // （2026-10-22 使用者指定再縮小一半）
     ENEMY_R: { s: 1.5, m: 1.9, l: 2.5, boss: 4 },
     // 指定範圍卡（tgt:"area"）範圍圈的半徑
-    AREA_R: { s: 7, m: 10, l: 13 },
+    AREA_R: { s: 9, m: 12, l: 15 },
     FORMS: FORMS, POTIONS: POTIONS, MAX_CHI: 10,
     // 2026-10-24 新英雄：彈藥（海賊）、咒力（咒術師）、節拍（舞孃）、式神等級與每級傷害（陰陽師）、替身層數（忍者）的上限
     MAX_AMMO: 6, MAX_CE: 10, MAX_BEAT: 10, MAX_SHIKI: 5, SHIKI_DMG: 5, MAX_DODGE: 3,

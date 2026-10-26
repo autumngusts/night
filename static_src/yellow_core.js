@@ -30,7 +30,8 @@
   var GEN = { wood: "fire", fire: "earth", earth: "metal", metal: "water", water: "wood" };
   var NEG_STATUS = ["weak", "vuln", "poison", "burn"];
   var DEBUFF_TYPES = ["weak", "vuln", "poison", "burn", "stun"];
-  var MAX_ENEMIES = 14;
+  // 2026-10-24 每區敵人變多（4 人第三幕開場最多 20 隻），上限從 14 提高
+  var MAX_ENEMIES = 28;
   var LOG_MAX = 120;
   var SPIRIT_DMG = 2;
 
@@ -160,12 +161,15 @@
     if (e.st.stun > 0) return [{ k: "stun" }];
     var acts = e.intent || [];
     // 魅惑（舞孃）：攻擊改打另一隻敵人，不再前進／後退
-    if (e.st.charm > 0) return acts.map(function (a) { return a.k === "atk" ? { k: "charm", n: a.n, h: a.h } : a; });
+    if (e.st.charm > 0) return acts.map(function (a) { return a.k === "atk" ? { k: "charm", n: a.n, h: (a.h || 1) + (e.af === "swift" ? 1 : 0) } : a; });
     var hasAtk = acts.some(function (a) { return a.k === "atk"; });
     if (hasAtk && def.kind === "melee" && e.ring === "far") return acts.filter(function (a) { return a.k !== "atk"; }).concat([{ k: "move", to: "near" }]);
     if (hasAtk && def.kind === "ranged" && e.ring === "near") return acts.filter(function (a) { return a.k !== "atk"; }).concat([{ k: "move", to: "far" }]);
+    // 迅捷（詞綴）：攻擊次數 +1
+    if (e.af === "swift") return acts.map(function (a) { return a.k === "atk" ? swiftAtk(a) : a; });
     return acts;
   }
+  function swiftAtk(a) { var b = {}; Object.keys(a).forEach(function (k) { b[k] = a[k]; }); b.h = (a.h || 1) + 1; return b; }
 
   function adjacentSec(st, a, b) {
     var n = sectorCount(st);
@@ -252,6 +256,7 @@
   function enemyHitValue(st, e, n, seat) {
     var v = (n + (e.str || 0)) * DMG_BY_ACT[actOf(st)] * (1 + D.ENDLESS.dmg * loopOf(st)) * (tor(st, 2) ? 1.1 : 1) * (1 + tmodVal(st, "dmg") / 100);
     if (isBoss(e)) v = v * BOSS_DMG_BY_PARTY[partySize(st)];
+    v = v * (e.wk || 1);
     if (e.st.weak > 0) v = v * 0.75;
     var h = hero(st, seat);
     if (h && h.st.vuln > 0) v = v * 1.5;
@@ -282,7 +287,7 @@
     st.log.push(entry);
     if (st.log.length > LOG_MAX) st.log.splice(0, st.log.length - LOG_MAX);
   }
-  function eref(e) { return { k: "e", id: e.id, u: e.u }; }
+  function eref(e) { var r = { k: "e", id: e.id, u: e.u }; if (e.af) r.af = e.af; return r; }
   function href(h) { return { k: "h", s: h.seat }; }
 
   // ---------------- 傷害・狀態 ----------------
@@ -293,6 +298,8 @@
     var absorbed = 0;
     if (!ignoreBlock) { absorbed = Math.min(e.blk, amount); e.blk -= absorbed; }
     var dmg = amount - absorbed;
+    // 不屈（詞綴）：第一次致命傷剩 1 生命
+    if (e.af === "undying" && !e.afUsed && dmg >= e.hp) { dmg = e.hp - 1; e.afUsed = true; log(st, { t: "afUndying", to: eref(e) }); }
     e.hp = Math.max(0, e.hp - dmg);
     log(st, { t: "dmg", to: eref(e), n: dmg, b: absorbed });
     if (e.hp <= 0) log(st, { t: "kill", to: eref(e) });
@@ -404,6 +411,12 @@
     if (h && s === "poison" && h.pw.poisonPlus) n += h.pw.poisonPlus;
     // 魅惑：首領免疫；綁定：記住是誰綁的（那位英雄受傷時才會連帶）
     if (s === "charm" && isBoss(e)) return;
+    // 2026-10-25 使用者指定：首領與菁英暈眩結束後免疫 1 回合（stImm），暈眩也不疊加，避免被範圍暈眩鎖死
+    if (s === "stun" && stunGuarded(e)) {
+      if (e.stImm > 0) { log(st, { t: "stunImm", to: eref(e) }); return; }
+      if (e.st.stun > 0) return;
+      n = 1;
+    }
     if (s === "link" && h) e.lk = h.seat;
     e.st[s] = (e.st[s] || 0) + n;
     log(st, { t: "st", to: eref(e), s: s, n: n });
@@ -413,6 +426,8 @@
   // 所以「擊退 → 敵人前進 → 再踩一次」是陷阱路線的核心循環
   function moveEnemy(st, e, ring) {
     if (e.hp <= 0 || isBoss(e) || e.ring === ring) return;
+    // 穩固（詞綴）：不會被推開、拉近
+    if (e.af === "anchor") { log(st, { t: "afAnchor", to: eref(e) }); return; }
     e.ring = ring;
     log(st, { t: "move", to: eref(e), z: ring });
     if (ring === "near") {
@@ -428,6 +443,8 @@
   // 把敵人移到別的扇形區（2026-10-23 使用者指定，Hellcard 的站位）：Boss 不會被移動；單人只有一區，沒有效果
   function shiftEnemy(st, e, sec) {
     if (!e || e.hp <= 0 || isBoss(e) || sectorCount(st) < 2 || e.sec === sec) return;
+    // 穩固（詞綴）：不會被換區
+    if (e.af === "anchor") { log(st, { t: "afAnchor", to: eref(e) }); return; }
     e.sec = sec;
     log(st, { t: "shift", to: eref(e), sec: sec });
   }
@@ -510,9 +527,15 @@
     });
   }
   // 從棄牌堆拿回最近的 n 張（時空術士的回溯）
+  // 2026-10-25：回溯不會拿回其他回溯牌（兩張時間迴路互相拿回＋預支時間曾經能無限產生魔力）
   function recall(st, h, n) {
     var got = 0;
-    for (var i = 0; i < n && h.disc.length && !handFull(h); i++) { h.hand.push(h.disc.pop()); got++; }
+    for (var j = h.disc.length - 1; j >= 0 && got < n && !handFull(h); j--) {
+      var cd = D.CARD[h.disc[j].id];
+      if (cd && cd.fx.some(function (f) { return f.o === "recall"; })) continue;
+      h.hand.push(h.disc.splice(j, 1)[0]);
+      got++;
+    }
     if (got) log(st, { t: "recall", to: href(h), n: got });
   }
 
@@ -522,11 +545,19 @@
     st.enemies = st.enemies.filter(function (e) { return e.hp > 0; });
     dead.forEach(function (e) {
       var dd = D.ENEMY[e.id];
+      // 偷牌的小偷倒下：偷走的牌還回各自英雄的棄牌堆
+      if (e.loot && e.loot.length) {
+        var back = {};
+        e.loot.forEach(function (x) { var lh = hero(st, x.s); if (lh) { lh.disc.push(x.c); back[x.s] = (back[x.s] || 0) + 1; } });
+        e.loot = [];
+        Object.keys(back).forEach(function (s) { log(st, { t: "stealBack", to: href(hero(st, Number(s))), n: back[s], src: eref(e) }); });
+      }
       // 爆炸（祭典）：倒下時對所在區域的英雄造成 burst 傷害（護盾可擋；只打一人，人數多時才不會疊加）
+      // 爆炸不算「攻擊」：不吃結界、替身、減半，也不看挑釁；帶 src 讓三枚貝殼觸發、重播有出手動畫
       var bh = dd && dd.burst && st.phase === "battle" ? laneTarget(st, e) : null;
       if (bh) {
         log(st, { t: "burst", to: eref(e), n: dd.burst });
-        hitHero(st, bh, enemyHitValue(st, e, dd.burst, bh.seat), false);
+        hitHero(st, bh, enemyHitValue(st, e, dd.burst, bh.seat), false, e);
       }
       // 喝采（羅馬競技場）：有同伴倒下時，帶 rally 的敵人力量 +rally
       if (st.phase === "battle") st.enemies.forEach(function (x) {
@@ -540,6 +571,8 @@
         if (m) { chooseIntent(st, m); log(st, { t: "split", to: eref(m), src: { k: "e", id: e.id, u: e.u } }); }
       }
     });
+    // 爆炸傷害經由綁定（link）連帶打倒其他敵人時，那些敵人也要在這裡清掉（否則戰鬥不會結束）
+    if (st.enemies.some(function (e) { return e.hp <= 0; })) removeDead(st);
   }
 
   // 精靈攻擊：每隻打自己扇形區的一個隨機敵人，沒有就打任意敵人
@@ -572,12 +605,32 @@
   function spawnEnemy(st, id, sec, ring, hpMult) {
     var def = D.ENEMY[id];
     if (!def || st.enemies.length >= MAX_ENEMIES) return null;
-    var hp = Math.round((def.hp[0] + rint(st, def.hp[1] - def.hp[0] + 1)) * (hpMult || 1));
+    // 2026-10-26 使用者指定：敵人變多後一般敵人單隻變弱（血量與攻擊同倍率，首領與菁英本體不變），見 FOE_WEAK
+    var wk = def.boss || def.elite ? 1 : FOE_WEAK[actOf(st)];
+    var hp = Math.max(1, Math.round((def.hp[0] + rint(st, def.hp[1] - def.hp[0] + 1)) * (hpMult || 1) * wk));
     st.uid += 1;
     var e = { u: st.uid, id: id, hp: hp, max: hp, blk: 0, str: 0, st: { weak: 0, vuln: 0, poison: 0, burn: 0, stun: 0 },
-      sec: sec, ring: def.boss ? "far" : (ring || def.spawn || "far"), pi: 0, last: -1, intent: [] };
+      wk: wk, sec: sec, ring: def.boss ? "far" : (ring || def.spawn || "far"), pi: 0, last: -1, intent: [] };
     st.enemies.push(e);
     return e;
+  }
+
+  // ---- 敵人詞綴（2026-10-26 使用者指定，見 D.AFFIXES）----
+  function applyAffix(st, e, id) {
+    e.af = id;
+    var N2 = D.AFFIX_NUM;
+    if (id === "tough") { e.max = Math.round(e.max * N2.tough); e.hp = e.max; }
+    else if (id === "armor") e.blk += Math.floor(e.max * N2.armor);
+    else if (id === "fury") e.str += N2.fury[actOf(st)];
+  }
+  // 開場的敵人抽詞綴：首領不帶、菁英必帶、一般敵人依幕數機率（只在開戰時呼叫，召喚與分裂不會帶）
+  function rollAffixes(st) {
+    st.enemies.forEach(function (e) {
+      var d = D.ENEMY[e.id];
+      if (!d || d.boss) return;
+      if (!d.elite && rint(st, 100) >= D.AFFIX_PCT[actOf(st)]) return;
+      applyAffix(st, e, pick(st, D.AFFIXES).id);
+    });
   }
 
   function chooseIntent(st, e) {
@@ -605,7 +658,9 @@
       var bid = st.boss && D.ENEMY[st.boss] ? st.boss : pick(st, act.bosses);
       spawnEnemy(st, bid, rint(st, n), "far", BOSS_HP_BY_PARTY[partySize(st)] * BOSS_HP_MULT * (1 + D.ENDLESS.hp * loopOf(st)) * (tor(st, 7) ? 1.2 : 1));
       var minion = D.ENEMY[bid].minion || act.minion;
-      for (var s = 0; s < n; s++) spawnEnemy(st, minion, s, null, HP_BY_ACT[actOf(st)] * extraHp(st));
+      for (var s = 0; s < n; s++) {
+        for (var k = rollCount(st, BOSS_MINIONS[actOf(st)]); k > 0; k--) spawnEnemy(st, minion, s, null, HP_BY_ACT[actOf(st)] * extraHp(st));
+      }
       return;
     }
     // 每個扇形區的敵人依那一區主人選的目的地（Hellcard 式，使用者指定 2026-10-22）：菁英／較強／一般／較弱
@@ -613,8 +668,28 @@
       var owner = secOwner(st, q);
       var dd = owner && D.DEST[owner.dest];
       var foe = dd ? dd.foe : "normal";
-      if (foe === "elite") spawnEnemy(st, pick(st, act.elites), q, "far", mult * (tor(st, 3) ? 1.25 : 1));
-      else pick(st, act.packs).forEach(function (id) { spawnEnemy(st, id, q, null, mult * (D.FOE_HP[foe] || 1)); });
+      if (foe === "elite") {
+        spawnEnemy(st, pick(st, act.elites), q, "far", mult * (tor(st, 3) ? 1.25 : 1));
+        fillSector(st, act, q, rollCount(st, ELITE_ESCORT[actOf(st)]), mult);
+      } else fillSector(st, act, q, rollCount(st, FOES_PER_SEC[actOf(st)]), mult * (D.FOE_HP[foe] || 1));
+    }
+  }
+  // 2026-10-24 使用者指定：原本每區只有一組（1～2 隻）是精簡版，正式版一人面對 3、4 隻以上，且依幕數增加。
+  // 單隻血量不變（整體變難）。數量是開場的，召喚、分裂另計
+  // 2026-10-26 使用者指定：第一幕加得少、後面加得多，第三幕仍平均每人 4 隻以上（原本 2～3／3～4／4～5 時模擬全滅）
+  var FOES_PER_SEC = [[1, 3], [2, 4], [4, 5]];   // 一般區：第一／二／三幕（無盡模式照第三幕）
+  var ELITE_ESCORT = [[0, 1], [1, 2], [2, 3]];   // 菁英區：菁英＋一般敵人（依幕數）
+  var BOSS_MINIONS = [[1, 2], [2, 3], [3, 4]];   // 首領戰：每區的手下（依幕數）
+  // 一般敵人（含護衛、手下、召喚、分裂）單隻的血量與攻擊倍率：每區平均 2／3／4.5 隻，整區總壓力約舊版 1.07／1.2／1.35 倍
+  var FOE_WEAK = [0.8, 0.6, 0.45];
+  function rollCount(st, range) { return range[0] + rint(st, range[1] - range[0] + 1); }
+  // 從區域的敵人組合連續抽，直到這一區有 count 隻（最後一組超過就截掉）
+  function fillSector(st, act, q, count, mult) {
+    while (count > 0) {
+      var pack = pick(st, act.packs);
+      for (var i = 0; i < pack.length && count > 0; i++, count--) {
+        if (!spawnEnemy(st, pack[i], q, null, mult)) return;
+      }
     }
   }
 
@@ -659,6 +734,7 @@
       if (h.pw.ammoStart) gainAmmo(h, h.pw.ammoStart);
     });
     buildEncounter(st, kind);
+    rollAffixes(st);
     // 苦痛修正：敵人開戰護盾／力量
     st.enemies.forEach(function (e) { e.blk += tmodVal(st, "blk"); e.str += tmodVal(st, "str"); });
     log(st, { t: "battle", kind: kind, act: st.act, floor: st.floor });
@@ -697,6 +773,11 @@
     if (h.pw.ceTurn) gainCe(h, h.pw.ceTurn);
     // 時空術士的時能：每回合累積，每 3 點多 1 魔力
     if (h.pw.flux) { h.flux = Math.min(D.MAX_FLUX, (h.flux || 0) + h.pw.flux); h.mana += Math.floor(h.flux / 3); }
+    // 周天（武僧）：回合開始時每 3 氣換 1 魔力，最多 chiMana 次（只在回合開始換，不會在回合中輪轉）
+    if (h.pw.chiMana) {
+      var cm = Math.min(h.pw.chiMana, Math.floor((h.chi || 0) / 3));
+      if (cm > 0) { h.chi -= cm * 3; h.mana += cm; log(st, { t: "manaGain", to: href(h), n: cm }); }
+    }
     // 守護戒指：生命最低的其他隊友得到護盾
     if (relicSum(h, "allyBlk")) {
       var low = alive(st).filter(function (x) { return x !== h; }).sort(function (a, b) { return a.hp / a.max - b.hp / b.max; })[0];
@@ -758,11 +839,22 @@
   function enemyTurn(st, e) {
     if (e.hp <= 0) return;
     e.blk = 0;
+    // 再生（詞綴）：每回合開始回復最大血量的 10%（至少 1）
+    if (e.af === "regen" && e.hp < e.max) {
+      var rv = Math.min(e.max - e.hp, Math.max(1, Math.floor(e.max * D.AFFIX_NUM.regen)));
+      e.hp += rv; log(st, { t: "heal", to: eref(e), n: rv, src: eref(e) });
+    }
     if (e.st.poison > 0) { hitEnemy(st, e, e.st.poison, true); e.st.poison -= 1; }
     if (e.hp > 0 && e.st.burn > 0) { hitEnemy(st, e, e.st.burn, true); e.st.burn = Math.floor(e.st.burn / 2); }
     if (e.hp <= 0) return;
     var acts = effActs(st, e);
-    if (e.st.stun > 0) { e.st.stun -= 1; log(st, { t: "stunned", to: eref(e) }); return; }
+    if (e.st.stun > 0) {
+      e.st.stun -= 1;
+      log(st, { t: "stunned", to: eref(e) });
+      // 免疫到下一回合結束（這回合結束的 decay 扣 1、下一回合結束再扣 1）
+      if (e.st.stun <= 0 && stunGuarded(e)) e.stImm = 2;
+      return;
+    }
     acts.forEach(function (act) {
       if (st.phase !== "battle" || e.hp <= 0) return;
       runEnemyAct(st, e, act);
@@ -791,6 +883,11 @@
           } else {
             // 空襲（航空母艦）：pierce 的攻擊無視護盾
             var lost = hitHero(st, h, hv, !!act.pierce, e);
+            // 毒牙（詞綴）：打掉生命才中毒
+            if (e.af === "venom" && lost > 0 && !h.down) {
+              h.st.poison = (h.st.poison || 0) + D.AFFIX_NUM.venom;
+              log(st, { t: "st", to: href(h), s: "poison", n: D.AFFIX_NUM.venom, src: eref(e) });
+            }
             // 吸血攻擊：打掉多少生命就回復多少
             if (act.drain && lost > 0 && e.hp > 0) { var v = Math.min(lost, e.max - e.hp); if (v > 0) { e.hp += v; log(st, { t: "heal", to: eref(e), n: v, src: eref(e) }); } }
           }
@@ -861,7 +958,8 @@
       // 戲法（馬戲團）：瞬間移到另一位英雄的扇形區，內外圈對調（首領只換區）；all＝全體敵人一起換
       (act.all ? st.enemies : [e]).forEach(function (x) { if (x.hp > 0) swapEnemy(st, x); });
     } else if (act.k === "steal") {
-      // 偷牌（無人島）：從目標英雄的抽牌堆隨機拿走 n 張，這場戰鬥都拿不回來（戰鬥結束後牌組不受影響）
+      // 偷牌（無人島）：從目標英雄的抽牌堆（抽牌堆空了就從棄牌堆）隨機拿走 n 張，放在小偷身上（e.loot），打倒小偷才還回棄牌堆。
+      // 2026-10-25 修正：原本直接進消耗堆、整場拿不回來，牌被偷光的英雄完全無法行動，曾造成戰鬥卡死
       actTargets(st, e, act).forEach(function (seat) {
         var h = hero(st, seat);
         if (!h || h.down) return;
@@ -869,7 +967,7 @@
         for (var i = 0; i < act.n; i++) {
           var pile = h.draw.length ? h.draw : h.disc;
           if (!pile.length) break;
-          h.exh.push(pile.splice(rint(st, pile.length), 1)[0]);
+          (e.loot = e.loot || []).push({ s: seat, c: pile.splice(rint(st, pile.length), 1)[0] });
           got++;
         }
         if (got) log(st, { t: "steal", to: href(h), n: got, src: eref(e) });
@@ -881,13 +979,16 @@
   }
 
   function swapEnemy(st, x) {
+    if (x.af === "anchor") { log(st, { t: "afAnchor", to: eref(x) }); return; }
     var n = sectorCount(st);
     if (n > 1) x.sec = (x.sec + 1 + rint(st, n - 1)) % n;
     if (!isBoss(x)) x.ring = x.ring === "near" ? "far" : "near";
     log(st, { t: "swap", to: eref(x), z: x.ring, sec: x.sec });
   }
 
+  function stunGuarded(e) { var d = D.ENEMY[e.id]; return !!(d && (d.boss || d.elite)); }
   function decay(obj) {
+    if (obj.stImm > 0) obj.stImm -= 1;
     ["weak", "vuln", "charm", "link"].forEach(function (s) { if (obj.st[s] > 0 && !(obj.fresh && obj.fresh[s])) obj.st[s] -= 1; });
     obj.fresh = null;
   }
@@ -1231,6 +1332,8 @@
     h.bonus = 0;
     // 連擊數、本回合攻擊牌數、節拍（換牌型）、隱遁（第 3 張得到替身）、只能再打 n 張
     h.combo += 1;
+    // 法力回流（法師）：每回合打出第 3 張牌時得到魔力（連擊數每回合歸零，所以每回合只會觸發一次）
+    if (h.pw.manaCombo && h.combo === 3 && !h.down) { h.mana += h.pw.manaCombo; log(st, { t: "manaGain", to: href(h), n: h.pw.manaCombo }); }
     if (d.type === "atk") h.atkN += 1;
     if (h.pw.beatBlk !== undefined && !h.down) {
       if (h.lastType && h.lastType !== d.type) gainBeat(st, h, 1);
@@ -1297,6 +1400,8 @@
       case "regen": if (ts) { ts.st.regen += f.n; log(st, { t: "st", to: href(ts), s: "regen", n: f.n }); } break;
       case "draw": drawCards(st, h, f.n); break;
       case "mana": h.mana += f.n; break;
+      // 時能（時空術士）：每 3 點在回合開始多 1 魔力，上限 MAX_FLUX
+      case "flux": h.flux = Math.min(D.MAX_FLUX, (h.flux || 0) + f.n); log(st, { t: "flux", to: href(h), n: f.n }); break;
       case "str": h.str += f.n; log(st, { t: "str", to: href(h), n: f.n }); break;
       case "strAll": alive(st).forEach(function (x) { x.str += f.n; log(st, { t: "str", to: href(x), n: f.n }); }); break;
       case "strAlly": if (ts) { ts.str += f.n; log(st, { t: "str", to: href(ts), n: f.n }); } break;
@@ -1357,6 +1462,8 @@
         else if (f.k === "strAll") { if (n > 0) alive(st).forEach(function (x) { x.str += n; log(st, { t: "str", to: href(x), n: n }); }); }
         else if (f.k === "dmgAll") { if (n > 0) inRange(st, "any").forEach(function (e) { heroAttack(st, h, e, n); }); }
         else if (f.k === "dmg") { if (n > 0) heroAttack(st, h, te, n); }
+        // 終曲・激昂：存活的隊友（含自己）各得到魔力；要先累積旋律，所以不會自己無限輪轉
+        else if (f.k === "manaAll") { if (n > 0) alive(st).forEach(function (x) { x.mana += n; log(st, { t: "manaGain", to: href(x), n: n }); }); }
         break;
       case "appeal": break;
       // 武僧
@@ -1614,6 +1721,7 @@
     sectorCount: sectorCount, secOf: secOf, secOwner: secOwner, relicSum: relicSum,
     restPct: restPct, loopOf: loopOf, actDef: actDef, regionOf: regionOf, nextFloor: nextFloor, tmodVal: tmodVal, unlocked: unlocked, bloodCost: bloodCost,
     warded: warded, potionCount: potionCount, reagentNeed: reagentNeed, aimsAt: aimsAt, ammoCap: ammoCap, GEN: GEN,
+    rollAffixes: rollAffixes, applyAffix: applyAffix, hitEnemy: hitEnemy, enemyTurn: enemyTurn, runEnemyAct: runEnemyAct, moveEnemy: moveEnemy, shiftEnemy: shiftEnemy,
     _rnd: rnd
   };
 })();

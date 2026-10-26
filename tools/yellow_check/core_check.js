@@ -33,7 +33,8 @@ function check(st) {
 // 把敵人都打到剩 1 血、一擊就能清場（測試獎勵流程用）。
 // 2026-10-23 加入「分裂」的敵人（倒下時生出小怪，戰鬥不會馬上結束），所以先換成不會分裂的骷髏兵
 function weakenAll(st) {
-  st.enemies.forEach(function (e) { if (D.ENEMY[e.id].split) e.id = "skel"; e.hp = 1; e.blk = 0; });
+  // afUsed：詞綴「不屈」視為已觸發（2026-10-26），否則血量 1 的敵人第一下不會死
+  st.enemies.forEach(function (e) { if (D.ENEMY[e.id].split) e.id = "skel"; e.hp = 1; e.blk = 0; e.afUsed = true; });
 }
 function rand(arr, r) { return arr[Math.floor(r() * arr.length)]; }
 // 全員選目的地（依序選 want 裡第一個有的，沒有就選第一個）
@@ -283,8 +284,14 @@ for (var g = 0; g < games; g++) {
   Core.apply(st5, "local", { t: "dest", s: 1, i: 0 });
   assert(st5.phase === "battle", "全員選好應開戰");
   var sec0 = st5.enemies.filter(function (e) { return e.sec === Core.secOf(st5, 0); });
-  assert(sec0.length === 1 && D.ENEMY[sec0[0].id].elite, "選菁英的英雄那一區應是菁英");
-  assert(st5.enemies.filter(function (e) { return e.sec === Core.secOf(st5, 1); }).every(function (e) { return !D.ENEMY[e.id].elite; }), "選營火的區不應有菁英");
+  // 舊期望「菁英區只有 1 隻」已過時：2026-10-24 使用者指定菁英區＝菁英＋1～2 隻一般敵人
+  var el0 = sec0.filter(function (e) { return D.ENEMY[e.id].elite; });
+  // 2026-10-26 再改：護衛依幕數 0～1／1～2／2～3，第一幕是菁英＋0～1 隻
+  assert(el0.length === 1 && sec0.length >= 1 && sec0.length <= 2, "選菁英的英雄那一區應是 1 隻菁英＋0～1 隻隨從，實際 " + sec0.length + " 隻");
+  var sec1 = st5.enemies.filter(function (e) { return e.sec === Core.secOf(st5, 1); });
+  assert(sec1.every(function (e) { return !D.ENEMY[e.id].elite; }), "選營火的區不應有菁英");
+  // 一般區第一幕 1～3 隻（2026-10-24 的 2～3／3～4／4～5 已過時：2026-10-26 使用者指定改成 1～3／2～4／4～5）
+  assert(sec1.length >= 1 && sec1.length <= 3, "第一幕一般區應有 1～3 隻，實際 " + sec1.length);
   // 打贏：只領目的地的獎勵（2026-10-23 仿 Hellcard，不再固定選卡）：菁英＝遺物＋選卡、營火＝休息
   var relics0 = p0.relics.length;
   weakenAll(st5);
@@ -397,6 +404,8 @@ for (var g = 0; g < games; g++) {
   var ally = tr.heroes[1];
   ally.hp = 20;
   var atkE = tr.enemies[0];
+  // 2026-10-26 一般敵人第一幕 ×0.8 後蝙蝠每下只剩 1 傷害（一半捨去＝0 回復），這裡固定原本強度驗證貝殼
+  tr.enemies.forEach(function (x) { x.wk = 1; });
   tr.heroes[0].blk = 0;
   var lost = 0;
   (function () { var hp0 = tr.heroes[0].hp; Core.apply(tr, "local", { t: "end", s: 0 }); Core.apply(tr, "local", { t: "end", s: 1 }); lost = hp0 - tr.heroes[0].hp; })();
@@ -762,11 +771,17 @@ for (var g = 0; g < games; g++) {
   var sec0 = cl.sec;
   endRound(rx.st);
   assert(cl.sec !== sec0 && cl.ring === "far", "戲法：換區且內圈→外圈，實際 sec " + sec0 + "→" + cl.sec + " " + cl.ring);
-  // 偷牌：抽牌堆少 n 張、進消耗堆
+  // 偷牌：抽牌堆少 n 張、放在小偷身上；打倒小偷就還回棄牌堆
+  // 舊期望「進消耗堆、整場拿不回來」已過時：2026-10-25 牌被偷光的英雄無法行動、戰鬥卡死，改成打倒小偷還回來
   var mk = foesAt(rx.st, [{ id: "monkey", hp: 500, intent: [{ k: "steal", n: 2 }] }])[0];
   var tot0 = rxh.draw.length + rxh.disc.length + rxh.hand.length, ex0 = rxh.exh.length;
   endRound(rx.st);
-  assert(rxh.exh.length === ex0 + 2 && rxh.draw.length + rxh.disc.length + rxh.hand.length === tot0 - 2, "偷牌：拿走 2 張到消耗堆");
+  assert(rxh.exh.length === ex0 && mk.loot.length === 2 && rxh.draw.length + rxh.disc.length + rxh.hand.length === tot0 - 2, "偷牌：拿走 2 張放在小偷身上");
+  var disc0 = rxh.disc.length;
+  foesAt(rx.st, [mk, { id: "skel", hp: 500, intent: [] }].map(function (x) { return x.u ? { id: x.id, hp: 1, ring: "near", intent: [] } : x; }));
+  rx.st.enemies[0].loot = mk.loot;
+  playCard(rx.st, 0, "pal_strike", { e: rx.st.enemies[0].u });
+  assert(rxh.disc.length === disc0 + 2 + 1, "打倒小偷：2 張被偷的牌回到棄牌堆（加上剛打出的牌），實際 " + (rxh.disc.length - disc0));
   // 空襲：無視護盾
   var dr = foesAt(rx.st, [{ id: "drone", hp: 500, intent: [{ k: "atk", n: 6, pierce: true }] }])[0];
   rxh.blk = 50; rxh.hp = rxh.max;
@@ -783,6 +798,12 @@ for (var g = 0; g < games; g++) {
   var gl = foesAt(rx.st, [{ id: "gladiator", hp: 500, intent: [] }, { id: "skel", hp: 1, intent: [] }]);
   playCard(rx.st, 0, "pal_strike", { e: gl[1].u });
   assert(gl[0].str === D.ENEMY.gladiator.rally, "喝采：同伴倒下力量 +" + D.ENEMY.gladiator.rally + "，實際 " + gl[0].str);
+  // 爆炸傷害經由綁定（link）連帶打倒最後一隻敵人：戰鬥要馬上結束，不能留下 0 血的敵人（2026-10-24 修正）
+  var fl = foesAt(rx.st, [{ id: "firework", hp: 1, intent: [] }, { id: "skel", hp: 1, intent: [] }]);
+  fl[1].st.link = 2; fl[1].lk = rxh.seat;
+  rxh.blk = 0; rxh.hp = rxh.max;
+  playCard(rx.st, 0, "pal_strike", { e: fl[0].u });
+  assert(rx.st.phase !== "battle" && !rx.st.enemies.length, "爆炸→綁定連帶擊倒最後一隻：戰鬥應結束，實際 " + rx.st.phase + " / " + rx.st.enemies.length + " 隻");
 
   // ---- 2026-10-24 新英雄（忍者、劍豪、陰陽師、海賊、舞孃、咒術師；docs/yellow_new_heroes.md） ----
   // 期望值盡量從資料讀（被動數值、彈藥上限）；敵人傷害用 Core.enemyHitValue 算（會乘上幕數倍率）
@@ -921,6 +942,152 @@ for (var g = 0; g < games; g++) {
   playCard(jj.st, 0, "juj_nail", { e: jf.u });
   assert(jf.hp === 500 - nail * 2, "縛・一擊：下一張牌發動兩次，實際 " + (500 - jf.hp));
   assert(playCard(jj.st, 0, "juj_nail", { e: jf.u }) === "cannot_play", "縛・一擊：之後不能再出牌");
+
+  // ---- 2026-10-25 魔力型、範圍控制、首領抗暈、防無限輪轉 ----
+  // 起始牌組各有一張範圍控制卡
+  [["mage", "mag_ring"], ["chrono", "chr_bubble"], ["alchemist", "alc_tear"], ["dancer", "dan_lure"]].forEach(function (p) {
+    assert(D.CLASS[p[0]].start.indexOf(p[1]) >= 0, p[0] + " 的起始牌組應有 " + p[1]);
+  });
+  // 首領：暈眩不疊加、暈眩結束後免疫到下一回合結束，再下一回合又能暈
+  var bz = duo("chrono", 251);
+  var bossF = setFoes(bz.st, [{ id: bz.st.boss, hp: 900, intent: [] }])[0];
+  playCard(bz.st, 0, "chr_freeze", { e: bossF.u });
+  playCard(bz.st, 0, "chr_freeze", { e: bossF.u });
+  assert(bossF.st.stun === 1, "首領的暈眩不疊加，實際 " + bossF.st.stun);
+  endRound(bz.st);
+  assert(bossF.st.stun === 0 && bossF.stImm > 0, "首領暈眩結束後應免疫");
+  playCard(bz.st, 0, "chr_freeze", { e: bossF.u });
+  assert(bossF.st.stun === 0, "免疫中的首領不會被暈眩");
+  bossF.intent = []; bossF.hp = 900;
+  endRound(bz.st);
+  playCard(bz.st, 0, "chr_freeze", { e: bossF.u });
+  assert(bossF.st.stun === 1, "免疫過了一回合後又能暈眩，實際 " + bossF.st.stun);
+  // 一般敵人照舊可以疊加
+  var mobF = setFoes(bz.st, [{ id: "skel", hp: 500, intent: [] }])[0];
+  playCard(bz.st, 0, "chr_freeze", { e: mobF.u });
+  playCard(bz.st, 0, "chr_freeze", { e: mobF.u });
+  assert(mobF.st.stun === 2, "一般敵人的暈眩照舊疊加，實際 " + mobF.st.stun);
+  // 法力回流：每回合第 3 張牌 +1 魔力，只觸發一次
+  var mf = duo("mage", 252);
+  setFoes(mf.st, [{ id: "skel", hp: 500, intent: [] }]);
+  mf.h.pw.manaCombo = 1; mf.h.combo = 0;
+  function playNoRefill(s6, seat, id) { var u = (s6.uid += 1); s6.heroes[seat].hand.push({ u: u, id: id }); return Core.apply(s6, "local", { t: "play", s: seat, u: u, tg: null }); }
+  mf.h.mana = 5;
+  playNoRefill(mf.st, 0, "mag_barrier"); playNoRefill(mf.st, 0, "mag_barrier");
+  assert(mf.h.mana === 3, "前兩張不給魔力");
+  playNoRefill(mf.st, 0, "mag_barrier");
+  assert(mf.h.mana === 3, "第 3 張：花 1 得 1，實際 " + mf.h.mana);
+  playNoRefill(mf.st, 0, "mag_barrier");
+  assert(mf.h.mana === 2, "第 4 張不再給魔力，實際 " + mf.h.mana);
+  // 周天：回合開始 3 氣換 1 魔力
+  var mk2 = duo("monk", 253);
+  setFoes(mk2.st, [{ id: "skel", hp: 500, intent: [] }]);
+  mk2.h.pw.chiMana = 1; mk2.h.chi = 4;
+  endRound(mk2.st);
+  assert(mk2.h.chi === 1 && mk2.h.mana === D.MANA + 1, "周天：4 氣換 1 魔力剩 1 氣，實際 氣 " + mk2.h.chi + " 魔力 " + mk2.h.mana);
+  // 蓄時：時能 +2（每 3 點回合開始多 1 魔力）
+  var cs = duo("chrono", 254);
+  setFoes(cs.st, [{ id: "skel", hp: 500, intent: [] }]);
+  cs.h.flux = 0;
+  playCard(cs.st, 0, "chr_store");
+  assert(cs.h.flux === 2, "蓄時：時能 +2，實際 " + cs.h.flux);
+  endRound(cs.st);
+  assert(cs.h.flux === 3 && cs.h.mana === D.MANA + 1, "時能 3：回合開始多 1 魔力，實際 時能 " + cs.h.flux + " 魔力 " + cs.h.mana);
+  // 終曲・激昂：每 4 旋律讓全隊各 +1 魔力
+  var bt = duo("bard", 255);
+  setFoes(bt.st, [{ id: "skel", hp: 500, intent: [] }]);
+  bt.h.mel = 8;
+  var ally0 = bt.st.heroes[1].mana;
+  playCard(bt.st, 0, "bar_tempo");
+  assert(bt.h.mana === 9 - 1 + 2 && bt.st.heroes[1].mana === ally0 + 2 && bt.h.mel === 0, "終曲・激昂：8 旋律 → 全隊 +2 魔力");
+  // 2026-10-26 使用者指定：取消「回合中只洗一次牌」，回合中抽牌堆空了照常把棄牌堆洗回去
+  var lp = duo("mage", 256);
+  setFoes(lp.st, [{ id: "skel", hp: 500, intent: [] }]);
+  lp.h.mana = 9;
+  for (var li = 0; li < 2; li++) {
+    lp.h.hand = [{ u: (lp.st.uid += 1), id: "mag_blink" }];
+    lp.h.draw = []; lp.h.disc = [{ u: (lp.st.uid += 1), id: "mag_bolt" }];
+    playNoRefill(lp.st, 0, "mag_blink");
+    assert(lp.h.hand.some(function (c) { return c.id === "mag_bolt"; }), "回合中第 " + (li + 1) + " 次洗牌也要抽得到牌");
+  }
+  // 回溯不會拿回其他回溯牌（時間迴路 ×2＋預支時間曾能無限產生魔力）
+  var rc = duo("chrono", 257);
+  setFoes(rc.st, [{ id: "skel", hp: 500, intent: [] }]);
+  rc.h.hand = []; rc.h.draw = [];
+  rc.h.disc = [{ u: (rc.st.uid += 1), id: "chr_bolt" }, { u: (rc.st.uid += 1), id: "chr_loop" }];
+  playNoRefill(rc.st, 0, "chr_loop");
+  assert(rc.h.hand.length === 1 && rc.h.hand[0].id === "chr_bolt", "時間迴路不會拿回另一張時間迴路");
+  // ---- 敵人詞綴（2026-10-26）----
+  function afFoe(seed, af, extra) {
+    var s = duo("paladin", seed);
+    var list = setFoes(s.st, [Object.assign({ id: "skel", hp: 40, intent: [{ k: "atk", n: 6 }] }, extra || {})]);
+    list[0].af = af;
+    return { st: s.st, h: s.h, e: list[0] };
+  }
+  // 迅捷：攻擊次數 +1
+  var sw = afFoe(301, "swift");
+  assert(Core.effActs(sw.st, sw.e)[0].h === 2, "迅捷：攻擊 1 下變 2 下");
+  // 不屈：第一次致命傷剩 1，第二次照常倒下
+  var ud = afFoe(302, "undying");
+  Core.hitEnemy(ud.st, ud.e, 999, true);
+  assert(ud.e.hp === 1 && ud.e.afUsed, "不屈：剩 1 生命");
+  Core.hitEnemy(ud.st, ud.e, 999, true);
+  assert(ud.e.hp === 0, "不屈只觸發一次");
+  // 再生：回合開始回復最大血量 10%（至少 1）
+  var rg = afFoe(303, "regen", { intent: [] });
+  rg.e.max = 40; rg.e.hp = 20;
+  Core.enemyTurn(rg.st, rg.e);
+  var rgWant = 20 + Math.max(1, Math.floor(40 * D.AFFIX_NUM.regen));
+  assert(rg.e.hp === rgWant, "再生：回到 " + rgWant + "，實際 " + rg.e.hp);
+  // 毒牙：打掉生命才中毒；被護盾完全擋住不中毒
+  var vn = afFoe(304, "venom");
+  vn.h.blk = 0; vn.h.st.poison = 0;
+  Core.runEnemyAct(vn.st, vn.e, { k: "atk", n: 6 });
+  assert(vn.h.st.poison === D.AFFIX_NUM.venom, "毒牙：中毒 " + D.AFFIX_NUM.venom);
+  var vb = afFoe(305, "venom");
+  vb.h.blk = 99; vb.h.st.poison = 0;
+  Core.runEnemyAct(vb.st, vb.e, { k: "atk", n: 6 });
+  assert(vb.h.st.poison === 0, "毒牙：被護盾擋住就不中毒");
+  // 穩固：推開、換區都無效
+  var an = afFoe(306, "anchor", { ring: "near" });
+  Core.moveEnemy(an.st, an.e, "far");
+  assert(an.e.ring === "near", "穩固：不會被推開");
+  var an4 = Core.create({ seed: 307, seats: [{ cls: "paladin" }, { cls: "mage" }, null, null] });
+  var a4 = setFoes(an4, [{ id: "skel", hp: 40 }])[0];
+  a4.af = "anchor";
+  Core.shiftEnemy(an4, a4, 1);
+  assert(a4.sec === 0, "穩固：不會被換區");
+  // 開場抽詞綴：強韌／堅甲／狂暴在 rollAffixes 生效；首領不帶、菁英必帶、同 seed 相同
+  function rollWith(seed, ids, act) {
+    var s = Core.create({ seed: seed, seats: [{ cls: "paladin" }, null, null, null] });
+    s.act = act || 0;
+    setFoes(s, ids.map(function (id) { return { id: id, hp: 100 }; }));
+    Core.rollAffixes(s);
+    return s.enemies;
+  }
+  var bossId = D.ENEMIES.filter(function (x) { return x.boss; })[0].id;
+  var eliteId = D.ENEMIES.filter(function (x) { return x.elite && !x.boss; })[0].id;
+  for (var ai = 0; ai < 30; ai++) {
+    var rs = rollWith(400 + ai, [bossId, eliteId, "skel"], 2);
+    assert(!rs[0].af, "首領不會有詞綴");
+    assert(rs[1].af && D.AFFIX[rs[1].af], "菁英一定有詞綴");
+  }
+  assert(JSON.stringify(rollWith(450, ["skel", "skel", "skel", "skel", "skel"], 2).map(function (x) { return x.af || ""; })) ===
+         JSON.stringify(rollWith(450, ["skel", "skel", "skel", "skel", "skel"], 2).map(function (x) { return x.af || ""; })), "同 seed 抽到的詞綴相同");
+  var cnt = 0, tot = 0;
+  for (var aj = 0; aj < 200; aj++) rollWith(500 + aj, ["skel", "skel", "skel", "skel", "skel"], 2).forEach(function (x) { tot++; if (x.af) cnt++; });
+  var pct3 = D.AFFIX_PCT[2] / 100;
+  assert(Math.abs(cnt / tot - pct3) < 0.07, "第三幕約 " + D.AFFIX_PCT[2] + "% 帶詞綴，實際 " + (cnt / tot).toFixed(2));
+  var tg = Core.create({ seed: 601, seats: [{ cls: "paladin" }, null, null, null] });
+  var tgE = setFoes(tg, [{ id: "skel", hp: 100 }])[0];
+  Core.applyAffix(tg, tgE, "tough");
+  assert(tgE.max === Math.round(100 * D.AFFIX_NUM.tough) && tgE.hp === tgE.max, "強韌：血量 ×" + D.AFFIX_NUM.tough);
+  var ar = setFoes(tg, [{ id: "skel", hp: 100 }])[0];
+  Core.applyAffix(tg, ar, "armor");
+  assert(ar.blk === Math.floor(100 * D.AFFIX_NUM.armor), "堅甲：護盾＝最大血量 " + D.AFFIX_NUM.armor * 100 + "%");
+  var fu = setFoes(tg, [{ id: "skel", hp: 100 }])[0];
+  Core.applyAffix(tg, fu, "fury");
+  assert(fu.str === D.AFFIX_NUM.fury[0], "狂暴：第一幕力量 +" + D.AFFIX_NUM.fury[0]);
 
   // AI 隊友：ctrl 為 ai 的英雄由 AI.next 決定行動，整局跑得完（不會卡住）
   require("../../static_src/yellow_ai.js");
