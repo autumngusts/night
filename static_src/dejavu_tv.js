@@ -38,6 +38,13 @@
   //   視線檢查：鏡頭到來車路段上幾個點的連線，取樣點離路中心超過路肩、又落在山壁那側，就當作被山擋住。
   function camAt(tr, pc, s) {
     var j = clamp(Math.floor(s / tr.ds), 0, tr.N - 1);
+    var city = tr._scenery && tr._scenery.city;
+    if (city) {
+      // 城市：架在人行道上（高架就架在護牆邊），兩側都有大樓
+      var cs = j % 2 ? 1 : -1;
+      if (tr.sp && tr.sp[j] === 4) return { s: s, off: cs * (tr.w / 2 + 0.2), dz: 2.8 };
+      return { s: s, off: cs * (tr.w / 2 + 1.8), dz: 3.4 };
+    }
     var side = pc ? -pc.wall[j] : (tr.k[j] > 0 ? -1 : 1);
     var onBridge = tr.sp && tr.sp[j] === 4;
     // 隧道裡：架在路肩上方（隧道監視器）
@@ -45,7 +52,8 @@
     return { s: s, off: side * (tr.w / 2 + (onBridge ? 1.4 : 3.6)), dz: 2.6 + (j % 3) * 0.7 };
   }
   function blocked(tr, pc, fix, sTgt) {
-    if (!pc) return false;
+    var city = tr._scenery && tr._scenery.city;
+    if (!pc && !city) return false;
     var c = trackPt(tr, fix.s, fix.off, 0), g = trackPt(tr, sTgt, 0, 0);
     var j0 = clamp(Math.floor(Math.min(sTgt, fix.s) / tr.ds) - 10, 0, tr.N - 1), j1 = clamp(Math.floor(Math.max(sTgt, fix.s) / tr.ds) + 10, 0, tr.N - 1);
     for (var k = 1; k < 10; k++) {
@@ -53,6 +61,14 @@
       var best = Infinity, bj = j0;
       for (var j = j0; j <= j1; j += 2) { var d = (tr.x[j] - x) * (tr.x[j] - x) + (tr.y[j] - y) * (tr.y[j] - y); if (d < best) { best = d; bj = j; } }
       var lat = -(x - tr.x[bj]) * Math.sin(tr.h[bj]) + (y - tr.y[bj]) * Math.cos(tr.h[bj]);
+      if (city) {
+        // 城市：視線穿過人行道外的大樓就算擋住（側街、水邊例外）
+        if (Math.abs(lat) > tr.w / 2 + 3) {
+          var lid = city.lotOf[lat > 0 ? 1 : -1][bj], lot = lid >= 0 ? city.lots[lid] : null;
+          if (lot && (lot.type === "bldg" || lot.type === "temple") && lot.base >= 0) return true;
+        }
+        continue;
+      }
       if (Math.abs(lat) > tr.w / 2 + 2.2 && (lat > 0 ? 1 : -1) === pc.wall[bj] && !(tr.water && pc.wall[bj] === tr.water)) return true;
     }
     return false;
@@ -97,7 +113,9 @@
     }
     if (kind === "heli") {
       var side = st.side || (st.side = (Math.floor(race.t) % 2 ? 1 : -1));
-      var hp = trackPt(tr, Math.max(0, car.s - 30), side * 16, 24);
+      // 城市：大樓之間，直升機飛高一點、沿著街道正上方
+      var inCity = tr._scenery && tr._scenery.city;
+      var hp = inCity ? trackPt(tr, Math.max(0, car.s - 38), 0, 52) : trackPt(tr, Math.max(0, car.s - 30), side * 16, 24);
       var hc = look(hp, tgt, 1.25, 80);
       hc.pitch *= 0.85;   // 車稍微偏畫面下方
       return { cam: hc };

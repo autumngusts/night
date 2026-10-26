@@ -329,8 +329,9 @@
   // 招式超車（奔放模式）：名稱只是演出，機率／效果在 dejavu_core.js 的 traffic()
   var MOVES = ["gutter", "drift", "slipstream", "ghost", "sling"];
 
-  // 景觀地區（第八批，只影響畫面）：jp 日本（櫻花／紅葉／雪牆）、tw 台灣（路邊攤、霓虹、機車、民眾、大看板）、none 一般
-  var REGIONS = ["jp", "tw", "none"];
+  // 景觀地區（第八批，只影響畫面）：jp 日本（櫻花／紅葉／雪牆）、tw 台灣（路邊攤、霓虹、機車、民眾、大看板）、none 一般；
+  //   第九批加城市街景：jpcity 日本城市、twcity 台灣城市（大樓、人行道、路口、招牌…，見 dejavu.js 的 cityLayout）
+  var REGIONS = ["jp", "tw", "none", "jpcity", "twcity"];
 
   var COLORS = ["#e8e8e8", "#d33a2c", "#2f6fd6", "#f2c230", "#2e9e5b", "#8e44ad", "#ff7f27", "#222222", "#19b5c9", "#ff6fae", "#8bc34a", "#8d6e63"];
   var MAX_CARS = 12;

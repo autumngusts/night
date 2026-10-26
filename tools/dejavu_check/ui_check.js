@@ -4,6 +4,7 @@
 //   → 第六批：山路分類／搜尋、我的山路存讀與代碼匯出入、車款搜尋、細部調校、調校存檔、改裝點數
 //   → 第七批：102 條山路的 3D 畫面（車內＋轉播機位）、轉播模式鎖定機位、插播重播、結果畫面精彩重播
 //   → 第八批：景觀地區（台灣景物、手動切換景觀）
+//   → 第九批：城市道路（街區、城市景物、城市的車內與轉播畫面）
 //   → 比賽（跑幾秒、截圖、跳到結果）→ 結果 → Déjà vu 重播結果一致 → 三種語言沒有漏翻的 dv_ 鍵
 // 前置：
 //   1. py -3 generate.py
@@ -382,6 +383,27 @@ function screen(page) { return page.evaluate(function () { return window.PriTest
   assert.strictEqual(Object.keys(sceneJp.decor).length, 0, "日本景觀不該有台灣景物");
   await page.selectOption(".dv-region", "");
   await page.screenshot({ path: path.join(SHOT_DIR, "course_region.png"), fullPage: true });
+  // 第九批：城市道路（台灣：騎樓招牌、機車、紅綠燈；日本：電線桿、直立招牌）
+  var cityN = await page.evaluate(function () { return window.PriTestDejavuData.COURSES.filter(function (c) { return c.cat === "city"; }).length; });
+  assert.ok(cityN >= 24, "城市道路太少：" + cityN);
+  var cityCases = [["Ximending", "twcity", ["tsign", "scooter", "light", "person"]], ["Shinjuku", "jpcity", ["upole", "vsign", "light", "person"]]];
+  for (var cc = 0; cc < cityCases.length; cc++) {
+    await page.fill(".dv-search", cityCases[cc][0]);
+    await page.evaluate(function () { document.querySelector(".dv-cards .dv-card").click(); });
+    var sceneC = await page.evaluate(function () { return window.PriTestDejavu.scene(); });
+    assert.strictEqual(sceneC.region, cityCases[cc][1], cityCases[cc][0] + " 應該是城市景觀");
+    assert.ok(sceneC.city > 20, cityCases[cc][0] + " 的街區太少：" + sceneC.city);
+    cityCases[cc][2].forEach(function (k) { assert.ok(sceneC.decor[k] > 0, cityCases[cc][0] + " 沒有 " + k + "：" + JSON.stringify(sceneC.decor)); });
+  }
+  await page.evaluate(function () { window.PriTestDejavu.go("garage"); });
+  await clickKey(page, "dv_go");
+  await clickKey(page, "dv_cam_cockpit");
+  await page.waitForFunction(function () { return window.PriTestDejavu.race().t > 4; }, null, { timeout: 30000 });
+  await page.screenshot({ path: path.join(SHOT_DIR, "race_city_cockpit.png") });
+  await clickKey(page, "dv_cam_tv");
+  await page.waitForTimeout(1500);
+  await page.screenshot({ path: path.join(SHOT_DIR, "race_city_tv.png") });
+  await clickKey(page, "dv_skip");
 
   // 車多一點才一定有纏鬥與超車可以插播
   await page.evaluate(function () { window.PriTestDejavu.go("setup"); });

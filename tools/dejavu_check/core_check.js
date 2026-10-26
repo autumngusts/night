@@ -234,6 +234,7 @@ ok(risky.spins > careful.spins + 0.5, "冬天軟胎全力進攻應該比雪胎�
 // 7. 第六批：山路數量、細部調校、改裝點數、奔放模式新牌／機關／甩尾集氣
 (function () {
   ok(D.COURSES.length >= 100, "固定山路不到 100 條：" + D.COURSES.length);
+  ok(D.COURSES.filter(function (co) { return co.cat === "city"; }).length >= 24, "城市道路不到 24 條");
   var seen = {};
   D.COURSES.forEach(function (co) { ok(!seen[co.id], "山路 id 重複 " + co.id); seen[co.id] = 1; });
   var base = Core.carStats({ car: "s15" });

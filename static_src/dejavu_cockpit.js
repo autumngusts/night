@@ -69,6 +69,7 @@
     var tr = race.track, ds = tr.ds, sp = tr.sp || [];
     var pc = prep(tr, race.seed);
     var cam = o.cam || null, ext = !!cam;
+    var VW = o.city ? 230 : VIEW;   // 城市遠處都被大樓擋住，畫短一點（遠景用霧淡出）
     var pose = Core.carPose(race, car);
     var view = ext ? { x: cam.x, y: cam.y, h: cam.h } : pose;
     var i0 = ext ? clamp(cam.j, 0, tr.N - 2) : clamp(Math.floor(car.s / ds), 0, tr.N - 2);
@@ -84,7 +85,7 @@
     var season = tr.season, pal = o.pal;
     var skyC = tr.rain ? SKY.rain : SKY[season];
     var fog = rgb(skyC[1]);
-    function fogT(f) { return clamp((f - 30) / (VIEW * 1.05), 0, 0.82); }
+    function fogT(f) { return clamp((f - 30) / (VW * 1.05), 0, 0.82); }
 
     // 投影：保留鏡頭座標（f 往前、l 往左、u 往上），多邊形在 CLIP 平面裁切後才換成螢幕座標
     function P(f, l, u) { return { f: f, l: l, u: u, x: cx - l / f * F, y: hy - u / f * F }; }
@@ -123,6 +124,7 @@
     }
     function wallH(j) { return 5 + 2.5 * Math.sin(j * 0.045 + pc.ph[0]) + 1.5 * Math.sin(j * 0.11 + pc.ph[1]); }
     var hw = tr.w / 2;
+    var city = o.city || null, snowy = season === "winter" && !!city && city.kind === "jp";   // 城市街景（第九批）
     // 地形高度（相對路面）：off＝橫向位移（左正）
     function terrainZ(j, off) {
       var side = off >= 0 ? 1 : -1, a = Math.abs(off) - hw, code = sp[j];
@@ -180,16 +182,74 @@
       }
       ctx.lineTo(W, hz + 2); ctx.closePath(); ctx.fill();
     }
-    ridge(tr.rain ? FAR_MT.rain : FAR_MT[season], 0.08, 3, pc.ph[2], 0.06, season === "winter" || season === "spring");
-    if (tr.scene !== "sea") ridge(tr.rain ? HILL.rain : HILL[season], 0.05, 5, pc.ph[3], 0.025, season === "winter");
+    if (o.city) skyline();
+    else {
+      ridge(tr.rain ? FAR_MT.rain : FAR_MT[season], 0.08, 3, pc.ph[2], 0.06, season === "winter" || season === "spring");
+      if (tr.scene !== "sea") ridge(tr.rain ? HILL.rain : HILL[season], 0.05, 5, pc.ph[3], 0.025, season === "winter");
+    }
+    // 城市的天際線：兩層大樓剪影（高度依世界方位決定，轉彎時會正確平移）＋地標
+    function h01(n) { var v = Math.sin(n * 12.9898 + 78.233) * 43758.5453; return v - Math.floor(v); }
+    function skyline() {
+      var tw = o.city.kind === "tw";
+      [[0.035, 0.11, 10, 0.55, 0.02], [0.012, 0.065, 16, 0.32, -0.08]].forEach(function (Ly, li) {
+        ctx.fillStyle = tint(tw ? "#8a8f96" : "#8d97a3", Ly[4], fog, Ly[3]);
+        ctx.beginPath(); ctx.moveTo(0, hz + 2);
+        var prev = null;
+        for (var px = 0; px <= W + 6; px += 6) {
+          var az = view.h + Math.atan((cx - px) / F), cell = Math.floor(az * Ly[2] * 4);
+          var y = hz - (Ly[0] + Ly[1] * h01(cell * 7 + li * 1000 + (race.seed % 97))) * F;
+          if (prev !== null && y !== prev) ctx.lineTo(px, prev);
+          ctx.lineTo(px, y); prev = y;
+        }
+        ctx.lineTo(W, hz + 2); ctx.closePath(); ctx.fill();
+      });
+      var lm = o.city.lm;
+      if (lm === "taipei") {
+        // 101 風格的高塔（風格化剪影）：底座＋八節往外擴的塔身＋尖頂
+        var x101 = azX(pc.sunAz + 2.2);
+        if (x101 !== null) {
+          var u = F * 0.012, base = hz;
+          ctx.fillStyle = tint("#5f7d7d", 0, fog, 0.35);
+          ctx.fillRect(x101 - u * 1.3, base - u * 3, u * 2.6, u * 3);
+          for (var k = 0; k < 8; k++) {
+            var y0 = base - u * 3 - k * u * 1.6;
+            ctx.beginPath(); ctx.moveTo(x101 - u * 0.75, y0); ctx.lineTo(x101 + u * 0.75, y0); ctx.lineTo(x101 + u, y0 - u * 1.6); ctx.lineTo(x101 - u, y0 - u * 1.6); ctx.closePath(); ctx.fill();
+          }
+          var yt = base - u * 3 - 8 * u * 1.6;
+          ctx.fillRect(x101 - u * 0.5, yt - u * 1.6, u, u * 1.6);
+          ctx.fillRect(x101 - u * 0.12, yt - u * 5, u * 0.24, u * 3.4);
+        }
+      } else if (lm === "tokyo") {
+        // 紅白鐵塔（風格化）＋細長的電波塔
+        var xt = azX(pc.sunAz + 2.0);
+        if (xt !== null) {
+          var v = F * 0.01;
+          for (var b = 0; b < 6; b++) {
+            ctx.fillStyle = tint(b % 2 ? "#f2f2f2" : "#d4452a", 0, fog, 0.3);
+            var w0 = v * (2.4 - b * 0.4), w1 = v * (2.4 - (b + 1) * 0.4), y1 = hz - b * v * 2, y2 = hz - (b + 1) * v * 2;
+            ctx.beginPath(); ctx.moveTo(xt - w0, y1); ctx.lineTo(xt + w0, y1); ctx.lineTo(xt + w1, y2); ctx.lineTo(xt - w1, y2); ctx.closePath(); ctx.fill();
+          }
+          ctx.fillStyle = tint("#d4452a", 0, fog, 0.3); ctx.fillRect(xt - v * 0.08, hz - v * 15, v * 0.16, v * 3);
+          ctx.fillRect(xt - v * 0.9, hz - v * 6.4, v * 1.8, v * 0.6);
+        }
+        var xs = azX(pc.sunAz + 2.9);
+        if (xs !== null) {
+          var g2 = F * 0.008;
+          ctx.fillStyle = tint("#dfe6ec", -0.05, fog, 0.4);
+          ctx.beginPath(); ctx.moveTo(xs - g2, hz); ctx.lineTo(xs + g2, hz); ctx.lineTo(xs + g2 * 0.35, hz - g2 * 22); ctx.lineTo(xs - g2 * 0.35, hz - g2 * 22); ctx.closePath(); ctx.fill();
+          ctx.fillRect(xs - g2 * 0.7, hz - g2 * 15, g2 * 1.4, g2 * 0.8); ctx.fillRect(xs - g2 * 0.5, hz - g2 * 19, g2, g2 * 0.6);
+          ctx.fillRect(xs - g2 * 0.08, hz - g2 * 26, g2 * 0.16, g2 * 4);
+        }
+      }
+    }
     // 地平線以下的底色（被遠方的霧蓋住的地面）
-    ctx.fillStyle = tint(pal.ground, -0.05, fog, 0.6);
+    ctx.fillStyle = tint(o.city ? "#8f8b84" : pal.ground, -0.05, fog, 0.6);
     ctx.fillRect(0, hz, W, H - hz);
     if (sp[i0] === 3 && (!ext || camZ < tr.z[i0] + 5)) { ctx.fillStyle = "#1c1c1d"; ctx.fillRect(0, 0, W, H); }
 
 
     // ---- 看板：依所在列分桶，畫完那一列的路面才畫 ----
-    var jMax = Math.min(tr.N - 2, i0 + Math.round(VIEW / ds));
+    var jMax = Math.min(tr.N - 2, i0 + Math.round(VW / ds));
     // 看板的範圍：車內只看前方；外部鏡頭前後都畫
     var sLo = ext ? Math.max(0, i0 - Math.round((cam.back || 160) / ds)) : i0;
     var nRows = jMax - sLo + 1;
@@ -202,13 +262,22 @@
     o.trees.forEach(function (t) {
       if (t.j === undefined || t.j < sLo || t.j > jMax) return;
       var p = proj(t.x, t.y, tr.z[t.j] + terrainZ(t.j, t.o));
-      if (p.f > (ext ? 8 : 2) && p.f < VIEW) addSprite(t.j, { f: p.f, kind: "tree", p: p, t: t });   // 外部鏡頭：太近的樹會擋住整個畫面
+      if (p.f > (ext ? 8 : 2) && p.f < VW) addSprite(t.j, { f: p.f, kind: "tree", p: p, t: t });   // 外部鏡頭：太近的樹會擋住整個畫面
     });
     // 地區景物（台灣：路邊攤、機車、霓虹、民眾、大看板）
     (o.decor || []).forEach(function (d) {
       if (d.j < sLo || d.j > jMax) return;
-      var p = proj(d.x, d.y, tr.z[d.j] + terrainZ(d.j, d.off));
-      if (p.f > (ext ? 7 : NEAR) && p.f < VIEW) addSprite(d.j, { f: p.f, kind: "decor", p: p, d: d });   // 外部鏡頭：太近的景物會擋畫面
+      var zb = tr.z[d.j] + (d.dz !== undefined ? d.dz : terrainZ(d.j, d.off));
+      var p = proj(d.x, d.y, zb);
+      if (!(p.f > (ext ? 7 : NEAR) && p.f < VW)) return;   // 外部鏡頭：太近的景物會擋畫面
+      var sp2 = { f: p.f, kind: "decor", p: p, d: d };
+      if (d.kind === "upole") {
+        sp2.top = proj(d.x, d.y, zb + 9);
+        if (d.nx !== undefined) sp2.p2 = proj(d.nx, d.ny, tr.z[d.nj] + 8.6);
+      } else if (d.kind === "light") {
+        sp2.top = proj(d.x, d.y, zb + 5.6); sp2.arm = proj(d.ax, d.ay, zb + 5.6);
+      }
+      addSprite(d.j, sp2);
     });
     var sJ = Math.round(tr.start / ds), fJ = Math.round(tr.finish / ds);
     for (var q = sLo + 1; q <= jMax; q++) {
@@ -244,14 +313,14 @@
       if (j < sLo || j > jMax) return;
       if (it.kind === "boost" || it.kind === "oil" || it.kind === "mud" || it.kind === "ramp") { (flat[j] = flat[j] || []).push(it); return; }
       var p = edge(j, 0);
-      if (p.f > NEAR && p.f < VIEW) addSprite(j, { f: p.f, kind: it.kind, p: p, j: j, it: it });
+      if (p.f > NEAR && p.f < VW) addSprite(j, { f: p.f, kind: it.kind, p: p, j: j, it: it });
     });
     race.cars.forEach(function (c) {
       if (c === car && !ext || c.state === "dnf" && c.v < 0.1 && Math.abs(c.s - car.s) > 300) return;
       var ps = Core.carPose(race, c);
       var cj = clamp(Math.floor(c.s / ds), 0, tr.N - 1);
       var p = proj(ps.x, ps.y, tr.z[cj]);
-      if (p.f > 1.2 && p.f < VIEW * (ext ? cam.zoom || 1 : 1)) addSprite(cj, { f: p.f, kind: "car", p: p, c: c, rel: ps.h - view.h });
+      if (p.f > 1.2 && p.f < VW * (ext ? cam.zoom || 1 : 1)) addSprite(cj, { f: p.f, kind: "car", p: p, c: c, rel: ps.h - view.h });
     });
 
     function quad(a, b, c, d, col) { poly([a, b, c, d], col); }
@@ -318,8 +387,8 @@
         if (sp[ja - 1] !== 3 && (ja > i0 || ext)) portal(ja, ft);   // 入口（從外面看的洞口）
         return;
       }
-      // 兩側地形
-      [1, -1].forEach(function (side) {
+      // 兩側地形（城市：人行道＋大樓／側街，見 cityTerrain）
+      if (o.city) cityTerrain(ja, jb, ft, band, cd); else [1, -1].forEach(function (side) {
         var isWater = tr.water && side === tr.water && cd !== 4;
         var isWall = cd !== 4 && !isWater && side === wl;
         if (isWall) {
@@ -348,7 +417,7 @@
         });
       }
       // 路肩、路面（日本春秋：路肩鋪滿花瓣／落葉）
-      quad(edge(ja, hw + 1.6), edge(jb, hw + 1.6), edge(jb, -hw - 1.6), edge(ja, -hw - 1.6), tint(cd === 4 ? CONCRETE : o.shoulder || pal.shoulder, band ? 0 : -0.07, fog, ft));
+      if (!o.city) quad(edge(ja, hw + 1.6), edge(jb, hw + 1.6), edge(jb, -hw - 1.6), edge(ja, -hw - 1.6), tint(cd === 4 ? CONCRETE : o.shoulder || pal.shoulder, band ? 0 : -0.07, fog, ft));
       var rl = edge(ja, hw), rr = edge(ja, -hw), bl = edge(jb, hw), br = edge(jb, -hw);
       quad(rl, bl, br, rr, tint(cd === 1 ? "#9b8565" : roadCol, band ? 0 : 0.04, fog, ft));
       if (tr.surf[ja] < 1 && cd !== 1) {
@@ -368,7 +437,7 @@
         var ins = tr.k[ja] >= 0 ? 1 : -1;
         quad(edge(ja, ins * hw), edge(jb, ins * hw), edge(jb, ins * (hw - 0.45), -0.12), edge(ja, ins * (hw - 0.45), -0.12), tint("#2f3a2c", 0, fog, ft));
       }
-      laneLines(ja, jb, fa, ft, cd === 1);
+      if (o.city) cityMarks(ja, jb, fa, ft); else laneLines(ja, jb, fa, ft, cd === 1);
       (flat[ja] || []).forEach(function (it) {
         var len = it.kind === "boost" || it.kind === "ramp" ? 4 : 6, w = it.kind === "boost" || it.kind === "ramp" ? hw * 0.85 : hw * 0.75;
         var a1 = edge(ja, w), a2 = edge(ja, -w), b1 = edge(jb + Math.round(len / ds) - 1, w), b2 = edge(jb + Math.round(len / ds) - 1, -w);
@@ -384,11 +453,135 @@
         else quad(a1, b1, b2, a2, "rgba(15,15,20," + (0.8 * (1 - ft)).toFixed(2) + ")");
 
       });
-      // 護欄（山谷、水邊；橋上兩側）
-      [1, -1].forEach(function (side) {
+      // 護欄（山谷、水邊；橋上兩側）；城市只有高架兩側的水泥護牆
+      if (o.city) { if (cd === 4) cityBarrier(ja, jb, ft, band); } else [1, -1].forEach(function (side) {
         if (cd !== 4 && side === wl && !(tr.water && side === tr.water)) return;
         quad(edge(ja, side * (hw + 1.1), 0.5), edge(jb, side * (hw + 1.1), 0.5), edge(jb, side * (hw + 1.1), 0.82), edge(ja, side * (hw + 1.1), 0.82),
           tint("#d4d8dc", band ? 0 : -0.1, fog, ft));
+      });
+    }
+
+    // ---------------- 城市（第九批） ----------------
+    // 鏡頭座標下的線性內插（同一列裡切出窗戶、柱子）
+    function Lp(a, b, t2) { return P(a.f + (b.f - a.f) * t2, a.l + (b.l - a.l) * t2, a.u + (b.u - a.u) * t2); }
+    function cityTerrain(ja, jb, ft, band, cd) {
+      [1, -1].forEach(function (side) {
+        var id = city.lotOf[side][ja], lot = id >= 0 ? city.lots[id] : null;
+        if (!lot) return;
+        var S = side;
+        if (lot.type === "water") {
+          // 河岸／海岸步道＋欄杆，外面是水
+          if (o.water) {
+            var wf = reach(ja, side, hw + 450);
+            quad(edge(ja, S * (hw + 6), -1.6), edge(jb, S * (hw + 6), -1.6), edge(jb, S * wf, -1.6), edge(ja, S * wf, -1.6),
+              tint(o.water, Math.floor(ja / 2) % 3 === 0 ? 0.05 : 0, fog, Math.min(0.75, ft * 0.8)));
+          }
+          quad(edge(ja, S * hw, 0.15), edge(jb, S * hw, 0.15), edge(jb, S * (hw + 6), 0.15), edge(ja, S * (hw + 6), 0.15), tint("#bdb6a8", band ? 0 : -0.04, fog, ft));
+          quad(edge(ja, S * (hw + 6), 0.15), edge(jb, S * (hw + 6), 0.15), edge(jb, S * (hw + 6), -1.6), edge(ja, S * (hw + 6), -1.6), tint("#8e877b", 0, fog, ft));
+          quad(edge(ja, S * (hw + 5.8), 1.0), edge(jb, S * (hw + 5.8), 1.0), edge(jb, S * (hw + 5.8), 1.12), edge(ja, S * (hw + 5.8), 1.12), tint("#5c6166", 0, fog, ft));
+          return;
+        }
+        var elev = cd === 4 || lot.base < 0;
+        if (elev) {
+          // 高架：橋下 9 m 的街道
+          var fr = reach(ja, side, hw + 60);
+          quad(edge(ja, S * (hw + 1.2), -9), edge(jb, S * (hw + 1.2), -9), edge(jb, S * fr, -9), edge(ja, S * fr, -9), tint("#6f6b66", band ? 0 : -0.03, fog, ft));
+        } else if (lot.type === "gap") {
+          // 側街：往外延伸的柏油路＋斑馬線
+          var far = reach(ja, side, hw + 60);
+          quad(edge(ja, S * hw), edge(jb, S * hw), edge(jb, S * far), edge(ja, S * far), tint(tr.rain ? "#3d4246" : pal.road, band ? 0 : 0.03, fog, ft));
+          if ((ja - lot.a) % 2 === 0) quad(edge(ja, S * (hw + 1.2), 0.01), edge(jb, S * (hw + 1.2), 0.01), edge(jb, S * (hw + 4.2), 0.01), edge(ja, S * (hw + 4.2), 0.01), tint("#f2f2f2", 0, fog, ft));
+          return;
+        } else {
+          // 人行道（高 15 cm）＋緣石
+          quad(edge(ja, S * hw, 0), edge(jb, S * hw, 0), edge(jb, S * hw, 0.15), edge(ja, S * hw, 0.15), tint("#8c8c88", 0, fog, ft));
+          quad(edge(ja, S * hw, 0.15), edge(jb, S * hw, 0.15), edge(jb, S * (hw + 3 + lot.set), 0.15), edge(ja, S * (hw + 3 + lot.set), 0.15),
+            tint(snowy ? "#e9eef2" : city.kind === "tw" ? "#b9a99a" : "#c4beb3", band ? 0 : -0.05, fog, ft));
+        }
+        building(ja, jb, side, lot, ft, band, elev);
+      });
+    }
+    function building(ja, jb, side, lot, ft, band, elev) {
+      var S = side, oF = S * (hw + (elev ? 9 : 3) + lot.set), z0 = lot.base, z1 = lot.base + lot.h;
+      var back = S * reach(ja, side, Math.abs(oF) + 14);
+      var col = lot.glass ? "#6d8296" : lot.col, sh = (side > 0 ? 0 : -0.05) + (band ? 0 : -0.015);
+      // 側牆：在這塊地的頭尾，鄰地比較矮（或是側街）時才看得到
+      [[ja, lot.a, -1], [jb, lot.b, 1]].forEach(function (e) {
+        if (e[0] !== e[1]) return;
+        var nb = city.lotOf[side][clamp(e[1] + e[2], 0, tr.N - 1)], nl = nb >= 0 && nb !== city.lotOf[side][e[1]] ? city.lots[nb] : null;
+        var nh = nl && (nl.type === "bldg" || nl.type === "temple") ? nl.base + nl.h : z0;
+        if (nh >= z1) return;
+        quad(edge(e[0], oF, nh), edge(e[0], back, nh), edge(e[0], back, z1), edge(e[0], oF, z1), tint(col, sh - 0.12, fog, ft));
+      });
+      var A0 = edge(ja, oF, z0), B0 = edge(jb, oF, z0), A1 = edge(ja, oF, z1), B1 = edge(jb, oF, z1);
+      quad(A0, B0, B1, A1, tint(col, sh, fog, ft));
+      var nearF = Math.max(0.5, Math.min(A0.f, B0.f)), floorPx = 3.2 / nearF * F;
+      function band2(zl, zh, t0, t1, c) {
+        var L0 = edge(ja, oF, zl), R0 = edge(jb, oF, zl), L1 = edge(ja, oF, zh), R1 = edge(jb, oF, zh);
+        quad(Lp(L0, R0, t0), Lp(L0, R0, t1), Lp(L1, R1, t1), Lp(L1, R1, t0), c);
+      }
+      if (lot.type === "temple") {
+        band2(z0 + 0.2, z0 + 3.2, 0.15, 0.85, tint("#5a1a12", 0, fog, ft));
+        band2(z0 + 5.6, z0 + 6.2, 0, 1, tint("#e0a526", 0, fog, ft));
+      } else {
+        // 一樓：日本＝店面玻璃＋招牌帶；台灣＝騎樓（暗）＋柱子
+        if (lot.arcade) {
+          band2(z0, z0 + 3.4, 0, 1, tint("#2a2826", 0, fog, ft * 0.6));
+          band2(z0 + 2.3, z0 + 2.8, 0.1, 0.9, tint(lot.shop, 0, fog, ft * 0.6));
+          if (ja % 3 === 0) band2(z0, z0 + 3.4, 0, 0.28, tint(lot.col, sh + 0.05, fog, ft));
+        } else if (!elev) {
+          band2(z0 + 0.1, z0 + 2.6, 0, 1, tint("#2d3a44", 0.04, fog, ft));
+          band2(z0 + 2.6, z0 + 3.4, 0, 1, tint(lot.shop, 0, fog, ft));
+        }
+        // 窗：太遠或太小就不畫；畫面外的樓層略過
+        if (lot.glass) {
+          if (floorPx > 2) {
+            ctx.strokeStyle = tint("#c9d6e0", 0, fog, ft); ctx.lineWidth = 1;
+            ctx.beginPath(); seg(edge(ja, oF, z0 + 3.4), A1); ctx.stroke();
+            for (var gz = z0 + 7.2; gz < z1; gz += 7.2) { ctx.beginPath(); seg(edge(ja, oF, gz), edge(jb, oF, gz)); ctx.stroke(); }
+          }
+        } else if (floorPx > 3) {
+          var nF = Math.floor((lot.h - 3.6) / 3.2), y0 = A0.y, y1 = A1.y;
+          for (var k = 0; k < nF; k++) {
+            var zl = z0 + 3.6 + k * 3.2 + 0.7, ys = y0 + (y1 - y0) * (zl - z0) / Math.max(1, z1 - z0);
+            if (ys < -30 || ys > H + 30) continue;
+            band2(zl, zl + 1.5, 0.18, 0.82, tint(lot.win, (k + ja) % 7 === 0 ? 0.12 : 0, fog, ft));
+            if (city.kind === "tw" && floorPx > 20) {
+              // 鐵窗
+              band2(zl - 0.1, zl + 1.6, 0.36, 0.4, tint("#9aa1a4", 0, fog, ft));
+              band2(zl - 0.1, zl + 1.6, 0.6, 0.64, tint("#9aa1a4", 0, fog, ft));
+            }
+          }
+        }
+      }
+      // 屋頂（鏡頭比屋頂高才看得到）、台灣的屋頂鐵皮加蓋
+      if (camZ > tr.z[ja] + z1) quad(A1, B1, edge(jb, back, z1), edge(ja, back, z1), tint(snowy ? "#eef2f5" : col, snowy ? 0 : -0.14, fog, ft));
+      if (lot.addon) {
+        var oA = oF + S * 1.5, z2 = z1 + 2.6;
+        quad(edge(ja, oA, z1), edge(jb, oA, z1), edge(jb, oA, z2), edge(ja, oA, z2), tint(lot.addon, band ? 0 : -0.06, fog, ft));
+        if (camZ > tr.z[ja] + z2) quad(edge(ja, oA, z2), edge(jb, oA, z2), edge(jb, back, z2), edge(ja, back, z2), tint(lot.addon, 0.08, fog, ft));
+      }
+    }
+    // 城市的路面標線：外側白線、中央線（台灣雙黃、日本白）、車道虛線、路口斑馬線
+    function cityMarks(ja, jb, fa, ft) {
+      ctx.strokeStyle = tint(pal.line, 0, fog, ft); ctx.lineWidth = clamp(0.15 / Math.max(0.5, fa) * F, 0.6, 6);
+      ctx.beginPath(); seg(edge(ja, hw - 0.25), edge(jb, hw - 0.25)); seg(edge(ja, -hw + 0.25), edge(jb, -hw + 0.25)); ctx.stroke();
+      ctx.strokeStyle = tint(city.kind === "tw" ? "#f0c83c" : "#f2f2f2", 0, fog, ft);
+      ctx.beginPath(); seg(edge(ja, 0.12), edge(jb, 0.12)); seg(edge(ja, -0.12), edge(jb, -0.12)); ctx.stroke();
+      if (tr.w >= 7.5 && Math.floor(ja / 2) % 3 === 0) {
+        ctx.strokeStyle = tint(pal.line, 0, fog, ft);
+        ctx.beginPath(); seg(edge(ja, hw / 2), edge(jb, hw / 2)); seg(edge(ja, -hw / 2), edge(jb, -hw / 2)); ctx.stroke();
+      }
+      if (city.cross[ja]) {
+        for (var oc = -hw + 0.4; oc < hw - 0.3; oc += 1.0) quad(edge(ja, oc, 0.01), edge(jb, oc, 0.01), edge(jb, oc + 0.5, 0.01), edge(ja, oc + 0.5, 0.01), tint("#f4f4f4", 0, fog, ft));
+      }
+    }
+    // 高架兩側的水泥護牆
+    function cityBarrier(ja, jb, ft, band) {
+      [1, -1].forEach(function (S) {
+        quad(edge(ja, S * hw, 0), edge(jb, S * hw, 0), edge(jb, S * (hw + 0.6), 0), edge(ja, S * (hw + 0.6), 0), tint(CONCRETE, -0.05, fog, ft));
+        quad(edge(ja, S * (hw + 0.4), 0), edge(jb, S * (hw + 0.4), 0), edge(jb, S * (hw + 0.4), 1.1), edge(ja, S * (hw + 0.4), 1.1), tint(CONCRETE, band ? 0.02 : -0.04, fog, ft));
+        quad(edge(ja, S * (hw + 0.4), 1.1), edge(jb, S * (hw + 0.4), 1.1), edge(jb, S * (hw + 0.7), 1.1), edge(ja, S * (hw + 0.7), 1.1), tint(CONCRETE, 0.1, fog, ft));
       });
     }
 
@@ -466,7 +659,7 @@
           ctx.fillText(s.goal ? "GOAL" : "START", (Lt.x + Rt.x) / 2, (Lt.y + Rt.y) / 2 - bh * 0.22);
         }
       } else if (s.kind === "car") drawCar(p, sc, s);
-      else if (s.kind === "decor") drawDecor(p, sc, s.d, ft);
+      else if (s.kind === "decor") drawDecor(p, sc, s.d, ft, s);
       else if (s.kind === "rock") {
         [[0.3, 0.9, 0.9], [-0.9, 0.6, 0.7], [1.6, 0.5, 0.5], [-1.8, 0.45, 0.55]].forEach(function (r, n) {
           ctx.fillStyle = tint(n % 2 ? "#6f6a63" : "#8a857c", 0, fog, ft);
@@ -552,11 +745,12 @@
       if (!vertical) { ctx.fillText(txt, x, y); return; }
       for (var i = 0; i < txt.length; i++) ctx.fillText(txt[i], x, y + i * size * 1.05);
     }
-    function drawDecor(p, sc, d, ft) {
+    function drawDecor(p, sc, d, ft, s) {
       var t = race.t, x = p.x, y = p.y;
       if (sc < 0.6) return;
       ctx.save();
       if (ft > 0.05) ctx.globalAlpha = 1 - ft * 0.85;
+      if (drawCityDecor(p, sc, d, t, s)) { ctx.restore(); return; }
       if (d.kind === "stall") {
         var w = 2.6 * sc, h = 2.3 * sc;
         box(x - w / 2, y - h, Math.max(1, 0.08 * sc), h, "#6b6f74"); box(x + w / 2 - 0.08 * sc, y - h, Math.max(1, 0.08 * sc), h, "#6b6f74");
@@ -622,6 +816,108 @@
       } else if (d.kind === "person") drawPerson(x, y, sc, d, t);
       ctx.restore();
     }
+    // 城市的景物；畫了就回傳 true
+    function drawCityDecor(p, sc, d, t, s) {
+      var x = p.x, y = p.y, k;
+      if (d.kind === "upole") {
+        // 電線桿＋橫擔＋變壓器＋往下一根的電線（日本街景的招牌）
+        var tp = s.top;
+        ctx.strokeStyle = "#8d8a84"; ctx.lineWidth = Math.max(1, 0.3 * sc);
+        ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(tp.x, tp.y); ctx.stroke();
+        ctx.lineWidth = Math.max(1, 0.1 * sc);
+        ctx.beginPath(); ctx.moveTo(tp.x - 0.9 * sc, tp.y + 0.6 * sc); ctx.lineTo(tp.x + 0.9 * sc, tp.y + 0.6 * sc); ctx.stroke();
+        ctx.fillStyle = "#9a9a96"; ctx.fillRect(tp.x + 0.15 * sc, tp.y + 2 * sc, 0.5 * sc, 0.9 * sc);
+        if (s.p2 && s.p2.f > NEAR) {
+          var s2 = F / s.p2.f;
+          ctx.strokeStyle = "rgba(25,25,25,0.75)"; ctx.lineWidth = 1;
+          [-0.8, 0, 0.8].forEach(function (o2, n) {
+            var ax = tp.x + o2 * sc, ay = tp.y + 0.6 * sc + n * 0.25 * sc, bx = s.p2.x + o2 * s2, by = s.p2.y + 0.6 * s2 + n * 0.25 * s2;
+            ctx.beginPath(); ctx.moveTo(ax, ay); ctx.quadraticCurveTo((ax + bx) / 2, (ay + by) / 2 + 0.7 * (sc + s2) / 2, bx, by); ctx.stroke();
+          });
+        }
+        return true;
+      }
+      if (d.kind === "light") {
+        // 紅綠燈：懸臂伸到車道上方。日本是橫向三燈（綠燈偏藍），台灣是直式三燈＋倒數秒數
+        var tp2 = s.top, am = s.arm;
+        ctx.strokeStyle = "#6b6f74"; ctx.lineWidth = Math.max(1, 0.18 * sc);
+        ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(tp2.x, tp2.y); ctx.lineTo(am.x, am.y); ctx.stroke();
+        if (am.f < NEAR) return true;
+        var as = F / am.f, cyc = (t + d.ph * 30) % 30, st = cyc < 14 ? 0 : cyc < 17 ? 1 : 2;
+        var cols = d.tw ? ["#3cf06a", "#ffcc33", "#ff3b3b"] : ["#2fd8a0", "#ffcc33", "#ff3b3b"];
+        ctx.fillStyle = "#222";
+        if (d.tw) {
+          ctx.fillRect(am.x - 0.35 * as, am.y, 0.7 * as, 1.9 * as);
+          for (k = 0; k < 3; k++) { ctx.fillStyle = (2 - k) === st ? cols[2 - k] : "#3a3a3a"; ctx.beginPath(); ctx.arc(am.x, am.y + (0.35 + k * 0.6) * as, 0.24 * as, 0, Math.PI * 2); ctx.fill(); }
+          if (as > 6) {
+            ctx.fillStyle = "#111"; ctx.fillRect(am.x + 0.4 * as, am.y + 0.5 * as, 0.8 * as, 0.6 * as);
+            ctx.fillStyle = st === 2 ? "#ff3b3b" : "#3cf06a"; ctx.font = "bold " + Math.round(0.5 * as) + "px monospace"; ctx.textAlign = "center";
+            ctx.fillText(String(Math.ceil(st === 0 ? 14 - cyc : st === 2 ? 30 - cyc : 0) || ""), am.x + 0.8 * as, am.y + 0.98 * as);
+          }
+        } else {
+          ctx.fillRect(am.x - 1.0 * as, am.y, 2.0 * as, 0.6 * as);
+          for (k = 0; k < 3; k++) { ctx.fillStyle = k === st ? cols[k] : "#3a3a3a"; ctx.beginPath(); ctx.arc(am.x + (-0.62 + k * 0.62) * as, am.y + 0.3 * as, 0.22 * as, 0, Math.PI * 2); ctx.fill(); }
+        }
+        return true;
+      }
+      if (d.kind === "vend") {
+        // 自動販賣機
+        box(x - 0.5 * sc, y - 1.85 * sc, 1.0 * sc, 1.85 * sc, d.c);
+        box(x - 0.42 * sc, y - 1.75 * sc, 0.84 * sc, 1.0 * sc, "#eef4fa");
+        if (sc > 6) for (var rw = 0; rw < 3; rw++) for (var cl = 0; cl < 4; cl++) box(x - 0.38 * sc + cl * 0.2 * sc, y - 1.7 * sc + rw * 0.32 * sc, 0.13 * sc, 0.22 * sc, ["#d8342c", "#2a6fd6", "#f5c518", "#2f9e5b"][(rw + cl) % 4]);
+        box(x - 0.3 * sc, y - 0.55 * sc, 0.6 * sc, 0.2 * sc, "#333");
+        return true;
+      }
+      if (d.kind === "bike") {
+        ctx.strokeStyle = "#333"; ctx.lineWidth = Math.max(1, 0.05 * sc);
+        ctx.beginPath(); ctx.arc(x - 0.55 * sc, y - 0.33 * sc, 0.33 * sc, 0, Math.PI * 2); ctx.arc(x + 0.55 * sc, y - 0.33 * sc, 0.33 * sc, 0, Math.PI * 2); ctx.stroke();
+        ctx.strokeStyle = d.c; ctx.lineWidth = Math.max(1, 0.07 * sc);
+        ctx.beginPath(); ctx.moveTo(x - 0.55 * sc, y - 0.33 * sc); ctx.lineTo(x - 0.1 * sc, y - 0.85 * sc); ctx.lineTo(x + 0.4 * sc, y - 0.85 * sc); ctx.lineTo(x + 0.55 * sc, y - 0.33 * sc);
+        ctx.moveTo(x - 0.1 * sc, y - 0.85 * sc); ctx.lineTo(x + 0.05 * sc, y - 0.33 * sc); ctx.stroke();
+        box(x + 0.35 * sc, y - 1.1 * sc, 0.35 * sc, 0.25 * sc, "#b9bdc1");
+        return true;
+      }
+      if (d.kind === "vsign" || d.kind === "tsign") {
+        // 直立招牌：日本是貼著大樓的長條，台灣是一層層往外突出的招牌
+        var list = d.kind === "vsign" ? [{ txt: d.txt, bg: d.bg, fg: d.fg, h: d.hgt }] : d.stack.map(function (q) { return { txt: q.txt, bg: q.bg, fg: q.fg, h: 2.6 }; });
+        var yb = y, w = (d.kind === "vsign" ? 0.9 : 1.1) * sc;
+        list.forEach(function (q) {
+          var hh = q.h * sc;
+          box(x - w / 2, yb - hh, w, hh, q.bg);
+          ctx.strokeStyle = "rgba(255,255,255,0.7)"; ctx.lineWidth = Math.max(1, 0.05 * sc); ctx.strokeRect(x - w / 2, yb - hh, w, hh);
+          var fs = Math.min(w * 0.75, hh * 0.85 / Math.max(1, q.txt.length));
+          if (/^[A-Z0-9]+$/.test(q.txt)) { ctx.save(); ctx.translate(x, yb - hh / 2); ctx.rotate(-Math.PI / 2); label(q.txt, 0, fs * 0.35, Math.min(w * 0.7, hh * 0.8 / q.txt.length * 1.6), q.fg); ctx.restore(); }
+          else label(q.txt, x, yb - hh + fs * 1.0, fs, q.fg, true);
+          yb -= hh + 0.15 * sc;
+        });
+        return true;
+      }
+      if (d.kind === "wtank") {
+        // 屋頂水塔（不鏽鋼或藍色塑膠）
+        var tc = d.ph < 0.5 ? "#c9cdd1" : "#3a6fb0";
+        ctx.strokeStyle = "#6b6f74"; ctx.lineWidth = Math.max(1, 0.06 * sc);
+        ctx.beginPath(); ctx.moveTo(x - 0.6 * sc, y); ctx.lineTo(x - 0.6 * sc, y - 1 * sc); ctx.moveTo(x + 0.6 * sc, y); ctx.lineTo(x + 0.6 * sc, y - 1 * sc); ctx.stroke();
+        box(x - 0.8 * sc, y - 2.6 * sc, 1.6 * sc, 1.6 * sc, tc);
+        ctx.fillStyle = shade(tc, 0.1); ctx.beginPath(); ctx.ellipse(x, y - 2.6 * sc, 0.8 * sc, 0.22 * sc, 0, 0, Math.PI * 2); ctx.fill();
+        return true;
+      }
+      if (d.kind === "troof") {
+        // 廟的燕尾屋頂（綠瓦、兩端翹起）＋屋脊的寶珠
+        var hwR = d.w / 2 * sc;
+        ctx.fillStyle = "#2f7d4f";
+        ctx.beginPath(); ctx.moveTo(x - hwR, y); ctx.lineTo(x + hwR, y);
+        ctx.quadraticCurveTo(x + hwR * 0.9, y - 1.4 * sc, x + hwR + 0.9 * sc, y - 3.0 * sc);
+        ctx.quadraticCurveTo(x + hwR * 0.5, y - 2.0 * sc, x, y - 2.2 * sc);
+        ctx.quadraticCurveTo(x - hwR * 0.5, y - 2.0 * sc, x - hwR - 0.9 * sc, y - 3.0 * sc);
+        ctx.quadraticCurveTo(x - hwR * 0.9, y - 1.4 * sc, x - hwR, y); ctx.closePath(); ctx.fill();
+        ctx.strokeStyle = "#d5682b"; ctx.lineWidth = Math.max(1, 0.18 * sc);
+        ctx.beginPath(); ctx.moveTo(x - hwR - 0.9 * sc, y - 3.0 * sc); ctx.quadraticCurveTo(x - hwR * 0.5, y - 2.0 * sc, x, y - 2.2 * sc); ctx.quadraticCurveTo(x + hwR * 0.5, y - 2.0 * sc, x + hwR + 0.9 * sc, y - 3.0 * sc); ctx.stroke();
+        ctx.fillStyle = "#f2c230"; ctx.beginPath(); ctx.arc(x, y - 2.7 * sc, 0.35 * sc, 0, Math.PI * 2); ctx.fill();
+        box(x - hwR, y - 0.1 * sc, hwR * 2, 0.3 * sc, "#e0a526");
+        return true;
+      }
+      return false;
+    }
     function drawPerson(x, y, sc, d, t) {
       var u = sc, ph = d.ph * 6;
       if (u < 2) { box(x - 0.2 * u, y - 1.6 * u, 0.4 * u, 1.6 * u, d.c); return; }
@@ -655,10 +951,16 @@
       var hop = d.type === "dancer" ? Math.abs(Math.sin(t * 7 + ph)) * 0.3 * u : 0;
       var by = y - hop;
       // 腳（藍白拖）
-      box(x - 0.2 * u, by - 0.8 * u, 0.13 * u, 0.8 * u, head); box(x + 0.07 * u, by - 0.8 * u, 0.13 * u, 0.8 * u, head);
-      box(x - 0.25 * u, by - 0.06 * u, 0.2 * u, 0.06 * u, "#2a5bd7"); box(x + 0.05 * u, by - 0.06 * u, 0.2 * u, 0.06 * u, "#2a5bd7");
-      box(x - 0.24 * u, by - 0.95 * u, 0.48 * u, 0.3 * u, d.type === "auntie" ? d.c : "#2c3e64");   // 短褲／裙
-      box(x - 0.24 * u, by - 1.45 * u, 0.48 * u, 0.55 * u, d.type === "uncle" ? "#f4f4f0" : d.c);  // 上衣（阿伯是白色吊嘎）
+      // 日本城市的行人：上班族（西裝）、學生（白襯衫＋深藍裙）、老奶奶（紫色開襟衫）
+      var leg = d.type === "salary" ? "#23262e" : head, shoe = d.type === "salary" || d.type === "student" ? "#1a1a1a" : "#2a5bd7";
+      var low = d.type === "auntie" ? d.c : d.type === "salary" ? "#23262e" : d.type === "student" ? "#1f2a4a" : d.type === "granny" ? "#6b6b6b" : "#2c3e64";
+      var top = d.type === "uncle" ? "#f4f4f0" : d.type === "salary" ? "#2b2f3a" : d.type === "student" ? "#f4f4f0" : d.type === "granny" ? "#8a6aa8" : d.c;
+      box(x - 0.2 * u, by - 0.8 * u, 0.13 * u, 0.8 * u, leg); box(x + 0.07 * u, by - 0.8 * u, 0.13 * u, 0.8 * u, leg);
+      box(x - 0.25 * u, by - 0.06 * u, 0.2 * u, 0.06 * u, shoe); box(x + 0.05 * u, by - 0.06 * u, 0.2 * u, 0.06 * u, shoe);
+      box(x - 0.24 * u, by - 0.95 * u, 0.48 * u, 0.3 * u, low);   // 短褲／裙
+      box(x - 0.24 * u, by - 1.45 * u, 0.48 * u, 0.55 * u, top);  // 上衣（阿伯是白色吊嘎）
+      if (d.type === "salary") { box(x - 0.04 * u, by - 1.42 * u, 0.08 * u, 0.4 * u, "#c0262d"); box(x + 0.26 * u, by - 1.0 * u, 0.35 * u, 0.26 * u, "#3b2a1a"); }
+
       if (d.type === "auntie") { ctx.fillStyle = "#fff"; for (var f2 = 0; f2 < 4; f2++) { ctx.beginPath(); ctx.arc(x - 0.15 * u + (f2 % 2) * 0.28 * u, by - 1.3 * u + Math.floor(f2 / 2) * 0.35 * u, 0.05 * u, 0, Math.PI * 2); ctx.fill(); } }
       ctx.fillStyle = head; ctx.beginPath(); ctx.arc(x, by - 1.62 * u, 0.17 * u, 0, Math.PI * 2); ctx.fill();
       ctx.strokeStyle = head; ctx.lineWidth = Math.max(1, 0.1 * u); ctx.beginPath();

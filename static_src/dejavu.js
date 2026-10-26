@@ -15,7 +15,7 @@
   var SEASON_ICON = { spring: "🌸", summer: "☀️", autumn: "🍁", winter: "❄️" };
   var PI_CAPS = [0, 400, 500, 600, 700, 800];
   // 固定山路的分類（第六批：日本峠／台灣／世界／MFG／原創）
-  var COURSE_CATS = ["touge", "tw", "world", "mfg", "orig"];
+  var COURSE_CATS = ["touge", "tw", "world", "mfg", "orig", "city"];
   // 我的山路（自訂路線存檔）與調校存檔：存在各自的 localStorage
   var MY_KEY = "pritest-dejavu-mycourses", MY_MAX = 60;
   var TUNE_KEY = "pritest-dejavu-tunes", TUNE_MAX = 30;
@@ -168,9 +168,12 @@
   function autoRegion(src) {
     var co = D.course(src);
     if (!co) return "jp";
+    if (co.region) return co.region;
+
     return co.cat === "tw" ? "tw" : co.cat === "world" ? "none" : "jp";
   }
   function regionOf(tr) { return tr.region || autoRegion(tr.src); }
+  function cityKind(region) { return region === "jpcity" ? "jp" : region === "twcity" ? "tw" : null; }
   var SAKURA = ["#f7c6d6", "#f4a9c0", "#fbe0e8", "#f2b5c9", "#ffd6e2"];
   var MOMIJI = ["#d8281c", "#e5501f", "#f08a24", "#c41f2e", "#f2b134", "#b81d24"];
   var TW_STALL = ["香腸", "珍奶", "臭豆腐", "鹽酥雞", "烤玉米", "芒果冰", "肉圓", "蔥油餅", "烤魷魚", "甘蔗汁"];
@@ -225,6 +228,169 @@
     }
     return out;
   }
+  // ---------------- 城市街景（第九批） ----------------
+  // 每一側沿路切成一塊塊「地」：bldg 大樓、gap 側街（路口）、temple 廟（台灣）。路口外側一定是側街（十字路口），高架路段的大樓從橋下長上來。
+  //   lot：{ side, a, b（取樣點範圍）, type, h 高度, set 退縮, col 外牆, win 窗, shop 一樓店面, arcade 騎樓（台灣）, addon 屋頂鐵皮加蓋 }
+  var JP_WALL = ["#d9d6cf", "#c7c3ba", "#b5b1a8", "#e4e1d8", "#a39f97", "#8d8a84", "#c9b8a0", "#7d8a96", "#9aa7b2", "#b9a48c"];
+  var JP_WIN = ["#4c5a66", "#5f7486", "#3d4955", "#8fa9bf", "#6d7f8c"];
+  var JP_SHOP = ["#f4f4f0", "#1f6fb2", "#d8342c", "#f2c230", "#2f9e5b", "#3a3a3a", "#e86a2b"];
+  var TW_WALL = ["#d8cfc0", "#c9b9a3", "#b8b0a6", "#9c9a94", "#e0d6c8", "#8f8577", "#c4c9cc", "#d4c4ae", "#a7b4b0"];
+  var TW_WIN = ["#6f7a7c", "#5d6a6d", "#7d8a86", "#4f5d63"];
+  var JP_VSIGN = ["居酒屋", "カラオケ", "ラーメン", "焼肉", "薬", "歯科", "不動産", "英会話", "ネットカフェ", "ホテル", "すし", "喫茶", "牛丼", "整体"];
+  var TW_TSIGN = ["診所", "牙醫", "補習班", "當舖", "茶行", "中藥行", "小吃", "火鍋", "KTV", "旅館", "眼鏡", "手機", "彩券", "藥局", "銀樓", "按讚", "冷氣", "早餐", "便當", "機車行"];
+  var SIGN_BG = [["#d8342c", "#fff"], ["#f5c518", "#c0262d"], ["#1f5fb8", "#fff"], ["#ffffff", "#d8342c"], ["#14853c", "#fff"], ["#ffffff", "#1f3f8f"], ["#6a2ca0", "#ffe14d"]];
+  var GINKGO = ["#f2c230", "#e8b21c", "#f7d454", "#d9a514"];
+  var CITY_TREE = ["#3f7d3a", "#4a8a3f", "#2f6b33", "#5a9a48"];
+  var JP_PEOPLE = ["salary", "salary", "student", "phone", "granny", "salary", "phone"];
+
+  function cityLayout(tr, kind) {
+    var r = Core.rng(9090 + tr.N), hw = tr.w / 2, N = tr.N;
+    var tw = kind === "tw";
+    var co = D.course(tr.src), prof = co && co.prof || "city_grid";
+    var lots = [], lotOf = { "1": new Int16Array(N).fill(-1), "-1": new Int16Array(N).fill(-1) };
+    var cross = new Uint8Array(N);
+    function pick(a) { return a[Math.floor(r() * a.length)]; }
+    // 路口：急彎（棋盤街區的 90° 路口）的外側是側街
+    var corner = { "1": new Uint8Array(N), "-1": new Uint8Array(N) };
+    for (var i = 0; i < N; i++) {
+      if (Math.abs(tr.k[i]) > 1 / 32) {
+        var out = tr.k[i] > 0 ? -1 : 1;
+        for (var q = Math.max(0, i - 7); q <= Math.min(N - 1, i + 7); q++) corner[out][q] = 1;
+      }
+    }
+    [1, -1].forEach(function (side) {
+      var j = 0;
+      while (j < N - 1) {
+        var elev = tr.sp && tr.sp[j] === 4;
+        var water = tr.water && side === tr.water;
+        var lot = { side: side, a: j };
+        var len;
+        if (water) { lot.type = "water"; len = 30; }
+        else if (corner[side][j]) {
+          lot.type = "gap"; len = 1;
+          while (j + len < N - 1 && corner[side][j + len]) len++;
+        } else if (!elev && prof !== "city_express" && r() < (prof === "city_avenue" ? 0.08 : 0.14)) {
+          lot.type = "gap"; len = 5 + Math.floor(r() * 3);
+        } else {
+          lot.type = tw && !elev && r() < 0.035 ? "temple" : "bldg";
+          len = Math.round((tw ? 5 : 6) + r() * (tw ? 7 : 11));
+          var tall = r() < (prof === "city_avenue" ? 0.3 : 0.12);
+          lot.h = lot.type === "temple" ? 7 : tw ? (tall ? 40 + r() * 80 : 10 + Math.floor(r() * 6) * 3.2) : (tall ? 45 + r() * 90 : 12 + r() * 30);
+          lot.set = r() < 0.3 ? r() * 2 : 0;
+          lot.col = lot.type === "temple" ? "#b3261e" : pick(tw ? TW_WALL : JP_WALL);
+          lot.win = pick(tw ? TW_WIN : JP_WIN);
+          lot.shop = pick(JP_SHOP);
+          lot.glass = !tw && tall && r() < 0.6;          // 高樓：整面玻璃帷幕
+          lot.arcade = tw && lot.type === "bldg" && !tall;  // 騎樓
+          lot.addon = tw && !tall && r() < 0.55 ? pick(["#3f6fa3", "#9b5a37", "#5d7f9c", "#8a8f94"]) : null;
+          lot.base = elev ? -9 : 0;
+        }
+        lot.b = Math.min(N - 1, j + len);
+        var id = lots.length;
+        lots.push(lot);
+        for (var q2 = lot.a; q2 <= lot.b; q2++) lotOf[side][q2] = id;
+        // 側街的兩端：主路上畫斑馬線
+        if (lot.type === "gap" && !elev) {
+          for (var c1 = 0; c1 < 2; c1++) {
+            var at = c1 ? lot.b + 1 : lot.a - 3;
+            for (var c2 = 0; c2 < 2; c2++) if (at + c2 >= 0 && at + c2 < N) cross[at + c2] = 1;
+          }
+        }
+        j = lot.b + 1;
+      }
+    });
+    return { kind: kind, lots: lots, lotOf: lotOf, cross: cross, prof: prof, lm: co && co.lm || "" };
+  }
+  // 城市的路邊景物：行道樹、電線桿與電線（日本）、自動販賣機、紅綠燈、招牌、機車（台灣）、行人、屋頂水塔與看板
+  function cityDecor(tr, city, trees) {
+    var r = Core.rng(7171 + tr.N), out = [], hw = tr.w / 2, tw = city.kind === "tw";
+    function at(s, off, o) {
+      var j = clamp(Math.floor(s / tr.ds), 0, tr.N - 2), p = posAt(tr, s, off);
+      o.j = j; o.off = off; o.x = p.x; o.y = p.y; o.h = p.h; o.ph = r();
+      out.push(o);
+      return o;
+    }
+    function pick(a) { return a[Math.floor(r() * a.length)]; }
+    var treeCol = tr.season === "autumn" && !tw ? GINKGO : tr.season === "spring" && !tw ? SAKURA : tr.season === "winter" && !tw ? ["#8a7f72", "#9a8f80"] : CITY_TREE;
+    var poles = { "1": null, "-1": null };
+    city.lots.forEach(function (lot) {
+      var side = lot.side, s0 = lot.a * tr.ds, s1 = lot.b * tr.ds, L = s1 - s0, s, k;
+      if (lot.type === "water") {
+        if (r() < 0.5) at(s0 + r() * L, side * (hw + 1.2), { kind: "person", type: tw ? pick(PEOPLE) : pick(JP_PEOPLE), c: pick(["#3d7cc9", "#d84a6b", "#6b4fa0", "#2f9e6a", "#333"]), c2: "#d8342c" });
+        return;
+      }
+      if (lot.type === "gap") {
+        // 路口：紅綠燈（兩個角各一支）
+        // 燈桿立在人行道，懸臂伸到車道上方（ax／ay＝懸臂末端）
+        function light(sl) {
+          var o = at(sl, side * (hw + 0.8), { kind: "light", tw: tw, arm: side });
+          var pe = posAt(tr, sl, side * (hw + 0.8 - 4.5));
+          o.ax = pe.x; o.ay = pe.y;
+        }
+        if (lot.b - lot.a >= 4) {
+          light(s0 - 1);
+          if (r() < 0.6) light(s1 + 1);
+        }
+        return;
+      }
+      if (lot.base < 0) {
+        // 高架旁的大樓：只放屋頂看板
+        if (r() < 0.25) at(s0 + L / 2, side * (hw + 9 + lot.set + 6), { kind: "billboard", w: 8 + r() * 4, hgt: 4 + r() * 2, dz: lot.base + lot.h, txt: pick(tw ? TW_BOARD : [["新発売", "冷たい！"], ["24H", "パーキング"], ["英会話", "駅前"], ["不動産", "賃貸・売買"]])[0], sub: "", bg: pick(TW_BG)[0], fg: "#fff" });
+        return;
+      }
+      var face = hw + 3 + lot.set;
+      // 行道樹（人行道外緣）
+      for (s = s0 + 3 + r() * 4; s < s1 - 2; s += 9 + r() * 5) {
+        if (r() < (tw ? 0.45 : 0.6)) {
+          var p = posAt(tr, s, side * (hw + 0.9));
+          trees.push({ x: p.x, y: p.y, r: 1.4 + r() * 0.9, c: pick(treeCol), j: clamp(Math.floor(s / tr.ds), 0, tr.N - 1), o: side * (hw + 0.9), kind: 0.95, city: true });
+        }
+      }
+      if (lot.type === "temple") {
+        at(s0 + L / 2, side * (face + 0.2), { kind: "troof", w: Math.min(L, 16), dz: 7 });
+        at(s0 + L / 2, side * (hw + 1.6), { kind: "person", type: "santaizi", c: "#d8342c" });
+        return;
+      }
+      if (!tw) {
+        // 日本：電線桿（每 30 m 左右，同一側用電線連起來）、自動販賣機、直立招牌、腳踏車、行人
+        for (s = s0 + r() * 10; s < s1; s += 26 + r() * 10) {
+          var pole = at(s, side * (hw + 0.5), { kind: "upole" });
+          if (poles[side]) { poles[side].nx = pole.x; poles[side].ny = pole.y; poles[side].nj = pole.j; }
+          poles[side] = pole;
+        }
+        if (r() < 0.35) { var vs = s0 + r() * L; at(vs, side * (hw + 2.5), { kind: "vend", c: pick(["#f4f4f0", "#d8342c", "#1f6fb2"]) }); at(vs + 1.1, side * (hw + 2.5), { kind: "vend", c: pick(["#f4f4f0", "#d8342c", "#1f6fb2"]) }); }
+        for (k = 0; k < Math.min(3, Math.floor(lot.h / 12)); k++) {
+          if (r() < 0.55) { var sb = pick(SIGN_BG); at(s0 + 1 + r() * Math.max(1, L - 2), side * (face - 0.5), { kind: "vsign", txt: pick(JP_VSIGN), bg: sb[0], fg: sb[1], dz: 4 + r() * Math.max(1, lot.h - 14), hgt: 4 + r() * 5 }); }
+        }
+        if (r() < 0.3) at(s0 + r() * L, side * (hw + 2.2), { kind: "bike", c: pick(["#c0c0c0", "#d8342c", "#2a6fd6", "#222"]) });
+        for (k = 0; k < 2; k++) if (r() < 0.55) at(s0 + r() * L, side * (hw + 1.2 + r() * 1.5), { kind: "person", type: pick(JP_PEOPLE), c: pick(["#2b2f3a", "#3a3f4a", "#1f2633", "#6b4fa0", "#d84a6b"]), c2: "#2a6fd6" });
+      } else {
+        // 台灣：騎樓前整排機車、突出的直立招牌（一層層）、霓虹、攤販、行人、屋頂水塔
+        if (r() < 0.75) {
+          var n = 3 + Math.floor(r() * Math.min(10, L / 1.0));
+          var sc0 = s0 + r() * 2;
+          for (k = 0; k < n && sc0 + k * 0.85 < s1; k++) at(sc0 + k * (0.8 + r() * 0.15), side * (hw + 1.0 + r() * 0.5), { kind: "scooter", c: pick(SCOOTER_COL), ang: Math.PI / 2 + (r() - 0.5) * 0.5, helmet: r() < 0.35 ? pick(["#f5c518", "#fff", "#d8342c", "#2a6fd6"]) : null });
+        }
+        var nS = Math.max(1, Math.round(L / 7));
+        for (k = 0; k < nS; k++) {
+          var stack = [], levels = Math.min(5, Math.max(1, Math.floor((lot.h - 3) / 3.2)));
+          for (var lv = 0; lv < levels; lv++) { var bg = pick(SIGN_BG); stack.push({ txt: pick(TW_TSIGN), bg: bg[0], fg: bg[1] }); }
+          at(s0 + (k + 0.5) * L / nS, side * (hw + 2.4), { kind: "tsign", stack: stack, dz: 3.4 });
+        }
+        if (r() < 0.25) at(s0 + r() * L, side * (hw + 2.0), { kind: "neon", txt: pick(TW_NEON), c: pick(NEON_COL) });
+        if (r() < 0.15) at(s0 + r() * L, side * (hw + 2.3), { kind: "stall", c: pick(["#d8342c", "#1f5fb8", "#14853c", "#f08a24"]), txt: pick(TW_STALL) });
+        if (r() < 0.5) at(s0 + r() * L, side * (hw + 1.6 + r()), { kind: "person", type: pick(PEOPLE), c: pick(["#3d7cc9", "#d84a6b", "#6b4fa0", "#2f9e6a", "#e08a2a"]), c2: pick(["#d8342c", "#14853c", "#f5c518"]) });
+        if (lot.addon || r() < 0.5) at(s0 + L * (0.3 + r() * 0.4), side * (face + 4), { kind: "wtank", dz: lot.h + (lot.addon ? 2.6 : 0) });
+      }
+      // 屋頂看板
+      if (lot.h > 14 && r() < (tw ? 0.18 : 0.22)) {
+        var b = tw ? pick(TW_BOARD) : pick([["新発売", "冷たい一杯"], ["英会話", "駅から 1 分"], ["24H", "パーキング"], ["不動産", "賃貸・売買"], ["カメラ", "ポイント 10%"], ["ラーメン", "→ 50 m"]]), bc = pick(TW_BG);
+        at(s0 + L / 2, side * (face + 3), { kind: "billboard", w: Math.min(L, 6 + r() * 6), hgt: 4 + r() * 2, dz: lot.h, txt: b[0], sub: b[1], bg: bc[0], fg: bc[1] });
+      }
+    });
+    return out;
+  }
+
   // 日本冬天：雪牆的高度（每個取樣點；0＝這段沒有雪牆）
   function snowWalls(tr) {
     var h = new Float32Array(tr.N), ph = (tr.N % 97) / 15;
@@ -301,10 +467,14 @@
       if (spr.length && spr[spr.length - 1].code === tr.sp[i] && spr[spr.length - 1].b === i - 1) spr[spr.length - 1].b = i;
       else spr.push({ a: i, b: i, code: tr.sp[i] });
     }
-    var decor = region === "tw" ? twDecor(tr) : [];
+    // 城市：沒有山林的樹，改成街區（大樓、側街）＋行道樹＋街道景物
+    var ck = cityKind(region), city = null;
+    if (ck) { trees.length = 0; city = cityLayout(tr, ck); }
+    var decor = city ? cityDecor(tr, city, trees) : region === "tw" ? twDecor(tr) : [];
     var sw = region === "jp" && tr.season === "winter" ? snowWalls(tr) : null;
     var shoulder = region === "jp" && tr.season === "spring" ? "#e6b3c3" : region === "jp" && tr.season === "autumn" ? "#b8572e" : null;
-    tr._scenery = { trees: trees, chunks: chunks, sp: spr, region: region, decor: decor, snowWall: sw, shoulder: shoulder };
+    if (city) { sw = null; shoulder = null; }
+    tr._scenery = { trees: trees, chunks: chunks, sp: spr, region: region, decor: decor, snowWall: sw, shoulder: shoulder, city: city };
     return tr._scenery;
   }
 
@@ -1160,6 +1330,7 @@
   // cmds：Déjà vu 重播時帶入上一場的戰略指令紀錄
   function startRace(seed, cmds) {
     ui.race = Core.createRace({ course: setup.course, season: setup.season, dir: setup.dir, mode: setup.mode, rule: setup.rule, seed: seed, cars: raceCars(), cmds: cmds || [], upPts: setup.upPts });
+    scenery(ui.race.track);   // 轉播機位要先知道街景（城市的大樓）
     ui.raceSeed = seed;
     ui.follow = 0; ui.autoFollow = setup.players.length > 1; ui.paused = false;
     ui.countdown = 3.2; ui.acc = 0; ui.result = null; ui.cam = null; ui.smoke = []; ui.weather = []; ui.seenEv = 0; ui.ticker = [];
@@ -1403,7 +1574,7 @@
   function cockpitOpts(tr, cam) {
     var sc = scenery(tr);
     return {
-      pal: PAL[tr.season], trees: sc.trees, patchColor: PATCH_COLOR, cam: cam || null, decor: sc.decor, snowWall: sc.snowWall, shoulder: sc.shoulder,
+      pal: PAL[tr.season], trees: sc.trees, patchColor: PATCH_COLOR, cam: cam || null, decor: sc.decor, snowWall: sc.snowWall, shoulder: sc.shoulder, city: sc.city,
       water: tr.water ? (tr.season === "winter" && tr.scene === "lake" ? WATER.frozen : WATER[tr.scene] || WATER.lake) : null
     };
   }
@@ -1625,7 +1796,8 @@
     var s = cam.z, cx = f.w / 2, cy = f.h * 0.55;
     var viewR = Math.hypot(f.w, f.h) / s * 0.6;
 
-    ctx.fillStyle = pal.ground;
+    var city = sc.city;
+    ctx.fillStyle = city ? (tr.season === "winter" && city.kind === "jp" ? "#c9ced3" : "#a29d94") : pal.ground;
     ctx.fillRect(0, 0, f.w, f.h);
     ctx.save();
     ctx.translate(cx, cy); ctx.scale(s, -s); ctx.rotate(-(cam.h - Math.PI / 2)); ctx.translate(-cam.x, -cam.y);
@@ -1653,9 +1825,10 @@
         vis.forEach(function (c) { var a = Math.max(c.a, r.a), b = Math.min(c.b, r.b); if (a < b) strokeRange(a, b, off); });
       });
     }
-    spLayer(4, "rgba(40,70,100,0.45)", tr.w + 40, 0);   // 橋下的山谷陰影
+    if (city) drawCityTop(ctx, tr, city, vis, strokeRange, pal);
+    else spLayer(4, "rgba(40,70,100,0.45)", tr.w + 40, 0);   // 橋下的山谷陰影
     layer("rgba(0,0,0,0.18)", tr.w + 5, 0);
-    layer(sc.shoulder || pal.shoulder, tr.w + 2.4, 0);
+    layer(city ? "#c8c3b9" : sc.shoulder || pal.shoulder, city ? tr.w + 6.2 : tr.w + 2.4, 0);
     if (sc.shoulder) {
       // 路肩上的花瓣／落葉
       ctx.fillStyle = tr.season === "spring" ? "rgba(255,214,226,0.9)" : "rgba(214,70,30,0.85)";
@@ -1676,8 +1849,24 @@
     });
     ctx.lineCap = "butt";
     layer(pal.line, 0.15, tr.w / 2 - 0.35); layer(pal.line, 0.15, -(tr.w / 2 - 0.35));
-    layer("rgba(240,200,60,0.85)", 0.15, 0, [3, 4]);
-    layer("#c9ccd0", 0.3, tr.w / 2 + 1.1); layer("#c9ccd0", 0.3, -(tr.w / 2 + 1.1));
+    if (city) {
+      // 城市：白色車道虛線（雙向各一線以上）＋中央雙黃線；路口的斑馬線
+      layer(city.kind === "tw" ? "rgba(240,200,60,0.9)" : "#f2f2f2", 0.15, 0.12); layer(city.kind === "tw" ? "rgba(240,200,60,0.9)" : "#f2f2f2", 0.15, -0.12);
+      if (tr.w >= 7.5) { layer("#f2f2f2", 0.12, tr.w / 4, [3, 5]); layer("#f2f2f2", 0.12, -tr.w / 4, [3, 5]); }
+      ctx.fillStyle = "#f4f4f4";
+      vis.forEach(function (c) {
+        for (var q = c.a; q <= c.b; q++) {
+          if (!city.cross[q]) continue;
+          for (var o = -tr.w / 2 + 0.4; o < tr.w / 2 - 0.3; o += 1.0) {
+            var p1 = posAt(tr, q * tr.ds, o), p2 = posAt(tr, q * tr.ds + tr.ds, o);
+            ctx.save(); ctx.translate((p1.x + p2.x) / 2, (p1.y + p2.y) / 2); ctx.rotate(p1.h); ctx.fillRect(-tr.ds / 2, -0.25, tr.ds, 0.5); ctx.restore();
+          }
+        }
+      });
+    } else {
+      layer("rgba(240,200,60,0.85)", 0.15, 0, [3, 4]);
+      layer("#c9ccd0", 0.3, tr.w / 2 + 1.1); layer("#c9ccd0", 0.3, -(tr.w / 2 + 1.1));
+    }
     ctx.lineCap = "round";
     // 起點／終點線
     [tr.start, tr.finish].forEach(function (sx, n) {
@@ -1789,10 +1978,37 @@
     if (drone) drawLive(ctx, f, race);
   }
 
+  // 俯視圖的城市：側街（往外延伸的柏油路）與大樓屋頂
+  function drawCityTop(ctx, tr, city, vis, strokeRange, pal) {
+    var hw = tr.w / 2, seen = {};
+    ctx.lineCap = "butt";
+    vis.forEach(function (c) {
+      [1, -1].forEach(function (side) {
+        for (var q = c.a; q <= c.b; q++) {
+          var id = city.lotOf[side][q];
+          if (id < 0 || seen[id]) continue;
+          seen[id] = 1;
+          var lot = city.lots[id];
+          if (lot.type === "water") continue;
+          if (lot.type === "gap") {
+            ctx.strokeStyle = tr.rain ? "#3f4448" : pal.road; ctx.lineWidth = 46; strokeRange(lot.a, lot.b, side * (hw + 23));
+            continue;
+          }
+          var face = hw + (lot.base < 0 ? 9 : 3) + lot.set;
+          ctx.strokeStyle = "rgba(0,0,0,0.25)"; ctx.lineWidth = 14; strokeRange(lot.a, lot.b, side * (face + 7.6));
+          ctx.strokeStyle = lot.type === "temple" ? "#d5682b" : lot.glass ? "#7f93a6" : lot.col; ctx.lineWidth = 14; strokeRange(lot.a, lot.b, side * (face + 7));
+          // 屋頂的設備（冷氣機、水塔）
+          ctx.strokeStyle = "rgba(0,0,0,0.18)"; ctx.lineWidth = 3; strokeRange(lot.a, lot.b, side * (face + 7));
+        }
+      });
+    });
+    ctx.lineCap = "round";
+  }
+
   // 俯視圖的台灣景物；tall＝高的東西（看板、霓虹）畫在樹上面
   function drawDecorTop(ctx, list, cam, viewR, t, tall) {
     list.forEach(function (d) {
-      var isTall = d.kind === "billboard" || d.kind === "neon";
+      var isTall = d.kind === "billboard" || d.kind === "neon" || d.kind === "tsign" || d.kind === "vsign" || d.kind === "wtank" || d.kind === "troof" || d.kind === "upole" || d.kind === "light";
       if (isTall !== tall || Math.abs(d.x - cam.x) > viewR || Math.abs(d.y - cam.y) > viewR) return;
       ctx.save(); ctx.translate(d.x, d.y); ctx.rotate(d.h);
       if (d.kind === "scooter") {
@@ -1812,6 +2028,19 @@
         ctx.fillStyle = "rgba(0,0,0,0.3)"; ctx.fillRect(-d.w / 2 + 0.6, -0.4, d.w, 0.8);
         ctx.fillStyle = d.bg; ctx.fillRect(-d.w / 2, -0.35, d.w, 0.7);
         ctx.strokeStyle = "#eee"; ctx.lineWidth = 0.12; ctx.strokeRect(-d.w / 2, -0.35, d.w, 0.7);
+      } else if (d.kind === "upole" || d.kind === "light") {
+        ctx.fillStyle = "#555"; ctx.beginPath(); ctx.arc(0, 0, 0.3, 0, Math.PI * 2); ctx.fill();
+        if (d.kind === "light") { ctx.fillStyle = Math.floor(t / 4 + d.ph * 3) % 3 === 0 ? "#ff3b3b" : "#3cf06a"; ctx.beginPath(); ctx.arc(0, -d.arm * 2.5, 0.4, 0, Math.PI * 2); ctx.fill(); }
+      } else if (d.kind === "tsign" || d.kind === "vsign") {
+        ctx.fillStyle = d.kind === "tsign" ? d.stack[0].bg : d.bg; ctx.fillRect(-0.5, -0.9, 1.0, 1.8);
+      } else if (d.kind === "wtank") {
+        ctx.fillStyle = "#c9cdd1"; ctx.beginPath(); ctx.arc(0, 0, 0.9, 0, Math.PI * 2); ctx.fill();
+      } else if (d.kind === "troof") {
+        ctx.fillStyle = "#2f7d4f"; ctx.fillRect(-d.w / 2, -5, d.w, 10); ctx.fillStyle = "#d5682b"; ctx.fillRect(-d.w / 2, -0.4, d.w, 0.8);
+      } else if (d.kind === "vend") {
+        ctx.fillStyle = d.c; ctx.fillRect(-0.5, -0.4, 1.0, 0.8);
+      } else if (d.kind === "bike") {
+        ctx.fillStyle = d.c; ctx.fillRect(-0.85, -0.15, 1.7, 0.3);
       } else if (d.kind === "neon") {
         var on = Math.sin(t * 9 + d.ph * 7) > -0.85;
         ctx.fillStyle = on ? d.c : "#3a2a3a"; ctx.globalAlpha = 0.35; ctx.beginPath(); ctx.arc(0, 0, 1.6, 0, Math.PI * 2); ctx.fill();
@@ -1933,7 +2162,8 @@
     var w = ui.weather, kind = tr.rain ? "rain" : tr.season === "winter" ? "snow" : tr.season === "spring" ? "petal" : tr.season === "autumn" ? "leaf" : null;
     if (!kind) return;
     // 日本的春秋冬：落櫻、落葉、雪下得更多
-    var jp = scenery(tr).region === "jp";
+    var jp = scenery(tr).region === "jp" || scenery(tr).region === "jpcity";
+
     var want = kind === "rain" ? 120 : kind === "snow" ? (jp ? 160 : 90) : jp ? 75 : 25;
     while (w.length < want) w.push({ x: Math.random() * f.w, y: Math.random() * f.h, v: 0.5 + Math.random(), a: Math.random() * 6 });
     w.forEach(function (p) {
@@ -2192,7 +2422,7 @@
     scene: function () {
       var sc = scenery(previewTrack()), k = {};
       sc.decor.forEach(function (d) { k[d.kind] = (k[d.kind] || 0) + 1; });
-      return { region: sc.region, decor: k, snowWall: !!sc.snowWall, shoulder: sc.shoulder, trees: sc.trees.length };
+      return { region: sc.region, decor: k, snowWall: !!sc.snowWall, shoulder: sc.shoulder, trees: sc.trees.length, city: sc.city ? sc.city.lots.length : 0 };
     },
     tv: function () { return { kind: ui.tvD && ui.tvD.kind, focus: ui.tvD && ui.tvD.focus, replay: !!ui.tvRp, pend: !!ui.tvPend, hl: !!ui.hl, hlSeg: ui.hl ? ui.hl.rp.i : null }; },
 

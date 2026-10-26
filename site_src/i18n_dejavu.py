@@ -443,6 +443,17 @@ DEJAVU_ZH: dict[str, str] = {
     "dv_region_tw": "台灣（路邊攤・霓虹・機車・大看板）",
     "dv_region_none": "一般",
     "dv_region_auto": "自動：{r}",
+    "dv_cat_city": "城市道路",
+    "dv_prof_city_grid": "棋盤街區",
+    "dv_prof_city_avenue": "大道",
+    "dv_prof_city_express": "高架快速道路",
+    "dv_prof_city_river": "河岸道路",
+    "dv_profd_city_grid": "直線接 90° 路口，街角、紅綠燈與斑馬線一個接一個。",
+    "dv_profd_city_avenue": "寬闊的大道，長直線兩旁是高樓。",
+    "dv_profd_city_express": "整段高架，大半徑彎在大樓之間穿梭（冬天高架路面先結冰）。",
+    "dv_profd_city_river": "沿著河岸或海邊的緩彎，一側是水。",
+    "dv_region_jpcity": "日本城市（大樓、電線桿、招牌、販賣機）",
+    "dv_region_twcity": "台灣城市（騎樓、鐵窗、直立招牌、機車）",
 }
 
 DEJAVU_JA: dict[str, str] = {
@@ -882,6 +893,17 @@ DEJAVU_JA: dict[str, str] = {
     "dv_region_tw": "台湾（屋台・ネオン・バイク・大看板）",
     "dv_region_none": "標準",
     "dv_region_auto": "自動：{r}",
+    "dv_cat_city": "市街地",
+    "dv_prof_city_grid": "碁盤の目",
+    "dv_prof_city_avenue": "大通り",
+    "dv_prof_city_express": "都市高速",
+    "dv_prof_city_river": "川沿い",
+    "dv_profd_city_grid": "直線と 90° の交差点。角・信号・横断歩道が次々に来る。",
+    "dv_profd_city_avenue": "広い大通り。長いストレートの両側に高層ビル。",
+    "dv_profd_city_express": "全区間が高架。ビルの間を大きな R で抜ける（冬は高架から凍る）。",
+    "dv_profd_city_river": "川や海沿いの緩いカーブ。片側は水辺。",
+    "dv_region_jpcity": "日本の街（ビル・電柱・看板・自販機）",
+    "dv_region_twcity": "台湾の街（騎楼・鉄格子・突き出し看板・バイク）",
 }
 
 DEJAVU_EN: dict[str, str] = {
@@ -1321,4 +1343,15 @@ DEJAVU_EN: dict[str, str] = {
     "dv_region_tw": "Taiwan (stalls, neon, scooters, billboards)",
     "dv_region_none": "Plain",
     "dv_region_auto": "Auto: {r}",
+    "dv_cat_city": "City streets",
+    "dv_prof_city_grid": "Street grid",
+    "dv_prof_city_avenue": "Avenue",
+    "dv_prof_city_express": "Urban expressway",
+    "dv_prof_city_river": "Riverside",
+    "dv_profd_city_grid": "Straights joined by 90° junctions: corners, traffic lights and crosswalks one after another.",
+    "dv_profd_city_avenue": "Wide avenue with long straights lined by towers.",
+    "dv_profd_city_express": "Elevated the whole way, sweeping between buildings (the viaduct ices first in winter).",
+    "dv_profd_city_river": "Gentle bends along a river or the sea.",
+    "dv_region_jpcity": "Japanese city (buildings, utility poles, signs, vending machines)",
+    "dv_region_twcity": "Taiwanese city (arcades, window bars, stacked signs, scooters)",
 }

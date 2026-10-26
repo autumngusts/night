@@ -28,6 +28,9 @@ var PROFILES = {
   cliff: { cliff_run: 2, tunnel: 1, tunnel_curve: 1, bridge: 1, medium: 2, tight: 2, hairpin: 1.5, straight_s: 2 }
 };
 var PROFILE_IDS = Object.keys(PROFILES);
+// 城市路線（第九批）：不用零件，直接接直線與路口彎（見 cityPiece）
+//   city_grid 棋盤街區（直線接 90° 路口）、city_avenue 大道（長直線、少彎）、city_express 高架快速道路（大半徑彎、整段高架）、city_river 河岸道路
+var CITY_PROFILES = ["city_grid", "city_avenue", "city_express", "city_river"];
 
 function C(zh, ja, en) { return [zh, ja, en]; }
 // [id, 名稱, 分類, 性格, 路寬, 坡度, 長度 km, { scene, water }?]
@@ -128,7 +131,34 @@ var LIST = [
   ["kikoku", C("鬼哭峠", "鬼哭峠", "Kikoku Pass"), "orig", "switchback", 5.5, 10, 4],
   ["hoshifuri", C("星降坂", "星降る坂", "Starfall Slope"), "orig", "highland", 7, 7, 5],
   ["tengu", C("天狗之鼻", "天狗の鼻", "Tengu's Nose"), "orig", "cliff", 6, 8, 4.4],
-  ["aosagi", C("蒼鷺湖", "蒼鷺湖", "Grey Heron Lake"), "orig", "coastal", 7, 4, 4.6, { scene: "lake", water: -1 }]
+  ["aosagi", C("蒼鷺湖", "蒼鷺湖", "Grey Heron Lake"), "orig", "coastal", 7, 4, 4.6, { scene: "lake", water: -1 }],
+  // ---- 城市（第九批，2026-10-27；街景見 dejavu.js 的 cityLayout，路形是風格化的） ----
+  ["shinjuku", C("東京 新宿", "東京・新宿", "Tokyo Shinjuku"), "city", "city_grid", 8, 2, 3.6, { region: "jpcity", lm: "tokyo" }],
+  ["shibuya", C("東京 澀谷", "東京・渋谷", "Tokyo Shibuya"), "city", "city_grid", 8.5, 3, 3.4, { region: "jpcity", lm: "tokyo" }],
+  ["ginza", C("東京 銀座中央通", "東京・銀座中央通り", "Tokyo Ginza"), "city", "city_avenue", 10, 1, 3.8, { region: "jpcity", lm: "tokyo" }],
+  ["shutoc1", C("首都高 C1 都心環狀線", "首都高 C1 都心環状線", "Shuto Expwy C1 Loop"), "city", "city_express", 7, 2, 4.6, { region: "jpcity", lm: "tokyo" }],
+  ["wangan", C("首都高 灣岸線", "首都高 湾岸線", "Shuto Wangan Line"), "city", "city_express", 9, 1, 5.4, { region: "jpcity", lm: "tokyo", scene: "sea", water: -1 }],
+  ["dotonbori", C("大阪 道頓堀", "大阪・道頓堀", "Osaka Dotonbori"), "city", "city_river", 7, 1, 3.4, { region: "jpcity", scene: "lake", water: 1 }],
+  ["umeda", C("大阪 梅田 御堂筋", "大阪・梅田 御堂筋", "Osaka Umeda Midosuji"), "city", "city_avenue", 10, 2, 3.8, { region: "jpcity" }],
+  ["hanshin", C("阪神高速 環狀線", "阪神高速 環状線", "Hanshin Expwy Loop"), "city", "city_express", 7, 2, 4.4, { region: "jpcity" }],
+  ["sakae", C("名古屋 榮", "名古屋・栄", "Nagoya Sakae"), "city", "city_avenue", 10, 1, 3.6, { region: "jpcity" }],
+  ["kawaramachi", C("京都 河原町", "京都・河原町", "Kyoto Kawaramachi"), "city", "city_grid", 7, 2, 3.2, { region: "jpcity" }],
+  ["tenjin", C("福岡 天神", "福岡・天神", "Fukuoka Tenjin"), "city", "city_grid", 8, 2, 3.4, { region: "jpcity" }],
+  ["susukino", C("札幌 薄野", "札幌・すすきの", "Sapporo Susukino"), "city", "city_grid", 9, 1, 3.4, { region: "jpcity" }],
+  ["minatomirai", C("橫濱 港未來", "横浜・みなとみらい", "Yokohama Minato Mirai"), "city", "city_river", 9, 1, 4, { region: "jpcity", scene: "sea", water: -1 }],
+  ["ximen", C("台北 西門町", "台北・西門町", "Taipei Ximending"), "city", "city_grid", 7, 2, 3.2, { region: "twcity", lm: "taipei" }],
+  ["xinyi", C("台北 信義區", "台北・信義区", "Taipei Xinyi"), "city", "city_avenue", 10, 2, 3.6, { region: "twcity", lm: "taipei" }],
+  ["zhongxiao", C("台北 忠孝東路", "台北・忠孝東路", "Taipei Zhongxiao E. Rd"), "city", "city_avenue", 10, 1, 4, { region: "twcity", lm: "taipei" }],
+  ["civicblvd", C("台北 市民大道高架", "台北・市民大道高架", "Taipei Civic Blvd Viaduct"), "city", "city_express", 8, 2, 4.4, { region: "twcity", lm: "taipei" }],
+  ["jianguo", C("台北 建國高架", "台北・建国高架", "Taipei Jianguo Viaduct"), "city", "city_express", 8, 2, 4.2, { region: "twcity", lm: "taipei" }],
+  ["zhongshan", C("台北 中山北路", "台北・中山北路", "Taipei Zhongshan N. Rd"), "city", "city_avenue", 9, 2, 3.6, { region: "twcity", lm: "taipei" }],
+  ["fengjia", C("台中 逢甲", "台中・逢甲", "Taichung Fengjia"), "city", "city_grid", 6.5, 2, 3, { region: "twcity" }],
+  ["taiwanblvd", C("台中 台灣大道", "台中・台湾大道", "Taichung Taiwan Blvd"), "city", "city_avenue", 10, 1, 4.2, { region: "twcity" }],
+  ["loveriver", C("高雄 愛河", "高雄・愛河", "Kaohsiung Love River"), "city", "city_river", 8, 1, 3.8, { region: "twcity", scene: "lake", water: -1 }],
+  ["xinjuejiang", C("高雄 新堀江", "高雄・新堀江", "Kaohsiung Shinkuchan"), "city", "city_grid", 7, 1, 3, { region: "twcity" }],
+  ["haian", C("台南 海安路", "台南・海安路", "Tainan Haian Rd"), "city", "city_grid", 7.5, 1, 3.2, { region: "twcity" }],
+  ["miaokou", C("基隆 廟口", "基隆・廟口", "Keelung Miaokou"), "city", "city_grid", 6.5, 3, 3, { region: "twcity", scene: "sea", water: 1 }],
+  ["tamsui", C("淡水 河岸", "淡水・河岸", "Tamsui Riverside"), "city", "city_river", 7, 2, 3.6, { region: "twcity", scene: "sea", water: -1 }]
 ];
 
 function hash(str) { var h = 2166136261; for (var i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 16777619); } return h | 0; }
@@ -143,8 +173,33 @@ function pick(r, w) {
 
 function cross(course) { return Core.trackInfo(Core.buildTrack(course, { seed: 1, season: "summer", rain: false })); }
 
+// 城市：直線＋路口彎（棋盤街區是 90° 路口，半徑 14–22 m）；高架整段是橋面（D.SURFACES.bridge）
+function cityPiece(r, prof) {
+  var side = r() < 0.5 ? 1 : -1, x = r(), sf = prof === "city_express" ? "bridge" : undefined;
+  function S(a, b) { var o = { t: "S", len: Math.round(a + r() * (b - a)), g: null }; if (sf) o.sf = sf; return o; }
+  function Cc(ang, ra, rb) { var o = { t: "C", ang: ang * side, r: Math.round(ra + r() * (rb - ra)), g: null }; if (sf) o.sf = sf; return o; }
+  if (prof === "city_grid") {
+    if (x < 0.5) return [S(70, 200)];
+    if (x < 0.85) return [Cc(90, 14, 22), S(40, 120)];
+    return [Cc(35 + Math.round(r() * 20), 45, 80)];
+  }
+  if (prof === "city_avenue") {
+    if (x < 0.55) return [S(160, 380)];
+    if (x < 0.8) return [Cc(20 + Math.round(r() * 40), 80, 160)];
+    return [Cc(90, 22, 30), S(60, 160)];
+  }
+  if (prof === "city_express") {
+    if (x < 0.4) return [S(120, 320)];
+    if (x < 0.85) return [Cc(25 + Math.round(r() * 55), 90, 220)];
+    return [Cc(70 + Math.round(r() * 40), 45, 70)];
+  }
+  // city_river：沿著河的緩彎
+  if (x < 0.5) return [S(80, 260)];
+  return [Cc(15 + Math.round(r() * 35), 80, 200)];
+}
+
 function generate(def) {
-  var w = PROFILES[def[3]];
+  var w = PROFILES[def[3]], city = CITY_PROFILES.indexOf(def[3]) >= 0;
   for (var attempt = 0; attempt < 12; attempt++) {
     var r = Core.rng(hash(def[0]) + attempt * 7919);
     var course = { w: def[4], g: def[5], segs: [{ t: "S", len: 150, g: null }] };
@@ -152,7 +207,7 @@ function generate(def) {
     while (Core.courseLen(course) < target && guard++ < 120) {
       var best = null;
       for (var tries = 0; tries < 8; tries++) {
-        var cand = Core.expandPiece(pick(r, w), r() < 0.5 ? 1 : -1, null);
+        var cand = city ? cityPiece(r, def[3]) : Core.expandPiece(pick(r, w), r() < 0.5 ? 1 : -1, null);
         var info = cross({ w: course.w, g: course.g, segs: course.segs.concat(cand) });
         if (!best || info.cross < best.cross) best = { segs: cand, cross: info.cross };
         if (info.cross === 0) break;
@@ -179,7 +234,7 @@ var t0 = Date.now();
 LIST.forEach(function (def) {
   var course = generate(def);
   var o = { id: def[0], cat: def[2], prof: def[3], name: def[1], w: def[4], g: def[5] };
-  if (def[7]) { o.scene = def[7].scene; o.water = def[7].water; }
+  if (def[7]) { o.scene = def[7].scene; o.water = def[7].water; o.region = def[7].region; o.lm = def[7].lm; }
   o.segs = course.segs.map(segOut);
   out.push(o);
   process.stdout.write(def[0] + " " + (Core.courseLen(course) / 1000).toFixed(2) + "km " + course.segs.length + "段\n");
@@ -188,14 +243,15 @@ LIST.forEach(function (def) {
 var lines = out.map(function (o) {
   var head = "    { id: " + JSON.stringify(o.id) + ", cat: " + JSON.stringify(o.cat) + ", prof: " + JSON.stringify(o.prof) +
     ", name: C(" + o.name.map(function (x) { return JSON.stringify(x); }).join(", ") + "), w: " + o.w + ", g: " + o.g +
-    (o.scene ? ", scene: " + JSON.stringify(o.scene) + ", water: " + o.water : "") + ",\n      segs: " + JSON.stringify(o.segs) + " }";
+    (o.scene ? ", scene: " + JSON.stringify(o.scene) + ", water: " + o.water : "") +
+    (o.region ? ", region: " + JSON.stringify(o.region) : "") + (o.lm ? ", lm: " + JSON.stringify(o.lm) : "") + ",\n      segs: " + JSON.stringify(o.segs) + " }";
   return head;
 });
-var src = "// DÉJÀ VU 山道下坡（dejavu）：擴充固定山路（2026-10-26 第六批，10 → " + (10 + out.length) + " 條）。在 dejavu_data.js 之後、dejavu_core.js 之前載入。\n" +
+var src = "// DÉJÀ VU 山道下坡（dejavu）：擴充固定山路（2026-10-26 第六批 10 → 102 條；2026-10-27 第九批加城市道路，共 " + (10 + out.length) + " 條）。在 dejavu_data.js 之後、dejavu_core.js 之前載入。\n" +
   "// 由 tools/dejavu_check/gen_courses.js 產生：依路線性格（prof）用零件接出來的風格化路線，只有名稱是真實地名，形狀不是實際測量。\n" +
   "// 可以直接手改 segs（格式同 dejavu_data.js 的 COURSES）；重新執行產生工具會覆蓋這個檔案。\n" +
   "(function () {\n  \"use strict\";\n\n  var root = typeof window !== \"undefined\" ? window : globalThis;\n  var D = root.PriTestDejavuData;\n  if (!D) return;\n" +
-  "  var C = D.C;\n\n  // 路線性格（車庫／山路畫面顯示用，說明文字在 i18n 的 dv_prof_*）\n  D.COURSE_PROFILES = " + JSON.stringify(PROFILE_IDS) + ";\n\n" +
+  "  var C = D.C;\n\n  // 路線性格（車庫／山路畫面顯示用，說明文字在 i18n 的 dv_prof_*）\n  D.COURSE_PROFILES = " + JSON.stringify(PROFILE_IDS.concat(CITY_PROFILES)) + ";\n\n" +
   "  [\n" + lines.join(",\n") + "\n  ].forEach(function (c) { D.COURSES.push(c); });\n})();\n";
 fs.writeFileSync(path.join(__dirname, "../../static_src/dejavu_courses.js"), src);
 console.log("寫入 " + out.length + " 條，耗時 " + ((Date.now() - t0) / 1000).toFixed(1) + " 秒");

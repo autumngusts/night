@@ -60,7 +60,7 @@
   function fixedCourse(id) {
     var c = D.course(id);
     if (!c) return null;
-    return { src: id, w: c.w, g: c.g, scene: c.scene || "mountain", water: c.water || 0, segs: c.segs.map(parseSeg) };
+    return { src: id, w: c.w, g: c.g, scene: c.scene || "mountain", water: c.water || 0, region: c.region || "", segs: c.segs.map(parseSeg) };
   }
 
   // 一塊零件展開成路段；side＝1 左、-1 右；grade＝null 用預設坡度（零件自己寫死坡度的段，例如盲坡，維持原樣）
