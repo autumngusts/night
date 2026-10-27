@@ -116,7 +116,9 @@
     var isPath = function (id) { return !want || D.CARD[id].path === want; };
     if (pd.k === "card") {
       if (wantIdx >= 0) return pd.opts[wantIdx] ? { id: pd.opts[wantIdx] } : { skip: true };
-      return { id: pd.opts[0] };
+      // 連攜卡（2026-10-27）：有就拿（平衡測試才量得到連攜卡的影響）
+      var duoId = pd.opts.filter(function (id) { return D.CARD[id] && D.CARD[id].duo; })[0];
+      return { id: duoId || pd.opts[0] };
     }
     if (pd.k === "relic") return { id: pd.opts[0] };
     if (pd.k === "rest") return { kind: h.hp < h.max * 0.7 ? "heal" : "upgrade" };

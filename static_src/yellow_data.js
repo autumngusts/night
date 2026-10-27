@@ -1379,6 +1379,47 @@
     card("dan_sway", "dancer", "charm", "common", "skl", 1, "area", "any", [sAll("charm", 1)], N("搖曳", "揺らめき", "Sway"), { ar: "m" })
   ]);
 
+  // 雙人連攜卡（2026-10-27 使用者指定）：兩位特定職業同隊時，戰後獎勵才會多出的第 4 個選項。
+  // 每個職業剛好 2 組、共 19 組。fx＝出牌者的效果（各職業都能用的通用效果），最後的 { o: "duo" }＝搭檔（另一個職業、存活中）也得到 duoFx[搭檔職業]。
+  // 搭檔的效果用搭檔自己的資源（劍意、節拍、氣…），對同一個目標結算；搭檔倒下或不在隊上時只有出牌者的部分。
+  function duo(id, a, b, type, cost, tgt, rng, fx, name, ga, gb, extra) {
+    var x = { duo: [a, b], duoFx: {} };
+    x.duoFx[a] = ga; x.duoFx[b] = gb;
+    Object.keys(extra || {}).forEach(function (k) { x[k] = extra[k]; });
+    return card(id, null, null, "duo", type, cost, tgt, rng, fx.concat([{ o: "duo" }]), name, x);
+  }
+  var DUO_GIFT = {
+    paladin: [blk(6)], berserker: [op("str", 1)], ranger: [op("trap", 3)], mage: [st("burn", 3)], priest: [op("healAll", 2)],
+    witch: [st("poison", 3)], summoner: [op("summon", 1)], bard: [op("mel", 3)], monk: [op("chi", 3)], druid: [DRAW1],
+    chrono: [op("flux", 2)], alchemist: [op("brew", 1, { c: "rand" })], gambler: [op("roll", 2, { k: "blk" })], ninja: [tok(1)],
+    kensei: [op("edge", 4)], onmyoji: [op("kek", 2)], pirate: [op("ammo", 2)], dancer: [op("beat", 2)], jujutsu: [op("ce", 3)]
+  };
+  function duoStd(id, a, b, type, cost, tgt, rng, fx, name, extra) { return duo(id, a, b, type, cost, tgt, rng, fx, name, DUO_GIFT[a], DUO_GIFT[b], extra); }
+  var DUO_CARDS = [
+    duoStd("duo_swordance", "dancer", "kensei", "atk", 1, "enemy", "any", [dmg(5, 2)], N("劍之舞", "剣の舞", "Sword Dance")),
+    duoStd("duo_moonblade", "kensei", "ninja", "atk", 1, "enemy", "near", [dmg(8)], N("影月雙刃", "影月双刃", "Moon-Shadow Blades")),
+    duoStd("duo_tonkou", "ninja", "onmyoji", "skl", 1, "self", null, [blk(6), DRAW1], N("遁甲符", "遁甲符", "Talisman Escape")),
+    duoStd("duo_seal", "onmyoji", "jujutsu", "skl", 1, "enemy", "any", [st("weak", 2), blk(5)], N("封印結界", "封印結界", "Sealing Barrier")),
+    duoStd("duo_hexvenom", "jujutsu", "witch", "atk", 1, "enemy", "any", [dmg(6), st("poison", 3)], N("咒毒共鳴", "呪毒共鳴", "Hex Resonance")),
+    duoStd("duo_toxin", "witch", "alchemist", "skl", 1, "enemy", "any", [st("poison", 5)], N("毒藥調合", "毒薬調合", "Toxic Brew")),
+    duo("duo_powder", "alchemist", "mage", "atk", 2, "none", "any", [dAll(5, "any")], N("煉金火藥", "錬金火薬", "Alchemical Powder"), DUO_GIFT.alchemist, [sAll("burn", 2, "any")]),
+    duo("duo_meteor", "mage", "chrono", "atk", 2, "enemy", "any", [dmg(12)], N("時空隕石", "時空隕石", "Chrono Meteor"), [st("burn", 4)], DUO_GIFT.chrono),
+    duoStd("duo_fate", "chrono", "gambler", "skl", 1, "self", null, [DRAW2], N("命運輪轉", "運命の輪", "Wheel of Fate")),
+    duoStd("duo_plunder", "gambler", "pirate", "atk", 1, "enemy", "any", [op("roll", 3, { k: "dmg" })], N("海盜豪賭", "海賊の大博打", "Pirate's Gamble")),
+    duoStd("duo_crossfire", "pirate", "ranger", "atk", 1, "none", "far", [dAll(4, "far")], N("交叉火網", "十字砲火", "Crossfire")),
+    duoStd("duo_hunt", "ranger", "druid", "atk", 1, "enemy", "any", [dmg(7)], N("林間狩獵", "森の狩り", "Forest Hunt")),
+    duo("duo_feral", "druid", "monk", "atk", 1, "enemy", "near", [dmg(4, 2)], N("野性拳法", "野生の拳", "Feral Fist"), [blk(5)], DUO_GIFT.monk),
+    duoStd("duo_barrage", "monk", "berserker", "atk", 1, "enemy", "near", [dmg(3, 3)], N("狂拳亂打", "狂拳乱打", "Frenzied Barrage")),
+    duoStd("duo_wrath", "berserker", "paladin", "atk", 2, "enemy", "any", [dmg(10), blk(6)], N("聖戰之怒", "聖戦の怒り", "Crusader's Wrath")),
+    duo("duo_aegis", "paladin", "priest", "skl", 1, "self", null, [op("blkAll", 4)], N("聖光庇護", "聖光の加護", "Holy Aegis"), [blk(6), op("taunt")], DUO_GIFT.priest),
+    duoStd("duo_soul", "priest", "summoner", "skl", 1, "self", null, [op("healAll", 3)], N("靈魂之光", "魂の光", "Soul Light")),
+    duoStd("duo_chorus", "summoner", "bard", "skl", 1, "self", null, [op("blkAll", 3), DRAW1], N("精靈合唱", "精霊の合唱", "Spirit Chorus")),
+    duoStd("duo_stage", "bard", "dancer", "atk", 1, "none", "near", [dAll(4, "near")], N("雙人舞台", "二人の舞台", "Duet Stage"))
+  ];
+  CARDS = CARDS.concat(DUO_CARDS);
+  // 連攜卡在戰後獎勵出現的機率（%）：一般戰利品／菁英／首領
+  var DUO_PCT = { spoils: 25, elite: 50, boss: 100 };
+
   (function () {
     var seen = {};
     CARDS.forEach(function (c) {
@@ -1401,6 +1442,7 @@
     ACTS: ACTS, REGIONS: REGIONS, REGION: index(REGIONS), FLOORS: FLOORS, DESTS: DESTS, DEST: index(DESTS), FOE_HP: FOE_HP,
     AFFIXES: AFFIXES, AFFIX: index(AFFIXES), AFFIX_NUM: AFFIX_NUM, AFFIX_PCT: AFFIX_PCT,
     FIELDS: FIELDS, FIELD: index(FIELDS), FIELD_NUM: FIELD_NUM, FIELD_PCT: FIELD_PCT,
+    DUO_CARDS: DUO_CARDS, DUO_PCT: DUO_PCT,
     MAX_PERK: MAX_PERK, SHRINE_PCT: SHRINE_PCT, ALTARS: ALTARS, ALTAR: index(ALTARS), ALTAR_NUM: ALTAR_NUM,
     TMODS: TMODS, TMOD: index(TMODS), LEVEL_XP: LEVEL_XP, STARTERS: STARTERS, MAX_FLUX: 10,
     // 敵人判定圓的半徑（戰場座標：圓形戰場直徑 100）；size 沒寫時菁英＝l、Boss＝boss、其他＝m

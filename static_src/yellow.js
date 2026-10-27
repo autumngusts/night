@@ -305,12 +305,21 @@
     // 對自己用的牌（清祓、水遁）：移除的是自己的負面狀態
     if (f.o === "cleanse" && d.tgt === "self") return t("yc_fx_cleanse_self");
     if (f.o === "addTok") return t("yc_fx_addTok", { n: f.n, c: L(D.CARD[f.c].name) });
+    // 連攜卡（2026-10-27）：搭檔得到的效果用搭檔自己的數值，所以不帶出牌者的力量等加成
+    if (f.o === "duo") {
+      var duoLine = function (cls) { return t("yc_fx_duo", { c: heroDef(cls).icon + L(heroDef(cls).name) }) + (d.duoFx[cls] || []).map(function (g) { return fxText(d, g, null, ring); }).join(t("yc_sep_inner")); };
+      var mate = duoHolder && d.duo.indexOf(duoHolder) >= 0 ? (d.duo[0] === duoHolder ? d.duo[1] : d.duo[0]) : null;
+      return mate ? duoLine(mate) : d.duo.map(duoLine).join(t("yc_sep"));
+    }
     if (f.o === "manaNext") return t("yc_fx_manaNext", { n: f.n, k: f.k || f.n });
     if (f.o === "dmgAtkN") return t("yc_fx_dmgAtkN", p) + (h ? t("yc_fx_now_hits", { m: (h.atkN || 0) + (f.k || 0) }) : "");
     return t("yc_fx_" + f.o, p);
   }
 
-  function cardText(d, h) {
+  // holder：沒有戰鬥中的英雄時（獎勵、牌組），用來決定連攜卡只顯示搭檔那一份
+  var duoHolder = null;
+  function cardText(d, h, holder) {
+    duoHolder = h ? h.cls : holder || null;
     var sep = t("yc_sep");
     var parts = [];
     if (d.near) parts.push(t("yc_ring_near_lbl") + d.near.map(function (f) { return fxText(d, f, h, "near"); }).join(t("yc_sep_inner")));
@@ -350,7 +359,8 @@
   function cardEl(c, opts) {
     opts = opts || {};
     var d = Core.cardDef(c);
-    var hd = heroDef(d.cls);
+    var hd = heroDef(d.cls), hd2 = null;
+    if (d.duo) { hd = heroDef(d.duo[0]); hd2 = heroDef(d.duo[1]); }
     var tag = opts.tag || (opts.button === false ? "div" : "button");
     var classes = "yc-card yc-type-" + d.type + " yc-rar-" + d.rar + (opts.extra ? " " + opts.extra : "");
     if (opts.selected) classes += " yc-card-sel";
@@ -358,7 +368,7 @@
     if (c.up) classes += " yc-card-up";
     return el(tag, {
       type: tag === "button" ? "button" : null, class: classes,
-      style: hd ? "--yc-cls:" + hd.color : null,
+      style: hd ? "--yc-cls:" + hd.color + (hd2 ? ";--yc-cls2:" + hd2.color : "") : null,
       "data-u": c.u, title: opts.title || null,
       onclick: opts.onclick || null, disabled: tag === "button" && opts.disabled && !opts.onclick ? true : null
     }, [
@@ -367,13 +377,14 @@
         el("span", { class: "yc-card-name", text: cardName(c) })
       ]),
       el("span", { class: "yc-card-art" }, [
-        el("span", { class: "yc-card-art-icon", text: hd ? hd.icon : "🟨" }),
+        el("span", { class: "yc-card-art-icon", text: hd ? hd.icon + (hd2 ? "🤝" + hd2.icon : "") : "🟨" }),
         d.el ? el("span", { class: "yc-card-art-el", title: t("yc_el_" + d.el), text: EL_ICON[d.el] }) : null,
         el("span", { class: "yc-card-art-type", text: d.tgt === "area" ? "🎯" : (TYPE_ICON[d.type] || "") })
       ]),
       el("span", { class: "yc-card-meta", text: cardMeta(d) }),
       d.path ? el("span", { class: "yc-card-path", text: pathName(d.cls, d.path) }) : null,
-      el("span", { class: "yc-card-text", text: cardText(d, opts.hero || null) })
+      d.duo ? el("span", { class: "yc-card-path", text: t("yc_duo_tag", { a: L(hd.name), b: L(hd2.name) }) }) : null,
+      el("span", { class: "yc-card-text", text: cardText(d, opts.hero || null, opts.holder) })
     ]);
   }
 
@@ -443,6 +454,9 @@
     box.appendChild(el("div", { class: "yc-small yc-muted", text: t("yc_paths_title") + " " + t("yc_locked_hint") }));
     box.appendChild(paths);
     box.appendChild(el("div", { class: "yc-small yc-muted", text: t("yc_start_deck") + "：" + c.start.map(function (id) { return L(D.CARD[id].name); }).join("・") }));
+    // 連攜卡（2026-10-27）：和哪些職業同隊會出現連攜卡
+    var duos = D.DUO_CARDS.filter(function (x) { return x.duo.indexOf(c.id) >= 0; });
+    if (duos.length) box.appendChild(el("div", { class: "yc-small yc-duo-hint", text: "🤝 " + t("yc_duo_partners") + "：" + duos.map(function (x) { var o = heroDef(x.duo[0] === c.id ? x.duo[1] : x.duo[0]); return o.icon + L(o.name) + "「" + L(x.name) + "」"; }).join("、") }));
     return box;
   }
 
@@ -1606,6 +1620,7 @@
       case "vow": return t("yc_log_vow", { to: to, k: t("yc_vow_" + e.k) });
       case "field": return t("yc_log_field", { f: D.FIELD[e.f] ? D.FIELD[e.f].icon + L(D.FIELD[e.f].name) : e.f });
       case "fieldStorm": return t("yc_log_fieldStorm", { a: heroLabel(st, st.secs[e.sec]), n: e.n });
+      case "duo": return t("yc_log_duo", { a: heroLabel(st, e.s), to: to, c: D.CARD[e.c] ? L(D.CARD[e.c].name) : "" });
       default: return t("yc_log_" + e.t, { to: to, n: e.n });
     }
   }
@@ -2016,7 +2031,7 @@
       } else if (p.k === "card") {
         box.appendChild(el("div", { class: "yc-muted", text: t("yc_pick_card") }));
         var row = el("div", { class: "yc-hand" });
-        p.opts.forEach(function (id) { row.appendChild(cardEl({ id: id, u: 0 }, { onclick: function () { choose({ id: id }); } })); });
+        p.opts.forEach(function (id) { row.appendChild(cardEl({ id: id, u: 0 }, { holder: h.cls, onclick: function () { choose({ id: id }); } })); });
         box.appendChild(row);
         box.appendChild(el("div", { class: "yc-actions" }, [
           el("button", { type: "button", disabled: canUpgrade ? null : true, text: t("yc_reward_upgrade"), onclick: function () { choose({ kind: "upgrade" }); } }),
@@ -2043,7 +2058,7 @@
           el("button", { type: "button", class: "yc-primary", disabled: maxed ? true : null, text: maxed ? t("yc_sanctum_maxed") : "🌟 " + t("yc_sanctum_perk", { p: t("yc_pas_" + cd.passive.p, { n: pn }), k: (h.perk || 0) + 1, m: D.MAX_PERK }), onclick: function () { choose({ kind: "perk" }); } })
         ]));
         var srow = el("div", { class: "yc-hand" });
-        p.opts.forEach(function (id) { srow.appendChild(cardEl({ id: id, u: 0 }, { onclick: function () { choose({ id: id }); } })); });
+        p.opts.forEach(function (id) { srow.appendChild(cardEl({ id: id, u: 0 }, { holder: h.cls, onclick: function () { choose({ id: id }); } })); });
         box.appendChild(srow);
         box.appendChild(el("div", { class: "yc-actions" }, [el("button", { type: "button", text: t("yc_skip"), onclick: function () { choose({ skip: true }); } })]));
       } else if (p.k === "rest") {
@@ -2111,7 +2126,7 @@
     box.appendChild(el("div", { class: "yc-modal-head" }, [el("h3", { text: t("yc_deck_of", { name: heroName(h), n: h.deck.length }) }), el("button", { type: "button", text: "✕", onclick: close })]));
     box.appendChild(el("div", { class: "yc-small yc-muted", text: pathCounts(h) }));
     var grid = el("div", { class: "yc-hand yc-deck-grid" });
-    h.deck.slice().sort(function (a, b) { return a.id < b.id ? -1 : a.id > b.id ? 1 : 0; }).forEach(function (c) { grid.appendChild(deckCard(cardEl(c, { button: false }), c, h)); });
+    h.deck.slice().sort(function (a, b) { return a.id < b.id ? -1 : a.id > b.id ? 1 : 0; }).forEach(function (c) { grid.appendChild(deckCard(cardEl(c, { button: false, holder: h.cls }), c, h)); });
     box.appendChild(grid);
     if (st.phase === "battle" && h.draw.length && !handHidden(h)) {
       box.appendChild(el("h4", { text: t("yc_draw_pile", { n: h.draw.length }) }));
@@ -2340,7 +2355,8 @@
       sec("yc_legend_sec_mech", [["🌵", t("yc_thorns_desc", { n: "N" })], ["🔰", t("yc_mech_ward_on")], ["📈", t("yc_mech_grow", { n: "N" })],
         ["🧬", t("yc_legend_split")], ["🌗", t("yc_mech_phase", { n: 50 })], ["💥", t("yc_mech_burst", { n: "N" })], ["📣", t("yc_mech_rally", { n: "N" })], ["🚫", t("yc_legend_stunImm")]]),
       sec("yc_legend_sec_af", D.AFFIXES.map(function (a) { return [a.icon, L(a.name) + "：" + L(a.desc)]; })),
-      sec("yc_legend_sec_field", D.FIELDS.map(function (f) { return [f.icon, L(f.name) + "：" + L(f.desc)]; }))
+      sec("yc_legend_sec_field", D.FIELDS.map(function (f) { return [f.icon, L(f.name) + "：" + L(f.desc)]; })),
+      sec("yc_legend_sec_duo", D.DUO_CARDS.map(function (x) { return [heroDef(x.duo[0]).icon + heroDef(x.duo[1]).icon, L(heroDef(x.duo[0]).name) + "＋" + L(heroDef(x.duo[1]).name) + "：" + L(x.name)]; }))
     ];
   }
   function legendPanel() {

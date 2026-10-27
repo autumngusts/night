@@ -581,3 +581,6 @@ button.yc-relic:hover:not(:disabled) { border-color: var(--yc-accent); }
 .yc-field-banner strong { display: block; font-size: 1.5em; color: var(--fc); }
 .yc-field-banner-icon { font-size: 2.6em; line-height: 1.1; }
 @keyframes yc-field-banner { 0% { opacity: 0; transform: translate(-50%, -50%) scale(0.8); } 12% { opacity: 1; transform: translate(-50%, -50%) scale(1); } 80% { opacity: 1; } 100% { opacity: 0; } }
+/* 雙人連攜卡（2026-10-27）：兩個職業的顏色各佔一半 */
+.yc-card.yc-rar-duo { border-color: var(--yc-cls); background: linear-gradient(135deg, color-mix(in srgb, var(--yc-cls) 22%, #fff8e6) 0 50%, color-mix(in srgb, var(--yc-cls2) 22%, #fff8e6) 50% 100%); box-shadow: 0 0 0 2px var(--yc-cls2), 0 2px 8px rgba(0, 0, 0, 0.25); }
+.yc-duo-hint { margin-top: 0.3rem; }

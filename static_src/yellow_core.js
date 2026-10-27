@@ -73,6 +73,8 @@
     } else {
       var b1 = boostList(d.fx), b2 = boostList(d.near), b3 = boostList(d.far), b4 = false;
       Object.keys(d.forms || {}).forEach(function (k) { if (boostList(d.forms[k])) b4 = true; });
+      // 連攜卡：搭檔的效果也一起強化
+      Object.keys(d.duoFx || {}).forEach(function (k) { if (boostList(d.duoFx[k])) b4 = true; });
       if (!b1 && !b2 && !b3 && !b4 && d.cost > 0) d.cost -= 1;
     }
     return d;
@@ -1197,6 +1199,20 @@
   function restPct(st, h) { return Math.max(0, (tor(st, 5) ? 20 : 30) + relicSum(h, "restHeal")); }
 
   // 卡牌獎勵：三條成長方向各出一張（稀有度依種類擲骰，幸運符加稀有機率）；苦痛 8 隨機少一張
+  // ---- 雙人連攜卡（2026-10-27 使用者指定）----
+  function duoOther(c, cls) { return c.duo && c.duo.indexOf(cls) >= 0 ? (c.duo[0] === cls ? c.duo[1] : c.duo[0]) : null; }
+  // 出牌者的搭檔：另一個職業、存活中的英雄（同職業有兩位時取座位順序第一位）
+  function duoPartner(st, h, d) {
+    var other = duoOther(d, h.cls);
+    return other ? alive(st).filter(function (x) { return x !== h && x.cls === other; })[0] || null : null;
+  }
+  // 這位英雄現在能拿的連攜卡：搭檔職業在隊上（倒下也算同隊）；牌組裡已經有的排到最後才考慮
+  function duoCards(st, h) {
+    var list = D.DUO_CARDS.filter(function (c) { var o = duoOther(c, h.cls); return o && heroes(st).some(function (x) { return x !== h && x.cls === o; }); });
+    var fresh = list.filter(function (c) { return !h.deck.some(function (x) { return x.id === c.id; }); });
+    return fresh.length ? fresh : list;
+  }
+
   function rewardCards(st, h, kind) {
     var cls = h.cls;
     var rareP = (kind === "boss" ? 1 : kind === "elite" ? 0.35 : 0.15) + relicSum(h, "rareUp");
@@ -1208,6 +1224,9 @@
       return pick(st, list.length ? list : pool).id;
     });
     if (tor(st, 8)) out.splice(rint(st, out.length), 1);
+    // 連攜卡：多出第 4 個選項（不擠掉成長方向的三張）
+    var dl = duoCards(st, h);
+    if (dl.length && rint(st, 100) < (D.DUO_PCT[kind] || 0)) out.push(pick(st, dl).id);
     return out;
   }
 
@@ -1642,6 +1661,14 @@
       case "endLose": h.endLose = (h.endLose || 0) + f.n; break;
       case "manaNext": h.mana += f.n; h.debt = (h.debt || 0) + (f.k || f.n); log(st, { t: "manaBorrow", to: href(h), n: f.n }); break;
       case "half": h.half = true; break;
+      // 連攜卡（2026-10-27）：搭檔用自己的資源結算 duoFx[搭檔職業]，目標相同
+      case "duo":
+        n = duoPartner(st, h, d);
+        if (n) {
+          log(st, { t: "duo", to: href(n), s: h.seat, c: d.id });
+          (d.duoFx[n.cls] || []).forEach(function (g) { if (st.phase === "battle" && !n.down) runFx(st, n, d, g, te, n, zone); });
+        }
+        break;
     }
     function sub() { (f.fx || []).forEach(function (g) { if (st.phase === "battle" && !h.down) runFx(st, h, d, g, te, ts, zone); }); }
   }
@@ -1785,7 +1812,7 @@
     restPct: restPct, loopOf: loopOf, actDef: actDef, regionOf: regionOf, nextFloor: nextFloor, tmodVal: tmodVal, unlocked: unlocked, bloodCost: bloodCost,
     warded: warded, potionCount: potionCount, reagentNeed: reagentNeed, aimsAt: aimsAt, ammoCap: ammoCap, GEN: GEN,
     rollAffixes: rollAffixes, applyAffix: applyAffix, hitEnemy: hitEnemy, enemyTurn: enemyTurn, runEnemyAct: runEnemyAct, moveEnemy: moveEnemy, shiftEnemy: shiftEnemy,
-    setField: setField, fieldIs: fieldIs, resolveRound: resolveRound, addStatus: addStatus, startHeroTurn: startHeroTurn,
+    setField: setField, fieldIs: fieldIs, duoPartner: duoPartner, duoCards: duoCards, rewardCards: rewardCards, resolveRound: resolveRound, addStatus: addStatus, startHeroTurn: startHeroTurn,
     _rnd: rnd
   };
 })();

@@ -1181,6 +1181,62 @@ for (var g = 0; g < games; g++) {
   assert(Math.abs(fGot / fTot - D.FIELD_PCT[0] / 100) < 0.12, "第一幕約 " + D.FIELD_PCT[0] + "% 有戰場狀態，實際 " + (fGot / fTot).toFixed(2));
   for (var fp3 = 0; fp3 < D.FIELD_PCT.length; fp3++) D.FIELD_PCT[fp3] = 0;
 
+  // ---- 雙人連攜卡（2026-10-27）----
+  // 每職業剛好 2 組
+  var duoDeg = {};
+  D.DUO_CARDS.forEach(function (c) { c.duo.forEach(function (k) { duoDeg[k] = (duoDeg[k] || 0) + 1; }); });
+  assert(D.DUO_CARDS.length === 19 && D.CLASSES.every(function (c) { return duoDeg[c.id] === 2; }), "連攜卡：19 組、每職業剛好 2 組");
+  // 搭檔看得到的狀態（資源、護盾、力量、手牌數、生命…）有沒有變化
+  function snap(x) { return JSON.stringify([x.blk, x.str, x.trap, x.sp, x.mel, x.chi, x.flux, x.edge, x.kek, x.ammo, x.beat, x.ce, x.dodge, x.hp, x.hand.length, x.taunt]); }
+  function duoGame(a, b, seed) {
+    var g = Core.create({ seed: seed, seats: [{ cls: a }, { cls: b }, null, null] });
+    goFloor(g);
+    Core.heroes(g).forEach(function (x) { x.hp = x.max - 20; x.hand = []; x.draw = x.deck.map(function (c) { return { u: c.u, id: c.id }; }); });
+    var foes = setFoes(g, [{ id: "skel", hp: 500, ring: "near" }, { id: "skel", hp: 500, ring: "far" }]);
+    return { st: g, foes: foes };
+  }
+  // 19 張 × 兩個方向：出牌者打出後，搭檔一定得到效果（紀錄 duo、搭檔狀態或敵人狀態有變化）
+  D.DUO_CARDS.forEach(function (c, ci) {
+    [0, 1].forEach(function (dir) {
+      var a = c.duo[dir], b = c.duo[1 - dir];
+      var g = duoGame(a, b, 700 + ci * 2 + dir);
+      var holder = g.st.heroes[0], mate = g.st.heroes[1];
+      var tgt = g.foes[c.rng === "far" ? 1 : 0];
+      var before = snap(mate), foeBefore = JSON.stringify(tgt.st), seq = g.st.logSeq;
+      var err = playCard(g.st, 0, c.id, c.tgt === "enemy" ? { e: tgt.u } : null);
+      assert(!err, c.id + "（" + a + " 出牌）出牌失敗：" + err);
+      var duoLog = g.st.log.filter(function (e) { return e.i > seq && e.t === "duo"; });
+      assert(duoLog.length === 1 && duoLog[0].to.s === mate.seat, c.id + "（" + a + " 出牌）應連攜到 " + b);
+      assert(snap(mate) !== before || JSON.stringify(tgt.st) !== foeBefore, c.id + "：" + b + " 的連攜效果沒有作用");
+      void holder;
+    });
+  });
+  // 搭檔倒下：只有出牌者的部分
+  var dd = duoGame("dancer", "kensei", 760);
+  dd.st.heroes[1].down = true;
+  var ddSeq = dd.st.logSeq, edgeBefore = dd.st.heroes[1].edge || 0;
+  playCard(dd.st, 0, "duo_swordance", { e: dd.foes[0].u });
+  assert(!dd.st.log.some(function (e) { return e.i > ddSeq && e.t === "duo"; }) && (dd.st.heroes[1].edge || 0) === edgeBefore, "搭檔倒下時不連攜");
+  assert(dd.foes[0].hp < 500, "搭檔倒下時出牌者的傷害照常");
+  // 升級：搭檔的效果也強化
+  var upDef = Core.cardDef({ id: "duo_swordance", up: true });
+  assert(upDef.duoFx.kensei[0].n > D.CARD.duo_swordance.duoFx.kensei[0].n, "升級後搭檔的劍意也變多");
+  // 獎勵：首領戰後必出、而且是這兩人的組合；沒有搭檔就不會出現
+  var rw = duoGame("dancer", "kensei", 761);
+  var opts = Core.rewardCards(rw.st, rw.st.heroes[0], "boss");
+  var duoOpt = opts.filter(function (id) { return D.CARD[id].duo; });
+  assert(duoOpt.length === 1 && D.CARD[duoOpt[0]].duo.indexOf("kensei") >= 0, "首領獎勵一定有舞孃＋劍豪的連攜卡：" + opts.join(","));
+  assert(opts.length === 4, "連攜卡是第 4 個選項（成長方向的三張不變）");
+  var solo = Core.create({ seed: 762, seats: [{ cls: "dancer" }, null, null, null] });
+  goFloor(solo);
+  assert(!Core.rewardCards(solo, solo.heroes[0], "boss").some(function (id) { return D.CARD[id].duo; }), "單人不會出現連攜卡");
+  var nomate = duoGame("dancer", "mage", 763);
+  assert(!Core.rewardCards(nomate.st, nomate.st.heroes[0], "boss").some(function (id) { return D.CARD[id].duo; }), "沒有搭檔職業就不會出現連攜卡");
+  // 一般戰利品約 25%
+  var dn = 0;
+  for (var di = 0; di < 400; di++) if (Core.rewardCards(rw.st, rw.st.heroes[0], "spoils").some(function (id) { return D.CARD[id].duo; })) dn++;
+  assert(Math.abs(dn / 400 - D.DUO_PCT.spoils / 100) < 0.07, "一般戰利品約 " + D.DUO_PCT.spoils + "% 有連攜卡，實際 " + (dn / 400).toFixed(2));
+
   // AI 隊友：ctrl 為 ai 的英雄由 AI.next 決定行動，整局跑得完（不會卡住）
   require("../../static_src/yellow_ai.js");
   var A = global.PriTestYellowAI;
