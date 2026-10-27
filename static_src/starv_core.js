@@ -753,7 +753,9 @@
     }
     rotatePickup(st);
     log(st, "month_end", { salary: salary, upkeep: upkeep, dividends: div, loan: loan });
-  }  function yearly(st) {
+  }
+
+  function yearly(st) {
     st.artists.forEach(function (a) { a.age++; });
     st.waitlist.forEach(function (w) { w.artist.age++; });
     log(st, "birthday_year", { year: dateOf(st.day).year });
