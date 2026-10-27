@@ -545,7 +545,9 @@
     };
     if (over.reservedFor) { job.reservedFor = over.reservedFor; job.minFame = 0; job.minProf = 1; }
     return job;
-  }  function refreshBoard(st) {
+  }
+
+  function refreshBoard(st) {
     st.board = st.board.filter(function (j) { return j.expires > st.day; });
     while (st.board.length < boardSize(st)) st.board.push(genJob(st));
     st.boardRefreshDay = st.day + BAL.boardRefreshDays;
