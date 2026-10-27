@@ -10,6 +10,12 @@ var D = global.PriTestStarvData;
 var Roster = global.PriTestStarvRoster;
 require("../../static_src/starv_core.js");
 var Core = global.PriTestStarvCore;
+require("../../static_src/starv_store.js");
+var Store = global.PriTestStarvStore;
+function fakeStorage() {
+  var m = {};
+  return { getItem: function (k) { return k in m ? m[k] : null; }, setItem: function (k, v) { m[k] = String(v); }, removeItem: function (k) { delete m[k]; }, _m: m };
+}
 
 var tests = [];
 function test(name, fn) { tests.push([name, fn]); }
@@ -524,6 +530,38 @@ test("UI 用 API：等級、每日抽卡、保底、課程可否", function () {
   eq(Core.dailyPullsLeft(st), 20); st.day = 1; eq(Core.dailyPullsLeft(st), 30, "隔天");
   st.gacha.pity = 0; eq(Core.pityLeft(st), 150); st.gacha.pity = 149; eq(Core.pityLeft(st), 1);
   eq(Core.courseAllowed(st, D.COURSE_BY_ID.vocal_2), false); st.facilities.studio = 1; eq(Core.courseAllowed(st, D.COURSE_BY_ID.vocal_2), true);
+});
+
+test("存檔：存讀、備份、壞檔改讀備份", function () {
+  var s = fakeStorage(), st = Core.create({ seed: 3, name: "星光" });
+  eq(Store.load(s), null, "沒有存檔");
+  assert(Store.save(st, s), "save 回傳 true");
+  eq(Store.load(s).company.name, "星光");
+  st.company.money = 123; Store.save(st, s);
+  eq(JSON.parse(s._m[Store.BACKUP]).company.money, 50000, "備份是上一份");
+  s._m[Store.KEY] = "{壞掉";
+  eq(Store.load(s).company.money, 50000, "主存檔壞掉讀備份");
+  Store.clear(s); eq(Store.load(s), null);
+});
+
+test("存檔：讀檔會 migrate", function () {
+  var s = fakeStorage(), st = Core.create({ seed: 3 });
+  delete st.groups; s.setItem(Store.KEY, JSON.stringify(st));
+  assert(Array.isArray(Store.load(s).groups), "補上 groups");
+});
+
+test("存檔：匯出入字串（含中日文）", function () {
+  var st = Core.create({ seed: 9, name: "夜空プロ・星光" });
+  var code = Store.encode(st);
+  eq(code.indexOf("SV1."), 0, "前綴");
+  assert(/^SV1\.[A-Za-z0-9_-]+$/.test(code), "base64url 字元");
+  var back = Store.decode("  \n" + code + "\n ");
+  eq(back.company.name, "夜空プロ・星光"); eq(back.seed, st.seed);
+  ["", "SV1.", "SV2.abc", "SV1.!!!", "SV1." + Buffer.from('{"a":1}').toString("base64")].forEach(function (bad) {
+    var threw = false;
+    try { Store.decode(bad); } catch (e) { threw = true; }
+    assert(threw, "應該拒絕：" + bad);
+  });
 });
 
 // ==== run ====
