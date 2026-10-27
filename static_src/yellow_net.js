@@ -5,7 +5,9 @@
 //   on/<cid>        true（onDisconnect 自動移除＝在線）
 //   pl/<cid>        { name, at }
 //   seat/<n>        { cid, cls } | null（大廳的座位，n＝0 左上、1 右上、2 左下、3 右下；一個人可以坐好幾個位置；cid＝"ai" 是 AI 隊友）
-//   opt             { torment: 0～10, endless: bool }（房主在大廳設定的苦痛等級／無盡模式）
+//   opt             { torment: 0～10, endless: bool, daily: bool }（房主在大廳設定的苦痛等級／無盡模式／每日挑戰）
+//   chat/<key>      { c: cid, t: 文字, at }（房內聊天，房主只留最新 CHAT_MAX 則；不進對局狀態）
+//   nudge/<cid>     { from: cid, at }（催促：寫給還沒結束回合的人；不進對局狀態）
 //   fx/<cid>        { k: "ping" | "emo", x, y, e, s, at }（戰場標記與表情；不進對局狀態，只是畫面上的溝通）
 //   st              { no, seq, json }（房主寫入的整局狀態）
 //   in/<cid>/a<seq> 操作 JSON 字串（非房主送出；房主套用後刪除）
@@ -24,6 +26,7 @@
   var CLOUD = "cloud";
   var SEATS = 4;
   var AI_CID = "ai";
+  var CHAT_MAX = 30, CHAT_LEN = 80;
 
   function newCid() {
     var b = new Uint8Array(8);
@@ -45,7 +48,7 @@
     var room = {
       id: roomId, cid: cid, creating: creating,
       loaded: false, missing: false, closed: false,
-      meta: null, online: {}, players: {}, seats: [null, null, null, null], opts: { torment: 0, endless: false }, fx: {},
+      meta: null, online: {}, players: {}, seats: [null, null, null, null], opts: { torment: 0, endless: false, daily: false }, fx: {}, chats: [],
       game: null, gameSeq: 0, name: opts.name || ""
     };
 
@@ -103,7 +106,7 @@
     room.setOpts = function (o) {
       if (!room.isHost() || !room.meta || room.meta.status !== "lobby") return;
       var torment = Math.max(0, Math.min(10, Math.floor(Number(o.torment) || 0)));
-      set("opt", { torment: torment, endless: !!o.endless });
+      set("opt", { torment: torment, endless: !!o.endless, daily: !!o.daily });
     };
 
     // 至少要有一位在線的真人
@@ -112,13 +115,21 @@
       return room.seats.some(function (s) { return s && s.cid !== AI_CID && room.online[s.cid]; });
     };
 
-    room.start = function () {
+    // 連線每日挑戰（2026-10-27）：在線的座位依大廳位置排成第 1～n 位，英雄依當天固定（座位只決定誰操作哪一位）
+    room.dailyPlayers = function () { return room.seats.filter(function (x) { return x && room.isOnline(x.cid); }); };
+    room.start = function (dateKey) {
       if (!room.canStart()) return;
+      var st;
+      if (room.opts.daily && dateKey) {
+        var ps = room.dailyPlayers();
+        st = Core.createDaily(dateKey, ps.length, ps.map(function (x) { return x.cid === AI_CID ? "" : room.nameOf(x.cid); }), ps.map(function (x) { return x.cid; }), cid);
+      } else {
       var seats = room.seats.map(function (s) {
         if (!s || !room.isOnline(s.cid)) return null;
         return { cls: s.cls, ctrl: s.cid, name: s.cid === AI_CID ? "" : room.nameOf(s.cid), lv: s.lv, art: s.art };
       });
-      var st = Core.create({ seats: seats, hostCtrl: cid, torment: room.opts.torment, endless: room.opts.endless });
+      st = Core.create({ seats: seats, hostCtrl: cid, torment: room.opts.torment, endless: room.opts.endless });
+      }
       var no = (room.meta.no || 0) + 1;
       done = {};
       set("in", null);
@@ -142,6 +153,7 @@
     room.send = function (action) {
       if (!room.game || !room.meta || room.meta.status !== "play") return "no_game";
       if (room.isHost()) {
+        if (action && action.t === "claim" && !claimOk(cid, action.s)) return "cannot_claim";
         var err = Core.apply(room.game, cid, action);
         if (!err) writeGame(room.game, room.meta.no);
         return err;
@@ -169,6 +181,39 @@
       set("fx/" + cid, v);
     };
 
+    // 換裝置接回（2026-10-27）：原本的主人不在線，而且目前沒人在操作（離線）或是房主代打中；送出者要在線、不是 AI
+    function claimOk(c, seat) {
+      var h = room.game && room.game.heroes[seat];
+      if (!h || c === AI_CID || !room.online[c] || h.owner === AI_CID || h.ctrl === AI_CID) return false;
+      if (room.isOnline(h.owner) && h.owner !== c) return false;
+      return !room.isOnline(h.ctrl) || h.ctrl === room.game.hostCtrl;
+    }
+    room.canClaim = function (seat) {
+      var g = room.game;
+      if (!g || g.heroes.some(function (x) { return x && x.ctrl === cid; })) return false;
+      return claimOk(cid, seat);
+    };
+
+    // ---------------- 聊天與催促（2026-10-27；不進對局狀態） ----------------
+    room.chat = function (text) {
+      var tx = String(text || "").replace(/\s+/g, " ").trim().slice(0, CHAT_LEN);
+      if (!tx) return;
+      var at = GS.serverNow();
+      set("chat/m" + at + cid.slice(-4), { c: cid, t: tx, at: at });
+    };
+    room.nudge = function (to) {
+      if (!to || to === cid || to === AI_CID || !room.online[to]) return;
+      set("nudge/" + to, { from: cid, at: GS.serverNow() });
+    };
+    function onChat(v) {
+      var list = Object.keys(v || {}).map(function (k) { var m = v[k] || {}; return { k: k, c: String(m.c || ""), t: String(m.t || "").slice(0, CHAT_LEN), at: Number(m.at) || 0 }; })
+        .filter(function (m) { return m.t; }).sort(function (a, b) { return a.at - b.at || (a.k < b.k ? -1 : 1); });
+      // 房主清掉太舊的
+      if (room.isHost() && list.length > CHAT_MAX) list.slice(0, list.length - CHAT_MAX).forEach(function (m) { set("chat/" + m.k, null); });
+      room.chats = list.slice(-CHAT_MAX);
+      if (opts.onChat) opts.onChat(room.chats);
+    }
+
     function hostProcess(all) {
       if (!room.isHost() || !room.game || !all) return;
       var dirty = false;
@@ -181,6 +226,7 @@
             if (!(x.seq > (done[c] || 0))) { set("in/" + c + "/" + x.k, null); return; }
             done[c] = x.seq;
             var a = parseJson(box[x.k]);
+            if (a && a.t === "claim" && !claimOk(c, a.s)) a = null;
             if (a && !Core.apply(room.game, c, a)) dirty = true;
             set("in/" + c + "/" + x.k, null);
           });
@@ -235,11 +281,20 @@
       });
       sub("on", function (v) { room.online = v || {}; maybeTakeHost(); changed(); });
       sub("pl", function (v) { room.players = v || {}; changed(); });
-      sub("opt", function (v) { room.opts = { torment: v ? Math.max(0, Math.min(10, Number(v.torment) || 0)) : 0, endless: !!(v && v.endless) }; changed(); });
+      sub("opt", function (v) { room.opts = { torment: v ? Math.max(0, Math.min(10, Number(v.torment) || 0)) : 0, endless: !!(v && v.endless), daily: !!(v && v.daily) }; changed(); });
       sub("fx", function (v) { room.fx = v || {}; if (opts.onSignal) opts.onSignal(room.fx); });
+      sub("chat", onChat);
+      sub("nudge/" + cid, function (v) { if (v && typeof v.at === "number" && opts.onNudge) opts.onNudge(v); });
       sub("seat", function (v) {
         var s = [null, null, null, null];
-        if (v) Object.keys(v).forEach(function (k) { var n = Number(k); if (n >= 0 && n < SEATS && v[k] && v[k].cid) s[n] = { cid: v[k].cid, cls: v[k].cls }; });
+        if (v) Object.keys(v).forEach(function (k) {
+          var n = Number(k), x = v[k];
+          if (!(n >= 0 && n < SEATS && x && x.cid)) return;
+          s[n] = { cid: x.cid, cls: x.cls };
+          // 2026-10-27 修正：原本這裡只留 cid、cls，英雄等級與出發遺物沒有帶進對局
+          if (typeof x.lv === "number") s[n].lv = x.lv;
+          if (x.art) s[n].art = String(x.art);
+        });
         room.seats = s;
         changed();
       });

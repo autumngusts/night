@@ -786,6 +786,11 @@ for (var g = 0; g < games; g++) {
   rx.st.enemies[0].loot = mk.loot;
   playCard(rx.st, 0, "pal_strike", { e: rx.st.enemies[0].u });
   assert(rxh.disc.length === disc0 + 2 + 1, "打倒小偷：2 張被偷的牌回到棄牌堆（加上剛打出的牌），實際 " + (rxh.disc.length - disc0));
+  // 偷牌至少留一手牌（2026-10-27：被偷光時英雄不能行動、小偷的攻擊被護盾擋住，戰鬥會永遠打不完）
+  var mk2 = foesAt(rx.st, [{ id: "monkey", hp: 500, intent: [{ k: "steal", n: 9 }] }])[0];
+  rxh.hand = []; rxh.exh = []; rxh.draw = rxh.deck.slice(0, D.HAND_SIZE + 2).map(function (c) { return { u: c.u, id: c.id }; }); rxh.disc = [];
+  Core.runEnemyAct(rx.st, mk2, { k: "steal", n: 9 });
+  assert(rxh.draw.length + rxh.disc.length === D.HAND_SIZE && (mk2.loot || []).length === 2, "偷牌：最多偷到只剩 " + D.HAND_SIZE + " 張，實際剩 " + (rxh.draw.length + rxh.disc.length));
   // 空襲：無視護盾
   var dr = foesAt(rx.st, [{ id: "drone", hp: 500, intent: [{ k: "atk", n: 6, pierce: true }] }])[0];
   rxh.blk = 50; rxh.hp = rxh.max;
@@ -1263,6 +1268,16 @@ for (var g = 0; g < games; g++) {
   assert(Core.dailyBetter({ win: false, act: 1, floor: 2, turns: 50 }, { win: false, act: 1, floor: 1, turns: 10 }), "推進得遠比較好");
   assert(Core.dailyBetter({ win: true, act: 2, floor: 3, turns: 60 }, { win: true, act: 2, floor: 3, turns: 70 }), "同樣通關時回合少的好");
   assert(!Core.dailyBetter({ win: true, act: 2, floor: 3, turns: 70 }, { win: true, act: 2, floor: 3, turns: 60 }), "回合多的不是新紀錄");
+
+  // 敵人狂怒（2026-10-27 修正僵局）：第 ENRAGE.round 回合起每回合力量增加
+  var en = duoGame("paladin", "priest", 791);
+  en.foes.forEach(function (e) { e.intent = []; });
+  en.st.round = D.ENRAGE.round - 2;
+  var enStr = en.foes[0].str;
+  endRound(en.st);
+  assert(en.foes[0].str === enStr, "狂怒前力量不變");
+  endRound(en.st);
+  assert(en.foes[0].str === enStr + D.ENRAGE.str, "第 " + D.ENRAGE.round + " 回合起每回合力量 +" + D.ENRAGE.str);
 
   // AI 隊友：ctrl 為 ai 的英雄由 AI.next 決定行動，整局跑得完（不會卡住）
   require("../../static_src/yellow_ai.js");

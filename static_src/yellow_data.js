@@ -1453,6 +1453,8 @@
     FORMS: FORMS, POTIONS: POTIONS, MAX_CHI: 10,
     // 2026-10-24 新英雄：彈藥（海賊）、咒力（咒術師）、節拍（舞孃）、式神等級與每級傷害（陰陽師）、替身層數（忍者）的上限
     MAX_AMMO: 6, MAX_CE: 10, MAX_BEAT: 10, MAX_SHIKI: 5, SHIKI_DMG: 5, MAX_DODGE: 3,
+    // 敵人狂怒（2026-10-27 修正僵局）：第 ENRAGE.round 回合起，每回合開始所有敵人力量 +ENRAGE.str
+    ENRAGE: { round: 20, str: 2 },
     HAND_SIZE: 5, MANA: 3, RED_CARD_DMG: 12, MAX_SEATS: 4, MAX_SPIRITS: 8, MAX_MELODY: 10,
     // 手牌上限（Hellcard 同為 10，2026-10-23 使用者指定）：滿了就不再抽（牌留在抽牌堆），加進手牌的藥水改進棄牌堆
     HAND_MAX: 10,

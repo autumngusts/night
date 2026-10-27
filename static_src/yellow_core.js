@@ -1024,6 +1024,8 @@
         if (!h || h.down) return;
         var got = 0;
         for (var i = 0; i < act.n; i++) {
+          // 2026-10-27 修正：至少留一手牌（D.HAND_SIZE 張）。原本會被偷光，英雄完全不能行動、小偷的攻擊又被護盾擋住時戰鬥永遠打不完
+          if (h.draw.length + h.disc.length + h.hand.length <= D.HAND_SIZE) break;
           var pile = h.draw.length ? h.draw : h.disc;
           if (!pile.length) break;
           (e.loot = e.loot || []).push({ s: seat, c: pile.splice(rint(st, pile.length), 1)[0] });
@@ -1079,6 +1081,8 @@
       if (g && e.hp > 0) { e.str += g; log(st, { t: "str", to: eref(e), n: g, src: eref(e) }); }
     });
     log(st, { t: "round" });
+    // 敵人狂怒（2026-10-27）：雙方都打不動對方時（牌被偷光只剩防禦、攻擊全被護盾擋住…）戰鬥會永遠打不完，拖太久敵人越來越強
+    if (st.round >= D.ENRAGE.round) st.enemies.forEach(function (e) { if (e.hp > 0) { e.str += D.ENRAGE.str; log(st, { t: "str", to: eref(e), n: D.ENRAGE.str, src: eref(e) }); } });
     fieldRoundStart(st);
     st.enemies.forEach(function (e) { chooseIntent(st, e); });
     alive(st).forEach(function (h) { startHeroTurn(st, h); });
@@ -1347,10 +1351,11 @@
     return { date: dateKey, seed: dailyHash("yellow-daily-seed-" + dateKey) || 1, heroes: heroesList, tmods: mods };
   }
   // n 人的每日挑戰：英雄全部解鎖（lv 不帶＝99）、不帶出發遺物、苦痛等級 0、不是無盡模式
-  function createDaily(dateKey, n, names) {
+  // 連線（2026-10-27）：ctrls[i]＝第 i 位英雄的操作者，hostCtrl＝房主；本機不帶＝全部 "local"
+  function createDaily(dateKey, n, names, ctrls, hostCtrl) {
     var ds = dailySetup(dateKey), seats = [null, null, null, null], order = [0, 3, 1, 2];
-    for (var i = 0; i < Math.max(1, Math.min(D.MAX_SEATS, n)); i++) seats[order[i]] = { cls: ds.heroes[i], name: (names && names[i]) || "" };
-    return create({ seed: ds.seed, seats: seats, daily: dateKey, tmods: ds.tmods });
+    for (var i = 0; i < Math.max(1, Math.min(D.MAX_SEATS, n)); i++) seats[order[i]] = { cls: ds.heroes[i], name: (names && names[i]) || "", ctrl: (ctrls && ctrls[i]) || "local" };
+    return create({ seed: ds.seed, seats: seats, daily: dateKey, tmods: ds.tmods, hostCtrl: hostCtrl });
   }
   // 成績比較：通關＞推進得遠；一樣時回合數少的好
   function dailyScore(st) { return { win: st.phase === "win", act: st.act, floor: st.floor, turns: st.turns || 0 }; }
@@ -1828,6 +1833,13 @@
         // 房主接手離線玩家的英雄
         if (!h || ctrl !== st.hostCtrl) return "not_host";
         h.ctrl = ctrl;
+        return null;
+      case "claim":
+        // 換裝置接回（2026-10-27）：在不在線只有連線層知道，由房主端（yellow_net.js）先檢查過才會送進來；
+        // 這裡只擋「手上已經有英雄」的人，避免一個人搶走好幾位
+        if (!h) return "bad_action";
+        if (heroes(st).some(function (x) { return x.ctrl === ctrl; })) return "has_hero";
+        h.ctrl = ctrl; h.owner = ctrl;
         return null;
       case "reclaim":
         // 原本的玩家回來了：把被代打的英雄拿回來（只有開局時坐這個位置的人可以）

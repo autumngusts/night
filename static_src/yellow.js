@@ -624,16 +624,22 @@
   }
 
   // 苦痛等級與無盡模式的設定（本機：可編輯；連線：房主可編輯，其他人只看）
-  function modeOptions(o, onChange, editable) {
+  // withDaily：連線大廳才有「每日挑戰」（本機的每日挑戰在入口另一個面板）
+  function modeOptions(o, onChange, editable, withDaily) {
     var box = el("div", { class: "yc-mode-opts" });
-    var sel = el("select", { class: "yc-select", disabled: editable ? null : true, onchange: function () { onChange({ torment: Number(sel.value), endless: o.endless }); } });
+    if (withDaily) {
+      var dly = el("input", { type: "checkbox", disabled: editable ? null : true, checked: o.daily ? true : null, onchange: function () { onChange({ torment: o.torment, endless: o.endless, daily: dly.checked }); } });
+      box.appendChild(el("label", { class: "yc-opt", title: t("yc_daily_desc") }, [dly, el("span", { text: " 📅 " + t("yc_daily_title") + " " + todayKey() })]));
+      if (o.daily) { box.appendChild(el("div", { class: "yc-small yc-muted", text: t("yc_net_daily_desc") })); return box; }
+    }
+    var sel = el("select", { class: "yc-select", disabled: editable ? null : true, onchange: function () { onChange({ torment: Number(sel.value), endless: o.endless, daily: o.daily }); } });
     for (var i = 0; i <= D.TORMENTS.length; i++) {
       var lockT = editable && i > maxTorment(profile());
       var opt = el("option", { value: String(i), disabled: lockT ? true : null, text: (lockT ? "🔒 " : "") + (i === 0 ? t("yc_torment_none") : t("yc_torment_n", { n: i }) + " — " + L(D.TORMENTS[i - 1].name)) });
       if (i === o.torment) opt.selected = true;
       sel.appendChild(opt);
     }
-    var endless = el("input", { type: "checkbox", disabled: editable ? null : true, checked: o.endless ? true : null, onchange: function () { onChange({ torment: o.torment, endless: endless.checked }); } });
+    var endless = el("input", { type: "checkbox", disabled: editable ? null : true, checked: o.endless ? true : null, onchange: function () { onChange({ torment: o.torment, endless: endless.checked, daily: o.daily }); } });
     box.appendChild(el("label", { class: "yc-opt" }, [el("span", { text: "😈 " + t("yc_torment") }), sel]));
     box.appendChild(el("label", { class: "yc-opt", title: t("yc_endless_desc") }, [endless, el("span", { text: " ♾️ " + t("yc_endless") })]));
     if (o.torment > 0) {
@@ -668,7 +674,8 @@
     var Net = window.PriTestYellowNet;
     if (!Net) return;
     if (room) room.leave();
-    room = Net.open({ roomId: id, name: netName(), cid: savedCid(id), onChange: onRoomChange, onSignal: onSignal });
+    room = Net.open({ roomId: id, name: netName(), cid: savedCid(id), onChange: onRoomChange, onSignal: onSignal, onChat: onChat, onNudge: onNudge });
+    ui.chatSeen = null; ui.nudgeSeen = null;
     try { sessionStorage.setItem(cidKey(room.id), room.cid); } catch (e) { /* 只是記不住 */ }
     mode = "net";
     ui.seenLog = 0; ui.tab = null; ui.focus = null;
@@ -687,7 +694,7 @@
   function onRoomChange() {
     var act = document.activeElement;
     // 正在輸入名字時先不重畫（會搶走焦點）
-    if (act && act.classList && act.classList.contains("yc-name-input")) { renderPending = true; return; }
+    if (act && act.classList && (act.classList.contains("yc-name-input") || act.classList.contains("yc-chat-input"))) { renderPending = true; return; }
     renderPending = false;
     render();
   }
@@ -724,13 +731,19 @@
     wrap.appendChild(el("div", { class: "yc-actions" }, [el("label", { text: t("yc_name") }), nameInp]));
 
     var grid = el("div", { class: "yc-seat-grid" });
+    var dailyHeroes = room.opts.daily ? Core.dailySetup(todayKey()).heroes : null, dailyIdx = 0;
     room.seats.forEach(function (s, seat) {
       var on = s && room.isOnline(s.cid);
+      var dailyCls = dailyHeroes && s && on ? dailyHeroes[dailyIdx++] : null;
       var isMe = s && s.cid === room.cid;
       var isAiSeat = s && AI && s.cid === AI.CTRL;
       var box = el("div", { class: "yc-seat" + (s ? "" : " yc-seat-empty") + (isMe ? " yc-seat-me" : "") });
       box.appendChild(el("div", { class: "yc-seat-pos", text: t("yc_player_n", { n: seat + 1 }) }));
-      if (isAiSeat && room.isHost()) {
+      if (room.opts.daily) {
+        // 每日挑戰：英雄依當天固定，不用選英雄，只要坐下／離開（AI 的位置由房主清掉）
+        if (!s || !on) box.appendChild(el("button", { type: "button", class: "yc-small-btn", text: t("yc_sit_here"), onclick: function () { room.takeSeat(seat, D.CLASSES[0].id, { lv: 0 }); } }));
+        else if (isMe || (isAiSeat && room.isHost())) box.appendChild(el("button", { type: "button", class: "yc-small-btn", text: t("yc_leave_seat"), onclick: function () { room.leaveSeat(seat); } }));
+      } else if (isAiSeat && room.isHost()) {
         // 房主改 AI 的英雄，或清掉這個 AI
         box.appendChild(heroGrid(s.cls, function (cls) { if (cls) room.setAiSeat(seat, cls, heroLv(profile(), cls)); else room.leaveSeat(seat); }, true));
       } else if (!s || isMe || !on || isAiSeat) {
@@ -743,31 +756,32 @@
         var freeCls = D.CLASSES[0];
         box.appendChild(el("button", { type: "button", class: "yc-small-btn", text: "🤖 " + t("yc_add_ai"), onclick: function () { room.setAiSeat(seat, freeCls.id, heroLv(profile(), freeCls.id)); } }));
       }
+      if (dailyCls) box.appendChild(el("div", { class: "yc-daily-seat", text: "📅 " + t("yc_net_daily_hero", { h: heroDef(dailyCls).icon + L(heroDef(dailyCls).name) }) }));
       if (s) {
-        var c = heroDef(s.cls);
+        var c = room.opts.daily ? null : heroDef(s.cls);
         box.appendChild(el("div", { class: "yc-seat-who" }, [
-          el("span", { class: "yc-class-icon", text: c ? c.icon : "?" }),
-          el("strong", { text: c ? L(c.name) : "" }),
-          el("span", { text: " — " + (isAiSeat ? "🤖 " + t("yc_ai") : (room.nameOf(s.cid) || t("yc_anon")) + (isMe ? t("yc_you") : "") + (on ? "" : t("yc_offline"))) }),
+          c ? el("span", { class: "yc-class-icon", text: c.icon }) : null,
+          c ? el("strong", { text: L(c.name) }) : null,
+          el("span", { text: (c ? " — " : "") + (isAiSeat ? "🤖 " + t("yc_ai") : (room.nameOf(s.cid) || t("yc_anon")) + (isMe ? t("yc_you") : "") + (on ? "" : t("yc_offline"))) }),
           typeof s.lv === "number" ? el("span", { class: "yc-small yc-muted", text: " " + t("yc_lv", { n: s.lv }) }) : null,
           s.art && D.RELIC[s.art] ? el("span", { class: "yc-small", title: relicName(s.art), text: " 🎒" + D.RELIC[s.art].icon }) : null
         ]));
-      } else box.appendChild(el("div", { class: "yc-muted yc-small", text: t("yc_seat_free") }));
+      } else box.appendChild(el("div", { class: "yc-muted yc-small", text: room.opts.daily ? t("yc_seat_none") : t("yc_seat_free") }));
       grid.appendChild(box);
     });
     wrap.appendChild(grid);
     wrap.appendChild(heroInfo(ui.focusHero));
 
-    wrap.appendChild(modeOptions(room.opts, function (o) { room.setOpts(o); }, room.isHost()));
+    wrap.appendChild(modeOptions(room.opts, function (o) { room.setOpts(o); }, room.isHost(), true));
     var ps = room.list();
     wrap.appendChild(el("div", { class: "yc-muted", text: t("yc_lobby_people", { n: ps.length }) + ps.map(function (p) { return (p.name || t("yc_anon")) + (room.meta && p.cid === room.meta.host ? "👑" : ""); }).join("、") }));
     wrap.appendChild(el("div", { class: "yc-actions" }, [
-      room.isHost() ? el("button", { type: "button", class: "yc-primary", disabled: room.canStart() ? null : true, text: t("yc_start_net"), onclick: function () { room.start(); } })
+      room.isHost() ? el("button", { type: "button", class: "yc-primary", disabled: room.canStart() ? null : true, text: t("yc_start_net"), onclick: function () { room.start(todayKey()); } })
         : el("span", { class: "yc-muted", text: t("yc_wait_host") }),
       el("button", { type: "button", text: t("yc_leave_room"), onclick: leaveRoom }),
       soundButtons()
     ]));
-    return el("div", {}, [wrap, rulesPanel()]);
+    return el("div", {}, [wrap, chatPanel(), rulesPanel()]);
   }
 
   // ---------------- 戰場 ----------------
@@ -1272,7 +1286,7 @@
       var c = heroDef(h.cls);
       tabs.appendChild(el("button", { type: "button", class: "yc-tab" + (h.seat === tab ? " yc-on" : "") + (mine(h) ? " yc-tab-mine" : ""), style: "--yc-cls:" + c.color,
         onclick: function () { ui.tab = h.seat; render(); } }, [
-        c.icon + " " + heroName(h), h.down ? " 💀" : h.done ? " ✓" : mine(h) ? " ●" : "",
+        c.icon + " " + heroName(h), h.down ? " 💀" : h.done ? " ✓" : mine(h) ? " ●" : mode === "net" ? (isOnline(h.ctrl) ? " …" : " ⚪") : "",
         // 分頁上直接看得到血量與護盾（戰場上的頭頂數字很小）
         h.down ? null : el("span", { class: "yc-tab-hp" + (h.hp / h.max <= 0.3 ? " yc-tag-low" : ""), text: "♥" + h.hp }),
         h.blk && !h.down ? el("span", { class: "yc-tab-blk", text: "🛡️" + h.blk }) : null,
@@ -1301,10 +1315,13 @@
       !isOnline(h.ctrl) && room && room.isHost() ? el("button", { type: "button", class: "yc-small-btn", text: t("yc_takeover"), onclick: function () { send({ t: "take", s: h.seat }); } }) : null,
       // 自己的英雄被代打中：可以拿回來
       mode === "net" && room && h.owner === room.cid && h.ctrl !== room.cid ? el("button", { type: "button", class: "yc-small-btn", text: t("yc_reclaim"), onclick: function () { send({ t: "reclaim", s: h.seat }); } }) : null,
+      // 換裝置接回（2026-10-27）：自己沒有英雄、這位的主人不在線時可以接手
+      mode === "net" && room && room.canClaim && room.canClaim(h.seat) ? el("button", { type: "button", class: "yc-small-btn yc-primary", text: t("yc_claim"), onclick: function () { send({ t: "claim", s: h.seat }); } }) : null,
       statusBadges(h, true),
       relicRow(h),
       own && !h.down ? el("span", { class: "yc-hand-end" }, [
         el("span", { class: "yc-muted yc-small", text: t("yc_waiting", { n: Core.alive(st).filter(function (x) { return !x.done; }).length }) }),
+        nudgeButton(st),
         el("button", { type: "button", class: h.done ? "" : "yc-primary yc-end", text: h.done ? t("yc_unend") : t("yc_end_turn"), onclick: function () { send({ t: "end", s: h.seat, on: !h.done }); } })
       ]) : null
     ]));
@@ -2238,6 +2255,8 @@
     bits.push(soundButtons());
     if (st.phase === "battle") bits.push(el("span", { text: t("yc_node_" + st.battleKind) + " · " + t("yc_round", { n: st.round }) }));
     if (st.phase === "battle" && fieldDef(st)) bits.push(fieldChip(st));
+    // 敵人狂怒：快到的時候先提醒
+    if (st.phase === "battle" && st.round >= D.ENRAGE.round - 2) bits.push(el("span", { class: "yc-tag-torment", title: t("yc_enrage_desc", { n: D.ENRAGE.round, m: D.ENRAGE.str }), text: st.round >= D.ENRAGE.round ? "😡 " + t("yc_enrage_on") : "⚠️ " + t("yc_enrage_soon", { n: D.ENRAGE.round }) }));
     if (mode === "net" && room) {
       if (!room.hostOnline()) bits.push(el("span", { class: "yc-bad", text: t("yc_host_gone") }));
       bits.push(el("button", { type: "button", class: "yc-link", text: t("yc_leave_room"), onclick: leaveRoom }));
@@ -2282,6 +2301,7 @@
     } else if (st.phase === "map") app.appendChild(renderMap(st));
     else if (st.phase === "win" || st.phase === "lose") app.appendChild(renderEnd(st));
     else app.appendChild(renderChoices(st));
+    if (mode === "net" && room) app.appendChild(chatPanel());
     app.appendChild(renderLog(st));
     if (ui.deckView !== null) { var m = renderDeckView(st); if (m) app.appendChild(m); }
     window.scrollTo(0, scrollY);
@@ -2384,6 +2404,78 @@
     drawSignals();
     later(SIG_MS + 50, drawSignals);
   }
+  // ---------------- 房內聊天與催促（2026-10-27 使用者指定） ----------------
+  var CHAT_QUICK = ["yc_q_block", "yc_q_focus", "yc_q_wait", "yc_q_heal", "yc_q_ok"];
+  var NUDGE_GAP = 10000;
+  function chatName(c) { return room ? (c === room.cid ? t("yc_you_short") : room.nameOf(c) || t("yc_anon")) : ""; }
+  function chatLines(list) {
+    return (list || []).slice(-30).map(function (m) {
+      return el("div", { class: "yc-chat-line" + (room && m.c === room.cid ? " yc-chat-me" : "") }, [el("strong", { text: chatName(m.c) + "：" }), el("span", { text: m.t })]);
+    });
+  }
+  function chatPanel() {
+    var box = el("div", { class: "yc-panel yc-chat" });
+    box.appendChild(el("div", { class: "yc-chat-head" }, [el("strong", { text: "💬 " + t("yc_chat") })]));
+    var list = el("div", { class: "yc-chat-list" }, chatLines(room.chats));
+    box.appendChild(list);
+    var inp = el("input", { type: "text", class: "yc-text yc-chat-input", maxlength: "80", placeholder: t("yc_chat_ph") });
+    inp.value = ui.chatDraft || "";
+    var sendIt = function () { if (!inp.value.trim()) return; room.chat(inp.value); ui.chatDraft = ""; inp.value = ""; };
+    inp.addEventListener("input", function () { ui.chatDraft = inp.value; });
+    inp.addEventListener("keydown", function (ev) { if (ev.key === "Enter" && !ev.isComposing) { ev.preventDefault(); sendIt(); } });
+    inp.addEventListener("blur", function () { if (renderPending) setTimeout(render, 0); });
+    box.appendChild(el("div", { class: "yc-chat-row" }, [inp, el("button", { type: "button", text: t("yc_chat_send"), onclick: sendIt })]));
+    box.appendChild(el("div", { class: "yc-chat-quick" }, CHAT_QUICK.map(function (k) {
+      return el("button", { type: "button", class: "yc-small-btn", text: t(k), onclick: function () { room.chat(t(k)); } });
+    })));
+    later(0, function () { list.scrollTop = list.scrollHeight; });
+    return box;
+  }
+  // 新訊息：只更新聊天框（不整頁重畫，打字不會被打斷）＋戰場上方浮出別人的訊息
+  function onChat(list) {
+    var node = app.querySelector(".yc-chat-list");
+    if (node) { node.innerHTML = ""; chatLines(list).forEach(function (x) { node.appendChild(x); }); node.scrollTop = node.scrollHeight; }
+    var last = list[list.length - 1];
+    if (ui.chatSeen === null) { ui.chatSeen = last ? last.k : ""; return; } // 剛進房間：之前的訊息不浮出
+    list.filter(function (m) { return m.k > ui.chatSeen; }).forEach(function (m) { if (m.c !== room.cid) toast("💬 " + chatName(m.c) + "：" + m.t); });
+    if (last) ui.chatSeen = last.k;
+  }
+  function toast(txt, cls) {
+    var n = el("div", { class: "yc-toast" + (cls ? " " + cls : ""), text: txt });
+    document.body.appendChild(n);
+    later(3200, function () { if (n.parentNode) n.parentNode.removeChild(n); });
+  }
+  // 催促：寫給所有在線、還沒結束回合、不是自己也不是 AI 的操作者（10 秒一次）
+  function nudgeTargets(st) {
+    var out = [];
+    Core.alive(st).forEach(function (h) { if (!h.done && h.ctrl !== room.cid && !isAi(h) && room.isOnline(h.ctrl) && out.indexOf(h.ctrl) < 0) out.push(h.ctrl); });
+    return out;
+  }
+  function nudgeButton(st) {
+    if (mode !== "net" || !room || ui.replay) return null;
+    var to = nudgeTargets(st);
+    if (!to.length) return null;
+    var wait = (ui.nudgedAt || 0) + NUDGE_GAP - Date.now();
+    return el("button", { type: "button", class: "yc-small-btn yc-nudge-btn", disabled: wait > 0 ? true : null, title: to.map(chatName).join("、"), text: "🔔 " + t("yc_nudge"), onclick: function () {
+      to.forEach(function (c) { room.nudge(c); });
+      ui.nudgedAt = Date.now();
+      toast("🔔 " + t("yc_nudge_sent", { n: to.map(chatName).join("、") }));
+      render();
+      later(NUDGE_GAP + 50, render);
+    } });
+  }
+  // 被催：震動、提示音、結束回合按鈕閃一下（剛進房間時舊的催促不算）
+  function onNudge(v) {
+    if (ui.nudgeSeen === null) { ui.nudgeSeen = v.at; var GS2 = window.PriTestGameStorage; if (!GS2 || !GS2.serverNow || Math.abs(GS2.serverNow() - v.at) > 15000) return; }
+    else if (v.at <= ui.nudgeSeen) return;
+    ui.nudgeSeen = v.at;
+    try { if (navigator.vibrate) navigator.vibrate([120, 80, 120]); } catch (e) { /* 不支援 */ }
+    Snd.sfx("ping");
+    toast("🔔 " + t("yc_nudged", { n: chatName(v.from) }), "yc-toast-nudge");
+    var b = app.querySelector(".yc-end");
+    if (b) hitNode(b, "yc-nudged", 1600);
+  }
+
   // 連線：fx/<cid> 有新的訊號就顯示（太舊的不顯示：剛進房間時不要把之前的訊號重播一次）
   function onSignal(all) {
     Object.keys(all || {}).forEach(function (c) {

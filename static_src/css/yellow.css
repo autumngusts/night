@@ -598,3 +598,17 @@ button.yc-relic:hover:not(:disabled) { border-color: var(--yc-accent); }
 .yc-daily-share-box { display: flex; flex-direction: column; gap: 0.35rem; margin: 0.6rem 0; }
 .yc-daily-share { width: 100%; box-sizing: border-box; font: inherit; font-size: 0.9em; padding: 0.4rem; resize: vertical; }
 .yc-daily-share-box button { align-self: flex-start; }
+/* 連線補強（2026-10-27）：聊天、催促、每日挑戰的座位 */
+.yc-chat { max-width: 46rem; margin-left: auto; margin-right: auto; }
+.yc-chat-list { max-height: 9rem; overflow-y: auto; font-size: 0.9em; padding: 0.3rem; border-radius: 8px; background: rgba(127, 127, 127, 0.08); margin: 0.3rem 0; }
+.yc-chat-line { padding: 0.1rem 0; overflow-wrap: anywhere; }
+.yc-chat-me strong { color: #c99a06; }
+.yc-chat-row { display: flex; gap: 0.4rem; }
+.yc-chat-row .yc-chat-input { flex: 1; min-width: 0; }
+.yc-chat-quick { display: flex; flex-wrap: wrap; gap: 0.3rem; margin-top: 0.35rem; }
+.yc-toast { position: fixed; left: 50%; top: 1rem; transform: translateX(-50%); z-index: 60; max-width: min(90vw, 30rem); padding: 0.5rem 1rem; border-radius: 10px; background: rgba(20, 22, 30, 0.92); color: #fff; box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35); pointer-events: none; animation: yc-toast 3.2s ease-out forwards; overflow-wrap: anywhere; }
+.yc-toast-nudge { background: #c99a06; color: #1a1300; font-weight: bold; }
+@keyframes yc-toast { 0% { opacity: 0; translate: 0 -0.6rem; } 8% { opacity: 1; translate: 0 0; } 85% { opacity: 1; } 100% { opacity: 0; } }
+.yc-nudged { animation: yc-nudged 0.4s ease-in-out 4; }
+@keyframes yc-nudged { 0%, 100% { translate: 0 0; box-shadow: none; } 25% { translate: -4px 0; box-shadow: 0 0 0 4px #ffd84a; } 75% { translate: 4px 0; box-shadow: 0 0 0 4px #ffd84a; } }
+.yc-daily-seat { font-size: 0.9em; font-weight: bold; margin: 0.25rem 0; }
