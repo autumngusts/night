@@ -42,6 +42,8 @@ require("../../static_src/starv_avatar.js");
 var Avatar = global.PriTestStarvAvatar;
 require("../../static_src/starv_stage_spec.js");
 var Spec = global.PriTestStarvStageSpec;
+require("../../static_src/starv_cloud.js");
+var Cloud = global.PriTestStarvCloud;
 function fakeStorage() {
   var m = {};
   return { getItem: function (k) { return k in m ? m[k] : null; }, setItem: function (k, v) { m[k] = String(v); }, removeItem: function (k) { delete m[k]; }, _m: m };
@@ -1306,11 +1308,201 @@ test("企劃階段日誌帶成員與方向（3D 演出用）", function () {
   eq(e.data.members.join(","), team[0].id); eq(e.data.dir, "host");
 });
 
-// ==== run ====
-var fails = 0;
-tests.forEach(function (t) {
-  try { t[1](); console.log("ok   " + t[0]); }
-  catch (e) { fails++; console.log("FAIL " + t[0] + "：" + e.message); }
+// ==== 雲端存檔（計畫 8） ====
+// 假的 PriTestGameStorage：所有裝置共用同一個記憶體資料庫；寫入與通知都是非同步（跟 Firebase 一樣）；
+// setOnline(false) 時 rtSet 的 Promise 不會完成，恢復連線才一起寫入（模擬 Firebase SDK 的離線佇列）
+function fakeCloud() {
+  var db = {}, subs = [], clock = { t: 1e12 }, online = true, queued = [];
+  function key(id, sub) { return id + "/" + sub; }
+  function copy(v) { return v == null ? null : JSON.parse(JSON.stringify(v)); }
+  function notify(k) { subs.slice().forEach(function (s) { if (s.k === k) s.fn(copy(db[k])); }); }
+  var gs = {
+    generateCloudGameId: function () { return "g0123456789abcdef0123456789abcdef"; },
+    serverNow: function () { return clock.t; },
+    serverTimeOffset: function () { return 0; },
+    rtSet: function (id, mode, sub, v) {
+      var k = key(id, sub);
+      function apply() { db[k] = copy(v); notify(k); }
+      if (!online) return new Promise(function (res) { queued.push(function () { apply(); res(); }); });
+      return Promise.resolve().then(apply);
+    },
+    rtSubscribe: function (id, mode, sub, fn) {
+      var s = { k: key(id, sub), fn: fn };
+      subs.push(s);
+      Promise.resolve().then(function () { if (subs.indexOf(s) >= 0) fn(copy(db[s.k])); });
+      return function () { var i = subs.indexOf(s); if (i >= 0) subs.splice(i, 1); };
+    },
+    rtTransaction: function (id, mode, sub, fn) {
+      var k = key(id, sub);
+      return Promise.resolve().then(function () {
+        var nv = fn(copy(db[k]));
+        if (nv === undefined) return null;
+        db[k] = copy(nv); notify(k);
+        return copy(nv);
+      });
+    }
+  };
+  return {
+    gs: gs, db: db, clock: clock,
+    setOnline: function (b) { online = b; if (b) queued.splice(0).forEach(function (f) { f(); }); }
+  };
+}
+function fakeApp(st) {
+  var a = { s: st, ro: false, adopted: 0, t: 1e12 };
+  return { st: function () { return a.s; }, now: function () { return a.t; }, adopt: function (n) { a.s = n; a.adopted++; },
+    setReadOnly: function (b) { a.ro = b; }, _a: a };
+}
+function flush() { return new Promise(function (r) { setTimeout(r, 0); }); }
+
+test("雲端：純函式（ID、封包時間換算、搶占、判斷、重要標記、連結）", function () {
+  assert(Cloud.validId("g0123456789abcdef0123456789abcdef"), "合法 ID");
+  assert(!Cloud.validId("gABC") && !Cloud.validId(null) && !Cloud.validId("g0123456789abcdef0123456789abcdeF"), "不合法 ID");
+
+  var st = Core.create({ seed: 3, now: 1000, name: "雲端社" });
+  st.lastTickAt = 5000;
+  var env = Cloud.envelope(st, "dA", 6000, 106000);
+  eq(env.savedAt, 106000); eq(env.deviceId, "dA"); eq(env.tickAt, 105000, "lastTickAt 換成伺服器時間");
+  eq(env.name, "雲端社"); eq(env.day, st.day); eq(typeof env.data, "string");
+  var back = Cloud.unpack(env, 2000, 106000);
+  eq(back.lastTickAt, 1000, "換回本機時間（伺服器 105000 − 106000 + 本機 2000）");
+  eq(back.company.name, "雲端社"); assert(Array.isArray(back.artists));
+  eq(Cloud.unpack(env, 2000, 100000).lastTickAt, 2000, "不會換算到本機的未來");
+  var threw = false;
+  try { Cloud.unpack({ data: "{}" }, 0, 0); } catch (e) { threw = true; }
+  assert(threw, "格式不正確要 throw");
+
+  eq(Cloud.claimUpdate(null, "dA", 5, false).deviceId, "dA");
+  eq(Cloud.claimUpdate({ deviceId: "dA" }, "dA", 5, false).since, 5);
+  eq(Cloud.claimUpdate({ deviceId: "dB" }, "dA", 5, false), undefined, "別台進行中時不搶");
+  eq(Cloud.claimUpdate({ deviceId: "dB" }, "dA", 5, true).deviceId, "dA", "強制接回");
+
+  eq(Cloud.decide({ active: { deviceId: "dB" }, remote: null, deviceId: "dA", lastSync: 0 }), "locked");
+  eq(Cloud.decide({ active: null, remote: { deviceId: "dB", savedAt: 10 }, deviceId: "dA", lastSync: 5 }), "adopt");
+  eq(Cloud.decide({ active: { deviceId: "dA" }, remote: { deviceId: "dB", savedAt: 4 }, deviceId: "dA", lastSync: 5 }), "upload", "雲端比較舊");
+  eq(Cloud.decide({ active: null, remote: { deviceId: "dA", savedAt: 10 }, deviceId: "dA", lastSync: 5 }), "upload", "雲端是自己傳的");
+  eq(Cloud.decide({ active: null, remote: null, deviceId: "dA", lastSync: 0 }), "upload");
+
+  var m0 = Cloud.marks(st);
+  st.stats.pulls += 10; var m1 = Cloud.marks(st);
+  assert(m1 !== m0, "抽卡改變標記");
+  st.awards.history.unshift({ year: 3, results: [] }); var m2 = Cloud.marks(st);
+  assert(m2 !== m1, "頒獎改變標記");
+  st.era++; assert(Cloud.marks(st) !== m2, "新紀元改變標記");
+  st.company.money += 5; eq(Cloud.marks(st), Cloud.marks(st), "金錢不影響標記");
+
+  eq(Cloud.linkFor("https://x.example/starv/index.html?debug=1#top", "gabc"), "https://x.example/starv/index.html?cloud=gabc");
+  eq(Cloud.idFromSearch("?debug=1&cloud=gabc"), "gabc");
+  eq(Cloud.idFromSearch("?debug=1"), null);
+  eq(Cloud.stripCloudParam("?cloud=gabc&debug=1"), "?debug=1");
+  eq(Cloud.stripCloudParam("?debug=1&cloud=gabc"), "?debug=1");
+  eq(Cloud.stripCloudParam("?cloud=gabc"), "");
 });
-console.log(fails ? fails + " 個失敗" : "全部 " + tests.length + " 個通過");
-process.exit(fails ? 1 : 0);
+
+test("雲端：啟用 → 另一台連線 → 原裝置轉唯讀 → 接回時採用對方進度", async function () {
+  var fc = fakeCloud();
+  var sA = fakeStorage(), sB = fakeStorage();
+  var appA = fakeApp(Core.create({ seed: 4, now: 1e12, name: "甲社" })), appB = fakeApp(null);
+  var A = Cloud.create({ gs: fc.gs, storage: sA, app: appA });
+  var B = Cloud.create({ gs: fc.gs, storage: sB, app: appB });
+  assert(A.deviceId() !== B.deviceId(), "裝置 ID 不同");
+  eq(A.deviceId(), Cloud.create({ gs: fc.gs, storage: sA, app: appA }).deviceId(), "同一台裝置 ID 不變");
+
+  var id = await A.enable();
+  assert(Cloud.validId(id), "產生存檔 ID");
+  await flush();
+  eq(fc.db[id + "/starv/activeDevice"].deviceId, A.deviceId(), "activeDevice＝A");
+  eq(fc.db[id + "/starv/save"].name, "甲社", "已上傳");
+  eq(JSON.parse(sA.getItem(Cloud.CFG_KEY)).id, id, "本機記住存檔 ID");
+  eq(A.info().enabled, true); eq(A.info().pending, false);
+
+  eq(await B.preview("bad"), null, "不合法 ID");
+  var env = await B.preview(id);
+  eq(env.name, "甲社");
+  fc.clock.t += 60000; appB._a.t += 60000;
+  assert(await B.connect(id, env), "B 接回");
+  await flush();
+  eq(appB.st().company.name, "甲社"); eq(appB._a.adopted, 1);
+  assert(appA._a.ro && A.info().locked, "A 轉唯讀");
+  eq(await A.upload(), false, "唯讀時不上傳");
+
+  appB.st().company.money = 777777;
+  fc.clock.t += 1000; appB._a.t += 1000;
+  assert(await B.upload(), "B 上傳");
+  fc.clock.t += 1000; appA._a.t += 62000;
+  assert(await A.takeover(), "A 在此裝置繼續");
+  await flush();
+  eq(appA.st().company.money, 777777, "A 採用 B 的進度");
+  assert(!appA._a.ro && !A.info().locked, "A 解除唯讀");
+  assert(appB._a.ro && B.info().locked, "B 轉唯讀");
+});
+
+test("雲端：重新開啟時依 activeDevice 與存檔決定、重要時點立即上傳、斷線補傳、停用", async function () {
+  var fc = fakeCloud();
+  var sA = fakeStorage(), sB = fakeStorage();
+  var appA = fakeApp(Core.create({ seed: 5, now: 1e12, name: "乙社" })), appB = fakeApp(null);
+  var A = Cloud.create({ gs: fc.gs, storage: sA, app: appA });
+  var B = Cloud.create({ gs: fc.gs, storage: sB, app: appB });
+  var id = await A.enable();
+  fc.clock.t += 1000;
+  assert(await B.connect(id, await B.preview(id)));
+  appB.st().company.money = 424242;
+  fc.clock.t += 1000;
+  await B.upload();
+  await flush();
+
+  // A 重新開啟頁面：B 還在進行中 → 唯讀
+  var appA2 = fakeApp(Core.create({ seed: 5, now: 1e12, name: "乙社" }));
+  var A2 = Cloud.create({ gs: fc.gs, storage: sA, app: appA2 });
+  eq(await A2.attach(), "locked"); assert(appA2._a.ro, "A2 唯讀");
+
+  // B 已經不在（activeDevice 被清掉）：A 重新開啟時採用 B 比較新的存檔並成為進行中裝置
+  fc.db[id + "/starv/activeDevice"] = null;
+  var appA3 = fakeApp(Core.create({ seed: 5, now: 1e12, name: "乙社" }));
+  var A3 = Cloud.create({ gs: fc.gs, storage: sA, app: appA3 });
+  eq(await A3.attach(), "adopt");
+  await flush();
+  eq(appA3.st().company.money, 424242, "採用 B 的存檔");
+  eq(fc.db[id + "/starv/activeDevice"].deviceId, A3.deviceId());
+
+  // 重要時點：抽卡後 changed() 立即上傳；只有金錢變化不上傳
+  appA3.st().stats.pulls += 10;
+  A3.changed();
+  await flush();
+  eq(JSON.parse(fc.db[id + "/starv/save"].data).stats.pulls, appA3.st().stats.pulls, "抽卡後上傳");
+  appA3.st().company.money = 1;
+  A3.changed();
+  await flush();
+  assert(JSON.parse(fc.db[id + "/starv/save"].data).company.money !== 1, "金錢變化不算重要時點");
+
+  // 斷線：上傳暫存為 pending，恢復後補傳
+  fc.setOnline(false);
+  A3.upload();
+  await flush();
+  assert(A3.info().pending, "斷線時 pending");
+  assert(JSON.parse(sA.getItem(Cloud.CFG_KEY)).pending, "pending 寫在本機（重新整理後也記得）");
+  fc.setOnline(true);
+  await flush();
+  assert(!A3.info().pending, "恢復後補傳完成");
+  eq(JSON.parse(fc.db[id + "/starv/save"].data).company.money, 1);
+
+  // 自己是進行中裝置時重新開啟 → 直接上傳
+  var A4 = Cloud.create({ gs: fc.gs, storage: sA, app: appA3 });
+  eq(await A4.attach(), "upload");
+
+  A4.disable();
+  eq(sA.getItem(Cloud.CFG_KEY), null, "停用後忘記存檔 ID");
+  eq(A4.info().enabled, false);
+  eq(await A4.attach(), "off");
+});
+
+// ==== run ====
+// 雲端存檔的測試回傳 Promise（假的 GameStorage 是非同步的），所以依序 await
+(async function () {
+  var fails = 0;
+  for (var i = 0; i < tests.length; i++) {
+    try { await tests[i][1](); console.log("ok   " + tests[i][0]); }
+    catch (e) { fails++; console.log("FAIL " + tests[i][0] + "：" + e.message); }
+  }
+  console.log(fails ? fails + " 個失敗" : "全部 " + tests.length + " 個通過");
+  process.exit(fails ? 1 : 0);
+})();

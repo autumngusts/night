@@ -70,5 +70,5 @@
     return parse(fromB64(b64));
   }
 
-  root.PriTestStarvStore = { KEY: KEY, BACKUP: BACKUP, load: load, save: save, clear: clear, encode: encode, decode: decode };
+  root.PriTestStarvStore = { KEY: KEY, BACKUP: BACKUP, load: load, save: save, clear: clear, encode: encode, decode: decode, parse: parse };
 })();
