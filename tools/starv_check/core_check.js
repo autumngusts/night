@@ -580,6 +580,22 @@ test("頭像：所有組合都能畫、可重現、反映外觀", function () {
   eq(Avatar.svg(null, {}), Avatar.svg(null, {}), "預設外觀可重現");
 });
 
+test("設施：費用、等級上限、升級", function () {
+  var st = Core.create({ seed: 1 });
+  eq(Core.facilityCost(st, "dorm"), 30000, "宿舍 Lv1→2"); eq(Core.facilityCost(st, "practice"), 40000, "練習室 Lv0→1");
+  eq(Core.facilityCap(st, "dorm"), 10); eq(Core.facilityCap(st, "practice"), 1, "公司 Lv1 只能到 Lv1");
+  eq(Core.upgradeFacility(st, "nope"), "noFacility");
+  st.company.money = 10000; eq(Core.upgradeFacility(st, "dorm"), "money");
+  st.company.money = 1e9;
+  eq(Core.upgradeFacility(st, "dorm"), null); eq(st.facilities.dorm, 2); eq(Core.capacity(st), 10);
+  eq(Core.upgradeFacility(st, "practice"), null); eq(Core.upgradeFacility(st, "practice"), "level");
+  st.company.level = 10;
+  for (var i = 0; i < 10; i++) Core.upgradeFacility(st, "dorm");
+  eq(st.facilities.dorm, 10); eq(Core.upgradeFacility(st, "dorm"), "max"); eq(Core.facilityCost(st, "dorm"), null);
+  assert(st.log.some(function (e) { return e.type === "facility_up" && e.data.f === "dorm" && e.data.lv === 2; }), "日誌");
+  D.FACILITY_ORDER.forEach(function (f) { assert(D.FACILITIES[f].name.zh && D.FACILITIES[f].desc.ja, "名稱說明 " + f); });
+});
+
 // ==== run ====
 var fails = 0;
 tests.forEach(function (t) {

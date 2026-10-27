@@ -818,6 +818,29 @@
   function dailyPullsLeft(st) { return BAL.dailyPullLimit - (st.gacha.pullDay === st.day ? st.gacha.pullCount : 0); }
   function pityLeft(st) { return pityMax(st) - st.gacha.pity; }
 
+  // ==== 設施（§8.2） ====
+  function facilityCap(st, f) {
+    var F = D.FACILITIES[f];
+    return f === "dorm" ? F.max : Math.min(F.max, st.company.level);
+  }
+  function facilityCost(st, f) {
+    var F = D.FACILITIES[f];
+    if (!F || st.facilities[f] >= F.max) return null;
+    return Math.round(F.base * Math.pow(F.growth, st.facilities[f] - F.start) / 1000) * 1000;
+  }
+  function upgradeFacility(st, f) {
+    var F = D.FACILITIES[f];
+    if (!F || !F.base) return "noFacility";
+    if (st.facilities[f] >= F.max) return "max";
+    if (st.facilities[f] >= facilityCap(st, f)) return "level";
+    var cost = facilityCost(st, f);
+    if (st.company.money < cost) return "money";
+    st.company.money -= cost;
+    st.facilities[f]++;
+    log(st, "facility_up", { f: f, lv: st.facilities[f] });
+    return null;
+  }
+
   // ==== exports ====
   api.VERSION = VERSION;
   api.create = create;
@@ -862,5 +885,8 @@
   api.nextLevelRep = nextLevelRep;
   api.dailyPullsLeft = dailyPullsLeft;
   api.pityLeft = pityLeft;
+  api.facilityCap = facilityCap;
+  api.facilityCost = facilityCost;
+  api.upgradeFacility = upgradeFacility;
   root.PriTestStarvCore = api;
 })();

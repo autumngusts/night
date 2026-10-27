@@ -194,16 +194,20 @@
     minor("praise", 6, "受到前輩稱讚|先輩に褒められた", false, { mood: 1, stress: -5 })
   ];
 
-  // 設施效果（§8.2；升級費用在計畫 3 補上）
+  // 設施（§8.2）：升級費用 ＝ base × growth^(目前等級 − start)，取整到千
+  function fac(o, name, desc) { o.name = T(name); o.desc = T(desc); return o; }
   var FACILITIES = {
-    dorm: { max: 10 },
-    practice: { max: 5, trainGrowth: 0.1 },
-    studio: { max: 5, stats: ["vocal"], dirs: ["singer", "band", "voice", "composer"], v: 0.04 },
-    photo: { max: 5, stats: ["charm"], dirs: ["cm", "model", "influencer", "vtuber"], v: 0.04 },
-    lounge: { max: 5, rest: 0.15, stress: 0.05 },
-    pr: { max: 5, fameDecay: 0.1 },
-    scout: { max: 5 }
+    dorm: fac({ max: 10, start: 1, base: 30000, growth: 1.8 }, "宿舍|寮", "藝人人數上限；不受公司等級限制|タレントの人数上限。事務所レベルの制限なし"),
+    practice: fac({ max: 5, start: 0, base: 40000, growth: 2, trainGrowth: 0.1 }, "練習室|練習室", "訓練效果 +10%／級；Lv1 解鎖演技、舞蹈高級課|トレーニング効果 +10%／Lv。Lv1 で演技・ダンスの上級レッスン解放"),
+    studio: fac({ max: 5, start: 0, base: 50000, growth: 2, stats: ["vocal"], dirs: ["singer", "band", "voice", "composer"], v: 0.04 },
+      "錄音室|レコーディングスタジオ", "歌唱課與歌手、樂團、聲優、配樂表現 +4%／級；Lv1 解鎖歌唱高級課|歌唱レッスンと歌手・バンド・声優・作曲の表現 +4%／Lv。Lv1 で歌唱の上級レッスン解放"),
+    photo: fac({ max: 5, start: 0, base: 50000, growth: 2, stats: ["charm"], dirs: ["cm", "model", "influencer", "vtuber"], v: 0.04 },
+      "攝影棚|撮影スタジオ", "魅力課與廣告、模特兒、網紅、虛擬主播表現 +4%／級；Lv1 解鎖魅力高級課|魅力レッスンと CM・モデル・インフルエンサー・VTuber の表現 +4%／Lv。Lv1 で魅力の上級レッスン解放"),
+    lounge: fac({ max: 5, start: 0, base: 30000, growth: 2, rest: 0.15, stress: 0.05 }, "休息室|ラウンジ", "休息回復 +15%／級，壓力累積 −5%／級|休養の回復 +15%／Lv、ストレス蓄積 −5%／Lv"),
+    pr: fac({ max: 5, start: 0, base: 60000, growth: 2, fameDecay: 0.1 }, "公關部|広報部", "人氣衰退 −10%／級，重大事件壞結果 −10%／級|人気の減少 −10%／Lv、重大イベントの悪い結果 −10%／Lv"),
+    scout: fac({ max: 5, start: 0, base: 80000, growth: 2 }, "星探部|スカウト部", "一般試鏡 SR +0.3%、SSR +0.05%／級|一般オーディションの SR +0.3%・SSR +0.05%／Lv")
   };
+  var FACILITY_ORDER = ["dorm", "practice", "studio", "photo", "lounge", "pr", "scout"];
   var DORM_CAP = [0, 5, 10, 15, 20, 30, 40, 55, 70, 85, 100];
 
   // R 藝人的姓名庫：存檔只存 nameSeed，依目前語言組名字（§3.5）
@@ -254,6 +258,6 @@
     DIRS: DIRS, DIR_BY_ID: index(DIRS), ROLES: ROLES, TIERS: TIERS, TIER_ORDER: TIER_ORDER, RESULTS: RESULTS, PROF_XP: PROF_XP,
     COURSES: COURSES, COURSE_BY_ID: index(COURSES), TRAIN: TRAIN, REST: REST, PROMO: PROMO,
     TRAITS: TRAITS, TRAIT_BY_ID: index(TRAITS), MINOR_EVENTS: MINOR_EVENTS,
-    FACILITIES: FACILITIES, DORM_CAP: DORM_CAP, NAMES: NAMES, UNKNOWN_NAME: UNKNOWN_NAME, LOOK: LOOK, BAL: BAL
+    FACILITIES: FACILITIES, FACILITY_ORDER: FACILITY_ORDER, DORM_CAP: DORM_CAP, NAMES: NAMES, UNKNOWN_NAME: UNKNOWN_NAME, LOOK: LOOK, BAL: BAL
   };
 })();
