@@ -271,6 +271,7 @@
     eventDailyChance: 0.08, eventDeadlineDays: 3, eventMax: 3, prBadCut: 0.1, famousFame: 200, rookieDays: 60,
     fameMilestones: [1000, 5000, 20000, 50000], sellContractMonths: 6, debtCrisisMonths: 3,
     seasonDays: 90, trendHot: 1.5, trendCold: 0.7, specialTrendChance: 0.25, trendBoardHot: 2, trendBoardCold: 0.5,
+    auditionTiers: ["A", "S"], interestChance: 0.3, snatchChance: 0.01, snatchInterestChance: 0.06, auditionRivalWin: 2,
     rivalCount: 5, rivalPowerStart: [80, 140], rivalPowerNew: [80, 120], rivalBankrupt: 40, rivalShockChance: 0.12,
     rivalPerfDiv: 400, rivalYearGrowth: 0.08, rivalStarJoinChance: 0.5,
     logMax: 200, worksMax: 50

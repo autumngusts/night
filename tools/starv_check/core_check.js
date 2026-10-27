@@ -18,6 +18,10 @@ var EVENT_CHANCE = D.BAL.eventDailyChance;
 D.BAL.eventDailyChance = 0;
 function withEvents(fn) { D.BAL.eventDailyChance = EVENT_CHANCE; try { fn(); } finally { D.BAL.eventDailyChance = 0; } }
 
+// 計畫 4 加入對手每天搶工作：舊測試預設關閉，搶工作的測試自己打開
+var SNATCH = [D.BAL.snatchChance, D.BAL.snatchInterestChance];
+D.BAL.snatchChance = 0; D.BAL.snatchInterestChance = 0;
+
 require("../../static_src/starv_core.js");
 var Core = global.PriTestStarvCore;
 require("../../static_src/starv_store.js");
@@ -335,7 +339,7 @@ test("看板：作品名", function () {
 function soloJob(st, over) {
   var j = Core._genJob(st);
   j.dir = "singer"; j.tier = "D"; j.role = "support"; j.slots = 1; j.days = 2; j.pay = 2000; j.fame = 5; j.rep = 5;
-  j.minFame = 0; j.minProf = 1; j.isWork = false;
+  j.minFame = 0; j.minProf = 1; j.isWork = false; j.audition = false; j.interest = null;
   Object.keys(over || {}).forEach(function (k) { j[k] = over[k]; });
   st.board.push(j);
   return j;
@@ -845,6 +849,42 @@ test("存檔版本 3：舊存檔補上對手", function () {
   delete st.rivals; st.version = 2;
   var m = Core.migrate(JSON.parse(JSON.stringify(st)));
   eq(m.version, 3); eq(m.rivals.length, 5);
+});
+
+test("試鏡：A/S 是試鏡制、隔天公布、贏了開工輸了被搶", function () {
+  var st = Core.create({ seed: 1 });
+  st.company.level = 6; st.board = []; st.boardRefreshDay = 99999;
+  var hi = freshArtist(st, { fame: 99999 }), lo = freshArtist(st, { fame: 99999 });
+  D.STATS.forEach(function (s) { hi.stats[s] = 999; hi.caps[s] = 999; lo.stats[s] = 1; });
+  hi.prof.singer.lv = 10; lo.prof.singer.lv = 10;
+  var j1 = soloJob(st, { tier: "A", audition: true, minFame: 1500, minProf: 5, days: 3 });
+  var j2 = soloJob(st, { tier: "A", audition: true, minFame: 1500, minProf: 5, days: 3 });
+  eq(Core.takeJob(st, j1.id, [hi.id]), null); eq(Core.takeJob(st, j2.id, [lo.id]), null);
+  eq(st.auditions.length, 2); eq(hi.task.kind, "audition"); eq(st.activeJobs.length, 0);
+  Core.advance(st, 1);
+  eq(st.auditions.length, 0, "隔天公布");
+  eq(st.activeJobs.length, 1, "贏的開工"); eq(st.activeJobs[0].job.id, j1.id); eq(hi.task.kind, "job");
+  eq(lo.task, null, "輸的沒事");
+  assert(st.log.some(function (e) { return e.type === "audition_won"; }) && st.log.some(function (e) { return e.type === "audition_lost"; }), "日誌");
+  var gen = Core._genJob(st, { tier: "S" }); eq(gen.audition, true);
+  eq(Core._genJob(st, { tier: "S", reservedFor: hi.id }).audition, false, "指名工作不用試鏡");
+  eq(Core._genJob(st, { tier: "C" }).audition, false);
+});
+
+test("搶工作：有興趣的工作比較容易被搶", function () {
+  D.BAL.snatchChance = SNATCH[0]; D.BAL.snatchInterestChance = SNATCH[1];
+  try {
+    var st = Core.create({ seed: 2 }), n = { hot: 0, cold: 0 };
+    st.boardRefreshDay = 99999;
+    for (var round = 0; round < 40; round++) {
+      st.board = [];
+      for (var i = 0; i < 20; i++) { var j = Core._genJob(st, { tier: "C" }); j.interest = i < 10 ? st.rivals[0].id : null; j.expires = st.day + 999; st.board.push(j); }
+      Core.advance(st, 5);
+      st.board.forEach(function (j) { if (j.interest) n.hot++; else n.cold++; });
+    }
+    assert(n.hot < n.cold, "有興趣的留下較少 " + JSON.stringify(n));
+    assert(st.log.some(function (e) { return e.type === "job_snatched"; }), "日誌");
+  } finally { D.BAL.snatchChance = 0; D.BAL.snatchInterestChance = 0; }
 });
 
 // ==== run ====

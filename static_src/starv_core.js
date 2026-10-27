@@ -484,7 +484,7 @@
       }
       t.left--;
       // 工作由 activeJobs 統一結算（Task 7），這裡只處理體力與壓力
-      if (t.kind !== "job" && t.left <= 0) { a.task = null; finishTask(st, a, t); postTask(st, a); }
+      if (t.kind !== "job" && t.kind !== "audition" && t.left <= 0) { a.task = null; finishTask(st, a, t); postTask(st, a); }
     });
   }
 
@@ -492,7 +492,9 @@
     st.day++;
     tickArtists(st);
     tickJobs(st);
+    tickAuditions(st);
     seasonTick(st);
+    snatchJobs(st);
     tickBoard(st);
     tickWaitlist(st);
     if (st.day % BAL.daysPerMonth === 0) monthly(st);
@@ -547,6 +549,8 @@
       expires: st.day + BAL.jobLifeDays
     };
     if (over.reservedFor) { job.reservedFor = over.reservedFor; job.minFame = 0; job.minProf = 1; }
+    job.audition = !over.reservedFor && BAL.auditionTiers.indexOf(tier) >= 0;
+    job.interest = !over.reservedFor && st.rivals && st.rivals.length && rnd(st) < BAL.interestChance ? pick(st, st.rivals).id : null;
     return job;
   }
 
@@ -634,6 +638,17 @@
       if (err) return err;
     }
     st.board.splice(st.board.indexOf(job), 1);
+    if (job.audition) {
+      var au = { id: newId(st, "au"), job: job, members: aids.slice(), left: 1 };
+      st.auditions.push(au);
+      aids.forEach(function (id) { artistById(st, id).task = { kind: "audition", ref: au.id, days: 1, left: 1, stamina: 0, stress: 2 }; });
+      return null;
+    }
+    startJob(st, job, aids);
+    return null;
+  }
+
+  function startJob(st, job, aids) {
     var aj = { id: newId(st, "w"), job: job, members: aids.slice(), left: job.days, eventMod: 0 };
     st.activeJobs.push(aj);
     var load = D.TIERS[job.tier].load;
@@ -644,7 +659,7 @@
         stress: Math.min(BAL.jobStressMax, job.days * BAL.jobStressPerDay * load)
       };
     });
-    return null;
+    return aj;
   }
 
   function minorEvent(st, a, aj) {
@@ -1157,6 +1172,52 @@
       });
       var nr = newRival(st, BAL.rivalPowerNew);
       log(st, "rival_new", { rival: nr.id });
+    });
+  }
+
+  // ==== 競爭試鏡與搶工作（§9） ====
+  function bestRivalFor(st, job) {
+    var best = null;
+    st.rivals.forEach(function (r) {
+      var score = rivalScore(st, r, difficulty(job));
+      r.stars.forEach(function (s) {
+        var e = Roster.byId(s.rosterId);
+        if (e && e.dir === job.dir) score = Math.max(score, rivalStarPerf(r, s, job.dir));
+      });
+      if (!best || score > best.score) best = { rival: r, score: score };
+    });
+    return best;
+  }
+
+  function tickAuditions(st) {
+    var due = [];
+    st.auditions.forEach(function (au) { au.left--; if (au.left <= 0) due.push(au); });
+    due.forEach(function (au) {
+      st.auditions.splice(st.auditions.indexOf(au), 1);
+      var members = au.members.map(function (id) { return artistById(st, id); }).filter(Boolean);
+      members.forEach(function (a) { a.task = null; });
+      if (!members.length) return;
+      var ours = teamPerf(st, members, au.job) * (BAL.randLo + rnd(st) * (BAL.randHi - BAL.randLo));
+      var rv = bestRivalFor(st, au.job);
+      var data = { rival: rv ? rv.rival.id : null, title: au.job.title.slice(), dir: au.job.dir, aids: au.members.slice() };
+      if (!rv || ours >= rv.score) {
+        startJob(st, au.job, members.map(function (a) { return a.id; }));
+        log(st, "audition_won", data);
+      } else {
+        rv.rival.power += BAL.auditionRivalWin;
+        log(st, "audition_lost", data);
+      }
+    });
+  }
+
+  function snatchJobs(st) {
+    if (!st.rivals.length) return;
+    st.board = st.board.filter(function (j) {
+      if (j.reservedFor) return true;
+      if (rnd(st) >= (j.interest ? BAL.snatchInterestChance : BAL.snatchChance)) return true;
+      var r = (j.interest && rivalById(st, j.interest)) || pick(st, st.rivals);
+      log(st, "job_snatched", { rival: r.id, title: j.title.slice(), dir: j.dir });
+      return false;
     });
   }
 
