@@ -65,6 +65,7 @@
   function create(opts) {
     var st = blankState(opts);
     // 初始化鉤子（之後的 task 在這裡加上抽卡 PICKUP、工作看板）
+    rotatePickup(st);
     return st;
   }
 
@@ -223,6 +224,130 @@
     while (p.lv < 10 && p.xp >= D.PROF_XP[p.lv + 1]) p.lv++;
   }
 
+  // ==== 抽卡（§5.1） ====
+  function pullCost(st, pool, count) {
+    if (pool === "ticket") return count;
+    var unit = Math.round(BAL.pullBaseCost * (1 + st.company.level * BAL.pullLevelMult));
+    return unit * (count === 10 ? 9 : count);
+  }
+  function rates(st, pool) {
+    var r = BAL.poolRates[pool], sr = r.SR, ssr = r.SSR;
+    if (pool === "money") { sr += st.facilities.scout * BAL.scoutBonus.SR; ssr += st.facilities.scout * BAL.scoutBonus.SSR; }
+    return { SR: sr, SSR: ssr };
+  }
+  function pityMax() { return BAL.pityMax; }   // 新紀元的傳承加成在計畫 5 擴充
+  function rollRarity(st, pool) {
+    var r = rates(st, pool), x = rnd(st), out;
+    if (st.gacha.pity + 1 >= pityMax(st)) out = "SSR";
+    else out = x < r.SSR ? "SSR" : x < r.SSR + r.SR ? "SR" : "R";
+    st.gacha.pity = out === "SSR" ? 0 : st.gacha.pity + 1;
+    return out;
+  }
+
+  function findByRoster(st, rosterId) {
+    var i;
+    for (i = 0; i < st.artists.length; i++) if (st.artists[i].rosterId === rosterId) return st.artists[i];
+    for (i = 0; i < st.waitlist.length; i++) if (st.waitlist[i].artist.rosterId === rosterId) return st.waitlist[i].artist;
+    return null;
+  }
+
+  // 入社：宿舍有空位就進來，否則進候補（保留 30 天），候補也滿了就流失
+  function place(st, a, res) {
+    res.artistId = a.id;
+    if (st.artists.length < capacity(st)) { st.artists.push(a); log(st, "join", { aid: a.id, rarity: a.rarity }); }
+    else if (st.waitlist.length < BAL.waitlistMax) {
+      st.waitlist.push({ artist: a, until: st.day + BAL.waitlistDays });
+      res.waitlisted = true; log(st, "waitlist", { rarity: a.rarity, rosterId: a.rosterId, nameSeed: a.nameSeed, gender: a.gender });
+    } else { res.lost = true; log(st, "lost", { rarity: a.rarity, rosterId: a.rosterId }); }
+    return res;
+  }
+
+  function grantEntry(st, e) {
+    var owned = findByRoster(st, e.id);
+    if (owned) {
+      if (owned.limitBreak < BAL.limitBreakMax) {
+        owned.limitBreak++; recomputeCaps(owned);
+        log(st, "dup_lb", { aid: owned.id, lb: owned.limitBreak });
+        return { rarity: e.rarity, rosterId: e.id, artistId: owned.id, dup: "limitBreak" };
+      }
+      var n = BAL.dupTickets[e.rarity];
+      st.company.tickets += n;
+      log(st, "dup_ticket", { aid: owned.id, tickets: n });
+      return { rarity: e.rarity, rosterId: e.id, artistId: owned.id, dup: "tickets", tickets: n };
+    }
+    var res = place(st, fromRoster(st, e), { rarity: e.rarity, rosterId: e.id });
+    if (!res.lost) st.codex.owned[e.id] = true;   // 流失的不算取得（圖鑑不解鎖）
+    return res;
+  }
+
+  function pickRoster(st, rarity) {
+    var list = Roster.byRarity(rarity);
+    if (!list.length) return null;
+    var pu = st.gacha.pickup[rarity];
+    if (pu && Roster.byId(pu) && rnd(st) < BAL.pickupChance) return Roster.byId(pu);
+    return pick(st, list);
+  }
+
+  function grant(st, rarity) {
+    var e = rarity === "R" ? null : pickRoster(st, rarity);
+    if (!e) { st.codex.recruitedR++; return place(st, genR(st), { rarity: "R" }); }
+    return grantEntry(st, e);
+  }
+
+  function pull(st, pool, count) {
+    if (count !== 1 && count !== 10) return { err: "count" };
+    var cost = pullCost(st, pool, count);
+    if (pool === "money") {
+      if (st.company.money < cost) return { err: "money" };
+      if (st.gacha.pullDay !== st.day) { st.gacha.pullDay = st.day; st.gacha.pullCount = 0; }
+      if (st.gacha.pullCount + count > BAL.dailyPullLimit) return { err: "daily" };
+      st.company.money -= cost;
+      st.gacha.pullCount += count;
+    } else if (pool === "ticket") {
+      if (st.company.tickets < cost) return { err: "tickets" };
+      st.company.tickets -= cost;
+    } else return { err: "pool" };
+    var rarities = [], i;
+    for (i = 0; i < count; i++) rarities.push(rollRarity(st, pool));
+    if (count === 10 && rarities.every(function (r) { return r === "R"; })) rarities[9] = "SR";
+    st.stats.pulls += count;
+    return { results: rarities.map(function (r) { return grant(st, r); }) };
+  }
+
+  // PICKUP：每月輪換；debut 角色優先，各自只優先一次
+  function rotatePickup(st) {
+    ["SR", "SSR"].forEach(function (r) {
+      var list = Roster.byRarity(r);
+      if (!list.length) { st.gacha.pickup[r] = null; return; }
+      var fresh = list.filter(function (e) { return e.debut && !st.gacha.debutShown[e.id]; });
+      var e = fresh.length ? fresh[0] : pick(st, list);
+      st.gacha.debutShown[e.id] = true;
+      st.gacha.pickup[r] = e.id;
+    });
+  }
+
+  function acceptWaitlist(st, idx) {
+    var w = st.waitlist[idx];
+    if (!w) return "noEntry";
+    if (st.artists.length >= capacity(st)) return "full";
+    st.waitlist.splice(idx, 1);
+    st.artists.push(w.artist);
+    log(st, "join", { aid: w.artist.id, rarity: w.artist.rarity });
+    return null;
+  }
+
+  function dismiss(st, aid) {
+    var a = artistById(st, aid);
+    if (!a) return "noArtist";
+    if (a.task) return "busy";
+    st.company.money -= a.salary * BAL.dismissSalaryMonths;
+    st.artists.splice(st.artists.indexOf(a), 1);
+    st.groups.forEach(function (g) { g.members = g.members.filter(function (id) { return id !== aid; }); });
+    st.groups = st.groups.filter(function (g) { return g.members.length >= 2; });
+    log(st, "dismiss", { rarity: a.rarity, rosterId: a.rosterId, nameSeed: a.nameSeed, gender: a.gender });
+    return null;
+  }
+
   // ==== exports ====
   api.VERSION = VERSION;
   api.create = create;
@@ -235,5 +360,13 @@
   api.artistById = artistById;
   api._genR = genR;
   api._fromRoster = fromRoster;
+  api.pullCost = pullCost;
+  api.rates = rates;
+  api.pull = pull;
+  api.acceptWaitlist = acceptWaitlist;
+  api.dismiss = dismiss;
+  api._rollRarity = rollRarity;
+  api._grantEntry = grantEntry;
+  api._rotatePickup = rotatePickup;
   root.PriTestStarvCore = api;
 })();

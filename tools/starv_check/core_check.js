@@ -141,6 +141,78 @@ test("藝人：migrate 補齊藝人欄位", function () {
   eq(st.artists[0].satisfaction, 70); eq(st.artists[0].policy, "idle");
 });
 
+test("抽卡：費用", function () {
+  var st = Core.create({ seed: 1 });
+  eq(Core.pullCost(st, "money", 1), 7500); eq(Core.pullCost(st, "money", 10), 67500);
+  eq(Core.pullCost(st, "ticket", 1), 1); eq(Core.pullCost(st, "ticket", 10), 10);
+  st.facilities.scout = 2;
+  var r = Core.rates(st, "money");
+  assert(Math.abs(r.SR - 0.036) < 1e-9 && Math.abs(r.SSR - 0.006) < 1e-9, "星探部加成");
+});
+
+test("抽卡：十連保證 SR 以上、券與資金扣除", function () {
+  for (var s = 1; s <= 40; s++) {
+    var st = Core.create({ seed: s });
+    st.facilities.dorm = 10;
+    var res = Core.pull(st, "ticket", 10);
+    assert(!res.err, "err " + res.err);
+    eq(res.results.length, 10);
+    assert(res.results.some(function (x) { return x.rarity !== "R"; }), "seed " + s + " 沒有 SR 以上");
+    eq(st.company.tickets, 0, "券扣除");
+  }
+  var st2 = Core.create({ seed: 1 });
+  eq(Core.pull(st2, "ticket", 10).err, undefined);
+  eq(Core.pull(st2, "ticket", 1).err, "tickets");
+  st2.company.money = 7000; eq(Core.pull(st2, "money", 1).err, "money");
+  eq(Core.pull(st2, "money", 3).err, "count");
+});
+
+test("抽卡：每日上限 30", function () {
+  var st = Core.create({ seed: 2 }); st.company.money = 1e9; st.facilities.dorm = 10;
+  eq(Core.pull(st, "money", 10).err, undefined); eq(Core.pull(st, "money", 10).err, undefined); eq(Core.pull(st, "money", 10).err, undefined);
+  eq(Core.pull(st, "money", 1).err, "daily");
+  st.day = 1; eq(Core.pull(st, "money", 1).err, undefined, "隔天重置");
+});
+
+test("抽卡：保底 150", function () {
+  var st = Core.create({ seed: 9 }); st.gacha.pity = 149;
+  eq(Core._rollRarity(st, "money"), "SSR"); eq(st.gacha.pity, 0);
+});
+
+test("抽卡：重複 SR/SSR 突破，滿了換券", function () {
+  var st = Core.create({ seed: 1 }), e = Roster.byId("ssr002");
+  var first = Core._grantEntry(st, e);
+  assert(!first.dup && st.codex.owned.ssr002, "首次取得");
+  var a = Core.artistById(st, first.artistId), capBefore = a.caps.act;
+  var second = Core._grantEntry(st, e);
+  eq(second.dup, "limitBreak"); eq(a.limitBreak, 1); assert(a.caps.act >= capBefore, "上限提升");
+  a.limitBreak = 5;
+  var t0 = st.company.tickets, third = Core._grantEntry(st, e);
+  eq(third.dup, "tickets"); eq(st.company.tickets, t0 + 10);
+});
+
+test("抽卡：宿舍滿了進候補，候補滿了流失；接受候補、解約", function () {
+  var st = Core.create({ seed: 4 });
+  for (var i = 0; i < 5; i++) st.artists.push(Core._genR(st));
+  var r = Core._grantEntry(st, Roster.byId("sr001"));
+  assert(r.waitlisted, "應進候補"); eq(st.waitlist.length, 1);
+  eq(st.waitlist[0].until, st.day + 30);
+  eq(Core.acceptWaitlist(st, 0), "full");
+  var victim = st.artists[0], m0 = st.company.money;
+  eq(Core.dismiss(st, victim.id), null);
+  eq(st.company.money, m0 - victim.salary * 3, "違約金");
+  eq(Core.acceptWaitlist(st, 0), null); eq(st.artists.length, 5); eq(st.waitlist.length, 0);
+  for (i = 0; i < 10; i++) st.waitlist.push({ artist: Core._genR(st), until: 99 });
+  assert(Core._grantEntry(st, Roster.byId("sr002")).lost, "候補滿了要流失");
+});
+
+test("抽卡：PICKUP 優先選 debut 角色", function () {
+  var st = Core.create({ seed: 1 });
+  eq(st.gacha.pickup.SSR, "ssr001", "debut 的 ssr001 先上 PICKUP");
+  Core._rotatePickup(st);
+  assert(st.gacha.pickup.SSR, "第二期仍有 PICKUP");
+});
+
 // ==== run ====
 var fails = 0;
 tests.forEach(function (t) {
