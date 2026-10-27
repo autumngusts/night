@@ -870,7 +870,87 @@
       pat: [[{ k: "summon", id: "gladiator", n: 1 }], [{ k: "atk", n: 12, tgt: "all" }], [{ k: "shatter", tgt: "all" }, { k: "atk", n: 10, tgt: "all" }], [{ k: "buff", str: 2, all: true }, { k: "blk", n: 15 }], [{ k: "atk", n: 32, tgt: "rand" }]], cyc: "loop" },
     { id: "minotaur", name: N("牛頭人", "ミノタウロス", "Minotaur"), icon: "🐂", kind: "boss", boss: true, hp: [190, 190],
       pat: [[{ k: "atk", n: 12, tgt: "all" }], [{ k: "atk", n: 7, h: 3, tgt: "low" }], [{ k: "blk", n: 18 }, { k: "buff", str: 2 }], [{ k: "summon", id: "boxer", n: 1 }, { k: "atk", n: 28, tgt: "rand" }]], cyc: "loop",
-      phase: { at: 0.4, str: 2, pat: [[{ k: "shatter", tgt: "all" }, { k: "atk", n: 10, tgt: "all" }], [{ k: "atk", n: 6, h: 4, tgt: "low" }], [{ k: "blk", n: 12 }, { k: "atk", n: 30, tgt: "rand" }]], cyc: "loop" } }
+      phase: { at: 0.4, str: 2, pat: [[{ k: "shatter", tgt: "all" }, { k: "atk", n: 10, tgt: "all" }], [{ k: "atk", n: 6, h: 4, tgt: "low" }], [{ k: "blk", n: 12 }, { k: "atk", n: 30, tgt: "rand" }]], cyc: "loop" } },
+
+    // ---- 2026-10-27 高難度地圖（使用者指定：開局勾選「高難度地圖」才會出現；每幕 2 區、目標貪婪 AI 整體通關約 20%） ----
+    // 各區一個高難度機制：breed 繁殖／chill 寒氣／fortify 堅壁／thirst 嗜血／shroud 虛隱／aura 光環（規則見 yellow_core.js 與 docs/yellow_card_design.md「高難度地圖」）
+    // 第一幕・毒蟲巢穴：繁殖 breed（每 every 回合在自己的扇形區生出一隻 id）
+    { id: "h_larva", size: "s", name: N("幼蟲", "幼虫", "Larva"), icon: "🐛", kind: "melee", spawn: "near", hp: [6, 8], pat: [[{ k: "atk", n: 2, h: 2 }]], cyc: "loop" },
+    { id: "h_worker", name: N("工蟲", "働き蟲", "Worker Bug"), icon: "🐜", kind: "melee", hp: [16, 19], pat: [[{ k: "atk", n: 7 }], [{ k: "blk", n: 6 }, { k: "atk", n: 3 }]], cyc: "loop" },
+    { id: "h_spitter", name: N("酸液蟲", "酸吐き蟲", "Acid Spitter"), icon: "🪲", kind: "ranged", hp: [12, 15], pat: [[{ k: "atk", n: 3 }, { k: "debuff", s: "poison", n: 3 }], [{ k: "atk", n: 6 }]], cyc: "loop" },
+    { id: "h_brood", breed: { id: "h_larva", every: 2 }, name: N("育幼蟲", "育児蟲", "Brood Tender"), icon: "🪳", kind: "ranged", hp: [18, 22], pat: [[{ k: "blk", n: 6 }], [{ k: "atk", n: 6 }]], cyc: "loop" },
+    { id: "h_beetle", thorns: 1, size: "l", name: N("鎧甲蟲", "鎧甲虫", "Armored Beetle"), icon: "🐞", kind: "melee", hp: [24, 28], pat: [[{ k: "atk", n: 10 }], [{ k: "blk", n: 9 }]], cyc: "loop" },
+    { id: "h_warden", breed: { id: "h_larva", every: 2 }, name: N("巢穴守衛", "巣の守衛", "Hive Warden"), icon: "🦂", kind: "melee", elite: true, hp: [54, 60], pat: [[{ k: "atk", n: 13 }], [{ k: "atk", n: 4, h: 3 }], [{ k: "buff", str: 2 }, { k: "blk", n: 9 }]], cyc: "loop" },
+    { id: "h_mother", breed: { id: "h_larva", every: 1 }, minion: "h_larva", name: N("蟲母", "蟲の母", "Brood Mother"), icon: "🕷️", kind: "boss", boss: true, hp: [105, 105],
+      pat: [[{ k: "summon", id: "h_worker", n: 1 }], [{ k: "atk", n: 8, tgt: "all" }], [{ k: "debuff", s: "poison", n: 3, tgt: "all" }, { k: "blk", n: 10 }], [{ k: "atk", n: 18, tgt: "low" }]], cyc: "loop" },
+    { id: "h_mantis", name: N("巨螳螂", "大蟷螂", "Giant Mantis"), icon: "🦗", kind: "boss", boss: true, hp: [110, 110],
+      pat: [[{ k: "atk", n: 4, h: 2, tgt: "all" }], [{ k: "blk", n: 12 }, { k: "buff", str: 2 }], [{ k: "atk", n: 20, tgt: "low" }], [{ k: "atk", n: 5, h: 3, tgt: "rand" }]], cyc: "loop",
+      phase: { at: 0.5, str: 2, summon: { id: "h_larva", n: 2 }, pat: [[{ k: "atk", n: 6, h: 2, tgt: "all" }], [{ k: "atk", n: 24, tgt: "rand" }], [{ k: "blk", n: 14 }, { k: "summon", id: "h_spitter", n: 1 }]], cyc: "loop" } },
+
+    // 第一幕・冰封要塞：寒氣 chill（打掉英雄生命時，那位英雄下回合魔力 -n）
+    { id: "f_guard", chill: 1, name: N("冰衛兵", "氷の衛兵", "Ice Guard"), icon: "💂", kind: "melee", hp: [18, 21], pat: [[{ k: "atk", n: 8 }], [{ k: "blk", n: 8 }, { k: "atk", n: 3 }]], cyc: "loop" },
+    { id: "f_archer", chill: 1, name: N("冰弓手", "氷の射手", "Frost Archer"), icon: "🏹", kind: "ranged", hp: [13, 16], pat: [[{ k: "atk", n: 6 }], [{ k: "atk", n: 2, h: 3 }]], cyc: "rand" },
+    { id: "f_wolf", name: N("雪狼", "雪狼", "Snow Wolf"), icon: "🐺", kind: "melee", spawn: "near", hp: [15, 18], pat: [[{ k: "atk", n: 5, h: 2 }], [{ k: "buff", str: 1 }, { k: "atk", n: 4 }]], cyc: "rand" },
+    { id: "f_shaman", name: N("冰巫", "氷の巫", "Frost Shaman"), icon: "🧙", kind: "ranged", hp: [16, 19], pat: [[{ k: "debuff", s: "weak", n: 2 }, { k: "atk", n: 3 }], [{ k: "blk", n: 6, all: true }]], cyc: "loop" },
+    { id: "f_golem", thorns: 2, size: "l", name: N("冰像", "氷像", "Ice Statue"), icon: "🧊", kind: "melee", hp: [26, 30], pat: [[{ k: "blk", n: 10 }], [{ k: "atk", n: 11 }]], cyc: "loop" },
+    { id: "f_knight", chill: 1, name: N("冰霜騎士", "霜の騎士", "Frost Knight"), icon: "🛡", kind: "melee", elite: true, hp: [56, 62], pat: [[{ k: "atk", n: 14 }], [{ k: "atk", n: 5, h: 2 }], [{ k: "blk", n: 12 }, { k: "buff", str: 2 }]], cyc: "loop" },
+    { id: "f_yeti", chill: 1, grow: 1, minion: "f_wolf", name: N("雪怪王", "雪男の王", "Yeti King"), icon: "🦣", kind: "boss", boss: true, hp: [115, 115],
+      pat: [[{ k: "atk", n: 9, tgt: "all" }], [{ k: "atk", n: 18, tgt: "low" }], [{ k: "blk", n: 14 }, { k: "buff", str: 1 }], [{ k: "summon", id: "f_wolf", n: 1 }]], cyc: "loop" },
+    { id: "f_lich", chill: 1, name: N("冰霜巫妖", "氷のリッチ", "Frost Lich"), icon: "💀", kind: "boss", boss: true, hp: [100, 100],
+      pat: [[{ k: "debuff", s: "weak", n: 2, tgt: "all" }, { k: "atk", n: 5, tgt: "all" }], [{ k: "summon", id: "f_guard", n: 1 }], [{ k: "atk", n: 20, tgt: "rand" }], [{ k: "blk", n: 16 }]], cyc: "loop",
+      phase: { at: 0.5, str: 2, pat: [[{ k: "atk", n: 7, tgt: "all" }], [{ k: "atk", n: 22, tgt: "rand" }], [{ k: "heal", n: 12 }, { k: "blk", n: 10 }]], cyc: "loop" } },
+
+    // 第二幕・機械工廠：堅壁 fortify（每回合開始得到 n 護盾，留到下一個英雄回合）
+    { id: "k_bot", fortify: 4, name: N("鉚釘機兵", "リベット機兵", "Rivet Bot"), icon: "🤖", kind: "melee", hp: [28, 32], pat: [[{ k: "atk", n: 10 }], [{ k: "atk", n: 5, h: 2 }]], cyc: "loop" },
+    { id: "k_turret", fortify: 3, name: N("自動砲台", "自動砲台", "Auto Turret"), icon: "🔫", kind: "ranged", hp: [24, 28], pat: [[{ k: "atk", n: 4, h: 2 }], [{ k: "atk", n: 9 }]], cyc: "loop" },
+    { id: "k_saw", name: N("鏈鋸機", "チェーンソー機", "Saw Drone"), icon: "⚙️", kind: "melee", spawn: "near", hp: [24, 28], pat: [[{ k: "atk", n: 6, h: 2 }], [{ k: "buff", str: 2 }]], cyc: "rand" },
+    { id: "k_repair", size: "s", name: N("修理機", "修理機", "Repair Drone"), icon: "🛠️", kind: "ranged", hp: [18, 22], pat: [[{ k: "heal", n: 8, all: true }], [{ k: "blk", n: 8, all: true }]], cyc: "loop" },
+    { id: "k_press", thorns: 2, fortify: 5, size: "l", name: N("液壓機", "油圧プレス", "Hydraulic Press"), icon: "🗜️", kind: "melee", hp: [36, 40], pat: [[{ k: "atk", n: 15 }], [{ k: "blk", n: 10 }]], cyc: "loop" },
+    { id: "k_overseer", fortify: 6, name: N("工廠監工", "工場の監督", "Foundry Overseer"), icon: "👷", kind: "ranged", elite: true, hp: [80, 88], pat: [[{ k: "buff", str: 2, all: true }], [{ k: "atk", n: 11, tgt: "rand" }], [{ k: "summon", id: "k_saw", n: 1 }, { k: "blk", n: 10 }]], cyc: "loop" },
+    { id: "k_titan", fortify: 8, grow: 1, minion: "k_saw", name: N("蒸汽泰坦", "蒸気タイタン", "Steam Titan"), icon: "🏭", kind: "boss", boss: true, hp: [175, 175],
+      pat: [[{ k: "atk", n: 10, tgt: "all" }], [{ k: "atk", n: 26, tgt: "rand" }], [{ k: "blk", n: 18 }], [{ k: "atk", n: 6, h: 3, tgt: "low" }]], cyc: "loop" },
+    { id: "k_forge", ward: true, minion: "k_bot", name: N("熔爐之心", "炉心", "Forge Heart"), icon: "🔥", kind: "boss", boss: true, hp: [160, 160],
+      pat: [[{ k: "summon", id: "k_bot", n: 1 }], [{ k: "atk", n: 5, h: 2, tgt: "all" }], [{ k: "blk", n: 16 }, { k: "buff", str: 2 }], [{ k: "atk", n: 26, tgt: "rand" }]], cyc: "loop",
+      phase: { at: 0.5, str: 2, summon: { id: "k_turret", n: 2 }, pat: [[{ k: "atk", n: 8, tgt: "all" }], [{ k: "atk", n: 28, tgt: "rand" }], [{ k: "heal", n: 14 }, { k: "blk", n: 12 }]], cyc: "loop" } },
+
+    // 第二幕・吸血鬼城：嗜血 thirst（吸血攻擊打掉生命時力量 +n）
+    { id: "v_bat", size: "s", thirst: 1, name: N("吸血蝙蝠", "吸血コウモリ", "Vampire Bat"), icon: "🦇", kind: "ranged", hp: [12, 14], pat: [[{ k: "atk", n: 5, drain: true }]], cyc: "loop" },
+    { id: "v_thrall", name: N("血僕", "血の下僕", "Blood Thrall"), icon: "🧟", kind: "melee", hp: [28, 32], pat: [[{ k: "atk", n: 10 }], [{ k: "blk", n: 8 }, { k: "atk", n: 4 }]], cyc: "loop" },
+    { id: "v_bride", thirst: 1, name: N("吸血新娘", "吸血鬼の花嫁", "Vampire Bride"), icon: "👰", kind: "ranged", hp: [24, 28], pat: [[{ k: "atk", n: 4, h: 2, drain: true }], [{ k: "debuff", s: "vuln", n: 2 }, { k: "atk", n: 4 }]], cyc: "loop" },
+    { id: "v_ghoul", thirst: 1, name: N("食屍鬼", "グール", "Ghoul"), icon: "🧛", kind: "melee", spawn: "near", hp: [26, 30], pat: [[{ k: "atk", n: 8, drain: true }], [{ k: "buff", str: 2 }]], cyc: "rand" },
+    { id: "v_gargoyle", thorns: 2, size: "l", name: N("石像鬼", "ガーゴイル", "Gargoyle"), icon: "🗿", kind: "melee", hp: [34, 38], pat: [[{ k: "blk", n: 12 }], [{ k: "atk", n: 13 }]], cyc: "loop" },
+    { id: "v_count", thirst: 2, name: N("吸血伯爵", "吸血伯爵", "Vampire Count"), icon: "🍷", kind: "melee", elite: true, hp: [82, 90], pat: [[{ k: "atk", n: 14, drain: true }], [{ k: "atk", n: 5, h: 3, drain: true }], [{ k: "summon", id: "v_bat", n: 1 }, { k: "blk", n: 10 }]], cyc: "loop" },
+    { id: "v_dracula", thirst: 2, minion: "v_bat", name: N("德古拉", "ドラキュラ", "Dracula"), icon: "🧛‍♂️", kind: "boss", boss: true, hp: [165, 165],
+      pat: [[{ k: "atk", n: 6, h: 2, tgt: "all", drain: true }], [{ k: "summon", id: "v_bat", n: 2 }], [{ k: "atk", n: 24, tgt: "rand", drain: true }], [{ k: "blk", n: 16 }, { k: "debuff", s: "weak", n: 2, tgt: "all" }]], cyc: "loop",
+      phase: { at: 0.5, str: 2, pat: [[{ k: "atk", n: 8, tgt: "all", drain: true }], [{ k: "atk", n: 28, tgt: "rand", drain: true }], [{ k: "summon", id: "v_bat", n: 2 }, { k: "heal", n: 15 }]], cyc: "loop" } },
+    { id: "v_queen", thirst: 1, minion: "v_bat", name: N("血之女王", "血の女王", "Blood Queen"), icon: "🩸", kind: "boss", boss: true, hp: [160, 160],
+      pat: [[{ k: "atk", n: 9, tgt: "all", drain: true }], [{ k: "heal", n: 20 }, { k: "blk", n: 10 }], [{ k: "atk", n: 6, h: 3, tgt: "low", drain: true }], [{ k: "summon", id: "v_ghoul", n: 1 }]], cyc: "loop" },
+
+    // 第三幕・虛空裂隙：虛隱 shroud（在外圈時受到的傷害減半；拉進內圈才打得痛）
+    { id: "x_wisp", size: "s", shroud: true, name: N("虛空幽光", "虚空の燐光", "Void Wisp"), icon: "🔮", kind: "ranged", hp: [22, 26], pat: [[{ k: "atk", n: 8 }], [{ k: "debuff", s: "vuln", n: 1 }, { k: "atk", n: 5 }]], cyc: "loop" },
+    { id: "x_stalker", name: N("虛空獵手", "虚空の狩人", "Void Stalker"), icon: "🥷", kind: "melee", spawn: "near", hp: [34, 38], pat: [[{ k: "atk", n: 13 }], [{ k: "atk", n: 4, h: 3 }]], cyc: "rand" },
+    { id: "x_eye", shroud: true, name: N("凝視之眼", "凝視の眼", "Staring Eye"), icon: "👁️", kind: "ranged", hp: [30, 34], pat: [[{ k: "debuff", s: "weak", n: 2, tgt: "all" }], [{ k: "atk", n: 11 }]], cyc: "loop" },
+    { id: "x_tentacle", thorns: 3, size: "l", name: N("虛空觸手", "虚空の触手", "Void Tentacle"), icon: "🦑", kind: "melee", hp: [42, 48], pat: [[{ k: "atk", n: 15 }], [{ k: "blk", n: 12 }]], cyc: "loop" },
+    { id: "x_herald", shroud: true, name: N("虛空傳令", "虚空の伝令", "Void Herald"), icon: "📯", kind: "ranged", hp: [28, 32], pat: [[{ k: "curse", card: "t_daze", n: 1 }, { k: "atk", n: 5 }], [{ k: "buff", str: 2, all: true }]], cyc: "loop" },
+    { id: "x_horror", shroud: true, name: N("無形恐懼", "形なき恐怖", "Formless Horror"), icon: "🌫", kind: "ranged", elite: true, hp: [100, 110], pat: [[{ k: "atk", n: 10, tgt: "all" }], [{ k: "atk", n: 24, tgt: "rand" }], [{ k: "blk", n: 14 }, { k: "buff", str: 3 }]], cyc: "loop" },
+    { id: "x_maw", ward: true, minion: "x_wisp", name: N("虛空之口", "虚空の口", "Void Maw"), icon: "🕳️", kind: "boss", boss: true, hp: [200, 200],
+      pat: [[{ k: "atk", n: 12, tgt: "all" }], [{ k: "summon", id: "x_wisp", n: 2 }], [{ k: "atk", n: 7, h: 3, tgt: "low" }], [{ k: "atk", n: 34, tgt: "rand" }]], cyc: "loop" },
+    { id: "x_architect", grow: 1, name: N("星界建築師", "星界の建築士", "Astral Architect"), icon: "🌌", kind: "boss", boss: true, hp: [210, 210],
+      pat: [[{ k: "summon", id: "x_eye", n: 1 }], [{ k: "atk", n: 11, tgt: "all" }], [{ k: "blk", n: 20 }, { k: "debuff", s: "vuln", n: 2, tgt: "all" }], [{ k: "atk", n: 32, tgt: "rand" }]], cyc: "loop",
+      phase: { at: 0.4, str: 3, pat: [[{ k: "shatter", tgt: "all" }, { k: "atk", n: 10, tgt: "all" }], [{ k: "atk", n: 6, h: 4, tgt: "low" }], [{ k: "summon", id: "x_wisp", n: 2 }, { k: "atk", n: 20, tgt: "rand" }]], cyc: "loop" } },
+
+    // 第三幕・天界王座：光環 aura（活著的時候，其他敵人的攻擊 +n）
+    { id: "c_seraph", aura: 2, name: N("熾天使", "熾天使", "Seraph"), icon: "😇", kind: "ranged", hp: [30, 34], pat: [[{ k: "atk", n: 8 }], [{ k: "heal", n: 8, all: true }]], cyc: "loop" },
+    { id: "c_soldier", name: N("天兵", "天兵", "Heavenly Soldier"), icon: "⚔️", kind: "melee", hp: [38, 42], pat: [[{ k: "atk", n: 13 }], [{ k: "blk", n: 12 }, { k: "atk", n: 5 }]], cyc: "loop" },
+    { id: "c_cherub", size: "s", name: N("小天使", "ケルビム", "Cherub"), icon: "👼", kind: "ranged", hp: [20, 24], pat: [[{ k: "atk", n: 3, h: 2, tgt: "rand" }], [{ k: "blk", n: 6, all: true }]], cyc: "loop" },
+    { id: "c_judge", aura: 1, name: N("天秤官", "天秤官", "Celestial Arbiter"), icon: "🪬", kind: "ranged", hp: [32, 36], pat: [[{ k: "debuff", s: "vuln", n: 2 }, { k: "atk", n: 6 }], [{ k: "atk", n: 11 }]], cyc: "rand" },
+    { id: "c_lion", name: N("天獅", "天獅子", "Sky Lion"), icon: "🦁", kind: "melee", spawn: "near", hp: [38, 42], pat: [[{ k: "atk", n: 7, h: 2 }], [{ k: "buff", str: 2 }]], cyc: "rand" },
+    { id: "c_archangel", aura: 3, name: N("大天使", "大天使", "Archangel"), icon: "🪽", kind: "melee", elite: true, hp: [105, 115], pat: [[{ k: "atk", n: 22 }], [{ k: "atk", n: 8, h: 3 }], [{ k: "buff", str: 3, all: true }, { k: "blk", n: 14 }]], cyc: "loop" },
+    { id: "c_sun", aura: 2, minion: "c_cherub", name: N("太陽神", "太陽神", "Sun God"), icon: "☀️", kind: "boss", boss: true, hp: [215, 215],
+      pat: [[{ k: "atk", n: 13, tgt: "all" }], [{ k: "debuff", s: "burn", n: 4, tgt: "all" }], [{ k: "atk", n: 34, tgt: "rand" }], [{ k: "summon", id: "c_seraph", n: 1 }, { k: "blk", n: 16 }]], cyc: "loop" },
+    { id: "c_trinity", ward: true, minion: "c_cherub", name: N("三位一體", "三位一体", "The Trinity"), icon: "🔱", kind: "boss", boss: true, hp: [200, 200],
+      pat: [[{ k: "summon", id: "c_judge", n: 1 }], [{ k: "atk", n: 12, tgt: "all" }], [{ k: "purge", all: true }, { k: "blk", n: 18 }], [{ k: "atk", n: 30, tgt: "rand" }]], cyc: "loop",
+      phase: { at: 0.4, str: 3, pat: [[{ k: "atk", n: 10, tgt: "all" }, { k: "debuff", s: "vuln", n: 2, tgt: "all" }], [{ k: "atk", n: 6, h: 4, tgt: "low" }], [{ k: "heal", n: 18 }, { k: "summon", id: "c_cherub", n: 2 }]], cyc: "loop" } }
   ];
 
   // ---------------- 遺物（2026-10-22 使用者指定：遺物、金幣、商店一同實作） ----------------
@@ -949,7 +1029,28 @@
       elites: ["commander"], bosses: ["admiral", "flagship"], minion: "deckhand" },
     { id: "colosseum", tier: 2, name: N("第三幕・羅馬競技場", "第三幕・ローマの闘技場", "Act III — Colosseum"),
       packs: [["gladiator", "tomato"], ["boxer", "retiarius"], ["charioteer"], ["gladiator", "boxer"], ["retiarius", "tomato"], ["charioteer", "tomato"], ["boxer", "tomato"]],
-      elites: ["champion"], bosses: ["emperor", "minotaur"], minion: "tomato" }
+      elites: ["champion"], bosses: ["emperor", "minotaur"], minion: "tomato" },
+    // ---- 2026-10-27 高難度地圖：hard: true 的區域只在開局勾選「高難度地圖」時抽（一般冒險照舊只從其他區域抽） ----
+    // mul＝這區敵人的血量／傷害倍率：貪婪 AI 每區 60 局調到第一幕約 80%、第二幕約 60%、第三幕約 43% 打過，整體通關 20%
+    //（全部 1 倍時第一幕 95% 太簡單、第三幕虛空 17% 太難——虛隱對不會拉人的隊伍很硬）
+    { id: "hive", tier: 0, hard: true, mul: { hp: 1.4, dmg: 1.35 }, name: N("第一幕・毒蟲巢穴", "第一幕・毒蟲の巣", "Act I — Venom Hive"),
+      packs: [["h_worker", "h_spitter"], ["h_brood"], ["h_beetle", "h_larva"], ["h_worker", "h_brood"], ["h_spitter", "h_spitter"], ["h_beetle"], ["h_worker", "h_larva", "h_larva"]],
+      elites: ["h_warden"], bosses: ["h_mother", "h_mantis"], minion: "h_larva" },
+    { id: "frost", tier: 0, hard: true, mul: { hp: 1.4, dmg: 1.3 }, name: N("第一幕・冰封要塞", "第一幕・氷の要塞", "Act I — Frozen Fortress"),
+      packs: [["f_guard"], ["f_archer", "f_wolf"], ["f_golem"], ["f_guard", "f_shaman"], ["f_wolf", "f_wolf"], ["f_archer", "f_shaman"], ["f_golem", "f_archer"]],
+      elites: ["f_knight"], bosses: ["f_yeti", "f_lich"], minion: "f_wolf" },
+    { id: "foundry", tier: 1, hard: true, mul: { hp: 1.15, dmg: 1.1 }, name: N("第二幕・機械工廠", "第二幕・機械工場", "Act II — Clockwork Foundry"),
+      packs: [["k_bot"], ["k_turret", "k_saw"], ["k_press"], ["k_bot", "k_repair"], ["k_saw", "k_saw"], ["k_turret", "k_repair"], ["k_press", "k_turret"]],
+      elites: ["k_overseer"], bosses: ["k_titan", "k_forge"], minion: "k_saw" },
+    { id: "castle", tier: 1, hard: true, mul: { hp: 1.15, dmg: 1.1 }, name: N("第二幕・吸血鬼城", "第二幕・吸血鬼の城", "Act II — Vampire Castle"),
+      packs: [["v_thrall", "v_bat"], ["v_bride"], ["v_ghoul", "v_bat"], ["v_gargoyle"], ["v_thrall", "v_bride"], ["v_ghoul", "v_ghoul"], ["v_gargoyle", "v_bat"]],
+      elites: ["v_count"], bosses: ["v_dracula", "v_queen"], minion: "v_bat" },
+    { id: "void", tier: 2, hard: true, mul: { hp: 0.7, dmg: 0.85 }, name: N("第三幕・虛空裂隙", "第三幕・虚空の裂け目", "Act III — Void Rift"),
+      packs: [["x_wisp", "x_stalker"], ["x_eye"], ["x_tentacle"], ["x_herald", "x_stalker"], ["x_wisp", "x_wisp"], ["x_eye", "x_tentacle"], ["x_herald", "x_wisp"]],
+      elites: ["x_horror"], bosses: ["x_maw", "x_architect"], minion: "x_wisp" },
+    { id: "throne", tier: 2, hard: true, mul: { hp: 1, dmg: 1 }, name: N("第三幕・天界王座", "第三幕・天界の玉座", "Act III — Celestial Throne"),
+      packs: [["c_soldier", "c_cherub"], ["c_seraph"], ["c_lion"], ["c_judge", "c_soldier"], ["c_cherub", "c_cherub"], ["c_lion", "c_seraph"], ["c_judge", "c_cherub"]],
+      elites: ["c_archangel"], bosses: ["c_sun", "c_trinity"], minion: "c_cherub" }
   ]);
 
   // 每幕的樓層（2026-10-22 使用者指定，仿 Hellcard）：前三層是一般戰鬥、第四層是 Boss，一局 3 幕 × 4 層＝12 層、3 場 Boss 戰。
@@ -1455,6 +1556,8 @@
     MAX_AMMO: 6, MAX_CE: 10, MAX_BEAT: 10, MAX_SHIKI: 5, SHIKI_DMG: 5, MAX_DODGE: 3,
     // 敵人狂怒（2026-10-27 修正僵局）：第 ENRAGE.round 回合起，每回合開始所有敵人力量 +ENRAGE.str
     ENRAGE: { round: 20, str: 2 },
+    // 高難度地圖（2026-10-27）：hard 區域的敵人血量／傷害倍率（調到貪婪 AI 整體通關約 20%）
+    HARD: { hp: 1, dmg: 1 },
     HAND_SIZE: 5, MANA: 3, RED_CARD_DMG: 12, MAX_SEATS: 4, MAX_SPIRITS: 8, MAX_MELODY: 10,
     // 手牌上限（Hellcard 同為 10，2026-10-23 使用者指定）：滿了就不再抽（牌留在抽牌堆），加進手牌的藥水改進棄牌堆
     HAND_MAX: 10,

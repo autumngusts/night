@@ -39,7 +39,7 @@
     logOpen: false,
     deckView: null,         // 正在看牌組的 seat
     setup: [{ cls: "paladin", name: "" }, { cls: "mage", name: "" }, null, null],
-    opts: { torment: 0, endless: false }, // 本機的苦痛等級／無盡模式
+    opts: { torment: 0, endless: false, hard: false }, // 本機的苦痛等級／無盡模式／高難度地圖
     signals: [],            // 畫面上的標記與表情：{ k, x, y, u, s, e, who, color, until }
     sigSeen: {},            // 連線：每個 cid 已經顯示過的訊號時間
     pingMode: false,        // 下一次點戰場＝標記
@@ -585,7 +585,7 @@
       el("button", { type: "button", class: "yc-primary", disabled: humans ? null : true, text: t("yc_start_local"), onclick: function () {
         var prof = profile();
         localSt = Core.create({ seats: ui.setup.map(function (s) { return s ? { cls: s.cls, name: s.name, ctrl: s.ai && AI ? AI.CTRL : "local", lv: heroLv(prof, s.cls), art: validArt(s.art) } : null; }),
-          torment: Math.min(ui.opts.torment, maxTorment(prof)), endless: ui.opts.endless });
+          torment: Math.min(ui.opts.torment, maxTorment(prof)), endless: ui.opts.endless, hard: !!ui.opts.hard });
         ui.award = null;
         mode = "local"; ui.seenLog = localSt.logSeq; ui.tab = null;
         saveLocal();
@@ -628,20 +628,24 @@
   function modeOptions(o, onChange, editable, withDaily) {
     var box = el("div", { class: "yc-mode-opts" });
     if (withDaily) {
-      var dly = el("input", { type: "checkbox", disabled: editable ? null : true, checked: o.daily ? true : null, onchange: function () { onChange({ torment: o.torment, endless: o.endless, daily: dly.checked }); } });
+      var dly = el("input", { type: "checkbox", disabled: editable ? null : true, checked: o.daily ? true : null, onchange: function () { onChange({ torment: o.torment, endless: o.endless, daily: dly.checked, hard: o.hard }); } });
       box.appendChild(el("label", { class: "yc-opt", title: t("yc_daily_desc") }, [dly, el("span", { text: " 📅 " + t("yc_daily_title") + " " + todayKey() })]));
       if (o.daily) { box.appendChild(el("div", { class: "yc-small yc-muted", text: t("yc_net_daily_desc") })); return box; }
     }
-    var sel = el("select", { class: "yc-select", disabled: editable ? null : true, onchange: function () { onChange({ torment: Number(sel.value), endless: o.endless, daily: o.daily }); } });
+    var sel = el("select", { class: "yc-select", disabled: editable ? null : true, onchange: function () { onChange({ torment: Number(sel.value), endless: o.endless, daily: o.daily, hard: o.hard }); } });
     for (var i = 0; i <= D.TORMENTS.length; i++) {
       var lockT = editable && i > maxTorment(profile());
       var opt = el("option", { value: String(i), disabled: lockT ? true : null, text: (lockT ? "🔒 " : "") + (i === 0 ? t("yc_torment_none") : t("yc_torment_n", { n: i }) + " — " + L(D.TORMENTS[i - 1].name)) });
       if (i === o.torment) opt.selected = true;
       sel.appendChild(opt);
     }
-    var endless = el("input", { type: "checkbox", disabled: editable ? null : true, checked: o.endless ? true : null, onchange: function () { onChange({ torment: o.torment, endless: endless.checked, daily: o.daily }); } });
+    var endless = el("input", { type: "checkbox", disabled: editable ? null : true, checked: o.endless ? true : null, onchange: function () { onChange({ torment: o.torment, endless: endless.checked, daily: o.daily, hard: o.hard }); } });
     box.appendChild(el("label", { class: "yc-opt" }, [el("span", { text: "😈 " + t("yc_torment") }), sel]));
     box.appendChild(el("label", { class: "yc-opt", title: t("yc_endless_desc") }, [endless, el("span", { text: " ♾️ " + t("yc_endless") })]));
+    // 高難度地圖（2026-10-27）：每幕只從高難度區域抽（可以和苦痛等級、無盡模式疊加）
+    var hard = el("input", { type: "checkbox", disabled: editable ? null : true, checked: o.hard ? true : null, onchange: function () { onChange({ torment: o.torment, endless: o.endless, daily: o.daily, hard: hard.checked }); } });
+    box.appendChild(el("label", { class: "yc-opt", title: t("yc_hard_desc") }, [hard, el("span", { text: " 🔥 " + t("yc_hard") })]));
+    if (o.hard) box.appendChild(el("div", { class: "yc-small yc-muted", text: t("yc_hard_desc") }));
     if (o.torment > 0) {
       var list = el("ul", { class: "yc-torment-list yc-small yc-muted" });
       D.TORMENTS.slice(0, o.torment).forEach(function (x) { list.appendChild(el("li", { text: x.n + ". " + L(x.name) })); });
@@ -929,6 +933,13 @@
     if (d.split) out.push({ icon: "🧬", title: t("yc_mech_split", { n: d.split.n, name: enemyName(d.split.id) }) });
     if (d.burst) out.push({ icon: "💥", title: t("yc_mech_burst", { n: d.burst }) });
     if (d.rally) out.push({ icon: "📣", title: t("yc_mech_rally", { n: d.rally }) });
+    // 高難度地圖的機制（2026-10-27）
+    if (d.breed) out.push({ icon: "🥚", title: t("yc_mech_breed", { n: d.breed.every, name: enemyName(d.breed.id) }) });
+    if (d.chill) out.push({ icon: "❄️", title: t("yc_mech_chill", { n: d.chill }) });
+    if (d.fortify) out.push({ icon: "🧱", title: t("yc_mech_fortify", { n: d.fortify }) });
+    if (d.thirst) out.push({ icon: "🩸", title: t("yc_mech_thirst", { n: d.thirst }) });
+    if (d.shroud) out.push({ icon: "🌑", on: e.ring === "far", title: t("yc_mech_shroud") });
+    if (d.aura) out.push({ icon: "✴️", title: t("yc_mech_aura", { n: d.aura }) });
     // 2026-10-25 首領／菁英暈眩結束後免疫 1 回合
     if (e.stImm > 0) out.push({ icon: "🚫", on: true, title: t("yc_mech_stunImm") });
     if (d.phase) out.push({ icon: e.ph ? "🔥" : "🌗", on: !!e.ph, title: t(e.ph ? "yc_mech_phase_on" : "yc_mech_phase", { n: Math.round(d.phase.at * 100) }) });
@@ -1711,6 +1722,7 @@
       case "vow": return t("yc_log_vow", { to: to, k: t("yc_vow_" + e.k) });
       case "field": return t("yc_log_field", { f: D.FIELD[e.f] ? D.FIELD[e.f].icon + L(D.FIELD[e.f].name) : e.f });
       case "fieldStorm": return t("yc_log_fieldStorm", { a: heroLabel(st, st.secs[e.sec]), n: e.n });
+      case "chill": return t("yc_log_chill", { to: to, n: e.n });
       case "duo": return t("yc_log_duo", { a: heroLabel(st, e.s), to: to, c: D.CARD[e.c] ? L(D.CARD[e.c].name) : "" });
       default: return t("yc_log_" + e.t, { to: to, n: e.n });
     }
@@ -2259,6 +2271,7 @@
     if (st.torment) bits.push(el("span", { class: "yc-tag-torment", title: D.TORMENTS.slice(0, st.torment).map(function (x) { return x.n + ". " + L(x.name); }).join("\n"), text: "😈 " + t("yc_torment_n", { n: st.torment }) }));
     if (st.endless) bits.push(el("span", { class: "yc-tag-endless", text: "♾️ " + t("yc_endless") }));
     if (st.daily) bits.push(el("span", { class: "yc-tag-endless", text: t("yc_daily_tag", { d: st.daily }) }));
+    if (st.hard) bits.push(el("span", { class: "yc-tag-torment", title: t("yc_hard_desc"), text: "🔥 " + t("yc_hard") }));
     (st.tmods || []).forEach(function (m) { bits.push(el("span", { class: "yc-tag-torment", title: tmodText(m.id, m.pw) + " · " + (m.left >= Core.DAILY_LEFT ? t("yc_tmod_daily") : t("yc_tmod_left", { n: m.left })), text: D.TMOD[m.id].icon + m.pw })); });
     bits.push(soundButtons());
     if (st.phase === "battle") bits.push(el("span", { text: t("yc_node_" + st.battleKind) + " · " + t("yc_round", { n: st.round }) }));
@@ -2557,6 +2570,8 @@
         ["✈", t("yc_legend_pierce")], ["🎩", t("yc_legend_swap")], ["🐒", t("yc_legend_steal")]]),
       sec("yc_legend_sec_mech", [["🌵", t("yc_thorns_desc", { n: "N" })], ["🔰", t("yc_mech_ward_on")], ["📈", t("yc_mech_grow", { n: "N" })],
         ["🧬", t("yc_legend_split")], ["🌗", t("yc_mech_phase", { n: 50 })], ["💥", t("yc_mech_burst", { n: "N" })], ["📣", t("yc_mech_rally", { n: "N" })], ["🚫", t("yc_legend_stunImm")]]),
+      sec("yc_legend_sec_hard", [["🥚", t("yc_mech_breed", { n: "N", name: "…" })], ["❄️", t("yc_mech_chill", { n: "N" })], ["🧱", t("yc_mech_fortify", { n: "N" })],
+        ["🩸", t("yc_mech_thirst", { n: "N" })], ["🌑", t("yc_mech_shroud")], ["✴️", t("yc_mech_aura", { n: "N" })]]),
       sec("yc_legend_sec_af", D.AFFIXES.map(function (a) { return [a.icon, L(a.name) + "：" + L(a.desc)]; })),
       sec("yc_legend_sec_field", D.FIELDS.map(function (f) { return [f.icon, L(f.name) + "：" + L(f.desc)]; })),
       sec("yc_legend_sec_duo", D.DUO_CARDS.map(function (x) { return [heroDef(x.duo[0]).icon + heroDef(x.duo[1]).icon, L(heroDef(x.duo[0]).name) + "＋" + L(heroDef(x.duo[1]).name) + "：" + L(x.name)]; }))

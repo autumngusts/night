@@ -3,6 +3,7 @@
 //   run(seed, seats, opts) → { phase, act, floor, plays: { seat: { cardId: 次數 } } }
 //   opts.path：{ seat: pathId }——該英雄的戰利品只拿這條成長方向的卡、升級也優先升這條方向（測試特化路線）
 //   opts.torment／opts.endless：苦痛等級、無盡模式（無盡模式最多跑到 opts.maxAct 幕）
+//   opts.hard：高難度地圖（2026-10-27）
 "use strict";
 
 global.window = global;
@@ -15,7 +16,7 @@ var AI = global.PriTestYellowAI;
 
 function run(seed, seats, opts) {
   opts = opts || {};
-  var st = Core.create({ seed: seed, seats: seats, torment: opts.torment, endless: opts.endless });
+  var st = Core.create({ seed: seed, seats: seats, torment: opts.torment, endless: opts.endless, hard: opts.hard });
   opts.tmod = true;
   var plays = {};
   var guard = 0;

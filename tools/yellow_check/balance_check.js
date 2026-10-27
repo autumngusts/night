@@ -1,12 +1,14 @@
 // 黃牌 Yellow Card 平衡檢查：貪婪 AI（bot.js）跑完整局，統計 1～4 人的通關率、倒在哪一幕，以及各英雄的表現。
 // 只當作調整數值的參考，不是正式測試。
-//   node tools/yellow_check/balance_check.js [每種人數的局數]
+//   node tools/yellow_check/balance_check.js [每種人數的局數] [hard]
+//   第二個參數 hard＝高難度地圖（2026-10-27，目標整體通關約 20%）
 "use strict";
 
 var bot = require("./bot.js");
 var D = bot.D;
 
 var N = Number(process.argv[2]) || 20;
+var HARD = process.argv[3] === "hard";
 var CLS = D.CLASSES.map(function (c) { return c.id; });
 var ORDER = [0, 1, 2, 3];
 var FL = D.ACTS.length * D.FLOORS.length;
@@ -16,7 +18,7 @@ var byHero = {};
   for (var g = 0; g < N; g++) {
     var seats = [null, null, null, null];
     for (var i = 0; i < n; i++) seats[ORDER[i]] = { cls: CLS[(g * 3 + i) % CLS.length] };
-    var r = bot.run(5000 + g * 7 + n, seats);
+    var r = bot.run(5000 + g * 7 + n, seats, { hard: HARD });
     if (r.phase === "win") wins++;
     seats.forEach(function (x) {
       if (!x) return;

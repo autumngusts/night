@@ -1279,6 +1279,67 @@ for (var g = 0; g < games; g++) {
   endRound(en.st);
   assert(en.foes[0].str === enStr + D.ENRAGE.str, "第 " + D.ENRAGE.round + " 回合起每回合力量 +" + D.ENRAGE.str);
 
+  // ---- 高難度地圖（2026-10-27）：一般冒險不會抽到 hard 區域；高難度每幕都是 hard 區域 ----
+  function regsThrough(st) {
+    for (var k = 0; k < D.FLOORS.length * D.ACTS.length - 1; k++) Core.nextFloor(st);
+    return st.regs.map(function (id) { return D.REGION[id]; });
+  }
+  for (var hs = 0; hs < 12; hs++) {
+    var nrm = regsThrough(Core.create({ seed: 900 + hs, seats: [{ cls: "paladin" }, null, null, null] }));
+    assert(nrm.length === 3 && nrm.every(function (r) { return r && !r.hard; }), "一般冒險不會抽到高難度區域：" + nrm.map(function (r) { return r && r.id; }));
+    var hd = regsThrough(Core.create({ seed: 900 + hs, seats: [{ cls: "paladin" }, null, null, null], hard: true }));
+    assert(hd.length === 3 && hd.every(function (r, i) { return r && r.hard && r.tier === i; }), "高難度每幕都是同 tier 的高難度區域：" + hd.map(function (r) { return r && r.id; }));
+  }
+  // 繁殖：每 every 回合在自己的區域生出一隻
+  var hb = duoGame("paladin", "priest", 800);
+  var brood = setFoes(hb.st, [{ id: "h_brood", hp: 500, ring: "far" }])[0];
+  brood.intent = [];
+  var every = D.ENEMY.h_brood.breed.every;
+  for (var bi = 0; bi < every - 1; bi++) { hb.st.enemies.forEach(function (e) { e.intent = []; }); endRound(hb.st); }
+  assert(hb.st.enemies.length === 1, "繁殖：還沒到回合數不生");
+  hb.st.enemies.forEach(function (e) { e.intent = []; });
+  endRound(hb.st);
+  assert(hb.st.enemies.length === 2 && hb.st.enemies[1].id === D.ENEMY.h_brood.breed.id && hb.st.enemies[1].sec === brood.sec, "繁殖：第 " + every + " 回合在同一區生出 " + D.ENEMY.h_brood.breed.id);
+  function hgame(seed) { var g = duoGame("paladin", "priest", seed); g.h = g.st.heroes[0]; return g; }
+  // 寒氣：打掉生命時英雄下回合魔力減少；被護盾擋住不算
+  var fc = hgame(801);
+  var guard = setFoes(fc.st, [{ id: "f_guard", hp: 500, ring: "near" }])[0];
+  fc.h.blk = 0; fc.h.debt = 0;
+  Core.runEnemyAct(fc.st, guard, { k: "atk", n: 8 });
+  assert(fc.h.debt === D.ENEMY.f_guard.chill, "寒氣：下回合魔力 -" + D.ENEMY.f_guard.chill);
+  fc.h.blk = 999; fc.h.debt = 0;
+  Core.runEnemyAct(fc.st, guard, { k: "atk", n: 8 });
+  assert(fc.h.debt === 0, "寒氣：被護盾完全擋住不算");
+  // 堅壁：敵人回合開始清掉護盾後得到 fortify
+  var fk = hgame(802);
+  var bot2 = setFoes(fk.st, [{ id: "k_bot", hp: 500, ring: "near", intent: [] }])[0];
+  bot2.blk = 50;
+  Core.enemyTurn(fk.st, bot2);
+  assert(bot2.blk === D.ENEMY.k_bot.fortify, "堅壁：回合開始後護盾＝" + D.ENEMY.k_bot.fortify + "，實際 " + bot2.blk);
+  // 嗜血：吸血攻擊打掉生命時力量增加
+  var fv = hgame(803);
+  var bat = setFoes(fv.st, [{ id: "v_bat", hp: 5, max: 500, ring: "far" }])[0];
+  fv.h.blk = 0;
+  Core.runEnemyAct(fv.st, bat, { k: "atk", n: 5, drain: true });
+  assert(bat.str === D.ENEMY.v_bat.thirst && bat.hp > 5, "嗜血：吸血成功後力量 +" + D.ENEMY.v_bat.thirst);
+  // 虛隱：外圈受到的傷害減半、內圈照常
+  var fx2 = hgame(804);
+  var wisp = setFoes(fx2.st, [{ id: "x_wisp", hp: 100, ring: "far" }])[0];
+  Core.hitEnemy(fx2.st, wisp, 10, true);
+  assert(wisp.hp === 95, "虛隱：外圈 10 傷害只受 5，實際 " + (100 - wisp.hp));
+  wisp.ring = "near";
+  Core.hitEnemy(fx2.st, wisp, 10, true);
+  assert(wisp.hp === 85, "虛隱：內圈照常受傷");
+  // 光環：其他活著的敵人攻擊變高，自己不算
+  var fa2 = hgame(805);
+  var pair = setFoes(fa2.st, [{ id: "skel", hp: 100, ring: "near" }, { id: "c_seraph", hp: 100, ring: "far" }]);
+  var withAura = Core.enemyHitValue(fa2.st, pair[0], 10, 0), selfAura = Core.enemyHitValue(fa2.st, pair[1], 10, 0);
+  pair[1].hp = 0;
+  var noAura = Core.enemyHitValue(fa2.st, pair[0], 10, 0);
+  pair[1].hp = 100;
+  assert(withAura > noAura, "光環：天使活著時其他敵人的攻擊變高（" + noAura + " → " + withAura + "）");
+  assert(selfAura === noAura, "光環：不加在自己身上");
+
   // AI 隊友：ctrl 為 ai 的英雄由 AI.next 決定行動，整局跑得完（不會卡住）
   require("../../static_src/yellow_ai.js");
   var A = global.PriTestYellowAI;

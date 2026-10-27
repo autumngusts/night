@@ -245,7 +245,7 @@
     st.regs = st.regs || [];
     var cur = D.REGION[st.regs[st.act]];
     if (cur && cur.tier === st.act % D.ACTS.length) return;
-    st.regs[st.act] = pick(st, D.REGIONS.filter(function (r) { return r.tier === st.act % D.ACTS.length; })).id;
+    st.regs[st.act] = pick(st, D.REGIONS.filter(function (r) { return r.tier === st.act % D.ACTS.length && !!r.hard === !!st.hard; })).id;
   }
   function extraHp(st) { return (1 + D.ENDLESS.hp * loopOf(st)) * (tor(st, 1) ? 1.1 : 1) * (1 + tmodVal(st, "hp") / 100); }
   // 目前生效的苦痛修正（無盡模式）加總：n × pw
@@ -260,8 +260,11 @@
     var fa = 0, ed = D.ENEMY[e.id];
     if (fieldIs(st, "lava") && ed && ed.kind === "melee") fa += D.FIELD_NUM.lavaMel;
     if (fieldIs(st, "dust") && e.ring === "far" && !isBoss(e)) fa -= D.FIELD_NUM.dust;
+    // 光環（高難度・天界王座）：其他活著的敵人的 aura 加到這次攻擊上
+    st.enemies.forEach(function (x) { var xd = D.ENEMY[x.id]; if (x !== e && x.hp > 0 && xd && xd.aura) fa += xd.aura; });
     var v = Math.max(0, n + (e.str || 0) + fa) * (fieldIs(st, "moon") ? D.FIELD_NUM.moon : 1) * DMG_BY_ACT[actOf(st)] * (1 + D.ENDLESS.dmg * loopOf(st)) * (tor(st, 2) ? 1.1 : 1) * (1 + tmodVal(st, "dmg") / 100);
     if (isBoss(e)) v = v * BOSS_DMG_BY_PARTY[partySize(st)];
+    v = v * hardMul(st, "dmg");
     v = v * (e.wk || 1);
     if (e.st.weak > 0) v = v * 0.75;
     var h = hero(st, seat);
@@ -304,6 +307,8 @@
     if (e.hp <= 0) return 0;
     // 受庇護（ward）：場上還有其他敵人時，受到的傷害減半（先打掉手下）
     if (warded(st, e)) amount = Math.ceil(amount / 2);
+    // 虛隱（高難度・虛空裂隙）：在外圈時受到的傷害減半，拉進內圈才打得痛
+    if (D.ENEMY[e.id] && D.ENEMY[e.id].shroud && ringOf(e) === "far") amount = Math.ceil(amount / 2);
     var absorbed = 0;
     if (!ignoreBlock) { absorbed = Math.min(e.blk, amount); e.blk -= absorbed; }
     var dmg = amount - absorbed;
@@ -705,7 +710,10 @@
     e.intent.forEach(function (act) { if (act.tgt === "rand" && a.length) act.pick = pick(st, a).seat; });
   }
 
-  function hpMultFor(st) { return (1 + 0.08 * st.floor) * HP_BY_PARTY[partySize(st)] * HP_BY_ACT[actOf(st)] * extraHp(st); }
+  function hpMultFor(st) { return (1 + 0.08 * st.floor) * HP_BY_PARTY[partySize(st)] * HP_BY_ACT[actOf(st)] * extraHp(st) * hardMul(st, "hp"); }
+  // 高難度區域的血量／傷害倍率（D.HARD）
+  // 區域自己的 mul（每區難度不同，用來把難度平均分到三幕）× 全體的 D.HARD
+  function hardMul(st, k) { var r = actDef(st); return r.hard ? D.HARD[k] * ((r.mul && r.mul[k]) || 1) : 1; }
 
   function buildEncounter(st, kind) {
     var act = actDef(st);
@@ -713,7 +721,7 @@
     var mult = hpMultFor(st);
     if (kind === "boss") {
       var bid = st.boss && D.ENEMY[st.boss] ? st.boss : pick(st, act.bosses);
-      spawnEnemy(st, bid, rint(st, n), "far", BOSS_HP_BY_PARTY[partySize(st)] * BOSS_HP_MULT * (1 + D.ENDLESS.hp * loopOf(st)) * (tor(st, 7) ? 1.2 : 1));
+      spawnEnemy(st, bid, rint(st, n), "far", BOSS_HP_BY_PARTY[partySize(st)] * BOSS_HP_MULT * (1 + D.ENDLESS.hp * loopOf(st)) * (tor(st, 7) ? 1.2 : 1) * hardMul(st, "hp"));
       var minion = D.ENEMY[bid].minion || act.minion;
       for (var s = 0; s < n; s++) {
         for (var k = rollCount(st, BOSS_MINIONS[actOf(st)]); k > 0; k--) spawnEnemy(st, minion, s, null, HP_BY_ACT[actOf(st)] * extraHp(st));
@@ -898,6 +906,9 @@
   function enemyTurn(st, e) {
     if (e.hp <= 0) return;
     e.blk = 0;
+    // 堅壁（高難度・機械工廠）
+    var fort = D.ENEMY[e.id] && D.ENEMY[e.id].fortify;
+    if (fort) { e.blk += fort; log(st, { t: "blk", to: eref(e), n: fort, src: eref(e) }); }
     // 再生（詞綴）：每回合開始回復最大血量的 10%（至少 1）
     if (e.af === "regen" && e.hp < e.max) {
       var rv = Math.min(e.max - e.hp, Math.max(1, Math.floor(e.max * D.AFFIX_NUM.regen)));
@@ -949,6 +960,11 @@
             }
             // 吸血攻擊：打掉多少生命就回復多少
             if (act.drain && lost > 0 && e.hp > 0) { var v = Math.min(lost, e.max - e.hp); if (v > 0) { e.hp += v; log(st, { t: "heal", to: eref(e), n: v, src: eref(e) }); } }
+            var ed2 = D.ENEMY[e.id] || {};
+            // 嗜血（高難度・吸血鬼城）：吸血攻擊打掉生命時力量 +thirst
+            if (ed2.thirst && act.drain && lost > 0 && e.hp > 0) { e.str += ed2.thirst; log(st, { t: "str", to: eref(e), n: ed2.thirst, src: eref(e) }); }
+            // 寒氣（高難度・冰封要塞）：打掉生命時，那位英雄下回合魔力 -chill（最多累積 2）
+            if (ed2.chill && lost > 0 && !h.down) { h.debt = Math.min(2, (h.debt || 0) + ed2.chill); log(st, { t: "chill", to: href(h), n: ed2.chill, src: eref(e) }); }
           }
           if (h.pw.thorns && !h.down && e.hp > 0) hitEnemy(st, e, h.pw.thorns, false);
           // 見切（劍豪）：本輪被攻擊時反擊；明鏡止水再得到等量護盾
@@ -1079,6 +1095,15 @@
     st.enemies.forEach(function (e) {
       var g = D.ENEMY[e.id] && D.ENEMY[e.id].grow;
       if (g && e.hp > 0) { e.str += g; log(st, { t: "str", to: eref(e), n: g, src: eref(e) }); }
+    });
+    // 繁殖（高難度・毒蟲巢穴）：每 every 回合在自己的扇形區生出一隻 breed.id（場上上限 MAX_ENEMIES）
+    st.enemies.slice().forEach(function (e) {
+      var br = D.ENEMY[e.id] && D.ENEMY[e.id].breed;
+      if (!br || e.hp <= 0) return;
+      e.age = (e.age || 0) + 1;
+      if (e.age % br.every) return;
+      var kid = spawnEnemy(st, br.id, e.sec, null, hpMultFor(st));
+      if (kid) log(st, { t: "summon", to: eref(kid), src: eref(e) });
     });
     log(st, { t: "round" });
     // 敵人狂怒（2026-10-27）：雙方都打不動對方時（牌被偷光只剩防禦、攻擊全被護盾擋住…）戰鬥會永遠打不完，拖太久敵人越來越強
@@ -1306,6 +1331,8 @@
       phase: "map", act: 0, floor: 0, battleKind: null,
       // 苦痛等級 0～10、無盡模式（2026-10-23 使用者指定）
       torment: Math.max(0, Math.min(D.TORMENTS.length, Math.floor(Number(opts.torment) || 0))), endless: !!opts.endless,
+      // 高難度地圖（2026-10-27 使用者指定）：每幕只從 hard 區域抽
+      hard: !!opts.hard,
       heroes: [null, null, null, null], secs: [], enemies: [], round: 0, log: [], logSeq: 0, tmods: [], tmodPick: null,
       // 每日挑戰（2026-10-27 使用者指定）：日期字串；turns＝整局累計的回合數（每日挑戰的成績用）
       daily: opts.daily ? String(opts.daily).slice(0, 10) : null, turns: 0

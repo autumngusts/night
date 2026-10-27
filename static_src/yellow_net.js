@@ -5,7 +5,7 @@
 //   on/<cid>        true（onDisconnect 自動移除＝在線）
 //   pl/<cid>        { name, at }
 //   seat/<n>        { cid, cls } | null（大廳的座位，n＝0 左上、1 右上、2 左下、3 右下；一個人可以坐好幾個位置；cid＝"ai" 是 AI 隊友）
-//   opt             { torment: 0～10, endless: bool, daily: bool }（房主在大廳設定的苦痛等級／無盡模式／每日挑戰）
+//   opt             { torment: 0～10, endless: bool, daily: bool, hard: bool }（房主在大廳設定的苦痛等級／無盡模式／每日挑戰／高難度地圖）
 //   chat/<key>      { c: cid, t: 文字, at }（房內聊天，房主只留最新 CHAT_MAX 則；不進對局狀態）
 //   nudge/<cid>     { from: cid, at }（催促：寫給還沒結束回合的人；不進對局狀態）
 //   fx/<cid>        { k: "ping" | "emo", x, y, e, s, at }（戰場標記與表情；不進對局狀態，只是畫面上的溝通）
@@ -48,7 +48,7 @@
     var room = {
       id: roomId, cid: cid, creating: creating,
       loaded: false, missing: false, closed: false,
-      meta: null, online: {}, players: {}, seats: [null, null, null, null], opts: { torment: 0, endless: false, daily: false }, fx: {}, chats: [],
+      meta: null, online: {}, players: {}, seats: [null, null, null, null], opts: { torment: 0, endless: false, daily: false, hard: false }, fx: {}, chats: [],
       game: null, gameSeq: 0, name: opts.name || ""
     };
 
@@ -106,7 +106,7 @@
     room.setOpts = function (o) {
       if (!room.isHost() || !room.meta || room.meta.status !== "lobby") return;
       var torment = Math.max(0, Math.min(10, Math.floor(Number(o.torment) || 0)));
-      set("opt", { torment: torment, endless: !!o.endless, daily: !!o.daily });
+      set("opt", { torment: torment, endless: !!o.endless, daily: !!o.daily, hard: !!o.hard });
     };
 
     // 至少要有一位在線的真人
@@ -128,7 +128,7 @@
         if (!s || !room.isOnline(s.cid)) return null;
         return { cls: s.cls, ctrl: s.cid, name: s.cid === AI_CID ? "" : room.nameOf(s.cid), lv: s.lv, art: s.art };
       });
-      st = Core.create({ seats: seats, hostCtrl: cid, torment: room.opts.torment, endless: room.opts.endless });
+      st = Core.create({ seats: seats, hostCtrl: cid, torment: room.opts.torment, endless: room.opts.endless, hard: room.opts.hard });
       }
       var no = (room.meta.no || 0) + 1;
       done = {};
@@ -292,7 +292,7 @@
       });
       sub("on", function (v) { room.online = v || {}; maybeTakeHost(); changed(); });
       sub("pl", function (v) { room.players = v || {}; changed(); });
-      sub("opt", function (v) { room.opts = { torment: v ? Math.max(0, Math.min(10, Number(v.torment) || 0)) : 0, endless: !!(v && v.endless), daily: !!(v && v.daily) }; changed(); });
+      sub("opt", function (v) { room.opts = { torment: v ? Math.max(0, Math.min(10, Number(v.torment) || 0)) : 0, endless: !!(v && v.endless), daily: !!(v && v.daily), hard: !!(v && v.hard) }; changed(); });
       sub("fx", function (v) { room.fx = v || {}; if (opts.onSignal) opts.onSignal(room.fx); });
       sub("chat", onChat);
       sub("nudge/" + cid, function (v) { if (v && typeof v.at === "number" && opts.onNudge) opts.onNudge(v); });
