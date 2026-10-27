@@ -1072,6 +1072,7 @@
     st.enemies.forEach(decay);
     heroes(st).forEach(function (h) { decay(h); h.taunt = false; });
     st.round += 1;
+    st.turns = (st.turns || 0) + 1;
     // 成長（grow）：每過一回合力量 +n
     st.enemies.forEach(function (e) {
       var g = D.ENEMY[e.id] && D.ENEMY[e.id].grow;
@@ -1301,8 +1302,12 @@
       phase: "map", act: 0, floor: 0, battleKind: null,
       // 苦痛等級 0～10、無盡模式（2026-10-23 使用者指定）
       torment: Math.max(0, Math.min(D.TORMENTS.length, Math.floor(Number(opts.torment) || 0))), endless: !!opts.endless,
-      heroes: [null, null, null, null], secs: [], enemies: [], round: 0, log: [], logSeq: 0, tmods: [], tmodPick: null
+      heroes: [null, null, null, null], secs: [], enemies: [], round: 0, log: [], logSeq: 0, tmods: [], tmodPick: null,
+      // 每日挑戰（2026-10-27 使用者指定）：日期字串；turns＝整局累計的回合數（每日挑戰的成績用）
+      daily: opts.daily ? String(opts.daily).slice(0, 10) : null, turns: 0
     };
+    // 開局就生效的苦痛修正（每日挑戰用；left 很大＝整局有效）
+    (opts.tmods || []).forEach(function (m) { if (m && D.TMOD[m.id]) st.tmods.push({ id: m.id, pw: Math.max(1, Math.min(3, Math.floor(m.pw) || 1)), left: Math.max(1, Math.floor(m.left) || 1) }); });
     (opts.seats || []).forEach(function (s, seat) {
       if (!s || !D.CLASS[s.cls] || seat >= D.MAX_SEATS) return;
       var cls = D.CLASS[s.cls];
@@ -1324,6 +1329,37 @@
     });
     enterFloor(st);
     return st;
+  }
+
+  // ---------------- 每日挑戰（2026-10-27 使用者指定） ----------------
+  // 同一天的所有人：固定的 4 位英雄（人數 n 取前 n 位）、2～3 個整局有效的苦痛修正、同一個 seed。
+  // 只用日期字串決定（FNV-1a 雜湊 → 對局的亂數），所以不需要伺服器。
+  var DAILY_LEFT = 999;
+  function dailyHash(key) {
+    var x = 0x811c9dc5;
+    for (var i = 0; i < key.length; i++) { x ^= key.charCodeAt(i); x = Math.imul(x, 0x01000193) >>> 0; }
+    return x >>> 0;
+  }
+  function dailySetup(dateKey) {
+    var tmp = { seed: dailyHash("yellow-daily-" + dateKey) | 0 };
+    var heroesList = shuffle(tmp, D.CLASSES.map(function (c) { return c.id; })).slice(0, D.MAX_SEATS);
+    var mods = shuffle(tmp, D.TMODS.map(function (m) { return m.id; })).slice(0, 2 + rint(tmp, 2)).map(function (id) { return { id: id, pw: 1 + rint(tmp, 2), left: DAILY_LEFT }; });
+    return { date: dateKey, seed: dailyHash("yellow-daily-seed-" + dateKey) || 1, heroes: heroesList, tmods: mods };
+  }
+  // n 人的每日挑戰：英雄全部解鎖（lv 不帶＝99）、不帶出發遺物、苦痛等級 0、不是無盡模式
+  function createDaily(dateKey, n, names) {
+    var ds = dailySetup(dateKey), seats = [null, null, null, null], order = [0, 3, 1, 2];
+    for (var i = 0; i < Math.max(1, Math.min(D.MAX_SEATS, n)); i++) seats[order[i]] = { cls: ds.heroes[i], name: (names && names[i]) || "" };
+    return create({ seed: ds.seed, seats: seats, daily: dateKey, tmods: ds.tmods });
+  }
+  // 成績比較：通關＞推進得遠；一樣時回合數少的好
+  function dailyScore(st) { return { win: st.phase === "win", act: st.act, floor: st.floor, turns: st.turns || 0 }; }
+  function dailyBetter(a, b) {
+    if (!b) return true;
+    if (a.win !== b.win) return a.win;
+    var pa = a.act * D.FLOORS.length + a.floor, pb = b.act * D.FLOORS.length + b.floor;
+    if (!a.win && pa !== pb) return pa > pb;
+    return a.turns < b.turns;
   }
 
   // ---------------- 出牌 ----------------
@@ -1812,6 +1848,7 @@
     restPct: restPct, loopOf: loopOf, actDef: actDef, regionOf: regionOf, nextFloor: nextFloor, tmodVal: tmodVal, unlocked: unlocked, bloodCost: bloodCost,
     warded: warded, potionCount: potionCount, reagentNeed: reagentNeed, aimsAt: aimsAt, ammoCap: ammoCap, GEN: GEN,
     rollAffixes: rollAffixes, applyAffix: applyAffix, hitEnemy: hitEnemy, enemyTurn: enemyTurn, runEnemyAct: runEnemyAct, moveEnemy: moveEnemy, shiftEnemy: shiftEnemy,
+    dailySetup: dailySetup, createDaily: createDaily, dailyScore: dailyScore, dailyBetter: dailyBetter, DAILY_LEFT: DAILY_LEFT,
     setField: setField, fieldIs: fieldIs, duoPartner: duoPartner, duoCards: duoCards, rewardCards: rewardCards, resolveRound: resolveRound, addStatus: addStatus, startHeroTurn: startHeroTurn,
     _rnd: rnd
   };

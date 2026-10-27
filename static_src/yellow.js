@@ -460,6 +460,73 @@
     return box;
   }
 
+  // ---------------- 每日挑戰（2026-10-27 使用者指定：當天固定英雄、本機紀錄＋分享文字） ----------------
+  var DAILY_KEY = "pritest-yellow-daily";
+  function todayKey() {
+    var d = new Date();
+    function p2(n) { return (n < 10 ? "0" : "") + n; }
+    return d.getFullYear() + "-" + p2(d.getMonth() + 1) + "-" + p2(d.getDate());
+  }
+  // { 日期: { 人數: { win, act, floor, turns } } }；只留最近 14 天
+  function dailyRecords() { try { return JSON.parse(localStorage.getItem(DAILY_KEY) || "{}") || {}; } catch (e) { return {}; } }
+  function saveDailyResult(st) {
+    var rec = dailyRecords(), n = Core.heroes(st).length, sc = Core.dailyScore(st);
+    var day = rec[st.daily] = rec[st.daily] || {};
+    var better = Core.dailyBetter(sc, day[n]);
+    if (better) day[n] = sc;
+    Object.keys(rec).sort().reverse().slice(14).forEach(function (k) { delete rec[k]; });
+    try { localStorage.setItem(DAILY_KEY, JSON.stringify(rec)); } catch (e) { /* 只是記不住 */ }
+    return better;
+  }
+  function dailyResultText(sc) {
+    return sc.win ? t("yc_daily_res_win", { t: sc.turns }) : t("yc_daily_res_lose", { act: actName(sc.act), f: sc.floor + 1, t: sc.turns });
+  }
+  function dailyModsText(mods) { return mods.map(function (m) { return D.TMOD[m.id].icon + tmodText(m.id, m.pw); }).join("、"); }
+  function dailyShareText(st) {
+    var hs = Core.heroes(st);
+    return [t("yc_daily_share_head", { d: st.daily, n: hs.length }),
+      hs.map(function (h) { var c = heroDef(h.cls); return c.icon + L(c.name); }).join(" "),
+      t("yc_daily_mods") + "：" + dailyModsText(st.tmods || []),
+      dailyResultText(Core.dailyScore(st)),
+      location.origin + location.pathname].join("\n");
+  }
+  function copyText(txt, done) {
+    var fallback = function () {
+      var ta = el("textarea", { style: "position:fixed;left:-9999px" });
+      ta.value = txt; document.body.appendChild(ta); ta.select();
+      try { document.execCommand("copy"); } catch (e) { /* 只能手動複製 */ }
+      document.body.removeChild(ta); done();
+    };
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(txt).then(done, fallback);
+    else fallback();
+  }
+  function dailyPanel() {
+    var key = todayKey(), ds = Core.dailySetup(key), n = ui.dailyN || 2;
+    var box = el("div", { class: "yc-panel yc-daily" });
+    box.appendChild(el("h2", { text: "📅 " + t("yc_daily_title") + " " + key }));
+    box.appendChild(el("p", { class: "yc-muted", text: t("yc_daily_desc") }));
+    box.appendChild(el("div", { class: "yc-daily-row" }, [el("strong", { text: t("yc_daily_mods") + "：" }),
+      el("span", {}, ds.tmods.map(function (m) { return el("span", { class: "yc-tag-torment", text: D.TMOD[m.id].icon + " " + tmodText(m.id, m.pw) }); }))]));
+    var sizes = el("div", { class: "yc-daily-sizes" }, [el("strong", { text: t("yc_daily_party") + "：" })].concat([1, 2, 3, 4].map(function (k) {
+      return el("button", { type: "button", class: "yc-small-btn" + (k === n ? " yc-on" : ""), text: t("yc_daily_n", { n: k }), onclick: function () { ui.dailyN = k; render(); } });
+    })));
+    box.appendChild(sizes);
+    box.appendChild(el("div", { class: "yc-daily-row" }, [el("strong", { text: t("yc_daily_heroes") + "：" })].concat(ds.heroes.slice(0, n).map(function (id) {
+      var c = heroDef(id);
+      return el("button", { type: "button", class: "yc-daily-hero", style: "--yc-cls:" + c.color, onclick: function () { ui.focusHero = id; render(); } }, [c.icon + " " + L(c.name)]);
+    }))));
+    var best = (dailyRecords()[key] || {})[n];
+    box.appendChild(el("p", { class: "yc-small", text: best ? t("yc_daily_best", { r: dailyResultText(best) }) : t("yc_daily_none") }));
+    box.appendChild(el("div", { class: "yc-actions" }, [el("button", { type: "button", class: "yc-primary", text: t("yc_daily_start"), onclick: function () {
+      localSt = Core.createDaily(key, n);
+      ui.award = null; ui.dailySaved = false;
+      mode = "local"; ui.seenLog = localSt.logSeq; ui.tab = null;
+      saveLocal();
+      render();
+    } })]));
+    return box;
+  }
+
   // ---------------- 入口畫面 ----------------
   function renderEntry() {
     var saved = loadLocal();
@@ -472,6 +539,8 @@
         el("button", { type: "button", class: "yc-primary", text: t("yc_continue"), onclick: function () { localSt = saved; mode = "local"; ui.seenLog = saved.logSeq; render(); } })
       ]));
     }
+
+    wrap.appendChild(dailyPanel());
 
     // 本機
     var local = el("div", { class: "yc-panel" });
@@ -1678,6 +1747,14 @@
     a.appendChild(b);
     later(650, function () { if (b.parentNode) b.parentNode.removeChild(b); });
   }
+  // 刀砍（2026-10-27 使用者指定）：英雄打中敵人時在敵人身上劃一刀；同一隻連續被打時角度交錯
+  function slashAt(p, k) {
+    var a = arenaEl();
+    if (!a || !p) return;
+    var s2 = el("span", { class: "yc-slash", style: pctPos(p) + ";--s:" + (Math.max(p.r || 3, 3) * 3.2).toFixed(2) + "%;--rot:" + ((k || 1) % 2 ? -32 : 38) + "deg" });
+    a.appendChild(s2);
+    later(520, function () { if (s2.parentNode) s2.parentNode.removeChild(s2); });
+  }
   function floatAt(node, txt, cls, k) {
     var f = el("span", { class: "yc-float yc-float-" + cls, text: txt, style: "animation-delay:" + ((k - 1) * 0.16) + "s" });
     node.appendChild(f);
@@ -1710,6 +1787,8 @@
       var color = hh ? heroDef(hh.cls).color : "#ffd34d";
       later(delay, function () {
         Snd.sfx("play");
+        // 攻擊牌：出牌的英雄在戰場上跳一下（2026-10-27 使用者指定）
+        if (d && d.type === "atk") { var hn = app.querySelector('[data-ref="h' + e.s + '"]'); if (hn) hitNode(hn, "yc-hop", 460); }
         if (typeof e.x === "number") {
           var R = D.AREA_R[e.ar] || D.AREA_R.m;
           shot(from, { x: e.x, y: e.y }, "yc-shot-hero");
@@ -1815,6 +1894,8 @@
         Snd.sfx(e.t === "heal" ? "heal" : e.t === "blk" ? "block" : !e.n ? "block" : e.to.k === "h" ? "hurt" : e.n >= 15 ? "heavy" : "hit");
         if (e.t === "dmg") {
           if (e.n) burstAt(p, e.to.k === "h" ? "yc-burst-hero" : "");
+          // 英雄回合打中敵人（敵人回合的中毒、燃燒、魅惑互打不砍）
+          if (e.to.k === "e" && !ui.replay) slashAt(p, k);
           else burstAt(p, "yc-burst-blk");
           if (node && e.n) hitNode(node, e.to.k === "h" ? "yc-hit-hero" : "yc-hit");
         }
@@ -2093,6 +2174,19 @@
       wrap.appendChild(el("p", { text: t("yc_endless_reach", { a: st.act + 1, f: st.floor + 1 }) }));
       if (best) wrap.appendChild(el("p", { class: "yc-muted", text: t("yc_endless_best", { a: best.act + 1, f: best.floor + 1, t: best.torment || 0 }) }));
     }
+    if (st.daily) {
+      // 每日挑戰：同一局只記一次（重新整理也不重複記）
+      if (!st.dailyDone) { st.dailyDone = true; ui.dailyNew = saveDailyResult(st); if (mode === "local") saveLocal(); }
+      var dsc = Core.dailyScore(st), dbest = (dailyRecords()[st.daily] || {})[Core.heroes(st).length];
+      wrap.appendChild(el("p", { text: "📅 " + t("yc_daily_title") + " " + st.daily + " — " + dailyResultText(dsc) }));
+      if (ui.dailyNew) wrap.appendChild(el("p", { class: "yc-good", text: t("yc_daily_new_best") }));
+      else if (dbest) wrap.appendChild(el("p", { class: "yc-muted", text: t("yc_daily_best", { r: dailyResultText(dbest) }) }));
+      var share = dailyShareText(st);
+      var ta = el("textarea", { class: "yc-daily-share", readonly: "readonly", rows: "5" });
+      ta.value = share;
+      var cbtn = el("button", { type: "button", text: t("yc_daily_copy"), onclick: function () { copyText(share, function () { cbtn.textContent = t("yc_daily_copied"); }); } });
+      wrap.appendChild(el("div", { class: "yc-daily-share-box" }, [el("strong", { text: t("yc_daily_share") }), ta, cbtn]));
+    }
     // 局外進度：這台裝置的英雄得到經驗
     var aw = awardRun(st);
     if (aw && aw.heroes.length) {
@@ -2139,7 +2233,8 @@
     var bits = [el("strong", { text: actName(st.act) }), el("span", { text: t("yc_floor_n", { n: st.floor + 1, total: D.FLOORS.length }) })];
     if (st.torment) bits.push(el("span", { class: "yc-tag-torment", title: D.TORMENTS.slice(0, st.torment).map(function (x) { return x.n + ". " + L(x.name); }).join("\n"), text: "😈 " + t("yc_torment_n", { n: st.torment }) }));
     if (st.endless) bits.push(el("span", { class: "yc-tag-endless", text: "♾️ " + t("yc_endless") }));
-    (st.tmods || []).forEach(function (m) { bits.push(el("span", { class: "yc-tag-torment", title: tmodText(m.id, m.pw) + " · " + t("yc_tmod_left", { n: m.left }), text: D.TMOD[m.id].icon + m.pw })); });
+    if (st.daily) bits.push(el("span", { class: "yc-tag-endless", text: t("yc_daily_tag", { d: st.daily }) }));
+    (st.tmods || []).forEach(function (m) { bits.push(el("span", { class: "yc-tag-torment", title: tmodText(m.id, m.pw) + " · " + (m.left >= Core.DAILY_LEFT ? t("yc_tmod_daily") : t("yc_tmod_left", { n: m.left })), text: D.TMOD[m.id].icon + m.pw })); });
     bits.push(soundButtons());
     if (st.phase === "battle") bits.push(el("span", { text: t("yc_node_" + st.battleKind) + " · " + t("yc_round", { n: st.round }) }));
     if (st.phase === "battle" && fieldDef(st)) bits.push(fieldChip(st));

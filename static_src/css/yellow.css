@@ -584,3 +584,17 @@ button.yc-relic:hover:not(:disabled) { border-color: var(--yc-accent); }
 /* 雙人連攜卡（2026-10-27）：兩個職業的顏色各佔一半 */
 .yc-card.yc-rar-duo { border-color: var(--yc-cls); background: linear-gradient(135deg, color-mix(in srgb, var(--yc-cls) 22%, #fff8e6) 0 50%, color-mix(in srgb, var(--yc-cls2) 22%, #fff8e6) 50% 100%); box-shadow: 0 0 0 2px var(--yc-cls2), 0 2px 8px rgba(0, 0, 0, 0.25); }
 .yc-duo-hint { margin-top: 0.3rem; }
+/* 攻擊演出（2026-10-27 使用者指定）：英雄出攻擊牌時跳一下、敵人被打中時劃過一刀 */
+.yc-hop .yc-hero-fig { animation: yc-hop 0.45s cubic-bezier(0.3, 0.7, 0.4, 1); }
+@keyframes yc-hop { 0% { translate: 0 0; } 35% { translate: 0 -38%; } 60% { translate: 0 0; } 78% { translate: 0 -8%; } 100% { translate: 0 0; } }
+.yc-slash { position: absolute; width: var(--s); aspect-ratio: 1; transform: translate(-50%, -50%) rotate(var(--rot, -32deg)); pointer-events: none; z-index: 9; }
+.yc-slash::before { content: ""; position: absolute; left: -12%; right: -12%; top: 46%; height: 8%; border-radius: 50%; background: linear-gradient(90deg, transparent, #fff 30%, #fffbe8 70%, transparent); box-shadow: 0 0 6px #fff, 0 0 14px rgba(255, 214, 140, 0.9); transform-origin: left center; animation: yc-slash 0.42s ease-out forwards; }
+@keyframes yc-slash { 0% { transform: scaleX(0); opacity: 1; } 40% { transform: scaleX(1); opacity: 1; } 100% { transform: scaleX(1) scaleY(0.3); opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .yc-hop .yc-hero-fig, .yc-slash::before { animation-duration: 0.01s; } }
+/* 每日挑戰（2026-10-27） */
+.yc-daily-row, .yc-daily-sizes { display: flex; flex-wrap: wrap; gap: 0.4rem; align-items: center; margin: 0.35rem 0; }
+.yc-daily-sizes .yc-on { background: #c99a06; color: #fff; }
+.yc-daily-hero { border: 1px solid var(--yc-cls); border-left-width: 4px; border-radius: 8px; padding: 0.15rem 0.6rem; background: color-mix(in srgb, var(--yc-cls) 12%, transparent); cursor: pointer; }
+.yc-daily-share-box { display: flex; flex-direction: column; gap: 0.35rem; margin: 0.6rem 0; }
+.yc-daily-share { width: 100%; box-sizing: border-box; font: inherit; font-size: 0.9em; padding: 0.4rem; resize: vertical; }
+.yc-daily-share-box button { align-self: flex-start; }

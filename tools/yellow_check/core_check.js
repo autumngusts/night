@@ -1237,6 +1237,33 @@ for (var g = 0; g < games; g++) {
   for (var di = 0; di < 400; di++) if (Core.rewardCards(rw.st, rw.st.heroes[0], "spoils").some(function (id) { return D.CARD[id].duo; })) dn++;
   assert(Math.abs(dn / 400 - D.DUO_PCT.spoils / 100) < 0.07, "一般戰利品約 " + D.DUO_PCT.spoils + "% 有連攜卡，實際 " + (dn / 400).toFixed(2));
 
+  // ---- 每日挑戰（2026-10-27）：只由日期決定 ----
+  var dsA = Core.dailySetup("2026-10-27"), dsB = Core.dailySetup("2026-10-27");
+  assert(JSON.stringify(dsA) === JSON.stringify(dsB), "每日挑戰：同一天的設定相同");
+  assert(dsA.heroes.length === 4 && new Set(dsA.heroes).size === 4 && dsA.heroes.every(function (id) { return D.CLASS[id]; }), "每日挑戰：4 位不重複的英雄");
+  assert(dsA.tmods.length >= 2 && dsA.tmods.length <= 3, "每日挑戰：2～3 個苦痛修正");
+  var dsDiff = 0;
+  for (var dd2 = 1; dd2 <= 20; dd2++) if (JSON.stringify(Core.dailySetup("2026-11-" + (dd2 < 10 ? "0" : "") + dd2).heroes) !== JSON.stringify(dsA.heroes)) dsDiff++;
+  assert(dsDiff >= 18, "每日挑戰：不同天的英雄大多不同");
+  // 同一天同人數：整局狀態完全相同（同 seed、同英雄、同修正）
+  var dg1 = Core.createDaily("2026-10-27", 3), dg2 = Core.createDaily("2026-10-27", 3);
+  assert(JSON.stringify(dg1) === JSON.stringify(dg2), "每日挑戰：同一天同人數的開局完全相同");
+  assert(Core.heroes(dg1).map(function (h) { return h.cls; }).sort().join() === dsA.heroes.slice(0, 3).sort().join(), "每日挑戰：3 人時是當天英雄的前 3 位");
+  assert(dg1.daily === "2026-10-27" && dg1.tmods.length === dsA.tmods.length && dg1.torment === 0 && !dg1.endless, "每日挑戰：日期、修正、苦痛 0、非無盡");
+  assert(Core.heroes(dg1).every(function (h) { return h.lv === 99 && !h.relics.length; }), "每日挑戰：卡牌全解鎖、沒有出發遺物");
+  // 修正整局有效：推進很多層也不會消失；回合數會累計
+  for (var df = 0; df < 8; df++) Core.nextFloor(dg2);
+  assert(dg2.tmods.length === dsA.tmods.length, "每日挑戰：修正整局有效");
+  var dt = duoGame("paladin", "priest", 790);
+  var dt0 = dt.st.turns;
+  endRound(dt.st); endRound(dt.st);
+  assert(dt.st.turns === dt0 + 2, "整局回合數會累計");
+  // 成績比較：通關＞推進；同樣時回合少的好
+  assert(Core.dailyBetter({ win: true, act: 2, floor: 3, turns: 99 }, { win: false, act: 2, floor: 3, turns: 10 }), "通關比沒通關好");
+  assert(Core.dailyBetter({ win: false, act: 1, floor: 2, turns: 50 }, { win: false, act: 1, floor: 1, turns: 10 }), "推進得遠比較好");
+  assert(Core.dailyBetter({ win: true, act: 2, floor: 3, turns: 60 }, { win: true, act: 2, floor: 3, turns: 70 }), "同樣通關時回合少的好");
+  assert(!Core.dailyBetter({ win: true, act: 2, floor: 3, turns: 70 }, { win: true, act: 2, floor: 3, turns: 60 }), "回合多的不是新紀錄");
+
   // AI 隊友：ctrl 為 ai 的英雄由 AI.next 決定行動，整局跑得完（不會卡住）
   require("../../static_src/yellow_ai.js");
   var A = global.PriTestYellowAI;
