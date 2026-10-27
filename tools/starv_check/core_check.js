@@ -465,6 +465,45 @@ test("自動方針：體力或壓力過高先休息；idle 不動；balance 交�
   Core.advance(st, 1); eq(d.task.kind, "course", "上次 work → 這次 study"); eq(d.lastAuto, "study");
 });
 
+test("離線：第一次只記時間、未滿一天不動", function () {
+  var st = Core.create({ seed: 1 }); st.lastTickAt = 0;
+  eq(Core.catchUp(st, 5000), null); eq(st.lastTickAt, 5000);
+  eq(Core.catchUp(st, 5000 + 59999), null); eq(st.day, 0);
+  var r = Core.catchUp(st, 5000 + 90000);
+  eq(r.days, 1); eq(st.day, 1); eq(st.lastTickAt, 65000, "保留未滿一天的 30 秒");
+  assert(Math.abs(Core.dayProgress(st, 95000) - 0.5) < 1e-9, "天內進度");
+});
+
+test("離線：上限 480 天", function () {
+  var st = Core.create({ seed: 1, now: 1 });
+  var r = Core.catchUp(st, 1 + 600 * 60000 + 1234);
+  eq(r.days, 480); eq(r.capped, true); eq(st.day, 480); eq(st.lastTickAt, 1 + 600 * 60000);
+});
+
+test("離線：一次結算與逐日結算結果相同", function () {
+  function setup() {
+    var st = Core.create({ seed: 77, now: 1 });
+    Core.pull(st, "ticket", 10);
+    st.artists.forEach(function (a) { Core.setPolicy(st, a.id, "balance"); });
+    return st;
+  }
+  var a = setup(), b = setup();
+  Core.catchUp(a, 1 + 480 * 60000);
+  for (var i = 1; i <= 480; i++) Core.catchUp(b, 1 + i * 60000);
+  eq(JSON.stringify(a), JSON.stringify(b), "state 不一致");
+});
+
+test("離線：報告內容", function () {
+  var st = Core.create({ seed: 5, now: 1 });
+  Core.pull(st, "ticket", 10);
+  st.artists.forEach(function (a) { Core.setPolicy(st, a.id, "work"); });
+  var m0 = st.company.money;
+  var r = Core.catchUp(st, 1 + 120 * 60000);
+  eq(r.days, 120); eq(r.capped, false); eq(r.money, st.company.money - m0);
+  eq(r.levelFrom, 1); eq(r.levelTo, st.company.level);
+  assert(r.logs.length > 0 && r.logs.every(function (e) { return e.day >= 1; }), "報告只含結算期間的日誌");
+});
+
 // ==== run ====
 var fails = 0;
 tests.forEach(function (t) {

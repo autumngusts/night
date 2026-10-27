@@ -775,6 +775,31 @@
     st.artists.forEach(function (a) { if (!a.task && a.policy !== "idle") autoOne(st, a); });
   }
 
+  // ==== 離線結算（§2） ====
+  function catchUp(st, now) {
+    if (!st.lastTickAt) { st.lastTickAt = now; return null; }
+    var elapsed = now - st.lastTickAt;
+    if (elapsed < BAL.dayMs) return null;
+    var days = Math.floor(elapsed / BAL.dayMs), capped = false;
+    if (days > BAL.offlineCapDays) {
+      days = BAL.offlineCapDays; capped = true;
+      st.lastTickAt = now - (elapsed % BAL.dayMs);
+    } else st.lastTickAt += days * BAL.dayMs;
+    var before = { money: st.company.money, tickets: st.company.tickets, rep: st.company.rep, level: st.company.level, seq: st.logSeq };
+    advance(st, days);
+    return {
+      days: days, capped: capped,
+      money: st.company.money - before.money, tickets: st.company.tickets - before.tickets, rep: st.company.rep - before.rep,
+      levelFrom: before.level, levelTo: st.company.level,
+      logs: st.log.filter(function (e) { return e.seq > before.seq; })
+    };
+  }
+
+  function dayProgress(st, now) {
+    if (!st.lastTickAt) return 0;
+    return clamp((now - st.lastTickAt) / BAL.dayMs, 0, 1);
+  }
+
   // ==== exports ====
   api.VERSION = VERSION;
   api.create = create;
@@ -812,5 +837,7 @@
   api.disbandGroup = disbandGroup;
   api.setPolicy = setPolicy;
   api.setSafeLine = setSafeLine;
+  api.catchUp = catchUp;
+  api.dayProgress = dayProgress;
   root.PriTestStarvCore = api;
 })();
