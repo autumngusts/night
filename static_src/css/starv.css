@@ -522,3 +522,17 @@
 .sv-ach-list li.sv-ach-done { opacity: 1; }
 .sv-ach-icon { font-size: 1.4rem; }
 .sv-story { line-height: 1.9; white-space: pre-wrap; }
+
+/* ---- 大型企劃 ---- */
+.sv-proj-list { display: grid; gap: 0.8rem; }
+.sv-proj-card { border-color: rgba(255, 95, 168, 0.4); }
+.sv-proj-locked { opacity: 0.55; }
+.sv-proj-stages { margin: 0.5rem 0; padding-left: 1.4rem; line-height: 1.7; }
+.sv-proj-stage { padding: 0.25rem 0; }
+.sv-proj-current { color: var(--sv-gold); }
+.sv-proj-result { text-align: center; }
+.sv-proj-result .sv-report-list { text-align: left; }
+.sv-proj-result-head { font-size: 1.8em; margin: 0.4rem 0; }
+.sv-res-text-great { color: var(--sv-gold); text-shadow: 0 0 18px rgba(255, 214, 107, 0.6); }
+.sv-res-text-success { color: var(--sv-good); }
+.sv-res-text-fail { color: var(--sv-bad); }

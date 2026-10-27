@@ -37,6 +37,8 @@
     if (fx.refused && ev) out.push(t("sv_fx_refused", { name: ev.name }));
     if (fx.retired && ev) out.push(t(fx.retired.hof ? "sv_fx_retired_hof" : "sv_fx_retired", { name: ev.name }));
     if (fx.retained && ev) out.push(t("sv_fx_retained", { name: ev.name }));
+    if (fx.projectMod) out.push(t("sv_fx_projectMod", { v: signed(Math.round(fx.projectMod * 100)) }));
+    if (fx.projectDays) out.push(t("sv_fx_projectDays", { n: fx.projectDays }));
     return out;
   }
 

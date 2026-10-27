@@ -93,6 +93,10 @@
     if (x.kind === "retire" || x.kind === "hof") return t("sv_tl_" + x.kind, { name: UI.hallName(d) });
     if (x.kind === "level") return t("sv_tl_level");
     if (x.kind === "era") return t("sv_tl_era", { era: d.era });
+    if (x.kind === "project") {
+      var pj = D.PROJECT_BY_ID && D.PROJECT_BY_ID[d.project];
+      return t("sv_tl_project", { title: pj ? UI.L(pj.name) : d.project, result: t("sv_proj_result_" + d.result) });
+    }
     return x.kind;
   }
   function timelineView(st) {

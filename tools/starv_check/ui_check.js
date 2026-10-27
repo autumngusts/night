@@ -194,7 +194,7 @@ step("重新整理後從存檔繼續", async function (page) {
 });
 
 step("三種語言：各分頁沒有漏翻、手機寬度沒有水平捲動", async function (page) {
-  var tabs = ["artists", "jobs", "industry", "gacha", "hall", "company"];
+  var tabs = ["artists", "jobs", "projects", "industry", "gacha", "hall", "company"];
   var langs = ["ja", "en", "zh"];
   for (var i = 0; i < langs.length; i++) {
     await page.dispatchEvent('.lang-btn[data-lang="' + langs[i] + '"]', "click");
@@ -334,6 +334,36 @@ step("殿堂：圖鑑、成就、名人堂聘請、新紀元", async function (p
   assert.strictEqual(s.era, 2, "進入第 2 紀元");
   assert.ok(s.hall.some(function (h) { return h.id === "h_ui"; }), "名人堂保留");
   await noRawKeys(page, "新紀元之後");
+});
+
+step("企劃：開始 → 派遣 → 完成結算", async function (page) {
+  await page.evaluate(function () {
+    window.PriTestStarv.app.act(function (s) {
+      s.company.level = Math.max(s.company.level, 5); s.company.money = 1e7; s.events.pending = [];
+      // 前一個步驟開了新紀元（不帶人），先補幾位藝人
+      while (s.artists.length < 5) s.artists.push(window.PriTestStarvCore._genR(s));
+      s.artists.forEach(function (a) { a.task = null; a.dir = "host"; window.PriTestStarvData.STATS.forEach(function (k) { a.stats[k] = 600; a.caps[k] = 999; }); });
+    });
+  });
+  await tab(page, "projects");
+  await noRawKeys(page, "企劃分頁");
+  await act(page, "proj-start-own_variety");
+  for (var stage = 0; stage < 3; stage++) {
+    await clearEvents(page);
+    await page.waitForSelector(".sv-proj-pick input[data-aid]");
+    var ids = await page.$$eval(".sv-proj-pick input[data-aid]", function (xs) { return xs.map(function (x) { return x.getAttribute("data-aid"); }); });
+    var need = await page.evaluate(function () { var s = window.PriTestStarv.state(); return window.PriTestStarvData.PROJECT_BY_ID[s.project.id].stages[s.project.stage].slots[0]; });
+    for (var i = 0; i < need; i++) await page.check('.sv-proj-pick input[data-aid="' + ids[i] + '"]');
+    await act(page, "proj-assign");
+    await noRawKeys(page, "企劃進行中");
+    await page.evaluate(function () { window.PriTestStarv.app.skip(30); });
+  }
+  await clearEvents(page);
+  await page.waitForSelector(".sv-proj-result");
+  await noRawKeys(page, "企劃結算");
+  await act(page, "proj-result-close");
+  var s = await st(page);
+  assert.strictEqual(s.project, null); assert.strictEqual(s.projectQueue.length, 0); assert.strictEqual(s.stats.projects, 1);
 });
 
 // ==== 之後的 task 在這行之前追加步驟 ====

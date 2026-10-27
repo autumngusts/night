@@ -56,6 +56,13 @@
       p.name = hh ? UI.hallName(hh) : "—"; p.role = t("sv_role_" + d.role);
     } else if (e.type === "achievement") { var ac = D.ACHIEVEMENT_BY_ID && D.ACHIEVEMENT_BY_ID[d.id]; p.title = ac ? UI.L(ac.name) : d.id; }
     else if (e.type === "new_era") p.era = d.era;
+    else if (/^project_/.test(e.type)) {
+      var pj = D.PROJECT_BY_ID && D.PROJECT_BY_ID[d.project];
+      p.title = pj ? UI.L(pj.name) : String(d.project);
+      if (d.stage != null) p.n = d.stage + 1;
+      if (d.result) p.result = t(e.type === "project_done" ? "sv_proj_result_" + d.result : "sv_result_" + d.result);
+      if (d.money != null) p.pay = UI.money(d.money);
+    }
     else if (e.type === "event_new" || e.type === "event_resolved" || e.type === "event_auto") {
       var ev2 = D.EVENT_BY_ID && D.EVENT_BY_ID[d.ev];
       p.title = ev2 ? UI.L(ev2.title) : String(d.ev);
