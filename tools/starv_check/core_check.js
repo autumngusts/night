@@ -8,6 +8,8 @@ require("../../static_src/starv_roster.js");
 require("../../static_src/starv_roster_1.js");
 var D = global.PriTestStarvData;
 var Roster = global.PriTestStarvRoster;
+require("../../static_src/starv_core.js");
+var Core = global.PriTestStarvCore;
 
 var tests = [];
 function test(name, fn) { tests.push([name, fn]); }
@@ -56,6 +58,42 @@ test("名錄：重複 ID 會丟錯", function () {
   var threw = false;
   try { Roster.add([Roster.byId("sr001")]); } catch (e) { threw = true; }
   assert(threw, "重複 ID 沒有丟錯");
+});
+
+test("core：create 的初始值", function () {
+  var st = Core.create({ seed: 42, now: 1000 });
+  eq(st.version, Core.VERSION, "version");
+  eq(st.company.money, 50000, "資金"); eq(st.company.tickets, 10, "星探券");
+  eq(st.company.level, 1, "公司等級"); eq(st.facilities.dorm, 1, "宿舍");
+  eq(st.day, 0, "day"); eq(st.lastTickAt, 1000, "lastTickAt");
+  assert(Array.isArray(st.artists) && Array.isArray(st.activeJobs) && Array.isArray(st.groups), "陣列欄位");
+});
+
+test("core：亂數可重現", function () {
+  var a = Core.create({ seed: 7 }), b = Core.create({ seed: 7 });
+  for (var i = 0; i < 20; i++) eq(Core._rnd(a), Core._rnd(b), "第 " + i + " 次");
+  var x = Core._rnd(a); assert(x >= 0 && x < 1, "範圍");
+});
+
+test("core：wpick 依權重", function () {
+  var st = Core.create({ seed: 3 }), n = { a: 0, b: 0 };
+  for (var i = 0; i < 10000; i++) n[Core._wpick(st, { a: 9, b: 1 })]++;
+  assert(n.a > 8500 && n.a < 9500, "a 次數 " + n.a);
+});
+
+test("core：dateOf", function () {
+  var d = Core.dateOf(0); eq(d.year, 1); eq(d.month, 1); eq(d.day, 1);
+  d = Core.dateOf(359); eq(d.year, 1); eq(d.month, 12); eq(d.day, 30);
+  d = Core.dateOf(390); eq(d.year, 2); eq(d.month, 2); eq(d.day, 1);
+});
+
+test("core：migrate 補齊缺少的欄位", function () {
+  var st = Core.create({ seed: 1 });
+  delete st.groups; delete st.company.safeLine; delete st.gacha.pickup; st.version = 0;
+  var m = Core.migrate(JSON.parse(JSON.stringify(st)));
+  assert(Array.isArray(m.groups), "groups"); eq(m.company.safeLine, 20000, "safeLine");
+  assert(m.gacha.pickup && "SSR" in m.gacha.pickup, "pickup"); eq(m.version, Core.VERSION, "version");
+  eq(m.company.money, st.company.money, "既有值不能被覆蓋");
 });
 
 // ==== run ====
