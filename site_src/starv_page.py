@@ -12,6 +12,8 @@ from site_src.layout import page_shell
 
 STARV_SCRIPTS: tuple[str, ...] = (
     "starv_data.js",
+    "starv_events.js",
+    "starv_events_1.js",
     "starv_roster.js",
     "starv_roster_1.js",
     "starv_core.js",

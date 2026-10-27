@@ -4,6 +4,9 @@
 
 global.window = global;
 require("../../static_src/starv_data.js");
+require("../../static_src/starv_events.js");
+require("../../static_src/starv_events_1.js");
+var Events = global.PriTestStarvEvents;
 require("../../static_src/starv_roster.js");
 require("../../static_src/starv_roster_1.js");
 var D = global.PriTestStarvData;
@@ -633,6 +636,45 @@ test("存檔版本 2：舊存檔補上趨勢", function () {
   delete st.trend; st.version = 1;
   var m = Core.migrate(JSON.parse(JSON.stringify(st)));
   eq(m.version, 2); assert(m.trend && m.trend.cur.hot.length >= 2 && m.trend.next, "補上 trend");
+});
+
+test("事件資料：40 種、格式正確", function () {
+  var FX = ["money", "tickets", "rep", "loan", "sellTop", "fame", "famePct", "stress", "stamina", "satisfaction", "mood", "salaryPct",
+    "statAll", "stat", "rest", "specialJob", "leave", "moneyBySalary", "allStress", "allSatisfaction", "allSalaryPct"];
+  var TARGETS = ["none", "any", "famous", "rookie", "music", "dance", "stream", "stressed", "unhappy", "lowmood", "idle"];
+  eq(D.EVENTS.length, Events.all().length, "D.EVENTS 與登記器一致");
+  eq(Events.all().filter(function (e) { return e.addedIn === "v1"; }).length, 40, "v1 事件數");
+  var seen = {};
+  D.EVENTS.forEach(function (ev) {
+    assert(!seen[ev.id], "重複 " + ev.id); seen[ev.id] = 1;
+    assert(D.EVENT_BY_ID[ev.id] === ev, "EVENT_BY_ID");
+    assert(D.EVENT_CATS.indexOf(ev.category) >= 0, ev.id + " 分類");
+    assert(TARGETS.indexOf(ev.target) >= 0, ev.id + " target");
+    assert(ev.trigger === "random" || ev.trigger === "cond", ev.id + " trigger");
+    assert(ev.title.zh && ev.title.ja && ev.text.zh && ev.text.ja, ev.id + " 文字");
+    assert(ev.choices.length >= 2 && ev.choices.length <= 3, ev.id + " 選項數");
+    assert(ev.choices[ev.defaultChoice], ev.id + " defaultChoice");
+    ev.choices.forEach(function (c, i) {
+      assert(c.label.zh && c.label.ja && c.hint.zh && c.hint.ja, ev.id + " 選項文字 " + i);
+      assert(c.outcomes.length >= 1, ev.id + " 結果");
+      c.outcomes.forEach(function (o) {
+        assert(o.w > 0, ev.id + " 權重");
+        Object.keys(o.fx).forEach(function (k) { assert(FX.indexOf(k) >= 0, ev.id + " 不支援的 fx " + k); });
+        if (o.fx.stat) Object.keys(o.fx.stat).forEach(function (s) { assert(D.STATS.indexOf(s) >= 0, ev.id + " stat " + s); });
+      });
+    });
+  });
+  ["strike_talk", "fame_milestone", "finance_crisis", "ssr_debut"].forEach(function (id) { eq(D.EVENT_BY_ID[id].trigger, "cond", id); });
+});
+
+test("事件登記器：重複 ID 丟錯、依目標分組", function () {
+  var threw = false;
+  try { Events.add([Events.byId("charity")]); } catch (e) { threw = true; }
+  assert(threw, "重複 ID 沒有丟錯");
+  eq(Events.byId("nope"), null);
+  var famous = Events.byTarget("famous");
+  assert(famous.length > 0 && famous.every(function (e) { return e.target === "famous" && e.trigger === "random"; }), "byTarget");
+  assert(Events.byTarget("any").every(function (e) { return e.trigger === "random"; }), "條件事件不在 byTarget 裡");
 });
 
 // ==== run ====
