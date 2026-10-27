@@ -223,7 +223,7 @@ registerManfenCategory({
 ## 7. 狀態模型（新增欄位）
 
 ```js
-config: { mode: "manfen", manfenCategories: [..], windEnabled, blackSwanEnabled, ... },
+config: { mode: "manfen", windEnabled, blackSwanEnabled, minBet, ... },   // 選用類別只用於開局抽題，不存進 config
 blamerOffset: <int>,
 mfSwanDeck: [id], windDeck: [id],
 current: {
@@ -234,14 +234,23 @@ current: {
   windHolder: null | playerId,
   ratings: { [playerId]: 0 | 2 | 5 | 10 },
   revealed: { [playerId]: "paid" | "forced" },
-  requests: [{ from, to, offers: [x1, x2?], outcome: "revealed" | "refused" | "dropped" }],
-  pendingRequest: null | { from, to, offer, round: 1 | 2 },
+  requests: [{ from, to, offers: [x1, x2?], outcome: "revealed" | "refused" }],
+  // 要求者在第 1 次被拒絕後放棄加價，同樣記為 "refused"；回顧畫面不區分「拒絕兩次」與「拒絕一次後放棄加價」
+  pendingRequest: null | { from, to, offers: [x1, x2?], awaitingRaise: boolean },
   mindPaid: { [playerId]: n },           // 心理戰各人付出額（交易取消退回用）
   mindPot: n,
+  bettors: [playerId],                   // 進入下注階段時籌碼 > 0 的人
   bets: { [playerId]: { amount, predict, chipsBefore } },  // predict 為 ×10 整數
-  pot: n
+  pot: n,
+  news: []
 },
-history[i]: 上列紀錄＋{ avg10, weights, voidedPlayer, ranks, payouts, cancelled, refundMind, bonus }
+// history[i]（settle() 產生，s.lastSettlement 為同一筆的深複製）：
+//   mode: "manfen", targetId, category, name, tags, summary,
+//   blamerId, flaw, event, windCard, windHolder, ratings, revealed, requests, mindPaid, mindPot,
+//   tally: [{ playerId, rating, value, weight, voided, removed }],  // 票值修正後的值、票權、是否作廢（rumor）／被去極值（circuit）
+//   median（exhausted 時為 true）, avg10, finalPrice（＝avg10，共用畫面讀取）,
+//   pot, bets, ranks, payouts, cancelled, refundMind, bonus,
+//   startPrice／sectorFrom／gap／rumorIndex／rumorDelta（皆為 null，只為相容共用結算畫面）, news: []
 // refundMind：非交易取消、且沒有人押注而退回 mindPot 時為 true（見 §9）
 ```
 
@@ -272,11 +281,11 @@ history[i]: 上列紀錄＋{ avg10, weights, voidedPlayer, ranks, payouts, cance
 
 ## 9. 錯誤處理與邊界
 
-- 評分不是 0／2／5／10，或帶風向者選了方向外的分數 → `ts_mf_err_rating`。
+- 評分不是 0／2／5／10，或帶風向者選了方向外的分數 → `ts_err_mf_rating`。
 - 亮牌開價低於下限或超過要求者籌碼、對已亮牌者發起、本題已發起過、已有進行中的要求 → 對應錯誤 key，不改 state。
 - 目標籌碼不足時「拒絕」按鈕停用。
 - 心理戰中有進行中的要求時不能結束心理戰。
-- 預測值不是 0～上限的整數（×10）→ 停用確定鈕。
+- 預測值不是 0～上限的整數（×10）→ 按下確定後才顯示 `ts_err_mf_predict_range`（不停用確定鈕），不改 state。
 - 沒有人押注（全員籌碼 0）→ 本題照常公布平均，彩池 0（`mindPot` 另依下一條退回）；全員籌碼皆 0 時直接整局結算（同經典）。
 - 沒有人押注（`bets` 合計 0）時，`mindPot` 依 `mindPaid` 全數退回，避免籌碼消失（`history.refundMind = true`）。黑天鵝「交易取消」生效（`cancelled = true`）時以交易取消為準，`mindPot` 照 §5 C 類退回，`refundMind` 為 `false`；也就是 `refundMind` 只在非交易取消、且無人押注時為 `true`。
 - 題目池不足 → 抽完為止並提示。
