@@ -2,7 +2,8 @@
 // 黃牌 Yellow Card 連線房間補強檢查（2026-10-27）：Firebase emulator 上 3 個瀏覽器（房主 A＋B＋旁觀的 C）
 //   大廳座位的英雄等級／出發遺物要帶進對局（原本同步時被丟掉）
 //   → 房內聊天雙向收到 → 連線每日挑戰（英雄依當天固定、和本機同一局）
-//   → 催促（被催的人看到提示）→ B 離開後，沒有英雄的 C 接手 B 的英雄
+//   → 催促（被催的人看到提示）→ 第二局（上一局流水號很大）也有敵人回合重播 → 房主斷線時的排隊寫入不能蓋掉新房主的狀態
+//   → B 離開後，沒有英雄的 C 接手 B 的英雄 → 每日挑戰成績每台裝置都有記
 // 前置：同 net_check.js（generate、http.server 8945、emulator database＋auth）
 // 執行：node tools/yellow_check/net2_check.js
 // ============================================================================
@@ -68,8 +69,19 @@ async function waitFor(page, fn, arg, what, ms) {
   assert.ok(await A.evaluate(function () { return Array.prototype.some.call(document.querySelectorAll(".yc-toast"), function (x) { return x.textContent.indexOf("哈囉大家") >= 0; }); }), "A 看到浮出的訊息");
   await A.evaluate(function () { var b = Array.prototype.filter.call(document.querySelectorAll(".yc-chat-quick button"), function (x) { return x.textContent === window.I18N.t("yc_q_ok"); })[0]; b.click(); });
   await waitFor(B, function () { return window.PriTestYellow.room().chats.some(function (m) { return m.t === window.I18N.t("yc_q_ok"); }); }, null, "B 收到快速短句");
+  // 聊天框打字中，別人的操作也要更新畫面，而且輸入框的焦點與內容留著（2026-10-27 修正：原本聊天框有焦點時整個畫面停住）
+  await B.focus(".yc-chat-input");
+  await B.keyboard.type("打到一半");
+  var openBefore = await B.evaluate(function () { return document.querySelectorAll(".yc-dest-open").length; });
+  await A.evaluate(function () { window.PriTestYellow.room().send({ t: "dest", s: 0, i: 0 }); });
+  await waitFor(B, function (n) { return document.querySelectorAll(".yc-dest-open").length < n; }, openBefore, "B 打字中畫面也更新");
+  var keep = await B.evaluate(function () { var e = document.activeElement; return { focus: !!(e && e.classList.contains("yc-chat-input")), v: e && e.value }; });
+  assert.ok(keep.focus && keep.v === "打到一半", "重畫後聊天框的焦點與內容要留著：" + JSON.stringify(keep));
 
   // ---- 3. 連線每日挑戰：英雄依當天固定，和本機同人數的開局是同一局 ----
+  // 第一局的紀錄流水號墊高（實際玩過一局就會這麼大），第二局才測得出「沿用上一局的已讀流水號」
+  await A.evaluate(function () { var r = window.PriTestYellow.room(); r.game.logSeq = 5000; r.republish(); });
+  await waitFor(B, function () { return window.PriTestYellow.state().logSeq === 5000; }, null, "B 收到第一局的流水號");
   await A.evaluate(function () { window.PriTestYellow.room().backToLobby(); });
   await waitFor(B, function () { var r = window.PriTestYellow.room(); return r.meta.status === "lobby"; }, null, "回到大廳");
   await B.evaluate(function () { window.PriTestYellow.room().setOpts({ daily: true }); });
@@ -93,24 +105,65 @@ async function waitFor(page, fn, arg, what, ms) {
   await A.evaluate(function (c) { window.PriTestYellow.room().nudge(c); }, cb);
   await waitFor(B, function () { return !!document.querySelector(".yc-toast-nudge"); }, null, "B 看到被催促");
 
-  // ---- 5. 換裝置接回：B 離開，沒有英雄的 C 接手 B 的英雄 ----
+  // ---- 5. 同一個房間的第二局也要有敵人回合重播（2026-10-27 修正：原本沿用上一局的已讀流水號）----
+  var heroes2 = (await game(A)).heroes.filter(Boolean);
+  for (var hh of heroes2) await (hh.ctrl === ca ? A : B).evaluate(function (s) { window.PriTestYellow.room().send({ t: "dest", s: s, i: 0 }); }, hh.seat);
+  for (var p3 of [A, B]) await waitFor(p3, function () { var g = window.PriTestYellow.state(); return g && g.phase === "battle"; }, null, "第二局進入戰鬥");
+  await B.waitForTimeout(3000);
+  await B.evaluate(function () { window.__sawReplay = false; setInterval(function () { if (window.PriTestYellow.replaying()) window.__sawReplay = true; }, 50); });
+  for (var hh2 of heroes2) await (hh2.ctrl === ca ? A : B).evaluate(function (s) { window.PriTestYellow.room().send({ t: "end", s: s }); }, hh2.seat);
+  await waitFor(B, function () { return window.__sawReplay; }, null, "第二局的敵人回合有重播");
+  for (var p4 of [A, B]) await waitFor(p4, function () { return !window.PriTestYellow.replaying(); }, null, "重播結束", 30000);
+
+  // ---- 6. 房主斷線時還在操作：重新連上後，舊房主排隊的寫入不能蓋掉新房主的狀態 ----
+  var st6 = await game(A);
+  if (st6.phase === "battle") {
+    var aSeat = st6.heroes.filter(Boolean).filter(function (h) { return h.ctrl === ca; })[0].seat;
+    var bSeat6 = st6.heroes.filter(Boolean).filter(function (h) { return h.ctrl === cb; })[0].seat;
+    await A.evaluate(function () { window.firebase.database().goOffline(); });
+    await waitFor(B, function (c) { var r = window.PriTestYellow.room(); return r.meta && r.meta.host === c; }, cb, "B 接手房主", 30000);
+    // A 不知道自己斷線了，還在操作（Firebase 會把寫入排隊）
+    await A.evaluate(function (s) { window.PriTestYellow.room().send({ t: "end", s: s }); }, aSeat);
+    // 新房主 B 也操作一次
+    await B.evaluate(function (s) { window.PriTestYellow.room().send({ t: "end", s: s }); }, bSeat6);
+    await waitFor(C, function (s) { var g = window.PriTestYellow.state(); return g && g.heroes[s].done; }, bSeat6, "C 收到新房主的狀態");
+    await A.evaluate(function () { window.firebase.database().goOnline(); });
+    await A.waitForTimeout(4000);
+    var after6 = await C.evaluate(function (x) { var g = window.PriTestYellow.state(); return { a: g.heroes[x.a].done, b: g.heroes[x.b].done }; }, { a: aSeat, b: bSeat6 });
+    assert.ok(after6.b && !after6.a, "舊房主斷線時的操作不能蓋掉新房主的狀態：" + JSON.stringify(after6));
+    await waitFor(A, function (x) { var g = window.PriTestYellow.state(); return g && g.heroes[x.b].done && !g.heroes[x.a].done; }, { a: aSeat, b: bSeat6 }, "A 重新連上後跟上新房主的狀態");
+  } else console.log("（第二局第一回合就結束了，略過斷線檢查）");
+
+  // ---- 7. 換裝置接回：B 離開，沒有英雄的 C 接手 B 的英雄 ----
   var bSeat = (await game(A)).heroes.filter(Boolean).filter(function (h) { return h.ctrl === cb; })[0].seat;
   assert.strictEqual(await C.evaluate(function (s) { return window.PriTestYellow.room().canClaim(s); }, bSeat), false, "B 還在線時不能接手");
   await B.ctx.close();
   await waitFor(C, function (c) { return !window.PriTestYellow.room().online[c]; }, cb, "C 看到 B 離線", 30000);
-  await waitFor(C, function (s) { return window.PriTestYellow.room().canClaim(s); }, bSeat, "C 可以接手 B 的英雄");
+  await waitFor(C, function (s) { return window.PriTestYellow.room().canClaim(s); }, bSeat, "C 可以接手 B 的英雄", 30000);
   // 畫面：切到 B 的英雄分頁，按「接手這位英雄」
-  await C.evaluate(function (s) {
+  var clicked = await C.evaluate(function (s) {
     var hs = window.PriTestYellowCore.heroes(window.PriTestYellow.state());
-    var idx = hs.map(function (h) { return h.seat; }).indexOf(s);
-    // 地圖階段沒有分頁：直接送出（跟按鈕同一條路徑）
-    if (!document.querySelectorAll(".yc-tab").length) { window.PriTestYellow.room().send({ t: "claim", s: s }); return; }
-    document.querySelectorAll(".yc-tab")[idx].click();
+    var tabs = document.querySelectorAll(".yc-tab");
+    if (!tabs.length) { window.PriTestYellow.room().send({ t: "claim", s: s }); return false; }
+    tabs[hs.map(function (h) { return h.seat; }).indexOf(s)].click();
+    return true;
   }, bSeat);
+  if (clicked) {
+    await C.waitForTimeout(300);
+    await C.evaluate(function () {
+      var b = Array.prototype.filter.call(document.querySelectorAll("button"), function (x) { return x.textContent.trim() === window.I18N.t("yc_claim"); })[0];
+      b.click();
+    });
+  }
   var cc = await cidOf(C);
   await waitFor(A, function (x) { var h = window.PriTestYellow.state().heroes[x.s]; return h && h.ctrl === x.c && h.owner === x.c; }, { s: bSeat, c: cc }, "C 接手 B 的英雄");
-  // A 自己已經有英雄，不能再接手
   assert.strictEqual(await A.evaluate(function (s) { return window.PriTestYellow.room().canClaim(s); }, bSeat), false, "已經有英雄的人不能接手");
+
+  // ---- 8. 連線每日挑戰的成績：每台裝置都要記（2026-10-27 修正：原本房主畫面改的旗標跟著狀態傳出去，其他人不記）----
+  await waitFor(A, function () { return window.PriTestYellow.room().isHost(); }, null, "A 再接手房主", 30000);
+  await A.evaluate(function () { var r = window.PriTestYellow.room(); r.game.phase = "lose"; r.republish(); });
+  for (var p5 of [A, C]) await waitFor(p5, function (d) { var rec = JSON.parse(localStorage.getItem("pritest-yellow-daily") || "{}"); return !!(rec[d] && rec[d][2]); }, DAY, "每日挑戰成績有記錄");
+  assert.ok(await C.evaluate(function () { return !!document.querySelector(".yc-daily-share"); }), "非房主也看得到分享文字");
 
   await browser.close();
   var errs = A.errors.concat(C.errors).concat(B.errors.filter(function (x) { return !/Target page|closed/.test(x); }));

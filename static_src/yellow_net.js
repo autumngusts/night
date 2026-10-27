@@ -1,7 +1,7 @@
 // 黃牌 Yellow Card：連線房間（最多 4 人，各佔一個角落）。只負責 Firebase 協定；畫面在 yellow.js，規則在 yellow_core.js。
 //
 // 路徑：games/<roomId>/rtState/yc/...（沿用 game_storage.js 的 rtSet / rtSubscribe，database.rules.json 不用改）
-//   meta            { v: 1, host: cid, status: "lobby" | "play", no: 對局編號 }
+//   meta            { v: 1, host: cid, status: "lobby" | "play", no: 對局編號, ep: 房主世代（每換一次房主 +1） }
 //   on/<cid>        true（onDisconnect 自動移除＝在線）
 //   pl/<cid>        { name, at }
 //   seat/<n>        { cid, cls } | null（大廳的座位，n＝0 左上、1 右上、2 左下、3 右下；一個人可以坐好幾個位置；cid＝"ai" 是 AI 隊友）
@@ -9,7 +9,7 @@
 //   chat/<key>      { c: cid, t: 文字, at }（房內聊天，房主只留最新 CHAT_MAX 則；不進對局狀態）
 //   nudge/<cid>     { from: cid, at }（催促：寫給還沒結束回合的人；不進對局狀態）
 //   fx/<cid>        { k: "ping" | "emo", x, y, e, s, at }（戰場標記與表情；不進對局狀態，只是畫面上的溝通）
-//   st              { no, seq, json }（房主寫入的整局狀態）
+//   st              { no, seq, ep, json }（房主寫入的整局狀態；ep＝寫入者當房主時的世代，舊世代的寫入會被擋掉）
 //   in/<cid>/a<seq> 操作 JSON 字串（非房主送出；房主套用後刪除）
 //
 // 同步方式（房主為準）：回合制，所以不做預測——所有人只畫 st；
@@ -133,20 +133,27 @@
       var no = (room.meta.no || 0) + 1;
       done = {};
       set("in", null);
-      writeGame(st, no).then(function () { set("meta", { v: 1, host: cid, status: "play", no: no }); });
+      writeGame(st, no).then(function () { set("meta", { v: 1, host: cid, status: "play", no: no, ep: room.meta.ep || 0 }); });
     };
 
     room.backToLobby = function () {
       if (!room.isHost() || !room.meta) return;
-      set("meta", { v: 1, host: cid, status: "lobby", no: room.meta.no || 0 });
+      set("meta", { v: 1, host: cid, status: "lobby", no: room.meta.no || 0, ep: room.meta.ep || 0 });
     };
 
     // ---------------- 對局 ----------------
+    // 2026-10-27 修正：用交易寫入，伺服器上的世代比自己新就放棄。
+    // 原本房主網路斷掉時還能繼續操作，Firebase 把這些寫入排隊，重新連上後會蓋掉新房主已經寫好的狀態
     function writeGame(st, no) {
       room.gameSeq += 1;
       room.game = st;
       changed();
-      return set("st", { no: no, seq: room.gameSeq, json: JSON.stringify(st) });
+      var ep = (room.meta && room.meta.ep) || 0;
+      var v = { no: no, seq: room.gameSeq, ep: ep, json: JSON.stringify(st) };
+      return GS.rtTransaction(roomId, CLOUD, path("st"), function (cur) {
+        if (cur && (Number(cur.ep) || 0) > ep) return; // 已經換過房主：這筆是舊房主的，丟掉
+        return v;
+      });
     }
 
     // 送出操作：房主直接套用；其他人寫進 in/，等房主的新狀態
@@ -162,6 +169,9 @@
       set("in/" + cid + "/a" + lastSeq, JSON.stringify(action));
       return null;
     };
+
+    // 測試／除錯用：房主把手上的狀態再寫一次（net2_check 用來直接做出結束畫面）
+    room.republish = function () { if (room.isHost() && room.game && room.meta) return writeGame(room.game, room.meta.no); };
 
     // AI 隊友的操作：只有房主送（其他人呼叫沒有作用）
     room.sendAi = function (action) {
@@ -250,6 +260,7 @@
       GS.rtTransaction(roomId, CLOUD, path("meta"), function (m) {
         if (!m || m.host !== room.meta.host) return;
         m.host = cid;
+        m.ep = (Number(m.ep) || 0) + 1;
         return m;
       });
     }
@@ -312,7 +323,7 @@
       pushMe();
     }
 
-    if (creating) set("meta", { v: 1, host: cid, status: "lobby", no: 0 }).then(begin);
+    if (creating) set("meta", { v: 1, host: cid, status: "lobby", no: 0, ep: 0 }).then(begin);
     else begin();
 
     return room;

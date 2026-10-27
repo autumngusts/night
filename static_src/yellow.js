@@ -694,9 +694,14 @@
   function onRoomChange() {
     var act = document.activeElement;
     // 正在輸入名字時先不重畫（會搶走焦點）
-    if (act && act.classList && (act.classList.contains("yc-name-input") || act.classList.contains("yc-chat-input"))) { renderPending = true; return; }
+    if (act && act.classList && act.classList.contains("yc-name-input")) { renderPending = true; return; }
+    // 2026-10-27 修正：聊天框有焦點時原本整個畫面都不更新（戰場停住）；改成只在輸入法組字中延後，其他時候照常重畫再把游標放回去
+    var chatFocus = act && act.classList && act.classList.contains("yc-chat-input");
+    if (chatFocus && ui.chatComposing) { renderPending = true; return; }
+    var sel = chatFocus ? [act.selectionStart, act.selectionEnd] : null;
     renderPending = false;
     render();
+    if (sel) { var ni = app.querySelector(".yc-chat-input"); if (ni) { try { ni.focus({ preventScroll: true }); ni.setSelectionRange(sel[0], sel[1]); } catch (e) { /* 舊瀏覽器 */ } } }
   }
 
   function renderLobby() {
@@ -2193,7 +2198,10 @@
     }
     if (st.daily) {
       // 每日挑戰：同一局只記一次（重新整理也不重複記）
-      if (!st.dailyDone) { st.dailyDone = true; ui.dailyNew = saveDailyResult(st); if (mode === "local") saveLocal(); }
+      // 同一局只記一次：本機記在存檔（重新整理也不重複）；連線記在這台裝置的畫面狀態
+      // （2026-10-27 修正：原本連線也改 st，房主畫面改的會跟著 st 傳出去，其他人就不記了）
+      if (mode === "local" && !st.dailyDone) { st.dailyDone = true; ui.dailyNew = saveDailyResult(st); saveLocal(); }
+      else if (mode === "net" && ui.dailyRecKey !== ui.netGameKey) { ui.dailyRecKey = ui.netGameKey; ui.dailyNew = saveDailyResult(st); }
       var dsc = Core.dailyScore(st), dbest = (dailyRecords()[st.daily] || {})[Core.heroes(st).length];
       wrap.appendChild(el("p", { text: "📅 " + t("yc_daily_title") + " " + st.daily + " — " + dailyResultText(dsc) }));
       if (ui.dailyNew) wrap.appendChild(el("p", { class: "yc-good", text: t("yc_daily_new_best") }));
@@ -2283,6 +2291,12 @@
       app.innerHTML = "";
       app.appendChild(renderLobby());
       return;
+    }
+    // 2026-10-27：連線時換了一局（中途加入、重新整理、回大廳再開）就從這一局目前的紀錄開始算已讀，
+    // 並清掉上一局的分頁／點選／牌組視窗。原本加入時已讀是 0，第一次畫面會把最近 60 筆舊演出一口氣播出來
+    if (mode === "net") {
+      var gk = room.id + ":" + room.meta.no;
+      if (ui.netGameKey !== gk) { ui.netGameKey = gk; ui.seenLog = room.game.logSeq; ui.lastSt = null; ui.replay = null; ui.tab = null; ui.focus = null; ui.deckView = null; }
     }
     maybeStartReplay(game());
     paint();
@@ -2423,7 +2437,9 @@
     var sendIt = function () { if (!inp.value.trim()) return; room.chat(inp.value); ui.chatDraft = ""; inp.value = ""; };
     inp.addEventListener("input", function () { ui.chatDraft = inp.value; });
     inp.addEventListener("keydown", function (ev) { if (ev.key === "Enter" && !ev.isComposing) { ev.preventDefault(); sendIt(); } });
-    inp.addEventListener("blur", function () { if (renderPending) setTimeout(render, 0); });
+    inp.addEventListener("blur", function () { ui.chatComposing = false; if (renderPending) setTimeout(render, 0); });
+    inp.addEventListener("compositionstart", function () { ui.chatComposing = true; });
+    inp.addEventListener("compositionend", function () { ui.chatComposing = false; ui.chatDraft = inp.value; if (renderPending) setTimeout(onRoomChange, 0); });
     box.appendChild(el("div", { class: "yc-chat-row" }, [inp, el("button", { type: "button", text: t("yc_chat_send"), onclick: sendIt })]));
     box.appendChild(el("div", { class: "yc-chat-quick" }, CHAT_QUICK.map(function (k) {
       return el("button", { type: "button", class: "yc-small-btn", text: t(k), onclick: function () { room.chat(t(k)); } });

@@ -139,7 +139,7 @@ function act(page, a) { return page.evaluate(function (x) { return window.PriTes
         return !c.classList.contains("yc-card-off") && /護盾/.test(c.textContent) && !/隊友/.test(c.textContent);
       });
       var slot = slots[0];
-      if (!slot) return null;
+      if (!slot) return "none";
       var r = slot.getBoundingClientRect(), from = null;
       for (var fy = 0.75; fy >= 0.3 && !from; fy -= 0.15) {
         for (var fx = 0.15; fx <= 0.85; fx += 0.1) {
@@ -149,6 +149,7 @@ function act(page, a) { return page.evaluate(function (x) { return window.PriTes
       }
       return from ? { from: from, to: window.PriTestYellow.arenaToClient(50, 24) } : null;
     });
+    if (pts === "none") return null; // 手上剛好沒有自己用的護盾牌
     if (!pts) return false;
     await page.mouse.move(pts.from.x, pts.from.y);
     await page.mouse.down();
@@ -158,11 +159,16 @@ function act(page, a) { return page.evaluate(function (x) { return window.PriTes
     await waitFor(page, function (a) { var g = window.PriTestYellow.state(); return g.heroes[a[0]].hand.length < a[1] || g.phase !== "battle"; }, [seat, before.heroes[seat].hand.length], "出牌同步");
     return true;
   }
-  var played = 0;
-  if (await playSelfCard(A, 0)) played++;
-  if (await playSelfCard(B, 1)) played++;
-  if (await playSelfCard(C, 2)) played++;
-  assert.ok(played >= 2, "至少兩人能出護盾牌");
+  // 2026-10-27：舊期望「至少兩人能出護盾牌」靠運氣——祭司起手沒有自己用的護盾牌，法師 8 張裡只有 3 張屏障，
+  // 起手沒抽到時就會假失敗（review 時約一半機率）。改成：手上有自己用的護盾牌的人都要出得了，而且至少一人
+  var played = 0, tried = 0;
+  for (var ps of [[A, 0], [B, 1], [C, 2]]) {
+    var res = await playSelfCard(ps[0], ps[1]);
+    if (res === null) continue;
+    tried++;
+    if (res) played++;
+  }
+  assert.ok(tried >= 1 && played === tried, "手上有護盾牌的人都要能用畫面出牌：" + played + "/" + tried);
   var r0 = (await game(A)).round;
   for (var pe of [[A, 0], [B, 1], [C, 2]]) await act(pe[0], { t: "end", s: pe[1] });
   for (var p4 of [A, B, C]) await waitFor(p4, function (r) { var g = window.PriTestYellow.state(); return g.phase !== "battle" || g.round > r; }, r0, "敵人行動後進入下一回合", 30000);
