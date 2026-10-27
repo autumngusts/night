@@ -289,6 +289,7 @@
     tierWeight: { D: 1, C: 2, B: 4, A: 8, S: 16 }, chartBase: 25, chartFameDiv: 100, chartFameBase: 15, chartFillers: 2, chartTopRep: 50, chartTopFame: 100, chartTopRivalPower: 0.2,
     auditionTiers: ["A", "S"], interestChance: 0.3, snatchChance: 0.01, snatchInterestChance: 0.06, auditionRivalWin: 2,
     rivalCount: 5, rivalPowerStart: [80, 140], rivalPowerNew: [80, 120], rivalBankrupt: 40, rivalShockChance: 0.12,
+    rivalStoryEvery: 3, rivalStoryStages: 10,   // 宿敵劇情：同一位宿敵每競爭 3 次推出下一段，共 10 段（計畫 9）
     rivalPerfDiv: 400, rivalYearGrowth: 0.02, rivalStarJoinChance: 0.5, rivalPowerTarget: 100, rivalRevert: 0.3,
     contractDays: 1080, renewSatLine: 50, renewRaise: 0.2, renewStandard: 0.1, satWorked: 2, satIdle: -2, satStress: -3, satMood: 1,
     retireOldChance: 0.4, retireStressChance: 0.1, retireLowFameChance: 0.15, retireLowFame: 30, hofScore: 30, timelineMax: 300,

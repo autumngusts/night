@@ -10,6 +10,7 @@ require("../../static_src/starv_events_1.js");
 require("../../static_src/starv_events_2.js");
 require("../../static_src/starv_events_3.js");
 require("../../static_src/starv_events_4.js");
+require("../../static_src/starv_events_5.js");
 require("../../static_src/starv_awards_data.js");
 var Events = global.PriTestStarvEvents;
 require("../../static_src/starv_roster.js");
@@ -953,6 +954,49 @@ test("試鏡：A/S 是試鏡制、隔天公布、贏了開工輸了被搶", func
   eq(Core._genJob(st, { tier: "C" }).audition, false);
 });
 
+test("宿敵劇情：同一位宿敵競爭 3 次推出下一段，10 段依序、前一段未處理不推、最後一段後停止", function () {
+  eq(D.BAL.rivalStoryStages, 10); eq(D.BAL.rivalStoryEvery, 3);
+  for (var n = 1; n <= 10; n++) {
+    var ev = D.EVENT_BY_ID["rival_story_" + n];
+    assert(ev, "第 " + n + " 段"); eq(ev.trigger, "cond");
+    assert(ev.choices[ev.defaultChoice], "第 " + n + " 段的預設選項");
+  }
+  var st = Core.create({ seed: 1 });
+  st.company.level = 6; st.board = []; st.boardRefreshDay = 99999;
+  var r = st.rivals[0];
+  r.stars = [{ rosterId: "rv001", stats: { act: 999, vocal: 999, dance: 999, talk: 999, charm: 999, sense: 999 }, fame: 5000, age: 23 }];
+  st.rivals = [r];
+  var a = freshArtist(st, { fame: 99999 }); a.prof.singer.lv = 10;
+  function contest() {
+    var j = soloJob(st, { tier: "A", audition: true, minFame: 1500, minProf: 5, days: 1 });
+    eq(Core.takeJob(st, j.id, [a.id]), null);
+    Core.advance(st, 1);
+    a.task = null;
+  }
+  function pending(id) { return st.events.pending.filter(function (e) { return e.id === id; })[0]; }
+  contest(); contest();
+  eq(st.rivalStory.stage, 0, "2 次還不觸發");
+  contest();
+  eq(st.rivalStory.stage, 1, "第 3 次觸發第 1 段");
+  var e = pending("rival_story_1");
+  assert(e, "推出第 1 段"); eq(e.ctx.star, "rv001"); eq(e.ctx.rival, r.id); eq(e.aid, a.id);
+  contest(); contest(); contest();
+  eq(st.rivalStory.stage, 1, "前一段還沒處理就不推下一段");
+  Core.resolveEvent(st, e.uid, D.EVENT_BY_ID.rival_story_1.defaultChoice);
+  contest(); contest(); contest();
+  eq(st.rivalStory.stage, 2); assert(pending("rival_story_2"), "推出第 2 段");
+  st.events.pending = [];
+  st.rivalStory.stage = 9;
+  contest(); contest(); contest();
+  eq(st.rivalStory.stage, 10); assert(pending("rival_story_10"), "推出第 10 段");
+  st.events.pending = [];
+  contest(); contest(); contest();
+  eq(st.rivalStory.stage, 10, "最後一段之後不再推出");
+  var old = Core.create({ seed: 2 }); delete old.rivalStory; old.version = 5;
+  var m = Core.migrate(JSON.parse(JSON.stringify(old)));
+  eq(m.version, 6); eq(m.rivalStory.stage, 0, "舊存檔補上宿敵劇情");
+});
+
 test("搶工作：有興趣的工作比較容易被搶", function () {
   D.BAL.snatchChance = SNATCH[0]; D.BAL.snatchInterestChance = SNATCH[1];
   try {
@@ -1320,7 +1364,8 @@ test("企劃：分歧事件影響下一階段、放棄不退款", function () {
 test("存檔版本 5", function () {
   var st = Core.create({ seed: 1 }); st.version = 4; delete st.projectQueue;
   var m = Core.migrate(JSON.parse(JSON.stringify(st)));
-  eq(m.version, 5); assert(Array.isArray(m.projectQueue));
+  // 計畫 9 升到版本 6 後改成跟著 Core.VERSION（這個測試只關心 projectQueue 有沒有補上）
+  eq(m.version, Core.VERSION); assert(Array.isArray(m.projectQueue));
 });
 
 test("成就 v2：企劃", function () {

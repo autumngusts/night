@@ -8,7 +8,7 @@
   var D = root.PriTestStarvData;
   var Roster = root.PriTestStarvRoster;
   var BAL = D.BAL;
-  var VERSION = 5;
+  var VERSION = 6;
   // R 姓名庫擴充（計畫 9）：新的 nameSeed 從這裡起跳；小於它的舊 seed 只用第一版姓名庫（D.NAME_V1_LEN），名字不變
   var NAME_V2_BASE = 1000000;
   function newNameSeed(st) { return NAME_V2_BASE + rint(st, 0, 999999); }
@@ -63,7 +63,7 @@
       stats: { pulls: 0, jobsDone: 0, greatS: 0, chartTops: 0, trophies: 0, projects: 0, projectsGreat: 0 },
       trend: null, events: { pending: [] }, loans: [],
       rivals: [], auditions: [], charts: null, awards: { history: [], unseen: null },
-      hall: [], retireQueue: [], timeline: [], staff: [], achievements: {}, legacy: { points: 0, perks: {} }, project: null, projectQueue: [],
+      hall: [], retireQueue: [], timeline: [], staff: [], achievements: {}, legacy: { points: 0, perks: {} }, project: null, projectQueue: [], rivalStory: { stage: 0, feud: {} }, title: null,
       log: [], logSeq: 0, nextId: 1
     };
   }
@@ -101,6 +101,7 @@
     st.events.pending = st.events.pending.filter(function (e) { return !!(D.EVENT_BY_ID && D.EVENT_BY_ID[e.id]); });
     if (!st.projectQueue) st.projectQueue = [];
     if (!st.legacy) st.legacy = { points: 0, perks: {} };
+    // version 5 → 6：宿敵劇情 rivalStory、稱號 title（計畫 9），由上面的 fillDefaults 補上
     st.version = VERSION;
     return st;
   }
@@ -1255,15 +1256,32 @@
   function bestRivalFor(st, job) {
     var best = null;
     st.rivals.forEach(function (r) {
-      var score = rivalScore(st, r, difficulty(job));
+      var score = rivalScore(st, r, difficulty(job)), star = null;
       r.stars.forEach(function (s) {
         var e = Roster.byId(s.rosterId);
-        if (e && e.dir === job.dir) score = Math.max(score, rivalStarPerf(r, s, job.dir));
+        if (!e || e.dir !== job.dir) return;
+        var v = rivalStarPerf(r, s, job.dir);
+        if (v > score) { score = v; star = s.rosterId; }
       });
-      if (!best || score > best.score) best = { rival: r, score: score };
+      if (!best || score > best.score) best = { rival: r, score: score, star: star };
     });
     return best;
   }
+
+  // 宿敵劇情（規格 §9：與同一位宿敵反覆競爭觸發劇情；共 10 段，依序推出）
+  // 每位宿敵明星分開計數；滿 rivalStoryEvery 次推出下一段。前一段還在待處理時先不推（計數保留）。
+  function rivalFeud(st, r, rosterId, aid) {
+    var rs = st.rivalStory;
+    rs.feud[rosterId] = (rs.feud[rosterId] || 0) + 1;
+    if (rs.stage >= BAL.rivalStoryStages || rs.feud[rosterId] < BAL.rivalStoryEvery) return;
+    var next = "rival_story_" + (rs.stage + 1);
+    if (!D.EVENT_BY_ID || !D.EVENT_BY_ID[next]) return;
+    if (st.events.pending.some(function (e) { return /^rival_story_/.test(e.id); })) return;
+    rs.feud[rosterId] = 0;
+    rs.stage++;
+    pushEvent(st, next, aid, { rival: r.id, star: rosterId });
+  }
+
 
   function tickAuditions(st) {
     var due = [];
@@ -1283,6 +1301,7 @@
         rv.rival.power += BAL.auditionRivalWin;
         log(st, "audition_lost", data);
       }
+      if (rv && rv.star) rivalFeud(st, rv.rival, rv.star, members[0].id);
     });
   }
 
