@@ -462,6 +462,7 @@
   function advanceDay(st) {
     st.day++;
     tickArtists(st);
+    tickJobs(st);
     tickBoard(st);
   }
 
@@ -514,6 +515,170 @@
     return t.fmt[lang].replace("{a}", t.a[job.title[0]][lang]).replace("{b}", t.b[job.title[1]][lang]);
   }
 
+  // ==== 工作判定（§6.3）、組合（§6.4） ====
+  function facilityPerf(st, dir) {
+    var m = 1;
+    ["studio", "photo"].forEach(function (f) {
+      if (D.FACILITIES[f].dirs.indexOf(dir) >= 0) m *= 1 + st.facilities[f] * D.FACILITIES[f].v;
+    });
+    return m;
+  }
+
+  // 表現分（不含隨機與事件修正）
+  function perfScore(st, a, job) {
+    var w = dirById(job.dir).weights, s = 0;
+    Object.keys(w).forEach(function (k) { s += a.stats[k] * w[k]; });
+    s *= 1 + a.prof[job.dir].lv * BAL.profPerf;
+    if (a.stamina < BAL.lowStamina) s *= BAL.lowStaminaMult;
+    s *= 1 + a.mood * BAL.moodPerf;
+    return s * fxMult(a, "perf") * fxDirMult(a, job.dir) * facilityPerf(st, job.dir);
+  }
+  function difficulty(job) { return D.TIERS[job.tier].diff * D.ROLES[job.role].diff; }
+
+  function sameMembers(x, y) {
+    if (x.length !== y.length) return false;
+    for (var i = 0; i < x.length; i++) if (y.indexOf(x[i]) < 0) return false;
+    return true;
+  }
+  function groupOf(st, aids) {
+    for (var i = 0; i < st.groups.length; i++) if (sameMembers(st.groups[i].members, aids)) return st.groups[i];
+    return null;
+  }
+  function chemistry(st, aids) {
+    var g = aids.length >= 2 ? groupOf(st, aids) : null;
+    return g ? Math.min(BAL.chemistryMax, g.jobs * BAL.chemistryPerJob) : 0;
+  }
+
+  function teamPerf(st, members, job) {
+    var sum = 0;
+    members.forEach(function (a) { sum += perfScore(st, a, job); });
+    return sum / members.length * (1 + chemistry(st, members.map(function (a) { return a.id; })));
+  }
+
+  function estimate(st, aids, job) {
+    var members = aids.map(function (id) { return artistById(st, id); }).filter(Boolean);
+    if (!members.length) return { ratio: 0, label: "low" };
+    var ratio = teamPerf(st, members, job) / difficulty(job);
+    return { ratio: ratio, label: ratio >= 1.0 ? "high" : ratio >= 0.7 ? "mid" : "low" };
+  }
+
+  function eligible(st, a, job) {
+    if (!a) return "noArtist";
+    if (a.task) return "busy";
+    if (a.fame < job.minFame) return "fame";
+    if (a.prof[job.dir].lv < job.minProf) return "prof";
+    return null;
+  }
+
+  function takeJob(st, jobId, aids) {
+    var job = null, i;
+    for (i = 0; i < st.board.length; i++) if (st.board[i].id === jobId) job = st.board[i];
+    if (!job) return "noJob";
+    if (!aids || aids.length !== job.slots) return "slots";
+    for (i = 0; i < aids.length; i++) if (aids.indexOf(aids[i]) !== i) return "slots";
+    for (i = 0; i < aids.length; i++) {
+      var err = eligible(st, artistById(st, aids[i]), job);
+      if (err) return err;
+    }
+    st.board.splice(st.board.indexOf(job), 1);
+    var aj = { id: newId(st, "w"), job: job, members: aids.slice(), left: job.days, eventMod: 0 };
+    st.activeJobs.push(aj);
+    var load = D.TIERS[job.tier].load;
+    aids.forEach(function (id) {
+      artistById(st, id).task = {
+        kind: "job", ref: aj.id, days: job.days, left: job.days,
+        stamina: Math.min(BAL.jobStaminaMax, job.days * BAL.jobStaminaPerDay * load),
+        stress: Math.min(BAL.jobStressMax, job.days * BAL.jobStressPerDay * load)
+      };
+    });
+    return null;
+  }
+
+  function minorEvent(st, a, aj) {
+    if (rnd(st) >= BAL.minorEventRate * fxMult(a, "eventRate")) return;
+    var w = {};
+    D.MINOR_EVENTS.forEach(function (e) { w[e.id] = e.w * (e.bad && a.stress > 70 ? 2 : 1); });
+    var id = wpick(st, w), e = null;
+    D.MINOR_EVENTS.forEach(function (x) { if (x.id === id) e = x; });
+    var f = e.fx;
+    if (f.eventMod) aj.eventMod += f.eventMod;
+    if (f.stamina) a.stamina = clamp(a.stamina + f.stamina, 0, 100);
+    if (f.stress) a.stress = clamp(a.stress + f.stress, 0, 100);
+    if (f.mood) a.mood = clamp(a.mood + f.mood, -2, 2);
+    if (f.fame) a.fame = clamp(a.fame + f.fame, 0, 99999);
+    log(st, "minor", { aid: a.id, ev: e.id, jobId: aj.job.id });
+  }
+
+  function addRep(st, n) {
+    st.company.rep += n;
+    while (st.company.level < 10 && st.company.rep >= BAL.levelRep[st.company.level - 1]) {
+      st.company.level++;
+      st.company.tickets += st.company.level * BAL.levelTickets;
+      log(st, "level_up", { lv: st.company.level });
+    }
+  }
+
+  function resolveJob(st, aj) {
+    var job = aj.job;
+    var members = aj.members.map(function (id) { return artistById(st, id); }).filter(Boolean);
+    if (!members.length) return;
+    var perf = teamPerf(st, members, job) * (1 + aj.eventMod);
+    var ratio = perf / difficulty(job) * (BAL.randLo + rnd(st) * (BAL.randHi - BAL.randLo));
+    var shift = 0;
+    members.forEach(function (a) { shift = Math.max(shift, fxGreatShift(a, job.dir)); });
+    var res = ratio >= D.RESULTS.great.min - shift ? "great" : ratio >= D.RESULTS.success.min ? "success" :
+      ratio >= D.RESULTS.normal.min ? "normal" : "fail";
+    var R = D.RESULTS[res];
+    var payMult = 0;
+    members.forEach(function (a) { payMult += fxMult(a, "pay"); });
+    var pay = Math.round(job.pay * R.pay * payMult / members.length);
+    st.company.money += pay;
+    var stars = rint(st, R.stars[0], R.stars[1]);
+    var tierIdx = D.TIER_ORDER.indexOf(job.tier);
+    members.forEach(function (a) {
+      a.fame = clamp(a.fame + Math.round(job.fame * R.fame * fxMult(a, "fame")), 0, 99999);
+      addProf(a, job.dir, R.xp * (tierIdx + 1));
+      a.satisfaction = clamp(a.satisfaction + R.sat, 0, 100);
+      a.works.unshift({ title: job.title.slice(), dir: job.dir, tier: job.tier, role: job.role, result: res, stars: stars, day: st.day, isWork: job.isWork, pay: pay });
+      if (a.works.length > BAL.worksMax) a.works.length = BAL.worksMax;
+      a.task = null;
+      postTask(st, a);
+    });
+    var g = members.length >= 2 ? groupOf(st, aj.members) : null;
+    if (g) { g.jobs++; g.fame = Math.max(0, g.fame + Math.round(job.fame * R.fame)); }
+    if (job.isWork) st.dividends.push({ pay: job.pay, stars: stars, months: BAL.dividendMonths });
+    addRep(st, Math.round(job.rep * R.rep));
+    st.stats.jobsDone++;
+    log(st, "job_done", { aids: aj.members.slice(), dir: job.dir, tier: job.tier, title: job.title.slice(), result: res, pay: pay, stars: stars });
+  }
+
+  function tickJobs(st) {
+    var done = [];
+    st.activeJobs.forEach(function (aj) {
+      aj.members.forEach(function (id) { var a = artistById(st, id); if (a) minorEvent(st, a, aj); });
+      aj.left--;
+      if (aj.left <= 0) done.push(aj);
+    });
+    done.forEach(function (aj) {
+      st.activeJobs.splice(st.activeJobs.indexOf(aj), 1);
+      resolveJob(st, aj);
+    });
+  }
+
+  function createGroup(st, name, aids) {
+    if (!aids || aids.length < 2 || aids.length > 5) return { err: "size" };
+    for (var i = 0; i < aids.length; i++) {
+      if (!artistById(st, aids[i])) return { err: "noArtist" };
+      if (st.groups.some(function (g) { return g.members.indexOf(aids[i]) >= 0; })) return { err: "taken" };
+    }
+    var g = { id: newId(st, "g"), name: String(name || "").slice(0, 20), members: aids.slice(), jobs: 0, fame: 0, formedDay: st.day };
+    st.groups.push(g);
+    return { group: g };
+  }
+  function disbandGroup(st, gid) {
+    st.groups = st.groups.filter(function (g) { return g.id !== gid; });
+  }
+
   // ==== exports ====
   api.VERSION = VERSION;
   api.create = create;
@@ -540,5 +705,14 @@
   api.boardSize = boardSize;
   api._refreshBoard = refreshBoard;
   api._genJob = genJob;
+  api.eligible = eligible;
+  api.takeJob = takeJob;
+  api.perfScore = perfScore;
+  api.difficulty = difficulty;
+  api.estimate = estimate;
+  api.addRep = addRep;
+  api.chemistry = chemistry;
+  api.createGroup = createGroup;
+  api.disbandGroup = disbandGroup;
   root.PriTestStarvCore = api;
 })();

@@ -312,6 +312,93 @@ test("看板：作品名", function () {
   eq(Core.jobTitle(j, "zh"), "電影《午夜的列車》"); eq(Core.jobTitle(j, "ja"), "映画『真夜中の列車』");
 });
 
+function soloJob(st, over) {
+  var j = Core._genJob(st);
+  j.dir = "singer"; j.tier = "D"; j.role = "support"; j.slots = 1; j.days = 2; j.pay = 2000; j.fame = 5; j.rep = 5;
+  j.minFame = 0; j.minProf = 1; j.isWork = false;
+  Object.keys(over || {}).forEach(function (k) { j[k] = over[k]; });
+  st.board.push(j);
+  return j;
+}
+
+test("工作：接案檢查", function () {
+  var st = Core.create({ seed: 1 }), a = freshArtist(st), j = soloJob(st, { minFame: 100 });
+  eq(Core.takeJob(st, "nope", [a.id]), "noJob");
+  eq(Core.takeJob(st, j.id, []), "slots");
+  eq(Core.takeJob(st, j.id, [a.id]), "fame");
+  j.minFame = 0; j.minProf = 3; eq(Core.takeJob(st, j.id, [a.id]), "prof");
+  j.minProf = 1; eq(Core.takeJob(st, j.id, [a.id]), null);
+  assert(st.board.indexOf(j) < 0, "從看板移除"); eq(st.activeJobs.length, 1); eq(a.task.kind, "job");
+  var b = freshArtist(st), j2 = soloJob(st, { slots: 2, role: "group" });
+  eq(Core.takeJob(st, j2.id, [b.id, b.id]), "slots", "同一人不能重複");
+  eq(Core.takeJob(st, j2.id, [a.id, b.id]), "busy");
+});
+
+test("工作：結算給錢、人氣、聲望、作品紀錄", function () {
+  var st = Core.create({ seed: 1 }), a = freshArtist(st), j = soloJob(st);
+  D.STATS.forEach(function (s) { a.stats[s] = 300; });
+  var m0 = st.company.money;
+  Core.takeJob(st, j.id, [a.id]);
+  Core.advance(st, 1); eq(st.activeJobs.length, 1, "第 1 天未結束");
+  Core.advance(st, 1);
+  eq(st.activeJobs.length, 0); eq(a.task, null);
+  eq(a.works.length, 1); eq(a.works[0].result, "great", "表現 300 對難度 60 必定大成功");
+  eq(st.company.money, m0 + 3000, "2000 × 1.5");
+  assert(a.fame >= 7, "人氣"); assert(st.company.rep >= 7, "聲望"); eq(st.stats.jobsDone, 1);
+  eq(a.prof.singer.xp, 3, "熟練度經驗 3 × (D 序號 0 + 1)");
+});
+
+test("工作：低能力失敗、人氣下降不會變負", function () {
+  var st = Core.create({ seed: 1 }), a = freshArtist(st), j = soloJob(st, { tier: "C", role: "lead" });
+  D.STATS.forEach(function (s) { a.stats[s] = 10; });
+  Core.takeJob(st, j.id, [a.id]); Core.advance(st, 2);
+  eq(a.works[0].result, "fail"); assert(a.fame >= 0, "人氣");
+});
+
+test("工作：預估與作品型分紅", function () {
+  var st = Core.create({ seed: 1 }), a = freshArtist(st), j = soloJob(st, { isWork: true });
+  var e = Core.estimate(st, [a.id], j);
+  assert(Math.abs(e.ratio - Core.perfScore(st, a, j) / Core.difficulty(j)) < 1e-9, "ratio");
+  eq(Core.difficulty(j), 60);
+  Core.takeJob(st, j.id, [a.id]); Core.advance(st, 2);
+  eq(st.dividends.length, 1); eq(st.dividends[0].months, 3);
+});
+
+test("工作：聲望升級給星探券", function () {
+  var st = Core.create({ seed: 1 }), t0 = st.company.tickets;
+  Core.addRep(st, 1600);
+  eq(st.company.level, 3, "500、1500 兩個門檻"); eq(st.company.tickets, t0 + 2 * 2 + 3 * 2);
+});
+
+test("組合：默契與團體工作", function () {
+  var st = Core.create({ seed: 1 }), a = freshArtist(st), b = freshArtist(st), c = freshArtist(st);
+  eq(Core.createGroup(st, "X", [a.id]).err, "size");
+  var g = Core.createGroup(st, "星光", [a.id, b.id]).group;
+  eq(Core.createGroup(st, "Y", [b.id, c.id]).err, "taken");
+  eq(Core.chemistry(st, [a.id, b.id]), 0);
+  g.jobs = 4; assert(Math.abs(Core.chemistry(st, [b.id, a.id]) - 0.08) < 1e-9, "成員順序不影響");
+  eq(Core.chemistry(st, [a.id, c.id]), 0, "不是同一組");
+  g.jobs = 50; eq(Core.chemistry(st, [a.id, b.id]), 0.2, "上限");
+  g.jobs = 0;
+  // 能力墊高，避免小事件的負修正讓結果變成失敗（失敗時人氣增量為負，組合人氣會停在 0）
+  D.STATS.forEach(function (s) { a.stats[s] = 200; b.stats[s] = 200; });
+  var j = soloJob(st, { dir: "idol", role: "group", slots: 2 });
+  Core.takeJob(st, j.id, [a.id, b.id]); Core.advance(st, 2);
+  eq(g.jobs, 1); assert(g.fame > 0, "組合人氣");
+  Core.disbandGroup(st, g.id); eq(st.groups.length, 0);
+});
+
+test("工作：小事件會發生並寫入日誌", function () {
+  var st = Core.create({ seed: 21 }), n = 0;
+  for (var i = 0; i < 30; i++) {
+    var a = freshArtist(st), j = soloJob(st, { days: 10 });
+    Core.takeJob(st, j.id, [a.id]);
+  }
+  Core.advance(st, 10);
+  st.log.forEach(function (e) { if (e.type === "minor") n++; });
+  assert(n >= 5 && n <= 60, "小事件次數 " + n + "（期望約 24）");
+});
+
 // ==== run ====
 var fails = 0;
 tests.forEach(function (t) {
