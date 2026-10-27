@@ -1,0 +1,111 @@
+// 明星經紀 starV 的平衡模擬與抽卡統計（node 直接跑）：
+//   node tools/starv_check/sim.js [年數，預設 30]
+// 不變量（數值必須是有限數、範圍正確、保底不超過 150）違反時 exit 1；
+// 平衡指標（升級速度、資金走向）超出預期只印 WARN，供調整 starv_data.js 的 BAL 時參考。
+"use strict";
+
+global.window = global;
+require("../../static_src/starv_data.js");
+require("../../static_src/starv_roster.js");
+require("../../static_src/starv_roster_1.js");
+require("../../static_src/starv_core.js");
+var D = global.PriTestStarvData;
+var Core = global.PriTestStarvCore;
+
+var YEARS = Number(process.argv[2]) || 30;
+var errors = 0;
+
+function fail(msg) { errors++; console.log("ERROR " + msg); }
+function warn(msg) { console.log("WARN  " + msg); }
+
+function checkState(st, tag) {
+  ["money", "tickets", "rep", "level"].forEach(function (k) { if (!isFinite(st.company[k])) fail(tag + " company." + k + " 不是有限數"); });
+  if (st.artists.length > Core.capacity(st)) fail(tag + " 藝人數超過宿舍上限");
+  st.artists.forEach(function (a) {
+    D.STATS.forEach(function (s) {
+      if (!isFinite(a.stats[s]) || a.stats[s] < 0 || a.stats[s] > a.caps[s]) fail(tag + " " + a.id + "." + s + " = " + a.stats[s]);
+    });
+    if (a.stamina < 0 || a.stamina > 100 || a.stress < 0 || a.stress > 100) fail(tag + " " + a.id + " 體力／壓力超出範圍");
+    if (!isFinite(a.fame) || a.fame < 0) fail(tag + " " + a.id + " 人氣異常");
+  });
+}
+
+// 積極經營：空檔藝人手動接「預估比率 ≥ 0.9」中酬勞最高的工作（含 A/S）
+function activeAssign(st) {
+  st.artists.forEach(function (a) {
+    if (a.task || a.stamina < 45 || a.stress > 60) return;
+    var best = null, bestPay = 0;
+    st.board.forEach(function (j) {
+      if (j.slots !== 1 || Core.eligible(st, a, j)) return;
+      if (Core.estimate(st, [a.id], j).ratio < 0.9) return;
+      if (j.pay > bestPay) { bestPay = j.pay; best = j; }
+    });
+    if (best) Core.takeJob(st, best.id, [a.id]);
+  });
+}
+
+function runScenario(name, seed) {
+  var st = Core.create({ seed: seed });
+  Core.pull(st, "ticket", 10);
+  var rows = [];
+  for (var day = 1; day <= YEARS * 360; day++) {
+    if (name !== "idle" && day % 30 === 1) {
+      while (st.company.money > 150000 && st.artists.length < Core.capacity(st)) {
+        if (Core.pull(st, "money", 1).err) break;
+      }
+      if (st.company.tickets >= 10) Core.pull(st, "ticket", 10);
+      st.artists.forEach(function (a) { if (a.policy === "idle") Core.setPolicy(st, a.id, name === "active" ? "work" : "balance"); });
+    }
+    if (name === "active") activeAssign(st);
+    Core.advance(st, 1);
+    if (day % 360 === 0) {
+      checkState(st, name + " Y" + (day / 360));
+      if ((day / 360) % 5 === 0 || day === 360) {
+        var avg = 0;
+        st.artists.forEach(function (a) { D.STATS.forEach(function (s) { avg += a.stats[s]; }); });
+        avg = st.artists.length ? Math.round(avg / st.artists.length / 6) : 0;
+        rows.push({ year: day / 360, money: Math.round(st.company.money), level: st.company.level, artists: st.artists.length, avgStat: avg, jobs: st.stats.jobsDone });
+      }
+    }
+  }
+  console.log("\n== 情境 " + name + "（seed " + seed + "）==");
+  console.table(rows);
+  return { st: st, rows: rows };
+}
+
+var idle = runScenario("idle", 101);
+var auto = runScenario("auto", 202);
+var active = runScenario("active", 303);
+
+// 平衡期望（只警告）：放置不該升級太快；積極經營第 1 年不該升滿，30 年內應該達到 Lv5 以上
+if (idle.st.company.level > 3) warn("無操作放置的公司等級 " + idle.st.company.level + "（預期 ≤ 3）");
+if (active.rows[0].level >= 10) warn("積極經營第 1 年就升滿 Lv10");
+if (YEARS >= 30 && active.st.company.level < 5) warn("積極經營 30 年只到 Lv" + active.st.company.level + "（預期 ≥ 5）");
+if (auto.st.company.money < -500000) warn("自動方針全開的資金 " + auto.st.company.money + "（可能入不敷出）");
+
+// 抽卡統計：100 萬次，含保底
+(function gachaStats() {
+  ["money", "ticket"].forEach(function (pool) {
+    var st = Core.create({ seed: 999 }), n = { R: 0, SR: 0, SSR: 0 }, gap = 0, maxGap = 0, N = 1000000;
+    for (var i = 0; i < N; i++) {
+      var r = Core._rollRarity(st, pool);
+      n[r]++;
+      gap = r === "SSR" ? 0 : gap + 1;
+      if (gap > maxGap) maxGap = gap;
+    }
+    var base = D.BAL.poolRates[pool];
+    var sr = n.SR / N, ssr = n.SSR / N;
+    // 含保底的 SSR 理論機率 ＝ 1 / 期望間隔；期望間隔 ＝ Σ_{k=0}^{pity-1} (1-p)^k
+    // （一般試鏡 p=0.5% 時約 0.945%，星探券 p=3% 時約 3.0%）
+    var expGap = 0;
+    for (var k = 0; k < D.BAL.pityMax; k++) expGap += Math.pow(1 - base.SSR, k);
+    var ssrExp = 1 / expGap;
+    console.log("\n== 抽卡 " + pool + " ==  SR " + (sr * 100).toFixed(3) + "%  SSR " + (ssr * 100).toFixed(3) + "%（理論 " + (ssrExp * 100).toFixed(3) + "%）  最長未出 SSR " + maxGap);
+    if (Math.abs(sr - base.SR) > 0.002) fail(pool + " SR 機率 " + sr + " 偏離 " + base.SR);
+    if (Math.abs(ssr - ssrExp) > ssrExp * 0.1) fail(pool + " SSR 機率 " + ssr + " 偏離理論值 " + ssrExp);
+    if (maxGap >= D.BAL.pityMax) fail(pool + " 保底失效：連續 " + maxGap + " 抽沒有 SSR");
+  });
+})();
+
+console.log(errors ? "\n" + errors + " 個錯誤" : "\n不變量全部通過");
+process.exit(errors ? 1 : 0);
