@@ -476,3 +476,9 @@
 .sv-fac { flex-wrap: wrap; }
 .sv-fac > .sv-grow { flex: 1 1 12rem; }
 .sv-fac > .sv-btn { white-space: nowrap; margin-left: auto; }
+
+/* ---- 試鏡與對手標示 ---- */
+.sv-job-tags { margin-top: 0.25rem; }
+.sv-chip-audition { border-color: var(--sv-gold); color: var(--sv-gold); font-size: 0.72em; }
+.sv-chip-interest { border-color: var(--sv-bad); color: #ffb3c0; font-size: 0.72em; }
+.sv-chip-reserved { border-color: var(--sv-pink); color: var(--sv-pink); font-size: 0.72em; }

@@ -253,6 +253,19 @@ step("業界：本季趨勢與傳聞", async function (page) {
   assert.ok(await page.$(".sv-trend-rumor"), "下季傳聞");
 });
 
+step("工作：試鏡制與對手有興趣的標示", async function (page) {
+  await page.evaluate(function () {
+    window.PriTestStarv.app.act(function (s) {
+      var C = window.PriTestStarvCore;
+      var j = C._genJob(s, { tier: "C" }); j.audition = true; j.interest = s.rivals[0].id; s.board.unshift(j);
+    });
+  });
+  await tab(page, "jobs");
+  await page.waitForSelector(".sv-chip-audition");
+  await page.waitForSelector(".sv-chip-interest");
+  await noRawKeys(page, "試鏡標示");
+});
+
 // ==== 之後的 task 在這行之前追加步驟 ====
 
 (async function main() {

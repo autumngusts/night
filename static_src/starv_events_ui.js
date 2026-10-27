@@ -32,11 +32,13 @@
     if (fx.allStress) out.push(t("sv_fx_allStress", { v: signed(fx.allStress) }));
     if (fx.allSatisfaction) out.push(t("sv_fx_allSatisfaction", { v: signed(fx.allSatisfaction) }));
     if (fx.allSalaryPct) out.push(t("sv_fx_allSalaryPct", { v: signed(Math.round(fx.allSalaryPct * 100)) }));
+    if (fx.rivalPower) out.push(t("sv_fx_rivalPower", { rival: UI.rivalName(st, fx.rival), v: signed(fx.rivalPower) }));
     return out;
   }
 
   function fill(text, vars) {
-    return text.replace(/\{name\}/g, vars.name).replace(/\{n\}/g, vars.n == null ? "" : UI.num(vars.n));
+    return text.replace(/\{name\}/g, vars.name).replace(/\{n\}/g, vars.n == null ? "" : UI.num(vars.n))
+      .replace(/\{rival\}/g, vars.rival || "").replace(/\{star\}/g, vars.star || "");
   }
 
   function open(App, uid) {
@@ -55,7 +57,9 @@
         a ? UI.avatar(a, 40) : null,
         el("b", { text: a ? name : (ev.target === "none" ? t("sv_ev_company") : name) })
       ]));
-      box.appendChild(el("p", { class: "sv-ev-text", text: fill(UI.L(ev.text), { name: name, n: (e || result).ctx.n }) }));
+      var ctx = (e || result).ctx;
+      var starName = ctx.star ? Core.rivalStarName({ rosterId: ctx.star }, UI.lang()) : "";
+      box.appendChild(el("p", { class: "sv-ev-text", text: fill(UI.L(ev.text), { name: name, n: ctx.n, rival: ctx.rival ? UI.rivalName(st, ctx.rival) : "", star: starName }) }));
       if (result) {
         var lines = fxLines(st, result.fx, { name: name });
         box.appendChild(el("div", { class: "sv-ev-result" + (result.bad ? " sv-ev-bad" : "") }, [

@@ -39,6 +39,11 @@
   function dirName(id) { var d = D.DIR_BY_ID[id]; return d ? L(d.name) : String(id); }
   function dirIcon(id) { var d = D.DIR_BY_ID[id]; return d ? d.icon : "?"; }
   function statName(s) { return L(D.STAT_NAMES[s]); }
+  function rivalName(st, id) {
+    var r = id ? Core.rivalById(st, id) : null;
+    return r ? Core.rivalName(r, lang()) : t("sv_rival_gone");
+  }
+
   function courseName(id) {
     var c = D.COURSE_BY_ID[id];
     return c ? t("sv_course_" + c.level, { stat: statName(c.stat) }) : String(id);
@@ -133,7 +138,7 @@
 
   window.PriTestStarvUI = {
     t: t, lang: lang, L: L, el: el, num: num, money: money, dateText: dateText, name: name,
-    dirName: dirName, dirIcon: dirIcon, statName: statName, courseName: courseName,
+    dirName: dirName, dirIcon: dirIcon, statName: statName, courseName: courseName, rivalName: rivalName,
     avatar: avatar, rarity: rarity, bar: bar, btn: btn, select: select,
     openModal: openModal, closeModal: closeModal, refreshModal: refreshModal, modalHead: modalHead, toast: toast,
     register: register, views: function () { return views.slice(); },

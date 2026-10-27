@@ -31,7 +31,12 @@
         el("div", { class: "sv-job-pay", text: UI.money(job.pay) }),
         el("div", { class: "sv-small sv-muted", text: t("sv_job_req", { fame: UI.num(job.minFame), prof: job.minProf }) +
           (job.expires != null ? "・" + t("sv_job_expires", { n: job.expires - st.day }) : "") }),
-        job.isWork ? el("span", { class: "sv-chip sv-chip-work", text: t("sv_job_work") }) : null
+        el("div", { class: "sv-chips sv-job-tags" }, [
+          job.isWork ? el("span", { class: "sv-chip sv-chip-work", text: t("sv_job_work") }) : null,
+          job.audition ? el("span", { class: "sv-chip sv-chip-audition", text: t("sv_job_audition") }) : null,
+          job.reservedFor ? el("span", { class: "sv-chip sv-chip-reserved", text: t("sv_job_reserved") }) : null,
+          job.interest ? el("span", { class: "sv-chip sv-chip-interest", text: t("sv_job_interest", { rival: UI.rivalName(st, job.interest) }) }) : null
+        ])
       ])
     ]);
   }
@@ -78,7 +83,7 @@
       var team = ready && job.slots > 1 ? Core.estimate(st, sel, job) : null;
       box.appendChild(el("div", { class: "sv-row sv-row-end" }, [
         team ? el("span", { class: "sv-est sv-est-" + team.label, text: t("sv_cast_team", { label: t("sv_est_" + team.label) }) }) : null,
-        UI.btn(t("sv_cast_sign"), function () {
+        UI.btn(t(job.audition ? "sv_cast_audition" : "sv_cast_sign"), function () {
           var name = title(job);
           var err = App.act(function (s) { var x = Core.takeJob(s, job.id, sel); signed = !x; return x; });
           if (err) { UI.toast(t("sv_err_" + err), "bad"); return; }

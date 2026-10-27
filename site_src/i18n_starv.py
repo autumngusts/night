@@ -290,6 +290,24 @@ _ROWS: list[tuple[str, str, str]] = [
     ("sv_trend_ends", "{n} 天後換季", "{n} 日後に次の四半期"),
     ("sv_log_facility_up", "{fac} 升到 Lv{lv}", "{fac} が Lv{lv} に"),
     ("sv_log_trend_new", "新的一季開始了，看看業界趨勢吧", "新しい四半期が始まった。業界トレンドをチェックしよう"),
+    # ---- 對手、試鏡、排行榜、頒獎 ----
+    ("sv_rival_gone", "已退出的公司", "撤退した事務所"),
+    ("sv_job_audition", "試鏡制", "オーディション制"),
+    ("sv_job_interest", "{rival} 有興趣", "{rival} が狙っている"),
+    ("sv_job_reserved", "指名", "指名"),
+    ("sv_cast_audition", "報名試鏡", "オーディションに応募"),
+    ("sv_task_audition", "試鏡", "オーディション"),
+    ("sv_fx_rivalPower", "{rival} 實力 {v}", "{rival} の勢力 {v}"),
+    ("sv_log_rival_scandal", "{rival} 爆發醜聞，實力大跌", "{rival} がスキャンダルで失速"),
+    ("sv_log_rival_star_retire", "{rival} 的 {star} 宣布引退", "{rival} の {star} が引退を発表"),
+    ("sv_log_rival_bankrupt", "{rival} 經營不善，退出業界", "{rival} が経営難で業界から撤退"),
+    ("sv_log_rival_star_join", "原 {rival} 的 {star} 想加入我們！", "元 {rival} の {star} がうちに来たいそうだ！"),
+    ("sv_log_rival_new", "新的經紀公司 {rival} 成立了", "新しい事務所 {rival} が設立された"),
+    ("sv_log_audition_won", "{names} 在「{title}」的試鏡中勝出！", "{names} が「{title}」のオーディションに合格！"),
+    ("sv_log_audition_lost", "「{title}」的試鏡輸給了 {rival}", "「{title}」のオーディションで {rival} に敗れた"),
+    ("sv_log_job_snatched", "{rival} 拿走了「{title}」", "{rival} が「{title}」を持っていった"),
+    ("sv_log_chart_top", "{name} 拿下{chart}第 1 名！", "{name} が{chart}で 1 位！"),
+    ("sv_log_awards", "第 {year} 年頒獎典禮：我們拿下 {wins} 座", "{year}年目の授賞式：うちは {wins} 冠"),
     # ==== 之後的 task 在這行之前追加字串 ====
 ]
 
