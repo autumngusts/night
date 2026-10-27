@@ -96,6 +96,42 @@ step("藝人：多選套用方針", async function (page) {
   await act(page, "select-mode");
 });
 
+step("工作：選角 → 簽約", async function (page) {
+  await tab(page, "jobs");
+  await noRawKeys(page, "工作分頁");
+  var pickJob = function () {
+    return page.evaluate(function () {
+      var s = window.PriTestStarv.state();
+      var j = s.board.filter(function (x) { return x.slots === 1 && x.minFame === 0; })[0];
+      return j ? j.id : null;
+    });
+  };
+  var jobId = await pickJob();
+  // 看板上偶爾沒有 D 級單人工作：快轉 7 天讓看板刷新（App.skip 在 Task 4 就有）
+  for (var i = 0; i < 5 && !jobId; i++) { await page.evaluate(function () { window.PriTestStarv.app.skip(7); }); jobId = await pickJob(); }
+  assert.ok(jobId, "看板上沒有 D 級單人工作");
+  await page.dispatchEvent('.sv-job[data-job="' + jobId + '"]', "click");
+  await page.waitForSelector(".sv-cast-row");
+  await noRawKeys(page, "選角");
+  await page.dispatchEvent(".sv-cast-row:not(.sv-dis)", "click");
+  await act(page, "cast-sign");
+  var s = await st(page);
+  assert.ok(s.activeJobs.some(function (aj) { return aj.job.id === jobId; }), "工作進行中");
+});
+
+step("工作：結成組合", async function (page) {
+  await act(page, "jobs-sub-groups");
+  await noRawKeys(page, "組合");
+  await page.fill('[data-act="group-name"]', "星光少女");
+  var ids = await page.$$eval(".sv-group-pick input[data-aid]", function (xs) { return xs.slice(0, 2).map(function (x) { return x.getAttribute("data-aid"); }); });
+  assert.strictEqual(ids.length, 2, "至少要有兩位可選的藝人");
+  for (var i = 0; i < ids.length; i++) await page.check('.sv-group-pick input[data-aid="' + ids[i] + '"]');
+  await act(page, "group-create");
+  var s = await st(page);
+  assert.strictEqual(s.groups.length, 1); assert.strictEqual(s.groups[0].name, "星光少女");
+  await act(page, "jobs-sub-board");
+});
+
 // ==== 之後的 task 在這行之前追加步驟 ====
 
 (async function main() {

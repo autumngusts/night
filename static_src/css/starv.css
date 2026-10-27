@@ -342,3 +342,74 @@
   .sv-detail-head { flex-direction: column; align-items: center; }
   .sv-detail-head > .sv-grow { width: 100%; }
 }
+
+/* ---- 工作 ---- */
+.sv-subtabs { display: flex; gap: 0.4rem; margin-bottom: 0.8rem; }
+.sv-jobs { display: grid; grid-template-columns: repeat(auto-fill, minmax(17rem, 1fr)); gap: 0.7rem; }
+.sv-job {
+  --sv-dc: var(--sv-purple);
+  display: flex;
+  overflow: hidden;
+  border-radius: var(--sv-radius);
+  background: linear-gradient(135deg, color-mix(in srgb, var(--sv-dc) 22%, transparent), var(--sv-glass) 60%);
+  border: 1px solid color-mix(in srgb, var(--sv-dc) 55%, transparent);
+  cursor: pointer;
+  transition: transform 0.15s, box-shadow 0.15s;
+}
+.sv-job[role="button"]:hover { transform: translateY(-2px); box-shadow: 0 6px 22px color-mix(in srgb, var(--sv-dc) 40%, transparent); }
+.sv-casting .sv-job { cursor: default; margin-bottom: 0.6rem; }
+.sv-job-poster {
+  position: relative;
+  flex: 0 0 4.6rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background:
+    repeating-linear-gradient(45deg, rgba(255, 255, 255, 0.06) 0 6px, transparent 6px 12px),
+    linear-gradient(160deg, var(--sv-dc), #140e30);
+}
+.sv-job-icon { font-size: 2rem; filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.5)); }
+.sv-job-tier {
+  position: absolute;
+  top: 0.3rem;
+  left: 0.3rem;
+  font-family: Montserrat, sans-serif;
+  font-weight: 800;
+  font-size: 0.8em;
+  padding: 0 0.35rem;
+  border-radius: 5px;
+  background: #5a5468;
+}
+.sv-tier-C .sv-job-tier { background: #26a69a; }
+.sv-tier-B .sv-job-tier { background: #2e86de; }
+.sv-tier-A .sv-job-tier { background: var(--sv-purple); }
+.sv-tier-S .sv-job-tier { background: var(--sv-gold); color: #2a1d00; }
+.sv-tier-S { box-shadow: 0 0 22px rgba(255, 214, 107, 0.35); }
+.sv-job-body { flex: 1 1 auto; min-width: 0; padding: 0.55rem 0.7rem; }
+.sv-job-title { font-weight: 700; overflow-wrap: anywhere; }
+.sv-job-pay { font-family: Montserrat, sans-serif; font-weight: 600; color: var(--sv-gold); margin: 0.15rem 0; }
+.sv-chip-work { margin-top: 0.25rem; border-color: var(--sv-cyan); color: var(--sv-cyan); font-size: 0.72em; }
+.sv-active-row { display: flex; align-items: center; gap: 0.6rem; padding: 0.35rem 0; border-top: 1px solid var(--sv-line); }
+.sv-job-mini-icon { font-size: 1.4rem; }
+.sv-cast-list { display: grid; gap: 0.35rem; max-height: 50vh; overflow: auto; margin: 0.4rem 0; }
+.sv-cast-row { display: flex; align-items: center; gap: 0.6rem; padding: 0.4rem 0.6rem; border-radius: 10px; background: var(--sv-glass); border: 1px solid transparent; cursor: pointer; }
+.sv-cast-row.sv-sel { border-color: var(--sv-gold); background: rgba(255, 214, 107, 0.12); }
+.sv-cast-row.sv-dis { opacity: 0.45; cursor: default; }
+.sv-est { text-align: right; font-size: 0.82em; font-weight: 700; }
+.sv-est-high { color: var(--sv-good); }
+.sv-est-mid { color: var(--sv-gold); }
+.sv-est-low { color: var(--sv-bad); }
+.sv-group-avatars { display: flex; gap: 0.3rem; margin: 0.3rem 0; }
+.sv-group-pick { display: flex; flex-wrap: wrap; gap: 0.4rem; margin: 0.4rem 0; }
+.sv-pick { display: inline-flex; align-items: center; gap: 0.3rem; padding: 0.2rem 0.5rem; border-radius: 999px; background: var(--sv-glass); font-size: 0.85em; cursor: pointer; }
+.sv-toast-stamp {
+  font-size: 1.15em;
+  font-weight: 800;
+  color: #ffd0d8;
+  border: 3px solid var(--sv-bad);
+  border-radius: 12px;
+  background: rgba(60, 5, 20, 0.92);
+  animation: sv-stamp 0.4s cubic-bezier(0.2, 1.6, 0.4, 1);
+}
+@keyframes sv-stamp { from { transform: scale(2.2) rotate(-12deg); opacity: 0; } to { transform: scale(1) rotate(-4deg); } }
+@media (max-width: 480px) { .sv-jobs { grid-template-columns: minmax(0, 1fr); } }
