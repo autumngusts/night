@@ -29,6 +29,7 @@ TOUSHOU_SCRIPTS: tuple[str, ...] = (
     # 滿分男模式的題庫（只登錄到 MANFEN_*，不影響經典／內線）
     "toushou_data_manfen.js",
     "toushou_core.js",
+    "toushou_core_manfen.js",
     "toushou.js",
 )
 

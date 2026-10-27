@@ -95,7 +95,119 @@ check("manfen swan deck: 15 events + calm, composition calm 5", function () {
 
 // ---- 規則引擎（Task 3 起） ----
 if (M) {
-  // （Task 3～6 的檢查加在這裡）
+  function game(n, opts) {
+    opts = opts || {};
+    var players = [];
+    for (var i = 0; i < n; i++) players.push({ name: "P" + (i + 1), chips: opts.chips || 1000 });
+    var targets = M.pickTargets(opts.mfCats || ["mf_man"], opts.classicCats || [], opts.targets || n, 7);
+    return Core.newGame({ mode: "manfen", players: players, targets: targets, minBet: opts.minBet || 100,
+      windEnabled: !!opts.wind, blackSwanEnabled: !!opts.swan, seed: opts.seed || 12345 });
+  }
+  function R(s, a) { return Core.reduce(s, a); }
+  function playableCard(s, pid) {
+    var p = s.players.filter(function (x) { return x.id === pid; })[0];
+    return p.hand.filter(function (id) { return M.flawPlayable(s, id); })[0] || null;
+  }
+  // 開始本題並由爆料者用自訂缺點爆料；event／wind 可指定（把牌放在牌堆頂＝陣列尾端）
+  function exposed(s, opts) {
+    opts = opts || {};
+    s = R(s, { type: "startBetting" });
+    if (opts.event) s.mfSwanDeck.push(opts.event);
+    if (opts.wind) s.windDeck.push(opts.wind);
+    return R(s, { type: "mfExpose", playerId: s.current.blamerId, cardId: null, edited: false, text: "每天都要跟你報備行程" });
+  }
+  function sum(o) { return Object.keys(o).reduce(function (a, k) { return a + o[k]; }, 0); }
+
+  check("manfen engine loaded", function () { assert.ok(M); });
+
+  check("newGame manfen: config, hands, blamerOffset, decks only when enabled", function () {
+    var s = game(3);
+    assert.strictEqual(s.config.mode, "manfen");
+    assert.strictEqual(s.phase, "reveal_target");
+    assert.strictEqual(s.config.missionsEnabled, false);
+    assert.strictEqual(s.config.sectorLinkEnabled, false);
+    s.players.forEach(function (p) { assert.strictEqual(p.hand.length, D.HAND_SIZE); });
+    assert.ok(s.blamerOffset >= 0 && s.blamerOffset < 3);
+    assert.deepStrictEqual(s.windDeck, []);
+    assert.deepStrictEqual(s.mfSwanDeck, []);
+    var s2 = game(3, { wind: true, swan: true });
+    // 牌庫張數由資料的組成表算出，不硬編
+    assert.strictEqual(s2.windDeck.length, sum(D.WIND_COMPOSITION));
+    var expectSwan = D.MANFEN_SWAN_CARDS.reduce(function (a, c) { return a + (D.MANFEN_SWAN_COMPOSITION[c.id] || 1); }, 0);
+    assert.strictEqual(s2.mfSwanDeck.length, expectSwan);
+  });
+
+  check("deck pool: common + own-category flaws + classic down-tone news of chosen classic categories", function () {
+    var s = game(3, { mfCats: ["mf_man"], classicCats: ["jp_company"], targets: 6 });
+    var all = s.deck.concat(s.discard);
+    s.players.forEach(function (p) { all = all.concat(p.hand); });
+    all.forEach(function (id) {
+      var f = D.FLAW_CARDS.filter(function (c) { return c.id === id; })[0];
+      if (f) { assert.ok(f.category === null || f.category === "mf_man", id); return; }
+      var n = Core.cardById(id);
+      assert.ok(n && n.tone === "down" && n.category === "jp_company", id);
+    });
+  });
+
+  check("classic and insider newGame unaffected (no blamerOffset / mfSwanDeck)", function () {
+    var t = Core.pickRandomTargets(["jp_company"], 2, 1);
+    var c = Core.newGame({ players: [{ name: "a", chips: 1000 }, { name: "b", chips: 1000 }], targets: t, minBet: 100, seed: 5 });
+    assert.strictEqual(c.config.mode, "classic");
+    assert.strictEqual(c.blamerOffset, undefined);
+    assert.strictEqual(c.mfSwanDeck, undefined);
+  });
+
+  check("blamer rotates by seat from blamerOffset", function () {
+    var s = game(3, { targets: 3 });
+    for (var k = 0; k < 3; k++) assert.strictEqual(M.blamerFor(s, k), s.players[(k + s.blamerOffset) % 3].id);
+    s = R(s, { type: "startBetting" });
+    assert.strictEqual(s.phase, "mf_expose");
+    assert.strictEqual(s.current.blamerId, M.blamerFor(s, 0));
+  });
+
+  check("expose: only the blamer, playable rule, text required, card replaced", function () {
+    var s = R(game(3), { type: "startBetting" });
+    var b = s.current.blamerId;
+    var other = s.players.filter(function (p) { return p.id !== b; })[0].id;
+    assert.strictEqual(M.exposeError(s, other, null, "x", false), "ts_err_not_your_turn");
+    assert.strictEqual(M.exposeError(s, b, null, "  ", false), "ts_err_empty_news");
+    var card = playableCard(s, b);
+    assert.ok(card, "blamer should hold a playable flaw (common cards are always playable)");
+    var s2 = R(s, { type: "mfExpose", playerId: b, cardId: card, edited: false, text: "報備" });
+    var me = s2.players.filter(function (p) { return p.id === b; })[0];
+    assert.strictEqual(me.hand.length, D.HAND_SIZE);
+    assert.ok(s2.discard.indexOf(card) >= 0);
+    assert.deepStrictEqual(s2.current.flaw, { cardId: card, edited: false, text: "報備" });
+    assert.strictEqual(s2.phase, "mf_rate");
+  });
+
+  check("flawPlayable: other manfen category flaw needs edit", function () {
+    var s = R(game(2, { mfCats: ["mf_man"] }), { type: "startBetting" });
+    var foreign = D.FLAW_CARDS.filter(function (f) { return f.category === "mf_job"; })[0].id;
+    assert.strictEqual(M.flawPlayable(s, foreign), false);
+    var common = D.FLAW_CARDS.filter(function (f) { return f.category === null; })[0].id;
+    assert.strictEqual(M.flawPlayable(s, common), true);
+  });
+
+  check("expose draws swan and wind; neutral wind has no holder", function () {
+    var s = exposed(game(3, { wind: true, swan: true }), { event: "hype", wind: "up" });
+    assert.strictEqual(s.current.event, "hype");
+    assert.strictEqual(s.current.windCard, "up");
+    assert.ok(s.players.some(function (p) { return p.id === s.current.windHolder; }));
+    var s2 = exposed(game(3, { wind: true }), { wind: "neutral" });
+    assert.strictEqual(s2.current.windCard, "neutral");
+    assert.strictEqual(s2.current.windHolder, null);
+    var s3 = exposed(game(3));
+    assert.strictEqual(s3.current.event, null);
+    assert.strictEqual(s3.current.windCard, null);
+  });
+
+  check("all players broke at startBetting -> final", function () {
+    var s = game(2);
+    s.players.forEach(function (p) { p.chips = 0; });
+    s = R(s, { type: "startBetting" });
+    assert.strictEqual(s.phase, "final");
+  });
 }
 
 console.log("\n" + results.pass + " passed, " + results.fail + " failed");
