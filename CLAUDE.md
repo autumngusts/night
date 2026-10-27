@@ -435,7 +435,7 @@ site_src/i18n_data.py
   在 `generate.py` 的 `GAME_I18N_PREFIXES` 登記前綴，建置時會輸出成 `static/i18n/<name>.js`（`I18N.extend`），
   頁面用 `page_shell(extra_i18n=("i18n/<name>.js",))` 載入。首頁會用到的 `project_<name>_*` 留在共用的 `i18n.js`。
 
-目前已分開的遊戲：yellow、katana、fist、dejavu、gousei、toushou、utau。
+目前已分開的遊戲：yellow、katana、fist、dejavu、gousei、toushou、utau、starv。
 
 ---
 

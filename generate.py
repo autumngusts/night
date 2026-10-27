@@ -25,6 +25,7 @@ from site_src.katana_page import KATANA_SCRIPTS, build_katana_html
 from site_src.yellow_page import YELLOW_SCRIPTS, build_yellow_html
 from site_src.fist_page import FIST_SCRIPTS, build_fist_html
 from site_src.dejavu_page import DEJAVU_SCRIPTS, build_dejavu_html
+from site_src.starv_page import STARV_SCRIPTS, build_starv_html
 
 ROOT = Path(__file__).parent
 DIST_DIR = ROOT / "dist"
@@ -36,6 +37,7 @@ GAME_I18N_PREFIXES: dict[str, tuple[str, ...]] = {
     "yellow": ("yc_",),
     "katana": ("kt_",),
     "dejavu": ("dv_",),
+    "starv": ("sv_",),
     "fist": ("fe_", "fr_"),
     "toushou": ("ts_",),
     "utau": ("ut_",),
@@ -129,6 +131,7 @@ def build_static_assets() -> None:
         *YELLOW_SCRIPTS,
         *FIST_SCRIPTS,
         *DEJAVU_SCRIPTS,
+        *STARV_SCRIPTS,
     ):
         shutil.copy(STATIC_SRC_DIR / name, static_dist / name)
 
@@ -213,9 +216,13 @@ def build_pages() -> None:
     dejavu_dir.mkdir(parents=True, exist_ok=True)
     (dejavu_dir / "index.html").write_text(build_dejavu_html(), encoding="utf-8")
 
+    starv_dir = DIST_DIR / "starv"
+    starv_dir.mkdir(parents=True, exist_ok=True)
+    (starv_dir / "index.html").write_text(build_starv_html(), encoding="utf-8")
+
 
 def main() -> None:
-    for name in ("index.html", "night", "admin", "characters", "midnight", "toushou", "utau", "gousei", "katana", "yellow", "fist", "dejavu", "static"):
+    for name in ("index.html", "night", "admin", "characters", "midnight", "toushou", "utau", "gousei", "katana", "yellow", "fist", "dejavu", "starv", "static"):
         target = DIST_DIR / name
         if target.is_dir():
             shutil.rmtree(target)

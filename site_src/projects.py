@@ -62,4 +62,10 @@ PROJECTS = [
         "name_key": "project_dejavu_name",
         "desc_key": "project_dejavu_desc",
     },
+    {
+        "id": "starv",
+        "href": "starv/index.html",
+        "name_key": "project_starv_name",
+        "desc_key": "project_starv_desc",
+    },
 ]

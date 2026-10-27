@@ -1,0 +1,238 @@
+/* 明星經紀 starV 的樣式（閃耀舞台風，規格 §15.1）。class／id／keyframes 一律以 sv- 開頭。 */
+@import url("https://fonts.googleapis.com/css2?family=Montserrat:wght@600;800&family=Noto+Sans+JP:wght@400;700&family=Noto+Sans+TC:wght@400;700&display=swap");
+
+.sv-root {
+  --sv-bg0: #0d0a1f;
+  --sv-bg1: #1a1240;
+  --sv-text: #f3effa;
+  --sv-muted: #b7aed0;
+  --sv-purple: #a66bff;
+  --sv-pink: #ff5fa8;
+  --sv-gold: #ffd66b;
+  --sv-cyan: #4dd0e1;
+  --sv-good: #69f0ae;
+  --sv-bad: #ff6b81;
+  --sv-glass: rgba(255, 255, 255, 0.07);
+  --sv-glass-strong: rgba(255, 255, 255, 0.13);
+  --sv-line: rgba(255, 255, 255, 0.16);
+  --sv-radius: 14px;
+  --sv-rainbow: conic-gradient(from 0deg, #ff5fa8, #ffd66b, #69f0ae, #4dd0e1, #a66bff, #ff5fa8);
+  position: relative;
+  max-width: 72rem;
+  margin: 0 auto;
+  min-height: 80vh;
+  color: var(--sv-text);
+  background:
+    radial-gradient(ellipse at 20% 0%, #2a1a5e 0%, transparent 55%),
+    radial-gradient(ellipse at 90% 30%, #4a1442 0%, transparent 50%),
+    linear-gradient(180deg, var(--sv-bg1), var(--sv-bg0));
+  font-family: "Noto Sans TC", "Noto Sans JP", system-ui, sans-serif;
+  border-radius: var(--sv-radius);
+  overflow: hidden;
+}
+.sv-root::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.55;
+  background-image:
+    radial-gradient(1.5px 1.5px at 10% 20%, #fff, transparent),
+    radial-gradient(1px 1px at 30% 70%, #fff, transparent),
+    radial-gradient(1.2px 1.2px at 70% 40%, #ffd66b, transparent),
+    radial-gradient(1px 1px at 85% 80%, #fff, transparent),
+    radial-gradient(1.4px 1.4px at 55% 15%, #ff9de2, transparent);
+  background-size: 300px 300px;
+  animation: sv-drift 60s linear infinite;
+}
+@keyframes sv-drift { to { background-position: 300px 600px; } }
+#sv-app { position: relative; padding-bottom: 1rem; }
+
+/* ---- 通用元件 ---- */
+.sv-card {
+  background: var(--sv-glass);
+  border: 1px solid var(--sv-line);
+  border-radius: var(--sv-radius);
+  padding: 0.9rem 1rem;
+  margin: 0 0 0.8rem;
+  backdrop-filter: blur(6px);
+}
+.sv-card h3 { margin: 0 0 0.4rem; font-size: 1.05em; }
+.sv-muted { color: var(--sv-muted); }
+.sv-small { font-size: 0.82em; }
+.sv-good { color: var(--sv-good); }
+.sv-warn { color: var(--sv-gold); }
+.sv-neg { color: var(--sv-bad) !important; }
+.sv-grow { flex: 1 1 auto; min-width: 0; }
+.sv-row { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; margin-top: 0.5rem; }
+.sv-row-end { justify-content: flex-end; }
+.sv-btn {
+  font: inherit;
+  color: var(--sv-text);
+  background: var(--sv-glass-strong);
+  border: 1px solid var(--sv-line);
+  border-radius: 999px;
+  padding: 0.45rem 1rem;
+  cursor: pointer;
+  transition: transform 0.12s, box-shadow 0.12s;
+}
+.sv-btn:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 4px 16px rgba(166, 107, 255, 0.35); }
+.sv-btn:disabled { opacity: 0.4; cursor: default; }
+.sv-btn-primary { background: linear-gradient(135deg, var(--sv-pink), var(--sv-purple)); border-color: transparent; font-weight: 700; }
+.sv-btn-gold { background: linear-gradient(135deg, #ffe9a3, var(--sv-gold)); color: #2a1d00; border-color: transparent; font-weight: 700; }
+.sv-btn-ghost { background: transparent; }
+.sv-btn-danger { background: rgba(255, 107, 129, 0.2); border-color: var(--sv-bad); }
+.sv-btn-big { font-size: 1.15em; padding: 0.7rem 2rem; }
+.sv-btn-icon { padding: 0.25rem 0.6rem; border-radius: 8px; }
+.sv-input, .sv-select, .sv-textarea {
+  font: inherit;
+  color: var(--sv-text);
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid var(--sv-line);
+  border-radius: 10px;
+  padding: 0.4rem 0.6rem;
+  max-width: 100%;
+}
+.sv-select option { background: #1a1240; }
+.sv-textarea { width: 100%; min-height: 5rem; box-sizing: border-box; font-family: monospace; font-size: 0.8em; }
+.sv-field { display: flex; flex-direction: column; gap: 0.3rem; margin: 0.6rem 0; }
+.sv-chip {
+  display: inline-block;
+  padding: 0.15rem 0.6rem;
+  border-radius: 999px;
+  background: var(--sv-glass-strong);
+  border: 1px solid var(--sv-line);
+  font-size: 0.85em;
+  white-space: nowrap;
+}
+.sv-bar { display: block; height: 6px; border-radius: 3px; background: rgba(255, 255, 255, 0.12); overflow: hidden; margin: 3px 0; }
+.sv-bar > span { display: block; height: 100%; border-radius: 3px; background: linear-gradient(90deg, var(--sv-purple), var(--sv-pink)); transition: width 0.4s; }
+.sv-bar-stamina > span { background: linear-gradient(90deg, #26a69a, var(--sv-good)); }
+.sv-bar-stress > span { background: linear-gradient(90deg, #ff9a76, var(--sv-bad)); }
+.sv-bar-sat > span { background: linear-gradient(90deg, #ffe9a3, var(--sv-gold)); }
+
+/* ---- 稀有度、頭像 ---- */
+.sv-rar { display: inline-block; font-family: Montserrat, sans-serif; font-weight: 800; font-size: 0.75em; padding: 0 0.4rem; border-radius: 6px; letter-spacing: 0.04em; }
+.sv-rar-r { background: #8f95a8; color: #10101a; }
+.sv-rar-sr { background: linear-gradient(135deg, #fff1b8, var(--sv-gold)); color: #3a2800; }
+.sv-rar-ssr { background: linear-gradient(90deg, #ff5fa8, #ffd66b, #69f0ae, #4dd0e1, #a66bff); color: #1a0f2e; }
+.sv-ava {
+  position: relative;
+  display: inline-block;
+  flex: 0 0 auto;
+  width: var(--sv-size);
+  height: var(--sv-size);
+  border-radius: 50%;
+  overflow: hidden;
+  border: 2px solid #b8bdd0;
+  box-sizing: border-box;
+  vertical-align: middle;
+}
+.sv-ava svg { position: relative; display: block; width: 100%; height: 100%; border-radius: 50%; }
+.sv-ava-sr { border-color: var(--sv-gold); box-shadow: 0 0 10px rgba(255, 214, 107, 0.55); }
+.sv-ava-ssr { border: 0; padding: 3px; box-shadow: 0 0 14px rgba(255, 95, 168, 0.6); }
+.sv-ava-ssr::before { content: ""; position: absolute; inset: -50%; background: var(--sv-rainbow); animation: sv-spin 3s linear infinite; }
+.sv-ava-ghost { background: rgba(255, 255, 255, 0.1); }
+@keyframes sv-spin { to { transform: rotate(360deg); } }
+
+/* ---- 頂部列與分頁列 ---- */
+.sv-top {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem 1rem;
+  padding: 0.6rem 1rem;
+  background: rgba(13, 10, 31, 0.75);
+  border-bottom: 1px solid var(--sv-line);
+  backdrop-filter: blur(8px);
+}
+.sv-top-co { display: flex; align-items: center; gap: 0.5rem; flex: 1 1 12rem; min-width: 0; }
+.sv-top-name { font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sv-top-lv { font-family: Montserrat, sans-serif; font-weight: 800; color: var(--sv-gold); }
+.sv-top-rep { display: inline-block; width: 4rem; height: 5px; border-radius: 3px; background: rgba(255, 255, 255, 0.15); overflow: hidden; }
+.sv-top-rep > span { display: block; height: 100%; background: var(--sv-gold); }
+.sv-top-res { display: flex; gap: 0.4rem; flex-wrap: wrap; }
+.sv-chip-money { color: var(--sv-gold); font-family: Montserrat, sans-serif; font-weight: 600; }
+.sv-top-date { display: flex; align-items: center; gap: 0.4rem; font-size: 0.85em; }
+.sv-day { display: inline-block; width: 3.5rem; height: 4px; border-radius: 2px; background: rgba(255, 255, 255, 0.15); overflow: hidden; }
+.sv-day-fill { display: block; height: 100%; background: var(--sv-cyan); }
+.sv-speed { color: var(--sv-pink); font-weight: 700; }
+.sv-body { padding: 0.9rem 16px 1rem; min-height: 50vh; }
+.sv-tabs {
+  position: sticky;
+  bottom: 0;
+  z-index: 20;
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(0, 1fr);
+  background: rgba(13, 10, 31, 0.88);
+  border-top: 1px solid var(--sv-line);
+  backdrop-filter: blur(8px);
+}
+.sv-tab { font: inherit; color: var(--sv-muted); background: none; border: 0; padding: 0.55rem 0.2rem 0.6rem; cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 0.1rem; }
+.sv-tab-icon { font-size: 1.3em; }
+.sv-tab-label { font-size: 0.78em; }
+.sv-tab.sv-on { color: var(--sv-text); background: linear-gradient(180deg, rgba(255, 95, 168, 0.18), transparent); box-shadow: inset 0 2px 0 var(--sv-pink); }
+
+/* ---- 開業畫面 ---- */
+.sv-welcome { padding: 3rem 16px; text-align: center; max-width: 32rem; margin: 0 auto; }
+.sv-logo {
+  font-family: Montserrat, sans-serif;
+  font-weight: 800;
+  font-size: 3.5rem;
+  background: linear-gradient(90deg, var(--sv-pink), var(--sv-gold), var(--sv-cyan), var(--sv-purple));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  filter: drop-shadow(0 0 18px rgba(255, 95, 168, 0.5));
+}
+.sv-welcome-title { margin: 0.2rem 0 1rem; }
+.sv-welcome-intro { line-height: 1.7; color: var(--sv-muted); text-align: left; }
+.sv-welcome .sv-field { text-align: left; }
+
+/* ---- 彈窗與提示 ---- */
+.sv-modal-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: rgba(5, 3, 15, 0.72);
+  backdrop-filter: blur(4px);
+  animation: sv-fade 0.18s ease-out;
+}
+.sv-modal {
+  width: min(40rem, 100%);
+  max-height: 90vh;
+  overflow: auto;
+  box-sizing: border-box;
+  padding: 1rem 1.1rem 1.2rem;
+  color: var(--sv-text);
+  background: linear-gradient(160deg, #261b56, #140e30);
+  border: 1px solid var(--sv-line);
+  border-radius: 18px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.55), 0 0 40px rgba(166, 107, 255, 0.25);
+  animation: sv-pop 0.22s ease-out;
+}
+.sv-modal-wide { width: min(56rem, 100%); }
+.sv-modal-head { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; margin-bottom: 0.6rem; }
+.sv-modal-title { margin: 0; font-size: 1.2em; }
+@keyframes sv-fade { from { opacity: 0; } }
+@keyframes sv-pop { from { opacity: 0; transform: translateY(12px) scale(0.97); } }
+.sv-toasts { position: fixed; left: 50%; bottom: 5rem; transform: translateX(-50%); z-index: 1100; display: flex; flex-direction: column; align-items: center; gap: 0.4rem; pointer-events: none; }
+.sv-toast { padding: 0.5rem 1rem; border-radius: 999px; background: rgba(20, 14, 48, 0.95); border: 1px solid var(--sv-line); animation: sv-pop 0.2s ease-out; max-width: 90vw; text-align: center; }
+.sv-toast-bad { border-color: var(--sv-bad); color: #ffd0d8; }
+.sv-toast-gold { border-color: var(--sv-gold); color: var(--sv-gold); }
+
+@media (max-width: 480px) {
+  .sv-top { padding: 0.5rem 16px; }
+  .sv-tab-label { font-size: 0.7em; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .sv-root *, .sv-root *::before, .sv-root *::after, .sv-root::before { animation: none !important; transition: none !important; }
+}
