@@ -366,6 +366,14 @@ step("企劃：開始 → 派遣 → 完成結算", async function (page) {
   assert.strictEqual(s.project, null); assert.strictEqual(s.projectQueue.length, 0); assert.strictEqual(s.stats.projects, 1);
 });
 
+step("3D：three.js 不在初始載入、網址可以取得", async function (page) {
+  assert.strictEqual(await page.evaluate(function () { return typeof window.THREE; }), "undefined", "初始不載入 three.js");
+  var src = await page.$eval("#sv-app", function (x) { return x.getAttribute("data-three-src"); });
+  assert.ok(/vendor\/three\.min\.js\?v=/.test(src), "data-three-src：" + src);
+  var ok = await page.evaluate(function (u) { return fetch(u).then(function (r) { return r.ok; }); }, src);
+  assert.ok(ok, "three.min.js 可以下載");
+});
+
 // ==== 之後的 task 在這行之前追加步驟 ====
 
 (async function main() {

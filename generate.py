@@ -164,6 +164,11 @@ def build_static_assets() -> None:
     if katana_art_src.is_dir():
         shutil.copytree(katana_art_src, static_dist / "katana_art")
 
+    # 第三方函式庫（starV 的 three.js r149；頁面需要時才動態載入）
+    vendor_src = STATIC_SRC_DIR / "vendor"
+    if vendor_src.is_dir():
+        shutil.copytree(vendor_src, static_dist / "vendor")
+
 
 def build_pages() -> None:
     (DIST_DIR / "index.html").write_text(build_index_html(), encoding="utf-8")

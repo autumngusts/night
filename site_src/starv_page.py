@@ -8,7 +8,7 @@ starv_view_*.js（各分頁）→ starv_log.js（日誌・離線報告）→ sta
 
 from __future__ import annotations
 
-from site_src.layout import page_shell
+from site_src.layout import asset_url, page_shell
 
 STARV_SCRIPTS: tuple[str, ...] = (
     "starv_data.js",
@@ -46,8 +46,9 @@ STARV_SCRIPTS: tuple[str, ...] = (
 
 
 def build_starv_html() -> str:
-    body = """    <div class="sv-root">
-      <div id="sv-app"></div>
+    three_src = asset_url("../static/", "vendor/three.min.js")
+    body = f"""    <div class="sv-root">
+      <div id="sv-app" data-three-src="{three_src}"></div>
     </div>
 """
     return page_shell(
