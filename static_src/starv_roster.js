@@ -19,6 +19,8 @@
     add: add,
     all: function () { return list.slice(); },
     byId: function (id) { return map[id] || null; },
-    byRarity: function (r) { return list.filter(function (e) { return e.rarity === r; }); }
+    // 宿敵明星（kind: "rival"）屬於對手公司，不進抽卡池
+    byRarity: function (r) { return list.filter(function (e) { return e.rarity === r && e.kind !== "rival"; }); },
+    rivals: function () { return list.filter(function (e) { return e.kind === "rival"; }); }
   };
 })();

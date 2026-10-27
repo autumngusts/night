@@ -10,6 +10,7 @@ require("../../static_src/starv_events.js");
 require("../../static_src/starv_events_1.js");
 require("../../static_src/starv_roster.js");
 require("../../static_src/starv_roster_1.js");
+require("../../static_src/starv_roster_rivals_1.js");
 require("../../static_src/starv_core.js");
 var D = global.PriTestStarvData;
 var Core = global.PriTestStarvCore;

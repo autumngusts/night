@@ -236,6 +236,13 @@
   };
   var UNKNOWN_NAME = T("未知藝人|不明なタレント");
 
+  // 對手公司名＝a + b（§9；全部虛構）
+  var RIVAL_NAME = {
+    a: TL(["銀河|ギャラクシー", "晨星|モーニングスター", "紅月|レッドムーン", "極光|オーロラ", "天狼|シリウス", "琥珀|アンバー",
+      "蒼穹|ソウキュウ", "黑曜|オブシディアン", "白夜|ビャクヤ", "彩虹|レインボー", "流星|メテオ", "星辰|スターズ"]),
+    b: TL(["娛樂|エンタテインメント", "經紀|プロダクション", "傳媒|メディア", "事務所|オフィス", "製作|プロ"])
+  };
+
   // 外觀組件數量（2D 頭像與 3D 模型共用；acc ＝ -1 表示沒有配件）
   var LOOK = {
     face: 4, hair: 12, eye: 6, outfit: 8, acc: 6,
@@ -264,6 +271,8 @@
     eventDailyChance: 0.08, eventDeadlineDays: 3, eventMax: 3, prBadCut: 0.1, famousFame: 200, rookieDays: 60,
     fameMilestones: [1000, 5000, 20000, 50000], sellContractMonths: 6, debtCrisisMonths: 3,
     seasonDays: 90, trendHot: 1.5, trendCold: 0.7, specialTrendChance: 0.25, trendBoardHot: 2, trendBoardCold: 0.5,
+    rivalCount: 5, rivalPowerStart: [80, 140], rivalPowerNew: [80, 120], rivalBankrupt: 40, rivalShockChance: 0.12,
+    rivalPerfDiv: 400, rivalYearGrowth: 0.08, rivalStarJoinChance: 0.5,
     logMax: 200, worksMax: 50
   };
 
@@ -272,6 +281,6 @@
     DIRS: DIRS, DIR_BY_ID: index(DIRS), ROLES: ROLES, TIERS: TIERS, TIER_ORDER: TIER_ORDER, RESULTS: RESULTS, PROF_XP: PROF_XP,
     COURSES: COURSES, COURSE_BY_ID: index(COURSES), TRAIN: TRAIN, REST: REST, PROMO: PROMO,
     TRAITS: TRAITS, TRAIT_BY_ID: index(TRAITS), MINOR_EVENTS: MINOR_EVENTS,
-    FACILITIES: FACILITIES, FACILITY_ORDER: FACILITY_ORDER, SPECIAL_TRENDS: SPECIAL_TRENDS, SPECIAL_TREND_BY_ID: index(SPECIAL_TRENDS), DORM_CAP: DORM_CAP, NAMES: NAMES, UNKNOWN_NAME: UNKNOWN_NAME, LOOK: LOOK, BAL: BAL
+    FACILITIES: FACILITIES, FACILITY_ORDER: FACILITY_ORDER, SPECIAL_TRENDS: SPECIAL_TRENDS, SPECIAL_TREND_BY_ID: index(SPECIAL_TRENDS), DORM_CAP: DORM_CAP, NAMES: NAMES, UNKNOWN_NAME: UNKNOWN_NAME, RIVAL_NAME: RIVAL_NAME, LOOK: LOOK, BAL: BAL
   };
 })();

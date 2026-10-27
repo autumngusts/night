@@ -9,6 +9,7 @@ require("../../static_src/starv_events_1.js");
 var Events = global.PriTestStarvEvents;
 require("../../static_src/starv_roster.js");
 require("../../static_src/starv_roster_1.js");
+require("../../static_src/starv_roster_rivals_1.js");
 var D = global.PriTestStarvData;
 var Roster = global.PriTestStarvRoster;
 // 計畫 3 加入隨機重大事件（每天 8%）。計畫 1、2 的測試寫死了人氣、壓力等數值，
@@ -643,7 +644,8 @@ test("存檔版本 2：舊存檔補上趨勢", function () {
   var st = Core.create({ seed: 1 });
   delete st.trend; st.version = 1;
   var m = Core.migrate(JSON.parse(JSON.stringify(st)));
-  eq(m.version, 2); assert(m.trend && m.trend.cur.hot.length >= 2 && m.trend.next, "補上 trend");
+  // 原本寫死 2；計畫 4 升到版本 3 後改成跟著 Core.VERSION（這個測試只關心趨勢有沒有補上）
+  eq(m.version, Core.VERSION); assert(m.trend && m.trend.cur.hot.length >= 2 && m.trend.next, "補上 trend");
 });
 
 test("事件資料：40 種、格式正確", function () {
@@ -799,6 +801,50 @@ test("月薪：隨人氣上升（基本月薪 × (1 + √人氣 ÷ salaryFameDiv
   var r = Core._genR(st); eq(r.baseSalary, r.salary, "新藝人的基本月薪＝初始月薪");
   var old = Core.create({ seed: 2 }), b = Core._genR(old); delete b.baseSalary; b.salary = 4200; old.artists.push(b);
   eq(Core.migrate(JSON.parse(JSON.stringify(old))).artists[0].baseSalary, 4200, "舊存檔以目前月薪當基本月薪");
+});
+
+test("對手：初始 5 家、名字與宿敵明星不重複、不進抽卡池", function () {
+  var st = Core.create({ seed: 3 });
+  eq(st.rivals.length, 5);
+  var names = {}, stars = {};
+  st.rivals.forEach(function (r) {
+    var n = Core.rivalName(r, "zh");
+    assert(!names[n], "公司名重複 " + n); names[n] = 1;
+    assert(r.power >= 80 && r.power <= 140, "實力 " + r.power);
+    assert(r.stars.length >= 1 && r.stars.length <= 2, "明星數");
+    r.stars.forEach(function (s) {
+      assert(!stars[s.rosterId], "宿敵明星重複"); stars[s.rosterId] = 1;
+      eq(Roster.byId(s.rosterId).kind, "rival");
+      assert(Core.rivalStarName(s, "ja"), "明星名");
+    });
+  });
+  assert(Roster.rivals().length >= 10, "宿敵明星名錄");
+  assert(Roster.byRarity("SR").concat(Roster.byRarity("SSR")).every(function (e) { return e.kind !== "rival"; }), "不進抽卡池");
+  eq(Core.rivalById(st, st.rivals[0].id), st.rivals[0]);
+});
+
+test("對手：每年成長、倒閉與遞補、明星流入候補", function () {
+  var st = Core.create({ seed: 8 });
+  st.board = []; st.boardRefreshDay = 99999;
+  var dead = st.rivals[0], deadStars = dead.stars.map(function (s) { return s.rosterId; });
+  dead.power = 10;
+  var keep = st.rivals[1], p0 = keep.power, fame0 = keep.stars[0].fame;
+  Core.advance(st, 360);
+  eq(st.rivals.length, 5, "保持 5 家");
+  assert(!Core.rivalById(st, dead.id), "倒閉");
+  assert(st.log.some(function (e) { return e.type === "rival_bankrupt"; }) && st.log.some(function (e) { return e.type === "rival_new"; }), "日誌");
+  assert(keep.stars[0].fame > fame0, "宿敵明星人氣成長");
+  assert(keep.power !== p0, "實力變動");
+  var joined = st.artists.concat(st.waitlist.map(function (w) { return w.artist; })).filter(function (a) { return deadStars.indexOf(a.rosterId) >= 0; }).length;
+  var joinLogs = st.log.filter(function (e) { return e.type === "rival_star_join"; }).length;
+  eq(joined, joinLogs, "流入的人數與日誌一致");
+});
+
+test("存檔版本 3：舊存檔補上對手", function () {
+  var st = Core.create({ seed: 1 });
+  delete st.rivals; st.version = 2;
+  var m = Core.migrate(JSON.parse(JSON.stringify(st)));
+  eq(m.version, 3); eq(m.rivals.length, 5);
 });
 
 // ==== run ====

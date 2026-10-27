@@ -8,7 +8,7 @@
   var D = root.PriTestStarvData;
   var Roster = root.PriTestStarvRoster;
   var BAL = D.BAL;
-  var VERSION = 2;
+  var VERSION = 3;
   var api = {};
 
   // ==== 亂數與工具 ====
@@ -52,13 +52,14 @@
       version: VERSION,
       seed: (opts.seed == null ? Math.floor(Math.random() * 2147483647) : opts.seed) | 0,
       day: 0, lastTickAt: opts.now || 0, era: 1,
-      company: { name: opts.name || "", level: 1, rep: 0, money: BAL.startMoney, tickets: BAL.startTickets, debtMonths: 0, safeLine: BAL.startSafeLine, crisisOn: false },
+      company: { name: opts.name || "", level: 1, rep: 0, money: BAL.startMoney, tickets: BAL.startTickets, debtMonths: 0, safeLine: BAL.startSafeLine, crisisOn: false, repYearStart: 0 },
       facilities: { dorm: 1, practice: 0, studio: 0, photo: 0, lounge: 0, pr: 0, scout: 0 },
       artists: [], waitlist: [], board: [], boardRefreshDay: 0, activeJobs: [], dividends: [], groups: [],
       gacha: { pity: 0, pullDay: -1, pullCount: 0, pickup: { SR: null, SSR: null }, debutShown: {} },
       codex: { owned: {}, recruitedR: 0 },
       stats: { pulls: 0, jobsDone: 0 },
       trend: null, events: { pending: [] }, loans: [],
+      rivals: [], auditions: [], charts: null, awards: { history: [], unseen: null },
       log: [], logSeq: 0, nextId: 1
     };
   }
@@ -68,6 +69,7 @@
     // 初始化鉤子（之後的 task 在這裡加上抽卡 PICKUP、工作看板）
     rotatePickup(st);
     initTrend(st);
+    initRivals(st);
     refreshBoard(st);
     return st;
   }
@@ -88,6 +90,7 @@
     st.artists.concat(st.waitlist.map(function (w) { return w.artist; })).forEach(function (a) { if (a.baseSalary == null) a.baseSalary = a.salary; });
     st.waitlist.forEach(function (w) { fillDefaults(w.artist, ARTIST_DEFAULTS); });
     if (!st.trend) initTrend(st);   // version 1 → 2：補上業界趨勢
+    if (!st.rivals.length) initRivals(st);   // version 2 → 3：補上對手公司
     // 事件資料被移除或改名時，存檔裡待處理的舊事件直接丟掉（不讓存檔壞掉）
     st.events.pending = st.events.pending.filter(function (e) { return !!(D.EVENT_BY_ID && D.EVENT_BY_ID[e.id]); });
     st.version = VERSION;
@@ -123,7 +126,7 @@
   // 藝人欄位的預設值（migrate 也用這份補齊舊存檔）
   var ARTIST_DEFAULTS = {
     rosterId: null, nameSeed: 0, gender: "f", age: 18, traits: [], subDirs: [],
-    stamina: 100, stress: 0, mood: 0, fame: 0, satisfaction: 70, salary: 1500, baseSalary: null,
+    stamina: 100, stress: 0, mood: 0, fame: 0, satisfaction: 70, salary: 1500, baseSalary: null, trophies: [],
     policy: "idle", lastAuto: null, task: null, works: [], limitBreak: 0, joinedDay: 0
   };
 
@@ -493,7 +496,7 @@
     tickBoard(st);
     tickWaitlist(st);
     if (st.day % BAL.daysPerMonth === 0) monthly(st);
-    if (st.day % BAL.daysPerYear === 0) yearly(st);
+    if (st.day % BAL.daysPerYear === 0) { yearly(st); rivalYear(st); }
     tickEvents(st);
     autoPlan(st);
   }
@@ -753,11 +756,13 @@
       st.company.crisisOn = true;
       pushEvent(st, "finance_crisis");
     }
+    rivalMonth(st);
     rotatePickup(st);
     log(st, "month_end", { salary: salary, upkeep: upkeep, dividends: div, loan: loan });
   }
 
   function yearly(st) {
+    st.company.repYearStart = st.company.rep;
     st.artists.forEach(function (a) { a.age++; });
     st.waitlist.forEach(function (w) { w.artist.age++; });
     log(st, "birthday_year", { year: dateOf(st.day).year });
@@ -1065,6 +1070,96 @@
     if (st.artists.length && rnd(st) < BAL.eventDailyChance) triggerRandomEvent(st);
   }
 
+  // ==== 對手公司與宿敵明星（§9） ====
+  function rivalName(r, lang) {
+    lang = lang === "zh" ? "zh" : "ja";
+    return D.RIVAL_NAME.a[r.name[0]][lang] + D.RIVAL_NAME.b[r.name[1]][lang];
+  }
+  function rivalStarName(s, lang) {
+    var e = Roster.byId(s.rosterId);
+    return e ? e.name[lang === "zh" ? "zh" : "ja"] : D.UNKNOWN_NAME[lang === "zh" ? "zh" : "ja"];
+  }
+  function rivalById(st, id) {
+    for (var i = 0; i < st.rivals.length; i++) if (st.rivals[i].id === id) return st.rivals[i];
+    return null;
+  }
+  function pickRivalName(st) {
+    var used = {};
+    st.rivals.forEach(function (r) { used[r.name[0]] = true; });
+    var free = [];
+    D.RIVAL_NAME.a.forEach(function (x, i) { if (!used[i]) free.push(i); });
+    return [free.length ? pick(st, free) : rint(st, 0, D.RIVAL_NAME.a.length - 1), rint(st, 0, D.RIVAL_NAME.b.length - 1)];
+  }
+  // 沒被任何對手、也不在玩家公司（在籍或候補）的宿敵明星
+  function freeRivalStars(st) {
+    var used = {};
+    st.rivals.forEach(function (r) { r.stars.forEach(function (s) { used[s.rosterId] = true; }); });
+    st.artists.forEach(function (a) { if (a.rosterId) used[a.rosterId] = true; });
+    st.waitlist.forEach(function (w) { if (w.artist.rosterId) used[w.artist.rosterId] = true; });
+    return Roster.rivals().filter(function (e) { return !used[e.id]; });
+  }
+  function addRivalStar(st, r) {
+    var free = freeRivalStars(st);
+    if (!free.length) return null;
+    var e = pick(st, free);
+    var s = { rosterId: e.id, stats: clone(e.stats), fame: rint(st, 800, 3000), age: e.age };
+    r.stars.push(s);
+    return s;
+  }
+  function newRival(st, range) {
+    var r = { id: newId(st, "r"), name: pickRivalName(st), power: rint(st, range[0], range[1]), stars: [], founded: st.day };
+    st.rivals.push(r);
+    var n = rint(st, 1, 2);
+    for (var i = 0; i < n; i++) addRivalStar(st, r);
+    return r;
+  }
+  function initRivals(st) {
+    st.rivals = [];
+    for (var i = 0; i < BAL.rivalCount; i++) newRival(st, BAL.rivalPowerStart);
+  }
+  function industryGrowth(st) { return 1 + Math.floor(st.day / BAL.daysPerYear) * BAL.rivalYearGrowth; }
+  function rivalScore(st, r, base) { return base * r.power / 100 * industryGrowth(st) * (0.6 + rnd(st) * 0.8); }
+  function rivalStarPerf(r, s, dir) {
+    var w = dirById(dir).weights, v = 0;
+    Object.keys(w).forEach(function (k) { v += s.stats[k] * w[k]; });
+    return v * (1 + r.power / BAL.rivalPerfDiv);
+  }
+
+  function rivalMonth(st) {
+    st.rivals.forEach(function (r) {
+      r.stars.forEach(function (s) { s.fame = Math.min(99999, s.fame + Math.round(r.power / 10 * (0.5 + rnd(st)))); });
+    });
+  }
+
+  function rivalYear(st) {
+    st.rivals.forEach(function (r) {
+      r.power = Math.round(r.power * (0.97 + rnd(st) * 0.12) * 10) / 10;
+      if (rnd(st) < BAL.rivalShockChance) { r.power = Math.round(r.power * 0.6 * 10) / 10; log(st, "rival_scandal", { rival: r.id }); }
+      r.stars = r.stars.filter(function (s) {
+        s.age++;
+        D.STATS.forEach(function (k) { s.stats[k] = Math.min(999, Math.round(s.stats[k] * 1.04)); });
+        var e = Roster.byId(s.rosterId);
+        if (e && s.age > dirById(e.dir).retire) { log(st, "rival_star_retire", { rival: r.id, rosterId: s.rosterId }); return false; }
+        return true;
+      });
+      if (!r.stars.length) addRivalStar(st, r);
+    });
+    st.rivals.filter(function (r) { return r.power < BAL.rivalBankrupt; }).forEach(function (r) {
+      st.rivals.splice(st.rivals.indexOf(r), 1);
+      log(st, "rival_bankrupt", { rival: r.id, name: r.name.slice() });
+      r.stars.forEach(function (s) {
+        if (rnd(st) >= BAL.rivalStarJoinChance) return;
+        var e = Roster.byId(s.rosterId);
+        if (!e) return;
+        log(st, "rival_star_join", { rosterId: e.id, name: r.name.slice() });
+        var res = place(st, fromRoster(st, e), { rarity: e.rarity, rosterId: e.id });
+        if (!res.lost) st.codex.owned[e.id] = true;
+      });
+      var nr = newRival(st, BAL.rivalPowerNew);
+      log(st, "rival_new", { rival: nr.id });
+    });
+  }
+
   // ==== exports ====
   api.VERSION = VERSION;
   api.create = create;
@@ -1117,5 +1212,8 @@
   api.triggerEvent = pushEvent;
   api.triggerRandomEvent = triggerRandomEvent;
   api.resolveEvent = function (st, uid, idx) { return resolveEvent(st, uid, idx, false); };
+  api.rivalById = rivalById;
+  api.rivalName = rivalName;
+  api.rivalStarName = rivalStarName;
   root.PriTestStarvCore = api;
 })();
