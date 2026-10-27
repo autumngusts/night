@@ -1,4 +1,4 @@
-// 明星經紀 starV：首批名錄（v1）。計畫 9 會擴充到 SR 30／SSR 12。
+// 明星經紀 starV：首批名錄（v1：SR 3、SSR 2）。擴充在 starv_roster_2.js（SR）、starv_roster_3.js（SSR）。
 (function () {
   "use strict";
 

@@ -13,7 +13,10 @@ require("../../static_src/starv_awards_data.js");
 var Events = global.PriTestStarvEvents;
 require("../../static_src/starv_roster.js");
 require("../../static_src/starv_roster_1.js");
+require("../../static_src/starv_roster_2.js");
+require("../../static_src/starv_roster_3.js");
 require("../../static_src/starv_roster_rivals_1.js");
+require("../../static_src/starv_roster_rivals_2.js");
 var D = global.PriTestStarvData;
 var Roster = global.PriTestStarvRoster;
 // 計畫 3 加入隨機重大事件（每天 8%）。計畫 1、2 的測試寫死了人氣、壓力等數值，
@@ -79,8 +82,9 @@ test("資料：課程、特質、小事件", function () {
   eq(D.DORM_CAP[1], 5, "宿舍 Lv1"); eq(D.DORM_CAP[10], 100, "宿舍 Lv10");
 });
 
-test("名錄：首批 SR 3、SSR 2，欄位完整", function () {
-  eq(Roster.byRarity("SR").length, 3, "SR 數"); eq(Roster.byRarity("SSR").length, 2, "SSR 數");
+test("名錄：SR 30、SSR 12、宿敵 20，欄位完整", function () {
+  eq(Roster.byRarity("SR").length, 30, "SR 數"); eq(Roster.byRarity("SSR").length, 12, "SSR 數");
+  eq(Roster.rivals().length, 20, "宿敵數");
   Roster.all().forEach(function (e) {
     assert(e.name.zh && e.name.ja && e.bio.zh && e.bio.ja, e.id + " 名字／簡介");
     assert(D.DIR_BY_ID[e.dir], e.id + " 方向");
@@ -90,6 +94,38 @@ test("名錄：首批 SR 3、SSR 2，欄位完整", function () {
     if (e.rarity === "SSR") assert(e.skill && e.skill.fx, e.id + " SSR 必須有專屬技能");
   });
   assert(Roster.byId("nope") === null, "byId 找不到要回傳 null");
+});
+
+test("名錄：稀有度規則（能力合計、主方向適性、特質數、外觀範圍、技能 fx、名字不重複、涵蓋 16 方向）", function () {
+  var fxKeys = { greatShift: 1 };
+  D.TRAITS.forEach(function (t) { Object.keys(t.fx).forEach(function (k) { fxKeys[k] = 1; }); });
+  function topStats(dir) {
+    var w = D.DIR_BY_ID[dir].weights, mx = 0;
+    Object.keys(w).forEach(function (k) { mx = Math.max(mx, w[k]); });
+    return Object.keys(w).filter(function (k) { return w[k] === mx; });
+  }
+  var names = {}, L = D.LOOK;
+  Roster.all().forEach(function (e) {
+    ["zh", "ja"].forEach(function (l) { assert(!names[l + e.name[l]], e.id + " 名字重複 " + e.name[l]); names[l + e.name[l]] = 1; });
+    var k = e.look;
+    assert(k.face >= 0 && k.face < L.face && k.hair >= 0 && k.hair < L.hair && k.eye >= 0 && k.eye < L.eye &&
+      k.outfit >= 0 && k.outfit < L.outfit && k.acc >= -1 && k.acc < L.acc &&
+      k.hairColor >= 0 && k.hairColor < L.hairColors.length && k.skin >= 0 && k.skin < L.skins.length, e.id + " 外觀超出範圍");
+    if (e.skill) Object.keys(e.skill.fx).forEach(function (f) { assert(fxKeys[f], e.id + " 技能 fx 不支援 " + f); });
+    assert(/^(sr|ssr|rv)\d{3}$/.test(e.id) && e.addedIn, e.id + " ID 格式／addedIn");
+    if (e.kind === "rival") return;
+    var sum = D.STATS.reduce(function (s, x) { return s + e.stats[x]; }, 0), R = D.RARITY[e.rarity];
+    assert(sum >= R.statTotal[0] && sum <= R.statTotal[1], e.id + " 能力合計 " + sum);
+    assert(e.traits.length >= R.traits[0] && e.traits.length <= R.traits[1], e.id + " 特質數 " + e.traits.length);
+    var need = e.rarity === "SSR" ? ["S"] : ["S", "A"];
+    topStats(e.dir).forEach(function (s) { assert(need.indexOf(e.apt[s]) >= 0, e.id + " 主方向適性 " + s + "=" + e.apt[s]); });
+    assert(e.subDirs.length <= 2, e.id + " 副方向最多 2");
+    e.subDirs.forEach(function (d) { assert(D.DIR_BY_ID[d] && d !== e.dir, e.id + " 副方向 " + d); });
+    if (e.rarity === "SSR") assert(e.story && e.story.zh && e.story.ja, e.id + " 小故事");
+  });
+  var dirs = {};
+  Roster.byRarity("SR").concat(Roster.byRarity("SSR")).forEach(function (e) { dirs[e.dir] = 1; });
+  eq(Object.keys(dirs).length, 16, "SR／SSR 涵蓋 16 個方向");
 });
 
 test("名錄：重複 ID 會丟錯", function () {
