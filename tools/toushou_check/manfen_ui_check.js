@@ -28,16 +28,44 @@ function optionValues(page, sel) {
 }
 function appText(page) { return page.evaluate(function () { return document.getElementById("ts-app").innerText; }); }
 
+// 保密斷言（reveal_target／評分遮蔽／心理戰／下注，結算前都不得洩漏帶風向者）。
+// 為什麼不直接檢查「帶風向者的名字不存在」：玩家名字本來就會出現在爆料者、下拉選單、評分名單，會誤報。
+// 因此改查「會洩漏的完整字串」：結算揭曉用的「帶風向的人：<名字>（利多／利空）」兩種組合（字串取自 I18N），
+// 以及方向字樣（利多／利空，從 reveal 字串的括號內取出；只出現在持有者本人的評分畫面與結算）。
+async function assertNoWindLeak(page, s, label, allowDirectionWords) {
+  var info = await page.evaluate(function () {
+    var T = window.I18N.t;
+    return { up: T("ts_mf_wind_reveal_up", { name: "@@" }), down: T("ts_mf_wind_reveal_down", { name: "@@" }), none: T("ts_mf_wind_reveal_none") };
+  });
+  var txt = await appText(page);
+  var names = s.players.map(function (p) { return p.name; });
+  names.forEach(function (n) {
+    assert.ok(txt.indexOf(info.up.replace("@@", n)) < 0, label + ": reveal-up string leaked");
+    assert.ok(txt.indexOf(info.down.replace("@@", n)) < 0, label + ": reveal-down string leaked");
+  });
+  assert.ok(txt.indexOf(info.none) < 0, label + ": reveal-none string leaked");
+  if (!allowDirectionWords) {
+    [info.up, info.down].forEach(function (str) {
+      var m = /[（(]([^）)]+)[）)]/.exec(str);
+      assert.ok(m && m[1].length > 0, "direction word parsed from i18n");
+      // 連括號一起比對：黑天鵝「利多出盡」是公開卡片，本來就會顯示，不能當成洩漏
+      assert.ok(txt.indexOf(m[0]) < 0, label + ": direction word '" + m[0] + "' leaked");
+    });
+  }
+}
+
 (async function main() {
   var browser = await chromium.launch();
+  var errors = [];
+  try {
   var page = await browser.newPage({ viewport: { width: 375, height: 800 } });
   page.on("dialog", function (d) { d.accept(); });
-  var errors = [];
   page.on("pageerror", function (e) { errors.push(String(e)); });
 
   await page.goto(BASE);
   await page.evaluate(function () { localStorage.clear(); localStorage.setItem("pritest-lang", "zh"); });
   await page.reload();
+  await page.waitForSelector("#ts-game-mode");
 
   // ---- 設定 ----
   await page.selectOption("#ts-game-mode", "manfen");
@@ -58,12 +86,25 @@ function appText(page) { return page.evaluate(function () { return document.getE
   assert.strictEqual(s.config.mode, "manfen");
   assert.strictEqual(s.targets.length, 3);
   assert.ok(s.config.windEnabled && s.config.blackSwanEnabled);
+  // 固定風向牌（pop 從尾端取）：第 1 題 up、第 2 題 down、第 3 題 neutral，
+  // 讓「利多持有者」「利空持有者」「無持有者」三種分支每次都會跑到。
+  // 作法：讀回 App 建立的完整 state，只改 windDeck 一個欄位再寫回並 reload（CLAUDE.md 4.4）。
+  await page.evaluate(function () {
+    var st = JSON.parse(localStorage.getItem("pritest-toushou-state"));
+    st.windDeck = ["neutral", "down", "up"];
+    localStorage.setItem("pritest-toushou-state", JSON.stringify(st));
+  });
+  await page.reload();
+  await page.waitForSelector("#ts-btn-start-betting");
+  assert.deepStrictEqual((await debugState(page)).windDeck, ["neutral", "down", "up"]);
+  var windHits = { up: 0, down: 0, none: 0 };
   var startTotal = s.players.reduce(function (n, p) { return n + p.chips; }, 0);
   var anyBonus = false;
 
   for (var round = 0; round < 3; round++) {
     s = await debugState(page);
     assert.strictEqual(s.phase, "reveal_target");
+    await assertNoWindLeak(page, s, "reveal_target r" + round, false);
     await click(page, "#ts-btn-start-betting");
 
     // 爆料：爆料者與畫面一致；有可直接打出的牌就打出第一張，否則自訂
@@ -92,6 +133,7 @@ function appText(page) { return page.evaluate(function () { return document.getE
       var cur = await debugState(page);
       var txt0 = await appText(page);
       assert.ok(txt0.indexOf("你是帶風向的人") < 0 && txt0.indexOf("你不是帶風向的人") < 0, "wind status leaked on mask");
+      await assertNoWindLeak(page, cur, "rate mask r" + round, false);
       await revealIfMasked(page);
       var pid = cur.players.filter(function (p) { return !(p.id in cur.current.ratings); })[0].id;
       var enabled = await page.$$eval(".ts-mf-rate", function (bs) {
@@ -101,14 +143,23 @@ function appText(page) { return page.evaluate(function () { return document.getE
       if (cur.current.windHolder === pid) {
         assert.strictEqual(enabled.length, 2, "wind holder limited to 2 ratings");
         assert.ok(await page.isVisible("#ts-mf-wind-status"));
+        assert.strictEqual((await page.textContent("#ts-mf-wind-status")).trim(),
+          await page.evaluate(function (c) { return window.I18N.t("ts_mf_wind_you_" + c); }, cur.current.windCard), "holder status text");
+        windHits[cur.current.windCard]++;
+        // 持有者按「最後一顆」，兩顆按鈕輪流被測到（第 1 題 up 按 2、第 2 題 down 按 10）
+        await click(page, '.ts-mf-rate[data-value="' + enabled[enabled.length - 1] + '"]');
+        continue;
       } else {
         assert.strictEqual(enabled.length, totalBtns, "non-holder can press every rating");
+        assert.strictEqual((await page.textContent("#ts-mf-wind-status")).trim(),
+          await page.evaluate(function () { return window.I18N.t("ts_mf_wind_you_none"); }), "non-holder status is none");
       }
       await click(page, '.ts-mf-rate[data-value="' + enabled[0] + '"]');
     }
     s = await debugState(page);
     assert.strictEqual(s.phase, "mf_mind");
     assert.ok((await appText(page)).indexOf("你是帶風向") < 0, "wind holder not leaked in mind phase");
+    await assertNoWindLeak(page, s, "mind r" + round, false);
     await noHScroll(page, "mind r" + round);
 
     // 心理戰：第一題做「要求 → 拒絕 → 加價 → 亮牌」，檢查對象選單不含要求者、驗證錯誤後保留選擇
@@ -138,12 +189,17 @@ function appText(page) { return page.evaluate(function () { return document.getE
       s = await debugState(page);
       assert.strictEqual(s.current.revealed[to], "paid");
       assert.strictEqual(s.current.mindPot, min + (min + min + 1), "gag pot = first offer + raised pair");
-      assert.ok((await page.textContent("#ts-mf-revealed")).indexOf(String(s.current.ratings[to])) >= 0);
+      // 精確比對被要求者那一項的完整字串（付費亮牌沒有「被強制」後綴）
+      var toName = s.players.filter(function (p) { return p.id === to; })[0].name;
+      var expectItem = await page.evaluate(function (a) { return window.I18N.t("ts_mf_revealed_item", a); }, { name: toName, n: s.current.ratings[to] });
+      assert.strictEqual((await page.textContent('#ts-mf-revealed li[data-player="' + to + '"]')).trim(), expectItem, "revealed item exact");
+      await assertNoWindLeak(page, s, "mind after reveal r" + round, false);
       assert.ok((await page.textContent("#ts-mf-mind-pot")).indexOf(String(s.current.mindPot)) >= 0);
     }
 
     // 重新整理後回到同一階段
     await page.reload();
+    await page.waitForSelector("#ts-btn-mf-end-mind");
     assert.strictEqual((await debugState(page)).phase, "mf_mind", "state restored after reload");
     await click(page, "#ts-btn-mf-end-mind");
 
@@ -152,7 +208,9 @@ function appText(page) { return page.evaluate(function () { return document.getE
     assert.strictEqual(s.phase, "bet");
     var nb = s.current.bettors.length;
     for (var b = 0; b < nb; b++) {
+      await assertNoWindLeak(page, s, "bet mask r" + round, false);
       await revealIfMasked(page);
+      await assertNoWindLeak(page, s, "bet r" + round, false);
       await page.fill("#ts-bet-predict", "4.5");
       await click(page, "#ts-btn-confirm-bet");
     }
@@ -187,7 +245,13 @@ function appText(page) { return page.evaluate(function () { return document.getE
   assert.deepStrictEqual(dupIds, [], "no duplicate ids on final");
   await noHScroll(page, "final");
 
+  assert.deepStrictEqual(windHits, { up: 1, down: 1, none: 0 }, "wind holder branches all exercised");
   assert.deepStrictEqual(errors, [], "page errors: " + errors.join("\n"));
-  await browser.close();
   console.log("manfen_ui_check passed");
+  } catch (e) {
+    console.error("pageerrors:", errors);
+    throw e;
+  } finally {
+    await browser.close();
+  }
 })().catch(function (e) { console.error(e); process.exit(1); });
