@@ -66,6 +66,7 @@
     var st = blankState(opts);
     // 初始化鉤子（之後的 task 在這裡加上抽卡 PICKUP、工作看板）
     rotatePickup(st);
+    refreshBoard(st);
     return st;
   }
 
@@ -461,10 +462,56 @@
   function advanceDay(st) {
     st.day++;
     tickArtists(st);
+    tickBoard(st);
   }
 
   function advance(st, days) {
     for (var i = 0; i < days; i++) advanceDay(st);
+  }
+
+  // ==== 工作看板（§6.2） ====
+  function boardSize(st) { return BAL.boardBase + st.company.level * BAL.boardPerLevel; }
+
+  function genJob(st) {
+    var weights = {}, hasS = st.board.some(function (j) { return j.tier === "S"; });
+    D.TIER_ORDER.forEach(function (t) {
+      if (D.TIERS[t].unlock > st.company.level) return;
+      if (t === "S" && hasS) return;
+      weights[t] = D.TIERS[t].w;
+    });
+    var tier = wpick(st, weights), T = D.TIERS[tier];
+    var d = pick(st, D.DIRS);
+    var group = d.group && rnd(st) < BAL.groupJobChance;
+    var role = group ? "group" : wpick(st, { lead: 25, support: 45, cameo: 30 });
+    var R = D.ROLES[role];
+    var days = rint(st, T.days[0], T.days[1]);
+    var slots = group ? rint(st, 2, 5) : 1;
+    var mid = (T.days[0] + T.days[1]) / 2;
+    var pay = T.pay * R.pay * (days / mid) * (0.8 + rnd(st) * 0.4) * (group ? slots * 0.7 : 1);
+    return {
+      id: newId(st, "j"), dir: d.id, tier: tier, role: role, days: days, slots: slots,
+      pay: Math.max(100, Math.round(pay / 100) * 100), fame: Math.round(T.fame * R.fame), rep: T.rep,
+      minFame: T.minFame, minProf: T.minProf, isWork: tier !== "D",
+      title: [rint(st, 0, d.title.a.length - 1), rint(st, 0, d.title.b.length - 1)],
+      expires: st.day + BAL.jobLifeDays
+    };
+  }
+
+  function refreshBoard(st) {
+    st.board = st.board.filter(function (j) { return j.expires > st.day; });
+    while (st.board.length < boardSize(st)) st.board.push(genJob(st));
+    st.boardRefreshDay = st.day + BAL.boardRefreshDays;
+  }
+
+  function tickBoard(st) {
+    st.board = st.board.filter(function (j) { return j.expires > st.day; });
+    if (st.day >= st.boardRefreshDay) refreshBoard(st);
+  }
+
+  function jobTitle(job, lang) {
+    lang = lang === "zh" ? "zh" : "ja";
+    var t = dirById(job.dir).title;
+    return t.fmt[lang].replace("{a}", t.a[job.title[0]][lang]).replace("{b}", t.b[job.title[1]][lang]);
   }
 
   // ==== exports ====
@@ -489,5 +536,9 @@
   api._rotatePickup = rotatePickup;
   api.schedule = schedule;
   api.advance = advance;
+  api.jobTitle = jobTitle;
+  api.boardSize = boardSize;
+  api._refreshBoard = refreshBoard;
+  api._genJob = genJob;
   root.PriTestStarvCore = api;
 })();

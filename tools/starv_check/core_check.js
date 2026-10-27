@@ -274,6 +274,44 @@ test("成長：不會超過潛力上限", function () {
   assert(a.stats.vocal <= 405, "歌唱 " + a.stats.vocal);
 });
 
+test("看板：初始件數、Lv1 只有 D/C", function () {
+  var st = Core.create({ seed: 3 });
+  eq(st.board.length, 10, "8 + 1×2"); eq(Core.boardSize(st), 10);
+  st.board.forEach(function (j) {
+    assert(j.tier === "D" || j.tier === "C", "等級 " + j.tier);
+    assert(j.pay > 0 && j.pay % 100 === 0, "酬勞"); assert(j.days >= 1, "天數");
+    if (j.role === "group") assert(j.slots >= 2 && j.slots <= 5 && D.DIR_BY_ID[j.dir].group, "團體工作");
+    else eq(j.slots, 1);
+  });
+});
+
+test("看板：Lv6 才有 S，而且最多 1 件", function () {
+  for (var s = 1; s <= 30; s++) {
+    var st = Core.create({ seed: s }); st.company.level = 6; st.board = [];
+    for (var k = 0; k < 5; k++) { st.board = []; Core._refreshBoard(st); }
+    var nS = st.board.filter(function (j) { return j.tier === "S"; }).length;
+    assert(nS <= 1, "S 件數 " + nS); eq(st.board.length, 20);
+  }
+  var st5 = Core.create({ seed: 1 }); st5.company.level = 5;
+  for (var i = 0; i < 300; i++) assert(Core._genJob(st5).tier !== "S", "Lv5 不能出現 S");
+});
+
+test("看板：每 7 天補到上限、14 天過期", function () {
+  var st = Core.create({ seed: 8 });
+  var firstIds = st.board.map(function (j) { return j.id; });
+  st.board.splice(0, 4);
+  Core.advance(st, 6); eq(st.board.length, 6, "第 6 天還沒刷新");
+  Core.advance(st, 1); eq(st.board.length, 10, "第 7 天補滿");
+  Core.advance(st, 7);
+  assert(st.board.every(function (j) { return firstIds.indexOf(j.id) < 0; }), "第 14 天初始工作都過期");
+});
+
+test("看板：作品名", function () {
+  var st = Core.create({ seed: 1 }), j = Core._genJob(st);
+  j.dir = "film"; j.title = [0, 0];
+  eq(Core.jobTitle(j, "zh"), "電影《午夜的列車》"); eq(Core.jobTitle(j, "ja"), "映画『真夜中の列車』");
+});
+
 // ==== run ====
 var fails = 0;
 tests.forEach(function (t) {
