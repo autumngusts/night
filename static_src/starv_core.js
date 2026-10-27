@@ -60,7 +60,7 @@
       stats: { pulls: 0, jobsDone: 0, greatS: 0, chartTops: 0, trophies: 0 },
       trend: null, events: { pending: [] }, loans: [],
       rivals: [], auditions: [], charts: null, awards: { history: [], unseen: null },
-      hall: [], retireQueue: [], timeline: [], staff: [], achievements: {},
+      hall: [], retireQueue: [], timeline: [], staff: [], achievements: {}, legacy: { points: 0, perks: {} },
       log: [], logSeq: 0, nextId: 1
     };
   }
@@ -96,6 +96,7 @@
     if (!st.rivals.length) initRivals(st);   // version 2 → 3：補上對手公司
     // 事件資料被移除或改名時，存檔裡待處理的舊事件直接丟掉（不讓存檔壞掉）
     st.events.pending = st.events.pending.filter(function (e) { return !!(D.EVENT_BY_ID && D.EVENT_BY_ID[e.id]); });
+    if (!st.legacy) st.legacy = { points: 0, perks: {} };
     st.version = VERSION;
     return st;
   }
@@ -258,7 +259,8 @@
     if (pool === "money") { sr += st.facilities.scout * BAL.scoutBonus.SR; ssr += st.facilities.scout * BAL.scoutBonus.SSR; }
     return { SR: sr, SSR: ssr };
   }
-  function pityMax() { return BAL.pityMax; }   // 新紀元的傳承加成在計畫 5 擴充
+  function perkLv(st, id) { return (st.legacy && st.legacy.perks[id]) || 0; }
+  function pityMax(st) { return Math.max(100, BAL.pityMax - 10 * perkLv(st, "pity")); }   // 傳承加成（§13）
   function rollRarity(st, pool) {
     var r = rates(st, pool), x = rnd(st), out;
     if (st.gacha.pity + 1 >= pityMax(st)) out = "SSR";
@@ -436,6 +438,7 @@
       fxMult(a, src === "course" ? "growthCourse" : "growthTrain") *
       (inPeak(a) ? 1 : BAL.offPeakGrowth) * facilityGrowth(st, stat, src);
     m *= 1 + staffFor(st, "mentor", a.dir);   // 導師（§11）：主方向相同的藝人成長加成
+    m *= 1 + 0.05 * perkLv(st, "growth");      // 傳承加成（§13）
     var g = base * m * Math.sqrt((cap - cur) / cap);
     var next = Math.min(cap, Math.round((cur + g) * 10) / 10);
     a.stats[stat] = next;
@@ -1180,7 +1183,7 @@
     return s;
   }
   function newRival(st, range) {
-    var r = { id: newId(st, "r"), name: pickRivalName(st), power: rint(st, range[0], range[1]), stars: [], founded: st.day };
+    var r = { id: newId(st, "r"), name: pickRivalName(st), power: Math.round(rint(st, range[0], range[1]) * eraRivalMult(st) * (1 - 0.08 * perkLv(st, "rival"))), stars: [], founded: st.day };
     st.rivals.push(r);
     var n = rint(st, 1, 2);
     for (var i = 0; i < n; i++) addRivalStar(st, r);
@@ -1207,7 +1210,7 @@
   function rivalYear(st) {
     st.rivals.forEach(function (r) {
       // 試鏡、排行榜、頒獎都會讓對手變強；每年先往 100 回歸一部分，避免實力無限累積（2026-10-27 依模擬加入）
-      r.power += (BAL.rivalPowerTarget - r.power) * BAL.rivalRevert;
+      r.power += (BAL.rivalPowerTarget * eraRivalMult(st) - r.power) * BAL.rivalRevert;
       r.power = Math.round(r.power * (0.97 + rnd(st) * 0.12) * 10) / 10;
       if (rnd(st) < BAL.rivalShockChance) { r.power = Math.round(r.power * 0.6 * 10) / 10; log(st, "rival_scandal", { rival: r.id }); }
       r.stars = r.stars.filter(function (s) {
@@ -1545,6 +1548,54 @@
     });
   }
 
+  // ==== 新紀元與傳承加成（§13） ====
+  function eraRivalMult(st) { return 1 + BAL.eraRivalBoost * ((st.era || 1) - 1); }
+  function legacyPoints(st) {
+    var hofThisEra = st.hall.filter(function (h) { return h.era === st.era; }).length;
+    return hofThisEra * BAL.legacyHof + st.stats.trophies + st.stats.chartTops;
+  }
+  function buyPerk(st, id) {
+    var p = D.LEGACY_PERK_BY_ID[id];
+    if (!p) return "noPerk";
+    var lv = perkLv(st, id);
+    if (lv >= p.max) return "max";
+    if (st.legacy.points < p.cost[lv]) return "points";
+    st.legacy.points -= p.cost[lv];
+    st.legacy.perks[id] = lv + 1;
+    return null;
+  }
+
+  function newEra(st, carryAid) {
+    if (st.company.level < 10) return "level";
+    var carry = null;
+    if (carryAid) { carry = artistById(st, carryAid); if (!carry) return "noArtist"; }
+    var keep = {
+      hall: st.hall, codex: st.codex, achievements: st.achievements, timeline: st.timeline,
+      legacy: { points: st.legacy.points + legacyPoints(st), perks: st.legacy.perks },
+      era: st.era + 1, seed: st.seed, lastTickAt: st.lastTickAt, nextId: st.nextId, logSeq: st.logSeq, name: st.company.name
+    };
+    var fresh = blankState({ seed: keep.seed, now: keep.lastTickAt, name: keep.name });
+    Object.keys(st).forEach(function (k) { delete st[k]; });
+    Object.keys(fresh).forEach(function (k) { st[k] = fresh[k]; });
+    ["hall", "codex", "achievements", "timeline", "legacy", "era", "nextId", "logSeq"].forEach(function (k) { st[k] = keep[k]; });
+    st.company.money += 50000 * perkLv(st, "money");
+    st.company.tickets += 5 * perkLv(st, "tickets");
+    st.facilities.dorm += perkLv(st, "dorm");
+    rotatePickup(st);
+    initTrend(st);
+    initRivals(st);
+    refreshBoard(st);
+    if (carry) {
+      D.STATS.forEach(function (s) { carry.stats[s] = Math.round(carry.stats[s] * BAL.carryStatMult * 10) / 10; });
+      carry.task = null; carry.policy = "idle"; carry.joinedDay = 0; carry.contractEnd = BAL.contractDays;
+      carry.renewPending = false; carry.retireAskedUntil = 0; carry.works = [];
+      st.artists.push(carry);
+    }
+    timeline(st, "era", { era: st.era, carry: carry ? { rosterId: carry.rosterId, nameSeed: carry.nameSeed, gender: carry.gender } : null });
+    log(st, "new_era", { era: st.era });
+    return null;
+  }
+
   // ==== exports ====
   api.VERSION = VERSION;
   api.create = create;
@@ -1608,5 +1659,8 @@
   api.hireStaff = hireStaff;
   api.fireStaff = fireStaff;
   api.codexStats = codexStats;
+  api.legacyPoints = legacyPoints;
+  api.buyPerk = buyPerk;
+  api.newEra = newEra;
   root.PriTestStarvCore = api;
 })();

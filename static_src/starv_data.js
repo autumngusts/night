@@ -243,6 +243,17 @@
     b: TL(["娛樂|エンタテインメント", "經紀|プロダクション", "傳媒|メディア", "事務所|オフィス", "製作|プロ"])
   };
 
+  // 傳承加成（§13）：cost[lv]＝從 lv 升到 lv+1 的傳承點
+  function perk(id, name, desc, max, cost) { return { id: id, name: T(name), desc: T(desc), max: max, cost: cost }; }
+  var LEGACY_PERKS = [
+    perk("money", "創業資金|創業資金", "新紀元的初始資金 +5 萬／級|新紀元の初期資金 +5 万／Lv", 5, [3, 4, 5, 6, 8]),
+    perk("tickets", "星探人脈|スカウトの人脈", "新紀元的初始星探券 +5／級|新紀元の初期スカウト券 +5／Lv", 4, [3, 4, 6, 8]),
+    perk("dorm", "祖傳宿舍|受け継いだ寮", "新紀元的初始宿舍 +1 級|新紀元の初期寮 +1 Lv", 3, [5, 8, 12]),
+    perk("growth", "名門教育|名門の指導", "所有藝人成長 +5%／級（立即生效）|全タレントの成長 +5%／Lv（即時）", 5, [4, 6, 8, 10, 12]),
+    perk("pity", "星探的直覺|スカウトの勘", "SSR 保底 −10 抽／級（立即生效，最低 100）|SSR 確定 −10 回／Lv（即時、最低 100）", 5, [4, 6, 8, 10, 12]),
+    perk("rival", "業界地位|業界での地位", "新紀元的對手起始實力 −8%／級|新紀元のライバル初期勢力 −8%／Lv", 3, [5, 8, 12])
+  ];
+
   // 外觀組件數量（2D 頭像與 3D 模型共用；acc ＝ -1 表示沒有配件）
   var LOOK = {
     face: 4, hair: 12, eye: 6, outfit: 8, acc: 6,
@@ -280,6 +291,7 @@
     contractDays: 1080, renewSatLine: 50, renewRaise: 0.2, renewStandard: 0.1, satWorked: 2, satIdle: -2, satStress: -3, satMood: 1,
     retireOldChance: 0.4, retireStressChance: 0.1, retireLowFameChance: 0.15, retireLowFame: 30, hofScore: 30, timelineMax: 300,
     staffSalaryBase: 10000, staffSalaryPerTrophy: 1000, staffBonusBase: 0.1, staffBonusPerTrophy: 0.02, staffBonusMax: 0.3, producerGreatShift: 0.1,
+    eraRivalBoost: 0.1, legacyHof: 5, carryStatMult: 0.7,
     logMax: 200, worksMax: 50
   };
 
@@ -288,6 +300,6 @@
     DIRS: DIRS, DIR_BY_ID: index(DIRS), ROLES: ROLES, TIERS: TIERS, TIER_ORDER: TIER_ORDER, RESULTS: RESULTS, PROF_XP: PROF_XP,
     COURSES: COURSES, COURSE_BY_ID: index(COURSES), TRAIN: TRAIN, REST: REST, PROMO: PROMO,
     TRAITS: TRAITS, TRAIT_BY_ID: index(TRAITS), MINOR_EVENTS: MINOR_EVENTS,
-    FACILITIES: FACILITIES, FACILITY_ORDER: FACILITY_ORDER, SPECIAL_TRENDS: SPECIAL_TRENDS, SPECIAL_TREND_BY_ID: index(SPECIAL_TRENDS), DORM_CAP: DORM_CAP, NAMES: NAMES, UNKNOWN_NAME: UNKNOWN_NAME, RIVAL_NAME: RIVAL_NAME, LOOK: LOOK, BAL: BAL
+    FACILITIES: FACILITIES, FACILITY_ORDER: FACILITY_ORDER, SPECIAL_TRENDS: SPECIAL_TRENDS, SPECIAL_TREND_BY_ID: index(SPECIAL_TRENDS), DORM_CAP: DORM_CAP, NAMES: NAMES, UNKNOWN_NAME: UNKNOWN_NAME, RIVAL_NAME: RIVAL_NAME, LEGACY_PERKS: LEGACY_PERKS, LEGACY_PERK_BY_ID: index(LEGACY_PERKS), LOOK: LOOK, BAL: BAL
   };
 })();

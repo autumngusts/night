@@ -1123,6 +1123,45 @@ test("圖鑑：統計與 SSR 小故事", function () {
   else assert(!st.codex.stories.ssr001, "沒得獎不解鎖");
 });
 
+test("新紀元：條件、保留與重置、帶走藝人、傳承點", function () {
+  var st = Core.create({ seed: 1, name: "星光" });
+  st.board = []; st.boardRefreshDay = 99999;
+  var a = freshArtist(st, { fame: 5000 });
+  a.stats.vocal = 300; a.trophies.push({ award: "singer_f", year: 1 });
+  freshArtist(st);
+  st.hall.push({ id: "h1", era: 1, trophies: [], hof: true, dir: "film", rosterId: null, nameSeed: 1, gender: "m" });
+  st.achievements.first_pull = { day: 1, era: 1 }; st.codex.owned.sr001 = true;
+  st.stats.trophies = 3; st.stats.chartTops = 2;
+  eq(Core.newEra(st), "level");
+  st.company.level = 10; st.company.money = 9e9; st.facilities.dorm = 8; st.day = 999;
+  eq(Core.legacyPoints(st), 5 + 3 + 2);
+  eq(Core.newEra(st, "nope"), "noArtist");
+  eq(Core.newEra(st, a.id), null);
+  eq(st.era, 2); eq(st.day, 0); eq(st.company.level, 1); eq(st.company.money, 50000); eq(st.facilities.dorm, 1);
+  eq(st.company.name, "星光"); eq(st.hall.length, 1); assert(st.achievements.first_pull && st.codex.owned.sr001, "保留成就與圖鑑");
+  eq(st.legacy.points, 10); eq(st.artists.length, 1, "只帶走一人");
+  var c = st.artists[0];
+  eq(c.stats.vocal, 210, "能力 ×0.7"); eq(c.trophies.length, 1); eq(c.task, null); eq(c.contractEnd, 1080);
+  eq(st.rivals.length, 5); assert(st.timeline.some(function (x) { return x.kind === "era"; }), "年表");
+  eq(st.stats.trophies, 0, "本紀元統計重新起算");
+});
+
+test("傳承加成：購買、上限、效果", function () {
+  var st = Core.create({ seed: 2 });
+  st.legacy.points = 100;
+  eq(Core.buyPerk(st, "nope"), "noPerk");
+  for (var i = 0; i < 5; i++) eq(Core.buyPerk(st, "pity"), null);
+  eq(Core.buyPerk(st, "pity"), "max");
+  eq(Core.pityLeft(st), 100, "保底 150 − 50");
+  st.legacy.points = 0; eq(Core.buyPerk(st, "money"), "points");
+  st.legacy.points = 100; Core.buyPerk(st, "money"); Core.buyPerk(st, "dorm"); Core.buyPerk(st, "tickets");
+  st.company.level = 10;
+  Core.newEra(st);
+  eq(st.company.money, 100000); eq(st.facilities.dorm, 2); eq(st.company.tickets, 15);
+  var avg = st.rivals.reduce(function (s, r) { return s + r.power; }, 0) / 5;
+  assert(avg >= 80 * 1.1 && avg <= 140 * 1.1, "第 2 紀元對手 ×1.1：" + avg);
+});
+
 // ==== run ====
 var fails = 0;
 tests.forEach(function (t) {
