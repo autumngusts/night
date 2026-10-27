@@ -241,7 +241,8 @@ current: {
   bets: { [playerId]: { amount, predict, chipsBefore } },  // predict 為 ×10 整數
   pot: n
 },
-history[i]: 上列紀錄＋{ avg10, weights, voidedPlayer, ranks, payouts, cancelled, bonus }
+history[i]: 上列紀錄＋{ avg10, weights, voidedPlayer, ranks, payouts, cancelled, refundMind, bonus }
+// refundMind：非交易取消、且沒有人押注而退回 mindPot 時為 true（見 §9）
 ```
 
 - 題目句由 UI 依類別句型＋`flaw.text` 即時組出，不存 state（不設 `sentence` 欄位）。
@@ -276,8 +277,8 @@ history[i]: 上列紀錄＋{ avg10, weights, voidedPlayer, ranks, payouts, cance
 - 目標籌碼不足時「拒絕」按鈕停用。
 - 心理戰中有進行中的要求時不能結束心理戰。
 - 預測值不是 0～上限的整數（×10）→ 停用確定鈕。
-- 沒有人押注（全員籌碼 0）→ 本題照常公布平均，彩池 0；全員籌碼皆 0 時直接整局結算（同經典）。
-- 沒有人押注（`bets` 合計 0）時，`mindPot` 依 `mindPaid` 全數退回，避免籌碼消失（`history.refundMind = true`）。
+- 沒有人押注（全員籌碼 0）→ 本題照常公布平均，彩池 0（`mindPot` 另依下一條退回）；全員籌碼皆 0 時直接整局結算（同經典）。
+- 沒有人押注（`bets` 合計 0）時，`mindPot` 依 `mindPaid` 全數退回，避免籌碼消失（`history.refundMind = true`）。黑天鵝「交易取消」生效（`cancelled = true`）時以交易取消為準，`mindPot` 照 §5 C 類退回，`refundMind` 為 `false`；也就是 `refundMind` 只在非交易取消、且無人押注時為 `true`。
 - 題目池不足 → 抽完為止並提示。
 
 ---
