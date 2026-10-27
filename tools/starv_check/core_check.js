@@ -1048,6 +1048,45 @@ test("引退：retireArtist 摘要內容", function () {
   eq(Core.retireArtist(st, "nope"), null);
 });
 
+test("導師與製作人：名額、加成、月薪", function () {
+  var st = Core.create({ seed: 1 });
+  st.board = []; st.boardRefreshDay = 99999;
+  var h = { id: "h900", era: 1, trophies: [{ award: "x", year: 1 }, { award: "y", year: 1 }], hof: true, dir: "singer", rosterId: null, nameSeed: 1, gender: "f" };
+  st.hall.push(h);
+  eq(Core.staffSlots(st), 0); eq(Core.hireStaff(st, "h900", "mentor", "singer"), "slots");
+  st.company.level = 4; eq(Core.staffSlots(st), 2);
+  eq(Core.hireStaff(st, "nope", "mentor", "singer"), "noHof"); eq(Core.hireStaff(st, "h900", "boss", "singer"), "role"); eq(Core.hireStaff(st, "h900", "mentor", "xx"), "dir");
+  eq(Core.hireStaff(st, "h900", "mentor", "singer"), null); eq(Core.hireStaff(st, "h900", "producer", "film"), "hired");
+  assert(Math.abs(Core.staffBonus(h) - 0.14) < 1e-9, "加成 0.1 + 2 × 0.02");
+  var a = freshArtist(st), b = freshArtist(st);
+  b.dir = "film";
+  Core.schedule(st, a.id, { kind: "course", courseId: "vocal_1" }); Core.schedule(st, b.id, { kind: "course", courseId: "vocal_1" });
+  Core.advance(st, 3);
+  assert(a.stats.vocal > b.stats.vocal, "有導師的成長較多");
+  var m0 = st.company.money; Core.advance(st, 27);
+  var me = st.log.filter(function (e) { return e.type === "month_end"; }).pop();
+  assert(me.data.salary >= 12000, "月薪含導師 10000 + 2 × 1000");
+  Core.fireStaff(st, "h900"); eq(st.staff.length, 0);
+});
+
+test("製作人：大成功門檻下修、評價提高", function () {
+  function avgStars(withProducer) {
+    var st = Core.create({ seed: 5 }), total = 0;
+    st.board = []; st.boardRefreshDay = 99999; st.company.level = 4;
+    st.hall.push({ id: "h1", era: 1, trophies: [], hof: true, dir: "singer", rosterId: null, nameSeed: 1, gender: "f" });
+    if (withProducer) Core.hireStaff(st, "h1", "producer", "singer");
+    for (var i = 0; i < 60; i++) {
+      var a = freshArtist(st); D.STATS.forEach(function (s) { a.stats[s] = 60; });   // 以成功為主，評價 +1★ 不容易被 5★ 上限吃掉
+      var j = soloJob(st); Core.takeJob(st, j.id, [a.id]);
+    }
+    Core.advance(st, 2);
+    st.log.forEach(function (e) { if (e.type === "job_done") total += e.data.stars; });
+    return total / 60;
+  }
+  var base = avgStars(false), prod = avgStars(true);
+  assert(prod > base + 0.3, "製作人讓平均評價提高 " + base + " → " + prod);
+});
+
 // ==== run ====
 var fails = 0;
 tests.forEach(function (t) {

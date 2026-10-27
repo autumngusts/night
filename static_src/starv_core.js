@@ -60,7 +60,7 @@
       stats: { pulls: 0, jobsDone: 0 },
       trend: null, events: { pending: [] }, loans: [],
       rivals: [], auditions: [], charts: null, awards: { history: [], unseen: null },
-      hall: [], retireQueue: [], timeline: [],
+      hall: [], retireQueue: [], timeline: [], staff: [],
       log: [], logSeq: 0, nextId: 1
     };
   }
@@ -435,6 +435,7 @@
     var m = D.APT[a.apt[stat]].mult * (1 + a.mood * BAL.moodPerf) * fxMult(a, "growth") *
       fxMult(a, src === "course" ? "growthCourse" : "growthTrain") *
       (inPeak(a) ? 1 : BAL.offPeakGrowth) * facilityGrowth(st, stat, src);
+    m *= 1 + staffFor(st, "mentor", a.dir);   // 導師（§11）：主方向相同的藝人成長加成
     var g = base * m * Math.sqrt((cap - cur) / cap);
     var next = Math.min(cap, Math.round((cur + g) * 10) / 10);
     a.stats[stat] = next;
@@ -701,6 +702,8 @@
     var ratio = perf / difficulty(job) * (BAL.randLo + rnd(st) * (BAL.randHi - BAL.randLo));
     var shift = 0;
     members.forEach(function (a) { shift = Math.max(shift, fxGreatShift(a, job.dir)); });
+    var prod = staffFor(st, "producer", job.dir);   // 製作人（§11）：大成功門檻下修、評價提高
+    if (prod) shift += BAL.producerGreatShift;
     var res = ratio >= D.RESULTS.great.min - shift ? "great" : ratio >= D.RESULTS.success.min ? "success" :
       ratio >= D.RESULTS.normal.min ? "normal" : "fail";
     var R = D.RESULTS[res];
@@ -709,6 +712,7 @@
     var pay = Math.round(job.pay * R.pay * payMult / members.length);
     st.company.money += pay;
     var stars = rint(st, R.stars[0], R.stars[1]);
+    if (prod && rnd(st) < 0.5 + prod) stars = Math.min(5, stars + 1);
     var tierIdx = D.TIER_ORDER.indexOf(job.tier);
     members.forEach(function (a) {
       var fame0 = a.fame;
@@ -780,6 +784,7 @@
     });
     // 月薪隨人氣上升（規格 §5.2）：人氣衰退後重算，再支付
     st.artists.forEach(function (a) { updateSalary(a); salary += a.salary; });
+    st.staff.forEach(function (s) { salary += s.salary; });
     st.company.money -= salary;
     st.company.debtMonths = st.company.money < 0 ? st.company.debtMonths + 1 : 0;
     if (!st.company.debtMonths) st.company.crisisOn = false;
@@ -1467,6 +1472,35 @@
     });
   }
 
+  // ==== 導師與製作人（§11） ====
+  function hallById(st, id) {
+    for (var i = 0; i < st.hall.length; i++) if (st.hall[i].id === id) return st.hall[i];
+    return null;
+  }
+  function staffSlots(st) { return Math.floor(st.company.level / 2); }
+  function staffBonus(h) { return Math.min(BAL.staffBonusMax, BAL.staffBonusBase + h.trophies.length * BAL.staffBonusPerTrophy); }
+  function hireStaff(st, hofId, role, dir) {
+    var h = hallById(st, hofId);
+    if (!h) return "noHof";
+    if (st.staff.some(function (s) { return s.hofId === hofId; })) return "hired";
+    if (role !== "mentor" && role !== "producer") return "role";
+    if (!dirById(dir)) return "dir";
+    if (st.staff.length >= staffSlots(st)) return "slots";
+    st.staff.push({ hofId: hofId, role: role, dir: dir, salary: BAL.staffSalaryBase + h.trophies.length * BAL.staffSalaryPerTrophy });
+    log(st, "staff_hired", { hofId: hofId, role: role, dir: dir });
+    return null;
+  }
+  function fireStaff(st, hofId) { st.staff = st.staff.filter(function (s) { return s.hofId !== hofId; }); }
+  function staffFor(st, role, dir) {
+    var best = 0;
+    st.staff.forEach(function (s) {
+      if (s.role !== role || s.dir !== dir) return;
+      var h = hallById(st, s.hofId);
+      if (h) best = Math.max(best, staffBonus(h));
+    });
+    return best;
+  }
+
   // ==== exports ====
   api.VERSION = VERSION;
   api.create = create;
@@ -1525,5 +1559,9 @@
   api.updateCharts = updateCharts;
   api.holdAwards = holdAwards;
   api.retireArtist = retireArtist;
+  api.staffSlots = staffSlots;
+  api.staffBonus = staffBonus;
+  api.hireStaff = hireStaff;
+  api.fireStaff = fireStaff;
   root.PriTestStarvCore = api;
 })();
