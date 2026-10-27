@@ -348,6 +348,125 @@
     return null;
   }
 
+  // ==== 行程與成長（§6.1） ====
+  function courseAllowed(st, c) {
+    if (!c.need) return true;
+    if (c.need.facility) return (st.facilities[c.need.facility] || 0) >= c.need.lv;
+    if (c.need.company) return st.company.level >= c.need.company;
+    return true;
+  }
+
+  function schedule(st, aid, spec) {
+    var a = artistById(st, aid);
+    if (!a) return "noArtist";
+    if (a.task) return "busy";
+    var t;
+    if (spec.kind === "course") {
+      var c = D.COURSE_BY_ID[spec.courseId];
+      if (!c) return "noCourse";
+      if (!courseAllowed(st, c)) return "facility";
+      if (st.company.money < c.cost) return "money";
+      st.company.money -= c.cost;
+      t = { kind: "course", courseId: c.id, days: c.days, left: c.days, stamina: c.stamina, stress: c.stress };
+    } else if (spec.kind === "train") {
+      t = { kind: "train", days: D.TRAIN.days, left: D.TRAIN.days, stamina: D.TRAIN.stamina, stress: D.TRAIN.stress };
+    } else if (spec.kind === "rest") {
+      var n = clamp(spec.days | 0, 1, 5);
+      t = { kind: "rest", days: n, left: n, stamina: 0, stress: 0 };
+    } else if (spec.kind === "promo") {
+      if (st.company.money < D.PROMO.cost) return "money";
+      st.company.money -= D.PROMO.cost;
+      t = { kind: "promo", days: D.PROMO.days, left: D.PROMO.days, stamina: D.PROMO.stamina, stress: D.PROMO.stress };
+    } else return "kind";
+    a.task = t;
+    return null;
+  }
+
+  function restMult(st) { return 1 + st.facilities.lounge * D.FACILITIES.lounge.rest; }
+  function stressMult(st, a) { return fxMult(a, "stress") * (1 - st.facilities.lounge * D.FACILITIES.lounge.stress); }
+
+  // 設施對成長的加成：練習室加訓練；錄音室／攝影棚加對應能力的課程
+  function facilityGrowth(st, stat, src) {
+    if (src === "train") return 1 + st.facilities.practice * D.FACILITIES.practice.trainGrowth;
+    var m = 1;
+    ["studio", "photo"].forEach(function (f) {
+      if (D.FACILITIES[f].stats.indexOf(stat) >= 0) m *= 1 + st.facilities[f] * D.FACILITIES[f].v;
+    });
+    return m;
+  }
+
+  // 成長量 ＝ 基礎值 × 適性 × 心情 × 特質 × 巔峰 × 設施 × sqrt(剩餘比例)；保留一位小數
+  function growStat(st, a, stat, base, src) {
+    var cap = a.caps[stat], cur = a.stats[stat];
+    if (cur >= cap) return 0;
+    var m = D.APT[a.apt[stat]].mult * (1 + a.mood * BAL.moodPerf) * fxMult(a, "growth") *
+      fxMult(a, src === "course" ? "growthCourse" : "growthTrain") *
+      (inPeak(a) ? 1 : BAL.offPeakGrowth) * facilityGrowth(st, stat, src);
+    var g = base * m * Math.sqrt((cap - cur) / cap);
+    var next = Math.min(cap, Math.round((cur + g) * 10) / 10);
+    a.stats[stat] = next;
+    return next - cur;
+  }
+
+  function finishTask(st, a, t) {
+    if (t.kind === "course") {
+      var c = D.COURSE_BY_ID[t.courseId];
+      var g = growStat(st, a, c.stat, c.gain, "course");
+      addProf(a, a.dir, 1);
+      log(st, "course_done", { aid: a.id, courseId: c.id, gain: Math.round(g * 10) / 10 });
+    } else if (t.kind === "train") {
+      var w = dirById(a.dir).weights;
+      Object.keys(w).forEach(function (s) { growStat(st, a, s, D.TRAIN.gain * w[s] * 2, "train"); });
+      addProf(a, a.dir, 1);
+      log(st, "train_done", { aid: a.id });
+    } else if (t.kind === "rest") {
+      if (t.days >= 2) a.mood = clamp(a.mood + 1, -2, 2);
+    } else if (t.kind === "promo") {
+      var df = Math.round((D.PROMO.fame + a.stats.charm / 20) * fxMult(a, "fame"));
+      a.fame = clamp(a.fame + df, 0, 99999);
+      log(st, "promo_done", { aid: a.id, fame: df });
+    }
+  }
+
+  // 行程結束後：體力歸零強制休息 3 天；壓力 100 罷工 7 天（壓力降到 60）
+  function postTask(st, a) {
+    if (a.task) return;
+    if (a.stress >= 100) {
+      a.stress = BAL.strikeStressAfter;
+      a.task = { kind: "rest", days: BAL.strikeDays, left: BAL.strikeDays, stamina: 0, stress: 0, forced: true };
+      log(st, "strike", { aid: a.id });
+    } else if (a.stamina <= 0) {
+      a.task = { kind: "rest", days: BAL.forcedRestDays, left: BAL.forcedRestDays, stamina: 0, stress: 0, forced: true };
+      log(st, "forced_rest", { aid: a.id });
+    }
+  }
+
+  function tickArtists(st) {
+    st.artists.forEach(function (a) {
+      var t = a.task;
+      if (!t) return;
+      if (t.kind === "rest") {
+        a.stamina = clamp(a.stamina + D.REST.stamina * restMult(st), 0, 100);
+        a.stress = clamp(a.stress - D.REST.stress, 0, 100);
+      } else {
+        a.stamina = clamp(a.stamina - t.stamina / t.days * fxMult(a, "stamina"), 0, 100);
+        a.stress = clamp(a.stress + t.stress / t.days * stressMult(st, a), 0, 100);
+      }
+      t.left--;
+      // 工作由 activeJobs 統一結算（Task 7），這裡只處理體力與壓力
+      if (t.kind !== "job" && t.left <= 0) { a.task = null; finishTask(st, a, t); postTask(st, a); }
+    });
+  }
+
+  function advanceDay(st) {
+    st.day++;
+    tickArtists(st);
+  }
+
+  function advance(st, days) {
+    for (var i = 0; i < days; i++) advanceDay(st);
+  }
+
   // ==== exports ====
   api.VERSION = VERSION;
   api.create = create;
@@ -368,5 +487,7 @@
   api._rollRarity = rollRarity;
   api._grantEntry = grantEntry;
   api._rotatePickup = rotatePickup;
+  api.schedule = schedule;
+  api.advance = advance;
   root.PriTestStarvCore = api;
 })();

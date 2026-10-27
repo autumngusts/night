@@ -213,6 +213,67 @@ test("抽卡：PICKUP 優先選 debut 角色", function () {
   assert(st.gacha.pickup.SSR, "第二期仍有 PICKUP");
 });
 
+function freshArtist(st, over) {
+  var a = Core._genR(st);
+  D.STATS.forEach(function (s) { a.apt[s] = "B"; a.caps[s] = 405; a.stats[s] = 50; });
+  a.traits = []; a.age = 20; a.dir = "singer";
+  Object.keys(over || {}).forEach(function (k) { a[k] = over[k]; });
+  st.artists.push(a);
+  return a;
+}
+
+test("行程：課程扣錢、3 天後能力提升", function () {
+  var st = Core.create({ seed: 1 }), a = freshArtist(st);
+  var m0 = st.company.money;
+  eq(Core.schedule(st, a.id, { kind: "course", courseId: "vocal_1" }), null);
+  eq(st.company.money, m0 - 1500);
+  eq(Core.schedule(st, a.id, { kind: "train" }), "busy");
+  Core.advance(st, 2); assert(a.task, "還沒結束");
+  Core.advance(st, 1); eq(a.task, null, "第 3 天結束");
+  assert(a.stats.vocal > 50 && a.stats.vocal < 80, "歌唱 " + a.stats.vocal);
+  assert(a.stamina < 100 && a.stress > 0, "體力與壓力有變化");
+});
+
+test("行程：高級課程需要設施或公司等級", function () {
+  var st = Core.create({ seed: 1 }), a = freshArtist(st);
+  eq(Core.schedule(st, a.id, { kind: "course", courseId: "vocal_2" }), "facility");
+  eq(Core.schedule(st, a.id, { kind: "course", courseId: "talk_2" }), "facility");
+  st.facilities.studio = 1; eq(Core.schedule(st, a.id, { kind: "course", courseId: "vocal_2" }), null);
+  eq(Core.schedule(st, freshArtist(st).id, { kind: "course", courseId: "nope" }), "noCourse");
+  st.company.money = 100; eq(Core.schedule(st, freshArtist(st).id, { kind: "course", courseId: "act_1" }), "money");
+});
+
+test("行程：訓練依主方向權重成長", function () {
+  var st = Core.create({ seed: 1 }), a = freshArtist(st);
+  Core.schedule(st, a.id, { kind: "train" }); Core.advance(st, 2);
+  assert(a.stats.vocal > a.stats.charm && a.stats.charm > 50 && a.stats.act === 50, "歌手：歌唱 > 魅力 > 50，演技不變");
+});
+
+test("行程：休息回復、宣傳增加人氣", function () {
+  var st = Core.create({ seed: 1 }), a = freshArtist(st, { stamina: 20, stress: 60 });
+  Core.schedule(st, a.id, { kind: "rest", days: 2 }); Core.advance(st, 2);
+  eq(a.stamina, 70); eq(a.stress, 36); eq(a.mood, 1);
+  var b = freshArtist(st), m0 = st.company.money;
+  Core.schedule(st, b.id, { kind: "promo" }); eq(st.company.money, m0 - 1000);
+  Core.advance(st, 2); assert(b.fame >= 12, "人氣 " + b.fame);
+});
+
+test("行程：體力歸零強制休息、壓力 100 罷工", function () {
+  var st = Core.create({ seed: 1 }), a = freshArtist(st, { stamina: 5 });
+  Core.schedule(st, a.id, { kind: "train" }); Core.advance(st, 2);
+  assert(a.task && a.task.kind === "rest" && a.task.forced && a.task.days === 3, "強制休息 3 天");
+  var b = freshArtist(st, { stress: 97 });
+  Core.schedule(st, b.id, { kind: "train" }); Core.advance(st, 2);
+  assert(b.task && b.task.kind === "rest" && b.task.days === 7, "罷工 7 天"); eq(b.stress, 60);
+});
+
+test("成長：不會超過潛力上限", function () {
+  var st = Core.create({ seed: 1 }), a = freshArtist(st);
+  a.stats.vocal = 404;
+  Core.schedule(st, a.id, { kind: "course", courseId: "vocal_1" }); Core.advance(st, 3);
+  assert(a.stats.vocal <= 405, "歌唱 " + a.stats.vocal);
+});
+
 // ==== run ====
 var fails = 0;
 tests.forEach(function (t) {
