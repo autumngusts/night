@@ -132,6 +132,49 @@ step("工作：結成組合", async function (page) {
   await act(page, "jobs-sub-board");
 });
 
+step("公司：匯出 → 匯入 → 名稱一致", async function (page) {
+  await tab(page, "company");
+  await noRawKeys(page, "公司分頁");
+  await act(page, "save-export");
+  var code = await page.$eval('[data-act="save-code"]', function (x) { return x.value; });
+  assert.ok(code.indexOf("SV1.") === 0, "匯出字串");
+  await page.fill('[data-act="save-import-text"]', code);
+  await act(page, "save-import");
+  await act(page, "save-import-confirm");
+  var s = await st(page);
+  assert.strictEqual(s.company.name, "測試經紀");
+});
+
+step("debug：快轉 30 天 → 日誌有紀錄", async function (page) {
+  var d0 = (await st(page)).day;
+  await act(page, "debug-skip-30");
+  var s = await st(page);
+  // 主迴圈每秒也可能推進一天，所以用 ≥ 比較
+  assert.ok(s.day >= d0 + 30 && s.day <= d0 + 31, "日期 " + d0 + " → " + s.day);
+  assert.ok(s.log.some(function (e) { return e.type === "month_end"; }), "有月結");
+  await act(page, "log-toggle");
+  await page.waitForSelector(".sv-log-panel .sv-log-line");
+  await noRawKeys(page, "日誌");
+  await act(page, "log-toggle");
+});
+
+step("離線報告：回到 10 天前 → 跳出報告", async function (page) {
+  await page.evaluate(function () { window.PriTestStarv.state().lastTickAt -= 10 * 60000; });
+  await page.waitForSelector(".sv-report", { timeout: 5000 });
+  await noRawKeys(page, "離線報告");
+  await act(page, "report-close");
+});
+
+step("重新整理後從存檔繼續", async function (page) {
+  var before = await st(page);
+  await page.reload();
+  await page.waitForSelector(".sv-top");
+  var s = await st(page);
+  assert.strictEqual(s.company.name, before.company.name);
+  assert.ok(s.day >= before.day, "日期不會倒退");
+  assert.strictEqual(s.artists.length, before.artists.length);
+});
+
 // ==== 之後的 task 在這行之前追加步驟 ====
 
 (async function main() {

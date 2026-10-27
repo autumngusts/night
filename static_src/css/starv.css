@@ -413,3 +413,20 @@
 }
 @keyframes sv-stamp { from { transform: scale(2.2) rotate(-12deg); opacity: 0; } to { transform: scale(1) rotate(-4deg); } }
 @media (max-width: 480px) { .sv-jobs { grid-template-columns: minmax(0, 1fr); } }
+
+/* ---- 公司 ---- */
+.sv-co-name { font-size: 1.3em; font-weight: 700; }
+.sv-debug { border-style: dashed; border-color: var(--sv-pink); }
+
+/* ---- 日誌與離線報告 ---- */
+.sv-log-wrap { position: sticky; bottom: 4.2rem; z-index: 25; display: flex; flex-direction: column; align-items: flex-end; gap: 0.4rem; padding: 0 16px; pointer-events: none; }
+.sv-log-wrap > * { pointer-events: auto; }
+.sv-log-btn { font: inherit; color: var(--sv-text); background: rgba(20, 14, 48, 0.92); border: 1px solid var(--sv-line); border-radius: 999px; padding: 0.35rem 0.9rem; cursor: pointer; order: 2; }
+.sv-log-btn.sv-on { border-color: var(--sv-gold); }
+.sv-log-panel { order: 1; width: min(28rem, 100%); max-height: 50vh; overflow: auto; box-sizing: border-box; padding: 0.7rem 0.9rem; border-radius: var(--sv-radius); background: rgba(20, 14, 48, 0.96); border: 1px solid var(--sv-line); box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5); }
+.sv-log-list { list-style: none; margin: 0.4rem 0 0; padding: 0; }
+.sv-log-line { display: flex; gap: 0.5rem; padding: 0.25rem 0; border-top: 1px dashed var(--sv-line); font-size: 0.85em; }
+.sv-log-day { flex: 0 0 auto; color: var(--sv-muted); font-size: 0.85em; }
+.sv-log-job_done, .sv-log-level_up, .sv-log-join { color: var(--sv-gold); }
+.sv-log-strike, .sv-log-forced_rest, .sv-log-lost, .sv-log-waitlist_expired { color: #ffb3c0; }
+.sv-report-list { margin: 0 0 0.6rem; padding-left: 1.2rem; line-height: 1.8; }
