@@ -3,6 +3,7 @@
 // 規則依據：docs/superpowers/specs/2026-10-15-toushou-game-design.md
 //           docs/superpowers/specs/2026-10-15-toushou-multidevice-design.md（多裝置連線）
 //           docs/superpowers/specs/2026-10-21-toushou-insider-mode-design.md（內線模式）
+//           docs/superpowers/specs/2026-10-27-toushou-manfen-mode-design.md（滿分男模式）
 //
 // 統一模型：每台裝置「擁有」一或多個座位（mySeats()）。
 //   單機模式＝擁有全部座位；連線模式＝自己認領的座位＋（主持人）未被認領的座位。
@@ -13,6 +14,7 @@
   var D = window.PriTestToushouData;
   var Core = window.PriTestToushouCore;
   var Storage = window.PriTestGameStorage;
+  var M = window.PriTestToushouManfen;
   var STORAGE_KEY = "pritest-toushou-state";
   var ROOM_KEY = "pritest-toushou-room";
   var CLIENT_KEY = "pritest-toushou-client";
@@ -255,6 +257,8 @@
       targetCountMode: "players",
       targetCount: 4,
       categories: D.CATEGORIES.map(function (c) { return c.id; }),
+      mfCategories: D.MANFEN_CATEGORIES.map(function (c) { return c.id; }),
+      mfClassicCategories: [],
       targets: [],
       missionsEnabled: true,
       windEnabled: false,
@@ -291,11 +295,19 @@
 
   function randomizeTargets() {
     var count = draft.targetCountMode === "players" ? draft.players.length : draft.targetCount;
-    if (!draft.categories.length) {
-      draft.error = t("ts_err_setup_categories");
-      return;
+    if (draft.mode === "manfen") {
+      if (!draft.mfCategories.length && !draft.mfClassicCategories.length) {
+        draft.error = t("ts_err_setup_mf_categories");
+        return;
+      }
+      draft.targets = M.pickTargets(draft.mfCategories, draft.mfClassicCategories, count, newSeed());
+    } else {
+      if (!draft.categories.length) {
+        draft.error = t("ts_err_setup_categories");
+        return;
+      }
+      draft.targets = Core.pickRandomTargets(draft.categories, count, newSeed());
     }
-    draft.targets = Core.pickRandomTargets(draft.categories, count, newSeed());
     draft.error = draft.targets.length < count ? t("ts_err_setup_pool", { n: draft.targets.length }) : "";
   }
 
@@ -307,16 +319,16 @@
     if (chips.some(function (c) { return !(c >= 1); })) return { error: "ts_err_setup_chips" };
     var minBet = intOf(draft.minBet);
     if (!(minBet >= 1)) return { error: "ts_err_setup_chips" };
-    var insider = draft.mode === "insider";
+    var classic = draft.mode !== "insider" && draft.mode !== "manfen";
     var voteCap = intOf(draft.voteCap);
-    if (!insider && draft.deltaMode === "vote" && !(voteCap >= 10 && voteCap <= 200)) return { error: "ts_err_setup_vote_cap" };
+    if (classic && draft.deltaMode === "vote" && !(voteCap >= 10 && voteCap <= 200)) return { error: "ts_err_setup_vote_cap" };
     if (!draft.targets.length) randomizeTargets();
     if (!draft.targets.length || draft.targets.some(function (tg) { return !lt(tg.name).trim(); })) {
       return { error: "ts_err_setup_targets" };
     }
     return {
       config: {
-        mode: insider ? "insider" : "classic",
+        mode: classic ? "classic" : draft.mode,
         players: draft.players.map(function (p, i) { return { name: String(p.name).trim(), chips: chips[i] }; }),
         targets: draft.targets.map(function (tg) {
           return { category: tg.category, name: tg.name, summary: tg.summary || null, tags: tg.tags,
@@ -328,7 +340,7 @@
         sectorLinkEnabled: draft.sectorLinkEnabled,
         minBet: minBet,
         deltaMode: draft.deltaMode,
-        voteCap: !insider && draft.deltaMode === "vote" ? voteCap : 100,
+        voteCap: classic && draft.deltaMode === "vote" ? voteCap : 100,
         seed: newSeed()
       }
     };
@@ -359,10 +371,11 @@
     }
     var box = el("section", { class: "ts-panel" }, [el("h2", { text: t("ts_setup_heading") })]);
     var insider = draft.mode === "insider";
+    var manfen = draft.mode === "manfen";
 
     var gameModeSel = el("select", { id: "ts-game-mode", "aria-label": t("ts_game_mode"),
-      onchange: function (e) { draft.mode = e.target.value; render(); } });
-    ["classic", "insider"].forEach(function (m) {
+      onchange: function (e) { draft.mode = e.target.value; draft.targets = []; render(); } });
+    ["classic", "insider", "manfen"].forEach(function (m) {
       gameModeSel.appendChild(el("option", { value: m, selected: draft.mode === m, text: t("ts_game_mode_" + m) }));
     });
     box.appendChild(el("label", { class: "ts-field" }, [t("ts_game_mode"), gameModeSel]));
@@ -409,17 +422,29 @@
     });
     box.appendChild(list);
 
-    var cats = el("div", { class: "ts-field" }, [t("ts_categories")]);
-    D.CATEGORIES.forEach(function (c) {
-      cats.appendChild(el("label", {}, [el("input", {
-        class: "ts-cat", type: "checkbox", value: c.id, checked: draft.categories.indexOf(c.id) >= 0,
-        onchange: function (e) {
-          if (e.target.checked) draft.categories.push(c.id);
-          else draft.categories = draft.categories.filter(function (x) { return x !== c.id; });
-        }
-      }), lt(c.name)]));
-    });
-    box.appendChild(cats);
+    // 類別勾選：一組 checkbox（classic／insider＝draft.categories；manfen 的現有類別＝draft.mfClassicCategories）
+    function catBoxes(label, list, cls, getSel, setSel) {
+      var wrap = el("div", { class: "ts-field" }, [label]);
+      list.forEach(function (c) {
+        wrap.appendChild(el("label", {}, [el("input", {
+          class: cls, type: "checkbox", value: c.id, checked: getSel().indexOf(c.id) >= 0,
+          onchange: function (e) {
+            if (e.target.checked) setSel(getSel().concat([c.id]));
+            else setSel(getSel().filter(function (x) { return x !== c.id; }));
+          }
+        }), lt(c.name)]));
+      });
+      return wrap;
+    }
+    if (manfen) {
+      box.appendChild(catBoxes(t("ts_mf_categories"), D.MANFEN_CATEGORIES, "ts-mf-cat",
+        function () { return draft.mfCategories; }, function (v) { draft.mfCategories = v; }));
+      box.appendChild(catBoxes(t("ts_mf_classic_categories"), D.CATEGORIES, "ts-cat",
+        function () { return draft.mfClassicCategories; }, function (v) { draft.mfClassicCategories = v; }));
+    } else {
+      box.appendChild(catBoxes(t("ts_categories"), D.CATEGORIES, "ts-cat",
+        function () { return draft.categories; }, function (v) { draft.categories = v; }));
+    }
 
     box.appendChild(el("div", { class: "ts-field" }, [
       t("ts_target_count"),
@@ -435,7 +460,8 @@
         onclick: function () { randomizeTargets(); render(); } }),
       el("button", { id: "ts-btn-add-target", type: "button", text: t("ts_btn_add_target"),
         onclick: function () {
-          draft.targets.push({ category: draft.categories[0] || D.CATEGORIES[0].id, name: "", tags: [], custom: true });
+          var defCat = manfen ? (draft.mfCategories[0] || D.MANFEN_CATEGORIES[0].id) : (draft.categories[0] || D.CATEGORIES[0].id);
+          draft.targets.push({ category: defCat, name: "", tags: [], custom: true });
           render();
         } })
     ]));
@@ -444,7 +470,7 @@
     draft.targets.forEach(function (tg, idx) {
       var catSel = el("select", { class: "ts-target-cat", "aria-label": t("ts_categories"),
         onchange: function (e) { tg.category = e.target.value; } });
-      D.CATEGORIES.forEach(function (c) {
+      (manfen ? D.MANFEN_CATEGORIES.concat(D.CATEGORIES) : D.CATEGORIES).forEach(function (c) {
         catSel.appendChild(el("option", { value: c.id, selected: c.id === tg.category, text: lt(c.name) }));
       });
       tlist.appendChild(el("li", { class: "ts-target-row" }, [
@@ -463,13 +489,23 @@
     });
     box.appendChild(el("div", {}, [el("p", { text: t("ts_targets") }), tlist]));
 
+    var tCount = draft.targets.length ||
+      (draft.targetCountMode === "players" ? draft.players.length : draft.targetCount);
+    var uneven = tCount % draft.players.length !== 0;
     if (insider) {
       // 內線人依座位輪替（每個標的換一人），標的數不是人數的倍數時次數會不平均
-      var tCount = draft.targets.length ||
-        (draft.targetCountMode === "players" ? draft.players.length : draft.targetCount);
-      if (tCount % draft.players.length !== 0) {
-        box.appendChild(el("p", { id: "ts-insider-uneven", class: "ts-error", text: t("ts_insider_uneven") }));
-      }
+      if (uneven) box.appendChild(el("p", { id: "ts-insider-uneven", class: "ts-error", text: t("ts_insider_uneven") }));
+    } else if (manfen) {
+      // 爆料者同樣依座位輪替；任務卡、板塊連動、加減分方式不適用（manfen spec §2）
+      if (uneven) box.appendChild(el("p", { id: "ts-mf-uneven", class: "ts-error", text: t("ts_mf_uneven") }));
+      box.appendChild(el("label", { class: "ts-field" }, [el("input", {
+        id: "ts-wind", type: "checkbox", checked: draft.windEnabled,
+        onchange: function (e) { draft.windEnabled = e.target.checked; }
+      }), t("ts_mf_wind_enabled")]));
+      box.appendChild(el("label", { class: "ts-field" }, [el("input", {
+        id: "ts-swan", type: "checkbox", checked: draft.blackSwanEnabled,
+        onchange: function (e) { draft.blackSwanEnabled = e.target.checked; }
+      }), t("ts_mf_swan_enabled")]));
     } else {
       box.appendChild(el("label", { class: "ts-field" }, [el("input", {
         id: "ts-missions", type: "checkbox", checked: draft.missionsEnabled,
@@ -506,8 +542,8 @@
     ["host", "vote"].forEach(function (m) {
       modeSel.appendChild(el("option", { value: m, selected: draft.deltaMode === m, text: t("ts_delta_mode_" + m) }));
     });
-    if (!insider) box.appendChild(el("label", { class: "ts-field" }, [t("ts_delta_mode"), modeSel]));
-    if (!insider && draft.deltaMode === "vote") {
+    if (!insider && !manfen) box.appendChild(el("label", { class: "ts-field" }, [t("ts_delta_mode"), modeSel]));
+    if (!insider && !manfen && draft.deltaMode === "vote") {
       box.appendChild(el("label", { class: "ts-field" }, [t("ts_vote_cap"), el("input", {
         id: "ts-vote-cap", type: "number", min: "10", max: "200", value: String(draft.voteCap),
         oninput: function (e) { draft.voteCap = e.target.value; }
