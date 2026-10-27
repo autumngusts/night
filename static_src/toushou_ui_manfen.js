@@ -168,9 +168,10 @@
 
   // ---------------- 心理戰 ----------------
 
-  function requestLog(K, requests) {
+  // withIds＝false：整局回顧（多題並列）時不帶 id，避免重複
+  function requestLog(K, requests, withIds) {
     if (!requests || !requests.length) return null;
-    var ul = K.el("ul", { id: "ts-mf-request-log", class: "ts-mf-request-log" });
+    var ul = K.el("ul", { id: withIds ? "ts-mf-request-log" : null, class: "ts-mf-request-log" });
     requests.forEach(function (r) {
       ul.appendChild(K.el("li", { text: K.t("ts_mf_request_log_" + r.outcome, {
         from: K.playerName(r.from), to: K.playerName(r.to), offers: r.offers.join(" → ") }) }));
@@ -183,13 +184,31 @@
     var c = s.current;
     var min = M.requestMin(s);
     var used = c.requests.map(function (r) { return r.from; });
-    var froms = s.players.filter(function (p) { return K.owns(p.id) && used.indexOf(p.id) < 0 && p.chips >= min; });
-    var tos = s.players.filter(function (p) { return !c.revealed[p.id]; });
-    if (!froms.length || tos.length < 1) return null;
+    // 要求對象＝尚未亮牌、且不是要求者本人
+    function targetsFor(fromId) {
+      return s.players.filter(function (p) { return !c.revealed[p.id] && p.id !== fromId; });
+    }
+    var froms = s.players.filter(function (p) {
+      return K.owns(p.id) && used.indexOf(p.id) < 0 && p.chips >= min && targetsFor(p.id).length > 0;
+    });
+    if (!froms.length) return null;
+    // 選擇存在 K.ui（不進 state）：驗證錯誤或遠端更新重繪後保留原本的選擇
+    var ui = K.ui;
     var fromSel = K.el("select", { id: "ts-mf-req-from", "aria-label": K.t("ts_mf_request_from") });
     froms.forEach(function (p) { fromSel.appendChild(K.el("option", { value: p.id, text: p.name })); });
+    if (froms.some(function (p) { return p.id === ui.mfReqFrom; })) fromSel.value = ui.mfReqFrom;
     var toSel = K.el("select", { id: "ts-mf-req-to", "aria-label": K.t("ts_mf_request_to") });
-    tos.forEach(function (p) { toSel.appendChild(K.el("option", { value: p.id, text: p.name })); });
+    function fillTargets() {
+      toSel.innerHTML = "";
+      var tos = targetsFor(fromSel.value);
+      tos.forEach(function (p) { toSel.appendChild(K.el("option", { value: p.id, text: p.name })); });
+      if (tos.some(function (p) { return p.id === ui.mfReqTo; })) toSel.value = ui.mfReqTo;
+      ui.mfReqTo = toSel.value;
+    }
+    fillTargets();
+    ui.mfReqFrom = fromSel.value;
+    fromSel.addEventListener("change", function () { ui.mfReqFrom = fromSel.value; fillTargets(); });
+    toSel.addEventListener("change", function () { ui.mfReqTo = toSel.value; });
     var offer = K.el("input", { id: "ts-mf-req-offer", type: "number", min: String(min), value: String(min) });
     return K.el("div", { class: "ts-mf-request" }, [
       K.el("label", { class: "ts-field" }, [K.t("ts_mf_request_from"), fromSel]),
@@ -246,7 +265,7 @@
       c.event === "gag" ? K.el("p", { id: "ts-mf-gag", class: "ts-error", text: K.t("ts_mf_gag_hint") }) : null,
       K.el("p", { id: "ts-mf-mind-pot", text: K.t("ts_mf_mind_pot", { n: c.mindPot }) }),
       r ? pendingBox(K, r) : requestForm(K),
-      requestLog(K, c.requests),
+      requestLog(K, c.requests, true),
       K.errorLine(),
       r ? null : K.hostButton("ts-btn-mf-end-mind", "ts_btn_mf_end_mind", { type: "mfEndMind" })
     ]);
@@ -318,7 +337,8 @@
     return h.pot > 0 ? K.t("ts_mf_refunded", { n: h.pot }) : "";
   }
 
-  function settleBody(K, h) {
+  // withIds＝false：整局回顧用，不帶結算畫面專用的 id（多題並列時會重複）
+  function settleBody(K, h, withIds) {
     var s = K.state();
     var pot = potText(K, h);
     var notes = [];
@@ -335,11 +355,11 @@
     var ul = K.el("ul", { class: "ts-settle-notes" });
     notes.forEach(function (x) { ul.appendChild(K.el("li", { text: x })); });
     return K.el("div", {}, [
-      K.el("p", { id: "ts-mf-avg", class: "ts-mf-avg", text: K.t("ts_mf_settle_avg", { avg: fmt10(h.avg10) }) +
+      K.el("p", { id: withIds ? "ts-mf-avg" : null, class: "ts-mf-avg", text: K.t("ts_mf_settle_avg", { avg: fmt10(h.avg10) }) +
         (pot ? K.P("　") + pot : "") }),
       notes.length ? ul : null,
-      K.el("div", { id: "ts-settle-table", class: "ts-table-wrap" }, [settleTable(K, h)]),
-      requestLog(K, h.requests)
+      K.el("div", { id: withIds ? "ts-settle-table" : null, class: "ts-table-wrap" }, [settleTable(K, h)]),
+      requestLog(K, h.requests, withIds)
     ]);
   }
 
@@ -349,7 +369,7 @@
     var last = s.targetIndex + 1 >= s.targets.length;
     return K.el("section", { class: "ts-panel" }, [
       K.el("h2", { text: K.t("ts_settle_heading", { name: K.lt(h.name) }) }),
-      settleBody(K, h),
+      settleBody(K, h, true),
       K.errorLine(),
       K.el("div", { class: "ts-actions" }, [
         K.hostButton("ts-btn-next-target", last ? "ts_btn_to_final" : "ts_btn_next_target", { type: "nextTarget" })
@@ -364,7 +384,7 @@
       K.el("summary", { text: K.lt(h.name) + K.P("　") + K.t("ts_mf_settle_avg", { avg: fmt10(h.avg10) }) +
         (card && h.event !== "calm" ? K.P("　［") + K.lt(card.name) + K.P("］") : "") }),
       h.flaw ? K.el("p", { class: "ts-mf-sentence", text: sentence(K, { category: h.category, name: h.name }, h.flaw.text) }) : null,
-      settleBody(K, h)
+      settleBody(K, h, false)
     ]);
   }
 
