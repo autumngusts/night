@@ -61,7 +61,12 @@
       box.appendChild(el("h3", { text: mine.length ? t("sv_ceremony_summary", { n: mine.length }) : t("sv_ceremony_none") }));
       if (mine.length) box.appendChild(el("ul", { class: "sv-noms" }, mine.map(function (x) {
         var aw = D.AWARD_BY_ID[x.award], n = x.nominees[x.winner];
-        return el("li", { class: "sv-nom sv-nom-win sv-nom-ours" }, [nomineeAvatar(st, n), el("div", { class: "sv-grow" }, [el("b", { text: aw ? UI.L(aw.name) : x.award }), el("div", { class: "sv-small", text: nomineeName(st, n) })])]);
+        var awName = aw ? UI.L(aw.name) : x.award, idx = mine.indexOf(x);
+        return el("li", { class: "sv-nom sv-nom-win sv-nom-ours" }, [
+          nomineeAvatar(st, n),
+          el("div", { class: "sv-grow" }, [el("b", { text: awName }), el("div", { class: "sv-small", text: nomineeName(st, n) })]),
+          UI.btn(t("sv_stage_award"), function () { close(); window.PriTestStarvStageUI.playAward(App, n, awName); }, "sv-btn-gold", { "data-act": "award-stage-" + idx })
+        ]);
       })));
       box.appendChild(el("div", { class: "sv-row sv-row-end" }, [UI.btn(t("sv_close"), close, "sv-btn-primary", { "data-act": "ceremony-close" })]));
     }, { live: true, cls: "sv-modal-wide sv-ceremony", onClose: function () {

@@ -94,6 +94,7 @@
   function handleReport(rep) {
     rep.logs.forEach(function (e) { if (e.type === "level_up") UI.toast(t("sv_toast_level_up", { lv: e.data.lv }), "gold"); });
     if (rep.days >= REPORT_MIN_DAYS) UI.showReport(App, rep);
+    UI.logWatchers().forEach(function (fn) { fn(App, rep); });
   }
 
   function tick() {

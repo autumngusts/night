@@ -1296,6 +1296,16 @@ test("3D 規格：站位、鏡頭腳本涵蓋整段、鏡頭座標有限", funct
   eq(Spec.plan({ dir: "model", kind: "job" }).motion, "walk");
 });
 
+test("企劃階段日誌帶成員與方向（3D 演出用）", function () {
+  var st = Core.create({ seed: 2 });
+  st.board = []; st.boardRefreshDay = 99999; st.company.level = 5; st.company.money = 1e7;
+  Core.startProject(st, "own_variety");
+  var team = projectTeam(st, ["host"], 1, 300);
+  Core.assignStage(st, [team[0].id]); Core.advance(st, 6);
+  var e = st.log.filter(function (x) { return x.type === "project_stage"; })[0];
+  eq(e.data.members.join(","), team[0].id); eq(e.data.dir, "host");
+});
+
 // ==== run ====
 var fails = 0;
 tests.forEach(function (t) {

@@ -441,6 +441,13 @@ _ROWS: list[tuple[str, str, str]] = [
     ("sv_stage_result_normal", "完成", "完了"),
     ("sv_stage_result_fail", "失敗…", "失敗…"),
     ("sv_stage_result_award", "得獎！", "受賞！"),
+    ("sv_stage_replay", "▶ 觀看", "▶ 見る"),
+    ("sv_stage_award", "▶ 上台", "▶ 登壇"),
+    ("sv_stage_quality", "演出畫質", "演出の画質"),
+    ("sv_stage_q_high", "高", "高"),
+    ("sv_stage_q_low", "低（省電）", "低（省電力）"),
+    ("sv_stage_q_off", "關閉（只用 2D）", "オフ（2D のみ）"),
+    ("sv_stage_quality_hint", "A／S 級工作、大型企劃、頒獎時會播放 3D 演出。", "A／S ランクの仕事・大型企画・授賞式で 3D 演出が再生される。"),
     # ==== 之後的 task 在這行之前追加字串 ====
 ]
 

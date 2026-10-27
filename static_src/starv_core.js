@@ -1682,7 +1682,8 @@
     pr.results.push({ ratio: Math.round(ratio * 100) / 100, result: res, members: pr.active.members.slice() });
     pr.active = null;
     pr.mod = 0;
-    log(st, "project_stage", { project: pr.id, stage: pr.stage, result: res });
+    log(st, "project_stage", { project: pr.id, stage: pr.stage, result: res, members: pr.results[pr.results.length - 1].members.slice(),
+      dir: members.length ? stageDirFor(members[0], stage) || members[0].dir : stage.dirs[0] });
     pr.stage++;
     if (pr.stage >= p.stages.length) { finishProject(st); return; }
     if (stage.branch && rnd(st) < BAL.projectBranchChance) pushEvent(st, stage.branch, null, { project: pr.id });

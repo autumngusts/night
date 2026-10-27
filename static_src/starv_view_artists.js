@@ -176,13 +176,15 @@
     }));
   }
 
-  function worksList(a) {
+  function worksList(App, a) {
     if (!a.works.length) return el("p", { class: "sv-muted", text: t("sv_works_empty") });
-    return el("ul", { class: "sv-works" }, a.works.slice(0, 10).map(function (w) {
+    return el("ul", { class: "sv-works" }, a.works.slice(0, 10).map(function (w, i) {
       return el("li", {}, [
         el("span", { class: "sv-res sv-res-" + w.result, text: t("sv_result_" + w.result) }),
         el("span", { class: "sv-grow", text: Core.jobTitle(w, UI.lang()) }),
-        el("span", { class: "sv-stars", text: stars(w.stars) })
+        el("span", { class: "sv-stars", text: stars(w.stars) }),
+        // 先關掉藝人詳情：彈窗同時只顯示一個，不關的話演出會排在詳情後面
+        UI.btn(t("sv_stage_replay"), function () { UI.closeModal(); window.PriTestStarvStageUI.playWork(App, a, w); }, "sv-btn-ghost sv-btn-icon", { "data-act": "replay-" + i })
       ]);
     }));
   }
@@ -217,7 +219,7 @@
       ])));
       box.appendChild(section(t("sv_actions"), actions(App, st, a, ui)));
       box.appendChild(section(t("sv_trophies"), trophyList(a)));
-      box.appendChild(section(t("sv_works"), worksList(a)));
+      box.appendChild(section(t("sv_works"), worksList(App, a)));
     }, { live: true, cls: "sv-modal-detail" });
   }
 

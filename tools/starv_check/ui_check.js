@@ -410,6 +410,30 @@ step("3D：畫質關閉時用 2D 後備", async function (page) {
   await page.evaluate(function () { window.PriTestStarvStage3D.setQuality("high"); });
 });
 
+step("3D：A 級工作完成自動播放、作品重看", async function (page) {
+  await page.evaluate(function () {
+    var A = window.PriTestStarv.app, s = A.st(), a = s.artists[0];
+    a.works.unshift({ title: [0, 0], dir: "film", tier: "A", role: "lead", result: "great", stars: 5, day: s.day, isWork: true, pay: 1 });
+    window.PriTestStarvStageUI.onLogs(A, { days: 1, logs: [{ seq: 0, day: s.day, type: "job_done", data: { aids: [a.id], dir: "film", tier: "A", title: [0, 0], result: "great", pay: 1, stars: 5 } }] });
+  });
+  await page.waitForSelector(".sv-stage-modal", { timeout: 10000 });
+  await act(page, "stage-skip");
+  await act(page, "stage-close");
+  var aid = (await st(page)).artists[0].id;
+  await tab(page, "artists");
+  await page.dispatchEvent('.sv-acard[data-aid="' + aid + '"]', "click");
+  await page.waitForSelector(".sv-modal-detail");
+  await act(page, "replay-0");
+  await page.waitForSelector(".sv-stage-modal", { timeout: 10000 });
+  await act(page, "stage-skip");
+  await act(page, "stage-close");
+  await tab(page, "company");
+  await page.selectOption('[data-act="stage-quality"]', "low");
+  assert.strictEqual(await page.evaluate(function () { return window.PriTestStarvStage3D.quality(); }), "low");
+  await page.selectOption('[data-act="stage-quality"]', "high");
+  await noRawKeys(page, "畫質設定");
+});
+
 // ==== 之後的 task 在這行之前追加步驟 ====
 
 (async function main() {

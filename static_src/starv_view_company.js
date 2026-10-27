@@ -49,6 +49,18 @@
     })));
   }
 
+  function stageCard() {
+    var S = window.PriTestStarvStage3D;
+    return el("div", { class: "sv-card" }, [
+      el("label", { class: "sv-field" }, [
+        el("span", { text: t("sv_stage_quality") }),
+        UI.select(["high", "low", "off"].map(function (q) { return { value: q, label: t("sv_stage_q_" + q) }; }), S.quality(),
+          function (v) { S.setQuality(v); }, { "data-act": "stage-quality" }),
+        el("span", { class: "sv-small sv-muted", text: t("sv_stage_quality_hint") })
+      ])
+    ]);
+  }
+
   function saveCard(st, App) {
     var importBox = el("textarea", { class: "sv-textarea", placeholder: t("sv_save_import_ph"), "data-act": "save-import-text", value: ui.importText,
       oninput: function () { ui.importText = importBox.value; ui.pending = null; } });
@@ -107,6 +119,7 @@
       var st = App.st();
       c.appendChild(infoCard(st, App));
       c.appendChild(facilitiesCard(st, App));
+      c.appendChild(stageCard());
       c.appendChild(saveCard(st, App));
       if (App.debug) c.appendChild(debugCard(st, App));
     }
