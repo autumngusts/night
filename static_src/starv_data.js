@@ -210,6 +210,17 @@
   var FACILITY_ORDER = ["dorm", "practice", "studio", "photo", "lounge", "pr", "scout"];
   var DORM_CAP = [0, 5, 10, 15, 20, 30, 40, 55, 70, 85, 100];
 
+  // 特殊潮流（§8.3）：持續一季，dirs 視同熱門方向
+  function trendSp(id, name, desc, dirs) { return { id: id, name: T(name), desc: T(desc), dirs: dirs }; }
+  var SPECIAL_TRENDS = [
+    trendSp("vtuber_boom", "虛擬主播熱潮|VTuber ブーム", "直播平台爆發，虛擬主播、聲優與配樂需求大增。|配信プラットフォームが急成長。VTuber・声優・作曲の需要が急増。", ["vtuber", "voice", "composer"]),
+    trendSp("audition_boom", "選秀節目大爆發|オーディション番組ブーム", "選秀節目收視長紅，偶像與舞團炙手可熱。|オーディション番組が高視聴率。アイドルとダンスグループが引っ張りだこ。", ["idol", "dancer"]),
+    trendSp("cinema_revival", "電影復興|映画ルネサンス", "國片票房接連破紀錄，電影與配樂工作湧現。|邦画の興行記録が続々更新。映画と劇伴の仕事が急増。", ["film", "composer"]),
+    trendSp("variety_gold", "綜藝黃金期|バラエティ黄金期", "週末綜藝大戰，主持人與搞笑藝人搶手。|週末バラエティ戦争。司会とお笑い芸人が大人気。", ["host", "comedy"]),
+    trendSp("fashion_year", "時尚年|ファッションイヤー", "國際品牌接連進駐，模特兒與廣告代言機會變多。|海外ブランドが続々進出。モデルと CM のチャンスが増える。", ["model", "cm"]),
+    trendSp("band_revival", "樂團復興|バンドリバイバル", "Live House 一票難求，樂團與歌手再度走紅。|ライブハウスのチケットが即完。バンドと歌手が再ブレイク。", ["band", "singer"])
+  ];
+
   // R 藝人的姓名庫：存檔只存 nameSeed，依目前語言組名字（§3.5）
   var NAMES = {
     zh: {
@@ -250,6 +261,7 @@
     levelRep: [500, 1500, 4000, 9000, 18000, 35000, 60000, 100000, 160000],  // levelRep[lv-1]＝升到 lv+1 所需聲望
     levelTickets: 2, chemistryPerJob: 0.02, chemistryMax: 0.2,
     autoRestStamina: 40, autoRestStress: 50, autoRestStressWork: 80, autoMaxTier: "C",
+    seasonDays: 90, trendHot: 1.5, trendCold: 0.7, specialTrendChance: 0.25, trendBoardHot: 2, trendBoardCold: 0.5,
     logMax: 200, worksMax: 50
   };
 
@@ -258,6 +270,6 @@
     DIRS: DIRS, DIR_BY_ID: index(DIRS), ROLES: ROLES, TIERS: TIERS, TIER_ORDER: TIER_ORDER, RESULTS: RESULTS, PROF_XP: PROF_XP,
     COURSES: COURSES, COURSE_BY_ID: index(COURSES), TRAIN: TRAIN, REST: REST, PROMO: PROMO,
     TRAITS: TRAITS, TRAIT_BY_ID: index(TRAITS), MINOR_EVENTS: MINOR_EVENTS,
-    FACILITIES: FACILITIES, FACILITY_ORDER: FACILITY_ORDER, DORM_CAP: DORM_CAP, NAMES: NAMES, UNKNOWN_NAME: UNKNOWN_NAME, LOOK: LOOK, BAL: BAL
+    FACILITIES: FACILITIES, FACILITY_ORDER: FACILITY_ORDER, SPECIAL_TRENDS: SPECIAL_TRENDS, SPECIAL_TREND_BY_ID: index(SPECIAL_TRENDS), DORM_CAP: DORM_CAP, NAMES: NAMES, UNKNOWN_NAME: UNKNOWN_NAME, LOOK: LOOK, BAL: BAL
   };
 })();

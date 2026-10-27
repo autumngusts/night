@@ -8,7 +8,7 @@
   var D = root.PriTestStarvData;
   var Roster = root.PriTestStarvRoster;
   var BAL = D.BAL;
-  var VERSION = 1;
+  var VERSION = 2;
   var api = {};
 
   // ==== 亂數與工具 ====
@@ -52,12 +52,13 @@
       version: VERSION,
       seed: (opts.seed == null ? Math.floor(Math.random() * 2147483647) : opts.seed) | 0,
       day: 0, lastTickAt: opts.now || 0, era: 1,
-      company: { name: opts.name || "", level: 1, rep: 0, money: BAL.startMoney, tickets: BAL.startTickets, debtMonths: 0, safeLine: BAL.startSafeLine },
+      company: { name: opts.name || "", level: 1, rep: 0, money: BAL.startMoney, tickets: BAL.startTickets, debtMonths: 0, safeLine: BAL.startSafeLine, crisisOn: false },
       facilities: { dorm: 1, practice: 0, studio: 0, photo: 0, lounge: 0, pr: 0, scout: 0 },
       artists: [], waitlist: [], board: [], boardRefreshDay: 0, activeJobs: [], dividends: [], groups: [],
       gacha: { pity: 0, pullDay: -1, pullCount: 0, pickup: { SR: null, SSR: null }, debutShown: {} },
       codex: { owned: {}, recruitedR: 0 },
       stats: { pulls: 0, jobsDone: 0 },
+      trend: null, events: { pending: [] }, loans: [],
       log: [], logSeq: 0, nextId: 1
     };
   }
@@ -66,6 +67,7 @@
     var st = blankState(opts);
     // 初始化鉤子（之後的 task 在這裡加上抽卡 PICKUP、工作看板）
     rotatePickup(st);
+    initTrend(st);
     refreshBoard(st);
     return st;
   }
@@ -83,6 +85,7 @@
     fillDefaults(st, blankState({ seed: 1 }));
     st.artists.forEach(function (a) { fillDefaults(a, ARTIST_DEFAULTS); if (!a.prof) a.prof = profInit(); });
     st.waitlist.forEach(function (w) { fillDefaults(w.artist, ARTIST_DEFAULTS); });
+    if (!st.trend) initTrend(st);   // version 1 → 2：補上業界趨勢
     st.version = VERSION;
     return st;
   }
@@ -463,6 +466,7 @@
     st.day++;
     tickArtists(st);
     tickJobs(st);
+    seasonTick(st);
     tickBoard(st);
     tickWaitlist(st);
     if (st.day % BAL.daysPerMonth === 0) monthly(st);
@@ -477,32 +481,47 @@
   // ==== 工作看板（§6.2） ====
   function boardSize(st) { return BAL.boardBase + st.company.level * BAL.boardPerLevel; }
 
-  function genJob(st) {
-    var weights = {}, hasS = st.board.some(function (j) { return j.tier === "S"; });
-    D.TIER_ORDER.forEach(function (t) {
-      if (D.TIERS[t].unlock > st.company.level) return;
-      if (t === "S" && hasS) return;
-      weights[t] = D.TIERS[t].w;
-    });
-    var tier = wpick(st, weights), T = D.TIERS[tier];
-    var d = pick(st, D.DIRS);
-    var group = d.group && rnd(st) < BAL.groupJobChance;
-    var role = group ? "group" : wpick(st, { lead: 25, support: 45, cameo: 30 });
+  // over（可省略）：{ dir, tier, reservedFor }。reservedFor＝指名工作：只有該藝人能接，主角、不看人氣與熟練度門檻
+  function genJob(st, over) {
+    over = over || {};
+    var tier = over.tier;
+    if (!tier) {
+      var weights = {}, hasS = st.board.some(function (j) { return j.tier === "S"; });
+      D.TIER_ORDER.forEach(function (t) {
+        if (D.TIERS[t].unlock > st.company.level) return;
+        if (t === "S" && hasS) return;
+        weights[t] = D.TIERS[t].w;
+      });
+      tier = wpick(st, weights);
+    }
+    var T = D.TIERS[tier];
+    var d = over.dir ? dirById(over.dir) : null;
+    if (!d) {
+      var dw = {};
+      D.DIRS.forEach(function (x) {
+        var m = trendMult(st, x.id);
+        dw[x.id] = m > 1 ? BAL.trendBoardHot : m < 1 ? BAL.trendBoardCold : 1;
+      });
+      d = dirById(wpick(st, dw));
+    }
+    var group = !over.reservedFor && d.group && rnd(st) < BAL.groupJobChance;
+    var role = over.reservedFor ? "lead" : group ? "group" : wpick(st, { lead: 25, support: 45, cameo: 30 });
     var R = D.ROLES[role];
     var days = rint(st, T.days[0], T.days[1]);
     var slots = group ? rint(st, 2, 5) : 1;
     var mid = (T.days[0] + T.days[1]) / 2;
-    var pay = T.pay * R.pay * (days / mid) * (0.8 + rnd(st) * 0.4) * (group ? slots * 0.7 : 1);
-    return {
+    var trend = trendMult(st, d.id);
+    var pay = T.pay * R.pay * (days / mid) * (0.8 + rnd(st) * 0.4) * (group ? slots * 0.7 : 1) * trend;
+    var job = {
       id: newId(st, "j"), dir: d.id, tier: tier, role: role, days: days, slots: slots,
       pay: Math.max(100, Math.round(pay / 100) * 100), fame: Math.round(T.fame * R.fame), rep: T.rep,
-      minFame: T.minFame, minProf: T.minProf, isWork: tier !== "D",
+      minFame: T.minFame, minProf: T.minProf, isWork: tier !== "D", trend: trend,
       title: [rint(st, 0, d.title.a.length - 1), rint(st, 0, d.title.b.length - 1)],
       expires: st.day + BAL.jobLifeDays
     };
-  }
-
-  function refreshBoard(st) {
+    if (over.reservedFor) { job.reservedFor = over.reservedFor; job.minFame = 0; job.minProf = 1; }
+    return job;
+  }  function refreshBoard(st) {
     st.board = st.board.filter(function (j) { return j.expires > st.day; });
     while (st.board.length < boardSize(st)) st.board.push(genJob(st));
     st.boardRefreshDay = st.day + BAL.boardRefreshDays;
@@ -569,6 +588,7 @@
   function eligible(st, a, job) {
     if (!a) return "noArtist";
     if (a.task) return "busy";
+    if (job.reservedFor && job.reservedFor !== a.id) return "reserved";
     if (a.fame < job.minFame) return "fame";
     if (a.prof[job.dir].lv < job.minProf) return "prof";
     return null;
@@ -640,7 +660,7 @@
     var stars = rint(st, R.stars[0], R.stars[1]);
     var tierIdx = D.TIER_ORDER.indexOf(job.tier);
     members.forEach(function (a) {
-      a.fame = clamp(a.fame + Math.round(job.fame * R.fame * fxMult(a, "fame")), 0, 99999);
+      a.fame = clamp(a.fame + Math.round(job.fame * R.fame * fxMult(a, "fame") * (job.trend || 1)), 0, 99999);
       addProf(a, job.dir, R.xp * (tierIdx + 1));
       a.satisfaction = clamp(a.satisfaction + R.sat, 0, 100);
       a.works.unshift({ title: job.title.slice(), dir: job.dir, tier: job.tier, role: job.role, result: res, stars: stars, day: st.day, isWork: job.isWork, pay: pay });
@@ -841,6 +861,37 @@
     return null;
   }
 
+  // ==== 業界趨勢（§8.3） ====
+  function rollTrend(st) {
+    var ids = D.DIRS.map(function (d) { return d.id; }), hot = [], n = rint(st, 2, 3), cold;
+    while (hot.length < n) { var x = pick(st, ids); if (hot.indexOf(x) < 0) hot.push(x); }
+    do { cold = pick(st, ids); } while (hot.indexOf(cold) >= 0);
+    var special = rnd(st) < BAL.specialTrendChance ? pick(st, D.SPECIAL_TRENDS).id : null;
+    return { hot: hot, cold: cold, special: special };
+  }
+  function initTrend(st) {
+    st.trend = { season: Math.floor(st.day / BAL.seasonDays), cur: rollTrend(st), next: rollTrend(st) };
+  }
+  function seasonTick(st) {
+    if (st.day % BAL.seasonDays !== 0) return;
+    st.trend.season = st.day / BAL.seasonDays;
+    st.trend.cur = st.trend.next;
+    st.trend.next = rollTrend(st);
+    log(st, "trend_new", { season: st.trend.season });
+  }
+  function trendMult(st, dir) {
+    var c = st.trend && st.trend.cur;
+    if (!c) return 1;
+    var sp = c.special ? D.SPECIAL_TREND_BY_ID[c.special] : null;
+    if (c.hot.indexOf(dir) >= 0 || (sp && sp.dirs.indexOf(dir) >= 0)) return BAL.trendHot;
+    if (c.cold === dir) return BAL.trendCold;
+    return 1;
+  }
+  function seasonOf(day) {
+    var s = Math.floor(day / BAL.seasonDays);
+    return { year: Math.floor(s / 4) + 1, season: (s % 4) + 1 };
+  }
+
   // ==== exports ====
   api.VERSION = VERSION;
   api.create = create;
@@ -888,5 +939,7 @@
   api.facilityCap = facilityCap;
   api.facilityCost = facilityCost;
   api.upgradeFacility = upgradeFacility;
+  api.trendMult = trendMult;
+  api.seasonOf = seasonOf;
   root.PriTestStarvCore = api;
 })();

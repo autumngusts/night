@@ -596,6 +596,45 @@ test("設施：費用、等級上限、升級", function () {
   D.FACILITY_ORDER.forEach(function (f) { assert(D.FACILITIES[f].name.zh && D.FACILITIES[f].desc.ja, "名稱說明 " + f); });
 });
 
+test("趨勢：初始、季節更替、倍率", function () {
+  var st = Core.create({ seed: 5 });
+  var c = st.trend.cur;
+  assert(c.hot.length >= 2 && c.hot.length <= 3, "熱門數"); assert(c.hot.indexOf(c.cold) < 0, "低迷不能是熱門");
+  c.hot.forEach(function (d, i) { assert(D.DIR_BY_ID[d] && c.hot.indexOf(d) === i, "熱門方向不重複"); });
+  eq(Core.trendMult(st, c.hot[0]), 1.5); eq(Core.trendMult(st, c.cold), 0.7);
+  var next = JSON.stringify(st.trend.next);
+  Core.advance(st, 90);
+  eq(JSON.stringify(st.trend.cur), next, "下一季的傳聞成真"); eq(st.trend.season, 1);
+  assert(st.log.some(function (e) { return e.type === "trend_new"; }), "日誌");
+  var s2 = Core.seasonOf(90); eq(s2.year, 1); eq(s2.season, 2); eq(Core.seasonOf(360).year, 2);
+});
+
+test("趨勢：特殊潮流的方向也算熱門、工作帶趨勢倍率", function () {
+  var st = Core.create({ seed: 5 });
+  st.trend.cur = { hot: ["film", "drama"], cold: "anchor", special: "vtuber_boom" };
+  eq(Core.trendMult(st, "vtuber"), 1.5); eq(Core.trendMult(st, "host"), 1);
+  st.board = []; Core._refreshBoard(st);
+  st.board.forEach(function (j) { eq(j.trend, Core.trendMult(st, j.dir), "job.trend " + j.dir); });
+  var n = { hot: 0, cold: 0 };
+  for (var i = 0; i < 3000; i++) { var j = Core._genJob(st); if (j.dir === "film") n.hot++; if (j.dir === "anchor") n.cold++; }
+  assert(n.hot > n.cold * 2.5, "熱門出現較多 " + JSON.stringify(n));
+});
+
+test("指名工作：只有指定藝人能接、不看門檻", function () {
+  var st = Core.create({ seed: 1 }), a = freshArtist(st), b = freshArtist(st);
+  var j = Core._genJob(st, { dir: "film", tier: "C", reservedFor: a.id });
+  st.board.push(j);
+  eq(j.role, "lead"); eq(j.minFame, 0); eq(j.minProf, 1); eq(j.tier, "C"); eq(j.dir, "film");
+  eq(Core.eligible(st, b, j), "reserved"); eq(Core.eligible(st, a, j), null);
+});
+
+test("存檔版本 2：舊存檔補上趨勢", function () {
+  var st = Core.create({ seed: 1 });
+  delete st.trend; st.version = 1;
+  var m = Core.migrate(JSON.parse(JSON.stringify(st)));
+  eq(m.version, 2); assert(m.trend && m.trend.cur.hot.length >= 2 && m.trend.next, "補上 trend");
+});
+
 // ==== run ====
 var fails = 0;
 tests.forEach(function (t) {
