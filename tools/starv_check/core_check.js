@@ -968,6 +968,14 @@ test("對手事件：帶公司與明星、影響對手實力", function () {
   assert(e2.ctx.star && Roster.byId(e2.ctx.star).kind === "rival", "ctx.star");
 });
 
+test("對手：實力每年回歸 100 附近（不會無限累積）", function () {
+  var st = Core.create({ seed: 6 });
+  st.board = []; st.boardRefreshDay = 99999;
+  st.rivals.forEach(function (r) { r.power = 2000; });
+  Core.advance(st, 360 * 10);
+  st.rivals.forEach(function (r) { assert(r.power < 400, "10 年後實力 " + r.power); });
+});
+
 // ==== run ====
 var fails = 0;
 tests.forEach(function (t) {

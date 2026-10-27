@@ -1161,6 +1161,8 @@
 
   function rivalYear(st) {
     st.rivals.forEach(function (r) {
+      // 試鏡、排行榜、頒獎都會讓對手變強；每年先往 100 回歸一部分，避免實力無限累積（2026-10-27 依模擬加入）
+      r.power += (BAL.rivalPowerTarget - r.power) * BAL.rivalRevert;
       r.power = Math.round(r.power * (0.97 + rnd(st) * 0.12) * 10) / 10;
       if (rnd(st) < BAL.rivalShockChance) { r.power = Math.round(r.power * 0.6 * 10) / 10; log(st, "rival_scandal", { rival: r.id }); }
       r.stars = r.stars.filter(function (s) {
@@ -1272,7 +1274,7 @@
         log(st, "chart_top", { chart: c.id, aid: top.aid });
       } else if (top && top.rival) {
         var r = rivalById(st, top.rival);
-        if (r) r.power += 1;
+        if (r) r.power += BAL.chartTopRivalPower;
       }
     });
     st.charts = { day: st.day, lists: lists };
