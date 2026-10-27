@@ -175,6 +175,28 @@ step("重新整理後從存檔繼續", async function (page) {
   assert.strictEqual(s.artists.length, before.artists.length);
 });
 
+step("三種語言：各分頁沒有漏翻、手機寬度沒有水平捲動", async function (page) {
+  var tabs = ["artists", "jobs", "gacha", "company"];
+  var langs = ["ja", "en", "zh"];
+  for (var i = 0; i < langs.length; i++) {
+    await page.dispatchEvent('.lang-btn[data-lang="' + langs[i] + '"]', "click");
+    for (var j = 0; j < tabs.length; j++) {
+      await tab(page, tabs[j]);
+      await noRawKeys(page, langs[i] + " / " + tabs[j]);
+      var over = await page.evaluate(function () { return document.documentElement.scrollWidth - window.innerWidth; });
+      assert.ok(over <= 0, langs[i] + " / " + tabs[j] + " 水平溢出 " + over + "px");
+      if (langs[i] === "zh") await shot(page, "tab-" + tabs[j]);
+    }
+  }
+  var aid = (await st(page)).artists[0].id;
+  await tab(page, "artists");
+  await page.dispatchEvent('.sv-acard[data-aid="' + aid + '"]', "click");
+  await page.waitForSelector(".sv-modal-detail");
+  await page.waitForTimeout(400);   // 等彈窗的淡入動畫結束再截圖
+  await shot(page, "artist-detail");
+  await act(page, "modal-close");
+});
+
 // ==== 之後的 task 在這行之前追加步驟 ====
 
 (async function main() {
