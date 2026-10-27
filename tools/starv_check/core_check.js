@@ -4,6 +4,7 @@
 
 global.window = global;
 require("../../static_src/starv_data.js");
+require("../../static_src/starv_words_1.js");
 require("../../static_src/starv_events.js");
 require("../../static_src/starv_events_1.js");
 require("../../static_src/starv_events_2.js");
@@ -206,6 +207,34 @@ test("藝人：名字依語言、名錄找不到時顯示未知", function () {
   eq(Core.artistName(Core._fromRoster(st, Roster.byId("sr001")), "zh"), "星野澪");
   var ghost = Core._fromRoster(st, Roster.byId("sr001")); ghost.rosterId = "sr999";
   eq(Core.artistName(ghost, "zh"), "未知藝人");
+});
+
+test("姓名庫與作品名詞庫：擴充後舊存檔的名字與作品名不變", function () {
+  eq(D.NAME_V1_LEN, 20);
+  ["zh", "ja"].forEach(function (l) { ["family", "f", "m"].forEach(function (k) { assert(D.NAMES[l][k].length >= 40, l + "." + k + " 姓名庫 " + D.NAMES[l][k].length); }); });
+  D.DIRS.forEach(function (d) {
+    assert(d.title.a.length >= 12 && d.title.b.length >= 12, d.id + " 詞庫");
+    ["a", "b"].forEach(function (k) {
+      var seen = {};
+      d.title[k].forEach(function (w) { assert(w.zh && w.ja, d.id + " 缺字"); assert(!seen[w.zh], d.id + " 重複詞 " + w.zh); seen[w.zh] = 1; });
+    });
+  });
+  ["zh", "ja"].forEach(function (l) {
+    ["family", "f", "m"].forEach(function (k) {
+      var seen = {};
+      D.NAMES[l][k].forEach(function (n) { assert(!seen[n], l + "." + k + " 重複 " + n); seen[n] = 1; });
+    });
+  });
+  // 舊 nameSeed（< 1,000,000）只用前 20 個：舊存檔、日誌、名人堂的名字不變
+  var old = { rosterId: null, nameSeed: 12345, gender: "f" };
+  eq(Core.artistName(old, "zh"), D.NAMES.zh.family[12345 % 20] + D.NAMES.zh.f[Math.floor(12345 / 20) % 20]);
+  // 新藝人的 nameSeed ≥ 1,000,000，用整個姓名庫
+  var st = Core.create({ seed: 9 }), a = Core._genR(st);
+  assert(a.nameSeed >= Core.NAME_V2_BASE, "新的 nameSeed " + a.nameSeed);
+  var s = a.nameSeed - Core.NAME_V2_BASE, N = D.NAMES.ja;
+  eq(Core.artistName(a, "ja"), N.family[s % N.family.length] + " " + N[a.gender][Math.floor(s / N.family.length) % N[a.gender].length]);
+  // 舊作品名索引仍指向同一個詞
+  eq(Core.jobTitle({ dir: "film", title: [0, 0] }, "zh"), "電影《午夜的列車》");
 });
 
 test("藝人：migrate 補齊藝人欄位", function () {

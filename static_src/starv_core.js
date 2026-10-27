@@ -9,6 +9,9 @@
   var Roster = root.PriTestStarvRoster;
   var BAL = D.BAL;
   var VERSION = 5;
+  // R 姓名庫擴充（計畫 9）：新的 nameSeed 從這裡起跳；小於它的舊 seed 只用第一版姓名庫（D.NAME_V1_LEN），名字不變
+  var NAME_V2_BASE = 1000000;
+  function newNameSeed(st) { return NAME_V2_BASE + rint(st, 0, 999999); }
   var api = {};
 
   // ==== 亂數與工具 ====
@@ -139,7 +142,7 @@
     var a = clone(ARTIST_DEFAULTS);
     a.id = newId(st, "a");
     a.rarity = rarity;
-    a.nameSeed = rint(st, 0, 999999);
+    a.nameSeed = newNameSeed(st);
     a.joinedDay = st.day;
     a.contractEnd = st.day + BAL.contractDays;
     a.stats = {}; a.apt = {}; a.caps = {};
@@ -201,8 +204,11 @@
       return e ? (e.name[lang] || e.name.zh) : D.UNKNOWN_NAME[lang];
     }
     var N = D.NAMES[lang], givenList = N[a.gender] || N.f;
-    var fam = N.family[a.nameSeed % N.family.length];
-    var giv = givenList[Math.floor(a.nameSeed / N.family.length) % givenList.length];
+    var v2 = a.nameSeed >= NAME_V2_BASE, seed = v2 ? a.nameSeed - NAME_V2_BASE : a.nameSeed;
+    var nFam = v2 ? N.family.length : Math.min(D.NAME_V1_LEN, N.family.length);
+    var nGiv = v2 ? givenList.length : Math.min(D.NAME_V1_LEN, givenList.length);
+    var fam = N.family[seed % nFam];
+    var giv = givenList[Math.floor(seed / nFam) % nGiv];
     return lang === "ja" ? fam + " " + giv : fam + giv;
   }
 
@@ -1315,7 +1321,7 @@
           entries.push({ kind: "rstar", rival: r.id, rosterId: s.rosterId, score: c.dirs ? rivalScore(st, r, BAL.chartBase) : s.fame / BAL.chartFameDiv });
         });
         for (var k = 0; k < BAL.chartFillers; k++) {
-          entries.push({ kind: "rgen", rival: r.id, nameSeed: rint(st, 0, 999999), gender: rnd(st) < 0.5 ? "f" : "m",
+          entries.push({ kind: "rgen", rival: r.id, nameSeed: newNameSeed(st), gender: rnd(st) < 0.5 ? "f" : "m",
             score: rivalScore(st, r, c.dirs ? BAL.chartBase * 0.6 : BAL.chartFameBase) });
         }
       });
@@ -1361,7 +1367,7 @@
           return e && genderOk(e.gender) && (!dirs || dirs.indexOf(e.dir) >= 0);
         })[0] : null;
         if (star) out.push({ kind: "rstar", rival: r.id, rosterId: star.rosterId, score: rivalScore(st, r, base * 1.2) });
-        else out.push({ kind: "rgen", rival: r.id, nameSeed: rint(st, 0, 999999), gender: aw.gender || (rnd(st) < 0.5 ? "f" : "m"), score: rivalScore(st, r, base) });
+        else out.push({ kind: "rgen", rival: r.id, nameSeed: newNameSeed(st), gender: aw.gender || (rnd(st) < 0.5 ? "f" : "m"), score: rivalScore(st, r, base) });
       });
     } else if (aw.kind === "work") {
       var best = {};
@@ -1726,6 +1732,7 @@
 
   // ==== exports ====
   api.VERSION = VERSION;
+  api.NAME_V2_BASE = NAME_V2_BASE;
   api.create = create;
   api.migrate = migrate;
   api.dateOf = dateOf;
