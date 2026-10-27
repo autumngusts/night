@@ -31,6 +31,7 @@ require("../../static_src/starv_projects_1.js");
 var Projects = global.PriTestStarvProjects;
 require("../../static_src/starv_achievements.js");
 require("../../static_src/starv_achievements_1.js");
+require("../../static_src/starv_achievements_2.js");
 var Ach = global.PriTestStarvAchievements;
 
 require("../../static_src/starv_core.js");
@@ -1097,7 +1098,7 @@ test("製作人：大成功門檻下修、評價提高", function () {
 });
 
 test("成就：20 項、格式、解鎖給券", function () {
-  var TYPES = ["pulls", "ssr", "codexRate", "level", "artists", "money", "jobs", "greatS", "chartTops", "trophies", "hof", "groupJobs", "era"];
+  var TYPES = ["pulls", "ssr", "codexRate", "level", "artists", "money", "jobs", "greatS", "chartTops", "trophies", "hof", "groupJobs", "era", "projects", "projectsGreat"];
   eq(Ach.all().filter(function (x) { return x.addedIn === "v1"; }).length, 20);
   Ach.all().forEach(function (x) {
     assert(x.name.zh && x.name.ja && x.desc.zh && x.desc.ja, x.id + " 文字");
@@ -1251,6 +1252,13 @@ test("存檔版本 5", function () {
   var st = Core.create({ seed: 1 }); st.version = 4; delete st.projectQueue;
   var m = Core.migrate(JSON.parse(JSON.stringify(st)));
   eq(m.version, 5); assert(Array.isArray(m.projectQueue));
+});
+
+test("成就 v2：企劃", function () {
+  eq(Ach.all().filter(function (x) { return x.addedIn === "v2"; }).length, 2);
+  var st = Core.create({ seed: 1 }); st.stats.projects = 1; st.board = []; st.boardRefreshDay = 99999;
+  Core.advance(st, 1);
+  assert(st.achievements.first_project && !st.achievements.great_project, "完成 1 件");
 });
 
 // ==== run ====

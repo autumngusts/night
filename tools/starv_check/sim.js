@@ -16,6 +16,7 @@ require("../../static_src/starv_projects.js");
 require("../../static_src/starv_projects_1.js");
 require("../../static_src/starv_achievements.js");
 require("../../static_src/starv_achievements_1.js");
+require("../../static_src/starv_achievements_2.js");
 require("../../static_src/starv_roster.js");
 require("../../static_src/starv_roster_1.js");
 require("../../static_src/starv_roster_rivals_1.js");
@@ -71,6 +72,23 @@ function buyFacilities(st) {
   });
 }
 
+// 積極經營：做得起就開最貴的企劃；階段空著就派「在 dirs 裡、能力合計最高」的空閒藝人
+function runProject(st) {
+  if (!st.project) {
+    var can = D.PROJECTS.filter(function (p) { return st.company.level >= p.unlockLevel && st.company.money >= p.cost * 2; })
+      .sort(function (x, y) { return y.cost - x.cost; })[0];
+    if (can) Core.startProject(st, can.id);
+    return;
+  }
+  if (st.project.active) return;
+  var stage = D.PROJECT_BY_ID[st.project.id].stages[st.project.stage];
+  var pool = st.artists.filter(function (a) {
+    return !a.task && (stage.dirs.indexOf(a.dir) >= 0 || a.subDirs.some(function (d) { return stage.dirs.indexOf(d) >= 0; }));
+  }).sort(function (x, y) { return power(y) - power(x); });
+  if (pool.length >= stage.slots[0]) Core.assignStage(st, pool.slice(0, stage.slots[1]).map(function (a) { return a.id; }));
+}
+function power(a) { var s = 0; D.STATS.forEach(function (k) { s += a.stats[k]; }); return s; }
+
 function runScenario(name, seed) {
   var st = Core.create({ seed: seed });
   Core.pull(st, "ticket", 10);
@@ -84,6 +102,7 @@ function runScenario(name, seed) {
       if (st.company.tickets >= 10) Core.pull(st, "ticket", 10);
       st.artists.forEach(function (a) { if (a.policy === "idle") Core.setPolicy(st, a.id, name === "active" ? "work" : "balance"); });
     }
+    if (name === "active") runProject(st);
     if (name === "active") activeAssign(st);
     // 積極經營的玩家：超過引退線的人提出引退就尊重（事件預設是挽留；不選的話名人堂永遠不會有人）
     if (name === "active") st.events.pending.filter(function (e) { return e.id === "retire_offer"; }).forEach(function (e) {
@@ -102,7 +121,7 @@ function runScenario(name, seed) {
         var avg = 0;
         st.artists.forEach(function (a) { D.STATS.forEach(function (s) { avg += a.stats[s]; }); });
         avg = st.artists.length ? Math.round(avg / st.artists.length / 6) : 0;
-        rows.push({ year: day / 360, era: st.era, hof: st.hall.length, ret: st.timeline.filter(function (x) { return x.kind === "retire"; }).length, dorm: st.facilities.dorm,
+        rows.push({ year: day / 360, era: st.era, proj: st.stats.projects, hof: st.hall.length, ret: st.timeline.filter(function (x) { return x.kind === "retire"; }).length, dorm: st.facilities.dorm,
           wins: st.awards.history.length ? st.awards.history[0].results.filter(function (r) { var n = r.nominees[r.winner]; return ["artist", "work", "group", "company"].indexOf(n.kind) >= 0; }).length : 0,
           rivals: Math.round(st.rivals.reduce(function (s, r) { return s + r.power; }, 0) / st.rivals.length),
           money: Math.round(st.company.money), level: st.company.level, artists: st.artists.length, avgStat: avg, jobs: st.stats.jobsDone });
@@ -124,6 +143,7 @@ if (auto.rows.length > 2 && auto.rows[2].dorm < 5) warn("自動方針 10 年宿�
 var activeWins = active.rows.reduce(function (s, r) { return s + r.wins; }, 0);
 if (YEARS >= 30 && activeWins === 0) warn("積極經營 30 年從未得獎");
 active.rows.forEach(function (r) { if (r.year >= 20 && r.wins > 33) warn("積極經營第 " + r.year + " 年得獎 " + r.wins + " 座（> 60%）"); });
+if (YEARS >= 30 && !active.st.timeline.some(function (x) { return x.kind === "project"; })) warn("積極經營 30 年沒有完成任何大型企劃");
 if (YEARS >= 30 && !active.st.hall.length) warn("積極經營 30 年沒有人進名人堂");
 if (YEARS >= 30 && active.st.era < 2) warn("積極經營 30 年沒有進入第 2 紀元");
 if (idle.st.company.level > 3) warn("無操作放置的公司等級 " + idle.st.company.level + "（預期 ≤ 3）");
