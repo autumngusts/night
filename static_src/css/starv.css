@@ -510,3 +510,15 @@
 .sv-retire-hero { display: flex; flex-direction: column; align-items: center; gap: 0.3rem; padding: 0.5rem 0; }
 .sv-retire-hero h2 { margin: 0.3rem 0 0; }
 .sv-retire-hof { font-weight: 800; color: var(--sv-gold); text-shadow: 0 0 16px rgba(255, 214, 107, 0.6); animation: sv-glow 1.2s ease-in-out infinite alternate; }
+
+/* ---- 殿堂 ---- */
+.sv-hall-grid, .sv-codex-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(10rem, 1fr)); gap: 0.6rem; }
+.sv-hall-card, .sv-codex-card { display: flex; flex-direction: column; align-items: center; gap: 0.25rem; text-align: center; }
+.sv-hall-card .sv-select { width: 100%; }
+.sv-codex-card { padding: 0.7rem 0.5rem; border-radius: var(--sv-radius); background: var(--sv-glass); border: 1px solid var(--sv-line); }
+.sv-codex-locked { opacity: 0.45; filter: grayscale(1); }
+.sv-ach-list { list-style: none; margin: 0; padding: 0; }
+.sv-ach-list li { display: flex; align-items: center; gap: 0.6rem; padding: 0.45rem 0; border-top: 1px solid var(--sv-line); opacity: 0.55; }
+.sv-ach-list li.sv-ach-done { opacity: 1; }
+.sv-ach-icon { font-size: 1.4rem; }
+.sv-story { line-height: 1.9; white-space: pre-wrap; }

@@ -194,7 +194,7 @@ step("重新整理後從存檔繼續", async function (page) {
 });
 
 step("三種語言：各分頁沒有漏翻、手機寬度沒有水平捲動", async function (page) {
-  var tabs = ["artists", "jobs", "industry", "gacha", "company"];
+  var tabs = ["artists", "jobs", "industry", "gacha", "hall", "company"];
   var langs = ["ja", "en", "zh"];
   for (var i = 0; i < langs.length; i++) {
     await page.dispatchEvent('.lang-btn[data-lang="' + langs[i] + '"]', "click");
@@ -309,6 +309,31 @@ step("生涯：藝人詳情的合約與獎座、引退紀念", async function (p
   var s = await st(page);
   assert.strictEqual(s.retireQueue.length, 0, "看完清掉");
   assert.ok(!s.artists.some(function (a) { return a.id === aid; }), "已引退");
+});
+
+step("殿堂：圖鑑、成就、名人堂聘請、新紀元", async function (page) {
+  await tab(page, "hall");
+  await noRawKeys(page, "殿堂：名人堂");
+  for (var k of ["codex", "ach", "timeline", "era", "hall"]) { await act(page, "hall-sub-" + k); await noRawKeys(page, "殿堂：" + k); }
+  var hof = await page.evaluate(function () {
+    var A = window.PriTestStarv.app;
+    return A.act(function (s) {
+      s.company.level = 10;
+      s.hall.push({ id: "h_ui", era: s.era, day: s.day, rosterId: null, nameSeed: 42, gender: "f", rarity: "R", dir: "singer", age: 40, years: 10, works: 80, best: null, trophies: [{ award: "singer_f", year: 1 }], fame: 1000, look: s.artists[0].look, score: 50, hof: true });
+      return "h_ui";
+    });
+  });
+  await page.waitForSelector('[data-act="hire-' + hof + '"]');
+  await act(page, "hire-" + hof);
+  var s = await st(page);
+  assert.strictEqual(s.staff.length, 1, "聘請");
+  await act(page, "hall-sub-era");
+  await act(page, "era-start");
+  await act(page, "era-confirm");
+  s = await st(page);
+  assert.strictEqual(s.era, 2, "進入第 2 紀元");
+  assert.ok(s.hall.some(function (h) { return h.id === "h_ui"; }), "名人堂保留");
+  await noRawKeys(page, "新紀元之後");
 });
 
 // ==== 之後的 task 在這行之前追加步驟 ====
