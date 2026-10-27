@@ -8,6 +8,7 @@ require("../../static_src/starv_events.js");
 require("../../static_src/starv_events_1.js");
 require("../../static_src/starv_events_2.js");
 require("../../static_src/starv_events_3.js");
+require("../../static_src/starv_events_4.js");
 require("../../static_src/starv_awards_data.js");
 var Events = global.PriTestStarvEvents;
 require("../../static_src/starv_roster.js");
@@ -25,6 +26,9 @@ function withEvents(fn) { D.BAL.eventDailyChance = EVENT_CHANCE; try { fn(); } f
 var SNATCH = [D.BAL.snatchChance, D.BAL.snatchInterestChance];
 D.BAL.snatchChance = 0; D.BAL.snatchInterestChance = 0;
 
+require("../../static_src/starv_projects.js");
+require("../../static_src/starv_projects_1.js");
+var Projects = global.PriTestStarvProjects;
 require("../../static_src/starv_achievements.js");
 require("../../static_src/starv_achievements_1.js");
 var Ach = global.PriTestStarvAchievements;
@@ -661,7 +665,7 @@ test("存檔版本 2：舊存檔補上趨勢", function () {
 
 test("事件資料：40 種、格式正確", function () {
   var FX = ["money", "tickets", "rep", "loan", "sellTop", "fame", "famePct", "stress", "stamina", "satisfaction", "mood", "salaryPct",
-    "statAll", "stat", "rest", "specialJob", "leave", "moneyBySalary", "allStress", "allSatisfaction", "allSalaryPct", "rivalPower", "renew", "retire", "retain"];
+    "statAll", "stat", "rest", "specialJob", "leave", "moneyBySalary", "allStress", "allSatisfaction", "allSalaryPct", "rivalPower", "renew", "retire", "retain", "projectMod", "projectDays"];
   var TARGETS = ["none", "any", "famous", "rookie", "music", "dance", "stream", "stressed", "unhappy", "lowmood", "idle"];
   eq(D.EVENTS.length, Events.all().length, "D.EVENTS 與登記器一致");
   eq(Events.all().filter(function (e) { return e.addedIn === "v1"; }).length, 40, "v1 事件數");
@@ -1160,6 +1164,25 @@ test("傳承加成：購買、上限、效果", function () {
   eq(st.company.money, 100000); eq(st.facilities.dorm, 2); eq(st.company.tickets, 15);
   var avg = st.rivals.reduce(function (s, r) { return s + r.power; }, 0) / 5;
   assert(avg >= 80 * 1.1 && avg <= 140 * 1.1, "第 2 紀元對手 ×1.1：" + avg);
+});
+
+test("企劃資料：5 件、格式、分歧事件存在", function () {
+  eq(Projects.all().filter(function (p) { return p.addedIn === "v1"; }).length, 5);
+  Projects.all().forEach(function (p) {
+    assert(p.name.zh && p.name.ja && p.desc.zh && p.desc.ja, p.id + " 文字");
+    assert(p.unlockLevel >= 5 && p.cost > 0, p.id + " 解鎖與費用");
+    assert(p.stages.length >= 3 && p.stages.length <= 5, p.id + " 階段數");
+    p.stages.forEach(function (s, i) {
+      assert(s.name.zh && s.name.ja, p.id + " 階段名 " + i);
+      assert(s.dirs.length && s.dirs.every(function (d) { return D.DIR_BY_ID[d]; }), p.id + " 方向 " + i);
+      assert(s.slots[0] >= 1 && s.slots[1] <= 5 && s.slots[0] <= s.slots[1], p.id + " 人數 " + i);
+      assert(D.TIERS[s.tier] && s.days > 0, p.id + " 等級與天數 " + i);
+      if (s.branch) assert(D.EVENT_BY_ID[s.branch] && D.EVENT_BY_ID[s.branch].trigger === "cond", p.id + " 分歧事件 " + s.branch);
+    });
+    eq(D.PROJECT_BY_ID[p.id], p);
+  });
+  var threw = false; try { Projects.add([Projects.byId("world_tour")]); } catch (e) { threw = true; } assert(threw, "重複 ID");
+  eq(Events.all().filter(function (e) { return e.addedIn === "v4"; }).length, 3);
 });
 
 // ==== run ====
