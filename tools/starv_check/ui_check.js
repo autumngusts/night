@@ -68,6 +68,34 @@ step("招募：星探券十連 → 翻卡 → 入社", async function (page) {
   await noRawKeys(page, "招募結果後");
 });
 
+step("藝人：卡片 → 詳情 → 安排訓練", async function (page) {
+  await tab(page, "artists");
+  await noRawKeys(page, "藝人分頁");
+  var s = await st(page);
+  assert.strictEqual(await page.$$eval(".sv-acard", function (x) { return x.length; }), s.artists.length, "卡片數");
+  var aid = s.artists[0].id;
+  await page.dispatchEvent('.sv-acard[data-aid="' + aid + '"]', "click");
+  await page.waitForSelector(".sv-modal-detail");
+  await noRawKeys(page, "藝人詳情");
+  await act(page, "do-train");
+  s = await st(page);
+  assert.strictEqual(s.artists[0].task && s.artists[0].task.kind, "train");
+  await act(page, "modal-close");
+});
+
+step("藝人：多選套用方針", async function (page) {
+  await act(page, "select-mode");
+  var s = await st(page);
+  var ids = s.artists.slice(1).map(function (a) { return a.id; });
+  for (var i = 0; i < ids.length; i++) await page.dispatchEvent('.sv-acard[data-aid="' + ids[i] + '"]', "click");
+  await page.selectOption('[data-act="batch-policy-select"]', "balance");
+  await act(page, "batch-policy");
+  s = await st(page);
+  s.artists.slice(1).forEach(function (a) { assert.strictEqual(a.policy, "balance", a.id); });
+  assert.strictEqual(s.artists[0].policy, "idle", "沒選的不變");
+  await act(page, "select-mode");
+});
+
 // ==== 之後的 task 在這行之前追加步驟 ====
 
 (async function main() {
