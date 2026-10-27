@@ -203,6 +203,48 @@
     s.phase = "mf_rate";
   }
 
+  // ---------------- 秘密評分（spec §3.4） ----------------
+
+  function allowedRatings(s, pid) {
+    var c = s.current;
+    if (c && c.windHolder === pid && WIND_RATINGS[c.windCard]) return WIND_RATINGS[c.windCard].slice();
+    return RATINGS.slice();
+  }
+
+  function pendingRaters(s) {
+    if (s.phase !== "mf_rate" || !s.current) return [];
+    var r = s.current.ratings;
+    return s.players.filter(function (p) { return !Object.prototype.hasOwnProperty.call(r, p.id); })
+      .map(function (p) { return p.id; });
+  }
+
+  function rateError(s, pid, value) {
+    if (pendingRaters(s).indexOf(pid) < 0) return "ts_err_not_your_turn";
+    if (allowedRatings(s, pid).indexOf(value) < 0) return "ts_err_mf_rating";
+    return null;
+  }
+
+  function rate(s, a) {
+    var err = rateError(s, a.playerId, a.value);
+    if (err) throw new Error(err);
+    s.current.ratings[a.playerId] = a.value;
+    if (!pendingRaters(s).length) enterMind(s);
+  }
+
+  // 評分鎖定後進入心理戰；逆序發言／全民公審在此強制亮牌（免費，spec §3.5）
+  function enterMind(s) {
+    var c = s.current;
+    s.phase = "mf_mind";
+    var forced = null;
+    if (c.event === "reverse") {
+      forced = s.players.map(function (p, i) { return { id: p.id, chips: p.chips, seat: i }; })
+        .sort(function (a, b) { return a.chips - b.chips || a.seat - b.seat; })[0].id;
+    } else if (c.event === "trial") {
+      forced = c.blamerId;
+    }
+    if (forced) c.revealed[forced] = "forced";
+  }
+
   // ---------------- reducer 入口 ----------------
 
   function need(s, phase) { if (s.phase !== phase) throw new Error("ts_err_phase"); }
@@ -211,6 +253,7 @@
     switch (action.type) {
       case "startBetting": need(s, "reveal_target"); startExpose(s); break;
       case "mfExpose": need(s, "mf_expose"); expose(s, action); break;
+      case "mfRate": need(s, "mf_rate"); rate(s, action); break;
       case "nextTarget": need(s, "settle"); I.nextTarget(s); break;
       default: throw new Error("ts_err_phase");
     }
@@ -218,6 +261,9 @@
 
   window.PriTestToushouManfen = {
     RATINGS: RATINGS,
+    allowedRatings: allowedRatings,
+    pendingRaters: pendingRaters,
+    rateError: rateError,
     newGame: newGame,
     apply: apply,
     pickTargets: pickTargets,

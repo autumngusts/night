@@ -202,6 +202,50 @@ if (M) {
     assert.strictEqual(s3.current.windCard, null);
   });
 
+  function rateAll(s, fn) {
+    M.pendingRaters(s).forEach(function (pid, i) {
+      s = R(s, { type: "mfRate", playerId: pid, value: fn ? fn(pid, i, s) : M.allowedRatings(s, pid)[0] });
+    });
+    return s;
+  }
+
+  check("rating: only 0/2/5/10, once per player, seat order pending", function () {
+    var s = exposed(game(3));
+    assert.deepStrictEqual(M.pendingRaters(s), ["p0", "p1", "p2"]);
+    assert.strictEqual(M.rateError(s, "p0", 3), "ts_err_mf_rating");
+    s = R(s, { type: "mfRate", playerId: "p1", value: 5 });
+    assert.strictEqual(M.rateError(s, "p1", 5), "ts_err_not_your_turn");
+    assert.deepStrictEqual(M.pendingRaters(s), ["p0", "p2"]);
+    assert.strictEqual(s.phase, "mf_rate");
+  });
+
+  check("wind holder rating restricted: up -> 0/2, down -> 5/10; others free", function () {
+    var s = exposed(game(3, { wind: true }), { wind: "up" });
+    var h = s.current.windHolder;
+    assert.deepStrictEqual(M.allowedRatings(s, h), [0, 2]);
+    assert.strictEqual(M.rateError(s, h, 5), "ts_err_mf_rating");
+    var other = s.players.filter(function (p) { return p.id !== h; })[0].id;
+    assert.deepStrictEqual(M.allowedRatings(s, other), [0, 2, 5, 10]);
+    var s2 = exposed(game(3, { wind: true }), { wind: "down" });
+    assert.deepStrictEqual(M.allowedRatings(s2, s2.current.windHolder), [5, 10]);
+  });
+
+  check("all rated -> mf_mind; no forced reveal without event", function () {
+    var s = rateAll(exposed(game(3)));
+    assert.strictEqual(s.phase, "mf_mind");
+    assert.deepStrictEqual(s.current.revealed, {});
+  });
+
+  check("trial forces blamer reveal; reverse forces poorest (seat tiebreak)", function () {
+    var s = rateAll(exposed(game(3, { swan: true }), { event: "trial" }));
+    var rv = {}; rv[s.current.blamerId] = "forced";
+    assert.deepStrictEqual(s.current.revealed, rv);
+    var g = game(3, { swan: true });
+    g.players[2].chips = 300; g.players[1].chips = 300;
+    s = rateAll(exposed(g, { event: "reverse" }));
+    assert.deepStrictEqual(s.current.revealed, { p1: "forced" });
+  });
+
   check("all players broke at startBetting -> final", function () {
     var s = game(2);
     s.players.forEach(function (p) { p.chips = 0; });
