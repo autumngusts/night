@@ -254,7 +254,11 @@
   }
 
   function enemyHitValue(st, e, n, seat) {
-    var v = (n + (e.str || 0)) * DMG_BY_ACT[actOf(st)] * (1 + D.ENDLESS.dmg * loopOf(st)) * (tor(st, 2) ? 1.1 : 1) * (1 + tmodVal(st, "dmg") / 100);
+    // 戰場狀態：熔岩地（近戰 +2）、沙塵（外圈敵人 -2，首領除外）、血月（×1.25）
+    var fa = 0, ed = D.ENEMY[e.id];
+    if (fieldIs(st, "lava") && ed && ed.kind === "melee") fa += D.FIELD_NUM.lavaMel;
+    if (fieldIs(st, "dust") && e.ring === "far" && !isBoss(e)) fa -= D.FIELD_NUM.dust;
+    var v = Math.max(0, n + (e.str || 0) + fa) * (fieldIs(st, "moon") ? D.FIELD_NUM.moon : 1) * DMG_BY_ACT[actOf(st)] * (1 + D.ENDLESS.dmg * loopOf(st)) * (tor(st, 2) ? 1.1 : 1) * (1 + tmodVal(st, "dmg") / 100);
     if (isBoss(e)) v = v * BOSS_DMG_BY_PARTY[partySize(st)];
     v = v * (e.wk || 1);
     if (e.st.weak > 0) v = v * 0.75;
@@ -274,6 +278,9 @@
     v += (pw.chainAtk || 0) * (h.atkN || 0) + (h.turnAtk || 0) + (pw.atkPlus || 0);
     if (pw.beatAtk && (h.beat || 0) >= 5) v += pw.beatAtk;
     if (e && pw.charmPlus && e.st.charm > 0) v += pw.charmPlus;
+    // 戰場狀態（開戰時記在 h.fld）：沙塵＝打外圈 -2（首領除外）、血月＝×1.25
+    if (h.fld === "dust" && ring === "far" && !(e && isBoss(e))) v = Math.max(0, v - D.FIELD_NUM.dust);
+    if (h.fld === "moon") v = v * D.FIELD_NUM.moon;
     if (h.st.weak > 0) v = v * 0.75;
     if (e && e.st.vuln > 0) v = v * 1.5;
     return Math.max(0, Math.floor(v));
@@ -416,7 +423,7 @@
       if (e.stImm > 0) { log(st, { t: "stunImm", to: eref(e) }); return; }
       if (e.st.stun > 0) return;
       n = 1;
-    }
+    } else if (s === "stun" && fieldIs(st, "ice")) n += D.FIELD_NUM.iceStun; // 冰原：一般敵人的暈眩多 1 回合
     if (s === "link" && h) e.lk = h.seat;
     e.st[s] = (e.st[s] || 0) + n;
     log(st, { t: "st", to: eref(e), s: s, n: n });
@@ -633,6 +640,54 @@
     });
   }
 
+  // ---- 戰場狀態（2026-10-27 使用者指定，見 D.FIELDS）：整場有效、敵我都受影響、不隱藏意圖 ----
+  function fieldIs(st, id) { return !!(st.field && st.field.id === id); }
+  function stormSec(st) { st.field.sec = rint(st, sectorCount(st)); }
+  // 開戰時依幕數機率抽一個（單人時不抽強風，只有一區換不了）
+  function rollField(st) {
+    st.field = null;
+    if (rint(st, 100) >= D.FIELD_PCT[actOf(st)]) return;
+    var list = D.FIELDS.filter(function (f) { return !f.multi || sectorCount(st) > 1; });
+    setField(st, pick(st, list).id);
+  }
+  function setField(st, id) {
+    st.field = id ? { id: id } : null;
+    if (fieldIs(st, "storm")) stormSec(st);
+    heroes(st).forEach(function (h) { h.fld = id || null; });
+    if (id) log(st, { t: "field", f: id });
+  }
+  // 敵人回合開始（敵人行動前）：雷暴落雷、熔岩地燃燒
+  function fieldEnemyStart(st) {
+    if (fieldIs(st, "storm")) {
+      var sec = st.field.sec, N2 = D.FIELD_NUM.storm;
+      log(st, { t: "fieldStorm", sec: sec, n: N2 });
+      st.enemies.slice().forEach(function (e) { if (e.hp > 0 && e.sec === sec) hitEnemy(st, e, N2, false); });
+      var ow = secOwner(st, sec);
+      if (ow && !ow.down) hitHero(st, ow, N2, false);
+    } else if (fieldIs(st, "lava")) {
+      st.enemies.forEach(function (e) { if (e.hp > 0 && !isBoss(e) && e.ring === "near") addStatus(st, e, "burn", D.FIELD_NUM.lava, null); });
+    }
+  }
+  // 敵人回合結束（敵人選新意圖前）：強風換區、漲潮沖進內圈、雷暴預告下一區
+  function fieldEnemyEnd(st) {
+    var n = sectorCount(st);
+    if (fieldIs(st, "wind") && n > 1) {
+      st.enemies.slice().forEach(function (e) { if (e.hp > 0 && !isBoss(e) && e.ring === "far") shiftEnemy(st, e, (e.sec + 1) % n); });
+    } else if (fieldIs(st, "tide") && st.round >= D.FIELD_NUM.tideRound - 1) {
+      // st.round 還沒 +1：第 2 回合結束時沖進來，第 3 回合開始就在內圈
+      st.enemies.slice().forEach(function (e) { if (e.hp > 0 && !isBoss(e) && e.ring === "far") moveEnemy(st, e, "near"); });
+    } else if (fieldIs(st, "storm")) stormSec(st);
+  }
+  // 新回合開始（英雄回合前）：聖泉
+  function fieldRoundStart(st) {
+    if (!fieldIs(st, "spring")) return;
+    alive(st).forEach(function (h) { healHero(st, h, D.FIELD_NUM.springHero); });
+    st.enemies.forEach(function (e) {
+      var v = Math.min(e.max - e.hp, Math.max(1, Math.floor(e.max * D.FIELD_NUM.springFoe)));
+      if (e.hp > 0 && v > 0) { e.hp += v; log(st, { t: "heal", to: eref(e), n: v }); }
+    });
+  }
+
   function chooseIntent(st, e) {
     var def = patOf(e);
     var idx;
@@ -702,7 +757,7 @@
     h.lastEl = null; h.genN = 0; h.genHit = false; h.genWild = false; h.shiki = 0; h.kek = 0;
     h.ammo = 0; h.beat = 0; h.lastType = null; h.ce = 0;
     h.turnAtk = 0; h.noSkl = false; h.noBlk = false; h.onlyN = null; h.echoAny = 0; h.echoUsed = false; h.half = false;
-    h.endLose = 0; h.debt = 0; h.comboDodged = false;
+    h.endLose = 0; h.debt = 0; h.comboDodged = false; h.fld = null;
     h.st = { weak: 0, vuln: 0, poison: 0, burn: 0, regen: 0 };
     h.pw = {};
   }
@@ -712,6 +767,7 @@
     st.battleKind = kind;
     st.enemies = [];
     st.round = 1;
+    st.field = null;
     heroes(st).forEach(function (h) {
       h.draw = shuffle(st, clone(h.deck)); h.hand = []; h.disc = []; h.exh = [];
       resetBattleFields(h);
@@ -735,6 +791,7 @@
     });
     buildEncounter(st, kind);
     rollAffixes(st);
+    rollField(st);
     // 苦痛修正：敵人開戰護盾／力量
     st.enemies.forEach(function (e) { e.blk += tmodVal(st, "blk"); e.str += tmodVal(st, "str"); });
     log(st, { t: "battle", kind: kind, act: st.act, floor: st.floor });
@@ -794,7 +851,7 @@
     if (h.pw.chiTurn) gainChi(h, h.pw.chiTurn);
     if (h.pw.weakAll) st.enemies.forEach(function (e) { addStatus(st, e, "weak", h.pw.weakAll, null); });
     if (h.form && D.FORMS[h.form].blk) gainBlock(st, h, D.FORMS[h.form].blk);
-    drawCards(st, h, Math.max(1, D.HAND_SIZE + relicSum(h, "handPlus") + (h.pw.drawTurn || 0)));
+    drawCards(st, h, Math.max(1, D.HAND_SIZE + relicSum(h, "handPlus") + (h.pw.drawTurn || 0) - (fieldIs(st, "ice") ? D.FIELD_NUM.iceDraw : 0)));
     for (var pi = 0; pi < (h.pw.potionTurn || 0); pi++) brew(st, h, h, "rand");
     if (h.pw.beatTurn) gainBeat(st, h, h.pw.beatTurn);
     if (h.pw.shikiBlk && h.shiki) gainBlock(st, h, h.pw.shikiBlk * h.shiki);
@@ -1000,10 +1057,14 @@
     removeDead(st);
     if (checkWin(st)) return;
     log(st, { t: "enemyTurn" });
+    fieldEnemyStart(st);
     st.enemies.slice().forEach(function (e) {
       if (st.phase === "battle") enemyTurn(st, e);
     });
     if (st.phase !== "battle") return;
+    removeDead(st);
+    if (checkWin(st)) return;
+    fieldEnemyEnd(st);
     removeDead(st);
     if (checkWin(st)) return;
     st.enemies.forEach(decay);
@@ -1015,6 +1076,7 @@
       if (g && e.hp > 0) { e.str += g; log(st, { t: "str", to: eref(e), n: g, src: eref(e) }); }
     });
     log(st, { t: "round" });
+    fieldRoundStart(st);
     st.enemies.forEach(function (e) { chooseIntent(st, e); });
     alive(st).forEach(function (h) { startHeroTurn(st, h); });
   }
@@ -1028,6 +1090,7 @@
     removeDead(st);
     if (st.phase !== "battle" || st.enemies.length) return false;
     var kind = st.battleKind;
+    st.field = null;
     log(st, { t: "win", kind: kind });
     // 2026-10-23 使用者指定（仿 Hellcard）：倒下的英雄戰後不會自動復活，要有存活的英雄選「復活神殿」；Boss 戰打贏則全員復活
     var shrine = kind === "boss" || alive(st).some(function (h) { return h.dest === "shrine"; });
@@ -1722,6 +1785,7 @@
     restPct: restPct, loopOf: loopOf, actDef: actDef, regionOf: regionOf, nextFloor: nextFloor, tmodVal: tmodVal, unlocked: unlocked, bloodCost: bloodCost,
     warded: warded, potionCount: potionCount, reagentNeed: reagentNeed, aimsAt: aimsAt, ammoCap: ammoCap, GEN: GEN,
     rollAffixes: rollAffixes, applyAffix: applyAffix, hitEnemy: hitEnemy, enemyTurn: enemyTurn, runEnemyAct: runEnemyAct, moveEnemy: moveEnemy, shiftEnemy: shiftEnemy,
+    setField: setField, fieldIs: fieldIs, resolveRound: resolveRound, addStatus: addStatus, startHeroTurn: startHeroTurn,
     _rnd: rnd
   };
 })();

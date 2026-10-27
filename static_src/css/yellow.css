@@ -563,3 +563,21 @@ button.yc-relic:hover:not(:disabled) { border-color: var(--yc-accent); }
 .yc-card-detail.yc-rar-rare { --yc-rar: #e8b020; }
 .yc-card-detail.yc-rar-token { --yc-rar: #8e5bc8; }
 .yc-card-detail.yc-type-curse { --yc-rar: #5a4a3a; }
+/* 戰場狀態（2026-10-27）：上方標籤、戰場上方說明條、戰場圖層、開戰大標題、落雷閃光 */
+.yc-field-chip { display: inline-flex; align-items: center; gap: 0.25em; padding: 0 0.6em; border-radius: 999px; font-weight: bold; font-size: 0.9em; color: var(--fc); background: rgba(20, 22, 30, 0.88); border: 1px solid var(--fc); cursor: help; }
+.yc-field-bar { display: flex; gap: 0.6rem; align-items: center; max-width: 46rem; margin: 0 auto 6px; padding: 0.35rem 0.75rem; border-radius: 10px; background: rgba(0, 0, 0, 0.35); border-left: 4px solid var(--fc); color: #eee; font-size: 0.9em; cursor: pointer; }
+.yc-field-icon { font-size: 1.5em; line-height: 1; }
+.yc-field-main { flex: 1; min-width: 0; }
+.yc-field-main strong { color: var(--fc); }
+.yc-field-desc { opacity: 0.85; }
+.yc-field-next { margin-left: auto; color: var(--fc); font-weight: bold; white-space: nowrap; }
+@media (max-width: 640px) { .yc-field-bar:not(.yc-open) .yc-field-desc { display: none; } .yc-field-next { white-space: normal; text-align: right; font-size: 0.9em; } }
+.yc-arena-field { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+.yc-storm-sec { stroke-width: 0.5; stroke-dasharray: 1.6 1; animation: yc-storm-pulse 1.6s ease-in-out infinite; }
+@keyframes yc-storm-pulse { 50% { fill-opacity: 0.22; } }
+.yc-storm-flash { fill: #fff6b0; animation: yc-storm-flash 0.7s ease-out forwards; }
+@keyframes yc-storm-flash { 0% { fill-opacity: 0.75; } 20% { fill-opacity: 0.15; } 35% { fill-opacity: 0.6; } 100% { fill-opacity: 0; } }
+.yc-field-banner { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); z-index: 13; max-width: 80%; text-align: center; padding: 0.9rem 1.8rem; border-radius: 16px; background: rgba(10, 10, 20, 0.85); border: 2px solid var(--fc); color: #fff; box-shadow: 0 0 40px color-mix(in srgb, var(--fc) 45%, transparent); pointer-events: none; animation: yc-field-banner 2.6s ease-out forwards; }
+.yc-field-banner strong { display: block; font-size: 1.5em; color: var(--fc); }
+.yc-field-banner-icon { font-size: 2.6em; line-height: 1.1; }
+@keyframes yc-field-banner { 0% { opacity: 0; transform: translate(-50%, -50%) scale(0.8); } 12% { opacity: 1; transform: translate(-50%, -50%) scale(1); } 80% { opacity: 1; } 100% { opacity: 0; } }

@@ -130,6 +130,10 @@ for (var g = 0; g < games; g++) {
 
 // 個別規則的單元檢查（圓形戰場：扇形區＝人數，內圈 near／外圈 far）
 (function () {
+  // 2026-10-27 新增戰場狀態（開戰時依 D.FIELD_PCT 隨機出現）：會改變傷害、抽牌數等期望值，
+  // 單元檢查一律關掉，只在下面「戰場狀態」那一段明確指定；最後還原給整局隨機測試以外的檢查用
+  var fieldPct = D.FIELD_PCT.slice();
+  for (var fp = 0; fp < D.FIELD_PCT.length; fp++) D.FIELD_PCT[fp] = 0;
   var st = Core.create({ seed: 7, seats: [{ cls: "paladin" }, null, null, { cls: "ranger" }] });
   assert(Core.sectorCount(st) === 2 && st.secs[1] === 3, "兩人應切成兩個扇形區");
   goFloor(st);
@@ -1089,6 +1093,94 @@ for (var g = 0; g < games; g++) {
   Core.applyAffix(tg, fu, "fury");
   assert(fu.str === D.AFFIX_NUM.fury[0], "狂暴：第一幕力量 +" + D.AFFIX_NUM.fury[0]);
 
+  // ---- 戰場狀態（2026-10-27）：數值都從 D.FIELD_NUM 讀 ----
+  var FN = D.FIELD_NUM;
+  function fieldDuo(seed, id, foes) {
+    var s = duo("paladin", seed);
+    var list = setFoes(s.st, foes);
+    Core.setField(s.st, id);
+    s.h.blk = 0; s.h.hp = s.h.max;
+    return { st: s.st, h: s.h, e: list };
+  }
+  // 雷暴：預告區的敵人與該區英雄各受傷害，其他區不受影響；結束後換預告區
+  var sm = fieldDuo(401, "storm", [{ id: "skel", hp: 40, ring: "near" }, { id: "skel", hp: 40, ring: "near" }]);
+  sm.st.field.sec = Core.secOf(sm.st, 0);
+  sm.e[1].sec = Core.secOf(sm.st, 1);
+  endRound(sm.st);
+  assert(sm.e[0].hp === 40 - FN.storm, "雷暴：預告區的敵人受 " + FN.storm + "，實際 " + sm.e[0].hp);
+  assert(sm.e[1].hp === 40, "雷暴：其他區的敵人不受影響");
+  assert(sm.h.hp === sm.h.max - FN.storm, "雷暴：預告區的英雄受 " + FN.storm + "，實際 " + (sm.h.max - sm.h.hp));
+  assert(typeof sm.st.field.sec === "number" && sm.st.field.sec >= 0 && sm.st.field.sec < 2, "雷暴：每回合重新預告一個區");
+  // 熔岩地：內圈敵人燃燒（敵人回合當下就結算一次）；近戰攻擊 +2
+  var lv = fieldDuo(402, "lava", [{ id: "skel", hp: 40, ring: "near" }, { id: "skel", hp: 40, ring: "far" }]);
+  endRound(lv.st);
+  assert(lv.e[0].hp === 40 - FN.lava, "熔岩地：內圈敵人燒掉 " + FN.lava + "，實際 " + (40 - lv.e[0].hp));
+  assert(lv.e[1].hp === 40, "熔岩地：外圈敵人不受影響");
+  var lvHit = Core.enemyHitValue(lv.st, lv.e[0], 6, 0);
+  Core.setField(lv.st, null);
+  var lvBase = Core.enemyHitValue(lv.st, lv.e[0], 6, 0);
+  Core.setField(lv.st, "lava");
+  assert(lvHit > lvBase, "熔岩地：近戰敵人的攻擊變高（" + lvBase + " → " + lvHit + "）");
+  // 血月：英雄傷害 ×1.25、敵人傷害也變高
+  var mn = fieldDuo(403, "moon", [{ id: "skel", hp: 40, ring: "near" }]);
+  mn.h.fld = null;
+  var mnBase = Core.heroHitValue(mn.h, 20, "near", null);
+  mn.h.fld = "moon";
+  assert(Core.heroHitValue(mn.h, 20, "near", null) === Math.floor(mnBase * FN.moon), "血月：英雄傷害 ×" + FN.moon);
+  var mnE = Core.enemyHitValue(mn.st, mn.e[0], 20, 0);
+  Core.setField(mn.st, null);
+  assert(mnE > Core.enemyHitValue(mn.st, mn.e[0], 20, 0), "血月：敵人傷害也變高");
+  // 沙塵：打外圈 -2、外圈敵人攻擊變低；內圈不受影響
+  var ds = fieldDuo(404, "dust", [{ id: "skel", hp: 40, ring: "far" }]);
+  ds.h.fld = null;
+  var dsFar = Core.heroHitValue(ds.h, 10, "far", null), dsNear = Core.heroHitValue(ds.h, 10, "near", null);
+  ds.h.fld = "dust";
+  assert(Core.heroHitValue(ds.h, 10, "far", null) === dsFar - FN.dust, "沙塵：打外圈 -" + FN.dust);
+  assert(Core.heroHitValue(ds.h, 10, "near", null) === dsNear, "沙塵：打內圈不變");
+  var dsE = Core.enemyHitValue(ds.st, ds.e[0], 10, 0);
+  Core.setField(ds.st, null);
+  assert(dsE < Core.enemyHitValue(ds.st, ds.e[0], 10, 0), "沙塵：外圈敵人的攻擊變低");
+  // 強風：敵人回合結束後外圈敵人順時針移一區，內圈不動
+  var wd = fieldDuo(405, "wind", [{ id: "skel", hp: 40, ring: "far" }, { id: "skel", hp: 40, ring: "near" }]);
+  endRound(wd.st);
+  assert(wd.e[0].sec === 1, "強風：外圈敵人移到下一區，實際 " + wd.e[0].sec);
+  assert(wd.e[1].sec === 0, "強風：內圈敵人不動");
+  // 漲潮：第 tideRound 回合開始時外圈敵人已經在內圈（之前不動）
+  var td = fieldDuo(406, "tide", [{ id: "skel", hp: 400, ring: "far" }]);
+  for (var tr = 1; tr < FN.tideRound - 1; tr++) endRound(td.st);
+  assert(td.e[0].ring === "far", "漲潮：第 " + FN.tideRound + " 回合前不動");
+  endRound(td.st);
+  assert(td.st.round === FN.tideRound && td.e[0].ring === "near", "漲潮：第 " + FN.tideRound + " 回合開始時被沖進內圈，實際 " + td.e[0].ring + " / 回合 " + td.st.round);
+  // 聖泉：新回合開始時英雄、敵人都回復
+  var sp = fieldDuo(407, "spring", [{ id: "skel", hp: 20, max: 40, ring: "near" }]);
+  sp.h.hp = sp.h.max - 10;
+  endRound(sp.st);
+  assert(sp.h.hp === sp.h.max - 10 + FN.springHero, "聖泉：英雄回復 " + FN.springHero + "，實際 " + (sp.h.hp - (sp.h.max - 10)));
+  assert(sp.e[0].hp === 20 + Math.max(1, Math.floor(40 * FN.springFoe)), "聖泉：敵人回復最大血量 " + FN.springFoe * 100 + "%");
+  // 冰原：一般敵人暈眩多 1 回合、菁英不變；英雄少抽 1 張
+  var eliteId = D.ENEMIES.filter(function (x) { return x.elite; })[0].id;
+  var ic = fieldDuo(408, "ice", [{ id: "skel", hp: 40, ring: "near" }, { id: eliteId, hp: 40, ring: "far" }]);
+  Core.addStatus(ic.st, ic.e[0], "stun", 1, null);
+  Core.addStatus(ic.st, ic.e[1], "stun", 1, null);
+  assert(ic.e[0].st.stun === 1 + FN.iceStun, "冰原：一般敵人暈眩 " + (1 + FN.iceStun));
+  assert(ic.e[1].st.stun === 1, "冰原：菁英暈眩照常 1");
+  ic.h.hand = []; ic.h.disc = []; ic.h.draw = ic.h.deck.map(function (c) { return { u: c.u, id: c.id }; });
+  Core.startHeroTurn(ic.st, ic.h);
+  assert(ic.h.hand.length === D.HAND_SIZE - FN.iceDraw, "冰原：抽 " + (D.HAND_SIZE - FN.iceDraw) + " 張，實際 " + ic.h.hand.length);
+  // 開戰抽戰場狀態：依幕數機率、單人不會抽到強風、可序列化
+  for (var fp2 = 0; fp2 < fieldPct.length; fp2++) D.FIELD_PCT[fp2] = fieldPct[fp2];
+  var fGot = 0, fTot = 0;
+  for (var fs = 0; fs < 160; fs++) {
+    var fst = Core.create({ seed: 5000 + fs, seats: [{ cls: "paladin" }, null, null, null] });
+    goFloor(fst);
+    if (fst.phase !== "battle") continue;
+    fTot++;
+    if (fst.field) { fGot++; assert(D.FIELD[fst.field.id] && !D.FIELD[fst.field.id].multi, "單人不會抽到只限多人的戰場狀態：" + fst.field.id); }
+    JSON.parse(JSON.stringify(fst));
+  }
+  assert(Math.abs(fGot / fTot - D.FIELD_PCT[0] / 100) < 0.12, "第一幕約 " + D.FIELD_PCT[0] + "% 有戰場狀態，實際 " + (fGot / fTot).toFixed(2));
+  for (var fp3 = 0; fp3 < D.FIELD_PCT.length; fp3++) D.FIELD_PCT[fp3] = 0;
+
   // AI 隊友：ctrl 為 ai 的英雄由 AI.next 決定行動，整局跑得完（不會卡住）
   require("../../static_src/yellow_ai.js");
   var A = global.PriTestYellowAI;
@@ -1109,6 +1201,7 @@ for (var g = 0; g < games; g++) {
 
   // 他人的英雄不能操作
   assert(Core.apply(st, "someone", { t: "end", s: 0 }) === "not_yours", "不能操作別人的英雄");
+  for (var fp4 = 0; fp4 < fieldPct.length; fp4++) D.FIELD_PCT[fp4] = fieldPct[fp4];
 })();
 
 console.log(JSON.stringify(summary));

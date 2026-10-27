@@ -963,6 +963,62 @@
   // 環形（r0～r1）：用粗線畫圓
   function ringShape(r0, r1, cls) { return svg("circle", { cx: 50, cy: 50, r: (r0 + r1) / 2, "stroke-width": r1 - r0, class: cls, fill: "none" }); }
 
+  // ---------------- 戰場狀態（2026-10-27 使用者指定）：上方標籤＋戰場上方說明條＋戰場圖層＋開戰大標題 ----------------
+  function fieldDef(st) { return (st.field && D.FIELD[st.field.id]) || null; }
+  // 說明條右側的預告（雷暴的下一區、漲潮的開始回合等）
+  function fieldNext(st) {
+    var f = st.field, N2 = D.FIELD_NUM;
+    if (!f) return "";
+    if (f.id === "storm") return "⚡ " + t("yc_field_storm_next", { a: heroLabel(st, st.secs[f.sec]) });
+    if (f.id === "wind") return "🌪️ " + t("yc_field_wind_next");
+    if (f.id === "tide") return "🌊 " + (st.round < N2.tideRound ? t("yc_field_tide_next", { n: N2.tideRound }) : t("yc_field_tide_now"));
+    return "";
+  }
+  function fieldChip(st) {
+    var fd = fieldDef(st);
+    return el("span", { class: "yc-field-chip", style: "--fc:" + fd.color, title: L(fd.name) + "：" + L(fd.desc), text: fd.icon + " " + L(fd.name) });
+  }
+  // 手機上只顯示名稱與預告，點一下展開說明
+  function fieldBar(st) {
+    var fd = fieldDef(st), nx = fieldNext(st);
+    var bar = el("div", { class: "yc-field-bar" + (ui.fieldOpen ? " yc-open" : ""), style: "--fc:" + fd.color }, [
+      el("span", { class: "yc-field-icon", text: fd.icon }),
+      el("div", { class: "yc-field-main" }, [el("strong", { text: t("yc_field_label", { f: L(fd.name) }) }), el("div", { class: "yc-field-desc", text: L(fd.desc) })]),
+      nx ? el("div", { class: "yc-field-next", text: nx }) : null
+    ]);
+    bar.addEventListener("click", function () { ui.fieldOpen = !ui.fieldOpen; bar.classList.toggle("yc-open", ui.fieldOpen); });
+    return bar;
+  }
+  // 戰場圖層：畫在敵人下面，標出狀態作用的位置
+  function fieldLayer(st) {
+    var fd = fieldDef(st);
+    if (!fd) return null;
+    var id = fd.id, c = fd.color, n = Core.sectorCount(st), h = "", k, p0, p1;
+    function P(a, r) { var p = polar(a, r); return p.x.toFixed(2) + "," + p.y.toFixed(2); }
+    function band(r0, r1, op) { return '<circle cx="50" cy="50" r="' + (r0 + r1) / 2 + '" stroke-width="' + (r1 - r0) + '" fill="none" stroke="' + c + '" stroke-opacity="' + op + '"/>'; }
+    var arrow = '<defs><marker id="yc-field-ar" viewBox="0 0 6 6" refX="3" refY="3" markerWidth="4" markerHeight="4" orient="auto"><path d="M0,0 L6,3 L0,6z" fill="' + c + '"/></marker></defs>';
+    if (id === "storm") {
+      var a0 = n === 1 ? 0 : secStart(st, st.field.sec), mid = n === 1 ? 0 : a0 + secSpan(st) / 2;
+      h += n === 1 ? band(R_CORE, R_EDGE, 0.12) : '<path class="yc-storm-sec" d="' + arcPath(a0, a0 + secSpan(st), R_CORE, R_EDGE) + '" fill="' + c + '" fill-opacity="0.13" stroke="' + c + '"/>';
+      var sp = polar(mid, R_EDGE - 4.5);
+      h += '<text x="' + sp.x + '" y="' + (sp.y + 1.6) + '" text-anchor="middle" font-size="4.5">⚡</text>';
+    } else if (id === "lava") h += band(R_CORE, R_MID, 0.2) + '<circle cx="50" cy="50" r="' + R_MID + '" fill="none" stroke="' + c + '" stroke-width="0.5" stroke-dasharray="2 1"/>';
+    else if (id === "dust") h += band(R_MID, R_EDGE, 0.16);
+    else if (id === "moon") h += band(R_EDGE - 3, R_EDGE, 0.35) + band(R_CORE, R_EDGE, 0.06);
+    else if (id === "spring") h += band(0, R_CORE + 3, 0.3);
+    else if (id === "ice") h += band(R_CORE, R_EDGE, 0.1);
+    else if (id === "wind") {
+      h += arrow;
+      for (k = 0; k < 8; k++) { var r = R_EDGE - 2.2; h += '<path d="M' + P(k * 45 + 8, r) + ' A' + r + ',' + r + ' 0 0 1 ' + P(k * 45 + 34, r) + '" fill="none" stroke="' + c + '" stroke-opacity="0.75" stroke-width="0.7" marker-end="url(#yc-field-ar)"/>'; }
+    } else if (id === "tide") {
+      h += arrow + band(R_MID, R_EDGE, st.round >= D.FIELD_NUM.tideRound ? 0.18 : 0.08);
+      for (k = 0; k < 8; k++) { p0 = P(k * 45 + 22.5, R_EDGE - 1.5); p1 = P(k * 45 + 22.5, R_MID + 3); h += '<path d="M' + p0 + ' L' + p1 + '" stroke="' + c + '" stroke-opacity="0.6" stroke-width="0.6" marker-end="url(#yc-field-ar)"/>'; }
+    }
+    var s2 = svg("svg", { viewBox: "0 0 100 100", class: "yc-arena-field yc-field-" + id, "aria-hidden": "true" });
+    s2.innerHTML = h;
+    return s2;
+  }
+
   function arenaBackground(st) {
     var n = Core.sectorCount(st);
     var s = svg("svg", { viewBox: "0 0 100 100", class: "yc-arena-bg", "aria-hidden": "true" });
@@ -1082,6 +1138,8 @@
     }, true);
     board.addEventListener("contextmenu", function (ev) { ev.preventDefault(); pingAt(ev.clientX, ev.clientY); });
     board.appendChild(arenaBackground(st));
+    var fLayer = fieldLayer(st);
+    if (fLayer) board.appendChild(fLayer);
     // 內外圈標示放在第 0 區的起始邊界上（避開敵人；單人時放正下方）
     var la = n === 1 ? 180 : secStart(st, 0);
     [["near", (R_CORE + R_MID) / 2], ["far", (R_MID + R_EDGE) / 2]].forEach(function (x) {
@@ -1111,7 +1169,7 @@
     board.appendChild(signalBar(st));
     if (ui.legend) board.appendChild(legendPanel());
     else if (!ui.replay) { var tc = tutCard(); if (tc) board.appendChild(tc); }
-    return el("div", { class: "yc-arena-wrap yc-rg-" + Core.actDef(st).id }, [board, focusPanel(st, links, incoming)]);
+    return el("div", { class: "yc-arena-wrap yc-rg-" + Core.actDef(st).id }, [fieldDef(st) ? fieldBar(st) : null, board, focusPanel(st, links, incoming)]);
   }
 
   // ---------------- 手牌區（扇形） ----------------
@@ -1546,6 +1604,8 @@
       case "tok": return t("yc_log_tok", { to: to, n: e.n, c: L(D.CARD[e.c].name) });
       case "parry": case "shikiAtk": case "kekRefl": case "linkHit": case "turret": return t("yc_log_" + e.t, { to: to, a: heroLabel(st, e.s), n: e.n });
       case "vow": return t("yc_log_vow", { to: to, k: t("yc_vow_" + e.k) });
+      case "field": return t("yc_log_field", { f: D.FIELD[e.f] ? D.FIELD[e.f].icon + L(D.FIELD[e.f].name) : e.f });
+      case "fieldStorm": return t("yc_log_fieldStorm", { a: heroLabel(st, st.secs[e.sec]), n: e.n });
       default: return t("yc_log_" + e.t, { to: to, n: e.n });
     }
   }
@@ -1657,6 +1717,27 @@
       later(1100, function () { if (ban.parentNode) ban.parentNode.removeChild(ban); });
       return;
     }
+    if (e.t === "field") {
+      var fd = D.FIELD[e.f];
+      later(delay, function () {
+        var a2 = arenaEl();
+        if (!fd || !a2) return;
+        var ban2 = el("div", { class: "yc-field-banner", style: "--fc:" + fd.color }, [el("div", { class: "yc-field-banner-icon", text: fd.icon }),
+          el("strong", { text: L(fd.name) }), el("div", { class: "yc-small", text: L(fd.desc) })]);
+        a2.appendChild(ban2);
+        later(2600, function () { if (ban2.parentNode) ban2.parentNode.removeChild(ban2); });
+      });
+      return;
+    }
+    if (e.t === "fieldStorm") {
+      later(delay, function () {
+        Snd.sfx("heavy");
+        var n3 = Core.sectorCount(st), a3 = n3 === 1 ? 0 : secStart(st, e.sec);
+        var d3 = n3 === 1 ? arcPath(0, 359.9, R_CORE, R_EDGE) : arcPath(a3, a3 + secSpan(st), R_CORE, R_EDGE);
+        svgOnce(svg("path", { d: d3, class: "yc-storm-flash" }), 700);
+      });
+      return;
+    }
     if (!e.to) return;
     var ref = e.to.k === "h" ? "h" + e.to.s : "e" + e.to.u;
     if (e.t === "kill") {
@@ -1737,7 +1818,7 @@
     var stack = {};
     var step = 0;
     fresh.forEach(function (e) {
-      if (e.t !== "play" && e.t !== "kill" && e.t !== "dmg" && e.t !== "heal" && e.t !== "blk" && e.t !== "roll" && e.t !== "brew" && e.t !== "shift" && e.t !== "thorns" && e.t !== "handFull") return;
+      if (e.t !== "play" && e.t !== "kill" && e.t !== "dmg" && e.t !== "heal" && e.t !== "blk" && e.t !== "roll" && e.t !== "brew" && e.t !== "shift" && e.t !== "thorns" && e.t !== "handFull" && e.t !== "field" && e.t !== "fieldStorm") return;
       if (e.t === "dmg" && !e.n && !e.b) return;
       var ref = e.to ? (e.to.k === "h" ? "h" + e.to.s : "e" + e.to.u) : "";
       var k = e.t === "play" || e.t === "kill" ? 1 : (stack[ref] = (stack[ref] || 0) + 1);
@@ -1788,6 +1869,7 @@
   // 每一步的長度：移動、攻擊比較久，其他短一點
   function stepTime(e) {
     if (e.t === "enemyTurn") return 900;
+    if (e.t === "fieldStorm") return 750;
     if (e.t === "move" || e.t === "shift" || e.t === "swap") return 560;
     if (e.t === "dmg") return e.src ? 700 : (e.n || e.b ? 420 : 0);
     if (e.t === "kill") return 480;
@@ -2045,6 +2127,7 @@
     (st.tmods || []).forEach(function (m) { bits.push(el("span", { class: "yc-tag-torment", title: tmodText(m.id, m.pw) + " · " + t("yc_tmod_left", { n: m.left }), text: D.TMOD[m.id].icon + m.pw })); });
     bits.push(soundButtons());
     if (st.phase === "battle") bits.push(el("span", { text: t("yc_node_" + st.battleKind) + " · " + t("yc_round", { n: st.round }) }));
+    if (st.phase === "battle" && fieldDef(st)) bits.push(fieldChip(st));
     if (mode === "net" && room) {
       if (!room.hostOnline()) bits.push(el("span", { class: "yc-bad", text: t("yc_host_gone") }));
       bits.push(el("button", { type: "button", class: "yc-link", text: t("yc_leave_room"), onclick: leaveRoom }));
@@ -2256,7 +2339,8 @@
         ["✈", t("yc_legend_pierce")], ["🎩", t("yc_legend_swap")], ["🐒", t("yc_legend_steal")]]),
       sec("yc_legend_sec_mech", [["🌵", t("yc_thorns_desc", { n: "N" })], ["🔰", t("yc_mech_ward_on")], ["📈", t("yc_mech_grow", { n: "N" })],
         ["🧬", t("yc_legend_split")], ["🌗", t("yc_mech_phase", { n: 50 })], ["💥", t("yc_mech_burst", { n: "N" })], ["📣", t("yc_mech_rally", { n: "N" })], ["🚫", t("yc_legend_stunImm")]]),
-      sec("yc_legend_sec_af", D.AFFIXES.map(function (a) { return [a.icon, L(a.name) + "：" + L(a.desc)]; }))
+      sec("yc_legend_sec_af", D.AFFIXES.map(function (a) { return [a.icon, L(a.name) + "：" + L(a.desc)]; })),
+      sec("yc_legend_sec_field", D.FIELDS.map(function (f) { return [f.icon, L(f.name) + "：" + L(f.desc)]; }))
     ];
   }
   function legendPanel() {

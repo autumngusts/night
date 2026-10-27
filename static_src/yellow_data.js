@@ -997,6 +997,28 @@
   // 2026-10-26 平衡：原本 ×1.5／50%／+2～3／10%／中毒 2、機率 10／20／30% 時貪婪 AI 整體通關 59% → 43%，調弱後 53%
   var AFFIX_NUM = { tough: 1.3, armor: 0.3, fury: [1, 2, 2], regen: 0.05, venom: 1 };
   var AFFIX_PCT = [5, 10, 15];   // 一般敵人帶詞綴的機率（第一／二／三幕，無盡模式照第三幕）
+  // 戰場狀態（2026-10-27 使用者指定）：整場戰鬥有效、敵我雙方都受影響，不能隱藏敵人意圖
+  // multi＝只在 2 人以上（2 個扇形區以上）出現；color＝畫面上的主色
+  var FIELDS = [
+    { id: "storm", icon: "⛈️", color: "#ffd84a", name: N("雷暴", "雷雨", "Thunderstorm"),
+      desc: N("每回合預告一個區；敵人回合開始時落雷，該區所有敵人與該區英雄各受 5 傷害", "毎ターン一つの区画を予告し、敵ターン開始時に落雷：その区画の敵全員と区画の英雄に 5 ダメージ", "Each round one sector is marked; when the enemy turn starts, lightning deals 5 to every enemy there and to that sector's hero") },
+    { id: "lava", icon: "🌋", color: "#ff7a3a", name: N("熔岩地", "溶岩地帯", "Lava Field"),
+      desc: N("敵人回合開始時，內圈的敵人燃燒 2；近戰敵人攻擊 +2", "敵ターン開始時、内周の敵に火傷 2；近接の敵は攻撃 +2", "When the enemy turn starts, inner-ring enemies gain 2 Burn; melee enemies deal +2") },
+    { id: "wind", icon: "🌪️", color: "#9fe3ff", multi: true, name: N("強風", "強風", "Gale"),
+      desc: N("敵人回合結束時，外圈的敵人全部順時針移一區（首領不受影響）", "敵ターン終了時、外周の敵は全員時計回りに一区画移動（ボスは除く）", "After the enemy turn, every outer-ring enemy moves one sector clockwise (not bosses)") },
+    { id: "moon", icon: "🌕", color: "#ff5a6a", name: N("血月", "血の月", "Blood Moon"),
+      desc: N("敵我雙方造成的傷害 +25%", "敵味方の与えるダメージ +25%", "All damage dealt by both sides +25%") },
+    { id: "spring", icon: "⛲", color: "#6fe0b0", name: N("聖泉", "聖なる泉", "Holy Spring"),
+      desc: N("每回合開始時英雄回復 2 生命，敵人回復最大血量的 5%", "毎ターン開始時、英雄は生命 2、敵は最大生命の 5% 回復", "Each round heroes heal 2 and enemies heal 5% of max HP") },
+    { id: "ice", icon: "❄️", color: "#a8d8ff", name: N("冰原", "氷原", "Frozen Plain"),
+      desc: N("一般敵人的暈眩多 1 回合；英雄每回合少抽 1 張", "通常の敵のスタンが 1 ターン延びる；英雄は毎ターンのドローが 1 枚減る", "Stun on normal enemies lasts 1 more round; heroes draw 1 fewer card each turn") },
+    { id: "tide", icon: "🌊", color: "#4aa8ff", name: N("漲潮", "満ち潮", "High Tide"),
+      desc: N("第 3 回合起，敵人回合結束時外圈的敵人全部被沖進內圈（首領不受影響）", "第 3 ターンから、敵ターン終了時に外周の敵は全員内周へ流される（ボスは除く）", "From round 3, after the enemy turn every outer-ring enemy is washed into the inner ring (not bosses)") },
+    { id: "dust", icon: "🌫️", color: "#d8b878", name: N("沙塵", "砂塵", "Sandstorm"),
+      desc: N("打外圈的攻擊與外圈敵人的攻擊 -2（首領不受影響）", "外周への攻撃と外周の敵の攻撃 -2（ボスは除く）", "Attacks on the outer ring and attacks from outer-ring enemies deal 2 less (not bosses)") }
+  ];
+  var FIELD_NUM = { storm: 5, lava: 2, lavaMel: 2, moon: 1.25, springHero: 2, springFoe: 0.05, iceStun: 1, iceDraw: 1, tideRound: 3, dust: 2 };
+  var FIELD_PCT = [40, 50, 60];   // 每場戰鬥出現戰場狀態的機率（第一／二／三幕，無盡模式照第三幕）
 
   // 苦痛等級（2026-10-23 使用者指定，Hellcard 的苦痛等級）：選第 n 級時 1～n 級的效果全部套用；效果寫在 yellow_core.js 的 tor()
   var TORMENTS = [
@@ -1378,6 +1400,7 @@
     RELICS: RELICS, RELIC: index(RELICS), ALTAR_HP: ALTAR_HP,
     ACTS: ACTS, REGIONS: REGIONS, REGION: index(REGIONS), FLOORS: FLOORS, DESTS: DESTS, DEST: index(DESTS), FOE_HP: FOE_HP,
     AFFIXES: AFFIXES, AFFIX: index(AFFIXES), AFFIX_NUM: AFFIX_NUM, AFFIX_PCT: AFFIX_PCT,
+    FIELDS: FIELDS, FIELD: index(FIELDS), FIELD_NUM: FIELD_NUM, FIELD_PCT: FIELD_PCT,
     MAX_PERK: MAX_PERK, SHRINE_PCT: SHRINE_PCT, ALTARS: ALTARS, ALTAR: index(ALTARS), ALTAR_NUM: ALTAR_NUM,
     TMODS: TMODS, TMOD: index(TMODS), LEVEL_XP: LEVEL_XP, STARTERS: STARTERS, MAX_FLUX: 10,
     // 敵人判定圓的半徑（戰場座標：圓形戰場直徑 100）；size 沒寫時菁英＝l、Boss＝boss、其他＝m
