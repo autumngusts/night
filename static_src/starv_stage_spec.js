@@ -61,15 +61,18 @@
   function lerp(a, b, u) { return a + (b - a) * u; }
   function ease(u) { return u * u * (3 - 2 * u); }
 
-  // 鏡頭座標（舞台中心在原點，地面 y = 0，藝人面向 +z）
-  function camera(kind, u, x) {
+  // 鏡頭座標（舞台中心在原點，藝人面向 +z）。y0＝藝人站的地面高度（舞台平台上為 0.3），鏡頭位置與注視點一起抬高；
+  // 頭部中心約在 y0 + 1.78（2026-10-28 截圖檢查：特寫原本對準胸口、頭頂被切掉）
+  function camera(kind, u, x, y0) {
     u = ease(Math.max(0, Math.min(1, u)));
     x = x || 0;
-    if (kind === "push") return { pos: [lerp(0, x * 0.5, u), lerp(2.2, 1.7, u), lerp(7, 3.4, u)], look: [x * 0.5, 1.3, 0] };
-    if (kind === "orbit") { var a = lerp(-0.9, 0.9, u); return { pos: [Math.sin(a) * 5, 2, Math.cos(a) * 5], look: [0, 1.2, 0] }; }
-    if (kind === "low") return { pos: [lerp(1.6, -1.2, u), 0.45, 3.6], look: [x, 1.7, 0] };
-    if (kind === "close") return { pos: [x + 0.25, 1.65, lerp(2.2, 1.7, u)], look: [x, 1.55, 0] };
-    return { pos: [0, lerp(2.6, 2.3, u), lerp(8, 7.4, u)], look: [0, 1.2, 0] };
+    y0 = y0 || 0;
+    function at(pos, look) { return { pos: [pos[0], pos[1] + y0, pos[2]], look: [look[0], look[1] + y0, look[2]] }; }
+    if (kind === "push") return at([lerp(0, x * 0.5, u), lerp(2.2, 1.7, u), lerp(7, 3.4, u)], [x * 0.5, 1.3, 0]);
+    if (kind === "orbit") { var a = lerp(-0.9, 0.9, u); return at([Math.sin(a) * 5, 2, Math.cos(a) * 5], [0, 1.2, 0]); }
+    if (kind === "low") return at([lerp(1.6, -1.2, u), 0.45, 3.6], [x, 1.6, 0]);
+    if (kind === "close") return at([x + 0.3, 1.75, lerp(2.6, 2.1, u)], [x, 1.68, 0]);
+    return at([0, lerp(2.6, 2.3, u), lerp(8, 7.4, u)], [0, 1.2, 0]);
   }
 
   root.PriTestStarvStageSpec = {

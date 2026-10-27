@@ -536,3 +536,34 @@
 .sv-res-text-great { color: var(--sv-gold); text-shadow: 0 0 18px rgba(255, 214, 107, 0.6); }
 .sv-res-text-success { color: var(--sv-good); }
 .sv-res-text-fail { color: var(--sv-bad); }
+
+/* ---- 3D 演出 ---- */
+.sv-stage-modal { position: relative; width: min(56rem, 100%); padding: 0; overflow: hidden; background: #07040f; }
+.sv-stage { position: relative; width: 100%; height: min(70vh, 34rem); overflow: hidden; }
+.sv-stage canvas { display: block; width: 100%; height: 100%; }
+.sv-stage-loading { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: var(--sv-muted); }
+.sv-stage-ui { position: absolute; left: 0; right: 0; top: 0; padding: 0.8rem 1rem; pointer-events: none; background: linear-gradient(180deg, rgba(0, 0, 0, 0.6), transparent); }
+.sv-stage-title b { font-size: 1.15em; text-shadow: 0 2px 8px rgba(0, 0, 0, 0.8); }
+.sv-stage-names { position: absolute; left: 1rem; bottom: -2.2rem; font-weight: 700; color: var(--sv-gold); text-shadow: 0 2px 8px rgba(0, 0, 0, 0.9); }
+.sv-stage-skip { position: absolute; right: 0.8rem; bottom: 0.8rem; }
+.sv-stage-end {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.6rem;
+  background: radial-gradient(ellipse at center, rgba(20, 10, 50, 0.6), rgba(5, 3, 15, 0.92));
+  animation: sv-fade 0.3s ease-out;
+}
+.sv-stage-end-result { font-size: 2.6em; font-weight: 800; font-family: Montserrat, "Noto Sans TC", sans-serif; animation: sv-stamp 0.5s cubic-bezier(0.2, 1.6, 0.4, 1); }
+.sv-stage-end-great .sv-stage-end-result { color: var(--sv-gold); text-shadow: 0 0 30px rgba(255, 214, 107, 0.8); }
+.sv-stage-end-success .sv-stage-end-result { color: var(--sv-good); }
+.sv-stage-end-fail .sv-stage-end-result { color: var(--sv-bad); }
+.sv-stage-end-stars { font-size: 1.6em; }
+.sv-stage-2d { position: absolute; inset: 0; display: flex; align-items: flex-end; justify-content: center; gap: 0.8rem; padding-bottom: 4rem;
+  background: radial-gradient(ellipse at 50% 100%, rgba(255, 95, 168, 0.35), transparent 60%), repeating-conic-gradient(from 0deg at 50% 0%, rgba(255, 214, 107, 0.12) 0 6deg, transparent 6deg 18deg), #0b0620; }
+.sv-stage-2d-studio, .sv-stage-2d-news, .sv-stage-2d-stream { background: radial-gradient(ellipse at 50% 30%, rgba(77, 208, 225, 0.3), transparent 60%), #0e0a24; }
+.sv-stage-2d-actor .sv-ava { animation: sv-bounce 0.6s ease-in-out infinite alternate; }
+@keyframes sv-bounce { to { transform: translateY(-14px) rotate(3deg); } }

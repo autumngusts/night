@@ -432,6 +432,15 @@ _ROWS: list[tuple[str, str, str]] = [
     ("sv_log_project_done", "「{title}」完成：{result}！收入 {pay}", "「{title}」完了：{result}！収入 {pay}"),
     ("sv_log_project_abort", "放棄了「{title}」", "「{title}」を中止した"),
     ("sv_tl_project", "大型企劃「{title}」{result}", "大型企画「{title}」{result}"),
+    # ---- 3D 演出 ----
+    ("sv_stage_skip", "跳過", "スキップ"),
+    ("sv_stage_close", "關閉", "閉じる"),
+    ("sv_stage_loading", "舞台準備中…", "ステージ準備中…"),
+    ("sv_stage_result_great", "大成功！", "大成功！"),
+    ("sv_stage_result_success", "成功", "成功"),
+    ("sv_stage_result_normal", "完成", "完了"),
+    ("sv_stage_result_fail", "失敗…", "失敗…"),
+    ("sv_stage_result_award", "得獎！", "受賞！"),
     # ==== 之後的 task 在這行之前追加字串 ====
 ]
 

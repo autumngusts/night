@@ -374,6 +374,42 @@ step("3D：three.js 不在初始載入、網址可以取得", async function (pa
   assert.ok(ok, "three.min.js 可以下載");
 });
 
+async function playStage(page, opts) {
+  await page.evaluate(function (o) {
+    var s = window.PriTestStarv.state(), a = s.artists[0] || window.PriTestStarvCore._genR(s);
+    o.performers = [{ look: a.look, rarity: a.rarity, gender: a.gender, name: "測試" }];
+    window.__stageDone = false;
+    window.PriTestStarvStage3D.play(o).then(function () { window.__stageDone = true; });
+  }, opts);
+}
+
+step("3D：播放演出（WebGL）→ 跳過 → 結果字卡 → 關閉", async function (page) {
+  var webgl = await page.evaluate(function () { return window.PriTestStarvStage3D.available(); });
+  await playStage(page, { dir: "singer", kind: "job", title: "單曲〈測試〉", result: "great", stars: 5, duration: 4 });
+  await page.waitForSelector(webgl ? ".sv-stage canvas" : ".sv-stage-2d", { timeout: 15000 });
+  if (webgl) assert.strictEqual(await page.evaluate(function () { return typeof window.THREE; }), "object", "播放時載入 three.js");
+  await page.waitForTimeout(1500);
+  await shot(page, "stage-3d");
+  await noRawKeys(page, "演出中");
+  await act(page, "stage-skip");
+  await page.waitForSelector(".sv-stage-end");
+  await noRawKeys(page, "結果字卡");
+  await act(page, "stage-close");
+  await page.waitForFunction(function () { return window.__stageDone; });
+});
+
+step("3D：畫質關閉時用 2D 後備", async function (page) {
+  await page.evaluate(function () { window.PriTestStarvStage3D.setQuality("off"); });
+  await playStage(page, { dir: "model", kind: "job", title: "測試", result: "success", stars: 4, duration: 3 });
+  await page.waitForSelector(".sv-stage-2d");
+  await page.waitForTimeout(800);   // 等彈窗淡入結束再截圖
+  await shot(page, "stage-2d");
+  await act(page, "stage-skip");
+  await act(page, "stage-close");
+  await page.waitForFunction(function () { return window.__stageDone; });
+  await page.evaluate(function () { window.PriTestStarvStage3D.setQuality("high"); });
+});
+
 // ==== 之後的 task 在這行之前追加步驟 ====
 
 (async function main() {
