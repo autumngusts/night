@@ -53,23 +53,23 @@ check("manfen categories are not mixed into classic CATEGORIES", function () {
   D.CATEGORIES.forEach(function (c) { assert.ok(MF_IDS.indexOf(c.id) < 0, c.id); });
 });
 
-check("each manfen category has 8-10 targets and >= 10 own flaw cards, bilingual", function () {
+check("each manfen category has exactly 40 targets and 32 own flaw cards, bilingual", function () {
   MF_IDS.forEach(function (id) {
     var ts = D.MANFEN_TARGETS.filter(function (t) { return t.category === id; });
-    assert.ok(ts.length >= 8 && ts.length <= 10, id + " targets " + ts.length);
+    assert.strictEqual(ts.length, 40, id + " targets " + ts.length);
     ts.forEach(function (t) {
       assert.ok(t.name.zh && t.name.ja && t.summary.zh && t.summary.ja, t.id);
       assert.ok(t.tags.length >= 2 && t.tags.length <= 3, t.id);
     });
     var fs2 = D.FLAW_CARDS.filter(function (f) { return f.category === id; });
-    assert.ok(fs2.length >= 10, id + " flaws " + fs2.length);
+    assert.strictEqual(fs2.length, 32, id + " flaws " + fs2.length);
     fs2.forEach(function (f) { assert.ok(f.text.zh && f.text.ja, f.id); });
   });
 });
 
-check("common flaw cards: >= 25, category null, bilingual", function () {
+check("common flaw cards: exactly 30, category null, bilingual", function () {
   var common = D.FLAW_CARDS.filter(function (f) { return f.category === null; });
-  assert.ok(common.length >= 25, String(common.length));
+  assert.strictEqual(common.length, 30, String(common.length));
   common.forEach(function (f) { assert.ok(f.text.zh && f.text.ja, f.id); });
 });
 
