@@ -96,6 +96,51 @@ test("core：migrate 補齊缺少的欄位", function () {
   eq(m.company.money, st.company.money, "既有值不能被覆蓋");
 });
 
+test("藝人：R 程序生成", function () {
+  var st = Core.create({ seed: 11 });
+  for (var i = 0; i < 200; i++) {
+    var a = Core._genR(st);
+    eq(a.rarity, "R"); assert(D.DIR_BY_ID[a.dir], "方向");
+    assert(a.age >= 16 && a.age <= 28, "年齡 " + a.age);
+    var total = 0;
+    D.STATS.forEach(function (s) {
+      assert(D.APT[a.apt[s]], "適性"); assert(a.stats[s] >= 0 && a.stats[s] <= a.caps[s], "能力超過上限");
+      assert(a.caps[s] <= 999, "上限超過 999"); total += a.stats[s];
+    });
+    assert(total >= 70 && total <= 160, "能力合計 " + total);
+    var top = Object.keys(D.DIR_BY_ID[a.dir].weights).sort(function (x, y) { return D.DIR_BY_ID[a.dir].weights[y] - D.DIR_BY_ID[a.dir].weights[x]; })[0];
+    assert(D.APT_ORDER.indexOf(a.apt[top]) <= 2, "主方向最重要的能力至少 B");
+    assert(a.traits.length <= 1, "R 特質最多 1");
+    assert(a.salary >= 1500 && a.salary <= 3000 && a.salary % 100 === 0, "月薪 " + a.salary);
+    eq(a.prof[a.dir].lv, 1, "熟練度初始 1");
+  }
+});
+
+test("藝人：從名錄建立", function () {
+  var st = Core.create({ seed: 1 });
+  var a = Core._fromRoster(st, Roster.byId("ssr001"));
+  eq(a.rarity, "SSR"); eq(a.rosterId, "ssr001"); eq(a.dir, "idol"); eq(a.stats.vocal, 95);
+  eq(a.caps.vocal, 999, "SSR 的 S 適性上限 999"); eq(a.salary, 20000);
+});
+
+test("藝人：名字依語言、名錄找不到時顯示未知", function () {
+  var st = Core.create({ seed: 5 });
+  var a = Core._genR(st);
+  var zh = Core.artistName(a, "zh"), ja = Core.artistName(a, "ja");
+  assert(zh && ja && zh !== ja, "zh/ja 名字 " + zh + " / " + ja);
+  eq(Core.artistName(a, "en"), ja, "en 沿用 ja");
+  eq(Core.artistName(Core._fromRoster(st, Roster.byId("sr001")), "zh"), "星野澪");
+  var ghost = Core._fromRoster(st, Roster.byId("sr001")); ghost.rosterId = "sr999";
+  eq(Core.artistName(ghost, "zh"), "未知藝人");
+});
+
+test("藝人：migrate 補齊藝人欄位", function () {
+  var st = Core.create({ seed: 1 });
+  var a = Core._genR(st); delete a.satisfaction; delete a.policy; st.artists.push(a);
+  Core.migrate(st);
+  eq(st.artists[0].satisfaction, 70); eq(st.artists[0].policy, "idle");
+});
+
 // ==== run ====
 var fails = 0;
 tests.forEach(function (t) {
