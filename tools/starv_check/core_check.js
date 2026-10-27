@@ -12,6 +12,8 @@ require("../../static_src/starv_core.js");
 var Core = global.PriTestStarvCore;
 require("../../static_src/starv_store.js");
 var Store = global.PriTestStarvStore;
+require("../../static_src/starv_avatar.js");
+var Avatar = global.PriTestStarvAvatar;
 function fakeStorage() {
   var m = {};
   return { getItem: function (k) { return k in m ? m[k] : null; }, setItem: function (k, v) { m[k] = String(v); }, removeItem: function (k) { delete m[k]; }, _m: m };
@@ -562,6 +564,20 @@ test("存檔：匯出入字串（含中日文）", function () {
     try { Store.decode(bad); } catch (e) { threw = true; }
     assert(threw, "應該拒絕：" + bad);
   });
+});
+
+test("頭像：所有組合都能畫、可重現、反映外觀", function () {
+  var seen = {};
+  for (var face = 0; face < 4; face++) for (var hair = 0; hair < 12; hair++) for (var eye = 0; eye < 6; eye++) for (var acc = -1; acc < 6; acc++) {
+    var look = { face: face, hair: hair, hairColor: hair % 8, eye: eye, outfit: (face + hair) % 8, acc: acc, skin: eye % 4 };
+    var s = Avatar.svg(look, { bg: "#123456" });
+    assert(s.indexOf("<svg") === 0 && s.slice(-6) === "</svg>", "SVG 外框");
+    assert(s.indexOf(D.LOOK.skins[look.skin]) >= 0 && s.indexOf(D.LOOK.hairColors[look.hairColor]) >= 0 && s.indexOf("#123456") >= 0, "顏色");
+    assert(s.indexOf(" id=") < 0, "不能有 id");
+    seen[s] = 1;
+  }
+  assert(Object.keys(seen).length === 4 * 12 * 6 * 7, "每種組合都不同");
+  eq(Avatar.svg(null, {}), Avatar.svg(null, {}), "預設外觀可重現");
 });
 
 // ==== run ====
