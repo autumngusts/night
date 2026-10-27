@@ -51,6 +51,23 @@ step("開業畫面 → 建立公司", async function (page) {
   await noRawKeys(page, "頂部列");
 });
 
+step("招募：星探券十連 → 翻卡 → 入社", async function (page) {
+  await tab(page, "gacha");
+  await noRawKeys(page, "招募分頁");
+  await act(page, "pull-ticket-10");
+  await page.waitForSelector(".sv-reveal");
+  await act(page, "reveal-skip");
+  await act(page, "reveal-done");
+  // 抽到新 SSR 會接著出現全螢幕介紹
+  for (var i = 0; i < 10 && await page.$('[data-act="spot-done"]'); i++) await act(page, "spot-done");
+  var s = await st(page);
+  assert.strictEqual(s.company.tickets, 0, "券用完");
+  // 宿舍 Lv1 上限 5 人，其餘進候補；抽到重複的 SR/SSR 會變成突破，所以總人數可能少於 10
+  assert.ok(s.artists.length >= 1 && s.artists.length <= 5, "入社人數 " + s.artists.length);
+  assert.ok(s.artists.length + s.waitlist.length <= 10, "入社＋候補不超過抽數");
+  await noRawKeys(page, "招募結果後");
+});
+
 // ==== 之後的 task 在這行之前追加步驟 ====
 
 (async function main() {

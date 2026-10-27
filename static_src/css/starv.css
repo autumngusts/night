@@ -236,3 +236,49 @@
 @media (prefers-reduced-motion: reduce) {
   .sv-root *, .sv-root *::before, .sv-root *::after, .sv-root::before { animation: none !important; transition: none !important; }
 }
+
+/* ---- 招募 ---- */
+.sv-pickup { background: linear-gradient(120deg, rgba(255, 95, 168, 0.25), rgba(166, 107, 255, 0.2), rgba(77, 208, 225, 0.15)); }
+.sv-pickup-label { font-family: Montserrat, sans-serif; font-weight: 800; letter-spacing: 0.1em; color: var(--sv-gold); }
+.sv-pickup-row { display: flex; flex-wrap: wrap; gap: 1rem; margin-top: 0.5rem; }
+.sv-pickup-item { display: flex; align-items: center; gap: 0.6rem; }
+.sv-pickup-name { font-weight: 700; }
+.sv-pity { text-align: center; font-weight: 700; color: var(--sv-gold); }
+.sv-pools { display: grid; grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr)); gap: 0.8rem; }
+.sv-pool-ticket { border-color: rgba(255, 214, 107, 0.5); box-shadow: 0 0 24px rgba(255, 214, 107, 0.12) inset; }
+.sv-wait-row { display: flex; align-items: center; gap: 0.6rem; padding: 0.4rem 0; border-top: 1px solid var(--sv-line); }
+.sv-gacha-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(8.5rem, 1fr)); gap: 0.6rem; }
+.sv-gacha-one { grid-template-columns: minmax(8.5rem, 12rem); justify-content: center; }
+.sv-gcard { perspective: 800px; min-height: 12rem; }
+.sv-gcard-in { position: relative; width: 100%; height: 100%; min-height: 12rem; transform-style: preserve-3d; transition: transform 0.45s ease-out; }
+.sv-gcard.sv-flipped .sv-gcard-in { transform: rotateY(180deg); }
+.sv-gcard-back, .sv-gcard-front {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.25rem;
+  padding: 0.5rem;
+  border-radius: 12px;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+  text-align: center;
+}
+.sv-gcard-back { background: linear-gradient(135deg, #3a2a7a, #1b1240); border: 1px solid var(--sv-line); font-size: 2rem; color: var(--sv-gold); }
+.sv-gcard-front { transform: rotateY(180deg); background: rgba(255, 255, 255, 0.08); border: 1px solid var(--sv-line); }
+.sv-gcard-sr .sv-gcard-front { border-color: var(--sv-gold); box-shadow: 0 0 18px rgba(255, 214, 107, 0.5); }
+.sv-gcard-ssr .sv-gcard-front { border: 2px solid transparent; background: linear-gradient(#21174a, #21174a) padding-box, var(--sv-rainbow) border-box; box-shadow: 0 0 26px rgba(255, 95, 168, 0.6); }
+.sv-gcard-sr .sv-gcard-back { box-shadow: 0 0 16px rgba(255, 214, 107, 0.45); }
+.sv-gcard-ssr .sv-gcard-back { animation: sv-glow 1s ease-in-out infinite alternate; }
+@keyframes sv-glow { to { box-shadow: 0 0 28px rgba(255, 95, 168, 0.85), 0 0 8px #fff inset; } }
+.sv-gcard-name { font-weight: 700; font-size: 0.9em; }
+.sv-gcard-note { font-size: 0.75em; color: var(--sv-gold); min-height: 1em; }
+.sv-modal-spot { text-align: center; overflow: hidden; }
+.sv-spot { position: relative; display: flex; flex-direction: column; align-items: center; gap: 0.4rem; padding: 1rem 0; }
+.sv-spot > * { position: relative; }
+.sv-spot-rays { position: absolute; inset: -40%; background: repeating-conic-gradient(rgba(255, 214, 107, 0.16) 0 10deg, transparent 10deg 20deg); animation: sv-spin 18s linear infinite; }
+.sv-spot-name { margin: 0.2rem 0 0; font-size: 1.6em; }
+.sv-spot-bio { line-height: 1.7; max-width: 28rem; }
+.sv-skill { padding: 0.6rem 0.9rem; border-radius: 12px; background: rgba(255, 214, 107, 0.12); border: 1px solid rgba(255, 214, 107, 0.5); }
