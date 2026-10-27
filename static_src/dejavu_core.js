@@ -29,14 +29,16 @@
   var MAX_SEGS = 1000;       // 一條路最多幾段（2026-10-26 第六批：600 → 1000）
 
   // ---------------- 亂數 ----------------
+  // 狀態放在 f.s（連線對戰的快照要能存取／還原亂數進度；抽出來的數列與以前完全相同）
   function rng(seed) {
-    var s = seed | 0;
-    return function () {
-      s = (s + 0x6D2B79F5) | 0;
+    var f = function () {
+      var s = f.s = (f.s + 0x6D2B79F5) | 0;
       var t = Math.imul(s ^ (s >>> 15), 1 | s);
       t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
       return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
     };
+    f.s = seed | 0;
+    return f;
   }
   function gauss(r) {
     var u = Math.max(1e-9, r()), v = r();
@@ -323,7 +325,8 @@
       var rg = D.TUNES[key];
       o[key] = clamp(Math.round((Number(sp[key]) || 0) / rg[2]) * rg[2], rg[0], rg[1]);
     });
-    o.drv = sp.car !== "custom" && D.DRIVE_INFO[sp.drv] ? sp.drv : "";
+    // 驅動改裝：只限汽車之間（機車不能改、汽車也不能改成機車）
+    o.drv = sp.car !== "custom" && !D.car(o.car).bike && sp.drv !== "MC" && D.DRIVE_INFO[sp.drv] ? sp.drv : "";
     var used = 0;
     D.UPGRADES.forEach(function (u) {
       var v = clamp(Math.round(Number(sp.up && sp.up[u]) || 0), 0, D.UPGRADE_MAX);
@@ -338,6 +341,11 @@
         var v = Number(cu[key]);
         o.custom[key] = clamp(isFinite(v) && cu[key] !== null && cu[key] !== "" ? v : b[key], rg[key][0], rg[key][1]);
       });
+      // 第十一批：自訂車可以取名、選 EV；車重下限放寬是給機車用的，汽車維持舊的 450 kg
+      if (o.custom.drive !== "MC") o.custom.kg = Math.max(450, o.custom.kg);
+      if (cu.ev) o.custom.ev = true;
+      var nm = typeof cu.name === "string" ? cu.name.trim().slice(0, 20) : "";
+      if (nm) o.custom.name = nm;
     }
     return o;
   }
@@ -349,10 +357,12 @@
     Object.keys(base).forEach(function (k) { b[k] = base[k]; });
     if (spec.car === "custom") Object.keys(spec.custom).forEach(function (k) { b[k] = spec.custom[k]; });
     var up = spec.car === "custom" ? { eng: 0, wt: 0, brk: 0, hdl: 0, grp: 0 } : spec.up;
+    var bike = b.drive === "MC";
     var st = {
-      name: b.name, brand: b.brand, drive: b.drive, ev: !!b.ev,
+      name: b.name, brand: b.brand, drive: b.drive, ev: !!b.ev, bike: bike,
       kw: b.kw * (1 + 0.06 * up.eng),
-      m: b.kg * (1 - 0.03 * up.wt),
+      // 機車：車重另外加騎士
+      m: b.kg * (1 - 0.03 * up.wt) + (bike ? D.RIDER_KG : 0),
       grip: b.grip,
       brk: b.brk * (1 + 0.04 * up.brk),
       hdl: b.hdl * (1 + 0.04 * up.hdl),
@@ -375,8 +385,9 @@
     if (spec.camber) st.brk *= 1 - 0.025 * spec.camber;
     st.P = st.kw * 1000;
     // 輪胎負荷敏感度：車越重，每公斤分到的抓地越少（輕量車在山路的優勢）；重車下坡煞車也比較吃力
-    st.load = Math.pow(1250 / st.m, 0.15);
-    st.brk *= Math.pow(1250 / st.m, 0.1);
+    // 機車不套這條（兩百多公斤套下去抓地會灌水），過彎能力直接由車種的抓地（壓車角度）決定
+    st.load = bike ? 1 : Math.pow(1250 / st.m, 0.15);
+    if (!bike) st.brk *= Math.pow(1250 / st.m, 0.1);
     st.vcap = st.vmax / 3.6 * (1 + 0.05 * spec.gear);
     // 引擎：低轉出力打折，短齒比（gear 負）較早拿到全出力
     st.vpk = 26 * (1 + 0.12 * spec.gear);
@@ -413,8 +424,16 @@
       // 奔放模式：誇張超車、手牌、路面機關（較真模式完全不受影響：另外用 wr 這條亂數，不動 rnd 的抽取順序）
       wild: opts.rule === "wild", items: [], itemSeq: 0, wr: rng((seed ^ 0x5eed1e) | 0),
       // 重播用的戰略指令（Déjà vu：照原本的步數套用，結果就會一模一樣）
-      pending: (opts.cmds || []).slice().sort(function (a, b) { return a.n - b.n; })
+      pending: (opts.cmds || []).slice().sort(function (a, b) { return a.n - b.n; }),
+      cmdsAll: (opts.cmds || []).slice().sort(function (a, b) { return a.n - b.n; }),
+      // 進階條件（第十二批，預設全關；關閉時完全不碰 rnd，結果與以前一樣）：夜間、比賽中天氣變化、輪胎磨耗＋煞車過熱
+      night: !!opts.night, wear: !!opts.wear, wx: null
     };
+    if (opts.wx) {
+      var wr2 = rng((seed ^ 0x3ea7e5) | 0);
+      var est = (tr.finish - tr.start) / 24;
+      race.wx = { at: Math.max(12, est * (0.25 + 0.45 * wr2())), rain: !tr.rain, done: false };
+    }
     var n = opts.cars.length;
     // 發車順序：隨機（計時賽全部同一位置出發）
     var grid = [];
@@ -434,6 +453,7 @@
         state: "run", finT: null, dnf: null, maxV: 0, passing: null, side: 1, cap: Infinity, draft: false,
         styleId: spec.style, noise: cornerNoise(tr, r)
       };
+      if (race.wear) { car.wear = 0; car.tw = 1; car.bt = 0; car.btMax = 0; car.fade = 1; car.profTw = 1; car.profFade = 1; }
       car.prof = buildProfile(race, car);
       race.cars.push(car);
     });
@@ -598,6 +618,7 @@
     var s = race.track.surf[i];
     if (assumed) s = 1 - 0.8 * (1 - s);   // 車手看得到路面，但只能預估八成
     var mu = race.baseMu * s * c.tireMul * c.st.grip * c.st.load;
+    if (race.wear) mu *= c.tw;
     // 懸吊：硬（+）在乾燥好路面抓地好一點，濕滑／碎石／積雪反而吃虧；軟（−）相反
     if (c.st.susp) mu *= s >= 0.95 && race.baseMu >= 0.9 ? 1 + 0.012 * c.st.susp : 1 - 0.02 * c.st.susp;
     if (mu < 0.8) mu *= c.di.low;
@@ -652,6 +673,9 @@
     var season = D.SEASONS[race.season];
     var sigma = c.style.sigma / st.hdl * season.sigma * (tr.rain ? 1.25 : 1);
     var f = c.style.f;
+    // 夜間：只看得到車燈照到的地方，判斷彎道比較不準，也不敢壓到底
+    if (race.night) { sigma *= 1.3; f *= 0.975; }
+    var brk = st.brk * (race.wear ? c.fade : 1);
     var q = RHO_HALF * st.cla / st.m;
     var vc = new Array(N), i;
     for (i = 0; i < N; i++) {
@@ -673,11 +697,13 @@
       // 彎中還在用橫向抓地時，能拿來煞車的部分比較少（摩擦圓）
       var rr = Math.min(1, v1 * v1 * Math.abs(tr.k[i]) / (mu * c.di.bal * st.lat * (G + q * v1 * v1)));
       var circ = Math.sqrt(Math.max(0.15, 1 - rr * rr));
-      var dec = mu * st.brk * (G + q * v1 * v1) * 0.9 * f * circ + RHO_HALF * st.cda * v1 * v1 / st.m + ROLL - G * tr.sl[i];
+      var dec = mu * brk * (G + q * v1 * v1) * 0.9 * f * circ + RHO_HALF * st.cda * v1 * v1 / st.m + ROLL - G * tr.sl[i];
       dec = Math.max(dec, 0.6);
       var vb = Math.sqrt(v1 * v1 + 2 * dec * DS);
       if (vb < vc[i]) vc[i] = vb;
     }
+    // 記下建表當時的胎況與煞車（快照還原時要用同樣的值重建，結果才一致）
+    c.pbTw = c.tw; c.pbFade = c.fade;
     return vc;
   }
 
@@ -743,6 +769,8 @@
       if (!ahead) { c.passing = null; c.passKind = null; return; }
       var gap = ahead.s - c.s - CAR_LEN;
       var wild = race.wild, fx = c.fx || {};
+      // 機車窄：超車時路面像是寬了 1.5 m（只影響機車，汽車不變）
+      var wEff = tr.w + (c.st.bike ? 1.5 : 0);
       if (c.passing !== null && c.passing !== ahead.id) {
         // 前車換人了：剛超過去的話，先保持在旁邊直到拉開距離
         var was = race.cars[c.passing];
@@ -766,7 +794,7 @@
           if (alongside(c, ahead) && maxK(tr, c.s, c.s + 10) > 1 / 150) {
             ahead.yieldT = 1.2;
             // 窄路並排過彎：可能擦撞（每次超車最多一次）
-            if (!c.touched && tr.w < 6.5 && race.rnd() < (0.35 + (ahead.style.block < 1 ? 0.35 : 0)) * dt) {
+            if (!c.touched && wEff < 6.5 && race.rnd() < (0.35 + (ahead.style.block < 1 ? 0.35 : 0)) * dt) {
               c.touched = true;
               c.v *= 0.9; ahead.v *= 0.88;
               c.dmg = Math.min(DNF_DAMAGE - 1, c.dmg + 3); ahead.dmg = Math.min(DNF_DAMAGE - 1, ahead.dmg + 3);
@@ -779,7 +807,7 @@
       if (wild && fx.ghost > 0 && gap < 10) { setMove(race, c, ahead, "ghost"); return; }
       if (gap < 10 && c.v > ahead.v - 0.5) {
         var blockM = ahead.style.block * (wild && ahead.fx.block > 0 ? 0.05 : 1);
-        var room = wild ? tr.w >= 4.5 && maxK(tr, c.s, c.s + 40) < 1 / 150 : tr.w >= 6 && maxK(tr, c.s, c.s + 70) < 1 / 150;
+        var room = wild ? wEff >= 4.5 && maxK(tr, c.s, c.s + 40) < 1 / 150 : wEff >= 6 && maxK(tr, c.s, c.s + 70) < 1 / 150;
         var faster = profAt(c, tr, c.s + 40) > ahead.v * (wild ? 1.02 : 1.04) + 0.5 || wild && c.draftT > 1;
         if (room && faster && race.rnd() < c.style.pass * blockM * dt * 2 * (wild ? 2.5 : 1)) {
           c.passing = ahead.id; c.passKind = "straight"; c.touched = false;
@@ -789,7 +817,7 @@
         }
         // 晚煞車切內線：前方 20–90 m 有彎、路寬夠兩台並排、緊跟（6 m 內）、自己進彎能帶更快的速度
         var kIn = maxK(tr, c.s + 20, c.s + 90);
-        if (!room && gap < 6 && kIn > 1 / 70 && kIn < 1 / 12 && tr.w >= (wild ? 4.5 : 5.5)) {
+        if (!room && gap < 6 && kIn > 1 / 70 && kIn < 1 / 12 && wEff >= (wild ? 4.5 : 5.5)) {
           var mine = minProf(c, tr, c.s + 15, c.s + 95), his = minProf(ahead, tr, c.s + 15, c.s + 95);
           if (mine > his * 1.03 + 0.3 && race.rnd() < c.style.pass * blockM * dt * 0.9) {
             c.passing = ahead.id; c.passKind = "brake"; c.touched = false;
@@ -816,6 +844,52 @@
         }
         c.cap = gap < 0 ? ahead.v - 1 : ahead.v + Math.max(0, gap - 3) * 0.6;
       }
+    });
+  }
+
+  // ---------------- 輪胎磨耗、煞車過熱（進階條件 wear） ----------------
+  // 磨耗：越貼近抓地極限、越常滑動、車越重就磨得越快；軟胎快、硬胎慢。磨光（wear＝1）時抓地 −14%。
+  // 煞車：煞車做的功讓溫度上升、行駛中散熱；溫度超過 0.7 開始衰退，最多剩 72% 煞車力（長下坡最明顯）。
+  var TIRE_WEAR = { sport: 1, soft: 1.6, hard: 0.6, snow: 1.25 };
+  function wearStep(c, v, a, rc, dt) {
+    var st = c.st;
+    c.wear = Math.min(1, c.wear + dt * 0.00016 * v * (0.25 + 1.4 * rc * rc + 1.2 * Math.abs(c.slip)) * (TIRE_WEAR[c.spec.tire] || 1) * Math.sqrt(st.m / 1300));
+    c.tw = 1 - 0.14 * c.wear;
+    if (a < -1) c.bt += dt * (-a) * v / (1000 * Math.pow(1300 / st.m, 0.3));
+    c.bt = Math.max(0, c.bt - dt * c.bt * 0.07 * (1 + v / 40));
+    if (c.bt > c.btMax) c.btMax = c.bt;
+    c.fade = c.bt > 0.7 ? Math.max(0.72, 1 - 0.7 * (c.bt - 0.7)) : 1;
+  }
+  // 磨耗／過熱改變夠多時，車手重新估計煞車點與彎速（每秒檢查一次）
+  function wearProfiles(race) {
+    race.cars.forEach(function (c) {
+      if (c.state !== "run") return;
+      if (Math.abs(c.tw - c.profTw) > 0.008 || Math.abs(c.fade - c.profFade) > 0.02) {
+        c.profTw = c.tw; c.profFade = c.fade;
+        c.prof = buildProfile(race, c);
+      }
+    });
+  }
+  // 比賽中天氣變化：開始下雨（或雨停、路面轉乾）；所有車手重新判斷
+  function weatherChange(race) {
+    race.wx.done = true;
+    setRain(race, race.wx.rain);
+    race.cars.forEach(function (c) { if (c.state === "run") c.prof = buildProfile(race, c); });
+    race.events.push({ t: Math.round(race.t * 10) / 10, car: -1, type: "weather", rain: race.track.rain });
+  }
+  function setRain(race, rain) {
+    var tr = race.track;
+    if (!!tr.rain === !!rain) return;
+    tr.rain = rain;
+    race.baseMu = D.SEASONS[race.season].mu * (tr.rain ? WET_MU : 1);
+    // 隧道不受雨影響：抵銷 baseMu 的變化
+    for (var i = 0; i < tr.N; i++) {
+      var code = tr.sp[i];
+      if (code && D.SURFACES[D.SURFACE_IDS[code - 1]].dry) tr.surf[i] *= tr.rain ? 1 / WET_MU : WET_MU;
+    }
+    race.cars.forEach(function (c) {
+      var tire = D.TIRES[c.spec.tire];
+      c.tireMul = tire[race.season] * (tr.rain ? tire.wet : 1);
     });
   }
 
@@ -868,11 +942,12 @@
       if (v >= st.vcap * (pmul > 1 ? 1.1 : 1) && a > 0) a = 0;
       if (a > 0 && v + a * dt > target) a = (target - v) / dt;
     } else {
-      var maxB = mu * st.brk * (G + q * v * v) * circle;
+      var maxB = mu * st.brk * (race.wear ? c.fade : 1) * (G + q * v * v) * circle;
       var need = (v - target) / dt + grav - drag - ROLL;
       a = -clamp(need, 0, maxB) - drag - ROLL + grav;
     }
     c.braking = a < -2.5 && c.stun <= 0;
+    if (race.wear && c.state === "run") wearStep(c, v, a, rc, dt);
     if (c.stun <= 0) c.yaw *= Math.max(0, 1 - dt * 3);
     v = Math.max(0, v + a * dt);
     // 橫向：滑動／打滑
@@ -938,6 +1013,8 @@
     }
     if (race.stepN % 60 === 0) cpuTactics(race);
     if (race.wild && race.stepN % 30 === 15) cpuCards(race);
+    if (race.wx && !race.wx.done && race.t >= race.wx.at) weatherChange(race);
+    if (race.wear && race.stepN % 30 === 7) wearProfiles(race);
     race.stepN++;
     race.t += dt;
     traffic(race, dt);
@@ -997,9 +1074,55 @@
         pos: i + 1, id: c.id, name: c.name, color: c.color, car: c.st.name, cpu: c.cpu, state: c.state,
         time: c.finT, gap: c.state === "fin" && lead !== null ? c.finT - lead : null, dnf: c.dnf,
         dist: Math.max(0, Math.min(c.s, race.track.finish) - race.track.start),
-        maxKmh: Math.round(c.maxV * 3.6), spins: c.spins, drifts: c.drifts, overtakes: c.overtakes, dmg: Math.round(c.dmg), cards: c.cardsUsed || 0, charges: c.charges || 0
+        maxKmh: Math.round(c.maxV * 3.6), spins: c.spins, drifts: c.drifts, overtakes: c.overtakes, dmg: Math.round(c.dmg), cards: c.cardsUsed || 0, charges: c.charges || 0,
+        wear: race.wear ? Math.round(c.wear * 100) : null, brake: race.wear ? Math.round(c.btMax * 100) : null
       };
     });
+  }
+
+  // ---------------- 連線對戰：比賽狀態快照（第十三批） ----------------
+  // 房主每隔一段時間把整場比賽的「會變的部分」寫成快照，其他裝置收到後直接換上再追到現在的時刻：
+  // 不同瀏覽器的浮點誤差、別人下的戰略指令都會在下一張快照對齊。賽道、車的規格、彎道判斷誤差（noise）
+  // 在同一組設定＋seed 下本來就相同，不用傳；煞車點表（prof）由狀態重建。
+  var SNAP_SKIP = { id: 1, name: 1, color: 1, cpu: 1, spec: 1, st: 1, di: 1, style: 1, prof: 1, noise: 1, tireMul: 1 };
+  function snapRep(k, v) { return v === Infinity ? "+inf" : v === -Infinity ? "-inf" : v; }
+  function snapRev(k, v) { return v === "+inf" ? Infinity : v === "-inf" ? -Infinity : v; }
+  function snapshot(race) {
+    return JSON.stringify({
+      n: race.stepN, t: race.t, done: race.done, endT: race.endT, rain: !!race.track.rain, wx: race.wx,
+      rs: race.rnd.s, ws: race.wr.s, items: race.items, itemSeq: race.itemSeq, log: race.log,
+      cars: race.cars.map(function (c) {
+        var o = {};
+        Object.keys(c).forEach(function (k) { if (!SNAP_SKIP[k]) o[k] = c[k]; });
+        if (c.beingPassed) o.beingPassed = c.beingPassed.id;   // 存的是車本身：改存編號
+        return o;
+      })
+    }, snapRep);
+  }
+  function restore(race, txt) {
+    var o = JSON.parse(txt, snapRev);
+    if (!o || !o.cars || o.cars.length !== race.cars.length) return false;
+    setRain(race, o.rain);
+    race.wx = o.wx; race.t = o.t; race.stepN = o.n; race.done = o.done; race.endT = o.endT;
+    race.rnd.s = o.rs; race.wr.s = o.ws; race.items = o.items; race.itemSeq = o.itemSeq; race.log = o.log;
+    race.pending = race.cmdsAll.filter(function (cm) { return cm.n >= o.n; });
+    // 快照之後的事件是本機自己算的，可能和房主不同：丟掉，接下來重新產生
+    var lim = Math.round(o.t * 10) / 10;
+    race.events = race.events.filter(function (e) { return e.t <= lim; });
+    race.cars.forEach(function (c, i) {
+      var sc = o.cars[i];
+      Object.keys(c).forEach(function (k) { if (!SNAP_SKIP[k] && !(k in sc)) delete c[k]; });
+      Object.keys(sc).forEach(function (k) { c[k] = sc[k]; });
+      c.beingPassed = typeof sc.beingPassed === "number" ? race.cars[sc.beingPassed] || null : null;
+      c.style = D.STYLES[c.styleId] || c.style;
+      var tire = D.TIRES[c.spec.tire];
+      c.tireMul = tire[race.season] * (race.track.rain ? tire.wet : 1);
+      var tw = c.tw, fade = c.fade;
+      if (race.wear) { c.tw = c.pbTw; c.fade = c.pbFade; }
+      c.prof = buildProfile(race, c);
+      if (race.wear) { c.tw = tw; c.fade = fade; }
+    });
+    return true;
   }
 
   // 畫面用：車在世界座標的位置與朝向
@@ -1018,6 +1141,6 @@
     DT: DT, DS: DS, CAR_LEN: CAR_LEN,
     rng: rng, parseSeg: parseSeg, pieceTags: pieceTags, findCombos: findCombos, segLen: segLen, courseLen: courseLen, fixedCourse: fixedCourse, expandPiece: expandPiece,
     cleanCourse: cleanCourse, cleanSeg: cleanSeg, buildTrack: buildTrack, trackInfo: trackInfo, randomCourse: randomCourse, randomFill: randomFill,
-    MAX_SEGS: MAX_SEGS, cleanSpec: cleanSpec, carStats: carStats, createRace: createRace, command: command, playCard: playCard, step: step, order: order, runToEnd: runToEnd, results: results, carPose: carPose
+    MAX_SEGS: MAX_SEGS, cleanSpec: cleanSpec, carStats: carStats, createRace: createRace, command: command, playCard: playCard, step: step, order: order, runToEnd: runToEnd, results: results, carPose: carPose, snapshot: snapshot, restore: restore
   };
 })();

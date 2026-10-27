@@ -33,6 +33,8 @@
   var SPEEDS = [1, 2, 4, 8];
   var CAMS = ["tv", "chase", "drone", "cockpit"];   // 電視轉播（導播自動切鏡頭）／追焦／空拍（MF Ghost 風）／車內第一人稱
   var Tv = window.PriTestDejavuTv;
+  var M = window.PriTestDejavuModes;   // 第十二批：錦標賽、山道傳說、下注、路線紀錄、每日挑戰
+  var Net = window.PriTestDejavuNet;   // 第十三批：多裝置連線（房間、同步比賽、一起看重播）
   var WATER = { lake: "#4f86a8", sea: "#2c6b98", frozen: "#cfe2ec" };
 
   // 各季節的畫面配色
@@ -104,10 +106,12 @@
       if (!D.SEASONS[s.season]) s.season = "autumn";
       if (D.RULE_IDS.indexOf(s.rule) < 0) s.rule = "real";
       if (s.course.src === "shinmei") s.course.src = "myogi"; // 2026-10-26 真明山改名為妙義山
+      s.night = !!s.night; s.wx = !!s.wx; s.wear = !!s.wear;
+      if (s.champ && (!s.champ.plan || !s.champ.plan.length || !s.champ.table)) s.champ = null;
       return s;
     } catch (e) { return null; }
   }
-  function save() { try { window.localStorage.setItem(KEY, JSON.stringify(setup)); } catch (e) { /* 私密模式等：不存也能玩 */ } }
+  function save() { if (ui && ui.room) { netSave(); return; } try { window.localStorage.setItem(KEY, JSON.stringify(setup)); } catch (e) { /* 私密模式等：不存也能玩 */ } }
 
   var setup = load() || defaults();
   var ui = {
@@ -125,10 +129,12 @@
     var used = setup.players.map(function (p) { return p.color; });
     var free = D.COLORS.filter(function (c) { return used.indexOf(c) < 0; });
     setup.cpuCars = [];
+    // CPU 開什麼（第十一批）：car 汽車（預設，跟以前一樣）、bike 機車、mix 混合
+    var pool = D.CARS.filter(function (c) { return setup.cpuKind === "mix" || (setup.cpuKind === "bike" ? !!c.bike : !c.bike); });
     for (var i = 0; i < setup.cpu; i++) {
       var spec = null;
       for (var tries = 0; tries < 40; tries++) {
-        var car = D.CARS[Math.floor(r() * D.CARS.length)];
+        var car = pool[Math.floor(r() * pool.length)];
         var sp = defaultSpec(car.id);
         sp.tire = setup.season === "winter" ? "snow" : (r() < 0.3 ? "soft" : "sport");
         sp.aero = Math.floor(r() * 3);
@@ -148,6 +154,9 @@
   function raceCars() {
     ensureCpu();
     var list = setup.players.map(function (p, i) { return { spec: setup.cars[i], name: playerName(i), color: p.color, cpu: false }; });
+    // 山道傳說挑戰：只有玩家和傳說，一對一（多人時大家一起挑戰）
+    var lg = legendNow();
+    if (lg) { list.push({ spec: lg.spec, name: "👑 " + L(lg.name), color: lg.color, cpu: true }); return list; }
     setup.cpuCars.forEach(function (c, i) { list.push({ spec: c.spec, name: "CPU " + (i + 1), color: c.color, cpu: true }); });
     return list;
   }
@@ -562,7 +571,8 @@
     var labels = { setup: "dv_step_setup", course: "dv_step_course", garage: "dv_step_garage", race: "dv_step_race", result: "dv_step_result" };
     var cur = SCREENS.indexOf(ui.screen);
     return el("ol", { class: "dv-steps" }, SCREENS.map(function (s, i) {
-      var can = i < cur && i <= 2;
+      // 連線：非房主不能改山路；比賽中不能離開（大家看同一個時間）
+      var can = i < cur && i <= 2 && !(netGuest() && i === 1) && !(ui.net && ui.screen === "race");
       return el("li", { class: (i === cur ? "dv-on" : "") + (can ? " dv-can" : ""), onclick: can ? function () { go(s); } : null }, [t(labels[s])]);
     }));
   }
@@ -593,10 +603,7 @@
   }
 
   // ---------------- 1. 設定 ----------------
-  function renderSetup() {
-    var box = el("div", { class: "dv-panel" }, [el("p", { class: "dv-intro" }, [t("dv_intro")])]);
-    app.appendChild(box);
-
+  function playersPanel() {
     var pl = el("div", { class: "dv-panel" }, [el("h2", {}, [t("dv_players")])]);
     setup.players.forEach(function (p, i) {
       pl.appendChild(el("div", { class: "dv-player-row" }, [
@@ -633,7 +640,18 @@
       el("b", { class: "dv-num" }, [String(setup.cpu)]),
       btn("+", function () { setup.cpu++; setup.cpuCars = null; save(); render(); }, "dv-step", setup.players.length + setup.cpu >= D.MAX_CARS)
     ]));
-    app.appendChild(pl);
+    return pl;
+  }
+
+  function renderSetup() {
+    var box = el("div", { class: "dv-panel" }, [el("p", { class: "dv-intro" }, [t("dv_intro")])]);
+    app.appendChild(box);
+    if (Net) app.appendChild(netPanel());
+    if (netGuest()) { if (ui.room.loaded && !ui.room.missing) app.appendChild(netCfgPanel()); return; }
+    if (!ui.room) app.appendChild(renderModes());
+
+    if (ui.room) app.appendChild(netHostPanel());
+    else app.appendChild(playersPanel());
 
     var rules = el("div", { class: "dv-panel" }, [
       el("h3", {}, [t("dv_rule")]),
@@ -655,11 +673,12 @@
       el("h3", {}, [t("dv_uppts")]),
       choice(D.UPGRADE_PTS_OPTIONS.map(String), String(setup.upPts), function (id) { return t("dv_uppts_" + id); },
         function (id) { setup.upPts = Number(id); setup.cars = setup.cars.map(function (c) { var o = Core.cleanSpec(c, setup.upPts); o.custom = c.custom; return o; }); setup.cpuCars = null; save(); render(); }),
-      el("p", { class: "dv-muted" }, [t("dv_uppts_desc")])
+      el("p", { class: "dv-muted" }, [t("dv_uppts_desc")]),
+      renderConds()
     ]);
     app.appendChild(rules);
     app.appendChild(el("div", { class: "dv-actions dv-next" }, [
-      btn(t("dv_reset"), function () { setup = defaults(); save(); render(); }, "dv-link"),
+      ui.room ? null : btn(t("dv_reset"), function () { setup = defaults(); save(); render(); }, "dv-link"),
       btn(t("dv_next_course"), function () { go("course"); }, "dv-primary")
     ]));
   }
@@ -693,6 +712,8 @@
       panel.appendChild(renderBuilder());
     }
     app.appendChild(panel);
+    var extras = renderCourseExtras();
+    if (extras) app.appendChild(extras);
 
     // 預覽＋資訊
     var tr = previewTrack(), info = trackCache.info;
@@ -724,6 +745,17 @@
         }, [""].concat(D.REGIONS).map(function (id) {
           return el("option", { value: id, selected: (setup.course.region || "") === id }, [id ? t("dv_region_" + id) : t("dv_region_auto", { r: t("dv_region_" + autoRegion(setup.course.src)) })]);
         })), el("b", {}, [""])]),
+        // 第十一批：景觀（山／海／湖）與水在哪一側，自訂路也能選
+        el("label", { class: "dv-range" }, [t("dv_scene"), el("select", {
+          onchange: function (e) {
+            setup.course.scene = e.target.value;
+            if (setup.course.scene === "mountain") setup.course.water = 0; else if (!setup.course.water) setup.course.water = 1;
+            touchCourse();
+          }
+        }, ["mountain", "sea", "lake"].map(function (id) { return el("option", { value: id, selected: (setup.course.scene || "mountain") === id }, [t("dv_scene_" + id)]); })), el("b", {}, [""])]),
+        setup.course.scene === "sea" || setup.course.scene === "lake" ? el("div", { class: "dv-actions" }, [el("span", {}, [t("dv_water_side")]),
+          choice(["1", "-1"], String(setup.course.water || 1), function (id) { return t(id === "1" ? "dv_left" : "dv_right"); },
+            function (id) { setup.course.water = Number(id); touchCourse(); })]) : null,
 
         el("div", { class: "dv-legend dv-small" }, [
           el("span", {}, [el("i", { style: "background:#2e9e5b" }, []), t("dv_start")]),
@@ -761,7 +793,7 @@
   }
   function fillCourseCards(box) {
     box.innerHTML = "";
-    var list = courseList();
+    var list = courseList(), beaten = M.legendBeaten();
     if (!list.length) box.appendChild(el("p", { class: "dv-muted" }, [t("dv_course_none")]));
     list.forEach(function (co) {
       var on = setup.course.src === co.id && !setup.build;
@@ -769,7 +801,7 @@
       box.appendChild(el("button", {
         type: "button", class: "dv-card" + (on ? " dv-on" : ""),
         onclick: function () { setup.course = Core.fixedCourse(co.id); setup.build = null; save(); render(); }
-      }, [el("b", {}, [L(co.name)]),
+      }, [el("b", {}, [(beaten[co.id] ? "👑 " : "") + L(co.name)]),
         el("span", { class: "dv-small" }, [(len / 1000).toFixed(1) + " km · " + t("dv_width_n", { n: co.w }) + (co.prof ? " · " + t("dv_prof_" + co.prof) : "")]),
         el("span", { class: "dv-small dv-muted" }, [co.desc ? L(co.desc) : co.prof ? t("dv_profd_" + co.prof) : ""])]));
     });
@@ -1082,6 +1114,10 @@
         disabled: locked, title: t("dv_seg_sf"), onchange: function (e) { if (e.target.value) s.sf = e.target.value; else delete s.sf; touchCourse(); }
       }, [""].concat(D.SURFACE_IDS).map(function (id) { return el("option", { value: id, selected: (s.sf || "") === id }, [t("dv_sf_" + (id || "none"))]); })));
       row.appendChild(btn("⇄", function () { if (s.t === "C") { s.ang = -s.ang; touchCourse(); } }, "dv-x", locked || s.t !== "C"));
+      // 第十一批：上移／下移／複製
+      row.appendChild(btn("↑", function () { segs.splice(i - 1, 0, segs.splice(i, 1)[0]); touchCourse(); }, "dv-x", locked || i === 0));
+      row.appendChild(btn("↓", function () { segs.splice(i + 1, 0, segs.splice(i, 1)[0]); touchCourse(); }, "dv-x", locked || i === segs.length - 1));
+      row.appendChild(btn("⧉", function () { segs.splice(i + 1, 0, JSON.parse(JSON.stringify(s))); touchCourse(); }, "dv-x", locked || segs.length >= Core.MAX_SEGS));
       row.appendChild(btn("✕", function () { segs.splice(i, 1); touchCourse(); }, "dv-x", locked));
       tbl.appendChild(row);
     });
@@ -1090,6 +1126,36 @@
       btn(t("dv_add_s"), function () { segs.push({ t: "S", len: 100, g: null }); touchCourse(); }, "", locked),
       btn(t("dv_add_c"), function () { segs.push({ t: "C", ang: 60, r: 50, g: null }); touchCourse(); }, "", locked)
     ]));
+    // 第十一批：自由編輯——直接接預設零件（不必走輪流建造），以及整條路的工具
+    var pid = ui.addPiece || "hairpin";
+    det.appendChild(el("h4", { class: "dv-pgroup" }, [t("dv_edit_tools")]));
+    det.appendChild(el("div", { class: "dv-actions" }, [
+      el("select", { disabled: locked, onchange: function (e) { ui.addPiece = e.target.value; } },
+        PIECE_GROUPS.map(function (gp) {
+          return el("optgroup", { label: t("dv_pgroup_" + gp.id) }, gp.ids.map(function (id) { return el("option", { value: id, selected: id === pid }, [t("dv_piece_" + id)]); }));
+        })),
+      choice(["1", "-1"], String(ui.side), function (id) { return t(id === "1" ? "dv_left" : "dv_right"); }, function (id) { ui.side = Number(id); render(); }),
+      btn(t("dv_add_piece"), function () {
+        var add = Core.expandPiece(ui.addPiece || "hairpin", ui.side, null);
+        if (segs.length + add.length > Core.MAX_SEGS) { ui.segCap = true; render(); return; }
+        Array.prototype.push.apply(segs, add); touchCourse();
+      }, "dv-primary", locked)
+    ]));
+    det.appendChild(el("div", { class: "dv-actions" }, [
+      btn("⇋ " + t("dv_edit_mirror"), function () { segs.forEach(function (s) { if (s.t === "C") s.ang = -s.ang; }); touchCourse(); }, "", locked),
+      // 反轉：倒著跑同一條路＝順序反過來、每個彎的方向也反過來（坡度仍照下坡／上坡設定）
+      btn("⟲ " + t("dv_edit_reverse"), function () { segs.reverse(); segs.forEach(function (s) { if (s.t === "C") s.ang = -s.ang; }); touchCourse(); }, "", locked),
+      btn("🎲 " + t("dv_edit_extend"), function () {
+        var c = Core.randomFill(setup.course, newSeed(), Core.courseLen(setup.course) + 600);
+        setup.course.segs = c.segs.slice(0, Core.MAX_SEGS); touchCourse();
+      }, "", locked || segs.length >= Core.MAX_SEGS),
+      btn("🧹 " + t("dv_edit_blank"), function () {
+        setup.course = { src: "custom", w: setup.course.w || 6.5, g: setup.course.g || 7, scene: setup.course.scene || "mountain", water: setup.course.water || 0,
+          region: setup.course.region || "", segs: [{ t: "S", len: 120, g: null }] };
+        setup.build = null; ui.segOpen = true; save(); render();
+      }, "dv-link", locked)
+    ]));
+    if (ui.segCap) det.appendChild(el("p", { class: "dv-bad dv-small" }, [t("dv_seg_cap", { n: Core.MAX_SEGS })]));
     return det;
   }
 
@@ -1107,8 +1173,41 @@
     try { var a = JSON.parse(window.localStorage.getItem(TUNE_KEY) || "[]"); return Array.isArray(a) ? a.filter(function (x) { return x && x.spec; }) : []; } catch (e) { return []; }
   }
   function saveTunes(list) { try { window.localStorage.setItem(TUNE_KEY, JSON.stringify(list.slice(0, TUNE_MAX))); } catch (e) { /* 存不了就算了 */ } }
+  function drvLabel(d) { return d === "MC" ? t("dv_drv_mc") : d; }
+  function customName(spec) { return spec.custom && spec.custom.name ? spec.custom.name : t(spec.custom && spec.custom.drive === "MC" ? "dv_custom_bike" : "dv_custom_car"); }
+  // 調校代碼（第十一批）：整套 spec 轉成可以貼給別人的文字
+  function encodeSpec(spec) {
+    try { return "DVCAR1:" + btoa(unescape(encodeURIComponent(JSON.stringify(spec)))); } catch (e) { return ""; }
+  }
+  function decodeSpec(txt) {
+    try {
+      var m = String(txt || "").trim().match(/^DVCAR1:([A-Za-z0-9+/=]+)$/);
+      if (!m) return null;
+      var o = JSON.parse(decodeURIComponent(escape(atob(m[1]))));
+      return o && typeof o === "object" && typeof o.car === "string" ? o : null;
+    } catch (e) { return null; }
+  }
+  // 自訂車的隨機數值：先決定是汽車還是機車，再在合理範圍內抽
+  function randomCustom(cu, bike) {
+    function rnd(a, b, step) { return Math.round((a + Math.random() * (b - a)) / step) * step; }
+    cu.drive = bike ? "MC" : D.DRIVES[Math.floor(Math.random() * D.DRIVES.length)];
+    cu.kw = bike ? rnd(8, 170, 1) : rnd(70, 700, 5);
+    cu.kg = bike ? rnd(100, 300, 5) : rnd(800, 2000, 10);
+    cu.grip = rnd(0.88, 1.1, 0.01); cu.brk = rnd(0.88, 1.1, 0.01); cu.hdl = rnd(0.88, 1.2, 0.01);
+    cu.vmax = bike ? Math.min(330, rnd(90, 160, 5) + Math.round(cu.kw)) : Math.min(420, rnd(180, 260, 5) + Math.round(cu.kw / 8));
+    cu.cda = bike ? rnd(0.3, 0.6, 0.01) : rnd(0.55, 0.75, 0.01);
+    cu.cla = rnd(0, bike ? 0.05 : 0.35, 0.01);
+    cu.ev = Math.random() < 0.2;
+  }
+  // 以現有車款為基礎自訂：把它的數值整套搬進自訂車
+  function customFromCar(id) {
+    var c = D.car(id), cu = {};
+    Object.keys(D.CUSTOM.range).forEach(function (k) { cu[k] = c[k] === undefined ? D.CUSTOM.base[k] : c[k]; });
+    cu.drive = c.drive; cu.ev = !!c.ev; cu.name = c.name.slice(0, 20);
+    return cu;
+  }
   function carLabel(spec) {
-    if (spec.car === "custom") return t("dv_custom_car");
+    if (spec.car === "custom") return customName(spec);
     var c = D.car(spec.car);
     return c ? brandName(c.brand) + " " + c.name : spec.car;
   }
@@ -1132,7 +1231,7 @@
       var st = Core.carStats({ car: c.id });
       box.appendChild(el("button", { type: "button", class: "dv-carpick", onclick: function () { pick(c.id); } }, [
         el("b", {}, [brandName(c.brand) + " " + c.name]),
-        el("span", { class: "dv-small dv-muted" }, [c.drive + (c.ev ? " · EV" : "") + " · " + c.kw + " kW · " + c.kg + " kg · PI " + st.pi])
+        el("span", { class: "dv-small dv-muted" }, [drvLabel(c.drive) + (c.ev ? " · EV" : "") + " · " + c.kw + " kW · " + c.kg + " kg · PI " + st.pi])
       ]));
     });
     if (list.length > CAR_LIST_MAX) box.appendChild(el("div", { class: "dv-small dv-muted" }, [t("dv_car_more", { n: list.length - CAR_LIST_MAX })]));
@@ -1141,6 +1240,8 @@
   function renderGarage() {
     ensureCpu();
     var n = setup.players.length, pts = setup.upPts;
+    var banner = challengeBanner();
+    if (banner) app.appendChild(banner);
     ui.tab = clamp(ui.tab, 0, n - 1);
     app.appendChild(el("div", { class: "dv-tabs" }, setup.players.map(function (p, i) {
       var st = Core.carStats(setup.cars[i], pts);
@@ -1154,6 +1255,10 @@
     function commit() { var cu = spec.custom; setup.cars[i] = Core.cleanSpec(spec, pts); setup.cars[i].custom = setup.cars[i].custom || cu || defaultSpec("custom").custom; save(); render(); }
     function upd(fn) { return function (e) { fn(e && e.target ? e.target.value : e); commit(); }; }
     var brand = spec.car === "custom" ? "custom" : D.car(spec.car).brand;
+    function brandOpt(b) {
+      var cnt = D.CARS.filter(function (c) { return c.brand === b.id; }).length;
+      return el("option", { value: b.id, selected: b.id === brand }, [b.name + " (" + cnt + ")"]);
+    }
 
     var left = el("div", { class: "dv-panel" }, [el("h3", {}, [t("dv_car")])]);
     left.appendChild(el("div", { class: "dv-actions" }, [
@@ -1161,12 +1266,14 @@
         class: "dv-brand", onchange: upd(function (v) {
           spec.car = v === "custom" ? "custom" : D.CARS.filter(function (c) { return c.brand === v; })[0].id;
         })
-      }, D.BRANDS.map(function (b) {
-        var cnt = D.CARS.filter(function (c) { return c.brand === b.id; }).length;
-        return el("option", { value: b.id, selected: b.id === brand }, [b.id === "custom" ? t("dv_custom_car") : b.name + " (" + cnt + ")"]);
-      })),
+      }, [
+        // 第十一批：汽車／機車分組，自訂放最後
+        el("optgroup", { label: t("dv_brands_car") }, D.BRANDS.filter(function (b) { return !b.bike && b.id !== "custom"; }).map(brandOpt)),
+        el("optgroup", { label: "🏍 " + t("dv_brands_bike") }, D.BRANDS.filter(function (b) { return b.bike; }).map(brandOpt)),
+        el("option", { value: "custom", selected: brand === "custom" }, ["🛠 " + t("dv_custom_vehicle")])
+      ]),
       brand !== "custom" ? el("select", { class: "dv-model", onchange: upd(function (v) { spec.car = v; }) },
-        D.CARS.filter(function (c) { return c.brand === brand; }).map(function (c) { return el("option", { value: c.id, selected: c.id === spec.car }, [c.name + " · " + c.drive + " · PI " + Core.carStats({ car: c.id }).pi]); })) : null,
+        D.CARS.filter(function (c) { return c.brand === brand; }).map(function (c) { return el("option", { value: c.id, selected: c.id === spec.car }, [c.name + " · " + drvLabel(c.drive) + " · PI " + Core.carStats({ car: c.id }).pi]); })) : null,
       btn("🎲", function () {
         var pool = carMatches() || D.CARS;
         if (setup.piCap) pool = pool.filter(function (c) { return Core.carStats({ car: c.id }).pi <= setup.piCap; });
@@ -1185,20 +1292,47 @@
       el("select", { onchange: function (e) { ui.carCls = e.target.value; fillCarList(found, pickCar); } },
         [""].concat(D.CAR_CLASSES || []).map(function (id) { return el("option", { value: id, selected: (ui.carCls || "") === id }, [id ? t("dv_cls_" + id) : t("dv_cls_all")]); })),
       el("select", { onchange: function (e) { ui.carDrv = e.target.value; fillCarList(found, pickCar); } },
-        [""].concat(D.DRIVES).map(function (id) { return el("option", { value: id, selected: (ui.carDrv || "") === id }, [id || t("dv_drv_all")]); }))
+        [""].concat(D.DRIVES, ["MC"]).map(function (id) { return el("option", { value: id, selected: (ui.carDrv || "") === id }, [id ? drvLabel(id) : t("dv_drv_all")]); }))
     ]));
     fillCarList(found, pickCar);
     left.appendChild(found);
 
+    if (spec.car !== "custom") {
+      // 第十一批：拿目前這台當底，改成自訂車
+      left.appendChild(el("div", { class: "dv-actions" }, [btn("🛠 " + t("dv_custom_from"), function () {
+        spec.custom = customFromCar(spec.car); spec.car = "custom"; commit();
+      }, "dv-link")]));
+    }
     if (spec.car === "custom") {
       var cu = spec.custom;
+      left.appendChild(el("p", { class: "dv-muted dv-small" }, [t("dv_custom_desc")]));
+      left.appendChild(el("div", { class: "dv-actions" }, [
+        el("input", {
+          type: "text", maxlength: "20", class: "dv-name", value: cu.name || "", placeholder: t(cu.drive === "MC" ? "dv_custom_bike" : "dv_custom_car"),
+          onchange: upd(function (v) { cu.name = v; })
+        }, []),
+        btn("🎲 " + t("dv_custom_rand_car"), function () { randomCustom(cu, false); commit(); }),
+        btn("🎲 " + t("dv_custom_rand_bike"), function () { randomCustom(cu, true); commit(); })
+      ]));
       left.appendChild(el("div", { class: "dv-actions" }, [el("span", {}, [t("dv_drive")]),
-        choice(D.DRIVES, cu.drive, function (id) { return id; }, upd(function (v) { cu.drive = v; }))]));
+        choice(D.DRIVES.concat(["MC"]), cu.drive, drvLabel, upd(function (v) {
+          // 汽車↔機車切換時，車重／空阻跳到對應的合理值，免得 450 kg 的機車或 120 kg 的汽車
+          if ((v === "MC") !== (cu.drive === "MC")) {
+            cu.kg = v === "MC" ? 190 : D.CUSTOM.base.kg; cu.cda = v === "MC" ? 0.4 : D.CUSTOM.base.cda;
+            cu.kw = v === "MC" ? Math.min(cu.kw, 120) : Math.max(cu.kw, 80); cu.vmax = v === "MC" ? Math.min(cu.vmax, 280) : Math.max(cu.vmax, 160);
+          }
+          cu.drive = v;
+        }))]));
+      left.appendChild(el("label", { class: "dv-check" }, [el("input", {
+        type: "checkbox", checked: !!cu.ev, onchange: function (e) { cu.ev = e.target.checked; commit(); }
+      }, []), " " + t("dv_custom_ev")]));
       Object.keys(D.CUSTOM.range).forEach(function (k) {
         var rg = D.CUSTOM.range[k];
         var val = cu[k] === undefined ? D.CUSTOM.base[k] : cu[k];
-        left.appendChild(el("label", { class: "dv-range" }, [t("dv_cu_" + k), el("input", {
-          type: "range", min: String(rg[0]), max: String(rg[1]), step: String(rg[2]), value: String(val),
+        // 汽車的車重下限維持 450 kg（放寬到 80 kg 是給機車的），機車的上限 500 kg
+        var lo = k === "kg" && cu.drive !== "MC" ? 450 : rg[0], hi = k === "kg" && cu.drive === "MC" ? 500 : rg[1];
+        left.appendChild(el("label", { class: "dv-range" }, [t(k === "kg" && cu.drive === "MC" ? "dv_cu_kg_bike" : "dv_cu_" + k), el("input", {
+          type: "range", min: String(lo), max: String(hi), step: String(rg[2]), value: String(val),
           oninput: function (e) { e.target.nextSibling.textContent = e.target.value; },
           onchange: upd(function (v) { cu[k] = Number(v); })
         }, []), el("b", {}, [String(val)])]));
@@ -1235,7 +1369,7 @@
       el("summary", {}, [t("dv_tune_title")]),
       el("p", { class: "dv-muted dv-small" }, [t("dv_tune_desc")])
     ]);
-    if (spec.car !== "custom") {
+    if (spec.car !== "custom" && !D.car(spec.car).bike) {
       var stock = D.car(spec.car).drive;
       tune.appendChild(el("div", { class: "dv-actions" }, [el("span", {}, [t("dv_drv_swap")]),
         choice([""].concat(D.DRIVES.filter(function (d) { return d !== stock; })), spec.drv || "", function (id) { return id || t("dv_drv_stock", { d: stock }); },
@@ -1259,6 +1393,21 @@
     var preset = el("details", { class: "dv-tune", open: ui.presetOpen ? true : null, ontoggle: function (e) { ui.presetOpen = e.target.open; } }, [
       el("summary", {}, [t("dv_preset_title", { n: tunes.length, max: TUNE_MAX })])
     ]);
+    // 調校代碼（第十一批）：把目前這台（含自訂車）分享給別人
+    var codeTa = el("textarea", { class: "dv-code", rows: "2", placeholder: t("dv_tune_code_ph") }, []);
+    codeTa.value = ui.tuneCode || "";
+    preset.appendChild(codeTa);
+    preset.appendChild(el("div", { class: "dv-actions" }, [
+      btn(t("dv_tune_code_export"), function () { ui.tuneCode = encodeSpec(spec); render(); }),
+      btn(t("dv_tune_code_import"), function () {
+        var got = decodeSpec(codeTa.value);
+        if (!got) { ui.tuneCode = codeTa.value; ui.tuneErr = true; render(); return; }
+        var keep = spec.custom;
+        spec = got; if (!spec.custom) spec.custom = keep;
+        setup.cars[i] = spec; ui.tuneCode = ""; ui.tuneErr = false; commit();
+      }, "dv-primary")
+    ]));
+    if (ui.tuneErr) { preset.appendChild(el("p", { class: "dv-bad dv-small" }, [t("dv_tune_code_bad")])); ui.tuneErr = false; }
     preset.appendChild(el("div", { class: "dv-actions" }, [
       el("input", { type: "text", maxlength: "24", class: "dv-name", value: ui.presetName || "", placeholder: carLabel(spec), oninput: function (e) { ui.presetName = e.target.value; } }, []),
       btn("💾 " + t("dv_preset_save"), function () {
@@ -1285,11 +1434,11 @@
     var over = setup.piCap && st.pi > setup.piCap;
     var right = el("div", { class: "dv-panel dv-carcard" }, [
       el("div", { class: "dv-carhead" }, [el("i", { class: "dv-carswatch", style: "background:" + setup.players[i].color }, []),
-        el("div", {}, [el("b", {}, [spec.car === "custom" ? t("dv_custom_car") : (brandName(st.brand) + " " + st.name)]),
-          el("div", { class: "dv-small dv-muted" }, [st.drive + (st.swap ? " ← " + st.swap : "") + (st.ev ? " · EV" : "") +
+        el("div", {}, [el("b", {}, [spec.car === "custom" ? customName(spec) : (brandName(st.brand) + " " + st.name)]),
+          el("div", { class: "dv-small dv-muted" }, [drvLabel(st.drive) + (st.swap ? " ← " + st.swap : "") + (st.ev ? " · EV" : "") +
             (spec.car !== "custom" && D.car(spec.car).cls ? " · " + t("dv_cls_" + D.car(spec.car).cls) : "")])])]),
       statBar(t("dv_st_power"), Math.round(st.kw) + " kW / " + Math.round(st.kw * 1.36) + " PS", st.kw / 800),
-      statBar(t("dv_st_weight"), Math.round(st.m) + " kg", st.m / 2500),
+      statBar(t(st.bike ? "dv_st_weight_bike" : "dv_st_weight"), Math.round(st.m) + " kg", st.m / 2500),
       statBar(t("dv_st_pw"), (st.m / st.kw).toFixed(1) + " kg/kW", st.pw / 0.35),
       statBar(t("dv_st_grip"), gripNow.toFixed(2), (gripNow - 0.4) / 0.8),
       statBar(t("dv_st_brake"), st.brk.toFixed(2), (st.brk - 0.75) / 0.5),
@@ -1301,18 +1450,25 @@
     ]);
     app.appendChild(el("div", { class: "dv-garage" }, [left, right]));
 
-    if (setup.cpuCars.length) {
+    if (setup.cpuCars.length && !legendNow()) {
       app.appendChild(el("div", { class: "dv-panel" }, [
         el("h3", {}, [t("dv_cpu_cars")]),
+        netGuest() ? null : el("div", { class: "dv-actions" }, [el("span", {}, [t("dv_cpu_kind")]),
+          choice(["car", "bike", "mix"], setup.cpuKind || "car", function (id) { return t("dv_cpu_kind_" + id); }, function (id) {
+            setup.cpuKind = id === "car" ? undefined : id; setup.cpuCars = null; save(); render();
+          })]),
         el("ul", { class: "dv-cpulist" }, setup.cpuCars.map(function (c, k) {
           var cs = Core.carStats(c.spec, pts);
           return el("li", {}, [el("i", { class: "dv-dot", style: "background:" + c.color }, []), "CPU " + (k + 1) + " · " + brandName(cs.brand) + " " + cs.name +
             " · " + L(D.STYLES[c.spec.style].name) + " · PI " + cs.pi]);
         })),
-        btn(t("dv_cpu_reroll"), function () { setup.seed = newSeed(); setup.cpuCars = null; save(); render(); }, "dv-link")
+        netGuest() ? null : btn(t("dv_cpu_reroll"), function () { setup.seed = newSeed(); setup.cpuCars = null; save(); render(); }, "dv-link")
       ]));
     }
     var anyOver = setup.piCap && setup.cars.some(function (c) { return Core.carStats(c, pts).pi > setup.piCap; });
+    var bp = ui.room ? null : betPanel();
+    if (bp) app.appendChild(bp);
+    if (ui.room) { app.appendChild(netGaragePanel()); return; }
     app.appendChild(el("div", { class: "dv-actions dv-next" }, [
       btn(t("dv_back"), function () { go("course"); }),
       btn(t("dv_go"), function () { startRace(setup.seed); }, "dv-primary", anyOver)
@@ -1326,15 +1482,607 @@
   }
   function brandName(id) { for (var i = 0; i < D.BRANDS.length; i++) if (D.BRANDS[i].id === id) return D.BRANDS[i].id === "custom" ? "" : D.BRANDS[i].name; return ""; }
 
+  // ---------------- 第十二批：玩法（每日挑戰、錦標賽、山道傳說、下注、路線紀錄） ----------------
+  // 這場算不算進某個玩法，只看 setup 是否還符合（玩家中途改了設定就自動不算）
+  function legendNow() {
+    var ch = ui.challenge;
+    if (!ch || ch.kind !== "legend" || setup.course.src !== ch.course || setup.course.mod || setup.build) return null;
+    return M.legend(ch.course, setup.upPts, setup.piCap);
+  }
+  function dailyNow() {
+    if (!setup.daily || setup.daily !== M.today()) return null;
+    var d = M.daily(setup.daily);
+    if (setup.course.src !== d.course || setup.course.mod || setup.build || setup.seed !== d.seed || setup.season !== d.season || setup.dir !== d.dir ||
+        setup.piCap !== d.piCap || setup.night !== d.night || setup.wx !== d.wx || setup.wear !== d.wear || setup.rule !== "real") return null;
+    return d;
+  }
+  function champNow() {
+    var ch = setup.champ;
+    if (!ch || ch.round >= ch.plan.length || ch.np !== setup.players.length || ch.nc !== setup.cpu) return null;
+    var rd = ch.plan[ch.round];
+    return setup.course.src === rd.course && !setup.course.mod && !setup.build && setup.season === rd.season ? ch : null;
+  }
+  function condIcons(o) { return (o.night ? "🌙" : "") + (o.wx ? "🌦" : "") + (o.wear ? "🛞" : ""); }
+  function applyDaily() {
+    var d = M.daily(M.today());
+    setup.course = Core.fixedCourse(d.course); setup.build = null;
+    setup.season = d.season; setup.dir = d.dir; setup.piCap = d.piCap; setup.night = d.night; setup.wx = d.wx; setup.wear = d.wear;
+    setup.rule = "real"; setup.mode = "attack"; setup.seed = d.seed; setup.daily = d.date;
+    setup.cpu = Math.min(3, D.MAX_CARS - setup.players.length); setup.cpuCars = null;
+    ui.challenge = null; save(); go("garage");
+  }
+  function startChamp(n, cat) {
+    ensureCpu();
+    var plan = M.champPlan(n, cat, newSeed()), table = {};
+    setup.players.forEach(function (p, i) { table["p" + i] = 0; });
+    for (var k = 0; k < setup.cpu; k++) table["c" + k] = 0;
+    setup.champ = { plan: plan, round: 0, table: table, log: [], np: setup.players.length, nc: setup.cpu, cat: cat || "" };
+    applyChampRound();
+  }
+  function applyChampRound() {
+    var ch = setup.champ, rd = ch.plan[ch.round];
+    setup.course = Core.fixedCourse(rd.course); setup.build = null; setup.season = rd.season; setup.seed = newSeed(); setup.daily = null;
+    // CPU 對手整個錦標賽都是同一批，只依季節換輪胎
+    ensureCpu();
+    setup.cpuCars.forEach(function (c) { if (rd.season === "winter") c.spec.tire = "snow"; else if (c.spec.tire === "snow") c.spec.tire = "sport"; });
+    ui.challenge = null; save(); go("garage");
+  }
+  function champName(key) {
+    var i = Number(key.slice(1));
+    if (key.charAt(0) === "p") return playerName(i);
+    var c = setup.cpuCars && setup.cpuCars[i];
+    return "CPU " + (i + 1) + (c ? " · " + Core.carStats(c.spec, setup.upPts).name : "");
+  }
+  // last：這一站的積分（結果畫面顯示 +n）
+  function champTable(ch, limit, last) {
+    var rows = M.champStandings(ch), lastPts = {};
+    (last || []).forEach(function (e) { lastPts[e.key] = e.pts; });
+    return el("ol", { class: "dv-champ-table" }, rows.slice(0, limit || rows.length).map(function (r) {
+      return el("li", { class: r.key.charAt(0) === "p" ? "dv-me" : "" }, [el("span", {}, [champName(r.key)]),
+        last ? el("small", { class: "dv-muted" }, ["+" + (lastPts[r.key] || 0)]) : null,
+        el("b", {}, [t("dv_pts", { n: r.pts })])]);
+    }));
+  }
+  function renderModes() {
+    var grid = el("div", { class: "dv-mode-grid" }, []);
+    // 每日挑戰
+    var d = M.daily(M.today()), dco = D.course(d.course), best = M.dailyBest(d.date);
+    grid.appendChild(el("div", { class: "dv-mode-card" }, [
+      el("h3", {}, ["📅 " + t("dv_daily") + " " + d.date.slice(5)]),
+      el("p", {}, [el("b", {}, [L(dco.name)]), " · " + SEASON_ICON[d.season] + " " + L(D.SEASONS[d.season].name) + " · " + t("dv_dir_" + d.dir) + " · PI ≤ " + d.piCap + " " + condIcons(d)]),
+      el("p", { class: "dv-small dv-muted" }, [t("dv_daily_desc")]),
+      el("p", { class: "dv-small" }, [best ? t("dv_daily_best", { time: fmtTime(best.t), name: best.name, car: best.car }) : t("dv_daily_none")]),
+      btn(t("dv_daily_go"), applyDaily, "dv-primary")
+    ]));
+    // 錦標賽
+    var ch = setup.champ;
+    if (ch && (ch.np !== setup.players.length || ch.nc !== setup.cpu)) { setup.champ = ch = null; save(); }
+    var cc = el("div", { class: "dv-mode-card" }, [el("h3", {}, ["🏆 " + t("dv_champ")])]);
+    if (ch && ch.round < ch.plan.length) {
+      var rd = ch.plan[ch.round];
+      cc.appendChild(el("p", {}, [t("dv_champ_round", { k: ch.round + 1, n: ch.plan.length }) + " ", el("b", {}, [L(D.course(rd.course).name)]), " " + SEASON_ICON[rd.season]]));
+      if (ch.round) cc.appendChild(champTable(ch, 3));
+      cc.appendChild(el("div", { class: "dv-actions" }, [btn(t("dv_champ_continue"), applyChampRound, "dv-primary"),
+        btn(t("dv_champ_quit"), function () { setup.champ = null; save(); render(); }, "dv-link")]));
+    } else {
+      if (ch) {
+        var top = M.champStandings(ch)[0];
+        cc.appendChild(el("p", { class: "dv-good" }, [t("dv_champ_winner", { name: champName(top.key), n: top.pts })]));
+        cc.appendChild(champTable(ch, 3));
+      }
+      cc.appendChild(el("p", { class: "dv-small dv-muted" }, [t("dv_champ_desc")]));
+      cc.appendChild(choice(M.CHAMP_ROUNDS.map(String), String(ui.champN || 5), function (id) { return t("dv_champ_n", { n: id }); }, function (id) { ui.champN = Number(id); render(); }));
+      cc.appendChild(el("div", { class: "dv-actions" }, [
+        el("select", { onchange: function (e) { ui.champCat = e.target.value; } }, [el("option", { value: "" }, [t("dv_champ_allcat")])].concat(COURSE_CATS.map(function (id) {
+          return el("option", { value: id, selected: ui.champCat === id ? true : null }, [t("dv_cat_" + id)]);
+        }))),
+        btn(t("dv_champ_start"), function () { startChamp(ui.champN || 5, ui.champCat || ""); }, "dv-primary")
+      ]));
+    }
+    grid.appendChild(cc);
+    // 山道傳說
+    var beaten = M.legendBeaten(), nb = D.COURSES.filter(function (co) { return beaten[co.id]; }).length;
+    grid.appendChild(el("div", { class: "dv-mode-card" }, [
+      el("h3", {}, ["👑 " + t("dv_legend")]),
+      el("p", { class: "dv-small dv-muted" }, [t("dv_legend_desc")]),
+      el("div", { class: "dv-meter" }, [el("i", { style: "width:" + Math.round(nb / D.COURSES.length * 100) + "%" }, [])]),
+      el("p", { class: "dv-small" }, [t("dv_legend_progress", { n: nb, total: D.COURSES.length })]),
+      btn(t("dv_legend_find"), function () { ui.courseTab = "fixed"; go("course"); })
+    ]));
+    // 下注
+    var w = M.wallet();
+    grid.appendChild(el("div", { class: "dv-mode-card" }, [
+      el("h3", {}, ["🎰 " + t("dv_bet")]),
+      el("p", {}, [el("b", { class: "dv-chips" }, [t("dv_chips", { n: w.chips })])]),
+      el("p", { class: "dv-small dv-muted" }, [t("dv_bet_desc")]),
+      el("p", { class: "dv-small" }, [t("dv_bet_stats", { won: w.won || 0, lost: w.lost || 0, best: w.best || 0 })])
+    ]));
+    return el("div", { class: "dv-panel" }, [el("h2", {}, [t("dv_modes")]), grid]);
+  }
+  // 進階條件（設定畫面）：預設全關
+  function renderConds() {
+    return el("div", {}, [el("h3", {}, [t("dv_conds")])].concat(["night", "wx", "wear"].map(function (k) {
+      return el("label", { class: "dv-check dv-cond" }, [el("input", {
+        type: "checkbox", checked: setup[k] ? true : null, onchange: function (e) { setup[k] = e.target.checked; save(); render(); }
+      }, []), " ", el("b", {}, [t("dv_cond_" + k)]), el("span", { class: "dv-small dv-muted" }, [" " + t("dv_cond_" + k + "_desc")])]);
+    })));
+  }
+  // 山路畫面：這條路的傳說與路線紀錄
+  function recText(r) { return r ? fmtTime(r.t) + "（" + r.name + " · " + r.car + (r.cond ? " " + r.cond : "") + "）" : "—"; }
+  function renderCourseExtras() {
+    var co = D.course(setup.course.src);
+    if (!co || setup.course.mod || setup.build) return null;
+    var lg = M.legend(co.id, setup.upPts, setup.piCap), beat = M.legendBeaten()[co.id];
+    var recs = M.records(), lcs = Core.carStats(lg.spec, setup.upPts);
+    return el("div", { class: "dv-panel dv-legend" }, [
+      el("h3", {}, ["👑 " + t("dv_legend")]),
+      el("p", {}, [el("i", { class: "dv-dot", style: "background:" + lg.color }, []), el("b", {}, [L(lg.name)]),
+        "　" + brandName(lcs.brand) + " " + lcs.name + " · PI " + lg.pi + " · " + L(D.TIRES[lg.spec.tire].name)]),
+      el("p", { class: "dv-small " + (beat ? "dv-good" : "dv-muted") }, [beat ? t("dv_legend_beaten", { time: fmtTime(beat.t), name: beat.name, car: beat.car }) : t("dv_legend_rule")]),
+      el("div", { class: "dv-actions" }, [btn(t("dv_legend_go"), function () { ui.challenge = { kind: "legend", course: co.id }; setup.daily = null; save(); go("garage"); }, "dv-primary")]),
+      el("h3", {}, ["⏱ " + t("dv_records")]),
+      el("p", { class: "dv-small" }, [t("dv_dir_down") + "：" + recText(recs[co.id + "|down"])]),
+      el("p", { class: "dv-small" }, [t("dv_dir_up") + "：" + recText(recs[co.id + "|up"])])
+    ]);
+  }
+  // 車庫上方：目前在哪個玩法裡
+  function challengeBanner() {
+    var lg = legendNow(), dl = dailyNow(), ch = champNow();
+    if (ui.challenge && !lg) ui.challenge = null;
+    if (lg) {
+      var cs = Core.carStats(lg.spec, setup.upPts);
+      return el("div", { class: "dv-banner dv-banner-legend" }, ["👑 " + t("dv_legend_vs", { name: L(lg.name), car: cs.name, pi: lg.pi }) + " ",
+        btn(t("dv_cancel"), function () { ui.challenge = null; render(); }, "dv-link")]);
+    }
+    if (dl) {
+      var b = M.dailyBest(dl.date);
+      return el("div", { class: "dv-banner" }, ["📅 " + t("dv_daily") + " " + dl.date + (b ? "　" + t("dv_daily_best", { time: fmtTime(b.t), name: b.name, car: b.car }) : "")]);
+    }
+    if (ch) return el("div", { class: "dv-banner" }, ["🏆 " + t("dv_champ") + "　" + t("dv_champ_round", { k: ch.round + 1, n: ch.plan.length })]);
+    return null;
+  }
+  // 下注面板（車庫與結果畫面共用）：下的注在下一場「新的比賽」開跑時扣籌碼（Déjà vu 重播不能下注）
+  function oddsFor(cars) {
+    return M.odds(cars.map(function (c) { return { pi: Core.carStats(c.spec, setup.upPts).pi, style: c.spec.style }; }));
+  }
+  function betPanel() {
+    var cars = raceCars();
+    if (cars.length < 2) return null;
+    var w = M.wallet(), od = oddsFor(cars), kind = ui.betKind || "win";
+    var amounts = M.BET_AMOUNTS.filter(function (a) { return a <= w.chips; });
+    var amt = amounts.indexOf(ui.betAmt) >= 0 ? ui.betAmt : amounts[Math.min(1, amounts.length - 1)] || 0;
+    if (ui.bet && (ui.bet.car >= cars.length || ui.bet.amount > w.chips)) ui.bet = null;
+    var bet = ui.bet;
+    var box = el("details", { class: "dv-panel dv-bet", open: ui.betOpen || bet ? true : null, ontoggle: function (e) { ui.betOpen = e.target.open; } }, [
+      el("summary", {}, ["🎰 " + t("dv_bet") + "　" + t("dv_chips", { n: w.chips }) + (bet ? "　✔ " + t("dv_bet_on", { name: cars[bet.car].name, kind: t("dv_bet_" + bet.kind), n: bet.amount }) : "")])
+    ]);
+    box.appendChild(el("p", { class: "dv-small dv-muted" }, [t("dv_bet_desc")]));
+    box.appendChild(el("div", { class: "dv-actions" }, [
+      choice(["win", "top"], kind, function (id) { return t("dv_bet_" + id); }, function (id) { ui.betKind = id; if (ui.bet) ui.bet.kind = id; render(); }),
+      amounts.length ? choice(amounts.map(String), String(amt), function (id) { return id; }, function (id) { ui.betAmt = Number(id); if (ui.bet) ui.bet.amount = Number(id); render(); }) : null
+    ]));
+    box.appendChild(el("ul", { class: "dv-betlist" }, cars.map(function (c, i) {
+      var cs = Core.carStats(c.spec, setup.upPts), o = kind === "top" ? od[i].top : od[i].win, on = bet && bet.car === i;
+      return el("li", { class: on ? "dv-on" : "" }, [
+        el("span", {}, [el("i", { class: "dv-dot", style: "background:" + c.color }, []), c.name + " · " + cs.name + " · PI " + cs.pi]),
+        btn("×" + o.toFixed(1), function () { ui.bet = on ? null : { car: i, kind: kind, amount: amt }; render(); }, on ? "dv-on" : "", !amt)
+      ]);
+    })));
+    return box;
+  }
+  // 比賽結束：路線紀錄、傳說、每日挑戰、錦標賽積分、下注結算
+  function settle(res) {
+    var cx = ui.ctx || {}, out = {}, race = ui.race, np = setup.players.length, date = M.today();
+    var best = res.filter(function (r) { return !r.cpu && r.state === "fin"; }).sort(function (a, b) { return a.time - b.time; })[0];
+    // 路線紀錄只算較真模式（奔放模式有手牌和機關）
+    if (best && cx.rec && !race.wild) {
+      var rr = M.submitRecord(cx.rec, { t: best.time, name: best.name, car: best.car, season: race.season, date: date, cond: condIcons(race) });
+      if (rr) out.record = { t: best.time, prev: rr.prev, name: best.name };
+    }
+    if (cx.legend) {
+      var lr = res.filter(function (r) { return r.id === np; })[0];
+      var win = best && lr && (lr.state !== "fin" || best.pos < lr.pos);
+      out.legend = { win: !!win, name: lr ? lr.name : "", gap: best && lr && lr.state === "fin" && !win ? best.time - lr.time : null };
+      if (win) out.legend.first = M.markLegend(cx.legend, { t: best.time, name: best.name, car: best.car, date: date });
+    }
+    if (cx.daily && best) {
+      var nb = M.submitDaily(cx.daily, { t: best.time, name: best.name, car: best.car });
+      out.daily = { t: best.time, newBest: nb, best: M.dailyBest(cx.daily) };
+    }
+    var ch = setup.champ;
+    if (cx.champ !== null && cx.champ !== undefined && ch && ch.log.length === cx.champ) {
+      var entries = res.map(function (r) {
+        return { key: r.id < np ? "p" + r.id : "c" + (r.id - np), pos: r.state === "fin" ? r.pos : 0, pts: M.champPoints(r.pos, r.state) };
+      });
+      ch.log.push(entries);
+      entries.forEach(function (e) { ch.table[e.key] = (ch.table[e.key] || 0) + e.pts; });
+      ch.round++;
+      save();
+      out.champ = entries;
+    }
+    if (cx.bet) out.bet = Object.assign({}, cx.bet, M.settleBet(cx.bet, res));
+    return out;
+  }
+  function renderPost() {
+    var p = ui.post || {}, lines = [];
+    if (p.record) lines.push(el("p", { class: "dv-good" }, ["⏱ " + t("dv_rec_new", { time: fmtTime(p.record.t), name: p.record.name }) +
+      (p.record.prev ? "（" + t("dv_rec_prev", { time: fmtTime(p.record.prev) }) + "）" : "")]));
+    if (p.legend) lines.push(el("p", { class: p.legend.win ? "dv-good" : "dv-bad" }, [p.legend.win ? t(p.legend.first ? "dv_legend_win_first" : "dv_legend_win", { name: p.legend.name }) :
+      t("dv_legend_lose", { name: p.legend.name }) + (p.legend.gap !== null ? "（+" + p.legend.gap.toFixed(2) + "s）" : "")]));
+    if (p.daily) lines.push(el("p", { class: p.daily.newBest ? "dv-good" : "" }, ["📅 " + t(p.daily.newBest ? "dv_daily_new" : "dv_daily_this", { time: fmtTime(p.daily.t) }) +
+      (p.daily.best ? "　" + t("dv_daily_best", { time: fmtTime(p.daily.best.t), name: p.daily.best.name, car: p.daily.best.car }) : "")]));
+    if (p.bet) lines.push(el("p", { class: p.bet.ok ? "dv-good" : "dv-bad" }, ["🎰 " + t("dv_bet_on", { name: p.bet.name, kind: t("dv_bet_" + p.bet.kind), n: p.bet.amount }) +
+      " ×" + p.bet.odds.toFixed(1) + "　" + (p.bet.ok ? t("dv_bet_hit", { n: p.bet.pay }) : t("dv_bet_miss")) + "　" + t("dv_chips", { n: p.bet.chips }) +
+      (p.bet.rescued ? "　" + t("dv_bet_rescue", { n: M.BET_RESCUE }) : "")]));
+    var ch = setup.champ;
+    if (p.champ && ch) {
+      var done = ch.round >= ch.plan.length, top = M.champStandings(ch)[0];
+      lines.push(el("h3", {}, ["🏆 " + t("dv_champ") + "　" + t("dv_champ_after", { k: ch.round, n: ch.plan.length })]));
+      if (done) lines.push(el("p", { class: "dv-good dv-big-msg" }, [t("dv_champ_winner", { name: champName(top.key), n: top.pts })]));
+      lines.push(champTable(ch, 0, p.champ));
+      if (!done) {
+        var nx = ch.plan[ch.round];
+        lines.push(el("div", { class: "dv-actions" }, [btn(t("dv_champ_next", { name: L(D.course(nx.course).name) }) + " " + SEASON_ICON[nx.season], applyChampRound, "dv-primary")]));
+      }
+    }
+    return lines.length ? el("div", { class: "dv-panel dv-post" }, lines) : null;
+  }
+  // 夜間：畫面整體變暗，只剩車燈照到的附近（kind：cockpit 車內、top 俯視、ext 外部機位）
+  function drawNight(ctx, f, kind) {
+    ctx.save();
+    var cx = f.w / 2, cy = kind === "cockpit" ? f.h * 0.6 : f.h * 0.55;
+    var r0 = kind === "ext" ? f.w * 0.2 : f.w * 0.06, r1 = kind === "ext" ? f.w * 0.8 : f.w * (kind === "top" ? 0.4 : 0.55);
+    // 整體先壓暗（夜空、遠景），再從車燈附近往外越來越黑
+    ctx.fillStyle = "rgba(6,10,30," + (kind === "ext" ? 0.45 : 0.5) + ")"; ctx.fillRect(0, 0, f.w, f.h);
+    var g = ctx.createRadialGradient(cx, cy, r0, cx, cy, r1);
+    g.addColorStop(0, "rgba(4,8,24,0)"); g.addColorStop(1, "rgba(4,8,24," + (kind === "ext" ? 0.5 : 0.8) + ")");
+    ctx.fillStyle = g; ctx.fillRect(0, 0, f.w, f.h);
+    if (kind !== "ext") {
+      var ly = kind === "cockpit" ? f.h * 0.62 : f.h * 0.42;
+      var g2 = ctx.createRadialGradient(cx, ly, 0, cx, ly, f.w * 0.28);
+      g2.addColorStop(0, "rgba(255,236,190,0.14)"); g2.addColorStop(1, "rgba(255,236,190,0)");
+      ctx.fillStyle = g2; ctx.fillRect(0, 0, f.w, f.h);
+    }
+    ctx.restore();
+  }
+  // 輪胎磨耗／煞車溫度表
+  function drawWear(ctx, x, y, car) {
+    ctx.fillStyle = "rgba(0,0,0,0.5)"; ctx.fillRect(x, y, 190, 30);
+    var tire = 1 - car.wear, hot = clamp(car.bt, 0, 1.2) / 1.2;
+    ctx.fillStyle = tire > 0.6 ? "#5ed18a" : tire > 0.3 ? "#ffcf4d" : "#ff5a4d"; ctx.fillRect(x + 70, y + 4, 116 * tire, 9);
+    ctx.fillStyle = car.fade < 1 ? "#ff5a4d" : hot > 0.5 ? "#ff9d3c" : "#5ec8ff"; ctx.fillRect(x + 70, y + 17, 116 * hot, 9);
+    ctx.fillStyle = "#fff"; ctx.font = "bold 10px sans-serif"; ctx.textAlign = "left";
+    ctx.fillText("🛞 " + Math.round(tire * 100) + "%", x + 4, y + 12);
+    ctx.fillText("🔥 " + t(car.fade < 1 ? "dv_fade" : "dv_brake_temp"), x + 4, y + 25);
+  }
+
   // ---------------- 4. 比賽 ----------------
+  // ---------------- 多裝置連線（第十三批，使用者指定 2026-10-27） ----------------
+  // 協定在 dejavu_net.js。進房後 setup 換成「連線用」的一份：只有自己一位玩家（每台裝置一位），
+  // 路線／規則等由房主決定、改了會同步過來；單機的設定原封不動留在 ui.solo，離開房間再換回來。
+  // 比賽：大家依伺服器時鐘同時跑同一場，只能指揮自己的車；鏡頭可以看自己或領頭；結束後房主可以帶大家一起看重播。
+  var NETNAME_KEY = "pritest-dejavu-netname", NETCAR_KEY = "pritest-dejavu-netcar";
+  var NET_SPEEDS = [1, 2, 4];
+  var CFG_KEYS = ["course", "season", "mode", "rule", "dir", "piCap", "upPts", "cpu", "cpuKind", "night", "wx", "wear", "seed", "netSpeed"];
+  function lsGet(k) { try { return window.localStorage.getItem(k) || ""; } catch (e) { return ""; } }
+  function lsSet(k, v) { try { window.localStorage.setItem(k, v); } catch (e) { /* 記不住也能玩 */ } }
+  function netGuest() { return !!ui.room && !ui.room.isHost(); }
+  function roomUrl(id) { return location.href.split(/[?#]/)[0] + "?room=" + id; }
+  function rerenderKeep() { var y = window.scrollY; render(); window.scrollTo(0, y); }
+  function cfgOf(s) {
+    var o = {};
+    CFG_KEYS.forEach(function (k) { if (s[k] !== undefined && s[k] !== null) o[k] = s[k]; });
+    return JSON.parse(JSON.stringify(o));
+  }
+  function applyCfg(cfg) {
+    if (!cfg || !cfg.course) return;
+    CFG_KEYS.forEach(function (k) { if (cfg[k] !== undefined) setup[k] = cfg[k]; else if (k !== "course") delete setup[k]; });
+    setup.build = null; setup.cpuCars = null;
+    setup.cars = setup.cars.map(function (c) { var o = Core.cleanSpec(c, setup.upPts); o.custom = c.custom; return o; });
+  }
+  // save() 在房間裡改走這裡：自己的車存起來並通知房間；房主順便把設定推給大家
+  function netSave() {
+    var room = ui.room, me = setup.cars[0];
+    var txt = JSON.stringify(me);
+    lsSet(NETCAR_KEY, txt);
+    if (room.isHost()) room.setCfg(cfgOf(setup));
+    if (txt !== ui.netCarTxt) { ui.netCarTxt = txt; room.update({ spec: me }); }
+  }
+
+  function enterRoom(roomId) {
+    if (!Net) return;
+    if (ui.room) ui.room.leave();
+    if (!ui.solo) ui.solo = setup;
+    var base = JSON.parse(JSON.stringify(ui.solo));
+    var car = null;
+    try { car = JSON.parse(lsGet(NETCAR_KEY) || "null"); } catch (e) { car = null; }
+    car = car && car.car ? car : base.cars[0];
+    base.players = [{ name: lsGet(NETNAME_KEY), color: D.COLORS[1] }];
+    base.cars = [Core.cleanSpec(car, base.upPts)];
+    base.cars[0].custom = car.custom || defaultSpec("custom").custom;
+    base.champ = null; base.daily = null; base.build = null; base.cpuCars = null;
+    base.netSpeed = base.netSpeed || 1;
+    base.cpu = Math.min(base.cpu, D.MAX_CARS - 1);
+    setup = base;
+    ui.challenge = null; ui.bet = null; ui.net = null; ui.tab = 0;
+    ui.netCarTxt = JSON.stringify(setup.cars[0]);
+    ui.netNo = null; ui.cfgSeen = ""; ui.viewSeq = 0; ui.netSig = ""; ui.copyMsg = "";
+    ui.room = Net.open({ roomId: roomId || null, name: setup.players[0].name, spec: setup.cars[0], cfg: roomId ? null : cfgOf(setup), onChange: onRoomChange });
+    try { history.replaceState(null, "", roomUrl(ui.room.id)); } catch (e) { /* file:// 等 */ }
+    go("setup");
+  }
+  function leaveRoom() {
+    if (ui.room) ui.room.leave();
+    ui.room = null; ui.net = null;
+    if (ui.solo) { setup = ui.solo; ui.solo = null; }
+    try { if (/[?&]room=/.test(location.search)) history.replaceState(null, "", location.href.split(/[?#]/)[0]); } catch (e) { /* 同上 */ }
+    go("setup");
+  }
+
+  // 房間資料一有變動就呼叫。比賽中不重畫；結果畫面只在「正式結果到了／房主換狀態」時重畫（免得打斷重播）
+  var netRenderPending = false;
+  function onRoomChange() {
+    var room = ui.room;
+    if (!room) return;
+    var meta = room.meta;
+    if (!room.isHost() && room.cfg) {
+      var txt = JSON.stringify(room.cfg);
+      if (txt !== ui.cfgSeen) { ui.cfgSeen = txt; if (ui.screen !== "race") applyCfg(room.cfg); }
+    }
+    // 回到大廳：自己的「準備」取消（要改車就改，好了再按）
+    if (meta && meta.status === "race") ui.netWasRace = true;
+    if (meta && meta.status === "lobby" && ui.netWasRace) { ui.netWasRace = false; if (room.me.ready) room.update({ ready: false }); }
+    if (meta && meta.status === "race" && room.match && room.match.no === meta.no && ui.netNo !== meta.no) { startNetRace(room.match); return; }
+    if (ui.screen === "race") return;
+    var sig = meta ? meta.status + meta.host + room.isHost() : "";
+    if (ui.screen === "result" && ui.net) {
+      var cr = ui.net.ctl.result;
+      if (cr && !ui.net.resApplied) { ui.net.resApplied = true; ui.result = cr.res; ui.lastLog = cr.log; ui.netSig = sig; rerenderKeep(); return; }
+      var v = room.view;
+      if (v && v.no === ui.net.no && v.seq > ui.viewSeq) { ui.viewSeq = v.seq; if (ui.hlApi && !room.isHost()) ui.hlApi.remote(v); }
+      if (sig !== ui.netSig) { ui.netSig = sig; rerenderKeep(); }
+      return;
+    }
+    ui.netSig = sig;
+    // 正在輸入時先不重畫（會搶走焦點），離開輸入框再畫
+    var act = document.activeElement;
+    if (act && app.contains(act) && /INPUT|SELECT|TEXTAREA/.test(act.tagName)) { netRenderPending = true; return; }
+    netRenderPending = false;
+    rerenderKeep();
+  }
+  document.addEventListener("focusout", function () { if (netRenderPending) setTimeout(onRoomChange, 0); });
+
+  function copyText(text, input) {
+    function fallback() { if (input) { input.focus(); input.select(); } ui.copyMsg = t("dv_net_copy_manual"); }
+    try {
+      navigator.clipboard.writeText(text).then(function () { ui.copyMsg = t("dv_net_copied"); rerenderKeep(); }, fallback);
+    } catch (e) { fallback(); }
+  }
+
+  // 房主開賽：在線、有車、沒選觀戰的成員依加入順序上場，再補 CPU
+  // prev：Déjà vu 時沿用上一場的車與設定（指令紀錄 cmds 照步數重播）
+  function netStart(seed, cmds, replay, prev) {
+    var room = ui.room;
+    if (!room || !room.isHost()) return;
+    var cars, cfg;
+    if (prev) { cars = prev.cars; cfg = prev.cfg; }
+    else {
+      cars = room.racers().slice(0, D.MAX_CARS).map(function (p, i) {
+        return { spec: p.spec, name: p.name || t("dv_player_n", { n: i + 1 }), color: D.COLORS[(i + 1) % D.COLORS.length], cpu: false, cid: p.cid };
+      });
+      if (setup.cpu > D.MAX_CARS - cars.length) { setup.cpu = D.MAX_CARS - cars.length; setup.cpuCars = null; }
+      ensureCpu();
+      var used = cars.map(function (c) { return c.color; });
+      var free = D.COLORS.filter(function (c) { return used.indexOf(c) < 0; });
+      setup.cpuCars.forEach(function (c, i) { cars.push({ spec: c.spec, name: "CPU " + (i + 1), color: free[i % Math.max(1, free.length)] || c.color, cpu: true, cid: null }); });
+      cfg = cfgOf(setup);
+    }
+    if (!cars.length) return;
+    room.start({ seed: seed, cars: cars, cfg: cfg, cmds: cmds || [], replay: !!replay, speed: cfg.netSpeed || 1 });
+  }
+
+  function startNetRace(m) {
+    var room = ui.room;
+    ui.netNo = m.no;
+    stopHl();
+    applyCfg(m.cfg);
+    if (ui.net && ui.net.ctl) ui.net.ctl.dispose();
+    var ctl = room.raceCtl();
+    ui.net = { no: m.no, ctl: ctl, match: m, resApplied: false };
+    ui.ctx = { replay: m.replay, net: true, rec: null, champ: null, bet: null };
+    ui.bet = null; ui.post = null; ui.hlApi = null;
+    var cf = m.cfg;
+    ui.race = Core.createRace({ course: cf.course, season: cf.season, dir: cf.dir, mode: cf.mode, rule: cf.rule, seed: m.seed, cars: m.cars, cmds: m.cmds, upPts: cf.upPts,
+      night: cf.night, wx: cf.wx, wear: cf.wear });
+    // 換上房主的快照：之後的錄影格與事件重新來過
+    ctl.onRestore = function () {
+      var r = ui.race, T = ui.rec.t;
+      while (T.length && T[T.length - 1] > r.t) { T.pop(); ui.rec.a.pop(); }
+      ui.seenEv = Math.min(ui.seenEv, r.events.length);
+      R.tacSig = "";
+    };
+    raceReady(m.seed);
+    var mi = ctl.mineIds();
+    ui.follow = mi.length ? mi[0] : 0;
+    ui.autoFollow = !mi.length;
+    if (R.ctrl) renderCtrl();
+  }
+
+  // 比賽迴圈（連線）：依伺服器時鐘決定該跑到第幾步；暫停、快轉、跳到結尾都不能用（大家看同一個時間）
+  function netAdvance(race) {
+    var ctl = ui.net.ctl;
+    ctl.sync(race);
+    ui.countdown = Math.max(0, ctl.wait());
+    if (ui.countdown > 0 || race.done) return;
+    var target = Math.floor(ctl.clock() / Core.DT), steps = 0;
+    while (race.stepN < target && steps < 3000 && !race.done) {
+      Core.step(race, Core.DT); steps++;
+      if (race.stepN % 2 === 0) record(race);
+    }
+  }
+  function netFinish() {
+    var ctl = ui.net.ctl;
+    ctl.sync(ui.race);
+    if (ctl.isHost) ctl.finish(ui.result, ui.lastLog);
+    else if (ctl.result) { ui.result = ctl.result.res; ui.lastLog = ctl.result.log; ui.net.resApplied = true; }
+  }
+  // 自己的指令：連線時經由房間（只能指揮自己的車）
+  function doCmd(cm) {
+    if (ui.net) return ui.net.ctl.send(ui.race, cm);
+    if (cm.style) return Core.command(ui.race, cm.car, cm.style);
+    var idx = ui.race.cars[cm.car].hand.indexOf(cm.card);
+    return idx >= 0 && Core.playCard(ui.race, cm.car, idx);
+  }
+  // 房主帶大家一起看重播（非房主收到 view 時照著播）
+  function netView(kind, h) { if (ui.room && ui.net && ui.room.isHost()) ui.room.setView(kind, h || null); }
+
+  // ---- 畫面 ----
+  function netPanel() {
+    var room = ui.room;
+    var box = el("div", { class: "dv-panel dv-net" }, [el("h2", {}, ["🌐 " + t(room ? "dv_net_room" : "dv_net_title")])]);
+    function leaveBtn() { return el("div", { class: "dv-actions" }, [btn(t("dv_net_leave"), leaveRoom, "dv-link dv-net-leave")]); }
+    if (!room) {
+      box.appendChild(el("p", { class: "dv-muted" }, [t("dv_net_intro")]));
+      var inp = el("input", { type: "text", class: "dv-name dv-net-join", placeholder: t("dv_net_join_ph"), value: ui.netJoin || "",
+        oninput: function (e) { ui.netJoin = e.target.value; } }, []);
+      box.appendChild(el("div", { class: "dv-actions" }, [
+        btn(t("dv_net_create"), function () { enterRoom(null); }, "dv-primary dv-net-create"),
+        inp,
+        btn(t("dv_net_join_go"), function () {
+          var txt = String(ui.netJoin || "").trim();
+          var id = Net.roomFromUrl(txt) || (Net.validRoomId(txt) ? txt : null);
+          if (!id) { ui.netBad = true; render(); return; }
+          ui.netJoin = ""; ui.netBad = false;
+          enterRoom(id);
+        }, "dv-net-join-go"),
+        ui.netBad ? el("span", { class: "dv-bad" }, [t("dv_net_join_bad")]) : null
+      ]));
+      return box;
+    }
+    if (room.missing) { box.appendChild(el("p", { class: "dv-bad" }, [t("dv_net_missing")])); box.appendChild(leaveBtn()); return box; }
+    if (!room.loaded) { box.appendChild(el("p", { class: "dv-muted" }, [t("dv_net_connecting")])); box.appendChild(leaveBtn()); return box; }
+    var url = roomUrl(room.id);
+    var urlBox = el("input", { type: "text", class: "dv-name dv-net-url", readonly: true, value: url, onfocus: function (e) { e.target.select(); } }, []);
+    box.appendChild(el("p", { class: "dv-muted dv-small" }, [t("dv_net_share")]));
+    box.appendChild(el("div", { class: "dv-actions" }, [urlBox, btn(t("dv_net_copy"), function () { copyText(url, urlBox); }),
+      ui.copyMsg ? el("span", { class: "dv-muted dv-small" }, [ui.copyMsg]) : null]));
+    if (!room.hostOnline()) box.appendChild(el("p", { class: "dv-bad" }, [t("dv_net_host_away")]));
+    if (room.meta.status === "race") box.appendChild(el("p", { class: "dv-muted" }, [t("dv_net_in_race")]));
+    box.appendChild(netMembers());
+    var nameInp = el("input", { type: "text", maxlength: "16", class: "dv-name dv-net-name", value: room.me.name || "", placeholder: t("dv_net_name_ph"),
+      onchange: function (e) {
+        var v = e.target.value.trim().slice(0, 16);
+        lsSet(NETNAME_KEY, v);
+        setup.players[0].name = v;
+        room.update({ name: v });
+      } }, []);
+    box.appendChild(el("div", { class: "dv-actions" }, [el("span", {}, [t("dv_net_name")]), nameInp,
+      el("label", { class: "dv-small" }, [el("input", { type: "checkbox", class: "dv-net-watch", checked: room.me.watch,
+        onchange: function (e) { room.update({ watch: e.target.checked, ready: false }); rerenderKeep(); } }, []), " " + t("dv_net_watch")])]));
+    box.appendChild(netReadyRow());
+    box.appendChild(leaveBtn());
+    return box;
+  }
+  function netMembers() {
+    var room = ui.room, host = room.meta ? room.meta.host : null, ps = room.list();
+    return el("div", { class: "dv-net-members" }, [el("h3", {}, [t("dv_net_members", { n: ps.length })])].concat(ps.map(function (p) {
+      var st = null;
+      try { st = p.spec ? Core.carStats(p.spec, setup.upPts) : null; } catch (e) { st = null; }
+      return el("div", { class: "dv-net-row" + (p.cid === room.cid ? " dv-net-me" : ""), "data-cid": p.cid }, [
+        el("b", {}, [(p.cid === host ? "👑 " : "") + (p.name || t("dv_net_noname")) + (p.cid === room.cid ? " " + t("dv_net_you") : "")]),
+        el("span", { class: "dv-small dv-muted" }, [p.watch ? t("dv_net_watching") : st ? brandName(st.brand) + " " + st.name + " · PI " + st.pi : t("dv_net_nocar")]),
+        p.watch ? null : el("span", { class: p.ready ? "dv-good dv-net-ok" : "dv-muted" }, [p.ready ? "✔ " + t("dv_net_ready") : t("dv_net_not_ready")])
+      ]);
+    })));
+  }
+  // 準備／開賽（設定畫面與車庫共用）
+  function netReadyRow() {
+    var room = ui.room, lobby = room.meta && room.meta.status === "lobby";
+    var over = !room.me.watch && setup.piCap && Core.carStats(setup.cars[0], setup.upPts).pi > setup.piCap;
+    var row = el("div", { class: "dv-actions dv-net-ready-row" }, []);
+    if (!room.me.watch) {
+      row.appendChild(btn(room.me.ready ? "✔ " + t("dv_net_ready") : t("dv_net_ready_btn"), function () { room.update({ ready: !room.me.ready }); rerenderKeep(); },
+        "dv-net-ready" + (room.me.ready ? " dv-on" : ""), !lobby || (over && !room.me.ready)));
+    }
+    if (over) row.appendChild(el("span", { class: "dv-bad dv-small" }, [t("dv_net_pi_over")]));
+    if (room.isHost()) {
+      row.appendChild(el("span", { class: "dv-sep" }, []));
+      row.appendChild(el("span", { class: "dv-muted" }, [t("dv_net_speed")]));
+      row.appendChild(choice(NET_SPEEDS.map(String), String(setup.netSpeed || 1), function (id) { return id + "×"; }, function (id) { setup.netSpeed = Number(id); save(); rerenderKeep(); }));
+      var can = room.canStart();
+      row.appendChild(btn(t("dv_net_start"), function () { netStart(newSeed(), [], false); }, "dv-primary dv-net-start", !can));
+      if (!can) row.appendChild(el("span", { class: "dv-muted dv-small" }, [t("dv_net_start_need")]));
+    }
+    return row;
+  }
+  // 房主在設定畫面：玩家由房間成員決定，只調 CPU 數量
+  function netHostPanel() {
+    var n = Math.max(1, ui.room.racers().length);
+    return el("div", { class: "dv-panel" }, [el("h3", {}, [t("dv_net_cpu")]), el("div", { class: "dv-actions" }, [
+      btn("−", function () { setup.cpu = Math.max(0, setup.cpu - 1); setup.cpuCars = null; save(); render(); }, "dv-step", setup.cpu <= 0),
+      el("b", { class: "dv-num dv-net-cpu" }, [String(setup.cpu)]),
+      btn("+", function () { setup.cpu++; setup.cpuCars = null; save(); render(); }, "dv-step", n + setup.cpu >= D.MAX_CARS)
+    ])]);
+  }
+  // 非房主在設定畫面：只看房主的設定
+  function netCfgPanel() {
+    var s = setup;
+    var lines = [
+      t("dv_step_course") + "：" + courseName() + "（" + t("dv_dir_" + s.dir) + "）",
+      t("dv_season") + "：" + SEASON_ICON[s.season] + " " + L(D.SEASONS[s.season].name),
+      t("dv_rule") + "：" + t("dv_rule_" + s.rule) + "　" + t("dv_mode") + "：" + t("dv_mode_" + s.mode),
+      t("dv_picap") + "：" + (s.piCap ? "PI ≤ " + s.piCap : t("dv_picap_none")) + "　" + t("dv_uppts") + "：" + t("dv_uppts_" + s.upPts),
+      t("dv_net_cpu") + "：" + s.cpu + "　" + t("dv_net_speed") + "：" + (s.netSpeed || 1) + "×" + (condIcons(s) ? "　" + condIcons(s) : "")
+    ];
+    return el("div", { class: "dv-panel dv-net-cfg" }, [el("h3", {}, [t("dv_net_guest_cfg")]), el("ul", {}, lines.map(function (x) { return el("li", {}, [x]); })),
+      el("div", { class: "dv-actions dv-next" }, [btn(t("dv_net_to_garage"), function () { go("garage"); }, "dv-primary dv-net-garage")])]);
+  }
+  // 車庫底部（連線）：成員、準備、開賽
+  function netGaragePanel() {
+    return el("div", { class: "dv-panel dv-net" }, [netMembers(), netReadyRow(),
+      el("div", { class: "dv-actions" }, [btn(t("dv_back"), function () { go(netGuest() ? "setup" : "course"); })])]);
+  }
+  // 結果畫面（連線）
+  function netResultPanel() {
+    var room = ui.room, host = room.isHost(), lobby = room.meta && room.meta.status === "lobby";
+    var box = el("div", { class: "dv-panel dv-net dv-net-res" }, []);
+    if (!host && !ui.net.resApplied && !ui.net.ctl.hostGone()) box.appendChild(el("p", { class: "dv-muted dv-small" }, [t("dv_net_pending")]));
+    if (host) {
+      box.appendChild(el("div", { class: "dv-actions dv-next" }, [
+        btn(t("dv_net_dejavu"), function () { netStart(ui.net.match.seed, ui.lastLog, true, ui.net.match); }, "dv-net-dejavu"),
+        btn(t("dv_net_again"), function () { netStart(newSeed(), [], false); }, "dv-primary dv-net-again"),
+        btn(t("dv_net_lobby"), function () { room.backToLobby(); go("garage"); }, "dv-net-lobby")
+      ]));
+    } else {
+      box.appendChild(el("p", {}, [t(lobby ? "dv_net_lobby_note" : "dv_net_wait_host")]));
+      box.appendChild(el("div", { class: "dv-actions" }, [btn(t("dv_net_to_garage"), function () { go("garage"); }, "dv-net-garage")]));
+    }
+    box.appendChild(el("p", { class: "dv-muted dv-small" }, [t("dv_net_hl_sync")]));
+    return box;
+  }
+
   // cmds：Déjà vu 重播時帶入上一場的戰略指令紀錄
-  function startRace(seed, cmds) {
-    ui.race = Core.createRace({ course: setup.course, season: setup.season, dir: setup.dir, mode: setup.mode, rule: setup.rule, seed: seed, cars: raceCars(), cmds: cmds || [], upPts: setup.upPts });
+  // replay＝Déjà vu（同 seed 重跑）：不能下注、不算錦標賽積分
+  function startRace(seed, cmds, replay) {
+    var lg = legendNow(), dl = dailyNow(), ch = champNow(), cars = raceCars();
+    ui.ctx = { replay: !!replay, legend: lg ? lg.course : null, daily: dl ? dl.date : null, champ: ch && !replay ? ch.round : null, bet: null, rec: M.recordKey(setup.course, setup.dir) };
+    if (ui.bet && !replay && ui.bet.car < cars.length) {
+      var od = oddsFor(cars)[ui.bet.car];
+      if (M.placeBet(ui.bet.amount)) ui.ctx.bet = { car: ui.bet.car, kind: ui.bet.kind, amount: ui.bet.amount, odds: ui.bet.kind === "top" ? od.top : od.win, name: cars[ui.bet.car].name };
+    }
+    ui.bet = null; ui.post = null;
+    ui.net = null;
+    ui.race = Core.createRace({ course: setup.course, season: setup.season, dir: setup.dir, mode: lg ? "battle" : setup.mode, rule: setup.rule, seed: seed, cars: cars, cmds: cmds || [], upPts: setup.upPts,
+      night: setup.night, wx: setup.wx, wear: setup.wear });
+    raceReady(seed);
+  }
+  // 比賽物件建好之後（單機與連線共用）：重設畫面狀態、進比賽畫面
+  function raceReady(seed) {
     scenery(ui.race.track);   // 轉播機位要先知道街景（城市的大樓）
     ui.raceSeed = seed;
     ui.follow = 0; ui.autoFollow = setup.players.length > 1; ui.paused = false;
     ui.countdown = 3.2; ui.acc = 0; ui.result = null; ui.cam = null; ui.smoke = []; ui.weather = []; ui.seenEv = 0; ui.ticker = [];
-    ui.rec = { t: [], a: [] }; ui.rp = null; ui.rpCool = 0; ui.finHold = null; ui.final = null; ui.flash = null;
+    ui.rec = { t: [], a: [] }; ui.evKeys = {}; ui.rp = null; ui.rpCool = 0; ui.finHold = null; ui.final = null; ui.flash = null;
     ui.tvD = {}; ui.tvRp = null; ui.tvPend = null; ui.hlSel = null;
     if (ui.replayOn === undefined) ui.replayOn = true;
     go("race");
@@ -1366,7 +2114,7 @@
   }
 
   // 戰略面板：每位玩家的車一列，隨時切換全力／均衡／保守／防守（只在狀態改變時重畫，避免吃掉點擊）
-  function humanCars() { return ui.race.cars.filter(function (c) { return !c.cpu; }); }
+  function humanCars() { return ui.race.cars.filter(function (c) { return !c.cpu && (!ui.net || ui.net.ctl.mine(c.id)); }); }
   function renderTactics() {
     var cars = humanCars();
     var sig = cars.map(function (c) { return c.styleId + c.state + (c.hand ? c.hand.join(",") : ""); }).join("|") + lang();
@@ -1380,13 +2128,13 @@
       R.tac.appendChild(el("div", { class: "dv-tac-row" }, [
         el("span", { class: "dv-tac-name" }, [el("i", { class: "dv-dot", style: "background:" + c.color }, []), c.name]),
         el("div", { class: "dv-choice" }, D.STYLE_IDS.map(function (id) {
-          return btn(L(D.STYLES[id].name), function () { if (Core.command(ui.race, c.id, id)) renderTactics(); },
+          return btn(L(D.STYLES[id].name), function () { if (doCmd({ car: c.id, style: id })) renderTactics(); },
             (c.styleId === id ? "dv-on " : "") + "dv-tac-" + id, c.state !== "run" || ui.race.done);
         })),
         wild ? el("div", { class: "dv-hand" }, c.hand.length ? c.hand.map(function (id, idx) {
           return el("button", {
             type: "button", class: "dv-hcard dv-hcard-" + id, title: t("dv_cardd_" + id), disabled: c.state !== "run" || ui.race.done,
-            onclick: function () { if (Core.playCard(ui.race, c.id, idx)) renderTactics(); }
+            onclick: function () { if (doCmd({ car: c.id, card: c.hand[idx] })) renderTactics(); }
           }, [el("b", {}, [D.CARDS[id].icon]), t("dv_card_" + id)]);
         }) : [el("span", { class: "dv-muted dv-small" }, [t("dv_hand_empty")])]) : null
       ]));
@@ -1397,16 +2145,25 @@
     var cars = humanCars();
     var k = "1234".indexOf(e.key);
     var ci = "qwe".indexOf(String(e.key).toLowerCase());
-    if (k >= 0 && cars.length === 1) { Core.command(ui.race, cars[0].id, D.STYLE_IDS[k]); renderTactics(); }
-    else if (ci >= 0 && cars.length === 1 && ui.race.wild) { Core.playCard(ui.race, cars[0].id, ci); renderTactics(); }
+    if (k >= 0 && cars.length === 1) { doCmd({ car: cars[0].id, style: D.STYLE_IDS[k] }); renderTactics(); }
+    else if (ci >= 0 && cars.length === 1 && ui.race.wild) { doCmd({ car: cars[0].id, card: cars[0].hand[ci] }); renderTactics(); }
     else if (e.key === "c" || e.key === "C") { ui.camMode = CAMS[(CAMS.indexOf(ui.camMode) + 1) % CAMS.length]; ui.cam = null; ui.tvRp = null; renderCtrl(); }
-    else if (e.key === " ") { ui.paused = !ui.paused; renderCtrl(); e.preventDefault(); }
+    else if (e.key === " " && !ui.net) { ui.paused = !ui.paused; renderCtrl(); e.preventDefault(); }
   });
 
   function renderCtrl() {
     R.ctrl.innerHTML = "";
-    R.ctrl.appendChild(btn(ui.paused ? "▶" : "⏸", function () { ui.paused = !ui.paused; renderCtrl(); }, "dv-pause"));
-    SPEEDS.forEach(function (s) { R.ctrl.appendChild(btn(s + "×", function () { ui.speed = s; renderCtrl(); }, ui.speed === s ? "dv-on" : "")); });
+    if (ui.net) {
+      // 連線：大家看同一個時間，不能暫停／快轉；鏡頭可以切到自己的車或領頭
+      var mi = ui.net.ctl.mineIds(), tvOn = ui.camMode === "tv";
+      if (mi.length) R.ctrl.appendChild(btn(t("dv_net_view_me"), function () { ui.autoFollow = false; ui.follow = mi[0]; if (ui.camMode === "tv") ui.camMode = "chase"; ui.cam = null; renderCtrl(); },
+        "dv-net-me" + (!tvOn && !ui.autoFollow && mi.indexOf(ui.follow) >= 0 ? " dv-on" : "")));
+      R.ctrl.appendChild(btn(t("dv_net_view_lead"), function () { ui.autoFollow = true; if (ui.camMode === "tv") ui.camMode = "chase"; ui.cam = null; renderCtrl(); },
+        "dv-net-lead" + (!tvOn && ui.autoFollow ? " dv-on" : "")));
+    } else {
+      R.ctrl.appendChild(btn(ui.paused ? "▶" : "⏸", function () { ui.paused = !ui.paused; renderCtrl(); }, "dv-pause"));
+      SPEEDS.forEach(function (s) { R.ctrl.appendChild(btn(s + "×", function () { ui.speed = s; renderCtrl(); }, ui.speed === s ? "dv-on" : "")); });
+    }
     R.ctrl.appendChild(el("span", { class: "dv-sep" }, []));
     CAMS.forEach(function (m) {
       if (m === "tv" && !Tv) return;
@@ -1419,7 +2176,7 @@
     }
     R.ctrl.appendChild(el("label", { class: "dv-small" }, [el("input", { type: "checkbox", checked: ui.autoFollow, onchange: function (e) { ui.autoFollow = e.target.checked; } }, []), t("dv_auto_follow")]));
     R.ctrl.appendChild(el("label", { class: "dv-small" }, [el("input", { type: "checkbox", checked: ui.replayOn, onchange: function (e) { ui.replayOn = e.target.checked; if (!ui.replayOn) ui.rp = null; } }, []), t("dv_replay_on")]));
-    R.ctrl.appendChild(btn(t("dv_skip"), function () { skipToEnd(); finishRace(); }, "dv-link"));
+    if (!ui.net) R.ctrl.appendChild(btn(t("dv_skip"), function () { skipToEnd(); finishRace(); }, "dv-link"));
   }
 
   function stateLabel(c) {
@@ -1449,6 +2206,7 @@
 
   function eventText(e) {
     var race = ui.race, c = race.cars[e.car];
+    if (e.type === "weather") return t(e.rain ? "dv_ev_rain" : "dv_ev_dry");
     if (e.type === "spin") return t("dv_ev_spin", { name: c.name, v: e.v });
     if (e.type === "dnf") return t(e.why === "time" ? "dv_ev_dnf_time" : "dv_ev_dnf", { name: c.name });
     if (e.type === "pass" && e.move) return t("dv_ev_pass_move", { name: c.name, other: race.cars[e.other].name, move: t("dv_move_" + e.move) });
@@ -1470,7 +2228,11 @@
   function updateTicker() {
     var ev = ui.race.events;
     if (ui.seenEv === ev.length) return;
-    for (; ui.seenEv < ev.length; ui.seenEv++) { ui.ticker.unshift(ev[ui.seenEv]); onEvent(ev[ui.seenEv]); }
+    for (; ui.seenEv < ev.length; ui.seenEv++) {
+      var e = ev[ui.seenEv];
+      if (ui.net) { var ek = e.t + "|" + e.car + "|" + e.type; if (ui.evKeys[ek]) continue; ui.evKeys[ek] = 1; }
+      ui.ticker.unshift(e); onEvent(e);
+    }
     ui.ticker = ui.ticker.slice(0, 7);
     R.ticker.innerHTML = "";
     ui.ticker.forEach(function (e) { R.ticker.appendChild(el("li", { class: "dv-ev-" + e.type }, [el("small", {}, [fmtTime(e.t)]), eventText(e)])); });
@@ -1495,7 +2257,7 @@
     while (lo < hi) { var mid = (lo + hi + 1) >> 1; if (T[mid] <= t) lo = mid; else hi = mid - 1; }
     var i = lo, j = Math.min(T.length - 1, i + 1), f = j > i ? clamp((t - T[i]) / (T[j] - T[i]), 0, 1) : 0;
     var A = ui.rec.a[i], B = ui.rec.a[j];
-    ghost = ghost || { track: race.track, mode: race.mode, items: race.items, wild: race.wild, season: race.season, seed: race.seed, events: [], cars: race.cars.map(function (c) {
+    ghost = ghost || { track: race.track, mode: race.mode, items: race.items, wild: race.wild, night: race.night, season: race.season, seed: race.seed, events: [], cars: race.cars.map(function (c) {
       return { id: c.id, name: c.name, color: c.color, st: c.st, cpu: c.cpu, finT: c.finT };
     }) };
     ghost.t = t;
@@ -1525,6 +2287,7 @@
 
   function onEvent(e) {
     var race = ui.race, c = race.cars[e.car];
+    if (e.type === "weather") { ui.flash = { text: (e.rain ? "🌧 " : "🌤 ") + t(e.rain ? "dv_ev_rain" : "dv_ev_dry"), color: "#5ec8ff", until: performance.now() + 2200 }; return; }
     if (e.type === "fin") {
       // 衝線：鏡頭停在這台車上一下，顯示名次與時間
       var pos = Core.order(race).indexOf(c) + 1;
@@ -1583,6 +2346,7 @@
     var s = Tv.shot(race, car, kind, st);
     if (s.top) drawChase(race, dt, { f: f, follow: car.id, hold: st, ghost: true, drone: true });
     else window.PriTestDejavuCockpit.draw(f.ctx, f.w, f.h, race, car, cockpitOpts(race.track, s.cam));
+    if (race.night) drawNight(f.ctx, f, s.top ? "top" : kind === "cockpit" ? "cockpit" : "ext");
   }
   // 畫一格重播；overlay＝畫 REPLAY 資訊（子畫面只畫小標）
   function replayDraw(rp, f, dt, overlay) {
@@ -1637,6 +2401,7 @@
     Tv.battleCaption(ctx, f, race, car);
     Tv.camTag(ctx, f, ui.tvD.kind);
     if (race.wild && car.charge !== undefined) drawCharge(ctx, f.w - 200, 56, car);
+    if (race.wear && car.tw !== undefined) drawWear(ctx, f.w - 200, race.wild ? 74 : 56, car);
     drawHudFx(ctx, f, race, car);
   }
   // 轉播模式的全畫面插播重播（比賽照常進行）
@@ -1705,7 +2470,8 @@
       var dt = ui.lastFrame ? Math.min(0.1, (ts - ui.lastFrame) / 1000) : 0;
       ui.lastFrame = ts;
       var race = ui.race;
-      if (!ui.paused) {
+      if (ui.net) netAdvance(race);
+      else if (!ui.paused) {
         if (ui.countdown > 0) ui.countdown -= dt;
         else if (!race.done) {
           // 跟拍的車快到終點時自動放慢到 1 倍速，才看得到衝線
@@ -1769,6 +2535,8 @@
     ui.final = null; ui.rp = null; ui.tvRp = null; ui.tvPend = null;
     ui.lastLog = ui.race.log.slice();
     ui.result = Core.results(ui.race);
+    if (ui.net) netFinish();
+    ui.post = settle(ui.result);
     go("result");
   }
 
@@ -1939,6 +2707,17 @@
       var fv = fxView(c);
       if (fv) drawCarFx(ctx, fv, race.t);
       if (fv && fv.ghost) ctx.globalAlpha *= 0.5;
+      if (c.st.bike) {
+        // 機車（第十一批）：細長車身＋騎士安全帽
+        ctx.fillStyle = "rgba(0,0,0,0.35)"; ctx.fillRect(-1.1, -0.4, 2.3, 0.8);
+        ctx.fillStyle = "#111"; ctx.fillRect(-1.05, -0.12, 2.1, 0.24);
+        ctx.fillStyle = c.color; ctx.fillRect(-0.7, -0.3, 1.5, 0.6);
+        ctx.fillStyle = "#f2f2f2"; ctx.beginPath(); ctx.arc(0.05, 0, 0.26, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = c.braking ? "#ff2a2a" : "#7a1010"; ctx.fillRect(-1.1, -0.1, 0.12, 0.2);
+        ctx.restore();
+        labels.push({ c: c, x: ps.x, y: ps.y });
+        return;
+      }
       ctx.fillStyle = "rgba(0,0,0,0.35)"; ctx.fillRect(-2.3, -1.0, 4.7, 2.1);
       ctx.fillStyle = c.color; ctx.fillRect(-2.2, -0.9, 4.4, 1.8);
       ctx.fillStyle = "rgba(20,30,40,0.85)"; ctx.fillRect(0.3, -0.75, 0.9, 1.5); ctx.fillRect(-1.6, -0.7, 0.6, 1.4);
@@ -1973,6 +2752,7 @@
       ctx.fillText(lb.c.name, sx, sy - 14);
     });
     if (opt.ghost) return;
+    if (race.night) drawNight(ctx, f, "top");
     drawWeather(ctx, f, tr, dt);
     drawHud(ctx, f, race, car);
     if (drone) drawLive(ctx, f, race);
@@ -2154,6 +2934,7 @@
     var f = fitCanvas(R.main), ctx = f.ctx, tr = race.track;
     var car = race.cars[ui.follow] || race.cars[0];
     window.PriTestDejavuCockpit.draw(ctx, f.w, f.h, race, car, cockpitOpts(tr));
+    if (race.night) drawNight(ctx, f, "cockpit");
     drawWeather(ctx, f, tr, dt);
     drawHud(ctx, f, race, car);
   }
@@ -2201,7 +2982,7 @@
     ctx.fillStyle = "#fff"; ctx.font = "bold 18px monospace";
     ctx.fillText(fmtTime(Math.max(0, race.t)), f.w - 16, 29);
     ctx.font = "12px sans-serif";
-    ctx.fillText(SEASON_ICON[race.season] + " " + L(D.SEASONS[race.season].name) + (race.track.rain ? " 🌧" : "") + " · " + t("dv_mode_" + race.mode), f.w - 16, 46);
+    ctx.fillText(SEASON_ICON[race.season] + " " + L(D.SEASONS[race.season].name) + (race.track.rain ? " 🌧" : "") + (race.night ? " 🌙" : "") + " · " + t("dv_mode_" + race.mode), f.w - 16, 46);
     // 剩餘距離
     var left = Math.max(0, race.track.finish - car.s);
     ctx.textAlign = "left"; ctx.fillStyle = "rgba(0,0,0,0.5)"; ctx.fillRect(8, 78, 190, 8);
@@ -2209,6 +2990,7 @@
     ctx.fillRect(8, 78, 190 * clamp(1 - left / (race.track.finish - race.track.start), 0, 1), 8);
     // 奔放模式：甩尾集氣表
     if (race.wild && car.charge !== undefined) drawCharge(ctx, 8, 90, car);
+    if (race.wear && car.tw !== undefined) drawWear(ctx, 8, race.wild ? 108 : 90, car);
     drawHudFx(ctx, f, race, car);
   }
   function drawCharge(ctx, x, y, car) {
@@ -2272,6 +3054,7 @@
   function renderResult() {
     var res = ui.result || [];
     var fin = res.filter(function (r) { return r.state === "fin"; });
+    var wearCols = res.length && res[0].wear !== null && res[0].wear !== undefined;
     var pod = el("div", { class: "dv-podium" }, [1, 0, 2].map(function (k) {
       var r = fin[k];
       if (!r) return el("div", { class: "dv-pod dv-pod-empty dv-pod-" + (k + 1) }, []);
@@ -2285,7 +3068,7 @@
       ]);
     }));
     var tbl = el("table", { class: "dv-results" }, [
-      el("thead", {}, [el("tr", {}, ["dv_r_pos", "dv_r_name", "dv_r_car", "dv_r_time", "dv_r_gap", "dv_r_max", "dv_r_drift", "dv_r_spin", "dv_r_pass"].map(function (k) { return el("th", {}, [t(k)]); }))]),
+      el("thead", {}, [el("tr", {}, ["dv_r_pos", "dv_r_name", "dv_r_car", "dv_r_time", "dv_r_gap", "dv_r_max", "dv_r_drift", "dv_r_spin", "dv_r_pass"].concat(wearCols ? ["dv_r_wear"] : []).map(function (k) { return el("th", {}, [t(k)]); }))]),
       el("tbody", {}, res.map(function (r) {
         return el("tr", { class: r.state === "dnf" ? "dv-dnf" : "" }, [
           el("td", {}, [r.state === "fin" ? String(r.pos) : "—"]),
@@ -2296,20 +3079,26 @@
           el("td", {}, [r.maxKmh + " km/h"]),
           el("td", {}, [String(r.drifts)]),
           el("td", {}, [String(r.spins)]),
-          el("td", {}, [String(r.overtakes)])
+          el("td", {}, [String(r.overtakes)]),
+          wearCols ? el("td", {}, [r.wear + "% / " + r.brake + "%"]) : null
         ]);
       }))
     ]);
+    var post = renderPost();
+    if (post) app.appendChild(post);
     app.appendChild(el("div", { class: "dv-panel" }, [
-      el("h2", {}, [courseName() + " · " + SEASON_ICON[setup.season] + " " + L(D.SEASONS[setup.season].name) + " · " + t("dv_mode_" + setup.mode) +
-        (ui.race && ui.race.wild ? " · " + t("dv_rule_wild") : "")]),
+      el("h2", {}, [courseName() + " · " + SEASON_ICON[setup.season] + " " + L(D.SEASONS[setup.season].name) + " · " + t("dv_mode_" + (ui.race ? ui.race.mode : setup.mode)) +
+        (ui.race && ui.race.wild ? " · " + t("dv_rule_wild") : "") + (ui.race ? " " + condIcons(ui.race) : "")]),
       fin.length ? pod : el("p", {}, [t("dv_nobody")]),
       el("div", { class: "dv-scroll" }, [tbl])
     ]));
     var hl = renderHighlights();
     if (hl) app.appendChild(hl);
+    var bp = ui.room ? null : betPanel();
+    if (bp) app.appendChild(bp);
+    if (ui.room && ui.net) { app.appendChild(netResultPanel()); return; }
     app.appendChild(el("div", { class: "dv-actions dv-next" }, [
-      btn(t("dv_dejavu"), function () { startRace(ui.raceSeed, ui.lastLog); }, "", false),
+      btn(t("dv_dejavu"), function () { startRace(ui.raceSeed, ui.lastLog, true); }, "", false),
       btn(t("dv_rematch"), function () { setup.seed = newSeed(); save(); startRace(setup.seed); }, "dv-primary"),
       btn(t("dv_to_garage"), function () { go("garage"); }),
       btn(t("dv_to_course"), function () { go("course"); })
@@ -2367,7 +3156,29 @@
     if (!Tv || !race || !race.done || !ui.rec || !ui.rec.t.length) return null;
     var list = Tv.highlights(race, 10);
     var cv = el("canvas", { class: "dv-hl-cv" }, []);
-    function playOne(h) { ui.hlSel = h; markHl(); hlStart(newReplay(h, false), cv, []); }
+    function playOne(h) { ui.hlSel = h; markHl(); hlStart(newReplay(h, false), cv, []); netView("one", h); }
+    function playAll() {
+      var q = list.slice(), h = q.shift();
+      ui.hlSel = h; markHl();
+      hlStart(newReplay(h, false), cv, q);
+      netView("all");
+    }
+    function playFull() {
+      ui.hlSel = null; markHl();
+      hlStart({ plan: [{ kind: "director", from: 0, to: race.t, speed: 1 }], i: 0, clock: null, st: {}, ghost: null, cutAt: performance.now(), caption: "" }, cv, []);
+      netView("full");
+    }
+    function stopAll() { stopHl(); hlCard(fitCanvas(cv), "📺 " + t("dv_hl_title")); netView("stop"); }
+    // 連線：照房主的操作播（找不到同一段精華就直接用房主傳來的那段）
+    ui.hlApi = {
+      remote: function (v) {
+        if (!cv.isConnected) return;
+        if (v.kind === "all") { if (list.length) playAll(); }
+        else if (v.kind === "full") playFull();
+        else if (v.kind === "stop") stopAll();
+        else if (v.kind === "one" && v.h) playOne(list.filter(function (h) { return h.t === v.h.t && h.car === v.h.car; })[0] || v.h);
+      }
+    };
     var speeds = el("div", { class: "dv-choice" }, ["0.5", "1", "2", "4"].map(function (id) {
       return btn(id + "×", function (e) {
         ui.hlMul = Number(id);
@@ -2380,16 +3191,9 @@
       el("p", { class: "dv-muted dv-small" }, [t("dv_hl_desc")]),
       cv,
       el("div", { class: "dv-actions" }, [
-        btn("▶ " + t("dv_hl_play_all", { n: list.length }), function () {
-          var q = list.slice(), h = q.shift();
-          ui.hlSel = h; markHl();
-          hlStart(newReplay(h, false), cv, q);
-        }, "dv-primary", !list.length),
-        btn("📺 " + t("dv_hl_full"), function () {
-          ui.hlSel = null; markHl();
-          hlStart({ plan: [{ kind: "director", from: 0, to: race.t, speed: 1 }], i: 0, clock: null, st: {}, ghost: null, cutAt: performance.now(), caption: "" }, cv, []);
-        }),
-        btn("⏹", function () { stopHl(); hlCard(fitCanvas(cv), "📺 " + t("dv_hl_title")); }, "dv-step"),
+        btn("▶ " + t("dv_hl_play_all", { n: list.length }), playAll, "dv-primary dv-hl-all", !list.length),
+        btn("📺 " + t("dv_hl_full"), playFull, "dv-hl-full"),
+        btn("⏹", stopAll, "dv-step"),
         el("label", { class: "dv-small" }, [t("dv_hl_cam") + " ", el("select", {
           class: "dv-hl-cam", onchange: function (e) { ui.hlCam = e.target.value || null; if (ui.hl) { ui.hl.rp.lock = ui.hlCam; ui.hl.rp.st = {}; ui.hl.rp.dir = {}; } }
         }, [""].concat(Tv.KINDS).map(function (k) { return el("option", { value: k, selected: (ui.hlCam || "") === k }, [k ? t("dv_tvcam_" + k) : t("dv_tv_auto")]); }))]),
@@ -2427,8 +3231,13 @@
     tv: function () { return { kind: ui.tvD && ui.tvD.kind, focus: ui.tvD && ui.tvD.focus, replay: !!ui.tvRp, pend: !!ui.tvPend, hl: !!ui.hl, hlSeg: ui.hl ? ui.hl.rp.i : null }; },
 
     result: function () { return ui.result; },
+    post: function () { return ui.post; },
+    room: function () { return ui.room; },
+    net: function () { return ui.net ? { no: ui.net.no, host: ui.net.ctl.isHost, mine: ui.net.ctl.mineIds(), resApplied: ui.net.resApplied, follow: ui.follow, auto: ui.autoFollow } : null; },
     go: go
   };
 
   render();
+  // 網址帶 ?room=：直接加入那個房間
+  (function () { var id = Net ? Net.roomFromUrl(location.search) : null; if (id) enterRoom(id); })();
 })();

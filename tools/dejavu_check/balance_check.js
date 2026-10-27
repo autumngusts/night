@@ -4,6 +4,7 @@
 global.window = global;
 require("../../static_src/dejavu_data.js");
 require("../../static_src/dejavu_cars.js");
+require("../../static_src/dejavu_bikes.js");
 require("../../static_src/dejavu_courses.js");
 require("../../static_src/dejavu_core.js");
 var D = global.PriTestDejavuData, Core = global.PriTestDejavuCore;

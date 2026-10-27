@@ -85,6 +85,9 @@
     var season = tr.season, pal = o.pal;
     var skyC = tr.rain ? SKY.rain : SKY[season];
     var fog = rgb(skyC[1]);
+    // 機車（第十一批）：過彎時整個畫面跟著車身傾斜（左彎向左壓車＝世界順時針轉）；放大一點，轉了四角才不會露白
+    var lean = !ext && car.st && car.st.bike ? clamp(Math.atan(car.v * car.v * tr.k[i0] / 9.8) * 0.7, -0.35, 0.35) : 0;
+    if (lean) { ctx.save(); ctx.translate(cx, hy); ctx.rotate(lean); ctx.scale(1.22, 1.22); ctx.translate(-cx, -hy); }
     function fogT(f) { return clamp((f - 30) / (VW * 1.05), 0, 0.82); }
 
     // 投影：保留鏡頭座標（f 往前、l 往左、u 往上），多邊形在 CLIP 平面裁切後才換成螢幕座標
@@ -709,7 +712,54 @@
         }
       }
     }
+    // 機車＋騎士（第十一批）：後面看＝窄車身＋騎士背影，側面看＝兩個輪子；過彎時依彎道壓車
+    function drawBike(p, sc, s) {
+      var c = s.c, side = Math.abs(Math.sin(s.rel)), front = Math.cos(s.rel) < -0.2;
+      var k = tr.k[clamp(Math.floor(c.s / ds), 0, tr.N - 1)];
+      var ln = clamp(Math.atan(c.v * c.v * k / 9.8), -0.75, 0.75) * (1 - side) * (front ? -1 : 1);
+      var col = c.color, helmet = shade(col, 0.25);
+      ctx.fillStyle = "rgba(0,0,0,0.35)"; ctx.fillRect(p.x - (0.5 + side * 0.9) * sc, p.y - 0.12 * sc, (1 + side * 1.8) * sc, 0.24 * sc);
+      ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(-ln);
+      if (ext && side > 0.55) {
+        var dir = Math.sin(s.rel) > 0 ? -1 : 1;   // 車頭朝哪邊
+        ctx.fillStyle = "#111";
+        [-0.72, 0.72].forEach(function (u) { ctx.beginPath(); ctx.arc(u * sc, -0.33 * sc, 0.33 * sc, 0, Math.PI * 2); ctx.fill(); });
+        ctx.fillStyle = "#9aa0a6";
+        [-0.72, 0.72].forEach(function (u) { ctx.beginPath(); ctx.arc(u * sc, -0.33 * sc, 0.12 * sc, 0, Math.PI * 2); ctx.fill(); });
+        ctx.fillStyle = col;
+        ctx.beginPath(); ctx.moveTo(-0.75 * dir * sc, -0.55 * sc); ctx.lineTo(0.65 * dir * sc, -0.6 * sc); ctx.lineTo(0.8 * dir * sc, -0.95 * sc);
+        ctx.lineTo(0.2 * dir * sc, -1.0 * sc); ctx.lineTo(-0.5 * dir * sc, -0.85 * sc); ctx.closePath(); ctx.fill();
+        // 騎士：趴在油箱上
+        ctx.fillStyle = "#1d2126";
+        ctx.beginPath(); ctx.moveTo(-0.35 * dir * sc, -0.95 * sc); ctx.lineTo(0.25 * dir * sc, -1.35 * sc); ctx.lineTo(0.45 * dir * sc, -1.2 * sc); ctx.lineTo(0, -0.85 * sc); ctx.closePath(); ctx.fill();
+        ctx.fillStyle = helmet; ctx.beginPath(); ctx.arc(0.42 * dir * sc, -1.42 * sc, 0.17 * sc, 0, Math.PI * 2); ctx.fill();
+        if (front || c.braking) { ctx.fillStyle = front ? "#fff6c8" : "#ff2a2a"; ctx.fillRect((front ? 0.78 : -0.86) * dir * sc - 0.05 * sc, -0.85 * sc, 0.1 * sc, 0.1 * sc); }
+      } else {
+        ctx.fillStyle = "#111"; ctx.fillRect(-0.1 * sc, -0.62 * sc, 0.2 * sc, 0.62 * sc);
+        ctx.fillStyle = col;
+        ctx.beginPath(); ctx.moveTo(-0.28 * sc, -0.55 * sc); ctx.lineTo(0.28 * sc, -0.55 * sc); ctx.lineTo(0.2 * sc, -0.95 * sc); ctx.lineTo(-0.2 * sc, -0.95 * sc); ctx.closePath(); ctx.fill();
+        ctx.fillStyle = front ? "#fff6c8" : c.braking ? "#ff2a2a" : "#8a1a1a";
+        ctx.fillRect(-0.12 * sc, -0.72 * sc, 0.24 * sc, 0.08 * sc);
+        // 騎士背影
+        ctx.fillStyle = "#1d2126";
+        ctx.beginPath(); ctx.moveTo(-0.3 * sc, -0.9 * sc); ctx.lineTo(0.3 * sc, -0.9 * sc); ctx.lineTo(0.22 * sc, -1.35 * sc); ctx.lineTo(-0.22 * sc, -1.35 * sc); ctx.closePath(); ctx.fill();
+        ctx.fillStyle = helmet; ctx.beginPath(); ctx.arc(0, -1.48 * sc, 0.17 * sc, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = "rgba(20,30,40,0.8)"; ctx.fillRect(-0.12 * sc, -1.5 * sc, 0.24 * sc, 0.06 * sc);
+        if (c.braking && !front && sc > 2) {
+          var gl = ctx.createRadialGradient(0, -0.68 * sc, 1, 0, -0.68 * sc, 0.7 * sc);
+          gl.addColorStop(0, "rgba(255,40,40,0.3)"); gl.addColorStop(1, "rgba(255,40,40,0)");
+          ctx.fillStyle = gl; ctx.fillRect(-0.8 * sc, -1.4 * sc, 1.6 * sc, 1.4 * sc);
+        }
+      }
+      ctx.restore();
+      if (s.f < (ext ? 160 : 120)) {
+        ctx.font = "bold 12px sans-serif"; ctx.textAlign = "center"; ctx.fillStyle = "#fff";
+        ctx.strokeStyle = "rgba(0,0,0,0.7)"; ctx.lineWidth = 3;
+        ctx.strokeText(c.name, p.x, p.y - 1.7 * sc - 6); ctx.fillText(c.name, p.x, p.y - 1.7 * sc - 6);
+      }
+    }
     function drawCar(p, sc, s) {
+      if (s.c.st && s.c.st.bike) { drawBike(p, sc, s); return; }
       var side = Math.abs(Math.sin(s.rel)), front = Math.cos(s.rel) < -0.2;
       var cw = 1.8 + side * 2.6, chh = 1.3;
       ctx.fillStyle = "rgba(0,0,0,0.35)"; ctx.fillRect(p.x - cw / 2 * sc, p.y - 0.15 * sc, cw * sc, 0.3 * sc);
@@ -1041,7 +1091,9 @@
       vg.addColorStop(0, "rgba(0,0,0,0)"); vg.addColorStop(1, "rgba(0,0,0," + (0.35 * vf).toFixed(3) + ")");
       ctx.fillStyle = vg; ctx.fillRect(0, 0, W, H);
     }
-    drawInterior(ctx, W, H, race, car, tr, i0, skyC);
+    if (lean) ctx.restore();
+    if (car.st && car.st.bike) drawBikeInterior(ctx, W, H, race, car, tr, i0, skyC, lean);
+    else drawInterior(ctx, W, H, race, car, tr, i0, skyC);
   }
 
   function drawInterior(ctx, W, H, race, car, tr, i0, skyC) {
@@ -1114,6 +1166,67 @@
       ctx.fillStyle = "#fff"; ctx.font = "bold 11px sans-serif"; ctx.textAlign = "left";
       ctx.fillText(behind.name + " −" + Math.round(gap) + "m", mx + 4, my + 12);
     }
+  }
+
+  // 機車的騎乘視角（第十一批）：沒有 A 柱與車頂；下方是油箱、龍頭（依彎道轉）、中間的液晶儀表、兩邊的後照鏡
+  function drawBikeInterior(ctx, W, H, race, car, tr, i0, skyC, lean) {
+    var inTunnel = tr.sp && tr.sp[i0] === 3;
+    var k = tr.k[i0];
+    var steer = clamp(Math.atan(k * 2.7) * 3 - car.slip * 0.6, -0.5, 0.5) + (car.stun > 0 ? Math.sin(race.t * 18) * 0.4 : 0);
+    ctx.save();
+    ctx.translate(W / 2, H); ctx.rotate(lean * 0.35); ctx.translate(-W / 2, -H);
+    // 風鏡（淡淡的有色壓克力）
+    ctx.fillStyle = "rgba(60,80,100,0.18)";
+    ctx.beginPath(); ctx.moveTo(W * 0.3, H); ctx.quadraticCurveTo(W * 0.32, H * 0.66, W * 0.5, H * 0.62); ctx.quadraticCurveTo(W * 0.68, H * 0.66, W * 0.7, H); ctx.closePath(); ctx.fill();
+    // 油箱
+    var tg = ctx.createLinearGradient(0, H * 0.84, 0, H);
+    tg.addColorStop(0, inTunnel ? shade(car.color, -0.3) : mixHex(car.color, skyC[1], 0.3)); tg.addColorStop(1, shade(car.color, -0.25));
+    ctx.fillStyle = tg;
+    ctx.beginPath(); ctx.moveTo(W * 0.36, H); ctx.quadraticCurveTo(W * 0.38, H * 0.86, W * 0.5, H * 0.85); ctx.quadraticCurveTo(W * 0.62, H * 0.86, W * 0.64, H); ctx.closePath(); ctx.fill();
+    // 龍頭（把手＋手套）與兩邊後照鏡（照出最近的後車）
+    var behind = null;
+    race.cars.forEach(function (c) { if (c !== car && c.state === "run" && c.s < car.s && (!behind || c.s > behind.s)) behind = c; });
+    ctx.save(); ctx.translate(W / 2, H * 0.86); ctx.rotate(-steer);
+    var hw = W * 0.32;
+    ctx.strokeStyle = "#0c0d0f"; ctx.lineWidth = Math.max(4, H * 0.018); ctx.lineCap = "round";
+    ctx.beginPath(); ctx.moveTo(-hw, H * 0.02); ctx.lineTo(-W * 0.08, -H * 0.01); ctx.lineTo(W * 0.08, -H * 0.01); ctx.lineTo(hw, H * 0.02); ctx.stroke();
+    ctx.fillStyle = "#1d2126";
+    [-1, 1].forEach(function (d) { ctx.beginPath(); ctx.ellipse(d * hw * 0.92, H * 0.02, W * 0.045, H * 0.035, 0, 0, Math.PI * 2); ctx.fill(); });
+    [-1, 1].forEach(function (d) {
+      var mx = d * hw * 0.85, my = -H * 0.12, mw = W * 0.09, mh = H * 0.055;
+      ctx.strokeStyle = "#0c0d0f"; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(d * hw * 0.75, 0); ctx.lineTo(mx, my + mh); ctx.stroke();
+      ctx.fillStyle = "#101214"; ctx.beginPath(); ctx.ellipse(mx, my + mh / 2, mw / 2 + 3, mh / 2 + 3, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = inTunnel ? "#2a2a2a" : skyC[1]; ctx.beginPath(); ctx.ellipse(mx, my + mh / 2, mw / 2, mh / 2, 0, 0, Math.PI * 2); ctx.fill();
+      // 後車在哪一側就出現在哪一邊的鏡子（d 往左為負）
+      if (behind && car.s - behind.s < 150 && (behind.d >= car.d) === (d < 0)) {
+        var bw = clamp(mw * 0.5 * (12 / Math.max(6, car.s - behind.s)), 4, mw * 0.7);
+        ctx.fillStyle = behind.color; ctx.fillRect(mx - bw / 2, my + mh * 0.75 - bw * 0.45, bw, bw * 0.45);
+      }
+    });
+    ctx.restore();
+    // 液晶儀表（轉速條＋速度＋檔位）；檔位是畫面演出，物理只用連續的出力曲線
+    var mw2 = Math.min(W * 0.2, 220), mh2 = mw2 * 0.42, mx2 = W / 2 - mw2 / 2, my2 = H * 0.83 - mh2;
+    ctx.fillStyle = "#0b0c0e"; ctx.fillRect(mx2 - 4, my2 - 4, mw2 + 8, mh2 + 8);
+    ctx.fillStyle = "#11161b"; ctx.fillRect(mx2, my2, mw2, mh2);
+    var vtop = Math.max(20, car.st.vtop), gears = [0.25, 0.4, 0.55, 0.7, 0.85, 1.0], gi = 0;
+    while (gi < gears.length - 1 && car.v > vtop * gears[gi] * 0.97) gi++;
+    var lo = gi ? vtop * gears[gi - 1] * 0.97 : 0, hi = vtop * gears[gi];
+    var rpm = car.st.ev ? car.v / vtop : clamp(0.25 + 0.75 * (car.v - lo * 0.75) / Math.max(1, hi - lo * 0.75), 0.12, 1);
+    for (var b = 0; b < 20; b++) {
+      ctx.fillStyle = b / 20 < rpm ? (b >= 16 ? "#ff4b3a" : b >= 12 ? "#ffc23a" : "#4be08a") : "#26303a";
+      ctx.fillRect(mx2 + 6 + b * (mw2 - 12) / 20, my2 + 5, (mw2 - 12) / 20 - 2, mh2 * 0.16);
+    }
+    ctx.fillStyle = "#fff"; ctx.textAlign = "right"; ctx.font = "bold " + Math.round(mh2 * 0.5) + "px monospace";
+    ctx.fillText(String(Math.round(car.v * 3.6)), mx2 + mw2 * 0.68, my2 + mh2 * 0.86);
+    ctx.textAlign = "left"; ctx.font = "bold " + Math.round(mh2 * 0.22) + "px monospace"; ctx.fillStyle = "#9fb3c4";
+    ctx.fillText("km/h", mx2 + mw2 * 0.7, my2 + mh2 * 0.86);
+    ctx.fillStyle = "#ffd25a"; ctx.font = "bold " + Math.round(mh2 * 0.36) + "px monospace";
+    ctx.fillText(car.st.ev ? "EV" : String(gi + 1), mx2 + 8, my2 + mh2 * 0.82);
+    if (behind && car.s - behind.s < 150) {
+      ctx.fillStyle = "#fff"; ctx.font = "bold 11px sans-serif"; ctx.textAlign = "center";
+      ctx.fillText(behind.name + " −" + Math.round(car.s - behind.s) + "m", W / 2, my2 - 8);
+    }
+    ctx.restore();
   }
 
   window.PriTestDejavuCockpit = { draw: draw, prep: prep };

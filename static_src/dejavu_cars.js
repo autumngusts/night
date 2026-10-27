@@ -1,4 +1,4 @@
-// DÉJÀ VU 山道下坡（dejavu）：擴充車款（2026-10-26 第六批，62 → 300 款）。在 dejavu_data.js 之後、dejavu_core.js 之前載入。
+// DÉJÀ VU 山道下坡（dejavu）：擴充車款（2026-10-26 第六批，62 → 300 款；2026-10-27 第十批參考 FH6／MF Ghost 再追加）。在 dejavu_data.js 之後、dejavu_core.js 之前載入。
 // 跟 dejavu_data.js 一樣是「風格化的近似值」，只用來讓各車有不同個性，不是原廠數據。
 // 為了好維護，每台車只寫 [id, 車名, 驅動, kW, kg, 極速, 車種]（必要時再加覆寫物件），
 // 抓地／煞車／操控／空阻／下壓力由車種（CLASSES）推算，操控再依車重微調（重車比較鈍）。
@@ -369,6 +369,203 @@
   add("byd", [["u9", "Yangwang U9", "4WD", 960, 2475, 309, "x", { ev: true }]]);
   add("lucid", [["airsap", "Air Sapphire", "4WD", 920, 2375, 330, "e"]]);
   add("dmc", [["dmc12", "DMC-12", "RR", 97, 1230, 175, "o"]]);
+
+  // ---- 第十批（2026-10-27）：參考 Forza Horizon 6（日本舞台的 JDM 車單）與 MF Ghost 登場車追加 ----
+  custom = D.BRANDS.pop();
+  [
+    { id: "mitsuoka", name: "Mitsuoka" }, { id: "datsun", name: "Datsun" }, { id: "fiat", name: "Fiat" },
+    { id: "volvo", name: "Volvo" }, { id: "polestar", name: "Polestar" }, { id: "shelby", name: "Shelby" },
+    { id: "plymouth", name: "Plymouth" }, { id: "jeep", name: "Jeep" }, { id: "ram", name: "RAM" }, { id: "gmc", name: "GMC" },
+    { id: "gma", name: "Gordon Murray" }, { id: "hennessey", name: "Hennessey" }, { id: "luxgen", name: "Luxgen" }
+  ].forEach(function (b) { D.BRANDS.push(b); });
+  D.BRANDS.push(custom);
+
+  add("toyota", [
+    ["zn6", "86 GT (ZN6)", "FR", 147, 1230, 226, "s"],
+    ["st185", "Celica GT-Four (ST185)", "4WD", 165, 1500, 230, "h"],
+    ["jza70", "Supra 2.5GT Twin Turbo R (JZA70)", "FR", 206, 1500, 250, "g"],
+    ["jzz30", "Soarer 2.5GT-T (JZZ30)", "FR", 206, 1560, 250, "g"],
+    ["aristo", "Aristo V300 (JZS161)", "FR", 206, 1680, 250, "g"],
+    ["jzx81", "Cresta 2.5GT Twin Turbo (JZX81)", "FR", 206, 1440, 240, "g"],
+    ["ae92", "Corolla Levin GT-Z (AE92)", "FF", 121, 1100, 205, "h"],
+    ["sports800", "Sports 800", "FR", 33, 580, 155, "o"],
+    ["sera", "Sera", "FF", 81, 930, 180, "o"],
+    ["centurygrmn", "Century GRMN", "4WD", 317, 2370, 250, "g"],
+    ["lc70", "Land Cruiser 70", "4WD", 96, 2200, 160, "u"],
+    ["hiluxgr", "Hilux GR SPORT", "4WD", 150, 2100, 175, "u"]
+  ]);
+  add("honda", [
+    ["s800", "S800", "FR", 52, 720, 160, "o"],
+    ["cityturbo2", "City Turbo II", "FF", 81, 735, 180, "h"],
+    ["ch1", "Accord Type R (CH1)", "FF", 158, 1340, 235, "h"],
+    ["prelude6", "Prelude (2025)", "FF", 151, 1460, 220, "h"],
+    ["nsxtypes", "NSX Type S (NC1)", "4WD", 450, 1790, 307, "x"],
+    ["none", "N-ONE RS", "FF", 47, 840, 140, "k"],
+    ["hondae", "Honda e Advance", "RR", 113, 1540, 145, "e"],
+    ["odyssey", "Odyssey Absolute (RB1)", "FF", 140, 1700, 190, "u"]
+  ]);
+  add("mazda", [
+    ["cosmo110s", "Cosmo Sport 110S", "FR", 81, 940, 185, "o"],
+    ["rx3", "Savanna GT (RX-3)", "FR", 88, 900, 180, "o"],
+    ["bg8z", "Familia GT-R (BG8Z)", "4WD", 154, 1240, 210, "h"],
+    ["ms6", "Mazdaspeed6 (Atenza MPS)", "4WD", 203, 1580, 240, "h"],
+    ["m787b", "787B", "MR", 515, 830, 340, "r", { cla: 0.6 }]
+  ]);
+  add("nissan", [
+    ["r31", "Skyline GTS-R (R31)", "FR", 154, 1340, 220, "s"],
+    ["er34", "Skyline 25GT-T (ER34)", "FR", 206, 1430, 250, "s"],
+    ["v37", "Skyline 400R (V37)", "FR", 298, 1760, 250, "g"],
+    ["c33", "Laurel Club S (C33)", "FR", 151, 1350, 220, "s"],
+    ["c35", "Laurel 25 Club S Turbo (C35)", "FR", 206, 1460, 240, "g"],
+    ["stagea", "Stagea 260RS", "4WD", 206, 1600, 250, "g"],
+    ["b110", "Sunny 1200GX (B110)", "FR", 62, 720, 160, "o"],
+    ["figaro", "Figaro", "FF", 56, 810, 160, "o"],
+    ["znismo", "Fairlady Z NISMO (RZ34)", "FR", 309, 1680, 250, "g"],
+    ["r390", "R390 GT1 Road Car", "MR", 410, 1100, 354, "r"],
+    ["patrolnismo", "Patrol NISMO", "4WD", 320, 2700, 250, "u"],
+    ["ariyanismo", "Ariya NISMO", "4WD", 320, 2200, 200, "e"]
+  ]);
+  add("subaru", [
+    ["sg9", "Forester STi (SG9)", "4WD", 195, 1450, 230, "h"],
+    ["s209", "WRX STI S209", "4WD", 255, 1600, 260, "h"],
+    ["vbh", "WRX S4 (VBH)", "4WD", 202, 1600, 240, "h"],
+    ["sub360", "360", "RR", 12, 385, 90, "k"],
+    ["sambar", "Sambar Truck", "RR", 34, 720, 120, "k"]
+  ]);
+  add("mitsubishi", [
+    ["evo7", "Lancer Evolution VII GSR", "4WD", 206, 1400, 245, "h"],
+    ["galantvr4", "Galant VR-4 (E39A)", "4WD", 177, 1400, 235, "h"],
+    ["starion", "Starion GSR-VR", "FR", 129, 1290, 220, "s"],
+    ["eclipsegsx", "Eclipse GSX", "4WD", 157, 1450, 230, "h"],
+    ["pajeroevo", "Pajero Evolution", "4WD", 206, 1890, 200, "u"]
+  ]);
+  add("suzuki", [
+    ["ha21s", "Alto Works RS/Z (HA21S)", "4WD", 47, 690, 140, "k"],
+    ["escudopp", "Escudo Pikes Peak", "4WD", 670, 800, 250, "r", { cla: 0.5 }]
+  ]);
+  add("daihatsu", [
+    ["l880k", "Copen (L880K)", "FF", 47, 830, 160, "k"],
+    ["hijet", "Hijet Truck", "MR", 39, 760, 120, "k"]
+  ]);
+  add("lexus", [
+    ["is500", "IS 500 F SPORT Performance", "FR", 352, 1765, 270, "g"],
+    ["lbxrr", "LBX MORIZO RR", "4WD", 224, 1440, 230, "h"]
+  ]);
+  add("mitsuoka", [
+    ["orochi", "Orochi", "MR", 172, 1580, 180, "s"],
+    ["rockstar", "Rock Star", "FR", 135, 1050, 200, "s"]
+  ]);
+  add("datsun", [
+    ["d510", "Bluebird 1600 SSS (510)", "FR", 81, 900, 170, "o"],
+    ["sr311", "Fairlady 2000 (SR311)", "FR", 107, 910, 205, "o"]
+  ]);
+  add("porsche", [
+    ["gt4rs", "718 Cayman GT4 RS", "MR", 368, 1415, 315, "x"],
+    ["caymangts", "718 Cayman GTS 4.0", "MR", 294, 1405, 293, "s"],
+    ["c992s", "911 Carrera S (992)", "RR", 331, 1515, 308, "g"],
+    ["st992", "911 S/T", "RR", 386, 1380, 300, "x"],
+    ["dakar", "911 Dakar", "4WD", 353, 1605, 240, "g", { grip: 0.98, hdl: 0.96 }],
+    ["rs27", "911 Carrera RS 2.7", "RR", 154, 975, 245, "o"],
+    ["p356", "356 Speedster", "RR", 51, 760, 160, "o"],
+    ["cayennegt", "Cayenne Turbo GT", "4WD", 471, 2220, 300, "u"]
+  ]);
+  add("ferrari", [
+    ["f250gto", "250 GTO", "FR", 221, 880, 280, "o"],
+    ["dino", "Dino 246 GT", "MR", 143, 1080, 235, "o"],
+    ["f599gto", "599 GTO", "FR", 493, 1605, 335, "x"],
+    ["sp3", "Daytona SP3", "MR", 618, 1485, 340, "x"],
+    ["c12", "12Cilindri", "FR", 610, 1560, 340, "x"],
+    ["ff80", "F80", "4WD", 882, 1525, 350, "r"],
+    ["purosangue", "Purosangue", "4WD", 533, 2033, 310, "u"]
+  ]);
+  add("lamborghini", [
+    ["huraperf", "Huracán Performante", "4WD", 470, 1382, 325, "x"],
+    ["huratec", "Huracán Tecnica", "MR", 470, 1379, 325, "x"],
+    ["sterrato", "Huracán Sterrato", "4WD", 449, 1470, 260, "x", { grip: 1.0, hdl: 0.98 }],
+    ["temerario", "Temerario", "4WD", 677, 1690, 343, "x"],
+    ["countachlpi", "Countach LPI 800-4", "4WD", 600, 1595, 355, "x"]
+  ]);
+  add("mclaren", [
+    ["m650s", "650S", "MR", 478, 1330, 333, "x"],
+    ["elva", "Elva", "MR", 597, 1269, 326, "x"],
+    ["w1", "W1", "MR", 932, 1399, 350, "r"]
+  ]);
+  add("benz", [
+    ["w124e500", "500E (W124)", "FR", 240, 1700, 250, "g"],
+    ["amggtr", "AMG GT R", "FR", 430, 1630, 318, "x"],
+    ["e63s", "AMG E 63 S 4MATIC+", "4WD", 450, 1880, 300, "g"],
+    ["clkgtr", "CLK GTR", "MR", 450, 1545, 320, "r"]
+  ]);
+  add("bmw", [
+    ["m3e46", "M3 (E46)", "FR", 252, 1570, 250, "s"],
+    ["m4g82", "M4 Competition (G82)", "FR", 375, 1725, 290, "g"],
+    ["m5cs", "M5 CS (F90)", "4WD", 467, 1825, 305, "g"],
+    ["csl30", "3.0 CSL (E9)", "FR", 151, 1270, 220, "o"]
+  ]);
+  add("audi", [["urquattro", "quattro (Ur-quattro)", "4WD", 147, 1290, 222, "o"]]);
+  add("vw", [
+    ["beetle63", "Beetle (1963)", "RR", 25, 760, 115, "o"],
+    ["type2", "Type 2 Bus", "RR", 37, 1070, 105, "u"],
+    ["idr", "ID. R", "4WD", 500, 1100, 270, "r", { ev: true, cla: 0.6 }]
+  ]);
+  add("alfa", [
+    ["a33", "33 Stradale (1967)", "MR", 172, 700, 260, "o"],
+    ["gtam", "Giulia GTAm", "FR", 397, 1580, 300, "g"]
+  ]);
+  add("alpine", [["a110gt", "A110 GT", "MR", 221, 1119, 250, "s"]]);
+  add("lotus", [["eletre", "Eletre R", "4WD", 675, 2640, 265, "u", { ev: true }]]);
+  add("maserati", [["mc12", "MC12", "MR", 465, 1335, 330, "x"]]);
+  add("aston", [
+    ["db11amr", "DB11 AMR", "FR", 470, 1870, 334, "g"],
+    ["vulcan", "Vulcan", "FR", 611, 1350, 320, "r"]
+  ]);
+  add("lancia", [["fulvia", "Fulvia Coupé 1.6 HF", "FF", 85, 850, 175, "o"]]);
+  add("peugeot", [["p205t16", "205 Turbo 16", "4WD", 147, 1145, 210, "o"]]);
+  add("fiat", [
+    ["f500", "500 (1957)", "RR", 13, 470, 85, "k"],
+    ["x19", "X1/9", "MR", 63, 880, 170, "o"]
+  ]);
+  add("volvo", [["v850r", "850 T-5R Estate", "FF", 177, 1460, 250, "h"]]);
+  add("polestar", [["ps1", "Polestar 1", "4WD", 447, 2350, 250, "g"]]);
+  add("ford", [
+    ["darkhorse", "Mustang Dark Horse", "FR", 373, 1780, 270, "g"],
+    ["rs200", "RS200", "4WD", 186, 1180, 225, "o"],
+    ["rs1600", "Escort RS1600 (Mk1)", "FR", 85, 900, 180, "o"],
+    ["raptorr", "F-150 Raptor R", "4WD", 537, 2700, 180, "u"],
+    ["broncor", "Bronco Raptor", "4WD", 313, 2600, 160, "u"]
+  ]);
+  add("chevrolet", [
+    ["chevelle", "Chevelle SS 454", "FR", 336, 1700, 220, "o"],
+    ["z28", "Camaro Z/28 (1969)", "FR", 216, 1500, 210, "o"],
+    ["eray", "Corvette E-Ray", "4WD", 488, 1720, 296, "x"]
+  ]);
+  add("dodge", [
+    ["charger69", "Charger R/T (1969)", "FR", 280, 1700, 220, "o"],
+    ["vipergts", "Viper GTS (1996)", "FR", 335, 1550, 298, "g"]
+  ]);
+  add("plymouth", [["hemicuda", "Hemi 'Cuda", "FR", 317, 1700, 225, "o"]]);
+  add("shelby", [
+    ["cobra427", "Cobra 427 S/C", "FR", 365, 1070, 260, "o"],
+    ["daytonacp", "Cobra Daytona Coupe", "FR", 287, 1040, 290, "o"]
+  ]);
+  add("jeep", [["rubicon392", "Wrangler Rubicon 392", "4WD", 350, 2300, 160, "u"]]);
+  add("ram", [["trx", "1500 TRX", "4WD", 523, 2900, 190, "u"]]);
+  add("gmc", [["hummerev", "Hummer EV", "4WD", 735, 4100, 170, "u", { ev: true }]]);
+  add("koenigsegg", [
+    ["regera", "Regera", "MR", 1100, 1590, 410, "r"],
+    ["cc850", "CC850", "MR", 1030, 1385, 350, "x"]
+  ]);
+  add("pagani", [["utopia", "Utopia", "MR", 635, 1280, 350, "x"]]);
+  add("bugatti", [
+    ["eb110", "EB110 SS", "4WD", 450, 1418, 351, "x"],
+    ["bolide", "Bolide", "4WD", 1361, 1450, 380, "r", { cla: 0.7 }]
+  ]);
+  add("gma", [["t50", "T.50", "MR", 488, 986, 340, "r"]]);
+  add("hennessey", [["venomf5", "Venom F5", "MR", 1355, 1360, 450, "r", { cla: 0.25 }]]);
+  add("hyundai", [["ioniq6n", "IONIQ 6 N", "4WD", 448, 2200, 257, "e"]]);
+  add("xiaomi", [["su7ultra", "SU7 Ultra", "4WD", 1138, 1900, 350, "x", { ev: true }]]);
+  add("byd", [["sealperf", "Seal Performance", "4WD", 390, 2185, 180, "e"]]);
+  add("luxgen", [["n7", "n7", "FF", 160, 2010, 180, "e"]]);
 
   // 第一～三批的車沒有寫車種：依數據粗分，只用來在車庫篩選
   D.CARS.forEach(function (c) {

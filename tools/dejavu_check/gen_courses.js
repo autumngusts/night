@@ -1,4 +1,4 @@
-// DÉJÀ VU：產生擴充固定山路 static_src/dejavu_courses.js（2026-10-26 第六批，10 → 102 條）
+// DÉJÀ VU：產生擴充固定山路 static_src/dejavu_courses.js（2026-10-26 第六批，10 → 102 條；2026-10-27 第十批再加日本／台灣為主的路線）
 //   node tools/dejavu_check/gen_courses.js
 // 每條路依「路線性格」（PROFILES）用零件（D.PIECES）接出來，盡量不重疊；亂數 seed 由 id 決定，所以重跑結果一樣。
 // 只有名稱是真實地名，路段形狀是風格化的生成結果，不是實際測量。產生後的檔案可以直接手動微調。
@@ -66,6 +66,37 @@ var LIST = [
   ["odarumi", C("大垂水峠", "大垂水峠", "Odarumi Pass"), "touge", "mixed", 7, 6, 3.6],
   ["echizen", C("越前海岸", "越前海岸", "Echizen Coast"), "touge", "coastal", 7, 3, 4.6, { scene: "sea", water: -1 }],
   ["oga", C("男鹿半島", "男鹿半島", "Oga Peninsula"), "touge", "coastal", 6.5, 4, 4.2, { scene: "sea", water: 1 }],
+  // 第十批（2026-10-27）：日本峠追加
+  ["tsuchisaka", C("土坂峠", "土坂峠", "Tsuchisaka Pass"), "touge", "narrow", 5, 8, 3],
+  ["norikura", C("乘鞍回聲線", "乗鞍エコーライン", "Norikura Echo Line"), "touge", "switchback", 6, 9, 4.6],
+  ["mugikusa", C("麥草峠", "麦草峠", "Mugikusa Pass"), "touge", "highland", 6.5, 7, 4.6],
+  ["ohdarumi", C("大弛峠", "大弛峠", "Ohdarumi Pass"), "touge", "narrow", 5, 9, 4],
+  ["hakonekyudo", C("箱根舊道 七曲", "箱根旧道・七曲り", "Hakone Old Road Nanamagari"), "touge", "hairpin", 6, 9, 3.2],
+  ["nishiizu", C("西伊豆天際線", "西伊豆スカイライン", "Nishi-Izu Skyline"), "touge", "highland", 6.5, 6, 5, { scene: "sea", water: -1 }],
+  ["kawazu", C("河津七瀑環狀橋", "河津七滝ループ橋", "Kawazu Loop Bridge"), "touge", "mixed", 7, 8, 3.6],
+  ["fujisubaru", C("富士速霸陸線", "富士スバルライン", "Fuji Subaru Line"), "touge", "fast", 8, 7, 5.8],
+  ["doshi", C("道志道", "道志みち", "Doshi Road"), "touge", "mixed", 7, 5, 5],
+  ["suzukasl", C("鈴鹿天際線", "鈴鹿スカイライン", "Suzuka Skyline"), "touge", "hairpin", 6.5, 8, 4],
+  ["hiei", C("比叡山兜風道", "比叡山ドライブウェイ", "Mt. Hiei Driveway"), "touge", "mixed", 7, 7, 4.4, { scene: "lake", water: -1 }],
+  ["arashiyama", C("嵐山高雄公園道", "嵐山高雄パークウェイ", "Arashiyama-Takao Parkway"), "touge", "technical", 6.5, 7, 4],
+  ["royu", C("芦有兜風道", "芦有ドライブウェイ", "Royu Driveway"), "touge", "technical", 6.5, 8, 3.8],
+  ["hiruzen", C("蒜山大山天際線", "蒜山大山スカイライン", "Hiruzen-Daisen Skyline"), "touge", "highland", 6.5, 6, 4.8],
+  ["karst", C("四國喀斯特", "四国カルスト", "Shikoku Karst"), "touge", "narrow", 4.5, 6, 4.4],
+  ["ishizuchi", C("石鎚天際線", "石鎚スカイライン", "Ishizuchi Skyline"), "touge", "hairpin", 5.5, 9, 4.2],
+  ["yamanami", C("山並公路", "やまなみハイウェイ", "Yamanami Highway"), "touge", "fast", 7.5, 5, 5.6],
+  ["unzen", C("雲仙", "雲仙", "Unzen"), "touge", "technical", 6.5, 8, 3.8],
+  ["ibusuki", C("指宿天際線", "指宿スカイライン", "Ibusuki Skyline"), "touge", "fast", 7, 5, 5, { scene: "sea", water: 1 }],
+  ["bihoro", C("美幌峠", "美幌峠", "Bihoro Pass"), "touge", "highland", 7, 6, 4.6, { scene: "lake", water: -1 }],
+  ["nissho", C("日勝峠", "日勝峠", "Nissho Pass"), "touge", "fast", 7.5, 7, 5.4],
+  ["shiretoko", C("知床峠", "知床峠", "Shiretoko Pass"), "touge", "switchback", 6.5, 8, 4.6],
+  ["hachimantai", C("八幡平盾狀火山線", "八幡平アスピーテライン", "Hachimantai Aspite Line"), "touge", "highland", 6.5, 7, 5],
+  ["zao", C("藏王回聲線", "蔵王エコーライン", "Zao Echo Line"), "touge", "switchback", 6.5, 8, 4.8],
+  ["chokai", C("鳥海藍線", "鳥海ブルーライン", "Chokai Blue Line"), "touge", "highland", 6.5, 8, 5, { scene: "sea", water: 1 }],
+  ["hakusan", C("白山白川鄉白色之路", "白山白川郷ホワイトロード", "Hakusan White Road"), "touge", "hairpin", 6, 8, 4.4],
+  ["onioshi", C("鬼押公路", "鬼押ハイウェー", "Onioshi Highway"), "touge", "fast", 7.5, 5, 4.6],
+  ["chirihama", C("千里濱海灘兜風道", "千里浜なぎさドライブウェイ", "Chirihama Beach Driveway"), "touge", "coastal", 9, 1, 4.6, { scene: "sea", water: -1 }],
+  ["tsunoshima", C("角島大橋", "角島大橋", "Tsunoshima Bridge"), "touge", "coastal", 7, 2, 3.8, { scene: "sea", water: 1 }],
+  ["kaichu", C("沖繩海中道路", "沖縄・海中道路", "Okinawa Kaichu Road"), "touge", "coastal", 8, 1, 4.2, { scene: "sea", water: -1 }],
   // ---- 台灣山路 ----
   ["yangjin", C("陽金公路", "陽金公路（陽明山）", "Yangjin Hwy (Yangmingshan)"), "tw", "technical", 6.5, 7, 4.2],
   ["beiyi", C("北宜公路九彎十八拐", "北宜公路・九彎十八拐", "Beiyi Hwy 'Nine Bends'"), "tw", "narrow", 6.5, 6, 5],
@@ -87,6 +118,30 @@ var LIST = [
   ["kenting", C("墾丁濱海", "墾丁海岸道路", "Kenting Coast"), "tw", "coastal", 7.5, 2, 4.4, { scene: "sea", water: -1 }],
   ["taipingshan", C("太平山", "太平山", "Taipingshan"), "tw", "switchback", 5.5, 9, 4],
   ["guguan", C("谷關", "谷関", "Guguan"), "tw", "tunnel", 6.5, 6, 4.2],
+  // 第十批（2026-10-27）：台灣山路追加
+  ["jinshui", C("金水公路", "金水公路（金瓜石）", "Jinshui Rd (Jinguashi)"), "tw", "switchback", 5.5, 9, 3.6, { scene: "sea", water: 1 }],
+  ["balaka", C("巴拉卡公路", "巴拉卡公路（陽明山）", "Balaka Hwy (Yangmingshan)"), "tw", "technical", 6, 7, 4.2],
+  ["yangde", C("仰德大道", "仰徳大道", "Yangde Blvd"), "tw", "technical", 7, 8, 3.4],
+  ["shiding", C("石碇 北 47", "石碇・北47", "Shiding Rd 47"), "tw", "narrow", 5, 7, 3.6],
+  ["wulai", C("烏來", "烏来", "Wulai"), "tw", "narrow", 5.5, 6, 3.8],
+  ["smangus", C("司馬庫斯", "スマングス", "Smangus"), "tw", "rally", 5, 9, 4.4],
+  ["nanzhuang", C("南庄 124 縣道", "南庄・124県道", "Nanzhuang Route 124"), "tw", "technical", 6, 6, 4],
+  ["shanlinxi", C("杉林溪", "杉林渓", "Shanlinxi"), "tw", "switchback", 5.5, 9, 4.2],
+  ["tataka", C("新中橫塔塔加", "新中横・塔塔加", "Tataka (New Central Cross-Island)"), "tw", "highland", 6.5, 8, 5.4],
+  ["siyuan", C("思源埡口", "思源埡口", "Siyuan Pass"), "tw", "hairpin", 6, 8, 4.6],
+  ["fenqihu", C("奮起湖", "奮起湖", "Fenqihu"), "tw", "hairpin", 5.5, 8, 4],
+  ["guanziling", C("關子嶺", "関子嶺", "Guanziling"), "tw", "technical", 6, 7, 3.6],
+  ["maolin", C("茂林", "茂林", "Maolin"), "tw", "hairpin", 5.5, 8, 3.8],
+  ["southlink", C("南迴公路", "南廻公路", "South Link Hwy"), "tw", "fast", 8, 5, 5.6],
+  ["mudan", C("牡丹 199 縣道", "牡丹・199県道", "Mudan Route 199"), "tw", "narrow", 5.5, 5, 4.6],
+  ["liushidan", C("六十石山", "六十石山", "Liushidan Mountain"), "tw", "hairpin", 5, 10, 3.4],
+  ["yuchang", C("玉長公路", "玉長公路", "Yuchang Hwy"), "tw", "tunnel", 7, 6, 4.4],
+  ["luye", C("鹿野高台", "鹿野高台", "Luye Highland"), "tw", "highland", 6.5, 6, 3.8],
+  ["northcoast", C("台2線北海岸", "台2線・北海岸", "North Coast Hwy 2"), "tw", "coastal", 8, 2, 5, { scene: "sea", water: -1 }],
+  ["bitou", C("鼻頭角", "鼻頭角", "Bitou Cape"), "tw", "cliff", 6.5, 3, 3.8, { scene: "sea", water: 1 }],
+  ["jiji", C("集集綠色隧道", "集集・緑のトンネル", "Jiji Green Tunnel"), "tw", "fast", 7, 2, 4.4],
+  ["penghu", C("澎湖跨海大橋", "澎湖跨海大橋", "Penghu Great Bridge"), "tw", "coastal", 8, 1, 4, { scene: "sea", water: 1 }],
+  ["greenisland", C("綠島環島", "緑島一周道路", "Green Island Loop"), "tw", "coastal", 6, 2, 4, { scene: "sea", water: -1 }],
   // ---- 世界名道 ----
   ["stelvio", C("斯泰爾維奧山口", "ステルヴィオ峠", "Stelvio Pass"), "world", "switchback", 6, 8, 5],
   ["transfagarasan", C("特蘭斯法加拉什", "トランスファガラシャン", "Transfăgărășan"), "world", "hairpin", 6.5, 7, 5.6],
@@ -114,6 +169,19 @@ var LIST = [
   ["jebelhafeet", C("哈菲特山", "ジェベル・ハフィート", "Jebel Hafeet"), "world", "fast", 9, 7, 5.2],
   ["corse", C("科西嘉山路", "コルシカ山岳路", "Corsica D81"), "world", "narrow", 5.5, 5, 5, { scene: "sea", water: 1 }],
   ["greatocean", C("大洋路", "グレート・オーシャン・ロード", "Great Ocean Road"), "world", "coastal", 7.5, 2, 5.8, { scene: "sea", water: -1 }],
+  // 第十批（2026-10-27）：世界名道追加
+  ["galibier", C("加利比耶山口", "ガリビエ峠", "Col du Galibier"), "world", "switchback", 6, 8, 5],
+  ["giau", C("吉奧山口", "ジャウ峠", "Passo Giau"), "world", "hairpin", 6, 9, 4.4],
+  ["sella", C("塞拉山口", "セッラ峠", "Passo Sella"), "world", "hairpin", 6.5, 8, 4],
+  ["iseran", C("伊塞朗山口", "イズラン峠", "Col de l'Iseran"), "world", "highland", 6.5, 7, 5.2],
+  ["napoleon", C("拿破崙之路", "ナポレオン街道", "Route Napoléon"), "world", "fast", 7.5, 5, 5.6],
+  ["bealach", C("牛之山口", "ベアラック・ナ・バ", "Bealach na Bà"), "world", "narrow", 4.5, 10, 4],
+  ["hardknott", C("哈德諾特山口", "ハードノット峠", "Hardknott Pass"), "world", "narrow", 4, 12, 2.8],
+  ["hana", C("哈納公路", "ハナ・ハイウェイ", "Hana Highway"), "world", "narrow", 5.5, 3, 5, { scene: "sea", water: -1 }],
+  ["hangyeryeong", C("寒溪嶺", "寒渓嶺", "Hangyeryeong Pass"), "world", "mixed", 7, 8, 4.6],
+  ["taimoshan", C("大帽山", "大帽山", "Tai Mo Shan"), "world", "hairpin", 5.5, 10, 3.4],
+  ["genting", C("雲頂高原", "ゲンティン・ハイランド", "Genting Highlands"), "world", "hairpin", 7, 8, 5],
+  ["crownrange", C("皇冠山脈公路", "クラウン・レンジ・ロード", "Crown Range Road"), "world", "switchback", 6.5, 9, 4.2],
   // ---- MF Ghost 風格（風格化，不是實際路線） ----
   ["nagaogt", C("箱根長尾 GT", "箱根長尾GT", "Hakone Nagao GT"), "mfg", "mixed", 8, 8, 5],
   ["amagigt", C("伊豆天城 GT", "伊豆天城GT", "Izu Amagi GT"), "mfg", "hairpin", 7.5, 7, 5.2],
@@ -121,6 +189,9 @@ var LIST = [
   ["atamitoge", C("熱海峠 GT", "熱海峠GT", "Atami Pass GT"), "mfg", "technical", 7.5, 8, 4.8],
   ["yugawara", C("湯河原 GT", "湯河原GT", "Yugawara GT"), "mfg", "coastal", 8, 5, 5.2, { scene: "sea", water: -1 }],
   ["izunokuni", C("伊豆之國湖岸 GT", "伊豆の国レイクサイドGT", "Izunokuni Lakeside GT"), "mfg", "highland", 8.5, 5, 5.6, { scene: "lake", water: 1 }],
+  ["odawaragt", C("小田原派克峰 GT", "小田原パイクスピークGT", "Odawara Pikes Peak GT"), "mfg", "fast", 9, 9, 5.6],
+  ["ashinokogt", C("蘆之湖 GT", "芦ノ湖GT", "Ashinoko GT"), "mfg", "mixed", 8, 6, 5.4, { scene: "lake", water: -1 }],
+  ["izuslgt", C("伊豆天際線 GT", "伊豆スカイラインGT", "Izu Skyline GT"), "mfg", "fast", 8.5, 6, 6],
   // ---- 原創 ----
   ["kirimine", C("霧峰", "霧峰", "Kirimine"), "orig", "mixed", 6.5, 8, 4.4],
   ["kitsunebi", C("狐火峠", "狐火峠", "Kitsunebi Pass"), "orig", "hairpin", 6, 9, 3.8],
@@ -158,7 +229,20 @@ var LIST = [
   ["xinjuejiang", C("高雄 新堀江", "高雄・新堀江", "Kaohsiung Shinkuchan"), "city", "city_grid", 7, 1, 3, { region: "twcity" }],
   ["haian", C("台南 海安路", "台南・海安路", "Tainan Haian Rd"), "city", "city_grid", 7.5, 1, 3.2, { region: "twcity" }],
   ["miaokou", C("基隆 廟口", "基隆・廟口", "Keelung Miaokou"), "city", "city_grid", 6.5, 3, 3, { region: "twcity", scene: "sea", water: 1 }],
-  ["tamsui", C("淡水 河岸", "淡水・河岸", "Tamsui Riverside"), "city", "city_river", 7, 2, 3.6, { region: "twcity", scene: "sea", water: -1 }]
+  ["tamsui", C("淡水 河岸", "淡水・河岸", "Tamsui Riverside"), "city", "city_river", 7, 2, 3.6, { region: "twcity", scene: "sea", water: -1 }],
+  // 第十批（2026-10-27）：城市追加
+  ["roppongi", C("東京 六本木", "東京・六本木", "Tokyo Roppongi"), "city", "city_grid", 8, 3, 3.4, { region: "jpcity", lm: "tokyo" }],
+  ["daikoku", C("首都高 橫羽線 大黑", "首都高 横羽線・大黒", "Shuto Yokohane Line (Daikoku)"), "city", "city_express", 8, 2, 5, { region: "jpcity", scene: "sea", water: 1 }],
+  ["kobe", C("神戶 三宮", "神戸・三宮", "Kobe Sannomiya"), "city", "city_grid", 8, 3, 3.4, { region: "jpcity", scene: "sea", water: -1 }],
+  ["sendai", C("仙台 定禪寺通", "仙台・定禅寺通", "Sendai Jozenji-dori"), "city", "city_avenue", 10, 1, 3.6, { region: "jpcity" }],
+  ["hiroshima", C("廣島 平和大通", "広島・平和大通り", "Hiroshima Peace Blvd"), "city", "city_river", 10, 1, 3.8, { region: "jpcity", scene: "lake", water: 1 }],
+  ["kokusai", C("那霸 國際通", "那覇・国際通り", "Naha Kokusai-dori"), "city", "city_grid", 7, 2, 3, { region: "jpcity" }],
+  ["xinsheng", C("台北 新生高架", "台北・新生高架", "Taipei Xinsheng Viaduct"), "city", "city_express", 8, 2, 4.2, { region: "twcity", lm: "taipei" }],
+  ["dadaocheng", C("台北 大稻埕河岸", "台北・大稲埕河岸", "Taipei Dadaocheng Riverside"), "city", "city_river", 8, 1, 3.6, { region: "twcity", lm: "taipei", scene: "lake", water: -1 }],
+  ["qiqi", C("台中 七期市政路", "台中・七期 市政路", "Taichung Shizheng Rd"), "city", "city_avenue", 10, 1, 3.6, { region: "twcity" }],
+  ["hsinchu", C("新竹 光復路", "新竹・光復路", "Hsinchu Guangfu Rd"), "city", "city_avenue", 9, 2, 3.8, { region: "twcity" }],
+  ["anping", C("台南 安平", "台南・安平", "Tainan Anping"), "city", "city_river", 8, 1, 3.4, { region: "twcity", scene: "sea", water: 1 }],
+  ["asianbay", C("高雄 亞洲新灣區", "高雄・亜洲新湾区", "Kaohsiung Asia New Bay"), "city", "city_river", 9, 1, 4, { region: "twcity", scene: "sea", water: -1 }]
 ];
 
 function hash(str) { var h = 2166136261; for (var i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 16777619); } return h | 0; }
@@ -247,7 +331,7 @@ var lines = out.map(function (o) {
     (o.region ? ", region: " + JSON.stringify(o.region) : "") + (o.lm ? ", lm: " + JSON.stringify(o.lm) : "") + ",\n      segs: " + JSON.stringify(o.segs) + " }";
   return head;
 });
-var src = "// DÉJÀ VU 山道下坡（dejavu）：擴充固定山路（2026-10-26 第六批 10 → 102 條；2026-10-27 第九批加城市道路，共 " + (10 + out.length) + " 條）。在 dejavu_data.js 之後、dejavu_core.js 之前載入。\n" +
+var src = "// DÉJÀ VU 山道下坡（dejavu）：擴充固定山路（2026-10-26 第六批 10 → 102 條；2026-10-27 第九批加城市道路、第十批加日本／台灣為主的路線，共 " + (10 + out.length) + " 條）。在 dejavu_data.js 之後、dejavu_core.js 之前載入。\n" +
   "// 由 tools/dejavu_check/gen_courses.js 產生：依路線性格（prof）用零件接出來的風格化路線，只有名稱是真實地名，形狀不是實際測量。\n" +
   "// 可以直接手改 segs（格式同 dejavu_data.js 的 COURSES）；重新執行產生工具會覆蓋這個檔案。\n" +
   "(function () {\n  \"use strict\";\n\n  var root = typeof window !== \"undefined\" ? window : globalThis;\n  var D = root.PriTestDejavuData;\n  if (!D) return;\n" +

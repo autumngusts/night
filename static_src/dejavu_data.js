@@ -106,7 +106,8 @@
     base: { id: "custom", brand: "custom", name: "Custom", drive: "FR", kw: 160, kg: 1200, grip: 1.0, brk: 1.0, hdl: 1.0, cda: 0.64, cla: 0.05, vmax: 250 },
     // 第六批放寬範圍，並開放空阻／下壓力（舊存檔沒有 cda／cla 時用 base，結果不變）
     range: {
-      kw: [40, 1500, 5], kg: [450, 3200, 10], grip: [0.85, 1.2, 0.01], brk: [0.85, 1.2, 0.01], hdl: [0.8, 1.25, 0.01], vmax: [140, 450, 5],
+      // 第十一批：下限放寬給自訂機車（kw 5、kg 80、極速 60）；汽車的車重仍由 cleanSpec 擋在 450 kg 以上
+      kw: [5, 1500, 1], kg: [80, 3200, 5], grip: [0.85, 1.2, 0.01], brk: [0.85, 1.2, 0.01], hdl: [0.8, 1.25, 0.01], vmax: [60, 450, 5],
       cda: [0.45, 0.9, 0.01], cla: [0, 0.7, 0.01]
     }
   };
@@ -120,8 +121,13 @@
     FR: { share: 0.55, bal: 1.0, tol: 1.1, low: 1.0 },
     MR: { share: 0.6, bal: 1.03, tol: 1.06, low: 1.0 },
     RR: { share: 0.64, bal: 0.99, tol: 1.07, low: 1.0 },
-    "4WD": { share: 1.0, bal: 1.0, tol: 1.08, low: 1.08 }
+    "4WD": { share: 1.0, bal: 1.0, tol: 1.08, low: 1.08 },
+    // 機車（第十一批）：加速時重量轉移到後輪（share 高，但上限是翹孤輪）、甩出去就是摔車（tol 低）、
+    // 濕滑路面兩個輪子特別吃虧（low < 1）。不在 DRIVES 裡，所以汽車不能改裝成機車
+    MC: { share: 0.85, bal: 1.0, tol: 1.04, low: 0.86 }
   };
+  // 機車騎士的體重（加在車重上；機車的 kg 是車重）
+  var RIDER_KG = 75;
 
   // 輪胎×季節的抓地倍率
   var TIRES = {
@@ -337,7 +343,7 @@
   var MAX_CARS = 12;
 
   root.PriTestDejavuData = {
-    C: C, BRANDS: BRANDS, CARS: CARS, CUSTOM: CUSTOM, DRIVES: DRIVES, DRIVE_INFO: DRIVE_INFO,
+    C: C, BRANDS: BRANDS, CARS: CARS, CUSTOM: CUSTOM, DRIVES: DRIVES, DRIVE_INFO: DRIVE_INFO, RIDER_KG: RIDER_KG,
     TIRES: TIRES, TIRE_IDS: TIRE_IDS, SEASONS: SEASONS, SEASON_IDS: SEASON_IDS, STYLES: STYLES, STYLE_IDS: STYLE_IDS,
     UPGRADE_POINTS: UPGRADE_POINTS, UPGRADE_PTS_OPTIONS: UPGRADE_PTS_OPTIONS, UPGRADE_MAX: UPGRADE_MAX, UPGRADES: UPGRADES, TUNES: TUNES, CHARGE_SEC: CHARGE_SEC,
 
