@@ -46,12 +46,26 @@ function activeAssign(st) {
   });
 }
 
+// 每月先升級設施：宿舍優先（資金 ≥ 費用 × 1.5 + 5 萬），其他設施在資金 ≥ 費用 × 3 時升級
+function buyFacilities(st) {
+  var cost;
+  while ((cost = Core.facilityCost(st, "dorm")) !== null && st.facilities.dorm < Core.facilityCap(st, "dorm") &&
+    st.company.money >= cost * 1.5 + 50000) Core.upgradeFacility(st, "dorm");
+  D.FACILITY_ORDER.forEach(function (f) {
+    if (f === "dorm") return;
+    while ((cost = Core.facilityCost(st, f)) !== null && st.facilities[f] < Core.facilityCap(st, f) && st.company.money >= cost * 3) {
+      if (Core.upgradeFacility(st, f)) break;
+    }
+  });
+}
+
 function runScenario(name, seed) {
   var st = Core.create({ seed: seed });
   Core.pull(st, "ticket", 10);
   var rows = [];
   for (var day = 1; day <= YEARS * 360; day++) {
     if (name !== "idle" && day % 30 === 1) {
+      buyFacilities(st);
       while (st.company.money > 150000 && st.artists.length < Core.capacity(st)) {
         if (Core.pull(st, "money", 1).err) break;
       }
@@ -66,7 +80,7 @@ function runScenario(name, seed) {
         var avg = 0;
         st.artists.forEach(function (a) { D.STATS.forEach(function (s) { avg += a.stats[s]; }); });
         avg = st.artists.length ? Math.round(avg / st.artists.length / 6) : 0;
-        rows.push({ year: day / 360, money: Math.round(st.company.money), level: st.company.level, artists: st.artists.length, avgStat: avg, jobs: st.stats.jobsDone });
+        rows.push({ year: day / 360, dorm: st.facilities.dorm, money: Math.round(st.company.money), level: st.company.level, artists: st.artists.length, avgStat: avg, jobs: st.stats.jobsDone });
       }
     }
   }
@@ -80,6 +94,8 @@ var auto = runScenario("auto", 202);
 var active = runScenario("active", 303);
 
 // 平衡期望（只警告）：放置不該升級太快；積極經營第 1 年不該升滿，30 年內應該達到 Lv5 以上
+if (YEARS >= 30 && active.st.company.money > 20000000) warn("積極經營 30 年資金 " + active.st.company.money + "（後期資金過剩，預期 ≤ 2,000 萬）");
+if (auto.rows.length > 2 && auto.rows[2].dorm < 5) warn("自動方針 10 年宿舍只到 Lv" + auto.rows[2].dorm + "（預期 ≥ 5）");
 if (idle.st.company.level > 3) warn("無操作放置的公司等級 " + idle.st.company.level + "（預期 ≤ 3）");
 if (active.rows[0].level >= 10) warn("積極經營第 1 年就升滿 Lv10");
 if (YEARS >= 30 && active.st.company.level < 5) warn("積極經營 30 年只到 Lv" + active.st.company.level + "（預期 ≥ 5）");

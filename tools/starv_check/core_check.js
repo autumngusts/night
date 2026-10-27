@@ -591,7 +591,7 @@ test("頭像：所有組合都能畫、可重現、反映外觀", function () {
 
 test("設施：費用、等級上限、升級", function () {
   var st = Core.create({ seed: 1 });
-  eq(Core.facilityCost(st, "dorm"), 30000, "宿舍 Lv1→2"); eq(Core.facilityCost(st, "practice"), 40000, "練習室 Lv0→1");
+  eq(Core.facilityCost(st, "dorm"), 30000, "宿舍 Lv1→2"); eq(Core.facilityCost(st, "practice"), 80000, "練習室 Lv0→1（依 sim 平衡調整（計畫 3）：宿舍以外的設施費用 ×2）");
   eq(Core.facilityCap(st, "dorm"), 10); eq(Core.facilityCap(st, "practice"), 1, "公司 Lv1 只能到 Lv1");
   eq(Core.upgradeFacility(st, "nope"), "noFacility");
   st.company.money = 10000; eq(Core.upgradeFacility(st, "dorm"), "money");
