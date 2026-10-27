@@ -1435,10 +1435,14 @@ Expected: `FAIL 事件：觸發 → 鈴鐺 → 選擇 → 結果：…`
         return el("button", {
           type: "button", class: "sv-ev-choice", "data-act": "event-choice-" + i, "data-default": i === ev.defaultChoice ? "1" : null,
           onclick: function () {
-            var r = App.act(function (s) { return Core.resolveEvent(s, uid, i); });
-            if (r.err) { UI.toast(t("sv_err_" + r.err), "bad"); close(); return; }
-            result = { id: ev.id, ctx: e.ctx, choice: i, fx: r.fx, bad: r.bad };
-            UI.refreshModal();
+            // result 要在 App.act 的函式裡設定：act 執行完會立刻重畫 live 彈窗，
+            // 那時事件已經從 pending 移除，若 result 還沒設定，彈窗會被當成「事件不見了」而關掉
+            var r = App.act(function (s) {
+              var x = Core.resolveEvent(s, uid, i);
+              if (!x.err) result = { id: ev.id, ctx: e.ctx, choice: i, fx: x.fx, bad: x.bad };
+              return x;
+            });
+            if (r.err) { UI.toast(t("sv_err_" + r.err), "bad"); close(); }
           }
         }, [el("b", { text: UI.L(c.label) }), el("span", { class: "sv-small sv-muted", text: UI.L(c.hint) })]);
       })));

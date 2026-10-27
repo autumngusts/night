@@ -430,3 +430,36 @@
 .sv-log-job_done, .sv-log-level_up, .sv-log-join { color: var(--sv-gold); }
 .sv-log-strike, .sv-log-forced_rest, .sv-log-lost, .sv-log-waitlist_expired { color: #ffb3c0; }
 .sv-report-list { margin: 0 0 0.6rem; padding-left: 1.2rem; line-height: 1.8; }
+
+/* ---- 重大事件 ---- */
+.sv-bell { cursor: pointer; font: inherit; color: var(--sv-text); border-color: var(--sv-pink); background: rgba(255, 95, 168, 0.2); animation: sv-bell 1.6s ease-in-out infinite; }
+@keyframes sv-bell { 50% { box-shadow: 0 0 14px rgba(255, 95, 168, 0.7); } }
+.sv-event { border-color: rgba(255, 95, 168, 0.5); }
+.sv-ev-meta { display: flex; align-items: center; gap: 0.5rem; }
+.sv-ev-text { line-height: 1.75; font-size: 1.02em; }
+.sv-ev-choices { display: grid; gap: 0.5rem; margin-top: 0.6rem; }
+.sv-ev-choice {
+  font: inherit;
+  color: var(--sv-text);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.15rem;
+  padding: 0.65rem 0.9rem;
+  text-align: left;
+  border-radius: 12px;
+  background: var(--sv-glass-strong);
+  border: 1px solid var(--sv-line);
+  cursor: pointer;
+}
+.sv-ev-choice:hover { border-color: var(--sv-gold); box-shadow: 0 0 14px rgba(255, 214, 107, 0.25); }
+.sv-ev-result { margin-top: 0.6rem; padding: 0.7rem 0.9rem; border-radius: 12px; background: rgba(105, 240, 174, 0.1); border: 1px solid rgba(105, 240, 174, 0.45); }
+.sv-ev-result.sv-ev-bad { background: rgba(255, 107, 129, 0.1); border-color: rgba(255, 107, 129, 0.5); }
+.sv-ev-result h3 { margin: 0 0 0.2rem; }
+.sv-ev-result ul { margin: 0.4rem 0 0; padding-left: 1.2rem; line-height: 1.7; }
+.sv-evcat-scandal { border-color: var(--sv-bad); }
+.sv-evcat-chance { border-color: var(--sv-gold); }
+.sv-evcat-poach { border-color: var(--sv-purple); }
+.sv-evcat-net { border-color: var(--sv-cyan); }
+.sv-evcat-health { border-color: var(--sv-good); }
+.sv-evcat-special { border-color: var(--sv-pink); }

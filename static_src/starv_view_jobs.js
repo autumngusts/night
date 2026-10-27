@@ -37,11 +37,12 @@
   }
 
   function openCasting(App, jobId) {
-    var sel = [];
+    var sel = [], signed = false;
     UI.openModal(function (box, close) {
       var st = App.st(), job = null;
       st.board.forEach(function (j) { if (j.id === jobId) job = j; });
-      if (!job) { close(); UI.toast(t("sv_err_noJob"), "bad"); return; }
+      // 簽約成功後 App.act 會立刻重畫這個 live 彈窗，那時工作已經離開看板：只有「不是自己簽走的」才提示錯誤
+      if (!job) { close(); if (!signed) UI.toast(t("sv_err_noJob"), "bad"); return; }
       sel = sel.filter(function (id) { var a = Core.artistById(st, id); return a && !Core.eligible(st, a, job); });
       box.appendChild(UI.modalHead(t("sv_cast_title"), close));
       box.appendChild(jobCard(st, job, null));
@@ -79,7 +80,7 @@
         team ? el("span", { class: "sv-est sv-est-" + team.label, text: t("sv_cast_team", { label: t("sv_est_" + team.label) }) }) : null,
         UI.btn(t("sv_cast_sign"), function () {
           var name = title(job);
-          var err = App.act(function (s) { return Core.takeJob(s, job.id, sel); });
+          var err = App.act(function (s) { var x = Core.takeJob(s, job.id, sel); signed = !x; return x; });
           if (err) { UI.toast(t("sv_err_" + err), "bad"); return; }
           close();
           UI.toast(t("sv_toast_signed", { title: name }), "stamp");

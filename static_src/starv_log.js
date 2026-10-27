@@ -37,8 +37,13 @@
       D.MINOR_EVENTS.forEach(function (x) { if (x.id === d.ev) ev = x; });
       p.ev = ev ? UI.L(ev.text) : String(d.ev);
     } else if (e.type === "level_up") p.lv = d.lv;
-    else if (e.type === "month_end") { p.salary = UI.money(d.salary); p.upkeep = UI.money(d.upkeep); p.div = UI.money(d.dividends); }
+    else if (e.type === "month_end") { p.salary = UI.money(d.salary); p.upkeep = UI.money(d.upkeep); p.div = UI.money(d.dividends); p.loan = UI.money(d.loan || 0); }
     else if (e.type === "birthday_year") p.year = d.year;
+    else if (e.type === "event_new" || e.type === "event_resolved" || e.type === "event_auto") {
+      var ev2 = D.EVENT_BY_ID && D.EVENT_BY_ID[d.ev];
+      p.title = ev2 ? UI.L(ev2.title) : String(d.ev);
+      p.choice = ev2 && d.choice != null ? UI.L(ev2.choices[d.choice].label) : "";
+    }
     return t("sv_log_" + e.type, p);
   }
 

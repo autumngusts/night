@@ -128,6 +128,7 @@
   var views = [];
   var extras = [];
   var reportHandler = null;
+  var topItems = [];
   function register(v) { views.push(v); views.sort(function (x, y) { return x.order - y.order; }); }
 
   window.PriTestStarvUI = {
@@ -138,6 +139,9 @@
     register: register, views: function () { return views.slice(); },
     addExtra: function (fn) { extras.push(fn); }, extras: function () { return extras.slice(); },
     setReportHandler: function (fn) { reportHandler = fn; },
-    showReport: function (App, rep) { if (reportHandler) reportHandler(App, rep); }
+    showReport: function (App, rep) { if (reportHandler) reportHandler(App, rep); },
+    modalIsOpen: function () { return !!open; },
+    addTopItem: function (fn) { topItems.push(fn); },
+    topItems: function () { return topItems.slice(); }
   };
 })();

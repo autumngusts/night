@@ -36,6 +36,21 @@ async function shot(page, name) {
   await page.screenshot({ path: path.join(SHOT_DIR, name + ".png"), fullPage: true });
 }
 
+// 處理掉畫面上所有待處理的事件（一律選預設選項），避免事件卡擋住後面的步驟
+async function clearEvents(page) {
+  for (var i = 0; i < 6; i++) {
+    var pending = await page.evaluate(function () { var s = window.PriTestStarv.state(); return s && s.events ? s.events.pending.length : 0; });
+    if (!pending) return;
+    if (!(await page.$(".sv-event"))) await act(page, "event-bell");
+    await page.dispatchEvent(".sv-event [data-default]", "click");
+    await act(page, "event-result-close");
+  }
+}
+// 隨機事件會讓流程不穩定：測試時關掉每日隨機事件（條件事件照常），重新整理後要再設一次
+async function quietEvents(page) {
+  await page.evaluate(function () { if (window.PriTestStarvData) window.PriTestStarvData.BAL.eventDailyChance = 0; });
+}
+
 var steps = [];
 function step(name, fn) { steps.push([name, fn]); }
 
@@ -115,6 +130,8 @@ step("工作：選角 → 簽約", async function (page) {
   await noRawKeys(page, "選角");
   await page.dispatchEvent(".sv-cast-row:not(.sv-dis)", "click");
   await act(page, "cast-sign");
+  // 簽約成功後不該跳出「工作已經不在看板上」的錯誤提示（2026-10-27 修正 live 彈窗重畫順序）
+  assert.ok(!(await page.$(".sv-toast-bad")), "簽約後出現錯誤提示");
   var s = await st(page);
   assert.ok(s.activeJobs.some(function (aj) { return aj.job.id === jobId; }), "工作進行中");
 });
@@ -169,6 +186,7 @@ step("重新整理後從存檔繼續", async function (page) {
   var before = await st(page);
   await page.reload();
   await page.waitForSelector(".sv-top");
+  await quietEvents(page);
   var s = await st(page);
   assert.strictEqual(s.company.name, before.company.name);
   assert.ok(s.day >= before.day, "日期不會倒退");
@@ -197,6 +215,26 @@ step("三種語言：各分頁沒有漏翻、手機寬度沒有水平捲動", as
   await act(page, "modal-close");
 });
 
+step("事件：觸發 → 鈴鐺 → 選擇 → 結果", async function (page) {
+  await page.evaluate(function () {
+    var App = window.PriTestStarv.app;
+    App.act(function (s) { window.PriTestStarvCore.triggerEvent(s, "charity", s.artists[0].id); });
+  });
+  await page.waitForSelector(".sv-event");
+  await noRawKeys(page, "事件卡");
+  await act(page, "modal-close");
+  await act(page, "event-bell");
+  await page.waitForSelector(".sv-event");
+  var rep0 = (await st(page)).company.rep;
+  await act(page, "event-choice-0");
+  await page.waitForSelector('[data-act="event-result-close"]');
+  await noRawKeys(page, "事件結果");
+  await act(page, "event-result-close");
+  var s = await st(page);
+  assert.strictEqual(s.events.pending.length, 0);
+  assert.ok(s.company.rep >= rep0 + 40, "聲望 +40");
+});
+
 // ==== 之後的 task 在這行之前追加步驟 ====
 
 (async function main() {
@@ -208,9 +246,10 @@ step("三種語言：各分頁沒有漏翻、手機寬度沒有水平捲動", as
   await page.goto(BASE);
   await page.evaluate(function () { localStorage.clear(); });
   await page.reload();
+  await quietEvents(page);
   var fails = 0;
   for (var i = 0; i < steps.length; i++) {
-    try { await steps[i][1](page); console.log("ok   " + steps[i][0]); }
+    try { await clearEvents(page); await steps[i][1](page); console.log("ok   " + steps[i][0]); }
     catch (e) { fails++; console.log("FAIL " + steps[i][0] + "：" + e.message); await shot(page, "fail").catch(function () {}); break; }
   }
   if (errors.length) { fails++; console.log("FAIL 頁面錯誤：" + errors.join(" | ")); }

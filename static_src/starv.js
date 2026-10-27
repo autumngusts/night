@@ -54,7 +54,7 @@
       el("div", { class: "sv-top-res" }, [
         el("span", { class: "sv-chip sv-chip-money" + (c.money < 0 ? " sv-neg" : ""), text: UI.money(c.money) }),
         el("span", { class: "sv-chip sv-chip-ticket", text: t("sv_tickets", { n: c.tickets }) })
-      ]),
+      ].concat(UI.topItems().map(function (fn) { return fn(App); }))),
       el("div", { class: "sv-top-date" }, [
         el("span", { class: "sv-date", text: UI.dateText(st.day) }),
         el("span", { class: "sv-day" }, [el("span", { class: "sv-day-fill", style: "width:" + (Core.dayProgress(st, now()) * 100) + "%" })]),
