@@ -2,8 +2,9 @@
 
 放置型の芸能事務所経営ゲーム。規格：docs/superpowers/specs/2026-10-27-starv-design.md
 ゲームロジックはすべてブラウザ側：static/starv_data.js（資料）→ starv_roster*.js（SR/SSR 名錄）→
-starv_core.js（規則引擎）→ starv_store.js（存檔）→ starv_avatar.js（頭像）→ starv_ui.js（共用 UI）→
+starv_core.js（規則引擎）→ starv_store.js（存檔）→ starv_cloud.js（雲端存檔）→ starv_avatar.js（頭像）→ starv_ui.js（共用 UI）→
 starv_view_*.js（各分頁）→ starv_log.js（日誌・離線報告）→ starv.js（主程式）。
+雲端存檔用共用的 firebase_config.js／game_storage.js／qrcode.js，只有啟用時才載入 Firebase SDK。
 """
 
 from __future__ import annotations
@@ -11,6 +12,9 @@ from __future__ import annotations
 from site_src.layout import asset_url, page_shell
 
 STARV_SCRIPTS: tuple[str, ...] = (
+    "firebase_config.js",
+    "game_storage.js",
+    "qrcode.js",
     "starv_data.js",
     "starv_events.js",
     "starv_events_1.js",
@@ -28,6 +32,7 @@ STARV_SCRIPTS: tuple[str, ...] = (
     "starv_roster_rivals_1.js",
     "starv_core.js",
     "starv_store.js",
+    "starv_cloud.js",
     "starv_avatar.js",
     "starv_stage_spec.js",
     "starv_ui.js",
@@ -43,6 +48,7 @@ STARV_SCRIPTS: tuple[str, ...] = (
     "starv_career_ui.js",
     "starv_stage3d.js",
     "starv_stage_ui.js",
+    "starv_cloud_ui.js",
     "starv_log.js",
     "starv.js",
 )

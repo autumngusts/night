@@ -434,6 +434,20 @@ step("3D：A 級工作完成自動播放、作品重看", async function (page) 
   await noRawKeys(page, "畫質設定");
 });
 
+step("雲端：未啟用時不載入 Firebase、雲端卡可用、ID 不合法時提示", async function (page) {
+  assert.strictEqual(await page.evaluate(function () {
+    return !!document.querySelector('script[src*="firebasejs"]');
+  }), false, "未啟用雲端時不載入 Firebase SDK");
+  await tab(page, "company");
+  await page.waitForSelector(".sv-cloud [data-act=\"cloud-enable\"]");
+  await page.fill('[data-act="cloud-id-input"]', "not-an-id");
+  await page.dispatchEvent('[data-act="cloud-id-input"]', "input");
+  await act(page, "cloud-connect");
+  await page.waitForSelector(".sv-toast-bad");
+  assert.strictEqual(await page.evaluate(function () { return window.PriTestStarv.app.readOnly(); }), false);
+  await noRawKeys(page, "雲端卡");
+});
+
 // ==== 之後的 task 在這行之前追加步驟 ====
 
 (async function main() {

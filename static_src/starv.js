@@ -1,6 +1,7 @@
 // 明星經紀 starV：主程式（啟動、主迴圈、頂部列、分頁列、存檔時機）。
 // 規則在 starv_core.js；各分頁畫面在 starv_view_*.js（PriTestStarvUI.register 登記）；日誌與離線報告在 starv_log.js。
 // 存檔：狀態變動後最多每 5 秒存一次，切到背景或離開頁面時立即存（starv_store.js）。
+// 雲端存檔（starv_cloud_ui.js）：App.adopt 換成雲端的 state；別台進行中時 App.setReadOnly(true) 暫停計時與操作。
 // 時間：每秒 Core.catchUp(now)；補算 ≥ 3 天（離線或背景分頁暫停計時後回來）時顯示離線報告。
 // ?debug=1：公司分頁出現開發用工具，可以把虛擬時鐘加速 ×10／×60。
 (function () {
@@ -25,19 +26,24 @@
   var lastSave = 0;
   var dirty = false;
   var prefs = loadPrefs();
+  var readOnly = false;      // 雲端存檔：別台裝置進行中時唯讀（starv_cloud_ui.js）
+  var changeHooks = [];
+  function changed() { changeHooks.forEach(function (fn) { fn(); }); }
 
   function loadPrefs() { try { return JSON.parse(localStorage.getItem(PREFS_KEY) || "{}") || {}; } catch (e) { return {}; } }
   function savePrefs() { try { localStorage.setItem(PREFS_KEY, JSON.stringify(prefs)); } catch (e) { /* 只是記不住 */ } }
 
   function now() { return Date.now() + clockOffset; }
-  function saveNow() { if (!st) return; Store.save(st); lastSave = Date.now(); dirty = false; }
+  function saveNow() { if (!st || readOnly) return; Store.save(st); lastSave = Date.now(); dirty = false; }
 
   // 所有狀態變動都走這裡：執行 → 標記待存 → 重畫畫面與 live 彈窗
   function act(fn) {
+    if (readOnly) { UI.toast(t("sv_cloud_readonly"), "bad"); return null; }
     var r = fn(st);
     dirty = true;
     render();
     UI.refreshModal();
+    changed();
     return r;
   }
 
@@ -98,6 +104,7 @@
   }
 
   function tick() {
+    if (readOnly) return;
     if (speed > 1) clockOffset += (speed - 1) * 1000;
     var rep = Core.catchUp(st, now());
     if (rep) {
@@ -105,6 +112,7 @@
       handleReport(rep);
       render();
       UI.refreshModal();
+      changed();
     } else updateTicker();
     if (dirty && Date.now() - lastSave > SAVE_EVERY_MS) saveNow();
   }
@@ -144,7 +152,13 @@
     speed: function () { return speed; },
     setSpeed: function (n) { speed = n; render(); },
     // 匯入的存檔從現在開始計時（不補算它在別台裝置上的離線時間）
-    replaceState: function (next) { st = next; st.lastTickAt = now(); saveNow(); render(); },
+    replaceState: function (next) { st = next; st.lastTickAt = now(); saveNow(); render(); changed(); },
+    // 雲端接回：lastTickAt 已由 starv_cloud.js 換成本機時間，照常補算（跨裝置的離線時間也算）
+    adopt: function (next) { st = next; if (!prefs.tab) { prefs.tab = "artists"; savePrefs(); } start(); },
+    // 解除唯讀時標記待存：接手後的 state（可能剛採用雲端存檔）要寫回本機
+    setReadOnly: function (b) { readOnly = !!b; if (!readOnly) dirty = true; },
+    readOnly: function () { return readOnly; },
+    onChange: function (fn) { changeHooks.push(fn); },
     reset: function () { Store.clear(); location.reload(); },
     skip: function (days) { act(function (s) { Core.advance(s, days); }); }
   };
@@ -156,6 +170,7 @@
     if (st) { render(); UI.refreshModal(); } else renderWelcome();
   });
 
+  if (window.PriTestStarvCloudUI) window.PriTestStarvCloudUI.boot(App);
   st = Store.load();
   if (st) start(); else renderWelcome();
 })();

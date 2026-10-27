@@ -1,4 +1,4 @@
-// 明星經紀 starV：「公司」分頁（概況、安全線、存檔匯出入、重新開始、?debug=1 的開發工具；規格 §8、§17）。
+// 明星經紀 starV：「公司」分頁（概況、安全線、存檔匯出入、雲端存檔（starv_cloud_ui.js）、重新開始、?debug=1 的開發工具；規格 §8、§17）。
 // 設施升級、導師、名人堂、圖鑑、成就、新紀元在計畫 3、5 加進這個分頁。
 (function () {
   "use strict";
@@ -120,6 +120,8 @@
       c.appendChild(infoCard(st, App));
       c.appendChild(facilitiesCard(st, App));
       c.appendChild(stageCard());
+      var cloud = window.PriTestStarvCloudUI && window.PriTestStarvCloudUI.card(App);
+      if (cloud) c.appendChild(cloud);
       c.appendChild(saveCard(st, App));
       if (App.debug) c.appendChild(debugCard(st, App));
     }
