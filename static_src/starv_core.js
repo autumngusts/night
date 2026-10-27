@@ -8,7 +8,7 @@
   var D = root.PriTestStarvData;
   var Roster = root.PriTestStarvRoster;
   var BAL = D.BAL;
-  var VERSION = 4;
+  var VERSION = 5;
   var api = {};
 
   // ==== 亂數與工具 ====
@@ -57,10 +57,10 @@
       artists: [], waitlist: [], board: [], boardRefreshDay: 0, activeJobs: [], dividends: [], groups: [],
       gacha: { pity: 0, pullDay: -1, pullCount: 0, pickup: { SR: null, SSR: null }, debutShown: {} },
       codex: { owned: {}, recruitedR: 0, stories: {} },
-      stats: { pulls: 0, jobsDone: 0, greatS: 0, chartTops: 0, trophies: 0 },
+      stats: { pulls: 0, jobsDone: 0, greatS: 0, chartTops: 0, trophies: 0, projects: 0, projectsGreat: 0 },
       trend: null, events: { pending: [] }, loans: [],
       rivals: [], auditions: [], charts: null, awards: { history: [], unseen: null },
-      hall: [], retireQueue: [], timeline: [], staff: [], achievements: {}, legacy: { points: 0, perks: {} },
+      hall: [], retireQueue: [], timeline: [], staff: [], achievements: {}, legacy: { points: 0, perks: {} }, project: null, projectQueue: [],
       log: [], logSeq: 0, nextId: 1
     };
   }
@@ -96,6 +96,7 @@
     if (!st.rivals.length) initRivals(st);   // version 2 → 3：補上對手公司
     // 事件資料被移除或改名時，存檔裡待處理的舊事件直接丟掉（不讓存檔壞掉）
     st.events.pending = st.events.pending.filter(function (e) { return !!(D.EVENT_BY_ID && D.EVENT_BY_ID[e.id]); });
+    if (!st.projectQueue) st.projectQueue = [];
     if (!st.legacy) st.legacy = { points: 0, perks: {} };
     st.version = VERSION;
     return st;
@@ -492,7 +493,7 @@
       }
       t.left--;
       // 工作由 activeJobs 統一結算（Task 7），這裡只處理體力與壓力
-      if (t.kind !== "job" && t.kind !== "audition" && t.left <= 0) { a.task = null; finishTask(st, a, t); postTask(st, a); }
+      if (t.kind !== "job" && t.kind !== "audition" && t.kind !== "project" && t.left <= 0) { a.task = null; finishTask(st, a, t); postTask(st, a); }
     });
   }
 
@@ -501,6 +502,7 @@
     tickArtists(st);
     tickJobs(st);
     tickAuditions(st);
+    tickProject(st);
     seasonTick(st);
     snatchJobs(st);
     tickBoard(st);
@@ -578,6 +580,7 @@
 
   function jobTitle(job, lang) {
     lang = lang === "zh" ? "zh" : "ja";
+    if (job.project) { var pj = D.PROJECT_BY_ID && D.PROJECT_BY_ID[job.project]; return pj ? pj.name[lang] : String(job.project); }
     var t = dirById(job.dir).title;
     return t.fmt[lang].replace("{a}", t.a[job.title[0]][lang]).replace("{b}", t.b[job.title[1]][lang]);
   }
@@ -1118,6 +1121,10 @@
         log(st, "left", leftInfo(top));
       }
     }
+    if (st.project && (fx.projectMod || fx.projectDays)) {
+      if (fx.projectMod) { st.project.mod += fx.projectMod; out.projectMod = fx.projectMod; }
+      if (fx.projectDays) { st.project.extraDays += fx.projectDays; out.projectDays = fx.projectDays; }
+    }
     if (fx.rivalPower && e.ctx && e.ctx.rival) {
       var rr = rivalById(st, e.ctx.rival);
       if (rr) { rr.power = Math.max(1, rr.power + fx.rivalPower); out.rivalPower = fx.rivalPower; out.rival = rr.id; }
@@ -1535,6 +1542,8 @@
     trophies: function (st) { return st.stats.trophies; },
     hof: function (st) { return st.hall.length; },
     groupJobs: function (st) { return st.groups.reduce(function (m, g) { return Math.max(m, g.jobs); }, 0); },
+    projects: function (st) { return st.stats.projects; },
+    projectsGreat: function (st) { return st.stats.projectsGreat; },
     era: function (st) { return st.era; }
   };
   function checkAchievements(st) {
@@ -1552,7 +1561,7 @@
   function eraRivalMult(st) { return 1 + BAL.eraRivalBoost * ((st.era || 1) - 1); }
   function legacyPoints(st) {
     var hofThisEra = st.hall.filter(function (h) { return h.era === st.era; }).length;
-    return hofThisEra * BAL.legacyHof + st.stats.trophies + st.stats.chartTops;
+    return hofThisEra * BAL.legacyHof + st.stats.trophies + st.stats.chartTops + st.stats.projects * BAL.projectLegacy;
   }
   function buyPerk(st, id) {
     var p = D.LEGACY_PERK_BY_ID[id];
@@ -1594,6 +1603,124 @@
     timeline(st, "era", { era: st.era, carry: carry ? { rosterId: carry.rosterId, nameSeed: carry.nameSeed, gender: carry.gender } : null });
     log(st, "new_era", { era: st.era });
     return null;
+  }
+
+  // ==== 大型企劃（§12） ====
+  function startProject(st, id) {
+    var p = D.PROJECT_BY_ID && D.PROJECT_BY_ID[id];
+    if (!p) return "noProject";
+    if (st.company.level < p.unlockLevel) return "level";
+    if (st.project) return "busyProject";
+    if (st.company.money < p.cost) return "money";
+    st.company.money -= p.cost;
+    st.project = { id: id, stage: 0, startedDay: st.day, mod: 0, extraDays: 0, results: [], active: null };
+    log(st, "project_start", { project: id });
+    return null;
+  }
+
+  function stageDirFor(a, stage) {
+    if (stage.dirs.indexOf(a.dir) >= 0) return a.dir;
+    for (var i = 0; i < a.subDirs.length; i++) if (stage.dirs.indexOf(a.subDirs[i]) >= 0) return a.subDirs[i];
+    return null;
+  }
+
+  function assignStage(st, aids) {
+    var pr = st.project;
+    if (!pr) return "noProject";
+    if (pr.active) return "stageBusy";
+    var stage = D.PROJECT_BY_ID[pr.id].stages[pr.stage];
+    if (!aids || aids.length < stage.slots[0] || aids.length > stage.slots[1]) return "slots";
+    var i;
+    for (i = 0; i < aids.length; i++) if (aids.indexOf(aids[i]) !== i) return "slots";
+    for (i = 0; i < aids.length; i++) {
+      var a = artistById(st, aids[i]);
+      if (!a) return "noArtist";
+      if (a.task) return "busy";
+      if (!stageDirFor(a, stage)) return "dir";
+    }
+    var days = stage.days + pr.extraDays, load = D.TIERS[stage.tier].load;
+    pr.extraDays = 0;
+    pr.active = { members: aids.slice(), left: days };
+    aids.forEach(function (id) {
+      artistById(st, id).task = { kind: "project", days: days, left: days,
+        stamina: Math.min(BAL.jobStaminaMax, days * BAL.jobStaminaPerDay * load), stress: Math.min(BAL.jobStressMax, days * BAL.jobStressPerDay * load) };
+    });
+    return null;
+  }
+
+  function abortProject(st) {
+    if (!st.project) return;
+    if (st.project.active) st.project.active.members.forEach(function (id) { var a = artistById(st, id); if (a && a.task && a.task.kind === "project") a.task = null; });
+    log(st, "project_abort", { project: st.project.id });
+    st.project = null;
+  }
+
+  function classifyProject(ratio) {
+    var R = BAL.projectResult;
+    return ratio >= R.great.min ? "great" : ratio >= R.success.min ? "success" : ratio >= R.normal.min ? "normal" : "fail";
+  }
+
+  function resolveStage(st) {
+    var pr = st.project, p = D.PROJECT_BY_ID[pr.id], stage = p.stages[pr.stage];
+    var members = pr.active.members.map(function (id) { return artistById(st, id); }).filter(Boolean);
+    var ratio = 0;
+    if (members.length) {
+      var sum = 0;
+      members.forEach(function (a) { sum += perfScore(st, a, { dir: stageDirFor(a, stage) || a.dir }); });
+      var perf = sum / members.length * (1 + chemistry(st, pr.active.members)) * (1 + pr.mod) * (BAL.randLo + rnd(st) * (BAL.randHi - BAL.randLo));
+      ratio = perf / (D.TIERS[stage.tier].diff * BAL.projectDiffMult);
+    }
+    var res = ratio >= D.RESULTS.great.min ? "great" : ratio >= D.RESULTS.success.min ? "success" : ratio >= D.RESULTS.normal.min ? "normal" : "fail";
+    var R = D.RESULTS[res], tierIdx = D.TIER_ORDER.indexOf(stage.tier);
+    members.forEach(function (a) {
+      a.task = null;
+      a.fame = clamp(a.fame + Math.round(D.TIERS[stage.tier].fame * R.fame), 0, 99999);
+      addProf(a, stageDirFor(a, stage) || a.dir, R.xp * (tierIdx + 1));
+      a.satisfaction = clamp(a.satisfaction + R.sat, 0, 100);
+      postTask(st, a);
+    });
+    pr.results.push({ ratio: Math.round(ratio * 100) / 100, result: res, members: pr.active.members.slice() });
+    pr.active = null;
+    pr.mod = 0;
+    log(st, "project_stage", { project: pr.id, stage: pr.stage, result: res });
+    pr.stage++;
+    if (pr.stage >= p.stages.length) { finishProject(st); return; }
+    if (stage.branch && rnd(st) < BAL.projectBranchChance) pushEvent(st, stage.branch, null, { project: pr.id });
+  }
+
+  function finishProject(st) {
+    var pr = st.project, p = D.PROJECT_BY_ID[pr.id];
+    var avg = pr.results.reduce(function (s, r) { return s + Math.min(2, r.ratio); }, 0) / pr.results.length;
+    var res = classifyProject(avg), R = BAL.projectResult[res];
+    var money = Math.round(p.cost * R.money);
+    st.company.money += money;
+    st.company.tickets += R.tickets;
+    if (R.rep) addRep(st, R.rep);
+    var seen = {}, members = [];
+    pr.results.forEach(function (r) { r.members.forEach(function (id) { if (!seen[id]) { seen[id] = true; members.push(id); } }); });
+    members.forEach(function (id) {
+      var a = artistById(st, id);
+      if (!a) return;
+      a.fame = clamp(a.fame + R.fame, 0, 99999);
+      a.works.unshift({ project: p.id, title: [0, 0], dir: a.dir, tier: "S", role: "lead", result: res, stars: R.stars, day: st.day, isWork: true, pay: 0 });
+      if (a.works.length > BAL.worksMax) a.works.length = BAL.worksMax;
+      a.worksTotal++;
+    });
+    st.stats.projects++;
+    if (res === "great") st.stats.projectsGreat++;
+    var summary = { id: newId(st, "pq"), project: p.id, result: res, ratio: Math.round(avg * 100) / 100, money: money, invested: p.cost,
+      tickets: R.tickets, rep: R.rep, members: members, stages: pr.results.map(function (r) { return r.result; }) };
+    st.projectQueue.push(summary);
+    timeline(st, "project", { project: p.id, result: res });
+    log(st, "project_done", { project: p.id, result: res, money: money });
+    st.project = null;
+  }
+
+  function tickProject(st) {
+    var pr = st.project;
+    if (!pr || !pr.active) return;
+    pr.active.left--;
+    if (pr.active.left <= 0) resolveStage(st);
   }
 
   // ==== exports ====
@@ -1662,5 +1789,8 @@
   api.legacyPoints = legacyPoints;
   api.buyPerk = buyPerk;
   api.newEra = newEra;
+  api.startProject = startProject;
+  api.assignStage = assignStage;
+  api.abortProject = abortProject;
   root.PriTestStarvCore = api;
 })();

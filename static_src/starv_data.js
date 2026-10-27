@@ -292,6 +292,14 @@
     retireOldChance: 0.4, retireStressChance: 0.1, retireLowFameChance: 0.15, retireLowFame: 30, hofScore: 30, timelineMax: 300,
     staffSalaryBase: 10000, staffSalaryPerTrophy: 1000, staffBonusBase: 0.1, staffBonusPerTrophy: 0.02, staffBonusMax: 0.3, producerGreatShift: 0.1,
     eraRivalBoost: 0.1, legacyHof: 5, carryStatMult: 0.7,
+    projectDiffMult: 1.1, projectBranchChance: 1, projectLegacy: 3,
+    projectResult: {
+      great: { min: 1.3, money: 3, rep: 500, tickets: 10, fame: 800, stars: 5 },
+      success: { min: 1.0, money: 1.8, rep: 250, tickets: 5, fame: 400, stars: 4 },
+      normal: { min: 0.75, money: 1, rep: 100, tickets: 2, fame: 150, stars: 3 },
+      fail: { min: 0, money: 0.3, rep: 0, tickets: 0, fame: 0, stars: 1 }
+    },
+
     logMax: 200, worksMax: 50
   };
 

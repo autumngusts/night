@@ -1019,7 +1019,8 @@ test("存檔版本 4：補上合約到期日", function () {
   var st = Core.create({ seed: 1 }), a = freshArtist(st);
   delete a.contractEnd; st.version = 3;
   var m = Core.migrate(JSON.parse(JSON.stringify(st)));
-  eq(m.version, 4); eq(m.artists[0].contractEnd, st.day + 1080);
+  // 計畫 6 升到版本 5 後改成跟著 Core.VERSION（這個測試只關心合約）
+  eq(m.version, Core.VERSION); eq(m.artists[0].contractEnd, st.day + 1080);
 });
 
 test("引退：超過引退線會提出、尊重決定進名人堂、挽留成功率看滿意度", function () {
@@ -1183,6 +1184,73 @@ test("企劃資料：5 件、格式、分歧事件存在", function () {
   });
   var threw = false; try { Projects.add([Projects.byId("world_tour")]); } catch (e) { threw = true; } assert(threw, "重複 ID");
   eq(Events.all().filter(function (e) { return e.addedIn === "v4"; }).length, 3);
+});
+
+function projectTeam(st, dirs, n, stat) {
+  var out = [];
+  for (var i = 0; i < n; i++) {
+    var a = freshArtist(st); a.dir = dirs[i % dirs.length];
+    D.STATS.forEach(function (s) { a.stats[s] = stat; a.caps[s] = 999; });
+    out.push(a);
+  }
+  return out;
+}
+
+test("企劃：開始條件、派遣檢查、階段推進、結算", function () {
+  var st = Core.create({ seed: 1 });
+  st.board = []; st.boardRefreshDay = 99999;
+  eq(Core.startProject(st, "nope"), "noProject");
+  eq(Core.startProject(st, "own_variety"), "level");
+  st.company.level = 5; st.company.money = 1000;
+  eq(Core.startProject(st, "own_variety"), "money");
+  st.company.money = 1e7;
+  eq(Core.startProject(st, "own_variety"), null);
+  eq(st.company.money, 1e7 - 200000); eq(Core.startProject(st, "world_tour"), "busyProject");
+  var team = projectTeam(st, ["host", "comedy"], 4, 600);
+  var bad = freshArtist(st); bad.dir = "film";
+  eq(Core.assignStage(st, [team[0].id, team[1].id, team[2].id]), "slots", "企劃會議 1～2 人");
+  eq(Core.assignStage(st, [bad.id]), "dir");
+  eq(Core.assignStage(st, [team[0].id, team[1].id]), null);
+  eq(team[0].task.kind, "project"); eq(Core.assignStage(st, [team[2].id]), "stageBusy");
+  Core.advance(st, 6);
+  eq(st.project.stage, 1); eq(st.project.results.length, 1); eq(team[0].task, null, "階段結束成員自由");
+  for (var s = 1; s < 3; s++) {
+    while (st.events.pending.length) Core.resolveEvent(st, st.events.pending[0].uid, D.EVENT_BY_ID[st.events.pending[0].id].defaultChoice);
+    eq(Core.assignStage(st, [team[0].id, team[1].id, team[2].id]), null, "階段 " + s);
+    Core.advance(st, D.PROJECT_BY_ID.own_variety.stages[s].days + (st.project ? st.project.extraDays : 0) + 7);
+  }
+  eq(st.project, null, "完成");
+  eq(st.projectQueue.length, 1); eq(st.stats.projects, 1);
+  var q = st.projectQueue[0];
+  assert(["great", "success"].indexOf(q.result) >= 0, "能力 600 至少成功：" + q.result);
+  assert(team[0].works.some(function (w) { return w.project === "own_variety"; }), "作品紀錄");
+  eq(Core.jobTitle(team[0].works.filter(function (w) { return w.project; })[0], "zh"), "自家冠名綜藝");
+  assert(st.timeline.some(function (x) { return x.kind === "project"; }), "年表");
+  eq(Core.legacyPoints(st), 3, "傳承點 +3");
+});
+
+test("企劃：分歧事件影響下一階段、放棄不退款", function () {
+  var st = Core.create({ seed: 2 });
+  st.board = []; st.boardRefreshDay = 99999; st.company.level = 5; st.company.money = 1e7;
+  Core.startProject(st, "world_tour");
+  var team = projectTeam(st, ["singer", "idol"], 6, 300);   // 第 3 階段換一批人：前兩階段的人體力耗盡會強制休息
+  Core.assignStage(st, [team[0].id, team[1].id]); Core.advance(st, 10);
+  eq(st.project.stage, 1); eq(st.events.pending.length, 0, "排練沒有分歧");
+  Core.assignStage(st, [team[0].id, team[1].id, team[2].id]); Core.advance(st, 15);
+  var e = st.events.pending.filter(function (x) { return x.id === "proj_injury"; })[0];
+  assert(e && e.ctx.project === "world_tour", "亞洲站後受傷事件");
+  Core.resolveEvent(st, e.uid, 1);
+  eq(st.project.extraDays, 7, "延期 7 天");
+  eq(Core.assignStage(st, [team[3].id, team[4].id, team[5].id]), null);
+  eq(team[3].task.days, 15 + 7, "下一階段天數 +7");
+  var m0 = st.company.money; Core.abortProject(st);
+  eq(st.project, null); eq(st.company.money, m0, "不退款"); eq(team[3].task, null, "成員解除行程");
+});
+
+test("存檔版本 5", function () {
+  var st = Core.create({ seed: 1 }); st.version = 4; delete st.projectQueue;
+  var m = Core.migrate(JSON.parse(JSON.stringify(st)));
+  eq(m.version, 5); assert(Array.isArray(m.projectQueue));
 });
 
 // ==== run ====
