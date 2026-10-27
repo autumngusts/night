@@ -772,6 +772,7 @@
       pushEvent(st, "finance_crisis");
     }
     rivalMonth(st);
+    updateCharts(st);
     rotatePickup(st);
     log(st, "month_end", { salary: salary, upkeep: upkeep, dividends: div, loan: loan });
   }
@@ -1221,6 +1222,50 @@
     });
   }
 
+  // ==== 月度排行榜（§9） ====
+  function workScore(w) { return w.stars * BAL.tierWeight[w.tier] * (D.ROLES[w.role] ? D.ROLES[w.role].fame : 1); }
+  function recentWorks(a, fromDay, dirs) {
+    return a.works.filter(function (w) { return w.day > fromDay && (!dirs || dirs.indexOf(w.dir) >= 0); });
+  }
+  function topSum(scores, n) {
+    return scores.sort(function (x, y) { return y - x; }).slice(0, n).reduce(function (s, v) { return s + v; }, 0);
+  }
+
+  function updateCharts(st) {
+    var from = st.day - BAL.daysPerMonth, lists = {};
+    D.CHARTS.forEach(function (c) {
+      var entries = [];
+      st.artists.forEach(function (a) {
+        var s = c.dirs ? topSum(recentWorks(a, from, c.dirs).map(workScore), 3) : a.fame / BAL.chartFameDiv;
+        if (s > 0) entries.push({ kind: "artist", aid: a.id, score: s });
+      });
+      st.rivals.forEach(function (r) {
+        r.stars.forEach(function (s) {
+          var e = Roster.byId(s.rosterId);
+          if (!e || (c.dirs && c.dirs.indexOf(e.dir) < 0)) return;
+          entries.push({ kind: "rstar", rival: r.id, rosterId: s.rosterId, score: c.dirs ? rivalScore(st, r, BAL.chartBase) : s.fame / BAL.chartFameDiv });
+        });
+        for (var k = 0; k < BAL.chartFillers; k++) {
+          entries.push({ kind: "rgen", rival: r.id, nameSeed: rint(st, 0, 999999), gender: rnd(st) < 0.5 ? "f" : "m",
+            score: rivalScore(st, r, c.dirs ? BAL.chartBase * 0.6 : BAL.chartFameBase) });
+        }
+      });
+      entries.sort(function (x, y) { return y.score - x.score; });
+      lists[c.id] = entries.slice(0, 10);
+      var top = lists[c.id][0];
+      if (top && top.kind === "artist") {
+        var a = artistById(st, top.aid);
+        addRep(st, BAL.chartTopRep);
+        if (a) a.fame = Math.min(99999, a.fame + BAL.chartTopFame);
+        log(st, "chart_top", { chart: c.id, aid: top.aid });
+      } else if (top && top.rival) {
+        var r = rivalById(st, top.rival);
+        if (r) r.power += 1;
+      }
+    });
+    st.charts = { day: st.day, lists: lists };
+  }
+
   // ==== exports ====
   api.VERSION = VERSION;
   api.create = create;
@@ -1276,5 +1321,6 @@
   api.rivalById = rivalById;
   api.rivalName = rivalName;
   api.rivalStarName = rivalStarName;
+  api.updateCharts = updateCharts;
   root.PriTestStarvCore = api;
 })();

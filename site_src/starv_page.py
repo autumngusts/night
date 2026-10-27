@@ -14,6 +14,7 @@ STARV_SCRIPTS: tuple[str, ...] = (
     "starv_data.js",
     "starv_events.js",
     "starv_events_1.js",
+    "starv_awards_data.js",
     "starv_roster.js",
     "starv_roster_1.js",
     "starv_roster_rivals_1.js",

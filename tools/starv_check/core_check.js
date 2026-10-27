@@ -6,6 +6,7 @@ global.window = global;
 require("../../static_src/starv_data.js");
 require("../../static_src/starv_events.js");
 require("../../static_src/starv_events_1.js");
+require("../../static_src/starv_awards_data.js");
 var Events = global.PriTestStarvEvents;
 require("../../static_src/starv_roster.js");
 require("../../static_src/starv_roster_1.js");
@@ -885,6 +886,40 @@ test("搶工作：有興趣的工作比較容易被搶", function () {
     assert(n.hot < n.cold, "有興趣的留下較少 " + JSON.stringify(n));
     assert(st.log.some(function (e) { return e.type === "job_snatched"; }), "日誌");
   } finally { D.BAL.snatchChance = 0; D.BAL.snatchInterestChance = 0; }
+});
+
+test("獎項資料：55 個、每個方向都有個人獎與作品獎", function () {
+  eq(D.AWARDS.length, 55, "獎項數");
+  var seen = {}, cer = {};
+  D.CEREMONIES.forEach(function (c) { cer[c.id] = 1; assert(c.name.zh && c.name.ja, "典禮名"); });
+  D.AWARDS.forEach(function (aw) {
+    assert(!seen[aw.id], "重複 " + aw.id); seen[aw.id] = 1;
+    assert(cer[aw.ceremony], aw.id + " 典禮"); assert(aw.name.zh && aw.name.ja, aw.id + " 名稱");
+    assert(["person", "work", "rookie", "group", "company"].indexOf(aw.kind) >= 0, aw.id + " kind");
+    (aw.dirs || []).forEach(function (d) { assert(D.DIR_BY_ID[d], aw.id + " 方向 " + d); });
+    eq(D.AWARD_BY_ID[aw.id], aw);
+  });
+  D.DIRS.forEach(function (d) {
+    var has = function (k) { return D.AWARDS.some(function (aw) { return aw.kind === k && aw.dirs && aw.dirs.indexOf(d.id) >= 0; }); };
+    assert(has("person"), d.id + " 沒有個人獎"); assert(has("work"), d.id + " 沒有作品獎");
+  });
+  eq(D.CHARTS.length, 4);
+});
+
+test("排行榜：前 10、我方第 1 名加聲望", function () {
+  var st = Core.create({ seed: 1 }), a = freshArtist(st, { fame: 50 });
+  for (var i = 0; i < 3; i++) a.works.unshift({ title: [0, 0], dir: "singer", tier: "S", role: "lead", result: "great", stars: 5, day: st.day, isWork: true, pay: 1 });
+  st.day = 10;
+  var rep0 = st.company.rep;
+  Core.updateCharts(st);
+  ["single", "ratings", "boxoffice", "popularity"].forEach(function (id) {
+    var l = st.charts.lists[id];
+    assert(l.length > 0 && l.length <= 10, id + " 筆數");
+    for (var k = 1; k < l.length; k++) assert(l[k - 1].score >= l[k].score, id + " 排序");
+  });
+  eq(st.charts.lists.single[0].kind, "artist", "S 級 5★ 主打三首拿下單曲榜第 1");
+  assert(st.company.rep >= rep0 + 50, "聲望");
+  assert(st.log.some(function (e) { return e.type === "chart_top" && e.data.chart === "single"; }), "日誌");
 });
 
 // ==== run ====
