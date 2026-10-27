@@ -39,6 +39,7 @@
     } else if (e.type === "level_up") p.lv = d.lv;
     else if (e.type === "month_end") { p.salary = UI.money(d.salary); p.upkeep = UI.money(d.upkeep); p.div = UI.money(d.dividends); p.loan = UI.money(d.loan || 0); }
     else if (e.type === "birthday_year") p.year = d.year;
+    else if (e.type === "facility_up") { var F2 = D.FACILITIES[d.f]; p.fac = F2 ? UI.L(F2.name) : d.f; p.lv = d.lv; }
     else if (e.type === "event_new" || e.type === "event_resolved" || e.type === "event_auto") {
       var ev2 = D.EVENT_BY_ID && D.EVENT_BY_ID[d.ev];
       p.title = ev2 ? UI.L(ev2.title) : String(d.ev);

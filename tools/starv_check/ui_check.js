@@ -194,7 +194,7 @@ step("重新整理後從存檔繼續", async function (page) {
 });
 
 step("三種語言：各分頁沒有漏翻、手機寬度沒有水平捲動", async function (page) {
-  var tabs = ["artists", "jobs", "gacha", "company"];
+  var tabs = ["artists", "jobs", "industry", "gacha", "company"];
   var langs = ["ja", "en", "zh"];
   for (var i = 0; i < langs.length; i++) {
     await page.dispatchEvent('.lang-btn[data-lang="' + langs[i] + '"]', "click");
@@ -233,6 +233,24 @@ step("事件：觸發 → 鈴鐺 → 選擇 → 結果", async function (page) {
   var s = await st(page);
   assert.strictEqual(s.events.pending.length, 0);
   assert.ok(s.company.rep >= rep0 + 40, "聲望 +40");
+});
+
+step("公司：升級宿舍", async function (page) {
+  await tab(page, "company");
+  await act(page, "debug-money");
+  await act(page, "fac-up-dorm");
+  var s = await st(page);
+  assert.strictEqual(s.facilities.dorm, 2);
+  await noRawKeys(page, "設施");
+});
+
+step("業界：本季趨勢與傳聞", async function (page) {
+  await tab(page, "industry");
+  await noRawKeys(page, "業界分頁");
+  var n = await page.$$eval(".sv-trend-hot", function (x) { return x.length; });
+  assert.ok(n >= 2, "熱門方向 " + n);
+  assert.ok(await page.$(".sv-trend-cold"), "低迷方向");
+  assert.ok(await page.$(".sv-trend-rumor"), "下季傳聞");
 });
 
 // ==== 之後的 task 在這行之前追加步驟 ====

@@ -28,6 +28,27 @@
     ]);
   }
 
+  function facilitiesCard(st, App) {
+    var D = window.PriTestStarvData;
+    return el("div", { class: "sv-card" }, [el("h3", { text: t("sv_fac_title") })].concat(D.FACILITY_ORDER.map(function (f) {
+      var F = D.FACILITIES[f], lv = st.facilities[f], cap = Core.facilityCap(st, f), cost = Core.facilityCost(st, f);
+      var action;
+      if (cost === null) action = el("span", { class: "sv-small sv-muted", text: t("sv_fac_max") });
+      else if (lv >= cap) action = el("span", { class: "sv-small sv-muted", text: t("sv_fac_need_level") });
+      else action = UI.btn(t("sv_fac_up", { cost: UI.money(cost) }), function () {
+        var err = App.act(function (s) { return Core.upgradeFacility(s, f); });
+        if (err) UI.toast(t("sv_err_" + err), "bad");
+      }, st.company.money >= cost ? "sv-btn-gold" : "sv-btn-ghost", { "data-act": "fac-up-" + f });
+      return el("div", { class: "sv-fac" }, [
+        el("div", { class: "sv-grow" }, [
+          el("div", {}, [el("b", { text: UI.L(F.name) }), " ", el("span", { class: "sv-chip", text: t("sv_fac_lv", { lv: lv, cap: F.max }) })]),
+          el("div", { class: "sv-small sv-muted", text: UI.L(F.desc) + (f === "dorm" ? "・" + t("sv_fac_dorm_cap", { n: Core.capacity(st) }) : "") })
+        ]),
+        action
+      ]);
+    })));
+  }
+
   function saveCard(st, App) {
     var importBox = el("textarea", { class: "sv-textarea", placeholder: t("sv_save_import_ph"), "data-act": "save-import-text", value: ui.importText,
       oninput: function () { ui.importText = importBox.value; ui.pending = null; } });
@@ -73,7 +94,8 @@
         UI.btn(t("sv_debug_money"), function () { App.act(function (s) { s.company.money += 100000; }); }, "", { "data-act": "debug-money" }),
         UI.btn(t("sv_debug_tickets"), function () { App.act(function (s) { s.company.tickets += 10; }); }, "", { "data-act": "debug-tickets" }),
         UI.btn(t("sv_debug_skip", { n: 7 }), function () { App.skip(7); }, "", { "data-act": "debug-skip-7" }),
-        UI.btn(t("sv_debug_skip", { n: 30 }), function () { App.skip(30); }, "", { "data-act": "debug-skip-30" })
+        UI.btn(t("sv_debug_skip", { n: 30 }), function () { App.skip(30); }, "", { "data-act": "debug-skip-30" }),
+        UI.btn(t("sv_debug_event"), function () { App.act(function (s) { Core.triggerRandomEvent(s); }); }, "", { "data-act": "debug-event" })
       ])
     ]);
   }
@@ -83,6 +105,7 @@
     render: function (c, App) {
       var st = App.st();
       c.appendChild(infoCard(st, App));
+      c.appendChild(facilitiesCard(st, App));
       c.appendChild(saveCard(st, App));
       if (App.debug) c.appendChild(debugCard(st, App));
     }
