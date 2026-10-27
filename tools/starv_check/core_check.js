@@ -399,6 +399,38 @@ test("工作：小事件會發生並寫入日誌", function () {
   assert(n >= 5 && n <= 60, "小事件次數 " + n + "（期望約 24）");
 });
 
+test("月結：月薪、營運費、負債月數", function () {
+  var st = Core.create({ seed: 1 }), a = freshArtist(st, { salary: 2000 });
+  st.board = []; st.boardRefreshDay = 9999;
+  var m0 = st.company.money;
+  Core.advance(st, 29); eq(st.company.money, m0, "月底前不扣");
+  Core.advance(st, 1); eq(st.company.money, m0 - 2000 - 1000, "月薪 + 營運費 1000×Lv1");
+  st.company.money = -10; Core.advance(st, 30); eq(st.company.debtMonths, 1);
+  st.company.money = 5000; Core.advance(st, 30); eq(st.company.debtMonths, 0, "轉正歸零");
+  assert(st.log.some(function (e) { return e.type === "month_end"; }), "month_end 日誌");
+});
+
+test("月結：分紅 3 個月、人氣衰退", function () {
+  var st = Core.create({ seed: 1 }), a = freshArtist(st, { salary: 0, fame: 1000 });
+  st.board = []; st.boardRefreshDay = 9999;
+  st.dividends.push({ pay: 10000, stars: 3, months: 3 });
+  var m0 = st.company.money;
+  Core.advance(st, 30);
+  eq(st.company.money, m0 - 1000 + 1000, "分紅 10000×0.1×3/3");
+  eq(a.fame, 980, "巔峰期衰退 2%");
+  Core.advance(st, 60); eq(st.dividends.length, 0, "3 個月後結束");
+  a.age = 50; a.fame = 1000; Core.advance(st, 30); eq(a.fame, 960, "非巔峰 4%");
+  st.facilities.pr = 5; a.fame = 1000; Core.advance(st, 30); eq(a.fame, 980, "公關部 Lv5 衰退減半");
+});
+
+test("年度：年齡 +1；候補逾期流失", function () {
+  var st = Core.create({ seed: 1 }), a = freshArtist(st, { age: 20 });
+  st.waitlist.push({ artist: Core._genR(st), until: 10 });
+  Core.advance(st, 10); eq(st.waitlist.length, 0, "第 10 天流失");
+  assert(st.log.some(function (e) { return e.type === "waitlist_expired"; }), "日誌");
+  Core.advance(st, 350); eq(a.age, 21);
+});
+
 // ==== run ====
 var fails = 0;
 tests.forEach(function (t) {

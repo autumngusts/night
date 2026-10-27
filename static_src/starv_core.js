@@ -464,6 +464,9 @@
     tickArtists(st);
     tickJobs(st);
     tickBoard(st);
+    tickWaitlist(st);
+    if (st.day % BAL.daysPerMonth === 0) monthly(st);
+    if (st.day % BAL.daysPerYear === 0) yearly(st);
   }
 
   function advance(st, days) {
@@ -677,6 +680,38 @@
   }
   function disbandGroup(st, gid) {
     st.groups = st.groups.filter(function (g) { return g.id !== gid; });
+  }
+
+  // ==== 月結、年度（§2、§5.2） ====
+  function monthly(st) {
+    var salary = 0, upkeep = BAL.upkeepPerLevel * st.company.level, div = 0;
+    st.artists.forEach(function (a) { salary += a.salary; });
+    st.dividends.forEach(function (d) { div += Math.round(d.pay * BAL.dividendRate * d.stars / 3); d.months--; });
+    st.dividends = st.dividends.filter(function (d) { return d.months > 0; });
+    st.company.money += div - salary - upkeep;
+    var prMult = 1 - st.facilities.pr * D.FACILITIES.pr.fameDecay;
+    st.artists.forEach(function (a) {
+      var rate = (inPeak(a) ? BAL.fameDecay : BAL.fameDecayOffPeak) * prMult;
+      a.fame = Math.round(a.fame * (1 - rate));
+    });
+    st.company.debtMonths = st.company.money < 0 ? st.company.debtMonths + 1 : 0;
+    rotatePickup(st);
+    log(st, "month_end", { salary: salary, upkeep: upkeep, dividends: div });
+  }
+
+  function yearly(st) {
+    st.artists.forEach(function (a) { a.age++; });
+    st.waitlist.forEach(function (w) { w.artist.age++; });
+    log(st, "birthday_year", { year: dateOf(st.day).year });
+  }
+
+  function tickWaitlist(st) {
+    var keep = [];
+    st.waitlist.forEach(function (w) {
+      if (w.until > st.day) keep.push(w);
+      else log(st, "waitlist_expired", { rarity: w.artist.rarity, rosterId: w.artist.rosterId, nameSeed: w.artist.nameSeed, gender: w.artist.gender });
+    });
+    st.waitlist = keep;
   }
 
   // ==== exports ====
