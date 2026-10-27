@@ -56,11 +56,11 @@
       facilities: { dorm: 1, practice: 0, studio: 0, photo: 0, lounge: 0, pr: 0, scout: 0 },
       artists: [], waitlist: [], board: [], boardRefreshDay: 0, activeJobs: [], dividends: [], groups: [],
       gacha: { pity: 0, pullDay: -1, pullCount: 0, pickup: { SR: null, SSR: null }, debutShown: {} },
-      codex: { owned: {}, recruitedR: 0 },
-      stats: { pulls: 0, jobsDone: 0 },
+      codex: { owned: {}, recruitedR: 0, stories: {} },
+      stats: { pulls: 0, jobsDone: 0, greatS: 0, chartTops: 0, trophies: 0 },
       trend: null, events: { pending: [] }, loans: [],
       rivals: [], auditions: [], charts: null, awards: { history: [], unseen: null },
-      hall: [], retireQueue: [], timeline: [], staff: [],
+      hall: [], retireQueue: [], timeline: [], staff: [], achievements: {},
       log: [], logSeq: 0, nextId: 1
     };
   }
@@ -508,6 +508,7 @@
     tickContracts(st);
     tickEvents(st);
     autoPlan(st);
+    checkAchievements(st);
   }
 
   function advance(st, days) {
@@ -731,6 +732,7 @@
     if (job.isWork) st.dividends.push({ pay: job.pay, stars: stars, months: BAL.dividendMonths });
     addRep(st, Math.round(job.rep * R.rep));
     st.stats.jobsDone++;
+    if (res === "great" && job.tier === "S") st.stats.greatS++;
     log(st, "job_done", { aids: aj.members.slice(), dir: job.dir, tier: job.tier, title: job.title.slice(), result: res, pay: pay, stars: stars });
   }
 
@@ -1315,6 +1317,7 @@
         addRep(st, BAL.chartTopRep);
         if (a) a.fame = Math.min(99999, a.fame + BAL.chartTopFame);
         log(st, "chart_top", { chart: c.id, aid: top.aid });
+        st.stats.chartTops++;
       } else if (top && top.rival) {
         var r = rivalById(st, top.rival);
         if (r) r.power += BAL.chartTopRivalPower;
@@ -1387,6 +1390,10 @@
       if (a) {
         a.fame = Math.min(99999, a.fame + (won ? P.fame : n.kind === "artist" ? P.nomFame : 0));
         if (won) { a.trophies.push({ award: aw.id, year: year }); a.satisfaction = clamp(a.satisfaction + 10, 0, 100); }
+        if (won && a.rarity === "SSR" && a.rosterId && !st.codex.stories[a.rosterId]) {
+          st.codex.stories[a.rosterId] = true;
+          log(st, "story_unlocked", { rosterId: a.rosterId });
+        }
       }
     }
     if (n.kind === "group" && won) {
@@ -1398,6 +1405,7 @@
       });
     }
     if (won && isOurs(n)) {
+      st.stats.trophies++;
       st.company.money += P.money[aw.kind];
       st.company.tickets += P.tickets;
       addRep(st, P.rep);
@@ -1501,6 +1509,42 @@
     return best;
   }
 
+  // ==== 圖鑑與成就（§14） ====
+  function codexStats(st) {
+    var c = { sr: 0, ssr: 0, srTotal: Roster.byRarity("SR").length, ssrTotal: Roster.byRarity("SSR").length, r: st.codex.recruitedR };
+    Object.keys(st.codex.owned).forEach(function (id) {
+      var e = Roster.byId(id);
+      if (!e || e.kind === "rival") return;
+      if (e.rarity === "SR") c.sr++; else if (e.rarity === "SSR") c.ssr++;
+    });
+    return c;
+  }
+  var ACH_CHECKS = {
+    pulls: function (st) { return st.stats.pulls; },
+    ssr: function (st) { return codexStats(st).ssr; },
+    codexRate: function (st) { var c = codexStats(st); return (c.sr + c.ssr) / Math.max(1, c.srTotal + c.ssrTotal); },
+    level: function (st) { return st.company.level; },
+    artists: function (st) { return st.artists.length; },
+    money: function (st) { return st.company.money; },
+    jobs: function (st) { return st.stats.jobsDone; },
+    greatS: function (st) { return st.stats.greatS; },
+    chartTops: function (st) { return st.stats.chartTops; },
+    trophies: function (st) { return st.stats.trophies; },
+    hof: function (st) { return st.hall.length; },
+    groupJobs: function (st) { return st.groups.reduce(function (m, g) { return Math.max(m, g.jobs); }, 0); },
+    era: function (st) { return st.era; }
+  };
+  function checkAchievements(st) {
+    (D.ACHIEVEMENTS || []).forEach(function (x) {
+      if (st.achievements[x.id]) return;
+      var f = ACH_CHECKS[x.cond.type];
+      if (!f || f(st) < x.cond.n) return;
+      st.achievements[x.id] = { day: st.day, era: st.era };
+      st.company.tickets += x.reward.tickets || 0;
+      log(st, "achievement", { id: x.id });
+    });
+  }
+
   // ==== exports ====
   api.VERSION = VERSION;
   api.create = create;
@@ -1563,5 +1607,6 @@
   api.staffBonus = staffBonus;
   api.hireStaff = hireStaff;
   api.fireStaff = fireStaff;
+  api.codexStats = codexStats;
   root.PriTestStarvCore = api;
 })();

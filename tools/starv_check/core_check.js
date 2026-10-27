@@ -25,6 +25,10 @@ function withEvents(fn) { D.BAL.eventDailyChance = EVENT_CHANCE; try { fn(); } f
 var SNATCH = [D.BAL.snatchChance, D.BAL.snatchInterestChance];
 D.BAL.snatchChance = 0; D.BAL.snatchInterestChance = 0;
 
+require("../../static_src/starv_achievements.js");
+require("../../static_src/starv_achievements_1.js");
+var Ach = global.PriTestStarvAchievements;
+
 require("../../static_src/starv_core.js");
 var Core = global.PriTestStarvCore;
 require("../../static_src/starv_store.js");
@@ -1085,6 +1089,38 @@ test("製作人：大成功門檻下修、評價提高", function () {
   }
   var base = avgStars(false), prod = avgStars(true);
   assert(prod > base + 0.3, "製作人讓平均評價提高 " + base + " → " + prod);
+});
+
+test("成就：20 項、格式、解鎖給券", function () {
+  var TYPES = ["pulls", "ssr", "codexRate", "level", "artists", "money", "jobs", "greatS", "chartTops", "trophies", "hof", "groupJobs", "era"];
+  eq(Ach.all().filter(function (x) { return x.addedIn === "v1"; }).length, 20);
+  Ach.all().forEach(function (x) {
+    assert(x.name.zh && x.name.ja && x.desc.zh && x.desc.ja, x.id + " 文字");
+    assert(TYPES.indexOf(x.cond.type) >= 0, x.id + " cond");
+    eq(D.ACHIEVEMENT_BY_ID[x.id], x);
+  });
+  var threw = false; try { Ach.add([Ach.byId("first_pull")]); } catch (e) { threw = true; } assert(threw, "重複 ID");
+  var st = Core.create({ seed: 1 }), t0 = st.company.tickets;
+  st.board = []; st.boardRefreshDay = 99999;
+  Core.pull(st, "ticket", 10);
+  Core.advance(st, 1);
+  assert(st.achievements.first_pull, "抽 10 次"); assert(st.company.tickets > t0 - 10, "獎勵星探券");
+  assert(st.log.some(function (e) { return e.type === "achievement" && e.data.id === "first_pull"; }), "日誌");
+});
+
+test("圖鑑：統計與 SSR 小故事", function () {
+  var st = Core.create({ seed: 1 });
+  st.board = []; st.boardRefreshDay = 99999;
+  Core._grantEntry(st, Roster.byId("ssr001")); Core._grantEntry(st, Roster.byId("sr001"));
+  var c = Core.codexStats(st);
+  eq(c.ssr, 1); eq(c.ssrTotal, Roster.byRarity("SSR").length); eq(c.sr, 1); eq(c.srTotal, Roster.byRarity("SR").length);
+  Roster.byRarity("SSR").forEach(function (e) { assert(e.story && e.story.zh && e.story.ja, e.id + " 小故事"); });
+  var a = st.artists.filter(function (x) { return x.rosterId === "ssr001"; })[0];
+  a.fame = 50000;
+  for (var i = 0; i < 3; i++) a.works.unshift({ title: [0, i], dir: "idol", tier: "S", role: "lead", result: "great", stars: 5, day: 300, isWork: true, pay: 1 });
+  st.day = 359; Core.holdAwards(st);
+  if (a.trophies.length) assert(st.codex.stories.ssr001, "得獎解鎖小故事");
+  else assert(!st.codex.stories.ssr001, "沒得獎不解鎖");
 });
 
 // ==== run ====
