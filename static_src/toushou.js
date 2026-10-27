@@ -15,6 +15,7 @@
   var Core = window.PriTestToushouCore;
   var Storage = window.PriTestGameStorage;
   var M = window.PriTestToushouManfen;
+  var MUI = window.PriTestToushouManfenUI;
   var STORAGE_KEY = "pritest-toushou-state";
   var ROOM_KEY = "pritest-toushou-room";
   var CLIENT_KEY = "pritest-toushou-client";
@@ -374,7 +375,7 @@
     var manfen = draft.mode === "manfen";
 
     var gameModeSel = el("select", { id: "ts-game-mode", "aria-label": t("ts_game_mode"),
-      onchange: function (e) { draft.mode = e.target.value; draft.targets = []; render(); } });
+      onchange: function (e) { draft.mode = e.target.value; draft.targets = []; draft.error = ""; render(); } });
     ["classic", "insider", "manfen"].forEach(function (m) {
       gameModeSel.appendChild(el("option", { value: m, selected: draft.mode === m, text: t("ts_game_mode_" + m) }));
     });
@@ -707,6 +708,18 @@
       el("h3", { text: t("ts_news_board") }),
       newsBoard(news || [], info && info.event)
     ]);
+  }
+
+  // 滿分男模式畫面（toushou_ui_manfen.js）用的共用元件
+  function kit() {
+    return {
+      state: function () { return state; },
+      ui: ui,
+      el: el, t: t, lt: lt, P: P,
+      dispatch: dispatch, render: render,
+      owns: owns, masked: masked, waiting: waiting, errorLine: errorLine, hostButton: hostButton,
+      playerName: playerName, playerOf: playerOf, currentTarget: currentTarget, intOf: intOf
+    };
   }
 
   function errorLine() {
@@ -1078,6 +1091,7 @@
     }
     var review = el("div", {}, [el("h3", { text: t("ts_history_heading") })]);
     state.history.forEach(function (h) {
+      if (h.mode === "manfen") { review.appendChild(MUI.review(kit(), h)); return; }
       review.appendChild(el("details", {}, [
         el("summary", { text: lt(h.name) + P("　") + priceLabel(h) +
           (h.event && h.event !== "calm" ? P("　［") + swanName(h.event) + P("］") : "") }),
@@ -1119,6 +1133,8 @@
     }
     if (phase === "missions") {
       wrap.appendChild(renderMissions());
+    } else if (Core.isManfenMode(state)) {
+      wrap.appendChild(MUI.render(kit()));
     } else {
       var settled = phase === "settle";
       var info = settled ? state.lastSettlement : state.current;
@@ -1180,6 +1196,9 @@
     var c = state.current;
     // 內線人連續發消息時 phase 不變，用消息則數區分，避免剛送出的文字被還原回輸入框
     return [state.phase, state.targetIndex, c ? c.turnIndex : "", c && c.news ? c.news.length : "",
+      c && c.ratings ? Object.keys(c.ratings).length : "",
+      c && c.requests ? c.requests.length : "",
+      c && c.pendingRequest ? c.pendingRequest.offers.length + (c.pendingRequest.awaitingRaise ? "r" : "") : "",
       ui.revealedFor, ui.selectedCard].join("|");
   }
 

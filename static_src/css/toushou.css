@@ -155,3 +155,23 @@
 .ts-vote-detail { font-size: 0.85em; opacity: 0.8; }
 .ts-swan-badge { padding: 0.4rem 0.6rem; border-left: 4px solid #8a2be2; background: rgba(138, 43, 226, 0.08); }
 .ts-news-mod { font-size: 0.85em; opacity: 0.8; }
+
+/* ===== 滿分男模式（manfen） ===== */
+.ts-mf-sentence {
+  font-size: 1.2rem;
+  font-weight: bold;
+  padding: 0.6rem 0.8rem;
+  border-left: 4px solid #c0392b;
+  background: rgba(192, 57, 43, 0.08);
+}
+.ts-mf-wind { color: #7a5c00; }
+.ts-mf-wind-holder { font-weight: bold; padding: 0.4rem 0.6rem; background: rgba(241, 196, 15, 0.18); border-radius: 6px; }
+.ts-mf-rate-buttons { display: flex; flex-wrap: wrap; gap: 0.5rem; margin: 0.75rem 0; }
+.ts-mf-rate { min-width: 5.5rem; padding: 0.75rem 1rem; font-size: 1.1rem; font-weight: bold; }
+.ts-mf-rate:disabled { opacity: 0.35; }
+.ts-mf-revealed { display: flex; flex-wrap: wrap; gap: 0.4rem; list-style: none; padding: 0; }
+.ts-mf-revealed li { padding: 0.2rem 0.6rem; border: 1px solid #c0392b; border-radius: 999px; }
+.ts-mf-request, .ts-mf-pending { margin: 0.5rem 0; }
+.ts-mf-pending-line { font-weight: bold; }
+.ts-mf-avg { font-size: 1.2rem; font-weight: bold; }
+.ts-mf-request-log { font-size: 0.9rem; }

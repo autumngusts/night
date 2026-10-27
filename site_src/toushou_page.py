@@ -30,6 +30,7 @@ TOUSHOU_SCRIPTS: tuple[str, ...] = (
     "toushou_data_manfen.js",
     "toushou_core.js",
     "toushou_core_manfen.js",
+    "toushou_ui_manfen.js",
     "toushou.js",
 )
 
