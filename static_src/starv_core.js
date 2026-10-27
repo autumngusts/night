@@ -60,6 +60,7 @@
       stats: { pulls: 0, jobsDone: 0 },
       trend: null, events: { pending: [] }, loans: [],
       rivals: [], auditions: [], charts: null, awards: { history: [], unseen: null },
+      hall: [], retireQueue: [], timeline: [],
       log: [], logSeq: 0, nextId: 1
     };
   }
@@ -502,7 +503,7 @@
     tickWaitlist(st);
     if (st.day % BAL.daysPerMonth === 0) monthly(st);
     if (st.day % BAL.daysPerYear === BAL.daysPerYear - 1) holdAwards(st);
-    if (st.day % BAL.daysPerYear === 0) { yearly(st); rivalYear(st); }
+    if (st.day % BAL.daysPerYear === 0) { yearly(st); rivalYear(st); retireCheck(st); }
     tickContracts(st);
     tickEvents(st);
     autoPlan(st);
@@ -688,6 +689,7 @@
       st.company.level++;
       st.company.tickets += st.company.level * BAL.levelTickets;
       log(st, "level_up", { lv: st.company.level });
+      if (st.company.level === 10) timeline(st, "level", { lv: 10 });
     }
   }
 
@@ -1074,6 +1076,16 @@
           out.renewed = true;
         }
       }
+      if (fx.retire) out.retired = retireArtist(st, a.id);
+      else if (fx.retain) {
+        var p = a.satisfaction / 100 + (fx.retain === "rest" ? 0.1 : 0);
+        if (rnd(st) < p) {
+          if (fx.retain === "raise") { a.baseSalary = Math.round(a.baseSalary * 1.3 / 100) * 100; updateSalary(a); }
+          else if (!a.task) { a.task = { kind: "rest", days: 30, left: 30, stamina: 0, stress: 0, forced: true }; a.stress = clamp(a.stress - 50, 0, 100); }
+          a.retireAskedUntil = st.day + BAL.daysPerYear;
+          out.retained = true;
+        } else out.retired = retireArtist(st, a.id);
+      }
     }
     ["allStress", "allSatisfaction"].forEach(function (k) {
       if (!fx[k]) return;
@@ -1397,7 +1409,7 @@
       noms.forEach(function (n, i) { w[i] = n.score * n.score; });
       var win = Number(wpick(st, w));
       results.push({ award: aw.id, nominees: noms, winner: win });
-      if (isOurs(noms[win])) wins++;
+      if (isOurs(noms[win])) { wins++; timeline(st, "award", { award: aw.id, year: year, nominee: noms[win] }); }
       noms.forEach(function (n, i) { awardPrize(st, aw, n, i === win, year); });
     });
     st.awards.history.unshift({ year: year, results: results });
@@ -1410,6 +1422,48 @@
   function tickContracts(st) {
     st.artists.forEach(function (a) {
       if (a.contractEnd <= st.day && !a.renewPending) { a.renewPending = true; pushEvent(st, "contract_renewal", a.id); }
+    });
+  }
+
+  // ==== 引退、名人堂、作品年表（§11、§14） ====
+  function timeline(st, kind, data) {
+    st.timeline.unshift({ era: st.era, day: st.day, kind: kind, data: data || {} });
+    if (st.timeline.length > BAL.timelineMax) st.timeline.length = BAL.timelineMax;
+  }
+
+  function retireArtist(st, aid) {
+    var a = artistById(st, aid);
+    if (!a) return null;
+    var best = null;
+    a.works.forEach(function (w) { if (!best || workScore(w) > workScore(best)) best = w; });
+    var s = {
+      id: newId(st, "h"), era: st.era, day: st.day, rosterId: a.rosterId, nameSeed: a.nameSeed, gender: a.gender,
+      rarity: a.rarity, dir: a.dir, age: a.age, years: Math.floor((st.day - a.joinedDay) / BAL.daysPerYear), works: a.worksTotal,
+      best: best ? { title: best.title.slice(), dir: best.dir, tier: best.tier, stars: best.stars } : null,
+      trophies: a.trophies.slice(), fame: a.fame, look: clone(a.look)
+    };
+    s.score = Math.round((s.trophies.length * 10 + s.works * 0.5 + s.fame / 1000) * 10) / 10;
+    s.hof = s.score >= BAL.hofScore;
+    removeArtist(st, a);
+    st.retireQueue.push(s);
+    log(st, "retire", { rosterId: s.rosterId, nameSeed: s.nameSeed, gender: s.gender, hof: s.hof, score: s.score });
+    timeline(st, "retire", { hid: s.id, rosterId: s.rosterId, nameSeed: s.nameSeed, gender: s.gender });
+    if (s.hof) {
+      st.hall.push(s);
+      log(st, "hof", { rosterId: s.rosterId, nameSeed: s.nameSeed, gender: s.gender });
+      timeline(st, "hof", { hid: s.id, rosterId: s.rosterId, nameSeed: s.nameSeed, gender: s.gender });
+    }
+    return s;
+  }
+
+  function retireCheck(st) {
+    st.artists.forEach(function (a) {
+      if (a.retireAskedUntil > st.day) return;
+      var p = 0;
+      if (a.age > dirById(a.dir).retire) p = BAL.retireOldChance;
+      else if (a.stress >= 90) p = BAL.retireStressChance;
+      else if (st.day - a.joinedDay >= BAL.daysPerYear * 3 && a.fame < BAL.retireLowFame) p = BAL.retireLowFameChance;
+      if (p && rnd(st) < p) { a.retireAskedUntil = st.day + BAL.daysPerYear; pushEvent(st, "retire_offer", a.id); }
     });
   }
 
@@ -1470,5 +1524,6 @@
   api.rivalStarName = rivalStarName;
   api.updateCharts = updateCharts;
   api.holdAwards = holdAwards;
+  api.retireArtist = retireArtist;
   root.PriTestStarvCore = api;
 })();

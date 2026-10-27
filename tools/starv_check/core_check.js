@@ -1014,6 +1014,40 @@ test("存檔版本 4：補上合約到期日", function () {
   eq(m.version, 4); eq(m.artists[0].contractEnd, st.day + 1080);
 });
 
+test("引退：超過引退線會提出、尊重決定進名人堂、挽留成功率看滿意度", function () {
+  var st = Core.create({ seed: 3 });
+  st.board = []; st.boardRefreshDay = 99999;
+  var old = freshArtist(st, { age: 60, fame: 20000 });
+  for (var i = 0; i < 4; i++) old.trophies.push({ award: "singer_f", year: 1 });
+  old.worksTotal = 20; old.contractEnd = 99999;   // 避免 3 年後先因合約到期離開
+  var tries = 0;
+  while (!st.events.pending.some(function (x) { return x.id === "retire_offer"; }) && tries++ < 10) Core.advance(st, 360);
+  var e = st.events.pending.filter(function (x) { return x.id === "retire_offer"; })[0];
+  assert(e && e.aid === old.id, "提出引退");
+  var r = Core.resolveEvent(st, e.uid, 0);
+  assert(r.fx.retired && r.fx.retired.hof, "進名人堂");
+  eq(Core.artistById(st, old.id), null); eq(st.hall.length, 1); eq(st.retireQueue.length, 1);
+  assert(st.timeline.some(function (x) { return x.kind === "hof"; }), "年表");
+  var keep = freshArtist(st, { satisfaction: 100, age: 70 });
+  e = Core.triggerEvent(st, "retire_offer", keep.id);
+  r = Core.resolveEvent(st, e.uid, 1);
+  assert(r.fx.retained, "滿意度 100 一定挽留成功"); assert(keep.retireAskedUntil > st.day, "一年內不再問");
+  var gone = freshArtist(st, { satisfaction: 0 });
+  e = Core.triggerEvent(st, "retire_offer", gone.id);
+  r = Core.resolveEvent(st, e.uid, 1);
+  assert(r.fx.retired && !r.fx.retired.hof, "挽留失敗、評分不夠不進名人堂"); eq(st.hall.length, 1);
+});
+
+test("引退：retireArtist 摘要內容", function () {
+  var st = Core.create({ seed: 1 }), a = freshArtist(st, { fame: 3000 });
+  a.works.unshift({ title: [1, 2], dir: "singer", tier: "B", role: "lead", result: "great", stars: 5, day: 0, isWork: true, pay: 1 });
+  a.worksTotal = 1;
+  var s = Core.retireArtist(st, a.id);
+  eq(s.best.tier, "B"); eq(s.works, 1); eq(s.dir, "singer"); eq(s.era, 1);
+  eq(s.score, 0 + 0.5 + 3); eq(s.hof, false);
+  eq(Core.retireArtist(st, "nope"), null);
+});
+
 // ==== run ====
 var fails = 0;
 tests.forEach(function (t) {

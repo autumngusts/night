@@ -278,6 +278,7 @@
     rivalCount: 5, rivalPowerStart: [80, 140], rivalPowerNew: [80, 120], rivalBankrupt: 40, rivalShockChance: 0.12,
     rivalPerfDiv: 400, rivalYearGrowth: 0.02, rivalStarJoinChance: 0.5, rivalPowerTarget: 100, rivalRevert: 0.3,
     contractDays: 1080, renewSatLine: 50, renewRaise: 0.2, renewStandard: 0.1, satWorked: 2, satIdle: -2, satStress: -3, satMood: 1,
+    retireOldChance: 0.4, retireStressChance: 0.1, retireLowFameChance: 0.15, retireLowFame: 30, hofScore: 30, timelineMax: 300,
     logMax: 200, worksMax: 50
   };
 
