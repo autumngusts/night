@@ -29,6 +29,7 @@ STARV_SCRIPTS: tuple[str, ...] = (
     "starv_core.js",
     "starv_store.js",
     "starv_avatar.js",
+    "starv_stage_spec.js",
     "starv_ui.js",
     "starv_view_artists.js",
     "starv_view_jobs.js",

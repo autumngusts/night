@@ -40,6 +40,8 @@ require("../../static_src/starv_store.js");
 var Store = global.PriTestStarvStore;
 require("../../static_src/starv_avatar.js");
 var Avatar = global.PriTestStarvAvatar;
+require("../../static_src/starv_stage_spec.js");
+var Spec = global.PriTestStarvStageSpec;
 function fakeStorage() {
   var m = {};
   return { getItem: function (k) { return k in m ? m[k] : null; }, setItem: function (k, v) { m[k] = String(v); }, removeItem: function (k) { delete m[k]; }, _m: m };
@@ -1259,6 +1261,39 @@ test("成就 v2：企劃", function () {
   var st = Core.create({ seed: 1 }); st.stats.projects = 1; st.board = []; st.boardRefreshDay = 99999;
   Core.advance(st, 1);
   assert(st.achievements.first_project && !st.achievements.great_project, "完成 1 件");
+});
+
+test("3D 規格：每個方向都有場景與動作、角色顏色與 2D 頭像一致", function () {
+  D.DIRS.forEach(function (d) {
+    assert(Spec.SCENES.indexOf(Spec.sceneFor(d.id)) >= 0, d.id + " 場景");
+    assert(Spec.MOTIONS.indexOf(Spec.motionFor(d.id)) >= 0, d.id + " 動作");
+  });
+  var look = { face: 1, hair: 7, hairColor: 3, eye: 2, outfit: 5, acc: 1, skin: 2 };
+  var r = Spec.rig(look, "f");
+  eq(r.skin, D.LOOK.skins[2]); eq(r.hair, D.LOOK.hairColors[3]); eq(r.outfit, Avatar.OUTFITS[5]);
+  eq(r.hairLen, 2); eq(r.bangs, 1); eq(r.acc, 1);
+  assert(Spec.rig(null, "m").skin, "預設外觀");
+});
+
+test("3D 規格：站位、鏡頭腳本涵蓋整段、鏡頭座標有限", function () {
+  for (var n = 1; n <= 5; n++) {
+    var s = Spec.slots(n);
+    eq(s.length, n); assert(Math.abs(s.reduce(function (a, b) { return a + b; }, 0)) < 1e-9, n + " 人左右對稱");
+  }
+  ["job", "project", "awards", "replay"].forEach(function (kind) {
+    var p = Spec.plan({ dir: "singer", kind: kind, seed: 7 });
+    assert(p.duration >= 8 && p.duration <= 25, kind + " 長度 " + p.duration);
+    eq(p.shots[0].start, 0); eq(p.shots[p.shots.length - 1].end, p.duration);
+    for (var i = 1; i < p.shots.length; i++) eq(p.shots[i].start, p.shots[i - 1].end, kind + " 首尾相接");
+    p.shots.forEach(function (sh) {
+      [0, 0.5, 1].forEach(function (u) {
+        var c = Spec.camera(sh.kind, u, 0.5);
+        c.pos.concat(c.look).forEach(function (v) { assert(isFinite(v), sh.kind + " 座標"); });
+      });
+    });
+  });
+  eq(Spec.plan({ dir: "film", kind: "awards" }).scene, "awards", "頒獎一律在頒獎會場");
+  eq(Spec.plan({ dir: "model", kind: "job" }).motion, "walk");
 });
 
 // ==== run ====
