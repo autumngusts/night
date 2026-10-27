@@ -498,6 +498,7 @@
     tickBoard(st);
     tickWaitlist(st);
     if (st.day % BAL.daysPerMonth === 0) monthly(st);
+    if (st.day % BAL.daysPerYear === BAL.daysPerYear - 1) holdAwards(st);
     if (st.day % BAL.daysPerYear === 0) { yearly(st); rivalYear(st); }
     tickEvents(st);
     autoPlan(st);
@@ -1266,6 +1267,106 @@
     st.charts = { day: st.day, lists: lists };
   }
 
+  // ==== 年度頒獎典禮（§10） ====
+  function personScore(a, from, dirs) { return topSum(recentWorks(a, from, dirs).map(workScore), 3) + a.fame / BAL.awardFameDiv; }
+
+  function awardCandidates(st, aw, from) {
+    var out = [], dirs = aw.dirs, base = BAL.awardBase[aw.kind];
+    function genderOk(g) { return !aw.gender || aw.gender === g; }
+    if (aw.kind === "person" || aw.kind === "rookie") {
+      st.artists.forEach(function (a) {
+        if (!genderOk(a.gender)) return;
+        if (aw.kind === "rookie" && st.day - a.joinedDay > BAL.daysPerYear) return;
+        var s;
+        if (aw.filter === "veteran") {
+          if (!(a.age >= 35 || st.day - a.joinedDay >= BAL.daysPerYear * 10)) return;
+          s = topSum(a.works.map(workScore), 3) + a.trophies.length * 10;
+        } else if (aw.by === "fame") s = a.fame * 3 / BAL.awardFameDiv;
+        else if (!recentWorks(a, from, dirs).length) return;
+        else s = personScore(a, from, dirs);
+        if (s > 0) out.push({ kind: "artist", aid: a.id, score: s });
+      });
+      st.rivals.forEach(function (r) {
+        var star = aw.kind === "person" ? r.stars.filter(function (s) {
+          var e = Roster.byId(s.rosterId);
+          return e && genderOk(e.gender) && (!dirs || dirs.indexOf(e.dir) >= 0);
+        })[0] : null;
+        if (star) out.push({ kind: "rstar", rival: r.id, rosterId: star.rosterId, score: rivalScore(st, r, base * 1.2) });
+        else out.push({ kind: "rgen", rival: r.id, nameSeed: rint(st, 0, 999999), gender: aw.gender || (rnd(st) < 0.5 ? "f" : "m"), score: rivalScore(st, r, base) });
+      });
+    } else if (aw.kind === "work") {
+      var best = {};
+      st.artists.forEach(function (a) {
+        recentWorks(a, from, dirs).forEach(function (w) {
+          var key = w.dir + ":" + w.title.join(","), s = workScore(w) * (w.isWork ? 1 : 0.5);
+          if (!best[key] || best[key].score < s) best[key] = { kind: "work", aid: a.id, title: w.title.slice(), dir: w.dir, score: s };
+        });
+      });
+      Object.keys(best).forEach(function (k) { out.push(best[k]); });
+      st.rivals.forEach(function (r) {
+        var d = dirById(dirs ? pick(st, dirs) : pick(st, D.DIRS).id);
+        out.push({ kind: "rwork", rival: r.id, dir: d.id, title: [rint(st, 0, d.title.a.length - 1), rint(st, 0, d.title.b.length - 1)], score: rivalScore(st, r, base) });
+      });
+    } else if (aw.kind === "group") {
+      st.groups.forEach(function (g) {
+        var members = g.members.map(function (id) { return artistById(st, id); }).filter(Boolean);
+        if (!members.length || (dirs && !members.some(function (a) { return dirs.indexOf(a.dir) >= 0; }))) return;
+        var s = members.reduce(function (sum, a) { return sum + personScore(a, from, null); }, 0) / members.length + g.jobs;
+        if (s > 0) out.push({ kind: "group", gid: g.id, score: s });
+      });
+      st.rivals.forEach(function (r) { out.push({ kind: "rgroup", rival: r.id, score: rivalScore(st, r, base) }); });
+    } else if (aw.kind === "company") {
+      out.push({ kind: "company", score: (st.company.rep - st.company.repYearStart) / BAL.awardRepDiv });
+      st.rivals.forEach(function (r) { out.push({ kind: "rcompany", rival: r.id, score: rivalScore(st, r, base) }); });
+    }
+    return out.filter(function (n) { return n.score > 0; });
+  }
+
+  function isOurs(n) { return n.kind === "artist" || n.kind === "work" || n.kind === "group" || n.kind === "company"; }
+
+  function awardPrize(st, aw, n, won, year) {
+    var P = BAL.awardPrize;
+    if (n.kind === "artist" || n.kind === "work") {
+      var a = artistById(st, n.aid);
+      if (a) {
+        a.fame = Math.min(99999, a.fame + (won ? P.fame : n.kind === "artist" ? P.nomFame : 0));
+        if (won) { a.trophies.push({ award: aw.id, year: year }); a.satisfaction = clamp(a.satisfaction + 10, 0, 100); }
+      }
+    }
+    if (n.kind === "group" && won) {
+      var g = null;
+      st.groups.forEach(function (x) { if (x.id === n.gid) g = x; });
+      if (g) g.members.forEach(function (id) {
+        var m = artistById(st, id);
+        if (m) { m.fame = Math.min(99999, m.fame + P.groupFame); m.trophies.push({ award: aw.id, year: year }); }
+      });
+    }
+    if (won && isOurs(n)) {
+      st.company.money += P.money[aw.kind];
+      st.company.tickets += P.tickets;
+      addRep(st, P.rep);
+    }
+    if (won && n.rival) { var r = rivalById(st, n.rival); if (r) r.power += P.rivalPower; }
+  }
+
+  function holdAwards(st) {
+    var year = dateOf(st.day).year, from = st.day - BAL.daysPerYear, results = [], wins = 0;
+    D.AWARDS.forEach(function (aw) {
+      var noms = awardCandidates(st, aw, from).sort(function (x, y) { return y.score - x.score; }).slice(0, 5);
+      if (!noms.length) return;
+      var w = {};
+      noms.forEach(function (n, i) { w[i] = n.score * n.score; });
+      var win = Number(wpick(st, w));
+      results.push({ award: aw.id, nominees: noms, winner: win });
+      if (isOurs(noms[win])) wins++;
+      noms.forEach(function (n, i) { awardPrize(st, aw, n, i === win, year); });
+    });
+    st.awards.history.unshift({ year: year, results: results });
+    if (st.awards.history.length > BAL.awardHistoryMax) st.awards.history.length = BAL.awardHistoryMax;
+    st.awards.unseen = year;
+    log(st, "awards", { year: year, wins: wins });
+  }
+
   // ==== exports ====
   api.VERSION = VERSION;
   api.create = create;
@@ -1322,5 +1423,6 @@
   api.rivalName = rivalName;
   api.rivalStarName = rivalStarName;
   api.updateCharts = updateCharts;
+  api.holdAwards = holdAwards;
   root.PriTestStarvCore = api;
 })();

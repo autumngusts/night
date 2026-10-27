@@ -922,6 +922,39 @@ test("排行榜：前 10、我方第 1 名加聲望", function () {
   assert(st.log.some(function (e) { return e.type === "chart_top" && e.data.chart === "single"; }), "日誌");
 });
 
+test("頒獎：所有獎項都有結果、強者多半得獎、獎品與歷史", function () {
+  var st = Core.create({ seed: 1 });
+  st.board = []; st.boardRefreshDay = 99999;
+  var star = freshArtist(st, { fame: 30000, gender: "f" });
+  star.dir = "film";
+  for (var i = 0; i < 5; i++) star.works.unshift({ title: [i, i], dir: "film", tier: "S", role: "lead", result: "great", stars: 5, day: 300, isWork: true, pay: 1 });
+  st.day = 359;
+  var m0 = st.company.money;
+  Core.holdAwards(st);
+  var h = st.awards.history[0];
+  eq(h.year, 1); eq(st.awards.unseen, 1);
+  h.results.forEach(function (r) {
+    assert(D.AWARD_BY_ID[r.award], "獎項"); assert(r.nominees.length >= 1 && r.nominees.length <= 5, r.award + " 入圍數");
+    assert(r.nominees[r.winner], r.award + " 得獎者");
+  });
+  var mine = h.results.filter(function (r) { var n = r.nominees[r.winner]; return n.kind === "artist" || n.kind === "work"; });
+  assert(mine.length >= 1, "強者至少拿到一座");
+  assert(star.trophies.length >= 1 && st.company.money > m0, "獎座與獎金");
+  assert(h.results.some(function (r) { return r.award === "film_actress"; }), "女主角獎有結果");
+  assert(!h.results.filter(function (r) { return r.award === "film_actor"; })[0].nominees.some(function (n) { return n.aid === star.id; }), "女性不會入圍男主角");
+  assert(st.log.some(function (e) { return e.type === "awards"; }), "日誌");
+});
+
+test("頒獎：每年 12/30 自動舉辦、歷史保留 10 年", function () {
+  var st = Core.create({ seed: 2 });
+  st.board = []; st.boardRefreshDay = 99999;
+  freshArtist(st);
+  Core.advance(st, 359);
+  eq(st.awards.history.length, 1, "第 1 年 12/30");
+  for (var y = 0; y < 11; y++) Core.advance(st, 360);
+  eq(st.awards.history.length, 10, "保留 10 年"); eq(st.awards.history[0].year, 12);
+});
+
 // ==== run ====
 var fails = 0;
 tests.forEach(function (t) {

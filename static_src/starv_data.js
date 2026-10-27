@@ -271,6 +271,8 @@
     eventDailyChance: 0.08, eventDeadlineDays: 3, eventMax: 3, prBadCut: 0.1, famousFame: 200, rookieDays: 60,
     fameMilestones: [1000, 5000, 20000, 50000], sellContractMonths: 6, debtCrisisMonths: 3,
     seasonDays: 90, trendHot: 1.5, trendCold: 0.7, specialTrendChance: 0.25, trendBoardHot: 2, trendBoardCold: 0.5,
+    awardBase: { person: 40, work: 14, rookie: 25, group: 25, company: 30 }, awardFameDiv: 1000, awardRepDiv: 50, awardHistoryMax: 10,
+    awardPrize: { money: { person: 30000, work: 30000, rookie: 20000, group: 30000, company: 100000 }, tickets: 2, rep: 80, fame: 300, nomFame: 80, groupFame: 200, rivalPower: 3 },
     tierWeight: { D: 1, C: 2, B: 4, A: 8, S: 16 }, chartBase: 25, chartFameDiv: 100, chartFameBase: 15, chartFillers: 2, chartTopRep: 50, chartTopFame: 100,
     auditionTiers: ["A", "S"], interestChance: 0.3, snatchChance: 0.01, snatchInterestChance: 0.06, auditionRivalWin: 2,
     rivalCount: 5, rivalPowerStart: [80, 140], rivalPowerNew: [80, 120], rivalBankrupt: 40, rivalShockChance: 0.12,
