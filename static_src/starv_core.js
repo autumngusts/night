@@ -8,7 +8,7 @@
   var D = root.PriTestStarvData;
   var Roster = root.PriTestStarvRoster;
   var BAL = D.BAL;
-  var VERSION = 3;
+  var VERSION = 4;
   var api = {};
 
   // ==== 亂數與工具 ====
@@ -89,6 +89,8 @@
     // 月薪隨人氣上升（計畫 3 補）：舊存檔沒有基本月薪，以目前月薪當基本月薪
     st.artists.concat(st.waitlist.map(function (w) { return w.artist; })).forEach(function (a) { if (a.baseSalary == null) a.baseSalary = a.salary; });
     st.waitlist.forEach(function (w) { fillDefaults(w.artist, ARTIST_DEFAULTS); });
+    // version 3 → 4：合約（規格 §11）
+    st.artists.concat(st.waitlist.map(function (w) { return w.artist; })).forEach(function (a) { if (a.contractEnd == null) a.contractEnd = st.day + BAL.contractDays; });
     if (!st.trend) initTrend(st);   // version 1 → 2：補上業界趨勢
     if (!st.rivals.length) initRivals(st);   // version 2 → 3：補上對手公司
     // 事件資料被移除或改名時，存檔裡待處理的舊事件直接丟掉（不讓存檔壞掉）
@@ -126,7 +128,7 @@
   // 藝人欄位的預設值（migrate 也用這份補齊舊存檔）
   var ARTIST_DEFAULTS = {
     rosterId: null, nameSeed: 0, gender: "f", age: 18, traits: [], subDirs: [],
-    stamina: 100, stress: 0, mood: 0, fame: 0, satisfaction: 70, salary: 1500, baseSalary: null, trophies: [],
+    stamina: 100, stress: 0, mood: 0, fame: 0, satisfaction: 70, salary: 1500, baseSalary: null, trophies: [], contractEnd: null, renewPending: false, worksTotal: 0, retireAskedUntil: 0,
     policy: "idle", lastAuto: null, task: null, works: [], limitBreak: 0, joinedDay: 0
   };
 
@@ -136,6 +138,7 @@
     a.rarity = rarity;
     a.nameSeed = rint(st, 0, 999999);
     a.joinedDay = st.day;
+    a.contractEnd = st.day + BAL.contractDays;
     a.stats = {}; a.apt = {}; a.caps = {};
     a.prof = profInit();
     a.dir = D.DIRS[0].id;
@@ -500,6 +503,7 @@
     if (st.day % BAL.daysPerMonth === 0) monthly(st);
     if (st.day % BAL.daysPerYear === BAL.daysPerYear - 1) holdAwards(st);
     if (st.day % BAL.daysPerYear === 0) { yearly(st); rivalYear(st); }
+    tickContracts(st);
     tickEvents(st);
     autoPlan(st);
   }
@@ -712,6 +716,7 @@
       a.satisfaction = clamp(a.satisfaction + R.sat, 0, 100);
       a.works.unshift({ title: job.title.slice(), dir: job.dir, tier: job.tier, role: job.role, result: res, stars: stars, day: st.day, isWork: job.isWork, pay: pay });
       if (a.works.length > BAL.worksMax) a.works.length = BAL.worksMax;
+      a.worksTotal++;
       a.task = null;
       postTask(st, a);
     });
@@ -762,6 +767,14 @@
     st.artists.forEach(function (a) {
       var rate = (inPeak(a) ? BAL.fameDecay : BAL.fameDecayOffPeak) * prMult;
       a.fame = Math.round(a.fame * (1 - rate));
+    });
+    // 滿意度漂移（規格 §11）：最近 30 天有沒有工作、壓力、心情
+    st.artists.forEach(function (a) {
+      var worked = a.works.some(function (w) { return w.day > st.day - BAL.daysPerMonth; });
+      var d = worked ? BAL.satWorked : BAL.satIdle;
+      if (a.stress > 70) d += BAL.satStress;
+      if (a.mood >= 1) d += BAL.satMood;
+      a.satisfaction = clamp(a.satisfaction + d, 0, 100);
     });
     // 月薪隨人氣上升（規格 §5.2）：人氣衰退後重算，再支付
     st.artists.forEach(function (a) { updateSalary(a); salary += a.salary; });
@@ -1048,6 +1061,19 @@
       if (fx.rest && !a.task) { a.task = { kind: "rest", days: fx.rest, left: fx.rest, stamina: 0, stress: 0, forced: true }; out.rest = fx.rest; }
       if (fx.specialJob) { var j = genJob(st, { dir: a.dir, tier: tierUp(st, a), reservedFor: a.id }); st.board.push(j); out.job = j.id; }
       if (fx.leave) { removeArtist(st, a); out.leave = true; log(st, "left", leftInfo(a)); }
+      if (fx.renew) {
+        var refuse = fx.renew === "release" ||
+          (fx.renew === "standard" && rnd(st) < clamp((BAL.renewSatLine - a.satisfaction) / BAL.renewSatLine, 0, 1));
+        a.renewPending = false;
+        if (refuse) { removeArtist(st, a); out.refused = true; log(st, "left", leftInfo(a)); }
+        else {
+          a.baseSalary = Math.round(a.baseSalary * (1 + (fx.renew === "raise" ? BAL.renewRaise : BAL.renewStandard)) / 100) * 100;
+          updateSalary(a);
+          if (fx.renew === "raise") a.satisfaction = clamp(a.satisfaction + 10, 0, 100);
+          a.contractEnd += BAL.contractDays;
+          out.renewed = true;
+        }
+      }
     }
     ["allStress", "allSatisfaction"].forEach(function (k) {
       if (!fx[k]) return;
@@ -1378,6 +1404,13 @@
     if (st.awards.history.length > BAL.awardHistoryMax) st.awards.history.length = BAL.awardHistoryMax;
     st.awards.unseen = year;
     log(st, "awards", { year: year, wins: wins });
+  }
+
+  // ==== 合約（§11） ====
+  function tickContracts(st) {
+    st.artists.forEach(function (a) {
+      if (a.contractEnd <= st.day && !a.renewPending) { a.renewPending = true; pushEvent(st, "contract_renewal", a.id); }
+    });
   }
 
   // ==== exports ====

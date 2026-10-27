@@ -7,6 +7,7 @@ require("../../static_src/starv_data.js");
 require("../../static_src/starv_events.js");
 require("../../static_src/starv_events_1.js");
 require("../../static_src/starv_events_2.js");
+require("../../static_src/starv_events_3.js");
 require("../../static_src/starv_awards_data.js");
 var Events = global.PriTestStarvEvents;
 require("../../static_src/starv_roster.js");
@@ -656,7 +657,7 @@ test("存檔版本 2：舊存檔補上趨勢", function () {
 
 test("事件資料：40 種、格式正確", function () {
   var FX = ["money", "tickets", "rep", "loan", "sellTop", "fame", "famePct", "stress", "stamina", "satisfaction", "mood", "salaryPct",
-    "statAll", "stat", "rest", "specialJob", "leave", "moneyBySalary", "allStress", "allSatisfaction", "allSalaryPct", "rivalPower"];
+    "statAll", "stat", "rest", "specialJob", "leave", "moneyBySalary", "allStress", "allSatisfaction", "allSalaryPct", "rivalPower", "renew", "retire", "retain"];
   var TARGETS = ["none", "any", "famous", "rookie", "music", "dance", "stream", "stressed", "unhappy", "lowmood", "idle"];
   eq(D.EVENTS.length, Events.all().length, "D.EVENTS 與登記器一致");
   eq(Events.all().filter(function (e) { return e.addedIn === "v1"; }).length, 40, "v1 事件數");
@@ -850,7 +851,8 @@ test("存檔版本 3：舊存檔補上對手", function () {
   var st = Core.create({ seed: 1 });
   delete st.rivals; st.version = 2;
   var m = Core.migrate(JSON.parse(JSON.stringify(st)));
-  eq(m.version, 3); eq(m.rivals.length, 5);
+  // 計畫 5 升到版本 4 後改成跟著 Core.VERSION（這個測試只關心對手有沒有補上）
+  eq(m.version, Core.VERSION); eq(m.rivals.length, 5);
 });
 
 test("試鏡：A/S 是試鏡制、隔天公布、贏了開工輸了被搶", function () {
@@ -974,6 +976,42 @@ test("對手：實力每年回歸 100 附近（不會無限累積）", function 
   st.rivals.forEach(function (r) { r.power = 2000; });
   Core.advance(st, 360 * 10);
   st.rivals.forEach(function (r) { assert(r.power < 400, "10 年後實力 " + r.power); });
+});
+
+test("合約：建立時 3 年、到期觸發續約、加薪／照常／拒絕", function () {
+  var st = Core.create({ seed: 1 }), a = freshArtist(st, { salary: 2000, satisfaction: 90 });
+  st.board = []; st.boardRefreshDay = 99999;
+  eq(Core._genR(st).contractEnd, st.day + 1080, "新藝人");
+  a.contractEnd = 5;
+  Core.advance(st, 5);
+  var e = st.events.pending.filter(function (x) { return x.id === "contract_renewal"; })[0];
+  assert(e && e.aid === a.id && a.renewPending, "到期觸發");
+  Core.advance(st, 1); eq(st.events.pending.filter(function (x) { return x.id === "contract_renewal"; }).length, 1, "不重複觸發");
+  var r = Core.resolveEvent(st, e.uid, 0);
+  assert(r.fx.renewed, "加薪續約"); eq(a.baseSalary, 2400); eq(a.contractEnd, 5 + 1080); eq(a.renewPending, false);
+  var b = freshArtist(st, { satisfaction: 0 }); b.contractEnd = st.day;
+  Core.advance(st, 1);
+  e = st.events.pending.filter(function (x) { return x.aid === b.id; })[0];
+  r = Core.resolveEvent(st, e.uid, 1);
+  assert(r.fx.refused, "滿意度 0 一定拒絕"); eq(Core.artistById(st, b.id), null);
+});
+
+test("滿意度：每月依工作、壓力、心情漂移", function () {
+  var st = Core.create({ seed: 1 });
+  st.board = []; st.boardRefreshDay = 99999;
+  var idle = freshArtist(st, { satisfaction: 50 }), busy = freshArtist(st, { satisfaction: 50, stress: 80, mood: 1 });
+  busy.works.unshift({ title: [0, 0], dir: "singer", tier: "D", role: "support", result: "success", stars: 3, day: 20, isWork: false, pay: 1 });
+  busy.stress = 80;
+  Core.advance(st, 30);
+  eq(idle.satisfaction, 48, "沒工作 −2");
+  eq(busy.satisfaction, 50, "有工作 +2、壓力 −3、心情 +1");
+});
+
+test("存檔版本 4：補上合約到期日", function () {
+  var st = Core.create({ seed: 1 }), a = freshArtist(st);
+  delete a.contractEnd; st.version = 3;
+  var m = Core.migrate(JSON.parse(JSON.stringify(st)));
+  eq(m.version, 4); eq(m.artists[0].contractEnd, st.day + 1080);
 });
 
 // ==== run ====
