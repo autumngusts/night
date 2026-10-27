@@ -504,6 +504,28 @@ test("離線：報告內容", function () {
   assert(r.logs.length > 0 && r.logs.every(function (e) { return e.day >= 1; }), "報告只含結算期間的日誌");
 });
 
+test("UI 用 API：setDirs", function () {
+  var st = Core.create({ seed: 1 }), a = freshArtist(st);
+  a.prof.singer.lv = 4;
+  eq(Core.setDirs(st, a.id, "film", ["singer", "idol"]), null);
+  eq(a.dir, "film"); eq(a.subDirs.join(","), "singer,idol"); eq(a.prof.singer.lv, 4, "熟練度保留");
+  eq(Core.setDirs(st, a.id, "nope", []), "dir");
+  eq(Core.setDirs(st, a.id, "film", ["film"]), "sub", "副方向不能是主方向");
+  eq(Core.setDirs(st, a.id, "film", ["idol", "idol"]), "sub", "不能重複");
+  eq(Core.setDirs(st, a.id, "film", ["idol", "cm", "host"]), "sub", "最多 2 個");
+  eq(Core.setDirs(st, "x", "film", []), "noArtist");
+});
+
+test("UI 用 API：等級、每日抽卡、保底、課程可否", function () {
+  var st = Core.create({ seed: 1 });
+  eq(Core.nextLevelRep(st), 500); st.company.level = 10; eq(Core.nextLevelRep(st), null);
+  eq(Core.dailyPullsLeft(st), 30);
+  st.company.money = 1e9; st.facilities.dorm = 10; Core.pull(st, "money", 10);
+  eq(Core.dailyPullsLeft(st), 20); st.day = 1; eq(Core.dailyPullsLeft(st), 30, "隔天");
+  st.gacha.pity = 0; eq(Core.pityLeft(st), 150); st.gacha.pity = 149; eq(Core.pityLeft(st), 1);
+  eq(Core.courseAllowed(st, D.COURSE_BY_ID.vocal_2), false); st.facilities.studio = 1; eq(Core.courseAllowed(st, D.COURSE_BY_ID.vocal_2), true);
+});
+
 // ==== run ====
 var fails = 0;
 tests.forEach(function (t) {

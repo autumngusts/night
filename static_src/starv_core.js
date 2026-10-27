@@ -800,6 +800,24 @@
     return clamp((now - st.lastTickAt) / BAL.dayMs, 0, 1);
   }
 
+  // ==== UI 用的查詢與操作（計畫 2） ====
+  function setDirs(st, aid, dir, subDirs) {
+    var a = artistById(st, aid);
+    if (!a) return "noArtist";
+    if (!dirById(dir)) return "dir";
+    subDirs = subDirs || [];
+    if (subDirs.length > 2) return "sub";
+    for (var i = 0; i < subDirs.length; i++) {
+      if (!dirById(subDirs[i]) || subDirs[i] === dir || subDirs.indexOf(subDirs[i]) !== i) return "sub";
+    }
+    a.dir = dir;
+    a.subDirs = subDirs.slice();
+    return null;
+  }
+  function nextLevelRep(st) { return st.company.level >= 10 ? null : BAL.levelRep[st.company.level - 1]; }
+  function dailyPullsLeft(st) { return BAL.dailyPullLimit - (st.gacha.pullDay === st.day ? st.gacha.pullCount : 0); }
+  function pityLeft(st) { return pityMax(st) - st.gacha.pity; }
+
   // ==== exports ====
   api.VERSION = VERSION;
   api.create = create;
@@ -839,5 +857,10 @@
   api.setSafeLine = setSafeLine;
   api.catchUp = catchUp;
   api.dayProgress = dayProgress;
+  api.setDirs = setDirs;
+  api.courseAllowed = courseAllowed;
+  api.nextLevelRep = nextLevelRep;
+  api.dailyPullsLeft = dailyPullsLeft;
+  api.pityLeft = pityLeft;
   root.PriTestStarvCore = api;
 })();
