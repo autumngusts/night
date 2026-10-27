@@ -37,6 +37,8 @@ function checkState(st, tag) {
     if (!isFinite(a.fame) || a.fame < 0) fail(tag + " " + a.id + " 人氣異常");
   });
   if (st.rivals.length !== D.BAL.rivalCount) fail(tag + " 對手數量 " + st.rivals.length);
+  if (!(st.era >= 1)) fail(tag + " era 異常");
+  st.hall.forEach(function (h) { if (typeof h.score !== "number") fail(tag + " 名人堂缺 score"); });
 }
 
 // 積極經營：空檔藝人手動接「預估比率 ≥ 0.9」中酬勞最高的工作（含 A/S）
@@ -80,6 +82,16 @@ function runScenario(name, seed) {
       st.artists.forEach(function (a) { if (a.policy === "idle") Core.setPolicy(st, a.id, name === "active" ? "work" : "balance"); });
     }
     if (name === "active") activeAssign(st);
+    // 積極經營的玩家：超過引退線的人提出引退就尊重（事件預設是挽留；不選的話名人堂永遠不會有人）
+    if (name === "active") st.events.pending.filter(function (e) { return e.id === "retire_offer"; }).forEach(function (e) {
+      var a = Core.artistById(st, e.aid);
+      if (a && a.age > D.DIR_BY_ID[a.dir].retire) Core.resolveEvent(st, e.uid, 0);
+    });
+    if (name === "active" && st.company.level >= 10 && st.day % 360 === 0 && st.era === 1) {
+      var bestA = null;
+      st.artists.forEach(function (a) { var s = 0; D.STATS.forEach(function (k) { s += a.stats[k]; }); if (!bestA || s > bestA.s) bestA = { a: a, s: s }; });
+      Core.newEra(st, bestA ? bestA.a.id : null);
+    }
     Core.advance(st, 1);
     if (day % 360 === 0) {
       checkState(st, name + " Y" + (day / 360));
@@ -87,7 +99,7 @@ function runScenario(name, seed) {
         var avg = 0;
         st.artists.forEach(function (a) { D.STATS.forEach(function (s) { avg += a.stats[s]; }); });
         avg = st.artists.length ? Math.round(avg / st.artists.length / 6) : 0;
-        rows.push({ year: day / 360, dorm: st.facilities.dorm,
+        rows.push({ year: day / 360, era: st.era, hof: st.hall.length, ret: st.timeline.filter(function (x) { return x.kind === "retire"; }).length, dorm: st.facilities.dorm,
           wins: st.awards.history.length ? st.awards.history[0].results.filter(function (r) { var n = r.nominees[r.winner]; return ["artist", "work", "group", "company"].indexOf(n.kind) >= 0; }).length : 0,
           rivals: Math.round(st.rivals.reduce(function (s, r) { return s + r.power; }, 0) / st.rivals.length),
           money: Math.round(st.company.money), level: st.company.level, artists: st.artists.length, avgStat: avg, jobs: st.stats.jobsDone });
@@ -109,6 +121,8 @@ if (auto.rows.length > 2 && auto.rows[2].dorm < 5) warn("自動方針 10 年宿�
 var activeWins = active.rows.reduce(function (s, r) { return s + r.wins; }, 0);
 if (YEARS >= 30 && activeWins === 0) warn("積極經營 30 年從未得獎");
 active.rows.forEach(function (r) { if (r.year >= 20 && r.wins > 33) warn("積極經營第 " + r.year + " 年得獎 " + r.wins + " 座（> 60%）"); });
+if (YEARS >= 30 && !active.st.hall.length) warn("積極經營 30 年沒有人進名人堂");
+if (YEARS >= 30 && active.st.era < 2) warn("積極經營 30 年沒有進入第 2 紀元");
 if (idle.st.company.level > 3) warn("無操作放置的公司等級 " + idle.st.company.level + "（預期 ≤ 3）");
 if (active.rows[0].level >= 10) warn("積極經營第 1 年就升滿 Lv10");
 if (YEARS >= 30 && active.st.company.level < 5) warn("積極經營 30 年只到 Lv" + active.st.company.level + "（預期 ≥ 5）");
