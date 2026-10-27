@@ -896,7 +896,7 @@ Expected: 7 個 FAIL（`Core.triggerEvent is not a function`）
 
 ```js
     eventDailyChance: 0.08, eventDeadlineDays: 3, eventMax: 3, prBadCut: 0.1, famousFame: 200, rookieDays: 60,
-    fameMilestones: [1000, 5000, 20000, 50000], sellContractMonths: 6,
+    fameMilestones: [1000, 5000, 20000, 50000], sellContractMonths: 6, debtCrisisMonths: 3,
 ```
 
 `static_src/starv_core.js`：

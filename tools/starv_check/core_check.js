@@ -11,6 +11,12 @@ require("../../static_src/starv_roster.js");
 require("../../static_src/starv_roster_1.js");
 var D = global.PriTestStarvData;
 var Roster = global.PriTestStarvRoster;
+// 計畫 3 加入隨機重大事件（每天 8%）。計畫 1、2 的測試寫死了人氣、壓力等數值，
+// 所以預設關閉隨機事件；事件相關測試用 withEvents() 暫時打開。
+var EVENT_CHANCE = D.BAL.eventDailyChance;
+D.BAL.eventDailyChance = 0;
+function withEvents(fn) { D.BAL.eventDailyChance = EVENT_CHANCE; try { fn(); } finally { D.BAL.eventDailyChance = 0; } }
+
 require("../../static_src/starv_core.js");
 var Core = global.PriTestStarvCore;
 require("../../static_src/starv_store.js");
@@ -675,6 +681,104 @@ test("事件登記器：重複 ID 丟錯、依目標分組", function () {
   var famous = Events.byTarget("famous");
   assert(famous.length > 0 && famous.every(function (e) { return e.target === "famous" && e.trigger === "random"; }), "byTarget");
   assert(Events.byTarget("any").every(function (e) { return e.trigger === "random"; }), "條件事件不在 byTarget 裡");
+});
+
+test("事件：觸發、選擇、套用效果", function () {
+  var st = Core.create({ seed: 1 }), a = freshArtist(st, { fame: 500 });
+  var e = Core.triggerEvent(st, "charity", a.id);
+  eq(st.events.pending.length, 1); eq(e.deadline, st.day + 3);
+  var rep0 = st.company.rep, r = Core.resolveEvent(st, e.uid, 0);
+  eq(st.events.pending.length, 0); eq(r.fx.rep, 40); eq(r.fx.fame, 30); eq(a.fame, 530); eq(a.stamina, 90);
+  eq(st.company.rep, rep0 + 40);
+  eq(Core.resolveEvent(st, e.uid, 0).err, "noEvent");
+  var e2 = Core.triggerEvent(st, "charity", a.id); eq(Core.resolveEvent(st, e2.uid, 9).err, "choice");
+  assert(st.log.some(function (x) { return x.type === "event_resolved" && x.data.ev === "charity"; }), "日誌");
+});
+
+test("事件：逾期自動選預設、最多 3 件", function () {
+  var st = Core.create({ seed: 1 }), a = freshArtist(st, { fame: 500 });
+  Core.triggerEvent(st, "brand_offer", a.id);
+  Core.advance(st, 3);
+  eq(st.events.pending.length, 0, "第 3 天逾期");
+  var auto = st.log.filter(function (x) { return x.type === "event_auto"; });
+  eq(auto.length, 1); eq(auto[0].data.choice, 1, "brand_offer 的預設是婉拒");
+  for (var i = 0; i < 4; i++) Core.triggerEvent(st, "insomnia", a.id);
+  eq(st.events.pending.length, 3, "最多 3 件");
+});
+
+test("事件：離開、違約金、指名工作、全員效果", function () {
+  var st = Core.create({ seed: 1 }), a = freshArtist(st, { fame: 500, salary: 2000 }), b = freshArtist(st);
+  Core.createGroup(st, "G", [a.id, b.id]);
+  var m0 = st.company.money, e = Core.triggerEvent(st, "poach_offer", a.id), r = Core.resolveEvent(st, e.uid, 1);
+  assert(r.fx.leave, "離開"); eq(Core.artistById(st, a.id), null); eq(st.company.money, m0 + 12000, "月薪 × 6");
+  eq(st.groups.length, 0, "組合剩一人就解散");
+  e = Core.triggerEvent(st, "director_call", b.id); r = Core.resolveEvent(st, e.uid, 0);
+  var j = st.board.filter(function (x) { return x.id === r.fx.job; })[0];
+  assert(j && j.reservedFor === b.id && j.dir === b.dir, "指名工作");
+  var c = freshArtist(st, { stress: 0, satisfaction: 50 });
+  e = Core.triggerEvent(st, "staff_trip"); Core.resolveEvent(st, e.uid, 0);
+  eq(c.satisfaction, 58); eq(b.stress, 0, "壓力不會低於 0");
+});
+
+test("事件：財務危機（借款、賣合約）與條件觸發", function () {
+  var st = Core.create({ seed: 1 }), a = freshArtist(st, { salary: 3000 }), b = freshArtist(st, { salary: 2000 });
+  st.board = []; st.boardRefreshDay = 99999;
+  st.company.money = -1e6;
+  Core.advance(st, 90);
+  var crisis = st.events.pending.filter(function (x) { return x.id === "finance_crisis"; });
+  eq(crisis.length, 1, "負債 3 個月觸發一次");
+  Core.advance(st, 30);
+  eq(st.events.pending.filter(function (x) { return x.id === "finance_crisis"; }).length + st.log.filter(function (x) { return x.data && x.data.ev === "finance_crisis" && x.type === "event_auto"; }).length, 1, "不重複觸發");
+  var st2 = Core.create({ seed: 2 }), c = freshArtist(st2, { salary: 3000 });
+  st2.board = []; st2.boardRefreshDay = 99999;
+  var e = Core.triggerEvent(st2, "finance_crisis"), m0 = st2.company.money;
+  Core.resolveEvent(st2, e.uid, 1);
+  eq(st2.company.money, m0 + 200000); eq(st2.loans.length, 1);
+  var before = st2.company.money; Core.advance(st2, 30);
+  eq(before - st2.company.money, 3000 + 1000 + 12000, "月薪 + 營運費 + 還款");
+  e = Core.triggerEvent(st2, "finance_crisis"); m0 = st2.company.money;
+  Core.resolveEvent(st2, e.uid, 0);
+  eq(Core.artistById(st2, c.id), null, "賣掉合約"); eq(st2.company.money, m0 + 3000 * 6);
+  var st3 = Core.create({ seed: 3 }), d = freshArtist(st3, { stress: 97 });
+  Core.schedule(st3, d.id, { kind: "train" }); Core.advance(st3, 2);
+  eq(st3.events.pending[0].id, "strike_talk"); eq(st3.events.pending[0].aid, d.id);
+  Core._grantEntry(st3, Roster.byId("ssr001"));
+  assert(st3.events.pending.some(function (x) { return x.id === "ssr_debut"; }), "SSR 入社");
+});
+
+test("事件：人氣跨過門檻", function () {
+  var st = Core.create({ seed: 1 }), a = freshArtist(st, { fame: 995 }), j = soloJob(st);
+  D.STATS.forEach(function (s) { a.stats[s] = 300; });
+  Core.takeJob(st, j.id, [a.id]); Core.advance(st, 2);
+  var e = st.events.pending.filter(function (x) { return x.id === "fame_milestone"; })[0];
+  assert(e && e.ctx.n === 1000 && e.aid === a.id, "fame_milestone");
+});
+
+test("事件：讀檔丟棄找不到的事件", function () {
+  var st = Core.create({ seed: 1 }), a = freshArtist(st);
+  Core.triggerEvent(st, "charity", a.id);
+  st.events.pending.push({ uid: "e999", id: "removed_event", aid: null, ctx: {}, day: 0, deadline: 3 });
+  var m = Core.migrate(JSON.parse(JSON.stringify(st)));
+  eq(m.events.pending.length, 1); eq(m.events.pending[0].id, "charity");
+});
+
+test("事件：隨機發生頻率、公關部壓低壞結果", function () {
+  withEvents(function () {
+    var st = Core.create({ seed: 4 }), n = 0;
+    freshArtist(st); freshArtist(st, { fame: 500 });
+    st.board = []; st.boardRefreshDay = 99999;
+    Core.advance(st, 360);
+    st.log.forEach(function (x) { if (x.type === "event_new") n++; });
+    assert(n >= 15 && n <= 50, "一年 " + n + " 件（預期約 29）");
+  });
+  function badRate(pr) {
+    var st = Core.create({ seed: 9 }), a = freshArtist(st, { fame: 500 }), bad = 0;
+    st.facilities.pr = pr;
+    for (var i = 0; i < 2000; i++) { var e = Core.triggerEvent(st, "old_post", a.id); if (Core.resolveEvent(st, e.uid, 1).bad) bad++; a.fame = 500; }
+    return bad / 2000;
+  }
+  var r0 = badRate(0), r5 = badRate(5);
+  assert(r0 > 0.45 && r0 < 0.55 && r5 > 0.28 && r5 < 0.39, "壞結果比例 pr0=" + r0 + " pr5=" + r5);
 });
 
 // ==== run ====

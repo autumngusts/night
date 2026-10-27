@@ -261,6 +261,8 @@
     levelRep: [500, 1500, 4000, 9000, 18000, 35000, 60000, 100000, 160000],  // levelRep[lv-1]＝升到 lv+1 所需聲望
     levelTickets: 2, chemistryPerJob: 0.02, chemistryMax: 0.2,
     autoRestStamina: 40, autoRestStress: 50, autoRestStressWork: 80, autoMaxTier: "C",
+    eventDailyChance: 0.08, eventDeadlineDays: 3, eventMax: 3, prBadCut: 0.1, famousFame: 200, rookieDays: 60,
+    fameMilestones: [1000, 5000, 20000, 50000], sellContractMonths: 6, debtCrisisMonths: 3,
     seasonDays: 90, trendHot: 1.5, trendCold: 0.7, specialTrendChance: 0.25, trendBoardHot: 2, trendBoardCold: 0.5,
     logMax: 200, worksMax: 50
   };

@@ -86,6 +86,8 @@
     st.artists.forEach(function (a) { fillDefaults(a, ARTIST_DEFAULTS); if (!a.prof) a.prof = profInit(); });
     st.waitlist.forEach(function (w) { fillDefaults(w.artist, ARTIST_DEFAULTS); });
     if (!st.trend) initTrend(st);   // version 1 → 2：補上業界趨勢
+    // 事件資料被移除或改名時，存檔裡待處理的舊事件直接丟掉（不讓存檔壞掉）
+    st.events.pending = st.events.pending.filter(function (e) { return !!(D.EVENT_BY_ID && D.EVENT_BY_ID[e.id]); });
     st.version = VERSION;
     return st;
   }
@@ -258,7 +260,11 @@
   // 入社：宿舍有空位就進來，否則進候補（保留 30 天），候補也滿了就流失
   function place(st, a, res) {
     res.artistId = a.id;
-    if (st.artists.length < capacity(st)) { st.artists.push(a); log(st, "join", { aid: a.id, rarity: a.rarity }); }
+    if (st.artists.length < capacity(st)) {
+      st.artists.push(a);
+      log(st, "join", { aid: a.id, rarity: a.rarity });
+      if (a.rarity === "SSR") pushEvent(st, "ssr_debut", a.id);
+    }
     else if (st.waitlist.length < BAL.waitlistMax) {
       st.waitlist.push({ artist: a, until: st.day + BAL.waitlistDays });
       res.waitlisted = true; log(st, "waitlist", { rarity: a.rarity, rosterId: a.rosterId, nameSeed: a.nameSeed, gender: a.gender });
@@ -340,19 +346,25 @@
     return null;
   }
 
+  // 從公司移除（解約、被挖角、賣合約共用）：組合剩一人就解散；在進行中工作裡就退出，工作沒人了就取消
+  function removeArtist(st, a) {
+    st.artists.splice(st.artists.indexOf(a), 1);
+    st.groups.forEach(function (g) { g.members = g.members.filter(function (id) { return id !== a.id; }); });
+    st.groups = st.groups.filter(function (g) { return g.members.length >= 2; });
+    st.activeJobs.forEach(function (aj) { aj.members = aj.members.filter(function (id) { return id !== a.id; }); });
+    st.activeJobs = st.activeJobs.filter(function (aj) { return aj.members.length > 0; });
+  }
+  function leftInfo(a) { return { rarity: a.rarity, rosterId: a.rosterId, nameSeed: a.nameSeed, gender: a.gender }; }
+
   function dismiss(st, aid) {
     var a = artistById(st, aid);
     if (!a) return "noArtist";
     if (a.task) return "busy";
     st.company.money -= a.salary * BAL.dismissSalaryMonths;
-    st.artists.splice(st.artists.indexOf(a), 1);
-    st.groups.forEach(function (g) { g.members = g.members.filter(function (id) { return id !== aid; }); });
-    st.groups = st.groups.filter(function (g) { return g.members.length >= 2; });
-    log(st, "dismiss", { rarity: a.rarity, rosterId: a.rosterId, nameSeed: a.nameSeed, gender: a.gender });
+    removeArtist(st, a);
+    log(st, "dismiss", leftInfo(a));
     return null;
-  }
-
-  // ==== 行程與成長（§6.1） ====
+  }  // ==== 行程與成長（§6.1） ====
   function courseAllowed(st, c) {
     if (!c.need) return true;
     if (c.need.facility) return (st.facilities[c.need.facility] || 0) >= c.need.lv;
@@ -439,6 +451,7 @@
       a.stress = BAL.strikeStressAfter;
       a.task = { kind: "rest", days: BAL.strikeDays, left: BAL.strikeDays, stamina: 0, stress: 0, forced: true };
       log(st, "strike", { aid: a.id });
+      pushEvent(st, "strike_talk", a.id);
     } else if (a.stamina <= 0) {
       a.task = { kind: "rest", days: BAL.forcedRestDays, left: BAL.forcedRestDays, stamina: 0, stress: 0, forced: true };
       log(st, "forced_rest", { aid: a.id });
@@ -471,6 +484,7 @@
     tickWaitlist(st);
     if (st.day % BAL.daysPerMonth === 0) monthly(st);
     if (st.day % BAL.daysPerYear === 0) yearly(st);
+    tickEvents(st);
     autoPlan(st);
   }
 
@@ -660,7 +674,9 @@
     var stars = rint(st, R.stars[0], R.stars[1]);
     var tierIdx = D.TIER_ORDER.indexOf(job.tier);
     members.forEach(function (a) {
+      var fame0 = a.fame;
       a.fame = clamp(a.fame + Math.round(job.fame * R.fame * fxMult(a, "fame") * (job.trend || 1)), 0, 99999);
+      BAL.fameMilestones.forEach(function (n) { if (fame0 < n && a.fame >= n) pushEvent(st, "fame_milestone", a.id, { n: n }); });
       addProf(a, job.dir, R.xp * (tierIdx + 1));
       a.satisfaction = clamp(a.satisfaction + R.sat, 0, 100);
       a.works.unshift({ title: job.title.slice(), dir: job.dir, tier: job.tier, role: job.role, result: res, stars: stars, day: st.day, isWork: job.isWork, pay: pay });
@@ -705,22 +721,27 @@
 
   // ==== 月結、年度（§2、§5.2） ====
   function monthly(st) {
-    var salary = 0, upkeep = BAL.upkeepPerLevel * st.company.level, div = 0;
+    var salary = 0, upkeep = BAL.upkeepPerLevel * st.company.level, div = 0, loan = 0;
     st.artists.forEach(function (a) { salary += a.salary; });
     st.dividends.forEach(function (d) { div += Math.round(d.pay * BAL.dividendRate * d.stars / 3); d.months--; });
     st.dividends = st.dividends.filter(function (d) { return d.months > 0; });
-    st.company.money += div - salary - upkeep;
+    st.loans.forEach(function (l) { loan += l.monthly; l.months--; });
+    st.loans = st.loans.filter(function (l) { return l.months > 0; });
+    st.company.money += div - salary - upkeep - loan;
     var prMult = 1 - st.facilities.pr * D.FACILITIES.pr.fameDecay;
     st.artists.forEach(function (a) {
       var rate = (inPeak(a) ? BAL.fameDecay : BAL.fameDecayOffPeak) * prMult;
       a.fame = Math.round(a.fame * (1 - rate));
     });
     st.company.debtMonths = st.company.money < 0 ? st.company.debtMonths + 1 : 0;
+    if (!st.company.debtMonths) st.company.crisisOn = false;
+    if (st.company.debtMonths >= BAL.debtCrisisMonths && !st.company.crisisOn) {
+      st.company.crisisOn = true;
+      pushEvent(st, "finance_crisis");
+    }
     rotatePickup(st);
-    log(st, "month_end", { salary: salary, upkeep: upkeep, dividends: div });
-  }
-
-  function yearly(st) {
+    log(st, "month_end", { salary: salary, upkeep: upkeep, dividends: div, loan: loan });
+  }  function yearly(st) {
     st.artists.forEach(function (a) { a.age++; });
     st.waitlist.forEach(function (w) { w.artist.age++; });
     log(st, "birthday_year", { year: dateOf(st.day).year });
@@ -892,6 +913,137 @@
     return { year: Math.floor(s / 4) + 1, season: (s % 4) + 1 };
   }
 
+  // ==== 重大事件（§7） ====
+  var MUSIC_DIRS = ["singer", "band", "composer", "idol", "voice"];
+  var DANCE_DIRS = ["dancer", "idol", "stage", "model"];
+  var STREAM_DIRS = ["vtuber", "influencer"];
+  var EVENT_FILTERS = {
+    any: function () { return true; },
+    famous: function (st, a) { return a.fame >= BAL.famousFame; },
+    rookie: function (st, a) { return st.day - a.joinedDay <= BAL.rookieDays; },
+    music: function (st, a) { return MUSIC_DIRS.indexOf(a.dir) >= 0; },
+    dance: function (st, a) { return DANCE_DIRS.indexOf(a.dir) >= 0; },
+    stream: function (st, a) { return STREAM_DIRS.indexOf(a.dir) >= 0; },
+    stressed: function (st, a) { return a.stress >= 60; },
+    unhappy: function (st, a) { return a.satisfaction < 50; },
+    lowmood: function (st, a) { return a.mood <= 0; },
+    idle: function (st, a) { return !a.task; }
+  };
+
+  function pushEvent(st, id, aid, ctx) {
+    if (!D.EVENT_BY_ID || !D.EVENT_BY_ID[id]) return null;
+    var e = { uid: newId(st, "e"), id: id, aid: aid || null, ctx: ctx || {}, day: st.day, deadline: st.day + BAL.eventDeadlineDays };
+    st.events.pending.push(e);
+    log(st, "event_new", { uid: e.uid, ev: id, aid: e.aid });
+    while (st.events.pending.length > BAL.eventMax) autoResolve(st, st.events.pending[0]);
+    return e;
+  }
+
+  // 依目標篩選鍵分組：每個篩選鍵只對藝人算一次，事件數量變多（上千種）時成本主要看篩選鍵種類
+  function triggerRandomEvent(st) {
+    var Events = root.PriTestStarvEvents;
+    if (!Events) return null;
+    var pool = {}, targets = {};
+    Events.targets().forEach(function (key) {
+      var list = null;
+      if (key !== "none") {
+        var f = EVENT_FILTERS[key];
+        list = f ? st.artists.filter(function (a) { return f(st, a); }) : [];
+        if (!list.length) return;
+      }
+      Events.byTarget(key).forEach(function (ev) { pool[ev.id] = ev.weight; targets[ev.id] = list; });
+    });
+    if (!Object.keys(pool).length) return null;
+    var id = wpick(st, pool);
+    return pushEvent(st, id, targets[id] ? pick(st, targets[id]).id : null);
+  }
+
+  function bumpStat(a, s, v) { a.stats[s] = clamp(Math.round((a.stats[s] + v) * 10) / 10, 0, a.caps[s]); }
+
+  // 指名工作的等級：比藝人目前人氣夠格的最高等級再高一級，但不超過公司已解鎖的等級
+  function tierUp(st, a) {
+    var idx = 0, maxIdx = 0;
+    D.TIER_ORDER.forEach(function (t, i) {
+      if (D.TIERS[t].minFame <= a.fame) idx = i;
+      if (D.TIERS[t].unlock <= st.company.level) maxIdx = i;
+    });
+    return D.TIER_ORDER[Math.min(idx + 1, maxIdx)];
+  }
+
+  function applyFx(st, e, fx) {
+    var a = e.aid ? artistById(st, e.aid) : null, out = {};
+    function add(k, v) { if (v) out[k] = (out[k] || 0) + v; }
+    function bump(obj, k, v, lo, hi) { var v0 = obj[k]; obj[k] = clamp(obj[k] + v, lo, hi); return obj[k] - v0; }
+    if (fx.money) { st.company.money += fx.money; add("money", fx.money); }
+    if (fx.tickets) { st.company.tickets += fx.tickets; add("tickets", fx.tickets); }
+    if (fx.rep) {
+      if (fx.rep > 0) addRep(st, fx.rep); else st.company.rep = Math.max(0, st.company.rep + fx.rep);
+      add("rep", fx.rep);
+    }
+    if (fx.loan) {
+      st.company.money += fx.loan.amount;
+      st.loans.push({ monthly: fx.loan.monthly, months: fx.loan.months });
+      add("money", fx.loan.amount);
+      out.loan = { monthly: fx.loan.monthly, months: fx.loan.months };
+    }
+    if (a) {
+      if (fx.moneyBySalary) { var m = a.salary * fx.moneyBySalary; st.company.money += m; add("money", m); }
+      var df = (fx.fame || 0) + Math.round(a.fame * (fx.famePct || 0));
+      if (df) add("fame", bump(a, "fame", df, 0, 99999));
+      ["stress", "stamina", "satisfaction"].forEach(function (k) { if (fx[k]) add(k, bump(a, k, fx[k], 0, 100)); });
+      if (fx.mood) add("mood", bump(a, "mood", fx.mood, -2, 2));
+      if (fx.salaryPct) { var s0 = a.salary; a.salary = Math.round(a.salary * (1 + fx.salaryPct) / 100) * 100; add("salary", a.salary - s0); }
+      if (fx.statAll) { D.STATS.forEach(function (s) { bumpStat(a, s, fx.statAll); }); out.statAll = fx.statAll; }
+      if (fx.stat) { Object.keys(fx.stat).forEach(function (s) { bumpStat(a, s, fx.stat[s]); }); out.stat = fx.stat; }
+      if (fx.rest && !a.task) { a.task = { kind: "rest", days: fx.rest, left: fx.rest, stamina: 0, stress: 0, forced: true }; out.rest = fx.rest; }
+      if (fx.specialJob) { var j = genJob(st, { dir: a.dir, tier: tierUp(st, a), reservedFor: a.id }); st.board.push(j); out.job = j.id; }
+      if (fx.leave) { removeArtist(st, a); out.leave = true; log(st, "left", leftInfo(a)); }
+    }
+    ["allStress", "allSatisfaction"].forEach(function (k) {
+      if (!fx[k]) return;
+      var key = k === "allStress" ? "stress" : "satisfaction";
+      st.artists.forEach(function (x) { bump(x, key, fx[k], 0, 100); });
+      out[k] = fx[k];
+    });
+    if (fx.allSalaryPct) {
+      st.artists.forEach(function (x) { x.salary = Math.max(100, Math.round(x.salary * (1 + fx.allSalaryPct) / 100) * 100); });
+      out.allSalaryPct = fx.allSalaryPct;
+    }
+    if (fx.sellTop) {
+      var top = null;
+      st.artists.forEach(function (x) { if (!x.task && (!top || x.salary > top.salary)) top = x; });
+      if (top) {
+        var gain = top.salary * BAL.sellContractMonths;
+        st.company.money += gain; add("money", gain);
+        removeArtist(st, top);
+        out.sold = leftInfo(top);
+        log(st, "left", leftInfo(top));
+      }
+    }
+    return out;
+  }
+
+  function resolveEvent(st, uid, idx, auto) {
+    var i, e = null;
+    for (i = 0; i < st.events.pending.length; i++) if (st.events.pending[i].uid === uid) e = st.events.pending[i];
+    if (!e) return { err: "noEvent" };
+    var ev = D.EVENT_BY_ID[e.id], ch = ev.choices[idx];
+    if (!ch) return { err: "choice" };
+    st.events.pending.splice(st.events.pending.indexOf(e), 1);
+    var w = {};
+    ch.outcomes.forEach(function (o, k) { w[k] = o.w * (o.bad ? 1 - st.facilities.pr * BAL.prBadCut : 1); });
+    var k = Number(wpick(st, w)), o = ch.outcomes[k];
+    var fx = applyFx(st, e, o.fx);
+    log(st, auto ? "event_auto" : "event_resolved", { uid: uid, ev: e.id, aid: e.aid, choice: idx, outcome: k, fx: fx });
+    return { outcome: k, fx: fx, bad: o.bad };
+  }
+  function autoResolve(st, e) { resolveEvent(st, e.uid, D.EVENT_BY_ID[e.id].defaultChoice, true); }
+
+  function tickEvents(st) {
+    st.events.pending.filter(function (e) { return e.deadline <= st.day; }).forEach(function (e) { autoResolve(st, e); });
+    if (st.artists.length && rnd(st) < BAL.eventDailyChance) triggerRandomEvent(st);
+  }
+
   // ==== exports ====
   api.VERSION = VERSION;
   api.create = create;
@@ -941,5 +1093,8 @@
   api.upgradeFacility = upgradeFacility;
   api.trendMult = trendMult;
   api.seasonOf = seasonOf;
+  api.triggerEvent = pushEvent;
+  api.triggerRandomEvent = triggerRandomEvent;
+  api.resolveEvent = function (st, uid, idx) { return resolveEvent(st, uid, idx, false); };
   root.PriTestStarvCore = api;
 })();
