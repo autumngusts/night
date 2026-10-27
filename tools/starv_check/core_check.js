@@ -6,6 +6,7 @@ global.window = global;
 require("../../static_src/starv_data.js");
 require("../../static_src/starv_events.js");
 require("../../static_src/starv_events_1.js");
+require("../../static_src/starv_events_2.js");
 require("../../static_src/starv_awards_data.js");
 var Events = global.PriTestStarvEvents;
 require("../../static_src/starv_roster.js");
@@ -655,7 +656,7 @@ test("存檔版本 2：舊存檔補上趨勢", function () {
 
 test("事件資料：40 種、格式正確", function () {
   var FX = ["money", "tickets", "rep", "loan", "sellTop", "fame", "famePct", "stress", "stamina", "satisfaction", "mood", "salaryPct",
-    "statAll", "stat", "rest", "specialJob", "leave", "moneyBySalary", "allStress", "allSatisfaction", "allSalaryPct"];
+    "statAll", "stat", "rest", "specialJob", "leave", "moneyBySalary", "allStress", "allSatisfaction", "allSalaryPct", "rivalPower"];
   var TARGETS = ["none", "any", "famous", "rookie", "music", "dance", "stream", "stressed", "unhappy", "lowmood", "idle"];
   eq(D.EVENTS.length, Events.all().length, "D.EVENTS 與登記器一致");
   eq(Events.all().filter(function (e) { return e.addedIn === "v1"; }).length, 40, "v1 事件數");
@@ -953,6 +954,18 @@ test("頒獎：每年 12/30 自動舉辦、歷史保留 10 年", function () {
   eq(st.awards.history.length, 1, "第 1 年 12/30");
   for (var y = 0; y < 11; y++) Core.advance(st, 360);
   eq(st.awards.history.length, 10, "保留 10 年"); eq(st.awards.history[0].year, 12);
+});
+
+test("對手事件：帶公司與明星、影響對手實力", function () {
+  eq(Events.all().filter(function (e) { return e.addedIn === "v2"; }).length, 6, "v2 事件數");
+  var st = Core.create({ seed: 4 }), a = freshArtist(st, { fame: 500 });
+  var e = Core.triggerEvent(st, "rival_collab", a.id);
+  var r = Core.rivalById(st, e.ctx.rival);
+  assert(r, "ctx.rival"); var p0 = r.power;
+  var res = Core.resolveEvent(st, e.uid, 0);
+  eq(r.power, p0 + 5); eq(res.fx.rivalPower, 5); eq(res.fx.rival, r.id);
+  var e2 = Core.triggerEvent(st, "rival_challenge", a.id);
+  assert(e2.ctx.star && Roster.byId(e2.ctx.star).kind === "rival", "ctx.star");
 });
 
 // ==== run ====

@@ -971,6 +971,13 @@
   function pushEvent(st, id, aid, ctx) {
     if (!D.EVENT_BY_ID || !D.EVENT_BY_ID[id]) return null;
     var e = { uid: newId(st, "e"), id: id, aid: aid || null, ctx: ctx || {}, day: st.day, deadline: st.day + BAL.eventDeadlineDays };
+    var ev = D.EVENT_BY_ID[id];
+    if (ev.rival && st.rivals.length && !e.ctx.rival) {
+      var withStar = st.rivals.filter(function (r) { return r.stars.length; });
+      var rv = ev.needStar && withStar.length ? pick(st, withStar) : pick(st, st.rivals);
+      e.ctx.rival = rv.id;
+      if (ev.needStar && rv.stars.length) e.ctx.star = pick(st, rv.stars).rosterId;
+    }
     st.events.pending.push(e);
     log(st, "event_new", { uid: e.uid, ev: id, aid: e.aid });
     while (st.events.pending.length > BAL.eventMax) autoResolve(st, st.events.pending[0]);
@@ -1062,6 +1069,10 @@
         out.sold = leftInfo(top);
         log(st, "left", leftInfo(top));
       }
+    }
+    if (fx.rivalPower && e.ctx && e.ctx.rival) {
+      var rr = rivalById(st, e.ctx.rival);
+      if (rr) { rr.power = Math.max(1, rr.power + fx.rivalPower); out.rivalPower = fx.rivalPower; out.rival = rr.id; }
     }
     return out;
   }
