@@ -350,6 +350,176 @@ if (M) {
     assert.strictEqual(s.phase, "bet");
     assert.deepStrictEqual(s.current.bettors, ["p0", "p1"]);
   });
+  // ---- Task 6：下注與結算 ----
+  // 指定每人評分 → 結束心理戰 → 依 bets 下注（{pid: [amount, predict10]}）
+  function playRound(s, ratings, bets, opts) {
+    opts = opts || {};
+    s = exposed(s, opts);
+    s = rateAll(s, function (pid, i, cur) {
+      return ratings[pid] !== undefined ? ratings[pid] : M.allowedRatings(cur, pid)[0];
+    });
+    if (opts.beforeEnd) s = opts.beforeEnd(s);
+    s = R(s, { type: "mfEndMind" });
+    s.current.bettors.forEach(function (pid) {
+      var b = bets[pid] || [100, 50];
+      s = R(s, { type: "placeBet", playerId: pid, amount: b[0], predict: b[1] });
+    });
+    return s;
+  }
+  // 結算後 current 仍保留（內含 pot），所以只加總玩家籌碼，不能用會把 pot 算進去的 totalChips
+  function chipSum(s) { return s.players.reduce(function (n, p) { return n + p.chips; }, 0); }
+  var R3 = { p0: 0, p1: 5, p2: 10 };
+
+  check("bet: predict range 0..100, 150 with fomo", function () {
+    var s = R(rateAll(exposed(game(3))), { type: "mfEndMind" });
+    assert.strictEqual(M.betError(s, "p0", 100, 101), "ts_err_mf_predict_range");
+    assert.strictEqual(M.betError(s, "p0", 100, 100), null);
+    assert.strictEqual(M.betError(s, "p0", 50, 50), "ts_err_bet_min");
+    var f = R(rateAll(exposed(game(3, { swan: true }), { event: "fomo" })), { type: "mfEndMind" });
+    assert.strictEqual(M.predictMax(f), 150);
+    assert.strictEqual(M.betError(f, "p0", 100, 150), null);
+  });
+
+  check("plain average (x10, round half up) and pot split via settleTarget", function () {
+    var s = playRound(game(3), R3, { p0: [100, 50], p1: [100, 40], p2: [100, 90] });
+    var h = s.lastSettlement;
+    assert.strictEqual(s.phase, "settle");
+    assert.strictEqual(h.mode, "manfen");
+    assert.strictEqual(h.avg10, 50);
+    assert.strictEqual(h.finalPrice, 50);
+    assert.strictEqual(h.pot, 300);
+    assert.deepStrictEqual(h.ranks, { p0: 1, p1: 2, p2: 3 });
+    assert.deepStrictEqual(h.payouts, { p0: 210, p1: 90, p2: 0 });
+    assert.strictEqual(playRound(game(3), { p0: 0, p1: 2, p2: 2 }, {}).lastSettlement.avg10, 13);
+    assert.strictEqual(playRound(game(2), { p0: 2, p1: 5 }, {}).lastSettlement.avg10, 35);
+    assert.strictEqual(playRound(game(4), { p0: 0, p1: 5, p2: 10, p3: 10 }, {}).lastSettlement.avg10, 63);
+  });
+
+  check("wind holder counts 2 votes; hype and whale stack +1 each", function () {
+    var s = exposed(game(3, { wind: true }), { wind: "down" });
+    var h = s.current.windHolder;
+    var ratings = {}; s.players.forEach(function (p) { ratings[p.id] = p.id === h ? 10 : 0; });
+    s = rateAll(s, function (pid) { return ratings[pid]; });
+    s = R(s, { type: "mfEndMind" });
+    s.current.bettors.forEach(function (pid) { s = R(s, { type: "placeBet", playerId: pid, amount: 100, predict: 50 }); });
+    assert.strictEqual(s.lastSettlement.avg10, 50);
+    var row = s.lastSettlement.tally.filter(function (r) { return r.playerId === h; })[0];
+    assert.strictEqual(row.weight, 2);
+  });
+
+  check("hype: blamer +1 vote; whale: top bettor(s) +1", function () {
+    var s = playRound(game(3, { swan: true }), R3, {}, { event: "hype" });
+    var b = s.lastSettlement.blamerId;
+    s.lastSettlement.tally.forEach(function (r) { assert.strictEqual(r.weight, r.playerId === b ? 2 : 1); });
+    s = playRound(game(3, { swan: true }), R3, { p0: [100, 0], p1: [100, 0], p2: [300, 0] }, { event: "whale" });
+    assert.strictEqual(s.lastSettlement.avg10, 63);
+  });
+
+  check("fomo / panic / lull change vote values", function () {
+    assert.strictEqual(playRound(game(3, { swan: true }), R3, {}, { event: "fomo" }).lastSettlement.avg10, 67);
+    assert.strictEqual(playRound(game(3, { swan: true }), { p0: 2, p1: 2, p2: 5 }, {}, { event: "panic" }).lastSettlement.avg10, 50);
+    assert.strictEqual(playRound(game(3, { swan: true }), R3, {}, { event: "lull" }).lastSettlement.avg10, 25);
+  });
+
+  check("circuit removes one highest and one lowest (needs >= 3 votes)", function () {
+    var s = playRound(game(4, { swan: true }), { p0: 0, p1: 2, p2: 5, p3: 10 }, {}, { event: "circuit" });
+    assert.strictEqual(s.lastSettlement.avg10, 35);
+    var removed = s.lastSettlement.tally.filter(function (r) { return r.removed; }).map(function (r) { return r.playerId; });
+    assert.deepStrictEqual(removed, ["p0", "p3"]);
+    var same = playRound(game(3, { swan: true }), { p0: 5, p1: 5, p2: 5 }, {}, { event: "circuit" });
+    assert.strictEqual(same.lastSettlement.avg10, 50);
+    assert.strictEqual(same.lastSettlement.tally.filter(function (r) { return r.removed; }).length, 2);
+    var two = playRound(game(2, { swan: true }), { p0: 0, p1: 10 }, {}, { event: "circuit" });
+    assert.strictEqual(two.lastSettlement.avg10, 50);
+  });
+
+  check("exhausted uses weighted median", function () {
+    assert.strictEqual(playRound(game(3, { swan: true }), { p0: 0, p1: 2, p2: 10 }, {}, { event: "exhausted" }).lastSettlement.avg10, 20);
+    var s = playRound(game(4, { swan: true }), { p0: 0, p1: 2, p2: 5, p3: 10 }, {}, { event: "exhausted" });
+    assert.strictEqual(s.lastSettlement.avg10, 35);
+    assert.strictEqual(s.lastSettlement.median, true);
+  });
+
+  check("rumor voids exactly one vote, deterministic for same seed", function () {
+    var a = playRound(game(3, { swan: true }), R3, {}, { event: "rumor" });
+    var b = playRound(game(3, { swan: true }), R3, {}, { event: "rumor" });
+    var va = a.lastSettlement.tally.filter(function (r) { return r.voided; });
+    assert.strictEqual(va.length, 1);
+    assert.deepStrictEqual(a.lastSettlement, b.lastSettlement);
+  });
+
+  check("mindPot joins the pot; chips conserved through settle", function () {
+    var s = playRound(game(3), R3, { p0: [100, 50], p1: [100, 40], p2: [100, 90] }, { beforeEnd: function (x) {
+      x = R(x, { type: "mfRequest", from: "p2", to: "p0", offer: 60 });
+      x = R(x, { type: "mfRespond", playerId: "p0", choice: "refuse" });
+      return R(x, { type: "mfDrop", playerId: "p2" });
+    } });
+    assert.strictEqual(s.lastSettlement.pot, 300 + 120);
+    assert.strictEqual(chipSum(s), 3000);
+  });
+
+  check("cancel refunds bets and mind payments when avg in 45..55", function () {
+    var s = playRound(game(3, { swan: true }), R3, { p0: [100, 0] }, { event: "cancel", beforeEnd: function (x) {
+      x = R(x, { type: "mfRequest", from: "p1", to: "p2", offer: 50 });
+      return R(x, { type: "mfRespond", playerId: "p2", choice: "reveal" });
+    } });
+    var h = s.lastSettlement;
+    assert.strictEqual(h.cancelled, true);
+    assert.deepStrictEqual(h.ranks, {});
+    s.players.forEach(function (p) { assert.strictEqual(p.chips, 1000); });
+  });
+
+  check("upset pays the worst predictor; bailout adds 50% (incl. mindPot)", function () {
+    var u = playRound(game(3, { swan: true }), R3, { p0: [100, 50], p1: [100, 40], p2: [100, 90] }, { event: "upset" });
+    assert.strictEqual(u.lastSettlement.ranks.p2, 1);
+    assert.strictEqual(chipSum(u), 3000);
+    var b = playRound(game(3, { swan: true }), R3, {}, { event: "bailout" });
+    assert.strictEqual(b.lastSettlement.bonus, 150);
+    assert.strictEqual(b.lastSettlement.pot, 450);
+    // 紓困加碼來自銀行，總籌碼會多出 bonus
+    assert.strictEqual(chipSum(b), 3000 + 150);
+  });
+
+  check("no bettors: mind payments refunded, nobody ranked", function () {
+    var s = exposed(game(2));
+    s = rateAll(s);
+    s = R(s, { type: "mfRequest", from: "p0", to: "p1", offer: 50 });
+    s = R(s, { type: "mfRespond", playerId: "p1", choice: "reveal" });
+    // p0 已付 50（mindPaid.p0 = 50）；之後全員籌碼歸零 → 沒有人能下注，退款後 p0 回到 50
+    s.players.forEach(function (p) { p.chips = 0; });
+    s = R(s, { type: "mfEndMind" });
+    assert.strictEqual(s.phase, "settle");
+    assert.strictEqual(s.lastSettlement.refundMind, true);
+    assert.deepStrictEqual(s.lastSettlement.ranks, {});
+    assert.strictEqual(s.players[0].chips, 50);
+    assert.strictEqual(s.players[1].chips, 0);
+  });
+
+  check("chips conserved on every path without bonus", function () {
+    ["calm", "hype", "fomo", "lull", "circuit", "exhausted", "rumor", "cancel", "upset", "whale"].forEach(function (ev) {
+      var s = playRound(game(3, { swan: true }), R3, { p0: [100, 50], p1: [200, 20], p2: [100, 90] }, { event: ev === "calm" ? undefined : ev });
+      assert.strictEqual(chipSum(s), 3000, ev);
+    });
+  });
+
+  check("full game: 3 players x 3 subjects, rotation, then final; deterministic", function () {
+    function run() {
+      var s = game(3, { wind: true, swan: true, targets: 3 });
+      for (var k = 0; k < 3; k++) {
+        assert.strictEqual(s.phase, "reveal_target");
+        s = playRound(s, {}, {});
+        assert.strictEqual(s.lastSettlement.blamerId, M.blamerFor(s, k));
+        s = R(s, { type: "nextTarget" });
+      }
+      return s;
+    }
+    var a = run();
+    assert.strictEqual(a.phase, "final");
+    assert.strictEqual(a.history.length, 3);
+    assert.deepStrictEqual(Core.evaluateMissions(a), []);
+    assert.strictEqual(Core.finalStandings(a).length, 3);
+    assert.deepStrictEqual(run(), a);
+  });
 }
 
 console.log("\n" + results.pass + " passed, " + results.fail + " failed");

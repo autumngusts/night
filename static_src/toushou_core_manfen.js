@@ -338,15 +338,151 @@
     closeRequest(s.current, "refused");
   }
 
-  // Task 6 會以真正的結算取代
-  function settle(s) { throw new Error("ts_err_phase"); }
-
   function endMind(s) {
     var c = s.current;
     if (c.pendingRequest) throw new Error("ts_err_mf_pending_open");
     c.bettors = s.players.filter(function (p) { return p.chips > 0; }).map(function (p) { return p.id; });
     if (!c.bettors.length) { settle(s); return; }
     s.phase = "bet";
+  }
+
+  // ---------------- 下注（spec §3.6） ----------------
+
+  function predictMax(s) { return s.current && s.current.event === "fomo" ? 150 : 100; }
+
+  // 押注額規則沿用經典模式；預測為群體平均 ×10 的整數
+  function betError(s, pid, amount, predict) {
+    var e = Core.betError(s, pid, amount, predict);
+    if (e) return e;
+    if (predict > predictMax(s)) return "ts_err_mf_predict_range";
+    return null;
+  }
+
+  function placeBet(s, a) {
+    var err = betError(s, a.playerId, a.amount, a.predict);
+    if (err) throw new Error(err);
+    var p = playerById(s, a.playerId);
+    s.current.bets[a.playerId] = { amount: a.amount, predict: a.predict, chipsBefore: p.chips };
+    p.chips -= a.amount;
+    s.current.pot += a.amount;
+    if (!Core.pendingBettors(s).length) settle(s);
+  }
+
+  // ---------------- 群體平均（spec §3.7、§5 A 類） ----------------
+  // 順序：作廢（rumor）→ 票值修正（fomo／panic／lull）→ 去極值（circuit）→ 平均或中位數（exhausted）
+
+  function tally(s) {
+    var c = s.current;
+    var ev = c.event;
+    var rows = s.players.filter(function (p) { return Object.prototype.hasOwnProperty.call(c.ratings, p.id); })
+      .map(function (p) {
+        return { playerId: p.id, rating: c.ratings[p.id], value: c.ratings[p.id] * 10, weight: 1, voided: false, removed: false };
+      });
+    if (ev === "rumor" && rows.length > 1) rows[Math.floor(rand(s) * rows.length)].voided = true;
+    var maxBet = 0;
+    Object.keys(c.bets).forEach(function (id) { if (c.bets[id].amount > maxBet) maxBet = c.bets[id].amount; });
+    rows.forEach(function (r) {
+      if (ev === "fomo" && r.rating === 10) r.value = 150;
+      if (ev === "panic" && r.rating === 2) r.value = 50;
+      if (ev === "lull") r.value = r.value / 2; // 0／20／50／100 減半後仍是整數
+      if (c.windHolder === r.playerId) r.weight += 1;
+      if (ev === "hype" && c.blamerId === r.playerId) r.weight += 1;
+      if (ev === "whale" && maxBet > 0 && c.bets[r.playerId] && c.bets[r.playerId].amount === maxBet) r.weight += 1;
+    });
+    var live = rows.filter(function (r) { return !r.voided; });
+    if (ev === "circuit" && live.length >= 3) {
+      var hi = live[0];
+      var lo = live[0];
+      live.forEach(function (r) {
+        if (r.value > hi.value) hi = r;
+        if (r.value < lo.value) lo = r;
+      });
+      if (hi === lo) lo = live[1]; // 全部同分：去掉座位最前的兩張
+      hi.removed = true;
+      lo.removed = true;
+      live = live.filter(function (r) { return !r.removed; });
+    }
+    var avg10;
+    if (ev === "exhausted") {
+      var list = [];
+      live.forEach(function (r) { for (var k = 0; k < r.weight; k++) list.push(r.value); });
+      list.sort(function (a, b) { return a - b; });
+      var m = list.length;
+      avg10 = !m ? 0 : (m % 2 ? list[(m - 1) / 2] : Math.floor((list[m / 2 - 1] + list[m / 2] + 1) / 2));
+    } else {
+      var sum = 0;
+      var w = 0;
+      live.forEach(function (r) { sum += r.value * r.weight; w += r.weight; });
+      avg10 = w ? Math.floor((2 * sum + w) / (2 * w)) : 0; // 四捨五入（值皆非負）
+    }
+    return { rows: rows, avg10: avg10, median: ev === "exhausted" };
+  }
+
+  // ---------------- 結算（spec §3.7、§5 C 類） ----------------
+
+  function settle(s) {
+    var c = s.current;
+    var target = s.targets[s.targetIndex];
+    var seat = s.players.map(function (p) { return p.id; });
+    var tl = tally(s);
+    var cancelled = c.event === "cancel" && tl.avg10 >= 45 && tl.avg10 <= 55;
+    var betSum = 0;
+    seat.forEach(function (id) { if (c.bets[id]) betSum += c.bets[id].amount; });
+    var bonus = 0;
+    var refundMind = false;
+    var r;
+    if (cancelled || betSum === 0) {
+      // 交易取消，或沒有人押注：押注與心理戰付出全數退回，沒有名次
+      r = { pot: 0, ranks: {}, payouts: {} };
+      seat.forEach(function (id) {
+        var back = (c.bets[id] ? c.bets[id].amount : 0) + (c.mindPaid[id] || 0);
+        if (back > 0) { r.payouts[id] = back; r.pot += back; }
+      });
+      refundMind = !cancelled && c.mindPot > 0;
+    } else {
+      if (c.event === "bailout") bonus = Math.floor((betSum + c.mindPot) * 0.5);
+      // settleTarget 會把 opts.bonus 加進彩池：這裡用它帶入心理戰累積＋紓困加碼
+      r = I.settleTarget(c.bets, tl.avg10, seat, { reverse: c.event === "upset", bonus: bonus + c.mindPot });
+    }
+    Object.keys(r.payouts).forEach(function (id) { playerById(s, id).chips += r.payouts[id]; });
+    var entry = {
+      mode: "manfen",
+      targetId: target.id,
+      category: target.category,
+      name: target.name,
+      tags: target.tags,
+      summary: target.summary,
+      blamerId: c.blamerId,
+      flaw: c.flaw,
+      event: c.event,
+      windCard: c.windCard,
+      windHolder: c.windHolder,
+      ratings: c.ratings,
+      revealed: c.revealed,
+      requests: c.requests,
+      mindPaid: c.mindPaid,
+      mindPot: c.mindPot,
+      tally: tl.rows,
+      median: tl.median,
+      avg10: tl.avg10,
+      finalPrice: tl.avg10, // 共用畫面／任務判定讀 finalPrice
+      pot: r.pot,
+      bets: c.bets,
+      ranks: r.ranks,
+      payouts: r.payouts,
+      news: [],
+      cancelled: cancelled,
+      refundMind: refundMind,
+      bonus: bonus,
+      startPrice: null,
+      sectorFrom: null,
+      gap: null,
+      rumorIndex: null,
+      rumorDelta: null
+    };
+    s.history.push(entry);
+    s.lastSettlement = clone(entry);
+    s.phase = "settle";
   }
 
   // ---------------- reducer 入口 ----------------
@@ -363,6 +499,7 @@
       case "mfRaise": need(s, "mf_mind"); raise(s, action); break;
       case "mfDrop": need(s, "mf_mind"); drop(s, action); break;
       case "mfEndMind": need(s, "mf_mind"); endMind(s); break;
+      case "placeBet": need(s, "bet"); placeBet(s, action); break;
       case "nextTarget": need(s, "settle"); I.nextTarget(s); break;
       default: throw new Error("ts_err_phase");
     }
@@ -373,6 +510,8 @@
     allowedRatings: allowedRatings,
     pendingRaters: pendingRaters,
     rateError: rateError,
+    predictMax: predictMax,
+    betError: betError,
     requestMin: requestMin,
     requestError: requestError,
     respondError: respondError,
