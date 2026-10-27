@@ -467,6 +467,7 @@
     tickWaitlist(st);
     if (st.day % BAL.daysPerMonth === 0) monthly(st);
     if (st.day % BAL.daysPerYear === 0) yearly(st);
+    autoPlan(st);
   }
 
   function advance(st, days) {
@@ -714,6 +715,66 @@
     st.waitlist = keep;
   }
 
+  // ==== 自動方針（§6.5） ====
+  var POLICIES = ["idle", "study", "balance", "work"];
+
+  function setPolicy(st, aid, p) {
+    var a = artistById(st, aid);
+    if (!a) return "noArtist";
+    if (POLICIES.indexOf(p) < 0) return "policy";
+    a.policy = p;
+    return null;
+  }
+  function setSafeLine(st, v) { st.company.safeLine = Math.max(0, Math.round(v) || 0); }
+
+  function bestAutoJob(st, a) {
+    var maxIdx = D.TIER_ORDER.indexOf(BAL.autoMaxTier), best = null, bestScore = 0;
+    st.board.forEach(function (j) {
+      if (j.slots !== 1 || D.TIER_ORDER.indexOf(j.tier) > maxIdx || eligible(st, a, j)) return;
+      var r = estimate(st, [a.id], j).ratio;
+      if (r < D.RESULTS.normal.min) return;
+      var score = j.pay * Math.min(r, D.RESULTS.great.min);
+      if (score > bestScore) { bestScore = score; best = j; }
+    });
+    return best;
+  }
+
+  function autoStudy(st, a) {
+    var w = dirById(a.dir).weights, stat = null, best = -1;
+    Object.keys(w).forEach(function (s) {
+      var v = w[s] * (1 - a.stats[s] / a.caps[s]);
+      if (v > best) { best = v; stat = s; }
+    });
+    var ids = [stat + "_2", stat + "_1"];
+    for (var i = 0; i < ids.length; i++) {
+      var c = D.COURSE_BY_ID[ids[i]];
+      if (courseAllowed(st, c) && st.company.money - c.cost >= st.company.safeLine) {
+        schedule(st, a.id, { kind: "course", courseId: c.id });
+        return;
+      }
+    }
+    schedule(st, a.id, { kind: "train" });
+  }
+
+  function autoOne(st, a) {
+    var p = a.policy;
+    var stressLimit = p === "work" ? BAL.autoRestStressWork : BAL.autoRestStress;
+    if (a.stamina < BAL.autoRestStamina || a.stress > stressLimit) { schedule(st, a.id, { kind: "rest", days: 2 }); return; }
+    if (p === "balance") p = a.lastAuto === "work" ? "study" : "work";
+    if (p === "work") {
+      var j = bestAutoJob(st, a);
+      if (!(j && takeJob(st, j.id, [a.id]) === null)) schedule(st, a.id, { kind: "train" });
+      a.lastAuto = "work";
+    } else {
+      autoStudy(st, a);
+      a.lastAuto = "study";
+    }
+  }
+
+  function autoPlan(st) {
+    st.artists.forEach(function (a) { if (!a.task && a.policy !== "idle") autoOne(st, a); });
+  }
+
   // ==== exports ====
   api.VERSION = VERSION;
   api.create = create;
@@ -749,5 +810,7 @@
   api.chemistry = chemistry;
   api.createGroup = createGroup;
   api.disbandGroup = disbandGroup;
+  api.setPolicy = setPolicy;
+  api.setSafeLine = setSafeLine;
   root.PriTestStarvCore = api;
 })();

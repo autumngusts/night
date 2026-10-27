@@ -431,6 +431,40 @@ test("年度：年齡 +1；候補逾期流失", function () {
   Core.advance(st, 350); eq(a.age, 21);
 });
 
+test("自動方針：work 接 C 級以下的工作、不接 A/S", function () {
+  var st = Core.create({ seed: 1 }), a = freshArtist(st);
+  st.board = []; st.boardRefreshDay = 9999;
+  D.STATS.forEach(function (s) { a.stats[s] = 120; });
+  a.fame = 99999; a.prof.singer.lv = 10;
+  var jA = soloJob(st, { tier: "A", pay: 90000 }), jD = soloJob(st, { tier: "D", pay: 2000 });
+  eq(Core.setPolicy(st, a.id, "work"), null); eq(Core.setPolicy(st, a.id, "lazy"), "policy");
+  Core.advance(st, 1);
+  eq(a.task && a.task.kind, "job");
+  eq(st.activeJobs[0].job.id, jD.id, "選 D 不選 A"); assert(st.board.indexOf(jA) >= 0, "A 還在看板");
+});
+
+test("自動方針：study 依安全線決定上課或訓練", function () {
+  var st = Core.create({ seed: 1 }), a = freshArtist(st);
+  Core.setPolicy(st, a.id, "study");
+  st.company.money = 30000; Core.setSafeLine(st, 20000);
+  Core.advance(st, 1); eq(a.task.kind, "course", "30000 − 1500 ≥ 20000");
+  eq(a.task.courseId.indexOf("vocal"), 0, "歌手選歌唱");
+  var b = freshArtist(st); Core.setPolicy(st, b.id, "study");
+  st.company.money = 20500;
+  Core.advance(st, 1); eq(b.task.kind, "train", "上課會跌破安全線");
+});
+
+test("自動方針：體力或壓力過高先休息；idle 不動；balance 交替", function () {
+  var st = Core.create({ seed: 1 }), a = freshArtist(st, { stamina: 30 }), b = freshArtist(st), c = freshArtist(st, { stress: 60 });
+  Core.setPolicy(st, a.id, "study"); Core.setPolicy(st, c.id, "work");
+  Core.advance(st, 1);
+  eq(a.task.kind, "rest"); eq(b.task, null, "idle 不排程"); assert(c.task && c.task.kind !== "rest", "work 方針壓力 60 不休息");
+  var d = freshArtist(st); st.board = []; st.boardRefreshDay = 9999;
+  Core.setPolicy(st, d.id, "balance"); d.lastAuto = "work";
+  st.company.money = 1e6;
+  Core.advance(st, 1); eq(d.task.kind, "course", "上次 work → 這次 study"); eq(d.lastAuto, "study");
+});
+
 // ==== run ====
 var fails = 0;
 tests.forEach(function (t) {
