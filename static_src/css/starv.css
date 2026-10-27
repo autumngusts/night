@@ -482,3 +482,22 @@
 .sv-chip-audition { border-color: var(--sv-gold); color: var(--sv-gold); font-size: 0.72em; }
 .sv-chip-interest { border-color: var(--sv-bad); color: #ffb3c0; font-size: 0.72em; }
 .sv-chip-reserved { border-color: var(--sv-pink); color: var(--sv-pink); font-size: 0.72em; }
+
+/* ---- 對手、排行榜、頒獎典禮 ---- */
+.sv-rival { padding: 0.5rem 0; border-top: 1px solid var(--sv-line); }
+.sv-bar-rival > span { background: linear-gradient(90deg, #ff9a76, var(--sv-bad)); }
+.sv-rival-stars { display: flex; align-items: center; gap: 0.35rem; margin-top: 0.3rem; flex-wrap: wrap; }
+.sv-chart-list { margin: 0.5rem 0 0; padding-left: 1.6rem; }
+.sv-chart-list li { padding: 0.25rem 0; border-top: 1px dashed var(--sv-line); }
+.sv-chart-list li > * { display: inline-block; margin-right: 0.5rem; }
+.sv-chart-ours { color: var(--sv-gold); font-weight: 700; }
+.sv-ceremony { background: radial-gradient(ellipse at 50% 0%, rgba(255, 214, 107, 0.25), transparent 60%), linear-gradient(160deg, #2a1d56, #120c2c); }
+.sv-award-name { font-size: 1.35em; margin: 0.3rem 0 0.6rem; color: var(--sv-gold); text-shadow: 0 0 18px rgba(255, 214, 107, 0.5); }
+.sv-noms { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.4rem; }
+.sv-nom { display: flex; align-items: center; gap: 0.6rem; padding: 0.45rem 0.7rem; border-radius: 12px; background: var(--sv-glass); border: 1px solid transparent; }
+.sv-nom-ours { border-color: rgba(255, 95, 168, 0.5); }
+.sv-nom-win { border-color: var(--sv-gold); background: rgba(255, 214, 107, 0.14); animation: sv-pop 0.35s ease-out; }
+.sv-nom-badge { border-color: var(--sv-gold); color: var(--sv-gold); }
+/* 子分頁鈕（工作看板／組合、排行榜）在窄螢幕不要被擠成兩行：按鈕不換行，整列可以換行 */
+.sv-subtabs { flex-wrap: wrap; }
+.sv-subtabs > .sv-btn { white-space: nowrap; }

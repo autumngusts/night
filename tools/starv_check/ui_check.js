@@ -266,6 +266,35 @@ step("工作：試鏡制與對手有興趣的標示", async function (page) {
   await noRawKeys(page, "試鏡標示");
 });
 
+step("業界：對手公司與排行榜", async function (page) {
+  await page.evaluate(function () { window.PriTestStarv.app.act(function (s) { window.PriTestStarvCore.updateCharts(s); }); });
+  await tab(page, "industry");
+  var n = await page.$$eval(".sv-rival", function (x) { return x.length; });
+  assert.strictEqual(n, 5, "對手卡數");
+  await page.waitForSelector(".sv-chart li");
+  await act(page, "chart-popularity");
+  await noRawKeys(page, "業界：對手與排行榜");
+});
+
+step("頒獎典禮：舉辦 → 自動播放 → 跳過 → 重看", async function (page) {
+  await tab(page, "company");
+  await act(page, "debug-awards");
+  await page.waitForSelector(".sv-ceremony");
+  await noRawKeys(page, "典禮");
+  await act(page, "ceremony-next");
+  await act(page, "ceremony-skip");
+  await page.waitForSelector('[data-act="ceremony-close"]');
+  await noRawKeys(page, "典禮結果");
+  await act(page, "ceremony-close");
+  var s = await st(page);
+  assert.strictEqual(s.awards.unseen, null, "看完清掉 unseen");
+  await tab(page, "industry");
+  await act(page, "ceremony-replay-" + s.awards.history[0].year);
+  await page.waitForSelector(".sv-ceremony");
+  await act(page, "ceremony-skip");
+  await act(page, "ceremony-close");
+});
+
 // ==== 之後的 task 在這行之前追加步驟 ====
 
 (async function main() {
