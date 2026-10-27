@@ -168,6 +168,14 @@
     ]);
   }
 
+  function trophyList(a) {
+    if (!a.trophies.length) return el("p", { class: "sv-muted sv-trophies", text: t("sv_trophies_none") });
+    return el("ul", { class: "sv-trophies" }, a.trophies.slice().reverse().map(function (x) {
+      var aw = D.AWARD_BY_ID && D.AWARD_BY_ID[x.award];
+      return el("li", { text: "🏆 " + t("sv_trophy_item", { year: x.year, award: aw ? UI.L(aw.name) : x.award }) });
+    }));
+  }
+
   function worksList(a) {
     if (!a.works.length) return el("p", { class: "sv-muted", text: t("sv_works_empty") });
     return el("ul", { class: "sv-works" }, a.works.slice(0, 10).map(function (w) {
@@ -191,6 +199,7 @@
         el("div", { class: "sv-grow" }, [
           el("div", {}, [UI.rarity(a.rarity), " ", a.limitBreak ? el("span", { class: "sv-chip", text: t("sv_lb", { n: a.limitBreak }) }) : null]),
           el("div", { class: "sv-small sv-muted", text: t("sv_age", { n: a.age }) + "・" + t("sv_salary", { m: UI.money(a.salary) }) }),
+          el("div", { class: "sv-small sv-muted", text: t("sv_contract", { date: UI.dateText(a.contractEnd) }) + (a.contractEnd - st.day <= 90 ? t("sv_contract_soon") : "") }),
           el("div", { class: "sv-small", text: t("sv_fame", { n: UI.num(a.fame) }) + "　" + t("sv_mood") + " " + MOODS[a.mood + 2] }),
           meter(t("sv_stamina"), a.stamina, 100, "sv-bar-stamina"),
           meter(t("sv_stress"), a.stress, 100, "sv-bar-stress"),
@@ -207,6 +216,7 @@
         el("p", { class: "sv-small sv-muted", text: t("sv_policy_hint") })
       ])));
       box.appendChild(section(t("sv_actions"), actions(App, st, a, ui)));
+      box.appendChild(section(t("sv_trophies"), trophyList(a)));
       box.appendChild(section(t("sv_works"), worksList(a)));
     }, { live: true, cls: "sv-modal-detail" });
   }

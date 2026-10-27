@@ -501,3 +501,12 @@
 /* 子分頁鈕（工作看板／組合、排行榜）在窄螢幕不要被擠成兩行：按鈕不換行，整列可以換行 */
 .sv-subtabs { flex-wrap: wrap; }
 .sv-subtabs > .sv-btn { white-space: nowrap; }
+
+/* ---- 生涯 ---- */
+.sv-trophies { list-style: none; margin: 0; padding: 0; }
+.sv-trophies li { padding: 0.2rem 0; color: var(--sv-gold); font-size: 0.88em; }
+.sv-retire { text-align: center; }
+.sv-retire .sv-report-list { text-align: left; }
+.sv-retire-hero { display: flex; flex-direction: column; align-items: center; gap: 0.3rem; padding: 0.5rem 0; }
+.sv-retire-hero h2 { margin: 0.3rem 0 0; }
+.sv-retire-hof { font-weight: 800; color: var(--sv-gold); text-shadow: 0 0 16px rgba(255, 214, 107, 0.6); animation: sv-glow 1.2s ease-in-out infinite alternate; }

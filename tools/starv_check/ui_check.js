@@ -295,6 +295,22 @@ step("頒獎典禮：舉辦 → 自動播放 → 跳過 → 重看", async funct
   await act(page, "ceremony-close");
 });
 
+step("生涯：藝人詳情的合約與獎座、引退紀念", async function (page) {
+  var aid = (await st(page)).artists[0].id;
+  await tab(page, "artists");
+  await page.dispatchEvent('.sv-acard[data-aid="' + aid + '"]', "click");
+  await page.waitForSelector(".sv-modal-detail .sv-trophies");
+  await noRawKeys(page, "藝人詳情（生涯）");
+  await act(page, "modal-close");
+  await page.evaluate(function (id) { window.PriTestStarv.app.act(function (s) { window.PriTestStarvCore.retireArtist(s, id); }); }, aid);
+  await page.waitForSelector(".sv-retire");
+  await noRawKeys(page, "引退紀念");
+  await act(page, "retire-close");
+  var s = await st(page);
+  assert.strictEqual(s.retireQueue.length, 0, "看完清掉");
+  assert.ok(!s.artists.some(function (a) { return a.id === aid; }), "已引退");
+});
+
 // ==== 之後的 task 在這行之前追加步驟 ====
 
 (async function main() {

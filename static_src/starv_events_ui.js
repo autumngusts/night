@@ -33,6 +33,10 @@
     if (fx.allSatisfaction) out.push(t("sv_fx_allSatisfaction", { v: signed(fx.allSatisfaction) }));
     if (fx.allSalaryPct) out.push(t("sv_fx_allSalaryPct", { v: signed(Math.round(fx.allSalaryPct * 100)) }));
     if (fx.rivalPower) out.push(t("sv_fx_rivalPower", { rival: UI.rivalName(st, fx.rival), v: signed(fx.rivalPower) }));
+    if (fx.renewed) out.push(t("sv_fx_renewed"));
+    if (fx.refused && ev) out.push(t("sv_fx_refused", { name: ev.name }));
+    if (fx.retired && ev) out.push(t(fx.retired.hof ? "sv_fx_retired_hof" : "sv_fx_retired", { name: ev.name }));
+    if (fx.retained && ev) out.push(t("sv_fx_retained", { name: ev.name }));
     return out;
   }
 

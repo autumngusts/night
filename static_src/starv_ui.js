@@ -34,11 +34,17 @@
 
   function num(n) { return Math.round(n).toLocaleString("en-US"); }
   function money(n) { return t("sv_money", { n: num(n) }); }
-  function dateText(day) { var d = Core.dateOf(day); return t("sv_date", { y: d.year, m: d.month, d: d.day }); }
+  // 第 2 紀元以後在日期前加上紀元（規格 §15.2）
+  function dateText(day) {
+    var d = Core.dateOf(day), s = t("sv_date", { y: d.year, m: d.month, d: d.day });
+    var st = window.PriTestStarv && window.PriTestStarv.state && window.PriTestStarv.state();
+    return st && st.era > 1 ? t("sv_date_era", { era: st.era, date: s }) : s;
+  }
   function name(a) { return Core.artistName(a, lang()); }
   function dirName(id) { var d = D.DIR_BY_ID[id]; return d ? L(d.name) : String(id); }
   function dirIcon(id) { var d = D.DIR_BY_ID[id]; return d ? d.icon : "?"; }
   function statName(s) { return L(D.STAT_NAMES[s]); }
+  function hallName(h) { return Core.artistName({ rosterId: h.rosterId || null, nameSeed: h.nameSeed || 0, gender: h.gender || "f" }, lang()); }
   function rivalName(st, id) {
     var r = id ? Core.rivalById(st, id) : null;
     return r ? Core.rivalName(r, lang()) : t("sv_rival_gone");
@@ -138,7 +144,7 @@
 
   window.PriTestStarvUI = {
     t: t, lang: lang, L: L, el: el, num: num, money: money, dateText: dateText, name: name,
-    dirName: dirName, dirIcon: dirIcon, statName: statName, courseName: courseName, rivalName: rivalName,
+    dirName: dirName, dirIcon: dirIcon, statName: statName, courseName: courseName, rivalName: rivalName, hallName: hallName,
     avatar: avatar, rarity: rarity, bar: bar, btn: btn, select: select,
     openModal: openModal, closeModal: closeModal, refreshModal: refreshModal, modalHead: modalHead, toast: toast,
     register: register, views: function () { return views.slice(); },

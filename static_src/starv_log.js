@@ -50,6 +50,12 @@
       D.CHARTS.forEach(function (c) { if (c.id === d.chart) ch = c; });
       p.chart = ch ? UI.L(ch.name) : d.chart;
     } else if (e.type === "awards") { p.year = d.year; p.wins = d.wins; }
+    else if (e.type === "staff_hired") {
+      var hh = null;
+      st.hall.forEach(function (x) { if (x.id === d.hofId) hh = x; });
+      p.name = hh ? UI.hallName(hh) : "—"; p.role = t("sv_role_" + d.role);
+    } else if (e.type === "achievement") { var ac = D.ACHIEVEMENT_BY_ID && D.ACHIEVEMENT_BY_ID[d.id]; p.title = ac ? UI.L(ac.name) : d.id; }
+    else if (e.type === "new_era") p.era = d.era;
     else if (e.type === "event_new" || e.type === "event_resolved" || e.type === "event_auto") {
       var ev2 = D.EVENT_BY_ID && D.EVENT_BY_ID[d.ev];
       p.title = ev2 ? UI.L(ev2.title) : String(d.ev);
