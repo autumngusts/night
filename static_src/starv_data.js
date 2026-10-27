@@ -247,7 +247,7 @@
   var BAL = {
     dayMs: 60000, offlineCapDays: 480, daysPerMonth: 30, daysPerYear: 360,
     startMoney: 50000, startTickets: 10, startSafeLine: 20000,
-    upkeepPerLevel: 1000, fameDecay: 0.02, fameDecayOffPeak: 0.04,
+    upkeepPerLevel: 1000, fameDecay: 0.02, fameDecayOffPeak: 0.04, salaryFameDiv: 60,
     boardBase: 8, boardPerLevel: 2, boardRefreshDays: 7, jobLifeDays: 14, groupJobChance: 0.35,
     jobStaminaPerDay: 5, jobStressPerDay: 3, jobStaminaMax: 70, jobStressMax: 40,
     minorEventRate: 0.08, lowStamina: 30, lowStaminaMult: 0.8, profPerf: 0.05, moodPerf: 0.05,

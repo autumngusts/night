@@ -84,6 +84,8 @@
   function migrate(st) {
     fillDefaults(st, blankState({ seed: 1 }));
     st.artists.forEach(function (a) { fillDefaults(a, ARTIST_DEFAULTS); if (!a.prof) a.prof = profInit(); });
+    // 月薪隨人氣上升（計畫 3 補）：舊存檔沒有基本月薪，以目前月薪當基本月薪
+    st.artists.concat(st.waitlist.map(function (w) { return w.artist; })).forEach(function (a) { if (a.baseSalary == null) a.baseSalary = a.salary; });
     st.waitlist.forEach(function (w) { fillDefaults(w.artist, ARTIST_DEFAULTS); });
     if (!st.trend) initTrend(st);   // version 1 → 2：補上業界趨勢
     // 事件資料被移除或改名時，存檔裡待處理的舊事件直接丟掉（不讓存檔壞掉）
@@ -121,7 +123,7 @@
   // 藝人欄位的預設值（migrate 也用這份補齊舊存檔）
   var ARTIST_DEFAULTS = {
     rosterId: null, nameSeed: 0, gender: "f", age: 18, traits: [], subDirs: [],
-    stamina: 100, stress: 0, mood: 0, fame: 0, satisfaction: 70, salary: 1500,
+    stamina: 100, stress: 0, mood: 0, fame: 0, satisfaction: 70, salary: 1500, baseSalary: null,
     policy: "idle", lastAuto: null, task: null, works: [], limitBreak: 0, joinedDay: 0
   };
 
@@ -164,6 +166,7 @@
       if (a.traits.indexOf(t) < 0) a.traits.push(t);
     }
     a.salary = Math.round(rint(st, R.salary[0], R.salary[1]) / 100) * 100;
+    a.baseSalary = a.salary;
     a.look = makeLook(st);
     return a;
   }
@@ -177,6 +180,7 @@
     recomputeCaps(a);
     D.STATS.forEach(function (s) { a.stats[s] = Math.min(a.caps[s], e.stats[s]); });
     a.salary = D.RARITY[e.rarity].salary[0];
+    a.baseSalary = a.salary;
     a.look = clone(e.look);
     return a;
   }
@@ -191,6 +195,12 @@
     var fam = N.family[a.nameSeed % N.family.length];
     var giv = givenList[Math.floor(a.nameSeed / N.family.length) % givenList.length];
     return lang === "ja" ? fam + " " + giv : fam + giv;
+  }
+
+  // 月薪 ＝ 基本月薪 × (1 + √人氣 ÷ salaryFameDiv)，取整到百（規格 §5.2「會隨人氣上升」）
+  function updateSalary(a) {
+    if (a.baseSalary == null) a.baseSalary = a.salary;
+    a.salary = Math.round(a.baseSalary * (1 + Math.sqrt(Math.max(0, a.fame)) / BAL.salaryFameDiv) / 100) * 100;
   }
 
   function capacity(st) { return D.DORM_CAP[st.facilities.dorm] || D.DORM_CAP[1]; }
@@ -722,17 +732,19 @@
   // ==== 月結、年度（§2、§5.2） ====
   function monthly(st) {
     var salary = 0, upkeep = BAL.upkeepPerLevel * st.company.level, div = 0, loan = 0;
-    st.artists.forEach(function (a) { salary += a.salary; });
     st.dividends.forEach(function (d) { div += Math.round(d.pay * BAL.dividendRate * d.stars / 3); d.months--; });
     st.dividends = st.dividends.filter(function (d) { return d.months > 0; });
     st.loans.forEach(function (l) { loan += l.monthly; l.months--; });
     st.loans = st.loans.filter(function (l) { return l.months > 0; });
-    st.company.money += div - salary - upkeep - loan;
+    st.company.money += div - upkeep - loan;
     var prMult = 1 - st.facilities.pr * D.FACILITIES.pr.fameDecay;
     st.artists.forEach(function (a) {
       var rate = (inPeak(a) ? BAL.fameDecay : BAL.fameDecayOffPeak) * prMult;
       a.fame = Math.round(a.fame * (1 - rate));
     });
+    // 月薪隨人氣上升（規格 §5.2）：人氣衰退後重算，再支付
+    st.artists.forEach(function (a) { updateSalary(a); salary += a.salary; });
+    st.company.money -= salary;
     st.company.debtMonths = st.company.money < 0 ? st.company.debtMonths + 1 : 0;
     if (!st.company.debtMonths) st.company.crisisOn = false;
     if (st.company.debtMonths >= BAL.debtCrisisMonths && !st.company.crisisOn) {
@@ -992,7 +1004,12 @@
       if (df) add("fame", bump(a, "fame", df, 0, 99999));
       ["stress", "stamina", "satisfaction"].forEach(function (k) { if (fx[k]) add(k, bump(a, k, fx[k], 0, 100)); });
       if (fx.mood) add("mood", bump(a, "mood", fx.mood, -2, 2));
-      if (fx.salaryPct) { var s0 = a.salary; a.salary = Math.round(a.salary * (1 + fx.salaryPct) / 100) * 100; add("salary", a.salary - s0); }
+      if (fx.salaryPct) {
+        var s0 = a.salary;
+        a.baseSalary = Math.round(a.baseSalary * (1 + fx.salaryPct) / 100) * 100;
+        updateSalary(a);
+        add("salary", a.salary - s0);
+      }
       if (fx.statAll) { D.STATS.forEach(function (s) { bumpStat(a, s, fx.statAll); }); out.statAll = fx.statAll; }
       if (fx.stat) { Object.keys(fx.stat).forEach(function (s) { bumpStat(a, s, fx.stat[s]); }); out.stat = fx.stat; }
       if (fx.rest && !a.task) { a.task = { kind: "rest", days: fx.rest, left: fx.rest, stamina: 0, stress: 0, forced: true }; out.rest = fx.rest; }
@@ -1006,7 +1023,7 @@
       out[k] = fx[k];
     });
     if (fx.allSalaryPct) {
-      st.artists.forEach(function (x) { x.salary = Math.max(100, Math.round(x.salary * (1 + fx.allSalaryPct) / 100) * 100); });
+      st.artists.forEach(function (x) { x.baseSalary = Math.max(100, Math.round(x.baseSalary * (1 + fx.allSalaryPct) / 100) * 100); updateSalary(x); });
       out.allSalaryPct = fx.allSalaryPct;
     }
     if (fx.sellTop) {

@@ -235,6 +235,8 @@ function freshArtist(st, over) {
   D.STATS.forEach(function (s) { a.apt[s] = "B"; a.caps[s] = 405; a.stats[s] = 50; });
   a.traits = []; a.age = 20; a.dir = "singer";
   Object.keys(over || {}).forEach(function (k) { a[k] = over[k]; });
+  // 月薪隨人氣上升（規格 §5.2）以 baseSalary 計算：測試直接指定 salary 時，基本月薪也跟著指定
+  if (over && over.salary != null && over.baseSalary == null) a.baseSalary = over.salary;
   st.artists.push(a);
   return a;
 }
@@ -779,6 +781,24 @@ test("事件：隨機發生頻率、公關部壓低壞結果", function () {
   }
   var r0 = badRate(0), r5 = badRate(5);
   assert(r0 > 0.45 && r0 < 0.55 && r5 > 0.28 && r5 < 0.39, "壞結果比例 pr0=" + r0 + " pr5=" + r5);
+});
+
+test("月薪：隨人氣上升（基本月薪 × (1 + √人氣 ÷ salaryFameDiv)）", function () {
+  var K = D.BAL.salaryFameDiv;
+  function pay(base, fame) { return Math.round(base * (1 + Math.sqrt(fame) / K) / 100) * 100; }
+  var st = Core.create({ seed: 1 }), a = freshArtist(st, { salary: 2000, fame: 2500 });
+  st.board = []; st.boardRefreshDay = 99999;
+  eq(a.baseSalary, 2000);
+  Core.advance(st, 30);
+  eq(a.salary, pay(2000, a.fame), "月底重算");
+  var e = Core.triggerEvent(st, "poach_offer", a.id); a.fame = 2500;
+  Core.resolveEvent(st, e.uid, 0);
+  eq(a.baseSalary, 2600, "加薪 30% 改的是基本月薪"); eq(a.salary, pay(2600, 2500), "加薪後立即重算");
+  e = Core.triggerEvent(st, "finance_crisis"); Core.resolveEvent(st, e.uid, 2);
+  eq(a.baseSalary, 2100, "全員減薪 20%（2080 取整到百）");
+  var r = Core._genR(st); eq(r.baseSalary, r.salary, "新藝人的基本月薪＝初始月薪");
+  var old = Core.create({ seed: 2 }), b = Core._genR(old); delete b.baseSalary; b.salary = 4200; old.artists.push(b);
+  eq(Core.migrate(JSON.parse(JSON.stringify(old))).artists[0].baseSalary, 4200, "舊存檔以目前月薪當基本月薪");
 });
 
 // ==== run ====
