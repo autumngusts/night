@@ -252,6 +252,104 @@ if (M) {
     s = R(s, { type: "startBetting" });
     assert.strictEqual(s.phase, "final");
   });
+
+  // ---- Task 5：心理戰（封口費競價） ----
+  function chipsOf(s) { var o = {}; s.players.forEach(function (p) { o[p.id] = p.chips; }); return o; }
+  function totalChips(s) {
+    var n = s.current ? s.current.mindPot + s.current.pot : 0;
+    s.players.forEach(function (p) { n += p.chips; });
+    return n;
+  }
+  function mind(opts) { return rateAll(exposed(game(3, opts), opts)); }
+
+  check("requestMin: half of minBet, quarter with extra", function () {
+    assert.strictEqual(M.requestMin(mind()), 50);
+    assert.strictEqual(M.requestMin(mind({ swan: true, event: "extra" })), 25);
+  });
+
+  check("request validation", function () {
+    var s = mind();
+    assert.strictEqual(M.requestError(s, "p0", "p0", 50), "ts_err_mf_request_self");
+    assert.strictEqual(M.requestError(s, "p0", "p1", 49), "ts_err_mf_offer");
+    assert.strictEqual(M.requestError(s, "p0", "p1", 1001), "ts_err_mf_offer");
+    assert.strictEqual(M.requestError(s, "p0", "p1", 50.5), "ts_err_int");
+    assert.strictEqual(M.requestError(s, "p0", "p1", 50), null);
+  });
+
+  check("reveal: requester pays offer into mindPot, target revealed, chips conserved", function () {
+    var s = mind();
+    var before = totalChips(s);
+    s = R(s, { type: "mfRequest", from: "p0", to: "p1", offer: 80 });
+    assert.strictEqual(M.requestError(s, "p2", "p0", 50), "ts_err_mf_request_pending");
+    assert.strictEqual(M.respondError(s, "p0", "reveal"), "ts_err_mf_not_target");
+    s = R(s, { type: "mfRespond", playerId: "p1", choice: "reveal" });
+    assert.strictEqual(s.current.revealed.p1, "paid");
+    assert.strictEqual(s.current.mindPot, 80);
+    assert.deepStrictEqual(s.current.mindPaid, { p0: 80 });
+    assert.strictEqual(chipsOf(s).p0, 920);
+    assert.deepStrictEqual(s.current.requests, [{ from: "p0", to: "p1", offers: [80], outcome: "revealed" }]);
+    assert.strictEqual(s.current.pendingRequest, null);
+    assert.strictEqual(totalChips(s), before);
+    assert.strictEqual(M.requestError(s, "p0", "p2", 50), "ts_err_mf_request_used");
+    assert.strictEqual(M.requestError(s, "p2", "p1", 50), "ts_err_mf_request_revealed");
+  });
+
+  check("refuse -> raise -> refuse: both pay each round; request closed", function () {
+    var s = mind();
+    var before = totalChips(s);
+    s = R(s, { type: "mfRequest", from: "p0", to: "p1", offer: 60 });
+    s = R(s, { type: "mfRespond", playerId: "p1", choice: "refuse" });
+    assert.strictEqual(s.current.pendingRequest.awaitingRaise, true);
+    assert.strictEqual(s.current.mindPot, 120);
+    assert.strictEqual(M.raiseError(s, "p1", 100), "ts_err_mf_not_requester");
+    assert.strictEqual(M.raiseError(s, "p0", 60), "ts_err_mf_offer");
+    s = R(s, { type: "mfRaise", playerId: "p0", offer: 100 });
+    s = R(s, { type: "mfRespond", playerId: "p1", choice: "refuse" });
+    assert.strictEqual(s.current.mindPot, 320);
+    assert.deepStrictEqual(s.current.mindPaid, { p0: 160, p1: 160 });
+    assert.deepStrictEqual(s.current.requests, [{ from: "p0", to: "p1", offers: [60, 100], outcome: "refused" }]);
+    assert.strictEqual(s.current.revealed.p1, undefined);
+    assert.strictEqual(totalChips(s), before);
+    // mindPaid 的總和必須等於 mindPot
+    assert.strictEqual(sum(s.current.mindPaid), s.current.mindPot);
+  });
+
+  check("drop after refusal closes as refused; raise then reveal", function () {
+    var s = mind();
+    var before = totalChips(s);
+    s = R(s, { type: "mfRequest", from: "p0", to: "p1", offer: 60 });
+    s = R(s, { type: "mfRespond", playerId: "p1", choice: "refuse" });
+    s = R(s, { type: "mfDrop", playerId: "p0" });
+    assert.strictEqual(s.current.requests[0].outcome, "refused");
+    s = R(s, { type: "mfRequest", from: "p1", to: "p2", offer: 50 });
+    s = R(s, { type: "mfRespond", playerId: "p2", choice: "refuse" });
+    s = R(s, { type: "mfRaise", playerId: "p1", offer: 70 });
+    s = R(s, { type: "mfRespond", playerId: "p2", choice: "reveal" });
+    assert.strictEqual(s.current.revealed.p2, "paid");
+    assert.deepStrictEqual(s.current.requests[1].offers, [50, 70]);
+    assert.strictEqual(totalChips(s), before);
+    assert.strictEqual(sum(s.current.mindPaid), s.current.mindPot);
+  });
+
+  check("target cannot refuse without enough chips", function () {
+    var g = game(3);
+    g.players[1].chips = 40;
+    var s = rateAll(exposed(g));
+    s = R(s, { type: "mfRequest", from: "p0", to: "p1", offer: 50 });
+    assert.strictEqual(M.respondError(s, "p1", "refuse"), "ts_err_mf_refuse_chips");
+    assert.strictEqual(M.respondError(s, "p1", "reveal"), null);
+  });
+
+  check("end mind: blocked while pending; bettors = players with chips", function () {
+    var s = mind();
+    s = R(s, { type: "mfRequest", from: "p0", to: "p1", offer: 50 });
+    assert.throws(function () { R(s, { type: "mfEndMind" }); }, /ts_err_mf_pending_open/);
+    s = R(s, { type: "mfRespond", playerId: "p1", choice: "reveal" });
+    s.players[2].chips = 0;
+    s = R(s, { type: "mfEndMind" });
+    assert.strictEqual(s.phase, "bet");
+    assert.deepStrictEqual(s.current.bettors, ["p0", "p1"]);
+  });
 }
 
 console.log("\n" + results.pass + " passed, " + results.fail + " failed");

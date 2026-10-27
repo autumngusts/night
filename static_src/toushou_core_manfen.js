@@ -245,6 +245,110 @@
     if (forced) c.revealed[forced] = "forced";
   }
 
+  // ---------------- 心理戰：封口費競價（spec §3.5） ----------------
+
+  function requestMin(s) {
+    var div = s.current && s.current.event === "extra" ? 4 : 2;
+    return Math.max(1, Math.ceil(s.config.minBet / div));
+  }
+
+  function lastOffer(r) { return r.offers[r.offers.length - 1]; }
+
+  function payMind(s, pid, x) {
+    var c = s.current;
+    playerById(s, pid).chips -= x;
+    c.mindPot += x;
+    c.mindPaid[pid] = (c.mindPaid[pid] || 0) + x;
+  }
+
+  function closeRequest(c, outcome) {
+    var r = c.pendingRequest;
+    c.requests.push({ from: r.from, to: r.to, offers: r.offers.slice(), outcome: outcome });
+    c.pendingRequest = null;
+  }
+
+  function requestError(s, from, to, offer) {
+    if (s.phase !== "mf_mind" || !s.current) return "ts_err_phase";
+    var c = s.current;
+    if (c.pendingRequest) return "ts_err_mf_request_pending";
+    var pf = playerById(s, from);
+    if (!pf || !playerById(s, to)) return "ts_err_not_your_turn";
+    if (from === to) return "ts_err_mf_request_self";
+    if (c.requests.some(function (r) { return r.from === from; })) return "ts_err_mf_request_used";
+    if (c.revealed[to]) return "ts_err_mf_request_revealed";
+    if (!isInt(offer)) return "ts_err_int";
+    if (offer < requestMin(s) || offer > pf.chips) return "ts_err_mf_offer";
+    return null;
+  }
+
+  function request(s, a) {
+    var err = requestError(s, a.from, a.to, a.offer);
+    if (err) throw new Error(err);
+    s.current.pendingRequest = { from: a.from, to: a.to, offers: [a.offer], awaitingRaise: false };
+  }
+
+  function respondError(s, pid, choice) {
+    var r = s.current && s.current.pendingRequest;
+    if (s.phase !== "mf_mind" || !r || r.awaitingRaise) return "ts_err_phase";
+    if (pid !== r.to) return "ts_err_mf_not_target";
+    if (choice !== "reveal" && choice !== "refuse") return "ts_err_phase";
+    if (choice === "refuse" && playerById(s, r.to).chips < lastOffer(r)) return "ts_err_mf_refuse_chips";
+    return null;
+  }
+
+  // 亮牌：要求者付 X；拒絕：雙方各付 X（要求本身就要花錢）。第 1 次被拒絕可加價一次。
+  function respond(s, a) {
+    var err = respondError(s, a.playerId, a.choice);
+    if (err) throw new Error(err);
+    var c = s.current;
+    var r = c.pendingRequest;
+    var x = lastOffer(r);
+    payMind(s, r.from, x);
+    if (a.choice === "reveal") {
+      c.revealed[r.to] = "paid";
+      closeRequest(c, "revealed");
+      return;
+    }
+    payMind(s, r.to, x);
+    if (r.offers.length >= 2) closeRequest(c, "refused");
+    else r.awaitingRaise = true;
+  }
+
+  function raiseError(s, pid, offer) {
+    var r = s.current && s.current.pendingRequest;
+    if (s.phase !== "mf_mind" || !r || !r.awaitingRaise) return "ts_err_phase";
+    if (pid !== r.from) return "ts_err_mf_not_requester";
+    if (!isInt(offer)) return "ts_err_int";
+    if (offer <= lastOffer(r) || offer > playerById(s, r.from).chips) return "ts_err_mf_offer";
+    return null;
+  }
+
+  function raise(s, a) {
+    var err = raiseError(s, a.playerId, a.offer);
+    if (err) throw new Error(err);
+    var r = s.current.pendingRequest;
+    r.offers.push(a.offer);
+    r.awaitingRaise = false;
+  }
+
+  function drop(s, a) {
+    var r = s.current.pendingRequest;
+    if (!r || !r.awaitingRaise) throw new Error("ts_err_phase");
+    if (a.playerId !== r.from) throw new Error("ts_err_mf_not_requester");
+    closeRequest(s.current, "refused");
+  }
+
+  // Task 6 會以真正的結算取代
+  function settle(s) { throw new Error("ts_err_phase"); }
+
+  function endMind(s) {
+    var c = s.current;
+    if (c.pendingRequest) throw new Error("ts_err_mf_pending_open");
+    c.bettors = s.players.filter(function (p) { return p.chips > 0; }).map(function (p) { return p.id; });
+    if (!c.bettors.length) { settle(s); return; }
+    s.phase = "bet";
+  }
+
   // ---------------- reducer 入口 ----------------
 
   function need(s, phase) { if (s.phase !== phase) throw new Error("ts_err_phase"); }
@@ -254,6 +358,11 @@
       case "startBetting": need(s, "reveal_target"); startExpose(s); break;
       case "mfExpose": need(s, "mf_expose"); expose(s, action); break;
       case "mfRate": need(s, "mf_rate"); rate(s, action); break;
+      case "mfRequest": need(s, "mf_mind"); request(s, action); break;
+      case "mfRespond": need(s, "mf_mind"); respond(s, action); break;
+      case "mfRaise": need(s, "mf_mind"); raise(s, action); break;
+      case "mfDrop": need(s, "mf_mind"); drop(s, action); break;
+      case "mfEndMind": need(s, "mf_mind"); endMind(s); break;
       case "nextTarget": need(s, "settle"); I.nextTarget(s); break;
       default: throw new Error("ts_err_phase");
     }
@@ -264,6 +373,10 @@
     allowedRatings: allowedRatings,
     pendingRaters: pendingRaters,
     rateError: rateError,
+    requestMin: requestMin,
+    requestError: requestError,
+    respondError: respondError,
+    raiseError: raiseError,
     newGame: newGame,
     apply: apply,
     pickTargets: pickTargets,
