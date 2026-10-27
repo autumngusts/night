@@ -4,7 +4,7 @@
 
 **Goal:** 加入規格 §7（重大事件）與 §8（設施升級、業界趨勢、財務危機），以及對應的 UI：事件卡與頂部鈴鐺、公司分頁的設施、「業界」分頁的本季趨勢；並用平衡模擬檢查後期資金過剩的問題。
 
-**Architecture:** 事件內容放在新的資料檔 `starv_events_data.js`（掛到 `PriTestStarvData.EVENTS`）；事件引擎、設施、趨勢都寫進 `starv_core.js`（需要用到核心的內部函式，例如 `genJob`、`addRep`、`removeArtist`）。UI 新增 `starv_events_ui.js`（事件卡、鈴鐺、自動彈出）與 `starv_view_industry.js`（業界分頁），公司分頁加上設施卡。存檔版本升到 2，`migrate` 補上趨勢。
+**Architecture:** 事件比照 SR/SSR 名錄做成可擴充的登記器：`starv_events.js`（`PriTestStarvEvents.add()`）＋分檔的事件資料 `starv_events_1.js`、`_2.js`…（使用者指定 2026-10-27：之後要擴充到上千種）；事件引擎、設施、趨勢都寫進 `starv_core.js`（需要用到核心的內部函式，例如 `genJob`、`addRep`、`removeArtist`）。UI 新增 `starv_events_ui.js`（事件卡、鈴鐺、自動彈出）與 `starv_view_industry.js`（業界分頁），公司分頁加上設施卡。存檔版本升到 2，`migrate` 補上趨勢。
 
 **Tech Stack:** Vanilla ES5、node 單元測試、Playwright。
 
@@ -15,7 +15,8 @@
 - 規格 §5.2 財務危機三選項：賣合約、向銀行借款（有利息）、全員減薪（壓力增加）
 - 規格 §8.2 設施：宿舍 Lv1–10（上限 5→100，不受公司等級限制）；其他設施最高 Lv5，且不能超過公司等級；資金升級、即時完成
 - 規格 §8.3 趨勢：每季（90 天）2～3 個熱門方向 ×1.5、1 個低迷方向 ×0.7（工作量、酬勞、人氣）；偶爾出現持續一季的特殊潮流；下一季以「傳聞」預告
-- 事件 v1 共 40 種；對手公司相關事件在計畫 4 加入（本計畫的挖角事件以「其他經紀公司」稱呼）
+- 事件 v1 共 40 種，之後會擴充到上千種：事件分檔登記、ID 永不重用、核心不寫死事件數量；抽事件時依目標篩選鍵分組，對藝人的篩選次數只看篩選鍵種類、不隨事件數增加；存檔中找不到的事件 ID 在讀檔時丟棄
+- 對手公司相關事件在計畫 4 加入（本計畫的挖角事件以「其他經紀公司」稱呼）
 - 舊存檔（version 1）必須能讀：`migrate` 補上 `trend`、`events`、`loans`、`company.crisisOn`
 - 計畫 1、2 的既有測試要繼續通過；`core_check.js` 為了讓舊測試維持確定性，在檔案開頭把隨機事件機率設為 0，事件測試自行開啟
 - CLAUDE.md §5.2.1 的命名前綴（`sv-`、`sv_`、`PriTestStarv*`）
@@ -26,7 +27,8 @@
 | 檔案 | 責任 |
 | --- | --- |
 | Modify `static_src/starv_data.js` | 設施的名稱、說明、升級費用；特殊潮流；趨勢與事件的平衡常數 |
-| Create `static_src/starv_events_data.js` | 40 種重大事件 → `D.EVENTS`、`D.EVENT_BY_ID`、`D.EVENT_CATS` |
+| Create `static_src/starv_events.js` | 事件登記器 → `PriTestStarvEvents`（同時維護 `D.EVENTS`、`D.EVENT_BY_ID`、`D.EVENT_CATS`） |
+| Create `static_src/starv_events_1.js` | v1 的 40 種重大事件（之後的擴充放 `starv_events_2.js` …） |
 | Modify `static_src/starv_core.js` | 設施升級、趨勢、事件引擎、借款、財務危機、條件觸發、指名工作、`removeArtist`、存檔版本 2 |
 | Modify `tools/starv_check/core_check.js` | 新功能的單元測試 |
 | Modify `tools/starv_check/sim.js` | 模擬中購買設施、檢查後期資金 |
@@ -402,28 +404,31 @@ git commit -m "feat(starv): 業界趨勢（每季熱門／低迷、特殊潮流�
 
 ---
 
-### Task 3：重大事件資料
+### Task 3：重大事件登記器與 v1 資料
 
 **Files:**
-- Create: `static_src/starv_events_data.js`
+- Create: `static_src/starv_events.js`、`static_src/starv_events_1.js`
 - Modify: `tools/starv_check/core_check.js`、`site_src/starv_page.py`、`tools/starv_check/sim.js`
 
 **Interfaces:**
 - Consumes: `D.T`
 - Produces:
-  - `D.EVENTS`（40 筆）、`D.EVENT_BY_ID`、`D.EVENT_CATS = ["scandal","chance","poach","net","health","company","special"]`
-  - 事件格式：`{ id, category, target, trigger: "random"|"cond", weight, title:{zh,ja}, text:{zh,ja}, choices:[{ label, hint, outcomes:[{ w, fx, bad }] }], defaultChoice }`
+  - `PriTestStarvEvents.add(list)`（ID 重複就丟錯）、`.all()`、`.byId(id) → event|null`、`.byTarget(key) → [event]`（只含 random 觸發）、`.CATS`
+  - 登記時同步維護 `D.EVENTS`（陣列）、`D.EVENT_BY_ID`、`D.EVENT_CATS = ["scandal","chance","poach","net","health","company","special"]`，核心以這三個欄位讀取
+  - 事件格式：`{ id, addedIn, category, target, trigger: "random"|"cond", weight, title:{zh,ja}, text:{zh,ja}, choices:[{ label, hint, outcomes:[{ w, fx, bad }] }], defaultChoice }`
   - `target`：`none`（公司事件）或篩選鍵 `any`／`famous`／`rookie`／`music`／`dance`／`stream`／`stressed`／`unhappy`／`lowmood`／`idle`
   - 文字中的佔位：`{name}`（目標藝人）、`{n}`（條件事件的數字，例如人氣門檻）
   - `fx` 可用鍵（Task 4 的 `applyFx` 實作）：公司 `money`、`tickets`、`rep`、`loan:{amount, monthly, months}`、`sellTop`；藝人 `fame`、`famePct`、`stress`、`stamina`、`satisfaction`、`mood`、`salaryPct`、`statAll`、`stat:{能力:值}`、`rest`（天）、`specialJob`、`leave`、`moneyBySalary`（月薪倍數的違約金收入）；全員 `allStress`、`allSatisfaction`、`allSalaryPct`
-  - 載入順序：`starv_data.js` 之後、`starv_roster.js` 之前
+  - 載入順序：`starv_data.js` → `starv_events.js` → `starv_events_1.js`（→ 之後的 `_2.js` …）→ `starv_roster.js`
 
 - [ ] **Step 1：寫失敗測試**
 
 `core_check.js` 的 `require("../../static_src/starv_data.js");` 之後加入：
 
 ```js
-require("../../static_src/starv_events_data.js");
+require("../../static_src/starv_events.js");
+require("../../static_src/starv_events_1.js");
+var Events = global.PriTestStarvEvents;
 ```
 
 插在 `// ==== run ====` 之前：
@@ -433,7 +438,8 @@ test("事件資料：40 種、格式正確", function () {
   var FX = ["money", "tickets", "rep", "loan", "sellTop", "fame", "famePct", "stress", "stamina", "satisfaction", "mood", "salaryPct",
     "statAll", "stat", "rest", "specialJob", "leave", "moneyBySalary", "allStress", "allSatisfaction", "allSalaryPct"];
   var TARGETS = ["none", "any", "famous", "rookie", "music", "dance", "stream", "stressed", "unhappy", "lowmood", "idle"];
-  eq(D.EVENTS.length, 40, "事件數");
+  eq(D.EVENTS.length, Events.all().length, "D.EVENTS 與登記器一致");
+  eq(Events.all().filter(function (e) { return e.addedIn === "v1"; }).length, 40, "v1 事件數");
   var seen = {};
   D.EVENTS.forEach(function (ev) {
     assert(!seen[ev.id], "重複 " + ev.id); seen[ev.id] = 1;
@@ -456,17 +462,68 @@ test("事件資料：40 種、格式正確", function () {
   });
   ["strike_talk", "fame_milestone", "finance_crisis", "ssr_debut"].forEach(function (id) { eq(D.EVENT_BY_ID[id].trigger, "cond", id); });
 });
+
+test("事件登記器：重複 ID 丟錯、依目標分組", function () {
+  var threw = false;
+  try { Events.add([Events.byId("charity")]); } catch (e) { threw = true; }
+  assert(threw, "重複 ID 沒有丟錯");
+  eq(Events.byId("nope"), null);
+  var famous = Events.byTarget("famous");
+  assert(famous.length > 0 && famous.every(function (e) { return e.target === "famous" && e.trigger === "random"; }), "byTarget");
+  assert(Events.byTarget("any").every(function (e) { return e.trigger === "random"; }), "條件事件不在 byTarget 裡");
+});
 ```
 
 - [ ] **Step 2：執行，確認失敗**
 
 Run: `node tools/starv_check/core_check.js`
-Expected: `Cannot find module '../../static_src/starv_events_data.js'`
+Expected: `Cannot find module '../../static_src/starv_events.js'`
 
-- [ ] **Step 3：建立 `static_src/starv_events_data.js`**
+- [ ] **Step 3a：建立 `static_src/starv_events.js`**
 
 ```js
-// 明星經紀 starV：重大事件資料（規格 §7）。只放資料；觸發、選擇、效果套用在 starv_core.js。
+// 明星經紀 starV：重大事件登記器（規格 §7；使用者指定 2026-10-27：事件之後要擴充到上千種）。
+// 事件資料分檔（starv_events_1.js、_2.js …），各自呼叫 add() 追加；ID 永不重用，重複就丟錯。
+// 登記時同步維護 PriTestStarvData 的 EVENTS／EVENT_BY_ID／EVENT_CATS，核心只讀這三個欄位。
+// byTarget(key) 先依目標篩選鍵分好組，抽隨機事件時每個篩選鍵只需對藝人算一次。
+(function () {
+  "use strict";
+
+  var root = typeof window !== "undefined" ? window : globalThis;
+  var D = root.PriTestStarvData;
+  var CATS = ["scandal", "chance", "poach", "net", "health", "company", "special"];
+  var list = [];
+  var map = {};
+  var byTarget = {};
+
+  function add(events) {
+    events.forEach(function (ev) {
+      if (map[ev.id]) throw new Error("starV events: 重複的 ID " + ev.id);
+      map[ev.id] = ev;
+      list.push(ev);
+      if (ev.trigger === "random") (byTarget[ev.target] || (byTarget[ev.target] = [])).push(ev);
+    });
+  }
+
+  D.EVENTS = list;
+  D.EVENT_BY_ID = map;
+  D.EVENT_CATS = CATS;
+  root.PriTestStarvEvents = {
+    add: add,
+    all: function () { return list.slice(); },
+    byId: function (id) { return map[id] || null; },
+    byTarget: function (key) { return (byTarget[key] || []).slice(); },
+    targets: function () { return Object.keys(byTarget); },
+    CATS: CATS
+  };
+})();
+```
+
+- [ ] **Step 3b：建立 `static_src/starv_events_1.js`**
+
+```js
+// 明星經紀 starV：重大事件 v1（40 種；規格 §7）。只放資料；觸發、選擇、效果套用在 starv_core.js。
+// 擴充時新增 starv_events_2.js …（同樣的 E/C/O 寫法，addedIn 改成新的版本標籤），並登記到 starv_page.py。
 // 每個事件 2～3 個選項，選項只寫傾向（hint），實際效果由 outcomes 依權重抽一個（bad＝壞結果，公關部會壓低它的權重）。
 // defaultChoice＝逾期或離線時自動選的選項，一律挑比較保守的。
 (function () {
@@ -479,7 +536,7 @@ Expected: `Cannot find module '../../static_src/starv_events_data.js'`
   function O(w, fx, bad) { return { w: w, fx: fx || {}, bad: !!bad }; }
   function C(label, hint, outcomes) { return { label: T(label), hint: T(hint), outcomes: outcomes }; }
   function E(id, category, target, title, text, choices, defaultChoice, trigger) {
-    return { id: id, category: category, target: target, trigger: trigger || "random", weight: 10,
+    return { id: id, addedIn: "v1", category: category, target: target, trigger: trigger || "random", weight: 10,
       title: T(title), text: T(text), choices: choices, defaultChoice: defaultChoice };
   }
 
@@ -666,31 +723,32 @@ Expected: `Cannot find module '../../static_src/starv_events_data.js'`
     ], 1, "cond")
   ];
 
-  var BY_ID = {};
-  EVENTS.forEach(function (ev) { BY_ID[ev.id] = ev; });
-  D.EVENTS = EVENTS;
-  D.EVENT_BY_ID = BY_ID;
-  D.EVENT_CATS = ["scandal", "chance", "poach", "net", "health", "company", "special"];
+  root.PriTestStarvEvents.add(EVENTS);
 })();
 ```
 
 - [ ] **Step 4：登記載入順序**
 
-`site_src/starv_page.py` 的 `STARV_SCRIPTS`：在 `"starv_data.js",` 之後加 `"starv_events_data.js",`
+`site_src/starv_page.py` 的 `STARV_SCRIPTS`：在 `"starv_data.js",` 之後依序加 `"starv_events.js",`、`"starv_events_1.js",`
 
-`tools/starv_check/sim.js` 的 `require("../../static_src/starv_data.js");` 之後加 `require("../../static_src/starv_events_data.js");`
+`tools/starv_check/sim.js` 的 `require("../../static_src/starv_data.js");` 之後加：
+
+```js
+require("../../static_src/starv_events.js");
+require("../../static_src/starv_events_1.js");
+```
 
 - [ ] **Step 5：執行，確認通過**
 
 Run: `node tools/starv_check/core_check.js`
-Expected: `全部 59 個通過`
+Expected: `全部 60 個通過`
 
 - [ ] **Step 6：commit**
 
 ```bash
-node --check static_src/starv_events_data.js
-git add static_src/starv_events_data.js tools/starv_check/core_check.js tools/starv_check/sim.js site_src/starv_page.py
-git commit -m "feat(starv): 40 種重大事件資料"
+node --check static_src/starv_events.js && node --check static_src/starv_events_1.js
+git add static_src/starv_events.js static_src/starv_events_1.js tools/starv_check/core_check.js tools/starv_check/sim.js site_src/starv_page.py
+git commit -m "feat(starv): 重大事件登記器與 v1 的 40 種事件"
 ```
 
 ---
@@ -799,6 +857,14 @@ test("事件：人氣跨過門檻", function () {
   assert(e && e.ctx.n === 1000 && e.aid === a.id, "fame_milestone");
 });
 
+test("事件：讀檔丟棄找不到的事件", function () {
+  var st = Core.create({ seed: 1 }), a = freshArtist(st);
+  Core.triggerEvent(st, "charity", a.id);
+  st.events.pending.push({ uid: "e999", id: "removed_event", aid: null, ctx: {}, day: 0, deadline: 3 });
+  var m = Core.migrate(JSON.parse(JSON.stringify(st)));
+  eq(m.events.pending.length, 1); eq(m.events.pending[0].id, "charity");
+});
+
 test("事件：隨機發生頻率、公關部壓低壞結果", function () {
   withEvents(function () {
     var st = Core.create({ seed: 4 }), n = 0;
@@ -822,7 +888,7 @@ test("事件：隨機發生頻率、公關部壓低壞結果", function () {
 - [ ] **Step 3：執行，確認失敗**
 
 Run: `node tools/starv_check/core_check.js`
-Expected: 6 個 FAIL（`Core.triggerEvent is not a function`）
+Expected: 7 個 FAIL（`Core.triggerEvent is not a function`）
 
 - [ ] **Step 4：實作**
 
@@ -947,14 +1013,19 @@ Expected: 6 個 FAIL（`Core.triggerEvent is not a function`）
     return e;
   }
 
+  // 依目標篩選鍵分組：每個篩選鍵只對藝人算一次，事件數量變多（上千種）時成本主要看篩選鍵種類
   function triggerRandomEvent(st) {
+    var Events = root.PriTestStarvEvents;
+    if (!Events) return null;
     var pool = {}, targets = {};
-    D.EVENTS.forEach(function (ev) {
-      if (ev.trigger !== "random") return;
-      if (ev.target === "none") { pool[ev.id] = ev.weight; return; }
-      var f = EVENT_FILTERS[ev.target];
-      var list = st.artists.filter(function (a) { return f(st, a); });
-      if (list.length) { pool[ev.id] = ev.weight; targets[ev.id] = list; }
+    Events.targets().forEach(function (key) {
+      var list = null;
+      if (key !== "none") {
+        var f = EVENT_FILTERS[key];
+        list = f ? st.artists.filter(function (a) { return f(st, a); }) : [];
+        if (!list.length) return;
+      }
+      Events.byTarget(key).forEach(function (ev) { pool[ev.id] = ev.weight; targets[ev.id] = list; });
     });
     if (!Object.keys(pool).length) return null;
     var id = wpick(st, pool);
@@ -1050,6 +1121,13 @@ Expected: 6 個 FAIL（`Core.triggerEvent is not a function`）
 
 7. `advanceDay` 中 `autoPlan(st);` 之前加入 `tickEvents(st);`
 
+7b. `migrate` 中 `if (!st.trend) initTrend(st);` 那一行之後加入：
+
+```js
+    // 事件資料被移除或改名時，存檔裡待處理的舊事件直接丟掉（不讓存檔壞掉）
+    st.events.pending = st.events.pending.filter(function (e) { return !!(D.EVENT_BY_ID && D.EVENT_BY_ID[e.id]); });
+```
+
 8. exports 區塊加入：
 
 ```js
@@ -1061,7 +1139,7 @@ Expected: 6 個 FAIL（`Core.triggerEvent is not a function`）
 - [ ] **Step 5：執行，確認通過**
 
 Run: `node tools/starv_check/core_check.js`
-Expected: `全部 65 個通過`
+Expected: `全部 67 個通過`
 
 註：「財務危機」測試中藝人月薪 3000＋2000、資金 −100 萬，連續 3 個月負債後第 90 天觸發；之後 30 天內 3 天期限到了會自動處理（預設是全員減薪），且 `crisisOn` 保持 true，所以只會有一件。「隨機發生頻率」：每天 8% × 360 天 ≈ 29 件，有 3 天期限的自動處理不影響觸發。「公關部」：old_post 的選項 1 好壞權重 5:5，公關部 Lv5 時壞結果權重 ×0.5 → 2.5 /（5 + 2.5）≈ 33%。
 
@@ -1668,7 +1746,7 @@ node tools/starv_check/sim.js 30
 node tools/starv_check/ui_check.js
 ```
 
-Expected：`core_check` 全部 65 個通過；`sim` 不變量全部通過；`ui_check` 全部 14 個步驟通過。
+Expected：`core_check` 全部 67 個通過；`sim` 不變量全部通過；`ui_check` 全部 14 個步驟通過。
 
 - [ ] **Step 8：檢視截圖**
 
