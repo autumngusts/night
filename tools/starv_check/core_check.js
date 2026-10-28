@@ -20,6 +20,7 @@ require("../../static_src/starv_events_10.js");
 require("../../static_src/starv_events_11.js");
 require("../../static_src/starv_events_12.js");
 require("../../static_src/starv_events_13.js");
+require("../../static_src/starv_events_14.js");
 require("../../static_src/starv_awards_data.js");
 var Events = global.PriTestStarvEvents;
 require("../../static_src/starv_roster.js");
@@ -1528,6 +1529,13 @@ test("事件 lint：格式、目標、佔位符、選項、fx 鍵、預設選項
     });
     assert(ev.choices[ev.defaultChoice], where + " defaultChoice");
   });
+});
+
+test("事件：合計 500 種", function () {
+  eq(Events.all().length, 500, "事件數");
+  var cats = {};
+  Events.all().forEach(function (e) { cats[e.category] = (cats[e.category] || 0) + 1; });
+  Events.CATS.forEach(function (c) { assert(cats[c] >= 30, c + " 至少 30 種：" + cats[c]); });
 });
 
 test("大型企劃：30 件、階段格式、分歧事件存在、解鎖等級與費用範圍", function () {
