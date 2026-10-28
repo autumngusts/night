@@ -194,7 +194,7 @@ step("重新整理後從存檔繼續", async function (page) {
 });
 
 step("三種語言：各分頁沒有漏翻、手機寬度沒有水平捲動", async function (page) {
-  var tabs = ["artists", "jobs", "projects", "industry", "gacha", "hall", "company"];
+  var tabs = ["artists", "daily", "jobs", "projects", "industry", "gacha", "hall", "company"];
   var langs = ["ja", "en", "zh"];
   for (var i = 0; i < langs.length; i++) {
     await page.dispatchEvent('.lang-btn[data-lang="' + langs[i] + '"]', "click");
@@ -367,6 +367,12 @@ step("企劃：開始 → 派遣 → 完成結算", async function (page) {
 });
 
 step("3D：three.js 不在初始載入、網址可以取得", async function (page) {
+  // 「日程」分頁的 3D 設施圖（2026-10-29）打開時也會載入 three.js，前面的步驟逛過日程分頁，
+  // 所以停在藝人分頁重新整理後再檢查「初始不載入」
+  await tab(page, "artists");
+  await page.reload();
+  await quietEvents(page);
+  await page.waitForSelector(".sv-top");
   assert.strictEqual(await page.evaluate(function () { return typeof window.THREE; }), "undefined", "初始不載入 three.js");
   var src = await page.$eval("#sv-app", function (x) { return x.getAttribute("data-three-src"); });
   assert.ok(/vendor\/three\.min\.js\?v=/.test(src), "data-three-src：" + src);

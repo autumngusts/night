@@ -300,5 +300,6 @@
     });
   }
 
-  window.PriTestStarvStage3D = { available: available, quality: quality, setQuality: setQuality, load: load, play: play };
+  // buildRig／resetPose 也給 3D 設施圖（starv_office3d.js）用，人物外觀與演出一致
+  window.PriTestStarvStage3D = { available: available, quality: quality, setQuality: setQuality, load: load, play: play, buildRig: buildRig, resetPose: resetPose };
 })();
