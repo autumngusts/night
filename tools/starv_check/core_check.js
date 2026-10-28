@@ -5,6 +5,7 @@
 global.window = global;
 require("../../static_src/starv_data.js");
 require("../../static_src/starv_words_1.js");
+require("../../static_src/starv_traits_1.js");
 require("../../static_src/starv_events.js");
 require("../../static_src/starv_events_1.js");
 require("../../static_src/starv_events_2.js");
@@ -78,7 +79,8 @@ test("資料：16 個方向、id 不重複、權重總和為 1", function () {
 test("資料：課程、特質、小事件", function () {
   eq(D.COURSES.length, 12, "課程數");
   D.COURSES.forEach(function (c) { assert(D.STATS.indexOf(c.stat) >= 0, "課程能力 " + c.id); assert(D.COURSE_BY_ID[c.id] === c, "COURSE_BY_ID"); });
-  eq(D.TRAITS.length, 25, "特質數");
+  // 計畫 10 擴充到 100 種（starv_traits_1.js）；詳細檢查在「特性：100 種…」測試
+  eq(D.TRAITS.length, 100, "特質數");
   var seen = {};
   D.TRAITS.forEach(function (t) { assert(!seen[t.id], "特質重複 " + t.id); seen[t.id] = 1; assert(t.name.zh && t.name.ja, "特質名 " + t.id); });
   assert(D.MINOR_EVENTS.length >= 10, "小事件數");
@@ -1446,6 +1448,33 @@ test("稱號：只能用已達成的成就、可以取消、新紀元保留", fu
   assert(!Core.newEra(st), "開新紀元");
   eq(st.era, 2); eq(st.title, "first_pull", "新紀元保留稱號");
   eq(Core.setTitle(st, null), null); eq(st.title, null);
+});
+
+test("特性：100 種、id 不重複、文字齊全、新效果鍵會作用", function () {
+  eq(D.TRAITS.length, 100, "特性數");
+  var seen = {};
+  D.TRAITS.forEach(function (t) {
+    assert(/^[a-z0-9_]+$/.test(t.id) && !seen[t.id], "特性 id " + t.id); seen[t.id] = 1;
+    eq(D.TRAIT_BY_ID[t.id], t, t.id + " 索引");
+    assert(t.name.zh && t.name.ja && t.desc.zh && t.desc.ja, t.id + " 文字");
+    assert(Object.keys(t.fx).length >= 1, t.id + " 效果");
+  });
+  var st = Core.create({ seed: 4 });
+  st.board = []; st.boardRefreshDay = 99999;
+  // salary：月薪 ×v
+  var a = freshArtist(st, { salary: 2000 }), b = freshArtist(st, { salary: 2000 });
+  a.traits = ["t_frugal"]; Core._updateSalary(a); Core._updateSalary(b);
+  assert(a.salary < b.salary, "salary 鍵：月薪較低 " + a.salary + " / " + b.salary);
+  // growthStats：指定能力成長較快
+  var g1 = freshArtist(st), g2 = freshArtist(st);
+  g1.traits = ["t_vocal_gift"];
+  Core._growStat(st, g1, "vocal", 10, "course"); Core._growStat(st, g2, "vocal", 10, "course");
+  assert(g1.stats.vocal > g2.stats.vocal, "growthStats 鍵");
+  // chem：組合默契加成
+  st.groups = [{ id: "g1", name: "", members: [g1.id, g2.id], jobs: 50 }];
+  var base = Core.chemistry(st, [g1.id, g2.id]);
+  g1.traits = ["t_team_player"]; g2.traits = ["t_team_player"];
+  assert(Core.chemistry(st, [g1.id, g2.id]) > base, "chem 鍵");
 });
 
 // ==== 雲端存檔（計畫 8） ====

@@ -17,6 +17,7 @@ STARV_SCRIPTS: tuple[str, ...] = (
     "qrcode.js",
     "starv_data.js",
     "starv_words_1.js",
+    "starv_traits_1.js",
     "starv_events.js",
     "starv_events_1.js",
     "starv_events_2.js",

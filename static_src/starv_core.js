@@ -216,7 +216,7 @@
   // 月薪 ＝ 基本月薪 × (1 + √人氣 ÷ salaryFameDiv)，取整到百（規格 §5.2「會隨人氣上升」）
   function updateSalary(a) {
     if (a.baseSalary == null) a.baseSalary = a.salary;
-    a.salary = Math.round(a.baseSalary * (1 + Math.sqrt(Math.max(0, a.fame)) / BAL.salaryFameDiv) / 100) * 100;
+    a.salary = Math.round(a.baseSalary * (1 + Math.sqrt(Math.max(0, a.fame)) / BAL.salaryFameDiv) * fxMult(a, "salary") / 100) * 100;
   }
 
   function capacity(st) { return D.DORM_CAP[st.facilities.dorm] || D.DORM_CAP[1]; }
@@ -246,7 +246,18 @@
     var s = 0;
     fxList(a).forEach(function (f) { if (f.greatShift && f.greatShift.dirs.indexOf(dir) >= 0) s += f.greatShift.v; });
     return s;
+  }  // 特性的新效果鍵（計畫 10）
+  function fxStatMult(a, stat) {
+    var m = 1;
+    fxList(a).forEach(function (f) { if (f.growthStats && f.growthStats.stats.indexOf(stat) >= 0) m *= f.growthStats.v; });
+    return m;
   }
+  function fxSum(a, key) {
+    var s = 0;
+    fxList(a).forEach(function (f) { if (typeof f[key] === "number") s += f[key]; });
+    return s;
+  }
+
   function inPeak(a) { var p = dirById(a.dir).peak; return a.age >= p[0] && a.age <= p[1]; }
 
   function addProf(a, dir, xp) {
@@ -444,7 +455,7 @@
     if (cur >= cap) return 0;
     var m = D.APT[a.apt[stat]].mult * (1 + a.mood * BAL.moodPerf) * fxMult(a, "growth") *
       fxMult(a, src === "course" ? "growthCourse" : "growthTrain") *
-      (inPeak(a) ? 1 : BAL.offPeakGrowth) * facilityGrowth(st, stat, src);
+      (inPeak(a) ? 1 : BAL.offPeakGrowth) * fxStatMult(a, stat) * facilityGrowth(st, stat, src);
     m *= 1 + staffFor(st, "mentor", a.dir);   // 導師（§11）：主方向相同的藝人成長加成
     m *= 1 + 0.05 * perkLv(st, "growth");      // 傳承加成（§13）
     var g = base * m * Math.sqrt((cap - cur) / cap);
@@ -623,7 +634,11 @@
   }
   function chemistry(st, aids) {
     var g = aids.length >= 2 ? groupOf(st, aids) : null;
-    return g ? Math.min(BAL.chemistryMax, g.jobs * BAL.chemistryPerJob) : 0;
+    if (!g) return 0;
+    // 特性 chem（計畫 10）：默契 × 成員 chem 的平均
+    var m = 0, n = 0;
+    aids.forEach(function (id) { var a = artistById(st, id); if (a) { m += fxMult(a, "chem"); n++; } });
+    return Math.min(BAL.chemistryMax, g.jobs * BAL.chemistryPerJob) * (n ? m / n : 1);
   }
 
   function teamPerf(st, members, job) {
@@ -786,7 +801,7 @@
     st.company.money += div - upkeep - loan;
     var prMult = 1 - st.facilities.pr * D.FACILITIES.pr.fameDecay;
     st.artists.forEach(function (a) {
-      var rate = (inPeak(a) ? BAL.fameDecay : BAL.fameDecayOffPeak) * prMult;
+      var rate = (inPeak(a) ? BAL.fameDecay : BAL.fameDecayOffPeak) * prMult * fxMult(a, "fameDecay");
       a.fame = Math.round(a.fame * (1 - rate));
     });
     // 滿意度漂移（規格 §11）：最近 30 天有沒有工作、壓力、心情
@@ -795,6 +810,7 @@
       var d = worked ? BAL.satWorked : BAL.satIdle;
       if (a.stress > 70) d += BAL.satStress;
       if (a.mood >= 1) d += BAL.satMood;
+      d += fxSum(a, "satDrift");
       a.satisfaction = clamp(a.satisfaction + d, 0, 100);
     });
     // 月薪隨人氣上升（規格 §5.2）：人氣衰退後重算，再支付
@@ -1147,7 +1163,9 @@
     if (!ch) return { err: "choice" };
     st.events.pending.splice(st.events.pending.indexOf(e), 1);
     var w = {};
-    ch.outcomes.forEach(function (o, k) { w[k] = o.w * (o.bad ? 1 - st.facilities.pr * BAL.prBadCut : 1); });
+    // 特性 badLuck（計畫 10）：以該藝人為目標的事件，壞結果權重 ×v
+    var target = e.aid ? artistById(st, e.aid) : null, luck = target ? fxMult(target, "badLuck") : 1;
+    ch.outcomes.forEach(function (o, k) { w[k] = o.w * (o.bad ? (1 - st.facilities.pr * BAL.prBadCut) * luck : 1); });
     var k = Number(wpick(st, w)), o = ch.outcomes[k];
     var fx = applyFx(st, e, o.fx);
     log(st, auto ? "event_auto" : "event_resolved", { uid: uid, ev: e.id, aid: e.aid, choice: idx, outcome: k, fx: fx });
@@ -1776,6 +1794,8 @@
   api.capacity = capacity;
   api.artistById = artistById;
   api._genR = genR;
+  api._updateSalary = updateSalary;
+  api._growStat = growStat;
   api._fromRoster = fromRoster;
   api.pullCost = pullCost;
   api.rates = rates;
