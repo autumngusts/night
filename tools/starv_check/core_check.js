@@ -18,6 +18,7 @@ require("../../static_src/starv_events_8.js");
 require("../../static_src/starv_events_9.js");
 require("../../static_src/starv_events_10.js");
 require("../../static_src/starv_events_11.js");
+require("../../static_src/starv_events_12.js");
 require("../../static_src/starv_awards_data.js");
 var Events = global.PriTestStarvEvents;
 require("../../static_src/starv_roster.js");
