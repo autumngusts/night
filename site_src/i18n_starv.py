@@ -483,6 +483,7 @@ _ROWS: list[tuple[str, str, str]] = [
     ("sv_ach_title_on", "使用中（取消）", "使用中（外す）"),
     ("sv_title_chip", "「{title}」", "「{title}」"),
     ("sv_title_tip", "稱號（在殿堂的成就頁變更）", "称号（殿堂の実績ページで変更）"),
+    ("sv_proj_more_locked", "還有 {n} 件企劃會在公司等級更高時出現", "あと {n} 件の企画は事務所のレベルが上がると現れる"),
     # ==== 之後的 task 在這行之前追加字串 ====
 ]
 

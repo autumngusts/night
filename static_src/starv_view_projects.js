@@ -14,8 +14,13 @@
     return t("sv_proj_stage_info", { dirs: s.dirs.map(function (d) { return UI.dirIcon(d); }).join(""), min: s.slots[0], max: s.slots[1], tier: s.tier, days: s.days });
   }
 
+  // 企劃一多（計畫 10：30 件），列表只放已解鎖的與接下來 3 件，其餘以一行提示帶過
   function listView(st, App) {
-    return el("div", { class: "sv-proj-list" }, D.PROJECTS.map(function (p) {
+    var open = D.PROJECTS.filter(function (p) { return st.company.level >= p.unlockLevel; });
+    var locked = D.PROJECTS.filter(function (p) { return st.company.level < p.unlockLevel; })
+      .sort(function (x, y) { return x.unlockLevel - y.unlockLevel; });
+    var shown = open.concat(locked.slice(0, 3)), hidden = locked.length - Math.min(3, locked.length);
+    var wrap = el("div", { class: "sv-proj-list" }, shown.map(function (p) {
       var locked = st.company.level < p.unlockLevel;
       return el("div", { class: "sv-card sv-proj-card" + (locked ? " sv-proj-locked" : "") }, [
         el("h3", { text: UI.L(p.name) }),
@@ -31,6 +36,8 @@
           }, st.company.money >= p.cost ? "sv-btn-primary" : "sv-btn-ghost", { "data-act": "proj-start-" + p.id })])
       ]);
     }));
+    if (hidden > 0) wrap.appendChild(el("p", { class: "sv-small sv-muted", text: t("sv_proj_more_locked", { n: hidden }) }));
+    return wrap;
   }
 
   function names(st, ids) { return ids.map(function (id) { var a = Core.artistById(st, id); return a ? UI.name(a) : "—"; }).join("、"); }

@@ -1836,6 +1836,7 @@
   api.seasonOf = seasonOf;
   api.triggerEvent = pushEvent;
   api.triggerRandomEvent = triggerRandomEvent;
+  api.EVENT_TARGETS = Object.keys(EVENT_FILTERS).concat(["none"]);
   api.resolveEvent = function (st, uid, idx) { return resolveEvent(st, uid, idx, false); };
   api.rivalById = rivalById;
   api.rivalName = rivalName;

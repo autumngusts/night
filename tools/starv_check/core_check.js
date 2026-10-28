@@ -12,6 +12,7 @@ require("../../static_src/starv_events_2.js");
 require("../../static_src/starv_events_3.js");
 require("../../static_src/starv_events_4.js");
 require("../../static_src/starv_events_5.js");
+require("../../static_src/starv_events_6.js");
 require("../../static_src/starv_awards_data.js");
 var Events = global.PriTestStarvEvents;
 require("../../static_src/starv_roster.js");
@@ -37,6 +38,7 @@ D.BAL.snatchChance = 0; D.BAL.snatchInterestChance = 0;
 
 require("../../static_src/starv_projects.js");
 require("../../static_src/starv_projects_1.js");
+require("../../static_src/starv_projects_2.js");
 var Projects = global.PriTestStarvProjects;
 require("../../static_src/starv_achievements.js");
 require("../../static_src/starv_achievements_1.js");
@@ -1290,7 +1292,8 @@ test("傳承加成：購買、上限、效果", function () {
 
 test("企劃資料：5 件、格式、分歧事件存在", function () {
   eq(Projects.all().filter(function (p) { return p.addedIn === "v1"; }).length, 5);
-  Projects.all().forEach(function (p) {
+  // 計畫 10 加入 Lv3 起、2 階段的小企劃：這裡只檢查 v1 的 5 件，全體的範圍檢查在「大型企劃：30 件…」
+  Projects.all().filter(function (p) { return p.addedIn === "v1"; }).forEach(function (p) {
     assert(p.name.zh && p.name.ja && p.desc.zh && p.desc.ja, p.id + " 文字");
     assert(p.unlockLevel >= 5 && p.cost > 0, p.id + " 解鎖與費用");
     assert(p.stages.length >= 3 && p.stages.length <= 5, p.id + " 階段數");
@@ -1478,6 +1481,71 @@ test("特性：100 種、id 不重複、文字齊全、新效果鍵會作用", f
   var base = Core.chemistry(st, [g1.id, g2.id]);
   g1.traits = ["t_team_player"]; g2.traits = ["t_team_player"];
   assert(Core.chemistry(st, [g1.id, g2.id]) > base, "chem 鍵");
+});
+
+var EVENT_FX = "famePct stress satisfaction money rest mood specialJob fame stamina statAll rep stat salaryPct leave moneyBySalary allSatisfaction allStress tickets sellTop loan allSalaryPct rivalPower projectMod projectDays renew retire retain".split(" ");
+var CAREER_ONLY = ["renew", "retire", "retain"];
+// 用到哪些佔位（不計次數：zh 與 ja 的語序不同，出現次數可以不一樣）
+function placeholders(s) { var u = {}; (s.match(/\{[a-z]+\}/g) || []).forEach(function (p) { u[p] = 1; }); return Object.keys(u).sort().join(","); }
+
+test("事件 lint：格式、目標、佔位符、選項、fx 鍵、預設選項、標題不重複", function () {
+  var ids = {}, titles = {};
+  Events.all().forEach(function (ev) {
+    var where = ev.id;
+    assert(/^[a-z0-9_]+$/.test(ev.id), where + " id 格式");
+    assert(!titles[ev.title.zh], where + " 標題重複：" + ev.title.zh + "（" + titles[ev.title.zh] + "）"); titles[ev.title.zh] = ev.id;
+    assert(Events.CATS.indexOf(ev.category) >= 0, where + " 類別");
+    assert(ev.trigger === "random" || ev.trigger === "cond", where + " trigger");
+    assert(ev.weight > 0, where + " weight");
+    assert(Core.EVENT_TARGETS.indexOf(ev.target) >= 0, where + " target " + ev.target);
+    assert(ev.title.zh && ev.title.ja && ev.text.zh && ev.text.ja, where + " 文字");
+    var ph = placeholders(ev.text.zh);
+    eq(placeholders(ev.text.ja), ph, where + " zh/ja 佔位不一致");
+    (ph ? ph.split(",") : []).forEach(function (p) { assert(["{name}", "{n}", "{rival}", "{star}"].indexOf(p) >= 0, where + " 不明佔位 " + p); });
+    if (ev.target === "none") assert(ph.indexOf("{name}") < 0, where + " target none 不能用 {name}");
+    if (ev.trigger === "random" && ph.indexOf("{rival}") >= 0) assert(ev.rival, where + " 用 {rival} 要 rival: true");
+    if (ev.trigger === "random" && ph.indexOf("{star}") >= 0) assert(ev.rival && ev.needStar, where + " 用 {star} 要 needStar: true");
+    assert(ev.choices.length >= 2 && ev.choices.length <= 3, where + " 選項數 " + ev.choices.length);
+    ev.choices.forEach(function (c, i) {
+      assert(c.label.zh && c.label.ja && c.hint.zh && c.hint.ja, where + " 選項 " + i + " 文字");
+      assert(c.outcomes.length >= 1, where + " 選項 " + i + " 沒有結果");
+      c.outcomes.forEach(function (o) {
+        assert(o.w > 0, where + " 權重");
+        Object.keys(o.fx).forEach(function (k) {
+          assert(EVENT_FX.indexOf(k) >= 0, where + " fx 不支援 " + k);
+          if (CAREER_ONLY.indexOf(k) >= 0) assert(ev.id === "contract_renewal" || ev.id === "retire_offer", where + " 生涯專用 fx " + k);
+          if (k === "projectMod" || k === "projectDays") assert(ev.trigger === "cond", where + " 企劃 fx 只能在 cond 事件");
+          if (k === "stat") Object.keys(o.fx.stat).forEach(function (s) { assert(D.STATS.indexOf(s) >= 0, where + " stat 鍵 " + s); });
+        });
+      });
+    });
+    assert(ev.choices[ev.defaultChoice], where + " defaultChoice");
+  });
+});
+
+test("大型企劃：30 件、階段格式、分歧事件存在、解鎖等級與費用範圍", function () {
+  eq(D.PROJECTS.length, 30, "企劃數");
+  var titles = {};
+  D.PROJECTS.forEach(function (p) {
+    assert(/^[a-z0-9_]+$/.test(p.id), p.id + " id");
+    assert(!titles[p.name.zh], p.id + " 名稱重複"); titles[p.name.zh] = 1;
+    assert(p.name.zh && p.name.ja && p.desc.zh && p.desc.ja, p.id + " 文字");
+    assert(p.unlockLevel >= 3 && p.unlockLevel <= 10, p.id + " 解鎖等級 " + p.unlockLevel);
+    assert(p.cost >= 100000 && p.cost <= 2000000, p.id + " 費用 " + p.cost);
+    assert(p.stages.length >= 2 && p.stages.length <= 5, p.id + " 階段數");
+    p.stages.forEach(function (s, i) {
+      var w = p.id + " 階段 " + i;
+      assert(s.name.zh && s.name.ja, w + " 名稱");
+      assert(s.dirs.length >= 1 && s.dirs.every(function (d) { return D.DIR_BY_ID[d]; }), w + " 方向");
+      assert(s.slots[0] >= 1 && s.slots[0] <= s.slots[1] && s.slots[1] <= 5, w + " 人數");
+      assert(D.TIER_ORDER.indexOf(s.tier) >= 0, w + " 等級 " + s.tier);
+      assert(s.days >= 3 && s.days <= 30, w + " 天數");
+      if (s.branch) { var ev = D.EVENT_BY_ID[s.branch]; assert(ev && ev.trigger === "cond", w + " 分歧事件 " + s.branch); }
+    });
+  });
+  var levels = {};
+  D.PROJECTS.forEach(function (p) { levels[p.unlockLevel] = (levels[p.unlockLevel] || 0) + 1; });
+  assert(Object.keys(levels).length >= 6, "解鎖等級分散在 6 個以上的等級");
 });
 
 // ==== 雲端存檔（計畫 8） ====
