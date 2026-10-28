@@ -15,6 +15,7 @@ require("../../static_src/starv_events_3.js");
 require("../../static_src/starv_events_4.js");
 require("../../static_src/starv_events_5.js");
 require("../../static_src/starv_events_6.js");
+require("../../static_src/starv_events_7.js");
 require("../../static_src/starv_awards_data.js");
 require("../../static_src/starv_projects.js");
 require("../../static_src/starv_projects_1.js");
