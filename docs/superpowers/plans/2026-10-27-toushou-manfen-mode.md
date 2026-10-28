@@ -79,13 +79,13 @@
 
 ## mf_man 滿分男（句型：他是滿分男，但是{flaw}）
 
-### 對象（8～10）
+### 對象（40）
 | id | 名稱 | 優點簡介 | 標籤 |
 | --- | --- | --- | --- |
 | mf_man_01 | 溫柔的外科醫師 | 身高 182、年收 400 萬，下班會煮飯，記得你說過的每一件小事 | 高收入、會做飯、細心 |
 | … | | | |
 
-### 專屬缺點（約 12）
+### 專屬缺點（32）
 | id | 缺點 |
 | --- | --- |
 | fl_man_01 | 每天都要跟你報備行程 |
@@ -96,12 +96,12 @@
 
 | 節 | 類別 id | 句型（zh） | 對象數 | 專屬缺點數 |
 | --- | --- | --- | --- | --- |
-| 滿分男 | `mf_man` | 他是滿分男，但是{flaw} | 8～10 | 12 |
-| 滿分女 | `mf_woman` | 她是滿分女，但是{flaw} | 8～10 | 12 |
-| 滿分工作 | `mf_job` | 這是滿分工作，但是{flaw} | 8～10 | 12 |
-| 滿分房子 | `mf_home` | 這是滿分房子，但是{flaw} | 8～10 | 12 |
-| 滿分室友 | `mf_roommate` | 他是滿分室友，但是{flaw} | 8～10 | 12 |
-| 滿分旅伴 | `mf_travel` | 他是滿分旅伴，但是{flaw} | 8～10 | 12 |
+| 滿分男 | `mf_man` | 他是滿分男，但是{flaw} | 40 | 32 |
+| 滿分女 | `mf_woman` | 她是滿分女，但是{flaw} | 40 | 32 |
+| 滿分工作 | `mf_job` | 這是滿分工作，但是{flaw} | 40 | 32 |
+| 滿分房子 | `mf_home` | 這是滿分房子，但是{flaw} | 40 | 32 |
+| 滿分室友 | `mf_roommate` | 他是滿分室友，但是{flaw} | 40 | 32 |
+| 滿分旅伴 | `mf_travel` | 他是滿分旅伴，但是{flaw} | 40 | 32 |
 | 通用缺點 | （`category: null`） | — | — | 30（id `fl_c01`～`fl_c30`，任何對象都說得通，例：「手機桌布是前任」「講話每句都要加英文」） |
 
 另外寫一節「沿用現有標的」：句型「『{target}』是滿分的，但是{flaw}」，說明現有類別的利空消息牌也可以直接打出。
@@ -195,22 +195,22 @@ check("manfen categories are not mixed into classic CATEGORIES", function () {
   D.CATEGORIES.forEach(function (c) { assert.ok(MF_IDS.indexOf(c.id) < 0, c.id); });
 });
 
-check("each manfen category has 8-10 targets and >= 10 own flaw cards, bilingual", function () {
+check("each manfen category has exactly 40 targets and 32 own flaw cards, bilingual", function () {
   MF_IDS.forEach(function (id) {
     var ts = D.MANFEN_TARGETS.filter(function (t) { return t.category === id; });
-    assert.ok(ts.length >= 8 && ts.length <= 10, id + " targets " + ts.length);
+    assert.strictEqual(ts.length, 40, id + " targets " + ts.length);
     ts.forEach(function (t) {
       assert.ok(t.name.zh && t.name.ja && t.summary.zh && t.summary.ja, t.id);
       assert.ok(t.tags.length >= 2 && t.tags.length <= 3, t.id);
     });
     var fs2 = D.FLAW_CARDS.filter(function (f) { return f.category === id; });
-    assert.ok(fs2.length >= 10, id + " flaws " + fs2.length);
+    assert.strictEqual(fs2.length, 32, id + " flaws " + fs2.length);
   });
 });
 
-check("common flaw cards: >= 25, category null, bilingual", function () {
+check("common flaw cards: exactly 30, category null, bilingual", function () {
   var common = D.FLAW_CARDS.filter(function (f) { return f.category === null; });
-  assert.ok(common.length >= 25, String(common.length));
+  assert.strictEqual(common.length, 30, String(common.length));
   common.forEach(function (f) { assert.ok(f.text.zh && f.text.ja, f.id); });
 });
 

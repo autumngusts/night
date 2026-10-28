@@ -136,8 +136,17 @@
   }
 
   function isInsiderMode(s) { return !!s.config && s.config.mode === "insider"; }
+  function isManfenMode(s) { return !!s.config && s.config.mode === "manfen"; }
+
+  // 滿分男模式的規則在 toushou_core_manfen.js（載入在本檔之後），執行時才取用
+  function manfen() {
+    var M = window.PriTestToushouManfen;
+    if (!M) throw new Error("ts_err_phase");
+    return M;
+  }
 
   function newGame(config) {
+    if (config.mode === "manfen") return manfen().newGame(config);
     // 內線模式沒有股價變動，依賴股價的規則一律關閉（insider spec §2）
     var insider = config.mode === "insider";
     var s = {
@@ -811,6 +820,10 @@
 
   function reduce(state, action) {
     var s = clone(state);
+    if (isManfenMode(s)) {
+      manfen().apply(s, action);
+      return s;
+    }
     switch (action.type) {
       case "missionSeen":
         if (s.phase !== "missions") throw new Error("ts_err_phase");
@@ -890,6 +903,19 @@
     finalStandings: finalStandings,
     missionText: missionText,
     isInsiderMode: isInsiderMode,
+    isManfenMode: isManfenMode,
+    // 給 toushou_core_manfen.js 用的共用工具（不是公開 API）
+    _internal: {
+      clone: clone,
+      isInt: isInt,
+      rand: rand,
+      shuffle: shuffle,
+      playerById: playerById,
+      drawCard: drawCard,
+      buildWindDeck: buildWindDeck,
+      settleTarget: settleTarget,
+      nextTarget: nextTarget
+    },
     insiderFor: insiderFor,
     insiderStakeMax: insiderStakeMax,
     insiderStakeError: insiderStakeError,

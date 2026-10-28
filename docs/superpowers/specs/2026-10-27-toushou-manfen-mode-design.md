@@ -108,7 +108,7 @@
 ### 3.6 秘密下注（步驟 5）
 
 - 押注額規則同經典模式 §4.2（最低押注、不足時全押、籌碼 0 不參與）。
-- 預測群體平均：0.0～10.0，可到小數一位（內部存成 ×10 整數 `predict10`，0～100）。黑天鵝「散戶狂熱」時上限為 15.0（150）。
+- 預測群體平均：0.0～10.0，可到小數一位。不另開 `predict10` 欄位，直接以 ×10 整數存在 `bets[id].predict`（0～100），理由：可直接沿用 `settleTarget(bets, avg10, …)`。黑天鵝「散戶狂熱」時上限為 15.0（150）。
 - 預設值為 5.0。
 
 ### 3.7 公布與群體平均（步驟 6）
@@ -117,7 +117,7 @@
 2. **票值**：評分 ×10 後套用黑天鵝修正（§5 A 類）。
 3. **群體平均** `avg10` ＝ round(Σ(票值 × 票權) ÷ Σ票權)，round 為四捨五入、.5 遠離 0；「利多出盡」改用加權中位數（§5）。
 4. **彩池**＝全部押注＋`mindPot`（＋紓困加碼）。
-5. 參與者依誤差 `|predict10 − avg10|` 排名，沿用經典模式 `settleTarget()`（60/30/10%、並列合併、零頭給排名最前者、守恆）。黑天鵝「爆冷門」「交易取消」「紓困加碼」照 §5 C 類。
+5. 參與者依誤差 `|predict − avg10|`（`predict` 為 ×10 整數）排名，沿用經典模式 `settleTarget()`（60/30/10%、並列合併、零頭給排名最前者、守恆）。黑天鵝「爆冷門」「交易取消」「紓困加碼」照 §5 C 類。
 6. 結算畫面：每人評分（含票權）、帶風向者身分與方向、平均（顯示到小數一位）、每人押注／預測／誤差／名次／取回／盈虧、心理戰的亮牌與封口費紀錄。
 
 ---
@@ -204,7 +204,7 @@ registerManfenCategory({
 | `mf_roommate` | 滿分室友 | 他是滿分室友，但是…… |
 | `mf_travel` | 滿分旅伴 | 他是滿分旅伴，但是…… |
 
-每類 8～10 個滿分對象（名稱＋優點簡介＋2～3 標籤）、約 12 張專屬缺點牌。
+每類 40 個滿分對象（名稱＋優點簡介＋2～3 標籤）、32 張專屬缺點牌。
 
 ### 6.2 通用缺點牌
 
@@ -223,30 +223,40 @@ registerManfenCategory({
 ## 7. 狀態模型（新增欄位）
 
 ```js
-config: { mode: "manfen", manfenCategories: [..], windEnabled, blackSwanEnabled, ... },
+config: { mode: "manfen", windEnabled, blackSwanEnabled, minBet, ... },   // 選用類別只用於開局抽題，不存進 config
 blamerOffset: <int>,
 mfSwanDeck: [id], windDeck: [id],
 current: {
   blamerId,
   flaw: { cardId, edited, text },        // 爆料內容
-  sentence,                              // 已組好的題目句（zh/ja 兩份）
   event: null | <manfen swan id>,
   windCard: null | "up" | "down" | "neutral",
   windHolder: null | playerId,
   ratings: { [playerId]: 0 | 2 | 5 | 10 },
   revealed: { [playerId]: "paid" | "forced" },
-  requests: [{ from, to, offers: [x1, x2?], outcome: "revealed" | "refused" | "dropped" }],
-  pendingRequest: null | { from, to, offer, round: 1 | 2 },
+  requests: [{ from, to, offers: [x1, x2?], outcome: "revealed" | "refused" }],
+  // 要求者在第 1 次被拒絕後放棄加價，同樣記為 "refused"；回顧畫面不區分「拒絕兩次」與「拒絕一次後放棄加價」
+  pendingRequest: null | { from, to, offers: [x1, x2?], awaitingRaise: boolean },
   mindPaid: { [playerId]: n },           // 心理戰各人付出額（交易取消退回用）
   mindPot: n,
-  bets: { [playerId]: { amount, predict10 } },
-  pot: n
+  bettors: [playerId],                   // 進入下注階段時籌碼 > 0 的人
+  bets: { [playerId]: { amount, predict, chipsBefore } },  // predict 為 ×10 整數
+  pot: n,
+  news: []
 },
-history[i]: 上列紀錄＋{ avg10, weights, voidedPlayer, ranks, payouts, cancelled, bonus }
+// history[i]（settle() 產生，s.lastSettlement 為同一筆的深複製）：
+//   mode: "manfen", targetId, category, name, tags, summary,
+//   blamerId, flaw, event, windCard, windHolder, ratings, revealed, requests, mindPaid, mindPot,
+//   tally: [{ playerId, rating, value, weight, voided, removed }],  // 票值修正後的值、票權、是否作廢（rumor）／被去極值（circuit）
+//   median（exhausted 時為 true）, avg10, finalPrice（＝avg10，共用畫面讀取）,
+//   pot, bets, ranks, payouts, cancelled, refundMind, bonus,
+//   startPrice／sectorFrom／gap／rumorIndex／rumorDelta（皆為 null，只為相容共用結算畫面）, news: []
+// refundMind：非交易取消、且沒有人押注而退回 mindPot 時為 true（見 §9）
 ```
 
+- 題目句由 UI 依類別句型＋`flaw.text` 即時組出，不存 state（不設 `sentence` 欄位）。
 - 全部變更經過 `reduce(state, action)`；隨機性只來自 `state.rng`。
-- 新 action：`mfExpose`、`mfRate`、`mfRequest`、`mfRespond`（`reveal`／`refuse`）、`mfRaise`、`mfDrop`、`mfEndMind`；下注沿用 `placeBet`（manfen 時讀 `predict10`）；`nextTarget` 沿用。
+- 新 action：`mfExpose`、`mfRate`、`mfRequest`、`mfRespond`（`reveal`／`refuse`）、`mfRaise`、`mfDrop`、`mfEndMind`；下注沿用 `placeBet`（manfen 時 `predict` 為 ×10 整數）；`nextTarget` 沿用。
 - 秘密資訊（評分、帶風向者）與內線模式的 T 相同處理：存在 state，由 UI 依遮蔽狀態決定是否顯示。
 
 ---
@@ -262,8 +272,8 @@ history[i]: 上列紀錄＋{ avg10, weights, voidedPlayer, ranks, payouts, cance
 | `static_src/toushou_ui_manfen.js` | 新檔：滿分男模式各階段的畫面 |
 | `static_src/toushou.js` | 設定畫面加模式選項與 manfen 設定；各階段轉交新 UI；遮蔽傳遞與結算畫面共用 |
 | `static_src/css/toushou.css` | 新增樣式（前綴 `.ts-mf-`） |
-| `site_src/toushou_page.py` | `TOUSHOU_SCRIPTS` 加入三個新 JS（data_manfen 在 data 之後、core_manfen 在 core 之前、ui_manfen 在 toushou.js 之前） |
-| `site_src/i18n_data_{zh,ja,en}.py` | 新增 `ts_mf_*` 字串（ja、zh；en fallback） |
+| `site_src/toushou_page.py` | `TOUSHOU_SCRIPTS` 加入三個新 JS（data_manfen 在 data 之後；core_manfen 在 core **之後**，因為它要用 `Core._internal`，而 `reduce()` 在執行時才查 `window.PriTestToushouManfen`，所以不需要放在前面；ui_manfen 在 toushou.js 之前） |
+| `site_src/i18n_data_{zh,ja,en}.py` | 新增 `ts_mf_*` 字串 zh／ja／en 三語（現有 `ts_` 字串皆三語） |
 
 不修改其他遊戲的檔案，也不修改 `database.rules.json`（連線模式的 rtState 結構不變，只是 state 內容多了欄位）。
 
@@ -271,12 +281,13 @@ history[i]: 上列紀錄＋{ avg10, weights, voidedPlayer, ranks, payouts, cance
 
 ## 9. 錯誤處理與邊界
 
-- 評分不是 0／2／5／10，或帶風向者選了方向外的分數 → `ts_mf_err_rating`。
+- 評分不是 0／2／5／10，或帶風向者選了方向外的分數 → `ts_err_mf_rating`。
 - 亮牌開價低於下限或超過要求者籌碼、對已亮牌者發起、本題已發起過、已有進行中的要求 → 對應錯誤 key，不改 state。
 - 目標籌碼不足時「拒絕」按鈕停用。
 - 心理戰中有進行中的要求時不能結束心理戰。
-- 預測值不是 0～上限的整數（×10）→ 停用確定鈕。
-- 沒有人押注（全員籌碼 0）→ 本題照常公布平均，彩池 0；全員籌碼皆 0 時直接整局結算（同經典）。
+- 預測值不是 0～上限的整數（×10）→ 按下確定後才顯示 `ts_err_mf_predict_range`（不停用確定鈕），不改 state。
+- 沒有人押注（全員籌碼 0）→ 本題照常公布平均，彩池 0（`mindPot` 另依下一條退回）；全員籌碼皆 0 時直接整局結算（同經典）。
+- 沒有人押注（`bets` 合計 0）時，`mindPot` 依 `mindPaid` 全數退回，避免籌碼消失（`history.refundMind = true`）。黑天鵝「交易取消」生效（`cancelled = true`）時以交易取消為準，`mindPot` 照 §5 C 類退回，`refundMind` 為 `false`；也就是 `refundMind` 只在非交易取消、且無人押注時為 `true`。
 - 題目池不足 → 抽完為止並提示。
 
 ---

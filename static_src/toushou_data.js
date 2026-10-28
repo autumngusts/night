@@ -116,6 +116,52 @@
   ];
   var SWAN_COMPOSITION = { calm: 7 }; // 未列出的事件各 1 張
 
+  // ---------------- 滿分男模式（manfen spec §5、§6） ----------------
+  // 專用類別與缺點牌不進入 CATEGORIES／NEWS_CARDS，經典與內線模式看不到。
+  var MANFEN_CATEGORIES = [];
+  var MANFEN_TARGETS = [];
+  var FLAW_CARDS = [];
+
+  // def = { id, name, phrase, targets: [{id,name,summary,tags}], flawCards: [{id,text}] }
+  function registerManfenCategory(def) {
+    MANFEN_CATEGORIES.push({ id: def.id, name: def.name, phrase: def.phrase });
+    (def.targets || []).forEach(function (t) {
+      MANFEN_TARGETS.push({ id: t.id, category: def.id, name: t.name, summary: t.summary, tags: t.tags, hooks: [] });
+    });
+    (def.flawCards || []).forEach(function (f) {
+      FLAW_CARDS.push({ id: f.id, category: def.id, text: f.text });
+    });
+  }
+
+  // 通用缺點牌：任何對象（含現有標的）都能直接打出
+  function registerCommonFlaws(list) {
+    list.forEach(function (f) { FLAW_CARDS.push({ id: f.id, category: null, text: f.text }); });
+  }
+
+  // 現有標的當作滿分對象時的句型
+  var MANFEN_CLASSIC_PHRASE = C("「{target}」は満点、でも{flaw}", "「{target}」是滿分的，但是{flaw}");
+
+  // 滿分男黑天鵝：名稱沿用盤勢用語，效果作用於評分與心理戰。group：avg／mind／settle／calm
+  var MANFEN_SWAN_CARDS = [
+    SW("circuit", "avg", "サーキットブレーカー", "熔斷", "最高と最低の票を1枚ずつ除いて平均", "去掉一張最高分、一張最低分的票再平均"),
+    SW("hype", "avg", "テーマ株騒動", "題材炒作", "暴露者の評価は2票分", "爆料者的評分算 2 票"),
+    SW("whale", "avg", "大口参入", "主力進場", "賭け金が最も多い人の評価は2票分", "押注額最高的人，評分算 2 票"),
+    SW("fomo", "avg", "個人投資家の熱狂", "散戶狂熱", "10点の票は15点として数える（予想上限15.0）", "評 10 分的票算成 15（預測上限 15.0）"),
+    SW("panic", "avg", "パニック売り", "恐慌拋售", "2点の票は5点として数える", "評 2 分的票算成 5"),
+    SW("lull", "avg", "閑散相場", "量縮盤整", "すべての評価が半分", "所有評分減半"),
+    SW("exhausted", "avg", "材料出尽くし", "利多出盡", "平均の代わりに中央値を使う", "改用中位數取代平均"),
+    SW("rumor", "avg", "デマ発覚", "謠言破滅", "公開時にランダムで1票が無効になる", "公布時隨機一票作廢"),
+    SW("gag", "mind", "箝口令", "封口令", "この題では公開説明禁止", "本題禁止公開解釋"),
+    SW("extra", "mind", "臨時株主総会", "股東臨時會", "公開要求の最低額が半分", "要求亮牌的開價下限減半"),
+    SW("reverse", "mind", "逆順発言", "逆序發言", "チップが最も少ない人は最初に強制公開", "籌碼最少的人一開始就強制亮牌"),
+    SW("trial", "mind", "公開裁判", "全民公審", "暴露者は最初に強制公開", "爆料者一開始就強制亮牌"),
+    SW("cancel", "settle", "取引取消", "交易取消", "平均が4.5〜5.5なら全員に賭け金と心理戦の支払いを返却", "平均落在 4.5～5.5 則全員退回押注與心理戰付出"),
+    SW("upset", "settle", "大番狂わせ", "爆冷門", "誤差が大きい順に配当", "預測最不準的人拿彩池"),
+    SW("bailout", "settle", "救済資金", "紓困加碼", "銀行が彩池の50%を上乗せ", "銀行加碼彩池 50%"),
+    SW("calm", "calm", "平穏", "平靜", "何も起きない", "沒有事件")
+  ];
+  var MANFEN_SWAN_COMPOSITION = { calm: 5 }; // 未列出的事件各 1 張，共 20 張
+
   window.PriTestToushouData = {
     C: C,
     text: text,
@@ -127,6 +173,14 @@
     WIND_COMPOSITION: WIND_COMPOSITION,
     SWAN_CARDS: SWAN_CARDS,
     SWAN_COMPOSITION: SWAN_COMPOSITION,
+    registerManfenCategory: registerManfenCategory,
+    registerCommonFlaws: registerCommonFlaws,
+    MANFEN_CATEGORIES: MANFEN_CATEGORIES,
+    MANFEN_TARGETS: MANFEN_TARGETS,
+    FLAW_CARDS: FLAW_CARDS,
+    MANFEN_CLASSIC_PHRASE: MANFEN_CLASSIC_PHRASE,
+    MANFEN_SWAN_CARDS: MANFEN_SWAN_CARDS,
+    MANFEN_SWAN_COMPOSITION: MANFEN_SWAN_COMPOSITION,
     MISSIONS: MISSIONS,
     HAND_SIZE: 5,
     START_PRICE: 100

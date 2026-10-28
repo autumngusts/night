@@ -26,7 +26,11 @@ TOUSHOU_SCRIPTS: tuple[str, ...] = (
     "toushou_data_taiwan.js",
     # 擴充標的（tools/toushou_data/ext.py 產生；需在各類別檔之後）
     "toushou_data_ext.js",
+    # 滿分男模式的題庫（只登錄到 MANFEN_*，不影響經典／內線）
+    "toushou_data_manfen.js",
     "toushou_core.js",
+    "toushou_core_manfen.js",
+    "toushou_ui_manfen.js",
     "toushou.js",
 )
 
