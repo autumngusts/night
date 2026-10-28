@@ -579,8 +579,8 @@ Expected: FAIL（現在字級不足或結算表橫捲）。
   // 美術（toushou_art.js）：類別插圖／黑天鵝卡／風向卡。卡名與效果文字用 HTML（三語、可放大）
   function artImg(kind, id, cls) { return Art.img(el, kind, id, cls); }
 
-  function swanCard(id, desc) {
-    var card = Core.swanById(id);
+  function swanCard(id, desc, cardOverride) {
+    var card = cardOverride || Core.swanById(id);
     return el("section", { id: "ts-swan-badge", class: "ts-swan-badge ts-card ts-card-swan" }, [
       el("span", { class: "ts-card-kicker", text: t("ts_swan_heading") }),
       artImg("swan", id, "ts-card-art"),
