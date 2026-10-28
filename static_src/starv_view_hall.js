@@ -69,7 +69,7 @@
     ]);
   }
 
-  function achView(st) {
+  function achView(st, App) {
     var all = D.ACHIEVEMENTS || [], done = all.filter(function (x) { return st.achievements[x.id]; }).length;
     return el("div", {}, [
       el("p", { class: "sv-small", text: t("sv_ach_summary", { n: done, total: all.length }) }),
@@ -78,7 +78,10 @@
         return el("li", { class: got ? "sv-ach-done" : "" }, [
           el("span", { class: "sv-ach-icon", text: got ? "🏅" : "🔒" }),
           el("div", { class: "sv-grow" }, [el("b", { text: UI.L(x.name) }), el("div", { class: "sv-small sv-muted", text: UI.L(x.desc) })]),
-          el("span", { class: "sv-small", text: t("sv_ach_reward", { n: x.reward.tickets || 0 }) })
+          el("span", { class: "sv-small", text: t("sv_ach_reward", { n: x.reward.tickets || 0 }) }),
+          got ? UI.btn(st.title === x.id ? t("sv_ach_title_on") : t("sv_ach_set_title"), function () {
+            App.act(function (s) { Core.setTitle(s, s.title === x.id ? null : x.id); });
+          }, st.title === x.id ? "sv-btn-gold" : "sv-btn-ghost", { "data-act": "title-" + x.id }) : null
         ]);
       }))
     ]);
@@ -153,5 +156,11 @@
       var body = { hall: hallView, codex: codexView, ach: achView, timeline: timelineView, era: eraView }[view.sub];
       c.appendChild(body(st, App));
     }
+  });
+
+  // 頂部列：目前的稱號
+  UI.addTopItem(function (App) {
+    var s = App.st(), x = s.title && D.ACHIEVEMENT_BY_ID && D.ACHIEVEMENT_BY_ID[s.title];
+    return x ? el("span", { class: "sv-chip sv-chip-title", title: t("sv_title_tip"), text: t("sv_title_chip", { title: UI.L(x.name) }) }) : null;
   });
 })();

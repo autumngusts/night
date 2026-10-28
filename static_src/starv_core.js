@@ -1569,7 +1569,14 @@
     groupJobs: function (st) { return st.groups.reduce(function (m, g) { return Math.max(m, g.jobs); }, 0); },
     projects: function (st) { return st.stats.projects; },
     projectsGreat: function (st) { return st.stats.projectsGreat; },
-    era: function (st) { return st.era; }
+    era: function (st) { return st.era; },
+    sr: function (st) { return codexStats(st).sr; },
+    stories: function (st) { return Object.keys(st.codex.stories).length; },
+    rivalStory: function (st) { return st.rivalStory.stage; },
+    topFame: function (st) { return st.artists.reduce(function (m, a) { return Math.max(m, a.fame); }, 0); },
+    groups: function (st) { return st.groups.length; },
+    facMax: function (st) { return D.FACILITY_ORDER.filter(function (f) { return st.facilities[f] >= D.FACILITIES[f].max; }).length; },
+    staff: function (st) { return st.staff.length; }
   };
   function checkAchievements(st) {
     (D.ACHIEVEMENTS || []).forEach(function (x) {
@@ -1581,6 +1588,14 @@
       log(st, "achievement", { id: x.id });
     });
   }
+  // 稱號（規格 §14）：已達成的成就可以設為稱號，null 取消
+  function setTitle(st, id) {
+    if (id === null) { st.title = null; return null; }
+    if (!st.achievements[id]) return "locked";
+    st.title = id;
+    return null;
+  }
+
 
   // ==== 新紀元與傳承加成（§13） ====
   function eraRivalMult(st) { return 1 + BAL.eraRivalBoost * ((st.era || 1) - 1); }
@@ -1606,12 +1621,12 @@
     var keep = {
       hall: st.hall, codex: st.codex, achievements: st.achievements, timeline: st.timeline,
       legacy: { points: st.legacy.points + legacyPoints(st), perks: st.legacy.perks },
-      era: st.era + 1, seed: st.seed, lastTickAt: st.lastTickAt, nextId: st.nextId, logSeq: st.logSeq, name: st.company.name
+      era: st.era + 1, seed: st.seed, lastTickAt: st.lastTickAt, nextId: st.nextId, logSeq: st.logSeq, name: st.company.name, title: st.title
     };
     var fresh = blankState({ seed: keep.seed, now: keep.lastTickAt, name: keep.name });
     Object.keys(st).forEach(function (k) { delete st[k]; });
     Object.keys(fresh).forEach(function (k) { st[k] = fresh[k]; });
-    ["hall", "codex", "achievements", "timeline", "legacy", "era", "nextId", "logSeq"].forEach(function (k) { st[k] = keep[k]; });
+    ["hall", "codex", "achievements", "timeline", "legacy", "era", "nextId", "logSeq", "title"].forEach(function (k) { st[k] = keep[k]; });
     st.company.money += 50000 * perkLv(st, "money");
     st.company.tickets += 5 * perkLv(st, "tickets");
     st.facilities.dorm += perkLv(st, "dorm");
@@ -1816,6 +1831,8 @@
   api.legacyPoints = legacyPoints;
   api.buyPerk = buyPerk;
   api.newEra = newEra;
+  api.setTitle = setTitle;
+  api.ACH_TYPES = Object.keys(ACH_CHECKS);
   api.startProject = startProject;
   api.assignStage = assignStage;
   api.abortProject = abortProject;

@@ -596,3 +596,6 @@
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.55);
 }
 .sv-cloud-lock-box p { line-height: 1.7; color: var(--sv-muted); }
+
+/* ---- 稱號（計畫 9） ---- */
+.sv-chip-title { color: var(--sv-gold); border-color: var(--sv-gold); }

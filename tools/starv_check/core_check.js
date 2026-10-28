@@ -37,6 +37,7 @@ var Projects = global.PriTestStarvProjects;
 require("../../static_src/starv_achievements.js");
 require("../../static_src/starv_achievements_1.js");
 require("../../static_src/starv_achievements_2.js");
+require("../../static_src/starv_achievements_3.js");
 var Ach = global.PriTestStarvAchievements;
 
 require("../../static_src/starv_core.js");
@@ -1211,7 +1212,8 @@ test("製作人：大成功門檻下修、評價提高", function () {
 });
 
 test("成就：20 項、格式、解鎖給券", function () {
-  var TYPES = ["pulls", "ssr", "codexRate", "level", "artists", "money", "jobs", "greatS", "chartTops", "trophies", "hof", "groupJobs", "era", "projects", "projectsGreat"];
+  // 計畫 9 新增判定類型（sr、stories、rivalStory…）後，改成從核心讀取，不再寫死清單
+  var TYPES = Core.ACH_TYPES;
   eq(Ach.all().filter(function (x) { return x.addedIn === "v1"; }).length, 20);
   Ach.all().forEach(function (x) {
     assert(x.name.zh && x.name.ja && x.desc.zh && x.desc.ja, x.id + " 文字");
@@ -1416,6 +1418,34 @@ test("企劃階段日誌帶成員與方向（3D 演出用）", function () {
   Core.assignStage(st, [team[0].id]); Core.advance(st, 6);
   var e = st.log.filter(function (x) { return x.type === "project_stage"; })[0];
   eq(e.data.members.join(","), team[0].id); eq(e.data.dir, "host");
+});
+
+test("成就：60 項、判定類型都存在、新類型可以達成", function () {
+  eq(D.ACHIEVEMENTS.length, 60, "成就數");
+  D.ACHIEVEMENTS.forEach(function (x) {
+    assert(Core.ACH_TYPES.indexOf(x.cond.type) >= 0, x.id + " 類型不存在 " + x.cond.type);
+    assert(x.name.zh && x.name.ja && x.desc.zh && x.desc.ja, x.id + " 文字");
+    assert(x.reward.tickets > 0, x.id + " 獎勵");
+  });
+  var st = Core.create({ seed: 3 });
+  st.board = []; st.boardRefreshDay = 99999;
+  st.codex.stories = { ssr001: true }; st.rivalStory.stage = 5;
+  freshArtist(st, { fame: 12000 });
+  D.FACILITY_ORDER.forEach(function (f) { st.facilities[f] = D.FACILITIES[f].max; });
+  Core.advance(st, 1);
+  ["story_1", "rival_story_1", "rival_story_5", "fame_10k", "fac_max_1", "fac_max_all"].forEach(function (id) { assert(st.achievements[id], id + " 應該達成"); });
+  assert(!st.achievements.rival_story_10 && !st.achievements.fame_50k && !st.achievements.story_6, "還沒到門檻的不會達成");
+});
+
+test("稱號：只能用已達成的成就、可以取消、新紀元保留", function () {
+  var st = Core.create({ seed: 3 });
+  eq(Core.setTitle(st, "first_pull"), "locked");
+  st.achievements.first_pull = { day: 0, era: 1 };
+  eq(Core.setTitle(st, "first_pull"), null); eq(st.title, "first_pull");
+  st.company.level = 10;
+  assert(!Core.newEra(st), "開新紀元");
+  eq(st.era, 2); eq(st.title, "first_pull", "新紀元保留稱號");
+  eq(Core.setTitle(st, null), null); eq(st.title, null);
 });
 
 // ==== 雲端存檔（計畫 8） ====

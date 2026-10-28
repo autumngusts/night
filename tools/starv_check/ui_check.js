@@ -448,6 +448,19 @@ step("雲端：未啟用時不載入 Firebase、雲端卡可用、ID 不合法�
   await noRawKeys(page, "雲端卡");
 });
 
+step("成就：設為稱號 → 頂部列顯示 → 取消", async function (page) {
+  await tab(page, "hall");
+  await act(page, "hall-sub-ach");
+  var id = await page.evaluate(function () { return Object.keys(window.PriTestStarv.state().achievements)[0]; });
+  assert.ok(id, "已有達成的成就");
+  await act(page, "title-" + id);
+  await page.waitForSelector(".sv-chip-title");
+  assert.strictEqual((await st(page)).title, id);
+  await noRawKeys(page, "稱號");
+  await act(page, "title-" + id);
+  await page.waitForSelector(".sv-chip-title", { state: "detached" });
+});
+
 // ==== 之後的 task 在這行之前追加步驟 ====
 
 (async function main() {

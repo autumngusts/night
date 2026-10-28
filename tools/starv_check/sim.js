@@ -19,6 +19,7 @@ require("../../static_src/starv_projects_1.js");
 require("../../static_src/starv_achievements.js");
 require("../../static_src/starv_achievements_1.js");
 require("../../static_src/starv_achievements_2.js");
+require("../../static_src/starv_achievements_3.js");
 require("../../static_src/starv_roster.js");
 require("../../static_src/starv_roster_1.js");
 require("../../static_src/starv_roster_2.js");
