@@ -18,6 +18,8 @@ require("../../static_src/starv_roster.js");
 require("../../static_src/starv_roster_1.js");
 require("../../static_src/starv_roster_2.js");
 require("../../static_src/starv_roster_3.js");
+require("../../static_src/starv_roster_4.js");
+require("../../static_src/starv_roster_5.js");
 require("../../static_src/starv_roster_rivals_1.js");
 require("../../static_src/starv_roster_rivals_2.js");
 var D = global.PriTestStarvData;
@@ -87,8 +89,8 @@ test("資料：課程、特質、小事件", function () {
   eq(D.DORM_CAP[1], 5, "宿舍 Lv1"); eq(D.DORM_CAP[10], 100, "宿舍 Lv10");
 });
 
-test("名錄：SR 30、SSR 12、宿敵 20，欄位完整", function () {
-  eq(Roster.byRarity("SR").length, 30, "SR 數"); eq(Roster.byRarity("SSR").length, 12, "SSR 數");
+test("名錄：SR 100、SSR 33、宿敵 20，欄位完整", function () {
+  eq(Roster.byRarity("SR").length, 100, "SR 數"); eq(Roster.byRarity("SSR").length, 33, "SSR 數");
   eq(Roster.rivals().length, 20, "宿敵數");
   Roster.all().forEach(function (e) {
     assert(e.name.zh && e.name.ja && e.bio.zh && e.bio.ja, e.id + " 名字／簡介");

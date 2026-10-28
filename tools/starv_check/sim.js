@@ -25,6 +25,8 @@ require("../../static_src/starv_roster.js");
 require("../../static_src/starv_roster_1.js");
 require("../../static_src/starv_roster_2.js");
 require("../../static_src/starv_roster_3.js");
+require("../../static_src/starv_roster_4.js");
+require("../../static_src/starv_roster_5.js");
 require("../../static_src/starv_roster_rivals_1.js");
 require("../../static_src/starv_roster_rivals_2.js");
 require("../../static_src/starv_core.js");
