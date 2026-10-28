@@ -189,6 +189,26 @@
     }));
   }
 
+  // 情報：今日的 murmur（一天換一句）＋固定的個人資料與趣聞（starv_murmurs.js）
+  function infoBlock(st, a) {
+    var M = window.PriTestStarvMurmurs, p = M.profile(a);
+    function row(k, v) { return el("div", { class: "sv-info-row" }, [el("span", { class: "sv-muted", text: t(k) }), el("span", { text: v })]); }
+    return el("div", {}, [
+      el("p", { class: "sv-murmur", "data-act": "murmur", text: M.say(st, a, UI.lang(), st.day) }),
+      el("div", { class: "sv-info" }, [
+        row("sv_info_birthday", t("sv_info_md", { m: p.month, d: p.day })),
+        row("sv_info_blood", p.blood),
+        row("sv_info_height", p.height + " cm"),
+        row("sv_info_hobby", UI.L(p.hobby)),
+        row("sv_info_food", UI.L(p.food)),
+        row("sv_info_weak", UI.L(p.weak)),
+        row("sv_info_skill", UI.L(p.skill)),
+        row("sv_info_catch", "「" + UI.L(p.catchphrase) + "」")
+      ]),
+      el("ul", { class: "sv-info-trivia" }, p.trivia.map(function (x) { return el("li", { text: "💡 " + UI.L(x) }); }))
+    ]);
+  }
+
   function openDetail(App, aid) {
     var ui = { course: D.COURSES[0].id, rest: 2, confirmDismiss: false };
     UI.openModal(function (box, close) {
@@ -209,6 +229,7 @@
         ])
       ]));
       if (e) box.appendChild(el("p", { class: "sv-small sv-muted sv-bio", text: UI.L(e.bio) }));
+      box.appendChild(section(t("sv_info"), infoBlock(st, a)));
       box.appendChild(section(t("sv_dirs"), dirsEditor(App, a)));
       box.appendChild(section(t("sv_stats"), statsTable(a)));
       box.appendChild(section(t("sv_traits"), traitChips(a)));
@@ -222,6 +243,8 @@
       box.appendChild(section(t("sv_works"), worksList(App, a)));
     }, { live: true, cls: "sv-modal-detail" });
   }
+
+  window.PriTestStarvArtistsView = { openDetail: openDetail };
 
   UI.register({
     id: "artists", order: 10, icon: "🌟", labelKey: "sv_tab_artists",

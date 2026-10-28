@@ -151,6 +151,7 @@
     debug: DEBUG,
     speed: function () { return speed; },
     setSpeed: function (n) { speed = n; render(); },
+    goTab: function (id) { prefs.tab = id; savePrefs(); render(); window.scrollTo(0, 0); },
     // 匯入的存檔從現在開始計時（不補算它在別台裝置上的離線時間）
     replaceState: function (next) { st = next; st.lastTickAt = now(); saveNow(); render(); changed(); },
     // 雲端接回：lastTickAt 已由 starv_cloud.js 換成本機時間，照常補算（跨裝置的離線時間也算）

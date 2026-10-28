@@ -599,3 +599,136 @@
 
 /* ---- 稱號（計畫 9） ---- */
 .sv-chip-title { color: var(--sv-gold); border-color: var(--sv-gold); }
+
+/* ---- 日程：公司設施圖（starv_view_daily.js；座標單位 100×64） ---- */
+.sv-map { position: relative; width: 100%; aspect-ratio: 100 / 64; margin: 0.4rem 0; border-radius: 10px; background: rgba(8, 5, 22, 0.55); border: 1px solid var(--sv-line); overflow: hidden; font-size: clamp(8px, 1.5vw, 12px); }
+.sv-map-corr { position: absolute; background: repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.05) 0 12px, rgba(255, 255, 255, 0.09) 12px 24px); border-top: 1px dashed var(--sv-line); border-bottom: 1px dashed var(--sv-line); }
+.sv-map-room { position: absolute; box-sizing: border-box; border: 1px solid var(--sv-line); background: var(--sv-glass); border-radius: 6px; transition: opacity 0.3s; }
+.sv-map-room-dorm { background: rgba(124, 77, 255, 0.16); }
+.sv-map-room-lounge { background: rgba(105, 240, 174, 0.12); }
+.sv-map-room-practice { background: rgba(166, 107, 255, 0.14); }
+.sv-map-room-studio { background: rgba(255, 95, 168, 0.13); }
+.sv-map-room-photo { background: rgba(77, 208, 225, 0.13); }
+.sv-map-room-classroom { background: rgba(255, 214, 107, 0.1); }
+.sv-map-room-pr { background: rgba(255, 138, 101, 0.12); }
+.sv-map-room-scout { background: rgba(144, 164, 174, 0.14); }
+.sv-map-room-lobby { background: linear-gradient(135deg, rgba(255, 214, 107, 0.12), rgba(255, 95, 168, 0.1)); }
+.sv-map-room-outside { background: repeating-linear-gradient(45deg, rgba(77, 208, 225, 0.06) 0 8px, transparent 8px 16px); border-style: dashed; }
+.sv-map-room.sv-map-off { opacity: 0.35; background: repeating-linear-gradient(45deg, rgba(255, 255, 255, 0.04) 0 6px, transparent 6px 12px); }
+.sv-map-label { position: absolute; left: 4px; top: 2px; right: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--sv-muted); font-size: 0.95em; }
+.sv-map-deco { position: absolute; right: 6%; bottom: 6%; font-size: 2.2em; opacity: 0.22; pointer-events: none; }
+.sv-map-door { position: absolute; left: 50%; width: 22%; height: 3px; transform: translateX(-50%); background: var(--sv-gold); border-radius: 2px; opacity: 0.7; }
+.sv-map-gate { position: absolute; width: 3px; background: var(--sv-gold); border-radius: 2px; box-shadow: 0 0 6px var(--sv-gold); }
+.sv-map-people { position: absolute; inset: 0; }
+.sv-map-p { position: absolute; transform: translate(-50%, -60%); z-index: 2; }
+.sv-map-artist { cursor: pointer; }
+.sv-map-artist .sv-ava { --sv-size: clamp(14px, 3.4vw, 24px) !important; display: block; }
+.sv-map-artist:hover { z-index: 5; }
+.sv-map-walk .sv-ava, .sv-map-walk.sv-map-staff, .sv-map-walk.sv-map-fan { animation: sv-map-bob 0.4s ease-in-out infinite alternate; }
+@keyframes sv-map-bob { from { translate: 0 0; } to { translate: 0 -2px; } }
+.sv-map-tired .sv-ava { filter: saturate(0.4) brightness(0.85); }
+.sv-map-tired::after { content: "💦"; position: absolute; right: -6px; top: -6px; font-size: 0.9em; }
+.sv-map-staff, .sv-map-fan { width: 0.75em; height: 1.1em; z-index: 1; pointer-events: none; }
+.sv-map-staff::before, .sv-map-fan::before { content: ""; position: absolute; left: 50%; top: 0; width: 0.55em; height: 0.55em; transform: translateX(-50%); border-radius: 50%; background: #e8d7c4; }
+.sv-map-staff::after, .sv-map-fan::after { content: ""; position: absolute; left: 0; bottom: 0; width: 100%; height: 0.55em; border-radius: 0.3em 0.3em 0.1em 0.1em; background: #455a64; }
+.sv-map-fan::after { background: var(--sv-pink); }
+.sv-map-say { position: absolute; bottom: calc(100% + 4px); left: 50%; width: max-content; max-width: 13em; padding: 0.25em 0.5em; border-radius: 8px; background: #fff; color: #2b2238; font-size: 1em; line-height: 1.3; white-space: normal; z-index: 6; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4); transform: translateX(-30%); animation: sv-map-pop 3.8s ease forwards; pointer-events: none; }
+.sv-map-say::after { content: ""; position: absolute; top: 100%; left: 30%; border: 5px solid transparent; border-top-color: #fff; }
+.sv-map-say-l { transform: translateX(-75%); }
+.sv-map-say-l::after { left: 75%; }
+@keyframes sv-map-pop { 0% { opacity: 0; scale: 0.7; } 8% { opacity: 1; scale: 1; } 85% { opacity: 1; } 100% { opacity: 0; } }
+.sv-map-p.sv-map-talking { z-index: 6; }
+.sv-map-legend { display: flex; gap: 1rem; flex-wrap: wrap; }
+.sv-map-key { display: inline-block; width: 0.7em; height: 0.7em; border-radius: 50%; margin-right: 0.3em; vertical-align: middle; }
+.sv-map-key-staff { background: #455a64; box-shadow: 0 -0.35em 0 -0.1em #e8d7c4; }
+.sv-map-key-fan { background: var(--sv-pink); }
+.sv-map-feed-title { margin: 0.6rem 0 0.2rem; font-size: 0.9em; color: var(--sv-gold); }
+.sv-map-feed { list-style: none; margin: 0; padding: 0; font-size: 0.85em; min-height: 4.8em; }
+.sv-map-feed li { padding: 0.15rem 0; border-bottom: 1px dashed rgba(255, 255, 255, 0.08); animation: sv-map-feed-in 0.4s ease; }
+@keyframes sv-map-feed-in { from { opacity: 0; transform: translateY(-4px); } }
+
+/* ---- 日程：月曆與進度 ---- */
+.sv-k-course { --sv-k: var(--sv-cyan); }
+.sv-k-train { --sv-k: var(--sv-purple); }
+.sv-k-rest { --sv-k: var(--sv-good); }
+.sv-k-promo { --sv-k: var(--sv-gold); }
+.sv-k-job { --sv-k: var(--sv-pink); }
+.sv-k-audition { --sv-k: #ff8a65; }
+.sv-k-project { --sv-k: #ffe082; }
+.sv-cal-head { display: flex; align-items: center; gap: 0.4rem; }
+.sv-cal-head h3 { margin: 0; text-align: center; }
+.sv-cal-legend { display: flex; flex-wrap: wrap; gap: 0.3rem; margin: 0.4rem 0; }
+.sv-cal-key { padding: 0.05rem 0.45rem; border-radius: 999px; border: 1px solid var(--sv-k); color: var(--sv-text); }
+.sv-cal { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 3px; }
+.sv-cal-wd { text-align: center; font-size: 0.78em; color: var(--sv-muted); padding: 0.2rem 0; }
+.sv-cal-wd:nth-child(6) { color: var(--sv-cyan); }
+.sv-cal-wd:nth-child(7) { color: var(--sv-pink); }
+.sv-cal-day { min-height: 4.6rem; padding: 3px; border-radius: 6px; background: var(--sv-glass); border: 1px solid transparent; cursor: pointer; overflow: hidden; }
+.sv-cal-day:hover { border-color: var(--sv-line); }
+.sv-cal-past { opacity: 0.55; }
+.sv-cal-today { border-color: var(--sv-gold); box-shadow: inset 0 0 0 1px var(--sv-gold), 0 0 10px rgba(255, 214, 107, 0.35); opacity: 1; }
+.sv-cal-num { display: flex; justify-content: space-between; gap: 2px; font-size: 0.78em; font-weight: 700; }
+.sv-cal-marks { font-weight: 400; letter-spacing: -0.1em; white-space: nowrap; overflow: hidden; }
+.sv-cal-chips { display: flex; flex-wrap: wrap; gap: 2px; margin-top: 2px; align-items: center; }
+.sv-cal-chip { position: relative; display: inline-flex; align-items: center; gap: 2px; border-radius: 999px; padding: 1px; background: var(--sv-k); }
+.sv-cal-chip .sv-ava { border: 0; padding: 0; box-shadow: none; }
+.sv-cal-chip .sv-ava::before { display: none; }
+.sv-cal-chip-t { font-size: 0.7em; padding-right: 3px; color: #1a1240; }
+.sv-cal-end::after { content: "🏁"; position: absolute; right: -5px; top: -6px; font-size: 0.6rem; }
+.sv-cal-more, .sv-cal-done { font-size: 0.7em; color: var(--sv-muted); }
+.sv-cal-done { color: var(--sv-good); }
+.sv-cal-marklist { list-style: none; padding: 0; margin: 0 0 0.6rem; }
+.sv-cal-marklist li { padding: 0.15rem 0; }
+.sv-prog { display: flex; flex-direction: column; gap: 0.45rem; }
+.sv-prog-row { display: flex; gap: 0.6rem; align-items: center; padding: 0.35rem 0.4rem; border-radius: 8px; cursor: pointer; }
+.sv-prog-row:hover { background: var(--sv-glass-strong); }
+.sv-prog-bar { height: 7px; border-radius: 4px; background: rgba(255, 255, 255, 0.1); overflow: hidden; margin: 0.2rem 0; }
+.sv-prog-bar > span { display: block; height: 100%; background: var(--sv-k); border-radius: 4px; transition: width 0.6s; }
+.sv-prog-idle-title { margin: 0.7rem 0 0.3rem; }
+.sv-prog-idle { display: flex; flex-wrap: wrap; gap: 0.3rem; }
+.sv-prog-idle .sv-ava { cursor: pointer; }
+@media (max-width: 480px) {
+  .sv-cal-day { min-height: 3.6rem; padding: 2px; }
+  .sv-cal-chip .sv-ava { --sv-size: 14px !important; }
+}
+
+/* ---- 藝人情報與 murmur ---- */
+.sv-murmur { position: relative; margin: 0 0 0.6rem; padding: 0.5rem 0.8rem; border-radius: 12px; background: #fff; color: #2b2238; display: inline-block; }
+.sv-murmur::before { content: "💬 "; }
+.sv-info { display: grid; grid-template-columns: repeat(auto-fill, minmax(11rem, 1fr)); gap: 0.25rem 1rem; font-size: 0.9em; }
+.sv-info-row { display: flex; gap: 0.5rem; justify-content: space-between; border-bottom: 1px dashed rgba(255, 255, 255, 0.1); padding: 0.15rem 0; }
+.sv-info-row > span:last-child { text-align: right; }
+.sv-info-trivia { list-style: none; margin: 0.5rem 0 0; padding: 0; font-size: 0.9em; }
+.sv-info-trivia li { padding: 0.15rem 0; }
+
+/* ---- 日程：3D 設施圖（starv_office3d.js）；人物的 HTML 節點變成透明的點擊區與對話框錨點 ---- */
+.sv-map-head { display: flex; align-items: center; gap: 0.4rem; flex-wrap: wrap; }
+.sv-map-head h3 { margin: 0; }
+.sv-seg { display: inline-flex; gap: 2px; }
+.sv-seg .sv-btn { padding: 0.2rem 0.55rem; font-size: 0.8em; }
+.sv-map.sv-map-3d { aspect-ratio: 100 / 66; background: #9fcbef; }
+.sv-o3d-canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; touch-action: pan-y; cursor: grab; }
+.sv-o3d-canvas:active { cursor: grabbing; }
+.sv-map-3d .sv-map-room, .sv-map-3d .sv-map-corr, .sv-map-3d .sv-map-gate, .sv-map-3d .sv-map-staff, .sv-map-3d .sv-map-fan { display: none; }
+.sv-map-people { pointer-events: none; }
+.sv-map-artist { pointer-events: auto; }
+.sv-map-3d .sv-map-artist { width: 22px; height: 30px; transform: translate(-50%, -35%); }
+.sv-map-3d .sv-map-artist .sv-ava { opacity: 0; }
+.sv-map-3d .sv-map-tired::after { display: none; }
+.sv-map-3d .sv-map-say { bottom: calc(100% - 2px); }
+.sv-o3d-labels { position: absolute; inset: 0; pointer-events: none; z-index: 1; }
+.sv-o3d-label { position: absolute; transform: translate(0, -50%); padding: 0.05em 0.45em; border-radius: 6px; background: rgba(13, 10, 31, 0.62); color: #fff; font-size: 0.85em; white-space: nowrap; }
+.sv-o3d-off { opacity: 0.55; }
+
+/* ---- 每人進度：狀況與快速排程 ---- */
+.sv-prog-group { margin: 0.8rem 0 0.3rem; font-size: 0.9em; color: var(--sv-gold); }
+.sv-prog-status { display: flex; flex-wrap: wrap; align-items: center; gap: 0.3rem 0.8rem; margin-top: 0.15rem; }
+.sv-prog-meter { display: inline-flex; align-items: center; gap: 0.25rem; }
+.sv-prog-meter .sv-bar { width: 4.5rem; }
+.sv-prog-meter b { font-weight: 400; color: var(--sv-muted); min-width: 1.6em; }
+.sv-chip-warn { color: var(--sv-bad); border-color: var(--sv-bad); }
+.sv-prog-idle-row { cursor: default; background: rgba(255, 214, 107, 0.06); border: 1px solid rgba(255, 214, 107, 0.25); }
+.sv-prog-ava, .sv-prog-name { cursor: pointer; }
+.sv-prog-quick { display: flex; flex-wrap: wrap; gap: 0.3rem; margin-top: 0.35rem; }
+.sv-prog-quick .sv-select { max-width: 100%; min-width: 0; flex: 1 1 12rem; }
+.sv-prog-quick .sv-btn { padding: 0.3rem 0.6rem; font-size: 0.85em; }
