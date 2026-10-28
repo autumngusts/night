@@ -395,7 +395,7 @@ git commit -m "feat(toushou): 黑天鵝卡插圖第 2 批（10 張），素材�
 - Consumes: `window.PriTestToushouArt.img(el, kind, id, cls)`。
 - Produces（`toushou.js` 內，並加進 `kit()`）：
   - `artImg(kind, id, cls)` → `<img>`
-  - `swanCard(id, desc)` → `<section id="ts-swan-badge" class="ts-swan-badge ts-card ts-card-swan">`，內含 `.ts-card-kicker`（`ts_swan_heading`）、`.ts-card-art`（swan 圖）、`.ts-card-name`（卡名）、`.ts-card-text`（desc）
+  - `swanCard(id, desc, cardOverride)` → `<section id="ts-swan-badge" class="ts-swan-badge ts-card ts-card-swan">`，內含 `.ts-card-kicker`（`ts_swan_heading`）、`.ts-card-art`（swan 圖）、`.ts-card-name`（卡名）、`.ts-card-text`（desc）
   - `windCard(w)` → `<div class="ts-card ts-card-wind ts-wind-<w>">`，內含 `.ts-card-kicker`（`ts_wind`）、`.ts-card-art`（wind 圖）、`<span id="ts-wind-badge" class="ts-wind-badge ts-card-name">`（`windLabel(w)`）
   - `tdl(label, v)` → `<td data-label=label>`（窄螢幕表格用）
 - Produces（`art_assert.js`）：`module.exports = { assertArt: async function (page, label) }`
