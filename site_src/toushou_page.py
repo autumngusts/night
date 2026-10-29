@@ -8,7 +8,7 @@ static/toushou_core.js（規則引擎）→ static/toushou.js（UI）。
 
 from __future__ import annotations
 
-from site_src.layout import page_shell
+from site_src.layout import asset_url, page_shell
 
 TOUSHOU_SCRIPTS: tuple[str, ...] = (
     # 連線模式（多裝置）用：Firebase 設定、雲端同步、QR Code（SDK 只在建立／加入房間時才載入）
@@ -31,12 +31,14 @@ TOUSHOU_SCRIPTS: tuple[str, ...] = (
     "toushou_core.js",
     "toushou_core_manfen.js",
     "toushou_ui_manfen.js",
+    # 標的卡的 3D 拍賣展示台（three.js 在第一次顯示標的卡時才載入 vendor/three.min.js）
+    "toushou_3d.js",
     "toushou.js",
 )
 
 BODY = """    <div class="ts-wrap">
-      <h1 data-i18n="ts_title"></h1>
-      <div id="ts-app"></div>
+      <h1 class="ts-masthead"><span class="ts-masthead-rule"></span><span data-i18n="ts_title"></span><span class="ts-masthead-rule"></span></h1>
+      <div id="ts-app" data-three-src="{three_src}"></div>
     </div>
 """
 
@@ -44,7 +46,7 @@ BODY = """    <div class="ts-wrap">
 def build_toushou_html() -> str:
     return page_shell(
         title="Toushou",
-        body=BODY,
+        body=BODY.format(three_src=asset_url("../static/", "vendor/three.min.js")),
         static_prefix="../static/",
         home_href="../index.html",
         extra_scripts=TOUSHOU_SCRIPTS,

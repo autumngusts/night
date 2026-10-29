@@ -322,8 +322,35 @@ test("抽卡：宿舍滿了進候補，候補滿了流失；接受候補、解�
   eq(Core.dismiss(st, victim.id), null);
   eq(st.company.money, m0 - victim.salary * 3, "違約金");
   eq(Core.acceptWaitlist(st, 0), null); eq(st.artists.length, 5); eq(st.waitlist.length, 0);
-  for (i = 0; i < 10; i++) st.waitlist.push({ artist: Core._genR(st), until: 99 });
+  // 候補上限 10 → 50（2026-10-29 使用者指定）：期望值改讀 D.BAL.waitlistMax
+  for (i = 0; i < D.BAL.waitlistMax; i++) st.waitlist.push({ artist: Core._genR(st), until: 99 });
   assert(Core._grantEntry(st, Roster.byId("sr002")).lost, "候補滿了要流失");
+});
+
+test("候補：上限 50、道別離開", function () {
+  eq(D.BAL.waitlistMax, 50);
+  var st = Core.create({ seed: 5 });
+  for (var i = 0; i < 3; i++) st.waitlist.push({ artist: Core._genR(st), until: 99 });
+  var second = st.waitlist[1].artist;
+  eq(Core.farewellWaitlist(st, 1), null);
+  eq(st.waitlist.length, 2);
+  assert(st.waitlist.every(function (w) { return w.artist !== second; }), "道別的人離開候補");
+  eq(Core.farewellWaitlist(st, 9), "noEntry");
+});
+
+test("抽卡：宿舍＋候補空位不足時不能抽", function () {
+  var st = Core.create({ seed: 6 }); st.company.tickets = 100;
+  while (st.artists.length < Core.capacity(st)) st.artists.push(Core._genR(st));
+  for (var i = 0; i < D.BAL.waitlistMax - 5; i++) st.waitlist.push({ artist: Core._genR(st), until: 99 });
+  eq(Core.freeSlots(st), 5);
+  var t0 = st.company.tickets;
+  eq(Core.pull(st, "ticket", 10).err, "space", "空位 5 不能十連");
+  eq(st.company.tickets, t0, "被擋下時不扣券");
+  eq(Core.pull(st, "ticket", 1).err, undefined, "單抽可以");
+  while (st.waitlist.length < D.BAL.waitlistMax) st.waitlist.push({ artist: Core._genR(st), until: 99 });
+  eq(Core.freeSlots(st), 0);
+  eq(Core.pull(st, "ticket", 1).err, "space");
+  st.company.money = 1e9; eq(Core.pull(st, "money", 1).err, "space", "資金池也一樣");
 });
 
 test("抽卡：PICKUP 優先選 debut 角色", function () {
@@ -454,6 +481,23 @@ test("工作：接案檢查", function () {
   var b = freshArtist(st), j2 = soloJob(st, { slots: 2, role: "group" });
   eq(Core.takeJob(st, j2.id, [b.id, b.id]), "slots", "同一人不能重複");
   eq(Core.takeJob(st, j2.id, [a.id, b.id]), "busy");
+});
+
+test("工作：可放棄上課／訓練／休息／宣傳直接接工作", function () {
+  var st = Core.create({ seed: 1 }), a = freshArtist(st), j = soloJob(st);
+  eq(Core.schedule(st, a.id, { kind: "train" }), null);
+  eq(Core.takeJob(st, j.id, [a.id]), "busy", "沒有指定放棄就不行");
+  eq(Core.eligible(st, a, j, true), null);
+  eq(Core.takeJob(st, j.id, [a.id], true), null);
+  eq(a.task.kind, "job", "訓練被換成工作");
+  assert(st.log.some(function (e) { return e.type === "task_cancel" && e.data.aid === a.id && e.data.kind === "train"; }), "日誌記錄放棄");
+  var b = freshArtist(st), j2 = soloJob(st);
+  b.task = { kind: "rest", days: 3, left: 3, stamina: 0, stress: 0, forced: true };
+  eq(Core.takeJob(st, j2.id, [b.id], true), "busy", "強制休養不能放棄");
+  b.task = null; Core.takeJob(st, j2.id, [b.id]);
+  var c = freshArtist(st), j3 = soloJob(st);
+  eq(Core.takeJob(st, j3.id, [b.id], true), "busy", "工作中不能放棄");
+  eq(Core.takeJob(st, j3.id, [c.id], true), null, "沒行程的人照常");
 });
 
 test("工作：結算給錢、人氣、聲望、作品紀錄", function () {

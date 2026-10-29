@@ -690,14 +690,22 @@
     ]);
   }
 
+  // 3D 展示台的佔位元素（畫布由 toushou_3d.js 在 render() 之後放進來；這裡只放靜態屬性，不影響 lastHtml 比對）
+  function stage(target) {
+    // 局內標的的 id 是 t0、t1…（不是資料 id），所以用類別＋名稱讓 toushou_3d.js 找回原本的資料
+    return el("div", { class: "ts-stage", "data-target": target.sourceId || "", "data-cat": target.category || "",
+      "data-name": typeof target.name === "string" ? target.name : lt(target.name), "aria-hidden": "true" });
+  }
+
   function targetCard(target, price, news, info) {
     var cat = Core.categoryById(target.category);
     var tags = el("div", { class: "ts-tags" });
     targetTags(target).forEach(function (tg) { tags.appendChild(el("span", { text: tg })); });
     var hooks = (target.hooks || []).map(lt);
     return el("section", { class: "ts-panel ts-target-card" }, [
-      el("p", { text: t("ts_target_heading", { i: state.targetIndex + 1, total: state.targets.length }) +
+      el("p", { class: "ts-lot", text: t("ts_target_heading", { i: state.targetIndex + 1, total: state.targets.length }) +
         P("　") + (cat ? lt(cat.name) : "") }),
+      stage(target),
       el("h2", { text: targetName(target) }),
       target.summary ? el("p", { class: "ts-summary", text: lt(target.summary) }) : null,
       tags,
@@ -715,7 +723,7 @@
     return {
       state: function () { return state; },
       ui: ui,
-      el: el, t: t, lt: lt, P: P,
+      el: el, t: t, lt: lt, P: P, stage: stage,
       dispatch: dispatch, render: render,
       owns: owns, masked: masked, waiting: waiting, errorLine: errorLine, hostButton: hostButton,
       playerName: playerName, playerOf: playerOf, currentTarget: currentTarget, intOf: intOf
@@ -1240,6 +1248,7 @@
     ui.skipRestore = false;
     app.innerHTML = "";
     app.appendChild(node);
+    if (window.PriTestToushou3D) window.PriTestToushou3D.mount(app);
     lastHtml = html;
     restoreInputs(snap);
     lastKey = state ? viewKey() : null;

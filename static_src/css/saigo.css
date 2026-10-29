@@ -146,4 +146,25 @@
 .sg-cam-dog { width: 2rem; height: 2rem; border-radius: 6px; border: 2px solid transparent; font-weight: bold; }
 .sg-cam-dog.sg-on { border-color: var(--sg-accent); box-shadow: 0 0 0 2px var(--sg-accent); }
 .sg-part-hill { border-color: #7cb342; } .sg-part-bridge { border-color: #6d4c41; }
+.sg-part-hurdlerace { border-color: #ff1744; }
+.sg-part-firewheel { border-color: #ff6d00; }
+.sg-part-looptube { border-color: #00bcd4; }
+.sg-part-climbwall { border-color: #7e57c2; }
+.sg-part-wallkick { border-color: #78909c; }
+.sg-part-seesaw { border-color: #fbc02d; }
+.sg-part-dogwalk { border-color: #a1887f; }
+.sg-part-tirerun { border-color: #424242; }
+.sg-part-ballpit { border-color: #f06292; }
+.sg-part-sprinkler { border-color: #4fc3f7; }
+.sg-part-conveyor { border-color: #616161; }
+.sg-part-slide { border-color: #26a69a; }
+.sg-part-trampoline { border-color: #3949ab; }
+.sg-part-windmill { border-color: #d81b60; }
+.sg-part-catzone { border-color: #ff9800; }
+.sg-part-sled { border-color: #5d4037; }
+.sg-part-ditch { border-color: #1f5f7a; }
+.sg-part-stairs { border-color: #8d6e63; }
+.sg-part-surf { border-color: #0288d1; }
+.sg-part-skateboard { border-color: #546e7a; }
+.sg-part-ski { border-color: #90caf9; }
 .sg-code { font-family: ui-monospace, Menlo, Consolas, monospace; }

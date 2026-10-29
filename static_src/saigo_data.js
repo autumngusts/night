@@ -98,7 +98,38 @@
     treat: { name: C("零食誘惑區", "おやつ誘惑ゾーン", "Treat zone"), icon: "🍖", len: [20, 30] },
     stay: { name: C("坐下等待", "おすわり待て", "Sit & stay"), icon: "✋", len: [8, 8] },
     hill: { name: C("坡道", "坂道", "Hill"), icon: "⛰", len: [30, 60] },
-    bridge: { name: C("吊橋", "吊り橋", "Rope bridge"), icon: "🌉", len: [14, 26] }
+    bridge: { name: C("吊橋", "吊り橋", "Rope bridge"), icon: "🌉", len: [14, 26] },
+    // 2026-10-29 擴充（使用者指定「關卡新增至 29 種、跨欄出現機率極高」）：以下 18 種
+    hurdlerace: { name: C("跨欄賽道", "ハードル走", "Hurdle sprint"), icon: "╪", len: [50, 80] },
+    firewheel: { name: C("風火輪", "火の輪くぐり", "Ring of fire"), icon: "🔥", len: [30, 45] },
+    looptube: { name: C("圓形通道", "ループトンネル", "Loop tube"), icon: "➰", len: [22, 22] },
+    climbwall: { name: C("爬高牆", "クライミングウォール", "Climbing wall"), icon: "🧗", len: [10, 14] },
+    wallkick: { name: C("蹬牆連跳", "壁蹴りジャンプ", "Wall-kick jumps"), icon: "🧱", len: [14, 20] },
+    seesaw: { name: C("蹺蹺板", "シーソー", "Seesaw"), icon: "⚖", len: [8, 8] },
+    dogwalk: { name: C("平衡木", "ドッグウォーク", "Dog walk"), icon: "▬", len: [12, 18] },
+    tirerun: { name: C("輪胎陣", "タイヤ踏み", "Tire run"), icon: "⭕", len: [10, 16] },
+    ballpit: { name: C("球池", "ボールプール", "Ball pit"), icon: "🔴", len: [8, 14] },
+    sprinkler: { name: C("灑水陣", "スプリンクラー", "Sprinklers"), icon: "💦", len: [20, 30] },
+    conveyor: { name: C("逆向輸送帶", "逆走ベルト", "Reverse treadmill"), icon: "⇇", len: [10, 16] },
+    slide: { name: C("溜滑梯", "すべり台", "Slide"), icon: "⛷", len: [12, 18] },
+    trampoline: { name: C("彈跳床", "トランポリン", "Trampoline"), icon: "⤊", len: [10, 14] },
+    windmill: { name: C("風車門", "風車ゲート", "Windmill gate"), icon: "✣", len: [8, 8] },
+    catzone: { name: C("貓咪誘惑區", "ネコ誘惑ゾーン", "Cat zone"), icon: "🐈", len: [20, 30] },
+    sled: { name: C("拖輪胎", "タイヤ引き", "Tire pull"), icon: "⛓", len: [20, 30] },
+    ditch: { name: C("跳溝", "溝跳び", "Ditch jump"), icon: "⟗", len: [10, 14] },
+    stairs: { name: C("階梯", "階段", "Stairs"), icon: "🪜", len: [10, 16] },
+    // 2026-10-29 使用者追加點子：狗狗衝浪、狗狗滑板、狗狗滑雪（狗狗跳火圈＝上面的風火輪）
+    surf: { name: C("狗狗衝浪", "ドッグサーフィン", "Dog surfing"), icon: "🏄", len: [24, 36] },
+    skateboard: { name: C("狗狗滑板", "ドッグスケボー", "Dog skateboard"), icon: "🛹", len: [25, 40] },
+    ski: { name: C("狗狗滑雪", "ドッグスキー", "Dog skiing"), icon: "🎿", len: [30, 45] }
+  };
+  // 跨欄類（障礙跳高＋跨欄賽道）：每場至少一個（saigo_core.js makeCourse）
+  var HURDLE_TYPES = { hurdle: 1, hurdlerace: 1 };
+  // 新關卡的預設權重：跨欄類權重最高，其餘依地形在 TERRAINS 裡覆寫
+  var NEW_PART_WEIGHTS = {
+    hurdlerace: 16, firewheel: 4, looptube: 3, climbwall: 4, wallkick: 3, seesaw: 3, dogwalk: 3, tirerun: 3, ballpit: 3,
+    sprinkler: 3, conveyor: 3, slide: 3, trampoline: 3, windmill: 3, catzone: 3, sled: 3, ditch: 3, stairs: 3,
+    surf: 3, skateboard: 3, ski: 3
   };
   // 關卡變體（kind）：同一種關卡在不同地形有不同樣貌與規則
   var KINDS = {
@@ -114,7 +145,7 @@
     hill: { grass: C("草坡", "芝の坂", "Grass hill"), snow: C("雪坡", "雪の坂", "Snow slope"), dune: C("沙丘", "砂丘", "Sand dune") }
   };
   // 隨機場地時，零件出現的權重（直道／彎道另外補足）——預設值，各地形在 TERRAINS 裡另訂
-  var PART_WEIGHTS = { hurdle: 10, tunnel: 8, frisbee: 8, weave: 7, pool: 6, mud: 6, aframe: 5, treat: 6, stay: 4 };
+  var PART_WEIGHTS = { hurdle: 24, tunnel: 8, frisbee: 8, weave: 7, pool: 6, mud: 6, aframe: 5, treat: 6, stay: 4 };
 
   var WEATHERS = {
     sunny: { name: C("晴", "晴れ", "Sunny"), icon: "☀", temp: 0 },
@@ -167,6 +198,24 @@
       kinds: { hurdle: { tire: 3, bar: 2, log: 1 }, mud: { sand: 1 }, pool: { shallow: 4, stream: 2, dock: 3, std: 1 }, hill: { dune: 1 } }
     }
   };
+  // 新關卡權重套進各地形（地形倍率：雪山多爬高、少灑水；沙漠多拖輪胎、跳溝；海灘多球池與灑水；森林多爬高與平衡木）
+  var TERRAIN_NEW_MULT = {
+    // 衝浪只在有水的地形、滑雪只在雪山（森林偶爾）、滑板不上雪地
+    park: { sprinkler: 1.5, slide: 1.5, trampoline: 1.5, ballpit: 1.3, surf: 0.7, ski: 0, skateboard: 1.6 },
+    forest: { climbwall: 1.8, dogwalk: 1.8, ditch: 1.5, wallkick: 1.3, sprinkler: 0.5, conveyor: 0.5, surf: 0.3, ski: 0.5, skateboard: 0.5 },
+    snowmtn: { climbwall: 1.6, stairs: 1.5, sled: 1.8, sprinkler: 0, ballpit: 0.5, firewheel: 1.3, surf: 0, ski: 3, skateboard: 0 },
+    desert: { sled: 1.8, ditch: 1.6, firewheel: 1.5, sprinkler: 0.4, ballpit: 0.5, surf: 0, ski: 0, skateboard: 0.8 },
+    beach: { ballpit: 1.8, sprinkler: 1.6, trampoline: 1.4, looptube: 1.2, stairs: 0.6, surf: 3, ski: 0, skateboard: 1.2 }
+  };
+  Object.keys(TERRAINS).forEach(function (id) {
+    var T = TERRAINS[id], m = TERRAIN_NEW_MULT[id] || {};
+    T.parts.hurdle = Math.max(T.parts.hurdle, 24);
+    Object.keys(NEW_PART_WEIGHTS).forEach(function (k) {
+      var w = NEW_PART_WEIGHTS[k] * (m[k] === undefined ? 1 : m[k]);
+      if (w > 0) T.parts[k] = Math.round(w * 10) / 10;
+    });
+  });
+
   // 距離：關卡數範圍與直道長度倍率
   var DISTANCES = {
     sprint: { name: C("短距離", "短距離", "Sprint"), parts: [3, 4], straight: 0.8, w: 30 },
@@ -226,7 +275,7 @@
   window.PriTestSaigoData = {
     C: C, L: L, STATS: STATS, SIZES: SIZES, STYLES: STYLES,
     BREEDS: BREEDS, BREED_BY_ID: BREED_BY_ID,
-    PARTS: PARTS, PART_WEIGHTS: PART_WEIGHTS, WEATHERS: WEATHERS, GROUNDS: GROUNDS, MOODS: MOODS,
+    PARTS: PARTS, PART_WEIGHTS: PART_WEIGHTS, HURDLE_TYPES: HURDLE_TYPES, WEATHERS: WEATHERS, GROUNDS: GROUNDS, MOODS: MOODS,
     KINDS: KINDS, SURFACES: SURFACES, TERRAINS: TERRAINS, DISTANCES: DISTANCES, partName: partName,
     GATE_COLORS: GATE_COLORS, GATE_TEXT: GATE_TEXT, FIELD: FIELD,
     BET_TYPES: BET_TYPES, CLASSES: CLASSES, PRIZES: PRIZES, NAMES: NAMES

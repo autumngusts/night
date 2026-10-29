@@ -3,6 +3,7 @@
 (function () {
   "use strict";
 
+  var D = window.PriTestStarvData;
   var Core = window.PriTestStarvCore;
   var Roster = window.PriTestStarvRoster;
   var UI = window.PriTestStarvUI;
@@ -45,15 +46,17 @@
   function pool(st, App, id) {
     var r = Core.rates(st, id);
     var fmt = function (c) { return id === "money" ? UI.money(c) : t("sv_tickets", { n: c }); };
+    var free = Core.freeSlots(st);
     return el("div", { class: "sv-card sv-pool sv-pool-" + id }, [
       el("h3", { text: t("sv_pool_" + id) }),
       el("p", { class: "sv-muted sv-small", text: t("sv_pool_" + id + "_desc") }),
       el("div", { class: "sv-small", text: t("sv_pool_rates", { sr: pct(r.SR), ssr: pct(r.SSR) }) }),
       id === "money" ? el("div", { class: "sv-small sv-muted", text: t("sv_daily_left", { n: Core.dailyPullsLeft(st) }) }) : null,
       el("div", { class: "sv-row" }, [
-        UI.btn(t("sv_pull_1", { cost: fmt(Core.pullCost(st, id, 1)) }), function () { doPull(App, id, 1); }, "sv-btn-ghost", { "data-act": "pull-" + id + "-1" }),
-        UI.btn(t("sv_pull_10", { cost: fmt(Core.pullCost(st, id, 10)) }), function () { doPull(App, id, 10); }, "sv-btn-primary", { "data-act": "pull-" + id + "-10" })
+        UI.btn(t("sv_pull_1", { cost: fmt(Core.pullCost(st, id, 1)) }), function () { doPull(App, id, 1); }, "sv-btn-ghost", { "data-act": "pull-" + id + "-1", disabled: free < 1 }),
+        UI.btn(t("sv_pull_10", { cost: fmt(Core.pullCost(st, id, 10)) }), function () { doPull(App, id, 10); }, "sv-btn-primary", { "data-act": "pull-" + id + "-10", disabled: free < 10 })
       ]),
+      free < 10 ? el("div", { class: "sv-small sv-pull-space", text: t("sv_pull_space", { n: free }) }) : null,
       el("div", { class: "sv-small sv-muted", text: t("sv_pull_10_note") })
     ]);
   }
@@ -141,14 +144,22 @@
           el("div", {}, [UI.rarity(a.rarity), " ", el("b", { text: UI.name(a) })]),
           el("div", { class: "sv-small sv-muted", text: UI.dirIcon(a.dir) + " " + UI.dirName(a.dir) + "・" + t("sv_wait_left", { n: w.until - st.day }) })
         ]),
-        UI.btn(t("sv_wait_accept"), function () {
-          var err = App.act(function (s) { return Core.acceptWaitlist(s, i); });
-          if (err) UI.toast(t("sv_err_" + err), "bad");
-        }, "sv-btn-gold", { "data-act": "wait-accept" })
+        el("div", { class: "sv-wait-acts" }, [
+          UI.btn(t("sv_wait_accept"), function () {
+            var err = App.act(function (s) { return Core.acceptWaitlist(s, i); });
+            if (err) UI.toast(t("sv_err_" + err), "bad");
+          }, "sv-btn-gold", { "data-act": "wait-accept" }),
+          UI.btn(t("sv_wait_farewell"), function () {
+            var nm = UI.name(a);
+            var err = App.act(function (s) { return Core.farewellWaitlist(s, i); });
+            if (err) UI.toast(t("sv_err_" + err), "bad");
+            else UI.toast(t("sv_toast_farewell", { name: nm }));
+          }, "sv-btn-ghost", { "data-act": "wait-farewell" })
+        ])
       ]);
     });
     return el("div", { class: "sv-card" }, [
-      el("h3", { text: t("sv_wait_title") }),
+      el("h3", { text: t("sv_wait_title") + "（" + st.waitlist.length + "／" + D.BAL.waitlistMax + "）" }),
       el("p", { class: "sv-small sv-muted", text: t("sv_wait_hint") }),
       rows.length ? el("div", {}, rows) : el("p", { class: "sv-muted", text: t("sv_wait_empty") })
     ]);

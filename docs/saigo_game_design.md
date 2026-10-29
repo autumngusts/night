@@ -91,3 +91,20 @@
 - 犬舍裡的 3D 練習場（目前練習是按鈕＋練習賽）。
 - 比賽中的推擠／卡位（目前每隻狗固定在自己的跑道）。
 - 下注的「フォーメーション」買法。
+
+## 關卡擴充（2026-10-29）
+
+使用者指定「關卡新增至 29 種、跨欄出現機率極高」，之後又追加衝浪、滑板、滑雪（跳火圈＝風火輪），目前共 **32 種關卡**（不含直道、彎道）：
+
+| 類別 | 關卡（`PARTS` id） | 主要能力 |
+| --- | --- | --- |
+| 原有 11 種 | hurdle、tunnel、frisbee、weave、pool、mud、aframe、treat、stay、hill、bridge | — |
+| 跳躍 | hurdlerace 跨欄賽道、firewheel 風火輪（跳火圈）、trampoline 彈跳床、ditch 跳溝、wallkick 蹬牆連跳 | jmp、agi |
+| 攀爬／高架 | climbwall 爬高牆、dogwalk 平衡木、slide 溜滑梯、stairs 階梯、seesaw 蹺蹺板、looptube 圓形通道 | pow、agi、foc |
+| 吃力 | tirerun 輪胎陣、ballpit 球池、conveyor 逆向輸送帶、sled 拖輪胎 | pow、agi、sta |
+| 誘惑／膽量 | sprinkler 灑水陣、windmill 風車門、catzone 貓咪誘惑區 | foc、swm |
+| 乘具 | surf 狗狗衝浪、skateboard 狗狗滑板、ski 狗狗滑雪 | agi、foc |
+
+- **跨欄出現機率**：所有地形的 hurdle 權重至少 24，再加上 hurdlerace（16）；`makeCourse` 若整場沒抽到跨欄類（`D.HURDLE_TYPES`），會把第一個關卡換成障礙跳高，所以每場至少一個。
+- 地形倍率見 `saigo_data.js` 的 `TERRAIN_NEW_MULT`（衝浪只在有水的地形、滑雪集中在雪山、滑板不上雪地）。
+- 模擬只用四則運算與 `Math.sqrt`（多裝置一致）；圓形通道的畫面形狀（三角函數）只在 `saigo_3d.js`。

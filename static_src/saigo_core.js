@@ -12,7 +12,9 @@
   var DT = 0.05;            // 模擬步長（秒）
   var MAX_T = 240;          // 最長秒數（超過算未完走）
   var LANE_W = 1.6;         // 每條跑道寬（m）
-  var MODE = { run: 0, jump: 1, crawl: 2, swim: 3, catch: 4, eat: 5, sit: 6, weave: 7, stun: 8, climb: 9, mud: 10, fin: 11, wade: 12, dive: 13 };
+  var MODE = { run: 0, jump: 1, crawl: 2, swim: 3, catch: 4, eat: 5, sit: 6, weave: 7, stun: 8, climb: 9, mud: 10, fin: 11, wade: 12, dive: 13, wait: 14, loop: 15, slide: 16, ride: 17 };
+  // 圓形通道：入口直線 LOOP_IN m，之後是一圈（沿跑道方向前進 LOOP_C m），畫面上的形狀在 saigo_3d.js
+  var LOOP_IN = 6, LOOP_R = 1.6, LOOP_C = 10.05;   // LOOP_C ≈ 2π × LOOP_R
 
   // mulberry32：只用整數運算，各環境一致
   function rng(seed) {
@@ -69,11 +71,23 @@
       else if (D.KINDS[type]) extra.kind = Object.keys(D.KINDS[type])[0];
       if (type === "hurdle") extra.bars = extra.kind === "log" || extra.kind === "snowbank" ? 2 + Math.floor(r() * 2) : 3 + Math.floor(r() * 3);
       if (type === "hill") extra.hh = Math.round(between(r, extra.kind === "dune" ? 2.5 : 1.8, extra.kind === "dune" ? 4.5 : 3.5) * 10) / 10;
+      if (type === "hurdlerace") extra.bars = 6 + Math.floor(r() * 4);
+      if (type === "firewheel") extra.rings = 2 + Math.floor(r() * 2);
+      if (type === "wallkick") extra.kicks = 3 + Math.floor(r() * 2);
+      if (type === "ditch") extra.dw = Math.round(between(r, 2.4, 3.4) * 10) / 10;
       add(type, between(r, def.len[0], def.len[1]), extra);
       if (r() < 0.2 && i < n - 1) add("straight", between(r, 60, 120) * sm);
       else connector();
     }
     add("straight", between(r, 80, 140) * sm);
+    // 跨欄類每場至少一個（2026-10-29 使用者指定「跨欄出現機率極高」）：沒有抽到就把第一個關卡換成障礙跳高
+    if (!parts.some(function (p) { return D.HURDLE_TYPES[p.type]; })) {
+      var first = parts.filter(function (p) { return D.PARTS[p.type] && p.type !== "straight" && p.type !== "curve"; })[0];
+      var hk = T.kinds && T.kinds.hurdle ? weighted(r, T.kinds.hurdle) : "bar";
+      Object.keys(first).forEach(function (k) { if (k !== "len") delete first[k]; });
+      first.type = "hurdle"; first.kind = hk; first.len = Math.round(between(r, D.PARTS.hurdle.len[0], D.PARTS.hurdle.len[1]));
+      first.bars = hk === "log" || hk === "snowbank" ? 2 + Math.floor(r() * 2) : 3 + Math.floor(r() * 3);
+    }
     // 彎道方向限制：車頭方向維持在 ±80° 內，整條路往同一方向前進就不會自己交叉
     var h = 0;
     parts.forEach(function (p) {
@@ -356,6 +370,183 @@
             o.flag = 1;
             if (r() < clamp(0.6 - e.foc * 0.0055, 0.04, 0.6)) { o.timer = 1 + r() * 1.6; o.timerMode = MODE.eat; o.v = 0; ev("eat", di); }
           }
+        } else if (p.type === "hurdlerace") {
+          // 跨欄賽道：低欄連續，不停下來；踢到欄只會掉速度
+          var hg = p.len / (p.bars + 1), hn = Math.floor(local / hg);
+          vt = Math.min(vt, o.vmax * (0.86 + e.agi * 0.0015));
+          if (hn >= 1 && hn <= p.bars && o.flag < hn) {
+            o.flag = hn;
+            var pr = clamp(0.7 + e.jmp * 0.0025 + e.agi * 0.0015 - (o.size <= 1 ? 0.06 : 0), 0.5, 0.98);
+            if (r() < pr) { o.airT = 0.3; o.v *= 0.98; }
+            else { o.v *= 0.72; ev("clip", di, hn); }
+          }
+          if (o.airT > 0) { o.airT -= DT; mode = MODE.jump; }
+        } else if (p.type === "firewheel") {
+          // 風火輪：火圈前 2 m 膽小的狗會停下來（看專注），穿過火圈看跳躍
+          var fg = p.len / (p.rings + 1), fa = Math.floor((local + 2) / fg), fn = Math.floor(local / fg);
+          vt = Math.min(vt, o.vmax * (0.7 + e.jmp * 0.002));
+          if (fa >= 1 && fa <= p.rings && o.tries < fa) {
+            o.tries = fa;
+            if (r() < clamp(0.28 - e.foc * 0.0024, 0.02, 0.28)) { o.timer = 0.7 + r() * 0.6; o.timerMode = MODE.wait; o.v = 0; ev("fireBalk", di); }
+          }
+          if (fn >= 1 && fn <= p.rings && o.flag < fn) {
+            o.flag = fn;
+            if (r() < clamp(0.62 + e.jmp * 0.0035 + e.agi * 0.001, 0.4, 0.97)) o.airT = 0.36;
+            else { o.v *= 0.5; o.timer = 0.5; o.timerMode = MODE.stun; ev("ringMiss", di); }
+          }
+          if (o.airT > 0) { o.airT -= DT; mode = MODE.jump; }
+        } else if (p.type === "looptube") {
+          // 圓形通道：衝進一整圈的透明管；力量與速度不夠會在入口滑下來重衝
+          if (local >= LOOP_IN && local < LOOP_IN + LOOP_C) {
+            if (o.flag === 0) {
+              o.flag = 1;
+              var lf = clamp(0.3 - e.pow * 0.0018 - e.spd * 0.0012, 0.03, 0.3) + (o.sta < 0.4 ? 0.1 : 0);
+              if (r() < lf) { o.timer = 1.1; o.timerMode = MODE.stun; o.v = 0; ev("loopFail", di); }
+            }
+            vt = Math.min(vt, o.vmax * (0.62 + e.pow * 0.002 + e.spd * 0.001));
+            mode = MODE.loop; drain = 1.3;
+          }
+        } else if (p.type === "climbwall") {
+          // 爬高牆：前 35% 是陡牆（力量＋跳躍），中間平台，後段下坡
+          var cu = p.len * 0.35;
+          if (local < cu) {
+            vt = Math.min(vt, o.vmax * (0.2 + e.pow * 0.0022 + e.jmp * 0.0018));
+            mode = MODE.climb; drain = 1.6;
+            if (o.flag === 0 && local > cu * 0.5) {
+              o.flag = 1;
+              if (r() < clamp(0.26 - (e.pow + e.jmp) * 0.0012, 0.02, 0.26)) { o.timer = 0.9; o.timerMode = MODE.stun; o.v = 0; ev("climbSlip", di); }
+            }
+          } else if (local < p.len * 0.65) vt = Math.min(vt, o.vmax * 0.6);
+          else vt = Math.min(vt, o.vmax * (0.5 + e.agi * 0.002));
+        } else if (p.type === "wallkick") {
+          // 蹬牆連跳：在兩面牆之間左右蹬 kicks 次往上，最後從平台跳下
+          var kz = p.len * 0.8, kg = kz / p.kicks, kn = Math.floor(local / kg + 0.5);
+          if (local < kz) {
+            vt = Math.min(vt, o.vmax * (0.42 + e.agi * 0.0025 + e.jmp * 0.001));
+            mode = MODE.jump;
+            if (kn >= 1 && kn <= p.kicks && o.flag < kn) {
+              o.flag = kn;
+              if (r() < clamp(0.62 + e.jmp * 0.0028 + e.agi * 0.0022 - (o.size >= 5 ? 0.08 : 0), 0.35, 0.97)) {
+                if (kn === p.kicks && o.tries === 0) ev("kickGood", di);
+              } else { o.tries++; o.timer = 1.0; o.timerMode = MODE.stun; o.v = 0; ev("kickFall", di); }
+            }
+          }
+        } else if (p.type === "seesaw") {
+          // 蹺蹺板：走到中間要等板子翻過去（專注高的等得剛好），太急會被彈下來
+          vt = Math.min(vt, o.vmax * (0.4 + e.agi * 0.003));
+          if (o.flag === 0 && local >= p.len / 2) {
+            o.flag = 1; o.v = 0;
+            if (r() < clamp(0.25 - e.foc * 0.0025, 0.02, 0.25)) { o.timer = 0.8; o.timerMode = MODE.stun; ev("seesawFly", di); }
+            else { o.timer = 0.3 + (100 - Math.min(e.foc, 100)) * 0.007; o.timerMode = MODE.wait; }
+          }
+        } else if (p.type === "dogwalk") {
+          // 平衡木：窄又高，看敏捷與專注；掉下去要繞回來
+          vt = Math.min(vt, o.vmax * (0.38 + e.agi * 0.003 + e.foc * 0.0015));
+          if (o.flag === 0 && local > p.len * 0.4) {
+            o.flag = 1;
+            if (r() < clamp(0.2 - e.foc * 0.0016 - e.agi * 0.0008, 0.02, 0.2)) { o.timer = 1.3; o.timerMode = MODE.stun; o.v = 0; ev("plankFall", di); }
+          }
+        } else if (p.type === "tirerun") {
+          // 輪胎陣：每 2 m 一排輪胎，抬腿踩格子，敏捷低會絆倒
+          vt = Math.min(vt, o.vmax * (0.36 + e.agi * 0.0042));
+          mode = MODE.wade;
+          var tn = Math.floor(local / 2);
+          if (tn > o.flag) {
+            o.flag = tn;
+            if (r() < (100 - Math.min(e.agi, 100)) * 0.001) { o.timer = 0.4; o.timerMode = MODE.stun; o.v *= 0.5; ev("trip", di); }
+          }
+        } else if (p.type === "ballpit") {
+          // 球池：像泥巴地一樣吃力量，貪玩的狗會玩起來
+          vt = Math.min(vt, o.vmax * (0.28 + e.pow * 0.003 + o.size * 0.04));
+          mode = MODE.wade; drain = 1.5;
+          if (o.flag === 0 && local > p.len * 0.3) {
+            o.flag = 1;
+            if (r() < clamp(0.32 - e.foc * 0.003, 0.03, 0.32)) { o.timer = 1 + r(); o.timerMode = MODE.eat; o.v = 0; ev("ballPlay", di); }
+          }
+        } else if (p.type === "sprinkler") {
+          // 灑水陣：怕水的狗（游泳低）會停下來
+          vt = Math.min(vt, o.vmax * (0.78 + e.swm * 0.002));
+          if (o.flag === 0 && local > p.len * 0.25) {
+            o.flag = 1;
+            if (r() < clamp(0.34 - e.swm * 0.0028 - e.foc * 0.001, 0.02, 0.34)) { o.timer = 0.9 + r() * 0.6; o.timerMode = MODE.wait; o.v = 0; ev("sprayStop", di); }
+          }
+        } else if (p.type === "conveyor") {
+          // 逆向輸送帶：皮帶以 2.4 m/s 往回走，力量大的才推得過去
+          vt = Math.max(0.6, Math.min(vt, o.vmax) * (0.85 + e.pow * 0.0015) - 2.4);
+          drain = 1.5;
+        } else if (p.type === "slide") {
+          // 溜滑梯：前 30% 爬梯子，之後滑下去（速度和能力無關，大狗滑得快一點）
+          if (local < p.len * 0.3) { vt = Math.min(vt, o.vmax * (0.18 + e.pow * 0.0015 + e.agi * 0.002)); mode = MODE.climb; drain = 1.4; }
+          else {
+            vt = 6 + o.size * 0.35; mode = MODE.slide; drain = 0.3;
+            if (o.flag === 0) { o.flag = 1; o.v = Math.max(o.v, vt * 0.6); }
+          }
+        } else if (p.type === "trampoline") {
+          // 彈跳床：40% 處彈起，成功會加速，失敗摔一跤
+          vt = Math.min(vt, o.vmax * (0.6 + e.jmp * 0.002));
+          if (o.flag === 0 && local >= p.len * 0.4) {
+            o.flag = 1;
+            var tp = clamp(0.55 + e.jmp * 0.004, 0.3, 0.97);
+            if (r() < tp) { o.airT = 0.7; o.v = Math.max(o.v, o.vmax * 0.75); if (tp < 0.85) ev("bounceGood", di); }
+            else { o.timer = 0.8; o.timerMode = MODE.stun; o.v *= 0.3; ev("bounceFlop", di); }
+          }
+          if (o.airT > 0) { o.airT -= DT; mode = MODE.jump; }
+        } else if (p.type === "windmill") {
+          // 風車門：等葉片轉過去的空檔再鑽過，敏捷低會被葉片打到
+          vt = Math.min(vt, o.vmax * 0.6);
+          if (o.flag === 0 && local >= 3) {
+            o.flag = 1; o.v = 0;
+            if (r() < (100 - Math.min(e.agi, 100)) * 0.0016) { o.timer = 0.7; o.timerMode = MODE.stun; ev("paddleBonk", di); }
+            else { o.timer = 0.1 + r() * (1.3 - e.foc * 0.006); o.timerMode = MODE.wait; }
+          }
+        } else if (p.type === "catzone") {
+          // 貓咪誘惑區：專注低的狗會停下來盯著貓
+          if (o.flag === 0 && local > p.len * 0.35) {
+            o.flag = 1;
+            if (r() < clamp(0.5 - e.foc * 0.0045, 0.04, 0.5)) { o.timer = 1.2 + r() * 1.4; o.timerMode = MODE.sit; o.v = 0; ev("catStare", di); }
+          }
+        } else if (p.type === "sled") {
+          // 拖輪胎：看力量與體型，很耗體力
+          vt = Math.min(vt, o.vmax * (0.3 + e.pow * 0.0045 + o.size * 0.03));
+          mode = MODE.mud; drain = 1.9;
+        } else if (p.type === "ditch") {
+          // 跳溝：溝寬 dw，跳不過就掉進水裡游過去
+          var d0 = p.len / 2 - p.dw / 2;
+          vt = Math.min(vt, o.vmax * 0.9);
+          if (o.flag === 0 && local >= d0 - 0.5) {
+            o.flag = 1;
+            var dp = clamp(0.5 + e.jmp * 0.0028 + e.spd * 0.0018 + o.size * 0.025, 0.35, 0.97) - (o.v < 5 ? 0.15 : 0);
+            if (r() < dp) { o.airT = 0.45; if (dp < 0.8) ev("ditchGood", di); }
+            else { o.flag = 2; o.v = Math.min(o.v, 1.5); ev("ditchFall", di); }
+          }
+          if (o.flag === 2 && local < d0 + p.dw) { vt = 0.9 + e.swm * 0.012 + e.pow * 0.006; mode = MODE.swim; drain = 1.6; }
+          if (o.airT > 0) { o.airT -= DT; mode = MODE.jump; }
+        } else if (p.type === "stairs") {
+          // 階梯：前 55% 上樓梯（短腿的小狗吃虧），之後下坡
+          if (local < p.len * 0.55) {
+            vt = Math.min(vt, o.vmax * (0.3 + e.pow * 0.002 + e.agi * 0.002 + (o.size >= 3 ? 0.06 : o.size <= 1 ? -0.08 : 0)));
+            mode = MODE.climb; drain = 1.4;
+          } else vt = Math.min(vt, o.vmax * 0.7);
+        } else if (p.type === "surf" || p.type === "skateboard" || p.type === "ski") {
+          // 乘具關卡：站在板子上，速度主要看平衡（敏捷＋專注），跌倒要重新站上去
+          //   衝浪：浪推著走，跌倒＝落水游一段；滑板：用力量蹬地；滑雪：下坡，大狗衝得快
+          var rv = p.type === "surf" ? 4.6 + e.foc * 0.02 + e.agi * 0.02 + e.swm * 0.01
+            : p.type === "skateboard" ? 5.4 + e.agi * 0.025 + e.pow * 0.012
+            : 6.4 + o.size * 0.35 + e.agi * 0.02;
+          vt = rv * (o.jit * 0.5 + 0.5); mode = MODE.ride; drain = 0.6;
+          if (o.flag === 2 && p.type === "surf") { vt = 0.8 + e.swm * 0.012; mode = MODE.swim; drain = 1.5; if (local > o.dive) o.flag = 1; }
+          var rn = Math.floor(local / 8);
+          if (rn > o.tries && o.flag !== 2) {
+            o.tries = rn;
+            var rf = p.type === "surf" ? clamp(0.2 - e.foc * 0.0012 - e.agi * 0.0008, 0.02, 0.2)
+              : p.type === "skateboard" ? clamp(0.16 - e.agi * 0.0012 - e.foc * 0.0006, 0.02, 0.16)
+              : clamp(0.18 - e.agi * 0.0012 - e.foc * 0.0006 + (o.size >= 5 ? 0.03 : 0), 0.02, 0.18);
+            if (r() < rf) {
+              if (p.type === "surf") { o.flag = 2; o.dive = local + 2.5; o.v = Math.min(o.v, 1); ev("surfWipe", di); }
+              else { o.timer = 0.9; o.timerMode = MODE.stun; o.v *= 0.2; ev(p.type === "ski" ? "skiFall" : "skateFall", di); }
+            }
+          }
+          if (o.flag === 0) o.flag = 1;
         } else if (p.type === "stay") {
           if (o.flag === 0) {
             var d2 = p.len * 0.5 - local;
@@ -514,7 +705,7 @@
 
   window.PriTestSaigoCore = {
     courseCode: courseCode,
-    DT: DT, MODE: MODE, LANE_W: LANE_W, DOCK_RUN: DOCK_RUN,
+    DT: DT, MODE: MODE, LANE_W: LANE_W, DOCK_RUN: DOCK_RUN, LOOP_IN: LOOP_IN, LOOP_R: LOOP_R, LOOP_C: LOOP_C,
     rng: rng, hashStr: hashStr, newSeed: newSeed, clamp: clamp,
     makeCard: makeCard, effStats: effStats, simulate: simulate, stateAt: stateAt, rankAt: rankAt,
     geometry: geometry, pointAt: pointAt, partAt: partAt, laneOff: laneOff,

@@ -273,7 +273,7 @@
     minorEventRate: 0.08, lowStamina: 30, lowStaminaMult: 0.8, profPerf: 0.05, moodPerf: 0.05,
     randLo: 0.85, randHi: 1.15, offPeakGrowth: 0.7, forcedRestDays: 3, strikeDays: 7, strikeStressAfter: 60,
     dividendMonths: 3, dividendRate: 0.1,
-    waitlistMax: 10, waitlistDays: 30, dismissSalaryMonths: 3,
+    waitlistMax: 50, waitlistDays: 30, dismissSalaryMonths: 3,
     pityMax: 150, dailyPullLimit: 30, pullBaseCost: 5000, pullLevelMult: 0.5,
     limitBreakMax: 5, limitBreakCap: 0.05, dupTickets: { SR: 2, SSR: 10 },
     poolRates: { money: { SR: 0.03, SSR: 0.005 }, ticket: { SR: 0.12, SSR: 0.03 } },

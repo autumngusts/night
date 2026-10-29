@@ -62,8 +62,9 @@
     var blamer = info ? info.blamerId : M.blamerFor(s, s.targetIndex);
     var settled = !!(info && info.mode === "manfen");
     return K.el("section", { class: "ts-panel ts-target-card ts-mf-card" }, [
-      K.el("p", { text: K.t("ts_mf_subject_heading", { i: s.targetIndex + 1, total: s.targets.length,
+      K.el("p", { class: "ts-lot", text: K.t("ts_mf_subject_heading", { i: s.targetIndex + 1, total: s.targets.length,
         category: cat ? K.lt(cat.name) : "" }) }),
+      K.stage(target),
       K.el("h2", { text: K.lt(target.name) }),
       target.summary ? K.el("p", { class: "ts-summary", text: K.lt(target.summary) }) : null,
       tags,

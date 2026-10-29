@@ -342,8 +342,15 @@
     return grantEntry(st, e);
   }
 
+  // 抽卡前的空位＝宿舍空位＋候補空位。不足 count 人時不能抽，避免抽到的人因為滿額而流失
+  // （重複角色不佔位，但抽之前無法得知，一律保守計算；2026-10-29 使用者指定）
+  function freeSlots(st) {
+    return Math.max(0, capacity(st) - st.artists.length) + Math.max(0, BAL.waitlistMax - st.waitlist.length);
+  }
+
   function pull(st, pool, count) {
     if (count !== 1 && count !== 10) return { err: "count" };
+    if (freeSlots(st) < count) return { err: "space" };
     var cost = pullCost(st, pool, count);
     if (pool === "money") {
       if (st.company.money < cost) return { err: "money" };
@@ -381,6 +388,15 @@
     st.waitlist.splice(idx, 1);
     st.artists.push(w.artist);
     log(st, "join", { aid: w.artist.id, rarity: w.artist.rarity });
+    return null;
+  }
+
+  // 候補道別：讓候補的人直接離開，空出候補位置（圖鑑已取得的不收回）
+  function farewellWaitlist(st, idx) {
+    var w = st.waitlist[idx];
+    if (!w) return "noEntry";
+    st.waitlist.splice(idx, 1);
+    log(st, "waitlist_farewell", leftInfo(w.artist));
     return null;
   }
 
@@ -433,6 +449,16 @@
       t = { kind: "promo", days: D.PROMO.days, left: D.PROMO.days, stamina: D.PROMO.stamina, stress: D.PROMO.stress };
     } else return "kind";
     a.task = t;
+    return null;
+  }
+
+  // 可以中途放棄的行程：上課、訓練、休息、宣傳（強制休養、工作、試鏡、企劃不行）。已付的費用不退，已得到的成長保留
+  var INTERRUPTIBLE = { course: 1, train: 1, rest: 1, promo: 1 };
+  function interruptible(a) { return !!(a && a.task && !a.task.forced && INTERRUPTIBLE[a.task.kind]); }
+  function cancelTask(st, a) {
+    if (!interruptible(a)) return "busy";
+    log(st, "task_cancel", { aid: a.id, kind: a.task.kind });
+    a.task = null;
     return null;
   }
 
@@ -654,25 +680,27 @@
     return { ratio: ratio, label: ratio >= 1.0 ? "high" : ratio >= 0.7 ? "mid" : "low" };
   }
 
-  function eligible(st, a, job) {
+  // interrupt＝允許放棄目前可中斷的行程（上課／訓練／休息／宣傳）來接這份工作
+  function eligible(st, a, job, interrupt) {
     if (!a) return "noArtist";
-    if (a.task) return "busy";
+    if (a.task && !(interrupt && interruptible(a))) return "busy";
     if (job.reservedFor && job.reservedFor !== a.id) return "reserved";
     if (a.fame < job.minFame) return "fame";
     if (a.prof[job.dir].lv < job.minProf) return "prof";
     return null;
   }
 
-  function takeJob(st, jobId, aids) {
+  function takeJob(st, jobId, aids, interrupt) {
     var job = null, i;
     for (i = 0; i < st.board.length; i++) if (st.board[i].id === jobId) job = st.board[i];
     if (!job) return "noJob";
     if (!aids || aids.length !== job.slots) return "slots";
     for (i = 0; i < aids.length; i++) if (aids.indexOf(aids[i]) !== i) return "slots";
     for (i = 0; i < aids.length; i++) {
-      var err = eligible(st, artistById(st, aids[i]), job);
+      var err = eligible(st, artistById(st, aids[i]), job, interrupt);
       if (err) return err;
     }
+    aids.forEach(function (id) { var a = artistById(st, id); if (a.task) cancelTask(st, a); });
     st.board.splice(st.board.indexOf(job), 1);
     if (job.audition) {
       var au = { id: newId(st, "au"), job: job, members: aids.slice(), left: 1 };
@@ -1792,6 +1820,9 @@
   api._wpick = wpick;
   api.artistName = artistName;
   api.capacity = capacity;
+  api.freeSlots = freeSlots;
+  api.farewellWaitlist = farewellWaitlist;
+  api.interruptible = interruptible;
   api.artistById = artistById;
   api._genR = genR;
   api._updateSalary = updateSalary;

@@ -395,6 +395,10 @@
 .sv-cast-row { display: flex; align-items: center; gap: 0.6rem; padding: 0.4rem 0.6rem; border-radius: 10px; background: var(--sv-glass); border: 1px solid transparent; cursor: pointer; }
 .sv-cast-row.sv-sel { border-color: var(--sv-gold); background: rgba(255, 214, 107, 0.12); }
 .sv-cast-row.sv-dis { opacity: 0.45; cursor: default; }
+.sv-cast-row.sv-cast-drop { border-style: dashed; border-color: rgba(255, 170, 90, 0.55); }
+.sv-cast-drop-note { color: #ffb36b; }
+.sv-pull-space { color: #ff8a8a; margin-top: 0.3rem; }
+.sv-wait-acts { display: flex; flex-direction: column; gap: 0.3rem; }
 .sv-est { text-align: right; font-size: 0.82em; font-weight: 700; }
 .sv-est-high { color: var(--sv-good); }
 .sv-est-mid { color: var(--sv-gold); }

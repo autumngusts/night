@@ -324,7 +324,8 @@
     drawMinimap(c, card, null);
     return c;
   }
-  var PART_COLORS = { straight: "#b98a5a", curve: "#b98a5a", hurdle: "#e53935", tunnel: "#8e24aa", frisbee: "#fdd835", weave: "#ff7043", pool: "#29b6f6", mud: "#5d4037", aframe: "#43a047", treat: "#ec407a", stay: "#1e88e5", hill: "#7cb342", bridge: "#6d4c41" };
+  var PART_COLORS = { straight: "#b98a5a", curve: "#b98a5a", hurdle: "#e53935", tunnel: "#8e24aa", frisbee: "#fdd835", weave: "#ff7043", pool: "#29b6f6", mud: "#5d4037", aframe: "#43a047", treat: "#ec407a", stay: "#1e88e5", hill: "#7cb342", bridge: "#6d4c41",
+    hurdlerace: "#ff1744", firewheel: "#ff6d00", looptube: "#00bcd4", climbwall: "#7e57c2", wallkick: "#78909c", seesaw: "#fbc02d", dogwalk: "#a1887f", tirerun: "#424242", ballpit: "#f06292", sprinkler: "#4fc3f7", conveyor: "#616161", slide: "#26a69a", trampoline: "#3949ab", windmill: "#d81b60", catzone: "#ff9800", sled: "#5d4037", ditch: "#1f5f7a", stairs: "#8d6e63", surf: "#0288d1", skateboard: "#546e7a", ski: "#90caf9" };
   function drawMinimap(c, card, positions) {
     var g = c.getContext("2d"), geo = Core.geometry(card.course), box = geo.box;
     var W = c.width, H = c.height, pad = 10;
@@ -356,7 +357,7 @@
   function partChips(card) {
     return el("div", { class: "sg-parts" }, card.course.parts.map(function (p) {
       var def = D.PARTS[p.type], nm = D.partName(p);
-      return el("span", { class: "sg-part sg-part-" + p.type, title: nm }, [def.icon + " " + nm + (p.type === "hurdle" ? "×" + p.bars : "") + (p.type === "hill" ? " ↑" + p.hh + "m" : "") + " " + p.len + "m"]);
+      return el("span", { class: "sg-part sg-part-" + p.type, title: nm }, [def.icon + " " + nm + (p.type === "hurdle" || p.type === "hurdlerace" ? "×" + p.bars : p.type === "firewheel" ? "×" + p.rings : p.type === "wallkick" ? "×" + p.kicks : p.type === "ditch" ? " ↔" + p.dw + "m" : "") + (p.type === "hill" ? " ↑" + p.hh + "m" : "") + " " + p.len + "m"]);
     }));
   }
   function raceTitle(card) {
@@ -524,7 +525,10 @@
     ui.raceT = -3; ui.speed = 1; ui.replay = false; ui.settledSolo = false;
     go("race");
   }
-  var EV_ICONS = { knock: "💥", catchGood: "🥏", catchLate: "🥏", catchMiss: "❌", eat: "🍖", stayBreak: "🙃", stayGood: "✋", weaveMiss: "〰", lead: "🚩", finish: "🏁", jumpGood: "✨", start: "🔫", diveGood: "🌊", bridgeStop: "😰" };
+  var EV_ICONS = { knock: "💥", catchGood: "🥏", catchLate: "🥏", catchMiss: "❌", eat: "🍖", stayBreak: "🙃", stayGood: "✋", weaveMiss: "〰", lead: "🚩", finish: "🏁", jumpGood: "✨", start: "🔫", diveGood: "🌊", bridgeStop: "😰",
+    clip: "🦵", fireBalk: "🔥", ringMiss: "💥", loopFail: "➰", climbSlip: "🧗", kickGood: "🧱", kickFall: "🤕", seesawFly: "⚖",
+    plankFall: "🤕", trip: "⭕", ballPlay: "🔴", sprayStop: "💦", bounceGood: "🤸", bounceFlop: "🤕", paddleBonk: "✣", catStare: "🐈",
+    ditchGood: "✨", ditchFall: "💦", surfWipe: "🌊", skateFall: "🛹", skiFall: "❄" };
   function eventText(card, e) {
     var name = e.d >= 0 ? (e.d + 1) + " " + card.dogs[e.d].name : "";
     return (EV_ICONS[e.k] || "") + " " + t("sg_ev_" + e.k, { name: name, n: e.x });

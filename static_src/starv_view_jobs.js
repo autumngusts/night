@@ -48,17 +48,18 @@
       st.board.forEach(function (j) { if (j.id === jobId) job = j; });
       // 簽約成功後 App.act 會立刻重畫這個 live 彈窗，那時工作已經離開看板：只有「不是自己簽走的」才提示錯誤
       if (!job) { close(); if (!signed) UI.toast(t("sv_err_noJob"), "bad"); return; }
-      sel = sel.filter(function (id) { var a = Core.artistById(st, id); return a && !Core.eligible(st, a, job); });
+      // 正在上課／訓練／休息／宣傳的人也能選：簽約時放棄目前的行程直接接工作
+      sel = sel.filter(function (id) { var a = Core.artistById(st, id); return a && !Core.eligible(st, a, job, true); });
       box.appendChild(UI.modalHead(t("sv_cast_title"), close));
       box.appendChild(jobCard(st, job, null));
       var rows = st.artists.map(function (a) {
-        return { a: a, err: Core.eligible(st, a, job), est: Core.estimate(st, [a.id], job) };
+        return { a: a, err: Core.eligible(st, a, job, true), drop: a.task ? a.task.kind : null, est: Core.estimate(st, [a.id], job) };
       }).sort(function (x, y) { return (x.err ? 1 : 0) - (y.err ? 1 : 0) || y.est.ratio - x.est.ratio; });
       box.appendChild(el("p", { class: "sv-small", text: t("sv_cast_pick", { n: job.slots, k: sel.length }) }));
       box.appendChild(el("div", { class: "sv-cast-list" }, rows.map(function (r) {
         var on = sel.indexOf(r.a.id) >= 0;
         return el("div", {
-          class: "sv-cast-row" + (on ? " sv-sel" : "") + (r.err ? " sv-dis" : ""), "data-aid": r.a.id, role: "button", tabindex: "0",
+          class: "sv-cast-row" + (on ? " sv-sel" : "") + (r.err ? " sv-dis" : "") + (!r.err && r.drop ? " sv-cast-drop" : ""), "data-aid": r.a.id, role: "button", tabindex: "0",
           onclick: function () {
             if (r.err) return;
             var i = sel.indexOf(r.a.id);
@@ -71,7 +72,8 @@
           UI.avatar(r.a, 40),
           el("div", { class: "sv-grow" }, [
             el("div", {}, [UI.rarity(r.a.rarity), " ", el("b", { text: UI.name(r.a) })]),
-            el("div", { class: "sv-small sv-muted", text: r.err ? t("sv_err_" + r.err) : UI.dirIcon(r.a.dir) + " " + UI.dirName(r.a.dir) + "・" + t("sv_fame", { n: UI.num(r.a.fame) }) })
+            el("div", { class: "sv-small sv-muted", text: r.err ? t("sv_err_" + r.err) : UI.dirIcon(r.a.dir) + " " + UI.dirName(r.a.dir) + "・" + t("sv_fame", { n: UI.num(r.a.fame) }) }),
+            !r.err && r.drop ? el("div", { class: "sv-small sv-cast-drop-note", text: t("sv_cast_drop", { task: t("sv_task_" + r.drop), n: r.a.task.left }) }) : null
           ]),
           r.err ? null : el("div", { class: "sv-est sv-est-" + r.est.label }, [
             el("div", { text: t("sv_est", { label: t("sv_est_" + r.est.label) }) }),
@@ -81,11 +83,13 @@
       })));
       var ready = sel.length === job.slots;
       var team = ready && job.slots > 1 ? Core.estimate(st, sel, job) : null;
+      var drops = sel.filter(function (id) { var a = Core.artistById(st, id); return a && a.task; }).length;
+      if (drops) box.appendChild(el("p", { class: "sv-small sv-cast-drop-note", text: t("sv_cast_drop_sum", { n: drops }) }));
       box.appendChild(el("div", { class: "sv-row sv-row-end" }, [
         team ? el("span", { class: "sv-est sv-est-" + team.label, text: t("sv_cast_team", { label: t("sv_est_" + team.label) }) }) : null,
         UI.btn(t(job.audition ? "sv_cast_audition" : "sv_cast_sign"), function () {
           var name = title(job);
-          var err = App.act(function (s) { var x = Core.takeJob(s, job.id, sel); signed = !x; return x; });
+          var err = App.act(function (s) { var x = Core.takeJob(s, job.id, sel, true); signed = !x; return x; });
           if (err) { UI.toast(t("sv_err_" + err), "bad"); return; }
           close();
           UI.toast(t("sv_toast_signed", { title: name }), "stamp");

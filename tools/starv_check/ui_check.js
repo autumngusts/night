@@ -136,6 +136,27 @@ step("工作：選角 → 簽約", async function (page) {
   assert.ok(s.activeJobs.some(function (aj) { return aj.job.id === jobId; }), "工作進行中");
 });
 
+step("工作：選角時可放棄訓練直接接工作", async function (page) {
+  var ids = await page.evaluate(function () {
+    var A = window.PriTestStarv.app, Core = window.PriTestStarvCore, s = window.PriTestStarv.state();
+    var a = s.artists.filter(function (x) { return !x.task; })[0];
+    var j = s.board.filter(function (x) { return x.slots === 1 && x.minFame === 0 && !x.reservedFor; })[0];
+    if (!a || !j) return null;
+    A.act(function (st) { Core.schedule(st, a.id, { kind: "train" }); });
+    return { aid: a.id, jobId: j.id };
+  });
+  assert.ok(ids, "需要一位空閒藝人與一份 D 級單人工作");
+  await page.dispatchEvent('.sv-job[data-job="' + ids.jobId + '"]', "click");
+  var row = '.sv-cast-row.sv-cast-drop[data-aid="' + ids.aid + '"]';
+  await page.waitForSelector(row);
+  await noRawKeys(page, "選角（放棄訓練）");
+  await page.dispatchEvent(row, "click");
+  await page.waitForSelector(".sv-cast-drop-note");
+  await act(page, "cast-sign");
+  var s = await st(page), a = s.artists.filter(function (x) { return x.id === ids.aid; })[0];
+  assert.strictEqual(a.task && a.task.kind, "job", "訓練被換成工作");
+});
+
 step("工作：結成組合", async function (page) {
   await act(page, "jobs-sub-groups");
   await noRawKeys(page, "組合");
@@ -452,6 +473,27 @@ step("雲端：未啟用時不載入 Firebase、雲端卡可用、ID 不合法�
   await page.waitForSelector(".sv-toast-bad");
   assert.strictEqual(await page.evaluate(function () { return window.PriTestStarv.app.readOnly(); }), false);
   await noRawKeys(page, "雲端卡");
+});
+
+step("招募：候補道別、空位不足時鎖住十連", async function (page) {
+  await page.evaluate(function () {
+    var A = window.PriTestStarv.app, Core = window.PriTestStarvCore, D = window.PriTestStarvData;
+    A.act(function (st) {
+      while (st.artists.length < Core.capacity(st)) st.artists.push(Core._genR(st));
+      while (st.waitlist.length < D.BAL.waitlistMax - 3) st.waitlist.push({ artist: Core._genR(st), until: st.day + 30 });
+      st.company.tickets = 20;
+    });
+  });
+  await tab(page, "gacha");
+  await noRawKeys(page, "招募（空位不足）");
+  assert.ok(await page.$eval('[data-act="pull-ticket-10"]', function (b) { return b.disabled; }), "空位 3 時十連要鎖住");
+  assert.ok(!(await page.$eval('[data-act="pull-ticket-1"]', function (b) { return b.disabled; })), "單抽可以");
+  assert.ok(await page.$(".sv-pull-space"), "顯示空位不足說明");
+  var n0 = (await st(page)).waitlist.length;
+  await page.dispatchEvent('[data-act="wait-farewell"]', "click");
+  assert.strictEqual((await st(page)).waitlist.length, n0 - 1, "道別後候補少一人");
+  var s = await st(page);
+  assert.ok(s.log.some(function (e) { return e.type === "waitlist_farewell"; }), "日誌有道別紀錄");
 });
 
 step("成就：設為稱號 → 頂部列顯示 → 取消", async function (page) {

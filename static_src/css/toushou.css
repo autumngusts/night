@@ -175,3 +175,178 @@
 .ts-mf-pending-line { font-weight: bold; }
 .ts-mf-avg { font-size: 1.2rem; font-weight: bold; }
 .ts-mf-request-log { font-size: 0.9rem; }
+
+/* ===== 2026-10-29 換膚：復古拍賣目錄（紙底、墨線、金框、襯線標題）＋3D 展示台 ===== */
+.ts-wrap {
+  --ts-paper: #f6eedb;
+  --ts-paper-2: #fffaf0;
+  --ts-ink: #1f1a14;
+  --ts-muted: #5b4f3f;
+  --ts-gold: #9a7a2e;
+  --ts-line: #cdb98a;
+  --ts-up: #1d7a4a;
+  --ts-down: #b3261e;
+  --ts-stage-a: #fff6e0;
+  --ts-stage-b: #d9c79c;
+  color: var(--ts-ink);
+  background: var(--ts-paper);
+  background-image: radial-gradient(rgba(154, 122, 46, 0.07) 1px, transparent 1px);
+  background-size: 6px 6px;
+  border: 1px solid var(--ts-line);
+  outline: 1px solid var(--ts-gold);
+  outline-offset: -6px;
+  border-radius: 4px;
+  padding: 1.2rem 1rem 1.5rem;
+  margin-top: 0.5rem;
+  line-height: 1.6;
+}
+@media (prefers-color-scheme: dark) {
+  .ts-wrap {
+    --ts-paper: #1c1814;
+    --ts-paper-2: #26201a;
+    --ts-ink: #f3ead7;
+    --ts-muted: #cbbd9f;
+    --ts-gold: #d4b25c;
+    --ts-line: #5a4a2c;
+    --ts-up: #5fd39a;
+    --ts-down: #ff8a80;
+    --ts-stage-a: #3a3024;
+    --ts-stage-b: #15110d;
+    background-image: radial-gradient(rgba(212, 178, 92, 0.06) 1px, transparent 1px);
+  }
+}
+.ts-masthead {
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+  font-family: "Noto Serif TC", "Noto Serif JP", "Songti TC", "Yu Mincho", Georgia, serif;
+  font-size: 1.8rem;
+  letter-spacing: 0.15em;
+  text-align: center;
+  justify-content: center;
+  margin: 0.2rem 0 1rem;
+}
+.ts-masthead-rule {
+  flex: 1 1 2rem;
+  max-width: 8rem;
+  border-top: 3px double var(--ts-gold);
+}
+.ts-wrap h2,
+.ts-wrap h3 {
+  font-family: "Noto Serif TC", "Noto Serif JP", "Songti TC", "Yu Mincho", Georgia, serif;
+  letter-spacing: 0.04em;
+}
+.ts-wrap .ts-panel {
+  background: var(--ts-paper-2);
+  border: 1px solid var(--ts-ink);
+  border-radius: 2px;
+  box-shadow: inset 0 0 0 4px var(--ts-paper-2), inset 0 0 0 5px var(--ts-line), 3px 3px 0 rgba(0, 0, 0, 0.12);
+}
+.ts-wrap button {
+  color: var(--ts-ink);
+  background: transparent;
+  border: 1px solid var(--ts-ink);
+  border-radius: 2px;
+  padding: 0.4rem 0.9rem;
+  cursor: pointer;
+}
+.ts-wrap button:hover:not(:disabled) { background: rgba(154, 122, 46, 0.12); }
+.ts-wrap button:disabled { opacity: 0.45; cursor: default; }
+.ts-wrap .ts-primary {
+  color: var(--ts-paper-2);
+  background: var(--ts-ink);
+  border-color: var(--ts-ink);
+  box-shadow: 2px 2px 0 var(--ts-gold);
+  letter-spacing: 0.06em;
+}
+.ts-wrap .ts-primary:hover:not(:disabled) { background: var(--ts-ink); transform: translate(-1px, -1px); box-shadow: 3px 3px 0 var(--ts-gold); }
+.ts-wrap input,
+.ts-wrap select,
+.ts-wrap textarea {
+  color: var(--ts-ink);
+  background: var(--ts-paper);
+  border: 1px solid var(--ts-line);
+  border-radius: 2px;
+  padding: 0.3rem 0.45rem;
+}
+.ts-wrap .ts-hooks,
+.ts-wrap .ts-vote-detail,
+.ts-wrap .ts-news-mod { color: var(--ts-muted); opacity: 1; }
+
+/* 標的卡：LOT 標頭＋展示台 */
+.ts-target-card .ts-lot {
+  margin: 0 0 0.5rem;
+  font-family: Georgia, "Noto Serif TC", serif;
+  font-size: 0.95rem;
+  letter-spacing: 0.12em;
+  color: var(--ts-gold);
+  border-bottom: 1px solid var(--ts-line);
+  padding-bottom: 0.3rem;
+}
+.ts-target-card h2 { font-size: 1.5rem; margin: 0.4rem 0 0.25rem; }
+.ts-stage {
+  position: relative;
+  height: 250px;
+  margin: 0 -0.25rem 0.4rem;
+  border: 1px solid var(--ts-line);
+  background: radial-gradient(ellipse at 50% 35%, var(--ts-stage-a) 0%, var(--ts-stage-b) 100%);
+  overflow: hidden;
+  touch-action: pan-y;
+}
+.ts-stage::after {
+  content: "";
+  position: absolute;
+  inset: 6px;
+  border: 1px solid rgba(154, 122, 46, 0.45);
+  pointer-events: none;
+}
+.ts-stage-canvas { display: block; width: 100%; height: 100%; cursor: grab; }
+.ts-stage-loading::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 28px;
+  height: 28px;
+  margin: -14px 0 0 -14px;
+  border: 3px solid var(--ts-line);
+  border-top-color: var(--ts-gold);
+  border-radius: 50%;
+  animation: ts-spin 0.9s linear infinite;
+}
+.ts-stage-on::before { display: none; }
+.ts-stage-off { display: none; }
+@keyframes ts-spin { to { transform: rotate(360deg); } }
+@media (max-width: 600px) {
+  .ts-stage { height: 200px; }
+  .ts-masthead { font-size: 1.4rem; }
+  .ts-wrap { padding: 1rem 0.6rem 1.2rem; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ts-stage-loading::before { animation: none; }
+}
+
+.ts-wrap .ts-tags span { border-color: var(--ts-gold); color: var(--ts-muted); background: rgba(154, 122, 46, 0.08); }
+.ts-wrap .ts-price { font-family: Georgia, "Noto Serif TC", serif; font-size: 1.9rem; color: var(--ts-ink); }
+
+/* 消息看板：剪報條 */
+.ts-wrap .ts-news-board li {
+  background: var(--ts-paper);
+  border: 1px solid var(--ts-line);
+  border-left: 5px solid var(--ts-muted);
+  padding: 0.4rem 0.6rem;
+  margin: 0.45rem 0;
+  box-shadow: 1px 2px 0 rgba(0, 0, 0, 0.08);
+}
+.ts-wrap .ts-news-board li:nth-child(odd) { transform: rotate(-0.4deg); }
+.ts-wrap .ts-news-board li:nth-child(even) { transform: rotate(0.4deg); }
+.ts-wrap .ts-news-board li.ts-up { border-left-color: var(--ts-up); }
+.ts-wrap .ts-news-board li.ts-down { border-left-color: var(--ts-down); }
+.ts-wrap .ts-hand li { background: var(--ts-paper); border-color: var(--ts-line); }
+.ts-wrap .ts-hand li.ts-up { border-color: var(--ts-up); }
+.ts-wrap .ts-hand li.ts-down { border-color: var(--ts-down); }
+.ts-wrap .ts-swan-badge { border-left-color: var(--ts-gold); background: rgba(154, 122, 46, 0.12); }
+.ts-wrap .ts-mf-sentence { border-left-color: var(--ts-down); }
+.ts-wrap .ts-table th { font-family: Georgia, "Noto Serif TC", serif; border-bottom: 2px solid var(--ts-ink); }
+.ts-wrap .ts-table td { border-bottom-color: var(--ts-line); }
+.ts-wrap .ts-error { color: var(--ts-down); }
