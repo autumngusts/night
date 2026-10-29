@@ -1,0 +1,149 @@
+/* ===================== 賽狗賽狗（saigo） ===================== */
+.sg-wrap {
+  --sg-line: rgba(127, 127, 127, 0.35);
+  --sg-accent: #2e7d32;
+  --sg-accent-soft: rgba(46, 125, 50, 0.12);
+  --sg-good: #2e7d4f;
+  --sg-bad: #c0392b;
+  --sg-chip: #f1f4ec;
+  --sg-gold: #b8860b;
+  max-width: 76rem;
+  margin: 0 auto;
+}
+@media (prefers-color-scheme: dark) {
+  .sg-wrap { --sg-accent: #66bb6a; --sg-accent-soft: rgba(102, 187, 106, 0.16); --sg-good: #6fcf97; --sg-bad: #ff7b6b; --sg-chip: #26302a; --sg-gold: #f0c040; }
+}
+.sg-wrap button { cursor: pointer; font: inherit; }
+.sg-wrap button:disabled { cursor: default; opacity: 0.45; }
+.sg-top { display: flex; flex-wrap: wrap; align-items: center; gap: 0.6rem 1rem; margin-bottom: 0.8rem; }
+.sg-title { margin: 0; font-size: 1.5em; flex: 1 1 auto; }
+.sg-wallet { font-size: 1.05em; }
+.sg-wallet b { color: var(--sg-gold); }
+.sg-roomtag { padding: 0.15rem 0.6rem; border-radius: 999px; background: var(--sg-accent-soft); font-size: 0.85em; }
+.sg-panel { border: 1px solid var(--sg-line); border-radius: 10px; padding: 0.9rem 1rem; margin-bottom: 1rem; }
+.sg-panel h2 { margin: 0.2rem 0 0.6rem; font-size: 1.15em; }
+.sg-panel h3 { margin: 0.9rem 0 0.4rem; font-size: 1em; }
+.sg-intro { line-height: 1.7; margin: 0 0 0.8rem; }
+.sg-muted { opacity: 0.7; }
+.sg-small { font-size: 0.85em; }
+.sg-center { text-align: center; padding: 2rem 0.5rem; }
+.sg-good { color: var(--sg-good); font-weight: bold; }
+.sg-danger { color: var(--sg-bad) !important; }
+.sg-hint { background: var(--sg-accent-soft); padding: 0.5rem 0.8rem; border-radius: 8px; }
+.sg-msg { background: var(--sg-accent-soft); padding: 0.45rem 0.8rem; border-radius: 8px; font-weight: bold; }
+.sg-rules { margin: 0; padding-left: 1.2rem; line-height: 1.7; }
+.sg-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; margin-top: 0.6rem; }
+.sg-next { justify-content: flex-end; margin: 1rem 0; }
+.sg-sub { margin-top: 1rem; }
+.sg-row { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; margin: 0.4rem 0; }
+.sg-menu { display: grid; grid-template-columns: repeat(auto-fill, minmax(13rem, 1fr)); gap: 0.6rem; }
+.sg-btn { padding: 0.4rem 0.9rem; border: 1px solid var(--sg-line); border-radius: 6px; background: transparent; color: inherit; }
+.sg-btn:hover:not(:disabled) { background: var(--sg-accent-soft); }
+.sg-big { padding: 0.75rem 1rem; font-size: 1.05em; border: 1px solid var(--sg-line); border-radius: 8px; background: transparent; color: inherit; }
+.sg-primary { background: var(--sg-accent); color: #fff; border-color: var(--sg-accent); font-weight: bold; }
+.sg-primary:hover:not(:disabled) { filter: brightness(1.08); background: var(--sg-accent); }
+.sg-link { background: none; border: 0; color: var(--sg-accent); text-decoration: underline; padding: 0 0.25rem; }
+.sg-x { border: 0; background: none; color: var(--sg-bad); font-weight: bold; padding: 0 0.4rem; }
+.sg-input { padding: 0.35rem 0.5rem; border: 1px solid var(--sg-line); border-radius: 6px; background: transparent; color: inherit; font: inherit; max-width: 100%; }
+.sg-input option { color: #222; }
+.sg-stake { width: 7rem; }
+.sg-url { width: 100%; font-size: 0.85em; }
+.sg-seg { display: flex; flex-wrap: wrap; gap: 0.3rem; margin: 0.3rem 0; }
+.sg-seg-btn { padding: 0.35rem 0.8rem; border: 1px solid var(--sg-line); border-radius: 999px; background: transparent; color: inherit; }
+.sg-seg-btn.sg-on { background: var(--sg-accent); border-color: var(--sg-accent); color: #fff; font-weight: bold; }
+.sg-chip { display: inline-block; padding: 0.15rem 0.6rem; margin: 0 0.3rem 0.3rem 0; border-radius: 999px; background: var(--sg-chip); }
+.sg-gate { display: inline-flex; align-items: center; justify-content: center; min-width: 1.6em; height: 1.6em; border-radius: 4px; font-weight: bold; border: 1px solid rgba(0, 0, 0, 0.35); font-size: 0.9em; flex: none; }
+.sg-swatch { display: inline-block; width: 1.4em; height: 1.4em; border-radius: 50%; border: 3px solid; flex: none; }
+
+/* 能力條 */
+.sg-stats { display: grid; grid-template-columns: repeat(auto-fill, minmax(13rem, 1fr)); gap: 0.25rem 1rem; }
+.sg-stat { display: flex; align-items: center; gap: 0.4rem; font-size: 0.9em; }
+.sg-stat-k { width: 4.2em; flex: none; }
+.sg-stat-v { width: 4.5em; flex: none; text-align: right; font-variant-numeric: tabular-nums; }
+.sg-bar { display: inline-block; flex: 1 1 auto; min-width: 3rem; height: 0.55em; background: rgba(127, 127, 127, 0.18); border-radius: 3px; overflow: hidden; vertical-align: middle; }
+.sg-bar i { display: block; height: 100%; background: #ef6c00; }
+.sg-bar-b i { background: #1e88e5; }
+.sg-bar-c i { background: #43a047; }
+.sg-bar-up i { background: linear-gradient(90deg, #ef6c00, #fdd835); }
+.sg-entries .sg-bar { display: block; width: 5rem; margin: 2px 0; }
+
+/* 圖鑑／犬舍 */
+.sg-zukan-detail { display: grid; grid-template-columns: minmax(12rem, 18rem) 1fr; gap: 1rem; align-items: start; }
+@media (max-width: 640px) { .sg-zukan-detail { grid-template-columns: 1fr; } }
+.sg-preview { position: relative; width: 100%; aspect-ratio: 4 / 3; border-radius: 10px; background: linear-gradient(#bfe3ff, #eaf6e0); overflow: hidden; }
+@media (prefers-color-scheme: dark) { .sg-preview { background: linear-gradient(#2a3a4a, #2a3a2a); } }
+.sg-preview-canvas { display: block; }
+.sg-breed-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(10rem, 1fr)); gap: 0.4rem; }
+.sg-breed, .sg-dog-card { display: grid; grid-template-columns: auto 1fr; gap: 0 0.5rem; align-items: center; text-align: left; padding: 0.45rem 0.6rem; border: 1px solid var(--sg-line); border-radius: 8px; background: transparent; color: inherit; }
+.sg-breed .sg-swatch, .sg-dog-card .sg-swatch { grid-row: span 3; }
+.sg-breed small, .sg-dog-card small { opacity: 0.75; }
+.sg-breed.sg-on, .sg-dog-card.sg-on { border-color: var(--sg-accent); background: var(--sg-accent-soft); }
+.sg-dog-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(12rem, 1fr)); gap: 0.5rem; }
+.sg-train { display: grid; grid-template-columns: repeat(auto-fill, minmax(9rem, 1fr)); gap: 0.4rem; }
+
+/* 表格 */
+.sg-table { width: 100%; border-collapse: collapse; font-size: 0.92em; }
+.sg-table th, .sg-table td { padding: 0.35rem 0.4rem; border-bottom: 1px solid var(--sg-line); text-align: left; vertical-align: middle; }
+.sg-table th { font-size: 0.85em; opacity: 0.8; }
+.sg-dogrow { cursor: pointer; }
+.sg-dogrow:hover { background: var(--sg-accent-soft); }
+.sg-dogrow.sg-open { background: var(--sg-accent-soft); }
+.sg-mine td, li.sg-mine { font-weight: bold; }
+.sg-mine td:first-child { box-shadow: inset 4px 0 0 var(--sg-gold); }
+.sg-odds { font-weight: bold; font-variant-numeric: tabular-nums; }
+.sg-mood-4 { color: #e65100; font-weight: bold; }
+.sg-mood-3 { color: #ef6c00; }
+.sg-mood-1, .sg-mood-0 { color: #5c6bc0; }
+.sg-pay th { width: 9rem; }
+@media (max-width: 640px) { .sg-hide-s { display: none; } }
+
+/* 出賽表 */
+.sg-card-head { display: grid; grid-template-columns: auto 1fr; gap: 1rem; align-items: start; }
+@media (max-width: 640px) { .sg-card-head { grid-template-columns: 1fr; } }
+.sg-minimap { background: var(--sg-chip); border-radius: 8px; max-width: 100%; }
+.sg-parts { display: flex; flex-wrap: wrap; gap: 0.25rem; margin: 0.3rem 0; }
+.sg-part { font-size: 0.82em; padding: 0.1rem 0.5rem; border-radius: 4px; background: var(--sg-chip); border-left: 4px solid #b98a5a; }
+.sg-part-hurdle { border-color: #e53935; } .sg-part-tunnel { border-color: #8e24aa; } .sg-part-frisbee { border-color: #fdd835; }
+.sg-part-weave { border-color: #ff7043; } .sg-part-pool { border-color: #29b6f6; } .sg-part-mud { border-color: #5d4037; }
+.sg-part-aframe { border-color: #43a047; } .sg-part-treat { border-color: #ec407a; } .sg-part-stay { border-color: #1e88e5; }
+.sg-qr { width: 9rem; height: 9rem; image-rendering: pixelated; background: #fff; border-radius: 6px; }
+
+/* 下注 */
+.sg-picks { display: flex; flex-wrap: wrap; gap: 0.35rem; margin: 0.5rem 0; }
+.sg-pick { display: inline-flex; align-items: center; gap: 0.2rem; padding: 0.35rem 0.6rem; border: 1px solid var(--sg-line); border-radius: 8px; background: transparent; color: inherit; }
+.sg-pick.sg-on { border-color: var(--sg-accent); background: var(--sg-accent-soft); font-weight: bold; }
+.sg-pick.sg-key { border-color: var(--sg-gold); box-shadow: 0 0 0 2px var(--sg-gold) inset; }
+.sg-pick em { font-style: normal; color: var(--sg-gold); font-size: 0.85em; }
+.sg-slip { gap: 0.8rem; }
+.sg-tickets { display: flex; flex-direction: column; gap: 0.3rem; margin: 0.5rem 0; }
+.sg-ticket { padding: 0.35rem 0.6rem; border-radius: 6px; background: var(--sg-chip); font-size: 0.9em; }
+.sg-ticket.sg-hit { background: rgba(253, 216, 53, 0.35); }
+.sg-combos { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 0.9em; opacity: 0.85; }
+.sg-big-line { font-size: 1.1em; font-weight: bold; }
+.sg-plist { margin: 0; padding-left: 1.2rem; line-height: 1.8; }
+
+/* 比賽畫面 */
+.sg-race { margin-bottom: 1rem; }
+.sg-stage { position: relative; width: 100%; aspect-ratio: 16 / 9; max-height: 78vh; background: #9cc8e8; border-radius: 10px; overflow: hidden; }
+@media (max-width: 640px) { .sg-stage { aspect-ratio: 4 / 3; } }
+.sg-stage.sg-loading::after { content: "Loading 3D…"; position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: #fff; font-weight: bold; }
+.sg-canvas { position: absolute; inset: 0; display: block; }
+.sg-fallback { position: absolute; inset: 0; width: 100%; height: 100%; background: #e8f0e0; }
+.sg-hud { position: absolute; inset: 0; pointer-events: none; color: #fff; text-shadow: 0 1px 2px rgba(0, 0, 0, 0.85); font-size: 0.9em; }
+.sg-hud-info { position: absolute; top: 0.5rem; left: 0.6rem; font-weight: bold; background: rgba(0, 0, 0, 0.35); padding: 0.2rem 0.6rem; border-radius: 6px; }
+.sg-rank { position: absolute; top: 0.5rem; right: 0.5rem; margin: 0; padding: 0.3rem 0.5rem 0.3rem 1.8rem; background: rgba(0, 0, 0, 0.4); border-radius: 8px; min-width: 9rem; }
+.sg-rank li { margin: 0.12rem 0; white-space: nowrap; }
+.sg-rank small { opacity: 0.85; }
+.sg-ticker { position: absolute; left: 0.6rem; bottom: 0.5rem; max-width: 60%; }
+.sg-ticker div { background: rgba(0, 0, 0, 0.45); padding: 0.15rem 0.5rem; border-radius: 4px; margin-top: 0.15rem; display: table; }
+.sg-count { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 4rem; font-weight: 900; }
+.sg-shot { position: absolute; top: 2.3rem; left: 0.6rem; font-size: 0.8em; background: #d32f2f; padding: 0.05rem 0.45rem; border-radius: 3px; }
+.sg-shot:empty { display: none; }
+.sg-hud-map { position: absolute; right: 0.5rem; bottom: 0.5rem; width: 150px; height: 100px; background: rgba(255, 255, 255, 0.55); border-radius: 6px; }
+@media (max-width: 640px) { .sg-hud-map { width: 96px; height: 64px; } .sg-ticker { max-width: 70%; font-size: 0.85em; } .sg-rank { font-size: 0.82em; min-width: 0; } }
+.sg-cams { display: flex; flex-wrap: wrap; align-items: center; gap: 0.3rem; margin-top: 0.5rem; }
+.sg-cam-label { margin-left: 0.6rem; font-size: 0.85em; opacity: 0.8; }
+.sg-cam-dog { width: 2rem; height: 2rem; border-radius: 6px; border: 2px solid transparent; font-weight: bold; }
+.sg-cam-dog.sg-on { border-color: var(--sg-accent); box-shadow: 0 0 0 2px var(--sg-accent); }
+.sg-part-hill { border-color: #7cb342; } .sg-part-bridge { border-color: #6d4c41; }
+.sg-code { font-family: ui-monospace, Menlo, Consolas, monospace; }

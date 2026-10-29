@@ -68,4 +68,10 @@ PROJECTS = [
         "name_key": "project_starv_name",
         "desc_key": "project_starv_desc",
     },
+    {
+        "id": "saigo",
+        "href": "saigo/index.html",
+        "name_key": "project_saigo_name",
+        "desc_key": "project_saigo_desc",
+    },
 ]
