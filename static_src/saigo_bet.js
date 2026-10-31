@@ -69,15 +69,81 @@
     return false;
   }
 
-  // 建立票：把展開的組合與當下賠率一起記下（固定賠率）
-  function makeTicket(card, type, method, picks, key, stake) {
-    var o = Core.odds(card)[type] || {};
+  // 建立票：把展開的組合與當下賠率一起記下（固定賠率；彩池制時只是預估，結算時換成最終賠率）
+  function makeTicket(card, type, method, picks, key, stake, oddsAll) {
+    var o = (oddsAll || Core.odds(card))[type] || {};
     var tk = { type: type, method: TYPE[type] && TYPE[type].pick === 1 ? "normal" : method, picks: uniq(picks), key: key === undefined ? null : key, stake: Math.max(100, Math.floor(stake / 100) * 100) };
     tk.combos = expand(tk);
     tk.odds = {};
     tk.combos.forEach(function (c) { tk.odds[c] = o[c] || 1.1; });
     tk.cost = tk.combos.length * tk.stake;
     return tk;
+  }
+
+  // ---------------- 彩池制（連線房間） ----------------
+  // 賠率＝彩池合計 × 回收率 ÷ 押在這個組合的金額（÷ 中獎組合數：複勝 2、寬 3）。
+  // 彩池＝CPU 的虛擬彩池（依模擬機率分配，沒人下注時賠率就等於固定賠率）＋所有玩家的下注。
+  // base＝虛擬彩池的規模（每種票 base × √組合數）
+  function poolOdds(card, pool, base) {
+    var od = Core.odds(card), out = { p: od.p, prob: od.prob };
+    D.BET_TYPES.forEach(function (bt) {
+      var pr = od.prob[bt.id], keys = Object.keys(pr), S = 0;
+      keys.forEach(function (c) { S += pr[c]; });
+      var k = Math.max(1, Math.round(S)), V = base * Math.sqrt(keys.length), H = (pool && pool[bt.id]) || {}, T = V;
+      keys.forEach(function (c) { T += Number(H[c]) || 0; });
+      var o = {};
+      keys.forEach(function (c) {
+        var a = V * pr[c] / S + (Number(H[c]) || 0);
+        o[c] = Core.clamp(Math.floor(T * bt.take / (k * a) * 10) / 10, 1.1, 9999.9);
+      });
+      out[bt.id] = o;
+    });
+    return out;
+  }
+  // 票 → 彩池金額 { type: { combo: 金額 } }
+  function poolOf(tickets) {
+    var out = {};
+    (tickets || []).forEach(function (tk) {
+      var m = out[tk.type] || (out[tk.type] = {});
+      tk.combos.forEach(function (c) { m[c] = (m[c] || 0) + tk.stake; });
+    });
+    return out;
+  }
+  function mergePools(list) {
+    var out = {};
+    list.forEach(function (pl) {
+      Object.keys(pl || {}).forEach(function (ty) {
+        if (!TYPE[ty]) return;
+        var m = out[ty] || (out[ty] = {});
+        Object.keys(pl[ty] || {}).forEach(function (c) { m[c] = (m[c] || 0) + (Number(pl[ty][c]) || 0); });
+      });
+    });
+    return out;
+  }
+  function poolTotal(pl) {
+    var n = 0;
+    Object.keys(pl || {}).forEach(function (ty) { Object.keys(pl[ty] || {}).forEach(function (c) { n += Number(pl[ty][c]) || 0; }); });
+    return n;
+  }
+
+  // ---------------- 累積彩金 ----------------
+  // 每場累積 JP_PER_RACE＋全部下注的 JP_RATE；三連單有人中＝全部依押中金額平分，彩金回到 JP_SEED
+  var JP_SEED = 5000, JP_PER_RACE = 500, JP_RATE = 0.05;
+  // jp：目前彩金；totalBet：這場全部下注；stakes：{ 誰: 押中三連單的金額 } → { amt: 下一場的彩金, pays: { 誰: 分到的金額 }, pot }
+  function jackpotStep(jp, totalBet, stakes) {
+    var pot = (isFinite(jp) ? jp : JP_SEED) + JP_PER_RACE + Math.floor(totalBet * JP_RATE);
+    var who = Object.keys(stakes || {}).filter(function (k) { return stakes[k] > 0; });
+    if (!who.length) return { amt: pot, pays: {}, pot: pot };
+    var sum = 0, pays = {};
+    who.forEach(function (k) { sum += stakes[k]; });
+    who.forEach(function (k) { pays[k] = Math.floor(pot * stakes[k] / sum); });
+    return { amt: JP_SEED, pays: pays, pot: pot };
+  }
+  // 票裡押中三連單的金額
+  function trifectaStake(tickets, order) {
+    var win = order.slice(0, 3).join("-"), n = 0;
+    (tickets || []).forEach(function (tk) { if (tk.type === "trifecta" && tk.combos.indexOf(win) >= 0) n += tk.stake; });
+    return n;
   }
 
   // 結算：每張票的中獎組合與派彩
@@ -94,9 +160,9 @@
     return { rows: rows, spent: spent, won: won };
   }
 
-  // 派彩表（每 100 元）：每種票的中獎組合
-  function payoutTable(card, order) {
-    var od = Core.odds(card);
+  // 派彩表（每 100 元）：每種票的中獎組合（oddsAll：彩池制的最終賠率）
+  function payoutTable(card, order, oddsAll) {
+    var od = oddsAll || Core.odds(card);
     return D.BET_TYPES.map(function (bt) {
       var keys = Object.keys(od[bt.id]).filter(function (c) { return hit(bt.id, c, order); });
       if (bt.id === "place" || bt.id === "wide") keys.sort();
@@ -111,6 +177,8 @@
   }
 
   window.PriTestSaigoBet = {
-    TYPE: TYPE, expand: expand, hit: hit, makeTicket: makeTicket, settle: settle, payoutTable: payoutTable, comboLabel: comboLabel
+    TYPE: TYPE, expand: expand, hit: hit, makeTicket: makeTicket, settle: settle, payoutTable: payoutTable, comboLabel: comboLabel,
+    poolOdds: poolOdds, poolOf: poolOf, mergePools: mergePools, poolTotal: poolTotal,
+    JP_SEED: JP_SEED, JP_PER_RACE: JP_PER_RACE, JP_RATE: JP_RATE, jackpotStep: jackpotStep, trifectaStake: trifectaStake
   };
 })();

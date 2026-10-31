@@ -14,11 +14,27 @@
   var STATS = ["spd", "sta", "pow", "agi", "jmp", "swm", "cat", "foc"];
   // 體型 1 迷你 2 小型 3 中型 4 大型 5 超大型
   var SIZES = { 1: C("迷你", "超小型", "Toy"), 2: C("小型", "小型", "Small"), 3: C("中型", "中型", "Medium"), 4: C("大型", "大型", "Large"), 5: C("超大型", "超大型", "Giant") };
-  // 跑法：nige 逃（一路領先）、senko 先行、sashi 差（中段蓄力）、oikomi 追（最後衝刺）
+  // 跑法：nige 逃馬（一路領先）、senko 先行、sashi 差馬（中段蓄力）、oikomi 後追（最後衝刺）
   var STYLES = {
-    nige: C("逃", "逃げ", "Front-runner"), senko: C("先行", "先行", "Stalker"),
-    sashi: C("差", "差し", "Closer"), oikomi: C("追", "追込", "Deep closer")
+    nige: C("逃馬", "逃げ", "Front-runner"), senko: C("先行", "先行", "Stalker"),
+    sashi: C("差馬", "差し", "Closer"), oikomi: C("後追", "追込", "Deep closer")
   };
+  // 跑法適性（使用者指定 2026-10-31）：每隻狗有一個最適跑法（A），比賽時可以自己改跑法；
+  // 離最適跑法越遠適性越低（B／C／D），極速打折
+  var STYLE_IDS = ["nige", "senko", "sashi", "oikomi"];
+  var APT = [{ g: "A", spd: 1 }, { g: "B", spd: 0.985 }, { g: "C", spd: 0.965 }, { g: "D", spd: 0.94 }];
+  function aptitude(best, style) {
+    var a = STYLE_IDS.indexOf(best), b = STYLE_IDS.indexOf(style);
+    return a < 0 || b < 0 ? 0 : Math.abs(a - b);
+  }
+  // 個體差：65% 是犬種的跑法，其餘是相鄰的跑法
+  function rollBestStyle(breedStyle, rnd) {
+    var i = STYLE_IDS.indexOf(breedStyle);
+    if (i < 0) i = 1;
+    if (rnd() < 0.65) return STYLE_IDS[i];
+    var adj = [i - 1, i + 1].filter(function (x) { return x >= 0 && x < STYLE_IDS.length; });
+    return STYLE_IDS[adj[Math.floor(rnd() * adj.length)]];
+  }
 
   // [id, zh, ja, en, 體型, spd, sta, pow, agi, jmp, swm, cat, foc, 耐熱, 耐寒, 跑法, 耳, 尾, 吻長, 腿長, 身長, 主色, 副色, 花紋]
   // 耳：prick 立耳、floppy 垂耳、fold 半立耳、bat 蝙蝠耳；尾：curl 捲尾、straight 直尾、bob 短尾、plume 蓬尾
@@ -273,7 +289,7 @@
   };
 
   window.PriTestSaigoData = {
-    C: C, L: L, STATS: STATS, SIZES: SIZES, STYLES: STYLES,
+    C: C, L: L, STATS: STATS, SIZES: SIZES, STYLES: STYLES, STYLE_IDS: STYLE_IDS, APT: APT, aptitude: aptitude, rollBestStyle: rollBestStyle,
     BREEDS: BREEDS, BREED_BY_ID: BREED_BY_ID,
     PARTS: PARTS, PART_WEIGHTS: PART_WEIGHTS, HURDLE_TYPES: HURDLE_TYPES, WEATHERS: WEATHERS, GROUNDS: GROUNDS, MOODS: MOODS,
     KINDS: KINDS, SURFACES: SURFACES, TERRAINS: TERRAINS, DISTANCES: DISTANCES, partName: partName,

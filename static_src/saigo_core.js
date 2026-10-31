@@ -184,7 +184,7 @@
       var x = r();
       if (x < 0.15) m -= 1; else if (x > 0.85) m += 1;
       dogs.push({
-        breed: e.breed, name: String(e.name || "").slice(0, 16), train: e.train || {}, lv: e.lv || 0,
+        breed: e.breed, name: String(e.name || "").slice(0, 16), train: e.train || {}, lv: e.lv || 0, best: e.best || "", style: e.style || "",
         mood: clamp(m, 0, 4), cpu: false, owner: e.owner || "", ownerName: e.ownerName || "", dogId: e.dogId || ""
       });
     });
@@ -203,9 +203,13 @@
     }
     // 枠順抽籤
     for (var i = dogs.length - 1; i > 0; i--) { var j = Math.floor(r() * (i + 1)); var tmp = dogs[i]; dogs[i] = dogs[j]; dogs[j] = tmp; }
+    // 跑法：最適跑法（CPU 依 seed 抽個體差）＋這場選的跑法（CPU 一律用最適跑法）；用另一條亂數，不影響既有的出賽表
+    var sr = rng((seed ^ 0x57e1e) >>> 0);
     dogs.forEach(function (d, k) {
       d.gate = k;
-      d.style = (D.BREED_BY_ID[d.breed] || D.BREEDS[0]).style;
+      var bs = (D.BREED_BY_ID[d.breed] || D.BREEDS[0]).style;
+      if (D.STYLE_IDS.indexOf(d.best) < 0) d.best = d.cpu ? D.rollBestStyle(bs, sr) : bs;
+      if (D.STYLE_IDS.indexOf(d.style) < 0) d.style = d.best;
       d.eff = effStats(d, weather, ground, terrain);
     });
     return { v: 1, seed: seed >>> 0, cls: cls.id, terrain: terrain, dist: dist, weather: weather, ground: ground, course: course, dogs: dogs };
@@ -216,8 +220,26 @@
     nige: { early: 0.98, late: 0.98, at: 1 },
     senko: { early: 0.95, late: 1.0, at: 0.7 },
     sashi: { early: 0.91, late: 1.03, at: 0.62 },
-    oikomi: { early: 0.87, late: 1.06, at: 0.72 }
+    oikomi: { early: 0.9, late: 1.07, at: 0.68 }   // 2026-10-31 加跑法適性時調整：原 0.87/1.06/0.72 時連追込最適的狗都是跑差馬比較快
   };
+  // 展開：逃馬 2 隻以上＝高速步調，逃馬後段乏力、差馬／後追有利；沒有逃馬＝慢步調，先行有利、後追追不上
+  function fieldPace(card, style) {
+    var p = PACE[style] || PACE.senko, late = p.late;
+    var nige = card.dogs.filter(function (d) { return d.style === "nige"; }).length;
+    if (nige >= 2) {
+      if (style === "nige") late -= 0.015 * (nige - 1);
+      else if (style === "sashi" || style === "oikomi") late += 0.008 * (nige - 1);
+    } else if (nige === 0) {
+      if (style === "senko") late += 0.01;
+      else if (style === "oikomi") late -= 0.01;
+    }
+    return { early: p.early, late: late, at: p.at };
+  }
+  // 這場的展開：high／even／slow（畫面顯示用）
+  function paceKind(card) {
+    var nige = card.dogs.filter(function (d) { return d.style === "nige"; }).length;
+    return nige >= 2 ? "high" : nige === 0 ? "slow" : "even";
+  }
   var CRAWL = [0, 0.78, 0.66, 0.52, 0.4, 0.3];
   var DOCK_RUN = 3;   // 跳水台泳池：台上助跑長度（m）
 
@@ -238,9 +260,9 @@
     var dogs = card.dogs.map(function (d, i) {
       var e = d.eff, b = D.BREED_BY_ID[d.breed] || D.BREEDS[0];
       return {
-        i: i, e: e, size: b.size, pace: PACE[d.style] || PACE.senko,
+        i: i, e: e, size: b.size, pace: fieldPace(card, d.style),
         r: rng((base + Math.imul(i + 1, 0x632be5ab)) >>> 0),
-        vmax: (12.5 + e.spd * 0.045) * g.drag * (sandy ? 0.97 + e.pow * 0.0004 : 1),
+        vmax: (12.5 + e.spd * 0.045) * g.drag * (sandy ? 0.97 + e.pow * 0.0004 : 1) * D.APT[D.aptitude(d.best || d.style, d.style)].spd,
         cold: b.cold,
         acc: 2.5 + e.pow * 0.03 + (5 - b.size) * 0.4,
         day: 0,
@@ -673,7 +695,7 @@
         prob.wide[wk] = (prob.wide[wk] || 0) + pr;
       });
     });
-    var out = { p: p };
+    var out = { p: p, prob: prob };
     D.BET_TYPES.forEach(function (bt) {
       var o = {};
       Object.keys(prob[bt.id]).forEach(function (key) {
@@ -696,7 +718,7 @@
 
   // 出賽表要經過網路傳送：去掉快取欄位
   function cardForWire(card) {
-    var c = JSON.parse(JSON.stringify({ v: card.v, seed: card.seed, cls: card.cls, terrain: card.terrain, dist: card.dist, weather: card.weather, ground: card.ground, course: { parts: card.course.parts, length: card.course.length }, dogs: card.dogs }));
+    var c = JSON.parse(JSON.stringify({ v: card.v, seed: card.seed, cls: card.cls, terrain: card.terrain, dist: card.dist, weather: card.weather, ground: card.ground, course: { parts: card.course.parts, length: card.course.length }, dogs: card.dogs, pm: card.pm ? 1 : 0 }));
     return c;
   }
 
@@ -709,6 +731,6 @@
     rng: rng, hashStr: hashStr, newSeed: newSeed, clamp: clamp,
     makeCard: makeCard, effStats: effStats, simulate: simulate, stateAt: stateAt, rankAt: rankAt,
     geometry: geometry, pointAt: pointAt, partAt: partAt, laneOff: laneOff,
-    odds: odds, popularity: popularity, cardForWire: cardForWire
+    odds: odds, popularity: popularity, cardForWire: cardForWire, paceKind: paceKind
   };
 })();

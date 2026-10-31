@@ -28,7 +28,7 @@
   var store = null;
   function now() { return Date.now(); }
   function blank() {
-    return { v: 1, coins: START_COINS, dogs: [], nextId: 1, at: now(), stats: { races: 0, bets: 0, spent: 0, won: 0, bailouts: 0 }, history: [] };
+    return { v: 1, coins: START_COINS, dogs: [], nextId: 1, at: now(), stats: { races: 0, bets: 0, spent: 0, won: 0, bailouts: 0 }, history: [], jp: window.PriTestSaigoBet ? window.PriTestSaigoBet.JP_SEED : 5000 };
   }
   function load() {
     if (store) return store;
@@ -36,6 +36,7 @@
     if (!store || store.v !== 1) store = blank();
     store.stats = store.stats || blank().stats;
     store.history = store.history || [];
+    if (!isFinite(store.jp)) store.jp = blank().jp;
     recover();
     return store;
   }
@@ -63,7 +64,8 @@
     s.coins -= cost;
     var train = {};
     D.STATS.forEach(function (k) { train[k] = 0; });
-    var d = { id: "d" + (s.nextId++), breed: breed, name: String(name || "").trim().slice(0, 12) || D.L(D.BREED_BY_ID[breed].name), lv: 0, exp: 0, train: train, fatigue: 0, mood: 3, bond: 10, races: 0, wins: 0, top3: 0, earnings: 0 };
+    var best = D.rollBestStyle(D.BREED_BY_ID[breed].style, Math.random);
+    var d = { id: "d" + (s.nextId++), breed: breed, best: best, runStyle: best, name: String(name || "").trim().slice(0, 12) || D.L(D.BREED_BY_ID[breed].name), lv: 0, exp: 0, train: train, fatigue: 0, mood: 3, bond: 10, races: 0, wins: 0, top3: 0, earnings: 0 };
     s.dogs.push(d);
     save();
     return d;
@@ -136,15 +138,24 @@
     return true;
   }
 
+  // 跑法：最適跑法（舊資料沒有＝犬種的跑法）與下次出賽要用的跑法
+  function bestStyle(d) { return D.STYLE_IDS.indexOf(d.best) >= 0 ? d.best : (D.BREED_BY_ID[d.breed] || D.BREEDS[0]).style; }
+  function runStyle(d) { return D.STYLE_IDS.indexOf(d.runStyle) >= 0 ? d.runStyle : bestStyle(d); }
+  function setRunStyle(id, style) {
+    var d = dog(id);
+    if (d && D.STYLE_IDS.indexOf(style) >= 0) { d.runStyle = style; save(); }
+  }
+
   // 出賽資料（給 Core.makeCard 的 entries）
   function entry(id, owner, ownerName) {
     var d = dog(id);
     if (!d) return null;
-    return { breed: d.breed, name: d.name, train: JSON.parse(JSON.stringify(d.train)), lv: d.lv, mood: d.mood, fatigue: d.fatigue, owner: owner || "me", ownerName: ownerName || "", dogId: d.id };
+    return { breed: d.breed, name: d.name, best: bestStyle(d), style: runStyle(d), train: JSON.parse(JSON.stringify(d.train)), lv: d.lv, mood: d.mood, fatigue: d.fatigue, owner: owner || "me", ownerName: ownerName || "", dogId: d.id };
   }
 
   // 賽後：自己的狗拿獎金、經驗、疲勞與心情變化。practice＝家園練習賽（沒有獎金，經驗減半）
-  function afterRace(dogId, place, prizeMult, practice) {
+  // noCoins＝獎金不進犬舍錢包（連線房間：由呼叫端改加進房間籌碼）
+  function afterRace(dogId, place, prizeMult, practice, noCoins) {
     var s = load(), d = dog(dogId);
     if (!d) return null;
     var prize = practice ? 0 : Math.round((D.PRIZES[place] || 0) * (prizeMult || 1));
@@ -154,7 +165,7 @@
     if (place === 0) d.wins++;
     if (place < 3) d.top3++;
     d.earnings += prize;
-    s.coins += prize;
+    if (!noCoins) s.coins += prize;
     d.fatigue = clamp(d.fatigue + (practice ? 12 : 25), 0, 100);
     if (place === 0) d.mood = clamp(d.mood + 1, 0, 4);
     else if (place >= 4 && Math.random() < 0.4) d.mood = clamp(d.mood - 1, 0, 4);
@@ -188,10 +199,14 @@
     save();
   }
 
+  // 單機的累積彩金
+  function jackpot() { return load().jp; }
+  function setJackpot(n) { load().jp = n; save(); }
+
   window.PriTestSaigoKennel = {
     MAX_DOGS: MAX_DOGS, TRAIN_CAP: TRAIN_CAP, MAX_LV: MAX_LV, TRAININGS: TRAININGS, TREAT_COST: TREAT_COST, BAILOUT: BAILOUT,
     load: load, save: save, dog: dog, adopt: adopt, adoptCost: adoptCost, release: release, rename: rename,
     train: train, rest: rest, play: play, treat: treat, expNeed: expNeed,
-    entry: entry, afterRace: afterRace, coins: coins, spend: spend, receive: receive, bailout: bailout, record: record
+    entry: entry, afterRace: afterRace, bestStyle: bestStyle, runStyle: runStyle, setRunStyle: setRunStyle, jackpot: jackpot, setJackpot: setJackpot, coins: coins, spend: spend, receive: receive, bailout: bailout, record: record
   };
 })();

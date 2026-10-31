@@ -121,6 +121,14 @@
 .sg-combos { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 0.9em; opacity: 0.85; }
 .sg-big-line { font-size: 1.1em; font-weight: bold; }
 .sg-plist { margin: 0; padding-left: 1.2rem; line-height: 1.8; }
+.sg-pchips { color: var(--sg-gold); font-weight: 600; }
+.sg-jp { color: var(--sg-gold); font-weight: 600; }
+.sg-pace-high { color: var(--sg-bad); }
+.sg-pace-slow { color: #1e88e5; }
+.sg-pool-note { border-left: 3px solid var(--sg-gold); padding-left: 0.5rem; }
+.sg-dash td { vertical-align: middle; }
+.sg-dash .sg-off { opacity: 0.6; }
+.sg-dash-acts { display: flex; flex-wrap: wrap; gap: 0.3rem; }
 
 /* 比賽畫面 */
 .sg-race { margin-bottom: 1rem; }

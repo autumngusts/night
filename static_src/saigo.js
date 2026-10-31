@@ -13,6 +13,7 @@
   if (!app || !D || !Core) return;
 
   var NAME_KEY = "pritest-saigo-name", PREF_KEY = "pritest-saigo-pref";
+  var DASH_PASSWORD = "nightnight";   // 使用者指定 2026-10-31：連線房間的管理面板密碼
   function t(k, p) { return window.I18N.t(k, p); }
   function L(o) { return D.L(o); }
   function lsGet(k) { try { return window.localStorage.getItem(k) || ""; } catch (e) { return ""; } }
@@ -59,8 +60,49 @@
     screen: "home", card: null, result: null, tickets: [], practice: false, cls: pref().cls || "open", entryDog: pref().entryDog || "",
     slip: { type: "win", method: "normal", picks: [], key: null, stake: 100 },
     map: pref().map || { terrain: "", weather: "", dist: "" },
-    room: null, netNo: 0, settled: {}, paid: {}, view: null, previews: [], raf: 0, selDog: null, openDog: -1, msg: ""
+    room: null, netNo: 0, settled: {}, paid: {}, view: null, previews: [], raf: 0, selDog: null, openDog: -1, msg: "",
+    dashOk: false, dash: { start: "", all: "", per: {} }, dashMsg: "",
+    pool: pref().pool !== false, finalOdds: null, jpWin: null
   };
+
+  // 彩池制（連線房間、房主開啟）：賠率＝虛擬彩池＋大家的下注；開跑後用房主鎖定的彩池
+  function poolMode(card) { return !!(ui.room && card && card.pm); }
+  function curOdds(card) {
+    if (!poolMode(card)) return Core.odds(card);
+    var m = ui.room.match, lk = m && m.pool;
+    if (lk && lk.h) return Bet.poolOdds(card, lk.h, lk.base);
+    return Bet.poolOdds(card, ui.room.livePool(), ui.room.poolBase());
+  }
+  function popOf(od) {
+    var w = od.win, idx = Object.keys(w).map(Number).sort(function (a, b) { return w[a] - w[b] || a - b; }), pop = [];
+    idx.forEach(function (d, rank) { pop[d] = rank + 1; });
+    return pop;
+  }
+  // 連線房間：下注一變就寫進房間（彩池制算賠率、累積彩金算押中金額都要用）
+  function pushBets() { if (ui.room) ui.room.pushBets(Bet.poolOf(ui.tickets)); }
+  function jackpotAmt() { return ui.room ? ui.room.jpAmt() : K.jackpot(); }
+
+  // ---- 跑法 ----
+  function aptG(best, style) { return D.APT[D.aptitude(best || style, style)].g; }
+  function styleLabel(d) { return L(D.STYLES[d.style]) + "（" + aptG(d.best, d.style) + "）"; }
+  function stylePicker(best, cur, onPick, disabled) {
+    return el("div", { class: "sg-seg" }, D.STYLE_IDS.map(function (st) {
+      return btn(L(D.STYLES[st]) + " " + aptG(best, st) + (st === best ? " ★" : ""), function () { onPick(st); }, "sg-seg-btn" + (st === cur ? " sg-on" : ""), { disabled: disabled, title: t("sg_apt_note") });
+    }));
+  }
+  // 犬舍的狗：下次出賽的跑法
+  function dogStylePicker(id, after, disabled) {
+    var d = id ? K.dog(id) : null;
+    if (!d) return null;
+    return el("div", null, [
+      el("h3", null, [t("sg_run_style") + "（" + t("sg_best_style") + "：" + L(D.STYLES[K.bestStyle(d)]) + "）"]),
+      stylePicker(K.bestStyle(d), K.runStyle(d), function (st) { K.setRunStyle(id, st); if (after) after(); rerenderKeep(); }, disabled),
+      el("p", { class: "sg-small sg-muted" }, [t("sg_apt_note")])
+    ]);
+  }
+
+  // 下注用的錢：連線房間＝房間籌碼（Firebase），單機＝犬舍錢包
+  function wallet() { return ui.room ? ui.room.coins() : K.coins(); }
 
   // ---------------- 共用 ----------------
   function stopRace() {
@@ -87,6 +129,7 @@
     var bar = el("div", { class: "sg-top" }, [
       el("h1", { class: "sg-title" }, [t("sg_title")]),
       el("span", { class: "sg-wallet" }, [t("sg_wallet") + " ", el("b", null, [money(s.coins)])]),
+      ui.room ? el("span", { class: "sg-wallet sg-chips" }, [t("sg_chips") + " ", el("b", null, [money(ui.room.coins())])]) : null,
       ui.room ? el("span", { class: "sg-roomtag" }, [t("sg_net_in_room")]) : null,
       ui.screen !== "home" && ui.screen !== "race" ? btn(t("sg_home"), function () { if (ui.room && ui.screen !== "lobby") go("lobby"); else go("home"); }, "sg-link") : null
     ]);
@@ -207,12 +250,14 @@
           t("sg_mood") + " " + L(D.MOODS[d.mood].name) + D.MOODS[d.mood].icon + "・" + t("sg_fatigue") + " " + d.fatigue + "/100・" + t("sg_bond") + " " + d.bond
         ]),
         el("p", { class: "sg-small" }, [t("sg_dog_record", { r: d.races, w: d.wins, p: d.top3, e: money(d.earnings) })]),
+        el("p", { class: "sg-small" }, [t("sg_best_style") + "：" + L(D.STYLES[K.bestStyle(d)]) + "・" + t("sg_run_style") + "：" + L(D.STYLES[K.runStyle(d)]) + "（" + aptG(K.bestStyle(d), K.runStyle(d)) + "）"]),
         statsTable(stats, d.train),
         el("p", { class: "sg-small sg-muted" }, [t("sg_train_cap", { n: K.TRAIN_CAP })])
       ]);
       app.appendChild(panel(t("sg_kennel_detail"), [
         el("div", { class: "sg-zukan-detail" }, [previewBox(d.breed, 0), info]),
         ui.msg ? el("p", { class: "sg-msg" }, [ui.msg]) : null,
+        dogStylePicker(d.id),
         el("h3", null, [t("sg_training")]), trainBtns,
         el("h3", null, [t("sg_care")]), care,
         el("div", { class: "sg-actions sg-sub" }, [
@@ -300,7 +345,8 @@
       el("h3", null, [t("sg_class")]), classPicker(),
       el("p", { class: "sg-small sg-muted" }, [t("sg_class_note")]),
       mapPicker(),
-      el("h3", null, [t("sg_entry")]), entryPicker(),
+      el("h3", null, [t("sg_entry")]), entryPicker(rerenderKeep),
+      dogStylePicker(ui.entryDog),
       el("div", { class: "sg-actions" }, [btn(t("sg_make_card"), function () { startSolo(false, ui.entryDog); }, "sg-btn sg-primary")])
     ]));
   }
@@ -373,7 +419,7 @@
   function screenCard() {
     var card = ui.card;
     if (!card) { go(ui.room ? "lobby" : "home"); return; }
-    var od = Core.odds(card), pop = Core.popularity(card), W = D.WEATHERS[card.weather], G = D.GROUNDS[card.ground];
+    var od = curOdds(card), pop = popOf(od), W = D.WEATHERS[card.weather], G = D.GROUNDS[card.ground], pk = Core.paceKind(card);
     app.appendChild(panel(raceTitle(card), [
       el("div", { class: "sg-card-head" }, [
         minimap(card, 260, 170),
@@ -384,7 +430,10 @@
             el("span", { class: "sg-chip" }, [L((D.DISTANCES[card.dist] || D.DISTANCES.middle).name)]),
             el("span", { class: "sg-chip sg-code", title: t("sg_code_note") }, [t("sg_code") + " #" + Core.courseCode(card)]),
             el("span", { class: "sg-chip" }, [t("sg_ground") + "：" + L(G.name)]),
-            el("span", { class: "sg-chip" }, [t("sg_parts_n", { n: card.course.parts.filter(function (p) { return p.type !== "straight" && p.type !== "curve"; }).length })])
+            el("span", { class: "sg-chip" }, [t("sg_parts_n", { n: card.course.parts.filter(function (p) { return p.type !== "straight" && p.type !== "curve"; }).length })]),
+            el("span", { class: "sg-chip sg-pace-" + pk, title: t("sg_pace_note_" + pk) }, [t("sg_pace") + "：" + t("sg_pace_" + pk)]),
+            !ui.practice ? el("span", { class: "sg-chip sg-jp" }, ["💰 " + t("sg_jp_chip", { n: money(jackpotAmt()) })]) : null,
+            poolMode(card) ? el("span", { class: "sg-chip sg-pool" }, [t("sg_pool_chip", { n: money(Bet.poolTotal(ui.room.livePool())) })]) : null
           ]),
           partChips(card),
           el("p", { class: "sg-small sg-muted" }, [t("sg_terrain_note_" + (card.terrain || "park"))]),
@@ -402,7 +451,7 @@
         el("td", null, [el("b", null, [d.name]), el("br"), el("small", null, [L(b.name)])]),
         el("td", { class: "sg-hide-s" }, [d.cpu ? "CPU" : (mine ? t("sg_owner_me") : d.ownerName || t("sg_owner_player"))]),
         el("td", { class: "sg-mood sg-mood-" + d.mood }, [mood.icon + " " + L(mood.name)]),
-        el("td", { class: "sg-hide-s" }, [L(D.STYLES[d.style])]),
+        el("td", { class: "sg-hide-s" }, [styleLabel(d)]),
         el("td", { class: "sg-hide-s" }, [statBar(d.eff.spd), statBar(d.eff.sta, 120, "sg-bar-b"), statBar(d.eff.agi, 120, "sg-bar-c")]),
         el("td", { class: "sg-odds" }, [od.win[i].toFixed(1)]),
         el("td", null, [t("sg_pop_n", { n: pop[i] })])
@@ -413,6 +462,7 @@
             previewBox(d.breed, i),
             el("div", null, [
               el("p", null, [traitLine(b) + (d.lv ? "・Lv" + d.lv : "")]),
+              el("p", { class: "sg-small" }, [t("sg_best_style") + "：" + L(D.STYLES[d.best || d.style]) + "・" + t("sg_run_style") + "：" + styleLabel(d)]),
               statsTable(d.eff),
               el("p", { class: "sg-small sg-muted" }, [t("sg_eff_note")]),
               el("p", { class: "sg-small" }, [t("sg_place_odds") + "：" + od.place[i].toFixed(1)])
@@ -426,7 +476,21 @@
       el("tbody", null, rows)
     ]), el("p", { class: "sg-small sg-muted" }, [t("sg_click_detail")])]));
 
-    if (!ui.practice) app.appendChild(betSlip(card));
+    // 單機：自己的狗可以在出賽表上改跑法（買了票之後就鎖定，免得先下注再改）
+    var mi = -1;
+    card.dogs.forEach(function (d, i) { if (mi < 0 && isMine(d)) mi = i; });
+    if (!ui.room && !ui.practice && mi >= 0) {
+      var md = card.dogs[mi];
+      app.appendChild(panel(t("sg_style_pick_title", { name: md.name }), [
+        stylePicker(md.best || md.style, md.style, function (st) {
+          md.style = st; card._odds = null;
+          if (md.dogId) K.setRunStyle(md.dogId, st);
+          rerenderKeep();
+        }, ui.tickets.length > 0),
+        el("p", { class: "sg-small sg-muted" }, [ui.tickets.length ? t("sg_style_locked") : t("sg_apt_note")])
+      ]));
+    }
+    if (!ui.practice) app.appendChild(betSlip(card, od));
     app.appendChild(cardActions());
   }
   function isMine(d) {
@@ -436,7 +500,7 @@
   }
   function rerenderKeep() { var y = window.scrollY; render(); window.scrollTo(0, y); }
 
-  function betSlip(card) {
+  function betSlip(card, od) {
     var sl = ui.slip, bt = Bet.TYPE[sl.type], open = canBet();
     var typeSeg = el("div", { class: "sg-seg" }, D.BET_TYPES.map(function (x) {
       return btn(L(x.name), function () { sl.type = x.id; if (x.pick === 1) sl.method = "normal"; sl.picks = []; sl.key = null; rerenderKeep(); }, "sg-seg-btn" + (sl.type === x.id ? " sg-on" : ""), { disabled: !open });
@@ -462,31 +526,32 @@
       } }, label);
     }));
     var picks = sl.method === "key" ? sl.picks.concat(sl.key === null ? [] : [sl.key]) : sl.picks;
-    var draft = Bet.makeTicket(card, sl.type, sl.method, picks, sl.key, sl.stake);
+    var draft = Bet.makeTicket(card, sl.type, sl.method, picks, sl.key, sl.stake, od);
     var ods = draft.combos.map(function (c) { return draft.odds[c]; });
     var stakeIn = el("input", { class: "sg-input sg-stake", type: "number", min: "100", step: "100", value: String(sl.stake), disabled: !open, onchange: function (e) { sl.stake = Math.max(100, Math.floor((Number(e.target.value) || 100) / 100) * 100); rerenderKeep(); } });
     var total = ui.tickets.reduce(function (a, x) { return a + x.cost; }, 0);
-    var canAdd = open && draft.combos.length > 0 && total + draft.cost <= K.coins();
+    var canAdd = open && draft.combos.length > 0 && total + draft.cost <= wallet();
     var hint = bt.pick === 1 ? t("sg_hint_single") : sl.method === "normal" ? t(bt.ordered ? "sg_hint_normal_ordered" : "sg_hint_normal", { n: bt.pick }) : sl.method === "box" ? t("sg_hint_box", { n: bt.pick }) : t(bt.ordered ? "sg_hint_key_ordered" : "sg_hint_key");
     var list = el("div", { class: "sg-tickets" }, ui.tickets.map(function (tk, n) {
       return el("div", { class: "sg-ticket" }, [
         el("b", null, [L(Bet.TYPE[tk.type].name)]), " " + (tk.method !== "normal" ? t("sg_method_" + tk.method) + " " : ""),
-        el("span", { class: "sg-combos" }, [tk.combos.slice(0, 8).map(function (c) { return Bet.comboLabel(tk.type, c) + "(" + tk.odds[c] + ")"; }).join(" ") + (tk.combos.length > 8 ? " …" : "")]),
+        el("span", { class: "sg-combos" }, [tk.combos.slice(0, 8).map(function (c) { return Bet.comboLabel(tk.type, c) + "(" + (od[tk.type][c] || tk.odds[c]) + ")"; }).join(" ") + (tk.combos.length > 8 ? " …" : "")]),
         " " + t("sg_ticket_cost", { n: tk.combos.length, s: money(tk.stake), c: money(tk.cost) }),
-        open ? btn("×", function () { ui.tickets.splice(n, 1); rerenderKeep(); }, "sg-x") : null
+        open ? btn("×", function () { ui.tickets.splice(n, 1); pushBets(); rerenderKeep(); }, "sg-x") : null
       ]);
     }));
     return panel(t("sg_bet_title"), [
+      poolMode(card) ? el("p", { class: "sg-small sg-pool-note" }, [t("sg_pool_note")]) : null,
       typeSeg, el("p", { class: "sg-small sg-muted" }, [t("sg_bet_desc_" + sl.type)]),
       methodSeg, el("p", { class: "sg-small" }, [hint]),
       pickRow,
       el("div", { class: "sg-row sg-slip" }, [
         el("label", null, [t("sg_stake_per"), stakeIn]),
         el("span", null, [t("sg_draft", { n: draft.combos.length, c: money(draft.cost) }) + (ods.length ? "・" + t("sg_odds_range", { a: Math.min.apply(null, ods).toFixed(1), b: Math.max.apply(null, ods).toFixed(1) }) : "")]),
-        btn(t("sg_add_ticket"), function () { ui.tickets.push(draft); sl.picks = []; sl.key = null; rerenderKeep(); }, "sg-btn sg-primary", { disabled: !canAdd })
+        btn(t("sg_add_ticket"), function () { ui.tickets.push(draft); sl.picks = []; sl.key = null; pushBets(); rerenderKeep(); }, "sg-btn sg-primary", { disabled: !canAdd })
       ]),
       ui.tickets.length ? list : el("p", { class: "sg-muted sg-small" }, [t("sg_no_tickets")]),
-      el("p", null, [t("sg_total_bet", { c: money(total), left: money(K.coins() - total) })])
+      el("p", null, [t(ui.room ? "sg_total_bet_chips" : "sg_total_bet", { c: money(total), left: money(wallet() - total) })])
     ]);
   }
 
@@ -660,16 +725,31 @@
     if (ui.settled[key]) return;
     ui.settled[key] = true;
     var card = ui.card, res = ui.result, order = res.order;
+    // 彩池制：票上記的是買的當下的預估賠率，換成開跑時鎖定的最終賠率
+    ui.finalOdds = poolMode(card) ? curOdds(card) : null;
+    if (ui.finalOdds) ui.tickets.forEach(function (tk) { tk.combos.forEach(function (c) { tk.odds[c] = ui.finalOdds[tk.type][c] || tk.odds[c]; }); });
     var sum = Bet.settle(ui.tickets, order);
-    if (sum.won) K.receive(sum.won);
+    if (sum.won && !ui.room) K.receive(sum.won);
     ui.lastSettle = sum;
     var cls = D.CLASSES.filter(function (c) { return c.id === card.cls; })[0];
     ui.dogRewards = [];
+    var prizes = 0;
     card.dogs.forEach(function (d, i) {
       if (!isMine(d) || !d.dogId) return;
-      var r = K.afterRace(d.dogId, order.indexOf(i), cls.prize, ui.practice);
-      if (r) ui.dogRewards.push({ name: d.name, place: order.indexOf(i), r: r });
+      // 連線房間：狗的獎金進房間籌碼，經驗／疲勞照樣記在自己的犬舍
+      var r = K.afterRace(d.dogId, order.indexOf(i), cls.prize, ui.practice, !!ui.room);
+      if (r) { ui.dogRewards.push({ name: d.name, place: order.indexOf(i), r: r }); prizes += r.prize; }
     });
+    if (ui.room && sum.won + prizes > 0) ui.room.addCoins(ui.room.pid, sum.won + prizes);
+    // 累積彩金：單機在這裡結算；連線由房主結算（全房間的下注都在 m/<no>/bets）
+    ui.jpWin = null;
+    if (!ui.practice && !ui.room) {
+      var st = Bet.jackpotStep(K.jackpot(), sum.spent, { me: Bet.trifectaStake(ui.tickets, order) });
+      K.setJackpot(st.amt);
+      if (st.pays.me) K.receive(st.pays.me);
+      ui.jpWin = { pot: st.pot, pay: st.pays.me || 0, next: st.amt };
+    }
+    if (ui.room && ui.room.isHost()) ui.room.settleJackpot(ui.netNo, order);
     if (!ui.practice) K.record({ at: Date.now(), title: raceTitle(card), winner: (order[0] + 1) + " " + card.dogs[order[0]].name, spent: sum.spent, won: sum.won });
   }
 
@@ -686,16 +766,16 @@
             el("td", null, [el("b", null, [d.name]), " ", el("small", null, [L(breedOf(d).name)])]),
             el("td", null, [tm === null ? t("sg_dnf") : fmtTime(tm)]),
             el("td", null, [n === 0 || tm === null ? "" : "+" + (tm - winT).toFixed(2)]),
-            el("td", null, [Core.odds(card).win[i].toFixed(1)])
+            el("td", null, [(ui.finalOdds || Core.odds(card)).win[i].toFixed(1)])
           ]);
         }))
       ])
     ]));
     if (!ui.practice) {
-      var pt = Bet.payoutTable(card, order);
+      var pt = Bet.payoutTable(card, order, ui.finalOdds);
       app.appendChild(panel(t("sg_payouts"), [el("table", { class: "sg-table sg-pay" }, [el("tbody", null, pt.map(function (row) {
         return el("tr", null, [el("th", null, [L(Bet.TYPE[row.type].name)]), el("td", null, row.list.map(function (x) { return el("div", null, [Bet.comboLabel(row.type, x.combo) + "　" + money(x.pay)]); }))]);
-      }))]), el("p", { class: "sg-small sg-muted" }, [t("sg_pay_note")])]));
+      }))]), el("p", { class: "sg-small sg-muted" }, [t(ui.finalOdds ? "sg_pay_note_pool" : "sg_pay_note")])]));
       app.appendChild(panel(t("sg_my_tickets"), [
         sum.rows.length ? el("div", { class: "sg-tickets" }, sum.rows.map(function (r) {
           return el("div", { class: "sg-ticket " + (r.pay ? "sg-hit" : "") }, [
@@ -707,6 +787,7 @@
         el("p", { class: "sg-big-line" }, [t("sg_balance", { s: money(sum.spent), w: money(sum.won), n: (sum.won - sum.spent >= 0 ? "+" : "") + money(sum.won - sum.spent) })])
       ]));
     }
+    if (!ui.practice) app.appendChild(jackpotPanel());
     if (ui.dogRewards && ui.dogRewards.length) {
       app.appendChild(panel(t("sg_dog_rewards"), ui.dogRewards.map(function (x) {
         return el("p", null, [t("sg_dog_reward_line", { name: x.name, p: x.place + 1, prize: money(x.r.prize), exp: x.r.exp }) + (x.r.lvUp ? " " + t("sg_msg_lvup") : "")]);
@@ -722,6 +803,23 @@
       acts.push(btn(ui.practice ? t("sg_back_kennel") : t("sg_next_race"), function () { if (ui.practice) go("kennel"); else startSolo(false, ui.entryDog); }, "sg-btn sg-primary"));
     }
     app.appendChild(el("div", { class: "sg-actions sg-next" }, acts));
+  }
+
+  function jackpotPanel() {
+    var lines = [];
+    if (!ui.room) {
+      var j = ui.jpWin;
+      if (j) lines.push(el("p", { class: j.pay ? "sg-big-line sg-good" : "" }, [j.pay ? t("sg_jp_win_solo", { n: money(j.pay) }) : t("sg_jp_none", { n: money(j.next) })]));
+    } else {
+      var jp = ui.room.jp, last = jp && jp.last && jp.last.no === ui.netNo ? jp.last : null;
+      if (!last) lines.push(el("p", { class: "sg-muted" }, [t("sg_jp_wait")]));
+      else if (last.win && last.win.length) {
+        lines.push(el("p", { class: "sg-big-line sg-good" }, [t("sg_jp_hit_room", { n: money(last.pot) })]));
+        last.win.forEach(function (w) { lines.push(el("p", null, ["🎉 " + (w.name || t("sg_net_noname")) + "：" + money(w.pay)])); });
+      } else lines.push(el("p", null, [t("sg_jp_none", { n: money(jp.amt) })]));
+    }
+    lines.push(el("p", { class: "sg-small sg-muted" }, [t("sg_jp_rule", { seed: money(Bet.JP_SEED), per: money(Bet.JP_PER_RACE), rate: Math.round(Bet.JP_RATE * 100) })]));
+    return panel("💰 " + t("sg_jp_title"), lines);
   }
 
   // ---------------- 連線 ----------------
@@ -747,13 +845,14 @@
     var e = ui.entryDog ? K.entry(ui.entryDog, ui.room.cid, lsGet(NAME_KEY)) : null;
     ui.room.update({ entry: e, name: lsGet(NAME_KEY) });
   }
-  function netCfg() { return { cls: ui.cls, terrain: ui.map.terrain || "", weather: ui.map.weather || "", dist: ui.map.dist || "" }; }
+  function netCfg() { return { cls: ui.cls, terrain: ui.map.terrain || "", weather: ui.map.weather || "", dist: ui.map.dist || "", pool: ui.pool }; }
   function publishCard() {
     var room = ui.room;
     if (!room || !room.isHost()) return;
     var entries = room.list().filter(function (p) { return p.entry; }).map(function (p) { var e = p.entry; e.owner = p.cid; e.ownerName = p.name; return e; });
     var cfg = room.cfg || netCfg();
     var card = Core.makeCard(Core.newSeed(), entries.slice(0, D.FIELD), { cls: cfg.cls || ui.cls, terrain: cfg.terrain || null, weather: cfg.weather || null, dist: cfg.dist || null });
+    card.pm = cfg.pool === false ? 0 : 1;
     room.publish(Core.cardForWire(card));
   }
   var roomRenderPending = false;
@@ -774,7 +873,9 @@
       if (!ui.paid["n" + m.no]) {
         ui.paid["n" + m.no] = true;
         var cost = ui.tickets.reduce(function (a, x) { return a + x.cost; }, 0);
-        if (cost > 0 && !K.spend(cost)) ui.tickets = [];
+        // 房間籌碼扣款（管理面板在下注途中把籌碼調低、不夠付時整筆作廢）
+        var tks = ui.tickets;
+        if (cost > 0) room.addCoins(room.pid, -cost).then(function (v) { if (!v) tks.length = 0; });
       }
       ui.result = Core.simulate(ui.card, true);
       ui.replay = false;
@@ -783,11 +884,101 @@
     }
     if (st === "lobby" && (ui.screen === "card" || ui.screen === "result")) { go("lobby"); return; }
     if (st === "card" && ui.screen === "lobby" && ui.card) { go("card"); return; }
-    if (ui.screen === "lobby" || ui.screen === "card") {
-      if (roomRenderPending) return;
-      roomRenderPending = true;
-      setTimeout(function () { roomRenderPending = false; if (ui.screen === "lobby" || ui.screen === "card") rerenderKeep(); }, 120);
+    var chip = app.querySelector(".sg-chips b");
+    if (chip) chip.textContent = money(room.coins());
+    if (ui.screen === "lobby" || ui.screen === "card" || ui.screen === "dash" || ui.screen === "result") scheduleRoomRender();
+  }
+  // 房間資料一變就重畫，但正在輸入框裡打字時先不重畫（不然會吃掉輸入）
+  function scheduleRoomRender() {
+    if (roomRenderPending) return;
+    roomRenderPending = true;
+    setTimeout(function () {
+      roomRenderPending = false;
+      if (ui.screen !== "lobby" && ui.screen !== "card" && ui.screen !== "dash" && ui.screen !== "result") return;
+      var a = document.activeElement;
+      if (a && app.contains(a) && (a.tagName === "INPUT" || a.tagName === "SELECT")) { scheduleRoomRender(); return; }
+      rerenderKeep();
+    }, 120);
+  }
+
+  // ---------------- 管理面板（連線房間；密碼 nightnight） ----------------
+  function openDash() {
+    if (!ui.room) return;
+    if (!ui.dashOk) {
+      var pw = window.prompt(t("sg_dash_pw"));
+      if (pw === null) return;
+      if (pw !== DASH_PASSWORD) { window.alert(t("sg_dash_pw_wrong")); return; }
+      ui.dashOk = true;
     }
+    ui.dashMsg = "";
+    go("dash");
+  }
+  function amountOf(v) { var n = Math.round(Number(String(v).replace(/[,¥\s]/g, ""))); return isFinite(n) ? n : NaN; }
+  function dashDone(msg) { return function () { ui.dashMsg = msg; rerenderKeep(); }; }
+  function screenDash() {
+    var room = ui.room;
+    if (!room || !ui.dashOk) { go(room ? "lobby" : "home"); return; }
+    var cfg = room.bankCfg(), dash = ui.dash;
+    function numIn(val, onset, ph) {
+      return el("input", { class: "sg-input sg-stake", type: "number", step: "100", value: val, placeholder: ph || "", oninput: function (e) { onset(e.target.value); } });
+    }
+    var startIn = numIn(dash.start !== "" ? dash.start : String(cfg.start), function (v) { dash.start = v; });
+    app.appendChild(panel(t("sg_dash_title"), [
+      el("p", { class: "sg-small sg-muted" }, [t("sg_dash_note")]),
+      ui.dashMsg ? el("p", { class: "sg-msg" }, [ui.dashMsg]) : null,
+      el("h3", null, [t("sg_dash_start")]),
+      el("div", { class: "sg-row" }, [
+        startIn,
+        btn(t("sg_dash_start_save"), function () {
+          var n = amountOf(startIn.value);
+          if (!(n >= 0)) return;
+          dash.start = "";
+          room.setBank(n, false).then(dashDone(t("sg_dash_msg_start", { n: money(n) })));
+        }, "sg-btn"),
+        btn(t("sg_dash_reset_all"), function () {
+          var n = amountOf(startIn.value);
+          if (!(n >= 0) || !window.confirm(t("sg_dash_reset_confirm", { n: money(n) }))) return;
+          dash.start = "";
+          room.setBank(n, true).then(dashDone(t("sg_dash_msg_reset", { n: money(n) })));
+        }, "sg-btn sg-danger")
+      ]),
+      el("p", { class: "sg-small sg-muted" }, [t("sg_dash_start_note")]),
+      el("h3", null, [t("sg_dash_give_all")]),
+      el("div", { class: "sg-row" }, [
+        numIn(dash.all, function (v) { dash.all = v; }, "1000"),
+        btn(t("sg_dash_give_all_btn"), function () {
+          var n = amountOf(dash.all);
+          if (!n) return;
+          var rows = room.ledger().filter(function (r) { return r.online; });
+          Promise.all(rows.map(function (r) { return room.addCoins(r.pid, n, true); })).then(dashDone(t("sg_dash_msg_give_all", { n: (n > 0 ? "+" : "") + money(n), k: rows.length })));
+        }, "sg-btn sg-primary")
+      ]),
+      el("p", { class: "sg-small sg-muted" }, [t("sg_dash_give_note")])
+    ]));
+
+    var rows = room.ledger();
+    app.appendChild(panel(t("sg_dash_players", { n: rows.length }), [
+      el("table", { class: "sg-table sg-dash" }, [
+        el("thead", null, [el("tr", null, [t("sg_net_players"), t("sg_chips"), t("sg_dash_amount"), ""].map(function (h) { return el("th", null, [h]); }))]),
+        el("tbody", null, rows.map(function (r) {
+          var inp = numIn(dash.per[r.pid] || "", function (v) { dash.per[r.pid] = v; });
+          function act(fn, msg) { return function () { var n = amountOf(inp.value); if (isNaN(n) || inp.value === "") return; dash.per[r.pid] = ""; fn(n).then(dashDone(msg(n))); }; }
+          var nm = (r.name || t("sg_net_noname")) + (r.pid === room.pid ? t("sg_net_you") : "");
+          return el("tr", { class: r.online ? "" : "sg-off" }, [
+            el("td", null, [el("span", { class: r.online ? "sg-good" : "sg-muted" }, [r.online ? "● " : "○ "]), nm]),
+            el("td", { class: "sg-odds" }, [money(r.coins)]),
+            el("td", null, [inp]),
+            el("td", { class: "sg-dash-acts" }, [
+              btn(t("sg_dash_give"), act(function (n) { return room.addCoins(r.pid, n, true); }, function (n) { return t("sg_dash_msg_give", { name: nm, n: (n > 0 ? "+" : "") + money(n) }); }), "sg-btn sg-primary"),
+              btn(t("sg_dash_set"), act(function (n) { return room.setCoins(r.pid, n); }, function (n) { return t("sg_dash_msg_set", { name: nm, n: money(Math.max(0, n)) }); }), "sg-btn"),
+              btn(t("sg_dash_reset"), function () { room.setCoins(r.pid, cfg.start).then(dashDone(t("sg_dash_msg_set", { name: nm, n: money(cfg.start) }))); }, "sg-link")
+            ])
+          ]);
+        }))
+      ]),
+      el("p", { class: "sg-small sg-muted" }, [t("sg_dash_row_note")])
+    ]));
+    app.appendChild(el("div", { class: "sg-actions sg-next" }, [btn(t("sg_dash_back"), function () { go("lobby"); }, "sg-btn")]));
   }
   function screenLobby() {
     var room = ui.room;
@@ -798,6 +989,7 @@
     // 非房主：賽事等級與地圖設定跟著房主
     if (!host && room.cfg) {
       if (room.cfg.cls) ui.cls = room.cfg.cls;
+      ui.pool = room.cfg.pool !== false;
       ui.map = { terrain: room.cfg.terrain || "", weather: room.cfg.weather || "", dist: room.cfg.dist || "" };
     }
     var qr = el("canvas", { class: "sg-qr" });
@@ -811,6 +1003,7 @@
           el("input", { class: "sg-input sg-url", readonly: true, value: url, onclick: function (e) { e.target.select(); } }),
           el("div", { class: "sg-actions" }, [
             btn(t("sg_net_copy"), function () { try { navigator.clipboard.writeText(url); ui.msg = t("sg_net_copied"); } catch (e) { ui.msg = ""; } rerenderKeep(); }),
+            btn("🔧 " + t("sg_dash_open"), openDash, "sg-btn"),
             btn(t("sg_net_leave"), leaveRoom, "sg-link")
           ]),
           ui.msg ? el("p", { class: "sg-small sg-good" }, [ui.msg]) : null
@@ -820,12 +1013,14 @@
     app.appendChild(panel(t("sg_net_me"), [
       el("div", { class: "sg-row" }, [el("label", null, [t("sg_net_name") + " ", nameIn])]),
       el("div", { class: "sg-row" }, [el("label", null, [t("sg_entry") + " ", entryPicker(syncEntry)])]),
+      dogStylePicker(ui.entryDog, syncEntry),
       el("p", { class: "sg-small sg-muted" }, [t("sg_net_entry_note")])
     ]));
     var list = room.list();
     app.appendChild(panel(t("sg_net_players") + "（" + list.length + "）", [
       el("ul", { class: "sg-plist" }, list.map(function (p) {
-        return el("li", null, [(p.cid === room.meta.host ? "👑 " : "") + (p.name || t("sg_net_noname")) + (p.cid === room.cid ? t("sg_net_you") : ""), " — ",
+        return el("li", null, [(p.cid === room.meta.host ? "👑 " : "") + (p.name || t("sg_net_noname")) + (p.cid === room.cid ? t("sg_net_you") : ""), " ",
+          p.pid ? el("b", { class: "sg-pchips" }, [money(room.coinsOf(p.pid))]) : null, " — ",
           p.entry ? p.entry.name + "（" + L((D.BREED_BY_ID[p.entry.breed] || D.BREEDS[0]).name) + "）" : el("span", { class: "sg-muted" }, [t("sg_net_watch")])]);
       })),
       el("p", { class: "sg-small sg-muted" }, [t("sg_net_cpu_fill", { n: D.FIELD })])
@@ -834,6 +1029,11 @@
     app.appendChild(panel(t("sg_class"), [
       classPicker(function () { if (host) room.setCfg(netCfg()); render(); }, !host),
       mapPicker(function () { if (host) room.setCfg(netCfg()); rerenderKeep(); }, !host),
+      el("h3", null, [t("sg_odds_mode")]),
+      el("div", { class: "sg-seg" }, [[true, "sg_odds_pool"], [false, "sg_odds_fixed"]].map(function (o) {
+        return btn(t(o[1]), function () { ui.pool = o[0]; setPref({ pool: o[0] }); room.setCfg(netCfg()); rerenderKeep(); }, "sg-seg-btn" + (ui.pool === o[0] ? " sg-on" : ""), { disabled: !host });
+      })),
+      el("p", { class: "sg-small sg-muted" }, [t("sg_odds_mode_note")]),
       host ? el("div", { class: "sg-actions" }, [
         btn(t("sg_net_publish"), publishCard, "sg-btn sg-primary sg-big"),
         st === "card" && ui.card ? btn(t("sg_net_back_card"), function () { go("card"); }, "sg-btn") : null
@@ -855,12 +1055,12 @@
   var SCREENS = {
     home: function () { screenHome(); app.appendChild(settingsPanel()); },
     zukan: screenZukan, kennel: screenKennel, record: screenRecord,
-    setup: screenSetup, card: screenCard, race: screenRace, result: screenResult, lobby: screenLobby
+    setup: screenSetup, card: screenCard, race: screenRace, result: screenResult, lobby: screenLobby, dash: screenDash
   };
 
   window.addEventListener("i18n:change", function () { if (ui.screen !== "race") render(); });
   // 測試／除錯用
-  window.PriTestSaigo = { ui: ui, go: go, startSolo: startSolo, startRace: startRace, enterRoom: enterRoom };
+  window.PriTestSaigo = { ui: ui, go: go, startSolo: startSolo, startRace: startRace, enterRoom: enterRoom, openDash: openDash };
 
   render();
   (function () { var id = Net ? Net.roomFromUrl(location.search) : null; if (id) enterRoom(id); })();
