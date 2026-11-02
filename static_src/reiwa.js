@@ -262,6 +262,51 @@
     return el("div", {}, [grid, el("div", { class: "rw-muted rw-small", text: t("rw_node_troops_total", { n: Core.totalTroops(troops), max: maxTroops }) })]);
   }
 
+  // 城池建模：依石高層數疊天守、依築城等級畫城牆圈，駐軍前兩多的兵種插旗
+  var CASTLE_TIERS = [
+    { rectX: 35, rectY: 92, rectW: 50, rectH: 26, roof: "35,92 85,92 60,78" },
+    { rectX: 42, rectY: 70, rectW: 36, rectH: 22, roof: "42,70 78,70 60,56" },
+    { rectX: 47, rectY: 50, rectW: 26, rectH: 20, roof: "47,50 73,50 60,38" },
+    { rectX: 51, rectY: 32, rectW: 18, rectH: 18, roof: "51,32 69,32 60,22" },
+  ];
+  var CASTLE_WALLS = [
+    { x: 14, y: 96, w: 92, h: 22 },
+    { x: 8, y: 90, w: 104, h: 30 },
+    { x: 2, y: 84, w: 116, h: 38 },
+  ];
+
+  function castleSvg(node) {
+    var tiers = Math.max(1, Math.min(CASTLE_TIERS.length, Math.floor(node.kokudaka / 25)));
+    var wallLevel = Math.min(node.defenseLevel, CASTLE_WALLS.length);
+    var svg = svgEl("svg", { viewBox: "0 0 120 130", class: "rw-castle-svg" });
+    svg.appendChild(svgEl("rect", { x: 5, y: 118, width: 110, height: 4, class: "rw-castle-ground" }));
+    for (var w = 0; w < wallLevel; w++) {
+      var ring = CASTLE_WALLS[w];
+      svg.appendChild(svgEl("rect", { x: ring.x, y: ring.y, width: ring.w, height: ring.h, class: "rw-castle-wall" }));
+    }
+    for (var i = 0; i < tiers; i++) {
+      var tier = CASTLE_TIERS[i];
+      svg.appendChild(svgEl("rect", { x: tier.rectX, y: tier.rectY, width: tier.rectW, height: tier.rectH, class: "rw-castle-tier" }));
+      svg.appendChild(svgEl("polygon", { points: tier.roof, class: "rw-castle-roof" }));
+    }
+    var topTier = CASTLE_TIERS[tiers - 1];
+    var flagY = topTier.rectY - 14;
+    var topTypes = D.TROOP_ORDER.slice()
+      .sort(function (a, b) {
+        return (node.troops[b] || 0) - (node.troops[a] || 0);
+      })
+      .slice(0, 2)
+      .filter(function (tid) {
+        return (node.troops[tid] || 0) > 0;
+      });
+    topTypes.forEach(function (tid, idx) {
+      svg.appendChild(
+        svgEl("text", { x: 60 + (idx === 0 ? -14 : 14), y: flagY, class: "rw-castle-flag" }, [document.createTextNode(D.troopType(tid).icon)])
+      );
+    });
+    return svg;
+  }
+
   function nodePanel() {
     if (!ui.selected) {
       return el("div", { class: "rw-panel" }, [el("p", { class: "rw-muted", text: t("rw_node_pick_hint") })]);
@@ -274,12 +319,17 @@
 
     var box = el("div", { class: "rw-panel" }, [
       el("h3", { text: L(nodeDef.name) }),
-      el("div", {}, [
-        el("span", { class: "rw-faction-dot rw-dot-inline", style: "background:" + ownerDef.color }),
-        el("b", { text: L(ownerDef.name) }),
+      el("div", { class: "rw-castle-box" }, [
+        castleSvg(node),
+        el("div", {}, [
+          el("div", {}, [
+            el("span", { class: "rw-faction-dot rw-dot-inline", style: "background:" + ownerDef.color }),
+            el("b", { text: L(ownerDef.name) }),
+          ]),
+          el("div", { class: "rw-muted", text: t("rw_node_kokudaka", { n: node.kokudaka }) }),
+          el("div", { class: "rw-muted", text: t("rw_node_defense", { n: node.defenseLevel, max: Core.constants.DEFENSE_LEVEL_MAX }) }),
+        ]),
       ]),
-      el("div", { class: "rw-muted", text: t("rw_node_kokudaka", { n: node.kokudaka }) }),
-      el("div", { class: "rw-muted", text: t("rw_node_defense", { n: node.defenseLevel, max: Core.constants.DEFENSE_LEVEL_MAX }) }),
       el("h4", { text: t("rw_node_troops_title") }),
       troopGrid(node.troops, maxTroops),
     ]);
@@ -609,7 +659,7 @@
             var slots = editor.readSlots();
             var report = Core.playerInvade(state, { sourceNodeId: modal.sourceNodeId, targetNodeId: modal.targetNodeId, slots: slots, generalId: general.value || null });
             if (!report) return;
-            ui.modal = { type: "result", kind: "invade", report: report };
+            ui.modal = { type: "result", kind: "invade", report: report, step: 0 };
             persist();
             render();
           },
@@ -646,7 +696,7 @@
           onclick: function () {
             var slots = editor.readSlots();
             var report = Core.resolvePlayerDefense(state, slots, general.value || null);
-            ui.modal = { type: "result", kind: "defense", report: report };
+            ui.modal = { type: "result", kind: "defense", report: report, step: 0 };
             persist();
             render();
           },
@@ -655,36 +705,72 @@
     ]);
   }
 
+  // 兩邊兵種「模組」互相衝向中間：已翻開的牌顯示完整結果並播放衝撞動畫，未翻開的牌先蓋著
+  function clashCard(round, revealed, active) {
+    var atkType = round.attackerType ? D.troopType(round.attackerType) : null;
+    var defType = round.defenderType ? D.troopType(round.defenderType) : null;
+    var classes = "rw-clash-card" + (active ? " rw-clash-active" : "") + (revealed ? "" : " rw-clash-pending");
+    return el("div", { class: classes }, [
+      el("div", { class: "rw-clash-unit rw-atk" }, [
+        el("div", { class: "rw-clash-icon", text: revealed ? (atkType ? atkType.icon : "—") : "❓" }),
+        revealed ? el("div", { class: "rw-small", text: atkType ? L(atkType.name) : t("rw_battle_empty_slot") }) : null,
+        revealed ? el("div", { class: "rw-small" }, [document.createTextNode(String(round.attackerAmount)), round.attackerLoss ? el("span", { class: "rw-clash-loss", text: " -" + round.attackerLoss }) : null]) : null,
+      ]),
+      el("div", { class: "rw-clash-spark", text: "⚔️" }),
+      el("div", { class: "rw-clash-unit rw-def" }, [
+        el("div", { class: "rw-clash-icon", text: revealed ? (defType ? defType.icon : "—") : "❓" }),
+        revealed ? el("div", { class: "rw-small", text: defType ? L(defType.name) : t("rw_battle_empty_slot") }) : null,
+        revealed ? el("div", { class: "rw-small" }, [document.createTextNode(String(round.defenderAmount)), round.defenderLoss ? el("span", { class: "rw-clash-loss", text: " -" + round.defenderLoss }) : null]) : null,
+      ]),
+    ]);
+  }
+
   function renderResultModal(modal) {
     var report = modal.report;
-    var body = el("div", { class: "rw-modal" }, [
-      el("h3", { text: t("rw_battle_result_title") }),
+    var total = report.rounds.length;
+    var step = modal.step || 0;
+    var done = step >= total;
+
+    var row = el("div", { class: "rw-clash-row" });
+    report.rounds.forEach(function (r, idx) {
+      row.appendChild(clashCard(r, idx < step, idx === step - 1));
+    });
+
+    var body = el("div", { class: "rw-modal" }, [el("h3", { text: t("rw_battle_result_title") }), row]);
+
+    if (!done) {
+      body.appendChild(
+        el("div", { class: "rw-action-row" }, [
+          el("button", {
+            class: "rw-primary",
+            text: t("rw_battle_next_card"),
+            onclick: function () {
+              modal.step = step + 1;
+              render();
+            },
+          }),
+          el("button", {
+            class: "rw-link",
+            text: t("rw_battle_reveal_all"),
+            onclick: function () {
+              modal.step = total;
+              render();
+            },
+          }),
+        ])
+      );
+      return body;
+    }
+
+    body.appendChild(
       el("p", {
         class: report.captured ? "rw-good" : "rw-bad",
         text: report.captured
           ? t("rw_battle_result_captured", { defender: factionName(report.defenderFaction), node: nodeName(report.targetNodeId) })
           : t("rw_battle_result_repelled", { node: nodeName(report.targetNodeId) }),
-      }),
-      el("p", { class: "rw-small", text: t("rw_battle_result_plunder", { gold: report.plunderGold }) }),
-      el("div", { class: "rw-muted rw-small", text: t("rw_battle_result_round_header") }),
-    ]);
-    report.rounds.forEach(function (r) {
-      body.appendChild(
-        el("div", { class: "rw-small" }, [
-          document.createTextNode(
-            t("rw_battle_result_round", {
-              n: r.slot + 1,
-              attackerType: r.attackerType ? troopName(r.attackerType) : t("rw_battle_empty_slot"),
-              attackerAmount: r.attackerAmount,
-              attackerLoss: r.attackerLoss,
-              defenderType: r.defenderType ? troopName(r.defenderType) : t("rw_battle_empty_slot"),
-              defenderAmount: r.defenderAmount,
-              defenderLoss: r.defenderLoss,
-            })
-          ),
-        ])
-      );
-    });
+      })
+    );
+    body.appendChild(el("p", { class: "rw-small", text: t("rw_battle_result_plunder", { gold: report.plunderGold }) }));
     body.appendChild(
       el("div", { class: "rw-action-row" }, [
         el("button", {

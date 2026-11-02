@@ -98,3 +98,33 @@
 .rw-log { max-height: 16rem; overflow: auto; }
 .rw-log-item { padding: 0.15rem 0; font-size: 0.92em; border-bottom: 1px solid var(--rw-line); }
 .rw-log-item:last-child { border-bottom: 0; }
+
+/* 城池建模（內政面板）：依石高層數疊天守、依築城等級畫城牆圈 */
+.rw-castle-box { display: flex; align-items: flex-end; gap: 0.8rem; margin: 0.4rem 0 0.6rem; }
+.rw-castle-svg { width: 7.5rem; height: 8rem; flex: none; }
+.rw-castle-wall { fill: none; stroke: var(--rw-line); stroke-width: 1.4; stroke-dasharray: 3 2; }
+.rw-castle-ground { fill: var(--rw-line); opacity: 0.5; }
+.rw-castle-tier { fill: var(--rw-chip); stroke: rgba(0, 0, 0, 0.45); stroke-width: 1; }
+.rw-castle-roof { fill: var(--rw-accent); stroke: rgba(0, 0, 0, 0.45); stroke-width: 1; }
+.rw-castle-flag { font-size: 10px; text-anchor: middle; }
+@media (prefers-color-scheme: dark) {
+  .rw-castle-tier { stroke: rgba(255, 255, 255, 0.5); }
+  .rw-castle-roof { stroke: rgba(255, 255, 255, 0.5); }
+}
+
+/* 伐掠翻牌對戰：兩個兵種「模組」互相衝向中間 */
+.rw-clash-row { display: flex; flex-wrap: wrap; gap: 0.6rem; margin: 0.8rem 0; }
+.rw-clash-card { position: relative; flex: 1 1 8rem; min-width: 7rem; display: flex; align-items: center; justify-content: space-between; gap: 0.3rem; padding: 0.5rem 0.4rem; border: 1px solid var(--rw-line); border-radius: 8px; background: var(--rw-chip); overflow: hidden; }
+.rw-clash-card.rw-clash-pending { opacity: 0.55; }
+.rw-clash-unit { display: flex; flex-direction: column; align-items: center; gap: 0.1rem; flex: 1; min-width: 0; }
+.rw-clash-icon { font-size: 1.6em; line-height: 1; }
+.rw-clash-spark { font-size: 1.1em; flex: none; opacity: 0.6; }
+.rw-clash-card.rw-clash-active .rw-clash-spark { animation: rw-flash 0.6s ease; opacity: 1; }
+.rw-clash-card.rw-clash-active .rw-clash-unit.rw-atk .rw-clash-icon { animation: rw-lunge-atk 0.5s ease; }
+.rw-clash-card.rw-clash-active .rw-clash-unit.rw-def .rw-clash-icon { animation: rw-lunge-def 0.5s ease; }
+.rw-clash-card.rw-clash-active { animation: rw-shake 0.35s ease 0.35s; }
+.rw-clash-loss { color: var(--rw-bad); font-weight: bold; }
+@keyframes rw-lunge-atk { 0% { transform: translateX(0); } 45% { transform: translateX(10px) scale(1.2); } 100% { transform: translateX(0); } }
+@keyframes rw-lunge-def { 0% { transform: translateX(0); } 45% { transform: translateX(-10px) scale(1.2); } 100% { transform: translateX(0); } }
+@keyframes rw-flash { 0% { opacity: 0.3; } 45% { opacity: 1; transform: scale(1.4); } 100% { opacity: 0.6; transform: scale(1); } }
+@keyframes rw-shake { 0%, 100% { transform: translateX(0); } 25% { transform: translateX(-3px); } 50% { transform: translateX(3px); } 75% { transform: translateX(-2px); } }
