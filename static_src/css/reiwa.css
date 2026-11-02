@@ -371,3 +371,45 @@
 .rw-modal-event { position: relative; max-width: 30rem; border-top: 6px solid var(--rw-accent); }
 .rw-event-seal { position: absolute; top: 0.8rem; right: 1rem; width: 2.4rem; height: 2.4rem; display: grid; place-items: center; border: 2px solid var(--rw-accent); color: var(--rw-accent); border-radius: 6px; font-weight: bold; font-size: 1.2em; transform: rotate(8deg); opacity: 0.85; }
 .rw-rules-hint { margin-top: 0.5rem; }
+.rw-matchup-table { display: flex; flex-direction: column; gap: 0.35rem; margin-top: 0.5rem; }
+.rw-matchup-row { display: grid; grid-template-columns: 6rem 1fr 1fr; gap: 0.2rem 0.6rem; align-items: baseline; padding-bottom: 0.3rem; border-bottom: 1px dashed var(--rw-line); }
+.rw-matchup-row > .rw-small { grid-column: 2 / -1; }
+.rw-matchup-row .rw-good, .rw-matchup-row .rw-bad { font-weight: normal; }
+@media (max-width: 520px) { .rw-matchup-row { grid-template-columns: 1fr; } .rw-matchup-row > .rw-small { grid-column: auto; } }
+
+/* ===================== 3D 合戰（reiwa_battle3d.js） ===================== */
+.rw-modal-b3d { max-width: 60rem; }
+.rw-b3d { position: relative; width: 100%; aspect-ratio: 16 / 9; border-radius: 10px; overflow: hidden; background: #1b2430; box-shadow: 0 8px 26px rgba(0, 0, 0, 0.4); }
+.rw-b3d-canvas, .rw-b3d-canvas canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; cursor: grab; }
+.rw-b3d-canvas canvas:active { cursor: grabbing; }
+.rw-b3d-loading { display: grid; place-items: center; }
+.rw-b3d-loading-text { color: #f2dfb4; letter-spacing: 2px; animation: rw-b3d-blink 1s ease-in-out infinite alternate; }
+@keyframes rw-b3d-blink { from { opacity: 0.4; } to { opacity: 1; } }
+.rw-b3d-hud { position: absolute; inset: 0; pointer-events: none; font-family: "Yu Mincho", "Hiragino Mincho ProN", "Noto Serif JP", "Noto Serif TC", serif; }
+.rw-b3d-plate { position: absolute; top: 0.6rem; display: flex; align-items: center; gap: 0.45rem; max-width: 46%; padding: 0.35rem 0.7rem; border-radius: 6px; background: rgba(16, 12, 10, 0.62); color: #fff; font-size: 0.85em; }
+.rw-b3d-plate i { width: 0.35rem; align-self: stretch; border-radius: 2px; flex: none; }
+.rw-b3d-plate b { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rw-b3d-plate span { color: #f2dfb4; white-space: nowrap; }
+.rw-b3d-plate-atk { left: 0.6rem; }
+.rw-b3d-plate-def { right: 0.6rem; flex-direction: row-reverse; text-align: right; }
+.rw-b3d-hint { position: absolute; top: 3.1rem; left: 50%; transform: translateX(-50%); font-size: 0.72em; color: rgba(255, 255, 255, 0.8); text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8); white-space: nowrap; }
+.rw-b3d-phase { position: absolute; bottom: 0.8rem; left: 50%; transform: translateX(-50%); padding: 0.3rem 1.2rem; border-radius: 999px; background: rgba(16, 12, 10, 0.6); color: #fff; font-size: 1.15em; font-weight: bold; letter-spacing: 3px; white-space: nowrap; }
+.rw-b3d-phase-pop { animation: rw-b3d-pop 0.45s cubic-bezier(0.2, 1.4, 0.4, 1); }
+.rw-b3d-win { background: rgba(178, 40, 30, 0.85); font-size: 1.6em; }
+.rw-b3d-lose { background: rgba(70, 80, 95, 0.85); font-size: 1.6em; }
+@keyframes rw-b3d-pop { from { transform: translateX(-50%) scale(1.6); opacity: 0; } to { transform: translateX(-50%) scale(1); opacity: 1; } }
+.rw-b3d-controls { position: absolute; right: 0.6rem; bottom: 0.7rem; display: flex; gap: 0.3rem; pointer-events: auto; }
+.rw-b3d-btn { border: 1px solid rgba(255, 255, 255, 0.35); background: rgba(16, 12, 10, 0.55); color: #fff; border-radius: 6px; padding: 0.2rem 0.55rem; font: inherit; font-size: 0.85em; cursor: pointer; }
+.rw-b3d-btn.rw-b3d-on { background: rgba(178, 60, 47, 0.9); border-color: transparent; }
+.rw-b3d-result { margin-top: 0.4rem; animation: rw-flash-in 0.4s ease-out; }
+@media (max-width: 560px) {
+  .rw-b3d-plate { font-size: 0.66em; padding: 0.2rem 0.4rem; top: 0.35rem; max-width: 48%; }
+  .rw-b3d-plate-atk { left: 0.35rem; }
+  .rw-b3d-plate-def { right: 0.35rem; }
+  .rw-b3d-hint { display: none; }
+  /* 小螢幕：階段字幕移到上方、控制鈕縮小，避免與字幕重疊 */
+  .rw-b3d-phase { top: 2.1rem; bottom: auto; font-size: 0.85em; padding: 0.15rem 0.8rem; letter-spacing: 1px; }
+  .rw-b3d-win, .rw-b3d-lose { font-size: 1.1em; }
+  .rw-b3d-controls { right: 0.35rem; bottom: 0.35rem; gap: 0.2rem; }
+  .rw-b3d-btn { font-size: 0.7em; padding: 0.1rem 0.4rem; }
+}

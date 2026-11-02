@@ -8,7 +8,7 @@
 
   // ---------------- 常數 ----------------
 
-  var STATE_VERSION = 2;
+  var STATE_VERSION = 3; // v3：兵種由 8 種改為 6 種（2026-11-02）
   var SAVE_KEY = "pritest-reiwa-save";
 
   var TROOPS_PER_KOKU = 8;
@@ -18,7 +18,7 @@
   var DEFENSE_LEVEL_MAX = 3;
   var CAPITAL_DEFENSE_BONUS = 1; // 本城築城上限 +1
   var MOUNTAIN_DEFEND_MUL = 1.15; // 山城守方戰力
-  var COASTAL_TYPE_MUL = 1.2; // 沿海城池：水軍與弓兵（雙方）戰力
+  var COASTAL_TYPE_MUL = 1.2; // 沿海城池：弓兵（雙方）戰力（水軍兵種已移除）
   var RESERVE_POWER = 0.6; // 沒有上陣的城兵（預備隊）迎擊時的戰力比例
   var RETREAT_LOSS_RATIO = 1.4; // 開啟「劣勢撤退」時，打完 2 陣以上且己方累計損耗 > 對方 ×1.4 就撤退
   var PLUNDER_RATE = 0.5;
@@ -396,12 +396,39 @@
     return state;
   }
 
-  // v1 存檔（第一版）→ v2：補上新欄位，同盟轉成有期限的盟約
+  // 舊版 8 兵種 → 6 兵種：槍兵與具足兵併入足輕、水軍併入弓兵、忍兵即忍者
+  var LEGACY_TYPE_MAP = { spear: "ashigaru", ashigaru: "ashigaru", navy: "archer", archer: "archer", ninja: "ninja", cavalry: "cavalry", naginata: "naginata", gun: "gun" };
+
+  function convertLegacyTroops(old) {
+    var out = emptyTroops();
+    Object.keys(old || {}).forEach(function (k) {
+      var to = LEGACY_TYPE_MAP[k];
+      if (to) out[to] += old[k] || 0;
+    });
+    return out;
+  }
+
+  function migrateV2toV3(state) {
+    Object.keys(state.nodes).forEach(function (id) {
+      state.nodes[id].troops = convertLegacyTroops(state.nodes[id].troops);
+    });
+    if (state._pendingAiAttack) {
+      state._pendingAiAttack.slots = state._pendingAiAttack.slots.map(function (sl) {
+        return { type: sl.type ? LEGACY_TYPE_MAP[sl.type] || null : null, amount: sl.amount, tactic: sl.tactic };
+      });
+    }
+    state.intel = {};
+    state.version = 3;
+    return state;
+  }
+
+  // 存檔遷移：v1（第一版）→ v2（補新系統欄位，同盟轉成有期限的盟約）→ v3（6 兵種）
   function migrate(state) {
     if (!state || typeof state !== "object") return null;
     if (state.version === STATE_VERSION) return state;
+    if (state.version === 2) return migrateV2toV3(state);
     if (state.version !== 1) return null;
-    state.version = STATE_VERSION;
+    state.version = 2;
     state.scenario = "s1585";
     state.difficulty = "normal";
     state.victoryMode = "conquest";
@@ -440,7 +467,7 @@
     state.turnReport = null;
     state._ai = null;
     state._pendingAiAttack = null;
-    return state;
+    return migrateV2toV3(state);
   }
 
   // ---------------- 查詢 ----------------
@@ -579,7 +606,7 @@
   }
 
   function terrainTypeMul(profile, type) {
-    return profile === "coastal" && (type === "navy" || type === "archer") ? COASTAL_TYPE_MUL : 1;
+    return profile === "coastal" && type === "archer" ? COASTAL_TYPE_MUL : 1;
   }
 
   function traitPowerMul(factionId, type, role, roundIdx, profile) {
@@ -1547,10 +1574,13 @@
       threatDominant = dominantType(nb.troops);
     });
     if (threatDominant) {
-      var counter = D.TROOP_ORDER.filter(function (tid) {
-        return D.troopType(tid).beats === threatDominant;
-      })[0];
-      if (counter) return counter;
+      var counters = D.countersOf(threatDominant);
+      if (counters.length) {
+        // 兩種剋星中挑本城較少的那種補齊
+        return counters.slice().sort(function (a, b) {
+          return (node.troops[a] || 0) - (node.troops[b] || 0);
+        })[0];
+      }
     }
     return D.TROOP_ORDER.slice().sort(function (a, b) {
       return (node.troops[a] || 0) - (node.troops[b] || 0);

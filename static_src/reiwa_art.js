@@ -1091,12 +1091,6 @@
   }
 
   var FIGURES = {
-    spear: function () {
-      return (
-        sashimono() + legs() + torso() + head() + jingasa() + arm(1, -14.5, 5.5, -13) +
-        '<path d="M-6,-6 L16,-21.5" stroke="' + WOOD + '" stroke-width="0.95"/><path d="M15.6,-21.2 L19.6,-24 L16.8,-20.2Z" fill="' + METAL + '"/>'
-      );
-    },
     naginata: function () {
       return (
         sashimono() + legs() + torso() + head() + kabuto() + arm(1, -14.5, 5, -12.5) +
@@ -1120,11 +1114,8 @@
     },
     ashigaru: function () {
       return (
-        sashimono() + legs() + torso(true) + head() + kabuto() +
-        '<rect x="3.4" y="-19.4" width="4.8" height="18.8" fill="#8b6a40" stroke="#4a3620" stroke-width="0.5"/>' +
-        '<path d="M3.4,-13 L8.2,-13 M3.4,-6.6 L8.2,-6.6" stroke="#4a3620" stroke-width="0.6"/>' +
-        '<circle cx="5.8" cy="-16.2" r="1.3" fill="var(--rw-fc)"/>' +
-        '<path d="M-2,-12 L-6,-22" stroke="' + METAL + '" stroke-width="0.8"/>'
+        sashimono() + legs() + torso() + head() + jingasa() + arm(1, -14.5, 5.5, -13) +
+        '<path d="M-6,-6 L16,-21.5" stroke="' + WOOD + '" stroke-width="0.95"/><path d="M15.6,-21.2 L19.6,-24 L16.8,-20.2Z" fill="' + METAL + '"/>'
       );
     },
     ninja: function () {
@@ -1151,16 +1142,6 @@
         arm(1, -18.4, 5, -17.4) + '<path d="M-4.6,-14.6 L15.4,-25.6" stroke="' + WOOD + '" stroke-width="0.9"/><path d="M15,-25.3 L18.8,-27.4 L16.2,-24.2Z" fill="' + METAL + '"/>'
       );
     },
-    navy: function () {
-      return (
-        '<path d="M-13.6,3.2 q2,-1.6 4,0 t4,0 t4,0 t4,0 t4,0 t4,0 t4,0" stroke="#9cc6e0" stroke-width="0.8" fill="none"/>' +
-        '<line x1="-9" y1="-3" x2="-9" y2="-17" stroke="#3b2d20" stroke-width="0.6"/><rect x="-14.4" y="-17" width="5.4" height="4.4" fill="var(--rw-fc)"/>' +
-        '<path d="M-2.7,-12.2 L2.7,-12.2 L3.1,-2.6 L-3.1,-2.6Z" fill="' + ARMOR + '"/>' + head(0.4, -14.3) + jingasa(4.4) +
-        arm(1.4, -10, 6, -6) + '<path d="M3.2,-11 L10.6,3.4" stroke="' + WOOD + '" stroke-width="0.95"/>' +
-        '<path d="M-11.4,-3.2 L12.6,-3.2 Q10.6,1.6 6.2,2.2 L-8,2.2 Q-10.6,1 -11.4,-3.2Z" fill="#6b4a2e" stroke="#3d2a18" stroke-width="0.4"/>' +
-        '<path d="M-10.8,-2 L12,-2" stroke="var(--rw-fc)" stroke-width="1"/>'
-      );
-    },
   };
 
   var RANGED = { archer: true, gun: true };
@@ -1178,7 +1159,7 @@
   // 一個兵種部隊（5 人陣形）；side：atk 面向右、def 鏡像面向左
   function squadMarkup(type, side, color, fallenCount, frontX, baseY, opts) {
     opts = opts || {};
-    var spread = type === "cavalry" || type === "navy" ? 1.45 : 1;
+    var spread = type === "cavalry" ? 1.45 : 1;
     var sign = side === "atk" ? 1 : -1;
     var scl = opts.scale || 1.32;
     var members = FORMATION.map(function (p, idx) {
@@ -1326,7 +1307,7 @@
     } else if (phase === "round") {
       var r = opts.round;
       var aT = r.attackerType;
-      // 預備隊應戰：守方這格沒排兵，以城兵（具足兵造型）出城迎擊
+      // 預備隊應戰：守方這格沒排兵，以城兵（足輕造型）出城迎擊
       var dT = r.defenderType || (r.reserve ? "ashigaru" : null);
       if (aT) s.push(squadMarkup(aT, "atk", opts.attackerColor, fallenOf(r.attackerAmount, r.attackerLoss), 186, groundY, { animate: true }));
       if (dT) s.push(squadMarkup(dT, "def", opts.defenderColor, fallenOf(r.defenderAmount, r.defenderLoss), 214, groundY, { animate: true }));

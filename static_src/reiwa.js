@@ -1039,9 +1039,10 @@
           class: "rw-primary",
           text: t("rw_battle_confirm"),
           onclick: function () {
+            var defLevel = tgtNode.defenseLevel;
             var report = Core.playerInvade(state, { sourceNodeId: modal.sourceNodeId, targetNodeId: modal.targetNodeId, slots: editor.readSlots(), generalId: general.value || null, retreat: retreatBox.checked });
             if (!report) return;
-            ui.modal = { type: "result", kind: "invade", report: report, step: 0 };
+            ui.modal = { type: "result", kind: "invade", report: report, step: 0, defenseLevel: defLevel };
             persist();
             render();
           },
@@ -1088,13 +1089,14 @@
           class: "rw-primary",
           text: t("rw_battle_confirm"),
           onclick: function () {
+            var defLevel = tgtNode.defenseLevel;
             var report = Core.resolvePlayerDefense(state, editor.readSlots(), general.value || null);
             if (!report) {
               ui.modal = null;
               handleAiStep(Core.continueAiPhase(state));
               return;
             }
-            ui.modal = { type: "result", kind: "defense", report: report, step: 0 };
+            ui.modal = { type: "result", kind: "defense", report: report, step: 0, defenseLevel: defLevel };
             persist();
             render();
           },
@@ -1223,12 +1225,119 @@
     });
   }
 
+  // 戰果明細（3D 與 2D 演出共用）：勝敗、掠奪、守方撤退、武將下場、關閉
+  function resultDetails(modal) {
+    var report = modal.report;
+    var playerWon = (report.attackerFaction === state.playerFaction) === !!report.captured;
+    var outcome = report.retreated
+      ? t("rw_battle_result_retreated", { node: nodeName(report.targetNodeId) })
+      : report.captured
+        ? t("rw_battle_result_captured", { defender: factionName(report.defenderFaction), node: nodeName(report.targetNodeId) })
+        : t("rw_battle_result_repelled", { node: nodeName(report.targetNodeId) });
+    var box = el("div", { class: "rw-result-details" }, [
+      el("p", { class: playerWon ? "rw-good" : "rw-bad", text: outcome }),
+      el("p", { class: "rw-small", text: t("rw_battle_result_plunder", { gold: report.plunderGold }) }),
+    ]);
+    if (report.defenderRetreatNodeId) box.appendChild(el("p", { class: "rw-small", text: t("rw_battle_result_defender_retreat", { n: report.defenderRetreatAmount, node: nodeName(report.defenderRetreatNodeId) }) }));
+    report.generalFates.forEach(function (gf) {
+      box.appendChild(el("p", { class: "rw-small rw-warn", text: t(gf.fate === "dead" ? "rw_battle_general_dead" : "rw_battle_general_captured", { name: generalName(gf.generalId), faction: gf.captor ? factionName(gf.captor) : "" }) }));
+    });
+    box.appendChild(
+      el("div", { class: "rw-action-row" }, [
+        el("button", {
+          class: "rw-primary",
+          text: t("rw_battle_result_close"),
+          onclick: function () {
+            if (modal.kind === "defense") {
+              ui.modal = null;
+              handleAiStep(Core.continueAiPhase(state));
+            } else {
+              ui.modal = state.gameOver ? { type: "gameover" } : state.pendingEvents.length ? { type: "event" } : null;
+              after();
+            }
+          },
+        }),
+      ])
+    );
+    return box;
+  }
+
+  function clashRow(report, revealedCount, activeIdx) {
+    var row = el("div", { class: "rw-clash-row" });
+    report.rounds.forEach(function (r, idx) {
+      row.appendChild(clashCard(r, idx < revealedCount, idx === activeIdx));
+    });
+    return row;
+  }
+
+  // 3D 合戰（使用者指定 2026-11-02）：5 路部隊同時開戰，演出結束才顯示 5 路戰果與明細；
+  // 演出中重畫（例如切換語言）時，已看完的戰鬥直接顯示終局畫面
   function renderResultModal(modal) {
+    var B3 = window.PriTestReiwaBattle3D;
+    if (!B3 || modal.use2d || !B3.supported()) return renderResultModalSvg(modal);
+    var report = modal.report;
+    var tgtDef = D.nodeById(report.targetNodeId);
+    var stage = el("div", { class: "rw-b3d rw-b3d-loading" }, [el("div", { class: "rw-b3d-loading-text", text: t("rw_b3d_loading") })]);
+    var resultBox = el("div", { class: "rw-b3d-result" });
+    var body = el("div", { class: "rw-modal rw-modal-battle rw-modal-b3d" }, [el("h3", { text: t("rw_battle_result_title") }), stage, resultBox]);
+    function showResult() {
+      if (resultBox.childNodes.length) return;
+      resultBox.appendChild(clashRow(report, report.rounds.length, -1));
+      resultBox.appendChild(resultDetails(modal));
+    }
+    if (modal.done) showResult();
+    B3.load()
+      .then(function () {
+        if (!stage.isConnected) return;
+        stage.classList.remove("rw-b3d-loading");
+        B3.play(stage, {
+          report: report,
+          attackerColor: factionColor(report.attackerFaction),
+          defenderColor: factionColor(report.defenderFaction),
+          attackerName: factionName(report.attackerFaction) + (report.attackerGeneralId ? "・" + generalName(report.attackerGeneralId) : ""),
+          defenderName: factionName(report.defenderFaction) + (report.defenderGeneralId ? "・" + generalName(report.defenderGeneralId) : "") + "（" + nodeName(report.targetNodeId) + "）",
+          profile: tgtDef.profile,
+          season: Core.seasonOf(state),
+          defenseLevel: modal.defenseLevel !== undefined ? modal.defenseLevel : state.nodes[report.targetNodeId].defenseLevel,
+          playerWon: (report.attackerFaction === state.playerFaction) === !!report.captured,
+          typeIcon: troopIcon,
+          typeName: troopName,
+          startAtEnd: !!modal.done,
+          labels: {
+            troops: t("rw_battle_troops"),
+            advantage: t("rw_battle_advantage"),
+            reserve: t("rw_battle_reserve"),
+            stampCaptured: t("rw_battle_stamp_captured"),
+            stampRepelled: t("rw_battle_stamp_repelled"),
+            stampRetreat: t("rw_battle_stamp_retreat"),
+            phaseDeploy: t("rw_b3d_phase_deploy"),
+            phaseVolley: t("rw_b3d_phase_volley"),
+            phaseCharge: t("rw_b3d_phase_charge"),
+            phaseMelee: t("rw_b3d_phase_melee"),
+            skip: t("rw_b3d_skip"),
+            replay: t("rw_b3d_replay"),
+            drag: t("rw_b3d_drag"),
+          },
+          onDone: function () {
+            modal.done = true;
+            showResult();
+          },
+        });
+      })
+      .catch(function () {
+        modal.use2d = true;
+        ui.flash = t("rw_b3d_fallback");
+        render();
+      });
+    return body;
+  }
+
+  // 2D 翻牌演出（不支援 WebGL 或 three.js 載入失敗時的備援）
+  function renderResultModalSvg(modal) {
     var report = modal.report;
     var total = report.rounds.length;
     var step = modal.step || 0;
     var done = step > total;
-    var playerWon = (report.attackerFaction === state.playerFaction) === !!report.captured;
 
     var row = el("div", { class: "rw-clash-row" });
     report.rounds.forEach(function (r, idx) {
@@ -1261,34 +1370,7 @@
       return body;
     }
 
-    var outcome = report.retreated
-      ? t("rw_battle_result_retreated", { node: nodeName(report.targetNodeId) })
-      : report.captured
-        ? t("rw_battle_result_captured", { defender: factionName(report.defenderFaction), node: nodeName(report.targetNodeId) })
-        : t("rw_battle_result_repelled", { node: nodeName(report.targetNodeId) });
-    body.appendChild(el("p", { class: playerWon ? "rw-good" : "rw-bad", text: outcome }));
-    body.appendChild(el("p", { class: "rw-small", text: t("rw_battle_result_plunder", { gold: report.plunderGold }) }));
-    if (report.defenderRetreatNodeId) body.appendChild(el("p", { class: "rw-small", text: t("rw_battle_result_defender_retreat", { n: report.defenderRetreatAmount, node: nodeName(report.defenderRetreatNodeId) }) }));
-    report.generalFates.forEach(function (gf) {
-      body.appendChild(el("p", { class: "rw-small rw-warn", text: t(gf.fate === "dead" ? "rw_battle_general_dead" : "rw_battle_general_captured", { name: generalName(gf.generalId), faction: gf.captor ? factionName(gf.captor) : "" }) }));
-    });
-    body.appendChild(
-      el("div", { class: "rw-action-row" }, [
-        el("button", {
-          class: "rw-primary",
-          text: t("rw_battle_result_close"),
-          onclick: function () {
-            if (modal.kind === "defense") {
-              ui.modal = null;
-              handleAiStep(Core.continueAiPhase(state));
-            } else {
-              ui.modal = state.gameOver ? { type: "gameover" } : state.pendingEvents.length ? { type: "event" } : null;
-              after();
-            }
-          },
-        }),
-      ])
-    );
+    body.appendChild(resultDetails(modal));
     return body;
   }
 
@@ -1424,11 +1506,25 @@
 
   function matchupPanel() {
     var details = el("details", { class: "rw-panel" }, [el("summary", { text: t("rw_matchup_title") })]);
+    var table = el("div", { class: "rw-matchup-table" });
     D.TROOP_ORDER.forEach(function (tid) {
       var tt = D.troopType(tid);
-      var beats = D.troopType(tt.beats);
-      details.appendChild(el("div", { class: "rw-small" }, [document.createTextNode(tt.icon + " " + t("rw_matchup_beats", { a: L(tt.name), b: L(beats.name) }) + " " + beats.icon)]));
+      var beats = tt.beats.map(function (b) {
+        return troopIcon(b) + troopName(b);
+      });
+      var beatenBy = D.countersOf(tid).map(function (b) {
+        return troopIcon(b) + troopName(b);
+      });
+      table.appendChild(
+        el("div", { class: "rw-matchup-row" }, [
+          el("b", { text: tt.icon + " " + L(tt.name) }),
+          el("span", { class: "rw-good", text: t("rw_matchup_beats_list", { list: beats.join("、") }) }),
+          el("span", { class: "rw-bad", text: t("rw_matchup_beaten_list", { list: beatenBy.join("、") }) }),
+          el("span", { class: "rw-muted rw-small", text: L(tt.note) }),
+        ])
+      );
     });
+    details.appendChild(table);
     details.appendChild(el("div", { class: "rw-small rw-muted rw-rules-hint", text: t("rw_rules_hint") }));
     return details;
   }

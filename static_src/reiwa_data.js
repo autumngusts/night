@@ -1,5 +1,5 @@
 // 令和之野望（reiwa）：靜態資料 —— 東北地方 30 座城池、8＋1 個勢力（含大名特色，上杉氏只在 1600 劇本登場）、16 位家臣＋8 位浪人武將、
-// 8 種兵種的循環相剋表、劇本與難度設定。規則說明見 docs/reiwa_game_design.md。
+// 6 種兵種的雙相剋表、劇本與難度設定。規則說明見 docs/reiwa_game_design.md。
 // 這是全新的獨立小遊戲，與 night/midnight 的 TRPG 規則無關；武將為「真實大名姓氏＋原創數值」的混合設定，
 // 地圖座標為示意用的簡化佈局，不是精確地理位置。
 (function () {
@@ -9,99 +9,58 @@
     return { ja: ja, zh: zh };
   }
 
-  // 8 種兵種，依「克制下一個、被上一個克制」排成一個環：
-  // 弓兵→水軍→忍兵→具足兵→槍兵→騎馬兵→薙刀兵→鐵砲兵→（回到弓兵）
-  var TROOP_ORDER = [
-    "archer",
-    "navy",
-    "ninja",
-    "ashigaru",
-    "spear",
-    "cavalry",
-    "naginata",
-    "gun",
-  ];
+  // 6 種兵種（使用者指定 2026-11-02：足輕、騎兵、鐵砲、弓兵、薙刀、忍者），「雙相剋」：
+  // 每種兵克制 2 種、被 2 種克制、與 1 種打平（beats 陣列）。
+  //   足輕 剋 騎兵、薙刀｜被 鐵砲、弓兵 剋｜與 忍者 平
+  //   騎兵 剋 鐵砲、弓兵｜被 足輕、忍者 剋｜與 薙刀 平
+  //   鐵砲 剋 足輕、薙刀｜被 騎兵、忍者 剋｜與 弓兵 平
+  //   弓兵 剋 足輕、忍者｜被 騎兵、薙刀 剋｜與 鐵砲 平
+  //   薙刀 剋 弓兵、忍者｜被 足輕、鐵砲 剋｜與 騎兵 平
+  //   忍者 剋 騎兵、鐵砲｜被 弓兵、薙刀 剋｜與 足輕 平
+  var TROOP_ORDER = ["ashigaru", "cavalry", "gun", "archer", "naginata", "ninja"];
 
   var TROOP_TYPES = {
-    archer: {
-      id: "archer",
-      icon: "🏹",
-      name: C("弓兵", "弓兵"),
-      beats: "navy",
-      note: C(
-        "岸辺から水軍の上陸を射すくめる",
-        "岸防弓矢壓制水軍登陸"
-      ),
-    },
-    navy: {
-      id: "navy",
-      icon: "⚓",
-      name: C("水軍", "水軍"),
-      beats: "ninja",
-      note: C(
-        "沿岸を巡回し忍兵の潜入路を断つ",
-        "沿岸巡邏切斷忍兵的潛入路線"
-      ),
-    },
-    ninja: {
-      id: "ninja",
-      icon: "🥷",
-      name: C("忍兵", "忍兵"),
-      beats: "ashigaru",
-      note: C(
-        "夜襲で具足兵の陣列を乱す",
-        "夜襲擾亂具足兵的陣列"
-      ),
-    },
     ashigaru: {
       id: "ashigaru",
-      icon: "🛡️",
-      name: C("具足兵", "具足兵"),
-      beats: "spear",
-      note: C(
-        "重い甲冑で突きに耐え槍兵へ肉薄する",
-        "重甲硬抗突刺、逼近槍兵肉搏"
-      ),
-    },
-    spear: {
-      id: "spear",
       icon: "🔱",
-      name: C("槍兵", "槍兵"),
-      beats: "cavalry",
-      note: C(
-        "長柄の陣で騎馬の突進を止める",
-        "長柄陣型遏止騎馬衝鋒"
-      ),
+      name: C("足軽", "足輕"),
+      beats: ["cavalry", "naginata"],
+      note: C("長槍の槍衾で騎馬の突撃を止め、間合いで薙刀を寄せつけない", "長槍槍衾擋下騎兵衝鋒，以長度壓制薙刀"),
     },
     cavalry: {
       id: "cavalry",
       icon: "🏇",
-      name: C("騎馬兵", "騎馬兵"),
-      beats: "naginata",
-      note: C(
-        "機動力で薙刀兵の側面に回り込む",
-        "機動迂迴，繞至薙刀兵轉身不及的側面"
-      ),
-    },
-    naginata: {
-      id: "naginata",
-      icon: "⚔️",
-      name: C("薙刀兵", "薙刀兵"),
-      beats: "gun",
-      note: C(
-        "接近戦で装填の隙を突いて鉄砲兵を斬る",
-        "近身戰砍殺來不及裝填的鐵砲兵"
-      ),
+      name: C("騎兵", "騎兵"),
+      beats: ["gun", "archer"],
+      note: C("装填・矢番えの隙に射撃隊へ突入する", "趁裝填、搭箭的空檔衝入射擊部隊"),
     },
     gun: {
       id: "gun",
       icon: "🔥",
-      name: C("鐵砲兵", "鐵砲兵"),
-      beats: "archer",
-      note: C(
-        "射程と威力で弓兵を圧倒する",
-        "射程與火力壓制弓兵"
-      ),
+      name: C("鉄砲", "鐵砲"),
+      beats: ["ashigaru", "naginata"],
+      note: C("密集した足軽と近づく薙刀を一斉射撃でなぎ倒す", "齊射掃倒密集的足輕與逼近的薙刀"),
+    },
+    archer: {
+      id: "archer",
+      icon: "🏹",
+      name: C("弓兵", "弓兵"),
+      beats: ["ashigaru", "ninja"],
+      note: C("曲射で足軽の陣を崩し、潜む忍びを射抜く", "拋射瓦解足輕陣列，射穿潛伏的忍者"),
+    },
+    naginata: {
+      id: "naginata",
+      icon: "⚔️",
+      name: C("薙刀", "薙刀"),
+      beats: ["archer", "ninja"],
+      note: C("接近戦で弓兵を斬り、身軽な忍びも薙ぎ払う", "近身砍殺弓兵，也能橫掃身手矯捷的忍者"),
+    },
+    ninja: {
+      id: "ninja",
+      icon: "🥷",
+      name: C("忍者", "忍者"),
+      beats: ["cavalry", "gun"],
+      note: C("夜襲で馬を放ち、火薬を湿らせる", "夜襲放走戰馬、弄濕火藥"),
     },
   };
 
@@ -128,7 +87,7 @@
       capital: "iw_morioka",
       generals: ["nanbu_harumasa", "nanbu_nobunao"],
       temperament: "balanced",
-      trait: { id: "famed_horses", name: C("名馬の郷", "名馬之鄉"), desc: C("騎馬兵の戦力×1.2、騎馬兵の徴募費用 -1", "騎馬兵戰力 ×1.2，徵募騎馬兵每名軍資 -1"), powerMul: { cavalry: 1.2 }, recruitDiscount: { cavalry: 1 } },
+      trait: { id: "famed_horses", name: C("名馬の郷", "名馬之鄉"), desc: C("騎兵の戦力×1.2、騎兵の徴募費用 -1", "騎兵戰力 ×1.2，徵募騎兵每名軍資 -1"), powerMul: { cavalry: 1.2 }, recruitDiscount: { cavalry: 1 } },
     },
     akita: {
       id: "akita",
@@ -155,7 +114,7 @@
       capital: "mi_sendai",
       generals: ["date_masamune", "date_katakura"],
       temperament: "aggressive",
-      trait: { id: "horse_guns", name: C("騎馬鉄砲", "騎馬鐵砲"), desc: C("鉄砲兵と騎馬兵の戦力×1.1", "鐵砲兵與騎馬兵戰力 ×1.1"), powerMul: { gun: 1.1, cavalry: 1.1 } },
+      trait: { id: "horse_guns", name: C("騎馬鉄砲", "騎馬鐵砲"), desc: C("鉄砲と騎兵の戦力×1.1", "鐵砲與騎兵戰力 ×1.1"), powerMul: { gun: 1.1, cavalry: 1.1 } },
     },
     kasai: {
       id: "kasai",
@@ -164,7 +123,7 @@
       capital: "mi_ishinomaki",
       generals: ["kasai_harunobu"],
       temperament: "cautious",
-      trait: { id: "river_transport", name: C("北上川水運", "北上川水運"), desc: C("水軍の戦力×1.25、秋の収穫×1.15", "水軍戰力 ×1.25，秋收兵糧 ×1.15"), powerMul: { navy: 1.25 }, harvestMul: 1.15 },
+      trait: { id: "river_transport", name: C("北上川水運", "北上川水運"), desc: C("弓兵の戦力×1.2、秋の収穫×1.15", "弓兵戰力 ×1.2，秋收兵糧 ×1.15"), powerMul: { archer: 1.2 }, harvestMul: 1.15 },
     },
     ashina: {
       id: "ashina",
@@ -182,7 +141,7 @@
       capital: "fu_soma",
       generals: ["soma_moritane"],
       temperament: "cautious",
-      trait: { id: "nomaoi", name: C("相馬野馬追", "相馬野馬追"), desc: C("騎馬兵の戦力×1.15、籠城時は全兵種×1.1", "騎馬兵戰力 ×1.15，守城時全兵種 ×1.1"), powerMul: { cavalry: 1.15 }, defendMul: 1.1 },
+      trait: { id: "nomaoi", name: C("相馬野馬追", "相馬野馬追"), desc: C("騎兵の戦力×1.15、籠城時は全兵種×1.1", "騎兵戰力 ×1.15，守城時全兵種 ×1.1"), powerMul: { cavalry: 1.15 }, defendMul: 1.1 },
     },
   };
 
@@ -194,7 +153,7 @@
     capital: "fu_aizu",
     generals: ["uesugi_kagekatsu", "naoe_kanetsugu"],
     temperament: "aggressive",
-    trait: { id: "echigo_elite", name: C("越後の精兵", "越後精兵"), desc: C("槍兵・具足兵の戦力×1.15", "槍兵、具足兵戰力 ×1.15"), powerMul: { spear: 1.15, ashigaru: 1.15 } },
+    trait: { id: "echigo_elite", name: C("越後の精兵", "越後精兵"), desc: C("足軽の戦力×1.2", "足輕戰力 ×1.2"), powerMul: { ashigaru: 1.2 } },
   };
 
   var FACTION_ORDER = [
@@ -239,14 +198,14 @@
       faction: "nanbu",
       name: C("南部信直", "南部信直"),
       stats: { leadership: 6, valor: 6, strategy: 7, politics: 6 },
-      aptitude: "spear",
+      aptitude: "ashigaru",
     },
     akita_chikasue: {
       id: "akita_chikasue",
       faction: "akita",
       name: C("秋田愛季", "秋田愛季"),
       stats: { leadership: 8, valor: 6, strategy: 7, politics: 7 },
-      aptitude: "navy",
+      aptitude: "archer",
     },
     akita_sanesue: {
       id: "akita_sanesue",
@@ -281,14 +240,14 @@
       faction: "date",
       name: C("片倉景綱", "片倉景綱"),
       stats: { leadership: 7, valor: 6, strategy: 8, politics: 7 },
-      aptitude: "spear",
+      aptitude: "ashigaru",
     },
     kasai_harunobu: {
       id: "kasai_harunobu",
       faction: "kasai",
       name: C("葛西晴信", "葛西晴信"),
       stats: { leadership: 5, valor: 5, strategy: 5, politics: 6 },
-      aptitude: "navy",
+      aptitude: "archer",
     },
     ashina_moriuji: {
       id: "ashina_moriuji",
@@ -309,7 +268,7 @@
       faction: "uesugi",
       name: C("上杉景勝", "上杉景勝"),
       stats: { leadership: 8, valor: 7, strategy: 7, politics: 7 },
-      aptitude: "spear",
+      aptitude: "ashigaru",
     },
     naoe_kanetsugu: {
       id: "naoe_kanetsugu",
@@ -333,9 +292,9 @@
     osaki_yoshitaka: { id: "osaki_yoshitaka", faction: null, ronin: true, name: C("大崎義隆", "大崎義隆"), stats: { leadership: 5, valor: 4, strategy: 5, politics: 7 }, aptitude: "ashigaru" },
     tozawa_moriyasu: { id: "tozawa_moriyasu", faction: null, ronin: true, name: C("戸沢盛安", "戶澤盛安"), stats: { leadership: 7, valor: 9, strategy: 6, politics: 4 }, aptitude: "naginata" },
     onodera_yoshimichi: { id: "onodera_yoshimichi", faction: null, ronin: true, name: C("小野寺義道", "小野寺義道"), stats: { leadership: 5, valor: 6, strategy: 4, politics: 5 }, aptitude: "archer" },
-    daihoji_yoshiuji: { id: "daihoji_yoshiuji", faction: null, ronin: true, name: C("大宝寺義氏", "大寶寺義氏"), stats: { leadership: 6, valor: 7, strategy: 4, politics: 3 }, aptitude: "navy" },
+    daihoji_yoshiuji: { id: "daihoji_yoshiuji", faction: null, ronin: true, name: C("大宝寺義氏", "大寶寺義氏"), stats: { leadership: 6, valor: 7, strategy: 4, politics: 3 }, aptitude: "archer" },
     shirakawa_yoshichika: { id: "shirakawa_yoshichika", faction: null, ronin: true, name: C("白河義親", "白河義親"), stats: { leadership: 5, valor: 4, strategy: 7, politics: 6 }, aptitude: "ninja" },
-    waga_tadachika: { id: "waga_tadachika", faction: null, ronin: true, name: C("和賀忠親", "和賀忠親"), stats: { leadership: 5, valor: 6, strategy: 5, politics: 4 }, aptitude: "spear" },
+    waga_tadachika: { id: "waga_tadachika", faction: null, ronin: true, name: C("和賀忠親", "和賀忠親"), stats: { leadership: 5, valor: 6, strategy: 5, politics: 4 }, aptitude: "ashigaru" },
     iwaki_tsunetaka: { id: "iwaki_tsunetaka", faction: null, ronin: true, name: C("岩城常隆", "岩城常隆"), stats: { leadership: 6, valor: 6, strategy: 6, politics: 6 }, aptitude: "gun" },
   };
 
@@ -396,10 +355,10 @@
 
   // profile 影響初始兵力構成的比例權重（依 TROOP_ORDER 順序）；在 reiwa_core.js 依 kokudaka 換算成實際人數
   var PROFILE_WEIGHTS = {
-    capital: [1, 1, 1, 1, 1, 1, 1, 1],
-    coastal: [1.5, 3, 1, 1, 0.5, 0.5, 0.5, 1],
-    mountain: [1, 0.3, 2.5, 1, 0.5, 0.3, 1.5, 1],
-    plain: [0.8, 0.3, 0.5, 1.2, 1.5, 2, 1, 1.5],
+    capital: [1.5, 1, 1, 1, 1, 0.5],
+    coastal: [1.5, 0.5, 1, 2, 1, 0.8],
+    mountain: [1.2, 0.4, 0.8, 1, 1.5, 1.5],
+    plain: [1.6, 1.8, 1.2, 0.8, 0.8, 0.3],
   };
 
   var KOKUDAKA_BY_PROFILE = {
@@ -557,14 +516,21 @@
     return TROOP_TYPES[id] || null;
   }
 
-  // typeA 對 typeB 的相剋倍率（typeA 視角）：克制 1.5／被克制約 0.667／無關 1
+  // typeA 對 typeB 的相剋倍率（typeA 視角）：克制 1.5／被克制約 0.667／打平或未知兵種 1
   function matchupMultiplier(typeA, typeB) {
     if (typeA === typeB) return 1;
     var a = TROOP_TYPES[typeA];
-    if (a && a.beats === typeB) return 1.5;
+    if (a && a.beats.indexOf(typeB) !== -1) return 1.5;
     var b = TROOP_TYPES[typeB];
-    if (b && b.beats === typeA) return 1 / 1.5;
+    if (b && b.beats.indexOf(typeA) !== -1) return 1 / 1.5;
     return 1;
+  }
+
+  // 克制 typeId 的兵種（徵兵時用來找剋星）
+  function countersOf(typeId) {
+    return TROOP_ORDER.filter(function (t) {
+      return TROOP_TYPES[t].beats.indexOf(typeId) !== -1;
+    });
   }
 
   window.PriTestReiwaData = {
@@ -592,5 +558,6 @@
     generalsOfFaction: generalsOfFaction,
     troopType: troopType,
     matchupMultiplier: matchupMultiplier,
+    countersOf: countersOf,
   };
 })();
