@@ -344,8 +344,8 @@
     var signTex = canvasTex(512, 96, function (g, w, h) {
       g.fillStyle = "#3a4a6a"; g.fillRect(0, 0, w, h);
       g.fillStyle = "#f6e7b0"; g.textAlign = "center"; g.textBaseline = "middle";
-      g.font = "bold 46px 'Noto Serif TC','Noto Serif JP',serif"; g.fillText("私立星見學園大學", w / 2, 40);
-      g.font = "18px serif"; g.fillText("HOSHIMI GAKUEN UNIVERSITY", w / 2, 78);
+      g.font = "bold 46px 'Noto Serif TC','Noto Serif JP',serif"; g.fillText("私立音夣學園大學", w / 2, 40);
+      g.font = "18px serif"; g.fillText("OTOYUME GAKUEN UNIVERSITY", w / 2, 78);
     });
     [-5, 5].forEach(function (dx) { world.add(mesh(new T.BoxGeometry(1.4, 6, 1.4), mat(0xb8a890), dx, 3, gz)); world.add(mesh(new T.BoxGeometry(1.8, 0.5, 1.8), mat(0x8a7a6a), dx, 6.2, gz)); });
     var sign = new T.Mesh(track(new T.BoxGeometry(9, 1.6, 0.4)), [mat(0x3a4a6a), mat(0x3a4a6a), mat(0x3a4a6a), mat(0x3a4a6a), track(new T.MeshStandardMaterial({ map: signTex })), mat(0x3a4a6a)]);

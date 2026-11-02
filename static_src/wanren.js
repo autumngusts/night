@@ -40,7 +40,7 @@
   var GROUP_COLOR = { classmate: "#e76f9a", senior: "#8a6ad0", teacher: "#3f8fd0", parent: "#e0943a" };
 
   var S = null;   // 遊戲狀態
-  var ui = { screen: "title", loc: null, focus: null, topicFor: null, giftFor: null, msg: null, modal: null, shop: false, dateMoment: null, eveningPick: null, lengthId: "normal", name: "" };
+  var ui = { screen: "title", loc: null, focus: null, topicFor: null, giftFor: null, msg: null, modal: null, shop: false, dateMoment: null, eveningPick: null, lengthId: "full", name: "" };
   var view = null, view3dState = "none";   // none | loading | ready | fail
 
   // ---------------- 外框 ----------------
@@ -96,10 +96,10 @@
   // ---------------- 3D 同步 ----------------
   function sync3d() {
     if (!view) return;
-    var ph = !S || ui.screen === "title" ? "free" : S.phase === "report" ? "report" : S.phase === "night" ? "evening" : S.phase === "exam" ? "class" : S.phase;
+    var ph = !S || ui.screen === "title" ? "free" : S.phase === "report" || S.phase === "yearreport" ? "report" : S.phase === "night" ? "evening" : S.phase === "exam" ? "class" : S.phase;
     if (sync3d.ph !== ph) { view.setPhase(ph); sync3d.ph = ph; }
     var list = [];
-    if (S && S.phase !== "report" && S.today) {
+    if (S && S.today && S.phase !== "report" && S.phase !== "yearreport") {
       D.HEROINES.forEach(function (hd) {
         var loc = C.whereIs(S, hd.id);
         if (!loc) return;
@@ -119,11 +119,12 @@
     var left = el("div", { class: "wr-brand" }, [el("span", { class: "wr-logo" }, ["💘"]), el("h1", { class: "wr-title" }, [t("wr_title")])]);
     topEl.appendChild(left);
     if (!S || ui.screen === "title") return;
-    if (S.phase !== "report") {
-      var kind = S.today ? S.today.kind : "";
-      var badge = { midterm: t("wr_kind_midterm"), final: t("wr_kind_final"), festival: t("wr_kind_festival"), weekend: t("wr_kind_weekend") }[kind];
+    if (S.today) {
+      var kind = S.today.kind, sp = C.special(S);
+      var badge = sp ? sp.icon + " " + L(sp.name) : { midterm: t("wr_kind_midterm"), final: t("wr_kind_final"), weekend: t("wr_kind_weekend") }[kind];
       topEl.appendChild(el("div", { class: "wr-date" }, [
-        el("b", {}, [C.dateLabel(S.day)]), " ",
+        el("span", { class: "wr-term" }, [C.termName(S)]),
+        el("b", {}, [C.dateLabel(S, S.day)]), " ",
         el("span", { class: "wr-muted" }, [t("wr_day_of", { d: S.day + 1, n: S.length })]),
         badge ? el("span", { class: "wr-badge wr-badge-" + kind }, [badge]) : null,
         el("span", { class: "wr-phase" }, [t("wr_phase_" + S.phase)])
@@ -180,7 +181,7 @@
     var loc = S && S.phase === "free" && ui.loc ? D.LOC_BY_ID[ui.loc] : null;
     fallbackEl.className = "wr-fallback wr-sky-" + (!S ? "free" : S.phase);
     fallbackEl.appendChild(el("div", { class: "wr-fallback-icon" }, [loc ? loc.icon : "🏫"]));
-    fallbackEl.appendChild(el("div", { class: "wr-fallback-name" }, [loc ? L(loc.name) : "私立星見學園大學"]));
+    fallbackEl.appendChild(el("div", { class: "wr-fallback-name" }, [loc ? L(loc.name) : "私立音夣學園大學"]));
     if (view3dState === "fail") fallbackEl.appendChild(el("div", { class: "wr-small wr-muted" }, [t("wr_no3d")]));
   }
 
@@ -189,9 +190,10 @@
     renderTop();
     panelEl.innerHTML = "";
     if (ui.screen === "title" || !S) renderTitle();
-    else if (S.phase === "report") renderReport();
+    else if (S.phase === "report") renderReport(null);
+    else if (S.phase === "yearreport") renderReport(S.yearReport);
     else {
-      if (S.events.length && !ui.msg) renderEvent();
+      if (S.events.length && !ui.msg && S.today) renderEvent();
       else if (S.phase === "morning") renderMorning();
       else if (S.phase === "class") renderClass();
       else if (S.phase === "exam") renderExam();
@@ -213,7 +215,7 @@
     var nameIn = el("input", { class: "wr-input", type: "text", maxlength: "12", placeholder: t("wr_name_ph"), value: ui.name });
     nameIn.addEventListener("input", function () { ui.name = nameIn.value; });
     var lenSel = el("div", { class: "wr-seg" }, C.LENGTHS.map(function (l) {
-      return btn(L(l.name), function () { ui.lengthId = l.id; render(); }, "wr-seg-btn" + (ui.lengthId === l.id ? " on" : ""));
+      return btn(L(l.name) + "・" + t("wr_hours", { n: l.hours }), function () { ui.lengthId = l.id; render(); }, "wr-seg-btn" + (ui.lengthId === l.id ? " on" : ""));
     }));
     panelEl.appendChild(section(null, [
       el("p", { class: "wr-intro" }, [t("wr_intro")]),
@@ -228,7 +230,7 @@
           if (view) view.teleport("gate");
           render();
         }, "wr-btn wr-btn-main"),
-        saved ? btn("▶ " + t("wr_continue") + "（" + C.dateLabel(Math.min(saved.day, saved.length - 1)) + "・" + saved.name + "）", function () {
+        saved ? btn("▶ " + t("wr_continue") + "（" + C.termName(saved, Math.min(saved.day, saved.length - 1)) + " " + C.dateLabel(saved, Math.min(saved.day, saved.length - 1)) + "・" + saved.name + "）", function () {
           S = saved; ui.screen = "game"; ui.msg = null; if (view) view.teleport("gate"); render();
         }, "wr-btn") : null
       ])
@@ -281,6 +283,8 @@
 
   // ---------------- 早上 ----------------
   function renderMorning() {
+    var sp = C.special(S);
+    if (sp && sp.text) panelEl.appendChild(el("div", { class: "wr-special" }, [el("b", {}, [sp.icon + " " + L(sp.name)]), " ", sp.text]));
     if (S.summary && S.summary.lines.length && S.summary.day === S.day - 1) {
       panelEl.appendChild(section(t("wr_last_night"), [el("ul", { class: "wr-loglist" }, S.summary.lines.map(function (l) { return el("li", {}, [l]); }))], "wr-sec-sum"));
     }
@@ -418,7 +422,7 @@
     var row = el("div", { class: "wr-row" });
     row.appendChild(btn("💬 " + t("wr_talk") + ((S.today.talked[hid] || 0) ? " ×" + S.today.talked[hid] : ""), function () { ui.topicFor = ui.topicFor === hid ? null : hid; ui.giftFor = null; render(); }, "wr-btn wr-btn-sm" + (ui.topicFor === hid ? " on" : ""), { disabled: noAp }));
     row.appendChild(btn("🎁 " + t("wr_gift"), function () { ui.giftFor = ui.giftFor === hid ? null : hid; ui.topicFor = null; render(); }, "wr-btn wr-btn-sm" + (ui.giftFor === hid ? " on" : ""), { disabled: noAp || S.today.gifted[hid] }));
-    if (C.canInvite(S, hid)) row.appendChild(btn("💌 " + t(C.isWeekend(S.day) ? "wr_invite_day" : "wr_invite"), function () { act(function () { return C.invite(S, hid); }); }, "wr-btn wr-btn-sm", { disabled: noAp }));
+    if (C.canInvite(S, hid)) row.appendChild(btn("💌 " + t(C.isWeekend(S) ? "wr_invite_day" : "wr_invite"), function () { act(function () { return C.invite(S, hid); }); }, "wr-btn wr-btn-sm", { disabled: noAp }));
     else if (!S.today.date && !S.today.invited[hid] && h.aff < C.inviteMin(hid)) row.appendChild(el("span", { class: "wr-small wr-muted" }, [t("wr_invite_need", { n: C.inviteMin(hid) })]));
     var q = C.questOf(S, hid);
     if (q && q.req.type !== "loc" && !S.today.quests[hid]) {
@@ -496,10 +500,11 @@
       ]));
       return;
     }
-    if (td.kind === "festival" && !td.festDance) {
+    var spEv = C.specialEvening(S);
+    if (spEv) {
       var can = D.HEROINES.filter(function (hd) { return S.h[hd.id].met && S.h[hd.id].aff >= 40; });
-      panelEl.appendChild(section("🔥 " + t("wr_fest_title"), [
-        el("p", {}, [t("wr_fest_note")]),
+      panelEl.appendChild(section((C.special(S).icon || "🔥") + " " + spEv.title, [
+        el("p", {}, [spEv.note]),
         can.length ? el("div", { class: "wr-cast-row" }, can.map(function (hd) {
           return btn(el("span", { class: "wr-pickface" }, [face(hd, 40), L(hd.name)]), function () { act(function () { return C.festDance(S, hd.id); }); }, "wr-btn wr-btn-card");
         })) : el("p", { class: "wr-muted wr-small" }, [t("wr_fest_none")])
@@ -539,15 +544,16 @@
   }
 
   // ---------------- 報告 ----------------
-  function renderReport() {
-    var r = C.report(S);
+  // year＝null 是最後的總報告；數字是該學年的中間報告
+  function renderReport(year) {
+    var r = C.report(S, year);
     var head = el("div", { class: "wr-rep-head" }, [
       el("div", { class: "wr-rep-rank wr-rank-" + r.rank }, [r.rank]),
       el("div", {}, [el("div", { class: "wr-small wr-muted" }, [t("wr_rep_title_label")]), el("div", { class: "wr-rep-title" }, ["「" + r.title + "」"]), el("p", { class: "wr-small" }, [r.titleComment])])
     ]);
     var nums = el("div", { class: "wr-rep-nums" }, [
       num(t("wr_rep_grade"), r.letter, r.grade + " / 100"),
-      num(t("wr_rep_exam"), r.examAvg, r.exams.map(function (e) { return (e.kind === "final" ? t("wr_kind_final") : t("wr_kind_midterm")) + " " + e.score; }).join("・") || "—"),
+      num(t("wr_rep_exam"), r.examAvg, t("wr_rep_exam_n", { n: r.exams.length }) + (r.exams.length ? "・" + t("wr_rep_exam_best", { n: Math.max.apply(null, r.exams.map(function (e) { return e.score; })) }) : "")),
       num(t("wr_rep_att"), r.attRate + "%", ""),
       num(t("wr_rep_score"), r.score, t("wr_rep_rank") + " " + r.rank),
       num("💕 " + t("wr_rep_lovers"), r.lovers, t("wr_rep_met", { n: r.met })),
@@ -567,14 +573,16 @@
         ])
       ]));
     });
-    panelEl.appendChild(section("📋 " + t("wr_report_title", { name: r.name }), [
+    panelEl.appendChild(section("📋 " + (r.interim ? t("wr_year_report", { name: r.name, y: r.yearName }) : t("wr_report_title", { name: r.name })), [
       head, nums,
       el("div", { class: "wr-rep-comment" }, [el("h3", {}, ["👩‍🏫 " + t("wr_rep_teacher")]), el("p", {}, [r.teacher])]),
       el("div", { class: "wr-rep-comment" }, [el("h3", {}, ["💘 " + t("wr_rep_love")])].concat(r.love.map(function (l) { return el("p", {}, [l]); }))),
       el("div", { class: "wr-rep-comment wr-rep-sum" }, [el("h3", {}, ["📝 " + t("wr_rep_summary")]), el("p", {}, [r.summary])]),
       chart(),
       el("h3", {}, [t("wr_rep_each")]), rows,
-      el("div", { class: "wr-row" }, [btn("🔁 " + t("wr_again"), function () { C.clearSave(); S = null; ui.screen = "title"; render(); }, "wr-btn wr-btn-main")])
+      el("div", { class: "wr-row" }, [r.interim ?
+        btn("🌸 " + t("wr_next_year"), function () { C.nextYear(S); ui.msg = null; if (view) view.teleport("gate"); save(); render(); }, "wr-btn wr-btn-main") :
+        btn("🔁 " + t("wr_again"), function () { C.clearSave(); S = null; ui.screen = "title"; render(); }, "wr-btn wr-btn-main")])
     ], "wr-report"));
   }
   function num(label, big, sub) { return el("div", { class: "wr-num" }, [el("small", {}, [label]), el("b", {}, [String(big)]), sub ? el("span", { class: "wr-small wr-muted" }, [sub]) : null]); }
@@ -651,7 +659,8 @@
       h.met ? el("div", {}, [el("h3", {}, ["📜 " + t("wr_quest")]), el("ol", { class: "wr-qlist" }, hd.quests.map(function (q, i) {
         var st = i < h.quest ? "done" : i === h.quest ? (h.aff >= q.at ? "now" : "lock") : "lock";
         return el("li", { class: "wr-q-" + st }, [
-          st === "lock" ? t("wr_quest_lock", { n: q.at }) : el("span", {}, [el("b", {}, [q.title]), st === "done" ? " ✅" : "", el("br"), el("small", {}, [st === "now" ? q.desc + "（" + C.reqText(q.req) + "）" : q.done])])
+          st === "lock" ? t("wr_quest_lock", { n: q.at }) + (C.questLock(S, i) ? "・" + t("wr_quest_term", { t: C.questLock(S, i) }) : "") :
+          st === "now" && C.questLock(S, i) ? el("span", {}, [el("b", {}, [q.title]), el("br"), el("small", {}, [t("wr_quest_term", { t: C.questLock(S, i) })])]) : el("span", {}, [el("b", {}, [q.title]), st === "done" ? " ✅" : "", el("br"), el("small", {}, [st === "now" ? q.desc + "（" + C.reqText(q.req) + "）" : q.done])])
         ]);
       })), h.quest >= hd.quests.length && !h.dating ? el("p", { class: "wr-small" }, [t("wr_confess_hint") + (C.confessReq(S, hid).length ? "（" + C.confessReq(S, hid).join("、") + "）" : "")]) : null]) : null
     ]);

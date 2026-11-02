@@ -7,12 +7,13 @@
   var D = window.PriTestWanrenData;
   if (!D) return;
   var SAVE_KEY = "pritest-wanren-save";
-  var VERSION = 1;
-  var START = { y: 2026, m: 3, d: 6 };   // 2026-04-06（一）春學期開學
+  var VERSION = 2;
+  // 學期長度：pace＝學業／魅力／好感的成長倍率（越長越慢，避免第一年就全部滿值）
+  // questTerm：第 2、3 個任務最早在第幾個學期開放（0＝大一春、1＝大一秋、2＝大二春…）；hours＝預估遊玩時間
   var LENGTHS = [
-    { id: "short", days: 26, name: { zh: "短學期（4 週）", ja: "短期（4 週間）" } },
-    { id: "normal", days: 54, name: { zh: "標準（8 週）", ja: "標準（8 週間）" } },
-    { id: "full", days: 103, name: { zh: "完整學期（15 週）", ja: "フル学期（15 週間）" } }
+    { id: "trial", name: { zh: "體驗版（4 週）", ja: "体験版（4 週間）" }, hours: 1, pace: 1, questTerm: [0, 0, 0] },
+    { id: "year", name: { zh: "1 學年", ja: "1 学年" }, hours: 8, pace: 0.6, questTerm: [0, 0, 1] },
+    { id: "full", name: { zh: "完整版（3 學年）", ja: "フル（3 学年）" }, hours: 24, pace: 0.38, questTerm: [0, 1, 2] }
   ];
   var STATS = [
     { id: "study", icon: "📖", name: { zh: "學業", ja: "学業" } },
@@ -62,10 +63,10 @@
   // ---------------- 新遊戲 ----------------
   function newGame(opts) {
     opts = opts || {};
-    var len = LENGTHS.filter(function (l) { return l.id === opts.length; })[0] || LENGTHS[1];
+    var len = LENGTHS.filter(function (l) { return l.id === opts.length; })[0] || LENGTHS[2];
     var seed = opts.seed !== undefined ? (opts.seed | 0) : (Math.floor(Math.random() * 2147483647) | 0);
     var s = {
-      v: VERSION, seed: seed, rs: seed, name: String(opts.name || "轉學生").slice(0, 12), lengthId: len.id, length: len.days,
+      v: VERSION, seed: seed, rs: seed, name: String(opts.name || "新生").slice(0, 12), lengthId: len.id, length: buildCal(len.id).length,
       day: 0, phase: "morning",
       stats: { study: 20, charm: 20, stamina: 80, money: 10000, rep: 0 },
       att: { ok: 0, total: 0 }, exams: [],
@@ -80,30 +81,75 @@
     return s;
   }
 
-  // ---------------- 日曆 ----------------
-  function weekday(day) { return day % 7; }
-  function isWeekend(day) { return weekday(day) >= 5; }
-  function dateOf(day) { return new Date(START.y, START.m, START.d + day); }
-  function dateLabel(day) {
-    var d = dateOf(day), ja = window.I18N && window.I18N.getLang && window.I18N.getLang() === "ja";
-    return (d.getMonth() + 1) + "/" + d.getDate() + "（" + (ja ? WD_JA : WD)[weekday(day)] + "）";
+  // ---------------- 行事曆 ----------------
+  // 每一天＝{ y, m, d, wd（0＝一）, kind, year（0〜2）, term（學期序號）, termName }
+  // 一學年：春學期 16 週 → 暑假活動日 6 天 → 秋學期 16 週（含學園祭、聖誕夜、寒假）→ 情人節 → 結業式／畢業典禮
+  var calCache = {};
+  function mkDay(dt, kind, year, term, termName) {
+    return { y: dt.getFullYear(), m: dt.getMonth() + 1, d: dt.getDate(), wd: (dt.getDay() + 6) % 7, kind: kind, year: year, term: term, termName: termName };
   }
-  function specialDays(s) {
-    var len = s.length;
-    var mid = Math.floor(len / 2);
-    while (isWeekend(mid)) mid--;
-    var fest = Math.round(len * 0.7);
-    while (weekday(fest) !== 5) fest++;
-    if (fest >= len - 1) fest -= 7;
-    return { midterm: mid, final: len - 1, festival: fest };
+  function firstMonday(y, m, d) {
+    var dt = new Date(y, m, d);
+    while (dt.getDay() !== 1) dt.setDate(dt.getDate() + 1);
+    return dt;
   }
-  function dayKind(s, day) {
-    var sp = specialDays(s);
-    if (day === sp.midterm) return "midterm";
-    if (day === sp.final) return "final";
-    if (day === sp.festival) return "festival";
-    return isWeekend(day) ? "weekend" : "weekday";
+  function addDays(dt, n) { var x = new Date(dt.getTime()); x.setDate(x.getDate() + n); return x; }
+  // 16 週的學期：期中考第 8 週三、期末考第 16 週五；extra(i, dt) 回傳特殊日 kind
+  function term(out, start, weeks, year, termIdx, termName, extra) {
+    for (var i = 0; i < weeks * 7; i++) {
+      var dt = addDays(start, i), wd = (dt.getDay() + 6) % 7;
+      var kind = wd >= 5 ? "weekend" : "weekday";
+      if (i === 7 * Math.floor(weeks / 2) - 5) kind = "midterm";
+      if (i === weeks * 7 - 3) kind = "final";
+      var ex = extra && extra(i, dt);
+      if (ex) kind = ex;
+      out.push(mkDay(dt, kind, year, termIdx, termName));
+    }
   }
+  var YEAR_NAMES = ["大一", "大二", "大三"];
+  function buildCal(lengthId) {
+    if (calCache[lengthId]) return calCache[lengthId];
+    var out = [];
+    if (lengthId === "trial") {
+      term(out, firstMonday(2026, 3, 6), 4, 0, 0, "大一・春學期", function (i) { return i === 0 ? "entrance" : i === 19 ? "festival" : null; });
+      out.length = 26;
+      out[25].kind = "final";
+      return (calCache[lengthId] = out);
+    }
+    var years = lengthId === "full" ? 3 : 1;
+    for (var y = 0; y < years; y++) {
+      var Y = 2026 + y, yn = YEAR_NAMES[y];
+      term(out, firstMonday(Y, 3, 6), 16, y, y * 2, yn + "・春學期", function (i) {
+        if (i === 0) return y === 0 ? "entrance" : "newyear";
+        if (i === 6 * 7 + 5) return "sports";
+        return null;
+      });
+      [1, 6, 11, 16, 21, 26].forEach(function (d) { out.push(mkDay(new Date(Y, 7, d), d === 16 ? "summerfest" : "summer", y, y * 2, yn + "・暑假")); });
+      term(out, firstMonday(Y, 8, 21), 16, y, y * 2 + 1, yn + "・秋學期", function (i, dt) {
+        if (i === 6 * 7 + 5) return "festival";
+        if (dt.getMonth() === 11 && dt.getDate() === 24) return "xmas";
+        if ((dt.getMonth() === 11 && dt.getDate() >= 25) || (dt.getMonth() === 0 && dt.getDate() <= 4)) return "holiday";
+        return null;
+      });
+      out.push(mkDay(new Date(Y + 1, 1, 14), "valentine", y, y * 2 + 1, yn + "・春假"));
+      out.push(mkDay(new Date(Y + 1, 2, 18), y === years - 1 && years === 3 ? "graduation" : "yearend", y, y * 2 + 1, yn + "・春假"));
+    }
+    return (calCache[lengthId] = out);
+  }
+  function cal(s, day) { var c = buildCal(s.lengthId); return c[Math.min(day === undefined ? s.day : day, c.length - 1)]; }
+  function weekday(s, day) { return cal(s, day).wd; }
+  var CLASS_KINDS = { weekday: 1 }, EXAM_KINDS = { midterm: 1, final: 1 };
+  // 沒有課的日子（週末、假日、特殊活動日）
+  function isWeekend(s, day) { var k = cal(s, day).kind; return !CLASS_KINDS[k] && !EXAM_KINDS[k]; }
+  function dateLabel(s, day) {
+    var c = cal(s, day), ja = window.I18N && window.I18N.getLang && window.I18N.getLang() === "ja";
+    return c.y + "/" + c.m + "/" + c.d + "（" + (ja ? WD_JA : WD)[c.wd] + "）";
+  }
+  function termName(s, day) { return cal(s, day).termName; }
+  function dayKind(s, day) { return cal(s, day).kind; }
+  function special(s, day) { return D.SPECIAL_DAYS[dayKind(s, day)] || null; }
+  function lengthOf(s) { return LENGTHS.filter(function (l) { return l.id === s.lengthId; })[0] || LENGTHS[2]; }
+  function pace(s) { return lengthOf(s).pace; }
 
   // ---------------- 屬性 ----------------
   function applyEff(s, eff, out) {
@@ -113,7 +159,9 @@
       if (!v || !STAT_BY_ID[k]) return;
       var before = s.stats[k];
       // 學業與魅力越高越難成長（遞減）
-      if ((k === "study" || k === "charm") && v > 0) v = v * clamp(1.1 - before / 95, 0.15, 1);
+      // 長的模式成長比較慢（pace）
+      if ((k === "study" || k === "charm") && v > 0) v = v * clamp(1.1 - before / 95, 0.04, 1) * pace(s);
+      else if ((k === "study" || k === "charm") && v < 0) v = v * pace(s);
       if (k === "money") s.stats.money = Math.max(0, Math.round(before + v));
       else if (k === "rep") s.stats.rep = clamp(Math.round((before + v) * 10) / 10, -100, 100);
       else s.stats[k] = clamp(Math.round((before + v) * 10) / 10, 0, 100);
@@ -144,6 +192,8 @@
     var h = s.h[hid];
     var cap = ignoreCap ? 100 : Math.max(affCap(s, hid), h.aff);
     var before = h.aff;
+    // 長的模式好感也漲得比較慢（任務與劇情的獎勵不打折）
+    if (n > 0 && !ignoreCap) n = n * Math.sqrt(pace(s));
     h.aff = clamp(Math.round(h.aff + n), 0, n > 0 ? cap : 100);
     var real = h.aff - before;
     if (out) {
@@ -157,8 +207,13 @@
   // 今天自由時間她在哪（null＝不在學校）
   function whereIs(s, hid, day) {
     if (day === undefined) day = s.day;
-    var hd = D.HEROINE_BY_ID[hid], wd = weekday(day), kind = dayKind(s, day);
-    if (kind === "festival") return ["plaza", "club", "cafeteria", "field", "plaza"][Math.floor(hash(s.seed, day, hid, "f") * 5)];
+    var hd = D.HEROINE_BY_ID[hid], wd = weekday(s, day), kind = dayKind(s, day), sp = D.SPECIAL_DAYS[kind];
+    // 特殊活動日：大家都來學校，聚在活動的地點
+    if (sp && sp.spots) return sp.spots[Math.floor(hash(s.seed, day, hid, "f") * sp.spots.length)];
+    if (sp && sp.absent) {
+      if (hash(s.seed, day, hid, "a") < sp.absent) return null;
+      return hd.spots[Math.floor(hash(s.seed, day, hid, "s") * hd.spots.length)];
+    }
     if (hd.days && hd.days.indexOf(wd) < 0) return null;
     if (wd === 6 && hd.group === "teacher") return null;
     var absent = wd >= 5 ? (hd.group === "parent" ? 0 : 0.45) : 0.1;
@@ -178,6 +233,7 @@
       date: null, dateRun: null, flirt: 0, log: [], admirers: genAdmirers(s), festDance: null
     };
     s.flags.pose = false;
+    dayEvents(s, kind);
     // 隨機事件（有修羅場時優先）
     if (!s.events.length && rand(s) < 0.38) {
       var ev = genEvent(s);
@@ -241,8 +297,8 @@
       if (a.choice === null) answerAdmirer(s, i, approachOf(a.ap).opts.length - 1);
     });
     var k = s.today.kind;
-    if (k === "weekday") s.phase = "class";
-    else if (k === "midterm" || k === "final") s.phase = "exam";
+    if (CLASS_KINDS[k]) s.phase = "class";
+    else if (EXAM_KINDS[k]) s.phase = "exam";
     else { s.phase = "free"; setAp(s, 6); }
   }
   function setAp(s, base) {
@@ -278,7 +334,7 @@
     var bonus = effort ? 6 : 0;
     var score = Math.round(clamp(s.stats.study * 0.85 + 12 + bonus + (rand(s) * 16 - 8) - (s.stats.stamina < 20 ? 10 : 0), 0, 100));
     applyEff(s, { stamina: effort ? -15 : -6 }, null);
-    s.exams.push({ kind: isFinal ? "final" : "midterm", score: score, day: s.day });
+    s.exams.push({ kind: isFinal ? "final" : "midterm", score: score, day: s.day, year: cal(s).year, term: cal(s).termName });
     s.att.total++; s.att.ok++;
     out.push((isFinal ? "期末考" : "期中考") + "結束了。你的分數是 " + score + " 分。");
     if (score >= 90) { out.push("全學年前段班！柊老師難得對你點了點頭。"); if (s.h.rinko.met) addAff(s, "rinko", 4, out); applyEff(s, { rep: 3 }, out); }
@@ -406,7 +462,7 @@
     var h = s.h[hid], hd = D.HEROINE_BY_ID[hid];
     s.today.invited[hid] = true;
     var p = h.dating ? 0.95 : clamp(0.35 + (h.aff - inviteMin(hid)) / 50 + s.stats.charm / 300, 0.1, 0.95);
-    var when = isWeekend(s.day) ? "今天" : "今晚";
+    var when = isWeekend(s) ? "今天" : "今晚";
     var out = ["你約" + name(hid) + when + "出去。"];
     if (rand(s) < p) {
       s.today.date = hid;
@@ -422,7 +478,13 @@
     var hd = D.HEROINE_BY_ID[hid], h = s.h[hid];
     if (!h.met || h.quest >= hd.quests.length) return null;
     var q = hd.quests[h.quest];
-    return h.aff >= q.at ? q : null;
+    return h.aff >= q.at && !questLock(s, h.quest) ? q : null;
+  }
+  // 長的模式：第 2、3 個任務要到某個學期才開放（回傳開放的學期名稱，已開放則 null）
+  function questLock(s, idx) {
+    var need = lengthOf(s).questTerm[idx] || 0;
+    if (cal(s).term >= need) return null;
+    return YEAR_NAMES[Math.floor(need / 2)] + (need % 2 ? "秋學期" : "春學期");
   }
   function reqText(req) {
     if (req.type === "stat") return D.L(STAT_BY_ID[req.stat].name) + " ≥ " + req.min + (req.cost ? "（消耗體力 " + req.cost + "）" : "");
@@ -535,13 +597,13 @@
 
   // ---------------- 晚上 ----------------
   function dateSpots(s) {
-    return D.DATE_SPOTS.filter(function (d) { return !d.weekend || isWeekend(s.day); });
+    return D.DATE_SPOTS.filter(function (d) { return !d.weekend || isWeekend(s); });
   }
   function startDate(s, spotId) {
     var hid = s.today.date;
     if (s.phase !== "evening" || !hid || s.today.dateRun) return null;
     var sp = D.DATE_BY_ID[spotId];
-    if (!sp || (sp.weekend && !isWeekend(s.day))) return null;
+    if (!sp || (sp.weekend && !isWeekend(s))) return null;
     if (s.stats.money < sp.cost) return { error: "錢不夠。" };
     s.stats.money -= sp.cost;
     var mi = Math.floor(rand(s) * D.DATE_MOMENTS.length);
@@ -596,20 +658,41 @@
     s.phase = "night";
     return out;
   }
-  // 學園祭的後夜祭：選一位共舞
+  // 特殊日的晚上（後夜祭、夏日祭典、聖誕夜、情人節、畢業典禮）：選一位共度
+  function specialEvening(s) {
+    var sp = special(s);
+    return sp && sp.evening && s.today && !s.today.festDance ? sp.evening : null;
+  }
   function festDance(s, hid) {
-    if (s.phase !== "evening" || s.today.kind !== "festival" || s.today.date) return null;
+    var ev = specialEvening(s);
+    if (s.phase !== "evening" || !ev || s.today.date) return null;
     var h = s.h[hid];
     if (!h || !h.met || h.aff < 40) return null;
-    var out = ["後夜祭的營火前，你牽起了" + name(hid) + "的手。音樂響起，你們跳了一整首曲子。", name(hid) + "：" + lineOf(s, D.HEROINE_BY_ID[hid].lines.like)];
+    var out = [fmt(ev.act, { n: name(hid) }), name(hid) + "：" + lineOf(s, D.HEROINE_BY_ID[hid].lines[h.dating ? "lover" : "like"])];
     addAff(s, hid, h.dating ? 16 : 12, out, true);
     loversOf(s).forEach(function (o) {
-      if (o !== hid) { out.push(name(o) + "在人群中看著你們……"); addAff(s, o, -5, out); }
+      if (o !== hid) { out.push(name(o) + "遠遠地看著你們……"); addAff(s, o, -5, out); }
     });
     h.lastSeen = s.day;
+    h.dates++;
     s.today.festDance = hid;
     s.phase = "night";
     return out;
+  }
+
+  // 每天早上的固定事件：新學年、情人節、畢業典禮、第 2／3 學年的個人劇情
+  function dayEvents(s, kind) {
+    var c = cal(s);
+    if (kind === "newyear") s.events.push({ type: "newyear", year: c.year });
+    if (kind === "valentine") s.events.push({ type: "valentine" });
+    if (kind === "graduation") s.events.push({ type: "graduation" });
+    if (c.year >= 1) {
+      D.HEROINES.forEach(function (hd) {
+        var h = s.h[hd.id];
+        if (!h.met || h.aff < 55 || (h.story || 0) >= c.year || !hd.story) return;
+        if (hash(s.seed, s.day, hd.id, "story") < 0.03) s.events.push({ type: "story", hid: hd.id, idx: c.year - 1 });
+      });
+    }
   }
 
   // ---------------- 一天的結束 ----------------
@@ -650,18 +733,32 @@
     // 修羅場
     if (lovers.length >= 2) {
       var avgJ = lovers.reduce(function (a, hid) { return a + D.HEROINE_BY_ID[hid].jealousy; }, 0) / lovers.length;
-      var p = clamp(0.05 * (lovers.length - 1) * (1 + avgJ) + s.today.flirt * 0.015 - s.stats.rep / 600, 0.02, 0.55);
-      if (rand(s) < p) {
+      var p = clamp(0.05 * (lovers.length - 1) * (1 + avgJ) + s.today.flirt * 0.015 - s.stats.rep / 600, 0.02, 0.55) * pace(s);
+      // 修羅場之後 10 天內不會再爆發
+      if (s.day - (s.flags.lastShura || -99) >= 10 && rand(s) < p) {
+        s.flags.lastShura = s.day;
         var a = pick(s, lovers), rest = lovers.filter(function (x) { return x !== a; }), b = pick(s, rest);
         s.events.unshift({ type: "shura", a: a, b: b });
       }
     }
     s.history.push({ day: s.day, study: s.stats.study, charm: s.stats.charm, money: s.stats.money, rep: s.stats.rep, lovers: lovers.length });
     s.summary = { day: s.day, lines: out };
+    var prevYear = cal(s).year;
     s.day++;
     if (s.day >= s.length) { s.phase = "report"; s.today = null; }
+    else if (cal(s).year !== prevYear) {
+      // 學年結束：先看中間報告，再進入下一學年
+      s.phase = "yearreport"; s.yearReport = prevYear; s.today = null;
+    }
     else startDay(s);
     return out;
+  }
+  function nextYear(s) {
+    if (s.phase !== "yearreport") return;
+    s.yearReport = null;
+    // 新學年：體力回滿、出席重新計算
+    s.stats.stamina = Math.max(s.stats.stamina, 80);
+    startDay(s);
   }
 
   // ---------------- 隨機事件 ----------------
@@ -671,7 +768,7 @@
     var met = metList(s);
     if (met.length) c.push({ type: "rain", hid: pick(s, met) });
     c.push({ type: "wallet" });
-    if (!isWeekend(s.day) && s.today.kind === "weekday") c.push({ type: "quiz" });
+    if (s.today.kind === "weekday") c.push({ type: "quiz" });
     if (s.fans >= 10 && !s.flags.fanpage) c.push({ type: "fanpage" });
     if (s.contacts > 0) c.push({ type: "line" });
     var inv = metList(s, function (h, hd) { return h.aff >= 45 && !h.dating; });
@@ -688,9 +785,16 @@
     if (ev.type === "quiz") return { title: "📝 突襲小考", text: "柊老師走進教室：「把課本收起來，小考。」", opts: ["憑實力作答", "偷看隔壁的答案"] };
     if (ev.type === "fanpage") return { title: "📱 粉絲專頁", text: "校園論壇上出現了「" + s.name + " 後援會」的粉絲專頁，追蹤人數持續增加中。", opts: ["大方分享、跟粉絲互動", "請管理員低調處理"] };
     if (ev.type === "line") return { title: "💬 LINE 爆炸", text: "之前交換聯絡方式的女生們，一早就傳來了上百則訊息。", opts: ["一則一則耐心回覆", "已讀不回", "全部封鎖"] };
-    if (ev.type === "invite") return { title: "💌 " + n + " 的邀約", text: n + " 傳來訊息：「今天" + (isWeekend(s.day) ? "" : "放學後") + "……有空嗎？想跟你一起出去。」", opts: ["當然好！", "抱歉，今天不行"] };
+    if (ev.type === "invite") return { title: "💌 " + n + " 的邀約", text: n + " 傳來訊息：「今天" + (isWeekend(s) ? "" : "放學後") + "……有空嗎？想跟你一起出去。」", opts: ["當然好！", "抱歉，今天不行"] };
     if (ev.type === "herconfess") return { title: "🌸 櫻花樹下", text: n + " 約你到櫻花林道。她低著頭，聲音在發抖：「我……我喜歡你。可以跟我交往嗎？」", opts: ["「我也喜歡你」", "「對不起……」"] };
     if (ev.type === "broke") return { title: "💸 錢包見底", text: "你的錢包只剩下幾枚硬幣。學餐的美紀學姐看你可憐，問你要不要來打工一天。", opts: ["去打工（今天自由時間 −2）", "撐過去就好"] };
+    if (ev.type === "newyear") return { title: "🌸 " + YEAR_NAMES[ev.year] + "・新學年", text: "櫻花又開了。你升上了" + YEAR_NAMES[ev.year] + "，學姐們也升上了" + ["大二", "大三", "大四"][Math.min(ev.year, 2)] + "。校園裡多了一批對你投以憧憬眼神的新生。" + (ev.year === 2 ? "這是學姐們在學校的最後一年。" : ""), opts: ["新的一年也要加油"] };
+    if (ev.type === "valentine") {
+      var got = metList(s, function (h) { return h.aff >= 40; });
+      return { title: "🍫 情人節", text: got.length ? "你收到了 " + got.map(name).join("、") + " 送的巧克力。還有鞋櫃裡塞滿了不知道是誰送的義理巧克力。" : "鞋櫃裡塞滿了不知道是誰送的巧克力……不過，認識的人一個也沒有送。", opts: ["收下大家的心意"] };
+    }
+    if (ev.type === "graduation") return { title: "🎓 畢業典禮", text: "學姐們今天畢業了。穿著袴的她們在櫻花樹下一一跟你道別。", opts: ["目送她們離開"] };
+    if (ev.type === "story") return { title: "📖 " + n + "的故事", text: D.HEROINE_BY_ID[ev.hid].story[ev.idx], opts: ["陪在她身邊", "默默地聽她說"] };
     if (ev.type === "shura") {
       var a = name(ev.a), b = name(ev.b);
       return { title: "⚡ 修羅場", text: a + "和" + b + "同時出現在你面前。她們看看彼此，再看看你。\n" + a + "：" + D.HEROINE_BY_ID[ev.a].lines.jealous + "\n" + b + "：" + D.HEROINE_BY_ID[ev.b].lines.jealous,
@@ -743,6 +847,30 @@
     } else if (ev.type === "broke") {
       if (idx === 0) { out.push("你在學餐洗了一整天的盤子。"); applyEff(s, { money: 3000, stamina: -8 }, out); s.today.apBonus -= 2; if (s.h.miki.met) addAff(s, "miki", 4, out); }
       else out.push("今天就喝水度日吧……");
+    } else if (ev.type === "newyear") {
+      out.push("新的一年開始了。");
+      applyEff(s, { stamina: 10 }, out);
+    } else if (ev.type === "valentine") {
+      metList(s, function (h) { return h.aff >= 40; }).forEach(function (x) {
+        out.push(name(x) + "：" + lineOf(s, D.HEROINE_BY_ID[x].lines[s.h[x].dating ? "lover" : "like"]));
+        addAff(s, x, s.h[x].dating ? 6 : 3, out);
+        s.h[x].lastSeen = s.day;
+      });
+      s.fans += 3;
+      if (out.length === 0) out.push("你吃了很多義理巧克力。");
+    } else if (ev.type === "graduation") {
+      D.HEROINES.filter(function (hd) { return hd.group === "senior" && s.h[hd.id].met; }).forEach(function (hd) {
+        var h = s.h[hd.id], st = h.dating ? "lover" : h.aff >= 60 ? "high" : h.aff >= 20 ? "mid" : "low";
+        out.push(name(hd.id) + "：" + hd.lines.end[st]);
+        h.lastSeen = s.day;
+      });
+      if (!out.length) out.push("你不太認識的學姐們畢業了。");
+    } else if (ev.type === "story") {
+      var sh = s.h[hid];
+      sh.story = Math.max(sh.story || 0, ev.idx + 1);
+      out.push(idx === 0 ? "你一直陪在" + name(hid) + "身邊。" : "你安靜地聽" + name(hid) + "說完。");
+      addAff(s, hid, idx === 0 ? 10 : 7, out);
+      sh.lastSeen = s.day;
     } else if (ev.type === "shura") {
       s.shura++;
       var a = ev.a, b = ev.b;
@@ -784,8 +912,11 @@
   }
 
   // ---------------- 學期報告 ----------------
-  function report(s) {
-    var examAvg = s.exams.length ? s.exams.reduce(function (a, e) { return a + e.score; }, 0) / s.exams.length : s.stats.study;
+  // year 有值＝該學年的中間報告（考試只算那一學年）
+  function report(s, year) {
+    var interim = year !== undefined && year !== null;
+    var exams = s.exams.filter(function (e) { return !interim || (e.year || 0) === year; });
+    var examAvg = exams.length ? exams.reduce(function (a, e) { return a + e.score; }, 0) / exams.length : s.stats.study;
     var attRate = s.att.total ? s.att.ok / s.att.total : 1;
     var grade = Math.round(clamp(examAvg * 0.6 + attRate * 25 + s.stats.study * 0.15, 0, 100));
     var letter = grade >= 90 ? "S（秀）" : grade >= 80 ? "A（優）" : grade >= 70 ? "B（良）" : grade >= 60 ? "C（可）" : "F（不可）";
@@ -797,7 +928,7 @@
     });
     var lovers = rows.filter(function (r) { return r.dating; });
     var r = {
-      grade: grade, letter: letter, examAvg: Math.round(examAvg), attRate: Math.round(attRate * 100), exams: s.exams.slice(),
+      grade: grade, letter: letter, examAvg: Math.round(examAvg), attRate: Math.round(attRate * 100), exams: exams, interim: interim, yearName: interim ? YEAR_NAMES[year] : "", years: lengthOf(s).id === "full" ? 3 : 1,
       lovers: lovers.length, friends: rows.filter(function (x) { return x.met && x.aff >= 20; }).length,
       maxAff: rows.reduce(function (a, x) { return Math.max(a, x.aff); }, 0), met: rows.filter(function (x) { return x.met; }).length,
       fans: s.fans, admirers: s.admirersTotal, ignored: s.ignored, rejected: s.rejected, shura: s.shura, breakups: s.breakups, dates: s.dates,
@@ -806,11 +937,12 @@
     var title = D.TITLES.filter(function (t) { return t.cond(r); })[0];
     r.title = title.name; r.titleComment = title.comment;
     var sumAff = rows.reduce(function (a, x) { return a + x.aff; }, 0);
-    r.score = Math.round(r.charm * 1.5 + Math.min(r.fans, 200) * 0.35 + sumAff / 6 + r.lovers * 25 + r.rep * 0.5 + grade * 0.5);
+    r.fansPerDay = r.fans / Math.max(1, s.day);
+    r.score = Math.round(r.charm * 1.5 + Math.min(r.fansPerDay, 6) * 12 + sumAff / 6 + r.lovers * 25 + r.rep * 0.5 + grade * 0.5);
     r.rank = r.score >= 480 ? "SS" : r.score >= 380 ? "S" : r.score >= 280 ? "A" : r.score >= 190 ? "B" : r.score >= 110 ? "C" : "D";
     // 導師評語
-    r.teacher = grade >= 90 ? "成績優異，無可挑剔。……下學期，也繼續坐在第一排吧。" :
-      grade >= 80 ? "很認真。轉學生能有這種成績，值得肯定。" :
+    r.teacher = grade >= 90 ? "成績優異，無可挑剔。……接下來，也繼續坐在第一排吧。" :
+      grade >= 80 ? "很認真。能保持這種成績，值得肯定。" :
       grade >= 70 ? "表現穩定。但我知道你可以做得更好。" :
       grade >= 60 ? "勉強及格。你的心思，好像不完全在課本上。" :
       "這樣下去會留級。暑假的補習，我會親自盯著你。";
@@ -818,7 +950,7 @@
     // 感情評語
     var love = [];
     if (r.lovers === 0) love.push(r.maxAff >= 60 ? "有好幾段差一點就開花結果的感情。下學期，勇敢一點吧。" : "這個學期沒有談戀愛。也許你在等一個真正的心動。");
-    else if (r.lovers === 1) love.push("你和" + lovers[0].name + "的故事，是這個學期校園裡最多人在聊的話題。");
+    else if (r.lovers === 1) love.push("你和" + lovers[0].name + "的故事，是校園裡最多人在聊的話題。");
     else love.push("你同時和 " + lovers.map(function (x) { return x.name; }).join("、") + " 交往中。" + (r.shura ? "經歷了 " + r.shura + " 次修羅場，" : "奇蹟似地沒有被發現，") + "依然活著。");
     if (r.fans >= 20) love.push("後援會的人數達到 " + r.fans + " 人，你走在校園裡會被偷拍。");
     if (r.ignored >= 20) love.push("你無視了 " + r.ignored + " 個鼓起勇氣的女生。有人說你是「冰山王子」。");
@@ -826,7 +958,8 @@
     if (lovers.some(function (x) { return x.group === "parent"; }) && lovers.some(function (x) { return x.group === "classmate"; })) love.push("……和同學的媽媽交往這件事，下學期要怎麼解釋呢？");
     if (lovers.some(function (x) { return x.group === "teacher"; })) love.push("師生戀被傳開之前，最好低調一點。");
     r.love = love;
-    r.summary = s.name + "的轉學第一學期，以「" + r.title + "」畫下句點。學業 " + letter + "、萬人迷指數 " + r.score + "（" + r.rank + "）。";
+    r.summary = interim ? s.name + "的" + YEAR_NAMES[year] + "學年結束了。目前的稱號是「" + r.title + "」。" :
+      s.name + "在私立音夣學園大學的" + (r.years === 3 ? "三年" : lengthOf(s).id === "year" ? "第一年" : "四週") + "，以「" + r.title + "」畫下句點。學業 " + letter + "、萬人迷指數 " + r.score + "（" + r.rank + "）。";
     return r;
   }
 
@@ -849,7 +982,8 @@
   window.PriTestWanrenCore = {
     SAVE_KEY: SAVE_KEY, LENGTHS: LENGTHS, STATS: STATS, STAT_BY_ID: STAT_BY_ID, STAGES: STAGES,
     newGame: newGame, save: save, load: load, clearSave: clearSave,
-    dateLabel: dateLabel, weekday: weekday, isWeekend: isWeekend, dayKind: dayKind, specialDays: specialDays,
+    dateLabel: dateLabel, termName: termName, weekday: weekday, isWeekend: isWeekend, dayKind: dayKind, special: special, specialEvening: specialEvening,
+    cal: cal, buildCal: buildCal, lengthOf: lengthOf, questLock: questLock, nextYear: nextYear, YEAR_NAMES: YEAR_NAMES,
     stageOf: stageOf, stageName: stageName, affCap: affCap, loversOf: loversOf,
     whereIs: whereIs, heroinesAt: heroinesAt,
     approachOf: approachOf, answerAdmirer: answerAdmirer, finishMorning: finishMorning,

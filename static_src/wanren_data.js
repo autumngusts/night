@@ -1,5 +1,5 @@
 // 萬人迷（wanren）：靜態資料。女主角 15 人、地點、話題、禮物、約會地點、每天的迷妹（搭訕方式）、雙人互動、隨機事件、評語。
-// 舞台設定為大學（私立星見學園大學），玩家是轉學進來的大三生，所有角色都是成年人。
+// 舞台設定為大學（私立音夣學園大學），玩家從大一入學、度過三個學年；所有角色都以大學身分登場，全員成年。
 // 文字以繁中為主；角色名與稱號有日文，其餘日文 fallback 到繁中（L() 會自動 fallback）。
 (function () {
   "use strict";
@@ -117,7 +117,8 @@
   ];
 
   // ---------------- 女主角 15 人 ----------------
-  // group：classmate 同級生（大三）／senior 學姐（大四）／teacher 老師／parent 家長
+  // group：classmate 同級生（與玩家同屆，大一入學）／senior 學姐（大一時是大二，第三學年結束時畢業）／teacher 老師／parent 家長
+  // story：第 2、3 學年的個人劇情（好感 55 以上時隨機發生）
   // topics.like／bad、gifts.like／bad、dates.like／bad、moment：喜歡的回應
   // spots：自由時間可能出現的地點；days：只在星期幾出現（0＝一 … 6＝日）
   // look：3D 外觀（hair 髮色、style 髮型、skin、top、bottom、outfit、h 身高倍率、glasses、ribbon）
@@ -125,9 +126,9 @@
   // confess：告白條件（屬性下限）；jealousy：同時交往的在意程度 0〜1
   var HEROINES = [
     {
-      id: "yukina", group: "classmate", age: 21,
+      id: "yukina", group: "classmate", age: 19,
       name: { zh: "早瀨 雪奈", ja: "早瀬 雪奈" }, title: { zh: "學年第一的冰山美人", ja: "学年一位の氷の美少女" },
-      intro: "經濟系的學年第一，總是一個人在圖書館。說話冷淡，其實只是不擅長表達。母親是學園理事。",
+      intro: "經濟系新生代表，入學考試第一名，總是一個人在圖書館。說話冷淡，其實只是不擅長表達。母親是學園理事。",
       topics: { like: ["study", "books"], bad: ["games", "gossip"] },
       gifts: { like: ["pen", "book", "tea"], bad: ["figure", "perfume"] },
       dates: { like: ["library", "museum"], bad: ["karaoke", "park"] }, moment: "earnest",
@@ -138,9 +139,10 @@
         { at: 50, title: "遺失的鋼筆", desc: "她最愛用的鋼筆不見了，表面上說無所謂，卻一直在找。送她一支新的吧。", req: { type: "item", item: "pen" }, done: "「這個……是同一個牌子。你怎麼知道？」她把鋼筆握在胸前，耳朵紅了。", reward: { aff: 15 } },
         { at: 75, title: "與母親的約定", desc: "她說母親今天會來學校，想讓你陪她一起去校門口。", req: { type: "loc", loc: "gate" }, done: "在母親面前，雪奈第一次主動牽起了你的手：「這是……我很重要的人。」", reward: { aff: 15, heroine: { id: "saeko", aff: 6 } } }
       ],
+      story: ["期末考前，雪奈第一次在圖書館趴著睡著了。醒來時她發現你的外套蓋在她身上：「……你一直在這裡？」她沒有把外套還你，就這樣抱著看完了最後一章。", "專題發表當天，雪奈在台上忽然忘詞。她看向台下的你，深吸一口氣，最後講出了比稿子更好的結論。下台後她小聲說：「只要看著你，我就不會慌。」"],
       confess: { study: 55 }, jealousy: 0.8,
       lines: {
-        greet: "「……你是轉學生？位子在那邊，不要擋到我。」",
+        greet: "「……你是新生？位子在那邊，不要擋到我。」",
         hi: ["「你又來了。」", "「這題，你會嗎？」", "「……早。」"],
         like: ["她難得放下了書：「……你也會想這種事？說下去。」", "「嗯。這個觀點不錯。」她的嘴角動了一下。"],
         mid: ["「是嗎。」她翻了一頁書。", "「……普通。」"],
@@ -150,11 +152,11 @@
         cy: "「我本來以為，自己不需要任何人……可是你不一樣。嗯，我也喜歡你。」", cn: "「……現在的你，還不夠。」",
         lover: ["「今天也一起回家吧。……不行嗎？」", "「只有在你面前，我可以不用當第一名。」"],
         jealous: "「我以為……你只看著我一個人。」",
-        end: { lover: "「下學期也要坐在我旁邊。這是命令。」", high: "「你是我在這間學校……唯一的朋友。」", mid: "「你的筆記，字很醜。但是很認真。」", low: "「轉學生？……啊，那個人。」" }
+        end: { lover: "「下學期也要坐在我旁邊。這是命令。」", high: "「你是我在這間學校……唯一的朋友。」", mid: "「你的筆記，字很醜。但是很認真。」", low: "「新生？……啊，那個人。」" }
       }
     },
     {
-      id: "konatsu", group: "classmate", age: 20,
+      id: "konatsu", group: "classmate", age: 18,
       name: { zh: "日向 小夏", ja: "日向 小夏" }, title: { zh: "元氣滿點的田徑社王牌", ja: "元気いっぱいの陸上部エース" },
       intro: "體育系、田徑社的短跑王牌。笑聲很大、肚子總是餓，跟誰都能變成朋友。媽媽在校門旁開咖啡廳。",
       topics: { like: ["sports", "food"], bad: ["study", "books"] },
@@ -167,9 +169,10 @@
         { at: 50, title: "大會前的特製便當", desc: "下週就是大會了，她想吃「有幸運加持」的便當。幫她準備食材吧。", req: { type: "money", amount: 1500 }, done: "「這、這是你做的？！」她一口氣吃光：「我一定會拿第一！」", reward: { aff: 15 } },
         { at: 75, title: "跑道上的約定", desc: "大會決賽前，她說：「如果你在終點等我，我就能跑出最快的速度。」", req: { type: "stat", stat: "charm", min: 45 }, done: "她衝過終點線，直接撲進你懷裡：「看到了嗎！我是為了你跑的喔！」", reward: { aff: 15, rep: 3 } }
       ],
+      story: ["小夏在大會上扭傷了腳，哭著說今年完了。你背著她走回宿舍，她在你背上小聲說：「……明年，我一定會跑給你看。」", "最後一場大會，小夏跑出了個人最佳成績。她沒有去看計分板，而是直接衝向觀眾席的你：「我說到做到了吧！」"],
       confess: { charm: 45 }, jealousy: 0.5,
       lines: {
-        greet: "「喔！你就是轉學生？我是小夏！以後請多指教～要不要一起吃午餐？」",
+        greet: "「喔！你就是新生？我是小夏！以後請多指教～要不要一起吃午餐？」",
         hi: ["「嗨嗨～！今天也很有精神嗎？」", "「我肚子餓了～你有帶吃的嗎？」", "「看我看我，新的跑鞋！」"],
         like: ["「對吧對吧！你很懂嘛！」她興奮地抓著你的手搖。", "「哇——我們好合！再多說一點！」"],
         mid: ["「嗯嗯，然後呢？」", "「喔～原來如此！」"],
@@ -179,11 +182,11 @@
         cy: "「真的？！我也、我也是！從第一天就……哇啊好害羞！」", cn: "「欸？那個……我還沒想過耶……對不起！」",
         lover: ["「欸嘿嘿，牽手！」", "「下次比賽你也要來看喔！男朋友專用座位！」"],
         jealous: "「我……我還以為只有我……笨蛋！」",
-        end: { lover: "「暑假一起去海邊吧！約好了喔！」", high: "「你是我最好的夥伴！」", mid: "「下次一起跑步吧！」", low: "「啊，轉學生！你好～」" }
+        end: { lover: "「暑假一起去海邊吧！約好了喔！」", high: "「你是我最好的夥伴！」", mid: "「下次一起跑步吧！」", low: "「啊，新生！你好～」" }
       }
     },
     {
-      id: "kotone", group: "classmate", age: 21,
+      id: "kotone", group: "classmate", age: 19,
       name: { zh: "白石 琴音", ja: "白石 琴音" }, title: { zh: "溫柔的鋼琴少女", ja: "優しいピアノ少女" },
       intro: "音樂系鋼琴組。說話輕聲細語，彈琴時卻判若兩人。放學後常在社團大樓的琴房練琴。",
       topics: { like: ["music", "art"], bad: ["sports", "money"] },
@@ -196,9 +199,10 @@
         { at: 50, title: "遺失的樂譜", desc: "她的樂譜在搬琴房時弄丟了，上面有老師的筆記，她難過得不得了。", req: { type: "item", item: "sheet" }, done: "「雖然不是原本那本……可是，這本對我來說更重要了。」", reward: { aff: 15 } },
         { at: 75, title: "發表會", desc: "她說很怕上台，「如果台下有你在，我就不會害怕了。」", req: { type: "stat", stat: "charm", min: 50 }, done: "謝幕時，她的視線穿過整個大廳，只對著你一個人微笑。", reward: { aff: 15, rep: 2 } }
       ],
+      story: ["琴音在比賽前一天手指受傷了。她在琴房裡哭，你陪她一起改了編曲，用左手也能彈的版本。她說那是她彈過最溫柔的曲子。", "琴音拿到了海外音樂學院的推薦。她看著你，猶豫了很久：「……如果我去了，你會等我嗎？」"],
       confess: { charm: 50 }, jealousy: 0.7,
       lines: {
-        greet: "「啊……你好。我是白石琴音。轉學的話……如果有不懂的，可以問我。」",
+        greet: "「啊……你好。我是白石琴音。剛入學的話……如果有不懂的，可以問我。」",
         hi: ["「你好……今天天氣很好呢。」", "「我剛剛在練琴……有吵到你嗎？」", "「嗯，下午好。」"],
         like: ["她眼睛一亮：「你也喜歡這個嗎……好開心。」", "「我們好像……很聊得來呢。」她害羞地笑了。"],
         mid: ["「嗯嗯……」她安靜地聽著。", "「原來是這樣。」"],
@@ -212,7 +216,7 @@
       }
     },
     {
-      id: "rion", group: "classmate", age: 21,
+      id: "rion", group: "classmate", age: 19,
       name: { zh: "黑川 莉音", ja: "黒川 莉音" }, title: { zh: "辣妹系讀者模特兒", ja: "ギャル系読者モデル" },
       intro: "時尚雜誌的讀者模特兒，追蹤數十萬。看起來很會玩，對感情其實比誰都認真。",
       topics: { like: ["fashion", "love", "gossip"], bad: ["study", "books"] },
@@ -223,11 +227,12 @@
       quests: [
         { at: 25, title: "提包包要有人", desc: "「欸，陪我去逛街啦！幫我提包包，順便請我喝珍奶～」", req: { type: "money", amount: 2000 }, done: "「你的眼光還不錯嘛。這件我買了！」她對著鏡子比了個 YA。", reward: { aff: 12, charm: 2 } },
         { at: 50, title: "攝影助理", desc: "外拍的攝影助理放她鳥，「你來幫我拍吧？要把我拍得超可愛喔。」", req: { type: "stat", stat: "charm", min: 40 }, done: "她看著你拍的照片愣了好久：「……你拍的我，好像比平常溫柔。」", reward: { aff: 15, rep: 2 } },
-        { at: 75, title: "不是玩玩而已", desc: "論壇上有人說她「只是在玩弄轉學生」。她第一次露出受傷的表情。", req: { type: "stat", stat: "rep", min: 5 }, done: "你在所有人面前說：「她是我最重視的人。」莉音轉過身，偷偷擦掉了眼淚。", reward: { aff: 15, rep: 3 } }
+        { at: 75, title: "不是玩玩而已", desc: "論壇上有人說她「只是在玩弄新生」。她第一次露出受傷的表情。", req: { type: "stat", stat: "rep", min: 5 }, done: "你在所有人面前說：「她是我最重視的人。」莉音轉過身，偷偷擦掉了眼淚。", reward: { aff: 15, rep: 3 } }
       ],
+      story: ["莉音的雜誌專訪被刪掉了一半，因為她說了「現在有在意的人」。她一點也不後悔：「說謊比較累。」", "莉音成了雜誌封面。她把第一本樣書送給你，封底手寫了一行字：「拍這張的時候，我想的是你。」"],
       confess: { charm: 55 }, jealousy: 0.9,
       lines: {
-        greet: "「欸～你就是那個轉學生？長得不錯嘛。加個 IG？」",
+        greet: "「欸～你就是那個新生？長得不錯嘛。加個 IG？」",
         hi: ["「嗨～今天也很帥喔。」", "「欸，你看我的新指甲！」", "「你終於來了，等你好久耶～」"],
         like: ["「對吧～！你很懂耶！」她整個人靠過來。", "「欸欸我們超合的！」"],
         mid: ["「喔～是喔。」她滑著手機。", "「嗯哼。」"],
@@ -241,7 +246,7 @@
       }
     },
     {
-      id: "mashiro", group: "classmate", age: 20,
+      id: "mashiro", group: "classmate", age: 18,
       name: { zh: "星野 茉白", ja: "星野 茉白" }, title: { zh: "怕生的遊戲宅", ja: "人見知りのゲーマー" },
       intro: "資工系，戴著大大的眼鏡和耳機。線上是排行榜前十的玩家，現實中跟人說話會結巴。",
       topics: { like: ["games", "art"], bad: ["sports", "fashion"] },
@@ -254,6 +259,7 @@
         { at: 50, title: "限定公仔", desc: "她排了三小時還是沒買到限定公仔，躲在社團教室角落難過。", req: { type: "item", item: "figure" }, done: "「這、這個是……！你怎麼買到的？！」她抱著公仔，眼鏡都起霧了。", reward: { aff: 15 } },
         { at: 75, title: "第一次的同人展", desc: "她第一次以作者身分參加同人展，但一個人會怕。攤位費還差一點。", req: { type: "money", amount: 3000 }, done: "本子全部賣完了。她在收攤時小聲說：「有你在……我、我什麼都不怕。」", reward: { aff: 15, charm: 1 } }
       ],
+      story: ["茉白第一次在社團成果展上台介紹自己的遊戲。她緊張到發抖，最後還是講完了：「謝、謝謝大家……還有，謝謝你。」", "茉白做的遊戲上架了。最後一關的 NPC，名字和你一模一樣。她紅著臉說：「是、是巧合啦！」"],
       confess: { charm: 40 }, jealousy: 0.6,
       lines: {
         greet: "「咿！……啊、你、你好……我是星野……請、請不要靠那麼近……」",
@@ -270,9 +276,9 @@
       }
     },
     {
-      id: "reika", group: "senior", age: 22,
+      id: "reika", group: "senior", age: 20,
       name: { zh: "神宮寺 麗華", ja: "神宮寺 麗華" }, title: { zh: "完美的學生會長大小姐", ja: "完璧な生徒会長お嬢様" },
-      intro: "法律系大四、學生會長。名門神宮寺家的千金，舉止優雅、成績頂尖，從不讓人看見破綻。",
+      intro: "法律系大二、學生會長。名門神宮寺家的千金，舉止優雅、成績頂尖，從不讓人看見破綻。",
       topics: { like: ["study", "family", "art"], bad: ["games", "gossip"] },
       gifts: { like: ["tea", "flower", "wagashi"], bad: ["choco", "drink", "game"] },
       dates: { like: ["dinner", "museum"], bad: ["karaoke", "park"] }, moment: "earnest",
@@ -283,9 +289,10 @@
         { at: 50, title: "紅茶的品味", desc: "她說學生會室的紅茶喝完了，「普通的茶包我是不喝的喔。」", req: { type: "item", item: "tea" }, done: "她啜了一口，眼神柔和下來：「大吉嶺的第一摘……你很用心呢。」", reward: { aff: 15 } },
         { at: 75, title: "學生會長的面具", desc: "深夜的學生會室，她一個人趴在桌上：「我好累……可是我不能讓任何人看到。」", req: { type: "stat", stat: "rep", min: 15 }, done: "「只有在你面前，我可以不是『神宮寺麗華』。……可以再陪我一下嗎？」", reward: { aff: 15 } }
       ],
+      story: ["麗華在學生會選舉中落選了。那天晚上她第一次在你面前哭：「原來輸掉的感覺……是這樣的。」隔年，她用自己的方式再一次參選。", "麗華的父親安排了相親。她在家族面前說：「我已經有想一起走下去的人了。」說完，她緊緊握住了你的手。"],
       confess: { study: 50, rep: 10 }, jealousy: 0.85,
       lines: {
-        greet: "「你就是轉學生？我是學生會長神宮寺麗華。在這間學校，請遵守規矩。」",
+        greet: "「你就是新生？我是學生會長神宮寺麗華。在這間學校，請遵守規矩。」",
         hi: ["「午安，學弟。」", "「領帶歪了。……真是的，過來。」", "「有什麼事嗎？」"],
         like: ["「呵呵，你倒是有點見識。」她用扇子掩著嘴笑了。", "「很好。我欣賞會思考的人。」"],
         mid: ["「是嗎。」", "「嗯，繼續。」"],
@@ -299,9 +306,9 @@
       }
     },
     {
-      id: "akane", group: "senior", age: 22,
+      id: "akane", group: "senior", age: 20,
       name: { zh: "葛城 朱音", ja: "葛城 朱音" }, title: { zh: "豪爽的劍道社主將", ja: "豪快な剣道部主将" },
-      intro: "體育系大四、劍道社主將。說話直來直往、食量驚人，很照顧學弟妹。不擅長應付戀愛話題。",
+      intro: "體育系大二、劍道社主將。說話直來直往、食量驚人，很照顧學弟妹。不擅長應付戀愛話題。",
       topics: { like: ["sports", "food", "family"], bad: ["fashion", "love"] },
       gifts: { like: ["towel", "drink", "cake"], bad: ["perfume", "accessory"] },
       dates: { like: ["beach", "park", "karaoke"], bad: ["museum", "dinner"] }, moment: "earnest",
@@ -312,6 +319,7 @@
         { at: 50, title: "竹刀的護手", desc: "她的竹刀護手破了，但社費不夠。「沒關係啦，用膠帶黏一黏就好！」", req: { type: "money", amount: 1200 }, done: "「這、這是給我的？……笨蛋，幹嘛對我這麼好。」她轉過身去，耳朵紅透了。", reward: { aff: 15 } },
         { at: 75, title: "一本勝負", desc: "引退賽前，她說：「如果我贏了，有件事……我想跟你說。」", req: { type: "stat", stat: "charm", min: 50 }, done: "她摘下面罩，滿頭大汗地看著你：「我贏了。……所以，聽好了，我喜歡你！」", reward: { aff: 18 } }
       ],
+      story: ["朱音在團體賽中輸給了宿敵。她在道場一個人揮竹刀到深夜，你一直陪她到最後一下。「……謝謝你沒有安慰我。」", "朱音的引退賽。她贏了，但第一句話不是對隊友說的：「看到了嗎，學弟？這就是我想給你看的劍道。」"],
       confess: { charm: 45 }, jealousy: 0.4,
       lines: {
         greet: "「喔！新面孔！我是劍道社的葛城！有空來社團玩啊，學弟！」",
@@ -328,19 +336,20 @@
       }
     },
     {
-      id: "shiori", group: "senior", age: 22,
+      id: "shiori", group: "senior", age: 20,
       name: { zh: "綾瀨 詩織", ja: "綾瀬 詩織" }, title: { zh: "活在書頁裡的文藝社長", ja: "本の中に生きる文芸部長" },
-      intro: "文學系大四、文藝社社長，已經出版過一本短篇集。常在櫻花林道的長椅上寫東西，說話像在念詩。",
+      intro: "文學系大二、文藝社社長，已經出版過一本短篇集。常在櫻花林道的長椅上寫東西，說話像在念詩。",
       topics: { like: ["books", "love", "art"], bad: ["sports", "money"] },
       gifts: { like: ["book", "flower", "sketch"], bad: ["drink", "game"] },
       dates: { like: ["nightview", "beach", "library"], bad: ["park", "karaoke"] }, moment: "romantic",
       spots: ["garden", "garden", "library", "cafe"],
       look: { hair: 0x3b4a6b, style: "braid", skin: 0xf7e7dc, top: 0xe8dcc8, bottom: 0x6a5a7a, outfit: "cardigan", ribbon: 0x9b7bb8, h: 0.98, glasses: true },
       quests: [
-        { at: 25, title: "小說的素材", desc: "「我在寫一個轉學生的故事。可以……讓我觀察你一下嗎？在櫻花林道。」", req: { type: "loc", loc: "garden" }, done: "她一邊寫一邊偷看你：「嗯……主角的眼睛，原來是這種顏色。」", reward: { aff: 12 } },
+        { at: 25, title: "小說的素材", desc: "「我在寫一個新生的故事。可以……讓我觀察你一下嗎？在櫻花林道。」", req: { type: "loc", loc: "garden" }, done: "她一邊寫一邊偷看你：「嗯……主角的眼睛，原來是這種顏色。」", reward: { aff: 12 } },
         { at: 50, title: "絕版的推理小說", desc: "她在找一本小時候讀過的推理小說，說那是她成為作家的起點。", req: { type: "item", item: "book" }, done: "「……就是這本。」她把書抱在懷裡：「你真的……很像故事裡的人。」", reward: { aff: 15 } },
         { at: 75, title: "最後一章", desc: "她的小說卡在最後一章。「我不知道……主角最後會不會說出喜歡。」", req: { type: "stat", stat: "study", min: 40 }, done: "你們一起改到深夜。最後一行她寫下：『他說，喜歡妳。』然後抬頭看著你。", reward: { aff: 15, study: 2 } }
       ],
+      story: ["詩織的新書被退稿了。她在櫻花樹下撕掉了原稿，你一張一張撿起來黏好。「……你真的很奇怪。」她把黏好的原稿重新放進了包包。", "詩織得了文學新人獎。得獎感言的最後一句是：「感謝一位讓我相信結局可以幸福的讀者。」"],
       confess: { study: 40, charm: 40 }, jealousy: 0.6,
       lines: {
         greet: "「……你的腳步聲，像是一個新章節的開頭。你好，我是綾瀨。」",
@@ -357,9 +366,9 @@
       }
     },
     {
-      id: "miki", group: "senior", age: 23,
+      id: "miki", group: "senior", age: 21,
       name: { zh: "鳴海 美紀", ja: "鳴海 美紀" }, title: { zh: "學餐打工的節儉學姐", ja: "学食バイトの節約先輩" },
-      intro: "商學系大四，靠自己打工付學費。在學生餐廳打工、精打細算，嘴上愛錢，其實最會照顧人。",
+      intro: "商學系大二，靠自己打工付學費。在學生餐廳打工、精打細算，嘴上愛錢，其實最會照顧人。",
       topics: { like: ["money", "food", "family"], bad: ["fashion", "art"] },
       gifts: { like: ["coupon", "cake", "choco"], bad: ["perfume", "accessory"] },
       dates: { like: ["nightview", "library", "karaoke"], bad: ["dinner", "park"] }, moment: "funny",
@@ -370,9 +379,10 @@
         { at: 50, title: "超市特價日", desc: "她說今天的超市特價只能一人一份，想拜託你一起去排隊。用優惠券的話更好！", req: { type: "item", item: "coupon" }, done: "「哇！這樣這個月可以省三千塊！你是我的救星！」她開心地轉了一圈。", reward: { aff: 15 } },
         { at: 75, title: "她的夢想", desc: "打烊後，她第一次說出夢想：「我想開一間便宜又好吃的小食堂。……很蠢吧？」", req: { type: "stat", stat: "charm", min: 50 }, done: "「你說不蠢……那我就再努力一下吧。」她靠在你肩上：「到時候，你要當第一個客人。」", reward: { aff: 15 } }
       ],
+      story: ["美紀為了湊學費同時打了三份工，終於在學餐昏倒了。你在保健中心守了她一整個下午。「……下次，我會記得跟你說我很累。」", "美紀拿到了創業比賽的獎金。她說要用這筆錢開她的小食堂：「第一個客人的位子，已經幫你留好了。」"],
       confess: { charm: 45 }, jealousy: 0.5,
       lines: {
-        greet: "「歡迎光臨～啊，新生？不對，轉學生？今天的 A 餐很划算喔！」",
+        greet: "「歡迎光臨～啊，新生？今天的 A 餐很划算喔！」",
         hi: ["「學弟～今天吃什麼？」", "「我跟你說，今天雞腿便當特價！」", "「累死了……啊，你來啦。」"],
         like: ["「對對！就是這樣！錢要花在刀口上！」", "「你很懂生活嘛，學弟！」"],
         mid: ["「嗯嗯。」她一邊擦桌子一邊聽。", "「是喔～」"],
@@ -399,9 +409,10 @@
         { at: 50, title: "研究室的整理", desc: "她的研究室堆滿了論文。「……不准笑。幫我整理。在教學大樓。」", req: { type: "loc", loc: "classroom" }, done: "你在論文堆底下找到一張舊照片，照片裡的她笑得很燦爛。她搶過照片：「……不准說出去。」", reward: { aff: 15 } },
         { at: 75, title: "滿分的答卷", desc: "「如果你期末考數學拿到高分，我就……答應你一個要求。」", req: { type: "stat", stat: "study", min: 65 }, done: "「……滿分。你這個人，真是。」她摘下眼鏡，第一次對你露出了微笑。", reward: { aff: 18, study: 3 } }
       ],
+      story: ["柊老師的論文被國際期刊接受了。她在研究室裡開了一瓶果汁：「……學生面前不能喝酒。乾杯。」那天她笑了很多次。", "柊老師升上了教授。就職演講的最後，她說：「我最驕傲的，不是論文，是我的學生。」她的視線停在你身上。"],
       confess: { study: 70 }, jealousy: 0.7, inviteMin: 50,
       lines: {
-        greet: "「我是你的導師，柊。轉學生不會有特別待遇，遲到一次就扣分。」",
+        greet: "「我是你的導師，柊。新生不會有特別待遇，遲到一次就扣分。」",
         hi: ["「作業交了嗎？」", "「……什麼事。」", "「你今天的出席，我記下了。」"],
         like: ["「……你這個問題問得不錯。」她推了推眼鏡。", "「嗯。有思考過的人，說話是不一樣的。」"],
         mid: ["「是嗎。」", "「說重點。」"],
@@ -424,13 +435,14 @@
       spots: ["infirmary", "infirmary", "infirmary", "garden"],
       look: { hair: 0x9a5b3a, style: "sidepony", skin: 0xf8e4d6, top: 0xffffff, bottom: 0x7a8fa6, outfit: "labcoat", ribbon: 0x88c0d0, h: 1.0, glasses: false },
       quests: [
-        { at: 25, title: "健康檢查", desc: "「轉學生的健康檢查還沒做喔～到保健中心來一下吧。」", req: { type: "loc", loc: "infirmary" }, done: "「心跳有點快呢……緊張嗎？」她笑咪咪地把聽診器收起來。", reward: { aff: 12, stamina: 15 } },
+        { at: 25, title: "健康檢查", desc: "「新生的健康檢查還沒做喔～到保健中心來一下吧。」", req: { type: "loc", loc: "infirmary" }, done: "「心跳有點快呢……緊張嗎？」她笑咪咪地把聽診器收起來。", reward: { aff: 12, stamina: 15 } },
         { at: 50, title: "藥品的整理", desc: "「藥品要按照成分重新分類……可以幫我嗎？我對這種事情最不拿手了。」", req: { type: "stat", stat: "study", min: 30 }, done: "「好厲害，一下子就整理好了！你以後要不要來當我的助手？」", reward: { aff: 15, study: 2 } },
         { at: 75, title: "天使也會累", desc: "你發現她一個人在保健中心的床上睡著了，眼角還有淚痕。", req: { type: "item", item: "plush" }, done: "她醒來看到枕邊的熊熊：「……被你看到了呢。其實我，一直很想被誰照顧一次。」", reward: { aff: 15 } }
       ],
+      story: ["流感季節，保健中心忙得不可開交。你自願來幫忙，七瀨醫師在打烊後靠著你的肩膀睡著了。", "七瀨醫師收到了大醫院的挖角。她說：「可是在這裡，有我想守護的人。」"],
       confess: { charm: 50, rep: 0 }, jealousy: 0.6, inviteMin: 40,
       lines: {
-        greet: "「你好呀，轉學生。哪裡不舒服的話，隨時來找我喔。」",
+        greet: "「你好呀，新生。哪裡不舒服的話，隨時來找我喔。」",
         hi: ["「今天氣色不錯呢。」", "「有好好吃飯嗎？」", "「又受傷了？……開玩笑的，歡迎。」"],
         like: ["「呵呵，你真是個溫柔的孩子。」", "「我們好像很合得來呢。」她的笑容更柔和了。"],
         mid: ["「嗯嗯，這樣啊。」", "「原來如此～」"],
@@ -453,13 +465,14 @@
       spots: ["field", "gym", "field", "cafeteria"],
       look: { hair: 0x2a1e1a, style: "short", skin: 0xe8b996, top: 0x2d4f8a, bottom: 0x2d4f8a, outfit: "jersey", ribbon: 0xffffff, h: 1.08, glasses: false },
       quests: [
-        { at: 25, title: "體能測驗", desc: "「轉學生！你的體能測驗還沒補考！給我跑起來！」", req: { type: "stat", stat: "stamina", min: 55, cost: 15 }, done: "「好！不錯的根性！」她用力揉亂你的頭髮。", reward: { aff: 12, charm: 1 } },
+        { at: 25, title: "體能測驗", desc: "「新生！你的體能測驗還沒補考！給我跑起來！」", req: { type: "stat", stat: "stamina", min: 55, cost: 15 }, done: "「好！不錯的根性！」她用力揉亂你的頭髮。", reward: { aff: 12, charm: 1 } },
         { at: 50, title: "球隊缺人", desc: "教職員排球賽缺一個人，「你來湊數！在體育館集合！」", req: { type: "loc", loc: "gym" }, done: "你接起了決勝的一球。她衝過來抱住你：「幹得好！」……然後發現自己在幹嘛，臉紅了。", reward: { aff: 15, rep: 2 } },
         { at: 75, title: "退役的選手", desc: "她看著舊比賽影片，小聲說：「如果沒受傷，我現在會在哪裡呢……」", req: { type: "stat", stat: "charm", min: 55 }, done: "「……謝謝你。原來還有人，看到的不是選手橘薰，而是我。」", reward: { aff: 15 } }
       ],
+      story: ["橘老師帶的排球隊打進了全國大賽。比賽前一晚，她在體育館一個人發球：「……以前的我，只為了自己打球。」", "橘老師的舊傷復發，醫生說不能再跳了。她卻笑著說：「沒關係，我現在有更想做的事——好好看著你們。」"],
       confess: { charm: 55 }, jealousy: 0.4, inviteMin: 40,
       lines: {
-        greet: "「喔，轉學生！我是體育老師橘！上我的課可不准偷懶喔！」",
+        greet: "「喔，新生！我是體育老師橘！上我的課可不准偷懶喔！」",
         hi: ["「喲！有在運動嗎？」", "「站直！……開玩笑的，哈哈。」", "「今天也很有精神嘛！」"],
         like: ["「說得好！就是要這樣！」她跟你擊了個掌。", "「哈哈哈，我喜歡你這小子！」"],
         mid: ["「嗯？喔。」", "「是喔～」"],
@@ -486,6 +499,7 @@
         { at: 50, title: "畫材", desc: "她的素描本用完了，卻一直忘記去買。「……你可以幫我嗎？」", req: { type: "item", item: "sketch" }, done: "她在新素描本的第一頁，畫了你的側臉。", reward: { aff: 15 } },
         { at: 75, title: "未完成的畫", desc: "她的畫室裡有一幅畫了三年還沒完成的畫。「……少了一種顏色。」", req: { type: "stat", stat: "charm", min: 60 }, done: "那天她終於完成了。畫裡的櫻花樹下站著一個人——是你。", reward: { aff: 18 } }
       ],
+      story: ["雨宮老師的個展開幕，有一幅畫被蓋著布。展覽最後一天，她才把布掀開：那是在噴水池前回頭的你。", "雨宮老師要去巴黎進修一年。她把畫室的鑰匙交給你：「……幫我看著。等我回來，要畫你畫一輩子。」"],
       confess: { charm: 60 }, jealousy: 0.5, inviteMin: 40,
       lines: {
         greet: "「……你。不要動。……嗯，好。你可以走了。」她在素描本上畫了幾筆。",
@@ -515,9 +529,10 @@
         { at: 50, title: "理事會的資料", desc: "「下次理事會的資料需要學生的觀點……你願意幫忙嗎？」", req: { type: "stat", stat: "study", min: 45 }, done: "「很有見地。比那些老頭子強多了。」她第一次直呼你的名字。", reward: { aff: 15, rep: 3 } },
         { at: 75, title: "再一次心動", desc: "「這麼多年，我早就忘記怎麼當一個『女人』了……」", req: { type: "stat", stat: "charm", min: 65 }, done: "她抬起頭，像個少女一樣紅了臉：「……你這孩子，真是壞心眼。」", reward: { aff: 15 } }
       ],
+      story: ["冴子在理事會上遭到其他理事施壓。她第一次在你面前露出疲態：「當母親、當理事、當早瀨家的人……我好像忘了當我自己。」", "冴子辭去了理事的職務。「從今以後，我想為自己活一次。」她和雪奈一起站在校門口，對你揮手。"],
       confess: { charm: 65, rep: 15 }, jealousy: 0.7, inviteMin: 55,
       lines: {
-        greet: "「你就是那位轉學生？我是早瀨冴子。……小女承蒙關照了。」",
+        greet: "「你就是那位新生？我是早瀨冴子。……小女承蒙關照了。」",
         hi: ["「午安。」", "「今天也很有禮貌呢。」", "「理事會又拖了這麼久……啊，是你。」"],
         like: ["「呵呵，你說話很有分寸。」她用和服的袖子掩住嘴角。", "「很好。我欣賞懂得思考的年輕人。」"],
         mid: ["「是這樣啊。」", "「嗯。」"],
@@ -544,6 +559,7 @@
         { at: 50, title: "新菜單試吃", desc: "「我想推新的甜點，但小夏只會說『好吃』！你來給點意見吧？」", req: { type: "stat", stat: "charm", min: 35 }, done: "「嗯嗯！你說得很有道理！就叫它『初戀布丁』好了！」她對你眨了眨眼。", reward: { aff: 15 } },
         { at: 75, title: "女兒與我", desc: "「小夏常常提到你喔……你跟那孩子，是什麼關係呢？」", req: { type: "heroine", id: "konatsu", min: 40 }, done: "「是嗎……那孩子交到好朋友了。」她摸摸你的頭：「你也要常來喔，不只是為了她。」", reward: { aff: 15, heroine: { id: "konatsu", aff: 5 } } }
       ],
+      story: ["陽光咖啡廳遇到了颱風淹水。你跟小夏一起幫忙清了一整天，陽子煮了一大鍋咖哩：「有你在，真的幫了大忙。」", "陽光咖啡廳開了二號店。開幕剪綵時，陽子把剪刀交給你：「這間店的另一半，是你的功勞喔。」"],
       confess: { charm: 55 }, jealousy: 0.5, inviteMin: 45,
       lines: {
         greet: "「歡迎光臨～哎呀，生面孔！是小夏的同學嗎？來來來，今天的蛋糕阿姨請你！」",
@@ -690,18 +706,39 @@
     { id: "rest", icon: "🛌", name: { zh: "早點睡", ja: "早く寝る" }, eff: { stamina: 18 }, note: "體力 +18" }
   ];
 
+  // ---------------- 行事曆的特殊日 ----------------
+  // free：沒有課；spots：當天女主角會在的地點；evening：晚上可以邀一位好感 40 以上的人（後夜祭等）
+  var SPECIAL_DAYS = {
+    entrance: { icon: "🌸", name: { zh: "入學典禮", ja: "入学式" }, free: true, spots: ["plaza", "gate", "classroom", "garden"], text: "櫻花盛開的入學典禮。新的一年開始了。" },
+    newyear: { icon: "🌸", name: { zh: "新學年", ja: "新学年" }, free: true, spots: ["plaza", "gate", "classroom", "garden"], text: "新的學年開始了。校園裡多了一批陌生的新面孔。" },
+    sports: { icon: "🏃", name: { zh: "運動會", ja: "体育祭" }, free: true, spots: ["field", "field", "gym", "plaza"], text: "今天是運動會。操場上滿是加油聲。" },
+    summer: { icon: "🌻", name: { zh: "暑假", ja: "夏休み" }, free: true, absent: 0.45, text: "暑假中。校園裡人比較少，只有社團和打工的人。" },
+    summerfest: { icon: "🎆", name: { zh: "夏日祭典", ja: "夏祭り" }, free: true, spots: ["plaza", "garden", "cafe"], text: "今晚學校旁的神社有夏日祭典。",
+      evening: { title: "夏日祭典・煙火", note: "煙火就要開始了。要邀誰一起看？（好感 40 以上；女友們會在意）", act: "煙火在夜空中綻放。你和{n}並肩站著，誰都沒有說話，手卻不知不覺牽在了一起。" } },
+    festival: { icon: "🎪", name: { zh: "學園祭", ja: "学園祭" }, free: true, spots: ["plaza", "club", "cafeteria", "field", "plaza"], text: "學園祭當天！到處都是攤位和表演。",
+      evening: { title: "學園祭・後夜祭", note: "營火前響起了音樂。要邀請誰一起跳舞嗎？（好感 40 以上；女友們會在意）", act: "後夜祭的營火前，你牽起了{n}的手。音樂響起，你們跳了一整首曲子。" } },
+    xmas: { icon: "🎄", name: { zh: "聖誕夜", ja: "クリスマスイブ" }, free: true, spots: ["plaza", "cafe", "garden"], text: "聖誕夜。中庭的噴水池旁立起了一棵大聖誕樹。",
+      evening: { title: "聖誕夜", note: "街上滿是燈飾。要和誰一起度過聖誕夜？（好感 40 以上；女友們會在意）", act: "聖誕樹的燈光下，{n}從背後拿出一條手織的圍巾，輕輕繞在你的脖子上。" } },
+    holiday: { icon: "⛄", name: { zh: "寒假", ja: "冬休み" }, free: true, absent: 0.5, text: "寒假中。校園裡安安靜靜的。" },
+    valentine: { icon: "🍫", name: { zh: "情人節", ja: "バレンタイン" }, free: true, text: "情人節。鞋櫃和桌子裡塞滿了巧克力。",
+      evening: { title: "情人節晚上", note: "要和誰一起度過情人節的晚上？（好感 40 以上；女友們會在意）", act: "{n}紅著臉遞出一盒親手做的巧克力：「……是本命的喔。」" } },
+    yearend: { icon: "🎓", name: { zh: "結業式", ja: "修了式" }, free: true, spots: ["plaza", "classroom", "garden"], text: "學年的最後一天。明天開始放春假了。" },
+    graduation: { icon: "🎓", name: { zh: "畢業典禮", ja: "卒業式" }, free: true, spots: ["plaza", "garden", "classroom", "gate"], text: "畢業典禮。學姐們穿著袴，在櫻花樹下拍照。",
+      evening: { title: "畢業典禮之後", note: "最後一個晚上。要和誰一起度過？（好感 40 以上）", act: "櫻花瓣落在{n}的肩上。「……謝謝你。這三年，是我人生中最棒的時光。」" } }
+  };
+
   // ---------------- 稱號（報告用，由上往下第一個符合的） ----------------
   var TITLES = [
     { id: "legend", name: "傳說中的萬人迷", cond: function (r) { return r.lovers >= 4 && r.rep >= 0; }, comment: "同時被這麼多人愛著，還能讓大家都笑著——這已經不是運氣，是一種才能。" },
     { id: "harem", name: "後宮之王", cond: function (r) { return r.lovers >= 3 && r.rep >= -20; }, comment: "你的行程表比教授還滿。下學期請記得保重身體。" },
     { id: "sea", name: "海王", cond: function (r) { return r.lovers >= 2 && r.rep < -20; }, comment: "魚塘很大，但校園論壇上關於你的討論串也很長。" },
-    { id: "idol", name: "校園偶像", cond: function (r) { return r.fans >= 150; }, comment: "後援會的人數已經超過大部分的社團了。" },
+    { id: "idol", name: "校園偶像", cond: function (r) { return r.fansPerDay >= 4; }, comment: "後援會的人數已經超過大部分的社團了。" },
     { id: "pure", name: "純愛之人", cond: function (r) { return r.lovers === 1 && r.maxAff >= 95; }, comment: "一心一意地只看著一個人。這個學期最美的故事，就是你們。" },
-    { id: "lover", name: "幸福的戀人", cond: function (r) { return r.lovers >= 1; }, comment: "轉學第一個學期就找到了重要的人，恭喜。" },
+    { id: "lover", name: "幸福的戀人", cond: function (r) { return r.lovers >= 1; }, comment: "入學後就找到了重要的人，恭喜。" },
     { id: "scholar", name: "孤高的學霸", cond: function (r) { return r.grade >= 85 && r.maxAff < 60; }, comment: "成績無可挑剔。不過，大學生活不只有考試喔。" },
     { id: "friend", name: "大家的好朋友", cond: function (r) { return r.friends >= 6; }, comment: "誰都喜歡你，但誰都還沒成為你的特別。" },
-    { id: "cold", name: "冰山轉學生", cond: function (r) { return r.ignored >= 40; }, comment: "無視了那麼多告白……你的心門，到底什麼時候才會打開？" },
-    { id: "air", name: "空氣", cond: function () { return true; }, comment: "這個學期你好像……沒怎麼被注意到。下學期再加油吧。" }
+    { id: "cold", name: "冰山新生", cond: function (r) { return r.ignored >= r.days * 1.2; }, comment: "無視了那麼多告白……你的心門，到底什麼時候才會打開？" },
+    { id: "air", name: "空氣", cond: function () { return true; }, comment: "這段時間你好像……沒怎麼被注意到。下學期再加油吧。" }
   ];
 
   window.PriTestWanrenData = {
@@ -715,6 +752,6 @@
     ADMIRER_SURNAMES: ADMIRER_SURNAMES, ADMIRER_GIVEN: ADMIRER_GIVEN, ADMIRER_ROLES: ADMIRER_ROLES, ADMIRER_LOOKS: ADMIRER_LOOKS,
     APPROACHES: APPROACHES, RETURN_TEXT: RETURN_TEXT,
     CLASS_OPTS: CLASS_OPTS, EVENING_OPTS: EVENING_OPTS,
-    TITLES: TITLES
+    TITLES: TITLES, SPECIAL_DAYS: SPECIAL_DAYS
   };
 })();

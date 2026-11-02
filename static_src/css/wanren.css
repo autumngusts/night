@@ -41,6 +41,8 @@
 .wr-logo { font-size: 1.6em; }
 .wr-title { margin: 0; font-size: 1.5em; letter-spacing: 0.08em; background: linear-gradient(90deg, var(--wr-pink), var(--wr-violet)); -webkit-background-clip: text; background-clip: text; color: transparent; }
 .wr-date { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem; }
+.wr-term { padding: 0.1rem 0.55rem; border-radius: 999px; background: var(--wr-pink-soft); color: var(--wr-pink); font-size: 0.85em; font-weight: bold; }
+.wr-special { margin-bottom: 0.8rem; padding: 0.6rem 0.9rem; border-radius: 12px; background: linear-gradient(90deg, rgba(240, 192, 80, 0.2), var(--wr-pink-soft)); border: 1px solid var(--wr-line); }
 .wr-phase { padding: 0.1rem 0.55rem; border-radius: 999px; background: var(--wr-violet); color: #fff; font-size: 0.85em; }
 .wr-badge { display: inline-block; padding: 0.05rem 0.5rem; border-radius: 999px; background: var(--wr-pink-soft); color: var(--wr-pink); font-size: 0.78em; font-weight: bold; vertical-align: middle; }
 .wr-badge-midterm, .wr-badge-final { background: rgba(63, 143, 208, 0.15); color: #3f8fd0; }

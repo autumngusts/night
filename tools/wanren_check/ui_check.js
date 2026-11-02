@@ -1,6 +1,6 @@
 // ============================================================================
 // 萬人迷（wanren）Playwright 流程檢查：
-//   標題（3D 校園載入）→ 新遊戲 → 早上回應迷妹 → 上課 → 自由時間（3D：走動的學生、女主角、快速前往、搭話、聊天）
+//   標題（3D 校園載入）→ 新遊戲（1 學年）→ 入學典禮 → 早上回應迷妹 → 上課 → 自由時間（3D：走動的學生、女主角、快速前往、搭話、聊天）
 //   → 購買部買禮物 → 放學 → 晚上 → 睡覺到第 2 天 → 用 core 快轉到學期末 → 報告畫面 → 日文沒有漏翻的 wr_ 鍵
 // 前置：
 //   1. py -3 generate.py
@@ -61,11 +61,12 @@ async function closeMsg(page) { await page.evaluate(function () { var m = docume
 
   // 新遊戲
   await page.fill(".wr-input", "測試君");
-  await clickText(page, "完整學期", true);
+  await clickText(page, "1 學年", true);
   await clickText(page, "開始新的學期", true);
   var s = await st(page);
   assert.strictEqual(s.phase, "morning");
-  assert.strictEqual(await page.evaluate(function () { return window.PriTestWanren.state.length; }), 103);
+  assert.strictEqual(await page.evaluate(function () { return window.PriTestWanren.state.length; }), 232);
+  assert.strictEqual(await page.evaluate(function () { return window.PriTestWanren.state.today.kind; }), "entrance", "第一天是入學典禮");
   await clearEvents(page);
   var nAdm = await page.locator(".wr-adm").count();
   assert.ok(nAdm >= 2, "早上應該有迷妹");
@@ -76,14 +77,12 @@ async function closeMsg(page) { await page.evaluate(function () { var m = docume
   assert.ok(s.stats.charm > charm0, "回應迷妹魅力應上升");
   await closeMsg(page);
   await page.screenshot({ path: path.join(SHOT_DIR, "02_morning.png") });
-  await clickText(page, "去上課", true);
+  // 入學典禮沒有課，直接進入自由時間（行動點 6）
+  await clickText(page, "去學校逛逛", true);
   await clearEvents(page);
   s = await st(page);
-  assert.strictEqual(s.phase, "class");
-  await clickText(page, "認真聽講", true);
-  s = await st(page);
   assert.strictEqual(s.phase, "free");
-  assert.strictEqual(s.ap, 4);
+  assert.strictEqual(s.ap, 6);
   await clearEvents(page);
 
   // 3D：學生、女主角
@@ -112,7 +111,7 @@ async function closeMsg(page) { await page.evaluate(function () { var m = docume
   await page.locator(".wr-btn-topic").first().click();
   await page.waitForTimeout(100);
   s = await st(page);
-  assert.strictEqual(s.ap, 2);
+  assert.strictEqual(s.ap, 4);
   await closeMsg(page);
   // 學生餐廳的購買部
   await clickText(page, "學生餐廳", true);
@@ -141,12 +140,21 @@ async function closeMsg(page) { await page.evaluate(function () { var m = docume
   s = await st(page);
   assert.strictEqual(s.day, 1);
   assert.strictEqual(s.phase, "morning");
+  // 第 2 天是平日：要上課
+  await clearEvents(page);
+  await clickText(page, "去上課", true);
+  await clearEvents(page);
+  await clickText(page, "認真聽講", true);
+  s = await st(page);
+  assert.strictEqual(s.phase, "free");
+  assert.strictEqual(s.ap, 4);
 
   // 用 core 快轉到學期末（跟 tools 的模擬同一種策略）
   await page.evaluate(function () {
     var W = window.PriTestWanren, C = W.core, S = W.state, D = window.PriTestWanrenData;
     var guard = 0;
-    while (S.phase !== "report" && guard++ < 3000) {
+    while (S.phase !== "report" && guard++ < 30000) {
+      if (S.phase === "yearreport") { C.nextYear(S); continue; }
       while (S.events.length) C.resolveEvent(S, 0);
       if (S.phase === "morning") { S.today.admirers.forEach(function (a, i) { C.answerAdmirer(S, i, i % 3); }); C.finishMorning(S); continue; }
       if (S.phase === "class") { C.doClass(S, S.stats.stamina < 30 ? "doze" : "focus"); continue; }
@@ -183,7 +191,44 @@ async function closeMsg(page) { await page.evaluate(function () { var m = docume
   await page.screenshot({ path: path.join(SHOT_DIR, "07_report.png"), fullPage: true });
   var rep = await page.evaluate(function () { var r = window.PriTestWanren.core.report(window.PriTestWanren.state); return { title: r.title, rank: r.rank, grade: r.grade, lovers: r.lovers, exams: r.exams.length }; });
   console.log("report:", JSON.stringify(rep));
-  assert.strictEqual(rep.exams, 2, "應該考過期中與期末");
+  assert.strictEqual(rep.exams, 4, "1 學年應該考過春秋兩學期的期中與期末");
+
+  // 完整版：3 學年的行事曆、學年中間報告 → 進入下一學年
+  var calInfo = await page.evaluate(function () {
+    var c = window.PriTestWanren.core.buildCal("full"), kinds = {};
+    c.forEach(function (d) { kinds[d.kind] = (kinds[d.kind] || 0) + 1; });
+    return { n: c.length, kinds: kinds, last: c[c.length - 1].kind };
+  });
+  assert.strictEqual(calInfo.n, 696);
+  assert.strictEqual(calInfo.last, "graduation");
+  ["entrance", "newyear", "sports", "summerfest", "festival", "xmas", "valentine", "midterm", "final"].forEach(function (k) { assert.ok(calInfo.kinds[k] > 0, "完整版應該有 " + k); });
+  assert.strictEqual(calInfo.kinds.midterm, 6);
+  await page.evaluate(function () {
+    var W = window.PriTestWanren, C = W.core;
+    var S = C.newGame({ length: "full", name: "三年君" });
+    var g = 0;
+    while (S.phase !== "yearreport" && g++ < 5000) {
+      S.events = [];
+      if (S.phase === "morning") C.finishMorning(S);
+      else if (S.phase === "class") C.doClass(S, "normal");
+      else if (S.phase === "exam") C.doExam(S, false);
+      else if (S.phase === "free") C.endFree(S);
+      else if (S.phase === "evening") C.doEvening(S, "rest");
+      else C.endDay(S);
+    }
+    C.save(S);
+  });
+  await page.reload();
+  await page.waitForFunction(function () { return window.PriTestWanren && window.PriTestWanren.view(); }, null, { timeout: 30000 });
+  await clickText(page, "繼續", true);
+  assert.strictEqual(await page.evaluate(function () { return window.PriTestWanren.state.phase; }), "yearreport");
+  await page.waitForTimeout(500);
+  await page.screenshot({ path: path.join(SHOT_DIR, "09_year_report.png") });
+  await clickText(page, "進入下一學年", true);
+  var ny = await page.evaluate(function () { var S = window.PriTestWanren.state; return { phase: S.phase, kind: S.today.kind, year: window.PriTestWanren.core.cal(S).year, ev: S.events.map(function (e) { return e.type; }) }; });
+  assert.deepStrictEqual([ny.phase, ny.kind, ny.year], ["morning", "newyear", 1]);
+  assert.ok(ny.ev.indexOf("newyear") >= 0, "新學年應該有事件");
+  await page.screenshot({ path: path.join(SHOT_DIR, "10_new_year.png") });
 
   // 日文：沒有漏翻的 wr_ 鍵
   await page.evaluate(function () { window.I18N.setLang("ja"); });

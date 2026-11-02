@@ -7,10 +7,12 @@ var ROOT = require("path").join(__dirname, "..", "..");
 require(ROOT + "/static_src/wanren_data.js");
 require(ROOT + "/static_src/wanren_core.js");
 var C = window.PriTestWanrenCore, D = window.PriTestWanrenData;
-function play(seed, strat) {
-  var s = C.newGame({ seed: seed, length: "normal", name: "測試" });
+function play(seed, strat, len) {
+  var s = C.newGame({ seed: seed, length: len || "full", name: "測試" });
+  var dating = [];
   var guard = 0;
-  while (s.phase !== "report" && guard++ < 2000) {
+  while (s.phase !== "report" && guard++ < 20000) {
+    if (s.phase === "yearreport") { var yr = C.report(s, s.yearReport); console.log("  第" + (s.yearReport + 1) + "學年", "grade", yr.grade, "lovers", yr.lovers, "study", Math.round(s.stats.study), "charm", Math.round(s.stats.charm)); C.nextYear(s); continue; }
     while (s.events.length) C.resolveEvent(s, strat === "harem" ? 2 : 0);
     if (s.phase === "morning") { s.today.admirers.forEach(function (a, i) { C.answerAdmirer(s, i, strat === "cold" ? 2 : 0); }); C.finishMorning(s); continue; }
     if (s.phase === "class") { C.doClass(s, s.stats.stamina < 30 ? "doze" : "focus"); continue; }
@@ -41,8 +43,9 @@ function play(seed, strat) {
     if (s.phase === "night" || s.phase === "evening") C.endDay(s);
   }
   var r = C.report(s);
-  var h=s.history[25]; console.log("  day26", h.study, h.charm); console.log(seed, strat, "grade", r.grade, r.letter, "lovers", r.lovers, "met", r.met, "fans", r.fans, "shura", r.shura, "breakups", r.breakups, "title", r.title, "score", r.score, r.rank, "stats", JSON.stringify(s.stats));
+  console.log(seed, strat, len || "full", "days", s.length, "grade", r.grade, r.letter, "lovers", r.lovers, "met", r.met, "fans", r.fans, "shura", r.shura, "breakups", r.breakups, "title", r.title, "score", r.score, r.rank, "stats", JSON.stringify(s.stats));
   console.log("  aff", r.rows.map(x => x.name.split(" ")[1] + ":" + x.aff + (x.dating ? "♥" : "") + "q" + x.quest).join(" "));
 }
-[1, 2, 3].forEach(s => play(s, "normal"));
+[1, 2].forEach(s => play(s, "normal"));
 play(4, "cold"); play(5, "harem");
+play(6, "normal", "year"); play(7, "normal", "trial");
