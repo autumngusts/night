@@ -13,20 +13,26 @@
     {"id": "x_hamiguaniunai", "zh": "哈密瓜牛奶", "ja": "メロンミルク"},
     {"id": "x_dounaibingsha", "zh": "豆奶冰沙", "ja": "豆乳スムージー"},
     {"id": "x_ribenqingjiutaocan", "zh": "日本清酒套餐", "ja": "日本酒セット"},
-    {"id": "x_meijiusuda", "zh": "梅酒蘇打", "ja": "梅酒ソーダ"}
+    {"id": "x_meijiusuda", "zh": "梅酒蘇打", "ja": "梅酒ソーダ"},
+    {"id": "x_kafei", "zh": "咖啡", "ja": "コーヒー"},
+    {"id": "x_natie", "zh": "拿鐵", "ja": "カフェラテ"},
+    {"id": "x_dongguachayin", "zh": "冬瓜茶飲", "ja": "冬瓜茶ドリンク"}
   ],
   "recipes": [
-    ["x_doujiang", "x_yan", "x_doujiangyinpin"],
-    ["x_caomi", "x_chao", "x_xiancaocha"],
-    ["x_meizi", "x_chao", "x_suanmeitang"],
-    ["x_jiucai", "x_lu", "x_qingcaocha"],
-    ["x_caomifan", "x_lu", "x_ganzhezhi"],
-    ["x_ningmeng", "x_chao", "x_ningmengshui"],
+    ["x_doujiang", "x_jiaotang", "x_doujiangyinpin"],
+    ["x_xiancaodong", "water", "x_xiancaocha"],
+    ["x_meizi", "x_xunkao", "x_suanmeitang"],
+    ["x_bohe", "water", "x_qingcaocha"],
+    ["x_ganzhe", "water", "x_ganzhezhi"],
+    ["x_ningmeng", "water", "x_ningmengshui"],
     ["x_putao", "water", "x_putaozhi"],
     ["x_xigua", "water", "x_xiguazhi"],
     ["x_hamigua", "x_niunai", "x_hamiguaniunai"],
-    ["x_doujiang", "x_tangzi", "x_dounaibingsha"],
+    ["x_doujiang", "x_cuobing", "x_dounaibingsha"],
     ["x_qingjiu", "x_chaiyu", "x_ribenqingjiutaocan"],
-    ["x_meizi", "water", "x_meijiusuda"]
+    ["x_meizi", "water", "x_meijiusuda"],
+    ["x_kafeidou", "water", "x_kafei"],
+    ["x_kafei", "x_niunai", "x_natie"],
+    ["x_dongguacha", "water", "x_dongguachayin"]
   ]
 }

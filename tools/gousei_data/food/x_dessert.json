@@ -19,7 +19,12 @@
     {"id": "x_nanguabuding", "zh": "南瓜布丁", "ja": "かぼちゃプリン"},
     {"id": "x_qisidangao", "zh": "起司蛋糕", "ja": "チーズケーキ"},
     {"id": "x_yougebingqilin", "zh": "優格冰淇淋", "ja": "ヨーグルトアイス"},
-    {"id": "x_qiyiguota", "zh": "奇異果塔", "ja": "キウイタルト"}
+    {"id": "x_qiyiguota", "zh": "奇異果塔", "ja": "キウイタルト"},
+    {"id": "x_basishuiguo", "zh": "拔絲水果", "ja": "抜絲フルーツ"},
+    {"id": "x_hongdoumashu", "zh": "紅豆麻糬", "ja": "あんこ餅"},
+    {"id": "x_huashengtang", "zh": "花生糖", "ja": "ピーナッツ飴"},
+    {"id": "x_zhimatangyuan", "zh": "芝麻湯圓", "ja": "ごま白玉"},
+    {"id": "x_tangchaolizi", "zh": "糖炒栗子", "ja": "甘栗"}
   ],
   "recipes": [
     ["fire", "rice", "x_mixiang"],
@@ -29,16 +34,21 @@
     ["x_putao", "x_mianfen", "x_putaota"],
     ["x_pingguo", "x_mianfen", "x_pingguopai"],
     ["x_xiangjiao", "x_xiannaiyou", "x_xiangjiaochuan"],
-    ["x_baixiangguo", "x_chao", "x_baixiangguoxuelao"],
+    ["x_baixiangguo", "x_cuobing", "x_baixiangguoxuelao"],
     ["x_lizhi", "water", "x_lizhibingsha"],
-    ["x_longyan", "x_chao", "x_longyantiantang"],
-    ["x_youzi", "x_chao", "x_youzifengmichatiandian"],
+    ["x_longyan", "x_hongdoutang", "x_longyantiantang"],
+    ["x_youzi", "x_cuobing", "x_youzifengmichatiandian"],
     ["x_caomei", "x_nuomi", "x_caomeidafu"],
-    ["x_yutou", "x_lu", "x_yutoutiantang"],
-    ["x_digua", "x_lu", "x_diguatiantang"],
+    ["x_yutou", "x_niunai", "x_yutoutiantang"],
+    ["x_digua", "x_shengjiang", "x_diguatiantang"],
     ["x_nangua", "x_jidan", "x_nanguabuding"],
     ["x_qisi", "x_jidan", "x_qisidangao"],
-    ["x_youge", "x_chao", "x_yougebingqilin"],
-    ["x_qiyiguo", "x_mianfen", "x_qiyiguota"]
+    ["x_youge", "x_cuobing", "x_yougebingqilin"],
+    ["x_qiyiguo", "x_mianfen", "x_qiyiguota"],
+    ["x_zha", "x_xiangjiao", "x_basishuiguo"],
+    ["x_hongdou", "x_mashu", "x_hongdoumashu"],
+    ["x_huasheng", "x_jiaotang", "x_huashengtang"],
+    ["x_zhima", "x_nuomi", "x_zhimatangyuan"],
+    ["x_lizi", "x_cuyan", "x_tangchaolizi"]
   ]
 }
