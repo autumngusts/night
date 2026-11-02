@@ -499,6 +499,17 @@
       if (mine) g += '<ellipse class="rw-mnode-mine-ring" cx="0" cy="3.4" rx="' + f1(8.6 * sc) + '" ry="' + f1(3.8 * sc) + '"/>';
       g += '<g class="rw-mnode-castle" filter="url(#rw-map-shadow)" transform="scale(' + sc + ')">' + mapCastleGlyph(capital) + "</g>";
       // 旗印
+      var mark = opts.marks && opts.marks[nd.id];
+      if (mark && mark.siege) {
+        // 圍城：城四周一圈圍城方的小旗
+        for (var si = 0; si < 6; si++) {
+          var ang = (si / 6) * Math.PI * 2;
+          var fx = f1(Math.cos(ang) * 11);
+          var fy = f1(Math.sin(ang) * 5.5 + 2.5);
+          g += '<path class="rw-mnode-siege-flag" fill="' + esc(mark.siege) + '" d="M' + fx + "," + fy + " l0,-5 l2.4,0.9 l-2.4,0.9" + '"/>';
+        }
+      }
+      if (mark && mark.intel) g += '<text class="rw-mnode-intel" x="-9" y="-8">👁</text>';
       g += '<line class="rw-mnode-pole" x1="6.6" y1="2" x2="6.6" y2="-13"/>';
       g += '<path class="rw-mnode-flag" fill="' + esc(color) + '" d="M6.6,-13 L12.4,-13 L12.4,-7.6 L6.6,-7.6Z"/>';
       // 名牌
@@ -508,6 +519,23 @@
       g += "</g>";
       s.push(g);
     });
+
+    // 進軍箭頭（回合摘要重播）：依序延遲動畫；攻陷時箭頭末端畫上旗印
+    if (opts.arrows && opts.arrows.length) {
+      s.push('<defs><marker id="rw-map-arrowhead" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="4" markerHeight="4" orient="auto"><path d="M0,0 L10,5 L0,10Z" fill="#2a1a0e"/></marker></defs>');
+      opts.arrows.forEach(function (a, i) {
+        var A = D.nodeById(a.from);
+        var B = D.nodeById(a.to);
+        if (!A || !B) return;
+        var mx = (A.x + B.x) / 2 + (B.y - A.y) * 0.18;
+        var my = (A.y + B.y) / 2 - (B.x - A.x) * 0.18;
+        var d = "M" + A.x + "," + A.y + " Q" + f1(mx) + "," + f1(my) + " " + B.x + "," + B.y;
+        var delay = (0.3 + i * 0.45).toFixed(2) + "s";
+        s.push('<path class="rw-map-arrow-under" d="' + d + '" style="animation-delay:' + delay + '"/>');
+        s.push('<path class="rw-map-arrow" d="' + d + '" stroke="' + esc(a.color) + '" marker-end="url(#rw-map-arrowhead)" style="animation-delay:' + delay + '"/>');
+        if (a.captured) s.push('<text class="rw-map-arrow-capture" x="' + B.x + '" y="' + (B.y - 14) + '" text-anchor="middle" style="animation-delay:' + (0.3 + i * 0.45 + 0.6).toFixed(2) + 's">🚩</text>');
+      });
+    }
 
     // 外框
     s.push('<rect class="rw-map-frame" x="' + (vb.x + 1.5) + '" y="' + (vb.y + 1.5) + '" width="' + (vb.w - 3) + '" height="' + (vb.h - 3) + '"/>');
@@ -1298,7 +1326,8 @@
     } else if (phase === "round") {
       var r = opts.round;
       var aT = r.attackerType;
-      var dT = r.defenderType;
+      // 預備隊應戰：守方這格沒排兵，以城兵（具足兵造型）出城迎擊
+      var dT = r.defenderType || (r.reserve ? "ashigaru" : null);
       if (aT) s.push(squadMarkup(aT, "atk", opts.attackerColor, fallenOf(r.attackerAmount, r.attackerLoss), 186, groundY, { animate: true }));
       if (dT) s.push(squadMarkup(dT, "def", opts.defenderColor, fallenOf(r.defenderAmount, r.defenderLoss), 214, groundY, { animate: true }));
 
@@ -1325,13 +1354,27 @@
         );
       }
 
-      var mulA = aT && dT ? D.matchupMultiplier(aT, dT) : 1;
+      var mulA = aT && r.defenderType ? D.matchupMultiplier(aT, r.defenderType) : 1;
+      var tn = opts.tacticName || function (x) {
+        return x;
+      };
+      var aTac = aT && r.attackerTactic && r.attackerTactic !== "normal" ? "［" + tn(r.attackerTactic) + "］" : "";
+      var dTac = r.defenderType && r.defenderTactic && r.defenderTactic !== "normal" ? "［" + tn(r.defenderTactic) + "］" : "";
       s.push(
-        infoPlate(8, 8, 150, "start", opts.attackerColor, opts.attackerName, aT ? opts.typeIcon(aT) + " " + opts.typeName(aT) + " ×" + r.attackerAmount : "—")
+        infoPlate(8, 8, 150, "start", opts.attackerColor, opts.attackerName, aT ? opts.typeIcon(aT) + " " + opts.typeName(aT) + " ×" + r.attackerAmount + aTac : "—")
       );
       s.push(
-        infoPlate(242, 8, 150, "end", opts.defenderColor, opts.defenderName, dT ? opts.typeIcon(dT) + " " + opts.typeName(dT) + " ×" + r.defenderAmount : "—")
+        infoPlate(
+          242,
+          8,
+          150,
+          "end",
+          opts.defenderColor,
+          opts.defenderName,
+          r.reserve ? "🏯 " + (lb.reserve || "") + " ×" + r.defenderAmount : r.defenderType ? opts.typeIcon(r.defenderType) + " " + opts.typeName(r.defenderType) + " ×" + r.defenderAmount + dTac : "—"
+        )
       );
+      if (r.retreatAfter) s.push(stamp(200, 92, lb.stampRetreat || "", "rw-bt-stamp-lose", 18));
       s.push('<text x="200" y="22" text-anchor="middle" class="rw-bt-round-label">' + esc(lb.round || "") + "</text>");
       if (mulA > 1) s.push(stamp(178, 56, lb.advantage || "", "rw-bt-stamp-adv", 15));
       else if (mulA < 1) s.push(stamp(222, 56, lb.advantage || "", "rw-bt-stamp-adv", 15));
@@ -1352,7 +1395,8 @@
           '<g style="--rw-fc:' + esc(winColor) + '" transform="translate(' + x + "," + (groundY + (i % 2) * 9 - 4) + ") scale(" + 1.05 * flip + ',1.05)"><g class="rw-bt-cheer" style="animation-delay:' + i * 0.12 + 's"><use href="#rw-bt-fig-' + tid + '"/></g></g>'
         );
       });
-      s.push(stamp(150, 100, opts.captured ? lb.stampCaptured || "" : lb.stampRepelled || "", opts.playerWon ? "rw-bt-stamp-win" : "rw-bt-stamp-lose", 34));
+      var finalText = opts.retreated ? lb.stampRetreat || "" : opts.captured ? lb.stampCaptured || "" : lb.stampRepelled || "";
+      s.push(stamp(150, 100, finalText, opts.playerWon ? "rw-bt-stamp-win" : "rw-bt-stamp-lose", 34));
       s.push(infoPlate(8, 8, 150, "start", opts.attackerColor, opts.attackerName, (lb.troops || "") + " " + opts.attackerTotal));
       s.push(infoPlate(242, 8, 150, "end", opts.defenderColor, opts.defenderName + "・" + opts.nodeName, (lb.troops || "") + " " + opts.defenderTotal));
     }

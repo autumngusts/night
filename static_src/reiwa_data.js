@@ -1,4 +1,4 @@
-// 令和之野望（reiwa）：靜態資料 —— 東北地方 30 座城池、8 個勢力（含大名特色）、14 位家臣＋8 位浪人武將、
+// 令和之野望（reiwa）：靜態資料 —— 東北地方 30 座城池、8＋1 個勢力（含大名特色，上杉氏只在 1600 劇本登場）、16 位家臣＋8 位浪人武將、
 // 8 種兵種的循環相剋表、劇本與難度設定。規則說明見 docs/reiwa_game_design.md。
 // 這是全新的獨立小遊戲，與 night/midnight 的 TRPG 規則無關；武將為「真實大名姓氏＋原創數值」的混合設定，
 // 地圖座標為示意用的簡化佈局，不是精確地理位置。
@@ -186,6 +186,17 @@
     },
   };
 
+  // 上杉氏：只在 1600 劇本登場（其他劇本列在 absent，不參與遊戲）
+  FACTIONS.uesugi = {
+    id: "uesugi",
+    name: C("上杉氏", "上杉氏"),
+    color: "#d9822b",
+    capital: "fu_aizu",
+    generals: ["uesugi_kagekatsu", "naoe_kanetsugu"],
+    temperament: "aggressive",
+    trait: { id: "echigo_elite", name: C("越後の精兵", "越後精兵"), desc: C("槍兵・具足兵の戦力×1.15", "槍兵、具足兵戰力 ×1.15"), powerMul: { spear: 1.15, ashigaru: 1.15 } },
+  };
+
   var FACTION_ORDER = [
     "tsugaru",
     "nanbu",
@@ -195,6 +206,7 @@
     "kasai",
     "ashina",
     "soma",
+    "uesugi",
   ];
 
   // 武將：leadership（統率，影響可帶兵量與防禦）／valor（武勇，影響正面交戰威力）
@@ -292,6 +304,20 @@
       stats: { leadership: 5, valor: 5, strategy: 5, politics: 6 },
       aptitude: "naginata",
     },
+    uesugi_kagekatsu: {
+      id: "uesugi_kagekatsu",
+      faction: "uesugi",
+      name: C("上杉景勝", "上杉景勝"),
+      stats: { leadership: 8, valor: 7, strategy: 7, politics: 7 },
+      aptitude: "spear",
+    },
+    naoe_kanetsugu: {
+      id: "naoe_kanetsugu",
+      faction: "uesugi",
+      name: C("直江兼続", "直江兼續"),
+      stats: { leadership: 8, valor: 7, strategy: 9, politics: 9 },
+      aptitude: "gun",
+    },
     soma_moritane: {
       id: "soma_moritane",
       faction: "soma",
@@ -325,6 +351,8 @@
       startSeason: 0,
       ownerOverrides: {},
       eliminated: [],
+      absent: ["uesugi"],
+      relations: {},
     },
     s1589: {
       id: "s1589",
@@ -334,9 +362,26 @@
       startSeason: 2,
       ownerOverrides: { fu_aizu: "date", fu_koriyama: "date", fu_shirakawa: "date" },
       eliminated: ["ashina"],
+      absent: ["uesugi"],
+      relations: { "date|soma": -30, "date|mogami": -10 },
+    },
+    s1600: {
+      id: "s1600",
+      name: C("1600 慶長出羽合戦", "1600 慶長出羽合戰"),
+      desc: C("会津百二十万石の上杉氏が最上・伊達と激突する。葛西・蘆名はすでに滅亡。", "坐擁會津百二十萬石的上杉氏與最上、伊達正面衝突；葛西、蘆名皆已滅亡。"),
+      startYear: 1600,
+      startSeason: 2,
+      ownerOverrides: {
+        fu_aizu: "uesugi", fu_koriyama: "uesugi", fu_shirakawa: "uesugi", fu_nihonmatsu: "uesugi", fu_fukushima: "uesugi",
+        ya_yonezawa: "uesugi", ya_tsuruoka: "uesugi",
+        mi_ishinomaki: "date", mi_kesennuma: "date",
+      },
+      eliminated: ["ashina", "kasai"],
+      absent: [],
+      relations: { "mogami|uesugi": -50, "date|uesugi": -40, "date|mogami": 30 },
     },
   };
-  var SCENARIO_ORDER = ["s1585", "s1589"];
+  var SCENARIO_ORDER = ["s1585", "s1589", "s1600"];
 
   // 難度：玩家行動點／AI 每回合行動數／AI 收入倍率
   var DIFFICULTIES = {
