@@ -6,6 +6,7 @@
 //   → 管理面板（密碼 nightnight）：派發、設為、改起始籌碼＋全部重置，所有人同步
 //   另外（2026-10-31）：B 在大廳改跑法 → 出賽表上 B 的狗用那個跑法；彩池制：A 的下注即時進彩池、B 看到賠率下降、
 //   兩邊的最終賠率一致；累積彩金由房主結算（沒人買三連單＝累積 JP_SEED＋JP_PER_RACE＋下注 5%）
+//   2026-11-02：B 在比賽中改跑法 → A 在生效前收到指令、重新模擬後結果一致；中途加入的 C 也套用同一份指令
 // 前置：
 //   1. py -3 generate.py
 //   2. py -3 -m http.server 8947 --directory dist
@@ -129,6 +130,18 @@ function kennelCoins(page) { return ev(page, function () { return window.PriTest
   var ta = await ev(A, function () { return window.PriTestSaigo.ui.room.raceTime(); });
   var tb = await ev(B, function () { return window.PriTestSaigo.ui.room.raceTime(); });
   assert.ok(Math.abs(ta - tb) < 0.3, "時間對齊 " + ta + " / " + tb);
+
+  // 比賽中改跑法（2026-11-02）：B 改自己的狗的跑法 → 指令寫進房間，A 重新模擬後結果與 B 一致
+  await B.waitForSelector(".sg-race-style .sg-seg-btn:not([disabled])");
+  await B.dispatchEvent(".sg-race-style .sg-seg-btn:not([disabled])", "click");
+  var bCmd = await ev(B, function () { return JSON.stringify(window.PriTestSaigo.ui.result.cmds); });
+  assert.strictEqual(JSON.parse(bCmd).length, 1, "B 的指令被套用");
+  assert.strictEqual(JSON.parse(bCmd)[0].d, bGate, "指令是 B 的狗");
+  await until(A, function (c) { return JSON.stringify(window.PriTestSaigo.ui.result.cmds) === c; }, bCmd, 10000, "A 收到 B 的改跑法");
+  var lead = await ev(A, function () { var u = window.PriTestSaigo.ui; return u.result.cmds[0].k * window.PriTestSaigoCore.DT - u.room.raceTime(); });
+  assert.ok(lead > 0, "A 在指令生效前就收到（還有 " + lead.toFixed(2) + " 秒）");
+  var ab = await Promise.all([A, B].map(function (p) { return ev(p, function () { var r = window.PriTestSaigo.ui.result; return JSON.stringify({ o: r.order, t: r.times }); }); }));
+  assert.strictEqual(ab[0], ab[1], "改跑法後 A／B 結果一致");
 
   // 第三個人中途加入觀戰
   var C = await newPage(browser, "C", "觀眾C");

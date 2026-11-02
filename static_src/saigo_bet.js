@@ -81,22 +81,58 @@
   }
 
   // ---------------- 彩池制（連線房間） ----------------
-  // 賠率＝彩池合計 × 回收率 ÷ 押在這個組合的金額（÷ 中獎組合數：複勝 2、寬 3）。
   // 彩池＝CPU 的虛擬彩池（依模擬機率分配，沒人下注時賠率就等於固定賠率）＋所有玩家的下注。
   // base＝虛擬彩池的規模（每種票 base × √組合數）
-  function poolOdds(card, pool, base) {
-    var od = Core.odds(card), out = { p: od.p, prob: od.prob };
+  // 單一中獎組合的票（單勝、二連複、二連單、三連複、三連單）：賠率＝彩池 × 回收率 ÷ 押在這個組合的金額。
+  // 複勝（2 隻中）、寬（3 組中）照 JRA 的算法：先從「彩池 × 回收率」扣掉所有中獎組合的本金，
+  //   剩下的利益由中獎組合平分，賠率＝1＋分到的利益 ÷ 這個組合的金額；利益不夠時＝1.0（元返し）。
+  //   所以要看「跟誰一起中」，開跑前只能顯示範圍（range），結算時傳入 order 算出確定賠率。
+  function poolOdds(card, pool, base, order) {
+    var od = Core.odds(card), out = { p: od.p, prob: od.prob, range: {} };
     D.BET_TYPES.forEach(function (bt) {
       var pr = od.prob[bt.id], keys = Object.keys(pr), S = 0;
       keys.forEach(function (c) { S += pr[c]; });
-      var k = Math.max(1, Math.round(S)), V = base * Math.sqrt(keys.length), H = (pool && pool[bt.id]) || {}, T = V;
-      keys.forEach(function (c) { T += Number(H[c]) || 0; });
-      var o = {};
+      var V = base * Math.sqrt(keys.length), H = (pool && pool[bt.id]) || {}, T = V, amt = {};
+      keys.forEach(function (c) { amt[c] = V * pr[c] / S + (Number(H[c]) || 0); T += Number(H[c]) || 0; });
+      var net = T * bt.take, o = {};
+      if (bt.id !== "place" && bt.id !== "wide") {
+        keys.forEach(function (c) { o[c] = Core.oddsValue(net / amt[c]); });
+        out[bt.id] = o;
+        return;
+      }
+      var k = bt.id === "place" ? 2 : 3, rg = {};
+      function multi(winners, c) {
+        var sum = 0;
+        winners.forEach(function (w) { sum += amt[w]; });
+        return Core.oddsValue(1 + Math.max(0, net - sum) / (k * amt[c]));
+      }
+      // c 中的時候，另外一起中的組合有哪些可能
+      function partners(c) {
+        var n = card.dogs.length, res = [], x;
+        if (bt.id === "place") {
+          for (x = 0; x < n; x++) if (String(x) !== c) res.push([c, String(x)]);
+          return res;
+        }
+        var ab = c.split("-").map(Number);
+        for (x = 0; x < n; x++) {
+          if (x === ab[0] || x === ab[1]) continue;
+          var s = [ab[0], ab[1], x].sort(function (u, v) { return u - v; });
+          res.push([s[0] + "-" + s[1], s[0] + "-" + s[2], s[1] + "-" + s[2]]);
+        }
+        return res;
+      }
+      var final = null;
+      if (order) {
+        final = bt.id === "place" ? [String(order[0]), String(order[1])]
+          : (function () { var s = order.slice(0, 3).sort(function (u, v) { return u - v; }); return [s[0] + "-" + s[1], s[0] + "-" + s[2], s[1] + "-" + s[2]]; })();
+      }
       keys.forEach(function (c) {
-        var a = V * pr[c] / S + (Number(H[c]) || 0);
-        o[c] = Core.clamp(Math.floor(T * bt.take / (k * a) * 10) / 10, 1.1, 9999.9);
+        var vals = partners(c).map(function (ws) { return multi(ws, c); });
+        rg[c] = [Math.min.apply(null, vals), Math.max.apply(null, vals)];
+        o[c] = final && final.indexOf(c) >= 0 ? multi(final, c) : rg[c][0];
       });
       out[bt.id] = o;
+      out.range[bt.id] = rg;
     });
     return out;
   }

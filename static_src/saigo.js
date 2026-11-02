@@ -67,11 +67,19 @@
 
   // 彩池制（連線房間、房主開啟）：賠率＝虛擬彩池＋大家的下注；開跑後用房主鎖定的彩池
   function poolMode(card) { return !!(ui.room && card && card.pm); }
-  function curOdds(card) {
+  // order＝結算時的名次（彩池制的複勝／寬要看跟誰一起中才算得出確定賠率）
+  function curOdds(card, order) {
     if (!poolMode(card)) return Core.odds(card);
     var m = ui.room.match, lk = m && m.pool;
-    if (lk && lk.h) return Bet.poolOdds(card, lk.h, lk.base);
-    return Bet.poolOdds(card, ui.room.livePool(), ui.room.poolBase());
+    if (lk && lk.h) return Bet.poolOdds(card, lk.h, lk.base, order);
+    return Bet.poolOdds(card, ui.room.livePool(), ui.room.poolBase(), order);
+  }
+  // 顯示用賠率：彩池制的複勝／寬顯示範圍
+  function oddsText(od, type, c, fb) {
+    var rg = od.range && od.range[type] && od.range[type][c];
+    if (rg && rg[1] > rg[0]) return rg[0].toFixed(1) + "-" + rg[1].toFixed(1);
+    var v = od[type] && od[type][c];
+    return (v || fb || 0).toFixed(1);
   }
   function popOf(od) {
     var w = od.win, idx = Object.keys(w).map(Number).sort(function (a, b) { return w[a] - w[b] || a - b; }), pop = [];
@@ -465,7 +473,7 @@
               el("p", { class: "sg-small" }, [t("sg_best_style") + "：" + L(D.STYLES[d.best || d.style]) + "・" + t("sg_run_style") + "：" + styleLabel(d)]),
               statsTable(d.eff),
               el("p", { class: "sg-small sg-muted" }, [t("sg_eff_note")]),
-              el("p", { class: "sg-small" }, [t("sg_place_odds") + "：" + od.place[i].toFixed(1)])
+              el("p", { class: "sg-small" }, [t("sg_place_odds") + "：" + oddsText(od, "place", String(i))])
             ])
           ])
         ])]));
@@ -527,7 +535,8 @@
     }));
     var picks = sl.method === "key" ? sl.picks.concat(sl.key === null ? [] : [sl.key]) : sl.picks;
     var draft = Bet.makeTicket(card, sl.type, sl.method, picks, sl.key, sl.stake, od);
-    var ods = draft.combos.map(function (c) { return draft.odds[c]; });
+    var ods = [];
+    draft.combos.forEach(function (c) { var rg = od.range && od.range[draft.type] && od.range[draft.type][c]; ods.push(draft.odds[c]); if (rg) ods.push(rg[1]); });
     var stakeIn = el("input", { class: "sg-input sg-stake", type: "number", min: "100", step: "100", value: String(sl.stake), disabled: !open, onchange: function (e) { sl.stake = Math.max(100, Math.floor((Number(e.target.value) || 100) / 100) * 100); rerenderKeep(); } });
     var total = ui.tickets.reduce(function (a, x) { return a + x.cost; }, 0);
     var canAdd = open && draft.combos.length > 0 && total + draft.cost <= wallet();
@@ -535,7 +544,7 @@
     var list = el("div", { class: "sg-tickets" }, ui.tickets.map(function (tk, n) {
       return el("div", { class: "sg-ticket" }, [
         el("b", null, [L(Bet.TYPE[tk.type].name)]), " " + (tk.method !== "normal" ? t("sg_method_" + tk.method) + " " : ""),
-        el("span", { class: "sg-combos" }, [tk.combos.slice(0, 8).map(function (c) { return Bet.comboLabel(tk.type, c) + "(" + (od[tk.type][c] || tk.odds[c]) + ")"; }).join(" ") + (tk.combos.length > 8 ? " …" : "")]),
+        el("span", { class: "sg-combos" }, [tk.combos.slice(0, 8).map(function (c) { return Bet.comboLabel(tk.type, c) + "(" + oddsText(od, tk.type, c, tk.odds[c]) + ")"; }).join(" ") + (tk.combos.length > 8 ? " …" : "")]),
         " " + t("sg_ticket_cost", { n: tk.combos.length, s: money(tk.stake), c: money(tk.cost) }),
         open ? btn("×", function () { ui.tickets.splice(n, 1); pushBets(); rerenderKeep(); }, "sg-x") : null
       ]);
@@ -581,6 +590,7 @@
   // ---------------- 比賽 ----------------
   function startRace() {
     if (!ui.card) return;
+    ui.cmds = [];
     ui.result = Core.simulate(ui.card, true);
     // 單機：開跑時扣下注金額
     if (!ui.room && ui.tickets.length) {
@@ -593,11 +603,51 @@
   var EV_ICONS = { knock: "💥", catchGood: "🥏", catchLate: "🥏", catchMiss: "❌", eat: "🍖", stayBreak: "🙃", stayGood: "✋", weaveMiss: "〰", lead: "🚩", finish: "🏁", jumpGood: "✨", start: "🔫", diveGood: "🌊", bridgeStop: "😰",
     clip: "🦵", fireBalk: "🔥", ringMiss: "💥", loopFail: "➰", climbSlip: "🧗", kickGood: "🧱", kickFall: "🤕", seesawFly: "⚖",
     plankFall: "🤕", trip: "⭕", ballPlay: "🔴", sprayStop: "💦", bounceGood: "🤸", bounceFlop: "🤕", paddleBonk: "✣", catStare: "🐈",
-    ditchGood: "✨", ditchFall: "💦", surfWipe: "🌊", skateFall: "🛹", skiFall: "❄" };
+    ditchGood: "✨", ditchFall: "💦", surfWipe: "🌊", skateFall: "🛹", skiFall: "❄", style: "🔀" };
   function eventText(card, e) {
     var name = e.d >= 0 ? (e.d + 1) + " " + card.dogs[e.d].name : "";
-    return (EV_ICONS[e.k] || "") + " " + t("sg_ev_" + e.k, { name: name, n: e.x });
+    return (EV_ICONS[e.k] || "") + " " + t("sg_ev_" + e.k, { name: name, n: e.k === "style" ? L(D.STYLES[e.x]) : e.x });
   }
+  // ---- 比賽中改跑法 ----
+  // 全部的指令：單機＝ui.cmds；連線＝自己的（本機為準）＋其他人寫進房間的
+  function raceCmds() {
+    if (!ui.room) return ui.cmds || [];
+    var out = (ui.myCmds || []).slice(), m = ui.room.match;
+    Object.keys((m && m.cmds) || {}).forEach(function (pid) {
+      if (pid !== ui.room.pid) (m.cmds[pid] || []).slice(0, 8).forEach(function (c) { out.push(c); });
+    });
+    return out;
+  }
+  // 用目前的指令整場重新模擬；結果物件原地替換，畫面與 3D 播放都接著用同一個物件
+  function resimulate() {
+    var nr = Core.simulate(ui.card, true, undefined, raceCmds());
+    Object.keys(nr).forEach(function (k) { ui.result[k] = nr[k]; });
+    ui.cmdSig = JSON.stringify(raceCmds());
+    ui.resVer = (ui.resVer || 0) + 1;
+    if (ui.view && ui.view.refresh) ui.view.refresh();
+  }
+  // 生效時間比現在晚一點：單機 0.15 秒；連線 CMD_LEAD_S 秒（讓其他裝置在生效前收到）
+  function cmdLead() { return ui.room ? Net.CMD_LEAD_S : 0.15; }
+  function sendStyle(idx, style, tt) {
+    var c = { k: Core.stepOf(Math.max(0, tt) + cmdLead()), d: idx, s: style };
+    if (ui.room) { ui.myCmds = (ui.myCmds || []).concat([c]); ui.room.pushCmds(ui.myCmds); }
+    else ui.cmds = (ui.cmds || []).concat([c]);
+    resimulate();
+  }
+  // 自己的狗在 tt 時的跑法、是否有還沒生效的指示、還能改幾次、現在能不能改
+  function myStyleState(card, res, idx, tt) {
+    var cur = card.dogs[idx].style, pend = null, used = 0;
+    (res.cmds || []).forEach(function (c) {
+      if (c.d !== idx) return;
+      used++;
+      if (c.k * Core.DT <= tt + 1e-6) cur = c.s; else pend = c.s;
+    });
+    var left = Core.STYLE_CMD_MAX - used, fin = res.times[idx] !== null && res.times[idx] <= tt;
+    var ahead = Core.stateAt(res, Math.max(0, tt) + cmdLead())[idx];
+    var can = tt >= 0 && !fin && left > 0 && !pend && ahead && ahead.s / card.course.length < Core.STYLE_CMD_PROG;
+    return { cur: cur, pend: pend, left: left, can: !!can };
+  }
+
   function screenRace() {
     var card = ui.card, res = ui.result;
     var stage = el("div", { class: "sg-stage" });
@@ -612,12 +662,38 @@
     stage.appendChild(hud);
     var camBar = el("div", { class: "sg-cams" });
     var spdBar = el("div", { class: "sg-cams" });
-    app.appendChild(el("div", { class: "sg-race" }, [stage, camBar, spdBar]));
+    var styleBox = el("div", { class: "sg-race-style" });
+    app.appendChild(el("div", { class: "sg-race" }, [stage, styleBox, camBar, spdBar]));
 
     var camMode = pref().cam || "tv", camDog = 0;
     var myIdx = -1;
     card.dogs.forEach(function (d, i) { if (myIdx < 0 && isMine(d)) myIdx = i; });
     if (myIdx >= 0) camDog = myIdx;
+    // 自己的狗的跑法指示（重播時不能改）
+    var curTT = -3, styleKey = "", staFill = null, styleOn = myIdx >= 0 && !ui.replay;
+    if (!styleOn) styleBox.style.display = "none";
+    function updateStyleBox(tt, st) {
+      if (!styleOn) return;
+      var md = card.dogs[myIdx], ss = myStyleState(card, res, myIdx, tt);
+      var key = [ss.cur, ss.pend, ss.left, ss.can].join("|");
+      if (key !== styleKey) {
+        styleKey = key;
+        styleBox.innerHTML = "";
+        var best = md.best || md.style;
+        staFill = el("i");
+        styleBox.appendChild(el("div", { class: "sg-race-style-head" }, [
+          gateBadge(myIdx), el("b", null, [" " + t("sg_race_style_title", { name: md.name })]),
+          el("span", { class: "sg-race-sta" }, [t("sg_race_sta") + " ", el("span", { class: "sg-bar sg-bar-b" }, [staFill])]),
+          el("small", { class: ss.pend ? "sg-good" : "sg-muted" }, [ss.pend ? t("sg_race_style_pending") : ss.left > 0 ? t("sg_race_style_left", { n: ss.left }) : t("sg_race_style_none")])
+        ]));
+        styleBox.appendChild(el("div", { class: "sg-seg" }, D.STYLE_IDS.map(function (sid) {
+          return btn(L(D.STYLES[sid]) + " " + aptG(best, sid) + (sid === best ? " ★" : ""), function () { sendStyle(myIdx, sid, curTT); },
+            "sg-seg-btn sg-style-" + sid + (sid === ss.cur ? " sg-on" : "") + (sid === ss.pend ? " sg-pending" : ""), { disabled: !ss.can || sid === ss.cur });
+        })));
+        styleBox.appendChild(el("p", { class: "sg-small sg-muted" }, [t("sg_race_style_note", { max: Core.STYLE_CMD_MAX, cost: Math.round(Core.STYLE_CMD_COST * 100) })]));
+      }
+      if (staFill && st[myIdx]) staFill.style.width = Math.round(Core.clamp(st[myIdx].sta, 0, 1) * 100) + "%";
+    }
     function camButtons() {
       camBar.innerHTML = "";
       [["tv", t("sg_cam_tv")], ["aerial", t("sg_cam_aerial")]].forEach(function (c) {
@@ -655,14 +731,21 @@
     }
     start3d();
 
-    var last = performance.now(), lastEv = -1, ended = false, tickLines = [];
-    var evs = (res.events || []).filter(function (e) { return e.k !== "enter" && e.k !== "start" && e.k !== "stayGood"; });
+    var last = performance.now(), lastEv = -1, ended = false, tickLines = [], resVer = ui.resVer;
+    function liveEvents() { return (res.events || []).filter(function (e) { return e.k !== "enter" && e.k !== "start" && e.k !== "stayGood"; }); }
+    var evs = liveEvents();
     function loop(now) {
       if (ui.screen !== "race") return;
       var dt = Math.min(0.1, (now - last) / 1000); last = now;
       var tt;
       if (ui.room && !ui.replay) { tt = ui.room.raceTime(); if (tt === null) tt = -3; }
       else { ui.raceT += dt * (ui.raceT < 0 ? 1 : ui.speed); tt = ui.raceT; }
+      curTT = tt;
+      // 改跑法後重新模擬過：實況從目前時間接著播（生效前的事件都一樣）
+      if (resVer !== ui.resVer) {
+        resVer = ui.resVer; evs = liveEvents(); lastEv = -1;
+        while (lastEv + 1 < evs.length && evs[lastEv + 1].t <= tt) lastEv++;
+      }
       var out = null;
       if (ui.view) out = ui.view.frame(tt, dt * (ui.room && !ui.replay ? 1 : ui.speed));
       var rank = out ? out.rank : Core.rankAt(res, Math.max(0, tt));
@@ -670,6 +753,7 @@
       var pos = st.map(function (x, i) { var p = Core.pointAt(card.course, Math.min(x.s, card.course.length), Core.laneOff(i)); return { x: p.x, z: p.y }; });
       if (fallback) drawFallback(fallback, card, res, tt, pos, rank);
       drawMinimap(mm, card, pos);
+      updateStyleBox(tt, st);
       // HUD
       var lead = rank[0], ls = st[lead] ? st[lead].s : 0;
       var part = Core.partAt(card.course, Math.min(ls, card.course.length - 0.01));
@@ -726,7 +810,7 @@
     ui.settled[key] = true;
     var card = ui.card, res = ui.result, order = res.order;
     // 彩池制：票上記的是買的當下的預估賠率，換成開跑時鎖定的最終賠率
-    ui.finalOdds = poolMode(card) ? curOdds(card) : null;
+    ui.finalOdds = poolMode(card) ? curOdds(card, order) : null;
     if (ui.finalOdds) ui.tickets.forEach(function (tk) { tk.combos.forEach(function (c) { tk.odds[c] = ui.finalOdds[tk.type][c] || tk.odds[c]; }); });
     var sum = Bet.settle(ui.tickets, order);
     if (sum.won && !ui.room) K.receive(sum.won);
@@ -877,9 +961,16 @@
         var tks = ui.tickets;
         if (cost > 0) room.addCoins(room.pid, -cost).then(function (v) { if (!v) tks.length = 0; });
       }
-      ui.result = Core.simulate(ui.card, true);
+      ui.myCmds = ((m.cmds || {})[room.pid] || []).slice();
+      ui.result = Core.simulate(ui.card, true, undefined, raceCmds());
+      ui.cmdSig = JSON.stringify(raceCmds());
       ui.replay = false;
       go("race");
+      return;
+    }
+    // 比賽中有人改跑法：用新的指令重新模擬
+    if (st === "race" && m && m.no === ui.netNo && ui.screen === "race" && !ui.replay && ui.result && JSON.stringify(raceCmds()) !== ui.cmdSig) {
+      resimulate();
       return;
     }
     if (st === "lobby" && (ui.screen === "card" || ui.screen === "result")) { go("lobby"); return; }

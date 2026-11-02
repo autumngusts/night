@@ -176,3 +176,13 @@
 .sg-part-skateboard { border-color: #546e7a; }
 .sg-part-ski { border-color: #90caf9; }
 .sg-code { font-family: ui-monospace, Menlo, Consolas, monospace; }
+
+/* 比賽中改跑法 */
+.sg-race-style { margin: 0.5rem 0; padding: 0.5rem 0.7rem; border: 1px solid var(--sg-line); border-radius: 10px; background: var(--sg-accent-soft); }
+.sg-race-style-head { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; margin-bottom: 0.4rem; }
+.sg-race-sta { display: inline-flex; align-items: center; gap: 0.3rem; font-size: 0.85em; }
+.sg-race-sta .sg-bar { width: 6rem; flex: 0 0 auto; }
+.sg-race-style .sg-seg-btn:disabled { opacity: 0.55; }
+.sg-race-style .sg-seg-btn.sg-on:disabled { opacity: 1; }
+.sg-seg-btn.sg-pending { border-style: dashed; border-color: var(--sg-accent); animation: sg-pend 0.8s ease-in-out infinite alternate; }
+@keyframes sg-pend { from { box-shadow: 0 0 0 0 var(--sg-accent-soft); } to { box-shadow: 0 0 0 4px var(--sg-accent-soft); } }

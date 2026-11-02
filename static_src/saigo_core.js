@@ -9,6 +9,13 @@
   "use strict";
 
   var D = window.PriTestSaigoData;
+  // 平衡參數（2026-11-02 調整）：
+  //   STA_K：耐力消耗係數，消耗 ∝ (速度比)⁴——前段放慢才省得到體力，後段衝刺也更吃體力，四種跑法才有取捨
+  //   DAY：當天狀態幅度（±7%）；CPU_BW／CPU_ADJ：CPU 依等級配對的犬種抽選寬度與訓練補正比例
+  var STA_K = 0.0245, DAY = 0.14, CPU_BW = 7, CPU_ADJ = 0.75;
+  // 比賽中改跑法（使用者指定 2026-11-02）：每隻最多 STYLE_CMD_MAX 次、跑完 STYLE_CMD_PROG 之後不能再改，
+  // 每改一次耐力 −STYLE_CMD_COST（臨時變換步調）
+  var STYLE_CMD_MAX = 2, STYLE_CMD_PROG = 0.9, STYLE_CMD_COST = 0.03;
   var DT = 0.05;            // 模擬步長（秒）
   var MAX_T = 240;          // 最長秒數（超過算未完走）
   var LANE_W = 1.6;         // 每條跑道寬（m）
@@ -192,9 +199,14 @@
     dogs.forEach(function (d) { used[d.name] = 1; });
     var lang = window.I18N && window.I18N.getLang() === "ja" ? "ja" : "zh";
     var names = D.NAMES[lang];
+    // CPU 依賽事等級配對（像賽馬的分組）：先抽這場的實力基準，犬種越接近基準越容易被抽到，
+    // 再依差距給訓練加成，讓同場的狗實力相近、冷門也有機會（2026-11-02 平衡調整）
+    var anchor = between(r, cls.band[0], cls.band[1]), bw = {};
+    D.BREEDS.forEach(function (x) { var z = (D.breedRating(x) - anchor) / CPU_BW; bw[x.id] = 1 / (1 + z * z * z * z); });
     while (dogs.length < D.FIELD) {
-      var b = pick(r, D.BREEDS), train = {};
-      D.STATS.forEach(function (k) { train[k] = Math.round(between(r, cls.cpu[0], cls.cpu[1])); });
+      var b = D.BREED_BY_ID[weighted(r, bw)], train = {};
+      var adj = clamp(Math.round((anchor - D.breedRating(b)) * CPU_ADJ), -12, 12);
+      D.STATS.forEach(function (k) { train[k] = Math.round(between(r, cls.cpu[0], cls.cpu[1])) + adj; });
       var nm, guard = 0;
       do { nm = pick(r, names); guard++; } while (used[nm] && guard < 50);
       used[nm] = 1;
@@ -217,11 +229,12 @@
 
   // ---------------- 比賽模擬 ----------------
   var PACE = {
-    nige: { early: 0.98, late: 0.98, at: 1 },
-    senko: { early: 0.95, late: 1.0, at: 0.7 },
-    sashi: { early: 0.91, late: 1.03, at: 0.62 },
-    oikomi: { early: 0.9, late: 1.07, at: 0.68 }   // 2026-10-31 加跑法適性時調整：原 0.87/1.06/0.72 時連追込最適的狗都是跑差馬比較快
-  };
+    nige: { early: 0.975, late: 0.975, at: 1 },
+    senko: { early: 0.95, late: 1.0, at: 0.6 },
+    sashi: { early: 0.92, late: 1.045, at: 0.6 },
+    oikomi: { early: 0.9, late: 1.1, at: 0.62 }
+  };   // 2026-11-02 與耐力消耗改四次方一起調整：中距離四種跑法平均名次相差 0.1 以內，短距離前段稍有利、長距離後段稍有利
+
   // 展開：逃馬 2 隻以上＝高速步調，逃馬後段乏力、差馬／後追有利；沒有逃馬＝慢步調，先行有利、後追追不上
   function fieldPace(card, style) {
     var p = PACE[style] || PACE.senko, late = p.late;
@@ -243,8 +256,20 @@
   var CRAWL = [0, 0.78, 0.66, 0.52, 0.4, 0.3];
   var DOCK_RUN = 3;   // 跳水台泳池：台上助跑長度（m）
 
-  // record＝是否記錄每一步（畫面用）；seedOverride 給賠率試算用
-  function simulate(card, record, seedOverride) {
+  // 比賽中改跑法的指令：[{ k: 第幾步生效, d: 枠（0 起）, s: 跑法 }]。整理成 { 步: [指令] }，
+  // 同一步同一隻有多筆時以排序後的最後一筆為準（各裝置收到的順序不同也一樣）
+  function cmdIndex(cmds, n) {
+    var list = (cmds || []).filter(function (c) {
+      return c && D.STYLE_IDS.indexOf(c.s) >= 0 && (c.d | 0) === c.d && c.d >= 0 && c.d < n && (c.k | 0) === c.k && c.k >= 0;
+    }).slice().sort(function (a, b) { return a.k - b.k || a.d - b.d || (a.s < b.s ? -1 : a.s > b.s ? 1 : 0); });
+    var at = {};
+    list.forEach(function (c) { (at[c.k] || (at[c.k] = [])).push(c); });
+    return at;
+  }
+  function stepOf(t) { return Math.max(0, Math.ceil(t / DT - 1e-9)); }
+
+  // record＝是否記錄每一步（畫面用）；seedOverride 給賠率試算用；cmds＝比賽中改跑法的指令
+  function simulate(card, record, seedOverride, cmds) {
     var course = card.course, L = course.length;
     var g0 = D.GROUNDS[card.ground] || D.GROUNDS.firm;
     var sf = D.SURFACES[(D.TERRAINS[card.terrain] || D.TERRAINS.park).surf] || D.SURFACES.dirt;
@@ -259,10 +284,11 @@
     var base = seedOverride === undefined ? (card.seed ^ 0x9e3779b1) : seedOverride;
     var dogs = card.dogs.map(function (d, i) {
       var e = d.eff, b = D.BREED_BY_ID[d.breed] || D.BREEDS[0];
+      var vbase = (12.5 + e.spd * 0.045) * g.drag * (sandy ? 0.97 + e.pow * 0.0004 : 1);
       return {
-        i: i, e: e, size: b.size, pace: fieldPace(card, d.style),
+        i: i, e: e, size: b.size, pace: fieldPace(card, d.style), style: d.style, best: d.best || d.style, cmdN: 0,
         r: rng((base + Math.imul(i + 1, 0x632be5ab)) >>> 0),
-        vmax: (12.5 + e.spd * 0.045) * g.drag * (sandy ? 0.97 + e.pow * 0.0004 : 1) * D.APT[D.aptitude(d.best || d.style, d.style)].spd,
+        vbase: vbase, vmax: vbase * D.APT[D.aptitude(d.best || d.style, d.style)].spd,
         cold: b.cold,
         acc: 2.5 + e.pow * 0.03 + (5 - b.size) * 0.4,
         day: 0,
@@ -272,7 +298,7 @@
       };
     });
     var frames = record ? [] : null, events = record ? [] : null;
-    var t = 0, step = 0, leader = -1;
+    var t = 0, step = 0, leader = -1, cmdAt = cmdIndex(cmds, dogs.length), applied = [];
     function ev(k, d, x) { if (events) events.push({ t: Math.round(t * 100) / 100, k: k, d: d, x: x === undefined ? null : x }); }
     if (events) ev("start", -1);
 
@@ -283,9 +309,20 @@
         if (o.done) continue;
         alive++;
         var e = o.e, r = o.r;
+        var cl = cmdAt[step];
+        if (cl) for (var ci = 0; ci < cl.length; ci++) {
+          var cm = cl[ci];
+          if (cm.d !== di || cm.s === o.style || o.cmdN >= STYLE_CMD_MAX || o.s / L > STYLE_CMD_PROG) continue;
+          o.style = cm.s; o.cmdN++;
+          o.pace = fieldPace(card, cm.s);
+          o.vmax = o.vbase * D.APT[D.aptitude(o.best, cm.s)].spd;
+          o.sta = Math.max(0, o.sta - STYLE_CMD_COST);
+          applied.push({ k: step, d: di, s: cm.s });
+          ev("style", di, cm.s);
+        }
         // 每秒換一次隨機起伏（陣風越強越大）
         o.jitT -= DT;
-        if (!o.day) o.day = 0.93 + r() * 0.14;   // 當天狀態（每場一次，±7%）
+        if (!o.day) o.day = 1 - DAY / 2 + r() * DAY;   // 當天狀態（每場一次，±7%）
         if (o.jitT <= 0) { o.jitT = 1; o.jit = 1 - gust + r() * gust * 2; }
         var pi = 0, ps = course.parts;
         for (var q = ps.length - 1; q >= 0; q--) if (o.s >= ps[q].s0) { pi = q; break; }
@@ -585,10 +622,10 @@
         // 加減速
         if (o.v < vt) o.v = Math.min(vt, o.v + o.acc * DT);
         else o.v = Math.max(vt, o.v - 9 * DT);
-        // 耐力：速度比例平方 × 場地 × 炎熱
+        // 耐力：速度比例四次方 × 場地 × 炎熱
         var ratio = o.v / o.vmax;
         var heat = hot ? 1.15 : 1;
-        o.sta -= ratio * ratio * 0.021 * drain * g.stam * heat * DT / (0.5 + e.sta * 0.01);
+        o.sta -= ratio * ratio * ratio * ratio * STA_K * drain * g.stam * heat * DT / (0.5 + e.sta * 0.01);
         if (o.v < 0.5) o.sta += 0.03 * DT;
         o.sta = clamp(o.sta, 0, 1);
         var prev = o.s;
@@ -624,7 +661,7 @@
     return {
       order: order,
       times: dogs.map(function (o) { return o.time; }),
-      frames: frames, events: events, dt: DT,
+      frames: frames, events: events, dt: DT, cmds: applied,
       duration: Math.min(t, MAX_T)
     };
   }
@@ -655,53 +692,72 @@
   }
 
   // ---------------- 賠率 ----------------
-  // 用不同 seed 試跑 N 場得到每隻的勝率（加平滑），二、三連用 Harville 公式由勝率推算。
-  // 賠率是固定賠率（下注當下就決定），所有裝置算出的數字一樣。
-  var SIMS = 160;
-  function odds(card) {
-    if (card._odds) return card._odds;
-    var n = card.dogs.length, wins = [], i, j, k;
-    for (i = 0; i < n; i++) wins.push(0);
+  // 用不同 seed 試跑 SIMS 場，數出每隻得第 1／2／3 名的次數（加平滑）。
+  // 名次組合的機率用「分名次強度」模型（Lo–Bacon-Shone 的 Harville 修正）：
+  //   P(a 第1, b 第2, c 第3) = p1[a] × s2[b]/(1−s2[a]) × s3[c]/(1−s3[a]−s3[b])
+  // p1＝試跑勝率；s2、s3 反覆調整到「模型推出的第 2、3 名機率」等於試跑的第 2、3 名機率。
+  // 舊版只用勝率套 Harville，會低估冷門狗擠進前三的機率（寬、三連複的回收率曾經超過 100%）。
+  // 只用四則運算，所有裝置算出的數字一樣。
+  var SIMS = 200, SMOOTH = 0.5, FIT_ITERS = 40;
+  // 下限 1.0＝JRA 的「元返し」；賠率以 0.1 為單位無條件捨去（JRA 派彩以 10 円為單位捨去）
+  var ODDS_MIN = 1.0, ODDS_MAX = 9999.9;
+  function oddsValue(v) { return clamp(Math.floor(v * 10 + 1e-9) / 10, ODDS_MIN, ODDS_MAX); }
+  function placeProbs(card) {
+    var n = card.dogs.length, c1 = [], c2 = [], c3 = [], i, j, k, it;
+    for (i = 0; i < n; i++) { c1.push(0); c2.push(0); c3.push(0); }
     for (var m = 0; m < SIMS; m++) {
-      var res = simulate(card, false, (card.seed + 7919 * (m + 1)) >>> 0);
-      wins[res.order[0]]++;
+      var o = simulate(card, false, (card.seed + 7919 * (m + 1)) >>> 0).order;
+      c1[o[0]]++; c2[o[1]]++; if (n > 2) c3[o[2]]++;
     }
-    var p = wins.map(function (w) { return (w + 0.35) / (SIMS + 0.35 * n); });
-    function harv2(a, b) { return p[a] * p[b] / (1 - p[a]); }
-    function harv3(a, b, c) { return p[a] * p[b] / (1 - p[a]) * p[c] / (1 - p[a] - p[b]); }
+    function sm(c) { return c.map(function (x) { return (x + SMOOTH) / (SIMS + SMOOTH * n); }); }
+    var p1 = sm(c1), e2 = sm(c2), e3 = sm(c3), s2 = e2.slice(), s3 = e3.slice();
+    function norm(a) { var t = 0; a.forEach(function (x) { t += x; }); return a.map(function (x) { return x / t; }); }
+    function ex(a, b) { return p1[a] * s2[b] / Math.max(1 - s2[a], 1e-9); }
+    function tri(a, b, c) { return ex(a, b) * s3[c] / Math.max(1 - s3[a] - s3[b], 1e-9); }
+    for (it = 0; it < FIT_ITERS; it++) {
+      var q2 = [];
+      for (j = 0; j < n; j++) { var t2 = 0; for (i = 0; i < n; i++) if (i !== j) t2 += ex(i, j); q2.push(t2); }
+      s2 = norm(s2.map(function (x, z) { return x * e2[z] / Math.max(q2[z], 1e-12); }));
+    }
+    for (it = 0; it < FIT_ITERS; it++) {
+      var q3 = [];
+      for (k = 0; k < n; k++) {
+        var t3 = 0;
+        for (i = 0; i < n; i++) for (j = 0; j < n; j++) if (i !== j && i !== k && j !== k) t3 += tri(i, j, k);
+        q3.push(t3);
+      }
+      s3 = norm(s3.map(function (x, z) { return x * e3[z] / Math.max(q3[z], 1e-12); }));
+    }
     var prob = { win: {}, place: {}, quinella: {}, exacta: {}, wide: {}, trio: {}, trifecta: {} };
     for (i = 0; i < n; i++) {
-      prob.win[i] = p[i];
-      var pl = p[i];
-      for (j = 0; j < n; j++) if (j !== i) pl += harv2(j, i);
+      prob.win[i] = p1[i];
+      var pl = p1[i];
+      for (j = 0; j < n; j++) if (j !== i) pl += ex(j, i);
       prob.place[i] = pl;
     }
     for (i = 0; i < n; i++) for (j = 0; j < n; j++) {
       if (i === j) continue;
-      prob.exacta[i + "-" + j] = harv2(i, j);
-      if (i < j) prob.quinella[i + "-" + j] = harv2(i, j) + harv2(j, i);
+      prob.exacta[i + "-" + j] = ex(i, j);
+      if (i < j) prob.quinella[i + "-" + j] = ex(i, j) + ex(j, i);
       for (k = 0; k < n; k++) {
         if (k === i || k === j) continue;
-        prob.trifecta[i + "-" + j + "-" + k] = harv3(i, j, k);
+        var pr = tri(i, j, k), srt = [i, j, k].sort(function (x, y) { return x - y; });
+        prob.trifecta[i + "-" + j + "-" + k] = pr;
+        prob.trio[srt.join("-")] = (prob.trio[srt.join("-")] || 0) + pr;
+        [[srt[0], srt[1]], [srt[0], srt[2]], [srt[1], srt[2]]].forEach(function (pair) {
+          var wk = pair.join("-");
+          prob.wide[wk] = (prob.wide[wk] || 0) + pr;
+        });
       }
     }
-    Object.keys(prob.trifecta).forEach(function (key) {
-      var a = key.split("-").map(Number), pr = prob.trifecta[key];
-      var s = a.slice().sort(function (x, y) { return x - y; });
-      var tk = s.join("-");
-      prob.trio[tk] = (prob.trio[tk] || 0) + pr;
-      [[s[0], s[1]], [s[0], s[2]], [s[1], s[2]]].forEach(function (pair) {
-        var wk = pair.join("-");
-        prob.wide[wk] = (prob.wide[wk] || 0) + pr;
-      });
-    });
-    var out = { p: p, prob: prob };
+    return { p: p1, prob: prob };
+  }
+  function odds(card) {
+    if (card._odds) return card._odds;
+    var pp = placeProbs(card), out = { p: pp.p, prob: pp.prob };
     D.BET_TYPES.forEach(function (bt) {
       var o = {};
-      Object.keys(prob[bt.id]).forEach(function (key) {
-        var v = bt.take / Math.max(prob[bt.id][key], 1e-6);
-        o[key] = clamp(Math.floor(v * 10) / 10, 1.1, 9999.9);
-      });
+      Object.keys(pp.prob[bt.id]).forEach(function (key) { o[key] = oddsValue(bt.take / Math.max(pp.prob[bt.id][key], 1e-6)); });
       out[bt.id] = o;
     });
     card._odds = out;
@@ -727,10 +783,10 @@
 
   window.PriTestSaigoCore = {
     courseCode: courseCode,
-    DT: DT, MODE: MODE, LANE_W: LANE_W, DOCK_RUN: DOCK_RUN, LOOP_IN: LOOP_IN, LOOP_R: LOOP_R, LOOP_C: LOOP_C,
+    DT: DT, MODE: MODE, STYLE_CMD_MAX: STYLE_CMD_MAX, STYLE_CMD_PROG: STYLE_CMD_PROG, STYLE_CMD_COST: STYLE_CMD_COST, stepOf: stepOf, LANE_W: LANE_W, DOCK_RUN: DOCK_RUN, LOOP_IN: LOOP_IN, LOOP_R: LOOP_R, LOOP_C: LOOP_C,
     rng: rng, hashStr: hashStr, newSeed: newSeed, clamp: clamp,
     makeCard: makeCard, effStats: effStats, simulate: simulate, stateAt: stateAt, rankAt: rankAt,
     geometry: geometry, pointAt: pointAt, partAt: partAt, laneOff: laneOff,
-    odds: odds, popularity: popularity, cardForWire: cardForWire, paceKind: paceKind
+    odds: odds, oddsValue: oddsValue, ODDS_MIN: ODDS_MIN, popularity: popularity, cardForWire: cardForWire, paceKind: paceKind
   };
 })();

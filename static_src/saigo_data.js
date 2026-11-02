@@ -275,12 +275,17 @@
     { id: "trifecta", name: C("三連單", "三連単", "Trifecta"), pick: 3, ordered: true, take: 0.725 }
   ];
 
-  // 賽事等級：CPU 的訓練加成範圍與獎金倍率
+  // 賽事等級：CPU 的訓練加成範圍、獎金倍率、CPU 犬種實力帶（band：breedRating 的範圍，同一場的 CPU 依此配對）
   var CLASSES = [
-    { id: "rookie", name: C("新手戰", "新馬戦", "Rookie"), cpu: [0, 8], prize: 1 },
-    { id: "open", name: C("一般戰", "一般戦", "Open"), cpu: [6, 18], prize: 2 },
-    { id: "stakes", name: C("重賞", "重賞", "Stakes"), cpu: [16, 30], prize: 4 }
+    { id: "rookie", name: C("新手戰", "新馬戦", "Rookie"), cpu: [0, 8], prize: 1, band: [42, 64] },
+    { id: "open", name: C("一般戰", "一般戦", "Open"), cpu: [6, 18], prize: 2, band: [50, 72] },
+    { id: "stakes", name: C("重賞", "重賞", "Stakes"), cpu: [16, 30], prize: 4, band: [58, 80] }
   ];
+  // 犬種實力分：與實測平均名次的相關係數約 −0.98（2026-11-02 以 47 犬種 × 120 場量測）
+  function breedRating(b) {
+    var B = b.base;
+    return B.spd * 0.55 + B.sta * 0.15 + (B.pow + B.agi + B.jmp) / 3 * 0.3;
+  }
   var PRIZES = [3000, 1500, 800, 300, 200, 200];
 
   var NAMES = {
@@ -289,7 +294,7 @@
   };
 
   window.PriTestSaigoData = {
-    C: C, L: L, STATS: STATS, SIZES: SIZES, STYLES: STYLES, STYLE_IDS: STYLE_IDS, APT: APT, aptitude: aptitude, rollBestStyle: rollBestStyle,
+    C: C, L: L, STATS: STATS, SIZES: SIZES, STYLES: STYLES, STYLE_IDS: STYLE_IDS, APT: APT, aptitude: aptitude, rollBestStyle: rollBestStyle, breedRating: breedRating,
     BREEDS: BREEDS, BREED_BY_ID: BREED_BY_ID,
     PARTS: PARTS, PART_WEIGHTS: PART_WEIGHTS, HURDLE_TYPES: HURDLE_TYPES, WEATHERS: WEATHERS, GROUNDS: GROUNDS, MOODS: MOODS,
     KINDS: KINDS, SURFACES: SURFACES, TERRAINS: TERRAINS, DISTANCES: DISTANCES, partName: partName,

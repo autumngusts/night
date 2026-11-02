@@ -8,12 +8,15 @@
 //   m/<no>        { card: JSON（出賽表，含 seed）, startAt: 伺服器時刻 ms（0＝還在下注） }
 //   m/<no>/bets/<pid>  JSON { type: { combo: 金額 } }（彩池制：每個人目前的下注）
 //   m/<no>/pool   JSON { base, h: 合計 }（彩池制：房主開跑時鎖定的彩池，大家用它算最終賠率）
+//   m/<no>/cmd/<pid>   JSON [{ k: 第幾步生效, d: 枠, s: 跑法 }]（比賽中改跑法：每個人自己的狗的指令）
 //   jp            { amt: 累積彩金, no: 已結算到第幾場, last: { no, pot, win: [{ pid, name, pay }] } }
 //   bank          { start: 起始籌碼, ver: 重置次數 }（管理面板設定）
 //   bal/<pid>     { c: 籌碼, ver, name }（房間籌碼；pid 存在 localStorage，重新整理／重進房間也還是同一份）
 //
-// 同步方式：比賽不需要任何即時指令——出賽表（含 seed）一旦發佈，每台裝置自己跑同一個確定性模擬，
+// 同步方式：出賽表（含 seed）一旦發佈，每台裝置自己跑同一個確定性模擬，
 // 依伺服器時鐘（startAt）播放，所以結果完全一樣，只是各自看不同的鏡頭。
+// 唯一的即時指令是「比賽中改跑法」（m/<no>/cmd）：指令記的是「第幾步生效」且比送出時晚 CMD_LEAD_S 秒，
+// 各裝置收到後用同一份指令從頭重新模擬，生效前的每一步都和原本一樣，所以畫面不會跳、結果也一致。
 // 下注用房間籌碼（bal）：各自的裝置扣款／派彩，管理面板可以改任何人的籌碼，一律用 transaction 避免互相覆蓋。
 (function () {
   "use strict";
@@ -22,6 +25,7 @@
   if (!GS) return;
 
   var START_DELAY_MS = 5000;
+  var CMD_LEAD_S = 1.5;
   var ROOM_RE = /^g[0-9a-f]{32}$/;
   var CLOUD = "cloud";
   var PID_KEY = "pritest-saigo-pid";
@@ -119,6 +123,18 @@
       lock.then(function () { return set("m/" + no + "/startAt", GS.serverNow() + START_DELAY_MS); }).then(function () {
         return set("meta", { v: 1, host: cid, no: no, status: "race" });
       });
+    };
+    // 比賽中改跑法：把自己全部的指令寫進房間（覆寫，指令最多幾筆）
+    room.pushCmds = function (list) {
+      if (!room.match || !room.match.startAt) return;
+      set("m/" + room.match.no + "/cmd/" + room.pid, JSON.stringify((list || []).slice(0, 8)));
+    };
+    // 全房間的指令（攤平）
+    room.cmds = function () {
+      var m = room.match, out = [];
+      if (!m) return out;
+      Object.keys(m.cmds || {}).forEach(function (pid) { (m.cmds[pid] || []).slice(0, 8).forEach(function (c) { out.push(c); }); });
+      return out;
     };
     room.backToLobby = function () {
       if (!room.isHost() || !room.meta) return;
@@ -240,7 +256,9 @@
         var same = room.match && room.match.no === no;
         var bets = {};
         Object.keys(v.bets || {}).forEach(function (pid) { var b = parseJson(v.bets[pid]); if (b) bets[pid] = b; });
-        room.match = { no: no, card: same ? room.match.card : card, startAt: Number(v.startAt) || 0, bets: bets, pool: parseJson(v.pool) };
+        var cmds = {};
+        Object.keys(v.cmd || {}).forEach(function (pid) { var c = parseJson(v.cmd[pid]); if (Array.isArray(c)) cmds[pid] = c; });
+        room.match = { no: no, card: same ? room.match.card : card, startAt: Number(v.startAt) || 0, bets: bets, pool: parseJson(v.pool), cmds: cmds };
         changed();
       });
     }
@@ -282,7 +300,7 @@
   }
 
   window.PriTestSaigoNet = {
-    START_DELAY_MS: START_DELAY_MS, DEFAULT_START: DEFAULT_START,
+    START_DELAY_MS: START_DELAY_MS, CMD_LEAD_S: CMD_LEAD_S, DEFAULT_START: DEFAULT_START,
     open: open, roomFromUrl: roomFromUrl, validRoomId: function (id) { return ROOM_RE.test(String(id || "")); }
   };
 })();

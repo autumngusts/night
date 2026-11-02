@@ -999,10 +999,14 @@
       }
       return m;
     });
-    var spans = buildSpans(result, n);
+    // 由模擬結果推出的畫面資料；比賽中改跑法重新模擬後呼叫 derive() 重算
+    var spans, knocks, knocked, failed, finV;
+    function derive() {
+    (knocks || []).forEach(function (k) { k.bar.mesh.position.y = k.bar.h; k.bar.mesh.rotation.z = 0; });
+    spans = buildSpans(result, n);
     // 碰倒的欄：哪隻狗、哪一根、什麼時候（畫面上欄杆會掉下來，那一根也不做跳躍弧線）
-    var knocks = [], knocked = {};
-    var failed = {};   // 跳失敗（風火輪撞圈、彈跳床摔、跳溝掉水）：那一跳不畫弧線
+    knocks = []; knocked = {};
+    failed = {};   // 跳失敗（風火輪撞圈、彈跳床摔、跳溝掉水）：那一跳不畫弧線
     (result.events || []).forEach(function (e) {
       if (e.k === "ringMiss" || e.k === "bounceFlop" || e.k === "ditchFall") {
         var s2 = Core.stateAt(result, e.t + result.dt)[e.d].s, pt2 = Core.partAt(card.course, s2);
@@ -1019,12 +1023,14 @@
       if (props.bars[key]) knocks.push({ bar: props.bars[key], t: e.t });
     });
     // 完走時的速度（衝過終點後減速用）
-    var finV = card.dogs.map(function (d, i) {
+    finV = card.dogs.map(function (d, i) {
       var tf = result.times[i];
       if (tf === null) return 0;
       var k = clamp(Math.round(tf / result.dt) - 2, 0, result.frames.length - 1);
       return result.frames[k][i * 3 + 1];
     });
+    }
+    derive();
 
     // 天氣粒子
     // vel＝每秒位移（颱風／暴風雪／沙塵暴是斜的），n＝粒子數
@@ -1276,6 +1282,7 @@
 
     return {
       frame: frame, resize: resize,
+      refresh: function () { derive(); },
       setCam: function (mode, dog) { cam.mode = mode; if (dog !== undefined) cam.dog = dog; cam.snap = true; cam.shot = null; },
       cam: function () { return { mode: cam.mode, dog: cam.dog }; },
       dispose: function () {
